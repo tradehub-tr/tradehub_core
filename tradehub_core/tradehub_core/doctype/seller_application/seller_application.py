@@ -77,9 +77,6 @@ class SellerApplication(Document):
 			admin_profile.owner = user
 			admin_profile.insert(ignore_permissions=True)
 
-			# Store seller_code back on Seller Profile
-			frappe.db.set_value("Seller Profile", {"user": user}, "seller_code", seller_code)
-
 		# Add Seller role
 		if "Seller" not in frappe.get_roles(user):
 			user_doc = frappe.get_doc("User", user)
