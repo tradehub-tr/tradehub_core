@@ -1,10 +1,18 @@
 import frappe
+from frappe.permissions import add_permission
 
 
 def after_install():
 	"""Create custom marketplace roles. Idempotent — safe to run on every migrate."""
 	_create_marketplace_roles()
+	_setup_core_permissions()
 	frappe.db.commit()
+
+
+def _setup_core_permissions():
+	"""Give Seller role read access to core DocTypes needed for listing management."""
+	for doctype in ("Currency", "UOM", "Country"):
+		add_permission(doctype, "Seller", 0)
 
 
 def _create_marketplace_roles():
