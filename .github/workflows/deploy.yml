@@ -188,16 +188,31 @@ jobs:
             fi
             log "Deploy baslatildi! Build ID: $DEPLOY_ID"
 
-            # Yeni bench aktif olmasini bekle
-            sleep 5
-            NEW_BENCH=$(api_get "frappe.client.get_list?doctype=Bench&filters=%5B%5B%22group%22%2C%22%3D%22%2C%22$BENCH_NAME%22%5D%5D&fields=%5B%22name%22%5D&order_by=creation+desc&limit_page_length=1" \
-              | python3 -c "import sys,json; print(json.load(sys.stdin)['message'][0]['name'])" 2>/dev/null)
-            log "Yeni bench: $NEW_BENCH"
+            # Yeni bench'in olusmasini bekle (eski bench'ten farkli olmali)
+            log "Yeni bench olusmasini bekleniyor (mevcut: $ACTIVE_BENCH)..."
+            NEW_BENCH=""
+            WAITED=0
+            while [ $WAITED -lt 120 ]; do
+              sleep 10
+              WAITED=$((WAITED + 10))
+              NEW_BENCH=$(api_get "frappe.client.get_list?doctype=Bench&filters=%5B%5B%22group%22%2C%22%3D%22%2C%22$BENCH_NAME%22%5D%5D&fields=%5B%22name%22%5D&order_by=creation+desc&limit_page_length=1" \
+                | python3 -c "import sys,json; print(json.load(sys.stdin)['message'][0]['name'])" 2>/dev/null)
+              if [ -n "$NEW_BENCH" ] && [ "$NEW_BENCH" != "$ACTIVE_BENCH" ]; then
+                log "Yeni bench bulundu: $NEW_BENCH (${WAITED}s)"
+                break
+              fi
+              log "  Yeni bench henuz olusturulmadi (${WAITED}s)..."
+            done
 
+            # Eger yeni bench olusturulmadiysa, mevcut bench'i kullan
+            if [ -z "$NEW_BENCH" ] || [ "$NEW_BENCH" = "$ACTIVE_BENCH" ]; then
+              log "Yeni bench olusturulmadi, mevcut bench kullaniliyor: $ACTIVE_BENCH"
+              NEW_BENCH="$ACTIVE_BENCH"
+            fi
+
+            # Bench aktif olmasini bekle
             WAITED=0
             while [ $WAITED -lt $MAX_DEPLOY_WAIT ]; do
-              sleep $POLL_INTERVAL
-              WAITED=$((WAITED + POLL_INTERVAL))
               BENCH_STATUS=$(api_get "frappe.client.get?doctype=Bench&name=$NEW_BENCH" \
                 | python3 -c "import sys,json; print(json.load(sys.stdin).get('message',{}).get('status',''))" 2>/dev/null)
               log "  Bench durumu: $BENCH_STATUS (${WAITED}s)"
@@ -205,6 +220,8 @@ jobs:
                 "Active") log "Bench aktif!"; break ;;
                 "Broken"|"Archived") log "HATA: Bench basarisiz: $BENCH_STATUS"; exit 1 ;;
               esac
+              sleep $POLL_INTERVAL
+              WAITED=$((WAITED + POLL_INTERVAL))
             done
 
             if [ $WAITED -ge $MAX_DEPLOY_WAIT ]; then
@@ -212,33 +229,43 @@ jobs:
               exit 1
             fi
 
-            # Site update bekle (deploy_and_update otomatik olusturur)
-            log "Site update bekleniyor..."
-            sleep 10
+            # Site update bekle veya tetikle
+            log "Site update kontrol ediliyor..."
 
-            PENDING_ID=$(api_get "frappe.client.get_list?doctype=Site+Update&filters=%5B%5B%22site%22%2C%22%3D%22%2C%22$SITE_NAME%22%5D%2C%5B%22status%22%2C%22in%22%2C%5B%22Pending%22%2C%22Running%22%5D%5D%5D&fields=%5B%22name%22%5D&order_by=creation+desc&limit_page_length=1" \
-              | python3 -c "import sys,json; d=json.load(sys.stdin)['message']; print(d[0]['name'] if d else '')" 2>/dev/null)
+            # Polling ile site update'in olusmasini veya update_available olmasini bekle
+            SITE_UPDATED=false
+            WAITED=0
+            while [ $WAITED -lt $MAX_UPDATE_WAIT ]; do
+              sleep $POLL_INTERVAL
+              WAITED=$((WAITED + POLL_INTERVAL))
 
-            if [ -n "$PENDING_ID" ]; then
-              WAITED=0
-              while [ $WAITED -lt $MAX_UPDATE_WAIT ]; do
-                sleep $POLL_INTERVAL
-                WAITED=$((WAITED + POLL_INTERVAL))
-                STATUS=$(api_get "frappe.client.get?doctype=Site+Update&name=$PENDING_ID&fields=%5B%22name%22%2C%22status%22%5D" \
-                  | python3 -c "import sys,json; print(json.load(sys.stdin).get('message',{}).get('status',''))" 2>/dev/null)
-                log "  Site update durumu: $STATUS (${WAITED}s)"
-                case "$STATUS" in
-                  "Success") log "Site basariyla guncellendi!"; break ;;
-                  "Failure"|"Fatal"|"Recovered") log "HATA: Site update basarisiz: $STATUS"; exit 1 ;;
-                esac
-              done
-            else
-              # Henuz olusturulmadiysa manuel tetikle
-              sleep 10
-              RECHECK=$(api_get "press.api.site.check_for_updates?name=$SITE_NAME" \
+              # Once bekleyen/calisan site update var mi kontrol et
+              PENDING_ID=$(api_get "frappe.client.get_list?doctype=Site+Update&filters=%5B%5B%22site%22%2C%22%3D%22%2C%22$SITE_NAME%22%5D%2C%5B%22status%22%2C%22in%22%2C%5B%22Pending%22%2C%22Running%22%5D%5D%5D&fields=%5B%22name%22%2C%22status%22%5D&order_by=creation+desc&limit_page_length=1" \
+                | python3 -c "import sys,json; d=json.load(sys.stdin)['message']; print(d[0]['name'] if d else '')" 2>/dev/null)
+
+              if [ -n "$PENDING_ID" ]; then
+                log "Site update bulundu: $PENDING_ID - tamamlanmasi bekleniyor..."
+                INNER_WAITED=0
+                while [ $INNER_WAITED -lt $MAX_UPDATE_WAIT ]; do
+                  sleep $POLL_INTERVAL
+                  INNER_WAITED=$((INNER_WAITED + POLL_INTERVAL))
+                  STATUS=$(api_get "frappe.client.get?doctype=Site+Update&name=$PENDING_ID&fields=%5B%22name%22%2C%22status%22%5D" \
+                    | python3 -c "import sys,json; print(json.load(sys.stdin).get('message',{}).get('status',''))" 2>/dev/null)
+                  log "  Site update durumu: $STATUS (${INNER_WAITED}s)"
+                  case "$STATUS" in
+                    "Success") log "Site basariyla guncellendi!"; SITE_UPDATED=true; break ;;
+                    "Failure"|"Fatal"|"Recovered") log "HATA: Site update basarisiz: $STATUS"; exit 1 ;;
+                  esac
+                done
+                break
+              fi
+
+              # Update available mi kontrol et
+              UPDATE_AVAIL=$(api_get "press.api.site.check_for_updates?name=$SITE_NAME" \
                 | python3 -c "import sys,json; print(json.load(sys.stdin).get('message',{}).get('update_available',False))" 2>/dev/null)
-              if [ "$RECHECK" = "True" ]; then
-                log "Site update tetikleniyor..."
+
+              if [ "$UPDATE_AVAIL" = "True" ]; then
+                log "Guncelleme mevcut! Site update tetikleniyor..."
                 UPDATE_RESP=$(api_post "press.api.site.update" \
                   "{\"name\": \"$SITE_NAME\", \"skip_failing_patches\": false, \"skip_backups\": false}")
                 UPD_ID=$(echo "$UPDATE_RESP" | python3 -c "
@@ -247,21 +274,30 @@ jobs:
           else: print('')
           " 2>/dev/null)
                 if [ -n "$UPD_ID" ]; then
-                  WAITED=0
-                  while [ $WAITED -lt $MAX_UPDATE_WAIT ]; do
-                    sleep $POLL_INTERVAL; WAITED=$((WAITED + POLL_INTERVAL))
+                  log "Site update tetiklendi! ID: $UPD_ID"
+                  INNER_WAITED=0
+                  while [ $INNER_WAITED -lt $MAX_UPDATE_WAIT ]; do
+                    sleep $POLL_INTERVAL
+                    INNER_WAITED=$((INNER_WAITED + POLL_INTERVAL))
                     STATUS=$(api_get "frappe.client.get?doctype=Site+Update&name=$UPD_ID&fields=%5B%22name%22%2C%22status%22%5D" \
                       | python3 -c "import sys,json; print(json.load(sys.stdin).get('message',{}).get('status',''))" 2>/dev/null)
-                    log "  Site update durumu: $STATUS (${WAITED}s)"
+                    log "  Site update durumu: $STATUS (${INNER_WAITED}s)"
                     case "$STATUS" in
-                      "Success") log "Site guncellendi!"; break ;;
+                      "Success") log "Site guncellendi!"; SITE_UPDATED=true; break ;;
                       "Failure"|"Fatal") log "HATA: $STATUS"; exit 1 ;;
                     esac
                   done
+                else
+                  log "UYARI: Site update tetiklenemedi, yanit: $UPDATE_RESP"
                 fi
-              else
-                log "Site zaten guncel."
+                break
               fi
+
+              log "  Henuz update yok, tekrar kontrol ediliyor (${WAITED}s)..."
+            done
+
+            if [ "$SITE_UPDATED" != "true" ] && [ $WAITED -ge $MAX_UPDATE_WAIT ]; then
+              log "UYARI: Site update zaman asimi - Frappe Cloud panelinden manuel kontrol edin"
             fi
           fi
 
