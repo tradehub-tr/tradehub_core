@@ -30,9 +30,8 @@
   },
   {
    "fieldname": "listing_variant",
-   "fieldtype": "Link",
-   "label": "Listing Variant",
-   "options": "Listing Variant"
+   "fieldtype": "Data",
+   "label": "Listing Variant"
   },
   {
    "fieldname": "variation",

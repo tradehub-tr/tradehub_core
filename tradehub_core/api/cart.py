@@ -202,7 +202,7 @@ def _build_cart_response(cart_name):
 				sellers_map[seller_id]["products"][listing_name] = {
 					"id": listing_name,
 					"title": listing.title or "",
-					"href": f"/pages/product.html?id={listing_name}",
+					"href": f"/pages/product-detail.html?id={listing_name}",
 					"tags": [],
 					"moqLabel": f"Min. {listing.min_order_qty or 1} Adet",
 					"favoriteIcon": "♡",
@@ -223,7 +223,7 @@ def _build_cart_response(cart_name):
 				sellers_map[seller_id]["products"][listing_name] = {
 					"id": listing_name,
 					"title": snap_title,
-					"href": f"/pages/product.html?id={listing_name}",
+					"href": f"/pages/product-detail.html?id={listing_name}",
 					"tags": [],
 					"moqLabel": "",
 					"favoriteIcon": "♡",
@@ -243,6 +243,7 @@ def _build_cart_response(cart_name):
 
 			variant = None
 			if item.listing_variant:
+				# Gerçek Listing Variant doc mu dene
 				variant = frappe.db.get_value(
 					"Listing Variant",
 					item.listing_variant,
@@ -255,13 +256,39 @@ def _build_cart_response(cart_name):
 						sku_image = variant.primary_image
 					if variant.price:
 						base_price_addon = float(variant.price) - base_price
+				else:
+					# Inline (sentetik) varyant: "LST-00004-Renk-Siyah" formatı
+					# Attribute değerini ID'den çıkar
+					parts = item.listing_variant.split("-")
+					if len(parts) >= 3:
+						variant_text = parts[-1]  # son parça attribute değeri
+					# Inline varyant fiyatını bul
+					inline_parts = item.listing_variant[len(listing_name) + 1:].split("-", 1) if item.listing_variant.startswith(listing_name + "-") else []
+					if len(inline_parts) == 2:
+						attr_type, attr_value = inline_parts
+						iv = frappe.db.get_value(
+							"Listing Variant Item",
+							{"parent": listing_name, "parenttype": "Listing", "attribute_type": attr_type, "attribute_value": attr_value},
+							["variant_price", "variant_image", "variant_stock"],
+							as_dict=True,
+						)
+						if iv:
+							if iv.variant_image:
+								sku_image = iv.variant_image
+							if iv.variant_price and iv.variant_price > 0:
+								base_price_addon = float(iv.variant_price) - base_price
 
 			# maxQty: track_inventory açıksa variant stoğunu, yoksa listing stoğunu kullan
 			if listing.track_inventory and not listing.allow_backorders:
 				if variant:
 					max_qty = max(0, int(variant.stock_qty or 0))
 				else:
-					max_qty = max(0, int(listing.stock_qty or 0))
+					# Inline varyant stoğunu kontrol et
+					inline_stock = _get_inline_variant_stock(listing_name, item.listing_variant) if item.listing_variant else None
+					if inline_stock is not None:
+						max_qty = max(0, int(inline_stock))
+					else:
+						max_qty = max(0, int(listing.stock_qty or 0))
 			else:
 				max_qty = 999999
 
@@ -656,9 +683,8 @@ def create_order(orders_json, shipping_address=None, payment_method=None, coupon
 		order_doc.buyer_note = order_data.get("buyer_note", "") or ""
 
 		for p in products:
+			# listing_variant artık Data alanı — sentetik ID'leri (LST-XXXXX-Tip-Değer) olduğu gibi sakla
 			lv = p.get("listing_variant") or None
-			if lv and not frappe.db.exists("Listing Variant", lv):
-				lv = None
 			order_doc.append("items", {
 				"listing": p.get("listing") if p.get("listing") and frappe.db.exists("Listing", p.get("listing")) else None,
 				"listing_title": p.get("listing_title", ""),
@@ -689,10 +715,27 @@ def create_order(orders_json, shipping_address=None, payment_method=None, coupon
 			current_count = int(frappe.db.get_value("Coupon", coupon_name, "used_count") or 0)
 			frappe.db.set_value("Coupon", coupon_name, "used_count", current_count + 1)
 
-	# Sepeti temizle
+	# Sadece sipariş verilen ürünleri sepetten sil (diğer satıcıların ürünleri kalır)
 	cart_name = frappe.db.get_value("Cart", {"buyer": user, "status": "Active"}, "name")
 	if cart_name:
-		frappe.db.delete("Cart Item", {"parent": cart_name})
+		ordered_listings = set()
+		for order_data in orders_data:
+			for p in order_data.get("products", []):
+				listing_id = p.get("listing")
+				variant_id = p.get("listing_variant") or None
+				if listing_id:
+					ordered_listings.add((listing_id, variant_id))
+
+		if ordered_listings:
+			cart_items = frappe.get_all(
+				"Cart Item",
+				filters={"parent": cart_name},
+				fields=["name", "listing", "listing_variant"],
+			)
+			for ci in cart_items:
+				key = (ci.listing, ci.listing_variant or None)
+				if key in ordered_listings:
+					frappe.delete_doc("Cart Item", ci.name, ignore_permissions=True)
 
 	frappe.db.commit()
 	return {"orders": created_orders}

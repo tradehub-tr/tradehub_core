@@ -1,261 +1,284 @@
 {
- "actions": [],
- "autoname": "naming_series:",
- "creation": "2024-01-01 00:00:00.000000",
- "doctype": "DocType",
- "engine": "InnoDB",
- "field_order": [
-  "naming_series",
-  "buyer",
-  "seller",
-  "status",
-  "payment_method",
-  "column_break_1",
-  "order_date",
-  "currency",
-  "subtotal",
-  "shipping_fee",
-  "coupon_code",
-  "coupon_discount",
-  "total",
-  "items_section",
-  "items",
-  "shipping_section",
-  "shipping_address",
-  "shipping_method",
-  "ship_from",
-  "buyer_note",
-  "remittance_section",
-  "remittance_date",
-  "remittance_amount",
-  "remittance_sender",
-  "receipt_url",
-  "refund_section",
-  "refund_status",
-  "refund_reason",
-  "refund_amount",
-  "refund_requested_at"
- ],
- "fields": [
-  {
-   "default": "ORD-.#####",
-   "fieldname": "naming_series",
-   "fieldtype": "Select",
-   "hidden": 1,
-   "label": "Naming Series",
-   "options": "ORD-.#####"
-  },
-  {
-   "fieldname": "buyer",
-   "fieldtype": "Link",
-   "in_list_view": 1,
-   "in_standard_filter": 1,
-   "label": "Alıcı",
-   "options": "User",
-   "reqd": 1,
-   "search_index": 1
-  },
-  {
-   "fieldname": "seller",
-   "fieldtype": "Link",
-   "in_list_view": 1,
-   "in_standard_filter": 1,
-   "label": "Satıcı",
-   "options": "Admin Seller Profile",
-   "search_index": 1
-  },
-  {
-   "default": "Ödeme Bekleniyor",
-   "fieldname": "status",
-   "fieldtype": "Select",
-   "in_list_view": 1,
-   "in_standard_filter": 1,
-   "label": "Durum",
-   "options": "Ödeme Bekleniyor\nOnaylanıyor\nKargoda\nTamamlandı\nİptal Edildi",
-   "reqd": 1
-  },
-  {
-   "fieldname": "payment_method",
-   "fieldtype": "Select",
-   "label": "Ödeme Yöntemi",
-   "options": "bank_transfer\ncredit_card\ninstallment\nnegotiated\ncheck_promissory"
-  },
-  {
-   "fieldname": "column_break_1",
-   "fieldtype": "Column Break"
-  },
-  {
-   "default": "now",
-   "fieldname": "order_date",
-   "fieldtype": "Datetime",
-   "in_list_view": 1,
-   "label": "Sipariş Tarihi",
-   "reqd": 1
-  },
-  {
-   "default": "USD",
-   "fieldname": "currency",
-   "fieldtype": "Link",
-   "label": "Para Birimi",
-   "options": "Currency"
-  },
-  {
-   "default": "0",
-   "fieldname": "subtotal",
-   "fieldtype": "Currency",
-   "label": "Ara Toplam",
-   "options": "currency"
-  },
-  {
-   "default": "0",
-   "fieldname": "shipping_fee",
-   "fieldtype": "Currency",
-   "label": "Kargo Ücreti",
-   "options": "currency"
-  },
-  {
-   "default": "",
-   "fieldname": "coupon_code",
-   "fieldtype": "Data",
-   "label": "Kupon Kodu"
-  },
-  {
-   "default": "0",
-   "fieldname": "coupon_discount",
-   "fieldtype": "Currency",
-   "label": "Kupon İndirimi",
-   "options": "currency"
-  },
-  {
-   "default": "0",
-   "fieldname": "total",
-   "fieldtype": "Currency",
-   "in_list_view": 1,
-   "label": "Toplam",
-   "options": "currency"
-  },
-  {
-   "fieldname": "items_section",
-   "fieldtype": "Section Break",
-   "label": "Ürünler"
-  },
-  {
-   "fieldname": "items",
-   "fieldtype": "Table",
-   "label": "Sipariş Kalemleri",
-   "options": "Order Item"
-  },
-  {
-   "fieldname": "shipping_section",
-   "fieldtype": "Section Break",
-   "label": "Kargo"
-  },
-  {
-   "fieldname": "shipping_address",
-   "fieldtype": "Text",
-   "label": "Teslimat Adresi"
-  },
-  {
-   "fieldname": "shipping_method",
-   "fieldtype": "Data",
-   "label": "Kargo Yöntemi"
-  },
-  {
-   "fieldname": "ship_from",
-   "fieldtype": "Data",
-   "label": "Gönderim Yeri"
-  },
-  {
-   "fieldname": "buyer_note",
-   "fieldtype": "Small Text",
-   "label": "Alıcı Notu"
-  },
-  {
-   "fieldname": "remittance_section",
-   "fieldtype": "Section Break",
-   "label": "Havale Bilgileri"
-  },
-  {
-   "fieldname": "remittance_date",
-   "fieldtype": "Date",
-   "label": "Havale Tarihi"
-  },
-  {
-   "fieldname": "remittance_amount",
-   "fieldtype": "Currency",
-   "label": "Havale Tutarı"
-  },
-  {
-   "fieldname": "remittance_sender",
-   "fieldtype": "Data",
-   "label": "Gönderen Adı"
-  },
-  {
-   "fieldname": "receipt_url",
-   "fieldtype": "Attach",
-   "label": "Dekont"
-  },
-  {
-   "fieldname": "refund_section",
-   "fieldtype": "Section Break",
-   "label": "İade Bilgileri"
-  },
-  {
-   "default": "",
-   "fieldname": "refund_status",
-   "fieldtype": "Select",
-   "label": "İade Durumu",
-   "options": "\nPending\nApproved\nRejected"
-  },
-  {
-   "fieldname": "refund_reason",
-   "fieldtype": "Small Text",
-   "label": "İade Sebebi"
-  },
-  {
-   "default": "0",
-   "fieldname": "refund_amount",
-   "fieldtype": "Currency",
-   "label": "İade Tutarı"
-  },
-  {
-   "fieldname": "refund_requested_at",
-   "fieldtype": "Datetime",
-   "label": "İade Talep Tarihi",
-   "read_only": 1
-  }
- ],
- "links": [],
- "modified": "2024-01-01 00:00:00.000000",
- "modified_by": "Administrator",
- "module": "Tradehub Core",
- "name": "Order",
- "naming_rule": "By \"Naming Series\" field",
- "owner": "Administrator",
- "permissions": [
-  {
-   "create": 1,
-   "delete": 1,
-   "email": 1,
-   "export": 1,
-   "print": 1,
-   "read": 1,
-   "report": 1,
-   "role": "System Manager",
-   "share": 1,
-   "write": 1
-  },
-  {
-   "create": 1,
-   "read": 1,
-   "role": "All",
-   "if_owner": 1,
-   "write": 0,
-   "delete": 0
-  }
- ],
- "sort_field": "order_date",
- "sort_order": "DESC",
- "title_field": "naming_series",
- "track_changes": 1
+	"actions": [],
+	"autoname": "naming_series:",
+	"creation": "2024-01-01 00:00:00.000000",
+	"doctype": "DocType",
+	"engine": "InnoDB",
+	"field_order": [
+		"tab_order",
+		"sb_header",
+		"naming_series",
+		"buyer",
+		"seller",
+		"status",
+		"payment_method",
+		"column_break_1",
+		"order_date",
+		"currency",
+		"subtotal",
+		"shipping_fee",
+		"coupon_code",
+		"coupon_discount",
+		"total",
+		"tab_items",
+		"items_section",
+		"items",
+		"tab_shipping",
+		"shipping_section",
+		"shipping_address",
+		"shipping_method",
+		"ship_from",
+		"buyer_note",
+		"tab_payment",
+		"remittance_section",
+		"remittance_date",
+		"remittance_amount",
+		"remittance_sender",
+		"receipt_url",
+		"tab_refund",
+		"refund_section",
+		"refund_status",
+		"refund_reason",
+		"refund_amount",
+		"refund_requested_at"
+	],
+	"fields": [
+		{
+			"fieldname": "tab_order",
+			"fieldtype": "Tab Break",
+			"label": "Sipariş"
+		},
+		{
+			"fieldname": "sb_header",
+			"fieldtype": "Section Break",
+			"label": "Sipariş Bilgileri"
+		},
+		{
+			"fieldname": "naming_series",
+			"fieldtype": "Select",
+			"label": "Naming Series",
+			"options": "ORD-.#####",
+			"default": "ORD-.#####"
+		},
+		{
+			"fieldname": "buyer",
+			"fieldtype": "Link",
+			"label": "Alıcı",
+			"options": "User",
+			"reqd": 1
+		},
+		{
+			"fieldname": "seller",
+			"fieldtype": "Link",
+			"label": "Satıcı",
+			"options": "User",
+			"reqd": 1
+		},
+		{
+			"fieldname": "status",
+			"fieldtype": "Select",
+			"label": "Durum",
+			"options": "Draft\nPending Payment\nPaid\nShipped\nDelivered\nCompleted\nCancelled\nRefunded",
+			"default": "Draft",
+			"in_list_view": 1,
+			"in_standard_filter": 1
+		},
+		{
+			"fieldname": "payment_method",
+			"fieldtype": "Select",
+			"label": "Ödeme Yöntemi",
+			"options": "\nKredi Kartı\nHavale/EFT\nKapıda Ödeme"
+		},
+		{
+			"fieldname": "column_break_1",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "order_date",
+			"fieldtype": "Datetime",
+			"label": "Sipariş Tarihi",
+			"default": "Now",
+			"in_list_view": 1
+		},
+		{
+			"fieldname": "currency",
+			"fieldtype": "Link",
+			"label": "Para Birimi",
+			"options": "Currency",
+			"default": "TRY"
+		},
+		{
+			"fieldname": "subtotal",
+			"fieldtype": "Currency",
+			"label": "Ara Toplam",
+			"options": "currency"
+		},
+		{
+			"fieldname": "shipping_fee",
+			"fieldtype": "Currency",
+			"label": "Kargo Ücreti",
+			"options": "currency"
+		},
+		{
+			"fieldname": "coupon_code",
+			"fieldtype": "Data",
+			"label": "Kupon Kodu"
+		},
+		{
+			"fieldname": "coupon_discount",
+			"fieldtype": "Currency",
+			"label": "Kupon İndirimi",
+			"options": "currency"
+		},
+		{
+			"fieldname": "total",
+			"fieldtype": "Currency",
+			"label": "Toplam",
+			"options": "currency",
+			"in_list_view": 1,
+			"bold": 1
+		},
+		{
+			"fieldname": "tab_items",
+			"fieldtype": "Tab Break",
+			"label": "Ürünler"
+		},
+		{
+			"fieldname": "items_section",
+			"fieldtype": "Section Break",
+			"label": "Sipariş Kalemleri"
+		},
+		{
+			"fieldname": "items",
+			"fieldtype": "Table",
+			"label": "Sipariş Kalemleri",
+			"options": "Order Item"
+		},
+		{
+			"fieldname": "tab_shipping",
+			"fieldtype": "Tab Break",
+			"label": "Kargo"
+		},
+		{
+			"fieldname": "shipping_section",
+			"fieldtype": "Section Break",
+			"label": "Kargo Bilgileri"
+		},
+		{
+			"fieldname": "shipping_address",
+			"fieldtype": "Text",
+			"label": "Teslimat Adresi"
+		},
+		{
+			"fieldname": "shipping_method",
+			"fieldtype": "Data",
+			"label": "Kargo Yöntemi"
+		},
+		{
+			"fieldname": "ship_from",
+			"fieldtype": "Data",
+			"label": "Gönderim Yeri"
+		},
+		{
+			"fieldname": "buyer_note",
+			"fieldtype": "Small Text",
+			"label": "Alıcı Notu"
+		},
+		{
+			"fieldname": "tab_payment",
+			"fieldtype": "Tab Break",
+			"label": "Ödeme"
+		},
+		{
+			"fieldname": "remittance_section",
+			"fieldtype": "Section Break",
+			"label": "Havale Bilgileri"
+		},
+		{
+			"fieldname": "remittance_date",
+			"fieldtype": "Date",
+			"label": "Havale Tarihi"
+		},
+		{
+			"fieldname": "remittance_amount",
+			"fieldtype": "Currency",
+			"label": "Havale Tutarı",
+			"options": "currency"
+		},
+		{
+			"fieldname": "remittance_sender",
+			"fieldtype": "Data",
+			"label": "Gönderen Adı"
+		},
+		{
+			"fieldname": "receipt_url",
+			"fieldtype": "Attach",
+			"label": "Dekont"
+		},
+		{
+			"fieldname": "tab_refund",
+			"fieldtype": "Tab Break",
+			"label": "İade"
+		},
+		{
+			"fieldname": "refund_section",
+			"fieldtype": "Section Break",
+			"label": "İade Bilgileri"
+		},
+		{
+			"fieldname": "refund_status",
+			"fieldtype": "Select",
+			"label": "İade Durumu",
+			"options": "\nRequested\nApproved\nRejected\nRefunded"
+		},
+		{
+			"fieldname": "refund_reason",
+			"fieldtype": "Small Text",
+			"label": "İade Sebebi"
+		},
+		{
+			"fieldname": "refund_amount",
+			"fieldtype": "Currency",
+			"label": "İade Tutarı",
+			"options": "currency"
+		},
+		{
+			"fieldname": "refund_requested_at",
+			"fieldtype": "Datetime",
+			"label": "İade Talep Tarihi"
+		}
+	],
+	"links": [],
+	"modified": "2024-01-01 00:00:00.000000",
+	"modified_by": "Administrator",
+	"module": "Tradehub Core",
+	"name": "Order",
+	"naming_rule": "By \"Naming Series\" field",
+	"owner": "Administrator",
+	"permissions": [
+		{
+			"create": 1,
+			"delete": 1,
+			"email": 1,
+			"export": 1,
+			"print": 1,
+			"read": 1,
+			"report": 1,
+			"role": "System Manager",
+			"share": 1,
+			"write": 1
+		},
+		{
+			"create": 1,
+			"read": 1,
+			"role": "All",
+			"if_owner": 1,
+			"write": 0,
+			"delete": 0
+		}
+	],
+	"sort_field": "order_date",
+	"sort_order": "DESC",
+	"title_field": "naming_series",
+	"track_changes": 1
 }

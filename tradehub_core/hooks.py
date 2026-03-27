@@ -10,7 +10,7 @@ after_migrate = "tradehub_core.setup.install.after_install"
 app_icon = "octicon octicon-organization"
 app_color = "#0066CC"
 
-required_apps = ["frappe", "erpnext"]
+required_apps = []
 
 app_include_js = "seller_redirect.js"
 

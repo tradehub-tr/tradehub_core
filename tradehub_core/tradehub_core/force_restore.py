@@ -4,7 +4,7 @@ import frappe
 
 def run():
     print("--- Force Restore V2 ---")
-    bench_dir = '/home/ali/Masaüstü/İstoç Güncel Proje/Frappe_Mock_Data/Frappe_Marketplace/frappe-bench'
+    bench_dir = '/home/ali/Masaüstü/istoc.com/tradehubback'
     
     # Clean old ones
     targets = ['TradeHub', 'TR Tradehub']

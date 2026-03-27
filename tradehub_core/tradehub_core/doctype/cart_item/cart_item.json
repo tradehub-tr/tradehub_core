@@ -24,10 +24,9 @@
   },
   {
    "fieldname": "listing_variant",
-   "fieldtype": "Link",
+   "fieldtype": "Data",
    "in_list_view": 1,
-   "label": "Variant",
-   "options": "Listing Variant"
+   "label": "Variant"
   },
   {
    "default": "1",

@@ -36,7 +36,7 @@ def get_sellers(search=None, page=1, page_size=20):
             listings = frappe.get_all(
                 "Listing",
                 filters={"seller_profile": seller_code, "status": "Active"},
-                fields=["name", "title", "primary_image", "selling_price", "base_price", "min_order_qty", "b2b_enabled"],
+                fields=["name", "title", "primary_image", "selling_price", "base_price", "min_order_qty", "b2b_enabled", "currency"],
                 limit=4
             )
             products = []
@@ -60,7 +60,8 @@ def get_sellers(search=None, page=1, page_size=20):
                     "price_min": price_min,
                     "price_max": price_max,
                     "moq": l.min_order_qty or 1,
-                    "moq_unit": "Adet"
+                    "moq_unit": "Adet",
+                    "currency": l.get("currency") or "USD",
                 })
             s["products"] = products
             s["product_images"] = [p["image"] for p in products if p.get("image")]
@@ -130,7 +131,7 @@ def get_seller_categories(seller_code):
         return {"categories": []}
     cats = frappe.get_all(
         "Seller Category",
-        filters={"seller": seller_code, "status": "Active"},
+        filters={"seller": seller_code, "status": "Active", "is_enabled": 1},
         fields=["name", "category_name", "image", "sort_order"],
         order_by="sort_order asc, category_name asc"
     )
@@ -140,9 +141,14 @@ def get_seller_categories(seller_code):
 @frappe.whitelist()
 def add_seller_category(category_name, description="", image="", sort_order=0):
     """Satıcı: yeni kategori ekle (Pending olarak)."""
+    category_name = (category_name or "").strip()
+    if not category_name:
+        frappe.throw(_("Kategori adı boş olamaz."))
     seller_profile = _get_seller_profile_for_session()
     if not seller_profile:
         frappe.throw(_("Satıcı profili bulunamadı."))
+    if frappe.db.exists("Seller Category", {"seller": seller_profile, "category_name": category_name}):
+        frappe.throw(_("Bu isimde bir kategoriniz zaten mevcut."))
     doc = frappe.get_doc({
         "doctype": "Seller Category",
         "seller": seller_profile,
@@ -165,29 +171,75 @@ def get_my_seller_categories():
     cats = frappe.get_all(
         "Seller Category",
         filters={"seller": seller_profile},
-        fields=["name", "category_name", "status", "description", "image", "sort_order", "reject_reason"],
+        fields=["name", "category_name", "status", "is_enabled", "description", "image", "sort_order", "reject_reason"],
         order_by="creation desc",
     )
     return {"success": True, "categories": cats}
 
 
 @frappe.whitelist()
-def delete_seller_category(category_name):
-    """Satıcı: kendi kategorisini sil (Pending veya Rejected olabilir)."""
+def update_seller_category(category_name, new_name=None, description=None, sort_order=None):
+    """Satıcı: kendi kategorisini düzenle — admin onayına düşer (Pending)."""
     seller_profile = _get_seller_profile_for_session()
     if not seller_profile:
         frappe.throw(_("Satıcı profili bulunamadı."))
     cat = frappe.get_doc("Seller Category", category_name)
     if cat.seller != seller_profile:
         frappe.throw(_("Bu kategori size ait değil."), frappe.PermissionError)
-    cat.delete(ignore_permissions=True)
+    if new_name is not None:
+        new_name = new_name.strip()
+        if not new_name:
+            frappe.throw(_("Kategori adı boş olamaz."))
+        # Aynı isimde başka kategori var mı?
+        existing = frappe.db.get_value(
+            "Seller Category",
+            {"seller": seller_profile, "category_name": new_name, "name": ["!=", category_name]},
+            "name"
+        )
+        if existing:
+            frappe.throw(_("Bu isimde bir kategoriniz zaten mevcut."))
+        cat.category_name = new_name
+    if description is not None:
+        cat.description = description
+    if sort_order is not None:
+        cat.sort_order = int(sort_order)
+    cat.status = "Pending"
+    cat.save(ignore_permissions=True)
+    return {"success": True}
+
+
+@frappe.whitelist()
+def toggle_seller_category(category_name, is_enabled):
+    """Satıcı: kendi kategorisini aktif/pasif yap."""
+    seller_profile = _get_seller_profile_for_session()
+    if not seller_profile:
+        frappe.throw(_("Satıcı profili bulunamadı."))
+    cat = frappe.get_doc("Seller Category", category_name)
+    if cat.seller != seller_profile:
+        frappe.throw(_("Bu kategori size ait değil."), frappe.PermissionError)
+    cat.is_enabled = 1 if int(is_enabled) else 0
+    cat.save(ignore_permissions=True)
+    return {"success": True, "is_enabled": cat.is_enabled}
+
+
+@frappe.whitelist()
+def delete_seller_category(category_name):
+    """Satıcı: kendi kategorisini pasife al (soft deactivate)."""
+    seller_profile = _get_seller_profile_for_session()
+    if not seller_profile:
+        frappe.throw(_("Satıcı profili bulunamadı."))
+    cat = frappe.get_doc("Seller Category", category_name)
+    if cat.seller != seller_profile:
+        frappe.throw(_("Bu kategori size ait değil."), frappe.PermissionError)
+    cat.is_enabled = 0
+    cat.save(ignore_permissions=True)
     return {"success": True}
 
 
 @frappe.whitelist()
 def get_pending_seller_categories(page=1, page_size=20):
     """Admin: Onay bekleyen kategorileri listele."""
-    if "System Manager" not in frappe.get_roles() and frappe.session.user != "Administrator":
+    if "System Manager" not in frappe.get_roles(frappe.session.user) and frappe.session.user != "Administrator":
         frappe.throw(_("Yetki hatası"), frappe.PermissionError)
     page = int(page)
     page_size = int(page_size)
@@ -197,8 +249,8 @@ def get_pending_seller_categories(page=1, page_size=20):
         filters={"status": "Pending"},
         fields=["name", "category_name", "seller", "description", "image", "creation"],
         order_by="creation asc",
-        start=(page - 1) * page_size,
-        page_length=page_size,
+        limit_start=(page - 1) * page_size,
+        limit_page_length=page_size,
     )
     for c in cats:
         if c.get("seller"):
@@ -211,7 +263,7 @@ def get_pending_seller_categories(page=1, page_size=20):
 @frappe.whitelist()
 def approve_seller_category(category_name, action="approve", reject_reason=""):
     """Admin: kategoriyi onayla veya reddet."""
-    if "System Manager" not in frappe.get_roles() and frappe.session.user != "Administrator":
+    if "System Manager" not in frappe.get_roles(frappe.session.user) and frappe.session.user != "Administrator":
         frappe.throw(_("Yetki hatası"), frappe.PermissionError)
     cat = frappe.get_doc("Seller Category", category_name)
     if action == "approve":
@@ -246,7 +298,7 @@ def get_seller_products(seller_code, category=None, page=1, page_size=40):
         "Listing",
         filters=filters,
         fields=["name", "title", "primary_image", "selling_price", "base_price",
-                "min_order_qty", "category", "short_description", "b2b_enabled"],
+                "min_order_qty", "category", "short_description", "b2b_enabled", "currency"],
         limit_start=(int(page)-1)*int(page_size),
         limit_page_length=int(page_size),
         order_by="creation desc"
@@ -255,6 +307,7 @@ def get_seller_products(seller_code, category=None, page=1, page_size=40):
         l["id"] = l.get("name", "")
         l["product_name"] = l.get("title", "")
         l["image"] = l.get("primary_image", "")
+        l["currency"] = l.get("currency") or "USD"
         price_min = l.get("selling_price") or l.get("base_price") or 0
         price_max = l.get("base_price") or l.get("selling_price") or 0
         if l.get("b2b_enabled"):
@@ -288,6 +341,34 @@ def get_reviews(seller_code, page=1, page_size=10):
     )
     total = frappe.db.count("Seller Review", filters=filters)
     return {"reviews": reviews, "total": total}
+
+
+@frappe.whitelist()
+def submit_review(seller_code, rating, comment):
+    if frappe.session.user == "Guest":
+        frappe.throw(_("Yorum yapmak icin giris yapmaniz gerekiyor"), frappe.AuthenticationError)
+    if not frappe.db.exists("Admin Seller Profile", seller_code):
+        frappe.throw(_("Satici bulunamadi"), frappe.DoesNotExistError)
+    rating = float(rating)
+    if rating < 1 or rating > 5:
+        frappe.throw(_("Puan 1 ile 5 arasinda olmalidir"))
+    comment = (comment or "").strip()
+    if not comment:
+        frappe.throw(_("Yorum bos olamaz"))
+    user_data = frappe.db.get_value(
+        "User", frappe.session.user, ["full_name", "name"], as_dict=True
+    )
+    reviewer_name = user_data.full_name or user_data.name
+    doc = frappe.new_doc("Seller Review")
+    doc.seller = seller_code
+    doc.reviewer_name = reviewer_name
+    doc.rating = rating
+    doc.comment = comment
+    doc.status = "Published"
+    doc.date = frappe.utils.now()
+    doc.insert(ignore_permissions=True)
+    frappe.db.commit()
+    return {"success": True, "name": doc.name}
 
 
 @frappe.whitelist()

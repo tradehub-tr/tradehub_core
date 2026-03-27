@@ -37,7 +37,18 @@ def get_listings(
     }
 
     if category:
-        filters["category"] = category
+        # category param is a url_slug from Product Category.
+        # Try to resolve it as a platform category first (url_slug lookup),
+        # then fall back to exact match on the seller category field.
+        platform_cat = frappe.db.get_value(
+            "Product Category", {"url_slug": category}, "name"
+        )
+        if platform_cat:
+            # Filter by platform category (product_category field)
+            filters["product_category"] = platform_cat
+        else:
+            # Fallback: treat as seller category name/id
+            filters["category"] = category
     if is_featured:
         filters["is_featured"] = 1
     if is_best_seller:

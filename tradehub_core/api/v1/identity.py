@@ -44,6 +44,15 @@ def _generate_otp() -> str:
 	return "".join([str(secrets.randbelow(10)) for _ in range(6)])
 
 
+def _reassign_file_owner(file_url: str, new_owner: str):
+	"""Reassign file owner from Guest to actual user after registration."""
+	if not file_url:
+		return
+	file_name = frappe.db.get_value("File", {"file_url": file_url}, "name")
+	if file_name:
+		frappe.db.set_value("File", file_name, "owner", new_owner)
+
+
 def _create_email_verification(email: str, first_name: str):
 	"""Send a background email verification link after registration."""
 	key = frappe.generate_hash(length=32)
@@ -145,10 +154,10 @@ def verify_registration_otp(email: str, code: str):
 			json.dumps(otp_data),
 			expires_in_sec=600,
 		)
-		frappe.local.response["http_status_code"] = 401
+		frappe.local.response["http_status_code"] = 422
 		frappe.throw(
 			_("Wrong verification code."),
-			frappe.AuthenticationError,
+			frappe.ValidationError,
 		)
 
 	# Code matches — generate registration_token
@@ -246,6 +255,7 @@ def register_user(
 	buyer.country = country
 	buyer.phone = phone
 	buyer.status = "Active"
+	buyer.owner = email
 	buyer.insert(ignore_permissions=True)
 
 	# ── Background email verification ──
@@ -358,11 +368,13 @@ def register_supplier(
 	buyer.country = country
 	buyer.phone = phone or contact_phone
 	buyer.status = "Active"
+	buyer.owner = email
 	buyer.insert(ignore_permissions=True)
 
 	# ── Create Seller Application (Submitted) ──
 	app = frappe.new_doc("Seller Application")
 	app.applicant_user = email
+	app.owner = email
 	app.member_id = member_id
 	app.contact_email = email
 	app.status = "Submitted"
@@ -388,6 +400,10 @@ def register_supplier(
 	app.commission_accepted = int(commission_accepted)
 	app.return_policy_accepted = int(return_policy_accepted)
 	app.insert(ignore_permissions=True)
+
+	# ── Assign uploaded files to new user ──
+	if identity_document:
+		_reassign_file_owner(identity_document, email)
 
 	# ── Background email verification ──
 	_create_email_verification(email, first_name)
@@ -470,15 +486,19 @@ def reset_password(key: str, new_password: str):
 		)
 
 	# Check 24-hour expiry
-	if user_data.last_reset_password_key_generated_on:
-		age = (
-			now_datetime() - user_data.last_reset_password_key_generated_on
-		).total_seconds()
-		if age > 86400:
-			frappe.throw(
-				_("This reset link has expired. Please request a new one."),
-				frappe.AuthenticationError,
-			)
+	if not user_data.last_reset_password_key_generated_on:
+		frappe.throw(
+			_("Invalid or expired password reset link."),
+			frappe.AuthenticationError,
+		)
+	age = (
+		now_datetime() - user_data.last_reset_password_key_generated_on
+	).total_seconds()
+	if age > 86400:
+		frappe.throw(
+			_("This reset link has expired. Please request a new one."),
+			frappe.AuthenticationError,
+		)
 
 	# Validate new password
 	_validate_password(new_password)
@@ -571,6 +591,15 @@ def change_phone(phone: str, password: str):
 		frappe.local.response["http_status_code"] = 400
 		frappe.throw(_("Phone number is required."), frappe.ValidationError)
 
+	# Validate phone format
+	cleaned = re.sub(r"[\s\-\(\)]", "", phone)
+	if not re.match(r"^(\+90|0)?5\d{9}$", cleaned):
+		frappe.local.response["http_status_code"] = 400
+		frappe.throw(
+			_("Please enter a valid Turkish phone number."),
+			frappe.ValidationError,
+		)
+
 	# Verify password — returns 400 on failure (not 401)
 	_verify_password(user, password)
 
@@ -634,9 +663,51 @@ def delete_account(password: str, reason: str = ""):
 		message=f"User {user} requested account deletion.\nReason: {reason or 'Not specified'}",
 	)
 
+	# Clear all active sessions for this user
+	frappe.sessions.clear_sessions(user)
+
 	frappe.db.commit()
 
 	return {"success": True, "message": _("Your account has been deleted.")}
+
+
+@frappe.whitelist(allow_guest=True, methods=["POST"])
+@rate_limit(limit=10, seconds=300)
+def upload_private_file(filename: str = "", filedata: str = ""):
+	"""Upload a file as private (e.g. identity documents).
+
+	Accepts base64-encoded file content via JSON body.
+	Files are stored in the private directory.
+	Allowed during registration (guest) and for logged-in users.
+	"""
+	import base64
+
+	if not filename or not filedata:
+		frappe.throw(_("No file uploaded."))
+
+	# Validate file type
+	allowed_ext = (".pdf", ".jpg", ".jpeg", ".png")
+	if not filename.lower().endswith(allowed_ext):
+		frappe.throw(_("Only PDF, JPG, and PNG files are allowed."))
+
+	# Strip data URI prefix if present (e.g. "data:image/png;base64,...")
+	if "," in filedata:
+		filedata = filedata.split(",", 1)[1]
+
+	content = base64.b64decode(filedata)
+
+	file_doc = frappe.get_doc(
+		{
+			"doctype": "File",
+			"file_name": filename,
+			"content": content,
+			"is_private": 1,
+		}
+	)
+	file_doc.insert(ignore_permissions=True)
+	frappe.db.commit()
+
+	return {"file_url": file_doc.file_url}
 
 
 @frappe.whitelist(methods=["POST"])
@@ -721,11 +792,21 @@ def complete_registration_application(
 		frappe.throw(_("Not logged in."), frappe.AuthenticationError)
 
 	# Security: verify ownership
-	owner = frappe.db.get_value("Seller Application", seller_application, "applicant_user")
-	if not owner or owner != user:
+	app_data = frappe.db.get_value(
+		"Seller Application", seller_application,
+		["applicant_user", "status"], as_dict=True,
+	)
+	if not app_data or app_data.applicant_user != user:
 		frappe.throw(
 			_("You do not have permission to update this application."),
 			frappe.PermissionError,
+		)
+
+	# Prevent modifying already reviewed applications
+	if app_data.status in ("Approved", "Rejected", "Revoked"):
+		frappe.throw(
+			_("Cannot modify an already reviewed application."),
+			frappe.ValidationError,
 		)
 
 	doc = frappe.get_doc("Seller Application", seller_application)
