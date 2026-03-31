@@ -1,0 +1,90 @@
+name: RC Release
+
+on:
+  push:
+    branches:
+      - version-15
+
+permissions:
+  contents: write
+
+jobs:
+  rc-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Kodu cek
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Git ayarlari
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: RC versiyon belirle
+        id: version
+        run: |
+          LAST_PROD=$(git tag --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
+          LAST_PROD=${LAST_PROD:-"v1.0.0"}
+          RC_COUNT=$(git tag --sort=-v:refname | grep "^${LAST_PROD}-rc\." | wc -l)
+          RC_NUM=$((RC_COUNT + 1))
+          RC_VERSION="${LAST_PROD}-rc.${RC_NUM}"
+          echo "rc_version=${RC_VERSION}" >> $GITHUB_OUTPUT
+          echo "last_prod=${LAST_PROD}" >> $GITHUB_OUTPUT
+
+      - name: RC CHANGELOG olustur
+        id: changelog
+        run: |
+          PREV=${{ steps.version.outputs.last_prod }}
+          RC_VERSION=${{ steps.version.outputs.rc_version }}
+          DATE=$(date +%Y-%m-%d)
+
+          if git rev-parse "${PREV}" >/dev/null 2>&1; then
+            LOG_RANGE="${PREV}..HEAD"
+          else
+            LOG_RANGE=""
+          fi
+
+          FEATS=""
+          FIXES=""
+          REFACTORS=""
+          if [ -n "$LOG_RANGE" ]; then
+            FEATS=$(git log ${LOG_RANGE} --pretty=format:"- %s (@%an)" | grep "^- feat" || true)
+            FIXES=$(git log ${LOG_RANGE} --pretty=format:"- %s (@%an)" | grep "^- fix" || true)
+            REFACTORS=$(git log ${LOG_RANGE} --pretty=format:"- %s (@%an)" | grep "^- refactor" || true)
+          fi
+
+          ENTRY="## [${RC_VERSION}] - ${DATE} RC\n\n"
+          ENTRY="${ENTRY}Bu surum rc.istoc.com'da test asamasindadir.\n\n"
+
+          if [ -n "$FEATS" ]; then ENTRY="${ENTRY}### Eklendi\n${FEATS}\n\n"; fi
+          if [ -n "$FIXES" ]; then ENTRY="${ENTRY}### Duzeltildi\n${FIXES}\n\n"; fi
+          if [ -n "$REFACTORS" ]; then ENTRY="${ENTRY}### Degistirildi\n${REFACTORS}\n\n"; fi
+          ENTRY="${ENTRY}---\n"
+
+          printf "${ENTRY}" > /tmp/new_entry.md
+          cat /tmp/new_entry.md CHANGELOG.md > /tmp/merged.md
+          mv /tmp/merged.md CHANGELOG.md
+
+          echo "entry<<EOF" >> $GITHUB_OUTPUT
+          printf "${ENTRY}" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Commit ve tag
+        run: |
+          RC_VERSION=${{ steps.version.outputs.rc_version }}
+          git add CHANGELOG.md
+          git commit -m "chore: ${RC_VERSION} RC changelog guncellendi"
+          git push origin version-15
+          git tag ${RC_VERSION}
+          git push origin ${RC_VERSION}
+
+      - name: GitHub RC Release olustur
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.rc_version }}
+          name: "RC - ${{ steps.version.outputs.rc_version }}"
+          body: ${{ steps.changelog.outputs.entry }}
+          prerelease: true
