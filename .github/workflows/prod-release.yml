@@ -50,24 +50,22 @@ jobs:
 
       - name: Prod CHANGELOG olustur
         id: changelog
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           PREV=${{ steps.version.outputs.prev_version }}
           VERSION=${{ steps.version.outputs.version }}
           DATE=$(date +%Y-%m-%d)
 
-          if git rev-parse "${PREV}" >/dev/null 2>&1; then
-            LOG_RANGE="${PREV}..HEAD"
-          else
-            LOG_RANGE=""
-          fi
-
           FEATS=""
           FIXES=""
           REFACTORS=""
-          if [ -n "$LOG_RANGE" ]; then
-            FEATS=$(git log ${LOG_RANGE} --pretty=format:"- %s (@%an)" | grep "^- feat" || true)
-            FIXES=$(git log ${LOG_RANGE} --pretty=format:"- %s (@%an)" | grep "^- fix" || true)
-            REFACTORS=$(git log ${LOG_RANGE} --pretty=format:"- %s (@%an)" | grep "^- refactor" || true)
+          if git rev-parse "${PREV}" >/dev/null 2>&1; then
+            COMMITS=$(gh api "repos/${{ github.repository }}/compare/${PREV}...HEAD" \
+              --jq '.commits[] | "- \(.commit.message | split("\n")[0]) (@\(.author.login // .commit.author.name))"')
+            FEATS=$(echo "$COMMITS" | grep "^- feat" || true)
+            FIXES=$(echo "$COMMITS" | grep "^- fix" || true)
+            REFACTORS=$(echo "$COMMITS" | grep "^- refactor" || true)
           fi
 
           ENTRY="## [${VERSION}] - ${DATE} PROD\n\n"
