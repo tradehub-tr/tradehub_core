@@ -123,17 +123,23 @@ class SellerApplication(Document):
 		self.db_set("reviewed_on", now_datetime())
 
 	def _revoke_approval(self):
-		"""Remove Seller role when application status changes from Approved.
-
-		Does NOT change Seller Profile status — that is managed
-		directly from the Seller Profile by the admin.
-		"""
+		"""Remove Seller role and deactivate Seller Profile when approval is revoked."""
 		user = self.applicant_user
 
 		# Remove Seller role
 		if "Seller" in frappe.get_roles(user):
 			user_doc = frappe.get_doc("User", user)
 			user_doc.remove_roles("Seller")
+
+		# Deactivate Seller Profile
+		existing_sp = frappe.db.get_value("Seller Profile", {"user": user}, "name")
+		if existing_sp:
+			frappe.db.set_value("Seller Profile", existing_sp, "status", "Suspended")
+
+		# Deactivate Admin Seller Profile
+		existing_asp = frappe.db.get_value("Admin Seller Profile", {"user": user}, "name")
+		if existing_asp:
+			frappe.db.set_value("Admin Seller Profile", existing_asp, "status", "Suspended")
 
 		# Update review metadata
 		self.db_set("reviewed_by", frappe.session.user)
