@@ -92,17 +92,23 @@ def get_seller(slug):
          "email", "phone", "website", "status",
          "rating", "total_orders", "health_score",
          "founded_year", "staff_count", "annual_revenue",
-         "factory_size", "business_type", "main_markets"],
+         "factory_size", "business_type", "main_markets",
+         "certifications", "is_verified", "verification_type",
+         "review_count", "response_time", "response_rate",
+         "on_time_delivery", "company_name"],
         as_dict=True
     )
     if not seller:
         frappe.throw(_("Satici bulunamadi"), frappe.DoesNotExistError)
     seller["slug"] = seller.get("seller_code", "")
     seller["rating"] = float(seller.get("rating") or 0)
-    seller["review_count"] = int(seller.get("total_orders") or 0)
+    seller["review_count"] = int(seller.get("review_count") or seller.get("total_orders") or 0)
     seller["cover_image"] = seller.get("banner_image", "")
     seller["short_description"] = _strip_html(seller.get("description", ""))
-    seller["verified"] = bool(seller.get("health_score", 0) >= 80)
+    seller["verified"] = bool(seller.get("is_verified")) or bool(seller.get("health_score", 0) >= 80)
+    seller["response_time"] = seller.get("response_time") or ""
+    seller["response_rate"] = float(seller.get("response_rate") or 0)
+    seller["on_time_delivery"] = float(seller.get("on_time_delivery") or 0)
     return seller
 
 
