@@ -54,6 +54,8 @@ class SellerApplication(Document):
 			for field, value in profile_data.items():
 				profile.set(field, value)
 			profile.insert(ignore_permissions=True)
+			# Frappe overrides owner on insert — force correct owner for if_owner permissions
+			frappe.db.set_value("Seller Profile", profile.name, "owner", user)
 
 		# Create Admin Seller Profile if not already exists
 		if not frappe.db.exists("Admin Seller Profile", {"user": user}):
@@ -76,6 +78,7 @@ class SellerApplication(Document):
 			admin_profile.flags.ignore_permissions = True
 			admin_profile.owner = user
 			admin_profile.insert(ignore_permissions=True)
+			frappe.db.set_value("Admin Seller Profile", admin_profile.name, "owner", user)
 
 		# Add Seller role
 		if "Seller" not in frappe.get_roles(user):

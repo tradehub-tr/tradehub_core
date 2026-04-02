@@ -124,15 +124,15 @@ def get_session_user():
 
 	member_id = _generate_member_id(user_data.email, user_data.creation)
 
-	# KYB verification status
-	kyb_status = (
-		frappe.db.get_value(
-			"KYB Verification",
-			{"user": frappe.session.user},
-			"status",
-		)
-		or None
+	# KYB verification
+	kyb_data = frappe.db.get_value(
+		"KYB Verification",
+		{"user": frappe.session.user},
+		["name", "status"],
+		as_dict=True,
 	)
+	kyb_status = kyb_data.status if kyb_data else None
+	kyb_verification = kyb_data.name if kyb_data else None
 
 	return {
 		"logged_in": True,
@@ -153,6 +153,7 @@ def get_session_user():
 			"seller_profile": seller_profile,
 			"admin_seller_profile": admin_seller_profile,
 			"kyb_status": kyb_status,
+			"kyb_verification": kyb_verification,
 		},
 	}
 
