@@ -45,8 +45,12 @@ class Listing(Document):
         # Satıcı: sadece onaylanmış listing'de izinli statüler arasında geçiş yapabilir
         old_status = frappe.db.get_value("Listing", self.name, "status") if not self.is_new() else "Pending"
         new_status = self.status
-        if old_status in ADMIN_ONLY_STATUSES:
-            # Henüz onaylanmamış — satıcı değiştiremez
+        if old_status == "Rejected":
+            # Reddedilmiş listing satıcı tarafından düzenlenip kaydedilince tekrar onaya gönderilir
+            self.status = "Pending"
+            self.rejection_reason = ""
+        elif old_status in ADMIN_ONLY_STATUSES:
+            # Pending/Draft — satıcı durum değiştiremez
             self.status = old_status
             if new_status != old_status:
                 frappe.throw(_("Bu listing henüz admin tarafından onaylanmamış. Durum değiştirilemez."))
