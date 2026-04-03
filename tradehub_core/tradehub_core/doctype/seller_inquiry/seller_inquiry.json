@@ -11,9 +11,13 @@
 		"status",
 		"is_read",
 		"sb_sender",
+		"buyer",
 		"sender_name",
 		"sender_email",
 		"share_business_card",
+		"cb_folder",
+		"folder",
+		"is_trashed",
 		"sb_message",
 		"message"
 	],
@@ -79,8 +83,31 @@
 			"default": "0"
 		},
 		{
-			"fieldname": "sb_message",
-			"fieldtype": "Section Break",
+			"fieldname": "buyer",
+			"fieldtype": "Link",
+			"label": "Buyer",
+			"options": "User",
+			"search_index": 1
+		},
+		{
+			"fieldname": "cb_folder",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "folder",
+			"fieldtype": "Data",
+			"label": "Folder",
+			"default": ""
+		},
+		{
+			"fieldname": "is_trashed",
+			"fieldtype": "Check",
+			"label": "Trashed",
+			"default": "0"
+		},
+		{
+			"fieldname": "tab_message",
+			"fieldtype": "Tab Break",
 			"label": "Mesaj"
 		},
 		{

@@ -6,8 +6,8 @@
 	"doctype": "DocType",
 	"engine": "InnoDB",
 	"field_order": [
-		"external_id",
 		"tab_category",
+		"external_id",
 		"sb_cat_info",
 		"category_name",
 		"parent_product_category",

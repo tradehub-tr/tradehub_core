@@ -54,6 +54,8 @@ class SellerApplication(Document):
 			for field, value in profile_data.items():
 				profile.set(field, value)
 			profile.insert(ignore_permissions=True)
+			# Frappe overrides owner on insert — force correct owner for if_owner permissions
+			frappe.db.set_value("Seller Profile", profile.name, "owner", user)
 
 		# Create Admin Seller Profile if not already exists
 		if not frappe.db.exists("Admin Seller Profile", {"user": user}):
@@ -76,6 +78,7 @@ class SellerApplication(Document):
 			admin_profile.flags.ignore_permissions = True
 			admin_profile.owner = user
 			admin_profile.insert(ignore_permissions=True)
+			frappe.db.set_value("Admin Seller Profile", admin_profile.name, "owner", user)
 
 		# Add Seller role
 		if "Seller" not in frappe.get_roles(user):
@@ -123,17 +126,23 @@ class SellerApplication(Document):
 		self.db_set("reviewed_on", now_datetime())
 
 	def _revoke_approval(self):
-		"""Remove Seller role when application status changes from Approved.
-
-		Does NOT change Seller Profile status — that is managed
-		directly from the Seller Profile by the admin.
-		"""
+		"""Remove Seller role and deactivate Seller Profile when approval is revoked."""
 		user = self.applicant_user
 
 		# Remove Seller role
 		if "Seller" in frappe.get_roles(user):
 			user_doc = frappe.get_doc("User", user)
 			user_doc.remove_roles("Seller")
+
+		# Deactivate Seller Profile
+		existing_sp = frappe.db.get_value("Seller Profile", {"user": user}, "name")
+		if existing_sp:
+			frappe.db.set_value("Seller Profile", existing_sp, "status", "Suspended")
+
+		# Deactivate Admin Seller Profile
+		existing_asp = frappe.db.get_value("Admin Seller Profile", {"user": user}, "name")
+		if existing_asp:
+			frappe.db.set_value("Admin Seller Profile", existing_asp, "status", "Suspended")
 
 		# Update review metadata
 		self.db_set("reviewed_by", frappe.session.user)
