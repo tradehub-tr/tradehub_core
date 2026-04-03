@@ -669,7 +669,7 @@ def _get_listing_variants(listing_name):
             order_by="idx ASC",
         )
         for attr in attrs:
-            group_name = attr.attribute_name
+            group_name = (attr.attribute_name or '').strip()
             if group_name not in variant_groups:
                 variant_groups[group_name] = {
                     "name": group_name,
@@ -737,7 +737,7 @@ def _build_variants_from_inline(listing_name, inline_variants):
 
     variant_groups = {}
     for v in inline_variants:
-        group_name = v.attribute_type or "Diğer"
+        group_name = (v.attribute_type or "Diğer").strip()
         if group_name not in variant_groups:
             variant_groups[group_name] = {
                 "name": group_name,
