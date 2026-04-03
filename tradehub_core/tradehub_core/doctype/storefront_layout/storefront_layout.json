@@ -14,7 +14,7 @@
 			"fieldname": "seller_profile",
 			"fieldtype": "Link",
 			"label": "Seller Profile",
-			"options": "Seller Profile",
+			"options": "Admin Seller Profile",
 			"reqd": 1,
 			"unique": 1,
 			"set_only_once": 1,
