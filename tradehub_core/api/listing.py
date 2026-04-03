@@ -908,8 +908,12 @@ def get_pending_listings(page=1, page_size=20):
     listings = frappe.get_all(
         "Listing",
         filters={"status": "Pending"},
-        fields=["name", "title", "status", "seller_profile", "creation", "modified",
-                "selling_price", "currency", "stock_qty", "listing_code"],
+        fields=[
+            "name", "title", "status", "seller_profile", "creation", "modified",
+            "selling_price", "currency", "stock_qty", "listing_code",
+            "primary_image", "description", "listing_type",
+            "category", "category_name", "product_category",
+        ],
         order_by="creation asc",
         start=(page - 1) * page_size,
         page_length=page_size,
@@ -921,6 +925,8 @@ def get_pending_listings(page=1, page_size=20):
             ) or l["seller_profile"]
         else:
             l["seller_name"] = "-"
+        # Kategori görünen adı: önce category_name (seller category), yoksa product_category
+        l["display_category"] = l.get("category_name") or l.get("product_category") or l.get("category") or "—"
     return {"success": True, "listings": listings, "total": total}
 
 
@@ -933,11 +939,11 @@ def approve_listing(listing_name, action="approve", reject_reason=""):
     listing = frappe.get_doc("Listing", listing_name)
     if action == "approve":
         listing.status = "Active"
+        listing.rejection_reason = ""
         listing.flags.ignore_validate = False
     elif action == "reject":
         listing.status = "Rejected"
-        if reject_reason:
-            listing.add_comment("Comment", text=f"Ret sebebi: {reject_reason}")
+        listing.rejection_reason = reject_reason or ""
     else:
         frappe.throw(_("Geçersiz işlem"))
 
@@ -964,7 +970,8 @@ def get_seller_listings(page=1, page_size=20):
         "Listing",
         filters={"seller_profile": seller_profile},
         fields=["name", "title", "status", "selling_price", "currency",
-                "stock_qty", "available_qty", "creation", "listing_code"],
+                "stock_qty", "available_qty", "creation", "listing_code",
+                "rejection_reason"],
         order_by="creation desc",
         start=(page - 1) * page_size,
         page_length=page_size,

@@ -3,6 +3,12 @@ import frappe
 from frappe import _
 from frappe.utils import now_datetime
 
+# Anında ödeme gerçekleşen yöntemler (ödeme gateway'i onaylar → direkt "Onaylanıyor")
+INSTANT_PAYMENT_METHODS = {'credit_card', 'iyzico', 'paytr', 'stripe'}
+
+# Manuel onay gerektiren yöntemler (dekont/belge beklenir → "Ödeme Bekleniyor")
+DEFERRED_PAYMENT_METHODS = {'bank_transfer', 'check_promissory', 'negotiated', 'installment'}
+
 def _invalidate_cart_cache(_cart_name):
 	"""No-op: cache kaldırıldı. Listing status değiştiğinde stale data önlemek için."""
 	pass
@@ -669,8 +675,13 @@ def create_order(orders_json, shipping_address=None, payment_method=None, coupon
 		order_doc = frappe.new_doc("Order")
 		order_doc.buyer = user
 		order_doc.seller = seller_id if frappe.db.exists("Admin Seller Profile", seller_id) else None
-		order_doc.status = "Ödeme Bekleniyor"
-		order_doc.payment_method = payment_method or "bank_transfer"
+		# Ödeme yöntemine göre başlangıç statüsü belirle
+		pm = payment_method or "bank_transfer"
+		if pm in INSTANT_PAYMENT_METHODS:
+			order_doc.status = "Onaylanıyor"   # Gateway onayladı → beklemede gerek yok
+		else:
+			order_doc.status = "Ödeme Bekleniyor"   # Havale/Çek/Senet/Elden → manuel onay
+		order_doc.payment_method = pm
 		order_doc.currency = currency
 		order_doc.subtotal = subtotal
 		order_doc.shipping_fee = shipping_fee

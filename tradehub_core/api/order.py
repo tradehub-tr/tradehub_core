@@ -21,11 +21,11 @@ STATUS_COLORS = {
 }
 
 STATUS_DESCRIPTIONS = {
-    "Waiting for payment": "Please complete your payment.",
-    "Confirming": "Your order is being confirmed.",
-    "Delivering": "Your order is on its way.",
-    "Completed": "Order completed.",
-    "Cancelled": "Order cancelled.",
+    "Waiting for payment": "Ödemenizi tamamlamak için havale makbuzunu gönderin.",
+    "Confirming": "Ödemeniz onaylandı, siparişiniz hazırlanıyor.",
+    "Delivering": "Siparişiniz kargoya verildi, yolda.",
+    "Completed": "Sipariş tamamlandı.",
+    "Cancelled": "Sipariş iptal edildi.",
 }
 
 # Frontend status key → Türkçe DB değerleri
@@ -116,8 +116,9 @@ def get_my_orders(status=None, search=None, date_from=None, date_to=None, page=1
             "currency", "payment_method",
             "subtotal", "shipping_fee", "total",
             "shipping_address", "ship_from", "shipping_method",
-            "remittance_amount",
+            "remittance_amount", "receipt_url",
             "refund_status", "refund_reason", "refund_amount", "refund_requested_at",
+            "tracking_number", "carrier",
         ],
         order_by="order_date desc",
         start=(page - 1) * page_size,
@@ -372,12 +373,30 @@ def get_my_refunds():
 
 @frappe.whitelist()
 def upload_receipt(order_number, file_name, file_data):
-    """Upload payment receipt file for an order. file_data must be base64-encoded."""
+    """Upload payment receipt file for an order. file_data must be base64-encoded.
+    Aynı siparişe daha önce yüklenmiş eski dekont dosyaları temizlenir.
+    """
     import base64
     buyer = _require_buyer()
 
     if not frappe.db.exists("Order", {"name": order_number, "buyer": buyer}):
         frappe.throw(_("Order not found"), frappe.DoesNotExistError)
+
+    # Mevcut dekont dosyalarını temizle (aynı sipariş + receipt_url field'ına bağlı tüm File'lar)
+    old_files = frappe.get_all(
+        "File",
+        filters={
+            "attached_to_doctype": "Order",
+            "attached_to_name": order_number,
+            "attached_to_field": "receipt_url",
+        },
+        fields=["name"],
+    )
+    for f in old_files:
+        try:
+            frappe.delete_doc("File", f["name"], ignore_permissions=True, force=True)
+        except Exception:
+            pass  # Silinemeyen dosya varsa sessizce geç, yeni yüklemeyi engelleme
 
     content = base64.b64decode(file_data)
 
@@ -409,9 +428,14 @@ def submit_remittance(order_number, remittance_date, currency="USD", amount=0,
         frappe.throw(_("Order not found"), frappe.DoesNotExistError)
 
     order = frappe.get_doc("Order", order_number)
+
+    amount_float = float(amount or 0)
+    if amount_float <= 0:
+        frappe.throw(_("Havale tutarı sıfırdan büyük olmalıdır"))
+
     frappe.db.set_value("Order", order.name, {
         "remittance_date": remittance_date or None,
-        "remittance_amount": float(amount or 0),
+        "remittance_amount": amount_float,
         "remittance_sender": sender_name or "",
         "receipt_url": receipt_url or "",
     })
@@ -431,7 +455,11 @@ def get_seller_orders(status=None, page=1, page_size=20):
     if not user or user == "Guest":
         frappe.throw(_("Authentication required"), frappe.AuthenticationError)
 
-    seller_code = frappe.db.get_value("Admin Seller Profile", {"user": user}, "name")
+    seller_code = (
+        frappe.db.get_value("Admin Seller Profile", {"user": user}, "name") or
+        frappe.db.get_value("Admin Seller Profile", {"owner": user}, "name") or
+        frappe.db.get_value("Admin Seller Profile", {"email": user}, "name")
+    )
     if not seller_code:
         frappe.throw(_("Seller profile not found"))
 
@@ -439,7 +467,9 @@ def get_seller_orders(status=None, page=1, page_size=20):
     page_size = min(cint(page_size) or 20, 100)
 
     filters = {"seller": seller_code}
-    if status and status != "all":
+    if status == "refund_pending":
+        filters["refund_status"] = "Pending"
+    elif status and status != "all":
         tr_statuses = FILTER_STATUS_MAP.get(status)
         if tr_statuses:
             filters["status"] = ["in", tr_statuses]
@@ -485,7 +515,11 @@ def seller_confirm_payment(order_number):
     if not user or user == "Guest":
         frappe.throw(_("Authentication required"), frappe.AuthenticationError)
 
-    seller_code = frappe.db.get_value("Admin Seller Profile", {"user": user}, "name")
+    seller_code = (
+        frappe.db.get_value("Admin Seller Profile", {"user": user}, "name") or
+        frappe.db.get_value("Admin Seller Profile", {"owner": user}, "name") or
+        frappe.db.get_value("Admin Seller Profile", {"email": user}, "name")
+    )
     if not seller_code:
         frappe.throw(_("Seller profile not found"))
 
@@ -500,6 +534,43 @@ def seller_confirm_payment(order_number):
         frappe.throw(_("Payment can only be confirmed for orders awaiting payment"))
 
     frappe.db.set_value("Order", order.name, "status", "Onaylanıyor")
+    frappe.db.commit()
+
+    return {"success": True, "order_number": order_number}
+
+
+@frappe.whitelist()
+def seller_ship_order(order_number, tracking_number="", carrier=""):
+    """Seller marks order as shipped — changes status to 'Kargoda'."""
+    user = frappe.session.user
+    if not user or user == "Guest":
+        frappe.throw(_("Authentication required"), frappe.AuthenticationError)
+
+    seller_code = (
+        frappe.db.get_value("Admin Seller Profile", {"user": user}, "name") or
+        frappe.db.get_value("Admin Seller Profile", {"owner": user}, "name") or
+        frappe.db.get_value("Admin Seller Profile", {"email": user}, "name")
+    )
+    if not seller_code:
+        frappe.throw(_("Seller profile not found"))
+
+    order = frappe.db.get_value(
+        "Order", {"name": order_number, "seller": seller_code},
+        ["name", "status"], as_dict=True
+    )
+    if not order:
+        frappe.throw(_("Order not found"), frappe.DoesNotExistError)
+
+    if order.status != "Onaylanıyor":
+        frappe.throw(_("Only confirmed orders can be marked as shipped"))
+
+    update_fields = {"status": "Kargoda"}
+    if tracking_number:
+        update_fields["tracking_number"] = tracking_number
+    if carrier:
+        update_fields["carrier"] = carrier
+
+    frappe.db.set_value("Order", order.name, update_fields)
     frappe.db.commit()
 
     return {"success": True, "order_number": order_number}
@@ -666,7 +737,11 @@ def seller_handle_refund(order_number, action):
     if not user or user == "Guest":
         frappe.throw(_("Authentication required"), frappe.AuthenticationError)
 
-    seller_code = frappe.db.get_value("Admin Seller Profile", {"user": user}, "name")
+    seller_code = (
+        frappe.db.get_value("Admin Seller Profile", {"user": user}, "name") or
+        frappe.db.get_value("Admin Seller Profile", {"owner": user}, "name") or
+        frappe.db.get_value("Admin Seller Profile", {"email": user}, "name")
+    )
     if not seller_code:
         frappe.throw(_("Seller profile not found"))
 

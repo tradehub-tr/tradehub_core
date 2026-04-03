@@ -28,6 +28,8 @@
 		"shipping_address",
 		"shipping_method",
 		"ship_from",
+		"tracking_number",
+		"carrier",
 		"buyer_note",
 		"tab_payment",
 		"remittance_section",
@@ -71,23 +73,21 @@
 			"fieldname": "seller",
 			"fieldtype": "Link",
 			"label": "Satıcı",
-			"options": "User",
-			"reqd": 1
+			"options": "Admin Seller Profile"
 		},
 		{
 			"fieldname": "status",
 			"fieldtype": "Select",
 			"label": "Durum",
-			"options": "Draft\nPending Payment\nPaid\nShipped\nDelivered\nCompleted\nCancelled\nRefunded",
-			"default": "Draft",
+			"options": "Ödeme Bekleniyor\nOnaylanıyor\nKargoda\nTamamlandı\nİptal Edildi",
+			"default": "Ödeme Bekleniyor",
 			"in_list_view": 1,
 			"in_standard_filter": 1
 		},
 		{
 			"fieldname": "payment_method",
-			"fieldtype": "Select",
-			"label": "Ödeme Yöntemi",
-			"options": "\nKredi Kartı\nHavale/EFT\nKapıda Ödeme"
+			"fieldtype": "Data",
+			"label": "Ödeme Yöntemi"
 		},
 		{
 			"fieldname": "column_break_1",
@@ -180,6 +180,16 @@
 			"label": "Gönderim Yeri"
 		},
 		{
+			"fieldname": "tracking_number",
+			"fieldtype": "Data",
+			"label": "Kargo Takip Numarası"
+		},
+		{
+			"fieldname": "carrier",
+			"fieldtype": "Data",
+			"label": "Kargo Firması"
+		},
+		{
 			"fieldname": "buyer_note",
 			"fieldtype": "Small Text",
 			"label": "Alıcı Notu"
@@ -229,7 +239,7 @@
 			"fieldname": "refund_status",
 			"fieldtype": "Select",
 			"label": "İade Durumu",
-			"options": "\nRequested\nApproved\nRejected\nRefunded"
+			"options": "\nPending\nApproved\nRejected"
 		},
 		{
 			"fieldname": "refund_reason",
@@ -249,7 +259,7 @@
 		}
 	],
 	"links": [],
-	"modified": "2024-01-01 00:00:00.000000",
+	"modified": "2026-04-02 00:00:00.000000",
 	"modified_by": "Administrator",
 	"module": "Tradehub Core",
 	"name": "Order",

@@ -177,6 +177,13 @@
    "reqd": 1
   },
   {
+   "depends_on": "eval:doc.status=='Rejected'",
+   "fieldname": "rejection_reason",
+   "fieldtype": "Small Text",
+   "label": "Red Sebebi",
+   "read_only": 1
+  },
+  {
    "default": "Fixed Price",
    "fieldname": "listing_type",
    "fieldtype": "Select",
