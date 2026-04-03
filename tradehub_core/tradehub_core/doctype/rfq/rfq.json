@@ -1,0 +1,165 @@
+{
+	"name": "RFQ",
+	"doctype": "DocType",
+	"module": "Tradehub Core",
+	"naming_rule": "Expression (old style)",
+	"autoname": "RFQ-.#####",
+	"engine": "InnoDB",
+	"track_changes": 1,
+	"sort_field": "modified",
+	"sort_order": "DESC",
+	"title_field": "product_name",
+	"fields": [
+		{
+			"fieldname": "tab_details",
+			"fieldtype": "Tab Break",
+			"label": "Details"
+		},
+		{
+			"fieldname": "buyer",
+			"fieldtype": "Link",
+			"label": "Buyer",
+			"options": "User",
+			"reqd": 1,
+			"read_only": 1,
+			"in_list_view": 1,
+			"search_index": 1
+		},
+		{
+			"fieldname": "cb_status",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "status",
+			"fieldtype": "Select",
+			"label": "Status",
+			"options": "Pending\nApproved\nClosed\nRejected\nCompleted",
+			"default": "Pending",
+			"in_list_view": 1,
+			"in_standard_filter": 1
+		},
+		{
+			"fieldname": "tab_product",
+			"fieldtype": "Tab Break",
+			"label": "Product Details"
+		},
+		{
+			"fieldname": "product_name",
+			"fieldtype": "Data",
+			"label": "Product Name",
+			"reqd": 1,
+			"in_list_view": 1
+		},
+		{
+			"fieldname": "category",
+			"fieldtype": "Link",
+			"label": "Category",
+			"options": "Product Category",
+			"in_list_view": 1,
+			"in_standard_filter": 1
+		},
+		{
+			"fieldname": "additional_details",
+			"fieldtype": "Small Text",
+			"label": "Additional Details"
+		},
+		{
+			"fieldname": "description",
+			"fieldtype": "Text",
+			"label": "Detailed Requirements",
+			"reqd": 1
+		},
+		{
+			"fieldname": "tab_quantity",
+			"fieldtype": "Tab Break",
+			"label": "Quantity"
+		},
+		{
+			"fieldname": "quantity",
+			"fieldtype": "Float",
+			"label": "Sourcing Quantity",
+			"reqd": 1,
+			"in_list_view": 1
+		},
+		{
+			"fieldname": "unit",
+			"fieldtype": "Link",
+			"label": "Unit",
+			"options": "UOM",
+			"reqd": 1
+		},
+		{
+			"fieldname": "tab_settings",
+			"fieldtype": "Tab Break",
+			"label": "Settings"
+		},
+		{
+			"fieldname": "share_business_card",
+			"fieldtype": "Check",
+			"label": "Share Business Card",
+			"default": "0"
+		},
+		{
+			"fieldname": "ai_enabled",
+			"fieldtype": "Check",
+			"label": "AI Generated",
+			"default": "0"
+		},
+		{
+			"fieldname": "cb_meta",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "quote_count",
+			"fieldtype": "Int",
+			"label": "Quote Count",
+			"read_only": 1,
+			"default": "0"
+		},
+		{
+			"fieldname": "tab_attachments",
+			"fieldtype": "Tab Break",
+			"label": "Attachments"
+		},
+		{
+			"fieldname": "attachments",
+			"fieldtype": "Table",
+			"label": "Attachments",
+			"options": "RFQ Attachment"
+		}
+	],
+	"permissions": [
+		{
+			"role": "System Manager",
+			"read": 1,
+			"write": 1,
+			"create": 1,
+			"delete": 1,
+			"report": 1,
+			"export": 1,
+			"import": 1
+		},
+		{
+			"role": "Marketplace Admin",
+			"read": 1,
+			"write": 1,
+			"create": 1,
+			"report": 1,
+			"export": 1
+		},
+		{
+			"role": "Buyer",
+			"read": 1,
+			"write": 1,
+			"create": 1,
+			"if_owner": 1
+		},
+		{
+			"role": "Seller",
+			"read": 1
+		}
+	],
+	"actions": [],
+	"links": [],
+	"states": []
+}
