@@ -1,3 +1,12 @@
+## [v1.0.1-rc.3] - 2026-04-03 RC
+
+Bu surum rc.istoc.com'da test asamasindadir.
+
+### Eklendi
+- feat(storefront): satıcı vitrin düzeni ve tema ayarları için yeni fonksiyonlar eklendi (@TurksabYonetim)
+- feat: Storefront düzeni yönetimini uygulamak, listeleme durumu iş akışını geliştirmek ve sipariş doküman tipini takip bilgileri ile daha ayrıntılı durum alanlarıyla güncellemek. (@TurksabYonetim)
+
+---
 ## [v1.0.1-rc.2] - 2026-04-02 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
