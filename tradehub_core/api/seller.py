@@ -123,24 +123,51 @@ def get_my_supplier_profile():
 
 @frappe.whitelist()
 def get_my_admin_seller_profile():
-    """Returns the Admin Seller Profile name (seller_code) for the logged-in seller."""
+    """Returns the Admin Seller Profile for the logged-in seller."""
     user = frappe.session.user
     if not user or user == "Guest":
         return None
-    return frappe.db.get_value("Admin Seller Profile", {"user": user}, "name")
+    name = frappe.db.get_value("Admin Seller Profile", {"user": user}, "name")
+    if not name:
+        return None
+    return frappe.db.get_value(
+        "Admin Seller Profile", name,
+        ["name", "seller_code", "seller_name", "logo"],
+        as_dict=True
+    )
 
 
 @frappe.whitelist(allow_guest=True)
 def get_seller_categories(seller_code):
-    """Public: Sadece onaylanmış kategorileri döndür."""
+    """Public: Satıcının aktif listing'lerinden türetilen benzersiz kategorileri döndür."""
     if not frappe.db.exists("Admin Seller Profile", seller_code):
         return {"categories": []}
-    cats = frappe.get_all(
-        "Seller Category",
-        filters={"seller": seller_code, "status": "Active", "is_enabled": 1},
-        fields=["name", "category_name", "image", "sort_order"],
-        order_by="sort_order asc, category_name asc"
-    )
+
+    # Satıcının aktif listing'lerindeki tüm benzersiz (category, category_name) çiftleri
+    rows = frappe.db.sql("""
+        SELECT DISTINCT category, category_name
+        FROM `tabListing`
+        WHERE seller_profile = %(seller_code)s
+          AND status = 'Active'
+          AND category IS NOT NULL
+          AND category != ''
+        ORDER BY category_name ASC
+    """, {"seller_code": seller_code}, as_dict=True)
+
+    cats = []
+    for r in rows:
+        # Seller Category DocType'ta bu kategoriye ait görsel var mı bak
+        img = frappe.db.get_value(
+            "Seller Category",
+            {"seller": seller_code, "category_name": r.category_name},
+            "image"
+        ) or ""
+        cats.append({
+            "name": r.category,
+            "category_name": r.category_name or r.category,
+            "image": img,
+        })
+
     return {"categories": cats}
 
 
@@ -304,7 +331,8 @@ def get_seller_products(seller_code, category=None, page=1, page_size=40):
         "Listing",
         filters=filters,
         fields=["name", "title", "primary_image", "selling_price", "base_price",
-                "min_order_qty", "category", "short_description", "b2b_enabled", "currency"],
+                "min_order_qty", "category", "category_name", "short_description",
+                "b2b_enabled", "currency", "view_count", "order_count", "creation"],
         limit_start=(int(page)-1)*int(page_size),
         limit_page_length=int(page_size),
         order_by="creation desc"
@@ -313,7 +341,9 @@ def get_seller_products(seller_code, category=None, page=1, page_size=40):
         l["id"] = l.get("name", "")
         l["product_name"] = l.get("title", "")
         l["image"] = l.get("primary_image", "")
-        l["currency"] = l.get("currency") or "USD"
+        l["currency"] = l.get("currency") or "TRY"
+        l["view_count"] = int(l.get("view_count") or 0)
+        l["sold_count"] = int(l.get("order_count") or 0)
         price_min = l.get("selling_price") or l.get("base_price") or 0
         price_max = l.get("base_price") or l.get("selling_price") or 0
         if l.get("b2b_enabled"):
@@ -416,6 +446,89 @@ def remove_gallery_image(row_name):
     doc.save(ignore_permissions=True)
     frappe.db.commit()
     return True
+
+
+@frappe.whitelist()
+def save_storefront_layout(seller_code, sections, theme_config):
+    """Satıcı: mağaza layout ve tema ayarlarını kaydet."""
+    import json as _json
+    from tradehub_core.tradehub_core.doctype.storefront_layout.storefront_layout import (
+        DEFAULT_SECTIONS, DEFAULT_THEME
+    )
+
+    # Yetki: admin veya ilgili satıcı
+    is_admin = frappe.session.user == "Administrator" or "System Manager" in frappe.get_roles()
+    if not is_admin:
+        seller_profile = (
+            frappe.db.get_value("Admin Seller Profile", {"owner": frappe.session.user}, "name") or
+            frappe.db.get_value("Admin Seller Profile", {"email": frappe.session.user}, "name")
+        )
+        if seller_profile != seller_code:
+            frappe.throw(_("Bu mağazayı düzenleme yetkiniz yok."), frappe.PermissionError)
+
+    # JSON doğrulama
+    try:
+        sections_data = _json.loads(sections) if isinstance(sections, str) else sections
+    except (ValueError, TypeError):
+        frappe.throw(_("Bölüm verisi geçerli JSON olmalıdır."))
+    try:
+        theme_data = _json.loads(theme_config) if isinstance(theme_config, str) else theme_config
+    except (ValueError, TypeError):
+        frappe.throw(_("Tema verisi geçerli JSON olmalıdır."))
+
+    layout_name = frappe.db.get_value("Storefront Layout", {"seller_profile": seller_code}, "name")
+    if layout_name:
+        doc = frappe.get_doc("Storefront Layout", layout_name)
+    else:
+        doc = frappe.new_doc("Storefront Layout")
+        doc.seller_profile = seller_code
+        doc.is_published = 1
+
+    doc.sections = _json.dumps(sections_data)
+    doc.theme_config = _json.dumps(theme_data)
+    doc.save(ignore_permissions=True)
+    frappe.db.commit()
+    return {"success": True}
+
+
+@frappe.whitelist(allow_guest=True)
+def get_storefront_layout(seller_code):
+    """Public: Satıcının mağaza layout ve tema ayarlarını döndür.
+    Kayıt yoksa default sections + default theme ile otomatik oluşturur.
+    """
+    import json as _json
+    from tradehub_core.tradehub_core.doctype.storefront_layout.storefront_layout import (
+        DEFAULT_SECTIONS, DEFAULT_THEME
+    )
+
+    if not frappe.db.exists("Admin Seller Profile", seller_code):
+        frappe.throw(_("Satici bulunamadi"), frappe.DoesNotExistError)
+
+    layout_name = frappe.db.get_value(
+        "Storefront Layout", {"seller_profile": seller_code}, "name"
+    )
+
+    if layout_name:
+        doc = frappe.get_doc("Storefront Layout", layout_name)
+        try:
+            sections = _json.loads(doc.sections) if isinstance(doc.sections, str) else (doc.sections or DEFAULT_SECTIONS)
+        except (ValueError, TypeError):
+            sections = DEFAULT_SECTIONS
+        try:
+            theme = _json.loads(doc.theme_config) if isinstance(doc.theme_config, str) else (doc.theme_config or DEFAULT_THEME)
+        except (ValueError, TypeError):
+            theme = DEFAULT_THEME
+    else:
+        # İlk ziyarette default layout oluştur
+        doc = frappe.new_doc("Storefront Layout")
+        doc.seller_profile = seller_code
+        doc.is_published = 1
+        doc.insert(ignore_permissions=True)
+        frappe.db.commit()
+        sections = DEFAULT_SECTIONS
+        theme = DEFAULT_THEME
+
+    return {"sections": sections, "theme": theme}
 
 
 @frappe.whitelist(allow_guest=True)
