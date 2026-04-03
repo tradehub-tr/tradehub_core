@@ -134,8 +134,11 @@ def get_session_user():
 		or None
 	)
 
+	from frappe.sessions import get_csrf_token
+
 	return {
 		"logged_in": True,
+		"csrf_token": get_csrf_token(),
 		"user": {
 			"email": user_data.email,
 			"full_name": user_data.full_name,

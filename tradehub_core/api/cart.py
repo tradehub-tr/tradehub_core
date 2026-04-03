@@ -57,20 +57,23 @@ def _verify_cart_item_owner(cart_item_name, user):
 	return parent_cart
 
 
-def _find_existing_cart_item(cart_name, listing, listing_variant):
+def _find_existing_cart_item(cart_name, listing, listing_variant, color_variant=None):
 	"""
-	Find an existing Cart Item for the given listing+variant combination.
-	Handles NULL vs empty string safely by comparing in Python.
+	Find an existing Cart Item for the given listing + variant combination.
+	When color_variant is provided, matches on BOTH listing_variant AND color_variant
+	so that same-size different-color items are stored as separate rows.
 	"""
 	all_rows = frappe.get_all(
 		"Cart Item",
 		filters={"parent": cart_name, "listing": listing},
-		fields=["name", "listing_variant", "quantity"],
+		fields=["name", "listing_variant", "color_variant", "quantity"],
 	)
 	norm_variant = listing_variant or None
+	norm_color = color_variant or None
 	for row in all_rows:
 		row_variant = row.listing_variant or None
-		if row_variant == norm_variant:
+		row_color = row.color_variant or None
+		if row_variant == norm_variant and row_color == norm_color:
 			return row
 	return None
 
@@ -139,7 +142,7 @@ def _build_cart_response(cart_name):
 	items = frappe.get_all(
 		"Cart Item",
 		filters={"parent": cart_name},
-		fields=["name", "listing", "listing_variant", "quantity",
+		fields=["name", "listing", "listing_variant", "color_variant", "variant_label", "quantity",
 				"seller", "snapshot_title", "snapshot_image", "snapshot_price", "snapshot_currency"],
 		order_by="creation asc",
 	)
@@ -243,12 +246,27 @@ def _build_cart_response(cart_name):
 		if is_available:
 			# Canlı veri ile SKU oluştur
 			base_price = float(listing.selling_price or listing.base_price or 0)
-			sku_image = listing.primary_image or ""
-			variant_text = ""
+			sku_image = item.snapshot_image or listing.primary_image or ""
+			# variant_label (frontend tarafından gönderilen tam etiket) varsa direkt kullan
+			variant_text = item.variant_label or ""
 			base_price_addon = 0.0
 
+			# color_variant'tan görsel çek (snapshot yoksa)
+			if item.color_variant and item.color_variant.startswith(listing_name + "-"):
+				color_parts = item.color_variant[len(listing_name) + 1:].split("-", 1)
+				if len(color_parts) == 2:
+					c_type, c_value = color_parts[0].strip(), color_parts[1].strip()
+					civ = frappe.db.get_value(
+						"Listing Variant Item",
+						{"parent": listing_name, "parenttype": "Listing", "attribute_type": c_type, "attribute_value": c_value},
+						["variant_image"],
+						as_dict=True,
+					)
+					if civ and civ.variant_image:
+						sku_image = civ.variant_image
+
 			variant = None
-			if item.listing_variant:
+			if item.listing_variant and not variant_text:
 				# Gerçek Listing Variant doc mu dene
 				variant = frappe.db.get_value(
 					"Listing Variant",
@@ -398,9 +416,11 @@ def check_stock(listing, quantity=1, listing_variant=None):
 
 
 @frappe.whitelist()
-def add_to_cart(listing, quantity=1, listing_variant=None):
+def add_to_cart(listing, quantity=1, listing_variant=None, variant_label=None, color_variant=None):
 	"""
 	Add a listing (optionally a specific variant) to cart.
+	variant_label: human-readable combined label, e.g. "Renk: Lacivert | Beden: S"
+	color_variant: inline color variant ID (e.g. "LST-00013-Renk-Lacivert") used for snapshot_image lookup.
 	If already exists, increments quantity.
 	Returns the full cart response.
 	"""
@@ -429,9 +449,10 @@ def add_to_cart(listing, quantity=1, listing_variant=None):
 
 	# Normalize variant: empty string → None
 	listing_variant = listing_variant or None
+	color_variant = color_variant or None
 
 	cart_name = _get_or_create_cart(user)
-	existing_row = _find_existing_cart_item(cart_name, listing, listing_variant)
+	existing_row = _find_existing_cart_item(cart_name, listing, listing_variant, color_variant)
 	existing_qty = existing_row.quantity if existing_row else 0
 	total_qty = existing_qty + qty
 
@@ -455,14 +476,34 @@ def add_to_cart(listing, quantity=1, listing_variant=None):
 			if var_snap.price:
 				snap_price = float(var_snap.price)
 
+	# Renk varyantından görsel çek (color_variant = inline renk ID'si, ör. "LST-00013-Renk-Lacivert")
+	if color_variant and color_variant.startswith(listing + "-"):
+		color_parts = color_variant[len(listing) + 1:].split("-", 1)
+		if len(color_parts) == 2:
+			color_type, color_value = color_parts[0].strip(), color_parts[1].strip()
+			iv = frappe.db.get_value(
+				"Listing Variant Item",
+				{"parent": listing, "parenttype": "Listing", "attribute_type": color_type, "attribute_value": color_value},
+				["variant_image"],
+				as_dict=True,
+			)
+			if iv and iv.variant_image:
+				snap_image = iv.variant_image
+
 	# cart_name ve existing_row yukarıda stok kontrolü için alındı — tekrar sorgulama
 	if existing_row:
-		frappe.db.set_value("Cart Item", existing_row.name, "quantity", existing_row.quantity + qty)
+		frappe.db.set_value("Cart Item", existing_row.name, {
+			"quantity": existing_row.quantity + qty,
+			"variant_label": variant_label or existing_row.get("variant_label") or None,
+			"snapshot_image": snap_image or existing_row.get("snapshot_image") or None,
+		})
 	else:
 		cart_doc = frappe.get_doc("Cart", cart_name)
 		cart_doc.append("items", {
 			"listing": listing,
 			"listing_variant": listing_variant,
+			"color_variant": color_variant,
+			"variant_label": variant_label or None,
 			"quantity": qty,
 			"seller": seller_id,
 			"snapshot_title": snap_title,
