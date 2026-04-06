@@ -59,7 +59,8 @@ def _create_email_verification(email: str, first_name: str):
 	frappe.cache.set_value(
 		f"email_verification:{key}", email, expires_in_sec=86400
 	)
-	link = f"{get_url()}/api/method/tradehub_core.api.v1.identity.verify_email?key={key}"
+	storefront = frappe.conf.get("storefront_url", get_url())
+	link = f"{storefront}/api/method/tradehub_core.api.v1.identity.verify_email?key={key}"
 
 	frappe.sendmail(
 		recipients=email,
@@ -440,7 +441,8 @@ def forgot_password(email: str):
 		user.db_set("last_reset_password_key_generated_on", now_datetime())
 
 		# Build reset link pointing to the storefront page
-		link = f"{get_url()}/pages/auth/reset-password.html?key={reset_key}"
+		storefront = frappe.conf.get("storefront_url", get_url())
+		link = f"{storefront}/pages/auth/reset-password.html?key={reset_key}"
 
 		frappe.sendmail(
 			recipients=email,
