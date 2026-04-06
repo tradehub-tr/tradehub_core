@@ -1,3 +1,17 @@
+## [v1.0.2-rc.5] - 2026-04-06 RC
+
+Bu surum rc.istoc.com'da test asamasindadir.
+
+### Eklendi
+- feat(RFQ): Sabit kodlanmış ürünler API çağrılarıyla RFQ sayfasına dinamik şekilde yansıtıldı. (@Ali)
+- feat: update email verification and password reset links to use configurable storefront URL (@TurksabYonetim)
+- feat(auth): fix storefront URLs, add email verification redirect and resend endpoint (@TurksabYonetim)
+
+### Duzeltildi
+- fix(Listing): breadcrumb için product_category kullanıldı, aksi takdirde satıcı kategorisine geri dönülmesi sağlandı (@Ali)
+- fix: hardcode storefront URL and update reset password link path in identity API (@TurksabYonetim)
+
+---
 ## [v1.0.2-rc.4] - 2026-04-06 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
