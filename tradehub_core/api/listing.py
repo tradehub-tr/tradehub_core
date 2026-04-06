@@ -193,8 +193,8 @@ def get_listing_detail(listing_id):
         except Exception:
             pass
 
-    # Build category breadcrumb
-    category_breadcrumb = _get_category_breadcrumb(listing.category)
+    # Build category breadcrumb (prefer platform category, fallback to seller category)
+    category_breadcrumb = _get_category_breadcrumb(listing.product_category or listing.category)
 
     # Get images — primary_image + listing_images child table
     images = [listing.primary_image] if listing.primary_image else []
@@ -582,8 +582,18 @@ def _format_listing_card(listing):
             else:
                 price_display = f"${min_price_val:.2f}"
 
-    # Get first image
+    # Get first image (fallback to listing_images child table)
     primary_image = listing.get("primary_image", "")
+    if not primary_image:
+        child_imgs = frappe.get_all(
+            "Listing Image",
+            filters={"parent": listing.name, "parenttype": "Listing"},
+            fields=["image"],
+            order_by="idx ASC",
+            limit=1,
+        )
+        if child_imgs:
+            primary_image = child_imgs[0].image
 
     return {
         "id": listing.name,
