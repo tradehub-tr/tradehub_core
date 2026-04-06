@@ -582,8 +582,18 @@ def _format_listing_card(listing):
             else:
                 price_display = f"${min_price_val:.2f}"
 
-    # Get first image
+    # Get first image (fallback to listing_images child table)
     primary_image = listing.get("primary_image", "")
+    if not primary_image:
+        child_imgs = frappe.get_all(
+            "Listing Image",
+            filters={"parent": listing.name, "parenttype": "Listing"},
+            fields=["image"],
+            order_by="idx ASC",
+            limit=1,
+        )
+        if child_imgs:
+            primary_image = child_imgs[0].image
 
     return {
         "id": listing.name,
