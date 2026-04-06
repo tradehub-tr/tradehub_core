@@ -1,16 +1,25 @@
 name: Deploy to Frappe Cloud
 
 on:
-  push:
-    branches:
-      - version-15
+  workflow_run:
+    workflows: ["RC Release", "Prod Release"]
+    types:
+      - completed
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
 
     steps:
+      - name: Frappe Cloud release bekleniyor
+        run: |
+          echo "Tetikleyen workflow: ${{ github.event.workflow_run.name }}"
+          echo "Branch: ${{ github.event.workflow_run.head_branch }}"
+          echo "Frappe Cloud'un yeni release'i algilamasi icin 60 saniye bekleniyor..."
+          sleep 60
+
       - name: Frappe Press - Deploy & Site Update
         env:
           FRAPPE_API_KEY: ${{ secrets.FRAPPE_API_KEY }}
