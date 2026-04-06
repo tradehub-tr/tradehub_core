@@ -193,8 +193,8 @@ def get_listing_detail(listing_id):
         except Exception:
             pass
 
-    # Build category breadcrumb
-    category_breadcrumb = _get_category_breadcrumb(listing.category)
+    # Build category breadcrumb (prefer platform category, fallback to seller category)
+    category_breadcrumb = _get_category_breadcrumb(listing.product_category or listing.category)
 
     # Get images — primary_image + listing_images child table
     images = [listing.primary_image] if listing.primary_image else []
