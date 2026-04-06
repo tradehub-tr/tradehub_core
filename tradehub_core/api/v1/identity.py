@@ -517,17 +517,22 @@ def reset_password(key: str, new_password: str):
 
 @frappe.whitelist(allow_guest=True, methods=["GET"])
 def verify_email(key: str):
-	"""Verify user email via the link sent after registration."""
+	"""Verify user email via the link sent after registration.
+
+	On success, redirects to the storefront login page with ?verified=1.
+	On failure, redirects with ?verified=0.
+	"""
 	key = (key or "").strip()
+	storefront = frappe.conf.get("storefront_url", "https://rc.istoc.com")
+	login_url = f"{storefront}/pages/auth/login"
 
 	cache_key = f"email_verification:{key}"
 	email = frappe.cache.get_value(cache_key)
 
 	if not email:
-		frappe.throw(
-			_("Invalid or expired verification link."),
-			frappe.AuthenticationError,
-		)
+		frappe.local.response["type"] = "redirect"
+		frappe.local.response["location"] = f"{login_url}?verified=0"
+		return
 
 	# Handle bytes from Redis
 	if isinstance(email, bytes):
@@ -540,7 +545,8 @@ def verify_email(key: str):
 	# Delete verification key (single-use)
 	frappe.cache.delete_value(cache_key)
 
-	return {"success": True, "message": _("Email verified."), "user": email}
+	frappe.local.response["type"] = "redirect"
+	frappe.local.response["location"] = f"{login_url}?verified=1"
 
 
 def _verify_password(user: str, password: str):
@@ -576,6 +582,21 @@ def change_password(current_password: str, new_password: str):
 	frappe.db.commit()
 
 	return {"success": True, "message": _("Password changed successfully.")}
+
+
+@frappe.whitelist(methods=["POST"])
+@rate_limit(key="user", limit=3, seconds=3600)
+def resend_verification_email():
+	"""Resend email verification link for the currently logged-in user."""
+	user = frappe.session.user
+
+	if user == "Guest":
+		frappe.throw(_("Not logged in."), frappe.AuthenticationError)
+
+	user_doc = frappe.get_doc("User", user)
+	_create_email_verification(user, user_doc.first_name or user)
+
+	return {"success": True, "message": _("Verification email sent.")}
 
 
 @frappe.whitelist(methods=["POST"])
