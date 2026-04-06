@@ -1,3 +1,16 @@
+## [v1.0.2] - 2026-04-06 PROD
+
+Bu surum istoc.cronbi.com'da yayindadir.
+
+### Eklendi
+- feat: Sepet öğelerine color_variant ve variant_label desteği eklendi, dinamik görsel çözümleme getirildi ve auth yanıtına CSRF token eklendi (@Bora)
+- feat: Storefront düzeni yönetimini uygulamak, listeleme durumu iş akışını geliştirmek ve sipariş doküman tipini takip bilgileri ile daha ayrıntılı durum alanlarıyla güncellemek. (@Bora)
+- feat(storefront): satıcı vitrin düzeni ve tema ayarları için yeni fonksiyonlar eklendi (@ahmet)
+
+### Duzeltildi
+- fix: revoke_approval ile Seller Profile'ı Suspended yapısı eklendi. (@Ali)
+
+---
 ## [v1.0.1-rc.5] - 2026-04-03 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
