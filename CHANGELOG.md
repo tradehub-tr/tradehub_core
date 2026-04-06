@@ -1,3 +1,14 @@
+## [v1.0.2-rc.2] - 2026-04-06 RC
+
+Bu surum rc.istoc.com'da test asamasindadir.
+
+### Eklendi
+- feat(RFQ): Sabit kodlanmış ürünler API çağrılarıyla RFQ sayfasına dinamik şekilde yansıtıldı. (@Ali)
+
+### Duzeltildi
+- fix(Listing): breadcrumb için product_category kullanıldı, aksi takdirde satıcı kategorisine geri dönülmesi sağlandı (@Ali)
+
+---
 ## [v1.0.2-rc.1] - 2026-04-06 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
