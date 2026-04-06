@@ -1,3 +1,17 @@
+## [v1.0.3] - 2026-04-06 PROD
+
+Bu surum istoc.cronbi.com'da yayindadir.
+
+### Eklendi
+- feat(auth): fix storefront URLs, add email verification redirect and resend endpoint (@ahmet)
+- feat: update email verification and password reset links to use configurable storefront URL (@ahmet)
+- feat(RFQ): Sabit kodlanmış ürünler API çağrılarıyla RFQ sayfasına dinamik şekilde yansıtıldı. (@Ali)
+
+### Duzeltildi
+- fix: hardcode storefront URL and update reset password link path in identity API (@ahmet)
+- fix(Listing): breadcrumb için product_category kullanıldı, aksi takdirde satıcı kategorisine geri dönülmesi sağlandı (@Ali)
+
+---
 ## [v1.0.2-rc.5] - 2026-04-06 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
