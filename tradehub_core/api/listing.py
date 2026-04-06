@@ -294,6 +294,7 @@ def get_listing_detail(listing_id):
         "listingCode": listing.listing_code,
         "title": listing.title,
         "category": category_breadcrumb,
+        "productCategoryId": listing.product_category or "",
         "images": images,
         "priceTiers": price_tiers,
         "moq": listing.min_order_qty or 1,
