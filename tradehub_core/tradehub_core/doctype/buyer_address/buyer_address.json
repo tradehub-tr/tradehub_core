@@ -1,0 +1,151 @@
+{
+	"name": "Buyer Address",
+	"doctype": "DocType",
+	"module": "Tradehub Core",
+	"naming_rule": "Expression",
+	"autoname": "ADDR-.####",
+	"engine": "InnoDB",
+	"track_changes": 1,
+	"sort_field": "modified",
+	"sort_order": "DESC",
+	"fields": [
+		{
+			"fieldname": "user",
+			"fieldtype": "Link",
+			"label": "User",
+			"options": "User",
+			"reqd": 1,
+			"search_index": 1,
+			"in_list_view": 1,
+			"in_standard_filter": 1
+		},
+		{
+			"fieldname": "title",
+			"fieldtype": "Data",
+			"label": "Adres Başlığı",
+			"reqd": 1,
+			"in_list_view": 1
+		},
+		{
+			"fieldname": "is_default",
+			"fieldtype": "Check",
+			"label": "Varsayılan Adres",
+			"default": "0",
+			"in_list_view": 1
+		},
+		{
+			"fieldname": "cb_top",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "contact_name",
+			"fieldtype": "Data",
+			"label": "İrtibat Kişisi",
+			"reqd": 1
+		},
+		{
+			"fieldname": "company",
+			"fieldtype": "Data",
+			"label": "Şirket Adı"
+		},
+		{
+			"fieldname": "sb_contact",
+			"fieldtype": "Section Break",
+			"label": "İletişim"
+		},
+		{
+			"fieldname": "phone_prefix",
+			"fieldtype": "Data",
+			"label": "Telefon Kodu",
+			"default": "+90"
+		},
+		{
+			"fieldname": "phone",
+			"fieldtype": "Data",
+			"label": "Telefon",
+			"options": "Phone",
+			"reqd": 1
+		},
+		{
+			"fieldname": "sb_location",
+			"fieldtype": "Section Break",
+			"label": "Konum"
+		},
+		{
+			"fieldname": "country",
+			"fieldtype": "Data",
+			"label": "Ülke Kodu",
+			"default": "TR"
+		},
+		{
+			"fieldname": "state",
+			"fieldtype": "Data",
+			"label": "İl",
+			"reqd": 1
+		},
+		{
+			"fieldname": "city",
+			"fieldtype": "Data",
+			"label": "İlçe"
+		},
+		{
+			"fieldname": "street",
+			"fieldtype": "Small Text",
+			"label": "Adres Satırı",
+			"reqd": 1
+		},
+		{
+			"fieldname": "cb_location",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "apartment",
+			"fieldtype": "Data",
+			"label": "Daire / Bina"
+		},
+		{
+			"fieldname": "postal_code",
+			"fieldtype": "Data",
+			"label": "Posta Kodu"
+		},
+		{
+			"fieldname": "note",
+			"fieldtype": "Small Text",
+			"label": "Adres Notu"
+		}
+	],
+	"permissions": [
+		{
+			"role": "System Manager",
+			"read": 1,
+			"write": 1,
+			"create": 1,
+			"delete": 1,
+			"email": 1,
+			"print": 1,
+			"report": 1,
+			"share": 1,
+			"export": 1,
+			"import": 1
+		},
+		{
+			"role": "Marketplace Admin",
+			"read": 1,
+			"write": 1,
+			"create": 1,
+			"report": 1,
+			"export": 1
+		},
+		{
+			"role": "Buyer",
+			"read": 1,
+			"write": 1,
+			"create": 1,
+			"delete": 1,
+			"if_owner": 1
+		}
+	],
+	"actions": [],
+	"links": [],
+	"states": []
+}
