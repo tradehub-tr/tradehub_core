@@ -56,6 +56,8 @@
   "specs_tab",
   "specifications_section",
   "attribute_values",
+  "certifications_section",
+  "product_certifications",
   "variants_tab",
   "variants_section",
   "has_variants",
@@ -443,6 +445,17 @@
    "fieldtype": "Table",
    "label": "Specifications",
    "options": "Listing Attribute Value"
+  },
+  {
+   "fieldname": "certifications_section",
+   "fieldtype": "Section Break",
+   "label": "\u00dcr\u00fcn Sertifikalar\u0131"
+  },
+  {
+   "fieldname": "product_certifications",
+   "fieldtype": "Table",
+   "label": "\u00dcr\u00fcn Sertifikalar\u0131",
+   "options": "Listing Certification"
   },
   {
    "fieldname": "variants_tab",

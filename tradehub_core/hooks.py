@@ -30,3 +30,32 @@ scheduler_events = {
 		"tradehub_core.setup.install.cleanup_expired_tokens",
 	],
 }
+
+# ---------------------------------------------------------------------------
+# Seller-Isolation Permissions
+# ---------------------------------------------------------------------------
+permission_query_conditions = {
+	"Listing": "tradehub_core.permissions.listing_query_conditions",
+	"Admin Seller Profile": "tradehub_core.permissions.admin_seller_profile_query_conditions",
+	"Seller Balance": "tradehub_core.permissions.seller_balance_query_conditions",
+	"Seller Review": "tradehub_core.permissions.seller_review_query_conditions",
+	"Seller Category": "tradehub_core.permissions.seller_category_query_conditions",
+	"Seller Gallery Image": "tradehub_core.permissions.seller_gallery_image_query_conditions",
+	"KYB Verification": "tradehub_core.permissions.kyb_verification_query_conditions",
+	"Order": "tradehub_core.permissions.order_query_conditions",
+	"Seller Inquiry": "tradehub_core.permissions.seller_inquiry_query_conditions",
+	"Certification Type": "tradehub_core.permissions.certification_type_query_conditions",
+}
+
+has_permission = {
+	"Listing": "tradehub_core.permissions.listing_has_permission",
+	"Admin Seller Profile": "tradehub_core.permissions.admin_seller_profile_has_permission",
+	"Seller Balance": "tradehub_core.permissions.seller_balance_has_permission",
+	"Seller Review": "tradehub_core.permissions.seller_review_has_permission",
+	"Seller Category": "tradehub_core.permissions.seller_category_has_permission",
+	"Seller Gallery Image": "tradehub_core.permissions.seller_gallery_image_has_permission",
+	"KYB Verification": "tradehub_core.permissions.kyb_verification_has_permission",
+	"Order": "tradehub_core.permissions.order_has_permission",
+	"Seller Inquiry": "tradehub_core.permissions.seller_inquiry_has_permission",
+	"Certification Type": "tradehub_core.permissions.certification_type_has_permission",
+}

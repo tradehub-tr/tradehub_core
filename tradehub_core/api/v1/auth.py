@@ -110,7 +110,7 @@ def get_session_user():
 		try:
 			asp = frappe.db.get_value(
 				"Admin Seller Profile",
-				{"seller_profile": frappe.session.user},
+				{"user": frappe.session.user},
 				["name", "seller_code"],
 				as_dict=True,
 			)
