@@ -1,3 +1,14 @@
+## [v1.0.3-rc.3] - 2026-04-08 RC
+
+Bu surum rc.istoc.com'da test asamasindadir.
+
+### Eklendi
+- feat(Listing): Arama filtreleri, faceted counts, relevance sort ve performans iyileştirmeleri yapıldı (@TurksabYonetim)
+
+### Duzeltildi
+- fix(Listing): Ayrıntılı yanıtta productCategoryId eklendi, breadcrumb kaynağı düzeltildi (@Ali)
+
+---
 ## [v1.0.3-rc.2] - 2026-04-07 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
