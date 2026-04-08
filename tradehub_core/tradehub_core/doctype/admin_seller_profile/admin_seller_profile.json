@@ -210,9 +210,10 @@
   },
   {
    "fieldname": "certifications",
-   "fieldtype": "Small Text",
+   "fieldtype": "Table",
    "label": "Sertifikalar",
-   "description": "Virgülle ayrılmış sertifikalar, örn: ISO 9001, CE, RoHS"
+   "options": "Seller Certification",
+   "description": "Sat\u0131c\u0131n\u0131n sahip oldu\u011fu sertifikalar"
   },
   {
    "fieldname": "tab_iletisim",
