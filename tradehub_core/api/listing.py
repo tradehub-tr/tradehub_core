@@ -1007,7 +1007,7 @@ def _format_listing_card(listing, seller_cache=None, tier_cache=None):
         "originalPrice": _format_price(listing.get("compare_at_price"), listing.get("currency")) if listing.get("compare_at_price") else None,
         "discount": f"%{int(listing.get('discount_percentage', 0))} indirim" if listing.get("discount_percentage") else None,
         "moq": f"{listing.get('min_order_qty', 1)} {listing.get('stock_uom', 'Adet')}",
-        "stats": f"{_format_number(listing.get('order_count', 0))} satış" if listing.get("order_count") else None,
+        "stats": f"{_format_number(listing.get('order_count', 0))} adet satıldı" if listing.get("order_count") else None,
         "imageSrc": primary_image,
         "images": all_images,
         "supplierName": listing.get("supplier_display_name", ""),
