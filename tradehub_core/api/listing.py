@@ -108,17 +108,39 @@ def get_listings(
         "brand", "modified", "creation",
     ]
 
-    listings = frappe.get_all(
-        "Listing",
-        filters=filters,
-        or_filters=or_filters,
-        fields=fields,
-        order_by=f"{actual_sort_field} {sort_order}",
-        start=start,
-        page_length=page_size,
-    )
-
     total = frappe.db.count("Listing", filters=filters)
+
+    # For sort_by=orders: use a subquery join to sort by real sold quantity
+    if sort_by == "orders":
+        listings = _get_listings_sorted_by_orders(filters, or_filters, fields, start, page_size)
+    else:
+        listings = frappe.get_all(
+            "Listing",
+            filters=filters,
+            or_filters=or_filters,
+            fields=fields,
+            order_by=f"{actual_sort_field} {sort_order}",
+            start=start,
+            page_length=page_size,
+        )
+
+        # Batch-fetch real sold quantities from Order Item records
+        if listings:
+            listing_names = [l.name for l in listings]
+            placeholders = ", ".join(["%s"] * len(listing_names))
+            sold_rows = frappe.db.sql(
+                f"""
+                SELECT listing, SUM(quantity) AS total_qty
+                FROM `tabOrder Item`
+                WHERE listing IN ({placeholders})
+                GROUP BY listing
+                """,
+                listing_names,
+                as_dict=True,
+            )
+            sold_map = {row.listing: int(row.total_qty or 0) for row in sold_rows}
+            for listing in listings:
+                listing["order_count"] = sold_map.get(listing.name, 0)
 
     # Enrich listings with supplier info and pricing tiers
     results = []
@@ -531,6 +553,64 @@ def get_search_suggestions(limit=6):
 
 # ---- Helper Functions ----
 
+def _get_listings_sorted_by_orders(filters, or_filters, fields, start, page_size):
+    """Fetch listings sorted by real sold quantity (from Order Item), then by modified DESC."""
+    # Build WHERE clause from filters
+    where_parts = ["l.`status` = 'Active'", "l.`is_visible` = 1"]
+    params = []
+
+    if filters.get("product_category"):
+        where_parts.append("l.`product_category` = %s")
+        params.append(filters["product_category"])
+    elif filters.get("category"):
+        where_parts.append("l.`category` = %s")
+        params.append(filters["category"])
+    if filters.get("is_featured"):
+        where_parts.append("l.`is_featured` = 1")
+    if filters.get("is_best_seller"):
+        where_parts.append("l.`is_best_seller` = 1")
+    if filters.get("is_new_arrival"):
+        where_parts.append("l.`is_new_arrival` = 1")
+    if filters.get("is_free_shipping"):
+        where_parts.append("l.`is_free_shipping` = 1")
+
+    where_clause = " AND ".join(where_parts)
+
+    # or_filters (text search) — skip for simplicity when sort=orders
+    # (or_filters is a list of [field, op, value] triples)
+    if or_filters:
+        or_parts = []
+        for f in or_filters:
+            field, op, val = f[0], f[1], f[2]
+            if op.lower() == "like":
+                or_parts.append(f"l.`{field}` LIKE %s")
+                params.append(val)
+        if or_parts:
+            where_clause += " AND (" + " OR ".join(or_parts) + ")"
+
+    field_names = ", ".join(f"l.`{f}`" for f in fields)
+
+    sql = f"""
+        SELECT {field_names},
+               COALESCE(oi.total_qty, 0) AS _sold_qty
+        FROM `tabListing` l
+        LEFT JOIN (
+            SELECT listing, SUM(quantity) AS total_qty
+            FROM `tabOrder Item`
+            GROUP BY listing
+        ) oi ON oi.listing = l.name
+        WHERE {where_clause}
+        ORDER BY _sold_qty DESC, l.modified DESC
+        LIMIT %s OFFSET %s
+    """
+    params.extend([page_size, start])
+
+    rows = frappe.db.sql(sql, params, as_dict=True)
+    for row in rows:
+        row["order_count"] = int(row.pop("_sold_qty", 0))
+    return rows
+
+
 def _format_listing_card(listing):
     """Format a listing record into the ProductListingCard structure for frontend."""
     # Get supplier info
@@ -607,7 +687,7 @@ def _format_listing_card(listing):
         "originalPrice": _format_price(listing.get("compare_at_price"), listing.get("currency")) if listing.get("compare_at_price") else None,
         "discount": f"%{int(listing.get('discount_percentage', 0))} indirim" if listing.get("discount_percentage") else None,
         "moq": f"{listing.get('min_order_qty', 1)} {listing.get('stock_uom', 'Adet')}",
-        "stats": f"{_format_number(listing.get('order_count', 0))} satış" if listing.get("order_count") else None,
+        "stats": f"{_format_number(listing.get('order_count', 0))} adet satıldı" if listing.get("order_count") else None,
         "imageSrc": primary_image,
         "images": [],
         "supplierName": listing.get("supplier_display_name", ""),
