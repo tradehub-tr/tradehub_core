@@ -1,3 +1,18 @@
+## [v1.0.3-rc.7] - 2026-04-08 RC
+
+Bu surum rc.istoc.com'da test asamasindadir.
+
+### Eklendi
+- feat(Listing): Arama filtreleri, faceted counts, relevance sort ve performans iyileştirmeleri yapıldı (@TurksabYonetim)
+- feat(Certification): Sertifika yönetim sistemi — DocType'lar, API, güvenlik ve facets'lar yapıldı (@TurksabYonetim)
+- feat(notification): Platform Notification DocType ve notify yardımcısı eklendi (@TurksabYonetim)
+- feat(notification): API endpoint'leri eklendi (get/mark_read/mark_all_read/unread_count) (@TurksabYonetim)
+
+### Duzeltildi
+- fix(Listing): Ayrıntılı yanıtta productCategoryId eklendi, breadcrumb kaynağı düzeltildi (@Ali)
+- fix: add_certification_to_workspace patch link validasyon hatası düzeltildi (@TurksabYonetim)
+
+---
 ## [v1.0.3-rc.6] - 2026-04-08 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
