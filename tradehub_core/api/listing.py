@@ -12,7 +12,7 @@ def _cache_key(prefix: str, **kwargs) -> str:
     return f"{prefix}:{h}"
 
 
-CACHE_TTL = 60  # seconds — short TTL for listing queries
+CACHE_TTL = 30  # seconds — short TTL for listing queries
 
 
 @frappe.whitelist(allow_guest=True)
@@ -35,6 +35,8 @@ def get_listings(
     free_shipping=None,
     paid_samples=None,
     certifications=None,
+    mgmt_certifications=None,
+    product_certifications=None,
 ):
     """Get paginated list of active listings for the product listing page.
 
@@ -48,7 +50,8 @@ def get_listings(
                      sup=supplier, sb=sort_by, so=sort_order, p=page, ps=page_size,
                      feat=is_featured, best=is_best_seller, new=is_new_arrival,
                      vs=verified_supplier, mr=min_rating, co=country, fs=free_shipping,
-                     ps2=paid_samples, cert=certifications)
+                     ps2=paid_samples, cert=certifications,
+                     mc=mgmt_certifications, pc=product_certifications)
     cached = frappe.cache.get_value(ck)
     if cached:
         return cached
@@ -92,19 +95,30 @@ def get_listings(
     if country:
         seller_profile_filters["country"] = country
 
-    # Certification filter: comma-separated values, search with LIKE
-    if certifications:
-        cert_list = [c.strip() for c in certifications.split(",") if c.strip()]
+    # Management certifications filter: via Seller Certification child table
+    if certifications or mgmt_certifications:
+        cert_str = mgmt_certifications or certifications
+        cert_list = [c.strip() for c in cert_str.split(",") if c.strip()]
         if cert_list:
-            seller_or_filters = [
-                ["certifications", "like", f"%{cert}%"] for cert in cert_list
-            ]
+            # Find sellers who have ANY of these certifications
+            sellers_with_certs = frappe.get_all(
+                "Seller Certification",
+                filters=[["certification_type", "in", cert_list]],
+                fields=["parent"],
+                pluck="parent",
+            )
+            if sellers_with_certs:
+                seller_profile_filters["name"] = ["in", list(set(sellers_with_certs))]
+            else:
+                return {
+                    "data": [], "total": 0, "page": page, "page_size": page_size,
+                    "total_pages": 1, "has_next": False, "has_prev": False,
+                }
 
-    if seller_profile_filters or seller_or_filters:
+    if seller_profile_filters:
         matching_sellers = frappe.get_all(
             "Admin Seller Profile",
-            filters=seller_profile_filters or {},
-            or_filters=seller_or_filters,
+            filters=seller_profile_filters,
             fields=["name"],
             pluck="name",
         )
@@ -115,6 +129,24 @@ def get_listings(
                 "data": [], "total": 0, "page": page, "page_size": page_size,
                 "total_pages": 1, "has_next": False, "has_prev": False,
             }
+
+    # Product certifications filter: via Listing Certification child table
+    if product_certifications:
+        pcert_list = [c.strip() for c in product_certifications.split(",") if c.strip()]
+        if pcert_list:
+            listings_with_pcerts = frappe.get_all(
+                "Listing Certification",
+                filters=[["certification_type", "in", pcert_list]],
+                fields=["parent"],
+                pluck="parent",
+            )
+            if listings_with_pcerts:
+                filters["name"] = ["in", list(set(listings_with_pcerts))]
+            else:
+                return {
+                    "data": [], "total": 0, "page": page, "page_size": page_size,
+                    "total_pages": 1, "has_next": False, "has_prev": False,
+                }
 
     # ── Rating filter ──
     if min_rating:
@@ -584,13 +616,13 @@ def get_filter_facets(query=None, category=None):
             ["brand", "like", f"%{query}%"],
         ]
 
-    # Get all matching listing names first
+    # Get all matching listing names first (include seller_profile for cert aggregation)
     all_filters = [[k, v[0], v[1]] if isinstance(v, list) else [k, "=", v] for k, v in base_filters.items()]
     listings = frappe.get_all(
         "Listing",
         filters=all_filters,
         or_filters=or_filters,
-        fields=["ships_from_country", "product_category"],
+        fields=["name", "ships_from_country", "product_category", "seller_profile"],
     )
 
     # Aggregate countries
@@ -630,43 +662,81 @@ def get_filter_facets(query=None, category=None):
             "count": count,
         })
 
-    # Aggregate certifications from seller profiles of matching listings
-    seller_profiles = set()
-    for l in listings:
-        sp = l.get("seller_profile") if "seller_profile" in (l or {}) else None
-        # seller_profile not in fields — fetch separately below
-
-    # Get unique seller profiles from listings
+    # Aggregate management certifications from Seller Certification child table
     listing_names = [l.name for l in listings] if listings else []
-    cert_counts: dict[str, int] = {}
-    if listing_names:
-        seller_certs = frappe.get_all(
-            "Listing",
-            filters=[["name", "in", listing_names]],
-            fields=["seller_profile"],
-            group_by="seller_profile",
-        )
-        for sc in seller_certs:
-            if sc.seller_profile:
-                certs_str = frappe.db.get_value(
-                    "Admin Seller Profile", sc.seller_profile, "certifications"
-                )
-                if certs_str:
-                    for cert in certs_str.split(","):
-                        cert = cert.strip()
-                        if cert:
-                            cert_counts[cert] = cert_counts.get(cert, 0) + 1
+    mgmt_cert_counts: dict[str, int] = {}
+    product_cert_counts: dict[str, int] = {}
 
-    certifications_list = [
-        {"label": cert, "value": cert, "count": count}
-        for cert, count in sorted(cert_counts.items(), key=lambda x: -x[1])
+    if listing_names:
+        # Get seller profiles directly from already-fetched listings
+        seller_profiles = list({
+            l.seller_profile for l in listings if l.get("seller_profile")
+        })
+
+        # Build a lookup of Certification Type → category for filtering
+        all_assigned_certs = set()
+
+        # Collect all assigned cert IDs from both child tables
+        if seller_profiles:
+            seller_certs = frappe.get_all(
+                "Seller Certification",
+                filters=[["parent", "in", seller_profiles], ["parenttype", "=", "Admin Seller Profile"]],
+                fields=["certification_type"],
+            )
+            for sc in seller_certs:
+                all_assigned_certs.add(sc.certification_type)
+
+        product_certs = frappe.get_all(
+            "Listing Certification",
+            filters=[["parent", "in", listing_names], ["parenttype", "=", "Listing"]],
+            fields=["certification_type"],
+        )
+        for pc in product_certs:
+            all_assigned_certs.add(pc.certification_type)
+
+    # Resolve certification types with category — only Approved
+    cert_info_map = {}  # {name: {label, category}}
+    if all_assigned_certs:
+        for ct in frappe.get_all(
+            "Certification Type",
+            filters=[["name", "in", list(all_assigned_certs)], ["status", "=", "Approved"]],
+            fields=["name", "certification_name", "category"],
+        ):
+            cert_info_map[ct.name] = {
+                "label": ct.certification_name or ct.name,
+                "category": ct.category,
+            }
+
+    # Count by actual category from Certification Type master
+    if listing_names:
+        if seller_profiles:
+            for sc in seller_certs:
+                info = cert_info_map.get(sc.certification_type)
+                if info and info["category"] == "Management":
+                    mgmt_cert_counts[sc.certification_type] = mgmt_cert_counts.get(sc.certification_type, 0) + 1
+
+        for pc in product_certs:
+            info = cert_info_map.get(pc.certification_type)
+            if info and info["category"] == "Product":
+                product_cert_counts[pc.certification_type] = product_cert_counts.get(pc.certification_type, 0) + 1
+
+    mgmt_certifications_list = [
+        {"label": cert_info_map[cert]["label"], "value": cert, "count": count}
+        for cert, count in sorted(mgmt_cert_counts.items(), key=lambda x: -x[1])
+        if cert in cert_info_map
+    ]
+    product_certifications_list = [
+        {"label": cert_info_map[cert]["label"], "value": cert, "count": count}
+        for cert, count in sorted(product_cert_counts.items(), key=lambda x: -x[1])
+        if cert in cert_info_map
     ]
 
     facet_result = {
         "data": {
             "countries": countries,
             "categories": categories,
-            "certifications": certifications_list,
+            "managementCertifications": mgmt_certifications_list,
+            "productCertifications": product_certifications_list,
         }
     }
 
