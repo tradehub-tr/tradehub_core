@@ -1,3 +1,15 @@
+## [v1.0.3-rc.5] - 2026-04-08 RC
+
+Bu surum rc.istoc.com'da test asamasindadir.
+
+### Eklendi
+- feat(Listing): Arama filtreleri, faceted counts, relevance sort ve performans iyileştirmeleri yapıldı (@TurksabYonetim)
+- feat(Certification): Sertifika yönetim sistemi — DocType'lar, API, güvenlik ve facets'lar yapıldı (@TurksabYonetim)
+
+### Duzeltildi
+- fix(Listing): Ayrıntılı yanıtta productCategoryId eklendi, breadcrumb kaynağı düzeltildi (@Ali)
+
+---
 ## [v1.0.3-rc.4] - 2026-04-08 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
