@@ -838,43 +838,269 @@ def get_related_listings(listing_id, limit=8):
     return {"data": results}
 
 
+@frappe.whitelist(allow_guest=True, methods=["POST"])
+def log_search(query: str, category: str = ""):
+    """Log a search query for the current user. Guest searches are ignored."""
+    if frappe.session.user == "Guest":
+        return {"success": True}
+
+    query = (query or "").strip()
+    if not query:
+        return {"success": True}
+
+    user = frappe.session.user
+    query_trimmed = query[:200]
+    category_trimmed = (category or "")[:200]
+
+    # Dedup: if same query was logged within last 5 minutes, update its timestamp instead of creating new
+    recent_same = frappe.db.get_value(
+        "Search History",
+        {"user": user, "query": query_trimmed, "creation": [">=", frappe.utils.add_to_date(None, minutes=-5)]},
+        "name",
+    )
+    if recent_same:
+        # Touch the existing record to move it to top
+        frappe.db.set_value("Search History", recent_same, {
+            "category": category_trimmed,
+            "modified": frappe.utils.now_datetime(),
+            "creation": frappe.utils.now_datetime(),
+        }, update_modified=False)
+    else:
+        # Create new search history record
+        doc = frappe.new_doc("Search History")
+        doc.user = user
+        doc.query = query_trimmed
+        doc.category = category_trimmed
+        doc.flags.ignore_permissions = True
+        doc.insert()
+
+        # Keep max 50 records per user — delete oldest if exceeded
+        records = frappe.get_all(
+            "Search History",
+            filters={"user": user},
+            fields=["name", "creation"],
+            order_by="creation DESC",
+            limit=100,
+        )
+        if len(records) > 50:
+            to_delete = records[50:]
+            for r in to_delete:
+                frappe.delete_doc("Search History", r.name, force=True, ignore_permissions=True)
+
+    frappe.db.commit()
+
+    # Invalidate user's suggestion cache so new search influences suggestions immediately
+    frappe.cache.delete_value(f"search_suggestions:{frappe.session.user}")
+
+    return {"success": True}
+
+
+def cleanup_old_search_history():
+    """Remove search history records older than 30 days. Runs daily via scheduler."""
+    cutoff = frappe.utils.add_days(frappe.utils.now_datetime(), -30)
+    old_records = frappe.get_all(
+        "Search History",
+        filters={"creation": ["<", cutoff]},
+        fields=["name"],
+        limit=1000,
+    )
+    for r in old_records:
+        frappe.delete_doc("Search History", r.name, force=True, ignore_permissions=True)
+    if old_records:
+        frappe.db.commit()
+
+
 @frappe.whitelist(allow_guest=True)
 def get_search_suggestions(limit=6):
-    """Get search suggestions and category chips for the search bar."""
-    limit = int(limit)
+    """Get search suggestions and category chips for the search bar.
 
-    # Top product titles from most ordered/viewed active listings
-    top_listings = frappe.get_all(
+    Prod-optimized: minimal queries, no N+1, single GROUP BY for categories.
+    Logged-in users get personalized results cached 15 min with timestamp freshness.
+    Guests get random popular results (no cache).
+    """
+    import random
+
+    limit = int(limit)
+    user = frappe.session.user
+    is_guest = user == "Guest"
+
+    # ── Cache check (logged-in only) ──
+    cache_key = None
+    if not is_guest:
+        cache_key = f"search_suggestions:{user}"
+        cached = frappe.cache.get_value(cache_key)
+        if cached:
+            cached_at = cached.get("_cached_at")
+            latest_search = frappe.db.get_value(
+                "Search History", {"user": user}, "creation", order_by="creation DESC",
+            )
+            if cached_at and latest_search and str(latest_search) > str(cached_at):
+                frappe.cache.delete_value(cache_key)
+            else:
+                return cached.get("_result", cached)
+
+    # ── Personalized suggestions (logged-in only) ──
+    personalized = []
+    personalized_cat_chips = []
+
+    if not is_guest:
+        # Get recent search categories + queries in ONE query
+        recent = frappe.get_all(
+            "Search History",
+            filters={"user": user},
+            fields=["query", "category"],
+            order_by="creation DESC",
+            limit=10,
+        )
+
+        # PRIORITY 1: Recent queries → title match (preserves search order)
+        # Max 3 LIKE queries, most recent first
+        seen = {s["text"].lower() for s in personalized}
+        queries_tried = 0
+        for r in recent:
+                if queries_tried >= 3:
+                    break
+                q_text = (r.query or "").strip()
+                if not q_text or len(q_text) < 2:
+                    continue
+                queries_tried += 1
+                matches = frappe.get_all(
+                    "Listing",
+                    filters={"status": "Active", "is_visible": 1, "title": ["like", f"%{q_text}%"]},
+                    fields=["title"],
+                    order_by="order_count DESC",
+                    limit=2,
+                )
+                for m in matches:
+                    key = m.title.lower()
+                    if key not in seen:
+                        seen.add(key)
+                        personalized.append({"text": _truncate_words(m.title, 5), "type": "product"})
+                    if len(personalized) >= limit:
+                        break
+
+        # PRIORITY 2: Fill remaining from user's searched categories (indexed, fast)
+        if len(personalized) < limit:
+            user_categories = []
+            for r in recent:
+                if r.category and r.category not in user_categories:
+                    user_categories.append(r.category)
+            if user_categories:
+                cat_ids = [frappe.db.get_value("Product Category", {"url_slug": c}, "name") or c for c in user_categories[:5]]
+                cat_ids = [c for c in cat_ids if c]
+                if cat_ids:
+                    cat_listings = frappe.get_all(
+                        "Listing",
+                        filters=[["product_category", "in", cat_ids], ["status", "=", "Active"], ["is_visible", "=", 1]],
+                        fields=["title"],
+                        order_by="order_count DESC",
+                        limit=limit,
+                    )
+                    for cl in cat_listings:
+                        key = cl.title.lower()
+                        if key not in seen:
+                            seen.add(key)
+                            personalized.append({"text": _truncate_words(cl.title, 5), "type": "product"})
+                        if len(personalized) >= limit:
+                            break
+
+        # Cart categories — batch query
+        try:
+            cart_cats = frappe.db.sql("""
+                SELECT DISTINCT l.product_category
+                FROM `tabCart Item` ci
+                JOIN `tabCart` c ON c.name = ci.parent
+                JOIN `tabListing` l ON l.name = ci.listing
+                WHERE c.user = %s AND l.product_category IS NOT NULL AND l.product_category != ''
+                LIMIT 5
+            """, (user,), as_dict=True)
+            for cc in cart_cats:
+                cat_info = frappe.db.get_value(
+                    "Product Category", cc.product_category,
+                    ["category_name", "url_slug"], as_dict=True,
+                )
+                if cat_info:
+                    personalized_cat_chips.append({
+                        "text": cat_info.category_name,
+                        "type": "category",
+                        "slug": cat_info.url_slug or cc.product_category,
+                    })
+                if len(personalized_cat_chips) >= 3:
+                    break
+        except Exception:
+            pass
+
+    # ── Popular pool (guests + fill remaining for logged-in) ──
+    pool_size = max(limit * 3, 20)
+    listing_pool = frappe.get_all(
         "Listing",
         filters={"status": "Active", "is_visible": 1},
         fields=["title"],
         order_by="order_count DESC, view_count DESC",
-        limit=limit,
+        limit=pool_size,
     )
 
-    suggestions = [{"text": _truncate_words(l.title, 5), "type": "product"} for l in top_listings]
+    if len(listing_pool) > limit:
+        random.shuffle(listing_pool)
+        popular_selected = listing_pool[:limit]
+    else:
+        popular_selected = listing_pool
 
-    # Top 3 categories by active listing count
-    categories = frappe.get_all(
-        "Product Category",
-        filters={"is_active": 1},
-        fields=["name", "category_name"],
-    )
+    popular_suggestions = [{"text": _truncate_words(l.title, 5), "type": "product"} for l in popular_selected]
 
-    category_counts = []
-    for cat in categories:
-        count = frappe.db.count("Listing", {"category": cat.name, "status": "Active", "is_visible": 1})
-        category_counts.append({"name": cat.category_name, "count": count})
+    # ── Merge suggestions ──
+    if personalized:
+        seen = {s["text"].lower() for s in personalized}
+        for ps in popular_suggestions:
+            if ps["text"].lower() not in seen:
+                personalized.append(ps)
+                seen.add(ps["text"].lower())
+            if len(personalized) >= limit:
+                break
+        suggestions = personalized[:limit]
+    else:
+        suggestions = popular_suggestions
 
-    category_counts.sort(key=lambda x: x["count"], reverse=True)
-    chips = [{"text": c["name"], "type": "category"} for c in category_counts[:3]]
+    # ── Category chips — single GROUP BY query instead of N+1 ──
+    top_cats = frappe.db.sql("""
+        SELECT pc.category_name, pc.url_slug, pc.name, COUNT(*) as cnt
+        FROM `tabListing` l
+        JOIN `tabProduct Category` pc ON pc.name = l.product_category
+        WHERE l.status = 'Active' AND l.is_visible = 1 AND pc.is_active = 1
+        GROUP BY pc.name
+        HAVING cnt > 0
+        ORDER BY cnt DESC
+        LIMIT 10
+    """, as_dict=True)
 
-    return {
-        "data": {
-            "suggestions": suggestions,
-            "chips": chips,
-        }
-    }
+    random.shuffle(top_cats)
+    general_chips = [
+        {"text": c.category_name, "type": "category", "slug": c.url_slug or c.name}
+        for c in top_cats[:3]
+    ]
+
+    if personalized_cat_chips:
+        seen_slugs = {c["slug"] for c in personalized_cat_chips}
+        for gc in general_chips:
+            if gc["slug"] not in seen_slugs:
+                personalized_cat_chips.append(gc)
+                seen_slugs.add(gc["slug"])
+            if len(personalized_cat_chips) >= 3:
+                break
+        chips = personalized_cat_chips[:3]
+    else:
+        chips = general_chips
+
+    result = {"data": {"suggestions": suggestions, "chips": chips}}
+
+    # ── Cache (logged-in, 15 min) ──
+    if not is_guest and cache_key:
+        frappe.cache.set_value(cache_key, {
+            "_result": result,
+            "_cached_at": str(frappe.utils.now_datetime()),
+        }, expires_in_sec=900)
+
+    return result
 
 
 # ---- Helper Functions ----

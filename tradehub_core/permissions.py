@@ -751,3 +751,19 @@ def certification_type_has_permission(doc, ptype, user):
     # Allow seller to see their own Pending/Rejected suggestions
     suggested_by = getattr(doc, "suggested_by", None) if not isinstance(doc, dict) else doc.get("suggested_by")
     return suggested_by == user
+
+
+# ── Search History ──────────────────────────────────────────────────────────
+# Search History.user links to User. Each user can only see their own records.
+
+def search_history_query_conditions(user):
+    if "System Manager" in frappe.get_roles(user):
+        return ""
+    return f"`tabSearch History`.`user` = {frappe.db.escape(user)}"
+
+
+def search_history_has_permission(doc, ptype, user):
+    if "System Manager" in frappe.get_roles(user):
+        return True
+    doc_user = getattr(doc, "user", None) if not isinstance(doc, dict) else doc.get("user")
+    return doc_user == user
