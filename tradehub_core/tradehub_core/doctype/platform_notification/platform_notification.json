@@ -31,8 +31,9 @@
   },
   {
    "fieldname": "recipient_user",
-   "fieldtype": "Data",
-   "label": "Alıcı Kullanıcı (Email)",
+   "fieldtype": "Link",
+   "label": "Alıcı Kullanıcı",
+   "options": "User",
    "reqd": 1,
    "in_list_view": 1,
    "search_index": 1

@@ -4,6 +4,7 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 from frappe.utils import now_datetime, getdate, today
+from tradehub_core.utils.notify import notify
 
 
 ALLOWED_FILE_EXTENSIONS = (".pdf", ".jpg", ".jpeg", ".png")
@@ -48,6 +49,7 @@ class KYBVerification(Document):
 		if self.has_value_changed("status"):
 			self._sync_kyb_status()
 			self._set_review_metadata()
+			self._send_status_notifications()
 
 	def _validate_company_title(self):
 		if not self.company_title or not self.company_title.strip():
@@ -99,3 +101,84 @@ class KYBVerification(Document):
 				self.db_set("verified_by", frappe.session.user)
 			if not self.verified_at:
 				self.db_set("verified_at", now_datetime())
+
+	def _send_status_notifications(self):
+		"""KYB durum değişikliklerinde satıcıya ve admin'e bildirim gönder."""
+		if not self.user:
+			return
+
+		company = self.company_title or self.name
+
+		if self.status == "Under Review":
+			notify(
+				recipient_user=self.user,
+				recipient_role="seller",
+				type="system",
+				title=_("KYB İncelemeye Alındı"),
+				message=_("{0} için KYB doğrulama başvurunuz incelemeye alındı.").format(company),
+				action_url="/seller/dashboard?tab=kyb",
+				reference_doctype="KYB Verification",
+				reference_name=self.name,
+			)
+		elif self.status == "Verified":
+			notify(
+				recipient_user=self.user,
+				recipient_role="seller",
+				type="system",
+				title=_("KYB Doğrulandı"),
+				message=_("{0} için KYB doğrulamanız onaylandı.").format(company),
+				action_url="/seller/dashboard?tab=kyb",
+				reference_doctype="KYB Verification",
+				reference_name=self.name,
+			)
+		elif self.status == "Rejected":
+			reason = self.rejection_reason or ""
+			notify(
+				recipient_user=self.user,
+				recipient_role="seller",
+				type="system",
+				title=_("KYB Reddedildi"),
+				message=_("{0} için KYB doğrulamanız reddedildi. {1}").format(company, reason),
+				action_url="/seller/dashboard?tab=kyb",
+				reference_doctype="KYB Verification",
+				reference_name=self.name,
+			)
+		elif self.status == "Expired":
+			notify(
+				recipient_user=self.user,
+				recipient_role="seller",
+				type="system",
+				title=_("KYB Süresi Doldu"),
+				message=_("{0} için KYB doğrulamanızın süresi doldu. Lütfen belgelerinizi yenileyiniz.").format(company),
+				action_url="/seller/dashboard?tab=kyb",
+				reference_doctype="KYB Verification",
+				reference_name=self.name,
+			)
+
+		# Sadece Pending'e ilk geçişte admin'lere bildirim gönder
+		# (Under Review'da tekrar göndermiyoruz — admin zaten haberdar)
+		if self.status == "Pending":
+			admins = frappe.get_all(
+				"Has Role",
+				filters={"role": "System Manager", "parenttype": "User"},
+				fields=["parent"],
+			)
+			for admin in admins:
+				# Aynı KYB için admin'e zaten bildirim gittiyse tekrar gönderme
+				existing = frappe.db.exists("Platform Notification", {
+					"recipient_user": admin.parent,
+					"reference_doctype": "KYB Verification",
+					"reference_name": self.name,
+					"type": "system",
+				})
+				if not existing:
+					notify(
+						recipient_user=admin.parent,
+						recipient_role="admin",
+						type="system",
+						title=_("KYB Doğrulama Başvurusu"),
+						message=_("{0} yeni KYB doğrulama başvurusu bekliyor.").format(company),
+						action_url=f"/app/kyb-verification/{self.name}",
+						reference_doctype="KYB Verification",
+						reference_name=self.name,
+					)
