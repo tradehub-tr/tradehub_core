@@ -28,6 +28,7 @@ fixtures = [
 scheduler_events = {
 	"daily": [
 		"tradehub_core.setup.install.cleanup_expired_tokens",
+		"tradehub_core.utils.notification_cleanup.delete_old_notifications",
 	],
 }
 

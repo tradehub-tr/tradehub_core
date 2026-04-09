@@ -2,6 +2,17 @@ import frappe
 from frappe import _
 
 
+# Her iki endpoint'in de döndürdüğü ortak field listesi.
+# Yeni field eklendiğinde tek yerden güncellenir.
+NOTIFICATION_FIELDS = [
+    "name", "title", "message", "type", "action_url",
+    "recipient_role",
+    "is_read", "read_at", "channel",
+    "reference_doctype", "reference_name",
+    "creation",
+]
+
+
 def _get_current_user_email() -> str:
     """Oturumdaki kullanıcının e-postasını döndür."""
     return frappe.session.user
@@ -24,6 +35,7 @@ def get_notifications(page=1, page_size=20, unread_only=False):
     user = _get_current_user_email()
     page = int(page)
     page_size = min(int(page_size), 100)
+    unread_only = int(unread_only or 0)
     start = (page - 1) * page_size
 
     filters = {"recipient_user": user}
@@ -38,12 +50,7 @@ def get_notifications(page=1, page_size=20, unread_only=False):
     records = frappe.get_all(
         "Platform Notification",
         filters=filters,
-        fields=[
-            "name", "title", "message", "type", "action_url",
-            "is_read", "read_at", "channel",
-            "reference_doctype", "reference_name",
-            "creation",
-        ],
+        fields=NOTIFICATION_FIELDS,
         order_by="creation desc",
         start=start,
         page_length=page_size,
@@ -96,6 +103,62 @@ def mark_read(notification_name):
     )
     frappe.db.commit()
     return {"success": True}
+
+
+@frappe.whitelist()
+def get_new_notifications(since=None, limit=5, mark_as_read=False):
+    """Son polling'den bu yana gelen yeni bildirimleri döndür.
+
+    Storefront toast tetiklemesi için hafif endpoint.
+    mark_as_read=1 ile döndürülen bildirimler otomatik okundu işaretlenir.
+
+    Args:
+        since: ISO datetime string — bu tarihten sonraki bildirimler
+        limit: max kaç bildirim dönsün (default 5, max 20)
+        mark_as_read: 1 ise döndürülen bildirimleri okundu işaretle
+
+    Returns:
+        {
+            "data": [...],
+            "count": int,
+            "server_time": str
+        }
+    """
+    user = _get_current_user_email()
+    filters = {"recipient_user": user}
+
+    if since:
+        filters["creation"] = [">", since]
+    else:
+        filters["is_read"] = 0
+
+    records = frappe.get_all(
+        "Platform Notification",
+        filters=filters,
+        fields=NOTIFICATION_FIELDS,
+        order_by="creation desc",
+        page_length=min(int(limit), 20),
+    )
+
+    # Toast olarak gösterilen bildirimleri otomatik okundu işaretle
+    if int(mark_as_read or 0) and records:
+        now = frappe.utils.now()
+        names = tuple(r["name"] for r in records)
+        frappe.db.sql(
+            """
+            UPDATE `tabPlatform Notification`
+            SET is_read = 1, read_at = %s
+            WHERE name IN %s AND recipient_user = %s AND is_read = 0
+            """,
+            (now, names, user),
+        )
+        frappe.db.commit()
+
+    return {
+        "data": records,
+        "count": len(records),
+        "server_time": frappe.utils.now(),
+    }
 
 
 @frappe.whitelist()

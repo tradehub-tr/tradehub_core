@@ -556,7 +556,12 @@ def apply_tenant_filter(filters, doctype=None, user=None):
 
 def _get_seller_profile_name(user):
     """Return the Admin Seller Profile name (= seller_code) for the given user, or None."""
-    return frappe.db.get_value("Admin Seller Profile", {"user": user}, "name")
+    profile = frappe.db.get_value("Admin Seller Profile", {"user": user}, "name")
+    if not profile:
+        profile = frappe.db.get_value("Admin Seller Profile", {"owner": user}, "name")
+    if not profile:
+        profile = frappe.db.get_value("Admin Seller Profile", {"email": user}, "name")
+    return profile
 
 
 # ── Listing ──────────────────────────────────────────────────────────────────
@@ -574,7 +579,16 @@ def listing_has_permission(doc, ptype, user):
     if "System Manager" in frappe.get_roles(user):
         return True
     profile = _get_seller_profile_name(user)
-    return profile and (getattr(doc, "seller_profile", None) or (doc.get("seller_profile") if isinstance(doc, dict) else None)) == profile
+    if not profile:
+        return False
+    # doc yoksa (doctype-seviyesi kontrol) veya henüz kaydedilmemişse izin ver
+    if doc is None:
+        return True
+    doc_seller = getattr(doc, "seller_profile", None) or (doc.get("seller_profile") if isinstance(doc, dict) else None)
+    # seller_profile henüz atanmamışsa izin ver (before_insert otomatik atar)
+    if not doc_seller:
+        return True
+    return doc_seller == profile
 
 
 # ── Admin Seller Profile ─────────────────────────────────────────────────────
