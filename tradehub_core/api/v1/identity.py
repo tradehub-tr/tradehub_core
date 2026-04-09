@@ -564,6 +564,60 @@ def _verify_password(user: str, password: str):
 
 
 @frappe.whitelist(methods=["POST"])
+@rate_limit(key="user", limit=10, seconds=300)
+def update_profile_image(filename: str = "", filedata: str = ""):
+	"""Upload a profile image for the currently logged-in user.
+
+	Accepts base64-encoded image content via JSON body. Stores the file as
+	a public attachment (so it can be rendered in avatars) and updates the
+	``User.user_image`` field. Returns the final file URL so the frontend
+	can update the UI immediately without a full reload.
+	"""
+	import base64
+
+	user = frappe.session.user
+	if user == "Guest":
+		frappe.throw(_("Not logged in."), frappe.AuthenticationError)
+
+	if not filename or not filedata:
+		frappe.throw(_("No file uploaded."))
+
+	allowed_ext = (".jpg", ".jpeg", ".png", ".webp", ".gif")
+	if not filename.lower().endswith(allowed_ext):
+		frappe.throw(_("Only JPG, PNG, WEBP and GIF images are allowed."))
+
+	# Strip data URI prefix if present (e.g. "data:image/png;base64,...")
+	if "," in filedata:
+		filedata = filedata.split(",", 1)[1]
+
+	try:
+		content = base64.b64decode(filedata)
+	except Exception:
+		frappe.throw(_("Invalid file data."))
+
+	# Hard size cap — 5 MB
+	if len(content) > 5 * 1024 * 1024:
+		frappe.throw(_("Image must be smaller than 5 MB."))
+
+	file_doc = frappe.get_doc(
+		{
+			"doctype": "File",
+			"file_name": filename,
+			"content": content,
+			"is_private": 0,
+			"attached_to_doctype": "User",
+			"attached_to_name": user,
+		}
+	)
+	file_doc.insert(ignore_permissions=True)
+
+	frappe.db.set_value("User", user, "user_image", file_doc.file_url)
+	frappe.db.commit()
+
+	return {"success": True, "user_image": file_doc.file_url}
+
+
+@frappe.whitelist(methods=["POST"])
 def change_password(current_password: str, new_password: str):
 	"""Change password for the currently logged-in user."""
 	user = frappe.session.user
