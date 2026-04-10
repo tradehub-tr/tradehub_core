@@ -1,3 +1,38 @@
+## [v1.0.3-rc.14] - 2026-04-10 RC
+
+Bu surum rc.istoc.com'da test asamasindadir.
+
+### Eklendi
+- feat(storefront): satıcı vitrin düzeni ve tema ayarları için yeni fonksiyonlar eklendi (@TurksabYonetim)
+- feat: Storefront düzeni yönetimini uygulamak, listeleme durumu iş akışını geliştirmek ve sipariş doküman tipini takip bilgileri ile daha ayrıntılı durum alanlarıyla güncellemek. (@boraydeger32)
+- feat: Sepet öğelerine color_variant ve variant_label desteği eklendi, dinamik görsel çözümleme getirildi ve auth yanıtına CSRF token eklendi (@boraydeger32)
+- feat(RFQ): Sabit kodlanmış ürünler API çağrılarıyla RFQ sayfasına dinamik şekilde yansıtıldı. (@Ali)
+- feat: update email verification and password reset links to use configurable storefront URL (@TurksabYonetim)
+- feat(auth): fix storefront URLs, add email verification redirect and resend endpoint (@TurksabYonetim)
+- feat(Listing): Arama filtreleri, faceted counts, relevance sort ve performans iyileştirmeleri yapıldı (@TurksabYonetim)
+- feat(Listing): Arama filtreleri, faceted counts, relevance sort ve performans iyileştirmeleri yapıldı (@TurksabYonetim)
+- feat(Certification): Sertifika yönetim sistemi — DocType'lar, API, güvenlik ve facets'lar yapıldı (@TurksabYonetim)
+- feat(Certification): Sertifika yönetim sistemi — DocType'lar, API, güvenlik ve facets'lar yapıldı (@TurksabYonetim)
+- feat(notification): Platform Notification DocType ve notify yardımcısı eklendi (@TurksabYonetim)
+- feat(notification): Platform Notification DocType ve notify yardımcısı eklendi (@boraydeger32)
+- feat(notification): API endpoint'leri eklendi (get/mark_read/mark_all_read/unread_count) (@TurksabYonetim)
+- feat(notification): API endpoint'leri eklendi (get/mark_read/mark_all_read/unread_count) (@boraydeger32)
+- feat:  Güvenli JSON geçersiz kılmaları ve public API erişimiyle site geneli tema ayarları eklendi (@TurksabYonetim)
+- feat:  Güvenli JSON geçersiz kılmaları ve public API erişimiyle site geneli tema ayarları eklendi (@TurksabYonetim)
+- feat(search): Kişiselleştirilmiş arama önerileri + Search History + prod optimizasyonu (@TurksabYonetim)
+- feat: auth yanıtına user_image ekle ve update_profile_image API uç noktasını uygula (@TurksabYonetim)
+- feat: Tema API'sine rate limit ekle ve palet/tipografi/input token whitelist'ini genişlet (@TurksabYonetim)
+
+### Duzeltildi
+- fix: revoke_approval ile Seller Profile'ı Suspended yapısı eklendi. (@Ali)
+- fix(Listing): breadcrumb için product_category kullanıldı, aksi takdirde satıcı kategorisine geri dönülmesi sağlandı (@Ali)
+- fix(Listing): Ayrıntılı yanıtta productCategoryId eklendi, breadcrumb kaynağı düzeltildi (@Ali)
+- fix(Listing): Ayrıntılı yanıtta productCategoryId eklendi, breadcrumb kaynağı düzeltildi (@Ali)
+- fix: hardcode storefront URL and update reset password link path in identity API (@TurksabYonetim)
+- fix: add_certification_to_workspace patch link validasyon hatası düzeltildi (@TurksabYonetim)
+- fix: add_certification_to_workspace patch link validasyon hatası düzeltildi (@boraydeger32)
+
+---
 ## [v1.0.3-rc.13] - 2026-04-09 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
