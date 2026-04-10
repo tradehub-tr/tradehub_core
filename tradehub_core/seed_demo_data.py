@@ -1185,11 +1185,16 @@ def _ensure_seller(s):
         "response_time": random.choice(["< 1 saat", "< 2 saat", "< 4 saat", "< 24 saat"]),
         "response_rate": round(random.uniform(85, 99), 1),
         "on_time_delivery": round(random.uniform(90, 99), 1),
-        "gallery_images": [
-            {"image": _img(f'{s["code"]}-gallery-{i}', 600, 400), "caption": f"Fabrika/Mağaza Görüntüsü {i}"}
-            for i in range(1, random.randint(4, 6))
-        ],
     })
+
+    # Gallery images — child table satırlarını ayrı ekle
+    gallery_count = random.randint(3, 5)
+    for i in range(1, gallery_count + 1):
+        doc.append("gallery_images", {
+            "image": _img(f'{s["code"]}-gallery-{i}', 600, 400),
+            "caption": f"Fabrika/Mağaza Görüntüsü {i}",
+        })
+
     doc.flags.ignore_permissions = True
     doc.insert(ignore_permissions=True)
     return s["code"]
@@ -1319,7 +1324,6 @@ def _create_listing(seller, sector, seller_cat_name, product_cat_id, cat_name,
         "discount_percentage": round((1 - selling / compare) * 100, 1),
         "sample_price": sample,
         "b2b_enabled": 1,
-        "pricing_tiers": pricing_tiers,
         "stock_qty": random.randint(500, 5000),
         "stock_uom": "Nos",
         "min_order_qty": random.choice([1, 5, 10, 20]),
@@ -1328,10 +1332,7 @@ def _create_listing(seller, sector, seller_cat_name, product_cat_id, cat_name,
         "track_inventory": 1,
         "allow_backorders": 0,
         "primary_image": _img(img_seed, 800, 800),
-        "listing_images": listing_images,
-        "attribute_values": attribute_values,
         "has_variants": 1,
-        "variant_items": variant_items,
         "is_free_shipping": random.choice([0, 0, 0, 1]),
         "shipping_weight": weight,
         "ships_from_country": "Turkey",
@@ -1339,7 +1340,6 @@ def _create_listing(seller, sector, seller_cat_name, product_cat_id, cat_name,
         "handling_days": random.choice([1, 1, 2, 3]),
         "country_of_origin": "Turkey",
         "package_type": random.choice(["Karton Kutu", "Poşet", "Karton Kutu"]),
-        "lead_time_ranges": lead_time_ranges,
         "is_featured": 1 if product_idx == 1 and random.random() < 0.3 else 0,
         "is_best_seller": 1 if random.random() < 0.1 else 0,
         "is_new_arrival": 1 if random.random() < 0.2 else 0,
@@ -1358,6 +1358,23 @@ def _create_listing(seller, sector, seller_cat_name, product_cat_id, cat_name,
         "meta_title": title,
         "meta_description": _short(title, cat_name),
     })
+
+    # Child table'ları doc.append ile ekle (Frappe uyumluluğu için)
+    for vi in variant_items:
+        doc.append("variant_items", vi)
+
+    for pt in pricing_tiers:
+        doc.append("pricing_tiers", pt)
+
+    for av in attribute_values:
+        doc.append("attribute_values", av)
+
+    for li in listing_images:
+        doc.append("listing_images", li)
+
+    for lt in lead_time_ranges:
+        doc.append("lead_time_ranges", lt)
+
     doc.flags.ignore_permissions = True
     doc.flags.ignore_links = True
     doc.insert(ignore_permissions=True)
@@ -1421,8 +1438,9 @@ def _ensure_listing_variant(listing_name, variant_name, sku, price, stock, attrs
         "price": price,
         "stock_qty": stock,
         "primary_image": image,
-        "variant_attributes": attrs,
     })
+    for attr in attrs:
+        doc.append("variant_attributes", attr)
     doc.flags.ignore_permissions = True
     doc.flags.ignore_links = True
     doc.insert(ignore_permissions=True)
