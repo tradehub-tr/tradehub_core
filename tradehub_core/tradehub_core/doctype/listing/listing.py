@@ -124,20 +124,25 @@ class Listing(Document):
         self.available_qty = max(0, flt(self.stock_qty) - flt(self.reserved_qty))
 
     def validate_pricing(self):
+        """Enforce the only hard rule on pricing fields: selling cannot exceed
+        listing.
+
+        The seller's day-to-day price (selling_price) is never auto-overwritten
+        by the system. discount_percentage is purely a campaign trigger:
+
+          - dp = 0  → no campaign, listing is not in Top Deals
+          - dp > 0  → campaign active. The "campaign price" the customer sees
+                      is selling_price × (1 − dp/100), computed at *display
+                      time only* (see _format_listing_card in api/listing.py).
+                      selling_price itself stays untouched, so when the seller
+                      ends the campaign by setting dp back to 0, their normal
+                      price is automatically restored on the storefront.
+        """
+        listing_price = flt(self.base_price)
         selling_price = flt(self.selling_price)
-        base_price = flt(self.base_price)
-        compare_at_price = flt(self.compare_at_price)
-        if selling_price and base_price:
-            if selling_price > base_price:
-                frappe.throw("Selling price cannot be greater than base price")
-        if compare_at_price and selling_price:
-            if compare_at_price < selling_price:
-                frappe.throw("Compare at price must be >= selling price")
-        if not (flt(self.discount_percentage) and base_price and selling_price):
-            if compare_at_price and selling_price and compare_at_price > 0:
-                self.discount_percentage = round(
-                    ((compare_at_price - selling_price) / compare_at_price) * 100, 2
-                )
+
+        if listing_price and selling_price and selling_price > listing_price:
+            frappe.throw(_("Satış fiyatı Listeleme fiyatından büyük olamaz"))
 
     def validate_pricing_tiers(self):
         if not self.b2b_enabled or not self.pricing_tiers:

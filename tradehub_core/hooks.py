@@ -34,6 +34,38 @@ scheduler_events = {
 }
 
 # ---------------------------------------------------------------------------
+# Cache invalidation: storefront listing queries are cached for 30s. Without
+# explicit invalidation, admin updates take up to 30s to appear. The hook
+# below drops the cache as soon as a Listing is written, so storefront stays
+# in sync with the panel.
+# ---------------------------------------------------------------------------
+doc_events = {
+	"Listing": {
+		"on_update": "tradehub_core.api.listing.invalidate_listing_cache",
+		"after_insert": "tradehub_core.api.listing.invalidate_listing_cache",
+		"on_trash": "tradehub_core.api.listing.invalidate_listing_cache",
+	},
+	# Order pipeline → Listing.order_count for the "Çok Satan" Top Ranking
+	# pill. We register on `before_save` (not on_update) because the hook
+	# needs to read the *true* pre-save metrics_credited from DB and write
+	# the corrected value into the in-memory doc before db_update persists
+	# it. Wiring on on_update was unsafe — Frappe form saves drop hidden
+	# read-only fields, so the in-memory metrics_credited would always be
+	# 0 and re-credit on every save (count inflated 2x, 3x, ...).
+	"Order": {
+		"before_save": "tradehub_core.api.listing.bump_listing_order_counts",
+	},
+	# Seller Review pipeline → seller-proxy rating + review_count denormalized
+	# into every listing the seller owns. Drives the "En Çok Değerlendirilen"
+	# Top Ranking pill (see api.listing.recompute_seller_rating_proxy).
+	"Seller Review": {
+		"after_insert": "tradehub_core.api.listing.recompute_seller_rating_proxy",
+		"on_update":    "tradehub_core.api.listing.recompute_seller_rating_proxy",
+		"on_trash":     "tradehub_core.api.listing.recompute_seller_rating_proxy",
+	},
+}
+
+# ---------------------------------------------------------------------------
 # Seller-Isolation Permissions
 # ---------------------------------------------------------------------------
 permission_query_conditions = {

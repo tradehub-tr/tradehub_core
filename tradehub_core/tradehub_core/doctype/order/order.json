@@ -42,7 +42,8 @@
 		"refund_status",
 		"refund_reason",
 		"refund_amount",
-		"refund_requested_at"
+		"refund_requested_at",
+		"metrics_credited"
 	],
 	"fields": [
 		{
@@ -256,6 +257,16 @@
 			"fieldname": "refund_requested_at",
 			"fieldtype": "Datetime",
 			"label": "İade Talep Tarihi"
+		},
+		{
+			"fieldname": "metrics_credited",
+			"fieldtype": "Check",
+			"label": "Metrics Credited",
+			"default": 0,
+			"hidden": 1,
+			"no_copy": 1,
+			"read_only": 1,
+			"description": "Internal flag — set when this order's items have been counted into Listing.order_count. Cleared on cancellation. Do not edit manually."
 		}
 	],
 	"links": [],
