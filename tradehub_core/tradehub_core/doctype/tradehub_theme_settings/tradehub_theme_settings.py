@@ -33,9 +33,18 @@ _NUMERIC_VALUE_RE = re.compile(r"^-?\d+(\.\d+)?(px|rem|em|%|vw|vh|)$")
 _TEXT_VALUE_RE = re.compile(r"^[a-zA-Z0-9\s\.,\-_#()%/]+$")
 
 
-# v1 kapsamındaki izinli CSS değişken anahtarları (button odaklı)
-# İleride genişletildiğinde tradehubfront/src/utils/themeTokens.ts ile senkron tutulmalı.
-ALLOWED_THEME_KEYS = frozenset(
+# =====================================================================
+# İzinli CSS değişken anahtarları
+# =====================================================================
+# ⚠️  SENKRON DOSYALAR
+#   - tradehubfront/src/utils/themeTokens.ts      (UI reference)
+#   - admin-panel/frontend/src/data/themeTokens.js (admin panel)
+# Üç tarafı da birlikte güncelleyin. Aksi halde admin panel yeni token
+# göstermez veya backend save hata verir.
+# =====================================================================
+
+# --- v1: Buton tokenları ---
+_BUTTON_KEYS = frozenset(
     {
         # Ortak buton tokenları
         "--radius-button",
@@ -61,9 +70,178 @@ ALLOWED_THEME_KEYS = frozenset(
     }
 )
 
+
+def _scale_keys(prefix: str) -> frozenset:
+    """50..950 scale helper — `--color-primary-50`, `-100`, ... üretir."""
+    return frozenset(
+        f"--color-{prefix}-{step}"
+        for step in (50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950)
+    )
+
+
+# --- v2: Palet tokenları (primary/secondary/accent + semantic + surface/text/border) ---
+_PALETTE_KEYS = frozenset(
+    _scale_keys("primary")
+    | _scale_keys("secondary")
+    | _scale_keys("accent")
+    | {
+        # Semantic
+        "--color-success-50", "--color-success-500", "--color-success-700",
+        "--color-warning-50", "--color-warning-500", "--color-warning-700",
+        "--color-error-50", "--color-error-500", "--color-error-700",
+        "--color-info-50", "--color-info-500", "--color-info-700",
+        # Surface
+        "--color-surface",
+        "--color-surface-muted",
+        "--color-surface-raised",
+        "--color-surface-overlay",
+        "--color-surface-inverse",
+        # Text
+        "--color-text-primary",
+        "--color-text-secondary",
+        "--color-text-tertiary",
+        "--color-text-disabled",
+        "--color-text-inverse",
+        "--color-text-link",
+        "--color-text-link-hover",
+        # Border
+        "--color-border-default",
+        "--color-border-strong",
+        "--color-border-focus",
+        "--color-border-error",
+    }
+)
+
+# --- v3: Tipografi, spacing, radius tokenları ---
+_TYPOGRAPHY_KEYS = frozenset(
+    {
+        # Font size scale (9 step)
+        "--font-size-xs", "--font-size-sm", "--font-size-base", "--font-size-lg",
+        "--font-size-xl", "--font-size-2xl", "--font-size-3xl", "--font-size-4xl",
+        "--font-size-5xl",
+        # Font weight (5 step)
+        "--font-weight-normal", "--font-weight-medium", "--font-weight-semibold",
+        "--font-weight-bold", "--font-weight-black",
+        # Line height (6 step)
+        "--line-height-none", "--line-height-tight", "--line-height-snug",
+        "--line-height-normal", "--line-height-relaxed", "--line-height-loose",
+        # Letter spacing (5 step)
+        "--letter-spacing-tighter", "--letter-spacing-tight", "--letter-spacing-normal",
+        "--letter-spacing-wide", "--letter-spacing-wider",
+    }
+)
+
+_RADIUS_KEYS = frozenset(
+    {
+        "--radius-none", "--radius-sm", "--radius-md", "--radius-lg",
+        "--radius-xl", "--radius-full",
+        # Semantic radius
+        "--radius-card", "--radius-input", "--radius-badge",
+        "--radius-modal", "--radius-tooltip",
+    }
+)
+
+_SPACING_KEYS = frozenset(
+    {
+        # Semantic spacing (en çok kullanılanlar — ham 0/2/4... değil)
+        "--spacing-card-padding",
+        "--spacing-card-gap",
+        "--spacing-section-y",
+        "--spacing-section-y-lg",
+        "--spacing-page-x",
+        "--spacing-page-x-lg",
+        "--spacing-stack-sm",
+        "--spacing-stack-md",
+        "--spacing-stack-lg",
+        "--spacing-inline-sm",
+        "--spacing-inline-md",
+        "--spacing-inline-lg",
+        "--spacing-input-x",
+        "--spacing-input-y",
+    }
+)
+
+# --- v4: Input / Checkbox / Quantity stepper tokenları ---
+_INPUT_KEYS = frozenset(
+    {
+        # Base
+        "--input-bg",
+        "--input-border-width",
+        "--input-border-color",
+        "--input-border-color-hover",
+        "--input-text-color",
+        "--input-placeholder-color",
+        "--input-font-size",
+        "--input-font-weight",
+        "--input-line-height",
+        # Focus
+        "--input-focus-border-color",
+        "--input-focus-ring-color",
+        "--input-focus-ring-width",
+        "--input-focus-ring-offset",
+        # Disabled
+        "--input-disabled-bg",
+        "--input-disabled-text",
+        "--input-disabled-border-color",
+        "--input-disabled-opacity",
+        # Error
+        "--input-error-border-color",
+        "--input-error-bg",
+        "--input-error-text",
+        "--input-error-ring-color",
+        # Size variants
+        "--input-height-sm",
+        "--input-height-md",
+        "--input-height-lg",
+    }
+)
+
+_CHECKBOX_KEYS = frozenset(
+    {
+        "--checkbox-size",
+        "--checkbox-radius",
+        "--checkbox-border-width",
+        "--checkbox-border-color",
+        "--checkbox-bg",
+        "--checkbox-checked-bg",
+        "--checkbox-checked-border",
+        "--checkbox-checked-icon",
+        "--checkbox-disabled-opacity",
+    }
+)
+
+_QUANTITY_KEYS = frozenset(
+    {
+        "--quantity-height",
+        "--quantity-width",
+        "--quantity-bg",
+        "--quantity-border-width",
+        "--quantity-border-color",
+        "--quantity-radius",
+        "--quantity-button-size",
+        "--quantity-button-bg-hover",
+        "--quantity-text-color",
+        "--quantity-text-size",
+        "--quantity-disabled-opacity",
+    }
+)
+
+ALLOWED_THEME_KEYS = frozenset(
+    _BUTTON_KEYS
+    | _PALETTE_KEYS
+    | _TYPOGRAPHY_KEYS
+    | _RADIUS_KEYS
+    | _SPACING_KEYS
+    | _INPUT_KEYS
+    | _CHECKBOX_KEYS
+    | _QUANTITY_KEYS
+)
+
 # Renk tipi olan anahtarlar (tip bazlı doğrulama için)
 _COLOR_KEYS = frozenset(
-    {
+    _PALETTE_KEYS  # tüm palet anahtarları renk tipidir
+    | {
+        # Button
         "--btn-bg",
         "--btn-text",
         "--btn-border-color",
@@ -74,12 +252,40 @@ _COLOR_KEYS = frozenset(
         "--btn-outline-border-color",
         "--btn-outline-hover-bg",
         "--btn-outline-hover-text",
+        # Input
+        "--input-bg",
+        "--input-border-color",
+        "--input-border-color-hover",
+        "--input-text-color",
+        "--input-placeholder-color",
+        "--input-focus-border-color",
+        "--input-focus-ring-color",
+        "--input-disabled-bg",
+        "--input-disabled-text",
+        "--input-disabled-border-color",
+        "--input-error-border-color",
+        "--input-error-bg",
+        "--input-error-text",
+        "--input-error-ring-color",
+        # Checkbox
+        "--checkbox-border-color",
+        "--checkbox-bg",
+        "--checkbox-checked-bg",
+        "--checkbox-checked-border",
+        "--checkbox-checked-icon",
+        # Quantity
+        "--quantity-bg",
+        "--quantity-border-color",
+        "--quantity-button-bg-hover",
+        "--quantity-text-color",
     }
 )
 
-# Sayısal tipte olan anahtarlar
+# Sayısal tipte olan anahtarlar — tipografi / spacing / radius / buton / input / checkbox / quantity numeric
 _NUMERIC_KEYS = frozenset(
-    {
+    _TYPOGRAPHY_KEYS | _RADIUS_KEYS | _SPACING_KEYS
+    | {
+        # Button numeric
         "--radius-button",
         "--spacing-button-x",
         "--spacing-button-y",
@@ -87,6 +293,30 @@ _NUMERIC_KEYS = frozenset(
         "--btn-font-weight",
         "--btn-border-width",
         "--btn-outline-border-width",
+        # Input numeric
+        "--input-border-width",
+        "--input-font-size",
+        "--input-font-weight",
+        "--input-line-height",
+        "--input-focus-ring-width",
+        "--input-focus-ring-offset",
+        "--input-disabled-opacity",
+        "--input-height-sm",
+        "--input-height-md",
+        "--input-height-lg",
+        # Checkbox numeric
+        "--checkbox-size",
+        "--checkbox-radius",
+        "--checkbox-border-width",
+        "--checkbox-disabled-opacity",
+        # Quantity numeric
+        "--quantity-height",
+        "--quantity-width",
+        "--quantity-border-width",
+        "--quantity-radius",
+        "--quantity-button-size",
+        "--quantity-text-size",
+        "--quantity-disabled-opacity",
     }
 )
 
