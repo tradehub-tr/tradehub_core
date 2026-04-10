@@ -1,5 +1,5 @@
 {
-	"name": "Buyer Address",
+	"name": "Addresses",
 	"doctype": "DocType",
 	"module": "Tradehub Core",
 	"naming_rule": "Expression",
@@ -10,11 +10,34 @@
 	"sort_order": "DESC",
 	"fields": [
 		{
+			"fieldname": "kind",
+			"fieldtype": "Select",
+			"label": "Tür",
+			"options": "Buyer\nSeller",
+			"default": "Buyer",
+			"reqd": 1,
+			"in_list_view": 1,
+			"in_standard_filter": 1,
+			"search_index": 1
+		},
+		{
 			"fieldname": "user",
 			"fieldtype": "Link",
 			"label": "User",
 			"options": "User",
-			"reqd": 1,
+			"depends_on": "eval:doc.kind=='Buyer'",
+			"mandatory_depends_on": "eval:doc.kind=='Buyer'",
+			"search_index": 1,
+			"in_list_view": 1,
+			"in_standard_filter": 1
+		},
+		{
+			"fieldname": "seller",
+			"fieldtype": "Link",
+			"label": "Seller Profile",
+			"options": "Seller Profile",
+			"depends_on": "eval:doc.kind=='Seller'",
+			"mandatory_depends_on": "eval:doc.kind=='Seller'",
 			"search_index": 1,
 			"in_list_view": 1,
 			"in_standard_filter": 1
@@ -46,7 +69,8 @@
 		{
 			"fieldname": "company",
 			"fieldtype": "Data",
-			"label": "Şirket Adı"
+			"label": "Şirket Adı",
+			"reqd": 1
 		},
 		{
 			"fieldname": "sb_contact",
@@ -138,6 +162,14 @@
 		},
 		{
 			"role": "Buyer",
+			"read": 1,
+			"write": 1,
+			"create": 1,
+			"delete": 1,
+			"if_owner": 1
+		},
+		{
+			"role": "Seller",
 			"read": 1,
 			"write": 1,
 			"create": 1,

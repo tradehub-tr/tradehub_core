@@ -2,6 +2,7 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 from frappe.utils import now_datetime, flt, cint
+from tradehub_core.utils.notify import notify
 import hashlib
 import time
 
@@ -61,6 +62,59 @@ class Listing(Document):
     def on_update(self):
         if self.status == "Active" and not self.published_at:
             self.db_set("published_at", now_datetime())
+        self._send_status_notifications()
+        self._check_stock_alerts()
+
+    def _send_status_notifications(self):
+        old = self.get_doc_before_save()
+        if not old or old.status == self.status:
+            return
+        seller_user = frappe.db.get_value("Admin Seller Profile", self.seller_profile, "user") if self.seller_profile else None
+        if not seller_user:
+            return
+
+        title_text = self.title or self.listing_code or self.name
+        if self.status == "Active" and old.status == "Pending":
+            notify(
+                recipient_user=seller_user,
+                recipient_role="seller",
+                type="listing",
+                title=_("Ürün Onaylandı"),
+                message=_("{0} ürününüz yayına alındı.").format(title_text),
+                action_url=f"/app/listing/{self.name}",
+                reference_doctype="Listing",
+                reference_name=self.name,
+            )
+        elif self.status == "Rejected":
+            reason = self.rejection_reason or ""
+            notify(
+                recipient_user=seller_user,
+                recipient_role="seller",
+                type="listing",
+                title=_("Ürün Reddedildi"),
+                message=_("{0} ürününüz reddedildi. {1}").format(title_text, reason),
+                action_url=f"/app/listing/{self.name}",
+                reference_doctype="Listing",
+                reference_name=self.name,
+            )
+
+    def _check_stock_alerts(self):
+        """Stok değişikliğinde satıcıya düşük stok veya stok tükendi bildirimi gönder.
+        Manuel kayıt (form save) sırasında çalışır.
+        Programmatic stok değişiklikleri stock.py üzerinden _send_stock_alert_if_needed ile yapılır.
+        """
+        if not self.track_inventory or self.status != "Active":
+            return
+        old = self.get_doc_before_save()
+        if not old:
+            return
+        old_available = max(0, flt(old.stock_qty) - flt(old.reserved_qty))
+        new_available = flt(self.available_qty)
+        if old_available == new_available:
+            return
+
+        from tradehub_core.utils.stock import _send_stock_alert_if_needed
+        _send_stock_alert_if_needed(self.name, self, old_available, new_available)
 
     def generate_listing_code(self):
         hash_input = f"{self.title}-{time.time()}"

@@ -59,7 +59,7 @@ def get_session_user():
 	user_data = frappe.db.get_value(
 		"User",
 		frappe.session.user,
-		["email", "full_name", "first_name", "last_name", "creation"],
+		["email", "full_name", "first_name", "last_name", "creation", "user_image"],
 		as_dict=True,
 	)
 
@@ -149,6 +149,7 @@ def get_session_user():
 			"full_name": user_data.full_name,
 			"first_name": user_data.first_name or "",
 			"last_name": user_data.last_name or "",
+			"user_image": user_data.user_image or "",
 			"member_id": member_id,
 			"roles": roles,
 			"is_admin": is_admin,
