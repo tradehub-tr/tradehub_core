@@ -1,0 +1,75 @@
+{
+	"actions": [],
+	"autoname": "autoincrement",
+	"creation": "2026-04-10 00:00:00.000000",
+	"doctype": "DocType",
+	"engine": "InnoDB",
+	"field_order": [
+		"title",
+		"link_text",
+		"link_href",
+		"column_break_1",
+		"is_active",
+		"sort_order"
+	],
+	"fields": [
+		{
+			"fieldname": "title",
+			"fieldtype": "Data",
+			"in_list_view": 1,
+			"label": "Başlık",
+			"reqd": 1
+		},
+		{
+			"fieldname": "link_text",
+			"fieldtype": "Data",
+			"in_list_view": 1,
+			"label": "Link Metni",
+			"reqd": 1
+		},
+		{
+			"fieldname": "link_href",
+			"fieldtype": "Data",
+			"label": "Link Adresi",
+			"reqd": 1
+		},
+		{
+			"fieldname": "column_break_1",
+			"fieldtype": "Column Break"
+		},
+		{
+			"default": "1",
+			"fieldname": "is_active",
+			"fieldtype": "Check",
+			"in_list_view": 1,
+			"label": "Aktif"
+		},
+		{
+			"default": "0",
+			"fieldname": "sort_order",
+			"fieldtype": "Int",
+			"in_list_view": 1,
+			"label": "Sıralama"
+		}
+	],
+	"links": [],
+	"modified": "2026-04-10 00:00:00.000000",
+	"modified_by": "Administrator",
+	"module": "Tradehub Core",
+	"name": "Dashboard Banner",
+	"owner": "Administrator",
+	"permissions": [
+		{
+			"create": 1,
+			"delete": 1,
+			"read": 1,
+			"report": 1,
+			"role": "System Manager",
+			"write": 1
+		}
+	],
+	"sort_field": "sort_order",
+	"sort_order": "ASC",
+	"title_field": "title",
+	"track_changes": 1
+}
