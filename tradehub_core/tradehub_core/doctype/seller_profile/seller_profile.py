@@ -34,8 +34,6 @@ class SellerProfile(Document):
 				"country": "country",
 				"tax_id_type": "tax_id_type",
 				"tax_office": "tax_office",
-				"address_line_1": "address_line_1",
-				"city": "city",
 				"bank_name": "bank_name",
 				"iban": "iban",
 				"account_holder_name": "account_holder_name",
@@ -77,7 +75,6 @@ class SellerProfile(Document):
 		# ── Shared fields → Buyer Profile sync ──
 		shared_fields = ["avatar", "website", "job_title", "year_established",
 		                 "employee_count", "about_us", "selling_platforms",
-		                 "city", "postal_code",
 		                 "industry_preferences", "sourcing_frequency", "annual_spending"]
 		buyer_profile = frappe.db.get_value("Buyer Profile", {"user": self.user}, "name")
 		if buyer_profile:

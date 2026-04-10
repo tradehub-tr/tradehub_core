@@ -44,6 +44,8 @@
   "district",
   "postal_code",
   "country",
+  "tab_addresses",
+  "addresses_panel_html",
   "tab_banka",
   "bank_name",
   "iban",
@@ -272,6 +274,16 @@
    "fieldtype": "Link",
    "label": "\u00dclke",
    "options": "Country"
+  },
+  {
+   "fieldname": "tab_addresses",
+   "fieldtype": "Tab Break",
+   "label": "Adresler"
+  },
+  {
+   "fieldname": "addresses_panel_html",
+   "fieldtype": "HTML",
+   "options": "<!-- Bu HTML field admin-panel'in DocTypeFormView tab-extension registry'si tarafından SellerAddressesPanel.vue component'i ile değiştirilir. -->\n<div style=\"padding:16px;background:#f5f7fa;border-left:3px solid #5e64ff;border-radius:4px;color:#4a5568;font-size:13px;line-height:1.6\"><strong>Pickup adresleriniz</strong><br/>Ürünlerinizin gönderileceği adresleri admin panelinde <b>Mağaza Ayarları → Adresler</b> sekmesinden yönetebilirsiniz.</div>"
   },
   {
    "fieldname": "tab_banka",

@@ -1,6 +1,15 @@
 """
-Buyer API — Alıcıya özgü endpoint'ler.
-Şu an: Adres defteri CRUD.
+Seller Addresses API — Satıcının kendi adres defteri (gönderim/pickup adresleri).
+
+Buyer adres API'sinin kind="Seller" varyantıdır. Buyer ile aynı `Addresses`
+DocType'ını kullanır; `kind` ayrımı ile birbirinden izole edilir.
+
+Kritik fark:
+- Buyer adresi: ürün buraya teslim edilecek (delivery)
+- Seller adresi: ürün buradan gönderilecek (pickup/origin)
+
+Session user → Seller Profile name çevrimi `_resolve_seller_profile()` ile yapılır;
+böylece UI tarafında seller field'ını manuel doldurmaya gerek kalmaz.
 """
 
 import re
@@ -17,25 +26,17 @@ from tradehub_core.api._address_validators import (
 
 MAX_ADDRESSES = 10
 
-# TR telefon formatı — hem mobil hem sabit, prefix (+90 veya 0) opsiyonel.
-# Frontend utils/tr-validation.ts ile senkron.
+# TR telefon formatı — buyer.py ile senkron
 _PHONE_RE = re.compile(r"^(\+90|0)?[2-5]\d{9}$")
-# Uluslararası (TR dışı) gevşek kontrol: yalnız rakamlar, 7-15 hane (E.164).
 _INTL_PHONE_RE = re.compile(r"^\d{7,15}$")
 _PHONE_CLEAN_RE = re.compile(r"[\s\-()]")
 
 
 def _normalize_phone(raw):
-	"""Kullanıcı girdisinden format karakterlerini (boşluk, tire, parantez) temizler."""
 	return _PHONE_CLEAN_RE.sub("", raw or "")
 
 
 def _validate_phone(raw, prefix=None):
-	"""
-	Telefon doğrulaması — prefix'e göre ayrışır.
-	- `+90` veya prefix verilmemiş ise TR formatı (sabit + mobil).
-	- Diğer prefix'lerde gevşek E.164 kontrolü (7-15 rakam).
-	"""
 	normalized = _normalize_phone(raw)
 	if not prefix or prefix == "+90":
 		return bool(_PHONE_RE.match(normalized))
@@ -46,26 +47,35 @@ def _validate_phone(raw, prefix=None):
 # ── helpers ──────────────────────────────────────────────────────────────────
 
 def _require_login():
-	"""Oturum açmamış kullanıcıları reddeder; user adını döndürür."""
 	user = frappe.session.user
 	if not user or user == "Guest":
 		frappe.throw(_("Bu işlem için giriş yapmanız gerekiyor"), frappe.AuthenticationError)
 	return user
 
 
-def _check_address_owner(address_id, user):
-	"""Adresin sahibi değilse PermissionError fırlatır. Sadece Buyer kayıtları."""
+def _resolve_seller_profile(user):
+	"""Session user → Seller Profile name. Yoksa hata fırlatır."""
+	sp_name = frappe.db.get_value("Seller Profile", {"user": user}, "name")
+	if not sp_name:
+		frappe.throw(
+			_("Bu kullanıcıya bağlı bir Seller Profile bulunamadı"),
+			frappe.DoesNotExistError,
+		)
+	return sp_name
+
+
+def _check_address_owner(address_id, seller_name):
+	"""Adresin bu seller'a ait olduğunu doğrular."""
 	row = frappe.db.get_value(
-		"Addresses", address_id, ["user", "kind"], as_dict=True
+		"Addresses", address_id, ["seller", "kind"], as_dict=True
 	)
 	if not row:
 		frappe.throw(_("Adres bulunamadı"), frappe.DoesNotExistError)
-	if row.kind != "Buyer" or row.user != user:
+	if row.kind != "Seller" or row.seller != seller_name:
 		frappe.throw(_("Bu adrese erişim yetkiniz yok"), frappe.PermissionError)
 
 
 def _doc_to_dict(doc):
-	"""Addresses document'ını frontend'e uygun dict'e dönüştürür."""
 	return {
 		"id": doc.name,
 		"title": doc.title or "",
@@ -84,68 +94,50 @@ def _doc_to_dict(doc):
 	}
 
 
-def _lock_user_addresses(user):
+def _lock_seller_addresses(seller_name):
 	"""
-	Kullanıcının tüm Buyer adres satırlarını `FOR UPDATE` ile kilitler ve
+	Seller'ın tüm Seller adres satırlarını `FOR UPDATE` ile kilitler ve
 	(name, is_default, modified) tuple'larını creation ASC sırayla döner.
 
-	Bu helper adres mutation'larının hepsinin tek bir kilit order'ı paylaşmasını
-	sağlar — save_address / delete_address / set_default_address /
-	_ensure_one_default hepsi bu fonksiyonu çağırır. Aynı sıralama = deadlock
-	imkansız.
+	buyer.py._lock_user_addresses ile aynı amaç: adres mutation'larının
+	tek bir lock order'ı paylaşması.
 
-	İki kritik bug'ı birden çözer:
-
-	1) **MAX_ADDRESSES count+insert race:** save_address count kontrolünden
-	   önce lock'u alır; iki eşzamanlı request aynı count'u görüp sınırı
-	   bypass edemez. İkinci request birinci commit'i beklemek zorunda, bu
-	   sırada count güncellenmiş olur.
-
-	2) **Concurrent save_address deadlock:** Eskiden her save önce kendi
-	   doc_N row'unu kilitliyordu, sonra `_ensure_one_default` diğer tüm
-	   satırları istiyordu — TX1/TX2 farklı row'larla başlayınca MariaDB
-	   deadlock detect ediyordu. Artık tüm write operasyonları önce `tabula
-	   rasa` ile tüm kullanıcı satırlarını kilitliyor, hiç deadlock yok.
-
-	Çağıran return değerini ihtiyaca göre kullanır:
-	- Sadece lock gerekliyse atılabilir (save_address / delete_address).
-	- Row'lar self-heal / flip için kullanılacaksa assign edilir
-	  (_ensure_one_default / set_default_address).
+	Çözdüğü iki kritik bug:
+	1) MAX_ADDRESSES count+insert race (count'tan önce lock → atomik)
+	2) save_address vs save_address / delete_address deadlock (aynı lock
+	   order = serialize, deadlock imkansız)
 	"""
 	return frappe.db.sql(
 		"""
 		SELECT name, is_default, modified
 		FROM `tabAddresses`
-		WHERE user = %(user)s AND kind = 'Buyer'
+		WHERE seller = %(seller)s AND kind = 'Seller'
 		ORDER BY creation ASC
 		FOR UPDATE
 		""",
-		{"user": user},
+		{"seller": seller_name},
 		as_dict=True,
 	)
 
 
-def _ensure_one_default(user):
+def _ensure_one_default(seller_name):
 	"""
-	Kullanıcının tam olarak bir varsayılan Buyer adresi olmasını garantiler.
+	Seller'ın tam olarak bir varsayılan adresi olmasını garantiler.
 
 	Davranış:
 	- Hiç default yoksa en eski adres default yapılır (stabil fallback).
 	- Birden fazla default varsa (broken state) **en son modified olan** korunur,
 	  diğerleri temizlenir. Bu semantik save_address'in "yeni eklenen / son
-	  düzenlenen adresi default yap" kullanıcı niyetiyle tutarlıdır — son yazan
-	  kazanır.
-	- Kullanıcının hiç adresi yoksa boş string döner.
+	  düzenlenen adresi default yap" kullanıcı niyetiyle tutarlıdır.
+	- Seller'ın hiç adresi yoksa boş string döner.
 
 	**Atomik default_id okuma:** Aynı transaction içinde lock'u tutarak güncel
-	default'un name'ini döndürür; böylece çağıran taraf ekstra bir SELECT
-	çalıştırmadan return değerini doğrudan response'a koyabilir (race-free).
+	default'un name'ini döndürür; çağıran taraf ekstra SELECT çalıştırmadan
+	return değerini doğrudan response'a koyabilir (race-free).
 
-	Race-safe: `_lock_user_addresses` ile row-level lock alır. Frappe her HTTP
-	isteğini bir transaction'da sarmalar; kilit `frappe.db.commit()` veya
-	rollback ile bırakılır.
+	Race-safe: `_lock_seller_addresses` ile row-level lock alır.
 	"""
-	locked = _lock_user_addresses(user)
+	locked = _lock_seller_addresses(seller_name)
 	if not locked:
 		return ""
 	defaults = [row for row in locked if row.is_default]
@@ -169,14 +161,12 @@ def _ensure_one_default(user):
 
 @frappe.whitelist()
 def get_addresses():
-	"""
-	Oturumdaki kullanıcının tüm adreslerini döndürür.
-	Varsayılan adres önce, geri kalanı oluşturulma tarihine göre sıralı.
-	"""
+	"""Oturumdaki seller'ın tüm adreslerini döndürür."""
 	user = _require_login()
+	seller_name = _resolve_seller_profile(user)
 	rows = frappe.get_all(
 		"Addresses",
-		filters={"user": user, "kind": "Buyer"},
+		filters={"seller": seller_name, "kind": "Seller"},
 		fields=[
 			"name", "title", "contact_name", "company",
 			"phone_prefix", "phone",
@@ -208,12 +198,9 @@ def get_addresses():
 
 @frappe.whitelist()
 def save_address(address_json):
-	"""
-	Adres oluşturur veya günceller.
-	address_json: JSON string veya dict. `id` varsa güncelleme, yoksa yeni kayıt.
-	Kaydedilen adresi dict olarak döndürür.
-	"""
+	"""Adres oluşturur veya günceller. Kaydedilen adresi ve aktif default id'sini döndürür."""
 	user = _require_login()
+	seller_name = _resolve_seller_profile(user)
 
 	try:
 		data = parse_address_payload(address_json)
@@ -223,7 +210,6 @@ def save_address(address_json):
 
 	address_id = (data.get("id") or "").strip()
 
-	# Zorunlu alan doğrulaması — frontend ile tutarlı, B2B için company dahil.
 	required_fields = {
 		"title": _("Adres Başlığı"),
 		"contact_name": _("İrtibat Kişisi"),
@@ -236,7 +222,6 @@ def save_address(address_json):
 		if not (data.get(field) or "").strip():
 			frappe.throw(_("{0} alanı zorunludur").format(label))
 
-	# Telefon formatı — frontend tr-validation regex'i ile senkron.
 	phone_prefix_in = (data.get("phone_prefix") or "+90").strip()
 	if not _validate_phone(data.get("phone") or "", phone_prefix_in):
 		if phone_prefix_in == "+90":
@@ -258,23 +243,16 @@ def save_address(address_json):
 	except AddressValidationError as exc:
 		frappe.throw(_(str(exc)))
 
-	# Kullanıcı adreslerini transaction'ın başında kilitle. Bu tek helper
-	# çağrısı iki bug'ı birden kapatır:
-	#  1) MAX_ADDRESSES count+insert race — count'tan önce lock alındığı için
-	#     iki eşzamanlı request aynı count'u görüp sınırı bypass edemez.
-	#  2) save_address concurrent deadlock — tüm mutation'lar aynı lock
-	#     order'ını kullandığından MariaDB deadlock'u yakalayamaz, işler
-	#     sıralı serialize olur.
-	# Lock validation sonrasında alınır — validation fail olursa gereksiz
-	# lock tutulmaz. `locked` dönüşü hem owner check hem de count için
-	# tek-kaynak olarak kullanılır (ekstra SELECT yok).
-	locked = _lock_user_addresses(user)
+	# Seller adreslerini transaction'ın başında kilitle. Tek helper çağrısı
+	# MAX_ADDRESSES count+insert race'ini ve save_address concurrent
+	# deadlock'unu birden kapatır (buyer.py ile aynı pattern). `locked` dönüşü
+	# hem owner check hem de count için tek-kaynak (ekstra SELECT yok).
+	locked = _lock_seller_addresses(seller_name)
 
 	if address_id:
-		# Owner check lock altında: locked rows zaten `user = X AND kind='Buyer'`
-		# filter ile alındığından, address_id locked'da varsa hem mevcut hem de
-		# bu kullanıcıya ait demektir. Yoksa "yok" / "yetkin yok" ayrımı
-		# yapmadan DoesNotExistError fırlatırız (information leak'i azaltır).
+		# Owner check lock altında: locked rows zaten
+		# `seller = X AND kind='Seller'` filter ile alındığından, address_id
+		# locked'da varsa hem mevcut hem de bu seller'a ait demektir.
 		if not any(row.name == address_id for row in locked):
 			frappe.throw(_("Adres bulunamadı"), frappe.DoesNotExistError)
 		doc = frappe.get_doc("Addresses", address_id)
@@ -285,7 +263,8 @@ def save_address(address_json):
 				_("En fazla {0} adres ekleyebilirsiniz").format(MAX_ADDRESSES)
 			)
 		doc = frappe.new_doc("Addresses")
-		doc.kind = "Buyer"
+		doc.kind = "Seller"
+		doc.seller = seller_name
 		doc.user = user
 
 	doc.title        = (data.get("title") or "").strip()
@@ -311,17 +290,13 @@ def save_address(address_json):
 	# korunur: lock altında, "en son modified olan default'u tut, diğerlerini
 	# temizle" semantiği ile. Pre-save cleanup'a gerek yok — yeni kaydedilen
 	# doc'un modified'ı en tazedir, dolayısıyla kullanıcı niyeti korunur.
-	current_default_id = _ensure_one_default(user)
+	current_default_id = _ensure_one_default(seller_name)
 
-	# `doc.is_default`'u current_default_id'den türet — `_ensure_one_default`
-	# fallback path'i (zero-default → en eskiyi default yap) doc'un in-memory
-	# is_default'unu güncellemediği için reload gerekiyordu. Reload commit
-	# sonrası lock-suz çalıştığından nadir ama gerçek bir race window vardı:
-	# başka bir tab eşzamanlı silerse reload DoesNotExistError fırlatabilirdi.
-	# Doc'umuz bu tx'de kilit altında save edildi → modified en tazedir →
-	# multi-default cleanup'ta her zaman kazanır. Tek belirsizlik sıfır-default
-	# fallback'idir; o da current_default_id == doc.name eşitliği ile
-	# tam doğrulukla yakalanır. Hem reload hem race ortadan kalkar.
+	# `doc.is_default`'u current_default_id'den türet — buyer.py ile aynı
+	# pattern. _ensure_one_default fallback path'i in-memory doc'u güncellemediği
+	# için reload gerekiyordu; reload commit sonrası lock-suz çalıştığından
+	# concurrent silme race'ini taşıyordu. current_default_id atomik okuma
+	# zaten doğru sonucu veriyor → reload'a gerek yok.
 	doc.is_default = (current_default_id == doc.name)
 
 	frappe.db.commit()
@@ -343,25 +318,23 @@ def delete_address(address_id):
 	ayrı bir get_addresses fetch'i atmak zorunda kalmaz.
 
 	**Lock ordering:** Lock owner check'ten ÖNCE alınır. Aksi halde TOCTOU
-	yarış penceresi açılırdı: TX1 owner check passed → TX2 (başka tab) lock
-	→ delete → commit → TX1 lock alır ama row gitmiş → frappe.delete_doc
-	`DoesNotExistError` 500 döndürür. Lock altında existence kontrolü ile
-	kibarca DoesNotExistError mesajı dönüyoruz.
+	yarış penceresi açılırdı: TX1 owner check passed → TX2 lock + delete +
+	commit → TX1 lock alır ama row gitmiş → frappe.delete_doc 500 verir.
+	Lock altında existence kontrolü ile kibarca DoesNotExistError mesajı.
 	"""
 	user = _require_login()
+	seller_name = _resolve_seller_profile(user)
 
 	# Lock'u önce al — concurrent delete/save ile race window'u kapatır.
-	# locked rows zaten `user = X AND kind='Buyer'` filter ile alındığından
-	# owner check ekstra bir SELECT yapmadan locked üzerinde yapılabilir.
-	locked = _lock_user_addresses(user)
+	# locked rows zaten `seller = X AND kind='Seller'` filter ile alındığından
+	# owner check ekstra SELECT yapmadan locked üzerinde yapılır.
+	locked = _lock_seller_addresses(seller_name)
 
 	if not any(row.name == address_id for row in locked):
-		# Lock altında bulunamadı: ya hiç yoktu, ya başka kullanıcının, ya da
-		# az önce silindi. Üçü için de aynı mesaj — information leak yok.
 		frappe.throw(_("Adres bulunamadı"), frappe.DoesNotExistError)
 
 	frappe.delete_doc("Addresses", address_id, ignore_permissions=True)
-	new_default_id = _ensure_one_default(user)
+	new_default_id = _ensure_one_default(seller_name)
 
 	frappe.db.commit()
 	return {"success": True, "default_id": new_default_id}
@@ -370,24 +343,22 @@ def delete_address(address_id):
 @frappe.whitelist()
 def set_default_address(address_id):
 	"""
-	Bir adresi varsayılan yapar. `_lock_user_addresses` ile tüm kullanıcı
-	Buyer adreslerini `FOR UPDATE` ile kilitleyip per-row atomik flip uygular.
+	Bir adresi varsayılan yapar. `_lock_seller_addresses` ile tüm seller
+	adreslerini `FOR UPDATE` ile kilitleyip per-row atomik flip uygular.
 
-	Race-safe: iki eşzamanlı set_default_address çağrısı sıralı işlenir
-	(ikinci call birinci commit'i beklemek zorunda) — çoklu-default veya
-	sıfır-default state oluşması imkansız. save_address / delete_address ile
-	de aynı lock order'ı paylaşıldığından deadlock imkansız.
+	Race-safe: iki eşzamanlı set_default_address çağrısı sıralı işlenir —
+	çoklu-default veya sıfır-default state oluşması imkansız. save_address /
+	delete_address ile de aynı lock order'ı paylaşıldığından deadlock imkansız.
 
 	**Lock ordering:** delete_address ile aynı pattern — owner check lock
-	altında, locked rows üzerinden. Ekstra SELECT yok, TOCTOU yok.
+	altında, locked rows üzerinden. target_found falsy ise DoesNotExistError.
 	"""
 	user = _require_login()
+	seller_name = _resolve_seller_profile(user)
 
-	locked = _lock_user_addresses(user)
+	locked = _lock_seller_addresses(seller_name)
 
 	target_found = False
-	# Sadece değişmesi gereken satırlar için write yap — gereksiz
-	# modified timestamp güncellemelerini önler.
 	for row in locked:
 		desired = 1 if row.name == address_id else 0
 		if int(row.is_default or 0) != desired:
@@ -401,3 +372,5 @@ def set_default_address(address_id):
 
 	frappe.db.commit()
 	return {"success": True, "default_id": address_id}
+
+
