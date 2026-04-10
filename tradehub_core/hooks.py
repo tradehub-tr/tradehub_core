@@ -29,6 +29,7 @@ scheduler_events = {
 	"daily": [
 		"tradehub_core.setup.install.cleanup_expired_tokens",
 		"tradehub_core.utils.notification_cleanup.delete_old_notifications",
+		"tradehub_core.api.listing.cleanup_old_search_history",
 	],
 }
 
@@ -46,6 +47,7 @@ permission_query_conditions = {
 	"Order": "tradehub_core.permissions.order_query_conditions",
 	"Seller Inquiry": "tradehub_core.permissions.seller_inquiry_query_conditions",
 	"Certification Type": "tradehub_core.permissions.certification_type_query_conditions",
+	"Search History": "tradehub_core.permissions.search_history_query_conditions",
 }
 
 has_permission = {
@@ -59,4 +61,5 @@ has_permission = {
 	"Order": "tradehub_core.permissions.order_has_permission",
 	"Seller Inquiry": "tradehub_core.permissions.seller_inquiry_has_permission",
 	"Certification Type": "tradehub_core.permissions.certification_type_has_permission",
+	"Search History": "tradehub_core.permissions.search_history_has_permission",
 }
