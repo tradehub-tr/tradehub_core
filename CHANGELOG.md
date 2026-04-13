@@ -1,3 +1,14 @@
+## [v1.0.4-rc.4] - 2026-04-13 RC
+
+Bu surum rc.istoc.com'da test asamasindadir.
+
+### Eklendi
+- feat(tailored): "Size Özel Seçimler" öneri endpoint'leri + User Product View DocType (@aliiball)
+
+### Duzeltildi
+- fix: tüm frappe.get_doc(dict) çağrıları frappe.new_doc() ile değiştirildi (@ahmeetseker)
+
+---
 ## [v1.0.4-rc.3] - 2026-04-13 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
