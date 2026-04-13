@@ -1,3 +1,11 @@
+## [v1.0.4-rc.3] - 2026-04-13 RC
+
+Bu surum rc.istoc.com'da test asamasindadir.
+
+### Eklendi
+- feat(tailored): "Size Özel Seçimler" öneri endpoint'leri + User Product View DocType (@aliiball)
+
+---
 ## [v1.0.4-rc.2] - 2026-04-13 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
