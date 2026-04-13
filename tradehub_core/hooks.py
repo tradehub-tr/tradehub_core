@@ -30,6 +30,7 @@ scheduler_events = {
 		"tradehub_core.setup.install.cleanup_expired_tokens",
 		"tradehub_core.utils.notification_cleanup.delete_old_notifications",
 		"tradehub_core.api.listing.cleanup_old_search_history",
+		"tradehub_core.api.tailored.cleanup_old_user_product_views",
 	],
 }
 
@@ -54,6 +55,7 @@ doc_events = {
 	# 0 and re-credit on every save (count inflated 2x, 3x, ...).
 	"Order": {
 		"before_save": "tradehub_core.api.listing.bump_listing_order_counts",
+		"on_update": "tradehub_core.api.tailored.invalidate_tailored_user_cache",
 	},
 	# Seller Review pipeline → seller-proxy rating + review_count denormalized
 	# into every listing the seller owns. Drives the "En Çok Değerlendirilen"

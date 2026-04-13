@@ -38,6 +38,7 @@ def invalidate_listing_cache(doc=None, method=None):
             "top_ranking_grouped:*",
             "search_suggestions:*",
             "filter_facets:*",
+            "tailored:*",                   # Tailored Selections (user + global)
         ):
             try:
                 frappe.cache.delete_keys(pattern)
@@ -585,6 +586,14 @@ def get_listing_detail(listing_id):
             frappe.cache.set_value(dedup_key, 1, expires_in_sec=VIEW_DEDUP_TTL)
     except Exception:
         # View counting must never break the detail page render.
+        pass
+
+    # Per-user view log — feeds Tailored Selections recommendations.
+    # Guest views are skipped; dedup is handled inside log_product_view.
+    try:
+        from tradehub_core.api.tailored import log_product_view
+        log_product_view(listing_name, category=listing.product_category)
+    except Exception:
         pass
 
     # Get supplier info from Admin Seller Profile
