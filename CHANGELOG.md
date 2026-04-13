@@ -1,3 +1,44 @@
+## [v1.0.4] - 2026-04-13 PROD
+
+Bu surum istoc.cronbi.com'da yayindadir.
+
+### Eklendi
+- feat: Dashboard Banner DocType'ı ve aktif banner API endpoint'i ekle   - Dashboard Banner DocType'ı oluşturuldu (başlık, link, sıralama, aktiflik)   - get_active_banners API endpoint'i eklendi   - Demo veri seed script'i eklendi (seed_demo_data.py) (@ahmeetseker)
+- feat: Tema API'sine rate limit ekle ve palet/tipografi/input token whitelist'ini genişlet (@ahmet)
+- feat: auth yanıtına user_image ekle ve update_profile_image API uç noktasını uygula (@ahmet)
+- feat(search): Kişiselleştirilmiş arama önerileri + Search History + prod optimizasyonu (@Ali)
+- feat:  Güvenli JSON geçersiz kılmaları ve public API erişimiyle site geneli tema ayarları eklendi (@ahmet)
+- feat:  Güvenli JSON geçersiz kılmaları ve public API erişimiyle site geneli tema ayarları eklendi (@ahmet)
+- feat(notification): API endpoint'leri eklendi (get/mark_read/mark_all_read/unread_count) (@Bora)
+- feat(notification): API endpoint'leri eklendi (get/mark_read/mark_all_read/unread_count) (@Bora)
+- feat(notification): Platform Notification DocType ve notify yardımcısı eklendi (@Bora)
+- feat(notification): Platform Notification DocType ve notify yardımcısı eklendi (@Bora)
+- feat(notification): Platform Notification DocType ve notify yardımcısı eklendi (@Bora)
+- feat(Certification): Sertifika yönetim sistemi — DocType'lar, API, güvenlik ve facets'lar yapıldı (@Ali)
+- feat(Certification): Sertifika yönetim sistemi — DocType'lar, API, güvenlik ve facets'lar yapıldı (@Ali)
+- feat(Listing): Arama filtreleri, faceted counts, relevance sort ve performans iyileştirmeleri yapıldı (@Ali)
+- feat(Listing): Arama filtreleri, faceted counts, relevance sort ve performans iyileştirmeleri yapıldı (@Ali)
+- feat(auth): fix storefront URLs, add email verification redirect and resend endpoint (@ahmet)
+- feat: update email verification and password reset links to use configurable storefront URL (@ahmet)
+- feat(RFQ): Sabit kodlanmış ürünler API çağrılarıyla RFQ sayfasına dinamik şekilde yansıtıldı. (@Ali)
+- feat: Sepet öğelerine color_variant ve variant_label desteği eklendi, dinamik görsel çözümleme getirildi ve auth yanıtına CSRF token eklendi (@Bora)
+- feat: Storefront düzeni yönetimini uygulamak, listeleme durumu iş akışını geliştirmek ve sipariş doküman tipini takip bilgileri ile daha ayrıntılı durum alanlarıyla güncellemek. (@Bora)
+- feat(storefront): satıcı vitrin düzeni ve tema ayarları için yeni fonksiyonlar eklendi (@ahmet)
+
+### Duzeltildi
+- fix: seed script child table hatası düzeltildi — doc.append() yöntemiyle Frappe uyumluluğu sağlandı (@ahmeetseker)
+- fix: add_certification_to_workspace patch link validasyon hatası düzeltildi (@Bora)
+- fix: add_certification_to_workspace patch link validasyon hatası düzeltildi (@Bora)
+- fix: hardcode storefront URL and update reset password link path in identity API (@ahmet)
+- fix(Listing): Ayrıntılı yanıtta productCategoryId eklendi, breadcrumb kaynağı düzeltildi (@Ali)
+- fix(Listing): Ayrıntılı yanıtta productCategoryId eklendi, breadcrumb kaynağı düzeltildi (@Ali)
+- fix(Listing): breadcrumb için product_category kullanıldı, aksi takdirde satıcı kategorisine geri dönülmesi sağlandı (@Ali)
+- fix: revoke_approval ile Seller Profile'ı Suspended yapısı eklendi. (@Ali)
+
+### Degistirildi
+- refactor(listing): compare_at_price ve is_on_sale sütunlarını kaldır (@aliiball)
+
+---
 ## [v1.0.3-rc.19] - 2026-04-10 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
