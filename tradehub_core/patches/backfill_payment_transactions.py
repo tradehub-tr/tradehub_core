@@ -6,7 +6,7 @@ Idempotent: safe to run multiple times — skips orders that already have
 corresponding transaction records.
 """
 import frappe
-from frappe.utils import nowdatetime
+from frappe.utils import now_datetime
 
 
 def execute():
@@ -68,7 +68,7 @@ def _backfill_payment_transactions():
         tx.payment_method = "Banka Havalesi"
         tx.amount = float(order.remittance_amount or 0)
         tx.currency = order.currency or "TRY"
-        tx.transaction_date = order.remittance_date or nowdatetime()
+        tx.transaction_date = order.remittance_date or now_datetime()
         tx.status = status
         tx.remittance_sender = order.remittance_sender or ""
         tx.seller_bank_name = seller_bank_name
@@ -116,7 +116,7 @@ def _backfill_refund_transactions():
         tx.seller_name = seller_name
         tx.amount = float(order.refund_amount or 0)
         tx.currency = order.currency or "TRY"
-        tx.transaction_date = order.refund_requested_at or nowdatetime()
+        tx.transaction_date = order.refund_requested_at or now_datetime()
         tx.status = status
         tx.refund_reason = order.refund_reason or ""
         tx.flags.ignore_permissions = True
@@ -182,7 +182,7 @@ def _backfill_bank_interactions():
         bi.total_wire_amount = float(pair.total_amount or 0)
         bi.pending_match_amount = pending_amount
         bi.currency = pair.currency or "TRY"
-        bi.last_transaction_date = pair.last_date or nowdatetime()
+        bi.last_transaction_date = pair.last_date or now_datetime()
         bi.match_status = match_status
         bi.flags.ignore_permissions = True
         bi.insert(ignore_permissions=True)
