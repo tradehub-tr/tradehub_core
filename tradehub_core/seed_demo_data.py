@@ -10,8 +10,9 @@ Temizleme:
     bench --site <site> execute tradehub_core.seed_demo_data.cleanup
 
 Görsel Kaynağı:
-    picsum.photos/seed — deterministik, her URL aynı görseli döndürür.
-    Gerçek ürün görselleriyle değiştirmek için IMAGES bölümünü düzenleyin.
+    Pexels CDN — sektöre uygun, küratörlü yüksek kaliteli ürün görselleri.
+    ui-avatars.com — satıcı logoları için harf tabanlı placeholder.
+    Her sektör için 10-12 el seçimi Pexels fotoğrafı kullanılır.
 """
 
 import frappe
@@ -32,9 +33,20 @@ def _slug(text):
     return re.sub(r"-+", "-", s).strip("-")
 
 
-def _img(seed, w=800, h=800):
-    """Deterministik placeholder görsel URL'si."""
-    return f"https://picsum.photos/seed/{seed}/{w}/{h}"
+def _img(sector_key, w=800, h=800, lock_id=""):
+    """Sektöre uygun Pexels CDN görsel URL'si döndürür.
+    Her sektör için el seçimi 10-12 fotoğraf havuzundan deterministik seçim yapar."""
+    images = SECTOR_IMAGES.get(sector_key, SECTOR_IMAGES["giyim"])
+    idx = abs(hash(lock_id)) % len(images)
+    photo_id = images[idx]
+    return f"https://images.pexels.com/photos/{photo_id}/pexels-photo-{photo_id}.jpeg?auto=compress&cs=tinysrgb&w={w}&h={h}&fit=crop"
+
+
+def _seller_logo(name, size=200):
+    """Satıcı logosu için profesyonel harf tabanlı placeholder URL'si."""
+    import urllib.parse
+    encoded = urllib.parse.quote(name)
+    return f"https://ui-avatars.com/api/?name={encoded}&size={size}&background=0D47A1&color=fff&bold=true&format=png"
 
 
 def _desc(title, category):
@@ -61,6 +73,57 @@ def _short(title, category):
         f"{title} — {category} kategorisinde premium kalite. "
         f"Toptan fiyatlarla, hızlı kargo ve güvenli ödeme seçenekleriyle."
     )
+
+
+# ═══════════════════════════════════════════════════════════════
+#  SEKTÖR GÖRSEL HAVUZU (Pexels CDN)
+#  Her sektör için el seçimi, yüksek kaliteli Pexels fotoğrafları.
+#  Ürünler bu havuzdan deterministik olarak görsel seçer.
+# ═══════════════════════════════════════════════════════════════
+
+SECTOR_IMAGES = {
+    "giyim": [
+        8386655, 2249249, 10084285, 23105762, 1884584,
+        6068952, 3812433, 19599223, 5490975, 5531746,
+        6069551, 34850999,
+    ],
+    "ayakkabi": [
+        2371935, 5117638, 11946032, 4010649, 17918933,
+        233226, 2529148, 14834103, 2529147, 772286,
+    ],
+    "elektronik": [
+        1420709, 10433477, 31450274, 9130508,
+        2255355, 3394666, 844923, 5054358, 1037999,
+    ],
+    "hirdavat": [
+        162553, 9754817, 19174967, 32777394, 8985454,
+        909256, 15102481, 33868599, 8341833, 14637831,
+    ],
+    "gida": [
+        7420982, 1161682, 2260825, 5966434, 5078584,
+        531446, 264537, 27588072, 12124907, 15777497,
+    ],
+    "kozmetik": [
+        29709957, 17545641, 3735619, 234220, 3018845,
+        1115128, 8128684, 1722868, 35173950, 3190,
+    ],
+    "ev_tekstili": [
+        9565729, 4112553, 15404863, 14465274, 4989084,
+        3201758, 9899861, 7614416, 7546283, 19878558,
+    ],
+    "mutfak": [
+        5825385, 10397050, 8583858, 1395967, 12908572,
+        2074130, 5728162, 7958223, 4997810, 793765,
+    ],
+    "bijuteri": [
+        1616096, 8184263, 32382386, 14058109, 1395306,
+        230290, 1352783, 2685089, 6927690, 265906,
+    ],
+    "kirtasiye": [
+        8015700, 7410461, 10834810, 7857523, 7464674,
+        18725637, 7310197, 16955622, 8580739, 5957,
+    ],
+}
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -1123,14 +1186,12 @@ def _ensure_user(email, first_name):
     """Demo kullanıcı oluştur veya mevcut olanı döndür."""
     if frappe.db.exists("User", email):
         return email
-    user = frappe.get_doc({
-        "doctype": "User",
-        "email": email,
-        "first_name": first_name,
-        "enabled": 1,
-        "user_type": "Website User",
-        "send_welcome_email": 0,
-    })
+    user = frappe.new_doc("User")
+    user.email = email
+    user.first_name = first_name
+    user.enabled = 1
+    user.user_type = "Website User"
+    user.send_welcome_email = 0
     user.flags.ignore_permissions = True
     user.flags.no_welcome_mail = True
     user.insert(ignore_permissions=True)
@@ -1144,54 +1205,55 @@ def _ensure_seller(s):
 
     _ensure_user(s["email"], s["seller_name"])
 
-    doc = frappe.get_doc({
-        "doctype": "Admin Seller Profile",
-        "seller_code": s["code"],
-        "seller_name": s["seller_name"],
-        "user": s["email"],
-        "status": "Active",
-        "seller_type": "Corporate",
-        "logo": _img(f'{s["code"]}-logo', 200, 200),
-        "banner_image": _img(f'{s["code"]}-banner', 1200, 400),
-        "description": s["description"],
-        "slogan": s["slogan"],
-        "company_name": s["company_name"],
-        "tax_id": s["tax_id"],
-        "tax_office": s["tax_office"],
-        "founded_year": s["founded_year"],
-        "staff_count": s["staff_count"],
-        "annual_revenue": s["annual_revenue"],
-        "factory_size": s["factory_size"],
-        "business_type": s["business_type"],
-        "main_markets": s["main_markets"],
-        "certifications": s["certifications"],
-        "email": s["email"],
-        "phone": s["phone"],
-        "website": s["website"],
-        "address_line1": s["address_line1"],
-        "city": s["city"],
-        "district": s["district"],
-        "postal_code": s["postal_code"],
-        "country": "Turkey",
-        "bank_name": s["bank_name"],
-        "iban": s["iban"],
-        "account_holder": s["account_holder"],
-        "is_verified": 1,
-        "verification_type": "Verified Multispecialty Supplier",
-        "health_score": round(random.uniform(75, 98), 1),
-        "score_grade": random.choice(["A", "A", "A", "B"]),
-        "commission_rate": s["commission_rate"],
-        "subscription_plan": s["subscription_plan"],
-        "response_time": random.choice(["< 1 saat", "< 2 saat", "< 4 saat", "< 24 saat"]),
-        "response_rate": round(random.uniform(85, 99), 1),
-        "on_time_delivery": round(random.uniform(90, 99), 1),
-    })
+    doc = frappe.new_doc("Admin Seller Profile")
+    doc.seller_code = s["code"]
+    doc.seller_name = s["seller_name"]
+    doc.user = s["email"]
+    doc.status = "Active"
+    doc.seller_type = "Corporate"
+    doc.logo = _seller_logo(s["seller_name"], 200)
+    doc.banner_image = _img(s["variant_type"], 1200, 400, lock_id=f'{s["code"]}-banner')
+    doc.description = s["description"]
+    doc.slogan = s["slogan"]
+    doc.company_name = s["company_name"]
+    doc.tax_id = s["tax_id"]
+    doc.tax_office = s["tax_office"]
+    doc.founded_year = s["founded_year"]
+    doc.staff_count = s["staff_count"]
+    doc.annual_revenue = s["annual_revenue"]
+    doc.factory_size = s["factory_size"]
+    doc.business_type = s["business_type"]
+    doc.main_markets = s["main_markets"]
+    # certifications → child table (Seller Certification)
+    for cert in s["certifications"].split(", "):
+        doc.append("certifications", {
+            "certification_type": cert.strip(),
+        })
+    doc.email = s["email"]
+    doc.phone = s["phone"]
+    doc.website = s["website"]
+    doc.address_line1 = s["address_line1"]
+    doc.city = s["city"]
+    doc.district = s["district"]
+    doc.postal_code = s["postal_code"]
+    doc.country = "Turkey"
+    doc.bank_name = s["bank_name"]
+    doc.iban = s["iban"]
+    doc.account_holder = s["account_holder"]
+    doc.is_verified = 1
+    doc.verification_type = "Verified Multispecialty Supplier"
+    doc.health_score = round(random.uniform(75, 98), 1)
+    doc.score_grade = random.choice(["A", "A", "A", "B"])
+    doc.commission_rate = s["commission_rate"]
+    doc.subscription_plan = s["subscription_plan"]
+    doc.response_time = random.choice(["< 1 saat", "< 2 saat", "< 4 saat", "< 24 saat"])
+    doc.response_rate = round(random.uniform(85, 99), 1)
+    doc.on_time_delivery = round(random.uniform(90, 99), 1)
 
-    # Gallery images — child table satırlarını ayrı ekle
-    gallery_count = random.randint(3, 5)
-    for i in range(1, gallery_count + 1):
+    # Gallery images
+    for i in range(1, random.randint(4, 6)):
         doc.append("gallery_images", {
-            "image": _img(f'{s["code"]}-gallery-{i}', 600, 400),
+            "image": _img(s["variant_type"], 600, 400, lock_id=f'{s["code"]}-gallery-{i}'),
             "caption": f"Fabrika/Mağaza Görüntüsü {i}",
         })
 
@@ -1200,30 +1262,28 @@ def _ensure_seller(s):
     return s["code"]
 
 
-def _ensure_category(name, parent_id, external_id, sort_order=0):
+def _ensure_category(name, parent_id, external_id, sort_order=0, sector_key="giyim"):
     """Product Category oluştur (tree). Varsa mevcut olanı döndür."""
     if frappe.db.exists("Product Category", external_id):
         return external_id
 
-    doc = frappe.get_doc({
-        "doctype": "Product Category",
-        "external_id": external_id,
-        "category_name": name,
-        "parent_product_category": parent_id or "",
-        "is_active": 1,
-        "sort_order": sort_order,
-        "url_slug": _slug(f"{external_id}"),
-        "image": _img(f"cat-{external_id}", 400, 400),
-        "meta_title": name,
-        "meta_description": f"{name} — İstoç Ticaret Merkezi'nde toptan ve perakende ürünler",
-    })
+    doc = frappe.new_doc("Product Category")
+    doc.external_id = external_id
+    doc.category_name = name
+    doc.parent_product_category = parent_id or ""
+    doc.is_active = 1
+    doc.sort_order = sort_order
+    doc.url_slug = _slug(f"{external_id}")
+    doc.image = _img(sector_key, 400, 400, lock_id=f"cat-{external_id}")
+    doc.meta_title = name
+    doc.meta_description = f"{name} — İstoç Ticaret Merkezi'nde toptan ve perakende ürünler"
     doc.flags.ignore_permissions = True
     doc.flags.ignore_links = True
     doc.insert(ignore_permissions=True)
     return external_id
 
 
-def _ensure_seller_category(seller_code, category_id, category_name):
+def _ensure_seller_category(seller_code, category_id, category_name, sector_key="giyim"):
     """Seller Category oluştur. Varsa mevcut olanı döndür (name'i integer)."""
     existing = frappe.db.get_value(
         "Seller Category",
@@ -1233,15 +1293,13 @@ def _ensure_seller_category(seller_code, category_id, category_name):
     if existing:
         return existing
 
-    doc = frappe.get_doc({
-        "doctype": "Seller Category",
-        "seller": seller_code,
-        "category": category_id,
-        "category_name": category_name,
-        "status": "Active",
-        "is_enabled": 1,
-        "image": _img(f"sc-{seller_code}-{_slug(category_name)}", 400, 400),
-    })
+    doc = frappe.new_doc("Seller Category")
+    doc.seller = seller_code
+    doc.category = category_id
+    doc.category_name = category_name
+    doc.status = "Active"
+    doc.is_enabled = 1
+    doc.image = _img(sector_key, 400, 400, lock_id=f"sc-{seller_code}-{_slug(category_name)}")
     doc.flags.ignore_permissions = True
     doc.insert(ignore_permissions=True)
     return doc.name
@@ -1274,7 +1332,7 @@ def _create_listing(seller, sector, seller_cat_name, product_cat_id, cat_name,
                 "variant_price": round(selling + mod, 2) if mod != 0 else 0,
                 "variant_stock": random.randint(50, 500),
                 "variant_sku": f"{seller[-3:]}-{_slug(cat_name)[:4].upper()}-{product_idx:02d}-{_slug(val)[:3].upper()}",
-                "variant_image": _img(f"{img_seed}-{_slug(val)}", 400, 400),
+                "variant_image": _img(variant_type, 400, 400, lock_id=f"{img_seed}-{_slug(val)}"),
             })
 
     # B2B toptan fiyat kademeleri
@@ -1294,7 +1352,7 @@ def _create_listing(seller, sector, seller_cat_name, product_cat_id, cat_name,
 
     # Ek görseller
     listing_images = [
-        {"image": _img(f"{img_seed}-extra-{k}", 800, 800), "alt_text": f"{title} - Görsel {k+1}", "sort_order": k}
+        {"image": _img(variant_type, 800, 800, lock_id=f"{img_seed}-extra-{k}"), "alt_text": f"{title} - Görsel {k+1}", "sort_order": k}
         for k in range(3)
     ]
 
@@ -1305,73 +1363,63 @@ def _create_listing(seller, sector, seller_cat_name, product_cat_id, cat_name,
         {"min_qty": 201, "max_qty": 0, "lead_days": random.randint(7, 15)},
     ]
 
-    doc = frappe.get_doc({
-        "doctype": "Listing",
-        "title": title,
-        "seller_profile": seller,
-        "status": "Active",
-        "listing_type": "Fixed Price",
-        "category": seller_cat_name,
-        "product_category": product_cat_id,
-        "brand": _get_brand(seller),
-        "condition": "New",
-        "short_description": _short(title, cat_name),
-        "description": _desc(title, cat_name),
-        "currency": currency,
-        "base_price": base,
-        "selling_price": selling,
-        "compare_at_price": compare,
-        "discount_percentage": round((1 - selling / compare) * 100, 1),
-        "sample_price": sample,
-        "b2b_enabled": 1,
-        "stock_qty": random.randint(500, 5000),
-        "stock_uom": "Nos",
-        "min_order_qty": random.choice([1, 5, 10, 20]),
-        "max_order_qty": 0,
-        "low_stock_threshold": 10,
-        "track_inventory": 1,
-        "allow_backorders": 0,
-        "primary_image": _img(img_seed, 800, 800),
-        "has_variants": 1,
-        "is_free_shipping": random.choice([0, 0, 0, 1]),
-        "shipping_weight": weight,
-        "ships_from_country": "Turkey",
-        "ships_from_city": "İstanbul",
-        "handling_days": random.choice([1, 1, 2, 3]),
-        "country_of_origin": "Turkey",
-        "package_type": random.choice(["Karton Kutu", "Poşet", "Karton Kutu"]),
-        "is_featured": 1 if product_idx == 1 and random.random() < 0.3 else 0,
-        "is_best_seller": 1 if random.random() < 0.1 else 0,
-        "is_new_arrival": 1 if random.random() < 0.2 else 0,
-        "is_on_sale": 1 if selling < base * 0.9 else 0,
-        "is_visible": 1,
-        "is_searchable": 1,
-        "selling_point": random.choice([
-            "En düşük fiyat garantisi",
-            "Hızlı kargo",
-            "Ücretsiz iade",
-            "Toptan özel fiyat",
-            "Yeni sezon ürünü",
-            "",
-        ]),
-        "route": f"urun/{slug}",
-        "meta_title": title,
-        "meta_description": _short(title, cat_name),
-    })
+    doc = frappe.new_doc("Listing")
+    doc.title = title
+    doc.seller_profile = seller
+    doc.status = "Active"
+    doc.listing_type = "Fixed Price"
+    doc.category = seller_cat_name
+    doc.product_category = product_cat_id
+    doc.brand = _get_brand(seller)
+    doc.condition = "New"
+    doc.short_description = _short(title, cat_name)
+    doc.description = _desc(title, cat_name)
+    doc.currency = currency
+    doc.base_price = base
+    doc.selling_price = selling
+    doc.compare_at_price = compare
+    doc.discount_percentage = round((1 - selling / compare) * 100, 1)
+    doc.sample_price = sample
+    doc.b2b_enabled = 1
+    doc.stock_qty = random.randint(500, 5000)
+    doc.stock_uom = "Nos"
+    doc.min_order_qty = random.choice([1, 5, 10, 20])
+    doc.max_order_qty = 0
+    doc.low_stock_threshold = 10
+    doc.track_inventory = 1
+    doc.allow_backorders = 0
+    doc.primary_image = _img(variant_type, 800, 800, lock_id=img_seed)
+    doc.has_variants = 1
+    doc.is_free_shipping = random.choice([0, 0, 0, 1])
+    doc.shipping_weight = weight
+    doc.ships_from_country = "Turkey"
+    doc.ships_from_city = "İstanbul"
+    doc.handling_days = random.choice([1, 1, 2, 3])
+    doc.country_of_origin = "Turkey"
+    doc.package_type = random.choice(["Karton Kutu", "Poşet", "Karton Kutu"])
+    doc.is_featured = 1 if product_idx == 1 and random.random() < 0.3 else 0
+    doc.is_best_seller = 1 if random.random() < 0.1 else 0
+    doc.is_new_arrival = 1 if random.random() < 0.2 else 0
+    doc.is_on_sale = 1 if selling < base * 0.9 else 0
+    doc.is_visible = 1
+    doc.is_searchable = 1
+    doc.selling_point = random.choice([
+        "En düşük fiyat garantisi", "Hızlı kargo", "Ücretsiz iade",
+        "Toptan özel fiyat", "Yeni sezon ürünü", "",
+    ])
+    doc.route = f"urun/{slug}"
+    doc.meta_title = title
+    doc.meta_description = _short(title, cat_name)
 
-    # Child table'ları doc.append ile ekle (Frappe uyumluluğu için)
+    # Child table satırları
     for vi in variant_items:
         doc.append("variant_items", vi)
-
     for pt in pricing_tiers:
         doc.append("pricing_tiers", pt)
-
     for av in attribute_values:
         doc.append("attribute_values", av)
-
     for li in listing_images:
         doc.append("listing_images", li)
-
     for lt in lead_time_ranges:
         doc.append("lead_time_ranges", lt)
 
@@ -1380,12 +1428,12 @@ def _create_listing(seller, sector, seller_cat_name, product_cat_id, cat_name,
     doc.insert(ignore_permissions=True)
 
     # Standalone Listing Variant dokümanları (kombinasyonlar)
-    _create_listing_variants(doc.name, variant_configs, selling, img_seed, seller)
+    _create_listing_variants(doc.name, variant_configs, selling, img_seed, seller, sector_key=variant_type)
 
     return doc.name
 
 
-def _create_listing_variants(listing_name, variant_configs, base_price, img_seed, seller_code):
+def _create_listing_variants(listing_name, variant_configs, base_price, img_seed, seller_code, sector_key="giyim"):
     """Birkaç anahtar kombinasyon için standalone Listing Variant oluştur."""
     if len(variant_configs) < 2:
         # Tek eksen — her değer için bir variant
@@ -1399,7 +1447,7 @@ def _create_listing_variants(listing_name, variant_configs, base_price, img_seed
                 price=round(base_price + mod, 2),
                 stock=random.randint(50, 300),
                 attrs=[{"attribute_name": vc["attr"], "attribute_value": val}],
-                image=_img(f"{img_seed}-var-{_slug(val)}", 600, 600),
+                image=_img(sector_key, 600, 600, lock_id=f"{img_seed}-var-{_slug(val)}"),
             )
         return
 
@@ -1422,23 +1470,21 @@ def _create_listing_variants(listing_name, variant_configs, base_price, img_seed
                     {"attribute_name": vc1["attr"], "attribute_value": v1},
                     {"attribute_name": vc2["attr"], "attribute_value": v2},
                 ],
-                image=_img(f"{img_seed}-var-{_slug(v1)}-{_slug(v2)}", 600, 600),
+                image=_img(sector_key, 600, 600, lock_id=f"{img_seed}-var-{_slug(v1)}-{_slug(v2)}"),
             )
             count += 1
 
 
 def _ensure_listing_variant(listing_name, variant_name, sku, price, stock, attrs, image):
     """Tek bir Listing Variant dokümanı oluştur."""
-    doc = frappe.get_doc({
-        "doctype": "Listing Variant",
-        "listing": listing_name,
-        "variant_name": variant_name,
-        "sku": sku,
-        "is_active": 1,
-        "price": price,
-        "stock_qty": stock,
-        "primary_image": image,
-    })
+    doc = frappe.new_doc("Listing Variant")
+    doc.listing = listing_name
+    doc.variant_name = variant_name
+    doc.sku = sku
+    doc.is_active = 1
+    doc.price = price
+    doc.stock_qty = stock
+    doc.primary_image = image
     for attr in attrs:
         doc.append("variant_attributes", attr)
     doc.flags.ignore_permissions = True
@@ -1519,14 +1565,17 @@ def execute():
     # ── 2. Kategoriler ──────────────────────────────────────
     print("\n[2/4] Platform kategorileri oluşturuluyor...")
     for sector in SECTORS:
+        _seller = next(s for s in SELLERS if s["code"] == sector["seller"])
+        vt = _seller["variant_type"]
         sector_id = _ensure_category(
-            sector["name"], "", f"DEMO-{sector['code']}", sort_order=0
+            sector["name"], "", f"DEMO-{sector['code']}", sort_order=0, sector_key=vt
         )
         leaf_count = 0
         for group_name, leaves in sector["groups"]:
             group_id = _ensure_category(
                 group_name, sector_id,
                 f"DEMO-{sector['code']}-{_slug(group_name)}",
+                sector_key=vt,
             )
             for idx, leaf_tuple in enumerate(leaves):
                 leaf_name = leaf_tuple[0]
@@ -1534,6 +1583,7 @@ def execute():
                     leaf_name, group_id,
                     f"DEMO-{sector['code']}-{_slug(leaf_name)}",
                     sort_order=idx,
+                    sector_key=vt,
                 )
                 leaf_count += 1
         print(f"  ✓ {sector['name']}: {leaf_count} kategori")
@@ -1545,11 +1595,13 @@ def execute():
     seller_cat_map = {}  # (seller_code, leaf_id) → seller_category_name
     for sector in SECTORS:
         seller_code = sector["seller"]
+        _seller = next(s for s in SELLERS if s["code"] == seller_code)
+        vt = _seller["variant_type"]
         for group_name, leaves in sector["groups"]:
             for leaf_tuple in leaves:
                 leaf_name = leaf_tuple[0]
                 leaf_id = f"DEMO-{sector['code']}-{_slug(leaf_name)}"
-                sc_name = _ensure_seller_category(seller_code, leaf_id, leaf_name)
+                sc_name = _ensure_seller_category(seller_code, leaf_id, leaf_name, sector_key=vt)
                 seller_cat_map[(seller_code, leaf_id)] = sc_name
     frappe.db.commit()
     print(f"  ✓ {len(seller_cat_map)} satıcı-kategori eşleşmesi")

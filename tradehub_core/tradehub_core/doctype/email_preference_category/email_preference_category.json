@@ -1,0 +1,100 @@
+{
+	"actions": [],
+	"autoname": "field:category_key",
+	"creation": "2026-04-13 00:00:00.000000",
+	"doctype": "DocType",
+	"engine": "InnoDB",
+	"field_order": [
+		"category_key",
+		"title",
+		"description",
+		"column_break_1",
+		"is_active",
+		"default_enabled",
+		"sort_order",
+		"section_break_items",
+		"items"
+	],
+	"fields": [
+		{
+			"fieldname": "category_key",
+			"fieldtype": "Data",
+			"in_list_view": 1,
+			"label": "Anahtar",
+			"reqd": 1,
+			"unique": 1
+		},
+		{
+			"fieldname": "title",
+			"fieldtype": "Data",
+			"in_list_view": 1,
+			"label": "Başlık",
+			"reqd": 1
+		},
+		{
+			"fieldname": "description",
+			"fieldtype": "Small Text",
+			"label": "Açıklama"
+		},
+		{
+			"fieldname": "column_break_1",
+			"fieldtype": "Column Break"
+		},
+		{
+			"default": "1",
+			"fieldname": "is_active",
+			"fieldtype": "Check",
+			"in_list_view": 1,
+			"label": "Aktif"
+		},
+		{
+			"default": "1",
+			"fieldname": "default_enabled",
+			"fieldtype": "Check",
+			"label": "Varsayılan Aktif"
+		},
+		{
+			"default": "0",
+			"fieldname": "sort_order",
+			"fieldtype": "Int",
+			"in_list_view": 1,
+			"label": "Sıralama"
+		},
+		{
+			"fieldname": "section_break_items",
+			"fieldtype": "Section Break",
+			"label": "Kalemler"
+		},
+		{
+			"fieldname": "items",
+			"fieldtype": "Table",
+			"label": "Kalemler",
+			"options": "Email Preference Item"
+		}
+	],
+	"links": [],
+	"modified": "2026-04-13 00:00:00.000000",
+	"modified_by": "Administrator",
+	"module": "Tradehub Core",
+	"name": "Email Preference Category",
+	"naming_rule": "By fieldname",
+	"owner": "Administrator",
+	"permissions": [
+		{
+			"create": 1,
+			"delete": 1,
+			"read": 1,
+			"report": 1,
+			"role": "System Manager",
+			"write": 1
+		},
+		{
+			"read": 1,
+			"role": "All"
+		}
+	],
+	"sort_field": "sort_order",
+	"sort_order": "ASC",
+	"title_field": "title",
+	"track_changes": 1
+}

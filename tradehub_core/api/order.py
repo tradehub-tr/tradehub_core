@@ -460,6 +460,22 @@ def submit_remittance(order_number, remittance_date, currency="USD", amount=0,
         "receipt_url": receipt_url or "",
     })
 
+    # Payment Transaction + Bank Interaction kaydı oluştur
+    from tradehub_core.api.payment import create_payment_transaction, upsert_bank_interaction
+    create_payment_transaction(
+        order_name=order.name,
+        buyer=buyer,
+        transaction_type="Ödeme",
+        amount=amount_float,
+        currency=currency,
+        payment_method="Banka Havalesi",
+        reference_number=beneficiary_account,
+        remittance_sender=sender_name,
+        receipt_url=receipt_url,
+    )
+    if order.seller:
+        upsert_bank_interaction(buyer, order.seller, amount_float, currency)
+
     # Dekont gönderildiğinde gerçek stoktan düş (reserved_qty → stock_qty azaltılır)
     deduct_stock_for_order(order.name)
     frappe.db.commit()
@@ -573,6 +589,17 @@ def seller_confirm_payment(order_number):
         frappe.throw(_("Payment can only be confirmed for orders awaiting payment"))
 
     frappe.db.set_value("Order", order.name, "status", "Onaylanıyor")
+
+    # Payment Transaction status güncelle + Bank Interaction eşleşme güncelle
+    from tradehub_core.api.payment import update_transaction_status, update_bank_interaction_on_confirm
+    buyer_email = frappe.db.get_value("Order", order_number, "buyer")
+    if buyer_email:
+        update_transaction_status(order_number, buyer_email, "Tamamlandı",
+                                  transaction_type="Ödeme", confirmed_by=user)
+        remittance_amount = frappe.db.get_value("Order", order_number, "remittance_amount")
+        if remittance_amount:
+            update_bank_interaction_on_confirm(buyer_email, seller_code, float(remittance_amount))
+
     frappe.db.commit()
 
     # Alıcıya bildirim
@@ -788,12 +815,26 @@ def submit_refund_request(order_number, reason, amount=0):
     if order.refund_status in ("Pending", "Approved"):
         frappe.throw(_("Bu sipariş için zaten bir iade talebi mevcut"))
 
+    refund_amount = float(amount or 0)
     frappe.db.set_value("Order", order_number, {
         "refund_status": "Pending",
         "refund_reason": reason or "",
-        "refund_amount": float(amount or 0),
+        "refund_amount": refund_amount,
         "refund_requested_at": frappe.utils.now_datetime(),
     })
+
+    # İade tipi Payment Transaction oluştur
+    from tradehub_core.api.payment import create_payment_transaction
+    order_data = frappe.db.get_value("Order", order_number, ["currency"], as_dict=True)
+    create_payment_transaction(
+        order_name=order_number,
+        buyer=buyer,
+        transaction_type="İade",
+        amount=refund_amount,
+        currency=order_data.currency if order_data else "TRY",
+        refund_reason=reason or "",
+    )
+
     frappe.db.commit()
 
     # Satıcıya bildirim
@@ -843,6 +884,13 @@ def seller_handle_refund(order_number, action):
     new_status = "Approved" if action == "approve" else "Rejected"
     frappe.db.set_value("Order", order_number, "refund_status", new_status)
 
+    # İade Transaction status güncelle
+    from tradehub_core.api.payment import update_transaction_status
+    buyer_email = frappe.db.get_value("Order", order_number, "buyer")
+    if buyer_email:
+        tx_status = "Tamamlandı" if action == "approve" else "Reddedildi"
+        update_transaction_status(order_number, buyer_email, tx_status,
+                                  transaction_type="İade", confirmed_by=user)
     # İade onaylandıysa stok geri yükle (kargo sonrası stok düşürülmüştü)
     if new_status == "Approved":
         from tradehub_core.utils.stock import reserve_stock_for_order

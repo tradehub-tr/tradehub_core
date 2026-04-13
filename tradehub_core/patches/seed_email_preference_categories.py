@@ -1,40 +1,8 @@
 import frappe
-from frappe.permissions import add_permission
 
 
-def after_install():
-	"""Create custom marketplace roles. Idempotent — safe to run on every migrate."""
-	_create_marketplace_roles()
-	_setup_core_permissions()
-	_seed_email_preference_categories()
-	frappe.db.commit()
-
-
-def _setup_core_permissions():
-	"""Give Seller role read access to core DocTypes needed for listing management."""
-	for doctype in ("Currency", "UOM", "Country"):
-		add_permission(doctype, "Seller", 0)
-
-
-def _create_marketplace_roles():
-	roles = [
-		{"role_name": "Buyer", "desk_access": 0},
-		{"role_name": "Seller", "desk_access": 0},
-		{"role_name": "Marketplace Admin", "desk_access": 1},
-	]
-	for role_data in roles:
-		if not frappe.db.exists("Role", role_data["role_name"]):
-			role = frappe.new_doc("Role")
-			role.role_name = role_data["role_name"]
-			role.desk_access = role_data["desk_access"]
-			role.insert(ignore_permissions=True)
-
-
-def _seed_email_preference_categories():
-	"""Varsayılan e-posta tercih kategorilerini oluşturur. Idempotent."""
-	if not frappe.db.exists("DocType", "Email Preference Category"):
-		return
-
+def execute():
+	"""Varsayılan e-posta tercih kategorilerini ve kalemlerini oluşturur."""
 	_seed_category(
 		category_key="notification",
 		title="Tüm bildirim e-postaları",
@@ -77,8 +45,11 @@ def _seed_email_preference_categories():
 		],
 	)
 
+	frappe.db.commit()
+
 
 def _seed_category(category_key, title, description, sort_order, items):
+	"""Kategori yoksa oluştur, varsa atla (idempotent)."""
 	if frappe.db.exists("Email Preference Category", category_key):
 		return
 
@@ -100,9 +71,3 @@ def _seed_category(category_key, title, description, sort_order, items):
 		})
 
 	doc.insert(ignore_permissions=True)
-
-
-def cleanup_expired_tokens():
-	"""Scheduled daily — Redis TTL handles expiry automatically.
-	This is a placeholder for any future DB-level cleanup."""
-	pass

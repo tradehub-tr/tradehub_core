@@ -1,0 +1,163 @@
+{
+	"actions": [],
+	"autoname": "hash",
+	"creation": "2024-01-01 00:00:00.000000",
+	"doctype": "DocType",
+	"engine": "InnoDB",
+	"field_order": [
+		"buyer",
+		"seller",
+		"seller_name",
+		"column_break_basic",
+		"seller_iban",
+		"seller_bank_name",
+		"seller_account_holder",
+		"sb_amounts",
+		"total_wire_amount",
+		"currency",
+		"column_break_amounts",
+		"pending_match_amount",
+		"last_transaction_date",
+		"sb_status",
+		"match_status",
+		"is_verified",
+		"verified_at"
+	],
+	"fields": [
+		{
+			"fieldname": "buyer",
+			"fieldtype": "Link",
+			"label": "Alıcı",
+			"options": "User",
+			"reqd": 1,
+			"in_standard_filter": 1
+		},
+		{
+			"fieldname": "seller",
+			"fieldtype": "Data",
+			"label": "Satıcı Kodu",
+			"reqd": 1
+		},
+		{
+			"fieldname": "seller_name",
+			"fieldtype": "Data",
+			"label": "Satıcı Adı",
+			"in_list_view": 1
+		},
+		{
+			"fieldname": "column_break_basic",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "seller_iban",
+			"fieldtype": "Data",
+			"label": "IBAN",
+			"in_list_view": 1
+		},
+		{
+			"fieldname": "seller_bank_name",
+			"fieldtype": "Data",
+			"label": "Banka Adı"
+		},
+		{
+			"fieldname": "seller_account_holder",
+			"fieldtype": "Data",
+			"label": "Hesap Sahibi"
+		},
+		{
+			"fieldname": "sb_amounts",
+			"fieldtype": "Section Break",
+			"label": "Tutar Bilgileri"
+		},
+		{
+			"fieldname": "total_wire_amount",
+			"fieldtype": "Currency",
+			"label": "Toplam Havale Tutarı",
+			"options": "currency",
+			"default": "0",
+			"in_list_view": 1
+		},
+		{
+			"fieldname": "currency",
+			"fieldtype": "Link",
+			"label": "Para Birimi",
+			"options": "Currency",
+			"default": "TRY"
+		},
+		{
+			"fieldname": "column_break_amounts",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "pending_match_amount",
+			"fieldtype": "Currency",
+			"label": "Bekleyen Eşleşme Tutarı",
+			"options": "currency",
+			"default": "0"
+		},
+		{
+			"fieldname": "last_transaction_date",
+			"fieldtype": "Datetime",
+			"label": "Son İşlem Tarihi"
+		},
+		{
+			"fieldname": "sb_status",
+			"fieldtype": "Section Break",
+			"label": "Durum"
+		},
+		{
+			"fieldname": "match_status",
+			"fieldtype": "Select",
+			"label": "Eşleşme Durumu",
+			"options": "\nBeklemede\nKısmi Eşleşme\nTam Eşleşme",
+			"default": "Beklemede",
+			"in_list_view": 1,
+			"in_standard_filter": 1
+		},
+		{
+			"fieldname": "is_verified",
+			"fieldtype": "Check",
+			"label": "Doğrulanmış",
+			"default": "0"
+		},
+		{
+			"fieldname": "verified_at",
+			"fieldtype": "Datetime",
+			"label": "Doğrulama Tarihi",
+			"depends_on": "is_verified"
+		}
+	],
+	"links": [],
+	"modified": "2024-01-01 00:00:00.000000",
+	"modified_by": "Administrator",
+	"module": "Tradehub Core",
+	"name": "Buyer Bank Interaction",
+	"owner": "Administrator",
+	"permissions": [
+		{
+			"create": 1,
+			"delete": 1,
+			"email": 1,
+			"export": 1,
+			"read": 1,
+			"report": 1,
+			"role": "System Manager",
+			"share": 1,
+			"write": 1
+		},
+		{
+			"read": 1,
+			"write": 1,
+			"role": "Marketplace Admin"
+		},
+		{
+			"read": 1,
+			"role": "Buyer",
+			"if_owner": 1
+		}
+	],
+	"sort_field": "last_transaction_date",
+	"sort_order": "DESC",
+	"states": [],
+	"track_changes": 1
+}

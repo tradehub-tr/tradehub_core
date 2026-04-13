@@ -1,0 +1,245 @@
+{
+	"actions": [],
+	"autoname": "naming_series:",
+	"creation": "2024-01-01 00:00:00.000000",
+	"doctype": "DocType",
+	"engine": "InnoDB",
+	"field_order": [
+		"naming_series",
+		"transaction_type",
+		"order",
+		"buyer",
+		"column_break_basic",
+		"seller",
+		"seller_name",
+		"payment_method",
+		"status",
+		"sb_amount",
+		"amount",
+		"currency",
+		"column_break_amount",
+		"transaction_fee",
+		"transaction_date",
+		"sb_wire",
+		"reference_number",
+		"remittance_sender",
+		"column_break_wire",
+		"seller_bank_name",
+		"seller_iban",
+		"receipt_url",
+		"sb_confirmation",
+		"confirmation_date",
+		"confirmed_by",
+		"sb_refund",
+		"refund_reason",
+		"notes"
+	],
+	"fields": [
+		{
+			"fieldname": "naming_series",
+			"fieldtype": "Select",
+			"hidden": 1,
+			"label": "Naming Series",
+			"options": "PAY-.#####",
+			"default": "PAY-.#####"
+		},
+		{
+			"fieldname": "transaction_type",
+			"fieldtype": "Select",
+			"label": "İşlem Tipi",
+			"options": "\nÖdeme\nİade",
+			"reqd": 1,
+			"in_list_view": 1,
+			"in_standard_filter": 1
+		},
+		{
+			"fieldname": "order",
+			"fieldtype": "Link",
+			"label": "Sipariş",
+			"options": "Order",
+			"reqd": 1,
+			"in_list_view": 1
+		},
+		{
+			"fieldname": "buyer",
+			"fieldtype": "Link",
+			"label": "Alıcı",
+			"options": "User",
+			"reqd": 1,
+			"in_standard_filter": 1
+		},
+		{
+			"fieldname": "column_break_basic",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "seller",
+			"fieldtype": "Data",
+			"label": "Satıcı Kodu"
+		},
+		{
+			"fieldname": "seller_name",
+			"fieldtype": "Data",
+			"label": "Satıcı Adı",
+			"in_list_view": 1
+		},
+		{
+			"fieldname": "payment_method",
+			"fieldtype": "Select",
+			"label": "Ödeme Yöntemi",
+			"options": "\nBanka Havalesi\nEFT/Havale\nÇek/Senet\nElden Taksit",
+			"in_standard_filter": 1
+		},
+		{
+			"fieldname": "status",
+			"fieldtype": "Select",
+			"label": "Durum",
+			"options": "\nGönderildi\nBeklemede\nTedarikçi Eşleşmesi Bekleniyor\nEşleşti\nTamamlandı\nReddedildi",
+			"default": "Gönderildi",
+			"in_list_view": 1,
+			"in_standard_filter": 1
+		},
+		{
+			"fieldname": "sb_amount",
+			"fieldtype": "Section Break",
+			"label": "Tutar Bilgileri"
+		},
+		{
+			"fieldname": "amount",
+			"fieldtype": "Currency",
+			"label": "Tutar",
+			"options": "currency",
+			"reqd": 1,
+			"in_list_view": 1
+		},
+		{
+			"fieldname": "currency",
+			"fieldtype": "Link",
+			"label": "Para Birimi",
+			"options": "Currency",
+			"default": "TRY"
+		},
+		{
+			"fieldname": "column_break_amount",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "transaction_fee",
+			"fieldtype": "Currency",
+			"label": "İşlem Ücreti",
+			"options": "currency",
+			"default": "0"
+		},
+		{
+			"fieldname": "transaction_date",
+			"fieldtype": "Datetime",
+			"label": "İşlem Tarihi",
+			"default": "Now",
+			"in_list_view": 1
+		},
+		{
+			"fieldname": "sb_wire",
+			"fieldtype": "Section Break",
+			"label": "Havale Bilgileri"
+		},
+		{
+			"fieldname": "reference_number",
+			"fieldtype": "Data",
+			"label": "Referans No"
+		},
+		{
+			"fieldname": "remittance_sender",
+			"fieldtype": "Data",
+			"label": "Gönderici Adı"
+		},
+		{
+			"fieldname": "column_break_wire",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "seller_bank_name",
+			"fieldtype": "Data",
+			"label": "Satıcı Banka Adı"
+		},
+		{
+			"fieldname": "seller_iban",
+			"fieldtype": "Data",
+			"label": "Satıcı IBAN"
+		},
+		{
+			"fieldname": "receipt_url",
+			"fieldtype": "Attach",
+			"label": "Makbuz"
+		},
+		{
+			"fieldname": "sb_confirmation",
+			"fieldtype": "Section Break",
+			"label": "Onay Bilgileri"
+		},
+		{
+			"fieldname": "confirmation_date",
+			"fieldtype": "Datetime",
+			"label": "Onay Tarihi"
+		},
+		{
+			"fieldname": "confirmed_by",
+			"fieldtype": "Link",
+			"label": "Onaylayan",
+			"options": "User"
+		},
+		{
+			"fieldname": "sb_refund",
+			"fieldtype": "Section Break",
+			"label": "İade / Notlar"
+		},
+		{
+			"fieldname": "refund_reason",
+			"fieldtype": "Small Text",
+			"label": "İade Nedeni"
+		},
+		{
+			"fieldname": "notes",
+			"fieldtype": "Small Text",
+			"label": "Notlar"
+		}
+	],
+	"links": [],
+	"modified": "2024-01-01 00:00:00.000000",
+	"modified_by": "Administrator",
+	"module": "Tradehub Core",
+	"name": "Payment Transaction",
+	"owner": "Administrator",
+	"permissions": [
+		{
+			"create": 1,
+			"delete": 1,
+			"email": 1,
+			"export": 1,
+			"print": 1,
+			"read": 1,
+			"report": 1,
+			"role": "System Manager",
+			"share": 1,
+			"write": 1
+		},
+		{
+			"read": 1,
+			"write": 1,
+			"role": "Marketplace Admin"
+		},
+		{
+			"create": 1,
+			"read": 1,
+			"role": "Buyer",
+			"if_owner": 1
+		},
+		{
+			"read": 1,
+			"role": "Marketplace Seller"
+		}
+	],
+	"sort_field": "transaction_date",
+	"sort_order": "DESC",
+	"states": [],
+	"track_changes": 1
+}
