@@ -1,0 +1,93 @@
+{
+	"actions": [],
+	"autoname": "hash",
+	"creation": "2026-04-13 00:00:00.000000",
+	"doctype": "DocType",
+	"engine": "InnoDB",
+	"field_order": [
+		"user",
+		"listing",
+		"list_ids",
+		"snapshot_section",
+		"snapshot_image",
+		"snapshot_title",
+		"snapshot_price_range",
+		"snapshot_min_order"
+	],
+	"fields": [
+		{
+			"fieldname": "user",
+			"fieldtype": "Link",
+			"label": "User",
+			"options": "User",
+			"reqd": 1,
+			"in_standard_filter": 1
+		},
+		{
+			"fieldname": "listing",
+			"fieldtype": "Link",
+			"label": "Listing",
+			"options": "Listing",
+			"reqd": 1,
+			"in_standard_filter": 1
+		},
+		{
+			"fieldname": "list_ids",
+			"fieldtype": "Long Text",
+			"label": "List IDs (JSON array)",
+			"description": "JSON array of list_id strings (e.g. ['default','<uuid>'])"
+		},
+		{
+			"fieldname": "snapshot_section",
+			"fieldtype": "Section Break",
+			"label": "Snapshot"
+		},
+		{
+			"fieldname": "snapshot_image",
+			"fieldtype": "Data",
+			"label": "Image URL"
+		},
+		{
+			"fieldname": "snapshot_title",
+			"fieldtype": "Data",
+			"label": "Title"
+		},
+		{
+			"fieldname": "snapshot_price_range",
+			"fieldtype": "Data",
+			"label": "Price Range"
+		},
+		{
+			"fieldname": "snapshot_min_order",
+			"fieldtype": "Data",
+			"label": "Min Order"
+		}
+	],
+	"links": [],
+	"modified": "2026-04-13 00:00:00.000000",
+	"modified_by": "Administrator",
+	"module": "Tradehub Core",
+	"name": "Buyer Favorite Item",
+	"naming_rule": "Random",
+	"owner": "Administrator",
+	"permissions": [
+		{
+			"create": 1,
+			"delete": 1,
+			"read": 1,
+			"role": "System Manager",
+			"write": 1
+		},
+		{
+			"create": 1,
+			"delete": 1,
+			"read": 1,
+			"role": "All",
+			"write": 1,
+			"if_owner": 1
+		}
+	],
+	"sort_field": "creation",
+	"sort_order": "DESC",
+	"track_changes": 0
+}
