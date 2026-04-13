@@ -2,6 +2,7 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 from frappe.utils import now_datetime
+from tradehub_core.utils.notify import notify
 
 
 class SellerApplication(Document):
@@ -9,8 +10,14 @@ class SellerApplication(Document):
 		if self.has_value_changed("status"):
 			if self.status == "Approved":
 				self._approve_application()
-			elif self.status in ("Rejected", "Submitted", "Under Review", "Draft"):
+				self._notify_applicant_approved()
+			elif self.status == "Rejected":
 				self._revoke_approval()
+				self._notify_applicant_rejected()
+			elif self.status in ("Submitted", "Under Review", "Draft"):
+				self._revoke_approval()
+			if self.status == "Submitted":
+				self._notify_admin_new_application()
 
 	def _approve_application(self):
 		"""Create Seller Profile, Admin Seller Profile and assign Seller role on approval."""
@@ -147,3 +154,55 @@ class SellerApplication(Document):
 		# Update review metadata
 		self.db_set("reviewed_by", frappe.session.user)
 		self.db_set("reviewed_on", now_datetime())
+
+	def _notify_applicant_approved(self):
+		notify(
+			recipient_user=self.applicant_user,
+			recipient_role="seller",
+			type="system",
+			title=_("Başvurunuz Onaylandı"),
+			message=_("Satıcı başvurunuz onaylandı. Artık ürün listelemeye başlayabilirsiniz."),
+			action_url="/seller/dashboard",
+			reference_doctype="Seller Application",
+			reference_name=self.name,
+		)
+
+	def _notify_applicant_rejected(self):
+		notify(
+			recipient_user=self.applicant_user,
+			recipient_role="seller",
+			type="system",
+			title=_("Başvurunuz Reddedildi"),
+			message=_("Satıcı başvurunuz reddedildi. Detaylar için destek ile iletişime geçin."),
+			action_url="/seller/dashboard",
+			reference_doctype="Seller Application",
+			reference_name=self.name,
+		)
+
+	def _notify_admin_new_application(self):
+		admins = frappe.get_all(
+			"Has Role",
+			filters={"role": "System Manager", "parenttype": "User"},
+			fields=["parent"],
+		)
+		seller_name = self.business_name or self.applicant_user
+		for admin in admins:
+			# Aynı başvuru için admin'e zaten bildirim gittiyse tekrar gönderme
+			existing = frappe.db.exists("Platform Notification", {
+				"recipient_user": admin.parent,
+				"reference_doctype": "Seller Application",
+				"reference_name": self.name,
+				"type": "system",
+			})
+			if existing:
+				continue
+			notify(
+				recipient_user=admin.parent,
+				recipient_role="admin",
+				type="system",
+				title=_("Yeni Satıcı Başvurusu"),
+				message=_("{0} yeni satıcı başvurusu yaptı.").format(seller_name),
+				action_url=f"/app/seller-application/{self.name}",
+				reference_doctype="Seller Application",
+				reference_name=self.name,
+			)

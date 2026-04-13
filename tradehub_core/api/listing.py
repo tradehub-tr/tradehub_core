@@ -2,6 +2,209 @@ import frappe
 from frappe import _
 import json
 import datetime
+import hashlib
+
+
+def _cache_key(prefix: str, **kwargs) -> str:
+    """Generate a deterministic cache key from parameters."""
+    raw = json.dumps(kwargs, sort_keys=True, default=str)
+    h = hashlib.md5(raw.encode()).hexdigest()[:12]
+    return f"{prefix}:{h}"
+
+
+CACHE_TTL = 30  # seconds — short TTL for listing queries
+
+# How long the (listing × client IP) view dedup key lives in Redis.
+# A repeat hit from the same IP within this window does NOT bump the
+# view counter. Long enough to defeat refresh spam, short enough that
+# legitimate return visitors are still counted on subsequent days.
+VIEW_DEDUP_TTL = 3600  # 1 hour
+
+
+def invalidate_listing_cache(doc=None, method=None):
+    """Drop every cached listing query so storefront reflects writes within
+    a request, not after the 30s TTL expires.
+
+    Wired from hooks.py for Listing on_update / after_insert / on_trash. Safe
+    to call with no args (e.g. from a console). The deletion patterns cover
+    every cache_key prefix used by this module.
+    """
+    try:
+        # Patterns must match the prefixes passed to _cache_key in this file.
+        for pattern in (
+            "listings:*",
+            "top_deals_grouped:*",          # legacy key, kept for safety
+            "top_ranking_categories:*",
+            "top_ranking_grouped:*",
+            "search_suggestions:*",
+            "filter_facets:*",
+            "tailored:*",                   # Tailored Selections (user + global)
+        ):
+            try:
+                frappe.cache.delete_keys(pattern)
+            except Exception:
+                # delete_keys is best-effort; never block a doc save on cache
+                pass
+    except Exception:
+        pass
+
+
+# ── Order → Listing.order_count pipeline ──
+#
+# Wired from hooks.py as a `before_save` hook on Order. We deliberately use
+# before_save (NOT on_update / after_insert) because:
+#
+#   1. before_save runs BEFORE Frappe's db_update, so we can mutate
+#      doc.metrics_credited in memory and let db_update persist it in the
+#      same transaction. No second SQL write needed.
+#
+#   2. The Frappe Desk form does not include hidden read-only fields in the
+#      submitted form payload. When `frappe.client.save({...})` constructs
+#      the in-memory Order from that dict, doc.metrics_credited defaults to
+#      0 even if the DB row currently holds 1. If we trusted the in-memory
+#      value, every form save (e.g. adding a tracking number to a shipped
+#      order) would re-credit the same items and inflate the count.
+#
+#      Our fix: read the *true* pre-save credit state from the DB inside
+#      the hook (DB still holds the old value because db_update hasn't run
+#      yet). This ignores the corrupted in-memory value entirely.
+#
+# Idempotency model:
+#
+#   not credited (DB) + status now SOLD     →  +qty per item,  set credited=1
+#   credited     (DB) + status NOT SOLD     →  -qty per item,  set credited=0
+#   no transition                            →  no quantity change, but we
+#                                               still re-stamp doc.metrics_credited
+#                                               so db_update doesn't reset it
+#
+# Item edit limitation: changing item quantities on an already-credited
+# order does NOT re-tally listing.order_count. Cancel + recreate the order
+# (or fix the count manually via SQL) if that's needed.
+
+# Order statuses that count as a sale. Configurable here so a future
+# product decision can flip the threshold without touching call sites.
+SOLD_STATES = {"Kargoda", "Tamamlandı"}
+
+
+def bump_listing_order_counts(doc, method=None):
+    """Order before_save hook: keep Listing.order_count in sync with the
+    order's status transitions.
+
+    See the module-level comment block above for the full design rationale.
+    """
+    if not doc:
+        return
+
+    is_sold_now = (doc.status or "") in SOLD_STATES
+
+    # Read the TRUE pre-save credit state from DB. We can't trust
+    # `doc.metrics_credited` because Frappe's form save drops hidden
+    # read-only fields and they default to 0 on doc construction.
+    if doc.get("name"):
+        db_value = frappe.db.get_value("Order", doc.name, "metrics_credited")
+        was_credited = bool(db_value or 0)
+    else:
+        # Brand-new order, not yet in DB
+        was_credited = False
+
+    if is_sold_now != was_credited:
+        sign = 1 if is_sold_now else -1
+        for item in (doc.get("items") or []):
+            listing_name = item.get("listing") if isinstance(item, dict) else getattr(item, "listing", None)
+            qty = item.get("quantity") if isinstance(item, dict) else getattr(item, "quantity", None)
+            if not listing_name or not qty:
+                continue
+            try:
+                qty_int = int(qty)
+            except (TypeError, ValueError):
+                continue
+            delta = sign * qty_int
+            # GREATEST clamps the counter at zero so a faulty decrement
+            # never produces a negative best-seller score.
+            frappe.db.sql(
+                "UPDATE `tabListing` "
+                "SET order_count = GREATEST(0, COALESCE(order_count, 0) + %s) "
+                "WHERE name = %s",
+                (delta, listing_name),
+            )
+        invalidate_listing_cache()
+
+    # Always re-stamp the in-memory doc so db_update writes the correct
+    # value back. Without this, form saves that omit the hidden field
+    # would silently reset metrics_credited to 0 even when the order is
+    # still in a SOLD state.
+    doc.metrics_credited = 1 if is_sold_now else 0
+
+
+# ── Seller Review → Listing.average_rating proxy ──
+#
+# Wired from hooks.py:
+#   doc_events["Seller Review"]["after_insert"] → recompute_seller_rating_proxy
+#   doc_events["Seller Review"]["on_update"]   → recompute_seller_rating_proxy
+#   doc_events["Seller Review"]["on_trash"]    → recompute_seller_rating_proxy
+#
+# There is no listing-level Review doctype yet — reviews are attached to
+# sellers via `Seller Review`. To make the "Best Reviewed" Top Ranking
+# pill work, we proxy: every listing's average_rating + review_count is
+# the same as its seller's. The hook recomputes the seller's aggregate
+# from all *Published* reviews and bulk-updates every listing the seller
+# owns. The composite index (product_category, average_rating) keeps the
+# downstream Top Ranking SQL fast.
+
+def recompute_seller_rating_proxy(doc, method=None):
+    """Seller Review eklenir/güncellenir/silinirse satıcının rating ortalamasını
+    yeniden hesaplar ve o satıcının tüm listing'lerine yansıtır.
+
+    Yalnızca `status='Published'` review'lar ortalamaya katılır.
+    """
+    if not doc:
+        return
+    seller = doc.get("seller") if isinstance(doc, dict) else getattr(doc, "seller", None)
+    if not seller:
+        return
+
+    # Aggregate from Published reviews only.
+    stats = frappe.db.sql(
+        """
+        SELECT
+            COALESCE(AVG(rating), 0) AS avg_rating,
+            COUNT(*)                 AS cnt
+        FROM `tabSeller Review`
+        WHERE seller = %s AND status = 'Published'
+        """,
+        (seller,),
+        as_dict=True,
+    )
+
+    if stats:
+        avg = float(stats[0].avg_rating or 0)
+        cnt = int(stats[0].cnt or 0)
+    else:
+        avg = 0.0
+        cnt = 0
+
+    # Round rating to one decimal place — matches what the storefront UI shows.
+    avg = round(avg, 1)
+
+    # 1) Update the seller profile aggregate.
+    if frappe.db.exists("Admin Seller Profile", seller):
+        frappe.db.set_value(
+            "Admin Seller Profile", seller,
+            {"rating": avg, "review_count": cnt},
+            update_modified=False,
+        )
+
+    # 2) Denormalize into every listing owned by this seller. The downstream
+    #    Top Ranking sort uses Listing.average_rating directly (composite
+    #    index served), so the listings need fresh values.
+    frappe.db.sql(
+        "UPDATE `tabListing` "
+        "SET average_rating = %s, review_count = %s "
+        "WHERE seller_profile = %s",
+        (avg, cnt, seller),
+    )
+
+    invalidate_listing_cache()
 
 
 @frappe.whitelist(allow_guest=True)
@@ -18,10 +221,15 @@ def get_listings(
     is_featured=None,
     is_best_seller=None,
     is_new_arrival=None,
+    is_deal=None,
     verified_supplier=None,
     min_rating=None,
     country=None,
     free_shipping=None,
+    paid_samples=None,
+    certifications=None,
+    mgmt_certifications=None,
+    product_certifications=None,
 ):
     """Get paginated list of active listings for the product listing page.
 
@@ -29,6 +237,18 @@ def get_listings(
     """
     page = int(page)
     page_size = min(int(page_size), 100)
+
+    # ── Cache check ──
+    ck = _cache_key("listings", q=query, cat=category, minp=min_price, maxp=max_price,
+                     sup=supplier, sb=sort_by, so=sort_order, p=page, ps=page_size,
+                     feat=is_featured, best=is_best_seller, new=is_new_arrival,
+                     deal=is_deal,
+                     vs=verified_supplier, mr=min_rating, co=country, fs=free_shipping,
+                     ps2=paid_samples, cert=certifications,
+                     mc=mgmt_certifications, pc=product_certifications)
+    cached = frappe.cache.get_value(ck)
+    if cached:
+        return cached
     start = (page - 1) * page_size
 
     filters = {
@@ -57,24 +277,112 @@ def get_listings(
         filters["is_new_arrival"] = 1
     if free_shipping:
         filters["is_free_shipping"] = 1
+    if paid_samples:
+        filters["sample_price"] = [">", 0]
 
-    or_filters = None
-    if query:
-        or_filters = [
-            ["title", "like", f"%{query}%"],
-            ["short_description", "like", f"%{query}%"],
-            ["brand", "like", f"%{query}%"],
-        ]
+    # ── Deal filter (Top Deals page) ──
+    # A listing is a deal iff discount_percentage > 0. The Listing controller's
+    # validate_pricing keeps base_price/selling_price/discount_percentage in
+    # sync, so dp > 0 is equivalent to base_price > selling_price at any
+    # point in DB. One simple AND filter is enough — no OR group, no Python
+    # post-filter, no race with text search.
+    if is_deal:
+        filters["discount_percentage"] = [">", 0]
 
-    if min_price:
-        filters["selling_price"] = [">=", float(min_price)]
-    if max_price:
-        if "selling_price" in filters:
-            filters["selling_price"] = ["between", [float(min_price or 0), float(max_price)]]
+    # ── Supplier-level filters (verified, country, certifications) ──
+    # These require a sub-query on Admin Seller Profile to get matching seller_profile names.
+    seller_profile_filters = {}
+    seller_or_filters = None
+    if verified_supplier:
+        seller_profile_filters["is_verified"] = 1
+    if country:
+        seller_profile_filters["country"] = country
+
+    # Management certifications filter: via Seller Certification child table
+    if certifications or mgmt_certifications:
+        cert_str = mgmt_certifications or certifications
+        cert_list = [c.strip() for c in cert_str.split(",") if c.strip()]
+        if cert_list:
+            # Find sellers who have ANY of these certifications
+            sellers_with_certs = frappe.get_all(
+                "Seller Certification",
+                filters=[["certification_type", "in", cert_list]],
+                fields=["parent"],
+                pluck="parent",
+            )
+            if sellers_with_certs:
+                seller_profile_filters["name"] = ["in", list(set(sellers_with_certs))]
+            else:
+                return {
+                    "data": [], "total": 0, "page": page, "page_size": page_size,
+                    "total_pages": 1, "has_next": False, "has_prev": False,
+                }
+
+    if seller_profile_filters:
+        matching_sellers = frappe.get_all(
+            "Admin Seller Profile",
+            filters=seller_profile_filters,
+            fields=["name"],
+            pluck="name",
+        )
+        if matching_sellers:
+            filters["seller_profile"] = ["in", matching_sellers]
         else:
-            filters["selling_price"] = ["<=", float(max_price)]
+            return {
+                "data": [], "total": 0, "page": page, "page_size": page_size,
+                "total_pages": 1, "has_next": False, "has_prev": False,
+            }
 
-    # Valid sort fields
+    # Product certifications filter: via Listing Certification child table
+    if product_certifications:
+        pcert_list = [c.strip() for c in product_certifications.split(",") if c.strip()]
+        if pcert_list:
+            listings_with_pcerts = frappe.get_all(
+                "Listing Certification",
+                filters=[["certification_type", "in", pcert_list]],
+                fields=["parent"],
+                pluck="parent",
+            )
+            if listings_with_pcerts:
+                filters["name"] = ["in", list(set(listings_with_pcerts))]
+            else:
+                return {
+                    "data": [], "total": 0, "page": page, "page_size": page_size,
+                    "total_pages": 1, "has_next": False, "has_prev": False,
+                }
+
+    # ── Rating filter ──
+    if min_rating:
+        filters["average_rating"] = [">=", float(min_rating)]
+
+    # ── Brand filter ──
+    if supplier:
+        filters["brand"] = ["like", f"%{supplier}%"]
+
+    # ── Text search (split into words for AND matching) ──
+    or_filters = None
+    search_words = []
+    if query:
+        search_words = [w.strip() for w in query.split() if w.strip()]
+        if len(search_words) <= 1:
+            # Single word: original OR across fields
+            or_filters = [
+                ["title", "like", f"%{query}%"],
+                ["short_description", "like", f"%{query}%"],
+                ["brand", "like", f"%{query}%"],
+            ]
+        # Multi-word handled after main query via Python filter
+
+    # ── Price range filter ──
+    price_filters = []
+    if min_price:
+        price_filters.append(["Listing", "selling_price", ">=", float(min_price)])
+    if max_price:
+        price_filters.append(["Listing", "selling_price", "<=", float(max_price)])
+
+    # ── Sorting ──
+    use_relevance_sort = sort_by == "relevance" and bool(query)
+
     valid_sort_fields = {
         "modified": "modified",
         "price_asc": "selling_price",
@@ -82,8 +390,15 @@ def get_listings(
         "newest": "creation",
         "rating": "average_rating",
         "orders": "order_count",
+        "views": "view_count",
         "relevance": "modified",
+        "discount": "discount_percentage",
     }
+
+    # Top Deals: when is_deal is set and the caller didn't pick an explicit sort,
+    # surface biggest discounts first.
+    if is_deal and sort_by in ("modified", "relevance"):
+        sort_by = "discount"
 
     actual_sort_field = valid_sort_fields.get(sort_by, "modified")
     if sort_by == "price_asc":
@@ -94,39 +409,120 @@ def get_listings(
         sort_order = "DESC"
     elif sort_by == "orders":
         sort_order = "DESC"
+    elif sort_by == "views":
+        sort_order = "DESC"
+    elif sort_by == "discount":
+        sort_order = "DESC"
 
     fields = [
         "name", "listing_code", "title", "primary_image",
-        "selling_price", "base_price", "compare_at_price", "currency",
+        "selling_price", "base_price", "currency",
         "discount_percentage", "min_order_qty", "stock_uom",
         "order_count", "average_rating", "review_count",
         "seller_profile", "supplier_display_name",
         "ships_from_country", "country_of_origin",
         "is_free_shipping", "is_featured", "is_best_seller",
-        "is_new_arrival", "is_on_sale", "selling_point",
+        "is_new_arrival", "selling_point",
         "b2b_enabled", "has_variants", "category", "category_name",
         "brand", "modified", "creation",
     ]
 
-    listings = frappe.get_all(
-        "Listing",
-        filters=filters,
-        or_filters=or_filters,
-        fields=fields,
-        order_by=f"{actual_sort_field} {sort_order}",
-        start=start,
-        page_length=page_size,
-    )
+    # Convert dict filters to list-of-lists and append price filters
+    all_filters = [[k, v[0], v[1]] if isinstance(v, list) else [k, "=", v] for k, v in filters.items()]
+    all_filters.extend(price_filters)
 
-    total = frappe.db.count("Listing", filters=filters)
+    # ── Multi-word search: fetch broader set then filter in Python ──
+    if len(search_words) > 1:
+        # Fetch all matching ANY word (broad), then narrow to ALL words
+        broad_or = []
+        for word in search_words:
+            broad_or.append(["title", "like", f"%{word}%"])
+            broad_or.append(["short_description", "like", f"%{word}%"])
+            broad_or.append(["brand", "like", f"%{word}%"])
 
-    # Enrich listings with supplier info and pricing tiers
+        all_listings = frappe.get_all(
+            "Listing",
+            filters=all_filters,
+            or_filters=broad_or,
+            fields=fields + ["short_description"],
+            order_by=f"{actual_sort_field} {sort_order}",
+        )
+
+        # Filter: every word must appear in at least one searchable field
+        def matches_all_words(listing):
+            searchable = " ".join([
+                (listing.get("title") or ""),
+                (listing.get("short_description") or ""),
+                (listing.get("brand") or ""),
+            ]).lower()
+            return all(w.lower() in searchable for w in search_words)
+
+        matched = [l for l in all_listings if matches_all_words(l)]
+        total = len(matched)
+
+        # Apply relevance sort if requested
+        if use_relevance_sort:
+            matched = _sort_by_relevance(matched, search_words)
+
+        # Paginate
+        paginated = matched[start:start + page_size]
+
+    else:
+        # Single word or no query — use standard DB query
+        listings = frappe.get_all(
+            "Listing",
+            filters=all_filters,
+            or_filters=or_filters,
+            fields=fields,
+            order_by=f"{actual_sort_field} {sort_order}",
+            start=start if not use_relevance_sort else 0,
+            page_length=page_size if not use_relevance_sort else 0,
+        )
+
+        if use_relevance_sort:
+            listings = _sort_by_relevance(listings, search_words or [query])
+            total = len(listings)
+            paginated = listings[start:start + page_size]
+        else:
+            paginated = listings
+            # Accurate total count
+            count_filters = all_filters[:]
+            if or_filters:
+                total = len(frappe.get_all(
+                    "Listing", filters=count_filters, or_filters=or_filters, fields=["name"],
+                ))
+            else:
+                total = len(frappe.get_all("Listing", filters=count_filters, fields=["name"]))
+
+    # ── Batch prefetch seller profiles and pricing tiers (N+1 optimization) ──
+    seller_ids = list({l.seller_profile for l in paginated if l.get("seller_profile")})
+    seller_cache = {}
+    if seller_ids:
+        for sp in frappe.get_all(
+            "Admin Seller Profile",
+            filters=[["name", "in", seller_ids]],
+            fields=["name", "founded_year", "country", "is_verified", "rating", "review_count"],
+        ):
+            seller_cache[sp.name] = sp
+
+    b2b_listing_names = [l.name for l in paginated if l.get("b2b_enabled")]
+    tier_cache: dict[str, list] = {}
+    if b2b_listing_names:
+        for tier in frappe.get_all(
+            "Listing Bulk Pricing Tier",
+            filters=[["parent", "in", b2b_listing_names], ["parenttype", "=", "Listing"]],
+            fields=["parent", "min_qty", "max_qty", "price"],
+            order_by="price ASC",
+        ):
+            tier_cache.setdefault(tier.parent, []).append(tier)
+
+    # Enrich listings with prefetched data
     results = []
-    for listing in listings:
-        item = _format_listing_card(listing)
+    for listing in paginated:
+        item = _format_listing_card(listing, seller_cache=seller_cache, tier_cache=tier_cache)
         results.append(item)
 
-    return {
+    result = {
         "data": results,
         "total": total,
         "page": page,
@@ -135,6 +531,11 @@ def get_listings(
         "has_next": (start + page_size) < total,
         "has_prev": page > 1,
     }
+
+    # ── Cache write ──
+    frappe.cache.set_value(ck, result, expires_in_sec=CACHE_TTL)
+
+    return result
 
 
 @frappe.whitelist(allow_guest=True)
@@ -157,8 +558,43 @@ def get_listing_detail(listing_id):
 
     listing = frappe.get_doc("Listing", listing_name)
 
-    # Increment view count
-    frappe.db.set_value("Listing", listing_name, "view_count", (listing.view_count or 0) + 1, update_modified=False)
+    # Increment view count, with per-(listing × client IP) dedup so a
+    # single user (or scraper) refreshing the page repeatedly does not
+    # inflate the popularity metric. Same IP + same listing within
+    # VIEW_DEDUP_TTL (1 hour) counts as one view.
+    #
+    # GET endpoints run in read-only mode by default, so the side-effect
+    # write needs an explicit commit. The Redis cache key uses Frappe's
+    # native cache (already deployed) — no extra infrastructure.
+    try:
+        client_ip = (
+            frappe.local.request_ip
+            if getattr(frappe.local, "request", None) is not None
+            else None
+        ) or "no-ip"
+        dedup_key = f"view_seen:{listing_name}:{client_ip}"
+        if not frappe.cache.get_value(dedup_key):
+            frappe.db.set_value(
+                "Listing", listing_name, "view_count",
+                (listing.view_count or 0) + 1,
+                update_modified=False,
+            )
+            try:
+                frappe.db.commit()
+            except Exception:
+                pass
+            frappe.cache.set_value(dedup_key, 1, expires_in_sec=VIEW_DEDUP_TTL)
+    except Exception:
+        # View counting must never break the detail page render.
+        pass
+
+    # Per-user view log — feeds Tailored Selections recommendations.
+    # Guest views are skipped; dedup is handled inside log_product_view.
+    try:
+        from tradehub_core.api.tailored import log_product_view
+        log_product_view(listing_name, category=listing.product_category)
+    except Exception:
+        pass
 
     # Get supplier info from Admin Seller Profile
     supplier_data = None
@@ -193,8 +629,8 @@ def get_listing_detail(listing_id):
         except Exception:
             pass
 
-    # Build category breadcrumb
-    category_breadcrumb = _get_category_breadcrumb(listing.category)
+    # Build category breadcrumb (prefer platform category, fallback to seller category)
+    category_breadcrumb = _get_category_breadcrumb(listing.product_category or listing.category)
 
     # Get images — primary_image + listing_images child table
     images = [listing.primary_image] if listing.primary_image else []
@@ -220,24 +656,47 @@ def get_listing_detail(listing_id):
             if url and any(url.lower().endswith(ext) for ext in image_exts):
                 images.append(url)
 
-    # Get pricing tiers
+    # ── Campaign discount: applied to ALL prices at display time ──
+    # Same model as the storefront card: discount_percentage > 0 means an
+    # active campaign. selling_price (and every B2B tier price) is multiplied
+    # by (1 - dp/100). The original prices are returned alongside as
+    # "originalSellingPrice" / each tier's "originalPrice" so the frontend
+    # can render strikethrough labels. When dp = 0, no transformation.
+    discount_percentage = float(listing.discount_percentage or 0)
+    discount_factor = (1 - discount_percentage / 100) if discount_percentage > 0 else 1.0
+    has_campaign = discount_percentage > 0
+
+    def _apply_discount(price):
+        if not price:
+            return price
+        if not has_campaign:
+            return price
+        return round(float(price) * discount_factor, 2)
+
+    # Get pricing tiers (apply campaign discount to each tier)
     price_tiers = []
     if listing.b2b_enabled and listing.pricing_tiers:
         for tier in listing.pricing_tiers:
-            price_tiers.append({
+            tier_entry = {
                 "minQty": tier.min_qty,
                 "maxQty": tier.max_qty or None,
-                "price": tier.price,
+                "price": _apply_discount(tier.price),
                 "currency": listing.currency,
-            })
+            }
+            if has_campaign:
+                tier_entry["originalPrice"] = float(tier.price) if tier.price else None
+            price_tiers.append(tier_entry)
 
     if not price_tiers:
-        price_tiers = [{
+        fallback_tier = {
             "minQty": listing.min_order_qty or 1,
             "maxQty": None,
-            "price": listing.selling_price,
+            "price": _apply_discount(listing.selling_price),
             "currency": listing.currency,
-        }]
+        }
+        if has_campaign:
+            fallback_tier["originalPrice"] = float(listing.selling_price) if listing.selling_price else None
+        price_tiers = [fallback_tier]
 
     # Get variants
     variants = _get_listing_variants(listing_name)
@@ -286,23 +745,33 @@ def get_listing_detail(listing_id):
             "minQty": opt.min_qty,
         })
 
-    # Build price display
-    price_range = _get_price_range(listing)
+    # Build price display (apply campaign discount when active)
+    if has_campaign:
+        price_range = _format_price(_apply_discount(listing.selling_price), listing.currency)
+    else:
+        price_range = _get_price_range(listing)
 
     result = {
         "id": listing.name,
         "listingCode": listing.listing_code,
         "title": listing.title,
         "category": category_breadcrumb,
+        "productCategoryId": listing.product_category or "",
         "images": images,
         "priceTiers": price_tiers,
         "moq": listing.min_order_qty or 1,
         "unit": listing.stock_uom or "piece",
         "samplePrice": listing.sample_price,
         "currency": listing.currency,
-        "sellingPrice": listing.selling_price,
+        # When a campaign is active, sellingPrice is the campaign price.
+        # The seller's untouched day-to-day price is exposed as
+        # originalSellingPrice (numeric) and originalPrice (formatted)
+        # so the storefront can render a strikethrough above the deal price.
+        "sellingPrice": _apply_discount(listing.selling_price),
+        "originalSellingPrice": float(listing.selling_price) if has_campaign and listing.selling_price else None,
+        "originalPrice": _format_price(listing.selling_price, listing.currency) if has_campaign else None,
+        "discount": f"%{int(discount_percentage)} indirim" if has_campaign else None,
         "basePrice": listing.base_price,
-        "compareAtPrice": listing.compare_at_price,
         "discountPercentage": listing.discount_percentage,
         "priceRange": price_range,
         "shipping": shipping,
@@ -334,7 +803,6 @@ def get_listing_detail(listing_id):
         "isFeatured": bool(listing.is_featured),
         "isBestSeller": bool(listing.is_best_seller),
         "isNewArrival": bool(listing.is_new_arrival),
-        "isOnSale": bool(listing.is_on_sale),
         "sellingPoint": listing.selling_point,
         "hasVariants": bool(listing.has_variants),
         "stockQty": listing.available_qty or listing.stock_qty,
@@ -374,7 +842,7 @@ def get_categories(parent=None, include_children=True):
             "icon": cat.icon_class,
             "parent": cat.parent_product_category,
             "children": [],
-            "productCount": frappe.db.count("Listing", {"category": cat.name, "status": "Active", "is_visible": 1}),
+            "productCount": frappe.db.count("Listing", {"product_category": cat.name, "status": "Active", "is_visible": 1}),
         }
 
         if include_children:
@@ -390,12 +858,172 @@ def get_categories(parent=None, include_children=True):
                     "name": child.category_name,
                     "slug": child.url_slug,
                     "image": child.image,
-                    "productCount": frappe.db.count("Listing", {"category": child.name, "status": "Active", "is_visible": 1}),
+                    "productCount": frappe.db.count("Listing", {"product_category": child.name, "status": "Active", "is_visible": 1}),
                 })
 
         results.append(item)
 
     return {"data": results}
+
+
+@frappe.whitelist(allow_guest=True)
+def get_filter_facets(query=None, category=None):
+    """Return faceted counts for sidebar filters.
+
+    Given optional query/category context, returns:
+    - countries: unique ships_from_country values with listing counts
+    - categories: product categories with listing counts
+    """
+    # ── Cache check ──
+    fck = _cache_key("facets", q=query, cat=category)
+    cached = frappe.cache.get_value(fck)
+    if cached:
+        return cached
+
+    base_filters = {"status": "Active", "is_visible": 1}
+    if category:
+        platform_cat = frappe.db.get_value(
+            "Product Category", {"url_slug": category}, "name"
+        )
+        if platform_cat:
+            base_filters["product_category"] = platform_cat
+
+    or_filters = None
+    if query:
+        or_filters = [
+            ["title", "like", f"%{query}%"],
+            ["short_description", "like", f"%{query}%"],
+            ["brand", "like", f"%{query}%"],
+        ]
+
+    # Get all matching listing names first (include seller_profile for cert aggregation)
+    all_filters = [[k, v[0], v[1]] if isinstance(v, list) else [k, "=", v] for k, v in base_filters.items()]
+    listings = frappe.get_all(
+        "Listing",
+        filters=all_filters,
+        or_filters=or_filters,
+        fields=["name", "ships_from_country", "product_category", "seller_profile"],
+    )
+
+    # Aggregate countries
+    country_counts: dict[str, int] = {}
+    for l in listings:
+        c = l.get("ships_from_country")
+        if c:
+            country_counts[c] = country_counts.get(c, 0) + 1
+
+    # Resolve country names
+    countries = []
+    for country_link, count in sorted(country_counts.items(), key=lambda x: -x[1]):
+        country_name = frappe.db.get_value("Country", country_link, "name") or country_link
+        code = _get_country_code(country_name)
+        countries.append({
+            "value": country_link,
+            "label": country_name,
+            "code": code,
+            "count": count,
+        })
+
+    # Aggregate categories
+    cat_counts: dict[str, int] = {}
+    for l in listings:
+        pc = l.get("product_category")
+        if pc:
+            cat_counts[pc] = cat_counts.get(pc, 0) + 1
+
+    categories = []
+    for cat_name, count in sorted(cat_counts.items(), key=lambda x: -x[1]):
+        display_name = frappe.db.get_value("Product Category", cat_name, "category_name") or cat_name
+        slug = frappe.db.get_value("Product Category", cat_name, "url_slug") or ""
+        categories.append({
+            "id": cat_name,
+            "name": display_name,
+            "slug": slug,
+            "count": count,
+        })
+
+    # Aggregate management certifications from Seller Certification child table
+    listing_names = [l.name for l in listings] if listings else []
+    mgmt_cert_counts: dict[str, int] = {}
+    product_cert_counts: dict[str, int] = {}
+
+    if listing_names:
+        # Get seller profiles directly from already-fetched listings
+        seller_profiles = list({
+            l.seller_profile for l in listings if l.get("seller_profile")
+        })
+
+        # Build a lookup of Certification Type → category for filtering
+        all_assigned_certs = set()
+
+        # Collect all assigned cert IDs from both child tables
+        if seller_profiles:
+            seller_certs = frappe.get_all(
+                "Seller Certification",
+                filters=[["parent", "in", seller_profiles], ["parenttype", "=", "Admin Seller Profile"]],
+                fields=["certification_type"],
+            )
+            for sc in seller_certs:
+                all_assigned_certs.add(sc.certification_type)
+
+        product_certs = frappe.get_all(
+            "Listing Certification",
+            filters=[["parent", "in", listing_names], ["parenttype", "=", "Listing"]],
+            fields=["certification_type"],
+        )
+        for pc in product_certs:
+            all_assigned_certs.add(pc.certification_type)
+
+    # Resolve certification types with category — only Approved
+    cert_info_map = {}  # {name: {label, category}}
+    if all_assigned_certs:
+        for ct in frappe.get_all(
+            "Certification Type",
+            filters=[["name", "in", list(all_assigned_certs)], ["status", "=", "Approved"]],
+            fields=["name", "certification_name", "category"],
+        ):
+            cert_info_map[ct.name] = {
+                "label": ct.certification_name or ct.name,
+                "category": ct.category,
+            }
+
+    # Count by actual category from Certification Type master
+    if listing_names:
+        if seller_profiles:
+            for sc in seller_certs:
+                info = cert_info_map.get(sc.certification_type)
+                if info and info["category"] == "Management":
+                    mgmt_cert_counts[sc.certification_type] = mgmt_cert_counts.get(sc.certification_type, 0) + 1
+
+        for pc in product_certs:
+            info = cert_info_map.get(pc.certification_type)
+            if info and info["category"] == "Product":
+                product_cert_counts[pc.certification_type] = product_cert_counts.get(pc.certification_type, 0) + 1
+
+    mgmt_certifications_list = [
+        {"label": cert_info_map[cert]["label"], "value": cert, "count": count}
+        for cert, count in sorted(mgmt_cert_counts.items(), key=lambda x: -x[1])
+        if cert in cert_info_map
+    ]
+    product_certifications_list = [
+        {"label": cert_info_map[cert]["label"], "value": cert, "count": count}
+        for cert, count in sorted(product_cert_counts.items(), key=lambda x: -x[1])
+        if cert in cert_info_map
+    ]
+
+    facet_result = {
+        "data": {
+            "countries": countries,
+            "categories": categories,
+            "managementCertifications": mgmt_certifications_list,
+            "productCertifications": product_certifications_list,
+        }
+    }
+
+    # ── Cache write ──
+    frappe.cache.set_value(fck, facet_result, expires_in_sec=CACHE_TTL)
+
+    return facet_result
 
 
 @frappe.whitelist(allow_guest=True)
@@ -450,6 +1078,415 @@ def get_featured_listings(limit=10):
     return get_listings(is_featured=1, page_size=limit)
 
 
+# ── Top Ranking: best-sellers grouped by category ──
+
+TOP_RANKING_TTL = 60  # seconds — cache TTL for top-ranking endpoints
+
+# Map of valid sort keys → (DB field, default order). Used by both endpoints
+# below so the frontend pills (hot-selling / most-popular / best-reviewed)
+# resolve to a deterministic SQL order.
+#
+# - "hot-selling"   → SUM(order_count) — driven by the Order on_update hook
+# - "most-popular"  → SUM(view_count)  — incremented in get_listing_detail()
+# - "best-reviewed" → AVG(average_rating) — denormalized from seller proxy
+_TOP_RANKING_SORTS = {
+    "hot-selling": ("order_count", "DESC"),
+    "most-popular": ("view_count", "DESC"),
+    "best-reviewed": ("average_rating", "DESC"),
+}
+
+
+def _resolve_top_ranking_sort(sort: str | None) -> tuple[str, str]:
+    return _TOP_RANKING_SORTS.get((sort or "").strip(), _TOP_RANKING_SORTS["hot-selling"])
+
+
+@frappe.whitelist(allow_guest=True)
+def get_top_ranking_categories(limit=6, sort="hot-selling"):
+    """Return the top N categories ranked by total sales (sum of order_count).
+
+    Drives the homepage "En Çok Satanlar" section: 6 category cards (with
+    image + TOP badge + name + "hot selling" subtitle). Designed for prod
+    scale (1000+ categories, 1000+ listings) — uses one aggregate SQL query
+    instead of fetching every listing in Python.
+
+    Args:
+        limit: how many categories to return (clamped to [1, 24]).
+        sort: ranking metric. One of:
+            - "hot-selling"  → SUM(order_count) DESC   (default)
+            - "most-popular" → SUM(review_count) DESC
+            - "best-reviewed" → AVG(average_rating) DESC
+
+    Returns:
+        {
+          "data": [
+            {"id", "name", "slug", "image", "icon", "totalOrders",
+             "totalListings"}, ...
+          ]
+        }
+
+    Notes:
+        - Cached 60s under a deterministic key.
+        - Returned categories always have at least one Active+Visible listing.
+        - The aggregate query joins Listing → Product Category, so we rely on
+          the existing index on `product_category` plus the new
+          `idx_listing_category_orders` composite added in
+          patches/add_top_ranking_indexes.py.
+    """
+    try:
+        limit_int = max(1, min(int(limit), 24))
+    except (TypeError, ValueError):
+        limit_int = 6
+
+    sort_field, sort_order = _resolve_top_ranking_sort(sort)
+
+    ck = _cache_key("top_ranking_categories", lim=limit_int, srt=sort_field)
+    cached = frappe.cache.get_value(ck)
+    if cached:
+        return cached
+
+    # Aggregate per category. Using frappe.db.sql here because Frappe ORM
+    # doesn't expose SUM/AVG group-bys in get_all. Parameter binding via %s
+    # placeholders only — no string interpolation of user input.
+    if sort_field == "average_rating":
+        agg_expr = "AVG(l.average_rating)"
+    else:
+        agg_expr = f"SUM(l.{sort_field})"
+
+    rows = frappe.db.sql(
+        f"""
+        SELECT
+            l.product_category AS cat_id,
+            {agg_expr} AS metric,
+            COUNT(l.name) AS listing_count
+        FROM `tabListing` l
+        WHERE l.status = 'Active'
+          AND l.is_visible = 1
+          AND l.product_category IS NOT NULL
+          AND l.product_category != ''
+        GROUP BY l.product_category
+        HAVING metric > 0
+        ORDER BY metric {sort_order}
+        LIMIT %s
+        """,
+        (limit_int,),
+        as_dict=True,
+    )
+
+    if not rows:
+        result = {"data": []}
+        frappe.cache.set_value(ck, result, expires_in_sec=TOP_RANKING_TTL)
+        return result
+
+    cat_ids = [r["cat_id"] for r in rows]
+
+    # Batch load category metadata.
+    cat_meta_rows = frappe.get_all(
+        "Product Category",
+        filters=[["name", "in", cat_ids]],
+        fields=["name", "category_name", "url_slug", "image", "icon_class"],
+    )
+    cat_meta = {c.name: c for c in cat_meta_rows}
+
+    # Per-category fan-out: pull the #1 listing's primary_image for each
+    # category so the homepage card shows the actual hot-selling product
+    # rather than the generic Product Category image. Bounded — at most
+    # `limit` (≤24) tiny queries, each served by the composite index
+    # (product_category, sort_field) added in add_top_ranking_indexes.py.
+    top_listing_image = {}
+    for cat_id in cat_ids:
+        top = frappe.get_all(
+            "Listing",
+            filters=[
+                ["status", "=", "Active"],
+                ["is_visible", "=", 1],
+                ["product_category", "=", cat_id],
+                [sort_field, ">", 0],
+            ],
+            fields=["primary_image"],
+            order_by=f"{sort_field} {sort_order}, modified DESC",
+            limit=1,
+        )
+        if top and top[0].get("primary_image"):
+            top_listing_image[cat_id] = top[0]["primary_image"]
+
+    # Build the response preserving the SQL ordering (already best→worst).
+    # Card image priority: top listing's primary_image > category's own image.
+    data = []
+    for r in rows:
+        meta = cat_meta.get(r["cat_id"])
+        if not meta:
+            continue
+        data.append({
+            "id": r["cat_id"],
+            "name": meta.category_name or r["cat_id"],
+            "slug": meta.url_slug or r["cat_id"],
+            "image": top_listing_image.get(r["cat_id"]) or meta.image or "",
+            "icon": meta.icon_class or "",
+            "totalOrders": float(r["metric"] or 0),
+            "totalListings": int(r["listing_count"] or 0),
+        })
+
+    result = {"data": data}
+    frappe.cache.set_value(ck, result, expires_in_sec=TOP_RANKING_TTL)
+    return result
+
+
+@frappe.whitelist(allow_guest=True)
+def get_top_ranking_grouped(
+    page=1,
+    page_size=12,
+    products_per_category=3,
+    category=None,
+    sort="hot-selling",
+):
+    """Return paginated category groups, each holding a small ranked preview.
+
+    Drives the Top Ranking page when the "Tümü" tab (or any specific tab) is
+    active. Each card shows a category name + the top N best-sellers (default 3)
+    inside that category, ranked #1/#2/#3.
+
+    Args:
+        page: 1-indexed page of categories.
+        page_size: how many category cards per page (clamped to [1, 30]).
+        products_per_category: ranked preview slots per card (clamped to [1, 10]).
+        category: optional filter — restrict to a single tab. Accepts either a
+            url_slug, a Product Category name, or "all" / None for everything.
+            For 1000+ categories the "all" path streams pages, the per-category
+            path returns just that category's groups.
+        sort: ranking metric. Same options as get_top_ranking_categories.
+
+    Returns:
+        {
+          "data": [
+            {"id", "name", "slug", "categoryId", "products": [...]},
+            ...
+          ],
+          "page", "page_size", "total_categories", "has_next"
+        }
+    """
+    try:
+        page = max(1, int(page))
+    except (TypeError, ValueError):
+        page = 1
+    try:
+        page_size = max(1, min(int(page_size), 30))
+    except (TypeError, ValueError):
+        page_size = 12
+    try:
+        products_per_category = max(1, min(int(products_per_category), 10))
+    except (TypeError, ValueError):
+        products_per_category = 3
+
+    sort_field, sort_order = _resolve_top_ranking_sort(sort)
+
+    # Resolve "category" param. Accept either a url_slug or a tab id (which is
+    # often the slug of a top-level category, e.g. consumer-electronics).
+    resolved_parent_cat = None
+    if category and category != "all":
+        # Slug lookup first.
+        resolved_parent_cat = frappe.db.get_value(
+            "Product Category", {"url_slug": category}, "name"
+        )
+        if not resolved_parent_cat:
+            # Fall back to direct name match.
+            if frappe.db.exists("Product Category", category):
+                resolved_parent_cat = category
+
+    ck = _cache_key(
+        "top_ranking_grouped",
+        p=page, ps=page_size, ppc=products_per_category,
+        cat=resolved_parent_cat or "all", srt=sort_field,
+    )
+    cached = frappe.cache.get_value(ck)
+    if cached:
+        return cached
+
+    start = (page - 1) * page_size
+
+    # Phase 1: discover candidate categories.
+    # If a parent category was given, restrict to its descendants (via
+    # Product Category tree) so a top-level "Consumer Electronics" tab returns
+    # all of its leaf categories. Otherwise span the whole catalog.
+    candidate_cat_ids: list[str] | None = None
+    if resolved_parent_cat:
+        descendants = frappe.get_all(
+            "Product Category",
+            filters=[
+                ["lft", ">=", frappe.db.get_value("Product Category", resolved_parent_cat, "lft") or 0],
+                ["rgt", "<=", frappe.db.get_value("Product Category", resolved_parent_cat, "rgt") or 0],
+                ["is_active", "=", 1],
+            ],
+            fields=["name"],
+            pluck="name",
+        )
+        # Always include the parent itself.
+        candidate_cat_ids = list({*(descendants or []), resolved_parent_cat})
+        if not candidate_cat_ids:
+            result = {
+                "data": [],
+                "page": page,
+                "page_size": page_size,
+                "total_categories": 0,
+                "has_next": False,
+            }
+            frappe.cache.set_value(ck, result, expires_in_sec=TOP_RANKING_TTL)
+            return result
+
+    # Phase 2: aggregate per-category metric over Active+Visible listings.
+    # Use frappe.db.sql with parameter binding (no string interpolation).
+    if sort_field == "average_rating":
+        agg_expr = "AVG(l.average_rating)"
+    else:
+        agg_expr = f"SUM(l.{sort_field})"
+
+    if candidate_cat_ids:
+        # IN clause via dynamic placeholders — values come from internal cat IDs,
+        # not user input, but we still bind via params for safety.
+        placeholders = ", ".join(["%s"] * len(candidate_cat_ids))
+        where_extra = f"AND l.product_category IN ({placeholders})"
+        params = list(candidate_cat_ids)
+    else:
+        where_extra = ""
+        params = []
+
+    agg_rows = frappe.db.sql(
+        f"""
+        SELECT
+            l.product_category AS cat_id,
+            {agg_expr} AS metric
+        FROM `tabListing` l
+        WHERE l.status = 'Active'
+          AND l.is_visible = 1
+          AND l.product_category IS NOT NULL
+          AND l.product_category != ''
+          {where_extra}
+        GROUP BY l.product_category
+        HAVING metric > 0
+        ORDER BY metric {sort_order}
+        """,
+        tuple(params),
+        as_dict=True,
+    )
+
+    total_categories = len(agg_rows)
+    page_rows = agg_rows[start:start + page_size]
+
+    if not page_rows:
+        result = {
+            "data": [],
+            "page": page,
+            "page_size": page_size,
+            "total_categories": total_categories,
+            "has_next": False,
+        }
+        frappe.cache.set_value(ck, result, expires_in_sec=TOP_RANKING_TTL)
+        return result
+
+    page_cat_ids = [r["cat_id"] for r in page_rows]
+
+    # Phase 3: batch-load category metadata (name + slug) for the page.
+    cat_meta_rows = frappe.get_all(
+        "Product Category",
+        filters=[["name", "in", page_cat_ids]],
+        fields=["name", "category_name", "url_slug"],
+    )
+    cat_meta = {c.name: c for c in cat_meta_rows}
+
+    # Phase 4: per-category, fetch top N listings ordered by the metric.
+    # Bounded fan-out: page_size (≤30) small queries each returning ≤10 rows,
+    # all served by the (product_category, order_count) composite index.
+    fields = [
+        "name", "listing_code", "title", "primary_image",
+        "selling_price", "base_price", "currency",
+        "discount_percentage", "min_order_qty", "stock_uom",
+        "order_count", "average_rating", "review_count",
+        "seller_profile", "supplier_display_name",
+        "ships_from_country", "country_of_origin",
+        "is_free_shipping", "is_featured", "is_best_seller",
+        "is_new_arrival", "selling_point",
+        "b2b_enabled", "has_variants", "category", "category_name",
+        "brand", "modified", "creation",
+    ]
+
+    # Per-category sort order_by — use the same metric, fall back to modified.
+    per_cat_order_by = f"{sort_field} {sort_order}, modified DESC"
+
+    groups_raw = []
+    all_listings_for_prefetch = []
+    for cat_id in page_cat_ids:
+        listings = frappe.get_all(
+            "Listing",
+            filters=[
+                ["status", "=", "Active"],
+                ["is_visible", "=", 1],
+                ["product_category", "=", cat_id],
+                [sort_field, ">", 0],
+            ],
+            fields=fields,
+            order_by=per_cat_order_by,
+            limit=products_per_category,
+        )
+        if not listings:
+            continue
+        all_listings_for_prefetch.extend(listings)
+        groups_raw.append({
+            "cat_id": cat_id,
+            "_listings": listings,
+        })
+
+    # Batch prefetch seller profiles + tier pricing for the whole page (avoids N+1).
+    seller_ids = list({l.seller_profile for l in all_listings_for_prefetch if l.get("seller_profile")})
+    seller_cache = {}
+    if seller_ids:
+        for sp in frappe.get_all(
+            "Admin Seller Profile",
+            filters=[["name", "in", seller_ids]],
+            fields=["name", "founded_year", "country", "is_verified", "rating", "review_count"],
+        ):
+            seller_cache[sp.name] = sp
+
+    b2b_listing_names = [l.name for l in all_listings_for_prefetch if l.get("b2b_enabled")]
+    tier_cache: dict[str, list] = {}
+    if b2b_listing_names:
+        for tier in frappe.get_all(
+            "Listing Bulk Pricing Tier",
+            filters=[["parent", "in", b2b_listing_names], ["parenttype", "=", "Listing"]],
+            fields=["parent", "min_qty", "max_qty", "price"],
+            order_by="price ASC",
+        ):
+            tier_cache.setdefault(tier.parent, []).append(tier)
+
+    # Format the cards and assemble the final group list.
+    final_groups = []
+    for g in groups_raw:
+        meta = cat_meta.get(g["cat_id"])
+        cards = []
+        for idx, listing in enumerate(g["_listings"]):
+            card = _format_listing_card(
+                listing, seller_cache=seller_cache, tier_cache=tier_cache
+            )
+            # Add a 1/2/3 rank for the frontend badge.
+            card["rank"] = idx + 1
+            cards.append(card)
+        final_groups.append({
+            "id": g["cat_id"],
+            "name": (meta.category_name if meta else g["cat_id"]) or g["cat_id"],
+            "slug": (meta.url_slug if meta else g["cat_id"]) or g["cat_id"],
+            "categoryId": g["cat_id"],
+            "products": cards,
+        })
+
+    result = {
+        "data": final_groups,
+        "page": page,
+        "page_size": page_size,
+        "total_categories": total_categories,
+        "has_next": (start + page_size) < total_categories,
+    }
+    frappe.cache.set_value(ck, result, expires_in_sec=TOP_RANKING_TTL)
+    return result
+
+
 @frappe.whitelist(allow_guest=True)
 def get_related_listings(listing_id, limit=8):
     """Get related listings based on category."""
@@ -474,7 +1511,7 @@ def get_related_listings(listing_id, limit=8):
         filters=filters,
         fields=[
             "name", "listing_code", "title", "primary_image",
-            "selling_price", "base_price", "compare_at_price", "currency",
+            "selling_price", "base_price", "currency",
             "discount_percentage", "min_order_qty", "stock_uom",
             "order_count", "average_rating", "review_count",
             "seller_profile", "supplier_display_name",
@@ -490,50 +1527,319 @@ def get_related_listings(listing_id, limit=8):
     return {"data": results}
 
 
+@frappe.whitelist(allow_guest=True, methods=["POST"])
+def log_search(query: str, category: str = ""):
+    """Log a search query for the current user. Guest searches are ignored."""
+    if frappe.session.user == "Guest":
+        return {"success": True}
+
+    query = (query or "").strip()
+    if not query:
+        return {"success": True}
+
+    user = frappe.session.user
+    query_trimmed = query[:200]
+    category_trimmed = (category or "")[:200]
+
+    # Dedup: if same query was logged within last 5 minutes, update its timestamp instead of creating new
+    recent_same = frappe.db.get_value(
+        "Search History",
+        {"user": user, "query": query_trimmed, "creation": [">=", frappe.utils.add_to_date(None, minutes=-5)]},
+        "name",
+    )
+    if recent_same:
+        # Touch the existing record to move it to top
+        frappe.db.set_value("Search History", recent_same, {
+            "category": category_trimmed,
+            "modified": frappe.utils.now_datetime(),
+            "creation": frappe.utils.now_datetime(),
+        }, update_modified=False)
+    else:
+        # Create new search history record
+        doc = frappe.new_doc("Search History")
+        doc.user = user
+        doc.query = query_trimmed
+        doc.category = category_trimmed
+        doc.flags.ignore_permissions = True
+        doc.insert()
+
+        # Keep max 50 records per user — delete oldest if exceeded
+        records = frappe.get_all(
+            "Search History",
+            filters={"user": user},
+            fields=["name", "creation"],
+            order_by="creation DESC",
+            limit=100,
+        )
+        if len(records) > 50:
+            to_delete = records[50:]
+            for r in to_delete:
+                frappe.delete_doc("Search History", r.name, force=True, ignore_permissions=True)
+
+    frappe.db.commit()
+
+    # Invalidate user's suggestion cache so new search influences suggestions immediately
+    frappe.cache.delete_value(f"search_suggestions:{frappe.session.user}")
+
+    return {"success": True}
+
+
+def cleanup_old_search_history():
+    """Remove search history records older than 30 days. Runs daily via scheduler."""
+    cutoff = frappe.utils.add_days(frappe.utils.now_datetime(), -30)
+    old_records = frappe.get_all(
+        "Search History",
+        filters={"creation": ["<", cutoff]},
+        fields=["name"],
+        limit=1000,
+    )
+    for r in old_records:
+        frappe.delete_doc("Search History", r.name, force=True, ignore_permissions=True)
+    if old_records:
+        frappe.db.commit()
+
+
 @frappe.whitelist(allow_guest=True)
 def get_search_suggestions(limit=6):
-    """Get search suggestions and category chips for the search bar."""
-    limit = int(limit)
+    """Get search suggestions and category chips for the search bar.
 
-    # Top product titles from most ordered/viewed active listings
-    top_listings = frappe.get_all(
+    Prod-optimized: minimal queries, no N+1, single GROUP BY for categories.
+    Logged-in users get personalized results cached 15 min with timestamp freshness.
+    Guests get random popular results (no cache).
+    """
+    import random
+
+    limit = int(limit)
+    user = frappe.session.user
+    is_guest = user == "Guest"
+
+    # ── Cache check (logged-in only) ──
+    cache_key = None
+    if not is_guest:
+        cache_key = f"search_suggestions:{user}"
+        cached = frappe.cache.get_value(cache_key)
+        if cached:
+            cached_at = cached.get("_cached_at")
+            latest_search = frappe.db.get_value(
+                "Search History", {"user": user}, "creation", order_by="creation DESC",
+            )
+            if cached_at and latest_search and str(latest_search) > str(cached_at):
+                frappe.cache.delete_value(cache_key)
+            else:
+                return cached.get("_result", cached)
+
+    # ── Personalized suggestions (logged-in only) ──
+    personalized = []
+    personalized_cat_chips = []
+
+    if not is_guest:
+        # Get recent search categories + queries in ONE query
+        recent = frappe.get_all(
+            "Search History",
+            filters={"user": user},
+            fields=["query", "category"],
+            order_by="creation DESC",
+            limit=10,
+        )
+
+        # PRIORITY 1: Recent queries → title match (preserves search order)
+        # Max 3 LIKE queries, most recent first
+        seen = {s["text"].lower() for s in personalized}
+        queries_tried = 0
+        for r in recent:
+                if queries_tried >= 3:
+                    break
+                q_text = (r.query or "").strip()
+                if not q_text or len(q_text) < 2:
+                    continue
+                queries_tried += 1
+                matches = frappe.get_all(
+                    "Listing",
+                    filters={"status": "Active", "is_visible": 1, "title": ["like", f"%{q_text}%"]},
+                    fields=["title"],
+                    order_by="order_count DESC",
+                    limit=2,
+                )
+                for m in matches:
+                    key = m.title.lower()
+                    if key not in seen:
+                        seen.add(key)
+                        personalized.append({"text": _truncate_words(m.title, 5), "type": "product"})
+                    if len(personalized) >= limit:
+                        break
+
+        # PRIORITY 2: Fill remaining from user's searched categories (indexed, fast)
+        if len(personalized) < limit:
+            user_categories = []
+            for r in recent:
+                if r.category and r.category not in user_categories:
+                    user_categories.append(r.category)
+            if user_categories:
+                cat_ids = [frappe.db.get_value("Product Category", {"url_slug": c}, "name") or c for c in user_categories[:5]]
+                cat_ids = [c for c in cat_ids if c]
+                if cat_ids:
+                    cat_listings = frappe.get_all(
+                        "Listing",
+                        filters=[["product_category", "in", cat_ids], ["status", "=", "Active"], ["is_visible", "=", 1]],
+                        fields=["title"],
+                        order_by="order_count DESC",
+                        limit=limit,
+                    )
+                    for cl in cat_listings:
+                        key = cl.title.lower()
+                        if key not in seen:
+                            seen.add(key)
+                            personalized.append({"text": _truncate_words(cl.title, 5), "type": "product"})
+                        if len(personalized) >= limit:
+                            break
+
+        # Cart categories — batch query
+        try:
+            cart_cats = frappe.db.sql("""
+                SELECT DISTINCT l.product_category
+                FROM `tabCart Item` ci
+                JOIN `tabCart` c ON c.name = ci.parent
+                JOIN `tabListing` l ON l.name = ci.listing
+                WHERE c.user = %s AND l.product_category IS NOT NULL AND l.product_category != ''
+                LIMIT 5
+            """, (user,), as_dict=True)
+            for cc in cart_cats:
+                cat_info = frappe.db.get_value(
+                    "Product Category", cc.product_category,
+                    ["category_name", "url_slug"], as_dict=True,
+                )
+                if cat_info:
+                    personalized_cat_chips.append({
+                        "text": cat_info.category_name,
+                        "type": "category",
+                        "slug": cat_info.url_slug or cc.product_category,
+                    })
+                if len(personalized_cat_chips) >= 3:
+                    break
+        except Exception:
+            pass
+
+    # ── Popular pool (guests + fill remaining for logged-in) ──
+    pool_size = max(limit * 3, 20)
+    listing_pool = frappe.get_all(
         "Listing",
         filters={"status": "Active", "is_visible": 1},
         fields=["title"],
         order_by="order_count DESC, view_count DESC",
-        limit=limit,
+        limit=pool_size,
     )
 
-    suggestions = [{"text": _truncate_words(l.title, 5), "type": "product"} for l in top_listings]
+    if len(listing_pool) > limit:
+        random.shuffle(listing_pool)
+        popular_selected = listing_pool[:limit]
+    else:
+        popular_selected = listing_pool
 
-    # Top 3 categories by active listing count
-    categories = frappe.get_all(
-        "Product Category",
-        filters={"is_active": 1},
-        fields=["name", "category_name"],
-    )
+    popular_suggestions = [{"text": _truncate_words(l.title, 5), "type": "product"} for l in popular_selected]
 
-    category_counts = []
-    for cat in categories:
-        count = frappe.db.count("Listing", {"category": cat.name, "status": "Active", "is_visible": 1})
-        category_counts.append({"name": cat.category_name, "count": count})
+    # ── Merge suggestions ──
+    if personalized:
+        seen = {s["text"].lower() for s in personalized}
+        for ps in popular_suggestions:
+            if ps["text"].lower() not in seen:
+                personalized.append(ps)
+                seen.add(ps["text"].lower())
+            if len(personalized) >= limit:
+                break
+        suggestions = personalized[:limit]
+    else:
+        suggestions = popular_suggestions
 
-    category_counts.sort(key=lambda x: x["count"], reverse=True)
-    chips = [{"text": c["name"], "type": "category"} for c in category_counts[:3]]
+    # ── Category chips — single GROUP BY query instead of N+1 ──
+    top_cats = frappe.db.sql("""
+        SELECT pc.category_name, pc.url_slug, pc.name, COUNT(*) as cnt
+        FROM `tabListing` l
+        JOIN `tabProduct Category` pc ON pc.name = l.product_category
+        WHERE l.status = 'Active' AND l.is_visible = 1 AND pc.is_active = 1
+        GROUP BY pc.name
+        HAVING cnt > 0
+        ORDER BY cnt DESC
+        LIMIT 10
+    """, as_dict=True)
 
-    return {
-        "data": {
-            "suggestions": suggestions,
-            "chips": chips,
-        }
-    }
+    random.shuffle(top_cats)
+    general_chips = [
+        {"text": c.category_name, "type": "category", "slug": c.url_slug or c.name}
+        for c in top_cats[:3]
+    ]
+
+    if personalized_cat_chips:
+        seen_slugs = {c["slug"] for c in personalized_cat_chips}
+        for gc in general_chips:
+            if gc["slug"] not in seen_slugs:
+                personalized_cat_chips.append(gc)
+                seen_slugs.add(gc["slug"])
+            if len(personalized_cat_chips) >= 3:
+                break
+        chips = personalized_cat_chips[:3]
+    else:
+        chips = general_chips
+
+    result = {"data": {"suggestions": suggestions, "chips": chips}}
+
+    # ── Cache (logged-in, 15 min) ──
+    if not is_guest and cache_key:
+        frappe.cache.set_value(cache_key, {
+            "_result": result,
+            "_cached_at": str(frappe.utils.now_datetime()),
+        }, expires_in_sec=900)
+
+    return result
 
 
 # ---- Helper Functions ----
 
-def _format_listing_card(listing):
-    """Format a listing record into the ProductListingCard structure for frontend."""
-    # Get supplier info
+
+def _sort_by_relevance(listings, words):
+    """Sort listings by relevance score.
+
+    Scoring: title exact > title word match > brand match > description match.
+    Higher score = more relevant.
+    """
+    query_lower = " ".join(words).lower()
+    words_lower = [w.lower() for w in words]
+
+    def score(listing):
+        title = (listing.get("title") or "").lower()
+        brand = (listing.get("brand") or "").lower()
+        desc = (listing.get("short_description") or "").lower()
+        s = 0
+
+        # Exact title match (highest)
+        if query_lower == title:
+            s += 100
+        # Title contains full query
+        elif query_lower in title:
+            s += 50
+        # Each word in title
+        for w in words_lower:
+            if w in title:
+                s += 10
+            if w in brand:
+                s += 5
+            if w in desc:
+                s += 2
+
+        # Boost by popularity
+        s += min((listing.get("order_count") or 0) / 100, 10)
+        return s
+
+    return sorted(listings, key=score, reverse=True)
+
+
+def _format_listing_card(listing, seller_cache=None, tier_cache=None):
+    """Format a listing record into the ProductListingCard structure for frontend.
+
+    Args:
+        seller_cache: Pre-fetched seller profiles dict {name: record} to avoid N+1
+        tier_cache: Pre-fetched pricing tiers dict {listing_name: [tiers]} to avoid N+1
+    """
+    # Get supplier info — use cache if available, else individual query (fallback)
     supplier_years = 0
     supplier_country = ""
     supplier_verified = False
@@ -542,38 +1848,56 @@ def _format_listing_card(listing):
 
     if listing.get("seller_profile"):
         try:
-            sp = frappe.db.get_value(
-                "Admin Seller Profile",
-                listing.get("seller_profile"),
-                ["founded_year", "country", "is_verified", "rating", "review_count"],
-                as_dict=True,
-            )
+            sp = (seller_cache or {}).get(listing.get("seller_profile"))
+            if sp is None and seller_cache is None:
+                sp = frappe.db.get_value(
+                    "Admin Seller Profile",
+                    listing.get("seller_profile"),
+                    ["founded_year", "country", "is_verified", "rating", "review_count"],
+                    as_dict=True,
+                )
             if sp:
-                if sp.founded_year:
+                if sp.get("founded_year"):
                     try:
                         supplier_years = datetime.datetime.now().year - int(sp.founded_year)
                     except (ValueError, TypeError):
                         supplier_years = 0
-                supplier_country = _get_country_code(sp.country) if sp.country else ""
-                supplier_verified = bool(sp.is_verified)
-                supplier_rating = sp.rating or 0
-                supplier_review_count = sp.review_count or 0
+                supplier_country = _get_country_code(sp.get("country")) if sp.get("country") else ""
+                supplier_verified = bool(sp.get("is_verified"))
+                supplier_rating = sp.get("rating") or 0
+                supplier_review_count = sp.get("review_count") or 0
         except Exception:
             pass
 
-    # Get price range from pricing tiers
+    # Get price range from pricing tiers — use cache if available
     selling_price = listing.get("selling_price") or 0
-    min_price_val = selling_price
-    max_price_val = selling_price
-    price_display = _format_price(selling_price, listing.get("currency"))
+    discount_percentage = float(listing.get("discount_percentage") or 0)
+
+    # Campaign price (effective): selling × (1 − dp/100). Computed at display
+    # time only — DB never stores it. Setting dp back to 0 makes the storefront
+    # automatically revert to selling_price without admin touching the price.
+    if discount_percentage > 0 and selling_price > 0:
+        effective_price = round(selling_price * (1 - discount_percentage / 100), 2)
+    else:
+        effective_price = None
+
+    # The "displayed" price the customer sees and that the frontend formats:
+    # campaign price when there's a campaign, otherwise the day-to-day selling.
+    displayed_price = effective_price if effective_price is not None else selling_price
+
+    min_price_val = displayed_price
+    max_price_val = displayed_price
+    price_display = _format_price(displayed_price, listing.get("currency"))
 
     if listing.get("b2b_enabled"):
-        tiers = frappe.get_all(
-            "Listing Bulk Pricing Tier",
-            filters={"parent": listing.name, "parenttype": "Listing"},
-            fields=["min_qty", "max_qty", "price"],
-            order_by="price ASC",
-        )
+        tiers = (tier_cache or {}).get(listing.name)
+        if tiers is None and tier_cache is None:
+            tiers = frappe.get_all(
+                "Listing Bulk Pricing Tier",
+                filters={"parent": listing.name, "parenttype": "Listing"},
+                fields=["min_qty", "max_qty", "price"],
+                order_by="price ASC",
+            )
         if tiers:
             min_price_val = min(t.price for t in tiers)
             max_price_val = max(t.price for t in tiers)
@@ -582,8 +1906,23 @@ def _format_listing_card(listing):
             else:
                 price_display = f"${min_price_val:.2f}"
 
-    # Get first image
+    # Get images (primary + child table)
     primary_image = listing.get("primary_image", "")
+    all_images = []
+    child_imgs = frappe.get_all(
+        "Listing Image",
+        filters={"parent": listing.name, "parenttype": "Listing"},
+        fields=["image"],
+        order_by="idx ASC",
+        limit=5,
+    )
+    if primary_image:
+        all_images.append(primary_image)
+    for ci in child_imgs:
+        if ci.image and ci.image not in all_images:
+            all_images.append(ci.image)
+    if not primary_image and all_images:
+        primary_image = all_images[0]
 
     return {
         "id": listing.name,
@@ -591,15 +1930,31 @@ def _format_listing_card(listing):
         "name": listing.title,
         "href": f"/pages/product-detail.html?id={listing.name}",
         "price": price_display,
-        "sellingPrice": selling_price,
+        # sellingPrice in the API response means "the price the customer sees
+        # right now" — campaign price when there's a campaign, otherwise the
+        # day-to-day price. The frontend currency-aware formatter uses this.
+        "sellingPrice": displayed_price,
         "minPrice": min_price_val,
         "maxPrice": max_price_val,
-        "originalPrice": _format_price(listing.get("compare_at_price"), listing.get("currency")) if listing.get("compare_at_price") else None,
-        "discount": f"%{int(listing.get('discount_percentage', 0))} indirim" if listing.get("discount_percentage") else None,
+        # Strikethrough fields. Only emitted when a campaign is active. The
+        # strikethrough source is selling_price (the seller's regular price);
+        # base_price (Listeleme Fiyatı) is the MSRP/upper bound and stays
+        # invisible on the storefront per the Option B (B1) decision.
+        "originalSellingPrice": float(selling_price) if effective_price is not None else None,
+        "originalPrice": (
+            _format_price(selling_price, listing.get("currency"))
+            if effective_price is not None
+            else None
+        ),
+        "discount": (
+            f"%{int(discount_percentage)} indirim"
+            if discount_percentage > 0
+            else None
+        ),
         "moq": f"{listing.get('min_order_qty', 1)} {listing.get('stock_uom', 'Adet')}",
-        "stats": f"{_format_number(listing.get('order_count', 0))} satış" if listing.get("order_count") else None,
+        "stats": f"{_format_number(listing.get('order_count', 0))} adet satıldı" if listing.get("order_count") else None,
         "imageSrc": primary_image,
-        "images": [],
+        "images": all_images,
         "supplierName": listing.get("supplier_display_name", ""),
         "verified": supplier_verified,
         "supplierYears": supplier_years,
@@ -614,6 +1969,7 @@ def _format_listing_card(listing):
         "isFeatured": bool(listing.get("is_featured")),
         "isBestSeller": bool(listing.get("is_best_seller")),
         "isNewArrival": bool(listing.get("is_new_arrival")),
+        "discountPercentage": float(listing.get("discount_percentage") or 0),
         "category": listing.get("category_name", ""),
         "brand": listing.get("brand", ""),
         "baseCurrency": listing.get("currency", "USD"),

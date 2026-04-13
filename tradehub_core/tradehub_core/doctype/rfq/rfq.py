@@ -1,6 +1,7 @@
 import frappe
 from frappe import _
 from frappe.model.document import Document
+from tradehub_core.utils.notify import notify
 
 
 class RFQ(Document):
@@ -13,6 +14,35 @@ class RFQ(Document):
 
 	def on_update(self):
 		self._update_quote_count()
+		self._send_status_notifications()
+
+	def _send_status_notifications(self):
+		old = self.get_doc_before_save()
+		if not old or old.status == self.status:
+			return
+
+		if self.status == "Approved":
+			notify(
+				recipient_user=self.buyer,
+				recipient_role="buyer",
+				type="rfq",
+				title=_("RFQ Onaylandı"),
+				message=_("{0} numaralı teklif talebiniz onaylandı.").format(self.name),
+				action_url=f"/buyer-dashboard?tab=rfq&rfq={self.name}",
+				reference_doctype="RFQ",
+				reference_name=self.name,
+			)
+		elif self.status == "Rejected":
+			notify(
+				recipient_user=self.buyer,
+				recipient_role="buyer",
+				type="rfq",
+				title=_("RFQ Reddedildi"),
+				message=_("{0} numaralı teklif talebiniz reddedildi.").format(self.name),
+				action_url=f"/buyer-dashboard?tab=rfq&rfq={self.name}",
+				reference_doctype="RFQ",
+				reference_name=self.name,
+			)
 
 	def _validate_status_transition(self):
 		if self.is_new():

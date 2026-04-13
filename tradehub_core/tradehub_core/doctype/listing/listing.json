@@ -30,7 +30,6 @@
   "base_price",
   "selling_price",
   "column_break_pricing",
-  "compare_at_price",
   "discount_percentage",
   "sample_price",
   "b2b_section",
@@ -56,6 +55,8 @@
   "specs_tab",
   "specifications_section",
   "attribute_values",
+  "certifications_section",
+  "product_certifications",
   "variants_tab",
   "variants_section",
   "has_variants",
@@ -93,7 +94,6 @@
   "is_featured",
   "is_best_seller",
   "is_new_arrival",
-  "is_on_sale",
   "column_break_settings",
   "is_visible",
   "is_searchable",
@@ -274,7 +274,7 @@
   {
    "fieldname": "base_price",
    "fieldtype": "Currency",
-   "label": "Base Price",
+   "label": "Listeleme Fiyatı",
    "options": "currency",
    "reqd": 1
   },
@@ -289,12 +289,6 @@
   {
    "fieldname": "column_break_pricing",
    "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "compare_at_price",
-   "fieldtype": "Currency",
-   "label": "Compare at Price",
-   "options": "currency"
   },
   {
    "default": "0",
@@ -443,6 +437,17 @@
    "fieldtype": "Table",
    "label": "Specifications",
    "options": "Listing Attribute Value"
+  },
+  {
+   "fieldname": "certifications_section",
+   "fieldtype": "Section Break",
+   "label": "\u00dcr\u00fcn Sertifikalar\u0131"
+  },
+  {
+   "fieldname": "product_certifications",
+   "fieldtype": "Table",
+   "label": "\u00dcr\u00fcn Sertifikalar\u0131",
+   "options": "Listing Certification"
   },
   {
    "fieldname": "variants_tab",
@@ -653,12 +658,6 @@
    "fieldname": "is_new_arrival",
    "fieldtype": "Check",
    "label": "New Arrival"
-  },
-  {
-   "default": "0",
-   "fieldname": "is_on_sale",
-   "fieldtype": "Check",
-   "label": "On Sale"
   },
   {
    "fieldname": "column_break_settings",

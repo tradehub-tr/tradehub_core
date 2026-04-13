@@ -110,7 +110,7 @@ def get_session_user():
 		try:
 			asp = frappe.db.get_value(
 				"Admin Seller Profile",
-				{"seller_profile": frappe.session.user},
+				{"user": frappe.session.user},
 				["name", "seller_code"],
 				as_dict=True,
 			)
@@ -133,6 +133,11 @@ def get_session_user():
 	)
 	kyb_status = kyb_data.status if kyb_data else None
 	kyb_verification = kyb_data.name if kyb_data else None
+
+	# Email verification from Buyer Profile
+	email_verified = bool(
+		frappe.db.get_value("Buyer Profile", {"user": frappe.session.user}, "email_verified")
+	) if frappe.db.exists("Buyer Profile", {"user": frappe.session.user}) else True
 
 	from frappe.sessions import get_csrf_token
 
@@ -158,6 +163,7 @@ def get_session_user():
 			"admin_seller_profile": admin_seller_profile,
 			"kyb_status": kyb_status,
 			"kyb_verification": kyb_verification,
+			"email_verified": email_verified,
 		},
 	}
 

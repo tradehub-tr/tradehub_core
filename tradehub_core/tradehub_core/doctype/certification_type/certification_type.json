@@ -1,0 +1,85 @@
+{
+ "name": "Certification Type",
+ "module": "Tradehub Core",
+ "doctype": "DocType",
+ "document_type": "Setup",
+ "engine": "InnoDB",
+ "naming_rule": "By fieldname",
+ "autoname": "field:certification_name",
+ "allow_rename": 1,
+ "is_submittable": 0,
+ "istable": 0,
+ "editable_grid": 1,
+ "track_changes": 1,
+ "fields": [
+  {
+   "fieldname": "certification_name",
+   "fieldtype": "Data",
+   "label": "Sertifika Ad\u0131",
+   "reqd": 1,
+   "unique": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "category",
+   "fieldtype": "Select",
+   "label": "Kategori",
+   "options": "Management\nProduct",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "default": "Management"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "A\u00e7\u0131klama"
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Durum",
+   "options": "Approved\nPending\nRejected",
+   "reqd": 1,
+   "default": "Approved",
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "suggested_by",
+   "fieldtype": "Link",
+   "label": "\u00d6neren Kullan\u0131c\u0131",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "rejection_reason",
+   "fieldtype": "Small Text",
+   "label": "Red Sebebi",
+   "depends_on": "eval:doc.status=='Rejected'"
+  }
+ ],
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "export": 1,
+   "import": 1
+  },
+  {
+   "role": "Seller",
+   "read": 1
+  }
+ ],
+ "sort_field": "certification_name",
+ "sort_order": "ASC",
+ "title_field": "certification_name"
+}

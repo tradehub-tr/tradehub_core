@@ -225,33 +225,14 @@
 			"permlevel": 1
 		},
 		{
-			"fieldname": "tab_address",
+			"fieldname": "tab_addresses",
 			"fieldtype": "Tab Break",
-			"label": "Adres"
+			"label": "Adresler"
 		},
 		{
-			"fieldname": "sb_address",
-			"fieldtype": "Section Break",
-			"label": "Adres Bilgileri"
-		},
-		{
-			"fieldname": "address_line_1",
-			"fieldtype": "Data",
-			"label": "Address Line 1"
-		},
-		{
-			"fieldname": "cb_address",
-			"fieldtype": "Column Break"
-		},
-		{
-			"fieldname": "city",
-			"fieldtype": "Data",
-			"label": "City"
-		},
-		{
-			"fieldname": "postal_code",
-			"fieldtype": "Data",
-			"label": "Postal Code"
+			"fieldname": "addresses_panel_html",
+			"fieldtype": "HTML",
+			"options": "<!-- Bu HTML field admin-panel'in DocTypeFormView tab-extension registry'si tarafından SellerAddressesPanel.vue component'i ile değiştirilir. Frappe Desk'te bilgilendirme metni gösterilir. -->\n<div style=\"padding:16px;background:#f5f7fa;border-left:3px solid #5e64ff;border-radius:4px;color:#4a5568;font-size:13px;line-height:1.6\"><strong>Pickup adresleriniz</strong><br/>Ürünlerinizin gönderileceği adresleri admin panelinde <b>Profilim → Adresler</b> sekmesinden yönetebilirsiniz.</div>"
 		},
 		{
 			"fieldname": "tab_bank",

@@ -2,6 +2,7 @@ import json
 import frappe
 from frappe import _
 from frappe.utils import now_datetime
+from tradehub_core.utils.stock import reserve_stock_for_order
 
 # Anında ödeme gerçekleşen yöntemler (ödeme gateway'i onaylar → direkt "Onaylanıyor")
 INSTANT_PAYMENT_METHODS = {'credit_card', 'iyzico', 'paytr', 'stripe'}
@@ -749,6 +750,8 @@ def create_order(orders_json, shipping_address=None, payment_method=None, coupon
 			})
 
 		order_doc.insert(ignore_permissions=True)
+		# Stok rezervasyonu — sipariş oluşturulduğunda listing reserved_qty artır
+		reserve_stock_for_order(order_doc.name)
 		created_orders.append({
 			"order_name": order_doc.name,
 			"order_number": order_doc.name,

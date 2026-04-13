@@ -89,7 +89,7 @@ def get_seller(slug):
         "Admin Seller Profile", {"seller_code": slug, "status": "Active"},
         ["name", "seller_code", "seller_name", "city", "country",
          "logo", "banner_image", "description", "slogan",
-         "email", "phone", "website", "status",
+         "email", "phone", "website", "status", "user",
          "rating", "total_orders", "health_score",
          "founded_year", "staff_count", "annual_revenue",
          "factory_size", "business_type", "main_markets",
@@ -109,6 +109,37 @@ def get_seller(slug):
     seller["response_time"] = seller.get("response_time") or ""
     seller["response_rate"] = float(seller.get("response_rate") or 0)
     seller["on_time_delivery"] = float(seller.get("on_time_delivery") or 0)
+
+    # Satıcının varsayılan adresini ekle. Addresses DocType'ı Seller Profile'a bağlı,
+    # bu yüzden Admin Seller Profile → user → Seller Profile köprüsü kuruyoruz.
+    # TODO: İleride sadece ücretli üyelere (Premium Seller) gösterilecek — şimdilik public.
+    default_addr = None
+    seller_user = seller.get("user")
+    if seller_user:
+        sp_name = frappe.db.get_value("Seller Profile", {"user": seller_user}, "name")
+        if sp_name:
+            addr_fields = [
+                "title", "contact_name", "company", "phone_prefix", "phone",
+                "country", "state", "city", "street", "apartment",
+                "postal_code", "note",
+            ]
+            default_addr = frappe.db.get_value(
+                "Addresses",
+                {"kind": "Seller", "seller": sp_name, "is_default": 1},
+                addr_fields,
+                as_dict=True,
+            )
+            if not default_addr:
+                # Varsayılan yoksa en eski adresi kullan
+                rows = frappe.get_all(
+                    "Addresses",
+                    filters={"kind": "Seller", "seller": sp_name},
+                    fields=addr_fields,
+                    order_by="creation asc",
+                    limit=1,
+                )
+                default_addr = rows[0] if rows else None
+    seller["address"] = default_addr
     return seller
 
 
@@ -132,9 +163,33 @@ def get_my_admin_seller_profile():
         return None
     return frappe.db.get_value(
         "Admin Seller Profile", name,
-        ["name", "seller_code", "seller_name", "logo"],
+        ["name", "seller_code", "seller_name", "logo", "banner_image", "slogan"],
         as_dict=True
     )
+
+
+@frappe.whitelist()
+def update_my_admin_seller_profile(logo=None, banner_image=None, slogan=None):
+    """Mağaza başlığı (header) alanlarını günceller — sadece kendi profili.
+    Şu anlık logo, banner_image (header arka planı) ve slogan destekleniyor."""
+    user = frappe.session.user
+    if not user or user == "Guest":
+        frappe.throw(_("Yetkisiz"), frappe.PermissionError)
+    name = frappe.db.get_value("Admin Seller Profile", {"user": user}, "name")
+    if not name:
+        frappe.throw(_("Satici profili bulunamadi"), frappe.DoesNotExistError)
+    updates = {}
+    if logo is not None:
+        updates["logo"] = logo
+    if banner_image is not None:
+        updates["banner_image"] = banner_image
+    if slogan is not None:
+        updates["slogan"] = slogan
+    if updates:
+        for f, v in updates.items():
+            frappe.db.set_value("Admin Seller Profile", name, f, v)
+        frappe.db.commit()
+    return {"updated": list(updates.keys())}
 
 
 @frappe.whitelist(allow_guest=True)
