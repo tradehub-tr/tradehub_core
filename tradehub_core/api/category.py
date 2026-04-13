@@ -216,6 +216,100 @@ def delete_category(name):
     return {"success": True}
 
 
+def _delete_single(name):
+    """Tek bir kategoriyi linkleri görmezden gelerek kalıcı siler."""
+    # force=1 + ignore_on_trash=True link/submit kontrollerini atlar (v15)
+    frappe.delete_doc(
+        "Product Category",
+        name,
+        force=1,
+        ignore_permissions=True,
+        ignore_on_trash=True,
+        delete_permanently=True,
+    )
+
+
+def _delete_cascade(name):
+    """Verilen kategoriyi ve tüm alt ağacını yapraktan köke doğru siler."""
+    children = frappe.get_all(
+        "Product Category",
+        filters={"parent_product_category": name},
+        pluck="name",
+    )
+    for child in children:
+        _delete_cascade(child)
+    _delete_single(name)
+
+
+@frappe.whitelist()
+def bulk_delete_categories(names):
+    """
+    Verilen kategori ID listesini ve alt ağaçlarını siler.
+    names: JSON string veya liste — ["cat1", "cat2", ...]
+    """
+    _require_admin()
+    if isinstance(names, str):
+        try:
+            names = json.loads(names)
+        except (ValueError, TypeError):
+            frappe.throw(_("Geçersiz kategori listesi"))
+    if not isinstance(names, list) or not names:
+        frappe.throw(_("Silinecek kategori seçilmedi"))
+
+    # Seçilenler arasında biri diğerinin alt öğesiyse sadece üst olanı sil
+    # (çünkü cascade zaten alt ağacı götürecek)
+    to_delete = set(names)
+    remaining = []
+    for name in to_delete:
+        if not frappe.db.exists("Product Category", name):
+            continue
+        ancestor = frappe.db.get_value("Product Category", name, "parent_product_category")
+        skip = False
+        while ancestor:
+            if ancestor in to_delete:
+                skip = True
+                break
+            ancestor = frappe.db.get_value("Product Category", ancestor, "parent_product_category")
+        if not skip:
+            remaining.append(name)
+
+    deleted = 0
+    errors = []
+    for name in remaining:
+        try:
+            _delete_cascade(name)
+            frappe.db.commit()
+            deleted += 1
+        except Exception as e:
+            frappe.db.rollback()
+            errors.append(f"{name}: {str(e)[:120]}")
+
+    return {"success": True, "deleted": deleted, "errors": errors[:5]}
+
+
+@frappe.whitelist()
+def delete_all_categories():
+    """Tüm Product Category kayıtlarını yapraktan köke doğru siler."""
+    _require_admin()
+    # lft desc sırası yapraklardan başlatır (NSM tree güvenliği)
+    rows = frappe.get_all(
+        "Product Category",
+        fields=["name"],
+        order_by="lft desc",
+    )
+    deleted = 0
+    errors = []
+    for r in rows:
+        try:
+            _delete_single(r.name)
+            frappe.db.commit()
+            deleted += 1
+        except Exception as e:
+            frappe.db.rollback()
+            errors.append(f"{r.name}: {str(e)[:120]}")
+    return {"success": True, "deleted": deleted, "errors": errors[:5]}
+
+
 # ──────────────────────────── Import ──────────────────────────────────────────
 
 @frappe.whitelist()
@@ -345,6 +439,173 @@ def import_categories(json_data):
     if rebuild_warning:
         result["warning"] = rebuild_warning
     return result
+
+
+# ──────────────────────────── Async Import ───────────────────────────────────
+
+def _import_cache_key(job_key):
+    return f"tradehub_category_import:{job_key}"
+
+
+def _update_progress(job_key, **fields):
+    key = _import_cache_key(job_key)
+    current = frappe.cache.get_value(key) or {}
+    current.update(fields)
+    frappe.cache.set_value(key, current, expires_in_sec=3600)
+
+
+def _run_category_import(json_str, job_key):
+    """
+    Background worker: büyük kategori JSON'unu import eder.
+    İlerleme cache'e yazılır, frontend polling ile okur.
+    """
+    try:
+        items = json.loads(json_str) if isinstance(json_str, str) else json_str
+        total = len(items)
+
+        # O(n) child index — eski kod her item için tüm listeyi tarıyordu
+        children_by_parent = {}
+        for item in items:
+            children_by_parent.setdefault(item.get("parent_id"), []).append(item)
+
+        by_id = {item["id"]: item for item in items}
+
+        existing = {
+            row.external_id: row.name
+            for row in frappe.get_all("Product Category", fields=["name", "external_id"])
+            if row.external_id
+        }
+
+        _update_progress(
+            job_key,
+            state="running", total=total,
+            inserted=0, updated=0, skipped=0, processed=0,
+        )
+
+        from collections import deque
+        queue = deque(children_by_parent.get(None, []))
+        visited = set()
+        inserted = updated = skipped = 0
+        last_flush = 0
+
+        while queue:
+            item = queue.popleft()
+            item_id = item["id"]
+            if item_id in visited:
+                continue
+            visited.add(item_id)
+
+            parent_id = item.get("parent_id")
+            frappe_parent = parent_id if parent_id and parent_id in by_id else None
+            cat_name = (item.get("name") or "").strip()
+
+            if not cat_name:
+                skipped += 1
+            else:
+                slug = _slugify(cat_name) + "-" + item_id[:8]
+                try:
+                    if item_id in existing:
+                        doc = frappe.get_doc("Product Category", existing[item_id])
+                        doc.category_name = cat_name
+                        doc.parent_product_category = frappe_parent
+                        doc.url_slug = slug
+                        doc.is_active = 1
+                        doc.save(ignore_permissions=True)
+                        updated += 1
+                    else:
+                        doc = frappe.new_doc("Product Category")
+                        doc.external_id = item_id
+                        doc.category_name = cat_name
+                        doc.parent_product_category = frappe_parent
+                        doc.url_slug = slug
+                        doc.is_active = 1
+                        doc.sort_order = 0
+                        doc.insert(ignore_permissions=True)
+                        existing[item_id] = doc.name
+                        inserted += 1
+                except Exception as e:
+                    frappe.log_error(f"Category import error: {item_id} / {cat_name}: {e}")
+                    skipped += 1
+
+            for child in children_by_parent.get(item_id, []):
+                if child["id"] not in visited:
+                    queue.append(child)
+
+            processed = inserted + updated + skipped
+            if processed - last_flush >= 100:
+                frappe.db.commit()
+                _update_progress(
+                    job_key, state="running",
+                    inserted=inserted, updated=updated, skipped=skipped,
+                    processed=processed, total=total,
+                )
+                last_flush = processed
+
+        frappe.db.commit()
+
+        warning = None
+        try:
+            frappe.utils.nestedset.rebuild_tree("Product Category", "parent_product_category")
+            frappe.db.commit()
+        except Exception as e:
+            frappe.log_error(f"rebuild_tree error: {e}")
+            warning = _("Kategori ağacı yeniden oluşturulurken hata oluştu. Sıralama bozuk olabilir.")
+
+        _update_progress(
+            job_key, state="done",
+            inserted=inserted, updated=updated, skipped=skipped,
+            processed=total, total=total, warning=warning,
+        )
+    except Exception as e:
+        frappe.log_error(f"_run_category_import error: {e}")
+        _update_progress(job_key, state="error", error=str(e)[:500])
+
+
+@frappe.whitelist()
+def start_category_import(json_data):
+    """JSON içe aktarmayı background job olarak başlatır ve job_key döner."""
+    _require_admin()
+
+    if isinstance(json_data, str):
+        try:
+            items = json.loads(json_data)
+            json_str = json_data
+        except (ValueError, TypeError):
+            frappe.throw(_("Geçersiz JSON verisi"))
+    else:
+        items = json_data
+        json_str = json.dumps(items)
+
+    if not isinstance(items, list) or not items:
+        frappe.throw(_("JSON bir liste olmalı ve boş olmamalı"))
+
+    import uuid
+    job_key = uuid.uuid4().hex[:16]
+
+    _update_progress(
+        job_key, state="queued", total=len(items),
+        inserted=0, updated=0, skipped=0, processed=0,
+    )
+
+    frappe.enqueue(
+        "tradehub_core.api.category._run_category_import",
+        queue="long",
+        timeout=1800,
+        json_str=json_str,
+        job_key=job_key,
+    )
+
+    return {"job_key": job_key, "total": len(items)}
+
+
+@frappe.whitelist()
+def get_category_import_status(job_key):
+    """Background import job'unun durumunu döner."""
+    _require_admin()
+    val = frappe.cache.get_value(_import_cache_key(job_key))
+    if not val:
+        return {"state": "not_found"}
+    return val
 
 
 # ──────────────────────────── Helper ──────────────────────────────────────────
