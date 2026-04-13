@@ -1224,7 +1224,11 @@ def _ensure_seller(s):
     doc.factory_size = s["factory_size"]
     doc.business_type = s["business_type"]
     doc.main_markets = s["main_markets"]
-    doc.certifications = s["certifications"]
+    # certifications → child table (Seller Certification)
+    for cert in s["certifications"].split(", "):
+        doc.append("certifications", {
+            "certification_type": cert.strip(),
+        })
     doc.email = s["email"]
     doc.phone = s["phone"]
     doc.website = s["website"]

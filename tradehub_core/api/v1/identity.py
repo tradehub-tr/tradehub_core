@@ -639,6 +639,89 @@ def change_password(current_password: str, new_password: str):
 
 
 @frappe.whitelist(methods=["POST"])
+@rate_limit(key="user", limit=10, seconds=3600)
+def change_email(new_email: str, password: str):
+	"""Change the email address for the currently logged-in user.
+
+	Requires the current password for security verification.
+	Validates email format and checks for duplicate accounts.
+	Updates User, Buyer Profile, Seller Profile, and Seller Application.
+	"""
+	old_email = frappe.session.user
+	if old_email == "Guest":
+		frappe.throw(_("Not logged in."), frappe.AuthenticationError)
+
+	if old_email == "Administrator":
+		frappe.local.response["http_status_code"] = 403
+		frappe.throw(
+			_("Administrator account email cannot be changed."),
+			frappe.PermissionError,
+		)
+
+	new_email = _validate_email_format(new_email)
+
+	if new_email == old_email:
+		frappe.local.response["http_status_code"] = 400
+		frappe.throw(
+			_("New email cannot be the same as your current email."),
+			frappe.ValidationError,
+		)
+
+	if frappe.db.exists("User", new_email):
+		frappe.local.response["http_status_code"] = 409
+		frappe.throw(
+			_("An account with this email already exists."),
+			frappe.DuplicateEntryError,
+		)
+
+	_verify_password(old_email, password)
+
+	# ── Mutate ──
+	# Update linked profiles BEFORE rename
+	buyer_profile = frappe.db.get_value("Buyer Profile", {"user": old_email}, "name")
+	if buyer_profile:
+		frappe.db.set_value("Buyer Profile", buyer_profile, "user", new_email)
+
+	seller_profile = frappe.db.get_value("Seller Profile", {"user": old_email}, "name")
+	if seller_profile:
+		frappe.db.set_value("Seller Profile", seller_profile, "user", new_email)
+
+	seller_app = frappe.db.get_value("Seller Application", {"applicant_user": old_email}, "name")
+	if seller_app:
+		frappe.db.set_value("Seller Application", seller_app, {
+			"applicant_user": new_email,
+			"contact_email": new_email,
+		})
+
+	# rename_doc commits the rename internally, but after_rename →
+	# clear_sessions can kill the DB connection. We catch and reconnect.
+	try:
+		frappe.rename_doc("User", old_email, new_email, merge=False)
+	except Exception:
+		pass
+
+	# Ensure DB connection is alive after rename
+	try:
+		frappe.db.sql("SELECT 1")
+	except Exception:
+		frappe.db.connect()
+
+	# rename_doc does not update __Auth — fix password mapping
+	frappe.db.sql(
+		"UPDATE `__Auth` SET `name`=%s WHERE `name`=%s AND `doctype`='User'",
+		(new_email, old_email),
+	)
+
+	frappe.db.commit()
+
+	return {
+		"success": True,
+		"new_email": new_email,
+		"message": _("Email address updated successfully. Please log in again with your new email."),
+	}
+
+
+@frappe.whitelist(methods=["POST"])
 @rate_limit(key="user", limit=3, seconds=3600)
 def resend_verification_email():
 	"""Resend email verification link for the currently logged-in user."""

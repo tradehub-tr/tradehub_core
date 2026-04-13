@@ -11,3 +11,4 @@ tradehub_core.patches.create_kyb_verification
 tradehub_core.patches.cart_item_listing_variant_to_data
 tradehub_core.patches.order_item_listing_variant_to_data
 tradehub_core.patches.product_category_add_external_id
+tradehub_core.patches.backfill_payment_transactions
