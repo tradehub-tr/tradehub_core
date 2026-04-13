@@ -163,9 +163,33 @@ def get_my_admin_seller_profile():
         return None
     return frappe.db.get_value(
         "Admin Seller Profile", name,
-        ["name", "seller_code", "seller_name", "logo"],
+        ["name", "seller_code", "seller_name", "logo", "banner_image", "slogan"],
         as_dict=True
     )
+
+
+@frappe.whitelist()
+def update_my_admin_seller_profile(logo=None, banner_image=None, slogan=None):
+    """Mağaza başlığı (header) alanlarını günceller — sadece kendi profili.
+    Şu anlık logo, banner_image (header arka planı) ve slogan destekleniyor."""
+    user = frappe.session.user
+    if not user or user == "Guest":
+        frappe.throw(_("Yetkisiz"), frappe.PermissionError)
+    name = frappe.db.get_value("Admin Seller Profile", {"user": user}, "name")
+    if not name:
+        frappe.throw(_("Satici profili bulunamadi"), frappe.DoesNotExistError)
+    updates = {}
+    if logo is not None:
+        updates["logo"] = logo
+    if banner_image is not None:
+        updates["banner_image"] = banner_image
+    if slogan is not None:
+        updates["slogan"] = slogan
+    if updates:
+        for f, v in updates.items():
+            frappe.db.set_value("Admin Seller Profile", name, f, v)
+        frappe.db.commit()
+    return {"updated": list(updates.keys())}
 
 
 @frappe.whitelist(allow_guest=True)
