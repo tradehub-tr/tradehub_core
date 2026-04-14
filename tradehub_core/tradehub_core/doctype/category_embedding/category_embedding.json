@@ -1,0 +1,28 @@
+{
+  "name": "Category Embedding",
+  "doctype": "DocType",
+  "module": "Tradehub Core",
+  "autoname": "field:category",
+  "engine": "InnoDB",
+  "sort_field": "modified",
+  "sort_order": "DESC",
+  "field_order": [
+    "category",
+    "model_version",
+    "cb_1",
+    "computed_at",
+    "sb_vector",
+    "vector"
+  ],
+  "fields": [
+    {"fieldname": "category", "fieldtype": "Link", "options": "Product Category", "label": "Product Category", "reqd": 1, "unique": 1},
+    {"fieldname": "model_version", "fieldtype": "Data", "label": "Model Version", "default": "tfidf-v1", "description": "Hangi embedding modelinin ürettiği (örn: mpnet-v2, tfidf-v1)"},
+    {"fieldname": "cb_1", "fieldtype": "Column Break"},
+    {"fieldname": "computed_at", "fieldtype": "Datetime", "label": "Computed At", "read_only": 1},
+    {"fieldname": "sb_vector", "fieldtype": "Section Break", "label": "Vector"},
+    {"fieldname": "vector", "fieldtype": "Long Text", "label": "Vector (JSON array of floats)", "description": "Kategori adının vektör gösterimi — cold-start fallback için kullanılır"}
+  ],
+  "permissions": [
+    {"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1, "permlevel": 0}
+  ]
+}

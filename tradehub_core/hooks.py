@@ -26,11 +26,25 @@ fixtures = [
 ]
 
 scheduler_events = {
+	"hourly": [
+		# Refresh the Complementary tab of Related Products as new orders land.
+		"tradehub_core.recommendations.tasks.refresh_copurchase_lift",
+	],
 	"daily": [
 		"tradehub_core.setup.install.cleanup_expired_tokens",
 		"tradehub_core.utils.notification_cleanup.delete_old_notifications",
 		"tradehub_core.api.listing.cleanup_old_search_history",
 		"tradehub_core.api.tailored.cleanup_old_user_product_views",
+		# Related Products: recompute price tier buckets, rebuild similarity
+		# matrix, re-run accessory-category keyword scan.
+		"tradehub_core.recommendations.tasks.rebuild_price_tiers",
+		"tradehub_core.recommendations.tasks.rebuild_related_matrix",
+		"tradehub_core.recommendations.tasks.autoflag_accessory_categories",
+	],
+	"weekly_long": [
+		# Category embeddings rarely change; rebuild once a week and on
+		# install-time (see build_category_embeddings for the manual run).
+		"tradehub_core.recommendations.tasks.build_category_embeddings",
 	],
 }
 
@@ -42,9 +56,18 @@ scheduler_events = {
 # ---------------------------------------------------------------------------
 doc_events = {
 	"Listing": {
-		"on_update": "tradehub_core.api.listing.invalidate_listing_cache",
+		"on_update": [
+			"tradehub_core.api.listing.invalidate_listing_cache",
+			# Related Products cache: drop rows when the listing goes inactive/invisible.
+			"tradehub_core.recommendations.engine.cleanup_cache_if_deactivated",
+		],
 		"after_insert": "tradehub_core.api.listing.invalidate_listing_cache",
-		"on_trash": "tradehub_core.api.listing.invalidate_listing_cache",
+		"on_trash": [
+			"tradehub_core.api.listing.invalidate_listing_cache",
+			# Related Products cache: drop rows referencing the deleted listing
+			# (as either source or target).
+			"tradehub_core.recommendations.engine.cleanup_cache_on_listing_remove",
+		],
 	},
 	# Order pipeline → Listing.order_count for the "Çok Satan" Top Ranking
 	# pill. We register on `before_save` (not on_update) because the hook
