@@ -1,0 +1,85 @@
+{
+  "name": "Related Products Settings",
+  "doctype": "DocType",
+  "module": "Tradehub Core",
+  "issingle": 1,
+  "track_changes": 1,
+  "sort_field": "modified",
+  "sort_order": "DESC",
+  "field_order": [
+    "sb_thresholds",
+    "min_score_threshold",
+    "max_results_per_tab",
+    "cb_thresholds",
+    "copurchase_lift_threshold",
+    "accessory_price_ratio_threshold",
+    "embedding_cosine_threshold",
+
+    "sb_similar",
+    "weight_similar_category",
+    "weight_similar_attribute",
+    "cb_similar",
+    "weight_similar_price_tier",
+    "weight_similar_rating",
+
+    "sb_substitute",
+    "weight_substitute_same_category",
+    "weight_substitute_different_seller",
+    "cb_substitute",
+    "weight_substitute_attribute",
+    "weight_substitute_price_proximity",
+
+    "sb_complementary",
+    "weight_complementary_copurchase",
+    "weight_complementary_coview",
+    "cb_complementary",
+    "weight_complementary_embedding",
+
+    "sb_accessory",
+    "weight_accessory_token",
+    "weight_accessory_price_ratio",
+    "cb_accessory",
+    "weight_accessory_category_pattern",
+    "weight_accessory_copurchase"
+  ],
+  "fields": [
+    {"fieldname": "sb_thresholds", "fieldtype": "Section Break", "label": "Eşikler"},
+    {"fieldname": "min_score_threshold", "fieldtype": "Float", "label": "Minimum Skor Eşiği", "default": "0.5", "precision": "3"},
+    {"fieldname": "max_results_per_tab", "fieldtype": "Int", "label": "Tab Başına Maks Sonuç", "default": "8"},
+    {"fieldname": "cb_thresholds", "fieldtype": "Column Break"},
+    {"fieldname": "copurchase_lift_threshold", "fieldtype": "Float", "label": "Co-purchase Lift Eşiği", "default": "1.5", "precision": "3"},
+    {"fieldname": "accessory_price_ratio_threshold", "fieldtype": "Float", "label": "Aksesuar Fiyat Oranı Eşiği", "default": "0.3", "precision": "3"},
+    {"fieldname": "embedding_cosine_threshold", "fieldtype": "Float", "label": "Embedding Cosine Eşiği", "default": "0.6", "precision": "3"},
+
+    {"fieldname": "sb_similar", "fieldtype": "Section Break", "label": "Benzer - Skor Ağırlıkları"},
+    {"fieldname": "weight_similar_category", "fieldtype": "Float", "label": "Kategori Eşleşmesi", "default": "0.40", "precision": "3"},
+    {"fieldname": "weight_similar_attribute", "fieldtype": "Float", "label": "Attribute Benzerliği", "default": "0.35", "precision": "3"},
+    {"fieldname": "cb_similar", "fieldtype": "Column Break"},
+    {"fieldname": "weight_similar_price_tier", "fieldtype": "Float", "label": "Fiyat Tier Uyumu", "default": "0.15", "precision": "3"},
+    {"fieldname": "weight_similar_rating", "fieldtype": "Float", "label": "Rating Yakınlığı", "default": "0.10", "precision": "3"},
+
+    {"fieldname": "sb_substitute", "fieldtype": "Section Break", "label": "İkame - Skor Ağırlıkları"},
+    {"fieldname": "weight_substitute_same_category", "fieldtype": "Float", "label": "Aynı Kategori", "default": "0.30", "precision": "3"},
+    {"fieldname": "weight_substitute_different_seller", "fieldtype": "Float", "label": "Farklı Satıcı Bonusu", "default": "0.25", "precision": "3"},
+    {"fieldname": "cb_substitute", "fieldtype": "Column Break"},
+    {"fieldname": "weight_substitute_attribute", "fieldtype": "Float", "label": "Attribute Benzerliği", "default": "0.25", "precision": "3"},
+    {"fieldname": "weight_substitute_price_proximity", "fieldtype": "Float", "label": "Fiyat Yakınlığı", "default": "0.20", "precision": "3"},
+
+    {"fieldname": "sb_complementary", "fieldtype": "Section Break", "label": "Tamamlayıcı - Skor Ağırlıkları"},
+    {"fieldname": "weight_complementary_copurchase", "fieldtype": "Float", "label": "Co-purchase Lift", "default": "0.50", "precision": "3"},
+    {"fieldname": "weight_complementary_coview", "fieldtype": "Float", "label": "Co-view", "default": "0.30", "precision": "3"},
+    {"fieldname": "cb_complementary", "fieldtype": "Column Break"},
+    {"fieldname": "weight_complementary_embedding", "fieldtype": "Float", "label": "Kategori Embedding (cold-start fallback)", "default": "0.20", "precision": "3"},
+
+    {"fieldname": "sb_accessory", "fieldtype": "Section Break", "label": "Aksesuar - Skor Ağırlıkları"},
+    {"fieldname": "weight_accessory_token", "fieldtype": "Float", "label": "Token Eşleşmesi (için/uyumlu/compatible)", "default": "0.40", "precision": "3"},
+    {"fieldname": "weight_accessory_price_ratio", "fieldtype": "Float", "label": "Fiyat Oranı", "default": "0.30", "precision": "3"},
+    {"fieldname": "cb_accessory", "fieldtype": "Column Break"},
+    {"fieldname": "weight_accessory_category_pattern", "fieldtype": "Float", "label": "Aksesuar Kategori Pattern", "default": "0.20", "precision": "3"},
+    {"fieldname": "weight_accessory_copurchase", "fieldtype": "Float", "label": "Co-purchase Destek", "default": "0.10", "precision": "3"}
+  ],
+  "permissions": [
+    {"role": "System Manager", "read": 1, "write": 1, "create": 1, "permlevel": 0},
+    {"role": "Marketplace Admin", "read": 1, "write": 1, "create": 1, "permlevel": 0}
+  ]
+}

@@ -1528,6 +1528,80 @@ def get_related_listings(listing_id, limit=8):
     return {"data": results}
 
 
+@frappe.whitelist(allow_guest=True)
+def get_related_listings_grouped(listing_id: str):
+    """Storefront API: return the 4-tab Related Products payload.
+
+    Reads from the pre-computed `Related Listing Cache` populated by the
+    nightly recommendations batch. Any relation_type with zero rows returns
+    an empty list — the storefront hides that tab (and hides the entire
+    section when all four are empty).
+    """
+    empty = {"similar": [], "substitute": [], "complementary": [], "accessory": []}
+    if not listing_id:
+        return {"data": empty}
+
+    # One query, grouped locally. Cache table is indexed on
+    # (source_listing, relation_type, final_score DESC).
+    rows = frappe.db.sql(
+        """
+        SELECT target_listing, relation_type, final_score
+        FROM `tabRelated Listing Cache`
+        WHERE source_listing = %s
+        ORDER BY relation_type, final_score DESC
+        """,
+        (listing_id,),
+        as_dict=True,
+    )
+    if not rows:
+        return {"data": empty}
+
+    # Group target IDs by relation_type
+    grouped_ids: dict[str, list[str]] = {
+        "Similar": [],
+        "Substitute": [],
+        "Complementary": [],
+        "Accessory": [],
+    }
+    for r in rows:
+        rt = r.get("relation_type")
+        if rt in grouped_ids:
+            grouped_ids[rt].append(r["target_listing"])
+
+    # Resolve target listing cards in a single batched fetch
+    all_ids = {tid for ids in grouped_ids.values() for tid in ids}
+    if not all_ids:
+        return {"data": empty}
+
+    listings = frappe.get_all(
+        "Listing",
+        filters={
+            "name": ["in", list(all_ids)],
+            "status": "Active",
+            "is_visible": 1,
+        },
+        fields=[
+            "name", "listing_code", "title", "primary_image",
+            "selling_price", "base_price", "currency",
+            "discount_percentage", "min_order_qty", "stock_uom",
+            "order_count", "average_rating", "review_count",
+            "seller_profile", "supplier_display_name",
+            "ships_from_country", "country_of_origin",
+            "is_free_shipping", "selling_point",
+            "b2b_enabled", "category_name", "brand",
+        ],
+    )
+    card_by_id = {lst["name"]: _format_listing_card(lst) for lst in listings}
+
+    out = {
+        "similar": [card_by_id[tid] for tid in grouped_ids["Similar"] if tid in card_by_id],
+        "substitute": [card_by_id[tid] for tid in grouped_ids["Substitute"] if tid in card_by_id],
+        "complementary": [card_by_id[tid] for tid in grouped_ids["Complementary"] if tid in card_by_id],
+        "accessory": [card_by_id[tid] for tid in grouped_ids["Accessory"] if tid in card_by_id],
+    }
+    return {"data": out}
+
+
 @frappe.whitelist(allow_guest=True, methods=["POST"])
 def log_search(query: str, category: str = ""):
     """Log a search query for the current user. Guest searches are ignored."""

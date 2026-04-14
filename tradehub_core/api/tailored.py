@@ -364,6 +364,101 @@ def _top_listings_for_category(category: str, limit: int) -> list:
     return [_listing_to_card(l) for l in listings]
 
 
+def _build_editorial(category_name: str, user: str = None) -> dict:
+    """Return {editorialText, badge} for a category card.
+
+    Badge koşulları (öncelik sırasıyla):
+      - "personal"   → user'ın son 30g aktivitesinde bu kategorinin toplam view'ı >= 50
+      - "trend"      → son 30g içinde bu kategorideki Listing'lerin order_count artışı >= 50
+      - "quality"    → bu kategorideki Listing'lerin avg(average_rating) >= 4.5
+      - None          → hiçbiri değilse
+
+    editorialText: sayısal istatistiklerle template doldurur. Hiç istatistik
+    yoksa düşük-key bir fallback döner ("{name} altında seçkin ürünler").
+    """
+    cutoff = frappe.utils.add_days(frappe.utils.now_datetime(), -TAILORED_LOOKBACK_DAYS)
+
+    # Kategori geneli agregasyon (tüm active listing'ler)
+    agg = frappe.db.sql(
+        """
+        SELECT
+            COUNT(*)                                     AS product_count,
+            COUNT(DISTINCT l.seller_profile)             AS seller_count,
+            COALESCE(SUM(l.view_count), 0)               AS total_views,
+            COALESCE(SUM(l.order_count), 0)              AS total_orders,
+            COALESCE(AVG(NULLIF(l.average_rating, 0)), 0) AS avg_rating,
+            COALESCE(SUM(l.review_count), 0)             AS total_reviews,
+            COALESCE(AVG(NULLIF(l.discount_percentage, 0)), 0) AS avg_discount
+        FROM `tabListing` l
+        WHERE l.product_category = %(cat)s AND l.status = 'Active'
+        """,
+        {"cat": category_name},
+        as_dict=True,
+    )
+    stats = agg[0] if agg else {}
+
+    # Kullanıcıya özel son 30g view sayısı (varsa)
+    user_views = 0
+    if user and user != "Guest":
+        try:
+            rows = frappe.db.sql(
+                """
+                SELECT COUNT(*) AS cnt FROM `tabUser Product View`
+                WHERE user = %(u)s AND category = %(cat)s AND creation >= %(cutoff)s
+                """,
+                {"u": user, "cat": category_name, "cutoff": cutoff},
+                as_dict=True,
+            )
+            user_views = int(rows[0].cnt) if rows else 0
+        except Exception:
+            user_views = 0
+
+    # Rozet seçimi (öncelik sırası)
+    badge = None
+    if user_views >= 50:
+        badge = "personal"
+    elif (stats.get("total_orders") or 0) >= 50:
+        badge = "trend"
+    elif float(stats.get("avg_rating") or 0) >= 4.5 and int(stats.get("total_reviews") or 0) >= 10:
+        badge = "quality"
+
+    # Editorial metin — hangi template kullanılacak
+    product_count = int(stats.get("product_count") or 0)
+    seller_count = int(stats.get("seller_count") or 0)
+    total_views = int(stats.get("total_views") or 0)
+    total_orders = int(stats.get("total_orders") or 0)
+    avg_rating = float(stats.get("avg_rating") or 0)
+    total_reviews = int(stats.get("total_reviews") or 0)
+    avg_discount = float(stats.get("avg_discount") or 0)
+
+    def _fmt_num(n):
+        if n >= 1000:
+            return f"{n/1000:.1f}".rstrip("0").rstrip(".") + "K+"
+        return str(n)
+
+    text = ""
+    if badge == "personal" and user_views > 0:
+        text = f"{_fmt_num(user_views)} görüntüleme aldığın {product_count} ürün"
+        if avg_discount > 0:
+            text += f", ortalama %{int(avg_discount)} indirim"
+    elif badge == "trend":
+        text = f"Son 30 gün {_fmt_num(total_orders)} sipariş — {product_count} aktif ürün"
+        if seller_count > 0:
+            text += f", {seller_count} tedarikçi"
+    elif badge == "quality":
+        text = f"⭐ {avg_rating:.1f} ortalama — {_fmt_num(total_reviews)} yorum, {product_count} seçkin ürün"
+    else:
+        # Nötr fallback (cold-start veya zayıf sinyal)
+        parts = [f"{product_count} ürün"]
+        if seller_count > 0:
+            parts.append(f"{seller_count} tedarikçi")
+        if total_views > 0:
+            parts.append(f"{_fmt_num(total_views)} görüntüleme")
+        text = " · ".join(parts) if parts else "Seçkin ürünler"
+
+    return {"editorialText": text, "badge": badge}
+
+
 def _category_display(category_name: str) -> dict:
     """Return minimal category info for card header: {slug, name, image, parent, viewsCount}."""
     cat = frappe.db.get_value(
@@ -446,6 +541,7 @@ def get_tailored_selections(limit: int = 9):
         if not products:
             # Skip empty categories rather than show a blank card
             continue
+        editorial = _build_editorial(cat_name, user=user if not is_guest else None)
         groups.append({
             "slug": display["slug"],
             "categoryId": display.get("categoryId", cat_name),
@@ -453,6 +549,8 @@ def get_tailored_selections(limit: int = 9):
             "image": display["image"],
             "parent": display["parent"],
             "viewsCount": display.get("viewsCount", 0),
+            "editorialText": editorial["editorialText"],
+            "badge": editorial["badge"],
             "products": products,
         })
 
