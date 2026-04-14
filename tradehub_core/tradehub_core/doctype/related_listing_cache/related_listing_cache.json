@@ -1,0 +1,37 @@
+{
+  "name": "Related Listing Cache",
+  "doctype": "DocType",
+  "module": "Tradehub Core",
+  "autoname": "hash",
+  "engine": "InnoDB",
+  "sort_field": "final_score",
+  "sort_order": "DESC",
+  "field_order": [
+    "source_listing",
+    "target_listing",
+    "relation_type",
+    "cb_1",
+    "base_score",
+    "ctr_boost",
+    "final_score",
+    "display_order",
+    "sb_meta",
+    "computed_at"
+  ],
+  "fields": [
+    {"fieldname": "source_listing", "fieldtype": "Link", "options": "Listing", "label": "Source Listing", "reqd": 1, "in_standard_filter": 1},
+    {"fieldname": "target_listing", "fieldtype": "Link", "options": "Listing", "label": "Target Listing", "reqd": 1, "in_standard_filter": 1},
+    {"fieldname": "relation_type", "fieldtype": "Select", "options": "Similar\nSubstitute\nComplementary\nAccessory", "label": "Relation Type", "reqd": 1, "in_standard_filter": 1},
+    {"fieldname": "cb_1", "fieldtype": "Column Break"},
+    {"fieldname": "base_score", "fieldtype": "Float", "label": "Base Score", "precision": "4", "read_only": 1},
+    {"fieldname": "ctr_boost", "fieldtype": "Float", "label": "CTR Boost", "precision": "4", "default": "0", "read_only": 1, "description": "Faz 2'de CTR'a göre hesaplanır"},
+    {"fieldname": "final_score", "fieldtype": "Float", "label": "Final Score", "precision": "4", "read_only": 1},
+    {"fieldname": "display_order", "fieldtype": "Int", "label": "Display Order", "default": "0"},
+    {"fieldname": "sb_meta", "fieldtype": "Section Break"},
+    {"fieldname": "computed_at", "fieldtype": "Datetime", "label": "Computed At", "read_only": 1}
+  ],
+  "permissions": [
+    {"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1, "permlevel": 0},
+    {"role": "Marketplace Admin", "read": 1, "permlevel": 0}
+  ]
+}
