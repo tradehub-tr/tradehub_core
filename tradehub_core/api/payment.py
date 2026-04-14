@@ -1,6 +1,6 @@
 import frappe
 from frappe import _
-from frappe.utils import cint, nowdatetime
+from frappe.utils import cint, now_datetime
 
 
 # Türkçe (DB) → İngilizce (Frontend) transaction status mapping
@@ -545,7 +545,7 @@ def create_payment_transaction(order_name, buyer, transaction_type, amount,
     tx.payment_method = payment_method
     tx.amount = float(amount)
     tx.currency = currency or (order.currency if order else "TRY")
-    tx.transaction_date = nowdatetime()
+    tx.transaction_date = now_datetime()
     tx.status = status
     tx.reference_number = reference_number
     tx.remittance_sender = remittance_sender
@@ -573,7 +573,7 @@ def update_transaction_status(order_name, buyer, new_status, transaction_type="�
         update_fields = {"status": new_status}
         if confirmed_by:
             update_fields["confirmed_by"] = confirmed_by
-            update_fields["confirmation_date"] = nowdatetime()
+            update_fields["confirmation_date"] = now_datetime()
         frappe.db.set_value("Payment Transaction", tx_name, update_fields)
 
 
@@ -604,7 +604,7 @@ def upsert_bank_interaction(buyer, seller_code, amount, currency="TRY"):
         frappe.db.set_value("Buyer Bank Interaction", existing, {
             "total_wire_amount": new_total,
             "pending_match_amount": new_pending,
-            "last_transaction_date": nowdatetime(),
+            "last_transaction_date": now_datetime(),
             "seller_iban": seller_info.iban or "",
             "seller_bank_name": seller_info.bank_name or "",
             "seller_account_holder": seller_info.account_holder or "",
@@ -620,7 +620,7 @@ def upsert_bank_interaction(buyer, seller_code, amount, currency="TRY"):
         bi.total_wire_amount = float(amount)
         bi.pending_match_amount = float(amount)
         bi.currency = currency
-        bi.last_transaction_date = nowdatetime()
+        bi.last_transaction_date = now_datetime()
         bi.match_status = "Beklemede"
         bi.flags.ignore_permissions = True
         bi.insert(ignore_permissions=True)
