@@ -781,3 +781,81 @@ def search_history_has_permission(doc, ptype, user):
         return True
     doc_user = getattr(doc, "user", None) if not isinstance(doc, dict) else doc.get("user")
     return doc_user == user
+
+
+# ── HD Ticket (Headless Helpdesk, marketplace routing) ─────────────────────
+# Erişim kuralları:
+#   - Full access: Administrator, System Manager, Support Manager, Agent Manager
+#   - Agent + HD Team üyesi (satıcı): sadece kendi team'lerinin ticket'ları
+#   - Agent (team'i yok): sadece Platform Support team'i
+#   - Müşteri / diğer: sadece kendi raised_by ticket'ları
+
+_HELPDESK_FULL_ACCESS_ROLES = frozenset({
+    "System Manager",
+    "Support Manager",
+    "Agent Manager",
+})
+
+_PLATFORM_SUPPORT_TEAM = "Platform Support"
+
+
+def _helpdesk_user_teams(user):
+    """User'in uyesi oldugu HD Team isimleri."""
+    if not user or user == "Guest":
+        return []
+    rows = frappe.get_all(
+        "HD Team Member",
+        filters={"user": user},
+        fields=["parent"],
+    )
+    return [r.parent for r in rows]
+
+
+def helpdesk_ticket_query_conditions(user):
+    if not user or user == "Guest":
+        return "1=0"
+    if user == "Administrator":
+        return ""
+
+    roles = set(frappe.get_roles(user))
+    if roles & _HELPDESK_FULL_ACCESS_ROLES:
+        return ""
+
+    escaped_user = frappe.db.escape(user)
+    own_clause = f"`tabHD Ticket`.`raised_by` = {escaped_user}"
+
+    # Agent: team ticket'lari + kendi acitigi ticket'lar (musteri olarak da açmış olabilir)
+    if "Agent" in roles:
+        teams = _helpdesk_user_teams(user)
+        if teams:
+            placeholders = ", ".join(frappe.db.escape(t) for t in teams)
+            team_clause = f"`tabHD Ticket`.`agent_group` IN ({placeholders})"
+        else:
+            team_clause = (
+                f"`tabHD Ticket`.`agent_group` = {frappe.db.escape(_PLATFORM_SUPPORT_TEAM)}"
+            )
+        return f"({team_clause} OR {own_clause})"
+
+    # Musteri / diger — sadece kendi acitigi ticket'lar
+    return own_clause
+
+
+def helpdesk_ticket_has_permission(doc, ptype, user):
+    if user == "Administrator":
+        return True
+    roles = set(frappe.get_roles(user))
+    if roles & _HELPDESK_FULL_ACCESS_ROLES:
+        return True
+
+    agent_group = getattr(doc, "agent_group", None) if not isinstance(doc, dict) else doc.get("agent_group")
+    raised_by = getattr(doc, "raised_by", None) if not isinstance(doc, dict) else doc.get("raised_by")
+
+    if "Agent" in roles:
+        teams = _helpdesk_user_teams(user)
+        if raised_by == user:
+            return True
+        if teams:
+            return agent_group in teams
+        return agent_group == _PLATFORM_SUPPORT_TEAM
+
+    return raised_by == user

@@ -10,6 +10,10 @@ def execute():
     - WHERE recipient_user = %s AND is_read = 0         (get_unread_count)
     - WHERE is_read = 1 AND creation < %s               (notification_cleanup)
     """
+    # Patch migrate sirasinda DocType henuz olusturulmamis olabilir
+    if not frappe.db.table_exists("Platform Notification"):
+        return
+
     # recipient_user + creation: bildirimleri listelerken ve polling'de kullanılır
     frappe.db.sql_ddl("""
         CREATE INDEX IF NOT EXISTS idx_notification_user_creation
