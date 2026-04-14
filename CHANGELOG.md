@@ -1,3 +1,18 @@
+## [v1.0.4-rc.9] - 2026-04-14 RC
+
+Bu surum rc.istoc.com'da test asamasindadir.
+
+### Eklendi
+- feat(tailored): "Size Özel Seçimler" öneri endpoint'leri + User Product View DocType (@aliiball)
+- feat(tailored): Kategori kartlarına editoryal metin + rozet eklendi. (@aliiball)
+- feat(recommendations): Related Products skor pipeline + API + scheduler (@aliiball)
+
+### Duzeltildi
+- fix: tüm frappe.get_doc(dict) çağrıları frappe.new_doc() ile değiştirildi (@ahmeetseker)
+- fix: backfill patch'inde nowdatetime import hatası düzeltildi — now_datetime kullanıldı (@ahmeetseker)
+- fix(patches): backfill_payment_transactions — Frappe v15 için now_datetime'a çevir (@aliiball)
+
+---
 ## [v1.0.4-rc.8] - 2026-04-14 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
