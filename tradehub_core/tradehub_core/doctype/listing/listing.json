@@ -43,6 +43,7 @@
   "column_break_inventory",
   "stock_uom",
   "min_order_qty",
+  "sell_in_moq_multiples",
   "max_order_qty",
   "low_stock_threshold",
   "track_inventory",
@@ -370,6 +371,13 @@
    "fieldname": "min_order_qty",
    "fieldtype": "Int",
    "label": "Min Order Qty"
+  },
+  {
+   "default": "0",
+   "description": "Açık olduğunda sipariş miktarı yalnızca Min Order Qty katlarında değişebilir (ör. MOQ=5 → 5, 10, 15).",
+   "fieldname": "sell_in_moq_multiples",
+   "fieldtype": "Check",
+   "label": "Sadece MOQ Katlarıyla Sat"
   },
   {
    "default": "0",

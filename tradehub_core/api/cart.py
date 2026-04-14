@@ -156,7 +156,7 @@ def _build_cart_response(cart_name):
 			"Listing",
 			item.listing,
 			["name", "title", "seller_profile", "primary_image",
-			 "selling_price", "base_price", "min_order_qty", "currency", "status",
+			 "selling_price", "base_price", "min_order_qty", "sell_in_moq_multiples", "currency", "status",
 			 "track_inventory", "allow_backorders", "stock_qty"],
 			as_dict=True,
 		)
@@ -327,6 +327,7 @@ def _build_cart_response(cart_name):
 				"unit": "Adet",
 				"quantity": item.quantity,
 				"minQty": listing.min_order_qty or 1,
+				"sellInMoqMultiples": bool(listing.sell_in_moq_multiples),
 				"maxQty": max_qty,
 				"selected": True,
 				"baseUnitPrice": base_price,
@@ -436,7 +437,7 @@ def add_to_cart(listing, quantity=1, listing_variant=None, variant_label=None, c
 	listing_doc = frappe.db.get_value(
 		"Listing",
 		listing,
-		["status", "min_order_qty", "stock_qty", "track_inventory", "allow_backorders",
+		["status", "min_order_qty", "sell_in_moq_multiples", "stock_qty", "track_inventory", "allow_backorders",
 		 "seller_profile", "title", "primary_image", "selling_price", "base_price", "currency"],
 		as_dict=True,
 	)
@@ -447,6 +448,8 @@ def add_to_cart(listing, quantity=1, listing_variant=None, variant_label=None, c
 	min_qty = int(listing_doc.min_order_qty or 1)
 	if qty < min_qty:
 		frappe.throw(_("Minimum sipariş miktarı: {0}").format(min_qty))
+	if listing_doc.sell_in_moq_multiples and min_qty > 0 and qty % min_qty != 0:
+		frappe.throw(_("Sipariş miktarı {0}'ın katları olmalıdır").format(min_qty))
 
 	# Normalize variant: empty string → None
 	listing_variant = listing_variant or None

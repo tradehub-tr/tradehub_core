@@ -760,6 +760,7 @@ def get_listing_detail(listing_id):
         "images": images,
         "priceTiers": price_tiers,
         "moq": listing.min_order_qty or 1,
+        "sellInMoqMultiples": bool(listing.sell_in_moq_multiples),
         "unit": listing.stock_uom or "piece",
         "samplePrice": listing.sample_price,
         "currency": listing.currency,
