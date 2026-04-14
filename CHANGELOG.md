@@ -1,3 +1,16 @@
+## [v1.0.4-rc.7] - 2026-04-14 RC
+
+Bu surum rc.istoc.com'da test asamasindadir.
+
+### Eklendi
+- feat(tailored): "Size Özel Seçimler" öneri endpoint'leri + User Product View DocType (@aliiball)
+- feat(tailored): Kategori kartlarına editoryal metin + rozet eklendi. (@aliiball)
+- feat(recommendations): Related Products skor pipeline + API + scheduler (@aliiball)
+
+### Duzeltildi
+- fix: tüm frappe.get_doc(dict) çağrıları frappe.new_doc() ile değiştirildi (@ahmeetseker)
+
+---
 ## [v1.0.4-rc.6] - 2026-04-13 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
