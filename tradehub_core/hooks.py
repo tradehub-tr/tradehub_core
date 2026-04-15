@@ -105,6 +105,9 @@ permission_query_conditions = {
 	"Seller Inquiry": "tradehub_core.permissions.seller_inquiry_query_conditions",
 	"Certification Type": "tradehub_core.permissions.certification_type_query_conditions",
 	"Search History": "tradehub_core.permissions.search_history_query_conditions",
+	"Brand": "tradehub_core.permissions.brand_query_conditions",
+	"Product Family": "tradehub_core.permissions.product_family_query_conditions",
+	"Product Attribute": "tradehub_core.permissions.product_attribute_query_conditions",
 }
 
 has_permission = {
@@ -119,4 +122,7 @@ has_permission = {
 	"Seller Inquiry": "tradehub_core.permissions.seller_inquiry_has_permission",
 	"Certification Type": "tradehub_core.permissions.certification_type_has_permission",
 	"Search History": "tradehub_core.permissions.search_history_has_permission",
+	"Brand": "tradehub_core.permissions.brand_has_permission",
+	"Product Family": "tradehub_core.permissions.product_family_has_permission",
+	"Product Attribute": "tradehub_core.permissions.product_attribute_has_permission",
 }

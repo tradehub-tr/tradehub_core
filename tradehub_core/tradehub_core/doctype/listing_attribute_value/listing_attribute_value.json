@@ -4,17 +4,30 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "attribute_name",
+  "attribute",
+  "attribute_label",
   "attribute_value",
-  "attribute_group"
+  "attribute_group",
+  "unit_of_measure",
+  "is_variant_axis",
+  "display_order"
  ],
  "fields": [
   {
-   "fieldname": "attribute_name",
-   "fieldtype": "Data",
+   "fieldname": "attribute",
+   "fieldtype": "Link",
+   "options": "Product Attribute",
    "in_list_view": 1,
-   "label": "Attribute Name",
+   "label": "Attribute",
    "reqd": 1
+  },
+  {
+   "fetch_from": "attribute.attribute_label",
+   "fieldname": "attribute_label",
+   "fieldtype": "Data",
+   "label": "Etiket",
+   "read_only": 1,
+   "in_list_view": 1
   },
   {
    "fieldname": "attribute_value",
@@ -28,7 +41,27 @@
    "fieldtype": "Data",
    "in_list_view": 1,
    "label": "Attribute Group",
-   "description": "Group name for display (e.g., Temel Özellikler, Paketleme)"
+   "description": "Grup adı (örn. Temel Özellikler, Paketleme)"
+  },
+  {
+   "fetch_from": "attribute.unit_of_measure",
+   "fieldname": "unit_of_measure",
+   "fieldtype": "Data",
+   "label": "Birim",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "attribute.is_variant_axis",
+   "fieldname": "is_variant_axis",
+   "fieldtype": "Check",
+   "label": "Varyant Ekseni",
+   "read_only": 1
+  },
+  {
+   "fieldname": "display_order",
+   "fieldtype": "Int",
+   "label": "Sıra",
+   "default": "0"
   }
  ],
  "index_web_pages_for_search": 0,
@@ -40,6 +73,6 @@
  "name": "Listing Attribute Value",
  "owner": "Administrator",
  "permissions": [],
- "sort_field": "idx",
+ "sort_field": "display_order",
  "sort_order": "ASC"
 }

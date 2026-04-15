@@ -1,0 +1,21 @@
+{
+ "name": "Product Category Required Certification",
+ "module": "Tradehub Core",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "istable": 1,
+ "editable_grid": 1,
+ "field_order": [
+  "certification_type",
+  "is_mandatory",
+  "applies_to_subtree",
+  "note"
+ ],
+ "fields": [
+  {"fieldname": "certification_type", "fieldtype": "Link", "label": "Sertifika Tipi", "options": "Certification Type", "reqd": 1, "in_list_view": 1},
+  {"fieldname": "is_mandatory", "fieldtype": "Check", "label": "Zorunlu", "default": "1", "in_list_view": 1},
+  {"fieldname": "applies_to_subtree", "fieldtype": "Check", "label": "Alt Kategorilere Uygula", "default": "1", "in_list_view": 1},
+  {"fieldname": "note", "fieldtype": "Small Text", "label": "Not"}
+ ],
+ "permissions": []
+}
