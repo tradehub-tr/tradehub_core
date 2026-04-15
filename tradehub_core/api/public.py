@@ -266,11 +266,12 @@ def reply_ticket(ticket: str, content: str):
     return {"name": comm.name, "ok": True}
 
 
-@frappe.whitelist()
-@rate_limit(key="user", limit=10, seconds=300)
+@frappe.whitelist(allow_guest=True)
+@rate_limit(key="email", limit=10, seconds=300)
 def create_ticket(
     subject: str,
     description: str,
+    email: str = "",
     name: str = "",
     phone: str = "",
     priority: str = "",
@@ -279,16 +280,19 @@ def create_ticket(
 ):
     """Storefront destek formu → HD Ticket.
 
-    Login zorunlu — alıcı/satıcı kayıt + giriş yapmadan talep oluşturamaz.
-    raised_by = session.user.email. Rate-limit: user başına 5 dakikada 10 kez.
+    Guest (login olmayan) musteri de cagirabilir. raised_by = email.
+    Login'li musteri varsa Frappe session.user kullanilir (email zorunlu degil).
+    Rate-limit: email basina 5 dakikada 10 kez.
     """
     caller = frappe.session.user
-    if not caller or caller == "Guest":
-        frappe.throw(_("Talep oluşturmak için giriş yapmalısınız."), frappe.PermissionError)
-
-    # Administrator gibi ozel user'lar icin name @ icermeyebilir — User.email'den al.
-    user_email = frappe.db.get_value("User", caller, "email") or ""
-    email = caller if "@" in caller else user_email
+    if caller and caller != "Guest":
+        # Administrator gibi ozel user'lar icin name @ icermeyebilir — User.email'den al.
+        user_email = frappe.db.get_value("User", caller, "email") or ""
+        if "@" in caller:
+            email = caller
+        elif user_email:
+            email = user_email
+        # Hicbiri yoksa param'daki email kullanilir (zorunlu olur)
     email = _validate_email(email)
     subject = _clip(subject, 200)
     description = _clip(description, 10000)
@@ -305,12 +309,11 @@ def create_ticket(
     else:
         team = ensure_platform_support_team()
 
-    # Helpdesk'in kendi validate/before_insert hook'lari "Agent" rolu istiyor
-    # ve Link permission kontrolu yapıyor — hem Guest hem normal müşteri
-    # user'da patlar. Her durumda Administrator'a gecici impersonate.
+    # Guest icin helpdesk'in kendi validate/before_insert hook'lari user
+    # kontrolu yapiyor — Administrator olarak impersonate + insert.
     original_user = caller
     try:
-        if caller != "Administrator":
+        if caller == "Guest":
             frappe.set_user("Administrator")
 
         ticket = frappe.new_doc("HD Ticket")
@@ -331,7 +334,7 @@ def create_ticket(
         ticket.insert(ignore_permissions=True)
         frappe.db.commit()
     finally:
-        if caller != "Administrator":
+        if caller == "Guest":
             frappe.set_user(original_user)
 
     return {"name": ticket.name, "ok": True}

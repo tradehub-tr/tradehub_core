@@ -15,16 +15,15 @@ PLATFORM_SUPPORT_TEAM = "Platform Support"
 
 @contextlib.contextmanager
 def _as_admin():
-    """HD Team/HD Agent insert/save işlemleri Link permission ve helpdesk
-    role kontrolünden dolayı normal müşteri user'da da patlar — her zaman
-    Administrator olarak geçici impersonate (sadece Guest değil)."""
+    """Guest çağrılarında HD Team/HD Agent insert'leri Link permission
+    kontrolünden dolayı patlar — Administrator olarak geçici impersonate."""
     original = frappe.session.user
-    if original != "Administrator":
+    if original == "Guest":
         frappe.set_user("Administrator")
     try:
         yield
     finally:
-        if original != "Administrator":
+        if original == "Guest":
             frappe.set_user(original)
 
 
