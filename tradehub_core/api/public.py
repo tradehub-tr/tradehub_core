@@ -189,6 +189,52 @@ def get_ticket_communications(ticket: str):
 
 
 @frappe.whitelist()
+def agent_reply_ticket(ticket: str, content: str):
+    """Ajan HD Ticket'a müşteri yanıtı ekler (headless).
+
+    Frappe Helpdesk'in standart `reply_via_agent` metodu e-posta göndermeyi
+    zorunlu kılıyor (default outgoing Email Account gerekli). Biz headless
+    akışta çalıştığımız için sadece Communication oluşturup ticket status'unu
+    "Replied"e çeviriyoruz — müşteri RC üzerinden mesajı kendi sayfasında görür.
+    """
+    if not ticket or not (content or "").strip():
+        frappe.throw(_("Talep ve içerik zorunlu."), frappe.ValidationError)
+
+    from helpdesk.utils import is_agent
+    if not is_agent():
+        frappe.throw(_("Bu işlem için ajan yetkisi gerekli."), frappe.PermissionError)
+
+    caller = frappe.session.user
+    sender_full_name = frappe.db.get_value("User", caller, "full_name") or caller
+    ticket_doc = frappe.get_doc("HD Ticket", ticket)
+
+    comm = frappe.get_doc({
+        "doctype": "Communication",
+        "communication_type": "Communication",
+        "communication_medium": "Email",
+        "sent_or_received": "Sent",
+        "content": content,
+        "reference_doctype": "HD Ticket",
+        "reference_name": ticket,
+        "sender": caller,
+        "sender_full_name": sender_full_name,
+        "recipients": ticket_doc.raised_by or "",
+        "status": "Linked",
+        "subject": f"Re: {ticket_doc.subject or ticket}",
+    })
+    comm.insert(ignore_permissions=True)
+
+    updates = {"status": "Replied"}
+    if not ticket_doc.first_responded_on:
+        updates["first_responded_on"] = frappe.utils.now()
+    for k, v in updates.items():
+        frappe.db.set_value("HD Ticket", ticket, k, v)
+
+    frappe.db.commit()
+    return {"name": comm.name, "ok": True}
+
+
+@frappe.whitelist()
 def reply_ticket(ticket: str, content: str):
     """Müşteri HD Ticket'a yanıt ekler. Ticket'a erişim varsa Communication
     oluşturulur (sent_or_received='Received' — sisteme gelen)."""
