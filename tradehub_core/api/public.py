@@ -263,12 +263,11 @@ def create_ticket(
     else:
         team = ensure_platform_support_team()
 
-    # Helpdesk'in kendi validate/before_insert hook'lari "Agent" rolu istiyor
-    # ve Link permission kontrolu yapıyor — hem Guest hem normal müşteri
-    # user'da patlar. Her durumda Administrator'a gecici impersonate.
+    # Guest icin helpdesk'in kendi validate/before_insert hook'lari user
+    # kontrolu yapiyor — Administrator olarak impersonate + insert.
     original_user = caller
     try:
-        if caller != "Administrator":
+        if caller == "Guest":
             frappe.set_user("Administrator")
 
         ticket = frappe.new_doc("HD Ticket")
@@ -289,7 +288,7 @@ def create_ticket(
         ticket.insert(ignore_permissions=True)
         frappe.db.commit()
     finally:
-        if caller != "Administrator":
+        if caller == "Guest":
             frappe.set_user(original_user)
 
     return {"name": ticket.name, "ok": True}
