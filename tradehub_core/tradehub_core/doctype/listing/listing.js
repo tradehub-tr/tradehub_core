@@ -30,6 +30,14 @@ frappe.ui.form.on('Listing', {
                 };
             });
         }
+
+        if (frm.fields_dict.brand) {
+            frm.set_query('brand', function() {
+                return {
+                    filters: { status: 'Approved', is_active: 1 }
+                };
+            });
+        }
     },
 
     seller_profile: function(frm) {

@@ -230,10 +230,16 @@ def get_listings(
     certifications=None,
     mgmt_certifications=None,
     product_certifications=None,
+    brands=None,
+    attrs=None,
 ):
     """Get paginated list of active listings for the product listing page.
 
     Returns data matching the frontend ProductListingCard interface.
+
+    Brand / attribute filters:
+      brands = "NIKE,ADIDAS"                    → brand IN (...)
+      attrs  = "RENK:RED,BLUE|BEDEN:M,L"        → listing has ALL of these attribute values
     """
     page = int(page)
     page_size = min(int(page_size), 100)
@@ -245,7 +251,8 @@ def get_listings(
                      deal=is_deal,
                      vs=verified_supplier, mr=min_rating, co=country, fs=free_shipping,
                      ps2=paid_samples, cert=certifications,
-                     mc=mgmt_certifications, pc=product_certifications)
+                     mc=mgmt_certifications, pc=product_certifications,
+                     br=brands, at=attrs)
     cached = frappe.cache.get_value(ck)
     if cached:
         return cached
@@ -359,6 +366,69 @@ def get_listings(
     if supplier:
         filters["brand"] = ["like", f"%{supplier}%"]
 
+    # ── Brand multi-select filter (from facet sidebar) ──
+    if brands:
+        brand_list = [b.strip() for b in brands.split(",") if b.strip()]
+        if brand_list:
+            existing_brand_filter = filters.get("brand")
+            if isinstance(existing_brand_filter, list) and existing_brand_filter[0] == "like":
+                # combine: must match supplier AND be in brands
+                filters["brand"] = ["in", brand_list]
+            else:
+                filters["brand"] = ["in", brand_list]
+
+    # ── Attribute filters (AND across attributes, OR within values) ──
+    # attrs format: "RENK:RED,BLUE|BEDEN:M,L"
+    if attrs:
+        attr_groups = []
+        for chunk in attrs.split("|"):
+            if ":" not in chunk:
+                continue
+            code, vals_str = chunk.split(":", 1)
+            code = code.strip()
+            vals = [v.strip() for v in vals_str.split(",") if v.strip()]
+            if code and vals:
+                attr_groups.append((code, vals))
+
+        if attr_groups:
+            # For each attribute, find listings that have any of the values.
+            # Final set = intersection across attributes.
+            matching_listings: set | None = None
+            for code, vals in attr_groups:
+                rows = frappe.get_all(
+                    "Listing Attribute Value",
+                    filters=[
+                        ["attribute", "=", code],
+                        ["attribute_value", "in", vals],
+                        ["parenttype", "=", "Listing"],
+                    ],
+                    fields=["parent"],
+                    pluck="parent",
+                )
+                names = set(rows)
+                if matching_listings is None:
+                    matching_listings = names
+                else:
+                    matching_listings &= names
+
+            if not matching_listings:
+                return {
+                    "data": [], "total": 0, "page": page, "page_size": page_size,
+                    "total_pages": 1, "has_next": False, "has_prev": False,
+                }
+
+            # Merge with existing name filter if any
+            existing_name_filter = filters.get("name")
+            if isinstance(existing_name_filter, list) and existing_name_filter[0] == "in":
+                filters["name"] = ["in", list(matching_listings & set(existing_name_filter[1]))]
+                if not filters["name"][1]:
+                    return {
+                        "data": [], "total": 0, "page": page, "page_size": page_size,
+                        "total_pages": 1, "has_next": False, "has_prev": False,
+                    }
+            else:
+                filters["name"] = ["in", list(matching_listings)]
+
     # ── Text search (split into words for AND matching) ──
     or_filters = None
     search_words = []
@@ -424,7 +494,7 @@ def get_listings(
         "is_free_shipping", "is_featured", "is_best_seller",
         "is_new_arrival", "selling_point",
         "b2b_enabled", "has_variants", "category", "category_name",
-        "brand", "modified", "creation",
+        "brand", "brand_name", "modified", "creation",
     ]
 
     # Convert dict filters to list-of-lists and append price filters
@@ -494,7 +564,7 @@ def get_listings(
             else:
                 total = len(frappe.get_all("Listing", filters=count_filters, fields=["name"]))
 
-    # ── Batch prefetch seller profiles and pricing tiers (N+1 optimization) ──
+    # ── Batch prefetch seller profiles, pricing tiers, and brands (N+1 optimization) ──
     seller_ids = list({l.seller_profile for l in paginated if l.get("seller_profile")})
     seller_cache = {}
     if seller_ids:
@@ -504,6 +574,16 @@ def get_listings(
             fields=["name", "founded_year", "country", "is_verified", "rating", "review_count"],
         ):
             seller_cache[sp.name] = sp
+
+    brand_ids = list({l.brand for l in paginated if l.get("brand")})
+    brand_cache = {}
+    if brand_ids:
+        for b in frappe.get_all(
+            "Brand",
+            filters=[["name", "in", brand_ids]],
+            fields=["name", "brand_name", "slug", "logo"],
+        ):
+            brand_cache[b.name] = b
 
     b2b_listing_names = [l.name for l in paginated if l.get("b2b_enabled")]
     tier_cache: dict[str, list] = {}
@@ -519,7 +599,7 @@ def get_listings(
     # Enrich listings with prefetched data
     results = []
     for listing in paginated:
-        item = _format_listing_card(listing, seller_cache=seller_cache, tier_cache=tier_cache)
+        item = _format_listing_card(listing, seller_cache=seller_cache, tier_cache=tier_cache, brand_cache=brand_cache)
         results.append(item)
 
     result = {
@@ -701,7 +781,7 @@ def get_listing_detail(listing_id):
     # Get variants
     variants = _get_listing_variants(listing_name)
 
-    # Get specifications
+    # Get specifications — flat list (backward compat) + grouped by attribute set
     specs = []
     for attr in (listing.attribute_values or []):
         specs.append({
@@ -709,6 +789,29 @@ def get_listing_detail(listing_id):
             "value": attr.attribute_value,
             "group": attr.attribute_group,
         })
+
+    spec_groups = _build_spec_groups(listing, specs)
+
+    # Brand enrichment — name, slug, logo from Brand doctype
+    brand_info = None
+    if listing.brand:
+        try:
+            b = frappe.db.get_value(
+                "Brand",
+                listing.brand,
+                ["brand_name", "slug", "logo", "status"],
+                as_dict=True,
+            )
+            if b:
+                brand_info = {
+                    "code": listing.brand,
+                    "name": b.get("brand_name") or listing.brand,
+                    "slug": b.get("slug") or frappe.scrub(listing.brand).replace("_", "-"),
+                    "logo": b.get("logo") or "",
+                    "isApproved": b.get("status") == "Approved",
+                }
+        except Exception:
+            pass
 
     # Build packaging specs from dedicated fields
     packaging_specs = []
@@ -786,6 +889,7 @@ def get_listing_detail(listing_id):
         ],
         "variants": variants,
         "specs": specs,
+        "specGroups": spec_groups,
         "packagingSpecs": packaging_specs,
         "description": listing.description,
         "shortDescription": listing.short_description,
@@ -796,6 +900,13 @@ def get_listing_detail(listing_id):
         "supplier": supplier_data,
         "customizationOptions": customization_opts,
         "brand": listing.brand,
+        "brandInfo": brand_info,
+        "productType": listing.product_type,
+        "productTypeName": listing.product_type_name,
+        "productFamily": listing.product_family,
+        "productFamilyName": listing.product_family_name,
+        "attributeSet": listing.attribute_set,
+        "attributeSetName": listing.attribute_set_name,
         "condition": listing.condition,
         "isFreeShipping": bool(listing.is_free_shipping),
         "shipsFromCountry": listing.ships_from_country,
@@ -903,7 +1014,7 @@ def get_filter_facets(query=None, category=None):
         "Listing",
         filters=all_filters,
         or_filters=or_filters,
-        fields=["name", "ships_from_country", "product_category", "seller_profile"],
+        fields=["name", "ships_from_country", "product_category", "seller_profile", "brand"],
     )
 
     # Aggregate countries
@@ -1012,12 +1123,117 @@ def get_filter_facets(query=None, category=None):
         if cert in cert_info_map
     ]
 
+    # ── Brand facet ──
+    brand_counts: dict[str, int] = {}
+    for l in listings:
+        b = l.get("brand")
+        if b:
+            brand_counts[b] = brand_counts.get(b, 0) + 1
+
+    brands_list = []
+    if brand_counts:
+        brand_meta = {
+            row.name: row
+            for row in frappe.get_all(
+                "Brand",
+                filters=[
+                    ["name", "in", list(brand_counts.keys())],
+                    ["status", "=", "Approved"],
+                    ["is_active", "=", 1],
+                ],
+                fields=["name", "brand_name", "slug", "logo"],
+            )
+        }
+        for code, count in sorted(brand_counts.items(), key=lambda x: -x[1]):
+            meta = brand_meta.get(code)
+            if not meta:
+                continue  # skip brands that are not Approved+Active
+            brands_list.append({
+                "code": code,
+                "value": code,
+                "label": meta.get("brand_name") or code,
+                "slug": meta.get("slug") or frappe.scrub(code).replace("_", "-"),
+                "logo": meta.get("logo") or "",
+                "count": count,
+            })
+
+    # ── Dynamic attribute facets (only is_filterable attributes) ──
+    attributes_facet: dict[str, dict] = {}
+    if listing_names:
+        attr_rows = frappe.db.sql(
+            """
+            SELECT lav.attribute AS code, lav.attribute_label, lav.attribute_name,
+                   lav.attribute_value
+            FROM `tabListing Attribute Value` lav
+            INNER JOIN `tabProduct Attribute` pa ON pa.name = lav.attribute
+            WHERE lav.parent IN %(parents)s
+              AND lav.parenttype = 'Listing'
+              AND lav.attribute IS NOT NULL
+              AND lav.attribute != ''
+              AND pa.is_filterable = 1
+            """,
+            {"parents": tuple(listing_names) if len(listing_names) > 1 else (listing_names[0],)},
+            as_dict=True,
+        )
+        for r in attr_rows:
+            code = r.get("code")
+            val = r.get("attribute_value")
+            if not code or not val:
+                continue
+            bucket = attributes_facet.setdefault(
+                code,
+                {
+                    "code": code,
+                    "label": r.get("attribute_label") or r.get("attribute_name") or code,
+                    "_options": {},
+                },
+            )
+            bucket["_options"][val] = bucket["_options"].get(val, 0) + 1
+
+        # Resolve option labels + colors from Product Attribute Value Option
+        for code, bucket in attributes_facet.items():
+            option_meta = {}
+            try:
+                rows = frappe.get_all(
+                    "Product Attribute Value Option",
+                    filters={"parent": code, "parenttype": "Product Attribute"},
+                    fields=["option_value", "option_label", "color_hex", "sort_order"],
+                    order_by="sort_order ASC",
+                )
+                for row in rows:
+                    option_meta[row.option_value] = {
+                        "label": row.option_label or row.option_value,
+                        "color": row.color_hex or "",
+                        "order": row.sort_order or 0,
+                    }
+            except Exception:
+                pass
+
+            options = []
+            for val, count in bucket["_options"].items():
+                meta = option_meta.get(val, {})
+                options.append({
+                    "value": val,
+                    "label": meta.get("label") or val,
+                    "color": meta.get("color") or "",
+                    "order": meta.get("order", 99999),
+                    "count": count,
+                })
+            # Sort by attribute's own sort_order, falling back to count desc
+            options.sort(key=lambda o: (o["order"], -o["count"]))
+            bucket["options"] = options
+            del bucket["_options"]
+
+    attributes_list = list(attributes_facet.values())
+
     facet_result = {
         "data": {
             "countries": countries,
             "categories": categories,
             "managementCertifications": mgmt_certifications_list,
             "productCertifications": product_certifications_list,
+            "brands": brands_list,
+            "attributes": attributes_list,
         }
     }
 
@@ -1406,7 +1622,7 @@ def get_top_ranking_grouped(
         "is_free_shipping", "is_featured", "is_best_seller",
         "is_new_arrival", "selling_point",
         "b2b_enabled", "has_variants", "category", "category_name",
-        "brand", "modified", "creation",
+        "brand", "brand_name", "modified", "creation",
     ]
 
     # Per-category sort order_by — use the same metric, fall back to modified.
@@ -1907,7 +2123,7 @@ def _sort_by_relevance(listings, words):
     return sorted(listings, key=score, reverse=True)
 
 
-def _format_listing_card(listing, seller_cache=None, tier_cache=None):
+def _format_listing_card(listing, seller_cache=None, tier_cache=None, brand_cache=None):
     """Format a listing record into the ProductListingCard structure for frontend.
 
     Args:
@@ -2047,124 +2263,121 @@ def _format_listing_card(listing, seller_cache=None, tier_cache=None):
         "discountPercentage": float(listing.get("discount_percentage") or 0),
         "category": listing.get("category_name", ""),
         "brand": listing.get("brand", ""),
+        "brandName": _brand_name(listing, brand_cache),
+        "brandSlug": _brand_slug(listing.get("brand"), brand_cache),
+        "brandLogo": _brand_logo(listing.get("brand"), brand_cache),
         "baseCurrency": listing.get("currency", "USD"),
     }
+
+
+def _brand_name(listing, brand_cache=None):
+    code = listing.get("brand")
+    if not code:
+        return ""
+    if brand_cache and code in brand_cache:
+        return brand_cache[code].get("brand_name") or code
+    return listing.get("brand_name") or code
+
+
+def _brand_logo(brand_code, brand_cache=None):
+    if not brand_code:
+        return ""
+    if brand_cache and brand_code in brand_cache:
+        return brand_cache[brand_code].get("logo") or ""
+    return frappe.db.get_value("Brand", brand_code, "logo") or ""
+
+
+def _build_spec_groups(listing, specs):
+    """Group specs by attribute_group, honoring Attribute Set group order/labels when available."""
+    if not specs:
+        return []
+
+    # Map group_code -> (label, display_order) from Attribute Set
+    group_meta: dict[str, dict] = {}
+    set_code = getattr(listing, "attribute_set", None)
+    if set_code:
+        try:
+            rows = frappe.get_all(
+                "Attribute Set Group",
+                filters={"parent": set_code, "parenttype": "Attribute Set"},
+                fields=["group_code", "group_label", "display_order"],
+                order_by="display_order ASC",
+            )
+            for i, r in enumerate(rows):
+                group_meta[r.group_code or ""] = {
+                    "label": r.group_label or r.group_code or "Genel",
+                    "order": r.display_order if r.display_order is not None else i,
+                }
+        except Exception:
+            pass
+
+    # Bucket specs by group_code
+    buckets: dict[str, list] = {}
+    for s in specs:
+        code = s.get("group") or ""
+        buckets.setdefault(code, []).append({"label": s["label"], "value": s["value"]})
+
+    # Build output: prefer Attribute Set ordering, append untracked groups at end
+    seen = set()
+    result = []
+    for code, meta in sorted(group_meta.items(), key=lambda kv: kv[1]["order"]):
+        if code in buckets:
+            result.append({"code": code, "label": meta["label"], "items": buckets[code]})
+            seen.add(code)
+    for code, items in buckets.items():
+        if code in seen:
+            continue
+        result.append({"code": code, "label": code or "Genel", "items": items})
+    return result
+
+
+_BRAND_SLUG_CACHE: dict[str, str] = {}
+
+
+def _brand_slug(brand_code, brand_cache=None):
+    if not brand_code:
+        return ""
+    if brand_cache and brand_code in brand_cache:
+        slug = brand_cache[brand_code].get("slug")
+        if slug:
+            return slug
+    if brand_code in _BRAND_SLUG_CACHE:
+        return _BRAND_SLUG_CACHE[brand_code]
+    slug = frappe.db.get_value("Brand", brand_code, "slug") or frappe.scrub(brand_code).replace("_", "-")
+    _BRAND_SLUG_CACHE[brand_code] = slug
+    return slug
 
 
 def _get_listing_variants(listing_name):
     """Get variants grouped by attribute name for the product detail page.
 
-    Sources (checked in order):
-    1. Listing Variant Item child table (inline in Listing form)
-    2. Listing Variant separate DocType (legacy)
+    Source: Listing.variant_items child table (inline — the only supported path).
     """
-    # First check inline variant items (child table)
     inline_variants = frappe.get_all(
         "Listing Variant Item",
         filters={"parent": listing_name, "parenttype": "Listing"},
-        fields=["attribute_type", "attribute_value", "variant_image", "variant_price", "variant_stock", "variant_sku"],
+        fields=["attribute_type", "attribute_value", "variant_image", "variant_gallery",
+                "variant_video_url", "variant_price", "variant_stock", "variant_sku"],
         order_by="idx ASC",
     )
 
     if inline_variants:
         return _build_variants_from_inline(listing_name, inline_variants)
 
-    # Fallback to separate Listing Variant DocType
-    variants = frappe.get_all(
-        "Listing Variant",
-        filters={"listing": listing_name},
-        fields=["name", "variant_name", "sku", "price", "stock_qty", "is_active", "primary_image"],
-        order_by="variant_name ASC",
-    )
-
-    if not variants:
-        return []
-
-    # Get listing's base price and stock for fallback
-    listing_data = frappe.db.get_value(
-        "Listing", listing_name,
-        ["selling_price", "stock_qty", "track_inventory"],
-        as_dict=True,
-    )
-    base_price = listing_data.selling_price if listing_data else 0
-    listing_stock = listing_data.stock_qty if listing_data else 0
-    track_inventory = listing_data.track_inventory if listing_data else 0
-
-    # Group variants by attribute
-    variant_groups = {}
-    for v in variants:
-        attrs = frappe.get_all(
-            "Listing Variant Attribute",
-            filters={"parent": v.name, "parenttype": "Listing Variant"},
-            fields=["attribute_name", "attribute_value"],
-            order_by="idx ASC",
-        )
-        for attr in attrs:
-            group_name = (attr.attribute_name or '').strip()
-            if group_name not in variant_groups:
-                variant_groups[group_name] = {
-                    "name": group_name,
-                    "type": "button",
-                    "options": [],
-                    "_seen_values": set(),
-                }
-
-            if attr.attribute_value not in variant_groups[group_name]["_seen_values"]:
-                variant_groups[group_name]["_seen_values"].add(attr.attribute_value)
-
-                # Determine availability:
-                # - If track_inventory is off, always available
-                # - If variant has stock > 0, available
-                # - If variant stock is 0 but listing has stock, available (shared stock)
-                if not track_inventory:
-                    is_available = True
-                elif (v.stock_qty or 0) > 0:
-                    is_available = True
-                elif (listing_stock or 0) > 0:
-                    is_available = True
-                else:
-                    is_available = False
-
-                # Use variant price, fallback to listing base price
-                variant_price = v.price if v.price and v.price > 0 else base_price
-
-                # For legacy DocType, addon is the difference from base
-                price_addon = (variant_price - base_price) if variant_price > base_price else 0
-
-                option = {
-                    "label": attr.attribute_value,
-                    "value": attr.attribute_value,
-                    "available": is_available,
-                    "image": v.primary_image if v.primary_image else None,
-                    "price": variant_price,
-                    "priceAddon": price_addon,
-                    "stockQty": v.stock_qty or 0,
-                    "variantId": v.name,
-                }
-                variant_groups[group_name]["options"].append(option)
-
-    # Clean up and return
-    result = []
-    for group in variant_groups.values():
-        del group["_seen_values"]
-        # If any option has an image, mark type as "image"
-        if any(opt.get("image") for opt in group["options"]):
-            group["type"] = "image"
-        result.append(group)
-
-    return result
+    return []
 
 
 def _build_variants_from_inline(listing_name, inline_variants):
     """Build variant groups from Listing Variant Item child table rows."""
     listing_data = frappe.db.get_value(
         "Listing", listing_name,
-        ["selling_price", "stock_qty", "track_inventory"],
+        ["selling_price", "stock_qty", "track_inventory", "title"],
         as_dict=True,
     )
     base_price = listing_data.selling_price if listing_data else 0
     listing_stock = listing_data.stock_qty if listing_data else 0
     track_inventory = listing_data.track_inventory if listing_data else 0
+    listing_title = listing_data.title if listing_data else ""
 
     variant_groups = {}
     for v in inline_variants:
@@ -2192,15 +2405,35 @@ def _build_variants_from_inline(listing_name, inline_variants):
 
             variant_price = v.variant_price if v.variant_price and v.variant_price > 0 else base_price
 
+            video_url = v.get("variant_video_url") if hasattr(v, "get") else getattr(v, "variant_video_url", None)
+            images = [v.variant_image] if v.variant_image else []
+            # Parse gallery JSON (extra images beyond primary)
+            gallery_raw = v.get("variant_gallery") if hasattr(v, "get") else getattr(v, "variant_gallery", None)
+            if gallery_raw:
+                try:
+                    import json as _json
+                    extra = _json.loads(gallery_raw)
+                    if isinstance(extra, list):
+                        for u in extra:
+                            if u and u not in images:
+                                images.append(u)
+                except Exception:
+                    pass
+            composed_title = f"{v.attribute_value} {listing_title}".strip() if listing_title else v.attribute_value
+
             option = {
                 "label": v.attribute_value,
                 "value": v.attribute_value,
                 "available": is_available,
                 "image": v.variant_image if v.variant_image else None,
+                "images": images,
+                "videoUrl": video_url or None,
+                "title": composed_title,
                 "price": variant_price,
                 "priceAddon": v.variant_price if v.variant_price and v.variant_price > 0 else 0,
                 "stockQty": v.variant_stock or 0,
                 "variantId": f"{listing_name}-{v.attribute_type}-{v.attribute_value}",
+                "sku": v.variant_sku or "",
             }
             variant_groups[group_name]["options"].append(option)
 

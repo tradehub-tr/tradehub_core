@@ -1,0 +1,32 @@
+{
+ "name": "Product Family Attribute",
+ "module": "Tradehub Core",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "istable": 1,
+ "editable_grid": 1,
+ "field_order": [
+  "attribute",
+  "attribute_label",
+  "inherited_from",
+  "role",
+  "is_required",
+  "default_value",
+  "display_order"
+ ],
+ "fields": [
+  {"fieldname": "attribute", "fieldtype": "Link", "label": "Attribute", "options": "Product Attribute", "reqd": 1, "in_list_view": 1},
+  {"fieldname": "attribute_label", "fieldtype": "Data", "label": "Etiket", "fetch_from": "attribute.attribute_label", "read_only": 1, "in_list_view": 1},
+  {"fieldname": "inherited_from", "fieldtype": "Select", "label": "Kaynak", "options": "Type\nFamily\nOverride", "default": "Family", "in_list_view": 1},
+  {"fieldname": "role", "fieldtype": "Select", "label": "Rol", "options": "Identifying\nDescriptive\nSpecification\nVariant Axis", "default": "Descriptive", "in_list_view": 1},
+  {"fieldname": "is_required", "fieldtype": "Check", "label": "Zorunlu", "default": "0", "in_list_view": 1},
+  {"fieldname": "default_value", "fieldtype": "Data", "label": "Varsayılan"},
+  {"fieldname": "display_order", "fieldtype": "Int", "label": "Sıra", "default": "0"}
+ ],
+ "permissions": [
+  {"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1},
+  {"role": "Seller", "read": 1, "write": 1, "create": 1, "delete": 1},
+  {"role": "Marketplace Seller", "read": 1, "write": 1, "create": 1, "delete": 1},
+  {"role": "All", "read": 1}
+ ]
+}

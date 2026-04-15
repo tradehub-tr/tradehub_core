@@ -7,6 +7,8 @@
   "attribute_type",
   "attribute_value",
   "variant_image",
+  "variant_gallery",
+  "variant_video_url",
   "variant_price",
   "variant_stock",
   "variant_sku"
@@ -33,7 +35,20 @@
    "fieldname": "variant_image",
    "fieldtype": "Attach Image",
    "in_list_view": 1,
-   "label": "Görsel"
+   "label": "Ana Görsel"
+  },
+  {
+   "fieldname": "variant_gallery",
+   "fieldtype": "Long Text",
+   "label": "Ek Görseller (JSON)",
+   "description": "Varyantın ek görsel URL'lerinin JSON array'i. Admin panelde otomatik yönetilir."
+  },
+  {
+   "fieldname": "variant_video_url",
+   "fieldtype": "Data",
+   "label": "Video URL",
+   "options": "URL",
+   "description": "YouTube, Vimeo veya MP4 URL — varyant seçilince bu video oynatılır (boş = ana ürün videosu)"
   },
   {
    "fieldname": "variant_price",
@@ -65,7 +80,12 @@
  "module": "Tradehub Core",
  "name": "Listing Variant Item",
  "owner": "Administrator",
- "permissions": [],
+ "permissions": [
+  {"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1},
+  {"role": "Seller", "read": 1, "write": 1, "create": 1, "delete": 1},
+  {"role": "Marketplace Seller", "read": 1, "write": 1, "create": 1, "delete": 1},
+  {"role": "All", "read": 1}
+ ],
  "sort_field": "idx",
  "sort_order": "ASC"
 }
