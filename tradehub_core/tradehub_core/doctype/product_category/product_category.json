@@ -20,10 +20,23 @@
 		"tab_description",
 		"sb_desc",
 		"description",
+		"tab_compliance",
+		"sb_compliance",
+		"age_restriction",
+		"kyc_level",
+		"hs_code",
+		"country_of_origin_required",
+		"column_break_comp",
+		"prohibited_regions",
+		"required_certifications",
 		"tab_seo",
 		"sb_seo",
 		"meta_title",
 		"meta_description",
+		"sb_sitemap",
+		"sitemap_priority",
+		"sitemap_changefreq",
+		"schema_type",
 		"lft",
 		"rgt",
 		"old_parent"
@@ -127,6 +140,82 @@
 			"fieldname": "meta_description",
 			"fieldtype": "Small Text",
 			"label": "Meta Description"
+		},
+		{
+			"fieldname": "tab_compliance",
+			"fieldtype": "Tab Break",
+			"label": "Uyum"
+		},
+		{
+			"fieldname": "sb_compliance",
+			"fieldtype": "Section Break",
+			"label": "Uyum Kuralları"
+		},
+		{
+			"fieldname": "age_restriction",
+			"fieldtype": "Int",
+			"label": "Yaş Kısıtı",
+			"description": "0 = kısıt yok, 18 = yetişkin ürünü"
+		},
+		{
+			"fieldname": "kyc_level",
+			"fieldtype": "Select",
+			"label": "Gerekli KYC Seviyesi",
+			"options": "None\nBasic\nVerified\nFull",
+			"default": "None"
+		},
+		{
+			"fieldname": "hs_code",
+			"fieldtype": "Data",
+			"label": "HS Kodu (GTIP)"
+		},
+		{
+			"fieldname": "country_of_origin_required",
+			"fieldtype": "Check",
+			"label": "Menşei Ülke Zorunlu",
+			"default": "0"
+		},
+		{
+			"fieldname": "column_break_comp",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "prohibited_regions",
+			"fieldtype": "Small Text",
+			"label": "Yasaklı Bölgeler",
+			"description": "Virgülle ayrılmış ülke kodu listesi"
+		},
+		{
+			"fieldname": "required_certifications",
+			"fieldtype": "Table",
+			"label": "Zorunlu Sertifikalar",
+			"options": "Product Category Required Certification"
+		},
+		{
+			"fieldname": "sb_sitemap",
+			"fieldtype": "Section Break",
+			"label": "Sitemap / Schema"
+		},
+		{
+			"fieldname": "sitemap_priority",
+			"fieldtype": "Float",
+			"label": "Sitemap Priority",
+			"default": "0.7",
+			"description": "0.0 - 1.0 arası"
+		},
+		{
+			"fieldname": "sitemap_changefreq",
+			"fieldtype": "Select",
+			"label": "Sitemap ChangeFreq",
+			"options": "always\nhourly\ndaily\nweekly\nmonthly\nyearly\nnever",
+			"default": "weekly"
+		},
+		{
+			"fieldname": "schema_type",
+			"fieldtype": "Select",
+			"label": "Schema.org Tipi",
+			"options": "CollectionPage\nCategoryPage\nProductGroup\nItemList",
+			"default": "CollectionPage"
 		},
 		{
 			"fieldname": "lft",

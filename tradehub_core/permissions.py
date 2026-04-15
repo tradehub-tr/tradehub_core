@@ -781,3 +781,198 @@ def search_history_has_permission(doc, ptype, user):
         return True
     doc_user = getattr(doc, "user", None) if not isinstance(doc, dict) else doc.get("user")
     return doc_user == user
+
+
+def product_family_query_conditions(user):
+    """
+    Satıcı sadece kendi oluşturduğu Product Family kayıtlarını görsün.
+    Admin hepsini görür.
+    """
+    roles = set(frappe.get_roles(user))
+    if "System Manager" in roles or "Marketplace Admin" in roles:
+        return ""
+    return f"`tabProduct Family`.`owner` = {frappe.db.escape(user)}"
+
+
+def product_family_has_permission(doc, ptype, user):
+    roles = set(frappe.get_roles(user))
+    if "System Manager" in roles or "Marketplace Admin" in roles:
+        return None
+    owner = getattr(doc, "owner", None) if not isinstance(doc, dict) else doc.get("owner")
+    if owner and owner == user:
+        return True
+    return False
+
+
+def product_attribute_query_conditions(user):
+    """
+    Satıcı sadece kendi oluşturduğu Product Attribute kayıtlarını görsün.
+    Admin hepsini görür.
+    """
+    roles = set(frappe.get_roles(user))
+    if "System Manager" in roles or "Marketplace Admin" in roles:
+        return ""
+    return f"`tabProduct Attribute`.`owner` = {frappe.db.escape(user)}"
+
+
+def product_attribute_has_permission(doc, ptype, user):
+    roles = set(frappe.get_roles(user))
+    if "System Manager" in roles or "Marketplace Admin" in roles:
+        return None
+    owner = getattr(doc, "owner", None) if not isinstance(doc, dict) else doc.get("owner")
+    if owner and owner == user:
+        return True
+    return False
+
+
+def brand_query_conditions(user):
+    """
+    Satıcı sadece aşağıdaki markaları listede görsün:
+      - Kendisinin önerdiği (suggested_by=user)
+      - brand_owner = kendi satıcı profili
+    Admin (System Manager / Marketplace Admin) hepsini görür.
+    """
+    roles = set(frappe.get_roles(user))
+    if "System Manager" in roles or "Marketplace Admin" in roles:
+        return ""
+
+    profile = _get_seller_profile_name(user)
+    conditions = [f"`tabBrand`.`suggested_by` = {frappe.db.escape(user)}"]
+    if profile:
+        conditions.append(f"`tabBrand`.`brand_owner` = {frappe.db.escape(profile)}")
+    return "(" + " OR ".join(conditions) + ")"
+
+
+def brand_has_permission(doc, ptype, user):
+    """
+    Satıcı sadece kendi önerdiği veya brand_owner'ı olduğu markayı görebilir/yazabilir.
+    Admin her şeyi yapar.
+
+    Not: brand_owner ve suggested_by alanları için DB'deki committed değere bakılır,
+    aksi halde satıcı brand_owner=None'a çekip save etmeye çalışınca hook False dönüp
+    validate aşamasına ulaşılamıyor.
+    """
+    roles = set(frappe.get_roles(user))
+    if "System Manager" in roles or "Marketplace Admin" in roles:
+        return None  # fall through to default (admin zaten yapabilir)
+
+    if ptype not in {"read", "write"}:
+        return None
+
+    doc_name = getattr(doc, "name", None) if not isinstance(doc, dict) else doc.get("name")
+
+    # Committed DB values take precedence over in-memory edits.
+    suggested_by = None
+    brand_owner = None
+    if doc_name:
+        row = frappe.db.get_value(
+            "Brand", doc_name, ["suggested_by", "brand_owner"], as_dict=True
+        )
+        if row:
+            suggested_by = row.get("suggested_by")
+            brand_owner = row.get("brand_owner")
+    else:
+        # New doc — fall back to in-memory
+        suggested_by = getattr(doc, "suggested_by", None) if not isinstance(doc, dict) else doc.get("suggested_by")
+        brand_owner = getattr(doc, "brand_owner", None) if not isinstance(doc, dict) else doc.get("brand_owner")
+
+    # Kendi önerdiği marka
+    if suggested_by and suggested_by == user:
+        return True
+
+    # Kendi brand_owner'ı olduğu marka — profile lookup'ı request-cache'le
+    if brand_owner:
+        owner_user = _brand_owner_user_cached(brand_owner)
+        if owner_user and owner_user == user:
+            return True
+
+    # Diğer markalara (başkasının önerdiği/sahip olduğu) erişim yok
+    return False
+
+
+def _brand_owner_user_cached(seller_profile):
+    """Request-scoped cache for Admin Seller Profile → user lookups."""
+    if not hasattr(frappe.local, "_brand_owner_cache"):
+        frappe.local._brand_owner_cache = {}
+    cache = frappe.local._brand_owner_cache
+    if seller_profile in cache:
+        return cache[seller_profile]
+    value = frappe.db.get_value("Admin Seller Profile", seller_profile, "user") or ""
+    cache[seller_profile] = value
+    return value
+# ── HD Ticket (Headless Helpdesk, marketplace routing) ─────────────────────
+# Erişim kuralları:
+#   - Full access: Administrator, System Manager, Support Manager, Agent Manager
+#   - Agent + HD Team üyesi (satıcı): sadece kendi team'lerinin ticket'ları
+#   - Agent (team'i yok): sadece Platform Support team'i
+#   - Müşteri / diğer: sadece kendi raised_by ticket'ları
+
+_HELPDESK_FULL_ACCESS_ROLES = frozenset({
+    "System Manager",
+    "Support Manager",
+    "Agent Manager",
+})
+
+_PLATFORM_SUPPORT_TEAM = "Platform Support"
+
+
+def _helpdesk_user_teams(user):
+    """User'in uyesi oldugu HD Team isimleri."""
+    if not user or user == "Guest":
+        return []
+    rows = frappe.get_all(
+        "HD Team Member",
+        filters={"user": user},
+        fields=["parent"],
+    )
+    return [r.parent for r in rows]
+
+
+def helpdesk_ticket_query_conditions(user):
+    if not user or user == "Guest":
+        return "1=0"
+    if user == "Administrator":
+        return ""
+
+    roles = set(frappe.get_roles(user))
+    if roles & _HELPDESK_FULL_ACCESS_ROLES:
+        return ""
+
+    escaped_user = frappe.db.escape(user)
+    own_clause = f"`tabHD Ticket`.`raised_by` = {escaped_user}"
+
+    # Agent: team ticket'lari + kendi acitigi ticket'lar (musteri olarak da açmış olabilir)
+    if "Agent" in roles:
+        teams = _helpdesk_user_teams(user)
+        if teams:
+            placeholders = ", ".join(frappe.db.escape(t) for t in teams)
+            team_clause = f"`tabHD Ticket`.`agent_group` IN ({placeholders})"
+        else:
+            team_clause = (
+                f"`tabHD Ticket`.`agent_group` = {frappe.db.escape(_PLATFORM_SUPPORT_TEAM)}"
+            )
+        return f"({team_clause} OR {own_clause})"
+
+    # Musteri / diger — sadece kendi acitigi ticket'lar
+    return own_clause
+
+
+def helpdesk_ticket_has_permission(doc, ptype, user):
+    if user == "Administrator":
+        return True
+    roles = set(frappe.get_roles(user))
+    if roles & _HELPDESK_FULL_ACCESS_ROLES:
+        return True
+
+    agent_group = getattr(doc, "agent_group", None) if not isinstance(doc, dict) else doc.get("agent_group")
+    raised_by = getattr(doc, "raised_by", None) if not isinstance(doc, dict) else doc.get("raised_by")
+
+    if "Agent" in roles:
+        teams = _helpdesk_user_teams(user)
+        if raised_by == user:
+            return True
+        if teams:
+            return agent_group in teams
+        return agent_group == _PLATFORM_SUPPORT_TEAM
+
+    return raised_by == user
