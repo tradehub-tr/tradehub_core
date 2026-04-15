@@ -88,6 +88,10 @@ doc_events = {
 		"on_update":    "tradehub_core.api.listing.recompute_seller_rating_proxy",
 		"on_trash":     "tradehub_core.api.listing.recompute_seller_rating_proxy",
 	},
+	# Admin Seller Profile aktiflesince helpdesk team + agent sync
+	"Admin Seller Profile": {
+		"on_update": "tradehub_core.utils.helpdesk_routing.on_admin_seller_profile_update",
+	},
 }
 
 # ---------------------------------------------------------------------------
@@ -108,6 +112,7 @@ permission_query_conditions = {
 	"Brand": "tradehub_core.permissions.brand_query_conditions",
 	"Product Family": "tradehub_core.permissions.product_family_query_conditions",
 	"Product Attribute": "tradehub_core.permissions.product_attribute_query_conditions",
+	"HD Ticket": "tradehub_core.permissions.helpdesk_ticket_query_conditions",
 }
 
 has_permission = {
@@ -125,4 +130,5 @@ has_permission = {
 	"Brand": "tradehub_core.permissions.brand_has_permission",
 	"Product Family": "tradehub_core.permissions.product_family_has_permission",
 	"Product Attribute": "tradehub_core.permissions.product_attribute_has_permission",
+	"HD Ticket": "tradehub_core.permissions.helpdesk_ticket_has_permission",
 }
