@@ -1,6 +1,6 @@
 {
  "charts": [],
- "content": "[]",
+ "content": "[{\"id\":\"hdr1\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Satıcı Yönetimi</b></span>\",\"col\":12}},{\"id\":\"sc01\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Satıcı Profili\",\"col\":3}},{\"id\":\"sc02\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Satıcı Mağazası\",\"col\":3}},{\"id\":\"sc03\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Başvurular\",\"col\":3}},{\"id\":\"sc04\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Bakiye\",\"col\":3}},{\"id\":\"hdr2\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Ürün ve Listeleme</b></span>\",\"col\":12}},{\"id\":\"sc05\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"İlanlar\",\"col\":3}},{\"id\":\"sc06\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"İlan Varyantları\",\"col\":3}},{\"id\":\"sc07\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Ürünler\",\"col\":3}},{\"id\":\"sc08\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Ürün Kategorileri\",\"col\":3}},{\"id\":\"hdr3\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Sipariş ve Müşteri</b></span>\",\"col\":12}},{\"id\":\"sc09\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Siparişler\",\"col\":3}},{\"id\":\"sc10\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Alıcı Profili\",\"col\":3}},{\"id\":\"sc11\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Sepet\",\"col\":3}},{\"id\":\"sc12\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Kuponlar\",\"col\":3}},{\"id\":\"hdr4\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>İletişim ve Değerlendirme</b></span>\",\"col\":12}},{\"id\":\"sc13\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Değerlendirmeler\",\"col\":3}},{\"id\":\"sc14\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Sorgular\",\"col\":3}},{\"id\":\"sc15\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Mesajlar\",\"col\":3}},{\"id\":\"sc16\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Kargo Yöntemleri\",\"col\":3}},{\"id\":\"hdr5\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Yönetim ve Ayarlar</b></span>\",\"col\":12}},{\"id\":\"sc17\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Satıcı Kategorileri\",\"col\":3}},{\"id\":\"sc18\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Tedarikçi Profili\",\"col\":3}},{\"id\":\"sc19\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Döviz Kurları\",\"col\":3}},{\"id\":\"sc20\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Admin Satıcı Profili\",\"col\":3}}]",
  "creation": "2024-01-01 00:00:00.000000",
  "developer_mode_only": 0,
  "disable_user_customization": 0,
@@ -11,7 +11,7 @@
  "is_default": 0,
  "is_standard": 1,
  "label": "Satıcı Paneli",
- "modified": "2024-01-01 00:00:00.000000",
+ "modified": "2026-03-26 17:30:00.000000",
  "modified_by": "Administrator",
  "module": "Tradehub Core",
  "name": "Tradehub Seller",
@@ -25,6 +25,27 @@
   {"role": "System Manager"}
  ],
  "sequence_id": 99,
- "shortcuts": [],
+ "shortcuts": [
+  {"color": "Grey", "doc_view": "", "format": "Card", "label": "Satıcı Profili", "link_to": "Seller Profile", "type": "DocType"},
+  {"color": "Grey", "doc_view": "", "format": "Card", "label": "Satıcı Mağazası", "link_to": "Seller Store", "type": "DocType"},
+  {"color": "Grey", "doc_view": "", "format": "Card", "label": "Başvurular", "link_to": "Seller Application", "type": "DocType"},
+  {"color": "Grey", "doc_view": "", "format": "Card", "label": "Bakiye", "link_to": "Seller Balance", "type": "DocType"},
+  {"color": "Grey", "doc_view": "", "format": "Card", "label": "İlanlar", "link_to": "Listing", "type": "DocType"},
+  {"color": "Grey", "doc_view": "", "format": "Card", "label": "İlan Varyantları", "link_to": "Listing Variant", "type": "DocType"},
+  {"color": "Grey", "doc_view": "", "format": "Card", "label": "Ürünler", "link_to": "Seller Product", "type": "DocType"},
+  {"color": "Grey", "doc_view": "", "format": "Card", "label": "Ürün Kategorileri", "link_to": "Product Category", "type": "DocType"},
+  {"color": "Grey", "doc_view": "", "format": "Card", "label": "Siparişler", "link_to": "Order", "type": "DocType"},
+  {"color": "Grey", "doc_view": "", "format": "Card", "label": "Alıcı Profili", "link_to": "Buyer Profile", "type": "DocType"},
+  {"color": "Grey", "doc_view": "", "format": "Card", "label": "Sepet", "link_to": "Cart", "type": "DocType"},
+  {"color": "Grey", "doc_view": "", "format": "Card", "label": "Kuponlar", "link_to": "Coupon", "type": "DocType"},
+  {"color": "Grey", "doc_view": "", "format": "Card", "label": "Değerlendirmeler", "link_to": "Seller Review", "type": "DocType"},
+  {"color": "Grey", "doc_view": "", "format": "Card", "label": "Sorgular", "link_to": "Seller Inquiry", "type": "DocType"},
+  {"color": "Grey", "doc_view": "", "format": "Card", "label": "Mesajlar", "link_to": "Seller Contact Message", "type": "DocType"},
+  {"color": "Grey", "doc_view": "", "format": "Card", "label": "Kargo Yöntemleri", "link_to": "Shipping Method", "type": "DocType"},
+  {"color": "Grey", "doc_view": "", "format": "Card", "label": "Satıcı Kategorileri", "link_to": "Seller Category", "type": "DocType"},
+  {"color": "Grey", "doc_view": "", "format": "Card", "label": "Tedarikçi Profili", "link_to": "Supplier Profile", "type": "DocType"},
+  {"color": "Grey", "doc_view": "", "format": "Card", "label": "Döviz Kurları", "link_to": "Currency Rate", "type": "DocType"},
+  {"color": "Grey", "doc_view": "", "format": "Card", "label": "Admin Satıcı Profili", "link_to": "Admin Seller Profile", "type": "DocType"}
+ ],
  "title": "Satıcı Paneli"
 }

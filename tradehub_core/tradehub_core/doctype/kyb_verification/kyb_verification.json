@@ -1,0 +1,239 @@
+{
+	"name": "KYB Verification",
+	"doctype": "DocType",
+	"module": "Tradehub Core",
+	"naming_rule": "Expression (old style)",
+	"autoname": "KYB-.#####",
+	"engine": "InnoDB",
+	"track_changes": 1,
+	"sort_field": "modified",
+	"sort_order": "DESC",
+	"title_field": "company_title",
+	"fields": [
+		{
+			"fieldname": "tab_account",
+			"fieldtype": "Tab Break",
+			"label": "Hesap"
+		},
+		{
+			"fieldname": "user",
+			"fieldtype": "Link",
+			"label": "User",
+			"options": "User",
+			"reqd": 1,
+			"search_index": 1,
+			"in_list_view": 1,
+			"permlevel": 1
+		},
+		{
+			"fieldname": "status",
+			"fieldtype": "Select",
+			"label": "Status",
+			"options": "Pending\nUnder Review\nVerified\nRejected\nExpired",
+			"default": "Pending",
+			"in_list_view": 1,
+			"in_standard_filter": 1,
+			"permlevel": 1
+		},
+		{
+			"fieldname": "cb_account",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "company_title",
+			"fieldtype": "Data",
+			"label": "Company Title",
+			"reqd": 1,
+			"in_list_view": 1
+		},
+		{
+			"fieldname": "business_type",
+			"fieldtype": "Select",
+			"label": "Business Type",
+			"options": "\nŞahıs\nLimited Şirket\nAnonim Şirket\nKollektif Şirket\nKooperatif\nDiğer",
+			"permlevel": 1
+		},
+		{
+			"fieldname": "authorized_person",
+			"fieldtype": "Data",
+			"label": "Authorized Person"
+		},
+		{
+			"fieldname": "tab_tax",
+			"fieldtype": "Tab Break",
+			"label": "Vergi Bilgileri"
+		},
+		{
+			"fieldname": "sb_tax",
+			"fieldtype": "Section Break",
+			"label": "Vergi"
+		},
+		{
+			"fieldname": "tax_id_type",
+			"fieldtype": "Select",
+			"label": "Tax ID Type",
+			"options": "\nTCKN\nVKN",
+			"permlevel": 1
+		},
+		{
+			"fieldname": "tax_id",
+			"fieldtype": "Data",
+			"permlevel": 1,
+			"label": "Tax ID"
+		},
+		{
+			"fieldname": "cb_tax",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "tax_office",
+			"fieldtype": "Data",
+			"label": "Tax Office",
+			"permlevel": 1
+		},
+		{
+			"fieldname": "trade_registry_number",
+			"fieldtype": "Data",
+			"label": "Trade Registry Number"
+		},
+		{
+			"fieldname": "tab_documents",
+			"fieldtype": "Tab Break",
+			"label": "Belgeler"
+		},
+		{
+			"fieldname": "sb_docs",
+			"fieldtype": "Section Break",
+			"label": "Yüklenen Belgeler"
+		},
+		{
+			"fieldname": "identity_document",
+			"fieldtype": "Attach",
+			"label": "Kimlik Belgesi"
+		},
+		{
+			"fieldname": "imza_sirkuleri",
+			"fieldtype": "Attach",
+			"label": "İmza Sirküleri"
+		},
+		{
+			"fieldname": "cb_docs",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "ticaret_sicil_gazetesi",
+			"fieldtype": "Attach",
+			"label": "Ticaret Sicil Gazetesi"
+		},
+		{
+			"fieldname": "faaliyet_belgesi",
+			"fieldtype": "Attach",
+			"label": "Faaliyet Belgesi"
+		},
+		{
+			"fieldname": "sb_docs2",
+			"fieldtype": "Section Break",
+			"label": "Ek Belgeler"
+		},
+		{
+			"fieldname": "vergi_levhasi",
+			"fieldtype": "Attach",
+			"label": "Vergi Levhası"
+		},
+		{
+			"fieldname": "document_expiry_date",
+			"fieldtype": "Date",
+			"label": "Document Expiry Date"
+		},
+		{
+			"fieldname": "tab_review",
+			"fieldtype": "Tab Break",
+			"label": "İnceleme"
+		},
+		{
+			"fieldname": "sb_review",
+			"fieldtype": "Section Break",
+			"label": "Doğrulama Bilgileri"
+		},
+		{
+			"fieldname": "verified_by",
+			"fieldtype": "Link",
+			"label": "Verified By",
+			"options": "User",
+			"read_only": 1,
+			"permlevel": 1
+		},
+		{
+			"fieldname": "verified_at",
+			"fieldtype": "Datetime",
+			"label": "Verified At",
+			"read_only": 1,
+			"permlevel": 1
+		},
+		{
+			"fieldname": "cb_review",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "rejection_reason",
+			"fieldtype": "Small Text",
+			"label": "Rejection Reason",
+			"permlevel": 1
+		},
+		{
+			"fieldname": "notes",
+			"fieldtype": "Small Text",
+			"label": "Notes",
+			"permlevel": 1
+		}
+	],
+	"permissions": [
+		{
+			"role": "System Manager",
+			"read": 1,
+			"write": 1,
+			"create": 1,
+			"delete": 1,
+			"report": 1,
+			"export": 1,
+			"permlevel": 0
+		},
+		{
+			"role": "System Manager",
+			"read": 1,
+			"write": 1,
+			"permlevel": 1
+		},
+		{
+			"role": "Marketplace Admin",
+			"read": 1,
+			"write": 1,
+			"report": 1,
+			"export": 1,
+			"permlevel": 0
+		},
+		{
+			"role": "Marketplace Admin",
+			"read": 1,
+			"write": 1,
+			"permlevel": 1
+		},
+		{
+			"role": "Seller",
+			"read": 1,
+			"write": 1,
+			"create": 1,
+			"if_owner": 1,
+			"permlevel": 0
+		},
+		{
+			"role": "Seller",
+			"read": 1,
+			"if_owner": 1,
+			"permlevel": 1
+		}
+	],
+	"actions": [],
+	"links": [],
+	"states": []
+}

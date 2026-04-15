@@ -16,6 +16,8 @@
   "listing_type",
   "category",
   "category_name",
+  "product_category",
+  "product_category_name",
   "brand",
   "condition",
   "description_tab",
@@ -28,7 +30,6 @@
   "base_price",
   "selling_price",
   "column_break_pricing",
-  "compare_at_price",
   "discount_percentage",
   "sample_price",
   "b2b_section",
@@ -42,6 +43,7 @@
   "column_break_inventory",
   "stock_uom",
   "min_order_qty",
+  "sell_in_moq_multiples",
   "max_order_qty",
   "low_stock_threshold",
   "track_inventory",
@@ -54,6 +56,8 @@
   "specs_tab",
   "specifications_section",
   "attribute_values",
+  "certifications_section",
+  "product_certifications",
   "variants_tab",
   "variants_section",
   "has_variants",
@@ -91,7 +95,6 @@
   "is_featured",
   "is_best_seller",
   "is_new_arrival",
-  "is_on_sale",
   "column_break_settings",
   "is_visible",
   "is_searchable",
@@ -175,6 +178,13 @@
    "reqd": 1
   },
   {
+   "depends_on": "eval:doc.status=='Rejected'",
+   "fieldname": "rejection_reason",
+   "fieldtype": "Small Text",
+   "label": "Red Sebebi",
+   "read_only": 1
+  },
+  {
    "default": "Fixed Price",
    "fieldname": "listing_type",
    "fieldtype": "Select",
@@ -194,6 +204,21 @@
    "fieldname": "category_name",
    "fieldtype": "Data",
    "label": "Category Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "product_category",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Platform Kategorisi",
+   "options": "Product Category",
+   "search_index": 1
+  },
+  {
+   "fetch_from": "product_category.category_name",
+   "fieldname": "product_category_name",
+   "fieldtype": "Data",
+   "label": "Platform Kategori Adı",
    "read_only": 1
   },
   {
@@ -250,7 +275,7 @@
   {
    "fieldname": "base_price",
    "fieldtype": "Currency",
-   "label": "Base Price",
+   "label": "Listeleme Fiyatı",
    "options": "currency",
    "reqd": 1
   },
@@ -265,12 +290,6 @@
   {
    "fieldname": "column_break_pricing",
    "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "compare_at_price",
-   "fieldtype": "Currency",
-   "label": "Compare at Price",
-   "options": "currency"
   },
   {
    "default": "0",
@@ -355,6 +374,13 @@
   },
   {
    "default": "0",
+   "description": "Açık olduğunda sipariş miktarı yalnızca Min Order Qty katlarında değişebilir (ör. MOQ=5 → 5, 10, 15).",
+   "fieldname": "sell_in_moq_multiples",
+   "fieldtype": "Check",
+   "label": "Sadece MOQ Katlarıyla Sat"
+  },
+  {
+   "default": "0",
    "fieldname": "max_order_qty",
    "fieldtype": "Int",
    "label": "Max Order Qty"
@@ -419,6 +445,17 @@
    "fieldtype": "Table",
    "label": "Specifications",
    "options": "Listing Attribute Value"
+  },
+  {
+   "fieldname": "certifications_section",
+   "fieldtype": "Section Break",
+   "label": "\u00dcr\u00fcn Sertifikalar\u0131"
+  },
+  {
+   "fieldname": "product_certifications",
+   "fieldtype": "Table",
+   "label": "\u00dcr\u00fcn Sertifikalar\u0131",
+   "options": "Listing Certification"
   },
   {
    "fieldname": "variants_tab",
@@ -629,12 +666,6 @@
    "fieldname": "is_new_arrival",
    "fieldtype": "Check",
    "label": "New Arrival"
-  },
-  {
-   "default": "0",
-   "fieldname": "is_on_sale",
-   "fieldtype": "Check",
-   "label": "On Sale"
   },
   {
    "fieldname": "column_break_settings",

@@ -1,0 +1,61 @@
+{
+	"actions": [],
+	"autoname": "hash",
+	"creation": "2026-04-13 00:00:00.000000",
+	"doctype": "DocType",
+	"engine": "InnoDB",
+	"field_order": [
+		"user",
+		"list_id",
+		"list_name"
+	],
+	"fields": [
+		{
+			"fieldname": "user",
+			"fieldtype": "Link",
+			"label": "User",
+			"options": "User",
+			"reqd": 1,
+			"in_standard_filter": 1
+		},
+		{
+			"fieldname": "list_id",
+			"fieldtype": "Data",
+			"label": "List ID (UUID)",
+			"reqd": 1
+		},
+		{
+			"fieldname": "list_name",
+			"fieldtype": "Data",
+			"label": "List Name",
+			"reqd": 1
+		}
+	],
+	"links": [],
+	"modified": "2026-04-13 00:00:00.000000",
+	"modified_by": "Administrator",
+	"module": "Tradehub Core",
+	"name": "Buyer Favorite List",
+	"naming_rule": "Random",
+	"owner": "Administrator",
+	"permissions": [
+		{
+			"create": 1,
+			"delete": 1,
+			"read": 1,
+			"role": "System Manager",
+			"write": 1
+		},
+		{
+			"create": 1,
+			"delete": 1,
+			"read": 1,
+			"role": "All",
+			"write": 1,
+			"if_owner": 1
+		}
+	],
+	"sort_field": "creation",
+	"sort_order": "DESC",
+	"track_changes": 0
+}

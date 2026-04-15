@@ -1,6 +1,8 @@
 import frappe
+from frappe import _
 from frappe.model.document import Document
 from frappe.utils import now_datetime, flt, cint
+from tradehub_core.utils.notify import notify
 import hashlib
 import time
 
@@ -45,8 +47,12 @@ class Listing(Document):
         # Satıcı: sadece onaylanmış listing'de izinli statüler arasında geçiş yapabilir
         old_status = frappe.db.get_value("Listing", self.name, "status") if not self.is_new() else "Pending"
         new_status = self.status
-        if old_status in ADMIN_ONLY_STATUSES:
-            # Henüz onaylanmamış — satıcı değiştiremez
+        if old_status == "Rejected":
+            # Reddedilmiş listing satıcı tarafından düzenlenip kaydedilince tekrar onaya gönderilir
+            self.status = "Pending"
+            self.rejection_reason = ""
+        elif old_status in ADMIN_ONLY_STATUSES:
+            # Pending/Draft — satıcı durum değiştiremez
             self.status = old_status
             if new_status != old_status:
                 frappe.throw(_("Bu listing henüz admin tarafından onaylanmamış. Durum değiştirilemez."))
@@ -56,6 +62,59 @@ class Listing(Document):
     def on_update(self):
         if self.status == "Active" and not self.published_at:
             self.db_set("published_at", now_datetime())
+        self._send_status_notifications()
+        self._check_stock_alerts()
+
+    def _send_status_notifications(self):
+        old = self.get_doc_before_save()
+        if not old or old.status == self.status:
+            return
+        seller_user = frappe.db.get_value("Admin Seller Profile", self.seller_profile, "user") if self.seller_profile else None
+        if not seller_user:
+            return
+
+        title_text = self.title or self.listing_code or self.name
+        if self.status == "Active" and old.status == "Pending":
+            notify(
+                recipient_user=seller_user,
+                recipient_role="seller",
+                type="listing",
+                title=_("Ürün Onaylandı"),
+                message=_("{0} ürününüz yayına alındı.").format(title_text),
+                action_url=f"/app/listing/{self.name}",
+                reference_doctype="Listing",
+                reference_name=self.name,
+            )
+        elif self.status == "Rejected":
+            reason = self.rejection_reason or ""
+            notify(
+                recipient_user=seller_user,
+                recipient_role="seller",
+                type="listing",
+                title=_("Ürün Reddedildi"),
+                message=_("{0} ürününüz reddedildi. {1}").format(title_text, reason),
+                action_url=f"/app/listing/{self.name}",
+                reference_doctype="Listing",
+                reference_name=self.name,
+            )
+
+    def _check_stock_alerts(self):
+        """Stok değişikliğinde satıcıya düşük stok veya stok tükendi bildirimi gönder.
+        Manuel kayıt (form save) sırasında çalışır.
+        Programmatic stok değişiklikleri stock.py üzerinden _send_stock_alert_if_needed ile yapılır.
+        """
+        if not self.track_inventory or self.status != "Active":
+            return
+        old = self.get_doc_before_save()
+        if not old:
+            return
+        old_available = max(0, flt(old.stock_qty) - flt(old.reserved_qty))
+        new_available = flt(self.available_qty)
+        if old_available == new_available:
+            return
+
+        from tradehub_core.utils.stock import _send_stock_alert_if_needed
+        _send_stock_alert_if_needed(self.name, self, old_available, new_available)
 
     def generate_listing_code(self):
         hash_input = f"{self.title}-{time.time()}"
@@ -65,20 +124,25 @@ class Listing(Document):
         self.available_qty = max(0, flt(self.stock_qty) - flt(self.reserved_qty))
 
     def validate_pricing(self):
+        """Enforce the only hard rule on pricing fields: selling cannot exceed
+        listing.
+
+        The seller's day-to-day price (selling_price) is never auto-overwritten
+        by the system. discount_percentage is purely a campaign trigger:
+
+          - dp = 0  → no campaign, listing is not in Top Deals
+          - dp > 0  → campaign active. The "campaign price" the customer sees
+                      is selling_price × (1 − dp/100), computed at *display
+                      time only* (see _format_listing_card in api/listing.py).
+                      selling_price itself stays untouched, so when the seller
+                      ends the campaign by setting dp back to 0, their normal
+                      price is automatically restored on the storefront.
+        """
+        listing_price = flt(self.base_price)
         selling_price = flt(self.selling_price)
-        base_price = flt(self.base_price)
-        compare_at_price = flt(self.compare_at_price)
-        if selling_price and base_price:
-            if selling_price > base_price:
-                frappe.throw("Selling price cannot be greater than base price")
-        if compare_at_price and selling_price:
-            if compare_at_price < selling_price:
-                frappe.throw("Compare at price must be >= selling price")
-        if not (flt(self.discount_percentage) and base_price and selling_price):
-            if compare_at_price and selling_price and compare_at_price > 0:
-                self.discount_percentage = round(
-                    ((compare_at_price - selling_price) / compare_at_price) * 100, 2
-                )
+
+        if listing_price and selling_price and selling_price > listing_price:
+            frappe.throw(_("Satış fiyatı Listeleme fiyatından büyük olamaz"))
 
     def validate_pricing_tiers(self):
         if not self.b2b_enabled or not self.pricing_tiers:

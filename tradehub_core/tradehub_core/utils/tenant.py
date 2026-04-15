@@ -79,6 +79,8 @@ TENANT_EXEMPT_DOCTYPES = frozenset([
     "Email Queue",
     "Email Template",
     "Notification",
+    # Site geneli tema ayarları — tenant izolasyonundan muaf (Single)
+    "Tradehub Theme Settings",
 ])
 
 # Local context storage for tenant information during request lifecycle

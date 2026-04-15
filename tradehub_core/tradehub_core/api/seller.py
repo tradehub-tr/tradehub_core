@@ -73,6 +73,87 @@ def get_reviews(seller_code, page=1, page_size=10):
     return {"reviews": reviews, "total": total}
 
 @frappe.whitelist(allow_guest=True)
+def get_storefront_layout(seller_code):
+    seller = frappe.db.get_value(
+        "Seller Profile", {"seller_code": seller_code, "status": "Active"}, "name"
+    )
+    if not seller:
+        frappe.throw(_("Satici bulunamadi"), frappe.DoesNotExistError)
+
+    layout = frappe.db.get_value(
+        "Storefront Layout",
+        {"seller_profile": seller, "is_published": 1},
+        ["sections", "theme_config"],
+        as_dict=True
+    )
+    if not layout:
+        from tradehub_core.tradehub_core.doctype.storefront_layout.storefront_layout import (
+            DEFAULT_SECTIONS, DEFAULT_THEME
+        )
+        return {"sections": DEFAULT_SECTIONS, "theme": DEFAULT_THEME}
+
+    import json
+    sections = layout.get("sections") or "[]"
+    theme = layout.get("theme_config") or "{}"
+    return {
+        "sections": json.loads(sections) if isinstance(sections, str) else sections,
+        "theme": json.loads(theme) if isinstance(theme, str) else theme,
+    }
+
+
+@frappe.whitelist()
+def save_storefront_layout(seller_code, sections, theme_config=None):
+    import json
+
+    seller = frappe.db.get_value(
+        "Seller Profile", {"seller_code": seller_code, "status": "Active"},
+        ["name", "user"], as_dict=True
+    )
+    if not seller:
+        frappe.throw(_("Satici bulunamadi"), frappe.DoesNotExistError)
+
+    if frappe.session.user != seller.user and "Marketplace Admin" not in frappe.get_roles():
+        frappe.throw(_("Bu islem icin yetkiniz yok"), frappe.PermissionError)
+
+    existing = frappe.db.get_value("Storefront Layout", {"seller_profile": seller.name}, "name")
+
+    if existing:
+        doc = frappe.get_doc("Storefront Layout", existing)
+    else:
+        doc = frappe.new_doc("Storefront Layout")
+        doc.seller_profile = seller.name
+
+    doc.sections = sections if isinstance(sections, str) else json.dumps(sections)
+    if theme_config:
+        doc.theme_config = theme_config if isinstance(theme_config, str) else json.dumps(theme_config)
+
+    doc.save(ignore_permissions=True)
+    frappe.db.commit()
+    return {"success": True, "name": doc.name}
+
+
+@frappe.whitelist()
+def publish_storefront_layout(seller_code, publish=1):
+    seller = frappe.db.get_value(
+        "Seller Profile", {"seller_code": seller_code, "status": "Active"},
+        ["name", "user"], as_dict=True
+    )
+    if not seller:
+        frappe.throw(_("Satici bulunamadi"), frappe.DoesNotExistError)
+
+    if frappe.session.user != seller.user and "Marketplace Admin" not in frappe.get_roles():
+        frappe.throw(_("Bu islem icin yetkiniz yok"), frappe.PermissionError)
+
+    existing = frappe.db.get_value("Storefront Layout", {"seller_profile": seller.name}, "name")
+    if not existing:
+        frappe.throw(_("Henuz bir sayfa duzeni olusturulmamis"), frappe.DoesNotExistError)
+
+    frappe.db.set_value("Storefront Layout", existing, "is_published", int(publish))
+    frappe.db.commit()
+    return {"success": True}
+
+
+@frappe.whitelist(allow_guest=True)
 def send_inquiry(seller_code, message, share_business_card=0):
     seller = frappe.db.get_value(
         "Seller Profile", {"seller_code": seller_code, "status": "Active"},

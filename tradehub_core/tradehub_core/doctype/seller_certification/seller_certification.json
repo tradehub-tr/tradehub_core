@@ -1,0 +1,42 @@
+{
+ "name": "Seller Certification",
+ "module": "Tradehub Core",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "istable": 1,
+ "editable_grid": 1,
+ "track_changes": 0,
+ "fields": [
+  {
+   "fieldname": "certification_type",
+   "fieldtype": "Link",
+   "label": "Sertifika",
+   "options": "Certification Type",
+   "reqd": 1,
+   "in_list_view": 1,
+   "link_filters": "[[\"Certification Type\",\"status\",\"=\",\"Approved\"]]"
+  },
+  {
+   "fieldname": "category",
+   "fieldtype": "Data",
+   "label": "Kategori",
+   "fetch_from": "certification_type.category",
+   "read_only": 1,
+   "hidden": 1,
+   "in_list_view": 0
+  },
+  {
+   "fieldname": "issued_date",
+   "fieldtype": "Date",
+   "label": "Verilme Tarihi",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "expiry_date",
+   "fieldtype": "Date",
+   "label": "Biti\u015f Tarihi",
+   "in_list_view": 1
+  }
+ ],
+ "permissions": []
+}

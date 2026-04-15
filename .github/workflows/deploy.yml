@@ -1,0 +1,349 @@
+name: Deploy to Frappe Cloud
+
+on:
+  workflow_run:
+    workflows: ["RC Release", "Prod Release"]
+    types:
+      - completed
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+      - name: Frappe Cloud release bekleniyor
+        run: |
+          echo "Tetikleyen workflow: ${{ github.event.workflow_run.name }}"
+          echo "Branch: ${{ github.event.workflow_run.head_branch }}"
+          echo "Frappe Cloud'un yeni release'i algilamasi icin 60 saniye bekleniyor..."
+          sleep 60
+
+      - name: Frappe Press - Deploy & Site Update
+        env:
+          FRAPPE_API_KEY: ${{ secrets.FRAPPE_API_KEY }}
+          FRAPPE_API_SECRET: ${{ secrets.FRAPPE_API_SECRET }}
+        run: |
+          set -e
+
+          # --- AYARLAR ---
+          BASE_URL="https://press.cronbi.com/api/method"
+          BENCH_NAME="bench-0001"
+          APP_SOURCE="SRC-tradehub_core-004"
+          SITE_NAME="rcistoc.cronbi.com"
+          SITE_SERVER="apphtznr.cronbi.com"
+          AUTH_H="Authorization: token $FRAPPE_API_KEY:$FRAPPE_API_SECRET"
+
+          MAX_DEPLOY_WAIT=600
+          MAX_UPDATE_WAIT=300
+          POLL_INTERVAL=15
+
+          log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1"; }
+
+          # --- API YARDIMCI FONKSIYONLAR ---
+          api_get() {
+            curl -s -L -X GET "$BASE_URL/$1" -H "$AUTH_H" -H "Content-Type: application/json"
+          }
+          api_post() {
+            curl -s -L -X POST "$BASE_URL/$1" -H "$AUTH_H" -H "Content-Type: application/json" -d "$2"
+          }
+
+          # --- BEKLEYEN UPDATE KONTROLU ---
+          wait_for_pending_update() {
+            log "Bekleyen site update kontrol ediliyor..."
+            PENDING_UPDATE=$(api_get "frappe.client.get_list?doctype=Site+Update&filters=%5B%5B%22site%22%2C%22%3D%22%2C%22$SITE_NAME%22%5D%2C%5B%22status%22%2C%22in%22%2C%5B%22Pending%22%2C%22Running%22%5D%5D%5D&fields=%5B%22name%22%2C%22status%22%5D&order_by=creation+desc&limit_page_length=1" \
+              | python3 -c "import sys,json; d=json.load(sys.stdin)['message']; print(d[0]['name'] if d else '')" 2>/dev/null)
+
+            if [ -n "$PENDING_UPDATE" ]; then
+              log "Bekleyen update bulundu: $PENDING_UPDATE - tamamlanmasi bekleniyor..."
+              WAITED=0
+              while [ $WAITED -lt $MAX_UPDATE_WAIT ]; do
+                sleep $POLL_INTERVAL
+                WAITED=$((WAITED + POLL_INTERVAL))
+                STATUS=$(api_get "frappe.client.get?doctype=Site+Update&name=$PENDING_UPDATE&fields=%5B%22name%22%2C%22status%22%5D" \
+                  | python3 -c "import sys,json; print(json.load(sys.stdin).get('message',{}).get('status',''))" 2>/dev/null)
+                log "  Update durumu: $STATUS (${WAITED}s)"
+                case "$STATUS" in
+                  "Success") log "[OK] Bekleyen update tamamlandi!"; return 0 ;;
+                  "Failure"|"Fatal") log "[HATA] Bekleyen update basarisiz: $STATUS"; return 1 ;;
+                esac
+              done
+              log "[UYARI] Update zaman asimi - devam ediliyor..."
+            fi
+            return 0
+          }
+
+          # --- BENCH DEPLOY BEKLEME ---
+          wait_for_bench_active() {
+            local BENCH_TO_CHECK="$1"
+            log "Bench aktif olmasi bekleniyor: $BENCH_TO_CHECK (maks ${MAX_DEPLOY_WAIT}s)..."
+            WAITED=0
+            while [ $WAITED -lt $MAX_DEPLOY_WAIT ]; do
+              sleep $POLL_INTERVAL
+              WAITED=$((WAITED + POLL_INTERVAL))
+              BENCH_STATUS=$(api_get "frappe.client.get?doctype=Bench&name=$BENCH_TO_CHECK" \
+                | python3 -c "import sys,json; print(json.load(sys.stdin).get('message',{}).get('status',''))" 2>/dev/null)
+              log "  Bench durumu: $BENCH_STATUS (${WAITED}s)"
+              case "$BENCH_STATUS" in
+                "Active") log "[OK] Bench aktif!"; return 0 ;;
+                "Broken"|"Archived") log "[HATA] Bench basarisiz: $BENCH_STATUS"; return 1 ;;
+              esac
+            done
+            log "[HATA] Bench deploy zaman asimi!"
+            return 1
+          }
+
+          # --- SITE UPDATE BEKLEME ---
+          wait_for_site_update() {
+            local UPDATE_ID="$1"
+            log "Site update bekleniyor: $UPDATE_ID (maks ${MAX_UPDATE_WAIT}s)..."
+            WAITED=0
+            while [ $WAITED -lt $MAX_UPDATE_WAIT ]; do
+              sleep $POLL_INTERVAL
+              WAITED=$((WAITED + POLL_INTERVAL))
+              STATUS=$(api_get "frappe.client.get?doctype=Site+Update&name=$UPDATE_ID&fields=%5B%22name%22%2C%22status%22%5D" \
+                | python3 -c "import sys,json; print(json.load(sys.stdin).get('message',{}).get('status',''))" 2>/dev/null)
+              log "  Site update durumu: $STATUS (${WAITED}s)"
+              case "$STATUS" in
+                "Success") log "[OK] Site basariyla guncellendi!"; return 0 ;;
+                "Failure"|"Fatal"|"Recovered") log "[HATA] Site update basarisiz: $STATUS"; return 1 ;;
+              esac
+            done
+            log "[UYARI] Site update hala devam ediyor. Manuel kontrol edin."
+            return 0
+          }
+
+          # =============================================================
+          # ANA AKIS
+          # =============================================================
+          log "========================================="
+          log "Frappe Press CI/CD Basliyor..."
+          log "========================================="
+
+          # 0. Bekleyen update varsa bitene kadar bekle
+          wait_for_pending_update || exit 1
+
+          # 1. Site icin guncelleme kontrolu
+          log "Adim 1: $SITE_NAME icin guncelleme kontrol ediliyor..."
+          UPDATE_CHECK=$(api_get "press.api.site.check_for_updates?name=$SITE_NAME")
+
+          SITE_UPDATE_AVAILABLE=$(echo "$UPDATE_CHECK" | python3 -c "
+          import sys, json
+          data = json.load(sys.stdin)
+          print(data.get('message', {}).get('update_available', False))
+          " 2>/dev/null)
+
+          # Hangi uygulamalarin guncellemesi var
+          echo "$UPDATE_CHECK" | python3 -c "
+          import sys, json
+          data = json.load(sys.stdin)
+          apps = data.get('message', {}).get('apps', [])
+          for app in apps:
+            status = 'GUNCELLEME MEVCUT' if app.get('update_available') else 'guncel'
+            print(f\"  {app['app']}: {app['current_hash'][:7]} -> {app['next_hash'][:7]} [{status}]\")
+          " 2>/dev/null
+
+          if [ "$SITE_UPDATE_AVAILABLE" = "True" ]; then
+            # ==========================================================
+            # YOL A: Bench hazir, sadece site update (Pull + Migrate)
+            # ==========================================================
+            log "[OK] Site icin guncelleme mevcut!"
+            log "Adim 2: Site guncelleniyor (Update Now)..."
+
+            UPDATE_RESPONSE=$(api_post "press.api.site.update" \
+              "{\"name\": \"$SITE_NAME\", \"skip_failing_patches\": false, \"skip_backups\": false}")
+
+            UPDATE_ID=$(echo "$UPDATE_RESPONSE" | python3 -c "
+          import sys, json
+          data = json.load(sys.stdin)
+          if 'exc_type' in data: print('')
+          else: print(data.get('message', ''))
+          " 2>/dev/null)
+
+            if [ -n "$UPDATE_ID" ]; then
+              log "[OK] Site update tetiklendi! ID: $UPDATE_ID"
+              wait_for_site_update "$UPDATE_ID"
+            else
+              log "[HATA] Site update tetiklenemedi!"
+              log "Yanit: $(echo "$UPDATE_RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('_server_messages',''))" 2>/dev/null)"
+              exit 1
+            fi
+
+          else
+            # ==========================================================
+            # YOL B: Yeni bench yok, deploy + site update gerekli
+            # ==========================================================
+            log "Site'ta bekleyen guncelleme yok. Yeni release kontrol ediliyor..."
+
+            # En son release'i bul
+            LATEST_RELEASE_RESPONSE=$(api_get "frappe.client.get_list?doctype=App+Release&filters=%5B%5B%22source%22%2C%22%3D%22%2C%22$APP_SOURCE%22%5D%5D&fields=%5B%22name%22%2C%22hash%22%5D&order_by=creation+desc&limit_page_length=1")
+            LATEST_RELEASE=$(echo "$LATEST_RELEASE_RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin)['message'][0]['name'])" 2>/dev/null)
+            LATEST_HASH=$(echo "$LATEST_RELEASE_RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin)['message'][0]['hash'])" 2>/dev/null)
+
+            if [ -z "$LATEST_RELEASE" ]; then
+              log "[HATA] Release bulunamadi!"
+              exit 1
+            fi
+            log "En son release: $LATEST_RELEASE (hash: ${LATEST_HASH:0:7})"
+
+            # Mevcut hash'i bul
+            CURRENT_HASH=$(echo "$UPDATE_CHECK" | python3 -c "
+          import sys, json
+          data = json.load(sys.stdin).get('message', {})
+          apps = data.get('apps', [])
+          for app in apps:
+            if app['app'] == 'tradehub_core':
+              print(app.get('current_hash', '')[:7])
+              break
+          " 2>/dev/null)
+
+            if [ -z "$CURRENT_HASH" ]; then
+              SITE_BENCH=$(api_get "frappe.client.get?doctype=Site&name=$SITE_NAME&fields=%5B%22bench%22%5D" \
+                | python3 -c "import sys,json; print(json.load(sys.stdin).get('message',{}).get('bench',''))" 2>/dev/null)
+              if [ -n "$SITE_BENCH" ]; then
+                BENCH_CANDIDATE=$(api_get "frappe.client.get?doctype=Bench&name=$SITE_BENCH" \
+                  | python3 -c "import sys,json; print(json.load(sys.stdin).get('message',{}).get('candidate',''))" 2>/dev/null)
+                if [ -n "$BENCH_CANDIDATE" ]; then
+                  CURRENT_HASH=$(api_get "frappe.client.get?doctype=Deploy+Candidate&name=$BENCH_CANDIDATE" \
+                    | python3 -c "
+          import sys, json
+          for app in json.load(sys.stdin).get('message',{}).get('apps',[]):
+            if app.get('app') == 'tradehub_core':
+              print(app.get('hash','')[:7]); break
+          " 2>/dev/null)
+                fi
+              fi
+              log "Site bench: $SITE_BENCH (candidate: $BENCH_CANDIDATE)"
+            fi
+
+            log "Mevcut hash: $CURRENT_HASH / En son hash: ${LATEST_HASH:0:7}"
+
+            if [ "${LATEST_HASH:0:7}" = "$CURRENT_HASH" ]; then
+              log "[OK] Zaten en son surumde! Islem gerekmiyor."
+              exit 0
+            fi
+
+            # Aktif bench bul
+            ACTIVE_BENCH=$(api_get "frappe.client.get_list?doctype=Bench&filters=%5B%5B%22group%22%2C%22%3D%22%2C%22$BENCH_NAME%22%5D%2C%5B%22status%22%2C%22%3D%22%2C%22Active%22%5D%5D&fields=%5B%22name%22%5D&order_by=creation+desc&limit_page_length=1" \
+              | python3 -c "import sys,json; print(json.load(sys.stdin)['message'][0]['name'])" 2>/dev/null)
+            [ -z "$ACTIVE_BENCH" ] && ACTIVE_BENCH="$BENCH_NAME"
+            log "Aktif bench: $ACTIVE_BENCH"
+
+            # Deploy and Update
+            log "Adim 3: Deploy and Update baslatiliyor..."
+            DEPLOY_RESPONSE=$(api_post "press.api.bench.deploy_and_update" "{
+              \"name\": \"$BENCH_NAME\",
+              \"apps\": [{
+                \"app\": \"tradehub_core\",
+                \"source\": \"$APP_SOURCE\",
+                \"release\": \"$LATEST_RELEASE\",
+                \"hash\": \"$LATEST_HASH\"
+              }],
+              \"sites\": [{
+                \"name\": \"$SITE_NAME\",
+                \"server\": \"$SITE_SERVER\",
+                \"bench\": \"$ACTIVE_BENCH\",
+                \"skip_failing_patches\": false,
+                \"skip_backups\": false
+              }],
+              \"run_will_fail_check\": true
+            }")
+
+            DEPLOY_ID=$(echo "$DEPLOY_RESPONSE" | python3 -c "
+          import sys, json
+          data = json.load(sys.stdin)
+          if 'exc_type' in data: print('')
+          else: print(data.get('message', ''))
+          " 2>/dev/null)
+
+            if [ -z "$DEPLOY_ID" ]; then
+              log "[HATA] Deploy basarisiz!"
+              log "Yanit: $(echo "$DEPLOY_RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('_server_messages',''))" 2>/dev/null)"
+              exit 1
+            fi
+            log "[OK] Deploy baslatildi! Build ID: $DEPLOY_ID"
+
+            # Yeni bench'in olusmasini bekle (eski bench'ten farkli olmali)
+            log "Yeni bench bekleniyor (mevcut: $ACTIVE_BENCH)..."
+            NEW_BENCH=""
+            WAITED=0
+            while [ $WAITED -lt 180 ]; do
+              sleep 10
+              WAITED=$((WAITED + 10))
+              NEW_BENCH=$(api_get "frappe.client.get_list?doctype=Bench&filters=%5B%5B%22group%22%2C%22%3D%22%2C%22$BENCH_NAME%22%5D%5D&fields=%5B%22name%22%5D&order_by=creation+desc&limit_page_length=1" \
+                | python3 -c "import sys,json; print(json.load(sys.stdin)['message'][0]['name'])" 2>/dev/null)
+              if [ -n "$NEW_BENCH" ] && [ "$NEW_BENCH" != "$ACTIVE_BENCH" ]; then
+                log "Yeni bench bulundu: $NEW_BENCH (${WAITED}s)"
+                break
+              fi
+              log "  Yeni bench henuz olusturulmadi (${WAITED}s)..."
+            done
+
+            if [ -z "$NEW_BENCH" ] || [ "$NEW_BENCH" = "$ACTIVE_BENCH" ]; then
+              NEW_BENCH="$ACTIVE_BENCH"
+              log "[UYARI] Yeni bench olusturulmadi, mevcut bench kullaniliyor: $NEW_BENCH"
+            fi
+
+            wait_for_bench_active "$NEW_BENCH" || exit 1
+
+            # Bench aktif olduktan sonra site update bekle/tetikle
+            log "Adim 4: Site update bekleniyor..."
+            sleep 15
+
+            # Bekleyen update'i bul
+            PENDING_ID=$(api_get "frappe.client.get_list?doctype=Site+Update&filters=%5B%5B%22site%22%2C%22%3D%22%2C%22$SITE_NAME%22%5D%2C%5B%22status%22%2C%22in%22%2C%5B%22Pending%22%2C%22Running%22%5D%5D%5D&fields=%5B%22name%22%5D&order_by=creation+desc&limit_page_length=1" \
+              | python3 -c "import sys,json; d=json.load(sys.stdin)['message']; print(d[0]['name'] if d else '')" 2>/dev/null)
+
+            if [ -n "$PENDING_ID" ]; then
+              wait_for_site_update "$PENDING_ID"
+            else
+              # deploy_and_update otomatik olusturmadiysa, polling ile kontrol et ve manuel tetikle
+              log "Otomatik site update bulunamadi, kontrol ediliyor..."
+              SITE_UPDATE_DONE=false
+              RETRY=0
+              while [ $RETRY -lt 6 ]; do
+                sleep 15
+                RETRY=$((RETRY + 1))
+
+                # Tekrar pending update kontrol et
+                PENDING_ID=$(api_get "frappe.client.get_list?doctype=Site+Update&filters=%5B%5B%22site%22%2C%22%3D%22%2C%22$SITE_NAME%22%5D%2C%5B%22status%22%2C%22in%22%2C%5B%22Pending%22%2C%22Running%22%5D%5D%5D&fields=%5B%22name%22%5D&order_by=creation+desc&limit_page_length=1" \
+                  | python3 -c "import sys,json; d=json.load(sys.stdin)['message']; print(d[0]['name'] if d else '')" 2>/dev/null)
+                if [ -n "$PENDING_ID" ]; then
+                  wait_for_site_update "$PENDING_ID"
+                  SITE_UPDATE_DONE=true
+                  break
+                fi
+
+                # check_for_updates ile kontrol et
+                RECHECK=$(api_get "press.api.site.check_for_updates?name=$SITE_NAME" \
+                  | python3 -c "import sys,json; print(json.load(sys.stdin).get('message',{}).get('update_available',False))" 2>/dev/null)
+
+                if [ "$RECHECK" = "True" ]; then
+                  log "Site update tetikleniyor..."
+                  UPDATE_RESPONSE=$(api_post "press.api.site.update" \
+                    "{\"name\": \"$SITE_NAME\", \"skip_failing_patches\": false, \"skip_backups\": false}")
+                  UPDATE_ID=$(echo "$UPDATE_RESPONSE" | python3 -c "
+          import sys,json; d=json.load(sys.stdin)
+          if 'exc_type' not in d: print(d.get('message',''))
+          else: print('')
+          " 2>/dev/null)
+                  if [ -n "$UPDATE_ID" ]; then
+                    wait_for_site_update "$UPDATE_ID"
+                    SITE_UPDATE_DONE=true
+                  fi
+                  break
+                fi
+                log "  Henuz update yok, tekrar deneniyor ($RETRY/6)..."
+              done
+
+              if [ "$SITE_UPDATE_DONE" != "true" ]; then
+                log "[UYARI] Site update otomatik tetiklenemedi. Frappe Cloud panelinden kontrol edin."
+              fi
+            fi
+          fi
+
+          log "========================================="
+          log "CI/CD sureci tamamlandi!"
+          log "Panel: https://press.cronbi.com/dashboard/sites/$SITE_NAME/overview"
+          log "========================================="

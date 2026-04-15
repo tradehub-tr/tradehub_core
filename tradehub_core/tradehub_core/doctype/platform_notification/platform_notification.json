@@ -1,0 +1,167 @@
+{
+ "actions": [],
+ "autoname": "naming_series:",
+ "creation": "2026-04-08 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "recipient_user",
+  "recipient_role",
+  "type",
+  "title",
+  "message",
+  "action_url",
+  "is_read",
+  "read_at",
+  "section_reference",
+  "reference_doctype",
+  "reference_name",
+  "section_delivery",
+  "channel",
+  "email_sent"
+ ],
+ "fields": [
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Naming Series",
+   "options": "NOTIF-.YYYY.-.#####",
+   "default": "NOTIF-.YYYY.-.#####"
+  },
+  {
+   "fieldname": "recipient_user",
+   "fieldtype": "Link",
+   "label": "Alıcı Kullanıcı",
+   "options": "User",
+   "reqd": 1,
+   "in_list_view": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "recipient_role",
+   "fieldtype": "Select",
+   "label": "Alıcı Rol",
+   "options": "\nbuyer\nseller\nadmin",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "type",
+   "fieldtype": "Select",
+   "label": "Tip",
+   "options": "\norder\nrfq\nlisting\nstock\nreview\ndispute\nsystem\npromo",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_filter": 1
+  },
+  {
+   "fieldname": "title",
+   "fieldtype": "Data",
+   "label": "Başlık",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "message",
+   "fieldtype": "Small Text",
+   "label": "Mesaj",
+   "reqd": 1
+  },
+  {
+   "fieldname": "action_url",
+   "fieldtype": "Data",
+   "label": "Aksiyon URL"
+  },
+  {
+   "fieldname": "is_read",
+   "fieldtype": "Check",
+   "label": "Okundu",
+   "default": "0",
+   "in_list_view": 1,
+   "in_filter": 1
+  },
+  {
+   "fieldname": "read_at",
+   "fieldtype": "Datetime",
+   "label": "Okunma Zamanı",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_reference",
+   "fieldtype": "Section Break",
+   "label": "Referans"
+  },
+  {
+   "fieldname": "reference_doctype",
+   "fieldtype": "Data",
+   "label": "Referans DocType"
+  },
+  {
+   "fieldname": "reference_name",
+   "fieldtype": "Data",
+   "label": "Referans Kayıt"
+  },
+  {
+   "fieldname": "section_delivery",
+   "fieldtype": "Section Break",
+   "label": "İletim"
+  },
+  {
+   "fieldname": "channel",
+   "fieldtype": "Select",
+   "label": "Kanal",
+   "options": "in_app\nemail\nsms",
+   "default": "in_app"
+  },
+  {
+   "fieldname": "email_sent",
+   "fieldtype": "Check",
+   "label": "E-posta Gönderildi",
+   "default": "0",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "in_create": 0,
+ "links": [],
+ "modified": "2026-04-08 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "Platform Notification",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 0,
+   "export": 1,
+   "print": 0,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 0,
+   "write": 1
+  },
+  {
+   "create": 0,
+   "delete": 0,
+   "read": 1,
+   "role": "Marketplace Buyer",
+   "write": 1,
+   "if_owner": 1
+  },
+  {
+   "create": 0,
+   "delete": 0,
+   "read": 1,
+   "role": "Marketplace Seller",
+   "write": 1,
+   "if_owner": 1
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0
+}

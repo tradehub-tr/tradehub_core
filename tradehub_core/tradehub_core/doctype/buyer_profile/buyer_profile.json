@@ -10,6 +10,16 @@
 	"sort_order": "DESC",
 	"fields": [
 		{
+			"fieldname": "tab_account",
+			"fieldtype": "Tab Break",
+			"label": "Temel Bilgiler"
+		},
+		{
+			"fieldname": "avatar",
+			"fieldtype": "Attach Image",
+			"label": "Avatar"
+		},
+		{
 			"fieldname": "user",
 			"fieldtype": "Link",
 			"label": "User",
@@ -41,15 +51,39 @@
 			"in_list_view": 1
 		},
 		{
-			"fieldname": "sb_details",
+			"fieldname": "status",
+			"fieldtype": "Select",
+			"label": "Status",
+			"options": "Active\nSuspended\nDeactivated",
+			"default": "Active",
+			"in_list_view": 1,
+			"in_standard_filter": 1
+		},
+		{
+			"fieldname": "tab_contact",
+			"fieldtype": "Tab Break",
+			"label": "İletişim"
+		},
+		{
+			"fieldname": "sb_contact",
 			"fieldtype": "Section Break",
-			"label": "Details"
+			"label": "İletişim Bilgileri"
+		},
+		{
+			"fieldname": "city",
+			"fieldtype": "Data",
+			"label": "City"
 		},
 		{
 			"fieldname": "country",
 			"fieldtype": "Link",
 			"label": "Country",
 			"options": "Country"
+		},
+		{
+			"fieldname": "postal_code",
+			"fieldtype": "Data",
+			"label": "Postal Code"
 		},
 		{
 			"fieldname": "phone",
@@ -62,20 +96,119 @@
 			"fieldtype": "Column Break"
 		},
 		{
-			"fieldname": "status",
-			"fieldtype": "Select",
-			"label": "Status",
-			"options": "Active\nSuspended\nDeactivated",
-			"default": "Active",
-			"in_list_view": 1,
-			"in_standard_filter": 1
-		},
-		{
 			"fieldname": "email_verified",
 			"fieldtype": "Check",
 			"label": "Email Verified",
 			"default": "0",
 			"read_only": 1
+		},
+		{
+			"fieldname": "tab_business",
+			"fieldtype": "Tab Break",
+			"label": "İş Bilgileri"
+		},
+		{
+			"fieldname": "sb_business",
+			"fieldtype": "Section Break",
+			"label": "İşletme"
+		},
+		{
+			"fieldname": "business_type",
+			"fieldtype": "Select",
+			"label": "Business Type",
+			"options": "\nManufacturer\nTrading Company\nRetailer\nWholesaler\nDistributor\nOther"
+		},
+		{
+			"fieldname": "company_name",
+			"fieldtype": "Data",
+			"label": "Company Name"
+		},
+		{
+			"fieldname": "address",
+			"fieldtype": "Data",
+			"label": "Address"
+		},
+		{
+			"fieldname": "cb_business",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "job_title",
+			"fieldtype": "Data",
+			"label": "Job Title"
+		},
+		{
+			"fieldname": "website",
+			"fieldtype": "Data",
+			"label": "Website",
+			"options": "URL"
+		},
+		{
+			"fieldname": "tab_more",
+			"fieldtype": "Tab Break",
+			"label": "Şirket Detayları"
+		},
+		{
+			"fieldname": "sb_more",
+			"fieldtype": "Section Break",
+			"label": "Ek Bilgiler"
+		},
+		{
+			"fieldname": "selling_platforms",
+			"fieldtype": "Small Text",
+			"label": "Selling Platforms"
+		},
+		{
+			"fieldname": "year_established",
+			"fieldtype": "Int",
+			"label": "Year Established",
+			"default": "0"
+		},
+		{
+			"fieldname": "cb_more",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "employee_count",
+			"fieldtype": "Select",
+			"label": "Employee Count",
+			"options": "\n1-10\n11-50\n51-200\n201-500\n500+"
+		},
+		{
+			"fieldname": "about_us",
+			"fieldtype": "Small Text",
+			"label": "About Us"
+		},
+		{
+			"fieldname": "tab_sourcing",
+			"fieldtype": "Tab Break",
+			"label": "Tedarik Tercihleri"
+		},
+		{
+			"fieldname": "sb_sourcing",
+			"fieldtype": "Section Break",
+			"label": "Tercihler"
+		},
+		{
+			"fieldname": "industry_preferences",
+			"fieldtype": "Small Text",
+			"label": "Industry Preferences"
+		},
+		{
+			"fieldname": "sourcing_frequency",
+			"fieldtype": "Select",
+			"label": "Sourcing Frequency",
+			"options": "\nDaily\nWeekly\nMonthly\nQuarterly\nAnnually"
+		},
+		{
+			"fieldname": "cb_sourcing",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "annual_spending",
+			"fieldtype": "Select",
+			"label": "Annual Spending",
+			"options": "\nUnder $10K\n$10K-$50K\n$50K-$100K\n$100K-$500K\n$500K+"
 		}
 	],
 	"permissions": [

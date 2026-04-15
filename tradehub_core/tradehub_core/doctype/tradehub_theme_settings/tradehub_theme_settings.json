@@ -1,0 +1,60 @@
+{
+	"name": "Tradehub Theme Settings",
+	"doctype": "DocType",
+	"module": "Tradehub Core",
+	"issingle": 1,
+	"track_changes": 1,
+	"sort_field": "modified",
+	"sort_order": "DESC",
+	"fields": [
+		{
+			"fieldname": "sb_overrides",
+			"fieldtype": "Section Break",
+			"label": "CSS Variable Overrides"
+		},
+		{
+			"fieldname": "overrides",
+			"fieldtype": "JSON",
+			"label": "Overrides",
+			"description": "Varsayılandan farklı CSS değişkenlerinin JSON haritası. Örn: {\"--btn-bg\": \"#cc9900\"}"
+		},
+		{
+			"fieldname": "sb_meta",
+			"fieldtype": "Section Break",
+			"label": "Son Güncelleme"
+		},
+		{
+			"fieldname": "last_updated_by",
+			"fieldtype": "Link",
+			"options": "User",
+			"label": "Son Güncelleyen",
+			"read_only": 1
+		},
+		{
+			"fieldname": "cb_meta",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "last_updated_at",
+			"fieldtype": "Datetime",
+			"label": "Son Güncelleme Zamanı",
+			"read_only": 1
+		}
+	],
+	"permissions": [
+		{
+			"role": "System Manager",
+			"read": 1,
+			"write": 1,
+			"create": 1,
+			"permlevel": 0
+		},
+		{
+			"role": "Marketplace Admin",
+			"read": 1,
+			"write": 1,
+			"create": 1,
+			"permlevel": 0
+		}
+	]
+}

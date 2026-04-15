@@ -6,6 +6,8 @@
  "field_order": [
   "listing",
   "listing_variant",
+  "color_variant",
+  "variant_label",
   "quantity",
   "seller",
   "snapshot_title",
@@ -24,10 +26,19 @@
   },
   {
    "fieldname": "listing_variant",
-   "fieldtype": "Link",
+   "fieldtype": "Data",
    "in_list_view": 1,
-   "label": "Variant",
-   "options": "Listing Variant"
+   "label": "Variant"
+  },
+  {
+   "fieldname": "color_variant",
+   "fieldtype": "Data",
+   "label": "Renk Varyantı"
+  },
+  {
+   "fieldname": "variant_label",
+   "fieldtype": "Data",
+   "label": "Varyant Etiketi"
   },
   {
    "default": "1",

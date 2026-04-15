@@ -1,6 +1,6 @@
 {
  "charts": [],
- "content": "[]",
+ "content": "[{\"id\":\"sec1\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Satici Yonetimi</b></span>\",\"col\":12}},{\"id\":\"sc1\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Seller Profile\",\"col\":4}},{\"id\":\"sc2\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Seller Application\",\"col\":4}},{\"id\":\"sc3\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Seller Balance\",\"col\":4}},{\"id\":\"sc4\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Admin Seller Profile\",\"col\":4}},{\"id\":\"sc5\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Supplier Profile\",\"col\":4}},{\"id\":\"sc6\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"KYB Verification\",\"col\":4}},{\"id\":\"sc7\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Seller Category\",\"col\":4}},{\"id\":\"sc20\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Certification Type\",\"col\":4}},{\"id\":\"sp1\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"sec2\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Urun ve Listeleme</b></span>\",\"col\":12}},{\"id\":\"sc8\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Listing\",\"col\":4}},{\"id\":\"sc9\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Seller Product\",\"col\":4}},{\"id\":\"sc10\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Product Category\",\"col\":4}},{\"id\":\"sc11\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Listing Variant\",\"col\":4}},{\"id\":\"sp2\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"sec3\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Siparis ve Musteri</b></span>\",\"col\":12}},{\"id\":\"sc12\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Order\",\"col\":4}},{\"id\":\"sc13\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Buyer Profile\",\"col\":4}},{\"id\":\"sc14\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Cart\",\"col\":4}},{\"id\":\"sc15\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Coupon\",\"col\":4}},{\"id\":\"sp3\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"sec4\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Diger</b></span>\",\"col\":12}},{\"id\":\"sc16\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Seller Review\",\"col\":4}},{\"id\":\"sc17\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Seller Inquiry\",\"col\":4}},{\"id\":\"sc18\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Shipping Method\",\"col\":4}},{\"id\":\"sc19\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Currency Rate\",\"col\":4}}]",
  "creation": "2024-01-01 00:00:00.000000",
  "developer_mode_only": 0,
  "disable_user_customization": 0,
@@ -10,11 +10,11 @@
  "hide_custom": 0,
  "is_default": 0,
  "is_standard": 1,
- "label": "Satıcı Paneli",
- "modified": "2024-01-01 00:00:00.000000",
+ "label": "Sat\u0131c\u0131 Paneli",
+ "modified": "2026-03-30 17:30:00.000000",
  "modified_by": "Administrator",
  "module": "Tradehub Core",
- "name": "Satıcı Paneli",
+ "name": "Sat\u0131c\u0131 Paneli",
  "owner": "Administrator",
  "public": 1,
  "restrict_to_domain": "",
@@ -25,6 +25,167 @@
   {"role": "System Manager"}
  ],
  "sequence_id": 98,
- "shortcuts": [],
- "title": "Satıcı Paneli"
+ "shortcuts": [
+  {
+   "color": "Green",
+   "doc_view": "List",
+   "label": "Seller Profile",
+   "link_to": "Seller Profile",
+   "stats_filter": "",
+   "type": "DocType"
+  },
+  {
+   "color": "Blue",
+   "doc_view": "List",
+   "label": "Seller Application",
+   "link_to": "Seller Application",
+   "stats_filter": "",
+   "type": "DocType"
+  },
+  {
+   "color": "Orange",
+   "doc_view": "List",
+   "label": "Seller Balance",
+   "link_to": "Seller Balance",
+   "stats_filter": "",
+   "type": "DocType"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "Admin Seller Profile",
+   "link_to": "Admin Seller Profile",
+   "stats_filter": "",
+   "type": "DocType"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "Supplier Profile",
+   "link_to": "Supplier Profile",
+   "stats_filter": "",
+   "type": "DocType"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "KYB Verification",
+   "link_to": "KYB Verification",
+   "stats_filter": "",
+   "type": "DocType"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "Seller Category",
+   "link_to": "Seller Category",
+   "stats_filter": "",
+   "type": "DocType"
+  },
+  {
+   "color": "Green",
+   "doc_view": "List",
+   "label": "Certification Type",
+   "link_to": "Certification Type",
+   "stats_filter": "",
+   "type": "DocType"
+  },
+  {
+   "color": "Cyan",
+   "doc_view": "List",
+   "label": "Listing",
+   "link_to": "Listing",
+   "stats_filter": "",
+   "type": "DocType"
+  },
+  {
+   "color": "Purple",
+   "doc_view": "List",
+   "label": "Seller Product",
+   "link_to": "Seller Product",
+   "stats_filter": "",
+   "type": "DocType"
+  },
+  {
+   "color": "Yellow",
+   "doc_view": "List",
+   "label": "Product Category",
+   "link_to": "Product Category",
+   "stats_filter": "",
+   "type": "DocType"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "Listing Variant",
+   "link_to": "Listing Variant",
+   "stats_filter": "",
+   "type": "DocType"
+  },
+  {
+   "color": "Red",
+   "doc_view": "List",
+   "label": "Order",
+   "link_to": "Order",
+   "stats_filter": "",
+   "type": "DocType"
+  },
+  {
+   "color": "Green",
+   "doc_view": "List",
+   "label": "Buyer Profile",
+   "link_to": "Buyer Profile",
+   "stats_filter": "",
+   "type": "DocType"
+  },
+  {
+   "color": "Blue",
+   "doc_view": "List",
+   "label": "Cart",
+   "link_to": "Cart",
+   "stats_filter": "",
+   "type": "DocType"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "Coupon",
+   "link_to": "Coupon",
+   "stats_filter": "",
+   "type": "DocType"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "Seller Review",
+   "link_to": "Seller Review",
+   "stats_filter": "",
+   "type": "DocType"
+  },
+  {
+   "color": "Orange",
+   "doc_view": "List",
+   "label": "Seller Inquiry",
+   "link_to": "Seller Inquiry",
+   "stats_filter": "",
+   "type": "DocType"
+  },
+  {
+   "color": "Cyan",
+   "doc_view": "List",
+   "label": "Shipping Method",
+   "link_to": "Shipping Method",
+   "stats_filter": "",
+   "type": "DocType"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "Currency Rate",
+   "link_to": "Currency Rate",
+   "stats_filter": "",
+   "type": "DocType"
+  }
+ ],
+ "title": "Sat\u0131c\u0131 Paneli"
 }

@@ -1,6 +1,8 @@
 import frappe
 from frappe import _
 from frappe.utils import getdate, cint
+from tradehub_core.utils.notify import notify
+from tradehub_core.utils.stock import release_stock_for_order, deduct_stock_for_order
 
 
 # Türkçe (DB) → İngilizce (Frontend) status mapping
@@ -21,11 +23,11 @@ STATUS_COLORS = {
 }
 
 STATUS_DESCRIPTIONS = {
-    "Waiting for payment": "Please complete your payment.",
-    "Confirming": "Your order is being confirmed.",
-    "Delivering": "Your order is on its way.",
-    "Completed": "Order completed.",
-    "Cancelled": "Order cancelled.",
+    "Waiting for payment": "Ödemenizi tamamlamak için havale makbuzunu gönderin.",
+    "Confirming": "Ödemeniz onaylandı, siparişiniz hazırlanıyor.",
+    "Delivering": "Siparişiniz kargoya verildi, yolda.",
+    "Completed": "Sipariş tamamlandı.",
+    "Cancelled": "Sipariş iptal edildi.",
 }
 
 # Frontend status key → Türkçe DB değerleri
@@ -116,8 +118,9 @@ def get_my_orders(status=None, search=None, date_from=None, date_to=None, page=1
             "currency", "payment_method",
             "subtotal", "shipping_fee", "total",
             "shipping_address", "ship_from", "shipping_method",
-            "remittance_amount",
+            "remittance_amount", "receipt_url",
             "refund_status", "refund_reason", "refund_amount", "refund_requested_at",
+            "tracking_number", "carrier",
         ],
         order_by="order_date desc",
         start=(page - 1) * page_size,
@@ -199,7 +202,25 @@ def cancel_order(order_number, reason=None):
 
     order.status = "İptal Edildi"
     order.save(ignore_permissions=True)
+
+    # Stok rezervasyonunu kaldır
+    release_stock_for_order(order.name)
     frappe.db.commit()
+
+    # Satıcıya bildirim
+    if order.seller:
+        seller_user = frappe.db.get_value("Admin Seller Profile", order.seller, "user")
+        if seller_user:
+            notify(
+                recipient_user=seller_user,
+                recipient_role="seller",
+                type="order",
+                title=_("Sipariş İptal Edildi"),
+                message=_("{0} numaralı sipariş alıcı tarafından iptal edildi.").format(order.name),
+                action_url=f"/app/order/{order.name}",
+                reference_doctype="Order",
+                reference_name=order.name,
+            )
 
     return {
         "success": True,
@@ -372,12 +393,30 @@ def get_my_refunds():
 
 @frappe.whitelist()
 def upload_receipt(order_number, file_name, file_data):
-    """Upload payment receipt file for an order. file_data must be base64-encoded."""
+    """Upload payment receipt file for an order. file_data must be base64-encoded.
+    Aynı siparişe daha önce yüklenmiş eski dekont dosyaları temizlenir.
+    """
     import base64
     buyer = _require_buyer()
 
     if not frappe.db.exists("Order", {"name": order_number, "buyer": buyer}):
         frappe.throw(_("Order not found"), frappe.DoesNotExistError)
+
+    # Mevcut dekont dosyalarını temizle (aynı sipariş + receipt_url field'ına bağlı tüm File'lar)
+    old_files = frappe.get_all(
+        "File",
+        filters={
+            "attached_to_doctype": "Order",
+            "attached_to_name": order_number,
+            "attached_to_field": "receipt_url",
+        },
+        fields=["name"],
+    )
+    for f in old_files:
+        try:
+            frappe.delete_doc("File", f["name"], ignore_permissions=True, force=True)
+        except Exception:
+            pass  # Silinemeyen dosya varsa sessizce geç, yeni yüklemeyi engelleme
 
     content = base64.b64decode(file_data)
 
@@ -409,13 +448,53 @@ def submit_remittance(order_number, remittance_date, currency="USD", amount=0,
         frappe.throw(_("Order not found"), frappe.DoesNotExistError)
 
     order = frappe.get_doc("Order", order_number)
+
+    amount_float = float(amount or 0)
+    if amount_float <= 0:
+        frappe.throw(_("Havale tutarı sıfırdan büyük olmalıdır"))
+
     frappe.db.set_value("Order", order.name, {
         "remittance_date": remittance_date or None,
-        "remittance_amount": float(amount or 0),
+        "remittance_amount": amount_float,
         "remittance_sender": sender_name or "",
         "receipt_url": receipt_url or "",
     })
+
+    # Payment Transaction + Bank Interaction kaydı oluştur
+    from tradehub_core.api.payment import create_payment_transaction, upsert_bank_interaction
+    create_payment_transaction(
+        order_name=order.name,
+        buyer=buyer,
+        transaction_type="Ödeme",
+        amount=amount_float,
+        currency=currency,
+        payment_method="Banka Havalesi",
+        reference_number=beneficiary_account,
+        remittance_sender=sender_name,
+        receipt_url=receipt_url,
+    )
+    if order.seller:
+        upsert_bank_interaction(buyer, order.seller, amount_float, currency)
+
+    # Dekont gönderildiğinde gerçek stoktan düş (reserved_qty → stock_qty azaltılır)
+    deduct_stock_for_order(order.name)
     frappe.db.commit()
+
+    # Satıcıya bildirim
+    seller_code = frappe.db.get_value("Order", order.name, "seller")
+    if seller_code:
+        seller_user = frappe.db.get_value("Admin Seller Profile", seller_code, "user")
+        if seller_user:
+            notify(
+                recipient_user=seller_user,
+                recipient_role="seller",
+                type="order",
+                title=_("Havale Bildirimi"),
+                message=_("{0} numaralı sipariş için ödeme dekontu yüklendi.").format(order.name),
+                action_url=f"/app/order/{order.name}",
+                reference_doctype="Order",
+                reference_name=order.name,
+            )
 
     return {
         "success": True,
@@ -431,7 +510,11 @@ def get_seller_orders(status=None, page=1, page_size=20):
     if not user or user == "Guest":
         frappe.throw(_("Authentication required"), frappe.AuthenticationError)
 
-    seller_code = frappe.db.get_value("Admin Seller Profile", {"user": user}, "name")
+    seller_code = (
+        frappe.db.get_value("Admin Seller Profile", {"user": user}, "name") or
+        frappe.db.get_value("Admin Seller Profile", {"owner": user}, "name") or
+        frappe.db.get_value("Admin Seller Profile", {"email": user}, "name")
+    )
     if not seller_code:
         frappe.throw(_("Seller profile not found"))
 
@@ -439,7 +522,9 @@ def get_seller_orders(status=None, page=1, page_size=20):
     page_size = min(cint(page_size) or 20, 100)
 
     filters = {"seller": seller_code}
-    if status and status != "all":
+    if status == "refund_pending":
+        filters["refund_status"] = "Pending"
+    elif status and status != "all":
         tr_statuses = FILTER_STATUS_MAP.get(status)
         if tr_statuses:
             filters["status"] = ["in", tr_statuses]
@@ -485,7 +570,11 @@ def seller_confirm_payment(order_number):
     if not user or user == "Guest":
         frappe.throw(_("Authentication required"), frappe.AuthenticationError)
 
-    seller_code = frappe.db.get_value("Admin Seller Profile", {"user": user}, "name")
+    seller_code = (
+        frappe.db.get_value("Admin Seller Profile", {"user": user}, "name") or
+        frappe.db.get_value("Admin Seller Profile", {"owner": user}, "name") or
+        frappe.db.get_value("Admin Seller Profile", {"email": user}, "name")
+    )
     if not seller_code:
         frappe.throw(_("Seller profile not found"))
 
@@ -500,7 +589,84 @@ def seller_confirm_payment(order_number):
         frappe.throw(_("Payment can only be confirmed for orders awaiting payment"))
 
     frappe.db.set_value("Order", order.name, "status", "Onaylanıyor")
+
+    # Payment Transaction status güncelle + Bank Interaction eşleşme güncelle
+    from tradehub_core.api.payment import update_transaction_status, update_bank_interaction_on_confirm
+    buyer_email = frappe.db.get_value("Order", order_number, "buyer")
+    if buyer_email:
+        update_transaction_status(order_number, buyer_email, "Tamamlandı",
+                                  transaction_type="Ödeme", confirmed_by=user)
+        remittance_amount = frappe.db.get_value("Order", order_number, "remittance_amount")
+        if remittance_amount:
+            update_bank_interaction_on_confirm(buyer_email, seller_code, float(remittance_amount))
+
     frappe.db.commit()
+
+    # Alıcıya bildirim
+    buyer = frappe.db.get_value("Order", order.name, "buyer")
+    if buyer:
+        notify(
+            recipient_user=buyer,
+            recipient_role="buyer",
+            type="order",
+            title=_("Ödeme Onaylandı"),
+            message=_("{0} numaralı siparişinizin ödemesi onaylandı, hazırlanıyor.").format(order_number),
+            action_url=f"/buyer-dashboard?tab=orders&order={order_number}",
+            reference_doctype="Order",
+            reference_name=order.name,
+        )
+
+    return {"success": True, "order_number": order_number}
+
+
+@frappe.whitelist()
+def seller_ship_order(order_number, tracking_number="", carrier=""):
+    """Seller marks order as shipped — changes status to 'Kargoda'."""
+    user = frappe.session.user
+    if not user or user == "Guest":
+        frappe.throw(_("Authentication required"), frappe.AuthenticationError)
+
+    seller_code = (
+        frappe.db.get_value("Admin Seller Profile", {"user": user}, "name") or
+        frappe.db.get_value("Admin Seller Profile", {"owner": user}, "name") or
+        frappe.db.get_value("Admin Seller Profile", {"email": user}, "name")
+    )
+    if not seller_code:
+        frappe.throw(_("Seller profile not found"))
+
+    order = frappe.db.get_value(
+        "Order", {"name": order_number, "seller": seller_code},
+        ["name", "status"], as_dict=True
+    )
+    if not order:
+        frappe.throw(_("Order not found"), frappe.DoesNotExistError)
+
+    if order.status != "Onaylanıyor":
+        frappe.throw(_("Only confirmed orders can be marked as shipped"))
+
+    update_fields = {"status": "Kargoda"}
+    if tracking_number:
+        update_fields["tracking_number"] = tracking_number
+    if carrier:
+        update_fields["carrier"] = carrier
+
+    frappe.db.set_value("Order", order.name, update_fields)
+    frappe.db.commit()
+
+    # Alıcıya bildirim
+    buyer = frappe.db.get_value("Order", order.name, "buyer")
+    if buyer:
+        carrier_text = f" ({carrier})" if carrier else ""
+        notify(
+            recipient_user=buyer,
+            recipient_role="buyer",
+            type="order",
+            title=_("Kargoya Verildi"),
+            message=_("{0} numaralı siparişiniz kargoya verildi.{1}").format(order_number, carrier_text),
+            action_url=f"/buyer-dashboard?tab=orders&order={order_number}",
+            reference_doctype="Order",
+            reference_name=order.name,
+        )
 
     return {"success": True, "order_number": order_number}
 
@@ -649,13 +815,44 @@ def submit_refund_request(order_number, reason, amount=0):
     if order.refund_status in ("Pending", "Approved"):
         frappe.throw(_("Bu sipariş için zaten bir iade talebi mevcut"))
 
+    refund_amount = float(amount or 0)
     frappe.db.set_value("Order", order_number, {
         "refund_status": "Pending",
         "refund_reason": reason or "",
-        "refund_amount": float(amount or 0),
+        "refund_amount": refund_amount,
         "refund_requested_at": frappe.utils.now_datetime(),
     })
+
+    # İade tipi Payment Transaction oluştur
+    from tradehub_core.api.payment import create_payment_transaction
+    order_data = frappe.db.get_value("Order", order_number, ["currency"], as_dict=True)
+    create_payment_transaction(
+        order_name=order_number,
+        buyer=buyer,
+        transaction_type="İade",
+        amount=refund_amount,
+        currency=order_data.currency if order_data else "TRY",
+        refund_reason=reason or "",
+    )
+
     frappe.db.commit()
+
+    # Satıcıya bildirim
+    seller_code = frappe.db.get_value("Order", order_number, "seller")
+    if seller_code:
+        seller_user = frappe.db.get_value("Admin Seller Profile", seller_code, "user")
+        if seller_user:
+            notify(
+                recipient_user=seller_user,
+                recipient_role="seller",
+                type="order",
+                title=_("İade Talebi"),
+                message=_("{0} numaralı sipariş için iade talebi oluşturuldu.").format(order_number),
+                action_url=f"/app/order/{order_number}",
+                reference_doctype="Order",
+                reference_name=order_number,
+            )
+
     return {"success": True}
 
 
@@ -666,7 +863,11 @@ def seller_handle_refund(order_number, action):
     if not user or user == "Guest":
         frappe.throw(_("Authentication required"), frappe.AuthenticationError)
 
-    seller_code = frappe.db.get_value("Admin Seller Profile", {"user": user}, "name")
+    seller_code = (
+        frappe.db.get_value("Admin Seller Profile", {"user": user}, "name") or
+        frappe.db.get_value("Admin Seller Profile", {"owner": user}, "name") or
+        frappe.db.get_value("Admin Seller Profile", {"email": user}, "name")
+    )
     if not seller_code:
         frappe.throw(_("Seller profile not found"))
 
@@ -682,5 +883,69 @@ def seller_handle_refund(order_number, action):
 
     new_status = "Approved" if action == "approve" else "Rejected"
     frappe.db.set_value("Order", order_number, "refund_status", new_status)
+
+    # İade Transaction status güncelle
+    from tradehub_core.api.payment import update_transaction_status
+    buyer_email = frappe.db.get_value("Order", order_number, "buyer")
+    if buyer_email:
+        tx_status = "Tamamlandı" if action == "approve" else "Reddedildi"
+        update_transaction_status(order_number, buyer_email, tx_status,
+                                  transaction_type="İade", confirmed_by=user)
+    # İade onaylandıysa stok geri yükle (kargo sonrası stok düşürülmüştü)
+    if new_status == "Approved":
+        from tradehub_core.utils.stock import reserve_stock_for_order
+        # reserve_stock_for_order stok eklemez, sadece reserved_qty artırır
+        # İade durumunda stock_qty'yi geri artırmamız gerekiyor
+        items = frappe.get_all(
+            "Order Item",
+            filters={"parent": order_number},
+            fields=["listing", "quantity"],
+        )
+        for item in items:
+            if not item.listing:
+                continue
+            from frappe.utils import flt
+            listing = frappe.db.get_value(
+                "Listing", item.listing,
+                ["track_inventory", "stock_qty"],
+                as_dict=True,
+            )
+            if not listing or not listing.track_inventory:
+                continue
+            new_stock = flt(listing.stock_qty) + flt(item.quantity)
+            frappe.db.set_value("Listing", item.listing, "stock_qty", new_stock)
+            # available_qty'yi yeniden hesapla
+            vals = frappe.db.get_value("Listing", item.listing, ["stock_qty", "reserved_qty"], as_dict=True)
+            if vals:
+                available = max(0, flt(vals.stock_qty) - flt(vals.reserved_qty))
+                frappe.db.set_value("Listing", item.listing, "available_qty", available)
+
     frappe.db.commit()
+
+    # Alıcıya bildirim
+    buyer = frappe.db.get_value("Order", order_number, "buyer")
+    if buyer:
+        if new_status == "Approved":
+            notify(
+                recipient_user=buyer,
+                recipient_role="buyer",
+                type="order",
+                title=_("İade Onaylandı"),
+                message=_("{0} numaralı siparişinizin iade talebi onaylandı.").format(order_number),
+                action_url=f"/buyer-dashboard?tab=orders&order={order_number}",
+                reference_doctype="Order",
+                reference_name=order_number,
+            )
+        else:
+            notify(
+                recipient_user=buyer,
+                recipient_role="buyer",
+                type="order",
+                title=_("İade Reddedildi"),
+                message=_("{0} numaralı siparişinizin iade talebi reddedildi.").format(order_number),
+                action_url=f"/buyer-dashboard?tab=orders&order={order_number}",
+                reference_doctype="Order",
+                reference_name=order_number,
+            )
+
     return {"success": True, "refund_status": new_status}

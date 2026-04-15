@@ -2,6 +2,7 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 from frappe.utils import now_datetime
+from tradehub_core.utils.notify import notify
 
 
 class SellerApplication(Document):
@@ -9,8 +10,14 @@ class SellerApplication(Document):
 		if self.has_value_changed("status"):
 			if self.status == "Approved":
 				self._approve_application()
-			elif self.status in ("Rejected", "Submitted", "Under Review", "Draft"):
+				self._notify_applicant_approved()
+			elif self.status == "Rejected":
 				self._revoke_approval()
+				self._notify_applicant_rejected()
+			elif self.status in ("Submitted", "Under Review", "Draft"):
+				self._revoke_approval()
+			if self.status == "Submitted":
+				self._notify_admin_new_application()
 
 	def _approve_application(self):
 		"""Create Seller Profile, Admin Seller Profile and assign Seller role on approval."""
@@ -20,12 +27,20 @@ class SellerApplication(Document):
 		# Fields to sync from application to profile
 		profile_data = {
 			"seller_name": seller_name,
+			"member_id": self.member_id,
 			"seller_type": self.seller_type,
 			"application": self.name,
 			"business_name": self.business_name,
 			"tax_id": self.tax_id,
 			"contact_phone": self.contact_phone,
 			"country": self.country,
+			"tax_id_type": self.tax_id_type,
+			"tax_office": self.tax_office,
+			"address_line_1": self.address_line_1,
+			"city": self.city,
+			"bank_name": self.bank_name,
+			"iban": self.iban,
+			"account_holder_name": self.account_holder_name,
 		}
 
 		# Create or update Seller Profile
@@ -34,14 +49,20 @@ class SellerApplication(Document):
 			# Update fields but do NOT touch status — admin manages it from Seller Profile
 			for field, value in profile_data.items():
 				frappe.db.set_value("Seller Profile", existing, field, value)
+			# Ensure owner is the user (for if_owner permissions)
+			frappe.db.set_value("Seller Profile", existing, "owner", user)
 		else:
-			# New profile starts as Active
+			# New profile starts as Active — owner must be the user for if_owner permissions
 			profile = frappe.new_doc("Seller Profile")
 			profile.user = user
 			profile.status = "Active"
+			profile.flags.ignore_permissions = True
+			profile.owner = user
 			for field, value in profile_data.items():
 				profile.set(field, value)
 			profile.insert(ignore_permissions=True)
+			# Frappe overrides owner on insert — force correct owner for if_owner permissions
+			frappe.db.set_value("Seller Profile", profile.name, "owner", user)
 
 		# Create Admin Seller Profile if not already exists
 		if not frappe.db.exists("Admin Seller Profile", {"user": user}):
@@ -64,25 +85,55 @@ class SellerApplication(Document):
 			admin_profile.flags.ignore_permissions = True
 			admin_profile.owner = user
 			admin_profile.insert(ignore_permissions=True)
-
-			# Store seller_code back on Seller Profile
-			frappe.db.set_value("Seller Profile", {"user": user}, "seller_code", seller_code)
+			frappe.db.set_value("Admin Seller Profile", admin_profile.name, "owner", user)
 
 		# Add Seller role
 		if "Seller" not in frappe.get_roles(user):
 			user_doc = frappe.get_doc("User", user)
 			user_doc.add_roles("Seller")
 
+		# Create or update KYB Verification record pre-filled from application data
+		seller_type_map = {
+			"Individual": "Şahıs",
+			"Business": "Limited Şirket",
+			"Enterprise": "Anonim Şirket",
+		}
+		kyb_data = {
+			"company_title": self.business_name or seller_name,
+			"business_type": seller_type_map.get(self.seller_type, "") or self.seller_type or "",
+			"authorized_person": seller_name,
+			"tax_id_type": self.tax_id_type or "TCKN",
+			"tax_id": self.tax_id or "",
+			"tax_office": self.tax_office or "",
+		}
+
+		existing_kyb = frappe.db.get_value("KYB Verification", {"user": user}, "name")
+		if existing_kyb:
+			for field, value in kyb_data.items():
+				frappe.db.set_value("KYB Verification", existing_kyb, field, value)
+			frappe.db.set_value("KYB Verification", existing_kyb, "status", "Pending")
+			frappe.db.set_value("KYB Verification", existing_kyb, "owner", user)
+		else:
+			kyb = frappe.new_doc("KYB Verification")
+			kyb.user = user
+			kyb.owner = user
+			kyb.status = "Pending"
+			for field, value in kyb_data.items():
+				kyb.set(field, value)
+			kyb.flags.ignore_permissions = True
+			kyb.insert(ignore_permissions=True)
+			# Ensure owner is the user (Frappe may override during insert)
+			frappe.db.set_value("KYB Verification", kyb.name, "owner", user)
+
+		# Set kyb_status on Seller Profile
+		frappe.db.set_value("Seller Profile", {"user": user}, "kyb_status", "Pending")
+
 		# Record review metadata
 		self.db_set("reviewed_by", frappe.session.user)
 		self.db_set("reviewed_on", now_datetime())
 
 	def _revoke_approval(self):
-		"""Remove Seller role when application status changes from Approved.
-
-		Does NOT change Seller Profile status — that is managed
-		directly from the Seller Profile by the admin.
-		"""
+		"""Remove Seller role and deactivate Seller Profile when approval is revoked."""
 		user = self.applicant_user
 
 		# Remove Seller role
@@ -90,6 +141,68 @@ class SellerApplication(Document):
 			user_doc = frappe.get_doc("User", user)
 			user_doc.remove_roles("Seller")
 
+		# Deactivate Seller Profile
+		existing_sp = frappe.db.get_value("Seller Profile", {"user": user}, "name")
+		if existing_sp:
+			frappe.db.set_value("Seller Profile", existing_sp, "status", "Suspended")
+
+		# Deactivate Admin Seller Profile
+		existing_asp = frappe.db.get_value("Admin Seller Profile", {"user": user}, "name")
+		if existing_asp:
+			frappe.db.set_value("Admin Seller Profile", existing_asp, "status", "Suspended")
+
 		# Update review metadata
 		self.db_set("reviewed_by", frappe.session.user)
 		self.db_set("reviewed_on", now_datetime())
+
+	def _notify_applicant_approved(self):
+		notify(
+			recipient_user=self.applicant_user,
+			recipient_role="seller",
+			type="system",
+			title=_("Başvurunuz Onaylandı"),
+			message=_("Satıcı başvurunuz onaylandı. Artık ürün listelemeye başlayabilirsiniz."),
+			action_url="/seller/dashboard",
+			reference_doctype="Seller Application",
+			reference_name=self.name,
+		)
+
+	def _notify_applicant_rejected(self):
+		notify(
+			recipient_user=self.applicant_user,
+			recipient_role="seller",
+			type="system",
+			title=_("Başvurunuz Reddedildi"),
+			message=_("Satıcı başvurunuz reddedildi. Detaylar için destek ile iletişime geçin."),
+			action_url="/seller/dashboard",
+			reference_doctype="Seller Application",
+			reference_name=self.name,
+		)
+
+	def _notify_admin_new_application(self):
+		admins = frappe.get_all(
+			"Has Role",
+			filters={"role": "System Manager", "parenttype": "User"},
+			fields=["parent"],
+		)
+		seller_name = self.business_name or self.applicant_user
+		for admin in admins:
+			# Aynı başvuru için admin'e zaten bildirim gittiyse tekrar gönderme
+			existing = frappe.db.exists("Platform Notification", {
+				"recipient_user": admin.parent,
+				"reference_doctype": "Seller Application",
+				"reference_name": self.name,
+				"type": "system",
+			})
+			if existing:
+				continue
+			notify(
+				recipient_user=admin.parent,
+				recipient_role="admin",
+				type="system",
+				title=_("Yeni Satıcı Başvurusu"),
+				message=_("{0} yeni satıcı başvurusu yaptı.").format(seller_name),
+				action_url=f"/app/seller-application/{self.name}",
+				reference_doctype="Seller Application",
+				reference_name=self.name,
+			)

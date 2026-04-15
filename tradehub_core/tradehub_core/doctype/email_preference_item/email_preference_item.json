@@ -1,0 +1,63 @@
+{
+	"actions": [],
+	"creation": "2026-04-13 00:00:00.000000",
+	"doctype": "DocType",
+	"engine": "InnoDB",
+	"field_order": [
+		"item_key",
+		"title",
+		"description",
+		"column_break_1",
+		"default_enabled",
+		"sort_order"
+	],
+	"fields": [
+		{
+			"fieldname": "item_key",
+			"fieldtype": "Data",
+			"in_list_view": 1,
+			"label": "Anahtar",
+			"reqd": 1
+		},
+		{
+			"fieldname": "title",
+			"fieldtype": "Data",
+			"in_list_view": 1,
+			"label": "Başlık",
+			"reqd": 1
+		},
+		{
+			"fieldname": "description",
+			"fieldtype": "Small Text",
+			"label": "Açıklama"
+		},
+		{
+			"fieldname": "column_break_1",
+			"fieldtype": "Column Break"
+		},
+		{
+			"default": "1",
+			"fieldname": "default_enabled",
+			"fieldtype": "Check",
+			"in_list_view": 1,
+			"label": "Varsayılan Aktif"
+		},
+		{
+			"default": "0",
+			"fieldname": "sort_order",
+			"fieldtype": "Int",
+			"in_list_view": 1,
+			"label": "Sıralama"
+		}
+	],
+	"istable": 1,
+	"links": [],
+	"modified": "2026-04-13 00:00:00.000000",
+	"modified_by": "Administrator",
+	"module": "Tradehub Core",
+	"name": "Email Preference Item",
+	"owner": "Administrator",
+	"permissions": [],
+	"sort_field": "sort_order",
+	"sort_order": "ASC"
+}

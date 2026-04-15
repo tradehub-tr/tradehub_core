@@ -44,13 +44,23 @@ def _generate_otp() -> str:
 	return "".join([str(secrets.randbelow(10)) for _ in range(6)])
 
 
+def _reassign_file_owner(file_url: str, new_owner: str):
+	"""Reassign file owner from Guest to actual user after registration."""
+	if not file_url:
+		return
+	file_name = frappe.db.get_value("File", {"file_url": file_url}, "name")
+	if file_name:
+		frappe.db.set_value("File", file_name, "owner", new_owner)
+
+
 def _create_email_verification(email: str, first_name: str):
 	"""Send a background email verification link after registration."""
 	key = frappe.generate_hash(length=32)
 	frappe.cache.set_value(
 		f"email_verification:{key}", email, expires_in_sec=86400
 	)
-	link = f"{get_url()}/api/method/tradehub_core.api.v1.identity.verify_email?key={key}"
+	storefront = frappe.conf.get("storefront_url", "https://rc.istoc.com")
+	link = f"{storefront}/api/method/tradehub_core.api.v1.identity.verify_email?key={key}"
 
 	frappe.sendmail(
 		recipients=email,
@@ -145,10 +155,10 @@ def verify_registration_otp(email: str, code: str):
 			json.dumps(otp_data),
 			expires_in_sec=600,
 		)
-		frappe.local.response["http_status_code"] = 401
+		frappe.local.response["http_status_code"] = 422
 		frappe.throw(
 			_("Wrong verification code."),
-			frappe.AuthenticationError,
+			frappe.ValidationError,
 		)
 
 	# Code matches — generate registration_token
@@ -246,6 +256,7 @@ def register_user(
 	buyer.country = country
 	buyer.phone = phone
 	buyer.status = "Active"
+	buyer.owner = email
 	buyer.insert(ignore_permissions=True)
 
 	# ── Background email verification ──
@@ -358,11 +369,13 @@ def register_supplier(
 	buyer.country = country
 	buyer.phone = phone or contact_phone
 	buyer.status = "Active"
+	buyer.owner = email
 	buyer.insert(ignore_permissions=True)
 
 	# ── Create Seller Application (Submitted) ──
 	app = frappe.new_doc("Seller Application")
 	app.applicant_user = email
+	app.owner = email
 	app.member_id = member_id
 	app.contact_email = email
 	app.status = "Submitted"
@@ -388,6 +401,10 @@ def register_supplier(
 	app.commission_accepted = int(commission_accepted)
 	app.return_policy_accepted = int(return_policy_accepted)
 	app.insert(ignore_permissions=True)
+
+	# ── Assign uploaded files to new user ──
+	if identity_document:
+		_reassign_file_owner(identity_document, email)
 
 	# ── Background email verification ──
 	_create_email_verification(email, first_name)
@@ -424,7 +441,8 @@ def forgot_password(email: str):
 		user.db_set("last_reset_password_key_generated_on", now_datetime())
 
 		# Build reset link pointing to the storefront page
-		link = f"{get_url()}/pages/auth/reset-password.html?key={reset_key}"
+		storefront = frappe.conf.get("storefront_url", "https://rc.istoc.com")
+		link = f"{storefront}/pages/auth/reset-password?key={reset_key}"
 
 		frappe.sendmail(
 			recipients=email,
@@ -470,15 +488,19 @@ def reset_password(key: str, new_password: str):
 		)
 
 	# Check 24-hour expiry
-	if user_data.last_reset_password_key_generated_on:
-		age = (
-			now_datetime() - user_data.last_reset_password_key_generated_on
-		).total_seconds()
-		if age > 86400:
-			frappe.throw(
-				_("This reset link has expired. Please request a new one."),
-				frappe.AuthenticationError,
-			)
+	if not user_data.last_reset_password_key_generated_on:
+		frappe.throw(
+			_("Invalid or expired password reset link."),
+			frappe.AuthenticationError,
+		)
+	age = (
+		now_datetime() - user_data.last_reset_password_key_generated_on
+	).total_seconds()
+	if age > 86400:
+		frappe.throw(
+			_("This reset link has expired. Please request a new one."),
+			frappe.AuthenticationError,
+		)
 
 	# Validate new password
 	_validate_password(new_password)
@@ -495,17 +517,22 @@ def reset_password(key: str, new_password: str):
 
 @frappe.whitelist(allow_guest=True, methods=["GET"])
 def verify_email(key: str):
-	"""Verify user email via the link sent after registration."""
+	"""Verify user email via the link sent after registration.
+
+	On success, redirects to the storefront login page with ?verified=1.
+	On failure, redirects with ?verified=0.
+	"""
 	key = (key or "").strip()
+	storefront = frappe.conf.get("storefront_url", "https://rc.istoc.com")
+	login_url = f"{storefront}/pages/auth/login"
 
 	cache_key = f"email_verification:{key}"
 	email = frappe.cache.get_value(cache_key)
 
 	if not email:
-		frappe.throw(
-			_("Invalid or expired verification link."),
-			frappe.AuthenticationError,
-		)
+		frappe.local.response["type"] = "redirect"
+		frappe.local.response["location"] = f"{login_url}?verified=0"
+		return
 
 	# Handle bytes from Redis
 	if isinstance(email, bytes):
@@ -518,7 +545,8 @@ def verify_email(key: str):
 	# Delete verification key (single-use)
 	frappe.cache.delete_value(cache_key)
 
-	return {"success": True, "message": _("Email verified."), "user": email}
+	frappe.local.response["type"] = "redirect"
+	frappe.local.response["location"] = f"{login_url}?verified=1"
 
 
 def _verify_password(user: str, password: str):
@@ -533,6 +561,60 @@ def _verify_password(user: str, password: str):
 			_("Incorrect password."),
 			frappe.ValidationError,
 		)
+
+
+@frappe.whitelist(methods=["POST"])
+@rate_limit(key="user", limit=10, seconds=300)
+def update_profile_image(filename: str = "", filedata: str = ""):
+	"""Upload a profile image for the currently logged-in user.
+
+	Accepts base64-encoded image content via JSON body. Stores the file as
+	a public attachment (so it can be rendered in avatars) and updates the
+	``User.user_image`` field. Returns the final file URL so the frontend
+	can update the UI immediately without a full reload.
+	"""
+	import base64
+
+	user = frappe.session.user
+	if user == "Guest":
+		frappe.throw(_("Not logged in."), frappe.AuthenticationError)
+
+	if not filename or not filedata:
+		frappe.throw(_("No file uploaded."))
+
+	allowed_ext = (".jpg", ".jpeg", ".png", ".webp", ".gif")
+	if not filename.lower().endswith(allowed_ext):
+		frappe.throw(_("Only JPG, PNG, WEBP and GIF images are allowed."))
+
+	# Strip data URI prefix if present (e.g. "data:image/png;base64,...")
+	if "," in filedata:
+		filedata = filedata.split(",", 1)[1]
+
+	try:
+		content = base64.b64decode(filedata)
+	except Exception:
+		frappe.throw(_("Invalid file data."))
+
+	# Hard size cap — 5 MB
+	if len(content) > 5 * 1024 * 1024:
+		frappe.throw(_("Image must be smaller than 5 MB."))
+
+	file_doc = frappe.get_doc(
+		{
+			"doctype": "File",
+			"file_name": filename,
+			"content": content,
+			"is_private": 0,
+			"attached_to_doctype": "User",
+			"attached_to_name": user,
+		}
+	)
+	file_doc.insert(ignore_permissions=True)
+
+	frappe.db.set_value("User", user, "user_image", file_doc.file_url)
+	frappe.db.commit()
+
+	return {"success": True, "user_image": file_doc.file_url}
 
 
 @frappe.whitelist(methods=["POST"])
@@ -557,6 +639,104 @@ def change_password(current_password: str, new_password: str):
 
 
 @frappe.whitelist(methods=["POST"])
+@rate_limit(key="user", limit=10, seconds=3600)
+def change_email(new_email: str, password: str):
+	"""Change the email address for the currently logged-in user.
+
+	Requires the current password for security verification.
+	Validates email format and checks for duplicate accounts.
+	Updates User, Buyer Profile, Seller Profile, and Seller Application.
+	"""
+	old_email = frappe.session.user
+	if old_email == "Guest":
+		frappe.throw(_("Not logged in."), frappe.AuthenticationError)
+
+	if old_email == "Administrator":
+		frappe.local.response["http_status_code"] = 403
+		frappe.throw(
+			_("Administrator account email cannot be changed."),
+			frappe.PermissionError,
+		)
+
+	new_email = _validate_email_format(new_email)
+
+	if new_email == old_email:
+		frappe.local.response["http_status_code"] = 400
+		frappe.throw(
+			_("New email cannot be the same as your current email."),
+			frappe.ValidationError,
+		)
+
+	if frappe.db.exists("User", new_email):
+		frappe.local.response["http_status_code"] = 409
+		frappe.throw(
+			_("An account with this email already exists."),
+			frappe.DuplicateEntryError,
+		)
+
+	_verify_password(old_email, password)
+
+	# ── Mutate ──
+	# Update linked profiles BEFORE rename
+	buyer_profile = frappe.db.get_value("Buyer Profile", {"user": old_email}, "name")
+	if buyer_profile:
+		frappe.db.set_value("Buyer Profile", buyer_profile, "user", new_email)
+
+	seller_profile = frappe.db.get_value("Seller Profile", {"user": old_email}, "name")
+	if seller_profile:
+		frappe.db.set_value("Seller Profile", seller_profile, "user", new_email)
+
+	seller_app = frappe.db.get_value("Seller Application", {"applicant_user": old_email}, "name")
+	if seller_app:
+		frappe.db.set_value("Seller Application", seller_app, {
+			"applicant_user": new_email,
+			"contact_email": new_email,
+		})
+
+	# rename_doc commits the rename internally, but after_rename →
+	# clear_sessions can kill the DB connection. We catch and reconnect.
+	try:
+		frappe.rename_doc("User", old_email, new_email, merge=False)
+	except Exception:
+		pass
+
+	# Ensure DB connection is alive after rename
+	try:
+		frappe.db.sql("SELECT 1")
+	except Exception:
+		frappe.db.connect()
+
+	# rename_doc does not update __Auth — fix password mapping
+	frappe.db.sql(
+		"UPDATE `__Auth` SET `name`=%s WHERE `name`=%s AND `doctype`='User'",
+		(new_email, old_email),
+	)
+
+	frappe.db.commit()
+
+	return {
+		"success": True,
+		"new_email": new_email,
+		"message": _("Email address updated successfully. Please log in again with your new email."),
+	}
+
+
+@frappe.whitelist(methods=["POST"])
+@rate_limit(key="user", limit=3, seconds=3600)
+def resend_verification_email():
+	"""Resend email verification link for the currently logged-in user."""
+	user = frappe.session.user
+
+	if user == "Guest":
+		frappe.throw(_("Not logged in."), frappe.AuthenticationError)
+
+	user_doc = frappe.get_doc("User", user)
+	_create_email_verification(user, user_doc.first_name or user)
+
+	return {"success": True, "message": _("Verification email sent.")}
+
+
+@frappe.whitelist(methods=["POST"])
 def change_phone(phone: str, password: str):
 	"""Change the phone number for the currently logged-in user.
 
@@ -570,6 +750,15 @@ def change_phone(phone: str, password: str):
 	if not phone:
 		frappe.local.response["http_status_code"] = 400
 		frappe.throw(_("Phone number is required."), frappe.ValidationError)
+
+	# Validate phone format
+	cleaned = re.sub(r"[\s\-\(\)]", "", phone)
+	if not re.match(r"^(\+90|0)?5\d{9}$", cleaned):
+		frappe.local.response["http_status_code"] = 400
+		frappe.throw(
+			_("Please enter a valid Turkish phone number."),
+			frappe.ValidationError,
+		)
 
 	# Verify password — returns 400 on failure (not 401)
 	_verify_password(user, password)
@@ -634,9 +823,51 @@ def delete_account(password: str, reason: str = ""):
 		message=f"User {user} requested account deletion.\nReason: {reason or 'Not specified'}",
 	)
 
+	# Clear all active sessions for this user
+	frappe.sessions.clear_sessions(user)
+
 	frappe.db.commit()
 
 	return {"success": True, "message": _("Your account has been deleted.")}
+
+
+@frappe.whitelist(allow_guest=True, methods=["POST"])
+@rate_limit(limit=10, seconds=300)
+def upload_private_file(filename: str = "", filedata: str = ""):
+	"""Upload a file as private (e.g. identity documents).
+
+	Accepts base64-encoded file content via JSON body.
+	Files are stored in the private directory.
+	Allowed during registration (guest) and for logged-in users.
+	"""
+	import base64
+
+	if not filename or not filedata:
+		frappe.throw(_("No file uploaded."))
+
+	# Validate file type
+	allowed_ext = (".pdf", ".jpg", ".jpeg", ".png")
+	if not filename.lower().endswith(allowed_ext):
+		frappe.throw(_("Only PDF, JPG, and PNG files are allowed."))
+
+	# Strip data URI prefix if present (e.g. "data:image/png;base64,...")
+	if "," in filedata:
+		filedata = filedata.split(",", 1)[1]
+
+	content = base64.b64decode(filedata)
+
+	file_doc = frappe.get_doc(
+		{
+			"doctype": "File",
+			"file_name": filename,
+			"content": content,
+			"is_private": 1,
+		}
+	)
+	file_doc.insert(ignore_permissions=True)
+	frappe.db.commit()
+
+	return {"file_url": file_doc.file_url}
 
 
 @frappe.whitelist(methods=["POST"])
@@ -721,11 +952,21 @@ def complete_registration_application(
 		frappe.throw(_("Not logged in."), frappe.AuthenticationError)
 
 	# Security: verify ownership
-	owner = frappe.db.get_value("Seller Application", seller_application, "applicant_user")
-	if not owner or owner != user:
+	app_data = frappe.db.get_value(
+		"Seller Application", seller_application,
+		["applicant_user", "status"], as_dict=True,
+	)
+	if not app_data or app_data.applicant_user != user:
 		frappe.throw(
 			_("You do not have permission to update this application."),
 			frappe.PermissionError,
+		)
+
+	# Prevent modifying already reviewed applications
+	if app_data.status in ("Approved", "Rejected", "Revoked"):
+		frappe.throw(
+			_("Cannot modify an already reviewed application."),
+			frappe.ValidationError,
 		)
 
 	doc = frappe.get_doc("Seller Application", seller_application)

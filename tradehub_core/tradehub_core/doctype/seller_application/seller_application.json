@@ -11,21 +11,25 @@
 	"title_field": "business_name",
 	"fields": [
 		{
+			"fieldname": "tab_application",
+			"fieldtype": "Tab Break",
+			"label": "Başvuru"
+		},
+		{
 			"fieldname": "applicant_user",
 			"fieldtype": "Link",
 			"label": "Applicant User",
 			"options": "User",
 			"reqd": 1,
 			"search_index": 1,
-			"in_list_view": 1,
-			"set_only_once": 1
+			"in_list_view": 1
 		},
 		{
 			"fieldname": "member_id",
 			"fieldtype": "Data",
 			"label": "Member ID",
 			"read_only": 1,
-			"description": "System-generated unique membership number (TH-XXXXXXXX)"
+			"in_list_view": 1
 		},
 		{
 			"fieldname": "cb_status",
@@ -35,29 +39,31 @@
 			"fieldname": "status",
 			"fieldtype": "Select",
 			"label": "Status",
-			"options": "Draft\nSubmitted\nUnder Review\nApproved\nRejected",
+			"options": "Draft\nSubmitted\nUnder Review\nApproved\nRejected\nRevoked",
 			"default": "Draft",
 			"in_list_view": 1,
-			"in_standard_filter": 1,
-			"reqd": 1
+			"in_standard_filter": 1
+		},
+		{
+			"fieldname": "tab_business",
+			"fieldtype": "Tab Break",
+			"label": "İş Bilgileri"
 		},
 		{
 			"fieldname": "sb_business",
 			"fieldtype": "Section Break",
-			"label": "Business Information"
+			"label": "İşletme Bilgileri"
 		},
 		{
 			"fieldname": "business_name",
 			"fieldtype": "Data",
-			"label": "Business Name",
-			"in_list_view": 1
+			"label": "Business Name"
 		},
 		{
 			"fieldname": "seller_type",
 			"fieldtype": "Select",
 			"label": "Seller Type",
-			"options": "\nIndividual\nBusiness\nEnterprise",
-			"in_standard_filter": 1
+			"options": "\nIndividual\nBusiness\nEnterprise"
 		},
 		{
 			"fieldname": "cb_contact",
@@ -76,9 +82,14 @@
 			"options": "Phone"
 		},
 		{
+			"fieldname": "tab_tax",
+			"fieldtype": "Tab Break",
+			"label": "Vergi"
+		},
+		{
 			"fieldname": "sb_tax",
 			"fieldtype": "Section Break",
-			"label": "Tax Information"
+			"label": "Vergi Bilgileri"
 		},
 		{
 			"fieldname": "tax_id_type",
@@ -97,9 +108,14 @@
 			"label": "Tax Office"
 		},
 		{
+			"fieldname": "tab_address",
+			"fieldtype": "Tab Break",
+			"label": "Adres"
+		},
+		{
 			"fieldname": "sb_address",
 			"fieldtype": "Section Break",
-			"label": "Address"
+			"label": "Adres Bilgileri"
 		},
 		{
 			"fieldname": "address_line_1",
@@ -122,9 +138,14 @@
 			"options": "Country"
 		},
 		{
+			"fieldname": "tab_bank",
+			"fieldtype": "Tab Break",
+			"label": "Banka"
+		},
+		{
 			"fieldname": "sb_bank",
 			"fieldtype": "Section Break",
-			"label": "Bank Information"
+			"label": "Banka Bilgileri"
 		},
 		{
 			"fieldname": "bank_name",
@@ -146,9 +167,14 @@
 			"label": "Account Holder Name"
 		},
 		{
+			"fieldname": "tab_identity",
+			"fieldtype": "Tab Break",
+			"label": "Kimlik"
+		},
+		{
 			"fieldname": "sb_identity",
 			"fieldtype": "Section Break",
-			"label": "Identity Document"
+			"label": "Kimlik Belgesi"
 		},
 		{
 			"fieldname": "identity_document_type",
@@ -176,28 +202,29 @@
 			"label": "Identity Document"
 		},
 		{
+			"fieldname": "tab_agreements",
+			"fieldtype": "Tab Break",
+			"label": "Sözleşmeler"
+		},
+		{
 			"fieldname": "sb_terms",
 			"fieldtype": "Section Break",
-			"label": "Agreements",
-			"collapsible": 1
+			"label": "Kabul Edilen Sözleşmeler"
 		},
 		{
 			"fieldname": "terms_accepted",
 			"fieldtype": "Check",
-			"label": "Terms of Service Accepted",
-			"default": "0"
+			"label": "Terms of Service Accepted"
 		},
 		{
 			"fieldname": "privacy_accepted",
 			"fieldtype": "Check",
-			"label": "Privacy Policy Accepted",
-			"default": "0"
+			"label": "Privacy Policy Accepted"
 		},
 		{
 			"fieldname": "kvkk_accepted",
 			"fieldtype": "Check",
-			"label": "KVKK Accepted",
-			"default": "0"
+			"label": "KVKK Accepted"
 		},
 		{
 			"fieldname": "cb_terms",
@@ -206,34 +233,33 @@
 		{
 			"fieldname": "commission_accepted",
 			"fieldtype": "Check",
-			"label": "Commission Agreement Accepted",
-			"default": "0"
+			"label": "Commission Agreement Accepted"
 		},
 		{
 			"fieldname": "return_policy_accepted",
 			"fieldtype": "Check",
-			"label": "Return Policy Accepted",
-			"default": "0"
+			"label": "Return Policy Accepted"
+		},
+		{
+			"fieldname": "tab_review",
+			"fieldtype": "Tab Break",
+			"label": "İnceleme"
 		},
 		{
 			"fieldname": "sb_review",
 			"fieldtype": "Section Break",
-			"label": "Review",
-			"collapsible": 1,
-			"depends_on": "eval:doc.status !== 'Draft'"
+			"label": "İnceleme Bilgileri"
 		},
 		{
 			"fieldname": "reviewed_by",
 			"fieldtype": "Link",
 			"label": "Reviewed By",
-			"options": "User",
-			"read_only": 1
+			"options": "User"
 		},
 		{
 			"fieldname": "reviewed_on",
 			"fieldtype": "Datetime",
-			"label": "Reviewed On",
-			"read_only": 1
+			"label": "Reviewed On"
 		},
 		{
 			"fieldname": "cb_review",
@@ -276,5 +302,57 @@
 	],
 	"actions": [],
 	"links": [],
-	"states": []
+	"states": [],
+	"field_order": [
+		"tab_application",
+		"applicant_user",
+		"member_id",
+		"cb_status",
+		"status",
+		"tab_business",
+		"sb_business",
+		"business_name",
+		"seller_type",
+		"cb_contact",
+		"contact_email",
+		"contact_phone",
+		"tab_tax",
+		"sb_tax",
+		"tax_id_type",
+		"tax_id",
+		"tax_office",
+		"tab_address",
+		"sb_address",
+		"address_line_1",
+		"city",
+		"cb_address",
+		"country",
+		"tab_bank",
+		"sb_bank",
+		"bank_name",
+		"iban",
+		"cb_bank",
+		"account_holder_name",
+		"tab_identity",
+		"sb_identity",
+		"identity_document_type",
+		"identity_document_number",
+		"identity_document_expiry",
+		"cb_identity",
+		"identity_document",
+		"tab_agreements",
+		"sb_terms",
+		"terms_accepted",
+		"privacy_accepted",
+		"kvkk_accepted",
+		"cb_terms",
+		"commission_accepted",
+		"return_policy_accepted",
+		"tab_review",
+		"sb_review",
+		"reviewed_by",
+		"reviewed_on",
+		"cb_review",
+		"review_notes"
+	]
 }

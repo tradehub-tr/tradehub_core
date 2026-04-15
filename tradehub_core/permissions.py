@@ -545,3 +545,317 @@ def apply_tenant_filter(filters, doctype=None, user=None):
         filters["tenant"] = tenant
 
     return filters
+
+
+# ---------------------------------------------------------------------------
+# Seller-Isolation Permission Handlers
+# ---------------------------------------------------------------------------
+# These provide row-level security so each seller only sees their own records.
+# System Manager bypasses all checks.
+# ---------------------------------------------------------------------------
+
+def _get_seller_profile_name(user):
+    """Return the Admin Seller Profile name (= seller_code) for the given user, or None."""
+    profile = frappe.db.get_value("Admin Seller Profile", {"user": user}, "name")
+    if not profile:
+        profile = frappe.db.get_value("Admin Seller Profile", {"owner": user}, "name")
+    if not profile:
+        profile = frappe.db.get_value("Admin Seller Profile", {"email": user}, "name")
+    return profile
+
+
+# ── Listing ──────────────────────────────────────────────────────────────────
+
+def listing_query_conditions(user):
+    if "System Manager" in frappe.get_roles(user):
+        return ""
+    profile = _get_seller_profile_name(user)
+    if profile:
+        return f"`tabListing`.`seller_profile` = {frappe.db.escape(profile)}"
+    return "1=0"
+
+
+def listing_has_permission(doc, ptype, user):
+    if "System Manager" in frappe.get_roles(user):
+        return True
+    profile = _get_seller_profile_name(user)
+    if not profile:
+        return False
+    # doc yoksa (doctype-seviyesi kontrol) veya henüz kaydedilmemişse izin ver
+    if doc is None:
+        return True
+    doc_seller = getattr(doc, "seller_profile", None) or (doc.get("seller_profile") if isinstance(doc, dict) else None)
+    # seller_profile henüz atanmamışsa izin ver (before_insert otomatik atar)
+    if not doc_seller:
+        return True
+    return doc_seller == profile
+
+
+# ── Admin Seller Profile ─────────────────────────────────────────────────────
+
+def admin_seller_profile_query_conditions(user):
+    if "System Manager" in frappe.get_roles(user):
+        return ""
+    profile = _get_seller_profile_name(user)
+    if profile:
+        return f"`tabAdmin Seller Profile`.`name` = {frappe.db.escape(profile)}"
+    return "1=0"
+
+
+def admin_seller_profile_has_permission(doc, ptype, user):
+    if "System Manager" in frappe.get_roles(user):
+        return True
+    profile = _get_seller_profile_name(user)
+    doc_name = getattr(doc, "name", None) if not isinstance(doc, dict) else doc.get("name")
+    return profile and doc_name == profile
+
+
+# ── Seller Balance ───────────────────────────────────────────────────────────
+# Seller Balance.seller links to "Seller Profile" whose name = user email.
+
+def seller_balance_query_conditions(user):
+    if "System Manager" in frappe.get_roles(user):
+        return ""
+    # Seller Profile is named by user, so seller field value = user email
+    return f"`tabSeller Balance`.`seller` = {frappe.db.escape(user)}"
+
+
+def seller_balance_has_permission(doc, ptype, user):
+    if "System Manager" in frappe.get_roles(user):
+        return True
+    seller_val = getattr(doc, "seller", None) if not isinstance(doc, dict) else doc.get("seller")
+    return seller_val == user
+
+
+# ── Seller Review ────────────────────────────────────────────────────────────
+# Seller Review.seller links to Admin Seller Profile.
+
+def seller_review_query_conditions(user):
+    if "System Manager" in frappe.get_roles(user):
+        return ""
+    profile = _get_seller_profile_name(user)
+    if profile:
+        return f"`tabSeller Review`.`seller` = {frappe.db.escape(profile)}"
+    return "1=0"
+
+
+def seller_review_has_permission(doc, ptype, user):
+    if "System Manager" in frappe.get_roles(user):
+        return True
+    profile = _get_seller_profile_name(user)
+    seller_val = getattr(doc, "seller", None) if not isinstance(doc, dict) else doc.get("seller")
+    return profile and seller_val == profile
+
+
+# ── Seller Category ──────────────────────────────────────────────────────────
+# Seller Category.seller links to Admin Seller Profile.
+
+def seller_category_query_conditions(user):
+    if "System Manager" in frappe.get_roles(user):
+        return ""
+    profile = _get_seller_profile_name(user)
+    if profile:
+        return f"`tabSeller Category`.`seller` = {frappe.db.escape(profile)}"
+    return "1=0"
+
+
+def seller_category_has_permission(doc, ptype, user):
+    if "System Manager" in frappe.get_roles(user):
+        return True
+    profile = _get_seller_profile_name(user)
+    seller_val = getattr(doc, "seller", None) if not isinstance(doc, dict) else doc.get("seller")
+    return profile and seller_val == profile
+
+
+# ── Seller Gallery Image ─────────────────────────────────────────────────────
+# Child table of Admin Seller Profile — filter by parent.
+
+def seller_gallery_image_query_conditions(user):
+    if "System Manager" in frappe.get_roles(user):
+        return ""
+    profile = _get_seller_profile_name(user)
+    if profile:
+        return f"`tabSeller Gallery Image`.`parent` = {frappe.db.escape(profile)}"
+    return "1=0"
+
+
+def seller_gallery_image_has_permission(doc, ptype, user):
+    if "System Manager" in frappe.get_roles(user):
+        return True
+    profile = _get_seller_profile_name(user)
+    parent_val = getattr(doc, "parent", None) if not isinstance(doc, dict) else doc.get("parent")
+    return profile and parent_val == profile
+
+
+# ── KYB Verification ─────────────────────────────────────────────────────────
+# KYB Verification.user links to User.
+
+def kyb_verification_query_conditions(user):
+    if "System Manager" in frappe.get_roles(user):
+        return ""
+    return f"`tabKYB Verification`.`user` = {frappe.db.escape(user)}"
+
+
+def kyb_verification_has_permission(doc, ptype, user):
+    if "System Manager" in frappe.get_roles(user):
+        return True
+    user_val = getattr(doc, "user", None) if not isinstance(doc, dict) else doc.get("user")
+    return user_val == user
+
+
+# ── Order ─────────────────────────────────────────────────────────────────────
+# Order.seller links to Admin Seller Profile.
+
+def order_query_conditions(user):
+    if "System Manager" in frappe.get_roles(user):
+        return ""
+    profile = _get_seller_profile_name(user)
+    if profile:
+        return f"`tabOrder`.`seller` = {frappe.db.escape(profile)}"
+    return "1=0"
+
+
+def order_has_permission(doc, ptype, user):
+    if "System Manager" in frappe.get_roles(user):
+        return True
+    profile = _get_seller_profile_name(user)
+    seller_val = getattr(doc, "seller", None) if not isinstance(doc, dict) else doc.get("seller")
+    return profile and seller_val == profile
+
+
+# ── Seller Inquiry ────────────────────────────────────────────────────────────
+# Seller Inquiry.seller links to Admin Seller Profile.
+
+def seller_inquiry_query_conditions(user):
+    if "System Manager" in frappe.get_roles(user):
+        return ""
+    profile = _get_seller_profile_name(user)
+    if profile:
+        return f"`tabSeller Inquiry`.`seller` = {frappe.db.escape(profile)}"
+    return "1=0"
+
+
+def seller_inquiry_has_permission(doc, ptype, user):
+    if "System Manager" in frappe.get_roles(user):
+        return True
+    profile = _get_seller_profile_name(user)
+    seller_val = getattr(doc, "seller", None) if not isinstance(doc, dict) else doc.get("seller")
+    return profile and seller_val == profile
+
+
+# ── Certification Type ───────────────────────────────────────────────────────
+# Sellers should only see Approved certification types.
+
+def certification_type_query_conditions(user):
+    if "System Manager" in frappe.get_roles(user):
+        return ""
+    escaped_user = frappe.db.escape(user)
+    return (
+        f"(`tabCertification Type`.`status` = 'Approved'"
+        f" OR `tabCertification Type`.`suggested_by` = {escaped_user})"
+    )
+
+
+def certification_type_has_permission(doc, ptype, user):
+    if "System Manager" in frappe.get_roles(user):
+        return True
+    status_val = getattr(doc, "status", None) if not isinstance(doc, dict) else doc.get("status")
+    if status_val == "Approved":
+        return True
+    # Allow seller to see their own Pending/Rejected suggestions
+    suggested_by = getattr(doc, "suggested_by", None) if not isinstance(doc, dict) else doc.get("suggested_by")
+    return suggested_by == user
+
+
+# ── Search History ──────────────────────────────────────────────────────────
+# Search History.user links to User. Each user can only see their own records.
+
+def search_history_query_conditions(user):
+    if "System Manager" in frappe.get_roles(user):
+        return ""
+    return f"`tabSearch History`.`user` = {frappe.db.escape(user)}"
+
+
+def search_history_has_permission(doc, ptype, user):
+    if "System Manager" in frappe.get_roles(user):
+        return True
+    doc_user = getattr(doc, "user", None) if not isinstance(doc, dict) else doc.get("user")
+    return doc_user == user
+
+
+# ── HD Ticket (Headless Helpdesk, marketplace routing) ─────────────────────
+# Erişim kuralları:
+#   - Full access: Administrator, System Manager, Support Manager, Agent Manager
+#   - Agent + HD Team üyesi (satıcı): sadece kendi team'lerinin ticket'ları
+#   - Agent (team'i yok): sadece Platform Support team'i
+#   - Müşteri / diğer: sadece kendi raised_by ticket'ları
+
+_HELPDESK_FULL_ACCESS_ROLES = frozenset({
+    "System Manager",
+    "Support Manager",
+    "Agent Manager",
+})
+
+_PLATFORM_SUPPORT_TEAM = "Platform Support"
+
+
+def _helpdesk_user_teams(user):
+    """User'in uyesi oldugu HD Team isimleri."""
+    if not user or user == "Guest":
+        return []
+    rows = frappe.get_all(
+        "HD Team Member",
+        filters={"user": user},
+        fields=["parent"],
+    )
+    return [r.parent for r in rows]
+
+
+def helpdesk_ticket_query_conditions(user):
+    if not user or user == "Guest":
+        return "1=0"
+    if user == "Administrator":
+        return ""
+
+    roles = set(frappe.get_roles(user))
+    if roles & _HELPDESK_FULL_ACCESS_ROLES:
+        return ""
+
+    escaped_user = frappe.db.escape(user)
+    own_clause = f"`tabHD Ticket`.`raised_by` = {escaped_user}"
+
+    # Agent: team ticket'lari + kendi acitigi ticket'lar (musteri olarak da açmış olabilir)
+    if "Agent" in roles:
+        teams = _helpdesk_user_teams(user)
+        if teams:
+            placeholders = ", ".join(frappe.db.escape(t) for t in teams)
+            team_clause = f"`tabHD Ticket`.`agent_group` IN ({placeholders})"
+        else:
+            team_clause = (
+                f"`tabHD Ticket`.`agent_group` = {frappe.db.escape(_PLATFORM_SUPPORT_TEAM)}"
+            )
+        return f"({team_clause} OR {own_clause})"
+
+    # Musteri / diger — sadece kendi acitigi ticket'lar
+    return own_clause
+
+
+def helpdesk_ticket_has_permission(doc, ptype, user):
+    if user == "Administrator":
+        return True
+    roles = set(frappe.get_roles(user))
+    if roles & _HELPDESK_FULL_ACCESS_ROLES:
+        return True
+
+    agent_group = getattr(doc, "agent_group", None) if not isinstance(doc, dict) else doc.get("agent_group")
+    raised_by = getattr(doc, "raised_by", None) if not isinstance(doc, dict) else doc.get("raised_by")
+
+    if "Agent" in roles:
+        teams = _helpdesk_user_teams(user)
+        if raised_by == user:
+            return True
+        if teams:
+            return agent_group in teams
+        return agent_group == _PLATFORM_SUPPORT_TEAM
+
+    return raised_by == user
