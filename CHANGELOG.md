@@ -1,3 +1,23 @@
+## [v1.0.4-rc.13] - 2026-04-15 RC
+
+Bu surum rc.istoc.com'da test asamasindadir.
+
+### Eklendi
+- feat(tailored): "Size Özel Seçimler" öneri endpoint'leri + User Product View DocType (@aliiball)
+- feat(tailored): Kategori kartlarına editoryal metin + rozet eklendi. (@aliiball)
+- feat(recommendations): Related Products skor pipeline + API + scheduler (@aliiball)
+- feat(api/public): create_ticket login zorunlu hale getirildi (@ahmeetseker)
+- feat(api/public): create_ticket login zorunlu hale getirildi (@ahmeetseker)
+- feat: add agent_reply_ticket headless API to update HD Ticket status without email triggers (@ahmeetseker)
+
+### Duzeltildi
+- fix: tüm frappe.get_doc(dict) çağrıları frappe.new_doc() ile değiştirildi (@ahmeetseker)
+- fix: backfill patch'inde nowdatetime import hatası düzeltildi — now_datetime kullanıldı (@ahmeetseker)
+- fix(patches): backfill_payment_transactions — Frappe v15 için now_datetime'a çevir (@aliiball)
+- fix(helpdesk): müşteri user'ında HD Team/Agent insert PermissionError → 403 (@ahmeetseker)
+- fix(helpdesk): müşteri user'ında HD Team/Agent insert PermissionError → 403 (@ahmeetseker)
+
+---
 ## [v1.0.4-rc.12] - 2026-04-15 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
