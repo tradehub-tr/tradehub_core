@@ -1,0 +1,308 @@
+{
+	"actions": [],
+	"autoname": "format:WDG-{#####}",
+	"creation": "2026-04-15 10:00:00.000000",
+	"doctype": "DocType",
+	"editable_grid": 0,
+	"engine": "InnoDB",
+	"field_order": [
+		"tab_basic",
+		"sb_basic",
+		"dashboard_key",
+		"widget_type",
+		"title",
+		"subtitle",
+		"cb_basic",
+		"size",
+		"is_enabled",
+		"position",
+		"sort_info",
+		"tab_appearance",
+		"sb_appearance",
+		"icon",
+		"color_preset",
+		"icon_bg_class",
+		"icon_color_class",
+		"tab_data",
+		"sb_data",
+		"source_doctype",
+		"aggregation",
+		"metric_field",
+		"date_field",
+		"date_bucket",
+		"cb_data",
+		"group_by_field",
+		"result_limit",
+		"is_currency",
+		"period_scoped",
+		"compare_previous",
+		"sb_filters",
+		"filters_json",
+		"config_json",
+		"tab_visibility",
+		"sb_visibility",
+		"visible_roles"
+	],
+	"fields": [
+		{
+			"fieldname": "tab_basic",
+			"fieldtype": "Tab Break",
+			"label": "Temel"
+		},
+		{
+			"fieldname": "sb_basic",
+			"fieldtype": "Section Break"
+		},
+		{
+			"fieldname": "dashboard_key",
+			"fieldtype": "Select",
+			"label": "Dashboard Anahtarı",
+			"options": "platform_overview\nseller_overview",
+			"reqd": 1,
+			"in_list_view": 1,
+			"in_standard_filter": 1,
+			"description": "Widget'ın görüneceği dashboard. Yeni bir dashboard eklemek için bu alanın seçeneklerini güncelleyin."
+		},
+		{
+			"fieldname": "widget_type",
+			"fieldtype": "Select",
+			"label": "Widget Tipi",
+			"options": "kpi_single\nline_chart\nbar_chart\ndonut_chart\nfunnel_chart\nstatus_breakdown\nquick_links",
+			"reqd": 1,
+			"in_list_view": 1,
+			"in_standard_filter": 1
+		},
+		{
+			"fieldname": "title",
+			"fieldtype": "Data",
+			"label": "Başlık",
+			"reqd": 1,
+			"in_list_view": 1
+		},
+		{
+			"fieldname": "subtitle",
+			"fieldtype": "Small Text",
+			"label": "Alt Başlık"
+		},
+		{
+			"fieldname": "cb_basic",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "size",
+			"fieldtype": "Select",
+			"label": "Boyut",
+			"options": "sm\nmd\nlg\nxl\nfull",
+			"default": "md"
+		},
+		{
+			"fieldname": "position",
+			"fieldtype": "Int",
+			"label": "Sıra",
+			"default": "0",
+			"hidden": 1,
+			"description": "Otomatik atanır. Sıralamayı değiştirmek için Dashboard Yönetimi sayfasında widget'ları sürükleyin."
+		},
+		{
+			"fieldname": "sort_info",
+			"fieldtype": "HTML",
+			"options": "<div style='padding:10px 14px;border-radius:8px;background:rgba(139,92,246,0.08);border:1px solid rgba(139,92,246,0.25);font-size:12px;line-height:1.5;color:#a78bfa'><strong>Sıralama:</strong> Yeni widget otomatik olarak en sona eklenir. Sıralamayı değiştirmek için <a href='/panel/dashboard-manager' style='color:#c4b5fd;text-decoration:underline'>Dashboard Yönetimi</a> sayfasında widget'ları sürükle-bırak ile düzenleyin.</div>"
+		},
+		{
+			"fieldname": "is_enabled",
+			"fieldtype": "Check",
+			"label": "Aktif",
+			"default": "1",
+			"in_list_view": 1
+		},
+		{
+			"fieldname": "tab_appearance",
+			"fieldtype": "Tab Break",
+			"label": "Görünüm"
+		},
+		{
+			"fieldname": "sb_appearance",
+			"fieldtype": "Section Break"
+		},
+		{
+			"fieldname": "icon",
+			"fieldtype": "Data",
+			"label": "İkon",
+			"description": "Galeriden seçin (FontAwesome class'ı otomatik doldurulur)."
+		},
+		{
+			"fieldname": "color_preset",
+			"fieldtype": "Select",
+			"label": "Renk",
+			"options": "violet\nblue\nemerald\namber\nrose\nindigo\nteal\norange\ngray",
+			"default": "violet",
+			"description": "Renk paletinden tek tıkla seçin. Arka plan + renk class'ları otomatik oluşturulur."
+		},
+		{
+			"fieldname": "icon_bg_class",
+			"fieldtype": "Data",
+			"label": "İkon Arka Plan (otomatik)",
+			"hidden": 1,
+			"read_only": 1
+		},
+		{
+			"fieldname": "icon_color_class",
+			"fieldtype": "Data",
+			"label": "İkon Renk (otomatik)",
+			"hidden": 1,
+			"read_only": 1
+		},
+		{
+			"fieldname": "tab_data",
+			"fieldtype": "Tab Break",
+			"label": "Veri Kaynağı"
+		},
+		{
+			"fieldname": "sb_data",
+			"fieldtype": "Section Break"
+		},
+		{
+			"fieldname": "source_doctype",
+			"fieldtype": "Link",
+			"label": "Kaynak DocType",
+			"options": "DocType",
+			"depends_on": "eval:!['quick_links','funnel_chart'].includes(doc.widget_type)"
+		},
+		{
+			"fieldname": "aggregation",
+			"fieldtype": "Select",
+			"label": "Hesaplama",
+			"options": "\ncount\nsum\navg\nmin\nmax",
+			"depends_on": "eval:!['quick_links','funnel_chart','status_breakdown','donut_chart'].includes(doc.widget_type)"
+		},
+		{
+			"fieldname": "metric_field",
+			"fieldtype": "Data",
+			"label": "Metrik Alanı",
+			"description": "sum/avg/min/max için zorunlu. Tip uyumlu (numeric) alanlar listelenir.",
+			"depends_on": "eval:['sum','avg','min','max'].includes(doc.aggregation) && !['quick_links','funnel_chart','status_breakdown'].includes(doc.widget_type)"
+		},
+		{
+			"fieldname": "date_field",
+			"fieldtype": "Data",
+			"label": "Tarih Alanı",
+			"description": "Periyot filtresinin uygulanacağı tarih alanı.",
+			"depends_on": "eval:!['quick_links','funnel_chart'].includes(doc.widget_type)"
+		},
+		{
+			"fieldname": "date_bucket",
+			"fieldtype": "Select",
+			"label": "Tarih Gruplaması",
+			"options": "\nauto\nday\nweek\nmonth",
+			"default": "auto",
+			"depends_on": "eval:doc.widget_type === 'line_chart'"
+		},
+		{
+			"fieldname": "cb_data",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "group_by_field",
+			"fieldtype": "Data",
+			"label": "Gruplama Alanı",
+			"description": "bar/donut/status_breakdown için zorunlu.",
+			"depends_on": "eval:['bar_chart','donut_chart','status_breakdown'].includes(doc.widget_type)"
+		},
+		{
+			"fieldname": "result_limit",
+			"fieldtype": "Int",
+			"label": "Sonuç Limiti",
+			"default": "10",
+			"depends_on": "eval:doc.widget_type === 'bar_chart'"
+		},
+		{
+			"fieldname": "is_currency",
+			"fieldtype": "Check",
+			"label": "Para Birimi Formatla",
+			"default": "0",
+			"depends_on": "eval:['kpi_single','line_chart','bar_chart'].includes(doc.widget_type)"
+		},
+		{
+			"fieldname": "period_scoped",
+			"fieldtype": "Check",
+			"label": "Dönem Filtresi Uygulansın",
+			"default": "1",
+			"depends_on": "eval:doc.widget_type !== 'quick_links'"
+		},
+		{
+			"fieldname": "compare_previous",
+			"fieldtype": "Check",
+			"label": "Önceki Dönemi Karşılaştır",
+			"default": "0",
+			"depends_on": "eval:doc.widget_type === 'kpi_single'"
+		},
+		{
+			"fieldname": "sb_filters",
+			"fieldtype": "Section Break",
+			"label": "Gelişmiş"
+		},
+		{
+			"fieldname": "filters_json",
+			"fieldtype": "Long Text",
+			"label": "Filtreler",
+			"description": "Verisi filtrelemek için koşullar (görsel veya JSON modunda).",
+			"depends_on": "eval:!['quick_links','funnel_chart'].includes(doc.widget_type)"
+		},
+		{
+			"fieldname": "config_json",
+			"fieldtype": "Long Text",
+			"label": "Ek Config (JSON)",
+			"description": "Widget tipine özel ayarlar (funnel stages, quick links, status colors)"
+		},
+		{
+			"fieldname": "tab_visibility",
+			"fieldtype": "Tab Break",
+			"label": "Erişim",
+			"hidden": 1
+		},
+		{
+			"fieldname": "sb_visibility",
+			"fieldtype": "Section Break",
+			"label": "Rol Bazlı Görünürlük",
+			"description": "Boş bırakılırsa widget'ı erişim yetkisi olan herkes görür.",
+			"hidden": 1
+		},
+		{
+			"fieldname": "visible_roles",
+			"fieldtype": "Table",
+			"label": "Görünür Roller",
+			"options": "Dashboard Widget Role",
+			"hidden": 1
+		}
+	],
+	"index_web_pages_for_search": 0,
+	"links": [],
+	"modified": "2026-04-15 10:00:00.000000",
+	"modified_by": "Administrator",
+	"module": "Tradehub Core",
+	"name": "Dashboard Widget",
+	"naming_rule": "Expression",
+	"owner": "Administrator",
+	"permissions": [
+		{
+			"create": 1,
+			"delete": 1,
+			"email": 1,
+			"export": 1,
+			"print": 1,
+			"read": 1,
+			"report": 1,
+			"role": "System Manager",
+			"share": 1,
+			"write": 1
+		},
+		{
+			"read": 1,
+			"role": "Marketplace Manager"
+		}
+	],
+	"sort_field": "position",
+	"sort_order": "ASC",
+	"states": [],
+	"track_changes": 1
+}
