@@ -40,6 +40,26 @@ class Listing(Document):
         self.validate_pricing()
         self.validate_pricing_tiers()
         self._validate_status_change()
+        self._validate_variant_defaults()
+        self._calculate_completeness()
+
+    def _calculate_completeness(self):
+        from tradehub_core.utils.completeness import calculate_completeness_score
+        self.completeness_score = calculate_completeness_score(self)
+
+    def _validate_variant_defaults(self):
+        """Sadece 1 SKU kombinasyonu varsayılan olabilir (tüm matris genelinde)."""
+        if not self.variant_items:
+            return
+        default_count = sum(1 for r in self.variant_items if r.is_default)
+        if default_count > 1:
+            # Auto-fix: sadece ilk default'u tut, gerisini kaldır
+            found_first = False
+            for row in self.variant_items:
+                if row.is_default:
+                    if found_first:
+                        row.is_default = 0
+                    found_first = True
 
     def _validate_status_change(self):
         if _is_admin():
