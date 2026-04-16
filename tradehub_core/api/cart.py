@@ -94,6 +94,7 @@ def _get_variant_stock_by_label(listing_name, variant_label):
 		return None
 
 	from tradehub_core.utils.stock import _find_variant_item_row
+
 	row_name = _find_variant_item_row(listing_name, variant_label)
 	if row_name:
 		return float(frappe.db.get_value("Listing Variant Item", row_name, "variant_stock") or 0)
@@ -121,9 +122,7 @@ def _check_stock(listing_doc, listing_name, listing_variant, total_qty, variant_
 
 	if available is None and listing_variant:
 		# 2) Gerçek Listing Variant doc'u
-		variant_doc = frappe.db.get_value(
-			"Listing Variant", listing_variant, ["stock_qty"], as_dict=True
-		)
+		variant_doc = frappe.db.get_value("Listing Variant", listing_variant, ["stock_qty"], as_dict=True)
 		if variant_doc and (variant_doc.stock_qty or 0) > 0:
 			available = float(variant_doc.stock_qty)
 
@@ -350,7 +349,11 @@ def _build_cart_response(cart_name):
 					max_qty = max(0, int(variant.stock_qty or 0))
 				else:
 					# variant_label ile per-variant stok (N-eksen)
-					label_stock = _get_variant_stock_by_label(listing_name, item.variant_label) if item.variant_label else None
+					label_stock = (
+						_get_variant_stock_by_label(listing_name, item.variant_label)
+						if item.variant_label
+						else None
+					)
 					if label_stock is not None:
 						max_qty = max(0, int(label_stock))
 					else:
@@ -468,7 +471,9 @@ def check_stock(listing, quantity=1, listing_variant=None, variant_label=None):
 
 
 @frappe.whitelist()
-def add_to_cart(listing, quantity=1, listing_variant=None, variant_label=None, color_variant=None, extra_axes=None):
+def add_to_cart(
+	listing, quantity=1, listing_variant=None, variant_label=None, color_variant=None, extra_axes=None
+):
 	"""
 	Add a listing (optionally a specific variant) to cart.
 	variant_label: human-readable combined label, e.g. "Renk: Lacivert | Malzeme: Pamuk | Beden: S"
@@ -611,7 +616,9 @@ def update_cart_item(cart_item, quantity):
 
 	# Stok kontrolü — variant_label ile per-variant stok kontrolü (N-eksen)
 	cart_item_data = frappe.db.get_value(
-		"Cart Item", cart_item, ["listing", "listing_variant", "variant_label"],
+		"Cart Item",
+		cart_item,
+		["listing", "listing_variant", "variant_label"],
 		as_dict=True,
 	)
 	listing_name = cart_item_data.listing if cart_item_data else None
@@ -625,7 +632,9 @@ def update_cart_item(cart_item, quantity):
 			as_dict=True,
 		)
 		if listing_doc:
-			_check_stock(listing_doc, listing_name, listing_variant_name, qty, variant_label=variant_label_value)
+			_check_stock(
+				listing_doc, listing_name, listing_variant_name, qty, variant_label=variant_label_value
+			)
 
 	frappe.db.set_value("Cart Item", cart_item, "quantity", qty)
 	frappe.db.commit()

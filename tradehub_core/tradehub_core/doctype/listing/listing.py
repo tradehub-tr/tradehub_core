@@ -47,6 +47,7 @@ class Listing(Document):
 
 	def _calculate_completeness(self):
 		from tradehub_core.utils.completeness import calculate_completeness_score
+
 		self.completeness_score = calculate_completeness_score(self)
 
 	def _validate_variant_defaults(self):
