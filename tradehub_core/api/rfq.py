@@ -303,19 +303,36 @@ def get_seller_rfqs(status=None, limit_page_length=20, limit_start=0):
 	if "Seller" not in frappe.get_roles(user):
 		frappe.throw(_("Only sellers can view RFQs"), frappe.PermissionError)
 
-	# User → Admin Seller Profile → Seller Category
+	# User → Admin Seller Profile
 	seller_profile = frappe.db.get_value("Admin Seller Profile", {"user": user}, "name")
 	if not seller_profile:
 		seller_profile = frappe.db.get_value("Admin Seller Profile", {"email": user}, "name")
 
-	cat_names = []
+	cat_names = set()
 	if seller_profile:
+		# 1. Seller Category'den (onaylı kategoriler)
 		seller_categories = frappe.get_all(
 			"Seller Category",
 			filters={"seller": seller_profile, "status": "Active", "is_enabled": 1},
 			fields=["category"],
 		)
-		cat_names = [sc.category for sc in seller_categories if sc.category]
+		for sc in seller_categories:
+			if sc.category:
+				cat_names.add(sc.category)
+
+		# 2. Listing'lerden (platform kategorisi)
+		seller_code = frappe.db.get_value("Admin Seller Profile", seller_profile, "seller_code")
+		if seller_code:
+			listings = frappe.get_all(
+				"Listing",
+				filters={"seller_profile": seller_code, "status": ["in", ["Aktif", "Active"]]},
+				fields=["product_category"],
+			)
+			for lst in listings:
+				if lst.product_category:
+					cat_names.add(lst.product_category)
+
+	cat_names = list(cat_names)
 
 	# Exclude RFQs where this seller already submitted a quote
 	quoted_rfqs = frappe.get_all(
@@ -332,9 +349,8 @@ def get_seller_rfqs(status=None, limit_page_length=20, limit_start=0):
 		filters["name"] = ["not in", quoted_rfqs]
 
 	if cat_names:
-		# Show RFQs matching seller's categories OR RFQs without category (general requests)
+		# Show RFQs matching seller's categories OR RFQs without category
 		filters["category"] = ["in", cat_names + [None, ""]]
-	# If seller has no active categories, show only category-less RFQs
 	else:
 		filters["category"] = ["in", [None, ""]]
 
