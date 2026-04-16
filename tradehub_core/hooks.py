@@ -31,6 +31,7 @@ scheduler_events = {
 		"tradehub_core.recommendations.tasks.refresh_copurchase_lift",
 	],
 	"daily": [
+		"tradehub_core.services.tcmb.fetch_and_update_rates",
 		"tradehub_core.setup.install.cleanup_expired_tokens",
 		"tradehub_core.utils.notification_cleanup.delete_old_notifications",
 		"tradehub_core.api.listing.cleanup_old_search_history",

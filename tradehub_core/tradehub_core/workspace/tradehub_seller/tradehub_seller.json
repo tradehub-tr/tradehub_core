@@ -44,7 +44,6 @@
   {"color": "Grey", "doc_view": "", "format": "Card", "label": "Kargo Yöntemleri", "link_to": "Shipping Method", "type": "DocType"},
   {"color": "Grey", "doc_view": "", "format": "Card", "label": "Satıcı Kategorileri", "link_to": "Seller Category", "type": "DocType"},
   {"color": "Grey", "doc_view": "", "format": "Card", "label": "Tedarikçi Profili", "link_to": "Supplier Profile", "type": "DocType"},
-  {"color": "Grey", "doc_view": "", "format": "Card", "label": "Döviz Kurları", "link_to": "Currency Rate", "type": "DocType"},
   {"color": "Grey", "doc_view": "", "format": "Card", "label": "Admin Satıcı Profili", "link_to": "Admin Seller Profile", "type": "DocType"}
  ],
  "title": "Satıcı Paneli"

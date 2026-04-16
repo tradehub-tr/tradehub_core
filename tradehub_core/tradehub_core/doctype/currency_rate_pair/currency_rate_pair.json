@@ -1,0 +1,103 @@
+{
+	"actions": [],
+	"autoname": "format:{from_currency}-{to_currency}",
+	"creation": "2024-01-01 00:00:00.000000",
+	"doctype": "DocType",
+	"engine": "InnoDB",
+	"field_order": [
+		"from_currency",
+		"to_currency",
+		"column_break_pair",
+		"rate",
+		"tcmb_info",
+		"settings_section",
+		"is_active",
+		"last_updated"
+	],
+	"fields": [
+		{
+			"fieldname": "from_currency",
+			"fieldtype": "Data",
+			"in_list_view": 1,
+			"label": "From",
+			"read_only": 1,
+			"reqd": 1
+		},
+		{
+			"fieldname": "to_currency",
+			"fieldtype": "Data",
+			"in_list_view": 1,
+			"label": "To",
+			"read_only": 1,
+			"reqd": 1
+		},
+		{
+			"fieldname": "column_break_pair",
+			"fieldtype": "Column Break"
+		},
+		{
+			"default": "1",
+			"fieldname": "rate",
+			"fieldtype": "Float",
+			"in_list_view": 1,
+			"label": "Rate",
+			"precision": 6,
+			"read_only": 1,
+			"reqd": 1
+		},
+		{
+			"fieldname": "tcmb_info",
+			"fieldtype": "HTML",
+			"options": "<div class=\"alert alert-info\" style=\"margin: 8px 0; font-size: 13px;\">Bu kurlar <b>TCMB</b>'den otomatik g\u00fcncellenir.</div>"
+		},
+		{
+			"fieldname": "settings_section",
+			"fieldtype": "Section Break"
+		},
+		{
+			"default": "1",
+			"fieldname": "is_active",
+			"fieldtype": "Check",
+			"in_list_view": 1,
+			"label": "Active",
+			"read_only": 1
+		},
+		{
+			"fieldname": "last_updated",
+			"fieldtype": "Datetime",
+			"in_list_view": 1,
+			"label": "Last Updated",
+			"read_only": 1
+		}
+	],
+	"index_web_pages_for_search": 0,
+	"links": [],
+	"modified": "2024-01-01 00:00:00.000000",
+	"modified_by": "Administrator",
+	"module": "Tradehub Core",
+	"name": "Currency Rate Pair",
+	"naming_rule": "Expression (old style)",
+	"owner": "Administrator",
+	"permissions": [
+		{
+			"email": 1,
+			"export": 1,
+			"print": 1,
+			"read": 1,
+			"report": 1,
+			"role": "System Manager",
+			"share": 1
+		},
+		{
+			"read": 1,
+			"role": "All"
+		}
+	],
+	"quick_entry": 0,
+	"search_fields": "from_currency,to_currency",
+	"show_name_in_global_search": 0,
+	"sort_field": "from_currency",
+	"sort_order": "ASC",
+	"title_field": "",
+	"track_changes": 0
+}
