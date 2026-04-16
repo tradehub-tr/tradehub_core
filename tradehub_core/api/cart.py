@@ -1,14 +1,16 @@
 import json
+
 import frappe
 from frappe import _
-from frappe.utils import now_datetime
+
 from tradehub_core.utils.stock import reserve_stock_for_order
 
 # Anında ödeme gerçekleşen yöntemler (ödeme gateway'i onaylar → direkt "Onaylanıyor")
-INSTANT_PAYMENT_METHODS = {'credit_card', 'iyzico', 'paytr', 'stripe'}
+INSTANT_PAYMENT_METHODS = {"credit_card", "iyzico", "paytr", "stripe"}
 
 # Manuel onay gerektiren yöntemler (dekont/belge beklenir → "Ödeme Bekleniyor")
-DEFERRED_PAYMENT_METHODS = {'bank_transfer', 'check_promissory', 'negotiated', 'installment'}
+DEFERRED_PAYMENT_METHODS = {"bank_transfer", "check_promissory", "negotiated", "installment"}
+
 
 def _invalidate_cart_cache(_cart_name):
 	"""No-op: cache kaldırıldı. Listing status değiştiğinde stale data önlemek için."""
@@ -21,6 +23,7 @@ def _build_cart_response_cached(cart_name):
 
 
 # ──────────────────────────── helpers ────────────────────────────────────────
+
 
 def _get_or_create_cart(user):
 	"""Get or create the active Cart for a user. Returns cart name."""
@@ -91,31 +94,10 @@ def _get_variant_stock_by_label(listing_name, variant_label):
 		return None
 
 	from tradehub_core.utils.stock import _find_variant_item_row
+
 	row_name = _find_variant_item_row(listing_name, variant_label)
 	if row_name:
 		return float(frappe.db.get_value("Listing Variant Item", row_name, "variant_stock") or 0)
-	return None
-
-
-def _get_inline_variant_stock(listing_name, synthetic_variant_id):
-	"""
-	Synthetic variantId formatı: "{listing_name}-{attribute_type}-{attribute_value}"
-	Listing Variant Item child table'dan variant_stock değerini döndürür.
-	Eşleşme bulunamazsa None döner.
-	"""
-	prefix = listing_name + "-"
-	if not synthetic_variant_id or not synthetic_variant_id.startswith(prefix):
-		return None
-	remainder = synthetic_variant_id[len(prefix):]
-	inline_variants = frappe.get_all(
-		"Listing Variant Item",
-		filters={"parent": listing_name, "parenttype": "Listing"},
-		fields=["attribute_type", "attribute_value", "variant_stock"],
-	)
-	for iv in inline_variants:
-		expected = f"{iv.attribute_type}-{iv.attribute_value}"
-		if remainder == expected:
-			return float(iv.variant_stock or 0)
 	return None
 
 
@@ -125,42 +107,36 @@ def _check_stock(listing_doc, listing_name, listing_variant, total_qty, variant_
 	Sırasıyla:
 	  1) variant_label ile varyant satırı stoğu (N-eksen)
 	  2) Listing Variant doc stoğu
-	  3) Inline variant item stoğu (synthetic ID)
-	  4) Listing seviyesi stok
+	  3) Listing seviyesi stok
 	"""
 	if not listing_doc.track_inventory or listing_doc.allow_backorders:
 		return
 
 	available = None
 
-	# 1) variant_label ile per-variant stok kontrolü (3+ eksen dahil)
+	# 1) variant_label ile per-variant stok kontrolü (N-eksen)
 	if variant_label:
 		label_stock = _get_variant_stock_by_label(listing_name, variant_label)
 		if label_stock is not None:
 			available = label_stock
 
 	if available is None and listing_variant:
-		# 2) Gerçek Listing Variant doc'u dene
-		variant_doc = frappe.db.get_value(
-			"Listing Variant", listing_variant, ["stock_qty"], as_dict=True
-		)
+		# 2) Gerçek Listing Variant doc'u
+		variant_doc = frappe.db.get_value("Listing Variant", listing_variant, ["stock_qty"], as_dict=True)
 		if variant_doc and (variant_doc.stock_qty or 0) > 0:
 			available = float(variant_doc.stock_qty)
-		else:
-			# 3) Inline variant item dene (synthetic ID)
-			inline_stock = _get_inline_variant_stock(listing_name, listing_variant)
-			if inline_stock is not None:
-				available = inline_stock
 
 	if available is None:
-		# 4) Listing seviyesi stok
+		# 3) Listing seviyesi stok
 		available = float(listing_doc.stock_qty or 0)
 
 	if total_qty > available:
 		if available <= 0:
 			frappe.throw(_("Bu üründen yeterli stok bulunmamaktadır."))
 		else:
-			frappe.throw(_("Bu üründen bu kadar stok yok. En fazla {0} adet eklenebilir.").format(int(available)))
+			frappe.throw(
+				_("Bu üründen bu kadar stok yok. En fazla {0} adet eklenebilir.").format(int(available))
+			)
 
 
 def _build_cart_response(cart_name):
@@ -171,8 +147,19 @@ def _build_cart_response(cart_name):
 	items = frappe.get_all(
 		"Cart Item",
 		filters={"parent": cart_name},
-		fields=["name", "listing", "listing_variant", "color_variant", "variant_label", "quantity",
-				"seller", "snapshot_title", "snapshot_image", "snapshot_price", "snapshot_currency"],
+		fields=[
+			"name",
+			"listing",
+			"listing_variant",
+			"color_variant",
+			"variant_label",
+			"quantity",
+			"seller",
+			"snapshot_title",
+			"snapshot_image",
+			"snapshot_price",
+			"snapshot_currency",
+		],
 		order_by="creation asc",
 	)
 
@@ -183,9 +170,21 @@ def _build_cart_response(cart_name):
 		listing = frappe.db.get_value(
 			"Listing",
 			item.listing,
-			["name", "title", "seller_profile", "primary_image",
-			 "selling_price", "base_price", "min_order_qty", "sell_in_moq_multiples", "currency", "status",
-			 "track_inventory", "allow_backorders", "stock_qty"],
+			[
+				"name",
+				"title",
+				"seller_profile",
+				"primary_image",
+				"selling_price",
+				"base_price",
+				"min_order_qty",
+				"sell_in_moq_multiples",
+				"currency",
+				"status",
+				"track_inventory",
+				"allow_backorders",
+				"stock_qty",
+			],
 			as_dict=True,
 		)
 		is_available = bool(listing and listing.status == "Active")
@@ -234,8 +233,7 @@ def _build_cart_response(cart_name):
 					order_by="min_qty asc",
 				)
 				price_tiers = [
-					{"minQty": t.min_qty, "maxQty": t.max_qty or None, "price": float(t.price)}
-					for t in tiers
+					{"minQty": t.min_qty, "maxQty": t.max_qty or None, "price": float(t.price)} for t in tiers
 				]
 				sellers_map[seller_id]["products"][listing_name] = {
 					"id": listing_name,
@@ -253,8 +251,8 @@ def _build_cart_response(cart_name):
 			else:
 				# Snapshot yoksa listing verisini fallback olarak kullan
 				snap_title = item.snapshot_title or (listing.title if listing else "") or ""
-				snap_image = item.snapshot_image or (listing.primary_image if listing else "") or ""
-				snap_price_raw = float(item.snapshot_price or 0) or float(
+				_ = item.snapshot_image or (listing.primary_image if listing else "") or ""
+				_ = float(item.snapshot_price or 0) or float(
 					(listing.selling_price or listing.base_price or 0) if listing else 0
 				)
 				snap_currency = item.snapshot_currency or (listing.currency if listing else "USD") or "USD"
@@ -282,12 +280,17 @@ def _build_cart_response(cart_name):
 
 			# color_variant'tan görsel çek (snapshot yoksa)
 			if item.color_variant and item.color_variant.startswith(listing_name + "-"):
-				color_parts = item.color_variant[len(listing_name) + 1:].split("-", 1)
+				color_parts = item.color_variant[len(listing_name) + 1 :].split("-", 1)
 				if len(color_parts) == 2:
 					c_type, c_value = color_parts[0].strip(), color_parts[1].strip()
 					civ = frappe.db.get_value(
 						"Listing Variant Item",
-						{"parent": listing_name, "parenttype": "Listing", "attribute_type": c_type, "attribute_value": c_value},
+						{
+							"parent": listing_name,
+							"parenttype": "Listing",
+							"attribute_type": c_type,
+							"attribute_value": c_value,
+						},
 						["variant_image"],
 						as_dict=True,
 					)
@@ -316,12 +319,21 @@ def _build_cart_response(cart_name):
 					if len(parts) >= 3:
 						variant_text = parts[-1]  # son parça attribute değeri
 					# Inline varyant fiyatını bul
-					inline_parts = item.listing_variant[len(listing_name) + 1:].split("-", 1) if item.listing_variant.startswith(listing_name + "-") else []
+					inline_parts = (
+						item.listing_variant[len(listing_name) + 1 :].split("-", 1)
+						if item.listing_variant.startswith(listing_name + "-")
+						else []
+					)
 					if len(inline_parts) == 2:
 						attr_type, attr_value = inline_parts
 						iv = frappe.db.get_value(
 							"Listing Variant Item",
-							{"parent": listing_name, "parenttype": "Listing", "attribute_type": attr_type, "attribute_value": attr_value},
+							{
+								"parent": listing_name,
+								"parenttype": "Listing",
+								"attribute_type": attr_type,
+								"attribute_value": attr_value,
+							},
 							["variant_price", "variant_image", "variant_stock"],
 							as_dict=True,
 						)
@@ -336,39 +348,40 @@ def _build_cart_response(cart_name):
 				if variant:
 					max_qty = max(0, int(variant.stock_qty or 0))
 				else:
-					# 1) variant_label ile per-variant stok (3+ eksen)
-					label_stock = _get_variant_stock_by_label(listing_name, item.variant_label) if item.variant_label else None
+					# variant_label ile per-variant stok (N-eksen)
+					label_stock = (
+						_get_variant_stock_by_label(listing_name, item.variant_label)
+						if item.variant_label
+						else None
+					)
 					if label_stock is not None:
 						max_qty = max(0, int(label_stock))
 					else:
-						# 2) Inline varyant stoğunu kontrol et (synthetic ID)
-						inline_stock = _get_inline_variant_stock(listing_name, item.listing_variant) if item.listing_variant else None
-						if inline_stock is not None:
-							max_qty = max(0, int(inline_stock))
-						else:
-							max_qty = max(0, int(listing.stock_qty or 0))
+						max_qty = max(0, int(listing.stock_qty or 0))
 			else:
 				max_qty = 999999
 
-			sellers_map[seller_id]["products"][listing_name]["skus"].append({
-				"id": item.name,
-				"skuImage": sku_image,
-				"variantText": variant_text,
-				"unitPrice": base_price + base_price_addon,
-				"priceAddon": base_price_addon,
-				"currency": listing.currency or "USD",
-				"unit": "Adet",
-				"quantity": item.quantity,
-				"minQty": listing.min_order_qty or 1,
-				"sellInMoqMultiples": bool(listing.sell_in_moq_multiples),
-				"maxQty": max_qty,
-				"selected": True,
-				"baseUnitPrice": base_price,
-				"basePriceAddon": base_price_addon,
-				"baseCurrency": listing.currency or "USD",
-				"listingVariant": item.listing_variant or None,
-				"isAvailable": True,
-			})
+			sellers_map[seller_id]["products"][listing_name]["skus"].append(
+				{
+					"id": item.name,
+					"skuImage": sku_image,
+					"variantText": variant_text,
+					"unitPrice": base_price + base_price_addon,
+					"priceAddon": base_price_addon,
+					"currency": listing.currency or "USD",
+					"unit": "Adet",
+					"quantity": item.quantity,
+					"minQty": listing.min_order_qty or 1,
+					"sellInMoqMultiples": bool(listing.sell_in_moq_multiples),
+					"maxQty": max_qty,
+					"selected": True,
+					"baseUnitPrice": base_price,
+					"basePriceAddon": base_price_addon,
+					"baseCurrency": listing.currency or "USD",
+					"listingVariant": item.listing_variant or None,
+					"isAvailable": True,
+				}
+			)
 		else:
 			# Snapshot verisiyle SKU oluştur (satın alınamaz, gösterim amaçlı)
 			# snap_title/image/price/currency product bucket'ta hesaplandı, aynısını kullan
@@ -377,39 +390,44 @@ def _build_cart_response(cart_name):
 			)
 			snap_image_sku = item.snapshot_image or (listing.primary_image if listing else "") or ""
 			snap_currency_sku = item.snapshot_currency or (listing.currency if listing else "USD") or "USD"
-			sellers_map[seller_id]["products"][listing_name]["skus"].append({
-				"id": item.name,
-				"skuImage": snap_image_sku,
-				"variantText": "",
-				"unitPrice": snap_price_sku,
-				"priceAddon": 0,
-				"currency": snap_currency_sku,
-				"unit": "Adet",
-				"quantity": item.quantity,
-				"minQty": 1,
-				"maxQty": 999999,
-				"selected": False,
-				"baseUnitPrice": snap_price_sku,
-				"basePriceAddon": 0,
-				"baseCurrency": snap_currency_sku,
-				"listingVariant": item.listing_variant or None,
-				"isAvailable": False,
-			})
+			sellers_map[seller_id]["products"][listing_name]["skus"].append(
+				{
+					"id": item.name,
+					"skuImage": snap_image_sku,
+					"variantText": "",
+					"unitPrice": snap_price_sku,
+					"priceAddon": 0,
+					"currency": snap_currency_sku,
+					"unit": "Adet",
+					"quantity": item.quantity,
+					"minQty": 1,
+					"maxQty": 999999,
+					"selected": False,
+					"baseUnitPrice": snap_price_sku,
+					"basePriceAddon": 0,
+					"baseCurrency": snap_currency_sku,
+					"listingVariant": item.listing_variant or None,
+					"isAvailable": False,
+				}
+			)
 
 	suppliers = []
 	for seller_data in sellers_map.values():
-		suppliers.append({
-			"id": seller_data["id"],
-			"name": seller_data["name"],
-			"href": seller_data["href"],
-			"selected": seller_data["selected"],
-			"products": list(seller_data["products"].values()),
-		})
+		suppliers.append(
+			{
+				"id": seller_data["id"],
+				"name": seller_data["name"],
+				"href": seller_data["href"],
+				"selected": seller_data["selected"],
+				"products": list(seller_data["products"].values()),
+			}
+		)
 
 	return {"suppliers": suppliers}
 
 
 # ──────────────────────────── endpoints ──────────────────────────────────────
+
 
 @frappe.whitelist()
 def get_cart():
@@ -453,7 +471,9 @@ def check_stock(listing, quantity=1, listing_variant=None, variant_label=None):
 
 
 @frappe.whitelist()
-def add_to_cart(listing, quantity=1, listing_variant=None, variant_label=None, color_variant=None, extra_axes=None):
+def add_to_cart(
+	listing, quantity=1, listing_variant=None, variant_label=None, color_variant=None, extra_axes=None
+):
 	"""
 	Add a listing (optionally a specific variant) to cart.
 	variant_label: human-readable combined label, e.g. "Renk: Lacivert | Malzeme: Pamuk | Beden: S"
@@ -473,8 +493,20 @@ def add_to_cart(listing, quantity=1, listing_variant=None, variant_label=None, c
 	listing_doc = frappe.db.get_value(
 		"Listing",
 		listing,
-		["status", "min_order_qty", "sell_in_moq_multiples", "stock_qty", "track_inventory", "allow_backorders",
-		 "seller_profile", "title", "primary_image", "selling_price", "base_price", "currency"],
+		[
+			"status",
+			"min_order_qty",
+			"sell_in_moq_multiples",
+			"stock_qty",
+			"track_inventory",
+			"allow_backorders",
+			"seller_profile",
+			"title",
+			"primary_image",
+			"selling_price",
+			"base_price",
+			"currency",
+		],
 		as_dict=True,
 	)
 	if listing_doc.status != "Active":
@@ -507,8 +539,7 @@ def add_to_cart(listing, quantity=1, listing_variant=None, variant_label=None, c
 
 	if listing_variant:
 		var_snap = frappe.db.get_value(
-			"Listing Variant", listing_variant,
-			["primary_image", "price"], as_dict=True
+			"Listing Variant", listing_variant, ["primary_image", "price"], as_dict=True
 		)
 		if var_snap:
 			if var_snap.primary_image:
@@ -518,12 +549,17 @@ def add_to_cart(listing, quantity=1, listing_variant=None, variant_label=None, c
 
 	# Renk varyantından görsel çek (color_variant = inline renk ID'si, ör. "LST-00013-Renk-Lacivert")
 	if color_variant and color_variant.startswith(listing + "-"):
-		color_parts = color_variant[len(listing) + 1:].split("-", 1)
+		color_parts = color_variant[len(listing) + 1 :].split("-", 1)
 		if len(color_parts) == 2:
 			color_type, color_value = color_parts[0].strip(), color_parts[1].strip()
 			iv = frappe.db.get_value(
 				"Listing Variant Item",
-				{"parent": listing, "parenttype": "Listing", "attribute_type": color_type, "attribute_value": color_value},
+				{
+					"parent": listing,
+					"parenttype": "Listing",
+					"attribute_type": color_type,
+					"attribute_value": color_value,
+				},
 				["variant_image"],
 				as_dict=True,
 			)
@@ -532,25 +568,32 @@ def add_to_cart(listing, quantity=1, listing_variant=None, variant_label=None, c
 
 	# cart_name ve existing_row yukarıda stok kontrolü için alındı — tekrar sorgulama
 	if existing_row:
-		frappe.db.set_value("Cart Item", existing_row.name, {
-			"quantity": existing_row.quantity + qty,
-			"variant_label": variant_label or existing_row.get("variant_label") or None,
-			"snapshot_image": snap_image or existing_row.get("snapshot_image") or None,
-		})
+		frappe.db.set_value(
+			"Cart Item",
+			existing_row.name,
+			{
+				"quantity": existing_row.quantity + qty,
+				"variant_label": variant_label or existing_row.get("variant_label") or None,
+				"snapshot_image": snap_image or existing_row.get("snapshot_image") or None,
+			},
+		)
 	else:
 		cart_doc = frappe.get_doc("Cart", cart_name)
-		cart_doc.append("items", {
-			"listing": listing,
-			"listing_variant": listing_variant,
-			"color_variant": color_variant,
-			"variant_label": variant_label or None,
-			"quantity": qty,
-			"seller": seller_id,
-			"snapshot_title": snap_title,
-			"snapshot_image": snap_image,
-			"snapshot_price": snap_price,
-			"snapshot_currency": snap_currency,
-		})
+		cart_doc.append(
+			"items",
+			{
+				"listing": listing,
+				"listing_variant": listing_variant,
+				"color_variant": color_variant,
+				"variant_label": variant_label or None,
+				"quantity": qty,
+				"seller": seller_id,
+				"snapshot_title": snap_title,
+				"snapshot_image": snap_image,
+				"snapshot_price": snap_price,
+				"snapshot_currency": snap_currency,
+			},
+		)
 		cart_doc.save(ignore_permissions=True)
 
 	frappe.db.commit()
@@ -573,7 +616,9 @@ def update_cart_item(cart_item, quantity):
 
 	# Stok kontrolü — variant_label ile per-variant stok kontrolü (N-eksen)
 	cart_item_data = frappe.db.get_value(
-		"Cart Item", cart_item, ["listing", "listing_variant", "variant_label"],
+		"Cart Item",
+		cart_item,
+		["listing", "listing_variant", "variant_label"],
 		as_dict=True,
 	)
 	listing_name = cart_item_data.listing if cart_item_data else None
@@ -587,7 +632,9 @@ def update_cart_item(cart_item, quantity):
 			as_dict=True,
 		)
 		if listing_doc:
-			_check_stock(listing_doc, listing_name, listing_variant_name, qty, variant_label=variant_label_value)
+			_check_stock(
+				listing_doc, listing_name, listing_variant_name, qty, variant_label=variant_label_value
+			)
 
 	frappe.db.set_value("Cart Item", cart_item, "quantity", qty)
 	frappe.db.commit()
@@ -675,34 +722,40 @@ def merge_guest_cart(items):
 					break
 		else:
 			# Snapshot verisi hazırla
-			listing_snap = frappe.db.get_value(
-				"Listing", listing,
-				["seller_profile", "title", "primary_image", "selling_price", "base_price", "currency"],
-				as_dict=True,
-			) or {}
+			listing_snap = (
+				frappe.db.get_value(
+					"Listing",
+					listing,
+					["seller_profile", "title", "primary_image", "selling_price", "base_price", "currency"],
+					as_dict=True,
+				)
+				or {}
+			)
 			snap_price = float(listing_snap.get("selling_price") or listing_snap.get("base_price") or 0)
 			snap_image = listing_snap.get("primary_image") or ""
 			snap_currency = listing_snap.get("currency") or "USD"
 			if listing_variant:
 				var_snap = frappe.db.get_value(
-					"Listing Variant", listing_variant,
-					["primary_image", "price"], as_dict=True
+					"Listing Variant", listing_variant, ["primary_image", "price"], as_dict=True
 				)
 				if var_snap:
 					if var_snap.primary_image:
 						snap_image = var_snap.primary_image
 					if var_snap.price:
 						snap_price = float(var_snap.price)
-			cart_doc.append("items", {
-				"listing": listing,
-				"listing_variant": listing_variant,
-				"quantity": qty,
-				"seller": listing_snap.get("seller_profile") or None,
-				"snapshot_title": listing_snap.get("title") or "",
-				"snapshot_image": snap_image,
-				"snapshot_price": snap_price,
-				"snapshot_currency": snap_currency,
-			})
+			cart_doc.append(
+				"items",
+				{
+					"listing": listing,
+					"listing_variant": listing_variant,
+					"quantity": qty,
+					"seller": listing_snap.get("seller_profile") or None,
+					"snapshot_title": listing_snap.get("title") or "",
+					"snapshot_image": snap_image,
+					"snapshot_price": snap_price,
+					"snapshot_currency": snap_currency,
+				},
+			)
 			needs_save = True
 
 	if needs_save:
@@ -714,7 +767,9 @@ def merge_guest_cart(items):
 
 
 @frappe.whitelist()
-def create_order(orders_json, shipping_address=None, payment_method=None, coupon_code=None, coupon_discount=0):
+def create_order(
+	orders_json, shipping_address=None, payment_method=None, coupon_code=None, coupon_discount=0
+):
 	"""
 	Seçili sepet ürünlerinden sipariş(ler) oluşturur.
 	orders_json: JSON list of {
@@ -763,9 +818,9 @@ def create_order(orders_json, shipping_address=None, payment_method=None, coupon
 		# Ödeme yöntemine göre başlangıç statüsü belirle
 		pm = payment_method or "bank_transfer"
 		if pm in INSTANT_PAYMENT_METHODS:
-			order_doc.status = "Onaylanıyor"   # Gateway onayladı → beklemede gerek yok
+			order_doc.status = "Onaylanıyor"  # Gateway onayladı → beklemede gerek yok
 		else:
-			order_doc.status = "Ödeme Bekleniyor"   # Havale/Çek/Senet/Elden → manuel onay
+			order_doc.status = "Ödeme Bekleniyor"  # Havale/Çek/Senet/Elden → manuel onay
 		order_doc.payment_method = pm
 		order_doc.currency = currency
 		order_doc.subtotal = subtotal
@@ -781,16 +836,21 @@ def create_order(orders_json, shipping_address=None, payment_method=None, coupon
 		for p in products:
 			# listing_variant artık Data alanı — sentetik ID'leri (LST-XXXXX-Tip-Değer) olduğu gibi sakla
 			lv = p.get("listing_variant") or None
-			order_doc.append("items", {
-				"listing": p.get("listing") if p.get("listing") and frappe.db.exists("Listing", p.get("listing")) else None,
-				"listing_title": p.get("listing_title", ""),
-				"listing_variant": lv,
-				"variation": p.get("variation", ""),
-				"unit_price": float(p.get("unit_price", 0)),
-				"quantity": int(p.get("quantity", 1)),
-				"total_price": float(p.get("total_price", 0)),
-				"image": p.get("image", ""),
-			})
+			order_doc.append(
+				"items",
+				{
+					"listing": p.get("listing")
+					if p.get("listing") and frappe.db.exists("Listing", p.get("listing"))
+					else None,
+					"listing_title": p.get("listing_title", ""),
+					"listing_variant": lv,
+					"variation": p.get("variation", ""),
+					"unit_price": float(p.get("unit_price", 0)),
+					"quantity": int(p.get("quantity", 1)),
+					"total_price": float(p.get("total_price", 0)),
+					"image": p.get("image", ""),
+				},
+			)
 
 		order_doc.insert(ignore_permissions=True)
 		# Stok rezervasyonu — sipariş oluşturulduğunda listing reserved_qty artır
@@ -800,11 +860,12 @@ def create_order(orders_json, shipping_address=None, payment_method=None, coupon
 		if pm in INSTANT_PAYMENT_METHODS:
 			try:
 				from tradehub_core.api.payment import create_payment_transaction
+
 				pm_label_map = {
-					'credit_card': 'Kredi Kartı',
-					'iyzico': 'Kredi Kartı (Iyzico)',
-					'paytr': 'Kredi Kartı (PayTR)',
-					'stripe': 'Kredi Kartı (Stripe)',
+					"credit_card": "Kredi Kartı",
+					"iyzico": "Kredi Kartı (Iyzico)",
+					"paytr": "Kredi Kartı (PayTR)",
+					"stripe": "Kredi Kartı (Stripe)",
 				}
 				create_payment_transaction(
 					order_name=order_doc.name,
@@ -812,7 +873,7 @@ def create_order(orders_json, shipping_address=None, payment_method=None, coupon
 					transaction_type="Ödeme",
 					amount=float(max(0, total)),
 					currency=currency,
-					payment_method=pm_label_map.get(pm, 'Kredi Kartı'),
+					payment_method=pm_label_map.get(pm, "Kredi Kartı"),
 					status="Tamamlandı",
 				)
 			except Exception:
@@ -821,20 +882,24 @@ def create_order(orders_json, shipping_address=None, payment_method=None, coupon
 					"instant_payment_tracking",
 				)
 
-		created_orders.append({
-			"order_name": order_doc.name,
-			"order_number": order_doc.name,
-			"seller_name": order_data.get("seller_name", ""),
-			"total": max(0, total),
-			"currency": currency,
-		})
+		created_orders.append(
+			{
+				"order_name": order_doc.name,
+				"order_number": order_doc.name,
+				"seller_name": order_data.get("seller_name", ""),
+				"total": max(0, total),
+				"currency": currency,
+			}
+		)
 
 	if not created_orders:
 		frappe.throw(_("Hiçbir sipariş oluşturulamadı"))
 
 	# Kupon used_count artır
 	if coupon_code:
-		coupon_name = frappe.db.get_value("Coupon", {"code": coupon_code.strip().upper(), "is_active": 1}, "name")
+		coupon_name = frappe.db.get_value(
+			"Coupon", {"code": coupon_code.strip().upper(), "is_active": 1}, "name"
+		)
 		if coupon_name:
 			current_count = int(frappe.db.get_value("Coupon", coupon_name, "used_count") or 0)
 			frappe.db.set_value("Coupon", coupon_name, "used_count", current_count + 1)
@@ -869,6 +934,7 @@ def create_order(orders_json, shipping_address=None, payment_method=None, coupon
 def get_orders(page=1, page_size=20):
 	"""Oturumdaki kullanıcının siparişlerini döndürür. order.py'ye proxy."""
 	from tradehub_core.api.order import get_my_orders
+
 	return get_my_orders(page=page, page_size=page_size)
 
 
@@ -881,10 +947,21 @@ def validate_coupon(code, order_total=0):
 		frappe.throw(_("Kupon kodu boş olamaz"))
 
 	import datetime
+
 	coupon = frappe.db.get_value(
 		"Coupon",
 		{"code": code.strip().upper(), "is_active": 1},
-		["name", "code", "coupon_type", "value", "min_order", "max_uses", "used_count", "description", "expires_at"],
+		[
+			"name",
+			"code",
+			"coupon_type",
+			"value",
+			"min_order",
+			"max_uses",
+			"used_count",
+			"description",
+			"expires_at",
+		],
 		as_dict=True,
 	)
 
@@ -921,12 +998,23 @@ def validate_coupon(code, order_total=0):
 def get_buyer_coupons():
 	"""Sisteme tanımlı aktif kuponları ve durumlarını döndürür."""
 	import datetime
+
 	today = datetime.date.today()
 
 	coupons = frappe.get_all(
 		"Coupon",
 		filters={"is_active": 1},
-		fields=["name", "code", "coupon_type", "value", "min_order", "max_uses", "used_count", "description", "expires_at"],
+		fields=[
+			"name",
+			"code",
+			"coupon_type",
+			"value",
+			"min_order",
+			"max_uses",
+			"used_count",
+			"description",
+			"expires_at",
+		],
 		order_by="creation desc",
 	)
 
@@ -939,14 +1027,16 @@ def get_buyer_coupons():
 		else:
 			status = "available"
 
-		result.append({
-			"code": c.code,
-			"type": c.coupon_type,
-			"value": float(c.value or 0),
-			"minOrder": float(c.min_order or 0),
-			"description": c.description or "",
-			"status": status,
-			"expiresAt": str(c.expires_at) + "T23:59:59Z" if c.expires_at else "",
-		})
+		result.append(
+			{
+				"code": c.code,
+				"type": c.coupon_type,
+				"value": float(c.value or 0),
+				"minOrder": float(c.min_order or 0),
+				"description": c.description or "",
+				"status": status,
+				"expiresAt": str(c.expires_at) + "T23:59:59Z" if c.expires_at else "",
+			}
+		)
 
 	return {"coupons": result}

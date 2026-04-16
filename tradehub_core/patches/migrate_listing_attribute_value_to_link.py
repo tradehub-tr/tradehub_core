@@ -34,14 +34,13 @@ def execute():
 		rows = []
 
 	existing_attrs = {
-		a.name: a for a in frappe.db.get_all(
+		a.name: a
+		for a in frappe.db.get_all(
 			"Product Attribute",
 			fields=["name", "attribute_label", "attribute_code"],
 		)
 	}
-	label_to_code = {
-		(a.attribute_label or "").strip().lower(): a.name for a in existing_attrs.values()
-	}
+	label_to_code = {(a.attribute_label or "").strip().lower(): a.name for a in existing_attrs.values()}
 
 	migrated = 0
 	auto_created = 0

@@ -13,16 +13,14 @@ the homepage Top Ranking would inflate fast.
 Idempotent: the patch checks for the column before adding it, safe to
 re-run.
 """
+
 import frappe
 
 
 def execute():
-    columns = frappe.db.get_table_columns("Order")
-    if "metrics_credited" in columns:
-        return
+	columns = frappe.db.get_table_columns("Order")
+	if "metrics_credited" in columns:
+		return
 
-    frappe.db.sql(
-        "ALTER TABLE `tabOrder` "
-        "ADD COLUMN `metrics_credited` TINYINT(1) NOT NULL DEFAULT 0"
-    )
-    frappe.db.commit()
+	frappe.db.sql("ALTER TABLE `tabOrder` " "ADD COLUMN `metrics_credited` TINYINT(1) NOT NULL DEFAULT 0")
+	frappe.db.commit()

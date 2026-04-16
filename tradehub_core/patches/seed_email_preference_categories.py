@@ -62,12 +62,15 @@ def _seed_category(category_key, title, description, sort_order, items):
 	doc.default_enabled = 1
 
 	for item in items:
-		doc.append("items", {
-			"item_key": item["item_key"],
-			"title": item["title"],
-			"description": item["description"],
-			"default_enabled": 1,
-			"sort_order": item["sort_order"],
-		})
+		doc.append(
+			"items",
+			{
+				"item_key": item["item_key"],
+				"title": item["title"],
+				"description": item["description"],
+				"default_enabled": 1,
+				"sort_order": item["sort_order"],
+			},
+		)
 
 	doc.insert(ignore_permissions=True)

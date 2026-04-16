@@ -3,9 +3,9 @@ import re
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import now_datetime, getdate, today
-from tradehub_core.utils.notify import notify
+from frappe.utils import getdate, now_datetime, today
 
+from tradehub_core.utils.notify import notify
 
 ALLOWED_FILE_EXTENSIONS = (".pdf", ".jpg", ".jpeg", ".png")
 
@@ -32,9 +32,7 @@ def _validate_file_extension(file_url: str, field_label: str):
 		return
 	ext = file_url.rsplit(".", 1)[-1].lower() if "." in file_url else ""
 	if f".{ext}" not in ALLOWED_FILE_EXTENSIONS:
-		frappe.throw(
-			_("{0}: Only PDF, JPG, and PNG files are allowed.").format(field_label)
-		)
+		frappe.throw(_("{0}: Only PDF, JPG, and PNG files are allowed.").format(field_label))
 
 
 class KYBVerification(Document):
@@ -86,13 +84,9 @@ class KYBVerification(Document):
 
 	def _sync_kyb_status(self):
 		"""Sync KYB status to Seller Profile."""
-		seller_profile = frappe.db.get_value(
-			"Seller Profile", {"user": self.user}, "name"
-		)
+		seller_profile = frappe.db.get_value("Seller Profile", {"user": self.user}, "name")
 		if seller_profile:
-			frappe.db.set_value(
-				"Seller Profile", seller_profile, "kyb_status", self.status
-			)
+			frappe.db.set_value("Seller Profile", seller_profile, "kyb_status", self.status)
 
 	def _set_review_metadata(self):
 		"""Set verified_by and verified_at when status changes to Verified or Rejected."""
@@ -149,7 +143,9 @@ class KYBVerification(Document):
 				recipient_role="seller",
 				type="system",
 				title=_("KYB Süresi Doldu"),
-				message=_("{0} için KYB doğrulamanızın süresi doldu. Lütfen belgelerinizi yenileyiniz.").format(company),
+				message=_(
+					"{0} için KYB doğrulamanızın süresi doldu. Lütfen belgelerinizi yenileyiniz."
+				).format(company),
 				action_url="/seller/dashboard?tab=kyb",
 				reference_doctype="KYB Verification",
 				reference_name=self.name,
@@ -165,12 +161,15 @@ class KYBVerification(Document):
 			)
 			for admin in admins:
 				# Aynı KYB için admin'e zaten bildirim gittiyse tekrar gönderme
-				existing = frappe.db.exists("Platform Notification", {
-					"recipient_user": admin.parent,
-					"reference_doctype": "KYB Verification",
-					"reference_name": self.name,
-					"type": "system",
-				})
+				existing = frappe.db.exists(
+					"Platform Notification",
+					{
+						"recipient_user": admin.parent,
+						"reference_doctype": "KYB Verification",
+						"reference_name": self.name,
+						"type": "system",
+					},
+				)
 				if not existing:
 					notify(
 						recipient_user=admin.parent,

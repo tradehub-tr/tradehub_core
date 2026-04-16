@@ -13,6 +13,7 @@ böylece UI tarafında seller field'ını manuel doldurmaya gerek kalmaz.
 """
 
 import re
+
 import frappe
 from frappe import _
 
@@ -46,6 +47,7 @@ def _validate_phone(raw, prefix=None):
 
 # ── helpers ──────────────────────────────────────────────────────────────────
 
+
 def _require_login():
 	user = frappe.session.user
 	if not user or user == "Guest":
@@ -66,9 +68,7 @@ def _resolve_seller_profile(user):
 
 def _check_address_owner(address_id, seller_name):
 	"""Adresin bu seller'a ait olduğunu doğrular."""
-	row = frappe.db.get_value(
-		"Addresses", address_id, ["seller", "kind"], as_dict=True
-	)
+	row = frappe.db.get_value("Addresses", address_id, ["seller", "kind"], as_dict=True)
 	if not row:
 		frappe.throw(_("Adres bulunamadı"), frappe.DoesNotExistError)
 	if row.kind != "Seller" or row.seller != seller_name:
@@ -159,6 +159,7 @@ def _ensure_one_default(seller_name):
 
 # ── public endpoints ──────────────────────────────────────────────────────────
 
+
 @frappe.whitelist()
 def get_addresses():
 	"""Oturumdaki seller'ın tüm adreslerini döndürür."""
@@ -168,10 +169,20 @@ def get_addresses():
 		"Addresses",
 		filters={"seller": seller_name, "kind": "Seller"},
 		fields=[
-			"name", "title", "contact_name", "company",
-			"phone_prefix", "phone",
-			"country", "state", "city", "street", "apartment", "postal_code",
-			"note", "is_default",
+			"name",
+			"title",
+			"contact_name",
+			"company",
+			"phone_prefix",
+			"phone",
+			"country",
+			"state",
+			"city",
+			"street",
+			"apartment",
+			"postal_code",
+			"note",
+			"is_default",
 		],
 		order_by="is_default desc, creation asc",
 	)
@@ -259,27 +270,25 @@ def save_address(address_json):
 	else:
 		# len(locked) === count — lock altında alındığı için race-free.
 		if len(locked) >= MAX_ADDRESSES:
-			frappe.throw(
-				_("En fazla {0} adres ekleyebilirsiniz").format(MAX_ADDRESSES)
-			)
+			frappe.throw(_("En fazla {0} adres ekleyebilirsiniz").format(MAX_ADDRESSES))
 		doc = frappe.new_doc("Addresses")
 		doc.kind = "Seller"
 		doc.seller = seller_name
 		doc.user = user
 
-	doc.title        = (data.get("title") or "").strip()
+	doc.title = (data.get("title") or "").strip()
 	doc.contact_name = (data.get("contact_name") or "").strip()
-	doc.company      = (data.get("company") or "").strip()
+	doc.company = (data.get("company") or "").strip()
 	doc.phone_prefix = phone_prefix_in
-	doc.phone        = _normalize_phone(data.get("phone") or "")
-	doc.country      = country_in
-	doc.state        = (data.get("state") or "").strip()
-	doc.city         = (data.get("city") or "").strip()
-	doc.street       = (data.get("street") or "").strip()
-	doc.apartment    = (data.get("apartment") or "").strip()
-	doc.postal_code  = (data.get("postal_code") or "").strip()
-	doc.note         = (data.get("note") or "").strip()
-	doc.is_default   = bool(data.get("is_default", False))
+	doc.phone = _normalize_phone(data.get("phone") or "")
+	doc.country = country_in
+	doc.state = (data.get("state") or "").strip()
+	doc.city = (data.get("city") or "").strip()
+	doc.street = (data.get("street") or "").strip()
+	doc.apartment = (data.get("apartment") or "").strip()
+	doc.postal_code = (data.get("postal_code") or "").strip()
+	doc.note = (data.get("note") or "").strip()
+	doc.is_default = bool(data.get("is_default", False))
 
 	if address_id:
 		doc.save(ignore_permissions=True)
@@ -297,7 +306,7 @@ def save_address(address_json):
 	# için reload gerekiyordu; reload commit sonrası lock-suz çalıştığından
 	# concurrent silme race'ini taşıyordu. current_default_id atomik okuma
 	# zaten doğru sonucu veriyor → reload'a gerek yok.
-	doc.is_default = (current_default_id == doc.name)
+	doc.is_default = current_default_id == doc.name
 
 	frappe.db.commit()
 
@@ -372,5 +381,3 @@ def set_default_address(address_id):
 
 	frappe.db.commit()
 	return {"success": True, "default_id": address_id}
-
-

@@ -1,6 +1,4 @@
 import frappe
-from frappe import _
-
 
 COUNTRY_CURRENCY_MAP = {
 	"TR": "TRY",
@@ -70,15 +68,11 @@ def get_currency_info(currency_code):
 	"""Return symbol, name, and next display_order for a Frappe Currency record."""
 	result = {"symbol": "", "currency_name": "", "next_order": 1}
 
-	max_order = frappe.db.sql(
-		"SELECT MAX(display_order) FROM `tabSupported Currency`"
-	)
+	max_order = frappe.db.sql("SELECT MAX(display_order) FROM `tabSupported Currency`")
 	result["next_order"] = (max_order[0][0] or 0) + 1 if max_order and max_order[0] else 1
 
 	if currency_code and frappe.db.exists("Currency", currency_code):
-		info = frappe.db.get_value(
-			"Currency", currency_code, ["symbol", "currency_name"], as_dict=True
-		)
+		info = frappe.db.get_value("Currency", currency_code, ["symbol", "currency_name"], as_dict=True)
 		if info:
 			result["symbol"] = info.symbol or ""
 			result["currency_name"] = info.currency_name or ""
@@ -89,6 +83,7 @@ def get_currency_info(currency_code):
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
+
 
 def _get_supported_currencies():
 	"""Read enabled currencies from Supported Currency DocType."""
@@ -112,8 +107,20 @@ def _get_supported_currencies():
 		]
 
 	return [
-		{"code": "TRY", "symbol": "\u20ba", "name": "Turkish Lira", "nameTr": "T\u00fcrk Liras\u0131", "decimalPlaces": 2},
-		{"code": "USD", "symbol": "$", "name": "US Dollar", "nameTr": "Amerikan Dolar\u0131", "decimalPlaces": 2},
+		{
+			"code": "TRY",
+			"symbol": "\u20ba",
+			"name": "Turkish Lira",
+			"nameTr": "T\u00fcrk Liras\u0131",
+			"decimalPlaces": 2,
+		},
+		{
+			"code": "USD",
+			"symbol": "$",
+			"name": "US Dollar",
+			"nameTr": "Amerikan Dolar\u0131",
+			"decimalPlaces": 2,
+		},
 		{"code": "EUR", "symbol": "\u20ac", "name": "Euro", "nameTr": "Euro", "decimalPlaces": 2},
 	]
 
@@ -209,8 +216,14 @@ def _detect_country():
 		if len(lang) > 1:
 			return lang[1].upper()
 		lang_country = {
-			"tr": "TR", "en": "US", "de": "DE", "fr": "FR",
-			"it": "IT", "es": "ES", "zh": "CN", "ja": "JP",
+			"tr": "TR",
+			"en": "US",
+			"de": "DE",
+			"fr": "FR",
+			"it": "IT",
+			"es": "ES",
+			"zh": "CN",
+			"ja": "JP",
 		}
 		return lang_country.get(lang[0].lower(), "US")
 

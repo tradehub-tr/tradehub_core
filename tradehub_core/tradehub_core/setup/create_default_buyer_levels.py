@@ -1,6 +1,5 @@
 import frappe
 
-
 BUYER_LEVELS = [
 	{
 		"level_name": "NEW",

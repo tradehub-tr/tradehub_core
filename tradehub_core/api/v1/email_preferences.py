@@ -40,28 +40,27 @@ def get_email_preferences():
 	result = []
 	for cat in categories:
 		cat_items = items_by_parent.get(cat.name, [])
-		cat_checks = [
-			checks.get(item.item_key, bool(item.default_enabled))
-			for item in cat_items
-		]
+		cat_checks = [checks.get(item.item_key, bool(item.default_enabled)) for item in cat_items]
 		# Toggle durumu: kullanıcı kaydı varsa onu kullan, yoksa checkbox'lardan türet
 		cat_enabled = toggles.get(cat.category_key) if cat.category_key in toggles else any(cat_checks)
 
-		result.append({
-			"id": cat.category_key,
-			"title": _(cat.title),
-			"description": _(cat.description or ""),
-			"enabled": cat_enabled,
-			"items": [
-				{
-					"id": item.item_key,
-					"title": _(item.title),
-					"description": _(item.description or ""),
-					"checked": checks.get(item.item_key, bool(item.default_enabled)),
-				}
-				for item in cat_items
-			],
-		})
+		result.append(
+			{
+				"id": cat.category_key,
+				"title": _(cat.title),
+				"description": _(cat.description or ""),
+				"enabled": cat_enabled,
+				"items": [
+					{
+						"id": item.item_key,
+						"title": _(item.title),
+						"description": _(item.description or ""),
+						"checked": checks.get(item.item_key, bool(item.default_enabled)),
+					}
+					for item in cat_items
+				],
+			}
+		)
 
 	return {"categories": result}
 

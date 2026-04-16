@@ -14,17 +14,16 @@ Idempotent: skips widgets that already have a non-empty color_preset.
 
 import frappe
 
-
 REVERSE_MAP = {
-	"bg-violet-100 dark:bg-violet-500/10":  "violet",
-	"bg-blue-100 dark:bg-blue-500/10":      "blue",
+	"bg-violet-100 dark:bg-violet-500/10": "violet",
+	"bg-blue-100 dark:bg-blue-500/10": "blue",
 	"bg-emerald-100 dark:bg-emerald-500/10": "emerald",
-	"bg-amber-100 dark:bg-amber-500/10":    "amber",
-	"bg-rose-100 dark:bg-rose-500/10":      "rose",
-	"bg-indigo-100 dark:bg-indigo-500/10":  "indigo",
-	"bg-teal-100 dark:bg-teal-500/10":      "teal",
-	"bg-orange-100 dark:bg-orange-500/10":  "orange",
-	"bg-gray-100 dark:bg-gray-500/10":      "gray",
+	"bg-amber-100 dark:bg-amber-500/10": "amber",
+	"bg-rose-100 dark:bg-rose-500/10": "rose",
+	"bg-indigo-100 dark:bg-indigo-500/10": "indigo",
+	"bg-teal-100 dark:bg-teal-500/10": "teal",
+	"bg-orange-100 dark:bg-orange-500/10": "orange",
+	"bg-gray-100 dark:bg-gray-500/10": "gray",
 }
 
 
@@ -34,8 +33,7 @@ def execute():
 	# missing, then backfill values from the existing class strings.
 	if not frappe.db.has_column("Dashboard Widget", "color_preset"):
 		frappe.db.sql_ddl(
-			"ALTER TABLE `tabDashboard Widget` "
-			"ADD COLUMN `color_preset` VARCHAR(140) DEFAULT 'violet'"
+			"ALTER TABLE `tabDashboard Widget` " "ADD COLUMN `color_preset` VARCHAR(140) DEFAULT 'violet'"
 		)
 
 	widgets = frappe.db.sql(

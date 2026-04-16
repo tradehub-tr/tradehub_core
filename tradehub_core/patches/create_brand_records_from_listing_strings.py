@@ -13,9 +13,7 @@ def execute():
 	if not frappe.db.table_exists("Brand"):
 		return
 
-	existing_brand_codes = set(
-		frappe.db.get_all("Brand", pluck="name")
-	)
+	existing_brand_codes = set(frappe.db.get_all("Brand", pluck="name"))
 
 	rows = frappe.db.sql(
 		"""

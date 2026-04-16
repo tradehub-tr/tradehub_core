@@ -10,6 +10,7 @@ Mimari:
 """
 
 import json
+
 import frappe
 from frappe import _
 
@@ -37,15 +38,14 @@ def _parse_list_ids(raw):
 
 def _get_item_doc(user, listing):
 	"""(user, listing) için mevcut Buyer Favorite Item kaydını döner ya da None."""
-	name = frappe.db.get_value(
-		"Buyer Favorite Item", {"user": user, "listing": listing}, "name"
-	)
+	name = frappe.db.get_value("Buyer Favorite Item", {"user": user, "listing": listing}, "name")
 	if not name:
 		return None
 	return frappe.get_doc("Buyer Favorite Item", name)
 
 
 # ──────────────────────────── READ ─────────────────────────────────────────
+
 
 @frappe.whitelist()
 def get_my_favorites():
@@ -74,8 +74,13 @@ def get_my_favorites():
 		"Buyer Favorite Item",
 		filters={"user": user},
 		fields=[
-			"listing", "list_ids", "snapshot_image", "snapshot_title",
-			"snapshot_price_range", "snapshot_min_order", "creation",
+			"listing",
+			"list_ids",
+			"snapshot_image",
+			"snapshot_title",
+			"snapshot_price_range",
+			"snapshot_min_order",
+			"creation",
 		],
 		order_by="creation desc",
 	)
@@ -97,6 +102,7 @@ def get_my_favorites():
 
 # ──────────────────────────── WRITE: items ─────────────────────────────────
 
+
 @frappe.whitelist()
 def upsert_favorite(listing, list_ids=None, image="", title="", price_range="", min_order=""):
 	"""
@@ -116,7 +122,7 @@ def upsert_favorite(listing, list_ids=None, image="", title="", price_range="", 
 	doc = _get_item_doc(user, listing)
 	if doc:
 		# Mevcut listIds ile birleştir (tekilleştir)
-		merged = list(dict.fromkeys((_parse_list_ids(doc.list_ids) + parsed_ids)))
+		merged = list(dict.fromkeys(_parse_list_ids(doc.list_ids) + parsed_ids))
 		doc.list_ids = json.dumps(merged)
 		# Snapshot'ı sadece yeni değer geldiyse güncelle
 		if image:
@@ -150,9 +156,7 @@ def remove_favorite(listing):
 	if not listing:
 		return {"ok": True}
 
-	name = frappe.db.get_value(
-		"Buyer Favorite Item", {"user": user, "listing": listing}, "name"
-	)
+	name = frappe.db.get_value("Buyer Favorite Item", {"user": user, "listing": listing}, "name")
 	if name:
 		frappe.delete_doc("Buyer Favorite Item", name, ignore_permissions=True)
 		frappe.db.commit()
@@ -160,9 +164,7 @@ def remove_favorite(listing):
 
 
 @frappe.whitelist()
-def toggle_favorite_in_list(
-	listing, list_id, image="", title="", price_range="", min_order=""
-):
+def toggle_favorite_in_list(listing, list_id, image="", title="", price_range="", min_order=""):
 	"""
 	Bir ürünü belirli bir listeye ekler/çıkarır.
 	Eğer ürün hiçbir listeye ait kalmazsa tamamen silinir.
@@ -224,6 +226,7 @@ def toggle_favorite_in_list(
 
 # ──────────────────────────── WRITE: lists ─────────────────────────────────
 
+
 @frappe.whitelist()
 def create_favorite_list(name, list_id=None):
 	"""
@@ -234,13 +237,11 @@ def create_favorite_list(name, list_id=None):
 	if not name or not str(name).strip():
 		frappe.throw(_("Liste adı boş olamaz."))
 
-	final_id = (list_id or frappe.generate_hash(length=16))
+	final_id = list_id or frappe.generate_hash(length=16)
 	clean_name = str(name).strip()
 
 	# Aynı list_id varsa yok say
-	exists = frappe.db.get_value(
-		"Buyer Favorite List", {"user": user, "list_id": final_id}, "name"
-	)
+	exists = frappe.db.get_value("Buyer Favorite List", {"user": user, "list_id": final_id}, "name")
 	if exists:
 		return {
 			"id": final_id,
@@ -273,9 +274,7 @@ def delete_favorite_list(list_id):
 		return {"ok": True}
 
 	# Listeyi sil
-	list_name = frappe.db.get_value(
-		"Buyer Favorite List", {"user": user, "list_id": list_id}, "name"
-	)
+	list_name = frappe.db.get_value("Buyer Favorite List", {"user": user, "list_id": list_id}, "name")
 	if list_name:
 		frappe.delete_doc("Buyer Favorite List", list_name, ignore_permissions=True)
 
@@ -293,9 +292,7 @@ def delete_favorite_list(list_id):
 		if not new_ids:
 			frappe.delete_doc("Buyer Favorite Item", it["name"], ignore_permissions=True)
 		else:
-			frappe.db.set_value(
-				"Buyer Favorite Item", it["name"], "list_ids", json.dumps(new_ids)
-			)
+			frappe.db.set_value("Buyer Favorite Item", it["name"], "list_ids", json.dumps(new_ids))
 
 	frappe.db.commit()
 	return {"ok": True}
@@ -308,20 +305,17 @@ def rename_favorite_list(list_id, new_name):
 	if not list_id or not new_name or not str(new_name).strip():
 		frappe.throw(_("list_id ve new_name zorunludur."))
 
-	list_doc_name = frappe.db.get_value(
-		"Buyer Favorite List", {"user": user, "list_id": list_id}, "name"
-	)
+	list_doc_name = frappe.db.get_value("Buyer Favorite List", {"user": user, "list_id": list_id}, "name")
 	if not list_doc_name:
 		frappe.throw(_("Liste bulunamadı."), frappe.DoesNotExistError)
 
-	frappe.db.set_value(
-		"Buyer Favorite List", list_doc_name, "list_name", str(new_name).strip()
-	)
+	frappe.db.set_value("Buyer Favorite List", list_doc_name, "list_name", str(new_name).strip())
 	frappe.db.commit()
 	return {"ok": True}
 
 
 # ──────────────────────────── SYNC (login merge) ───────────────────────────
+
 
 @frappe.whitelist()
 def sync_favorites(state):
@@ -352,9 +346,7 @@ def sync_favorites(state):
 		lname = str(lst.get("name") or "").strip()
 		if not lid or not lname or lid == "default":
 			continue
-		exists = frappe.db.get_value(
-			"Buyer Favorite List", {"user": user, "list_id": lid}, "name"
-		)
+		exists = frappe.db.get_value("Buyer Favorite List", {"user": user, "list_id": lid}, "name")
 		if exists:
 			continue
 		try:

@@ -10,14 +10,11 @@ Frappe runtime'a ihtiyaç duymaz — `unittest` ile doğrudan çalışır. Çal�
     cd apps/tradehub_core && python -m unittest tradehub_core.tests.test_address_validators
 """
 
-import inspect
 import json
 import re
 import sys
-import types
 import unittest
 from pathlib import Path
-
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Path setup — tradehub_core paketini import edebilmek için PYTHONPATH'a ekle.
@@ -381,7 +378,7 @@ class TestAddressFieldLimits(unittest.TestCase):
 	"""ADDRESS_FIELD_LIMITS sabitinin doctype JSON ile tutarlı olduğunu doğrular."""
 
 	def test_all_limits_have_label_and_max(self):
-		for field, value in ADDRESS_FIELD_LIMITS.items():
+		for _field, value in ADDRESS_FIELD_LIMITS.items():
 			self.assertIsInstance(value, tuple)
 			self.assertEqual(len(value), 2)
 			label, max_len = value
@@ -393,12 +390,18 @@ class TestAddressFieldLimits(unittest.TestCase):
 	def test_doctype_data_fields_at_140(self):
 		"""Frappe Data fieldtype default 140 char — sabitlerimiz uyumlu olmalı."""
 		data_fields = {
-			"title", "contact_name", "company", "state", "city", "apartment",
+			"title",
+			"contact_name",
+			"company",
+			"state",
+			"city",
+			"apartment",
 		}
 		for field in data_fields:
 			label, max_len = ADDRESS_FIELD_LIMITS[field]
 			self.assertEqual(
-				max_len, 140,
+				max_len,
+				140,
 				f"{field} Data fieldtype, 140 olmalı (gerçek: {max_len})",
 			)
 
@@ -416,10 +419,18 @@ class TestAddressFieldLimits(unittest.TestCase):
 	def test_no_unknown_field_in_limits(self):
 		"""Limits map'inde olmayan alan eklenmediğinden emin ol — drift kontrolü."""
 		expected_fields = {
-			"title", "contact_name", "company",
-			"phone_prefix", "phone",
-			"country", "state", "city",
-			"street", "apartment", "postal_code", "note",
+			"title",
+			"contact_name",
+			"company",
+			"phone_prefix",
+			"phone",
+			"country",
+			"state",
+			"city",
+			"street",
+			"apartment",
+			"postal_code",
+			"note",
 		}
 		self.assertEqual(set(ADDRESS_FIELD_LIMITS.keys()), expected_fields)
 
@@ -671,8 +682,18 @@ class TestEnsureOneDefaultRuntimeSemantic(unittest.TestCase):
 	def test_multi_default_older_modified_loses(self):
 		"""Creation sırası önemli değil — modified önemli."""
 		rows = [
-			{"name": "NEW_CREATED_FIRST", "is_default": 1, "modified": "2020-01-01", "creation": "2020-01-01"},
-			{"name": "OLD_CREATED_LATER_EDITED_TODAY", "is_default": 1, "modified": "2026-04-10", "creation": "2026-02-01"},
+			{
+				"name": "NEW_CREATED_FIRST",
+				"is_default": 1,
+				"modified": "2020-01-01",
+				"creation": "2020-01-01",
+			},
+			{
+				"name": "OLD_CREATED_LATER_EDITED_TODAY",
+				"is_default": 1,
+				"modified": "2026-04-10",
+				"creation": "2026-02-01",
+			},
 		]
 		self.assertEqual(self._pick_keep(rows), "OLD_CREATED_LATER_EDITED_TODAY")
 
@@ -845,7 +866,7 @@ class TestDeleteAddressUnconditionalHeal(unittest.TestCase):
 			"buyer.delete_address hâlâ was_default koşullu dallanması içeriyor",
 		)
 		self.assertNotIn(
-			'if was_default',
+			"if was_default",
 			src,
 			"buyer.delete_address self-heal koşulu temizlenmemiş",
 		)
@@ -1012,7 +1033,8 @@ class TestSaveAddressLocksBeforeCount(unittest.TestCase):
 		self.assertNotEqual(lock_pos, -1, "save_address lock helper'ını çağırmıyor")
 		self.assertNotEqual(max_pos, -1, "save_address MAX_ADDRESSES kontrolü yok")
 		self.assertLess(
-			lock_pos, max_pos,
+			lock_pos,
+			max_pos,
 			"save_address lock'tan ÖNCE MAX_ADDRESSES kontrol ediyor — race açık",
 		)
 
@@ -1024,7 +1046,8 @@ class TestSaveAddressLocksBeforeCount(unittest.TestCase):
 		self.assertNotEqual(lock_pos, -1)
 		self.assertNotEqual(max_pos, -1)
 		self.assertLess(
-			lock_pos, max_pos,
+			lock_pos,
+			max_pos,
 			"seller.save_address lock'tan ÖNCE MAX_ADDRESSES kontrol ediyor",
 		)
 
@@ -1090,7 +1113,8 @@ class TestDeleteAddressReturnsDefaultId(unittest.TestCase):
 		self.assertNotEqual(lock_pos, -1, "delete_address lock helper'ını çağırmıyor")
 		self.assertNotEqual(delete_pos, -1)
 		self.assertLess(
-			lock_pos, delete_pos,
+			lock_pos,
+			delete_pos,
 			"delete_address delete'ten önce lock almıyor — concurrent deadlock riski",
 		)
 
@@ -1350,7 +1374,9 @@ class TestBuyerSellerSyncOnValidators(unittest.TestCase):
 
 	def setUp(self):
 		self.buyer_src = (_APP_ROOT / "tradehub_core" / "api" / "buyer.py").read_text(encoding="utf-8")
-		self.seller_src = (_APP_ROOT / "tradehub_core" / "api" / "seller_addresses.py").read_text(encoding="utf-8")
+		self.seller_src = (_APP_ROOT / "tradehub_core" / "api" / "seller_addresses.py").read_text(
+			encoding="utf-8"
+		)
 
 	def test_both_import_validators(self):
 		for label, src in [("buyer", self.buyer_src), ("seller", self.seller_src)]:

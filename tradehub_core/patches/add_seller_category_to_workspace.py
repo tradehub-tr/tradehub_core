@@ -1,5 +1,6 @@
-import frappe
 import json
+
+import frappe
 
 
 def execute():
@@ -14,13 +15,16 @@ def execute():
 		# Shortcut ekle
 		existing_links = [s.link_to for s in doc.shortcuts]
 		if "Seller Category" not in existing_links:
-			doc.append("shortcuts", {
-				"label": "Satıcı Kategorileri",
-				"link_to": "Seller Category",
-				"type": "DocType",
-				"format": "Card",
-				"color": "Grey"
-			})
+			doc.append(
+				"shortcuts",
+				{
+					"label": "Satıcı Kategorileri",
+					"link_to": "Seller Category",
+					"type": "DocType",
+					"format": "Card",
+					"color": "Grey",
+				},
+			)
 
 		# Content'e ekle
 		try:
@@ -29,20 +33,21 @@ def execute():
 			content = []
 
 		sc_exists = any(
-			item.get("data", {}).get("shortcut_name") == "Satıcı Kategorileri"
-			for item in content
+			item.get("data", {}).get("shortcut_name") == "Satıcı Kategorileri" for item in content
 		)
 
 		if not sc_exists:
 			new_sc = {
 				"id": "sc_seller_cat",
 				"type": "shortcut",
-				"data": {"shortcut_name": "Satıcı Kategorileri", "col": 3}
+				"data": {"shortcut_name": "Satıcı Kategorileri", "col": 3},
 			}
 			# "İletişim" header'ından önce ekle
 			insert_idx = None
 			for i, item in enumerate(content):
-				if item.get("type") == "header" and "\u0130leti\u015fim" in item.get("data", {}).get("text", ""):
+				if item.get("type") == "header" and "\u0130leti\u015fim" in item.get("data", {}).get(
+					"text", ""
+				):
 					insert_idx = i
 					break
 			if insert_idx is not None:

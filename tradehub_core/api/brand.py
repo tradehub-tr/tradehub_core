@@ -2,7 +2,6 @@ import frappe
 from frappe import _
 from frappe.utils import now_datetime
 
-
 APPROVER_ROLES = {"System Manager", "Marketplace Admin"}
 
 
@@ -80,12 +79,28 @@ def get_brand_detail(slug=None, code=None, page=1, page_size=20, sort_by="modifi
 		"Brand",
 		brand_filters,
 		[
-			"name", "brand_code", "brand_name", "slug", "logo", "description",
-			"founded_year", "website", "country", "official_status",
+			"name",
+			"brand_code",
+			"brand_name",
+			"slug",
+			"logo",
+			"description",
+			"founded_year",
+			"website",
+			"country",
+			"official_status",
 			"brand_owner",
-			"tagline", "hero_banner", "theme_color", "video_url",
-			"about_title", "about_content",
-			"instagram_url", "facebook_url", "twitter_url", "linkedin_url", "youtube_url",
+			"tagline",
+			"hero_banner",
+			"theme_color",
+			"video_url",
+			"about_title",
+			"about_content",
+			"instagram_url",
+			"facebook_url",
+			"twitter_url",
+			"linkedin_url",
+			"youtube_url",
 		],
 		as_dict=True,
 	)
@@ -151,7 +166,7 @@ def get_brand_detail(slug=None, code=None, page=1, page_size=20, sort_by="modifi
 	}
 
 	# Fetch brand listings via shared helper
-	from tradehub_core.api.listing import get_listings, _format_listing_card
+	from tradehub_core.api.listing import _format_listing_card, get_listings
 
 	listings_result = get_listings(
 		brands=brand.name,
@@ -181,16 +196,36 @@ def get_brand_detail(slug=None, code=None, page=1, page_size=20, sort_by="modifi
 					["is_visible", "=", 1],
 				],
 				fields=[
-					"name", "listing_code", "title", "primary_image",
-					"selling_price", "base_price", "currency",
-					"discount_percentage", "min_order_qty", "stock_uom",
-					"order_count", "average_rating", "review_count",
-					"seller_profile", "supplier_display_name",
-					"ships_from_country", "country_of_origin",
-					"is_free_shipping", "is_featured", "is_best_seller",
-					"is_new_arrival", "selling_point",
-					"b2b_enabled", "has_variants", "category", "category_name",
-					"brand", "brand_name", "modified", "creation",
+					"name",
+					"listing_code",
+					"title",
+					"primary_image",
+					"selling_price",
+					"base_price",
+					"currency",
+					"discount_percentage",
+					"min_order_qty",
+					"stock_uom",
+					"order_count",
+					"average_rating",
+					"review_count",
+					"seller_profile",
+					"supplier_display_name",
+					"ships_from_country",
+					"country_of_origin",
+					"is_free_shipping",
+					"is_featured",
+					"is_best_seller",
+					"is_new_arrival",
+					"selling_point",
+					"b2b_enabled",
+					"has_variants",
+					"category",
+					"category_name",
+					"brand",
+					"brand_name",
+					"modified",
+					"creation",
 				],
 			):
 				listings_map[lst.name] = lst

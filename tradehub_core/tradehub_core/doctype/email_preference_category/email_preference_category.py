@@ -11,9 +11,7 @@ class EmailPreferenceCategory(Document):
 		seen = set()
 		for item in self.items:
 			if item.item_key in seen:
-				frappe.throw(
-					_("Bu kategori içinde tekrarlanan anahtar: {0}").format(item.item_key)
-				)
+				frappe.throw(_("Bu kategori içinde tekrarlanan anahtar: {0}").format(item.item_key))
 			seen.add(item.item_key)
 
 		# Diğer kategorilerdeki anahtarlarla çakışma kontrolü — tek sorgu
@@ -32,7 +30,5 @@ class EmailPreferenceCategory(Document):
 		if conflicts:
 			c = conflicts[0]
 			frappe.throw(
-				_("'{0}' anahtarı zaten '{1}' kategorisinde kullanılıyor.").format(
-					c.item_key, c.parent
-				)
+				_("'{0}' anahtarı zaten '{1}' kategorisinde kullanılıyor.").format(c.item_key, c.parent)
 			)

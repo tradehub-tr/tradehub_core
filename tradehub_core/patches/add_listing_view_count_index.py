@@ -9,13 +9,14 @@ average_rating composites added in add_top_ranking_indexes.py.
 
 Idempotent: frappe.db.add_index is a no-op if the index already exists.
 """
+
 import frappe
 
 
 def execute():
-    frappe.db.add_index(
-        "Listing",
-        ["product_category", "view_count"],
-        index_name="idx_listing_category_views",
-    )
-    frappe.db.commit()
+	frappe.db.add_index(
+		"Listing",
+		["product_category", "view_count"],
+		index_name="idx_listing_category_views",
+	)
+	frappe.db.commit()

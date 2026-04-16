@@ -1,6 +1,7 @@
 import frappe
 from frappe import _
 from frappe.model.document import Document
+
 from tradehub_core.utils.notify import notify
 
 
@@ -55,7 +56,11 @@ class RFQ(Document):
 			return
 
 		user = frappe.session.user
-		is_admin = user == "Administrator" or "System Manager" in frappe.get_roles(user) or "Marketplace Admin" in frappe.get_roles(user)
+		is_admin = (
+			user == "Administrator"
+			or "System Manager" in frappe.get_roles(user)
+			or "Marketplace Admin" in frappe.get_roles(user)
+		)
 
 		# Pending → Approved/Rejected: only admin
 		if old_status == "Pending" and self.status in ("Approved", "Rejected"):

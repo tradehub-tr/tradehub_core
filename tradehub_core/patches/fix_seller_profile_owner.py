@@ -14,9 +14,8 @@ def execute():
 			frappe.db.set_value("Seller Profile", p.name, "owner", p.user)
 		if not p.member_id:
 			# Try to get member_id from Buyer Profile or Seller Application
-			mid = (
-				frappe.db.get_value("Buyer Profile", {"user": p.user}, "member_id")
-				or frappe.db.get_value("Seller Application", {"applicant_user": p.user}, "member_id")
+			mid = frappe.db.get_value("Buyer Profile", {"user": p.user}, "member_id") or frappe.db.get_value(
+				"Seller Application", {"applicant_user": p.user}, "member_id"
 			)
 			if mid:
 				frappe.db.set_value("Seller Profile", p.name, "member_id", mid)
@@ -38,8 +37,7 @@ def execute():
 
 	# Fix Seller Category, Seller Inquiry, Seller Product, Seller Review, Seller Balance
 	# These have a "seller" field pointing to Admin Seller Profile name
-	for doctype in ["Seller Category", "Seller Inquiry", "Seller Product",
-	                "Seller Review", "Seller Balance"]:
+	for doctype in ["Seller Category", "Seller Inquiry", "Seller Product", "Seller Review", "Seller Balance"]:
 		try:
 			records = frappe.get_all(doctype, fields=["name", "seller", "owner"])
 		except Exception:

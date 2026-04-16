@@ -27,6 +27,7 @@ def execute():
 # 1. Rename
 # ──────────────────────────────────────────────────────────────────────────
 
+
 def _rename_doctype():
 	"""Buyer Address → Addresses. Idempotent."""
 	if frappe.db.exists("DocType", "Addresses"):
@@ -36,6 +37,7 @@ def _rename_doctype():
 		# Hiç yok; fresh install, reload ile yeni Addresses gelecek
 		return
 	from frappe.model.rename_doc import rename_doc
+
 	rename_doc("DocType", "Buyer Address", "Addresses", force=True, merge=False)
 	frappe.reload_doc("tradehub_core", "doctype", "addresses")
 
@@ -43,6 +45,7 @@ def _rename_doctype():
 # ──────────────────────────────────────────────────────────────────────────
 # 2. kind backfill
 # ──────────────────────────────────────────────────────────────────────────
+
 
 def _backfill_kind():
 	"""Eski kayıtlara kind='Buyer' yaz."""
@@ -65,6 +68,7 @@ def _backfill_kind():
 # ──────────────────────────────────────────────────────────────────────────
 # 3. Seller Profile flat address migration
 # ──────────────────────────────────────────────────────────────────────────
+
 
 def _migrate_seller_profile_addresses():
 	"""
@@ -108,9 +112,7 @@ def _migrate_seller_profile_addresses():
 
 	for row in profiles:
 		# Idempotency: aynı seller için Addresses zaten varsa atla
-		existing = frappe.db.count(
-			"Addresses", {"kind": "Seller", "seller": row.name}
-		)
+		existing = frappe.db.count("Addresses", {"kind": "Seller", "seller": row.name})
 		if existing:
 			continue
 

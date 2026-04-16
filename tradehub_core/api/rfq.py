@@ -15,9 +15,10 @@ Admin Panel / Seller:
   - get_seller_rfqs: Seller sees RFQs matching their categories
 """
 
+from html import escape as html_escape
+
 import frappe
 from frappe import _
-from html import escape as html_escape
 
 
 @frappe.whitelist()
@@ -58,8 +59,15 @@ def get_my_rfqs(status=None, limit_page_length=20, limit_start=0):
 		"RFQ",
 		filters=filters,
 		fields=[
-			"name", "product_name", "status", "quantity", "unit",
-			"quote_count", "category", "creation", "modified",
+			"name",
+			"product_name",
+			"status",
+			"quantity",
+			"unit",
+			"quote_count",
+			"category",
+			"creation",
+			"modified",
 		],
 		order_by="creation desc",
 		limit_page_length=min(int(limit_page_length) or 100, 100),
@@ -102,9 +110,15 @@ def get_rfq_detail(rfq_id):
 
 	rfq = frappe.get_doc("RFQ", rfq_id)
 
-	is_admin = user == "Administrator" or "System Manager" in frappe.get_roles(user) or "Marketplace Admin" in frappe.get_roles(user)
+	is_admin = (
+		user == "Administrator"
+		or "System Manager" in frappe.get_roles(user)
+		or "Marketplace Admin" in frappe.get_roles(user)
+	)
 	is_buyer = rfq.buyer == user
-	is_seller_with_quote = "Seller" in frappe.get_roles(user) and frappe.db.exists("RFQ Quote", {"rfq": rfq_id, "seller": user})
+	is_seller_with_quote = "Seller" in frappe.get_roles(user) and frappe.db.exists(
+		"RFQ Quote", {"rfq": rfq_id, "seller": user}
+	)
 
 	if not (is_buyer or is_seller_with_quote or is_admin):
 		frappe.throw(_("Permission denied"), frappe.PermissionError)
@@ -113,9 +127,17 @@ def get_rfq_detail(rfq_id):
 		"RFQ Quote",
 		filters={"rfq": rfq_id},
 		fields=[
-			"name", "seller", "seller_profile", "price_per_unit",
-			"total_price", "currency", "lead_time_days", "message",
-			"status", "creation", "listing",
+			"name",
+			"seller",
+			"seller_profile",
+			"price_per_unit",
+			"total_price",
+			"currency",
+			"lead_time_days",
+			"message",
+			"status",
+			"creation",
+			"listing",
 		],
 		order_by="creation desc",
 	)
@@ -127,23 +149,45 @@ def get_rfq_detail(rfq_id):
 
 	users_map = {}
 	if seller_emails:
-		for u in frappe.get_all("User", filters={"name": ["in", seller_emails]}, fields=["name", "full_name"]):
+		for u in frappe.get_all(
+			"User", filters={"name": ["in", seller_emails]}, fields=["name", "full_name"]
+		):
 			users_map[u.name] = u.full_name or ""
 
 	profiles_map = {}
 	if profile_ids:
-		for sp in frappe.get_all("Seller Profile", filters={"name": ["in", profile_ids]},
-			fields=["name", "business_name", "seller_name", "country", "seller_type", "year_established", "employee_count", "about_us", "website"]):
+		for sp in frappe.get_all(
+			"Seller Profile",
+			filters={"name": ["in", profile_ids]},
+			fields=[
+				"name",
+				"business_name",
+				"seller_name",
+				"country",
+				"seller_type",
+				"year_established",
+				"employee_count",
+				"about_us",
+				"website",
+			],
+		):
 			profiles_map[sp.name] = sp
 
 	listings_map = {}
 	if listing_ids:
-		for ld in frappe.get_all("Listing", filters={"name": ["in", listing_ids]}, fields=["name", "title", "primary_image"]):
+		for ld in frappe.get_all(
+			"Listing", filters={"name": ["in", listing_ids]}, fields=["name", "title", "primary_image"]
+		):
 			listings_map[ld.name] = ld
 		# Batch fetch first images for listings without primary_image
 		no_img_ids = [lid for lid in listing_ids if not listings_map.get(lid, {}).get("primary_image")]
 		if no_img_ids:
-			for img in frappe.get_all("Listing Image", filters={"parent": ["in", no_img_ids]}, fields=["parent", "image"], order_by="sort_order asc"):
+			for img in frappe.get_all(
+				"Listing Image",
+				filters={"parent": ["in", no_img_ids]},
+				fields=["parent", "image"],
+				order_by="sort_order asc",
+			):
 				if img.parent not in listings_map:
 					listings_map[img.parent] = {"title": "", "primary_image": ""}
 				if not listings_map[img.parent].get("primary_image"):
@@ -222,8 +266,14 @@ def get_my_inquiries(filter_type="all", limit_page_length=20, limit_start=0):
 		"Seller Inquiry",
 		filters=filters,
 		fields=[
-			"name", "message", "status", "seller", "seller_code",
-			"sender_name", "sender_email", "creation",
+			"name",
+			"message",
+			"status",
+			"seller",
+			"seller_code",
+			"sender_name",
+			"sender_email",
+			"creation",
 		],
 		order_by="creation desc",
 		limit_page_length=min(int(limit_page_length) or 100, 100),
@@ -233,8 +283,10 @@ def get_my_inquiries(filter_type="all", limit_page_length=20, limit_start=0):
 	for inq in inquiries:
 		if inq.seller:
 			seller_data = frappe.db.get_value(
-				"Admin Seller Profile", inq.seller,
-				["seller_name", "company_name"], as_dict=True,
+				"Admin Seller Profile",
+				inq.seller,
+				["seller_name", "company_name"],
+				as_dict=True,
 			)
 			if seller_data:
 				inq["seller_name"] = seller_data.seller_name or ""
@@ -251,7 +303,9 @@ def get_my_inquiries(filter_type="all", limit_page_length=20, limit_start=0):
 
 
 @frappe.whitelist()
-def submit_quote(rfq_id, price_per_unit=0, total_price=0, currency="TRY", lead_time_days=0, message="", listing_id=None):
+def submit_quote(
+	rfq_id, price_per_unit=0, total_price=0, currency="TRY", lead_time_days=0, message="", listing_id=None
+):
 	"""Seller submits a quote for an RFQ."""
 	user = frappe.session.user
 	if user == "Guest":
@@ -285,7 +339,9 @@ def submit_quote(rfq_id, price_per_unit=0, total_price=0, currency="TRY", lead_t
 			doc.listing_image = listing_data.primary_image or ""
 			# Fallback: get first image from child table if primary_image is empty
 			if not doc.listing_image:
-				first_img = frappe.db.get_value("Listing Image", {"parent": listing_id}, "image", order_by="sort_order asc")
+				first_img = frappe.db.get_value(
+					"Listing Image", {"parent": listing_id}, "image", order_by="sort_order asc"
+				)
 				doc.listing_image = first_img or ""
 	doc.insert()
 	frappe.db.commit()
@@ -358,8 +414,16 @@ def get_seller_rfqs(status=None, limit_page_length=20, limit_start=0):
 		"RFQ",
 		filters=filters,
 		fields=[
-			"name", "product_name", "description", "status", "quantity",
-			"unit", "category", "quote_count", "buyer", "creation",
+			"name",
+			"product_name",
+			"description",
+			"status",
+			"quantity",
+			"unit",
+			"category",
+			"quote_count",
+			"buyer",
+			"creation",
 		],
 		order_by="creation desc",
 		limit_page_length=min(int(limit_page_length) or 100, 100),
@@ -369,7 +433,9 @@ def get_seller_rfqs(status=None, limit_page_length=20, limit_start=0):
 	for rfq in rfqs:
 		rfq["buyer_name"] = frappe.db.get_value("User", rfq.buyer, "full_name") or ""
 		if rfq.get("category"):
-			rfq["category"] = frappe.db.get_value("Product Category", rfq["category"], "category_name") or rfq["category"]
+			rfq["category"] = (
+				frappe.db.get_value("Product Category", rfq["category"], "category_name") or rfq["category"]
+			)
 		# Check if current seller already submitted a quote
 		rfq["my_quote"] = frappe.db.exists("RFQ Quote", {"rfq": rfq.name, "seller": user}) or ""
 
@@ -398,7 +464,9 @@ def search_categories(query=""):
 		parent = cat.parent_product_category
 		depth = 0
 		while parent and depth < 5:
-			parent_name = frappe.db.get_value("Product Category", parent, ["category_name", "parent_product_category"], as_dict=True)
+			parent_name = frappe.db.get_value(
+				"Product Category", parent, ["category_name", "parent_product_category"], as_dict=True
+			)
 			if parent_name:
 				path_parts.insert(0, parent_name.category_name)
 				parent = parent_name.parent_product_category
@@ -406,11 +474,13 @@ def search_categories(query=""):
 				break
 			depth += 1
 
-		results.append({
-			"name": cat.name,
-			"category_name": cat.category_name,
-			"path": " >> ".join(path_parts),
-		})
+		results.append(
+			{
+				"name": cat.name,
+				"category_name": cat.category_name,
+				"path": " >> ".join(path_parts),
+			}
+		)
 
 	return results
 
@@ -481,7 +551,9 @@ def accept_quote(quote_id):
 	quote.save(ignore_permissions=True)
 
 	# Reject all other quotes for this RFQ
-	other_quotes = frappe.get_all("RFQ Quote", filters={"rfq": rfq.name, "name": ["!=", quote_id], "status": "Submitted"})
+	other_quotes = frappe.get_all(
+		"RFQ Quote", filters={"rfq": rfq.name, "name": ["!=", quote_id], "status": "Submitted"}
+	)
 	for oq in other_quotes:
 		frappe.db.set_value("RFQ Quote", oq.name, "status", "Rejected")
 
@@ -567,13 +639,15 @@ def get_my_listings():
 	# Fallback: get first child image if primary_image is empty
 	for l in listings:
 		if not l.get("primary_image"):
-			first_img = frappe.db.get_value("Listing Image", {"parent": l.name}, "image", order_by="sort_order asc")
+			first_img = frappe.db.get_value(
+				"Listing Image", {"parent": l.name}, "image", order_by="sort_order asc"
+			)
 			l["primary_image"] = first_img or ""
 
 	return listings
 
 
-ALLOWED_FILE_EXTENSIONS = ('.jpg', '.jpeg', '.png', '.gif', '.pdf', '.doc', '.docx', '.xls', '.xlsx')
+ALLOWED_FILE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".gif", ".pdf", ".doc", ".docx", ".xls", ".xlsx")
 
 
 @frappe.whitelist()
@@ -584,7 +658,7 @@ def add_rfq_attachment(rfq_id, file_url, file_name):
 		frappe.throw(_("Please log in"), frappe.AuthenticationError)
 
 	# Server-side file extension validation
-	ext = ('.' + file_name.rsplit('.', 1)[-1].lower()) if '.' in file_name else ''
+	ext = ("." + file_name.rsplit(".", 1)[-1].lower()) if "." in file_name else ""
 	if ext not in ALLOWED_FILE_EXTENSIONS:
 		frappe.throw(_("File type not allowed. Allowed: JPG, PNG, GIF, PDF, DOC, XLS"))
 
@@ -592,10 +666,13 @@ def add_rfq_attachment(rfq_id, file_url, file_name):
 	if rfq.buyer != user and "System Manager" not in frappe.get_roles(user):
 		frappe.throw(_("Permission denied"), frappe.PermissionError)
 
-	rfq.append("attachments", {
-		"file": file_url,
-		"file_name": file_name,
-	})
+	rfq.append(
+		"attachments",
+		{
+			"file": file_url,
+			"file_name": file_name,
+		},
+	)
 	rfq.save()
 	frappe.db.commit()
 
@@ -616,8 +693,15 @@ def get_my_quotes(limit_page_length=20, limit_start=0):
 		"RFQ Quote",
 		filters={"seller": user},
 		fields=[
-			"name", "rfq", "price_per_unit", "total_price", "currency",
-			"lead_time_days", "message", "status", "creation",
+			"name",
+			"rfq",
+			"price_per_unit",
+			"total_price",
+			"currency",
+			"lead_time_days",
+			"message",
+			"status",
+			"creation",
 		],
 		order_by="creation desc",
 		limit_page_length=min(int(limit_page_length) or 100, 100),
@@ -626,7 +710,8 @@ def get_my_quotes(limit_page_length=20, limit_start=0):
 
 	for q in quotes:
 		rfq_data = frappe.db.get_value(
-			"RFQ", q.rfq,
+			"RFQ",
+			q.rfq,
 			["product_name", "quantity", "unit"],
 			as_dict=True,
 		)

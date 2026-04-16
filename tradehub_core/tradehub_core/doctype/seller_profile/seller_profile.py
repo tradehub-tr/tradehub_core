@@ -22,9 +22,7 @@ class SellerProfile(Document):
 		"""Sync changed fields to Seller Application, Buyer Profile, and User doc."""
 
 		# ── Seller Application sync ──
-		app_name = frappe.db.get_value(
-			"Seller Application", {"applicant_user": self.user}, "name"
-		)
+		app_name = frappe.db.get_value("Seller Application", {"applicant_user": self.user}, "name")
 		if app_name:
 			app_fields = {
 				"business_name": "business_name",
@@ -40,9 +38,7 @@ class SellerProfile(Document):
 			}
 			for profile_field, app_field in app_fields.items():
 				if self.has_value_changed(profile_field):
-					frappe.db.set_value(
-						"Seller Application", app_name, app_field, self.get(profile_field)
-					)
+					frappe.db.set_value("Seller Application", app_name, app_field, self.get(profile_field))
 
 		# ── Seller Name → Buyer Profile + User doc sync ──
 		if self.has_value_changed("seller_name"):
@@ -73,9 +69,18 @@ class SellerProfile(Document):
 				frappe.db.set_value("Buyer Profile", buyer_profile, "country", self.country)
 
 		# ── Shared fields → Buyer Profile sync ──
-		shared_fields = ["avatar", "website", "job_title", "year_established",
-		                 "employee_count", "about_us", "selling_platforms",
-		                 "industry_preferences", "sourcing_frequency", "annual_spending"]
+		shared_fields = [
+			"avatar",
+			"website",
+			"job_title",
+			"year_established",
+			"employee_count",
+			"about_us",
+			"selling_platforms",
+			"industry_preferences",
+			"sourcing_frequency",
+			"annual_spending",
+		]
 		buyer_profile = frappe.db.get_value("Buyer Profile", {"user": self.user}, "name")
 		if buyer_profile:
 			for field in shared_fields:

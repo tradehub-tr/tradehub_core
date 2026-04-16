@@ -1,6 +1,5 @@
 import frappe
 
-
 # Buyer KPI Template: 9 metrics, weights sum to 100
 BUYER_KPI_METRICS = [
 	{

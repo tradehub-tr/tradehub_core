@@ -13,7 +13,6 @@ tekrar yazılmaz çünkü WHERE state = ASCII filtresi onları dışlar.
 
 import frappe
 
-
 # ASCII → Diakritikli Türkçe il adı eşlemesi.
 # Sadece farkı olan 31 il listelendi; diğer 50 il (Adana, Ankara, vb.) zaten ASCII
 # ile diakritikli aynı yazılıyor, dokunmaya gerek yok.
@@ -59,7 +58,7 @@ def execute():
 
 	updated = 0
 	for ascii_name, diacritic_name in ASCII_TO_DIACRITIC.items():
-		rows = frappe.db.sql(
+		_ = frappe.db.sql(
 			"""
 			UPDATE `tabAddresses`
 			SET state = %(new)s
