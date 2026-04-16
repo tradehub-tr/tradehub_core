@@ -61,24 +61,42 @@ def _verify_cart_item_owner(cart_item_name, user):
 	return parent_cart
 
 
-def _find_existing_cart_item(cart_name, listing, listing_variant, color_variant=None):
+def _find_existing_cart_item(cart_name, listing, listing_variant, color_variant=None, variant_label=None):
 	"""
 	Find an existing Cart Item for the given listing + variant combination.
-	When color_variant is provided, matches on BOTH listing_variant AND color_variant
-	so that same-size different-color items are stored as separate rows.
+	Matches on listing_variant, color_variant, AND variant_label so that
+	same-size different-color or different-material items are separate rows.
 	"""
 	all_rows = frappe.get_all(
 		"Cart Item",
 		filters={"parent": cart_name, "listing": listing},
-		fields=["name", "listing_variant", "color_variant", "quantity"],
+		fields=["name", "listing_variant", "color_variant", "variant_label", "quantity"],
 	)
 	norm_variant = listing_variant or None
 	norm_color = color_variant or None
+	norm_label = variant_label or None
 	for row in all_rows:
 		row_variant = row.listing_variant or None
 		row_color = row.color_variant or None
-		if row_variant == norm_variant and row_color == norm_color:
+		row_label = row.variant_label or None
+		if row_variant == norm_variant and row_color == norm_color and row_label == norm_label:
 			return row
+	return None
+
+
+def _get_variant_stock_by_label(listing_name, variant_label):
+	"""
+	Parse variant_label (e.g. "Renk: Siyah | Malzeme: Pamuk | Beden: S")
+	and find the matching Listing Variant Item's stock.
+	Returns stock as float, or None if no match.
+	"""
+	if not variant_label:
+		return None
+
+	from tradehub_core.utils.stock import _find_variant_item_row
+	row_name = _find_variant_item_row(listing_name, variant_label)
+	if row_name:
+		return float(frappe.db.get_value("Listing Variant Item", row_name, "variant_stock") or 0)
 	return None
 
 
@@ -104,29 +122,41 @@ def _get_inline_variant_stock(listing_name, synthetic_variant_id):
 	return None
 
 
-def _check_stock(listing_doc, listing_name, listing_variant, total_qty):
+def _check_stock(listing_doc, listing_name, listing_variant, total_qty, variant_label=None):
 	"""
 	Stok kontrolü: track_inventory açıksa toplam miktarı (mevcut + yeni) kontrol et.
-	Sırasıyla: 1) Listing Variant doc stoğu, 2) inline variant item stoğu, 3) listing stoğu.
+	Sırasıyla:
+	  1) variant_label ile varyant satırı stoğu (N-eksen)
+	  2) Listing Variant doc stoğu
+	  3) Inline variant item stoğu (synthetic ID)
+	  4) Listing seviyesi stok
 	"""
 	if not listing_doc.track_inventory or listing_doc.allow_backorders:
-		return  # Stok takibi kapalı veya backorder açık — kontrol gerekmez
+		return
 
 	available = None
 
-	if listing_variant:
-		# 1) Gerçek Listing Variant doc'u dene
-		variant_doc = frappe.db.get_value("Listing Variant", listing_variant, ["stock_qty"], as_dict=True)
+	# 1) variant_label ile per-variant stok kontrolü (3+ eksen dahil)
+	if variant_label:
+		label_stock = _get_variant_stock_by_label(listing_name, variant_label)
+		if label_stock is not None:
+			available = label_stock
+
+	if available is None and listing_variant:
+		# 2) Gerçek Listing Variant doc'u dene
+		variant_doc = frappe.db.get_value(
+			"Listing Variant", listing_variant, ["stock_qty"], as_dict=True
+		)
 		if variant_doc and (variant_doc.stock_qty or 0) > 0:
 			available = float(variant_doc.stock_qty)
 		else:
-			# 2) Inline variant item dene (synthetic ID: "{listing}-{type}-{value}")
+			# 3) Inline variant item dene (synthetic ID)
 			inline_stock = _get_inline_variant_stock(listing_name, listing_variant)
 			if inline_stock is not None:
 				available = inline_stock
 
 	if available is None:
-		# 3) Listing seviyesi stok
+		# 4) Listing seviyesi stok
 		available = float(listing_doc.stock_qty or 0)
 
 	if total_qty > available:
@@ -347,16 +377,17 @@ def _build_cart_response(cart_name):
 				if variant:
 					max_qty = max(0, int(variant.stock_qty or 0))
 				else:
-					# Inline varyant stoğunu kontrol et
-					inline_stock = (
-						_get_inline_variant_stock(listing_name, item.listing_variant)
-						if item.listing_variant
-						else None
-					)
-					if inline_stock is not None:
-						max_qty = max(0, int(inline_stock))
+					# 1) variant_label ile per-variant stok (3+ eksen)
+					label_stock = _get_variant_stock_by_label(listing_name, item.variant_label) if item.variant_label else None
+					if label_stock is not None:
+						max_qty = max(0, int(label_stock))
 					else:
-						max_qty = max(0, int(listing.stock_qty or 0))
+						# 2) Inline varyant stoğunu kontrol et (synthetic ID)
+						inline_stock = _get_inline_variant_stock(listing_name, item.listing_variant) if item.listing_variant else None
+						if inline_stock is not None:
+							max_qty = max(0, int(inline_stock))
+						else:
+							max_qty = max(0, int(listing.stock_qty or 0))
 			else:
 				max_qty = 999999
 
@@ -443,10 +474,11 @@ def get_cart():
 
 
 @frappe.whitelist()
-def check_stock(listing, quantity=1, listing_variant=None):
+def check_stock(listing, quantity=1, listing_variant=None, variant_label=None):
 	"""
 	Stok kontrolü yapar ama sepete eklemez.
 	Ürün sayfasındaki drawer için kullanılır — gerçek kayıt cart.add_to_cart ile yapılır.
+	variant_label: human-readable label (e.g. "Renk: Siyah | Malzeme: Pamuk | Beden: S")
 	Hata yoksa {"ok": True} döner, hata varsa frappe.throw() ile exception fırlatır.
 	"""
 	if not frappe.db.exists("Listing", listing):
@@ -463,16 +495,18 @@ def check_stock(listing, quantity=1, listing_variant=None):
 
 	qty = int(quantity)
 	listing_variant = listing_variant or None
-	_check_stock(listing_doc, listing, listing_variant, qty)
+	variant_label = variant_label or None
+	_check_stock(listing_doc, listing, listing_variant, qty, variant_label=variant_label)
 	return {"ok": True}
 
 
 @frappe.whitelist()
-def add_to_cart(listing, quantity=1, listing_variant=None, variant_label=None, color_variant=None):
+def add_to_cart(listing, quantity=1, listing_variant=None, variant_label=None, color_variant=None, extra_axes=None):
 	"""
 	Add a listing (optionally a specific variant) to cart.
-	variant_label: human-readable combined label, e.g. "Renk: Lacivert | Beden: S"
+	variant_label: human-readable combined label, e.g. "Renk: Lacivert | Malzeme: Pamuk | Beden: S"
 	color_variant: inline color variant ID (e.g. "LST-00013-Renk-Lacivert") used for snapshot_image lookup.
+	extra_axes: JSON string of extra axis selections, e.g. '{"Malzeme": "Pamuk"}'
 	If already exists, increments quantity.
 	Returns the full cart response.
 	"""
@@ -518,11 +552,11 @@ def add_to_cart(listing, quantity=1, listing_variant=None, variant_label=None, c
 	color_variant = color_variant or None
 
 	cart_name = _get_or_create_cart(user)
-	existing_row = _find_existing_cart_item(cart_name, listing, listing_variant, color_variant)
+	existing_row = _find_existing_cart_item(cart_name, listing, listing_variant, color_variant, variant_label)
 	existing_qty = existing_row.quantity if existing_row else 0
 	total_qty = existing_qty + qty
 
-	_check_stock(listing_doc, listing, listing_variant, total_qty)
+	_check_stock(listing_doc, listing, listing_variant, total_qty, variant_label=variant_label)
 
 	# Snapshot verisi hazırla
 	snap_price = float(listing_doc.selling_price or listing_doc.base_price or 0)
@@ -608,10 +642,14 @@ def update_cart_item(cart_item, quantity):
 	if qty <= 0:
 		frappe.throw(_("Miktar sıfırdan büyük olmalıdır"))
 
-	# Stok kontrolü — variant varsa variant stoğu kullanılır (MOQ kontrolü checkout'ta)
-	listing_name, listing_variant_name = frappe.db.get_value(
-		"Cart Item", cart_item, ["listing", "listing_variant"]
-	) or (None, None)
+	# Stok kontrolü — variant_label ile per-variant stok kontrolü (N-eksen)
+	cart_item_data = frappe.db.get_value(
+		"Cart Item", cart_item, ["listing", "listing_variant", "variant_label"],
+		as_dict=True,
+	)
+	listing_name = cart_item_data.listing if cart_item_data else None
+	listing_variant_name = cart_item_data.listing_variant if cart_item_data else None
+	variant_label_value = cart_item_data.variant_label if cart_item_data else None
 	if listing_name:
 		listing_doc = frappe.db.get_value(
 			"Listing",
@@ -620,7 +658,7 @@ def update_cart_item(cart_item, quantity):
 			as_dict=True,
 		)
 		if listing_doc:
-			_check_stock(listing_doc, listing_name, listing_variant_name, qty)
+			_check_stock(listing_doc, listing_name, listing_variant_name, qty, variant_label=variant_label_value)
 
 	frappe.db.set_value("Cart Item", cart_item, "quantity", qty)
 	frappe.db.commit()
