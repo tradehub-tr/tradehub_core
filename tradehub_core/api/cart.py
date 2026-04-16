@@ -100,63 +100,35 @@ def _get_variant_stock_by_label(listing_name, variant_label):
 	return None
 
 
-def _get_inline_variant_stock(listing_name, synthetic_variant_id):
-	"""
-	Synthetic variantId formatı: "{listing_name}-{attribute_type}-{attribute_value}"
-	Listing Variant Item child table'dan variant_stock değerini döndürür.
-	Eşleşme bulunamazsa None döner.
-	"""
-	prefix = listing_name + "-"
-	if not synthetic_variant_id or not synthetic_variant_id.startswith(prefix):
-		return None
-	remainder = synthetic_variant_id[len(prefix) :]
-	inline_variants = frappe.get_all(
-		"Listing Variant Item",
-		filters={"parent": listing_name, "parenttype": "Listing"},
-		fields=["attribute_type", "attribute_value", "variant_stock"],
-	)
-	for iv in inline_variants:
-		expected = f"{iv.attribute_type}-{iv.attribute_value}"
-		if remainder == expected:
-			return float(iv.variant_stock or 0)
-	return None
-
-
 def _check_stock(listing_doc, listing_name, listing_variant, total_qty, variant_label=None):
 	"""
 	Stok kontrolü: track_inventory açıksa toplam miktarı (mevcut + yeni) kontrol et.
 	Sırasıyla:
 	  1) variant_label ile varyant satırı stoğu (N-eksen)
 	  2) Listing Variant doc stoğu
-	  3) Inline variant item stoğu (synthetic ID)
-	  4) Listing seviyesi stok
+	  3) Listing seviyesi stok
 	"""
 	if not listing_doc.track_inventory or listing_doc.allow_backorders:
 		return
 
 	available = None
 
-	# 1) variant_label ile per-variant stok kontrolü (3+ eksen dahil)
+	# 1) variant_label ile per-variant stok kontrolü (N-eksen)
 	if variant_label:
 		label_stock = _get_variant_stock_by_label(listing_name, variant_label)
 		if label_stock is not None:
 			available = label_stock
 
 	if available is None and listing_variant:
-		# 2) Gerçek Listing Variant doc'u dene
+		# 2) Gerçek Listing Variant doc'u
 		variant_doc = frappe.db.get_value(
 			"Listing Variant", listing_variant, ["stock_qty"], as_dict=True
 		)
 		if variant_doc and (variant_doc.stock_qty or 0) > 0:
 			available = float(variant_doc.stock_qty)
-		else:
-			# 3) Inline variant item dene (synthetic ID)
-			inline_stock = _get_inline_variant_stock(listing_name, listing_variant)
-			if inline_stock is not None:
-				available = inline_stock
 
 	if available is None:
-		# 4) Listing seviyesi stok
+		# 3) Listing seviyesi stok
 		available = float(listing_doc.stock_qty or 0)
 
 	if total_qty > available:
@@ -377,17 +349,12 @@ def _build_cart_response(cart_name):
 				if variant:
 					max_qty = max(0, int(variant.stock_qty or 0))
 				else:
-					# 1) variant_label ile per-variant stok (3+ eksen)
+					# variant_label ile per-variant stok (N-eksen)
 					label_stock = _get_variant_stock_by_label(listing_name, item.variant_label) if item.variant_label else None
 					if label_stock is not None:
 						max_qty = max(0, int(label_stock))
 					else:
-						# 2) Inline varyant stoğunu kontrol et (synthetic ID)
-						inline_stock = _get_inline_variant_stock(listing_name, item.listing_variant) if item.listing_variant else None
-						if inline_stock is not None:
-							max_qty = max(0, int(inline_stock))
-						else:
-							max_qty = max(0, int(listing.stock_qty or 0))
+						max_qty = max(0, int(listing.stock_qty or 0))
 			else:
 				max_qty = 999999
 
