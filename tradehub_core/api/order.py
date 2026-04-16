@@ -217,7 +217,7 @@ def cancel_order(order_number, reason=None):
                 type="order",
                 title=_("Sipariş İptal Edildi"),
                 message=_("{0} numaralı sipariş alıcı tarafından iptal edildi.").format(order.name),
-                action_url=f"/app/order/{order.name}",
+                action_url=f"/panel/seller-orders?highlight={order.name}",
                 reference_doctype="Order",
                 reference_name=order.name,
             )
@@ -491,7 +491,7 @@ def submit_remittance(order_number, remittance_date, currency="USD", amount=0,
                 type="order",
                 title=_("Havale Bildirimi"),
                 message=_("{0} numaralı sipariş için ödeme dekontu yüklendi.").format(order.name),
-                action_url=f"/app/order/{order.name}",
+                action_url=f"/panel/seller-orders?highlight={order.name}",
                 reference_doctype="Order",
                 reference_name=order.name,
             )
@@ -611,7 +611,7 @@ def seller_confirm_payment(order_number):
             type="order",
             title=_("Ödeme Onaylandı"),
             message=_("{0} numaralı siparişinizin ödemesi onaylandı, hazırlanıyor.").format(order_number),
-            action_url=f"/buyer-dashboard?tab=orders&order={order_number}",
+            action_url=f"/pages/dashboard/orders.html?order={order_number}",
             reference_doctype="Order",
             reference_name=order.name,
         )
@@ -663,7 +663,7 @@ def seller_ship_order(order_number, tracking_number="", carrier=""):
             type="order",
             title=_("Kargoya Verildi"),
             message=_("{0} numaralı siparişiniz kargoya verildi.{1}").format(order_number, carrier_text),
-            action_url=f"/buyer-dashboard?tab=orders&order={order_number}",
+            action_url=f"/pages/dashboard/orders.html?order={order_number}",
             reference_doctype="Order",
             reference_name=order.name,
         )
@@ -848,7 +848,7 @@ def submit_refund_request(order_number, reason, amount=0):
                 type="order",
                 title=_("İade Talebi"),
                 message=_("{0} numaralı sipariş için iade talebi oluşturuldu.").format(order_number),
-                action_url=f"/app/order/{order_number}",
+                action_url=f"/panel/seller-orders?highlight={order_number}",
                 reference_doctype="Order",
                 reference_name=order_number,
             )
@@ -932,7 +932,7 @@ def seller_handle_refund(order_number, action):
                 type="order",
                 title=_("İade Onaylandı"),
                 message=_("{0} numaralı siparişinizin iade talebi onaylandı.").format(order_number),
-                action_url=f"/buyer-dashboard?tab=orders&order={order_number}",
+                action_url=f"/pages/dashboard/orders.html?order={order_number}",
                 reference_doctype="Order",
                 reference_name=order_number,
             )
@@ -943,7 +943,7 @@ def seller_handle_refund(order_number, action):
                 type="order",
                 title=_("İade Reddedildi"),
                 message=_("{0} numaralı siparişinizin iade talebi reddedildi.").format(order_number),
-                action_url=f"/buyer-dashboard?tab=orders&order={order_number}",
+                action_url=f"/pages/dashboard/orders.html?order={order_number}",
                 reference_doctype="Order",
                 reference_name=order_number,
             )

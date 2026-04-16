@@ -755,6 +755,32 @@ def create_order(orders_json, shipping_address=None, payment_method=None, coupon
 		order_doc.insert(ignore_permissions=True)
 		# Stok rezervasyonu — sipariş oluşturulduğunda listing reserved_qty artır
 		reserve_stock_for_order(order_doc.name)
+
+		# Kredi kartı/gateway ödemesi ise Payment Transaction kaydı oluştur
+		if pm in INSTANT_PAYMENT_METHODS:
+			try:
+				from tradehub_core.api.payment import create_payment_transaction
+				pm_label_map = {
+					'credit_card': 'Kredi Kartı',
+					'iyzico': 'Kredi Kartı (Iyzico)',
+					'paytr': 'Kredi Kartı (PayTR)',
+					'stripe': 'Kredi Kartı (Stripe)',
+				}
+				create_payment_transaction(
+					order_name=order_doc.name,
+					buyer=user,
+					transaction_type="Ödeme",
+					amount=float(max(0, total)),
+					currency=currency,
+					payment_method=pm_label_map.get(pm, 'Kredi Kartı'),
+					status="Tamamlandı",
+				)
+			except Exception:
+				frappe.log_error(
+					f"Instant payment transaction creation failed for {order_doc.name}",
+					"instant_payment_tracking",
+				)
+
 		created_orders.append({
 			"order_name": order_doc.name,
 			"order_number": order_doc.name,

@@ -49,6 +49,61 @@ def _require_buyer():
     return user
 
 
+def _backfill_missing_transactions_for_buyer(buyer):
+    """Alıcının havale yaptığı ama Payment Transaction kaydı oluşmamış
+    siparişler için eksik kayıtları oluşturur. Idempotent."""
+    orders = frappe.get_list(
+        "Order",
+        filters={"buyer": buyer, "remittance_amount": [">", 0]},
+        fields=[
+            "name", "seller", "currency",
+            "remittance_date", "remittance_amount", "remittance_sender",
+            "receipt_url", "status",
+        ],
+        ignore_permissions=True,
+    )
+
+    created = 0
+    for order in orders:
+        if frappe.db.exists(
+            "Payment Transaction",
+            {"order": order.name, "transaction_type": "Ödeme"},
+        ):
+            continue
+
+        tx_status = "Gönderildi"
+        if order.status in ("Onaylanıyor", "Kargoda", "Tamamlandı"):
+            tx_status = "Tamamlandı"
+
+        try:
+            create_payment_transaction(
+                order_name=order.name,
+                buyer=buyer,
+                transaction_type="Ödeme",
+                amount=float(order.remittance_amount or 0),
+                currency=order.currency or "TRY",
+                payment_method="Banka Havalesi",
+                remittance_sender=order.remittance_sender or "",
+                receipt_url=order.receipt_url or "",
+                status=tx_status,
+            )
+            if order.seller:
+                upsert_bank_interaction(
+                    buyer, order.seller,
+                    float(order.remittance_amount or 0),
+                    order.currency or "TRY",
+                )
+            created += 1
+        except Exception:
+            frappe.log_error(
+                f"Backfill Payment Transaction failed for order {order.name}",
+                "payment_backfill",
+            )
+
+    if created:
+        frappe.db.commit()
+
+
 def _translate_transaction(tx):
     """Transaction dict'indeki Türkçe alanları İngilizce'ye çevir."""
     tr_status = tx.get("status", "")
@@ -69,6 +124,7 @@ def _translate_transaction(tx):
 def get_recent_payments(page=1, page_size=10):
     """Returns recent payment transactions for the logged-in buyer."""
     buyer = _require_buyer()
+    _backfill_missing_transactions_for_buyer(buyer)
     page = cint(page) or 1
     page_size = min(cint(page_size) or 10, 50)
 
@@ -150,6 +206,7 @@ def get_all_transactions(transaction_type=None, status=None, date_from=None,
                          currency=None, page=1, page_size=20):
     """Full transaction history with filtering."""
     buyer = _require_buyer()
+    _backfill_missing_transactions_for_buyer(buyer)
     page = cint(page) or 1
     page_size = min(cint(page_size) or 20, 100)
 
@@ -294,6 +351,7 @@ def get_bank_interactions(match_status=None, search=None,
                           page=1, page_size=20):
     """Returns seller bank accounts the buyer has transacted with."""
     buyer = _require_buyer()
+    _backfill_missing_transactions_for_buyer(buyer)
     page = cint(page) or 1
     page_size = min(cint(page_size) or 20, 100)
 
@@ -416,6 +474,7 @@ def get_wire_transfers(search=None, date_from=None, date_to=None,
                        page=1, page_size=20):
     """Returns wire transfers sent by the buyer."""
     buyer = _require_buyer()
+    _backfill_missing_transactions_for_buyer(buyer)
     page = cint(page) or 1
     page_size = min(cint(page_size) or 20, 100)
 
