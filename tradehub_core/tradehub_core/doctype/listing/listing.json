@@ -69,6 +69,7 @@
   "variants_tab",
   "variants_section",
   "has_variants",
+  "variant_axes_config",
   "variant_items",
   "variants_html",
   "customization_section",
@@ -115,6 +116,7 @@
   "column_break_stats",
   "average_rating",
   "review_count",
+  "completeness_score",
   "seo_tab",
   "seo_section",
   "route",
@@ -536,6 +538,13 @@
    "label": "Has Variants"
   },
   {
+   "fieldname": "variant_axes_config",
+   "fieldtype": "Long Text",
+   "label": "Varyant Eksenleri (JSON)",
+   "hidden": 1,
+   "description": "Admin panel tarafından yönetilir. [{name:'Renk',valuesStr:'Siyah,Kırmızı'},{name:'Beden',valuesStr:'S,M,L,XL'}]"
+  },
+  {
    "depends_on": "eval:doc.has_variants",
    "fieldname": "variant_items",
    "fieldtype": "Table",
@@ -799,6 +808,15 @@
    "fieldname": "review_count",
    "fieldtype": "Int",
    "label": "Review Count",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "description": "Otomatik hesaplanan ürün kalite puanı (0-100)",
+   "fieldname": "completeness_score",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Tamamlanma Puanı",
    "read_only": 1
   },
   {

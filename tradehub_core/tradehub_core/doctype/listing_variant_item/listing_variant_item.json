@@ -6,6 +6,10 @@
  "field_order": [
   "attribute_type",
   "attribute_value",
+  "attribute_type_2",
+  "attribute_value_2",
+  "axis_values_json",
+  "is_default",
   "variant_image",
   "variant_gallery",
   "variant_video_url",
@@ -18,44 +22,72 @@
    "fieldname": "attribute_type",
    "fieldtype": "Data",
    "in_list_view": 1,
-   "label": "Özellik Türü",
+   "label": "Eksen 1 Türü",
    "reqd": 1,
    "default": "Renk",
-   "description": "Renk, Beden, Numara, Malzeme veya istediğiniz özellik adı"
+   "description": "Birinci varyant ekseni (ör: Renk, Malzeme)"
   },
   {
    "fieldname": "attribute_value",
    "fieldtype": "Data",
    "in_list_view": 1,
-   "label": "Değer",
+   "label": "Eksen 1 Değeri",
    "reqd": 1,
-   "description": "Örn: Kırmızı, XL, 42, Titanyum"
+   "description": "Örn: Siyah, Kırmızı, Pamuk"
+  },
+  {
+   "fieldname": "attribute_type_2",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Eksen 2 Türü",
+   "description": "İkinci varyant ekseni (ör: Beden, Numara). Boş bırakılabilir."
+  },
+  {
+   "fieldname": "attribute_value_2",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Eksen 2 Değeri",
+   "description": "Örn: S, M, L, XL, 42"
+  },
+  {
+   "fieldname": "axis_values_json",
+   "fieldtype": "Long Text",
+   "label": "Eksen Değerleri (JSON)",
+   "description": "N-eksen destekli: {\"Renk\":\"Siyah\",\"Beden\":\"M\",\"Malzeme\":\"Pamuk\"}. 3+ eksen için kullanılır."
+  },
+  {
+   "fieldname": "is_default",
+   "fieldtype": "Check",
+   "label": "Varsayılan",
+   "default": "0",
+   "in_list_view": 1,
+   "description": "Bu kombinasyon sayfa açılınca otomatik seçili gelir."
   },
   {
    "fieldname": "variant_image",
    "fieldtype": "Attach Image",
-   "in_list_view": 1,
-   "label": "Ana Görsel"
+   "label": "Görsel",
+   "description": "Bu kombinasyonun ana görseli (genellikle renk bazlı — aynı renkteki tüm bedenlerde aynı)"
   },
   {
    "fieldname": "variant_gallery",
    "fieldtype": "Long Text",
    "label": "Ek Görseller (JSON)",
-   "description": "Varyantın ek görsel URL'lerinin JSON array'i. Admin panelde otomatik yönetilir."
+   "description": "Ek görsel URL listesi JSON olarak"
   },
   {
    "fieldname": "variant_video_url",
    "fieldtype": "Data",
    "label": "Video URL",
    "options": "URL",
-   "description": "YouTube, Vimeo veya MP4 URL — varyant seçilince bu video oynatılır (boş = ana ürün videosu)"
+   "description": "YouTube, Vimeo veya MP4 URL"
   },
   {
    "fieldname": "variant_price",
    "fieldtype": "Currency",
    "in_list_view": 1,
    "label": "Fiyat",
-   "description": "Boş = ana ürün fiyatı"
+   "description": "Bu kombinasyonun fiyatı (0 = ana ürün fiyatı)"
   },
   {
    "fieldname": "variant_stock",
@@ -75,7 +107,7 @@
  "index_web_pages_for_search": 0,
  "istable": 1,
  "links": [],
- "modified": "2024-01-01 00:00:00.000000",
+ "modified": "2026-04-16 00:00:00.000000",
  "modified_by": "Administrator",
  "module": "Tradehub Core",
  "name": "Listing Variant Item",

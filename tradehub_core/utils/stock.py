@@ -1,20 +1,87 @@
 import frappe
 from frappe import _
 from frappe.utils import flt, add_to_date, now_datetime
+import json as _json
 
 
 # Aynı listing için aynı türde stok bildirimi en az bu kadar saat arayla gönderilir.
 STOCK_ALERT_COOLDOWN_HOURS = 24
 
 
+def _find_variant_item_row(listing_name, variation_label):
+    """Parse a variant_label like 'Renk: Siyah | Malzeme: Pamuk | Beden: S'
+    and find the matching Listing Variant Item row.
+    Returns the child row name or None.
+    """
+    if not variation_label:
+        return None
+
+    # Parse "Key: Value | Key: Value" format
+    parsed = {}
+    for part in variation_label.split("|"):
+        part = part.strip()
+        if ":" in part:
+            key, val = part.split(":", 1)
+            parsed[key.strip()] = val.strip()
+
+    if not parsed:
+        return None
+
+    rows = frappe.get_all(
+        "Listing Variant Item",
+        filters={"parent": listing_name, "parenttype": "Listing"},
+        fields=["name", "attribute_type", "attribute_value",
+                "attribute_type_2", "attribute_value_2", "axis_values_json"],
+    )
+
+    for row in rows:
+        # Check axis1 match
+        if row.attribute_type and parsed.get(row.attribute_type) != row.attribute_value:
+            continue
+        # Check axis2 match
+        if row.attribute_type_2 and parsed.get(row.attribute_type_2) != row.attribute_value_2:
+            continue
+        # Check extra axes match
+        if row.axis_values_json:
+            try:
+                extra = _json.loads(row.axis_values_json)
+                skip = False
+                for ax_name, ax_val in extra.items():
+                    if ax_name == row.attribute_type or ax_name == row.attribute_type_2:
+                        continue
+                    if parsed.get(ax_name) != ax_val:
+                        skip = True
+                        break
+                if skip:
+                    continue
+            except Exception:
+                pass
+        return row.name
+
+    return None
+
+
+def _update_variant_stock(listing_name, variation_label, qty_delta):
+    """Update variant_stock on the matching Listing Variant Item row.
+    qty_delta is negative for deductions, positive for releases.
+    """
+    row_name = _find_variant_item_row(listing_name, variation_label)
+    if not row_name:
+        return
+    current = flt(frappe.db.get_value("Listing Variant Item", row_name, "variant_stock"))
+    new_stock = max(0, current + qty_delta)
+    frappe.db.set_value("Listing Variant Item", row_name, "variant_stock", new_stock)
+
+
 def reserve_stock_for_order(order_name):
     """Sipariş oluşturulduğunda listing stoklarını rezerve et.
     reserved_qty artırılır, available_qty otomatik hesaplanır.
+    Varyant seviyesinde de variant_stock düşürülür (overselling önlenir).
     """
     items = frappe.get_all(
         "Order Item",
         filters={"parent": order_name},
-        fields=["listing", "quantity"],
+        fields=["listing", "quantity", "variation"],
     )
     for item in items:
         if not item.listing:
@@ -26,19 +93,22 @@ def reserve_stock_for_order(order_name):
         )
         if not listing or not listing.track_inventory:
             continue
-        new_reserved = flt(listing.reserved_qty) + flt(item.quantity)
+        qty = flt(item.quantity)
+        new_reserved = flt(listing.reserved_qty) + qty
         frappe.db.set_value("Listing", item.listing, "reserved_qty", new_reserved)
+        # Per-variant stock reservation
+        _update_variant_stock(item.listing, item.variation, -qty)
         _recalculate_available(item.listing)
 
 
 def release_stock_for_order(order_name):
     """Sipariş iptal edildiğinde rezervasyonu kaldır.
-    reserved_qty azaltılır.
+    reserved_qty azaltılır, varyant seviyesinde variant_stock geri eklenir.
     """
     items = frappe.get_all(
         "Order Item",
         filters={"parent": order_name},
-        fields=["listing", "quantity"],
+        fields=["listing", "quantity", "variation"],
     )
     for item in items:
         if not item.listing:
@@ -50,19 +120,23 @@ def release_stock_for_order(order_name):
         )
         if not listing or not listing.track_inventory:
             continue
-        new_reserved = max(0, flt(listing.reserved_qty) - flt(item.quantity))
+        qty = flt(item.quantity)
+        new_reserved = max(0, flt(listing.reserved_qty) - qty)
         frappe.db.set_value("Listing", item.listing, "reserved_qty", new_reserved)
+        # Per-variant stock release (give back)
+        _update_variant_stock(item.listing, item.variation, +qty)
         _recalculate_available(item.listing)
 
 
 def deduct_stock_for_order(order_name):
     """Sipariş tamamlandığında gerçek stoktan düş.
     stock_qty azaltılır, reserved_qty azaltılır.
+    Varyant seviyesinde de variant_stock güncellenir.
     """
     items = frappe.get_all(
         "Order Item",
         filters={"parent": order_name},
-        fields=["listing", "quantity"],
+        fields=["listing", "quantity", "variation"],
     )
     for item in items:
         if not item.listing:
@@ -74,12 +148,15 @@ def deduct_stock_for_order(order_name):
         )
         if not listing or not listing.track_inventory:
             continue
-        new_stock = max(0, flt(listing.stock_qty) - flt(item.quantity))
-        new_reserved = max(0, flt(listing.reserved_qty) - flt(item.quantity))
+        qty = flt(item.quantity)
+        new_stock = max(0, flt(listing.stock_qty) - qty)
+        new_reserved = max(0, flt(listing.reserved_qty) - qty)
         frappe.db.set_value("Listing", item.listing, {
             "stock_qty": new_stock,
             "reserved_qty": new_reserved,
         })
+        # Per-variant stock deduction
+        _update_variant_stock(item.listing, item.variation, -qty)
         _recalculate_available(item.listing)
 
 
