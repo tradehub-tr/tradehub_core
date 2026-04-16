@@ -67,10 +67,6 @@ def execute():
 					"label": "Değerlendirmeler", "format": "card",
 					"link_to": "Seller Review", "type": "DocType", "icon": "es-line-star"
 				}},
-				{"id": "lnk-currency-rate", "type": "shortcut", "data": {
-					"label": "Döviz Kurları", "format": "card",
-					"link_to": "Currency Rate", "type": "DocType", "icon": "es-line-currency"
-				}},
 			],
 		},
 	]

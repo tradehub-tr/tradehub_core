@@ -1,0 +1,116 @@
+{
+	"actions": [],
+	"autoname": "field:currency_code",
+	"creation": "2024-01-01 00:00:00.000000",
+	"doctype": "DocType",
+	"engine": "InnoDB",
+	"field_order": [
+		"currency_code",
+		"symbol",
+		"column_break_basic",
+		"name_en",
+		"name_tr",
+		"settings_section",
+		"decimal_places",
+		"display_order",
+		"column_break_settings",
+		"is_enabled"
+	],
+	"fields": [
+		{
+			"fieldname": "currency_code",
+			"fieldtype": "Link",
+			"in_list_view": 1,
+			"label": "Currency Code",
+			"options": "Currency",
+			"reqd": 1,
+			"unique": 1
+		},
+		{
+			"fieldname": "symbol",
+			"fieldtype": "Data",
+			"in_list_view": 1,
+			"label": "Symbol",
+			"description": "Bo\u015f b\u0131rak\u0131l\u0131rsa otomatik dolar"
+		},
+		{
+			"fieldname": "column_break_basic",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "name_en",
+			"fieldtype": "Data",
+			"in_list_view": 1,
+			"label": "Name (English)",
+			"reqd": 1
+		},
+		{
+			"fieldname": "name_tr",
+			"fieldtype": "Data",
+			"in_list_view": 1,
+			"label": "Name (Turkish)",
+			"reqd": 1
+		},
+		{
+			"fieldname": "settings_section",
+			"fieldtype": "Section Break",
+			"label": "Settings"
+		},
+		{
+			"default": "2",
+			"fieldname": "decimal_places",
+			"fieldtype": "Int",
+			"label": "Decimal Places"
+		},
+		{
+			"fieldname": "display_order",
+			"fieldtype": "Int",
+			"label": "Display Order",
+			"read_only": 1
+		},
+		{
+			"fieldname": "column_break_settings",
+			"fieldtype": "Column Break"
+		},
+		{
+			"default": "1",
+			"fieldname": "is_enabled",
+			"fieldtype": "Check",
+			"in_list_view": 1,
+			"label": "Enabled"
+		}
+	],
+	"index_web_pages_for_search": 0,
+	"links": [],
+	"modified": "2024-01-01 00:00:00.000000",
+	"modified_by": "Administrator",
+	"module": "Tradehub Core",
+	"name": "Supported Currency",
+	"naming_rule": "By fieldname",
+	"owner": "Administrator",
+	"permissions": [
+		{
+			"create": 1,
+			"delete": 1,
+			"email": 1,
+			"export": 1,
+			"print": 1,
+			"read": 1,
+			"report": 1,
+			"role": "System Manager",
+			"share": 1,
+			"write": 1
+		},
+		{
+			"read": 1,
+			"role": "All"
+		}
+	],
+	"quick_entry": 0,
+	"search_fields": "currency_code,name_en,name_tr",
+	"show_name_in_global_search": 1,
+	"sort_field": "display_order",
+	"sort_order": "ASC",
+	"title_field": "currency_code",
+	"track_changes": 1
+}
