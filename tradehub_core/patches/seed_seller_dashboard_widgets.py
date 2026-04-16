@@ -15,7 +15,6 @@ import json
 
 import frappe
 
-
 DASHBOARD_KEY = "seller_overview"
 
 
@@ -100,10 +99,12 @@ SELLER_WIDGETS = [
 		"aggregation": "count",
 		"period_scoped": 0,
 		"filters_json": json.dumps([["status", "=", "Onaylanıyor"]]),
-		"config_json": json.dumps({
-			"scope_field": "seller",
-			"action_link": {"to": "/seller-orders", "label": "Siparişlere git →"},
-		}),
+		"config_json": json.dumps(
+			{
+				"scope_field": "seller",
+				"action_link": {"to": "/seller-orders", "label": "Siparişlere git →"},
+			}
+		),
 	},
 	{
 		"title": "Kargodaki Siparişler",
@@ -152,38 +153,40 @@ SELLER_WIDGETS = [
 		"widget_type": "quick_links",
 		"size": "full",
 		"position": 200,
-		"config_json": json.dumps({
-			"links": [
-				{
-					"label": "Siparişlerim",
-					"to": "/seller-orders",
-					"icon": "fas fa-bag-shopping",
-					"icon_class": "bg-blue-100 dark:bg-blue-500/10 text-blue-500",
-					"source_doctype": "Order",
-					"scope_field": "seller",
-				},
-				{
-					"label": "Ürünlerim",
-					"to": "/seller-listings",
-					"icon": "fas fa-cube",
-					"icon_class": "bg-emerald-100 dark:bg-emerald-500/10 text-emerald-500",
-					"source_doctype": "Listing",
-					"scope_field": "seller_profile",
-				},
-				{
-					"label": "Kategorilerim",
-					"to": "/seller-categories",
-					"icon": "fas fa-folder-tree",
-					"icon_class": "bg-violet-100 dark:bg-violet-500/10 text-violet-500",
-				},
-				{
-					"label": "Mağaza Düzeni",
-					"to": "/storefront-layout",
-					"icon": "fas fa-store",
-					"icon_class": "bg-amber-100 dark:bg-amber-500/10 text-amber-500",
-				},
-			],
-		}),
+		"config_json": json.dumps(
+			{
+				"links": [
+					{
+						"label": "Siparişlerim",
+						"to": "/seller-orders",
+						"icon": "fas fa-bag-shopping",
+						"icon_class": "bg-blue-100 dark:bg-blue-500/10 text-blue-500",
+						"source_doctype": "Order",
+						"scope_field": "seller",
+					},
+					{
+						"label": "Ürünlerim",
+						"to": "/seller-listings",
+						"icon": "fas fa-cube",
+						"icon_class": "bg-emerald-100 dark:bg-emerald-500/10 text-emerald-500",
+						"source_doctype": "Listing",
+						"scope_field": "seller_profile",
+					},
+					{
+						"label": "Kategorilerim",
+						"to": "/seller-categories",
+						"icon": "fas fa-folder-tree",
+						"icon_class": "bg-violet-100 dark:bg-violet-500/10 text-violet-500",
+					},
+					{
+						"label": "Mağaza Düzeni",
+						"to": "/storefront-layout",
+						"icon": "fas fa-store",
+						"icon_class": "bg-amber-100 dark:bg-amber-500/10 text-amber-500",
+					},
+				],
+			}
+		),
 	},
 	# ── Ciro Trendi + Sipariş Durumlarım ──
 	{

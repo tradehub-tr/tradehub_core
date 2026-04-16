@@ -147,14 +147,24 @@ def get_buyer_kpi_summary_for_seller(seller_name, anonymous_customer_id):
 			"status": "Active",
 		},
 		[
-			"name", "anonymous_customer_id", "buyer",
-			"platform_grade", "platform_score",
-			"seller_grade", "seller_score",
+			"name",
+			"anonymous_customer_id",
+			"buyer",
+			"platform_grade",
+			"platform_score",
+			"seller_grade",
+			"seller_score",
 			"use_custom_criteria",
-			"total_orders", "total_spend", "average_order_value",
-			"order_frequency", "on_time_payment_rate",
-			"return_rate", "dispute_rate", "cancellation_rate",
-			"first_order_date", "last_order_date",
+			"total_orders",
+			"total_spend",
+			"average_order_value",
+			"order_frequency",
+			"on_time_payment_rate",
+			"return_rate",
+			"dispute_rate",
+			"cancellation_rate",
+			"first_order_date",
+			"last_order_date",
 			"calculation_date",
 		],
 		as_dict=True,
@@ -268,6 +278,7 @@ def get_admin_kpi_dashboard_data(tenant=None, period=None):
 # Permission check helpers
 # ---------------------------------------------------------------------------
 
+
 def _check_buyer_permission(buyer_name):
 	"""Check if current user can view buyer KPI dashboard data.
 
@@ -369,6 +380,7 @@ def _check_admin_permission():
 # Data retrieval helpers — Buyer dashboard
 # ---------------------------------------------------------------------------
 
+
 def _get_buyer_info(buyer_name):
 	"""Get basic buyer profile information for the dashboard.
 
@@ -379,13 +391,26 @@ def _get_buyer_info(buyer_name):
 		dict: Buyer info with name, display name, status, level, score, etc.
 	"""
 	fields = [
-		"name", "buyer_name", "display_name", "status",
-		"buyer_level", "buyer_level_name",
-		"buyer_score", "buyer_score_trend", "last_score_date",
-		"total_orders", "total_spent", "average_order_value",
-		"payment_on_time_rate", "payment_pattern",
-		"return_rate", "feedback_rate", "dispute_rate", "cancellation_rate",
-		"joined_at", "last_active_at",
+		"name",
+		"buyer_name",
+		"display_name",
+		"status",
+		"buyer_level",
+		"buyer_level_name",
+		"buyer_score",
+		"buyer_score_trend",
+		"last_score_date",
+		"total_orders",
+		"total_spent",
+		"average_order_value",
+		"payment_on_time_rate",
+		"payment_pattern",
+		"return_rate",
+		"feedback_rate",
+		"dispute_rate",
+		"cancellation_rate",
+		"joined_at",
+		"last_active_at",
 	]
 
 	buyer = frappe.db.get_value("Buyer Profile", buyer_name, fields, as_dict=True)
@@ -408,19 +433,41 @@ def _get_latest_kpi_score(buyer_name):
 			"status": "Finalized",
 		},
 		[
-			"name", "overall_score", "previous_score", "score_change",
-			"score_trend", "grade", "passing_status", "percentile_rank",
-			"kpi_template", "score_type", "score_period",
-			"calculation_date", "evaluation_date",
+			"name",
+			"overall_score",
+			"previous_score",
+			"score_change",
+			"score_trend",
+			"grade",
+			"passing_status",
+			"percentile_rank",
+			"kpi_template",
+			"score_type",
+			"score_period",
+			"calculation_date",
+			"evaluation_date",
 			"buyer_level_at_calculation",
-			"total_weighted_score", "metrics_evaluated",
-			"metrics_passing", "metrics_warning", "metrics_critical",
-			"highest_metric", "lowest_metric",
-			"total_spend", "average_order_value", "order_count",
-			"order_frequency", "payment_on_time_rate", "payment_pattern",
-			"return_rate", "cancellation_rate", "feedback_rate",
-			"dispute_rate", "account_age_days", "last_activity_days",
-			"bonus_points", "penalty_deduction",
+			"total_weighted_score",
+			"metrics_evaluated",
+			"metrics_passing",
+			"metrics_warning",
+			"metrics_critical",
+			"highest_metric",
+			"lowest_metric",
+			"total_spend",
+			"average_order_value",
+			"order_count",
+			"order_frequency",
+			"payment_on_time_rate",
+			"payment_pattern",
+			"return_rate",
+			"cancellation_rate",
+			"feedback_rate",
+			"dispute_rate",
+			"account_age_days",
+			"last_activity_days",
+			"bonus_points",
+			"penalty_deduction",
 		],
 		as_dict=True,
 		order_by="calculation_date desc",
@@ -445,9 +492,12 @@ def _get_score_breakdown(score_name):
 		"Buyer KPI Metric Score",
 		filters={"parent": score_name, "parenttype": "Buyer KPI Score Log"},
 		fields=[
-			"metric_code", "metric_name",
-			"raw_value", "normalized_score",
-			"weight", "weighted_score",
+			"metric_code",
+			"metric_name",
+			"raw_value",
+			"normalized_score",
+			"weight",
+			"weighted_score",
 			"threshold_level",
 		],
 		order_by="idx asc",
@@ -475,9 +525,14 @@ def _get_score_history(buyer_name, limit=12):
 			"status": "Finalized",
 		},
 		fields=[
-			"name", "calculation_date", "score_period",
-			"overall_score", "score_change", "score_trend",
-			"grade", "passing_status",
+			"name",
+			"calculation_date",
+			"score_period",
+			"overall_score",
+			"score_change",
+			"score_trend",
+			"grade",
+			"passing_status",
 		],
 		order_by="calculation_date desc",
 		limit=cint(limit),
@@ -504,9 +559,16 @@ def _get_latest_grade(buyer_name):
 			"status": "Finalized",
 		},
 		[
-			"name", "grade", "overall_score", "grade_type", "grade_period",
-			"calculation_date", "score_change", "score_trend",
-			"is_provisional", "orders_evaluated",
+			"name",
+			"grade",
+			"overall_score",
+			"grade_type",
+			"grade_period",
+			"calculation_date",
+			"score_change",
+			"score_trend",
+			"is_provisional",
+			"orders_evaluated",
 		],
 		as_dict=True,
 		order_by="calculation_date desc",
@@ -525,7 +587,8 @@ def _get_buyer_summary_stats(buyer_name):
 		dict: Summary stats including avg score, total evaluations, etc.
 	"""
 	# Use parameterized queries to prevent SQL injection
-	stats = frappe.db.sql("""
+	stats = frappe.db.sql(
+		"""
 		SELECT
 			COUNT(*) as total_evaluations,
 			AVG(overall_score) as avg_score,
@@ -536,7 +599,10 @@ def _get_buyer_summary_stats(buyer_name):
 		FROM `tabBuyer KPI Score Log`
 		WHERE buyer = %(buyer)s
 		AND status = 'Finalized'
-	""", {"buyer": buyer_name}, as_dict=True)
+	""",
+		{"buyer": buyer_name},
+		as_dict=True,
+	)
 
 	if not stats or not stats[0].total_evaluations:
 		return {
@@ -566,6 +632,7 @@ def _get_buyer_summary_stats(buyer_name):
 # Data retrieval helpers — Seller anonymous summary
 # ---------------------------------------------------------------------------
 
+
 def _get_anonymous_kpi_summary(buyer_name):
 	"""Get an anonymized KPI score summary for a buyer.
 
@@ -585,8 +652,13 @@ def _get_anonymous_kpi_summary(buyer_name):
 			"status": "Finalized",
 		},
 		[
-			"overall_score", "grade", "score_trend", "passing_status",
-			"metrics_evaluated", "metrics_passing", "metrics_warning",
+			"overall_score",
+			"grade",
+			"score_trend",
+			"passing_status",
+			"metrics_evaluated",
+			"metrics_passing",
+			"metrics_warning",
 			"metrics_critical",
 		],
 		as_dict=True,
@@ -612,6 +684,7 @@ def _get_anonymous_kpi_summary(buyer_name):
 # Data retrieval helpers — Admin platform dashboard
 # ---------------------------------------------------------------------------
 
+
 def _get_platform_summary(tenant=None, period=None):
 	"""Get platform-wide KPI summary statistics.
 
@@ -635,7 +708,8 @@ def _get_platform_summary(tenant=None, period=None):
 
 	where_clause = " AND ".join(conditions)
 
-	stats = frappe.db.sql("""
+	stats = frappe.db.sql(
+		f"""
 		SELECT
 			COUNT(DISTINCT buyer) as total_buyers_scored,
 			COUNT(*) as total_evaluations,
@@ -647,7 +721,10 @@ def _get_platform_summary(tenant=None, period=None):
 			SUM(CASE WHEN passing_status = 'Failed' THEN 1 ELSE 0 END) as failed_count
 		FROM `tabBuyer KPI Score Log`
 		WHERE {where_clause}
-	""".format(where_clause=where_clause), params, as_dict=True)
+	""",
+		params,
+		as_dict=True,
+	)
 
 	if not stats or not stats[0].total_evaluations:
 		return {
@@ -701,7 +778,8 @@ def _get_grade_distribution(tenant=None, period=None):
 	where_clause = " AND ".join(conditions)
 
 	# Get grade counts — only from the latest score per buyer
-	distribution = frappe.db.sql("""
+	distribution = frappe.db.sql(
+		f"""
 		SELECT grade, COUNT(*) as count
 		FROM (
 			SELECT buyer, grade,
@@ -712,7 +790,10 @@ def _get_grade_distribution(tenant=None, period=None):
 		WHERE rn = 1
 		GROUP BY grade
 		ORDER BY grade
-	""".format(where_clause=where_clause), params, as_dict=True)
+	""",
+		params,
+		as_dict=True,
+	)
 
 	# Build complete distribution with all grades
 	grade_map = {row.grade: cint(row.count) for row in distribution}
@@ -751,7 +832,8 @@ def _get_score_distribution(tenant=None, period=None):
 	where_clause = " AND ".join(conditions)
 
 	# Only count latest score per buyer
-	distribution = frappe.db.sql("""
+	distribution = frappe.db.sql(
+		f"""
 		SELECT
 			SUM(CASE WHEN overall_score >= 90 THEN 1 ELSE 0 END) as excellent,
 			SUM(CASE WHEN overall_score >= 70 AND overall_score < 90 THEN 1 ELSE 0 END) as good,
@@ -765,7 +847,10 @@ def _get_score_distribution(tenant=None, period=None):
 			WHERE {where_clause}
 		) latest
 		WHERE rn = 1
-	""".format(where_clause=where_clause), params, as_dict=True)
+	""",
+		params,
+		as_dict=True,
+	)
 
 	if not distribution:
 		return {
@@ -806,7 +891,8 @@ def _get_trend_data(tenant=None):
 
 	where_clause = " AND ".join(conditions)
 
-	trends = frappe.db.sql("""
+	trends = frappe.db.sql(
+		f"""
 		SELECT
 			score_period,
 			COUNT(DISTINCT buyer) as buyer_count,
@@ -820,20 +906,25 @@ def _get_trend_data(tenant=None):
 		GROUP BY score_period
 		ORDER BY score_period DESC
 		LIMIT 6
-	""".format(where_clause=where_clause), params, as_dict=True)
+	""",
+		params,
+		as_dict=True,
+	)
 
 	# Reverse to chronological order for chart rendering
 	result = []
 	for t in reversed(trends):
 		total = cint(t.total_count)
-		result.append({
-			"period": t.score_period,
-			"buyer_count": cint(t.buyer_count),
-			"avg_score": round(flt(t.avg_score), 2),
-			"min_score": round(flt(t.min_score), 2),
-			"max_score": round(flt(t.max_score), 2),
-			"pass_rate": round(safe_divide(cint(t.passed_count), total) * 100, 1),
-		})
+		result.append(
+			{
+				"period": t.score_period,
+				"buyer_count": cint(t.buyer_count),
+				"avg_score": round(flt(t.avg_score), 2),
+				"min_score": round(flt(t.min_score), 2),
+				"max_score": round(flt(t.max_score), 2),
+				"pass_rate": round(safe_divide(cint(t.passed_count), total) * 100, 1),
+			}
+		)
 
 	return result
 
@@ -857,7 +948,8 @@ def _get_top_performers(tenant=None, limit=10):
 
 	where_clause = " AND ".join(conditions)
 
-	top = frappe.db.sql("""
+	top = frappe.db.sql(
+		f"""
 		SELECT
 			bp.name as buyer,
 			bp.buyer_name,
@@ -870,7 +962,10 @@ def _get_top_performers(tenant=None, limit=10):
 		WHERE {where_clause}
 		ORDER BY bp.buyer_score DESC
 		LIMIT %(limit)s
-	""".format(where_clause=where_clause), {**params, "limit": cint(limit)}, as_dict=True)
+	""",
+		{**params, "limit": cint(limit)},
+		as_dict=True,
+	)
 
 	return top
 
@@ -901,7 +996,8 @@ def _get_at_risk_buyers(tenant=None, limit=10):
 
 	where_clause = " AND ".join(conditions)
 
-	at_risk = frappe.db.sql("""
+	at_risk = frappe.db.sql(
+		f"""
 		SELECT
 			bp.name as buyer,
 			bp.buyer_name,
@@ -914,6 +1010,9 @@ def _get_at_risk_buyers(tenant=None, limit=10):
 		WHERE {where_clause}
 		ORDER BY bp.buyer_score ASC
 		LIMIT %(limit)s
-	""".format(where_clause=where_clause), {**params, "limit": cint(limit)}, as_dict=True)
+	""",
+		{**params, "limit": cint(limit)},
+		as_dict=True,
+	)
 
 	return at_risk

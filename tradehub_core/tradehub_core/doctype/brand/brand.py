@@ -3,7 +3,6 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import now_datetime
 
-
 APPROVER_ROLES = {"System Manager", "Marketplace Admin"}
 
 
@@ -50,6 +49,7 @@ class Brand(Document):
 	def _validate_founded_year(self):
 		if self.founded_year:
 			from datetime import datetime
+
 			current_year = datetime.now().year
 			if self.founded_year < 1800 or self.founded_year > current_year:
 				frappe.throw(_("Kuruluş yılı 1800 ile {0} arasında olmalıdır.").format(current_year))
@@ -71,9 +71,7 @@ class Brand(Document):
 			"Approved": {"Pending Approval", "Rejected"},
 		}
 		if self.status not in allowed.get(previous_status, set()):
-			frappe.throw(
-				_("Geçersiz durum geçişi: {0} → {1}").format(previous_status, self.status)
-			)
+			frappe.throw(_("Geçersiz durum geçişi: {0} → {1}").format(previous_status, self.status))
 
 		if self.status == "Rejected" and not (self.rejection_reason or "").strip():
 			frappe.throw(_("Ret için gerekçe zorunludur."))

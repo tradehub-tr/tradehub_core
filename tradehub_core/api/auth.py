@@ -11,7 +11,6 @@ tradehub_core.api.v1.identity. These endpoints are disabled for security.
 """
 
 import frappe
-from frappe import _
 
 
 @frappe.whitelist(allow_guest=True)
@@ -26,8 +25,7 @@ def get_current_user():
 	seller = frappe.db.get_value(
 		"Seller Profile",
 		{"user": user_email},
-		["name", "seller_name", "seller_code", "status", "logo",
-		 "health_score", "score_grade"],
+		["name", "seller_name", "seller_code", "status", "logo", "health_score", "score_grade"],
 		as_dict=True,
 	)
 

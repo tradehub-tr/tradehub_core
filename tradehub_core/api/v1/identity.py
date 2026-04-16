@@ -5,8 +5,9 @@ import secrets
 import frappe
 from frappe import _
 from frappe.rate_limiter import rate_limit
-from frappe.utils import get_url, now_datetime
+from frappe.utils import now_datetime
 from frappe.utils.password import check_password, update_password
+
 from tradehub_core.api.v1.auth import _generate_member_id
 
 PASSWORD_MIN_LENGTH = 8
@@ -28,9 +29,7 @@ def _validate_email_format(email: str) -> str:
 def _validate_password(password: str):
 	"""Enforce password policy: 8+ chars, uppercase, lowercase, digit."""
 	if len(password) < PASSWORD_MIN_LENGTH:
-		frappe.throw(
-			_("Password must be at least {0} characters.").format(PASSWORD_MIN_LENGTH)
-		)
+		frappe.throw(_("Password must be at least {0} characters.").format(PASSWORD_MIN_LENGTH))
 	if not re.search(r"[A-Z]", password):
 		frappe.throw(_("Password must contain at least one uppercase letter."))
 	if not re.search(r"[a-z]", password):
@@ -56,9 +55,7 @@ def _reassign_file_owner(file_url: str, new_owner: str):
 def _create_email_verification(email: str, first_name: str):
 	"""Send a background email verification link after registration."""
 	key = frappe.generate_hash(length=32)
-	frappe.cache.set_value(
-		f"email_verification:{key}", email, expires_in_sec=86400
-	)
+	frappe.cache.set_value(f"email_verification:{key}", email, expires_in_sec=86400)
 	storefront = frappe.conf.get("storefront_url", "https://rc.istoc.com")
 	link = f"{storefront}/api/method/tradehub_core.api.v1.identity.verify_email?key={key}"
 
@@ -201,12 +198,7 @@ def register_user(
 	cached_email = frappe.cache.get_value(token_cache_key)
 
 	if not cached_email:
-		frappe.throw(
-			_(
-				"Invalid or expired verification token. "
-				"Please restart the registration."
-			)
-		)
+		frappe.throw(_("Invalid or expired verification token. " "Please restart the registration."))
 
 	# Handle bytes from Redis
 	if isinstance(cached_email, bytes):
@@ -319,12 +311,7 @@ def register_supplier(
 	cached_email = frappe.cache.get_value(token_cache_key)
 
 	if not cached_email:
-		frappe.throw(
-			_(
-				"Invalid or expired verification token. "
-				"Please restart the registration."
-			)
-		)
+		frappe.throw(_("Invalid or expired verification token. " "Please restart the registration."))
 
 	if isinstance(cached_email, bytes):
 		cached_email = cached_email.decode()
@@ -493,9 +480,7 @@ def reset_password(key: str, new_password: str):
 			_("Invalid or expired password reset link."),
 			frappe.AuthenticationError,
 		)
-	age = (
-		now_datetime() - user_data.last_reset_password_key_generated_on
-	).total_seconds()
+	age = (now_datetime() - user_data.last_reset_password_key_generated_on).total_seconds()
 	if age > 86400:
 		frappe.throw(
 			_("This reset link has expired. Please request a new one."),
@@ -688,10 +673,14 @@ def change_email(new_email: str, password: str):
 
 	seller_app = frappe.db.get_value("Seller Application", {"applicant_user": old_email}, "name")
 	if seller_app:
-		frappe.db.set_value("Seller Application", seller_app, {
-			"applicant_user": new_email,
-			"contact_email": new_email,
-		})
+		frappe.db.set_value(
+			"Seller Application",
+			seller_app,
+			{
+				"applicant_user": new_email,
+				"contact_email": new_email,
+			},
+		)
 
 	# rename_doc commits the rename internally, but after_rename →
 	# clear_sessions can kill the DB connection. We catch and reconnect.
@@ -895,9 +884,8 @@ def become_seller():
 
 	# Generate member_id
 	user_data = frappe.db.get_value("User", user, ["email", "creation", "phone"], as_dict=True)
-	member_id = (
-		frappe.db.get_value("Buyer Profile", {"user": user}, "member_id")
-		or _generate_member_id(user_data.email, user_data.creation)
+	member_id = frappe.db.get_value("Buyer Profile", {"user": user}, "member_id") or _generate_member_id(
+		user_data.email, user_data.creation
 	)
 
 	app = frappe.new_doc("Seller Application")
@@ -953,8 +941,10 @@ def complete_registration_application(
 
 	# Security: verify ownership
 	app_data = frappe.db.get_value(
-		"Seller Application", seller_application,
-		["applicant_user", "status"], as_dict=True,
+		"Seller Application",
+		seller_application,
+		["applicant_user", "status"],
+		as_dict=True,
 	)
 	if not app_data or app_data.applicant_user != user:
 		frappe.throw(

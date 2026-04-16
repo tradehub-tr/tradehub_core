@@ -4,17 +4,16 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 
-
 COLOR_PRESETS = {
-	"violet":  ("bg-violet-100 dark:bg-violet-500/10",  "text-violet-500"),
-	"blue":    ("bg-blue-100 dark:bg-blue-500/10",      "text-blue-500"),
+	"violet": ("bg-violet-100 dark:bg-violet-500/10", "text-violet-500"),
+	"blue": ("bg-blue-100 dark:bg-blue-500/10", "text-blue-500"),
 	"emerald": ("bg-emerald-100 dark:bg-emerald-500/10", "text-emerald-500"),
-	"amber":   ("bg-amber-100 dark:bg-amber-500/10",    "text-amber-500"),
-	"rose":    ("bg-rose-100 dark:bg-rose-500/10",      "text-rose-500"),
-	"indigo":  ("bg-indigo-100 dark:bg-indigo-500/10",  "text-indigo-500"),
-	"teal":    ("bg-teal-100 dark:bg-teal-500/10",      "text-teal-500"),
-	"orange":  ("bg-orange-100 dark:bg-orange-500/10",  "text-orange-500"),
-	"gray":    ("bg-gray-100 dark:bg-gray-500/10",      "text-gray-500"),
+	"amber": ("bg-amber-100 dark:bg-amber-500/10", "text-amber-500"),
+	"rose": ("bg-rose-100 dark:bg-rose-500/10", "text-rose-500"),
+	"indigo": ("bg-indigo-100 dark:bg-indigo-500/10", "text-indigo-500"),
+	"teal": ("bg-teal-100 dark:bg-teal-500/10", "text-teal-500"),
+	"orange": ("bg-orange-100 dark:bg-orange-500/10", "text-orange-500"),
+	"gray": ("bg-gray-100 dark:bg-gray-500/10", "text-gray-500"),
 }
 
 

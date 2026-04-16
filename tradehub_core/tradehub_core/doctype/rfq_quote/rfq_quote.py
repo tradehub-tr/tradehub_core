@@ -1,6 +1,7 @@
 import frappe
 from frappe import _
 from frappe.model.document import Document
+
 from tradehub_core.utils.notify import notify
 
 
@@ -9,9 +10,7 @@ class RFQQuote(Document):
 		if not self.seller:
 			self.seller = frappe.session.user
 		if not self.seller_profile:
-			self.seller_profile = frappe.db.get_value(
-				"Seller Profile", {"user": self.seller}, "name"
-			)
+			self.seller_profile = frappe.db.get_value("Seller Profile", {"user": self.seller}, "name")
 
 	def after_insert(self):
 		self._update_rfq_quote_count()
@@ -28,7 +27,9 @@ class RFQQuote(Document):
 			return
 		buyer = frappe.db.get_value("RFQ", self.rfq, "buyer")
 		if buyer:
-			seller_name = frappe.db.get_value("Seller Profile", {"user": self.seller}, "seller_name") or self.seller
+			seller_name = (
+				frappe.db.get_value("Seller Profile", {"user": self.seller}, "seller_name") or self.seller
+			)
 			notify(
 				recipient_user=buyer,
 				recipient_role="buyer",

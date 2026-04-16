@@ -1,0 +1,27 @@
+{
+  "name": "Category Neighbour Cache",
+  "doctype": "DocType",
+  "module": "Tradehub Core",
+  "autoname": "hash",
+  "engine": "InnoDB",
+  "sort_field": "similarity",
+  "sort_order": "DESC",
+  "field_order": [
+    "category",
+    "neighbour_category",
+    "cb_1",
+    "similarity",
+    "computed_at"
+  ],
+  "fields": [
+    {"fieldname": "category", "fieldtype": "Link", "options": "Product Category", "label": "Source Category", "reqd": 1, "in_standard_filter": 1, "search_index": 1},
+    {"fieldname": "neighbour_category", "fieldtype": "Link", "options": "Product Category", "label": "Neighbour Category", "reqd": 1, "in_standard_filter": 1},
+    {"fieldname": "cb_1", "fieldtype": "Column Break"},
+    {"fieldname": "similarity", "fieldtype": "Float", "label": "Similarity", "precision": "4", "read_only": 1, "in_standard_filter": 1},
+    {"fieldname": "computed_at", "fieldtype": "Datetime", "label": "Computed At", "read_only": 1}
+  ],
+  "permissions": [
+    {"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1, "permlevel": 0},
+    {"role": "Marketplace Admin", "read": 1, "permlevel": 0}
+  ]
+}

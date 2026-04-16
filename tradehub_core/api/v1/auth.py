@@ -70,9 +70,7 @@ def get_session_user():
 
 	is_admin = "System Manager" in roles or "Administrator" in roles
 	is_buyer = "Buyer" in roles
-	is_seller = "Seller" in roles or bool(
-		frappe.db.exists("Seller Profile", {"user": frappe.session.user})
-	)
+	is_seller = "Seller" in roles or bool(frappe.db.exists("Seller Profile", {"user": frappe.session.user}))
 
 	has_seller_profile = bool(
 		frappe.db.exists(
@@ -92,17 +90,14 @@ def get_session_user():
 	)
 
 	pending_seller_application = seller_application_status in (
-		"Draft", "Submitted", "Under Review",
+		"Draft",
+		"Submitted",
+		"Under Review",
 	)
 
 	rejected_seller_application = seller_application_status == "Rejected"
 
-	seller_profile = (
-		frappe.db.get_value(
-			"Seller Profile", {"user": frappe.session.user}, "name"
-		)
-		or None
-	)
+	seller_profile = frappe.db.get_value("Seller Profile", {"user": frappe.session.user}, "name") or None
 
 	# Admin Seller Profile — satıcının mağaza profili (filtreleme için seller_code gerekli)
 	admin_seller_profile = None
@@ -135,9 +130,11 @@ def get_session_user():
 	kyb_verification = kyb_data.name if kyb_data else None
 
 	# Email verification from Buyer Profile
-	email_verified = bool(
-		frappe.db.get_value("Buyer Profile", {"user": frappe.session.user}, "email_verified")
-	) if frappe.db.exists("Buyer Profile", {"user": frappe.session.user}) else True
+	email_verified = (
+		bool(frappe.db.get_value("Buyer Profile", {"user": frappe.session.user}, "email_verified"))
+		if frappe.db.exists("Buyer Profile", {"user": frappe.session.user})
+		else True
+	)
 
 	from frappe.sessions import get_csrf_token
 
@@ -192,10 +189,7 @@ def get_user_profile():
 
 	# Detect approved seller: has Seller role AND active Seller Profile
 	# Pending applications don't make a user a "seller" for profile purposes
-	is_seller = (
-		"Seller" in roles
-		and frappe.db.exists("Seller Profile", {"user": user})
-	)
+	is_seller = "Seller" in roles and frappe.db.exists("Seller Profile", {"user": user})
 
 	# Read member_id from DB; fallback to computed value for legacy users
 	member_id = (
@@ -220,102 +214,161 @@ def get_user_profile():
 
 		# Try Seller Profile first (approved sellers)
 		sp = frappe.db.get_value(
-			"Seller Profile", {"user": user},
-			["seller_name", "seller_type", "business_name", "tax_id",
-			 "contact_phone", "country", "status",
-			 "tax_id_type", "tax_office", "address_line_1", "city",
-			 "bank_name", "iban", "account_holder_name",
-			 "avatar", "website", "job_title", "year_established",
-			 "employee_count", "about_us", "selling_platforms", "postal_code",
-			 "industry_preferences", "sourcing_frequency", "annual_spending"],
+			"Seller Profile",
+			{"user": user},
+			[
+				"seller_name",
+				"seller_type",
+				"business_name",
+				"tax_id",
+				"contact_phone",
+				"country",
+				"status",
+				"tax_id_type",
+				"tax_office",
+				"address_line_1",
+				"city",
+				"bank_name",
+				"iban",
+				"account_holder_name",
+				"avatar",
+				"website",
+				"job_title",
+				"year_established",
+				"employee_count",
+				"about_us",
+				"selling_platforms",
+				"postal_code",
+				"industry_preferences",
+				"sourcing_frequency",
+				"annual_spending",
+			],
 			as_dict=True,
 		)
 		if sp:
-			base.update({
-				"seller_type": sp.seller_type or "",
-				"business_name": sp.business_name or "",
-				"tax_id": sp.tax_id or "",
-				"phone": sp.contact_phone or user_data.phone or "",
-				"country": sp.country or "",
-				"seller_status": sp.status or "",
-				"tax_id_type": sp.tax_id_type or "",
-				"tax_office": sp.tax_office or "",
-				"address": sp.address_line_1 or "",
-				"city": sp.city or "",
-				"bank_name": sp.bank_name or "",
-				"iban": sp.iban or "",
-				"account_holder_name": sp.account_holder_name or "",
-				"avatar": sp.avatar or "",
-				"website": sp.website or "",
-				"job_title": sp.job_title or "",
-				"year_established": sp.year_established or "",
-				"employee_count": sp.employee_count or "",
-				"about_us": sp.about_us or "",
-				"selling_platforms": sp.selling_platforms or "",
-				"postal_code": sp.postal_code or "",
-				"industry_preferences": sp.industry_preferences or "",
-				"sourcing_frequency": sp.sourcing_frequency or "",
-				"annual_spending": sp.annual_spending or "",
-			})
+			base.update(
+				{
+					"seller_type": sp.seller_type or "",
+					"business_name": sp.business_name or "",
+					"tax_id": sp.tax_id or "",
+					"phone": sp.contact_phone or user_data.phone or "",
+					"country": sp.country or "",
+					"seller_status": sp.status or "",
+					"tax_id_type": sp.tax_id_type or "",
+					"tax_office": sp.tax_office or "",
+					"address": sp.address_line_1 or "",
+					"city": sp.city or "",
+					"bank_name": sp.bank_name or "",
+					"iban": sp.iban or "",
+					"account_holder_name": sp.account_holder_name or "",
+					"avatar": sp.avatar or "",
+					"website": sp.website or "",
+					"job_title": sp.job_title or "",
+					"year_established": sp.year_established or "",
+					"employee_count": sp.employee_count or "",
+					"about_us": sp.about_us or "",
+					"selling_platforms": sp.selling_platforms or "",
+					"postal_code": sp.postal_code or "",
+					"industry_preferences": sp.industry_preferences or "",
+					"sourcing_frequency": sp.sourcing_frequency or "",
+					"annual_spending": sp.annual_spending or "",
+				}
+			)
 			return base
 
 		# Fallback: Seller Application only (pending sellers)
 		sa = frappe.db.get_value(
-			"Seller Application", {"applicant_user": user},
-			["seller_type", "business_name", "contact_phone", "tax_id",
-			 "tax_id_type", "tax_office", "address_line_1", "city",
-			 "country", "bank_name", "iban", "account_holder_name", "status"],
+			"Seller Application",
+			{"applicant_user": user},
+			[
+				"seller_type",
+				"business_name",
+				"contact_phone",
+				"tax_id",
+				"tax_id_type",
+				"tax_office",
+				"address_line_1",
+				"city",
+				"country",
+				"bank_name",
+				"iban",
+				"account_holder_name",
+				"status",
+			],
 			as_dict=True,
 		)
 		if sa:
-			base.update({
-				"seller_type": sa.seller_type or "",
-				"business_name": sa.business_name or "",
-				"tax_id": sa.tax_id or "",
-				"tax_id_type": sa.tax_id_type or "",
-				"tax_office": sa.tax_office or "",
-				"address": sa.address_line_1 or "",
-				"city": sa.city or "",
-				"phone": sa.contact_phone or user_data.phone or "",
-				"country": sa.country or "",
-				"bank_name": sa.bank_name or "",
-				"iban": sa.iban or "",
-				"account_holder_name": sa.account_holder_name or "",
-				"application_status": sa.status or "",
-			})
+			base.update(
+				{
+					"seller_type": sa.seller_type or "",
+					"business_name": sa.business_name or "",
+					"tax_id": sa.tax_id or "",
+					"tax_id_type": sa.tax_id_type or "",
+					"tax_office": sa.tax_office or "",
+					"address": sa.address_line_1 or "",
+					"city": sa.city or "",
+					"phone": sa.contact_phone or user_data.phone or "",
+					"country": sa.country or "",
+					"bank_name": sa.bank_name or "",
+					"iban": sa.iban or "",
+					"account_holder_name": sa.account_holder_name or "",
+					"application_status": sa.status or "",
+				}
+			)
 		return base
 
 	# ── Buyer (default) ──
 	base["account_type"] = "buyer"
-	buyer_data = frappe.db.get_value(
-		"Buyer Profile", {"user": user},
-		["country", "phone", "email_verified", "avatar",
-		 "business_type", "company_name", "address", "job_title", "website",
-		 "selling_platforms", "year_established", "employee_count", "about_us",
-		 "industry_preferences", "sourcing_frequency", "annual_spending",
-		 "city", "postal_code"],
-		as_dict=True,
-	) or {}
-	base.update({
-		"email_verified": bool(buyer_data.get("email_verified")),
-		"phone": user_data.phone or buyer_data.get("phone", "") or "",
-		"country": buyer_data.get("country", "") or "",
-		"avatar": buyer_data.get("avatar", "") or "",
-		"business_type": buyer_data.get("business_type", "") or "",
-		"company_name": buyer_data.get("company_name", "") or "",
-		"address": buyer_data.get("address", "") or "",
-		"job_title": buyer_data.get("job_title", "") or "",
-		"website": buyer_data.get("website", "") or "",
-		"selling_platforms": buyer_data.get("selling_platforms", "") or "",
-		"year_established": buyer_data.get("year_established", "") or "",
-		"employee_count": buyer_data.get("employee_count", "") or "",
-		"about_us": buyer_data.get("about_us", "") or "",
-		"industry_preferences": buyer_data.get("industry_preferences", "") or "",
-		"sourcing_frequency": buyer_data.get("sourcing_frequency", "") or "",
-		"annual_spending": buyer_data.get("annual_spending", "") or "",
-		"city": buyer_data.get("city", "") or "",
-		"postal_code": buyer_data.get("postal_code", "") or "",
-	})
+	buyer_data = (
+		frappe.db.get_value(
+			"Buyer Profile",
+			{"user": user},
+			[
+				"country",
+				"phone",
+				"email_verified",
+				"avatar",
+				"business_type",
+				"company_name",
+				"address",
+				"job_title",
+				"website",
+				"selling_platforms",
+				"year_established",
+				"employee_count",
+				"about_us",
+				"industry_preferences",
+				"sourcing_frequency",
+				"annual_spending",
+				"city",
+				"postal_code",
+			],
+			as_dict=True,
+		)
+		or {}
+	)
+	base.update(
+		{
+			"email_verified": bool(buyer_data.get("email_verified")),
+			"phone": user_data.phone or buyer_data.get("phone", "") or "",
+			"country": buyer_data.get("country", "") or "",
+			"avatar": buyer_data.get("avatar", "") or "",
+			"business_type": buyer_data.get("business_type", "") or "",
+			"company_name": buyer_data.get("company_name", "") or "",
+			"address": buyer_data.get("address", "") or "",
+			"job_title": buyer_data.get("job_title", "") or "",
+			"website": buyer_data.get("website", "") or "",
+			"selling_platforms": buyer_data.get("selling_platforms", "") or "",
+			"year_established": buyer_data.get("year_established", "") or "",
+			"employee_count": buyer_data.get("employee_count", "") or "",
+			"about_us": buyer_data.get("about_us", "") or "",
+			"industry_preferences": buyer_data.get("industry_preferences", "") or "",
+			"sourcing_frequency": buyer_data.get("sourcing_frequency", "") or "",
+			"annual_spending": buyer_data.get("annual_spending", "") or "",
+			"city": buyer_data.get("city", "") or "",
+			"postal_code": buyer_data.get("postal_code", "") or "",
+		}
+	)
 	return base
 
 

@@ -8,6 +8,7 @@ def after_install():
 	_setup_core_permissions()
 	_seed_email_preference_categories()
 	_seed_supported_currencies()
+	_bootstrap_recommendations()
 	frappe.db.commit()
 
 
@@ -92,13 +93,16 @@ def _seed_category(category_key, title, description, sort_order, items):
 	doc.default_enabled = 1
 
 	for item in items:
-		doc.append("items", {
-			"item_key": item["item_key"],
-			"title": item["title"],
-			"description": item["description"],
-			"default_enabled": 1,
-			"sort_order": item["sort_order"],
-		})
+		doc.append(
+			"items",
+			{
+				"item_key": item["item_key"],
+				"title": item["title"],
+				"description": item["description"],
+				"default_enabled": 1,
+				"sort_order": item["sort_order"],
+			},
+		)
 
 	doc.insert(ignore_permissions=True)
 
@@ -109,11 +113,51 @@ def _seed_supported_currencies():
 		return
 
 	currencies = [
-		{"currency_code": "TRY", "symbol": "\u20ba", "name_en": "Turkish Lira", "name_tr": "T\u00fcrk Liras\u0131", "decimal_places": 2, "display_order": 1, "is_enabled": 1},
-		{"currency_code": "USD", "symbol": "$", "name_en": "US Dollar", "name_tr": "Amerikan Dolar\u0131", "decimal_places": 2, "display_order": 2, "is_enabled": 1},
-		{"currency_code": "EUR", "symbol": "\u20ac", "name_en": "Euro", "name_tr": "Euro", "decimal_places": 2, "display_order": 3, "is_enabled": 1},
-		{"currency_code": "GBP", "symbol": "\u00a3", "name_en": "British Pound", "name_tr": "\u0130ngiliz Sterlini", "decimal_places": 2, "display_order": 4, "is_enabled": 0},
-		{"currency_code": "CNY", "symbol": "\u00a5", "name_en": "Chinese Yuan", "name_tr": "\u00c7in Yuan\u0131", "decimal_places": 2, "display_order": 5, "is_enabled": 0},
+		{
+			"currency_code": "TRY",
+			"symbol": "\u20ba",
+			"name_en": "Turkish Lira",
+			"name_tr": "T\u00fcrk Liras\u0131",
+			"decimal_places": 2,
+			"display_order": 1,
+			"is_enabled": 1,
+		},
+		{
+			"currency_code": "USD",
+			"symbol": "$",
+			"name_en": "US Dollar",
+			"name_tr": "Amerikan Dolar\u0131",
+			"decimal_places": 2,
+			"display_order": 2,
+			"is_enabled": 1,
+		},
+		{
+			"currency_code": "EUR",
+			"symbol": "\u20ac",
+			"name_en": "Euro",
+			"name_tr": "Euro",
+			"decimal_places": 2,
+			"display_order": 3,
+			"is_enabled": 1,
+		},
+		{
+			"currency_code": "GBP",
+			"symbol": "\u00a3",
+			"name_en": "British Pound",
+			"name_tr": "\u0130ngiliz Sterlini",
+			"decimal_places": 2,
+			"display_order": 4,
+			"is_enabled": 0,
+		},
+		{
+			"currency_code": "CNY",
+			"symbol": "\u00a5",
+			"name_en": "Chinese Yuan",
+			"name_tr": "\u00c7in Yuan\u0131",
+			"decimal_places": 2,
+			"display_order": 5,
+			"is_enabled": 0,
+		},
 	]
 
 	for c in currencies:
@@ -127,3 +171,40 @@ def cleanup_expired_tokens():
 	"""Scheduled daily — Redis TTL handles expiry automatically.
 	This is a placeholder for any future DB-level cleanup."""
 	pass
+
+
+def _bootstrap_recommendations():
+	"""Build Category Embeddings + Neighbour Cache + (if cache is empty)
+	dispatch the initial full rebuild of Related Listing Cache.
+
+	Three-stage bootstrap:
+	  1. Always: rebuild embeddings + neighbour cache (cheap, ~3 min for 10K
+	     categories). Idempotent — safe on every migrate.
+	  2. Conditional: if Related Listing Cache is empty (first deploy or
+	     post-wipe state), dispatch the sharded full rebuild. Dispatcher
+	     returns immediately after enqueueing chunks; long workers do the
+	     actual work and the last chunk triggers atomic swap.
+	  3. If cache already has data: skip rebuild — weekly_long scheduler
+	     will refresh on its normal cadence (no need to thrash on every
+	     deploy).
+
+	All steps best-effort: failures are logged but don't break the migrate.
+	"""
+	if not frappe.db.table_exists("Category Embedding"):
+		return
+	try:
+		from tradehub_core.recommendations import embeddings, engine
+
+		stats = embeddings.build_all()
+		frappe.logger("tradehub").info(f"bootstrap_recommendations: embeddings={stats}")
+
+		if not frappe.db.table_exists("Related Listing Cache"):
+			return
+		if frappe.db.count("Related Listing Cache") == 0:
+			rebuild_stats = engine.dispatch_full_rebuild()
+			frappe.logger("tradehub").info(f"bootstrap_recommendations: initial_rebuild={rebuild_stats}")
+	except Exception as exc:
+		frappe.log_error(
+			title="bootstrap_recommendations failed",
+			message=str(exc),
+		)

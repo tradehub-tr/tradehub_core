@@ -14,3 +14,41 @@ name = "tradehub_core"
 [tool.bench.frappe-dependencies]
 frappe = ">=15.0.0,<16.0.0"
 erpnext = ">=15.0.0,<16.0.0"
+
+[tool.ruff]
+line-length = 110
+target-version = "py310"
+extend-exclude = ["node_modules", "dist", "build", "public", "__pycache__"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "W",   # pycodestyle warnings
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "UP",  # pyupgrade
+]
+ignore = [
+    "E501",  # line too long (Frappe DocType docstring'leri uzun olabilir)
+    "B008",  # do not perform function calls in argument defaults (Frappe default)
+    "B904",  # raise from (Frappe throw pattern'i)
+    "W191",  # indentation contains tabs (Frappe tab kullanır)
+    "E101",  # mixed tabs/spaces (Frappe tab kullanır)
+    "W293",  # whitespace on blank lines
+    "E741",  # ambiguous variable names (Frappe'de "l", "I" vb. yaygın)
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Testlerde geniş assertRaises(Exception) yaygın pattern
+"**/test_*.py" = ["B017"]
+"**/tests/**/*.py" = ["B017"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["tradehub_core"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "tab"
+line-ending = "lf"
+

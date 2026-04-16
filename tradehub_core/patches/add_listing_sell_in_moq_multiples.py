@@ -6,16 +6,16 @@ quantity steppers and add-to-cart validation enforce this rule.
 
 Idempotent: checks for the column before adding, safe to re-run.
 """
+
 import frappe
 
 
 def execute():
-    columns = frappe.db.get_table_columns("Listing")
-    if "sell_in_moq_multiples" in columns:
-        return
+	columns = frappe.db.get_table_columns("Listing")
+	if "sell_in_moq_multiples" in columns:
+		return
 
-    frappe.db.sql(
-        "ALTER TABLE `tabListing` "
-        "ADD COLUMN `sell_in_moq_multiples` TINYINT(1) NOT NULL DEFAULT 0"
-    )
-    frappe.db.commit()
+	frappe.db.sql(
+		"ALTER TABLE `tabListing` " "ADD COLUMN `sell_in_moq_multiples` TINYINT(1) NOT NULL DEFAULT 0"
+	)
+	frappe.db.commit()

@@ -4,6 +4,7 @@ seller alanını "Seller Profile" → "Admin Seller Profile" olarak günceller.
 
 Eşleştirme: Seller Profile.user → Admin Seller Profile.user
 """
+
 import frappe
 
 

@@ -1,6 +1,5 @@
 import frappe
 
-
 SELLER_TYPE_MAP = {
 	"Individual": "Şahıs",
 	"Business": "Limited Şirket",
@@ -18,8 +17,7 @@ def execute():
 	sellers = frappe.get_all(
 		"Seller Profile",
 		filters={"status": "Active"},
-		fields=["user", "seller_name", "seller_type", "business_name",
-		        "tax_id_type", "tax_id", "tax_office"],
+		fields=["user", "seller_name", "seller_type", "business_name", "tax_id_type", "tax_id", "tax_office"],
 	)
 
 	for sp in sellers:

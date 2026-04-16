@@ -1,0 +1,46 @@
+name: Lint & Auto-fix
+
+on:
+  push:
+    branches: [version-15, main, ahmet, ali, bora]
+  pull_request:
+    branches: [version-15, main]
+
+permissions:
+  contents: write
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          ref: ${{ github.head_ref || github.ref_name }}
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Ruff
+        run: pip install ruff==0.8.0
+
+      - name: Run Ruff auto-fix
+        run: |
+          ruff check --fix .
+          ruff format .
+        continue-on-error: true
+
+      - name: Commit auto-fixes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "style: auto-fix ruff lint [skip ci]"
+          commit_user_name: "github-actions[bot]"
+          commit_user_email: "41898282+github-actions[bot]@users.noreply.github.com"
+          file_pattern: "**/*.py"
+
+      - name: Fail if lint errors remain
+        run: ruff check .

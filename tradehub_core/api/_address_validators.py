@@ -21,11 +21,40 @@ class AddressValidationError(ValueError):
 # Storefront tarafındaki `tradehubfront/src/data/mockCheckout.ts` `countries`
 # listesi ile birebir senkron tutulur. Yeni bir ülke eklerken iki tarafı da
 # güncelleyin (test_address_validators.py drift'i yakalar).
-ALLOWED_COUNTRY_CODES = frozenset({
-	"US", "AU", "CA", "GB", "IN", "MX", "DE", "FR", "IT", "ES",
-	"BR", "JP", "KR", "NL", "RU", "SA", "AE", "TR", "PL", "SE",
-	"CH", "NO", "DK", "BE", "AT", "ID", "TH", "VN", "PH", "MY",
-})
+ALLOWED_COUNTRY_CODES = frozenset(
+	{
+		"US",
+		"AU",
+		"CA",
+		"GB",
+		"IN",
+		"MX",
+		"DE",
+		"FR",
+		"IT",
+		"ES",
+		"BR",
+		"JP",
+		"KR",
+		"NL",
+		"RU",
+		"SA",
+		"AE",
+		"TR",
+		"PL",
+		"SE",
+		"CH",
+		"NO",
+		"DK",
+		"BE",
+		"AT",
+		"ID",
+		"TH",
+		"VN",
+		"PH",
+		"MY",
+	}
+)
 
 
 def parse_address_payload(payload):
@@ -88,9 +117,7 @@ def validate_postal_code(postal_code, country):
 		return
 	if country == "TR":
 		if not _TR_POSTAL_RE.match(value):
-			raise AddressValidationError(
-				"Geçerli bir posta kodu giriniz (5 haneli, örn. 34394)"
-			)
+			raise AddressValidationError("Geçerli bir posta kodu giriniz (5 haneli, örn. 34394)")
 		return
 	if not _GENERIC_POSTAL_RE.match(value):
 		raise AddressValidationError("Geçerli bir posta kodu giriniz")
@@ -104,18 +131,18 @@ def validate_postal_code(postal_code, country):
 # Tuple format: (kullanıcı-okur Türkçe etiket, max char). Etiket frontend'deki
 # label ile eşleşir; kullanıcı hangi alan için hata aldığını anlar.
 ADDRESS_FIELD_LIMITS = {
-	"title":        ("Adres Başlığı", 140),
+	"title": ("Adres Başlığı", 140),
 	"contact_name": ("İrtibat Kişisi", 140),
-	"company":      ("Şirket Adı", 140),
+	"company": ("Şirket Adı", 140),
 	"phone_prefix": ("Telefon Kodu", 10),
-	"phone":        ("Telefon", 20),
-	"country":      ("Ülke Kodu", 2),
-	"state":        ("İl", 140),
-	"city":         ("İlçe", 140),
-	"street":       ("Adres Satırı", 1000),
-	"apartment":    ("Daire / Bina", 140),
-	"postal_code":  ("Posta Kodu", 20),
-	"note":         ("Adres Notu", 1000),
+	"phone": ("Telefon", 20),
+	"country": ("Ülke Kodu", 2),
+	"state": ("İl", 140),
+	"city": ("İlçe", 140),
+	"street": ("Adres Satırı", 1000),
+	"apartment": ("Daire / Bina", 140),
+	"postal_code": ("Posta Kodu", 20),
+	"note": ("Adres Notu", 1000),
 }
 
 
@@ -141,6 +168,4 @@ def validate_field_lengths(data):
 			continue
 		# Uzunluk kontrolü strip sonrası — sadece anlamlı karakterleri sayar
 		if len(value.strip()) > max_len:
-			raise AddressValidationError(
-				"{0} alanı çok uzun (en fazla {1} karakter)".format(label, max_len)
-			)
+			raise AddressValidationError(f"{label} alanı çok uzun (en fazla {max_len} karakter)")

@@ -1,7 +1,6 @@
 import frappe
 from frappe import _
 
-
 SELLER_TYPE_MAP = {
 	"Individual": "Şahıs",
 	"Business": "Limited Şirket",
@@ -12,9 +11,9 @@ SELLER_TYPE_MAP = {
 def _get_seller_data(user: str) -> dict:
 	"""Fetch existing seller data to pre-fill KYB form."""
 	sp = frappe.db.get_value(
-		"Seller Profile", {"user": user},
-		["seller_name", "seller_type", "business_name", "tax_id",
-		 "tax_id_type", "tax_office"],
+		"Seller Profile",
+		{"user": user},
+		["seller_name", "seller_type", "business_name", "tax_id", "tax_id_type", "tax_office"],
 		as_dict=True,
 	)
 	if not sp:
@@ -62,9 +61,19 @@ def get_kyb_status():
 	kyb = frappe.db.get_value(
 		"KYB Verification",
 		existing,
-		["name", "status", "company_title", "business_type", "authorized_person",
-		 "tax_id_type", "tax_id", "tax_office", "trade_registry_number",
-		 "rejection_reason", "verified_at"],
+		[
+			"name",
+			"status",
+			"company_title",
+			"business_type",
+			"authorized_person",
+			"tax_id_type",
+			"tax_id",
+			"tax_office",
+			"trade_registry_number",
+			"rejection_reason",
+			"verified_at",
+		],
 		as_dict=True,
 	)
 

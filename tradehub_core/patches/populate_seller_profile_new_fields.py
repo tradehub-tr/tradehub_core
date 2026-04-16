@@ -21,14 +21,21 @@ def execute():
 	)
 
 	new_fields = [
-		"tax_id_type", "tax_office", "address_line_1",
-		"city", "bank_name", "iban", "account_holder_name",
+		"tax_id_type",
+		"tax_office",
+		"address_line_1",
+		"city",
+		"bank_name",
+		"iban",
+		"account_holder_name",
 	]
 
 	for profile in profiles:
 		app_data = frappe.db.get_value(
-			"Seller Application", profile.application,
-			new_fields, as_dict=True,
+			"Seller Application",
+			profile.application,
+			new_fields,
+			as_dict=True,
 		)
 		if not app_data:
 			continue

@@ -7,17 +7,18 @@ form never exposed — it created stale "fake deal" data that confused users.
 
 Idempotent: checks for column existence before dropping. Safe to re-run.
 """
+
 import frappe
 
 
 def execute():
-    table = "tabListing"
+	table = "tabListing"
 
-    # Drop columns only if they still exist (idempotent)
-    columns = frappe.db.get_table_columns("Listing")
-    if "compare_at_price" in columns:
-        frappe.db.sql(f"ALTER TABLE `{table}` DROP COLUMN `compare_at_price`")
-    if "is_on_sale" in columns:
-        frappe.db.sql(f"ALTER TABLE `{table}` DROP COLUMN `is_on_sale`")
+	# Drop columns only if they still exist (idempotent)
+	columns = frappe.db.get_table_columns("Listing")
+	if "compare_at_price" in columns:
+		frappe.db.sql(f"ALTER TABLE `{table}` DROP COLUMN `compare_at_price`")
+	if "is_on_sale" in columns:
+		frappe.db.sql(f"ALTER TABLE `{table}` DROP COLUMN `is_on_sale`")
 
-    frappe.db.commit()
+	frappe.db.commit()

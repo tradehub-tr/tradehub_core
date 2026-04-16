@@ -2,6 +2,7 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 from frappe.utils import now_datetime
+
 from tradehub_core.utils.notify import notify
 
 
@@ -188,12 +189,15 @@ class SellerApplication(Document):
 		seller_name = self.business_name or self.applicant_user
 		for admin in admins:
 			# Aynı başvuru için admin'e zaten bildirim gittiyse tekrar gönderme
-			existing = frappe.db.exists("Platform Notification", {
-				"recipient_user": admin.parent,
-				"reference_doctype": "Seller Application",
-				"reference_name": self.name,
-				"type": "system",
-			})
+			existing = frappe.db.exists(
+				"Platform Notification",
+				{
+					"recipient_user": admin.parent,
+					"reference_doctype": "Seller Application",
+					"reference_name": self.name,
+					"type": "system",
+				},
+			)
 			if existing:
 				continue
 			notify(

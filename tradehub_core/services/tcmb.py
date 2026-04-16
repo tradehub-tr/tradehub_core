@@ -7,13 +7,18 @@ TCMB_TODAY_URL = "https://www.tcmb.gov.tr/kurlar/today.xml"
 
 def fetch_and_update_rates():
 	"""Daily scheduler job: fetch TCMB exchange rates and update Currency Rate Pair."""
-	import requests
 	from xml.etree import ElementTree
 
+	import requests
+
 	try:
-		resp = requests.get(TCMB_TODAY_URL, timeout=15, headers={
-			"User-Agent": "TradeHub/1.0",
-		})
+		resp = requests.get(
+			TCMB_TODAY_URL,
+			timeout=15,
+			headers={
+				"User-Agent": "TradeHub/1.0",
+			},
+		)
 		resp.raise_for_status()
 	except Exception as e:
 		frappe.log_error(
@@ -81,11 +86,16 @@ def fetch_and_update_rates():
 			pair_name = f"{from_code}-{to_code}"
 
 			if frappe.db.exists("Currency Rate Pair", pair_name):
-				frappe.db.set_value("Currency Rate Pair", pair_name, {
-					"rate": rate,
-					"is_active": 1,
-					"last_updated": now,
-				}, update_modified=False)
+				frappe.db.set_value(
+					"Currency Rate Pair",
+					pair_name,
+					{
+						"rate": rate,
+						"is_active": 1,
+						"last_updated": now,
+					},
+					update_modified=False,
+				)
 			else:
 				doc = frappe.new_doc("Currency Rate Pair")
 				doc.from_currency = from_code
@@ -125,8 +135,7 @@ def manual_refresh():
 	if result.get("success"):
 		frappe.msgprint(
 			_("Kurlar guncellendi: {0} cift, {1}").format(
-				result["pairs_updated"],
-				", ".join(sorted(result["currencies"]))
+				result["pairs_updated"], ", ".join(sorted(result["currencies"]))
 			),
 			title=_("TCMB Kur Guncelleme"),
 			indicator="green",

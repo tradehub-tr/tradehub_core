@@ -25,16 +25,15 @@ Security model
 """
 
 import json
-from datetime import timedelta
 
 import frappe
 from frappe import _
-from frappe.utils import cint, flt, nowdate, add_days, add_months, getdate
-
+from frappe.utils import add_days, add_months, cint, flt, getdate, nowdate
 
 # ---------------------------------------------------------------------------
 # Permission helpers
 # ---------------------------------------------------------------------------
+
 
 def _is_super_admin():
 	user = frappe.session.user
@@ -58,6 +57,7 @@ def _user_can_read(doctype):
 # ---------------------------------------------------------------------------
 # Field / period / filter helpers
 # ---------------------------------------------------------------------------
+
 
 def _validate_field(doctype, fieldname):
 	"""Raise if fieldname is not present on doctype. Returns sanitized name."""
@@ -180,6 +180,7 @@ def _apply_scope_filter(filters, widget, scope):
 # Aggregators
 # ---------------------------------------------------------------------------
 
+
 def _agg_count(doctype, filters):
 	return cint(frappe.db.count(doctype, filters=filters))
 
@@ -215,6 +216,7 @@ def _aggregate(widget, filters):
 # ---------------------------------------------------------------------------
 # Widget type handlers
 # ---------------------------------------------------------------------------
+
 
 def _handle_kpi_single(widget, period=None, scope=None):
 	filters = _parse_filters(widget)
@@ -276,6 +278,7 @@ def _handle_line_chart(widget, period=None, scope=None):
 		metric_sql = "COUNT(*)"
 
 	from frappe.query_builder import DocType  # noqa
+
 	# Frappe ORM doesn't support DATE_FORMAT directly — use db.sql with safe params.
 	# Build WHERE from filters via frappe.get_all + names, then reuse.
 	names = frappe.get_all(doctype, filters=filters, pluck="name", limit_page_length=0)
@@ -347,10 +350,7 @@ def _handle_bar_chart(widget, period=None, scope=None):
 		as_dict=True,
 	)
 	return {
-		"rows": [
-			{"label": r["label"] or "—", "value": flt(r["value"] or 0)}
-			for r in rows
-		],
+		"rows": [{"label": r["label"] or "—", "value": flt(r["value"] or 0)} for r in rows],
 		"is_currency": cint(widget.get("is_currency")),
 	}
 
@@ -379,11 +379,13 @@ def _handle_funnel_chart(widget, period=None, scope=None):
 			stage_doctype = st.get("doctype") or widget.get("source_doctype")
 			stage_filters = list(base_filters) + list(st.get("filters") or [])
 			count = _agg_count(stage_doctype, stage_filters)
-			out.append({
-				"key": st.get("key") or st.get("label"),
-				"label": st.get("label") or st.get("key"),
-				"count": count,
-			})
+			out.append(
+				{
+					"key": st.get("key") or st.get("label"),
+					"label": st.get("label") or st.get("key"),
+					"count": count,
+				}
+			)
 	return {"stages": out}
 
 
@@ -459,13 +461,15 @@ def _handle_quick_links(widget, period=None, scope=None):
 				count = _agg_count(doctype, flt_arr)
 			except Exception:
 				count = None
-		out.append({
-			"label": link.get("label"),
-			"to": link.get("to"),
-			"icon": link.get("icon"),
-			"icon_class": link.get("icon_class"),
-			"count": count,
-		})
+		out.append(
+			{
+				"label": link.get("label"),
+				"to": link.get("to"),
+				"icon": link.get("icon"),
+				"icon_class": link.get("icon_class"),
+				"count": count,
+			}
+		)
 	return {"links": out}
 
 
@@ -483,6 +487,7 @@ HANDLERS = {
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
+
 
 @frappe.whitelist()
 def get_dashboard_layout(dashboard_key, period="30d", scope=None):
@@ -517,20 +522,22 @@ def get_dashboard_layout(dashboard_key, period="30d", scope=None):
 			error = str(e)
 			frappe.log_error(frappe.get_traceback(), f"Dashboard widget {name} failed")
 
-		layout.append({
-			"name": widget.name,
-			"widget_type": widget.widget_type,
-			"title": widget.title,
-			"subtitle": widget.subtitle,
-			"size": widget.size,
-			"position": widget.position,
-			"icon": widget.icon,
-			"icon_bg_class": widget.icon_bg_class,
-			"icon_color_class": widget.icon_color_class,
-			"is_currency": cint(widget.is_currency),
-			"data": data,
-			"error": error,
-		})
+		layout.append(
+			{
+				"name": widget.name,
+				"widget_type": widget.widget_type,
+				"title": widget.title,
+				"subtitle": widget.subtitle,
+				"size": widget.size,
+				"position": widget.position,
+				"icon": widget.icon,
+				"icon_bg_class": widget.icon_bg_class,
+				"icon_color_class": widget.icon_color_class,
+				"is_currency": cint(widget.is_currency),
+				"data": data,
+				"error": error,
+			}
+		)
 	return {"dashboard_key": dashboard_key, "period": period, "widgets": layout}
 
 
@@ -564,22 +571,26 @@ def preview_dashboard_widget(config, period="30d", scope=None):
 
 	# Build a frappe._dict so HANDLERS can access fields via .get(...) just
 	# like a real Dashboard Widget Document.
-	widget = frappe._dict({
-		"name": "__preview__",
-		"widget_type": widget_type,
-		"source_doctype": config.get("source_doctype"),
-		"aggregation": config.get("aggregation"),
-		"metric_field": config.get("metric_field"),
-		"date_field": config.get("date_field"),
-		"date_bucket": config.get("date_bucket") or "auto",
-		"group_by_field": config.get("group_by_field"),
-		"result_limit": cint(config.get("result_limit") or 10),
-		"filters_json": config.get("filters_json"),
-		"config_json": config.get("config_json"),
-		"is_currency": cint(config.get("is_currency")),
-		"period_scoped": cint(config.get("period_scoped") if config.get("period_scoped") is not None else 1),
-		"compare_previous": cint(config.get("compare_previous")),
-	})
+	widget = frappe._dict(
+		{
+			"name": "__preview__",
+			"widget_type": widget_type,
+			"source_doctype": config.get("source_doctype"),
+			"aggregation": config.get("aggregation"),
+			"metric_field": config.get("metric_field"),
+			"date_field": config.get("date_field"),
+			"date_bucket": config.get("date_bucket") or "auto",
+			"group_by_field": config.get("group_by_field"),
+			"result_limit": cint(config.get("result_limit") or 10),
+			"filters_json": config.get("filters_json"),
+			"config_json": config.get("config_json"),
+			"is_currency": cint(config.get("is_currency")),
+			"period_scoped": cint(
+				config.get("period_scoped") if config.get("period_scoped") is not None else 1
+			),
+			"compare_previous": cint(config.get("compare_previous")),
+		}
+	)
 
 	# Optional read-permission guard for the source doctype.
 	if widget.source_doctype and not _user_can_read(widget.source_doctype):
@@ -665,8 +676,14 @@ def list_widgets_for_admin(dashboard_key):
 		"Dashboard Widget",
 		filters={"dashboard_key": dashboard_key},
 		fields=[
-			"name", "title", "subtitle", "widget_type", "size",
-			"position", "is_enabled", "source_doctype",
+			"name",
+			"title",
+			"subtitle",
+			"widget_type",
+			"size",
+			"position",
+			"is_enabled",
+			"source_doctype",
 		],
 		order_by="position asc",
 	)
@@ -693,11 +710,17 @@ def reorder_widgets(dashboard_key, ordered_ids):
 		frappe.throw(_("ordered_ids liste olmalı."))
 
 	# Safety: all ids must actually belong to the target dashboard
-	existing = set(frappe.get_all(
-		"Dashboard Widget",
-		filters={"dashboard_key": dashboard_key, "name": ["in", ordered_ids]},
-		pluck="name",
-	)) if ordered_ids else set()
+	existing = (
+		set(
+			frappe.get_all(
+				"Dashboard Widget",
+				filters={"dashboard_key": dashboard_key, "name": ["in", ordered_ids]},
+				pluck="name",
+			)
+		)
+		if ordered_ids
+		else set()
+	)
 
 	updated = 0
 	for idx, wid in enumerate(ordered_ids):

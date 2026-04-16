@@ -13,7 +13,6 @@ import json
 
 import frappe
 
-
 DASHBOARD_KEY = "platform_overview"
 
 
@@ -96,9 +95,11 @@ PLATFORM_WIDGETS = [
 		"aggregation": "count",
 		"period_scoped": 0,
 		"filters_json": json.dumps([["status", "in", ["Submitted", "Under Review"]]]),
-		"config_json": json.dumps({
-			"action_link": {"to": "/app/Seller Application", "label": "Başvurulara git →"},
-		}),
+		"config_json": json.dumps(
+			{
+				"action_link": {"to": "/app/Seller Application", "label": "Başvurulara git →"},
+			}
+		),
 	},
 	{
 		"title": "Açık RFQ",
@@ -146,38 +147,40 @@ PLATFORM_WIDGETS = [
 		"widget_type": "quick_links",
 		"size": "full",
 		"position": 200,
-		"config_json": json.dumps({
-			"links": [
-				{
-					"label": "Satıcı Başvuruları",
-					"to": "/app/Seller Application",
-					"icon": "fas fa-file-lines",
-					"icon_class": "bg-amber-100 dark:bg-amber-500/10 text-amber-500",
-					"source_doctype": "Seller Application",
-				},
-				{
-					"label": "Satıcı Profilleri",
-					"to": "/app/Admin Seller Profile",
-					"icon": "fas fa-store",
-					"icon_class": "bg-emerald-100 dark:bg-emerald-500/10 text-emerald-500",
-					"source_doctype": "Admin Seller Profile",
-				},
-				{
-					"label": "Alıcı Profilleri",
-					"to": "/app/Buyer Profile",
-					"icon": "fas fa-user",
-					"icon_class": "bg-blue-100 dark:bg-blue-500/10 text-blue-500",
-					"source_doctype": "Buyer Profile",
-				},
-				{
-					"label": "Kullanıcılar",
-					"to": "/app/User",
-					"icon": "fas fa-users",
-					"icon_class": "bg-violet-100 dark:bg-violet-500/10 text-violet-500",
-					"source_doctype": "User",
-				},
-			],
-		}),
+		"config_json": json.dumps(
+			{
+				"links": [
+					{
+						"label": "Satıcı Başvuruları",
+						"to": "/app/Seller Application",
+						"icon": "fas fa-file-lines",
+						"icon_class": "bg-amber-100 dark:bg-amber-500/10 text-amber-500",
+						"source_doctype": "Seller Application",
+					},
+					{
+						"label": "Satıcı Profilleri",
+						"to": "/app/Admin Seller Profile",
+						"icon": "fas fa-store",
+						"icon_class": "bg-emerald-100 dark:bg-emerald-500/10 text-emerald-500",
+						"source_doctype": "Admin Seller Profile",
+					},
+					{
+						"label": "Alıcı Profilleri",
+						"to": "/app/Buyer Profile",
+						"icon": "fas fa-user",
+						"icon_class": "bg-blue-100 dark:bg-blue-500/10 text-blue-500",
+						"source_doctype": "Buyer Profile",
+					},
+					{
+						"label": "Kullanıcılar",
+						"to": "/app/User",
+						"icon": "fas fa-users",
+						"icon_class": "bg-violet-100 dark:bg-violet-500/10 text-violet-500",
+						"source_doctype": "User",
+					},
+				],
+			}
+		),
 	},
 	# ── GMV Trend + Top Sellers ──
 	{
@@ -219,20 +222,42 @@ PLATFORM_WIDGETS = [
 		"size": "lg",
 		"position": 400,
 		"period_scoped": 0,
-		"config_json": json.dumps({
-			"stages": [
-				{"key": "users", "label": "Kullanıcı", "doctype": "User",
-				 "filters": [["user_type", "=", "System User"], ["enabled", "=", 1]]},
-				{"key": "applications", "label": "Başvuru", "doctype": "Seller Application",
-				 "filters": []},
-				{"key": "under_review", "label": "İnceleniyor", "doctype": "Seller Application",
-				 "filters": [["status", "=", "Under Review"]]},
-				{"key": "approved", "label": "Onaylandı", "doctype": "Seller Application",
-				 "filters": [["status", "=", "Approved"]]},
-				{"key": "active", "label": "Aktif Satıcı", "doctype": "Admin Seller Profile",
-				 "filters": [["status", "=", "Active"]]},
-			],
-		}),
+		"config_json": json.dumps(
+			{
+				"stages": [
+					{
+						"key": "users",
+						"label": "Kullanıcı",
+						"doctype": "User",
+						"filters": [["user_type", "=", "System User"], ["enabled", "=", 1]],
+					},
+					{
+						"key": "applications",
+						"label": "Başvuru",
+						"doctype": "Seller Application",
+						"filters": [],
+					},
+					{
+						"key": "under_review",
+						"label": "İnceleniyor",
+						"doctype": "Seller Application",
+						"filters": [["status", "=", "Under Review"]],
+					},
+					{
+						"key": "approved",
+						"label": "Onaylandı",
+						"doctype": "Seller Application",
+						"filters": [["status", "=", "Approved"]],
+					},
+					{
+						"key": "active",
+						"label": "Aktif Satıcı",
+						"doctype": "Admin Seller Profile",
+						"filters": [["status", "=", "Active"]],
+					},
+				],
+			}
+		),
 	},
 	{
 		"title": "Başvuru Durumları",
@@ -243,22 +268,24 @@ PLATFORM_WIDGETS = [
 		"source_doctype": "Seller Application",
 		"group_by_field": "status",
 		"period_scoped": 0,
-		"config_json": json.dumps({
-			"labels": {
-				"Draft": "Taslak",
-				"Submitted": "Gönderildi",
-				"Under Review": "İnceleniyor",
-				"Approved": "Onaylandı",
-				"Rejected": "Reddedildi",
-			},
-			"colors": {
-				"Draft": "text-gray-400",
-				"Submitted": "text-blue-500",
-				"Under Review": "text-indigo-500",
-				"Approved": "text-emerald-500",
-				"Rejected": "text-red-500",
-			},
-		}),
+		"config_json": json.dumps(
+			{
+				"labels": {
+					"Draft": "Taslak",
+					"Submitted": "Gönderildi",
+					"Under Review": "İnceleniyor",
+					"Approved": "Onaylandı",
+					"Rejected": "Reddedildi",
+				},
+				"colors": {
+					"Draft": "text-gray-400",
+					"Submitted": "text-blue-500",
+					"Under Review": "text-indigo-500",
+					"Approved": "text-emerald-500",
+					"Rejected": "text-red-500",
+				},
+			}
+		),
 	},
 ]
 

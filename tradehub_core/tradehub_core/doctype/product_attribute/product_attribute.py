@@ -1,8 +1,8 @@
 import re
+
 import frappe
 from frappe import _
 from frappe.model.document import Document
-
 
 SELECT_TYPES = {"Select", "Multi-Select", "Color"}
 NUMERIC_TYPES = {"Number", "Integer", "Decimal"}
