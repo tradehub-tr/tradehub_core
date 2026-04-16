@@ -168,12 +168,12 @@ def recompute_seller_rating_proxy(doc, method=None):
 	# Aggregate from Published reviews only.
 	stats = frappe.db.sql(
 		"""
-        SELECT
-            COALESCE(AVG(rating), 0) AS avg_rating,
-            COUNT(*)                 AS cnt
-        FROM `tabSeller Review`
-        WHERE seller = %s AND status = 'Published'
-        """,
+		SELECT
+			COALESCE(AVG(rating), 0) AS avg_rating,
+			COUNT(*)                 AS cnt
+		FROM `tabSeller Review`
+		WHERE seller = %s AND status = 'Published'
+		""",
 		(seller,),
 		as_dict=True,
 	)
@@ -1263,16 +1263,16 @@ def get_filter_facets(query=None, category=None):
 	if listing_names:
 		attr_rows = frappe.db.sql(
 			"""
-            SELECT lav.attribute AS code, lav.attribute_label, lav.attribute_name,
-                   lav.attribute_value
-            FROM `tabListing Attribute Value` lav
-            INNER JOIN `tabProduct Attribute` pa ON pa.name = lav.attribute
-            WHERE lav.parent IN %(parents)s
-              AND lav.parenttype = 'Listing'
-              AND lav.attribute IS NOT NULL
-              AND lav.attribute != ''
-              AND pa.is_filterable = 1
-            """,
+			SELECT lav.attribute AS code, lav.attribute_label, lav.attribute_name,
+				   lav.attribute_value
+			FROM `tabListing Attribute Value` lav
+			INNER JOIN `tabProduct Attribute` pa ON pa.name = lav.attribute
+			WHERE lav.parent IN %(parents)s
+			  AND lav.parenttype = 'Listing'
+			  AND lav.attribute IS NOT NULL
+			  AND lav.attribute != ''
+			  AND pa.is_filterable = 1
+			""",
 			{"parents": tuple(listing_names) if len(listing_names) > 1 else (listing_names[0],)},
 			as_dict=True,
 		)
@@ -1446,27 +1446,27 @@ def get_top_ranking_categories(limit=6, sort="hot-selling"):
 	instead of fetching every listing in Python.
 
 	Args:
-	    limit: how many categories to return (clamped to [1, 24]).
-	    sort: ranking metric. One of:
-	        - "hot-selling"  → SUM(order_count) DESC   (default)
-	        - "most-popular" → SUM(review_count) DESC
-	        - "best-reviewed" → AVG(average_rating) DESC
+		limit: how many categories to return (clamped to [1, 24]).
+		sort: ranking metric. One of:
+			- "hot-selling"  → SUM(order_count) DESC   (default)
+			- "most-popular" → SUM(review_count) DESC
+			- "best-reviewed" → AVG(average_rating) DESC
 
 	Returns:
-	    {
-	      "data": [
-	        {"id", "name", "slug", "image", "icon", "totalOrders",
-	         "totalListings"}, ...
-	      ]
-	    }
+		{
+		  "data": [
+			{"id", "name", "slug", "image", "icon", "totalOrders",
+			 "totalListings"}, ...
+		  ]
+		}
 
 	Notes:
-	    - Cached 60s under a deterministic key.
-	    - Returned categories always have at least one Active+Visible listing.
-	    - The aggregate query joins Listing → Product Category, so we rely on
-	      the existing index on `product_category` plus the new
-	      `idx_listing_category_orders` composite added in
-	      patches/add_top_ranking_indexes.py.
+		- Cached 60s under a deterministic key.
+		- Returned categories always have at least one Active+Visible listing.
+		- The aggregate query joins Listing → Product Category, so we rely on
+		  the existing index on `product_category` plus the new
+		  `idx_listing_category_orders` composite added in
+		  patches/add_top_ranking_indexes.py.
 	"""
 	try:
 		limit_int = max(1, min(int(limit), 24))
@@ -1490,20 +1490,20 @@ def get_top_ranking_categories(limit=6, sort="hot-selling"):
 
 	rows = frappe.db.sql(
 		f"""
-        SELECT
-            l.product_category AS cat_id,
-            {agg_expr} AS metric,
-            COUNT(l.name) AS listing_count
-        FROM `tabListing` l
-        WHERE l.status = 'Active'
-          AND l.is_visible = 1
-          AND l.product_category IS NOT NULL
-          AND l.product_category != ''
-        GROUP BY l.product_category
-        HAVING metric > 0
-        ORDER BY metric {sort_order}
-        LIMIT %s
-        """,
+		SELECT
+			l.product_category AS cat_id,
+			{agg_expr} AS metric,
+			COUNT(l.name) AS listing_count
+		FROM `tabListing` l
+		WHERE l.status = 'Active'
+		  AND l.is_visible = 1
+		  AND l.product_category IS NOT NULL
+		  AND l.product_category != ''
+		GROUP BY l.product_category
+		HAVING metric > 0
+		ORDER BY metric {sort_order}
+		LIMIT %s
+		""",
 		(limit_int,),
 		as_dict=True,
 	)
@@ -1584,23 +1584,23 @@ def get_top_ranking_grouped(
 	inside that category, ranked #1/#2/#3.
 
 	Args:
-	    page: 1-indexed page of categories.
-	    page_size: how many category cards per page (clamped to [1, 30]).
-	    products_per_category: ranked preview slots per card (clamped to [1, 10]).
-	    category: optional filter — restrict to a single tab. Accepts either a
-	        url_slug, a Product Category name, or "all" / None for everything.
-	        For 1000+ categories the "all" path streams pages, the per-category
-	        path returns just that category's groups.
-	    sort: ranking metric. Same options as get_top_ranking_categories.
+		page: 1-indexed page of categories.
+		page_size: how many category cards per page (clamped to [1, 30]).
+		products_per_category: ranked preview slots per card (clamped to [1, 10]).
+		category: optional filter — restrict to a single tab. Accepts either a
+			url_slug, a Product Category name, or "all" / None for everything.
+			For 1000+ categories the "all" path streams pages, the per-category
+			path returns just that category's groups.
+		sort: ranking metric. Same options as get_top_ranking_categories.
 
 	Returns:
-	    {
-	      "data": [
-	        {"id", "name", "slug", "categoryId", "products": [...]},
-	        ...
-	      ],
-	      "page", "page_size", "total_categories", "has_next"
-	    }
+		{
+		  "data": [
+			{"id", "name", "slug", "categoryId", "products": [...]},
+			...
+		  ],
+		  "page", "page_size", "total_categories", "has_next"
+		}
 	"""
 	try:
 		page = max(1, int(page))
@@ -1690,19 +1690,19 @@ def get_top_ranking_grouped(
 
 	agg_rows = frappe.db.sql(
 		f"""
-        SELECT
-            l.product_category AS cat_id,
-            {agg_expr} AS metric
-        FROM `tabListing` l
-        WHERE l.status = 'Active'
-          AND l.is_visible = 1
-          AND l.product_category IS NOT NULL
-          AND l.product_category != ''
-          {where_extra}
-        GROUP BY l.product_category
-        HAVING metric > 0
-        ORDER BY metric {sort_order}
-        """,
+		SELECT
+			l.product_category AS cat_id,
+			{agg_expr} AS metric
+		FROM `tabListing` l
+		WHERE l.status = 'Active'
+		  AND l.is_visible = 1
+		  AND l.product_category IS NOT NULL
+		  AND l.product_category != ''
+		  {where_extra}
+		GROUP BY l.product_category
+		HAVING metric > 0
+		ORDER BY metric {sort_order}
+		""",
 		tuple(params),
 		as_dict=True,
 	)
@@ -1919,11 +1919,11 @@ def get_related_listings_grouped(listing_id: str):
 	# (source_listing, relation_type, final_score DESC).
 	rows = frappe.db.sql(
 		"""
-        SELECT target_listing, relation_type, final_score
-        FROM `tabRelated Listing Cache`
-        WHERE source_listing = %s
-        ORDER BY relation_type, final_score DESC
-        """,
+		SELECT target_listing, relation_type, final_score
+		FROM `tabRelated Listing Cache`
+		WHERE source_listing = %s
+		ORDER BY relation_type, final_score DESC
+		""",
 		(listing_id,),
 		as_dict=True,
 	)
@@ -2179,13 +2179,13 @@ def get_search_suggestions(limit=6):
 		try:
 			cart_cats = frappe.db.sql(
 				"""
-                SELECT DISTINCT l.product_category
-                FROM `tabCart Item` ci
-                JOIN `tabCart` c ON c.name = ci.parent
-                JOIN `tabListing` l ON l.name = ci.listing
-                WHERE c.user = %s AND l.product_category IS NOT NULL AND l.product_category != ''
-                LIMIT 5
-            """,
+				SELECT DISTINCT l.product_category
+				FROM `tabCart Item` ci
+				JOIN `tabCart` c ON c.name = ci.parent
+				JOIN `tabListing` l ON l.name = ci.listing
+				WHERE c.user = %s AND l.product_category IS NOT NULL AND l.product_category != ''
+				LIMIT 5
+			""",
 				(user,),
 				as_dict=True,
 			)
@@ -2243,15 +2243,15 @@ def get_search_suggestions(limit=6):
 	# ── Category chips — single GROUP BY query instead of N+1 ──
 	top_cats = frappe.db.sql(
 		"""
-        SELECT pc.category_name, pc.url_slug, pc.name, COUNT(*) as cnt
-        FROM `tabListing` l
-        JOIN `tabProduct Category` pc ON pc.name = l.product_category
-        WHERE l.status = 'Active' AND l.is_visible = 1 AND pc.is_active = 1
-        GROUP BY pc.name
-        HAVING cnt > 0
-        ORDER BY cnt DESC
-        LIMIT 10
-    """,
+		SELECT pc.category_name, pc.url_slug, pc.name, COUNT(*) as cnt
+		FROM `tabListing` l
+		JOIN `tabProduct Category` pc ON pc.name = l.product_category
+		WHERE l.status = 'Active' AND l.is_visible = 1 AND pc.is_active = 1
+		GROUP BY pc.name
+		HAVING cnt > 0
+		ORDER BY cnt DESC
+		LIMIT 10
+	""",
 		as_dict=True,
 	)
 
@@ -2332,8 +2332,8 @@ def _format_listing_card(listing, seller_cache=None, tier_cache=None, brand_cach
 	"""Format a listing record into the ProductListingCard structure for frontend.
 
 	Args:
-	    seller_cache: Pre-fetched seller profiles dict {name: record} to avoid N+1
-	    tier_cache: Pre-fetched pricing tiers dict {listing_name: [tiers]} to avoid N+1
+		seller_cache: Pre-fetched seller profiles dict {name: record} to avoid N+1
+		tier_cache: Pre-fetched pricing tiers dict {listing_name: [tiers]} to avoid N+1
 	"""
 	# Get supplier info — use cache if available, else individual query (fallback)
 	supplier_years = 0
@@ -2552,17 +2552,17 @@ def _brand_slug(brand_code, brand_cache=None):
 def _get_listing_variants(listing_name):
 	"""Get variants grouped by attribute name for the product detail page.
 
-    Source: Listing.variant_items child table (inline — the only supported path).
-    """
-    inline_variants = frappe.get_all(
-        "Listing Variant Item",
-        filters={"parent": listing_name, "parenttype": "Listing"},
-        fields=["attribute_type", "attribute_value", "attribute_type_2", "attribute_value_2",
-                "axis_values_json",
-                "is_default", "variant_image", "variant_gallery", "variant_video_url",
-                "variant_price", "variant_stock", "variant_sku"],
-        order_by="idx ASC",
-    )
+	Source: Listing.variant_items child table (inline — the only supported path).
+	"""
+	inline_variants = frappe.get_all(
+		"Listing Variant Item",
+		filters={"parent": listing_name, "parenttype": "Listing"},
+		fields=["attribute_type", "attribute_value", "attribute_type_2", "attribute_value_2",
+				"axis_values_json",
+				"is_default", "variant_image", "variant_gallery", "variant_video_url",
+				"variant_price", "variant_stock", "variant_sku"],
+		order_by="idx ASC",
+	)
 
 	if inline_variants:
 		return _build_variants_from_inline(listing_name, inline_variants)
@@ -2571,241 +2571,241 @@ def _get_listing_variants(listing_name):
 
 
 def _build_variants_from_inline(listing_name, inline_variants):
-    """Build variant groups from Listing Variant Item child table rows.
+	"""Build variant groups from Listing Variant Item child table rows.
 
-    Supports N axes: axis1 (e.g. Color — with images) + axis2 (e.g. Size — text)
-    + additional axes from axis_values_json (e.g. Material, Length).
-    Returns:
-      - For axis1: variant group with color thumbnails + images[]
-      - For axis2: variant group with text buttons
-      - For axis3+: additional variant groups with text buttons
-      - skuMatrix: flat list of all combinations with stock/price/availability
-    The storefront uses skuMatrix to cross-disable (e.g. "Red-M out of stock").
-    """
-    import json as _json
+	Supports N axes: axis1 (e.g. Color — with images) + axis2 (e.g. Size — text)
+	+ additional axes from axis_values_json (e.g. Material, Length).
+	Returns:
+	  - For axis1: variant group with color thumbnails + images[]
+	  - For axis2: variant group with text buttons
+	  - For axis3+: additional variant groups with text buttons
+	  - skuMatrix: flat list of all combinations with stock/price/availability
+	The storefront uses skuMatrix to cross-disable (e.g. "Red-M out of stock").
+	"""
+	import json as _json
 
-    listing_data = frappe.db.get_value(
-        "Listing", listing_name,
-        ["selling_price", "stock_qty", "track_inventory", "title",
-         "primary_image", "video_url", "available_qty", "variant_axes_config"],
-        as_dict=True,
-    )
-    base_price = listing_data.selling_price if listing_data else 0
-    listing_stock = listing_data.stock_qty or (listing_data.available_qty if listing_data else 0) or 0
-    track_inventory = listing_data.track_inventory if listing_data else 0
-    listing_title = listing_data.title if listing_data else ""
+	listing_data = frappe.db.get_value(
+		"Listing", listing_name,
+		["selling_price", "stock_qty", "track_inventory", "title",
+		 "primary_image", "video_url", "available_qty", "variant_axes_config"],
+		as_dict=True,
+	)
+	base_price = listing_data.selling_price if listing_data else 0
+	listing_stock = listing_data.stock_qty or (listing_data.available_qty if listing_data else 0) or 0
+	track_inventory = listing_data.track_inventory if listing_data else 0
+	listing_title = listing_data.title if listing_data else ""
 
-    # Parse variant_axes_config to determine which axes have images
-    image_axes = set()
-    axes_config_raw = listing_data.variant_axes_config if listing_data else ""
-    if axes_config_raw:
-        try:
-            axes_config = _json.loads(axes_config_raw)
-            for ac in axes_config:
-                if ac.get("hasImage"):
-                    image_axes.add((ac.get("name") or "").strip())
-        except Exception:
-            pass
-    # Fallback: if no config, axis1 is image by default
-    if not image_axes:
-        image_axes.add(((inline_variants[0].attribute_type if inline_variants else "") or "Renk").strip())
+	# Parse variant_axes_config to determine which axes have images
+	image_axes = set()
+	axes_config_raw = listing_data.variant_axes_config if listing_data else ""
+	if axes_config_raw:
+		try:
+			axes_config = _json.loads(axes_config_raw)
+			for ac in axes_config:
+				if ac.get("hasImage"):
+					image_axes.add((ac.get("name") or "").strip())
+		except Exception:
+			pass
+	# Fallback: if no config, axis1 is image by default
+	if not image_axes:
+		image_axes.add(((inline_variants[0].attribute_type if inline_variants else "") or "Renk").strip())
 
-    # Determine if 2-axis mode
-    has_axis2 = any(
-        (v.get("attribute_type_2") if hasattr(v, "get") else getattr(v, "attribute_type_2", ""))
-        for v in inline_variants
-    )
+	# Determine if 2-axis mode
+	has_axis2 = any(
+		(v.get("attribute_type_2") if hasattr(v, "get") else getattr(v, "attribute_type_2", ""))
+		for v in inline_variants
+	)
 
-    # ── Build axis1 group (images/colors) ──
-    axis1_name = ((inline_variants[0].attribute_type if inline_variants else "") or "Renk").strip()
-    axis1_options = {}  # value → option dict
-    axis1_order = []
+	# ── Build axis1 group (images/colors) ──
+	axis1_name = ((inline_variants[0].attribute_type if inline_variants else "") or "Renk").strip()
+	axis1_options = {}  # value → option dict
+	axis1_order = []
 
-    # ── Build axis2 group (sizes/text) if present ──
-    axis2_name = ""
-    axis2_values_set = set()
-    axis2_order = []
+	# ── Build axis2 group (sizes/text) if present ──
+	axis2_name = ""
+	axis2_values_set = set()
+	axis2_order = []
 
-    # ── Extra axes (3+) from axis_values_json ──
-    extra_axes = {}       # axis_name → ordered list of unique values
-    extra_axes_set = {}   # axis_name → set (for dedup)
-    extra_axes_order = [] # ordered list of extra axis names (discovery order)
+	# ── Extra axes (3+) from axis_values_json ──
+	extra_axes = {}       # axis_name → ordered list of unique values
+	extra_axes_set = {}   # axis_name → set (for dedup)
+	extra_axes_order = [] # ordered list of extra axis names (discovery order)
 
-    # ── SKU matrix (all combinations) ──
-    sku_matrix = []
+	# ── SKU matrix (all combinations) ──
+	sku_matrix = []
 
-    for v in inline_variants:
-        val1 = (v.attribute_value or "").strip()
-        val2 = (v.get("attribute_value_2") if hasattr(v, "get") else getattr(v, "attribute_value_2", "")) or ""
-        val2 = val2.strip()
+	for v in inline_variants:
+		val1 = (v.attribute_value or "").strip()
+		val2 = (v.get("attribute_value_2") if hasattr(v, "get") else getattr(v, "attribute_value_2", "")) or ""
+		val2 = val2.strip()
 
-        if not val1:
-            continue
+		if not val1:
+			continue
 
-        if not axis2_name and has_axis2:
-            axis2_name = ((v.get("attribute_type_2") if hasattr(v, "get") else getattr(v, "attribute_type_2", "")) or "").strip()
+		if not axis2_name and has_axis2:
+			axis2_name = ((v.get("attribute_type_2") if hasattr(v, "get") else getattr(v, "attribute_type_2", "")) or "").strip()
 
-        # Parse extra axes from axis_values_json
-        extra_vals = {}
-        axis_json_raw = (v.get("axis_values_json") if hasattr(v, "get") else getattr(v, "axis_values_json", "")) or ""
-        if axis_json_raw:
-            try:
-                axis_obj = _json.loads(axis_json_raw)
-                if isinstance(axis_obj, dict):
-                    for ax_name, ax_val in axis_obj.items():
-                        ax_name = (ax_name or "").strip()
-                        ax_val = (ax_val or "").strip() if ax_val else ""
-                        # Skip axis1 and axis2 (already handled by dedicated fields)
-                        if ax_name == axis1_name or ax_name == axis2_name:
-                            continue
-                        if not ax_name or not ax_val:
-                            continue
-                        extra_vals[ax_name] = ax_val
-                        if ax_name not in extra_axes:
-                            extra_axes[ax_name] = []
-                            extra_axes_set[ax_name] = set()
-                            extra_axes_order.append(ax_name)
-                        if ax_val not in extra_axes_set[ax_name]:
-                            extra_axes_set[ax_name].add(ax_val)
-                            extra_axes[ax_name].append(ax_val)
-            except Exception:
-                pass
+		# Parse extra axes from axis_values_json
+		extra_vals = {}
+		axis_json_raw = (v.get("axis_values_json") if hasattr(v, "get") else getattr(v, "axis_values_json", "")) or ""
+		if axis_json_raw:
+			try:
+				axis_obj = _json.loads(axis_json_raw)
+				if isinstance(axis_obj, dict):
+					for ax_name, ax_val in axis_obj.items():
+						ax_name = (ax_name or "").strip()
+						ax_val = (ax_val or "").strip() if ax_val else ""
+						# Skip axis1 and axis2 (already handled by dedicated fields)
+						if ax_name == axis1_name or ax_name == axis2_name:
+							continue
+						if not ax_name or not ax_val:
+							continue
+						extra_vals[ax_name] = ax_val
+						if ax_name not in extra_axes:
+							extra_axes[ax_name] = []
+							extra_axes_set[ax_name] = set()
+							extra_axes_order.append(ax_name)
+						if ax_val not in extra_axes_set[ax_name]:
+							extra_axes_set[ax_name].add(ax_val)
+							extra_axes[ax_name].append(ax_val)
+			except Exception:
+				pass
 
-        # Parse images for axis1
-        video_url = (v.get("variant_video_url") if hasattr(v, "get") else getattr(v, "variant_video_url", None)) or None
-        images = [v.variant_image] if v.variant_image else []
-        gallery_raw = (v.get("variant_gallery") if hasattr(v, "get") else getattr(v, "variant_gallery", None)) or ""
-        if gallery_raw:
-            try:
-                extra = _json.loads(gallery_raw)
-                if isinstance(extra, list):
-                    for u in extra:
-                        if u and u not in images:
-                            images.append(u)
-            except Exception:
-                pass
+		# Parse images for axis1
+		video_url = (v.get("variant_video_url") if hasattr(v, "get") else getattr(v, "variant_video_url", None)) or None
+		images = [v.variant_image] if v.variant_image else []
+		gallery_raw = (v.get("variant_gallery") if hasattr(v, "get") else getattr(v, "variant_gallery", None)) or ""
+		if gallery_raw:
+			try:
+				extra = _json.loads(gallery_raw)
+				if isinstance(extra, list):
+					for u in extra:
+						if u and u not in images:
+							images.append(u)
+			except Exception:
+				pass
 
-        is_default = bool(v.get("is_default") if hasattr(v, "get") else getattr(v, "is_default", 0))
-        variant_price = v.variant_price if v.variant_price and v.variant_price > 0 else base_price
-        stock = v.variant_stock or 0
-        if not track_inventory:
-            available = True
-        elif stock > 0:
-            available = True
-        else:
-            available = False
+		is_default = bool(v.get("is_default") if hasattr(v, "get") else getattr(v, "is_default", 0))
+		variant_price = v.variant_price if v.variant_price and v.variant_price > 0 else base_price
+		stock = v.variant_stock or 0
+		if not track_inventory:
+			available = True
+		elif stock > 0:
+			available = True
+		else:
+			available = False
 
-        # Axis1 option (only first occurrence per val1)
-        if val1 not in axis1_options:
-            composed_title = f"{val1} {listing_title}".strip() if listing_title else val1
-            axis1_options[val1] = {
-                "label": val1,
-                "value": val1,
-                "available": available,
-                "isDefault": is_default,
-                "image": images[0] if images else None,
-                "images": images,
-                "videoUrl": video_url,
-                "title": composed_title,
-                "price": variant_price,
-                "priceAddon": v.variant_price if v.variant_price and v.variant_price > 0 else 0,
-                "stockQty": stock,
-                "variantId": f"{listing_name}-{axis1_name}-{val1}",
-                "sku": v.variant_sku or "",
-            }
-            axis1_order.append(val1)
-        else:
-            # Aggregate: if any combination of this color is available, color is available
-            if available:
-                axis1_options[val1]["available"] = True
-            # Aggregate stock
-            axis1_options[val1]["stockQty"] = (axis1_options[val1]["stockQty"] or 0) + stock
-            # Keep isDefault if any combo is default
-            if is_default:
-                axis1_options[val1]["isDefault"] = True
+		# Axis1 option (only first occurrence per val1)
+		if val1 not in axis1_options:
+			composed_title = f"{val1} {listing_title}".strip() if listing_title else val1
+			axis1_options[val1] = {
+				"label": val1,
+				"value": val1,
+				"available": available,
+				"isDefault": is_default,
+				"image": images[0] if images else None,
+				"images": images,
+				"videoUrl": video_url,
+				"title": composed_title,
+				"price": variant_price,
+				"priceAddon": v.variant_price if v.variant_price and v.variant_price > 0 else 0,
+				"stockQty": stock,
+				"variantId": f"{listing_name}-{axis1_name}-{val1}",
+				"sku": v.variant_sku or "",
+			}
+			axis1_order.append(val1)
+		else:
+			# Aggregate: if any combination of this color is available, color is available
+			if available:
+				axis1_options[val1]["available"] = True
+			# Aggregate stock
+			axis1_options[val1]["stockQty"] = (axis1_options[val1]["stockQty"] or 0) + stock
+			# Keep isDefault if any combo is default
+			if is_default:
+				axis1_options[val1]["isDefault"] = True
 
-        # Axis2 values
-        if val2 and val2 not in axis2_values_set:
-            axis2_values_set.add(val2)
-            axis2_order.append(val2)
+		# Axis2 values
+		if val2 and val2 not in axis2_values_set:
+			axis2_values_set.add(val2)
+			axis2_order.append(val2)
 
-        # SKU matrix row — includes extra axis values for N-axis cross-disable
-        # Build a unique variantId that includes ALL axes (stable ordering via extra_axes_order)
-        extra_suffix = ""
-        if extra_vals:
-            extra_suffix = "-" + "-".join(extra_vals[k] for k in extra_axes_order if k in extra_vals)
-        variant_id = f"{listing_name}-{val1}-{val2}{extra_suffix}" if val2 else f"{listing_name}-{axis1_name}-{val1}{extra_suffix}"
+		# SKU matrix row — includes extra axis values for N-axis cross-disable
+		# Build a unique variantId that includes ALL axes (stable ordering via extra_axes_order)
+		extra_suffix = ""
+		if extra_vals:
+			extra_suffix = "-" + "-".join(extra_vals[k] for k in extra_axes_order if k in extra_vals)
+		variant_id = f"{listing_name}-{val1}-{val2}{extra_suffix}" if val2 else f"{listing_name}-{axis1_name}-{val1}{extra_suffix}"
 
-        sku_entry = {
-            "axis1": val1,
-            "axis2": val2,
-            "stock": stock,
-            "price": variant_price,
-            "available": available,
-            "sku": v.variant_sku or "",
-            "variantId": variant_id,
-        }
-        if extra_vals:
-            sku_entry["extraAxes"] = extra_vals
-        sku_matrix.append(sku_entry)
+		sku_entry = {
+			"axis1": val1,
+			"axis2": val2,
+			"stock": stock,
+			"price": variant_price,
+			"available": available,
+			"sku": v.variant_sku or "",
+			"variantId": variant_id,
+		}
+		if extra_vals:
+			sku_entry["extraAxes"] = extra_vals
+		sku_matrix.append(sku_entry)
 
-    # Build result
-    result = []
+	# Build result
+	result = []
 
-    # Axis1 group
-    axis1_group = {
-        "name": axis1_name,
-        "type": "image" if (axis1_name in image_axes and any(o.get("image") for o in axis1_options.values())) else "button",
-        "options": [axis1_options[k] for k in axis1_order],
-    }
-    # Sort default first
-    axis1_group["options"].sort(key=lambda o: (0 if o.get("isDefault") else 1))
-    result.append(axis1_group)
+	# Axis1 group
+	axis1_group = {
+		"name": axis1_name,
+		"type": "image" if (axis1_name in image_axes and any(o.get("image") for o in axis1_options.values())) else "button",
+		"options": [axis1_options[k] for k in axis1_order],
+	}
+	# Sort default first
+	axis1_group["options"].sort(key=lambda o: (0 if o.get("isDefault") else 1))
+	result.append(axis1_group)
 
-    # Axis2 group (if present)
-    if axis2_name and axis2_order:
-        axis2_options = []
-        for val2 in axis2_order:
-            # Available if ANY combination with this size has stock
-            any_available = any(s["available"] for s in sku_matrix if s["axis2"] == val2)
-            axis2_options.append({
-                "label": val2,
-                "value": val2,
-                "available": any_available,
-                "isDefault": False,
-            })
-        result.append({
-            "name": axis2_name,
-            "type": "button",
-            "options": axis2_options,
-        })
+	# Axis2 group (if present)
+	if axis2_name and axis2_order:
+		axis2_options = []
+		for val2 in axis2_order:
+			# Available if ANY combination with this size has stock
+			any_available = any(s["available"] for s in sku_matrix if s["axis2"] == val2)
+			axis2_options.append({
+				"label": val2,
+				"value": val2,
+				"available": any_available,
+				"isDefault": False,
+			})
+		result.append({
+			"name": axis2_name,
+			"type": "button",
+			"options": axis2_options,
+		})
 
-    # Extra axis groups (3+)
-    for ax_name in extra_axes_order:
-        ax_values = extra_axes[ax_name]
-        ax_options = []
-        for ax_val in ax_values:
-            # Available if ANY SKU with this extra axis value has stock
-            any_available = any(
-                s["available"]
-                for s in sku_matrix
-                if s.get("extraAxes", {}).get(ax_name) == ax_val
-            )
-            ax_options.append({
-                "label": ax_val,
-                "value": ax_val,
-                "available": any_available,
-                "isDefault": False,
-            })
-        result.append({
-            "name": ax_name,
-            "type": "image" if ax_name in image_axes else "button",
-            "options": ax_options,
-        })
+	# Extra axis groups (3+)
+	for ax_name in extra_axes_order:
+		ax_values = extra_axes[ax_name]
+		ax_options = []
+		for ax_val in ax_values:
+			# Available if ANY SKU with this extra axis value has stock
+			any_available = any(
+				s["available"]
+				for s in sku_matrix
+				if s.get("extraAxes", {}).get(ax_name) == ax_val
+			)
+			ax_options.append({
+				"label": ax_val,
+				"value": ax_val,
+				"available": any_available,
+				"isDefault": False,
+			})
+		result.append({
+			"name": ax_name,
+			"type": "image" if ax_name in image_axes else "button",
+			"options": ax_options,
+		})
 
-    # Attach skuMatrix to first group (storefront reads it for cross-disable)
-    if sku_matrix:
-        result[0]["skuMatrix"] = sku_matrix
+	# Attach skuMatrix to first group (storefront reads it for cross-disable)
+	if sku_matrix:
+		result[0]["skuMatrix"] = sku_matrix
 
 	result = []
 	for group in variant_groups.values():
@@ -3012,20 +3012,20 @@ def get_seller_listings(page=1, page_size=20):
 	if not seller_profile:
 		return {"success": True, "listings": [], "total": 0}
 
-    page = int(page)
-    page_size = int(page_size)
-    total = frappe.db.count("Listing", {"seller_profile": seller_profile})
-    listings = frappe.get_all(
-        "Listing",
-        filters={"seller_profile": seller_profile},
-        fields=["name", "title", "status", "selling_price", "currency",
-                "stock_qty", "available_qty", "creation", "listing_code",
-                "rejection_reason", "completeness_score"],
-        order_by="creation desc",
-        start=(page - 1) * page_size,
-        page_length=page_size,
-    )
-    return {"success": True, "listings": listings, "total": total}
+	page = int(page)
+	page_size = int(page_size)
+	total = frappe.db.count("Listing", {"seller_profile": seller_profile})
+	listings = frappe.get_all(
+		"Listing",
+		filters={"seller_profile": seller_profile},
+		fields=["name", "title", "status", "selling_price", "currency",
+				"stock_qty", "available_qty", "creation", "listing_code",
+				"rejection_reason", "completeness_score"],
+		order_by="creation desc",
+		start=(page - 1) * page_size,
+		page_length=page_size,
+	)
+	return {"success": True, "listings": listings, "total": total}
 
 
 @frappe.whitelist()
@@ -3052,50 +3052,50 @@ def update_listing_status(listing_name, status):
 
 @frappe.whitelist()
 def get_listing_meta():
-    """Satıcı için Listing doctype meta verilerini döndür (field tanımları)."""
-    from frappe.model.meta import get_meta
-    meta = get_meta("Listing")
-    # Sadece UI'da gösterilecek alanları filtrele
-    skip_types = {"Section Break", "Tab Break", "Column Break", "HTML", "Button"}
-    skip_fields = {"listing_code", "seller_profile", "supplier_display_name",
-                   "status", "reserved_qty", "available_qty", "published_at",
-                   "erpnext_item", "naming_series", "variants_html",
-                   "view_count", "wishlist_count", "order_count",
-                   "average_rating", "review_count"}
-    fields = []
-    for f in meta.fields:
-        if f.fieldtype in skip_types:
-            continue
-        if f.fieldname in skip_fields:
-            continue
-        if f.read_only:
-            continue
-        fields.append({
-            "fieldname": f.fieldname,
-            "fieldtype": f.fieldtype,
-            "label": f.label,
-            "reqd": f.reqd,
-            "options": f.options,
-            "default": f.default,
-            "depends_on": f.depends_on,
-            "description": f.description,
-        })
-    return {"success": True, "fields": fields}
+	"""Satıcı için Listing doctype meta verilerini döndür (field tanımları)."""
+	from frappe.model.meta import get_meta
+	meta = get_meta("Listing")
+	# Sadece UI'da gösterilecek alanları filtrele
+	skip_types = {"Section Break", "Tab Break", "Column Break", "HTML", "Button"}
+	skip_fields = {"listing_code", "seller_profile", "supplier_display_name",
+				   "status", "reserved_qty", "available_qty", "published_at",
+				   "erpnext_item", "naming_series", "variants_html",
+				   "view_count", "wishlist_count", "order_count",
+				   "average_rating", "review_count"}
+	fields = []
+	for f in meta.fields:
+		if f.fieldtype in skip_types:
+			continue
+		if f.fieldname in skip_fields:
+			continue
+		if f.read_only:
+			continue
+		fields.append({
+			"fieldname": f.fieldname,
+			"fieldtype": f.fieldtype,
+			"label": f.label,
+			"reqd": f.reqd,
+			"options": f.options,
+			"default": f.default,
+			"depends_on": f.depends_on,
+			"description": f.description,
+		})
+	return {"success": True, "fields": fields}
 
 
 @frappe.whitelist()
 def recalculate_completeness_score(listing_name):
-    """Recalculate and persist the completeness score for a single listing."""
-    from tradehub_core.utils.completeness import calculate_completeness_score
-    doc = frappe.get_doc("Listing", listing_name)
-    score = calculate_completeness_score(doc)
-    doc.db_set("completeness_score", score, update_modified=False)
-    return {"success": True, "completeness_score": score}
+	"""Recalculate and persist the completeness score for a single listing."""
+	from tradehub_core.utils.completeness import calculate_completeness_score
+	doc = frappe.get_doc("Listing", listing_name)
+	score = calculate_completeness_score(doc)
+	doc.db_set("completeness_score", score, update_modified=False)
+	return {"success": True, "completeness_score": score}
 
 
 @frappe.whitelist()
 def get_completeness_breakdown(listing_name):
-    """Return detailed score breakdown for admin panel display."""
-    from tradehub_core.utils.completeness import get_score_breakdown
-    doc = frappe.get_doc("Listing", listing_name)
-    return get_score_breakdown(doc)
+	"""Return detailed score breakdown for admin panel display."""
+	from tradehub_core.utils.completeness import get_score_breakdown
+	doc = frappe.get_doc("Listing", listing_name)
+	return get_score_breakdown(doc)
