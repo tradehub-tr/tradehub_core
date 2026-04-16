@@ -17,8 +17,12 @@ Görsel Kaynağı:
 
 import frappe
 from frappe import _
+from frappe.utils.password import update_password
 import re
 import random
+
+
+DEMO_SELLER_PASSWORD = "Demo1234!"
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -1183,27 +1187,42 @@ SECTORS = [
 # ═══════════════════════════════════════════════════════════════
 
 def _ensure_user(email, first_name):
-    """Demo kullanıcı oluştur veya mevcut olanı döndür."""
-    if frappe.db.exists("User", email):
-        return email
-    user = frappe.new_doc("User")
-    user.email = email
-    user.first_name = first_name
-    user.enabled = 1
-    user.user_type = "Website User"
-    user.send_welcome_email = 0
-    user.flags.ignore_permissions = True
-    user.flags.no_welcome_mail = True
-    user.insert(ignore_permissions=True)
+    """Demo kullanıcı oluştur veya mevcut olanı döndür.
+
+    Her durumda DEMO_SELLER_PASSWORD ile şifreyi senkron tutar ve
+    panel erişimi için "Seller" rolünü ekler.
+    """
+    if not frappe.db.exists("User", email):
+        user = frappe.new_doc("User")
+        user.email = email
+        user.first_name = first_name
+        user.enabled = 1
+        # Website User → /app erişimi yok; panel Frappe SPA kullandığı için
+        # "System User" gerekli değil. Panel login yalnızca is_seller kontrol eder.
+        user.user_type = "Website User"
+        user.send_welcome_email = 0
+        user.flags.ignore_permissions = True
+        user.flags.no_welcome_mail = True
+        user.insert(ignore_permissions=True)
+
+    update_password(email, DEMO_SELLER_PASSWORD)
+
+    user_doc = frappe.get_doc("User", email)
+    existing_roles = {r.role for r in user_doc.roles}
+    if "Seller" not in existing_roles:
+        user_doc.append("roles", {"role": "Seller"})
+        user_doc.flags.ignore_permissions = True
+        user_doc.save(ignore_permissions=True)
+
     return email
 
 
 def _ensure_seller(s):
     """Admin Seller Profile oluştur veya mevcut olanı döndür."""
+    _ensure_user(s["email"], s["seller_name"])
+
     if frappe.db.exists("Admin Seller Profile", s["code"]):
         return s["code"]
-
-    _ensure_user(s["email"], s["seller_name"])
 
     doc = frappe.new_doc("Admin Seller Profile")
     doc.seller_code = s["code"]

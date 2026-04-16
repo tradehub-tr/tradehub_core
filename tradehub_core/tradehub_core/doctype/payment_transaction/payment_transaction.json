@@ -87,7 +87,7 @@
 			"fieldname": "payment_method",
 			"fieldtype": "Select",
 			"label": "Ödeme Yöntemi",
-			"options": "\nBanka Havalesi\nEFT/Havale\nÇek/Senet\nElden Taksit",
+			"options": "\nBanka Havalesi\nEFT/Havale\nÇek/Senet\nElden Taksit\nKredi Kartı\nKredi Kartı (Iyzico)\nKredi Kartı (PayTR)\nKredi Kartı (Stripe)",
 			"in_standard_filter": 1
 		},
 		{
