@@ -221,6 +221,14 @@ def agent_reply_ticket(ticket: str, content: str):
 	sender_full_name = frappe.db.get_value("User", caller, "full_name") or caller
 	ticket_doc = frappe.get_doc("HD Ticket", ticket)
 
+	# Self-reply yasak: ayni user hem alici (raised_by) hem ajan olamaz —
+	# kendi acitigi talebe alici baglaminda (storefront) yanit vermeli.
+	if ticket_doc.raised_by == caller:
+		frappe.throw(
+			_("Kendi açtığınız talebe ajan olarak yanıt veremezsiniz. Alıcı sayfasından yanıtlayın."),
+			frappe.PermissionError,
+		)
+
 	comm = frappe.get_doc(
 		{
 			"doctype": "Communication",
@@ -283,6 +291,11 @@ def reply_ticket(ticket: str, content: str):
 	return {"name": comm.name, "ok": True}
 
 
+# Satici tarafina yonlendirilecek kategoriler — order_ref zorunlu.
+# Gerisi (odeme/hesap/diger) Platform Support'a duser.
+_SELLER_CATEGORIES = frozenset({"siparis", "kargo", "urun"})
+
+
 @frappe.whitelist()
 @rate_limit(key="user", limit=10, seconds=300)
 def create_ticket(
@@ -293,11 +306,16 @@ def create_ticket(
 	priority: str = "",
 	ticket_type: str = "",
 	order_ref: str = "",
+	category: str = "",
 ):
 	"""Storefront destek formu → HD Ticket.
 
 	Login zorunlu — alıcı/satıcı kayıt + giriş yapmadan talep oluşturamaz.
 	raised_by = session.user.email. Rate-limit: user başına 5 dakikada 10 kez.
+
+	Kategori routing:
+	  - siparis/kargo/urun → satici team (order_ref zorunlu)
+	  - odeme/hesap/diger/bos → Platform Support (order_ref yoksayilir)
 	"""
 	caller = frappe.session.user
 	if not caller or caller == "Guest":
@@ -312,14 +330,32 @@ def create_ticket(
 	phone = _clip(phone, 40)
 	customer_name = _clip(name, 200)
 	order_ref = _clip(order_ref, 140)
+	category = _clip(category, 40).strip().lower()
 
 	if not subject or not description:
 		frappe.throw(_("Konu ve aciklama zorunludur."), frappe.ValidationError)
 
-	# Team routing: sipariş varsa o siparişin satıcı team'ine, yoksa Platform Support
-	if order_ref:
+	# Kategori-bazli routing
+	if category in _SELLER_CATEGORIES:
+		if not order_ref:
+			frappe.throw(
+				_("Bu kategori için sipariş referansı zorunludur."),
+				frappe.ValidationError,
+			)
+		# Cikar catismasi: satici kendi siparisine ajan-tarafli destek acamaz.
+		# Platform kategorileri (odeme/hesap/diger) ile hala talep olusturabilir —
+		# o yol Platform Support'a duser, satici team'ine degil.
+		seller = frappe.db.get_value("Order", order_ref, "seller")
+		if seller:
+			seller_user = frappe.db.get_value("Admin Seller Profile", seller, "user")
+			if seller_user and seller_user == caller:
+				frappe.throw(
+					_("Kendi sattığınız sipariş için destek talebi açamazsınız."),
+					frappe.ValidationError,
+				)
 		team = resolve_team_for_order(order_ref) or ensure_platform_support_team()
 	else:
+		# Platform-seviyesi kategoriler (odeme/hesap/diger) veya kategorisiz
 		team = ensure_platform_support_team()
 
 	# Helpdesk'in kendi validate/before_insert hook'lari "Agent" rolu istiyor
@@ -352,3 +388,89 @@ def create_ticket(
 			frappe.set_user(original_user)
 
 	return {"name": ticket.name, "ok": True}
+
+
+# ── Attachment API ─────────────────────────────────────────────────────────
+# MVP: HD Ticket'a bagli File doctype kayitlarini musteri/ajan upload'u icin
+# whitelisted wrapper. Max 5 dosya, her biri 10MB. is_private=1 — sadece yetkili
+# kullanici download edebilir.
+
+_MAX_TICKET_FILES = 5
+_MAX_TICKET_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+
+
+@frappe.whitelist()
+@rate_limit(key="user", limit=20, seconds=300)
+def upload_ticket_attachment(ticket: str):
+	"""Ticket'a dosya ekle. Multipart form data — 'file' field.
+
+	Musteri kendi ticket'ina, agent ise yetkili oldugu ticket'a yukleyebilir.
+	Permission check HD Ticket uzerinden (ayni query condition ile tutarli).
+	"""
+	if not ticket:
+		frappe.throw(_("Talep kimliği gerekli."), frappe.ValidationError)
+	if not frappe.has_permission("HD Ticket", doc=ticket, ptype="read"):
+		frappe.throw(_("Bu talebe erişim yetkiniz yok."), frappe.PermissionError)
+
+	existing = frappe.db.count(
+		"File",
+		{"attached_to_doctype": "HD Ticket", "attached_to_name": ticket},
+	)
+	if existing >= _MAX_TICKET_FILES:
+		frappe.throw(
+			_("Bu talep için maksimum {0} dosya eklenebilir.").format(_MAX_TICKET_FILES),
+			frappe.ValidationError,
+		)
+
+	content = getattr(frappe.local, "uploaded_file", None)
+	filename = getattr(frappe.local, "uploaded_filename", None) or "attachment"
+
+	if not content:
+		frappe.throw(_("Dosya gönderilmedi."), frappe.ValidationError)
+	if len(content) > _MAX_TICKET_FILE_SIZE:
+		frappe.throw(
+			_("Dosya 10MB'dan büyük olamaz."),
+			frappe.ValidationError,
+		)
+
+	from frappe.utils.file_manager import save_file
+
+	file_doc = save_file(
+		fname=filename,
+		content=content,
+		dt="HD Ticket",
+		dn=ticket,
+		is_private=1,
+	)
+	frappe.db.commit()
+	return {
+		"name": file_doc.name,
+		"file_name": file_doc.file_name,
+		"file_url": file_doc.file_url,
+		"file_size": file_doc.file_size,
+	}
+
+
+@frappe.whitelist()
+def list_ticket_attachments(ticket: str):
+	"""Ticket'a bagli tum File kayitlarini dondur.
+
+	Musteri File doctype'ina direkt read yetkisine sahip degil; HD Ticket
+	ownership varsa ignore_permissions ile okuyoruz.
+	"""
+	if not ticket:
+		return []
+	if not frappe.has_permission("HD Ticket", doc=ticket, ptype="read"):
+		frappe.throw(_("Bu talebe erişim yetkiniz yok."), frappe.PermissionError)
+
+	return frappe.get_all(
+		"File",
+		filters={
+			"attached_to_doctype": "HD Ticket",
+			"attached_to_name": ticket,
+		},
+		fields=["name", "file_name", "file_url", "file_size", "creation", "owner", "is_private"],
+		order_by="creation asc",
+		ignore_permissions=True,
+		limit_page_length=50,
+	)
