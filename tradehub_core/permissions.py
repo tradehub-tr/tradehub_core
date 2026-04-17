@@ -944,7 +944,8 @@ def helpdesk_ticket_query_conditions(user):
 	escaped_user = frappe.db.escape(user)
 	own_clause = f"`tabHD Ticket`.`raised_by` = {escaped_user}"
 
-	# Agent: team ticket'lari + kendi acitigi ticket'lar (musteri olarak da açmış olabilir)
+	# Agent (satici) admin panelde sadece team is yukunu gorur — kendi acitigi
+	# ticket'lar alici baglaminda storefront'tan erisilir, burada gizli.
 	if "Agent" in roles:
 		teams = _helpdesk_user_teams(user)
 		if teams:
@@ -952,7 +953,7 @@ def helpdesk_ticket_query_conditions(user):
 			team_clause = f"`tabHD Ticket`.`agent_group` IN ({placeholders})"
 		else:
 			team_clause = f"`tabHD Ticket`.`agent_group` = {frappe.db.escape(_PLATFORM_SUPPORT_TEAM)}"
-		return f"({team_clause} OR {own_clause})"
+		return f"({team_clause} AND `tabHD Ticket`.`raised_by` != {escaped_user})"
 
 	# Musteri / diger — sadece kendi acitigi ticket'lar
 	return own_clause
@@ -969,9 +970,12 @@ def helpdesk_ticket_has_permission(doc, ptype, user):
 	raised_by = getattr(doc, "raised_by", None) if not isinstance(doc, dict) else doc.get("raised_by")
 
 	if "Agent" in roles:
-		teams = _helpdesk_user_teams(user)
+		# Self-ticket: alici baglami (storefront). Read izinli, yazma islemleri
+		# (reply/status/priority) yasak — admin panelde ajan olarak mudahale
+		# edemesin.
 		if raised_by == user:
-			return True
+			return ptype == "read"
+		teams = _helpdesk_user_teams(user)
 		if teams:
 			return agent_group in teams
 		return agent_group == _PLATFORM_SUPPORT_TEAM

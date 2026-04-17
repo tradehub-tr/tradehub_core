@@ -78,6 +78,7 @@ def _translate_order(order):
 		"Pending" if en_status in ("Waiting for payment", "Confirming") else "In Transit"
 	)
 	order["supplier_name"] = seller_name
+	order["supplier_code"] = seller_id or ""
 	order["supplier_contact"] = ""
 	order["supplier_phone"] = ""
 	order["supplier_email"] = ""
@@ -87,16 +88,37 @@ def _translate_order(order):
 
 
 @frappe.whitelist()
-def get_my_orders(status=None, search=None, date_from=None, date_to=None, page=1, page_size=20):
+def get_my_orders(
+	status=None,
+	search=None,
+	date_from=None,
+	date_to=None,
+	page=1,
+	page_size=20,
+	exclude_self_seller=False,
+):
 	"""
 	List buyer's orders with filtering.
 	Reads from Order doctype (Türkçe status), translates to English for frontend.
+
+	exclude_self_seller: Aynı user hem satıcı hem alıcı ise kendi sattığı
+	siparişleri listeden çıkarır (ör. ticket formu dropdown'u için — çıkar
+	çatışması önlemi).
 	"""
 	buyer = _require_buyer()
 	page = cint(page) or 1
 	page_size = min(cint(page_size) or 20, 100)
 
 	filters = {"buyer": buyer}
+
+	if cint(exclude_self_seller):
+		own_sellers = frappe.get_all(
+			"Admin Seller Profile",
+			filters={"user": frappe.session.user},
+			pluck="name",
+		)
+		if own_sellers:
+			filters["seller"] = ["not in", own_sellers]
 
 	if status and status != "all":
 		tr_statuses = FILTER_STATUS_MAP.get(status)
