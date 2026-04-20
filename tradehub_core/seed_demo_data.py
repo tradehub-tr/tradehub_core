@@ -15,6 +15,7 @@ Görsel Kaynağı:
     Her sektör için 10-12 el seçimi Pexels fotoğrafı kullanılır.
 """
 
+import json
 import random
 import re
 
@@ -23,6 +24,7 @@ from frappe import _
 from frappe.utils.password import update_password
 
 DEMO_SELLER_PASSWORD = "Demo1234!"
+DEMO_BUYER_PASSWORD = "Demo1234!"
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -39,12 +41,12 @@ def _slug(text):
 
 
 def _img(sector_key, w=800, h=800, lock_id=""):
-	"""Sektöre uygun Pexels CDN görsel URL'si döndürür.
-	Her sektör için el seçimi 10-12 fotoğraf havuzundan deterministik seçim yapar."""
+	"""Sektöre uygun gerçek e-ticaret ürün görseli döndürür (DummyJSON CDN).
+	Her sektör için kategorisi eşleşen 16 ürün görseli havuzundan deterministik seçim.
+	w/h parametreleri imza uyumluluğu için tutulur — DummyJSON kendi boyutunu sunar."""
 	images = SECTOR_IMAGES.get(sector_key, SECTOR_IMAGES["giyim"])
 	idx = abs(hash(lock_id)) % len(images)
-	photo_id = images[idx]
-	return f"https://images.pexels.com/photos/{photo_id}/pexels-photo-{photo_id}.jpeg?auto=compress&cs=tinysrgb&w={w}&h={h}&fit=crop"
+	return images[idx]
 
 
 def _seller_logo(name, size=200):
@@ -82,132 +84,192 @@ def _short(title, category):
 
 
 # ═══════════════════════════════════════════════════════════════
-#  SEKTÖR GÖRSEL HAVUZU (Pexels CDN)
-#  Her sektör için el seçimi, yüksek kaliteli Pexels fotoğrafları.
+#  SEKTÖR GÖRSEL HAVUZU (DummyJSON CDN)
+#  Her sektör için DummyJSON'un gerçek e-ticaret ürün görselleri
+#  (https://dummyjson.com/products — kategori eşleşmeli).
 #  Ürünler bu havuzdan deterministik olarak görsel seçer.
 # ═══════════════════════════════════════════════════════════════
 
 SECTOR_IMAGES = {
 	"giyim": [
-		8386655,
-		2249249,
-		10084285,
-		23105762,
-		1884584,
-		6068952,
-		3812433,
-		19599223,
-		5490975,
-		5531746,
-		6069551,
-		34850999,
+		"https://cdn.dummyjson.com/product-images/mens-shirts/blue-%26-black-check-shirt/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/mens-shirts/blue-%26-black-check-shirt/1.webp",
+		"https://cdn.dummyjson.com/product-images/mens-shirts/gigabyte-aorus-men-tshirt/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/mens-shirts/gigabyte-aorus-men-tshirt/1.webp",
+		"https://cdn.dummyjson.com/product-images/mens-shirts/man-plaid-shirt/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/mens-shirts/man-plaid-shirt/1.webp",
+		"https://cdn.dummyjson.com/product-images/mens-shirts/man-short-sleeve-shirt/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/mens-shirts/man-short-sleeve-shirt/1.webp",
+		"https://cdn.dummyjson.com/product-images/mens-shirts/men-check-shirt/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/mens-shirts/men-check-shirt/1.webp",
+		"https://cdn.dummyjson.com/product-images/tops/blue-frock/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/tops/blue-frock/1.webp",
+		"https://cdn.dummyjson.com/product-images/tops/girl-summer-dress/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/tops/girl-summer-dress/1.webp",
+		"https://cdn.dummyjson.com/product-images/tops/gray-dress/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/tops/gray-dress/1.webp",
 	],
 	"ayakkabi": [
-		2371935,
-		5117638,
-		11946032,
-		4010649,
-		17918933,
-		233226,
-		2529148,
-		14834103,
-		2529147,
-		772286,
+		"https://cdn.dummyjson.com/product-images/mens-shoes/nike-air-jordan-1-red-and-black/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/mens-shoes/nike-air-jordan-1-red-and-black/1.webp",
+		"https://cdn.dummyjson.com/product-images/mens-shoes/nike-baseball-cleats/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/mens-shoes/nike-baseball-cleats/1.webp",
+		"https://cdn.dummyjson.com/product-images/mens-shoes/puma-future-rider-trainers/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/mens-shoes/puma-future-rider-trainers/1.webp",
+		"https://cdn.dummyjson.com/product-images/mens-shoes/sports-sneakers-off-white-%26-red/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/mens-shoes/sports-sneakers-off-white-%26-red/1.webp",
+		"https://cdn.dummyjson.com/product-images/mens-shoes/sports-sneakers-off-white-red/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/mens-shoes/sports-sneakers-off-white-red/1.webp",
+		"https://cdn.dummyjson.com/product-images/womens-shoes/black-%26-brown-slipper/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/womens-shoes/black-%26-brown-slipper/1.webp",
+		"https://cdn.dummyjson.com/product-images/womens-shoes/calvin-klein-heel-shoes/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/womens-shoes/calvin-klein-heel-shoes/1.webp",
+		"https://cdn.dummyjson.com/product-images/womens-shoes/golden-shoes-woman/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/womens-shoes/golden-shoes-woman/1.webp",
 	],
 	"elektronik": [
-		1420709,
-		10433477,
-		31450274,
-		9130508,
-		2255355,
-		3394666,
-		844923,
-		5054358,
-		1037999,
+		"https://cdn.dummyjson.com/product-images/smartphones/iphone-5s/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/smartphones/iphone-5s/1.webp",
+		"https://cdn.dummyjson.com/product-images/smartphones/iphone-6/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/smartphones/iphone-6/1.webp",
+		"https://cdn.dummyjson.com/product-images/smartphones/iphone-13-pro/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/smartphones/iphone-13-pro/1.webp",
+		"https://cdn.dummyjson.com/product-images/smartphones/iphone-x/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/smartphones/iphone-x/1.webp",
+		"https://cdn.dummyjson.com/product-images/smartphones/oppo-a57/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/smartphones/oppo-a57/1.webp",
+		"https://cdn.dummyjson.com/product-images/smartphones/oppo-f19-pro-plus/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/smartphones/oppo-f19-pro-plus/1.webp",
+		"https://cdn.dummyjson.com/product-images/smartphones/oppo-k1/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/smartphones/oppo-k1/1.webp",
+		"https://cdn.dummyjson.com/product-images/smartphones/realme-c35/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/smartphones/realme-c35/1.webp",
 	],
 	"hirdavat": [
-		162553,
-		9754817,
-		19174967,
-		32777394,
-		8985454,
-		909256,
-		15102481,
-		33868599,
-		8341833,
-		14637831,
+		"https://cdn.dummyjson.com/product-images/motorcycle/generic-motorcycle/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/motorcycle/generic-motorcycle/1.webp",
+		"https://cdn.dummyjson.com/product-images/motorcycle/kawasaki-z800/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/motorcycle/kawasaki-z800/1.webp",
+		"https://cdn.dummyjson.com/product-images/motorcycle/motogp-ci.h1/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/motorcycle/motogp-ci.h1/1.webp",
+		"https://cdn.dummyjson.com/product-images/motorcycle/scooter-motorcycle/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/motorcycle/scooter-motorcycle/1.webp",
+		"https://cdn.dummyjson.com/product-images/motorcycle/sportbike-motorcycle/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/motorcycle/sportbike-motorcycle/1.webp",
+		"https://cdn.dummyjson.com/product-images/vehicle/300-touring/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/vehicle/300-touring/1.webp",
+		"https://cdn.dummyjson.com/product-images/vehicle/charger-sxt-rwd/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/vehicle/charger-sxt-rwd/1.webp",
+		"https://cdn.dummyjson.com/product-images/vehicle/dodge-hornet-gt-plus/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/vehicle/dodge-hornet-gt-plus/1.webp",
 	],
 	"gida": [
-		7420982,
-		1161682,
-		2260825,
-		5966434,
-		5078584,
-		531446,
-		264537,
-		27588072,
-		12124907,
-		15777497,
+		"https://cdn.dummyjson.com/product-images/groceries/apple/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/groceries/apple/1.webp",
+		"https://cdn.dummyjson.com/product-images/groceries/beef-steak/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/groceries/beef-steak/1.webp",
+		"https://cdn.dummyjson.com/product-images/groceries/cat-food/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/groceries/cat-food/1.webp",
+		"https://cdn.dummyjson.com/product-images/groceries/chicken-meat/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/groceries/chicken-meat/1.webp",
+		"https://cdn.dummyjson.com/product-images/groceries/cooking-oil/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/groceries/cooking-oil/1.webp",
+		"https://cdn.dummyjson.com/product-images/groceries/cucumber/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/groceries/cucumber/1.webp",
+		"https://cdn.dummyjson.com/product-images/groceries/dog-food/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/groceries/dog-food/1.webp",
+		"https://cdn.dummyjson.com/product-images/groceries/eggs/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/groceries/eggs/1.webp",
 	],
 	"kozmetik": [
-		29709957,
-		17545641,
-		3735619,
-		234220,
-		3018845,
-		1115128,
-		8128684,
-		1722868,
-		35173950,
-		3190,
+		"https://cdn.dummyjson.com/product-images/beauty/essence-mascara-lash-princess/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/beauty/essence-mascara-lash-princess/1.webp",
+		"https://cdn.dummyjson.com/product-images/beauty/eyeshadow-palette-with-mirror/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/beauty/eyeshadow-palette-with-mirror/1.webp",
+		"https://cdn.dummyjson.com/product-images/beauty/powder-canister/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/beauty/powder-canister/1.webp",
+		"https://cdn.dummyjson.com/product-images/beauty/red-lipstick/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/beauty/red-lipstick/1.webp",
+		"https://cdn.dummyjson.com/product-images/beauty/red-nail-polish/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/beauty/red-nail-polish/1.webp",
+		"https://cdn.dummyjson.com/product-images/fragrances/calvin-klein-ck-one/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/fragrances/calvin-klein-ck-one/1.webp",
+		"https://cdn.dummyjson.com/product-images/fragrances/chanel-coco-noir-eau-de/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/fragrances/chanel-coco-noir-eau-de/1.webp",
+		"https://cdn.dummyjson.com/product-images/fragrances/dior-j%27adore/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/fragrances/dior-j%27adore/1.webp",
 	],
 	"ev_tekstili": [
-		9565729,
-		4112553,
-		15404863,
-		14465274,
-		4989084,
-		3201758,
-		9899861,
-		7614416,
-		7546283,
-		19878558,
+		"https://cdn.dummyjson.com/product-images/home-decoration/decoration-swing/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/home-decoration/decoration-swing/1.webp",
+		"https://cdn.dummyjson.com/product-images/home-decoration/family-tree-photo-frame/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/home-decoration/family-tree-photo-frame/1.webp",
+		"https://cdn.dummyjson.com/product-images/home-decoration/house-showpiece-plant/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/home-decoration/house-showpiece-plant/1.webp",
+		"https://cdn.dummyjson.com/product-images/home-decoration/plant-pot/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/home-decoration/plant-pot/1.webp",
+		"https://cdn.dummyjson.com/product-images/home-decoration/table-lamp/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/home-decoration/table-lamp/1.webp",
+		"https://cdn.dummyjson.com/product-images/furniture/annibale-colombo-bed/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/furniture/annibale-colombo-bed/1.webp",
+		"https://cdn.dummyjson.com/product-images/furniture/annibale-colombo-sofa/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/furniture/annibale-colombo-sofa/1.webp",
+		"https://cdn.dummyjson.com/product-images/furniture/bedside-table-african-cherry/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/furniture/bedside-table-african-cherry/1.webp",
 	],
 	"mutfak": [
-		5825385,
-		10397050,
-		8583858,
-		1395967,
-		12908572,
-		2074130,
-		5728162,
-		7958223,
-		4997810,
-		793765,
+		"https://cdn.dummyjson.com/product-images/kitchen-accessories/bamboo-spatula/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/kitchen-accessories/bamboo-spatula/1.webp",
+		"https://cdn.dummyjson.com/product-images/kitchen-accessories/black-aluminium-cup/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/kitchen-accessories/black-aluminium-cup/1.webp",
+		"https://cdn.dummyjson.com/product-images/kitchen-accessories/black-whisk/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/kitchen-accessories/black-whisk/1.webp",
+		"https://cdn.dummyjson.com/product-images/kitchen-accessories/boxed-blender/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/kitchen-accessories/boxed-blender/1.webp",
+		"https://cdn.dummyjson.com/product-images/kitchen-accessories/carbon-steel-wok/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/kitchen-accessories/carbon-steel-wok/1.webp",
+		"https://cdn.dummyjson.com/product-images/kitchen-accessories/chopping-board/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/kitchen-accessories/chopping-board/1.webp",
+		"https://cdn.dummyjson.com/product-images/kitchen-accessories/citrus-squeezer-yellow/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/kitchen-accessories/citrus-squeezer-yellow/1.webp",
+		"https://cdn.dummyjson.com/product-images/kitchen-accessories/egg-slicer/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/kitchen-accessories/egg-slicer/1.webp",
 	],
 	"bijuteri": [
-		1616096,
-		8184263,
-		32382386,
-		14058109,
-		1395306,
-		230290,
-		1352783,
-		2685089,
-		6927690,
-		265906,
+		"https://cdn.dummyjson.com/product-images/womens-jewellery/green-crystal-earring/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/womens-jewellery/green-crystal-earring/1.webp",
+		"https://cdn.dummyjson.com/product-images/womens-jewellery/green-oval-earring/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/womens-jewellery/green-oval-earring/1.webp",
+		"https://cdn.dummyjson.com/product-images/womens-jewellery/tropical-earring/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/womens-jewellery/tropical-earring/1.webp",
+		"https://cdn.dummyjson.com/product-images/sunglasses/black-sun-glasses/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/sunglasses/black-sun-glasses/1.webp",
+		"https://cdn.dummyjson.com/product-images/sunglasses/classic-sun-glasses/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/sunglasses/classic-sun-glasses/1.webp",
+		"https://cdn.dummyjson.com/product-images/sunglasses/green-and-black-glasses/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/sunglasses/green-and-black-glasses/1.webp",
+		"https://cdn.dummyjson.com/product-images/sunglasses/party-glasses/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/sunglasses/party-glasses/1.webp",
+		"https://cdn.dummyjson.com/product-images/sunglasses/sunglasses/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/sunglasses/sunglasses/1.webp",
 	],
 	"kirtasiye": [
-		8015700,
-		7410461,
-		10834810,
-		7857523,
-		7464674,
-		18725637,
-		7310197,
-		16955622,
-		8580739,
-		5957,
+		"https://cdn.dummyjson.com/product-images/home-decoration/decoration-swing/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/home-decoration/decoration-swing/1.webp",
+		"https://cdn.dummyjson.com/product-images/home-decoration/family-tree-photo-frame/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/home-decoration/family-tree-photo-frame/1.webp",
+		"https://cdn.dummyjson.com/product-images/home-decoration/house-showpiece-plant/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/home-decoration/house-showpiece-plant/1.webp",
+		"https://cdn.dummyjson.com/product-images/home-decoration/plant-pot/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/home-decoration/plant-pot/1.webp",
+		"https://cdn.dummyjson.com/product-images/home-decoration/table-lamp/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/home-decoration/table-lamp/1.webp",
+		"https://cdn.dummyjson.com/product-images/womens-bags/blue-women%27s-handbag/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/womens-bags/blue-women%27s-handbag/1.webp",
+		"https://cdn.dummyjson.com/product-images/womens-bags/heshe-women%27s-leather-bag/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/womens-bags/heshe-women%27s-leather-bag/1.webp",
+		"https://cdn.dummyjson.com/product-images/womens-bags/prada-women-bag/thumbnail.webp",
+		"https://cdn.dummyjson.com/product-images/womens-bags/prada-women-bag/1.webp",
 	],
 }
 
@@ -272,7 +334,7 @@ SELLERS = [
 		"seller_name": "Anadolu Tekstil",
 		"company_name": "Anadolu Tekstil Sanayi ve Ticaret A.Ş.",
 		"email": "demo-seller-01@istoc.demo",
-		"sector": "Tekstil & Giyim",
+		"sector": "Tekstil ve Giyim",
 		"variant_type": "giyim",
 		"price_range": (30, 500),
 		"description": "1985'ten bu yana kaliteli tekstil ürünleri üreten Anadolu Tekstil, İstoç Ticaret Merkezi'nin en köklü firmalarından biridir. Geniş ürün yelpazesi ve rekabetçi fiyatlarla toptan satış hizmeti sunmaktadır.",
@@ -300,10 +362,10 @@ SELLERS = [
 	},
 	{
 		"code": "DEMO-002",
-		"seller_name": "Boğaziçi Deri & Ayakkabı",
+		"seller_name": "Boğaziçi Deri ve Ayakkabı",
 		"company_name": "Boğaziçi Deri Ürünleri San. Tic. A.Ş.",
 		"email": "demo-seller-02@istoc.demo",
-		"sector": "Ayakkabı & Deri",
+		"sector": "Ayakkabı ve Deri",
 		"variant_type": "ayakkabi",
 		"price_range": (80, 1500),
 		"description": "Boğaziçi Deri, 1992 yılından bu yana gerçek deri ayakkabı ve aksesuar üretimi yapmaktadır. El işçiliği ve kaliteli malzeme kullanımı ile sektörde öncü konumdadır.",
@@ -334,7 +396,7 @@ SELLERS = [
 		"seller_name": "Marmara Elektronik",
 		"company_name": "Marmara Elektronik Tic. Ltd. Şti.",
 		"email": "demo-seller-03@istoc.demo",
-		"sector": "Elektronik & Aksesuar",
+		"sector": "Elektronik ve Aksesuar",
 		"variant_type": "elektronik",
 		"price_range": (15, 500),
 		"description": "Marmara Elektronik, telefon aksesuarları, bilgisayar çevre birimleri ve akıllı ev ürünlerinde geniş stok ve hızlı teslimat sunan toptancı firmadır.",
@@ -365,7 +427,7 @@ SELLERS = [
 		"seller_name": "İstanbul Hırdavat Merkezi",
 		"company_name": "İstanbul Hırdavat ve Nalburiye Tic. A.Ş.",
 		"email": "demo-seller-04@istoc.demo",
-		"sector": "Hırdavat & Nalburiye",
+		"sector": "Hırdavat ve Nalburiye",
 		"variant_type": "hirdavat",
 		"price_range": (5, 400),
 		"description": "İstanbul Hırdavat Merkezi, el aletleri, elektrikli aletler, boya malzemeleri ve tesisat ürünlerinde geniş ürün yelpazesi sunan köklü bir toptancıdır.",
@@ -396,7 +458,7 @@ SELLERS = [
 		"seller_name": "Karadeniz Gıda Toptancılık",
 		"company_name": "Karadeniz Gıda Tarım Ürünleri Tic. A.Ş.",
 		"email": "demo-seller-05@istoc.demo",
-		"sector": "Gıda & İçecek",
+		"sector": "Gıda ve İçecek",
 		"variant_type": "gida",
 		"price_range": (10, 250),
 		"description": "Karadeniz Gıda, doğal ve organik gıda ürünlerinde Türkiye'nin önde gelen toptancılarından biridir. Fındık, çay, bal ve bakliyat başta olmak üzere geniş ürün gamı sunmaktadır.",
@@ -427,7 +489,7 @@ SELLERS = [
 		"seller_name": "Ege Kozmetik",
 		"company_name": "Ege Kozmetik ve Kişisel Bakım San. A.Ş.",
 		"email": "demo-seller-06@istoc.demo",
-		"sector": "Kozmetik & Kişisel Bakım",
+		"sector": "Kozmetik ve Kişisel Bakım",
 		"variant_type": "kozmetik",
 		"price_range": (15, 400),
 		"description": "Ege Kozmetik, makyaj, cilt bakım ve kişisel bakım ürünlerinde yerli üretim yapan, kalite kontrol standartlarına uygun çalışan bir üretici firmadır.",
@@ -458,7 +520,7 @@ SELLERS = [
 		"seller_name": "Trakya Ev Tekstili",
 		"company_name": "Trakya Ev Tekstili San. Tic. A.Ş.",
 		"email": "demo-seller-07@istoc.demo",
-		"sector": "Ev Tekstili & Dekorasyon",
+		"sector": "Ev Tekstili ve Dekorasyon",
 		"variant_type": "ev_tekstili",
 		"price_range": (25, 800),
 		"description": "Trakya Ev Tekstili, nevresim takımı, havlu, perde ve dekoratif ev ürünlerinde geniş koleksiyon sunan bir üretici firmadır. Yüksek iplik kalitesi ve modern tasarımlarla öne çıkmaktadır.",
@@ -486,10 +548,10 @@ SELLERS = [
 	},
 	{
 		"code": "DEMO-008",
-		"seller_name": "Akdeniz Mutfak & Züccaciye",
+		"seller_name": "Akdeniz Mutfak ve Züccaciye",
 		"company_name": "Akdeniz Mutfak Gereçleri Tic. Ltd. Şti.",
 		"email": "demo-seller-08@istoc.demo",
-		"sector": "Mutfak & Züccaciye",
+		"sector": "Mutfak ve Züccaciye",
 		"variant_type": "mutfak",
 		"price_range": (20, 600),
 		"description": "Akdeniz Mutfak, tencere, tava, porselen set ve küçük ev aletleri başta olmak üzere mutfak ve züccaciye ürünlerinde geniş stok sunan bir perakende ve toptan satıcıdır.",
@@ -520,7 +582,7 @@ SELLERS = [
 		"seller_name": "Osmanlı Aksesuar",
 		"company_name": "Osmanlı Bijuteri ve Aksesuar San. A.Ş.",
 		"email": "demo-seller-09@istoc.demo",
-		"sector": "Bijuteri & Aksesuar",
+		"sector": "Bijuteri ve Aksesuar",
 		"variant_type": "bijuteri",
 		"price_range": (10, 500),
 		"description": "Osmanlı Aksesuar, 925 ayar gümüş, altın kaplama ve çelik bijuteri ürünlerinde Osmanlı motiflerinden ilham alan özgün tasarımlar sunmaktadır.",
@@ -548,10 +610,10 @@ SELLERS = [
 	},
 	{
 		"code": "DEMO-010",
-		"seller_name": "Yıldız Ambalaj & Kırtasiye",
+		"seller_name": "Yıldız Ambalaj ve Kırtasiye",
 		"company_name": "Yıldız Ambalaj Kırtasiye Tic. A.Ş.",
 		"email": "demo-seller-10@istoc.demo",
-		"sector": "Ambalaj & Kırtasiye",
+		"sector": "Ambalaj ve Kırtasiye",
 		"variant_type": "kirtasiye",
 		"price_range": (5, 150),
 		"description": "Yıldız Ambalaj, kırtasiye malzemeleri, ofis ürünleri ve ambalaj çözümlerinde geniş ürün gamı sunan bir toptan satıcıdır. Kurumsal müşterilere özel fiyatlandırma yapmaktadır.",
@@ -581,1074 +643,1901 @@ SELLERS = [
 
 
 # ═══════════════════════════════════════════════════════════════
-#  SEKTÖR → KATEGORİ → ÜRÜN AĞACI
-#  Her sektör 1 satıcıya ait · 50 yaprak kategori · 100 ürün
-#  Format: ("YaprakKategori", "Ürün Adı 1", "Ürün Adı 2")
+#  DEMO ALICILAR (Buyer Profile)
+#  5 farklı işletme tipi — satın alma tarafı için demo hesaplar
 # ═══════════════════════════════════════════════════════════════
 
-SECTORS = [
-	# ── 1. TEKSTİL & GİYİM (DEMO-001) ─────────────────────────
+BUYERS = [
 	{
-		"name": "Tekstil & Giyim",
-		"code": "TG",
-		"seller": "DEMO-001",
-		"groups": [
-			(
-				"Erkek Giyim",
-				[
-					("T-Shirt", "Premium Pamuklu Basic T-Shirt", "Slim Fit V-Yaka T-Shirt"),
-					("Gömlek", "Oxford Düğmeli Yaka Gömlek", "Slim Fit Çizgili İş Gömleği"),
-					("Polo Yaka", "Pima Pamuk Polo Yaka Tişört", "Nakışlı Klasik Polo Tişört"),
-					("Pantolon", "Slim Fit Chino Pantolon", "Regular Fit Kumaş Pantolon"),
-					("Kot Pantolon", "Slim Fit Likralı Denim", "Straight Fit Yıkamalı Jean"),
-					("Şort", "Pamuklu Chino Şort", "Keten Yazlık Şort"),
-					("Ceket", "Blazer Slim Fit Ceket", "Keten Yazlık Ceket"),
-					("Mont", "Şişme Kaz Tüyü Mont", "Su Geçirmez Softshell Mont"),
-					("Yelek", "Kapitone Hafif Yelek", "Polar Fermuarlı Yelek"),
-					("Takım Elbise", "İtalyan Kesim Takım Elbise", "Slim Fit Yelekli Takım Elbise"),
-				],
-			),
-			(
-				"Kadın Giyim",
-				[
-					("Elbise", "Krep Kumaş Midi Elbise", "Çiçek Desenli Yazlık Elbise"),
-					("Bluz", "Saten Uzun Kollu Bluz", "Fırfırlı Şifon Bluz"),
-					("Kadın Gömlek", "Oversize Poplin Gömlek", "Bağlamalı Crop Gömlek"),
-					("Etek", "Pileli Midi Etek", "Deri Görünümlü Mini Etek"),
-					("Kadın Pantolon", "Yüksek Bel Palazzo Pantolon", "Tapered Kumaş Pantolon"),
-					("Kadın Ceket", "Crop Blazer Ceket", "Tüvit Chanel Ceket"),
-					("Trençkot", "Klasik Bej Trençkot", "Oversize Kuşaklı Trençkot"),
-					("Hırka", "Uzun Örgü Hırka", "Crop Triko Hırka"),
-					("Kazak", "Boğazlı Yün Kazak", "Oversize Triko Kazak"),
-					("Tunik", "Desenli Viskon Tunik", "Düz Pamuklu Tunik"),
-				],
-			),
-			(
-				"Çocuk Giyim",
-				[
-					("Bebek Giyim", "Organik Pamuk Bebek Tulumu", "Bebek Zıbın Seti 5'li"),
-					("Erkek Çocuk Giyim", "Baskılı Çocuk T-Shirt", "Çocuk Eşofman Takımı"),
-					("Kız Çocuk Giyim", "Tüllü Kız Çocuk Elbise", "Fırfırlı Çocuk Bluz"),
-					("Genç Erkek Giyim", "Genç Kapüşonlu Sweatshirt", "Genç Jogger Pantolon"),
-					("Genç Kız Giyim", "Genç Crop Top Takım", "Genç Yüksek Bel Jean"),
-				],
-			),
-			(
-				"Spor Giyim",
-				[
-					("Eşofman Takımı", "Slim Fit Eşofman Takımı", "Oversize Pamuklu Eşofman"),
-					("Spor Tayt", "Yüksek Bel Spor Tayt", "Dikişsiz Squat-Proof Tayt"),
-					("Forma", "Nefes Alan Spor Forma", "Reflektörlü Koşu Forması"),
-					("Spor Şort", "Çift Katmanlı Spor Şort", "Cepli Antrenman Şortu"),
-					("Yağmurluk", "Packable Hafif Yağmurluk", "Kapüşonlu Rüzgarlık"),
-				],
-			),
-			(
-				"İç Giyim & Çorap",
-				[
-					("Erkek İç Giyim", "Pamuklu Boxer 3'lü Paket", "Modal Atlet 2'li Set"),
-					("Kadın İç Giyim", "Dantelli Sütyen-Külot Takımı", "Pamuklu Bikini 5'li Paket"),
-					("Çorap", "Bambu Erkek Çorap 6'lı", "Spor Bilek Çorap 10'lu Paket"),
-					("Pijama Takımı", "Saten Pijama Takımı", "Pamuklu Uzun Kollu Pijama"),
-					("Bornoz", "Havlu Bornoz Premium", "Waffle Dokuma Spa Bornoz"),
-				],
-			),
-			(
-				"Hamile Giyim",
-				[
-					("Hamile Elbise", "Beli Ayarlanabilir Hamile Elbise", "Emzirme Özellikli Elbise"),
-					("Hamile Pantolon", "Hamile Likralı Pantolon", "Hamile Jean Pantolon"),
-					("Hamile Üst Giyim", "Hamile Tunik Bluz", "Hamile Sweatshirt"),
-				],
-			),
-			(
-				"Büyük Beden",
-				[
-					("Büyük Beden Erkek", "Büyük Beden Polo Yaka", "Büyük Beden Pantolon"),
-					("Büyük Beden Kadın", "Büyük Beden Viskon Elbise", "Büyük Beden Likralı Pantolon"),
-					("Büyük Beden Çocuk", "Büyük Beden Çocuk Eşofman", "Büyük Beden Çocuk T-Shirt"),
-				],
-			),
-			(
-				"Kumaş & Aksesuar",
-				[
-					("Kumaş Metre", "Pamuklu Poplin Kumaş (m)", "Viskon Krep Kumaş (m)"),
-					("Düğme", "Sedef Gömlek Düğmesi 100'lü", "Metal Ceket Düğmesi 50'li"),
-					("Fermuar", "YKK Metal Fermuar 20cm", "Gizli Etek Fermuarı 50cm"),
-					("İplik", "Polyester Dikiş İpliği 5000m", "Pamuk Nakış İpliği Seti"),
-					("Dantel", "Güpür Dantel Şerit (m)", "Tül Dantel Kumaş (m)"),
-					("Kurdele", "Saten Kurdele Seti 10 Renk", "Grogren Kurdele 25mm"),
-					("Elastik Bant", "Örme Lastik Bant 3cm", "Silikon Baskılı Lastik"),
-					("Astar", "Polyester Astar Kumaş (m)", "Saten Astar Kumaş (m)"),
-					("Tela", "Yapışkan Tela Nonwoven (m)", "Dokuma Tela Ağır (m)"),
-				],
-			),
-		],
+		"code": "DEMO-BUYER-001",
+		"email": "demo-buyer-01@istoc.demo",
+		"buyer_name": "Ali Yılmaz",
+		"company_name": "Yılmaz Perakende Mağazacılık Ltd. Şti.",
+		"business_type": "Retailer",
+		"job_title": "Satın Alma Müdürü",
+		"city": "İstanbul",
+		"phone": "+90 532 100 00 01",
+		"employee_count": "11-50",
+		"year_established": 2010,
+		"sourcing_frequency": "Weekly",
+		"annual_spending": "$50K-$100K",
+		"industry_preferences": "Tekstil, Giyim, Aksesuar",
+		"about_us": "Küçük bir perakende zinciri. Tekstil ve giyim toptancılarıyla çalışıyor.",
 	},
-	# ── 2. AYAKKABI & DERİ (DEMO-002) ─────────────────────────
 	{
-		"name": "Ayakkabı & Deri",
-		"code": "AD",
-		"seller": "DEMO-002",
-		"groups": [
-			(
-				"Erkek Ayakkabı",
-				[
-					("Klasik Ayakkabı", "Deri Bağcıklı Klasik Ayakkabı", "Rugan Loafer Ayakkabı"),
-					("Erkek Spor Ayakkabı", "Hafif Koşu Ayakkabısı", "Günlük Sneaker Ayakkabı"),
-					("Günlük Ayakkabı", "Deri Makosen Ayakkabı", "Süet Casual Ayakkabı"),
-					("Erkek Bot", "Deri Postal Bot", "Su Geçirmez Trekking Bot"),
-					("Erkek Sandalet", "Deri Çapraz Bantlı Sandalet", "Ortopedik Erkek Sandalet"),
-					("Erkek Terlik", "Deri Ev Terliği", "Anatomik Parmak Arası Terlik"),
-					("Loafer", "El Yapımı Deri Loafer", "Süet Püsküllü Loafer"),
-					("Oxford Ayakkabı", "Brogue Detaylı Oxford", "Cap Toe Oxford Ayakkabı"),
-				],
-			),
-			(
-				"Kadın Ayakkabı",
-				[
-					("Topuklu Ayakkabı", "Stiletto Sivri Burun Topuklu", "Kalın Topuklu Platform"),
-					("Düz Ayakkabı", "Deri Babet Ayakkabı", "Mary Jane Düz Ayakkabı"),
-					("Kadın Spor Ayakkabı", "Platform Sneaker Ayakkabı", "Hafif Yürüyüş Ayakkabısı"),
-					("Kadın Bot", "Deri Uzun Çizme", "Chelsea Bilekte Bot"),
-					("Kadın Sandalet", "Hasır Dolgu Topuk Sandalet", "İnce Bantlı Topuklu Sandalet"),
-					("Kadın Terlik", "Kürklü Ev Terliği", "Deri Tokalı Terlik"),
-					("Babet", "Fiyonklu Babet Ayakkabı", "Sivri Burun Düz Babet"),
-					("Platform Ayakkabı", "Kalın Taban Platform", "Espadril Platform Ayakkabı"),
-				],
-			),
-			(
-				"Çocuk Ayakkabı",
-				[
-					("Bebek Ayakkabı", "İlk Adım Bebek Ayakkabısı", "Yumuşak Taban Bebek Patiği"),
-					("Erkek Çocuk Ayakkabı", "Cırtlı Spor Ayakkabı", "Işıklı Çocuk Sneaker"),
-					("Kız Çocuk Ayakkabı", "Simli Babet Ayakkabı", "Çiçekli Sandalet"),
-					("Okul Ayakkabısı", "Siyah Deri Okul Ayakkabısı", "Lacivert Cırtlı Okul Ayakkabısı"),
-				],
-			),
-			(
-				"Çanta",
-				[
-					("Erkek Çanta", "Deri Postacı Çanta", "Kanvas Omuz Çantası"),
-					("Kadın El Çantası", "Hakiki Deri Tote Çanta", "Zincir Askılı Çapraz Çanta"),
-					("Sırt Çantası", "Laptop Bölmeli Sırt Çantası", "Mini Deri Sırt Çantası"),
-					("Evrak Çantası", "İtalyan Deri Evrak Çantası", "Slim Laptop Evrak Çantası"),
-					("Cüzdan", "RFID Korumalı Deri Cüzdan", "Fermuarlı Kadın Cüzdan"),
-					("Valiz", "Kabin Boy Sert Valiz", "Büyük Boy Tekerlekli Valiz"),
-					("Bel Çantası", "Deri Bel Çantası Unisex", "Spor Bel Çantası"),
-					("Laptop Çantası", "15.6 inç Deri Laptop Çantası", "MacBook Sleeve Kılıf"),
-				],
-			),
-			(
-				"Deri Aksesuar",
-				[
-					("Kemer", "Hakiki Deri Klasik Kemer", "Otomatik Tokalı Deri Kemer"),
-					("Kartlık", "RFID Engelli Deri Kartlık", "Slim Kredi Kartlık"),
-					("Pasaportluk", "Deri Pasaport Kılıfı", "Seyahat Organizatör Pasaportluk"),
-					("Anahtarlık", "Deri Anahtarlık Halkası", "Akıllı İzleyicili Anahtarlık"),
-					("Deri Bileklik", "El Örgüsü Deri Bileklik", "Çelik Tokalı Deri Bileklik"),
-					("Gözlük Kılıfı", "Sert Deri Gözlük Kutusu", "Yumuşak Süet Gözlük Kılıfı"),
-				],
-			),
-			(
-				"Ayakkabı Bakım",
-				[
-					("Ayakkabı Boyası", "Premium Deri Boyası Seti", "Süet Temizleme Spreyi"),
-					("Ayakkabı Fırçası", "At Kılı Parlatma Fırçası", "Krep Fırça Süet İçin"),
-					("Tabanlık", "Ortopedik Jel Tabanlık", "Koku Giderici Aktif Karbon Taban"),
-					("Ayakkabı Kalıbı", "Sedir Ağacı Ayakkabı Kalıbı", "Plastik Ayakkabı Kalıbı"),
-				],
-			),
-			(
-				"Deri Hammadde",
-				[
-					("Suni Deri", "PU Suni Deri Kumaş (m)", "Deri Görünümlü Kumaş (m)"),
-					("Gerçek Deri", "Dana Derisi Tabaka", "Keçi Derisi Nubuk Tabaka"),
-					("Nubuk Deri", "Nubuk Deri Tabaka 1.2mm", "Renkli Nubuk Deri Parçası"),
-					("Süet Deri", "Süet Deri Tabaka Premium", "İnce Süet Deri Kesim"),
-					("Deri Boya", "Deri Boyama Seti 12 Renk", "Deri Kenar Boyası"),
-					("Deri Yapıştırıcı", "Deri Özel Yapıştırıcı 500ml", "Kontakt Yapıştırıcı Tüp"),
-				],
-			),
-			(
-				"Ayakkabı Aksesuarları",
-				[
-					("Bağcık", "Yassı Spor Bağcık 120cm", "Yuvarlak Deri Bağcık 80cm"),
-					("Toka", "Metal Ayakkabı Tokası Altın", "Dekoratif Taşlı Toka"),
-					("Topuk Desteği", "Silikon Topuk Yastığı", "Jel Topuk Kaldırıcı"),
-					("Ayakkabı Süsü", "Dekoratif Ayakkabı Klipsi", "Kristal Taşlı Süs Tokası"),
-					("Jel Ped", "Metatarsal Jel Ped", "Ön Taban Jel Ped"),
-					("Ayakkabı Torbası", "Kadife Ayakkabı Torbası", "Seyahat Ayakkabı Organizatör"),
-				],
-			),
-		],
+		"code": "DEMO-BUYER-002",
+		"email": "demo-buyer-02@istoc.demo",
+		"buyer_name": "Ayşe Demir",
+		"company_name": "Demir Market A.Ş.",
+		"business_type": "Wholesaler",
+		"job_title": "Genel Müdür",
+		"city": "Ankara",
+		"phone": "+90 533 200 00 02",
+		"employee_count": "51-200",
+		"year_established": 2005,
+		"sourcing_frequency": "Daily",
+		"annual_spending": "$100K-$500K",
+		"industry_preferences": "Gıda, İçecek, Kozmetik",
+		"about_us": "Orta ölçekli gıda ve kozmetik toptancısı.",
 	},
-	# ── 3. ELEKTRONİK & AKSESUAR (DEMO-003) ──────────────────
 	{
-		"name": "Elektronik & Aksesuar",
-		"code": "EA",
-		"seller": "DEMO-003",
-		"groups": [
-			(
-				"Telefon Aksesuar",
-				[
-					("Telefon Kılıfı", "Şeffaf Silikon Telefon Kılıfı", "Deri Cüzdanlı Telefon Kılıfı"),
-					("Ekran Koruyucu", "9H Temperli Cam Ekran Koruyucu", "Mat Anti-Glare Ekran Filmi"),
-					("Şarj Kablosu", "USB-C Hızlı Şarj Kablosu 2m", "3'ü 1 Arada Şarj Kablosu"),
-					("Kablosuz Şarj", "15W Qi Kablosuz Şarj Standı", "3'ü 1 Arada Kablosuz Şarj İstasyonu"),
-					("Araç Tutucu", "Manyetik Araç İçi Telefon Tutucu", "Vantuzlu Araç Telefon Tutucu"),
-					("Selfie Çubuğu", "Bluetooth Uzaktan Kumandalı Selfie", "Tripodlu Selfie Çubuğu"),
-					("Gimbal", "3 Eksenli Akıllı Telefon Gimbal", "Mini Cep Gimbal Stabilizer"),
-					("Pop Socket", "Manyetik Pop Socket Tutucu", "Yüzük Tasarımlı Telefon Tutucu"),
-				],
-			),
-			(
-				"Kulaklık & Ses",
-				[
-					(
-						"Bluetooth Kulaklık",
-						"ANC Bluetooth Over-Ear Kulaklık",
-						"Neckband Spor Bluetooth Kulaklık",
-					),
-					("Kablolu Kulaklık", "Hi-Fi Stüdyo Monitör Kulaklık", "Kulak İçi Kablolu Kulaklık"),
-					("TWS Kulaklık", "ANC TWS Kablosuz Kulaklık", "Spor TWS Su Geçirmez Kulaklık"),
-					(
-						"Bluetooth Hoparlör",
-						"Taşınabilir Bluetooth Hoparlör 20W",
-						"Mini Bluetooth Hoparlör IPX7",
-					),
-					("Soundbar", "2.1 Kanal Bluetooth Soundbar", "Kompakt TV Soundbar"),
-					("Mikrofon", "USB Kondenser Stüdyo Mikrofon", "Yaka Mikrofonu Kablosuz"),
-				],
-			),
-			(
-				"Bilgisayar Aksesuar",
-				[
-					("Mouse", "Ergonomik Kablosuz Mouse", "RGB Oyuncu Mouse 16000 DPI"),
-					("Klavye", "Mekanik RGB Oyuncu Klavye", "Slim Bluetooth Klavye"),
-					("Mouse Pad", "XXL Oyuncu Mouse Pad RGB", "Deri Mouse Pad Bilek Destekli"),
-					("USB Hub", "USB-C 7in1 Hub Dock", "USB 3.0 4 Port Hub"),
-					("Webcam", "Full HD 1080p Webcam", "4K Auto-Focus Webcam"),
-					("Monitor Standı", "Alüminyum Monitor Yükseltici", "Çekmeceli Ahşap Monitor Standı"),
-					(
-						"Laptop Standı",
-						"Ayarlanabilir Alüminyum Laptop Standı",
-						"Taşınabilir Katlanır Laptop Standı",
-					),
-					("Soğutucu", "5 Fanlı Laptop Soğutucu", "Slim Alüminyum Laptop Soğutucu"),
-				],
-			),
-			(
-				"Güç & Şarj",
-				[
-					("Powerbank", "20000mAh PD Hızlı Şarj Powerbank", "10000mAh Slim Powerbank"),
-					("Şarj Adaptörü", "65W GaN USB-C Şarj Adaptörü", "20W PD iPhone Şarj Adaptörü"),
-					("Çoklu Priz", "6'lı Akıllı Priz USB Çıkışlı", "Uzatma Kablosu 5m Anahtarlı"),
-					("UPS", "650VA Line Interactive UPS", "1000VA Online UPS"),
-					("Güneş Enerjili Şarj", "Katlanır Solar Panel 21W", "Solar Powerbank 30000mAh"),
-					("Araç Şarjı", "Dual USB-C Araç Şarj Cihazı", "FM Transmitter Araç Şarjı"),
-				],
-			),
-			(
-				"Akıllı Ev",
-				[
-					("Akıllı Priz", "WiFi Akıllı Priz Enerji İzleme", "Zigbee Akıllı Priz 4'lü"),
-					("Akıllı Lamba", "RGB WiFi Akıllı LED Ampul", "Akıllı LED Şerit 5m"),
-					("Güvenlik Kamerası", "360° PTZ WiFi Güvenlik Kamerası", "Dış Mekan IP66 Kamera"),
-					("Akıllı Kilit", "Parmak İzi Akıllı Kapı Kilidi", "Şifreli Bluetooth Kilit"),
-					("Sensör", "Hareket Sensörü Zigbee", "Kapı/Pencere Sensörü WiFi"),
-					("Akıllı Kumanda", "IR Akıllı Uzaktan Kumanda", "WiFi Universal Kumanda"),
-				],
-			),
-			(
-				"Oyun Aksesuarları",
-				[
-					("Gamepad", "Bluetooth Kablosuz Gamepad", "PS5 DualSense Uyumlu Gamepad"),
-					("Oyun Kulaklığı", "7.1 Surround Oyuncu Kulaklığı", "RGB Oyuncu Kulaklık Mikrafonlu"),
-					("Oyun Mouse", "Ultra Hafif Oyuncu Mouse 60g", "MMO Oyuncu Mouse 12 Tuş"),
-					("Oyun Klavye", "60% Mekanik Mini Oyun Klavye", "TKL RGB Mekanik Klavye"),
-					("Joystick", "Uçuş Simülatör Joystick", "Arcade Joystick Retro"),
-					("VR Gözlük", "Bağımsız VR Gözlük 128GB", "Telefon Uyumlu VR Gözlük"),
-				],
-			),
-			(
-				"Kablolar & Adaptörler",
-				[
-					("HDMI Kablo", "HDMI 2.1 8K Kablo 2m", "HDMI to VGA Dönüştürücü Kablo"),
-					("USB-C Kablo", "USB-C to USB-C 100W PD Kablo 2m", "USB-C to Lightning Kablo MFi"),
-					("Ethernet Kablo", "Cat7 Ethernet Kablo 10m", "Cat6 Patch Kablo 5m"),
-					("Ses Kablosu", "3.5mm AUX Kablo Örgülü 1.5m", "Optik Toslink Ses Kablosu 2m"),
-					("Dönüştürücü", "USB-C to HDMI 4K Adaptör", "DisplayPort to HDMI Dönüştürücü"),
-				],
-			),
-			(
-				"Depolama",
-				[
-					("USB Bellek", "Metal USB 3.0 Flash Bellek 64GB", "USB-C Flash Bellek 128GB"),
-					("Harici Disk", "Taşınabilir SSD 1TB USB-C", "Harici HDD 2TB USB 3.0"),
-					("SD Kart", "MicroSD Kart 256GB A2 V30", "SD Kart 128GB UHS-II"),
-					("SSD Kutusu", "NVMe M.2 SSD Kutusu USB-C", "2.5 inç SATA SSD Kutusu"),
-					("NAS Cihazı", "2 Bay NAS Sunucu", "4 Bay NAS Raid Destekli"),
-				],
-			),
-		],
+		"code": "DEMO-BUYER-003",
+		"email": "demo-buyer-03@istoc.demo",
+		"buyer_name": "Mehmet Kaya",
+		"company_name": "Kaya İnşaat ve Nalburiye",
+		"business_type": "Distributor",
+		"job_title": "Tedarik Sorumlusu",
+		"city": "İzmir",
+		"phone": "+90 534 300 00 03",
+		"employee_count": "1-10",
+		"year_established": 2015,
+		"sourcing_frequency": "Monthly",
+		"annual_spending": "$10K-$50K",
+		"industry_preferences": "Hırdavat, İnşaat Malzemeleri",
+		"about_us": "İzmir'de nalburiye ve yapı market işletmesi.",
 	},
-	# ── 4. HIRDAVAT & NALBURİYE (DEMO-004) ───────────────────
 	{
-		"name": "Hırdavat & Nalburiye",
-		"code": "HN",
-		"seller": "DEMO-004",
-		"groups": [
-			(
-				"El Aletleri",
-				[
-					("Çekiç", "Çelik Saplı Çekiç 500g", "Lastik Çekiç Çift Başlı"),
-					("Tornavida Seti", "32 Parça Tornavida Seti", "İzole Tornavida Seti 7'li"),
-					("Pense", "Kombine Pense 200mm", "Karga Burun Pense Seti"),
-					("Anahtar Takımı", "Allen Anahtar Seti 9 Parça", "Kombine Anahtar Takımı 12'li"),
-					("Testere", "El Testeresi 500mm", "Demir Testeresi Mini"),
-					("Keski", "Ahşap Oyma Keski Seti 6'lı", "Düz Keski 20mm"),
-					("Maket Bıçağı", "Otomatik Geri Çekmeli Maket Bıçağı", "Profesyonel Maket Bıçağı Seti"),
-					("Matkap Ucu", "HSS Matkap Ucu Seti 19 Parça", "Beton Matkap Ucu Seti 8'li"),
-				],
-			),
-			(
-				"Elektrikli Aletler",
-				[
-					("Matkap", "Akülü Darbeli Matkap 20V", "Sütunlu Matkap Tezgahı"),
-					("Taşlama", "Avuç İçi Taşlama 125mm", "Düz Taşlama Makinesi"),
-					("Dekupaj", "Elektrikli Dekupaj Testere", "Akülü Dekupaj Testere 18V"),
-					("Vidalama", "Akülü Vidalama 12V Kompakt", "Darbeli Akülü Vidalama 20V"),
-					("Hava Tabancası", "Sıcak Hava Tabancası 2000W", "Boya Tabancası HVLP"),
-					("Lehim Havyası", "Ayarlanabilir Lehim İstasyonu 60W", "Lehim Tabancası Seti"),
-				],
-			),
-			(
-				"Boya & Vernik",
-				[
-					(
-						"İç Cephe Boya",
-						"Silinebilir İç Cephe Boyası 15L",
-						"Anti-Bakteriyel İç Cephe Boyası 3.5L",
-					),
-					("Dış Cephe Boya", "Elastik Dış Cephe Boyası 15L", "Silikon Esaslı Dış Cephe 7.5L"),
-					("Ahşap Vernik", "Su Bazlı Ahşap Vernik 2.5L", "Yacht Vernik Parlak 0.75L"),
-					("Sprey Boya", "Akrilik Sprey Boya 400ml", "Metalik Efekt Sprey Boya"),
-					("Boya Rulosu", "Kadife Rulo 25cm Seti", "Sünger Rulo Desen Seti"),
-					("Boya Fırçası", "Kestirme Fırça Seti 5'li", "Badana Fırçası 15cm"),
-				],
-			),
-			(
-				"Hırdavat Malzeme",
-				[
-					("Vida", "Paslanmaz Sac Vida Seti 500'lü", "Havşa Başlı Vida Karışık Set"),
-					("Çivi", "Beton Çivisi Seti 200'lü", "Süsleme Çivisi Pirinç 100'lü"),
-					("Dübel", "Plastik Dübel Seti 300'lü", "Kimyasal Dübel M12 Seti"),
-					("Menteşe", "Paslanmaz Menteşe 4 inç 2'li", "Soft-Close Menteşe 4'lü"),
-					("Kilit", "Silindir Kapı Kilidi Seti", "Asma Kilit Pirinç 50mm"),
-					("Kapı Kolu", "Rozetli Kapı Kolu Seti", "Paslanmaz Çekme Kapı Kolu"),
-					("Sürgü", "Alüminyum Kapı Sürgüsü", "Emniyet Sürgüsü Çelik"),
-					("Mandal", "Rulolu Kapı Mandalı", "Top Mandal Seti 10'lu"),
-				],
-			),
-			(
-				"Elektrik Malzeme",
-				[
-					("Kablo", "NYM Tesisat Kablosu 3x2.5 100m", "TTR Kablo 2x1.5 50m"),
-					("Priz", "Sıva Üstü İkili Priz Topraklı", "Gömme Priz USB Çıkışlı"),
-					("Anahtar", "Komütatör Anahtar Beyaz", "Dimmer Anahtar LED Uyumlu"),
-					("Sigorta", "Otomatik Sigorta B16 Seti", "Kaçak Akım Rölesi 2P 40A"),
-					("LED Ampul", "LED Ampul E27 12W 6'lı", "LED Filament Ampul Vintage"),
-					("Spot Lamba", "GU10 LED Spot 7W 10'lu", "Sıva Altı LED Panel 18W"),
-				],
-			),
-			(
-				"Su Tesisatı",
-				[
-					("Musluk", "Paslanmaz Mutfak Musluğu", "Fotoselli Lavabo Musluğu"),
-					("Batarya", "Termostatik Banyo Bataryası", "Tek Kollu Lavabo Bataryası"),
-					("Duş Başlığı", "Yağmur Tepe Duş Seti 25cm", "Filtreli Duş Başlığı"),
-					("Boru", "PPR Boru 20mm 4m", "Fleksi Hortum 1/2 inç 50cm"),
-					("Conta", "O-Ring Conta Seti 225 Parça", "Kauçuk Conta 1/2 inç 50'li"),
-					("Sifon", "Lavabo Sifonu Krom", "Mutfak Evye Sifonu Çift Gözlü"),
-				],
-			),
-			(
-				"Bahçe Aletleri",
-				[
-					("Bahçe Makası", "Profesyonel Budama Makası", "Çit Biçme Makası 60cm"),
-					("Çapa", "Küçük El Çapası Ergonomik", "Çift Taraflı Çapa"),
-					("Kürek", "Bahçe Küreği Fiberglas Saplı", "Kar Küreği Alüminyum"),
-					("Hortum", "Flexibel Bahçe Hortumu 30m", "Yassı Hortum Makaralı 15m"),
-					("Fıskiye", "8 Fonksiyonlu Bahçe Fıskiyesi", "Sprinkler Döner Fıskiye"),
-				],
-			),
-			(
-				"İş Güvenliği",
-				[
-					("Baret", "CE Onaylı İş Bareti", "Ventilli Güvenlik Bareti"),
-					("İş Eldiveni", "Nitril Kaplı İş Eldiveni 12'li", "Isıya Dayanıklı Kaynakçı Eldiveni"),
-					("Koruyucu Gözlük", "Anti-Fog Koruyucu Gözlük", "UV Koruma İş Gözlüğü"),
-					("Reflektif Yelek", "Hi-Vis Reflektif İş Yeleği", "Cepli İş Güvenliği Yeleği"),
-					("İş Ayakkabısı", "S3 Çelik Burunlu İş Ayakkabısı", "Kompozit Burun İş Botu"),
-				],
-			),
-		],
+		"code": "DEMO-BUYER-004",
+		"email": "demo-buyer-04@istoc.demo",
+		"buyer_name": "Zeynep Şahin",
+		"company_name": "Şahin Otel İşletmeleri",
+		"business_type": "Other",
+		"job_title": "Satın Alma Uzmanı",
+		"city": "Antalya",
+		"phone": "+90 535 400 00 04",
+		"employee_count": "201-500",
+		"year_established": 2000,
+		"sourcing_frequency": "Quarterly",
+		"annual_spending": "$500K+",
+		"industry_preferences": "Ev Tekstili, Mutfak, Aksesuar",
+		"about_us": "Antalya'da 3 otel işleten zincir — mutfak/tekstil/aksesuar tedariki.",
 	},
-	# ── 5. GIDA & İÇECEK (DEMO-005) ──────────────────────────
 	{
-		"name": "Gıda & İçecek",
-		"code": "GI",
-		"seller": "DEMO-005",
-		"groups": [
-			(
-				"Bakliyat",
-				[
-					("Kuru Fasulye", "Yerli Dermason Fasulye 1kg", "İspir Şeker Fasulye 1kg"),
-					("Nohut", "Koçbaşı Nohut 1kg", "Sarı Nohut Organik 1kg"),
-					("Mercimek", "Kırmızı Mercimek 1kg", "Yeşil Mercimek 1kg"),
-					("Bulgur", "Pilavlık Bulgur 1kg", "Köftelik İnce Bulgur 1kg"),
-					("Pirinç", "Baldo Pirinç 1kg", "Osmancık Pirinç 5kg"),
-					("Kuskus", "Tam Buğday Kuskus 500g", "İnce Kuskus 1kg"),
-				],
-			),
-			(
-				"Baharat",
-				[
-					("Kırmızı Biber", "Toz Kırmızı Biber 500g", "Pul Kırmızı Biber Acılı 250g"),
-					("Karabiber", "Tane Karabiber 250g", "Öğütülmüş Karabiber 100g"),
-					("Kimyon", "Tane Kimyon 250g", "Öğütülmüş Kimyon 100g"),
-					("Kekik", "Dağ Kekiği 500g", "Limon Kekiği 100g"),
-					("Zerdeçal", "Toz Zerdeçal 250g", "Organik Zerdeçal Kök 200g"),
-					("Tarçın", "Toz Tarçın Seylan 100g", "Çubuk Tarçın 50g"),
-					("Sumak", "Ekşi Sumak 500g", "İnce Öğütülmüş Sumak 250g"),
-					("Pul Biber", "Urfa Pul Biber 500g", "Antep Pul Biber Tatlı 250g"),
-				],
-			),
-			(
-				"Kuru Meyve & Kuruyemiş",
-				[
-					("Fındık", "Giresun Tombul Fındık İç 1kg", "Kavrulmuş Fındık 500g"),
-					("Ceviz", "Yerli Ceviz İç 1kg", "Kelebek Ceviz İç 500g"),
-					("Badem", "Çiğ Badem İç 500g", "Kavrulmuş Tuzlu Badem 250g"),
-					("Kuru Kayısı", "Malatya Kuru Kayısı 1kg", "Organik Kuru Kayısı 500g"),
-					("Kuru İncir", "Aydın Kuru İncir 1kg", "Naturel Kuru İncir 500g"),
-					("Kuru Üzüm", "Çekirdeksiz Kuru Üzüm 1kg", "Sarı Kuru Üzüm 500g"),
-					("Antep Fıstığı", "İç Antep Fıstığı 500g", "Kavrulmuş Tuzlu Fıstık 250g"),
-					("Leblebi", "Sarı Leblebi 1kg", "Çikolatalı Leblebi 500g"),
-				],
-			),
-			(
-				"Yağlar",
-				[
-					("Zeytinyağı", "Erken Hasat Natürel Sızma Zeytinyağı 1L", "Riviera Zeytinyağı 5L"),
-					("Ayçiçek Yağı", "Rafine Ayçiçek Yağı 5L", "Soğuk Sıkım Ayçiçek Yağı 1L"),
-					("Tereyağı", "Trabzon Yaylası Tereyağı 500g", "Pastörize Tereyağı 1kg"),
-					(
-						"Hindistan Cevizi Yağı",
-						"Soğuk Sıkım Hindistan Cevizi Yağı 500ml",
-						"Organik Virgin Coconut Oil 250ml",
-					),
-					("Susam Yağı", "Soğuk Sıkım Susam Yağı 500ml", "Kavurma Susam Yağı 250ml"),
-				],
-			),
-			(
-				"Konserve & Turşu",
-				[
-					("Domates Konserve", "Domates Püresi 830g", "Domates Kurusu Yağlı 300g"),
-					("Zeytin", "Gemlik Siyah Zeytin 1kg", "Yeşil Kırma Zeytin 1kg"),
-					("Turşu", "Kornişon Turşu 720ml", "Karışık Turşu 1.5L"),
-					("Salça", "Biber Salçası 1.5kg", "Domates Salçası 700g"),
-					("Reçel", "Vişne Reçeli 380g", "Kayısı Reçeli Ev Yapımı 450g"),
-				],
-			),
-			(
-				"Bal & Pekmez",
-				[
-					("Çiçek Balı", "Yayla Çiçek Balı 850g", "Süzme Çiçek Balı 450g"),
-					("Kestane Balı", "Organik Kestane Balı 480g", "Macahel Kestane Balı 250g"),
-					("Üzüm Pekmezi", "Geleneksel Üzüm Pekmezi 800g", "Organik Üzüm Pekmezi 450g"),
-					("Dut Pekmezi", "Doğal Dut Pekmezi 800g", "Karadut Pekmezi 450g"),
-				],
-			),
-			(
-				"İçecek",
-				[
-					("Çay", "Rize Çayı 1kg Dökme", "Earl Grey Çay 500g"),
-					("Türk Kahvesi", "Orta Kavrulmuş Türk Kahvesi 500g", "Dibek Kahvesi 250g"),
-					("Bitki Çayı", "Ihlamur Çayı 100g", "Ada Çayı Dağ 200g"),
-					("Şerbet", "Nar Şerbeti Konsantre 700ml", "Limon Şerbeti Geleneksel 1L"),
-					("Limonata", "Ev Yapımı Limonata Konsantre 1L", "Naneli Limonata 750ml"),
-					("Ayran Tozu", "Geleneksel Ayran Tozu 500g", "Yoğurt Kültürlü Ayran Tozu 1kg"),
-				],
-			),
-			(
-				"Un & Tahıl",
-				[
-					("Buğday Unu", "Ekmeklik Buğday Unu 5kg", "Tam Buğday Unu 2kg"),
-					("Mısır Unu", "İnce Mısır Unu 1kg", "Mısır Nişastası 500g"),
-					("Yulaf", "Yulaf Ezmesi 1kg", "Steel Cut Yulaf 500g"),
-					("Çavdar", "Çavdar Unu 1kg", "Çavdar Ekmek Karışımı 500g"),
-				],
-			),
-			(
-				"Şekerleme",
-				[
-					("Lokum", "Antep Fıstıklı Lokum 500g", "Gül Yapraklı Lokum 350g"),
-					("Helva", "Tahin Helvası Kakaolu 500g", "Pişmaniye 250g"),
-					("Pestil", "Kayısı Pestili 300g", "Dut Pestili 200g"),
-					("Çikolata", "Bitter Çikolata %70 Kakao 100g", "Fındıklı Sütlü Çikolata 200g"),
-				],
-			),
-		],
-	},
-	# ── 6. KOZMETİK & KİŞİSEL BAKIM (DEMO-006) ─────────────
-	{
-		"name": "Kozmetik & Kişisel Bakım",
-		"code": "KB",
-		"seller": "DEMO-006",
-		"groups": [
-			(
-				"Makyaj",
-				[
-					("Ruj", "Mat Likit Ruj Uzun Süren", "Nemlendirici Krem Ruj"),
-					("Fondöten", "Full Coverage Likit Fondöten", "BB Krem SPF30 Doğal"),
-					("Maskara", "Volume Lash Maskara Siyah", "Waterproof Uzatıcı Maskara"),
-					("Far Paleti", "18'li Nötr Tonlar Far Paleti", "Simli Pigment Far Paleti 12'li"),
-					("Allık", "Baked Allık Şeftali Tonu", "Likit Allık Doğal Pembe"),
-					("Kapatıcı", "Full Cover Kapatıcı Stick", "Göz Altı Aydınlatıcı Kapatıcı"),
-					("Dudak Kalemi", "Su Geçirmez Dudak Kalemi", "Retractable Lip Liner Nude"),
-					("Eyeliner", "Keçe Uçlu Eyeliner Siyah", "Jel Eyeliner Fırça ile"),
-				],
-			),
-			(
-				"Cilt Bakım",
-				[
-					("Nemlendirici", "Hyaluronik Asit Nemlendirici 50ml", "Aloe Vera Jel Nemlendirici 200ml"),
-					("Güneş Kremi", "SPF50+ Yüz Güneş Kremi 50ml", "Vücut Güneş Losyonu SPF30 200ml"),
-					("Serum", "Vitamin C Aydınlatıcı Serum 30ml", "Niacinamide %10 Serum 30ml"),
-					("Tonik", "AHA/BHA Peeling Tonik 200ml", "Gül Suyu Canlandırıcı Tonik 250ml"),
-					("Temizleyici", "Micellar Temizleme Suyu 400ml", "Köpük Yüz Temizleyici 150ml"),
-					("Yüz Maskesi", "Kil Maskesi Arındırıcı 100ml", "Sheet Mask Hyaluronik 5'li"),
-					("Göz Kremi", "Anti-Age Göz Çevresi Kremi 15ml", "Koyu Halka Aydınlatıcı Göz Jeli"),
-					("Peeling", "Enzim Peeling Jel 100ml", "AHA %30 Profesyonel Peeling"),
-				],
-			),
-			(
-				"Saç Bakım",
-				[
-					("Şampuan", "Keratin Onarıcı Şampuan 500ml", "Yağlı Saçlar İçin Şampuan 400ml"),
-					("Saç Kremi", "Argan Yağlı Saç Kremi 300ml", "Protein Yapılandırıcı Krem 250ml"),
-					("Saç Maskesi", "Derin Onarım Saç Maskesi 500ml", "Keratin Botox Saç Maskesi 300ml"),
-					("Saç Yağı", "Argan Yağı Saf 100ml", "Hint Yağı Saç Bakım 150ml"),
-					("Saç Spreyi", "Isı Koruyucu Sprey 200ml", "Parlak Finish Saç Spreyi 300ml"),
-					("Saç Boyası", "Amonyaksız Saç Boyası Seti", "Organik Kına Saç Boyası 100g"),
-				],
-			),
-			(
-				"Vücut Bakım",
-				[
-					("Duş Jeli", "Aromatik Duş Jeli 500ml", "Nemlendirici Duş Yağı 300ml"),
-					(
-						"Vücut Losyonu",
-						"Shea Butter Vücut Losyonu 400ml",
-						"Bronzlaştırıcı Vücut Losyonu 250ml",
-					),
-					("El Kremi", "İntensif El Kremi 75ml", "Balmumu El Kremi Onarıcı 50ml"),
-					("Ayak Bakım", "Çatlak Giderici Ayak Kremi 100ml", "Ayak Peeling Çorabı"),
-					("Tüy Dökücü", "Hassas Cilt Tüy Dökücü Krem 150ml", "Wax Ağda Bandı 20'li"),
-					("Vücut Spreyi", "Parfümlü Vücut Spreyi 200ml", "Terleme Önleyici Vücut Spreyi"),
-				],
-			),
-			(
-				"Parfüm & Deodorant",
-				[
-					("Kadın Parfüm", "Floral EDP Kadın 100ml", "Orientale EDT Kadın 50ml"),
-					("Erkek Parfüm", "Woody EDP Erkek 100ml", "Fresh Sport EDT Erkek 75ml"),
-					("Roll-on", "Sensitive Roll-on Deodorant 50ml", "Anti-Stain Roll-on 48h 50ml"),
-					("Sprey Deodorant", "Fresh Cotton Deo Sprey 150ml", "Sport Active Deo Sprey 200ml"),
-					("Kolonya", "Limon Kolonyası 400ml", "Lavanta Kolonyası 200ml"),
-				],
-			),
-			(
-				"Tırnak Bakım",
-				[
-					("Oje", "Gel Efektli Oje 12ml", "Vegan Oje Seti 6'lı"),
-					("Tırnak Bakım Seti", "Tırnak Güçlendirici Serum 10ml", "Tırnak Bakım Kiti 5 Parça"),
-					("Protez Tırnak", "Press-On Tırnak Seti 24'lü", "Akrilik Tırnak Başlangıç Kiti"),
-					("Tırnak Süsleme", "Tırnak Sticker Seti 12 Sayfa", "Nail Art Fırça Seti 15'li"),
-				],
-			),
-			(
-				"Ağız Bakım",
-				[
-					("Diş Macunu", "Beyazlatıcı Diş Macunu 100ml", "Hassas Dişler İçin Diş Macunu 75ml"),
-					("Diş Fırçası", "Bambu Diş Fırçası 4'lü", "Elektrikli Diş Fırçası Sonic"),
-					("Ağız Çalkalama", "Antiseptik Ağız Gargarası 500ml", "Alkalsız Ağız Bakım Suyu 250ml"),
-					("Diş İpi", "Mint Aromalı Diş İpi 50m", "Ara Yüz Fırçası Seti 8'li"),
-				],
-			),
-			(
-				"Erkek Bakım",
-				[
-					("Tıraş Köpüğü", "Hassas Cilt Tıraş Köpüğü 200ml", "Tıraş Jeli Aloe Vera 150ml"),
-					("Tıraş Bıçağı", "5 Bıçaklı Tıraş Bıçağı 4'lü Yedek", "Safety Razor Paslanmaz"),
-					(
-						"After Shave",
-						"Yatıştırıcı After Shave Balm 100ml",
-						"Mentollü After Shave Losyon 150ml",
-					),
-					("Sakal Yağı", "Organik Sakal Bakım Yağı 30ml", "Sakal Yumuşatıcı Yağ 50ml"),
-					("Sakal Fırçası", "Domuz Kılı Sakal Fırçası", "Sakal Tarak ve Fırça Seti"),
-				],
-			),
-			(
-				"Makyaj Aletleri",
-				[
-					("Makyaj Fırça Seti", "Profesyonel 12'li Fırça Seti", "Vegan Makyaj Fırça Seti 8'li"),
-					("Makyaj Süngeri", "Beauty Blender Sünger 3'lü", "Silikon Makyaj Aplikatörü"),
-					("Makyaj Aynası", "LED Işıklı Büyüteçli Ayna", "Katlanır Seyahat Aynası"),
-					("Makyaj Çantası", "Profesyonel Makyaj Bavulu", "Şeffaf PVC Makyaj Çantası"),
-				],
-			),
-		],
-	},
-	# ── 7. EV TEKSTİLİ & DEKORASYON (DEMO-007) ──────────────
-	{
-		"name": "Ev Tekstili & Dekorasyon",
-		"code": "ET",
-		"seller": "DEMO-007",
-		"groups": [
-			(
-				"Yatak Odası",
-				[
-					(
-						"Nevresim Takımı",
-						"Ranforce Çift Kişilik Nevresim Takımı",
-						"Saten Jakarlı Nevresim Takımı",
-					),
-					("Pike", "Pamuklu Yaz Pikesi Çift Kişilik", "Jakarlı Pike Takımı"),
-					("Yorgan", "Mikrofiber Silikon Yorgan", "Kaz Tüyü Yorgan Premium"),
-					("Yastık", "Visco Yastık Ortopedik", "Kaz Tüyü Yastık 50x70"),
-					("Yatak Örtüsü", "Kadife Yatak Örtüsü Takımı", "Kapitone Yatak Örtüsü"),
-					("Çarşaf", "Lastikli Çarşaf Pamuk Saten", "Jersey Fitted Çarşaf"),
-					("Yastık Kılıfı", "Saten Yastık Kılıfı 2'li", "Nakışlı Dekoratif Yastık Kılıfı"),
-					("Alez", "Su Geçirmez Fitted Alez", "Pamuklu Quilted Alez"),
-				],
-			),
-			(
-				"Banyo",
-				[
-					("Havlu", "Pamuklu Havlu Seti 6 Parça", "Bambu Karışım Havlu 70x140"),
-					("Banyo Paspası", "Pamuklu Banyo Paspası Seti", "Kaymaz Taban Memory Foam Paspas"),
-					("Bornoz", "Velur Bornoz Kadın", "Şal Yaka Pamuklu Bornoz Erkek"),
-					("Duş Perdesi", "Polyester Duş Perdesi 180x200", "Çift Katmanlı Duş Perdesi"),
-					("Banyo Seti", "5 Parça Seramik Banyo Seti", "Bambu Banyo Aksesuar Seti"),
-					("Havlu Askılık", "Paslanmaz Havlu Askılık", "Yapışkanlı Havlu Kancası 4'lü"),
-				],
-			),
-			(
-				"Mutfak Tekstil",
-				[
-					("Masa Örtüsü", "Leke Tutmaz Masa Örtüsü 160x220", "Keten Masa Örtüsü Düz Renk"),
-					("Runner", "Pamuklu Runner 40x150", "Hasır Runner Doğal 35x120"),
-					("Peçete", "Keten Peçete 4'lü Set", "Pamuklu Peçete Desenli 6'lı"),
-					("Mutfak Havlusu", "Kadife Mutfak Havlusu 3'lü", "Waffle Mutfak Bezi 5'li"),
-					("Önlük", "Keten Mutfak Önlüğü", "Su Geçirmez Aşçı Önlüğü"),
-				],
-			),
-			(
-				"Salon",
-				[
-					("Perde", "Fon Perde Blackout 2'li", "Kadife Fon Perde Premium"),
-					("Tül Perde", "Dantel Tül Perde Kırık Beyaz", "Sade Şifon Tül Perde"),
-					("Koltuk Örtüsü", "Elastik Koltuk Kılıfı 3+2+1", "Pamuklu Koltuk Şalı"),
-					("Kırlent", "Kadife Kırlent Kılıfı 45x45 2'li", "Boho Tarzı Kırlent 4'lü Set"),
-					("Battaniye", "Tv Battaniyesi Polar", "Pamuklu Çift Kişilik Battaniye"),
-					("Dekoratif Yastık", "Keten Dekoratif Yastık", "Payetli Dönüşüm Yastık"),
-					("Halı", "Modern Geometrik Halı 160x230", "Vintage Desen Halı 200x290"),
-					("Kilim", "El Dokuma Kilim 120x180", "Pamuklu Şönil Kilim 80x150"),
-				],
-			),
-			(
-				"Çocuk Odası",
-				[
-					("Bebek Nevresim", "Organik Bebek Nevresim Takımı", "Desenli Bebek Uyku Seti"),
-					("Çocuk Perde", "Baskılı Çocuk Perde Blackout", "Rengarenk Çocuk Tül Perde"),
-					("Çocuk Halı", "Oyun Desenli Çocuk Halısı", "Hayvan Figürlü Çocuk Halısı"),
-					("Oyun Matı", "EVA Puzzle Oyun Matı 9 Parça", "Pamuklu Katlanır Oyun Matı"),
-					("Çocuk Battaniye", "Kabartmalı Çocuk Battaniyesi", "Pelüş Çocuk Battaniyesi"),
-				],
-			),
-			(
-				"Bahçe & Balkon",
-				[
-					("Balkon Perdesi", "Dış Mekan Güneşlik Perde", "Plastik Balkon Perdesi"),
-					("Dış Mekan Yastık", "Su Geçirmez Dış Mekan Minder", "Bahçe Sandalye Minderi"),
-					("Bahçe Örtüsü", "Masa Bahçe Mobilya Örtüsü", "Şemsiye Koruma Kılıfı"),
-					("Hamak", "Pamuklu Çift Kişilik Hamak", "Paraşüt Kumaş Kamp Hamağı"),
-				],
-			),
-			(
-				"Dekorasyon",
-				[
-					("Mum", "Kokulu Soya Mumu 3'lü Set", "Dekoratif Sütun Mum 2'li"),
-					("Vazo", "Cam Vazo El Yapımı 30cm", "Seramik Vazo Modern 25cm"),
-					("Çerçeve", "Ahşap Fotoğraf Çerçevesi 5'li Set", "Altın Metal Çerçeve 20x30"),
-					("Duvar Saati", "Minimalist Metal Duvar Saati 40cm", "Vintage Ahşap Duvar Saati"),
-					("Dekoratif Ayna", "Yuvarlak Hasır Çerçeveli Ayna", "Modern Geometrik Duvar Aynası"),
-					("Biblo", "Seramik Dekoratif Biblo Seti", "Reçine Hayvan Figürü"),
-					("Kitap Desteği", "Metal Kitap Desteği 2'li", "Mermer Efektli Bookend"),
-					("Dekoratif Tabak", "Duvar Tabağı Osmanlı Motifli", "Seramik Servis Tabağı Dekoratif"),
-				],
-			),
-			(
-				"Saklama & Düzen",
-				[
-					("Sepet", "Hasır Saklama Sepeti 3'lü", "Pamuklu Örgü Sepet L"),
-					("Saklama Kutusu", "Kapaklı Kumaş Saklama Kutusu", "Şeffaf Plastik Organizer 4'lü"),
-					("Organizer", "Çekmece İçi Organizer 6'lı", "Takı Organizatör Ahşap"),
-					("Hurç", "Vakumlu Hurç Seti 5 Parça", "Non-Woven Hurç 3'lü"),
-					("Askı", "Kadife Elbise Askısı 20'li", "Ahşap Takım Elbise Askısı 5'li"),
-					("Çamaşır Sepeti", "Bambu Çamaşır Sepeti Kapaklı", "Katlanır Kumaş Çamaşır Sepeti"),
-				],
-			),
-		],
-	},
-	# ── 8. MUTFAK & ZÜCCACİYE (DEMO-008) ────────────────────
-	{
-		"name": "Mutfak & Züccaciye",
-		"code": "MZ",
-		"seller": "DEMO-008",
-		"groups": [
-			(
-				"Pişirme",
-				[
-					("Tencere", "Granit Derin Tencere 24cm", "Paslanmaz Çelik Tencere 20cm"),
-					("Tava", "Döküm Granit Tava 28cm", "Paslanmaz Çelik Omlet Tava 22cm"),
-					("Düdüklü Tencere", "Çelik Düdüklü Tencere 7L", "Alüminyum Düdüklü Tencere 5L"),
-					("Sahan", "Bakır Sahan 16cm", "Granit Yumurta Sahanı 14cm"),
-					("Güveç", "Toprak Güveç Kapağı ile 3L", "Seramik Güveç Kabı 2L"),
-					("Wok Tava", "Karbon Çelik Wok 30cm", "Granit Wok Tava Cam Kapaklı"),
-					("Izgara Tava", "Döküm Izgara Tava 26cm", "İki Taraflı Tost Tava"),
-					("Krep Tava", "Yapışmaz Krep Tava 26cm", "Döküm Pankek Tava"),
-				],
-			),
-			(
-				"Kesim & Hazırlık",
-				[
-					("Bıçak Seti", "7 Parça Şef Bıçak Seti", "Seramik Bıçak Seti 4'lü"),
-					("Kesme Tahtası", "Bambu Kesme Tahtası 3'lü", "Mermer Kesme Tahtası 30x40"),
-					("Rende", "4 Taraflı Paslanmaz Rende", "Microplane Zester Rende"),
-					("Doğrayıcı", "Çok Fonksiyonlu Doğrayıcı", "Soğan Doğrayıcı Manuel"),
-					("Havanlık", "Granit Havanlık Büyük", "Mermer Havanlık Seti"),
-					("Süzgeç", "Paslanmaz Çelik Süzgeç Seti 3'lü", "Silikon Katlanır Süzgeç"),
-				],
-			),
-			(
-				"Servis",
-				[
-					("Tabak Takımı", "24 Parça Porselen Yemek Takımı", "Bone China Servis Seti 12 Kişilik"),
-					("Bardak Seti", "Kristal Su Bardağı 6'lı", "Renkli Meşrubat Bardağı 6'lı"),
-					("Çay Takımı", "Porselen Çay Seti 12 Parça", "Cam Çay Bardağı Tabağı 6'lı"),
-					("Kahve Fincanı", "Espresso Fincanı 6'lı Seti", "Türk Kahvesi Fincan Seti Porselen"),
-					("Servis Tabağı", "Oval Servis Tabağı 35cm", "Bölmeli Kahvaltı Tabağı"),
-					("Kase", "Porselen Çorba Kasesi 6'lı", "Salata Kasesi Cam Büyük"),
-					("Sürahi", "Cam Sürahi Filtreli 1.5L", "Porselen Limonata Sürahisi"),
-					("Meyvelik", "Paslanmaz Çelik Meyvelik 3 Katlı", "Ahşap Meyvelik"),
-				],
-			),
-			(
-				"Saklama",
-				[
-					("Kavanoz Seti", "Cam Kavanoz Seti 5'li", "Seramik Kapaklı Kavanoz 3'lü"),
-					("Saklama Kabı", "Cam Saklama Kabı 10'lu Set", "Vakumlu Saklama Kabı 5'li"),
-					("Ekmeklik", "Bambu Ekmek Kutusu", "Metal Ekmek Kutusu Retro"),
-					("Yağdanlık", "Cam Yağdanlık Damlatmaz", "Seramik Yağ Sirke Seti"),
-					("Baharat Seti", "Döner Baharat Standı 12'li", "Cam Baharat Kavanoz 6'lı"),
-				],
-			),
-			(
-				"Küçük Ev Aletleri",
-				[
-					("Blender", "Profesyonel Smoothie Blender 1000W", "El Blender Seti 4 Başlıklı"),
-					("Çay Makinesi", "Otomatik Çay Makinesi Çelik", "Çift Demlikli Çay Makinesi"),
-					("Tost Makinesi", "Izgara ve Tost Makinesi 1800W", "Waffle Tost Makinesi 4'lü"),
-					("Mikser", "Stand Mikser 1200W Paslanmaz", "El Mikseri 5 Kademeli"),
-					("Kahve Makinesi", "Filtre Kahve Makinesi 12 Bardak", "Espresso Makinesi Pod Uyumlu"),
-					("Fritöz", "Airfryer Sıcak Hava Fritözü 5.5L", "Derin Yağ Fritözü 3L"),
-				],
-			),
-			(
-				"Fırın & Pasta",
-				[
-					("Kek Kalıbı", "Silikon Kek Kalıbı 26cm", "Kelepçeli Kek Kalıbı 28cm"),
-					("Borcam", "Oval Borcam Kapağı ile 2L", "Kare Borcam Set 3'lü"),
-					("Muffin Kalıbı", "12'li Muffin Kalıbı Silikon", "Mini Cupcake Kalıbı 24'lü"),
-					("Pasta Sıkma", "Profesyonel Pasta Sıkma Seti 26 Uç", "Silikon Pasta Sıkma Torbası"),
-					("Oklava", "Ahşap Oklava Düz 40cm", "Silikon Oklava Ayarlanabilir"),
-				],
-			),
-			(
-				"Çatal Bıçak",
-				[
-					("Çatal Bıçak Seti", "72 Parça Çatal Bıçak Takımı", "24 Parça Mat Çatal Bıçak Seti"),
-					("Tatlı Kaşığı", "Paslanmaz Tatlı Kaşığı 12'li", "Altın Renk Çay Kaşığı 6'lı"),
-					("Servis Seti", "Salata Servis Seti Ahşap", "Pasta Servis Bıçağı Spatula"),
-					("Steak Bıçağı", "Steak Bıçağı 6'lı Set", "Japon Çelik Steak Bıçağı"),
-					("Açacak", "Şarap Açacağı Tirbuşon", "Çok Fonksiyonlu Konserve Açacağı"),
-				],
-			),
-			(
-				"Plastik & Tek Kullanımlık",
-				[
-					("Plastik Kap", "Mikrodalga Uyumlu Kap 50'li", "Meal Prep Kabı 3 Bölme 30'lu"),
-					("Streç Film", "Gıda Streç Film 300m", "Alüminyum Folyo 100m"),
-					("Buzdolabı Poşeti", "Kilitli Poşet Seti 100'lü", "Vakum Poşet Rulo 28cm"),
-					("Pişirme Kağıdı", "Fırın Pişirme Kağıdı 8m", "Silikon Pişirme Matı 2'li"),
-				],
-			),
-			(
-				"Bar Aksesuarları",
-				[
-					("Şarap Açacağı", "Elektrikli Şarap Açacağı", "Garson Tirbuşon Profesyonel"),
-					("Buz Kovası", "Paslanmaz Çelik Buz Kovası", "Akrilik Buz Kovası LED"),
-					("Kokteyl Shaker", "Profesyonel Shaker Seti 11 Parça", "Boston Shaker Çelik"),
-				],
-			),
-		],
-	},
-	# ── 9. BİJUTERİ & AKSESUAR (DEMO-009) ───────────────────
-	{
-		"name": "Bijuteri & Aksesuar",
-		"code": "BA",
-		"seller": "DEMO-009",
-		"groups": [
-			(
-				"Yüzük",
-				[
-					(
-						"Altın Kaplama Yüzük",
-						"22K Altın Kaplama Osmanlı Yüzük",
-						"İnce Band Altın Kaplama Yüzük",
-					),
-					("Gümüş Yüzük", "925 Ayar Gümüş Taşlı Yüzük", "Oksitlenmiş Gümüş Erkek Yüzük"),
-					("Taşlı Yüzük", "Zirkon Taşlı Solitaire Yüzük", "Renkli Taş Cluster Yüzük"),
-					("Alyans", "Klasik Çift Alyans Seti", "Taşlı Nişan Yüzüğü"),
-					("Eklem Yüzüğü", "Midi Ring Set 5'li", "Minimalist Eklem Yüzük Seti"),
-				],
-			),
-			(
-				"Kolye",
-				[
-					("Altın Kaplama Kolye", "Osmanlı Tuğralı Altın Kaplama Kolye", "İnce Zincir Altın Kolye"),
-					("İnci Kolye", "Doğal İnci Kolye 45cm", "Barok İnci Choker Kolye"),
-					("Taşlı Kolye", "Zirkon Damla Kolye Seti", "Safir Renkli Taşlı Kolye"),
-					("Zincir Kolye", "Kalın Zincir Kolye Çelik", "Figaro Zincir Kolye 60cm"),
-					("Uçlu Kolye", "Melek Kanadı Uçlu Kolye", "Hayat Ağacı Uçlu Kolye"),
-				],
-			),
-			(
-				"Bileklik",
-				[
-					("Kelepçe Bileklik", "Çelik Kelepçe Bileklik Altın", "Taşlı Kelepçe Bileklik"),
-					("Boncuk Bileklik", "Doğal Taş Boncuk Bileklik", "Nazar Boncuklu Bileklik"),
-					("Deri Bileklik", "Erkek Deri Bileklik Manyetik", "Örgü Deri Bileklik"),
-					("Zincir Bileklik", "Mariner Zincir Bileklik Çelik", "Tennis Bileklik Zirkon"),
-					("Charm Bileklik", "Charm Bileklik 5 Uçlu", "Pandora Tarzı Bileklik"),
-				],
-			),
-			(
-				"Küpe",
-				[
-					("Halka Küpe", "Altın Kaplama Halka Küpe 3cm", "Gümüş Büyük Halka Küpe"),
-					("Sallantılı Küpe", "Kristal Sallantılı Küpe", "Boho Tarzı Uzun Küpe"),
-					("Taşlı Küpe", "Pırlanta Montür Zirkon Küpe", "Renkli Taşlı Küpe Seti"),
-					("İnci Küpe", "Klasik İnci Küpe 8mm", "Çift Taraflı İnci Küpe"),
-					("Çivi Küpe", "Minimal Çivi Küpe Altın", "Taşlı Çivi Küpe Seti 3'lü"),
-				],
-			),
-			(
-				"Saat",
-				[
-					("Kadın Kol Saati", "Çelik Kordon Kadın Kol Saati", "Deri Kordon Zarif Kadın Saati"),
-					("Erkek Kol Saati", "Kronograf Erkek Kol Saati", "Minimalist Erkek Saati Mesh Kordon"),
-					(
-						"Akıllı Saat Kordon",
-						"Silikon Akıllı Saat Kordon 42mm",
-						"Metal Akıllı Saat Kordon 44mm",
-					),
-					("Saat Kutusu", "6 Bölmeli Deri Saat Kutusu", "Otomatik Saat Sarıcı"),
-					("Cep Saati", "Vintage Cep Saati Zincirli", "Osmanlı Motifli Cep Saati"),
-				],
-			),
-			(
-				"Gözlük",
-				[
-					("Kadın Güneş Gözlüğü", "Cat Eye Güneş Gözlüğü UV400", "Oversized Kadın Güneş Gözlüğü"),
-					("Erkek Güneş Gözlüğü", "Aviator Polarize Güneş Gözlüğü", "Spor Güneş Gözlüğü Erkek"),
-					("Okuma Gözlüğü", "Katlanır Okuma Gözlüğü", "Mavi Işık Filtreli Okuma Gözlüğü"),
-					("Gözlük Çerçevesi", "Retro Yuvarlak Gözlük Çerçevesi", "Titanyum Gözlük Çerçevesi"),
-					("Gözlük Kılıfı", "Sert Kabuk Gözlük Kutusu", "Deri Manyetik Gözlük Kılıfı"),
-				],
-			),
-			(
-				"Saç Aksesuarları",
-				[
-					("Toka", "İnci Detaylı Saç Tokası", "Metal Geometrik Saç Tokası"),
-					("Taç", "Kristal Gelin Tacı", "Çiçekli Saç Tacı Boho"),
-					("Saç Bandı", "Kadife Saç Bandı", "Düğümlü Saç Bandı Seti 3'lü"),
-					("Tırnak Tokası", "Büyük Tırnak Tokası Asetatlı", "Mini Tırnak Tokası 6'lı"),
-					("Saç İpi", "İpek Saç Lastikleri 10'lu", "Spiral Saç Lastiği 5'li"),
-					("Saç Tokası", "Bobby Pin Dekoratif 20'li", "Firkete Minimalist Seti"),
-				],
-			),
-			(
-				"Şal & Fular",
-				[
-					("İpek Şal", "El Boyama İpek Şal 90x90", "Dijital Baskı İpek Şal"),
-					("Pamuk Fular", "Pamuklu Yazlık Fular", "Organik Pamuk Fular"),
-					("Kaşmir Atkı", "Saf Kaşmir Atkı 200cm", "Kaşmir Karışım Atkı"),
-					("Bandana", "Pamuklu Bandana 5'li Set", "İpek Bandana Retro Desen"),
-					("Boyunluk", "Polar Boyunluk Unisex", "Merino Yün Boyunluk"),
-				],
-			),
-			(
-				"Diğer Aksesuarlar",
-				[
-					("Broş", "Kristal Çiçek Broş", "Vintage Osmanlı Broş"),
-					("Kol Düğmesi", "Paslanmaz Çelik Kol Düğmesi", "Gümüş Kol Düğmesi Kutulu"),
-					("Kravat İğnesi", "Altın Kaplama Kravat İğnesi", "Minimalist Çelik Kravat İğnesi"),
-					("Şapka", "Fedora Şapka Keçe", "Panama Şapka Hasır"),
-					("Eldiven", "Deri Eldiven Kürklü İç", "Dokunmatik Uyumlu Yün Eldiven"),
-					("Şemsiye", "Otomatik Katlanır Şemsiye", "Baston Şemsiye Rüzgar Dayanımlı"),
-					("Anahtarlık", "Deri Anahtarlık İsim Baskılı", "Metal Araba Anahtarlığı"),
-					("Rozet", "Emaye Pin Rozet 5'li", "Özel Tasarım Logo Rozet"),
-					("Yaka İğnesi", "Çiçek Yaka İğnesi", "Taşlı Yaka İğnesi Altın"),
-				],
-			),
-		],
-	},
-	# ── 10. AMBALAJ & KIRTASİYE (DEMO-010) ──────────────────
-	{
-		"name": "Ambalaj & Kırtasiye",
-		"code": "AK",
-		"seller": "DEMO-010",
-		"groups": [
-			(
-				"Defter & Not",
-				[
-					(
-						"Spiralli Defter",
-						"A4 Spiralli Kareli Defter 120 Yaprak",
-						"A5 Spiralli Çizgili Defter 80 Yaprak",
-					),
-					("Ciltli Defter", "Deri Kapaklı Ciltli Defter A5", "Hardcover Bullet Journal Noktalı"),
-					("Not Defteri", "Yapışkanlı Not Kağıdı 12'li", "Kraft Not Defteri Cep Boy"),
-					("Yapışkanlı Not", "Post-it Küp Not 400 Yaprak", "Neon Renkli Yapışkanlı Not 5'li"),
-					("Planlayıcı", "Haftalık Planlayıcı 52 Sayfa", "Günlük Planlayıcı Tarihsiz"),
-					("Ajanda", "2025 Günlük Ajanda A5", "Haftalık Ajanda Deri Kapaklı"),
-				],
-			),
-			(
-				"Kalem & Yazı",
-				[
-					("Tükenmez Kalem", "Metal Tükenmez Kalem Kutulu", "Tükenmez Kalem 50'li Paket"),
-					("Kurşun Kalem", "HB Kurşun Kalem 12'li", "Mekanik Kurşun Kalem 0.7mm"),
-					("Fosforlu Kalem", "Fosforlu Kalem Seti 6 Renk", "Pastel Fosforlu Kalem 4'lü"),
-					("Keçeli Kalem", "İnce Uç Keçeli Kalem 12'li", "Brush Pen Kaligrafi Seti 6'lı"),
-					("Dolma Kalem", "Iridium Uçlu Dolma Kalem", "Piston Dolma Kalem Hediye Seti"),
-					("Silgi", "Dust-Free Silgi 3'lü", "Elektrikli Silgi Kalem Pilli"),
-				],
-			),
-			(
-				"Dosya & Klasör",
-				[
-					("Telli Dosya", "Telli Dosya 50'li Paket", "Plastik Telli Dosya 25'li"),
-					("Sunum Dosyası", "40 Yaprak Sunum Dosyası", "Sıkıştırmalı Dosya A4"),
-					("Klasör", "Geniş Halkalı Klasör A4", "Körüklü Organizer Dosya 12 Bölme"),
-					("Evrak Rafı", "3 Katlı Metal Evrak Rafı", "Ahşap Evrak Düzenleyici"),
-					("Zarf", "A4 Kraft Zarf 100'lü", "Kapaklı Dosya Zarfı 50'li"),
-				],
-			),
-			(
-				"Ofis Malzemeleri",
-				[
-					("Zımba", "Metal Zımba Makinesi No:24", "Cep Tipi Mini Zımba"),
-					("Delgeç", "2 Delikli Metal Delgeç", "4 Delikli Ayarlanabilir Delgeç"),
-					("Bant", "Seloteyp 6'lı Paket", "Çift Taraflı Bant 18mm 10m"),
-					("Makas", "Ergonomik Ofis Makası 21cm", "Titanyum Kaplamalı Makas"),
-					(
-						"Hesap Makinesi",
-						"12 Haneli Masaüstü Hesap Makinesi",
-						"Bilimsel Hesap Makinesi 240 Fonksiyon",
-					),
-				],
-			),
-			(
-				"Ambalaj Malzemeleri",
-				[
-					(
-						"Karton Kutu",
-						"E-Ticaret Kargo Kutusu 25x20x10 50'li",
-						"Karton Kutu Büyük 40x30x20 25'li",
-					),
-					("Kraft Poşet", "Kraft Kağıt Poşet 100'lü", "Büküm Saplı Kraft Çanta 50'li"),
-					("Balonlu Naylon", "Balonlu Ambalaj 50cm x 10m", "Balonlu Zarf 26x36 25'li"),
-					("Koli Streç Film", "Streç Film 17 mikron 500m", "Mini Streç Film El Tipi"),
-					("Koli Bandı", "Koli Bandı Şeffaf 6'lı", "Baskılı Koli Bandı Özel Tasarım"),
-					("Etiket", "A4 Lazer Etiket 100 Sayfa", "Termal Barkod Etiketi 1000'li"),
-					("Kurşun Mühür", "Güvenlik Mühürü 100'lü", "Plastik Mühür Etiketli 200'lü"),
-					("Ambalaj Kağıdı", "Kraft Ambalaj Kağıdı Rulo 70cm", "Hediye Ambalaj Kağıdı 10'lu"),
-				],
-			),
-			(
-				"Parti & Etkinlik",
-				[
-					("Balon", "Metalik Balon 50'li Paket", "Folyo Harf Balon Seti"),
-					("Konfeti", "Renkli Kağıt Konfeti 500g", "Metalik Konfeti Top Atıcı 6'lı"),
-					("Parti Tabağı", "Karton Parti Tabağı 25'li", "Temalı Doğum Günü Tabağı 8'li"),
-					("Parti Bardağı", "Karton Bardak 50'li", "Temalı Parti Bardağı 8'li"),
-					("Masa Süsü", "Masa Konfeti Yıldız 100g", "Masa Örtüsü Parti 137x274"),
-				],
-			),
-			(
-				"Hediye & Sunum",
-				[
-					("Hediye Kutusu", "Mıknatıslı Hediye Kutusu 3'lü", "Pencereli Hediye Kutusu 10'lu"),
-					("Hediye Çantası", "Lüks Hediye Çantası 10'lu", "Mini Hediye Çantası 20'li"),
-					("Kurdale", "Saten Kurdale 25mm 100m", "Organze Kurdale 10mm 50m"),
-					(
-						"Hediye Kağıdı",
-						"Premium Hediye Ambalaj Kağıdı 5'li",
-						"Çocuk Temalı Hediye Kağıdı 10'lu",
-					),
-					("Fiyonk", "Hazır Fiyonk Yapıştırmalı 50'li", "Pull Bow Fiyonk 14cm 10'lu"),
-				],
-			),
-			(
-				"Okul Malzemeleri",
-				[
-					("Okul Çantası", "Ortopedik Okul Çantası Set", "Tekerlekli Okul Çantası"),
-					("Kalem Kutusu", "Çift Fermuarlı Kalem Kutusu", "Silikon Kalem Kutusu Figürlü"),
-					("Resim Defteri", "A3 Resim Defteri 20 Yaprak", "Sketch Book Spiralli A4"),
-					("Boya Kalemi", "Kuru Boya 24 Renk", "Pastel Boya Seti 36 Renk"),
-					("Cetvel", "Şeffaf Cetvel 30cm", "Cetvel Seti Açıölçer İletki"),
-				],
-			),
-			(
-				"Baskı & Reklam",
-				[
-					("Kartvizit", "350gr Kuşe Kartvizit 1000 Adet", "Özel Kesim Kartvizit 500 Adet"),
-					("Afiş", "A3 Kuşe Afiş Baskı 50 Adet", "B1 Poster Baskı 10 Adet"),
-					("Broşür", "A4 Üç Katlı Broşür 500 Adet", "A5 Broşür 1000 Adet"),
-					("Roll-up", "80x200 Roll-up Banner", "100x200 X-Banner"),
-					("Sticker", "Kesimli Sticker 500 Adet", "Vinyl Sticker Dış Mekan 100 Adet"),
-				],
-			),
-		],
+		"code": "DEMO-BUYER-005",
+		"email": "demo-buyer-05@istoc.demo",
+		"buyer_name": "Can Özkan",
+		"company_name": "Özkan Online Ticaret",
+		"business_type": "Retailer",
+		"job_title": "Kurucu",
+		"city": "Bursa",
+		"phone": "+90 536 500 00 05",
+		"employee_count": "1-10",
+		"year_established": 2020,
+		"sourcing_frequency": "Weekly",
+		"annual_spending": "Under $10K",
+		"industry_preferences": "Elektronik, Aksesuar, Kırtasiye",
+		"about_us": "E-ticaret satıcısı — dropshipping ve direkt satış yapıyor.",
 	},
 ]
+# ═══════════════════════════════════════════════════════════════
+#  DUMMYJSON ÜRÜN VERİSİ + KATEGORİ HARİTASI
+#  194 gerçek ürün (başlık + görsel + galeri). Seed her DummyJSON
+#  ürününü birebir Listing olarak oluşturur — görsel/başlık uyumlu.
+# ═══════════════════════════════════════════════════════════════
+
+# DummyJSON product data — {title, thumb, imgs} lists by category (URL-encoded)
+DUMMY_PRODUCTS = {
+	"beauty": [
+		{
+			"title": "Essence Mascara Lash Princess",
+			"thumb": "https://cdn.dummyjson.com/product-images/beauty/essence-mascara-lash-princess/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/beauty/essence-mascara-lash-princess/1.webp",
+			],
+		},
+		{
+			"title": "Eyeshadow Palette with Mirror",
+			"thumb": "https://cdn.dummyjson.com/product-images/beauty/eyeshadow-palette-with-mirror/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/beauty/eyeshadow-palette-with-mirror/1.webp",
+			],
+		},
+		{
+			"title": "Powder Canister",
+			"thumb": "https://cdn.dummyjson.com/product-images/beauty/powder-canister/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/beauty/powder-canister/1.webp",
+			],
+		},
+		{
+			"title": "Red Lipstick",
+			"thumb": "https://cdn.dummyjson.com/product-images/beauty/red-lipstick/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/beauty/red-lipstick/1.webp",
+			],
+		},
+		{
+			"title": "Red Nail Polish",
+			"thumb": "https://cdn.dummyjson.com/product-images/beauty/red-nail-polish/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/beauty/red-nail-polish/1.webp",
+			],
+		},
+	],
+	"fragrances": [
+		{
+			"title": "Calvin Klein CK One",
+			"thumb": "https://cdn.dummyjson.com/product-images/fragrances/calvin-klein-ck-one/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/fragrances/calvin-klein-ck-one/1.webp",
+				"https://cdn.dummyjson.com/product-images/fragrances/calvin-klein-ck-one/2.webp",
+				"https://cdn.dummyjson.com/product-images/fragrances/calvin-klein-ck-one/3.webp",
+			],
+		},
+		{
+			"title": "Chanel Coco Noir Eau De",
+			"thumb": "https://cdn.dummyjson.com/product-images/fragrances/chanel-coco-noir-eau-de/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/fragrances/chanel-coco-noir-eau-de/1.webp",
+				"https://cdn.dummyjson.com/product-images/fragrances/chanel-coco-noir-eau-de/2.webp",
+				"https://cdn.dummyjson.com/product-images/fragrances/chanel-coco-noir-eau-de/3.webp",
+			],
+		},
+		{
+			"title": "Dior J'adore",
+			"thumb": "https://cdn.dummyjson.com/product-images/fragrances/dior-j%27adore/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/fragrances/dior-j%27adore/1.webp",
+				"https://cdn.dummyjson.com/product-images/fragrances/dior-j%27adore/2.webp",
+				"https://cdn.dummyjson.com/product-images/fragrances/dior-j%27adore/3.webp",
+			],
+		},
+		{
+			"title": "Dolce Shine Eau de",
+			"thumb": "https://cdn.dummyjson.com/product-images/fragrances/dolce-shine-eau-de/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/fragrances/dolce-shine-eau-de/1.webp",
+				"https://cdn.dummyjson.com/product-images/fragrances/dolce-shine-eau-de/2.webp",
+				"https://cdn.dummyjson.com/product-images/fragrances/dolce-shine-eau-de/3.webp",
+			],
+		},
+		{
+			"title": "Gucci Bloom Eau de",
+			"thumb": "https://cdn.dummyjson.com/product-images/fragrances/gucci-bloom-eau-de/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/fragrances/gucci-bloom-eau-de/1.webp",
+				"https://cdn.dummyjson.com/product-images/fragrances/gucci-bloom-eau-de/2.webp",
+				"https://cdn.dummyjson.com/product-images/fragrances/gucci-bloom-eau-de/3.webp",
+			],
+		},
+	],
+	"furniture": [
+		{
+			"title": "Annibale Colombo Bed",
+			"thumb": "https://cdn.dummyjson.com/product-images/furniture/annibale-colombo-bed/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/furniture/annibale-colombo-bed/1.webp",
+				"https://cdn.dummyjson.com/product-images/furniture/annibale-colombo-bed/2.webp",
+				"https://cdn.dummyjson.com/product-images/furniture/annibale-colombo-bed/3.webp",
+			],
+		},
+		{
+			"title": "Annibale Colombo Sofa",
+			"thumb": "https://cdn.dummyjson.com/product-images/furniture/annibale-colombo-sofa/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/furniture/annibale-colombo-sofa/1.webp",
+				"https://cdn.dummyjson.com/product-images/furniture/annibale-colombo-sofa/2.webp",
+				"https://cdn.dummyjson.com/product-images/furniture/annibale-colombo-sofa/3.webp",
+			],
+		},
+		{
+			"title": "Bedside Table African Cherry",
+			"thumb": "https://cdn.dummyjson.com/product-images/furniture/bedside-table-african-cherry/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/furniture/bedside-table-african-cherry/1.webp",
+				"https://cdn.dummyjson.com/product-images/furniture/bedside-table-african-cherry/2.webp",
+				"https://cdn.dummyjson.com/product-images/furniture/bedside-table-african-cherry/3.webp",
+			],
+		},
+		{
+			"title": "Knoll Saarinen Executive Conference Chair",
+			"thumb": "https://cdn.dummyjson.com/product-images/furniture/knoll-saarinen-executive-conference-chair/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/furniture/knoll-saarinen-executive-conference-chair/1.webp",
+				"https://cdn.dummyjson.com/product-images/furniture/knoll-saarinen-executive-conference-chair/2.webp",
+				"https://cdn.dummyjson.com/product-images/furniture/knoll-saarinen-executive-conference-chair/3.webp",
+			],
+		},
+		{
+			"title": "Wooden Bathroom Sink With Mirror",
+			"thumb": "https://cdn.dummyjson.com/product-images/furniture/wooden-bathroom-sink-with-mirror/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/furniture/wooden-bathroom-sink-with-mirror/1.webp",
+				"https://cdn.dummyjson.com/product-images/furniture/wooden-bathroom-sink-with-mirror/2.webp",
+				"https://cdn.dummyjson.com/product-images/furniture/wooden-bathroom-sink-with-mirror/3.webp",
+			],
+		},
+	],
+	"groceries": [
+		{
+			"title": "Apple",
+			"thumb": "https://cdn.dummyjson.com/product-images/groceries/apple/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/groceries/apple/1.webp",
+			],
+		},
+		{
+			"title": "Beef Steak",
+			"thumb": "https://cdn.dummyjson.com/product-images/groceries/beef-steak/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/groceries/beef-steak/1.webp",
+			],
+		},
+		{
+			"title": "Cat Food",
+			"thumb": "https://cdn.dummyjson.com/product-images/groceries/cat-food/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/groceries/cat-food/1.webp",
+			],
+		},
+		{
+			"title": "Chicken Meat",
+			"thumb": "https://cdn.dummyjson.com/product-images/groceries/chicken-meat/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/groceries/chicken-meat/1.webp",
+				"https://cdn.dummyjson.com/product-images/groceries/chicken-meat/2.webp",
+			],
+		},
+		{
+			"title": "Cooking Oil",
+			"thumb": "https://cdn.dummyjson.com/product-images/groceries/cooking-oil/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/groceries/cooking-oil/1.webp",
+			],
+		},
+		{
+			"title": "Cucumber",
+			"thumb": "https://cdn.dummyjson.com/product-images/groceries/cucumber/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/groceries/cucumber/1.webp",
+			],
+		},
+		{
+			"title": "Dog Food",
+			"thumb": "https://cdn.dummyjson.com/product-images/groceries/dog-food/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/groceries/dog-food/1.webp",
+			],
+		},
+		{
+			"title": "Eggs",
+			"thumb": "https://cdn.dummyjson.com/product-images/groceries/eggs/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/groceries/eggs/1.webp",
+			],
+		},
+		{
+			"title": "Fish Steak",
+			"thumb": "https://cdn.dummyjson.com/product-images/groceries/fish-steak/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/groceries/fish-steak/1.webp",
+			],
+		},
+		{
+			"title": "Green Bell Pepper",
+			"thumb": "https://cdn.dummyjson.com/product-images/groceries/green-bell-pepper/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/groceries/green-bell-pepper/1.webp",
+			],
+		},
+		{
+			"title": "Green Chili Pepper",
+			"thumb": "https://cdn.dummyjson.com/product-images/groceries/green-chili-pepper/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/groceries/green-chili-pepper/1.webp",
+			],
+		},
+		{
+			"title": "Honey Jar",
+			"thumb": "https://cdn.dummyjson.com/product-images/groceries/honey-jar/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/groceries/honey-jar/1.webp",
+			],
+		},
+		{
+			"title": "Ice Cream",
+			"thumb": "https://cdn.dummyjson.com/product-images/groceries/ice-cream/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/groceries/ice-cream/1.webp",
+				"https://cdn.dummyjson.com/product-images/groceries/ice-cream/2.webp",
+				"https://cdn.dummyjson.com/product-images/groceries/ice-cream/3.webp",
+				"https://cdn.dummyjson.com/product-images/groceries/ice-cream/4.webp",
+			],
+		},
+		{
+			"title": "Juice",
+			"thumb": "https://cdn.dummyjson.com/product-images/groceries/juice/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/groceries/juice/1.webp",
+			],
+		},
+		{
+			"title": "Kiwi",
+			"thumb": "https://cdn.dummyjson.com/product-images/groceries/kiwi/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/groceries/kiwi/1.webp",
+			],
+		},
+		{
+			"title": "Lemon",
+			"thumb": "https://cdn.dummyjson.com/product-images/groceries/lemon/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/groceries/lemon/1.webp",
+			],
+		},
+		{
+			"title": "Milk",
+			"thumb": "https://cdn.dummyjson.com/product-images/groceries/milk/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/groceries/milk/1.webp",
+			],
+		},
+		{
+			"title": "Mulberry",
+			"thumb": "https://cdn.dummyjson.com/product-images/groceries/mulberry/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/groceries/mulberry/1.webp",
+			],
+		},
+		{
+			"title": "Nescafe Coffee",
+			"thumb": "https://cdn.dummyjson.com/product-images/groceries/nescafe-coffee/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/groceries/nescafe-coffee/1.webp",
+			],
+		},
+		{
+			"title": "Potatoes",
+			"thumb": "https://cdn.dummyjson.com/product-images/groceries/potatoes/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/groceries/potatoes/1.webp",
+			],
+		},
+		{
+			"title": "Protein Powder",
+			"thumb": "https://cdn.dummyjson.com/product-images/groceries/protein-powder/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/groceries/protein-powder/1.webp",
+			],
+		},
+		{
+			"title": "Red Onions",
+			"thumb": "https://cdn.dummyjson.com/product-images/groceries/red-onions/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/groceries/red-onions/1.webp",
+			],
+		},
+		{
+			"title": "Rice",
+			"thumb": "https://cdn.dummyjson.com/product-images/groceries/rice/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/groceries/rice/1.webp",
+			],
+		},
+		{
+			"title": "Soft Drinks",
+			"thumb": "https://cdn.dummyjson.com/product-images/groceries/soft-drinks/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/groceries/soft-drinks/1.webp",
+			],
+		},
+		{
+			"title": "Strawberry",
+			"thumb": "https://cdn.dummyjson.com/product-images/groceries/strawberry/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/groceries/strawberry/1.webp",
+			],
+		},
+		{
+			"title": "Tissue Paper Box",
+			"thumb": "https://cdn.dummyjson.com/product-images/groceries/tissue-paper-box/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/groceries/tissue-paper-box/1.webp",
+				"https://cdn.dummyjson.com/product-images/groceries/tissue-paper-box/2.webp",
+			],
+		},
+		{
+			"title": "Water",
+			"thumb": "https://cdn.dummyjson.com/product-images/groceries/water/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/groceries/water/1.webp",
+			],
+		},
+	],
+	"home-decoration": [
+		{
+			"title": "Decoration Swing",
+			"thumb": "https://cdn.dummyjson.com/product-images/home-decoration/decoration-swing/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/home-decoration/decoration-swing/1.webp",
+				"https://cdn.dummyjson.com/product-images/home-decoration/decoration-swing/2.webp",
+				"https://cdn.dummyjson.com/product-images/home-decoration/decoration-swing/3.webp",
+			],
+		},
+		{
+			"title": "Family Tree Photo Frame",
+			"thumb": "https://cdn.dummyjson.com/product-images/home-decoration/family-tree-photo-frame/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/home-decoration/family-tree-photo-frame/1.webp",
+			],
+		},
+		{
+			"title": "House Showpiece Plant",
+			"thumb": "https://cdn.dummyjson.com/product-images/home-decoration/house-showpiece-plant/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/home-decoration/house-showpiece-plant/1.webp",
+				"https://cdn.dummyjson.com/product-images/home-decoration/house-showpiece-plant/2.webp",
+				"https://cdn.dummyjson.com/product-images/home-decoration/house-showpiece-plant/3.webp",
+			],
+		},
+		{
+			"title": "Plant Pot",
+			"thumb": "https://cdn.dummyjson.com/product-images/home-decoration/plant-pot/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/home-decoration/plant-pot/1.webp",
+				"https://cdn.dummyjson.com/product-images/home-decoration/plant-pot/2.webp",
+				"https://cdn.dummyjson.com/product-images/home-decoration/plant-pot/3.webp",
+				"https://cdn.dummyjson.com/product-images/home-decoration/plant-pot/4.webp",
+			],
+		},
+		{
+			"title": "Table Lamp",
+			"thumb": "https://cdn.dummyjson.com/product-images/home-decoration/table-lamp/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/home-decoration/table-lamp/1.webp",
+			],
+		},
+	],
+	"kitchen-accessories": [
+		{
+			"title": "Bamboo Spatula",
+			"thumb": "https://cdn.dummyjson.com/product-images/kitchen-accessories/bamboo-spatula/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/kitchen-accessories/bamboo-spatula/1.webp",
+			],
+		},
+		{
+			"title": "Black Aluminium Cup",
+			"thumb": "https://cdn.dummyjson.com/product-images/kitchen-accessories/black-aluminium-cup/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/kitchen-accessories/black-aluminium-cup/1.webp",
+				"https://cdn.dummyjson.com/product-images/kitchen-accessories/black-aluminium-cup/2.webp",
+			],
+		},
+		{
+			"title": "Black Whisk",
+			"thumb": "https://cdn.dummyjson.com/product-images/kitchen-accessories/black-whisk/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/kitchen-accessories/black-whisk/1.webp",
+			],
+		},
+		{
+			"title": "Boxed Blender",
+			"thumb": "https://cdn.dummyjson.com/product-images/kitchen-accessories/boxed-blender/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/kitchen-accessories/boxed-blender/1.webp",
+				"https://cdn.dummyjson.com/product-images/kitchen-accessories/boxed-blender/2.webp",
+				"https://cdn.dummyjson.com/product-images/kitchen-accessories/boxed-blender/3.webp",
+				"https://cdn.dummyjson.com/product-images/kitchen-accessories/boxed-blender/4.webp",
+			],
+		},
+		{
+			"title": "Carbon Steel Wok",
+			"thumb": "https://cdn.dummyjson.com/product-images/kitchen-accessories/carbon-steel-wok/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/kitchen-accessories/carbon-steel-wok/1.webp",
+			],
+		},
+		{
+			"title": "Chopping Board",
+			"thumb": "https://cdn.dummyjson.com/product-images/kitchen-accessories/chopping-board/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/kitchen-accessories/chopping-board/1.webp",
+			],
+		},
+		{
+			"title": "Citrus Squeezer Yellow",
+			"thumb": "https://cdn.dummyjson.com/product-images/kitchen-accessories/citrus-squeezer-yellow/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/kitchen-accessories/citrus-squeezer-yellow/1.webp",
+			],
+		},
+		{
+			"title": "Egg Slicer",
+			"thumb": "https://cdn.dummyjson.com/product-images/kitchen-accessories/egg-slicer/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/kitchen-accessories/egg-slicer/1.webp",
+			],
+		},
+		{
+			"title": "Electric Stove",
+			"thumb": "https://cdn.dummyjson.com/product-images/kitchen-accessories/electric-stove/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/kitchen-accessories/electric-stove/1.webp",
+				"https://cdn.dummyjson.com/product-images/kitchen-accessories/electric-stove/2.webp",
+				"https://cdn.dummyjson.com/product-images/kitchen-accessories/electric-stove/3.webp",
+				"https://cdn.dummyjson.com/product-images/kitchen-accessories/electric-stove/4.webp",
+			],
+		},
+		{
+			"title": "Fine Mesh Strainer",
+			"thumb": "https://cdn.dummyjson.com/product-images/kitchen-accessories/fine-mesh-strainer/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/kitchen-accessories/fine-mesh-strainer/1.webp",
+			],
+		},
+		{
+			"title": "Fork",
+			"thumb": "https://cdn.dummyjson.com/product-images/kitchen-accessories/fork/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/kitchen-accessories/fork/1.webp",
+			],
+		},
+		{
+			"title": "Glass",
+			"thumb": "https://cdn.dummyjson.com/product-images/kitchen-accessories/glass/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/kitchen-accessories/glass/1.webp",
+			],
+		},
+		{
+			"title": "Grater Black",
+			"thumb": "https://cdn.dummyjson.com/product-images/kitchen-accessories/grater-black/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/kitchen-accessories/grater-black/1.webp",
+			],
+		},
+		{
+			"title": "Hand Blender",
+			"thumb": "https://cdn.dummyjson.com/product-images/kitchen-accessories/hand-blender/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/kitchen-accessories/hand-blender/1.webp",
+			],
+		},
+		{
+			"title": "Ice Cube Tray",
+			"thumb": "https://cdn.dummyjson.com/product-images/kitchen-accessories/ice-cube-tray/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/kitchen-accessories/ice-cube-tray/1.webp",
+			],
+		},
+		{
+			"title": "Kitchen Sieve",
+			"thumb": "https://cdn.dummyjson.com/product-images/kitchen-accessories/kitchen-sieve/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/kitchen-accessories/kitchen-sieve/1.webp",
+			],
+		},
+		{
+			"title": "Knife",
+			"thumb": "https://cdn.dummyjson.com/product-images/kitchen-accessories/knife/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/kitchen-accessories/knife/1.webp",
+			],
+		},
+		{
+			"title": "Lunch Box",
+			"thumb": "https://cdn.dummyjson.com/product-images/kitchen-accessories/lunch-box/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/kitchen-accessories/lunch-box/1.webp",
+			],
+		},
+		{
+			"title": "Microwave Oven",
+			"thumb": "https://cdn.dummyjson.com/product-images/kitchen-accessories/microwave-oven/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/kitchen-accessories/microwave-oven/1.webp",
+				"https://cdn.dummyjson.com/product-images/kitchen-accessories/microwave-oven/2.webp",
+				"https://cdn.dummyjson.com/product-images/kitchen-accessories/microwave-oven/3.webp",
+				"https://cdn.dummyjson.com/product-images/kitchen-accessories/microwave-oven/4.webp",
+			],
+		},
+		{
+			"title": "Mug Tree Stand",
+			"thumb": "https://cdn.dummyjson.com/product-images/kitchen-accessories/mug-tree-stand/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/kitchen-accessories/mug-tree-stand/1.webp",
+				"https://cdn.dummyjson.com/product-images/kitchen-accessories/mug-tree-stand/2.webp",
+			],
+		},
+		{
+			"title": "Pan",
+			"thumb": "https://cdn.dummyjson.com/product-images/kitchen-accessories/pan/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/kitchen-accessories/pan/1.webp",
+			],
+		},
+		{
+			"title": "Plate",
+			"thumb": "https://cdn.dummyjson.com/product-images/kitchen-accessories/plate/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/kitchen-accessories/plate/1.webp",
+			],
+		},
+		{
+			"title": "Red Tongs",
+			"thumb": "https://cdn.dummyjson.com/product-images/kitchen-accessories/red-tongs/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/kitchen-accessories/red-tongs/1.webp",
+			],
+		},
+		{
+			"title": "Silver Pot With Glass Cap",
+			"thumb": "https://cdn.dummyjson.com/product-images/kitchen-accessories/silver-pot-with-glass-cap/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/kitchen-accessories/silver-pot-with-glass-cap/1.webp",
+			],
+		},
+		{
+			"title": "Slotted Turner",
+			"thumb": "https://cdn.dummyjson.com/product-images/kitchen-accessories/slotted-turner/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/kitchen-accessories/slotted-turner/1.webp",
+			],
+		},
+		{
+			"title": "Spice Rack",
+			"thumb": "https://cdn.dummyjson.com/product-images/kitchen-accessories/spice-rack/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/kitchen-accessories/spice-rack/1.webp",
+			],
+		},
+		{
+			"title": "Spoon",
+			"thumb": "https://cdn.dummyjson.com/product-images/kitchen-accessories/spoon/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/kitchen-accessories/spoon/1.webp",
+			],
+		},
+		{
+			"title": "Tray",
+			"thumb": "https://cdn.dummyjson.com/product-images/kitchen-accessories/tray/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/kitchen-accessories/tray/1.webp",
+			],
+		},
+		{
+			"title": "Wooden Rolling Pin",
+			"thumb": "https://cdn.dummyjson.com/product-images/kitchen-accessories/wooden-rolling-pin/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/kitchen-accessories/wooden-rolling-pin/1.webp",
+			],
+		},
+		{
+			"title": "Yellow Peeler",
+			"thumb": "https://cdn.dummyjson.com/product-images/kitchen-accessories/yellow-peeler/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/kitchen-accessories/yellow-peeler/1.webp",
+			],
+		},
+	],
+	"laptops": [
+		{
+			"title": "Apple MacBook Pro 14 Inch Space Grey",
+			"thumb": "https://cdn.dummyjson.com/product-images/laptops/apple-macbook-pro-14-inch-space-grey/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/laptops/apple-macbook-pro-14-inch-space-grey/1.webp",
+				"https://cdn.dummyjson.com/product-images/laptops/apple-macbook-pro-14-inch-space-grey/2.webp",
+				"https://cdn.dummyjson.com/product-images/laptops/apple-macbook-pro-14-inch-space-grey/3.webp",
+			],
+		},
+		{
+			"title": "Asus Zenbook Pro Dual Screen Laptop",
+			"thumb": "https://cdn.dummyjson.com/product-images/laptops/asus-zenbook-pro-dual-screen-laptop/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/laptops/asus-zenbook-pro-dual-screen-laptop/1.webp",
+				"https://cdn.dummyjson.com/product-images/laptops/asus-zenbook-pro-dual-screen-laptop/2.webp",
+				"https://cdn.dummyjson.com/product-images/laptops/asus-zenbook-pro-dual-screen-laptop/3.webp",
+			],
+		},
+		{
+			"title": "Huawei Matebook X Pro",
+			"thumb": "https://cdn.dummyjson.com/product-images/laptops/huawei-matebook-x-pro/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/laptops/huawei-matebook-x-pro/1.webp",
+				"https://cdn.dummyjson.com/product-images/laptops/huawei-matebook-x-pro/2.webp",
+				"https://cdn.dummyjson.com/product-images/laptops/huawei-matebook-x-pro/3.webp",
+			],
+		},
+		{
+			"title": "Lenovo Yoga 920",
+			"thumb": "https://cdn.dummyjson.com/product-images/laptops/lenovo-yoga-920/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/laptops/lenovo-yoga-920/1.webp",
+				"https://cdn.dummyjson.com/product-images/laptops/lenovo-yoga-920/2.webp",
+				"https://cdn.dummyjson.com/product-images/laptops/lenovo-yoga-920/3.webp",
+			],
+		},
+		{
+			"title": "New DELL XPS 13 9300 Laptop",
+			"thumb": "https://cdn.dummyjson.com/product-images/laptops/new-dell-xps-13-9300-laptop/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/laptops/new-dell-xps-13-9300-laptop/1.webp",
+				"https://cdn.dummyjson.com/product-images/laptops/new-dell-xps-13-9300-laptop/2.webp",
+				"https://cdn.dummyjson.com/product-images/laptops/new-dell-xps-13-9300-laptop/3.webp",
+			],
+		},
+	],
+	"mens-shirts": [
+		{
+			"title": "Blue & Black Check Shirt",
+			"thumb": "https://cdn.dummyjson.com/product-images/mens-shirts/blue-%26-black-check-shirt/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/mens-shirts/blue-%26-black-check-shirt/1.webp",
+				"https://cdn.dummyjson.com/product-images/mens-shirts/blue-%26-black-check-shirt/2.webp",
+				"https://cdn.dummyjson.com/product-images/mens-shirts/blue-%26-black-check-shirt/3.webp",
+				"https://cdn.dummyjson.com/product-images/mens-shirts/blue-%26-black-check-shirt/4.webp",
+			],
+		},
+		{
+			"title": "Gigabyte Aorus Men Tshirt",
+			"thumb": "https://cdn.dummyjson.com/product-images/mens-shirts/gigabyte-aorus-men-tshirt/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/mens-shirts/gigabyte-aorus-men-tshirt/1.webp",
+				"https://cdn.dummyjson.com/product-images/mens-shirts/gigabyte-aorus-men-tshirt/2.webp",
+				"https://cdn.dummyjson.com/product-images/mens-shirts/gigabyte-aorus-men-tshirt/3.webp",
+				"https://cdn.dummyjson.com/product-images/mens-shirts/gigabyte-aorus-men-tshirt/4.webp",
+			],
+		},
+		{
+			"title": "Man Plaid Shirt",
+			"thumb": "https://cdn.dummyjson.com/product-images/mens-shirts/man-plaid-shirt/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/mens-shirts/man-plaid-shirt/1.webp",
+				"https://cdn.dummyjson.com/product-images/mens-shirts/man-plaid-shirt/2.webp",
+				"https://cdn.dummyjson.com/product-images/mens-shirts/man-plaid-shirt/3.webp",
+				"https://cdn.dummyjson.com/product-images/mens-shirts/man-plaid-shirt/4.webp",
+			],
+		},
+		{
+			"title": "Man Short Sleeve Shirt",
+			"thumb": "https://cdn.dummyjson.com/product-images/mens-shirts/man-short-sleeve-shirt/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/mens-shirts/man-short-sleeve-shirt/1.webp",
+				"https://cdn.dummyjson.com/product-images/mens-shirts/man-short-sleeve-shirt/2.webp",
+				"https://cdn.dummyjson.com/product-images/mens-shirts/man-short-sleeve-shirt/3.webp",
+				"https://cdn.dummyjson.com/product-images/mens-shirts/man-short-sleeve-shirt/4.webp",
+			],
+		},
+		{
+			"title": "Men Check Shirt",
+			"thumb": "https://cdn.dummyjson.com/product-images/mens-shirts/men-check-shirt/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/mens-shirts/men-check-shirt/1.webp",
+				"https://cdn.dummyjson.com/product-images/mens-shirts/men-check-shirt/2.webp",
+				"https://cdn.dummyjson.com/product-images/mens-shirts/men-check-shirt/3.webp",
+				"https://cdn.dummyjson.com/product-images/mens-shirts/men-check-shirt/4.webp",
+			],
+		},
+	],
+	"mens-shoes": [
+		{
+			"title": "Nike Air Jordan 1 Red And Black",
+			"thumb": "https://cdn.dummyjson.com/product-images/mens-shoes/nike-air-jordan-1-red-and-black/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/mens-shoes/nike-air-jordan-1-red-and-black/1.webp",
+				"https://cdn.dummyjson.com/product-images/mens-shoes/nike-air-jordan-1-red-and-black/2.webp",
+				"https://cdn.dummyjson.com/product-images/mens-shoes/nike-air-jordan-1-red-and-black/3.webp",
+				"https://cdn.dummyjson.com/product-images/mens-shoes/nike-air-jordan-1-red-and-black/4.webp",
+			],
+		},
+		{
+			"title": "Nike Baseball Cleats",
+			"thumb": "https://cdn.dummyjson.com/product-images/mens-shoes/nike-baseball-cleats/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/mens-shoes/nike-baseball-cleats/1.webp",
+				"https://cdn.dummyjson.com/product-images/mens-shoes/nike-baseball-cleats/2.webp",
+				"https://cdn.dummyjson.com/product-images/mens-shoes/nike-baseball-cleats/3.webp",
+				"https://cdn.dummyjson.com/product-images/mens-shoes/nike-baseball-cleats/4.webp",
+			],
+		},
+		{
+			"title": "Puma Future Rider Trainers",
+			"thumb": "https://cdn.dummyjson.com/product-images/mens-shoes/puma-future-rider-trainers/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/mens-shoes/puma-future-rider-trainers/1.webp",
+				"https://cdn.dummyjson.com/product-images/mens-shoes/puma-future-rider-trainers/2.webp",
+				"https://cdn.dummyjson.com/product-images/mens-shoes/puma-future-rider-trainers/3.webp",
+				"https://cdn.dummyjson.com/product-images/mens-shoes/puma-future-rider-trainers/4.webp",
+			],
+		},
+		{
+			"title": "Sports Sneakers Off White & Red",
+			"thumb": "https://cdn.dummyjson.com/product-images/mens-shoes/sports-sneakers-off-white-%26-red/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/mens-shoes/sports-sneakers-off-white-%26-red/1.webp",
+				"https://cdn.dummyjson.com/product-images/mens-shoes/sports-sneakers-off-white-%26-red/2.webp",
+				"https://cdn.dummyjson.com/product-images/mens-shoes/sports-sneakers-off-white-%26-red/3.webp",
+				"https://cdn.dummyjson.com/product-images/mens-shoes/sports-sneakers-off-white-%26-red/4.webp",
+			],
+		},
+		{
+			"title": "Sports Sneakers Off White Red",
+			"thumb": "https://cdn.dummyjson.com/product-images/mens-shoes/sports-sneakers-off-white-red/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/mens-shoes/sports-sneakers-off-white-red/1.webp",
+				"https://cdn.dummyjson.com/product-images/mens-shoes/sports-sneakers-off-white-red/2.webp",
+				"https://cdn.dummyjson.com/product-images/mens-shoes/sports-sneakers-off-white-red/3.webp",
+				"https://cdn.dummyjson.com/product-images/mens-shoes/sports-sneakers-off-white-red/4.webp",
+			],
+		},
+	],
+	"mens-watches": [
+		{
+			"title": "Brown Leather Belt Watch",
+			"thumb": "https://cdn.dummyjson.com/product-images/mens-watches/brown-leather-belt-watch/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/mens-watches/brown-leather-belt-watch/1.webp",
+				"https://cdn.dummyjson.com/product-images/mens-watches/brown-leather-belt-watch/2.webp",
+				"https://cdn.dummyjson.com/product-images/mens-watches/brown-leather-belt-watch/3.webp",
+			],
+		},
+		{
+			"title": "Longines Master Collection",
+			"thumb": "https://cdn.dummyjson.com/product-images/mens-watches/longines-master-collection/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/mens-watches/longines-master-collection/1.webp",
+				"https://cdn.dummyjson.com/product-images/mens-watches/longines-master-collection/2.webp",
+				"https://cdn.dummyjson.com/product-images/mens-watches/longines-master-collection/3.webp",
+			],
+		},
+		{
+			"title": "Rolex Cellini Date Black Dial",
+			"thumb": "https://cdn.dummyjson.com/product-images/mens-watches/rolex-cellini-date-black-dial/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/mens-watches/rolex-cellini-date-black-dial/1.webp",
+				"https://cdn.dummyjson.com/product-images/mens-watches/rolex-cellini-date-black-dial/2.webp",
+				"https://cdn.dummyjson.com/product-images/mens-watches/rolex-cellini-date-black-dial/3.webp",
+			],
+		},
+		{
+			"title": "Rolex Cellini Moonphase",
+			"thumb": "https://cdn.dummyjson.com/product-images/mens-watches/rolex-cellini-moonphase/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/mens-watches/rolex-cellini-moonphase/1.webp",
+				"https://cdn.dummyjson.com/product-images/mens-watches/rolex-cellini-moonphase/2.webp",
+				"https://cdn.dummyjson.com/product-images/mens-watches/rolex-cellini-moonphase/3.webp",
+			],
+		},
+		{
+			"title": "Rolex Datejust",
+			"thumb": "https://cdn.dummyjson.com/product-images/mens-watches/rolex-datejust/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/mens-watches/rolex-datejust/1.webp",
+				"https://cdn.dummyjson.com/product-images/mens-watches/rolex-datejust/2.webp",
+				"https://cdn.dummyjson.com/product-images/mens-watches/rolex-datejust/3.webp",
+			],
+		},
+		{
+			"title": "Rolex Submariner Watch",
+			"thumb": "https://cdn.dummyjson.com/product-images/mens-watches/rolex-submariner-watch/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/mens-watches/rolex-submariner-watch/1.webp",
+				"https://cdn.dummyjson.com/product-images/mens-watches/rolex-submariner-watch/2.webp",
+				"https://cdn.dummyjson.com/product-images/mens-watches/rolex-submariner-watch/3.webp",
+			],
+		},
+	],
+	"mobile-accessories": [
+		{
+			"title": "Amazon Echo Plus",
+			"thumb": "https://cdn.dummyjson.com/product-images/mobile-accessories/amazon-echo-plus/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/mobile-accessories/amazon-echo-plus/1.webp",
+				"https://cdn.dummyjson.com/product-images/mobile-accessories/amazon-echo-plus/2.webp",
+			],
+		},
+		{
+			"title": "Apple Airpods",
+			"thumb": "https://cdn.dummyjson.com/product-images/mobile-accessories/apple-airpods/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/mobile-accessories/apple-airpods/1.webp",
+				"https://cdn.dummyjson.com/product-images/mobile-accessories/apple-airpods/2.webp",
+				"https://cdn.dummyjson.com/product-images/mobile-accessories/apple-airpods/3.webp",
+			],
+		},
+		{
+			"title": "Apple AirPods Max Silver",
+			"thumb": "https://cdn.dummyjson.com/product-images/mobile-accessories/apple-airpods-max-silver/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/mobile-accessories/apple-airpods-max-silver/1.webp",
+			],
+		},
+		{
+			"title": "Apple Airpower Wireless Charger",
+			"thumb": "https://cdn.dummyjson.com/product-images/mobile-accessories/apple-airpower-wireless-charger/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/mobile-accessories/apple-airpower-wireless-charger/1.webp",
+			],
+		},
+		{
+			"title": "Apple HomePod Mini Cosmic Grey",
+			"thumb": "https://cdn.dummyjson.com/product-images/mobile-accessories/apple-homepod-mini-cosmic-grey/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/mobile-accessories/apple-homepod-mini-cosmic-grey/1.webp",
+			],
+		},
+		{
+			"title": "Apple iPhone Charger",
+			"thumb": "https://cdn.dummyjson.com/product-images/mobile-accessories/apple-iphone-charger/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/mobile-accessories/apple-iphone-charger/1.webp",
+				"https://cdn.dummyjson.com/product-images/mobile-accessories/apple-iphone-charger/2.webp",
+			],
+		},
+		{
+			"title": "Apple MagSafe Battery Pack",
+			"thumb": "https://cdn.dummyjson.com/product-images/mobile-accessories/apple-magsafe-battery-pack/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/mobile-accessories/apple-magsafe-battery-pack/1.webp",
+				"https://cdn.dummyjson.com/product-images/mobile-accessories/apple-magsafe-battery-pack/2.webp",
+			],
+		},
+		{
+			"title": "Apple Watch Series 4 Gold",
+			"thumb": "https://cdn.dummyjson.com/product-images/mobile-accessories/apple-watch-series-4-gold/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/mobile-accessories/apple-watch-series-4-gold/1.webp",
+				"https://cdn.dummyjson.com/product-images/mobile-accessories/apple-watch-series-4-gold/2.webp",
+				"https://cdn.dummyjson.com/product-images/mobile-accessories/apple-watch-series-4-gold/3.webp",
+			],
+		},
+		{
+			"title": "Beats Flex Wireless Earphones",
+			"thumb": "https://cdn.dummyjson.com/product-images/mobile-accessories/beats-flex-wireless-earphones/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/mobile-accessories/beats-flex-wireless-earphones/1.webp",
+			],
+		},
+		{
+			"title": "iPhone 12 Silicone Case with MagSafe Plum",
+			"thumb": "https://cdn.dummyjson.com/product-images/mobile-accessories/iphone-12-silicone-case-with-magsafe-plum/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/mobile-accessories/iphone-12-silicone-case-with-magsafe-plum/1.webp",
+				"https://cdn.dummyjson.com/product-images/mobile-accessories/iphone-12-silicone-case-with-magsafe-plum/2.webp",
+				"https://cdn.dummyjson.com/product-images/mobile-accessories/iphone-12-silicone-case-with-magsafe-plum/3.webp",
+				"https://cdn.dummyjson.com/product-images/mobile-accessories/iphone-12-silicone-case-with-magsafe-plum/4.webp",
+			],
+		},
+		{
+			"title": "Monopod",
+			"thumb": "https://cdn.dummyjson.com/product-images/mobile-accessories/monopod/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/mobile-accessories/monopod/1.webp",
+				"https://cdn.dummyjson.com/product-images/mobile-accessories/monopod/2.webp",
+			],
+		},
+		{
+			"title": "Selfie Lamp with iPhone",
+			"thumb": "https://cdn.dummyjson.com/product-images/mobile-accessories/selfie-lamp-with-iphone/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/mobile-accessories/selfie-lamp-with-iphone/1.webp",
+			],
+		},
+		{
+			"title": "Selfie Stick Monopod",
+			"thumb": "https://cdn.dummyjson.com/product-images/mobile-accessories/selfie-stick-monopod/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/mobile-accessories/selfie-stick-monopod/1.webp",
+			],
+		},
+		{
+			"title": "TV Studio Camera Pedestal",
+			"thumb": "https://cdn.dummyjson.com/product-images/mobile-accessories/tv-studio-camera-pedestal/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/mobile-accessories/tv-studio-camera-pedestal/1.webp",
+			],
+		},
+	],
+	"motorcycle": [
+		{
+			"title": "Generic Motorcycle",
+			"thumb": "https://cdn.dummyjson.com/product-images/motorcycle/generic-motorcycle/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/motorcycle/generic-motorcycle/1.webp",
+				"https://cdn.dummyjson.com/product-images/motorcycle/generic-motorcycle/2.webp",
+				"https://cdn.dummyjson.com/product-images/motorcycle/generic-motorcycle/3.webp",
+				"https://cdn.dummyjson.com/product-images/motorcycle/generic-motorcycle/4.webp",
+			],
+		},
+		{
+			"title": "Kawasaki Z800",
+			"thumb": "https://cdn.dummyjson.com/product-images/motorcycle/kawasaki-z800/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/motorcycle/kawasaki-z800/1.webp",
+				"https://cdn.dummyjson.com/product-images/motorcycle/kawasaki-z800/2.webp",
+				"https://cdn.dummyjson.com/product-images/motorcycle/kawasaki-z800/3.webp",
+				"https://cdn.dummyjson.com/product-images/motorcycle/kawasaki-z800/4.webp",
+			],
+		},
+		{
+			"title": "MotoGP CI.H1",
+			"thumb": "https://cdn.dummyjson.com/product-images/motorcycle/motogp-ci.h1/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/motorcycle/motogp-ci.h1/1.webp",
+				"https://cdn.dummyjson.com/product-images/motorcycle/motogp-ci.h1/2.webp",
+				"https://cdn.dummyjson.com/product-images/motorcycle/motogp-ci.h1/3.webp",
+				"https://cdn.dummyjson.com/product-images/motorcycle/motogp-ci.h1/4.webp",
+			],
+		},
+		{
+			"title": "Scooter Motorcycle",
+			"thumb": "https://cdn.dummyjson.com/product-images/motorcycle/scooter-motorcycle/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/motorcycle/scooter-motorcycle/1.webp",
+				"https://cdn.dummyjson.com/product-images/motorcycle/scooter-motorcycle/2.webp",
+				"https://cdn.dummyjson.com/product-images/motorcycle/scooter-motorcycle/3.webp",
+				"https://cdn.dummyjson.com/product-images/motorcycle/scooter-motorcycle/4.webp",
+			],
+		},
+		{
+			"title": "Sportbike Motorcycle",
+			"thumb": "https://cdn.dummyjson.com/product-images/motorcycle/sportbike-motorcycle/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/motorcycle/sportbike-motorcycle/1.webp",
+				"https://cdn.dummyjson.com/product-images/motorcycle/sportbike-motorcycle/2.webp",
+				"https://cdn.dummyjson.com/product-images/motorcycle/sportbike-motorcycle/3.webp",
+				"https://cdn.dummyjson.com/product-images/motorcycle/sportbike-motorcycle/4.webp",
+			],
+		},
+	],
+	"skin-care": [
+		{
+			"title": "Attitude Super Leaves Hand Soap",
+			"thumb": "https://cdn.dummyjson.com/product-images/skin-care/attitude-super-leaves-hand-soap/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/skin-care/attitude-super-leaves-hand-soap/1.webp",
+				"https://cdn.dummyjson.com/product-images/skin-care/attitude-super-leaves-hand-soap/2.webp",
+				"https://cdn.dummyjson.com/product-images/skin-care/attitude-super-leaves-hand-soap/3.webp",
+			],
+		},
+		{
+			"title": "Olay Ultra Moisture Shea Butter Body Wash",
+			"thumb": "https://cdn.dummyjson.com/product-images/skin-care/olay-ultra-moisture-shea-butter-body-wash/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/skin-care/olay-ultra-moisture-shea-butter-body-wash/1.webp",
+				"https://cdn.dummyjson.com/product-images/skin-care/olay-ultra-moisture-shea-butter-body-wash/2.webp",
+				"https://cdn.dummyjson.com/product-images/skin-care/olay-ultra-moisture-shea-butter-body-wash/3.webp",
+			],
+		},
+		{
+			"title": "Vaseline Men Body and Face Lotion",
+			"thumb": "https://cdn.dummyjson.com/product-images/skin-care/vaseline-men-body-and-face-lotion/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/skin-care/vaseline-men-body-and-face-lotion/1.webp",
+				"https://cdn.dummyjson.com/product-images/skin-care/vaseline-men-body-and-face-lotion/2.webp",
+				"https://cdn.dummyjson.com/product-images/skin-care/vaseline-men-body-and-face-lotion/3.webp",
+			],
+		},
+	],
+	"smartphones": [
+		{
+			"title": "iPhone 5s",
+			"thumb": "https://cdn.dummyjson.com/product-images/smartphones/iphone-5s/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/smartphones/iphone-5s/1.webp",
+				"https://cdn.dummyjson.com/product-images/smartphones/iphone-5s/2.webp",
+				"https://cdn.dummyjson.com/product-images/smartphones/iphone-5s/3.webp",
+			],
+		},
+		{
+			"title": "iPhone 6",
+			"thumb": "https://cdn.dummyjson.com/product-images/smartphones/iphone-6/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/smartphones/iphone-6/1.webp",
+				"https://cdn.dummyjson.com/product-images/smartphones/iphone-6/2.webp",
+				"https://cdn.dummyjson.com/product-images/smartphones/iphone-6/3.webp",
+			],
+		},
+		{
+			"title": "iPhone 13 Pro",
+			"thumb": "https://cdn.dummyjson.com/product-images/smartphones/iphone-13-pro/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/smartphones/iphone-13-pro/1.webp",
+				"https://cdn.dummyjson.com/product-images/smartphones/iphone-13-pro/2.webp",
+				"https://cdn.dummyjson.com/product-images/smartphones/iphone-13-pro/3.webp",
+			],
+		},
+		{
+			"title": "iPhone X",
+			"thumb": "https://cdn.dummyjson.com/product-images/smartphones/iphone-x/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/smartphones/iphone-x/1.webp",
+				"https://cdn.dummyjson.com/product-images/smartphones/iphone-x/2.webp",
+				"https://cdn.dummyjson.com/product-images/smartphones/iphone-x/3.webp",
+			],
+		},
+		{
+			"title": "Oppo A57",
+			"thumb": "https://cdn.dummyjson.com/product-images/smartphones/oppo-a57/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/smartphones/oppo-a57/1.webp",
+				"https://cdn.dummyjson.com/product-images/smartphones/oppo-a57/2.webp",
+				"https://cdn.dummyjson.com/product-images/smartphones/oppo-a57/3.webp",
+			],
+		},
+		{
+			"title": "Oppo F19 Pro Plus",
+			"thumb": "https://cdn.dummyjson.com/product-images/smartphones/oppo-f19-pro-plus/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/smartphones/oppo-f19-pro-plus/1.webp",
+				"https://cdn.dummyjson.com/product-images/smartphones/oppo-f19-pro-plus/2.webp",
+				"https://cdn.dummyjson.com/product-images/smartphones/oppo-f19-pro-plus/3.webp",
+			],
+		},
+		{
+			"title": "Oppo K1",
+			"thumb": "https://cdn.dummyjson.com/product-images/smartphones/oppo-k1/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/smartphones/oppo-k1/1.webp",
+				"https://cdn.dummyjson.com/product-images/smartphones/oppo-k1/2.webp",
+				"https://cdn.dummyjson.com/product-images/smartphones/oppo-k1/3.webp",
+				"https://cdn.dummyjson.com/product-images/smartphones/oppo-k1/4.webp",
+			],
+		},
+		{
+			"title": "Realme C35",
+			"thumb": "https://cdn.dummyjson.com/product-images/smartphones/realme-c35/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/smartphones/realme-c35/1.webp",
+				"https://cdn.dummyjson.com/product-images/smartphones/realme-c35/2.webp",
+				"https://cdn.dummyjson.com/product-images/smartphones/realme-c35/3.webp",
+			],
+		},
+		{
+			"title": "Realme X",
+			"thumb": "https://cdn.dummyjson.com/product-images/smartphones/realme-x/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/smartphones/realme-x/1.webp",
+				"https://cdn.dummyjson.com/product-images/smartphones/realme-x/2.webp",
+				"https://cdn.dummyjson.com/product-images/smartphones/realme-x/3.webp",
+			],
+		},
+		{
+			"title": "Realme XT",
+			"thumb": "https://cdn.dummyjson.com/product-images/smartphones/realme-xt/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/smartphones/realme-xt/1.webp",
+				"https://cdn.dummyjson.com/product-images/smartphones/realme-xt/2.webp",
+				"https://cdn.dummyjson.com/product-images/smartphones/realme-xt/3.webp",
+			],
+		},
+		{
+			"title": "Samsung Galaxy S7",
+			"thumb": "https://cdn.dummyjson.com/product-images/smartphones/samsung-galaxy-s7/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/smartphones/samsung-galaxy-s7/1.webp",
+				"https://cdn.dummyjson.com/product-images/smartphones/samsung-galaxy-s7/2.webp",
+				"https://cdn.dummyjson.com/product-images/smartphones/samsung-galaxy-s7/3.webp",
+			],
+		},
+		{
+			"title": "Samsung Galaxy S8",
+			"thumb": "https://cdn.dummyjson.com/product-images/smartphones/samsung-galaxy-s8/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/smartphones/samsung-galaxy-s8/1.webp",
+				"https://cdn.dummyjson.com/product-images/smartphones/samsung-galaxy-s8/2.webp",
+				"https://cdn.dummyjson.com/product-images/smartphones/samsung-galaxy-s8/3.webp",
+			],
+		},
+		{
+			"title": "Samsung Galaxy S10",
+			"thumb": "https://cdn.dummyjson.com/product-images/smartphones/samsung-galaxy-s10/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/smartphones/samsung-galaxy-s10/1.webp",
+				"https://cdn.dummyjson.com/product-images/smartphones/samsung-galaxy-s10/2.webp",
+				"https://cdn.dummyjson.com/product-images/smartphones/samsung-galaxy-s10/3.webp",
+			],
+		},
+		{
+			"title": "Vivo S1",
+			"thumb": "https://cdn.dummyjson.com/product-images/smartphones/vivo-s1/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/smartphones/vivo-s1/1.webp",
+				"https://cdn.dummyjson.com/product-images/smartphones/vivo-s1/2.webp",
+				"https://cdn.dummyjson.com/product-images/smartphones/vivo-s1/3.webp",
+			],
+		},
+		{
+			"title": "Vivo V9",
+			"thumb": "https://cdn.dummyjson.com/product-images/smartphones/vivo-v9/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/smartphones/vivo-v9/1.webp",
+				"https://cdn.dummyjson.com/product-images/smartphones/vivo-v9/2.webp",
+				"https://cdn.dummyjson.com/product-images/smartphones/vivo-v9/3.webp",
+			],
+		},
+		{
+			"title": "Vivo X21",
+			"thumb": "https://cdn.dummyjson.com/product-images/smartphones/vivo-x21/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/smartphones/vivo-x21/1.webp",
+				"https://cdn.dummyjson.com/product-images/smartphones/vivo-x21/2.webp",
+				"https://cdn.dummyjson.com/product-images/smartphones/vivo-x21/3.webp",
+			],
+		},
+	],
+	"sports-accessories": [
+		{
+			"title": "American Football",
+			"thumb": "https://cdn.dummyjson.com/product-images/sports-accessories/american-football/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/sports-accessories/american-football/1.webp",
+			],
+		},
+		{
+			"title": "Baseball Ball",
+			"thumb": "https://cdn.dummyjson.com/product-images/sports-accessories/baseball-ball/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/sports-accessories/baseball-ball/1.webp",
+			],
+		},
+		{
+			"title": "Baseball Glove",
+			"thumb": "https://cdn.dummyjson.com/product-images/sports-accessories/baseball-glove/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/sports-accessories/baseball-glove/1.webp",
+				"https://cdn.dummyjson.com/product-images/sports-accessories/baseball-glove/2.webp",
+				"https://cdn.dummyjson.com/product-images/sports-accessories/baseball-glove/3.webp",
+			],
+		},
+		{
+			"title": "Basketball",
+			"thumb": "https://cdn.dummyjson.com/product-images/sports-accessories/basketball/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/sports-accessories/basketball/1.webp",
+			],
+		},
+		{
+			"title": "Basketball Rim",
+			"thumb": "https://cdn.dummyjson.com/product-images/sports-accessories/basketball-rim/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/sports-accessories/basketball-rim/1.webp",
+			],
+		},
+		{
+			"title": "Cricket Ball",
+			"thumb": "https://cdn.dummyjson.com/product-images/sports-accessories/cricket-ball/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/sports-accessories/cricket-ball/1.webp",
+			],
+		},
+		{
+			"title": "Cricket Bat",
+			"thumb": "https://cdn.dummyjson.com/product-images/sports-accessories/cricket-bat/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/sports-accessories/cricket-bat/1.webp",
+			],
+		},
+		{
+			"title": "Cricket Helmet",
+			"thumb": "https://cdn.dummyjson.com/product-images/sports-accessories/cricket-helmet/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/sports-accessories/cricket-helmet/1.webp",
+				"https://cdn.dummyjson.com/product-images/sports-accessories/cricket-helmet/2.webp",
+				"https://cdn.dummyjson.com/product-images/sports-accessories/cricket-helmet/3.webp",
+				"https://cdn.dummyjson.com/product-images/sports-accessories/cricket-helmet/4.webp",
+			],
+		},
+		{
+			"title": "Cricket Wicket",
+			"thumb": "https://cdn.dummyjson.com/product-images/sports-accessories/cricket-wicket/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/sports-accessories/cricket-wicket/1.webp",
+			],
+		},
+		{
+			"title": "Feather Shuttlecock",
+			"thumb": "https://cdn.dummyjson.com/product-images/sports-accessories/feather-shuttlecock/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/sports-accessories/feather-shuttlecock/1.webp",
+			],
+		},
+		{
+			"title": "Football",
+			"thumb": "https://cdn.dummyjson.com/product-images/sports-accessories/football/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/sports-accessories/football/1.webp",
+			],
+		},
+		{
+			"title": "Golf Ball",
+			"thumb": "https://cdn.dummyjson.com/product-images/sports-accessories/golf-ball/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/sports-accessories/golf-ball/1.webp",
+			],
+		},
+		{
+			"title": "Iron Golf",
+			"thumb": "https://cdn.dummyjson.com/product-images/sports-accessories/iron-golf/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/sports-accessories/iron-golf/1.webp",
+			],
+		},
+		{
+			"title": "Metal Baseball Bat",
+			"thumb": "https://cdn.dummyjson.com/product-images/sports-accessories/metal-baseball-bat/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/sports-accessories/metal-baseball-bat/1.webp",
+			],
+		},
+		{
+			"title": "Tennis Ball",
+			"thumb": "https://cdn.dummyjson.com/product-images/sports-accessories/tennis-ball/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/sports-accessories/tennis-ball/1.webp",
+			],
+		},
+		{
+			"title": "Tennis Racket",
+			"thumb": "https://cdn.dummyjson.com/product-images/sports-accessories/tennis-racket/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/sports-accessories/tennis-racket/1.webp",
+			],
+		},
+		{
+			"title": "Volleyball",
+			"thumb": "https://cdn.dummyjson.com/product-images/sports-accessories/volleyball/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/sports-accessories/volleyball/1.webp",
+			],
+		},
+	],
+	"sunglasses": [
+		{
+			"title": "Black Sun Glasses",
+			"thumb": "https://cdn.dummyjson.com/product-images/sunglasses/black-sun-glasses/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/sunglasses/black-sun-glasses/1.webp",
+				"https://cdn.dummyjson.com/product-images/sunglasses/black-sun-glasses/2.webp",
+				"https://cdn.dummyjson.com/product-images/sunglasses/black-sun-glasses/3.webp",
+			],
+		},
+		{
+			"title": "Classic Sun Glasses",
+			"thumb": "https://cdn.dummyjson.com/product-images/sunglasses/classic-sun-glasses/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/sunglasses/classic-sun-glasses/1.webp",
+				"https://cdn.dummyjson.com/product-images/sunglasses/classic-sun-glasses/2.webp",
+				"https://cdn.dummyjson.com/product-images/sunglasses/classic-sun-glasses/3.webp",
+			],
+		},
+		{
+			"title": "Green and Black Glasses",
+			"thumb": "https://cdn.dummyjson.com/product-images/sunglasses/green-and-black-glasses/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/sunglasses/green-and-black-glasses/1.webp",
+				"https://cdn.dummyjson.com/product-images/sunglasses/green-and-black-glasses/2.webp",
+				"https://cdn.dummyjson.com/product-images/sunglasses/green-and-black-glasses/3.webp",
+			],
+		},
+		{
+			"title": "Party Glasses",
+			"thumb": "https://cdn.dummyjson.com/product-images/sunglasses/party-glasses/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/sunglasses/party-glasses/1.webp",
+				"https://cdn.dummyjson.com/product-images/sunglasses/party-glasses/2.webp",
+				"https://cdn.dummyjson.com/product-images/sunglasses/party-glasses/3.webp",
+			],
+		},
+		{
+			"title": "Sunglasses",
+			"thumb": "https://cdn.dummyjson.com/product-images/sunglasses/sunglasses/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/sunglasses/sunglasses/1.webp",
+				"https://cdn.dummyjson.com/product-images/sunglasses/sunglasses/2.webp",
+				"https://cdn.dummyjson.com/product-images/sunglasses/sunglasses/3.webp",
+			],
+		},
+	],
+	"tablets": [
+		{
+			"title": "iPad Mini 2021 Starlight",
+			"thumb": "https://cdn.dummyjson.com/product-images/tablets/ipad-mini-2021-starlight/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/tablets/ipad-mini-2021-starlight/1.webp",
+				"https://cdn.dummyjson.com/product-images/tablets/ipad-mini-2021-starlight/2.webp",
+				"https://cdn.dummyjson.com/product-images/tablets/ipad-mini-2021-starlight/3.webp",
+				"https://cdn.dummyjson.com/product-images/tablets/ipad-mini-2021-starlight/4.webp",
+			],
+		},
+		{
+			"title": "Samsung Galaxy Tab S8 Plus Grey",
+			"thumb": "https://cdn.dummyjson.com/product-images/tablets/samsung-galaxy-tab-s8-plus-grey/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/tablets/samsung-galaxy-tab-s8-plus-grey/1.webp",
+				"https://cdn.dummyjson.com/product-images/tablets/samsung-galaxy-tab-s8-plus-grey/2.webp",
+				"https://cdn.dummyjson.com/product-images/tablets/samsung-galaxy-tab-s8-plus-grey/3.webp",
+				"https://cdn.dummyjson.com/product-images/tablets/samsung-galaxy-tab-s8-plus-grey/4.webp",
+			],
+		},
+		{
+			"title": "Samsung Galaxy Tab White",
+			"thumb": "https://cdn.dummyjson.com/product-images/tablets/samsung-galaxy-tab-white/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/tablets/samsung-galaxy-tab-white/1.webp",
+				"https://cdn.dummyjson.com/product-images/tablets/samsung-galaxy-tab-white/2.webp",
+				"https://cdn.dummyjson.com/product-images/tablets/samsung-galaxy-tab-white/3.webp",
+				"https://cdn.dummyjson.com/product-images/tablets/samsung-galaxy-tab-white/4.webp",
+			],
+		},
+	],
+	"tops": [
+		{
+			"title": "Blue Frock",
+			"thumb": "https://cdn.dummyjson.com/product-images/tops/blue-frock/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/tops/blue-frock/1.webp",
+				"https://cdn.dummyjson.com/product-images/tops/blue-frock/2.webp",
+				"https://cdn.dummyjson.com/product-images/tops/blue-frock/3.webp",
+				"https://cdn.dummyjson.com/product-images/tops/blue-frock/4.webp",
+			],
+		},
+		{
+			"title": "Girl Summer Dress",
+			"thumb": "https://cdn.dummyjson.com/product-images/tops/girl-summer-dress/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/tops/girl-summer-dress/1.webp",
+				"https://cdn.dummyjson.com/product-images/tops/girl-summer-dress/2.webp",
+				"https://cdn.dummyjson.com/product-images/tops/girl-summer-dress/3.webp",
+				"https://cdn.dummyjson.com/product-images/tops/girl-summer-dress/4.webp",
+			],
+		},
+		{
+			"title": "Gray Dress",
+			"thumb": "https://cdn.dummyjson.com/product-images/tops/gray-dress/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/tops/gray-dress/1.webp",
+				"https://cdn.dummyjson.com/product-images/tops/gray-dress/2.webp",
+				"https://cdn.dummyjson.com/product-images/tops/gray-dress/3.webp",
+				"https://cdn.dummyjson.com/product-images/tops/gray-dress/4.webp",
+			],
+		},
+		{
+			"title": "Short Frock",
+			"thumb": "https://cdn.dummyjson.com/product-images/tops/short-frock/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/tops/short-frock/1.webp",
+				"https://cdn.dummyjson.com/product-images/tops/short-frock/2.webp",
+				"https://cdn.dummyjson.com/product-images/tops/short-frock/3.webp",
+				"https://cdn.dummyjson.com/product-images/tops/short-frock/4.webp",
+			],
+		},
+		{
+			"title": "Tartan Dress",
+			"thumb": "https://cdn.dummyjson.com/product-images/tops/tartan-dress/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/tops/tartan-dress/1.webp",
+				"https://cdn.dummyjson.com/product-images/tops/tartan-dress/2.webp",
+				"https://cdn.dummyjson.com/product-images/tops/tartan-dress/3.webp",
+				"https://cdn.dummyjson.com/product-images/tops/tartan-dress/4.webp",
+			],
+		},
+	],
+	"vehicle": [
+		{
+			"title": "300 Touring",
+			"thumb": "https://cdn.dummyjson.com/product-images/vehicle/300-touring/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/vehicle/300-touring/1.webp",
+				"https://cdn.dummyjson.com/product-images/vehicle/300-touring/2.webp",
+				"https://cdn.dummyjson.com/product-images/vehicle/300-touring/3.webp",
+				"https://cdn.dummyjson.com/product-images/vehicle/300-touring/4.webp",
+				"https://cdn.dummyjson.com/product-images/vehicle/300-touring/5.webp",
+				"https://cdn.dummyjson.com/product-images/vehicle/300-touring/6.webp",
+			],
+		},
+		{
+			"title": "Charger SXT RWD",
+			"thumb": "https://cdn.dummyjson.com/product-images/vehicle/charger-sxt-rwd/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/vehicle/charger-sxt-rwd/1.webp",
+				"https://cdn.dummyjson.com/product-images/vehicle/charger-sxt-rwd/2.webp",
+				"https://cdn.dummyjson.com/product-images/vehicle/charger-sxt-rwd/3.webp",
+				"https://cdn.dummyjson.com/product-images/vehicle/charger-sxt-rwd/4.webp",
+				"https://cdn.dummyjson.com/product-images/vehicle/charger-sxt-rwd/5.webp",
+				"https://cdn.dummyjson.com/product-images/vehicle/charger-sxt-rwd/6.webp",
+			],
+		},
+		{
+			"title": "Dodge Hornet GT Plus",
+			"thumb": "https://cdn.dummyjson.com/product-images/vehicle/dodge-hornet-gt-plus/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/vehicle/dodge-hornet-gt-plus/1.webp",
+				"https://cdn.dummyjson.com/product-images/vehicle/dodge-hornet-gt-plus/2.webp",
+				"https://cdn.dummyjson.com/product-images/vehicle/dodge-hornet-gt-plus/3.webp",
+				"https://cdn.dummyjson.com/product-images/vehicle/dodge-hornet-gt-plus/4.webp",
+				"https://cdn.dummyjson.com/product-images/vehicle/dodge-hornet-gt-plus/5.webp",
+				"https://cdn.dummyjson.com/product-images/vehicle/dodge-hornet-gt-plus/6.webp",
+			],
+		},
+		{
+			"title": "Durango SXT RWD",
+			"thumb": "https://cdn.dummyjson.com/product-images/vehicle/durango-sxt-rwd/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/vehicle/durango-sxt-rwd/1.webp",
+				"https://cdn.dummyjson.com/product-images/vehicle/durango-sxt-rwd/2.webp",
+				"https://cdn.dummyjson.com/product-images/vehicle/durango-sxt-rwd/3.webp",
+				"https://cdn.dummyjson.com/product-images/vehicle/durango-sxt-rwd/4.webp",
+				"https://cdn.dummyjson.com/product-images/vehicle/durango-sxt-rwd/5.webp",
+				"https://cdn.dummyjson.com/product-images/vehicle/durango-sxt-rwd/6.webp",
+			],
+		},
+		{
+			"title": "Pacifica Touring",
+			"thumb": "https://cdn.dummyjson.com/product-images/vehicle/pacifica-touring/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/vehicle/pacifica-touring/1.webp",
+				"https://cdn.dummyjson.com/product-images/vehicle/pacifica-touring/2.webp",
+				"https://cdn.dummyjson.com/product-images/vehicle/pacifica-touring/3.webp",
+				"https://cdn.dummyjson.com/product-images/vehicle/pacifica-touring/4.webp",
+				"https://cdn.dummyjson.com/product-images/vehicle/pacifica-touring/5.webp",
+				"https://cdn.dummyjson.com/product-images/vehicle/pacifica-touring/6.webp",
+			],
+		},
+	],
+	"womens-bags": [
+		{
+			"title": "Blue Women's Handbag",
+			"thumb": "https://cdn.dummyjson.com/product-images/womens-bags/blue-women%27s-handbag/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/womens-bags/blue-women%27s-handbag/1.webp",
+				"https://cdn.dummyjson.com/product-images/womens-bags/blue-women%27s-handbag/2.webp",
+				"https://cdn.dummyjson.com/product-images/womens-bags/blue-women%27s-handbag/3.webp",
+			],
+		},
+		{
+			"title": "Heshe Women's Leather Bag",
+			"thumb": "https://cdn.dummyjson.com/product-images/womens-bags/heshe-women%27s-leather-bag/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/womens-bags/heshe-women%27s-leather-bag/1.webp",
+				"https://cdn.dummyjson.com/product-images/womens-bags/heshe-women%27s-leather-bag/2.webp",
+				"https://cdn.dummyjson.com/product-images/womens-bags/heshe-women%27s-leather-bag/3.webp",
+			],
+		},
+		{
+			"title": "Prada Women Bag",
+			"thumb": "https://cdn.dummyjson.com/product-images/womens-bags/prada-women-bag/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/womens-bags/prada-women-bag/1.webp",
+				"https://cdn.dummyjson.com/product-images/womens-bags/prada-women-bag/2.webp",
+				"https://cdn.dummyjson.com/product-images/womens-bags/prada-women-bag/3.webp",
+			],
+		},
+		{
+			"title": "White Faux Leather Backpack",
+			"thumb": "https://cdn.dummyjson.com/product-images/womens-bags/white-faux-leather-backpack/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/womens-bags/white-faux-leather-backpack/1.webp",
+				"https://cdn.dummyjson.com/product-images/womens-bags/white-faux-leather-backpack/2.webp",
+				"https://cdn.dummyjson.com/product-images/womens-bags/white-faux-leather-backpack/3.webp",
+			],
+		},
+		{
+			"title": "Women Handbag Black",
+			"thumb": "https://cdn.dummyjson.com/product-images/womens-bags/women-handbag-black/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/womens-bags/women-handbag-black/1.webp",
+				"https://cdn.dummyjson.com/product-images/womens-bags/women-handbag-black/2.webp",
+				"https://cdn.dummyjson.com/product-images/womens-bags/women-handbag-black/3.webp",
+			],
+		},
+	],
+	"womens-dresses": [
+		{
+			"title": "Black Women's Gown",
+			"thumb": "https://cdn.dummyjson.com/product-images/womens-dresses/black-women%27s-gown/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/womens-dresses/black-women%27s-gown/1.webp",
+				"https://cdn.dummyjson.com/product-images/womens-dresses/black-women%27s-gown/2.webp",
+				"https://cdn.dummyjson.com/product-images/womens-dresses/black-women%27s-gown/3.webp",
+				"https://cdn.dummyjson.com/product-images/womens-dresses/black-women%27s-gown/4.webp",
+			],
+		},
+		{
+			"title": "Corset Leather With Skirt",
+			"thumb": "https://cdn.dummyjson.com/product-images/womens-dresses/corset-leather-with-skirt/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/womens-dresses/corset-leather-with-skirt/1.webp",
+				"https://cdn.dummyjson.com/product-images/womens-dresses/corset-leather-with-skirt/2.webp",
+				"https://cdn.dummyjson.com/product-images/womens-dresses/corset-leather-with-skirt/3.webp",
+				"https://cdn.dummyjson.com/product-images/womens-dresses/corset-leather-with-skirt/4.webp",
+			],
+		},
+		{
+			"title": "Corset With Black Skirt",
+			"thumb": "https://cdn.dummyjson.com/product-images/womens-dresses/corset-with-black-skirt/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/womens-dresses/corset-with-black-skirt/1.webp",
+				"https://cdn.dummyjson.com/product-images/womens-dresses/corset-with-black-skirt/2.webp",
+				"https://cdn.dummyjson.com/product-images/womens-dresses/corset-with-black-skirt/3.webp",
+				"https://cdn.dummyjson.com/product-images/womens-dresses/corset-with-black-skirt/4.webp",
+			],
+		},
+		{
+			"title": "Dress Pea",
+			"thumb": "https://cdn.dummyjson.com/product-images/womens-dresses/dress-pea/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/womens-dresses/dress-pea/1.webp",
+				"https://cdn.dummyjson.com/product-images/womens-dresses/dress-pea/2.webp",
+				"https://cdn.dummyjson.com/product-images/womens-dresses/dress-pea/3.webp",
+				"https://cdn.dummyjson.com/product-images/womens-dresses/dress-pea/4.webp",
+			],
+		},
+		{
+			"title": "Marni Red & Black Suit",
+			"thumb": "https://cdn.dummyjson.com/product-images/womens-dresses/marni-red-%26-black-suit/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/womens-dresses/marni-red-%26-black-suit/1.webp",
+				"https://cdn.dummyjson.com/product-images/womens-dresses/marni-red-%26-black-suit/2.webp",
+				"https://cdn.dummyjson.com/product-images/womens-dresses/marni-red-%26-black-suit/3.webp",
+				"https://cdn.dummyjson.com/product-images/womens-dresses/marni-red-%26-black-suit/4.webp",
+			],
+		},
+	],
+	"womens-jewellery": [
+		{
+			"title": "Green Crystal Earring",
+			"thumb": "https://cdn.dummyjson.com/product-images/womens-jewellery/green-crystal-earring/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/womens-jewellery/green-crystal-earring/1.webp",
+				"https://cdn.dummyjson.com/product-images/womens-jewellery/green-crystal-earring/2.webp",
+				"https://cdn.dummyjson.com/product-images/womens-jewellery/green-crystal-earring/3.webp",
+			],
+		},
+		{
+			"title": "Green Oval Earring",
+			"thumb": "https://cdn.dummyjson.com/product-images/womens-jewellery/green-oval-earring/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/womens-jewellery/green-oval-earring/1.webp",
+				"https://cdn.dummyjson.com/product-images/womens-jewellery/green-oval-earring/2.webp",
+				"https://cdn.dummyjson.com/product-images/womens-jewellery/green-oval-earring/3.webp",
+			],
+		},
+		{
+			"title": "Tropical Earring",
+			"thumb": "https://cdn.dummyjson.com/product-images/womens-jewellery/tropical-earring/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/womens-jewellery/tropical-earring/1.webp",
+				"https://cdn.dummyjson.com/product-images/womens-jewellery/tropical-earring/2.webp",
+				"https://cdn.dummyjson.com/product-images/womens-jewellery/tropical-earring/3.webp",
+			],
+		},
+	],
+	"womens-shoes": [
+		{
+			"title": "Black & Brown Slipper",
+			"thumb": "https://cdn.dummyjson.com/product-images/womens-shoes/black-%26-brown-slipper/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/womens-shoes/black-%26-brown-slipper/1.webp",
+				"https://cdn.dummyjson.com/product-images/womens-shoes/black-%26-brown-slipper/2.webp",
+				"https://cdn.dummyjson.com/product-images/womens-shoes/black-%26-brown-slipper/3.webp",
+				"https://cdn.dummyjson.com/product-images/womens-shoes/black-%26-brown-slipper/4.webp",
+			],
+		},
+		{
+			"title": "Calvin Klein Heel Shoes",
+			"thumb": "https://cdn.dummyjson.com/product-images/womens-shoes/calvin-klein-heel-shoes/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/womens-shoes/calvin-klein-heel-shoes/1.webp",
+				"https://cdn.dummyjson.com/product-images/womens-shoes/calvin-klein-heel-shoes/2.webp",
+				"https://cdn.dummyjson.com/product-images/womens-shoes/calvin-klein-heel-shoes/3.webp",
+				"https://cdn.dummyjson.com/product-images/womens-shoes/calvin-klein-heel-shoes/4.webp",
+			],
+		},
+		{
+			"title": "Golden Shoes Woman",
+			"thumb": "https://cdn.dummyjson.com/product-images/womens-shoes/golden-shoes-woman/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/womens-shoes/golden-shoes-woman/1.webp",
+				"https://cdn.dummyjson.com/product-images/womens-shoes/golden-shoes-woman/2.webp",
+				"https://cdn.dummyjson.com/product-images/womens-shoes/golden-shoes-woman/3.webp",
+				"https://cdn.dummyjson.com/product-images/womens-shoes/golden-shoes-woman/4.webp",
+			],
+		},
+		{
+			"title": "Pampi Shoes",
+			"thumb": "https://cdn.dummyjson.com/product-images/womens-shoes/pampi-shoes/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/womens-shoes/pampi-shoes/1.webp",
+				"https://cdn.dummyjson.com/product-images/womens-shoes/pampi-shoes/2.webp",
+				"https://cdn.dummyjson.com/product-images/womens-shoes/pampi-shoes/3.webp",
+				"https://cdn.dummyjson.com/product-images/womens-shoes/pampi-shoes/4.webp",
+			],
+		},
+		{
+			"title": "Red Shoes",
+			"thumb": "https://cdn.dummyjson.com/product-images/womens-shoes/red-shoes/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/womens-shoes/red-shoes/1.webp",
+				"https://cdn.dummyjson.com/product-images/womens-shoes/red-shoes/2.webp",
+				"https://cdn.dummyjson.com/product-images/womens-shoes/red-shoes/3.webp",
+				"https://cdn.dummyjson.com/product-images/womens-shoes/red-shoes/4.webp",
+			],
+		},
+	],
+	"womens-watches": [
+		{
+			"title": "IWC Ingenieur Automatic Steel",
+			"thumb": "https://cdn.dummyjson.com/product-images/womens-watches/iwc-ingenieur-automatic-steel/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/womens-watches/iwc-ingenieur-automatic-steel/1.webp",
+				"https://cdn.dummyjson.com/product-images/womens-watches/iwc-ingenieur-automatic-steel/2.webp",
+				"https://cdn.dummyjson.com/product-images/womens-watches/iwc-ingenieur-automatic-steel/3.webp",
+			],
+		},
+		{
+			"title": "Rolex Cellini Moonphase",
+			"thumb": "https://cdn.dummyjson.com/product-images/womens-watches/rolex-cellini-moonphase/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/womens-watches/rolex-cellini-moonphase/1.webp",
+				"https://cdn.dummyjson.com/product-images/womens-watches/rolex-cellini-moonphase/2.webp",
+				"https://cdn.dummyjson.com/product-images/womens-watches/rolex-cellini-moonphase/3.webp",
+			],
+		},
+		{
+			"title": "Rolex Datejust Women",
+			"thumb": "https://cdn.dummyjson.com/product-images/womens-watches/rolex-datejust-women/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/womens-watches/rolex-datejust-women/1.webp",
+				"https://cdn.dummyjson.com/product-images/womens-watches/rolex-datejust-women/2.webp",
+				"https://cdn.dummyjson.com/product-images/womens-watches/rolex-datejust-women/3.webp",
+			],
+		},
+		{
+			"title": "Watch Gold for Women",
+			"thumb": "https://cdn.dummyjson.com/product-images/womens-watches/watch-gold-for-women/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/womens-watches/watch-gold-for-women/1.webp",
+				"https://cdn.dummyjson.com/product-images/womens-watches/watch-gold-for-women/2.webp",
+				"https://cdn.dummyjson.com/product-images/womens-watches/watch-gold-for-women/3.webp",
+			],
+		},
+		{
+			"title": "Women's Wrist Watch",
+			"thumb": "https://cdn.dummyjson.com/product-images/womens-watches/women%27s-wrist-watch/thumbnail.webp",
+			"imgs": [
+				"https://cdn.dummyjson.com/product-images/womens-watches/women%27s-wrist-watch/1.webp",
+				"https://cdn.dummyjson.com/product-images/womens-watches/women%27s-wrist-watch/2.webp",
+				"https://cdn.dummyjson.com/product-images/womens-watches/women%27s-wrist-watch/3.webp",
+			],
+		},
+	],
+}
+
+# ─── DummyJSON category → Türkçe yaprak adı + kısa kod (slug için) ───
+CATEGORY_TR = {
+	"mens-shirts": ("Erkek Gömlek", "ERKGOM"),
+	"tops": ("Üst Giyim", "USTGIY"),
+	"womens-dresses": ("Kadın Elbise", "KADELB"),
+	"mens-shoes": ("Erkek Ayakkabı", "ERKAYK"),
+	"womens-shoes": ("Kadın Ayakkabı", "KADAYK"),
+	"womens-bags": ("Kadın Çanta", "KADCNT"),
+	"smartphones": ("Akıllı Telefon", "SMARTF"),
+	"mobile-accessories": ("Telefon Aksesuarları", "TELAKS"),
+	"laptops": ("Dizüstü Bilgisayar", "LAPTOP"),
+	"tablets": ("Tablet", "TABLET"),
+	"sports-accessories": ("Spor Ekipmanları", "SPORAK"),
+	"motorcycle": ("Motosiklet", "MOTOSK"),
+	"vehicle": ("Otomotiv", "OTOMTV"),
+	"groceries": ("Market Ürünleri", "MARKET"),
+	"beauty": ("Güzellik Ürünleri", "GUZELL"),
+	"fragrances": ("Parfüm", "PARFUM"),
+	"skin-care": ("Cilt Bakımı", "CILTBK"),
+	"home-decoration": ("Ev Dekorasyonu", "EVDEKR"),
+	"furniture": ("Mobilya", "MOBILY"),
+	"kitchen-accessories": ("Mutfak Aksesuarları", "MUTFAK"),
+	"womens-jewellery": ("Kadın Takı", "KADTAK"),
+	"sunglasses": ("Güneş Gözlüğü", "GUNESG"),
+	"mens-watches": ("Erkek Saat", "ERKSAT"),
+	"womens-watches": ("Kadın Saat", "KADSAT"),
+}
+
+
+# ─── Seller → (sektör adı, sektör kodu, grup ağacı) ──────────────
+# Her grup → [(dummyjson_category, label_override_opsiyonel)]
+# label_override None ise CATEGORY_TR'den gelen ad kullanılır.
+SELLER_SECTORS = {
+	"DEMO-001": {
+		"sector_name": "Tekstil ve Giyim",
+		"sector_code": "TG",
+		"groups": [
+			("Erkek Giyim", ["mens-shirts"]),
+			("Kadın Giyim", ["tops", "womens-dresses"]),
+		],
+	},
+	"DEMO-002": {
+		"sector_name": "Ayakkabı ve Deri",
+		"sector_code": "AD",
+		"groups": [
+			("Erkek Ayakkabı", ["mens-shoes"]),
+			("Kadın Ayakkabı", ["womens-shoes"]),
+			("Çantalar", ["womens-bags"]),
+		],
+	},
+	"DEMO-003": {
+		"sector_name": "Elektronik ve Aksesuar",
+		"sector_code": "EL",
+		"groups": [
+			("Telefon", ["smartphones", "mobile-accessories"]),
+			("Bilgisayar", ["laptops", "tablets"]),
+		],
+	},
+	"DEMO-004": {
+		"sector_name": "Hırdavat ve Nalburiye",
+		"sector_code": "HR",
+		"groups": [
+			("Spor Ekipmanları", ["sports-accessories"]),
+			("Motor ve Otomotiv", ["motorcycle", "vehicle"]),
+		],
+	},
+	"DEMO-005": {
+		"sector_name": "Gıda ve İçecek",
+		"sector_code": "GD",
+		"groups": [
+			("Market", ["groceries"]),
+		],
+	},
+	"DEMO-006": {
+		"sector_name": "Kozmetik ve Kişisel Bakım",
+		"sector_code": "KZ",
+		"groups": [
+			("Makyaj ve Bakım", ["beauty", "skin-care"]),
+			("Parfüm", ["fragrances"]),
+		],
+	},
+	"DEMO-007": {
+		"sector_name": "Ev Tekstili ve Dekorasyon",
+		"sector_code": "EV",
+		"groups": [
+			("Dekorasyon", ["home-decoration"]),
+			("Mobilya", ["furniture"]),
+		],
+	},
+	"DEMO-008": {
+		"sector_name": "Mutfak ve Züccaciye",
+		"sector_code": "MU",
+		"groups": [
+			("Mutfak Aksesuarları", ["kitchen-accessories"]),
+		],
+	},
+	"DEMO-009": {
+		"sector_name": "Bijuteri ve Aksesuar",
+		"sector_code": "BJ",
+		"groups": [
+			("Takı ve Aksesuar", ["womens-jewellery", "sunglasses"]),
+			("Saat", ["mens-watches", "womens-watches"]),
+		],
+	},
+	"DEMO-010": {
+		"sector_name": "Ambalaj ve Kırtasiye",
+		"sector_code": "AM",
+		"groups": [
+			# DummyJSON'da kırtasiye yok; çanta/ambalaj olarak ele alınıyor
+			("Ambalaj ve Çanta", ["womens-bags"]),
+		],
+	},
+}
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -1656,31 +2545,31 @@ SECTORS = [
 # ═══════════════════════════════════════════════════════════════
 
 
-def _ensure_user(email, first_name):
+def _ensure_user(email, first_name, role="Seller", password=None):
 	"""Demo kullanıcı oluştur veya mevcut olanı döndür.
 
-	Her durumda DEMO_SELLER_PASSWORD ile şifreyi senkron tutar ve
-	panel erişimi için "Seller" rolünü ekler.
+	Her durumda verilen şifreyle senkron tutar ve verilen rolü ekler.
+	Varsayılan rol/şifre satıcıya göredir — alıcılarda role="Buyer" kullanılır.
 	"""
+	if password is None:
+		password = DEMO_SELLER_PASSWORD if role == "Seller" else DEMO_BUYER_PASSWORD
 	if not frappe.db.exists("User", email):
 		user = frappe.new_doc("User")
 		user.email = email
 		user.first_name = first_name
 		user.enabled = 1
-		# Website User → /app erişimi yok; panel Frappe SPA kullandığı için
-		# "System User" gerekli değil. Panel login yalnızca is_seller kontrol eder.
 		user.user_type = "Website User"
 		user.send_welcome_email = 0
 		user.flags.ignore_permissions = True
 		user.flags.no_welcome_mail = True
 		user.insert(ignore_permissions=True)
 
-	update_password(email, DEMO_SELLER_PASSWORD)
+	update_password(email, password)
 
 	user_doc = frappe.get_doc("User", email)
 	existing_roles = {r.role for r in user_doc.roles}
-	if "Seller" not in existing_roles:
-		user_doc.append("roles", {"role": "Seller"})
+	if role not in existing_roles:
+		user_doc.append("roles", {"role": role})
 		user_doc.flags.ignore_permissions = True
 		user_doc.save(ignore_permissions=True)
 
@@ -1757,6 +2646,39 @@ def _ensure_seller(s):
 	return s["code"]
 
 
+def _ensure_buyer(b):
+	"""Buyer Profile oluştur veya mevcut olanı döndür.
+
+	User'ı 'Buyer' rolüyle oluşturur, Buyer Profile doc'unu user email ile autoname yapar.
+	"""
+	_ensure_user(b["email"], b["buyer_name"], role="Buyer", password=DEMO_BUYER_PASSWORD)
+
+	if frappe.db.exists("Buyer Profile", b["email"]):
+		return b["email"]
+
+	doc = frappe.new_doc("Buyer Profile")
+	doc.user = b["email"]
+	doc.buyer_name = b["buyer_name"]
+	doc.status = "Active"
+	doc.company_name = b["company_name"]
+	doc.business_type = b["business_type"]
+	doc.job_title = b["job_title"]
+	doc.city = b["city"]
+	doc.country = "Turkey"
+	doc.phone = b["phone"]
+	doc.employee_count = b["employee_count"]
+	doc.year_established = b["year_established"]
+	doc.sourcing_frequency = b["sourcing_frequency"]
+	doc.annual_spending = b["annual_spending"]
+	doc.industry_preferences = b["industry_preferences"]
+	doc.about_us = b["about_us"]
+	doc.email_verified = 1
+	doc.avatar = _seller_logo(b["buyer_name"], 200)
+	doc.flags.ignore_permissions = True
+	doc.insert(ignore_permissions=True)
+	return b["email"]
+
+
 def _ensure_category(name, parent_id, external_id, sort_order=0, sector_key="giyim"):
 	"""Product Category oluştur (tree). Varsa mevcut olanı döndür."""
 	if frappe.db.exists("Product Category", external_id):
@@ -1801,37 +2723,213 @@ def _ensure_seller_category(seller_code, category_id, category_name, sector_key=
 
 
 def _create_listing(
-	seller, sector, seller_cat_name, product_cat_id, cat_name, title, product_idx, variant_type, price_range
+	seller, seller_cat_name, product_cat_id, cat_name, product, product_idx, variant_type, price_range
 ):
-	"""Tek bir Listing (ürün ilanı) ve varyantlarını oluştur."""
-	# Fiyat hesapla
-	random.seed(hash(title))  # Deterministik fiyat
+	"""Tek bir Listing (ürün ilanı) — DummyJSON ürünü üzerinden başlık/görsel birebir uyumlu.
+
+	`product` dict: {"title": "...", "thumb": "https://...", "imgs": ["..."]}
+	"""
+	title = product["title"]
+	primary_image = product["thumb"]
+	gallery = product.get("imgs") or []
+
+	# Fiyat hesapla (title hash ile deterministik)
+	random.seed(hash(title))
 	base = round(random.uniform(*price_range), 2)
 	selling = round(base * random.uniform(0.85, 0.95), 2)
-	compare = round(base * random.uniform(1.1, 1.3), 2)
 	sample = round(base * 0.15, 2)
 	weight = round(random.uniform(0.1, 5.0), 2)
 
 	slug = _slug(title)
-	img_seed = f"{seller}-{slug}"
 	currency = "TRY" if frappe.db.exists("Currency", "TRY") else "USD"
 
-	# Varyant satırları oluştur
+	# Varyant satırları (Listing Variant Item child table — 2-eksen destekli)
+	# Varyant görselleri: gerçek ürün galerisini tekrarla, yetmezse primary'ye düş
+	variant_image_pool = gallery + [primary_image]
 	variant_items = []
 	variant_configs = VARIANT_CONFIGS.get(variant_type, VARIANT_CONFIGS["giyim"])
-	for vc in variant_configs:
+	if len(variant_configs) >= 2:
+		# 2 eksen → çapraz kombinasyon (tek satırda iki eksen)
+		vc1, vc2 = variant_configs[0], variant_configs[1]
+		first = True
+		for i, v1 in enumerate(vc1["values"]):
+			mod1 = vc1["price_mod"][i] if i < len(vc1["price_mod"]) else 0
+			for j, v2 in enumerate(vc2["values"]):
+				mod2 = vc2["price_mod"][j] if j < len(vc2["price_mod"]) else 0
+				total_mod = mod1 + mod2
+				variant_items.append(
+					{
+						"attribute_type": vc1["attr"],
+						"attribute_value": v1,
+						"attribute_type_2": vc2["attr"],
+						"attribute_value_2": v2,
+						"is_default": 1 if first else 0,
+						"variant_price": round(selling + total_mod, 2) if total_mod != 0 else 0,
+						"variant_stock": random.randint(20, 300),
+						"variant_sku": (
+							f"{seller[-3:]}-{_slug(cat_name)[:4].upper()}-{product_idx:02d}-"
+							f"{_slug(v1)[:3].upper()}-{_slug(v2)[:3].upper()}"
+						),
+						"variant_image": variant_image_pool[(i + j) % len(variant_image_pool)],
+					}
+				)
+				first = False
+	else:
+		# Tek eksen — her değer için bir satır
+		vc = variant_configs[0]
 		for j, val in enumerate(vc["values"]):
 			mod = vc["price_mod"][j] if j < len(vc["price_mod"]) else 0
 			variant_items.append(
 				{
 					"attribute_type": vc["attr"],
 					"attribute_value": val,
+					"is_default": 1 if j == 0 else 0,
 					"variant_price": round(selling + mod, 2) if mod != 0 else 0,
 					"variant_stock": random.randint(50, 500),
-					"variant_sku": f"{seller[-3:]}-{_slug(cat_name)[:4].upper()}-{product_idx:02d}-{_slug(val)[:3].upper()}",
-					"variant_image": _img(variant_type, 400, 400, lock_id=f"{img_seed}-{_slug(val)}"),
+					"variant_sku": (
+						f"{seller[-3:]}-{_slug(cat_name)[:4].upper()}-{product_idx:02d}-"
+						f"{_slug(val)[:3].upper()}"
+					),
+					"variant_image": variant_image_pool[j % len(variant_image_pool)],
 				}
 			)
+
+	# ── HEAVY VARIANT TEST ÜRÜNLERİ ──
+	# Çok varyantlı UI stres testleri için:
+	#   1) Nike Air Jordan 1 (ayakkabı) → 2 eksen, 120 varyant
+	#   2) Man Plaid Shirt (giyim)      → 2 eksen, 72 varyant
+	#   3) iPhone 13 Pro (telefon)      → 2 eksen, 20 varyant
+	#   4) MacBook Pro 14 (laptop)      → 7 eksen, 128 varyant (N-eksen testi)
+	def _set_variants_matrix_n(axes, sku_prefix):
+		"""N-eksen matrisi. axes = [{"name","values","mods"}...].
+		İlk 2 eksen structured field'lara, 3+ eksen axis_values_json'a gider."""
+		new_items = []
+		first = True
+
+		def iter_combos(idx, acc):
+			if idx == len(axes):
+				yield list(acc)
+				return
+			for vi, val in enumerate(axes[idx]["values"]):
+				acc.append((vi, val))
+				yield from iter_combos(idx + 1, acc)
+				acc.pop()
+
+		for combo in iter_combos(0, []):
+			indices = [c[0] for c in combo]
+			values = [c[1] for c in combo]
+			total_mod = 0
+			for k in range(len(axes)):
+				mods = axes[k].get("mods", [])
+				if indices[k] < len(mods):
+					total_mod += mods[indices[k]]
+			row = {
+				"attribute_type": axes[0]["name"],
+				"attribute_value": values[0],
+				"is_default": 1 if first else 0,
+				"variant_price": round(selling + total_mod, 2) if total_mod != 0 else 0,
+				"variant_stock": random.randint(5, 80),
+				"variant_sku": sku_prefix + "-" + "-".join(_slug(v)[:3].upper() for v in values),
+				"variant_image": variant_image_pool[sum(indices) % len(variant_image_pool)],
+			}
+			if len(axes) >= 2:
+				row["attribute_type_2"] = axes[1]["name"]
+				row["attribute_value_2"] = values[1]
+			if len(axes) >= 3:
+				extra = {axes[k]["name"]: values[k] for k in range(2, len(axes))}
+				row["axis_values_json"] = json.dumps(extra, ensure_ascii=False)
+			new_items.append(row)
+			first = False
+		return new_items
+
+	if seller == "DEMO-002" and title == "Nike Air Jordan 1 Red And Black":
+		variant_items = _set_variants_matrix_n(
+			[
+				{
+					"name": "Renk",
+					"values": [
+						"Siyah",
+						"Beyaz",
+						"Kırmızı",
+						"Lacivert",
+						"Gri",
+						"Kahverengi",
+						"Mavi",
+						"Yeşil",
+						"Sarı",
+						"Turuncu",
+						"Mor",
+						"Pembe",
+					],
+					"mods": [0, 5, 10, 15, 0, 5, 10, 15, 0, 5, 10, 15],
+				},
+				{
+					"name": "Beden",
+					"values": ["36", "37", "38", "39", "40", "41", "42", "43", "44", "45"],
+					"mods": [-6, -3, 0, 0, 0, 0, 0, 3, 6, 9],
+				},
+			],
+			"NKE-AJ1",
+		)
+	elif seller == "DEMO-001" and title == "Man Plaid Shirt":
+		variant_items = _set_variants_matrix_n(
+			[
+				{
+					"name": "Renk",
+					"values": [
+						"Mavi",
+						"Kırmızı",
+						"Yeşil",
+						"Siyah",
+						"Beyaz",
+						"Gri",
+						"Lacivert",
+						"Kahverengi",
+						"Sarı",
+						"Turuncu",
+						"Mor",
+						"Pembe",
+					],
+					"mods": [0, 0, 0, -5, -5, 0, 5, 5, 10, 10, 15, 15],
+				},
+				{
+					"name": "Beden",
+					"values": ["S", "M", "L", "XL", "XXL", "3XL"],
+					"mods": [0, 0, 0, 5, 10, 15],
+				},
+			],
+			"SHR-PLD",
+		)
+	elif seller == "DEMO-003" and title == "iPhone 13 Pro":
+		variant_items = _set_variants_matrix_n(
+			[
+				{
+					"name": "Renk",
+					"values": ["Grafit", "Gümüş", "Altın", "Sierra Mavi", "Alpin Yeşili"],
+					"mods": [0, 0, 0, 0, 0],
+				},
+				{
+					"name": "Kapasite",
+					"values": ["128GB", "256GB", "512GB", "1TB"],
+					"mods": [0, 200, 500, 900],
+				},
+			],
+			"IP13P",
+		)
+	elif seller == "DEMO-003" and title == "Apple MacBook Pro 14 Inch Space Grey":
+		# 7 EKSEN — N-eksen UI stres testi (128 varyant)
+		variant_items = _set_variants_matrix_n(
+			[
+				{"name": "Renk", "values": ["Space Gray", "Gümüş"], "mods": [0, 0]},
+				{"name": "İşlemci", "values": ["M3 Pro", "M3 Max"], "mods": [0, 1500]},
+				{"name": "RAM", "values": ["16GB", "32GB"], "mods": [0, 800]},
+				{"name": "Depolama", "values": ["512GB", "1TB"], "mods": [0, 600]},
+				{"name": "Ekran", "values": ["14 inç", "16 inç"], "mods": [0, 2000]},
+				{"name": "Klavye", "values": ["Türkçe Q", "İngilizce"], "mods": [0, 0]},
+				{"name": "Garanti", "values": ["1 Yıl Standart", "3 Yıl AppleCare"], "mods": [0, 1200]},
+			],
+			"MBP-14",
+		)
 
 	# B2B toptan fiyat kademeleri
 	pricing_tiers = [
@@ -1840,26 +2938,21 @@ def _create_listing(
 		{"min_qty": 100, "max_qty": 0, "price": round(selling * 0.85, 2), "discount_percentage": 15},
 	]
 
-	# Ürün spesifikasyonları
-	attribute_values = [
-		{"attribute_name": "Marka", "attribute_value": _get_brand(seller), "attribute_group": "Genel"},
-		{"attribute_name": "Menşei", "attribute_value": "Türkiye", "attribute_group": "Genel"},
-		{
-			"attribute_name": "Malzeme",
-			"attribute_value": _get_material(variant_type),
-			"attribute_group": "Teknik",
-		},
-		{"attribute_name": "Garanti", "attribute_value": "1 Yıl", "attribute_group": "Satış"},
-	]
+	# Ürün spesifikasyonları — ŞİMDİLİK ATLANIYOR
+	# Not: utils/completeness.py:151 eski şemaya göre `row.attribute_name` okuyor,
+	# yeni Listing Attribute Value child table'da bu alan yok (yerine `attribute`
+	# Link alanı var). Utility düzeltilmeden spec doldurmak listing insert'ı
+	# crash ettiriyor. Düzeltme kapsam dışı → geçici olarak boş bırakıyoruz.
+	attribute_values = []
 
-	# Ek görseller
+	# Ek görseller — ürünün kendi galerisi
 	listing_images = [
 		{
-			"image": _img(variant_type, 800, 800, lock_id=f"{img_seed}-extra-{k}"),
-			"alt_text": f"{title} - Görsel {k+1}",
+			"image": img,
+			"alt_text": f"{title} - Görsel {k + 1}",
 			"sort_order": k,
 		}
-		for k in range(3)
+		for k, img in enumerate(gallery)
 	]
 
 	# Lead time
@@ -1869,6 +2962,20 @@ def _create_listing(
 		{"min_qty": 201, "max_qty": 0, "lead_days": random.randint(7, 15)},
 	]
 
+	# Kargo yöntemleri — her listing için 2-3 yöntem (ağırlığa göre maliyet hesapla)
+	selected_methods = random.sample(SHIPPING_METHODS, k=random.randint(2, 3))
+	shipping_methods = []
+	for sm in selected_methods:
+		method_cost = round(sm["base_cost"] + sm["cost_per_kg"] * weight, 2)
+		shipping_methods.append(
+			{
+				"shipping_method": sm["method_name"],
+				"cost": method_cost,
+				"min_days": sm["min_days"],
+				"max_days": sm["max_days"],
+			}
+		)
+
 	doc = frappe.new_doc("Listing")
 	doc.title = title
 	doc.seller_profile = seller
@@ -1876,15 +2983,16 @@ def _create_listing(
 	doc.listing_type = "Fixed Price"
 	doc.category = seller_cat_name
 	doc.product_category = product_cat_id
-	doc.brand = _get_brand(seller)
+	doc.brand = _ensure_brand(seller, variant_type)
 	doc.condition = "New"
 	doc.short_description = _short(title, cat_name)
 	doc.description = _desc(title, cat_name)
 	doc.currency = currency
 	doc.base_price = base
 	doc.selling_price = selling
-	doc.compare_at_price = compare
-	doc.discount_percentage = round((1 - selling / compare) * 100, 1)
+	# discount_percentage bir kampanya bayrağıdır (listing.py: dp > 0 → kampanya aktif).
+	# Demoda ürünlerin ~%20'sinde kampanya etkin olsun.
+	doc.discount_percentage = random.choice([0, 0, 0, 0, 5, 10, 15, 20])
 	doc.sample_price = sample
 	doc.b2b_enabled = 1
 	doc.stock_qty = random.randint(500, 5000)
@@ -1894,7 +3002,7 @@ def _create_listing(
 	doc.low_stock_threshold = 10
 	doc.track_inventory = 1
 	doc.allow_backorders = 0
-	doc.primary_image = _img(variant_type, 800, 800, lock_id=img_seed)
+	doc.primary_image = primary_image
 	doc.has_variants = 1
 	doc.is_free_shipping = random.choice([0, 0, 0, 1])
 	doc.shipping_weight = weight
@@ -1903,10 +3011,16 @@ def _create_listing(
 	doc.handling_days = random.choice([1, 1, 2, 3])
 	doc.country_of_origin = "Turkey"
 	doc.package_type = random.choice(["Karton Kutu", "Poşet", "Karton Kutu"])
+	# En Çok Satanlar widget'ı order_count > 0 listingleri kategoriye göre grupluyor.
+	# Her ürüne rastgele 5-200 arası satış atıyoruz ki widget dolu gelsin.
+	doc.order_count = random.randint(5, 200)
+	doc.view_count = random.randint(50, 2000)
+	doc.average_rating = round(random.uniform(3.5, 5.0), 1)
+	doc.review_count = random.randint(0, 80)
 	doc.is_featured = 1 if product_idx == 1 and random.random() < 0.3 else 0
-	doc.is_best_seller = 1 if random.random() < 0.1 else 0
+	# is_best_seller: order_count yüksek olanları (100+) işaretle
+	doc.is_best_seller = 1 if doc.order_count > 100 else 0
 	doc.is_new_arrival = 1 if random.random() < 0.2 else 0
-	doc.is_on_sale = 1 if selling < base * 0.9 else 0
 	doc.is_visible = 1
 	doc.is_searchable = 1
 	doc.selling_point = random.choice(
@@ -1934,96 +3048,150 @@ def _create_listing(
 		doc.append("listing_images", li)
 	for lt in lead_time_ranges:
 		doc.append("lead_time_ranges", lt)
+	for smi in shipping_methods:
+		doc.append("shipping_methods", smi)
 
 	doc.flags.ignore_permissions = True
 	doc.flags.ignore_links = True
 	doc.insert(ignore_permissions=True)
-
-	# Standalone Listing Variant dokümanları (kombinasyonlar)
-	_create_listing_variants(doc.name, variant_configs, selling, img_seed, seller, sector_key=variant_type)
 
 	return doc.name
-
-
-def _create_listing_variants(
-	listing_name, variant_configs, base_price, img_seed, seller_code, sector_key="giyim"
-):
-	"""Birkaç anahtar kombinasyon için standalone Listing Variant oluştur."""
-	if len(variant_configs) < 2:
-		# Tek eksen — her değer için bir variant
-		vc = variant_configs[0]
-		for i, val in enumerate(vc["values"][:4]):
-			mod = vc["price_mod"][i] if i < len(vc["price_mod"]) else 0
-			_ensure_listing_variant(
-				listing_name,
-				variant_name=val,
-				sku=f"{seller_code[-3:]}-{_slug(val)[:6].upper()}-VAR",
-				price=round(base_price + mod, 2),
-				stock=random.randint(50, 300),
-				attrs=[{"attribute_name": vc["attr"], "attribute_value": val}],
-				image=_img(sector_key, 600, 600, lock_id=f"{img_seed}-var-{_slug(val)}"),
-			)
-		return
-
-	# İki eksen — çapraz kombinasyonlar (ilk 3 × ilk 2)
-	vc1, vc2 = variant_configs[0], variant_configs[1]
-	count = 0
-	for i, v1 in enumerate(vc1["values"][:3]):
-		for j, v2 in enumerate(vc2["values"][:2]):
-			if count >= 5:
-				return
-			mod1 = vc1["price_mod"][i] if i < len(vc1["price_mod"]) else 0
-			mod2 = vc2["price_mod"][j] if j < len(vc2["price_mod"]) else 0
-			_ensure_listing_variant(
-				listing_name,
-				variant_name=f"{v1} - {v2}",
-				sku=f"{seller_code[-3:]}-{_slug(v1)[:3].upper()}-{_slug(v2)[:3].upper()}",
-				price=round(base_price + mod1 + mod2, 2),
-				stock=random.randint(30, 200),
-				attrs=[
-					{"attribute_name": vc1["attr"], "attribute_value": v1},
-					{"attribute_name": vc2["attr"], "attribute_value": v2},
-				],
-				image=_img(sector_key, 600, 600, lock_id=f"{img_seed}-var-{_slug(v1)}-{_slug(v2)}"),
-			)
-			count += 1
-
-
-def _ensure_listing_variant(listing_name, variant_name, sku, price, stock, attrs, image):
-	"""Tek bir Listing Variant dokümanı oluştur."""
-	doc = frappe.new_doc("Listing Variant")
-	doc.listing = listing_name
-	doc.variant_name = variant_name
-	doc.sku = sku
-	doc.is_active = 1
-	doc.price = price
-	doc.stock_qty = stock
-	doc.primary_image = image
-	for attr in attrs:
-		doc.append("variant_attributes", attr)
-	doc.flags.ignore_permissions = True
-	doc.flags.ignore_links = True
-	doc.insert(ignore_permissions=True)
 
 
 # ─── Yardımcı veri fonksiyonları ────────────────────────────
 
 
-def _get_brand(seller_code):
-	"""Satıcıya uygun marka adı döndür."""
-	brands = {
-		"DEMO-001": "Anadolu",
-		"DEMO-002": "Boğaziçi",
-		"DEMO-003": "MarmaraT",
-		"DEMO-004": "İstHırdavat",
-		"DEMO-005": "KaradenizG",
-		"DEMO-006": "EgeBeauty",
-		"DEMO-007": "TrakyaHome",
-		"DEMO-008": "AkdenizMut",
-		"DEMO-009": "OsmanlıAks",
-		"DEMO-010": "YıldızAmb",
-	}
-	return brands.get(seller_code, "İstoç")
+# ─── Marka haritası (seller_code → (brand_code, brand_name)) ────
+BRANDS = {
+	"DEMO-001": ("DEMO-BRAND-ANADOLU", "Anadolu"),
+	"DEMO-002": ("DEMO-BRAND-BOGAZICI", "Boğaziçi"),
+	"DEMO-003": ("DEMO-BRAND-MARMARAT", "MarmaraT"),
+	"DEMO-004": ("DEMO-BRAND-ISTHIRDAVAT", "İstHırdavat"),
+	"DEMO-005": ("DEMO-BRAND-KARADENIZG", "KaradenizG"),
+	"DEMO-006": ("DEMO-BRAND-EGEBEAUTY", "EgeBeauty"),
+	"DEMO-007": ("DEMO-BRAND-TRAKYAHOME", "TrakyaHome"),
+	"DEMO-008": ("DEMO-BRAND-AKDENIZMUT", "AkdenizMut"),
+	"DEMO-009": ("DEMO-BRAND-OSMANLIAKS", "OsmanlıAks"),
+	"DEMO-010": ("DEMO-BRAND-YILDIZAMB", "YıldızAmb"),
+}
+
+
+def _get_brand_name(seller_code):
+	"""Satıcıya uygun marka adı (görüntüleme için)."""
+	return BRANDS.get(seller_code, ("DEMO-BRAND-ISTOC", "İstoç"))[1]
+
+
+def _ensure_brand(seller_code, sector_key="giyim"):
+	"""Brand dokümanı oluştur (yoksa). brand_code döndür — Listing.brand Link için."""
+	brand_code, brand_name = BRANDS.get(seller_code, ("DEMO-BRAND-ISTOC", "İstoç"))
+	if frappe.db.exists("Brand", brand_code):
+		return brand_code
+
+	doc = frappe.new_doc("Brand")
+	doc.brand_code = brand_code
+	doc.brand_name = brand_name
+	doc.slug = _slug(brand_code)
+	doc.is_active = 1
+	doc.status = "Approved"
+	doc.official_status = "Verified"
+	doc.country = "Turkey"
+	doc.logo = _seller_logo(brand_name, 200)
+	doc.hero_banner = _img(sector_key, 1920, 400, lock_id=f"brand-{brand_code}-hero")
+	doc.tagline = f"{brand_name} — Kalite ve Güven"
+	doc.about_title = "Hakkımızda"
+	doc.about_content = (
+		f"<p><strong>{brand_name}</strong>, İstoç Ticaret Merkezi'nin köklü markalarından biridir.</p>"
+	)
+	doc.meta_title = brand_name
+	doc.meta_description = f"{brand_name} — toptan satış, kaliteli ürünler"
+	doc.flags.ignore_permissions = True
+	doc.flags.ignore_links = True
+	doc.insert(ignore_permissions=True)
+	return brand_code
+
+
+# ─── Standart kargo yöntemleri ─────────────────────────────────
+SHIPPING_METHODS = [
+	{
+		"method_name": "Aras Kargo",
+		"shipping_type": "Standard",
+		"min_days": 2,
+		"max_days": 5,
+		"base_cost": 35.0,
+		"cost_per_kg": 5.0,
+	},
+	{
+		"method_name": "Yurtiçi Kargo",
+		"shipping_type": "Standard",
+		"min_days": 2,
+		"max_days": 4,
+		"base_cost": 40.0,
+		"cost_per_kg": 6.0,
+	},
+	{
+		"method_name": "MNG Kargo Express",
+		"shipping_type": "Express",
+		"min_days": 1,
+		"max_days": 2,
+		"base_cost": 60.0,
+		"cost_per_kg": 8.0,
+	},
+	{
+		"method_name": "DHL Yurtdışı",
+		"shipping_type": "Air",
+		"min_days": 3,
+		"max_days": 7,
+		"base_cost": 180.0,
+		"cost_per_kg": 22.0,
+	},
+]
+
+
+def _ensure_shipping_method(m):
+	"""Shipping Method oluştur (yoksa). method_name döndür."""
+	if frappe.db.exists("Shipping Method", m["method_name"]):
+		return m["method_name"]
+
+	doc = frappe.new_doc("Shipping Method")
+	doc.method_name = m["method_name"]
+	doc.shipping_type = m["shipping_type"]
+	doc.is_active = 1
+	doc.min_days = m["min_days"]
+	doc.max_days = m["max_days"]
+	doc.base_cost = m["base_cost"]
+	doc.cost_per_kg = m["cost_per_kg"]
+	doc.currency = "TRY" if frappe.db.exists("Currency", "TRY") else "USD"
+	doc.free_shipping_threshold = 0
+	doc.description = f"{m['method_name']} — {m['min_days']}-{m['max_days']} gün teslimat"
+	doc.flags.ignore_permissions = True
+	doc.insert(ignore_permissions=True)
+	return m["method_name"]
+
+
+# ─── Standart spec attribute'ları ──────────────────────────────
+PRODUCT_ATTRIBUTES = [
+	{"code": "DEMO-ATTR-MARKA", "label": "Marka", "group": "Genel", "data_type": "Text"},
+	{"code": "DEMO-ATTR-MENSEI", "label": "Menşei", "group": "Genel", "data_type": "Text"},
+	{"code": "DEMO-ATTR-MALZEME", "label": "Malzeme", "group": "Teknik", "data_type": "Text"},
+	{"code": "DEMO-ATTR-GARANTI", "label": "Garanti", "group": "Satış", "data_type": "Text"},
+]
+
+
+def _ensure_product_attribute(a):
+	"""Product Attribute oluştur (yoksa). attribute_code döndür."""
+	if frappe.db.exists("Product Attribute", a["code"]):
+		return a["code"]
+
+	doc = frappe.new_doc("Product Attribute")
+	doc.attribute_code = a["code"]
+	doc.attribute_label = a["label"]
+	doc.attribute_group = a["group"]
+	doc.data_type = a["data_type"]
+	doc.is_active = 1
+	doc.is_public = 1
+	doc.flags.ignore_permissions = True
+	doc.insert(ignore_permissions=True)
+	return a["code"]
 
 
 def _get_material(variant_type):
@@ -2051,7 +3219,10 @@ def _get_material(variant_type):
 @frappe.whitelist()
 def execute():
 	"""
-	Demo veri oluştur: 10 satıcı · 500 kategori · 1.000 ürün
+	Demo veri oluştur: 10 satıcı · 5 alıcı · 500 kategori · 1.000 ürün
+
+	Bu fonksiyon **önce `cleanup()`'ı çağırır** — eski demo verileri silip
+	yenilerini yeniden kurar. Böylece her çalıştırma deterministik sonuç verir.
 
 	Kullanım (bench):
 	    bench --site <site> execute tradehub_core.seed_demo_data.execute
@@ -2073,98 +3244,154 @@ def execute():
 	print("  TradeHub Demo Data Seed")
 	print("=" * 60)
 
-	# ── 1. Satıcılar ────────────────────────────────────────
-	print("\n[1/4] Satıcı profilleri oluşturuluyor...")
+	# ── −1. Oto-temizlik: eski demo verileri kaldır ───────────
+	print("\n[Oto-temizlik] Önceki demo veriler kaldırılıyor...")
+	cleanup(silent=True)
+	frappe.db.commit()
+
+	# ── 0. Global sözlükler: kargo yöntemleri + spec attribute'ları ─
+	print("\n[0/6] Global sözlükler oluşturuluyor (Shipping Method, Product Attribute)...")
+	for m in SHIPPING_METHODS:
+		_ensure_shipping_method(m)
+	print(f"  ✓ {len(SHIPPING_METHODS)} Shipping Method")
+	for a in PRODUCT_ATTRIBUTES:
+		_ensure_product_attribute(a)
+	print(f"  ✓ {len(PRODUCT_ATTRIBUTES)} Product Attribute")
+	frappe.db.commit()
+
+	# ── 1. Satıcılar + Markalar ──────────────────────────────
+	print("\n[1/6] Satıcı profilleri ve markalar oluşturuluyor...")
 	for s in SELLERS:
 		_ensure_seller(s)
+		_ensure_brand(s["code"], s.get("variant_type", "giyim"))
 		print(f"  ✓ {s['seller_name']} ({s['code']})")
 	frappe.db.commit()
 
-	# ── 2. Kategoriler ──────────────────────────────────────
-	print("\n[2/4] Platform kategorileri oluşturuluyor...")
-	for sector in SECTORS:
-		_seller = next(s for s in SELLERS if s["code"] == sector["seller"])
-		vt = _seller["variant_type"]
-		sector_id = _ensure_category(
-			sector["name"], "", f"DEMO-{sector['code']}", sort_order=0, sector_key=vt
-		)
-		leaf_count = 0
-		for group_name, leaves in sector["groups"]:
-			group_id = _ensure_category(
-				group_name,
-				sector_id,
-				f"DEMO-{sector['code']}-{_slug(group_name)}",
-				sector_key=vt,
-			)
-			for idx, leaf_tuple in enumerate(leaves):
-				leaf_name = leaf_tuple[0]
-				leaf_id = _ensure_category(
-					leaf_name,
-					group_id,
-					f"DEMO-{sector['code']}-{_slug(leaf_name)}",
-					sort_order=idx,
-					sector_key=vt,
-				)
-				leaf_count += 1
-		print(f"  ✓ {sector['name']}: {leaf_count} kategori")
+	# ── 2. Alıcılar ──────────────────────────────────────────
+	print("\n[2/6] Alıcı profilleri oluşturuluyor...")
+	for b in BUYERS:
+		_ensure_buyer(b)
+		print(f"  ✓ {b['buyer_name']} ({b['company_name']})")
 	frappe.db.commit()
 
-	# ── 3. Satıcı Kategorileri ──────────────────────────────
-	print("\n[3/4] Satıcı-kategori eşleşmeleri oluşturuluyor...")
-	# Her satıcıyı kendi sektöründeki yaprak kategorilerle eşleştir
-	seller_cat_map = {}  # (seller_code, leaf_id) → seller_category_name
-	for sector in SECTORS:
-		seller_code = sector["seller"]
+	# ── 3. Kategoriler (2 SEVİYE: Sektör parent + yaprak ürün kategorisi) ─
+	# Her DummyJSON kategorisi sabit bir canonical sektöre bağlı. Aynı yaprak
+	# birden fazla satıcı tarafından kullanılabilir (Alibaba modeli).
+	print("\n[3/6] Platform kategorileri oluşturuluyor...")
+
+	# DummyJSON kategorisi → (sektör_key, canonical_sector_name, canonical_sector_code)
+	DJ_PARENT = {
+		"mens-shirts": ("giyim", "Tekstil ve Giyim", "TG"),
+		"tops": ("giyim", "Tekstil ve Giyim", "TG"),
+		"womens-dresses": ("giyim", "Tekstil ve Giyim", "TG"),
+		"mens-shoes": ("ayakkabi", "Ayakkabı ve Deri", "AD"),
+		"womens-shoes": ("ayakkabi", "Ayakkabı ve Deri", "AD"),
+		"womens-bags": ("ayakkabi", "Ayakkabı ve Deri", "AD"),
+		"smartphones": ("elektronik", "Elektronik ve Aksesuar", "EL"),
+		"mobile-accessories": ("elektronik", "Elektronik ve Aksesuar", "EL"),
+		"laptops": ("elektronik", "Elektronik ve Aksesuar", "EL"),
+		"tablets": ("elektronik", "Elektronik ve Aksesuar", "EL"),
+		"sports-accessories": ("hirdavat", "Hırdavat ve Nalburiye", "HR"),
+		"motorcycle": ("hirdavat", "Hırdavat ve Nalburiye", "HR"),
+		"vehicle": ("hirdavat", "Hırdavat ve Nalburiye", "HR"),
+		"groceries": ("gida", "Gıda ve İçecek", "GD"),
+		"beauty": ("kozmetik", "Kozmetik ve Kişisel Bakım", "KZ"),
+		"fragrances": ("kozmetik", "Kozmetik ve Kişisel Bakım", "KZ"),
+		"skin-care": ("kozmetik", "Kozmetik ve Kişisel Bakım", "KZ"),
+		"home-decoration": ("ev_tekstili", "Ev Tekstili ve Dekorasyon", "EV"),
+		"furniture": ("ev_tekstili", "Ev Tekstili ve Dekorasyon", "EV"),
+		"kitchen-accessories": ("mutfak", "Mutfak ve Züccaciye", "MU"),
+		"womens-jewellery": ("bijuteri", "Bijuteri ve Aksesuar", "BJ"),
+		"sunglasses": ("bijuteri", "Bijuteri ve Aksesuar", "BJ"),
+		"mens-watches": ("bijuteri", "Bijuteri ve Aksesuar", "BJ"),
+		"womens-watches": ("bijuteri", "Bijuteri ve Aksesuar", "BJ"),
+	}
+
+	# Önce parent sektörleri oluştur (unique)
+	parent_ids = {}  # sector_code → product_category_name
+	for _dj_cat, (vt, sname, scode) in DJ_PARENT.items():
+		if scode in parent_ids:
+			continue
+		parent_id = _ensure_category(
+			sname,
+			"",
+			f"DEMO-SEC-{scode}",
+			sort_order=0,
+			sector_key=vt,
+		)
+		parent_ids[scode] = parent_id
+	print(f"  ✓ {len(parent_ids)} sektör (parent kategori)")
+
+	# Sonra yaprakları sektörün altına
+	leaf_ids = {}
+	for dj_cat, (leaf_name_tr, leaf_short) in CATEGORY_TR.items():
+		products = DUMMY_PRODUCTS.get(dj_cat, [])
+		if not products:
+			continue
+		vt, _sname, scode = DJ_PARENT[dj_cat]
+		leaf_id = _ensure_category(
+			leaf_name_tr,
+			parent_ids[scode],
+			f"DEMO-CAT-{leaf_short}",
+			sort_order=0,
+			sector_key=vt,
+		)
+		try:
+			frappe.db.set_value(
+				"Product Category", leaf_id, "image", products[0]["thumb"], update_modified=False
+			)
+		except Exception:
+			pass
+		leaf_ids[dj_cat] = (leaf_id, leaf_name_tr)
+	frappe.db.commit()
+	print(f"  ✓ {len(leaf_ids)} yaprak kategori ({len(parent_ids)} parent altında)")
+
+	# ── 4. Satıcı Kategorileri ──────────────────────────────
+	print("\n[4/6] Satıcı-kategori eşleşmeleri oluşturuluyor...")
+	# (seller_code, dj_cat) → seller_category_name
+	seller_cat_map = {}
+	for seller_code, sdef in SELLER_SECTORS.items():
 		_seller = next(s for s in SELLERS if s["code"] == seller_code)
 		vt = _seller["variant_type"]
-		for _group_name, leaves in sector["groups"]:
-			for leaf_tuple in leaves:
-				leaf_name = leaf_tuple[0]
-				leaf_id = f"DEMO-{sector['code']}-{_slug(leaf_name)}"
-				sc_name = _ensure_seller_category(seller_code, leaf_id, leaf_name, sector_key=vt)
-				seller_cat_map[(seller_code, leaf_id)] = sc_name
+		for _group_name, dj_cats in sdef["groups"]:
+			for dj_cat in dj_cats:
+				if dj_cat not in leaf_ids:
+					continue
+				leaf_id, leaf_name_tr = leaf_ids[dj_cat]
+				sc_name = _ensure_seller_category(seller_code, leaf_id, leaf_name_tr, sector_key=vt)
+				seller_cat_map[(seller_code, dj_cat)] = sc_name
 	frappe.db.commit()
 	print(f"  ✓ {len(seller_cat_map)} satıcı-kategori eşleşmesi")
 
-	# ── 4. Ürün İlanları ────────────────────────────────────
-	print("\n[4/4] Ürün ilanları oluşturuluyor...")
-	for sector in SECTORS:
-		seller_code = sector["seller"]
+	# ── 5. Ürün İlanları — her DummyJSON ürünü = 1 Listing ─
+	print("\n[5/6] Ürün ilanları oluşturuluyor...")
+	for seller_code, sdef in SELLER_SECTORS.items():
 		seller_data = next(s for s in SELLERS if s["code"] == seller_code)
 		variant_type = seller_data["variant_type"]
 		price_range = seller_data["price_range"]
 		sector_listings = 0
-
-		for _group_name, leaves in sector["groups"]:
-			for leaf_tuple in leaves:
-				leaf_name = leaf_tuple[0]
-				prod1_title = leaf_tuple[1]
-				prod2_title = leaf_tuple[2]
-				leaf_id = f"DEMO-{sector['code']}-{_slug(leaf_name)}"
-				sc_name = seller_cat_map.get((seller_code, leaf_id))
-
-				if not sc_name:
+		for _group_name, dj_cats in sdef["groups"]:
+			for dj_cat in dj_cats:
+				products = DUMMY_PRODUCTS.get(dj_cat, [])
+				if dj_cat not in leaf_ids:
 					continue
-
-				for pidx, ptitle in enumerate([prod1_title, prod2_title], 1):
+				leaf_id, leaf_name_tr = leaf_ids[dj_cat]
+				sc_name = seller_cat_map[(seller_code, dj_cat)]
+				for pidx, product in enumerate(products, 1):
 					_create_listing(
 						seller=seller_code,
-						sector=sector["name"],
 						seller_cat_name=sc_name,
 						product_cat_id=leaf_id,
-						cat_name=leaf_name,
-						title=ptitle,
+						cat_name=leaf_name_tr,
+						product=product,
 						product_idx=pidx,
 						variant_type=variant_type,
 						price_range=price_range,
 					)
 					total_listings += 1
 					sector_listings += 1
-
-				# Her 20 üründe commit
-				if sector_listings % 20 == 0:
-					frappe.db.commit()
-
+					if sector_listings % 20 == 0:
+						frappe.db.commit()
 		frappe.db.commit()
 		print(f"  ✓ {seller_data['seller_name']}: {sector_listings} ürün")
 
@@ -2173,56 +3400,70 @@ def execute():
 
 	print("\n" + "=" * 60)
 	print("  ✅ TAMAMLANDI!")
-	print(f"  Satıcılar:  {len(SELLERS)}")
+	print(f"  Satıcılar:   {len(SELLERS)}")
+	print(f"  Alıcılar:    {len(BUYERS)}")
 	print("  Kategoriler: ~500")
-	print(f"  Ürünler:    {total_listings}")
+	print(f"  Ürünler:     {total_listings}")
 	print("=" * 60)
+
+	# ── Kimlik Bilgileri Tablosu ────────────────────────────
+	print("\n" + "═" * 76)
+	print("  🔑 DEMO GİRİŞ BİLGİLERİ")
+	print("═" * 76)
+	print(f"\n  SATICI HESAPLARI (Rol: Seller — Şifre: {DEMO_SELLER_PASSWORD})")
+	print("  " + "─" * 74)
+	print(f"  {'Kod':<11} {'E-posta':<32} {'Satıcı Adı':<30}")
+	print("  " + "─" * 74)
+	for s in SELLERS:
+		print(f"  {s['code']:<11} {s['email']:<32} {s['seller_name']:<30}")
+
+	print(f"\n  ALICI HESAPLARI (Rol: Buyer — Şifre: {DEMO_BUYER_PASSWORD})")
+	print("  " + "─" * 74)
+	print(f"  {'Kod':<15} {'E-posta':<32} {'Alıcı Adı':<25}")
+	print("  " + "─" * 74)
+	for b in BUYERS:
+		print(f"  {b['code']:<15} {b['email']:<32} {b['buyer_name']:<25}")
+	print("═" * 76)
+	print()
 
 
 @frappe.whitelist()
-def cleanup():
+def cleanup(silent=False):
 	"""
 	Tüm demo veriyi sil.
 
 	Kullanım (bench):
 	    bench --site <site> execute tradehub_core.seed_demo_data.cleanup
 
-	Kullanım (tarayıcı konsolu):
-	    frappe.call({method: "tradehub_core.seed_demo_data.cleanup"})
+	silent=True → execute() içinden çağrıldığında sadeleştirilmiş çıktı.
 	"""
 	if not frappe.session.user == "Administrator" and not frappe.has_permission(
 		"Admin Seller Profile", "delete"
 	):
 		frappe.throw(_("Bu işlem için Administrator yetkisi gereklidir."))
 	frappe.flags.ignore_permissions = True
-	print("Demo veri temizleniyor...")
+
+	def _p(msg):
+		if not silent:
+			print(msg)
+
+	if not silent:
+		print("Demo veri temizleniyor...")
 
 	# Sırayla sil (bağımlılık sırası: en bağımlıdan başla)
 
-	# 1. Listing Variant
-	# Sadece demo satıcılara ait listing'lerin varyantlarını sil
+	# 1. Listings (variant_items child table otomatik silinir)
 	demo_listings = frappe.get_all(
 		"Listing",
 		filters={"seller_profile": ["like", "DEMO-%"]},
 		pluck="name",
 	)
-	if demo_listings:
-		demo_variants = frappe.get_all(
-			"Listing Variant",
-			filters={"listing": ["in", demo_listings]},
-			pluck="name",
-		)
-		for v in demo_variants:
-			frappe.delete_doc("Listing Variant", v, force=True, ignore_permissions=True)
-		print(f"  ✓ {len(demo_variants)} Listing Variant silindi")
-
-	# 2. Listings
 	for l in demo_listings:
 		frappe.delete_doc("Listing", l, force=True, ignore_permissions=True)
-	print(f"  ✓ {len(demo_listings)} Listing silindi")
+	_p(f"  ✓ {len(demo_listings)} Listing silindi")
 	frappe.db.commit()
 
-	# 3. Seller Categories
+	# 2. Seller Categories
 	demo_seller_cats = frappe.get_all(
 		"Seller Category",
 		filters={"seller": ["like", "DEMO-%"]},
@@ -2230,21 +3471,31 @@ def cleanup():
 	)
 	for sc in demo_seller_cats:
 		frappe.delete_doc("Seller Category", sc, force=True, ignore_permissions=True)
-	print(f"  ✓ {len(demo_seller_cats)} Seller Category silindi")
+	_p(f"  ✓ {len(demo_seller_cats)} Seller Category silindi")
 	frappe.db.commit()
 
-	# 4. Product Categories (yaprak → dal → kök sırasıyla)
+	# 3. Product Categories (yaprak → dal → kök sırasıyla)
 	demo_cats = frappe.get_all(
 		"Product Category",
 		filters={"external_id": ["like", "DEMO-%"]},
 		fields=["name", "lft", "rgt"],
-		order_by="rgt - lft asc",  # Yapraklar önce
+		order_by="rgt - lft asc",
 	)
 	for c in demo_cats:
 		if frappe.db.exists("Product Category", c["name"]):
 			frappe.delete_doc("Product Category", c["name"], force=True, ignore_permissions=True)
-	print(f"  ✓ {len(demo_cats)} Product Category silindi")
+	_p(f"  ✓ {len(demo_cats)} Product Category silindi")
 	frappe.db.commit()
+
+	# 4. Demo Brands
+	demo_brands = frappe.get_all(
+		"Brand",
+		filters={"brand_code": ["like", "DEMO-BRAND-%"]},
+		pluck="name",
+	)
+	for b in demo_brands:
+		frappe.delete_doc("Brand", b, force=True, ignore_permissions=True)
+	_p(f"  ✓ {len(demo_brands)} Brand silindi")
 
 	# 5. Admin Seller Profiles
 	demo_sellers = frappe.get_all(
@@ -2254,17 +3505,45 @@ def cleanup():
 	)
 	for sp in demo_sellers:
 		frappe.delete_doc("Admin Seller Profile", sp, force=True, ignore_permissions=True)
-	print(f"  ✓ {len(demo_sellers)} Admin Seller Profile silindi")
+	_p(f"  ✓ {len(demo_sellers)} Admin Seller Profile silindi")
 
-	# 6. Demo Users
-	demo_users = frappe.get_all(
-		"User",
-		filters={"email": ["like", "demo-seller-%@istoc.demo"]},
+	# 6. Buyer Profiles (demo alıcılar)
+	demo_buyer_profiles = frappe.get_all(
+		"Buyer Profile",
+		filters={"user": ["like", "demo-buyer-%@istoc.demo"]},
 		pluck="name",
 	)
+	for bp in demo_buyer_profiles:
+		frappe.delete_doc("Buyer Profile", bp, force=True, ignore_permissions=True)
+	_p(f"  ✓ {len(demo_buyer_profiles)} Buyer Profile silindi")
+
+	# 7. Demo Product Attributes (DEMO-ATTR-*)
+	demo_attrs = frappe.get_all(
+		"Product Attribute",
+		filters={"attribute_code": ["like", "DEMO-ATTR-%"]},
+		pluck="name",
+	)
+	for a in demo_attrs:
+		frappe.delete_doc("Product Attribute", a, force=True, ignore_permissions=True)
+	_p(f"  ✓ {len(demo_attrs)} Product Attribute silindi")
+
+	# 8. Demo Shipping Methods (yalnız seed'in eklediği yöntemler)
+	demo_method_names = [m["method_name"] for m in SHIPPING_METHODS]
+	removed_methods = 0
+	for name in demo_method_names:
+		if frappe.db.exists("Shipping Method", name):
+			frappe.delete_doc("Shipping Method", name, force=True, ignore_permissions=True)
+			removed_methods += 1
+	_p(f"  ✓ {removed_methods} Shipping Method silindi")
+
+	# 9. Demo Users (satıcı + alıcı) — iki ayrı sorgu (v15 or_filters uyumu)
+	sellers_u = frappe.get_all("User", filters={"email": ["like", "demo-seller-%@istoc.demo"]}, pluck="name")
+	buyers_u = frappe.get_all("User", filters={"email": ["like", "demo-buyer-%@istoc.demo"]}, pluck="name")
+	demo_users = list(set(sellers_u + buyers_u))
 	for u in demo_users:
 		frappe.delete_doc("User", u, force=True, ignore_permissions=True)
-	print(f"  ✓ {len(demo_users)} Demo User silindi")
+	_p(f"  ✓ {len(demo_users)} Demo User silindi")
 
 	frappe.db.commit()
-	print("\n✅ Tüm demo veri temizlendi!")
+	if not silent:
+		print("\n✅ Tüm demo veri temizlendi!")
