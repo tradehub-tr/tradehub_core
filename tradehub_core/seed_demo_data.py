@@ -2509,7 +2509,7 @@ def execute():
 
 	# Önce parent sektörleri oluştur (unique)
 	parent_ids = {}  # sector_code → product_category_name
-	for dj_cat, (vt, sname, scode) in DJ_PARENT.items():
+	for _dj_cat, (vt, sname, scode) in DJ_PARENT.items():
 		if scode in parent_ids:
 			continue
 		parent_id = _ensure_category(
