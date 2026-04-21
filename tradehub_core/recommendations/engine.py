@@ -197,7 +197,7 @@ def compute_chunk_worker(
 			frappe.log_error(
 				title="rebuild chunk transient failure (retrying)",
 				message=(
-					f"rebuild_id={rebuild_id} attempt={attempt} " f"listings={len(chunk_listing_ids)}: {exc}"
+					f"rebuild_id={rebuild_id} attempt={attempt} listings={len(chunk_listing_ids)}: {exc}"
 				),
 			)
 			frappe.enqueue(
@@ -213,9 +213,7 @@ def compute_chunk_worker(
 		# Retries exhausted → permanent failure
 		frappe.log_error(
 			title="rebuild chunk failed (retries exhausted)",
-			message=(
-				f"rebuild_id={rebuild_id} attempts={attempt} " f"listings={len(chunk_listing_ids)}: {exc}"
-			),
+			message=(f"rebuild_id={rebuild_id} attempts={attempt} listings={len(chunk_listing_ids)}: {exc}"),
 		)
 		cache.incr(_rk(rebuild_id, "failed"))
 
@@ -294,9 +292,7 @@ def finalize_rebuild(rebuild_id: str, snapshot_time: str) -> dict[str, Any]:
 		swap.cleanup_shadow()
 		frappe.log_error(
 			title="rebuild aborted",
-			message=(
-				f"rebuild_id={rebuild_id} total_chunks={total} " f"completed={completed} failed={failed}"
-			),
+			message=(f"rebuild_id={rebuild_id} total_chunks={total} completed={completed} failed={failed}"),
 		)
 		_redis_cleanup(rebuild_id)
 		return {"status": "aborted", "rebuild_id": rebuild_id}

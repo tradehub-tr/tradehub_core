@@ -245,8 +245,7 @@ def apply_mapping_template(import_job_name, template_name):
 	if import_job.status != "Pending":
 		frappe.throw(
 			_(
-				"Mapping template can only be applied when Import Job status is Pending. "
-				"Current status: {0}"
+				"Mapping template can only be applied when Import Job status is Pending. Current status: {0}"
 			).format(import_job.status),
 			frappe.ValidationError,
 		)

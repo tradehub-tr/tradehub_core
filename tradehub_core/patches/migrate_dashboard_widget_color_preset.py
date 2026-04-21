@@ -33,7 +33,7 @@ def execute():
 	# missing, then backfill values from the existing class strings.
 	if not frappe.db.has_column("Dashboard Widget", "color_preset"):
 		frappe.db.sql_ddl(
-			"ALTER TABLE `tabDashboard Widget` " "ADD COLUMN `color_preset` VARCHAR(140) DEFAULT 'violet'"
+			"ALTER TABLE `tabDashboard Widget` ADD COLUMN `color_preset` VARCHAR(140) DEFAULT 'violet'"
 		)
 
 	widgets = frappe.db.sql(

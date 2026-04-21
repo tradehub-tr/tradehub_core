@@ -297,7 +297,7 @@ def set_tenant(doc: "frappe.model.document.Document", method: str = None) -> Non
 			user_tenant = get_current_tenant()
 			if user_tenant and doc.tenant != user_tenant:
 				frappe.throw(
-					_("Cannot create document for tenant {0}. " "Your tenant is {1}.").format(
+					_("Cannot create document for tenant {0}. Your tenant is {1}.").format(
 						doc.tenant, user_tenant
 					),
 					frappe.PermissionError,
@@ -353,10 +353,7 @@ def validate_tenant(doc: "frappe.model.document.Document", method: str = None) -
 	if not user_tenant:
 		if doc.get("tenant"):
 			frappe.throw(
-				_(
-					"You do not have access to tenant-isolated documents. "
-					"Please contact your administrator."
-				),
+				_("You do not have access to tenant-isolated documents. Please contact your administrator."),
 				frappe.PermissionError,
 			)
 		return
@@ -365,7 +362,7 @@ def validate_tenant(doc: "frappe.model.document.Document", method: str = None) -
 	if doc.get("tenant") and doc.tenant != user_tenant:
 		frappe.throw(
 			_(
-				"Access denied: You cannot modify documents belonging to " "tenant {0}. Your tenant is {1}."
+				"Access denied: You cannot modify documents belonging to tenant {0}. Your tenant is {1}."
 			).format(doc.tenant, user_tenant),
 			frappe.PermissionError,
 		)
@@ -376,7 +373,7 @@ def validate_tenant(doc: "frappe.model.document.Document", method: str = None) -
 		original_tenant = doc.get_db_value("tenant")
 		if original_tenant and original_tenant != doc.tenant:
 			frappe.throw(
-				_("Tenant cannot be changed after document creation. " "Original tenant: {0}").format(
+				_("Tenant cannot be changed after document creation. Original tenant: {0}").format(
 					original_tenant
 				),
 				frappe.PermissionError,

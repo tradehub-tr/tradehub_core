@@ -198,7 +198,7 @@ def register_user(
 	cached_email = frappe.cache.get_value(token_cache_key)
 
 	if not cached_email:
-		frappe.throw(_("Invalid or expired verification token. " "Please restart the registration."))
+		frappe.throw(_("Invalid or expired verification token. Please restart the registration."))
 
 	# Handle bytes from Redis
 	if isinstance(cached_email, bytes):
@@ -311,7 +311,7 @@ def register_supplier(
 	cached_email = frappe.cache.get_value(token_cache_key)
 
 	if not cached_email:
-		frappe.throw(_("Invalid or expired verification token. " "Please restart the registration."))
+		frappe.throw(_("Invalid or expired verification token. Please restart the registration."))
 
 	if isinstance(cached_email, bytes):
 		cached_email = cached_email.decode()

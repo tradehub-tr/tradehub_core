@@ -22,5 +22,5 @@ def execute():
 	if "metrics_credited" in columns:
 		return
 
-	frappe.db.sql("ALTER TABLE `tabOrder` " "ADD COLUMN `metrics_credited` TINYINT(1) NOT NULL DEFAULT 0")
+	frappe.db.sql("ALTER TABLE `tabOrder` ADD COLUMN `metrics_credited` TINYINT(1) NOT NULL DEFAULT 0")
 	frappe.db.commit()
