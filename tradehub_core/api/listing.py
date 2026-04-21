@@ -201,7 +201,7 @@ def recompute_seller_rating_proxy(doc, method=None):
 	#    Top Ranking sort uses Listing.average_rating directly (composite
 	#    index served), so the listings need fresh values.
 	frappe.db.sql(
-		"UPDATE `tabListing` " "SET average_rating = %s, review_count = %s " "WHERE seller_profile = %s",
+		"UPDATE `tabListing` SET average_rating = %s, review_count = %s WHERE seller_profile = %s",
 		(avg, cnt, seller),
 	)
 
@@ -2793,7 +2793,7 @@ def _build_variants_from_inline(listing_name, inline_variants):
 		"options": [axis1_options[k] for k in axis1_order],
 	}
 	# Sort default first
-	axis1_group["options"].sort(key=lambda o: (0 if o.get("isDefault") else 1))
+	axis1_group["options"].sort(key=lambda o: 0 if o.get("isDefault") else 1)
 	result.append(axis1_group)
 
 	# Axis2 group (if present)

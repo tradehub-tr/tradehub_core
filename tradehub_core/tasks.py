@@ -658,7 +658,7 @@ def _run_user_segment_refresh():
 		except Exception as e:
 			errors += 1
 			frappe.log_error(
-				message=f"Segment refresh failed for {segment.name} " f"({segment.segment_name}): {str(e)}",
+				message=f"Segment refresh failed for {segment.name} ({segment.segment_name}): {str(e)}",
 				title="User Segment Refresh Error",
 			)
 
@@ -822,8 +822,7 @@ def _run_buyer_kpi_score_calculation():
 	frappe.db.commit()
 
 	frappe.logger().info(
-		f"Buyer KPI score calculation complete. "
-		f"Processed: {processed}, Skipped: {skipped}, Errors: {errors}"
+		f"Buyer KPI score calculation complete. Processed: {processed}, Skipped: {skipped}, Errors: {errors}"
 	)
 
 
@@ -1132,7 +1131,7 @@ def _run_buyer_kpi_summary_aggregation():
 		frappe.db.commit()
 
 		frappe.logger().info(
-			f"Buyer KPI summary aggregation complete. " f"Processed: {processed}, Errors: {errors}"
+			f"Buyer KPI summary aggregation complete. Processed: {processed}, Errors: {errors}"
 		)
 
 	frappe.db.commit()

@@ -875,7 +875,7 @@ def _generate_invoice_html(order, items, seller_name, buyer_name):
       <div class="totals">
         <div class="row"><span>Ara toplam</span><span>{currency} {float(order.subtotal or 0):,.2f}</span></div>
         <div class="row"><span>Kargo</span><span>{currency} {float(order.shipping_fee or 0):,.2f}</span></div>
-        {'<div class="row"><span>Kupon indirimi</span><span>-' + currency + ' ' + f"{float(order.coupon_discount or 0):,.2f}" + '</span></div>' if float(order.coupon_discount or 0) > 0 else ''}
+        {'<div class="row"><span>Kupon indirimi</span><span>-' + currency + " " + f"{float(order.coupon_discount or 0):,.2f}" + "</span></div>" if float(order.coupon_discount or 0) > 0 else ""}
         <div class="row total"><span>Genel Toplam</span><span>{currency} {float(order.total or 0):,.2f}</span></div>
       </div>
     </div>

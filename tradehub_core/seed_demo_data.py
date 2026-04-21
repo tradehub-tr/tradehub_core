@@ -2590,7 +2590,7 @@ def _ensure_seller(s):
 	doc.status = "Active"
 	doc.seller_type = "Corporate"
 	doc.logo = _seller_logo(s["seller_name"], 200)
-	doc.banner_image = _img(s["variant_type"], 1200, 400, lock_id=f'{s["code"]}-banner')
+	doc.banner_image = _img(s["variant_type"], 1200, 400, lock_id=f"{s['code']}-banner")
 	doc.description = s["description"]
 	doc.slogan = s["slogan"]
 	doc.company_name = s["company_name"]
@@ -2636,7 +2636,7 @@ def _ensure_seller(s):
 		doc.append(
 			"gallery_images",
 			{
-				"image": _img(s["variant_type"], 600, 400, lock_id=f'{s["code"]}-gallery-{i}'),
+				"image": _img(s["variant_type"], 600, 400, lock_id=f"{s['code']}-gallery-{i}"),
 				"caption": f"Fabrika/Mağaza Görüntüsü {i}",
 			},
 		)

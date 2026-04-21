@@ -15,7 +15,5 @@ def execute():
 	if "sell_in_moq_multiples" in columns:
 		return
 
-	frappe.db.sql(
-		"ALTER TABLE `tabListing` " "ADD COLUMN `sell_in_moq_multiples` TINYINT(1) NOT NULL DEFAULT 0"
-	)
+	frappe.db.sql("ALTER TABLE `tabListing` ADD COLUMN `sell_in_moq_multiples` TINYINT(1) NOT NULL DEFAULT 0")
 	frappe.db.commit()

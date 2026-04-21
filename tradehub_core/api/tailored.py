@@ -437,7 +437,7 @@ def _build_editorial(category_name: str, user: str = None) -> dict:
 
 	def _fmt_num(n):
 		if n >= 1000:
-			return f"{n/1000:.1f}".rstrip("0").rstrip(".") + "K+"
+			return f"{n / 1000:.1f}".rstrip("0").rstrip(".") + "K+"
 		return str(n)
 
 	text = ""
