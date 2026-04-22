@@ -347,7 +347,7 @@ def get_my_seller_categories():
 
 
 @frappe.whitelist()
-def update_seller_category(category_name, new_name=None, description=None, sort_order=None):
+def update_seller_category(category_name, new_name=None, description=None, sort_order=None, image=None):
 	"""Satıcı: kendi kategorisini düzenle — admin onayına düşer (Pending)."""
 	seller_profile = _get_seller_profile_for_session()
 	if not seller_profile:
@@ -372,6 +372,8 @@ def update_seller_category(category_name, new_name=None, description=None, sort_
 		cat.description = description
 	if sort_order is not None:
 		cat.sort_order = int(sort_order)
+	if image is not None:
+		cat.image = image
 	cat.status = "Pending"
 	cat.save(ignore_permissions=True)
 	return {"success": True}
@@ -393,15 +395,14 @@ def toggle_seller_category(category_name, is_enabled):
 
 @frappe.whitelist()
 def delete_seller_category(category_name):
-	"""Satıcı: kendi kategorisini pasife al (soft deactivate)."""
+	"""Satıcı: kendi kategorisini kalıcı olarak sil."""
 	seller_profile = _get_seller_profile_for_session()
 	if not seller_profile:
 		frappe.throw(_("Satıcı profili bulunamadı."))
 	cat = frappe.get_doc("Seller Category", category_name)
 	if cat.seller != seller_profile:
 		frappe.throw(_("Bu kategori size ait değil."), frappe.PermissionError)
-	cat.is_enabled = 0
-	cat.save(ignore_permissions=True)
+	frappe.delete_doc("Seller Category", category_name, ignore_permissions=True)
 	return {"success": True}
 
 
