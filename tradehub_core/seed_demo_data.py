@@ -2576,6 +2576,68 @@ def _ensure_user(email, first_name, role="Seller", password=None):
 	return email
 
 
+# ─── Başlık zenginleştirme (variant_type → B2B suffix) ────────
+# DummyJSON başlıkları genelde çok kısa (20-25 karakter). Kart yerleşiminde
+# line-clamp-2 kuralıyla 2 satır truncate görünsün diye 50-65 karakterlik
+# kategori-bazlı bir B2B suffix ekleriz. Orijinal başlık slug/route üretiminde
+# kullanılır, suffix yalnızca görünür title'a yapışır.
+TITLE_SUFFIXES = {
+	"giyim": " — Toptan Tekstil, Pamuklu Premium Kumaş, Özel Üretim İmkanı",
+	"ayakkabi": " — Toptan Ayakkabı ve Çanta, Yüksek Kaliteli Deri, Özel Üretim",
+	"elektronik": " — Toptan Elektronik, Orijinal Ürün Garantili, Hızlı Kargo Seçenekleri",
+	"hirdavat": " — Toptan Hırdavat ve Yapı Malzemesi, Dayanıklı Kalite, Uygun Fiyat",
+	"gida": " — Toptan Gıda Tedariki, Uzun Raf Ömrü, Hızlı Teslimat Seçenekleri",
+	"kozmetik": " — Toptan Kozmetik Ürünleri, Premium Formül, Dermatolojik Test Edilmiş",
+	"tekstil": " — Toptan Ev Tekstili, Yumuşak Doku, Kaliteli Pamuk ve Polyester Karışım",
+	"zuccaciye": " — Toptan Mutfak Eşyaları, Dayanıklı Malzeme, Premium Tasarım ve Kalite",
+	"aksesuar": " — Toptan Aksesuar Koleksiyonu, Moda Tasarım, El Yapımı Detay ve Kalite",
+	"ambalaj": " — Toptan Ambalaj ve Kırtasiye, Özel Baskı İmkanı, Çevre Dostu Üretim",
+}
+
+
+# ─── Sertifika kataloğu (isim → kategori) ────────────────────
+# Seed içindeki tüm cert adları burada sınıflandırılır. Bilinmeyenler "Product" kabul edilir.
+CERT_CATALOG = {
+	# Management (kurumsal yönetim sistemi)
+	"ISO 9001": "Management",
+	"TSE": "Management",
+	"ISO 22716 (GMP)": "Management",
+	# Product (ürün-spesifik)
+	"OEKO-TEX Standard 100": "Product",
+	"GOTS": "Product",
+	"CE": "Product",
+	"RoHS": "Product",
+	"FCC": "Product",
+	"ISO 22000": "Product",
+	"HACCP": "Product",
+	"Organik Sertifika": "Product",
+	"Helal": "Product",
+	"Cruelty-Free": "Product",
+	"FDA Uyumlu": "Product",
+	"Deri Sertifikası": "Product",
+	"Ayar Damgası": "Product",
+	"Nikel Testi": "Product",
+	"FSC (Orman Sertifikası)": "Product",
+}
+
+
+def _ensure_cert_type(cert_name):
+	"""Certification Type master'ı idempotent oluşturur. cert_name döndürür."""
+	name = (cert_name or "").strip()
+	if not name:
+		return None
+	if frappe.db.exists("Certification Type", name):
+		return name
+	doc = frappe.new_doc("Certification Type")
+	doc.certification_name = name
+	doc.category = CERT_CATALOG.get(name, "Product")
+	doc.status = "Approved"
+	doc.description = f"Demo sertifika: {name}"
+	doc.flags.ignore_permissions = True
+	doc.insert(ignore_permissions=True)
+	return name
+
+
 def _ensure_seller(s):
 	"""Admin Seller Profile oluştur veya mevcut olanı döndür."""
 	_ensure_user(s["email"], s["seller_name"])
@@ -2603,13 +2665,12 @@ def _ensure_seller(s):
 	doc.business_type = s["business_type"]
 	doc.main_markets = s["main_markets"]
 	# certifications → child table (Seller Certification)
+	# Master Certification Type kaydını önce oluştur, sonra child row ekle — aksi halde
+	# listing.py:get_filter_facets cert facet'ini Certification Type tablosundan çözemez.
 	for cert in s["certifications"].split(", "):
-		doc.append(
-			"certifications",
-			{
-				"certification_type": cert.strip(),
-			},
-		)
+		cert_name = _ensure_cert_type(cert)
+		if cert_name:
+			doc.append("certifications", {"certification_type": cert_name})
 	doc.email = s["email"]
 	doc.phone = s["phone"]
 	doc.website = s["website"]
@@ -2729,7 +2790,12 @@ def _create_listing(
 
 	`product` dict: {"title": "...", "thumb": "https://...", "imgs": ["..."]}
 	"""
-	title = product["title"]
+	# B2B bağlamı için başlığı zenginleştir: 2-satır truncate (line-clamp-2)
+	# doldurulsun diye kategori-bazlı bir suffix ekleriz. Slug için orijinal başlık kullanılır.
+	base_title = product["title"]
+	title = base_title + TITLE_SUFFIXES.get(
+		variant_type, " — Toptan Satış, Premium Kalite, Hızlı Kargo Seçenekleri"
+	)
 	primary_image = product["thumb"]
 	gallery = product.get("imgs") or []
 
@@ -2740,7 +2806,8 @@ def _create_listing(
 	sample = round(base * 0.15, 2)
 	weight = round(random.uniform(0.1, 5.0), 2)
 
-	slug = _slug(title)
+	# Slug orijinal başlıktan türetilir — suffix eklemeden, URL kısa kalsın
+	slug = _slug(base_title)
 	currency = "TRY" if frappe.db.exists("Currency", "TRY") else "USD"
 
 	# Varyant satırları (Listing Variant Item child table — 2-eksen destekli)
@@ -3050,6 +3117,20 @@ def _create_listing(
 		doc.append("lead_time_ranges", lt)
 	for smi in shipping_methods:
 		doc.append("shipping_methods", smi)
+
+	# Ürün sertifikaları (Listing Certification → product_certifications child table).
+	# Satıcının Product kategorili cert'lerinden rastgele 1-2 tane seçilir.
+	seller_doc = frappe.get_cached_doc("Admin Seller Profile", seller)
+	seller_product_certs = [
+		row.certification_type
+		for row in (seller_doc.get("certifications") or [])
+		if row.certification_type
+		and frappe.db.get_value("Certification Type", row.certification_type, "category") == "Product"
+	]
+	if seller_product_certs:
+		n = min(len(seller_product_certs), random.randint(1, 2))
+		for cert in random.sample(seller_product_certs, n):
+			doc.append("product_certifications", {"certification_type": cert})
 
 	doc.flags.ignore_permissions = True
 	doc.flags.ignore_links = True
@@ -3543,6 +3624,19 @@ def cleanup(silent=False):
 	for u in demo_users:
 		frappe.delete_doc("User", u, force=True, ignore_permissions=True)
 	_p(f"  ✓ {len(demo_users)} Demo User silindi")
+
+	# 10. Demo Certification Types (seed'in kataloğundakiler). Listing/Seller Cert
+	# child'ları zaten yukarıdaki Listing/Seller silindiğinde temizlendi.
+	removed_certs = 0
+	for cname in CERT_CATALOG.keys():
+		if frappe.db.exists("Certification Type", cname):
+			try:
+				frappe.delete_doc("Certification Type", cname, force=True, ignore_permissions=True)
+				removed_certs += 1
+			except Exception:
+				# Harici bir yerde hâlâ referans varsa atla
+				pass
+	_p(f"  ✓ {removed_certs} Certification Type silindi")
 
 	frappe.db.commit()
 	if not silent:
