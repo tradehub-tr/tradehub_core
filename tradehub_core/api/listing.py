@@ -21,6 +21,49 @@ CACHE_TTL = 30  # seconds — short TTL for listing queries
 # legitimate return visitors are still counted on subsequent days.
 VIEW_DEDUP_TTL = 3600  # 1 hour
 
+# Product Category descendant resolver cache TTL (10 min). The tree rarely
+# changes; invalidate_listing_cache drops this alongside listing caches.
+CATEGORY_DESC_TTL = 600
+
+
+def _get_category_descendants(parent_name):
+	"""Resolve a Product Category to itself + every descendant in the NSM tree.
+
+	Used so that a "Tümünü Gör" click on a parent category (e.g. "Ev Tekstili
+	ve Dekorasyon") returns products assigned to any sub-category (Mobilya,
+	Ev Dekorasyonu, …) — not just those directly pinned to the parent.
+
+	Product Category has is_tree=1 with lft/rgt columns; one range query
+	covers the whole subtree regardless of depth. Result cached for
+	CATEGORY_DESC_TTL seconds.
+	"""
+	cache_key = f"pc_desc:{parent_name}"
+	cached = frappe.cache.get_value(cache_key)
+	if cached is not None:
+		return cached
+
+	parent = frappe.db.get_value(
+		"Product Category", parent_name, ["lft", "rgt"], as_dict=True
+	)
+
+	if parent and parent.get("lft") is not None and parent.get("rgt") is not None:
+		names = frappe.get_all(
+			"Product Category",
+			filters={
+				"lft": [">=", parent.lft],
+				"rgt": ["<=", parent.rgt],
+				"is_active": 1,
+			},
+			pluck="name",
+		)
+		result = names or [parent_name]
+	else:
+		# NSM columns missing (e.g. tree not yet rebuilt) — safe fallback.
+		result = [parent_name]
+
+	frappe.cache.set_value(cache_key, result, expires_in_sec=CATEGORY_DESC_TTL)
+	return result
+
 
 def invalidate_listing_cache(doc=None, method=None):
 	"""Drop every cached listing query so storefront reflects writes within
@@ -40,6 +83,7 @@ def invalidate_listing_cache(doc=None, method=None):
 			"search_suggestions:*",
 			"filter_facets:*",
 			"tailored:*",  # Tailored Selections (user + global)
+			"pc_desc:*",  # Product Category descendant lookup
 		):
 			try:
 				frappe.cache.delete_keys(pattern)
@@ -288,8 +332,12 @@ def get_listings(
 		# then fall back to exact match on the seller category field.
 		platform_cat = frappe.db.get_value("Product Category", {"url_slug": category}, "name")
 		if platform_cat:
-			# Filter by platform category (product_category field)
-			filters["product_category"] = platform_cat
+			# Expand to the full subtree so "Tümünü Gör" on a parent category
+			# surfaces products attached to any descendant sub-category.
+			descendants = _get_category_descendants(platform_cat)
+			filters["product_category"] = (
+				descendants[0] if len(descendants) == 1 else ["in", descendants]
+			)
 		else:
 			# Fallback: treat as seller category name/id
 			filters["category"] = category
@@ -1091,7 +1139,10 @@ def get_filter_facets(query=None, category=None):
 	if category:
 		platform_cat = frappe.db.get_value("Product Category", {"url_slug": category}, "name")
 		if platform_cat:
-			base_filters["product_category"] = platform_cat
+			descendants = _get_category_descendants(platform_cat)
+			base_filters["product_category"] = (
+				descendants[0] if len(descendants) == 1 else ["in", descendants]
+			)
 
 	or_filters = None
 	if query:
