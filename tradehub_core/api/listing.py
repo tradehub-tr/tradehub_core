@@ -42,9 +42,7 @@ def _get_category_descendants(parent_name):
 	if cached is not None:
 		return cached
 
-	parent = frappe.db.get_value(
-		"Product Category", parent_name, ["lft", "rgt"], as_dict=True
-	)
+	parent = frappe.db.get_value("Product Category", parent_name, ["lft", "rgt"], as_dict=True)
 
 	if parent and parent.get("lft") is not None and parent.get("rgt") is not None:
 		names = frappe.get_all(
@@ -335,9 +333,7 @@ def get_listings(
 			# Expand to the full subtree so "Tümünü Gör" on a parent category
 			# surfaces products attached to any descendant sub-category.
 			descendants = _get_category_descendants(platform_cat)
-			filters["product_category"] = (
-				descendants[0] if len(descendants) == 1 else ["in", descendants]
-			)
+			filters["product_category"] = descendants[0] if len(descendants) == 1 else ["in", descendants]
 		else:
 			# Fallback: treat as seller category name/id
 			filters["category"] = category
@@ -905,7 +901,7 @@ def get_listing_detail(listing_id):
 	for attr in listing.attribute_values or []:
 		specs.append(
 			{
-				"label": attr.attribute_name,
+				"label": attr.attribute_label or attr.attribute,
 				"value": attr.attribute_value,
 				"group": attr.attribute_group,
 			}
@@ -1314,7 +1310,7 @@ def get_filter_facets(query=None, category=None):
 	if listing_names:
 		attr_rows = frappe.db.sql(
 			"""
-			SELECT lav.attribute AS code, lav.attribute_label, lav.attribute_name,
+			SELECT lav.attribute AS code, lav.attribute_label,
 				   lav.attribute_value
 			FROM `tabListing Attribute Value` lav
 			INNER JOIN `tabProduct Attribute` pa ON pa.name = lav.attribute
@@ -1336,7 +1332,7 @@ def get_filter_facets(query=None, category=None):
 				code,
 				{
 					"code": code,
-					"label": r.get("attribute_label") or r.get("attribute_name") or code,
+					"label": r.get("attribute_label") or code,
 					"_options": {},
 				},
 			)

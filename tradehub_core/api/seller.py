@@ -12,10 +12,50 @@ def _strip_html(text):
 
 
 @frappe.whitelist(allow_guest=True)
-def get_sellers(search=None, page=1, page_size=20):
+def get_sellers(search=None, keyword=None, category=None, page=1, page_size=20):
 	filters = {"status": "Active"}
 	if search:
 		filters["seller_name"] = ["like", "%" + search + "%"]
+
+	# keyword/category verildiyse, eşleşen Listing'lerden seller_profile setini çıkar
+	# ve Admin Seller Profile sorgusunu bu sete daralt.
+	keyword = (keyword or "").strip()
+	category = (category or "").strip()
+	if keyword or category:
+		listing_filters = {"status": "Active"}
+		if category:
+			# category param hem url_slug hem direct name olabilir
+			# (listing.get_listings ile aynı çözümleme).
+			from tradehub_core.api.listing import _get_category_descendants
+
+			platform_cat = frappe.db.get_value("Product Category", {"url_slug": category}, "name")
+			if platform_cat:
+				descendants = _get_category_descendants(platform_cat)
+				listing_filters["product_category"] = (
+					descendants[0] if len(descendants) == 1 else ["in", descendants]
+				)
+			else:
+				# Fallback: doğrudan Product Category name veya seller category
+				if frappe.db.exists("Product Category", category):
+					listing_filters["product_category"] = category
+				else:
+					listing_filters["category"] = category
+		if keyword:
+			listing_filters["title"] = ["like", "%" + keyword + "%"]
+		matching_sellers = frappe.get_all(
+			"Listing",
+			filters=listing_filters,
+			fields=["seller_profile"],
+			distinct=True,
+			limit_page_length=0,
+		)
+		seller_codes = sorted(
+			{(r.get("seller_profile") or "") for r in matching_sellers if r.get("seller_profile")}
+		)
+		if not seller_codes:
+			return {"sellers": [], "total": 0, "page": int(page), "page_size": int(page_size)}
+		filters["seller_code"] = ["in", seller_codes]
+
 	sellers = frappe.get_all(
 		"Admin Seller Profile",
 		filters=filters,
@@ -257,42 +297,69 @@ def update_my_admin_seller_profile(logo=None, banner_image=None, slogan=None):
 
 @frappe.whitelist(allow_guest=True)
 def get_seller_categories(seller_code):
-	"""Public: Satıcının aktif listing'lerinden türetilen benzersiz kategorileri döndür."""
+	"""Public: Satıcının aktif listing'lerinden türetilen kategorileri döndür.
+
+	Hem satıcının kendi belirlediği (Seller Category) hem genel platform
+	(Product Category) kategorilerini tek listede, görüntü adları çözümlenmiş
+	olarak verir. Listing.category Seller Category'ye autoincrement Link
+	olduğundan name değeri "2747" gibi olabilir; frontend'de ID düşmemesi için
+	category_name burada kesin olarak doldurulur.
+	"""
 	if not frappe.db.exists("Admin Seller Profile", seller_code):
 		return {"categories": []}
 
-	# Satıcının aktif listing'lerindeki tüm benzersiz (category, category_name) çiftleri
 	rows = frappe.db.sql(
 		"""
-        SELECT DISTINCT category, category_name
+        SELECT DISTINCT category, category_name, product_category, product_category_name
         FROM `tabListing`
         WHERE seller_profile = %(seller_code)s
           AND status = 'Active'
-          AND category IS NOT NULL
-          AND category != ''
-        ORDER BY category_name ASC
     """,
 		{"seller_code": seller_code},
 		as_dict=True,
 	)
 
-	cats = []
-	for r in rows:
-		# Seller Category DocType'ta bu kategoriye ait görsel var mı bak
-		img = (
-			frappe.db.get_value(
-				"Seller Category", {"seller": seller_code, "category_name": r.category_name}, "image"
-			)
-			or ""
-		)
-		cats.append(
-			{
-				"name": r.category,
-				"category_name": r.category_name or r.category,
-				"image": img,
-			}
-		)
+	cats: list[dict] = []
+	seen: set[tuple] = set()
 
+	for r in rows:
+		seller_cat_id = (r.get("category") or "").strip() if r.get("category") else ""
+		if seller_cat_id and ("seller", seller_cat_id) not in seen:
+			display_name = (
+				r.get("category_name")
+				or frappe.db.get_value("Seller Category", seller_cat_id, "category_name")
+				or seller_cat_id
+			)
+			img = frappe.db.get_value("Seller Category", seller_cat_id, "image") or ""
+			cats.append(
+				{
+					"name": seller_cat_id,
+					"category_name": display_name,
+					"image": img,
+					"type": "seller",
+				}
+			)
+			seen.add(("seller", seller_cat_id))
+
+		plat_cat_id = (r.get("product_category") or "").strip() if r.get("product_category") else ""
+		if plat_cat_id and ("platform", plat_cat_id) not in seen:
+			display_name = (
+				r.get("product_category_name")
+				or frappe.db.get_value("Product Category", plat_cat_id, "category_name")
+				or plat_cat_id
+			)
+			img = frappe.db.get_value("Product Category", plat_cat_id, "image") or ""
+			cats.append(
+				{
+					"name": plat_cat_id,
+					"category_name": display_name,
+					"image": img,
+					"type": "platform",
+				}
+			)
+			seen.add(("platform", plat_cat_id))
+
+	cats.sort(key=lambda c: (c.get("type") or "", (c.get("category_name") or "").lower()))
 	return {"categories": cats}
 
 
@@ -484,6 +551,8 @@ def get_seller_products(seller_code, category=None, page=1, page_size=40):
 			"min_order_qty",
 			"category",
 			"category_name",
+			"product_category",
+			"product_category_name",
 			"short_description",
 			"b2b_enabled",
 			"currency",

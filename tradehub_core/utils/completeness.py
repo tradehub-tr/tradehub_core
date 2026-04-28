@@ -148,7 +148,7 @@ def _score_media(doc) -> float:
 
 
 def _score_attributes(doc) -> float:
-	filled = {row.attribute_name for row in (doc.attribute_values or []) if row.attribute_value}
+	filled = {row.attribute for row in (doc.attribute_values or []) if row.attribute_value}
 	if not doc.attribute_set:
 		return 1.0 if filled else 0.0
 
