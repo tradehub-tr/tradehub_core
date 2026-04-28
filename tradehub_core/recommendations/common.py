@@ -92,7 +92,7 @@ def load_listing_attribute_vector(listing_id: str) -> dict[str, str]:
 
 	rows = frappe.db.sql(
 		"""
-        SELECT attribute_name, attribute_value
+        SELECT attribute, attribute_value
         FROM `tabListing Attribute Value`
         WHERE parent = %s
         """,
@@ -101,7 +101,7 @@ def load_listing_attribute_vector(listing_id: str) -> dict[str, str]:
 	)
 	vec: dict[str, str] = {}
 	for r in rows:
-		name = (r.get("attribute_name") or "").strip().lower()
+		name = (r.get("attribute") or "").strip().lower()
 		val = (r.get("attribute_value") or "").strip().lower()
 		if not name or not val:
 			continue

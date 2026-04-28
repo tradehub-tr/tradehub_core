@@ -905,7 +905,7 @@ def get_listing_detail(listing_id):
 	for attr in listing.attribute_values or []:
 		specs.append(
 			{
-				"label": attr.attribute_name,
+				"label": attr.attribute_label or attr.attribute,
 				"value": attr.attribute_value,
 				"group": attr.attribute_group,
 			}
@@ -1314,7 +1314,7 @@ def get_filter_facets(query=None, category=None):
 	if listing_names:
 		attr_rows = frappe.db.sql(
 			"""
-			SELECT lav.attribute AS code, lav.attribute_label, lav.attribute_name,
+			SELECT lav.attribute AS code, lav.attribute_label,
 				   lav.attribute_value
 			FROM `tabListing Attribute Value` lav
 			INNER JOIN `tabProduct Attribute` pa ON pa.name = lav.attribute
@@ -1336,7 +1336,7 @@ def get_filter_facets(query=None, category=None):
 				code,
 				{
 					"code": code,
-					"label": r.get("attribute_label") or r.get("attribute_name") or code,
+					"label": r.get("attribute_label") or code,
 					"_options": {},
 				},
 			)

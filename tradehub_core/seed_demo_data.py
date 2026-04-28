@@ -2762,13 +2762,25 @@ def _ensure_category(name, parent_id, external_id, sort_order=0, sector_key="giy
 
 
 def _ensure_seller_category(seller_code, category_id, category_name, sector_key="giyim"):
-	"""Seller Category oluştur. Varsa mevcut olanı döndür (name'i integer)."""
+	"""Seller Category oluştur. Varsa mevcut olanı güncelle (category_name/image)."""
+	image_url = _img(sector_key, 400, 400, lock_id=f"sc-{seller_code}-{_slug(category_name)}")
 	existing = frappe.db.get_value(
 		"Seller Category",
 		{"seller": seller_code, "category": category_id},
 		"name",
 	)
 	if existing:
+		# Eski seed'den kalma boş alanları doldur — idempotent.
+		updates = {
+			"category_name": category_name,
+			"status": "Active",
+			"is_enabled": 1,
+		}
+		current_image = frappe.db.get_value("Seller Category", existing, "image")
+		if not current_image:
+			updates["image"] = image_url
+		for field, value in updates.items():
+			frappe.db.set_value("Seller Category", existing, field, value, update_modified=False)
 		return existing
 
 	doc = frappe.new_doc("Seller Category")
@@ -2777,14 +2789,14 @@ def _ensure_seller_category(seller_code, category_id, category_name, sector_key=
 	doc.category_name = category_name
 	doc.status = "Active"
 	doc.is_enabled = 1
-	doc.image = _img(sector_key, 400, 400, lock_id=f"sc-{seller_code}-{_slug(category_name)}")
+	doc.image = image_url
 	doc.flags.ignore_permissions = True
 	doc.insert(ignore_permissions=True)
 	return doc.name
 
 
 def _create_listing(
-	seller, seller_cat_name, product_cat_id, cat_name, product, product_idx, variant_type, price_range
+	seller, seller_cat_name, product_cat_id, cat_name, product, product_idx, variant_type, price_range, dj_cat=None
 ):
 	"""Tek bir Listing (ürün ilanı) — DummyJSON ürünü üzerinden başlık/görsel birebir uyumlu.
 
@@ -3005,12 +3017,8 @@ def _create_listing(
 		{"min_qty": 100, "max_qty": 0, "price": round(selling * 0.85, 2), "discount_percentage": 15},
 	]
 
-	# Ürün spesifikasyonları — ŞİMDİLİK ATLANIYOR
-	# Not: utils/completeness.py:151 eski şemaya göre `row.attribute_name` okuyor,
-	# yeni Listing Attribute Value child table'da bu alan yok (yerine `attribute`
-	# Link alanı var). Utility düzeltilmeden spec doldurmak listing insert'ı
-	# crash ettiriyor. Düzeltme kapsam dışı → geçici olarak boş bırakıyoruz.
-	attribute_values = []
+	# Ürün spesifikasyonları — sektör bazlı anlamlı değerler
+	attribute_values = _build_attribute_values(seller, variant_type, weight)
 
 	# Ek görseller — ürünün kendi galerisi
 	listing_images = [
@@ -3049,7 +3057,9 @@ def _create_listing(
 	doc.status = "Active"
 	doc.listing_type = "Fixed Price"
 	doc.category = seller_cat_name
+	doc.category_name = cat_name
 	doc.product_category = product_cat_id
+	doc.product_category_name = cat_name
 	doc.brand = _ensure_brand(seller, variant_type)
 	doc.condition = "New"
 	doc.short_description = _short(title, cat_name)
@@ -3254,7 +3264,13 @@ PRODUCT_ATTRIBUTES = [
 	{"code": "DEMO-ATTR-MARKA", "label": "Marka", "group": "Genel", "data_type": "Text"},
 	{"code": "DEMO-ATTR-MENSEI", "label": "Menşei", "group": "Genel", "data_type": "Text"},
 	{"code": "DEMO-ATTR-MALZEME", "label": "Malzeme", "group": "Teknik", "data_type": "Text"},
+	{"code": "DEMO-ATTR-AGIRLIK", "label": "Net Ağırlık", "group": "Teknik", "data_type": "Text"},
+	{"code": "DEMO-ATTR-PAKET", "label": "Paketleme", "group": "Lojistik", "data_type": "Text"},
+	{"code": "DEMO-ATTR-SERTIFIKA", "label": "Sertifika", "group": "Uyum", "data_type": "Text"},
 	{"code": "DEMO-ATTR-GARANTI", "label": "Garanti", "group": "Satış", "data_type": "Text"},
+	{"code": "DEMO-ATTR-KULLANIM", "label": "Kullanım Alanı", "group": "Genel", "data_type": "Text"},
+	{"code": "DEMO-ATTR-OZELLIK", "label": "Öne Çıkan Özellik", "group": "Genel", "data_type": "Text"},
+	{"code": "DEMO-ATTR-BAKIM", "label": "Bakım / Saklama", "group": "Kullanım", "data_type": "Text"},
 ]
 
 
@@ -3290,6 +3306,305 @@ def _get_material(variant_type):
 		"kirtasiye": "Geri Dönüştürülebilir Kağıt",
 	}
 	return materials.get(variant_type, "Karışık")
+
+
+# ─── Sektör bazlı ürün spesifikasyon havuzu ──────────────────────
+# Her sektör için MALZEME / SERTIFIKA / GARANTI / KULLANIM / OZELLIK / BAKIM /
+# PAKET değerleri B2B ticarette gerçekçi karşılıklarıyla doldurulur.
+SECTOR_SPECS = {
+	"giyim": {
+		"MALZEME": ["%100 Pamuk Süprem", "%65 Pamuk %35 Polyester", "Modal / Pamuk Karışımı", "Penye Pamuk"],
+		"SERTIFIKA": "OEKO-TEX Standard 100",
+		"GARANTI": "Üretim hatasına karşı 14 gün iade ve değişim",
+		"KULLANIM": "Günlük giyim, kurumsal üniforma, perakende mağaza",
+		"OZELLIK": "Nefes alabilen kumaş, anti-pilling, renk haslığı yüksek",
+		"BAKIM": "30°C makine yıkaması, ters çevirerek ütüleme",
+		"PAKET": "Tekli polibag + 12'li ana koli",
+	},
+	"ayakkabi": {
+		"MALZEME": ["Hakiki Deri Üst, Kauçuk Taban", "Suni Deri / EVA Taban", "Süet Deri / TPR Taban", "Tekstil Üst / PU Taban"],
+		"SERTIFIKA": "CE / REACH uyumlu, kromsuz tabaklama",
+		"GARANTI": "Taban ve dikiş için 6 ay üretici garantisi",
+		"KULLANIM": "Günlük kullanım, ofis, kurumsal hediye",
+		"OZELLIK": "Anatomik iç taban, kaymaz dış taban, esnek yapı",
+		"BAKIM": "Nemli bezle silin; deri bakım kremi önerilir",
+		"PAKET": "Tekli ayakkabı kutusu + 6'lı ana koli",
+	},
+	"elektronik": {
+		"MALZEME": ["ABS Plastik Gövde, Metal İç Şasi", "Alüminyum Gövde", "Polikarbonat / Cam"],
+		"SERTIFIKA": "CE, RoHS, FCC, TSE belgeli",
+		"GARANTI": "24 ay resmi distribütör garantisi (parça-işçilik dahil)",
+		"KULLANIM": "Ev / ofis / mağaza elektroniği, kurumsal alım",
+		"OZELLIK": "Düşük güç tüketimi, aşırı yük koruması, sessiz çalışma",
+		"BAKIM": "Kuru bezle temizleyin; nemli ortamdan uzak tutun",
+		"PAKET": "Köpük dolgulu kutu + barkodlu master karton",
+	},
+	"hirdavat": {
+		"MALZEME": ["Krom-Vanadyum Çelik (Cr-V)", "Karbon Çelik / Kromlanmış", "Paslanmaz Çelik (304)"],
+		"SERTIFIKA": "DIN / ISO 9001 standardına uygun üretim",
+		"GARANTI": "Üretim hatasına karşı ömür boyu değişim",
+		"KULLANIM": "Profesyonel atölye, sanayi, inşaat",
+		"OZELLIK": "Yüksek tork dayanımı, kaymaz sap, korozyon dirençli",
+		"BAKIM": "Kullanım sonrası kuru bezle silin, yağlı saklayın",
+		"PAKET": "Blister ambalaj + 24'lü display koli",
+	},
+	"gida": {
+		"MALZEME": ["Doğal / Organik Tarım", "Glütensiz", "Şeker İlavesiz", "GDO'suz"],
+		"SERTIFIKA": "ISO 22000, Helal, Organik Tarım Sertifikası",
+		"GARANTI": "Üretim tarihinden itibaren 18 ay raf ömrü",
+		"KULLANIM": "Perakende market, HoReCa, kurumsal mutfak",
+		"OZELLIK": "Katkı maddesi içermez, soğuk zincir uyumlu",
+		"BAKIM": "Serin, kuru ve doğrudan güneş ışığından uzak saklayın",
+		"PAKET": "Vakumlu paket + barkodlu koli (gıda onaylı)",
+	},
+	"kozmetik": {
+		"MALZEME": ["Doğal Bitkisel Özler", "Vegan / Cruelty-Free", "Paraben & Sülfat İçermez"],
+		"SERTIFIKA": "GMP, ISO 22716, dermatolojik test edilmiştir",
+		"GARANTI": "Açılmamış ürün için 24 ay raf ömrü, açıldıktan sonra 12 ay (12M)",
+		"KULLANIM": "Tüm cilt tipleri için uygun, günlük bakım",
+		"OZELLIK": "Hipoalerjenik formül, parfümsüz, ph dengeli",
+		"BAKIM": "25°C altında, kapağı sıkıca kapalı saklayın",
+		"PAKET": "Tekli kutu + içlik + 24'lü teşhir kolisi",
+	},
+	"ev_tekstili": {
+		"MALZEME": ["%100 Pamuk Saten", "%50 Pamuk %50 Polyester", "Mikrofiber"],
+		"SERTIFIKA": "OEKO-TEX Standard 100, anti-bakteriyel apre",
+		"GARANTI": "Renk solmasına karşı 1 yıl iade garantisi",
+		"KULLANIM": "Otel / ev tekstili, toplu konaklama tesisleri",
+		"OZELLIK": "Yüksek emicilik, çekmeyen kumaş, ütü gerektirmez",
+		"BAKIM": "40°C yıkama, düşük ısıda kurutma, tumbler dryer uyumlu",
+		"PAKET": "Şeffaf çanta + askılı kart + 10'lu koli",
+	},
+	"mutfak": {
+		"MALZEME": ["Paslanmaz Çelik 18/10", "Granit Kaplı Alüminyum", "Borosilikat Cam"],
+		"SERTIFIKA": "LFGB / FDA gıda teması onaylı",
+		"GARANTI": "10 yıl indüksiyon tabanı, 2 yıl genel kullanım garantisi",
+		"KULLANIM": "Ev mutfağı, restoran, catering, profesyonel kullanım",
+		"OZELLIK": "Bulaşık makinesinde yıkanabilir, indüksiyon uyumlu, ısı dağılımı homojen",
+		"BAKIM": "Aşındırıcı kullanmayın; yumuşak süngerle yıkayın",
+		"PAKET": "Renkli kutu + iç köpük + 6'lı master koli",
+	},
+	"bijuteri": {
+		"MALZEME": ["925 Ayar Gümüş", "316L Cerrahi Çelik", "Altın Kaplama Pirinç (3 Mikron)"],
+		"SERTIFIKA": "Nikel-free, hipoalerjenik (EN 1811 uyumlu)",
+		"GARANTI": "Kaplama için 12 ay, taş düşmesine karşı 30 gün değişim",
+		"KULLANIM": "Günlük takı, davet, hediyelik, kurumsal hediye",
+		"OZELLIK": "Karartmaz kaplama, su ve ter dayanımlı, hipoalerjenik",
+		"BAKIM": "Parfüm temasından koruyun; kuru ve havalı yerde saklayın",
+		"PAKET": "Mıknatıslı sunum kutusu + bez torba",
+	},
+	"kirtasiye": {
+		"MALZEME": ["FSC Sertifikalı Selüloz Kağıt", "Geri Dönüştürülmüş Karton", "Asit-free Kağıt"],
+		"SERTIFIKA": "FSC, EN 71-3 (boya güvenliği)",
+		"GARANTI": "Üretim hatasına karşı paket içi değişim",
+		"KULLANIM": "Okul, ofis, kurumsal kırtasiye alımı",
+		"OZELLIK": "Mürekkep akıtmayan kağıt, dayanıklı cilt, ergonomik tasarım",
+		"BAKIM": "Nemli ortamdan uzak tutun; rafta dik saklayın",
+		"PAKET": "Shrink + 50'lik koli, palet uyumlu",
+	},
+}
+
+
+# ─── Kategori bazlı spec override'ları ───────────────────────────
+# `dj_cat` (DummyJSON kategori anahtarı) → SECTOR_SPECS üzerinde override.
+# Sektör default'undan daha spesifik, ürünle ilgili metinler.
+CATEGORY_SPECS = {
+	"smartphones": {
+		"MALZEME": "Alüminyum gövde, Gorilla Glass ön/arka panel",
+		"OZELLIK": "OLED ekran, hızlı şarj, kablosuz şarj, IP68 toz/su koruması",
+		"KULLANIM": "Akıllı telefon — iletişim, mobil çalışma, fotoğraf/video çekimi",
+		"GARANTI": "24 ay resmi distribütör garantisi (parça-işçilik dahil)",
+		"PAKET": "Köpük dolgulu kutu + adaptör + USB-C kablo + barkodlu master karton",
+		"BAKIM": "Yumuşak nemli bezle silin; doğrudan ısıdan ve manyetik alandan uzak tutun",
+	},
+	"laptops": {
+		"MALZEME": "Alüminyum unibody gövde, IPS dokunmatik olmayan ekran",
+		"OZELLIK": "SSD depolama, çok çekirdekli işlemci, uzun pil ömrü, arkadan aydınlatmalı klavye",
+		"KULLANIM": "Dizüstü bilgisayar — ofis, üretkenlik, mobil çalışma, kurumsal alım",
+		"GARANTI": "24 ay üretici garantisi + ücretsiz teknik servis",
+		"PAKET": "Köpük dolgulu kutu + adaptör + güç kablosu + master karton",
+	},
+	"tablets": {
+		"MALZEME": "Alüminyum gövde, ince çerçeveli IPS / OLED ekran",
+		"OZELLIK": "Hassas dokunmatik ekran, kalem desteği, hızlı şarj, hafif gövde",
+		"KULLANIM": "Tablet — sunum, eğitim, perakende POS, mobil saha kullanımı",
+	},
+	"mobile-accessories": {
+		"MALZEME": "Polikarbonat / TPU karışımı, anti-shock köşe yapısı",
+		"OZELLIK": "Çok yönlü uyumluluk, kaymaz tutuş, kablo dayanımı, anti-shock",
+		"KULLANIM": "Telefon aksesuarı — kılıf, kablo, şarj cihazı, ekran koruyucu",
+	},
+	"mens-shirts": {
+		"MALZEME": "%100 Pamuk Süprem (Ne 30/1), reaktif boyalı",
+		"OZELLIK": "Solmaz baskı, ütü gerektirmez kumaş, slim-fit kesim, terlemez yapı",
+		"KULLANIM": "Erkek günlük gömlek — ofis, kurumsal üniforma, perakende mağaza",
+	},
+	"tops": {
+		"MALZEME": "Pamuk-modal karışımı, ribana yaka",
+		"OZELLIK": "Yumuşak doku, anti-pilling apre, formunu korur, nefes alabilir",
+		"KULLANIM": "Üst giyim — günlük kullanım, kombin temel parça, mağaza vitrini",
+	},
+	"womens-dresses": {
+		"MALZEME": "Viskon / polyester karışımı, doğal düşüm",
+		"OZELLIK": "Hafif yapı, dökümlü kesim, kolay bakım, çekmez kumaş",
+		"KULLANIM": "Kadın elbise — günlük, davet, ofis kombini",
+	},
+	"mens-shoes": {
+		"MALZEME": "Hakiki deri üst, kauçuk dış taban, deri astar",
+		"OZELLIK": "Anatomik iç taban, dikişli sandık, kaymaz dış taban, aşınma dirençli",
+		"KULLANIM": "Erkek günlük ve klasik ayakkabı — ofis, kurumsal, hediye",
+	},
+	"womens-shoes": {
+		"MALZEME": "Suni deri üst, EVA hafif taban",
+		"OZELLIK": "Esnek yapı, ortopedik destek, kaymaz dış taban",
+		"KULLANIM": "Kadın günlük ve casual ayakkabı — mağaza, ofis, davet",
+	},
+	"womens-bags": {
+		"MALZEME": "Vegan deri (PU), polyester astar, metal aksesuar",
+		"OZELLIK": "Çok bölmeli iç tasarım, ayarlanabilir askı, fermuar kapama",
+		"KULLANIM": "Kadın çanta — günlük, davet, iş kullanımı",
+	},
+	"sports-accessories": {
+		"MALZEME": "Sentetik deri / kauçuk / paslanmaz çelik kombinasyon",
+		"OZELLIK": "Kayma önleyici yüzey, dayanıklı malzeme, ergonomik tasarım, ter dayanımlı",
+		"KULLANIM": "Spor ekipmanı — fitness merkezi, açık hava, kulüp ekipmanı",
+	},
+	"motorcycle": {
+		"MALZEME": "Yüksek dayanımlı çelik / alüminyum alaşım",
+		"OZELLIK": "Aşınma dirençli kaplama, OEM uyumlu, vibrasyon dayanımı, korozyona karşı dirençli",
+		"KULLANIM": "Motosiklet aksesuarı / yedek parça — yetkili servis ve perakende",
+	},
+	"vehicle": {
+		"MALZEME": "Polipropilen / metal hibrit yapı",
+		"OZELLIK": "OE standardı, korozyon dirençli, evrensel araç uyumu",
+		"KULLANIM": "Otomotiv yedek parça ve aksesuar — servis ve oto market",
+	},
+	"groceries": {
+		"MALZEME": "Doğal / organik içerik — GDO içermez",
+		"OZELLIK": "Katkı maddesi yok, koruyucu içermez, glütensiz seçenekler",
+		"KULLANIM": "Market ürünü — perakende, HoReCa, kurumsal mutfak",
+	},
+	"beauty": {
+		"MALZEME": "Bitkisel özler, vegan formül, paraben içermez",
+		"OZELLIK": "Hipoalerjenik formül, dermatolojik test edilmiştir, parfümsüz seçenek",
+		"KULLANIM": "Güzellik ürünü — günlük cilt/saç bakımı, profesyonel kabin",
+	},
+	"fragrances": {
+		"MALZEME": "Yüksek konsantrasyon esans (EDP/EDT), %96 saflıkta etanol",
+		"OZELLIK": "Uzun kalıcılık (8-12 saat), yoğun sillage, IFRA uyumlu kompozisyon",
+		"KULLANIM": "Parfüm — günlük, davet, hediye",
+	},
+	"skin-care": {
+		"MALZEME": "Hyalüronik asit, niasinamid, doğal botanikal özler",
+		"OZELLIK": "Tüm cilt tipleri için uygun, yağsız hafif doku, gece-gündüz kullanım",
+		"KULLANIM": "Cilt bakımı — günlük rutin, profesyonel kabin uygulaması",
+	},
+	"home-decoration": {
+		"MALZEME": "MDF / ahşap / metal kombinasyonu",
+		"OZELLIK": "Modern tasarım, kolay montaj, çizilmeye dayanıklı yüzey",
+		"KULLANIM": "Ev dekorasyonu — salon, yatak odası, ofis dekor, hediye",
+	},
+	"furniture": {
+		"MALZEME": "Birinci sınıf MDF + masif ahşap iskelet",
+		"OZELLIK": "Çizilmeye dayanıklı yüzey, kolay montaj, çelik bağlantı elemanları",
+		"KULLANIM": "Mobilya — ev, ofis, otel, kurumsal kullanım",
+	},
+	"kitchen-accessories": {
+		"MALZEME": "Paslanmaz çelik 18/10 + ısıya dayanıklı silikon sap",
+		"OZELLIK": "Bulaşık makinesinde yıkanabilir, indüksiyon uyumlu, ergonomik tutuş",
+		"KULLANIM": "Mutfak aksesuarı — ev mutfağı, restoran, catering, profesyonel",
+	},
+	"womens-jewellery": {
+		"MALZEME": "925 ayar gümüş / 18 ayar altın kaplama (3 mikron)",
+		"OZELLIK": "Karartmaz kaplama, hipoalerjenik, su ve ter dayanımlı",
+		"KULLANIM": "Kadın takı — günlük, davet, hediyelik, kurumsal hediye",
+	},
+	"sunglasses": {
+		"MALZEME": "TR-90 polimer çerçeve, polarize cam (UV400 koruma)",
+		"OZELLIK": "%100 UV koruma, hafif ergonomik çerçeve, polarize lens",
+		"KULLANIM": "Güneş gözlüğü — günlük, açık hava, sürüş, plaj",
+	},
+	"mens-watches": {
+		"MALZEME": "316L paslanmaz çelik kasa, mineral cam, deri/çelik kayış",
+		"OZELLIK": "5 ATM su geçirmezlik, kuvars hareket, takvim göstergesi",
+		"KULLANIM": "Erkek kol saati — ofis, günlük, hediye",
+	},
+	"womens-watches": {
+		"MALZEME": "316L paslanmaz çelik kasa, hardlex cam",
+		"OZELLIK": "Şık ince kasa, kuvars hareket, hipoalerjenik kayış",
+		"KULLANIM": "Kadın kol saati — günlük, davet, hediye",
+	},
+}
+
+
+def _build_attribute_values(seller, variant_type, weight, dj_cat=None, cat_name=None, base_title=None):
+	"""Sektör + kategori + ürün başlığına göre anlamlı spec satırları üret.
+
+	`attribute_label` programatik insert'te fetch_from çalışmadığından elle doldurulur.
+	`dj_cat` verilirse CATEGORY_SPECS sektör default'unu override eder.
+	`cat_name` ve `base_title` kullanım/öne çıkan özellik metnine zenginleştirme katar.
+	"""
+	brand_name = _get_brand_name(seller)
+	base_specs = SECTOR_SPECS.get(variant_type, SECTOR_SPECS["giyim"])
+
+	malzeme = base_specs["MALZEME"]
+	if isinstance(malzeme, list):
+		malzeme = random.choice(malzeme)
+
+	ozellik = base_specs["OZELLIK"]
+	kullanim = base_specs["KULLANIM"]
+	sertifika = base_specs["SERTIFIKA"]
+	garanti = base_specs["GARANTI"]
+	bakim = base_specs["BAKIM"]
+	paket = base_specs["PAKET"]
+
+	# Kategori override'ı
+	cat_overrides = CATEGORY_SPECS.get(dj_cat or "", {})
+	malzeme = cat_overrides.get("MALZEME", malzeme)
+	ozellik = cat_overrides.get("OZELLIK", ozellik)
+	kullanim = cat_overrides.get("KULLANIM", kullanim)
+	sertifika = cat_overrides.get("SERTIFIKA", sertifika)
+	garanti = cat_overrides.get("GARANTI", garanti)
+	bakim = cat_overrides.get("BAKIM", bakim)
+	paket = cat_overrides.get("PAKET", paket)
+
+	# Ürün başlığını (kısa) özellik satırına ekle: ürünle ilgili olduğunu vurgular
+	if base_title:
+		short_title = base_title if len(base_title) <= 40 else base_title[:37] + "…"
+		ozellik = f"{short_title}: {ozellik}"
+
+	# Net ağırlık
+	if weight < 1:
+		agirlik = f"{int(weight * 1000)} g"
+	elif weight < 10:
+		agirlik = f"{weight:.2f} kg"
+	else:
+		agirlik = f"{weight:.1f} kg"
+
+	label_map = {a["code"]: a["label"] for a in PRODUCT_ATTRIBUTES}
+
+	rows_def = [
+		("DEMO-ATTR-MARKA", brand_name, "Genel", 1),
+		("DEMO-ATTR-MENSEI", "Türkiye", "Genel", 2),
+		("DEMO-ATTR-MALZEME", malzeme, "Teknik", 3),
+		("DEMO-ATTR-AGIRLIK", agirlik, "Teknik", 4),
+		("DEMO-ATTR-OZELLIK", ozellik, "Genel", 5),
+		("DEMO-ATTR-KULLANIM", kullanim, "Genel", 6),
+		("DEMO-ATTR-SERTIFIKA", sertifika, "Uyum", 7),
+		("DEMO-ATTR-GARANTI", garanti, "Satış", 8),
+		("DEMO-ATTR-BAKIM", bakim, "Kullanım", 9),
+		("DEMO-ATTR-PAKET", paket, "Lojistik", 10),
+	]
+	return [
+		{
+			"attribute": code,
+			"attribute_label": label_map.get(code, code),
+			"attribute_value": value,
+			"attribute_group": group,
+			"display_order": order,
+		}
+		for code, value, group, order in rows_def
+	]
 
 
 # ═══════════════════════════════════════════════════════════════
