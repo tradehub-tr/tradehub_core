@@ -54,6 +54,4 @@ def execute():
 
 	if updated:
 		frappe.db.commit()
-		frappe.logger().info(
-			f"sync_listing_min_order_qty_with_b2b_tier: updated {updated} listings"
-		)
+		frappe.logger().info(f"sync_listing_min_order_qty_with_b2b_tier: updated {updated} listings")

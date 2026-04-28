@@ -2796,7 +2796,15 @@ def _ensure_seller_category(seller_code, category_id, category_name, sector_key=
 
 
 def _create_listing(
-	seller, seller_cat_name, product_cat_id, cat_name, product, product_idx, variant_type, price_range, dj_cat=None
+	seller,
+	seller_cat_name,
+	product_cat_id,
+	cat_name,
+	product,
+	product_idx,
+	variant_type,
+	price_range,
+	dj_cat=None,
 ):
 	"""Tek bir Listing (ürün ilanı) — DummyJSON ürünü üzerinden başlık/görsel birebir uyumlu.
 
@@ -3322,7 +3330,12 @@ SECTOR_SPECS = {
 		"PAKET": "Tekli polibag + 12'li ana koli",
 	},
 	"ayakkabi": {
-		"MALZEME": ["Hakiki Deri Üst, Kauçuk Taban", "Suni Deri / EVA Taban", "Süet Deri / TPR Taban", "Tekstil Üst / PU Taban"],
+		"MALZEME": [
+			"Hakiki Deri Üst, Kauçuk Taban",
+			"Suni Deri / EVA Taban",
+			"Süet Deri / TPR Taban",
+			"Tekstil Üst / PU Taban",
+		],
 		"SERTIFIKA": "CE / REACH uyumlu, kromsuz tabaklama",
 		"GARANTI": "Taban ve dikiş için 6 ay üretici garantisi",
 		"KULLANIM": "Günlük kullanım, ofis, kurumsal hediye",

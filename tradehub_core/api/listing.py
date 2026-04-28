@@ -42,9 +42,7 @@ def _get_category_descendants(parent_name):
 	if cached is not None:
 		return cached
 
-	parent = frappe.db.get_value(
-		"Product Category", parent_name, ["lft", "rgt"], as_dict=True
-	)
+	parent = frappe.db.get_value("Product Category", parent_name, ["lft", "rgt"], as_dict=True)
 
 	if parent and parent.get("lft") is not None and parent.get("rgt") is not None:
 		names = frappe.get_all(
@@ -335,9 +333,7 @@ def get_listings(
 			# Expand to the full subtree so "Tümünü Gör" on a parent category
 			# surfaces products attached to any descendant sub-category.
 			descendants = _get_category_descendants(platform_cat)
-			filters["product_category"] = (
-				descendants[0] if len(descendants) == 1 else ["in", descendants]
-			)
+			filters["product_category"] = descendants[0] if len(descendants) == 1 else ["in", descendants]
 		else:
 			# Fallback: treat as seller category name/id
 			filters["category"] = category

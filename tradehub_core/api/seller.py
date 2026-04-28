@@ -27,9 +27,8 @@ def get_sellers(search=None, keyword=None, category=None, page=1, page_size=20):
 			# category param hem url_slug hem direct name olabilir
 			# (listing.get_listings ile aynı çözümleme).
 			from tradehub_core.api.listing import _get_category_descendants
-			platform_cat = frappe.db.get_value(
-				"Product Category", {"url_slug": category}, "name"
-			)
+
+			platform_cat = frappe.db.get_value("Product Category", {"url_slug": category}, "name")
 			if platform_cat:
 				descendants = _get_category_descendants(platform_cat)
 				listing_filters["product_category"] = (
@@ -50,7 +49,9 @@ def get_sellers(search=None, keyword=None, category=None, page=1, page_size=20):
 			distinct=True,
 			limit_page_length=0,
 		)
-		seller_codes = sorted({(r.get("seller_profile") or "") for r in matching_sellers if r.get("seller_profile")})
+		seller_codes = sorted(
+			{(r.get("seller_profile") or "") for r in matching_sellers if r.get("seller_profile")}
+		)
 		if not seller_codes:
 			return {"sellers": [], "total": 0, "page": int(page), "page_size": int(page_size)}
 		filters["seller_code"] = ["in", seller_codes]
