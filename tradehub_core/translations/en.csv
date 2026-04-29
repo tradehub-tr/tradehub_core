@@ -417,3 +417,72 @@ This operation requires a tenant context. Please ensure you are logged in with a
 "{0} cannot be negative","{0} cannot be negative",
 "User '{0}' is disabled.","User '{0}' is disabled.",
 "Column mapping saved successfully ({0} columns matched)","Column mapping saved successfully ({0} columns matched)",
+
+# Seller Application notifications (in-app — Platform Notification)
+Başvurunuz Alındı,Application Received,
+"Satıcı başvurunuz başarıyla alındı. İncelendikten sonra size haber vereceğiz.","Your supplier application has been received. We will notify you after review.",
+Başvurunuz Onaylandı,Application Approved,
+"Satıcı başvurunuz onaylandı. Artık ürün listelemeye başlayabilirsiniz.","Your supplier application has been approved. You can now start listing products.",
+Başvurunuz Reddedildi,Application Rejected,
+"Satıcı başvurunuz reddedildi. Detaylar için destek ile iletişime geçin.","Your supplier application was rejected. Please contact support for details.",
+Yeni Satıcı Başvurusu,New Supplier Application,
+"{0} yeni satıcı başvurusu yaptı.","{0} submitted a new supplier application.",
+
+# KYB notifications
+KYB İncelemeye Alındı,KYB Under Review,
+"{0} için KYB doğrulama başvurunuz incelemeye alındı.","Your KYB verification request for {0} is under review.",
+KYB Doğrulandı,KYB Verified,
+"{0} için KYB doğrulamanız onaylandı.","Your KYB verification for {0} has been approved.",
+KYB Reddedildi,KYB Rejected,
+"{0} için KYB doğrulamanız reddedildi. {1}","Your KYB verification for {0} was rejected. {1}",
+KYB Doğrulama Başvurusu,KYB Verification Application,
+"{0} yeni KYB doğrulama başvurusu bekliyor.","{0} new KYB verification applications are pending review.",
+KYB Süresi Doldu,KYB Expired,
+
+# Review notifications
+Yeni Değerlendirme,New Review,
+"{0} yıldız değerlendirme aldınız.","You received a {0}-star review.",
+Değerlendirme Gizlendi,Review Hidden,
+Bir değerlendirme moderasyon nedeniyle gizlendi.,A review was hidden due to moderation.,
+Değerlendirme Yayınlandı,Review Published,
+Gizlenmiş bir değerlendirme tekrar yayınlandı.,A previously hidden review has been republished.,
+
+# Category notifications
+Kategori Onaylandı,Category Approved,
+"{0} kategoriniz onaylandı.","Your category {0} has been approved.",
+Kategori Reddedildi,Category Rejected,
+"{0} kategoriniz reddedildi.","Your category {0} was rejected.",
+
+# Listing/Product notifications
+Ürün Onaylandı,Product Approved,
+"{0} ürününüz yayına alındı.","Your product {0} has been published.",
+Ürün Reddedildi,Product Rejected,
+"{0} ürününüz reddedildi. {1}","Your product {0} was rejected. {1}",
+
+# Order notifications
+Sipariş İptal Edildi,Order Cancelled,
+"{0} numaralı sipariş alıcı tarafından iptal edildi.","Order {0} was cancelled by the buyer.",
+İade Talebi,Refund Request,
+"{0} numaralı sipariş için iade talebi oluşturuldu.","A refund request was created for order {0}.",
+İade Onaylandı,Refund Approved,
+"{0} numaralı siparişinizin iade talebi onaylandı.","The refund request for order {0} has been approved.",
+İade Reddedildi,Refund Rejected,
+"{0} numaralı siparişinizin iade talebi reddedildi.","The refund request for order {0} was rejected.",
+Havale Bildirimi,Wire Transfer Notification,
+"{0} numaralı sipariş için ödeme dekontu yüklendi.","Payment receipt was uploaded for order {0}.",
+Ödeme Onaylandı,Payment Confirmed,
+"{0} numaralı siparişinizin ödemesi onaylandı, hazırlanıyor.","Payment confirmed for order {0}; preparing for shipment.",
+Kargoya Verildi,Shipped,
+"{0} numaralı siparişiniz kargoya verildi.{1}","Your order {0} has been shipped.{1}",
+
+# RFQ / Quote notifications
+RFQ Onaylandı,RFQ Approved,
+"{0} numaralı teklif talebiniz onaylandı.","Your RFQ {0} has been approved.",
+RFQ Reddedildi,RFQ Rejected,
+"{0} numaralı teklif talebiniz reddedildi.","Your RFQ {0} was rejected.",
+Yeni Teklif Geldi,New Quote Received,
+"{0} talebinize {1} teklif verdi.","{0} submitted a quote on your request {1}.",
+Teklifiniz Kabul Edildi,Your Quote Accepted,
+"{0} talebine verdiğiniz teklif kabul edildi.","Your quote on request {0} has been accepted.",
+Teklifiniz Reddedildi,Your Quote Rejected,
+"{0} talebine verdiğiniz teklif reddedildi.","Your quote on request {0} was rejected.",
