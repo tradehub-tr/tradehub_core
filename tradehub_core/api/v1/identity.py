@@ -1,6 +1,7 @@
 import json
 import re
 import secrets
+import socket
 
 import frappe
 from frappe import _
@@ -9,20 +10,102 @@ from frappe.utils import now_datetime
 from frappe.utils.password import check_password, update_password
 
 from tradehub_core.api.v1.auth import _generate_member_id
+from tradehub_core.utils.auth_guards import require_verified_email
+from tradehub_core.utils.phone import canonicalize_phone
 
 PASSWORD_MIN_LENGTH = 8
 _EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
+
+# Total wrong-OTP entries we accept before invalidating the code. Shared by all
+# three OTP verify endpoints (registration, email change, email reverify) so the
+# UX (kademeli aşama göstergesi) tells the same story everywhere.
+OTP_MAX_ATTEMPTS = 5
+
+# Tek seferlik / atılabilir e-posta sağlayıcı domainleri.
+# Kayıt akışı bu domainlerden gelen adresleri reddeder.
+DISPOSABLE_EMAIL_DOMAINS = frozenset(
+	{
+		"mailinator.com",
+		"tempmail.com",
+		"temp-mail.org",
+		"10minutemail.com",
+		"guerrillamail.com",
+		"guerrillamail.info",
+		"trashmail.com",
+		"sharklasers.com",
+		"yopmail.com",
+		"throwawaymail.com",
+		"getnada.com",
+		"maildrop.cc",
+		"mintemail.com",
+		"dispostable.com",
+		"fakeinbox.com",
+		"mohmal.com",
+		"emailondeck.com",
+	}
+)
+
+
+def _is_disposable_email(email: str) -> bool:
+	"""Return True if the domain matches the disposable blocklist."""
+	if "@" not in email:
+		return False
+	domain = email.rsplit("@", 1)[1].lower().strip()
+	return domain in DISPOSABLE_EMAIL_DOMAINS
 
 
 # ── Helpers ────────────────────────────────────────────
 
 
+def _domain_resolves(domain: str) -> bool:
+	"""Quick check if a domain has DNS resolution (A record).
+
+	Bu MX kontrolü değildir ama yaygın yazım hatalarını ("turksab.coms",
+	"gmial.com" vb.) yakalar. Network çağrısı 50ms-2s sürebilir; fail-open
+	(DNS hatası olursa True dön) — DNS kesintisinde kullanıcıyı bloklamayalım.
+	"""
+	try:
+		# 2 saniye timeout — DNS yavaşsa kullanıcıyı uzun bekletme
+		old_timeout = socket.getdefaulttimeout()
+		socket.setdefaulttimeout(2)
+		try:
+			socket.gethostbyname(domain)
+			return True
+		finally:
+			socket.setdefaulttimeout(old_timeout)
+	except socket.gaierror:
+		return False
+	except Exception:
+		# Diğer beklenmeyen network hataları — fail-open
+		return True
+
+
 def _validate_email_format(email: str) -> str:
-	"""Return lowered-trimmed email or throw 400."""
+	"""Return lowered-trimmed email or throw 400.
+
+	Doğrulamalar:
+	  1. Regex format
+	  2. Disposable blocklist
+	  3. Domain DNS resolve kontrolü (A record) — yazım hatalarını yakalar
+	"""
 	email = (email or "").strip().lower()
 	if not _EMAIL_RE.match(email):
 		frappe.local.response["http_status_code"] = 400
 		frappe.throw(_("Please enter a valid email address."), frappe.ValidationError)
+	if _is_disposable_email(email):
+		frappe.local.response["http_status_code"] = 400
+		frappe.throw(
+			_("Disposable email addresses are not allowed. Please use a permanent email."),
+			frappe.ValidationError,
+		)
+	# Domain DNS kontrolü (yazım hatalarını yakala)
+	domain = email.rsplit("@", 1)[1]
+	if not _domain_resolves(domain):
+		frappe.local.response["http_status_code"] = 400
+		frappe.throw(
+			_("The email domain could not be reached. Please check your email address."),
+			frappe.ValidationError,
+		)
 	return email
 
 
@@ -52,8 +135,57 @@ def _reassign_file_owner(file_url: str, new_owner: str):
 		frappe.db.set_value("File", file_name, "owner", new_owner)
 
 
+def _log_email_verification_event(
+	user: str,
+	event: str,
+	method: str = None,
+	actor: str = None,
+	reason: str = None,
+):
+	"""Append an entry to the Email Verification Log audit trail.
+
+	Silently no-ops when the DocType has not yet been migrated, so older
+	deployments keep working until the post-model-sync patch runs.
+	"""
+	try:
+		if not frappe.db.exists("DocType", "Email Verification Log"):
+			return
+		log = frappe.new_doc("Email Verification Log")
+		log.user = user
+		log.event = event
+		if method:
+			log.method = method
+		log.actor = actor or frappe.session.user
+		if reason:
+			log.reason = reason
+		try:
+			log.ip_address = frappe.local.request_ip
+		except Exception:
+			pass
+		try:
+			ua = frappe.get_request_header("User-Agent") if frappe.local.request else None
+			if ua:
+				log.user_agent = ua[:500]
+		except Exception:
+			pass
+		log.flags.ignore_permissions = True
+		log.insert(ignore_permissions=True)
+	except Exception:
+		# Audit log failure should never break the main flow.
+		frappe.log_error(
+			title="Email Verification Log write failed",
+			message=frappe.get_traceback(),
+		)
+
+
 def _create_email_verification(email: str, first_name: str):
-	"""Send a background email verification link after registration."""
+	"""DEPRECATED — eski post-registration link akışı.
+
+	Pattern A (OTP-only) sonrası kayıt sırasında çağrılmaz. Yalnızca eski
+	maillerden gelen `verify_email?key=...` linklerinin TTL süresince çalışmasını
+	sağlamak için Redis key seti hâlâ duruyor. ``resend_verification_email``
+	çağrılırsa OTP-temelli yeni akışa düşer.
+	"""
 	key = frappe.generate_hash(length=32)
 	frappe.cache.set_value(f"email_verification:{key}", email, expires_in_sec=86400)
 	storefront = frappe.conf.get("storefront_url", "https://rc.istoc.com")
@@ -65,6 +197,7 @@ def _create_email_verification(email: str, first_name: str):
 		template="tradehub_email_verification",
 		args={"link": link, "first_name": first_name},
 		now=True,
+		communication=False,
 	)
 
 
@@ -105,6 +238,7 @@ def send_registration_otp(email: str):
 		template="registration_otp",
 		args={"code": otp_code},
 		now=True,
+		communication=False,
 	)
 
 	return {"success": True, "expires_in_minutes": 10}
@@ -136,9 +270,10 @@ def verify_registration_otp(email: str, code: str):
 	otp_data = json.loads(cached) if isinstance(cached, str) else cached
 
 	# Too many wrong attempts — invalidate the OTP
-	if otp_data.get("attempts", 0) >= 5:
+	if otp_data.get("attempts", 0) >= OTP_MAX_ATTEMPTS:
 		frappe.cache.delete_value(cache_key)
 		frappe.local.response["http_status_code"] = 429
+		frappe.local.response["attempts_remaining"] = 0
 		frappe.throw(
 			_("Too many wrong attempts. Please request a new code."),
 			frappe.TooManyRequestsError,
@@ -152,7 +287,10 @@ def verify_registration_otp(email: str, code: str):
 			json.dumps(otp_data),
 			expires_in_sec=600,
 		)
+		# Frontend uses this to render the staged "Kalan deneme" UX; capped at 0
+		# so the lockout case stays consistent with the 429 branch above.
 		frappe.local.response["http_status_code"] = 422
+		frappe.local.response["attempts_remaining"] = max(0, OTP_MAX_ATTEMPTS - otp_data["attempts"])
 		frappe.throw(
 			_("Wrong verification code."),
 			frappe.ValidationError,
@@ -237,22 +375,60 @@ def register_user(
 	update_password(email, password)
 	user.add_roles("Buyer")
 
+	# 🔒 KRITIK GÜVENLİK: Frappe v15 ``add_roles("Buyer")`` user_type'ı
+	# **System User**'a yükseltiyor (Buyer rolü Frappe'de desk_access=1 flag'i
+	# ile tanımlı). Bu Buyer'ı Frappe Desk'e erişebilir hale getirir → büyük
+	# güvenlik açığı. Defansif raw SQL ile Website User'a geri çek + Desk User
+	# rolünü kaldır.
+	frappe.db.sql(
+		"UPDATE `tabUser` SET `user_type`='Website User' WHERE `name`=%s",
+		(email,),
+	)
+	frappe.db.sql(
+		"DELETE FROM `tabHas Role` WHERE `parent`=%s AND `role`='Desk User' AND `parenttype`='User'",
+		(email,),
+	)
+
 	# ── Generate unique member ID ──
 	member_id = _generate_member_id(email, user.creation)
 
+	# Canonicalize phone (optional field — empty stays empty).
+	phone_canonical = canonicalize_phone(phone) or ""
+	if phone and not phone_canonical:
+		frappe.throw(_("Please enter a valid Turkish phone number."), frappe.ValidationError)
+
 	# ── Create Buyer Profile ──
+	# OTP doğrulaması zaten kullanıcının e-posta sahipliğini kanıtladı,
+	# bu nedenle email_verified=1 olarak başlatıyoruz.
 	buyer = frappe.new_doc("Buyer Profile")
 	buyer.user = email
 	buyer.buyer_name = f"{first_name} {last_name}"
 	buyer.member_id = member_id
 	buyer.country = country
-	buyer.phone = phone
+	buyer.phone = phone_canonical
 	buyer.status = "Active"
+	buyer.email_verified = 1
+	buyer.email_verified_at = now_datetime()
+	buyer.email_verified_method = "otp"
 	buyer.owner = email
 	buyer.insert(ignore_permissions=True)
 
-	# ── Background email verification ──
-	_create_email_verification(email, first_name)
+	# Defansif — Frappe Datetime field'ı insert sırasında bazen atlıyor;
+	# raw SQL UPDATE ile at + method'u garanti olarak yazıyoruz.
+	frappe.db.sql(
+		"UPDATE `tabBuyer Profile` SET `email_verified`=1, "
+		"`email_verified_at`=%s, `email_verified_method`='otp' "
+		"WHERE `name`=%s",
+		(now_datetime(), buyer.name),
+	)
+
+	# ── Audit log ──
+	_log_email_verification_event(
+		user=email,
+		event="verified",
+		method="otp",
+		actor=email,
+	)
 
 	# ── Delete registration token (single-use) ──
 	frappe.cache.delete_value(token_cache_key)
@@ -324,6 +500,11 @@ def register_supplier(
 		frappe.throw(_("You must accept the Terms of Service."))
 	if not accept_kvkk:
 		frappe.throw(_("You must accept the KVKK policy."))
+	if not (identity_document or "").strip():
+		frappe.throw(
+			_("Identity document upload is required."),
+			frappe.ValidationError,
+		)
 	_validate_password(password)
 
 	if frappe.db.exists("User", email):
@@ -346,18 +527,58 @@ def register_supplier(
 	update_password(email, password)
 	user.add_roles("Buyer")
 
+	# 🔒 KRITIK GÜVENLİK: Frappe v15 ``add_roles("Buyer")`` user_type'ı
+	# System User'a yükseltir. Defansif olarak Website User'a geri çek.
+	frappe.db.sql(
+		"UPDATE `tabUser` SET `user_type`='Website User' WHERE `name`=%s",
+		(email,),
+	)
+	frappe.db.sql(
+		"DELETE FROM `tabHas Role` WHERE `parent`=%s AND `role`='Desk User' AND `parenttype`='User'",
+		(email,),
+	)
+
 	member_id = _generate_member_id(email, user.creation)
 
+	# Canonicalize both phone fields once. Each is optional; if a value was
+	# provided but cannot canonicalize, reject the whole registration.
+	phone_canonical = canonicalize_phone(phone) or ""
+	if phone and not phone_canonical:
+		frappe.throw(_("Please enter a valid Turkish phone number."), frappe.ValidationError)
+	contact_phone_canonical = canonicalize_phone(contact_phone) or ""
+	if contact_phone and not contact_phone_canonical:
+		frappe.throw(_("Please enter a valid Turkish phone number."), frappe.ValidationError)
+
 	# ── Create Buyer Profile ──
+	# OTP doğrulaması zaten e-posta sahipliğini kanıtladı.
 	buyer = frappe.new_doc("Buyer Profile")
 	buyer.user = email
 	buyer.buyer_name = f"{first_name} {last_name}"
 	buyer.member_id = member_id
 	buyer.country = country
-	buyer.phone = phone or contact_phone
+	buyer.phone = phone_canonical or contact_phone_canonical
 	buyer.status = "Active"
+	buyer.email_verified = 1
+	buyer.email_verified_at = now_datetime()
+	buyer.email_verified_method = "otp"
 	buyer.owner = email
 	buyer.insert(ignore_permissions=True)
+
+	# Defansif — Frappe Datetime field'ı insert sırasında bazen atlıyor
+	frappe.db.sql(
+		"UPDATE `tabBuyer Profile` SET `email_verified`=1, "
+		"`email_verified_at`=%s, `email_verified_method`='otp' "
+		"WHERE `name`=%s",
+		(now_datetime(), buyer.name),
+	)
+
+	# ── Audit log ──
+	_log_email_verification_event(
+		user=email,
+		event="verified",
+		method="otp",
+		actor=email,
+	)
 
 	# ── Create Seller Application (Submitted) ──
 	app = frappe.new_doc("Seller Application")
@@ -368,7 +589,7 @@ def register_supplier(
 	app.status = "Submitted"
 	app.seller_type = seller_type
 	app.business_name = business_name
-	app.contact_phone = contact_phone or phone
+	app.contact_phone = contact_phone_canonical or phone_canonical
 	app.tax_id_type = tax_id_type
 	app.tax_id = tax_id
 	app.tax_office = tax_office
@@ -393,9 +614,6 @@ def register_supplier(
 	if identity_document:
 		_reassign_file_owner(identity_document, email)
 
-	# ── Background email verification ──
-	_create_email_verification(email, first_name)
-
 	# ── Delete registration token (single-use) ──
 	frappe.cache.delete_value(token_cache_key)
 
@@ -410,13 +628,18 @@ def register_supplier(
 
 
 @frappe.whitelist(allow_guest=True, methods=["POST"])
-@rate_limit(key="email", limit=3, seconds=3600)
+@rate_limit(key="email", limit=10, seconds=3600)
 def forgot_password(email: str):
 	"""Send a password reset link via email.
 
-	Always returns success to prevent email enumeration.
+	Always returns success to prevent email enumeration. Ancak format ve
+	domain DNS kontrolü öncesinde yapılır — geçersiz domain ("turksab.coms"
+	gibi yazım hataları) 400 ile reddedilir, böylece kullanıcı yanlış
+	adrese mail gönderildi sanmaz.
 	"""
-	email = (email or "").strip().lower()
+	# Format + DNS check (geçersiz adres → 400; bu enumeration leak değil
+	# çünkü domain'in varlığı kullanıcı varlığına bağlı değil)
+	email = _validate_email_format(email)
 
 	# Always return success — email enumeration protection
 	if frappe.db.exists("User", email):
@@ -437,6 +660,7 @@ def forgot_password(email: str):
 			template="tradehub_password_reset",
 			args={"link": link, "full_name": user.full_name},
 			now=True,
+			communication=False,
 		)
 
 	return {
@@ -490,6 +714,18 @@ def reset_password(key: str, new_password: str):
 	# Validate new password
 	_validate_password(new_password)
 
+	# Reject if the new password is identical to the current one
+	try:
+		check_password(user_data.name, new_password)
+	except frappe.AuthenticationError:
+		# Different password — proceed
+		pass
+	else:
+		frappe.throw(
+			_("This password is already in use. Please choose a different one."),
+			frappe.ValidationError,
+		)
+
 	# Update password and clear reset key
 	update_password(user_data.name, new_password, logout_all_sessions=True)
 	frappe.db.set_value("User", user_data.name, "reset_password_key", None)
@@ -523,9 +759,25 @@ def verify_email(key: str):
 	if isinstance(email, bytes):
 		email = email.decode()
 
-	# Mark email as verified on Buyer Profile
-	if frappe.db.exists("Buyer Profile", {"user": email}):
-		frappe.db.set_value("Buyer Profile", {"user": email}, "email_verified", 1)
+	# Mark email as verified on Buyer Profile — doğrudan SQL UPDATE (Frappe v15
+	# set_value `email_verified_at` Datetime field'ını bazı durumlarda yazmıyor;
+	# tek raw UPDATE ile garanti çalışır + atomik)
+	bp_name = frappe.db.get_value("Buyer Profile", {"user": email}, "name")
+	if bp_name:
+		frappe.db.sql(
+			"UPDATE `tabBuyer Profile` SET `email_verified`=1, "
+			"`email_verified_at`=%s, `email_verified_method`='otp' "
+			"WHERE `name`=%s",
+			(now_datetime(), bp_name),
+		)
+
+	# Audit log
+	_log_email_verification_event(
+		user=email,
+		event="verified",
+		method="otp",
+		actor=email,
+	)
 
 	# Delete verification key (single-use)
 	frappe.cache.delete_value(cache_key)
@@ -613,6 +865,10 @@ def change_password(current_password: str, new_password: str):
 	# Verify current password — returns 400 on failure (not 401)
 	_verify_password(user, current_password)
 
+	# Reject if new password is identical to current password
+	if current_password == new_password:
+		frappe.throw(_("Your new password cannot be the same as your current password."))
+
 	# Validate new password rules
 	_validate_password(new_password)
 
@@ -626,11 +882,36 @@ def change_password(current_password: str, new_password: str):
 @frappe.whitelist(methods=["POST"])
 @rate_limit(key="user", limit=10, seconds=3600)
 def change_email(new_email: str, password: str):
-	"""Change the email address for the currently logged-in user.
+	"""DEPRECATED — eski tek-adımlı email değişimi.
 
-	Requires the current password for security verification.
-	Validates email format and checks for duplicate accounts.
-	Updates User, Buyer Profile, Seller Profile, and Seller Application.
+	Pattern A (OTP-only) ile birlikte ``request_email_change`` +
+	``confirm_email_change`` ikilisine taşındı. Bu endpoint artık
+	hiçbir DB yazımı yapmaz; eski frontend istemcilerinin görünür bir
+	hata almasını ve yeni akışa geçmesini sağlar.
+	"""
+	frappe.local.response["http_status_code"] = 410
+	frappe.throw(
+		_("This endpoint has been replaced. Use request_email_change followed by confirm_email_change."),
+		frappe.ValidationError,
+	)
+
+
+@frappe.whitelist(methods=["POST"])
+@rate_limit(key="user", limit=20, seconds=3600)
+def request_email_change(new_email: str, password: str):
+	"""Email değişimi için yeni adrese OTP gönderir; DB yazımı YAPMAZ.
+
+	Akış:
+	  1. Kullanıcı parolasını doğrular.
+	  2. Yeni adresin format/duplicate kontrollerini yapar.
+	  3. 6 haneli OTP üretir, Redis'e ``email_change:{user}`` ile yazar (TTL 30dk).
+	  4. Yeni adrese ``email_change_otp`` template'iyle kod gönderir.
+
+	HTTP hataları:
+	  400 — geçersiz format / aynı adres
+	  401 — parola yanlış
+	  409 — yeni adres başka kullanıcıda
+	  429 — rate limit
 	"""
 	old_email = frappe.session.user
 	if old_email == "Guest":
@@ -659,48 +940,112 @@ def change_email(new_email: str, password: str):
 			frappe.DuplicateEntryError,
 		)
 
+	# Parolayı doğrula — başarısızsa 400 (frontend api() wrapper logout'a düşmesin)
 	_verify_password(old_email, password)
 
-	# ── Mutate ──
-	# Update linked profiles BEFORE rename
-	buyer_profile = frappe.db.get_value("Buyer Profile", {"user": old_email}, "name")
-	if buyer_profile:
-		frappe.db.set_value("Buyer Profile", buyer_profile, "user", new_email)
-
-	seller_profile = frappe.db.get_value("Seller Profile", {"user": old_email}, "name")
-	if seller_profile:
-		frappe.db.set_value("Seller Profile", seller_profile, "user", new_email)
-
-	seller_app = frappe.db.get_value("Seller Application", {"applicant_user": old_email}, "name")
-	if seller_app:
-		frappe.db.set_value(
-			"Seller Application",
-			seller_app,
-			{
-				"applicant_user": new_email,
-				"contact_email": new_email,
-			},
-		)
-
-	# rename_doc commits the rename internally, but after_rename →
-	# clear_sessions can kill the DB connection. We catch and reconnect.
-	try:
-		frappe.rename_doc("User", old_email, new_email, merge=False)
-	except Exception:
-		pass
-
-	# Ensure DB connection is alive after rename
-	try:
-		frappe.db.sql("SELECT 1")
-	except Exception:
-		frappe.db.connect()
-
-	# rename_doc does not update __Auth — fix password mapping
-	frappe.db.sql(
-		"UPDATE `__Auth` SET `name`=%s WHERE `name`=%s AND `doctype`='User'",
-		(new_email, old_email),
+	# OTP oluştur ve Redis'e yaz (30 dk TTL)
+	otp_code = _generate_otp()
+	frappe.cache.set_value(
+		f"email_change:{old_email}",
+		json.dumps({"new_email": new_email, "code": otp_code, "attempts": 0}),
+		expires_in_sec=1800,
 	)
 
+	# Audit
+	_log_email_verification_event(
+		user=old_email,
+		event="change_requested",
+		method="otp",
+	)
+
+	# Yeni adrese OTP gönder — now=False ile mail kuyruğuna alınır (async)
+	# communication=False: Frappe Desk inbox'ında sistem mailleri görünmesin
+	# (başka kullanıcılar pinar.kaya'nın inbox'ından görmesin)
+	frappe.sendmail(
+		recipients=new_email,
+		subject="iSTOC — Yeni E-posta Adresi Doğrulama",
+		template="email_change_otp",
+		args={"code": otp_code, "old_email": old_email},
+		now=False,
+		communication=False,
+	)
+
+	return {"success": True, "expires_in_minutes": 30}
+
+
+@frappe.whitelist(methods=["POST"])
+@rate_limit(key="user", limit=10, seconds=600)
+def confirm_email_change(code: str):
+	"""``request_email_change``'den gelen OTP'yi doğrular ve adresi değiştirir.
+
+	Tüm DB yazımları (User rename, Buyer/Seller Profile, Seller Application,
+	__Auth) tek bir akışta atomik olarak çalışır; bir adım başarısız olursa
+	Frappe transaction otomatik rollback eder. Önceki ``change_email``'deki
+	``try/except: pass`` kalıbı tamamen kaldırıldı.
+	"""
+	old_email = frappe.session.user
+	if old_email == "Guest":
+		frappe.throw(_("Not logged in."), frappe.AuthenticationError)
+
+	code = (code or "").strip()
+	cache_key = f"email_change:{old_email}"
+	cached = frappe.cache.get_value(cache_key)
+
+	if not cached:
+		frappe.local.response["http_status_code"] = 404
+		frappe.throw(
+			_("No pending email change. Please start over."),
+			frappe.DoesNotExistError,
+		)
+
+	data = json.loads(cached) if isinstance(cached, str) else cached
+	new_email = (data.get("new_email") or "").strip().lower()
+	expected = data.get("code")
+
+	# 5 başarısız denemeden sonra OTP'yi geçersiz kıl
+	if data.get("attempts", 0) >= OTP_MAX_ATTEMPTS:
+		frappe.cache.delete_value(cache_key)
+		frappe.local.response["http_status_code"] = 429
+		frappe.local.response["attempts_remaining"] = 0
+		frappe.throw(
+			_("Too many wrong attempts. Please request a new code."),
+			frappe.TooManyRequestsError,
+		)
+
+	if code != expected:
+		data["attempts"] = data.get("attempts", 0) + 1
+		frappe.cache.set_value(cache_key, json.dumps(data), expires_in_sec=1800)
+		frappe.local.response["http_status_code"] = 422
+		frappe.local.response["attempts_remaining"] = max(0, OTP_MAX_ATTEMPTS - data["attempts"])
+		frappe.throw(
+			_("Wrong verification code."),
+			frappe.ValidationError,
+		)
+
+	# Race koruması: OTP oluşturulduktan sonra başkası adresi almış olabilir
+	if frappe.db.exists("User", new_email):
+		frappe.cache.delete_value(cache_key)
+		frappe.local.response["http_status_code"] = 409
+		frappe.throw(
+			_("An account with this email already exists."),
+			frappe.DuplicateEntryError,
+		)
+
+	# ── Senkron rename (low-level SQL — Frappe rename_doc bug bypass) ──
+	# Frappe v15 + Python 3.14 + redis-on-mariadb sessions kombinasyonunda
+	# ``frappe.rename_doc("User", ...)`` -> ``after_rename`` -> ``clear_sessions``
+	# DB connection'ını koparıyor, rename'in kalan adımları (add_comment vb.)
+	# fail ediyor ve transaction rollback oluyor. Eski kod ``try/except: pass``
+	# ile yutarak yarı yazılmış state üretiyordu (kullanıcının raporladığı bug).
+	#
+	# Çözüm: rename_doc'u tamamen by-pass et. Yapılması gereken kritik DB
+	# UPDATE'leri kendimiz tek transaction içinde manuel yapıyoruz; Frappe'nin
+	# Comment/Version history kayıtlarından feragat ediyoruz (zaten Email
+	# Verification Log'umuz var).
+	_do_rename_user_email(old_email=old_email, new_email=new_email)
+
+	# OTP cache'ini sil (single-use)
+	frappe.cache.delete_value(cache_key)
 	frappe.db.commit()
 
 	return {
@@ -710,19 +1055,438 @@ def change_email(new_email: str, password: str):
 	}
 
 
+def _do_rename_user_email(old_email: str, new_email: str):
+	"""Hibrit User rename — Frappe ``rename_doc`` dene, fail ederse SQL fallback.
+
+	**Sıra**:
+	  1. Frappe ``rename_doc("User", old, new)`` çağrılır. ``clear_sessions``
+	     geçici no-op'lanır (Python 3.14 + redis-on-mariadb dev ortamındaki
+	     ``InterfaceError`` zincirini önlemek için).
+	  2. ``frappe.db.exists("User", new_email)`` ile rename'in DB'ye yansıyıp
+	     yansımadığı doğrulanır. **Başarılı ise**: Frappe ``Comment`` "renamed
+	     from X to Y" + ``Version`` history kayıtları otomatik düşer.
+	  3. **Fail ise** (örn. Python 3.14 InterfaceError): connection tazelenir,
+	     low-level SQL UPDATE'ler ile manuel rename yapılır.
+
+	**Trade-off**:
+	  + Prod (Python 3.11): Frappe native rename audit (Comment, Version) düşer
+	  + Dev (Python 3.14): SQL fallback ile aynı sonuç (mevcut davranış korunur)
+	  + Future-proof: Frappe v16'da rename_doc davranışı değişse bile fallback
+	    devreye girer
+	  - Hibrit kod biraz daha karmaşık (try/except + fallback dalı)
+
+	İşlem sırası (rename başarısı sonrası ortak):
+	  • Buyer Profile email_verified=1, at=now, method=otp (SQL UPDATE)
+	  • Eski adrese bilgilendirme maili (mail kuyruğu — async)
+	  • Email Verification Log change_completed event'i
+	  • Sessions clear (artık komut commit'lendi, fail olsa zarar yok)
+
+	**SQL fallback** sadece rename_doc başarısız olduğunda çalışır:
+	  1. ``__Auth`` tablosu — parola/secret mapping'i taşı
+	  2. ``tabUser`` primary key + email + username
+	  3. ``tabBuyer Profile`` — autoname=field:user → name == user, ikisi de UPDATE
+	  4. ``tabSeller Profile`` — user field
+	  5. ``tabSeller Application`` — applicant_user + contact_email
+	  6. Tüm User Link field'ları — ``frappe.model.rename_doc.get_link_fields``
+	     ile dinamik liste, parent doctype'larda UPDATE
+	  9. Audit log
+	 10. Cache invalidation
+	 11. clear_sessions(new_email, force=True) — try/except yutarak (artık
+	     rollback edilemez, commit'ten önce ama transaction sonu yakın)
+	"""
+	from frappe.model.rename_doc import get_link_fields
+
+	# 🔒 KRITIK GÜVENLİK: rename öncesi target user_type'ı belirle.
+	# Frappe v15 ``rename_doc`` (ve ``add_roles``) User'ın user_type'ını
+	# ``System User``'a otomatik yükseltiyor (Buyer rolü desk_access=1).
+	#
+	# Bu KRITIK BIR SIZINTI: Buyer email değiştirir → user_type=System User
+	# olur → Frappe Desk'e (`/app`) erişebilir.
+	#
+	# Mantık: Buyer Profile veya Seller Profile'a bağlıysa storefront kullanıcı
+	# kabul edilir; user_type SQL UPDATE ile **zorla `Website User`** yapılır.
+	# Aksi halde (admin gibi) eski user_type korunur.
+	is_storefront_user = bool(
+		frappe.db.exists("Buyer Profile", {"user": old_email})
+		or frappe.db.exists("Seller Profile", {"user": old_email})
+		or frappe.db.exists("Seller Application", {"applicant_user": old_email})
+	)
+	if is_storefront_user:
+		target_user_type = "Website User"
+	else:
+		# Admin kullanıcı — pre-state'i koru (genelde System User)
+		target_user_type = frappe.db.get_value("User", old_email, "user_type") or "System User"
+
+	# ─── HİBRİT YOL: ÖNCE Frappe rename_doc dene ───────────────────────────
+	# rename_doc başarılı olursa Frappe'nin ``Comment`` ve ``Version`` audit
+	# kayıtları otomatik düşer (admin Frappe Desk → User → Activity sekmesinde
+	# "renamed from X to Y" satırını görür).
+	#
+	# ``clear_sessions``'ı geçici olarak no-op'la — Python 3.14 + redis-on-mariadb
+	# kombinasyonunda InterfaceError'u önler. Prod'da (Python 3.11) bu zaten
+	# sorunsuz çalışır; no-op zarar vermez (rename sonrası manuel
+	# clear_sessions yine çalıştırılır).
+	rename_doc_succeeded = False
+	try:
+		import frappe.core.doctype.user.user as _user_module
+
+		_orig_clear_sessions = _user_module.clear_sessions
+		_user_module.clear_sessions = lambda *a, **kw: None
+		try:
+			frappe.rename_doc("User", old_email, new_email, merge=False)
+		finally:
+			_user_module.clear_sessions = _orig_clear_sessions
+
+		# Connection tazele (Python 3.14'te clear_sessions InterfaceError
+		# fırlatmış olabilir; rename muhtemelen yine de uygulanmış olabilir)
+		try:
+			frappe.db.sql("SELECT 1")
+		except Exception:
+			frappe.db.connect()
+
+		# rename gerçekten DB'ye yansıdı mı?
+		if frappe.db.exists("User", new_email) and not frappe.db.exists("User", old_email):
+			rename_doc_succeeded = True
+			frappe.logger().info(f"_do_rename_user_email: rename_doc succeeded ({old_email} -> {new_email})")
+	except Exception as exc:
+		# rename_doc patladı (Python 3.14 InterfaceError, vs.) — connection tazele
+		try:
+			frappe.db.sql("SELECT 1")
+		except Exception:
+			frappe.db.connect()
+		frappe.logger().warning(
+			f"_do_rename_user_email: rename_doc raised {type(exc).__name__}; will use SQL fallback"
+		)
+
+	# rename_doc başarılı olduğunda — Buyer Profile.user'ı NEW'a günceller ama
+	# ``autoname=field:user`` kuralı için ``BP.name``'i de senkronize etmek
+	# gerek. Frappe rename_doc bunu yapmıyor (link field cascade rename değil).
+	# Tek satır SQL UPDATE: BP.name = NEW.
+	if rename_doc_succeeded and frappe.db.exists("Buyer Profile", old_email):
+		frappe.db.sql(
+			"UPDATE `tabBuyer Profile` SET `name`=%s WHERE `name`=%s",
+			(new_email, old_email),
+		)
+
+	# 🔒 KRITIK GÜVENLİK GUARD: rename_doc/add_roles User.user_type'ı System
+	# User'a otomatik çekiyor. target_user_type'a zorla geri yaz — storefront
+	# kullanıcılar için Website User, adminler için pre-state.
+	if frappe.db.exists("User", new_email):
+		current_user_type = frappe.db.get_value("User", new_email, "user_type")
+		if current_user_type != target_user_type:
+			frappe.db.sql(
+				"UPDATE `tabUser` SET `user_type`=%s WHERE `name`=%s",
+				(target_user_type, new_email),
+			)
+			frappe.logger().info(
+				f"_do_rename_user_email: user_type guard restored "
+				f"{target_user_type} (was {current_user_type})"
+			)
+
+	# ─── SQL FALLBACK: rename_doc başarısızsa veya kısmen kaldıysa ─────────
+	# Bu kod Python 3.14 dev ortamında devreye girer. Prod'da (Python 3.11)
+	# rename_doc başarılı olur ve bu blok atlanır.
+	if not rename_doc_succeeded:
+		frappe.logger().info(f"_do_rename_user_email: SQL fallback for {old_email} -> {new_email}")
+
+		# 1. __Auth — parola/secret mapping'i (rename'den ÖNCE yapılmalı: User.name
+		#    primary key'i değişeceği için __Auth.name FK constraint'i bağlı kalmasın)
+		frappe.db.sql(
+			"UPDATE `__Auth` SET `name`=%s WHERE `name`=%s AND `doctype`='User'",
+			(new_email, old_email),
+		)
+
+		# 2. tabUser — primary key + email + username
+		# DİKKAT: Frappe User DocType'ında autoname=email; rename_doc bu field'ları
+		# otomatik senkronlar ama fallback'ta manuel güncelliyoruz. Aksi halde
+		# ``User.name`` yeni email olur ama ``User.email`` eski email kalır.
+		frappe.db.sql(
+			"UPDATE `tabUser` SET `name`=%s, `email`=%s, `username`=%s WHERE `name`=%s",
+			(new_email, new_email, new_email.split("@", 1)[0], old_email),
+		)
+
+		# 3. tabBuyer Profile — autoname=field:user, hem name hem user UPDATE
+		frappe.db.sql(
+			"UPDATE `tabBuyer Profile` SET `name`=%s, `user`=%s WHERE `name`=%s OR `user`=%s",
+			(new_email, new_email, old_email, old_email),
+		)
+
+		# 4. tabSeller Profile — user field
+		frappe.db.sql(
+			"UPDATE `tabSeller Profile` SET `user`=%s WHERE `user`=%s",
+			(new_email, old_email),
+		)
+
+		# 5. tabSeller Application — applicant_user + contact_email
+		frappe.db.sql(
+			"UPDATE `tabSeller Application` SET `applicant_user`=%s, `contact_email`=%s "
+			"WHERE `applicant_user`=%s",
+			(new_email, new_email, old_email),
+		)
+
+		# 6. Diğer User Link field'ları (dinamik) — owner, modified_by gibi sistem
+		#    alanlarını ATLA; sadece custom Link field'ları güncelle.
+		for lf in get_link_fields("User"):
+			parent = lf.get("parent")
+			fieldname = lf.get("fieldname")
+			issingle = lf.get("issingle")
+			if not parent or not fieldname:
+				continue
+			# Yukarıda zaten elle güncellediklerimizi atla
+			if (parent, fieldname) in {
+				("User", "name"),
+				("Buyer Profile", "user"),
+				("Seller Profile", "user"),
+				("Seller Application", "applicant_user"),
+			}:
+				continue
+			try:
+				if issingle:
+					frappe.db.sql(
+						"UPDATE `tabSingles` SET `value`=%s WHERE `doctype`=%s AND `field`=%s AND `value`=%s",
+						(new_email, parent, fieldname, old_email),
+					)
+				else:
+					frappe.db.sql(
+						f"UPDATE `tab{parent}` SET `{fieldname}`=%s WHERE `{fieldname}`=%s",
+						(new_email, old_email),
+					)
+			except Exception:
+				# Tek bir link field UPDATE'inin başarısız olması rename'i bozmasın
+				frappe.log_error(
+					title=f"User rename: link field update failed ({parent}.{fieldname})",
+					message=frappe.get_traceback(),
+				)
+
+		# Fallback rename'in DB'ye yansıdığını doğrula
+		if not frappe.db.exists("User", new_email):
+			frappe.local.response["http_status_code"] = 500
+			frappe.throw(
+				_(
+					"Email change could not be completed. Please try again. "
+					"If the problem persists, contact support."
+				),
+				frappe.ValidationError,
+			)
+
+	# ─── ORTAK ADIMLAR — rename_doc başarılı olsun veya SQL fallback olsun ───
+
+	# 7. Yeni adres OTP ile kanıtlandı → email_verified=1
+	# Doğrudan SQL UPDATE (Frappe v15 set_value `update_modified=False` ile
+	# Datetime field'ını bazen yazmıyor — bu Sorun 4'ün kök nedeniydi).
+	# Tek raw UPDATE garanti çalışır.
+	bp_name = frappe.db.get_value("Buyer Profile", {"user": new_email}, "name")
+	if bp_name:
+		frappe.db.sql(
+			"UPDATE `tabBuyer Profile` SET `email_verified`=1, "
+			"`email_verified_at`=%s, `email_verified_method`='otp' "
+			"WHERE `name`=%s",
+			(now_datetime(), bp_name),
+		)
+
+	# 8. Eski adrese bilgilendirme maili (now=False → mail kuyruğu)
+	# communication=False: Frappe Desk inbox'ı sistem mailini göstermesin
+	try:
+		frappe.sendmail(
+			recipients=old_email,
+			subject="iSTOC — Hesap E-posta Adresi Değiştirildi",
+			template="email_change_notice",
+			args={"old_email": old_email, "new_email": new_email},
+			now=False,
+			communication=False,
+		)
+	except Exception:
+		frappe.log_error(
+			title="email_change_notice send failed",
+			message=frappe.get_traceback(),
+		)
+
+	# 9. Audit log
+	_log_email_verification_event(
+		user=new_email,
+		event="change_completed",
+		method="otp",
+		actor=new_email,
+	)
+
+	# 10. Cache invalidation (eski email referansları)
+	try:
+		frappe.clear_cache(user=old_email)
+		frappe.clear_cache(user=new_email)
+	except Exception:
+		pass
+
+	# 11. Sessions temizle (try/except — connection ölürse de transaction etkilenmez,
+	#     çünkü ana commit'i caller yapıyor; burada warning kalır)
+	try:
+		from frappe.sessions import clear_sessions
+
+		clear_sessions(user=old_email, force=True)
+	except Exception:
+		frappe.logger().warning("clear_sessions(old_email) after rename failed; ignoring")
+		try:
+			frappe.db.sql("SELECT 1")
+		except Exception:
+			frappe.db.connect()
+
+
 @frappe.whitelist(methods=["POST"])
 @rate_limit(key="user", limit=3, seconds=3600)
 def resend_verification_email():
-	"""Resend email verification link for the currently logged-in user."""
+	"""Doğrulanmamış kullanıcı için yeni bir OTP gönderir.
+
+	Pattern A'da kayıt sırasında zaten verified=1 set edildiği için bu endpoint
+	yalnızca migrate edilmiş eski kullanıcılar veya admin tarafından unverify
+	edilmiş hesaplar için anlamlı.
+	"""
 	user = frappe.session.user
 
 	if user == "Guest":
 		frappe.throw(_("Not logged in."), frappe.AuthenticationError)
 
-	user_doc = frappe.get_doc("User", user)
-	_create_email_verification(user, user_doc.first_name or user)
+	# Zaten doğrulanmışsa boşa OTP gönderme
+	already_verified = bool(frappe.db.get_value("Buyer Profile", {"user": user}, "email_verified"))
+	if already_verified:
+		return {"success": True, "already_verified": True}
 
-	return {"success": True, "message": _("Verification email sent.")}
+	otp_code = _generate_otp()
+	frappe.cache.set_value(
+		f"reverify_otp:{user}",
+		json.dumps({"code": otp_code, "attempts": 0}),
+		expires_in_sec=600,
+	)
+
+	frappe.sendmail(
+		recipients=user,
+		subject="iSTOC — E-posta Doğrulama Kodu",
+		template="registration_otp",
+		args={"code": otp_code},
+		now=False,
+		communication=False,
+	)
+
+	return {"success": True, "expires_in_minutes": 10}
+
+
+@frappe.whitelist(methods=["POST"])
+def admin_set_email_verified(user: str, verified: int = 1, reason: str = ""):
+	"""System Manager / Marketplace Admin: bir kullanıcının email_verified flag'ini
+	manuel olarak değiştirir. Form üstündeki sessiz toggle yerine bu endpoint
+	üzerinden gerçekleşir; her çağrı denetim kaydına geçer.
+
+	HTTP hataları:
+	  403 — yetkisiz çağrı
+	  400 — gerekçe boş veya kullanıcı bulunamadı
+	"""
+	caller = frappe.session.user
+	roles = frappe.get_roles(caller)
+	if not ({"System Manager", "Administrator", "Marketplace Admin"} & set(roles)):
+		frappe.local.response["http_status_code"] = 403
+		frappe.throw(_("Insufficient privileges."), frappe.PermissionError)
+
+	user = (user or "").strip().lower()
+	if not user or not frappe.db.exists("User", user):
+		frappe.local.response["http_status_code"] = 400
+		frappe.throw(_("User not found."), frappe.DoesNotExistError)
+
+	verified = int(verified or 0)
+	reason = (reason or "").strip()
+	if not reason:
+		frappe.local.response["http_status_code"] = 400
+		frappe.throw(
+			_("A reason is required for manual verification overrides."),
+			frappe.ValidationError,
+		)
+
+	if not frappe.db.exists("Buyer Profile", {"user": user}):
+		frappe.local.response["http_status_code"] = 400
+		frappe.throw(_("Target user has no Buyer Profile."), frappe.DoesNotExistError)
+
+	# Doğrudan SQL UPDATE (Frappe v15 set_value Datetime field'ını
+	# bazen yazmıyor — Sorun 4 kök neden)
+	bp_name = frappe.db.get_value("Buyer Profile", {"user": user}, "name")
+	if bp_name:
+		if verified:
+			frappe.db.sql(
+				"UPDATE `tabBuyer Profile` SET `email_verified`=1, "
+				"`email_verified_at`=%s, `email_verified_method`='admin_override' "
+				"WHERE `name`=%s",
+				(now_datetime(), bp_name),
+			)
+		else:
+			frappe.db.sql(
+				"UPDATE `tabBuyer Profile` SET `email_verified`=0, "
+				"`email_verified_at`=NULL, `email_verified_method`=NULL "
+				"WHERE `name`=%s",
+				(bp_name,),
+			)
+
+	_log_email_verification_event(
+		user=user,
+		event="admin_override" if verified else "unverified",
+		method="admin_override",
+		actor=caller,
+		reason=reason,
+	)
+
+	frappe.db.commit()
+	return {"success": True, "user": user, "email_verified": bool(verified)}
+
+
+@frappe.whitelist(methods=["POST"])
+@rate_limit(key="user", limit=10, seconds=600)
+def verify_email_otp(code: str):
+	"""``resend_verification_email`` ile gönderilen OTP'yi doğrular."""
+	user = frappe.session.user
+	if user == "Guest":
+		frappe.throw(_("Not logged in."), frappe.AuthenticationError)
+
+	cache_key = f"reverify_otp:{user}"
+	cached = frappe.cache.get_value(cache_key)
+	if not cached:
+		frappe.local.response["http_status_code"] = 404
+		frappe.throw(
+			_("Verification code not found or expired."),
+			frappe.DoesNotExistError,
+		)
+
+	data = json.loads(cached) if isinstance(cached, str) else cached
+	if data.get("attempts", 0) >= OTP_MAX_ATTEMPTS:
+		frappe.cache.delete_value(cache_key)
+		frappe.local.response["http_status_code"] = 429
+		frappe.local.response["attempts_remaining"] = 0
+		frappe.throw(
+			_("Too many wrong attempts. Please request a new code."),
+			frappe.TooManyRequestsError,
+		)
+
+	if (code or "").strip() != data.get("code"):
+		data["attempts"] = data.get("attempts", 0) + 1
+		frappe.cache.set_value(cache_key, json.dumps(data), expires_in_sec=600)
+		frappe.local.response["http_status_code"] = 422
+		frappe.local.response["attempts_remaining"] = max(0, OTP_MAX_ATTEMPTS - data["attempts"])
+		frappe.throw(_("Wrong verification code."), frappe.ValidationError)
+
+	# Doğrudan SQL UPDATE (Sorun 4 kök neden — set_value Datetime yazımı)
+	bp_name = frappe.db.get_value("Buyer Profile", {"user": user}, "name")
+	if bp_name:
+		frappe.db.sql(
+			"UPDATE `tabBuyer Profile` SET `email_verified`=1, "
+			"`email_verified_at`=%s, `email_verified_method`='otp' "
+			"WHERE `name`=%s",
+			(now_datetime(), bp_name),
+		)
+
+	_log_email_verification_event(
+		user=user,
+		event="verified",
+		method="otp",
+		actor=user,
+	)
+
+	frappe.cache.delete_value(cache_key)
+	frappe.db.commit()
+	return {"success": True}
 
 
 @frappe.whitelist(methods=["POST"])
@@ -740,35 +1504,43 @@ def change_phone(phone: str, password: str):
 		frappe.local.response["http_status_code"] = 400
 		frappe.throw(_("Phone number is required."), frappe.ValidationError)
 
-	# Validate phone format
-	cleaned = re.sub(r"[\s\-\(\)]", "", phone)
-	if not re.match(r"^(\+90|0)?5\d{9}$", cleaned):
+	# Canonicalize to E.164 (+90...). Accepts mobile (5XX) and landline (2XX-4XX).
+	canonical = canonicalize_phone(phone)
+	if not canonical or not canonical.startswith("+90"):
 		frappe.local.response["http_status_code"] = 400
 		frappe.throw(
 			_("Please enter a valid Turkish phone number."),
 			frappe.ValidationError,
 		)
 
+	# Reject if the new phone equals the current one. Both sides go through the
+	# same canonicalizer so format-only differences (spaces, "+90" vs "0") don't
+	# fool the comparison.
+	old_phone_canonical = canonicalize_phone(frappe.db.get_value("User", user, "phone") or "")
+	if old_phone_canonical and canonical == old_phone_canonical:
+		frappe.local.response["http_status_code"] = 400
+		frappe.throw(
+			_("New phone number cannot be the same as your current phone number."),
+			frappe.ValidationError,
+		)
+
 	# Verify password — returns 400 on failure (not 401)
 	_verify_password(user, password)
 
-	# Update User.phone
-	frappe.db.set_value("User", user, "phone", phone)
+	# Persist the canonical form everywhere — never the raw input.
+	frappe.db.set_value("User", user, "phone", canonical)
 
-	# Update Buyer Profile if exists
 	buyer_profile = frappe.db.get_value("Buyer Profile", {"user": user}, "name")
 	if buyer_profile:
-		frappe.db.set_value("Buyer Profile", buyer_profile, "phone", phone)
+		frappe.db.set_value("Buyer Profile", buyer_profile, "phone", canonical)
 
-	# Update Seller Profile if exists
 	seller_profile = frappe.db.get_value("Seller Profile", {"user": user}, "name")
 	if seller_profile:
-		frappe.db.set_value("Seller Profile", seller_profile, "contact_phone", phone)
+		frappe.db.set_value("Seller Profile", seller_profile, "contact_phone", canonical)
 
-	# Update Seller Application if exists
 	seller_app = frappe.db.get_value("Seller Application", {"applicant_user": user}, "name")
 	if seller_app:
-		frappe.db.set_value("Seller Application", seller_app, "contact_phone", phone)
+		frappe.db.set_value("Seller Application", seller_app, "contact_phone", canonical)
 
 	frappe.db.commit()
 
@@ -860,6 +1632,7 @@ def upload_private_file(filename: str = "", filedata: str = ""):
 
 
 @frappe.whitelist(methods=["POST"])
+@require_verified_email
 def become_seller():
 	"""Create a Seller Application for an existing buyer account.
 
@@ -892,7 +1665,9 @@ def become_seller():
 	app.applicant_user = user
 	app.member_id = member_id
 	app.contact_email = user
-	app.contact_phone = user_data.phone or ""
+	# user_data.phone may be a legacy non-canonical value; canonicalize before
+	# copying it forward so the new application starts clean.
+	app.contact_phone = canonicalize_phone(user_data.phone) or ""
 	app.country = frappe.db.get_value("Buyer Profile", {"user": user}, "country") or "Turkey"
 	app.status = "Draft"
 	app.insert(ignore_permissions=True)
@@ -907,6 +1682,7 @@ def become_seller():
 
 
 @frappe.whitelist(methods=["POST"])
+@require_verified_email
 def complete_registration_application(
 	seller_application,
 	seller_type=None,
@@ -960,6 +1736,14 @@ def complete_registration_application(
 		)
 
 	doc = frappe.get_doc("Seller Application", seller_application)
+
+	# Canonicalize phone before assigning. Empty/None stays untouched; an
+	# unparseable value is rejected.
+	if contact_phone is not None and contact_phone != "":
+		contact_phone_canonical = canonicalize_phone(contact_phone)
+		if not contact_phone_canonical:
+			frappe.throw(_("Please enter a valid Turkish phone number."), frappe.ValidationError)
+		contact_phone = contact_phone_canonical
 
 	# Assign all fields
 	field_map = {

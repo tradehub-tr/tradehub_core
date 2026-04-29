@@ -20,8 +20,11 @@ from html import escape as html_escape
 import frappe
 from frappe import _
 
+from tradehub_core.utils.auth_guards import require_verified_email
+
 
 @frappe.whitelist()
+@require_verified_email
 def create_rfq(product_name, description, quantity, unit, category=None, share_business_card=0, ai_enabled=0):
 	"""Create a new RFQ for the logged-in buyer."""
 	user = frappe.session.user
@@ -303,6 +306,7 @@ def get_my_inquiries(filter_type="all", limit_page_length=20, limit_start=0):
 
 
 @frappe.whitelist()
+@require_verified_email
 def submit_quote(
 	rfq_id, price_per_unit=0, total_price=0, currency="TRY", lead_time_days=0, message="", listing_id=None
 ):
@@ -486,6 +490,7 @@ def search_categories(query=""):
 
 
 @frappe.whitelist()
+@require_verified_email
 def add_rfq_details(rfq_id, additional_details):
 	"""Add additional details to an existing RFQ (one-time)."""
 	user = frappe.session.user
@@ -507,6 +512,7 @@ def add_rfq_details(rfq_id, additional_details):
 
 
 @frappe.whitelist()
+@require_verified_email
 def close_rfq(rfq_id):
 	"""Close an RFQ."""
 	user = frappe.session.user
@@ -528,6 +534,7 @@ def close_rfq(rfq_id):
 
 
 @frappe.whitelist()
+@require_verified_email
 def accept_quote(quote_id):
 	"""Buyer accepts a quote — sets quote to Accepted, RFQ to Completed."""
 	user = frappe.session.user
