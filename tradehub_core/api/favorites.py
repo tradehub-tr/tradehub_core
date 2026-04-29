@@ -13,6 +13,7 @@ import json
 
 import frappe
 from frappe import _
+from frappe.utils import get_datetime
 
 
 def _require_user():
@@ -34,6 +35,18 @@ def _parse_list_ids(raw):
 	except Exception:
 		pass
 	return ["default"]
+
+
+def _filter_owned_list_ids(user, list_ids):
+	"""Sadece `user`'in sahibi oldugu list_id'leri ve sanal 'default' listeyi dondur.
+	Boş veya tamamen yabanci girdi gelirse fallback olarak ['default'] doner.
+	Cross-user list_id sizmasini engeller (HATA 19)."""
+	if not list_ids:
+		return ["default"]
+	own = set(frappe.get_all("Buyer Favorite List", filters={"user": user}, pluck="list_id"))
+	own.add("default")
+	filtered = [lid for lid in list_ids if lid in own]
+	return filtered or ["default"]
 
 
 def _get_item_doc(user, listing):
@@ -117,12 +130,13 @@ def upsert_favorite(listing, list_ids=None, image="", title="", price_range="", 
 	if not frappe.db.exists("Listing", listing):
 		frappe.throw(_("Ürün bulunamadı."), frappe.DoesNotExistError)
 
-	parsed_ids = _parse_list_ids(list_ids)
+	parsed_ids = _filter_owned_list_ids(user, _parse_list_ids(list_ids))
 
 	doc = _get_item_doc(user, listing)
 	if doc:
-		# Mevcut listIds ile birleştir (tekilleştir)
+		# Mevcut listIds ile birleştir + sahip kontrolu (eski kirli kayitlari da arindir)
 		merged = list(dict.fromkeys(_parse_list_ids(doc.list_ids) + parsed_ids))
+		merged = _filter_owned_list_ids(user, merged)
 		doc.list_ids = json.dumps(merged)
 		# Snapshot'ı sadece yeni değer geldiyse güncelle
 		if image:
@@ -177,6 +191,12 @@ def toggle_favorite_in_list(listing, list_id, image="", title="", price_range=""
 	if not frappe.db.exists("Listing", listing):
 		frappe.throw(_("Ürün bulunamadı."), frappe.DoesNotExistError)
 
+	# list_id sahip kontrolu — 'default' her kullaniciya ait, diger list_id'ler
+	# sadece olusturucusuna ait. Cross-user toggle'i engelle (HATA 19).
+	if list_id != "default":
+		if not frappe.db.exists("Buyer Favorite List", {"user": user, "list_id": list_id}):
+			frappe.throw(_("Liste bulunamadi veya size ait degil."), frappe.PermissionError)
+
 	doc = _get_item_doc(user, listing)
 
 	if not doc:
@@ -226,6 +246,11 @@ def toggle_favorite_in_list(listing, list_id, image="", title="", price_range=""
 
 # ──────────────────────────── WRITE: lists ─────────────────────────────────
 
+# Bir kullanicinin olusturabilecegi maksimum favori liste sayisi (HATA 21).
+# DoS / spam vektorunu kapatir; UI ve DB performansi icin makul ust sinir.
+# `seller_addresses.MAX_ADDRESSES = 10` patterni ile tutarli (orada da sinir var).
+MAX_FAVORITE_LISTS = 50
+
 
 @frappe.whitelist()
 def create_favorite_list(name, list_id=None):
@@ -240,7 +265,8 @@ def create_favorite_list(name, list_id=None):
 	final_id = list_id or frappe.generate_hash(length=16)
 	clean_name = str(name).strip()
 
-	# Aynı list_id varsa yok say
+	# Aynı list_id varsa yok say (idempotent path) — sayim oncesi kontrol et
+	# ki tekrar cagrida sinir tetiklenmesin.
 	exists = frappe.db.get_value("Buyer Favorite List", {"user": user, "list_id": final_id}, "name")
 	if exists:
 		return {
@@ -248,6 +274,11 @@ def create_favorite_list(name, list_id=None):
 			"name": clean_name,
 			"createdAt": 0,
 		}
+
+	# Ust sinir kontrolu (HATA 21) — kullanici basina max liste.
+	current = frappe.db.count("Buyer Favorite List", {"user": user})
+	if current >= MAX_FAVORITE_LISTS:
+		frappe.throw(_("En fazla {0} favori liste olusturabilirsiniz.").format(MAX_FAVORITE_LISTS))
 
 	doc = frappe.new_doc("Buyer Favorite List")
 	doc.user = user
@@ -259,7 +290,7 @@ def create_favorite_list(name, list_id=None):
 	return {
 		"id": final_id,
 		"name": clean_name,
-		"createdAt": int(doc.creation.timestamp() * 1000) if doc.creation else 0,
+		"createdAt": int(get_datetime(doc.creation).timestamp() * 1000) if doc.creation else 0,
 	}
 
 

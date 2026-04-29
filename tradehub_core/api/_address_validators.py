@@ -92,6 +92,74 @@ def validate_country_code(country):
 		raise AddressValidationError("Geçersiz ülke kodu")
 
 
+# ── Eski/uzun ülke isimlerini ISO-2 koda çeviren backward-compat haritası ───
+# Eski kayıtlar (örn. ADDR-0003 country="Turkey") frontend formuna prefill edip
+# kullanıcı hiçbir şey değiştirmeden "Kaydet" basarsa validator tetikleniyordu.
+# Ada gelirse ISO-2'ye çevir, validator'a ondan sonra ver. Yeni ülke ekleneceği
+# zaman buraya da girdi düşülür.
+_COUNTRY_NAME_TO_CODE = {
+	"TURKEY": "TR",
+	"TÜRKIYE": "TR",
+	"TURKIYE": "TR",
+	"UNITED STATES": "US",
+	"UNITED STATES OF AMERICA": "US",
+	"USA": "US",
+	"UNITED KINGDOM": "GB",
+	"GREAT BRITAIN": "GB",
+	"GERMANY": "DE",
+	"DEUTSCHLAND": "DE",
+	"FRANCE": "FR",
+	"ITALY": "IT",
+	"SPAIN": "ES",
+	"BRAZIL": "BR",
+	"JAPAN": "JP",
+	"SOUTH KOREA": "KR",
+	"NETHERLANDS": "NL",
+	"RUSSIA": "RU",
+	"SAUDI ARABIA": "SA",
+	"UNITED ARAB EMIRATES": "AE",
+	"POLAND": "PL",
+	"SWEDEN": "SE",
+	"SWITZERLAND": "CH",
+	"NORWAY": "NO",
+	"DENMARK": "DK",
+	"BELGIUM": "BE",
+	"AUSTRIA": "AT",
+	"INDONESIA": "ID",
+	"THAILAND": "TH",
+	"VIETNAM": "VN",
+	"PHILIPPINES": "PH",
+	"MALAYSIA": "MY",
+	"AUSTRALIA": "AU",
+	"CANADA": "CA",
+	"INDIA": "IN",
+	"MEXICO": "MX",
+}
+
+
+def normalize_country_code(country):
+	"""
+	Country alanını ISO-2 büyük harf koda normalize eder.
+
+	- Geçerli 2-char kod (case-insensitive) → büyük harfe çevir, döndür
+	- Bilinen uzun isim → karşılığı ISO-2 koda çevir
+	- Tanınmayan değer → olduğu gibi döndür (validate_country_code reddeder)
+
+	Boş/None → olduğu gibi döner; doğrulama validate_country_code'da olur.
+	"""
+	if not country or not isinstance(country, str):
+		return country
+	value = country.strip()
+	if not value:
+		return value
+	upper = value.upper()
+	if upper in ALLOWED_COUNTRY_CODES:
+		return upper
+	if upper in _COUNTRY_NAME_TO_CODE:
+		return _COUNTRY_NAME_TO_CODE[upper]
+	return value
+
+
 # ── Posta kodu doğrulaması ───────────────────────────────────────────────────
 # TR posta kodu: tam 5 hane (PTT 5 haneli sistem). Diğer ülkelerde regex
 # karmaşıklığı çok arttığından gevşek kontrol uygulanır (sadece uzunluk +

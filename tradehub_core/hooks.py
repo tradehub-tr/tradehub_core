@@ -70,6 +70,12 @@ scheduler_events = {
 # in sync with the panel.
 # ---------------------------------------------------------------------------
 doc_events = {
+	# Tüm File yüklemelerinde XSS/RCE riskli uzantıları reddet (HATA 23).
+	# SVG/HTML/JS/XML gibi browser-execute edebilir formatlar engellenir;
+	# raster image, PDF, Office, video, txt güvenli kabul edilir.
+	"File": {
+		"before_insert": "tradehub_core.utils.security.reject_unsafe_files",
+	},
 	"Listing": {
 		"on_update": [
 			"tradehub_core.api.listing.invalidate_listing_cache",

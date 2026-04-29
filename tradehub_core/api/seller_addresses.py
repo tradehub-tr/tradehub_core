@@ -19,6 +19,7 @@ from frappe import _
 
 from tradehub_core.api._address_validators import (
 	AddressValidationError,
+	normalize_country_code,
 	parse_address_payload,
 	validate_country_code,
 	validate_field_lengths,
@@ -216,6 +217,8 @@ def save_address(address_json):
 
 	try:
 		data = parse_address_payload(address_json)
+		if data.get("country"):
+			data["country"] = normalize_country_code(data["country"].strip())
 		validate_field_lengths(data)
 	except AddressValidationError as exc:
 		frappe.throw(_(str(exc)))
@@ -255,7 +258,8 @@ def save_address(address_json):
 		phone_to_save = cleaned_phone
 
 	# Ülke whitelist kontrolü — frontend countries listesi ile senkron.
-	country_in = (data.get("country") or "TR").strip()
+	country_in = normalize_country_code((data.get("country") or "TR").strip())
+	data["country"] = country_in
 	try:
 		validate_country_code(country_in)
 	except AddressValidationError as exc:

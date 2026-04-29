@@ -5,6 +5,9 @@ import json
 import frappe
 from frappe import _
 
+from tradehub_core.api._input import safe_float
+from tradehub_core.api._pagination import normalize_pagination
+
 
 def _cache_key(prefix: str, **kwargs) -> str:
 	"""Generate a deterministic cache key from parameters."""
@@ -275,6 +278,7 @@ def get_listings(
 	product_certifications=None,
 	brands=None,
 	attrs=None,
+	status=None,
 ):
 	"""Get paginated list of active listings for the product listing page.
 
@@ -284,8 +288,7 @@ def get_listings(
 	  brands = "NIKE,ADIDAS"                    → brand IN (...)
 	  attrs  = "RENK:RED,BLUE|BEDEN:M,L"        → listing has ALL of these attribute values
 	"""
-	page = int(page)
-	page_size = min(int(page_size), 100)
+	page, page_size, _start = normalize_pagination(page, page_size)
 
 	# ── Cache check ──
 	ck = _cache_key(
@@ -313,16 +316,26 @@ def get_listings(
 		pc=product_certifications,
 		br=brands,
 		at=attrs,
+		st=status,
 	)
 	cached = frappe.cache.get_value(ck)
 	if cached:
 		return cached
 	start = (page - 1) * page_size
 
-	filters = {
-		"status": "Active",
-		"is_visible": 1,
-	}
+	if status:
+		roles = frappe.get_roles()
+		if any(r in roles for r in ("System Manager", "Admin", "Seller")):
+			allowed_status = {"Active", "Pending", "Rejected", "Paused", "Archived", "Draft"}
+			if status not in allowed_status:
+				frappe.throw(_("Geçersiz status: {0}").format(status))
+			filters = {"status": status}
+			if status == "Active":
+				filters["is_visible"] = 1
+		else:
+			filters = {"status": "Active", "is_visible": 1}
+	else:
+		filters = {"status": "Active", "is_visible": 1}
 
 	if category:
 		# category param is a url_slug from Product Category.
@@ -435,7 +448,7 @@ def get_listings(
 
 	# ── Rating filter ──
 	if min_rating:
-		filters["average_rating"] = [">=", float(min_rating)]
+		filters["average_rating"] = [">=", safe_float(min_rating, label=_("Minimum puan"))]
 
 	# ── Brand filter ──
 	if supplier:
@@ -531,9 +544,13 @@ def get_listings(
 	# ── Price range filter ──
 	price_filters = []
 	if min_price:
-		price_filters.append(["Listing", "selling_price", ">=", float(min_price)])
+		price_filters.append(
+			["Listing", "selling_price", ">=", safe_float(min_price, label=_("Minimum fiyat"))]
+		)
 	if max_price:
-		price_filters.append(["Listing", "selling_price", "<=", float(max_price)])
+		price_filters.append(
+			["Listing", "selling_price", "<=", safe_float(max_price, label=_("Maksimum fiyat"))]
+		)
 
 	# ── Sorting ──
 	use_relevance_sort = sort_by == "relevance" and bool(query)
@@ -804,6 +821,7 @@ def get_listing_detail(listing_id):
 					years_in_business = 0
 			supplier_data = {
 				"name": seller.seller_name or seller.company_name,
+				"sellerCode": seller.seller_code,
 				"companyName": seller.company_name,
 				"verified": bool(seller.is_verified),
 				"verificationType": seller.verification_type,
@@ -845,7 +863,7 @@ def get_listing_detail(listing_id):
 			fields=["file_url"],
 			order_by="creation asc",
 		)
-		image_exts = (".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".svg")
+		image_exts = (".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp")
 		for f in attachments:
 			url = f.get("file_url", "")
 			if url and any(url.lower().endswith(ext) for ext in image_exts):

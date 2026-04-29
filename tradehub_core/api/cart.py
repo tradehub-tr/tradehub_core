@@ -3,6 +3,7 @@ import json
 import frappe
 from frappe import _
 
+from tradehub_core.api._input import safe_int
 from tradehub_core.utils.auth_guards import require_verified_email
 from tradehub_core.utils.stock import reserve_stock_for_order
 
@@ -464,7 +465,7 @@ def check_stock(listing, quantity=1, listing_variant=None, variant_label=None):
 	if listing_doc.status != "Active":
 		frappe.throw(_("Bu ürün şu an satışta değil"))
 
-	qty = int(quantity)
+	qty = safe_int(quantity, label=_("Miktar"))
 	listing_variant = listing_variant or None
 	variant_label = variant_label or None
 	_check_stock(listing_doc, listing, listing_variant, qty, variant_label=variant_label)
@@ -513,7 +514,7 @@ def add_to_cart(
 	if listing_doc.status != "Active":
 		frappe.throw(_("Bu ürün şu an satışta değil"))
 
-	qty = int(quantity)
+	qty = safe_int(quantity, label=_("Miktar"))
 	min_qty = int(listing_doc.min_order_qty or 1)
 	if qty < min_qty:
 		frappe.throw(_("Minimum sipariş miktarı: {0}").format(min_qty))
@@ -611,7 +612,7 @@ def update_cart_item(cart_item, quantity):
 
 	_verify_cart_item_owner(cart_item, user)
 
-	qty = int(quantity)
+	qty = safe_int(quantity, label=_("Miktar"))
 	if qty <= 0:
 		frappe.throw(_("Miktar sıfırdan büyük olmalıdır"))
 
@@ -795,8 +796,32 @@ def create_order(
 	if not isinstance(orders_data, list) or len(orders_data) == 0:
 		frappe.throw(_("Sipariş verisi boş olamaz"))
 
+	if not shipping_address:
+		frappe.throw(_("Teslimat adresi zorunludur"))
+	addr_user = frappe.db.get_value("Addresses", shipping_address, "user")
+	if not addr_user:
+		frappe.throw(_("Geçersiz teslimat adresi"), frappe.DoesNotExistError)
+	if addr_user != user:
+		frappe.throw(_("Bu adres size ait değil"), frappe.PermissionError)
+
+	pm = payment_method or "bank_transfer"
+	if pm not in (INSTANT_PAYMENT_METHODS | DEFERRED_PAYMENT_METHODS):
+		frappe.throw(_("Geçersiz ödeme yöntemi"))
+
 	order_count = len([o for o in orders_data if o.get("products")])
-	coupon_discount_val = float(coupon_discount or 0)
+
+	# Kupon indirimi tüm siparişlerin toplam tutarını aşamaz (HATA 26).
+	# Aksi halde Order.coupon_discount field'ı gerçek dışı bir sayı (örn. 100000)
+	# olarak DB'ye yazılır; total max(0,...) ile clamp'lense de muhasebe/raporlamada
+	# tutarsızlık doğar.
+	total_payable = 0.0
+	for o in orders_data:
+		if not o.get("products"):
+			continue
+		_sub = sum(float(p.get("total_price", 0)) for p in o["products"])
+		_ship = float(o.get("shipping_fee", 0))
+		total_payable += _sub + _ship
+	coupon_discount_val = min(float(coupon_discount or 0), total_payable)
 	# Kupon indirimini siparişlere eşit dağıt
 	per_order_coupon_discount = round(coupon_discount_val / order_count, 2) if order_count > 0 else 0
 
@@ -814,11 +839,13 @@ def create_order(
 		subtotal = sum(float(p.get("total_price", 0)) for p in products)
 		total = subtotal + shipping_fee - per_order_coupon_discount
 
+		if not seller_id or not frappe.db.exists("Admin Seller Profile", seller_id):
+			frappe.throw(_("Geçersiz satıcı: {0}").format(seller_id or "(boş)"), frappe.DoesNotExistError)
+
 		order_doc = frappe.new_doc("Order")
 		order_doc.buyer = user
-		order_doc.seller = seller_id if frappe.db.exists("Admin Seller Profile", seller_id) else None
+		order_doc.seller = seller_id
 		# Ödeme yöntemine göre başlangıç statüsü belirle
-		pm = payment_method or "bank_transfer"
 		if pm in INSTANT_PAYMENT_METHODS:
 			order_doc.status = "Onaylanıyor"  # Gateway onayladı → beklemede gerek yok
 		else:
@@ -987,10 +1014,17 @@ def validate_coupon(code, order_total=0):
 	if min_order > 0 and order_amount < min_order:
 		frappe.throw(_("Bu kupon için minimum sipariş tutarı: {0}").format(min_order))
 
+	# İndirim tutarını sipariş toplamı ile sınırla (HATA 26).
+	# fixed type'ta gerçek değerin clamplenmiş hali döndürülür ki frontend
+	# "ücretsiz değil" diye yanlış total göstermesin.
+	value = float(coupon.value or 0)
+	if coupon.coupon_type == "fixed" and order_amount > 0 and value > order_amount:
+		value = order_amount
+
 	return {
 		"code": coupon.code,
 		"type": coupon.coupon_type,
-		"value": float(coupon.value or 0),
+		"value": value,
 		"minOrder": float(coupon.min_order or 0),
 		"description": coupon.description or "",
 	}

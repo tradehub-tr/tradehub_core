@@ -20,6 +20,7 @@ from html import escape as html_escape
 import frappe
 from frappe import _
 
+from tradehub_core.api._pagination import normalize_offset
 from tradehub_core.utils.auth_guards import require_verified_email
 
 
@@ -73,8 +74,8 @@ def get_my_rfqs(status=None, limit_page_length=20, limit_start=0):
 			"modified",
 		],
 		order_by="creation desc",
-		limit_page_length=min(int(limit_page_length) or 100, 100),
-		limit_start=int(limit_start),
+		limit_start=normalize_offset(limit_start, limit_page_length, max_length=100)[0],
+		limit_page_length=normalize_offset(limit_start, limit_page_length, max_length=100)[1],
 	)
 
 	for rfq in rfqs:
@@ -279,8 +280,8 @@ def get_my_inquiries(filter_type="all", limit_page_length=20, limit_start=0):
 			"creation",
 		],
 		order_by="creation desc",
-		limit_page_length=min(int(limit_page_length) or 100, 100),
-		limit_start=int(limit_start),
+		limit_start=normalize_offset(limit_start, limit_page_length, max_length=100)[0],
+		limit_page_length=normalize_offset(limit_start, limit_page_length, max_length=100)[1],
 	)
 
 	for inq in inquiries:
@@ -430,8 +431,8 @@ def get_seller_rfqs(status=None, limit_page_length=20, limit_start=0):
 			"creation",
 		],
 		order_by="creation desc",
-		limit_page_length=min(int(limit_page_length) or 100, 100),
-		limit_start=int(limit_start),
+		limit_start=normalize_offset(limit_start, limit_page_length, max_length=100)[0],
+		limit_page_length=normalize_offset(limit_start, limit_page_length, max_length=100)[1],
 	)
 
 	for rfq in rfqs:
@@ -711,8 +712,8 @@ def get_my_quotes(limit_page_length=20, limit_start=0):
 			"creation",
 		],
 		order_by="creation desc",
-		limit_page_length=min(int(limit_page_length) or 100, 100),
-		limit_start=int(limit_start),
+		limit_start=normalize_offset(limit_start, limit_page_length, max_length=100)[0],
+		limit_page_length=normalize_offset(limit_start, limit_page_length, max_length=100)[1],
 	)
 
 	for q in quotes:

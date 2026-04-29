@@ -1,6 +1,8 @@
 import frappe
 from frappe import _
 
+from tradehub_core.api._pagination import normalize_pagination
+
 # Her iki endpoint'in de döndürdüğü ortak field listesi.
 # Yeni field eklendiğinde tek yerden güncellenir.
 NOTIFICATION_FIELDS = [
@@ -39,10 +41,8 @@ def get_notifications(page=1, page_size=20, unread_only=False):
 	    }
 	"""
 	user = _get_current_user_email()
-	page = int(page)
-	page_size = min(int(page_size), 100)
+	page, page_size, start = normalize_pagination(page, page_size)
 	unread_only = int(unread_only or 0)
-	start = (page - 1) * page_size
 
 	filters = {"recipient_user": user}
 	if unread_only:
