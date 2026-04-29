@@ -40,9 +40,11 @@ class Listing(Document):
 	def validate(self):
 		self.calculate_available_qty()
 		self.validate_pricing()
+		self.validate_stock()
 		self.validate_pricing_tiers()
 		self._validate_status_change()
 		self._validate_variant_defaults()
+		self._validate_variant_pricing()
 		self._calculate_completeness()
 
 	def _calculate_completeness(self):
@@ -152,8 +154,9 @@ class Listing(Document):
 		self.available_qty = max(0, flt(self.stock_qty) - flt(self.reserved_qty))
 
 	def validate_pricing(self):
-		"""Enforce the only hard rule on pricing fields: selling cannot exceed
-		listing.
+		"""Enforce hard rules on pricing fields:
+		  1. Negatif fiyat reddedilir (HATA 24 — veri butunlugu, coupon istismari).
+		  2. Satis fiyati listeleme fiyatini gecemez.
 
 		The seller's day-to-day price (selling_price) is never auto-overwritten
 		by the system. discount_percentage is purely a campaign trigger:
@@ -169,8 +172,31 @@ class Listing(Document):
 		listing_price = flt(self.base_price)
 		selling_price = flt(self.selling_price)
 
+		if listing_price < 0:
+			frappe.throw(_("Listeleme fiyatı negatif olamaz"))
+		if selling_price < 0:
+			frappe.throw(_("Satış fiyatı negatif olamaz"))
+
 		if listing_price and selling_price and selling_price > listing_price:
 			frappe.throw(_("Satış fiyatı Listeleme fiyatından büyük olamaz"))
+
+	def validate_stock(self):
+		"""Stok ve siparis miktari negatif olamaz (HATA 24)."""
+		if flt(self.stock_qty) < 0:
+			frappe.throw(_("Stok negatif olamaz"))
+		if flt(self.min_order_qty) < 0:
+			frappe.throw(_("Minimum siparis miktari negatif olamaz"))
+
+	def _validate_variant_pricing(self):
+		"""Variant satirlarinda ve toptan fiyat dilimlerinde negatif fiyat reddedilir."""
+		for row in self.get("variant_items") or []:
+			if flt(row.price) < 0:
+				frappe.throw(_("Varyant fiyatı negatif olamaz: {0}").format(row.get("variation_label") or row.name or ""))
+			if flt(row.stock) < 0:
+				frappe.throw(_("Varyant stoğu negatif olamaz: {0}").format(row.get("variation_label") or row.name or ""))
+		for tier in self.get("pricing_tiers") or []:
+			if flt(tier.price) < 0:
+				frappe.throw(_("Toptan fiyat dilimi negatif olamaz"))
 
 	def validate_pricing_tiers(self):
 		if not self.b2b_enabled or not self.pricing_tiers:

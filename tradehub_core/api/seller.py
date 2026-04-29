@@ -3,6 +3,8 @@ import re
 import frappe
 from frappe import _
 
+from tradehub_core.api._input import safe_float
+
 
 def _strip_html(text):
 	"""Strip HTML tags from text for plain-text display."""
@@ -81,6 +83,7 @@ def get_sellers(search=None, keyword=None, category=None, page=1, page_size=20):
 		limit_page_length=int(page_size),
 		order_by="seller_name asc",
 	)
+	is_guest = frappe.session.user == "Guest"
 	for s in sellers:
 		s["slug"] = s.get("seller_code") or s.get("name", "")
 		s["rating"] = float(s.get("rating") or 0)
@@ -88,6 +91,11 @@ def get_sellers(search=None, keyword=None, category=None, page=1, page_size=20):
 		s["cover_image"] = s.get("banner_image", "")
 		s["short_description"] = _strip_html(s.get("description", ""))
 		s["verified"] = bool(s.get("health_score", 0) >= 80)
+		if is_guest:
+			# KVKK: misafire iletisim PII sizdirma
+			s.pop("email", None)
+			s.pop("phone", None)
+			s.pop("website", None)
 		try:
 			seller_code = s.get("seller_code") or s.get("name", "")
 			listings = frappe.get_all(
@@ -197,6 +205,8 @@ def get_seller(slug):
 	seller["rating"] = float(seller.get("rating") or 0)
 	seller["review_count"] = int(seller.get("review_count") or seller.get("total_orders") or 0)
 	seller["cover_image"] = seller.get("banner_image", "")
+	seller["store_name"] = seller.get("company_name") or seller.get("seller_name") or ""
+	seller["business_name"] = seller.get("company_name") or seller.get("seller_name") or ""
 	seller["short_description"] = _strip_html(seller.get("description", ""))
 	seller["verified"] = bool(seller.get("is_verified")) or bool(seller.get("health_score", 0) >= 80)
 	seller["response_time"] = seller.get("response_time") or ""
@@ -205,43 +215,48 @@ def get_seller(slug):
 
 	# Satıcının varsayılan adresini ekle. Addresses DocType'ı Seller Profile'a bağlı,
 	# bu yüzden Admin Seller Profile → user → Seller Profile köprüsü kuruyoruz.
-	# TODO: İleride sadece ücretli üyelere (Premium Seller) gösterilecek — şimdilik public.
+	# Misafire (login olmamış) PII (adres, email, telefon, user) sızdırılmaz — KVKK.
+	is_guest = frappe.session.user == "Guest"
 	default_addr = None
-	seller_user = seller.get("user")
-	if seller_user:
-		sp_name = frappe.db.get_value("Seller Profile", {"user": seller_user}, "name")
-		if sp_name:
-			addr_fields = [
-				"title",
-				"contact_name",
-				"company",
-				"phone_prefix",
-				"phone",
-				"country",
-				"state",
-				"city",
-				"street",
-				"apartment",
-				"postal_code",
-				"note",
-			]
-			default_addr = frappe.db.get_value(
-				"Addresses",
-				{"kind": "Seller", "seller": sp_name, "is_default": 1},
-				addr_fields,
-				as_dict=True,
-			)
-			if not default_addr:
-				# Varsayılan yoksa en eski adresi kullan
-				rows = frappe.get_all(
+	if not is_guest:
+		seller_user = seller.get("user")
+		if seller_user:
+			sp_name = frappe.db.get_value("Seller Profile", {"user": seller_user}, "name")
+			if sp_name:
+				addr_fields = [
+					"title",
+					"contact_name",
+					"company",
+					"phone_prefix",
+					"phone",
+					"country",
+					"state",
+					"city",
+					"street",
+					"apartment",
+					"postal_code",
+					"note",
+				]
+				default_addr = frappe.db.get_value(
 					"Addresses",
-					filters={"kind": "Seller", "seller": sp_name},
-					fields=addr_fields,
-					order_by="creation asc",
-					limit=1,
+					{"kind": "Seller", "seller": sp_name, "is_default": 1},
+					addr_fields,
+					as_dict=True,
 				)
-				default_addr = rows[0] if rows else None
+				if not default_addr:
+					rows = frappe.get_all(
+						"Addresses",
+						filters={"kind": "Seller", "seller": sp_name},
+						fields=addr_fields,
+						order_by="creation asc",
+						limit=1,
+					)
+					default_addr = rows[0] if rows else None
 	seller["address"] = default_addr
+	if is_guest:
+		seller.pop("email", None)
+		seller.pop("phone", None)
+		seller.pop("user", None)
 	return seller
 
 
@@ -608,13 +623,27 @@ def get_reviews(seller_code, page=1, page_size=10):
 	return {"reviews": reviews, "total": total}
 
 
+def _recalculate_seller_rating(seller_code):
+	rows = frappe.get_all(
+		"Seller Review",
+		filters={"seller": seller_code, "status": "Published"},
+		fields=["rating"],
+	)
+	count = len(rows)
+	avg = round(sum((r.rating or 0) for r in rows) / count, 2) if count else 0
+	frappe.db.set_value("Admin Seller Profile", seller_code, {"rating": avg, "review_count": count})
+
+
 @frappe.whitelist()
 def submit_review(seller_code, rating, comment):
 	if frappe.session.user == "Guest":
 		frappe.throw(_("Yorum yapmak icin giris yapmaniz gerekiyor"), frappe.AuthenticationError)
 	if not frappe.db.exists("Admin Seller Profile", seller_code):
 		frappe.throw(_("Satici bulunamadi"), frappe.DoesNotExistError)
-	rating = float(rating)
+	own_seller = frappe.db.get_value("Admin Seller Profile", {"user": frappe.session.user}, "name")
+	if own_seller and own_seller == seller_code:
+		frappe.throw(_("Kendi magazaniza yorum yapamazsiniz"), frappe.PermissionError)
+	rating = safe_float(rating, label=_("Puan"))
 	if rating < 1 or rating > 5:
 		frappe.throw(_("Puan 1 ile 5 arasinda olmalidir"))
 	comment = (comment or "").strip()
@@ -622,6 +651,8 @@ def submit_review(seller_code, rating, comment):
 		frappe.throw(_("Yorum bos olamaz"))
 	user_data = frappe.db.get_value("User", frappe.session.user, ["full_name", "name"], as_dict=True)
 	reviewer_name = user_data.full_name or user_data.name
+	if frappe.db.exists("Seller Review", {"seller": seller_code, "reviewer_name": reviewer_name}):
+		frappe.throw(_("Bu saticiya zaten yorum yaptiniz"))
 	doc = frappe.new_doc("Seller Review")
 	doc.seller = seller_code
 	doc.reviewer_name = reviewer_name
@@ -630,6 +661,7 @@ def submit_review(seller_code, rating, comment):
 	doc.status = "Published"
 	doc.date = frappe.utils.now()
 	doc.insert(ignore_permissions=True)
+	_recalculate_seller_rating(seller_code)
 	frappe.db.commit()
 	return {"success": True, "name": doc.name}
 
@@ -769,6 +801,10 @@ def send_inquiry(seller_code, message, share_business_card=0):
 		frappe.throw(_("Satici bulunamadi"), frappe.DoesNotExistError)
 	sender_name, sender_email = "", ""
 	if frappe.session.user and frappe.session.user != "Guest":
+		# Self-inquiry block (HATA 20): kendi magazasina inquiry gonderme
+		own_seller = frappe.db.get_value("Admin Seller Profile", {"user": frappe.session.user}, "name")
+		if own_seller and own_seller == seller_code:
+			frappe.throw(_("Kendi magazaniza inquiry gonderemezsiniz"), frappe.PermissionError)
 		user = frappe.db.get_value("User", frappe.session.user, ["full_name", "email"], as_dict=True)
 		if user:
 			sender_name = user.full_name or ""

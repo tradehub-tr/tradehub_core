@@ -2,6 +2,8 @@ import frappe
 from frappe import _
 from frappe.utils import cint, now_datetime
 
+from tradehub_core.api._pagination import normalize_pagination
+
 # Türkçe (DB) → İngilizce (Frontend) transaction status mapping
 TX_STATUS_TR_TO_EN = {
 	"Gönderildi": "Sent",
@@ -131,8 +133,7 @@ def get_recent_payments(page=1, page_size=10):
 	"""Returns recent payment transactions for the logged-in buyer."""
 	buyer = _require_buyer()
 	_backfill_missing_transactions_for_buyer(buyer)
-	page = cint(page) or 1
-	page_size = min(cint(page_size) or 10, 50)
+	page, page_size, _ = normalize_pagination(page, page_size, default_page_size=10, max_page_size=50)
 
 	filters = {"buyer": buyer, "transaction_type": "Ödeme"}
 
@@ -177,8 +178,7 @@ def get_recent_payments(page=1, page_size=10):
 def get_recent_refunds(page=1, page_size=10):
 	"""Returns recent refund transactions for the logged-in buyer."""
 	buyer = _require_buyer()
-	page = cint(page) or 1
-	page_size = min(cint(page_size) or 10, 50)
+	page, page_size, _ = normalize_pagination(page, page_size, default_page_size=10, max_page_size=50)
 
 	filters = {"buyer": buyer, "transaction_type": "İade"}
 
@@ -239,8 +239,7 @@ def get_all_transactions(
 	"""Full transaction history with filtering."""
 	buyer = _require_buyer()
 	_backfill_missing_transactions_for_buyer(buyer)
-	page = cint(page) or 1
-	page_size = min(cint(page_size) or 20, 100)
+	page, page_size, _ = normalize_pagination(page, page_size)
 
 	filters = {"buyer": buyer}
 
@@ -420,8 +419,7 @@ def get_bank_interactions(match_status=None, search=None, date_from=None, date_t
 	"""Returns seller bank accounts the buyer has transacted with."""
 	buyer = _require_buyer()
 	_backfill_missing_transactions_for_buyer(buyer)
-	page = cint(page) or 1
-	page_size = min(cint(page_size) or 20, 100)
+	page, page_size, _ = normalize_pagination(page, page_size)
 
 	filters = {"buyer": buyer}
 
@@ -555,8 +553,7 @@ def get_wire_transfers(search=None, date_from=None, date_to=None, page=1, page_s
 	"""Returns wire transfers sent by the buyer."""
 	buyer = _require_buyer()
 	_backfill_missing_transactions_for_buyer(buyer)
-	page = cint(page) or 1
-	page_size = min(cint(page_size) or 20, 100)
+	page, page_size, _ = normalize_pagination(page, page_size)
 
 	filters = {
 		"buyer": buyer,

@@ -2,6 +2,7 @@ import frappe
 from frappe import _
 from frappe.utils import cint, getdate
 
+from tradehub_core.api._pagination import normalize_pagination
 from tradehub_core.utils.notify import notify
 from tradehub_core.utils.stock import deduct_stock_for_order, release_stock_for_order
 
@@ -106,8 +107,7 @@ def get_my_orders(
 	çatışması önlemi).
 	"""
 	buyer = _require_buyer()
-	page = cint(page) or 1
-	page_size = min(cint(page_size) or 20, 100)
+	page, page_size, _start = normalize_pagination(page, page_size)
 
 	filters = {"buyer": buyer}
 
@@ -122,8 +122,9 @@ def get_my_orders(
 
 	if status and status != "all":
 		tr_statuses = FILTER_STATUS_MAP.get(status)
-		if tr_statuses:
-			filters["status"] = ["in", tr_statuses]
+		if not tr_statuses:
+			frappe.throw(_("Geçersiz status: {0}").format(status))
+		filters["status"] = ["in", tr_statuses]
 
 	if date_from and date_to:
 		filters["order_date"] = ["between", [getdate(date_from), getdate(date_to)]]
@@ -615,16 +616,16 @@ def get_seller_orders(status=None, page=1, page_size=20):
 	if not seller_code:
 		frappe.throw(_("Seller profile not found"))
 
-	page = cint(page) or 1
-	page_size = min(cint(page_size) or 20, 100)
+	page, page_size, _start = normalize_pagination(page, page_size)
 
 	filters = {"seller": seller_code}
 	if status == "refund_pending":
 		filters["refund_status"] = "Pending"
 	elif status and status != "all":
 		tr_statuses = FILTER_STATUS_MAP.get(status)
-		if tr_statuses:
-			filters["status"] = ["in", tr_statuses]
+		if not tr_statuses:
+			frappe.throw(_("Geçersiz status: {0}").format(status))
+		filters["status"] = ["in", tr_statuses]
 
 	total = frappe.db.count("Order", filters=filters)
 
