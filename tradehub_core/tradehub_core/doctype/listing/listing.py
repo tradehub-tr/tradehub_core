@@ -191,9 +191,17 @@ class Listing(Document):
 		"""Variant satirlarinda ve toptan fiyat dilimlerinde negatif fiyat reddedilir."""
 		for row in self.get("variant_items") or []:
 			if flt(row.price) < 0:
-				frappe.throw(_("Varyant fiyatı negatif olamaz: {0}").format(row.get("variation_label") or row.name or ""))
+				frappe.throw(
+					_("Varyant fiyatı negatif olamaz: {0}").format(
+						row.get("variation_label") or row.name or ""
+					)
+				)
 			if flt(row.stock) < 0:
-				frappe.throw(_("Varyant stoğu negatif olamaz: {0}").format(row.get("variation_label") or row.name or ""))
+				frappe.throw(
+					_("Varyant stoğu negatif olamaz: {0}").format(
+						row.get("variation_label") or row.name or ""
+					)
+				)
 		for tier in self.get("pricing_tiers") or []:
 			if flt(tier.price) < 0:
 				frappe.throw(_("Toptan fiyat dilimi negatif olamaz"))

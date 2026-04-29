@@ -544,9 +544,13 @@ def get_listings(
 	# ── Price range filter ──
 	price_filters = []
 	if min_price:
-		price_filters.append(["Listing", "selling_price", ">=", safe_float(min_price, label=_("Minimum fiyat"))])
+		price_filters.append(
+			["Listing", "selling_price", ">=", safe_float(min_price, label=_("Minimum fiyat"))]
+		)
 	if max_price:
-		price_filters.append(["Listing", "selling_price", "<=", safe_float(max_price, label=_("Maksimum fiyat"))])
+		price_filters.append(
+			["Listing", "selling_price", "<=", safe_float(max_price, label=_("Maksimum fiyat"))]
+		)
 
 	# ── Sorting ──
 	use_relevance_sort = sort_by == "relevance" and bool(query)

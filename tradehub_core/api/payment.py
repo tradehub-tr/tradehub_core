@@ -1,6 +1,6 @@
 import frappe
 from frappe import _
-from frappe.utils import cint, now_datetime
+from frappe.utils import now_datetime
 
 from tradehub_core.api._pagination import normalize_pagination
 

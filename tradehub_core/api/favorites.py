@@ -43,9 +43,7 @@ def _filter_owned_list_ids(user, list_ids):
 	Cross-user list_id sizmasini engeller (HATA 19)."""
 	if not list_ids:
 		return ["default"]
-	own = set(
-		frappe.get_all("Buyer Favorite List", filters={"user": user}, pluck="list_id")
-	)
+	own = set(frappe.get_all("Buyer Favorite List", filters={"user": user}, pluck="list_id"))
 	own.add("default")
 	filtered = [lid for lid in list_ids if lid in own]
 	return filtered or ["default"]
@@ -280,9 +278,7 @@ def create_favorite_list(name, list_id=None):
 	# Ust sinir kontrolu (HATA 21) — kullanici basina max liste.
 	current = frappe.db.count("Buyer Favorite List", {"user": user})
 	if current >= MAX_FAVORITE_LISTS:
-		frappe.throw(
-			_("En fazla {0} favori liste olusturabilirsiniz.").format(MAX_FAVORITE_LISTS)
-		)
+		frappe.throw(_("En fazla {0} favori liste olusturabilirsiniz.").format(MAX_FAVORITE_LISTS))
 
 	doc = frappe.new_doc("Buyer Favorite List")
 	doc.user = user
