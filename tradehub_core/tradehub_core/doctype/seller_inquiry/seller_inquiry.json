@@ -19,7 +19,11 @@
 		"folder",
 		"is_trashed",
 		"sb_message",
-		"message"
+		"message",
+		"sb_reply",
+		"reply_message",
+		"replied_at",
+		"replied_by"
 	],
 	"fields": [
 		{
@@ -115,6 +119,29 @@
 			"fieldtype": "Text",
 			"label": "Mesaj",
 			"reqd": 1
+		},
+		{
+			"fieldname": "sb_reply",
+			"fieldtype": "Section Break",
+			"label": "Yanıt"
+		},
+		{
+			"fieldname": "reply_message",
+			"fieldtype": "Text Editor",
+			"label": "Yanıt Mesajı"
+		},
+		{
+			"fieldname": "replied_at",
+			"fieldtype": "Datetime",
+			"label": "Yanıt Tarihi",
+			"read_only": 1
+		},
+		{
+			"fieldname": "replied_by",
+			"fieldtype": "Link",
+			"label": "Yanıtlayan",
+			"options": "User",
+			"read_only": 1
 		}
 	],
 	"links": [],

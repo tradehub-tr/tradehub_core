@@ -11,6 +11,7 @@ Cagirma pattern'i:
 """
 
 import re
+from urllib.parse import quote
 
 import frappe
 from frappe import _
@@ -20,8 +21,53 @@ from tradehub_core.utils.helpdesk_routing import (
 	ensure_platform_support_team,
 	resolve_team_for_order,
 )
+from tradehub_core.utils.notify import notify, notify_assigned_users, notify_team_members
 
 EMAIL_RE = re.compile(r"^[\w\.-]+@[\w\.-]+\.\w+$")
+
+
+# ── Ticket URL helpers ─────────────────────────────────────────────────
+# Storefront ve admin panel ayrı path/host'larda olabilir; site_config
+# `storefront_url` / `admin_url` override'larını kabul ediyoruz, yoksa
+# Frappe site URL'ine düşeriz. Bildirim e-postalarındaki tıklanabilir
+# link bu fonksiyonlardan üretilir.
+
+
+def _site_base(key: str) -> str:
+	conf = frappe.local.conf or {}
+	return (conf.get(key) or frappe.utils.get_url() or "").rstrip("/")
+
+
+def _storefront_ticket_url(name: str) -> str:
+	return f"{_site_base('storefront_url')}/pages/help/help-ticket.html?id={quote(name, safe='')}"
+
+
+def _admin_ticket_url(name: str) -> str:
+	return f"{_site_base('admin_url')}/helpdesk/tickets/{quote(name, safe='')}"
+
+
+def _ticket_email_html(heading: str, ticket_subject: str, body_text: str, link: str, link_label: str) -> str:
+	"""Tutarlı bir HTML şablonu. CSS inline — Frappe Email Queue'da güvenli."""
+	safe_subject = frappe.utils.escape_html(ticket_subject or "")
+	safe_body = frappe.utils.escape_html(body_text or "").replace("\n", "<br>")
+	return f"""
+<div style="font-family: -apple-system, Segoe UI, Roboto, sans-serif; color: #222; max-width: 560px;">
+  <h2 style="margin: 0 0 16px; font-size: 18px; color: #111;">{frappe.utils.escape_html(heading)}</h2>
+  <p style="margin: 0 0 8px; font-size: 14px;"><strong>Konu:</strong> {safe_subject}</p>
+  <div style="margin: 16px 0; padding: 12px 14px; background: #f6f7fb; border-left: 3px solid #7c3aed; border-radius: 4px; font-size: 14px; line-height: 1.5;">
+    {safe_body}
+  </div>
+  <p style="margin: 24px 0 0;">
+    <a href="{frappe.utils.escape_html(link)}"
+       style="display: inline-block; padding: 10px 18px; background: #7c3aed; color: #fff; text-decoration: none; border-radius: 6px; font-size: 14px;">
+      {frappe.utils.escape_html(link_label)}
+    </a>
+  </p>
+  <p style="margin: 28px 0 0; font-size: 11px; color: #888;">
+    Bu e-posta TradeHub Marketplace üzerinden otomatik gönderildi.
+  </p>
+</div>
+""".strip()
 
 
 def _validate_email(email: str) -> str:
@@ -254,7 +300,43 @@ def agent_reply_ticket(ticket: str, content: str):
 		frappe.db.set_value("HD Ticket", ticket, k, v)
 
 	frappe.db.commit()
+
+	# Müşteri bildirimi (in-app + e-posta)
+	try:
+		_notify_customer_reply(ticket_doc, content, agent_name=sender_full_name)
+	except Exception:
+		frappe.log_error(title="agent_reply_ticket: notify_customer")
+
 	return {"name": comm.name, "ok": True}
+
+
+def _notify_customer_reply(ticket_doc, content: str, agent_name: str = ""):
+	"""Ajan yanıt verdiğinde müşteriye (raised_by) in-app + e-posta bildir."""
+	customer = ticket_doc.raised_by or ""
+	if not customer:
+		return
+	preview = (content or "")[:300]
+	link = _storefront_ticket_url(ticket_doc.name)
+	body_html = _ticket_email_html(
+		heading=(f"{agent_name} talebinize yanıt verdi" if agent_name else "Talebinize yanıt geldi"),
+		ticket_subject=ticket_doc.subject or "",
+		body_text=preview,
+		link=link,
+		link_label="Yanıtı Görüntüle",
+	)
+	notify(
+		recipient_user=customer,
+		type="dispute",
+		title=f"Talebinize yanıt: {ticket_doc.subject or ticket_doc.name}",
+		message=preview or "Destek ekibi talebinize yanıt verdi.",
+		recipient_role="buyer",
+		action_url=f"/pages/help/help-ticket.html?id={ticket_doc.name}",
+		reference_doctype="HD Ticket",
+		reference_name=ticket_doc.name,
+		send_email=True,
+		email_subject=f"[TradeHub] Talebinize yanıt geldi: {ticket_doc.subject or ticket_doc.name}",
+		email_body=body_html,
+	)
 
 
 @frappe.whitelist()
@@ -288,7 +370,71 @@ def reply_ticket(ticket: str, content: str):
 	except Exception:
 		frappe.log_error(title="reply_ticket status update")
 	frappe.db.commit()
+
+	# Ajan bildirimi (atanmışlar varsa onlara, yoksa team'e — e-posta dahil)
+	try:
+		_notify_customer_replied(ticket, content, customer_user=caller)
+	except Exception:
+		frappe.log_error(title="reply_ticket: notify_agents")
+
 	return {"name": comm.name, "ok": True}
+
+
+def _notify_customer_replied(ticket_name: str, content: str, customer_user: str = ""):
+	"""Müşteri yanıt verdiğinde ajanlara (atanan veya team) in-app + e-posta bildir."""
+	ticket_doc = frappe.db.get_value(
+		"HD Ticket",
+		ticket_name,
+		["subject", "agent_group", "raised_by"],
+		as_dict=True,
+	)
+	if not ticket_doc:
+		return
+
+	preview = (content or "")[:300]
+	link = _admin_ticket_url(ticket_name)
+	customer_label = ticket_doc.raised_by or "Müşteri"
+	body_html = _ticket_email_html(
+		heading=f"{customer_label} talebine yanıt verdi",
+		ticket_subject=ticket_doc.subject or "",
+		body_text=preview,
+		link=link,
+		link_label="Talebi Aç",
+	)
+	title = f"Müşteri yanıtı: {ticket_doc.subject or ticket_name}"
+	message = preview or "Müşteri talebine yeni bir yanıt ekledi."
+	subject = f"[TradeHub] Müşteri yanıtladı: {ticket_doc.subject or ticket_name}"
+
+	# 1) Atanmış ajan(lar) — birincil hedef
+	assigned_count = notify_assigned_users(
+		doctype="HD Ticket",
+		docname=ticket_name,
+		type="dispute",
+		title=title,
+		message=message,
+		action_url=f"/helpdesk/tickets/{ticket_name}",
+		send_email=True,
+		email_subject=subject,
+		email_body=body_html,
+		exclude_user=customer_user,
+		recipient_role="admin",
+	)
+
+	# 2) Atanmış yoksa team'e fallback
+	if assigned_count == 0 and ticket_doc.agent_group:
+		notify_team_members(
+			team_name=ticket_doc.agent_group,
+			type="dispute",
+			title=title,
+			message=message,
+			action_url=f"/helpdesk/tickets/{ticket_name}",
+			reference_doctype="HD Ticket",
+			reference_name=ticket_name,
+			send_email=True,
+			email_subject=subject,
+			email_body=body_html,
+			exclude_user=customer_user,
+		)
 
 
 # Satici tarafina yonlendirilecek kategoriler — order_ref zorunlu.
@@ -307,6 +453,9 @@ def create_ticket(
 	ticket_type: str = "",
 	order_ref: str = "",
 	category: str = "",
+	related_order: str = "",
+	related_rfq: str = "",
+	related_listing: str = "",
 ):
 	"""Storefront destek formu → HD Ticket.
 
@@ -381,13 +530,62 @@ def create_ticket(
 			ticket.contact_phone = phone
 		if team:
 			ticket.agent_group = team
+		# Yeni: marketplace Link alanları (custom fields). Geçersiz Link
+		# değerleri sessizce atlanır — frontend yanlış ID gönderse de
+		# ticket oluşur.
+		if related_order and frappe.db.exists("Order", related_order):
+			ticket.related_order = related_order
+		if related_rfq and frappe.db.exists("RFQ", related_rfq):
+			ticket.related_rfq = related_rfq
+		if related_listing and frappe.db.exists("Listing", related_listing):
+			ticket.related_listing = related_listing
+		# order_ref string'i hâlâ destekliyor (geriye uyum); related_order
+		# verilmediyse onu kullan
+		if order_ref and not getattr(ticket, "related_order", None):
+			if frappe.db.exists("Order", order_ref):
+				ticket.related_order = order_ref
 		ticket.insert(ignore_permissions=True)
 		frappe.db.commit()
 	finally:
 		if caller != "Administrator":
 			frappe.set_user(original_user)
 
+	# Yeni ticket → routed team üyelerine bildir (müşteri hariç)
+	try:
+		_notify_new_ticket(ticket, exclude_user=caller)
+	except Exception:
+		frappe.log_error(title="create_ticket: notify_new_ticket")
+
 	return {"name": ticket.name, "ok": True}
+
+
+def _notify_new_ticket(ticket, exclude_user: str = ""):
+	"""Yeni HD Ticket oluştuğunda atandığı team üyelerine in-app + e-posta bildirim."""
+	team = ticket.agent_group or ""
+	if not team:
+		return
+	link = _admin_ticket_url(ticket.name)
+	preview = (ticket.description or "")[:300]
+	body_html = _ticket_email_html(
+		heading="Yeni destek talebi geldi",
+		ticket_subject=ticket.subject or "",
+		body_text=preview,
+		link=link,
+		link_label="Talebi Aç",
+	)
+	notify_team_members(
+		team_name=team,
+		type="dispute",
+		title=f"Yeni talep: {ticket.subject or ticket.name}",
+		message=preview or "Yeni bir destek talebi açıldı.",
+		action_url=f"/helpdesk/tickets/{ticket.name}",
+		reference_doctype="HD Ticket",
+		reference_name=ticket.name,
+		send_email=True,
+		email_subject=f"[TradeHub] Yeni destek talebi: {ticket.subject or ticket.name}",
+		email_body=body_html,
+		exclude_user=exclude_user,
+	)
 
 
 # ── Attachment API ─────────────────────────────────────────────────────────
@@ -449,6 +647,137 @@ def upload_ticket_attachment(ticket: str):
 		"file_url": file_doc.file_url,
 		"file_size": file_doc.file_size,
 	}
+
+
+@frappe.whitelist()
+def helpdesk_dashboard_kpis():
+	"""Ajan/admin paneli için permission-aware ticket KPI sayıları.
+
+	`frappe.client.get_count` permission_query_conditions'ı honor etmediğinden
+	(direkt frappe.db.count'a yönelir), satıcı agent kendi team'inde olmayan
+	ticket sayısını da görüyordu. Burada `frappe.get_list` kullanarak
+	permission query'sini honor ediyoruz; satıcı yalnız kendi team'inin,
+	platform support yöneticisi ise hepsini sayar.
+	"""
+	user = frappe.session.user
+	if not user or user == "Guest":
+		frappe.throw(_("Giriş yapmalısınız."), frappe.PermissionError)
+
+	# get_list permission_query_conditions ile ortak çalışır (helpdesk_ticket_query_conditions).
+	# Sadece name alanı yeterli — sayım için.
+	open_rows = frappe.get_list(
+		"HD Ticket",
+		filters={"status": "Open"},
+		fields=["name"],
+		limit_page_length=10000,
+	)
+	replied_rows = frappe.get_list(
+		"HD Ticket",
+		filters={"status": "Replied"},
+		fields=["name"],
+		limit_page_length=10000,
+	)
+
+	mine_open_rows = frappe.get_list(
+		"HD Ticket",
+		filters={
+			"status": ["in", ["Open", "Replied"]],
+			"_assign": ["like", f"%{user}%"],
+		},
+		fields=["name"],
+		limit_page_length=10000,
+	)
+
+	since = frappe.utils.add_to_date(frappe.utils.now(), days=-7)
+	resolved_rows = frappe.get_list(
+		"HD Ticket",
+		filters={
+			"status": ["in", ["Resolved", "Closed"]],
+			"resolution_date": [">=", since],
+		},
+		fields=["name"],
+		limit_page_length=10000,
+	)
+
+	return {
+		"open": len(open_rows),
+		"replied": len(replied_rows),
+		"mine_open": len(mine_open_rows),
+		"resolved_week": len(resolved_rows),
+	}
+
+
+@frappe.whitelist()
+def bulk_update_tickets(tickets: str, action: str, value: str = ""):
+	"""Toplu HD Ticket güncelleme — ajan-side bulk action.
+
+	tickets: JSON-encoded list of ticket names
+	action: "status" | "priority" | "assign" | "agent_group"
+	value: action'a bağlı değer
+
+	Permission query her ticket için ayrı kontrol edilir; yetkisiz olanlar
+	sessizce skip edilir, sonuçta {ok, skipped} sayıları döner.
+	"""
+	import json
+
+	if not tickets or not action:
+		frappe.throw(_("tickets ve action zorunlu."), frappe.ValidationError)
+
+	try:
+		ticket_list = json.loads(tickets) if isinstance(tickets, str) else tickets
+	except (TypeError, ValueError):
+		frappe.throw(_("Geçersiz tickets formatı."), frappe.ValidationError)
+
+	if not isinstance(ticket_list, list) or not ticket_list:
+		frappe.throw(_("En az bir ticket seçilmeli."), frappe.ValidationError)
+	if len(ticket_list) > 200:
+		frappe.throw(_("Tek seferde maksimum 200 ticket güncellenebilir."), frappe.ValidationError)
+
+	allowed_status = {"Open", "Replied", "Resolved", "Closed"}
+	allowed_priority = {"Low", "Medium", "High", "Urgent"}
+
+	if action == "status":
+		if value not in allowed_status:
+			frappe.throw(_("Geçersiz status."), frappe.ValidationError)
+	elif action == "priority":
+		if value not in allowed_priority:
+			frappe.throw(_("Geçersiz öncelik."), frappe.ValidationError)
+	elif action == "assign":
+		if not value:
+			frappe.throw(_("Atanacak kullanıcı gerekli."), frappe.ValidationError)
+		# value bir user (e-posta) — varlık kontrolü
+		if not frappe.db.exists("User", value):
+			frappe.throw(_("Kullanıcı bulunamadı."), frappe.ValidationError)
+	elif action == "agent_group":
+		if not value or not frappe.db.exists("HD Team", value):
+			frappe.throw(_("Geçersiz HD Team."), frappe.ValidationError)
+	else:
+		frappe.throw(_("Bilinmeyen action."), frappe.ValidationError)
+
+	ok = 0
+	skipped = 0
+	for t in ticket_list:
+		if not frappe.has_permission("HD Ticket", doc=t, ptype="write"):
+			skipped += 1
+			continue
+		try:
+			if action == "status":
+				frappe.db.set_value("HD Ticket", t, "status", value)
+			elif action == "priority":
+				frappe.db.set_value("HD Ticket", t, "priority", value)
+			elif action == "agent_group":
+				frappe.db.set_value("HD Ticket", t, "agent_group", value)
+			elif action == "assign":
+				from frappe.desk.form.assign_to import add as assign_add
+
+				assign_add({"assign_to": [value], "doctype": "HD Ticket", "name": t})
+			ok += 1
+		except Exception:
+			frappe.log_error(title=f"bulk_update_tickets {t}")
+			skipped += 1
+
+	frappe.db.commit()
+	return {"ok": ok, "skipped": skipped, "total": len(ticket_list)}
 
 
 @frappe.whitelist()
