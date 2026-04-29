@@ -1,3 +1,8 @@
+## [v1.0.5-rc.1] - 2026-04-29 RC
+
+Bu surum rc.istoc.com'da test asamasindadir.
+
+---
 ## [v1.0.5] - 2026-04-29 PROD
 
 Bu surum istoc.cronbi.com'da yayindadir.
