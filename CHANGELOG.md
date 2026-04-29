@@ -1,3 +1,41 @@
+## [v1.0.5] - 2026-04-29 PROD
+
+Bu surum istoc.cronbi.com'da yayindadir.
+
+### Eklendi
+- feat(seller-application): Notify applicant on submission + EN translations for in-app notifications (@aliiball)
+- feat(identity): Rework email verification — OTP-only flow, gating, audit, Desk User cleanup (@aliiball)
+- feat(helpdesk,seller-crm): SLA + canned response + tag/saved filter + CRM scope (@ahmeetseker)
+- feat(seller,seed): satıcı arama/kategori filtresi + sektörel ürün spec havuzu (@ahmeetseker)
+- feat(listing): kategori subtree filtresi + B2B min_order_qty senkron patch (@ahmeetseker)
+- feat: add image parameter to update_seller_category and change required status of category field (@Bora)
+- feat(payment): kredi kartı ödemeleri için Payment Transaction kaydı ve havale backfill mekanizması (@ahmeetseker)
+- feat(currency): TCMB entegrasyonu ile dinamik para birimi sistemi geliştirildi. (@aliiball)
+- feat(theme): ürün kartı token whitelist'i (_PRODUCT_CARD_KEYS, 80 anahtar) (@ahmeetseker)
+- feat(dashboard): Config tabanlı widget engine, 2 dashboard ve 25 hazır widget eklendi. (@aliiball)
+- feat: add agent_reply_ticket headless API to update HD Ticket status without email triggers (@ahmeetseker)
+- feat(api/public): create_ticket login zorunlu hale getirildi (@ahmeetseker)
+- feat(api/public): create_ticket login zorunlu hale getirildi (@ahmeetseker)
+- feat(recommendations): Related Products skor pipeline + API + scheduler (@aliiball)
+- feat(tailored): Kategori kartlarına editoryal metin + rozet eklendi. (@aliiball)
+- feat(tailored): "Size Özel Seçimler" öneri endpoint'leri + User Product View DocType (@aliiball)
+
+### Duzeltildi
+- fix(rfq): Satıcı RFQ eşleşmesine listing platform kategorisi desteği eklendi. (@aliiball)
+- fix(helpdesk): müşteri user'ında HD Team/Agent insert PermissionError → 403 (@ahmeetseker)
+- fix(helpdesk): müşteri user'ında HD Team/Agent insert PermissionError → 403 (@ahmeetseker)
+- fix(patches): backfill_payment_transactions — Frappe v15 için now_datetime'a çevir (@aliiball)
+- fix: backfill patch'inde nowdatetime import hatası düzeltildi — now_datetime kullanıldı (@ahmeetseker)
+- fix: tüm frappe.get_doc(dict) çağrıları frappe.new_doc() ile değiştirildi (@ahmeetseker)
+
+### Degistirildi
+- refactor: clean up string concatenation and formatting in various files (@Bora)
+- refactor: rename unused dictionary key variable in seed_demo_data.py to underscore (@ahmeetseker)
+- refactor: replace Pexels CDN image IDs with direct DummyJSON product image URLs in seed_demo_data.py (@ahmeetseker)
+- refactor(cart): _get_inline_variant_stock tamamen kaldırıldı (@ahmeetseker)
+- refactor(cart): _get_inline_variant_stock tamamen kaldırıldı (@ahmeetseker)
+
+---
 ## [v1.0.4-rc.32] - 2026-04-29 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
