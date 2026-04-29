@@ -3,6 +3,7 @@ from frappe import _
 from frappe.utils import cint, getdate
 
 from tradehub_core.api._pagination import normalize_pagination
+from tradehub_core.utils.auth_guards import require_verified_email
 from tradehub_core.utils.notify import notify
 from tradehub_core.utils.stock import deduct_stock_for_order, release_stock_for_order
 
@@ -474,6 +475,7 @@ def get_my_refunds():
 
 
 @frappe.whitelist()
+@require_verified_email
 def upload_receipt(order_number, file_name, file_data):
 	"""Upload payment receipt file for an order. file_data must be base64-encoded.
 	Aynı siparişe daha önce yüklenmiş eski dekont dosyaları temizlenir.
@@ -524,6 +526,7 @@ def upload_receipt(order_number, file_name, file_data):
 
 
 @frappe.whitelist()
+@require_verified_email
 def submit_remittance(
 	order_number,
 	remittance_date,

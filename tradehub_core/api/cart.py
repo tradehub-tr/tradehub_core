@@ -4,6 +4,7 @@ import frappe
 from frappe import _
 
 from tradehub_core.api._input import safe_int
+from tradehub_core.utils.auth_guards import require_verified_email
 from tradehub_core.utils.stock import reserve_stock_for_order
 
 # Anında ödeme gerçekleşen yöntemler (ödeme gateway'i onaylar → direkt "Onaylanıyor")
@@ -768,6 +769,7 @@ def merge_guest_cart(items):
 
 
 @frappe.whitelist()
+@require_verified_email
 def create_order(
 	orders_json, shipping_address=None, payment_method=None, coupon_code=None, coupon_discount=0
 ):

@@ -25,6 +25,7 @@ from tradehub_core.api._address_validators import (
 	validate_field_lengths,
 	validate_postal_code,
 )
+from tradehub_core.utils.phone import canonicalize_phone, split_e164
 
 MAX_ADDRESSES = 10
 
@@ -236,12 +237,25 @@ def save_address(address_json):
 		if not (data.get(field) or "").strip():
 			frappe.throw(_("{0} alanı zorunludur").format(label))
 
+	# Telefon — TR için E.164 kanonikleştirme, non-TR için mevcut gevşek kontrol.
 	phone_prefix_in = (data.get("phone_prefix") or "+90").strip()
-	if not _validate_phone(data.get("phone") or "", phone_prefix_in):
-		if phone_prefix_in == "+90":
+	phone_raw = data.get("phone") or ""
+	if phone_prefix_in == "+90":
+		canonical_phone = canonicalize_phone(phone_raw)
+		if not canonical_phone or not canonical_phone.startswith("+90"):
 			frappe.throw(_("Geçerli bir telefon numarası giriniz (örn. 0212 555 00 00)"))
-		else:
+		# NB: avoid binding "_" — that shadows `from frappe import _` for the
+		# entire function and breaks every i18n call that follows.
+		canonical_prefix, canonical_local = split_e164(canonical_phone)
+		phone_prefix_to_save = canonical_prefix
+		phone_to_save = canonical_local
+	else:
+		cleaned_phone = _normalize_phone(phone_raw)
+		intl_digits = cleaned_phone.lstrip("+")
+		if not _INTL_PHONE_RE.match(intl_digits):
 			frappe.throw(_("Geçerli bir telefon numarası giriniz (7-15 rakam)"))
+		phone_prefix_to_save = phone_prefix_in
+		phone_to_save = cleaned_phone
 
 	# Ülke whitelist kontrolü — frontend countries listesi ile senkron.
 	country_in = normalize_country_code((data.get("country") or "TR").strip())
@@ -283,8 +297,8 @@ def save_address(address_json):
 	doc.title = (data.get("title") or "").strip()
 	doc.contact_name = (data.get("contact_name") or "").strip()
 	doc.company = (data.get("company") or "").strip()
-	doc.phone_prefix = phone_prefix_in
-	doc.phone = _normalize_phone(data.get("phone") or "")
+	doc.phone_prefix = phone_prefix_to_save
+	doc.phone = phone_to_save
 	doc.country = country_in
 	doc.state = (data.get("state") or "").strip()
 	doc.city = (data.get("city") or "").strip()

@@ -800,6 +800,7 @@ def send_inquiry(seller_code, message, share_business_card=0):
 	if not frappe.db.exists("Admin Seller Profile", seller_code):
 		frappe.throw(_("Satici bulunamadi"), frappe.DoesNotExistError)
 	sender_name, sender_email = "", ""
+	buyer_user = ""
 	if frappe.session.user and frappe.session.user != "Guest":
 		# Self-inquiry block (HATA 20): kendi magazasina inquiry gonderme
 		own_seller = frappe.db.get_value("Admin Seller Profile", {"user": frappe.session.user}, "name")
@@ -809,14 +810,409 @@ def send_inquiry(seller_code, message, share_business_card=0):
 		if user:
 			sender_name = user.full_name or ""
 			sender_email = user.email or ""
+			buyer_user = frappe.session.user
 	doc = frappe.new_doc("Seller Inquiry")
 	doc.seller = seller_code
 	doc.seller_code = seller_code
 	doc.message = message.strip()
 	doc.sender_name = sender_name
 	doc.sender_email = sender_email
+	if buyer_user:
+		doc.buyer = buyer_user
 	doc.share_business_card = int(share_business_card)
 	doc.status = "Yeni"
 	doc.insert(ignore_permissions=True)
 	frappe.db.commit()
+
+	# Satıcıya bildirim
+	try:
+		_notify_new_inquiry(doc)
+	except Exception:
+		frappe.log_error(title="send_inquiry: notify_seller")
+
 	return {"success": True, "inquiry_id": doc.name}
+
+
+def _notify_new_inquiry(inquiry):
+	"""Yeni Seller Inquiry → satıcıya in-app + e-posta."""
+	from tradehub_core.utils.notify import notify
+
+	seller_user = frappe.db.get_value("Admin Seller Profile", inquiry.seller, "user")
+	if not seller_user:
+		return
+
+	preview = (inquiry.message or "")[:300]
+	subject = f"[TradeHub] Mağazanıza yeni soru: {inquiry.sender_name or 'Müşteri'}"
+	body_html = f"""
+<div style="font-family: -apple-system, Segoe UI, Roboto, sans-serif; color: #222; max-width: 560px;">
+  <h2 style="margin: 0 0 16px; font-size: 18px;">Yeni Soru</h2>
+  <p><strong>{frappe.utils.escape_html(inquiry.sender_name or "Müşteri")}</strong> mağazanıza bir soru gönderdi:</p>
+  <div style="margin: 16px 0; padding: 12px 14px; background: #f6f7fb; border-left: 3px solid #7c3aed; border-radius: 4px;">
+    {frappe.utils.escape_html(preview).replace(chr(10), "<br>")}
+  </div>
+  <p style="margin: 28px 0 0; font-size: 11px; color: #888;">
+    Sorular sayfanızdan yanıtlayabilirsiniz.
+  </p>
+</div>
+""".strip()
+
+	notify(
+		recipient_user=seller_user,
+		type="dispute",
+		title=f"Yeni soru: {inquiry.sender_name or 'Müşteri'}",
+		message=preview or "Mağazanıza yeni bir soru geldi.",
+		recipient_role="seller",
+		action_url=f"/helpdesk/inquiries/{inquiry.name}",
+		reference_doctype="Seller Inquiry",
+		reference_name=inquiry.name,
+		send_email=True,
+		email_subject=subject,
+		email_body=body_html,
+	)
+
+
+# ── Satıcı Inquiry yönetim API'leri ────────────────────────────────────
+
+
+@frappe.whitelist()
+def list_my_inquiries(status: str = "all", page: int = 1, page_size: int = 20):
+	"""Satıcı kendi mağazasına gelen inquiry'leri listeler.
+
+	Permission query Seller Inquiry.seller alanını user'ın profile'ına eşler.
+	"""
+	caller = frappe.session.user
+	if not caller or caller == "Guest":
+		frappe.throw(_("Giriş yapmalısınız."), frappe.PermissionError)
+
+	try:
+		page = int(page) or 1
+	except (TypeError, ValueError):
+		page = 1
+	try:
+		page_size = int(page_size) or 20
+	except (TypeError, ValueError):
+		page_size = 20
+	page_size = min(max(page_size, 1), 100)
+
+	filters = {"is_trashed": 0}
+	if status and status != "all":
+		filters["status"] = status
+
+	fields = [
+		"name",
+		"seller",
+		"seller_code",
+		"status",
+		"is_read",
+		"sender_name",
+		"sender_email",
+		"buyer",
+		"message",
+		"share_business_card",
+		"replied_at",
+		"creation",
+	]
+	data = frappe.get_all(
+		"Seller Inquiry",
+		filters=filters,
+		fields=fields,
+		order_by="creation desc",
+		start=(page - 1) * page_size,
+		page_length=page_size,
+	)
+	total = frappe.db.count("Seller Inquiry", filters=filters)
+
+	for row in data:
+		msg = row.get("message") or ""
+		row["message_preview"] = (msg[:200] + "…") if len(msg) > 200 else msg
+
+	return {"data": data, "total": total}
+
+
+@frappe.whitelist()
+def get_inquiry(name: str):
+	"""Tek inquiry detayı + ilk okuma sırasında is_read=1."""
+	if not name:
+		frappe.throw(_("Inquiry kimliği gerekli."), frappe.ValidationError)
+	if not frappe.has_permission("Seller Inquiry", doc=name, ptype="read"):
+		frappe.throw(_("Bu soruya erişim yetkiniz yok."), frappe.PermissionError)
+	doc = frappe.get_doc("Seller Inquiry", name)
+
+	if not doc.is_read:
+		frappe.db.set_value("Seller Inquiry", name, "is_read", 1, update_modified=False)
+		frappe.db.commit()
+		doc.is_read = 1
+
+	return doc.as_dict()
+
+
+@frappe.whitelist()
+def reply_inquiry(name: str, message: str):
+	"""Satıcı inquiry'ye cevap verir — alıcıya e-posta gider, status=Yanıtlandı."""
+	if not name or not (message or "").strip():
+		frappe.throw(_("Inquiry ve mesaj zorunlu."), frappe.ValidationError)
+	if not frappe.has_permission("Seller Inquiry", doc=name, ptype="write"):
+		frappe.throw(_("Bu soruyu yanıtlama yetkiniz yok."), frappe.PermissionError)
+
+	doc = frappe.get_doc("Seller Inquiry", name)
+	doc.reply_message = message
+	doc.replied_at = frappe.utils.now()
+	doc.replied_by = frappe.session.user
+	doc.status = "Yanıtlandı"
+	doc.is_read = 1
+	doc.save(ignore_permissions=True)
+	frappe.db.commit()
+
+	try:
+		_notify_inquiry_reply(doc, message)
+	except Exception:
+		frappe.log_error(title="reply_inquiry: notify_buyer")
+
+	return {"name": doc.name, "ok": True}
+
+
+def _notify_inquiry_reply(doc, message: str):
+	"""Inquiry yanıtı → alıcıya bildirim."""
+	from tradehub_core.utils.notify import notify
+
+	recipient = doc.get("buyer") or doc.get("sender_email") or ""
+	if not recipient:
+		return
+
+	seller_name = doc.seller or ""
+	preview = (message or "").strip()
+	if len(preview) > 300:
+		preview = preview[:300] + "…"
+
+	subject = f"[TradeHub] {seller_name} sorunuza yanıt verdi"
+	body_html = f"""
+<div style="font-family: -apple-system, Segoe UI, Roboto, sans-serif; color: #222; max-width: 560px;">
+  <h2 style="margin: 0 0 16px; font-size: 18px;">Mağaza yanıtınızı paylaştı</h2>
+  <p><strong>{frappe.utils.escape_html(seller_name)}</strong> sorunuza yanıt verdi:</p>
+  <div style="margin: 16px 0; padding: 12px 14px; background: #f6f7fb; border-left: 3px solid #7c3aed; border-radius: 4px;">
+    {frappe.utils.escape_html(preview).replace(chr(10), "<br>")}
+  </div>
+</div>
+""".strip()
+
+	notify(
+		recipient_user=recipient,
+		type="dispute",
+		title=f"{seller_name} sorunuza yanıt verdi",
+		message=preview or "Mağaza sorunuza yanıt yazdı.",
+		recipient_role="buyer",
+		reference_doctype="Seller Inquiry",
+		reference_name=doc.name,
+		send_email=True,
+		email_subject=subject,
+		email_body=body_html,
+	)
+
+
+@frappe.whitelist()
+def trash_inquiry(name: str):
+	"""Inquiry'yi çöpe taşı (soft delete)."""
+	if not frappe.has_permission("Seller Inquiry", doc=name, ptype="write"):
+		frappe.throw(_("Yetkiniz yok."), frappe.PermissionError)
+	frappe.db.set_value("Seller Inquiry", name, "is_trashed", 1)
+	frappe.db.commit()
+	return {"ok": True}
+
+
+# ── Müşterilerim — satıcı CRM mini-panosu ───────────────────────────────
+
+
+def _get_my_seller_profile():
+	"""Çağıran user'ın Admin Seller Profile name'ini döndür."""
+	user = frappe.session.user
+	if not user or user == "Guest":
+		frappe.throw(_("Giriş yapmalısınız."), frappe.PermissionError)
+	profile = frappe.db.get_value("Admin Seller Profile", {"user": user}, "name")
+	if not profile:
+		frappe.throw(_("Satıcı profiliniz bulunamadı."), frappe.DoesNotExistError)
+	return profile, user
+
+
+@frappe.whitelist()
+def list_my_customers(search: str = "", page: int = 1, page_size: int = 20):
+	"""Satıcının kendi müşterileri (Order üzerinden agregat).
+
+	Her satır: buyer kullanıcı + sipariş sayısı + toplam ciro + son sipariş
+	tarihi + açık ticket sayısı.
+	"""
+	profile, _user = _get_my_seller_profile()
+
+	try:
+		page = max(1, int(page or 1))
+	except (TypeError, ValueError):
+		page = 1
+	try:
+		page_size = min(100, max(1, int(page_size or 20)))
+	except (TypeError, ValueError):
+		page_size = 20
+
+	# Müşteri agregasyonu — Order tablosundan
+	search_clause = ""
+	params = {"seller": profile}
+	if search and search.strip():
+		search_clause = "AND o.buyer LIKE %(q)s"
+		params["q"] = f"%{search.strip()}%"
+
+	rows = frappe.db.sql(
+		f"""
+		SELECT
+			o.buyer AS buyer,
+			COUNT(*) AS order_count,
+			COALESCE(SUM(o.total), 0) AS total_revenue,
+			MAX(o.order_date) AS last_order_date,
+			SUM(CASE WHEN o.status NOT IN ('İptal Edildi','Reddedildi') THEN 1 ELSE 0 END) AS active_orders
+		FROM `tabOrder` o
+		WHERE o.seller = %(seller)s
+		  AND o.buyer IS NOT NULL AND o.buyer != ''
+		  {search_clause}
+		GROUP BY o.buyer
+		ORDER BY last_order_date DESC
+		LIMIT %(limit)s OFFSET %(offset)s
+		""",
+		{**params, "limit": page_size, "offset": (page - 1) * page_size},
+		as_dict=True,
+	)
+
+	total_row = frappe.db.sql(
+		f"""
+		SELECT COUNT(DISTINCT o.buyer) AS total
+		FROM `tabOrder` o
+		WHERE o.seller = %(seller)s
+		  AND o.buyer IS NOT NULL AND o.buyer != ''
+		  {search_clause}
+		""",
+		params,
+		as_dict=True,
+	)
+	total = total_row[0]["total"] if total_row else 0
+
+	# Her buyer için ek bilgi (ad + açık ticket sayısı). 1 query birleşik:
+	if rows:
+		buyer_emails = [r["buyer"] for r in rows]
+		users = frappe.get_all(
+			"User",
+			filters={"name": ["in", buyer_emails]},
+			fields=["name", "full_name"],
+		)
+		users_map = {u.name: u.full_name for u in users}
+
+		# Açık ticket sayıları (raised_by bazlı)
+		ticket_rows = frappe.db.sql(
+			"""
+			SELECT raised_by, COUNT(*) AS open_count
+			FROM `tabHD Ticket`
+			WHERE raised_by IN %(users)s
+			  AND status IN ('Open','Replied')
+			GROUP BY raised_by
+			""",
+			{"users": tuple(buyer_emails)},
+			as_dict=True,
+		)
+		tickets_map = {t["raised_by"]: t["open_count"] for t in ticket_rows}
+
+		for r in rows:
+			r["full_name"] = users_map.get(r["buyer"]) or r["buyer"]
+			r["open_tickets"] = tickets_map.get(r["buyer"], 0)
+			r["total_revenue"] = float(r["total_revenue"] or 0)
+			r["order_count"] = int(r["order_count"] or 0)
+			r["active_orders"] = int(r["active_orders"] or 0)
+
+	return {"data": rows, "total": int(total or 0)}
+
+
+@frappe.whitelist()
+def get_customer_detail(buyer: str):
+	"""Tek müşteri için satıcı bağlamında 360° görünüm.
+
+	Buyer = email/user adı. Satıcı sadece kendi sipariş/sorularını görmeli;
+	izinsiz buyer email'ini sorgulayan satıcılara da yalnız ortak veri döner.
+	"""
+	if not buyer:
+		frappe.throw(_("Müşteri kimliği gerekli."), frappe.ValidationError)
+
+	profile, _user = _get_my_seller_profile()
+
+	# 1) Profil — User
+	user_doc = frappe.db.get_value(
+		"User",
+		buyer,
+		["name", "full_name", "email", "mobile_no", "creation"],
+		as_dict=True,
+	)
+
+	# 2) Siparişler (sadece bu satıcı için)
+	orders = frappe.db.sql(
+		"""
+		SELECT name, status, total, order_date
+		FROM `tabOrder`
+		WHERE seller = %(seller)s AND buyer = %(buyer)s
+		ORDER BY order_date DESC
+		LIMIT 50
+		""",
+		{"seller": profile, "buyer": buyer},
+		as_dict=True,
+	)
+
+	# 3) Bu satıcının kendi mağazasına gelen Inquiry'ler (buyer eşleşmesi
+	#    User Link ile veya sender_email ile)
+	inquiries = frappe.get_all(
+		"Seller Inquiry",
+		filters=[
+			["seller", "=", profile],
+			["is_trashed", "=", 0],
+			[
+				"OR",
+				[["buyer", "=", buyer]],
+				[["sender_email", "=", buyer]],
+			],
+		]
+		if False  # OR filter syntax Frappe v15'te limited; aşağıda 2 ayrı sorgu
+		else {"seller": profile, "is_trashed": 0, "buyer": buyer},
+		fields=["name", "status", "message", "creation"],
+		order_by="creation desc",
+		limit_page_length=50,
+	)
+
+	# 4) HD Ticket'lar (raised_by = buyer + related_order satıcının siparişine bağlı)
+	tickets = frappe.db.sql(
+		"""
+		SELECT t.name, t.subject, t.status, t.priority, t.creation
+		FROM `tabHD Ticket` t
+		LEFT JOIN `tabOrder` o ON o.name = t.related_order
+		WHERE t.raised_by = %(buyer)s
+		  AND (o.seller = %(seller)s OR t.related_order IS NULL)
+		ORDER BY t.creation DESC
+		LIMIT 50
+		""",
+		{"seller": profile, "buyer": buyer},
+		as_dict=True,
+	)
+
+	# Toplam ciro + sipariş sayısı (özet kartı için)
+	stats_row = frappe.db.sql(
+		"""
+		SELECT COUNT(*) AS order_count, COALESCE(SUM(total), 0) AS total_revenue,
+		       MAX(order_date) AS last_order_date, MIN(order_date) AS first_order_date
+		FROM `tabOrder`
+		WHERE seller = %(seller)s AND buyer = %(buyer)s
+		""",
+		{"seller": profile, "buyer": buyer},
+		as_dict=True,
+	)
+	stats = stats_row[0] if stats_row else {}
+	stats["total_revenue"] = float(stats.get("total_revenue") or 0)
+	stats["order_count"] = int(stats.get("order_count") or 0)
+
+	return {
+		"buyer": buyer,
+		"user": user_doc,
+		"stats": stats,
+		"orders": orders,
+		"inquiries": inquiries,
+		"tickets": tickets,
+	}

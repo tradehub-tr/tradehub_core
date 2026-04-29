@@ -1,0 +1,62 @@
+{
+	"actions": [],
+	"autoname": "hash",
+	"creation": "2026-04-28 00:00:00.000000",
+	"doctype": "DocType",
+	"engine": "InnoDB",
+	"field_order": ["ticket", "tag", "tagged_by"],
+	"fields": [
+		{
+			"fieldname": "ticket",
+			"fieldtype": "Link",
+			"label": "Talep",
+			"options": "HD Ticket",
+			"reqd": 1,
+			"in_list_view": 1,
+			"search_index": 1
+		},
+		{
+			"fieldname": "tag",
+			"fieldtype": "Link",
+			"label": "Etiket",
+			"options": "Helpdesk Ticket Tag",
+			"reqd": 1,
+			"in_list_view": 1,
+			"search_index": 1
+		},
+		{
+			"fieldname": "tagged_by",
+			"fieldtype": "Link",
+			"label": "Etiketleyen",
+			"options": "User",
+			"read_only": 1
+		}
+	],
+	"links": [],
+	"modified": "2026-04-28 00:00:00.000000",
+	"modified_by": "Administrator",
+	"module": "Tradehub Core",
+	"name": "Helpdesk Ticket Tag Link",
+	"naming_rule": "Random",
+	"owner": "Administrator",
+	"permissions": [
+		{
+			"create": 1,
+			"delete": 1,
+			"read": 1,
+			"role": "System Manager",
+			"write": 1
+		},
+		{
+			"create": 1,
+			"delete": 1,
+			"read": 1,
+			"role": "Agent",
+			"write": 1
+		}
+	],
+	"sort_field": "creation",
+	"sort_order": "DESC",
+	"states": [],
+	"track_changes": 0
+}
