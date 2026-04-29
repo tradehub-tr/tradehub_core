@@ -1,0 +1,93 @@
+{
+	"actions": [],
+	"autoname": "field:priority",
+	"creation": "2026-04-28 00:00:00.000000",
+	"doctype": "DocType",
+	"engine": "InnoDB",
+	"field_order": [
+		"priority",
+		"is_active",
+		"cb_1",
+		"first_response_minutes",
+		"resolution_minutes",
+		"sb_advanced",
+		"description"
+	],
+	"fields": [
+		{
+			"fieldname": "priority",
+			"fieldtype": "Select",
+			"label": "Öncelik",
+			"options": "Low\nMedium\nHigh\nUrgent",
+			"reqd": 1,
+			"unique": 1,
+			"in_list_view": 1
+		},
+		{
+			"fieldname": "is_active",
+			"fieldtype": "Check",
+			"label": "Aktif",
+			"default": "1",
+			"in_list_view": 1
+		},
+		{
+			"fieldname": "cb_1",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "first_response_minutes",
+			"fieldtype": "Int",
+			"label": "İlk Yanıt Süresi (dk)",
+			"description": "Talep oluşturulduktan sonra ilk ajan yanıtı için tanınan süre.",
+			"reqd": 1,
+			"in_list_view": 1
+		},
+		{
+			"fieldname": "resolution_minutes",
+			"fieldtype": "Int",
+			"label": "Çözüm Süresi (dk)",
+			"description": "Talep oluşturulduktan sonra Resolved/Closed durumuna geçmesi için tanınan süre.",
+			"reqd": 1,
+			"in_list_view": 1
+		},
+		{
+			"fieldname": "sb_advanced",
+			"fieldtype": "Section Break",
+			"label": "Açıklama"
+		},
+		{
+			"fieldname": "description",
+			"fieldtype": "Small Text",
+			"label": "Açıklama"
+		}
+	],
+	"links": [],
+	"modified": "2026-04-28 00:00:00.000000",
+	"modified_by": "Administrator",
+	"module": "Tradehub Core",
+	"name": "Helpdesk SLA Policy",
+	"naming_rule": "By fieldname",
+	"owner": "Administrator",
+	"permissions": [
+		{
+			"create": 1,
+			"delete": 1,
+			"read": 1,
+			"role": "System Manager",
+			"write": 1
+		},
+		{
+			"read": 1,
+			"role": "Support Manager",
+			"write": 1
+		},
+		{
+			"read": 1,
+			"role": "Marketplace Admin"
+		}
+	],
+	"sort_field": "priority",
+	"sort_order": "ASC",
+	"states": [],
+	"track_changes": 1
+}

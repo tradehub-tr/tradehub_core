@@ -981,3 +981,175 @@ def helpdesk_ticket_has_permission(doc, ptype, user):
 		return agent_group == _PLATFORM_SUPPORT_TEAM
 
 	return raised_by == user
+
+
+# ── CRM scope (Marketplace Seller, headless Frappe CRM) ────────────────────
+# Frappe CRM hiçbir scope filtre uygulamıyor — tüm Lead/Deal/Org/Contact
+# tüm site genelinde görünür. Marketplace Seller rolündeki kullanıcı yalnız
+# kendi `seller` (Admin Seller Profile) field'ına bağlı kayıtları görmeli.
+#
+# Erişim kuralları (her CRM doctype için aynı):
+#   - System Manager / Marketplace Admin / Sales User / Sales Manager: full
+#   - Marketplace Seller: seller = kendi profili
+#   - Diğer (Buyer vb.): hiçbir kayıt
+#
+# `seller` field'ı patches.add_seller_to_crm_doctypes ile eklenmiş Custom
+# Field'tır.
+
+_CRM_FULL_ACCESS_ROLES = frozenset(
+	{
+		"System Manager",
+		"Marketplace Admin",
+		"Sales User",
+		"Sales Manager",
+		"Sales Master Manager",
+	}
+)
+
+
+def _is_marketplace_seller(user):
+	"""User'ın Marketplace Seller veya Seller rolü var mı."""
+	if not user or user == "Guest":
+		return False
+	roles = set(frappe.get_roles(user))
+	return bool(roles & {"Marketplace Seller", "Seller"})
+
+
+def _crm_query_for_doctype(user, doctype_table):
+	"""Generic CRM permission query üreteci.
+
+	doctype_table: SQL'deki tablo adı, örn. "tabCRM Lead"
+	Returns: WHERE clause string (boş string = tüm erişim, "1=0" = engellendi)
+	"""
+	if not user or user == "Guest":
+		return "1=0"
+	if user == "Administrator":
+		return ""
+
+	roles = set(frappe.get_roles(user))
+	if roles & _CRM_FULL_ACCESS_ROLES:
+		return ""
+
+	# Marketplace Seller — kendi profile'ına kısıtla
+	if "Marketplace Seller" in roles or "Seller" in roles:
+		profile = _get_seller_profile_name(user)
+		if profile:
+			escaped = frappe.db.escape(profile)
+			return f"`{doctype_table}`.`seller` = {escaped}"
+		# Profili olmayan satıcı user'ı — hiçbir şey görmesin
+		return "1=0"
+
+	# Diğer roller (Buyer vb.) — CRM'e erişim yok
+	return "1=0"
+
+
+def _crm_has_permission_for_doc(doc, ptype, user):
+	"""Generic CRM bireysel doc permission check'i.
+
+	doc: Document veya dict; `seller` alanı içermeli (ya da pluck'lanır).
+	"""
+	if user == "Administrator":
+		return True
+	roles = set(frappe.get_roles(user))
+	if roles & _CRM_FULL_ACCESS_ROLES:
+		return True
+
+	if "Marketplace Seller" in roles or "Seller" in roles:
+		profile = _get_seller_profile_name(user)
+		if not profile:
+			return False
+		seller_val = getattr(doc, "seller", None) if not isinstance(doc, dict) else doc.get("seller")
+		# Boş seller (havuz) — read izinli, write/create kendisinin değilse blokla
+		if not seller_val:
+			return ptype == "read"
+		return seller_val == profile
+
+	return False
+
+
+# Doctype-spesifik wrapper'lar (hooks.py'a kayıt için ayrı isimler gerek)
+
+
+def crm_lead_query_conditions(user):
+	return _crm_query_for_doctype(user, "tabCRM Lead")
+
+
+def crm_lead_has_permission(doc, ptype, user):
+	return _crm_has_permission_for_doc(doc, ptype, user)
+
+
+def crm_deal_query_conditions(user):
+	return _crm_query_for_doctype(user, "tabCRM Deal")
+
+
+def crm_deal_has_permission(doc, ptype, user):
+	return _crm_has_permission_for_doc(doc, ptype, user)
+
+
+def crm_organization_query_conditions(user):
+	return _crm_query_for_doctype(user, "tabCRM Organization")
+
+
+def crm_organization_has_permission(doc, ptype, user):
+	return _crm_has_permission_for_doc(doc, ptype, user)
+
+
+def contact_query_conditions(user):
+	# Contact doctype tüm sistem genelinde kullanılır (User profili, Address vb.)
+	# — sadece Marketplace Seller için scope uygula, diğerleri için açık bırak.
+	if not user or user == "Guest":
+		return "1=0"
+	if user == "Administrator":
+		return ""
+	roles = set(frappe.get_roles(user))
+	if roles & _CRM_FULL_ACCESS_ROLES:
+		return ""
+	if "Marketplace Seller" in roles or "Seller" in roles:
+		profile = _get_seller_profile_name(user)
+		if profile:
+			escaped = frappe.db.escape(profile)
+			# seller boş olanlar (sistem geneli kişiler) hariç + kendi seller'ı
+			return f"(`tabContact`.`seller` = {escaped} OR `tabContact`.`seller` IS NULL)"
+		return ""  # profil yoksa standart davranış
+	return ""  # Buyer vb. → standart Contact (sistem genelinde) erişimi
+
+
+def contact_has_permission(doc, ptype, user):
+	if user == "Administrator":
+		return True
+	roles = set(frappe.get_roles(user))
+	if roles & _CRM_FULL_ACCESS_ROLES:
+		return True
+	if "Marketplace Seller" in roles or "Seller" in roles:
+		profile = _get_seller_profile_name(user)
+		if not profile:
+			return True  # standart davranış
+		seller_val = getattr(doc, "seller", None) if not isinstance(doc, dict) else doc.get("seller")
+		if not seller_val:
+			return True  # genel kişi → herkes okuyabilir
+		return seller_val == profile
+	return True  # diğer roller → standart Contact erişimi
+
+
+def crm_task_query_conditions(user):
+	return _crm_query_for_doctype(user, "tabCRM Task")
+
+
+def crm_task_has_permission(doc, ptype, user):
+	return _crm_has_permission_for_doc(doc, ptype, user)
+
+
+def fcrm_note_query_conditions(user):
+	return _crm_query_for_doctype(user, "tabFCRM Note")
+
+
+def fcrm_note_has_permission(doc, ptype, user):
+	return _crm_has_permission_for_doc(doc, ptype, user)
+
+
+def crm_call_log_query_conditions(user):
+	return _crm_query_for_doctype(user, "tabCRM Call Log")
+
+
+def crm_call_log_has_permission(doc, ptype, user):
+	return _crm_has_permission_for_doc(doc, ptype, user)

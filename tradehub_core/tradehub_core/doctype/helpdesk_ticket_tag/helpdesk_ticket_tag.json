@@ -1,0 +1,57 @@
+{
+	"actions": [],
+	"autoname": "field:tag_name",
+	"creation": "2026-04-28 00:00:00.000000",
+	"doctype": "DocType",
+	"engine": "InnoDB",
+	"field_order": ["tag_name", "color", "description"],
+	"fields": [
+		{
+			"fieldname": "tag_name",
+			"fieldtype": "Data",
+			"label": "Etiket",
+			"reqd": 1,
+			"unique": 1,
+			"in_list_view": 1
+		},
+		{
+			"fieldname": "color",
+			"fieldtype": "Select",
+			"label": "Renk",
+			"options": "violet\nblue\nemerald\namber\nrose\nslate",
+			"default": "slate",
+			"in_list_view": 1
+		},
+		{
+			"fieldname": "description",
+			"fieldtype": "Small Text",
+			"label": "Açıklama"
+		}
+	],
+	"links": [],
+	"modified": "2026-04-28 00:00:00.000000",
+	"modified_by": "Administrator",
+	"module": "Tradehub Core",
+	"name": "Helpdesk Ticket Tag",
+	"naming_rule": "By fieldname",
+	"owner": "Administrator",
+	"permissions": [
+		{
+			"create": 1,
+			"delete": 1,
+			"read": 1,
+			"role": "System Manager",
+			"write": 1
+		},
+		{
+			"create": 1,
+			"read": 1,
+			"role": "Agent",
+			"write": 1
+		}
+	],
+	"sort_field": "tag_name",
+	"sort_order": "ASC",
+	"states": [],
+	"track_changes": 1
+}

@@ -35,6 +35,10 @@ scheduler_events = {
 	"hourly": [
 		# Refresh the Complementary tab of Related Products as new orders land.
 		"tradehub_core.recommendations.tasks.refresh_copurchase_lift",
+		# Helpdesk SLA breach detection — Helpdesk SLA Policy'ye göre açık
+		# ticket'lar için ilk yanıt + çözüm süresi aşımlarını işaretler ve
+		# atanan ajan(lar)a / team'e bildirim gönderir.
+		"tradehub_core.utils.sla_checker.check_sla_breaches",
 	],
 	"daily": [
 		"tradehub_core.services.tcmb.fetch_and_update_rates",
@@ -115,6 +119,28 @@ doc_events = {
 	"Admin Seller Profile": {
 		"on_update": "tradehub_core.utils.helpdesk_routing.on_admin_seller_profile_update",
 	},
+	# CRM kayıtlarında seller'ı creator'dan otomatik resolve et
+	"CRM Lead": {
+		"before_insert": "tradehub_core.utils.crm_seller_autoset.autoset_seller",
+	},
+	"CRM Deal": {
+		"before_insert": "tradehub_core.utils.crm_seller_autoset.autoset_seller",
+	},
+	"CRM Organization": {
+		"before_insert": "tradehub_core.utils.crm_seller_autoset.autoset_seller",
+	},
+	"Contact": {
+		"before_insert": "tradehub_core.utils.crm_seller_autoset.autoset_seller",
+	},
+	"CRM Task": {
+		"before_insert": "tradehub_core.utils.crm_seller_autoset.autoset_seller",
+	},
+	"FCRM Note": {
+		"before_insert": "tradehub_core.utils.crm_seller_autoset.autoset_seller",
+	},
+	"CRM Call Log": {
+		"before_insert": "tradehub_core.utils.crm_seller_autoset.autoset_seller",
+	},
 }
 
 # ---------------------------------------------------------------------------
@@ -136,6 +162,14 @@ permission_query_conditions = {
 	"Product Family": "tradehub_core.permissions.product_family_query_conditions",
 	"Product Attribute": "tradehub_core.permissions.product_attribute_query_conditions",
 	"HD Ticket": "tradehub_core.permissions.helpdesk_ticket_query_conditions",
+	# CRM scope (Marketplace Seller → kendi `seller` field'ı)
+	"CRM Lead": "tradehub_core.permissions.crm_lead_query_conditions",
+	"CRM Deal": "tradehub_core.permissions.crm_deal_query_conditions",
+	"CRM Organization": "tradehub_core.permissions.crm_organization_query_conditions",
+	"Contact": "tradehub_core.permissions.contact_query_conditions",
+	"CRM Task": "tradehub_core.permissions.crm_task_query_conditions",
+	"FCRM Note": "tradehub_core.permissions.fcrm_note_query_conditions",
+	"CRM Call Log": "tradehub_core.permissions.crm_call_log_query_conditions",
 }
 
 has_permission = {
@@ -154,4 +188,11 @@ has_permission = {
 	"Product Family": "tradehub_core.permissions.product_family_has_permission",
 	"Product Attribute": "tradehub_core.permissions.product_attribute_has_permission",
 	"HD Ticket": "tradehub_core.permissions.helpdesk_ticket_has_permission",
+	"CRM Lead": "tradehub_core.permissions.crm_lead_has_permission",
+	"CRM Deal": "tradehub_core.permissions.crm_deal_has_permission",
+	"CRM Organization": "tradehub_core.permissions.crm_organization_has_permission",
+	"Contact": "tradehub_core.permissions.contact_has_permission",
+	"CRM Task": "tradehub_core.permissions.crm_task_has_permission",
+	"FCRM Note": "tradehub_core.permissions.fcrm_note_has_permission",
+	"CRM Call Log": "tradehub_core.permissions.crm_call_log_has_permission",
 }
