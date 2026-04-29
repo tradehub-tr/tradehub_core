@@ -19,6 +19,7 @@ class SellerApplication(Document):
 				self._revoke_approval()
 			if self.status == "Submitted":
 				self._notify_admin_new_application()
+				self._notify_applicant_received()
 
 	def _approve_application(self):
 		"""Create Seller Profile, Admin Seller Profile and assign Seller role on approval."""
@@ -155,6 +156,24 @@ class SellerApplication(Document):
 		# Update review metadata
 		self.db_set("reviewed_by", frappe.session.user)
 		self.db_set("reviewed_on", now_datetime())
+
+	def _notify_applicant_received(self):
+		"""Başvuru oluşturulduğunda (Submitted) applicant'a in-app bildirim.
+
+		Mail için: send_email=True + email_subject + email_body parametreleri
+		ileride eklenecek (memory: project_seller_application_email_followup).
+		Mevcut çağrı sadece Platform Notification kaydı oluşturur.
+		"""
+		notify(
+			recipient_user=self.applicant_user,
+			recipient_role="seller",
+			type="system",
+			title=_("Başvurunuz Alındı"),
+			message=_("Satıcı başvurunuz başarıyla alındı. İncelendikten sonra size haber vereceğiz."),
+			action_url="/seller/application-pending",
+			reference_doctype="Seller Application",
+			reference_name=self.name,
+		)
 
 	def _notify_applicant_approved(self):
 		notify(
