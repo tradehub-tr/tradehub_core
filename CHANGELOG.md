@@ -1,3 +1,41 @@
+## [v1.0.4-rc.32] - 2026-04-29 RC
+
+Bu surum rc.istoc.com'da test asamasindadir.
+
+### Eklendi
+- feat(tailored): "Size Özel Seçimler" öneri endpoint'leri + User Product View DocType (@aliiball)
+- feat(tailored): Kategori kartlarına editoryal metin + rozet eklendi. (@aliiball)
+- feat(recommendations): Related Products skor pipeline + API + scheduler (@aliiball)
+- feat(api/public): create_ticket login zorunlu hale getirildi (@ahmeetseker)
+- feat(api/public): create_ticket login zorunlu hale getirildi (@ahmeetseker)
+- feat: add agent_reply_ticket headless API to update HD Ticket status without email triggers (@ahmeetseker)
+- feat(dashboard): Config tabanlı widget engine, 2 dashboard ve 25 hazır widget eklendi. (@aliiball)
+- feat(theme): ürün kartı token whitelist'i (_PRODUCT_CARD_KEYS, 80 anahtar) (@ahmeetseker)
+- feat(currency): TCMB entegrasyonu ile dinamik para birimi sistemi geliştirildi. (@aliiball)
+- feat(payment): kredi kartı ödemeleri için Payment Transaction kaydı ve havale backfill mekanizması (@ahmeetseker)
+- feat: add image parameter to update_seller_category and change required status of category field (@boraydeger32)
+- feat(listing): kategori subtree filtresi + B2B min_order_qty senkron patch (@ahmeetseker)
+- feat(seller,seed): satıcı arama/kategori filtresi + sektörel ürün spec havuzu (@ahmeetseker)
+- feat(helpdesk,seller-crm): SLA + canned response + tag/saved filter + CRM scope (@ahmeetseker)
+- feat(identity): Rework email verification — OTP-only flow, gating, audit, Desk User cleanup (@aliiball)
+- feat(seller-application): Notify applicant on submission + EN translations for in-app notifications (@aliiball)
+
+### Duzeltildi
+- fix: tüm frappe.get_doc(dict) çağrıları frappe.new_doc() ile değiştirildi (@ahmeetseker)
+- fix: backfill patch'inde nowdatetime import hatası düzeltildi — now_datetime kullanıldı (@ahmeetseker)
+- fix(patches): backfill_payment_transactions — Frappe v15 için now_datetime'a çevir (@aliiball)
+- fix(helpdesk): müşteri user'ında HD Team/Agent insert PermissionError → 403 (@ahmeetseker)
+- fix(helpdesk): müşteri user'ında HD Team/Agent insert PermissionError → 403 (@ahmeetseker)
+- fix(rfq): Satıcı RFQ eşleşmesine listing platform kategorisi desteği eklendi. (@aliiball)
+
+### Degistirildi
+- refactor(cart): _get_inline_variant_stock tamamen kaldırıldı (@ahmeetseker)
+- refactor(cart): _get_inline_variant_stock tamamen kaldırıldı (@ahmeetseker)
+- refactor: replace Pexels CDN image IDs with direct DummyJSON product image URLs in seed_demo_data.py (@ahmeetseker)
+- refactor: rename unused dictionary key variable in seed_demo_data.py to underscore (@ahmeetseker)
+- refactor: clean up string concatenation and formatting in various files (@boraydeger32)
+
+---
 ## [v1.0.4-rc.31] - 2026-04-29 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
