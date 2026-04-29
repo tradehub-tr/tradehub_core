@@ -810,9 +810,9 @@ def _notify_new_inquiry(inquiry):
 	body_html = f"""
 <div style="font-family: -apple-system, Segoe UI, Roboto, sans-serif; color: #222; max-width: 560px;">
   <h2 style="margin: 0 0 16px; font-size: 18px;">Yeni Soru</h2>
-  <p><strong>{frappe.utils.escape_html(inquiry.sender_name or 'Müşteri')}</strong> mağazanıza bir soru gönderdi:</p>
+  <p><strong>{frappe.utils.escape_html(inquiry.sender_name or "Müşteri")}</strong> mağazanıza bir soru gönderdi:</p>
   <div style="margin: 16px 0; padding: 12px 14px; background: #f6f7fb; border-left: 3px solid #7c3aed; border-radius: 4px;">
-    {frappe.utils.escape_html(preview).replace(chr(10), '<br>')}
+    {frappe.utils.escape_html(preview).replace(chr(10), "<br>")}
   </div>
   <p style="margin: 28px 0 0; font-size: 11px; color: #888;">
     Sorular sayfanızdan yanıtlayabilirsiniz.
@@ -954,7 +954,7 @@ def _notify_inquiry_reply(doc, message: str):
   <h2 style="margin: 0 0 16px; font-size: 18px;">Mağaza yanıtınızı paylaştı</h2>
   <p><strong>{frappe.utils.escape_html(seller_name)}</strong> sorunuza yanıt verdi:</p>
   <div style="margin: 16px 0; padding: 12px 14px; background: #f6f7fb; border-left: 3px solid #7c3aed; border-radius: 4px;">
-    {frappe.utils.escape_html(preview).replace(chr(10), '<br>')}
+    {frappe.utils.escape_html(preview).replace(chr(10), "<br>")}
   </div>
 </div>
 """.strip()

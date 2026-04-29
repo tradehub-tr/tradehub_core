@@ -103,6 +103,21 @@
 			"read_only": 1
 		},
 		{
+			"fieldname": "email_verified_at",
+			"fieldtype": "Datetime",
+			"label": "Email Verified At",
+			"read_only": 1,
+			"depends_on": "eval:doc.email_verified"
+		},
+		{
+			"fieldname": "email_verified_method",
+			"fieldtype": "Select",
+			"label": "Email Verified Method",
+			"options": "\notp\nadmin_override\nmigration",
+			"read_only": 1,
+			"depends_on": "eval:doc.email_verified"
+		},
+		{
 			"fieldname": "tab_business",
 			"fieldtype": "Tab Break",
 			"label": "İş Bilgileri"
