@@ -1,9 +1,10 @@
 name: RC Release
 
+# Bu workflow Jenkins'in BETA→RC pipeline'ı tarafından tetiklenir.
+# Tag formatı: vX.Y.Z-rc.N
+# Jenkins çağrısı: gh workflow run rc-release.yml --ref version-15
 on:
-  push:
-    branches:
-      - version-15
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -55,12 +56,12 @@ jobs:
           fi
 
           ENTRY="## [${RC_VERSION}] - ${DATE} RC\n\n"
-          ENTRY="${ENTRY}Bu surum rc.istoc.com'da test asamasindadir.\n\n"
+          ENTRY+="Bu surum rcistoc.cronbi.com'da onay asamasindadir.\n\n"
 
-          if [ -n "$FEATS" ]; then ENTRY="${ENTRY}### Eklendi\n${FEATS}\n\n"; fi
-          if [ -n "$FIXES" ]; then ENTRY="${ENTRY}### Duzeltildi\n${FIXES}\n\n"; fi
-          if [ -n "$REFACTORS" ]; then ENTRY="${ENTRY}### Degistirildi\n${REFACTORS}\n\n"; fi
-          ENTRY="${ENTRY}---\n"
+          if [ -n "$FEATS" ]; then ENTRY+="### Eklendi\n${FEATS}\n\n"; fi
+          if [ -n "$FIXES" ]; then ENTRY+="### Duzeltildi\n${FIXES}\n\n"; fi
+          if [ -n "$REFACTORS" ]; then ENTRY+="### Degistirildi\n${REFACTORS}\n\n"; fi
+          ENTRY+="---\n"
 
           printf "${ENTRY}" > /tmp/new_entry.md
           cat /tmp/new_entry.md CHANGELOG.md > /tmp/merged.md
