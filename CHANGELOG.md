@@ -1,3 +1,8 @@
+## [v1.0.5-beta.1] - 2026-04-30 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+---
 ## [v1.0.5-rc.1] - 2026-04-29 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
