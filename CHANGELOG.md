@@ -1,3 +1,8 @@
+## [v1.0.5-rc.2] - 2026-04-30 RC
+
+Bu surum rcistoc.cronbi.com'da onay asamasindadir.
+
+---
 ## [v1.0.5-beta.1] - 2026-04-30 BETA
 
 Bu surum betaistoc.cronbi.com'da test asamasindadir.
