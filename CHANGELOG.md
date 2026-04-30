@@ -1,3 +1,8 @@
+## [v1.0.7] - 2026-04-30 PROD
+
+Bu surum istoc.cronbi.com'da yayindadir.
+
+---
 ## [v1.0.6-rc.1] - 2026-04-30 RC
 
 Bu surum rcistoc.cronbi.com'da onay asamasindadir.
