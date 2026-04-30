@@ -1,25 +1,15 @@
-name: Prod Release
+name: Beta Release
 
-# Bu workflow Jenkins'in RC→PROD pipeline'ı tarafından tetiklenir.
-# Tag formatı: vX.Y.Z (semver, beta/rc suffix yok)
-# Jenkins çağrısı: gh workflow run prod-release.yml -f version_type=patch
 on:
-  workflow_dispatch:
-    inputs:
-      version_type:
-        description: 'Versiyon tipi'
-        required: true
-        type: choice
-        options:
-          - patch
-          - minor
-          - major
+  push:
+    branches:
+      - version-15
 
 permissions:
   contents: write
 
 jobs:
-  prod-release:
+  beta-release:
     runs-on: ubuntu-latest
     steps:
       - name: Kodu cek
@@ -33,28 +23,24 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Prod versiyon belirle
+      - name: Beta versiyon belirle
         id: version
         run: |
-          LAST=$(git tag --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
-          LAST=${LAST:-"v1.0.0"}
-          IFS='.' read -r MAJOR MINOR PATCH <<< "${LAST#v}"
-          case "${{ inputs.version_type }}" in
-            major) MAJOR=$((MAJOR+1)); MINOR=0; PATCH=0 ;;
-            minor) MINOR=$((MINOR+1)); PATCH=0 ;;
-            patch) PATCH=$((PATCH+1)) ;;
-          esac
-          NEW_VERSION="v${MAJOR}.${MINOR}.${PATCH}"
-          echo "version=${NEW_VERSION}" >> $GITHUB_OUTPUT
-          echo "prev_version=${LAST}" >> $GITHUB_OUTPUT
+          LAST_PROD=$(git tag --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
+          LAST_PROD=${LAST_PROD:-"v1.0.0"}
+          BETA_COUNT=$(git tag --sort=-v:refname | grep "^${LAST_PROD}-beta\." | wc -l)
+          BETA_NUM=$((BETA_COUNT + 1))
+          BETA_VERSION="${LAST_PROD}-beta.${BETA_NUM}"
+          echo "beta_version=${BETA_VERSION}" >> $GITHUB_OUTPUT
+          echo "last_prod=${LAST_PROD}" >> $GITHUB_OUTPUT
 
-      - name: Prod CHANGELOG olustur
+      - name: Beta CHANGELOG olustur
         id: changelog
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          PREV=${{ steps.version.outputs.prev_version }}
-          VERSION=${{ steps.version.outputs.version }}
+          PREV=${{ steps.version.outputs.last_prod }}
+          BETA_VERSION=${{ steps.version.outputs.beta_version }}
           DATE=$(date +%Y-%m-%d)
 
           FEATS=""
@@ -68,8 +54,8 @@ jobs:
             REFACTORS=$(echo "$COMMITS" | grep "^- refactor" || true)
           fi
 
-          ENTRY="## [${VERSION}] - ${DATE} PROD\n\n"
-          ENTRY+="Bu surum istoc.cronbi.com'da yayindadir.\n\n"
+          ENTRY="## [${BETA_VERSION}] - ${DATE} BETA\n\n"
+          ENTRY+="Bu surum betaistoc.cronbi.com'da test asamasindadir.\n\n"
 
           if [ -n "$FEATS" ]; then ENTRY+="### Eklendi\n${FEATS}\n\n"; fi
           if [ -n "$FIXES" ]; then ENTRY+="### Duzeltildi\n${FIXES}\n\n"; fi
@@ -86,17 +72,17 @@ jobs:
 
       - name: Commit ve tag
         run: |
-          VERSION=${{ steps.version.outputs.version }}
+          BETA_VERSION=${{ steps.version.outputs.beta_version }}
           git add CHANGELOG.md
-          git commit -m "chore: ${VERSION} prod changelog guncellendi"
+          git commit -m "chore: ${BETA_VERSION} beta changelog guncellendi"
           git push origin version-15
-          git tag ${VERSION}
-          git push origin ${VERSION}
+          git tag ${BETA_VERSION}
+          git push origin ${BETA_VERSION}
 
-      - name: GitHub Prod Release olustur
+      - name: GitHub Beta Release olustur
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.version.outputs.version }}
-          name: "PROD - ${{ steps.version.outputs.version }}"
+          tag_name: ${{ steps.version.outputs.beta_version }}
+          name: "BETA - ${{ steps.version.outputs.beta_version }}"
           body: ${{ steps.changelog.outputs.entry }}
-          prerelease: false
+          prerelease: true
