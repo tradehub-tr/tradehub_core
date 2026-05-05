@@ -38,6 +38,7 @@ class Listing(Document):
 				self.seller_profile = _get_seller_profile_from_session()
 
 	def validate(self):
+		self._resolve_attribute_links()
 		self.calculate_available_qty()
 		self.validate_pricing()
 		self.validate_stock()
@@ -46,6 +47,31 @@ class Listing(Document):
 		self._validate_variant_defaults()
 		self._validate_variant_pricing()
 		self._calculate_completeness()
+
+	def _resolve_attribute_links(self):
+		"""Auto-resolve free-text attribute names to Product Attribute records.
+
+		Sellers fill the 'Özellik Adı' column as free text (frontend key:
+		attribute_label). The schema requires the 'attribute' Link field, so
+		we look up — or create — a Product Attribute matching the label and
+		fill the link before Frappe's mandatory validation runs.
+		"""
+		for row in self.get("attribute_values") or []:
+			if row.get("attribute"):
+				continue
+			label = (row.get("attribute_label") or row.get("attribute_name") or "").strip()
+			if not label:
+				continue  # let standard mandatory validation flag it
+			code = frappe.scrub(label) or label
+			if not frappe.db.exists("Product Attribute", code):
+				new_attr = frappe.new_doc("Product Attribute")
+				new_attr.attribute_code = code
+				new_attr.attribute_label = label
+				new_attr.data_type = "Text"
+				new_attr.flags.ignore_permissions = True
+				new_attr.insert(ignore_permissions=True)
+			row.attribute = code
+			row.attribute_label = label
 
 	def _calculate_completeness(self):
 		from tradehub_core.utils.completeness import calculate_completeness_score
@@ -190,18 +216,17 @@ class Listing(Document):
 	def _validate_variant_pricing(self):
 		"""Variant satirlarinda ve toptan fiyat dilimlerinde negatif fiyat reddedilir."""
 		for row in self.get("variant_items") or []:
-			if flt(row.price) < 0:
-				frappe.throw(
-					_("Varyant fiyatı negatif olamaz: {0}").format(
-						row.get("variation_label") or row.name or ""
-					)
-				)
-			if flt(row.stock) < 0:
-				frappe.throw(
-					_("Varyant stoğu negatif olamaz: {0}").format(
-						row.get("variation_label") or row.name or ""
-					)
-				)
+			label = (
+				row.get("variant_sku")
+				or row.get("attribute_value")
+				or row.get("attribute_value_2")
+				or row.name
+				or ""
+			)
+			if flt(row.variant_price) < 0:
+				frappe.throw(_("Varyant fiyatı negatif olamaz: {0}").format(label))
+			if flt(row.variant_stock) < 0:
+				frappe.throw(_("Varyant stoğu negatif olamaz: {0}").format(label))
 		for tier in self.get("pricing_tiers") or []:
 			if flt(tier.price) < 0:
 				frappe.throw(_("Toptan fiyat dilimi negatif olamaz"))

@@ -16,6 +16,15 @@ def _cache_key(prefix: str, **kwargs) -> str:
 	return f"{prefix}:{h}"
 
 
+# Storefront-visible statuses. "Out of Stock" listings still appear on the
+# storefront as browsable, but with a "stokta yok" badge and zeroed stock so
+# that nothing can be added to cart. Flipping back to "Active" restores
+# everything automatically (no data is mutated, only filtered/zeroed in the
+# response).
+STOREFRONT_VISIBLE_STATUSES = ("Active", "Out of Stock")
+STOREFRONT_STATUS_FILTER = ["in", list(STOREFRONT_VISIBLE_STATUSES)]
+
+
 CACHE_TTL = 30  # seconds — short TTL for listing queries
 
 # How long the (listing × client IP) view dedup key lives in Redis.
@@ -326,16 +335,16 @@ def get_listings(
 	if status:
 		roles = frappe.get_roles()
 		if any(r in roles for r in ("System Manager", "Admin", "Seller")):
-			allowed_status = {"Active", "Pending", "Rejected", "Paused", "Archived", "Draft"}
+			allowed_status = {"Active", "Pending", "Rejected", "Paused", "Archived", "Draft", "Out of Stock"}
 			if status not in allowed_status:
 				frappe.throw(_("Geçersiz status: {0}").format(status))
 			filters = {"status": status}
 			if status == "Active":
 				filters["is_visible"] = 1
 		else:
-			filters = {"status": "Active", "is_visible": 1}
+			filters = {"status": STOREFRONT_STATUS_FILTER, "is_visible": 1}
 	else:
-		filters = {"status": "Active", "is_visible": 1}
+		filters = {"status": STOREFRONT_STATUS_FILTER, "is_visible": 1}
 
 	if category:
 		# category param is a url_slug from Product Category.
@@ -617,6 +626,7 @@ def get_listings(
 		"brand_name",
 		"modified",
 		"creation",
+		"status",
 	]
 
 	# Convert dict filters to list-of-lists and append price filters
@@ -914,6 +924,21 @@ def get_listing_detail(listing_id):
 	# Get variants
 	variants = _get_listing_variants(listing_name)
 
+	# When the seller has flipped status to "Out of Stock", we still expose the
+	# listing on the storefront (so it remains browsable) but force every stock
+	# field to 0 and mark every SKU as unavailable. The DB is NOT mutated —
+	# flipping back to "Active" restores the original values automatically.
+	is_out_of_stock = listing.status == "Out of Stock"
+	if is_out_of_stock:
+		for axis in variants:
+			for opt in axis.get("options", []) or []:
+				opt["available"] = False
+				if "stockQty" in opt:
+					opt["stockQty"] = 0
+			for row in axis.get("skuMatrix", []) or []:
+				row["stock"] = 0
+				row["available"] = False
+
 	# Get specifications — flat list (backward compat) + grouped by attribute set
 	specs = []
 	for attr in listing.attribute_values or []:
@@ -1068,9 +1093,11 @@ def get_listing_detail(listing_id):
 		"isNewArrival": bool(listing.is_new_arrival),
 		"sellingPoint": listing.selling_point,
 		"hasVariants": bool(listing.has_variants),
-		"stockQty": listing.available_qty or listing.stock_qty,
-		"inStock": (listing.available_qty or listing.stock_qty or 0) > 0,
+		"stockQty": 0 if is_out_of_stock else (listing.available_qty or listing.stock_qty),
+		"inStock": False if is_out_of_stock else ((listing.available_qty or listing.stock_qty or 0) > 0),
 		"videoUrl": listing.video_url,
+		"status": listing.status or "",
+		"outOfStock": is_out_of_stock,
 	}
 
 	return {"data": result}
@@ -1106,7 +1133,7 @@ def get_categories(parent=None, include_children=True):
 			"parent": cat.parent_product_category,
 			"children": [],
 			"productCount": frappe.db.count(
-				"Listing", {"product_category": cat.name, "status": "Active", "is_visible": 1}
+				"Listing", {"product_category": cat.name, "status": STOREFRONT_STATUS_FILTER, "is_visible": 1}
 			),
 		}
 
@@ -1125,7 +1152,12 @@ def get_categories(parent=None, include_children=True):
 						"slug": child.url_slug,
 						"image": child.image,
 						"productCount": frappe.db.count(
-							"Listing", {"product_category": child.name, "status": "Active", "is_visible": 1}
+							"Listing",
+							{
+								"product_category": child.name,
+								"status": STOREFRONT_STATUS_FILTER,
+								"is_visible": 1,
+							},
 						),
 					}
 				)
@@ -1149,7 +1181,7 @@ def get_filter_facets(query=None, category=None):
 	if cached:
 		return cached
 
-	base_filters = {"status": "Active", "is_visible": 1}
+	base_filters = {"status": STOREFRONT_STATUS_FILTER, "is_visible": 1}
 	if category:
 		platform_cat = frappe.db.get_value("Product Category", {"url_slug": category}, "name")
 		if platform_cat:
@@ -1560,7 +1592,7 @@ def get_top_ranking_categories(limit=6, sort="hot-selling"):
 			{agg_expr} AS metric,
 			COUNT(l.name) AS listing_count
 		FROM `tabListing` l
-		WHERE l.status = 'Active'
+		WHERE l.status IN ('Active', 'Out of Stock')
 		  AND l.is_visible = 1
 		  AND l.product_category IS NOT NULL
 		  AND l.product_category != ''
@@ -1598,7 +1630,7 @@ def get_top_ranking_categories(limit=6, sort="hot-selling"):
 		top = frappe.get_all(
 			"Listing",
 			filters=[
-				["status", "=", "Active"],
+				["status", "in", list(STOREFRONT_VISIBLE_STATUSES)],
 				["is_visible", "=", 1],
 				["product_category", "=", cat_id],
 				[sort_field, ">", 0],
@@ -1759,7 +1791,7 @@ def get_top_ranking_grouped(
 			l.product_category AS cat_id,
 			{agg_expr} AS metric
 		FROM `tabListing` l
-		WHERE l.status = 'Active'
+		WHERE l.status IN ('Active', 'Out of Stock')
 		  AND l.is_visible = 1
 		  AND l.product_category IS NOT NULL
 		  AND l.product_category != ''
@@ -1830,6 +1862,7 @@ def get_top_ranking_grouped(
 		"brand_name",
 		"modified",
 		"creation",
+		"status",
 	]
 
 	# Per-category sort order_by — use the same metric, fall back to modified.
@@ -1841,7 +1874,7 @@ def get_top_ranking_grouped(
 		listings = frappe.get_all(
 			"Listing",
 			filters=[
-				["status", "=", "Active"],
+				["status", "in", list(STOREFRONT_VISIBLE_STATUSES)],
 				["is_visible", "=", 1],
 				["product_category", "=", cat_id],
 				[sort_field, ">", 0],
@@ -1924,7 +1957,7 @@ def get_related_listings(listing_id, limit=8):
 		return {"data": []}
 
 	filters = {
-		"status": "Active",
+		"status": STOREFRONT_STATUS_FILTER,
 		"is_visible": 1,
 		"name": ["!=", listing_id],
 	}
@@ -1958,6 +1991,7 @@ def get_related_listings(listing_id, limit=8):
 			"b2b_enabled",
 			"category_name",
 			"brand",
+			"status",
 		],
 		order_by="order_count DESC",
 		limit=int(limit),
@@ -2016,7 +2050,7 @@ def get_related_listings_grouped(listing_id: str):
 		"Listing",
 		filters={
 			"name": ["in", list(all_ids)],
-			"status": "Active",
+			"status": STOREFRONT_STATUS_FILTER,
 			"is_visible": 1,
 		},
 		fields=[
@@ -2042,6 +2076,7 @@ def get_related_listings_grouped(listing_id: str):
 			"b2b_enabled",
 			"category_name",
 			"brand",
+			"status",
 		],
 	)
 	card_by_id = {lst["name"]: _format_listing_card(lst) for lst in listings}
@@ -2195,7 +2230,11 @@ def get_search_suggestions(limit=6):
 			queries_tried += 1
 			matches = frappe.get_all(
 				"Listing",
-				filters={"status": "Active", "is_visible": 1, "title": ["like", f"%{q_text}%"]},
+				filters={
+					"status": STOREFRONT_STATUS_FILTER,
+					"is_visible": 1,
+					"title": ["like", f"%{q_text}%"],
+				},
 				fields=["title"],
 				order_by="order_count DESC",
 				limit=2,
@@ -2225,7 +2264,7 @@ def get_search_suggestions(limit=6):
 						"Listing",
 						filters=[
 							["product_category", "in", cat_ids],
-							["status", "=", "Active"],
+							["status", "in", list(STOREFRONT_VISIBLE_STATUSES)],
 							["is_visible", "=", 1],
 						],
 						fields=["title"],
@@ -2278,7 +2317,7 @@ def get_search_suggestions(limit=6):
 	pool_size = max(limit * 3, 20)
 	listing_pool = frappe.get_all(
 		"Listing",
-		filters={"status": "Active", "is_visible": 1},
+		filters={"status": STOREFRONT_STATUS_FILTER, "is_visible": 1},
 		fields=["title"],
 		order_by="order_count DESC, view_count DESC",
 		limit=pool_size,
@@ -2311,7 +2350,7 @@ def get_search_suggestions(limit=6):
 		SELECT pc.category_name, pc.url_slug, pc.name, COUNT(*) as cnt
 		FROM `tabListing` l
 		JOIN `tabProduct Category` pc ON pc.name = l.product_category
-		WHERE l.status = 'Active' AND l.is_visible = 1 AND pc.is_active = 1
+		WHERE l.status IN ('Active', 'Out of Stock') AND l.is_visible = 1 AND pc.is_active = 1
 		GROUP BY pc.name
 		HAVING cnt > 0
 		ORDER BY cnt DESC
@@ -2533,6 +2572,11 @@ def _format_listing_card(listing, seller_cache=None, tier_cache=None, brand_cach
 		"brandSlug": _brand_slug(listing.get("brand"), brand_cache),
 		"brandLogo": _brand_logo(listing.get("brand"), brand_cache),
 		"baseCurrency": listing.get("currency", "USD"),
+		# Out-of-stock badge: when the seller has flipped status to "Out of Stock"
+		# the card still appears in storefront grids, but the frontend should
+		# render a "stokta yok" badge and disable add-to-cart on detail page.
+		"outOfStock": listing.get("status") == "Out of Stock",
+		"status": listing.get("status", ""),
 	}
 
 
