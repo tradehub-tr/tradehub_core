@@ -33,6 +33,7 @@
 			"default": "Pending",
 			"in_list_view": 1,
 			"in_standard_filter": 1,
+			"read_only": 1,
 			"permlevel": 1
 		},
 		{
@@ -109,12 +110,14 @@
 		{
 			"fieldname": "identity_document",
 			"fieldtype": "Attach",
-			"label": "Kimlik Belgesi"
+			"label": "Kimlik Belgesi",
+			"reqd": 1
 		},
 		{
 			"fieldname": "imza_sirkuleri",
 			"fieldtype": "Attach",
-			"label": "İmza Sirküleri"
+			"label": "İmza Sirküleri",
+			"reqd": 1
 		},
 		{
 			"fieldname": "cb_docs",
@@ -123,12 +126,14 @@
 		{
 			"fieldname": "ticaret_sicil_gazetesi",
 			"fieldtype": "Attach",
-			"label": "Ticaret Sicil Gazetesi"
+			"label": "Ticaret Sicil Gazetesi",
+			"reqd": 1
 		},
 		{
 			"fieldname": "faaliyet_belgesi",
 			"fieldtype": "Attach",
-			"label": "Faaliyet Belgesi"
+			"label": "Faaliyet Belgesi",
+			"reqd": 1
 		},
 		{
 			"fieldname": "sb_docs2",
@@ -138,7 +143,15 @@
 		{
 			"fieldname": "vergi_levhasi",
 			"fieldtype": "Attach",
-			"label": "Vergi Levhası"
+			"label": "Vergi Levhası",
+			"reqd": 1
+		},
+		{
+			"fieldname": "bank_account_document",
+			"fieldtype": "Attach",
+			"label": "Banka Hesap Belgesi",
+			"description": "IBAN onaylı, banka mührü/imzalı belge — payout doğrulaması için zorunlu",
+			"reqd": 1
 		},
 		{
 			"fieldname": "document_expiry_date",
@@ -158,7 +171,7 @@
 		{
 			"fieldname": "verified_by",
 			"fieldtype": "Link",
-			"label": "Verified By",
+			"label": "Son İnceleyen",
 			"options": "User",
 			"read_only": 1,
 			"permlevel": 1
@@ -166,7 +179,7 @@
 		{
 			"fieldname": "verified_at",
 			"fieldtype": "Datetime",
-			"label": "Verified At",
+			"label": "Son İnceleme Tarihi",
 			"read_only": 1,
 			"permlevel": 1
 		},
@@ -184,7 +197,7 @@
 			"fieldname": "notes",
 			"fieldtype": "Small Text",
 			"label": "Notes",
-			"permlevel": 1
+			"permlevel": 2
 		}
 	],
 	"permissions": [
@@ -205,6 +218,12 @@
 			"permlevel": 1
 		},
 		{
+			"role": "System Manager",
+			"read": 1,
+			"write": 1,
+			"permlevel": 2
+		},
+		{
 			"role": "Marketplace Admin",
 			"read": 1,
 			"write": 1,
@@ -217,6 +236,12 @@
 			"read": 1,
 			"write": 1,
 			"permlevel": 1
+		},
+		{
+			"role": "Marketplace Admin",
+			"read": 1,
+			"write": 1,
+			"permlevel": 2
 		},
 		{
 			"role": "Seller",

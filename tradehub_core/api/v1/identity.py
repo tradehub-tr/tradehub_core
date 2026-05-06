@@ -1670,6 +1670,11 @@ def become_seller():
 	app.contact_phone = canonicalize_phone(user_data.phone) or ""
 	app.country = frappe.db.get_value("Buyer Profile", {"user": user}, "country") or "Turkey"
 	app.status = "Draft"
+	# identity_document doctype-level reqd:1 — Draft skeleton burada boş insert
+	# edilir; gerçek zorunluluk complete_registration_application'da set ile
+	# birlikte Submitted save'de Frappe core tarafından + register_supplier'daki
+	# explicit Türkçe validation tarafından enforced.
+	app.flags.ignore_mandatory = True
 	app.insert(ignore_permissions=True)
 	frappe.db.commit()
 

@@ -70,7 +70,6 @@ class SellerProfile(Document):
 
 		# ── Shared fields → Buyer Profile sync ──
 		shared_fields = [
-			"avatar",
 			"website",
 			"job_title",
 			"year_established",
