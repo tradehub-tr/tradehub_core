@@ -49,9 +49,7 @@ def _detect_format(content: bytes, filename_lower: str) -> str:
 		try:
 			with zipfile.ZipFile(io.BytesIO(content)) as zf:
 				names = zf.namelist()
-				if "[Content_Types].xml" in names and any(
-					n.startswith("word/") for n in names
-				):
+				if "[Content_Types].xml" in names and any(n.startswith("word/") for n in names):
 					return ".docx"
 		except zipfile.BadZipFile:
 			pass
@@ -77,19 +75,25 @@ def _get_seller_data(user: str) -> dict:
 	(business_name'i ad-soyad ile karışmış olabilir). Bu yüzden **SA önceliklidir**;
 	SA boşsa SP fallback olur.
 	"""
-	sa = frappe.db.get_value(
-		"Seller Application",
-		{"applicant_user": user},
-		["business_name", "seller_type", "tax_id", "tax_id_type", "tax_office"],
-		as_dict=True,
-	) or {}
+	sa = (
+		frappe.db.get_value(
+			"Seller Application",
+			{"applicant_user": user},
+			["business_name", "seller_type", "tax_id", "tax_id_type", "tax_office"],
+			as_dict=True,
+		)
+		or {}
+	)
 
-	sp = frappe.db.get_value(
-		"Seller Profile",
-		{"user": user},
-		["seller_name", "seller_type", "business_name", "tax_id", "tax_id_type", "tax_office"],
-		as_dict=True,
-	) or {}
+	sp = (
+		frappe.db.get_value(
+			"Seller Profile",
+			{"user": user},
+			["seller_name", "seller_type", "business_name", "tax_id", "tax_id_type", "tax_office"],
+			as_dict=True,
+		)
+		or {}
+	)
 
 	# SA öncelik, SP fallback
 	business_name = sa.get("business_name") or sp.get("business_name") or ""
@@ -196,9 +200,7 @@ def get_kyb_status():
 		"faaliyet_belgesi": kyb.faaliyet_belgesi or "",
 		"vergi_levhasi": kyb.vergi_levhasi or "",
 		"bank_account_document": kyb.bank_account_document or "",
-		"document_expiry_date": (
-			str(kyb.document_expiry_date) if kyb.document_expiry_date else ""
-		),
+		"document_expiry_date": (str(kyb.document_expiry_date) if kyb.document_expiry_date else ""),
 		"tax_id_type": kyb.tax_id_type or "",
 		"tax_id": kyb.tax_id or "",
 		"tax_office": kyb.tax_office or "",
@@ -293,9 +295,7 @@ def submit_kyb_documents(
 			"vergi_levhasi",
 			"bank_account_document",
 		)
-		documents_changed = any(
-			(doc.get(f) or "") != (field_data.get(f) or "") for f in document_fields
-		)
+		documents_changed = any((doc.get(f) or "") != (field_data.get(f) or "") for f in document_fields)
 
 		# Field'ları yaz
 		for field, value in field_data.items():
@@ -369,10 +369,7 @@ def review_kyb(
 		reason_clean = (rejection_reason or "").strip()
 		if len(reason_clean) < 20:
 			frappe.throw(
-				_(
-					"Reddetme gerekçesi en az 20 karakter olmalı; satıcıya net "
-					"bir eylem önerisi verin."
-				),
+				_("Reddetme gerekçesi en az 20 karakter olmalı; satıcıya net bir eylem önerisi verin."),
 				frappe.ValidationError,
 			)
 
@@ -423,10 +420,7 @@ def upload_kyb_document(filename: str = "", filedata: str = ""):
 	filename_lower = filename.lower()
 	if not filename_lower.endswith(KYB_ALLOWED_EXTENSIONS):
 		frappe.throw(
-			_(
-				"Geçersiz dosya türü. Yalnızca PDF, JPG, JPEG, PNG, WEBP, DOCX "
-				"kabul edilir."
-			),
+			_("Geçersiz dosya türü. Yalnızca PDF, JPG, JPEG, PNG, WEBP, DOCX kabul edilir."),
 			frappe.ValidationError,
 		)
 

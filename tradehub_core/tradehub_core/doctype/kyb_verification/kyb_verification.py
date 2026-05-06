@@ -207,14 +207,11 @@ class KYBVerification(Document):
 			if is_resubmit:
 				admin_title = _("KYB Belgeleri Yenilendi")
 				admin_message = _(
-					"{0} reddedilmiş KYB başvurusu için yeni belgeler yükledi, "
-					"yeniden inceleme bekliyor."
+					"{0} reddedilmiş KYB başvurusu için yeni belgeler yükledi, yeniden inceleme bekliyor."
 				).format(company)
 			else:
 				admin_title = _("KYB Doğrulama Başvurusu")
-				admin_message = _(
-					"{0} yeni KYB doğrulama başvurusu bekliyor."
-				).format(company)
+				admin_message = _("{0} yeni KYB doğrulama başvurusu bekliyor.").format(company)
 
 			admins = frappe.get_all(
 				"Has Role",

@@ -2738,9 +2738,7 @@ def _ensure_buyer(b):
 	doc.insert(ignore_permissions=True)
 
 	# Avatar User.user_image'de tek doğruluk kaynağıdır.
-	frappe.db.set_value(
-		"User", b["email"], "user_image", _seller_logo(b["buyer_name"], 200)
-	)
+	frappe.db.set_value("User", b["email"], "user_image", _seller_logo(b["buyer_name"], 200))
 	return b["email"]
 
 
