@@ -1,3 +1,14 @@
+## [v1.0.7-beta.4] - 2026-05-06 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Eklendi
+- feat(kyb,profile): KYB belge upload sertleştirme + resubmit/review akışı + avatar User.user_image konsolidasyonu (@aliiball)
+
+### Duzeltildi
+- fix: update seller permissions to include owner fallback and implement permission-aware CRM count endpoint (@ahmeetseker)
+
+---
 ## [v1.0.7-beta.3] - 2026-05-06 BETA
 
 Bu surum betaistoc.cronbi.com'da test asamasindadir.
