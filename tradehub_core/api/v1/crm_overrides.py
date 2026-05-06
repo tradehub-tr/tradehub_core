@@ -66,6 +66,43 @@ def get_users():
 	return [me] if me else []
 
 
+_CRM_COUNTABLE_DOCTYPES = frozenset(
+	{
+		"CRM Lead",
+		"CRM Deal",
+		"CRM Organization",
+		"CRM Task",
+		"CRM Call Log",
+		"FCRM Note",
+		"Contact",
+	}
+)
+
+
+@frappe.whitelist()
+def crm_get_count(doctype: str, filters=None):
+	"""Permission-aware count — Frappe `frappe.client.get_count` fonksiyonu
+	`permission_query_conditions` hook'unu uygulamadığı için multi-tenant'ta
+	yanıltıcı sayılar verir (tüm tenant kayıtlarını sayar). Bu endpoint
+	`frappe.get_list` üzerinden permission filtresi uygulayarak sayar.
+	"""
+	if doctype not in _CRM_COUNTABLE_DOCTYPES:
+		frappe.throw(frappe._("Bu doctype için count desteklenmez"))
+
+	if isinstance(filters, str):
+		import json
+
+		filters = json.loads(filters)
+
+	rows = frappe.get_list(
+		doctype,
+		filters=filters or [],
+		pluck="name",
+		limit_page_length=0,  # 0 = no limit; permission_query yine devrede
+	)
+	return len(rows)
+
+
 @frappe.whitelist()
 def get_organizations():
 	"""Override of crm.api.session.get_organizations — kişisel scope.

@@ -1030,14 +1030,19 @@ def _crm_query_for_doctype(user, doctype_table):
 	if roles & _CRM_FULL_ACCESS_ROLES:
 		return ""
 
-	# Marketplace Seller — kendi profile'ına kısıtla
+	# Marketplace Seller — kendi profile'ı + kendi oluşturduğu eski kayıtlar.
+	# `seller = profile` ana izolasyon kuralı; eski kayıtlarda autoset hook
+	# henüz aktif değilse `seller` NULL kalmış olabilir → `owner = user`
+	# fallback'i o kayıtlara erişimi açar (kendi yarattıkları için zaten güvenli).
 	if "Marketplace Seller" in roles or "Seller" in roles:
 		profile = _get_seller_profile_name(user)
+		escaped_user = frappe.db.escape(user)
 		if profile:
 			escaped = frappe.db.escape(profile)
-			return f"`{doctype_table}`.`seller` = {escaped}"
-		# Profili olmayan satıcı user'ı — fallback: sadece kendi oluşturdukları
-		escaped_user = frappe.db.escape(user)
+			return (
+				f"(`{doctype_table}`.`seller` = {escaped} "
+				f"OR `{doctype_table}`.`owner` = {escaped_user})"
+			)
 		return f"`{doctype_table}`.`owner` = {escaped_user}"
 
 	# Diğer System User'lar (Buyer hariç tanınmamış admin paneli kullanıcıları)
@@ -1068,12 +1073,12 @@ def _crm_has_permission_for_doc(doc, ptype, user):
 	if "Marketplace Seller" in roles or "Seller" in roles:
 		profile = _get_seller_profile_name(user)
 		seller_val = getattr(doc, "seller", None) if not isinstance(doc, dict) else doc.get("seller")
+		owner_val = getattr(doc, "owner", None) if not isinstance(doc, dict) else doc.get("owner")
 		if ptype == "create" and not seller_val:
 			return True
-		if profile:
-			return seller_val == profile
-		# Profili yok — kendi oluşturduklarına eriş
-		owner_val = getattr(doc, "owner", None) if not isinstance(doc, dict) else doc.get("owner")
+		# Profile eşleşirse veya eski (seller=NULL) kayıt kendi oluşturduğuysa eriş
+		if profile and seller_val == profile:
+			return True
 		return owner_val == user
 
 	# Buyer dışındaki System User'lar — kendi oluşturduğu kayıtlara erişim
