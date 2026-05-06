@@ -1036,15 +1036,26 @@ def _crm_query_for_doctype(user, doctype_table):
 		if profile:
 			escaped = frappe.db.escape(profile)
 			return f"`{doctype_table}`.`seller` = {escaped}"
-		# Profili olmayan satıcı user'ı — hiçbir şey görmesin
-		return "1=0"
+		# Profili olmayan satıcı user'ı — fallback: sadece kendi oluşturdukları
+		escaped_user = frappe.db.escape(user)
+		return f"`{doctype_table}`.`owner` = {escaped_user}"
 
-	# Diğer roller (Buyer vb.) — CRM'e erişim yok
-	return "1=0"
+	# Diğer System User'lar (Buyer hariç tanınmamış admin paneli kullanıcıları)
+	# — CRM tamamen kilitli yerine kişisel scope: sadece kendi oluşturduğu kayıtlar.
+	if "Buyer" in roles:
+		return "1=0"
+	escaped_user = frappe.db.escape(user)
+	return f"`{doctype_table}`.`owner` = {escaped_user}"
 
 
 def _crm_has_permission_for_doc(doc, ptype, user):
 	"""Generic CRM bireysel doc permission check'i.
+
+	Marketplace Seller yalnız kendi `seller` profile'ına eşleşen kayıtları
+	görebilir; admin/sistem havuzu (seller NULL) ve diğer satıcıların kayıtları
+	tamamen gizlidir. Yeni kayıt oluşturma sırasında doc.seller boş gelir —
+	`crm_seller_autoset.autoset_seller` before_insert hook'u onu doldurduğu için
+	`ptype == "create"` durumunu izinli geçiyoruz.
 
 	doc: Document veya dict; `seller` alanı içermeli (ya da pluck'lanır).
 	"""
@@ -1056,15 +1067,22 @@ def _crm_has_permission_for_doc(doc, ptype, user):
 
 	if "Marketplace Seller" in roles or "Seller" in roles:
 		profile = _get_seller_profile_name(user)
-		if not profile:
-			return False
 		seller_val = getattr(doc, "seller", None) if not isinstance(doc, dict) else doc.get("seller")
-		# Boş seller (havuz) — read izinli, write/create kendisinin değilse blokla
-		if not seller_val:
-			return ptype == "read"
-		return seller_val == profile
+		if ptype == "create" and not seller_val:
+			return True
+		if profile:
+			return seller_val == profile
+		# Profili yok — kendi oluşturduklarına eriş
+		owner_val = getattr(doc, "owner", None) if not isinstance(doc, dict) else doc.get("owner")
+		return owner_val == user
 
-	return False
+	# Buyer dışındaki System User'lar — kendi oluşturduğu kayıtlara erişim
+	if "Buyer" in roles:
+		return False
+	if ptype == "create":
+		return True
+	owner_val = getattr(doc, "owner", None) if not isinstance(doc, dict) else doc.get("owner")
+	return owner_val == user
 
 
 # Doctype-spesifik wrapper'lar (hooks.py'a kayıt için ayrı isimler gerek)
@@ -1096,7 +1114,8 @@ def crm_organization_has_permission(doc, ptype, user):
 
 def contact_query_conditions(user):
 	# Contact doctype tüm sistem genelinde kullanılır (User profili, Address vb.)
-	# — sadece Marketplace Seller için scope uygula, diğerleri için açık bırak.
+	# — Marketplace Seller yalnızca kendi `seller`'ı olan Contact'ları görür;
+	# admin/sistem kişileri (seller NULL) ve diğer satıcıların kişileri gizli.
 	if not user or user == "Guest":
 		return "1=0"
 	if user == "Administrator":
@@ -1108,9 +1127,8 @@ def contact_query_conditions(user):
 		profile = _get_seller_profile_name(user)
 		if profile:
 			escaped = frappe.db.escape(profile)
-			# seller boş olanlar (sistem geneli kişiler) hariç + kendi seller'ı
-			return f"(`tabContact`.`seller` = {escaped} OR `tabContact`.`seller` IS NULL)"
-		return ""  # profil yoksa standart davranış
+			return f"`tabContact`.`seller` = {escaped}"
+		return "1=0"  # profili olmayan satıcı user'ı → hiçbir şey görmesin
 	return ""  # Buyer vb. → standart Contact (sistem genelinde) erişimi
 
 
@@ -1123,10 +1141,11 @@ def contact_has_permission(doc, ptype, user):
 	if "Marketplace Seller" in roles or "Seller" in roles:
 		profile = _get_seller_profile_name(user)
 		if not profile:
-			return True  # standart davranış
+			return False
 		seller_val = getattr(doc, "seller", None) if not isinstance(doc, dict) else doc.get("seller")
-		if not seller_val:
-			return True  # genel kişi → herkes okuyabilir
+		# Yeni Contact oluşturma — autoset hook seller'ı satıcının profile'ı yapacak
+		if ptype == "create" and not seller_val:
+			return True
 		return seller_val == profile
 	return True  # diğer roller → standart Contact erişimi
 

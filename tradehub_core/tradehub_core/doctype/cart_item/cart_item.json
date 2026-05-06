@@ -8,6 +8,7 @@
   "listing_variant",
   "color_variant",
   "variant_label",
+  "is_sample",
   "quantity",
   "seller",
   "snapshot_title",
@@ -39,6 +40,13 @@
    "fieldname": "variant_label",
    "fieldtype": "Data",
    "label": "Varyant Etiketi"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_sample",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Numune"
   },
   {
    "default": "1",

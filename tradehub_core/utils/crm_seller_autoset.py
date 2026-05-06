@@ -42,3 +42,25 @@ def autoset_seller(doc, method=None):
 	profile = _resolve_user_seller(user)
 	if profile:
 		doc.seller = profile
+
+
+_OWNER_FIELDS = ("lead_owner", "deal_owner")
+
+
+def autoset_owner(doc, method=None):
+	"""before_insert hook — boş kalan lead_owner/deal_owner alanını creator'a set.
+
+	Faz 1'de kullanıcı atama UI'ı yok; kayıt sahipliği otomatik olarak
+	oluşturanın e-postasına bağlanır. İleride çok kullanıcılı modele geçilirse
+	UserPicker tekrar açılır ve bu hook elle set edilenleri override etmez.
+	"""
+	user = frappe.session.user
+	if not user or user in ("Guest", "Administrator"):
+		return
+	try:
+		meta = frappe.get_meta(doc.doctype)
+	except Exception:
+		return
+	for field in _OWNER_FIELDS:
+		if meta.has_field(field) and not getattr(doc, field, None):
+			setattr(doc, field, user)
