@@ -18,9 +18,7 @@ import frappe
 
 from tradehub_core.permissions import (
 	_CRM_FULL_ACCESS_ROLES,
-	_get_seller_profile_name,
 )
-
 
 _USER_FIELDS = ("name", "email", "full_name", "user_image")
 _ORG_FIELDS = ("name", "organization_name", "industry", "territory", "no_of_employees")
@@ -64,6 +62,43 @@ def get_users():
 	# Marketplace Seller (ve atanmamış roller) — yalnızca kendisini gör
 	me = frappe.db.get_value("User", user, list(_USER_FIELDS), as_dict=True)
 	return [me] if me else []
+
+
+_CRM_COUNTABLE_DOCTYPES = frozenset(
+	{
+		"CRM Lead",
+		"CRM Deal",
+		"CRM Organization",
+		"CRM Task",
+		"CRM Call Log",
+		"FCRM Note",
+		"Contact",
+	}
+)
+
+
+@frappe.whitelist()
+def crm_get_count(doctype: str, filters=None):
+	"""Permission-aware count — Frappe `frappe.client.get_count` fonksiyonu
+	`permission_query_conditions` hook'unu uygulamadığı için multi-tenant'ta
+	yanıltıcı sayılar verir (tüm tenant kayıtlarını sayar). Bu endpoint
+	`frappe.get_list` üzerinden permission filtresi uygulayarak sayar.
+	"""
+	if doctype not in _CRM_COUNTABLE_DOCTYPES:
+		frappe.throw(frappe._("Bu doctype için count desteklenmez"))
+
+	if isinstance(filters, str):
+		import json
+
+		filters = json.loads(filters)
+
+	rows = frappe.get_list(
+		doctype,
+		filters=filters or [],
+		pluck="name",
+		limit_page_length=0,  # 0 = no limit; permission_query yine devrede
+	)
+	return len(rows)
 
 
 @frappe.whitelist()
