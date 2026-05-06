@@ -18,9 +18,7 @@ import frappe
 
 from tradehub_core.permissions import (
 	_CRM_FULL_ACCESS_ROLES,
-	_get_seller_profile_name,
 )
-
 
 _USER_FIELDS = ("name", "email", "full_name", "user_image")
 _ORG_FIELDS = ("name", "organization_name", "industry", "territory", "no_of_employees")

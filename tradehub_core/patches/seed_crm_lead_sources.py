@@ -12,7 +12,6 @@ Idempotent: lead_source name unique → var olanları atlar.
 
 import frappe
 
-
 DEFAULTS = [
 	"Web Sitesi",
 	"Pazaryeri Sorgu",
