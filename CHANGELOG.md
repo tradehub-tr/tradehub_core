@@ -1,3 +1,8 @@
+## [v1.0.7-beta.2] - 2026-05-06 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+---
 ## [v1.0.7-beta.1] - 2026-05-05 BETA
 
 Bu surum betaistoc.cronbi.com'da test asamasindadir.
