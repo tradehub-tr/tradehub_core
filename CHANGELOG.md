@@ -1,3 +1,11 @@
+## [v1.0.7-beta.3] - 2026-05-06 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Duzeltildi
+- fix: update seller permissions to include owner fallback and implement permission-aware CRM count endpoint (@ahmeetseker)
+
+---
 ## [v1.0.7-beta.2] - 2026-05-06 BETA
 
 Bu surum betaistoc.cronbi.com'da test asamasindadir.
