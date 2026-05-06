@@ -27,6 +27,63 @@ def _build_cart_response_cached(cart_name):
 # ──────────────────────────── helpers ────────────────────────────────────────
 
 
+def _parse_billing_info(billing_info_json):
+	"""Fatura bilgisi JSON'unu parse edip doğrular. None ise {} döner (fatura opsiyonel)."""
+	if not billing_info_json:
+		return {}
+	if isinstance(billing_info_json, str):
+		try:
+			data = json.loads(billing_info_json)
+		except (ValueError, TypeError):
+			frappe.throw(_("Geçersiz fatura bilgisi"))
+	else:
+		data = billing_info_json
+	if not isinstance(data, dict):
+		frappe.throw(_("Geçersiz fatura bilgisi"))
+
+	billing_type = (data.get("type") or "").strip()
+	if billing_type and billing_type not in ("Bireysel", "Şirket"):
+		frappe.throw(_("Geçersiz fatura tipi"))
+
+	if billing_type == "Şirket":
+		if not (data.get("company_name") or "").strip():
+			frappe.throw(_("Şirket ünvanı zorunludur"))
+		if not (data.get("tax_office") or "").strip():
+			frappe.throw(_("Vergi dairesi zorunludur"))
+		tax_number = (data.get("tax_number") or "").strip()
+		if not tax_number or not tax_number.isdigit() or len(tax_number) != 10:
+			frappe.throw(_("Geçerli bir VKN giriniz (10 haneli)"))
+	elif billing_type == "Bireysel":
+		tcn = (data.get("tcn") or "").strip()
+		if not tcn or not tcn.isdigit() or len(tcn) != 11:
+			frappe.throw(_("Geçerli bir TCKN giriniz (11 haneli)"))
+
+	same_as_shipping = bool(data.get("same_as_shipping"))
+	if billing_type and not same_as_shipping:
+		for k, label in (
+			("address", "Adres"),
+			("city", "İl"),
+			("district", "İlçe"),
+			("postal_code", "Posta kodu"),
+		):
+			if not (data.get(k) or "").strip():
+				frappe.throw(_("Fatura {0} zorunludur").format(label.lower()))
+
+	return {
+		"type": billing_type,
+		"company_name": (data.get("company_name") or "").strip(),
+		"tax_office": (data.get("tax_office") or "").strip(),
+		"tax_number": (data.get("tax_number") or "").strip(),
+		"tcn": (data.get("tcn") or "").strip(),
+		"e_invoice": 1 if data.get("e_invoice") else 0,
+		"same_as_shipping": 1 if same_as_shipping else 0,
+		"address": (data.get("address") or "").strip(),
+		"city": (data.get("city") or "").strip(),
+		"district": (data.get("district") or "").strip(),
+		"postal_code": (data.get("postal_code") or "").strip(),
+	}
+
+
 def _get_or_create_cart(user):
 	"""Get or create the active Cart for a user. Returns cart name."""
 	cart_name = frappe.db.get_value("Cart", {"buyer": user, "status": "Active"}, "name")
@@ -63,25 +120,41 @@ def _verify_cart_item_owner(cart_item_name, user):
 	return parent_cart
 
 
-def _find_existing_cart_item(cart_name, listing, listing_variant, color_variant=None, variant_label=None):
+def _find_existing_cart_item(
+	cart_name, listing, listing_variant, color_variant=None, variant_label=None, is_sample=False
+):
 	"""
 	Find an existing Cart Item for the given listing + variant combination.
-	Matches on listing_variant, color_variant, AND variant_label so that
-	same-size different-color or different-material items are separate rows.
+	Matches on listing_variant, color_variant, variant_label AND is_sample so that
+	numune ve toptan satırları aynı varyantta bile birbirinden ayrı tutulur.
 	"""
 	all_rows = frappe.get_all(
 		"Cart Item",
 		filters={"parent": cart_name, "listing": listing},
-		fields=["name", "listing_variant", "color_variant", "variant_label", "quantity"],
+		fields=[
+			"name",
+			"listing_variant",
+			"color_variant",
+			"variant_label",
+			"is_sample",
+			"quantity",
+		],
 	)
 	norm_variant = listing_variant or None
 	norm_color = color_variant or None
 	norm_label = variant_label or None
+	norm_sample = 1 if is_sample else 0
 	for row in all_rows:
 		row_variant = row.listing_variant or None
 		row_color = row.color_variant or None
 		row_label = row.variant_label or None
-		if row_variant == norm_variant and row_color == norm_color and row_label == norm_label:
+		row_sample = 1 if int(row.is_sample or 0) else 0
+		if (
+			row_variant == norm_variant
+			and row_color == norm_color
+			and row_label == norm_label
+			and row_sample == norm_sample
+		):
 			return row
 	return None
 
@@ -155,6 +228,7 @@ def _build_cart_response(cart_name):
 			"listing_variant",
 			"color_variant",
 			"variant_label",
+			"is_sample",
 			"quantity",
 			"seller",
 			"snapshot_title",
@@ -186,10 +260,12 @@ def _build_cart_response(cart_name):
 				"track_inventory",
 				"allow_backorders",
 				"stock_qty",
+				"sample_price",
 			],
 			as_dict=True,
 		)
 		is_available = bool(listing and listing.status == "Active")
+		row_is_sample = bool(int(item.is_sample or 0))
 
 		# Satıcı ID'sini belirle: aktif listing'den veya snapshot'tan al
 		if is_available:
@@ -274,7 +350,11 @@ def _build_cart_response(cart_name):
 
 		if is_available:
 			# Canlı veri ile SKU oluştur
-			base_price = float(listing.selling_price or listing.base_price or 0)
+			# Numune satırlarında snapshot fiyatı (sample_price) referans alınır.
+			if row_is_sample:
+				base_price = float(item.snapshot_price or listing.sample_price or 0)
+			else:
+				base_price = float(listing.selling_price or listing.base_price or 0)
 			sku_image = item.snapshot_image or listing.primary_image or ""
 			# variant_label (frontend tarafından gönderilen tam etiket) varsa direkt kullan
 			variant_text = item.variant_label or ""
@@ -300,7 +380,7 @@ def _build_cart_response(cart_name):
 						sku_image = civ.variant_image
 
 			variant = None
-			if item.listing_variant and not variant_text:
+			if item.listing_variant and not variant_text and not row_is_sample:
 				# Gerçek Listing Variant doc mu dene
 				variant = frappe.db.get_value(
 					"Listing Variant",
@@ -363,6 +443,9 @@ def _build_cart_response(cart_name):
 			else:
 				max_qty = 999999
 
+			# Numune satırları MOQ/stok kuralından muaf, sabit min=max=1.
+			sku_min_qty = 1 if row_is_sample else (listing.min_order_qty or 1)
+			sku_max_qty = 1 if row_is_sample else max_qty
 			sellers_map[seller_id]["products"][listing_name]["skus"].append(
 				{
 					"id": item.name,
@@ -373,15 +456,16 @@ def _build_cart_response(cart_name):
 					"currency": listing.currency or "USD",
 					"unit": "Adet",
 					"quantity": item.quantity,
-					"minQty": listing.min_order_qty or 1,
-					"sellInMoqMultiples": bool(listing.sell_in_moq_multiples),
-					"maxQty": max_qty,
+					"minQty": sku_min_qty,
+					"sellInMoqMultiples": False if row_is_sample else bool(listing.sell_in_moq_multiples),
+					"maxQty": sku_max_qty,
 					"selected": True,
 					"baseUnitPrice": base_price,
 					"basePriceAddon": base_price_addon,
 					"baseCurrency": listing.currency or "USD",
 					"listingVariant": item.listing_variant or None,
 					"isAvailable": True,
+					"isSample": row_is_sample,
 				}
 			)
 		else:
@@ -403,13 +487,14 @@ def _build_cart_response(cart_name):
 					"unit": "Adet",
 					"quantity": item.quantity,
 					"minQty": 1,
-					"maxQty": 999999,
+					"maxQty": 1 if row_is_sample else 999999,
 					"selected": False,
 					"baseUnitPrice": snap_price_sku,
 					"basePriceAddon": 0,
 					"baseCurrency": snap_currency_sku,
 					"listingVariant": item.listing_variant or None,
 					"isAvailable": False,
+					"isSample": row_is_sample,
 				}
 			)
 
@@ -446,11 +531,12 @@ def get_cart():
 
 
 @frappe.whitelist()
-def check_stock(listing, quantity=1, listing_variant=None, variant_label=None):
+def check_stock(listing, quantity=1, listing_variant=None, variant_label=None, is_sample=0):
 	"""
 	Stok kontrolü yapar ama sepete eklemez.
 	Ürün sayfasındaki drawer için kullanılır — gerçek kayıt cart.add_to_cart ile yapılır.
 	variant_label: human-readable label (e.g. "Renk: Siyah | Malzeme: Pamuk | Beden: S")
+	is_sample: 1 ise numune kontrolü (sample_price tanımlı mı, daha önce sepette numune var mı).
 	Hata yoksa {"ok": True} döner, hata varsa frappe.throw() ile exception fırlatır.
 	"""
 	if not frappe.db.exists("Listing", listing):
@@ -459,29 +545,57 @@ def check_stock(listing, quantity=1, listing_variant=None, variant_label=None):
 	listing_doc = frappe.db.get_value(
 		"Listing",
 		listing,
-		["status", "stock_qty", "track_inventory", "allow_backorders"],
+		["status", "stock_qty", "track_inventory", "allow_backorders", "sample_price"],
 		as_dict=True,
 	)
 	if listing_doc.status != "Active":
 		frappe.throw(_("Bu ürün şu an satışta değil"))
 
+	is_sample_flag = bool(safe_int(is_sample, label=_("Numune")))
 	qty = safe_int(quantity, label=_("Miktar"))
 	listing_variant = listing_variant or None
 	variant_label = variant_label or None
+
+	if is_sample_flag:
+		if not float(listing_doc.sample_price or 0):
+			frappe.throw(_("Bu ürün için numune satışı tanımlı değil"))
+		# Numune drawer'ı her zaman 1 adet — daha fazlasına izin verme.
+		if qty > 1:
+			frappe.throw(_("Numune için maksimum sipariş miktarı 1 adettir"))
+		# Aynı kullanıcı zaten numune eklediyse tekrar eklenemesin (bilgi amaçlı).
+		user = frappe.session.user
+		if user and user != "Guest":
+			cart_name = frappe.db.get_value("Cart", {"buyer": user, "status": "Active"}, "name")
+			if cart_name:
+				exists = frappe.db.exists(
+					"Cart Item", {"parent": cart_name, "listing": listing, "is_sample": 1}
+				)
+				if exists:
+					frappe.throw(_("Bu üründen sepetinizde zaten 1 numune var"))
+		return {"ok": True}
+
 	_check_stock(listing_doc, listing, listing_variant, qty, variant_label=variant_label)
 	return {"ok": True}
 
 
 @frappe.whitelist()
 def add_to_cart(
-	listing, quantity=1, listing_variant=None, variant_label=None, color_variant=None, extra_axes=None
+	listing,
+	quantity=1,
+	listing_variant=None,
+	variant_label=None,
+	color_variant=None,
+	extra_axes=None,
+	is_sample=0,
 ):
 	"""
 	Add a listing (optionally a specific variant) to cart.
 	variant_label: human-readable combined label, e.g. "Renk: Lacivert | Malzeme: Pamuk | Beden: S"
 	color_variant: inline color variant ID (e.g. "LST-00013-Renk-Lacivert") used for snapshot_image lookup.
 	extra_axes: JSON string of extra axis selections, e.g. '{"Malzeme": "Pamuk"}'
-	If already exists, increments quantity.
+	is_sample: 1 ise numune satırı; toptan satırından ayrı tutulur, miktar 1'e sabittir,
+	  fiyat olarak listing.sample_price kullanılır.
+	If already exists, increments quantity (numune hariç — numune zaten varsa hata fırlatır).
 	Returns the full cart response.
 	"""
 	user = frappe.session.user
@@ -508,29 +622,46 @@ def add_to_cart(
 			"selling_price",
 			"base_price",
 			"currency",
+			"sample_price",
 		],
 		as_dict=True,
 	)
 	if listing_doc.status != "Active":
 		frappe.throw(_("Bu ürün şu an satışta değil"))
 
+	is_sample_flag = bool(safe_int(is_sample, label=_("Numune")))
 	qty = safe_int(quantity, label=_("Miktar"))
-	min_qty = int(listing_doc.min_order_qty or 1)
-	if qty < min_qty:
-		frappe.throw(_("Minimum sipariş miktarı: {0}").format(min_qty))
-	if listing_doc.sell_in_moq_multiples and min_qty > 0 and qty % min_qty != 0:
-		frappe.throw(_("Sipariş miktarı {0}'ın katları olmalıdır").format(min_qty))
+
+	if is_sample_flag:
+		if not float(listing_doc.sample_price or 0):
+			frappe.throw(_("Bu ürün için numune satışı tanımlı değil"))
+		# Numuneler her zaman 1 adet — frontend yanlış gönderse bile burada zorla.
+		qty = 1
+	else:
+		min_qty = int(listing_doc.min_order_qty or 1)
+		if qty < min_qty:
+			frappe.throw(_("Minimum sipariş miktarı: {0}").format(min_qty))
+		if listing_doc.sell_in_moq_multiples and min_qty > 0 and qty % min_qty != 0:
+			frappe.throw(_("Sipariş miktarı {0}'ın katları olmalıdır").format(min_qty))
 
 	# Normalize variant: empty string → None
 	listing_variant = listing_variant or None
 	color_variant = color_variant or None
 
 	cart_name = _get_or_create_cart(user)
-	existing_row = _find_existing_cart_item(cart_name, listing, listing_variant, color_variant, variant_label)
+	existing_row = _find_existing_cart_item(
+		cart_name, listing, listing_variant, color_variant, variant_label, is_sample=is_sample_flag
+	)
 	existing_qty = existing_row.quantity if existing_row else 0
-	total_qty = existing_qty + qty
 
-	_check_stock(listing_doc, listing, listing_variant, total_qty, variant_label=variant_label)
+	if is_sample_flag:
+		# Sepette aynı listing için zaten numune varsa tekrar eklenemez.
+		if existing_row:
+			frappe.throw(_("Bu üründen sepetinizde zaten 1 numune var"))
+		# Numune satırı için stok kontrolü yapma — tek adetlik bir denemedir.
+	else:
+		total_qty = existing_qty + qty
+		_check_stock(listing_doc, listing, listing_variant, total_qty, variant_label=variant_label)
 
 	# Snapshot verisi hazırla
 	snap_price = float(listing_doc.selling_price or listing_doc.base_price or 0)
@@ -539,7 +670,11 @@ def add_to_cart(
 	snap_currency = listing_doc.currency or "USD"
 	seller_id = listing_doc.seller_profile or None
 
-	if listing_variant:
+	if is_sample_flag:
+		# Numune fiyatını snapshot olarak yaz; tier hesabı devreye girmesin.
+		snap_price = float(listing_doc.sample_price or 0)
+
+	if listing_variant and not is_sample_flag:
 		var_snap = frappe.db.get_value(
 			"Listing Variant", listing_variant, ["primary_image", "price"], as_dict=True
 		)
@@ -570,6 +705,7 @@ def add_to_cart(
 
 	# cart_name ve existing_row yukarıda stok kontrolü için alındı — tekrar sorgulama
 	if existing_row:
+		# Numune yolu yukarıda zaten bloklandı; burası sadece toptan için.
 		frappe.db.set_value(
 			"Cart Item",
 			existing_row.name,
@@ -588,6 +724,7 @@ def add_to_cart(
 				"listing_variant": listing_variant,
 				"color_variant": color_variant,
 				"variant_label": variant_label or None,
+				"is_sample": 1 if is_sample_flag else 0,
 				"quantity": qty,
 				"seller": seller_id,
 				"snapshot_title": snap_title,
@@ -620,13 +757,19 @@ def update_cart_item(cart_item, quantity):
 	cart_item_data = frappe.db.get_value(
 		"Cart Item",
 		cart_item,
-		["listing", "listing_variant", "variant_label"],
+		["listing", "listing_variant", "variant_label", "is_sample"],
 		as_dict=True,
 	)
 	listing_name = cart_item_data.listing if cart_item_data else None
 	listing_variant_name = cart_item_data.listing_variant if cart_item_data else None
 	variant_label_value = cart_item_data.variant_label if cart_item_data else None
-	if listing_name:
+	row_is_sample = bool(int((cart_item_data or {}).get("is_sample") or 0))
+
+	# Numune satırının miktarı her zaman 1 olmalı; sayfa kontrolü atlasa bile burada kilitle.
+	if row_is_sample and qty != 1:
+		frappe.throw(_("Numune için maksimum sipariş miktarı 1 adettir"))
+
+	if listing_name and not row_is_sample:
 		listing_doc = frappe.db.get_value(
 			"Listing",
 			listing_name,
@@ -771,7 +914,12 @@ def merge_guest_cart(items):
 @frappe.whitelist()
 @require_verified_email
 def create_order(
-	orders_json, shipping_address=None, payment_method=None, coupon_code=None, coupon_discount=0
+	orders_json,
+	shipping_address=None,
+	payment_method=None,
+	coupon_code=None,
+	coupon_discount=0,
+	billing_info_json=None,
 ):
 	"""
 	Seçili sepet ürünlerinden sipariş(ler) oluşturur.
@@ -779,6 +927,9 @@ def create_order(
 	  seller_id, seller_name, shipping_fee, currency,
 	  products: [{listing, listing_title, variation, unit_price, quantity, total_price, image}]
 	}
+	billing_info_json: JSON dict — fatura bilgileri (opsiyonel):
+	  type ('Bireysel'|'Şirket'), company_name, tax_office, tax_number, tcn,
+	  e_invoice (bool), same_as_shipping (bool), address, city, district, postal_code
 	Returns: { orders: [{order_name, order_number, seller_name, total}] }
 	"""
 	user = frappe.session.user
@@ -803,6 +954,8 @@ def create_order(
 		frappe.throw(_("Geçersiz teslimat adresi"), frappe.DoesNotExistError)
 	if addr_user != user:
 		frappe.throw(_("Bu adres size ait değil"), frappe.PermissionError)
+
+	billing_info = _parse_billing_info(billing_info_json)
 
 	pm = payment_method or "bank_transfer"
 	if pm not in (INSTANT_PAYMENT_METHODS | DEFERRED_PAYMENT_METHODS):
@@ -861,6 +1014,19 @@ def create_order(
 		order_doc.shipping_method = order_data.get("shipping_method", "")
 		order_doc.ship_from = order_data.get("ship_from", "")
 		order_doc.buyer_note = order_data.get("buyer_note", "") or ""
+
+		if billing_info.get("type"):
+			order_doc.billing_type = billing_info["type"]
+			order_doc.billing_company_name = billing_info["company_name"]
+			order_doc.billing_tax_office = billing_info["tax_office"]
+			order_doc.billing_tax_number = billing_info["tax_number"]
+			order_doc.billing_tcn = billing_info["tcn"]
+			order_doc.billing_e_invoice = billing_info["e_invoice"]
+			order_doc.billing_same_as_shipping = billing_info["same_as_shipping"]
+			order_doc.billing_address = billing_info["address"]
+			order_doc.billing_city = billing_info["city"]
+			order_doc.billing_district = billing_info["district"]
+			order_doc.billing_postal_code = billing_info["postal_code"]
 
 		for p in products:
 			# listing_variant artık Data alanı — sentetik ID'leri (LST-XXXXX-Tip-Değer) olduğu gibi sakla

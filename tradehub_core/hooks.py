@@ -121,16 +121,29 @@ doc_events = {
 		"on_update": "tradehub_core.api.listing.recompute_seller_rating_proxy",
 		"on_trash": "tradehub_core.api.listing.recompute_seller_rating_proxy",
 	},
-	# Admin Seller Profile aktiflesince helpdesk team + agent sync
+	# Admin Seller Profile aktiflesince helpdesk team + agent sync +
+	# Marketplace Seller rolünü user'a otomatik bağla/kaldır.
+	# (CRM doctype'larındaki Frappe role-level DocPerm bu role bağlı.)
 	"Admin Seller Profile": {
-		"on_update": "tradehub_core.utils.helpdesk_routing.on_admin_seller_profile_update",
+		"after_insert": "tradehub_core.utils.seller_role_sync.sync_marketplace_seller_role",
+		"on_update": [
+			"tradehub_core.utils.helpdesk_routing.on_admin_seller_profile_update",
+			"tradehub_core.utils.seller_role_sync.sync_marketplace_seller_role",
+		],
 	},
-	# CRM kayıtlarında seller'ı creator'dan otomatik resolve et
+	# CRM kayıtlarında seller'ı creator'dan otomatik resolve et + lead/deal_owner
+	# alanını da creator'a sabitle (Faz 1 tek kullanıcı modeli, UI'da atama yok).
 	"CRM Lead": {
-		"before_insert": "tradehub_core.utils.crm_seller_autoset.autoset_seller",
+		"before_insert": [
+			"tradehub_core.utils.crm_seller_autoset.autoset_seller",
+			"tradehub_core.utils.crm_seller_autoset.autoset_owner",
+		],
 	},
 	"CRM Deal": {
-		"before_insert": "tradehub_core.utils.crm_seller_autoset.autoset_seller",
+		"before_insert": [
+			"tradehub_core.utils.crm_seller_autoset.autoset_seller",
+			"tradehub_core.utils.crm_seller_autoset.autoset_owner",
+		],
 	},
 	"CRM Organization": {
 		"before_insert": "tradehub_core.utils.crm_seller_autoset.autoset_seller",
@@ -201,4 +214,17 @@ has_permission = {
 	"CRM Task": "tradehub_core.permissions.crm_task_has_permission",
 	"FCRM Note": "tradehub_core.permissions.fcrm_note_has_permission",
 	"CRM Call Log": "tradehub_core.permissions.crm_call_log_has_permission",
+}
+
+# ---------------------------------------------------------------------------
+# Whitelisted method override'ları
+# ---------------------------------------------------------------------------
+# Frappe CRM app'inin `crm.api.session.get_users` endpoint'i default'ta
+# sitedeki tüm aktif User'ları döner — multi-tenant marketplace'de satıcılara
+# diğer tenant'ların personelini sızdırır. Aşağıdaki override Marketplace
+# Seller'a sadece kendisini, admin/sales rollerine tüm sistem kullanıcılarını
+# döndürür.
+override_whitelisted_methods = {
+	"crm.api.session.get_users": "tradehub_core.api.v1.crm_overrides.get_users",
+	"crm.api.session.get_organizations": "tradehub_core.api.v1.crm_overrides.get_organizations",
 }

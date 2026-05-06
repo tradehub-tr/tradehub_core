@@ -37,6 +37,20 @@
 		"remittance_amount",
 		"remittance_sender",
 		"receipt_url",
+		"tab_billing",
+		"billing_section",
+		"billing_type",
+		"billing_company_name",
+		"billing_tax_office",
+		"billing_tax_number",
+		"billing_tcn",
+		"billing_e_invoice",
+		"billing_address_section",
+		"billing_same_as_shipping",
+		"billing_address",
+		"billing_city",
+		"billing_district",
+		"billing_postal_code",
 		"tab_refund",
 		"refund_section",
 		"refund_status",
@@ -225,6 +239,90 @@
 			"fieldname": "receipt_url",
 			"fieldtype": "Attach",
 			"label": "Dekont"
+		},
+		{
+			"fieldname": "tab_billing",
+			"fieldtype": "Tab Break",
+			"label": "Fatura"
+		},
+		{
+			"fieldname": "billing_section",
+			"fieldtype": "Section Break",
+			"label": "Fatura Bilgileri"
+		},
+		{
+			"fieldname": "billing_type",
+			"fieldtype": "Select",
+			"label": "Fatura Tipi",
+			"options": "\nBireysel\nŞirket",
+			"default": ""
+		},
+		{
+			"fieldname": "billing_company_name",
+			"fieldtype": "Data",
+			"label": "Şirket Ünvanı",
+			"depends_on": "eval:doc.billing_type=='Şirket'"
+		},
+		{
+			"fieldname": "billing_tax_office",
+			"fieldtype": "Data",
+			"label": "Vergi Dairesi",
+			"depends_on": "eval:doc.billing_type=='Şirket'"
+		},
+		{
+			"fieldname": "billing_tax_number",
+			"fieldtype": "Data",
+			"label": "Vergi Numarası (VKN)",
+			"depends_on": "eval:doc.billing_type=='Şirket'"
+		},
+		{
+			"fieldname": "billing_tcn",
+			"fieldtype": "Data",
+			"label": "T.C. Kimlik No (TCKN)",
+			"depends_on": "eval:doc.billing_type=='Bireysel'"
+		},
+		{
+			"fieldname": "billing_e_invoice",
+			"fieldtype": "Check",
+			"label": "e-Fatura Mükellefi",
+			"default": 0,
+			"depends_on": "eval:doc.billing_type=='Şirket'"
+		},
+		{
+			"fieldname": "billing_address_section",
+			"fieldtype": "Section Break",
+			"label": "Fatura Adresi",
+			"depends_on": "eval:doc.billing_type"
+		},
+		{
+			"fieldname": "billing_same_as_shipping",
+			"fieldtype": "Check",
+			"label": "Teslimat Adresi ile Aynı",
+			"default": 0
+		},
+		{
+			"fieldname": "billing_address",
+			"fieldtype": "Small Text",
+			"label": "Adres",
+			"depends_on": "eval:!doc.billing_same_as_shipping"
+		},
+		{
+			"fieldname": "billing_city",
+			"fieldtype": "Data",
+			"label": "İl",
+			"depends_on": "eval:!doc.billing_same_as_shipping"
+		},
+		{
+			"fieldname": "billing_district",
+			"fieldtype": "Data",
+			"label": "İlçe",
+			"depends_on": "eval:!doc.billing_same_as_shipping"
+		},
+		{
+			"fieldname": "billing_postal_code",
+			"fieldtype": "Data",
+			"label": "Posta Kodu",
+			"depends_on": "eval:!doc.billing_same_as_shipping"
 		},
 		{
 			"fieldname": "tab_refund",
