@@ -2734,9 +2734,11 @@ def _ensure_buyer(b):
 	doc.industry_preferences = b["industry_preferences"]
 	doc.about_us = b["about_us"]
 	doc.email_verified = 1
-	doc.avatar = _seller_logo(b["buyer_name"], 200)
 	doc.flags.ignore_permissions = True
 	doc.insert(ignore_permissions=True)
+
+	# Avatar User.user_image'de tek doğruluk kaynağıdır.
+	frappe.db.set_value("User", b["email"], "user_image", _seller_logo(b["buyer_name"], 200))
 	return b["email"]
 
 

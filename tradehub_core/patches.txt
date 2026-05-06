@@ -51,3 +51,5 @@ tradehub_core.patches.canonicalize_phone_numbers
 tradehub_core.patches.remove_desk_user_from_storefront_accounts
 tradehub_core.patches.backfill_marketplace_seller_role
 tradehub_core.patches.seed_crm_lead_sources
+tradehub_core.patches.cleanup_avatar_fields
+tradehub_core.patches.assign_seller_role_legacy

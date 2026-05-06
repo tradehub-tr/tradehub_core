@@ -1039,9 +1039,7 @@ def _crm_query_for_doctype(user, doctype_table):
 		escaped_user = frappe.db.escape(user)
 		if profile:
 			escaped = frappe.db.escape(profile)
-			return (
-				f"(`{doctype_table}`.`seller` = {escaped} " f"OR `{doctype_table}`.`owner` = {escaped_user})"
-			)
+			return f"(`{doctype_table}`.`seller` = {escaped} OR `{doctype_table}`.`owner` = {escaped_user})"
 		return f"`{doctype_table}`.`owner` = {escaped_user}"
 
 	# Diğer System User'lar (Buyer hariç tanınmamış admin paneli kullanıcıları)
