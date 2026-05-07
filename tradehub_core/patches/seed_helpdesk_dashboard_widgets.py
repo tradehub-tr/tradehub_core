@@ -122,6 +122,11 @@ SELLER_WIDGETS = [
 
 
 def execute():
+	# HD Ticket DocType helpdesk app'inden gelir; o app site'a install
+	# edilmemişse Dashboard Widget link validation patlatır. Cross-app patch
+	# olduğundan helpdesk'in varlığına bağımlı; yoksa sessizce skip et.
+	if not frappe.db.exists("DocType", "HD Ticket"):
+		return
 	for spec in PLATFORM_WIDGETS:
 		_upsert_widget(PLATFORM_KEY, spec)
 	for spec in SELLER_WIDGETS:
