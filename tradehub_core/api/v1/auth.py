@@ -178,7 +178,7 @@ def get_user_profile():
 	user_data = frappe.db.get_value(
 		"User",
 		user,
-		["email", "full_name", "first_name", "last_name", "creation", "phone"],
+		["email", "full_name", "first_name", "last_name", "creation", "phone", "user_image"],
 		as_dict=True,
 	)
 
@@ -206,6 +206,7 @@ def get_user_profile():
 		"full_name": user_data.full_name or "",
 		"email": user_data.email,
 		"phone": user_data.phone or "",
+		"avatar": user_data.user_image or "",
 	}
 
 	# ── Seller ──
@@ -231,7 +232,6 @@ def get_user_profile():
 				"bank_name",
 				"iban",
 				"account_holder_name",
-				"avatar",
 				"website",
 				"job_title",
 				"year_established",
@@ -261,7 +261,6 @@ def get_user_profile():
 					"bank_name": sp.bank_name or "",
 					"iban": sp.iban or "",
 					"account_holder_name": sp.account_holder_name or "",
-					"avatar": sp.avatar or "",
 					"website": sp.website or "",
 					"job_title": sp.job_title or "",
 					"year_established": sp.year_established or "",
@@ -327,7 +326,6 @@ def get_user_profile():
 				"country",
 				"phone",
 				"email_verified",
-				"avatar",
 				"business_type",
 				"company_name",
 				"address",
@@ -352,7 +350,6 @@ def get_user_profile():
 			"email_verified": bool(buyer_data.get("email_verified")),
 			"phone": user_data.phone or buyer_data.get("phone", "") or "",
 			"country": buyer_data.get("country", "") or "",
-			"avatar": buyer_data.get("avatar", "") or "",
 			"business_type": buyer_data.get("business_type", "") or "",
 			"company_name": buyer_data.get("company_name", "") or "",
 			"address": buyer_data.get("address", "") or "",
@@ -422,12 +419,24 @@ def update_user_profile(
 					frappe.ValidationError,
 				)
 
+	# ── Validate business_name (required for sellers if provided) ──
+	if business_name is not None:
+		business_name = business_name.strip()
+		if not business_name:
+			frappe.local.response["http_status_code"] = 400
+			frappe.throw(
+				_("Business Name is required."),
+				frappe.ValidationError,
+			)
+
 	if first_name is not None:
 		doc.first_name = first_name
 	if last_name is not None:
 		doc.last_name = last_name
 	if phone is not None:
 		doc.phone = phone
+	if avatar is not None:
+		doc.user_image = avatar
 
 	doc.save(ignore_permissions=True)
 
@@ -446,8 +455,6 @@ def update_user_profile(
 			updates["phone"] = phone
 		if country is not None:
 			updates["country"] = country
-		if avatar is not None:
-			updates["avatar"] = avatar
 		if business_type is not None:
 			updates["business_type"] = business_type
 		if company_name is not None:
@@ -509,8 +516,6 @@ def update_user_profile(
 			updates["iban"] = iban
 		if account_holder_name is not None and is_admin:
 			updates["account_holder_name"] = account_holder_name
-		if avatar is not None:
-			updates["avatar"] = avatar
 		if website is not None:
 			updates["website"] = website
 		if job_title is not None:

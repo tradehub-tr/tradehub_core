@@ -123,6 +123,10 @@ class SellerApplication(Document):
 			for field, value in kyb_data.items():
 				kyb.set(field, value)
 			kyb.flags.ignore_permissions = True
+			# 6 belge field'ı reqd:1 — SA approval anında belgeler henüz yüklenmedi.
+			# Belge zorunluluğu submit_kyb_documents endpoint'inde Türkçe validation
+			# ile zaten kontrol ediliyor; doctype-level reqd burada bypass edilir.
+			kyb.flags.ignore_mandatory = True
 			kyb.insert(ignore_permissions=True)
 			# Ensure owner is the user (Frappe may override during insert)
 			frappe.db.set_value("KYB Verification", kyb.name, "owner", user)

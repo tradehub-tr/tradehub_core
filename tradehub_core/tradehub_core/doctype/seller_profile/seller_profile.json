@@ -16,11 +16,6 @@
 			"label": "Hesap"
 		},
 		{
-			"fieldname": "avatar",
-			"fieldtype": "Attach Image",
-			"label": "Avatar"
-		},
-		{
 			"fieldname": "user",
 			"fieldtype": "Link",
 			"label": "User",
