@@ -1,5 +1,7 @@
 import re
 
+import frappe
+from frappe import _
 from frappe.utils.nestedset import NestedSet
 
 
@@ -12,6 +14,34 @@ def _slugify(text):
 
 class ProductCategory(NestedSet):
 	nsm_parent_field = "parent_product_category"
+
+	def validate(self):
+		self._validate_unique_name_under_parent()
+
+	def _validate_unique_name_under_parent(self):
+		parent = self.parent_product_category or None
+
+		filters = {
+			"category_name": self.category_name,
+			"name": ["!=", self.name or ""],
+		}
+		if parent:
+			filters["parent_product_category"] = parent
+		else:
+			filters["parent_product_category"] = ["is", "not set"]
+
+		if frappe.db.exists("Product Category", filters):
+			if parent:
+				parent_label = frappe.db.get_value("Product Category", parent, "category_name") or parent
+				scope = _("'{0}' kategorisi").format(parent_label)
+			else:
+				scope = _("kök seviye")
+			frappe.throw(
+				_("'{0}' adında bir kategori bu seviyede zaten mevcut ({1} altında).").format(
+					self.category_name, scope
+				),
+				title=_("Yinelenen kategori adı"),
+			)
 
 	def before_save(self):
 		if not self.url_slug:

@@ -103,6 +103,26 @@ def _get_variant_stock_by_label(listing_name, variant_label):
 	return None
 
 
+def _get_variant_price_by_label(listing_name, variant_label):
+	"""
+	Parse variant_label (e.g. "Renk: Mavi | Kumaş: Polyester | Boy: 50cm | Beden: S")
+	and find the matching Listing Variant Item's variant_price.
+	Returns price as float when > 0, else None (caller falls back to base price).
+	"""
+	if not variant_label:
+		return None
+
+	from tradehub_core.utils.stock import _find_variant_item_row
+
+	row_name = _find_variant_item_row(listing_name, variant_label)
+	if not row_name:
+		return None
+	vp = frappe.db.get_value("Listing Variant Item", row_name, "variant_price")
+	if vp and float(vp) > 0:
+		return float(vp)
+	return None
+
+
 def _check_stock(listing_doc, listing_name, listing_variant, total_qty, variant_label=None):
 	"""
 	Stok kontrolü: track_inventory açıksa toplam miktarı (mevcut + yeni) kontrol et.
@@ -363,13 +383,23 @@ def _build_cart_response(cart_name):
 			else:
 				max_qty = 999999
 
+			# Çok-eksenli varyant için: variant_label varsa SKU bazlı fiyatı her zaman çöz
+			sku_unit_price = base_price + base_price_addon
+			sku_base_unit_price = base_price
+			sku_price_addon = base_price_addon
+			label_price = _get_variant_price_by_label(listing_name, item.variant_label)
+			if label_price is not None:
+				sku_unit_price = label_price
+				sku_base_unit_price = label_price
+				sku_price_addon = 0.0
+
 			sellers_map[seller_id]["products"][listing_name]["skus"].append(
 				{
 					"id": item.name,
 					"skuImage": sku_image,
 					"variantText": variant_text,
-					"unitPrice": base_price + base_price_addon,
-					"priceAddon": base_price_addon,
+					"unitPrice": sku_unit_price,
+					"priceAddon": sku_price_addon,
 					"currency": listing.currency or "USD",
 					"unit": "Adet",
 					"quantity": item.quantity,
@@ -377,8 +407,8 @@ def _build_cart_response(cart_name):
 					"sellInMoqMultiples": bool(listing.sell_in_moq_multiples),
 					"maxQty": max_qty,
 					"selected": True,
-					"baseUnitPrice": base_price,
-					"basePriceAddon": base_price_addon,
+					"baseUnitPrice": sku_base_unit_price,
+					"basePriceAddon": sku_price_addon,
 					"baseCurrency": listing.currency or "USD",
 					"listingVariant": item.listing_variant or None,
 					"isAvailable": True,
@@ -549,6 +579,11 @@ def add_to_cart(
 			if var_snap.price:
 				snap_price = float(var_snap.price)
 
+	# Çok-eksenli varyant için: variant_label'dan SKU bazlı fiyatı çöz (varsa override)
+	resolved_sku_price = _get_variant_price_by_label(listing, variant_label)
+	if resolved_sku_price is not None:
+		snap_price = resolved_sku_price
+
 	# Renk varyantından görsel çek (color_variant = inline renk ID'si, ör. "LST-00013-Renk-Lacivert")
 	if color_variant and color_variant.startswith(listing + "-"):
 		color_parts = color_variant[len(listing) + 1 :].split("-", 1)
@@ -706,6 +741,7 @@ def merge_guest_cart(items):
 	for item in items:
 		listing = item.get("listing")
 		listing_variant = item.get("listing_variant") or None
+		variant_label = item.get("variant_label") or None
 		qty = int(item.get("quantity", 1))
 
 		if not listing or qty <= 0:
@@ -713,7 +749,7 @@ def merge_guest_cart(items):
 		if not frappe.db.exists("Listing", listing):
 			continue
 
-		existing_row = _find_existing_cart_item(cart_name, listing, listing_variant)
+		existing_row = _find_existing_cart_item(cart_name, listing, listing_variant, None, variant_label)
 
 		if existing_row:
 			# Update in-memory cart_doc row so save() is consistent
@@ -745,11 +781,16 @@ def merge_guest_cart(items):
 						snap_image = var_snap.primary_image
 					if var_snap.price:
 						snap_price = float(var_snap.price)
+			# Çok-eksenli varyant için: variant_label'dan SKU bazlı fiyatı çöz (varsa override)
+			resolved_sku_price = _get_variant_price_by_label(listing, variant_label)
+			if resolved_sku_price is not None:
+				snap_price = resolved_sku_price
 			cart_doc.append(
 				"items",
 				{
 					"listing": listing,
 					"listing_variant": listing_variant,
+					"variant_label": variant_label,
 					"quantity": qty,
 					"seller": listing_snap.get("seller_profile") or None,
 					"snapshot_title": listing_snap.get("title") or "",
