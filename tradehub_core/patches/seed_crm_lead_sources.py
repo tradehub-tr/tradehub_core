@@ -36,6 +36,6 @@ def execute():
 		if frappe.db.exists("CRM Lead Source", source):
 			continue
 		doc = frappe.new_doc("CRM Lead Source")
-		doc.lead_source = source
+		doc.source_name = source
 		doc.insert(ignore_permissions=True)
 	frappe.db.commit()
