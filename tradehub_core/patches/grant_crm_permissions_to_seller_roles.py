@@ -1,12 +1,18 @@
 # Copyright (c) 2024, TR TradeHub and contributors
 
 """
-Marketplace Seller rolüne 7 CRM doctype'ı için read/write/create izni ver.
+Satıcı rollerine 7 CRM doctype'ı için read/write/create izni ver.
 
 Frappe Role Permission Manager API kullanılıyor — DocPerm child table'a
-ekler. Permission Query (`crm_*_query_conditions`) bu rolde satıcıyı kendi
+ekler. Permission Query (`crm_*_query_conditions`) bu rollerde satıcıyı kendi
 seller profile'ına kısıtlar; yani read izni verseniz bile satıcı yalnız
 kendi kayıtlarını görür.
+
+İki rol de hedefleniyor çünkü:
+  - Frappe Marketplace standart rol adı "Marketplace Seller"
+  - tradehub_core'da Seller Application onayı `Seller` rolünü atıyor
+    (seller_application._approve_application + seed_demo_data)
+  - permissions._is_marketplace_seller her ikisini de kabul ediyor
 
 Idempotent: zaten eklenmişse skip.
 """
@@ -24,7 +30,7 @@ CRM_DOCTYPES = [
 	"CRM Call Log",
 ]
 
-ROLE = "Marketplace Seller"
+ROLES = ("Marketplace Seller", "Seller")
 
 PERM_FIELDS = {
 	"read": 1,
@@ -43,18 +49,13 @@ PERM_FIELDS = {
 
 
 def execute():
-	# Role yoksa uyar ve skip
-	if not frappe.db.exists("Role", ROLE):
-		frappe.log_error(
-			title="grant_seller_crm_permissions",
-			message=f"Role yok: {ROLE} — patch atlandı.",
-		)
-		return
-
 	for dt in CRM_DOCTYPES:
 		if not frappe.db.exists("DocType", dt):
 			continue
-		_grant(dt, ROLE)
+		for role in ROLES:
+			if not frappe.db.exists("Role", role):
+				continue
+			_grant(dt, role)
 
 	frappe.db.commit()
 	frappe.clear_cache()
