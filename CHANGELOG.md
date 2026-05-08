@@ -1,3 +1,21 @@
+## [v1.0.7-beta.9] - 2026-05-08 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Eklendi
+- feat(kyb,profile): KYB belge upload sertleştirme + resubmit/review akışı + avatar User.user_image konsolidasyonu (@aliiball)
+
+### Duzeltildi
+- fix: update seller permissions to include owner fallback and implement permission-aware CRM count endpoint (@ahmeetseker)
+- fix: add dependency check for HD Ticket DocType to prevent patch failure if helpdesk app is missing (@ahmeetseker)
+- fix(patches): grant CRM perms to both Seller and Marketplace Seller roles (@ahmeetseker)
+- fix(patches): expand seller CRM permissions to lookup tables + permlevel 1 (@ahmeetseker)
+
+### Degistirildi
+- refactor(patches): rename grant_seller_crm_permissions to force re-run (@ahmeetseker)
+- refactor(patches): rename add_seller_to_crm_doctypes to force re-run (@ahmeetseker)
+
+---
 ## [v1.0.7-beta.8] - 2026-05-07 BETA
 
 Bu surum betaistoc.cronbi.com'da test asamasindadir.
