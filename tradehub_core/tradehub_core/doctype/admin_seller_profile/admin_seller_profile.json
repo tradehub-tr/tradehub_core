@@ -51,8 +51,6 @@
   "iban",
   "account_holder",
   "tab_performans",
-  "is_verified",
-  "verification_type",
   "health_score",
   "score_grade",
   "cb_performans",
@@ -309,18 +307,6 @@
    "fieldname": "tab_performans",
    "fieldtype": "Tab Break",
    "label": "Performans"
-  },
-  {
-   "default": "0",
-   "fieldname": "is_verified",
-   "fieldtype": "Check",
-   "label": "Doğrulanmış Tedarikçi"
-  },
-  {
-   "fieldname": "verification_type",
-   "fieldtype": "Data",
-   "label": "Doğrulama Tipi",
-   "description": "Örn: Verified Multispecialty Supplier, Verified PRO Supplier"
   },
   {
    "default": "100",

@@ -19,6 +19,36 @@ def _invalidate_cart_cache(_cart_name):
 	pass
 
 
+def _ensure_seller_kyb_verified(seller_profile_name: str, listing_label: str = ""):
+	"""Listing'in satıcısının KYB Verified olduğunu kanıtla, değilse Türkçe throw.
+
+	Sipariş gate'i: 3 katmanlı bypass-proof yapı (add_to_cart + create_order + Order
+	doctype validate). Verified Seller rolü, KYBVerification.on_update hook'uyla
+	otomatik atanır/kaldırılır. Listing'in storefront'ta görünür olması (Active)
+	bu kontrolden BAĞIMSIZDIR; burada sadece para hareketi (satın alma) engellenir.
+	"""
+	if not seller_profile_name:
+		return
+
+	seller_user = frappe.db.get_value("Admin Seller Profile", seller_profile_name, "user")
+	if not seller_user:
+		return
+
+	if "Verified Seller" not in frappe.get_roles(seller_user):
+		if listing_label:
+			frappe.throw(
+				_("{0}: Bu satıcının KYB doğrulaması henüz tamamlanmadığı için sepete eklenemez.").format(
+					listing_label
+				),
+				frappe.ValidationError,
+			)
+		else:
+			frappe.throw(
+				_("Bu satıcının KYB doğrulaması henüz tamamlanmadığı için ürün satın alınamaz."),
+				frappe.ValidationError,
+			)
+
+
 def _build_cart_response_cached(cart_name):
 	"""Cache kaldırıldı — her istek DB'den taze veri çeker."""
 	return _build_cart_response(cart_name)
@@ -659,6 +689,11 @@ def add_to_cart(
 	if listing_doc.status != "Active":
 		frappe.throw(_("Bu ürün şu an satışta değil"))
 
+	# KYB Gate — Katman 1: Satıcı doğrulanmadıysa sepete eklenemez.
+	# Listing Active görünmeye devam eder (storefront vitrini bağımsız), sadece
+	# satın alma kapısı kapalıdır. Satıcı KYB onayı sonrası açılır.
+	_ensure_seller_kyb_verified(listing_doc.seller_profile, listing_doc.title or "")
+
 	is_sample_flag = bool(safe_int(is_sample, label=_("Numune")))
 	qty = safe_int(quantity, label=_("Miktar"))
 
@@ -1035,6 +1070,10 @@ def create_order(
 
 		if not seller_id or not frappe.db.exists("Admin Seller Profile", seller_id):
 			frappe.throw(_("Geçersiz satıcı: {0}").format(seller_id or "(boş)"), frappe.DoesNotExistError)
+
+		# KYB Gate — Katman 2: Satıcı doğrulanmadıysa sipariş oluşturulamaz.
+		# Order.validate() ayrıca aynı kontrolü doctype-level enforce eder (Katman 3).
+		_ensure_seller_kyb_verified(seller_id)
 
 		order_doc = frappe.new_doc("Order")
 		order_doc.buyer = user
