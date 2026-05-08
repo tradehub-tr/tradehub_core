@@ -108,9 +108,7 @@ def _grant(doctype, role, permlevel, perm_fields):
 		try:
 			add_permission(doctype, role, permlevel=permlevel)
 		except Exception:
-			frappe.log_error(
-				title=f"grant_full_crm_permissions: add {doctype}/{role}/p={permlevel}"
-			)
+			frappe.log_error(title=f"grant_full_crm_permissions: add {doctype}/{role}/p={permlevel}")
 			return
 
 	for field, value in perm_fields.items():

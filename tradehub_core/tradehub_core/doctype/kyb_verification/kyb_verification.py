@@ -68,7 +68,33 @@ class KYBVerification(Document):
 			previous_status = previous.status if previous else None
 			self._sync_kyb_status()
 			self._set_review_metadata()
+			self._sync_verified_seller_role()
 			self._send_status_notifications(previous_status=previous_status)
+
+	def _sync_verified_seller_role(self):
+		"""KYB durumunu 'Verified Seller' rolüyle senkronla.
+
+		Sipariş gate'i (cart.add_to_cart, cart.create_order, Order.validate) bu role
+		bağlı: yalnızca Verified Seller rolüne sahip satıcının ürünleri satın alınır.
+		Listing'lere DOKUNMAZ — cascade YOK. Active listing'ler kalır, sipariş kapısı
+		kapanır; müşteri "Doğrulanmamış Satıcı" rozetini görür.
+
+		Kural: tek doğru durum 'Verified' — diğer tüm durumlarda (Pending, Under Review,
+		Rejected, Expired, Draft) rol kaldırılır. "Under Review" iken eski Verified
+		durumundan kalan rol kaldırılmazsa kullanıcı yanlışlıkla satışa devam edebilir.
+		"""
+		if not self.user or not frappe.db.exists("User", self.user):
+			return
+
+		has_role = "Verified Seller" in frappe.get_roles(self.user)
+		should_have_role = self.status == "Verified"
+
+		if should_have_role and not has_role:
+			user_doc = frappe.get_doc("User", self.user)
+			user_doc.add_roles("Verified Seller")
+		elif not should_have_role and has_role:
+			user_doc = frappe.get_doc("User", self.user)
+			user_doc.remove_roles("Verified Seller")
 
 	def _validate_company_title(self):
 		if not self.company_title or not self.company_title.strip():
