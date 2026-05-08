@@ -196,6 +196,43 @@ def _get_variant_price_by_label(listing_name, variant_label):
 	return None
 
 
+def _get_discount_factor(listing):
+	"""
+	Listing'in aktif kampanya indirim faktörünü döndürür.
+	`listing.discount_percentage > 0` ise (1 - dp/100), değilse 1.0.
+
+	`listing` dict veya doc olabilir (her ikisinde de attribute access çalışır).
+	api/listing.py:get_listing_detail içindeki _apply_discount ile aynı semantik —
+	tier'lara ve listing seviyesi fiyatlara uygulanır, variant_price'a uygulanmaz
+	(varyant fiyatı kullanıcı override'ı, kampanyadan bağımsız sabit kalır).
+	"""
+	dp = (
+		listing.get("discount_percentage")
+		if hasattr(listing, "get")
+		else getattr(listing, "discount_percentage", 0)
+	)
+	dp = float(dp or 0)
+	return (1 - dp / 100) if dp > 0 else 1.0
+
+
+def _get_listing_effective_price(listing):
+	"""
+	Listing seviyesindeki "müşteriye gösterilen" birim fiyatı döndürür:
+	selling_price (yoksa base_price) × discount_factor, 2 ondalık.
+
+	get_listing_detail'daki `_apply_discount(listing.selling_price)` ile birebir
+	aynı sonucu üretir; cart akışı (add_to_cart snapshot, _build_cart_response,
+	merge_guest_cart) bunu kullanarak ürün detay sayfası ile tutarlı kalır.
+	"""
+	base = float(
+		(listing.get("selling_price") if hasattr(listing, "get") else getattr(listing, "selling_price", 0))
+		or (listing.get("base_price") if hasattr(listing, "get") else getattr(listing, "base_price", 0))
+		or 0
+	)
+	factor = _get_discount_factor(listing)
+	return round(base * factor, 2)
+
+
 def _check_stock(listing_doc, listing_name, listing_variant, total_qty, variant_label=None):
 	"""
 	Stok kontrolü: track_inventory açıksa toplam miktarı (mevcut + yeni) kontrol et.
@@ -273,6 +310,7 @@ def _build_cart_response(cart_name):
 				"primary_image",
 				"selling_price",
 				"base_price",
+				"discount_percentage",
 				"min_order_qty",
 				"sell_in_moq_multiples",
 				"currency",
@@ -330,8 +368,16 @@ def _build_cart_response(cart_name):
 					fields=["min_qty", "max_qty", "price"],
 					order_by="min_qty asc",
 				)
+				# Tier fiyatlarına da kampanya indirimi uygulanır (listing detayıyla
+				# tutarlılık için — get_listing_detail tier'larda _apply_discount yapıyor).
+				tier_factor = _get_discount_factor(listing)
 				price_tiers = [
-					{"minQty": t.min_qty, "maxQty": t.max_qty or None, "price": float(t.price)} for t in tiers
+					{
+						"minQty": t.min_qty,
+						"maxQty": t.max_qty or None,
+						"price": round(float(t.price) * tier_factor, 2),
+					}
+					for t in tiers
 				]
 				sellers_map[seller_id]["products"][listing_name] = {
 					"id": listing_name,
@@ -370,11 +416,16 @@ def _build_cart_response(cart_name):
 
 		if is_available:
 			# Canlı veri ile SKU oluştur
-			# Numune satırlarında snapshot fiyatı (sample_price) referans alınır.
+			# Numune satırlarında snapshot fiyatı (sample_price) referans alınır;
+			# numune fiyatı kampanya indirimine TABİ DEĞİL — ayrı fiyat noktası.
 			if row_is_sample:
 				base_price = float(item.snapshot_price or listing.sample_price or 0)
 			else:
-				base_price = float(listing.selling_price or listing.base_price or 0)
+				# Listing seviyesi fiyat: selling_price × discount_factor.
+				# Kampanya indirimi listing detayında uygulandığı için cart'ta da
+				# uygulanır; aksi halde mini cart / cart sayfası 499 görür ama
+				# ürün detayı 383.08 gösterir (tutarsız).
+				base_price = _get_listing_effective_price(listing)
 			sku_image = item.snapshot_image or listing.primary_image or ""
 			# variant_label (frontend tarafından gönderilen tam etiket) varsa direkt kullan
 			variant_text = item.variant_label or ""
@@ -651,6 +702,7 @@ def add_to_cart(
 			"primary_image",
 			"selling_price",
 			"base_price",
+			"discount_percentage",
 			"currency",
 			"sample_price",
 		],
@@ -693,15 +745,16 @@ def add_to_cart(
 		total_qty = existing_qty + qty
 		_check_stock(listing_doc, listing, listing_variant, total_qty, variant_label=variant_label)
 
-	# Snapshot verisi hazırla
-	snap_price = float(listing_doc.selling_price or listing_doc.base_price or 0)
+	# Snapshot verisi hazırla — listing detay sayfasıyla tutarlı olmak için
+	# kampanya indirimi (discount_percentage) selling_price'a uygulanır.
+	snap_price = _get_listing_effective_price(listing_doc)
 	snap_image = listing_doc.primary_image or ""
 	snap_title = listing_doc.title or ""
 	snap_currency = listing_doc.currency or "USD"
 	seller_id = listing_doc.seller_profile or None
 
 	if is_sample_flag:
-		# Numune fiyatını snapshot olarak yaz; tier hesabı devreye girmesin.
+		# Numune fiyatını snapshot olarak yaz; tier/kampanya hesabı devreye girmesin.
 		snap_price = float(listing_doc.sample_price or 0)
 
 	if listing_variant and not is_sample_flag:
@@ -902,17 +955,26 @@ def merge_guest_cart(items):
 					needs_save = True
 					break
 		else:
-			# Snapshot verisi hazırla
+			# Snapshot verisi hazırla — listing detayıyla tutarlı kampanya indirimi
+			# uygulanır (discount_percentage); variant override'ları altta öncelikli.
 			listing_snap = (
 				frappe.db.get_value(
 					"Listing",
 					listing,
-					["seller_profile", "title", "primary_image", "selling_price", "base_price", "currency"],
+					[
+						"seller_profile",
+						"title",
+						"primary_image",
+						"selling_price",
+						"base_price",
+						"discount_percentage",
+						"currency",
+					],
 					as_dict=True,
 				)
 				or {}
 			)
-			snap_price = float(listing_snap.get("selling_price") or listing_snap.get("base_price") or 0)
+			snap_price = _get_listing_effective_price(listing_snap)
 			snap_image = listing_snap.get("primary_image") or ""
 			snap_currency = listing_snap.get("currency") or "USD"
 			if listing_variant:
@@ -923,6 +985,7 @@ def merge_guest_cart(items):
 					if var_snap.primary_image:
 						snap_image = var_snap.primary_image
 					if var_snap.price:
+						# Variant fiyatı kampanyaya tabi değil — kullanıcı override'ı
 						snap_price = float(var_snap.price)
 			# Çok-eksenli varyant için: variant_label'dan SKU bazlı fiyatı çöz (varsa override)
 			resolved_sku_price = _get_variant_price_by_label(listing, variant_label)

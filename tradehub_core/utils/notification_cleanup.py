@@ -3,8 +3,10 @@ from frappe.utils import add_days, now_datetime
 
 # Okunmuş bildirimler: 90 gün sonra sil
 READ_RETENTION_DAYS = 90
-# Okunmamış bildirimler: 180 gün sonra sil
-UNREAD_RETENTION_DAYS = 180
+# Okunmamış bildirimler: 1 yıl sonra sil. Daha önce 180 gündü ama uzun süre
+# pasif kalan kullanıcıların kritik bildirimleri (sipariş, ödeme) sessizce
+# silinebiliyordu. 365 gün makul üst sınır.
+UNREAD_RETENTION_DAYS = 365
 
 
 def delete_old_notifications():
@@ -21,7 +23,7 @@ def delete_old_notifications():
 		(read_cutoff,),
 	)
 
-	# Okunmamış bildirimleri temizle (180 gün)
+	# Okunmamış bildirimleri temizle (1 yıl)
 	unread_cutoff = add_days(now, -UNREAD_RETENTION_DAYS)
 	_ = frappe.db.sql(
 		"""

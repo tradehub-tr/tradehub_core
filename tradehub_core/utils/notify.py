@@ -20,6 +20,32 @@ Kullanım:
 import frappe
 
 
+def _sanitize_action_url(url: str) -> str:
+	"""
+	action_url whitelist (#5) — phishing/XSS koruması.
+
+	Yalniz iki tip URL kabul edilir:
+	  1) Relative path: '/...' (ama '//attacker.com' protocol-relative DEGIL)
+	  2) Mutlak HTTPS: 'https://...'
+
+	'javascript:', 'data:', 'vbscript:', 'http:' (insecure), 'file:' vb. reddedilir.
+	Reddedilen URL bos string'e dönüştürülür — bildirim yine olusur ama UI'da
+	'Görüntüle' butonu cikmaz.
+	"""
+	if not url or not isinstance(url, str):
+		return ""
+	trimmed = url.strip()
+	if not trimmed:
+		return ""
+	# Relative path — '//attacker.com' protocol-relative URL'i reject
+	if trimmed.startswith("/") and not trimmed.startswith("//"):
+		return trimmed
+	# Mutlak HTTPS
+	if trimmed.lower().startswith("https://"):
+		return trimmed
+	return ""
+
+
 def notify(
 	recipient_user: str,
 	type: str,
@@ -40,13 +66,27 @@ def notify(
 	`frappe.sendmail` queue'ya atılır (now=False). Hata durumunda kayıt
 	kaybolmaz; sadece log'a düşer ve `email_sent` False kalır.
 
+	**Transaction:** Bu helper artik `frappe.db.commit()` cagirmiyor. Outer
+	caller (HTTP request, doctype hook, scheduler runner) commit'ten
+	sorumlu — Frappe HTTP request'leri sonunda otomatik commit eder, doctype
+	save akislari da kendi transaction'lariyla commit ederler. Erken commit
+	outer transaction'i kirip kismi rollback'i imkansizlastiriyordu.
+
 	Returns:
 	    Oluşturulan bildirimin `name` değeri (hata durumunda "").
 	"""
-	if not recipient_user or recipient_user == "Guest":
+	if not recipient_user:
+		return ""
+	# Guest, Administrator veya systemic user'lara bildirim atilmaz —
+	# Administrator'a yanlis konfigle binlerce mesaj birikiyordu (#8).
+	if recipient_user in ("Guest", "Administrator"):
 		return ""
 
 	effective_channel = "email" if send_email else channel
+
+	# action_url phishing/XSS guvenli haline cevir — kabul edilmeyenler bos
+	# string olarak yazilir (bildirim olusur ama 'Görüntüle' butonu olmaz).
+	safe_action_url = _sanitize_action_url(action_url)
 
 	try:
 		doc = frappe.get_doc(
@@ -57,7 +97,7 @@ def notify(
 				"type": type,
 				"title": (title or "")[:200] or "(Bildirim)",
 				"message": (message or "")[:1000],
-				"action_url": action_url,
+				"action_url": safe_action_url,
 				"reference_doctype": reference_doctype,
 				"reference_name": reference_name,
 				"channel": effective_channel,
@@ -93,7 +133,8 @@ def notify(
 				except Exception:
 					frappe.log_error(title="notify: email_sent flag")
 
-	frappe.db.commit()
+	# Caller commit'ten sorumlu — Frappe HTTP request'leri ve doctype save
+	# akislari otomatik commit eder.
 	return doc.name
 
 
