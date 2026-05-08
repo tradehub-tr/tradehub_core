@@ -44,11 +44,13 @@ def execute():
 		for row in buyer_rows:
 			_migrate_to_user_image(row.get("user"), row.get("avatar"))
 
+	# DDL implicit commit ile çakışmasın diye veri yazımını commit'leyip
+	# transaction temiz halde ALTER TABLE çalıştır.
+	frappe.db.commit()
+
 	for table in ("tabSeller Profile", "tabBuyer Profile"):
 		if _column_exists(table, "avatar"):
-			frappe.db.sql(f"ALTER TABLE `{table}` DROP COLUMN `avatar`")
-
-	frappe.db.commit()
+			frappe.db.sql_ddl(f"ALTER TABLE `{table}` DROP COLUMN `avatar`")
 
 
 def _migrate_to_user_image(user_name, avatar_url):
