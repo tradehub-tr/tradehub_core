@@ -5,27 +5,70 @@
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
+  "category",
+  "media_type",
   "image",
-  "caption"
+  "video_url",
+  "poster_image",
+  "caption",
+  "sort_order"
  ],
  "fields": [
+  {
+   "fieldname": "category",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Kategori",
+   "options": "overview\n360_view\nproduction\nquality_control",
+   "default": "overview",
+   "reqd": 1
+  },
+  {
+   "fieldname": "media_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Medya Tipi",
+   "options": "image\nvideo",
+   "default": "image",
+   "reqd": 1
+  },
   {
    "fieldname": "image",
    "fieldtype": "Attach Image",
    "in_list_view": 1,
-   "label": "G\u00f6rsel",
-   "reqd": 1
+   "label": "Görsel",
+   "depends_on": "eval:doc.media_type==='image'"
+  },
+  {
+   "fieldname": "video_url",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Video URL",
+   "description": "MP4/WebM dogrudan link veya YouTube/Vimeo embed URL (sadece video icin)"
+  },
+  {
+   "fieldname": "poster_image",
+   "fieldtype": "Attach Image",
+   "in_list_view": 1,
+   "label": "Video Kapagi"
   },
   {
    "fieldname": "caption",
    "fieldtype": "Data",
    "in_list_view": 1,
-   "label": "A\u00e7\u0131klama"
+   "label": "Açıklama"
+  },
+  {
+   "fieldname": "sort_order",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Sıralama",
+   "default": "0"
   }
  ],
  "istable": 1,
  "links": [],
- "modified": "2024-01-01 00:00:00.000000",
+ "modified": "2026-05-07 00:00:00.000000",
  "modified_by": "Administrator",
  "module": "Tradehub Core",
  "name": "Seller Gallery Image",

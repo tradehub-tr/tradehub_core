@@ -276,7 +276,84 @@ def get_seller(slug):
 		seller.pop("email", None)
 		seller.pop("phone", None)
 		seller.pop("user", None)
+
+	# Storefront medya gallery: gallery_images child tablosu, kategoriye gore gruplanir.
+	# Frontend StoreHeader hardcoded thumbs yerine bu media_groups'i kullanir.
+	# Bos gruplar (count=0) yine donulur — UI tab'i kayit yoksa atlayabilir.
+	seller["media_groups"] = _build_media_groups(seller["name"])
 	return seller
+
+
+_MEDIA_CATEGORIES = (
+	("overview", "Genel Bakış"),
+	("360_view", "360° Görünüm"),
+	("production", "Üretim"),
+	("quality_control", "Kalite Kontrol"),
+)
+
+
+def _build_media_groups(admin_seller_profile_name):
+	"""
+	Admin Seller Profile.gallery_images child satirlarini kategoriye gore gruplar.
+
+	Donus formati frontend StoreHeader Alpine x-data icin tasarlandi:
+	  [
+	    {
+	      "key": "overview", "label": "Genel Bakış", "count": N,
+	      "items": [{"media_type": "video"|"image", "src": ..., "poster": ..., "caption": ...}]
+	    }, ...
+	  ]
+	Sira: media_type=video onceligi (UI ilk videoyu ana medya yapsin), sonra sort_order, sonra idx.
+	"""
+	rows = frappe.get_all(
+		"Seller Gallery Image",
+		filters={"parent": admin_seller_profile_name, "parenttype": "Admin Seller Profile"},
+		fields=[
+			"category",
+			"media_type",
+			"image",
+			"video_url",
+			"poster_image",
+			"caption",
+			"sort_order",
+			"idx",
+		],
+		order_by="sort_order asc, idx asc",
+	)
+
+	groups_by_key = {key: [] for key, _label in _MEDIA_CATEGORIES}
+	for r in rows:
+		key = (r.get("category") or "overview").strip()
+		if key not in groups_by_key:
+			# Bilinmeyen kategori — overview'a düşür (geriye dönük uyum)
+			key = "overview"
+		mtype = (r.get("media_type") or "image").strip()
+		# Esnek src cozumlemesi: child table grid'inde sadece "Görsel" sutunu
+		# in_list_view ile gorunduygu icin kullanici video MP4'unu da o alana
+		# yukluyor olabilir. media_type'a oncelikli alani dene, dolu degilse
+		# karşı alana fallback (video → image, image → video_url).
+		if mtype == "video":
+			src = r.get("video_url") or r.get("image") or ""
+		else:
+			src = r.get("image") or r.get("video_url") or ""
+		if not src:
+			continue
+		groups_by_key[key].append(
+			{
+				"media_type": mtype,
+				"src": src,
+				"poster": r.get("poster_image") or "",
+				"caption": r.get("caption") or "",
+			}
+		)
+
+	result = []
+	for key, label in _MEDIA_CATEGORIES:
+		items = groups_by_key[key]
+		# Video'yu basa al (ana medya genelde video oluyor)
+		items.sort(key=lambda it: 0 if it["media_type"] == "video" else 1)
+		result.append({"key": key, "label": label, "count": len(items), "items": items})
+	return result
 
 
 @frappe.whitelist()
