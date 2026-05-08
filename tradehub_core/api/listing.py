@@ -5,7 +5,7 @@ import json
 import frappe
 from frappe import _
 
-from tradehub_core.api._input import safe_float
+from tradehub_core.api._input import safe_float, safe_int
 from tradehub_core.api._pagination import normalize_pagination
 
 
@@ -268,6 +268,7 @@ def get_listings(
 	category=None,
 	min_price=None,
 	max_price=None,
+	min_order=None,
 	supplier=None,
 	sort_by="modified",
 	sort_order="DESC",
@@ -383,7 +384,24 @@ def get_listings(
 	# These require a sub-query on Admin Seller Profile to get matching seller_profile names.
 	seller_profile_filters = {}
 	if verified_supplier:
-		seller_profile_filters["is_verified"] = 1
+		# Eski is_verified field'ı silindi. Artık "Verified Seller" rolüne sahip
+		# user'lara ait Admin Seller Profile'lar filtrelenir (KYB Verified satıcılar).
+		verified_user_emails = frappe.db.sql_list(
+			"""SELECT parent FROM `tabHas Role`
+			   WHERE role = 'Verified Seller' AND parenttype = 'User'"""
+		)
+		if not verified_user_emails:
+			# Hiç KYB Verified satıcı yoksa boş sonuç döndür
+			return {
+				"data": [],
+				"total": 0,
+				"page": page,
+				"page_size": page_size,
+				"total_pages": 1,
+				"has_next": False,
+				"has_prev": False,
+			}
+		seller_profile_filters["user"] = ["in", verified_user_emails]
 	if country:
 		seller_profile_filters["country"] = country
 
@@ -560,6 +578,10 @@ def get_listings(
 		price_filters.append(
 			["Listing", "selling_price", "<=", safe_float(max_price, label=_("Maksimum fiyat"))]
 		)
+	# Min order filter — kullanıcı "Min. siparış" alanına girdiği değer
+	# (listing'in min_order_qty değeri kullanıcının max kabul ettiği eşitten az olmalı)
+	if min_order:
+		price_filters.append(["Listing", "min_order_qty", "<=", safe_int(min_order, label=_("Min. sipariş"))])
 
 	# ── Sorting ──
 	use_relevance_sort = sort_by == "relevance" and bool(query)
@@ -706,13 +728,24 @@ def get_listings(
 	# ── Batch prefetch seller profiles, pricing tiers, and brands (N+1 optimization) ──
 	seller_ids = list({l.seller_profile for l in paginated if l.get("seller_profile")})
 	seller_cache = {}
+	verified_seller_users = set()
 	if seller_ids:
 		for sp in frappe.get_all(
 			"Admin Seller Profile",
 			filters=[["name", "in", seller_ids]],
-			fields=["name", "founded_year", "country", "is_verified", "rating", "review_count"],
+			fields=["name", "user", "founded_year", "country", "rating", "review_count"],
 		):
 			seller_cache[sp.name] = sp
+		# Hangi satıcı user'ları "Verified Seller" rolüne sahip — tek SQL ile batch
+		seller_users = [sp.user for sp in seller_cache.values() if sp.get("user")]
+		if seller_users:
+			verified_rows = frappe.db.sql(
+				"""SELECT DISTINCT parent FROM `tabHas Role`
+				   WHERE role='Verified Seller' AND parenttype='User' AND parent IN %(users)s""",
+				{"users": tuple(seller_users)},
+				as_dict=False,
+			)
+			verified_seller_users = {row[0] for row in verified_rows}
 
 	brand_ids = list({l.brand for l in paginated if l.get("brand")})
 	brand_cache = {}
@@ -739,7 +772,11 @@ def get_listings(
 	results = []
 	for listing in paginated:
 		item = _format_listing_card(
-			listing, seller_cache=seller_cache, tier_cache=tier_cache, brand_cache=brand_cache
+			listing,
+			seller_cache=seller_cache,
+			tier_cache=tier_cache,
+			brand_cache=brand_cache,
+			verified_seller_users=verified_seller_users,
 		)
 		results.append(item)
 
@@ -818,39 +855,87 @@ def get_listing_detail(listing_id):
 	except Exception:
 		pass
 
+	# Üst-seviye sellerKybVerified flag — supplier objesi load fail etse bile
+	# (legacy veri vb.) frontend'in KYB rozeti/disabled buton göstermesi için.
+	# Verified Seller rolü yoksa False; satın alma kapısı kapalı.
+	listing_kyb_verified = False
+	try:
+		if listing.seller_profile:
+			sp_user = frappe.db.get_value("Admin Seller Profile", listing.seller_profile, "user")
+			if sp_user:
+				listing_kyb_verified = "Verified Seller" in frappe.get_roles(sp_user)
+	except Exception:
+		listing_kyb_verified = False
+
 	# Get supplier info from Admin Seller Profile
 	supplier_data = None
 	if listing.seller_profile:
 		try:
 			seller = frappe.get_doc("Admin Seller Profile", listing.seller_profile)
-			years_in_business = 0
-			if seller.founded_year:
-				try:
-					years_in_business = datetime.datetime.now().year - int(seller.founded_year)
-				except (ValueError, TypeError):
-					years_in_business = 0
-			supplier_data = {
-				"name": seller.seller_name or seller.company_name,
-				"sellerCode": seller.seller_code,
-				"companyName": seller.company_name,
-				"verified": bool(seller.is_verified),
-				"verificationType": seller.verification_type,
-				"yearsInBusiness": years_in_business,
-				"country": seller.country,
-				"city": seller.city,
-				"logo": seller.logo,
-				"responseTime": seller.response_time,
-				"responseRate": seller.response_rate or 0,
-				"onTimeDelivery": seller.on_time_delivery or 0,
-				"mainProducts": [p.strip() for p in (seller.main_markets or "").split(",") if p.strip()],
-				"employees": seller.staff_count,
-				"annualRevenue": seller.annual_revenue,
-				"certifications": [c.strip() for c in (seller.certifications or "").split(",") if c.strip()],
-				"rating": seller.rating or 0,
-				"reviewCount": seller.review_count or 0,
-			}
-		except Exception:
-			pass
+		except Exception as _e:
+			frappe.log_error(
+				title="get_listing_detail seller load",
+				message=f"Failed to load seller {listing.seller_profile}: {_e}",
+			)
+			seller = None
+		if seller:
+			try:
+				years_in_business = 0
+				if seller.founded_year:
+					try:
+						years_in_business = datetime.datetime.now().year - int(seller.founded_year)
+					except (ValueError, TypeError):
+						years_in_business = 0
+				# KYB doğrulanmış satıcı flag'i — sepete ekleme/sipariş kapısı + storefront
+				# rozeti buna bağlı. Eski is_verified ve verification_type field'ları silindi;
+				# tek doğruluk kaynağı User.role.Verified Seller.
+				seller_kyb_verified = bool(seller.user and "Verified Seller" in frappe.get_roles(seller.user))
+				# Defansif split — main_markets ve certifications tablo veya string olabilir
+				main_markets_raw = seller.main_markets
+				if isinstance(main_markets_raw, str):
+					main_products = [p.strip() for p in main_markets_raw.split(",") if p.strip()]
+				else:
+					main_products = []
+
+				certifications_raw = seller.certifications
+				if isinstance(certifications_raw, str):
+					certifications = [c.strip() for c in certifications_raw.split(",") if c.strip()]
+				elif isinstance(certifications_raw, list):
+					# Child table — her satırın label/name field'ını al
+					certifications = []
+					for row in certifications_raw:
+						label = getattr(row, "certification_type", None) or getattr(row, "name", None) or ""
+						if isinstance(label, str) and label.strip():
+							certifications.append(label.strip())
+				else:
+					certifications = []
+
+				supplier_data = {
+					"name": seller.seller_name or seller.company_name,
+					"sellerCode": seller.seller_code,
+					"companyName": seller.company_name,
+					# verified == kybVerified — frontend geriye uyumluluk için her ikisi de döner
+					"verified": seller_kyb_verified,
+					"kybVerified": seller_kyb_verified,
+					"yearsInBusiness": years_in_business,
+					"country": seller.country,
+					"city": seller.city,
+					"logo": seller.logo,
+					"responseTime": seller.response_time,
+					"responseRate": seller.response_rate or 0,
+					"onTimeDelivery": seller.on_time_delivery or 0,
+					"mainProducts": main_products,
+					"employees": seller.staff_count,
+					"annualRevenue": seller.annual_revenue,
+					"certifications": certifications,
+					"rating": seller.rating or 0,
+					"reviewCount": seller.review_count or 0,
+				}
+			except Exception as _e2:
+				frappe.log_error(
+					title="get_listing_detail supplier_data build",
+					message=f"Failed to build supplier_data for {listing.seller_profile}: {_e2}",
+				)
 
 	# Build category breadcrumb (prefer platform category, fallback to seller category)
 	category_breadcrumb = _get_category_breadcrumb(listing.product_category or listing.category)
@@ -1074,6 +1159,7 @@ def get_listing_detail(listing_id):
 		"orderCount": listing.order_count or 0,
 		"viewCount": listing.view_count or 0,
 		"supplier": supplier_data,
+		"sellerKybVerified": listing_kyb_verified,
 		"customizationOptions": customization_opts,
 		"brand": listing.brand,
 		"brandInfo": brand_info,
@@ -1213,6 +1299,30 @@ def get_filter_facets(query=None, category=None):
 		c = l.get("ships_from_country")
 		if c:
 			country_counts[c] = country_counts.get(c, 0) + 1
+
+	# Verified Seller (KYB Verified) listing sayısı — filter sidebar facet için
+	verified_supplier_count = 0
+	if listings:
+		seller_profiles_in_listings = {l.seller_profile for l in listings if l.get("seller_profile")}
+		if seller_profiles_in_listings:
+			# Bu seller_profile'lerin user'larından "Verified Seller" rolüne sahip olanları bul
+			seller_users_rows = frappe.get_all(
+				"Admin Seller Profile",
+				filters=[["name", "in", list(seller_profiles_in_listings)]],
+				fields=["name", "user"],
+			)
+			user_to_profile = {row.user: row.name for row in seller_users_rows if row.user}
+			if user_to_profile:
+				verified_users = frappe.db.sql_list(
+					"""SELECT DISTINCT parent FROM `tabHas Role`
+					   WHERE role = 'Verified Seller' AND parenttype = 'User' AND parent IN %(users)s""",
+					{"users": tuple(user_to_profile.keys())},
+				)
+				verified_profiles = {user_to_profile[u] for u in verified_users if u in user_to_profile}
+				# Bu profile'lere ait listing sayısı
+				verified_supplier_count = sum(
+					1 for l in listings if l.get("seller_profile") in verified_profiles
+				)
 
 	# Resolve country names
 	countries = []
@@ -1434,6 +1544,8 @@ def get_filter_facets(query=None, category=None):
 			"productCertifications": product_certifications_list,
 			"brands": brands_list,
 			"attributes": attributes_list,
+			# Tedarikçi Türleri filter — Onaylanmış Satıcı (KYB Verified) listing sayısı
+			"verifiedSupplierCount": verified_supplier_count,
 		}
 	}
 
@@ -2432,12 +2544,22 @@ def _sort_by_relevance(listings, words):
 	return sorted(listings, key=score, reverse=True)
 
 
-def _format_listing_card(listing, seller_cache=None, tier_cache=None, brand_cache=None):
+def _format_listing_card(
+	listing,
+	seller_cache=None,
+	tier_cache=None,
+	brand_cache=None,
+	verified_seller_users=None,
+):
 	"""Format a listing record into the ProductListingCard structure for frontend.
 
 	Args:
 		seller_cache: Pre-fetched seller profiles dict {name: record} to avoid N+1
 		tier_cache: Pre-fetched pricing tiers dict {listing_name: [tiers]} to avoid N+1
+		verified_seller_users: Set of user emails who have 'Verified Seller' role
+			(KYB doğrulanmış satıcılar). Bu sette olmayan satıcının kartında
+			seller_kyb_verified=False döner; storefront "Doğrulanmamış Satıcı"
+			rozeti gösterir, "Sepete Ekle" disabled olur.
 	"""
 	# Get supplier info — use cache if available, else individual query (fallback)
 	supplier_years = 0
@@ -2445,6 +2567,7 @@ def _format_listing_card(listing, seller_cache=None, tier_cache=None, brand_cach
 	supplier_verified = False
 	supplier_rating = 0
 	supplier_review_count = 0
+	seller_kyb_verified = False
 
 	if listing.get("seller_profile"):
 		try:
@@ -2453,7 +2576,7 @@ def _format_listing_card(listing, seller_cache=None, tier_cache=None, brand_cach
 				sp = frappe.db.get_value(
 					"Admin Seller Profile",
 					listing.get("seller_profile"),
-					["founded_year", "country", "is_verified", "rating", "review_count"],
+					["user", "founded_year", "country", "is_verified", "rating", "review_count"],
 					as_dict=True,
 				)
 			if sp:
@@ -2463,9 +2586,17 @@ def _format_listing_card(listing, seller_cache=None, tier_cache=None, brand_cach
 					except (ValueError, TypeError):
 						supplier_years = 0
 				supplier_country = _get_country_code(sp.get("country")) if sp.get("country") else ""
-				supplier_verified = bool(sp.get("is_verified"))
 				supplier_rating = sp.get("rating") or 0
 				supplier_review_count = sp.get("review_count") or 0
+				# KYB doğrulanmış satıcı flag'i — eski is_verified field'ı silindi.
+				# verified == kybVerified, tek doğruluk kaynağı User.role.Verified Seller.
+				sp_user = sp.get("user")
+				if sp_user:
+					if verified_seller_users is not None:
+						seller_kyb_verified = sp_user in verified_seller_users
+					else:
+						seller_kyb_verified = "Verified Seller" in frappe.get_roles(sp_user)
+				supplier_verified = seller_kyb_verified
 		except Exception:
 			pass
 
@@ -2551,8 +2682,14 @@ def _format_listing_card(listing, seller_cache=None, tier_cache=None, brand_cach
 		else None,
 		"imageSrc": primary_image,
 		"images": all_images,
-		"supplierName": listing.get("supplier_display_name", ""),
+		"supplierName": (
+			listing.get("supplier_display_name")
+			or ((seller_cache or {}).get(listing.get("seller_profile"), {}) or {}).get("seller_name")
+			or ((seller_cache or {}).get(listing.get("seller_profile"), {}) or {}).get("name")
+			or ""
+		),
 		"verified": supplier_verified,
+		"sellerKybVerified": seller_kyb_verified,
 		"supplierYears": supplier_years,
 		"supplierCountry": supplier_country,
 		"rating": listing.get("average_rating", 0),

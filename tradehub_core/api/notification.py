@@ -83,16 +83,28 @@ def get_unread_count():
 
 @frappe.whitelist()
 def mark_read(notification_name):
-	"""Tek bir bildirimi okundu olarak işaretle."""
+	"""Tek bir bildirimi okundu olarak işaretle. Idempotent —
+	zaten okunmus kayitta read_at tekrar yazilmaz (audit trail korunur)."""
 	if not notification_name:
 		frappe.throw(_("Bildirim adı gerekli"))
 
 	user = _get_current_user_email()
 
-	# Sahiplik kontrolü
-	owner = frappe.db.get_value("Platform Notification", notification_name, "recipient_user")
-	if owner != user and "System Manager" not in frappe.get_roles():
+	# Sahiplik + okundu durumu tek sorguda
+	row = frappe.db.get_value(
+		"Platform Notification",
+		notification_name,
+		["recipient_user", "is_read"],
+		as_dict=True,
+	)
+	if not row:
+		frappe.throw(_("Bildirim bulunamadı"), frappe.DoesNotExistError)
+	if row.recipient_user != user and "System Manager" not in frappe.get_roles():
 		frappe.throw(_("Bu bildirimi okuma yetkiniz yok"), frappe.PermissionError)
+
+	# Idempotent: zaten okunmusken tekrar yazma — read_at korunsun
+	if int(row.is_read or 0):
+		return {"success": True, "already_read": True}
 
 	frappe.db.set_value(
 		"Platform Notification",
@@ -104,7 +116,7 @@ def mark_read(notification_name):
 		update_modified=False,
 	)
 	frappe.db.commit()
-	return {"success": True}
+	return {"success": True, "already_read": False}
 
 
 @frappe.whitelist()
@@ -127,12 +139,14 @@ def get_new_notifications(since=None, limit=5, mark_as_read=False):
 	    }
 	"""
 	user = _get_current_user_email()
-	filters = {"recipient_user": user}
+	# Storefront polling: kullanici drawer'dan okudu sonra polling tekrar
+	# toast'lamamali — `is_read=0` her zaman zorunlu. `since` yalniz olarak
+	# kullanildigi eski davranista, okunmus eski bildirim `creation > since`
+	# ise tekrar dondurulup re-toast oluyordu (#2 bug).
+	filters = {"recipient_user": user, "is_read": 0}
 
 	if since:
 		filters["creation"] = [">", since]
-	else:
-		filters["is_read"] = 0
 
 	records = frappe.get_all(
 		"Platform Notification",

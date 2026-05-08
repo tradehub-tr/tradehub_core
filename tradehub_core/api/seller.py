@@ -65,6 +65,7 @@ def get_sellers(search=None, keyword=None, category=None, page=1, page_size=20):
 			"name",
 			"seller_code",
 			"seller_name",
+			"user",
 			"city",
 			"country",
 			"logo",
@@ -83,6 +84,16 @@ def get_sellers(search=None, keyword=None, category=None, page=1, page_size=20):
 		limit_page_length=int(page_size),
 		order_by="seller_name asc",
 	)
+	# Batch fetch — hangi user'lar "Verified Seller" rolüne sahip (N+1 önle)
+	seller_users = [s.user for s in sellers if s.get("user")]
+	verified_users_set = set()
+	if seller_users:
+		verified_rows = frappe.db.sql(
+			"""SELECT DISTINCT parent FROM `tabHas Role`
+			   WHERE role = 'Verified Seller' AND parenttype = 'User' AND parent IN %(users)s""",
+			{"users": tuple(seller_users)},
+		)
+		verified_users_set = {row[0] for row in verified_rows}
 	is_guest = frappe.session.user == "Guest"
 	for s in sellers:
 		s["slug"] = s.get("seller_code") or s.get("name", "")
@@ -90,7 +101,10 @@ def get_sellers(search=None, keyword=None, category=None, page=1, page_size=20):
 		s["review_count"] = int(s.get("total_orders") or 0)
 		s["cover_image"] = s.get("banner_image", "")
 		s["short_description"] = _strip_html(s.get("description", ""))
-		s["verified"] = bool(s.get("health_score", 0) >= 80)
+		# Eski health_score-bazlı verified mantığı kaldırıldı; tek doğruluk kaynağı
+		# User.role.Verified Seller (KYB Verified satıcılar).
+		s["verified"] = bool(s.get("user") and s["user"] in verified_users_set)
+		s["kybVerified"] = s["verified"]
 		if is_guest:
 			# KVKK: misafire iletisim PII sizdirma
 			s.pop("email", None)
@@ -189,8 +203,6 @@ def get_seller(slug):
 			"business_type",
 			"main_markets",
 			"certifications",
-			"is_verified",
-			"verification_type",
 			"review_count",
 			"response_time",
 			"response_rate",
@@ -208,7 +220,14 @@ def get_seller(slug):
 	seller["store_name"] = seller.get("company_name") or seller.get("seller_name") or ""
 	seller["business_name"] = seller.get("company_name") or seller.get("seller_name") or ""
 	seller["short_description"] = _strip_html(seller.get("description", ""))
-	seller["verified"] = bool(seller.get("is_verified")) or bool(seller.get("health_score", 0) >= 80)
+	# Eski is_verified field'ı silindi. verified == User.role.Verified Seller
+	# (KYB onaylanınca otomatik atanır, geri çekilince kalkar). Tek doğruluk kaynağı.
+	seller_user = seller.get("user") or frappe.db.get_value(
+		"Admin Seller Profile", seller.get("name"), "user"
+	)
+	seller["verified"] = bool(seller_user and "Verified Seller" in frappe.get_roles(seller_user))
+	seller["kybVerified"] = seller["verified"]
+	seller["is_verified"] = seller["verified"]  # Alpine x-show geriye uyumluluk
 	seller["response_time"] = seller.get("response_time") or ""
 	seller["response_rate"] = float(seller.get("response_rate") or 0)
 	seller["on_time_delivery"] = float(seller.get("on_time_delivery") or 0)
@@ -257,7 +276,84 @@ def get_seller(slug):
 		seller.pop("email", None)
 		seller.pop("phone", None)
 		seller.pop("user", None)
+
+	# Storefront medya gallery: gallery_images child tablosu, kategoriye gore gruplanir.
+	# Frontend StoreHeader hardcoded thumbs yerine bu media_groups'i kullanir.
+	# Bos gruplar (count=0) yine donulur — UI tab'i kayit yoksa atlayabilir.
+	seller["media_groups"] = _build_media_groups(seller["name"])
 	return seller
+
+
+_MEDIA_CATEGORIES = (
+	("overview", "Genel Bakış"),
+	("360_view", "360° Görünüm"),
+	("production", "Üretim"),
+	("quality_control", "Kalite Kontrol"),
+)
+
+
+def _build_media_groups(admin_seller_profile_name):
+	"""
+	Admin Seller Profile.gallery_images child satirlarini kategoriye gore gruplar.
+
+	Donus formati frontend StoreHeader Alpine x-data icin tasarlandi:
+	  [
+	    {
+	      "key": "overview", "label": "Genel Bakış", "count": N,
+	      "items": [{"media_type": "video"|"image", "src": ..., "poster": ..., "caption": ...}]
+	    }, ...
+	  ]
+	Sira: media_type=video onceligi (UI ilk videoyu ana medya yapsin), sonra sort_order, sonra idx.
+	"""
+	rows = frappe.get_all(
+		"Seller Gallery Image",
+		filters={"parent": admin_seller_profile_name, "parenttype": "Admin Seller Profile"},
+		fields=[
+			"category",
+			"media_type",
+			"image",
+			"video_url",
+			"poster_image",
+			"caption",
+			"sort_order",
+			"idx",
+		],
+		order_by="sort_order asc, idx asc",
+	)
+
+	groups_by_key = {key: [] for key, _label in _MEDIA_CATEGORIES}
+	for r in rows:
+		key = (r.get("category") or "overview").strip()
+		if key not in groups_by_key:
+			# Bilinmeyen kategori — overview'a düşür (geriye dönük uyum)
+			key = "overview"
+		mtype = (r.get("media_type") or "image").strip()
+		# Esnek src cozumlemesi: child table grid'inde sadece "Görsel" sutunu
+		# in_list_view ile gorunduygu icin kullanici video MP4'unu da o alana
+		# yukluyor olabilir. media_type'a oncelikli alani dene, dolu degilse
+		# karşı alana fallback (video → image, image → video_url).
+		if mtype == "video":
+			src = r.get("video_url") or r.get("image") or ""
+		else:
+			src = r.get("image") or r.get("video_url") or ""
+		if not src:
+			continue
+		groups_by_key[key].append(
+			{
+				"media_type": mtype,
+				"src": src,
+				"poster": r.get("poster_image") or "",
+				"caption": r.get("caption") or "",
+			}
+		)
+
+	result = []
+	for key, label in _MEDIA_CATEGORIES:
+		items = groups_by_key[key]
+		# Video'yu basa al (ana medya genelde video oluyor)
+		items.sort(key=lambda it: 0 if it["media_type"] == "video" else 1)
+		result.append({"key": key, "label": label, "count": len(items), "items": items})
+	return result
 
 
 @frappe.whitelist()

@@ -189,6 +189,7 @@ permission_query_conditions = {
 	"CRM Task": "tradehub_core.permissions.crm_task_query_conditions",
 	"FCRM Note": "tradehub_core.permissions.fcrm_note_query_conditions",
 	"CRM Call Log": "tradehub_core.permissions.crm_call_log_query_conditions",
+	"Platform Notification": "tradehub_core.tradehub_core.doctype.platform_notification.platform_notification.get_permission_query_conditions",
 }
 
 has_permission = {
@@ -214,6 +215,7 @@ has_permission = {
 	"CRM Task": "tradehub_core.permissions.crm_task_has_permission",
 	"FCRM Note": "tradehub_core.permissions.fcrm_note_has_permission",
 	"CRM Call Log": "tradehub_core.permissions.crm_call_log_has_permission",
+	"Platform Notification": "tradehub_core.tradehub_core.doctype.platform_notification.platform_notification.has_permission",
 }
 
 # ---------------------------------------------------------------------------

@@ -2682,8 +2682,7 @@ def _ensure_seller(s):
 	doc.bank_name = s["bank_name"]
 	doc.iban = s["iban"]
 	doc.account_holder = s["account_holder"]
-	doc.is_verified = 1
-	doc.verification_type = "Verified Multispecialty Supplier"
+	# is_verified ve verification_type field'ları kaldırıldı (KYB Verified rolüne geçildi)
 	doc.health_score = round(random.uniform(75, 98), 1)
 	doc.score_grade = random.choice(["A", "A", "A", "B"])
 	doc.commission_rate = s["commission_rate"]
