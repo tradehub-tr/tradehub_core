@@ -1,0 +1,39 @@
+{
+	"actions": [],
+	"creation": "2026-05-11 00:00:00.000000",
+	"doctype": "DocType",
+	"engine": "InnoDB",
+	"field_order": [
+		"display_mode"
+	],
+	"fields": [
+		{
+			"fieldname": "display_mode",
+			"fieldtype": "Select",
+			"label": "Gösterim Modu",
+			"options": "single\nslide\nmarquee",
+			"default": "marquee",
+			"reqd": 1
+		}
+	],
+	"issingle": 1,
+	"links": [],
+	"modified": "2026-05-11 00:00:00.000000",
+	"modified_by": "Administrator",
+	"module": "Tradehub Core",
+	"name": "Header Notice Settings",
+	"owner": "Administrator",
+	"permissions": [
+		{
+			"create": 1,
+			"delete": 1,
+			"read": 1,
+			"report": 1,
+			"role": "System Manager",
+			"write": 1
+		}
+	],
+	"sort_field": "modified",
+	"sort_order": "DESC",
+	"track_changes": 1
+}

@@ -13,6 +13,7 @@
 		"link_href",
 		"section_break_meta",
 		"icon",
+		"background_color",
 		"is_active",
 		"sort_order",
 		"column_break_dates",
@@ -61,6 +62,12 @@
 			"label": "İkon",
 			"options": "none\n🎉\n⚡\n📦\nℹ️\n🚚\n🔥\n⭐",
 			"default": "none"
+		},
+		{
+			"fieldname": "background_color",
+			"fieldtype": "Color",
+			"label": "Arka plan rengi",
+			"default": "#1a1a1a"
 		},
 		{
 			"fieldname": "is_active",

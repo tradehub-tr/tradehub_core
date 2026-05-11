@@ -9,7 +9,6 @@ class TestHeaderNotice(unittest.TestCase):
 	@classmethod
 	def setUpClass(cls):
 		frappe.set_user("Administrator")
-		# Tüm test notice'ları sil
 		frappe.db.delete("Header Notice")
 		frappe.db.commit()
 
@@ -23,6 +22,7 @@ class TestHeaderNotice(unittest.TestCase):
 			"message_tr": kwargs.pop("message_tr", "Test"),
 			"is_active": 1,
 			"icon": "none",
+			"background_color": "#1a1a1a",
 			"sort_order": 0,
 		}
 		defaults.update(kwargs)
@@ -66,25 +66,28 @@ class TestHeaderNotice(unittest.TestCase):
 		finally:
 			frappe.set_user("Administrator")
 
-	def test_invalidate_cache_hook_registered(self):
-		"""Header Notice DocType'ı için doc_events hook'larının doğru kayıtlı olduğunu doğrular.
+	def test_response_includes_display_mode(self):
+		self._make(message_tr="One")
+		res = get_active_notices()
+		self.assertIn("display_mode", res)
+		# 1 notice → auto single mode
+		self.assertEqual(res["display_mode"], "single")
 
-		Not: frappe.cache.set_value test runner'da güvenilir persist etmiyor (Frappe v15
-		test isolation quirk). Bu yüzden cache'in fiili invalidasyonu yerine hook'un
-		hooks.py'de doğru handler'a bağlandığını introspection ile test ediyoruz.
-		"""
+	def test_single_mode_with_two_notices(self):
+		# Ensure settings.display_mode=marquee → with 2+ notices stays marquee
+		frappe.db.set_single_value("Header Notice Settings", "display_mode", "marquee")
+		self._make(message_tr="A")
+		self._make(message_tr="B")
+		res = get_active_notices()
+		self.assertEqual(res["display_mode"], "marquee")
+
+	def test_invalidate_cache_hook_registered(self):
 		hooks = frappe.get_hooks("doc_events", default={})
 		hn_hooks = hooks.get("Header Notice", {})
 		self.assertTrue(hn_hooks, "Header Notice doc_events kaydı bulunamadı")
-
 		expected_handler = "tradehub_core.api.header_notice.invalidate_cache"
 		for event in ("after_insert", "on_update", "on_trash"):
 			handlers = hn_hooks.get(event, [])
-			# Frappe single-handler durumunda string, multi durumunda list döndürür
 			if isinstance(handlers, str):
 				handlers = [handlers]
-			self.assertIn(
-				expected_handler,
-				handlers,
-				f"'{event}' için '{expected_handler}' kaydı eksik",
-			)
+			self.assertIn(expected_handler, handlers, f"'{event}' kaydı eksik")

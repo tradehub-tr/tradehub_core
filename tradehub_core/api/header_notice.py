@@ -10,7 +10,10 @@ def get_active_notices() -> dict:
 	"""Storefront tarafından çağrılır; login zorunlu değil."""
 	cached = frappe.cache.get_value(CACHE_KEY)
 	if cached is not None:
-		return {"success": True, "notices": cached}
+		return cached
+
+	settings = frappe.get_cached_doc("Header Notice Settings")
+	display_mode = settings.display_mode or "marquee"
 
 	now = now_datetime()
 	rows = frappe.get_all(
@@ -24,6 +27,7 @@ def get_active_notices() -> dict:
 			"link_text_en",
 			"link_href",
 			"icon",
+			"background_color",
 			"sort_order",
 			"start_at",
 			"end_at",
@@ -32,7 +36,6 @@ def get_active_notices() -> dict:
 	)
 
 	def in_window(n: dict) -> bool:
-		# frappe.get_all datetime'ı string döndürebilir → get_datetime ile parse
 		if n.get("start_at") and get_datetime(n["start_at"]) > now:
 			return False
 		if n.get("end_at") and get_datetime(n["end_at"]) < now:
@@ -48,14 +51,23 @@ def get_active_notices() -> dict:
 			"link_text_en": n.get("link_text_en") or "",
 			"link_href": n.get("link_href") or "",
 			"icon": n.get("icon") or "none",
+			"background_color": n.get("background_color") or "#1a1a1a",
 			"sort_order": n["sort_order"],
 		}
 		for n in rows
 		if in_window(n)
 	]
 
-	frappe.cache.set_value(CACHE_KEY, active, expires_in_sec=CACHE_TTL)
-	return {"success": True, "notices": active}
+	# Auto-downgrade: if only 1 notice, single mode regardless of setting
+	effective_mode = "single" if len(active) <= 1 else display_mode
+
+	payload = {
+		"success": True,
+		"display_mode": effective_mode,
+		"notices": active,
+	}
+	frappe.cache.set_value(CACHE_KEY, payload, expires_in_sec=CACHE_TTL)
+	return payload
 
 
 def invalidate_cache(doc, method=None) -> None:

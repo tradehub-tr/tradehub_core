@@ -167,6 +167,10 @@ doc_events = {
 		"on_update": "tradehub_core.api.header_notice.invalidate_cache",
 		"on_trash": "tradehub_core.api.header_notice.invalidate_cache",
 	},
+	# Header Notice Settings singleton → also invalidate cache when display_mode changes.
+	"Header Notice Settings": {
+		"on_update": "tradehub_core.api.header_notice.invalidate_cache",
+	},
 }
 
 # ---------------------------------------------------------------------------
