@@ -1,3 +1,21 @@
+## [v1.0.8-beta.3] - 2026-05-11 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Eklendi
+- feat(header-notice): add Header Notice DocType schema and controller (@ahmeetseker)
+- feat(header-notice): add migration patch for Header Notice (@ahmeetseker)
+- feat(header-notice): add public API endpoint with 60s cache (@ahmeetseker)
+- feat(header-notice): wire cache invalidation via doc_events hooks (@ahmeetseker)
+- feat(header-notice): add display_mode settings + per-notice background_color (@ahmeetseker)
+
+### Duzeltildi
+- fix(api): API yanıtında hata mesajı düzeltildi (@ahmeetseker)
+- fix(header-notice): use tab indentation and add search_index for filter fields (@ahmeetseker)
+- fix(header-notice): commit after setUpClass cleanup to ensure test isolation (@ahmeetseker)
+- fix(header-notice): drop auto-downgrade so storefront uses admin's chosen mode (@ahmeetseker)
+
+---
 ## [v1.0.8-beta.2] - 2026-05-11 BETA
 
 Bu surum betaistoc.cronbi.com'da test asamasindadir.
