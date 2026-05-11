@@ -1,3 +1,11 @@
+## [v1.0.8-beta.1] - 2026-05-11 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Duzeltildi
+- fix(api): API yanıtında hata mesajı düzeltildi (@ahmeetseker)
+
+---
 ## [Belgelenmemiş Özellikler — Geliştirme Süreci Özeti] - 2026-05-08
 
 Bu bölüm, geliştirme sürecinde koda eklenmiş ancak önceki sürüm changelog'larında (özellikle v1.0.7-beta.1 ile v1.0.7-beta.10 arası ve v1.0.5 prod sonrası) yeterince belgelenmemiş özellikleri kapsamlı olarak listeler. Her madde, etkilediği domain, ne yaptığı ve teknik kapsamıyla birlikte yazılmıştır. Kaynak: `git log version-15..ahmet` + dosya bazlı kod taraması.
