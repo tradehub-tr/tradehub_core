@@ -49,7 +49,7 @@
    "fieldname": "type",
    "fieldtype": "Select",
    "label": "Tip",
-   "options": "\norder\nrfq\nlisting\nstock\nreview\ndispute\nsystem\npromo",
+   "options": "\norder\nrfq\nlisting\nstock\nreview\ndispute\nsystem\npromo\ncertification",
    "reqd": 1,
    "in_list_view": 1,
    "in_filter": 1

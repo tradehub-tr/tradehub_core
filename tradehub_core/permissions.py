@@ -1174,3 +1174,64 @@ def crm_call_log_query_conditions(user):
 
 def crm_call_log_has_permission(doc, ptype, user):
 	return _crm_has_permission_for_doc(doc, ptype, user)
+
+
+# ── RFQ ──────────────────────────────────────────────────────────────────────
+# Gates File access (is_private=1) on RFQ attachments. Frappe core calls
+# RFQ.has_permission when serving /private/files/... for a File whose
+# attached_to_doctype = "RFQ".
+
+
+def rfq_has_permission(doc, ptype, user):
+	"""Authorize RFQ access (and by proxy, its private file attachments).
+
+	Read rules:
+	- Buyer (owner) ✓ always
+	- Admin (System Manager / Marketplace Admin) ✓ always
+	- Seller ✓ if any of:
+	    a) RFQ Quote already submitted by this seller for this RFQ
+	    b) RFQ is Approved AND seller has an Active Seller Category matching doc.category
+	- Write/Create: only Buyer (owner) or Admin
+	- Delete: Admin only
+	"""
+	if user == "Guest":
+		return False
+
+	roles = frappe.get_roles(user)
+	if "System Manager" in roles or "Marketplace Admin" in roles:
+		return True
+
+	# doctype-level (doc is None) — defer to per-doc check; allow listing-level read
+	if doc is None:
+		return True
+
+	doc_buyer = getattr(doc, "buyer", None) if not isinstance(doc, dict) else doc.get("buyer")
+	doc_name = getattr(doc, "name", None) if not isinstance(doc, dict) else doc.get("name")
+	doc_status = getattr(doc, "status", None) if not isinstance(doc, dict) else doc.get("status")
+	doc_category = getattr(doc, "category", None) if not isinstance(doc, dict) else doc.get("category")
+
+	# Buyer (owner) — full read/write on their own RFQ
+	if doc_buyer == user:
+		return True
+
+	# Seller — read only, conditional
+	if "Seller" in roles:
+		if ptype != "read":
+			return False
+		# (a) Already submitted quote
+		if doc_name and frappe.db.exists("RFQ Quote", {"rfq": doc_name, "seller": user}):
+			return True
+		# (b) Approved + category match
+		if doc_status != "Approved" or not doc_category:
+			return False
+		profile = _get_seller_profile_name(user)
+		if not profile:
+			return False
+		return bool(
+			frappe.db.exists(
+				"Seller Category",
+				{"seller": profile, "category": doc_category, "status": "Active", "is_enabled": 1},
+			)
+		)
+
+	return False

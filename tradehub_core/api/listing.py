@@ -307,6 +307,7 @@ def get_listings(
 		cat=category,
 		minp=min_price,
 		maxp=max_price,
+		mo=min_order,
 		sup=supplier,
 		sb=sort_by,
 		so=sort_order,
@@ -403,17 +404,26 @@ def get_listings(
 			}
 		seller_profile_filters["user"] = ["in", verified_user_emails]
 	if country:
-		seller_profile_filters["country"] = country
+		# Multi-select: frontend "Turkey,China" gibi virgül-ayrılmış string gönderir.
+		# Tek değer için de geriye uyumlu.
+		country_list = [c.strip() for c in str(country).split(",") if c.strip()]
+		if len(country_list) == 1:
+			seller_profile_filters["country"] = country_list[0]
+		elif len(country_list) > 1:
+			seller_profile_filters["country"] = ["in", country_list]
 
 	# Management certifications filter: via Seller Certification child table
+	# v4: Yalnızca verification_status="Verified" cert'ler hesaba katılır.
 	if certifications or mgmt_certifications:
 		cert_str = mgmt_certifications or certifications
 		cert_list = [c.strip() for c in cert_str.split(",") if c.strip()]
 		if cert_list:
-			# Find sellers who have ANY of these certifications
 			sellers_with_certs = frappe.get_all(
 				"Seller Certification",
-				filters=[["certification_type", "in", cert_list]],
+				filters=[
+					["certification_type", "in", cert_list],
+					["verification_status", "=", "Verified"],
+				],
 				fields=["parent"],
 				pluck="parent",
 			)
@@ -578,10 +588,17 @@ def get_listings(
 		price_filters.append(
 			["Listing", "selling_price", "<=", safe_float(max_price, label=_("Maksimum fiyat"))]
 		)
-	# Min order filter — kullanıcı "Min. siparış" alanına girdiği değer
-	# (listing'in min_order_qty değeri kullanıcının max kabul ettiği eşitten az olmalı)
+	# Min order filter — B2B "toptan eşik" mantığı (Alibaba modeli):
+	# Kullanıcı "100 adet ve üstü MOQ'lu ürünler arıyorum" der → listing.min_order_qty >= user_input.
+	# Filter chip "MSA ≥ 100" olarak gösterilir.
+	# 0 ve negatif değerler filter'ı atlar (UX: "0 adet" anlamsız).
 	if min_order:
-		price_filters.append(["Listing", "min_order_qty", "<=", safe_int(min_order, label=_("Min. sipariş"))])
+		try:
+			min_order_int = safe_int(min_order, label=_("Min. sipariş"))
+		except Exception:
+			min_order_int = 0
+		if min_order_int > 0:
+			price_filters.append(["Listing", "min_order_qty", ">=", min_order_int])
 
 	# ── Sorting ──
 	use_relevance_sort = sort_by == "relevance" and bool(query)
@@ -897,18 +914,22 @@ def get_listing_detail(listing_id):
 				else:
 					main_products = []
 
-				certifications_raw = seller.certifications
-				if isinstance(certifications_raw, str):
-					certifications = [c.strip() for c in certifications_raw.split(",") if c.strip()]
-				elif isinstance(certifications_raw, list):
-					# Child table — her satırın label/name field'ını al
-					certifications = []
-					for row in certifications_raw:
-						label = getattr(row, "certification_type", None) or getattr(row, "name", None) or ""
-						if isinstance(label, str) and label.strip():
-							certifications.append(label.strip())
-				else:
-					certifications = []
+				# v4: Storefront yalnız verification_status='Verified' cert'leri
+				# döndürür. Pending/Rejected gizli; süresi dolanlar da gizli.
+				cert_rows = frappe.db.sql(
+					"""
+					SELECT sc.certification_type
+					FROM `tabSeller Certification` sc
+					WHERE sc.parent = %(profile)s
+						AND sc.parenttype = 'Admin Seller Profile'
+						AND IFNULL(sc.verification_status, 'Pending') = 'Verified'
+						AND (sc.expiry_date IS NULL OR sc.expiry_date >= CURDATE())
+					ORDER BY sc.idx ASC
+					""",
+					{"profile": listing.seller_profile},
+					as_dict=True,
+				)
+				certifications = [r.certification_type for r in cert_rows if r.certification_type]
 
 				supplier_data = {
 					"name": seller.seller_name or seller.company_name,
@@ -1293,12 +1314,24 @@ def get_filter_facets(query=None, category=None):
 		fields=["name", "ships_from_country", "product_category", "seller_profile", "brand"],
 	)
 
-	# Aggregate countries
+	# Aggregate countries — UI başlığı "Tedarikçi Ülkesi" → satıcının kayıtlı ülkesi
+	# (Admin Seller Profile.country) kullanılır. Listing.ships_from_country lojistik
+	# alanı; "Ships From" gerekirse ileride ayrı filter olur (DHGate modeli).
+	# Filter uygulaması da get_listings içinde aynı alana bağlı — facet ↔ filter tutarlı.
 	country_counts: dict[str, int] = {}
-	for l in listings:
-		c = l.get("ships_from_country")
-		if c:
-			country_counts[c] = country_counts.get(c, 0) + 1
+	if listings:
+		seller_profiles_for_countries = {l.seller_profile for l in listings if l.get("seller_profile")}
+		if seller_profiles_for_countries:
+			profile_country_rows = frappe.get_all(
+				"Admin Seller Profile",
+				filters=[["name", "in", list(seller_profiles_for_countries)]],
+				fields=["name", "country"],
+			)
+			profile_to_country = {r.name: r.country for r in profile_country_rows if r.country}
+			for l in listings:
+				c = profile_to_country.get(l.get("seller_profile"))
+				if c:
+					country_counts[c] = country_counts.get(c, 0) + 1
 
 	# Verified Seller (KYB Verified) listing sayısı — filter sidebar facet için
 	verified_supplier_count = 0
@@ -1371,10 +1404,15 @@ def get_filter_facets(query=None, category=None):
 		all_assigned_certs = set()
 
 		# Collect all assigned cert IDs from both child tables
+		# v4: Sadece verification_status='Verified' mağaza cert'leri facet'ta sayılır.
 		if seller_profiles:
 			seller_certs = frappe.get_all(
 				"Seller Certification",
-				filters=[["parent", "in", seller_profiles], ["parenttype", "=", "Admin Seller Profile"]],
+				filters=[
+					["parent", "in", seller_profiles],
+					["parenttype", "=", "Admin Seller Profile"],
+					["verification_status", "=", "Verified"],
+				],
 				fields=["certification_type"],
 			)
 			for sc in seller_certs:

@@ -93,6 +93,8 @@ class SellerApplication(Document):
 		if "Seller" not in frappe.get_roles(user):
 			user_doc = frappe.get_doc("User", user)
 			user_doc.add_roles("Seller")
+		# 2026-05-11 REVERT: System User upgrade kaldırıldı; user_type Website User
+		# olarak kalır (Frappe v15 init_request 417 edge case'leri çözülemedi).
 
 		# Create or update KYB Verification record pre-filled from application data
 		seller_type_map = {

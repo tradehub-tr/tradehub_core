@@ -55,6 +55,7 @@
 			"fieldtype": "Link",
 			"label": "Category",
 			"options": "Product Category",
+			"reqd": 1,
 			"in_list_view": 1,
 			"in_standard_filter": 1
 		},
@@ -115,17 +116,6 @@
 			"label": "Quote Count",
 			"read_only": 1,
 			"default": "0"
-		},
-		{
-			"fieldname": "tab_attachments",
-			"fieldtype": "Tab Break",
-			"label": "Attachments"
-		},
-		{
-			"fieldname": "attachments",
-			"fieldtype": "Table",
-			"label": "Attachments",
-			"options": "RFQ Attachment"
 		}
 	],
 	"permissions": [
