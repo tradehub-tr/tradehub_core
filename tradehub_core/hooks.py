@@ -160,6 +160,13 @@ doc_events = {
 	"CRM Call Log": {
 		"before_insert": "tradehub_core.utils.crm_seller_autoset.autoset_seller",
 	},
+	# Header Notice lifecycle → invalidate 60s Redis cache so storefront sees
+	# fresh banner/notice data within the next request after any admin edit.
+	"Header Notice": {
+		"after_insert": "tradehub_core.api.header_notice.invalidate_cache",
+		"on_update": "tradehub_core.api.header_notice.invalidate_cache",
+		"on_trash": "tradehub_core.api.header_notice.invalidate_cache",
+	},
 }
 
 # ---------------------------------------------------------------------------
