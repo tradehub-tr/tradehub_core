@@ -4,7 +4,8 @@ RFQ (Request for Quotation) API endpoints.
 Storefront:
   - create_rfq: Buyer creates an RFQ
   - get_my_rfqs: Buyer lists their RFQs
-  - get_rfq_detail: Buyer views RFQ detail + quotes
+  - get_rfq_detail: Buyer views RFQ detail + quotes (includes attachments)
+  - get_rfq_attachments: Explicit attachment list (permission-gated through RFQ)
   - get_my_inquiries: Buyer lists their inquiries
   - search_categories: Autocomplete for product name → category
   - add_rfq_details: Add additional details to an existing RFQ
@@ -13,6 +14,12 @@ Storefront:
 Admin Panel / Seller:
   - submit_quote: Seller submits a quote for an RFQ
   - get_seller_rfqs: Seller sees RFQs matching their categories
+
+Attachments:
+  Files are uploaded via Frappe's standard /api/method/upload_file endpoint
+  with is_private=1. The Frappe File doctype is the single source of truth —
+  no separate child-table copy is maintained. Permission is gated through
+  RFQ.has_permission (see tradehub_core.permissions.rfq_has_permission).
 """
 
 from html import escape as html_escape
@@ -32,9 +39,15 @@ def create_rfq(product_name, description, quantity, unit, category=None, share_b
 	if user == "Guest":
 		frappe.throw(_("Please log in to create an RFQ"), frappe.AuthenticationError)
 
+	pn = (product_name or "").strip()
+	if len(pn) < 2:
+		frappe.throw(_("Ürün adı en az 2 karakter olmalı"))
+	if not category:
+		frappe.throw(_("Kategori seçimi zorunlu"))
+
 	doc = frappe.new_doc("RFQ")
 	doc.buyer = user
-	doc.product_name = product_name
+	doc.product_name = pn
 	doc.description = description
 	doc.quantity = float(quantity)
 	doc.unit = unit
@@ -78,6 +91,10 @@ def get_my_rfqs(status=None, limit_page_length=20, limit_start=0):
 		limit_page_length=normalize_offset(limit_start, limit_page_length, max_length=100)[1],
 	)
 
+	# Batch attachment counts (avoid N+1)
+	rfq_names = [r.name for r in rfqs]
+	attachment_counts = _attachment_counts_for_rfqs(rfq_names)
+
 	for rfq in rfqs:
 		# Get quote status summary + unseen count
 		quotes = frappe.get_all(
@@ -99,10 +116,50 @@ def get_my_rfqs(status=None, limit_page_length=20, limit_start=0):
 		else:
 			rfq["quote_summary"] = {}
 			rfq["quotation_from"] = ""
+		rfq["attachment_count"] = attachment_counts.get(rfq.name, 0)
 
 	total = frappe.db.count("RFQ", filters)
 
 	return {"data": rfqs, "total": total}
+
+
+def _attachment_counts_for_rfqs(rfq_names):
+	"""Return {rfq_name: count} for File rows attached to the given RFQs."""
+	if not rfq_names:
+		return {}
+	rows = frappe.get_all(
+		"File",
+		filters={"attached_to_doctype": "RFQ", "attached_to_name": ["in", rfq_names]},
+		fields=["attached_to_name"],
+		limit_page_length=0,
+	)
+	out = {}
+	for r in rows:
+		out[r.attached_to_name] = out.get(r.attached_to_name, 0) + 1
+	return out
+
+
+def _list_rfq_attachments(rfq_id):
+	"""Return RFQ attachment list shaped for frontend: [{file_url, file_name, file_size, creation}]."""
+	if not rfq_id:
+		return []
+	rows = frappe.get_all(
+		"File",
+		filters={"attached_to_doctype": "RFQ", "attached_to_name": rfq_id},
+		fields=["name", "file_name", "file_url", "file_size", "creation"],
+		order_by="creation asc",
+		limit_page_length=0,
+	)
+	return [
+		{
+			"name": r.name,
+			"file_name": r.file_name or "",
+			"file_url": r.file_url or "",
+			"file_size": int(r.file_size or 0),
+			"creation": str(r.creation),
+		}
+		for r in rows
+	]
 
 
 @frappe.whitelist()
@@ -243,6 +300,7 @@ def get_rfq_detail(rfq_id):
 			"share_business_card": rfq.share_business_card,
 			"creation": str(rfq.creation),
 			"modified": str(rfq.modified),
+			"attachments": _list_rfq_attachments(rfq.name),
 		},
 		"quotes": quotes,
 	}
@@ -435,6 +493,9 @@ def get_seller_rfqs(status=None, limit_page_length=20, limit_start=0):
 		limit_page_length=normalize_offset(limit_start, limit_page_length, max_length=100)[1],
 	)
 
+	# Batch attachment counts (avoid N+1)
+	attachment_counts = _attachment_counts_for_rfqs([r.name for r in rfqs])
+
 	for rfq in rfqs:
 		rfq["buyer_name"] = frappe.db.get_value("User", rfq.buyer, "full_name") or ""
 		if rfq.get("category"):
@@ -443,6 +504,7 @@ def get_seller_rfqs(status=None, limit_page_length=20, limit_start=0):
 			)
 		# Check if current seller already submitted a quote
 		rfq["my_quote"] = frappe.db.exists("RFQ Quote", {"rfq": rfq.name, "seller": user}) or ""
+		rfq["attachment_count"] = attachment_counts.get(rfq.name, 0)
 
 	total = frappe.db.count("RFQ", filters)
 	return {"data": rfqs, "total": total}
@@ -494,6 +556,8 @@ def search_categories(query=""):
 @require_verified_email
 def add_rfq_details(rfq_id, additional_details):
 	"""Add additional details to an existing RFQ (one-time)."""
+	from tradehub_core.utils.notify import notify
+
 	user = frappe.session.user
 	if user == "Guest":
 		frappe.throw(_("Please log in"), frappe.AuthenticationError)
@@ -506,7 +570,36 @@ def add_rfq_details(rfq_id, additional_details):
 		frappe.throw(_("Additional details can only be added once"))
 
 	rfq.additional_details = html_escape(additional_details)[:100]
+	rfq.flags.ignore_permissions = True
 	rfq.save()
+
+	# E — RFQ ek detayı eklendiğinde aktif teklif sahiplerine bildir
+	try:
+		quote_sellers = frappe.get_all(
+			"RFQ Quote",
+			filters={"rfq": rfq_id, "status": ["not in", ["Rejected", "Withdrawn"]]},
+			fields=["seller"],
+			distinct=True,
+		)
+		seen = set()
+		for q in quote_sellers:
+			seller_user = q.get("seller")
+			if not seller_user or seller_user in seen:
+				continue
+			seen.add(seller_user)
+			notify(
+				recipient_user=seller_user,
+				recipient_role="seller",
+				type="rfq",
+				title=_("RFQ Detayı Güncellendi"),
+				message=_("{0} numaralı talebe ek detay eklendi.").format(rfq_id),
+				action_url=f"/app/rfq/{rfq_id}",
+				reference_doctype="RFQ",
+				reference_name=rfq_id,
+			)
+	except Exception:
+		frappe.log_error(title="add_rfq_details: notify quote sellers")
+
 	frappe.db.commit()
 
 	return {"success": True}
@@ -613,9 +706,19 @@ def trash_inquiry(inquiry_id):
 
 @frappe.whitelist(allow_guest=True)
 def get_uom_list():
-	"""Get list of UOM options for RFQ form."""
-	uoms = frappe.get_all("UOM", fields=["name"], order_by="name asc", limit_page_length=0)
-	return [u.name for u in uoms]
+	"""
+	Return enabled UOMs as a list of {name} dicts, alphabetically.
+
+	UOM kayıtları Türkçeleştirildiği için (bkz. patches/localize_uom_tr.py)
+	ek bir çeviri katmanına gerek yok — name doğrudan kullanıcıya gösterilir.
+	"""
+	return frappe.get_all(
+		"UOM",
+		fields=["name"],
+		filters={"enabled": 1},
+		order_by="name asc",
+		limit_page_length=0,
+	)
 
 
 @frappe.whitelist()
@@ -655,36 +758,22 @@ def get_my_listings():
 	return listings
 
 
-ALLOWED_FILE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".gif", ".pdf", ".doc", ".docx", ".xls", ".xlsx")
-
-
 @frappe.whitelist()
-def add_rfq_attachment(rfq_id, file_url, file_name):
-	"""Add uploaded file to RFQ attachments child table."""
+def get_rfq_attachments(rfq_id):
+	"""Return list of files attached to the given RFQ.
+
+	Permission is enforced through the RFQ doctype's has_permission hook:
+	Frappe loads the RFQ doc and rejects with PermissionError if the user
+	can't read it. So no extra check is needed here.
+	"""
 	user = frappe.session.user
 	if user == "Guest":
 		frappe.throw(_("Please log in"), frappe.AuthenticationError)
 
-	# Server-side file extension validation
-	ext = ("." + file_name.rsplit(".", 1)[-1].lower()) if "." in file_name else ""
-	if ext not in ALLOWED_FILE_EXTENSIONS:
-		frappe.throw(_("File type not allowed. Allowed: JPG, PNG, GIF, PDF, DOC, XLS"))
+	# Triggers has_permission → 403 if unauthorized.
+	frappe.get_doc("RFQ", rfq_id)
 
-	rfq = frappe.get_doc("RFQ", rfq_id)
-	if rfq.buyer != user and "System Manager" not in frappe.get_roles(user):
-		frappe.throw(_("Permission denied"), frappe.PermissionError)
-
-	rfq.append(
-		"attachments",
-		{
-			"file": file_url,
-			"file_name": file_name,
-		},
-	)
-	rfq.save()
-	frappe.db.commit()
-
-	return {"success": True}
+	return _list_rfq_attachments(rfq_id)
 
 
 @frappe.whitelist()

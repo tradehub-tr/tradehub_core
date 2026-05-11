@@ -73,9 +73,10 @@ def _add_role(user: str, role: str) -> None:
 	user_doc = frappe.get_doc("User", user)
 	user_doc.add_roles(role)
 
-	# Frappe v15 add_roles user_type'ı System User'a yükseltebiliyor;
-	# satıcı user'ları Website User olarak kalmalı (storefront context).
-	# Defansif geri çekme (identity.register_supplier'daki ile aynı pattern).
+	# 2026-05-11 REVERT: System User mimarisinin Frappe v15'te init_request
+	# 417 edge case'leri çözülemedi. Eski stabil Website User mimarisine dönüldü.
+	# add_roles bazı rolleri (desk_access=1) eklerken user_type'ı System User'a
+	# yükseltir; defansif geri çek.
 	frappe.db.sql(
 		"UPDATE `tabUser` SET `user_type`='Website User' WHERE `name`=%s AND `user_type`='System User'",
 		(user,),

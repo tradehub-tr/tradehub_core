@@ -19,8 +19,22 @@
   {
    "fieldname": "certificate_number",
    "fieldtype": "Data",
-   "label": "Sertifika Numaras\u0131",
+   "label": "Sertifika Numarası",
    "in_list_view": 1
+  },
+  {
+   "fieldname": "issued_date",
+   "fieldtype": "Date",
+   "label": "Verilme Tarihi",
+   "in_list_view": 1,
+   "description": "Üretim partisi için override; boşsa mağaza sertifikasının tarihinden alınır"
+  },
+  {
+   "fieldname": "expiry_date",
+   "fieldtype": "Date",
+   "label": "Bitiş Tarihi",
+   "in_list_view": 1,
+   "description": "Üretim partisi için override; boşsa mağaza sertifikasının tarihinden alınır"
   }
  ],
  "permissions": []

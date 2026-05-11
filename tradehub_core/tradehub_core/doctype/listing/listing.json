@@ -424,7 +424,7 @@
    "fieldtype": "Column Break"
   },
   {
-   "default": "Nos",
+   "default": "Adet",
    "fieldname": "stock_uom",
    "fieldtype": "Link",
    "label": "Stock UOM",

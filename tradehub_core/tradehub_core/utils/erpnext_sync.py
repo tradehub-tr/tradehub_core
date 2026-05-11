@@ -676,7 +676,7 @@ def create_item_from_listing(listing: Document) -> str:
 	item.item_group = "All Item Groups"
 	item.description = listing.description
 	item.standard_rate = listing.selling_price
-	item.stock_uom = listing.stock_uom or "Nos"
+	item.stock_uom = listing.stock_uom or "Adet"
 	item.is_stock_item = 1
 
 	if listing.image:
@@ -776,7 +776,7 @@ def make_item_from_sku(source_name: str, target_doc: Document = None) -> Documen
 		if not target.stock_uom and source.stock_uom:
 			target.stock_uom = source.stock_uom
 		elif not target.stock_uom:
-			target.stock_uom = "Nos"
+			target.stock_uom = "Adet"
 
 		# Set valuation rate from base price
 		if source.base_price and not target.valuation_rate:
@@ -963,7 +963,7 @@ def _create_item_from_sku(sku: Document) -> Document:
 		item.item_group = default_group
 
 	# Stock settings
-	item.stock_uom = sku.stock_uom or "Nos"
+	item.stock_uom = sku.stock_uom or "Adet"
 	item.is_stock_item = 1 if sku.is_stock_item else 0
 
 	# Pricing
@@ -1432,7 +1432,7 @@ def _update_sales_order_from_order(sales_order: Document, order: Document) -> Do
 			so_item = sales_order.append("items", {})
 			so_item.qty = item.quantity
 			so_item.rate = item.unit_price
-			so_item.uom = item.uom or "Nos"
+			so_item.uom = item.uom or "Adet"
 			so_item.description = item.item_description
 
 			if order.estimated_delivery_date:

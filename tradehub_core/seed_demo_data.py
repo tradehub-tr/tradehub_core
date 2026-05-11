@@ -3249,7 +3249,7 @@ def _create_listing(
 	doc.sample_price = sample
 	doc.b2b_enabled = 1
 	doc.stock_qty = random.randint(500, 5000)
-	doc.stock_uom = "Nos"
+	doc.stock_uom = "Adet"
 	doc.min_order_qty = random.choice([1, 5, 10, 20])
 	doc.max_order_qty = 0
 	doc.low_stock_threshold = 10

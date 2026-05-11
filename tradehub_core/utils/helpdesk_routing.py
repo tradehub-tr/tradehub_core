@@ -31,8 +31,10 @@ def _as_admin():
 # ── Team helpers ────────────────────────────────────────────────────────
 
 
-def ensure_platform_support_team() -> str:
+def ensure_platform_support_team() -> str | None:
 	"""Default (genel) destek ekibi — kategori/sipariş yoksa ticket buraya dusger."""
+	if not _helpdesk_available():
+		return None
 	if not frappe.db.exists("HD Team", PLATFORM_SUPPORT_TEAM):
 		with _as_admin():
 			team = frappe.new_doc("HD Team")
@@ -46,11 +48,25 @@ def seller_team_name(admin_seller_profile: str) -> str:
 	return f"Seller-{admin_seller_profile}"
 
 
+def _helpdesk_available() -> bool:
+	"""HelpDesk app yuklu mu? HD Team/HD Agent doctype'lari var mi?
+
+	HelpDesk bu marketplace'te opsiyonel. Yoksa hook erken cikmali — aksi halde
+	`frappe.new_doc('HD Team')` DoesNotExistError firlatir VE on_update hook'unda
+	cagrilan `frappe.set_user('Administrator')` context'i session state'i kirletir
+	→ satici save'i sonrasi 417 redirect (asil sertifika ekleme bug'i).
+	"""
+	return bool(frappe.db.exists("DocType", "HD Team") and frappe.db.exists("DocType", "HD Agent"))
+
+
 def ensure_seller_team(admin_seller_profile: str) -> str | None:
 	"""Admin Seller Profile icin HD Team olustur + user'i HD Agent olarak
 	ekle. Sadece Active saticilar icin team kurulur. Ba$arisizsa None.
 	"""
 	if not admin_seller_profile:
+		return None
+
+	if not _helpdesk_available():
 		return None
 
 	profile = frappe.db.get_value(
