@@ -58,12 +58,9 @@ def get_active_notices() -> dict:
 		if in_window(n)
 	]
 
-	# Auto-downgrade: if only 1 notice, single mode regardless of setting
-	effective_mode = "single" if len(active) <= 1 else display_mode
-
 	payload = {
 		"success": True,
-		"display_mode": effective_mode,
+		"display_mode": display_mode,
 		"notices": active,
 	}
 	frappe.cache.set_value(CACHE_KEY, payload, expires_in_sec=CACHE_TTL)

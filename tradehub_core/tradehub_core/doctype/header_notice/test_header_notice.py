@@ -67,19 +67,20 @@ class TestHeaderNotice(unittest.TestCase):
 			frappe.set_user("Administrator")
 
 	def test_response_includes_display_mode(self):
+		# Settings'i marquee yap, 1 notice ekle — API admin'in seçtiği modu döndürür (auto-downgrade yok)
+		frappe.db.set_single_value("Header Notice Settings", "display_mode", "marquee")
 		self._make(message_tr="One")
 		res = get_active_notices()
 		self.assertIn("display_mode", res)
-		# 1 notice → auto single mode
-		self.assertEqual(res["display_mode"], "single")
+		self.assertEqual(res["display_mode"], "marquee")
 
-	def test_single_mode_with_two_notices(self):
-		# Ensure settings.display_mode=marquee → with 2+ notices stays marquee
-		frappe.db.set_single_value("Header Notice Settings", "display_mode", "marquee")
+	def test_display_mode_with_two_notices(self):
+		# 2+ notice'ta da admin'in seçtiği mod aynen döner
+		frappe.db.set_single_value("Header Notice Settings", "display_mode", "slide")
 		self._make(message_tr="A")
 		self._make(message_tr="B")
 		res = get_active_notices()
-		self.assertEqual(res["display_mode"], "marquee")
+		self.assertEqual(res["display_mode"], "slide")
 
 	def test_invalidate_cache_hook_registered(self):
 		hooks = frappe.get_hooks("doc_events", default={})
