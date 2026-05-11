@@ -1,3 +1,11 @@
+## [v1.0.8-beta.2] - 2026-05-11 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Duzeltildi
+- fix(api): API yanıtında hata mesajı düzeltildi (@ahmeetseker)
+
+---
 ## [v1.0.8-beta.1] - 2026-05-11 BETA
 
 Bu surum betaistoc.cronbi.com'da test asamasindadir.
