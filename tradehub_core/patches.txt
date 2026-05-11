@@ -55,6 +55,8 @@ tradehub_core.patches.assign_seller_role_legacy
 tradehub_core.patches.grant_full_crm_permissions_to_seller_roles
 tradehub_core.patches.assign_verified_seller_role
 tradehub_core.patches.cleanup_legacy_verification_fields
+tradehub_core.patches.v15_header_notice
+tradehub_core.patches.v15_header_notice_v2
 tradehub_core.patches.clean_short_rfq_titles
 tradehub_core.patches.localize_uom_tr
 tradehub_core.patches.cert_v4_listing_cleanup

@@ -23,6 +23,8 @@ import frappe
 from frappe import _
 from frappe.utils.password import update_password
 
+from tradehub_core.api.v1.auth import _generate_member_id
+
 DEMO_SELLER_PASSWORD = "Demo1234!"
 DEMO_BUYER_PASSWORD = "Demo1234!"
 
@@ -640,6 +642,52 @@ SELLERS = [
 		"main_markets": "Türkiye",
 	},
 ]
+
+
+# ═══════════════════════════════════════════════════════════════
+#  DEMO KYB STATUS DAĞILIMI
+#  10 satıcı için deterministik KYB statü haritası — admin panelde
+#  her bir filtre (Verified/Under Review/Pending/Rejected) için en
+#  az bir kayıt görünsün diye çeşitli statüler dağıtılır.
+#  Index, SELLERS listesinin sırasıyla eşleşir.
+# ═══════════════════════════════════════════════════════════════
+
+DEMO_KYB_STATUSES = {
+	0: "Verified",  # Anadolu Tekstil
+	1: "Verified",  # Boğaziçi Deri ve Ayakkabı
+	2: "Verified",  # Marmara Elektronik
+	3: "Verified",  # İstanbul Hırdavat Merkezi
+	4: "Under Review",  # Karadeniz Gıda Toptancılık
+	5: "Verified",  # Ege Kozmetik
+	6: "Verified",  # Trakya Ev Tekstili
+	7: "Under Review",  # Akdeniz Mutfak ve Züccaciye
+	8: "Pending",  # Osmanlı Aksesuar
+	9: "Rejected",  # Yıldız Ambalaj ve Kırtasiye
+}
+
+DEMO_KYB_REJECTION_REASON = (
+	"Yüklenen Ticaret Sicil Gazetesi okunaklı değil ve İmza Sirküleri'nin "
+	"vergi numarası şirket başlığıyla uyuşmuyor. Lütfen güncel belgeleri "
+	"yeniden yükleyiniz."
+)
+
+# KYB Verification + Seller Application belge field'ları (Attach tipi) için
+# placeholder URL. Tek doğruluk kaynağı; demo akışta her belge bu PDF'i gösterir.
+# Backend KYB validation .pdf/.jpg/.jpeg/.png uzantılarını kabul ediyor;
+# DummyJSON CDN .webp döndürdüğü için onu kullanamıyoruz.
+DEMO_KYB_DOC_URL = "https://www.africau.edu/images/default/sample.pdf"
+
+# KYB doctype'taki tüm Attach belge field'ları. Production'da satıcı bunları
+# storefront kayıt akışında tek tek yükler; demo'da hepsini aynı placeholder'la
+# doldururuz.
+DEMO_KYB_DOC_FIELDS = (
+	"identity_document",
+	"imza_sirkuleri",
+	"ticaret_sicil_gazetesi",
+	"faaliyet_belgesi",
+	"vergi_levhasi",
+	"banka_hesap_belgesi",
+)
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -2706,6 +2754,125 @@ def _ensure_seller(s):
 	return s["code"]
 
 
+def _ensure_seller_application(s):
+	"""Demo satıcı için Approved durumda Seller Application oluşturur.
+
+	Seller Application.on_update tetikleyerek otomatik olarak şunları üretir:
+	- Seller Profile (status=Active, member_id ile) → admin panelde "Satıcı Profilleri"
+	  listesinde görünür.
+	- KYB Verification (status=Pending) → "KYB Doğrulama" listesinde görünür.
+	- User'a 'Seller' rolü (idempotent — _ensure_user'da zaten eklenmiştir).
+	- Admin Seller Profile (zaten _ensure_seller'da DEMO-* kodlu oluşturulduğu için
+	  on_update içindeki `if not frappe.db.exists(...)` kontrolü atlar).
+
+	Idempotent: applicant_user üzerinden mevcut başvuruyu bulur, varsa Approved'a
+	çeker; yoksa direkt Approved olarak insert eder.
+
+	identity_document, kimlik tarafı ve KYB belge field'ları reqd:1 olduğundan
+	demo akışta `ignore_mandatory=True` ile bypass edilir — production akışında
+	bunlar storefront kayıt ekranlarında doldurulur.
+	"""
+	user = s["email"]
+
+	user_creation = frappe.db.get_value("User", user, "creation")
+	member_id = _generate_member_id(user, user_creation)
+
+	existing = frappe.db.get_value("Seller Application", {"applicant_user": user}, "name")
+	if existing:
+		current_status = frappe.db.get_value("Seller Application", existing, "status")
+		if current_status != "Approved":
+			doc = frappe.get_doc("Seller Application", existing)
+			doc.status = "Approved"
+			doc.flags.ignore_permissions = True
+			doc.flags.ignore_mandatory = True
+			doc.save(ignore_permissions=True)
+		return existing
+
+	doc = frappe.new_doc("Seller Application")
+	doc.applicant_user = user
+	doc.member_id = member_id
+	doc.business_name = s["company_name"]
+	# Demo satıcılar A.Ş./Ltd. yapılarda → KYB business_type'ı "Anonim Şirket" olur
+	doc.seller_type = "Enterprise"
+	doc.contact_email = s["email"]
+	doc.contact_phone = s["phone"]
+	doc.tax_id_type = "VKN"
+	doc.tax_id = s["tax_id"]
+	doc.tax_office = s["tax_office"]
+	doc.address_line_1 = s["address_line1"]
+	doc.city = s["city"]
+	doc.country = "Turkey"
+	doc.bank_name = s["bank_name"]
+	doc.iban = s["iban"]
+	doc.account_holder_name = s["account_holder"]
+	doc.identity_document = DEMO_KYB_DOC_URL
+	doc.terms_accepted = 1
+	doc.privacy_accepted = 1
+	doc.status = "Approved"
+	doc.flags.ignore_permissions = True
+	doc.flags.ignore_mandatory = True
+	doc.insert(ignore_permissions=True)
+	return doc.name
+
+
+def _fill_demo_kyb_documents(s):
+	"""Demo satıcının KYB Verification belge field'larını placeholder PDF ile doldur.
+
+	Production akışında satıcı 6 belgeyi storefront /seller/kyb akışında yükler;
+	demo'da hepsi DEMO_KYB_DOC_URL'i gösterir ki admin panelde belge slot'ları
+	boş görünmesin.
+
+	Document Expiry Date 5 yıl ileriye set edilir — _validate_expiry_date geçmiş
+	tarihi reddeder; 5 yıl gerçekçi belge yenileme periyodu.
+
+	Idempotent: değer zaten doluysa overwrite eder (placeholder ile aynı kalır).
+	"""
+	from frappe.utils import add_years, today
+
+	kyb_name = frappe.db.get_value("KYB Verification", {"user": s["email"]}, "name")
+	if not kyb_name:
+		return
+
+	kyb = frappe.get_doc("KYB Verification", kyb_name)
+	for field in DEMO_KYB_DOC_FIELDS:
+		kyb.set(field, DEMO_KYB_DOC_URL)
+	kyb.document_expiry_date = add_years(today(), 5)
+	kyb.flags.ignore_permissions = True
+	kyb.flags.ignore_mandatory = True
+	kyb.save(ignore_permissions=True)
+
+
+def _set_demo_kyb_status(s, index):
+	"""Demo satıcı için KYB Verification statüsünü DEMO_KYB_STATUSES'a göre ayarla.
+
+	_ensure_seller_application çağrısından sonra çalışır; KYB kaydı default
+	"Pending" olarak oluşmuş olur, burada index'e göre Verified/Under Review/
+	Rejected'a çeker. KYB.on_update zinciri:
+	- _sync_kyb_status → Seller Profile.kyb_status senkron
+	- _sync_verified_seller_role → status=Verified ise "Verified Seller" rolü
+	- _set_review_metadata → verified_by/verified_at damgası
+
+	Rejected status için min 20 karakter rejection_reason gereklidir
+	(validate_rejection_reason); DEMO_KYB_REJECTION_REASON yeterli uzunlukta.
+	"""
+	target_status = DEMO_KYB_STATUSES.get(index, "Pending")
+	if target_status == "Pending":
+		# Default zaten Pending; gereksiz save tetikleme yok
+		return
+
+	kyb_name = frappe.db.get_value("KYB Verification", {"user": s["email"]}, "name")
+	if not kyb_name:
+		return
+
+	kyb = frappe.get_doc("KYB Verification", kyb_name)
+	kyb.status = target_status
+	if target_status == "Rejected":
+		kyb.rejection_reason = DEMO_KYB_REJECTION_REASON
+	kyb.flags.ignore_permissions = True
+	kyb.flags.ignore_mandatory = True
+	kyb.save(ignore_permissions=True)
+
+
 def _ensure_buyer(b):
 	"""Buyer Profile oluştur veya mevcut olanı döndür.
 
@@ -3670,11 +3837,24 @@ def execute():
 	frappe.db.commit()
 
 	# ── 1. Satıcılar + Markalar ──────────────────────────────
+	# Sıra önemli:
+	# 1) _ensure_seller — Admin Seller Profile'ı DEMO-* kodlu, zenginleştirilmiş
+	#    alanlarla (logo, banner, certifications, gallery) yarat. cleanup() bu
+	#    kodlara göre filtreliyor; Seller Application onayında oluşan SEL-* kodlu
+	#    profilini değil bu kaydı kullanır.
+	# 2) _ensure_seller_application — Status=Approved başvuruyu insert et;
+	#    on_update tetiklenerek Seller Profile (panelde görünen satıcı kaydı) +
+	#    KYB Verification (Pending) otomatik üretilir. Admin Seller Profile zaten
+	#    var olduğundan o adım atlanır.
 	print("\n[1/6] Satıcı profilleri ve markalar oluşturuluyor...")
-	for s in SELLERS:
+	for idx, s in enumerate(SELLERS):
 		_ensure_seller(s)
+		_ensure_seller_application(s)
+		_fill_demo_kyb_documents(s)
+		_set_demo_kyb_status(s, idx)
 		_ensure_brand(s["code"], s.get("variant_type", "giyim"))
-		print(f"  ✓ {s['seller_name']} ({s['code']})")
+		kyb_label = DEMO_KYB_STATUSES.get(idx, "Pending")
+		print(f"  ✓ {s['seller_name']} ({s['code']}) — KYB: {kyb_label}")
 	frappe.db.commit()
 
 	# ── 2. Alıcılar ──────────────────────────────────────────
@@ -3838,6 +4018,43 @@ def execute():
 
 
 @frappe.whitelist()
+def approve_existing_demo_sellers():
+	"""Mevcut demo satıcı User'ları için Seller Application onayla.
+
+	Tüm seed'i yeniden çalıştırmadan, daha önce oluşturulmuş demo satıcı User +
+	Admin Seller Profile kayıtlarına Seller Profile + KYB Verification eklemek
+	için tek seferlik bakım fonksiyonu.
+
+	Kullanım (bench):
+	    bench --site <site> execute tradehub_core.seed_demo_data.approve_existing_demo_sellers
+
+	Frappe v15'te bench execute, fonksiyondan dönen değeri JSON olarak terminale
+	yazar; print'ler de logda görünür.
+	"""
+	if frappe.session.user != "Administrator" and not frappe.has_permission("Seller Application", "create"):
+		frappe.throw(_("Bu işlem için Administrator yetkisi gereklidir."))
+	frappe.flags.ignore_permissions = True
+
+	approved = 0
+	skipped = 0
+	for idx, s in enumerate(SELLERS):
+		if not frappe.db.exists("User", s["email"]):
+			print(f"  ⚠️  User yok: {s['email']} — önce execute() çalıştırın")
+			skipped += 1
+			continue
+		_ensure_seller_application(s)
+		_fill_demo_kyb_documents(s)
+		_set_demo_kyb_status(s, idx)
+		frappe.db.commit()
+		approved += 1
+		kyb_label = DEMO_KYB_STATUSES.get(idx, "Pending")
+		print(f"  ✓ {s['seller_name']} ({s['email']}) — KYB: {kyb_label}")
+
+	print(f"\n  Toplam: {approved} onay, {skipped} atlandı")
+	return {"approved": approved, "skipped": skipped}
+
+
+@frappe.whitelist()
 def cleanup(silent=False):
 	"""
 	Tüm demo veriyi sil.
@@ -3908,14 +4125,53 @@ def cleanup(silent=False):
 	_p(f"  ✓ {len(demo_brands)} Brand silindi")
 
 	# 5. Admin Seller Profiles
-	demo_sellers = frappe.get_all(
+	# İki filtre: hem DEMO-* seller_code'lu (zenginleştirilmiş) hem de SEL-* SA-onay
+	# kaynaklı kayıtları kapsa. Aynı user için yanlışlıkla iki kayıt oluşmuşsa
+	# ikisi de bu adımda silinir.
+	demo_sellers_code = frappe.get_all(
 		"Admin Seller Profile",
 		filters={"seller_code": ["like", "DEMO-%"]},
 		pluck="name",
 	)
+	demo_sellers_user = frappe.get_all(
+		"Admin Seller Profile",
+		filters={"user": ["like", "demo-seller-%@istoc.demo"]},
+		pluck="name",
+	)
+	demo_sellers = list(set(demo_sellers_code + demo_sellers_user))
 	for sp in demo_sellers:
 		frappe.delete_doc("Admin Seller Profile", sp, force=True, ignore_permissions=True)
 	_p(f"  ✓ {len(demo_sellers)} Admin Seller Profile silindi")
+
+	# 5a. Seller Application (KYB + Seller Profile referans kayıtları için ilk silinir)
+	demo_apps = frappe.get_all(
+		"Seller Application",
+		filters={"applicant_user": ["like", "demo-seller-%@istoc.demo"]},
+		pluck="name",
+	)
+	for app in demo_apps:
+		frappe.delete_doc("Seller Application", app, force=True, ignore_permissions=True)
+	_p(f"  ✓ {len(demo_apps)} Seller Application silindi")
+
+	# 5b. KYB Verification
+	demo_kyb = frappe.get_all(
+		"KYB Verification",
+		filters={"user": ["like", "demo-seller-%@istoc.demo"]},
+		pluck="name",
+	)
+	for k in demo_kyb:
+		frappe.delete_doc("KYB Verification", k, force=True, ignore_permissions=True)
+	_p(f"  ✓ {len(demo_kyb)} KYB Verification silindi")
+
+	# 5c. Seller Profile (panelde "Satıcı Profilleri" listesi)
+	demo_seller_profiles = frappe.get_all(
+		"Seller Profile",
+		filters={"user": ["like", "demo-seller-%@istoc.demo"]},
+		pluck="name",
+	)
+	for sp in demo_seller_profiles:
+		frappe.delete_doc("Seller Profile", sp, force=True, ignore_permissions=True)
+	_p(f"  ✓ {len(demo_seller_profiles)} Seller Profile silindi")
 
 	# 6. Buyer Profiles (demo alıcılar)
 	demo_buyer_profiles = frappe.get_all(
