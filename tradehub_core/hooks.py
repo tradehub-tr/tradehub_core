@@ -51,6 +51,9 @@ scheduler_events = {
 		# weekly_long (sharded dispatcher + atomic swap).
 		"tradehub_core.recommendations.tasks.rebuild_price_tiers",
 		"tradehub_core.recommendations.tasks.autoflag_accessory_categories",
+		# Sertifika süre dolma kontrolü — 30/7/0 gün öncesi bildirim,
+		# süresi dolanı verification_status=Rejected ile auto-disable.
+		"tradehub_core.utils.cert_expiry_check.check_certificate_expiry",
 	],
 	"weekly_long": [
 		# Category embeddings + neighbour cache (build_all tail-calls
@@ -77,6 +80,7 @@ doc_events = {
 		"before_insert": "tradehub_core.utils.security.reject_unsafe_files",
 	},
 	"Listing": {
+		"validate": "tradehub_core.utils.cert_validate.validate_listing_certifications",
 		"on_update": [
 			"tradehub_core.api.listing.invalidate_listing_cache",
 			# Related Products cache: drop rows when the listing goes inactive/invisible.
@@ -125,6 +129,7 @@ doc_events = {
 	# Marketplace Seller rolünü user'a otomatik bağla/kaldır.
 	# (CRM doctype'larındaki Frappe role-level DocPerm bu role bağlı.)
 	"Admin Seller Profile": {
+		"validate": "tradehub_core.utils.cert_validate.validate_seller_certifications",
 		"after_insert": "tradehub_core.utils.seller_role_sync.sync_marketplace_seller_role",
 		"on_update": [
 			"tradehub_core.utils.helpdesk_routing.on_admin_seller_profile_update",
@@ -216,6 +221,7 @@ has_permission = {
 	"FCRM Note": "tradehub_core.permissions.fcrm_note_has_permission",
 	"CRM Call Log": "tradehub_core.permissions.crm_call_log_has_permission",
 	"Platform Notification": "tradehub_core.tradehub_core.doctype.platform_notification.platform_notification.has_permission",
+	"RFQ": "tradehub_core.permissions.rfq_has_permission",
 }
 
 # ---------------------------------------------------------------------------

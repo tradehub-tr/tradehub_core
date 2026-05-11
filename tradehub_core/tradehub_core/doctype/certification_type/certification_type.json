@@ -55,7 +55,8 @@
    "fieldtype": "Link",
    "label": "\u00d6neren Kullan\u0131c\u0131",
    "options": "User",
-   "read_only": 1
+   "read_only": 1,
+   "depends_on": "eval:doc.suggested_by"
   },
   {
    "fieldname": "rejection_reason",

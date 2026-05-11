@@ -281,7 +281,48 @@ def get_seller(slug):
 	# Frontend StoreHeader hardcoded thumbs yerine bu media_groups'i kullanir.
 	# Bos gruplar (count=0) yine donulur — UI tab'i kayit yoksa atlayabilir.
 	seller["media_groups"] = _build_media_groups(seller["name"])
+
+	# v4: Storefront sadece Verified cert'leri görür (verification_status="Verified").
+	# Pending/Rejected gizlenir. CompanyProfile.ts bu listeyi okur.
+	seller["verified_certifications"] = _get_verified_seller_certs(seller["name"])
+	# Geriye uyumluluk: eski `certifications` text alanını (split edilen) bilinçli olarak
+	# verified cert isimleri ile virgüllü string olarak doldur — eski Alpine kodu
+	# bozulmasın diye.
+	seller["certifications"] = ", ".join(c["certification_name"] for c in seller["verified_certifications"])
+
 	return seller
+
+
+def _get_verified_seller_certs(profile_name: str) -> list:
+	"""Yalnız verification_status='Verified' mağaza sertifikaları.
+
+	Storefront cert rozetleri bu listeyi kullanır. Pending/Rejected gizli.
+	"""
+	if not profile_name:
+		return []
+	rows = frappe.db.sql(
+		"""
+		SELECT
+			sc.certification_type,
+			sc.certificate_number,
+			sc.issued_date,
+			sc.expiry_date,
+			sc.document,
+			ct.certification_name,
+			ct.category,
+			ct.description
+		FROM `tabSeller Certification` sc
+		LEFT JOIN `tabCertification Type` ct ON ct.name = sc.certification_type
+		WHERE sc.parent = %(profile)s
+			AND sc.parenttype = 'Admin Seller Profile'
+			AND IFNULL(sc.verification_status, 'Pending') = 'Verified'
+			AND (sc.expiry_date IS NULL OR sc.expiry_date >= CURDATE())
+		ORDER BY sc.idx ASC
+		""",
+		{"profile": profile_name},
+		as_dict=True,
+	)
+	return rows
 
 
 _MEDIA_CATEGORIES = (

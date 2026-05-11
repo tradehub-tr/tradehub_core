@@ -12,6 +12,39 @@ class RFQQuote(Document):
 		if not self.seller_profile:
 			self.seller_profile = frappe.db.get_value("Seller Profile", {"user": self.seller}, "name")
 
+	def validate(self):
+		self._validate_total_price()
+
+	def _validate_total_price(self):
+		"""Auto-fill empty total_price from unit×quantity; reject implausible totals.
+
+		Tolerance band [0.5x, 5.0x] of expected leaves room for discounts and VAT/fees
+		while catching data-entry mistakes and frontend bypass attempts that would
+		otherwise persist e.g. total_price=0 on a non-zero unit price.
+		"""
+		if not self.rfq:
+			return
+		unit = float(self.price_per_unit or 0)
+		if unit <= 0:
+			return
+		quantity = float(frappe.db.get_value("RFQ", self.rfq, "quantity") or 0)
+		if quantity <= 0:
+			return
+		expected = unit * quantity
+		current = float(self.total_price or 0)
+		if current <= 0:
+			self.total_price = round(expected, 2)
+			return
+		lower = expected * 0.5
+		upper = expected * 5.0
+		if current < lower or current > upper:
+			frappe.throw(
+				_(
+					"Toplam fiyat ({0}) birim fiyat × miktar (≈{1}) ile makul aralıkta değil. "
+					"Lütfen birim fiyatı veya toplamı kontrol edin."
+				).format(round(current, 2), round(expected, 2))
+			)
+
 	def after_insert(self):
 		self._update_rfq_quote_count()
 		self._notify_buyer_new_quote()
