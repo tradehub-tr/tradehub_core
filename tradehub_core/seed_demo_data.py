@@ -653,16 +653,16 @@ SELLERS = [
 # ═══════════════════════════════════════════════════════════════
 
 DEMO_KYB_STATUSES = {
-	0: "Verified",      # Anadolu Tekstil
-	1: "Verified",      # Boğaziçi Deri ve Ayakkabı
-	2: "Verified",      # Marmara Elektronik
-	3: "Verified",      # İstanbul Hırdavat Merkezi
+	0: "Verified",  # Anadolu Tekstil
+	1: "Verified",  # Boğaziçi Deri ve Ayakkabı
+	2: "Verified",  # Marmara Elektronik
+	3: "Verified",  # İstanbul Hırdavat Merkezi
 	4: "Under Review",  # Karadeniz Gıda Toptancılık
-	5: "Verified",      # Ege Kozmetik
-	6: "Verified",      # Trakya Ev Tekstili
+	5: "Verified",  # Ege Kozmetik
+	6: "Verified",  # Trakya Ev Tekstili
 	7: "Under Review",  # Akdeniz Mutfak ve Züccaciye
-	8: "Pending",       # Osmanlı Aksesuar
-	9: "Rejected",      # Yıldız Ambalaj ve Kırtasiye
+	8: "Pending",  # Osmanlı Aksesuar
+	9: "Rejected",  # Yıldız Ambalaj ve Kırtasiye
 }
 
 DEMO_KYB_REJECTION_REASON = (
@@ -4031,9 +4031,7 @@ def approve_existing_demo_sellers():
 	Frappe v15'te bench execute, fonksiyondan dönen değeri JSON olarak terminale
 	yazar; print'ler de logda görünür.
 	"""
-	if frappe.session.user != "Administrator" and not frappe.has_permission(
-		"Seller Application", "create"
-	):
+	if frappe.session.user != "Administrator" and not frappe.has_permission("Seller Application", "create"):
 		frappe.throw(_("Bu işlem için Administrator yetkisi gereklidir."))
 	frappe.flags.ignore_permissions = True
 
