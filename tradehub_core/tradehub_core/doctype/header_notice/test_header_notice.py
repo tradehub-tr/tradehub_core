@@ -12,6 +12,7 @@ class TestHeaderNotice(unittest.TestCase):
 		# Tüm test notice'ları sil
 		frappe.db.delete("Header Notice")
 		frappe.cache.delete_value(CACHE_KEY)
+		frappe.db.commit()
 
 	def tearDown(self):
 		frappe.db.delete("Header Notice")
