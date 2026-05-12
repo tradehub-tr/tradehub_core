@@ -16,6 +16,7 @@ Bu surum betaistoc.cronbi.com'da test asamasindadir.
 - fix(header-notice): drop auto-downgrade so storefront uses admin's chosen mode (@ahmeetseker)
 
 ---
+
 ## [v1.0.8-beta.2] - 2026-05-11 BETA
 
 Bu surum betaistoc.cronbi.com'da test asamasindadir.
@@ -24,6 +25,7 @@ Bu surum betaistoc.cronbi.com'da test asamasindadir.
 - fix(api): API yanıtında hata mesajı düzeltildi (@ahmeetseker)
 
 ---
+
 ## [v1.0.8-beta.1] - 2026-05-11 BETA
 
 Bu surum betaistoc.cronbi.com'da test asamasindadir.
@@ -32,6 +34,7 @@ Bu surum betaistoc.cronbi.com'da test asamasindadir.
 - fix(api): API yanıtında hata mesajı düzeltildi (@ahmeetseker)
 
 ---
+
 ## [Belgelenmemiş Özellikler — Geliştirme Süreci Özeti] - 2026-05-08
 
 Bu bölüm, geliştirme sürecinde koda eklenmiş ancak önceki sürüm changelog'larında (özellikle v1.0.7-beta.1 ile v1.0.7-beta.10 arası ve v1.0.5 prod sonrası) yeterince belgelenmemiş özellikleri kapsamlı olarak listeler. Her madde, etkilediği domain, ne yaptığı ve teknik kapsamıyla birlikte yazılmıştır. Kaynak: `git log version-15..ahmet` + dosya bazlı kod taraması.
@@ -82,6 +85,7 @@ Bu bölüm, geliştirme sürecinde koda eklenmiş ancak önceki sürüm changelo
 - refactor(seller-profile): Storefront'ta kullanılmayan legacy alanlar (`is_verified`, `verification_type`, profil avatar) doctype'tan ve API yanıtlarından kaldırıldı; tek doğruluk kaynağı sırasıyla `Verified Seller` rolü, `KYB Verification` ve `User.user_image` (@aliiball)
 
 ---
+
 ## [v1.0.7-beta.9] - 2026-05-08 BETA
 
 Bu surum betaistoc.cronbi.com'da test asamasindadir.
@@ -100,6 +104,7 @@ Bu surum betaistoc.cronbi.com'da test asamasindadir.
 - refactor(patches): rename add_seller_to_crm_doctypes to force re-run (@ahmeetseker)
 
 ---
+
 ## [v1.0.7-beta.8] - 2026-05-07 BETA
 
 Bu surum betaistoc.cronbi.com'da test asamasindadir.
@@ -118,6 +123,7 @@ Bu surum betaistoc.cronbi.com'da test asamasindadir.
 - refactor(patches): rename add_seller_to_crm_doctypes to force re-run (@ahmeetseker)
 
 ---
+
 ## [v1.0.7-beta.7] - 2026-05-07 BETA
 
 Bu surum betaistoc.cronbi.com'da test asamasindadir.
@@ -134,6 +140,7 @@ Bu surum betaistoc.cronbi.com'da test asamasindadir.
 - refactor(patches): rename grant_seller_crm_permissions to force re-run (@ahmeetseker)
 
 ---
+
 ## [v1.0.7-beta.6] - 2026-05-07 BETA
 
 Bu surum betaistoc.cronbi.com'da test asamasindadir.
@@ -146,6 +153,7 @@ Bu surum betaistoc.cronbi.com'da test asamasindadir.
 - fix: add dependency check for HD Ticket DocType to prevent patch failure if helpdesk app is missing (@ahmeetseker)
 
 ---
+
 ## [v1.0.7-beta.5] - 2026-05-07 BETA
 
 Bu surum betaistoc.cronbi.com'da test asamasindadir.
@@ -157,6 +165,7 @@ Bu surum betaistoc.cronbi.com'da test asamasindadir.
 - fix: update seller permissions to include owner fallback and implement permission-aware CRM count endpoint (@ahmeetseker)
 
 ---
+
 ## [v1.0.7-beta.4] - 2026-05-06 BETA
 
 Bu surum betaistoc.cronbi.com'da test asamasindadir.
@@ -168,6 +177,7 @@ Bu surum betaistoc.cronbi.com'da test asamasindadir.
 - fix: update seller permissions to include owner fallback and implement permission-aware CRM count endpoint (@ahmeetseker)
 
 ---
+
 ## [v1.0.7-beta.3] - 2026-05-06 BETA
 
 Bu surum betaistoc.cronbi.com'da test asamasindadir.
@@ -176,46 +186,7 @@ Bu surum betaistoc.cronbi.com'da test asamasindadir.
 - fix: update seller permissions to include owner fallback and implement permission-aware CRM count endpoint (@ahmeetseker)
 
 ---
-## [v1.0.7-beta.2] - 2026-05-06 BETA
 
-Bu surum betaistoc.cronbi.com'da test asamasindadir.
-
----
-## [v1.0.7-beta.1] - 2026-05-05 BETA
-
-Bu surum betaistoc.cronbi.com'da test asamasindadir.
-
----
-## [v1.0.7] - 2026-04-30 PROD
-
-Bu surum istoc.cronbi.com'da yayindadir.
-
----
-## [v1.0.6-rc.1] - 2026-04-30 RC
-
-Bu surum rcistoc.cronbi.com'da onay asamasindadir.
-
----
-## [v1.0.6] - 2026-04-30 PROD
-
-Bu surum istoc.cronbi.com'da yayindadir.
-
----
-## [v1.0.5-rc.2] - 2026-04-30 RC
-
-Bu surum rcistoc.cronbi.com'da onay asamasindadir.
-
----
-## [v1.0.5-beta.1] - 2026-04-30 BETA
-
-Bu surum betaistoc.cronbi.com'da test asamasindadir.
-
----
-## [v1.0.5-rc.1] - 2026-04-29 RC
-
-Bu surum rc.istoc.com'da test asamasindadir.
-
----
 ## [v1.0.5] - 2026-04-29 PROD
 
 Bu surum istoc.cronbi.com'da yayindadir.
@@ -251,6 +222,7 @@ Bu surum istoc.cronbi.com'da yayindadir.
 - refactor(cart): _get_inline_variant_stock tamamen kaldırıldı (@ahmeetseker)
 
 ---
+
 ## [v1.0.4-rc.32] - 2026-04-29 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
@@ -286,6 +258,7 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - refactor: clean up string concatenation and formatting in various files (@boraydeger32)
 
 ---
+
 ## [v1.0.4-rc.31] - 2026-04-29 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
@@ -320,6 +293,7 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - refactor: clean up string concatenation and formatting in various files (@boraydeger32)
 
 ---
+
 ## [v1.0.4-rc.30] - 2026-04-29 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
@@ -354,6 +328,7 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - refactor: clean up string concatenation and formatting in various files (@boraydeger32)
 
 ---
+
 ## [v1.0.4-rc.29] - 2026-04-29 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
@@ -387,6 +362,7 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - refactor: clean up string concatenation and formatting in various files (@boraydeger32)
 
 ---
+
 ## [v1.0.4-rc.28] - 2026-04-28 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
@@ -419,6 +395,7 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - refactor: clean up string concatenation and formatting in various files (@boraydeger32)
 
 ---
+
 ## [v1.0.4-rc.27] - 2026-04-27 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
@@ -450,6 +427,7 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - refactor: clean up string concatenation and formatting in various files (@boraydeger32)
 
 ---
+
 ## [v1.0.4-rc.26] - 2026-04-22 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
@@ -480,6 +458,7 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - refactor: clean up string concatenation and formatting in various files (@boraydeger32)
 
 ---
+
 ## [v1.0.4-rc.25] - 2026-04-21 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
@@ -523,6 +502,7 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - refactor: clean up string concatenation and formatting in various files (@boraydeger32)
 
 ---
+
 ## [v1.0.4-rc.24] - 2026-04-21 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
@@ -552,6 +532,7 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - refactor: clean up string concatenation and formatting in various files (@boraydeger32)
 
 ---
+
 ## [v1.0.4-rc.23] - 2026-04-20 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
@@ -580,6 +561,7 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - refactor: rename unused dictionary key variable in seed_demo_data.py to underscore (@ahmeetseker)
 
 ---
+
 ## [v1.0.4-rc.22] - 2026-04-17 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
@@ -606,6 +588,7 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - refactor(cart): _get_inline_variant_stock tamamen kaldırıldı (@ahmeetseker)
 
 ---
+
 ## [v1.0.4-rc.21] - 2026-04-16 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
@@ -632,6 +615,7 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - refactor(cart): _get_inline_variant_stock tamamen kaldırıldı (@ahmeetseker)
 
 ---
+
 ## [v1.0.4-rc.20] - 2026-04-16 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
@@ -655,6 +639,7 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - fix(rfq): Satıcı RFQ eşleşmesine listing platform kategorisi desteği eklendi. (@aliiball)
 
 ---
+
 ## [v1.0.4-rc.19] - 2026-04-16 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
@@ -677,6 +662,7 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - fix(helpdesk): müşteri user'ında HD Team/Agent insert PermissionError → 403 (@ahmeetseker)
 
 ---
+
 ## [v1.0.4-rc.18] - 2026-04-16 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
@@ -699,6 +685,7 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - fix(helpdesk): müşteri user'ında HD Team/Agent insert PermissionError → 403 (@ahmeetseker)
 
 ---
+
 ## [v1.0.4-rc.17] - 2026-04-16 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
@@ -720,6 +707,7 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - fix(helpdesk): müşteri user'ında HD Team/Agent insert PermissionError → 403 (@ahmeetseker)
 
 ---
+
 ## [v1.0.4-rc.16] - 2026-04-16 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
@@ -740,6 +728,7 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - fix(helpdesk): müşteri user'ında HD Team/Agent insert PermissionError → 403 (@ahmeetseker)
 
 ---
+
 ## [v1.0.4-rc.15] - 2026-04-15 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
@@ -759,6 +748,7 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - fix(helpdesk): müşteri user'ında HD Team/Agent insert PermissionError → 403 (@ahmeetseker)
 
 ---
+
 ## [v1.0.4-rc.14] - 2026-04-15 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
@@ -777,6 +767,7 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - fix(helpdesk): müşteri user'ında HD Team/Agent insert PermissionError → 403 (@ahmeetseker)
 
 ---
+
 ## [v1.0.4-rc.13] - 2026-04-15 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
@@ -795,6 +786,7 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - fix(helpdesk): müşteri user'ında HD Team/Agent insert PermissionError → 403 (@ahmeetseker)
 
 ---
+
 ## [v1.0.4-rc.12] - 2026-04-15 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
@@ -812,6 +804,7 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - fix(helpdesk): müşteri user'ında HD Team/Agent insert PermissionError → 403 (@ahmeetseker)
 
 ---
+
 ## [v1.0.4-rc.11] - 2026-04-15 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
@@ -829,6 +822,7 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - fix(helpdesk): müşteri user'ında HD Team/Agent insert PermissionError → 403 (@ahmeetseker)
 
 ---
+
 ## [v1.0.4-rc.10] - 2026-04-14 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
@@ -844,6 +838,7 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - fix(patches): backfill_payment_transactions — Frappe v15 için now_datetime'a çevir (@aliiball)
 
 ---
+
 ## [v1.0.4-rc.9] - 2026-04-14 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
@@ -859,6 +854,7 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - fix(patches): backfill_payment_transactions — Frappe v15 için now_datetime'a çevir (@aliiball)
 
 ---
+
 ## [v1.0.4-rc.8] - 2026-04-14 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
@@ -873,6 +869,7 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - fix(patches): backfill_payment_transactions — Frappe v15 için now_datetime'a çevir (@aliiball)
 
 ---
+
 ## [v1.0.4-rc.7] - 2026-04-14 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
@@ -886,6 +883,7 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - fix: tüm frappe.get_doc(dict) çağrıları frappe.new_doc() ile değiştirildi (@ahmeetseker)
 
 ---
+
 ## [v1.0.4-rc.6] - 2026-04-13 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
@@ -898,6 +896,7 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - fix: tüm frappe.get_doc(dict) çağrıları frappe.new_doc() ile değiştirildi (@ahmeetseker)
 
 ---
+
 ## [v1.0.4-rc.5] - 2026-04-13 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
@@ -910,6 +909,7 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - fix: tüm frappe.get_doc(dict) çağrıları frappe.new_doc() ile değiştirildi (@ahmeetseker)
 
 ---
+
 ## [v1.0.4-rc.4] - 2026-04-13 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
@@ -921,6 +921,7 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - fix: tüm frappe.get_doc(dict) çağrıları frappe.new_doc() ile değiştirildi (@ahmeetseker)
 
 ---
+
 ## [v1.0.4-rc.3] - 2026-04-13 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
@@ -929,6 +930,7 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - feat(tailored): "Size Özel Seçimler" öneri endpoint'leri + User Product View DocType (@aliiball)
 
 ---
+
 ## [v1.0.4-rc.2] - 2026-04-13 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
@@ -937,11 +939,7 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - feat(tailored): "Size Özel Seçimler" öneri endpoint'leri + User Product View DocType (@aliiball)
 
 ---
-## [v1.0.4-rc.1] - 2026-04-13 RC
 
-Bu surum rc.istoc.com'da test asamasindadir.
-
----
 ## [v1.0.4] - 2026-04-13 PROD
 
 Bu surum istoc.cronbi.com'da yayindadir.
@@ -975,6 +973,7 @@ Bu surum istoc.cronbi.com'da yayindadir.
 - refactor(listing): compare_at_price ve is_on_sale sütunlarını kaldır (@aliiball)
 
 ---
+
 ## [v1.0.3-rc.19] - 2026-04-10 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
@@ -1011,6 +1010,7 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - refactor(listing): compare_at_price ve is_on_sale sütunlarını kaldır (@aliiball)
 
 ---
+
 ## [v1.0.3-rc.18] - 2026-04-10 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
@@ -1046,6 +1046,7 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - refactor(listing): compare_at_price ve is_on_sale sütunlarını kaldır (@aliiball)
 
 ---
+
 ## [v1.0.3-rc.17] - 2026-04-10 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
@@ -1078,6 +1079,7 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - fix: add_certification_to_workspace patch link validasyon hatası düzeltildi (@boraydeger32)
 
 ---
+
 ## [v1.0.3-rc.16] - 2026-04-10 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
@@ -1109,6 +1111,7 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - fix: add_certification_to_workspace patch link validasyon hatası düzeltildi (@boraydeger32)
 
 ---
+
 ## [v1.0.3-rc.15] - 2026-04-10 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
@@ -1140,6 +1143,7 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - fix: add_certification_to_workspace patch link validasyon hatası düzeltildi (@boraydeger32)
 
 ---
+
 ## [v1.0.3-rc.14] - 2026-04-10 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
@@ -1171,6 +1175,7 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - fix: add_certification_to_workspace patch link validasyon hatası düzeltildi (@boraydeger32)
 
 ---
+
 ## [v1.0.3-rc.13] - 2026-04-09 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
@@ -1201,6 +1206,7 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - fix: add_certification_to_workspace patch link validasyon hatası düzeltildi (@boraydeger32)
 
 ---
+
 ## [v1.0.3-rc.12] - 2026-04-09 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
@@ -1230,6 +1236,7 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - fix: add_certification_to_workspace patch link validasyon hatası düzeltildi (@boraydeger32)
 
 ---
+
 ## [v1.0.3-rc.11] - 2026-04-09 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
@@ -1255,6 +1262,7 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - fix: add_certification_to_workspace patch link validasyon hatası düzeltildi (@boraydeger32)
 
 ---
+
 ## [v1.0.3-rc.8] - 2026-04-09 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
@@ -1271,6 +1279,7 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - fix: add_certification_to_workspace patch link validasyon hatası düzeltildi (@TurksabYonetim)
 
 ---
+
 ## [v1.0.3-rc.7] - 2026-04-08 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
@@ -1286,6 +1295,7 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - fix: add_certification_to_workspace patch link validasyon hatası düzeltildi (@TurksabYonetim)
 
 ---
+
 ## [v1.0.3-rc.6] - 2026-04-08 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
@@ -1299,6 +1309,7 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - fix(Listing): Ayrıntılı yanıtta productCategoryId eklendi, breadcrumb kaynağı düzeltildi (@aliiball)
 
 ---
+
 ## [v1.0.3-rc.5] - 2026-04-08 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
@@ -1311,6 +1322,7 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - fix(Listing): Ayrıntılı yanıtta productCategoryId eklendi, breadcrumb kaynağı düzeltildi (@aliiball)
 
 ---
+
 ## [v1.0.3-rc.4] - 2026-04-08 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
@@ -1323,6 +1335,7 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - fix(Listing): Ayrıntılı yanıtta productCategoryId eklendi, breadcrumb kaynağı düzeltildi (@aliiball)
 
 ---
+
 ## [v1.0.3-rc.3] - 2026-04-08 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
@@ -1334,16 +1347,7 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - fix(Listing): Ayrıntılı yanıtta productCategoryId eklendi, breadcrumb kaynağı düzeltildi (@aliiball)
 
 ---
-## [v1.0.3-rc.2] - 2026-04-07 RC
 
-Bu surum rc.istoc.com'da test asamasindadir.
-
----
-## [v1.0.3-rc.1] - 2026-04-06 RC
-
-Bu surum rc.istoc.com'da test asamasindadir.
-
----
 ## [v1.0.3] - 2026-04-06 PROD
 
 Bu surum istoc.cronbi.com'da yayindadir.
@@ -1358,6 +1362,7 @@ Bu surum istoc.cronbi.com'da yayindadir.
 - fix(Listing): breadcrumb için product_category kullanıldı, aksi takdirde satıcı kategorisine geri dönülmesi sağlandı (@aliiball)
 
 ---
+
 ## [v1.0.2-rc.5] - 2026-04-06 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
@@ -1372,6 +1377,7 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - fix: hardcode storefront URL and update reset password link path in identity API (@TurksabYonetim)
 
 ---
+
 ## [v1.0.2-rc.4] - 2026-04-06 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
@@ -1385,6 +1391,7 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - fix: hardcode storefront URL and update reset password link path in identity API (@TurksabYonetim)
 
 ---
+
 ## [v1.0.2-rc.3] - 2026-04-06 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
@@ -1397,6 +1404,7 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - fix(Listing): breadcrumb için product_category kullanıldı, aksi takdirde satıcı kategorisine geri dönülmesi sağlandı (@aliiball)
 
 ---
+
 ## [v1.0.2-rc.2] - 2026-04-06 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
@@ -1408,11 +1416,7 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - fix(Listing): breadcrumb için product_category kullanıldı, aksi takdirde satıcı kategorisine geri dönülmesi sağlandı (@aliiball)
 
 ---
-## [v1.0.2-rc.1] - 2026-04-06 RC
 
-Bu surum rc.istoc.com'da test asamasindadir.
-
----
 ## [v1.0.2] - 2026-04-06 PROD
 
 Bu surum istoc.cronbi.com'da yayindadir.
@@ -1426,6 +1430,7 @@ Bu surum istoc.cronbi.com'da yayindadir.
 - fix: revoke_approval ile Seller Profile'ı Suspended yapısı eklendi. (@aliiball)
 
 ---
+
 ## [v1.0.1-rc.5] - 2026-04-03 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
@@ -1439,6 +1444,7 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - fix: revoke_approval ile Seller Profile'ı Suspended yapısı eklendi. (@aliiball)
 
 ---
+
 ## [v1.0.1-rc.4] - 2026-04-03 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
@@ -1451,6 +1457,7 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - fix: revoke_approval ile Seller Profile'ı Suspended yapısı eklendi. (@aliiball)
 
 ---
+
 ## [v1.0.1-rc.3] - 2026-04-03 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
@@ -1460,37 +1467,12 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - feat: Storefront düzeni yönetimini uygulamak, listeleme durumu iş akışını geliştirmek ve sipariş doküman tipini takip bilgileri ile daha ayrıntılı durum alanlarıyla güncellemek. (@TurksabYonetim)
 
 ---
+
 ## [v1.0.1-rc.2] - 2026-04-02 RC
 
 Bu surum rc.istoc.com'da test asamasindadir.
 
 ### Eklendi
 - feat(storefront): satıcı vitrin düzeni ve tema ayarları için yeni fonksiyonlar eklendi (@TurksabYonetim)
-
----
-## [v1.0.1-rc.1] - 2026-04-01 RC
-
-Bu surum rc.istoc.com'da test asamasindadir.
-
----
-## [v1.0.1] - 2026-04-01 PROD
-
-Bu surum istoc.cronbi.com'da yayindadir.
-
----
-## [v1.0.0-rc.1] - 2026-04-01 RC
-
-Bu surum rc.istoc.com'da test asamasindadir.
-
----
-## [v1.0.0-rc.1] - 2026-03-31 RC
-
-Bu surum rc.istoc.com'da test asamasindadir.
-
----
-# tradehub_core Changelog
-
-Tüm önemli değişiklikler bu dosyada belgelenir.
-Format: [SemVer](https://semver.org/) standardına göre.
 
 ---
