@@ -1,3 +1,11 @@
+## [v1.0.8-beta.7] - 2026-05-12 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Duzeltildi
+- fix(release-workflows): commit body bullet'larini CHANGELOG'a dahil et (@ahmeetseker)
+
+---
 ## [v1.0.8-beta.6] - 2026-05-12 BETA
 
 Bu surum betaistoc.cronbi.com'da test asamasindadir.
