@@ -60,7 +60,7 @@ jobs:
                     "bora":"boraydeger32","Bora":"boraydeger32","BORA":"boraydeger32",
                     "ali":"aliiball","Ali":"aliiball","ALI":"aliiball"})[n] // n;
                 .commits[]
-                | "- \(.commit.message | split("\n")[0]) (@\(alias(.author.login // .commit.author.name)))"
+                | "- \(.commit.message | split("\n")[0] | sub("^ +"; "")) (@\(alias(.author.login // .commit.author.name)))"
               ' | sort -u)
             FEATS=$(echo "$COMMITS" | grep "^- feat" || true)
             FIXES=$(echo "$COMMITS" | grep "^- fix" || true)
