@@ -1,0 +1,46 @@
+{
+ "actions": [],
+ "autoname": "field:rule_name",
+ "creation": "2026-05-11 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "rule_name",
+  "is_active",
+  "column_break_1",
+  "trigger_type",
+  "threshold_value",
+  "section_break_1",
+  "action",
+  "reason_template",
+  "section_break_2",
+  "banned_phrases"
+ ],
+ "fields": [
+  {"fieldname":"rule_name","fieldtype":"Data","label":"Kural Adı","reqd":1,"unique":1,"in_list_view":1},
+  {"default":"1","fieldname":"is_active","fieldtype":"Check","label":"Aktif","in_list_view":1},
+  {"fieldname":"column_break_1","fieldtype":"Column Break"},
+  {"fieldname":"trigger_type","fieldtype":"Select","label":"Tetikleyici","options":"risk_score_high\nabuse_threshold\nbanned_phrase\nreviewer_repeat_rejected","reqd":1,"in_list_view":1,"in_standard_filter":1},
+  {"fieldname":"threshold_value","fieldtype":"Int","label":"Eşik Değeri","description":"risk_score için 80, abuse için 5, repeat rejected için 5"},
+  {"fieldname":"section_break_1","fieldtype":"Section Break","label":"Aksiyon"},
+  {"fieldname":"action","fieldtype":"Select","label":"Aksiyon","options":"auto_reject\nauto_hide\nflag_for_review\nsuspend_user","reqd":1,"in_list_view":1},
+  {"fieldname":"reason_template","fieldtype":"Small Text","label":"Red Nedeni Şablonu"},
+  {"fieldname":"section_break_2","fieldtype":"Section Break","label":"Banned Phrases"},
+  {"fieldname":"banned_phrases","fieldtype":"Small Text","label":"Yasaklı İfadeler (virgülle ayır)","description":"trigger_type=banned_phrase için"}
+ ],
+ "links": [],
+ "modified": "2026-05-11 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "Moderation Rule",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {"create":1,"delete":1,"read":1,"write":1,"role":"System Manager"},
+  {"create":1,"delete":1,"read":1,"write":1,"role":"Marketplace Admin"}
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

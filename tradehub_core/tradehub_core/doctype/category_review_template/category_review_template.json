@@ -1,0 +1,82 @@
+{
+ "actions": [],
+ "autoname": "field:template_name",
+ "creation": "2026-05-11 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "template_name",
+  "category",
+  "column_break_1",
+  "is_active",
+  "section_break_1",
+  "extra_questions"
+ ],
+ "fields": [
+  {
+   "fieldname": "template_name",
+   "fieldtype": "Data",
+   "label": "Şablon Adı",
+   "reqd": 1,
+   "unique": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "category",
+   "fieldtype": "Link",
+   "label": "Kategori",
+   "options": "Product Category",
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "label": "Aktif",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "section_break_1",
+   "fieldtype": "Section Break",
+   "label": "Sorular"
+  },
+  {
+   "fieldname": "extra_questions",
+   "fieldtype": "Table",
+   "label": "Ek Sorular",
+   "options": "Template Question"
+  }
+ ],
+ "links": [],
+ "modified": "2026-05-11 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "Category Review Template",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1, "delete": 1, "read": 1, "write": 1,
+   "role": "System Manager"
+  },
+  {
+   "create": 1, "delete": 1, "read": 1, "write": 1,
+   "role": "Marketplace Admin"
+  },
+  {
+   "read": 1, "role": "Marketplace Buyer"
+  },
+  {
+   "read": 1, "role": "Buyer"
+  }
+ ],
+ "sort_field": "template_name",
+ "sort_order": "ASC",
+ "states": [],
+ "track_changes": 1
+}

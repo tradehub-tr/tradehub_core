@@ -191,27 +191,24 @@ def bump_listing_order_counts(doc, method=None):
 	doc.metrics_credited = 1 if is_sold_now else 0
 
 
-# ── Seller Review → Listing.average_rating proxy ──
+# ── Seller Review → Admin Seller Profile aggregate (satıcı bazlı) ──
 #
 # Wired from hooks.py:
 #   doc_events["Seller Review"]["after_insert"] → recompute_seller_rating_proxy
 #   doc_events["Seller Review"]["on_update"]   → recompute_seller_rating_proxy
 #   doc_events["Seller Review"]["on_trash"]    → recompute_seller_rating_proxy
 #
-# There is no listing-level Review doctype yet — reviews are attached to
-# sellers via `Seller Review`. To make the "Best Reviewed" Top Ranking
-# pill work, we proxy: every listing's average_rating + review_count is
-# the same as its seller's. The hook recomputes the seller's aggregate
-# from all *Published* reviews and bulk-updates every listing the seller
-# owns. The composite index (product_category, average_rating) keeps the
-# downstream Top Ranking SQL fast.
+# Faz 1 değişikliği: Listing.average_rating artık Listing Review'dan
+# (ürün bazlı) hesaplanıyor (bkz. tradehub_core.api.review.recompute_listing_rating).
+# Bu fonksiyon yalnızca Admin Seller Profile.rating + review_count alanlarını
+# satıcı bazlı agregat olarak güncel tutar; Listing tablosuna yazmaz.
 
 
 def recompute_seller_rating_proxy(doc, method=None):
-	"""Seller Review eklenir/güncellenir/silinirse satıcının rating ortalamasını
-	yeniden hesaplar ve o satıcının tüm listing'lerine yansıtır.
+	"""Seller Review değişiminde satıcı bazlı agregayı günceller.
 
 	Yalnızca `status='Published'` review'lar ortalamaya katılır.
+	Listing.average_rating Faz 1'den itibaren Listing Review'dan beslenir.
 	"""
 	if not doc:
 		return
@@ -242,7 +239,7 @@ def recompute_seller_rating_proxy(doc, method=None):
 	# Round rating to one decimal place — matches what the storefront UI shows.
 	avg = round(avg, 1)
 
-	# 1) Update the seller profile aggregate.
+	# Update the seller profile aggregate. (Listing'lere yazma KALDIRILDI.)
 	if frappe.db.exists("Admin Seller Profile", seller):
 		frappe.db.set_value(
 			"Admin Seller Profile",
@@ -250,14 +247,6 @@ def recompute_seller_rating_proxy(doc, method=None):
 			{"rating": avg, "review_count": cnt},
 			update_modified=False,
 		)
-
-	# 2) Denormalize into every listing owned by this seller. The downstream
-	#    Top Ranking sort uses Listing.average_rating directly (composite
-	#    index served), so the listings need fresh values.
-	frappe.db.sql(
-		"UPDATE `tabListing` SET average_rating = %s, review_count = %s WHERE seller_profile = %s",
-		(avg, cnt, seller),
-	)
 
 	invalidate_listing_cache()
 

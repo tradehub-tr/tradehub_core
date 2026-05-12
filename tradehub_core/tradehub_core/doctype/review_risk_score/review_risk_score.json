@@ -1,0 +1,99 @@
+{
+ "actions": [],
+ "autoname": "autoincrement",
+ "creation": "2026-05-11 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "review",
+  "total_score",
+  "computed_at",
+  "column_break_1",
+  "version",
+  "is_high_risk",
+  "factors_section",
+  "factors"
+ ],
+ "fields": [
+  {
+   "fieldname": "review",
+   "fieldtype": "Link",
+   "label": "Yorum",
+   "options": "Listing Review",
+   "reqd": 1,
+   "unique": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "total_score",
+   "fieldtype": "Int",
+   "label": "Risk Skoru (0-100)",
+   "in_list_view": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "computed_at",
+   "fieldtype": "Datetime",
+   "label": "Hesaplanma Zamanı",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "version",
+   "fieldtype": "Data",
+   "label": "Algoritma Versiyonu",
+   "default": "v1.0",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "is_high_risk",
+   "fieldtype": "Check",
+   "label": "Yüksek Risk",
+   "in_list_view": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "factors_section",
+   "fieldtype": "Section Break",
+   "label": "Faktörler"
+  },
+  {
+   "fieldname": "factors",
+   "fieldtype": "Table",
+   "label": "Risk Faktörleri",
+   "options": "Review Risk Factor"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-05-11 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "Review Risk Score",
+ "naming_rule": "Autoincrement",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "read": 1,
+   "role": "System Manager",
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "Marketplace Admin",
+   "write": 1
+  }
+ ],
+ "sort_field": "computed_at",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0
+}

@@ -1,0 +1,529 @@
+{
+ "actions": [],
+ "autoname": "autoincrement",
+ "creation": "2026-05-08 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "tab_review",
+  "sb_target",
+  "listing",
+  "seller",
+  "cb_target",
+  "order",
+  "order_item",
+  "sb_reviewer",
+  "reviewer",
+  "reviewer_user",
+  "reviewer_display_name",
+  "cb_reviewer",
+  "is_verified_purchase",
+  "is_kyb_verified",
+  "sb_rating",
+  "rating",
+  "title",
+  "body",
+  "sb_aspects",
+  "product_quality_rating",
+  "service_rating",
+  "shipping_rating",
+  "cb_aspects",
+  "spec_match_rating",
+  "documentation_rating",
+  "tab_media",
+  "sb_images",
+  "images",
+  "video_url",
+  "tab_social",
+  "sb_social",
+  "helpful_count",
+  "not_helpful_count",
+  "cb_social",
+  "abuse_report_count",
+  "sb_risk",
+  "risk_score",
+  "risk_factors_json",
+  "weighted_contribution",
+  "sb_phase4",
+  "related_dispute",
+  "dispute_resolved_in_favor_of",
+  "cb_phase4",
+  "detected_language",
+  "is_translation_available",
+  "sb_timeline",
+  "current_stage",
+  "latest_update_at",
+  "long_term_score",
+  "updates",
+  "category_template_answers",
+  "tab_reply",
+  "sb_reply",
+  "seller_reply",
+  "cb_reply",
+  "seller_reply_at",
+  "seller_reply_by",
+  "seller_reply_within_hours",
+  "sb_meta",
+  "status",
+  "published_at",
+  "rejected_reason",
+  "cb_meta",
+  "submitted_at",
+  "updated_at",
+  "edit_count"
+ ],
+ "fields": [
+  {
+   "fieldname": "tab_review",
+   "fieldtype": "Tab Break",
+   "label": "Değerlendirme"
+  },
+  {
+   "fieldname": "sb_target",
+   "fieldtype": "Section Break",
+   "label": "Hedef Ürün"
+  },
+  {
+   "fieldname": "listing",
+   "fieldtype": "Link",
+   "label": "Ürün",
+   "options": "Listing",
+   "reqd": 1,
+   "description": "Sipariş Kalemi seçildiğinde otomatik dolar.",
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "seller",
+   "fieldtype": "Link",
+   "label": "Satıcı",
+   "options": "Admin Seller Profile",
+   "hidden": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "cb_target",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "order",
+   "fieldtype": "Link",
+   "label": "Sipariş",
+   "options": "Order",
+   "reqd": 1
+  },
+  {
+   "fieldname": "order_item",
+   "fieldtype": "Link",
+   "label": "Sipariş Kalemi",
+   "options": "Order Item",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "sb_reviewer",
+   "fieldtype": "Section Break",
+   "label": "Değerlendiren"
+  },
+  {
+   "fieldname": "reviewer",
+   "fieldtype": "Link",
+   "label": "Buyer Profile",
+   "options": "Buyer Profile",
+   "read_only": 1
+  },
+  {
+   "fieldname": "reviewer_user",
+   "fieldtype": "Link",
+   "label": "Kullanıcı",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "reviewer_display_name",
+   "fieldtype": "Data",
+   "label": "Görünen Ad",
+   "read_only": 1
+  },
+  {
+   "fieldname": "cb_reviewer",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_verified_purchase",
+   "fieldtype": "Check",
+   "label": "Doğrulanmış Alıcı",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "is_kyb_verified",
+   "fieldtype": "Check",
+   "label": "KYB Doğrulanmış",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sb_rating",
+   "fieldtype": "Section Break",
+   "label": "Puan ve Yorum"
+  },
+  {
+   "fieldname": "rating",
+   "fieldtype": "Int",
+   "label": "Puan",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "title",
+   "fieldtype": "Data",
+   "label": "Başlık",
+   "length": 140
+  },
+  {
+   "fieldname": "body",
+   "fieldtype": "Small Text",
+   "label": "Yorum",
+   "reqd": 1
+  },
+  {
+   "fieldname": "sb_aspects",
+   "fieldtype": "Section Break",
+   "label": "Boyutlu Puanlama (Opsiyonel)",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "product_quality_rating",
+   "fieldtype": "Int",
+   "label": "Ürün Kalitesi (1-5)"
+  },
+  {
+   "fieldname": "service_rating",
+   "fieldtype": "Int",
+   "label": "Satıcı Hizmeti (1-5)"
+  },
+  {
+   "fieldname": "shipping_rating",
+   "fieldtype": "Int",
+   "label": "Kargo (1-5)"
+  },
+  {
+   "fieldname": "cb_aspects",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "spec_match_rating",
+   "fieldtype": "Int",
+   "label": "Spec Uyumu (1-5)",
+   "description": "Reklam edilen özellikler ile gelen ürünün uyumu"
+  },
+  {
+   "fieldname": "documentation_rating",
+   "fieldtype": "Int",
+   "label": "Belge / Sertifika (1-5)",
+   "description": "Fatura, CE/ISO sertifikaları, MSDS vb. tamlığı"
+  },
+  {
+   "fieldname": "tab_media",
+   "fieldtype": "Tab Break",
+   "label": "Medya"
+  },
+  {
+   "fieldname": "sb_images",
+   "fieldtype": "Section Break",
+   "label": "Görseller ve Video"
+  },
+  {
+   "fieldname": "images",
+   "fieldtype": "Table",
+   "label": "Görseller",
+   "options": "Listing Review Image"
+  },
+  {
+   "fieldname": "video_url",
+   "fieldtype": "Data",
+   "label": "Video URL (YouTube/Vimeo)",
+   "options": "URL"
+  },
+  {
+   "fieldname": "tab_social",
+   "fieldtype": "Tab Break",
+   "label": "Sosyal"
+  },
+  {
+   "fieldname": "sb_social",
+   "fieldtype": "Section Break",
+   "label": "Etkileşim"
+  },
+  {
+   "default": "0",
+   "fieldname": "helpful_count",
+   "fieldtype": "Int",
+   "label": "Faydalı Oy",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "not_helpful_count",
+   "fieldtype": "Int",
+   "label": "Faydalı Değil Oy",
+   "read_only": 1
+  },
+  {
+   "fieldname": "cb_social",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "abuse_report_count",
+   "fieldtype": "Int",
+   "label": "İhbar Sayısı",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sb_risk",
+   "fieldtype": "Section Break",
+   "label": "Risk Analizi (Faz 3)",
+   "collapsible": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "risk_score",
+   "fieldtype": "Int",
+   "label": "Risk Skoru (0-100)",
+   "read_only": 1,
+   "in_list_view": 1,
+   "description": "0-30 düşük, 31-60 orta, 61+ yüksek risk"
+  },
+  {
+   "fieldname": "risk_factors_json",
+   "fieldtype": "Long Text",
+   "label": "Risk Faktörleri (JSON)",
+   "read_only": 1,
+   "hidden": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "weighted_contribution",
+   "fieldtype": "Float",
+   "label": "Ağırlık Katsayısı",
+   "precision": 3,
+   "read_only": 1,
+   "description": "ML-ağırlıklı rating hesabında bu yorumun katsayısı"
+  },
+  {
+   "fieldname": "sb_phase4",
+   "fieldtype": "Section Break",
+   "label": "Anlaşmazlık & Çeviri (Faz 4)",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "related_dispute",
+   "fieldtype": "Link",
+   "label": "İlgili Anlaşmazlık",
+   "options": "Order Dispute",
+   "read_only": 1
+  },
+  {
+   "fieldname": "dispute_resolved_in_favor_of",
+   "fieldtype": "Select",
+   "label": "Anlaşmazlık Lehine",
+   "options": "\nbuyer\nseller",
+   "read_only": 1
+  },
+  {
+   "fieldname": "cb_phase4",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "detected_language",
+   "fieldtype": "Data",
+   "label": "Tespit Edilen Dil",
+   "length": 10,
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "is_translation_available",
+   "fieldtype": "Check",
+   "label": "Çeviri Mevcut",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sb_timeline",
+   "fieldtype": "Section Break",
+   "label": "Timeline (Faz 4)",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "current_stage",
+   "fieldtype": "Select",
+   "label": "Mevcut Aşama",
+   "options": "Initial\n30-day\n90-day\nLong-term",
+   "default": "Initial",
+   "read_only": 1
+  },
+  {
+   "fieldname": "latest_update_at",
+   "fieldtype": "Datetime",
+   "label": "Son Güncelleme",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "long_term_score",
+   "fieldtype": "Float",
+   "label": "Uzun Vade Puanı",
+   "precision": 2,
+   "read_only": 1
+  },
+  {
+   "fieldname": "updates",
+   "fieldtype": "Table",
+   "label": "Aşamalı Güncellemeler",
+   "options": "Listing Review Update"
+  },
+  {
+   "fieldname": "category_template_answers",
+   "fieldtype": "Long Text",
+   "label": "Kategori Şablonu Cevapları (JSON)",
+   "hidden": 1
+  },
+  {
+   "fieldname": "tab_reply",
+   "fieldtype": "Tab Break",
+   "label": "Satıcı Yanıtı"
+  },
+  {
+   "fieldname": "sb_reply",
+   "fieldtype": "Section Break",
+   "label": "Yanıt"
+  },
+  {
+   "fieldname": "seller_reply",
+   "fieldtype": "Small Text",
+   "label": "Satıcı Yanıtı"
+  },
+  {
+   "fieldname": "cb_reply",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "seller_reply_at",
+   "fieldtype": "Datetime",
+   "label": "Yanıt Tarihi",
+   "read_only": 1
+  },
+  {
+   "fieldname": "seller_reply_by",
+   "fieldtype": "Link",
+   "label": "Yanıt Veren",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "seller_reply_within_hours",
+   "fieldtype": "Float",
+   "label": "Yanıt Süresi (saat)",
+   "precision": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "sb_meta",
+   "fieldtype": "Section Break",
+   "label": "Durum"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Durum",
+   "options": "Pending\nApproved\nRejected\nHidden",
+   "default": "Pending",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "published_at",
+   "fieldtype": "Datetime",
+   "label": "Yayın Tarihi",
+   "read_only": 1
+  },
+  {
+   "fieldname": "rejected_reason",
+   "fieldtype": "Small Text",
+   "label": "Red Nedeni"
+  },
+  {
+   "fieldname": "cb_meta",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "submitted_at",
+   "fieldtype": "Datetime",
+   "label": "Gönderim Tarihi",
+   "read_only": 1
+  },
+  {
+   "fieldname": "updated_at",
+   "fieldtype": "Datetime",
+   "label": "Güncelleme Tarihi",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "edit_count",
+   "fieldtype": "Int",
+   "label": "Düzenleme Sayısı",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-05-08 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "Listing Review",
+ "naming_rule": "Autoincrement",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "read": 1,
+   "role": "System Manager",
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "Marketplace Admin",
+   "write": 1,
+   "delete": 1
+  },
+  {
+   "read": 1,
+   "role": "Marketplace Seller"
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "write": 1,
+   "role": "Marketplace Buyer",
+   "if_owner": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "write": 1,
+   "role": "Buyer",
+   "if_owner": 1
+  }
+ ],
+ "sort_field": "submitted_at",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

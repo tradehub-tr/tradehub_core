@@ -1,0 +1,146 @@
+{
+ "actions": [],
+ "autoname": "autoincrement",
+ "creation": "2026-05-11 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "listing",
+  "asker",
+  "asker_display_name",
+  "column_break_1",
+  "status",
+  "is_kyb_verified",
+  "submitted_at",
+  "section_break_1",
+  "question",
+  "section_break_2",
+  "answer_count",
+  "helpful_count",
+  "dismissed_by_seller"
+ ],
+ "fields": [
+  {
+   "fieldname": "listing",
+   "fieldtype": "Link",
+   "label": "Ürün",
+   "options": "Listing",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "asker",
+   "fieldtype": "Link",
+   "label": "Soran",
+   "options": "User",
+   "reqd": 1,
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "asker_display_name",
+   "fieldtype": "Data",
+   "label": "Görünen Ad",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Durum",
+   "options": "Pending\nAnswered\nHidden",
+   "default": "Pending",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "reqd": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "is_kyb_verified",
+   "fieldtype": "Check",
+   "label": "KYB Doğrulanmış",
+   "read_only": 1
+  },
+  {
+   "fieldname": "submitted_at",
+   "fieldtype": "Datetime",
+   "label": "Soru Tarihi",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_1",
+   "fieldtype": "Section Break",
+   "label": "Soru"
+  },
+  {
+   "fieldname": "question",
+   "fieldtype": "Small Text",
+   "label": "Soru Metni",
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_break_2",
+   "fieldtype": "Section Break",
+   "label": "İstatistik"
+  },
+  {
+   "default": "0",
+   "fieldname": "answer_count",
+   "fieldtype": "Int",
+   "label": "Cevap Sayısı",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "helpful_count",
+   "fieldtype": "Int",
+   "label": "Faydalı Oy",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "dismissed_by_seller",
+   "fieldtype": "Check",
+   "label": "Satıcı Panelinden Gizlenmiş",
+   "description": "Satıcı kendi panelinden gizledi; storefront'ta görünmeye devam eder.",
+   "read_only": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-05-11 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "Listing Question",
+ "naming_rule": "Autoincrement",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1, "delete": 1, "read": 1, "write": 1,
+   "role": "System Manager"
+  },
+  {
+   "create": 1, "delete": 1, "read": 1, "write": 1,
+   "role": "Marketplace Admin"
+  },
+  {
+   "create": 1, "read": 1, "write": 1,
+   "role": "Marketplace Seller"
+  },
+  {
+   "create": 1, "read": 1, "write": 1,
+   "role": "Marketplace Buyer", "if_owner": 1
+  },
+  {
+   "create": 1, "read": 1, "write": 1,
+   "role": "Buyer", "if_owner": 1
+  }
+ ],
+ "sort_field": "submitted_at",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

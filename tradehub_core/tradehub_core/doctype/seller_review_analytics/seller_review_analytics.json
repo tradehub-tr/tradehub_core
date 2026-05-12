@@ -1,0 +1,44 @@
+{
+ "actions": [],
+ "autoname": "autoincrement",
+ "creation": "2026-05-11 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "seller","period","computed_at","section_break_1","total_reviews","avg_rating","weighted_rating","helpful_ratio","column_break_1","response_rate","avg_response_hours","kyb_buyer_pct","dispute_count","section_break_2","top_topics_json","sentiment_breakdown_json"
+ ],
+ "fields": [
+  {"fieldname":"seller","fieldtype":"Link","label":"Satıcı","options":"Admin Seller Profile","reqd":1,"in_list_view":1,"in_standard_filter":1},
+  {"fieldname":"period","fieldtype":"Select","label":"Periyot","options":"7d\n30d\n90d\n1y","reqd":1,"in_list_view":1,"in_standard_filter":1},
+  {"fieldname":"computed_at","fieldtype":"Datetime","label":"Hesap Tarihi","read_only":1,"in_list_view":1},
+  {"fieldname":"section_break_1","fieldtype":"Section Break","label":"Genel"},
+  {"default":"0","fieldname":"total_reviews","fieldtype":"Int","label":"Toplam Yorum","in_list_view":1},
+  {"default":"0","fieldname":"avg_rating","fieldtype":"Float","label":"Ortalama Puan","precision":2,"in_list_view":1},
+  {"default":"0","fieldname":"weighted_rating","fieldtype":"Float","label":"Ağırlıklı Puan","precision":2},
+  {"default":"0","fieldname":"helpful_ratio","fieldtype":"Float","label":"Helpful Oranı","precision":2},
+  {"fieldname":"column_break_1","fieldtype":"Column Break"},
+  {"default":"0","fieldname":"response_rate","fieldtype":"Float","label":"Yanıt Oranı %","precision":2},
+  {"default":"0","fieldname":"avg_response_hours","fieldtype":"Float","label":"Ort. Yanıt (saat)","precision":2},
+  {"default":"0","fieldname":"kyb_buyer_pct","fieldtype":"Float","label":"KYB Alıcı %","precision":2},
+  {"default":"0","fieldname":"dispute_count","fieldtype":"Int","label":"Anlaşmazlık"},
+  {"fieldname":"section_break_2","fieldtype":"Section Break","label":"Detay"},
+  {"fieldname":"top_topics_json","fieldtype":"Long Text","label":"Top Topics (JSON)"},
+  {"fieldname":"sentiment_breakdown_json","fieldtype":"Long Text","label":"Sentiment Breakdown (JSON)"}
+ ],
+ "links": [],
+ "modified": "2026-05-11 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "Seller Review Analytics",
+ "naming_rule": "Autoincrement",
+ "owner": "Administrator",
+ "permissions": [
+  {"create":1,"delete":1,"read":1,"write":1,"role":"System Manager"},
+  {"read":1,"role":"Marketplace Admin"},
+  {"read":1,"role":"Marketplace Seller"}
+ ],
+ "sort_field": "computed_at",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0
+}

@@ -1,0 +1,116 @@
+{
+ "actions": [],
+ "autoname": "autoincrement",
+ "creation": "2026-05-08 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "review",
+  "reporter",
+  "reason",
+  "note",
+  "column_break_1",
+  "created_at",
+  "resolved",
+  "resolution_note"
+ ],
+ "fields": [
+  {
+   "fieldname": "review",
+   "fieldtype": "Link",
+   "label": "Yorum",
+   "options": "Listing Review",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "reporter",
+   "fieldtype": "Link",
+   "label": "Bildiren",
+   "options": "User",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "reason",
+   "fieldtype": "Select",
+   "label": "Neden",
+   "options": "Off-topic\nSpam\nHate Speech\nPersonal Info\nFake\nOther",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "note",
+   "fieldtype": "Small Text",
+   "label": "Açıklama"
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "created_at",
+   "fieldtype": "Datetime",
+   "label": "Bildirim Tarihi",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "resolved",
+   "fieldtype": "Check",
+   "label": "Çözüldü",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "resolution_note",
+   "fieldtype": "Small Text",
+   "label": "Çözüm Notu"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-05-08 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "Review Abuse Report",
+ "naming_rule": "Autoincrement",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "read": 1,
+   "role": "System Manager",
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "Marketplace Admin",
+   "write": 1,
+   "delete": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "role": "Marketplace Buyer",
+   "if_owner": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "role": "Buyer",
+   "if_owner": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "role": "Marketplace Seller",
+   "if_owner": 1
+  }
+ ],
+ "sort_field": "created_at",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

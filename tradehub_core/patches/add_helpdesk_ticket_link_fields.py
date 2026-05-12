@@ -49,6 +49,10 @@ CUSTOM_FIELDS = [
 
 
 def execute():
+	# HD Ticket Frappe Helpdesk app'inden geliyor. Helpdesk kurulu değilse
+	# patch no-op olur — ileride helpdesk eklenirse bu patch yeniden çalıştırılabilir.
+	if not frappe.db.exists("DocType", "HD Ticket"):
+		return
 	for cf in CUSTOM_FIELDS:
 		_upsert_custom_field(cf)
 	frappe.db.commit()

@@ -686,7 +686,7 @@ DEMO_KYB_DOC_FIELDS = (
 	"ticaret_sicil_gazetesi",
 	"faaliyet_belgesi",
 	"vergi_levhasi",
-	"banka_hesap_belgesi",
+	"bank_account_document",
 )
 
 
@@ -2718,7 +2718,15 @@ def _ensure_seller(s):
 	for cert in s["certifications"].split(", "):
 		cert_name = _ensure_cert_type(cert)
 		if cert_name:
-			doc.append("certifications", {"certification_type": cert_name})
+			# verification_status default "Pending" — listing.validate Verified bekler;
+			# demo satıcı cert'leri admin tarafından onaylanmış kabul edilir.
+			doc.append(
+				"certifications",
+				{
+					"certification_type": cert_name,
+					"verification_status": "Verified",
+				},
+			)
 	doc.email = s["email"]
 	doc.phone = s["phone"]
 	doc.website = s["website"]
@@ -2739,13 +2747,17 @@ def _ensure_seller(s):
 	doc.response_rate = round(random.uniform(85, 99), 1)
 	doc.on_time_delivery = round(random.uniform(90, 99), 1)
 
-	# Gallery images
+	# Gallery images — Seller Gallery Image child'ında category/media_type reqd:1
+	gallery_categories = ["overview", "production", "quality_control", "360_view", "overview"]
 	for i in range(1, random.randint(4, 6)):
 		doc.append(
 			"gallery_images",
 			{
+				"category": gallery_categories[(i - 1) % len(gallery_categories)],
+				"media_type": "image",
 				"image": _img(s["variant_type"], 600, 400, lock_id=f"{s['code']}-gallery-{i}"),
 				"caption": f"Fabrika/Mağaza Görüntüsü {i}",
+				"sort_order": i,
 			},
 		)
 
@@ -4015,6 +4027,65 @@ def execute():
 		print(f"  {b['code']:<15} {b['email']:<32} {b['buyer_name']:<25}")
 	print("═" * 76)
 	print()
+
+
+@frappe.whitelist()
+def verify_email(user_email):
+	"""Belirtilen user için Buyer Profile.email_verified=1 yap (yoksa oluştur).
+
+	checkout akışında auth_guards.require_verified_email() Buyer Profile'ı
+	kontrol ediyor; satıcı user'ı checkout test edecekse Buyer Profile gerekir.
+
+	Kullanım:
+	    bench --site <site> execute tradehub_core.seed_demo_data.verify_email \
+	        --kwargs "{'user_email': 'demo-seller-03@istoc.demo'}"
+	"""
+	from frappe.utils import now
+
+	if not frappe.db.exists("User", user_email):
+		frappe.throw(_("User bulunamadı: {0}").format(user_email))
+
+	existing = frappe.db.exists("Buyer Profile", {"user": user_email})
+	if existing:
+		bp = frappe.get_doc("Buyer Profile", existing)
+		bp.email_verified = 1
+		if bp.meta.has_field("email_verified_at"):
+			bp.email_verified_at = now()
+		if bp.meta.has_field("email_verified_method"):
+			bp.email_verified_method = "admin_override"
+		bp.flags.ignore_permissions = True
+		bp.save(ignore_permissions=True)
+		action = f"güncellendi: {bp.name}"
+	else:
+		buyer_name = (
+			frappe.db.get_value("Admin Seller Profile", {"user": user_email}, "seller_name")
+			or frappe.db.get_value("User", user_email, "full_name")
+			or user_email
+		)
+		bp = frappe.new_doc("Buyer Profile")
+		bp.user = user_email
+		bp.buyer_name = buyer_name
+		bp.status = "Active"
+		bp.country = "Turkey"
+		bp.email_verified = 1
+		if bp.meta.has_field("email_verified_at"):
+			bp.email_verified_at = now()
+		if bp.meta.has_field("email_verified_method"):
+			bp.email_verified_method = "admin_override"
+		bp.flags.ignore_permissions = True
+		bp.flags.ignore_mandatory = True
+		bp.insert(ignore_permissions=True)
+		action = f"oluşturuldu: {bp.name}"
+
+	user_doc = frappe.get_doc("User", user_email)
+	if not any(r.role == "Buyer" for r in user_doc.roles):
+		user_doc.append("roles", {"role": "Buyer"})
+		user_doc.flags.ignore_permissions = True
+		user_doc.save(ignore_permissions=True)
+
+	frappe.db.commit()
+	print(f"✓ {user_email} — Buyer Profile {action}, email_verified=1")
+	return {"user": user_email, "email_verified": 1}
 
 
 @frappe.whitelist()

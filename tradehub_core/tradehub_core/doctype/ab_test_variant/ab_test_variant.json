@@ -1,0 +1,22 @@
+{
+ "actions": [],
+ "creation": "2026-05-11 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": ["variant_listing","label","traffic_weight"],
+ "fields": [
+  {"fieldname":"variant_listing","fieldtype":"Link","label":"Varyant Listing","options":"Listing","reqd":1,"in_list_view":1},
+  {"fieldname":"label","fieldtype":"Data","label":"Etiket","in_list_view":1},
+  {"fieldname":"traffic_weight","fieldtype":"Int","label":"Trafik Ağırlığı","default":50,"in_list_view":1}
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-05-11 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "AB Test Variant",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC"
+}

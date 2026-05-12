@@ -1,0 +1,40 @@
+{
+ "actions": [],
+ "autoname": "format:AB-{####}",
+ "creation": "2026-05-11 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": ["test_name","seller","status","column_break_1","metric","test_period_days","section_break_1","start_date","end_date","column_break_2","winner","winner_score","section_break_2","variants"],
+ "fields": [
+  {"fieldname":"test_name","fieldtype":"Data","label":"Test Adı","reqd":1,"in_list_view":1},
+  {"fieldname":"seller","fieldtype":"Link","label":"Satıcı","options":"Admin Seller Profile","reqd":1,"in_standard_filter":1},
+  {"fieldname":"status","fieldtype":"Select","label":"Durum","options":"Draft\nRunning\nCompleted\nCancelled","default":"Draft","in_list_view":1,"in_standard_filter":1},
+  {"fieldname":"column_break_1","fieldtype":"Column Break"},
+  {"fieldname":"metric","fieldtype":"Select","label":"Karşılaştırma Metriği","options":"weighted_rating\nreview_count\nhelpful_ratio\ndispute_rate","default":"weighted_rating","reqd":1},
+  {"fieldname":"test_period_days","fieldtype":"Int","label":"Test Süresi (gün)","default":30},
+  {"fieldname":"section_break_1","fieldtype":"Section Break"},
+  {"fieldname":"start_date","fieldtype":"Date","label":"Başlangıç"},
+  {"fieldname":"end_date","fieldtype":"Date","label":"Bitiş"},
+  {"fieldname":"column_break_2","fieldtype":"Column Break"},
+  {"fieldname":"winner","fieldtype":"Link","label":"Kazanan","options":"Listing","read_only":1,"in_list_view":1},
+  {"default":"0","fieldname":"winner_score","fieldtype":"Float","label":"Kazanan Skor","precision":2,"read_only":1},
+  {"fieldname":"section_break_2","fieldtype":"Section Break","label":"Varyantlar"},
+  {"fieldname":"variants","fieldtype":"Table","label":"Varyantlar","options":"AB Test Variant"}
+ ],
+ "links": [],
+ "modified": "2026-05-11 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "Listing AB Test",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {"create":1,"delete":1,"read":1,"write":1,"role":"System Manager"},
+  {"create":1,"delete":1,"read":1,"write":1,"role":"Marketplace Admin"},
+  {"create":1,"read":1,"write":1,"role":"Marketplace Seller"}
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

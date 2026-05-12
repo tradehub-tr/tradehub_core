@@ -1,0 +1,114 @@
+{
+ "actions": [],
+ "autoname": "autoincrement",
+ "creation": "2026-05-11 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "question",
+  "responder",
+  "responder_type",
+  "is_seller_answer",
+  "column_break_1",
+  "helpful_count",
+  "submitted_at",
+  "section_break_1",
+  "answer"
+ ],
+ "fields": [
+  {
+   "fieldname": "question",
+   "fieldtype": "Link",
+   "label": "Soru",
+   "options": "Listing Question",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "responder",
+   "fieldtype": "Link",
+   "label": "Cevaplayan",
+   "options": "User",
+   "reqd": 1,
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "responder_type",
+   "fieldtype": "Select",
+   "label": "Cevaplayan Tipi",
+   "options": "seller\nbuyer\nadmin",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "is_seller_answer",
+   "fieldtype": "Check",
+   "label": "Satıcı Cevabı",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "helpful_count",
+   "fieldtype": "Int",
+   "label": "Faydalı Oy",
+   "read_only": 1
+  },
+  {
+   "fieldname": "submitted_at",
+   "fieldtype": "Datetime",
+   "label": "Cevap Tarihi",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_1",
+   "fieldtype": "Section Break",
+   "label": "Cevap"
+  },
+  {
+   "fieldname": "answer",
+   "fieldtype": "Small Text",
+   "label": "Cevap Metni",
+   "reqd": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-05-11 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "Listing Question Answer",
+ "naming_rule": "Autoincrement",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1, "delete": 1, "read": 1, "write": 1,
+   "role": "System Manager"
+  },
+  {
+   "create": 1, "delete": 1, "read": 1, "write": 1,
+   "role": "Marketplace Admin"
+  },
+  {
+   "create": 1, "read": 1, "write": 1,
+   "role": "Marketplace Seller"
+  },
+  {
+   "create": 1, "read": 1, "write": 1,
+   "role": "Marketplace Buyer", "if_owner": 1
+  },
+  {
+   "create": 1, "read": 1, "write": 1,
+   "role": "Buyer", "if_owner": 1
+  }
+ ],
+ "sort_field": "submitted_at",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

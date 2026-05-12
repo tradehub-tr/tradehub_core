@@ -14,6 +14,9 @@ from tradehub_core.utils.helpdesk_routing import ensure_platform_support_team
 
 
 def execute():
+	# Helpdesk app kurulu değilse no-op
+	if not frappe.db.exists("DocType", "HD Ticket") or not frappe.db.exists("DocType", "HD Team"):
+		return
 	team = ensure_platform_support_team()
 	# Bulk update — direkt SQL, ORM tek tek save'den çok daha hızlı
 	frappe.db.sql(
