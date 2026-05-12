@@ -1,3 +1,11 @@
+## [v1.0.8-beta.5] - 2026-05-12 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Eklendi
+- feat: update auth and listing APIs to enhance seller profile management and listing visibility (@boraydeger32)
+
+---
 ## [v1.0.8-beta.3] - 2026-05-11 BETA
 
 Bu surum betaistoc.cronbi.com'da test asamasindadir.
