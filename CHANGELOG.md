@@ -226,13 +226,12 @@ Bu surum istoc.cronbi.com'da yayindadir.
 - feat(helpdesk,seller-crm): SLA + canned response + tag/saved filter + CRM scope (@ahmeetseker)
 - feat(seller,seed): satıcı arama/kategori filtresi + sektörel ürün spec havuzu (@ahmeetseker)
 - feat(listing): kategori subtree filtresi + B2B min_order_qty senkron patch (@ahmeetseker)
-- feat: add image parameter to update_seller_category and change required status of category field (@Bora)
+- feat: add image parameter to update_seller_category and change required status of category field (@boraydeger32)
 - feat(payment): kredi kartı ödemeleri için Payment Transaction kaydı ve havale backfill mekanizması (@ahmeetseker)
 - feat(currency): TCMB entegrasyonu ile dinamik para birimi sistemi geliştirildi. (@aliiball)
 - feat(theme): ürün kartı token whitelist'i (_PRODUCT_CARD_KEYS, 80 anahtar) (@ahmeetseker)
 - feat(dashboard): Config tabanlı widget engine, 2 dashboard ve 25 hazır widget eklendi. (@aliiball)
 - feat: add agent_reply_ticket headless API to update HD Ticket status without email triggers (@ahmeetseker)
-- feat(api/public): create_ticket login zorunlu hale getirildi (@ahmeetseker)
 - feat(api/public): create_ticket login zorunlu hale getirildi (@ahmeetseker)
 - feat(recommendations): Related Products skor pipeline + API + scheduler (@aliiball)
 - feat(tailored): Kategori kartlarına editoryal metin + rozet eklendi. (@aliiball)
@@ -241,16 +240,14 @@ Bu surum istoc.cronbi.com'da yayindadir.
 ### Duzeltildi
 - fix(rfq): Satıcı RFQ eşleşmesine listing platform kategorisi desteği eklendi. (@aliiball)
 - fix(helpdesk): müşteri user'ında HD Team/Agent insert PermissionError → 403 (@ahmeetseker)
-- fix(helpdesk): müşteri user'ında HD Team/Agent insert PermissionError → 403 (@ahmeetseker)
 - fix(patches): backfill_payment_transactions — Frappe v15 için now_datetime'a çevir (@aliiball)
 - fix: backfill patch'inde nowdatetime import hatası düzeltildi — now_datetime kullanıldı (@ahmeetseker)
 - fix: tüm frappe.get_doc(dict) çağrıları frappe.new_doc() ile değiştirildi (@ahmeetseker)
 
 ### Degistirildi
-- refactor: clean up string concatenation and formatting in various files (@Bora)
+- refactor: clean up string concatenation and formatting in various files (@boraydeger32)
 - refactor: rename unused dictionary key variable in seed_demo_data.py to underscore (@ahmeetseker)
 - refactor: replace Pexels CDN image IDs with direct DummyJSON product image URLs in seed_demo_data.py (@ahmeetseker)
-- refactor(cart): _get_inline_variant_stock tamamen kaldırıldı (@ahmeetseker)
 - refactor(cart): _get_inline_variant_stock tamamen kaldırıldı (@ahmeetseker)
 
 ---
@@ -262,7 +259,6 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - feat(tailored): "Size Özel Seçimler" öneri endpoint'leri + User Product View DocType (@aliiball)
 - feat(tailored): Kategori kartlarına editoryal metin + rozet eklendi. (@aliiball)
 - feat(recommendations): Related Products skor pipeline + API + scheduler (@aliiball)
-- feat(api/public): create_ticket login zorunlu hale getirildi (@ahmeetseker)
 - feat(api/public): create_ticket login zorunlu hale getirildi (@ahmeetseker)
 - feat: add agent_reply_ticket headless API to update HD Ticket status without email triggers (@ahmeetseker)
 - feat(dashboard): Config tabanlı widget engine, 2 dashboard ve 25 hazır widget eklendi. (@aliiball)
@@ -281,11 +277,9 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - fix: backfill patch'inde nowdatetime import hatası düzeltildi — now_datetime kullanıldı (@ahmeetseker)
 - fix(patches): backfill_payment_transactions — Frappe v15 için now_datetime'a çevir (@aliiball)
 - fix(helpdesk): müşteri user'ında HD Team/Agent insert PermissionError → 403 (@ahmeetseker)
-- fix(helpdesk): müşteri user'ında HD Team/Agent insert PermissionError → 403 (@ahmeetseker)
 - fix(rfq): Satıcı RFQ eşleşmesine listing platform kategorisi desteği eklendi. (@aliiball)
 
 ### Degistirildi
-- refactor(cart): _get_inline_variant_stock tamamen kaldırıldı (@ahmeetseker)
 - refactor(cart): _get_inline_variant_stock tamamen kaldırıldı (@ahmeetseker)
 - refactor: replace Pexels CDN image IDs with direct DummyJSON product image URLs in seed_demo_data.py (@ahmeetseker)
 - refactor: rename unused dictionary key variable in seed_demo_data.py to underscore (@ahmeetseker)
@@ -301,7 +295,6 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - feat(tailored): Kategori kartlarına editoryal metin + rozet eklendi. (@aliiball)
 - feat(recommendations): Related Products skor pipeline + API + scheduler (@aliiball)
 - feat(api/public): create_ticket login zorunlu hale getirildi (@ahmeetseker)
-- feat(api/public): create_ticket login zorunlu hale getirildi (@ahmeetseker)
 - feat: add agent_reply_ticket headless API to update HD Ticket status without email triggers (@ahmeetseker)
 - feat(dashboard): Config tabanlı widget engine, 2 dashboard ve 25 hazır widget eklendi. (@aliiball)
 - feat(theme): ürün kartı token whitelist'i (_PRODUCT_CARD_KEYS, 80 anahtar) (@ahmeetseker)
@@ -318,11 +311,9 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - fix: backfill patch'inde nowdatetime import hatası düzeltildi — now_datetime kullanıldı (@ahmeetseker)
 - fix(patches): backfill_payment_transactions — Frappe v15 için now_datetime'a çevir (@aliiball)
 - fix(helpdesk): müşteri user'ında HD Team/Agent insert PermissionError → 403 (@ahmeetseker)
-- fix(helpdesk): müşteri user'ında HD Team/Agent insert PermissionError → 403 (@ahmeetseker)
 - fix(rfq): Satıcı RFQ eşleşmesine listing platform kategorisi desteği eklendi. (@aliiball)
 
 ### Degistirildi
-- refactor(cart): _get_inline_variant_stock tamamen kaldırıldı (@ahmeetseker)
 - refactor(cart): _get_inline_variant_stock tamamen kaldırıldı (@ahmeetseker)
 - refactor: replace Pexels CDN image IDs with direct DummyJSON product image URLs in seed_demo_data.py (@ahmeetseker)
 - refactor: rename unused dictionary key variable in seed_demo_data.py to underscore (@ahmeetseker)
@@ -338,7 +329,6 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - feat(tailored): Kategori kartlarına editoryal metin + rozet eklendi. (@aliiball)
 - feat(recommendations): Related Products skor pipeline + API + scheduler (@aliiball)
 - feat(api/public): create_ticket login zorunlu hale getirildi (@ahmeetseker)
-- feat(api/public): create_ticket login zorunlu hale getirildi (@ahmeetseker)
 - feat: add agent_reply_ticket headless API to update HD Ticket status without email triggers (@ahmeetseker)
 - feat(dashboard): Config tabanlı widget engine, 2 dashboard ve 25 hazır widget eklendi. (@aliiball)
 - feat(theme): ürün kartı token whitelist'i (_PRODUCT_CARD_KEYS, 80 anahtar) (@ahmeetseker)
@@ -355,11 +345,9 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - fix: backfill patch'inde nowdatetime import hatası düzeltildi — now_datetime kullanıldı (@ahmeetseker)
 - fix(patches): backfill_payment_transactions — Frappe v15 için now_datetime'a çevir (@aliiball)
 - fix(helpdesk): müşteri user'ında HD Team/Agent insert PermissionError → 403 (@ahmeetseker)
-- fix(helpdesk): müşteri user'ında HD Team/Agent insert PermissionError → 403 (@ahmeetseker)
 - fix(rfq): Satıcı RFQ eşleşmesine listing platform kategorisi desteği eklendi. (@aliiball)
 
 ### Degistirildi
-- refactor(cart): _get_inline_variant_stock tamamen kaldırıldı (@ahmeetseker)
 - refactor(cart): _get_inline_variant_stock tamamen kaldırıldı (@ahmeetseker)
 - refactor: replace Pexels CDN image IDs with direct DummyJSON product image URLs in seed_demo_data.py (@ahmeetseker)
 - refactor: rename unused dictionary key variable in seed_demo_data.py to underscore (@ahmeetseker)
@@ -374,7 +362,6 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - feat(tailored): "Size Özel Seçimler" öneri endpoint'leri + User Product View DocType (@aliiball)
 - feat(tailored): Kategori kartlarına editoryal metin + rozet eklendi. (@aliiball)
 - feat(recommendations): Related Products skor pipeline + API + scheduler (@aliiball)
-- feat(api/public): create_ticket login zorunlu hale getirildi (@ahmeetseker)
 - feat(api/public): create_ticket login zorunlu hale getirildi (@ahmeetseker)
 - feat: add agent_reply_ticket headless API to update HD Ticket status without email triggers (@ahmeetseker)
 - feat(dashboard): Config tabanlı widget engine, 2 dashboard ve 25 hazır widget eklendi. (@aliiball)
@@ -391,11 +378,9 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - fix: backfill patch'inde nowdatetime import hatası düzeltildi — now_datetime kullanıldı (@ahmeetseker)
 - fix(patches): backfill_payment_transactions — Frappe v15 için now_datetime'a çevir (@aliiball)
 - fix(helpdesk): müşteri user'ında HD Team/Agent insert PermissionError → 403 (@ahmeetseker)
-- fix(helpdesk): müşteri user'ında HD Team/Agent insert PermissionError → 403 (@ahmeetseker)
 - fix(rfq): Satıcı RFQ eşleşmesine listing platform kategorisi desteği eklendi. (@aliiball)
 
 ### Degistirildi
-- refactor(cart): _get_inline_variant_stock tamamen kaldırıldı (@ahmeetseker)
 - refactor(cart): _get_inline_variant_stock tamamen kaldırıldı (@ahmeetseker)
 - refactor: replace Pexels CDN image IDs with direct DummyJSON product image URLs in seed_demo_data.py (@ahmeetseker)
 - refactor: rename unused dictionary key variable in seed_demo_data.py to underscore (@ahmeetseker)
@@ -411,7 +396,6 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - feat(tailored): Kategori kartlarına editoryal metin + rozet eklendi. (@aliiball)
 - feat(recommendations): Related Products skor pipeline + API + scheduler (@aliiball)
 - feat(api/public): create_ticket login zorunlu hale getirildi (@ahmeetseker)
-- feat(api/public): create_ticket login zorunlu hale getirildi (@ahmeetseker)
 - feat: add agent_reply_ticket headless API to update HD Ticket status without email triggers (@ahmeetseker)
 - feat(dashboard): Config tabanlı widget engine, 2 dashboard ve 25 hazır widget eklendi. (@aliiball)
 - feat(theme): ürün kartı token whitelist'i (_PRODUCT_CARD_KEYS, 80 anahtar) (@ahmeetseker)
@@ -426,11 +410,9 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - fix: backfill patch'inde nowdatetime import hatası düzeltildi — now_datetime kullanıldı (@ahmeetseker)
 - fix(patches): backfill_payment_transactions — Frappe v15 için now_datetime'a çevir (@aliiball)
 - fix(helpdesk): müşteri user'ında HD Team/Agent insert PermissionError → 403 (@ahmeetseker)
-- fix(helpdesk): müşteri user'ında HD Team/Agent insert PermissionError → 403 (@ahmeetseker)
 - fix(rfq): Satıcı RFQ eşleşmesine listing platform kategorisi desteği eklendi. (@aliiball)
 
 ### Degistirildi
-- refactor(cart): _get_inline_variant_stock tamamen kaldırıldı (@ahmeetseker)
 - refactor(cart): _get_inline_variant_stock tamamen kaldırıldı (@ahmeetseker)
 - refactor: replace Pexels CDN image IDs with direct DummyJSON product image URLs in seed_demo_data.py (@ahmeetseker)
 - refactor: rename unused dictionary key variable in seed_demo_data.py to underscore (@ahmeetseker)
@@ -446,7 +428,6 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - feat(tailored): Kategori kartlarına editoryal metin + rozet eklendi. (@aliiball)
 - feat(recommendations): Related Products skor pipeline + API + scheduler (@aliiball)
 - feat(api/public): create_ticket login zorunlu hale getirildi (@ahmeetseker)
-- feat(api/public): create_ticket login zorunlu hale getirildi (@ahmeetseker)
 - feat: add agent_reply_ticket headless API to update HD Ticket status without email triggers (@ahmeetseker)
 - feat(dashboard): Config tabanlı widget engine, 2 dashboard ve 25 hazır widget eklendi. (@aliiball)
 - feat(theme): ürün kartı token whitelist'i (_PRODUCT_CARD_KEYS, 80 anahtar) (@ahmeetseker)
@@ -460,11 +441,9 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - fix: backfill patch'inde nowdatetime import hatası düzeltildi — now_datetime kullanıldı (@ahmeetseker)
 - fix(patches): backfill_payment_transactions — Frappe v15 için now_datetime'a çevir (@aliiball)
 - fix(helpdesk): müşteri user'ında HD Team/Agent insert PermissionError → 403 (@ahmeetseker)
-- fix(helpdesk): müşteri user'ında HD Team/Agent insert PermissionError → 403 (@ahmeetseker)
 - fix(rfq): Satıcı RFQ eşleşmesine listing platform kategorisi desteği eklendi. (@aliiball)
 
 ### Degistirildi
-- refactor(cart): _get_inline_variant_stock tamamen kaldırıldı (@ahmeetseker)
 - refactor(cart): _get_inline_variant_stock tamamen kaldırıldı (@ahmeetseker)
 - refactor: replace Pexels CDN image IDs with direct DummyJSON product image URLs in seed_demo_data.py (@ahmeetseker)
 - refactor: rename unused dictionary key variable in seed_demo_data.py to underscore (@ahmeetseker)
@@ -480,7 +459,6 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - feat(tailored): Kategori kartlarına editoryal metin + rozet eklendi. (@aliiball)
 - feat(recommendations): Related Products skor pipeline + API + scheduler (@aliiball)
 - feat(api/public): create_ticket login zorunlu hale getirildi (@ahmeetseker)
-- feat(api/public): create_ticket login zorunlu hale getirildi (@ahmeetseker)
 - feat: add agent_reply_ticket headless API to update HD Ticket status without email triggers (@ahmeetseker)
 - feat(dashboard): Config tabanlı widget engine, 2 dashboard ve 25 hazır widget eklendi. (@aliiball)
 - feat(theme): ürün kartı token whitelist'i (_PRODUCT_CARD_KEYS, 80 anahtar) (@ahmeetseker)
@@ -493,11 +471,9 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - fix: backfill patch'inde nowdatetime import hatası düzeltildi — now_datetime kullanıldı (@ahmeetseker)
 - fix(patches): backfill_payment_transactions — Frappe v15 için now_datetime'a çevir (@aliiball)
 - fix(helpdesk): müşteri user'ında HD Team/Agent insert PermissionError → 403 (@ahmeetseker)
-- fix(helpdesk): müşteri user'ında HD Team/Agent insert PermissionError → 403 (@ahmeetseker)
 - fix(rfq): Satıcı RFQ eşleşmesine listing platform kategorisi desteği eklendi. (@aliiball)
 
 ### Degistirildi
-- refactor(cart): _get_inline_variant_stock tamamen kaldırıldı (@ahmeetseker)
 - refactor(cart): _get_inline_variant_stock tamamen kaldırıldı (@ahmeetseker)
 - refactor: replace Pexels CDN image IDs with direct DummyJSON product image URLs in seed_demo_data.py (@ahmeetseker)
 - refactor: rename unused dictionary key variable in seed_demo_data.py to underscore (@ahmeetseker)
@@ -512,7 +488,6 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - feat(tailored): "Size Özel Seçimler" öneri endpoint'leri + User Product View DocType (@aliiball)
 - feat(tailored): Kategori kartlarına editoryal metin + rozet eklendi. (@aliiball)
 - feat(recommendations): Related Products skor pipeline + API + scheduler (@aliiball)
-- feat(api/public): create_ticket login zorunlu hale getirildi (@ahmeetseker)
 - feat(api/public): create_ticket login zorunlu hale getirildi (@ahmeetseker)
 - feat: add agent_reply_ticket headless API to update HD Ticket status without email triggers (@ahmeetseker)
 - feat(dashboard): Config tabanlı widget engine, 2 dashboard ve 25 hazır widget eklendi. (@aliiball)
@@ -539,11 +514,9 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - fix: backfill patch'inde nowdatetime import hatası düzeltildi — now_datetime kullanıldı (@ahmeetseker)
 - fix(patches): backfill_payment_transactions — Frappe v15 için now_datetime'a çevir (@aliiball)
 - fix(helpdesk): müşteri user'ında HD Team/Agent insert PermissionError → 403 (@ahmeetseker)
-- fix(helpdesk): müşteri user'ında HD Team/Agent insert PermissionError → 403 (@ahmeetseker)
 - fix(rfq): Satıcı RFQ eşleşmesine listing platform kategorisi desteği eklendi. (@aliiball)
 
 ### Degistirildi
-- refactor(cart): _get_inline_variant_stock tamamen kaldırıldı (@ahmeetseker)
 - refactor(cart): _get_inline_variant_stock tamamen kaldırıldı (@ahmeetseker)
 - refactor: replace Pexels CDN image IDs with direct DummyJSON product image URLs in seed_demo_data.py (@ahmeetseker)
 - refactor: rename unused dictionary key variable in seed_demo_data.py to underscore (@ahmeetseker)
@@ -559,7 +532,6 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - feat(tailored): Kategori kartlarına editoryal metin + rozet eklendi. (@aliiball)
 - feat(recommendations): Related Products skor pipeline + API + scheduler (@aliiball)
 - feat(api/public): create_ticket login zorunlu hale getirildi (@ahmeetseker)
-- feat(api/public): create_ticket login zorunlu hale getirildi (@ahmeetseker)
 - feat: add agent_reply_ticket headless API to update HD Ticket status without email triggers (@ahmeetseker)
 - feat(dashboard): Config tabanlı widget engine, 2 dashboard ve 25 hazır widget eklendi. (@aliiball)
 - feat(theme): ürün kartı token whitelist'i (_PRODUCT_CARD_KEYS, 80 anahtar) (@ahmeetseker)
@@ -571,11 +543,9 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - fix: backfill patch'inde nowdatetime import hatası düzeltildi — now_datetime kullanıldı (@ahmeetseker)
 - fix(patches): backfill_payment_transactions — Frappe v15 için now_datetime'a çevir (@aliiball)
 - fix(helpdesk): müşteri user'ında HD Team/Agent insert PermissionError → 403 (@ahmeetseker)
-- fix(helpdesk): müşteri user'ında HD Team/Agent insert PermissionError → 403 (@ahmeetseker)
 - fix(rfq): Satıcı RFQ eşleşmesine listing platform kategorisi desteği eklendi. (@aliiball)
 
 ### Degistirildi
-- refactor(cart): _get_inline_variant_stock tamamen kaldırıldı (@ahmeetseker)
 - refactor(cart): _get_inline_variant_stock tamamen kaldırıldı (@ahmeetseker)
 - refactor: replace Pexels CDN image IDs with direct DummyJSON product image URLs in seed_demo_data.py (@ahmeetseker)
 - refactor: rename unused dictionary key variable in seed_demo_data.py to underscore (@ahmeetseker)
@@ -591,7 +561,6 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - feat(tailored): Kategori kartlarına editoryal metin + rozet eklendi. (@aliiball)
 - feat(recommendations): Related Products skor pipeline + API + scheduler (@aliiball)
 - feat(api/public): create_ticket login zorunlu hale getirildi (@ahmeetseker)
-- feat(api/public): create_ticket login zorunlu hale getirildi (@ahmeetseker)
 - feat: add agent_reply_ticket headless API to update HD Ticket status without email triggers (@ahmeetseker)
 - feat(dashboard): Config tabanlı widget engine, 2 dashboard ve 25 hazır widget eklendi. (@aliiball)
 - feat(theme): ürün kartı token whitelist'i (_PRODUCT_CARD_KEYS, 80 anahtar) (@ahmeetseker)
@@ -603,11 +572,9 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - fix: backfill patch'inde nowdatetime import hatası düzeltildi — now_datetime kullanıldı (@ahmeetseker)
 - fix(patches): backfill_payment_transactions — Frappe v15 için now_datetime'a çevir (@aliiball)
 - fix(helpdesk): müşteri user'ında HD Team/Agent insert PermissionError → 403 (@ahmeetseker)
-- fix(helpdesk): müşteri user'ında HD Team/Agent insert PermissionError → 403 (@ahmeetseker)
 - fix(rfq): Satıcı RFQ eşleşmesine listing platform kategorisi desteği eklendi. (@aliiball)
 
 ### Degistirildi
-- refactor(cart): _get_inline_variant_stock tamamen kaldırıldı (@ahmeetseker)
 - refactor(cart): _get_inline_variant_stock tamamen kaldırıldı (@ahmeetseker)
 - refactor: replace Pexels CDN image IDs with direct DummyJSON product image URLs in seed_demo_data.py (@ahmeetseker)
 - refactor: rename unused dictionary key variable in seed_demo_data.py to underscore (@ahmeetseker)
@@ -622,7 +589,6 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - feat(tailored): Kategori kartlarına editoryal metin + rozet eklendi. (@aliiball)
 - feat(recommendations): Related Products skor pipeline + API + scheduler (@aliiball)
 - feat(api/public): create_ticket login zorunlu hale getirildi (@ahmeetseker)
-- feat(api/public): create_ticket login zorunlu hale getirildi (@ahmeetseker)
 - feat: add agent_reply_ticket headless API to update HD Ticket status without email triggers (@ahmeetseker)
 - feat(dashboard): Config tabanlı widget engine, 2 dashboard ve 25 hazır widget eklendi. (@aliiball)
 - feat(theme): ürün kartı token whitelist'i (_PRODUCT_CARD_KEYS, 80 anahtar) (@ahmeetseker)
@@ -634,11 +600,9 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - fix: backfill patch'inde nowdatetime import hatası düzeltildi — now_datetime kullanıldı (@ahmeetseker)
 - fix(patches): backfill_payment_transactions — Frappe v15 için now_datetime'a çevir (@aliiball)
 - fix(helpdesk): müşteri user'ında HD Team/Agent insert PermissionError → 403 (@ahmeetseker)
-- fix(helpdesk): müşteri user'ında HD Team/Agent insert PermissionError → 403 (@ahmeetseker)
 - fix(rfq): Satıcı RFQ eşleşmesine listing platform kategorisi desteği eklendi. (@aliiball)
 
 ### Degistirildi
-- refactor(cart): _get_inline_variant_stock tamamen kaldırıldı (@ahmeetseker)
 - refactor(cart): _get_inline_variant_stock tamamen kaldırıldı (@ahmeetseker)
 
 ---
@@ -651,7 +615,6 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - feat(tailored): Kategori kartlarına editoryal metin + rozet eklendi. (@aliiball)
 - feat(recommendations): Related Products skor pipeline + API + scheduler (@aliiball)
 - feat(api/public): create_ticket login zorunlu hale getirildi (@ahmeetseker)
-- feat(api/public): create_ticket login zorunlu hale getirildi (@ahmeetseker)
 - feat: add agent_reply_ticket headless API to update HD Ticket status without email triggers (@ahmeetseker)
 - feat(dashboard): Config tabanlı widget engine, 2 dashboard ve 25 hazır widget eklendi. (@aliiball)
 - feat(theme): ürün kartı token whitelist'i (_PRODUCT_CARD_KEYS, 80 anahtar) (@ahmeetseker)
@@ -663,11 +626,9 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - fix: backfill patch'inde nowdatetime import hatası düzeltildi — now_datetime kullanıldı (@ahmeetseker)
 - fix(patches): backfill_payment_transactions — Frappe v15 için now_datetime'a çevir (@aliiball)
 - fix(helpdesk): müşteri user'ında HD Team/Agent insert PermissionError → 403 (@ahmeetseker)
-- fix(helpdesk): müşteri user'ında HD Team/Agent insert PermissionError → 403 (@ahmeetseker)
 - fix(rfq): Satıcı RFQ eşleşmesine listing platform kategorisi desteği eklendi. (@aliiball)
 
 ### Degistirildi
-- refactor(cart): _get_inline_variant_stock tamamen kaldırıldı (@ahmeetseker)
 - refactor(cart): _get_inline_variant_stock tamamen kaldırıldı (@ahmeetseker)
 
 ---
@@ -680,7 +641,6 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - feat(tailored): Kategori kartlarına editoryal metin + rozet eklendi. (@aliiball)
 - feat(recommendations): Related Products skor pipeline + API + scheduler (@aliiball)
 - feat(api/public): create_ticket login zorunlu hale getirildi (@ahmeetseker)
-- feat(api/public): create_ticket login zorunlu hale getirildi (@ahmeetseker)
 - feat: add agent_reply_ticket headless API to update HD Ticket status without email triggers (@ahmeetseker)
 - feat(dashboard): Config tabanlı widget engine, 2 dashboard ve 25 hazır widget eklendi. (@aliiball)
 - feat(theme): ürün kartı token whitelist'i (_PRODUCT_CARD_KEYS, 80 anahtar) (@ahmeetseker)
@@ -691,7 +651,6 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - fix: tüm frappe.get_doc(dict) çağrıları frappe.new_doc() ile değiştirildi (@ahmeetseker)
 - fix: backfill patch'inde nowdatetime import hatası düzeltildi — now_datetime kullanıldı (@ahmeetseker)
 - fix(patches): backfill_payment_transactions — Frappe v15 için now_datetime'a çevir (@aliiball)
-- fix(helpdesk): müşteri user'ında HD Team/Agent insert PermissionError → 403 (@ahmeetseker)
 - fix(helpdesk): müşteri user'ında HD Team/Agent insert PermissionError → 403 (@ahmeetseker)
 - fix(rfq): Satıcı RFQ eşleşmesine listing platform kategorisi desteği eklendi. (@aliiball)
 
@@ -705,7 +664,6 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - feat(tailored): Kategori kartlarına editoryal metin + rozet eklendi. (@aliiball)
 - feat(recommendations): Related Products skor pipeline + API + scheduler (@aliiball)
 - feat(api/public): create_ticket login zorunlu hale getirildi (@ahmeetseker)
-- feat(api/public): create_ticket login zorunlu hale getirildi (@ahmeetseker)
 - feat: add agent_reply_ticket headless API to update HD Ticket status without email triggers (@ahmeetseker)
 - feat(dashboard): Config tabanlı widget engine, 2 dashboard ve 25 hazır widget eklendi. (@aliiball)
 - feat(theme): ürün kartı token whitelist'i (_PRODUCT_CARD_KEYS, 80 anahtar) (@ahmeetseker)
@@ -716,7 +674,6 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - fix: tüm frappe.get_doc(dict) çağrıları frappe.new_doc() ile değiştirildi (@ahmeetseker)
 - fix: backfill patch'inde nowdatetime import hatası düzeltildi — now_datetime kullanıldı (@ahmeetseker)
 - fix(patches): backfill_payment_transactions — Frappe v15 için now_datetime'a çevir (@aliiball)
-- fix(helpdesk): müşteri user'ında HD Team/Agent insert PermissionError → 403 (@ahmeetseker)
 - fix(helpdesk): müşteri user'ında HD Team/Agent insert PermissionError → 403 (@ahmeetseker)
 
 ---
@@ -729,7 +686,6 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - feat(tailored): Kategori kartlarına editoryal metin + rozet eklendi. (@aliiball)
 - feat(recommendations): Related Products skor pipeline + API + scheduler (@aliiball)
 - feat(api/public): create_ticket login zorunlu hale getirildi (@ahmeetseker)
-- feat(api/public): create_ticket login zorunlu hale getirildi (@ahmeetseker)
 - feat: add agent_reply_ticket headless API to update HD Ticket status without email triggers (@ahmeetseker)
 - feat(dashboard): Config tabanlı widget engine, 2 dashboard ve 25 hazır widget eklendi. (@aliiball)
 - feat(theme): ürün kartı token whitelist'i (_PRODUCT_CARD_KEYS, 80 anahtar) (@ahmeetseker)
@@ -740,7 +696,6 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - fix: tüm frappe.get_doc(dict) çağrıları frappe.new_doc() ile değiştirildi (@ahmeetseker)
 - fix: backfill patch'inde nowdatetime import hatası düzeltildi — now_datetime kullanıldı (@ahmeetseker)
 - fix(patches): backfill_payment_transactions — Frappe v15 için now_datetime'a çevir (@aliiball)
-- fix(helpdesk): müşteri user'ında HD Team/Agent insert PermissionError → 403 (@ahmeetseker)
 - fix(helpdesk): müşteri user'ında HD Team/Agent insert PermissionError → 403 (@ahmeetseker)
 
 ---
@@ -753,7 +708,6 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - feat(tailored): Kategori kartlarına editoryal metin + rozet eklendi. (@aliiball)
 - feat(recommendations): Related Products skor pipeline + API + scheduler (@aliiball)
 - feat(api/public): create_ticket login zorunlu hale getirildi (@ahmeetseker)
-- feat(api/public): create_ticket login zorunlu hale getirildi (@ahmeetseker)
 - feat: add agent_reply_ticket headless API to update HD Ticket status without email triggers (@ahmeetseker)
 - feat(dashboard): Config tabanlı widget engine, 2 dashboard ve 25 hazır widget eklendi. (@aliiball)
 - feat(theme): ürün kartı token whitelist'i (_PRODUCT_CARD_KEYS, 80 anahtar) (@ahmeetseker)
@@ -763,7 +717,6 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - fix: tüm frappe.get_doc(dict) çağrıları frappe.new_doc() ile değiştirildi (@ahmeetseker)
 - fix: backfill patch'inde nowdatetime import hatası düzeltildi — now_datetime kullanıldı (@ahmeetseker)
 - fix(patches): backfill_payment_transactions — Frappe v15 için now_datetime'a çevir (@aliiball)
-- fix(helpdesk): müşteri user'ında HD Team/Agent insert PermissionError → 403 (@ahmeetseker)
 - fix(helpdesk): müşteri user'ında HD Team/Agent insert PermissionError → 403 (@ahmeetseker)
 
 ---
@@ -776,7 +729,6 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - feat(tailored): Kategori kartlarına editoryal metin + rozet eklendi. (@aliiball)
 - feat(recommendations): Related Products skor pipeline + API + scheduler (@aliiball)
 - feat(api/public): create_ticket login zorunlu hale getirildi (@ahmeetseker)
-- feat(api/public): create_ticket login zorunlu hale getirildi (@ahmeetseker)
 - feat: add agent_reply_ticket headless API to update HD Ticket status without email triggers (@ahmeetseker)
 - feat(dashboard): Config tabanlı widget engine, 2 dashboard ve 25 hazır widget eklendi. (@aliiball)
 - feat(theme): ürün kartı token whitelist'i (_PRODUCT_CARD_KEYS, 80 anahtar) (@ahmeetseker)
@@ -785,7 +737,6 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - fix: tüm frappe.get_doc(dict) çağrıları frappe.new_doc() ile değiştirildi (@ahmeetseker)
 - fix: backfill patch'inde nowdatetime import hatası düzeltildi — now_datetime kullanıldı (@ahmeetseker)
 - fix(patches): backfill_payment_transactions — Frappe v15 için now_datetime'a çevir (@aliiball)
-- fix(helpdesk): müşteri user'ında HD Team/Agent insert PermissionError → 403 (@ahmeetseker)
 - fix(helpdesk): müşteri user'ında HD Team/Agent insert PermissionError → 403 (@ahmeetseker)
 
 ---
@@ -798,7 +749,6 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - feat(tailored): Kategori kartlarına editoryal metin + rozet eklendi. (@aliiball)
 - feat(recommendations): Related Products skor pipeline + API + scheduler (@aliiball)
 - feat(api/public): create_ticket login zorunlu hale getirildi (@ahmeetseker)
-- feat(api/public): create_ticket login zorunlu hale getirildi (@ahmeetseker)
 - feat: add agent_reply_ticket headless API to update HD Ticket status without email triggers (@ahmeetseker)
 - feat(dashboard): Config tabanlı widget engine, 2 dashboard ve 25 hazır widget eklendi. (@aliiball)
 
@@ -806,7 +756,6 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - fix: tüm frappe.get_doc(dict) çağrıları frappe.new_doc() ile değiştirildi (@ahmeetseker)
 - fix: backfill patch'inde nowdatetime import hatası düzeltildi — now_datetime kullanıldı (@ahmeetseker)
 - fix(patches): backfill_payment_transactions — Frappe v15 için now_datetime'a çevir (@aliiball)
-- fix(helpdesk): müşteri user'ında HD Team/Agent insert PermissionError → 403 (@ahmeetseker)
 - fix(helpdesk): müşteri user'ında HD Team/Agent insert PermissionError → 403 (@ahmeetseker)
 
 ---
@@ -819,14 +768,12 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - feat(tailored): Kategori kartlarına editoryal metin + rozet eklendi. (@aliiball)
 - feat(recommendations): Related Products skor pipeline + API + scheduler (@aliiball)
 - feat(api/public): create_ticket login zorunlu hale getirildi (@ahmeetseker)
-- feat(api/public): create_ticket login zorunlu hale getirildi (@ahmeetseker)
 - feat: add agent_reply_ticket headless API to update HD Ticket status without email triggers (@ahmeetseker)
 
 ### Duzeltildi
 - fix: tüm frappe.get_doc(dict) çağrıları frappe.new_doc() ile değiştirildi (@ahmeetseker)
 - fix: backfill patch'inde nowdatetime import hatası düzeltildi — now_datetime kullanıldı (@ahmeetseker)
 - fix(patches): backfill_payment_transactions — Frappe v15 için now_datetime'a çevir (@aliiball)
-- fix(helpdesk): müşteri user'ında HD Team/Agent insert PermissionError → 403 (@ahmeetseker)
 - fix(helpdesk): müşteri user'ında HD Team/Agent insert PermissionError → 403 (@ahmeetseker)
 
 ---
@@ -839,14 +786,12 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - feat(tailored): Kategori kartlarına editoryal metin + rozet eklendi. (@aliiball)
 - feat(recommendations): Related Products skor pipeline + API + scheduler (@aliiball)
 - feat(api/public): create_ticket login zorunlu hale getirildi (@ahmeetseker)
-- feat(api/public): create_ticket login zorunlu hale getirildi (@ahmeetseker)
 - feat: add agent_reply_ticket headless API to update HD Ticket status without email triggers (@ahmeetseker)
 
 ### Duzeltildi
 - fix: tüm frappe.get_doc(dict) çağrıları frappe.new_doc() ile değiştirildi (@ahmeetseker)
 - fix: backfill patch'inde nowdatetime import hatası düzeltildi — now_datetime kullanıldı (@ahmeetseker)
 - fix(patches): backfill_payment_transactions — Frappe v15 için now_datetime'a çevir (@aliiball)
-- fix(helpdesk): müşteri user'ında HD Team/Agent insert PermissionError → 403 (@ahmeetseker)
 - fix(helpdesk): müşteri user'ında HD Team/Agent insert PermissionError → 403 (@ahmeetseker)
 
 ---
@@ -859,13 +804,11 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - feat(tailored): Kategori kartlarına editoryal metin + rozet eklendi. (@aliiball)
 - feat(recommendations): Related Products skor pipeline + API + scheduler (@aliiball)
 - feat(api/public): create_ticket login zorunlu hale getirildi (@ahmeetseker)
-- feat(api/public): create_ticket login zorunlu hale getirildi (@ahmeetseker)
 
 ### Duzeltildi
 - fix: tüm frappe.get_doc(dict) çağrıları frappe.new_doc() ile değiştirildi (@ahmeetseker)
 - fix: backfill patch'inde nowdatetime import hatası düzeltildi — now_datetime kullanıldı (@ahmeetseker)
 - fix(patches): backfill_payment_transactions — Frappe v15 için now_datetime'a çevir (@aliiball)
-- fix(helpdesk): müşteri user'ında HD Team/Agent insert PermissionError → 403 (@ahmeetseker)
 - fix(helpdesk): müşteri user'ında HD Team/Agent insert PermissionError → 403 (@ahmeetseker)
 
 ---
@@ -1005,36 +948,28 @@ Bu surum istoc.cronbi.com'da yayindadir.
 
 ### Eklendi
 - feat: Dashboard Banner DocType'ı ve aktif banner API endpoint'i ekle   - Dashboard Banner DocType'ı oluşturuldu (başlık, link, sıralama, aktiflik)   - get_active_banners API endpoint'i eklendi   - Demo veri seed script'i eklendi (seed_demo_data.py) (@ahmeetseker)
-- feat: Tema API'sine rate limit ekle ve palet/tipografi/input token whitelist'ini genişlet (@ahmet)
-- feat: auth yanıtına user_image ekle ve update_profile_image API uç noktasını uygula (@ahmet)
-- feat(search): Kişiselleştirilmiş arama önerileri + Search History + prod optimizasyonu (@Ali)
-- feat:  Güvenli JSON geçersiz kılmaları ve public API erişimiyle site geneli tema ayarları eklendi (@ahmet)
-- feat:  Güvenli JSON geçersiz kılmaları ve public API erişimiyle site geneli tema ayarları eklendi (@ahmet)
-- feat(notification): API endpoint'leri eklendi (get/mark_read/mark_all_read/unread_count) (@Bora)
-- feat(notification): API endpoint'leri eklendi (get/mark_read/mark_all_read/unread_count) (@Bora)
-- feat(notification): Platform Notification DocType ve notify yardımcısı eklendi (@Bora)
-- feat(notification): Platform Notification DocType ve notify yardımcısı eklendi (@Bora)
-- feat(notification): Platform Notification DocType ve notify yardımcısı eklendi (@Bora)
-- feat(Certification): Sertifika yönetim sistemi — DocType'lar, API, güvenlik ve facets'lar yapıldı (@Ali)
-- feat(Certification): Sertifika yönetim sistemi — DocType'lar, API, güvenlik ve facets'lar yapıldı (@Ali)
-- feat(Listing): Arama filtreleri, faceted counts, relevance sort ve performans iyileştirmeleri yapıldı (@Ali)
-- feat(Listing): Arama filtreleri, faceted counts, relevance sort ve performans iyileştirmeleri yapıldı (@Ali)
-- feat(auth): fix storefront URLs, add email verification redirect and resend endpoint (@ahmet)
-- feat: update email verification and password reset links to use configurable storefront URL (@ahmet)
-- feat(RFQ): Sabit kodlanmış ürünler API çağrılarıyla RFQ sayfasına dinamik şekilde yansıtıldı. (@Ali)
-- feat: Sepet öğelerine color_variant ve variant_label desteği eklendi, dinamik görsel çözümleme getirildi ve auth yanıtına CSRF token eklendi (@Bora)
-- feat: Storefront düzeni yönetimini uygulamak, listeleme durumu iş akışını geliştirmek ve sipariş doküman tipini takip bilgileri ile daha ayrıntılı durum alanlarıyla güncellemek. (@Bora)
-- feat(storefront): satıcı vitrin düzeni ve tema ayarları için yeni fonksiyonlar eklendi (@ahmet)
+- feat: Tema API'sine rate limit ekle ve palet/tipografi/input token whitelist'ini genişlet (@ahmeetseker)
+- feat: auth yanıtına user_image ekle ve update_profile_image API uç noktasını uygula (@ahmeetseker)
+- feat(search): Kişiselleştirilmiş arama önerileri + Search History + prod optimizasyonu (@aliiball)
+- feat:  Güvenli JSON geçersiz kılmaları ve public API erişimiyle site geneli tema ayarları eklendi (@ahmeetseker)
+- feat(notification): API endpoint'leri eklendi (get/mark_read/mark_all_read/unread_count) (@boraydeger32)
+- feat(notification): Platform Notification DocType ve notify yardımcısı eklendi (@boraydeger32)
+- feat(Certification): Sertifika yönetim sistemi — DocType'lar, API, güvenlik ve facets'lar yapıldı (@aliiball)
+- feat(Listing): Arama filtreleri, faceted counts, relevance sort ve performans iyileştirmeleri yapıldı (@aliiball)
+- feat(auth): fix storefront URLs, add email verification redirect and resend endpoint (@ahmeetseker)
+- feat: update email verification and password reset links to use configurable storefront URL (@ahmeetseker)
+- feat(RFQ): Sabit kodlanmış ürünler API çağrılarıyla RFQ sayfasına dinamik şekilde yansıtıldı. (@aliiball)
+- feat: Sepet öğelerine color_variant ve variant_label desteği eklendi, dinamik görsel çözümleme getirildi ve auth yanıtına CSRF token eklendi (@boraydeger32)
+- feat: Storefront düzeni yönetimini uygulamak, listeleme durumu iş akışını geliştirmek ve sipariş doküman tipini takip bilgileri ile daha ayrıntılı durum alanlarıyla güncellemek. (@boraydeger32)
+- feat(storefront): satıcı vitrin düzeni ve tema ayarları için yeni fonksiyonlar eklendi (@ahmeetseker)
 
 ### Duzeltildi
 - fix: seed script child table hatası düzeltildi — doc.append() yöntemiyle Frappe uyumluluğu sağlandı (@ahmeetseker)
-- fix: add_certification_to_workspace patch link validasyon hatası düzeltildi (@Bora)
-- fix: add_certification_to_workspace patch link validasyon hatası düzeltildi (@Bora)
-- fix: hardcode storefront URL and update reset password link path in identity API (@ahmet)
-- fix(Listing): Ayrıntılı yanıtta productCategoryId eklendi, breadcrumb kaynağı düzeltildi (@Ali)
-- fix(Listing): Ayrıntılı yanıtta productCategoryId eklendi, breadcrumb kaynağı düzeltildi (@Ali)
-- fix(Listing): breadcrumb için product_category kullanıldı, aksi takdirde satıcı kategorisine geri dönülmesi sağlandı (@Ali)
-- fix: revoke_approval ile Seller Profile'ı Suspended yapısı eklendi. (@Ali)
+- fix: add_certification_to_workspace patch link validasyon hatası düzeltildi (@boraydeger32)
+- fix: hardcode storefront URL and update reset password link path in identity API (@ahmeetseker)
+- fix(Listing): Ayrıntılı yanıtta productCategoryId eklendi, breadcrumb kaynağı düzeltildi (@aliiball)
+- fix(Listing): breadcrumb için product_category kullanıldı, aksi takdirde satıcı kategorisine geri dönülmesi sağlandı (@aliiball)
+- fix: revoke_approval ile Seller Profile'ı Suspended yapısı eklendi. (@aliiball)
 
 ### Degistirildi
 - refactor(listing): compare_at_price ve is_on_sale sütunlarını kaldır (@aliiball)
@@ -1048,19 +983,15 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - feat(storefront): satıcı vitrin düzeni ve tema ayarları için yeni fonksiyonlar eklendi (@TurksabYonetim)
 - feat: Storefront düzeni yönetimini uygulamak, listeleme durumu iş akışını geliştirmek ve sipariş doküman tipini takip bilgileri ile daha ayrıntılı durum alanlarıyla güncellemek. (@boraydeger32)
 - feat: Sepet öğelerine color_variant ve variant_label desteği eklendi, dinamik görsel çözümleme getirildi ve auth yanıtına CSRF token eklendi (@boraydeger32)
-- feat(RFQ): Sabit kodlanmış ürünler API çağrılarıyla RFQ sayfasına dinamik şekilde yansıtıldı. (@Ali)
+- feat(RFQ): Sabit kodlanmış ürünler API çağrılarıyla RFQ sayfasına dinamik şekilde yansıtıldı. (@aliiball)
 - feat: update email verification and password reset links to use configurable storefront URL (@TurksabYonetim)
 - feat(auth): fix storefront URLs, add email verification redirect and resend endpoint (@TurksabYonetim)
 - feat(Listing): Arama filtreleri, faceted counts, relevance sort ve performans iyileştirmeleri yapıldı (@TurksabYonetim)
-- feat(Listing): Arama filtreleri, faceted counts, relevance sort ve performans iyileştirmeleri yapıldı (@TurksabYonetim)
-- feat(Certification): Sertifika yönetim sistemi — DocType'lar, API, güvenlik ve facets'lar yapıldı (@TurksabYonetim)
 - feat(Certification): Sertifika yönetim sistemi — DocType'lar, API, güvenlik ve facets'lar yapıldı (@TurksabYonetim)
 - feat(notification): Platform Notification DocType ve notify yardımcısı eklendi (@boraydeger32)
 - feat(notification): Platform Notification DocType ve notify yardımcısı eklendi (@TurksabYonetim)
-- feat(notification): Platform Notification DocType ve notify yardımcısı eklendi (@boraydeger32)
 - feat(notification): API endpoint'leri eklendi (get/mark_read/mark_all_read/unread_count) (@TurksabYonetim)
 - feat(notification): API endpoint'leri eklendi (get/mark_read/mark_all_read/unread_count) (@boraydeger32)
-- feat:  Güvenli JSON geçersiz kılmaları ve public API erişimiyle site geneli tema ayarları eklendi (@TurksabYonetim)
 - feat:  Güvenli JSON geçersiz kılmaları ve public API erişimiyle site geneli tema ayarları eklendi (@TurksabYonetim)
 - feat(search): Kişiselleştirilmiş arama önerileri + Search History + prod optimizasyonu (@TurksabYonetim)
 - feat: auth yanıtına user_image ekle ve update_profile_image API uç noktasını uygula (@TurksabYonetim)
@@ -1068,10 +999,9 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - feat: Dashboard Banner DocType'ı ve aktif banner API endpoint'i ekle (@ahmeetseker)
 
 ### Duzeltildi
-- fix: revoke_approval ile Seller Profile'ı Suspended yapısı eklendi. (@Ali)
-- fix(Listing): breadcrumb için product_category kullanıldı, aksi takdirde satıcı kategorisine geri dönülmesi sağlandı (@Ali)
-- fix(Listing): Ayrıntılı yanıtta productCategoryId eklendi, breadcrumb kaynağı düzeltildi (@Ali)
-- fix(Listing): Ayrıntılı yanıtta productCategoryId eklendi, breadcrumb kaynağı düzeltildi (@Ali)
+- fix: revoke_approval ile Seller Profile'ı Suspended yapısı eklendi. (@aliiball)
+- fix(Listing): breadcrumb için product_category kullanıldı, aksi takdirde satıcı kategorisine geri dönülmesi sağlandı (@aliiball)
+- fix(Listing): Ayrıntılı yanıtta productCategoryId eklendi, breadcrumb kaynağı düzeltildi (@aliiball)
 - fix: hardcode storefront URL and update reset password link path in identity API (@TurksabYonetim)
 - fix: add_certification_to_workspace patch link validasyon hatası düzeltildi (@TurksabYonetim)
 - fix: add_certification_to_workspace patch link validasyon hatası düzeltildi (@boraydeger32)
@@ -1089,19 +1019,15 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - feat(storefront): satıcı vitrin düzeni ve tema ayarları için yeni fonksiyonlar eklendi (@TurksabYonetim)
 - feat: Storefront düzeni yönetimini uygulamak, listeleme durumu iş akışını geliştirmek ve sipariş doküman tipini takip bilgileri ile daha ayrıntılı durum alanlarıyla güncellemek. (@boraydeger32)
 - feat: Sepet öğelerine color_variant ve variant_label desteği eklendi, dinamik görsel çözümleme getirildi ve auth yanıtına CSRF token eklendi (@boraydeger32)
-- feat(RFQ): Sabit kodlanmış ürünler API çağrılarıyla RFQ sayfasına dinamik şekilde yansıtıldı. (@Ali)
+- feat(RFQ): Sabit kodlanmış ürünler API çağrılarıyla RFQ sayfasına dinamik şekilde yansıtıldı. (@aliiball)
 - feat: update email verification and password reset links to use configurable storefront URL (@TurksabYonetim)
 - feat(auth): fix storefront URLs, add email verification redirect and resend endpoint (@TurksabYonetim)
 - feat(Listing): Arama filtreleri, faceted counts, relevance sort ve performans iyileştirmeleri yapıldı (@TurksabYonetim)
-- feat(Listing): Arama filtreleri, faceted counts, relevance sort ve performans iyileştirmeleri yapıldı (@TurksabYonetim)
-- feat(Certification): Sertifika yönetim sistemi — DocType'lar, API, güvenlik ve facets'lar yapıldı (@TurksabYonetim)
 - feat(Certification): Sertifika yönetim sistemi — DocType'lar, API, güvenlik ve facets'lar yapıldı (@TurksabYonetim)
 - feat(notification): Platform Notification DocType ve notify yardımcısı eklendi (@boraydeger32)
 - feat(notification): Platform Notification DocType ve notify yardımcısı eklendi (@TurksabYonetim)
-- feat(notification): Platform Notification DocType ve notify yardımcısı eklendi (@boraydeger32)
 - feat(notification): API endpoint'leri eklendi (get/mark_read/mark_all_read/unread_count) (@TurksabYonetim)
 - feat(notification): API endpoint'leri eklendi (get/mark_read/mark_all_read/unread_count) (@boraydeger32)
-- feat:  Güvenli JSON geçersiz kılmaları ve public API erişimiyle site geneli tema ayarları eklendi (@TurksabYonetim)
 - feat:  Güvenli JSON geçersiz kılmaları ve public API erişimiyle site geneli tema ayarları eklendi (@TurksabYonetim)
 - feat(search): Kişiselleştirilmiş arama önerileri + Search History + prod optimizasyonu (@TurksabYonetim)
 - feat: auth yanıtına user_image ekle ve update_profile_image API uç noktasını uygula (@TurksabYonetim)
@@ -1109,10 +1035,9 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - feat: Dashboard Banner DocType'ı ve aktif banner API endpoint'i ekle (@ahmeetseker)
 
 ### Duzeltildi
-- fix: revoke_approval ile Seller Profile'ı Suspended yapısı eklendi. (@Ali)
-- fix(Listing): breadcrumb için product_category kullanıldı, aksi takdirde satıcı kategorisine geri dönülmesi sağlandı (@Ali)
-- fix(Listing): Ayrıntılı yanıtta productCategoryId eklendi, breadcrumb kaynağı düzeltildi (@Ali)
-- fix(Listing): Ayrıntılı yanıtta productCategoryId eklendi, breadcrumb kaynağı düzeltildi (@Ali)
+- fix: revoke_approval ile Seller Profile'ı Suspended yapısı eklendi. (@aliiball)
+- fix(Listing): breadcrumb için product_category kullanıldı, aksi takdirde satıcı kategorisine geri dönülmesi sağlandı (@aliiball)
+- fix(Listing): Ayrıntılı yanıtta productCategoryId eklendi, breadcrumb kaynağı düzeltildi (@aliiball)
 - fix: hardcode storefront URL and update reset password link path in identity API (@TurksabYonetim)
 - fix: add_certification_to_workspace patch link validasyon hatası düzeltildi (@TurksabYonetim)
 - fix: add_certification_to_workspace patch link validasyon hatası düzeltildi (@boraydeger32)
@@ -1129,19 +1054,15 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - feat(storefront): satıcı vitrin düzeni ve tema ayarları için yeni fonksiyonlar eklendi (@TurksabYonetim)
 - feat: Storefront düzeni yönetimini uygulamak, listeleme durumu iş akışını geliştirmek ve sipariş doküman tipini takip bilgileri ile daha ayrıntılı durum alanlarıyla güncellemek. (@boraydeger32)
 - feat: Sepet öğelerine color_variant ve variant_label desteği eklendi, dinamik görsel çözümleme getirildi ve auth yanıtına CSRF token eklendi (@boraydeger32)
-- feat(RFQ): Sabit kodlanmış ürünler API çağrılarıyla RFQ sayfasına dinamik şekilde yansıtıldı. (@Ali)
+- feat(RFQ): Sabit kodlanmış ürünler API çağrılarıyla RFQ sayfasına dinamik şekilde yansıtıldı. (@aliiball)
 - feat: update email verification and password reset links to use configurable storefront URL (@TurksabYonetim)
 - feat(auth): fix storefront URLs, add email verification redirect and resend endpoint (@TurksabYonetim)
 - feat(Listing): Arama filtreleri, faceted counts, relevance sort ve performans iyileştirmeleri yapıldı (@TurksabYonetim)
-- feat(Listing): Arama filtreleri, faceted counts, relevance sort ve performans iyileştirmeleri yapıldı (@TurksabYonetim)
-- feat(Certification): Sertifika yönetim sistemi — DocType'lar, API, güvenlik ve facets'lar yapıldı (@TurksabYonetim)
 - feat(Certification): Sertifika yönetim sistemi — DocType'lar, API, güvenlik ve facets'lar yapıldı (@TurksabYonetim)
 - feat(notification): Platform Notification DocType ve notify yardımcısı eklendi (@boraydeger32)
 - feat(notification): Platform Notification DocType ve notify yardımcısı eklendi (@TurksabYonetim)
-- feat(notification): Platform Notification DocType ve notify yardımcısı eklendi (@boraydeger32)
 - feat(notification): API endpoint'leri eklendi (get/mark_read/mark_all_read/unread_count) (@TurksabYonetim)
 - feat(notification): API endpoint'leri eklendi (get/mark_read/mark_all_read/unread_count) (@boraydeger32)
-- feat:  Güvenli JSON geçersiz kılmaları ve public API erişimiyle site geneli tema ayarları eklendi (@TurksabYonetim)
 - feat:  Güvenli JSON geçersiz kılmaları ve public API erişimiyle site geneli tema ayarları eklendi (@TurksabYonetim)
 - feat(search): Kişiselleştirilmiş arama önerileri + Search History + prod optimizasyonu (@TurksabYonetim)
 - feat: auth yanıtına user_image ekle ve update_profile_image API uç noktasını uygula (@TurksabYonetim)
@@ -1149,10 +1070,9 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - feat: Dashboard Banner DocType'ı ve aktif banner API endpoint'i ekle (@ahmeetseker)
 
 ### Duzeltildi
-- fix: revoke_approval ile Seller Profile'ı Suspended yapısı eklendi. (@Ali)
-- fix(Listing): breadcrumb için product_category kullanıldı, aksi takdirde satıcı kategorisine geri dönülmesi sağlandı (@Ali)
-- fix(Listing): Ayrıntılı yanıtta productCategoryId eklendi, breadcrumb kaynağı düzeltildi (@Ali)
-- fix(Listing): Ayrıntılı yanıtta productCategoryId eklendi, breadcrumb kaynağı düzeltildi (@Ali)
+- fix: revoke_approval ile Seller Profile'ı Suspended yapısı eklendi. (@aliiball)
+- fix(Listing): breadcrumb için product_category kullanıldı, aksi takdirde satıcı kategorisine geri dönülmesi sağlandı (@aliiball)
+- fix(Listing): Ayrıntılı yanıtta productCategoryId eklendi, breadcrumb kaynağı düzeltildi (@aliiball)
 - fix: hardcode storefront URL and update reset password link path in identity API (@TurksabYonetim)
 - fix: add_certification_to_workspace patch link validasyon hatası düzeltildi (@TurksabYonetim)
 - fix: add_certification_to_workspace patch link validasyon hatası düzeltildi (@boraydeger32)
@@ -1166,29 +1086,24 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - feat(storefront): satıcı vitrin düzeni ve tema ayarları için yeni fonksiyonlar eklendi (@TurksabYonetim)
 - feat: Storefront düzeni yönetimini uygulamak, listeleme durumu iş akışını geliştirmek ve sipariş doküman tipini takip bilgileri ile daha ayrıntılı durum alanlarıyla güncellemek. (@boraydeger32)
 - feat: Sepet öğelerine color_variant ve variant_label desteği eklendi, dinamik görsel çözümleme getirildi ve auth yanıtına CSRF token eklendi (@boraydeger32)
-- feat(RFQ): Sabit kodlanmış ürünler API çağrılarıyla RFQ sayfasına dinamik şekilde yansıtıldı. (@Ali)
+- feat(RFQ): Sabit kodlanmış ürünler API çağrılarıyla RFQ sayfasına dinamik şekilde yansıtıldı. (@aliiball)
 - feat: update email verification and password reset links to use configurable storefront URL (@TurksabYonetim)
 - feat(auth): fix storefront URLs, add email verification redirect and resend endpoint (@TurksabYonetim)
 - feat(Listing): Arama filtreleri, faceted counts, relevance sort ve performans iyileştirmeleri yapıldı (@TurksabYonetim)
-- feat(Listing): Arama filtreleri, faceted counts, relevance sort ve performans iyileştirmeleri yapıldı (@TurksabYonetim)
-- feat(Certification): Sertifika yönetim sistemi — DocType'lar, API, güvenlik ve facets'lar yapıldı (@TurksabYonetim)
 - feat(Certification): Sertifika yönetim sistemi — DocType'lar, API, güvenlik ve facets'lar yapıldı (@TurksabYonetim)
 - feat(notification): Platform Notification DocType ve notify yardımcısı eklendi (@boraydeger32)
 - feat(notification): Platform Notification DocType ve notify yardımcısı eklendi (@TurksabYonetim)
-- feat(notification): Platform Notification DocType ve notify yardımcısı eklendi (@boraydeger32)
 - feat(notification): API endpoint'leri eklendi (get/mark_read/mark_all_read/unread_count) (@TurksabYonetim)
 - feat(notification): API endpoint'leri eklendi (get/mark_read/mark_all_read/unread_count) (@boraydeger32)
-- feat:  Güvenli JSON geçersiz kılmaları ve public API erişimiyle site geneli tema ayarları eklendi (@TurksabYonetim)
 - feat:  Güvenli JSON geçersiz kılmaları ve public API erişimiyle site geneli tema ayarları eklendi (@TurksabYonetim)
 - feat(search): Kişiselleştirilmiş arama önerileri + Search History + prod optimizasyonu (@TurksabYonetim)
 - feat: auth yanıtına user_image ekle ve update_profile_image API uç noktasını uygula (@TurksabYonetim)
 - feat: Tema API'sine rate limit ekle ve palet/tipografi/input token whitelist'ini genişlet (@TurksabYonetim)
 
 ### Duzeltildi
-- fix: revoke_approval ile Seller Profile'ı Suspended yapısı eklendi. (@Ali)
-- fix(Listing): breadcrumb için product_category kullanıldı, aksi takdirde satıcı kategorisine geri dönülmesi sağlandı (@Ali)
-- fix(Listing): Ayrıntılı yanıtta productCategoryId eklendi, breadcrumb kaynağı düzeltildi (@Ali)
-- fix(Listing): Ayrıntılı yanıtta productCategoryId eklendi, breadcrumb kaynağı düzeltildi (@Ali)
+- fix: revoke_approval ile Seller Profile'ı Suspended yapısı eklendi. (@aliiball)
+- fix(Listing): breadcrumb için product_category kullanıldı, aksi takdirde satıcı kategorisine geri dönülmesi sağlandı (@aliiball)
+- fix(Listing): Ayrıntılı yanıtta productCategoryId eklendi, breadcrumb kaynağı düzeltildi (@aliiball)
 - fix: hardcode storefront URL and update reset password link path in identity API (@TurksabYonetim)
 - fix: add_certification_to_workspace patch link validasyon hatası düzeltildi (@TurksabYonetim)
 - fix: add_certification_to_workspace patch link validasyon hatası düzeltildi (@boraydeger32)
@@ -1202,29 +1117,24 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - feat(storefront): satıcı vitrin düzeni ve tema ayarları için yeni fonksiyonlar eklendi (@TurksabYonetim)
 - feat: Storefront düzeni yönetimini uygulamak, listeleme durumu iş akışını geliştirmek ve sipariş doküman tipini takip bilgileri ile daha ayrıntılı durum alanlarıyla güncellemek. (@boraydeger32)
 - feat: Sepet öğelerine color_variant ve variant_label desteği eklendi, dinamik görsel çözümleme getirildi ve auth yanıtına CSRF token eklendi (@boraydeger32)
-- feat(RFQ): Sabit kodlanmış ürünler API çağrılarıyla RFQ sayfasına dinamik şekilde yansıtıldı. (@Ali)
+- feat(RFQ): Sabit kodlanmış ürünler API çağrılarıyla RFQ sayfasına dinamik şekilde yansıtıldı. (@aliiball)
 - feat: update email verification and password reset links to use configurable storefront URL (@TurksabYonetim)
 - feat(auth): fix storefront URLs, add email verification redirect and resend endpoint (@TurksabYonetim)
 - feat(Listing): Arama filtreleri, faceted counts, relevance sort ve performans iyileştirmeleri yapıldı (@TurksabYonetim)
-- feat(Listing): Arama filtreleri, faceted counts, relevance sort ve performans iyileştirmeleri yapıldı (@TurksabYonetim)
-- feat(Certification): Sertifika yönetim sistemi — DocType'lar, API, güvenlik ve facets'lar yapıldı (@TurksabYonetim)
 - feat(Certification): Sertifika yönetim sistemi — DocType'lar, API, güvenlik ve facets'lar yapıldı (@TurksabYonetim)
 - feat(notification): Platform Notification DocType ve notify yardımcısı eklendi (@boraydeger32)
 - feat(notification): Platform Notification DocType ve notify yardımcısı eklendi (@TurksabYonetim)
-- feat(notification): Platform Notification DocType ve notify yardımcısı eklendi (@boraydeger32)
 - feat(notification): API endpoint'leri eklendi (get/mark_read/mark_all_read/unread_count) (@TurksabYonetim)
 - feat(notification): API endpoint'leri eklendi (get/mark_read/mark_all_read/unread_count) (@boraydeger32)
-- feat:  Güvenli JSON geçersiz kılmaları ve public API erişimiyle site geneli tema ayarları eklendi (@TurksabYonetim)
 - feat:  Güvenli JSON geçersiz kılmaları ve public API erişimiyle site geneli tema ayarları eklendi (@TurksabYonetim)
 - feat(search): Kişiselleştirilmiş arama önerileri + Search History + prod optimizasyonu (@TurksabYonetim)
 - feat: auth yanıtına user_image ekle ve update_profile_image API uç noktasını uygula (@TurksabYonetim)
 - feat: Tema API'sine rate limit ekle ve palet/tipografi/input token whitelist'ini genişlet (@TurksabYonetim)
 
 ### Duzeltildi
-- fix: revoke_approval ile Seller Profile'ı Suspended yapısı eklendi. (@Ali)
-- fix(Listing): breadcrumb için product_category kullanıldı, aksi takdirde satıcı kategorisine geri dönülmesi sağlandı (@Ali)
-- fix(Listing): Ayrıntılı yanıtta productCategoryId eklendi, breadcrumb kaynağı düzeltildi (@Ali)
-- fix(Listing): Ayrıntılı yanıtta productCategoryId eklendi, breadcrumb kaynağı düzeltildi (@Ali)
+- fix: revoke_approval ile Seller Profile'ı Suspended yapısı eklendi. (@aliiball)
+- fix(Listing): breadcrumb için product_category kullanıldı, aksi takdirde satıcı kategorisine geri dönülmesi sağlandı (@aliiball)
+- fix(Listing): Ayrıntılı yanıtta productCategoryId eklendi, breadcrumb kaynağı düzeltildi (@aliiball)
 - fix: hardcode storefront URL and update reset password link path in identity API (@TurksabYonetim)
 - fix: add_certification_to_workspace patch link validasyon hatası düzeltildi (@TurksabYonetim)
 - fix: add_certification_to_workspace patch link validasyon hatası düzeltildi (@boraydeger32)
@@ -1238,28 +1148,24 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - feat(storefront): satıcı vitrin düzeni ve tema ayarları için yeni fonksiyonlar eklendi (@TurksabYonetim)
 - feat: Storefront düzeni yönetimini uygulamak, listeleme durumu iş akışını geliştirmek ve sipariş doküman tipini takip bilgileri ile daha ayrıntılı durum alanlarıyla güncellemek. (@boraydeger32)
 - feat: Sepet öğelerine color_variant ve variant_label desteği eklendi, dinamik görsel çözümleme getirildi ve auth yanıtına CSRF token eklendi (@boraydeger32)
-- feat(RFQ): Sabit kodlanmış ürünler API çağrılarıyla RFQ sayfasına dinamik şekilde yansıtıldı. (@Ali)
+- feat(RFQ): Sabit kodlanmış ürünler API çağrılarıyla RFQ sayfasına dinamik şekilde yansıtıldı. (@aliiball)
 - feat: update email verification and password reset links to use configurable storefront URL (@TurksabYonetim)
 - feat(auth): fix storefront URLs, add email verification redirect and resend endpoint (@TurksabYonetim)
 - feat(Listing): Arama filtreleri, faceted counts, relevance sort ve performans iyileştirmeleri yapıldı (@TurksabYonetim)
-- feat(Listing): Arama filtreleri, faceted counts, relevance sort ve performans iyileştirmeleri yapıldı (@TurksabYonetim)
-- feat(Certification): Sertifika yönetim sistemi — DocType'lar, API, güvenlik ve facets'lar yapıldı (@TurksabYonetim)
 - feat(Certification): Sertifika yönetim sistemi — DocType'lar, API, güvenlik ve facets'lar yapıldı (@TurksabYonetim)
 - feat(notification): Platform Notification DocType ve notify yardımcısı eklendi (@TurksabYonetim)
 - feat(notification): Platform Notification DocType ve notify yardımcısı eklendi (@boraydeger32)
 - feat(notification): API endpoint'leri eklendi (get/mark_read/mark_all_read/unread_count) (@TurksabYonetim)
 - feat(notification): API endpoint'leri eklendi (get/mark_read/mark_all_read/unread_count) (@boraydeger32)
 - feat:  Güvenli JSON geçersiz kılmaları ve public API erişimiyle site geneli tema ayarları eklendi (@TurksabYonetim)
-- feat:  Güvenli JSON geçersiz kılmaları ve public API erişimiyle site geneli tema ayarları eklendi (@TurksabYonetim)
 - feat(search): Kişiselleştirilmiş arama önerileri + Search History + prod optimizasyonu (@TurksabYonetim)
 - feat: auth yanıtına user_image ekle ve update_profile_image API uç noktasını uygula (@TurksabYonetim)
 - feat: Tema API'sine rate limit ekle ve palet/tipografi/input token whitelist'ini genişlet (@TurksabYonetim)
 
 ### Duzeltildi
-- fix: revoke_approval ile Seller Profile'ı Suspended yapısı eklendi. (@Ali)
-- fix(Listing): breadcrumb için product_category kullanıldı, aksi takdirde satıcı kategorisine geri dönülmesi sağlandı (@Ali)
-- fix(Listing): Ayrıntılı yanıtta productCategoryId eklendi, breadcrumb kaynağı düzeltildi (@Ali)
-- fix(Listing): Ayrıntılı yanıtta productCategoryId eklendi, breadcrumb kaynağı düzeltildi (@Ali)
+- fix: revoke_approval ile Seller Profile'ı Suspended yapısı eklendi. (@aliiball)
+- fix(Listing): breadcrumb için product_category kullanıldı, aksi takdirde satıcı kategorisine geri dönülmesi sağlandı (@aliiball)
+- fix(Listing): Ayrıntılı yanıtta productCategoryId eklendi, breadcrumb kaynağı düzeltildi (@aliiball)
 - fix: hardcode storefront URL and update reset password link path in identity API (@TurksabYonetim)
 - fix: add_certification_to_workspace patch link validasyon hatası düzeltildi (@TurksabYonetim)
 - fix: add_certification_to_workspace patch link validasyon hatası düzeltildi (@boraydeger32)
@@ -1273,27 +1179,23 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - feat(storefront): satıcı vitrin düzeni ve tema ayarları için yeni fonksiyonlar eklendi (@TurksabYonetim)
 - feat: Storefront düzeni yönetimini uygulamak, listeleme durumu iş akışını geliştirmek ve sipariş doküman tipini takip bilgileri ile daha ayrıntılı durum alanlarıyla güncellemek. (@boraydeger32)
 - feat: Sepet öğelerine color_variant ve variant_label desteği eklendi, dinamik görsel çözümleme getirildi ve auth yanıtına CSRF token eklendi (@boraydeger32)
-- feat(RFQ): Sabit kodlanmış ürünler API çağrılarıyla RFQ sayfasına dinamik şekilde yansıtıldı. (@Ali)
+- feat(RFQ): Sabit kodlanmış ürünler API çağrılarıyla RFQ sayfasına dinamik şekilde yansıtıldı. (@aliiball)
 - feat: update email verification and password reset links to use configurable storefront URL (@TurksabYonetim)
 - feat(auth): fix storefront URLs, add email verification redirect and resend endpoint (@TurksabYonetim)
 - feat(Listing): Arama filtreleri, faceted counts, relevance sort ve performans iyileştirmeleri yapıldı (@TurksabYonetim)
-- feat(Listing): Arama filtreleri, faceted counts, relevance sort ve performans iyileştirmeleri yapıldı (@TurksabYonetim)
-- feat(Certification): Sertifika yönetim sistemi — DocType'lar, API, güvenlik ve facets'lar yapıldı (@TurksabYonetim)
 - feat(Certification): Sertifika yönetim sistemi — DocType'lar, API, güvenlik ve facets'lar yapıldı (@TurksabYonetim)
 - feat(notification): Platform Notification DocType ve notify yardımcısı eklendi (@TurksabYonetim)
 - feat(notification): Platform Notification DocType ve notify yardımcısı eklendi (@boraydeger32)
 - feat(notification): API endpoint'leri eklendi (get/mark_read/mark_all_read/unread_count) (@TurksabYonetim)
 - feat(notification): API endpoint'leri eklendi (get/mark_read/mark_all_read/unread_count) (@boraydeger32)
 - feat:  Güvenli JSON geçersiz kılmaları ve public API erişimiyle site geneli tema ayarları eklendi (@TurksabYonetim)
-- feat:  Güvenli JSON geçersiz kılmaları ve public API erişimiyle site geneli tema ayarları eklendi (@TurksabYonetim)
 - feat(search): Kişiselleştirilmiş arama önerileri + Search History + prod optimizasyonu (@TurksabYonetim)
 - feat: auth yanıtına user_image ekle ve update_profile_image API uç noktasını uygula (@TurksabYonetim)
 
 ### Duzeltildi
-- fix: revoke_approval ile Seller Profile'ı Suspended yapısı eklendi. (@Ali)
-- fix(Listing): breadcrumb için product_category kullanıldı, aksi takdirde satıcı kategorisine geri dönülmesi sağlandı (@Ali)
-- fix(Listing): Ayrıntılı yanıtta productCategoryId eklendi, breadcrumb kaynağı düzeltildi (@Ali)
-- fix(Listing): Ayrıntılı yanıtta productCategoryId eklendi, breadcrumb kaynağı düzeltildi (@Ali)
+- fix: revoke_approval ile Seller Profile'ı Suspended yapısı eklendi. (@aliiball)
+- fix(Listing): breadcrumb için product_category kullanıldı, aksi takdirde satıcı kategorisine geri dönülmesi sağlandı (@aliiball)
+- fix(Listing): Ayrıntılı yanıtta productCategoryId eklendi, breadcrumb kaynağı düzeltildi (@aliiball)
 - fix: hardcode storefront URL and update reset password link path in identity API (@TurksabYonetim)
 - fix: add_certification_to_workspace patch link validasyon hatası düzeltildi (@TurksabYonetim)
 - fix: add_certification_to_workspace patch link validasyon hatası düzeltildi (@boraydeger32)
@@ -1307,26 +1209,22 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - feat(storefront): satıcı vitrin düzeni ve tema ayarları için yeni fonksiyonlar eklendi (@TurksabYonetim)
 - feat: Storefront düzeni yönetimini uygulamak, listeleme durumu iş akışını geliştirmek ve sipariş doküman tipini takip bilgileri ile daha ayrıntılı durum alanlarıyla güncellemek. (@boraydeger32)
 - feat: Sepet öğelerine color_variant ve variant_label desteği eklendi, dinamik görsel çözümleme getirildi ve auth yanıtına CSRF token eklendi (@boraydeger32)
-- feat(RFQ): Sabit kodlanmış ürünler API çağrılarıyla RFQ sayfasına dinamik şekilde yansıtıldı. (@Ali)
+- feat(RFQ): Sabit kodlanmış ürünler API çağrılarıyla RFQ sayfasına dinamik şekilde yansıtıldı. (@aliiball)
 - feat: update email verification and password reset links to use configurable storefront URL (@TurksabYonetim)
 - feat(auth): fix storefront URLs, add email verification redirect and resend endpoint (@TurksabYonetim)
 - feat(Listing): Arama filtreleri, faceted counts, relevance sort ve performans iyileştirmeleri yapıldı (@TurksabYonetim)
-- feat(Listing): Arama filtreleri, faceted counts, relevance sort ve performans iyileştirmeleri yapıldı (@TurksabYonetim)
-- feat(Certification): Sertifika yönetim sistemi — DocType'lar, API, güvenlik ve facets'lar yapıldı (@TurksabYonetim)
 - feat(Certification): Sertifika yönetim sistemi — DocType'lar, API, güvenlik ve facets'lar yapıldı (@TurksabYonetim)
 - feat(notification): Platform Notification DocType ve notify yardımcısı eklendi (@TurksabYonetim)
 - feat(notification): Platform Notification DocType ve notify yardımcısı eklendi (@boraydeger32)
 - feat(notification): API endpoint'leri eklendi (get/mark_read/mark_all_read/unread_count) (@TurksabYonetim)
 - feat(notification): API endpoint'leri eklendi (get/mark_read/mark_all_read/unread_count) (@boraydeger32)
 - feat:  Güvenli JSON geçersiz kılmaları ve public API erişimiyle site geneli tema ayarları eklendi (@TurksabYonetim)
-- feat:  Güvenli JSON geçersiz kılmaları ve public API erişimiyle site geneli tema ayarları eklendi (@TurksabYonetim)
 - feat(search): Kişiselleştirilmiş arama önerileri + Search History + prod optimizasyonu (@TurksabYonetim)
 
 ### Duzeltildi
-- fix: revoke_approval ile Seller Profile'ı Suspended yapısı eklendi. (@Ali)
-- fix(Listing): breadcrumb için product_category kullanıldı, aksi takdirde satıcı kategorisine geri dönülmesi sağlandı (@Ali)
-- fix(Listing): Ayrıntılı yanıtta productCategoryId eklendi, breadcrumb kaynağı düzeltildi (@Ali)
-- fix(Listing): Ayrıntılı yanıtta productCategoryId eklendi, breadcrumb kaynağı düzeltildi (@Ali)
+- fix: revoke_approval ile Seller Profile'ı Suspended yapısı eklendi. (@aliiball)
+- fix(Listing): breadcrumb için product_category kullanıldı, aksi takdirde satıcı kategorisine geri dönülmesi sağlandı (@aliiball)
+- fix(Listing): Ayrıntılı yanıtta productCategoryId eklendi, breadcrumb kaynağı düzeltildi (@aliiball)
 - fix: hardcode storefront URL and update reset password link path in identity API (@TurksabYonetim)
 - fix: add_certification_to_workspace patch link validasyon hatası düzeltildi (@TurksabYonetim)
 - fix: add_certification_to_workspace patch link validasyon hatası düzeltildi (@boraydeger32)
@@ -1340,7 +1238,7 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - feat(storefront): satıcı vitrin düzeni ve tema ayarları için yeni fonksiyonlar eklendi (@TurksabYonetim)
 - feat: Storefront düzeni yönetimini uygulamak, listeleme durumu iş akışını geliştirmek ve sipariş doküman tipini takip bilgileri ile daha ayrıntılı durum alanlarıyla güncellemek. (@boraydeger32)
 - feat: Sepet öğelerine color_variant ve variant_label desteği eklendi, dinamik görsel çözümleme getirildi ve auth yanıtına CSRF token eklendi (@boraydeger32)
-- feat(RFQ): Sabit kodlanmış ürünler API çağrılarıyla RFQ sayfasına dinamik şekilde yansıtıldı. (@Ali)
+- feat(RFQ): Sabit kodlanmış ürünler API çağrılarıyla RFQ sayfasına dinamik şekilde yansıtıldı. (@aliiball)
 - feat: update email verification and password reset links to use configurable storefront URL (@TurksabYonetim)
 - feat(auth): fix storefront URLs, add email verification redirect and resend endpoint (@TurksabYonetim)
 - feat(Listing): Arama filtreleri, faceted counts, relevance sort ve performans iyileştirmeleri yapıldı (@TurksabYonetim)
@@ -1350,9 +1248,9 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - feat:  Güvenli JSON geçersiz kılmaları ve public API erişimiyle site geneli tema ayarları eklendi (@TurksabYonetim)
 
 ### Duzeltildi
-- fix: revoke_approval ile Seller Profile'ı Suspended yapısı eklendi. (@Ali)
-- fix(Listing): breadcrumb için product_category kullanıldı, aksi takdirde satıcı kategorisine geri dönülmesi sağlandı (@Ali)
-- fix(Listing): Ayrıntılı yanıtta productCategoryId eklendi, breadcrumb kaynağı düzeltildi (@Ali)
+- fix: revoke_approval ile Seller Profile'ı Suspended yapısı eklendi. (@aliiball)
+- fix(Listing): breadcrumb için product_category kullanıldı, aksi takdirde satıcı kategorisine geri dönülmesi sağlandı (@aliiball)
+- fix(Listing): Ayrıntılı yanıtta productCategoryId eklendi, breadcrumb kaynağı düzeltildi (@aliiball)
 - fix: hardcode storefront URL and update reset password link path in identity API (@TurksabYonetim)
 - fix: add_certification_to_workspace patch link validasyon hatası düzeltildi (@boraydeger32)
 
@@ -1369,7 +1267,7 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - feat:  Güvenli JSON geçersiz kılmaları ve public API erişimiyle site geneli tema ayarları eklendi (@TurksabYonetim)
 
 ### Duzeltildi
-- fix(Listing): Ayrıntılı yanıtta productCategoryId eklendi, breadcrumb kaynağı düzeltildi (@Ali)
+- fix(Listing): Ayrıntılı yanıtta productCategoryId eklendi, breadcrumb kaynağı düzeltildi (@aliiball)
 - fix: add_certification_to_workspace patch link validasyon hatası düzeltildi (@TurksabYonetim)
 
 ---
@@ -1384,7 +1282,7 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - feat(notification): API endpoint'leri eklendi (get/mark_read/mark_all_read/unread_count) (@TurksabYonetim)
 
 ### Duzeltildi
-- fix(Listing): Ayrıntılı yanıtta productCategoryId eklendi, breadcrumb kaynağı düzeltildi (@Ali)
+- fix(Listing): Ayrıntılı yanıtta productCategoryId eklendi, breadcrumb kaynağı düzeltildi (@aliiball)
 - fix: add_certification_to_workspace patch link validasyon hatası düzeltildi (@TurksabYonetim)
 
 ---
@@ -1398,7 +1296,7 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - feat(notification): Platform Notification DocType ve notify yardımcısı eklendi (@TurksabYonetim)
 
 ### Duzeltildi
-- fix(Listing): Ayrıntılı yanıtta productCategoryId eklendi, breadcrumb kaynağı düzeltildi (@Ali)
+- fix(Listing): Ayrıntılı yanıtta productCategoryId eklendi, breadcrumb kaynağı düzeltildi (@aliiball)
 
 ---
 ## [v1.0.3-rc.5] - 2026-04-08 RC
@@ -1410,7 +1308,7 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - feat(Certification): Sertifika yönetim sistemi — DocType'lar, API, güvenlik ve facets'lar yapıldı (@TurksabYonetim)
 
 ### Duzeltildi
-- fix(Listing): Ayrıntılı yanıtta productCategoryId eklendi, breadcrumb kaynağı düzeltildi (@Ali)
+- fix(Listing): Ayrıntılı yanıtta productCategoryId eklendi, breadcrumb kaynağı düzeltildi (@aliiball)
 
 ---
 ## [v1.0.3-rc.4] - 2026-04-08 RC
@@ -1422,7 +1320,7 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - feat(Certification): Sertifika yönetim sistemi — DocType'lar, API, güvenlik ve facets'lar yapıldı (@TurksabYonetim)
 
 ### Duzeltildi
-- fix(Listing): Ayrıntılı yanıtta productCategoryId eklendi, breadcrumb kaynağı düzeltildi (@Ali)
+- fix(Listing): Ayrıntılı yanıtta productCategoryId eklendi, breadcrumb kaynağı düzeltildi (@aliiball)
 
 ---
 ## [v1.0.3-rc.3] - 2026-04-08 RC
@@ -1433,7 +1331,7 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - feat(Listing): Arama filtreleri, faceted counts, relevance sort ve performans iyileştirmeleri yapıldı (@TurksabYonetim)
 
 ### Duzeltildi
-- fix(Listing): Ayrıntılı yanıtta productCategoryId eklendi, breadcrumb kaynağı düzeltildi (@Ali)
+- fix(Listing): Ayrıntılı yanıtta productCategoryId eklendi, breadcrumb kaynağı düzeltildi (@aliiball)
 
 ---
 ## [v1.0.3-rc.2] - 2026-04-07 RC
@@ -1451,13 +1349,13 @@ Bu surum rc.istoc.com'da test asamasindadir.
 Bu surum istoc.cronbi.com'da yayindadir.
 
 ### Eklendi
-- feat(auth): fix storefront URLs, add email verification redirect and resend endpoint (@ahmet)
-- feat: update email verification and password reset links to use configurable storefront URL (@ahmet)
-- feat(RFQ): Sabit kodlanmış ürünler API çağrılarıyla RFQ sayfasına dinamik şekilde yansıtıldı. (@Ali)
+- feat(auth): fix storefront URLs, add email verification redirect and resend endpoint (@ahmeetseker)
+- feat: update email verification and password reset links to use configurable storefront URL (@ahmeetseker)
+- feat(RFQ): Sabit kodlanmış ürünler API çağrılarıyla RFQ sayfasına dinamik şekilde yansıtıldı. (@aliiball)
 
 ### Duzeltildi
-- fix: hardcode storefront URL and update reset password link path in identity API (@ahmet)
-- fix(Listing): breadcrumb için product_category kullanıldı, aksi takdirde satıcı kategorisine geri dönülmesi sağlandı (@Ali)
+- fix: hardcode storefront URL and update reset password link path in identity API (@ahmeetseker)
+- fix(Listing): breadcrumb için product_category kullanıldı, aksi takdirde satıcı kategorisine geri dönülmesi sağlandı (@aliiball)
 
 ---
 ## [v1.0.2-rc.5] - 2026-04-06 RC
@@ -1465,12 +1363,12 @@ Bu surum istoc.cronbi.com'da yayindadir.
 Bu surum rc.istoc.com'da test asamasindadir.
 
 ### Eklendi
-- feat(RFQ): Sabit kodlanmış ürünler API çağrılarıyla RFQ sayfasına dinamik şekilde yansıtıldı. (@Ali)
+- feat(RFQ): Sabit kodlanmış ürünler API çağrılarıyla RFQ sayfasına dinamik şekilde yansıtıldı. (@aliiball)
 - feat: update email verification and password reset links to use configurable storefront URL (@TurksabYonetim)
 - feat(auth): fix storefront URLs, add email verification redirect and resend endpoint (@TurksabYonetim)
 
 ### Duzeltildi
-- fix(Listing): breadcrumb için product_category kullanıldı, aksi takdirde satıcı kategorisine geri dönülmesi sağlandı (@Ali)
+- fix(Listing): breadcrumb için product_category kullanıldı, aksi takdirde satıcı kategorisine geri dönülmesi sağlandı (@aliiball)
 - fix: hardcode storefront URL and update reset password link path in identity API (@TurksabYonetim)
 
 ---
@@ -1479,11 +1377,11 @@ Bu surum rc.istoc.com'da test asamasindadir.
 Bu surum rc.istoc.com'da test asamasindadir.
 
 ### Eklendi
-- feat(RFQ): Sabit kodlanmış ürünler API çağrılarıyla RFQ sayfasına dinamik şekilde yansıtıldı. (@Ali)
+- feat(RFQ): Sabit kodlanmış ürünler API çağrılarıyla RFQ sayfasına dinamik şekilde yansıtıldı. (@aliiball)
 - feat: update email verification and password reset links to use configurable storefront URL (@TurksabYonetim)
 
 ### Duzeltildi
-- fix(Listing): breadcrumb için product_category kullanıldı, aksi takdirde satıcı kategorisine geri dönülmesi sağlandı (@Ali)
+- fix(Listing): breadcrumb için product_category kullanıldı, aksi takdirde satıcı kategorisine geri dönülmesi sağlandı (@aliiball)
 - fix: hardcode storefront URL and update reset password link path in identity API (@TurksabYonetim)
 
 ---
@@ -1492,11 +1390,11 @@ Bu surum rc.istoc.com'da test asamasindadir.
 Bu surum rc.istoc.com'da test asamasindadir.
 
 ### Eklendi
-- feat(RFQ): Sabit kodlanmış ürünler API çağrılarıyla RFQ sayfasına dinamik şekilde yansıtıldı. (@Ali)
+- feat(RFQ): Sabit kodlanmış ürünler API çağrılarıyla RFQ sayfasına dinamik şekilde yansıtıldı. (@aliiball)
 - feat: update email verification and password reset links to use configurable storefront URL (@TurksabYonetim)
 
 ### Duzeltildi
-- fix(Listing): breadcrumb için product_category kullanıldı, aksi takdirde satıcı kategorisine geri dönülmesi sağlandı (@Ali)
+- fix(Listing): breadcrumb için product_category kullanıldı, aksi takdirde satıcı kategorisine geri dönülmesi sağlandı (@aliiball)
 
 ---
 ## [v1.0.2-rc.2] - 2026-04-06 RC
@@ -1504,10 +1402,10 @@ Bu surum rc.istoc.com'da test asamasindadir.
 Bu surum rc.istoc.com'da test asamasindadir.
 
 ### Eklendi
-- feat(RFQ): Sabit kodlanmış ürünler API çağrılarıyla RFQ sayfasına dinamik şekilde yansıtıldı. (@Ali)
+- feat(RFQ): Sabit kodlanmış ürünler API çağrılarıyla RFQ sayfasına dinamik şekilde yansıtıldı. (@aliiball)
 
 ### Duzeltildi
-- fix(Listing): breadcrumb için product_category kullanıldı, aksi takdirde satıcı kategorisine geri dönülmesi sağlandı (@Ali)
+- fix(Listing): breadcrumb için product_category kullanıldı, aksi takdirde satıcı kategorisine geri dönülmesi sağlandı (@aliiball)
 
 ---
 ## [v1.0.2-rc.1] - 2026-04-06 RC
@@ -1520,12 +1418,12 @@ Bu surum rc.istoc.com'da test asamasindadir.
 Bu surum istoc.cronbi.com'da yayindadir.
 
 ### Eklendi
-- feat: Sepet öğelerine color_variant ve variant_label desteği eklendi, dinamik görsel çözümleme getirildi ve auth yanıtına CSRF token eklendi (@Bora)
-- feat: Storefront düzeni yönetimini uygulamak, listeleme durumu iş akışını geliştirmek ve sipariş doküman tipini takip bilgileri ile daha ayrıntılı durum alanlarıyla güncellemek. (@Bora)
-- feat(storefront): satıcı vitrin düzeni ve tema ayarları için yeni fonksiyonlar eklendi (@ahmet)
+- feat: Sepet öğelerine color_variant ve variant_label desteği eklendi, dinamik görsel çözümleme getirildi ve auth yanıtına CSRF token eklendi (@boraydeger32)
+- feat: Storefront düzeni yönetimini uygulamak, listeleme durumu iş akışını geliştirmek ve sipariş doküman tipini takip bilgileri ile daha ayrıntılı durum alanlarıyla güncellemek. (@boraydeger32)
+- feat(storefront): satıcı vitrin düzeni ve tema ayarları için yeni fonksiyonlar eklendi (@ahmeetseker)
 
 ### Duzeltildi
-- fix: revoke_approval ile Seller Profile'ı Suspended yapısı eklendi. (@Ali)
+- fix: revoke_approval ile Seller Profile'ı Suspended yapısı eklendi. (@aliiball)
 
 ---
 ## [v1.0.1-rc.5] - 2026-04-03 RC
@@ -1538,7 +1436,7 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - feat: Sepet öğelerine color_variant ve variant_label desteği eklendi, dinamik görsel çözümleme getirildi ve auth yanıtına CSRF token eklendi (@TurksabYonetim)
 
 ### Duzeltildi
-- fix: revoke_approval ile Seller Profile'ı Suspended yapısı eklendi. (@Ali)
+- fix: revoke_approval ile Seller Profile'ı Suspended yapısı eklendi. (@aliiball)
 
 ---
 ## [v1.0.1-rc.4] - 2026-04-03 RC
@@ -1550,7 +1448,7 @@ Bu surum rc.istoc.com'da test asamasindadir.
 - feat: Storefront düzeni yönetimini uygulamak, listeleme durumu iş akışını geliştirmek ve sipariş doküman tipini takip bilgileri ile daha ayrıntılı durum alanlarıyla güncellemek. (@TurksabYonetim)
 
 ### Duzeltildi
-- fix: revoke_approval ile Seller Profile'ı Suspended yapısı eklendi. (@Ali)
+- fix: revoke_approval ile Seller Profile'ı Suspended yapısı eklendi. (@aliiball)
 
 ---
 ## [v1.0.1-rc.3] - 2026-04-03 RC
