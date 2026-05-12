@@ -51,19 +51,53 @@ jobs:
           FIXES=""
           REFACTORS=""
           if git rev-parse "${PREV}" >/dev/null 2>&1; then
-            # Author alias normalize + commit dedup (sort -u)
+            # JQ: her commit icin subject + body bullet'larini ayri ayri emit eder.
+            # Body'deki "- ..." satirlari subject'in type'i (feat/fix/refactor) altinda
+            # ayri CHANGELOG bullet'i olur; alt-basliklar (ornegin "Chat popup") atlanir.
+            # Output formati: "<type>|- <text> (@<author>)" — bash sed ile ayristirir.
             COMMITS=$(gh api "repos/${{ github.repository }}/compare/${PREV}...HEAD" \
               --jq '
                 def alias(n):
                   ({"ahmet":"ahmeetseker","Ahmet":"ahmeetseker","AHMET":"ahmeetseker",
                     "bora":"boraydeger32","Bora":"boraydeger32","BORA":"boraydeger32",
                     "ali":"aliiball","Ali":"aliiball","ALI":"aliiball"})[n] // n;
+                def flatten_bullets:
+                  reduce (split("\n")[]) as $line (
+                    {out: [], cur: null, indent: 0};
+                    if ($line | test("^\\s*-\\s+")) then
+                      (if .cur then .out += [.cur] else . end)
+                      | .indent = (($line | capture("^(?<i>\\s*)-").i) | length)
+                      | .cur = ($line | sub("^\\s*-\\s+"; "") | gsub("\\s+$"; ""))
+                    elif (.cur != null)
+                         and ($line | test("^\\s+\\S"))
+                         and ((($line | capture("^(?<i>\\s*)\\S").i) | length) > .indent) then
+                      .cur = (.cur + " " + ($line | gsub("^\\s+|\\s+$"; "")))
+                    else
+                      (if .cur then .out += [.cur] else . end) | .cur = null | .indent = 0
+                    end
+                  )
+                  | .out + (if .cur then [.cur] else [] end);
                 .commits[]
-                | "- \(.commit.message | split("\n")[0] | sub("^ +"; "")) (@\(alias(.author.login // .commit.author.name)))"
-              ' | sort -u)
-            FEATS=$(echo "$COMMITS" | grep "^- feat" || true)
-            FIXES=$(echo "$COMMITS" | grep "^- fix" || true)
-            REFACTORS=$(echo "$COMMITS" | grep "^- refactor" || true)
+                | .commit.message as $msg
+                | (alias(.author.login // .commit.author.name)) as $author
+                | ($msg | split("\n")[0] | sub("^ +"; "")) as $subject
+                | (
+                    if   ($subject | test("^feat($|[(:!])"))     then "feat"
+                    elif ($subject | test("^fix($|[(:!])"))      then "fix"
+                    elif ($subject | test("^refactor($|[(:!])")) then "refactor"
+                    else null end
+                  ) as $type
+                | select($type != null)
+                | (
+                    [$subject] +
+                    ($msg | sub("^[^\n]*(\n|$)"; "") | flatten_bullets)
+                  ) as $bullets
+                | $bullets[]
+                | "\($type)|- \(.) (@\($author))"
+              ')
+            FEATS=$(echo "$COMMITS" | sed -n 's/^feat|//p' | awk '!seen[$0]++')
+            FIXES=$(echo "$COMMITS" | sed -n 's/^fix|//p' | awk '!seen[$0]++')
+            REFACTORS=$(echo "$COMMITS" | sed -n 's/^refactor|//p' | awk '!seen[$0]++')
           fi
 
           # Empty-guard: yeni feat/fix/refactor commit'i yoksa CHANGELOG'a yazma (promote-only)
