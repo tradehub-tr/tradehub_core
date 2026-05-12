@@ -47,11 +47,31 @@ jobs:
           FIXES=""
           REFACTORS=""
           if git rev-parse "${PREV}" >/dev/null 2>&1; then
+            # Author alias normalize + commit dedup (sort -u)
             COMMITS=$(gh api "repos/${{ github.repository }}/compare/${PREV}...HEAD" \
-              --jq '.commits[] | "- \(.commit.message | split("\n")[0]) (@\(.author.login // .commit.author.name))"')
+              --jq '
+                def alias(n):
+                  ({"ahmet":"ahmeetseker","Ahmet":"ahmeetseker","AHMET":"ahmeetseker",
+                    "bora":"boraydeger32","Bora":"boraydeger32","BORA":"boraydeger32",
+                    "ali":"aliiball","Ali":"aliiball","ALI":"aliiball"})[n] // n;
+                .commits[]
+                | "- \(.commit.message | split("\n")[0]) (@\(alias(.author.login // .commit.author.name)))"
+              ' | sort -u)
             FEATS=$(echo "$COMMITS" | grep "^- feat" || true)
             FIXES=$(echo "$COMMITS" | grep "^- fix" || true)
             REFACTORS=$(echo "$COMMITS" | grep "^- refactor" || true)
+          fi
+
+          # Empty-guard: yeni feat/fix/refactor commit'i yoksa CHANGELOG'a yazma (promote-only)
+          if [ -z "$FEATS$FIXES$REFACTORS" ]; then
+            echo "Yeni feat/fix/refactor commit'i yok — CHANGELOG'a yazilmayacak (promote-only)."
+            {
+              echo "skip_changelog=true"
+              echo "entry<<EOF"
+              echo "_Bu surum onceki surumden promote edildi (yeni commit yok)._"
+              echo "EOF"
+            } >> $GITHUB_OUTPUT
+            exit 0
           fi
 
           ENTRY="## [${BETA_VERSION}] - ${DATE} BETA\n\n"
@@ -73,9 +93,13 @@ jobs:
       - name: Commit ve tag
         run: |
           BETA_VERSION=${{ steps.version.outputs.beta_version }}
-          git add CHANGELOG.md
-          git commit -m "chore: ${BETA_VERSION} beta changelog guncellendi"
-          git push origin version-15
+          if [ "${{ steps.changelog.outputs.skip_changelog }}" != "true" ]; then
+            git add CHANGELOG.md
+            git commit -m "chore: ${BETA_VERSION} beta changelog guncellendi"
+            git push origin version-15
+          else
+            echo "CHANGELOG degismedi (promote-only) — sadece tag atiliyor"
+          fi
           git tag ${BETA_VERSION}
           git push origin ${BETA_VERSION}
 
@@ -88,7 +112,7 @@ jobs:
           prerelease: true
 
       - name: Notify changelog site
-        if: success()
+        if: success() && steps.changelog.outputs.skip_changelog != 'true'
         continue-on-error: true
         env:
           DISPATCH_PAT: ${{ secrets.CHANGELOG_DISPATCH_PAT }}
