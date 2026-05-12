@@ -115,7 +115,17 @@
   "order_count",
   "column_break_stats",
   "average_rating",
+  "weighted_rating",
   "review_count",
+  "weighted_review_count",
+  "rating_distribution",
+  "last_review_at",
+  "quality_avg",
+  "service_avg",
+  "shipping_avg",
+  "spec_match_avg",
+  "documentation_avg",
+  "question_count",
   "completeness_score",
   "seo_tab",
   "seo_section",
@@ -808,6 +818,81 @@
    "fieldname": "review_count",
    "fieldtype": "Int",
    "label": "Review Count",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "weighted_rating",
+   "fieldtype": "Float",
+   "label": "Ağırlıklı Puan (ML)",
+   "precision": 2,
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "weighted_review_count",
+   "fieldtype": "Int",
+   "label": "Ağırlıklı Yorum Sayısı",
+   "read_only": 1
+  },
+  {
+   "fieldname": "rating_distribution",
+   "fieldtype": "Long Text",
+   "label": "Rating Distribution (JSON)",
+   "read_only": 1,
+   "hidden": 1
+  },
+  {
+   "fieldname": "last_review_at",
+   "fieldtype": "Datetime",
+   "label": "Son Yorum Tarihi",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "quality_avg",
+   "fieldtype": "Float",
+   "label": "Ürün Kalitesi Ort.",
+   "precision": 2,
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "service_avg",
+   "fieldtype": "Float",
+   "label": "Hizmet Ort.",
+   "precision": 2,
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "shipping_avg",
+   "fieldtype": "Float",
+   "label": "Kargo Ort.",
+   "precision": 2,
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "spec_match_avg",
+   "fieldtype": "Float",
+   "label": "Spec Uyum Ort.",
+   "precision": 2,
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "documentation_avg",
+   "fieldtype": "Float",
+   "label": "Belge Ort.",
+   "precision": 2,
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "question_count",
+   "fieldtype": "Int",
+   "label": "Soru Sayısı (Q&A)",
    "read_only": 1
   },
   {

@@ -1,0 +1,98 @@
+{
+ "actions": [],
+ "autoname": "autoincrement",
+ "creation": "2026-05-11 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "translation",
+  "provider",
+  "source_lang",
+  "target_lang",
+  "column_break_1",
+  "tokens_used",
+  "cost_usd",
+  "ok",
+  "logged_at"
+ ],
+ "fields": [
+  {
+   "fieldname": "translation",
+   "fieldtype": "Link",
+   "label": "Çeviri",
+   "options": "Review Translation"
+  },
+  {
+   "fieldname": "provider",
+   "fieldtype": "Data",
+   "label": "Sağlayıcı",
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "source_lang",
+   "fieldtype": "Data",
+   "label": "Kaynak Dil",
+   "length": 10
+  },
+  {
+   "fieldname": "target_lang",
+   "fieldtype": "Data",
+   "label": "Hedef Dil",
+   "length": 10,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "tokens_used",
+   "fieldtype": "Int",
+   "label": "Token Sayısı",
+   "in_list_view": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "cost_usd",
+   "fieldtype": "Float",
+   "label": "Maliyet (USD)",
+   "precision": 6,
+   "in_list_view": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "ok",
+   "fieldtype": "Check",
+   "label": "Başarılı"
+  },
+  {
+   "fieldname": "logged_at",
+   "fieldtype": "Datetime",
+   "label": "Tarih",
+   "read_only": 1,
+   "in_list_view": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-05-11 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "Translation Usage Log",
+ "naming_rule": "Autoincrement",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1, "delete": 1, "read": 1, "write": 1,
+   "role": "System Manager"
+  },
+  {
+   "read": 1, "role": "Marketplace Admin"
+  }
+ ],
+ "sort_field": "logged_at",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0
+}

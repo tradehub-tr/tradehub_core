@@ -1,0 +1,54 @@
+{
+ "actions": [],
+ "creation": "2026-05-11 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "factor_key",
+  "factor_label",
+  "column_break_1",
+  "weight",
+  "evidence"
+ ],
+ "fields": [
+  {
+   "fieldname": "factor_key",
+   "fieldtype": "Data",
+   "label": "Faktör Kodu",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "factor_label",
+   "fieldtype": "Data",
+   "label": "Faktör Adı",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "weight",
+   "fieldtype": "Int",
+   "label": "Ağırlık",
+   "in_list_view": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "evidence",
+   "fieldtype": "Small Text",
+   "label": "Kanıt"
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-05-11 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "Review Risk Factor",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC"
+}

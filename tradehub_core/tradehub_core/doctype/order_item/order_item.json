@@ -13,7 +13,9 @@
   "unit_price",
   "quantity",
   "total_price",
-  "image"
+  "image",
+  "has_review",
+  "review"
  ],
  "fields": [
   {
@@ -65,6 +67,20 @@
    "fieldname": "image",
    "fieldtype": "Attach Image",
    "label": "Görsel"
+  },
+  {
+   "default": "0",
+   "fieldname": "has_review",
+   "fieldtype": "Check",
+   "label": "Yorum Var",
+   "read_only": 1
+  },
+  {
+   "fieldname": "review",
+   "fieldtype": "Link",
+   "label": "Yorum",
+   "options": "Listing Review",
+   "read_only": 1
   }
  ],
  "istable": 1,

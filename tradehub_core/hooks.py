@@ -39,6 +39,8 @@ scheduler_events = {
 		# ticket'lar için ilk yanıt + çözüm süresi aşımlarını işaretler ve
 		# atanan ajan(lar)a / team'e bildirim gönderir.
 		"tradehub_core.utils.sla_checker.check_sla_breaches",
+		# Faz 6: Sentiment analysis (analiz edilmemiş Approved review'lar)
+		"tradehub_core.api.sentiment.batch_analyze_pending",
 	],
 	"daily": [
 		"tradehub_core.services.tcmb.fetch_and_update_rates",
@@ -46,6 +48,20 @@ scheduler_events = {
 		"tradehub_core.utils.notification_cleanup.delete_old_notifications",
 		"tradehub_core.api.listing.cleanup_old_search_history",
 		"tradehub_core.api.tailored.cleanup_old_user_product_views",
+		# Faz 3: review reputation + recency decay
+		"tradehub_core.api.reputation.daily_recompute_all",
+		"tradehub_core.api.rating_engine.daily_recompute_listing_weights",
+		# Faz 4: Timeline reminders + translation cache cleanup
+		"tradehub_core.api.timeline.send_t30_reminders",
+		"tradehub_core.api.timeline.send_t90_reminders",
+		"tradehub_core.api.timeline.send_t180_reminders",
+		"tradehub_core.api.translation.cleanup_old_cache",
+		# Faz 5: Translation usage reset + analytics snapshot
+		"tradehub_core.api.translation.daily_reset_usage",
+		"tradehub_core.api.analytics.daily_snapshot",
+		# Faz 6: AB test winner + seller analytics
+		"tradehub_core.api.ab_testing.evaluate_finished_tests",
+		"tradehub_core.api.seller_analytics.compute_all_sellers",
 		# Related Products light-maintenance: cheap O(C) jobs that don't
 		# need long_queue. Heavy similarity matrix rebuild moved to
 		# weekly_long (sharded dispatcher + atomic swap).
@@ -63,6 +79,8 @@ scheduler_events = {
 		# Dispatcher returns fast after enqueueing chunks; chunks fan out
 		# across long-queue workers and the last one triggers atomic swap.
 		"tradehub_core.recommendations.tasks.rebuild_related_matrix",
+		# Faz 4: B2B Vine — eligible reviewer'lara yeni ürün daveti
+		"tradehub_core.api.reputation.send_trusted_reviewer_invitations",
 	],
 }
 
@@ -125,6 +143,34 @@ doc_events = {
 		"on_update": "tradehub_core.api.listing.recompute_seller_rating_proxy",
 		"on_trash": "tradehub_core.api.listing.recompute_seller_rating_proxy",
 	},
+	# Listing Review pipeline (Faz 1+2+3) — ürün bazlı yorum.
+	# Controller içinde de tetikleme yapılıyor; bu hook'lar savunma katmanı.
+	"Listing Review": {
+		"after_insert": [
+			"tradehub_core.api.review.on_review_after_insert",
+			"tradehub_core.api.risk.compute_and_apply_risk_score",
+			"tradehub_core.api.webhooks.notify_admin_new_review",
+			"tradehub_core.api.moderation.check_auto_rules",
+			"tradehub_core.api.sentiment.queue_analysis",
+		],
+		"on_update": [
+			"tradehub_core.api.review.on_review_on_update",
+			"tradehub_core.api.reputation.recompute_on_review_update",
+			"tradehub_core.api.push.notify_status_change",
+		],
+		"on_trash": "tradehub_core.api.review.on_review_on_trash",
+	},
+	"Listing Review Image": {
+		"after_insert": "tradehub_core.api.moderation.check_image_content",
+	},
+	# Faz 3: helpful/abuse → reviewer reputation güncellemesi
+	"Review Helpful Vote": {
+		"after_insert": "tradehub_core.api.reputation.recompute_on_helpful_vote",
+		"on_trash": "tradehub_core.api.reputation.recompute_on_helpful_vote",
+	},
+	"Review Abuse Report": {
+		"after_insert": "tradehub_core.api.reputation.recompute_on_abuse_report",
+	},
 	# Admin Seller Profile aktiflesince helpdesk team + agent sync +
 	# Marketplace Seller rolünü user'a otomatik bağla/kaldır.
 	# (CRM doctype'larındaki Frappe role-level DocPerm bu role bağlı.)
@@ -186,6 +232,12 @@ permission_query_conditions = {
 	"Admin Seller Profile": "tradehub_core.permissions.admin_seller_profile_query_conditions",
 	"Seller Balance": "tradehub_core.permissions.seller_balance_query_conditions",
 	"Seller Review": "tradehub_core.permissions.seller_review_query_conditions",
+	"Listing Review": "tradehub_core.permissions.listing_review_query_conditions",
+	"Review Helpful Vote": "tradehub_core.permissions.review_helpful_vote_query_conditions",
+	"Review Abuse Report": "tradehub_core.permissions.review_abuse_report_query_conditions",
+	"Listing Question": "tradehub_core.permissions.listing_question_query_conditions",
+	"Order Dispute": "tradehub_core.permissions.order_dispute_query_conditions",
+	"Trusted Reviewer Invitation": "tradehub_core.permissions.trusted_reviewer_invitation_query_conditions",
 	"Seller Category": "tradehub_core.permissions.seller_category_query_conditions",
 	"Seller Gallery Image": "tradehub_core.permissions.seller_gallery_image_query_conditions",
 	"KYB Verification": "tradehub_core.permissions.kyb_verification_query_conditions",
@@ -213,6 +265,12 @@ has_permission = {
 	"Admin Seller Profile": "tradehub_core.permissions.admin_seller_profile_has_permission",
 	"Seller Balance": "tradehub_core.permissions.seller_balance_has_permission",
 	"Seller Review": "tradehub_core.permissions.seller_review_has_permission",
+	"Listing Review": "tradehub_core.permissions.listing_review_has_permission",
+	"Review Helpful Vote": "tradehub_core.permissions.review_helpful_vote_has_permission",
+	"Review Abuse Report": "tradehub_core.permissions.review_abuse_report_has_permission",
+	"Listing Question": "tradehub_core.permissions.listing_question_has_permission",
+	"Order Dispute": "tradehub_core.permissions.order_dispute_has_permission",
+	"Trusted Reviewer Invitation": "tradehub_core.permissions.trusted_reviewer_invitation_has_permission",
 	"Seller Category": "tradehub_core.permissions.seller_category_has_permission",
 	"Seller Gallery Image": "tradehub_core.permissions.seller_gallery_image_has_permission",
 	"KYB Verification": "tradehub_core.permissions.kyb_verification_has_permission",

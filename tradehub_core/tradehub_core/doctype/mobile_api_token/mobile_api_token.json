@@ -1,0 +1,35 @@
+{
+ "actions": [],
+ "autoname": "autoincrement",
+ "creation": "2026-05-11 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": ["user","device_id","device_type","column_break_1","issued_at","expires_at","section_break_1","token","refresh_token","revoked"],
+ "fields": [
+  {"fieldname":"user","fieldtype":"Link","label":"Kullanıcı","options":"User","reqd":1,"in_list_view":1,"in_standard_filter":1},
+  {"fieldname":"device_id","fieldtype":"Data","label":"Cihaz ID","length":100,"in_list_view":1},
+  {"fieldname":"device_type","fieldtype":"Select","label":"Cihaz Tipi","options":"ios\nandroid\nweb","in_list_view":1},
+  {"fieldname":"column_break_1","fieldtype":"Column Break"},
+  {"fieldname":"issued_at","fieldtype":"Datetime","label":"İhraç Tarihi","read_only":1},
+  {"fieldname":"expires_at","fieldtype":"Datetime","label":"Bitiş Tarihi","in_list_view":1},
+  {"fieldname":"section_break_1","fieldtype":"Section Break"},
+  {"fieldname":"token","fieldtype":"Password","label":"Access Token (JWT)"},
+  {"fieldname":"refresh_token","fieldtype":"Password","label":"Refresh Token"},
+  {"default":"0","fieldname":"revoked","fieldtype":"Check","label":"İptal Edildi","in_list_view":1}
+ ],
+ "links": [],
+ "modified": "2026-05-11 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "Mobile API Token",
+ "naming_rule": "Autoincrement",
+ "owner": "Administrator",
+ "permissions": [
+  {"create":1,"delete":1,"read":1,"write":1,"role":"System Manager"},
+  {"read":1,"role":"Marketplace Admin"}
+ ],
+ "sort_field": "issued_at",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0
+}

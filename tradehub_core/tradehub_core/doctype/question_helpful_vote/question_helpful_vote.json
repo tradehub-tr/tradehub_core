@@ -1,0 +1,69 @@
+{
+ "actions": [],
+ "autoname": "autoincrement",
+ "creation": "2026-05-11 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "target_type",
+  "target_id",
+  "voter",
+  "voted_at"
+ ],
+ "fields": [
+  {
+   "fieldname": "target_type",
+   "fieldtype": "Select",
+   "label": "Hedef Tipi",
+   "options": "question\nanswer",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "target_id",
+   "fieldtype": "Data",
+   "label": "Hedef ID",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "voter",
+   "fieldtype": "Link",
+   "label": "Oy Veren",
+   "options": "User",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "voted_at",
+   "fieldtype": "Datetime",
+   "label": "Oy Tarihi",
+   "read_only": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-05-11 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "Question Helpful Vote",
+ "naming_rule": "Autoincrement",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1, "delete": 1, "read": 1, "write": 1,
+   "role": "System Manager"
+  },
+  {
+   "create": 1, "read": 1, "delete": 1,
+   "role": "Marketplace Buyer", "if_owner": 1
+  },
+  {
+   "create": 1, "read": 1, "delete": 1,
+   "role": "Buyer", "if_owner": 1
+  }
+ ],
+ "sort_field": "voted_at",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0
+}

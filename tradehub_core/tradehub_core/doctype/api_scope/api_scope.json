@@ -1,0 +1,20 @@
+{
+ "actions": [],
+ "creation": "2026-05-11 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": ["scope"],
+ "fields": [
+  {"fieldname":"scope","fieldtype":"Select","label":"Scope","options":"read_reviews\nwrite_reviews\nread_analytics\nread_qa\nwrite_qa","reqd":1,"in_list_view":1}
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-05-11 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "API Scope",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC"
+}

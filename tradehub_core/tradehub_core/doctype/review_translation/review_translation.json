@@ -1,0 +1,97 @@
+{
+ "actions": [],
+ "autoname": "autoincrement",
+ "creation": "2026-05-11 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "review",
+  "source_lang",
+  "target_lang",
+  "column_break_1",
+  "translator",
+  "cached_at",
+  "section_break_1",
+  "translated_title",
+  "translated_body"
+ ],
+ "fields": [
+  {
+   "fieldname": "review",
+   "fieldtype": "Link",
+   "label": "Yorum",
+   "options": "Listing Review",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "source_lang",
+   "fieldtype": "Data",
+   "label": "Kaynak Dil",
+   "length": 10,
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "target_lang",
+   "fieldtype": "Data",
+   "label": "Hedef Dil",
+   "length": 10,
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "translator",
+   "fieldtype": "Data",
+   "label": "Çevirmen",
+   "read_only": 1
+  },
+  {
+   "fieldname": "cached_at",
+   "fieldtype": "Datetime",
+   "label": "Cache Tarihi",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_1",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "translated_title",
+   "fieldtype": "Data",
+   "label": "Başlık (Çeviri)",
+   "length": 280
+  },
+  {
+   "fieldname": "translated_body",
+   "fieldtype": "Text",
+   "label": "Yorum (Çeviri)"
+  }
+ ],
+ "links": [],
+ "modified": "2026-05-11 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "Review Translation",
+ "naming_rule": "Autoincrement",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1, "delete": 1, "read": 1, "write": 1,
+   "role": "System Manager"
+  },
+  {
+   "read": 1, "role": "Marketplace Admin", "write": 1, "delete": 1
+  }
+ ],
+ "sort_field": "cached_at",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0
+}

@@ -1,0 +1,32 @@
+{
+ "actions": [],
+ "autoname": "autoincrement",
+ "creation": "2026-05-11 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": ["user","endpoint","p256dh","auth","column_break_1","subscribed_at","last_used_at"],
+ "fields": [
+  {"fieldname":"user","fieldtype":"Link","label":"Kullanıcı","options":"User","reqd":1,"in_list_view":1,"in_standard_filter":1},
+  {"fieldname":"endpoint","fieldtype":"Data","label":"Endpoint","length":500,"reqd":1,"unique":1},
+  {"fieldname":"p256dh","fieldtype":"Data","label":"p256dh Key","length":200,"reqd":1},
+  {"fieldname":"auth","fieldtype":"Data","label":"Auth","length":100,"reqd":1},
+  {"fieldname":"column_break_1","fieldtype":"Column Break"},
+  {"fieldname":"subscribed_at","fieldtype":"Datetime","label":"Abone Tarihi","read_only":1},
+  {"fieldname":"last_used_at","fieldtype":"Datetime","label":"Son Kullanım","read_only":1}
+ ],
+ "links": [],
+ "modified": "2026-05-11 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "Push Subscription",
+ "naming_rule": "Autoincrement",
+ "owner": "Administrator",
+ "permissions": [
+  {"create":1,"delete":1,"read":1,"write":1,"role":"System Manager"},
+  {"create":1,"read":1,"delete":1,"role":"Marketplace Buyer","if_owner":1}
+ ],
+ "sort_field": "subscribed_at",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0
+}

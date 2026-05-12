@@ -1,0 +1,135 @@
+{
+ "actions": [],
+ "autoname": "field:user",
+ "creation": "2026-05-11 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "user",
+  "score",
+  "tier",
+  "column_break_1",
+  "total_reviews",
+  "helpful_received",
+  "abuse_received",
+  "section_break_1",
+  "kyb_verified",
+  "rejected_reviews",
+  "column_break_2",
+  "last_computed_at"
+ ],
+ "fields": [
+  {
+   "fieldname": "user",
+   "fieldtype": "Link",
+   "label": "Kullanıcı",
+   "options": "User",
+   "reqd": 1,
+   "unique": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "default": "50",
+   "fieldname": "score",
+   "fieldtype": "Int",
+   "label": "Skor (0-100)",
+   "in_list_view": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "tier",
+   "fieldtype": "Select",
+   "label": "Seviye",
+   "options": "Newcomer\nTrusted\nTop Contributor\nVerified Pro",
+   "default": "Newcomer",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "total_reviews",
+   "fieldtype": "Int",
+   "label": "Toplam Yorum",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "helpful_received",
+   "fieldtype": "Int",
+   "label": "Aldığı Faydalı Oy",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "abuse_received",
+   "fieldtype": "Int",
+   "label": "Aldığı İhbar",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_1",
+   "fieldtype": "Section Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "kyb_verified",
+   "fieldtype": "Check",
+   "label": "KYB Doğrulanmış",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "rejected_reviews",
+   "fieldtype": "Int",
+   "label": "Reddedilen Yorum",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "last_computed_at",
+   "fieldtype": "Datetime",
+   "label": "Son Hesap",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-05-11 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "Reviewer Reputation",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "read": 1,
+   "role": "System Manager",
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "Marketplace Admin",
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "Marketplace Buyer",
+   "if_owner": 1
+  }
+ ],
+ "sort_field": "score",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

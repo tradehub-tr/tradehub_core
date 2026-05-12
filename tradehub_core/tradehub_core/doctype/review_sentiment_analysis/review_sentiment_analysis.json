@@ -1,0 +1,48 @@
+{
+ "actions": [],
+ "autoname": "autoincrement",
+ "creation": "2026-05-11 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "review",
+  "overall_sentiment",
+  "confidence",
+  "column_break_1",
+  "language",
+  "model_version",
+  "analyzed_at",
+  "section_break_1",
+  "topics_json",
+  "aspect_sentiments_json",
+  "anomaly_flag"
+ ],
+ "fields": [
+  {"fieldname":"review","fieldtype":"Link","label":"Yorum","options":"Listing Review","reqd":1,"unique":1,"in_list_view":1,"in_standard_filter":1},
+  {"fieldname":"overall_sentiment","fieldtype":"Select","label":"Sentiment","options":"positive\nneutral\nnegative\nmixed","in_list_view":1,"in_standard_filter":1,"reqd":1},
+  {"fieldname":"confidence","fieldtype":"Float","label":"Güven","precision":3,"default":"0"},
+  {"fieldname":"column_break_1","fieldtype":"Column Break"},
+  {"fieldname":"language","fieldtype":"Data","label":"Dil","length":10},
+  {"fieldname":"model_version","fieldtype":"Data","label":"Model","default":"stub"},
+  {"fieldname":"analyzed_at","fieldtype":"Datetime","label":"Analiz Tarihi","read_only":1},
+  {"fieldname":"section_break_1","fieldtype":"Section Break"},
+  {"fieldname":"topics_json","fieldtype":"Long Text","label":"Topics (JSON)"},
+  {"fieldname":"aspect_sentiments_json","fieldtype":"Long Text","label":"Aspect Sentiments (JSON)"},
+  {"default":"0","fieldname":"anomaly_flag","fieldtype":"Check","label":"Anomali (rating-sentiment mismatch)","in_list_view":1}
+ ],
+ "links": [],
+ "modified": "2026-05-11 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "Review Sentiment Analysis",
+ "naming_rule": "Autoincrement",
+ "owner": "Administrator",
+ "permissions": [
+  {"create":1,"delete":1,"read":1,"write":1,"role":"System Manager"},
+  {"read":1,"role":"Marketplace Admin","write":1}
+ ],
+ "sort_field": "analyzed_at",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0
+}

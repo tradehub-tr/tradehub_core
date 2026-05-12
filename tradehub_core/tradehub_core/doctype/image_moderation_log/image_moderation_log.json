@@ -1,0 +1,42 @@
+{
+ "actions": [],
+ "autoname": "autoincrement",
+ "creation": "2026-05-11 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "review",
+  "image_url",
+  "decision",
+  "column_break_1",
+  "nsfw_score",
+  "violence_score",
+  "text_detected",
+  "checked_at"
+ ],
+ "fields": [
+  {"fieldname":"review","fieldtype":"Link","label":"Yorum","options":"Listing Review","in_list_view":1,"in_standard_filter":1},
+  {"fieldname":"image_url","fieldtype":"Data","label":"Görsel URL","length":500,"in_list_view":1},
+  {"fieldname":"decision","fieldtype":"Select","label":"Karar","options":"allow\nreject\nmanual_review","default":"allow","in_list_view":1,"in_standard_filter":1},
+  {"fieldname":"column_break_1","fieldtype":"Column Break"},
+  {"default":"0","fieldname":"nsfw_score","fieldtype":"Float","label":"NSFW Skoru","precision":3,"in_list_view":1},
+  {"default":"0","fieldname":"violence_score","fieldtype":"Float","label":"Şiddet Skoru","precision":3},
+  {"fieldname":"text_detected","fieldtype":"Small Text","label":"Tespit Edilen Metin"},
+  {"fieldname":"checked_at","fieldtype":"Datetime","label":"Kontrol Tarihi","read_only":1,"in_list_view":1}
+ ],
+ "links": [],
+ "modified": "2026-05-11 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "Image Moderation Log",
+ "naming_rule": "Autoincrement",
+ "owner": "Administrator",
+ "permissions": [
+  {"create":1,"delete":1,"read":1,"write":1,"role":"System Manager"},
+  {"read":1,"role":"Marketplace Admin"}
+ ],
+ "sort_field": "checked_at",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0
+}

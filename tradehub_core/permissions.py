@@ -635,6 +635,190 @@ def seller_review_has_permission(doc, ptype, user):
 	return profile and seller_val == profile
 
 
+# ── Listing Review ───────────────────────────────────────────────────────────
+# Listing Review:
+#   - Marketplace Admin / System Manager  → tüm kayıtlar
+#   - Marketplace Seller                  → kendi seller profilinin yorumları
+#   - Buyer / Marketplace Buyer           → kendi yazdığı yorumlar (reviewer_user)
+#   - Public list (allow_guest API)       → status='Approved' filtresi API'da uygulanır;
+#                                           desk listesinde guest ulaşmaz.
+
+
+def listing_review_query_conditions(user):
+	if user == "Administrator":
+		return ""
+	roles = set(frappe.get_roles(user))
+	if roles & {"System Manager", "Marketplace Admin"}:
+		return ""
+	profile = _get_seller_profile_name(user)
+	if profile:
+		return f"`tabListing Review`.`seller` = {frappe.db.escape(profile)}"
+	# Buyer kendi yorumlarını görür
+	return f"`tabListing Review`.`reviewer_user` = {frappe.db.escape(user)}"
+
+
+def listing_review_has_permission(doc, ptype, user):
+	# Administrator + admin rolleri her zaman izinli
+	if user == "Administrator":
+		return True
+	roles = set(frappe.get_roles(user))
+	if roles & {"System Manager", "Marketplace Admin"}:
+		return True
+
+	seller_val = getattr(doc, "seller", None) if not isinstance(doc, dict) else doc.get("seller")
+	reviewer_val = (
+		getattr(doc, "reviewer_user", None) if not isinstance(doc, dict) else doc.get("reviewer_user")
+	)
+	# Satıcı kendi ürünlerinin yorumlarını okuyabilir + reply yazabilir
+	profile = _get_seller_profile_name(user)
+	if profile and seller_val == profile:
+		if ptype in ("read", "write"):  # write seller_reply için gerekli
+			return True
+	# Buyer kendi yorumunu okuyabilir/güncelleyebilir
+	if reviewer_val and reviewer_val == user:
+		return True
+	# Karar verilemediyse role-level karara bırak (None döner)
+	return None
+
+
+# ── Review Helpful Vote ─────────────────────────────────────────────────────
+# Buyer yalnız kendi oyunu görür/silebilir; admin tümünü görür.
+
+
+def review_helpful_vote_query_conditions(user):
+	if user == "Administrator":
+		return ""
+	roles = set(frappe.get_roles(user))
+	if roles & {"System Manager", "Marketplace Admin"}:
+		return ""
+	return f"`tabReview Helpful Vote`.`voter` = {frappe.db.escape(user)}"
+
+
+def review_helpful_vote_has_permission(doc, ptype, user):
+	if user == "Administrator":
+		return True
+	roles = set(frappe.get_roles(user))
+	if roles & {"System Manager", "Marketplace Admin"}:
+		return True
+	voter = getattr(doc, "voter", None) if not isinstance(doc, dict) else doc.get("voter")
+	if voter and voter == user:
+		return True
+	return None
+
+
+# ── Review Abuse Report ─────────────────────────────────────────────────────
+
+
+def review_abuse_report_query_conditions(user):
+	if user == "Administrator":
+		return ""
+	roles = set(frappe.get_roles(user))
+	if roles & {"System Manager", "Marketplace Admin"}:
+		return ""
+	# Reporter kendi ihbarını görür; satıcı da kendi ürününe gelen ihbarları görmek isteyebilir.
+	# Faz 2'de basit: sadece reporter görsün.
+	return f"`tabReview Abuse Report`.`reporter` = {frappe.db.escape(user)}"
+
+
+def review_abuse_report_has_permission(doc, ptype, user):
+	if user == "Administrator":
+		return True
+	roles = set(frappe.get_roles(user))
+	if roles & {"System Manager", "Marketplace Admin"}:
+		return True
+	reporter = getattr(doc, "reporter", None) if not isinstance(doc, dict) else doc.get("reporter")
+	if reporter and reporter == user:
+		return True
+	return None
+
+
+# ── Faz 4: Listing Question ─────────────────────────────────────────────────
+
+
+def listing_question_query_conditions(user):
+	if user == "Administrator":
+		return ""
+	roles = set(frappe.get_roles(user))
+	if roles & {"System Manager", "Marketplace Admin"}:
+		return ""
+	# Public Approved soruları herkese; ama desk listesi için: asker veya seller
+	profile = _get_seller_profile_name(user)
+	if profile:
+		# Satıcı kendi ürünlerinin sorularını görür
+		return (
+			f"`tabListing Question`.`listing` IN "
+			f"(SELECT name FROM `tabListing` WHERE seller_profile = {frappe.db.escape(profile)})"
+		)
+	return f"`tabListing Question`.`asker` = {frappe.db.escape(user)}"
+
+
+def listing_question_has_permission(doc, ptype, user):
+	if user == "Administrator":
+		return True
+	roles = set(frappe.get_roles(user))
+	if roles & {"System Manager", "Marketplace Admin"}:
+		return True
+	asker = getattr(doc, "asker", None) if not isinstance(doc, dict) else doc.get("asker")
+	if asker == user:
+		return True
+	return None
+
+
+# ── Faz 4: Order Dispute ────────────────────────────────────────────────────
+
+
+def order_dispute_query_conditions(user):
+	if user == "Administrator":
+		return ""
+	roles = set(frappe.get_roles(user))
+	if roles & {"System Manager", "Marketplace Admin"}:
+		return ""
+	profile = _get_seller_profile_name(user)
+	if profile:
+		return f"`tabOrder Dispute`.`seller` = {frappe.db.escape(profile)}"
+	return f"`tabOrder Dispute`.`buyer` = {frappe.db.escape(user)}"
+
+
+def order_dispute_has_permission(doc, ptype, user):
+	if user == "Administrator":
+		return True
+	roles = set(frappe.get_roles(user))
+	if roles & {"System Manager", "Marketplace Admin"}:
+		return True
+	buyer = getattr(doc, "buyer", None) if not isinstance(doc, dict) else doc.get("buyer")
+	seller = getattr(doc, "seller", None) if not isinstance(doc, dict) else doc.get("seller")
+	if buyer == user:
+		return True
+	profile = _get_seller_profile_name(user)
+	if profile and seller == profile and ptype == "read":
+		return True
+	return None
+
+
+# ── Faz 4: Trusted Reviewer Invitation ──────────────────────────────────────
+
+
+def trusted_reviewer_invitation_query_conditions(user):
+	if user == "Administrator":
+		return ""
+	roles = set(frappe.get_roles(user))
+	if roles & {"System Manager", "Marketplace Admin"}:
+		return ""
+	return f"`tabTrusted Reviewer Invitation`.`user` = {frappe.db.escape(user)}"
+
+
+def trusted_reviewer_invitation_has_permission(doc, ptype, user):
+	if user == "Administrator":
+		return True
+	roles = set(frappe.get_roles(user))
+	if roles & {"System Manager", "Marketplace Admin"}:
+		return True
+	owner = getattr(doc, "user", None) if not isinstance(doc, dict) else doc.get("user")
+	if owner == user:
+		return True
+	return None
+
+
 # ── Seller Category ──────────────────────────────────────────────────────────
 # Seller Category.seller links to Admin Seller Profile.
 

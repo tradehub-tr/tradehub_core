@@ -1,0 +1,26 @@
+{
+ "actions": [],
+ "creation": "2026-05-11 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "issingle": 1,
+ "field_order": ["enabled","vapid_subject","column_break_1","vapid_public_key","vapid_private_key"],
+ "fields": [
+  {"default":"0","fieldname":"enabled","fieldtype":"Check","label":"Etkin"},
+  {"fieldname":"vapid_subject","fieldtype":"Data","label":"VAPID Subject (mailto:...)","default":"mailto:admin@tradehub.local"},
+  {"fieldname":"column_break_1","fieldtype":"Column Break"},
+  {"fieldname":"vapid_public_key","fieldtype":"Long Text","label":"VAPID Public Key"},
+  {"fieldname":"vapid_private_key","fieldtype":"Password","label":"VAPID Private Key"}
+ ],
+ "links": [],
+ "modified": "2026-05-11 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "Push Notification Settings",
+ "owner": "Administrator",
+ "permissions": [{"create":1,"delete":1,"read":1,"write":1,"role":"System Manager"}],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

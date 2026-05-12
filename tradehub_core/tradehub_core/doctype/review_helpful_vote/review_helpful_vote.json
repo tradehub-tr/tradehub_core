@@ -1,0 +1,87 @@
+{
+ "actions": [],
+ "autoname": "autoincrement",
+ "creation": "2026-05-08 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "review",
+  "voter",
+  "vote",
+  "voted_at"
+ ],
+ "fields": [
+  {
+   "fieldname": "review",
+   "fieldtype": "Link",
+   "label": "Yorum",
+   "options": "Listing Review",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "voter",
+   "fieldtype": "Link",
+   "label": "Oy Veren",
+   "options": "User",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "vote",
+   "fieldtype": "Select",
+   "label": "Oy",
+   "options": "helpful\nnot_helpful",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "voted_at",
+   "fieldtype": "Datetime",
+   "label": "Oy Tarihi",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-05-08 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "Review Helpful Vote",
+ "naming_rule": "Autoincrement",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "read": 1,
+   "role": "System Manager",
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "Marketplace Admin",
+   "write": 1,
+   "delete": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "delete": 1,
+   "role": "Marketplace Buyer",
+   "if_owner": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "delete": 1,
+   "role": "Buyer",
+   "if_owner": 1
+  }
+ ],
+ "sort_field": "voted_at",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0
+}
