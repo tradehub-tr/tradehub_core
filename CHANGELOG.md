@@ -1,3 +1,11 @@
+## [v1.0.8-beta.6] - 2026-05-12 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Duzeltildi
+- fix(release): commit mesajındaki boşlukları temizlendi (@ahmeetseker)
+
+---
 ## [v1.0.8-beta.5] - 2026-05-12 BETA
 
 Bu surum betaistoc.cronbi.com'da test asamasindadir.
