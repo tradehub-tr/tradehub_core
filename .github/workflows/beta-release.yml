@@ -31,15 +31,19 @@ jobs:
           BETA_COUNT=$(git tag --sort=-v:refname | grep "^${LAST_PROD}-beta\." | wc -l)
           BETA_NUM=$((BETA_COUNT + 1))
           BETA_VERSION="${LAST_PROD}-beta.${BETA_NUM}"
+          # PREV = en son var olan tag (BETA_VERSION henuz olusmadigi icin head -1 bir onceki tag'i verir)
+          PREV=$(git tag --sort=-v:refname | grep -v "^${BETA_VERSION}$" | head -1)
+          PREV=${PREV:-${LAST_PROD}}
           echo "beta_version=${BETA_VERSION}" >> $GITHUB_OUTPUT
           echo "last_prod=${LAST_PROD}" >> $GITHUB_OUTPUT
+          echo "prev=${PREV}" >> $GITHUB_OUTPUT
 
       - name: Beta CHANGELOG olustur
         id: changelog
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          PREV=${{ steps.version.outputs.last_prod }}
+          PREV=${{ steps.version.outputs.prev }}
           BETA_VERSION=${{ steps.version.outputs.beta_version }}
           DATE=$(date +%Y-%m-%d)
 

@@ -45,15 +45,19 @@ jobs:
             patch) PATCH=$((PATCH+1)) ;;
           esac
           NEW_VERSION="v${MAJOR}.${MINOR}.${PATCH}"
+          # PREV = en son var olan tag (NEW_VERSION henuz olusmadigi icin head -1 bir onceki tag'i verir)
+          PREV=$(git tag --sort=-v:refname | grep -v "^${NEW_VERSION}$" | head -1)
+          PREV=${PREV:-${LAST}}
           echo "version=${NEW_VERSION}" >> $GITHUB_OUTPUT
           echo "prev_version=${LAST}" >> $GITHUB_OUTPUT
+          echo "prev=${PREV}" >> $GITHUB_OUTPUT
 
       - name: Prod CHANGELOG olustur
         id: changelog
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          PREV=${{ steps.version.outputs.prev_version }}
+          PREV=${{ steps.version.outputs.prev }}
           VERSION=${{ steps.version.outputs.version }}
           DATE=$(date +%Y-%m-%d)
 

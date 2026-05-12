@@ -32,15 +32,19 @@ jobs:
           RC_COUNT=$(git tag --sort=-v:refname | grep "^${LAST_PROD}-rc\." | wc -l)
           RC_NUM=$((RC_COUNT + 1))
           RC_VERSION="${LAST_PROD}-rc.${RC_NUM}"
+          # PREV = en son var olan tag (RC_VERSION henuz olusmadigi icin head -1 bir onceki tag'i verir)
+          PREV=$(git tag --sort=-v:refname | grep -v "^${RC_VERSION}$" | head -1)
+          PREV=${PREV:-${LAST_PROD}}
           echo "rc_version=${RC_VERSION}" >> $GITHUB_OUTPUT
           echo "last_prod=${LAST_PROD}" >> $GITHUB_OUTPUT
+          echo "prev=${PREV}" >> $GITHUB_OUTPUT
 
       - name: RC CHANGELOG olustur
         id: changelog
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          PREV=${{ steps.version.outputs.last_prod }}
+          PREV=${{ steps.version.outputs.prev }}
           RC_VERSION=${{ steps.version.outputs.rc_version }}
           DATE=$(date +%Y-%m-%d)
 
