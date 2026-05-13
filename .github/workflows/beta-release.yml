@@ -88,12 +88,12 @@ jobs:
                     else null end
                   ) as $type
                 | select($type != null)
+                | ($msg | sub("^[^\n]*(\n|$)"; "") | flatten_bullets) as $body
                 | (
-                    [$subject] +
-                    ($msg | sub("^[^\n]*(\n|$)"; "") | flatten_bullets)
-                  ) as $bullets
-                | $bullets[]
-                | "\($type)|- \(.) (@\($author))"
+                    ["\($type)|- \($subject) (@\($author))"]
+                    + ($body | map("\($type)|  - \(.)"))
+                  )
+                | .[]
               ')
             FEATS=$(echo "$COMMITS" | sed -n 's/^feat|//p' | awk '!seen[$0]++')
             FIXES=$(echo "$COMMITS" | sed -n 's/^fix|//p' | awk '!seen[$0]++')
