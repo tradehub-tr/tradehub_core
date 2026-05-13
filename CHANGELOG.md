@@ -1,3 +1,15 @@
+## [v1.0.8-beta.9] - 2026-05-13 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Duzeltildi
+- fix(notifications): satıcı bildirimlerinde bozuk action_url'leri admin-panel route'larına yönlendir (@boraydeger32)
+  - seller_category.py: kategori onay/red → /seller-categories (2 yer)
+  - listing_review.py: ürün yorumu moderasyon/yayın/gizle → /review-moderation (3 yer; buyer'a giden /account/reviews bildirimleri dokunulmadı)
+  - seller_review.py: satıcı değerlendirmesi yeni/gizle/yayınla → /review-moderation (3 yer)
+  - seller_application.py: başvuru alındı/onaylandı/reddedildi → /dashboard (3 yer; cross-app navigation karmaşası olmasın diye genel landing)
+
+---
 ## [v1.0.8-beta.8] - 2026-05-13 BETA
 
 Bu surum betaistoc.cronbi.com'da test asamasindadir.
