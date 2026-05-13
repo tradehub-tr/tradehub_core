@@ -144,8 +144,11 @@ def search_platform_categories(query: str, limit: int = 20):
 		"Product Category",
 		filters={"is_active": 1, "category_name": ["like", f"%{q}%"]},
 		fields=[
-			"name", "category_name", "parent_product_category",
-			"url_slug", "icon_class",
+			"name",
+			"category_name",
+			"parent_product_category",
+			"url_slug",
+			"icon_class",
 		],
 		order_by="category_name asc",
 		limit_page_length=lim,
@@ -154,12 +157,16 @@ def search_platform_categories(query: str, limit: int = 20):
 	for c in cats:
 		path_names = []
 		cursor = c.get("parent_product_category")
-		# Cycle koruması — pratikte yok ama defensive
-		for _ in range(20):
+		# Cycle koruması — pratikte yok ama defensive.
+		# Loop değişkeni `_` Frappe'nin i18n `_()` fonksiyonunu gölgelediği
+		# için (F823: fonksiyon başında throw(_(...)) UnboundLocalError atar)
+		# `_depth` kullanıyoruz.
+		for _depth in range(20):
 			if not cursor:
 				break
 			row = frappe.db.get_value(
-				"Product Category", cursor,
+				"Product Category",
+				cursor,
 				["category_name", "parent_product_category"],
 				as_dict=True,
 			)
