@@ -1,3 +1,13 @@
+## [v1.0.8-beta.10] - 2026-05-13 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Duzeltildi
+- fix(category): search_platform_categories'de `_` shadow UnboundLocalError'unu gider (@boraydeger32)
+  - Loop değişkeni `_depth` olarak yeniden adlandırıldı; gerekçe inline yorumla belgelendi.
+  - Aynı dosyada Ruff auto-format: get_all `fields=[...]` array'i one-per-line hizalandı.
+
+---
 ## [v1.0.8-beta.9] - 2026-05-13 BETA
 
 Bu surum betaistoc.cronbi.com'da test asamasindadir.
