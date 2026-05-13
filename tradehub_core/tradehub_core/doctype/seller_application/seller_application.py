@@ -170,13 +170,16 @@ class SellerApplication(Document):
 		ileride eklenecek (memory: project_seller_application_email_followup).
 		Mevcut çağrı sadece Platform Notification kaydı oluşturur.
 		"""
+		# action_url: admin-panel /dashboard. Başvuran henüz seller değil ama
+		# onay sonrası seller olunca eski bildirime tıklayabilir; admin-panel'in
+		# anasayfası tüm rollar için güvenli landing.
 		notify(
 			recipient_user=self.applicant_user,
 			recipient_role="seller",
 			type="system",
 			title=_("Başvurunuz Alındı"),
 			message=_("Satıcı başvurunuz başarıyla alındı. İncelendikten sonra size haber vereceğiz."),
-			action_url="/seller/application-pending",
+			action_url="/dashboard",
 			reference_doctype="Seller Application",
 			reference_name=self.name,
 		)
@@ -188,7 +191,7 @@ class SellerApplication(Document):
 			type="system",
 			title=_("Başvurunuz Onaylandı"),
 			message=_("Satıcı başvurunuz onaylandı. Artık ürün listelemeye başlayabilirsiniz."),
-			action_url="/seller/dashboard",
+			action_url="/dashboard",
 			reference_doctype="Seller Application",
 			reference_name=self.name,
 		)
@@ -200,7 +203,7 @@ class SellerApplication(Document):
 			type="system",
 			title=_("Başvurunuz Reddedildi"),
 			message=_("Satıcı başvurunuz reddedildi. Detaylar için destek ile iletişime geçin."),
-			action_url="/seller/dashboard",
+			action_url="/dashboard",
 			reference_doctype="Seller Application",
 			reference_name=self.name,
 		)

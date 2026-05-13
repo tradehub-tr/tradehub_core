@@ -378,7 +378,7 @@ class ListingReview(Document):
 			type="review",
 			title=_("Yeni Ürün Yorumu (Moderasyonda)"),
 			message=_("{0} ürünü için yeni bir yorum geldi.").format(self.listing),
-			action_url="/seller/dashboard?tab=reviews",
+			action_url="/review-moderation",
 			reference_doctype="Listing Review",
 			reference_name=self.name,
 		)
@@ -395,7 +395,7 @@ class ListingReview(Document):
 			type="review",
 			title=_("Yorum Yayınlandı"),
 			message=_("Ürünleriniz için bir yorum yayına alındı."),
-			action_url="/seller/dashboard?tab=reviews",
+			action_url="/review-moderation",
 			reference_doctype="Listing Review",
 			reference_name=self.name,
 		)
@@ -412,7 +412,7 @@ class ListingReview(Document):
 			type="review",
 			title=_("Yorum Gizlendi"),
 			message=_("Bir yorum moderasyon nedeniyle gizlendi."),
-			action_url="/seller/dashboard?tab=reviews",
+			action_url="/review-moderation",
 			reference_doctype="Listing Review",
 			reference_name=self.name,
 		)

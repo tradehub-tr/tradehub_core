@@ -124,6 +124,54 @@ def get_platform_category_tree(parent=None):
 
 
 @frappe.whitelist()
+def search_platform_categories(query: str, limit: int = 20):
+	"""Aktif platform kategorilerinde isim araması.
+
+	Her sonuç için parent_path (breadcrumb) bilgisi de döner, kullanıcı
+	"Pantolon" yazıp sonucu seçtiğinde "Tekstil › Erkek › Pantolon"
+	yolunu görebilsin.
+	"""
+	if frappe.session.user == "Guest":
+		frappe.throw(_("Giriş yapmanız gerekiyor"), frappe.AuthenticationError)
+	q = (query or "").strip()
+	if len(q) < 2:
+		return []
+	try:
+		lim = min(50, max(1, int(limit)))
+	except (ValueError, TypeError):
+		lim = 20
+	cats = frappe.get_all(
+		"Product Category",
+		filters={"is_active": 1, "category_name": ["like", f"%{q}%"]},
+		fields=[
+			"name", "category_name", "parent_product_category",
+			"url_slug", "icon_class",
+		],
+		order_by="category_name asc",
+		limit_page_length=lim,
+	)
+	# Her sonuç için kök'e kadar atalarının ismini topla.
+	for c in cats:
+		path_names = []
+		cursor = c.get("parent_product_category")
+		# Cycle koruması — pratikte yok ama defensive
+		for _ in range(20):
+			if not cursor:
+				break
+			row = frappe.db.get_value(
+				"Product Category", cursor,
+				["category_name", "parent_product_category"],
+				as_dict=True,
+			)
+			if not row:
+				break
+			path_names.insert(0, row["category_name"])
+			cursor = row.get("parent_product_category")
+		c["path"] = " › ".join(path_names) if path_names else ""
+	return cats
+
+
+@frappe.whitelist()
 def get_category_ancestors(name):
 	"""
 	Verilen kategori ID'si için kök'e kadar tüm ata listesini döndürür.
