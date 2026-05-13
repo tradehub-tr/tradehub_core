@@ -1,3 +1,14 @@
+## [v1.0.8-beta.8] - 2026-05-13 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Eklendi
+- feat(changelog): commit body bullet'larını subject altında nested gösterildi (@ahmeetseker)
+
+### Duzeltildi
+- fix(release-workflows): commit body bullet'larını subject altında nested göster (@ahmeetseker)
+
+---
 ## [v1.0.8-beta.7] - 2026-05-12 BETA
 
 Bu surum betaistoc.cronbi.com'da test asamasindadir.
