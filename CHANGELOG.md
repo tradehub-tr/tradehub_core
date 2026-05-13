@@ -3,16 +3,18 @@
 Bu surum betaistoc.cronbi.com'da test asamasindadir.
 
 ### Eklendi
-- feat(header-notice): add Header Notice DocType schema and controller (@ahmeetseker)
-- feat(header-notice): add migration patch for Header Notice (@ahmeetseker)
-- feat(header-notice): add public API endpoint with 60s cache (@ahmeetseker)
-- feat(header-notice): wire cache invalidation via doc_events hooks (@ahmeetseker)
-- feat(header-notice): add display_mode settings + per-notice background_color (@ahmeetseker)
+- feat(header-notice): 5 değişiklik (@ahmeetseker)
+  - add Header Notice DocType schema and controller
+  - add migration patch for Header Notice
+  - add public API endpoint with 60s cache
+  - wire cache invalidation via doc_events hooks
+  - add display_mode settings + per-notice background_color
 
 ### Duzeltildi
-- fix(header-notice): use tab indentation and add search_index for filter fields (@ahmeetseker)
-- fix(header-notice): commit after setUpClass cleanup to ensure test isolation (@ahmeetseker)
-- fix(header-notice): drop auto-downgrade so storefront uses admin's chosen mode (@ahmeetseker)
+- fix(header-notice): 3 değişiklik (@ahmeetseker)
+  - use tab indentation and add search_index for filter fields
+  - commit after setUpClass cleanup to ensure test isolation
+  - drop auto-downgrade so storefront uses admin's chosen mode
 
 ---
 
@@ -31,19 +33,22 @@ Bu bölüm, geliştirme sürecinde koda eklenmiş ancak önceki sürüm changelo
 
 ### Eklendi (Belgelenmemiş)
 - feat(ci): 3 aşamalı release akışı (beta/rc/prod) ve Jenkins tetiklemesine geçiş — `.github/workflows/beta-release.yml` eklendi, mevcut `rc-release.yml` ve `prod-release.yml` Jenkins job'larını çağıracak şekilde yeniden düzenlendi; otomatik changelog commit'leri `github-actions[bot]` üzerinden atılır hâle getirildi (@ahmeetseker)
-- feat(listing): "Out of Stock" statüsü storefront davranışı — `STOREFRONT_VISIBLE_STATUSES` artık Active + Out of Stock'u kapsıyor; ilan stokta yokken listede/detayda görünür ama stok değerleri runtime'da 0'a sıfırlanıp sepete ekleme engelleniyor, statü Active'e döndüğünde DB'deki orijinal stok geri geliyor (`tradehub_core/api/listing.py`, +80 satır) (@boraydeger32)
-- feat(listing): Varyant özellik linkleme + negatif değer doğrulaması — `Listing.validate` içine `_resolve_attribute_links` eklendi; serbest metinle girilen özellik adları otomatik `Product Attribute` kayıtlarına bağlanıyor; varyant fiyat/stok kontrolünde yanlış alan adları (price→variant_price, stock→variant_stock) düzeltildi (@boraydeger32)
+- feat(listing): 2 değişiklik (@boraydeger32)
+  - "Out of Stock" statüsü storefront davranışı — `STOREFRONT_VISIBLE_STATUSES` artık Active + Out of Stock'u kapsıyor; ilan stokta yokken listede/detayda görünür ama stok değerleri runtime'da 0'a sıfırlanıp sepete ekleme engelleniyor, statü Active'e döndüğünde DB'deki orijinal stok geri geliyor (`tradehub_core/api/listing.py`, +80 satır)
+  - Varyant özellik linkleme + negatif değer doğrulaması — `Listing.validate` içine `_resolve_attribute_links` eklendi; serbest metinle girilen özellik adları otomatik `Product Attribute` kayıtlarına bağlanıyor; varyant fiyat/stok kontrolünde yanlış alan adları (price→variant_price, stock→variant_stock) düzeltildi
 - feat(checkout): Sepet/sipariş için fatura bilgisi (billing_info) — `cart.add_to_cart` ve `cart.create_order` artık JSON `billing_info` kabul ediyor; `_parse_billing_info` Bireysel TCKN-11 / Şirket VKN-10 doğrulaması yapıyor; `same_as_shipping` ile teslimat adresinden snapshot'lanabiliyor; `Order` doctype'ına 98 satırlık fatura alanı eklendi (billing_type, tax_office, vkn/tcn, e_invoice, fatura adresi snapshot'u) (@ahmeetseker)
-- feat(cart): Numune (is_sample) sepet satırı — `Cart Item` doctype'ına `is_sample` boolean alanı eklendi; aynı listing/varyantın bulk vs numune satırları artık ayrı tutuluyor; numune satırı `Listing.sample_price` ile fiyatlanıyor; `add_cart_item_is_sample` idempotent migration patch'i ile mevcut DB'lere de yansıtıldı (@ahmeetseker)
-- feat(cart): SKU bazlı varyant fiyatı + kampanya snapshot tutarlılığı — `_get_variant_price_by_label`, `_get_listing_effective_price` ve `_get_discount_factor` helper'ları eklendi; çoklu eksenli varyantlarda artık `Listing Variant Item.variant_price` döndürülüyor; `add_to_cart` snapshot, `_build_cart_response`, `merge_guest_cart` ve tier fiyatları listing detayındaki indirimle bire bir tutarlı; `variant_price` ve `sample_price` kampanya indirimine tabi değil (@boraydeger32, @ahmeetseker)
+- feat(cart): 2 değişiklik
+  - Numune (is_sample) sepet satırı — `Cart Item` doctype'ına `is_sample` boolean alanı eklendi; aynı listing/varyantın bulk vs numune satırları artık ayrı tutuluyor; numune satırı `Listing.sample_price` ile fiyatlanıyor; `add_cart_item_is_sample` idempotent migration patch'i ile mevcut DB'lere de yansıtıldı (@ahmeetseker)
+  - SKU bazlı varyant fiyatı + kampanya snapshot tutarlılığı — `_get_variant_price_by_label`, `_get_listing_effective_price` ve `_get_discount_factor` helper'ları eklendi; çoklu eksenli varyantlarda artık `Listing Variant Item.variant_price` döndürülüyor; `add_to_cart` snapshot, `_build_cart_response`, `merge_guest_cart` ve tier fiyatları listing detayındaki indirimle bire bir tutarlı; `variant_price` ve `sample_price` kampanya indirimine tabi değil (@boraydeger32, @ahmeetseker)
 - feat(category): Ürün kategorisi benzersizlik kontrolü — `Product Category.validate` içine 30 satırlık eklenti ile aynı parent altında aynı isimli kategori oluşturmayı engelleyen kontrol eklendi (@boraydeger32)
 - feat(crm-overrides): Marketplace Seller için CRM override layer'ı — `tradehub_core/api/v1/crm_overrides.py` içinde `crm.api.session.get_users` ve `crm.api.session.get_organizations` whitelist override'ları (`hooks.py:override_whitelisted_methods`); `get_users`/`get_organizations` artık satıcının yalnızca kendi User/Organization kayıtlarını görmesini sağlayacak şekilde sızıntı önlemli; `save_contact` Contact CRUD child table senkronu (`email_ids`/`phone_nos`) için server-side `doc.save` köprüsü; `crm_get_count(doctype, filters)` permission-aware sayım endpoint'i — Marketplace Seller rolüne sahip kullanıcıya kendi `seller` field'ı + owner fallback ile filtre uygular (@ahmeetseker)
 - feat(seller-role-sync): Admin Seller Profile ↔ User rol senkron hook'u — `utils/seller_role_sync.py` eklendi; profil aktifken kullanıcıya `Marketplace Seller` rolü atanır, askıya alındığında geri alınır; `hooks.py` doc_events'lerine bağlandı; `backfill_marketplace_seller_role` patch'i ile aktif Admin Seller Profile sahibi kullanıcılara rol geriye dönük atandı (CRM doctype DocPerm bu role bağlı, eskiden yalnız `Seller` atanıyordu) (@ahmeetseker)
 - feat(crm-seed): CRM Lead Source seed — `seed_crm_lead_sources` patch'i ile Lead "Kaynak" dropdown'una varsayılan değerler dolduruldu (Frappe CRM uygulaması yüklü değilse no-op ile geçer); ardından autoname field'ı `source_name` olarak düzeltildi (@ahmeetseker)
-- feat(notifications): action_url sanitize — `utils/notify._sanitize_action_url` eklendi; yalnızca `/...` path veya `https://` kabul edilir; `javascript:`, `data:`, `http:`, protocol-relative URL'ler reddedilir (XSS/açık yönlendirme koruması) (@boraydeger32)
-- feat(notifications): Permission-aware Platform Notification görünürlüğü — `Platform Notification` için `get_permission_query_conditions` + `has_permission` `hooks.py`'a kaydedildi; Marketplace Buyer/Seller Desk'te yalnızca kendi bildirimlerini görür; `notify_team_members` ve `notify_assigned_users` bulk helper'ları içinde Administrator/Guest hedefleri filtrelendi (#8 spam fix) (@boraydeger32)
-- feat(notifications): Bildirim mark_read idempotency — `api/notification.mark_read` artık daha önce okunmuş kayıtta `read_at` damgasını korur (audit trail) ve owner+is_read'i tek sorguda kontrol eder; `get_new_notifications` `is_read=0`'ı her zaman zorunlu hâle getirdi (drawer'dan okunan eski bildirimin `since` parametresi ile re-toast edilmesi engellendi, #2 fix) (@boraydeger32)
-- feat(notifications): Cleanup retention uzatması — `notification_cleanup` görevinde okunmamış bildirim retention süresi 180 gün → 365 güne çıkarıldı; uzun süre pasif kalan kullanıcının kritik bildirimlerinin sessizce silinmesi engellendi (@boraydeger32)
+- feat(notifications): 4 değişiklik (@boraydeger32)
+  - action_url sanitize — `utils/notify._sanitize_action_url` eklendi; yalnızca `/...` path veya `https://` kabul edilir; `javascript:`, `data:`, `http:`, protocol-relative URL'ler reddedilir (XSS/açık yönlendirme koruması)
+  - Permission-aware Platform Notification görünürlüğü — `Platform Notification` için `get_permission_query_conditions` + `has_permission` `hooks.py`'a kaydedildi; Marketplace Buyer/Seller Desk'te yalnızca kendi bildirimlerini görür; `notify_team_members` ve `notify_assigned_users` bulk helper'ları içinde Administrator/Guest hedefleri filtrelendi (#8 spam fix)
+  - Bildirim mark_read idempotency — `api/notification.mark_read` artık daha önce okunmuş kayıtta `read_at` damgasını korur (audit trail) ve owner+is_read'i tek sorguda kontrol eder; `get_new_notifications` `is_read=0`'ı her zaman zorunlu hâle getirdi (drawer'dan okunan eski bildirimin `since` parametresi ile re-toast edilmesi engellendi, #2 fix)
+  - Cleanup retention uzatması — `notification_cleanup` görevinde okunmamış bildirim retention süresi 180 gün → 365 güne çıkarıldı; uzun süre pasif kalan kullanıcının kritik bildirimlerinin sessizce silinmesi engellendi
 - feat(seller): Mağaza storefront medya grupları — `api/seller.get_seller` yanıtına `media_groups` (overview / 360 / production / QC kategorileri) eklendi; `Admin Seller Profile.gallery_images` çocuk tablosundan video önceliğiyle türetilir; `Seller Gallery Image` doctype'ına `category`, `media_type`, `video_url`, `poster_image`, `sort_order` alanları eklendi; `image` artık `media_type`'a `depends_on` ile bağlı; `_build_media_groups` helper'ı satıcı namespace'inde gruplama yapar — frontend StoreHeader hardcoded thumb'lar yerine bu yapıyı kullanır (@boraydeger32)
 - feat(verified-seller): Verified Seller rolü ve KYB sync hattı — `KYB Verification.on_update` 5 status için `Verified Seller` rolünü kullanıcıya senkronlar (Verified iken atar, diğer durumlarda kaldırır); `assign_verified_seller_role` patch'i mevcut KYB durumlarına göre rolleri geriye dönük atar/temizler; `cleanup_legacy_verification_fields` patch'i `Admin Seller Profile.is_verified` ve `verification_type` alanlarını DB sütun audit ile DROP eder (artık tek doğruluk kaynağı KYB Verification + role) (@aliiball)
 - feat(order-gate): 3 katmanlı doğrulanmış-satıcı sipariş gate'i — Sipariş açma yolunun her aşamasında KYB doğrulaması zorunlu hâle getirildi: `cart.add_to_cart` (sepete eklerken), `cart.create_order` (siparişi başlatırken) ve `Order.validate` (DB save anında); `_ensure_seller_kyb_verified` helper'ı doğrulanmamış satıcıların ürünlerinin sipariş edilmesini engelliyor (@aliiball)
@@ -52,10 +57,11 @@ Bu bölüm, geliştirme sürecinde koda eklenmiş ancak önceki sürüm changelo
 - feat(utils/country): Yeni ülke yardımcısı — `tradehub_core/utils/country.py` eklendi; 15 ülke için ISO-2 kod, ülke adı ve emoji bayrak haritası; case-insensitive arama desteği; `get_seller`, profil ve listing yanıtlarında bayrak/standart kod normalizasyonu için kullanılır (@aliiball)
 - feat(seller-application): KYB skeleton ignore_mandatory bypass — `become_seller` ve `Seller Application` approval flow'unda KYB Verification iskeleti `ignore_mandatory=True` ile insert edilir; gerçek alan zorunluluğu yalnızca `submit_kyb_documents` endpoint'inde uygulanır (yarım profilden submit'e geçişin tek noktadan kontrolü) (@aliiball)
 - feat(profile-avatar): Avatar tek doğruluk kaynağına konsolidasyon — `Buyer Profile.avatar` ve `Seller Profile.avatar` custom alanları kaldırıldı; tek doğruluk kaynağı `User.user_image` oldu; `auth.get_user_profile` ve `update_user_profile` buna göre güncellendi; `cleanup_avatar_fields` idempotent patch'i SP/BP avatar değerlerini boş `User.user_image`'lere taşır (mevcut user_image'i ezmez), sonra avatar kolonlarını DROP eder; `seed_demo_data` artık User.user_image üzerinden yazar (@aliiball)
-- feat(kyb): bank_account_document zorunlu 6. KYB belgesi — `KYB Verification` doctype'ına eklendi; `submit_kyb_documents`'te 6 belgenin tamamı `reqd:1`; status field `read_only:1` (yalnız review akışından değiştirilebilir) (@aliiball)
-- feat(kyb): KYB upload defansif sertleştirme — `upload_kyb_document` endpoint'i: extension whitelist (pdf/jpg/jpeg/png/webp/docx), magic-byte doğrulama (DOCX için ZIP+`[Content_Types].xml`/`word/` kontrolü), 10 MB cap, `is_private=1` attach; rate limit: upload 20/300s, submit_kyb_documents 1/60s (@aliiball)
-- feat(kyb): KYB resubmit/review akışı — Resubmit yalnızca Rejected → Pending'de ve belge field'ı gerçekten değiştiyse çalışır; Verified/Under Review'da no-op (status flicker önlendi); response `resubmitted` + `previous_status` flag'leri döner; `review_kyb` Pending ve Expired aksiyonlarını destekler; Rejected için min 20 karakterlik `rejection_reason` zorunlu (endpoint + doctype validate, defense-in-depth); admin-only `notes` field permlevel 2 ile tarih+kullanıcı damgalı append edilir; `verified_by`/`verified_at` artık "son inceleyen/son inceleme" semantiğine sahip; Pending'e dönüşte sıfırlanır, Verified'da `rejection_reason` temizlenir (@aliiball)
-- feat(kyb): get_kyb_status pre-fill önceliği — Seller Application önce, Seller Profile fallback olarak pre-fill kaynağı; mevcut KYB'lerde eksik alanlar idempotent doldurulur; bildirim `action_url` `/pages/dashboard/kyb.html`'e güncellendi; admin bildirimi resubmit/ilk başvuruyu ayrıştırır, dedup kaldırıldı (her gerçek geçiş ayrı bildirim) (@aliiball)
+- feat(kyb): 4 değişiklik (@aliiball)
+  - bank_account_document zorunlu 6. KYB belgesi — `KYB Verification` doctype'ına eklendi; `submit_kyb_documents`'te 6 belgenin tamamı `reqd:1`; status field `read_only:1` (yalnız review akışından değiştirilebilir)
+  - KYB upload defansif sertleştirme — `upload_kyb_document` endpoint'i: extension whitelist (pdf/jpg/jpeg/png/webp/docx), magic-byte doğrulama (DOCX için ZIP+`[Content_Types].xml`/`word/` kontrolü), 10 MB cap, `is_private=1` attach; rate limit: upload 20/300s, submit_kyb_documents 1/60s
+  - KYB resubmit/review akışı — Resubmit yalnızca Rejected → Pending'de ve belge field'ı gerçekten değiştiyse çalışır; Verified/Under Review'da no-op (status flicker önlendi); response `resubmitted` + `previous_status` flag'leri döner; `review_kyb` Pending ve Expired aksiyonlarını destekler; Rejected için min 20 karakterlik `rejection_reason` zorunlu (endpoint + doctype validate, defense-in-depth); admin-only `notes` field permlevel 2 ile tarih+kullanıcı damgalı append edilir; `verified_by`/`verified_at` artık "son inceleyen/son inceleme" semantiğine sahip; Pending'e dönüşte sıfırlanır, Verified'da `rejection_reason` temizlenir
+  - get_kyb_status pre-fill önceliği — Seller Application önce, Seller Profile fallback olarak pre-fill kaynağı; mevcut KYB'lerde eksik alanlar idempotent doldurulur; bildirim `action_url` `/pages/dashboard/kyb.html`'e güncellendi; admin bildirimi resubmit/ilk başvuruyu ayrıştırır, dedup kaldırıldı (her gerçek geçiş ayrı bildirim)
 - feat(profile): business_name boş gönderilemez doğrulaması — `update_user_profile` artık boş `business_name` ile güncellemeye izin vermiyor (storefront satıcı vitrini için zorunlu alan) (@aliiball)
 - feat(patch): assign_seller_role_legacy — Approved `Seller Application`'ı olup `Seller` rolü eksik kalmış kullanıcılara rolü geriye dönük atayan patch; manuel SQL/admin müdahalesinden doğan permission 403'lerini düzeltir (@aliiball)
 
@@ -172,20 +178,23 @@ Bu surum rc.istoc.com'da test asamasindadir.
 Bu surum rc.istoc.com'da test asamasindadir.
 
 ### Eklendi
-- feat(helpdesk): HD Ticket akışına in-app + e-posta bildirim hattı (yeni ticket → team, ajan yanıtı → müşteri, müşteri yanıtı → ajan/team) (@ahmeetseker)
+- feat(helpdesk): 2 değişiklik (@ahmeetseker)
+  - HD Ticket akışına in-app + e-posta bildirim hattı (yeni ticket → team, ajan yanıtı → müşteri, müşteri yanıtı → ajan/team)
+  - HD Ticket'a related_order/related_rfq/related_listing custom field'ları (idempotent patch) + create_ticket parametre kabulü
 - feat(notify): notify util'ı send_email parametresi + notify_team_members ve notify_assigned_users bulk helper'ları ile genişletildi (@ahmeetseker)
 - feat(dashboard): platform_overview ve seller_overview dashboard'larına HD Ticket KPI widget'ları (Açık Talep / Yanıt Bekleyen) (@ahmeetseker)
 - feat(helpdesk-sla): Helpdesk SLA Policy doctype + 4 default policy + hourly breach checker (HD Ticket Comment dedup'lı in-app + e-posta bildirim) (@ahmeetseker)
 - feat(helpdesk-canned-response): Helpdesk Canned Response doctype + scope (platform/team/personal) + composer entegrasyonu için API (list_for_user, render) (@ahmeetseker)
 - feat(api/public): bulk_update_tickets — toplu durum/öncelik/atama/team değişikliği wrapper'ı (max 200, permission query bazlı per-ticket kontrol) (@ahmeetseker)
 - feat(seller-inquiry): JSON'a reply_message + replied_at + replied_by + buyer alanları + list_my_inquiries / get_inquiry / reply_inquiry / trash_inquiry API'leri + alıcı/satıcı bildirim hattı (@ahmeetseker)
-- feat(helpdesk): HD Ticket'a related_order/related_rfq/related_listing custom field'ları (idempotent patch) + create_ticket parametre kabulü (@ahmeetseker)
 - feat(helpdesk-tags): Helpdesk Ticket Tag + Helpdesk Ticket Tag Link doctype'ları + list/add/remove API'leri (renkli chip desteği) (@ahmeetseker)
 - feat(helpdesk-saved-filter): Helpdesk Saved Filter doctype + list_my/save/delete API'leri (kişisel + ekiple paylaşılabilir görünümler) (@ahmeetseker)
-- feat(crm-seller-scope): 7 Frappe CRM doctype'ına (Lead/Deal/Organization/Contact/Task/Note/Call) `seller` Custom Field + Marketplace Seller rolü için Custom DocPerm + permission_query/has_permission scope (@ahmeetseker)
-- feat(crm-seller-scope): yeni CRM kaydı oluşturulurken creator'ın seller profile'ını otomatik set eden before_insert hook (@ahmeetseker)
-- feat(seller-crm-api): tradehub_core.api.seller_crm.dashboard_kpis (open_leads, pipeline_value, won_this_month, conversion_rate, my_open_tasks) (@ahmeetseker)
-- feat(seller-crm-api): inquiry_to_lead + rfq_to_lead + lead_to_deal köprü API'leri (Mağaza Sorusu/RFQ → CRM Lead, Lead → Deal dönüşümü permission-aware) (@ahmeetseker)
+- feat(crm-seller-scope): 2 değişiklik (@ahmeetseker)
+  - 7 Frappe CRM doctype'ına (Lead/Deal/Organization/Contact/Task/Note/Call) `seller` Custom Field + Marketplace Seller rolü için Custom DocPerm + permission_query/has_permission scope
+  - yeni CRM kaydı oluşturulurken creator'ın seller profile'ını otomatik set eden before_insert hook
+- feat(seller-crm-api): 2 değişiklik (@ahmeetseker)
+  - tradehub_core.api.seller_crm.dashboard_kpis (open_leads, pipeline_value, won_this_month, conversion_rate, my_open_tasks)
+  - inquiry_to_lead + rfq_to_lead + lead_to_deal köprü API'leri (Mağaza Sorusu/RFQ → CRM Lead, Lead → Deal dönüşümü permission-aware)
 
 ## [v1.0.4-rc.24] - 2026-04-21 RC
 
@@ -383,8 +392,9 @@ Bu surum rc.istoc.com'da test asamasindadir.
 Bu surum rc.istoc.com'da test asamasindadir.
 
 ### Eklendi
-- feat(notification): Platform Notification DocType ve notify yardımcısı eklendi (@boraydeger32)
-- feat(notification): API endpoint'leri eklendi (get/mark_read/mark_all_read/unread_count) (@boraydeger32)
+- feat(notification): 2 değişiklik (@boraydeger32)
+  - Platform Notification DocType ve notify yardımcısı eklendi
+  - API endpoint'leri eklendi (get/mark_read/mark_all_read/unread_count)
 
 ### Duzeltildi
 - fix: add_certification_to_workspace patch link validasyon hatası düzeltildi (@boraydeger32)
