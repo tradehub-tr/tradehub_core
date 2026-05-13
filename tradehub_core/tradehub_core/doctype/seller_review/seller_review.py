@@ -27,7 +27,7 @@ class SellerReview(Document):
 			type="review",
 			title=_("Yeni Değerlendirme"),
 			message=_("{0} yıldız değerlendirme aldınız.").format(rating),
-			action_url="/seller/dashboard?tab=reviews",
+			action_url="/review-moderation",
 			reference_doctype="Seller Review",
 			reference_name=self.name,
 		)
@@ -52,7 +52,7 @@ class SellerReview(Document):
 				type="review",
 				title=_("Değerlendirme Gizlendi"),
 				message=_("Bir değerlendirme moderasyon nedeniyle gizlendi."),
-				action_url="/seller/dashboard?tab=reviews",
+				action_url="/review-moderation",
 				reference_doctype="Seller Review",
 				reference_name=self.name,
 			)
@@ -63,7 +63,7 @@ class SellerReview(Document):
 				type="review",
 				title=_("Değerlendirme Yayınlandı"),
 				message=_("Gizlenmiş bir değerlendirme tekrar yayınlandı."),
-				action_url="/seller/dashboard?tab=reviews",
+				action_url="/review-moderation",
 				reference_doctype="Seller Review",
 				reference_name=self.name,
 			)

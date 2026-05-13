@@ -3310,8 +3310,12 @@ def approve_listing(listing_name, action="approve", reject_reason=""):
 
 
 @frappe.whitelist()
-def get_seller_listings(page=1, page_size=20):
-	"""Satıcı: kendi listing'lerini listele (tüm durumlar)."""
+def get_seller_listings(page=1, page_size=20, status=None):
+	"""Satıcı: kendi listing'lerini listele.
+
+	`status`: opsiyonel filtre. "all" veya boş → tüm durumlar. Geçerli
+	değerler: Draft, Pending, Active, Paused, Out of Stock, Rejected.
+	"""
 	seller_profile = frappe.db.get_value(
 		"Admin Seller Profile", {"owner": frappe.session.user}, "name"
 	) or frappe.db.get_value("Admin Seller Profile", {"email": frappe.session.user}, "name")
@@ -3320,10 +3324,14 @@ def get_seller_listings(page=1, page_size=20):
 
 	page = int(page)
 	page_size = int(page_size)
-	total = frappe.db.count("Listing", {"seller_profile": seller_profile})
+	filters = {"seller_profile": seller_profile}
+	if status and status != "all":
+		filters["status"] = status
+
+	total = frappe.db.count("Listing", filters)
 	listings = frappe.get_all(
 		"Listing",
-		filters={"seller_profile": seller_profile},
+		filters=filters,
 		fields=[
 			"name",
 			"title",

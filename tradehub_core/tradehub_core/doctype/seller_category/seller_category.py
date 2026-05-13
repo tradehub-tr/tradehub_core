@@ -55,7 +55,7 @@ class SellerCategory(Document):
 				type="listing",
 				title=_("Kategori Onaylandı"),
 				message=_("{0} kategoriniz onaylandı.").format(category_name),
-				action_url="/seller/dashboard?tab=categories",
+				action_url="/seller-categories",
 				reference_doctype="Seller Category",
 				reference_name=self.name,
 			)
@@ -66,7 +66,7 @@ class SellerCategory(Document):
 				type="listing",
 				title=_("Kategori Reddedildi"),
 				message=_("{0} kategoriniz reddedildi.").format(category_name),
-				action_url="/seller/dashboard?tab=categories",
+				action_url="/seller-categories",
 				reference_doctype="Seller Category",
 				reference_name=self.name,
 			)
