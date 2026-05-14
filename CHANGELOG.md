@@ -1,3 +1,11 @@
+## [v1.0.8-beta.13] - 2026-05-14 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Duzeltildi
+- fix(ci): release workflow printf format string bug (@boraydeger32)
+
+---
 ## [v1.0.8-beta.12] - 2026-05-14 BETA
 
 Bu surum betaistoc.cronbi.com'da test asamasindadir.
