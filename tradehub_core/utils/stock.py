@@ -129,15 +129,16 @@ def reserve_stock_for_order(order_name):
 			)
 		else:
 			# Atomik: yalnız available_qty (= stock_qty - reserved_qty) >= qty ise rezerve et.
-			# Etkilenen satır 0 ise stok yetmemiş demektir.
-			affected = frappe.db.sql(
+			# Etkilenen satır 0 ise stok yetmemiş demektir (race-safe over-sell guard).
+			frappe.db.sql(
 				"""UPDATE `tabListing`
 				   SET reserved_qty = COALESCE(reserved_qty,0) + %s
 				   WHERE name=%s
 				     AND (COALESCE(stock_qty,0) - COALESCE(reserved_qty,0)) >= %s""",
 				(qty, item.listing, qty),
 			)
-			# frappe.db.sql etkilenen satır sayısını döndürmez; cursor.rowcount kullan
+			# frappe.db.sql DML çağrısından dönüş değeri vermez; etkilenen satır
+			# sayısını cursor.rowcount üzerinden oku.
 			rowcount = frappe.db._cursor.rowcount if frappe.db._cursor else 0
 			if rowcount == 0:
 				# Atomik koşul başarısız → stok yetmiyor; tüm transaction'ı rollback için throw

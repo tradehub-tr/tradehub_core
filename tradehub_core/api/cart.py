@@ -271,17 +271,14 @@ def _recompute_order_items_server_side(products):
 		if is_sample:
 			sample_price = float(listing_doc.sample_price or 0)
 			if sample_price <= 0:
-				frappe.throw(
-					_("Bu ürün için numune fiyatı tanımlı değil: {0}").format(listing_name)
-				)
+				frappe.throw(_("Bu ürün için numune fiyatı tanımlı değil: {0}").format(listing_name))
 			server_price = sample_price
 		else:
 			# variant_label hem `variation` hem `variant_label` field adıyla gelebilir
 			variant_label = p.get("variant_label") or p.get("variation") or ""
-			server_price = (
-				_get_variant_price_by_label(listing_name, variant_label)
-				or _get_listing_effective_price(listing_doc)
-			)
+			server_price = _get_variant_price_by_label(
+				listing_name, variant_label
+			) or _get_listing_effective_price(listing_doc)
 			if server_price is None or float(server_price) <= 0:
 				frappe.throw(_("Ürün fiyatı hesaplanamadı: {0}").format(listing_name))
 

@@ -404,9 +404,7 @@ def _execute_custom_script_action(doc, rule):
 	try:
 		from frappe.utils.safe_exec import is_safe_exec_enabled, safe_exec
 	except ImportError:
-		frappe.log_error(
-			message="frappe.utils.safe_exec import edilemedi", title="ECA safe_exec missing"
-		)
+		frappe.log_error(message="frappe.utils.safe_exec import edilemedi", title="ECA safe_exec missing")
 		return
 
 	if not is_safe_exec_enabled():
