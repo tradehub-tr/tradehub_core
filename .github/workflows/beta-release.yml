@@ -128,16 +128,32 @@ jobs:
           printf "${ENTRY}" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
+      - name: __init__.py versiyonunu senkronla (PEP 440)
+        run: |
+          BETA_VERSION=${{ steps.version.outputs.beta_version }}
+          # SemVer -> PEP 440: v1.0.8-beta.10 -> 1.0.8b10, v1.0.8-rc.2 -> 1.0.8rc2
+          PEP_VERSION="${BETA_VERSION#v}"
+          PEP_VERSION="${PEP_VERSION/-beta./b}"
+          PEP_VERSION="${PEP_VERSION/-rc./rc}"
+          sed -i "s/^__version__ = .*/__version__ = \"${PEP_VERSION}\"/" tradehub_core/__init__.py
+          echo "PEP 440 versiyon: ${PEP_VERSION}"
+          grep __version__ tradehub_core/__init__.py
+
       - name: Commit ve tag
         run: |
           BETA_VERSION=${{ steps.version.outputs.beta_version }}
+          if git rev-parse "${BETA_VERSION}" >/dev/null 2>&1; then
+            echo "HATA: Tag ${BETA_VERSION} zaten var" >&2
+            exit 1
+          fi
+          git add tradehub_core/__init__.py
           if [ "${{ steps.changelog.outputs.skip_changelog }}" != "true" ]; then
             git add CHANGELOG.md
-            git commit -m "chore: ${BETA_VERSION} beta changelog guncellendi"
-            git push origin version-15
+            git commit -m "chore: ${BETA_VERSION} beta changelog + __version__"
           else
-            echo "CHANGELOG degismedi (promote-only) — sadece tag atiliyor"
+            git commit -m "chore: ${BETA_VERSION} __version__ senkron (promote-only)"
           fi
+          git push origin version-15
           git tag ${BETA_VERSION}
           git push origin ${BETA_VERSION}
 
