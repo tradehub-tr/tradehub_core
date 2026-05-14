@@ -369,22 +369,59 @@ def _execute_field_update_action(doc, rule):
 
 def _execute_custom_script_action(doc, rule):
 	"""
-	Execute a custom Python script action.
+	Execute a custom Python script action defined on an ECA Rule.
 
-	Args:
-	    doc: The source document.
-	    rule: The ECA Rule with custom script.
+	Güvenlik: önceki implementasyon `exec(script, context)` kullanıyordu —
+	`context` içinde `frappe` modülü ve `doc` mevcut olduğundan rule'a yazma
+	yetkisi olan herhangi bir kullanıcı arbitrary Python (DB, file system,
+	subprocess) çalıştırabilirdi. Yeni davranış:
+
+	1. Sadece System Manager veya Marketplace Admin rolüne sahip kullanıcı
+	   tarafından son düzenlenmiş kurallar çalıştırılır.
+	2. Kod Frappe'nin RestrictedPython tabanlı `safe_exec`'inden geçirilir
+	   (server_script_enabled site config'i zorunlu).
+	3. server_script_enabled aktif değilse no-op + log.
 	"""
 	script = rule.get("custom_script")
 	if not script:
 		return
 
+	# (1) Rule'a son dokunan kullanıcının yetkisini doğrula
+	modified_by = rule.get("modified_by") or rule.get("owner")
+	if modified_by and modified_by != "Administrator":
+		roles = set(frappe.get_roles(modified_by))
+		if not roles & {"System Manager", "Marketplace Admin"}:
+			frappe.log_error(
+				message=(
+					f"ECA Rule {rule.name} custom_script reddedildi: rule sahibi "
+					f"{modified_by} System Manager / Marketplace Admin değil."
+				),
+				title="ECA Rule Script Permission Denied",
+			)
+			return
+
+	# (2) Server scripts global olarak kapalıysa çalıştırma
+	try:
+		from frappe.utils.safe_exec import is_safe_exec_enabled, safe_exec
+	except ImportError:
+		frappe.log_error(message="frappe.utils.safe_exec import edilemedi", title="ECA safe_exec missing")
+		return
+
+	if not is_safe_exec_enabled():
+		frappe.log_error(
+			message=(
+				f"ECA Rule {rule.name} custom_script atlandı: site config'inde "
+				"`server_script_enabled` aktif değil."
+			),
+			title="ECA Rule Script Skipped",
+		)
+		return
+
+	# (3) safe_exec sandbox'ında çalıştır
 	try:
 		context = _get_evaluation_context(doc)
-		context["doc"] = doc  # Provide actual document object
-
-		exec(script, context)
-
+		context["doc"] = doc  # Document instance — safe_exec writable methods kısıtlı
+		safe_exec(script, _globals=context, _locals=None)
 	except Exception as e:
 		frappe.log_error(
 			message=f"Custom script action failed: {e}\nScript: {script[:500]}",

@@ -5,7 +5,7 @@ from frappe import _
 
 from tradehub_core.api._input import safe_int
 from tradehub_core.utils.auth_guards import require_verified_email
-from tradehub_core.utils.stock import reserve_stock_for_order
+from tradehub_core.utils.stock import deduct_stock_for_order, reserve_stock_for_order
 
 # Anında ödeme gerçekleşen yöntemler (ödeme gateway'i onaylar → direkt "Onaylanıyor")
 INSTANT_PAYMENT_METHODS = {"credit_card", "iyzico", "paytr", "stripe"}
@@ -224,6 +224,76 @@ def _get_variant_price_by_label(listing_name, variant_label):
 	if vp and float(vp) > 0:
 		return float(vp)
 	return None
+
+
+def _recompute_order_items_server_side(products):
+	"""
+	Sipariş oluşturulurken her item için fiyatı sunucuda yeniden hesaplar —
+	client'tan gelen ``unit_price`` ve ``total_price`` değerleri kabul edilmez
+	(price tampering koruması).
+
+	Args:
+	    products: Client'ın gönderdiği `[{listing, listing_variant, variation,
+	              variant_label, quantity, ...}, ...]` listesi.
+
+	Returns:
+	    list of dict: [{
+	        "p": orijinal item (kalan field'lar için),
+	        "listing_doc": Listing doc,
+	        "server_unit_price": float,
+	        "server_total_price": float,
+	        "quantity": int,
+	    }, ...]
+
+	Raises:
+	    frappe.ValidationError: Listing bulunamazsa, quantity geçersizse veya
+	                            fiyat hesaplanamazsa.
+	"""
+	recomputed = []
+	for p in products:
+		listing_name = p.get("listing")
+		if not listing_name or not frappe.db.exists("Listing", listing_name):
+			frappe.throw(_("Geçersiz ürün: {0}").format(listing_name or "(boş)"), frappe.DoesNotExistError)
+
+		try:
+			qty = int(p.get("quantity", 1))
+		except (TypeError, ValueError):
+			frappe.throw(_("Geçersiz miktar"))
+		if qty < 1:
+			frappe.throw(_("Geçersiz miktar"))
+
+		listing_doc = frappe.get_cached_doc("Listing", listing_name)
+
+		# Sample (numune) satırı kontrolü — frontend payload'da `is_sample`
+		# truthy ise fiyat `listing.sample_price`'tan çekilir. Aksi halde
+		# selling_price üzerinden hesaplanır ve numune ~5x overcharge olur.
+		is_sample = bool(p.get("is_sample"))
+		if is_sample:
+			sample_price = float(listing_doc.sample_price or 0)
+			if sample_price <= 0:
+				frappe.throw(_("Bu ürün için numune fiyatı tanımlı değil: {0}").format(listing_name))
+			server_price = sample_price
+		else:
+			# variant_label hem `variation` hem `variant_label` field adıyla gelebilir
+			variant_label = p.get("variant_label") or p.get("variation") or ""
+			server_price = _get_variant_price_by_label(
+				listing_name, variant_label
+			) or _get_listing_effective_price(listing_doc)
+			if server_price is None or float(server_price) <= 0:
+				frappe.throw(_("Ürün fiyatı hesaplanamadı: {0}").format(listing_name))
+
+		unit_price = round(float(server_price), 2)
+		recomputed.append(
+			{
+				"p": p,
+				"listing_doc": listing_doc,
+				"server_unit_price": unit_price,
+				"server_total_price": round(unit_price * qty, 2),
+				"quantity": qty,
+				"is_sample": is_sample,
+			}
+		)
+	return recomputed
 
 
 def _get_discount_factor(listing):
@@ -1100,35 +1170,46 @@ def create_order(
 	if pm not in (INSTANT_PAYMENT_METHODS | DEFERRED_PAYMENT_METHODS):
 		frappe.throw(_("Geçersiz ödeme yöntemi"))
 
-	order_count = len([o for o in orders_data if o.get("products")])
-
-	# Kupon indirimi tüm siparişlerin toplam tutarını aşamaz (HATA 26).
-	# Aksi halde Order.coupon_discount field'ı gerçek dışı bir sayı (örn. 100000)
-	# olarak DB'ye yazılır; total max(0,...) ile clamp'lense de muhasebe/raporlamada
-	# tutarsızlık doğar.
-	total_payable = 0.0
+	# Geçiş 1: Tüm siparişlerin item fiyatlarını sunucu-tarafında yeniden hesapla
+	# (price tampering korumasi). Client'ın gönderdiği unit_price/total_price/subtotal
+	# DİKKATE ALINMAZ — gerçek fiyat listing/variant'tan üretilir.
+	prepared_orders = []
 	for o in orders_data:
 		if not o.get("products"):
 			continue
-		_sub = sum(float(p.get("total_price", 0)) for p in o["products"])
-		_ship = float(o.get("shipping_fee", 0))
-		total_payable += _sub + _ship
+		recomputed_items = _recompute_order_items_server_side(o["products"])
+		server_subtotal = sum(it["server_total_price"] for it in recomputed_items)
+		server_shipping = float(o.get("shipping_fee", 0))
+		prepared_orders.append(
+			{
+				"order_data": o,
+				"recomputed": recomputed_items,
+				"subtotal": server_subtotal,
+				"shipping_fee": server_shipping,
+			}
+		)
+
+	order_count = len(prepared_orders)
+
+	# Kupon indirimi tüm siparişlerin sunucu-recompute total'ını aşamaz.
+	total_payable = sum(po["subtotal"] + po["shipping_fee"] for po in prepared_orders)
 	coupon_discount_val = min(float(coupon_discount or 0), total_payable)
 	# Kupon indirimini siparişlere eşit dağıt
 	per_order_coupon_discount = round(coupon_discount_val / order_count, 2) if order_count > 0 else 0
 
 	created_orders = []
 
-	for order_data in orders_data:
+	for po in prepared_orders:
+		order_data = po["order_data"]
 		seller_id = order_data.get("seller_id", "")
 		products = order_data.get("products", [])
-		shipping_fee = float(order_data.get("shipping_fee", 0))
+		shipping_fee = po["shipping_fee"]
 		currency = order_data.get("currency", "USD")
 
 		if not products:
 			continue
 
-		subtotal = sum(float(p.get("total_price", 0)) for p in products)
+		subtotal = po["subtotal"]
 		total = subtotal + shipping_fee - per_order_coupon_discount
 
 		if not seller_id or not frappe.db.exists("Admin Seller Profile", seller_id):
@@ -1171,28 +1252,35 @@ def create_order(
 			order_doc.billing_district = billing_info["district"]
 			order_doc.billing_postal_code = billing_info["postal_code"]
 
-		for p in products:
+		# Item append: unit_price/total_price/quantity sunucu-recompute'tan gelir,
+		# client değerleri kullanılmaz.
+		for it in po["recomputed"]:
+			p = it["p"]
 			# listing_variant artık Data alanı — sentetik ID'leri (LST-XXXXX-Tip-Değer) olduğu gibi sakla
 			lv = p.get("listing_variant") or None
 			order_doc.append(
 				"items",
 				{
-					"listing": p.get("listing")
-					if p.get("listing") and frappe.db.exists("Listing", p.get("listing"))
-					else None,
+					"listing": p.get("listing"),
 					"listing_title": p.get("listing_title", ""),
 					"listing_variant": lv,
 					"variation": p.get("variation", ""),
-					"unit_price": float(p.get("unit_price", 0)),
-					"quantity": int(p.get("quantity", 1)),
-					"total_price": float(p.get("total_price", 0)),
+					"unit_price": it["server_unit_price"],
+					"quantity": it["quantity"],
+					"total_price": it["server_total_price"],
 					"image": p.get("image", ""),
+					"is_sample": 1 if it["is_sample"] else 0,
 				},
 			)
 
 		order_doc.insert(ignore_permissions=True)
 		# Stok rezervasyonu — sipariş oluşturulduğunda listing reserved_qty artır
 		reserve_stock_for_order(order_doc.name)
+		# Instant payment (kredi kartı/gateway): ödeme zaten alındı → stoku
+		# fiziksel olarak da düş. Aksi halde reserved_qty sonsuza dek şişer
+		# (havalede submit_remittance bekler ama instant'ta o akış yok).
+		if pm in INSTANT_PAYMENT_METHODS:
+			deduct_stock_for_order(order_doc.name)
 
 		# Kredi kartı/gateway ödemesi ise Payment Transaction kaydı oluştur
 		if pm in INSTANT_PAYMENT_METHODS:

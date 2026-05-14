@@ -9,6 +9,7 @@
   "listing_title",
   "listing_variant",
   "variation",
+  "is_sample",
   "column_break_1",
   "unit_price",
   "quantity",
@@ -67,6 +68,13 @@
    "fieldname": "image",
    "fieldtype": "Attach Image",
    "label": "Görsel"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_sample",
+   "fieldtype": "Check",
+   "label": "Numune mi?",
+   "description": "Sample (numune) sipariş satırı — fiyat sunucu tarafında listing.sample_price ile hesaplanır."
   },
   {
    "default": "0",
