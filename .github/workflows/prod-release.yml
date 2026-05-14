@@ -7,10 +7,12 @@ on:
   workflow_dispatch:
     inputs:
       version_type:
-        description: 'Versiyon tipi'
+        description: 'Versiyon tipi (auto: commit''lerden otomatik tespit; manuel override icin patch/minor/major)'
         required: true
         type: choice
+        default: auto
         options:
+          - auto
           - patch
           - minor
           - major
@@ -33,13 +35,49 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
+      - name: Bump tipini belirle (auto / manuel)
+        id: bump
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          INPUT="${{ inputs.version_type }}"
+          if [ "$INPUT" != "auto" ]; then
+            echo "Manuel bump: $INPUT"
+            echo "type=$INPUT" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          # Auto: PREV...HEAD araligindaki commit'leri Conventional Commits patternleriyle tara
+          PREV=$(git tag --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
+          PREV=${PREV:-"v0.0.0"}
+          if ! git rev-parse "${PREV}" >/dev/null 2>&1; then
+            echo "PREV (${PREV}) yok, fallback: patch"
+            echo "type=patch" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          SUBJECTS=$(gh api "repos/${{ github.repository }}/compare/${PREV}...HEAD" --jq '.commits[].commit.message')
+          BUMP="patch"
+          if echo "$SUBJECTS" | grep -qE "^[a-z]+(\([^)]+\))?!:"; then
+            BUMP="major"
+            echo "Tetik: ! isareti (BREAKING CHANGE)"
+          elif echo "$SUBJECTS" | grep -qE "^BREAKING[ -]CHANGE:"; then
+            BUMP="major"
+            echo "Tetik: BREAKING CHANGE footer"
+          elif echo "$SUBJECTS" | grep -qE "^feat(\([^)]+\))?:"; then
+            BUMP="minor"
+            echo "Tetik: feat: pattern"
+          else
+            echo "Conventional Commit pattern yok, fallback: patch"
+          fi
+          echo "Otomatik tespit: $BUMP"
+          echo "type=$BUMP" >> $GITHUB_OUTPUT
+
       - name: Prod versiyon belirle
         id: version
         run: |
           LAST=$(git tag --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
           LAST=${LAST:-"v1.0.0"}
           IFS='.' read -r MAJOR MINOR PATCH <<< "${LAST#v}"
-          case "${{ inputs.version_type }}" in
+          case "${{ steps.bump.outputs.type }}" in
             major) MAJOR=$((MAJOR+1)); MINOR=0; PATCH=0 ;;
             minor) MINOR=$((MINOR+1)); PATCH=0 ;;
             patch) PATCH=$((PATCH+1)) ;;
@@ -142,16 +180,30 @@ jobs:
           printf "${ENTRY}" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
+      - name: __init__.py versiyonunu senkronla
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          # PROD tag'leri pre-release suffix tasimaz (v1.2.0), PEP 440 = SemVer
+          PEP_VERSION="${VERSION#v}"
+          sed -i "s/^__version__ = .*/__version__ = \"${PEP_VERSION}\"/" tradehub_core/__init__.py
+          echo "Versiyon: ${PEP_VERSION}"
+          grep __version__ tradehub_core/__init__.py
+
       - name: Commit ve tag
         run: |
           VERSION=${{ steps.version.outputs.version }}
+          if git rev-parse "${VERSION}" >/dev/null 2>&1; then
+            echo "HATA: Tag ${VERSION} zaten var" >&2
+            exit 1
+          fi
+          git add tradehub_core/__init__.py
           if [ "${{ steps.changelog.outputs.skip_changelog }}" != "true" ]; then
             git add CHANGELOG.md
-            git commit -m "chore: ${VERSION} prod changelog guncellendi"
-            git push origin version-15
+            git commit -m "chore: ${VERSION} prod changelog + __version__"
           else
-            echo "CHANGELOG degismedi (promote-only) — sadece tag atiliyor"
+            git commit -m "chore: ${VERSION} __version__ senkron (promote-only)"
           fi
+          git push origin version-15
           git tag ${VERSION}
           git push origin ${VERSION}
 
