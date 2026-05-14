@@ -121,12 +121,12 @@ jobs:
           if [ -n "$REFACTORS" ]; then ENTRY+="### Degistirildi\n${REFACTORS}\n\n"; fi
           ENTRY+="---\n"
 
-          printf "${ENTRY}" > /tmp/new_entry.md
+          printf '%b' "${ENTRY}" > /tmp/new_entry.md
           cat /tmp/new_entry.md CHANGELOG.md > /tmp/merged.md
           mv /tmp/merged.md CHANGELOG.md
 
           echo "entry<<EOF" >> $GITHUB_OUTPUT
-          printf "${ENTRY}" >> $GITHUB_OUTPUT
+          printf '%b' "${ENTRY}" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Commit ve tag
