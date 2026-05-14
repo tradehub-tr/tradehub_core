@@ -1,3 +1,17 @@
+## [v1.0.8-beta.12] - 2026-05-14 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Duzeltildi
+- fix(security): create_order price tampering + atomik stok flow + ECA RCE engeli (@boraydeger32)
+  - api/cart.py: _recompute_order_items_server_side helper — client unit_price/total_price reddedilir, server listing/variant fiyatından recompute eder. is_sample flag'i listing.sample_price'a yönlendirir (numune siparişlerin selling_price ile faturalandığı 5x overcharge regresyonu kapatıldı). create_order 2-pass (önce tüm recompute, sonra Order doc create). Instant payment dalında deduct_stock_for_order çağrısı eklendi — kredi kartı/gateway ödemesinde reserved_qty kalıcı şişme + refund hayalet stok engeli.
+  - api/order.py: cancel_order Order.stock_deducted'a göre doğru restore yolunu seçer (=1 ise restore_stock_for_refund stock_qty geri, =0 ise release_stock_for_order sadece reserved azalt). Eski davranış: havale dekontu sonrası iptal kalıcı stok kaybına yol açıyordu. Refund-approve dalındaki ad-hoc UPDATE bloğu silinip restore_stock_for_refund helper'ına yönlendirildi — variant_stock ve _recalculate_available + low-stock alert artık tutarlı.
+  - utils/stock.py: reserve/release/deduct atomik UPDATE'lere çevrildi (COALESCE/GREATEST). reserve_stock_for_order tek deyimde `WHERE (stock_qty - reserved_qty) >= qty` ile race altında over-sell engeller; cursor.rowcount=0 → "Yetersiz stok" throw (paralel 3 istekten 2 başarılı + 1 reject). deduct_stock_for_order Order.stock_deducted flag'iyle idempotent (çift çağrı no-op). restore_stock_for_refund yeni — flag'e göre doğru yöne delta uygular. _lock_listing_row (SELECT ... FOR UPDATE) yardımcı eklendi.
+  - eca/dispatcher.py: _execute_custom_script_action `exec(script, context)` yerine 3-katmanlı koruma — (1) rule'a son dokunan kullanıcının System Manager / Marketplace Admin rolü doğrulaması, (2) site config'inde server_script_enabled aktif değilse no-op, (3) Frappe RestrictedPython tabanlı safe_exec sandbox. Eski exec, ECA Rule write yetkisi alabilen herhangi bir rolün arbitrary Python (DB drop, file system, subprocess) yürütmesine açıktı; doğrulandı: DROP TABLE tabUser engellendi, tablo intact.
+  - order.json: yeni stock_deducted (Check, default 0, read_only). Stok düşürme idempotency'sini ve refund/cancel yön kararını taşır.
+  - order_item.json: yeni is_sample (Check). Sample (numune) satırının fiyat hesabını listing.sample_price'a yönlendirir.
+
+---
 ## [v1.0.8-beta.10] - 2026-05-13 BETA
 
 Bu surum betaistoc.cronbi.com'da test asamasindadir.
