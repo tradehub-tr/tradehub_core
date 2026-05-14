@@ -37,6 +37,7 @@
 		"remittance_amount",
 		"remittance_sender",
 		"receipt_url",
+		"stock_deducted",
 		"tab_billing",
 		"billing_section",
 		"billing_type",
@@ -239,6 +240,14 @@
 			"fieldname": "receipt_url",
 			"fieldtype": "Attach",
 			"label": "Dekont"
+		},
+		{
+			"default": "0",
+			"fieldname": "stock_deducted",
+			"fieldtype": "Check",
+			"label": "Stok düşüldü",
+			"read_only": 1,
+			"description": "Stock_qty fiziksel olarak düşüldü mü? Instant payment'ta True; havalede submit_remittance ile True olur. Refund/cancel akışında geri yükleme yönünü belirler."
 		},
 		{
 			"fieldname": "tab_billing",

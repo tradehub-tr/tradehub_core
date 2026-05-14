@@ -253,11 +253,26 @@ def cancel_order(order_number, reason=None):
 		en_status = STATUS_TR_TO_EN.get(order.status, order.status)
 		frappe.throw(_("Cannot cancel an order with status: {0}").format(en_status))
 
+	# Stok yön kararını save'den ÖNCE yap — save sırasında trigger'lar
+	# stock_deducted flag'ini değiştirebilir.
+	was_deducted = bool(frappe.db.get_value("Order", order.name, "stock_deducted") or 0)
+
 	order.status = "İptal Edildi"
 	order.save(ignore_permissions=True)
 
-	# Stok rezervasyonunu kaldır
-	release_stock_for_order(order.name)
+	# Stoku doğru yönde geri yükle:
+	# - stock_deducted=1 (havale dekontu yüklenmiş veya instant pay): stock_qty
+	#   fiziksel olarak düşülmüş → restore_stock_for_refund ile geri ekle.
+	# - stock_deducted=0 (henüz rezervasyon aşamasında): release_stock_for_order
+	#   ile reserved_qty'i azalt (stock_qty zaten düşmemişti).
+	# Bunu ayırmazsak: havale akışında buyer dekont sonrası cancel'da
+	# stock_qty düşük kalır + reserved_qty da düşürülür → kalıcı stok kaybı.
+	if was_deducted:
+		from tradehub_core.utils.stock import restore_stock_for_refund
+
+		restore_stock_for_refund(order.name)
+	else:
+		release_stock_for_order(order.name)
 	frappe.db.commit()
 
 	# Satıcıya bildirim
@@ -1011,35 +1026,14 @@ def seller_handle_refund(order_number, action):
 		update_transaction_status(
 			order_number, buyer_email, tx_status, transaction_type="İade", confirmed_by=user
 		)
-	# İade onaylandıysa stok geri yükle (kargo sonrası stok düşürülmüştü)
+	# İade onaylandıysa stok geri yükle — Order.stock_deducted flag'ine göre
+	# doğru yöne uygula (instant pay/remittance sonrası fiziksel stok geri,
+	# henüz remittance yoksa sadece rezervasyondan düş). Bu helper variant_stock
+	# güncellemesi ve _recalculate_available + low-stock alert işini de yapar.
 	if new_status == "Approved":
-		# reserve_stock_for_order stok eklemez, sadece reserved_qty artırır
-		# İade durumunda stock_qty'yi geri artırmamız gerekiyor
-		items = frappe.get_all(
-			"Order Item",
-			filters={"parent": order_number},
-			fields=["listing", "quantity"],
-		)
-		for item in items:
-			if not item.listing:
-				continue
-			from frappe.utils import flt
+		from tradehub_core.utils.stock import restore_stock_for_refund
 
-			listing = frappe.db.get_value(
-				"Listing",
-				item.listing,
-				["track_inventory", "stock_qty"],
-				as_dict=True,
-			)
-			if not listing or not listing.track_inventory:
-				continue
-			new_stock = flt(listing.stock_qty) + flt(item.quantity)
-			frappe.db.set_value("Listing", item.listing, "stock_qty", new_stock)
-			# available_qty'yi yeniden hesapla
-			vals = frappe.db.get_value("Listing", item.listing, ["stock_qty", "reserved_qty"], as_dict=True)
-			if vals:
-				available = max(0, flt(vals.stock_qty) - flt(vals.reserved_qty))
-				frappe.db.set_value("Listing", item.listing, "available_qty", available)
+		restore_stock_for_refund(order_number)
 
 	frappe.db.commit()
 
