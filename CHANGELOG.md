@@ -1,3 +1,14 @@
+## [v1.0.9-beta.1] - 2026-05-15 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Eklendi
+- feat(changelog): v1.0.10-beta.1 sürüm notları eklendi (@ahmeetseker)
+
+### Duzeltildi
+- fix(release): son tag bilgisini güncelledi ve boş guard sorununu çözdü (@ahmeetseker)
+
+---
 ## [v1.0.10-beta.1] - 2026-05-15 BETA
 
 > Geriye dönük belgeleme — daha önce CHANGELOG'a girmemiş backend feature'ların kapsamı. Sürüm tag'i alınmamış DocType ve API katmanları bu entry altında toplandı.
