@@ -1,3 +1,102 @@
+## [v1.0.10-beta.1] - 2026-05-15 BETA
+
+> Geriye dönük belgeleme — daha önce CHANGELOG'a girmemiş backend feature'ların kapsamı. Sürüm tag'i alınmamış DocType ve API katmanları bu entry altında toplandı.
+
+### Eklendi
+- feat(favorites): Buyer Favorite & Wishlist DocType'ları (`buyer_favorite_item`, `buyer_favorite_list`) + `api/favorites.py` (~438 satır, list/add/remove/list_favorite_items endpoint'leri) (@boraydeger32)
+- feat(reviews-engine): Review risk scoring + sentiment analysis altyapısı — `review_risk_factor`, `review_risk_score`, `review_sentiment_analysis`, `review_translation`, `review_abuse_report`, `reviewer_reputation`, `review_analytics_snapshot` DocType'ları; `api/rating_engine.py`, `api/sentiment.py`, `api/risk.py` (@boraydeger32)
+- feat(catalog): Product Family & Attribute Set mimarisi — `product_family`, `product_family_attribute`, `product_type`, `product_type_required_attribute`, `attribute_set`, `attribute_set_group`, `attribute_set_item`, `attribute_set_category_map` DocType'ları (marka/varyant/aile/attribute + satıcı izolasyonu) (@boraydeger32)
+- feat(promotions): Coupon DocType — kupon/promosyon altyapısı (@TurksabYonetim)
+- feat(email-preferences): E-posta tercih altyapısı — `email_preference_category`, `email_preference_item`, `user_email_preference` DocType'ları + `api/v1/email_preferences.py` (opt-out/abonelik yönetimi) (@ahmeetseker)
+- feat(mobile): Mobil API token + push notification altyapısı — `mobile_api_token`, `push_subscription`, `push_notification_settings` DocType'ları (@boraydeger32)
+- feat(moderation): Görsel moderasyon altyapısı — `image_moderation_log` + `moderation_rule` DocType'ları (@boraydeger32)
+- feat(addresses): Buyer Address DocType (`addresses`) + `api/seller_addresses.py` (~372 satır, satıcı adres CRUD); kargo yöntemi DocType'ları (`shipping_method`, `shipping_method_item`) (@boraydeger32)
+- feat(ab-testing): Listing A/B test altyapısı — `ab_test_variant`, `listing_ab_test` DocType'ları (@boraydeger32)
+- feat(dashboard): Dashboard widget engine detayları — `dashboard_widget` + `dashboard_widget_role` DocType'ları (config tabanlı widget engine, 2 dashboard + 25 hazır widget) (@aliiball)
+
+---
+## [v1.0.9] - 2026-05-15 PROD
+
+Bu surum canliya alindi. v1.0.8 PROD'dan bu yana beta + RC asamasinda test edilen tum feat/fix dahildir.
+
+### Eklendi
+- feat(changelog): commit body bullet'larını subject altında nested gösterildi (@ahmeetseker)
+- feat: update auth and listing APIs to enhance seller profile management and listing visibility (@boraydeger32)
+- feat(header-notice): 5 değişiklik (@ahmeetseker)
+  - add Header Notice DocType schema and controller
+  - add migration patch for Header Notice
+  - add public API endpoint with 60s cache
+  - wire cache invalidation via doc_events hooks
+  - add display_mode settings + per-notice background_color
+
+### Duzeltildi
+- fix(ci): release workflow printf format string bug (@boraydeger32)
+- fix(security): create_order price tampering + atomik stok flow + ECA RCE engeli (@boraydeger32)
+  - api/cart.py: _recompute_order_items_server_side helper — client unit_price/total_price reddedilir, server listing/variant fiyatından recompute eder. is_sample flag'i listing.sample_price'a yönlendirir (numune siparişlerin selling_price ile faturalandığı 5x overcharge regresyonu kapatıldı). create_order 2-pass (önce tüm recompute, sonra Order doc create). Instant payment dalında deduct_stock_for_order çağrısı eklendi — kredi kartı/gateway ödemesinde reserved_qty kalıcı şişme + refund hayalet stok engeli.
+  - api/order.py: cancel_order Order.stock_deducted'a göre doğru restore yolunu seçer (=1 ise restore_stock_for_refund stock_qty geri, =0 ise release_stock_for_order sadece reserved azalt). Eski davranış: havale dekontu sonrası iptal kalıcı stok kaybına yol açıyordu. Refund-approve dalındaki ad-hoc UPDATE bloğu silinip restore_stock_for_refund helper'ına yönlendirildi — variant_stock ve _recalculate_available + low-stock alert artık tutarlı.
+  - utils/stock.py: reserve/release/deduct atomik UPDATE'lere çevrildi (COALESCE/GREATEST). reserve_stock_for_order tek deyimde `WHERE (stock_qty - reserved_qty) >= qty` ile race altında over-sell engeller; cursor.rowcount=0 → "Yetersiz stok" throw (paralel 3 istekten 2 başarılı + 1 reject). deduct_stock_for_order Order.stock_deducted flag'iyle idempotent (çift çağrı no-op). restore_stock_for_refund yeni — flag'e göre doğru yöne delta uygular. _lock_listing_row (SELECT ... FOR UPDATE) yardımcı eklendi.
+  - eca/dispatcher.py: _execute_custom_script_action `exec(script, context)` yerine 3-katmanlı koruma — (1) rule'a son dokunan kullanıcının System Manager / Marketplace Admin rolü doğrulaması, (2) site config'inde server_script_enabled aktif değilse no-op, (3) Frappe RestrictedPython tabanlı safe_exec sandbox. Eski exec, ECA Rule write yetkisi alabilen herhangi bir rolün arbitrary Python (DB drop, file system, subprocess) yürütmesine açıktı; doğrulandı: DROP TABLE tabUser engellendi, tablo intact.
+  - order.json: yeni stock_deducted (Check, default 0, read_only). Stok düşürme idempotency'sini ve refund/cancel yön kararını taşır.
+  - order_item.json: yeni is_sample (Check). Sample (numune) satırının fiyat hesabını listing.sample_price'a yönlendirir.
+- fix(category): search_platform_categories'de `_` shadow UnboundLocalError'unu gider (@boraydeger32)
+  - Loop değişkeni `_depth` olarak yeniden adlandırıldı; gerekçe inline yorumla belgelendi.
+  - Aynı dosyada Ruff auto-format: get_all `fields=[...]` array'i one-per-line hizalandı.
+- fix(notifications): satıcı bildirimlerinde bozuk action_url'leri admin-panel route'larına yönlendir (@boraydeger32)
+  - seller_category.py: kategori onay/red → /seller-categories (2 yer)
+  - listing_review.py: ürün yorumu moderasyon/yayın/gizle → /review-moderation (3 yer; buyer'a giden /account/reviews bildirimleri dokunulmadı)
+  - seller_review.py: satıcı değerlendirmesi yeni/gizle/yayınla → /review-moderation (3 yer)
+  - seller_application.py: başvuru alındı/onaylandı/reddedildi → /dashboard (3 yer; cross-app navigation karmaşası olmasın diye genel landing)
+- fix(release-workflows): commit body bullet'larını subject altında nested göster (@ahmeetseker)
+- fix(release-workflows): commit body bullet'larini CHANGELOG'a dahil et (@ahmeetseker)
+- fix(release): commit mesajındaki boşlukları temizlendi (@ahmeetseker)
+- fix(header-notice): 3 değişiklik (@ahmeetseker)
+  - use tab indentation and add search_index for filter fields
+  - commit after setUpClass cleanup to ensure test isolation
+  - drop auto-downgrade so storefront uses admin's chosen mode
+- fix(api): API yanıtında hata mesajı düzeltildi (@ahmeetseker)
+
+---
+## [v1.0.8-rc.1] - 2026-05-15 RC
+
+Bu surum onay asamasindadir. v1.0.8 PROD'dan bu yana beta tag'lerinde test edilen tum feat/fix bu RC entry'sinde toplanmistir.
+
+### Eklendi
+- feat(changelog): commit body bullet'larını subject altında nested gösterildi (@ahmeetseker)
+- feat: update auth and listing APIs to enhance seller profile management and listing visibility (@boraydeger32)
+- feat(header-notice): 5 değişiklik (@ahmeetseker)
+  - add Header Notice DocType schema and controller
+  - add migration patch for Header Notice
+  - add public API endpoint with 60s cache
+  - wire cache invalidation via doc_events hooks
+  - add display_mode settings + per-notice background_color
+
+### Duzeltildi
+- fix(ci): release workflow printf format string bug (@boraydeger32)
+- fix(security): create_order price tampering + atomik stok flow + ECA RCE engeli (@boraydeger32)
+  - api/cart.py: _recompute_order_items_server_side helper — client unit_price/total_price reddedilir, server listing/variant fiyatından recompute eder. is_sample flag'i listing.sample_price'a yönlendirir (numune siparişlerin selling_price ile faturalandığı 5x overcharge regresyonu kapatıldı). create_order 2-pass (önce tüm recompute, sonra Order doc create). Instant payment dalında deduct_stock_for_order çağrısı eklendi — kredi kartı/gateway ödemesinde reserved_qty kalıcı şişme + refund hayalet stok engeli.
+  - api/order.py: cancel_order Order.stock_deducted'a göre doğru restore yolunu seçer (=1 ise restore_stock_for_refund stock_qty geri, =0 ise release_stock_for_order sadece reserved azalt). Eski davranış: havale dekontu sonrası iptal kalıcı stok kaybına yol açıyordu. Refund-approve dalındaki ad-hoc UPDATE bloğu silinip restore_stock_for_refund helper'ına yönlendirildi — variant_stock ve _recalculate_available + low-stock alert artık tutarlı.
+  - utils/stock.py: reserve/release/deduct atomik UPDATE'lere çevrildi (COALESCE/GREATEST). reserve_stock_for_order tek deyimde `WHERE (stock_qty - reserved_qty) >= qty` ile race altında over-sell engeller; cursor.rowcount=0 → "Yetersiz stok" throw (paralel 3 istekten 2 başarılı + 1 reject). deduct_stock_for_order Order.stock_deducted flag'iyle idempotent (çift çağrı no-op). restore_stock_for_refund yeni — flag'e göre doğru yöne delta uygular. _lock_listing_row (SELECT ... FOR UPDATE) yardımcı eklendi.
+  - eca/dispatcher.py: _execute_custom_script_action `exec(script, context)` yerine 3-katmanlı koruma — (1) rule'a son dokunan kullanıcının System Manager / Marketplace Admin rolü doğrulaması, (2) site config'inde server_script_enabled aktif değilse no-op, (3) Frappe RestrictedPython tabanlı safe_exec sandbox. Eski exec, ECA Rule write yetkisi alabilen herhangi bir rolün arbitrary Python (DB drop, file system, subprocess) yürütmesine açıktı; doğrulandı: DROP TABLE tabUser engellendi, tablo intact.
+  - order.json: yeni stock_deducted (Check, default 0, read_only). Stok düşürme idempotency'sini ve refund/cancel yön kararını taşır.
+  - order_item.json: yeni is_sample (Check). Sample (numune) satırının fiyat hesabını listing.sample_price'a yönlendirir.
+- fix(category): search_platform_categories'de `_` shadow UnboundLocalError'unu gider (@boraydeger32)
+  - Loop değişkeni `_depth` olarak yeniden adlandırıldı; gerekçe inline yorumla belgelendi.
+  - Aynı dosyada Ruff auto-format: get_all `fields=[...]` array'i one-per-line hizalandı.
+- fix(notifications): satıcı bildirimlerinde bozuk action_url'leri admin-panel route'larına yönlendir (@boraydeger32)
+  - seller_category.py: kategori onay/red → /seller-categories (2 yer)
+  - listing_review.py: ürün yorumu moderasyon/yayın/gizle → /review-moderation (3 yer; buyer'a giden /account/reviews bildirimleri dokunulmadı)
+  - seller_review.py: satıcı değerlendirmesi yeni/gizle/yayınla → /review-moderation (3 yer)
+  - seller_application.py: başvuru alındı/onaylandı/reddedildi → /dashboard (3 yer; cross-app navigation karmaşası olmasın diye genel landing)
+- fix(release-workflows): commit body bullet'larını subject altında nested göster (@ahmeetseker)
+- fix(release-workflows): commit body bullet'larini CHANGELOG'a dahil et (@ahmeetseker)
+- fix(release): commit mesajındaki boşlukları temizlendi (@ahmeetseker)
+- fix(header-notice): 3 değişiklik (@ahmeetseker)
+  - use tab indentation and add search_index for filter fields
+  - commit after setUpClass cleanup to ensure test isolation
+  - drop auto-downgrade so storefront uses admin's chosen mode
+- fix(api): API yanıtında hata mesajı düzeltildi (@ahmeetseker)
+
+---
 ## [v1.0.8-beta.13] - 2026-05-14 BETA
 
 Bu surum betaistoc.cronbi.com'da test asamasindadir.

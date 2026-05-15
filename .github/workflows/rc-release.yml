@@ -32,9 +32,11 @@ jobs:
           RC_COUNT=$(git tag --sort=-v:refname | grep "^${LAST_PROD}-rc\." | wc -l)
           RC_NUM=$((RC_COUNT + 1))
           RC_VERSION="${LAST_PROD}-rc.${RC_NUM}"
-          # PREV = en son var olan tag (RC_VERSION henuz olusmadigi icin head -1 bir onceki tag'i verir)
-          PREV=$(git tag --sort=-v:refname | grep -v "^${RC_VERSION}$" | head -1)
-          PREV=${PREV:-${LAST_PROD}}
+          # PREV = son PROD tag — son release cycle'dan bu yana biriken TUM feat/fix'leri
+          # (beta tag'lerinde toplananlar dahil) RC CHANGELOG entry'sine yazar.
+          # Eski mantik (en son tag) BETA->RC promote'unda PREV=son_beta secip arada
+          # commit bulamadigi icin empty-guard'a takiliyordu.
+          PREV=${LAST_PROD}
           echo "rc_version=${RC_VERSION}" >> $GITHUB_OUTPUT
           echo "last_prod=${LAST_PROD}" >> $GITHUB_OUTPUT
           echo "prev=${PREV}" >> $GITHUB_OUTPUT
