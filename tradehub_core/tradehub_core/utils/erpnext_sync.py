@@ -49,10 +49,12 @@ from frappe.utils import cint, flt, getdate, now_datetime, today
 # Cache key prefix for sync data
 SYNC_CACHE_PREFIX = "trade_hub:erpnext_sync"
 
-# ERPNext DocTypes we sync with
+# ERPNext DocTypes we sync with — Sprint 2 sonrası User Profile birleşmesi:
+# Customer ↔ User Profile (alıcı kullanıcı, hibrit olsa bile)
+# Supplier ↔ Admin Seller Profile (mağaza entity — Sprint 2'de bu DocType birleşme dışında kaldı)
 ERPNEXT_DOCTYPES = {
-	"Supplier": "Seller Profile",
-	"Customer": "Buyer Profile",
+	"Supplier": "Admin Seller Profile",
+	"Customer": "User Profile",
 	"Item": "SKU Product",
 	"Sales Order": "Order",
 }
@@ -203,10 +205,10 @@ def sync_seller_to_supplier(
 		)
 
 	# Get seller document
-	if not frappe.db.exists("Seller Profile", seller_name):
+	if not frappe.db.exists("Admin Seller Profile", seller_name):
 		frappe.throw(_("Seller Profile {0} not found").format(seller_name), frappe.DoesNotExistError)
 
-	seller = frappe.get_doc("Seller Profile", seller_name)
+	seller = frappe.get_doc("Admin Seller Profile", seller_name)
 
 	# Check if sync is enabled
 	if not seller.sync_with_erpnext:
@@ -256,7 +258,7 @@ def sync_seller_to_supplier(
 
 		# Update seller with supplier link
 		frappe.db.set_value(
-			"Seller Profile",
+			"Admin Seller Profile",
 			seller.name,
 			{"erpnext_supplier": supplier_name, "last_sync_date": now_datetime()},
 			update_modified=False,
@@ -264,7 +266,7 @@ def sync_seller_to_supplier(
 
 		# Log sync
 		_log_sync_event(
-			"Seller Profile",
+			"Admin Seller Profile",
 			seller.name,
 			"Supplier",
 			supplier_name,
@@ -373,7 +375,7 @@ def sync_supplier_to_seller(
 
 	# Find linked seller
 	if not seller_name:
-		seller_name = frappe.db.get_value("Seller Profile", {"erpnext_supplier": supplier_name}, "name")
+		seller_name = frappe.db.get_value("Admin Seller Profile", {"erpnext_supplier": supplier_name}, "name")
 
 	if not seller_name:
 		# No linked seller found
@@ -381,7 +383,7 @@ def sync_supplier_to_seller(
 
 	try:
 		supplier = frappe.get_doc("Supplier", supplier_name)
-		seller = frappe.get_doc("Seller Profile", seller_name)
+		seller = frappe.get_doc("Admin Seller Profile", seller_name)
 
 		# Update seller fields from supplier
 		if supplier.supplier_name:
@@ -397,7 +399,7 @@ def sync_supplier_to_seller(
 		seller.save(ignore_permissions=ignore_permissions)
 
 		# Log reverse sync
-		_log_sync_event("Supplier", supplier_name, "Seller Profile", seller_name, "reverse_sync")
+		_log_sync_event("Supplier", supplier_name, "Admin Seller Profile", seller_name, "reverse_sync")
 
 		return seller_name
 
@@ -448,10 +450,10 @@ def sync_buyer_to_customer(
 		)
 
 	# Get buyer document
-	if not frappe.db.exists("Buyer Profile", buyer_name):
+	if not frappe.db.exists("User Profile", buyer_name):
 		frappe.throw(_("Buyer Profile {0} not found").format(buyer_name), frappe.DoesNotExistError)
 
-	buyer = frappe.get_doc("Buyer Profile", buyer_name)
+	buyer = frappe.get_doc("User Profile", buyer_name)
 
 	# Check if sync is enabled
 	if not buyer.get("sync_with_erpnext"):
@@ -495,7 +497,7 @@ def sync_buyer_to_customer(
 
 		# Update buyer with customer link
 		frappe.db.set_value(
-			"Buyer Profile",
+			"User Profile",
 			buyer.name,
 			{"erpnext_customer": customer_name, "last_sync_date": now_datetime()},
 			update_modified=False,
@@ -503,7 +505,7 @@ def sync_buyer_to_customer(
 
 		# Log sync
 		_log_sync_event(
-			"Buyer Profile",
+			"User Profile",
 			buyer.name,
 			"Customer",
 			customer_name,
@@ -615,14 +617,14 @@ def sync_customer_to_buyer(
 
 	# Find linked buyer
 	if not buyer_name:
-		buyer_name = frappe.db.get_value("Buyer Profile", {"erpnext_customer": customer_name}, "name")
+		buyer_name = frappe.db.get_value("User Profile", {"erpnext_customer": customer_name}, "name")
 
 	if not buyer_name:
 		return None
 
 	try:
 		customer = frappe.get_doc("Customer", customer_name)
-		buyer = frappe.get_doc("Buyer Profile", buyer_name)
+		buyer = frappe.get_doc("User Profile", buyer_name)
 
 		# Update buyer fields from customer
 		if customer.customer_name:
@@ -636,7 +638,7 @@ def sync_customer_to_buyer(
 		buyer.save(ignore_permissions=ignore_permissions)
 
 		# Log reverse sync
-		_log_sync_event("Customer", customer_name, "Buyer Profile", buyer_name, "reverse_sync")
+		_log_sync_event("Customer", customer_name, "User Profile", buyer_name, "reverse_sync")
 
 		return buyer_name
 
@@ -1202,7 +1204,7 @@ def make_sales_order(source_name: str, target_doc: Document = None) -> Document:
 	def set_missing_values(source, target):
 		"""Set default values and calculate totals."""
 		# Get Customer from Buyer Profile
-		buyer = frappe.get_doc("Buyer Profile", source.buyer)
+		buyer = frappe.get_doc("User Profile", source.buyer)
 		if buyer.get("erpnext_customer"):
 			target.customer = buyer.erpnext_customer
 		else:
@@ -1589,13 +1591,31 @@ def bulk_sync_sellers_to_suppliers(
 	if not is_erpnext_installed():
 		return {"success": False, "error": "ERPNext not installed", "synced": 0, "failed": 0}
 
-	filters = {"verification_status": "Verified", "sync_with_erpnext": 1, "status": "Active"}
+	# Sprint 2.6: verification_status field'ı kaldırıldı; KYB onayı User Profile.kyb_status
+	# üzerinden takip ediliyor. Önce kyb_status="Verified" user'ları topla, sonra
+	# bunlara ait Admin Seller Profile'ları sync et.
+	verified_users = frappe.get_all(
+		"User Profile",
+		filters={"kyb_status": "Verified"},
+		pluck="user",
+	)
+	if not verified_users:
+		return {"success": True, "total": 0, "synced": 0, "failed": 0, "errors": []}
 
+	filters: dict[str, object] = {
+		"user": ["in", verified_users],
+		"sync_with_erpnext": 1,
+		"status": "Active",
+	}
 	if tenant:
 		filters["tenant"] = tenant
 
 	sellers = frappe.get_all(
-		"Seller Profile", filters=filters, fields=["name"], limit_page_length=limit, order_by="modified desc"
+		"Admin Seller Profile",
+		filters=filters,
+		fields=["name"],
+		limit_page_length=limit,
+		order_by="modified desc",
 	)
 
 	results = {"success": True, "total": len(sellers), "synced": 0, "failed": 0, "errors": []}
@@ -1628,10 +1648,12 @@ def bulk_sync_buyers_to_customers(
 	if not is_erpnext_installed():
 		return {"success": False, "error": "ERPNext not installed", "synced": 0, "failed": 0}
 
-	filters = {"verification_status": "Verified", "status": "Active"}
+	# Sprint 2.6: User Profile.kyc_status="Verified" filter — verification_status
+	# field'ı User Profile'a taşınmadı (eski Buyer Profile.verification_status).
+	filters: dict[str, object] = {"kyc_status": "Verified", "status": "Active"}
 
 	# Check if sync_with_erpnext field exists
-	meta = frappe.get_meta("Buyer Profile")
+	meta = frappe.get_meta("User Profile")
 	if meta.has_field("sync_with_erpnext"):
 		filters["sync_with_erpnext"] = 1
 
@@ -1639,7 +1661,7 @@ def bulk_sync_buyers_to_customers(
 		filters["tenant"] = tenant
 
 	buyers = frappe.get_all(
-		"Buyer Profile", filters=filters, fields=["name"], limit_page_length=limit, order_by="modified desc"
+		"User Profile", filters=filters, fields=["name"], limit_page_length=limit, order_by="modified desc"
 	)
 
 	results = {"success": True, "total": len(buyers), "synced": 0, "failed": 0, "errors": []}
@@ -1723,7 +1745,7 @@ def get_sync_status(doctype: str, docname: str) -> dict[str, Any]:
 
 	doc = frappe.get_doc(doctype, docname)
 
-	if doctype == "Seller Profile":
+	if doctype == "Admin Seller Profile":
 		return {
 			"synced": bool(doc.get("erpnext_supplier")),
 			"erpnext_doctype": "Supplier",
@@ -1731,7 +1753,7 @@ def get_sync_status(doctype: str, docname: str) -> dict[str, Any]:
 			"last_sync_date": doc.get("last_sync_date"),
 			"sync_enabled": doc.get("sync_with_erpnext"),
 		}
-	elif doctype == "Buyer Profile":
+	elif doctype == "User Profile":
 		return {
 			"synced": bool(doc.get("erpnext_customer")),
 			"erpnext_doctype": "Customer",
@@ -1777,17 +1799,17 @@ def unlink_erpnext_document(doctype: str, docname: str) -> bool:
 	if not frappe.db.exists(doctype, docname):
 		return False
 
-	if doctype == "Seller Profile":
+	if doctype == "Admin Seller Profile":
 		frappe.db.set_value(
-			"Seller Profile",
+			"Admin Seller Profile",
 			docname,
 			{"erpnext_supplier": None, "last_sync_date": None},
 			update_modified=False,
 		)
 		return True
-	elif doctype == "Buyer Profile":
+	elif doctype == "User Profile":
 		frappe.db.set_value(
-			"Buyer Profile",
+			"User Profile",
 			docname,
 			{"erpnext_customer": None, "last_sync_date": None},
 			update_modified=False,
@@ -2675,7 +2697,7 @@ def create_sales_order_from_marketplace_order(marketplace_order: Document) -> st
 	def set_missing_values(source, target):
 		"""Set default values and calculate totals."""
 		# Get Customer from Buyer Profile
-		buyer = frappe.get_doc("Buyer Profile", source.buyer)
+		buyer = frappe.get_doc("User Profile", source.buyer)
 		if buyer.get("erpnext_customer"):
 			target.customer = buyer.erpnext_customer
 		else:

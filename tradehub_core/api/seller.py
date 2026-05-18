@@ -240,7 +240,7 @@ def get_seller(slug):
 	if not is_guest:
 		seller_user = seller.get("user")
 		if seller_user:
-			sp_name = frappe.db.get_value("Seller Profile", {"user": seller_user}, "name")
+			sp_name = frappe.db.get_value("User Profile", {"user": seller_user}, "name")
 			if sp_name:
 				addr_fields = [
 					"title",

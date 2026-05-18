@@ -497,7 +497,6 @@ You do not have permission to view this data,Bu verileri goruntuleme izniniz yok
 # Errors - Not Found
 Buyer not found,Alici bulunamadi,
 "Buyer Category '{0}' not found","Alici Kategorisi '{0}' bulunamadi",
-"Buyer Profile {0} not found","Alici Profili {0} bulunamadi",
 Customer DocType not found. Please ensure ERPNext is properly configured.,Customer DocType bulunamadi. Lutfen ERPNext'in dogru yapilandirildiginden emin olun.,
 "ERPNext Integration Settings not found for tenant {0}","Kiralayan {0} icin ERPNext Entegrasyon Ayarlari bulunamadi",
 Grade record not found,Not kaydi bulunamadi,
@@ -513,7 +512,7 @@ Premium Buyer not found,Premium Alici bulunamadi,
 Sales Order DocType not found. Please ensure ERPNext is properly configured.,Sales Order DocType bulunamadi. Lutfen ERPNext'in dogru yapilandirildiginden emin olun.,
 "Selected Tenant '{0}' does not exist.","Secilen Kiralayan '{0}' mevcut degil.",
 Seller not found,Satici bulunamadi,
-"Seller Profile {0} not found","Satici Profili {0} bulunamadi",
+"Admin Seller Profile {0} not found","Magaza Profili {0} bulunamadi",
 "SKU Product {0} not found","SKU Urunu {0} bulunamadi",
 Supplier DocType not found. Please ensure ERPNext is properly configured.,Supplier DocType bulunamadi. Lutfen ERPNext'in dogru yapilandirildiginden emin olun.,
 "Tenant {0} does not exist","Kiralayan {0} mevcut degil",
@@ -532,7 +531,7 @@ Cannot delete District with linked Neighborhoods. Please delete all Neighborhood
 Cannot delete finalized grade records,Kesinlesmis not kayitlari silinemez,
 Cannot delete finalized KPI score records,Kesinlesmis KPI puan kayitlari silinemez,
 Cannot delete Neighborhood with linked Address Items. Please update addresses first.,Bagli Adres Oegeleri olan Mahalle silinemez. Lutfen once adresleri guncelleyin.,
-Cannot delete Tenant with active Seller Profiles. Please delete all linked Seller Profiles first.,Aktif Satici Profilleri olan Kiralayan silinemez. Lutfen once tum bagli Satici Profillerini silin.,
+Cannot delete Tenant with active Admin Seller Profiles. Please delete all linked Admin Seller Profiles first.,Aktif Magaza Profilleri olan Kiralayan silinemez. Lutfen once tum bagli Magaza Profillerini silin.,
 "Cannot link to inactive City '{0}'. Please select an active city.","Aktif olmayan Sehir '{0}' ile baglanti kurulamaz. Lutfen aktif bir sehir secin.",
 "Cannot link to inactive District '{0}'. Please select an active district.","Aktif olmayan Ilce '{0}' ile baglanti kurulamaz. Lutfen aktif bir ilce secin.",
 Cannot retry this job,Bu is yeniden denenemez,
@@ -730,7 +729,7 @@ This operation requires a tenant context. Please ensure you are logged in with a
 No enabled template found for the specified criteria,Belirtilen kriterler icin etkin sablon bulunamadi,
 "Provide either template_code or event_type and channel","template_code veya event_type ve channel bilgilerinden birini saglayiniz",
 "User '{0}' is disabled.","Kullanici '{0}' devre disi.",
-"Buyer Profile does not have address_line_1 field. Migration skipped.","Alici Profili address_line_1 alanina sahip degil. Tasima atlandi.",
+"User Profile does not have address_line_1 field. Migration skipped.","Kullanici Profili address_line_1 alanina sahip degil. Tasima atlandi.",
 "Skipped roles: {0}","Atlanan roller: {0}",
 "{0} days","{0} gun",
 "{0} API Access","{0} API Erisimi",
@@ -738,5 +737,7 @@ No enabled template found for the specified criteria,Belirtilen kriterler icin e
 "{0}% Bulk Discount","%{0} Toplu Indirim",
 "{0}% Discount","%{0} Indirim",
 
-# Buyer Profile
+# User Profile
 "Review the auto-matched columns below. Green indicates high confidence, yellow indicates medium, and red indicates low confidence or no match.","Asagidaki otomatik eslestirilen sutunlari inceleyin. Yesil yuksek guveni, sari orta guveni ve kirmizi dusuk guveni veya eslesme olmadigini gosterir.",
+"User Profile {0} not found","Kullanıcı profili {0} bulunamadı"
+"Satıcı olabilmek için Kurumsal hesap tipi zorunludur (KYB için vergi levhası şart).","Satıcı olabilmek için Kurumsal hesap tipi zorunludur (KYB için vergi levhası şart)."

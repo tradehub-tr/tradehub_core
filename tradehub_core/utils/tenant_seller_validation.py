@@ -38,7 +38,8 @@ from tradehub_core.tradehub_core.utils.tenant import is_platform_admin
 VALIDATION_EXEMPT_DOCTYPES = frozenset(
 	[
 		"Tenant",
-		"Seller Profile",
+		# Sprint 2 (revised, 2026-05-15): Seller Profile → Admin Seller Profile (mağaza entity).
+		"Admin Seller Profile",
 		"User",
 		"Role",
 		"DocType",
@@ -104,11 +105,9 @@ def _get_seller_tenant(seller_name: str) -> str | None:
 	if not seller_name:
 		return None
 
-	try:
-		return frappe.db.get_value("Seller Profile", seller_name, "tenant")
-	except Exception:
-		# Seller Profile DocType might not exist or seller not found
-		return None
+	# Sprint 2 (revised, 2026-05-15) — Senaryo B: Admin Seller Profile'da `tenant` field YOK.
+	# Sprint 3 tenant aktivasyonunda doldurulacak (kullanıcı kararı).
+	return None
 
 
 # =============================================================================
@@ -261,11 +260,9 @@ def get_sellers_for_tenant(tenant: str = None) -> list:
 	if not tenant:
 		return []
 
-	try:
-		return frappe.get_all("Seller Profile", filters={"tenant": tenant}, pluck="name")
-	except Exception:
-		# Seller Profile DocType might not exist
-		return []
+	# Sprint 2 (revised, 2026-05-15) — Senaryo B: Admin Seller Profile'da `tenant` field YOK.
+	# Sprint 3 tenant aktivasyonunda doldurulacak (kullanıcı kararı).
+	return []
 
 
 def validate_seller_belongs_to_tenant(seller: str, tenant: str) -> bool:

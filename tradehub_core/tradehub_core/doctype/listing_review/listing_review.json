@@ -128,8 +128,8 @@
   {
    "fieldname": "reviewer",
    "fieldtype": "Link",
-   "label": "Buyer Profile",
-   "options": "Buyer Profile",
+   "label": "Değerlendiren Kullanıcı",
+   "options": "User Profile",
    "read_only": 1
   },
   {

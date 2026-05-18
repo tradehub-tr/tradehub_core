@@ -200,7 +200,7 @@
 			"fieldname": "identity_document",
 			"fieldtype": "Attach",
 			"label": "Identity Document",
-			"reqd": 1
+			"reqd": 0
 		},
 		{
 			"fieldname": "tab_agreements",

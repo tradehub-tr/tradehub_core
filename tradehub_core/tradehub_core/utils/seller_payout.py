@@ -208,10 +208,15 @@ def calculate_commission(
 	commission_plan = None
 
 	if use_seller_plan:
-		# Get seller's commission plan
-		seller_doc = frappe.db.get_value(
-			"Seller Profile", seller, ["commission_plan", "custom_commission_rate"], as_dict=True
-		)
+		# Sprint 2: seller artık Admin Seller Profile.name (SEL-XXXXX)
+		# commission_plan/custom_commission_rate Admin Seller Profile'a Custom Field eklenmesi gerek
+		# (Sprint 3 RBAC/Tenant refactor sonrası). Şu an defansif: yoksa None döner, default plan'a düşer.
+		try:
+			seller_doc = frappe.db.get_value(
+				"Admin Seller Profile", seller, ["commission_plan", "custom_commission_rate"], as_dict=True
+			)
+		except Exception:
+			seller_doc = None
 
 		if seller_doc and seller_doc.commission_plan:
 			commission_plan = seller_doc.commission_plan
@@ -278,8 +283,11 @@ def get_payout_hold_days(seller: str) -> int:
 	Returns:
 	    int: Number of days to hold payout
 	"""
-	# Check seller's commission plan
-	commission_plan = frappe.db.get_value("Seller Profile", seller, "commission_plan")
+	# Sprint 2: Admin Seller Profile (mağaza) commission plan lookup; field yoksa None döner
+	try:
+		commission_plan = frappe.db.get_value("Admin Seller Profile", seller, "commission_plan")
+	except Exception:
+		commission_plan = None
 
 	if commission_plan:
 		hold_days = frappe.db.get_value("Commission Plan", commission_plan, "payout_hold_days")
