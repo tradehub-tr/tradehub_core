@@ -1,3 +1,13 @@
+## [v1.0.9-beta.3] - 2026-05-18 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Degistirildi
+- refactor(changelog): manuel v2.1.0-beta.1 entry'si geri alındı (@aliiball)
+  - beta-release.yml workflow'unun LAST_PROD-beta.N hesabıyla çakışıyordu
+  - Ali → version-15 merge sonrası workflow doğru versiyonu (v1.0.9-beta.3) ve (@author) suffix'lerini otomatik üretecek
+
+---
 ## [v1.0.9-beta.2] - 2026-05-18 BETA
 
 Bu surum betaistoc.cronbi.com'da test asamasindadir.
