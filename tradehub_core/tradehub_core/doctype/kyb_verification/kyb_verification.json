@@ -29,7 +29,7 @@
 			"fieldname": "status",
 			"fieldtype": "Select",
 			"label": "Status",
-			"options": "Pending\nUnder Review\nVerified\nRejected\nExpired",
+			"options": "Pending\nUnder Review\nVerified\nRejected\nSuspended",
 			"default": "Pending",
 			"in_list_view": 1,
 			"in_standard_filter": 1,
@@ -98,6 +98,19 @@
 			"label": "Trade Registry Number"
 		},
 		{
+			"fieldname": "mersis_no",
+			"fieldtype": "Data",
+			"label": "MERSİS Numarası",
+			"description": "16 haneli MERSİS numarası (opsiyonel)"
+		},
+		{
+			"fieldname": "kep_address",
+			"fieldtype": "Data",
+			"label": "KEP Adresi",
+			"options": "Email",
+			"description": "Kayıtlı Elektronik Posta adresi (opsiyonel)"
+		},
+		{
 			"fieldname": "tab_documents",
 			"fieldtype": "Tab Break",
 			"label": "Belgeler"
@@ -133,7 +146,7 @@
 			"fieldname": "faaliyet_belgesi",
 			"fieldtype": "Attach",
 			"label": "Faaliyet Belgesi",
-			"reqd": 1
+			"description": "Opsiyonel"
 		},
 		{
 			"fieldname": "sb_docs2",
@@ -152,11 +165,6 @@
 			"label": "Banka Hesap Belgesi",
 			"description": "IBAN onaylı, banka mührü/imzalı belge — payout doğrulaması için zorunlu",
 			"reqd": 1
-		},
-		{
-			"fieldname": "document_expiry_date",
-			"fieldtype": "Date",
-			"label": "Document Expiry Date"
 		},
 		{
 			"fieldname": "tab_review",
@@ -186,6 +194,15 @@
 		{
 			"fieldname": "cb_review",
 			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "rejection_category",
+			"fieldtype": "Select",
+			"label": "Red Kategorisi",
+			"options": "\nRe-submit\nSuspended",
+			"permlevel": 1,
+			"depends_on": "eval:doc.status=='Rejected' || doc.status=='Suspended'",
+			"description": "Re-submit: kullanıcı yeniden yükler. Suspended: hesap askıya alınır."
 		},
 		{
 			"fieldname": "rejection_reason",

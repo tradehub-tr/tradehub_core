@@ -68,12 +68,14 @@ def _detect_format(content: bytes, filename_lower: str) -> str:
 
 
 def _get_seller_data(user: str) -> dict:
-	"""Fetch existing seller data to pre-fill KYB form.
+	"""KYB form ön-doldurma için kullanıcı verilerini topla (Sprint 2.6).
 
-	Seller Application kayıt sırasındaki kullanıcı verisini taşır (en doğru
-	kaynak). Seller Profile sonradan farklı amaçla güncellenebilir
-	(business_name'i ad-soyad ile karışmış olabilir). Bu yüzden **SA önceliklidir**;
-	SA boşsa SP fallback olur.
+	Sprint 2.6: User Profile'da seller_name field'ı yok (eski Seller Profile
+	field'ıydı). User Profile.full_name (yetkili kişi adı), company_name,
+	tax_id, business_name (Seller Application'dan) kullanılır.
+
+	Seller Application'dakiler önceliklidir (ilk başvuru anındaki veri en
+	doğrudur); SA boşsa User Profile fallback olur.
 	"""
 	sa = (
 		frappe.db.get_value(
@@ -85,23 +87,24 @@ def _get_seller_data(user: str) -> dict:
 		or {}
 	)
 
-	sp = (
+	up = (
 		frappe.db.get_value(
-			"Seller Profile",
+			"User Profile",
 			{"user": user},
-			["seller_name", "seller_type", "business_name", "tax_id", "tax_id_type", "tax_office"],
+			["full_name", "company_name", "tax_id", "tax_id_type", "tax_office", "account_type"],
 			as_dict=True,
 		)
 		or {}
 	)
 
-	# SA öncelik, SP fallback
-	business_name = sa.get("business_name") or sp.get("business_name") or ""
-	seller_type = sa.get("seller_type") or sp.get("seller_type") or ""
-	tax_id = sa.get("tax_id") or sp.get("tax_id") or ""
-	tax_id_type = sa.get("tax_id_type") or sp.get("tax_id_type") or "TCKN"
-	tax_office = sa.get("tax_office") or sp.get("tax_office") or ""
-	authorized_person = sp.get("seller_name") or ""
+	# SA öncelik, User Profile fallback
+	business_name = sa.get("business_name") or up.get("company_name") or ""
+	seller_type = sa.get("seller_type") or up.get("account_type") or ""
+	tax_id = sa.get("tax_id") or up.get("tax_id") or ""
+	tax_id_type = sa.get("tax_id_type") or up.get("tax_id_type") or "TCKN"
+	tax_office = sa.get("tax_office") or up.get("tax_office") or ""
+	# Yetkili kişi: User Profile.full_name (Sprint 2.6 — seller_name yerine)
+	authorized_person = up.get("full_name") or ""
 
 	return {
 		"company_title": business_name,
@@ -124,7 +127,7 @@ def get_kyb_status():
 		frappe.throw(_("Not logged in."), frappe.AuthenticationError)
 
 	# Check if seller
-	if not frappe.db.exists("Seller Profile", {"user": user}):
+	if not frappe.db.exists("User Profile", {"user": user}):
 		return {"exists": False, "status": None, "message": "Not a seller"}
 
 	existing = frappe.db.get_value("KYB Verification", {"user": user}, "name")
@@ -174,7 +177,10 @@ def get_kyb_status():
 			"tax_id",
 			"tax_office",
 			"trade_registry_number",
+			"mersis_no",
+			"kep_address",
 			"rejection_reason",
+			"rejection_category",
 			"verified_at",
 			"identity_document",
 			"imza_sirkuleri",
@@ -182,7 +188,6 @@ def get_kyb_status():
 			"faaliyet_belgesi",
 			"vergi_levhasi",
 			"bank_account_document",
-			"document_expiry_date",
 		],
 		as_dict=True,
 	)
@@ -194,13 +199,14 @@ def get_kyb_status():
 		"company_title": kyb.company_title or "",
 		"business_type": kyb.business_type or "",
 		"authorized_person": kyb.authorized_person or "",
+		"mersis_no": kyb.mersis_no or "",
+		"kep_address": kyb.kep_address or "",
 		"identity_document": kyb.identity_document or "",
 		"imza_sirkuleri": kyb.imza_sirkuleri or "",
 		"ticaret_sicil_gazetesi": kyb.ticaret_sicil_gazetesi or "",
 		"faaliyet_belgesi": kyb.faaliyet_belgesi or "",
 		"vergi_levhasi": kyb.vergi_levhasi or "",
 		"bank_account_document": kyb.bank_account_document or "",
-		"document_expiry_date": (str(kyb.document_expiry_date) if kyb.document_expiry_date else ""),
 		"tax_id_type": kyb.tax_id_type or "",
 		"tax_id": kyb.tax_id or "",
 		"tax_office": kyb.tax_office or "",
@@ -216,45 +222,43 @@ def submit_kyb_documents(
 	company_title: str,
 	business_type: str = "",
 	authorized_person: str = "",
-	tax_id_type: str = "",
-	tax_id: str = "",
-	tax_office: str = "",
 	trade_registry_number: str = "",
+	mersis_no: str = "",
+	kep_address: str = "",
 	identity_document: str = "",
 	imza_sirkuleri: str = "",
 	ticaret_sicil_gazetesi: str = "",
 	faaliyet_belgesi: str = "",
 	vergi_levhasi: str = "",
 	bank_account_document: str = "",
-	document_expiry_date: str = "",
 ):
-	"""KYB belgelerini gönder veya yeniden gönder.
+	"""KYB belgelerini gönder veya yeniden gönder (Sprint 2.6).
+
+	Sprint 2.6 değişiklikleri:
+	- verification_kind kaldırıldı (KYC artık ayrı DocType)
+	- document_expiry_date kaldırıldı (Soru 8 — expiry yok)
+	- mersis_no + kep_address eklendi (opsiyonel)
+	- faaliyet_belgesi opsiyonel oldu
 
 	İlk başvuru: Yeni KYB Verification oluşturulur, status="Pending".
 
-	Resubmit (mevcut kayıt var):
-	- Sadece status="Rejected" iken status "Pending"e döner. Verified veya
-	  Under Review durumda dokunulmaz (sahte status flicker önlenir).
-	- Sadece **belge field'larından en az biri değişmişse** Pending'e dönüş
-	  tetiklenir; data alanlarının tek başına güncellenmesi status değiştirmez.
-	- Throttle: Aynı kullanıcı 5 dakikada en fazla 1 kez resubmit edebilir
-	  (decorator). Spam'a karşı.
+	Resubmit (mevcut Rejected kayıt):
+	- Sadece status="Rejected" iken status "Pending"e döner.
+	- Sadece belge field'larından en az biri değişmişse tetiklenir.
+	- Throttle: dakikada 1 kez (decorator).
 	"""
 	user = frappe.session.user
 	if user == "Guest":
 		frappe.throw(_("Not logged in."), frappe.AuthenticationError)
 
 	if not company_title:
-		frappe.throw(_("Company title is required."), frappe.ValidationError)
+		frappe.throw(_("Şirket Ünvanı zorunludur."), frappe.ValidationError)
 
-	# ── Zorunlu belge kontrolü ───────────────────────────────────────
-	# Frontend bypass'ına karşı son söz; admin paneldeki reqd:1 ile
-	# çift kontrol. Eksik dosyalar Türkçe label'larıyla raporlanır.
+	# 5 zorunlu belge (Sprint 2.6 — faaliyet_belgesi opsiyonel)
 	required_documents = [
 		("identity_document", identity_document, "Kimlik Belgesi"),
 		("imza_sirkuleri", imza_sirkuleri, "İmza Sirküleri"),
 		("ticaret_sicil_gazetesi", ticaret_sicil_gazetesi, "Ticaret Sicil Gazetesi"),
-		("faaliyet_belgesi", faaliyet_belgesi, "Faaliyet Belgesi"),
 		("vergi_levhasi", vergi_levhasi, "Vergi Levhası"),
 		("bank_account_document", bank_account_document, "Banka Hesap Belgesi"),
 	]
@@ -267,20 +271,18 @@ def submit_kyb_documents(
 
 	existing = frappe.db.get_value("KYB Verification", {"user": user}, "name")
 
-	# permlevel 1 fields (tax_id_type, tax_id, tax_office, business_type)
-	# are NOT accepted from seller — they come from Seller Profile at creation.
-	# Only admin can change them via Frappe Desk.
 	field_data = {
 		"company_title": company_title,
 		"authorized_person": authorized_person,
 		"trade_registry_number": trade_registry_number,
+		"mersis_no": mersis_no,
+		"kep_address": kep_address,
 		"identity_document": identity_document,
 		"imza_sirkuleri": imza_sirkuleri,
 		"ticaret_sicil_gazetesi": ticaret_sicil_gazetesi,
 		"faaliyet_belgesi": faaliyet_belgesi,
 		"vergi_levhasi": vergi_levhasi,
 		"bank_account_document": bank_account_document,
-		"document_expiry_date": document_expiry_date or None,
 	}
 
 	if existing:
@@ -343,17 +345,18 @@ def review_kyb(
 	kyb_name: str,
 	action: str,
 	rejection_reason: str = "",
+	rejection_category: str = "",
 	notes: str = "",
 ):
 	"""Admin aksiyonu: KYB durumunu güncelle.
 
-	Kabul edilen action'lar: Pending, Under Review, Verified, Rejected, Expired.
-	Pending'e çekme = "yeniden incele" (önceki inceleme metadata'sı sıfırlanır).
-	Expired'a çekme = "belge süresi doldu, tekrar yüklensin".
-	Rejected aksiyonu rejection_reason'ı yazar (min 20 karakter zorunlu).
+	Sprint 2.6 değişiklikleri:
+	- 'Expired' kaldırıldı (Soru 8 — expiry yok)
+	- 'Suspended' eklendi (Re-submit + Suspended kategori — Soru 7)
+	- rejection_category parametresi: 'Re-submit' | 'Suspended'
 
-	``notes`` opsiyonel: admin-only internal not (permlevel:2). Verilirse
-	mevcut notes alanına tarih+admin damgalı APPEND edilir (eski notlar korunur).
+	Kabul edilen action'lar: Pending, Under Review, Verified, Rejected, Suspended.
+	Rejected/Suspended için rejection_reason + rejection_category zorunlu.
 	"""
 	user = frappe.session.user
 	roles = frappe.get_roles(user)
@@ -361,22 +364,24 @@ def review_kyb(
 	if "System Manager" not in roles and "Marketplace Admin" not in roles:
 		frappe.throw(_("Not authorized."), frappe.PermissionError)
 
-	if action not in ("Pending", "Under Review", "Verified", "Rejected", "Expired"):
+	if action not in ("Pending", "Under Review", "Verified", "Rejected", "Suspended"):
 		frappe.throw(_("Invalid action."), frappe.ValidationError)
 
-	# Reject için rejection_reason zorunlu ve min 20 karakter
-	if action == "Rejected":
+	if action in ("Rejected", "Suspended"):
 		reason_clean = (rejection_reason or "").strip()
 		if len(reason_clean) < 20:
 			frappe.throw(
-				_("Reddetme gerekçesi en az 20 karakter olmalı; satıcıya net bir eylem önerisi verin."),
+				_("Red gerekçesi en az 20 karakter olmalı; satıcıya net bir eylem önerisi verin."),
 				frappe.ValidationError,
 			)
+		if rejection_category not in ("Re-submit", "Suspended"):
+			rejection_category = "Suspended" if action == "Suspended" else "Re-submit"
 
 	doc = frappe.get_doc("KYB Verification", kyb_name)
 	doc.status = action
-	if action == "Rejected":
+	if action in ("Rejected", "Suspended"):
 		doc.rejection_reason = rejection_reason
+		doc.rejection_category = rejection_category
 
 	# Notes append (opsiyonel, internal admin not'u)
 	notes_clean = (notes or "").strip()
