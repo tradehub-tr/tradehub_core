@@ -1,0 +1,612 @@
+{
+	"name": "User Profile",
+	"doctype": "DocType",
+	"module": "Tradehub Core",
+	"naming_rule": "By fieldname",
+	"autoname": "field:user",
+	"engine": "InnoDB",
+	"track_changes": 1,
+	"sort_field": "modified",
+	"sort_order": "DESC",
+	"title_field": "full_name",
+	"search_fields": "full_name,member_id",
+	"fields": [
+		{
+			"fieldname": "tab_account",
+			"fieldtype": "Tab Break",
+			"label": "Hesap"
+		},
+		{
+			"fieldname": "user",
+			"fieldtype": "Link",
+			"label": "User",
+			"options": "User",
+			"reqd": 1,
+			"unique": 1,
+			"set_only_once": 1,
+			"search_index": 1,
+			"in_list_view": 1
+		},
+		{
+			"fieldname": "member_id",
+			"fieldtype": "Data",
+			"label": "Member ID",
+			"read_only": 1,
+			"in_list_view": 1,
+			"bold": 1,
+			"description": "Sistem tarafından üretilen üyelik numarası (UP-XXXXXX)"
+		},
+		{
+			"fieldname": "status",
+			"fieldtype": "Select",
+			"label": "Status",
+			"options": "Active\nSuspended\nDeactivated",
+			"default": "Active",
+			"in_list_view": 1,
+			"in_standard_filter": 1
+		},
+		{
+			"fieldname": "cb_capabilities",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "can_buy",
+			"fieldtype": "Check",
+			"label": "Can Buy",
+			"default": "1",
+			"in_standard_filter": 1,
+			"description": "Kullanıcı storefront'tan alışveriş yapabilir"
+		},
+		{
+			"fieldname": "can_sell",
+			"fieldtype": "Check",
+			"label": "Can Sell",
+			"default": "0",
+			"in_standard_filter": 1,
+			"description": "Kullanıcı admin-panel'de mağaza yönetebilir (KYB Verified zorunlu)"
+		},
+		{
+			"fieldname": "can_admin",
+			"fieldtype": "Check",
+			"label": "Can Admin",
+			"default": "0",
+			"read_only": 1,
+			"description": "Platform admin rolünden türetilir (otomatik)"
+		},
+		{
+			"fieldname": "sb_basic",
+			"fieldtype": "Section Break",
+			"label": "Temel Bilgiler"
+		},
+		{
+			"fieldname": "full_name",
+			"fieldtype": "Data",
+			"label": "Full Name",
+			"reqd": 1,
+			"in_list_view": 1
+		},
+		{
+			"fieldname": "phone",
+			"fieldtype": "Data",
+			"label": "Phone",
+			"options": "Phone"
+		},
+		{
+			"fieldname": "cb_basic",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "country",
+			"fieldtype": "Link",
+			"label": "Country",
+			"options": "Country"
+		},
+		{
+			"fieldname": "tenant",
+			"fieldtype": "Data",
+			"label": "Tenant (Sprint 3)",
+			"read_only": 1,
+			"description": "Multi-tenant aktivasyonu Sprint 3'te. Şu an placeholder."
+		},
+		{
+			"fieldname": "tab_identity",
+			"fieldtype": "Tab Break",
+			"label": "Kimlik & Doğrulama"
+		},
+		{
+			"fieldname": "account_type",
+			"fieldtype": "Select",
+			"label": "Account Type",
+			"options": "Individual\nBusiness",
+			"reqd": 1,
+			"default": "Individual",
+			"in_standard_filter": 1,
+			"description": "Bireysel veya Kurumsal. can_sell=1 ise Business ZORUNLU. Individual → Business upgrade TEK YÖNLÜDÜR."
+		},
+		{
+			"fieldname": "company_name",
+			"fieldtype": "Data",
+			"label": "Company Name",
+			"mandatory_depends_on": "eval:doc.account_type=='Business'"
+		},
+		{
+			"fieldname": "tax_id",
+			"fieldtype": "Data",
+			"label": "Tax ID",
+			"permlevel": 1,
+			"mandatory_depends_on": "eval:doc.account_type=='Business'"
+		},
+		{
+			"fieldname": "tax_id_type",
+			"fieldtype": "Select",
+			"label": "Tax ID Type",
+			"options": "\nTCKN\nVKN",
+			"permlevel": 1
+		},
+		{
+			"fieldname": "cb_identity",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "tax_office",
+			"fieldtype": "Data",
+			"label": "Tax Office",
+			"permlevel": 1
+		},
+		{
+			"fieldname": "sb_email_verification",
+			"fieldtype": "Section Break",
+			"label": "E-posta Doğrulama"
+		},
+		{
+			"fieldname": "email_verified",
+			"fieldtype": "Check",
+			"label": "Email Verified",
+			"default": "0",
+			"read_only": 1
+		},
+		{
+			"fieldname": "email_verified_at",
+			"fieldtype": "Datetime",
+			"label": "Email Verified At",
+			"read_only": 1,
+			"depends_on": "eval:doc.email_verified"
+		},
+		{
+			"fieldname": "cb_email",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "email_verified_method",
+			"fieldtype": "Select",
+			"label": "Email Verified Method",
+			"options": "\notp\nadmin_override\nmigration",
+			"read_only": 1,
+			"depends_on": "eval:doc.email_verified"
+		},
+		{
+			"fieldname": "sb_kyc",
+			"fieldtype": "Section Break",
+			"label": "KYC (Alıcı Doğrulama)"
+		},
+		{
+			"fieldname": "kyc_status",
+			"fieldtype": "Select",
+			"label": "KYC Status",
+			"options": "\nLocked\nPending\nVerified\nRejected\nSuspended",
+			"read_only": 1,
+			"description": "Locked: Satıcı kayıt akışı (Alıcı olmak için doldurulmadı). Sprint 2.6"
+		},
+		{
+			"fieldname": "cb_kyc",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "kyc_verified_at",
+			"fieldtype": "Datetime",
+			"label": "KYC Verified At",
+			"read_only": 1
+		},
+		{
+			"fieldname": "sb_kyb",
+			"fieldtype": "Section Break",
+			"label": "KYB (Satıcı Doğrulama)"
+		},
+		{
+			"fieldname": "kyb_status",
+			"fieldtype": "Select",
+			"label": "KYB Status",
+			"options": "\nLocked\nPending\nUnder Review\nVerified\nRejected\nSuspended",
+			"read_only": 1,
+			"permlevel": 1,
+			"description": "Locked: Alıcı kayıt akışı (Satıcı başvurusu yapılmadı). Sprint 2.6"
+		},
+		{
+			"fieldname": "cb_kyb",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "kyb_verified_at",
+			"fieldtype": "Datetime",
+			"label": "KYB Verified At",
+			"read_only": 1,
+			"permlevel": 1
+		},
+		{
+			"fieldname": "tab_bank",
+			"fieldtype": "Tab Break",
+			"label": "Banka",
+			"depends_on": "eval:doc.can_sell"
+		},
+		{
+			"fieldname": "bank_name",
+			"fieldtype": "Data",
+			"label": "Bank Name",
+			"permlevel": 1
+		},
+		{
+			"fieldname": "iban",
+			"fieldtype": "Data",
+			"label": "IBAN",
+			"permlevel": 1
+		},
+		{
+			"fieldname": "cb_bank",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "account_holder_name",
+			"fieldtype": "Data",
+			"label": "Account Holder Name",
+			"permlevel": 1
+		},
+		{
+			"fieldname": "tab_business",
+			"fieldtype": "Tab Break",
+			"label": "İş Bilgileri"
+		},
+		{
+			"fieldname": "business_type",
+			"fieldtype": "Select",
+			"label": "Business Type",
+			"options": "\nManufacturer\nTrading Company\nRetailer\nWholesaler\nDistributor\nOther"
+		},
+		{
+			"fieldname": "job_title",
+			"fieldtype": "Data",
+			"label": "Job Title"
+		},
+		{
+			"fieldname": "website",
+			"fieldtype": "Data",
+			"label": "Website",
+			"options": "URL"
+		},
+		{
+			"fieldname": "year_established",
+			"fieldtype": "Int",
+			"label": "Year Established",
+			"default": "0"
+		},
+		{
+			"fieldname": "cb_business",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "employee_count",
+			"fieldtype": "Select",
+			"label": "Employee Count",
+			"options": "\n1-10\n11-50\n51-200\n201-500\n500+"
+		},
+		{
+			"fieldname": "about_us",
+			"fieldtype": "Small Text",
+			"label": "About Us"
+		},
+		{
+			"fieldname": "selling_platforms",
+			"fieldtype": "Small Text",
+			"label": "Selling Platforms"
+		},
+		{
+			"fieldname": "sb_sourcing",
+			"fieldtype": "Section Break",
+			"label": "Tedarik & Tüketim"
+		},
+		{
+			"fieldname": "industry_preferences",
+			"fieldtype": "Small Text",
+			"label": "Industry Preferences"
+		},
+		{
+			"fieldname": "sourcing_frequency",
+			"fieldtype": "Select",
+			"label": "Sourcing Frequency",
+			"options": "\nDaily\nWeekly\nMonthly\nQuarterly\nAnnually"
+		},
+		{
+			"fieldname": "cb_sourcing",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "annual_spending",
+			"fieldtype": "Select",
+			"label": "Annual Spending",
+			"options": "\nUnder $10K\n$10K-$50K\n$50K-$100K\n$100K-$500K\n$500K+"
+		},
+		{
+			"fieldname": "tab_metrics",
+			"fieldtype": "Tab Break",
+			"label": "Metrik & Skor",
+			"depends_on": "eval:doc.can_buy"
+		},
+		{
+			"fieldname": "total_spent",
+			"fieldtype": "Float",
+			"label": "Total Spent",
+			"default": "0",
+			"read_only": 1
+		},
+		{
+			"fieldname": "total_orders",
+			"fieldtype": "Int",
+			"label": "Total Orders",
+			"default": "0",
+			"read_only": 1
+		},
+		{
+			"fieldname": "average_order_value",
+			"fieldtype": "Float",
+			"label": "Average Order Value",
+			"default": "0",
+			"read_only": 1
+		},
+		{
+			"fieldname": "payment_on_time_rate",
+			"fieldtype": "Percent",
+			"label": "Payment On-Time Rate",
+			"default": "0",
+			"read_only": 1
+		},
+		{
+			"fieldname": "cb_metrics_1",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "return_rate",
+			"fieldtype": "Percent",
+			"label": "Return Rate",
+			"default": "0",
+			"read_only": 1
+		},
+		{
+			"fieldname": "dispute_rate",
+			"fieldtype": "Percent",
+			"label": "Dispute Rate",
+			"default": "0",
+			"read_only": 1
+		},
+		{
+			"fieldname": "feedback_rate",
+			"fieldtype": "Percent",
+			"label": "Feedback Rate",
+			"default": "0",
+			"read_only": 1
+		},
+		{
+			"fieldname": "cancellation_rate",
+			"fieldtype": "Percent",
+			"label": "Cancellation Rate",
+			"default": "0",
+			"read_only": 1
+		},
+		{
+			"fieldname": "sb_score",
+			"fieldtype": "Section Break",
+			"label": "Skorlama"
+		},
+		{
+			"fieldname": "buyer_score",
+			"fieldtype": "Float",
+			"label": "Buyer Score",
+			"default": "0",
+			"read_only": 1
+		},
+		{
+			"fieldname": "buyer_level",
+			"fieldtype": "Select",
+			"label": "Buyer Level",
+			"options": "\nBronze\nSilver\nGold\nDiamond",
+			"default": "Bronze",
+			"read_only": 1
+		},
+		{
+			"fieldname": "buyer_score_trend",
+			"fieldtype": "Data",
+			"label": "Score Trend",
+			"read_only": 1
+		},
+		{
+			"fieldname": "cb_score",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "score_breakdown",
+			"fieldtype": "Long Text",
+			"label": "Score Breakdown (JSON)",
+			"read_only": 1
+		},
+		{
+			"fieldname": "penalties",
+			"fieldtype": "Long Text",
+			"label": "Penalties (JSON)",
+			"read_only": 1
+		},
+		{
+			"fieldname": "bonuses",
+			"fieldtype": "Long Text",
+			"label": "Bonuses (JSON)",
+			"read_only": 1
+		},
+		{
+			"fieldname": "last_score_date",
+			"fieldtype": "Datetime",
+			"label": "Last Score Date",
+			"read_only": 1
+		},
+		{
+			"fieldname": "sb_activity",
+			"fieldtype": "Section Break",
+			"label": "Aktivite"
+		},
+		{
+			"fieldname": "joined_at",
+			"fieldtype": "Datetime",
+			"label": "Joined At",
+			"read_only": 1
+		},
+		{
+			"fieldname": "last_active_at",
+			"fieldtype": "Datetime",
+			"label": "Last Active At",
+			"read_only": 1
+		},
+		{
+			"fieldname": "cb_activity",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "account_age_days",
+			"fieldtype": "Int",
+			"label": "Account Age (Days)",
+			"default": "0",
+			"read_only": 1
+		},
+		{
+			"fieldname": "days_since_last_active",
+			"fieldtype": "Int",
+			"label": "Days Since Last Active",
+			"default": "0",
+			"read_only": 1
+		},
+		{
+			"fieldname": "payment_pattern",
+			"fieldtype": "Data",
+			"label": "Payment Pattern",
+			"read_only": 1
+		},
+		{
+			"fieldname": "tab_audit",
+			"fieldtype": "Tab Break",
+			"label": "Audit"
+		},
+		{
+			"fieldname": "created_via",
+			"fieldtype": "Select",
+			"label": "Created Via",
+			"options": "\nstorefront\nadmin_panel\nmigration\nseller_application",
+			"read_only": 1
+		},
+		{
+			"fieldname": "migrated_at",
+			"fieldtype": "Datetime",
+			"label": "Migrated At",
+			"read_only": 1
+		},
+		{
+			"fieldname": "cb_audit",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "migrated_from_buyer_profile",
+			"fieldtype": "Data",
+			"label": "Migrated From Buyer Profile",
+			"read_only": 1
+		},
+		{
+			"fieldname": "migrated_from_seller_profile",
+			"fieldtype": "Data",
+			"label": "Migrated From Seller Profile",
+			"read_only": 1
+		},
+		{
+			"fieldname": "erpnext_customer",
+			"fieldtype": "Link",
+			"label": "ERPNext Customer",
+			"options": "Customer",
+			"read_only": 1
+		}
+	],
+	"permissions": [
+		{
+			"role": "System Manager",
+			"read": 1,
+			"write": 1,
+			"create": 1,
+			"delete": 1,
+			"email": 1,
+			"print": 1,
+			"report": 1,
+			"share": 1,
+			"export": 1,
+			"import": 1,
+			"permlevel": 0
+		},
+		{
+			"role": "System Manager",
+			"read": 1,
+			"write": 1,
+			"permlevel": 1
+		},
+		{
+			"role": "Marketplace Admin",
+			"read": 1,
+			"write": 1,
+			"create": 1,
+			"report": 1,
+			"export": 1,
+			"permlevel": 0
+		},
+		{
+			"role": "Marketplace Admin",
+			"read": 1,
+			"write": 1,
+			"permlevel": 1
+		},
+		{
+			"role": "Compliance Officer",
+			"read": 1,
+			"write": 1,
+			"permlevel": 0
+		},
+		{
+			"role": "Compliance Officer",
+			"read": 1,
+			"write": 1,
+			"permlevel": 1
+		},
+		{
+			"role": "Buyer",
+			"read": 1,
+			"write": 1,
+			"if_owner": 1,
+			"permlevel": 0
+		},
+		{
+			"role": "Seller",
+			"read": 1,
+			"write": 1,
+			"if_owner": 1,
+			"permlevel": 0
+		},
+		{
+			"role": "Seller",
+			"read": 1,
+			"if_owner": 1,
+			"permlevel": 1
+		}
+	],
+	"actions": [],
+	"links": [],
+	"states": []
+}

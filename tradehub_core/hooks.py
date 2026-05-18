@@ -41,6 +41,8 @@ scheduler_events = {
 		"tradehub_core.utils.sla_checker.check_sla_breaches",
 		# Faz 6: Sentiment analysis (analiz edilmemiş Approved review'lar)
 		"tradehub_core.api.sentiment.batch_analyze_pending",
+		# Sprint 2 — E2 fırsat: Buyer metric scheduler (User Profile.metrics)
+		"tradehub_core.tasks.recalculate_buyer_metrics",
 	],
 	"daily": [
 		"tradehub_core.services.tcmb.fetch_and_update_rates",
@@ -70,6 +72,11 @@ scheduler_events = {
 		# Sertifika süre dolma kontrolü — 30/7/0 gün öncesi bildirim,
 		# süresi dolanı verification_status=Rejected ile auto-disable.
 		"tradehub_core.utils.cert_expiry_check.check_certificate_expiry",
+		# Sprint 2 — E2 fırsat: Buyer scoring + level pipeline (daily)
+		"tradehub_core.tasks.calculate_buyer_scores",
+		"tradehub_core.tasks.buyer_level_tasks",
+		"tradehub_core.tasks.aggregate_buyer_kpi_summaries",
+		"tradehub_core.tasks.refresh_user_segments",
 	],
 	"weekly_long": [
 		# Category embeddings + neighbour cache (build_all tail-calls
@@ -81,6 +88,10 @@ scheduler_events = {
 		"tradehub_core.recommendations.tasks.rebuild_related_matrix",
 		# Faz 4: B2B Vine — eligible reviewer'lara yeni ürün daveti
 		"tradehub_core.api.reputation.send_trusted_reviewer_invitations",
+		# Sprint 2 — E2 fırsat: weekly heavy buyer KPI/grade tasks
+		"tradehub_core.tasks.calculate_customer_grades",
+		"tradehub_core.tasks.update_buyer_kpi_template_stats",
+		"tradehub_core.tasks.calculate_buyer_kpi_scores",
 	],
 }
 
@@ -228,6 +239,8 @@ doc_events = {
 # Seller-Isolation Permissions
 # ---------------------------------------------------------------------------
 permission_query_conditions = {
+	# Sprint 2 — User Profile birleşmesi
+	"User Profile": "tradehub_core.permissions.user_profile_query_conditions",
 	"Listing": "tradehub_core.permissions.listing_query_conditions",
 	"Admin Seller Profile": "tradehub_core.permissions.admin_seller_profile_query_conditions",
 	"Seller Balance": "tradehub_core.permissions.seller_balance_query_conditions",
@@ -261,6 +274,8 @@ permission_query_conditions = {
 }
 
 has_permission = {
+	# Sprint 2 — User Profile birleşmesi
+	"User Profile": "tradehub_core.permissions.user_profile_has_permission",
 	"Listing": "tradehub_core.permissions.listing_has_permission",
 	"Admin Seller Profile": "tradehub_core.permissions.admin_seller_profile_has_permission",
 	"Seller Balance": "tradehub_core.permissions.seller_balance_has_permission",
