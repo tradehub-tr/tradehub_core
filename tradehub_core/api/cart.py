@@ -19,6 +19,48 @@ def _invalidate_cart_cache(_cart_name):
 	pass
 
 
+def _ensure_buyer_kyc_verified(user: str = ""):
+	"""Sprint 2.6 (revised): Alıcı KYC Verified olmadan sipariş veremez
+	(create_order gate'i — add_to_cart açık, kullanıcı her şeyi doldurabilsin).
+
+	Hata mesajı [KYC_<STATE>] prefix ile dönülür; frontend bu prefix'i regex ile
+	yakalayıp doğru modal mesajını gösterir.
+	  - KYC_SUSPENDED: hesap askıda, destek talebi
+	  - KYC_REJECTED: red gerekçesi, düzelt + tekrar gönder
+	  - KYC_PENDING: onay bekleniyor
+	  - KYC_LOCKED: KYC tetiklenmemiş (Satıcı kayıt → Alıcı olmak isterse)
+	"""
+	target_user = user or frappe.session.user
+	if not target_user or target_user == "Guest":
+		return
+
+	kyc_status = frappe.db.get_value("User Profile", {"user": target_user}, "kyc_status")
+
+	if kyc_status == "Verified":
+		return
+
+	if kyc_status == "Suspended":
+		frappe.throw(
+			_("[KYC_SUSPENDED] Hesabınız askıya alındı."),
+			frappe.ValidationError,
+		)
+	if kyc_status == "Rejected":
+		frappe.throw(
+			_("[KYC_REJECTED] KYC doğrulamanız reddedildi."),
+			frappe.ValidationError,
+		)
+	if kyc_status in ("Pending", "Under Review"):
+		frappe.throw(
+			_("[KYC_PENDING] KYC doğrulamanız onay bekliyor."),
+			frappe.ValidationError,
+		)
+	# Locked veya NULL — KYC hiç başlatılmamış
+	frappe.throw(
+		_("[KYC_LOCKED] Ürün satın alabilmek için KYC doğrulamanızı tamamlamanız gerekir."),
+		frappe.ValidationError,
+	)
+
+
 def _ensure_seller_kyb_verified(seller_profile_name: str, listing_label: str = ""):
 	"""Listing'in satıcısının KYB Verified olduğunu kanıtla, değilse Türkçe throw.
 
@@ -443,17 +485,22 @@ def _build_cart_response(cart_name):
 			seller = frappe.db.get_value(
 				"Admin Seller Profile",
 				seller_id,
-				["seller_name", "seller_code", "logo"],
+				["seller_name", "seller_code", "logo", "user"],
 				as_dict=True,
 			)
 			if not seller:
 				continue
 			slug = seller.seller_code or seller_id
+			# Sprint 2.6: KYB Verified Seller rolüne göre — listing serializer'la tutarlı
+			# (api/listing.py:_format_listing_card aynı pattern). Frontend Cart/Checkout
+			# gating'i bu flag'e bakar.
+			seller_kyb_verified = bool(seller.user and "Verified Seller" in frappe.get_roles(seller.user))
 			sellers_map[seller_id] = {
 				"id": seller_id,
 				"name": seller.seller_name or seller_id,
 				"href": f"/pages/seller.html?id={slug}",
 				"selected": True,
+				"sellerKybVerified": seller_kyb_verified,
 				"products": {},
 			}
 
@@ -687,6 +734,7 @@ def _build_cart_response(cart_name):
 				"name": seller_data["name"],
 				"href": seller_data["href"],
 				"selected": seller_data["selected"],
+				"sellerKybVerified": seller_data.get("sellerKybVerified", False),
 				"products": list(seller_data["products"].values()),
 			}
 		)
@@ -810,6 +858,9 @@ def add_to_cart(
 	)
 	if listing_doc.status != "Active":
 		frappe.throw(_("Bu ürün şu an satışta değil"))
+
+	# Sprint 2.6 (revised): KYC gate'i sepete eklemeden create_order'a taşındı.
+	# Kullanıcı sepeti doldurabilir + checkout'u tamamlayabilir; gate ödeme anında çalışır.
 
 	# KYB Gate — Katman 1: Satıcı doğrulanmadıysa sepete eklenemez.
 	# Listing Active görünmeye devam eder (storefront vitrini bağımsız), sadece
@@ -1144,6 +1195,9 @@ def create_order(
 	user = frappe.session.user
 	if not user or user == "Guest":
 		frappe.throw(_("Sipariş vermek için giriş yapmanız gerekiyor"), frappe.AuthenticationError)
+
+	# Sprint 2.6 — KYC Gate: Alıcı KYC Verified değilse sipariş veremez.
+	_ensure_buyer_kyc_verified(user)
 
 	if isinstance(orders_json, str):
 		try:

@@ -3,7 +3,7 @@ import re
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import getdate, now_datetime, today
+from frappe.utils import now_datetime
 
 from tradehub_core.utils.notify import notify
 
@@ -37,28 +37,31 @@ def _validate_file_extension(file_url: str, field_label: str):
 
 class KYBVerification(Document):
 	def validate(self):
+		super().validate()
 		self._validate_company_title()
 		self._validate_tax_id()
 		self._validate_trade_registry()
-		self._validate_expiry_date()
+		self._validate_mersis_no()
+		self._validate_kep_address()
 		self._validate_file_attachments()
 		self._validate_rejection_reason()
 
 	def _validate_rejection_reason(self):
-		"""Rejected status için rejection_reason zorunlu (min 20 karakter).
-
-		Defense in depth: status field'ı UI'da read_only olsa bile (form'dan
-		manuel değiştirilemez), endpoint/console/migration'dan gelen save
-		çağrılarında rejection_reason eksikse reject edilir.
-		"""
-		if self.status == "Rejected":
+		"""Rejected/Suspended status için rejection_reason + rejection_category
+		zorunlu (min 20 karakter)."""
+		if self.status in ("Rejected", "Suspended"):
 			reason = (self.rejection_reason or "").strip()
 			if len(reason) < 20:
 				frappe.throw(
 					_(
-						"Reddetme gerekçesi en az 20 karakter olmalı. Lütfen "
+						"Red gerekçesi en az 20 karakter olmalı. Lütfen "
 						"'Reddet' butonunu kullanın — gerekçe modal'ı açılır."
 					),
+					frappe.ValidationError,
+				)
+			if not self.rejection_category:
+				frappe.throw(
+					_("Red kategorisi (Re-submit veya Suspended) seçilmelidir."),
 					frappe.ValidationError,
 				)
 
@@ -80,7 +83,7 @@ class KYBVerification(Document):
 		kapanır; müşteri "Doğrulanmamış Satıcı" rozetini görür.
 
 		Kural: tek doğru durum 'Verified' — diğer tüm durumlarda (Pending, Under Review,
-		Rejected, Expired, Draft) rol kaldırılır. "Under Review" iken eski Verified
+		Rejected, Suspended, Draft) rol kaldırılır. "Under Review" iken eski Verified
 		durumundan kalan rol kaldırılmazsa kullanıcı yanlışlıkla satışa devam edebilir.
 		"""
 		if not self.user or not frappe.db.exists("User", self.user):
@@ -113,27 +116,59 @@ class KYBVerification(Document):
 			if cleaned and not re.match(r"^[\d\-/]+$", cleaned):
 				frappe.throw(_("Trade Registry Number must contain only digits, dashes, or slashes."))
 
-	def _validate_expiry_date(self):
-		if self.document_expiry_date:
-			if getdate(self.document_expiry_date) < getdate(today()):
-				frappe.throw(_("Document Expiry Date cannot be in the past."))
+	def _validate_mersis_no(self):
+		"""MERSİS numarası 16 hane (opsiyonel)."""
+		if not self.mersis_no:
+			return
+		cleaned = self.mersis_no.strip()
+		if not re.match(r"^\d{16}$", cleaned):
+			frappe.throw(_("MERSİS numarası 16 haneli olmalıdır."))
+
+	def _validate_kep_address(self):
+		"""KEP adresi email format (opsiyonel)."""
+		if not self.kep_address:
+			return
+		cleaned = self.kep_address.strip()
+		if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", cleaned):
+			frappe.throw(_("KEP Adresi geçerli bir e-posta formatında olmalıdır."))
 
 	def _validate_file_attachments(self):
-		file_fields = [
+		"""File extension validation. Sprint 2.6: verification_kind kaldırıldı,
+		bu DocType artık sadece KYB için. Faaliyet belgesi opsiyonel."""
+		required_file_fields = [
 			("identity_document", _("Kimlik Belgesi")),
 			("imza_sirkuleri", _("İmza Sirküleri")),
 			("ticaret_sicil_gazetesi", _("Ticaret Sicil Gazetesi")),
-			("faaliyet_belgesi", _("Faaliyet Belgesi")),
 			("vergi_levhasi", _("Vergi Levhası")),
+			("bank_account_document", _("Banka Hesap Belgesi")),
 		]
-		for fieldname, label in file_fields:
+		optional_file_fields = [
+			("faaliyet_belgesi", _("Faaliyet Belgesi")),
+		]
+		for fieldname, label in required_file_fields + optional_file_fields:
 			_validate_file_extension(self.get(fieldname) or "", label)
 
 	def _sync_kyb_status(self):
-		"""Sync KYB status to Seller Profile."""
-		seller_profile = frappe.db.get_value("Seller Profile", {"user": self.user}, "name")
-		if seller_profile:
-			frappe.db.set_value("Seller Profile", seller_profile, "kyb_status", self.status)
+		"""KYB.status → User Profile.kyb_status senkronu. Sprint 2.6: verification_kind
+		kaldırıldı, bu DocType artık sadece KYB için (KYC ayrı DocType)."""
+		user_profile = frappe.db.exists("User Profile", {"user": self.user})
+		if user_profile:
+			updates = {"kyb_status": self.status}
+			# Sprint 2.6 (revised): KYB Verified = satış yetkisi açılır
+			if self.status == "Verified":
+				updates["kyb_verified_at"] = now_datetime()
+				updates["can_sell"] = 1
+			elif self.status in ("Rejected", "Suspended", "Pending"):
+				updates["can_sell"] = 0
+			frappe.db.set_value("User Profile", user_profile, updates, update_modified=False)
+			# Suspended → User Profile.status da Suspended
+			if self.status == "Suspended":
+				frappe.db.set_value(
+					"User Profile", user_profile, "status", "Suspended", update_modified=False
+				)
+
+		# Sprint 2 (revised, 2026-05-15): Seller Profile backward compat guard kaldırıldı.
+		# User Profile.kyb_status zaten _sync_kyb_status'in başında set ediliyor — tek kaynak.
 
 	def _set_review_metadata(self):
 		"""Status değişimlerinde inceleme metadata'sını güncelle.
@@ -156,7 +191,7 @@ class KYBVerification(Document):
 			self.db_set("verified_at", None)
 			return
 
-		if self.status in ("Verified", "Rejected", "Under Review", "Expired"):
+		if self.status in ("Verified", "Rejected", "Under Review", "Suspended"):
 			self.db_set("verified_by", frappe.session.user)
 			self.db_set("verified_at", now_datetime())
 
@@ -209,15 +244,15 @@ class KYBVerification(Document):
 				reference_doctype="KYB Verification",
 				reference_name=self.name,
 			)
-		elif self.status == "Expired":
+		elif self.status == "Suspended":
 			notify(
 				recipient_user=self.user,
 				recipient_role="seller",
 				type="system",
-				title=_("KYB Süresi Doldu"),
-				message=_(
-					"{0} için KYB doğrulamanızın süresi doldu. Lütfen belgelerinizi yenileyiniz."
-				).format(company),
+				title=_("Hesap Askıya Alındı"),
+				message=_("{0} için hesabınız askıya alındı: {1} — Destek ile iletişime geçiniz.").format(
+					company, self.rejection_reason or ""
+				),
 				action_url="/pages/dashboard/kyb.html",
 				reference_doctype="KYB Verification",
 				reference_name=self.name,

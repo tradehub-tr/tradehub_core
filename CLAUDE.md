@@ -106,4 +106,15 @@ Kök auto memory her oturumda yüklenir. Bu CLAUDE.md ile **tamamlayıcı**: yaz
 
 Clean code kuralları kök `.claude/rules/clean-code.md`'de — 3 alt-projeyi kapsar; Python-spesifik kısımlar `python-style.md`'de.
 
-<!-- Bakım notu: bu dosyayı <200 satırda tut. Yaşayan kısım: §2 dizin haritası, §5 rules listesi, refactor-targets.md (kod değiştikçe güncellenmeli). Sabit kısım: anti-patterns.md, checklists.md (tek sefer disipliniyle yazıldı). -->
+### 6.1 Aktif mimari memory'ler (Sprint 2 sonrası, 2026-05-18)
+
+User DocType + Adres + Capability invariant ile ilgili memory'ler tek noktada:
+
+- [[user-profile-architecture-v1]] — Sprint 2 birleşmesi (Buyer/Seller Profile → User Profile + Admin Seller Profile mağaza entity)
+- [[sprint-2-6-capability-invariant]] — Patch 20: can_buy=(kyc=Verified), can_sell=(kyb=Verified); auth.py flag formülü status-bazlı
+- [[address-architecture-applied]] — Sprint 1 Faz D: Marketplace Settings + Addresses purpose/address_type/tax_no/tax_office + VKN/TCKN checksum
+- [[kyb-business-type-status]] — KYB business_type default "Limited Şirket" (kullanıcı form input'u yok)
+- [[vergi-tab-hidden]] — Settings/Vergi tab 4 noktada yorum satırı (S3=C); SettingsTaxInfo + i18n korundu
+
+<!-- Bakım notu: bu dosyayı <200 satırda tut. Yaşayan kısım: §2 dizin haritası, §5 rules listesi, §6.1 memory referansları, refactor-targets.md (kod değiştikçe güncellenmeli). Sabit kısım: anti-patterns.md, checklists.md (tek sefer disipliniyle yazıldı). -->
+

@@ -35,8 +35,9 @@
 		{
 			"fieldname": "seller_profile",
 			"fieldtype": "Link",
-			"label": "Seller Profile",
-			"options": "Seller Profile"
+			"label": "Seller Store",
+			"options": "Admin Seller Profile",
+			"description": "Sprint 2 - Admin Seller Profile (mağaza) Link"
 		},
 		{
 			"fieldname": "cb_status",

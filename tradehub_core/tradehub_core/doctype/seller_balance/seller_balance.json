@@ -26,10 +26,11 @@
 		{
 			"fieldname": "seller",
 			"fieldtype": "Link",
-			"label": "Satıcı",
-			"options": "Seller Profile",
+			"label": "Satıcı Mağaza",
+			"options": "Admin Seller Profile",
 			"reqd": 1,
-			"unique": 1
+			"unique": 1,
+			"description": "Sprint 2 - Admin Seller Profile (mağaza) bakiyesi"
 		},
 		{
 			"default": "0",

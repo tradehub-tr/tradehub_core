@@ -30,7 +30,7 @@ def on_customer_update(doc, method):
 			return
 
 	# Check if Buyer Profile DocType exists
-	if not frappe.db.exists("Buyer Profile", buyer_profile_id):
+	if not frappe.db.exists("User Profile", buyer_profile_id):
 		frappe.log_error(
 			f"Buyer Profile {buyer_profile_id} not found for Customer {doc.name}", "ERPNext Sync Error"
 		)
@@ -38,7 +38,7 @@ def on_customer_update(doc, method):
 
 	try:
 		# Update the Buyer Profile with changes from Customer
-		buyer_profile = frappe.get_doc("Buyer Profile", buyer_profile_id)
+		buyer_profile = frappe.get_doc("User Profile", buyer_profile_id)
 
 		# Sync relevant fields from ERPNext Customer
 		if doc.customer_name:
@@ -103,7 +103,7 @@ def on_customer_insert(doc, method):
 			return
 
 		# Create a new Buyer Profile
-		buyer_profile = frappe.new_doc("Buyer Profile")
+		buyer_profile = frappe.new_doc("User Profile")
 		buyer_profile.company_name = doc.customer_name
 		buyer_profile.status = "Active"
 		buyer_profile.erpnext_customer = doc.name
@@ -139,12 +139,12 @@ def on_customer_delete(doc, method):
 	if not buyer_profile_id:
 		return
 
-	if not frappe.db.exists("Buyer Profile", buyer_profile_id):
+	if not frappe.db.exists("User Profile", buyer_profile_id):
 		return
 
 	try:
 		# Don't delete the Buyer Profile, just mark it and clear the link
-		buyer_profile = frappe.get_doc("Buyer Profile", buyer_profile_id)
+		buyer_profile = frappe.get_doc("User Profile", buyer_profile_id)
 		buyer_profile.erpnext_customer = None
 		buyer_profile.notes = f"{buyer_profile.notes or ''}\n[ERPNext Customer {doc.name} was deleted on {frappe.utils.now()}]".strip()
 		buyer_profile.flags.ignore_validate = True
@@ -174,18 +174,18 @@ def _find_buyer_profile_by_customer(customer_doc):
 	    str: The Buyer Profile name if found, None otherwise
 	"""
 	# Try direct link first
-	if frappe.db.exists("Buyer Profile", {"erpnext_customer": customer_doc.name}):
-		return frappe.db.get_value("Buyer Profile", {"erpnext_customer": customer_doc.name}, "name")
+	if frappe.db.exists("User Profile", {"erpnext_customer": customer_doc.name}):
+		return frappe.db.get_value("User Profile", {"erpnext_customer": customer_doc.name}, "name")
 
 	# Try company name match
 	if customer_doc.customer_name:
-		match = frappe.db.get_value("Buyer Profile", {"company_name": customer_doc.customer_name}, "name")
+		match = frappe.db.get_value("User Profile", {"company_name": customer_doc.customer_name}, "name")
 		if match:
 			return match
 
 	# Try tax_id match if available
 	if customer_doc.get("tax_id"):
-		match = frappe.db.get_value("Buyer Profile", {"tax_id": customer_doc.tax_id}, "name")
+		match = frappe.db.get_value("User Profile", {"tax_id": customer_doc.tax_id}, "name")
 		if match:
 			return match
 

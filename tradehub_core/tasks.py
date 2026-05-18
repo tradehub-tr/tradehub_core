@@ -31,7 +31,7 @@ def calculate_customer_grades():
 
 	Steps:
 	1. Acquire Redis lock to prevent concurrent execution
-	2. Get all active buyer profiles
+	2. Get all active user profiles (can_buy=1)
 	3. For each buyer:
 	   - Create a Customer Grade record
 	   - Run the grading pipeline (collect, normalize, weight, aggregate, grade)
@@ -59,11 +59,11 @@ def _run_customer_grading():
 	if not frappe.db.exists("DocType", "Customer Grade"):
 		return
 
-	if not frappe.db.exists("DocType", "Buyer Profile"):
+	if not frappe.db.exists("DocType", "User Profile"):
 		return
 
-	# Get all active buyer profiles
-	buyers = frappe.get_all("Buyer Profile", filters={"status": "Active"}, fields=["name"])
+	# Get all active user profiles (can_buy=1)
+	buyers = frappe.get_all("User Profile", filters={"status": "Active"}, fields=["name"])
 
 	if not buyers:
 		frappe.logger().info("No active buyers found for grading")
@@ -104,7 +104,7 @@ def _calculate_grade_for_buyer(buyer_name, grade_period):
 	grade of 'C' (score 55.0) is assigned automatically by the pipeline.
 
 	Args:
-	    buyer_name: Buyer Profile name.
+	    buyer_name: User Profile name.
 	    grade_period: Period identifier (e.g., '2024-W05').
 	"""
 	# Create a new Customer Grade record
@@ -137,7 +137,7 @@ def _update_seller_customer_grades(buyer_name, customer_grade):
 	buyer, update the platform grade and score from the latest Customer Grade.
 
 	Args:
-	    buyer_name: Buyer Profile name.
+	    buyer_name: User Profile name.
 	    customer_grade: The finalized Customer Grade document.
 	"""
 	if not frappe.db.exists("DocType", "Seller Customer Grade"):
@@ -168,7 +168,7 @@ def recalculate_buyer_metrics():
 
 	Steps:
 	1. Acquire Redis lock to prevent concurrent execution
-	2. Get all active buyer profiles
+	2. Get all active user profiles (can_buy=1)
 	3. For each buyer, recalculate order stats and derived metrics
 	4. Commit every 100 records
 
@@ -188,10 +188,10 @@ def recalculate_buyer_metrics():
 
 def _run_buyer_metrics_recalculation():
 	"""Internal function to recalculate buyer metrics for all active buyers."""
-	if not frappe.db.exists("DocType", "Buyer Profile"):
+	if not frappe.db.exists("DocType", "User Profile"):
 		return
 
-	buyers = frappe.get_all("Buyer Profile", filters={"status": "Active"}, fields=["name"])
+	buyers = frappe.get_all("User Profile", filters={"status": "Active"}, fields=["name"])
 
 	if not buyers:
 		frappe.logger().info("No active buyers found for metrics recalculation")
@@ -227,15 +227,15 @@ def _recalculate_metrics_for_buyer(buyer_name):
 	"""Recalculate metrics for a single buyer.
 
 	Updates order stats and derived fields (return_rate, feedback_rate,
-	dispute_rate, cancellation_rate, payment_pattern) on the Buyer Profile
+	dispute_rate, cancellation_rate, payment_pattern) on the User Profile
 	using frappe.db.set_value to avoid triggering full validation hooks.
 
 	Args:
-	    buyer_name: Buyer Profile name.
+	    buyer_name: User Profile name.
 	"""
 	from tradehub_core.tradehub_core.utils.safe_math import safe_divide
 
-	buyer = frappe.get_doc("Buyer Profile", buyer_name)
+	buyer = frappe.get_doc("User Profile", buyer_name)
 
 	# Recalculate order statistics
 	orders = frappe.get_all(
@@ -286,7 +286,7 @@ def _recalculate_metrics_for_buyer(buyer_name):
 
 	# Update using set_value to avoid triggering full validate (which guards system fields)
 	frappe.db.set_value(
-		"Buyer Profile",
+		"User Profile",
 		buyer_name,
 		{
 			"total_orders": total_orders,
@@ -310,7 +310,7 @@ def calculate_buyer_scores():
 
 	Steps:
 	1. Acquire Redis lock to prevent concurrent execution
-	2. Get all active buyer profiles
+	2. Get all active user profiles (can_buy=1)
 	3. For each buyer, run the scoring pipeline and persist results
 	4. Commit every 100 records
 
@@ -330,10 +330,10 @@ def calculate_buyer_scores():
 
 def _run_buyer_score_calculation():
 	"""Internal function to calculate scores for all active buyers."""
-	if not frappe.db.exists("DocType", "Buyer Profile"):
+	if not frappe.db.exists("DocType", "User Profile"):
 		return
 
-	buyers = frappe.get_all("Buyer Profile", filters={"status": "Active"}, fields=["name"])
+	buyers = frappe.get_all("User Profile", filters={"status": "Active"}, fields=["name"])
 
 	if not buyers:
 		frappe.logger().info("No active buyers found for score calculation")
@@ -369,10 +369,10 @@ def _calculate_score_for_buyer(buyer_name):
 	"""Calculate and persist score for a single buyer.
 
 	Uses the buyer scoring engine to calculate the score and writes
-	buyer_score, buyer_score_trend, and last_score_date to the Buyer Profile.
+	buyer_score, buyer_score_trend, and last_score_date to the User Profile.
 
 	Args:
-	    buyer_name: Buyer Profile name.
+	    buyer_name: User Profile name.
 	"""
 	from tradehub_core.tradehub_core.scoring.engine import calculate_buyer_score_for_profile
 
@@ -387,7 +387,7 @@ def buyer_level_tasks():
 
 	Steps:
 	1. Acquire Redis lock to prevent concurrent execution
-	2. Get all active buyer profiles
+	2. Get all active user profiles (can_buy=1)
 	3. Get all active buyer levels ordered by rank (highest first)
 	4. For each buyer, evaluate qualification for each level
 	5. Update buyer_level if qualification changes
@@ -409,13 +409,13 @@ def buyer_level_tasks():
 
 def _run_buyer_level_evaluation():
 	"""Internal function to evaluate buyer levels for all active buyers."""
-	if not frappe.db.exists("DocType", "Buyer Profile"):
+	if not frappe.db.exists("DocType", "User Profile"):
 		return
 
 	if not frappe.db.exists("DocType", "Buyer Level"):
 		return
 
-	buyers = frappe.get_all("Buyer Profile", filters={"status": "Active"}, fields=["name", "buyer_level"])
+	buyers = frappe.get_all("User Profile", filters={"status": "Active"}, fields=["name", "buyer_level"])
 
 	if not buyers:
 		frappe.logger().info("No active buyers found for level evaluation")
@@ -482,7 +482,7 @@ def _evaluate_level_for_buyer(buyer, levels):
 
 	# Update if changed
 	if new_level and new_level != buyer.buyer_level:
-		frappe.db.set_value("Buyer Profile", buyer.name, "buyer_level", new_level, update_modified=False)
+		frappe.db.set_value("User Profile", buyer.name, "buyer_level", new_level, update_modified=False)
 
 
 def update_buyer_kpi_template_stats():
@@ -738,10 +738,10 @@ def calculate_buyer_kpi_scores():
 	Steps:
 	1. Acquire Redis lock to prevent concurrent execution
 	2. Get default Buyer KPI Template
-	3. Get all active buyer profiles meeting minimum thresholds
+	3. Get all active user profiles (can_buy=1) meeting minimum thresholds
 	   (≥3 orders, ≥14 days active)
 	4. For each buyer:
-	   - Collect raw metrics from Buyer Profile
+	   - Collect raw metrics from User Profile
 	   - Normalize each metric based on template configuration
 	   - Create Buyer KPI Score Log with metric scores child table
 	   - Finalize the score record
@@ -769,7 +769,7 @@ def _run_buyer_kpi_score_calculation():
 	if not frappe.db.exists("DocType", "Buyer KPI Template"):
 		return
 
-	if not frappe.db.exists("DocType", "Buyer Profile"):
+	if not frappe.db.exists("DocType", "User Profile"):
 		return
 
 	# Get default Buyer KPI Template
@@ -783,9 +783,9 @@ def _run_buyer_kpi_score_calculation():
 
 	template = frappe.get_doc("Buyer KPI Template", default_template_name)
 
-	# Get all active buyer profiles
+	# Get all active user profiles (can_buy=1)
 	buyers = frappe.get_all(
-		"Buyer Profile", filters={"status": "Active"}, fields=["name", "total_orders", "joined_at"]
+		"User Profile", filters={"status": "Active"}, fields=["name", "total_orders", "joined_at"]
 	)
 
 	if not buyers:
@@ -863,19 +863,19 @@ def _meets_kpi_thresholds(buyer):
 def _calculate_kpi_score_for_buyer(buyer_name, template):
 	"""Calculate and persist a KPI score for a single buyer.
 
-	Collects raw metrics from the Buyer Profile, normalizes each metric
+	Collects raw metrics from the User Profile, normalizes each metric
 	using the template configuration, creates a Buyer KPI Score Log record
 	with per-metric child rows, and finalizes it.
 
 	Args:
-	    buyer_name: Buyer Profile name.
+	    buyer_name: User Profile name.
 	    template: Buyer KPI Template document with active metrics.
 	"""
 	import math
 
 	from tradehub_core.tradehub_core.utils.safe_math import safe_divide
 
-	buyer = frappe.get_doc("Buyer Profile", buyer_name)
+	buyer = frappe.get_doc("User Profile", buyer_name)
 
 	# Calculate account age and last activity days
 	account_age_days = 0
@@ -1061,7 +1061,7 @@ def aggregate_buyer_kpi_summaries():
 	Steps:
 	1. Acquire Redis lock to prevent concurrent execution
 	2. Update Buyer KPI Template statistics (usage_count, average_score)
-	3. Update per-buyer aggregate KPI summary stats on Buyer Profile
+	3. Update per-buyer aggregate KPI summary stats on User Profile
 	4. Commit every 100 records
 
 	Uses per-entity try/except to ensure a single failure doesn't block others.
@@ -1098,9 +1098,9 @@ def _run_buyer_kpi_summary_aggregation():
 					title="Buyer KPI Template Stats Error",
 				)
 
-	# --- Part 2: Update per-buyer KPI summary on Buyer Profile ---
-	if frappe.db.exists("DocType", "Buyer Profile"):
-		buyers = frappe.get_all("Buyer Profile", filters={"status": "Active"}, fields=["name"])
+	# --- Part 2: Update per-buyer KPI summary on User Profile ---
+	if frappe.db.exists("DocType", "User Profile"):
+		buyers = frappe.get_all("User Profile", filters={"status": "Active"}, fields=["name"])
 
 		if not buyers:
 			frappe.logger().info("No active buyers found for KPI summary aggregation")
@@ -1188,7 +1188,7 @@ def _aggregate_kpi_summary_for_buyer(buyer_name):
 	recent finalized Buyer KPI Score Log record.
 
 	Args:
-	    buyer_name: Buyer Profile name.
+	    buyer_name: User Profile name.
 	"""
 	# Get the most recent finalized KPI score for this buyer
 	latest_score = frappe.db.get_value(
@@ -1213,7 +1213,7 @@ def _aggregate_kpi_summary_for_buyer(buyer_name):
 	}
 
 	frappe.db.set_value(
-		"Buyer Profile",
+		"User Profile",
 		buyer_name,
 		{
 			"buyer_score": latest_score.overall_score,

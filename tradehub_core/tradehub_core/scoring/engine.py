@@ -179,7 +179,7 @@ def calculate_buyer_score_for_profile(buyer_name):
 	    frappe.DoesNotExistError: If the Buyer Profile does not exist.
 	"""
 
-	buyer = frappe.get_doc("Buyer Profile", buyer_name)
+	buyer = frappe.get_doc("User Profile", buyer_name)
 
 	# Collect raw metrics from buyer profile fields
 	raw_metrics = _collect_buyer_metrics(buyer)
@@ -196,7 +196,7 @@ def calculate_buyer_score_for_profile(buyer_name):
 
 	# Persist results using set_value to avoid triggering full validation
 	frappe.db.set_value(
-		"Buyer Profile",
+		"User Profile",
 		buyer_name,
 		{
 			"buyer_score": new_score,

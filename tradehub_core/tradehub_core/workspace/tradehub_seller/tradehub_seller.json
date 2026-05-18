@@ -26,8 +26,8 @@
  ],
  "sequence_id": 99,
  "shortcuts": [
-  {"color": "Grey", "doc_view": "", "format": "Card", "label": "Satıcı Profili", "link_to": "Seller Profile", "type": "DocType"},
-  {"color": "Grey", "doc_view": "", "format": "Card", "label": "Satıcı Mağazası", "link_to": "Seller Store", "type": "DocType"},
+  {"color": "Grey", "doc_view": "", "format": "Card", "label": "Kullanıcı Profili", "link_to": "User Profile", "type": "DocType"},
+  {"color": "Grey", "doc_view": "", "format": "Card", "label": "Satıcı Mağazası", "link_to": "Admin Seller Profile", "type": "DocType"},
   {"color": "Grey", "doc_view": "", "format": "Card", "label": "Başvurular", "link_to": "Seller Application", "type": "DocType"},
   {"color": "Grey", "doc_view": "", "format": "Card", "label": "Bakiye", "link_to": "Seller Balance", "type": "DocType"},
   {"color": "Grey", "doc_view": "", "format": "Card", "label": "İlanlar", "link_to": "Listing", "type": "DocType"},
@@ -35,16 +35,13 @@
   {"color": "Grey", "doc_view": "", "format": "Card", "label": "Ürünler", "link_to": "Seller Product", "type": "DocType"},
   {"color": "Grey", "doc_view": "", "format": "Card", "label": "Ürün Kategorileri", "link_to": "Product Category", "type": "DocType"},
   {"color": "Grey", "doc_view": "", "format": "Card", "label": "Siparişler", "link_to": "Order", "type": "DocType"},
-  {"color": "Grey", "doc_view": "", "format": "Card", "label": "Alıcı Profili", "link_to": "Buyer Profile", "type": "DocType"},
   {"color": "Grey", "doc_view": "", "format": "Card", "label": "Sepet", "link_to": "Cart", "type": "DocType"},
   {"color": "Grey", "doc_view": "", "format": "Card", "label": "Kuponlar", "link_to": "Coupon", "type": "DocType"},
   {"color": "Grey", "doc_view": "", "format": "Card", "label": "Değerlendirmeler", "link_to": "Seller Review", "type": "DocType"},
   {"color": "Grey", "doc_view": "", "format": "Card", "label": "Sorgular", "link_to": "Seller Inquiry", "type": "DocType"},
   {"color": "Grey", "doc_view": "", "format": "Card", "label": "Mesajlar", "link_to": "Seller Contact Message", "type": "DocType"},
   {"color": "Grey", "doc_view": "", "format": "Card", "label": "Kargo Yöntemleri", "link_to": "Shipping Method", "type": "DocType"},
-  {"color": "Grey", "doc_view": "", "format": "Card", "label": "Satıcı Kategorileri", "link_to": "Seller Category", "type": "DocType"},
-  {"color": "Grey", "doc_view": "", "format": "Card", "label": "Tedarikçi Profili", "link_to": "Supplier Profile", "type": "DocType"},
-  {"color": "Grey", "doc_view": "", "format": "Card", "label": "Admin Satıcı Profili", "link_to": "Admin Seller Profile", "type": "DocType"}
+  {"color": "Grey", "doc_view": "", "format": "Card", "label": "Satıcı Kategorileri", "link_to": "Seller Category", "type": "DocType"}
  ],
  "title": "Satıcı Paneli"
 }

@@ -83,6 +83,10 @@ def _doc_to_dict(doc):
 		"postal_code": doc.postal_code or "",
 		"note": doc.note or "",
 		"is_default": bool(doc.is_default),
+		"purpose": doc.purpose or "Delivery",
+		"address_type": doc.address_type or "Individual",
+		"tax_no": doc.tax_no or "",
+		"tax_office": doc.tax_office or "",
 	}
 
 
@@ -177,9 +181,15 @@ def get_addresses():
 	Varsayılan adres önce, geri kalanı oluşturulma tarihine göre sıralı.
 	"""
 	user = _require_login()
+	# Sprint 1 (2026-05-15) — purpose+address_type filter:
+	# Buyer akışı sadece Delivery/Billing adreslerini gösterir (Pickup mağaza adresi).
+	# Geçiş penceresi: hâlâ kind="Buyer" filter da kullanılıyor (eski kayıtlar).
 	rows = frappe.get_all(
 		"Addresses",
-		filters={"user": user, "kind": "Buyer"},
+		filters={
+			"user": user,
+			"purpose": ["in", ["Delivery", "Billing"]],
+		},
 		fields=[
 			"name",
 			"title",
@@ -195,6 +205,10 @@ def get_addresses():
 			"postal_code",
 			"note",
 			"is_default",
+			"purpose",
+			"address_type",
+			"tax_no",
+			"tax_office",
 		],
 		order_by="is_default desc, creation asc",
 	)
@@ -214,6 +228,10 @@ def get_addresses():
 			"postal_code": r["postal_code"] or "",
 			"note": r["note"] or "",
 			"is_default": bool(r["is_default"]),
+			"purpose": r["purpose"] or "Delivery",
+			"address_type": r["address_type"] or "Individual",
+			"tax_no": r["tax_no"] or "",
+			"tax_office": r["tax_office"] or "",
 		}
 		for r in rows
 	]
@@ -240,18 +258,40 @@ def save_address(address_json):
 
 	address_id = (data.get("id") or "").strip()
 
-	# Zorunlu alan doğrulaması — frontend ile tutarlı, B2B için company dahil.
+	# Sprint 1 (2026-05-15) — Adres Mimarisi:
+	# purpose (Delivery/Pickup/Billing) ve address_type (Individual/Business) yeni alanlar.
+	# Default: purpose=Delivery, address_type=Individual.
+	purpose = (data.get("purpose") or "Delivery").strip()
+	if purpose not in ("Delivery", "Pickup", "Billing"):
+		purpose = "Delivery"
+	address_type = (data.get("address_type") or "Individual").strip()
+	if address_type not in ("Individual", "Business"):
+		address_type = "Individual"
+	tax_no = (data.get("tax_no") or "").strip()
+	tax_office = (data.get("tax_office") or "").strip()
+
+	# Zorunlu alan doğrulaması — company sadece Business için zorunlu.
 	required_fields = {
 		"title": _("Adres Başlığı"),
 		"contact_name": _("İrtibat Kişisi"),
-		"company": _("Şirket Adı"),
 		"phone": _("Telefon"),
 		"state": _("İl"),
 		"street": _("Adres Satırı"),
 	}
+	if address_type == "Business":
+		required_fields["company"] = _("Şirket Adı")
+		required_fields["tax_no"] = _("Vergi No")
+		required_fields["tax_office"] = _("Vergi Dairesi")
 	for field, label in required_fields.items():
 		if not (data.get(field) or "").strip():
 			frappe.throw(_("{0} alanı zorunludur").format(label))
+
+	# Business adres için VKN/TCKN checksum doğrulaması
+	if address_type == "Business" and tax_no:
+		from tradehub_core.utils.tax_validation import is_valid_tax_id
+
+		if not is_valid_tax_id(tax_no):
+			frappe.throw(_("Geçerli bir VKN (10 hane) veya TCKN (11 hane) giriniz"))
 
 	# Telefon formatı — TR için tek kanonik formata (E.164) indirgenir, non-TR
 	# için mevcut gevşek E.164 kontrolü korunur.
@@ -314,7 +354,7 @@ def save_address(address_json):
 		if len(locked) >= MAX_ADDRESSES:
 			frappe.throw(_("En fazla {0} adres ekleyebilirsiniz").format(MAX_ADDRESSES))
 		doc = frappe.new_doc("Addresses")
-		doc.kind = "Buyer"
+		doc.kind = "Buyer"  # Sprint 1 — geçiş penceresi: kind hâlâ yazılıyor (Sprint 4'te drop)
 		doc.user = user
 
 	doc.title = (data.get("title") or "").strip()
@@ -330,6 +370,11 @@ def save_address(address_json):
 	doc.postal_code = (data.get("postal_code") or "").strip()
 	doc.note = (data.get("note") or "").strip()
 	doc.is_default = bool(data.get("is_default", False))
+	# Sprint 1 (2026-05-15) — yeni alanlar:
+	doc.purpose = purpose
+	doc.address_type = address_type
+	doc.tax_no = tax_no
+	doc.tax_office = tax_office
 
 	if address_id:
 		doc.save(ignore_permissions=True)

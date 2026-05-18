@@ -19,10 +19,15 @@ def _setup_core_permissions():
 
 
 def _create_marketplace_roles():
+	"""Sprint 2 kapsamı — sadece kod tabanında refere edilen 5 rol yaratılır.
+	14 hiyerarşik rol (Platform/Seller/Buyer Group) Sprint 3 RBAC reformunda
+	tasarlanacak ve o sırada install.py'ye + fixture'a eklenecek."""
 	roles = [
 		{"role_name": "Buyer", "desk_access": 0},
-		{"role_name": "Seller", "desk_access": 0},
+		{"role_name": "Seller", "desk_access": 1},
 		{"role_name": "Marketplace Admin", "desk_access": 1},
+		{"role_name": "Marketplace Seller", "desk_access": 1},
+		{"role_name": "Marketplace Buyer", "desk_access": 0},
 	]
 	for role_data in roles:
 		if not frappe.db.exists("Role", role_data["role_name"]):

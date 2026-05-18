@@ -166,11 +166,15 @@ def _application_status_breakdown():
 
 
 def _profile_status_breakdown():
-	"""Count buyer and seller profiles per status."""
+	"""Count buyer and seller profiles per status.
+
+	Sprint 2 (revised, 2026-05-15): Buyer Profile → User Profile (can_buy=1).
+	"""
 	buyers = frappe.db.sql(
 		"""
         SELECT status, COUNT(*) AS count
-        FROM `tabBuyer Profile`
+        FROM `tabUser Profile`
+        WHERE can_buy = 1
         GROUP BY status
         """,
 		as_dict=True,
@@ -190,10 +194,13 @@ def _profile_status_breakdown():
 
 
 def _platform_totals():
-	"""Total user/profile counts."""
+	"""Total user/profile counts.
+
+	Sprint 2 (revised, 2026-05-15): buyer_profiles → User Profile (can_buy=1).
+	"""
 	return {
 		"users": frappe.db.count("User", filters=[["user_type", "=", "System User"], ["enabled", "=", 1]]),
-		"buyer_profiles": frappe.db.count("Buyer Profile"),
+		"buyer_profiles": frappe.db.count("User Profile", {"can_buy": 1}),
 		"seller_profiles": frappe.db.count("Admin Seller Profile"),
 		"seller_applications": frappe.db.count("Seller Application"),
 	}

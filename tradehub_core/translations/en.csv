@@ -486,3 +486,5 @@ Teklifiniz Kabul Edildi,Your Quote Accepted,
 "{0} talebine verdiğiniz teklif kabul edildi.","Your quote on request {0} has been accepted.",
 Teklifiniz Reddedildi,Your Quote Rejected,
 "{0} talebine verdiğiniz teklif reddedildi.","Your quote on request {0} was rejected.",
+"User Profile {0} not found","Kullanıcı profili {0} bulunamadı"
+"Satıcı olabilmek için Kurumsal hesap tipi zorunludur (KYB için vergi levhası şart).","Satıcı olabilmek için Kurumsal hesap tipi zorunludur (KYB için vergi levhası şart)."

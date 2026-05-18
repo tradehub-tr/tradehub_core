@@ -37,13 +37,11 @@ def _is_admin(user: str | None = None) -> bool:
 
 
 def _resolve_display_name(user: str) -> str:
-	bp = frappe.db.get_value(
-		"Buyer Profile", {"user": user}, ["company_name", "buyer_name", "city"], as_dict=True
-	)
-	if bp:
-		base = (bp.company_name or "").strip() or (bp.buyer_name or "").strip()
-		if base and bp.city:
-			return f"{base} ({bp.city})"
+	# Sprint 2 (revised, 2026-05-15): Buyer Profile → User Profile.
+	# city field'ı User Profile'da yok (Sprint 1 Frappe Address mimarisi bekliyor).
+	up = frappe.db.get_value("User Profile", {"user": user}, ["company_name", "full_name"], as_dict=True)
+	if up:
+		base = (up.company_name or "").strip() or (up.full_name or "").strip()
 		if base:
 			return base
 	return frappe.db.get_value("User", user, "full_name") or user

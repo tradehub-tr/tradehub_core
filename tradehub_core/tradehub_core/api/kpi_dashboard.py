@@ -53,7 +53,7 @@ def get_buyer_kpi_dashboard_data(buyer_name):
 	if not buyer_name:
 		frappe.throw(_("Buyer name is required"))
 
-	if not frappe.db.exists("Buyer Profile", buyer_name):
+	if not frappe.db.exists("User Profile", buyer_name):
 		frappe.throw(_("Buyer not found"), frappe.DoesNotExistError)
 
 	# Permission check: only the buyer's own user, System Manager, or
@@ -132,7 +132,7 @@ def get_buyer_kpi_summary_for_seller(seller_name, anonymous_customer_id):
 	if not anonymous_customer_id:
 		frappe.throw(_("Anonymous customer ID is required"))
 
-	if not frappe.db.exists("Seller Profile", seller_name):
+	if not frappe.db.exists("Admin Seller Profile", seller_name):
 		frappe.throw(_("Seller not found"), frappe.DoesNotExistError)
 
 	# Permission check: only the seller's own user or system admins
@@ -304,7 +304,7 @@ def _check_buyer_permission(buyer_name):
 		return
 
 	# Check if the user is the buyer's own user
-	buyer_user = frappe.db.get_value("Buyer Profile", buyer_name, "user")
+	buyer_user = frappe.db.get_value("User Profile", buyer_name, "user")
 	if buyer_user and buyer_user == user:
 		return
 
@@ -339,7 +339,7 @@ def _check_seller_permission(seller_name):
 		return
 
 	# Check if the user is the seller's own user
-	seller_user = frappe.db.get_value("Seller Profile", seller_name, "user")
+	seller_user = frappe.db.get_value("Admin Seller Profile", seller_name, "user")
 	if seller_user and seller_user == user:
 		return
 
@@ -413,7 +413,7 @@ def _get_buyer_info(buyer_name):
 		"last_active_at",
 	]
 
-	buyer = frappe.db.get_value("Buyer Profile", buyer_name, fields, as_dict=True)
+	buyer = frappe.db.get_value("User Profile", buyer_name, fields, as_dict=True)
 	return buyer or {}
 
 

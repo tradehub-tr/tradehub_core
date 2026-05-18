@@ -1,0 +1,239 @@
+{
+	"name": "KYC Verification",
+	"doctype": "DocType",
+	"module": "Tradehub Core",
+	"naming_rule": "Expression (old style)",
+	"autoname": "KYC-.#####",
+	"engine": "InnoDB",
+	"track_changes": 1,
+	"sort_field": "modified",
+	"sort_order": "DESC",
+	"title_field": "user",
+	"fields": [
+		{
+			"fieldname": "tab_account",
+			"fieldtype": "Tab Break",
+			"label": "Hesap"
+		},
+		{
+			"fieldname": "user",
+			"fieldtype": "Link",
+			"label": "Kullanıcı",
+			"options": "User",
+			"reqd": 1,
+			"search_index": 1,
+			"in_list_view": 1,
+			"permlevel": 1
+		},
+		{
+			"fieldname": "account_type",
+			"fieldtype": "Select",
+			"label": "Hesap Türü",
+			"options": "Business\nIndividual",
+			"default": "Business",
+			"reqd": 1,
+			"in_list_view": 1,
+			"in_standard_filter": 1,
+			"description": "Business = Kurumsal (default). Individual = Bireysel. Bu alan KYC formundaki toggle ile set edilir."
+		},
+		{
+			"fieldname": "status",
+			"fieldtype": "Select",
+			"label": "Durum",
+			"options": "Pending\nVerified\nRejected\nSuspended",
+			"default": "Pending",
+			"in_list_view": 1,
+			"in_standard_filter": 1,
+			"read_only": 1,
+			"permlevel": 1
+		},
+		{
+			"fieldname": "cb_account",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "submitted_at",
+			"fieldtype": "Datetime",
+			"label": "Gönderildi",
+			"read_only": 1
+		},
+		{
+			"fieldname": "reviewed_at",
+			"fieldtype": "Datetime",
+			"label": "İncelendi",
+			"read_only": 1,
+			"permlevel": 1
+		},
+		{
+			"fieldname": "reviewed_by",
+			"fieldtype": "Link",
+			"label": "İnceleyen",
+			"options": "User",
+			"read_only": 1,
+			"permlevel": 1
+		},
+		{
+			"fieldname": "tab_corporate",
+			"fieldtype": "Tab Break",
+			"label": "Kurumsal Bilgiler",
+			"depends_on": "eval:doc.account_type=='Business'"
+		},
+		{
+			"fieldname": "sb_company",
+			"fieldtype": "Section Break",
+			"label": "Şirket Bilgileri"
+		},
+		{
+			"fieldname": "company_name",
+			"fieldtype": "Data",
+			"label": "Şirket Ünvanı",
+			"mandatory_depends_on": "eval:doc.account_type=='Business'",
+			"depends_on": "eval:doc.account_type=='Business'",
+			"in_list_view": 1
+		},
+		{
+			"fieldname": "tax_id",
+			"fieldtype": "Data",
+			"label": "Vergi Numarası",
+			"reqd": 1,
+			"permlevel": 1,
+			"description": "Bireysel: TCKN (11 hane). Kurumsal: VKN (10-11 hane)."
+		},
+		{
+			"fieldname": "cb_company",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "phone",
+			"fieldtype": "Data",
+			"label": "Telefon",
+			"reqd": 1,
+			"options": "Phone"
+		},
+		{
+			"fieldname": "email_field",
+			"fieldtype": "Data",
+			"label": "E-Posta",
+			"reqd": 1,
+			"read_only": 1,
+			"options": "Email",
+			"description": "User.email'den otomatik gelir, değiştirilemez"
+		},
+		{
+			"fieldname": "sb_address",
+			"fieldtype": "Section Break",
+			"label": "Adres Bilgileri"
+		},
+		{
+			"fieldname": "address",
+			"fieldtype": "Small Text",
+			"label": "Adres",
+			"reqd": 1
+		},
+		{
+			"fieldname": "cb_address",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "billing_address",
+			"fieldtype": "Small Text",
+			"label": "Fatura Adresi",
+			"reqd": 1
+		},
+		{
+			"fieldname": "tab_documents",
+			"fieldtype": "Tab Break",
+			"label": "Belgeler"
+		},
+		{
+			"fieldname": "identity_document",
+			"fieldtype": "Attach",
+			"label": "Kimlik Belgesi",
+			"reqd": 1,
+			"description": "Hem Kurumsal hem Bireysel için zorunlu. PDF/JPG/PNG/WEBP/DOCX max 10MB."
+		},
+		{
+			"fieldname": "tab_review",
+			"fieldtype": "Tab Break",
+			"label": "İnceleme",
+			"depends_on": "eval:doc.status=='Rejected' || doc.status=='Suspended'"
+		},
+		{
+			"fieldname": "rejection_category",
+			"fieldtype": "Select",
+			"label": "Red Kategorisi",
+			"options": "\nRe-submit\nSuspended",
+			"permlevel": 1,
+			"depends_on": "eval:doc.status=='Rejected' || doc.status=='Suspended'",
+			"description": "Re-submit: kullanıcı yeniden yükler. Suspended: hesap askıya alınır."
+		},
+		{
+			"fieldname": "rejection_reason",
+			"fieldtype": "Small Text",
+			"label": "Red Sebebi",
+			"permlevel": 1,
+			"depends_on": "eval:doc.status=='Rejected' || doc.status=='Suspended'"
+		}
+	],
+	"permissions": [
+		{
+			"role": "System Manager",
+			"read": 1,
+			"write": 1,
+			"create": 1,
+			"delete": 1,
+			"submit": 0,
+			"cancel": 0,
+			"report": 1,
+			"export": 1,
+			"print": 1,
+			"email": 1,
+			"share": 1
+		},
+		{
+			"role": "System Manager",
+			"permlevel": 1,
+			"read": 1,
+			"write": 1
+		},
+		{
+			"role": "Marketplace Admin",
+			"read": 1,
+			"write": 1,
+			"create": 1,
+			"delete": 0,
+			"report": 1,
+			"export": 1,
+			"print": 1,
+			"email": 1,
+			"share": 1
+		},
+		{
+			"role": "Marketplace Admin",
+			"permlevel": 1,
+			"read": 1,
+			"write": 1
+		},
+		{
+			"role": "Buyer",
+			"read": 1,
+			"write": 1,
+			"create": 1,
+			"if_owner": 1
+		},
+		{
+			"role": "Seller",
+			"read": 1,
+			"write": 1,
+			"create": 1,
+			"if_owner": 1
+		},
+		{
+			"role": "Marketplace Seller",
+			"read": 1,
+			"write": 1,
+			"create": 1,
+			"if_owner": 1
+		}
+	]
+}
