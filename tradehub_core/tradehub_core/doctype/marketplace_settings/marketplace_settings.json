@@ -1,0 +1,103 @@
+{
+ "actions": [],
+ "creation": "2026-05-15 12:00:00",
+ "doctype": "DocType",
+ "editable_grid": 0,
+ "engine": "InnoDB",
+ "field_order": [
+  "sb_address",
+  "default_address_type",
+  "address_type_toggle_visible",
+  "cb_address",
+  "require_tax_id_business",
+  "require_tax_id_individual",
+  "sb_invoice",
+  "invoice_generation_mode"
+ ],
+ "fields": [
+  {
+   "fieldname": "sb_address",
+   "fieldtype": "Section Break",
+   "label": "Adres Ayarları"
+  },
+  {
+   "default": "Individual",
+   "fieldname": "default_address_type",
+   "fieldtype": "Select",
+   "label": "Varsayılan Adres Tipi",
+   "options": "Individual\nBusiness",
+   "reqd": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "address_type_toggle_visible",
+   "fieldtype": "Check",
+   "label": "Adres Tipi Toggle Görünür"
+  },
+  {
+   "fieldname": "cb_address",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "require_tax_id_business",
+   "fieldtype": "Check",
+   "label": "Kurumsal Adreste Vergi No Zorunlu"
+  },
+  {
+   "default": "0",
+   "fieldname": "require_tax_id_individual",
+   "fieldtype": "Check",
+   "label": "Bireysel Adreste TC/Vergi No Zorunlu"
+  },
+  {
+   "fieldname": "sb_invoice",
+   "fieldtype": "Section Break",
+   "label": "Fatura Ayarları"
+  },
+  {
+   "default": "Manual",
+   "fieldname": "invoice_generation_mode",
+   "fieldtype": "Select",
+   "label": "Fatura Üretim Modu",
+   "options": "Manual\nAutomatic"
+  }
+ ],
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-05-15 12:00:00",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "Marketplace Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 0,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 0,
+   "delete": 0,
+   "email": 0,
+   "export": 0,
+   "print": 0,
+   "read": 1,
+   "report": 0,
+   "role": "All",
+   "share": 0,
+   "write": 0
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}
