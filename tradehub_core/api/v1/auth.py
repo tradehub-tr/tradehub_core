@@ -19,7 +19,7 @@ def get_select_options(doctype: str):
 
 	Used by frontend to dynamically populate dropdowns.
 	"""
-	allowed = {"Buyer Profile", "Seller Profile", "KYB Verification"}
+	allowed = {"User Profile", "Admin Seller Profile", "KYB Verification"}
 	if doctype not in allowed:
 		frappe.throw(_("Not allowed."), frappe.PermissionError)
 
@@ -68,14 +68,27 @@ def get_session_user():
 
 	roles = frappe.get_roles(frappe.session.user)
 
+	# Sprint 2: User Profile artık herkeste var (Buyer + Seller + hibrit).
+	# is_seller = User Profile.can_sell capability flag'i (rol fallback'i ile).
+	# has_seller_profile = Admin Seller Profile (mağaza entity) varlığı.
+	up_data = (
+		frappe.db.get_value(
+			"User Profile",
+			{"user": frappe.session.user},
+			["can_sell", "can_buy"],
+			as_dict=True,
+		)
+		or {}
+	)
+
 	is_admin = "System Manager" in roles or "Administrator" in roles
-	is_buyer = "Buyer" in roles
-	is_seller = "Seller" in roles or bool(frappe.db.exists("Seller Profile", {"user": frappe.session.user}))
+	is_buyer = "Buyer" in roles or bool(up_data.get("can_buy"))
+	is_seller = "Seller" in roles or bool(up_data.get("can_sell"))
 	is_verified_seller = "Verified Seller" in roles
 
 	has_seller_profile = bool(
 		frappe.db.exists(
-			"Seller Profile",
+			"Admin Seller Profile",
 			{"user": frappe.session.user, "status": "Active"},
 		)
 	)
@@ -98,7 +111,12 @@ def get_session_user():
 
 	rejected_seller_application = seller_application_status == "Rejected"
 
-	seller_profile = frappe.db.get_value("Seller Profile", {"user": frappe.session.user}, "name") or None
+	# Sprint 2: seller_profile = Admin Seller Profile.name (mağaza URL'i için
+	# `getSellerStoreUrl(user)` bu field'ı kullanır). User Profile.name = email
+	# olduğundan storefront URL'i için anlamsız.
+	seller_profile = (
+		frappe.db.get_value("Admin Seller Profile", {"user": frappe.session.user}, "name") or None
+	)
 
 	# Admin Seller Profile — satıcının mağaza profili (filtreleme için seller_code gerekli)
 	admin_seller_profile = None
@@ -120,7 +138,8 @@ def get_session_user():
 
 	member_id = _generate_member_id(user_data.email, user_data.creation)
 
-	# KYB verification
+	# KYB verification — Sprint 2.6: verification_kind kolonu kaldırıldı,
+	# KYC ayrı DocType'a taşındı. Bu DocType artık sadece KYB için.
 	kyb_data = frappe.db.get_value(
 		"KYB Verification",
 		{"user": frappe.session.user},
@@ -130,12 +149,21 @@ def get_session_user():
 	kyb_status = kyb_data.status if kyb_data else None
 	kyb_verification = kyb_data.name if kyb_data else None
 
-	# Email verification from Buyer Profile
-	email_verified = (
-		bool(frappe.db.get_value("Buyer Profile", {"user": frappe.session.user}, "email_verified"))
-		if frappe.db.exists("Buyer Profile", {"user": frappe.session.user})
-		else True
+	# KYC status — User Profile.kyc_status (Business Buyer için banner)
+	# Sprint 2.6 (revised): kyb_status da User Profile'dan çekilir (status bazlı locked karar için)
+	up_extra = (
+		frappe.db.get_value(
+			"User Profile",
+			{"user": frappe.session.user},
+			["kyc_status", "kyb_status", "account_type", "email_verified"],
+			as_dict=True,
+		)
+		or {}
 	)
+	kyc_status = up_extra.get("kyc_status") or None
+	kyb_status_up = up_extra.get("kyb_status") or kyb_status
+	account_type = up_extra.get("account_type") or "Individual"
+	email_verified = bool(up_extra.get("email_verified")) if up_extra else True
 
 	from frappe.sessions import get_csrf_token
 
@@ -162,6 +190,22 @@ def get_session_user():
 			"admin_seller_profile": admin_seller_profile,
 			"kyb_status": kyb_status,
 			"kyb_verification": kyb_verification,
+			"kyc_status": kyc_status,
+			"account_type": account_type,
+			"can_buy": bool(up_data.get("can_buy")),
+			"can_sell": bool(up_data.get("can_sell")),
+			# Sprint 2.6 (revised) — status-bazlı locked/required kararı.
+			# can_buy/can_sell artık kyc_status/kyb_status'tan türetilen flag'ler
+			# (KYC Verified → can_buy=1; KYB Verified → can_sell=1); locked/required
+			# kararı doğrudan status üzerinden alınır:
+			#   - kyc_locked: KYC admin tarafından "Locked" işaretlendi mi
+			#   - kyb_locked: KYB admin tarafından "Locked" işaretlendi mi
+			#   - kyc_required: kullanıcı KYC süreci başlatmış ama henüz Verified değil
+			#   - kyb_required: kullanıcı KYB süreci başlatmış ama henüz Verified değil
+			"kyc_locked": kyc_status == "Locked",
+			"kyb_locked": kyb_status_up == "Locked",
+			"kyc_required": kyc_status in ("Pending", "Rejected"),
+			"kyb_required": kyb_status_up in ("Pending", "Rejected"),
 			"email_verified": email_verified,
 		},
 	}
@@ -189,14 +233,14 @@ def get_user_profile():
 
 	roles = frappe.get_roles(user)
 
-	# Detect approved seller: has Seller role AND active Seller Profile
-	# Pending applications don't make a user a "seller" for profile purposes
-	is_seller = "Seller" in roles and frappe.db.exists("Seller Profile", {"user": user})
+	# Sprint 2.6 (revised, 2026-05-15): is_seller artık can_sell capability flag üzerinden.
+	# Patch 20 invariant: can_sell=1 ⇔ kyb_status="Verified". "Seller" rolü fallback eski sistem için.
+	is_seller = bool(frappe.db.get_value("User Profile", {"user": user}, "can_sell")) or "Seller" in roles
 
 	# Read member_id from DB; fallback to computed value for legacy users
 	member_id = (
-		frappe.db.get_value("Buyer Profile", {"user": user}, "member_id")
-		or frappe.db.get_value("Seller Profile", {"user": user}, "member_id")
+		frappe.db.get_value("User Profile", {"user": user}, "member_id")
+		or frappe.db.get_value("User Profile", {"user": user}, "member_id")
 		or frappe.db.get_value("Seller Application", {"applicant_user": user}, "member_id")
 		or _generate_member_id(user_data.email, user_data.creation)
 	)
@@ -215,22 +259,24 @@ def get_user_profile():
 	if is_seller:
 		base["account_type"] = "seller"
 
-		# Try Seller Profile first (approved sellers)
+		# Sprint 2.6 (revised, 2026-05-15):
+		# - Kişisel alanlar → User Profile
+		# - Mağaza alanları (seller_name/seller_type, adres) → Admin Seller Profile
+		# - User Profile'da OLMAYAN field'lar (seller_name, seller_type, business_name,
+		#   contact_phone, address_line_1, city, postal_code) doğru DocType'a yönlendirildi.
+		# - Legacy alias: response'ta business_name=company_name, contact_phone=phone (frontend uyumu)
 		sp = frappe.db.get_value(
-			"Seller Profile",
+			"User Profile",
 			{"user": user},
 			[
-				"seller_name",
-				"seller_type",
-				"business_name",
+				"full_name",
+				"company_name",
 				"tax_id",
-				"contact_phone",
+				"phone",
 				"country",
 				"status",
 				"tax_id_type",
 				"tax_office",
-				"address_line_1",
-				"city",
 				"bank_name",
 				"iban",
 				"account_holder_name",
@@ -240,7 +286,6 @@ def get_user_profile():
 				"employee_count",
 				"about_us",
 				"selling_platforms",
-				"postal_code",
 				"industry_preferences",
 				"sourcing_frequency",
 				"annual_spending",
@@ -248,18 +293,32 @@ def get_user_profile():
 			as_dict=True,
 		)
 		if sp:
+			# Mağaza entity (Admin Seller Profile) ek bilgisi
+			asp = (
+				frappe.db.get_value(
+					"Admin Seller Profile",
+					{"user": user},
+					["seller_name", "seller_type", "address_line1", "city", "postal_code"],
+					as_dict=True,
+				)
+				or {}
+			)
 			base.update(
 				{
-					"seller_type": sp.seller_type or "",
-					"business_name": sp.business_name or "",
+					"seller_name": asp.get("seller_name") or sp.full_name or "",
+					"seller_type": asp.get("seller_type") or "",
+					"company_name": sp.company_name or "",
+					"business_name": sp.company_name or "",  # legacy alias
 					"tax_id": sp.tax_id or "",
-					"phone": sp.contact_phone or user_data.phone or "",
+					"phone": sp.phone or user_data.phone or "",
+					"contact_phone": sp.phone or user_data.phone or "",  # legacy alias
 					"country": sp.country or "",
 					"seller_status": sp.status or "",
 					"tax_id_type": sp.tax_id_type or "",
 					"tax_office": sp.tax_office or "",
-					"address": sp.address_line_1 or "",
-					"city": sp.city or "",
+					"address": asp.get("address_line1") or "",
+					"city": asp.get("city") or "",
+					"postal_code": asp.get("postal_code") or "",
 					"bank_name": sp.bank_name or "",
 					"iban": sp.iban or "",
 					"account_holder_name": sp.account_holder_name or "",
@@ -269,7 +328,6 @@ def get_user_profile():
 					"employee_count": sp.employee_count or "",
 					"about_us": sp.about_us or "",
 					"selling_platforms": sp.selling_platforms or "",
-					"postal_code": sp.postal_code or "",
 					"industry_preferences": sp.industry_preferences or "",
 					"sourcing_frequency": sp.sourcing_frequency or "",
 					"annual_spending": sp.annual_spending or "",
@@ -320,9 +378,11 @@ def get_user_profile():
 
 	# ── Buyer (default) ──
 	base["account_type"] = "buyer"
+	# Sprint 2.6: address/city/postal_code Frappe Address mimarisinde (Sprint 1).
+	# User Profile'da bu alanlar yok — son KYC Verification'dan address çekilir.
 	buyer_data = (
 		frappe.db.get_value(
-			"Buyer Profile",
+			"User Profile",
 			{"user": user},
 			[
 				"country",
@@ -330,7 +390,6 @@ def get_user_profile():
 				"email_verified",
 				"business_type",
 				"company_name",
-				"address",
 				"job_title",
 				"website",
 				"selling_platforms",
@@ -340,9 +399,17 @@ def get_user_profile():
 				"industry_preferences",
 				"sourcing_frequency",
 				"annual_spending",
-				"city",
-				"postal_code",
 			],
+			as_dict=True,
+		)
+		or {}
+	)
+	# KYC Verification'dan adres bilgisi (varsa)
+	kyc_addr = (
+		frappe.db.get_value(
+			"KYC Verification",
+			{"user": user},
+			["address", "billing_address"],
 			as_dict=True,
 		)
 		or {}
@@ -354,7 +421,7 @@ def get_user_profile():
 			"country": buyer_data.get("country", "") or "",
 			"business_type": buyer_data.get("business_type", "") or "",
 			"company_name": buyer_data.get("company_name", "") or "",
-			"address": buyer_data.get("address", "") or "",
+			"address": kyc_addr.get("address", "") or "",
 			"job_title": buyer_data.get("job_title", "") or "",
 			"website": buyer_data.get("website", "") or "",
 			"selling_platforms": buyer_data.get("selling_platforms", "") or "",
@@ -364,8 +431,9 @@ def get_user_profile():
 			"industry_preferences": buyer_data.get("industry_preferences", "") or "",
 			"sourcing_frequency": buyer_data.get("sourcing_frequency", "") or "",
 			"annual_spending": buyer_data.get("annual_spending", "") or "",
-			"city": buyer_data.get("city", "") or "",
-			"postal_code": buyer_data.get("postal_code", "") or "",
+			"billing_address": kyc_addr.get("billing_address", "") or "",
+			"city": "",  # Sprint 1: Frappe Address — şu an boş
+			"postal_code": "",
 		}
 	)
 	return base
@@ -447,22 +515,28 @@ def update_user_profile(
 	ln = last_name if last_name is not None else doc.last_name
 	full_name = f"{fn} {ln}".strip()
 
-	# Buyer Profile
-	buyer_profile = frappe.db.get_value("Buyer Profile", {"user": user}, "name")
-	if buyer_profile:
-		updates = {}
+	# Sprint 2.6: User Profile birleşik — tek update bloğu. Eski Buyer/Seller
+	# Profile ayrı blokları kaldırıldı. address/city/postal_code Frappe Address
+	# DocType'ında (Sprint 1 adres mimarisi); User Profile'a yazılmaz.
+	user_profile = frappe.db.get_value("User Profile", {"user": user}, "name")
+	roles = frappe.get_roles(user)
+	is_admin = "System Manager" in roles or "Marketplace Admin" in roles
+
+	if user_profile:
+		updates: dict[str, object] = {}
 		if first_name is not None or last_name is not None:
-			updates["buyer_name"] = full_name
+			updates["full_name"] = full_name
 		if phone is not None:
 			updates["phone"] = phone
 		if country is not None:
 			updates["country"] = country
 		if business_type is not None:
 			updates["business_type"] = business_type
+		# Şirket adı: company_name (Sprint 2 birleşmesi; eski business_name kaldırıldı)
 		if company_name is not None:
 			updates["company_name"] = company_name
-		if address is not None:
-			updates["address"] = address
+		if business_name is not None and not company_name:
+			updates["company_name"] = business_name
 		if job_title is not None:
 			updates["job_title"] = job_title
 		if website is not None:
@@ -481,32 +555,6 @@ def update_user_profile(
 			updates["sourcing_frequency"] = sourcing_frequency
 		if annual_spending is not None:
 			updates["annual_spending"] = annual_spending
-		if city is not None:
-			updates["city"] = city
-		if postal_code is not None:
-			updates["postal_code"] = postal_code
-		for field, value in updates.items():
-			frappe.db.set_value("Buyer Profile", buyer_profile, field, value)
-
-	# Seller Profile
-	seller_profile = frappe.db.get_value("Seller Profile", {"user": user}, "name")
-	roles = frappe.get_roles(user)
-	is_admin = "System Manager" in roles or "Marketplace Admin" in roles
-
-	if seller_profile:
-		updates = {}
-		if first_name is not None or last_name is not None:
-			updates["seller_name"] = full_name
-		if business_name is not None:
-			updates["business_name"] = business_name
-		if phone is not None:
-			updates["contact_phone"] = phone
-		if country is not None:
-			updates["country"] = country
-		if address is not None:
-			updates["address_line_1"] = address
-		if city is not None:
-			updates["city"] = city
 		# permlevel 1 fields — admin only
 		if tax_id_type is not None and is_admin:
 			updates["tax_id_type"] = tax_id_type
@@ -518,28 +566,9 @@ def update_user_profile(
 			updates["iban"] = iban
 		if account_holder_name is not None and is_admin:
 			updates["account_holder_name"] = account_holder_name
-		if website is not None:
-			updates["website"] = website
-		if job_title is not None:
-			updates["job_title"] = job_title
-		if year_established is not None:
-			updates["year_established"] = year_established
-		if employee_count is not None:
-			updates["employee_count"] = employee_count
-		if about_us is not None:
-			updates["about_us"] = about_us
-		if selling_platforms is not None:
-			updates["selling_platforms"] = selling_platforms
-		if postal_code is not None:
-			updates["postal_code"] = postal_code
-		if industry_preferences is not None:
-			updates["industry_preferences"] = industry_preferences
-		if sourcing_frequency is not None:
-			updates["sourcing_frequency"] = sourcing_frequency
-		if annual_spending is not None:
-			updates["annual_spending"] = annual_spending
+		# address/city/postal_code: Sprint 1 adres mimarisinde Frappe Address — atla
 		for field, value in updates.items():
-			frappe.db.set_value("Seller Profile", seller_profile, field, value)
+			frappe.db.set_value("User Profile", user_profile, field, value)
 
 	# Seller Application
 	seller_app = frappe.db.get_value("Seller Application", {"applicant_user": user}, "name")
