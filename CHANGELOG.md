@@ -1,3 +1,124 @@
+## [v1.0.9-beta.2] - 2026-05-18 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Eklendi
+- feat(addresses): Sprint 1 Faz D adres mimarisi eklendi (@aliiball)
+  - Addresses DocType'a purpose (Delivery/Pickup/Billing), address_type (Individual/Business), tax_no, tax_office field'ları
+  - kind field'ı deprecated etiketlendi (Sprint 4'te DROP)
+  - company Business hesap tipi için koşullu reqd
+  - utils/tax_validation.py: Maliye VKN + NVI TCKN checksum dispatcher
+  - patches/address_v1 idempotent migration (01_kind_to_purpose, 02_fix_seller_purpose_pickup)
+  - test_address_purpose_migration + test_tax_validation
+- feat(marketplace-settings): Marketplace Settings Single DocType eklendi (@aliiball)
+  - Pazaryeri çapında adres + fatura varsayılanları
+  - default_address_type=Individual, address_type_toggle_visible=1, require_tax_id_business=1, invoice_generation_mode=Manual
+  - test_marketplace_settings
+- feat(user-profile): User Profile DocType + 20 migration patch eklendi (@aliiball)
+  - 3 profil DocType (Buyer Profile + Seller Profile + Verified Supplier) tek User Profile + Admin Seller Profile mimarisine taşındı (Sprint 2)
+  - can_buy/can_sell capability flag'leri, account_type Individual/Business
+  - patches/user_profile_v1 (01-20) migration serisi: doctype create, verification_kind, index, controller noop, buyer/seller migrate, hybrid merge, member_id, link/dynamic_link refs, user_permissions, user_types, scoring fields, tenant placeholder, scheduler events, validate, deprecate old, owner fix, kyc_kyb_split (19), normalize_capability_flags (20)
+  - hooks.py: User Profile permission query + has_permission + Sprint 2 buyer metric/scoring scheduler events
+  - setup/install.py: Sprint 2 kapsamında 5 rol (Buyer, Seller, Marketplace Admin, Marketplace Seller, Marketplace Buyer); 14 hiyerarşik rol Sprint 3 RBAC reformuna ertelendi
+  - 3 workspace JSON: Seller Profile → User Profile + Admin Seller Profile
+  - test_user_profile
+- feat(kyc): KYC Verification DocType + 4 endpoint + checkout gate eklendi (@aliiball)
+  - KYC Verification DocType: account_type toggle (Business/Individual), Kurumsal alanları (company_name, tax_id, phone, email_field, address, billing_address) + ortak identity_document
+  - api/v1/kyc.py: submit_kyc_documents / review_kyc / get_kyc_status / get_prefill_data 4 endpoint
+  - get_prefill_data cross-form prefill — User Profile + son KYC/KYB Verification'dan değerler birleşik
+  - cart.py _ensure_buyer_kyc_verified — create_order başında KYC.Verified zorunluluğu, [KYC_<STATE>] prefix'li mesaj
+  - gate add_to_cart'tan kaldırıldı (sadece create_order'da)
+  - test_kyc_gate + test_kyc_verification
+- feat(capability-invariant): Sprint 2.6 status-bazlı auth flags eklendi (@aliiball)
+  - auth.py get_user_profile seller bloğu User Profile mimarisine taşındı (legacy alias: business_name=company_name, contact_phone=phone)
+  - is_seller artık can_sell capability + "Seller" rolü fallback
+  - kyc_locked/kyb_locked formülü "not can_buy/can_sell" yerine kyc_status=='Locked'/kyb_status=='Locked' (status-bazlı semantik)
+  - kyc_required/kyb_required Pending|Rejected listesi
+  - get_session_user response: kyc_required, kyb_required, kyc_locked, kyb_locked flag'leri
+  - register_user registration_type param (Alici/Satici)
+  - test_capability_flag_invariant
+- feat(kyb): mersis_no + kep_address + rejection_category eklendi (@aliiball)
+  - KYB Verification.mersis_no (16 hane) + kep_address (email format)
+  - rejection_category Select (Re-submit | Suspended) — KYC ve KYB ayrı
+  - verification_kind alanı kaldırıldı (KYC ayrı DocType'a taşındı)
+  - document_expiry_date kaldırıldı (Soru 8 — expiry yok)
+  - faaliyet_belgesi opsiyonel oldu
+  - kyb_verification.py table_exists("Seller Profile") backward compat guard + 10 satır dormant blok kaldırıldı
+  - api/v1/kyb.py User Profile mimarisine taşındı
+- feat(changelog): v2.1.0-beta.1 sürüm notları eklendi (@aliiball)
+  - Sprint 1 Adres Mimarisi + Sprint 2 User Profile + Sprint 2.6 capability invariant + KYC/KYB ayrımı bullet'ları
+  - CLAUDE.md aktif mimari memory referansları (§6.1) eklendi
+
+### Duzeltildi
+- fix(identity): email_verified UPDATE SQL User Profile tablosuna yönlendirildi (@aliiball)
+  - identity.py 6 yerde UPDATE tabBuyer Profile SQL'i tabUser Profile'a taşındı — email_verified flag artık doğru tabloya yazılıyor
+  - register_supplier User Profile Sprint 2.6 davranışına uyarlandı
+  - LIVE BUG
+- fix(permissions): seller_balance permission Admin Seller Profile.name'e taşındı (@aliiball)
+  - permissions.py seller_balance permission kullanıcı email'i yerine _get_seller_profile_name(user) (Admin Seller Profile.name) lookup
+  - permissions.py docstring örnekleri "Seller Profile" → "Admin Seller Profile"
+
+### Degistirildi
+- refactor(roles): role.json fixture'ı Sprint 2 hiyerarşisine sadeleştirildi (@aliiball)
+  - 14 hiyerarşik rol Sprint 3 RBAC reformuna kadar setup/install.py'de kod tabanında refere edilen 5 role indirgendi
+  - role.json fixture %99 azaltıldı (146 → 1 satır)
+- refactor(profile): 25 modül User Profile + Admin Seller Profile'a taşındı (@aliiball)
+  - api/buyer.py + qa.py: _resolve_display_name User Profile + full_name
+  - api/seller.py: 7 endpoint Admin Seller Profile (replace_all)
+  - api/seller_addresses.py: _resolve_seller_profile Admin Seller Profile
+  - api/rfq.py: profiles batch fetch User Profile + Admin Seller Profile join (business/year_established/employee_count)
+  - api/dashboard.py + kpi_dashboard.py: _profile_status_breakdown + _platform_totals tabBuyer Profile → tabUser Profile (can_buy=1 filter)
+  - tradehub_core/api/seller.py + scoring/engine.py + utils/erpnext_sync.py + utils/seller_payout.py + webhooks/erpnext_hooks.py Sprint 2 uyumu
+  - doctype controller temizliği: buyer_profile, seller_profile, listing_review, rfq_quote, seller_application, seller_balance, seller_product
+  - utils/auth_guards.py: is_email_verified User Profile'a taşındı
+  - utils/tenant_seller_validation.py: Senaryo B bypass Sprint 3'e ertelendi
+  - tasks.py: User Profile terminolojisi + Sprint 2 scheduler events
+  - translations/en.csv + tr.csv: User Profile/Admin Seller Profile/ Mağaza Profili stringleri güncellendi
+- refactor(tests): test_cross_app_link_resolution Sprint 2.6 mimarisine uyarlandı (@aliiball)
+  - verification_kind testi kaldırıldı (KYC ayrı DocType'a taşındı)
+  - KYC Verification DocType varlığı eklendi
+  - legacy assertion temizliği (~580 satır)
+
+---
+## [v2.1.0-beta.1] - 2026-05-18 BETA
+
+Sprint 2 birleşmesi (User Profile) sonrası kalıntı bug audit + Sprint 1 (Adres Mimarisi) + Sprint 2.6 capability invariant. Beta deploy bekliyor.
+
+### Eklendi
+- feat(marketplace-settings): Yeni Single DocType `Marketplace Settings` — pazaryeri çapında adres+fatura varsayılanları (default_address_type=Individual, address_type_toggle_visible=1, require_tax_id_business=1, invoice_generation_mode=Manual) (Sprint 1)
+- feat(addresses): Addresses DocType'a `purpose` (Delivery/Pickup/Billing), `address_type` (Individual/Business), `tax_no`, `tax_office` field'ları; `kind` deprecated etiketi (Sprint 4'te DROP); `company` koşullu reqd (Business)
+- feat(tax-validation): `utils/tax_validation.py` — Maliye VKN checksum + NVI TCKN checksum + dispatcher
+- feat(patch-address-v1): `address_v1/01_kind_to_purpose` idempotent migration (kind=Buyer→purpose=Delivery, kind=Seller→purpose=Pickup, mevcut adresler address_type=Business)
+- feat(patch-capability-invariant): `user_profile_v1/20_normalize_capability_flags` — can_buy=(kyc=Verified), can_sell=(kyb=Verified) invariant'ı tüm User Profile'larda uygulandı
+- feat(kyc-modal): Storefront `KycRequiredModal.ts` — checkout'ta `[KYC_<STATE>]` prefix regex ile parse + state-bazlı modal (Locked/Pending/Rejected/Suspended → support ticket)
+- feat(address-modal): Storefront Adreslerim modal'ında Bireysel/Kurumsal toggle + tax_no/tax_office Business conditional render
+- feat(i18n): `settings.myAccountTitle`, `settings.addressDisabledHint`, `header.myStore` ("Mağaza Sayfam"→"Mağazalarım") key'leri
+
+### Düzeltildi
+- fix(p0-auth): `auth.py:get_user_profile` seller bloğu — User Profile'da olmayan field'lar (seller_name, seller_type, business_name, contact_phone) Admin Seller Profile'a yönlendirildi; legacy alias (business_name=company_name, contact_phone=phone) korundu
+- fix(p0-auth): `is_seller` artık can_sell capability + "Seller" rolü fallback (Sprint 2.6 invariant ile uyumlu)
+- fix(p0-auth): `kyc_locked/kyb_locked` formülü `not can_buy/can_sell` yerine `kyc_status=='Locked'/kyb_status=='Locked'` (status-bazlı semantik); `kyc_required/kyb_required` Pending|Rejected listesi
+- fix(p0-qa): `_resolve_display_name` Buyer Profile → User Profile (city kaldırıldı, full_name kullanılıyor)
+- fix(p0-seller-addresses): `_resolve_seller_profile` Seller Profile → Admin Seller Profile (mağaza entity)
+- fix(p0-rfq): profiles batch fetch Seller Profile → Admin Seller Profile + User Profile join (business/year_established/employee_count alanlar)
+- fix(p0-dashboard): `_profile_status_breakdown` + `_platform_totals` tabBuyer Profile → tabUser Profile (can_buy=1 filter)
+- fix(p0-auth-guards): is_email_verified Buyer Profile → User Profile
+- fix(p0-seller): küçük dosya (225 satır) 7 endpoint'te Seller Profile → Admin Seller Profile (replace_all)
+- fix(p0-tenant): tenant_seller_validation 3 fonksiyon Senaryo B — Admin Seller Profile.tenant yok, Sprint 3'e bypass (return None/[])
+- fix(p0-cart-kyc-gate): `_ensure_buyer_kyc_verified` artık `[KYC_<STATE>]` prefix'li mesaj döndürür; gate `add_to_cart`'tan kaldırıldı, sadece `create_order`'da
+- fix(p0-admin-filter): admin-panel `DocTypeListView.vue:398` `user.seller_profile` → `user.email` (User Profile.name=email autoname)
+- fix(p1-settings): SettingsAccountEdit + SettingsMyAccount address/city/postal_code disabled + helper text
+- fix(p1-update): `update_user_profile` endpoint User Profile field'larına tam map; address/city/postal_code Frappe Address mimarisinde olduğu için atlandı
+- fix(p2-email-verified-bug): identity.py 6 yerde `UPDATE tabBuyer Profile` SQL → `UPDATE tabUser Profile` (email_verified flag artık doğru tabloya yazılıyor — LIVE BUG idi)
+- fix(p2-seller-balance-bug): permissions.py seller_balance permission user email yerine `_get_seller_profile_name(user)` (Admin Seller Profile.name) lookup — LIVE BUG idi
+- fix(p2-kyb-guard): kyb_verification.py `table_exists("Seller Profile")` backward compat guard + 10 satır dormant blok kaldırıldı
+
+### Değiştirildi
+- chore(comments): permissions.py docstring örnekleri "Seller Profile" → "Admin Seller Profile"; tasks.py docstring + yorumlar "Buyer Profile" → "User Profile"
+- chore(settings-vergi-hidden): Storefront Settings/Vergi tab `SettingsLayout.ts` 4 noktada yorum satırı (S3=C kararı — ileride backend entegrasyonu ile açılacak)
+- chore(addresses-page): "Adreslerim" → "Teslimat Adreslerim" sayfa başlığı
+
+---
 ## [v1.0.9-beta.1] - 2026-05-15 BETA
 
 Bu surum betaistoc.cronbi.com'da test asamasindadir.
