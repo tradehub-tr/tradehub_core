@@ -24,10 +24,10 @@ class Addresses(Document):
 		elif self.kind == "Seller":
 			if not self.seller:
 				frappe.throw(_("Seller adresi için 'seller' alanı zorunludur."))
-			# Seller kaydında user alanını otomatik Seller Profile'ın user'ı ile doldur
-			# (permission / if_owner için gerekebilir)
+			# Sprint 2: seller artık Admin Seller Profile.name (SEL-XXXXX)
+			# user lookup: Admin Seller Profile.user
 			if not self.user:
-				profile_user = frappe.db.get_value("Seller Profile", self.seller, "user")
+				profile_user = frappe.db.get_value("Admin Seller Profile", self.seller, "user")
 				if profile_user:
 					self.user = profile_user
 		else:
