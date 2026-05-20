@@ -1,3 +1,14 @@
+## [v1.0.9-beta.4] - 2026-05-20 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Degistirildi
+- refactor(changelog): v2.1.0-beta.1 release bloğu kaldırıldı (@ahmeetseker)
+  - 413af5e revert'i Ali → version-15 back-merge sırasında uygulanmayıp v2.1.0-beta.1 bloğu version-15 üstünde kaldı, istoc-changelog viewer hatalı release gösteriyordu
+  - v1.0.9-beta.2 içindeki yanıltıcı "feat(changelog): v2.1.0-beta.1 sürüm notları eklendi" bullet'ı temizlendi
+  - v1.0.9-beta.3 içindeki revert kayıt bullet'ı, audit izi olarak bırakıldı
+
+---
 ## [v1.0.9-beta.3] - 2026-05-18 BETA
 
 Bu surum betaistoc.cronbi.com'da test asamasindadir.
