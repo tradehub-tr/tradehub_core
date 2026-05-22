@@ -1,3 +1,16 @@
+## [v1.0.9-beta.8] - 2026-05-22 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Duzeltildi
+- fix(seo): seller storefront page_resolver ve slug registry'si düzeltildi (@ahmeetseker)
+  - Admin Seller Profile için SLUG_FIELD_MAP `slug` → `seller_code` olarak düzeltildi (DB kolonu yoktu, lookup boş dönüyordu)
+  - TEMPLATE_MAP'te seller template yolu `pages/seller/seller-shop.html` → `seller-storefront.html` güncellendi
+  - static_pages_registry'de /markalar → /ureticiler ve /firsat → /firsatlar yenilendi, başlık "Tüm Üreticiler" oldu
+  - get_seller API'sinde sertifikalar ayrı `frappe.get_all` ile çekildi, yalnız `verification_status = Verified` olanlar storefront'a sızar
+  - Brand schema breadcrumb'unda yanlış /markalar atfı kaldırıldı (o URL aslında Üreticiler sayfasına gidiyordu)
+
+---
 ## [v1.0.9-beta.7] - 2026-05-22 BETA
 
 Bu surum betaistoc.cronbi.com'da test asamasindadir.
