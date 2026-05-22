@@ -1,0 +1,391 @@
+"""Bulk import runner — frappe.enqueue target.
+
+Parse → validate → persist → progress → notify döngüsü.
+`frappe.flags.in_bulk_import = True` ile ECA bulk-only filter'ı aktive eder.
+"""
+
+import json
+
+import frappe
+from frappe import _
+from frappe.utils import now, time_diff_in_seconds
+
+from tradehub_core.bulk_import import (
+	image_matcher,
+	notifications,
+	persister,
+	regex_lib,
+	validator,
+)
+from tradehub_core.bulk_import.parsers import csv_parser, xlsx_parser, xml_parser
+
+PROGRESS_CACHE_TTL = 3600  # 1 saat
+COMMIT_CHUNK_SIZE = 25
+
+
+def run(bulk_job_name: str) -> None:
+	"""Bulk import job'unu çalıştır.
+
+	Args:
+	    bulk_job_name: Bulk Import Job.name
+	"""
+	# frappe.enqueue'un `job_name` parametresi RQ-ID için reserved; kwarg
+	# olarak runner'a iletilmediği için api.py `bulk_job_name` ile geçiriyor.
+	job_name = bulk_job_name
+	job = frappe.get_doc("Bulk Import Job", job_name)
+	frappe.flags.in_bulk_import = True
+	frappe.flags.bulk_import_job = job_name
+
+	try:
+		job.db_set("status", "Running")
+		job.db_set("started_at", now())
+		_update_progress(job_name, state="running")
+
+		file_path = _get_file_absolute_path(job.data_file)
+		header_row = int(job.header_row or 1)
+
+		if job.file_format == "xlsx":
+			headers, rows = xlsx_parser.parse_xlsx(file_path, job.sheet_name, header_row)
+		elif job.file_format == "csv":
+			headers, rows = csv_parser.parse_csv(file_path, header_row)
+		elif job.file_format == "xml":
+			headers, rows = xml_parser.parse_xml(file_path)
+		else:
+			raise frappe.ValidationError(_("Desteklenmeyen dosya formatı: {0}").format(job.file_format))
+
+		job.db_set("total_rows", len(rows))
+
+		# Frontend boş eşleşme ("{}") gönderebiliyor — string truthy ama dict
+		# boş kalır. Bu durumda da auto-resolve devreye girmeli.
+		mapping = None
+		if job.column_mapping:
+			try:
+				mapping = json.loads(job.column_mapping)
+			except (ValueError, TypeError):
+				mapping = None
+		if not mapping:
+			mapping = regex_lib.resolve_column_mapping(headers, job.seller_profile)
+
+		images_idx: dict[str, list[str]] = {}
+		if job.images_zip:
+			zip_path = _get_file_absolute_path(job.images_zip)
+			images_idx = image_matcher.build_image_index(zip_path, job.seller_profile)
+
+		inserted = updated = skipped = errors = 0
+		total = len(rows)
+
+		# ── Cluster aşaması ──────────────────────────────────────────
+		# Aynı parent_sku altındaki satırları grupla. Varyantsız ürünler:
+		# tek satırlı cluster (parent_row + variant_rows=[]). Varyantlı ürünler:
+		# parent satır + N variant satır.
+		clusters, cluster_errors = _build_clusters(rows, mapping)
+		for c_idx, raw_row, msg in cluster_errors:
+			_record_error(job, c_idx, raw_row, mapping, "validation", msg)
+			errors += 1
+
+		# ── İşleme aşaması ───────────────────────────────────────────
+		for cluster in clusters:
+			parent_idx = cluster["parent_idx"]
+			parent_data = cluster["parent_data"]
+			variant_data_rows = cluster["variant_data_rows"]
+			parent_raw_row = cluster["parent_raw_row"]
+
+			try:
+				# Validator (sadece parent satır için; variant'ların kendi validator'ı yok)
+				row_errors = validator.validate_row(parent_raw_row, mapping)
+				if row_errors:
+					_record_error(
+						job,
+						parent_idx,
+						parent_raw_row,
+						mapping,
+						"validation",
+						"; ".join(e["message"] for e in row_errors),
+					)
+					errors += 1
+					continue
+
+				sku = parent_data.get("sku")
+				if not sku:
+					_record_error(job, parent_idx, parent_raw_row, mapping, "validation", "SKU eksik")
+					errors += 1
+					continue
+
+				sku_key = str(sku).strip()
+
+				if persister.check_sku_exists(sku_key, job.seller_profile):
+					if job.update_mode == "insert_only":
+						_record_skip(
+							job,
+							parent_idx,
+							sku_key,
+							"Mevcut SKU, insert-only modda atlandı",
+						)
+						skipped += 1
+						continue
+					# Upsert: variant_items'a şu an dokunmuyoruz (V1: parent fields güncellenir).
+					imgs = images_idx.get(sku_key, [])
+					persister.update_listing(
+						sku_key,
+						parent_data,
+						job.seller_profile,
+						job_name,
+						imgs,
+					)
+					updated += 1
+				else:
+					if variant_data_rows:
+						# Varyantlı ürün
+						persister.create_listing_with_variants(
+							parent_data,
+							variant_data_rows,
+							job.seller_profile,
+							job_name,
+							images_idx,
+						)
+					else:
+						# Varyantsız ürün — eski tek-satır akış
+						imgs = images_idx.get(sku_key, [])
+						persister.create_listing(
+							parent_data,
+							job.seller_profile,
+							job_name,
+							imgs,
+						)
+					inserted += 1
+
+				processed = inserted + updated + skipped + errors
+				if processed % COMMIT_CHUNK_SIZE == 0:
+					frappe.db.commit()
+					_update_progress(
+						job_name,
+						state="running",
+						total=total,
+						processed=processed,
+						inserted=inserted,
+						updated=updated,
+						skipped=skipped,
+						error_count=errors,
+					)
+			except Exception as e:
+				frappe.log_error(
+					title=f"Bulk import row {parent_idx} error: {job_name}",
+					message=frappe.get_traceback(),
+				)
+				_record_error(job, parent_idx, parent_raw_row, mapping, "system", str(e)[:500])
+				errors += 1
+
+		frappe.db.commit()
+		job.reload()
+		job.inserted_count = inserted
+		job.updated_count = updated
+		job.skipped_count = skipped
+		job.error_count = errors
+		job.completed_at = now()
+		if job.started_at:
+			try:
+				job.duration_seconds = time_diff_in_seconds(
+					job.completed_at,
+					job.started_at,
+				)
+			except Exception:
+				job.duration_seconds = 0
+
+		if total > 0 and errors == total:
+			job.status = "Failed"
+		elif errors > 0 or skipped > 0:
+			job.status = "Partial"
+		else:
+			job.status = "Completed"
+		job.save(ignore_permissions=True)
+
+		_update_progress(
+			job_name,
+			state="done",
+			total=total,
+			processed=total,
+			inserted=inserted,
+			updated=updated,
+			skipped=skipped,
+			error_count=errors,
+		)
+
+		if job.status == "Failed":
+			notifications.notify("job_failed", {"job": job})
+		elif job.status == "Partial":
+			notifications.notify("job_completed_with_errors", {"job": job})
+		else:
+			notifications.notify("job_completed", {"job": job})
+
+	except Exception as e:
+		frappe.log_error(
+			title=f"Bulk import fatal error: {job_name}",
+			message=frappe.get_traceback(),
+		)
+		try:
+			job.db_set("status", "Failed")
+			job.db_set("error_summary", str(e)[:500])
+			notifications.notify("job_failed", {"job": job})
+		except Exception:
+			pass
+		_update_progress(job_name, state="error", error=str(e)[:500])
+	finally:
+		frappe.flags.in_bulk_import = False
+		frappe.flags.bulk_import_job = None
+
+
+def _record_error(
+	job,
+	row_num: int,
+	raw_row: dict,
+	mapping: dict,
+	error_type: str,
+	msg: str,
+) -> None:
+	"""Hatalı satırı child table'a ekle."""
+	sku = ""
+	name = ""
+	if mapping:
+		sku_col = mapping.get("sku", "")
+		name_col = mapping.get("title", "")
+		if sku_col:
+			sku = raw_row.get(sku_col, "") or ""
+		if name_col:
+			name = raw_row.get(name_col, "") or ""
+	try:
+		child = frappe.new_doc("Bulk Import Job Error")
+		child.parent = job.name
+		child.parenttype = "Bulk Import Job"
+		child.parentfield = "error_details"
+		# parent.save() bypass edildiği için Frappe idx auto-set etmez; row_num'u
+		# child idx'i olarak kullanmazsak reload sonrası sıralama belirsiz olur.
+		child.idx = row_num
+		child.row_number = row_num
+		child.sku = str(sku)[:140] if sku else ""
+		child.product_name = str(name)[:250] if name else ""
+		child.error_type = error_type
+		child.error_message = (msg or "")[:500]
+		try:
+			child.raw_row_json = json.dumps(raw_row, default=str)[:5000]
+		except Exception:
+			child.raw_row_json = ""
+		child.insert(ignore_permissions=True)
+	except Exception as e:
+		frappe.log_error(f"_record_error failed: {e}", "bulk_import.runner")
+
+
+def _record_skip(job, row_num: int, sku, reason: str) -> None:
+	"""Atlanan satırı child table'a ekle."""
+	try:
+		child = frappe.new_doc("Bulk Import Job Error")
+		child.parent = job.name
+		child.parenttype = "Bulk Import Job"
+		child.parentfield = "error_details"
+		child.idx = row_num
+		child.row_number = row_num
+		child.sku = str(sku)[:140] if sku else ""
+		child.error_type = "duplicate"
+		child.error_message = (reason or "")[:500]
+		child.insert(ignore_permissions=True)
+	except Exception as e:
+		frappe.log_error(f"_record_skip failed: {e}", "bulk_import.runner")
+
+
+def _build_clusters(
+	rows: list[dict],
+	mapping: dict,
+) -> tuple[list[dict], list[tuple[int, dict, str]]]:
+	"""xlsx satırlarını parent-variant cluster'larına böl.
+
+	Kural:
+	- parent_sku BOŞ → satır parent (varyantsız veya varyantlı master)
+	- parent_sku DOLU → satır variant; parent_sku ile aynı seller_sku'ya sahip
+	  parent satırına bağlanır
+	- Orphan variant (parent bulunamaz) → cluster_errors'a düşer
+
+	Returns:
+	    clusters: [
+	        {
+	            "parent_idx": int,             # xlsx 1-based satır no
+	            "parent_data": dict,           # canonical data (sku, title, …)
+	            "parent_raw_row": dict,        # ham parser row (validator için)
+	            "variant_data_rows": list[dict],  # canonical variant rows
+	        },
+	        ...
+	    ]
+	    cluster_errors: [(idx, raw_row, error_message), ...]
+	"""
+	clusters_by_sku: dict[str, dict] = {}
+	cluster_order: list[str] = []
+	orphans: list[tuple[int, dict, str]] = []
+	pending_variants: list[tuple[int, dict, dict, str]] = []
+
+	def _canonicalize(raw_row: dict) -> dict:
+		out: dict = {}
+		for target, source in mapping.items():
+			if source in raw_row:
+				out[target] = raw_row[source]
+		return out
+
+	for idx, raw_row in enumerate(rows, 1):
+		data = _canonicalize(raw_row)
+		seller_sku = str(data.get("sku") or "").strip()
+		parent_sku = str(data.get("parent_sku") or "").strip()
+
+		if not parent_sku:
+			# Parent satır (varyantsız veya varyantlı master)
+			if not seller_sku:
+				orphans.append((idx, raw_row, "Stok Kodu eksik"))
+				continue
+			if seller_sku in clusters_by_sku:
+				# Aynı seller_sku ile ikinci parent → ikinci'yi atla (downstream
+				# duplicate koruması zaten "Mevcut SKU" diye skip eder)
+				orphans.append((idx, raw_row, f"Yinelenen parent SKU: {seller_sku}"))
+				continue
+			clusters_by_sku[seller_sku] = {
+				"parent_idx": idx,
+				"parent_data": data,
+				"parent_raw_row": raw_row,
+				"variant_data_rows": [],
+			}
+			cluster_order.append(seller_sku)
+		else:
+			# Varyant satır — parent SKU'ya ekle (parent bu satırdan önce ya da sonra olabilir)
+			pending_variants.append((idx, raw_row, data, parent_sku))
+
+	# Tüm parent'lar map'lendikten sonra varyantları bağla
+	for idx, raw_row, data, parent_sku in pending_variants:
+		cluster = clusters_by_sku.get(parent_sku)
+		if not cluster:
+			orphans.append(
+				(idx, raw_row, f"Parent SKU '{parent_sku}' bulunamadı (önce master satırı ekleyin)")
+			)
+			continue
+		# Varyant ekseni doğrulama: en az 1 eksen değeri olmalı
+		if not (data.get("variant_axis_1_value") or "").strip():
+			orphans.append((idx, raw_row, "Varyant satırında 'Varyant Eksen 1 Değeri' boş olamaz"))
+			continue
+		cluster["variant_data_rows"].append(data)
+
+	clusters = [clusters_by_sku[sku] for sku in cluster_order]
+	return clusters, orphans
+
+
+def _update_progress(job_name: str, **fields) -> None:
+	"""Redis cache'e progress state yaz."""
+	key = f"bulk_import_progress:{job_name}"
+	current = frappe.cache.get_value(key) or {}
+	current.update(fields)
+	frappe.cache.set_value(key, current, expires_in_sec=PROGRESS_CACHE_TTL)
+
+
+def _get_file_absolute_path(file_url: str) -> str:
+	"""File URL → absolute disk path."""
+	if not file_url:
+		frappe.throw(_("Dosya URL boş"))
+	if file_url.startswith("/files/"):
+		return frappe.get_site_path("public", file_url.lstrip("/"))
+	if file_url.startswith("/private/files/"):
+		return frappe.get_site_path(file_url.lstrip("/"))
+	file_doc = frappe.get_doc("File", {"file_url": file_url})
+	return file_doc.get_full_path()

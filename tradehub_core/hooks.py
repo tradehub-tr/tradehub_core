@@ -49,6 +49,9 @@ scheduler_events = {
 		"tradehub_core.api.social_proof.reset_view_counters_rolling_24h",
 		# Sprint 2 — E2 fırsat: Buyer metric scheduler (User Profile.metrics)
 		"tradehub_core.tasks.recalculate_buyer_metrics",
+		# Bulk Import: 1 saatten uzun Running kalan stuck job'ları Failed'a çek.
+		# (Project crons henüz aktif değil — hourly içine alındı.)
+		"tradehub_core.bulk_import.tasks.detect_stuck_bulk_jobs",
 	],
 	"daily": [
 		"tradehub_core.services.tcmb.fetch_and_update_rates",
@@ -85,6 +88,10 @@ scheduler_events = {
 		"tradehub_core.tasks.buyer_level_tasks",
 		"tradehub_core.tasks.aggregate_buyer_kpi_summaries",
 		"tradehub_core.tasks.refresh_user_segments",
+		# Bulk Import: 90 günden eski tamamlanmış job'ları temizle +
+		# uzun süre kullanılmayan template profile'ları arşivle.
+		"tradehub_core.bulk_import.tasks.cleanup_old_bulk_import_jobs",
+		"tradehub_core.bulk_import.tasks.cleanup_stale_seller_template_profiles",
 	],
 	"weekly_long": [
 		# Category embeddings + neighbour cache (build_all tail-calls
@@ -120,6 +127,10 @@ doc_events = {
 		"validate": [
 			"tradehub_core.utils.cert_validate.validate_listing_certifications",
 			"tradehub_core.seo.hooks_seo.validate_seo_lengths",
+			# ECA: two-phase (Seller Phase → Admin Phase) rule dispatcher.
+			# Listing save'inde her zaman çalışır; bulk_import context'inde de
+			# aynı pipeline'a girer (Bulk Import Job bağlamı dispatcher içinde set edilir).
+			"tradehub_core.eca.dispatcher.evaluate_rules_two_phase",
 		],
 		"before_validate": "tradehub_core.seo.hooks_seo.auto_generate_slug",
 		"on_update": [
@@ -131,10 +142,14 @@ doc_events = {
 			# Async recompute for active listings — keeps PROD cache in sync
 			# with admin/seller edits without waiting for the weekly rebuild.
 			"tradehub_core.recommendations.engine.schedule_recompute_on_listing_update",
+			# ECA two-phase dispatcher (post-save context).
+			"tradehub_core.eca.dispatcher.evaluate_rules_two_phase",
 		],
 		"after_insert": [
 			"tradehub_core.api.listing.invalidate_listing_cache",
 			"tradehub_core.recommendations.engine.schedule_recompute_on_listing_update",
+			# ECA two-phase dispatcher (after_insert context).
+			"tradehub_core.eca.dispatcher.evaluate_rules_two_phase",
 		],
 		"on_trash": [
 			"tradehub_core.api.listing.invalidate_listing_cache",
@@ -284,6 +299,21 @@ doc_events = {
 	"Header Notice Settings": {
 		"on_update": "tradehub_core.api.header_notice.invalidate_cache",
 	},
+	# ECA Rule lifecycle → rule cache invalidation.
+	# Dispatcher Redis cache'inden hem aktif rule listesini hem de derlenmiş
+	# condition AST'lerini siler. Save/trash sonrası ilk request fresh ister.
+	"ECA Rule": {
+		"on_update": "tradehub_core.eca.dispatcher.clear_eca_cache",
+		"on_trash": "tradehub_core.eca.dispatcher.clear_eca_cache",
+		"after_insert": "tradehub_core.eca.dispatcher.clear_eca_cache",
+	},
+	# Regex Pattern Library lifecycle → pattern cache invalidation.
+	# Bulk Import pipeline derlenmiş regex'i cache'liyor; lib değişince düşür.
+	"Regex Pattern Library": {
+		"on_update": "tradehub_core.bulk_import.regex_lib.clear_pattern_cache",
+		"on_trash": "tradehub_core.bulk_import.regex_lib.clear_pattern_cache",
+		"after_insert": "tradehub_core.bulk_import.regex_lib.clear_pattern_cache",
+	},
 }
 
 # ---------------------------------------------------------------------------
@@ -322,6 +352,12 @@ permission_query_conditions = {
 	"FCRM Note": "tradehub_core.permissions.fcrm_note_query_conditions",
 	"CRM Call Log": "tradehub_core.permissions.crm_call_log_query_conditions",
 	"Platform Notification": "tradehub_core.tradehub_core.doctype.platform_notification.platform_notification.get_permission_query_conditions",
+	# Bulk Import + ECA + Regex + Template Profile seller isolation.
+	"Bulk Import Job": "tradehub_core.permissions.bulk_import_job_query_conditions",
+	"ECA Rule": "tradehub_core.permissions.eca_rule_query_conditions",
+	"ECA Rule Log": "tradehub_core.permissions.eca_rule_log_query_conditions",
+	"Regex Pattern Library": "tradehub_core.permissions.regex_pattern_library_query_conditions",
+	"Seller Template Profile": "tradehub_core.permissions.seller_template_profile_query_conditions",
 }
 
 has_permission = {
@@ -357,6 +393,11 @@ has_permission = {
 	"CRM Call Log": "tradehub_core.permissions.crm_call_log_has_permission",
 	"Platform Notification": "tradehub_core.tradehub_core.doctype.platform_notification.platform_notification.has_permission",
 	"RFQ": "tradehub_core.permissions.rfq_has_permission",
+	# Bulk Import + ECA + Regex + Template Profile per-doc kontrolleri.
+	"Bulk Import Job": "tradehub_core.permissions.bulk_import_job_has_permission",
+	"ECA Rule": "tradehub_core.permissions.eca_rule_has_permission",
+	"Regex Pattern Library": "tradehub_core.permissions.regex_pattern_library_has_permission",
+	"Seller Template Profile": "tradehub_core.permissions.seller_template_profile_has_permission",
 }
 
 # ---------------------------------------------------------------------------

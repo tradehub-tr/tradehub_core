@@ -1465,3 +1465,129 @@ def user_profile_has_permission(doc, ptype, user):
 	# Buyer/Seller: sadece kendi profili
 	doc_user = getattr(doc, "user", None) if not isinstance(doc, dict) else doc.get("user")
 	return doc_user == user
+
+
+# ---------------------------------------------------------------------------
+# Bulk Import + ECA + Regex + Seller Template Profile permission handlers
+# ---------------------------------------------------------------------------
+# Admin/System Manager tüm kayıtları görür; satıcı sadece kendisine ait
+# kayıtları. Per-doc kontrol (has_permission) ek olarak ptype'a göre platform
+# kapsamlı ECA Rule / System Regex Library için read-only erişime izin verir.
+
+
+def _is_admin(user: str) -> bool:
+	roles = frappe.get_roles(user)
+	return "System Manager" in roles or "Marketplace Admin" in roles
+
+
+def _seller_of(user: str) -> str | None:
+	return frappe.db.get_value("Admin Seller Profile", {"owner": user}, "name")
+
+
+def bulk_import_job_query_conditions(user):
+	"""Satıcı sadece kendi job'larını görür. Admin tümünü."""
+	if _is_admin(user):
+		return ""
+	seller = _seller_of(user)
+	if not seller:
+		return "1=0"
+	return f"`tabBulk Import Job`.seller_profile = {frappe.db.escape(seller)}"
+
+
+def bulk_import_job_has_permission(doc, ptype, user):
+	if _is_admin(user):
+		return True
+	seller = _seller_of(user)
+	doc_seller = (
+		getattr(doc, "seller_profile", None) if not isinstance(doc, dict) else doc.get("seller_profile")
+	)
+	return bool(seller) and doc_seller == seller
+
+
+def eca_rule_query_conditions(user):
+	"""Satıcı: kendi rules + Platform rules (read). Admin: all."""
+	if _is_admin(user):
+		return ""
+	seller = _seller_of(user)
+	if not seller:
+		return "1=0"
+	return (
+		f"(`tabECA Rule`.rule_scope = 'Platform' OR "
+		f"(`tabECA Rule`.rule_scope = 'Per-Seller' AND "
+		f"`tabECA Rule`.seller_profile = {frappe.db.escape(seller)}))"
+	)
+
+
+def eca_rule_has_permission(doc, ptype, user):
+	if _is_admin(user):
+		return True
+	seller = _seller_of(user)
+	if not seller:
+		return False
+	rule_scope = getattr(doc, "rule_scope", None) if not isinstance(doc, dict) else doc.get("rule_scope")
+	doc_seller = (
+		getattr(doc, "seller_profile", None) if not isinstance(doc, dict) else doc.get("seller_profile")
+	)
+	if rule_scope == "Platform":
+		# Satıcı Platform kuralını sadece okuyabilir.
+		return ptype == "read"
+	return doc_seller == seller
+
+
+def eca_rule_log_query_conditions(user):
+	"""Satıcı kendi kurallarının log'larını görür."""
+	if _is_admin(user):
+		return ""
+	seller = _seller_of(user)
+	if not seller:
+		return "1=0"
+	# Subquery: log.eca_rule → rule.seller_profile = my_seller
+	return (
+		f"`tabECA Rule Log`.eca_rule IN ("
+		f"SELECT name FROM `tabECA Rule` WHERE seller_profile = {frappe.db.escape(seller)})"
+	)
+
+
+def regex_pattern_library_query_conditions(user):
+	if _is_admin(user):
+		return ""
+	seller = _seller_of(user)
+	if not seller:
+		return "1=0"
+	return (
+		f"(`tabRegex Pattern Library`.scope = 'System' OR "
+		f"(`tabRegex Pattern Library`.scope = 'Seller Override' AND "
+		f"`tabRegex Pattern Library`.seller_profile = {frappe.db.escape(seller)}))"
+	)
+
+
+def regex_pattern_library_has_permission(doc, ptype, user):
+	if _is_admin(user):
+		return True
+	seller = _seller_of(user)
+	if not seller:
+		return False
+	scope = getattr(doc, "scope", None) if not isinstance(doc, dict) else doc.get("scope")
+	doc_seller = (
+		getattr(doc, "seller_profile", None) if not isinstance(doc, dict) else doc.get("seller_profile")
+	)
+	if scope == "System":
+		return ptype == "read"
+	return doc_seller == seller
+
+
+def seller_template_profile_query_conditions(user):
+	if _is_admin(user):
+		return ""
+	seller = _seller_of(user)
+	if not seller:
+		return "1=0"
+	return f"`tabSeller Template Profile`.seller = {frappe.db.escape(seller)}"
+
+
+def seller_template_profile_has_permission(doc, ptype, user):
+	if _is_admin(user):
+		return True
+	seller = _seller_of(user)
+	doc_seller = getattr(doc, "seller", None) if not isinstance(doc, dict) else doc.get("seller")
+	return bool(seller) and doc_seller == seller

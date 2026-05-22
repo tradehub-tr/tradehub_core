@@ -1,0 +1,61 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-05-22 00:00:00",
+ "doctype": "DocType",
+ "document_type": "Document",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "regex",
+  "description",
+  "flags",
+  "enabled",
+  "test_sample"
+ ],
+ "fields": [
+  {
+   "fieldname": "regex",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Regex",
+   "reqd": 1
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Açıklama"
+  },
+  {
+   "default": "IGNORECASE,UNICODE",
+   "fieldname": "flags",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Flags"
+  },
+  {
+   "default": "1",
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "label": "Aktif"
+  },
+  {
+   "description": "Test örneği — kayıt sırasında doğrulanır",
+   "fieldname": "test_sample",
+   "fieldtype": "Data",
+   "label": "Test Örneği"
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-05-22 00:00:00",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "Regex Pattern Entry",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0
+}

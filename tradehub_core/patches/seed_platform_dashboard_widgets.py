@@ -122,10 +122,13 @@ PLATFORM_WIDGETS = [
 		"icon": "fas fa-users",
 		"icon_bg_class": "bg-violet-100 dark:bg-violet-500/10",
 		"icon_color_class": "text-violet-500",
-		"source_doctype": "User",
+		# Sprint 2 sonrası canonical: User Profile = marketplace kullanıcı entity.
+		# User + user_type filtresi sadece Frappe Desk erişimi olanları sayıyordu
+		# (alıcılar Website User olduğu için sayıma girmiyordu).
+		"source_doctype": "User Profile",
 		"aggregation": "count",
 		"period_scoped": 0,
-		"filters_json": json.dumps([["user_type", "=", "System User"], ["enabled", "=", 1]]),
+		"filters_json": json.dumps([["status", "=", "Active"]]),
 	},
 	{
 		"title": "Aktif Satıcı",
@@ -165,18 +168,21 @@ PLATFORM_WIDGETS = [
 						"source_doctype": "Admin Seller Profile",
 					},
 					{
+						# Sprint 2 sonrası: Buyer Profile deprecated; canonical User Profile.
+						# can_buy=1 → KYC Verified alıcılar (operasyonel alıcı tabanı).
 						"label": "Alıcı Profilleri",
-						"to": "/app/Buyer Profile",
+						"to": "/app/User Profile?can_buy=1",
 						"icon": "fas fa-user",
 						"icon_class": "bg-blue-100 dark:bg-blue-500/10 text-blue-500",
-						"source_doctype": "Buyer Profile",
+						"source_doctype": "User Profile",
+						"filters": [["can_buy", "=", 1]],
 					},
 					{
 						"label": "Kullanıcılar",
-						"to": "/app/User",
+						"to": "/app/User Profile",
 						"icon": "fas fa-users",
 						"icon_class": "bg-violet-100 dark:bg-violet-500/10 text-violet-500",
-						"source_doctype": "User",
+						"source_doctype": "User Profile",
 					},
 				],
 			}
@@ -228,8 +234,8 @@ PLATFORM_WIDGETS = [
 					{
 						"key": "users",
 						"label": "Kullanıcı",
-						"doctype": "User",
-						"filters": [["user_type", "=", "System User"], ["enabled", "=", 1]],
+						"doctype": "User Profile",
+						"filters": [["status", "=", "Active"]],
 					},
 					{
 						"key": "applications",
