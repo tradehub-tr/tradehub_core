@@ -1,0 +1,23 @@
+<title>{{ seo.title }}</title>
+<meta name="description" content="{{ seo.description }}">
+<meta name="robots" content="{{ seo.robots }}">
+{% if seo.canonical %}<link rel="canonical" href="{{ seo.canonical }}">{% endif %}
+{% for alt in seo.hreflang_links or [] %}
+<link rel="alternate" hreflang="{{ alt.hreflang }}" href="{{ alt.href }}">
+{% endfor %}
+
+<meta property="og:type" content="{{ seo.og_type }}">
+<meta property="og:title" content="{{ seo.og_title }}">
+<meta property="og:description" content="{{ seo.og_description }}">
+{% if seo.og_image %}<meta property="og:image" content="{{ seo.og_image }}">{% endif %}
+{% if seo.og_url %}<meta property="og:url" content="{{ seo.og_url }}">{% endif %}
+{% if seo.site_name %}<meta property="og:site_name" content="{{ seo.site_name }}">{% endif %}
+
+<meta name="twitter:card" content="summary_large_image">
+{% if seo.twitter_handle %}<meta name="twitter:site" content="{{ seo.twitter_handle }}">{% endif %}
+<meta name="twitter:title" content="{{ seo.og_title }}">
+<meta name="twitter:description" content="{{ seo.og_description }}">
+{% if seo.og_image %}<meta name="twitter:image" content="{{ seo.og_image }}">{% endif %}
+{% for ld in seo.json_ld %}
+<script type="application/ld+json">{{ ld | tojson }}</script>
+{% endfor %}

@@ -29,6 +29,10 @@ fixtures = [
 		"dt": "Workspace",
 		"filters": [["module", "=", "Tradehub Core"]],
 	},
+	{
+		"dt": "Custom Field",
+		"filters": [["module", "=", "Tradehub Core"]],
+	},
 ]
 
 scheduler_events = {
@@ -41,6 +45,8 @@ scheduler_events = {
 		"tradehub_core.utils.sla_checker.check_sla_breaches",
 		# Faz 6: Sentiment analysis (analiz edilmemiş Approved review'lar)
 		"tradehub_core.api.sentiment.batch_analyze_pending",
+		# Social Proof: 24 saatten eski view counter'ları sıfırla (rolling window)
+		"tradehub_core.api.social_proof.reset_view_counters_rolling_24h",
 		# Sprint 2 — E2 fırsat: Buyer metric scheduler (User Profile.metrics)
 		"tradehub_core.tasks.recalculate_buyer_metrics",
 	],
@@ -72,6 +78,8 @@ scheduler_events = {
 		# Sertifika süre dolma kontrolü — 30/7/0 gün öncesi bildirim,
 		# süresi dolanı verification_status=Rejected ile auto-disable.
 		"tradehub_core.utils.cert_expiry_check.check_certificate_expiry",
+		# SEO sitemap rebuild — 4 doctype + index. 254 row için < 1 sn.
+		"tradehub_core.seo.tasks.daily_sitemap_rebuild",
 		# Sprint 2 — E2 fırsat: Buyer scoring + level pipeline (daily)
 		"tradehub_core.tasks.calculate_buyer_scores",
 		"tradehub_core.tasks.buyer_level_tasks",
@@ -109,8 +117,14 @@ doc_events = {
 		"before_insert": "tradehub_core.utils.security.reject_unsafe_files",
 	},
 	"Listing": {
-		"validate": "tradehub_core.utils.cert_validate.validate_listing_certifications",
+		"validate": [
+			"tradehub_core.utils.cert_validate.validate_listing_certifications",
+			"tradehub_core.seo.hooks_seo.validate_seo_lengths",
+		],
+		"before_validate": "tradehub_core.seo.hooks_seo.auto_generate_slug",
 		"on_update": [
+			"tradehub_core.seo.hooks_seo.invalidate_url_cache",
+			"tradehub_core.seo.hooks_seo.invalidate_sitemap_for",
 			"tradehub_core.api.listing.invalidate_listing_cache",
 			# Related Products cache: drop rows when the listing goes inactive/invisible.
 			"tradehub_core.recommendations.engine.cleanup_cache_if_deactivated",
@@ -134,6 +148,34 @@ doc_events = {
 	# rows for listings under this category).
 	"Product Category": {
 		"on_trash": "tradehub_core.recommendations.cleanup.on_product_category_trash",
+		"before_validate": "tradehub_core.seo.hooks_seo.auto_generate_slug",
+		"validate": "tradehub_core.seo.hooks_seo.validate_seo_lengths",
+		"on_update": [
+			"tradehub_core.seo.hooks_seo.invalidate_url_cache",
+			"tradehub_core.seo.hooks_seo.invalidate_sitemap_for",
+		],
+	},
+	# Brand / Seller Profile SEO altyapısı: slug auto-generate + meta length warn
+	# + Cloudflare cache purge + sitemap invalidate.
+	"Brand": {
+		"before_validate": "tradehub_core.seo.hooks_seo.auto_generate_slug",
+		"validate": "tradehub_core.seo.hooks_seo.validate_seo_lengths",
+		"on_update": [
+			"tradehub_core.seo.hooks_seo.invalidate_url_cache",
+			"tradehub_core.seo.hooks_seo.invalidate_sitemap_for",
+		],
+	},
+	# Statik sayfa SEO override değişince cache + sitemap dirty (Faz 4c).
+	"Static Page SEO": {
+		"on_update": [
+			"tradehub_core.seo.hooks_seo.invalidate_url_cache",
+			"tradehub_core.seo.hooks_seo.invalidate_sitemap_for",
+		],
+	},
+	# SEO Redirect değişince Redis cache temizle (Faz 6).
+	"SEO Redirect": {
+		"on_update": "tradehub_core.seo.redirect_cache.invalidate_redirect_cache",
+		"on_trash": "tradehub_core.seo.redirect_cache.invalidate_redirect_cache",
 	},
 	# Order pipeline → Listing.order_count for the "Çok Satan" Top Ranking
 	# pill. We register on `before_save` (not on_update) because the hook
@@ -143,7 +185,10 @@ doc_events = {
 	# read-only fields, so the in-memory metrics_credited would always be
 	# 0 and re-credit on every save (count inflated 2x, 3x, ...).
 	"Order": {
-		"before_save": "tradehub_core.api.listing.bump_listing_order_counts",
+		"before_save": [
+			"tradehub_core.api.listing.bump_listing_order_counts",
+			"tradehub_core.api.social_proof.invalidate_for_order",
+		],
 		"on_update": "tradehub_core.api.tailored.invalidate_tailored_user_cache",
 	},
 	# Seller Review pipeline → seller-proxy rating + review_count denormalized
@@ -186,11 +231,17 @@ doc_events = {
 	# Marketplace Seller rolünü user'a otomatik bağla/kaldır.
 	# (CRM doctype'larındaki Frappe role-level DocPerm bu role bağlı.)
 	"Admin Seller Profile": {
-		"validate": "tradehub_core.utils.cert_validate.validate_seller_certifications",
+		"before_validate": "tradehub_core.seo.hooks_seo.auto_generate_slug",
+		"validate": [
+			"tradehub_core.utils.cert_validate.validate_seller_certifications",
+			"tradehub_core.seo.hooks_seo.validate_seo_lengths",
+		],
 		"after_insert": "tradehub_core.utils.seller_role_sync.sync_marketplace_seller_role",
 		"on_update": [
 			"tradehub_core.utils.helpdesk_routing.on_admin_seller_profile_update",
 			"tradehub_core.utils.seller_role_sync.sync_marketplace_seller_role",
+			"tradehub_core.seo.hooks_seo.invalidate_url_cache",
+			"tradehub_core.seo.hooks_seo.invalidate_sitemap_for",
 		],
 	},
 	# CRM kayıtlarında seller'ı creator'dan otomatik resolve et + lead/deal_owner

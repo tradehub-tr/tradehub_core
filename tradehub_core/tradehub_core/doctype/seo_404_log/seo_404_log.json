@@ -1,0 +1,112 @@
+{
+	"actions": [],
+	"autoname": "hash",
+	"creation": "2026-05-21 00:00:00.000000",
+	"doctype": "DocType",
+	"engine": "InnoDB",
+	"field_order": [
+		"path",
+		"hit_count",
+		"resolved",
+		"column_break_dates",
+		"first_seen_at",
+		"last_hit_at",
+		"section_break_meta",
+		"last_referer",
+		"last_user_agent"
+	],
+	"fields": [
+		{
+			"fieldname": "path",
+			"fieldtype": "Data",
+			"label": "404 Path",
+			"reqd": 1,
+			"unique": 1,
+			"in_list_view": 1,
+			"in_standard_filter": 1
+		},
+		{
+			"fieldname": "hit_count",
+			"fieldtype": "Int",
+			"label": "Hit Count",
+			"default": "1",
+			"in_list_view": 1
+		},
+		{
+			"fieldname": "resolved",
+			"fieldtype": "Check",
+			"label": "Çözüldü (redirect eklendi)",
+			"default": "0",
+			"in_list_view": 1,
+			"in_standard_filter": 1
+		},
+		{
+			"fieldname": "column_break_dates",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "first_seen_at",
+			"fieldtype": "Datetime",
+			"label": "İlk Görülme",
+			"read_only": 1
+		},
+		{
+			"fieldname": "last_hit_at",
+			"fieldtype": "Datetime",
+			"label": "Son Hit",
+			"read_only": 1,
+			"in_list_view": 1
+		},
+		{
+			"fieldname": "section_break_meta",
+			"fieldtype": "Section Break",
+			"label": "Meta"
+		},
+		{
+			"fieldname": "last_referer",
+			"fieldtype": "Data",
+			"label": "Son Referer"
+		},
+		{
+			"fieldname": "last_user_agent",
+			"fieldtype": "Small Text",
+			"label": "Son User-Agent"
+		}
+	],
+	"links": [],
+	"modified": "2026-05-21 00:00:00.000000",
+	"modified_by": "Administrator",
+	"module": "Tradehub Core",
+	"name": "SEO 404 Log",
+	"owner": "Administrator",
+	"permissions": [
+		{
+			"create": 1,
+			"delete": 1,
+			"email": 1,
+			"export": 1,
+			"print": 1,
+			"read": 1,
+			"report": 1,
+			"role": "System Manager",
+			"share": 1,
+			"write": 1
+		},
+		{
+			"create": 1,
+			"delete": 1,
+			"email": 1,
+			"export": 1,
+			"print": 1,
+			"read": 1,
+			"report": 1,
+			"role": "Marketplace Admin",
+			"share": 1,
+			"write": 1
+		}
+	],
+	"sort_field": "last_hit_at",
+	"sort_order": "DESC",
+	"states": [],
+	"track_changes": 0
+}
