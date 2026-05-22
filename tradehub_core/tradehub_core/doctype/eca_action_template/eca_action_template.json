@@ -1,0 +1,183 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "field:template_name",
+ "creation": "2026-05-22 00:00:00",
+ "doctype": "DocType",
+ "document_type": "Document",
+ "editable_grid": 0,
+ "engine": "InnoDB",
+ "field_order": [
+  "template_name",
+  "action_type",
+  "description",
+  "rate_limit_per_hour",
+  "section_field_update",
+  "field_updates",
+  "section_email",
+  "email_recipients",
+  "email_subject_template",
+  "email_body_template",
+  "section_webhook",
+  "webhook_url",
+  "webhook_method",
+  "webhook_body_template",
+  "section_create_document",
+  "create_doctype",
+  "create_field_mappings",
+  "section_reject",
+  "reject_reason",
+  "section_script",
+  "script_body"
+ ],
+ "fields": [
+  {
+   "fieldname": "template_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Şablon Adı",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "action_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Aksiyon Tipi",
+   "options": "field_update\nemail\nwebhook\ncreate_document\nreject_row\ncustom_script",
+   "reqd": 1
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Açıklama"
+  },
+  {
+   "default": "50",
+   "fieldname": "rate_limit_per_hour",
+   "fieldtype": "Int",
+   "label": "Saatlik Tetiklenme Limiti"
+  },
+  {
+   "depends_on": "eval:doc.action_type=='field_update'",
+   "fieldname": "section_field_update",
+   "fieldtype": "Section Break",
+   "label": "Field Update"
+  },
+  {
+   "description": "JSON: [{fieldname, value}] — only for field_update",
+   "fieldname": "field_updates",
+   "fieldtype": "Long Text",
+   "label": "Field Güncellemeleri (JSON)"
+  },
+  {
+   "depends_on": "eval:doc.action_type=='email'",
+   "fieldname": "section_email",
+   "fieldtype": "Section Break",
+   "label": "E-posta"
+  },
+  {
+   "description": "Comma-separated, only for email",
+   "fieldname": "email_recipients",
+   "fieldtype": "Data",
+   "label": "Alıcılar"
+  },
+  {
+   "description": "Jinja2, only for email",
+   "fieldname": "email_subject_template",
+   "fieldtype": "Data",
+   "label": "Konu Şablonu"
+  },
+  {
+   "description": "Jinja2, only for email",
+   "fieldname": "email_body_template",
+   "fieldtype": "Long Text",
+   "label": "Gövde Şablonu"
+  },
+  {
+   "depends_on": "eval:doc.action_type=='webhook'",
+   "fieldname": "section_webhook",
+   "fieldtype": "Section Break",
+   "label": "Webhook"
+  },
+  {
+   "description": "only for webhook",
+   "fieldname": "webhook_url",
+   "fieldtype": "Data",
+   "label": "Webhook URL"
+  },
+  {
+   "default": "POST",
+   "fieldname": "webhook_method",
+   "fieldtype": "Select",
+   "label": "HTTP Metodu",
+   "options": "POST\nPUT\nPATCH"
+  },
+  {
+   "description": "Jinja2 JSON, only for webhook",
+   "fieldname": "webhook_body_template",
+   "fieldtype": "Long Text",
+   "label": "Gövde Şablonu"
+  },
+  {
+   "depends_on": "eval:doc.action_type=='create_document'",
+   "fieldname": "section_create_document",
+   "fieldtype": "Section Break",
+   "label": "Create Document"
+  },
+  {
+   "description": "only for create_document",
+   "fieldname": "create_doctype",
+   "fieldtype": "Link",
+   "label": "Oluşturulacak DocType",
+   "options": "DocType"
+  },
+  {
+   "description": "JSON, only for create_document",
+   "fieldname": "create_field_mappings",
+   "fieldtype": "Long Text",
+   "label": "Field Eşleşmeleri (JSON)"
+  },
+  {
+   "depends_on": "eval:doc.action_type=='reject_row'",
+   "fieldname": "section_reject",
+   "fieldtype": "Section Break",
+   "label": "Reject Row"
+  },
+  {
+   "description": "only for reject_row",
+   "fieldname": "reject_reason",
+   "fieldtype": "Data",
+   "label": "Red Sebebi"
+  },
+  {
+   "depends_on": "eval:doc.action_type=='custom_script'",
+   "fieldname": "section_script",
+   "fieldtype": "Section Break",
+   "label": "Custom Script"
+  },
+  {
+   "description": "only for custom_script — admin only",
+   "fieldname": "script_body",
+   "fieldtype": "Long Text",
+   "label": "Script Gövdesi",
+   "options": "Python"
+  }
+ ],
+ "links": [],
+ "modified": "2026-05-22 00:00:00",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "ECA Action Template",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {"create": 1, "delete": 1, "read": 1, "write": 1, "role": "System Manager"},
+  {"create": 1, "delete": 0, "read": 1, "write": 1, "role": "Marketplace Admin"},
+  {"create": 1, "delete": 0, "read": 1, "write": 1, "role": "Marketplace Seller"}
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

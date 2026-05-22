@@ -1,0 +1,187 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "field:rule_name",
+ "creation": "2026-05-22 00:00:00",
+ "doctype": "DocType",
+ "document_type": "Document",
+ "editable_grid": 0,
+ "engine": "InnoDB",
+ "field_order": [
+  "rule_name",
+  "enabled",
+  "section_target",
+  "reference_doctype",
+  "event",
+  "context_filter",
+  "section_scope",
+  "rule_scope",
+  "seller_profile",
+  "owner_role",
+  "execution_phase",
+  "priority",
+  "section_logic",
+  "condition",
+  "section_action",
+  "action_type",
+  "action_template",
+  "section_metrics",
+  "last_fired_at",
+  "total_fired_count"
+ ],
+ "fields": [
+  {
+   "fieldname": "rule_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Kural Adı",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Aktif"
+  },
+  {
+   "fieldname": "section_target",
+   "fieldtype": "Section Break",
+   "label": "Hedef"
+  },
+  {
+   "fieldname": "reference_doctype",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Referans DocType",
+   "options": "DocType",
+   "reqd": 1
+  },
+  {
+   "fieldname": "event",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Olay",
+   "options": "before_save\nafter_insert\non_update\non_submit\non_cancel",
+   "reqd": 1
+  },
+  {
+   "description": "Örn: bulk_import → sadece bulk import sırasında tetiklensin",
+   "fieldname": "context_filter",
+   "fieldtype": "Data",
+   "label": "Bağlam Filtresi"
+  },
+  {
+   "fieldname": "section_scope",
+   "fieldtype": "Section Break",
+   "label": "Kapsam"
+  },
+  {
+   "default": "Per-Seller",
+   "fieldname": "rule_scope",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Kural Kapsamı",
+   "options": "Platform\nPer-Seller",
+   "reqd": 1
+  },
+  {
+   "depends_on": "eval:doc.rule_scope=='Per-Seller'",
+   "fieldname": "seller_profile",
+   "fieldtype": "Link",
+   "label": "Satıcı Profili",
+   "options": "Admin Seller Profile"
+  },
+  {
+   "default": "Seller",
+   "fieldname": "owner_role",
+   "fieldtype": "Select",
+   "label": "Sahip Rolü",
+   "options": "System Manager\nMarketplace Admin\nSeller",
+   "reqd": 1
+  },
+  {
+   "description": "Auto-set in validate()",
+   "fieldname": "execution_phase",
+   "fieldtype": "Select",
+   "label": "Yürütme Fazı",
+   "options": "Seller Phase\nAdmin Phase",
+   "read_only": 1
+  },
+  {
+   "default": "500",
+   "description": "Seller: 100-999, Admin: 1000+",
+   "fieldname": "priority",
+   "fieldtype": "Int",
+   "label": "Öncelik",
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_logic",
+   "fieldtype": "Section Break",
+   "label": "Koşul"
+  },
+  {
+   "description": "Python ifadesi — doc, re, frappe.utils erişilebilir",
+   "fieldname": "condition",
+   "fieldtype": "Code",
+   "label": "Python Koşulu",
+   "options": "Python",
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_action",
+   "fieldtype": "Section Break",
+   "label": "Aksiyon"
+  },
+  {
+   "fieldname": "action_type",
+   "fieldtype": "Select",
+   "label": "Aksiyon Tipi",
+   "options": "field_update\nemail\nwebhook\ncreate_document\nreject_row\ncustom_script",
+   "reqd": 1
+  },
+  {
+   "fieldname": "action_template",
+   "fieldtype": "Link",
+   "label": "Aksiyon Şablonu",
+   "options": "ECA Action Template"
+  },
+  {
+   "fieldname": "section_metrics",
+   "fieldtype": "Section Break",
+   "label": "Metrik"
+  },
+  {
+   "fieldname": "last_fired_at",
+   "fieldtype": "Datetime",
+   "label": "Son Tetiklenme",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "total_fired_count",
+   "fieldtype": "Int",
+   "label": "Toplam Tetiklenme",
+   "read_only": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-05-22 00:00:00",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "ECA Rule",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {"create": 1, "delete": 1, "read": 1, "write": 1, "role": "System Manager"},
+  {"create": 1, "delete": 0, "read": 1, "write": 1, "role": "Marketplace Admin"},
+  {"create": 1, "delete": 1, "read": 1, "write": 1, "role": "Marketplace Seller"}
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

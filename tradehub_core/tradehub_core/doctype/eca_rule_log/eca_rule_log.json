@@ -1,0 +1,137 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "hash",
+ "creation": "2026-05-22 00:00:00",
+ "doctype": "DocType",
+ "document_type": "Document",
+ "editable_grid": 0,
+ "engine": "InnoDB",
+ "field_order": [
+  "eca_rule",
+  "reference_doctype",
+  "reference_name",
+  "event",
+  "execution_phase",
+  "section_result",
+  "condition_result",
+  "action_executed",
+  "status",
+  "execution_time_ms",
+  "error_message",
+  "section_trace",
+  "bulk_import_job",
+  "doc_snapshot_before",
+  "doc_snapshot_after",
+  "triggered_at"
+ ],
+ "fields": [
+  {
+   "fieldname": "eca_rule",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "ECA Kuralı",
+   "options": "ECA Rule"
+  },
+  {
+   "fieldname": "reference_doctype",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Referans DocType"
+  },
+  {
+   "fieldname": "reference_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Referans Adı"
+  },
+  {
+   "fieldname": "event",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Olay"
+  },
+  {
+   "fieldname": "execution_phase",
+   "fieldtype": "Data",
+   "label": "Yürütme Fazı"
+  },
+  {
+   "fieldname": "section_result",
+   "fieldtype": "Section Break",
+   "label": "Sonuç"
+  },
+  {
+   "fieldname": "condition_result",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Koşul Sonucu"
+  },
+  {
+   "fieldname": "action_executed",
+   "fieldtype": "Check",
+   "label": "Aksiyon Çalıştı"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Durum",
+   "options": "success\ncondition_false\naction_failed\nerror"
+  },
+  {
+   "fieldname": "execution_time_ms",
+   "fieldtype": "Int",
+   "label": "Süre (ms)"
+  },
+  {
+   "fieldname": "error_message",
+   "fieldtype": "Long Text",
+   "label": "Hata Mesajı"
+  },
+  {
+   "fieldname": "section_trace",
+   "fieldtype": "Section Break",
+   "label": "İzlenebilirlik"
+  },
+  {
+   "fieldname": "bulk_import_job",
+   "fieldtype": "Link",
+   "label": "Bulk Import Job",
+   "options": "Bulk Import Job"
+  },
+  {
+   "fieldname": "doc_snapshot_before",
+   "fieldtype": "Long Text",
+   "label": "Önceki Doc Snapshot"
+  },
+  {
+   "fieldname": "doc_snapshot_after",
+   "fieldtype": "Long Text",
+   "label": "Sonraki Doc Snapshot"
+  },
+  {
+   "default": "now",
+   "fieldname": "triggered_at",
+   "fieldtype": "Datetime",
+   "label": "Tetiklenme"
+  }
+ ],
+ "links": [],
+ "modified": "2026-05-22 00:00:00",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "ECA Rule Log",
+ "naming_rule": "Random",
+ "owner": "Administrator",
+ "permissions": [
+  {"create": 1, "delete": 1, "read": 1, "write": 1, "role": "System Manager"},
+  {"create": 0, "delete": 0, "read": 1, "write": 0, "role": "Marketplace Admin"},
+  {"create": 0, "delete": 0, "read": 1, "write": 0, "role": "Marketplace Seller"}
+ ],
+ "sort_field": "triggered_at",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0
+}

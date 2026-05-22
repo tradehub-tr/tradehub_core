@@ -1,0 +1,227 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "naming_series:",
+ "creation": "2026-05-22 00:00:00",
+ "doctype": "DocType",
+ "document_type": "Document",
+ "editable_grid": 0,
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "seller_profile",
+  "section_input",
+  "data_file",
+  "images_zip",
+  "file_format",
+  "update_mode",
+  "header_row",
+  "sheet_name",
+  "column_mapping",
+  "section_progress",
+  "status",
+  "started_at",
+  "completed_at",
+  "duration_seconds",
+  "cb_progress",
+  "total_rows",
+  "inserted_count",
+  "updated_count",
+  "skipped_count",
+  "error_count",
+  "eca_rules_fired_count",
+  "section_template",
+  "template_profile",
+  "confidence_score",
+  "section_errors",
+  "error_summary",
+  "error_details"
+ ],
+ "fields": [
+  {
+   "default": "BIJ-.YYYY.-",
+   "fieldname": "naming_series",
+   "fieldtype": "Data",
+   "label": "Naming Series",
+   "read_only": 1
+  },
+  {
+   "fieldname": "seller_profile",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Satıcı Profili",
+   "options": "Admin Seller Profile",
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_input",
+   "fieldtype": "Section Break",
+   "label": "Girdi"
+  },
+  {
+   "fieldname": "data_file",
+   "fieldtype": "Attach",
+   "label": "Veri Dosyası",
+   "reqd": 1
+  },
+  {
+   "fieldname": "images_zip",
+   "fieldtype": "Attach",
+   "label": "Görsel ZIP"
+  },
+  {
+   "fieldname": "file_format",
+   "fieldtype": "Select",
+   "label": "Dosya Formatı",
+   "options": "xlsx\ncsv\nxml",
+   "reqd": 1
+  },
+  {
+   "default": "insert_only",
+   "fieldname": "update_mode",
+   "fieldtype": "Select",
+   "label": "Güncelleme Modu",
+   "options": "insert_only\nupsert"
+  },
+  {
+   "default": "1",
+   "fieldname": "header_row",
+   "fieldtype": "Int",
+   "label": "Başlık Satırı"
+  },
+  {
+   "fieldname": "sheet_name",
+   "fieldtype": "Data",
+   "label": "Sayfa Adı"
+  },
+  {
+   "fieldname": "column_mapping",
+   "fieldtype": "Long Text",
+   "label": "Kolon Eşleşme (JSON)"
+  },
+  {
+   "fieldname": "section_progress",
+   "fieldtype": "Section Break",
+   "label": "Durum"
+  },
+  {
+   "default": "Queued",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Durum",
+   "options": "Queued\nRunning\nCompleted\nPartial\nFailed"
+  },
+  {
+   "fieldname": "started_at",
+   "fieldtype": "Datetime",
+   "label": "Başlangıç",
+   "read_only": 1
+  },
+  {
+   "fieldname": "completed_at",
+   "fieldtype": "Datetime",
+   "label": "Bitiş",
+   "read_only": 1
+  },
+  {
+   "fieldname": "duration_seconds",
+   "fieldtype": "Float",
+   "label": "Süre (sn)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "cb_progress",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "total_rows",
+   "fieldtype": "Int",
+   "label": "Toplam Satır",
+   "read_only": 1
+  },
+  {
+   "fieldname": "inserted_count",
+   "fieldtype": "Int",
+   "label": "Eklenen",
+   "read_only": 1
+  },
+  {
+   "fieldname": "updated_count",
+   "fieldtype": "Int",
+   "label": "Güncellenen",
+   "read_only": 1
+  },
+  {
+   "fieldname": "skipped_count",
+   "fieldtype": "Int",
+   "label": "Atlanan",
+   "read_only": 1
+  },
+  {
+   "fieldname": "error_count",
+   "fieldtype": "Int",
+   "label": "Hatalı",
+   "read_only": 1
+  },
+  {
+   "fieldname": "eca_rules_fired_count",
+   "fieldtype": "Int",
+   "label": "ECA Kural Tetiklenme Sayısı",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_template",
+   "fieldtype": "Section Break",
+   "label": "Şablon"
+  },
+  {
+   "fieldname": "template_profile",
+   "fieldtype": "Link",
+   "label": "Şablon Profili",
+   "options": "Seller Template Profile",
+   "read_only": 1
+  },
+  {
+   "fieldname": "confidence_score",
+   "fieldtype": "Float",
+   "label": "Güven Skoru",
+   "precision": "2",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_errors",
+   "fieldtype": "Section Break",
+   "label": "Hatalar"
+  },
+  {
+   "fieldname": "error_summary",
+   "fieldtype": "Long Text",
+   "label": "Hata Özeti",
+   "read_only": 1
+  },
+  {
+   "fieldname": "error_details",
+   "fieldtype": "Table",
+   "label": "Hata Ayrıntıları",
+   "options": "Bulk Import Job Error"
+  }
+ ],
+ "links": [],
+ "modified": "2026-05-22 00:00:00",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "Bulk Import Job",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {"create": 1, "delete": 1, "read": 1, "write": 1, "role": "System Manager"},
+  {"create": 1, "delete": 0, "read": 1, "write": 1, "role": "Marketplace Admin"},
+  {"create": 1, "delete": 0, "read": 1, "write": 1, "role": "Marketplace Seller"}
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

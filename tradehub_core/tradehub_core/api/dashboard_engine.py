@@ -742,3 +742,15 @@ def toggle_widget(widget_id, enabled):
 	frappe.db.set_value("Dashboard Widget", widget_id, "is_enabled", enabled)
 	frappe.db.commit()
 	return {"name": widget_id, "is_enabled": enabled}
+
+
+@frappe.whitelist()
+def delete_widget(widget_id):
+	"""Remove a widget from the dashboard."""
+	if not _is_super_admin():
+		frappe.throw(_("Bu işlem için yetkiniz yok."), frappe.PermissionError)
+	if not frappe.db.exists("Dashboard Widget", widget_id):
+		frappe.throw(_("Widget bulunamadı: {0}").format(widget_id))
+	frappe.delete_doc("Dashboard Widget", widget_id, ignore_permissions=True)
+	frappe.db.commit()
+	return {"name": widget_id, "deleted": True}

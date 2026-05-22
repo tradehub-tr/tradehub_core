@@ -74,14 +74,21 @@ def _is_eca_enabled():
 	"""
 	Check if ECA rule processing is enabled globally.
 
+	Analytics Settings doctype yoksa default ON — ECA bulk-only context
+	zaten frappe.flags.in_bulk_import ile koruma altında.
+
 	Returns:
 	    bool: True if ECA is enabled, False otherwise.
 	"""
 	try:
-		return cint(frappe.db.get_single_value("Analytics Settings", "enable_eca_rules"))
+		if not frappe.db.exists("DocType", "Analytics Settings"):
+			return 1  # Analytics Settings yok → default ON
+		val = frappe.db.get_single_value("Analytics Settings", "enable_eca_rules")
+		# None (hiç set edilmemiş) → default ON; explicit 0 → OFF
+		return 1 if val is None else cint(val)
 	except Exception:
 		# Prevent recursion by suppressing error logging here
-		return 0
+		return 1
 
 
 def _get_applicable_rules(doctype, event):
@@ -590,3 +597,407 @@ def clear_eca_cache(doctype=None, event=None):
 	else:
 		# Clear all ECA cache
 		frappe.cache().delete_keys("eca_rules:*")
+
+
+# ===========================================================================
+# BULK IMPORT TWO-PHASE EXTENSION
+# ===========================================================================
+# Bulk import için: Seller Phase → Admin Phase. Sadece frappe.flags.in_bulk_import
+# True iken fire eder. Single-edit flow regresyon almaz.
+
+import time  # noqa: E402
+
+from tradehub_core.eca.safe_regex import RegexError, SafeRegex  # noqa: E402
+from tradehub_core.eca.validators import (  # noqa: E402
+	filter_doc_for_seller,
+	is_action_allowed,
+	is_field_writable,
+)
+
+
+def evaluate_rules_two_phase(doc, method=None):
+	"""Two-phase ECA execution — bulk import için tek giriş noktası.
+
+	Faz 1: Seller Phase
+	Faz 2: Admin Phase (gate-keeper)
+	"""
+	if not getattr(frappe.flags, "in_bulk_import", False):
+		return  # single-edit flow → no-op
+	try:
+		if not _is_eca_enabled():
+			return
+	except Exception:
+		return
+
+	doctype = getattr(doc, "doctype", None)
+	if not doctype:
+		return
+	event = method or "before_save"
+
+	# Faz 1: Seller Phase
+	seller_rules = _get_phase_rules_v2(doctype, event, "Seller Phase", doc)
+	for rule in seller_rules:
+		_process_rule_v2(doc, rule, event)
+	# Faz 2: Admin Phase
+	admin_rules = _get_phase_rules_v2(doctype, event, "Admin Phase", doc)
+	for rule in admin_rules:
+		_process_rule_v2(doc, rule, event)
+
+
+def _get_phase_rules_v2(doctype: str, event: str, phase: str, doc) -> list:
+	"""Belirli faz için uygulanabilir kurallar — 5 dk cache."""
+	cache_key = f"eca_rules_v2:{doctype}:{event}:{phase}"
+	cached = frappe.cache.get_value(cache_key)
+	if cached is None:
+		cached = frappe.get_all(
+			"ECA Rule",
+			filters={
+				"reference_doctype": doctype,
+				"event": event,
+				"execution_phase": phase,
+				"enabled": 1,
+			},
+			fields=[
+				"name",
+				"rule_scope",
+				"seller_profile",
+				"owner_role",
+				"priority",
+				"condition",
+				"action_type",
+				"action_template",
+				"context_filter",
+			],
+			order_by="priority asc",
+		)
+		frappe.cache.set_value(cache_key, cached, expires_in_sec=300)
+	return _filter_rules_for_doc_v2(cached, doc)
+
+
+def _filter_rules_for_doc_v2(rules: list, doc) -> list:
+	"""Per-seller kurallarda doc sahibine göre filtrele + context_filter."""
+	doc_seller = getattr(doc, "seller_profile", None)
+	out = []
+	for r in rules:
+		cf = r.get("context_filter") or ""
+		if cf == "bulk_import" and not getattr(frappe.flags, "in_bulk_import", False):
+			continue
+		if r.get("rule_scope") == "Per-Seller":
+			if not doc_seller or r.get("seller_profile") != doc_seller:
+				continue
+		out.append(r)
+	return out
+
+
+def _process_rule_v2(doc, rule: dict, event: str) -> None:
+	"""Bir kuralı izole çalıştır — log + exception izolasyonu."""
+	start = time.time()
+	log = {
+		"eca_rule": rule.get("name"),
+		"reference_doctype": getattr(doc, "doctype", ""),
+		"reference_name": getattr(doc, "name", "") or "",
+		"event": event,
+		"execution_phase": ("Seller Phase" if rule.get("owner_role") == "Seller" else "Admin Phase"),
+	}
+	if hasattr(frappe.flags, "get"):
+		log["bulk_import_job"] = frappe.flags.get("bulk_import_job")
+
+	try:
+		if hasattr(doc, "as_dict"):
+			try:
+				log["doc_snapshot_before"] = frappe.as_json(doc.as_dict())[:2000]
+			except Exception:
+				pass
+
+		cond_ok = _evaluate_condition_v2(doc, rule)
+		log["condition_result"] = bool(cond_ok)
+		if not cond_ok:
+			log["status"] = "condition_false"
+			return
+
+		action_ok = _execute_action_v2(doc, rule)
+		log["action_executed"] = bool(action_ok)
+		log["status"] = "success" if action_ok else "action_failed"
+
+		if hasattr(doc, "as_dict"):
+			try:
+				log["doc_snapshot_after"] = frappe.as_json(doc.as_dict())[:2000]
+			except Exception:
+				pass
+	except Exception as e:
+		log["status"] = "error"
+		log["error_message"] = str(e)[:500]
+		frappe.log_error(
+			title=f"ECA rule {rule.get('name')} error",
+			message=frappe.get_traceback(),
+		)
+	finally:
+		log["execution_time_ms"] = int((time.time() - start) * 1000)
+		_write_log_v2(log)
+
+
+def _evaluate_condition_v2(doc, rule: dict) -> bool:
+	"""Condition Python eval — role-aware field görünürlüğü + SafeRegex."""
+	cond_str = (rule.get("condition") or "").strip()
+	if not cond_str:
+		return True
+
+	owner_role = rule.get("owner_role", "Seller")
+	doc_dict = doc.as_dict() if hasattr(doc, "as_dict") else dict(doc)
+	if owner_role == "Seller":
+		doc_dict = filter_doc_for_seller(doc_dict, doctype=getattr(doc, "doctype", "Listing"))
+
+	context = {
+		"doc": doc_dict,
+		"re": SafeRegex,
+		"frappe": {
+			"utils": {
+				"cint": frappe.utils.cint,
+				"flt": frappe.utils.flt,
+				"getdate": frappe.utils.getdate,
+				"now_datetime": frappe.utils.now_datetime,
+			},
+			"session": {"user": frappe.session.user},
+		},
+		"cint": frappe.utils.cint,
+		"flt": frappe.utils.flt,
+		"True": True,
+		"False": False,
+		"None": None,
+	}
+
+	try:
+		return bool(frappe.safe_eval(cond_str, context))
+	except RegexError as e:
+		frappe.log_error(
+			title=f"ECA SafeRegex blocked: {rule.get('name')}",
+			message=f"Pattern: {cond_str[:200]}\nError: {e}",
+		)
+		return False
+	except Exception as e:
+		frappe.log_error(
+			title=f"ECA condition eval error: {rule.get('name')}",
+			message=f"Condition: {cond_str[:200]}\nError: {e}",
+		)
+		return False
+
+
+def _execute_action_v2(doc, rule: dict) -> bool:
+	"""Action execution — role whitelist + rate limit + dispatch."""
+	action_type = rule.get("action_type")
+	owner_role = rule.get("owner_role", "Seller")
+
+	if not is_action_allowed(action_type, owner_role):
+		frappe.log_error(
+			title=f"ECA action denied: {rule.get('name')}",
+			message=f"Owner role {owner_role} cannot use action {action_type}",
+		)
+		return False
+
+	if action_type in ("email", "webhook"):
+		if not _check_rate_limit_v2(rule):
+			return False
+
+	template_name = rule.get("action_template")
+	if not template_name:
+		return False
+	try:
+		template = frappe.get_doc("ECA Action Template", template_name)
+	except Exception:
+		return False
+
+	if action_type == "field_update":
+		return _do_field_update_v2(doc, rule, template, owner_role)
+	if action_type == "reject_row":
+		return _do_reject_row_v2(doc, rule, template)
+	if action_type == "email":
+		return _do_email_v2(doc, rule, template)
+	if action_type == "webhook":
+		return _do_webhook_v2(doc, rule, template)
+	if action_type == "create_document":
+		return _do_create_document_v2(doc, rule, template)
+	if action_type == "custom_script":
+		return _do_custom_script_v2(doc, rule, template)
+	return False
+
+
+def _check_rate_limit_v2(rule: dict) -> bool:
+	"""Per-rule per-hour rate limit."""
+	template_name = rule.get("action_template")
+	if not template_name:
+		return True
+	limit = (
+		frappe.db.get_value(
+			"ECA Action Template",
+			template_name,
+			"rate_limit_per_hour",
+		)
+		or 50
+	)
+	bucket = frappe.utils.now_datetime().strftime("%Y%m%d%H")
+	key = f"eca_ratelimit_v2:{rule.get('name')}:{bucket}"
+	current = frappe.cache.get_value(key) or 0
+	if current >= limit:
+		return False
+	frappe.cache.set_value(key, current + 1, expires_in_sec=3700)
+	return True
+
+
+def _do_field_update_v2(doc, rule, template, owner_role) -> bool:
+	"""Field update — whitelist guard."""
+	import json
+
+	try:
+		updates = json.loads(template.field_updates or "[]")
+	except Exception:
+		return False
+	if not isinstance(updates, list):
+		return False
+	changed = False
+	for upd in updates:
+		if not isinstance(upd, dict):
+			continue
+		fieldname = upd.get("fieldname")
+		value_expr = upd.get("value")
+		if not fieldname:
+			continue
+		if not is_field_writable(
+			fieldname,
+			owner_role,
+			doctype=getattr(doc, "doctype", "Listing"),
+		):
+			frappe.log_error(
+				title=f"ECA field write blocked: {rule.get('name')}",
+				message=f"Role {owner_role} cannot write {fieldname}",
+			)
+			continue
+		try:
+			value = _eval_value_expr_v2(value_expr, doc)
+			setattr(doc, fieldname, value)
+			changed = True
+		except Exception as e:
+			frappe.log_error(f"ECA field set failed: {e}", "_do_field_update_v2")
+	return changed
+
+
+def _eval_value_expr_v2(expr, doc):
+	"""Field update value Python eval — SafeRegex injected."""
+	if expr is None:
+		return None
+	if not isinstance(expr, str):
+		return expr
+	if not expr.strip():
+		return expr
+	ctx = {
+		"doc": doc.as_dict() if hasattr(doc, "as_dict") else dict(doc),
+		"cint": frappe.utils.cint,
+		"flt": frappe.utils.flt,
+		"re": SafeRegex,
+	}
+	try:
+		return frappe.safe_eval(expr, ctx)
+	except Exception:
+		return expr  # literal fallback
+
+
+def _do_reject_row_v2(doc, rule, template) -> bool:
+	"""Reject — bulk runner bu flag'i görür ve row'u skip eder."""
+	reason = template.reject_reason or "ECA kuralı tarafından reddedildi"
+	doc.flags.eca_rejected = True
+	doc.flags.eca_reject_reason = reason
+	return True
+
+
+def _do_email_v2(doc, rule, template) -> bool:
+	if not template.email_recipients:
+		return False
+	try:
+		ctx = {"doc": doc.as_dict() if hasattr(doc, "as_dict") else dict(doc)}
+		subject = frappe.render_template(template.email_subject_template or "", ctx)
+		body = frappe.render_template(template.email_body_template or "", ctx)
+		recipients = [r.strip() for r in template.email_recipients.split(",") if r.strip()]
+		frappe.sendmail(recipients=recipients, subject=subject, message=body, now=False)
+		return True
+	except Exception as e:
+		frappe.log_error(f"ECA email failed: {e}", "_do_email_v2")
+		return False
+
+
+def _do_webhook_v2(doc, rule, template) -> bool:
+	if not template.webhook_url:
+		return False
+	try:
+		ctx = {"doc": doc.as_dict() if hasattr(doc, "as_dict") else dict(doc)}
+		body = frappe.render_template(template.webhook_body_template or "{}", ctx)
+		frappe.enqueue(
+			"tradehub_core.eca.dispatcher._send_webhook_v2",
+			queue="short",
+			url=template.webhook_url,
+			method=template.webhook_method or "POST",
+			body=body,
+		)
+		return True
+	except Exception as e:
+		frappe.log_error(f"ECA webhook failed: {e}", "_do_webhook_v2")
+		return False
+
+
+def _send_webhook_v2(url: str, method: str, body: str) -> None:
+	import requests
+
+	try:
+		requests.request(
+			method=method,
+			url=url,
+			data=body,
+			headers={"Content-Type": "application/json"},
+			timeout=10,
+		)
+	except Exception as e:
+		frappe.log_error(f"webhook send failed {url}: {e}", "_send_webhook_v2")
+
+
+def _do_create_document_v2(doc, rule, template) -> bool:
+	import json
+
+	if not template.create_doctype:
+		return False
+	try:
+		mappings = json.loads(template.create_field_mappings or "{}")
+		new_doc = frappe.new_doc(template.create_doctype)
+		for field, expr in mappings.items():
+			new_doc.set(field, _eval_value_expr_v2(expr, doc))
+		new_doc.insert(ignore_permissions=True)
+		return True
+	except Exception as e:
+		frappe.log_error(f"ECA create_document failed: {e}", "_do_create_document_v2")
+		return False
+
+
+def _do_custom_script_v2(doc, rule, template) -> bool:
+	"""Custom script — sadece admin (validators katmanı zaten guard'lıyor)."""
+	if not template.script_body:
+		return False
+	try:
+		from frappe.utils.safe_exec import safe_exec
+
+		safe_exec(template.script_body, _locals={"doc": doc, "frappe": frappe})
+		return True
+	except Exception as e:
+		frappe.log_error(f"ECA custom_script failed: {e}", "_do_custom_script_v2")
+		return False
+
+
+def _write_log_v2(log_data: dict) -> None:
+	"""ECA Rule Log oluştur — log yazımı flow'u kırmaz."""
+	try:
+		if not frappe.db.exists("DocType", "ECA Rule Log"):
+			return
+		log = frappe.new_doc("ECA Rule Log")
+		log.triggered_at = frappe.utils.now_datetime()
+		for k, v in log_data.items():
+			if hasattr(log, k):
+				setattr(log, k, v)
+		log.insert(ignore_permissions=True)
+	except Exception:
+		pass

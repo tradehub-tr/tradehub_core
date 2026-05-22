@@ -75,6 +75,14 @@ def _get_category_descendants(parent_name):
 	return result
 
 
+# Statuses that are NOT visible on the storefront. Cache invalidation for
+# these is a no-op because the cached lists never include them. Skipping
+# the Redis delete_keys storm matters during bulk import (1000 ürün ×
+# 8 pattern × Redis KEYS+DEL = significant load); single-edit flow gains
+# a small win too.
+_INVISIBLE_STATUSES = ("Pending", "Draft", "Rejected", "Archived")
+
+
 def invalidate_listing_cache(doc=None, method=None):
 	"""Drop every cached listing query so storefront reflects writes within
 	a request, not after the 30s TTL expires.
@@ -82,7 +90,16 @@ def invalidate_listing_cache(doc=None, method=None):
 	Wired from hooks.py for Listing on_update / after_insert / on_trash. Safe
 	to call with no args (e.g. from a console). The deletion patterns cover
 	every cache_key prefix used by this module.
+
+	Storefront-invisible statuses (Pending/Draft/Rejected/Archived) skip
+	invalidation entirely — their writes don't affect any cached query.
 	"""
+	# Skip storefront-invisible statuses: they're never in the cached lists,
+	# so dropping the cache yields no observable change but burns Redis CPU.
+	# Critical for bulk import (1000 Pending insert = 8000 wasted KEYS+DEL).
+	if doc is not None and getattr(doc, "status", None) in _INVISIBLE_STATUSES:
+		return
+
 	try:
 		# Patterns must match the prefixes passed to _cache_key in this file.
 		for pattern in (
@@ -3431,17 +3448,24 @@ def _get_price_range(listing):
 
 
 @frappe.whitelist()
-def get_pending_listings(page=1, page_size=20):
-	"""Admin: Onay bekleyen listing'leri listele."""
+def get_pending_listings(page=1, page_size=20, bulk_job=None):
+	"""Admin: Onay bekleyen listing'leri listele.
+
+	`bulk_job`: opsiyonel — yalnızca bu Bulk Import Job tarafından
+	oluşturulan listing'leri döndürür (BIJ-XXX).
+	"""
 	if "System Manager" not in frappe.get_roles() and frappe.session.user != "Administrator":
 		frappe.throw(_("Yetki hatası"), frappe.PermissionError)
 
 	page = int(page)
 	page_size = int(page_size)
-	total = frappe.db.count("Listing", {"status": "Pending"})
+	filters: dict = {"status": "Pending"}
+	if bulk_job:
+		filters["created_by_bulk_job"] = bulk_job
+	total = frappe.db.count("Listing", filters)
 	listings = frappe.get_all(
 		"Listing",
-		filters={"status": "Pending"},
+		filters=filters,
 		fields=[
 			"name",
 			"title",
@@ -3502,11 +3526,13 @@ def approve_listing(listing_name, action="approve", reject_reason=""):
 
 
 @frappe.whitelist()
-def get_seller_listings(page=1, page_size=20, status=None):
+def get_seller_listings(page=1, page_size=20, status=None, bulk_job=None):
 	"""Satıcı: kendi listing'lerini listele.
 
 	`status`: opsiyonel filtre. "all" veya boş → tüm durumlar. Geçerli
 	değerler: Draft, Pending, Active, Paused, Out of Stock, Rejected.
+	`bulk_job`: opsiyonel — yalnızca bu Bulk Import Job tarafından
+	oluşturulan listing'leri döndürür (BIJ-XXX).
 	"""
 	# FAZ 1.5 sub-user fix: sub-user'lar `tradehub_tenant` üzerinden Owner'ın
 	# mağazasına bağlıdır — Co-Owner / Finance Staff / Operations vs. hepsi
@@ -3524,6 +3550,8 @@ def get_seller_listings(page=1, page_size=20, status=None):
 	filters = {"seller_profile": seller_profile}
 	if status and status != "all":
 		filters["status"] = status
+	if bulk_job:
+		filters["created_by_bulk_job"] = bulk_job
 
 	total = frappe.db.count("Listing", filters)
 	listings = frappe.get_all(
@@ -3539,6 +3567,7 @@ def get_seller_listings(page=1, page_size=20, status=None):
 			"available_qty",
 			"creation",
 			"listing_code",
+			"seller_sku",
 			"rejection_reason",
 			"completeness_score",
 		],
