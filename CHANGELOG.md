@@ -1,3 +1,18 @@
+## [v1.0.9-beta.5] - 2026-05-22 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Eklendi
+- feat(seo): SEO yönetim modülü, social proof ve arama API'leri eklendi (@ahmeetseker)
+  - SEO Redirect, SEO 404 Log, Static Page SEO, Listing View Counter doctype'ları eklendi
+  - tradehub_core/seo/ paketi (redirect handler + 404 logger) ve seed_static_pages script'i
+  - api/seo.py + api/seo_admin.py — public/admin SEO endpoint'leri
+  - Social Proof Settings doctype + api/social_proof.py + test'leri
+  - api/search.py arama servisi ve test'leri eklendi
+  - api/listing.py view counter, SEO meta ve filtre alanları için genişletildi
+  - hooks.py: yeni doctype'lar, fixtures ve scheduler entry'leri
+
+---
 ## [v1.0.9-beta.4] - 2026-05-20 BETA
 
 Bu surum betaistoc.cronbi.com'da test asamasindadir.

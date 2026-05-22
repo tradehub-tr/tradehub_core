@@ -818,7 +818,12 @@ def get_listing_detail(listing_id):
 		if listings:
 			listing_name = listings[0].name
 		else:
-			frappe.throw(_("Listing not found"), frappe.DoesNotExistError)
+			# Faz 4d: pretty URL slug ile dene
+			listings = frappe.get_all("Listing", filters={"slug": listing_id}, limit=1)
+			if listings:
+				listing_name = listings[0].name
+			else:
+				frappe.throw(_("Listing not found"), frappe.DoesNotExistError)
 
 	listing = frappe.get_doc("Listing", listing_name)
 
@@ -1123,9 +1128,21 @@ def get_listing_detail(listing_id):
 	else:
 		price_range = _get_price_range(listing)
 
+	# Faz 4d: Client-side <head> override için SEO payload
+	# (admin'in girdiği meta_title, og_image, canonical, vb.)
+	# Dev'de Vite client rendering backend inject'i ezdiği için frontend
+	# bu payload'ı document.title + meta tag'leri güncelleyerek uygular.
+	try:
+		from tradehub_core.seo import meta_builder
+		seo_payload = meta_builder.build_for_listing(listing.as_dict(), lang="tr")
+	except Exception:
+		seo_payload = {}
+
 	result = {
 		"id": listing.name,
 		"listingCode": listing.listing_code,
+		"slug": listing.slug or "",
+		"seo": seo_payload,
 		"title": listing.title,
 		"category": category_breadcrumb,
 		"productCategoryId": listing.product_category or "",
@@ -1263,16 +1280,64 @@ def get_categories(parent=None, include_children=True):
 	return {"data": results}
 
 
+def _empty_facets() -> dict:
+	"""Aktif filtreler kombinasyonu hiç sonuç vermediğinde sidebar'a dönen boş sayım payload'u.
+	Frontend bu durumda sidebar count'larını sıfırlar; kullanıcı yine seçimini kaldırabilir."""
+	return {
+		"data": {
+			"countries": [],
+			"categories": [],
+			"managementCertifications": [],
+			"productCertifications": [],
+			"brands": [],
+			"attributes": [],
+			"verifiedSupplierCount": 0,
+		}
+	}
+
+
 @frappe.whitelist(allow_guest=True)
-def get_filter_facets(query=None, category=None):
+def get_filter_facets(
+	query=None,
+	category=None,
+	min_price=None,
+	max_price=None,
+	min_order=None,
+	verified_supplier=None,
+	country=None,
+	mgmt_certifications=None,
+	product_certifications=None,
+	brands=None,
+	attrs=None,
+):
 	"""Return faceted counts for sidebar filters.
 
-	Given optional query/category context, returns:
-	- countries: unique ships_from_country values with listing counts
+	Aktif filtreleri uygulayarak monotonic narrow sayım döndürür (Trendyol pattern):
+	kullanıcı bir filtre seçince geriye kalan seçeneklerin (xx) sayıları azalır.
+	Frontend filter değişimi sonrasında bu endpoint'i aktif filtrelerle tekrar çağırır.
+
+	Returns:
+	- countries: unique seller country values with listing counts
 	- categories: product categories with listing counts
+	- managementCertifications / productCertifications
+	- brands
+	- attributes (dinamik özellikler)
 	"""
-	# ── Cache check ──
-	fck = _cache_key("facets", q=query, cat=category)
+	# ── Cache check (tüm aktif filtreleri key'e dahil et — yoksa stale data) ──
+	fck = _cache_key(
+		"facets",
+		q=query,
+		cat=category,
+		minp=min_price,
+		maxp=max_price,
+		mo=min_order,
+		vs=verified_supplier,
+		co=country,
+		mc=mgmt_certifications,
+		pc=product_certifications,
+		br=brands,
+		at=attrs,
+	)
 	cached = frappe.cache.get_value(fck)
 	if cached:
 		return cached
@@ -1286,6 +1351,131 @@ def get_filter_facets(query=None, category=None):
 				descendants[0] if len(descendants) == 1 else ["in", descendants]
 			)
 
+	# ── Supplier-level filters → matching Admin Seller Profile names ──
+	# get_listings'deki aynı mantık; burada da uygulayarak count'ları aktif filtreye göre daralt.
+	seller_profile_filters: dict = {}
+	if verified_supplier:
+		verified_user_emails = frappe.db.sql_list(
+			"""SELECT parent FROM `tabHas Role`
+			   WHERE role = 'Verified Seller' AND parenttype = 'User'"""
+		)
+		if not verified_user_emails:
+			return _empty_facets()
+		seller_profile_filters["user"] = ["in", verified_user_emails]
+	if country:
+		country_list = [c.strip() for c in str(country).split(",") if c.strip()]
+		if len(country_list) == 1:
+			seller_profile_filters["country"] = country_list[0]
+		elif len(country_list) > 1:
+			seller_profile_filters["country"] = ["in", country_list]
+
+	if mgmt_certifications:
+		cert_list = [c.strip() for c in mgmt_certifications.split(",") if c.strip()]
+		if cert_list:
+			sellers_with_certs = frappe.get_all(
+				"Seller Certification",
+				filters=[
+					["certification_type", "in", cert_list],
+					["verification_status", "=", "Verified"],
+				],
+				fields=["parent"],
+				pluck="parent",
+			)
+			if sellers_with_certs:
+				seller_profile_filters["name"] = ["in", list(set(sellers_with_certs))]
+			else:
+				return _empty_facets()
+
+	if seller_profile_filters:
+		matching_sellers = frappe.get_all(
+			"Admin Seller Profile",
+			filters=seller_profile_filters,
+			fields=["name"],
+			pluck="name",
+		)
+		if matching_sellers:
+			base_filters["seller_profile"] = ["in", matching_sellers]
+		else:
+			return _empty_facets()
+
+	# ── Product certifications → matching Listing names ──
+	if product_certifications:
+		pcert_list = [c.strip() for c in product_certifications.split(",") if c.strip()]
+		if pcert_list:
+			listings_with_pcerts = frappe.get_all(
+				"Listing Certification",
+				filters=[["certification_type", "in", pcert_list]],
+				fields=["parent"],
+				pluck="parent",
+			)
+			if listings_with_pcerts:
+				base_filters["name"] = ["in", list(set(listings_with_pcerts))]
+			else:
+				return _empty_facets()
+
+	# ── Brand multi-select ──
+	if brands:
+		brand_list = [b.strip() for b in brands.split(",") if b.strip()]
+		if brand_list:
+			base_filters["brand"] = ["in", brand_list]
+
+	# ── Attribute filters (AND across attributes, OR within values) ──
+	if attrs:
+		attr_groups: list[tuple[str, list[str]]] = []
+		for chunk in attrs.split("|"):
+			if ":" not in chunk:
+				continue
+			code, vals_str = chunk.split(":", 1)
+			code = code.strip()
+			vals = [v.strip() for v in vals_str.split(",") if v.strip()]
+			if code and vals:
+				attr_groups.append((code, vals))
+
+		if attr_groups:
+			matching_listings: set | None = None
+			for code, vals in attr_groups:
+				rows = frappe.get_all(
+					"Listing Attribute Value",
+					filters=[
+						["attribute", "=", code],
+						["attribute_value", "in", vals],
+						["parenttype", "=", "Listing"],
+					],
+					fields=["parent"],
+					pluck="parent",
+				)
+				names = set(rows)
+				matching_listings = names if matching_listings is None else (matching_listings & names)
+
+			if not matching_listings:
+				return _empty_facets()
+			existing = base_filters.get("name")
+			if isinstance(existing, list) and existing[0] == "in":
+				narrowed = list(matching_listings & set(existing[1]))
+				if not narrowed:
+					return _empty_facets()
+				base_filters["name"] = ["in", narrowed]
+			else:
+				base_filters["name"] = ["in", list(matching_listings)]
+
+	# ── Price + min_order: list-of-lists ek filtreler (frappe.get_all formatı) ──
+	extra_filters: list[list] = []
+	if min_price:
+		extra_filters.append(
+			["Listing", "selling_price", ">=", safe_float(min_price, label=_("Minimum fiyat"))]
+		)
+	if max_price:
+		extra_filters.append(
+			["Listing", "selling_price", "<=", safe_float(max_price, label=_("Maksimum fiyat"))]
+		)
+	if min_order:
+		try:
+			min_order_int = safe_int(min_order, label=_("Min. sipariş"))
+		except Exception:
+			min_order_int = 0
+		if min_order_int > 0:
+			extra_filters.append(["Listing", "min_order_qty", ">=", min_order_int])
+
 	or_filters = None
 	if query:
 		or_filters = [
@@ -1296,6 +1486,7 @@ def get_filter_facets(query=None, category=None):
 
 	# Get all matching listing names first (include seller_profile for cert aggregation)
 	all_filters = [[k, v[0], v[1]] if isinstance(v, list) else [k, "=", v] for k, v in base_filters.items()]
+	all_filters.extend(extra_filters)
 	listings = frappe.get_all(
 		"Listing",
 		filters=all_filters,
