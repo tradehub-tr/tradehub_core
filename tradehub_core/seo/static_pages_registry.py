@@ -24,7 +24,7 @@ STATIC_PAGES = [
 	 "indexable_default": True, "sitemap_priority": "0.9", "sitemap_changefreq": "daily"},
 	{"path": "/kategoriler", "title": "Tüm Kategoriler", "html_path": "pages/categories.html",
 	 "indexable_default": True, "sitemap_priority": "0.8", "sitemap_changefreq": "weekly"},
-	{"path": "/markalar", "title": "Tüm Markalar", "html_path": "pages/manufacturers.html",
+	{"path": "/ureticiler", "title": "Tüm Üreticiler", "html_path": "pages/manufacturers.html",
 	 "indexable_default": True, "sitemap_priority": "0.7", "sitemap_changefreq": "weekly"},
 	{"path": "/sepet", "title": "Sepet", "html_path": "pages/cart.html",
 	 "indexable_default": False, "sitemap_priority": "0.1", "sitemap_changefreq": "never"},
@@ -211,7 +211,7 @@ STATIC_PAGES = [
 	 "indexable_default": False, "sitemap_priority": "0.1", "sitemap_changefreq": "never"},
 
 	# ── Top + Special (5) ─────────────────────────────────
-	{"path": "/firsat", "title": "Fırsatlar",
+	{"path": "/firsatlar", "title": "Fırsatlar",
 	 "html_path": "pages/top-deals.html",
 	 "indexable_default": True, "sitemap_priority": "0.7", "sitemap_changefreq": "daily"},
 	{"path": "/cok-satanlar", "title": "Çok Satanlar",
