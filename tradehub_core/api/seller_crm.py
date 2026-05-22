@@ -131,6 +131,10 @@ def inquiry_to_lead(inquiry: str, lead_owner: str = ""):
 	  CRM Lead.seller             → satıcının kendi profile'ı (autoset hook)
 	  CRM Lead.source             → 'Mağaza Sorusu'
 	"""
+	from tradehub_core.utils.seller_capabilities import require_seller_capability
+
+	require_seller_capability("crm.lead_capture")
+
 	if not inquiry:
 		frappe.throw(_("Inquiry kimliği gerekli."), frappe.ValidationError)
 	if not frappe.has_permission("Seller Inquiry", doc=inquiry, ptype="read"):
@@ -187,6 +191,10 @@ def rfq_to_lead(rfq: str, lead_owner: str = ""):
 	RFQ doctype field'ı projeye göre değişebilir; aşağıda yaygın kabul
 	edilen field'ları kullanıyoruz; yoksa fallback davranış.
 	"""
+	from tradehub_core.utils.seller_capabilities import require_seller_capability
+
+	require_seller_capability("crm.lead_capture")
+
 	if not rfq:
 		frappe.throw(_("RFQ kimliği gerekli."), frappe.ValidationError)
 	if not frappe.has_permission("RFQ", doc=rfq, ptype="read"):

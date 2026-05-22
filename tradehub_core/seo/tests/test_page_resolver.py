@@ -64,9 +64,18 @@ class TestBuild404Seo(unittest.TestCase):
 	def test_404_has_all_required_keys(self):
 		seo = _build_404_seo("https://istoc.com")
 		required = {
-			"title", "description", "canonical", "robots",
-			"og_type", "og_title", "og_description", "og_image", "og_url",
-			"site_name", "twitter_handle", "json_ld",
+			"title",
+			"description",
+			"canonical",
+			"robots",
+			"og_type",
+			"og_title",
+			"og_description",
+			"og_image",
+			"og_url",
+			"site_name",
+			"twitter_handle",
+			"json_ld",
 		}
 		self.assertTrue(required.issubset(set(seo.keys())))
 

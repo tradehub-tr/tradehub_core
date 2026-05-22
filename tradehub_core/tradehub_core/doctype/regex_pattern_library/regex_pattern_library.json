@@ -1,0 +1,137 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "field:pattern_name",
+ "creation": "2026-05-22 00:00:00",
+ "doctype": "DocType",
+ "document_type": "Document",
+ "editable_grid": 0,
+ "engine": "InnoDB",
+ "field_order": [
+  "pattern_name",
+  "enabled",
+  "section_target",
+  "target_field",
+  "target_doctype",
+  "pattern_category",
+  "section_scope",
+  "scope",
+  "seller_profile",
+  "priority",
+  "section_patterns",
+  "patterns",
+  "section_meta",
+  "last_modified_by"
+ ],
+ "fields": [
+  {
+   "fieldname": "pattern_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Pattern Adı",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Aktif"
+  },
+  {
+   "fieldname": "section_target",
+   "fieldtype": "Section Break",
+   "label": "Hedef"
+  },
+  {
+   "description": "Listing field name",
+   "fieldname": "target_field",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Hedef Field",
+   "reqd": 1
+  },
+  {
+   "default": "Listing",
+   "fieldname": "target_doctype",
+   "fieldtype": "Link",
+   "label": "Hedef DocType",
+   "options": "DocType"
+  },
+  {
+   "fieldname": "pattern_category",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Pattern Kategorisi",
+   "options": "Column Header\nSKU Filename\nPrice Normalizer\nXML Tag",
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_scope",
+   "fieldtype": "Section Break",
+   "label": "Kapsam"
+  },
+  {
+   "default": "Seller Override",
+   "fieldname": "scope",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Kapsam",
+   "options": "System\nSeller Override",
+   "reqd": 1
+  },
+  {
+   "depends_on": "eval:doc.scope=='Seller Override'",
+   "fieldname": "seller_profile",
+   "fieldtype": "Link",
+   "label": "Satıcı Profili",
+   "options": "Admin Seller Profile"
+  },
+  {
+   "default": "100",
+   "fieldname": "priority",
+   "fieldtype": "Int",
+   "label": "Öncelik"
+  },
+  {
+   "fieldname": "section_patterns",
+   "fieldtype": "Section Break",
+   "label": "Pattern'lar"
+  },
+  {
+   "fieldname": "patterns",
+   "fieldtype": "Table",
+   "label": "Regex Pattern Girdileri",
+   "options": "Regex Pattern Entry"
+  },
+  {
+   "fieldname": "section_meta",
+   "fieldtype": "Section Break",
+   "label": "Meta"
+  },
+  {
+   "fieldname": "last_modified_by",
+   "fieldtype": "Link",
+   "label": "Son Değiştiren",
+   "options": "User",
+   "read_only": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-05-22 00:00:00",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "Regex Pattern Library",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {"create": 1, "delete": 1, "read": 1, "write": 1, "role": "System Manager"},
+  {"create": 1, "delete": 0, "read": 1, "write": 1, "role": "Marketplace Admin"},
+  {"create": 1, "delete": 1, "read": 1, "write": 1, "role": "Marketplace Seller"}
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

@@ -1,3 +1,80 @@
+## [v1.0.9-beta.7] - 2026-05-22 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Eklendi
+- feat(bulk-import): toplu ürün içe aktarma sistemi eklendi (@aliiball)
+  - BulkImportJob ve BulkImportJobError DocType'ları
+  - Excel/CSV/XML parser'ları, persister ve image matcher
+  - Çok dilli kolon eşleme için regex destekli ingestion
+  - Background runner + worker task'ları (RQ)
+  - Bildirim entegrasyonu ve hata satırı raporlama
+  - v15_bulk_import_init patch'i ile DocType + örnek veri seed
+  - EcaRule, EcaRuleLog, EcaActionTemplate DocType'ları
+  - Dispatcher: event çözümleme, condition eval, action execution
+  - SafeRegex ve validator katmanı (DoS-safe pattern çalıştırma)
+  - API endpoint'leri ve permission entegrasyonu
+  - Hooks.py: doc_events üzerinden tetikleyici kayıtları
+  - Birim testleri (eca/tests/)
+  - RegexPatternLibrary ve RegexPatternEntry DocType'ları
+  - BulkImport ve ECA kullanır (kolon başlığı → field mapping)
+  - Seed patch ile T1+T2 alan paterni hazır gelir
+  - SellerTemplateProfile DocType eklendi
+  - dashboard.py kaldırıldı, mantık dashboard_engine.py altında toplandı
+  - Total users widget patch'i UserProfile'a yönlendirildi
+  - permissions.py: ECA + BulkImport için yeni yetki tanımları
+  - utils/security.py: rate-limit yardımcısı eklendi
+  - api/listing.py: seller_sku döner, ECA tetikleyicileri bağlandı
+
+---
+## [v1.0.9-beta.6] - 2026-05-22 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Eklendi
+- feat(authz): yetki sistemi FAZ 1-5 — entitlement, RBAC bundle, (@boraydeger32)
+  - Region, Feature Catalog, Subscription Plan, Subscription Plan Region, Store Subscription, Pricing Plan Feature DocType'ları.
+  - entitlement/ modülü (core, checks, sync) + entitlement_snapshot API.
+  - Custom fields ve PII permlevel patch'leri.
+  - Approval Rule + Approval Rule Approver + Order Approval + Order Approval Log DocType'ları.
+  - services/approval_workflow.py + order_approval_hooks.py + API.
+  - Buyer Approver L1/L2 rolleri ve role profile bundle'ları.
+  - PII Field Policy + PII Jurisdiction Rule DocType'ları, utils/pii*, Compliance Officer rolü, jurisdiction-aware masking.
+  - Approved Supplier List/Entry + supplier_whitelist service.
+  - Cost Center DocType + service.
+  - Authorization Anomaly Rule/Alert + detector + actions (saatlik scheduler).
+  - Role Delegation + Role Change Log + delegation_service + rebac_drift_detection (günlük scheduler).
+  - Owner Transfer Request + owner_transfer service.
+  - Pricing Plan custom fields + presets + real prices patch'leri.
+  - public_pricing API (storefront sell sayfası için).
+  - Signup CTA unification + commission rates repair.
+  - Buyer Admin/Procurement/Finance/Viewer, Seller Admin/Co-Owner/ Finance/Staff/Viewer, Platform Admin/Finance, Support Agent rolleri.
+  - role_docperms seed + role_profiles sync + ADL buyer_org field.
+  - audit/ modülü (log, tasks, user_hooks) + Authorization Decision Log DocType + Permission Override Log.
+  - authorization_simulator (Süper Admin debug aracı).
+  - permission_console API + buyer_team + seller_users sub-user invite.
+  - rebac_client + tuple_sync (ReBAC sidecar entegrasyonu).
+  - permissions.py +657 satır (DocType bazlı yetki kuralları).
+  - utils/tenant.py +495 satır (tenant isolation hardening).
+  - hooks.py: 18 yeni patch, scheduler event'leri, doc_events.
+  - tests/: 20+ yeni test dosyası (tenant, abac, anomaly, approval, delegation, entitlement, organization hierarchy, PII, procurement, rebac, simulator, sub-users, tuple sync).
+
+---
+## [v1.0.9-beta.5] - 2026-05-22 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Eklendi
+- feat(seo): SEO yönetim modülü, social proof ve arama API'leri eklendi (@ahmeetseker)
+  - SEO Redirect, SEO 404 Log, Static Page SEO, Listing View Counter doctype'ları eklendi
+  - tradehub_core/seo/ paketi (redirect handler + 404 logger) ve seed_static_pages script'i
+  - api/seo.py + api/seo_admin.py — public/admin SEO endpoint'leri
+  - Social Proof Settings doctype + api/social_proof.py + test'leri
+  - api/search.py arama servisi ve test'leri eklendi
+  - api/listing.py view counter, SEO meta ve filtre alanları için genişletildi
+  - hooks.py: yeni doctype'lar, fixtures ve scheduler entry'leri
+
+---
 ## [v1.0.9-beta.4] - 2026-05-20 BETA
 
 Bu surum betaistoc.cronbi.com'da test asamasindadir.

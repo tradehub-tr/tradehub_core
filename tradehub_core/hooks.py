@@ -21,7 +21,33 @@ fixtures = [
 			[
 				"name",
 				"in",
-				["Marketplace Seller", "Buyer", "Seller", "Marketplace Admin", "Marketplace Buyer"],
+				[
+					"Marketplace Seller",
+					"Buyer",
+					"Seller",
+					"Marketplace Admin",
+					"Marketplace Buyer",
+					# FAZ 2.4 — B2B alıcı onay zinciri rolleri
+					"Buyer Approver L1",
+					"Buyer Approver L2",
+					# FAZ 3.2 — Compliance Officer (PII jurisdiction yetkilisi)
+					"Compliance Officer",
+					# FAZ 5.1 — Buyer/Seller/Platform sub-rolleri (role_profile.json'da
+					# referans edilmesine rağmen DB'de yoktu — Role Profile bundle'ları
+					# bunlarsız boş yetki dağıtıyordu).
+					"Buyer Admin",
+					"Buyer Procurement",
+					"Buyer Finance",
+					"Buyer Viewer",
+					"Seller Admin",
+					"Seller Co-Owner",
+					"Seller Finance",
+					"Seller Staff",
+					"Seller Viewer",
+					"Platform Admin",
+					"Platform Finance",
+					"Support Agent",
+				],
 			]
 		],
 	},
@@ -29,6 +55,20 @@ fixtures = [
 		"dt": "Workspace",
 		"filters": [["module", "=", "Tradehub Core"]],
 	},
+	# FAZ 1.2 — Entitlement düzlemi (L0)
+	# Region, Feature Catalog, Subscription Plan default kayıtları.
+	# Süper Admin sonradan Permission Console üzerinden bu kayıtları
+	# özelleştirebilir / yeni plan ekleyebilir.
+	{
+		"dt": "Region",
+	},
+	{
+		"dt": "Feature Catalog",
+	},
+	{
+		"dt": "Subscription Plan",
+	},
+	# version-15 — ERPNext Custom Field fixture'ları (modül scope)
 	{
 		"dt": "Custom Field",
 		"filters": [["module", "=", "Tradehub Core"]],
@@ -49,6 +89,13 @@ scheduler_events = {
 		"tradehub_core.api.social_proof.reset_view_counters_rolling_24h",
 		# Sprint 2 — E2 fırsat: Buyer metric scheduler (User Profile.metrics)
 		"tradehub_core.tasks.recalculate_buyer_metrics",
+		# Bulk Import: 1 saatten uzun Running kalan stuck job'ları Failed'a çek.
+		# (Project crons henüz aktif değil — hourly içine alındı.)
+		"tradehub_core.bulk_import.tasks.detect_stuck_bulk_jobs",
+		# FAZ 3.4 — OpenClaw anomali algılama
+		"tradehub_core.services.anomaly_detector.run_detection",
+		# FAZ 3.5 — Geçici yetki expire
+		"tradehub_core.services.delegation_service.expire_overdue_delegations",
 	],
 	"daily": [
 		"tradehub_core.services.tcmb.fetch_and_update_rates",
@@ -78,6 +125,8 @@ scheduler_events = {
 		# Sertifika süre dolma kontrolü — 30/7/0 gün öncesi bildirim,
 		# süresi dolanı verification_status=Rejected ile auto-disable.
 		"tradehub_core.utils.cert_expiry_check.check_certificate_expiry",
+		# FAZ 3.5 — ReBAC ↔ Frappe drift detection
+		"tradehub_core.services.rebac_drift_detection.scan_drift",
 		# SEO sitemap rebuild — 4 doctype + index. 254 row için < 1 sn.
 		"tradehub_core.seo.tasks.daily_sitemap_rebuild",
 		# Sprint 2 — E2 fırsat: Buyer scoring + level pipeline (daily)
@@ -85,6 +134,14 @@ scheduler_events = {
 		"tradehub_core.tasks.buyer_level_tasks",
 		"tradehub_core.tasks.aggregate_buyer_kpi_summaries",
 		"tradehub_core.tasks.refresh_user_segments",
+		# Bulk Import: 90 günden eski tamamlanmış job'ları temizle +
+		# uzun süre kullanılmayan template profile'ları arşivle.
+		"tradehub_core.bulk_import.tasks.cleanup_old_bulk_import_jobs",
+		"tradehub_core.bulk_import.tasks.cleanup_stale_seller_template_profiles",
+		# FAZ 1.4 — Audit retention (90 gün sıcak)
+		"tradehub_core.audit.tasks.archive_old_decision_logs",
+		# K1 fix: Trial subscription'ların auto-expiry (trial_end < now → canceled)
+		"tradehub_core.services.subscription_lifecycle.expire_trial_subscriptions",
 	],
 	"weekly_long": [
 		# Category embeddings + neighbour cache (build_all tail-calls
@@ -100,6 +157,10 @@ scheduler_events = {
 		"tradehub_core.tasks.calculate_customer_grades",
 		"tradehub_core.tasks.update_buyer_kpi_template_stats",
 		"tradehub_core.tasks.calculate_buyer_kpi_scores",
+		# FAZ 1.4 — Audit retention + haftalık özet
+		"tradehub_core.audit.tasks.archive_old_role_change_logs",
+		"tradehub_core.audit.tasks.archive_old_override_logs",
+		"tradehub_core.audit.tasks.weekly_audit_summary",
 	],
 }
 
@@ -117,11 +178,29 @@ doc_events = {
 		"before_insert": "tradehub_core.utils.security.reject_unsafe_files",
 	},
 	"Listing": {
+		# FAZ 1.1 — Tenant izolasyonu (seller_profile autoset + cross-seller koruma).
+		# FAZ 1.2 — Entitlement check (multi_variant capability + max_products quota).
+		# Sıra önemli: önce tenant (seller_profile set edilsin), sonra entitlement.
+		"before_insert": [
+			"tradehub_core.utils.tenant.enforce_seller_isolation_on_insert",
+			"tradehub_core.entitlement.checks.check_listing_creation_quota",
+		],
+		# version-15 — SEO slug auto-generate (validate öncesi)
+		"before_validate": "tradehub_core.seo.hooks_seo.auto_generate_slug",
 		"validate": [
 			"tradehub_core.utils.cert_validate.validate_listing_certifications",
+			# FAZ 1.1 — Mevcut Listing'in seller_profile alanı değiştirilemez.
+			"tradehub_core.utils.tenant.validate_seller_isolation_on_save",
+			# FAZ 1.2 — Update sırasında çoklu varyant capability + bölge kontrolü.
+			"tradehub_core.entitlement.checks.validate_listing_features",
+			"tradehub_core.entitlement.checks.validate_listing_regions",
+			# version-15 — SEO meta length warn
 			"tradehub_core.seo.hooks_seo.validate_seo_lengths",
+			# ECA: two-phase (Seller Phase → Admin Phase) rule dispatcher.
+			# Listing save'inde her zaman çalışır; bulk_import context'inde de
+			# aynı pipeline'a girer (Bulk Import Job bağlamı dispatcher içinde set edilir).
+			"tradehub_core.eca.dispatcher.evaluate_rules_two_phase",
 		],
-		"before_validate": "tradehub_core.seo.hooks_seo.auto_generate_slug",
 		"on_update": [
 			"tradehub_core.seo.hooks_seo.invalidate_url_cache",
 			"tradehub_core.seo.hooks_seo.invalidate_sitemap_for",
@@ -131,16 +210,24 @@ doc_events = {
 			# Async recompute for active listings — keeps PROD cache in sync
 			# with admin/seller edits without waiting for the weekly rebuild.
 			"tradehub_core.recommendations.engine.schedule_recompute_on_listing_update",
+			# ECA two-phase dispatcher (post-save context).
+			"tradehub_core.eca.dispatcher.evaluate_rules_two_phase",
 		],
 		"after_insert": [
 			"tradehub_core.api.listing.invalidate_listing_cache",
 			"tradehub_core.recommendations.engine.schedule_recompute_on_listing_update",
+			# ECA two-phase dispatcher (after_insert context).
+			"tradehub_core.eca.dispatcher.evaluate_rules_two_phase",
+			# FAZ 2.3 — Listing.store_link ReBAC tuple
+			"tradehub_core.services.tuple_sync.on_listing_insert",
 		],
 		"on_trash": [
 			"tradehub_core.api.listing.invalidate_listing_cache",
 			# Related Products cache: drop rows referencing the deleted listing
 			# (as either source or target).
 			"tradehub_core.recommendations.engine.cleanup_cache_on_listing_remove",
+			# FAZ 2.3 — Tuple cleanup
+			"tradehub_core.services.tuple_sync.on_listing_trash",
 		],
 	},
 	# Product Category lifecycle → cascading cleanup of derived data
@@ -185,23 +272,53 @@ doc_events = {
 	# read-only fields, so the in-memory metrics_credited would always be
 	# 0 and re-credit on every save (count inflated 2x, 3x, ...).
 	"Order": {
+		# FAZ 1.1 — Tenant izolasyonu (seller_profile cross-seller koruma).
+		# Order'da buyer create eder → before_insert'te seller_profile boş kalabilir
+		# (buyer'ın seller'ı yok); hook field'a dokunmaz. Cross-seller attempt'i
+		# (buyer A, seller Y'nin order ID'sini override etmeye çalışırsa) reddeder.
+		"before_insert": [
+			"tradehub_core.utils.tenant.enforce_seller_isolation_on_insert",
+			# FAZ 3.3 — Procurement gating: onaylı tedarikçi + cost center bütçesi
+			"tradehub_core.services.supplier_whitelist.validate_order_supplier",
+			"tradehub_core.services.cost_center.validate_order_cost_center",
+		],
+		"validate": "tradehub_core.utils.tenant.validate_seller_isolation_on_save",
 		"before_save": [
 			"tradehub_core.api.listing.bump_listing_order_counts",
+			# version-15 — sosyal kanıt sayaç cache temizle
 			"tradehub_core.api.social_proof.invalidate_for_order",
 		],
+		"after_insert": [
+			"tradehub_core.services.tuple_sync.on_order_insert",
+			# FAZ 2.5 — approval workflow başlat (rule match → Order Approval create)
+			"tradehub_core.services.order_approval_hooks.on_order_after_insert",
+		],
 		"on_update": "tradehub_core.api.tailored.invalidate_tailored_user_cache",
+		"on_trash": "tradehub_core.services.tuple_sync.on_order_trash",
 	},
 	# Seller Review pipeline → seller-proxy rating + review_count denormalized
 	# into every listing the seller owns. Drives the "En Çok Değerlendirilen"
 	# Top Ranking pill (see api.listing.recompute_seller_rating_proxy).
 	"Seller Review": {
+		# FAZ 1.1 — Tenant izolasyonu. Seller Review buyer tarafından yazılır;
+		# buyer'ın seller'ı yok, hook field'a dokunmaz. Cross-seller attempt'i
+		# (buyer seller_profile field'ını başka satıcıya işaret edecek şekilde
+		# manipüle etmeye çalışırsa) hook skip eder ama permission_query_conditions
+		# ve has_permission mevcut koruyu sağlar.
+		"before_insert": "tradehub_core.utils.tenant.enforce_seller_isolation_on_insert",
+		"validate": "tradehub_core.utils.tenant.validate_seller_isolation_on_save",
 		"after_insert": "tradehub_core.api.listing.recompute_seller_rating_proxy",
 		"on_update": "tradehub_core.api.listing.recompute_seller_rating_proxy",
 		"on_trash": "tradehub_core.api.listing.recompute_seller_rating_proxy",
 	},
 	# Listing Review pipeline (Faz 1+2+3) — ürün bazlı yorum.
 	# Controller içinde de tetikleme yapılıyor; bu hook'lar savunma katmanı.
+	# Tenant isolation hook'ları (before_insert + validate) version-15'ten,
+	# review pipeline'ı HEAD'den — ikisi birlikte tek dict altında (Python duplicate
+	# dict key'lerinde ikinci birinciyi sessizce overwrite eder = pipeline kaybolur).
 	"Listing Review": {
+		"before_insert": "tradehub_core.utils.tenant.enforce_seller_isolation_on_insert",
+		"validate": "tradehub_core.utils.tenant.validate_seller_isolation_on_save",
 		"after_insert": [
 			"tradehub_core.api.review.on_review_after_insert",
 			"tradehub_core.api.risk.compute_and_apply_risk_score",
@@ -221,28 +338,41 @@ doc_events = {
 	},
 	# Faz 3: helpful/abuse → reviewer reputation güncellemesi
 	"Review Helpful Vote": {
+		"before_insert": "tradehub_core.utils.tenant.enforce_seller_isolation_on_insert",
+		"validate": "tradehub_core.utils.tenant.validate_seller_isolation_on_save",
 		"after_insert": "tradehub_core.api.reputation.recompute_on_helpful_vote",
 		"on_trash": "tradehub_core.api.reputation.recompute_on_helpful_vote",
 	},
 	"Review Abuse Report": {
+		"before_insert": "tradehub_core.utils.tenant.enforce_seller_isolation_on_insert",
+		"validate": "tradehub_core.utils.tenant.validate_seller_isolation_on_save",
 		"after_insert": "tradehub_core.api.reputation.recompute_on_abuse_report",
 	},
 	# Admin Seller Profile aktiflesince helpdesk team + agent sync +
 	# Marketplace Seller rolünü user'a otomatik bağla/kaldır.
 	# (CRM doctype'larındaki Frappe role-level DocPerm bu role bağlı.)
 	"Admin Seller Profile": {
+		# version-15 — SEO slug auto-generate
 		"before_validate": "tradehub_core.seo.hooks_seo.auto_generate_slug",
 		"validate": [
 			"tradehub_core.utils.cert_validate.validate_seller_certifications",
+			# FAZ 1.5 — Banka/vergi değişikliği Owner-only (Co-Owner bile yapamaz)
+			"tradehub_core.utils.owner_lock.enforce_owner_only_fields",
+			# version-15 — SEO meta length warn
 			"tradehub_core.seo.hooks_seo.validate_seo_lengths",
 		],
-		"after_insert": "tradehub_core.utils.seller_role_sync.sync_marketplace_seller_role",
+		"after_insert": [
+			"tradehub_core.utils.seller_role_sync.sync_marketplace_seller_role",
+			# FAZ 2.3 — Store entity ReBAC tuple sync
+			"tradehub_core.services.tuple_sync.on_admin_seller_profile_insert",
+		],
 		"on_update": [
 			"tradehub_core.utils.helpdesk_routing.on_admin_seller_profile_update",
 			"tradehub_core.utils.seller_role_sync.sync_marketplace_seller_role",
 			"tradehub_core.seo.hooks_seo.invalidate_url_cache",
 			"tradehub_core.seo.hooks_seo.invalidate_sitemap_for",
 		],
+		"on_trash": "tradehub_core.services.tuple_sync.on_admin_seller_profile_trash",
 	},
 	# CRM kayıtlarında seller'ı creator'dan otomatik resolve et + lead/deal_owner
 	# alanını da creator'a sabitle (Faz 1 tek kullanıcı modeli, UI'da atama yok).
@@ -260,6 +390,11 @@ doc_events = {
 	},
 	"CRM Organization": {
 		"before_insert": "tradehub_core.utils.crm_seller_autoset.autoset_seller",
+		# FAZ 2.4 — parent_org cycle koruması (validate)
+		"validate": "tradehub_core.utils.organization_hierarchy.validate_no_cycle",
+		# FAZ 2.3 — Organization → buyer_org tuple + parent hiyerarşi
+		"after_insert": "tradehub_core.services.tuple_sync.on_organization_insert",
+		"on_trash": "tradehub_core.services.tuple_sync.on_organization_trash",
 	},
 	"Contact": {
 		"before_insert": "tradehub_core.utils.crm_seller_autoset.autoset_seller",
@@ -283,6 +418,87 @@ doc_events = {
 	# Header Notice Settings singleton → also invalidate cache when display_mode changes.
 	"Header Notice Settings": {
 		"on_update": "tradehub_core.api.header_notice.invalidate_cache",
+	},
+	# ECA Rule lifecycle → rule cache invalidation.
+	# Dispatcher Redis cache'inden hem aktif rule listesini hem de derlenmiş
+	# condition AST'lerini siler. Save/trash sonrası ilk request fresh ister.
+	"ECA Rule": {
+		"on_update": "tradehub_core.eca.dispatcher.clear_eca_cache",
+		"on_trash": "tradehub_core.eca.dispatcher.clear_eca_cache",
+		"after_insert": "tradehub_core.eca.dispatcher.clear_eca_cache",
+	},
+	# Regex Pattern Library lifecycle → pattern cache invalidation.
+	# Bulk Import pipeline derlenmiş regex'i cache'liyor; lib değişince düşür.
+	"Regex Pattern Library": {
+		"on_update": "tradehub_core.bulk_import.regex_lib.clear_pattern_cache",
+		"on_trash": "tradehub_core.bulk_import.regex_lib.clear_pattern_cache",
+		"after_insert": "tradehub_core.bulk_import.regex_lib.clear_pattern_cache",
+	# -------------------------------------------------------------------------
+	# FAZ 1.1 — Tenant İzolasyonu (seller-scoped doctype'lar)
+	# Her seller-scoped doctype için:
+	#   before_insert → seller_profile autoset + cross-seller koruma
+	#   validate      → mevcut kaydın seller_profile değiştirilmesini engelle
+	# Detay: tradehub_core/utils/tenant.py, docs/yetki/01-karar-dosyasi.md
+	# Listing/Order/Seller Review yukarıda kendi blokları içinde halloldu.
+	# -------------------------------------------------------------------------
+	"Seller Balance": {
+		"before_insert": "tradehub_core.utils.tenant.enforce_seller_isolation_on_insert",
+		"validate": "tradehub_core.utils.tenant.validate_seller_isolation_on_save",
+	},
+	"KYB Verification": {
+		"before_insert": "tradehub_core.utils.tenant.enforce_seller_isolation_on_insert",
+		"validate": "tradehub_core.utils.tenant.validate_seller_isolation_on_save",
+	},
+	"Seller Inquiry": {
+		"before_insert": "tradehub_core.utils.tenant.enforce_seller_isolation_on_insert",
+		"validate": "tradehub_core.utils.tenant.validate_seller_isolation_on_save",
+	},
+	"Seller Category": {
+		"before_insert": "tradehub_core.utils.tenant.enforce_seller_isolation_on_insert",
+		"validate": "tradehub_core.utils.tenant.validate_seller_isolation_on_save",
+	},
+	"Seller Gallery Image": {
+		"before_insert": "tradehub_core.utils.tenant.enforce_seller_isolation_on_insert",
+		"validate": "tradehub_core.utils.tenant.validate_seller_isolation_on_save",
+	},
+	"Listing Question": {
+		"before_insert": "tradehub_core.utils.tenant.enforce_seller_isolation_on_insert",
+		"validate": "tradehub_core.utils.tenant.validate_seller_isolation_on_save",
+	},
+	"Order Dispute": {
+		"before_insert": "tradehub_core.utils.tenant.enforce_seller_isolation_on_insert",
+		"validate": "tradehub_core.utils.tenant.validate_seller_isolation_on_save",
+	},
+	"Trusted Reviewer Invitation": {
+		"before_insert": "tradehub_core.utils.tenant.enforce_seller_isolation_on_insert",
+		"validate": "tradehub_core.utils.tenant.validate_seller_isolation_on_save",
+	},
+	# Listing Review / Review Helpful Vote / Review Abuse Report — tenant isolation
+	# hook'ları yukarıdaki review pipeline tanımlarına merge edildi (duplicate dict
+	# key'leri Python'da overwrite yapardı).
+	# -------------------------------------------------------------------------
+	# FAZ 1.2 — Entitlement cache invalidation
+	# Plan veya Store Subscription değişikliğinde ilgili store'ların
+	# entitlement cache'i temizlenmeli.
+	# -------------------------------------------------------------------------
+	"Store Subscription": {
+		"on_update": "tradehub_core.entitlement.sync.on_store_subscription_update",
+		"after_insert": "tradehub_core.entitlement.sync.on_store_subscription_update",
+	},
+	"Subscription Plan": {
+		"on_update": "tradehub_core.entitlement.sync.on_subscription_plan_update",
+	},
+	# -------------------------------------------------------------------------
+	# FAZ 1.4 — Audit: User rol/profile değişimi → Role Change Log
+	# -------------------------------------------------------------------------
+	"User": {
+		"after_insert": "tradehub_core.services.tuple_sync.on_user_insert",
+		"on_update": [
+			"tradehub_core.audit.user_hooks.on_user_update",
+			# FAZ 2.3 — Rol/tenant değişimi sonrası ReBAC tuple sync
+			"tradehub_core.services.tuple_sync.on_user_update",
+		],
+		"on_trash": "tradehub_core.services.tuple_sync.on_user_trash",
 	},
 }
 
@@ -322,6 +538,24 @@ permission_query_conditions = {
 	"FCRM Note": "tradehub_core.permissions.fcrm_note_query_conditions",
 	"CRM Call Log": "tradehub_core.permissions.crm_call_log_query_conditions",
 	"Platform Notification": "tradehub_core.tradehub_core.doctype.platform_notification.platform_notification.get_permission_query_conditions",
+	# Bulk Import + ECA + Regex + Template Profile seller isolation.
+	"Bulk Import Job": "tradehub_core.permissions.bulk_import_job_query_conditions",
+	"ECA Rule": "tradehub_core.permissions.eca_rule_query_conditions",
+	"ECA Rule Log": "tradehub_core.permissions.eca_rule_log_query_conditions",
+	"Regex Pattern Library": "tradehub_core.permissions.regex_pattern_library_query_conditions",
+	"Seller Template Profile": "tradehub_core.permissions.seller_template_profile_query_conditions",
+	# FAZ 2/3 — ReBAC/Audit DocType izolasyonu
+	"Order Approval": "tradehub_core.permissions.order_approval_query_conditions",
+	"Approval Rule": "tradehub_core.permissions.approval_rule_query_conditions",
+	"Cost Center": "tradehub_core.permissions.cost_center_query_conditions",
+	"Owner Transfer Request": "tradehub_core.permissions.owner_transfer_request_query_conditions",
+	"Role Delegation": "tradehub_core.permissions.role_delegation_query_conditions",
+	"Authorization Decision Log": "tradehub_core.permissions.authorization_decision_log_query_conditions",
+	"Role Change Log": "tradehub_core.permissions.role_change_log_query_conditions",
+	"Authorization Anomaly Alert": "tradehub_core.permissions.authorization_anomaly_alert_query_conditions",
+	"Authorization Anomaly Rule": "tradehub_core.permissions.authorization_anomaly_rule_query_conditions",
+	"Permission Override Log": "tradehub_core.permissions.permission_override_log_query_conditions",
+	"PII Field Policy": "tradehub_core.permissions.pii_field_policy_query_conditions",
 }
 
 has_permission = {
@@ -357,6 +591,26 @@ has_permission = {
 	"CRM Call Log": "tradehub_core.permissions.crm_call_log_has_permission",
 	"Platform Notification": "tradehub_core.tradehub_core.doctype.platform_notification.platform_notification.has_permission",
 	"RFQ": "tradehub_core.permissions.rfq_has_permission",
+	# Bulk Import + ECA + Regex + Template Profile per-doc kontrolleri.
+	"Bulk Import Job": "tradehub_core.permissions.bulk_import_job_has_permission",
+	"ECA Rule": "tradehub_core.permissions.eca_rule_has_permission",
+	"Regex Pattern Library": "tradehub_core.permissions.regex_pattern_library_has_permission",
+	"Seller Template Profile": "tradehub_core.permissions.seller_template_profile_has_permission",
+	# FAZ 2/3 — ReBAC/Audit DocType izolasyonu (per-doc)
+	"Order Approval": "tradehub_core.permissions.order_approval_has_permission",
+	"Approval Rule": "tradehub_core.permissions.approval_rule_has_permission",
+	"Cost Center": "tradehub_core.permissions.cost_center_has_permission",
+	"Owner Transfer Request": "tradehub_core.permissions.owner_transfer_request_has_permission",
+	"Role Delegation": "tradehub_core.permissions.role_delegation_has_permission",
+	"Authorization Decision Log": "tradehub_core.permissions.authorization_decision_log_has_permission",
+	"Role Change Log": "tradehub_core.permissions.role_change_log_has_permission",
+	"Authorization Anomaly Alert": "tradehub_core.permissions.authorization_anomaly_alert_has_permission",
+	"Authorization Anomaly Rule": "tradehub_core.permissions.authorization_anomaly_rule_has_permission",
+	"Permission Override Log": "tradehub_core.permissions.permission_override_log_has_permission",
+	"PII Field Policy": "tradehub_core.permissions.pii_field_policy_has_permission",
+	# Seller Owner/Co-Owner kendi sub-user'ının Notification Settings'ine erişebilsin
+	# (sub-user pasifleştir/aktive et akışı User.on_update → toggle_notifications içinde tetiklenir).
+	"Notification Settings": "tradehub_core.permissions.notification_settings_has_permission",
 }
 
 # ---------------------------------------------------------------------------

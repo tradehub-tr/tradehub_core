@@ -16,48 +16,99 @@ from frappe import _
 # Doctype → editable SEO field listesi (Faz 7: _en fields dahil)
 SEO_FIELDS_BY_DOCTYPE = {
 	"Listing": [
-		"slug", "meta_title", "meta_description", "focus_keyword",
-		"noindex", "og_image", "og_title_override", "og_description_override",
-		"canonical_url_override", "robots_directive_override",
+		"slug",
+		"meta_title",
+		"meta_description",
+		"focus_keyword",
+		"noindex",
+		"og_image",
+		"og_title_override",
+		"og_description_override",
+		"canonical_url_override",
+		"robots_directive_override",
 		# Ana görsel alt metni (Faz 4b sonrası): SEO sekmesinden düzenlenebilir
 		"primary_image_alt",
 		# Faz 7 EN fields
-		"slug_en", "meta_title_en", "meta_description_en",
-		"og_title_override_en", "og_description_override_en",
+		"slug_en",
+		"meta_title_en",
+		"meta_description_en",
+		"og_title_override_en",
+		"og_description_override_en",
 	],
 	"Product Category": [
-		"url_slug", "meta_title", "meta_description", "focus_keyword",
-		"noindex", "og_image", "og_title_override", "og_description_override",
-		"canonical_url_override", "robots_directive_override",
-		"sitemap_priority", "sitemap_changefreq",
+		"url_slug",
+		"meta_title",
+		"meta_description",
+		"focus_keyword",
+		"noindex",
+		"og_image",
+		"og_title_override",
+		"og_description_override",
+		"canonical_url_override",
+		"robots_directive_override",
+		"sitemap_priority",
+		"sitemap_changefreq",
 		# Faz 7 EN fields
-		"url_slug_en", "meta_title_en", "meta_description_en",
-		"og_title_override_en", "og_description_override_en",
+		"url_slug_en",
+		"meta_title_en",
+		"meta_description_en",
+		"og_title_override_en",
+		"og_description_override_en",
 	],
 	"Brand": [
-		"slug", "meta_title", "meta_description", "focus_keyword",
-		"noindex", "og_image", "og_title_override", "og_description_override",
-		"canonical_url_override", "robots_directive_override",
+		"slug",
+		"meta_title",
+		"meta_description",
+		"focus_keyword",
+		"noindex",
+		"og_image",
+		"og_title_override",
+		"og_description_override",
+		"canonical_url_override",
+		"robots_directive_override",
 		# Faz 7 EN fields
-		"slug_en", "meta_title_en", "meta_description_en",
-		"og_title_override_en", "og_description_override_en",
+		"slug_en",
+		"meta_title_en",
+		"meta_description_en",
+		"og_title_override_en",
+		"og_description_override_en",
 	],
 	"Admin Seller Profile": [
-		"slug", "meta_title", "meta_description", "focus_keyword",
-		"noindex", "og_image", "og_title_override", "og_description_override",
-		"canonical_url_override", "robots_directive_override",
+		"slug",
+		"meta_title",
+		"meta_description",
+		"focus_keyword",
+		"noindex",
+		"og_image",
+		"og_title_override",
+		"og_description_override",
+		"canonical_url_override",
+		"robots_directive_override",
 		# Faz 7 EN fields
-		"slug_en", "meta_title_en", "meta_description_en",
-		"og_title_override_en", "og_description_override_en",
+		"slug_en",
+		"meta_title_en",
+		"meta_description_en",
+		"og_title_override_en",
+		"og_description_override_en",
 	],
 	"Static Page SEO": [
-		"page_title", "meta_title", "meta_description", "focus_keyword",
-		"noindex", "og_image", "og_title_override", "og_description_override",
-		"canonical_url_override", "robots_directive_override",
-		"sitemap_priority", "sitemap_changefreq",
+		"page_title",
+		"meta_title",
+		"meta_description",
+		"focus_keyword",
+		"noindex",
+		"og_image",
+		"og_title_override",
+		"og_description_override",
+		"canonical_url_override",
+		"robots_directive_override",
+		"sitemap_priority",
+		"sitemap_changefreq",
 		# Faz 7 EN fields
-		"meta_title_en", "meta_description_en",
-		"og_title_override_en", "og_description_override_en",
+		"meta_title_en",
+		"meta_description_en",
+		"og_title_override_en",
+		"og_description_override_en",
 	],
 }
 
@@ -139,8 +190,16 @@ def list_redirects(enabled_only: int = 1) -> list[dict]:
 	return frappe.get_all(
 		"SEO Redirect",
 		filters=filters,
-		fields=["name", "source_path", "target_path", "match_type",
-				"status_code", "enabled", "hit_count", "last_hit_at"],
+		fields=[
+			"name",
+			"source_path",
+			"target_path",
+			"match_type",
+			"status_code",
+			"enabled",
+			"hit_count",
+			"last_hit_at",
+		],
 		order_by="hit_count desc",
 		limit_page_length=500,
 	)
@@ -153,16 +212,14 @@ def list_404s(resolved: int = 0, limit: int = 100) -> list[dict]:
 	return frappe.get_all(
 		"SEO 404 Log",
 		filters={"resolved": int(resolved)},
-		fields=["name", "path", "hit_count", "first_seen_at", "last_hit_at",
-				"last_referer", "resolved"],
+		fields=["name", "path", "hit_count", "first_seen_at", "last_hit_at", "last_referer", "resolved"],
 		order_by="hit_count desc",
 		limit_page_length=int(limit),
 	)
 
 
 @frappe.whitelist()
-def add_redirect_from_404(log_name: str, target_path: str,
-						  status_code: str = "301") -> dict:
+def add_redirect_from_404(log_name: str, target_path: str, status_code: str = "301") -> dict:
 	"""404 log → SEO Redirect oluştur + log'u resolved işaretle."""
 	frappe.only_for(ALLOWED_ROLES)
 
@@ -250,13 +307,15 @@ def list_static_pages() -> list[dict]:
 	for entry in STATIC_PAGES:
 		ov = overrides.get(entry["path"])
 		default_noindex = 0 if entry["indexable_default"] else 1
-		result.append({
-			"path": entry["path"],
-			"title": entry["title"],
-			"indexable_default": entry["indexable_default"],
-			"override_exists": ov is not None,
-			"meta_title": (ov.get("meta_title") if ov else "") or "",
-			"meta_description": (ov.get("meta_description") if ov else "") or "",
-			"noindex": (ov.get("noindex") if ov else default_noindex),
-		})
+		result.append(
+			{
+				"path": entry["path"],
+				"title": entry["title"],
+				"indexable_default": entry["indexable_default"],
+				"override_exists": ov is not None,
+				"meta_title": (ov.get("meta_title") if ov else "") or "",
+				"meta_description": (ov.get("meta_description") if ov else "") or "",
+				"noindex": (ov.get("noindex") if ov else default_noindex),
+			}
+		)
 	return result

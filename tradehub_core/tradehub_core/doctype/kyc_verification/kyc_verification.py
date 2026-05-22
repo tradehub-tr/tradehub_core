@@ -47,7 +47,6 @@ def _validate_file_extension(file_url: str, field_label: str) -> None:
 
 class KYCVerification(Document):
 	def validate(self) -> None:
-		super().validate()
 		self._validate_required_fields()
 		self._validate_tax_id()
 		self._validate_identity_document()

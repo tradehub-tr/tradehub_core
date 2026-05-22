@@ -166,32 +166,38 @@ def _pure_compose_for_listing(*, ctx: dict, defaults: dict, site_url: str) -> li
 	schemas: list[dict] = []
 
 	# 1. Product
-	schemas.append(build_product_schema(
-		listing=listing,
-		site_url=site_url,
-		brand=ctx.get("brand"),
-		category_name=ctx.get("category_name"),
-		aggregate_rating=ctx.get("aggregate_rating"),
-		reviews=ctx.get("reviews"),
-	))
+	schemas.append(
+		build_product_schema(
+			listing=listing,
+			site_url=site_url,
+			brand=ctx.get("brand"),
+			category_name=ctx.get("category_name"),
+			aggregate_rating=ctx.get("aggregate_rating"),
+			reviews=ctx.get("reviews"),
+		)
+	)
 
 	# 2. BreadcrumbList: Home → Category → Listing
 	items = [{"name": "Anasayfa", "url": f"{site_url.rstrip('/')}/"}]
 	if ctx.get("category_name") and ctx.get("category_url"):
 		items.append({"name": ctx["category_name"], "url": ctx["category_url"]})
-	items.append({
-		"name": listing.get("title", ""),
-		"url": f"{site_url.rstrip('/')}/urun/{listing.get('slug', '')}",
-	})
+	items.append(
+		{
+			"name": listing.get("title", ""),
+			"url": f"{site_url.rstrip('/')}/urun/{listing.get('slug', '')}",
+		}
+	)
 	schemas.append(build_breadcrumb_schema(items=items))
 
 	# 3. Organization
-	schemas.append(build_organization_schema(
-		site_name=defaults.get("site_name", ""),
-		site_url=site_url,
-		logo_url=defaults.get("logo"),
-		same_as=defaults.get("same_as") or _same_as_from_defaults(defaults),
-	))
+	schemas.append(
+		build_organization_schema(
+			site_name=defaults.get("site_name", ""),
+			site_url=site_url,
+			logo_url=defaults.get("logo"),
+			same_as=defaults.get("same_as") or _same_as_from_defaults(defaults),
+		)
+	)
 
 	# 4. FAQ (varsa)
 	faq = build_faq_schema(questions=ctx.get("questions", []))
@@ -207,8 +213,7 @@ def _pure_compose_for_category(*, category: dict, defaults: dict, site_url: str)
 	items = [
 		{"name": "Anasayfa", "url": f"{site_url.rstrip('/')}/"},
 		{"name": "Kategoriler", "url": f"{site_url.rstrip('/')}/kategoriler"},
-		{"name": category.get("category_name", ""),
-		 "url": f"{site_url.rstrip('/')}/kategori/{slug}"},
+		{"name": category.get("category_name", ""), "url": f"{site_url.rstrip('/')}/kategori/{slug}"},
 	]
 	return [
 		build_breadcrumb_schema(items=items),
@@ -304,9 +309,9 @@ def _get_listing_extra_context(listing_name: str) -> dict:
 	}
 
 	listing = frappe.db.get_value(
-		"Listing", listing_name,
-		["brand", "brand_name", "category", "category_name",
-		 "average_rating", "review_count"],
+		"Listing",
+		listing_name,
+		["brand", "brand_name", "category", "category_name", "average_rating", "review_count"],
 		as_dict=True,
 	)
 	if not listing:
@@ -358,10 +363,7 @@ def _frappe_defaults() -> dict:
 	return {
 		"site_name": ws.get("seo_site_name") or "İstoç",
 		"logo": ws.get("seo_og_image") or "",
-		"twitter": (
-			f"https://twitter.com/{twitter_handle}"
-			if twitter_handle else None
-		),
+		"twitter": (f"https://twitter.com/{twitter_handle}" if twitter_handle else None),
 	}
 
 

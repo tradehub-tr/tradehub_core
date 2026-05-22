@@ -51,9 +51,9 @@ def _minimal_fallback_html() -> str:
 	"""
 	return (
 		"<!doctype html>\n"
-		"<html lang=\"tr\"><head>\n"
-		"<meta charset=\"utf-8\">\n"
-		"<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n"
+		'<html lang="tr"><head>\n'
+		'<meta charset="utf-8">\n'
+		'<meta name="viewport" content="width=device-width, initial-scale=1">\n'
 		f"{seo_html_injector.PLACEHOLDER}\n"
 		"</head><body>\n"
 		"<noscript>JavaScript gerekli.</noscript>\n"
@@ -240,6 +240,7 @@ def _register_whitelists():
 
 try:
 	import frappe  # noqa: F401
+
 	_register_whitelists()
 except ImportError:
 	# Standalone (Frappe yokken) — whitelist atla.

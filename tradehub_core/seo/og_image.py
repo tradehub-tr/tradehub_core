@@ -64,7 +64,7 @@ def _resolve_to_disk_path(url_or_path: str, public_files_root: str) -> str:
 	if os.path.isabs(url_or_path) and os.path.exists(url_or_path):
 		return url_or_path
 	if url_or_path.startswith("/files/"):
-		return os.path.join(public_files_root, url_or_path[len("/files/"):])
+		return os.path.join(public_files_root, url_or_path[len("/files/") :])
 	return ""
 
 

@@ -1,0 +1,106 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "field:fingerprint",
+ "creation": "2026-05-22 00:00:00",
+ "doctype": "DocType",
+ "document_type": "Document",
+ "editable_grid": 0,
+ "engine": "InnoDB",
+ "field_order": [
+  "seller",
+  "fingerprint",
+  "source_format",
+  "sheet_name",
+  "section_mapping",
+  "mapping_json",
+  "normalizer_overrides",
+  "section_metrics",
+  "hit_count",
+  "last_used"
+ ],
+ "fields": [
+  {
+   "fieldname": "seller",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Satıcı",
+   "options": "Admin Seller Profile",
+   "reqd": 1
+  },
+  {
+   "description": "sha1(sorted_normalized_headers + seller_id)",
+   "fieldname": "fingerprint",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Fingerprint",
+   "reqd": 1,
+   "search_index": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "source_format",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Kaynak Format",
+   "options": "xlsx\ncsv\nxml"
+  },
+  {
+   "description": "Optional — xlsx only",
+   "fieldname": "sheet_name",
+   "fieldtype": "Data",
+   "label": "Sayfa Adı"
+  },
+  {
+   "fieldname": "section_mapping",
+   "fieldtype": "Section Break",
+   "label": "Eşleşme"
+  },
+  {
+   "description": "JSON: {column_header: target_field}",
+   "fieldname": "mapping_json",
+   "fieldtype": "Long Text",
+   "label": "Mapping (JSON)"
+  },
+  {
+   "description": "JSON: {field: normalizer_name}",
+   "fieldname": "normalizer_overrides",
+   "fieldtype": "Long Text",
+   "label": "Normalizer Override (JSON)"
+  },
+  {
+   "fieldname": "section_metrics",
+   "fieldtype": "Section Break",
+   "label": "Kullanım"
+  },
+  {
+   "default": "0",
+   "fieldname": "hit_count",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Eşleşme Sayısı"
+  },
+  {
+   "fieldname": "last_used",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Son Kullanım"
+  }
+ ],
+ "links": [],
+ "modified": "2026-05-22 00:00:00",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "Seller Template Profile",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {"create": 1, "delete": 1, "read": 1, "write": 1, "role": "System Manager"},
+  {"create": 1, "delete": 0, "read": 1, "write": 1, "role": "Marketplace Admin"},
+  {"create": 1, "delete": 0, "read": 1, "write": 1, "role": "Marketplace Seller"}
+ ],
+ "sort_field": "last_used",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

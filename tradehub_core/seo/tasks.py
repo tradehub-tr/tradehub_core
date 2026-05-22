@@ -40,9 +40,7 @@ def daily_sitemap_rebuild() -> None:
 		_rebuild_type(doctype)
 	_rebuild_index()
 
-	frappe.logger().info(
-		f"[SEO] daily_sitemap_rebuild: {list(DOCTYPE_CONFIG.keys())} regenerated"
-	)
+	frappe.logger().info(f"[SEO] daily_sitemap_rebuild: {list(DOCTYPE_CONFIG.keys())} regenerated")
 
 
 @frappe.whitelist()
