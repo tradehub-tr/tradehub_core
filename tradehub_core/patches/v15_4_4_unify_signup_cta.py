@@ -21,9 +21,7 @@ def execute() -> dict:
 
 	updated: list[str] = []
 	for plan_code in _TARGET_PLAN_CODES:
-		plan_name = frappe.db.get_value(
-			"Subscription Plan", {"plan_code": plan_code}, "name"
-		)
+		plan_name = frappe.db.get_value("Subscription Plan", {"plan_code": plan_code}, "name")
 		if not plan_name:
 			continue
 		current = frappe.db.get_value("Subscription Plan", plan_name, "cta_label")

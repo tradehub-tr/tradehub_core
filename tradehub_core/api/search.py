@@ -61,11 +61,7 @@ def _search_products(q: str, limit: int) -> list[dict]:
 
 def _search_categories(q: str, limit: int) -> list[dict]:
 	Cat = DocType("Product Category")
-	qb = (
-		frappe.qb.from_(Cat)
-		.select(Cat.name, Cat.category_name, Cat.url_slug)
-		.where(Cat.is_active == 1)
-	)
+	qb = frappe.qb.from_(Cat).select(Cat.name, Cat.category_name, Cat.url_slug).where(Cat.is_active == 1)
 	if q:
 		qb = qb.where(Cat.category_name.like(f"%{q}%"))
 	rows = qb.orderby(Cat.category_name).limit(limit).run(as_dict=True)

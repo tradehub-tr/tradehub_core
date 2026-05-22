@@ -91,10 +91,13 @@ def _install_frappe_stub() -> None:
 			doc = SimpleNamespace(**data)
 			doc.flags = SimpleNamespace()
 			doc.is_new = lambda: doc.name is None
-			doc.is_terminal = lambda: getattr(doc, "status", "") in (
-				"Approved",
-				"Rejected",
-				"Timeout Rejected",
+			doc.is_terminal = lambda: (
+				getattr(doc, "status", "")
+				in (
+					"Approved",
+					"Rejected",
+					"Timeout Rejected",
+				)
 			)
 			doc.get = lambda field, default=None: getattr(doc, field, default)
 
@@ -121,6 +124,7 @@ def _install_frappe_stub() -> None:
 
 			# Approval-rule specific helpers
 			if doctype == "Approval Rule":
+
 				def get_approvers_at_level(level):
 					return [
 						r.approver
@@ -155,12 +159,16 @@ def _install_frappe_stub() -> None:
 	if not hasattr(frappe, "_"):
 		frappe._ = lambda s: s
 	if not hasattr(frappe, "PermissionError"):
+
 		class PermissionError(Exception):
 			pass
+
 		frappe.PermissionError = PermissionError
 	if not hasattr(frappe, "throw"):
+
 		def _throw(msg, exc=Exception):
 			raise (exc(msg) if isinstance(exc, type) else Exception(msg))
+
 		frappe.throw = _throw
 	if not hasattr(frappe, "log_error"):
 		frappe.log_error = lambda *a, **kw: None
@@ -172,6 +180,7 @@ def _install_frappe_stub() -> None:
 	if not hasattr(frappe, "utils") or not hasattr(frappe.utils, "now_datetime"):
 		frappe.utils = types.ModuleType("frappe.utils")
 		from datetime import datetime, timedelta
+
 		frappe.utils.cint = int
 		frappe.utils.flt = float
 		frappe.utils.now_datetime = lambda: datetime(2026, 5, 21, 12, 0, 0)
@@ -180,12 +189,15 @@ def _install_frappe_stub() -> None:
 		sys.modules["frappe.utils"] = frappe.utils
 
 	if not hasattr(frappe, "whitelist"):
+
 		def _whitelist(*args, **kwargs):
 			def _decorator(fn):
 				return fn
+
 			if args and callable(args[0]):
 				return args[0]
 			return _decorator
+
 		frappe.whitelist = _whitelist
 
 
@@ -205,8 +217,7 @@ from tradehub_core.services import approval_workflow as wf  # noqa: E402
 def _make_rule(name, org, min_a, max_a, l1_users, l2_users=None, currency="EUR"):
 	"""Mock Approval Rule oluştur."""
 	approvers = [
-		SimpleNamespace(approver=u, approver_level=1, sequence=i, idx=i)
-		for i, u in enumerate(l1_users)
+		SimpleNamespace(approver=u, approver_level=1, sequence=i, idx=i) for i, u in enumerate(l1_users)
 	] + [
 		SimpleNamespace(approver=u, approver_level=2, sequence=i, idx=i + 10)
 		for i, u in enumerate(l2_users or [])
@@ -229,9 +240,7 @@ def _make_rule(name, org, min_a, max_a, l1_users, l2_users=None, currency="EUR")
 	rule.get_approvers_at_level = lambda level, _rule=rule: [
 		r.approver for r in (_rule.approvers or []) if r.approver_level == level
 	]
-	rule.max_level = lambda _rule=rule: max(
-		[r.approver_level for r in (_rule.approvers or [])], default=0
-	)
+	rule.max_level = lambda _rule=rule: max([r.approver_level for r in (_rule.approvers or [])], default=0)
 	_DOCS[("Approval Rule", name)] = rule
 	return rule
 
@@ -273,15 +282,17 @@ class FindMatchingRuleTests(unittest.TestCase):
 				"get_all",
 				"Approval Rule",
 				"{'organization': ['in', ['acme']], 'is_active': 1}",
-				str([
-					"name",
-					"organization",
-					"min_amount",
-					"max_amount",
-					"category_filter",
-					"supplier_filter",
-					"priority",
-				]),
+				str(
+					[
+						"name",
+						"organization",
+						"min_amount",
+						"max_amount",
+						"category_filter",
+						"supplier_filter",
+						"priority",
+					]
+				),
 				None,
 			)
 		] = [
@@ -304,15 +315,17 @@ class FindMatchingRuleTests(unittest.TestCase):
 				"get_all",
 				"Approval Rule",
 				"{'organization': ['in', ['acme']], 'is_active': 1}",
-				str([
-					"name",
-					"organization",
-					"min_amount",
-					"max_amount",
-					"category_filter",
-					"supplier_filter",
-					"priority",
-				]),
+				str(
+					[
+						"name",
+						"organization",
+						"min_amount",
+						"max_amount",
+						"category_filter",
+						"supplier_filter",
+						"priority",
+					]
+				),
 				None,
 			)
 		] = [
@@ -336,15 +349,17 @@ class FindMatchingRuleTests(unittest.TestCase):
 				"get_all",
 				"Approval Rule",
 				"{'organization': ['in', ['acme']], 'is_active': 1}",
-				str([
-					"name",
-					"organization",
-					"min_amount",
-					"max_amount",
-					"category_filter",
-					"supplier_filter",
-					"priority",
-				]),
+				str(
+					[
+						"name",
+						"organization",
+						"min_amount",
+						"max_amount",
+						"category_filter",
+						"supplier_filter",
+						"priority",
+					]
+				),
 				None,
 			)
 		] = [
@@ -367,15 +382,17 @@ class FindMatchingRuleTests(unittest.TestCase):
 				"get_all",
 				"Approval Rule",
 				"{'organization': ['in', ['acme']], 'is_active': 1}",
-				str([
-					"name",
-					"organization",
-					"min_amount",
-					"max_amount",
-					"category_filter",
-					"supplier_filter",
-					"priority",
-				]),
+				str(
+					[
+						"name",
+						"organization",
+						"min_amount",
+						"max_amount",
+						"category_filter",
+						"supplier_filter",
+						"priority",
+					]
+				),
 				None,
 			)
 		] = [

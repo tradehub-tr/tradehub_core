@@ -45,10 +45,7 @@ def _install_frappe_stub() -> None:
 			return []
 		parent = filters["tradehub_parent_org"]
 		# _DB içindeki tüm "parent" key'lerini tarayıp parent'ı eşleşenleri döner
-		children = [
-			child for (key_type, child), val in _DB.items()
-			if key_type == "parent" and val == parent
-		]
+		children = [child for (key_type, child), val in _DB.items() if key_type == "parent" and val == parent]
 		return children
 
 	frappe.db = SimpleNamespace(get_value=db_get_value)
@@ -57,8 +54,10 @@ def _install_frappe_stub() -> None:
 	if not hasattr(frappe, "_"):
 		frappe._ = lambda s: s
 	if not hasattr(frappe, "throw"):
+
 		def _throw(msg, exc=Exception):
 			raise (exc(msg) if isinstance(exc, type) else Exception(msg))
+
 		frappe.throw = _throw
 
 

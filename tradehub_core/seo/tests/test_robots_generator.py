@@ -1,6 +1,6 @@
 """robots_generator pure-function testleri.
 
-	cd apps/tradehub_core && python -m unittest tradehub_core.seo.tests.test_robots_generator
+cd apps/tradehub_core && python -m unittest tradehub_core.seo.tests.test_robots_generator
 """
 
 import sys

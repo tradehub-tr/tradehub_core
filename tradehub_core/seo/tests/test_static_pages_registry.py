@@ -1,6 +1,6 @@
 """static_pages_registry pure-helper testleri.
 
-	cd apps/tradehub_core && python -m unittest tradehub_core.seo.tests.test_static_pages_registry
+cd apps/tradehub_core && python -m unittest tradehub_core.seo.tests.test_static_pages_registry
 """
 
 import sys
@@ -30,8 +30,9 @@ class TestStaticPagesRegistry(unittest.TestCase):
 	def test_all_entries_have_required_keys(self):
 		required = {"path", "title", "html_path", "indexable_default"}
 		for e in STATIC_PAGES:
-			self.assertTrue(required.issubset(set(e.keys())),
-				f"{e['path']} missing keys: {required - set(e.keys())}")
+			self.assertTrue(
+				required.issubset(set(e.keys())), f"{e['path']} missing keys: {required - set(e.keys())}"
+			)
 
 	def test_homepage_is_indexable(self):
 		entry = find_entry("/")

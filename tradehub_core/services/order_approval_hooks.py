@@ -72,8 +72,7 @@ def on_order_after_insert(doc, method=None) -> None:
 		doc.db_set("status", "Onaylanıyor")
 
 		frappe.logger().info(
-			f"Order {doc.name}: approval workflow başlatıldı (rule={rule_name}, "
-			f"approval={approval_name})"
+			f"Order {doc.name}: approval workflow başlatıldı (rule={rule_name}, approval={approval_name})"
 		)
 	except Exception as exc:
 		frappe.log_error(

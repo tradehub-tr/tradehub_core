@@ -50,7 +50,9 @@ def create_transfer(
 	frappe.db.commit()
 
 	_audit(
-		"owner_transfer.create", doc.name, "ALLOW",
+		"owner_transfer.create",
+		doc.name,
+		"ALLOW",
 		target=proposed_owner,
 		reason=reason or "transfer_initiated",
 		severity="MEDIUM",
@@ -74,8 +76,14 @@ def confirm_by_current_owner(name: str) -> None:
 	doc.save(ignore_permissions=True)
 	frappe.db.commit()
 
-	_audit("owner_transfer.owner_confirm", name, "ALLOW", doc.proposed_owner,
-		"owner_confirmed", severity="MEDIUM")
+	_audit(
+		"owner_transfer.owner_confirm",
+		name,
+		"ALLOW",
+		doc.proposed_owner,
+		"owner_confirmed",
+		severity="MEDIUM",
+	)
 
 
 def approve_by_super_admin(name: str) -> None:
@@ -108,8 +116,14 @@ def approve_by_super_admin(name: str) -> None:
 	doc.save(ignore_permissions=True)
 	frappe.db.commit()
 
-	_audit("owner_transfer.complete", name, "ALLOW", doc.proposed_owner,
-		f"transfer_complete_from_{doc.current_owner}", severity="HIGH")
+	_audit(
+		"owner_transfer.complete",
+		name,
+		"ALLOW",
+		doc.proposed_owner,
+		f"transfer_complete_from_{doc.current_owner}",
+		severity="HIGH",
+	)
 
 	# Role Change Log
 	_log_role_change_safe(doc.proposed_owner, "Seller Owner", "promote_to_owner", f"otr:{name}")
@@ -161,8 +175,7 @@ def _is_co_owner(user: str, tenant: str) -> bool:
 	return bool(co_owner_role)
 
 
-def _audit(action: str, name: str, decision: str, target: str, reason: str,
-	severity: str = "LOW") -> None:
+def _audit(action: str, name: str, decision: str, target: str, reason: str, severity: str = "LOW") -> None:
 	try:
 		from tradehub_core.audit import log_decision
 

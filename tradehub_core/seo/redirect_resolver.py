@@ -36,9 +36,9 @@ def find_matching_redirect(path: str, redirects: list[dict]) -> dict | None:
 
 	# 2. Prefix — en uzun source önce
 	prefix_candidates = [
-		r for r in redirects
-		if r.get("match_type") == "prefix"
-		and path.startswith(_prefix_stem(r.get("source_path", "")))
+		r
+		for r in redirects
+		if r.get("match_type") == "prefix" and path.startswith(_prefix_stem(r.get("source_path", "")))
 	]
 	if prefix_candidates:
 		prefix_candidates.sort(key=lambda r: len(r.get("source_path", "")), reverse=True)
@@ -113,6 +113,7 @@ def _get_active_redirects() -> list[dict]:
 		return cached
 
 	import frappe
+
 	rows = frappe.get_all(
 		"SEO Redirect",
 		filters={"enabled": 1},
@@ -132,10 +133,14 @@ def increment_hit(source_path: str):
 		name = frappe.db.get_value("SEO Redirect", {"source_path": source_path}, "name")
 		if not name:
 			return
-		frappe.db.set_value("SEO Redirect", name, {
-			"hit_count": (frappe.db.get_value("SEO Redirect", name, "hit_count") or 0) + 1,
-			"last_hit_at": frappe.utils.now(),
-		})
+		frappe.db.set_value(
+			"SEO Redirect",
+			name,
+			{
+				"hit_count": (frappe.db.get_value("SEO Redirect", name, "hit_count") or 0) + 1,
+				"last_hit_at": frappe.utils.now(),
+			},
+		)
 		frappe.db.commit()
 	except Exception:
 		frappe.log_error(frappe.get_traceback(), "SEO redirect hit increment")
@@ -198,10 +203,8 @@ def handle_404(path: str = ""):
 		)
 
 	# 404 — log async
-	referer = (frappe.local.request.headers.get("Referer", "")
-				if frappe.local.request else "")
-	user_agent = (frappe.local.request.headers.get("User-Agent", "")
-					if frappe.local.request else "")
+	referer = frappe.local.request.headers.get("Referer", "") if frappe.local.request else ""
+	user_agent = frappe.local.request.headers.get("User-Agent", "") if frappe.local.request else ""
 	frappe.enqueue(
 		"tradehub_core.seo.redirect_resolver.log_404",
 		path=path,
@@ -212,4 +215,5 @@ def handle_404(path: str = ""):
 
 	# 404 sayfası — Faz 1 _render_404_response reuse
 	from tradehub_core.seo.page_resolver import _render_404_response
+
 	return _render_404_response()

@@ -26,17 +26,18 @@ def execute() -> dict:
 
 	updated: list[str] = []
 	for plan_code, fields in _REPAIRS.items():
-		plan_name = frappe.db.get_value(
-			"Subscription Plan", {"plan_code": plan_code}, "name"
-		)
+		plan_name = frappe.db.get_value("Subscription Plan", {"plan_code": plan_code}, "name")
 		if not plan_name:
 			continue
-		current = frappe.db.get_value(
-			"Subscription Plan",
-			plan_name,
-			list(fields.keys()),
-			as_dict=True,
-		) or {}
+		current = (
+			frappe.db.get_value(
+				"Subscription Plan",
+				plan_name,
+				list(fields.keys()),
+				as_dict=True,
+			)
+			or {}
+		)
 		for field, new_value in fields.items():
 			if float(current.get(field) or 0) == float(new_value):
 				continue

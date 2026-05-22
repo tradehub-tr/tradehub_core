@@ -49,9 +49,7 @@ class FeatureCatalog(Document):
 				_("'feature.*' prefix'i Capability tipinde olmalı. Şu an: {0}").format(self.feature_type)
 			)
 		if self.feature_key.startswith("quota.") and self.feature_type != "Quota":
-			frappe.throw(
-				_("'quota.*' prefix'i Quota tipinde olmalı. Şu an: {0}").format(self.feature_type)
-			)
+			frappe.throw(_("'quota.*' prefix'i Quota tipinde olmalı. Şu an: {0}").format(self.feature_type))
 
 	def _validate_default_value(self) -> None:
 		"""default_value tip uyumlu olmalı."""
@@ -60,9 +58,7 @@ class FeatureCatalog(Document):
 		val = str(self.default_value).strip()
 		if self.feature_type == "Capability":
 			if val.lower() not in ("true", "false", "1", "0"):
-				frappe.throw(
-					_("Capability default_value 'true' veya 'false' olmalı. Şu an: {0}").format(val)
-				)
+				frappe.throw(_("Capability default_value 'true' veya 'false' olmalı. Şu an: {0}").format(val))
 		elif self.feature_type == "Quota":
 			try:
 				int(val)

@@ -52,9 +52,10 @@ def _caller_is_owner_of(tenant: str) -> bool:
 	if "Seller Owner" not in roles:
 		return False
 
-	user_tenant, is_owner = frappe.db.get_value(
-		"User", user, ["tradehub_tenant", "tradehub_is_owner"]
-	) or (None, 0)
+	user_tenant, is_owner = frappe.db.get_value("User", user, ["tradehub_tenant", "tradehub_is_owner"]) or (
+		None,
+		0,
+	)
 
 	return bool(is_owner) and user_tenant == tenant
 

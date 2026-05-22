@@ -30,7 +30,9 @@ import frappe
 
 def execute() -> dict:
 	# 1. Role Profile fixture'ını yükle
-	fixture_path = Path(frappe.get_app_path("tradehub_core")) / "tradehub_core" / "fixtures" / "role_profile.json"
+	fixture_path = (
+		Path(frappe.get_app_path("tradehub_core")) / "tradehub_core" / "fixtures" / "role_profile.json"
+	)
 	if not fixture_path.exists():
 		return {"error": f"fixture missing: {fixture_path}"}
 
@@ -103,9 +105,7 @@ def execute() -> dict:
 				user_doc.save(ignore_permissions=True)
 				users_synced.append(u.name)
 		except Exception as exc:
-			frappe.log_error(
-				f"role sync failed for {u.name}: {exc}", "v15_5_4_sync_role_profiles"
-			)
+			frappe.log_error(f"role sync failed for {u.name}: {exc}", "v15_5_4_sync_role_profiles")
 
 	frappe.db.commit()
 	frappe.clear_cache()

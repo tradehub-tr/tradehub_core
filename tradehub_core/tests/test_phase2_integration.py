@@ -68,12 +68,16 @@ def _install_frappe_stub() -> None:
 	if not hasattr(frappe, "_"):
 		frappe._ = lambda s: s
 	if not hasattr(frappe, "PermissionError"):
+
 		class PermissionError(Exception):
 			pass
+
 		frappe.PermissionError = PermissionError
 	if not hasattr(frappe, "throw"):
+
 		def _throw(msg, exc=Exception):
 			raise (exc(msg) if isinstance(exc, type) else Exception(msg))
+
 		frappe.throw = _throw
 	if not hasattr(frappe, "log_error"):
 		frappe.log_error = lambda *a, **kw: None
@@ -96,17 +100,21 @@ def _install_frappe_stub() -> None:
 
 	# whitelist no-op decorator
 	if not hasattr(frappe, "whitelist"):
+
 		def _whitelist(*args, **kwargs):
 			def _decorator(fn):
 				return fn
+
 			if args and callable(args[0]):
 				return args[0]
 			return _decorator
+
 		frappe.whitelist = _whitelist
 
 	if not hasattr(frappe, "utils") or not hasattr(frappe.utils, "now_datetime"):
 		frappe.utils = types.ModuleType("frappe.utils")
 		from datetime import datetime, timedelta
+
 		frappe.utils.cint = int
 		frappe.utils.flt = float
 		frappe.utils.now_datetime = lambda: datetime(2026, 5, 21, 12, 0, 0)
@@ -189,10 +197,12 @@ class ReBACTupleSyncChainTests(unittest.TestCase):
 		mock_post.return_value = _mock_response(200, {})
 
 		# Direct write_tuples (sync) test
-		result = rebac_client.write_tuples([
-			("user:mehmet@x.com", "owner", "store:STORE-A"),
-			("user:mehmet@x.com", "member", "store:STORE-A"),
-		])
+		result = rebac_client.write_tuples(
+			[
+				("user:mehmet@x.com", "owner", "store:STORE-A"),
+				("user:mehmet@x.com", "member", "store:STORE-A"),
+			]
+		)
 		self.assertTrue(result)
 
 		body = json.loads(mock_post.call_args.kwargs.get("data", "{}"))
@@ -218,12 +228,8 @@ class OrgHierarchyTupleSyncTests(unittest.TestCase):
 
 		self.assertEqual(len(_ENQUEUED), 1)
 		tuples = _ENQUEUED[0]["tuples"]
-		self.assertIn(
-			("group:acme-istanbul", "parent", "group:acme-root"), tuples
-		)
-		self.assertIn(
-			("user:mehmet@acme.com", "admin", "buyer_org:acme-istanbul"), tuples
-		)
+		self.assertIn(("group:acme-istanbul", "parent", "group:acme-root"), tuples)
+		self.assertIn(("user:mehmet@acme.com", "admin", "buyer_org:acme-istanbul"), tuples)
 
 	def test_org_cycle_check_blocks_invalid_save(self):
 		"""validate_no_cycle: 3-cycle attempt → ValidationError."""
@@ -316,14 +322,13 @@ class CircuitBreakerFailClosedTests(unittest.TestCase):
 		rebac_client._circuit_breaker._fail_count = 99  # noqa: SLF001
 		rebac_client._circuit_breaker._opened_at = time.time()  # noqa: SLF001
 
-		result = rebac_client.check(
-			user="user:any", relation="any", object="any:thing"
-		)
+		result = rebac_client.check(user="user:any", relation="any", object="any:thing")
 		self.assertFalse(result)  # fail-closed
 
 		# HIGH severity audit log yazılmış olmalı
 		high_logs = [
-			log for log in _AUDIT_LOGS
+			log
+			for log in _AUDIT_LOGS
 			if log.get("severity") == "HIGH" and log.get("rule_id") == "rebac.unavailable"
 		]
 		self.assertGreaterEqual(len(high_logs), 1)
@@ -360,9 +365,7 @@ class FullContextBuilderTests(unittest.TestCase):
 		_DB[("get_value", "Region", "EU", "None")] = None
 		_DB[("get_value", "Region", "EU", "jurisdiction")] = "GDPR"
 
-		ctx = abac_context.build_full_context(
-			order=order, user="demet@acme.com", include_time=True
-		)
+		ctx = abac_context.build_full_context(order=order, user="demet@acme.com", include_time=True)
 
 		# Order fields
 		self.assertEqual(ctx["amount"], 7450.0)

@@ -188,7 +188,9 @@ class RequireOwnerOrCoOwnerTests(unittest.TestCase):
 
 	def test_no_tenant_raises(self):
 		"""Tenant'a bağlı olmayan user → PermissionError."""
-		_DB[("get_value", "Admin Seller Profile", "{'user': 'random@x.com', 'status': 'Active'}", "name")] = None
+		_DB[("get_value", "Admin Seller Profile", "{'user': 'random@x.com', 'status': 'Active'}", "name")] = (
+			None
+		)
 		sys.modules["frappe"].session.user = "random@x.com"
 		with self.assertRaises(Exception):
 			seller_users._require_owner_or_co_owner()
@@ -196,7 +198,9 @@ class RequireOwnerOrCoOwnerTests(unittest.TestCase):
 	def test_owner_passes(self):
 		"""Owner rolü + is_owner=1 → OK."""
 		sys.modules["frappe"].session.user = "owner@x.com"
-		_DB[("get_value", "Admin Seller Profile", "{'user': 'owner@x.com', 'status': 'Active'}", "name")] = "STORE-A"
+		_DB[("get_value", "Admin Seller Profile", "{'user': 'owner@x.com', 'status': 'Active'}", "name")] = (
+			"STORE-A"
+		)
 		_DB[("roles", "owner@x.com")] = ["Seller Owner"]
 		_DB[("get_value", "User", "owner@x.com", "tradehub_is_owner")] = 1
 
@@ -206,7 +210,9 @@ class RequireOwnerOrCoOwnerTests(unittest.TestCase):
 	def test_co_owner_passes(self):
 		"""Co-Owner profile → OK."""
 		sys.modules["frappe"].session.user = "coowner@x.com"
-		_DB[("get_value", "Admin Seller Profile", "{'user': 'coowner@x.com', 'status': 'Active'}", "name")] = "STORE-A"
+		_DB[
+			("get_value", "Admin Seller Profile", "{'user': 'coowner@x.com', 'status': 'Active'}", "name")
+		] = "STORE-A"
 		_DB[("roles", "coowner@x.com")] = ["Seller Admin", "Seller Finance"]
 		_DB[("get_value", "User", "coowner@x.com", "tradehub_is_owner")] = 0
 		_DB[("get_value", "User", "coowner@x.com", "role_profile_name")] = "Seller Co-Owner"
@@ -217,7 +223,9 @@ class RequireOwnerOrCoOwnerTests(unittest.TestCase):
 	def test_regular_seller_staff_rejected(self):
 		"""Staff sub-user invite yapamaz."""
 		sys.modules["frappe"].session.user = "staff@x.com"
-		_DB[("get_value", "Admin Seller Profile", "{'user': 'staff@x.com', 'status': 'Active'}", "name")] = "STORE-A"
+		_DB[("get_value", "Admin Seller Profile", "{'user': 'staff@x.com', 'status': 'Active'}", "name")] = (
+			"STORE-A"
+		)
 		_DB[("roles", "staff@x.com")] = ["Seller Staff"]
 		_DB[("get_value", "User", "staff@x.com", "tradehub_is_owner")] = 0
 		_DB[("get_value", "User", "staff@x.com", "role_profile_name")] = "Seller Operations"
@@ -228,7 +236,9 @@ class RequireOwnerOrCoOwnerTests(unittest.TestCase):
 	def test_co_owner_cannot_do_owner_only_action(self):
 		"""Co-Owner banka değiştirme yapamaz (Owner-only action)."""
 		sys.modules["frappe"].session.user = "coowner@x.com"
-		_DB[("get_value", "Admin Seller Profile", "{'user': 'coowner@x.com', 'status': 'Active'}", "name")] = "STORE-A"
+		_DB[
+			("get_value", "Admin Seller Profile", "{'user': 'coowner@x.com', 'status': 'Active'}", "name")
+		] = "STORE-A"
 		_DB[("roles", "coowner@x.com")] = ["Seller Admin"]
 		_DB[("get_value", "User", "coowner@x.com", "tradehub_is_owner")] = 0
 		_DB[("get_value", "User", "coowner@x.com", "role_profile_name")] = "Seller Co-Owner"
@@ -313,7 +323,9 @@ class OwnerLockTests(unittest.TestCase):
 
 		sys.modules["frappe"].db.get_value = _patched
 
-		doc = self._make_doc("STORE-A", iban="TR12-NEW", bank_name=None, bank_account_holder=None, tax_id="OLD")
+		doc = self._make_doc(
+			"STORE-A", iban="TR12-NEW", bank_name=None, bank_account_holder=None, tax_id="OLD"
+		)
 		self.owner_lock.enforce_owner_only_fields(doc)  # hata yok
 
 	def test_non_owner_cannot_change_iban(self):
@@ -332,7 +344,9 @@ class OwnerLockTests(unittest.TestCase):
 
 		sys.modules["frappe"].db.get_value = _patched
 
-		doc = self._make_doc("STORE-A", iban="TR12-NEW", bank_name=None, bank_account_holder=None, tax_id="OLD")
+		doc = self._make_doc(
+			"STORE-A", iban="TR12-NEW", bank_name=None, bank_account_holder=None, tax_id="OLD"
+		)
 		with self.assertRaises(Exception):
 			self.owner_lock.enforce_owner_only_fields(doc)
 

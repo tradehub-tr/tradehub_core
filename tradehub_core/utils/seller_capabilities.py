@@ -39,9 +39,7 @@ from frappe import _
 # ---------------------------------------------------------------------------
 
 # Yönetim katmanı: Owner + Co-Owner + Manager (Admin role taşıyan profiller).
-_TIER_MANAGEMENT: frozenset[str] = frozenset(
-	{"Seller Full Access", "Seller Co-Owner", "Seller Manager"}
-)
+_TIER_MANAGEMENT: frozenset[str] = frozenset({"Seller Full Access", "Seller Co-Owner", "Seller Manager"})
 
 # Operasyon: Yönetim + Operations (Staff role taşıyanlar).
 _TIER_OPERATIONS: frozenset[str] = frozenset(
@@ -70,9 +68,7 @@ _OWNER_ONLY_CAPABILITIES: frozenset[str] = frozenset(
 )
 
 # Platform tarafı bypass — bu rollere sahip user her capability'yi geçer.
-_PLATFORM_ROLES: frozenset[str] = frozenset(
-	{"System Manager", "Marketplace Admin", "Administrator"}
-)
+_PLATFORM_ROLES: frozenset[str] = frozenset({"System Manager", "Marketplace Admin", "Administrator"})
 
 # K6 fix: Tier'lara karşılık Frappe Role'leri — Role Delegation görünürlüğü için.
 # Bir user'ın role_profile_name'i tier dışında olsa bile, User.roles'da bu role

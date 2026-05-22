@@ -18,10 +18,7 @@ class PermissionOverrideLog(Document):
 	def validate(self) -> None:
 		if not self.flags.get("audit_write"):
 			frappe.throw(
-				_(
-					"Permission Override Log doğrudan yazılamaz. "
-					"tradehub_core.audit.log_override kullanın."
-				),
+				_("Permission Override Log doğrudan yazılamaz. tradehub_core.audit.log_override kullanın."),
 				frappe.PermissionError,
 			)
 		if not (self.justification or "").strip():

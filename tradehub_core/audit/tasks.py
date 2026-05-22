@@ -41,9 +41,7 @@ def archive_old_decision_logs() -> None:
 	Faz 3'te eklenecek (encryption gerektirir).
 	"""
 	cutoff = add_days(now_datetime(), -_HOT_DAYS_DECISION)
-	total = frappe.db.count(
-		"Authorization Decision Log", filters={"timestamp": ["<", cutoff]}
-	)
+	total = frappe.db.count("Authorization Decision Log", filters={"timestamp": ["<", cutoff]})
 	if total == 0:
 		return
 
@@ -61,9 +59,7 @@ def archive_old_role_change_logs() -> None:
 	total = frappe.db.count("Role Change Log", filters={"timestamp": ["<", cutoff]})
 	if total == 0:
 		return
-	frappe.logger().info(
-		f"FAZ 1.4 archive_old_role_change_logs: {total} RCL kaydı 1 yıl'dan eski."
-	)
+	frappe.logger().info(f"FAZ 1.4 archive_old_role_change_logs: {total} RCL kaydı 1 yıl'dan eski.")
 
 
 def archive_old_override_logs() -> None:
@@ -72,9 +68,7 @@ def archive_old_override_logs() -> None:
 	total = frappe.db.count("Permission Override Log", filters={"timestamp": ["<", cutoff]})
 	if total == 0:
 		return
-	frappe.logger().info(
-		f"FAZ 1.4 archive_old_override_logs: {total} POL kaydı 1 yıl'dan eski."
-	)
+	frappe.logger().info(f"FAZ 1.4 archive_old_override_logs: {total} POL kaydı 1 yıl'dan eski.")
 
 
 def weekly_audit_summary() -> None:
@@ -97,12 +91,8 @@ def weekly_audit_summary() -> None:
 			"Authorization Decision Log",
 			filters={"timestamp": [">=", week_ago], "severity": "HIGH"},
 		),
-		"role_changes": frappe.db.count(
-			"Role Change Log", filters={"timestamp": [">=", week_ago]}
-		),
-		"overrides": frappe.db.count(
-			"Permission Override Log", filters={"timestamp": [">=", week_ago]}
-		),
+		"role_changes": frappe.db.count("Role Change Log", filters={"timestamp": [">=", week_ago]}),
+		"overrides": frappe.db.count("Permission Override Log", filters={"timestamp": [">=", week_ago]}),
 		"critical_overrides": frappe.db.count(
 			"Permission Override Log",
 			filters={"timestamp": [">=", week_ago], "severity": "CRITICAL"},

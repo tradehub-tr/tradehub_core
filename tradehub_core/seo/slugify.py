@@ -9,15 +9,23 @@ ile çalıştırılabilir:
 
 import re
 
-_TR_MAP = str.maketrans({
-	"ç": "c", "Ç": "c",
-	"ğ": "g", "Ğ": "g",
-	"ı": "i", "I": "i",
-	"İ": "i",
-	"ö": "o", "Ö": "o",
-	"ş": "s", "Ş": "s",
-	"ü": "u", "Ü": "u",
-})
+_TR_MAP = str.maketrans(
+	{
+		"ç": "c",
+		"Ç": "c",
+		"ğ": "g",
+		"Ğ": "g",
+		"ı": "i",
+		"I": "i",
+		"İ": "i",
+		"ö": "o",
+		"Ö": "o",
+		"ş": "s",
+		"Ş": "s",
+		"ü": "u",
+		"Ü": "u",
+	}
+)
 
 _NON_ALNUM = re.compile(r"[^a-z0-9]+")
 _LEADING_TRAILING_DASH = re.compile(r"^-+|-+$")

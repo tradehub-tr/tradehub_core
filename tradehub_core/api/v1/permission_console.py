@@ -35,9 +35,7 @@ from tradehub_core.audit import log_decision
 
 # Süper Admin / Marketplace Admin rolleri (Compliance Officer audit read için)
 _ADMIN_ROLES = frozenset({"System Manager", "Marketplace Admin", "Administrator"})
-_AUDIT_READ_ROLES = frozenset(
-	{"System Manager", "Marketplace Admin", "Administrator", "Compliance Officer"}
-)
+_AUDIT_READ_ROLES = frozenset({"System Manager", "Marketplace Admin", "Administrator", "Compliance Officer"})
 
 
 def _require_admin(action: str = "read") -> None:
@@ -107,9 +105,7 @@ def get_overview() -> dict:
 		"active_subscriptions": frappe.db.count(
 			"Store Subscription", {"status": ["in", ["trial", "active"]]}
 		),
-		"decisions_24h": frappe.db.count(
-			"Authorization Decision Log", {"timestamp": [">=", day_ago]}
-		),
+		"decisions_24h": frappe.db.count("Authorization Decision Log", {"timestamp": [">=", day_ago]}),
 		"denies_24h": frappe.db.count(
 			"Authorization Decision Log",
 			{"timestamp": [">=", day_ago], "decision": "DENY"},
@@ -119,9 +115,7 @@ def get_overview() -> dict:
 			{"timestamp": [">=", day_ago], "severity": "HIGH"},
 		),
 		"role_changes_7d": frappe.db.count("Role Change Log", {"timestamp": [">=", week_ago]}),
-		"overrides_7d": frappe.db.count(
-			"Permission Override Log", {"timestamp": [">=", week_ago]}
-		),
+		"overrides_7d": frappe.db.count("Permission Override Log", {"timestamp": [">=", week_ago]}),
 	}
 
 
@@ -375,10 +369,17 @@ def update_plan_capabilities(
 		object_doctype="Subscription Plan",
 		object_name=plan_code,
 		plan_code=plan_code,
-		context={"updated_fields": list(filter(None, [
-			"capability_flags" if capability_flags is not None else None,
-			"quota_limits" if quota_limits is not None else None,
-		]))},
+		context={
+			"updated_fields": list(
+				filter(
+					None,
+					[
+						"capability_flags" if capability_flags is not None else None,
+						"quota_limits" if quota_limits is not None else None,
+					],
+				)
+			)
+		},
 	)
 
 	frappe.db.commit()
@@ -389,26 +390,28 @@ def update_plan_capabilities(
 # FAZ 4.1 — Dinamik Pricing yönetimi
 # ---------------------------------------------------------------------------
 
-_PRICING_DISPLAY_FIELDS = frozenset({
-	"plan_name",
-	"description",
-	"badge_label",
-	"badge_color",
-	"theme",
-	"short_tagline",
-	"monthly_price",
-	"yearly_price",
-	"currency",
-	"commission_rate",
-	"max_active_listings",
-	"cta_label",
-	"cta_action",
-	"highlighted",
-	"display_order",
-	"trial_days",
-	"is_active",
-	"is_public",
-})
+_PRICING_DISPLAY_FIELDS = frozenset(
+	{
+		"plan_name",
+		"description",
+		"badge_label",
+		"badge_color",
+		"theme",
+		"short_tagline",
+		"monthly_price",
+		"yearly_price",
+		"currency",
+		"commission_rate",
+		"max_active_listings",
+		"cta_label",
+		"cta_action",
+		"highlighted",
+		"display_order",
+		"trial_days",
+		"is_active",
+		"is_public",
+	}
+)
 
 
 @frappe.whitelist()
@@ -546,14 +549,17 @@ def update_pricing_plan(
 		for idx, row in enumerate(pricing_features):
 			if not isinstance(row, dict) or not row.get("display_text"):
 				continue
-			doc.append("pricing_features", {
-				"display_text": row.get("display_text", "").strip(),
-				"icon": row.get("icon") or "check",
-				"is_disabled": 1 if row.get("is_disabled") else 0,
-				"feature_key": row.get("feature_key") or None,
-				"tooltip": row.get("tooltip") or None,
-				"sort_order": int(row.get("sort_order") or idx),
-			})
+			doc.append(
+				"pricing_features",
+				{
+					"display_text": row.get("display_text", "").strip(),
+					"icon": row.get("icon") or "check",
+					"is_disabled": 1 if row.get("is_disabled") else 0,
+					"feature_key": row.get("feature_key") or None,
+					"tooltip": row.get("tooltip") or None,
+					"sort_order": int(row.get("sort_order") or idx),
+				},
+			)
 		changed.append("pricing_features")
 
 	if not changed:

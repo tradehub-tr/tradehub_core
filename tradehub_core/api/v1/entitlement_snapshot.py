@@ -90,18 +90,21 @@ def get_snapshot() -> dict:
 		}
 
 	# User Profile snapshot (Sprint 2 sonrası tek user profile entity)
-	user_profile = frappe.db.get_value(
-		"User Profile",
-		{"user": user},
-		[
-			"account_type",
-			"kyc_status",
-			"kyb_status",
-			"can_buy",
-			"can_sell",
-		],
-		as_dict=True,
-	) or {}
+	user_profile = (
+		frappe.db.get_value(
+			"User Profile",
+			{"user": user},
+			[
+				"account_type",
+				"kyc_status",
+				"kyb_status",
+				"can_buy",
+				"can_sell",
+			],
+			as_dict=True,
+		)
+		or {}
+	)
 
 	roles = set(frappe.get_roles(user))
 	is_seller = "Marketplace Seller" in roles or "Seller" in roles or "Seller Owner" in roles
@@ -117,9 +120,7 @@ def get_snapshot() -> dict:
 
 	if is_seller:
 		# Kullanıcı bir Admin Seller Profile'a bağlı mı (Owner veya sub-user)?
-		tenant = frappe.db.get_value(
-			"User", user, "tradehub_tenant"
-		) or frappe.db.get_value(
+		tenant = frappe.db.get_value("User", user, "tradehub_tenant") or frappe.db.get_value(
 			"Admin Seller Profile", {"user": user, "status": "Active"}, "name"
 		)
 

@@ -28,7 +28,6 @@ from __future__ import annotations
 
 import frappe
 
-
 _FIELDS = [
 	{
 		"dt": "Subscription Plan",

@@ -68,9 +68,17 @@ class StoreSubscription(Document):
 			end = self.current_period_end
 			# Frappe Datetime field bazen string döner — normalize et
 			if isinstance(start, str):
-				start = datetime.fromisoformat(start.replace("Z", "+00:00")) if "T" in start else datetime.strptime(start, "%Y-%m-%d %H:%M:%S")
+				start = (
+					datetime.fromisoformat(start.replace("Z", "+00:00"))
+					if "T" in start
+					else datetime.strptime(start, "%Y-%m-%d %H:%M:%S")
+				)
 			if isinstance(end, str):
-				end = datetime.fromisoformat(end.replace("Z", "+00:00")) if "T" in end else datetime.strptime(end, "%Y-%m-%d %H:%M:%S")
+				end = (
+					datetime.fromisoformat(end.replace("Z", "+00:00"))
+					if "T" in end
+					else datetime.strptime(end, "%Y-%m-%d %H:%M:%S")
+				)
 			if end <= start:
 				frappe.throw(_("Current Period End, Period Start'tan sonra olmalı."))
 

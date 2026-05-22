@@ -140,9 +140,7 @@ class ListObjectsTests(unittest.TestCase):
 
 	@patch.object(rebac_client.requests.Session, "post")
 	def test_list_objects_strips_prefix(self, mock_post):
-		mock_post.return_value = _mock_response(
-			200, {"objects": ["order:ORD-9382", "order:ORD-9401"]}
-		)
+		mock_post.return_value = _mock_response(200, {"objects": ["order:ORD-9382", "order:ORD-9401"]})
 		result = rebac_client.list_objects("order", "can_view", "user:ayse@x.com")
 		self.assertEqual(result, ["ORD-9382", "ORD-9401"])
 
@@ -171,9 +169,7 @@ class WriteDeleteTests(unittest.TestCase):
 	@patch.object(rebac_client.requests.Session, "post")
 	def test_write_tuples_success(self, mock_post):
 		mock_post.return_value = _mock_response(200, {})
-		result = rebac_client.write_tuples(
-			[("user:ayse@x.com", "member", "buyer_org:acme")]
-		)
+		result = rebac_client.write_tuples([("user:ayse@x.com", "member", "buyer_org:acme")])
 		self.assertTrue(result)
 		# Payload kontrolü
 		import json
@@ -192,9 +188,7 @@ class WriteDeleteTests(unittest.TestCase):
 	@patch.object(rebac_client.requests.Session, "post")
 	def test_delete_tuples_success(self, mock_post):
 		mock_post.return_value = _mock_response(200, {})
-		result = rebac_client.delete_tuples(
-			[("user:ayse@x.com", "member", "buyer_org:acme")]
-		)
+		result = rebac_client.delete_tuples([("user:ayse@x.com", "member", "buyer_org:acme")])
 		self.assertTrue(result)
 		import json
 

@@ -1134,6 +1134,7 @@ def get_listing_detail(listing_id):
 	# bu payload'ı document.title + meta tag'leri güncelleyerek uygular.
 	try:
 		from tradehub_core.seo import meta_builder
+
 		seo_payload = meta_builder.build_for_listing(listing.as_dict(), lang="tr")
 	except Exception:
 		seo_payload = {}

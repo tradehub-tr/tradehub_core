@@ -38,9 +38,7 @@ def on_user_update(doc, method=None) -> None:
 
 		# Mevcut doc — rol değişikliği var mı?
 		current_roles = sorted(r.role for r in (doc.roles or []))
-		db_roles = sorted(
-			frappe.get_all("Has Role", filters={"parent": doc.name}, pluck="role")
-		)
+		db_roles = sorted(frappe.get_all("Has Role", filters={"parent": doc.name}, pluck="role"))
 
 		# enabled flag değişimi
 		current_enabled = bool(doc.enabled)

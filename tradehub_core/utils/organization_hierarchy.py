@@ -58,9 +58,7 @@ def validate_no_cycle(doc, method=None) -> None:
 		depth += 1
 
 	if depth >= MAX_HIERARCHY_DEPTH:
-		frappe.throw(
-			_("Organization hiyerarşi derinliği {0}'i geçemez.").format(MAX_HIERARCHY_DEPTH)
-		)
+		frappe.throw(_("Organization hiyerarşi derinliği {0}'i geçemez.").format(MAX_HIERARCHY_DEPTH))
 
 
 def get_ancestors(org_name: str) -> list[str]:

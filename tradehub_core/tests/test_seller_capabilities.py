@@ -292,13 +292,7 @@ class FullAccessProfileTests(unittest.TestCase):
 
 	def test_owner_full_access_gets_everything(self):
 		_set_user("owner@x.com", is_owner=1, role_profile_name="Seller Full Access")
-		expected = (
-			_OPERATIONS_CAPS
-			| _FINANCE_CAPS
-			| _MANAGEMENT_CAPS
-			| _COOWNER_CAPS
-			| _OWNER_ONLY_CAPS
-		)
+		expected = _OPERATIONS_CAPS | _FINANCE_CAPS | _MANAGEMENT_CAPS | _COOWNER_CAPS | _OWNER_ONLY_CAPS
 		got = set(sc.get_user_capabilities("owner@x.com"))
 		self.assertEqual(got, expected)
 

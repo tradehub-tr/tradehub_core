@@ -134,8 +134,7 @@ def execute() -> None:
 
 	# Rapor
 	print(  # noqa: T201
-		f"\n✅ FAZ 1.3 Role permission matrisi: {added} yeni, {updated} güncellendi, "
-		f"{skipped} doctype skip."
+		f"\n✅ FAZ 1.3 Role permission matrisi: {added} yeni, {updated} güncellendi, {skipped} doctype skip."
 	)
 	if errors:
 		print(f"⚠️  {len(errors)} hata:")  # noqa: T201

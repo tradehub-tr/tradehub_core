@@ -56,7 +56,11 @@ def _install_frappe_stub() -> None:
 				return _USERS.get(filters, {}).get(fieldname)
 			doc = _DOCS.get(filters)
 			if doc:
-				val = doc.get(fieldname) if not isinstance(fieldname, list) else {f: doc.get(f) for f in fieldname}
+				val = (
+					doc.get(fieldname)
+					if not isinstance(fieldname, list)
+					else {f: doc.get(f) for f in fieldname}
+				)
 				return val
 			return None
 		# Filter dict
@@ -93,6 +97,7 @@ def _install_frappe_stub() -> None:
 	def get_all(doctype, filters=None, pluck=None, fields=None, order_by=None, **kwargs):
 		rows = [d for d in _DOCS.values() if d.get("doctype") == doctype]
 		if filters:
+
 			def _match(d):
 				for k, v in filters.items():
 					val = d.get(k)
@@ -105,6 +110,7 @@ def _install_frappe_stub() -> None:
 					elif val != v:
 						return False
 				return True
+
 			rows = [d for d in rows if _match(d)]
 		if pluck:
 			return [d.get(pluck) for d in rows]
@@ -125,7 +131,9 @@ def _install_frappe_stub() -> None:
 
 		def _insert(*a, **kw):
 			if doctype == "Role Delegation":
-				ns.name = f"RD-{len([d for d in _DOCS.values() if d.get('doctype') == 'Role Delegation']):04d}"
+				ns.name = (
+					f"RD-{len([d for d in _DOCS.values() if d.get('doctype') == 'Role Delegation']):04d}"
+				)
 			elif doctype == "Owner Transfer Request":
 				ns.name = f"OTR-{len([d for d in _DOCS.values() if d.get('doctype') == 'Owner Transfer Request']):04d}"
 			data = {k: v for k, v in ns.__dict__.items() if not k.startswith("_")}
@@ -135,7 +143,18 @@ def _install_frappe_stub() -> None:
 
 		ns.append = _append
 		ns.insert = _insert
-		ns.save = lambda *a, **kw: (_DOCS.update({ns.name: {**_DOCS.get(ns.name, {}), **{k: v for k, v in ns.__dict__.items() if not k.startswith("_")}}}) if ns.name else None)
+		ns.save = lambda *a, **kw: (
+			_DOCS.update(
+				{
+					ns.name: {
+						**_DOCS.get(ns.name, {}),
+						**{k: v for k, v in ns.__dict__.items() if not k.startswith("_")},
+					}
+				}
+			)
+			if ns.name
+			else None
+		)
 		return ns
 
 	frappe.new_doc = new_doc
@@ -170,6 +189,7 @@ def _install_frappe_stub() -> None:
 
 			ns.save = _save
 		else:
+
 			def _save(*a, **kw):
 				updated = {k: v for k, v in ns.__dict__.items() if not k.startswith("_")}
 				updated["doctype"] = doctype
@@ -183,12 +203,16 @@ def _install_frappe_stub() -> None:
 	if not hasattr(frappe, "_"):
 		frappe._ = lambda s: s
 	if not hasattr(frappe, "PermissionError"):
+
 		class PermissionError(Exception):
 			pass
+
 		frappe.PermissionError = PermissionError
 	if not hasattr(frappe, "ValidationError"):
+
 		class ValidationError(Exception):
 			pass
+
 		frappe.ValidationError = ValidationError
 
 	def _throw(msg, exc=Exception):
@@ -207,8 +231,8 @@ def _install_frappe_stub() -> None:
 	sys.modules["frappe.utils"] = frappe.utils
 
 	audit_mod = types.ModuleType("tradehub_core.audit")
-	audit_mod.log_decision = lambda **kw: (_AUDIT_LOGS.append(dict(kw)) or "ADL")
-	audit_mod.log_role_change = lambda **kw: (_ROLE_CHANGES.append(dict(kw)) or "RCL")
+	audit_mod.log_decision = lambda **kw: _AUDIT_LOGS.append(dict(kw)) or "ADL"
+	audit_mod.log_role_change = lambda **kw: _ROLE_CHANGES.append(dict(kw)) or "RCL"
 	sys.modules["tradehub_core.audit"] = audit_mod
 
 
@@ -285,7 +309,9 @@ class DelegationLifecycleTests(unittest.TestCase):
 
 	def test_activate_assigns_role(self):
 		name = dele.create_delegation(
-			"a@x.com", "b@x.com", "Buyer Approver L1",
+			"a@x.com",
+			"b@x.com",
+			"Buyer Approver L1",
 			"ACME",
 			datetime(2026, 5, 21, 10),
 			datetime(2026, 5, 28, 18),
@@ -297,7 +323,9 @@ class DelegationLifecycleTests(unittest.TestCase):
 
 	def test_revoke_removes_role(self):
 		name = dele.create_delegation(
-			"a@x.com", "b@x.com", "Buyer Approver L1",
+			"a@x.com",
+			"b@x.com",
+			"Buyer Approver L1",
 			"ACME",
 			datetime(2026, 5, 21, 10),
 			datetime(2026, 5, 28, 18),
@@ -309,16 +337,16 @@ class DelegationLifecycleTests(unittest.TestCase):
 
 	def test_expire_overdue(self):
 		name = dele.create_delegation(
-			"a@x.com", "b@x.com", "Buyer Approver L1",
+			"a@x.com",
+			"b@x.com",
+			"Buyer Approver L1",
 			"ACME",
 			datetime(2026, 5, 20, 10),
 			datetime(2026, 5, 21, 9),  # past
 		)
 		dele.activate_delegation(name)
 
-		summary = dele.expire_overdue_delegations(
-			now=datetime(2026, 5, 21, 14, 0, 0)
-		)
+		summary = dele.expire_overdue_delegations(now=datetime(2026, 5, 21, 14, 0, 0))
 		self.assertEqual(summary["expired"], 1)
 		self.assertEqual(_DOCS[name]["status"], "expired")
 		self.assertNotIn("Buyer Approver L1", _USERS["b@x.com"]["role_names"])
@@ -332,7 +360,11 @@ class DelegationLifecycleTests(unittest.TestCase):
 class OwnerTransferTests(unittest.TestCase):
 	def setUp(self):
 		_reset_state()
-		_USERS["owner@a.com"] = {"role_names": ["Seller Owner"], "tradehub_is_owner": 1, "tradehub_tenant": "ACME"}
+		_USERS["owner@a.com"] = {
+			"role_names": ["Seller Owner"],
+			"tradehub_is_owner": 1,
+			"tradehub_tenant": "ACME",
+		}
 		_USERS["coowner@a.com"] = {"role_names": ["Seller Co-Owner"], "role_profile_name": "Seller Co-Owner"}
 		_USERS["random@a.com"] = {"role_names": ["Buyer Requisitioner"]}
 
@@ -344,13 +376,12 @@ class OwnerTransferTests(unittest.TestCase):
 			ot.create_transfer(tenant="ACME", proposed_owner="random@a.com")
 
 	def test_two_step_flow(self):
-		name = ot.create_transfer(
-			tenant="ACME", proposed_owner="coowner@a.com", reason="founder leaving"
-		)
+		name = ot.create_transfer(tenant="ACME", proposed_owner="coowner@a.com", reason="founder leaving")
 		self.assertEqual(_DOCS[name]["status"], "awaiting_owner_confirm")
 
 		# Current owner confirms
 		import frappe as _f
+
 		_f.session.user = "owner@a.com"
 		ot.confirm_by_current_owner(name)
 		self.assertEqual(_DOCS[name]["status"], "awaiting_super_admin")
@@ -367,10 +398,13 @@ class OwnerTransferTests(unittest.TestCase):
 
 	def test_force_transfer_one_step(self):
 		import frappe as _f
+
 		_f.session.user = "admin@firm.com"
 		name = ot.create_transfer(
-			tenant="ACME", proposed_owner="random@a.com",
-			reason="owner missing", is_force=True,
+			tenant="ACME",
+			proposed_owner="random@a.com",
+			reason="owner missing",
+			is_force=True,
 		)
 		# Force ile direkt awaiting_super_admin
 		self.assertEqual(_DOCS[name]["status"], "awaiting_super_admin")
@@ -380,7 +414,8 @@ class OwnerTransferTests(unittest.TestCase):
 
 	def test_reject(self):
 		name = ot.create_transfer(
-			tenant="ACME", proposed_owner="coowner@a.com",
+			tenant="ACME",
+			proposed_owner="coowner@a.com",
 		)
 		ot.reject(name, reason="not authorized")
 		self.assertEqual(_DOCS[name]["status"], "rejected")

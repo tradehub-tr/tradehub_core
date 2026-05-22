@@ -146,7 +146,9 @@ def _validate_role_profile_for_plan(organization: str, role_profile: str) -> Non
 
 
 @frappe.whitelist()
-def invite_buyer_sub_user(email: str, full_name: str, role_profile: str, organization: str | None = None) -> dict:
+def invite_buyer_sub_user(
+	email: str, full_name: str, role_profile: str, organization: str | None = None
+) -> dict:
 	"""Yeni buyer sub-user davet et.
 
 	Args:
@@ -189,9 +191,7 @@ def invite_buyer_sub_user(email: str, full_name: str, role_profile: str, organiz
 		frappe.throw(_("Bu e-postaya zaten aktif bir davet gönderilmiş."))
 
 	# Kota: max_sub_users (Faz 2.4'te buyer-side için aynı limit kullanılıyor)
-	current_count = frappe.db.count(
-		"User", {"tradehub_parent_organization": target_org, "enabled": 1}
-	)
+	current_count = frappe.db.count("User", {"tradehub_parent_organization": target_org, "enabled": 1})
 	from tradehub_core.utils.tenant import get_current_seller_profile
 
 	tenant_for_quota = get_current_seller_profile()
@@ -342,9 +342,7 @@ def reactivate_buyer_sub_user(user: str) -> dict:
 	if user_org != caller_org:
 		frappe.throw(_("Bu kullanıcı ekibinizde değil."), frappe.PermissionError)
 
-	current_count = frappe.db.count(
-		"User", {"tradehub_parent_organization": caller_org, "enabled": 1}
-	)
+	current_count = frappe.db.count("User", {"tradehub_parent_organization": caller_org, "enabled": 1})
 	from tradehub_core.utils.tenant import get_current_seller_profile
 
 	tenant_for_quota = get_current_seller_profile()

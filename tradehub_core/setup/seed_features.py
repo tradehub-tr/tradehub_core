@@ -2,7 +2,6 @@
 
 import frappe
 
-
 _FEATURES = [
 	# Role profile features
 	("feature.role.profile.seller_full_access", "Seller Full Access Profile", "role"),

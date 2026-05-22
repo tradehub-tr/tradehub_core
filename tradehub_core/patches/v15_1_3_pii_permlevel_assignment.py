@@ -61,12 +61,8 @@ def execute() -> None:
 				continue
 
 			# Mevcut field meta kontrolü (DocField veya Custom Field olabilir)
-			docfield_exists = frappe.db.exists(
-				"DocField", {"parent": doctype, "fieldname": fieldname}
-			)
-			custom_field_exists = frappe.db.exists(
-				"Custom Field", {"dt": doctype, "fieldname": fieldname}
-			)
+			docfield_exists = frappe.db.exists("DocField", {"parent": doctype, "fieldname": fieldname})
+			custom_field_exists = frappe.db.exists("Custom Field", {"dt": doctype, "fieldname": fieldname})
 
 			if not docfield_exists and not custom_field_exists:
 				skipped += 1
@@ -90,8 +86,7 @@ def execute() -> None:
 
 	# Rapor
 	print(  # noqa: T201
-		f"\n✅ FAZ 1.3 PII permlevel ataması: {applied} field güncellendi, "
-		f"{skipped} field bulunamadı (skip)."
+		f"\n✅ FAZ 1.3 PII permlevel ataması: {applied} field güncellendi, {skipped} field bulunamadı (skip)."
 	)
 	if errors:
 		print(f"⚠️  {len(errors)} hata var:")  # noqa: T201

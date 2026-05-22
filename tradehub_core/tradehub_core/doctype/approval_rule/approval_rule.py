@@ -67,7 +67,9 @@ class ApprovalRule(Document):
 		allowed_orgs = {user_org, *get_ancestors(user_org)}
 		if self.organization not in allowed_orgs:
 			frappe.throw(
-				_("Approval Rule'u sadece kendi organizasyonunuz veya alt birimleri için tanımlayabilirsiniz."),
+				_(
+					"Approval Rule'u sadece kendi organizasyonunuz veya alt birimleri için tanımlayabilirsiniz."
+				),
 				exc=frappe.PermissionError,
 			)
 
@@ -84,9 +86,7 @@ class ApprovalRule(Document):
 		for row in self.approvers:
 			if row.approver_level not in (1, 2):
 				frappe.throw(
-					_("Approver level 1 veya 2 olmalı; satır {0}: {1}").format(
-						row.idx, row.approver_level
-					)
+					_("Approver level 1 veya 2 olmalı; satır {0}: {1}").format(row.idx, row.approver_level)
 				)
 			if not row.approver:
 				frappe.throw(_("Satır {0}: Approver user boş olamaz.").format(row.idx))
@@ -95,7 +95,7 @@ class ApprovalRule(Document):
 		"""Belirli level'daki tüm user listesi (sequence'a göre sıralı)."""
 		rows = sorted(
 			(r for r in (self.approvers or []) if r.approver_level == level),
-			key=lambda r: (r.sequence or 0),
+			key=lambda r: r.sequence or 0,
 		)
 		return [r.approver for r in rows]
 

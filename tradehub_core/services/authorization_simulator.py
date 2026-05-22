@@ -237,8 +237,13 @@ def simulate(
 
 	# Optional audit
 	if audit:
-		_write_audit(actor=actor, action=action, resource_type=resource_type,
-			resource_name=resource_name, result=result)
+		_write_audit(
+			actor=actor,
+			action=action,
+			resource_type=resource_type,
+			resource_name=resource_name,
+			result=result,
+		)
 
 	return result.to_dict()
 
@@ -386,9 +391,7 @@ def _check_tenant_isolation(
 		layer=LAYER_L1,
 		check="tenant.mismatch",
 		result=RESULT_DENY,
-		detail=_("Aktör {0}, kaynak {1} — farklı mağazalar").format(
-			actor_tenant or "(yok)", resource_tenant
-		),
+		detail=_("Aktör {0}, kaynak {1} — farklı mağazalar").format(actor_tenant or "(yok)", resource_tenant),
 		meta={"actor_tenant": actor_tenant, "resource_tenant": resource_tenant},
 	)
 
@@ -410,9 +413,7 @@ def _check_frappe_role(
 
 	try:
 		if resource_name:
-			allowed = frappe.has_permission(
-				doctype=resource_type, ptype=ptype, doc=resource_name, user=actor
-			)
+			allowed = frappe.has_permission(doctype=resource_type, ptype=ptype, doc=resource_name, user=actor)
 		else:
 			allowed = frappe.has_permission(doctype=resource_type, ptype=ptype, user=actor)
 	except Exception as exc:
@@ -452,15 +453,9 @@ def _check_rebac_tuple(
 	# O1: Reject action — Order Approval'da current_level'a göre relation seç.
 	# Statik mapping reject → can_approve_l1 idi; L2 stage reject simülasyonu
 	# yanlış kontrol yapıyordu (L1 condition'da amount > 5000 fail).
-	if (
-		resource_type == "Order Approval"
-		and action.lower() == "reject"
-		and resource_name
-	):
+	if resource_type == "Order Approval" and action.lower() == "reject" and resource_name:
 		try:
-			current_level = frappe.db.get_value(
-				"Order Approval", resource_name, "current_level"
-			)
+			current_level = frappe.db.get_value("Order Approval", resource_name, "current_level")
 			if int(current_level or 1) == 2:
 				relation = "can_approve_l2"
 			else:
@@ -525,7 +520,11 @@ def _check_abac_conditions(
 	# O2: ABAC koşulları Order Approval **ve** Order üzerinde approve* action'ları
 	# için aktif. Order üzerinde approve simülasyonunda eski versiyon SKIP edip
 	# amount-tier kontrolünü atlıyordu — ReBAC simulator'da forensik kayıp.
-	if resource_type not in {"Order Approval", "Order"} or action.lower() not in {"approve", "approve_l1", "approve_l2"}:
+	if resource_type not in {"Order Approval", "Order"} or action.lower() not in {
+		"approve",
+		"approve_l1",
+		"approve_l2",
+	}:
 		return TraceStep(
 			layer=LAYER_L2_ABAC,
 			check="abac.not_applicable",
@@ -582,20 +581,20 @@ def _check_abac_conditions(
 	all_pass = all(ok for _, ok, _ in conditions)
 	failed = [c for c, ok, _ in conditions if not ok]
 	# Advisory satırı trace'in sonuna ekle (DENY üretmez)
-	conditions.append((
-		"within_business_hours",
-		bh_ok,
-		f"hour={current_hour} (advisory — karara dahil değil)",
-	))
+	conditions.append(
+		(
+			"within_business_hours",
+			bh_ok,
+			f"hour={current_hour} (advisory — karara dahil değil)",
+		)
+	)
 
 	return TraceStep(
 		layer=LAYER_L2_ABAC,
 		check="abac.conditions",
 		result=RESULT_ALLOW if all_pass else RESULT_DENY,
 		detail=("Tüm koşullar sağlandı" if all_pass else _("Başarısız: {0}").format(", ".join(failed))),
-		meta={"conditions": [
-			{"name": c, "passed": ok, "detail": d} for c, ok, d in conditions
-		]},
+		meta={"conditions": [{"name": c, "passed": ok, "detail": d} for c, ok, d in conditions]},
 	)
 
 
@@ -641,9 +640,9 @@ def _check_field_pii(
 				layer=LAYER_L3,
 				check="pii.jurisdiction_mismatch",
 				result=RESULT_DENY,
-				detail=_(
-					"Kaynak {0} ({1}) jurisdiction'ında, kullanıcı bölgeleri {2}"
-				).format(target_region, pii_utils.get_jurisdiction_for_region(target_region), user_regions),
+				detail=_("Kaynak {0} ({1}) jurisdiction'ında, kullanıcı bölgeleri {2}").format(
+					target_region, pii_utils.get_jurisdiction_for_region(target_region), user_regions
+				),
 				meta={"target_region": target_region, "user_regions": user_regions},
 			)
 
@@ -806,9 +805,7 @@ def _write_audit(
 	"""Forensics mode — persist the simulator outcome."""
 
 	try:
-		reason = (
-			result.first_deny.detail if result.first_deny else _("Tüm katmanlar onayladı")
-		)
+		reason = result.first_deny.detail if result.first_deny else _("Tüm katmanlar onayladı")
 		audit_mod.log_decision(
 			actor=actor,
 			action=f"simulate.{action}",
@@ -829,6 +826,4 @@ def _write_audit(
 		)
 	except Exception as exc:
 		# Audit best-effort — never block the simulator response
-		frappe.log_error(
-			f"authorization_simulator audit write failed: {exc}", "Authorization Simulator"
-		)
+		frappe.log_error(f"authorization_simulator audit write failed: {exc}", "Authorization Simulator")

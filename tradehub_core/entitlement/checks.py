@@ -133,10 +133,9 @@ def validate_listing_regions(doc, method=None) -> None:
 	invalid = set(listing_regions) - set(seller_regions)
 	if invalid:
 		frappe.throw(
-			_(
-				"Listing'in '{0}' bölgesi/bölgeleri için satış hakkınız yok. "
-				"Aktif bölgeleriniz: {1}."
-			).format(", ".join(sorted(invalid)), ", ".join(sorted(seller_regions)) or "-"),
+			_("Listing'in '{0}' bölgesi/bölgeleri için satış hakkınız yok. Aktif bölgeleriniz: {1}.").format(
+				", ".join(sorted(invalid)), ", ".join(sorted(seller_regions)) or "-"
+			),
 			frappe.PermissionError,
 		)
 

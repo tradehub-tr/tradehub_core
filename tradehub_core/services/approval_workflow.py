@@ -139,9 +139,9 @@ def start_approval(order_name: str, rule_name: str) -> str:
 	requisitioner = order.owner
 
 	# Organization = buyer'ın tradehub_parent_organization
-	organization = frappe.db.get_value(
-		"User", order.buyer or "", "tradehub_parent_organization"
-	) or rule.organization
+	organization = (
+		frappe.db.get_value("User", order.buyer or "", "tradehub_parent_organization") or rule.organization
+	)
 
 	# expires_at = +N gün
 	timeout_days = rule.get("approval_timeout_days") or 7
@@ -187,8 +187,7 @@ def approve(approval_name: str, user: str | None = None, comment: str = "") -> s
 
 	# FOR UPDATE — paralel approve/reject çağrıları için lock
 	locked = frappe.db.sql(
-		"SELECT name, status, current_level, max_level FROM `tabOrder Approval` "
-		"WHERE name = %s FOR UPDATE",
+		"SELECT name, status, current_level, max_level FROM `tabOrder Approval` WHERE name = %s FOR UPDATE",
 		(approval_name,),
 		as_dict=True,
 	)
@@ -206,9 +205,7 @@ def approve(approval_name: str, user: str | None = None, comment: str = "") -> s
 	allowed_approvers = rule.get_approvers_at_level(current_level)
 
 	roles = set(frappe.get_roles(user))
-	is_admin_override = (
-		user not in allowed_approvers and "System Manager" in roles
-	)
+	is_admin_override = user not in allowed_approvers and "System Manager" in roles
 	if user not in allowed_approvers and not is_admin_override:
 		frappe.throw(
 			_("Bu siparişi onaylama yetkiniz yok. Level {0} approver'ları: {1}").format(
@@ -347,13 +344,9 @@ def _sync_approval_tuples(approval, rule) -> None:
 	try:
 		# L1 — condition'lı tuple (4-tuple: user, relation, object, condition_name)
 		for user in rule.get_approvers_at_level(1):
-			tuples.append(
-				(f"user:{user}", "can_approve_l1", oa_obj, "needs_approval_l1")
-			)
+			tuples.append((f"user:{user}", "can_approve_l1", oa_obj, "needs_approval_l1"))
 		for user in rule.get_approvers_at_level(2):
-			tuples.append(
-				(f"user:{user}", "can_approve_l2", oa_obj, "needs_approval_l2")
-			)
+			tuples.append((f"user:{user}", "can_approve_l2", oa_obj, "needs_approval_l2"))
 	except Exception as exc:
 		frappe.log_error(f"approval tuple list build hatası: {exc}", "approval_workflow")
 		return
@@ -362,9 +355,7 @@ def _sync_approval_tuples(approval, rule) -> None:
 	try:
 		rebac_client.write_tuples(tuples)
 	except Exception as exc:
-		frappe.log_error(
-			f"approval tuple sync write hatası: {exc}", "approval_workflow"
-		)
+		frappe.log_error(f"approval tuple sync write hatası: {exc}", "approval_workflow")
 		_log_tuple_sync_failure(approval.name, tuples, str(exc))
 
 
@@ -491,9 +482,11 @@ def _log_admin_override(approval, admin_user: str, action: str, level: int, reas
 	try:
 		from tradehub_core.audit import log_override
 
-		justification = reason.strip() if reason else _(
-			"Admin override — level {0} {1} action (otomatik audit)"
-		).format(level, action)
+		justification = (
+			reason.strip()
+			if reason
+			else _("Admin override — level {0} {1} action (otomatik audit)").format(level, action)
+		)
 
 		log_override(
 			target_object=f"Order Approval/{approval.name}",

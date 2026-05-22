@@ -1776,9 +1776,7 @@ def owner_transfer_request_query_conditions(user):
 		f"`tabOwner Transfer Request`.`proposed_owner` = {frappe.db.escape(user)}",
 	]
 	if tenant:
-		clauses.append(
-			f"`tabOwner Transfer Request`.`tenant` = {frappe.db.escape(tenant)}"
-		)
+		clauses.append(f"`tabOwner Transfer Request`.`tenant` = {frappe.db.escape(tenant)}")
 	return "(" + " OR ".join(clauses) + ")"
 
 
@@ -1812,9 +1810,7 @@ def role_delegation_query_conditions(user):
 		f"`tabRole Delegation`.`delegate` = {frappe.db.escape(user)}",
 	]
 	if tenant:
-		clauses.append(
-			f"`tabRole Delegation`.`tenant` = {frappe.db.escape(tenant)}"
-		)
+		clauses.append(f"`tabRole Delegation`.`tenant` = {frappe.db.escape(tenant)}")
 	return "(" + " OR ".join(clauses) + ")"
 
 
@@ -1848,17 +1844,13 @@ def authorization_decision_log_query_conditions(user):
 	# Seller-side: kullanıcının tenant'ına ait loglar
 	tenant = _get_seller_profile_name(user)
 	if tenant:
-		clauses.append(
-			f"`tabAuthorization Decision Log`.`tenant` = {frappe.db.escape(tenant)}"
-		)
+		clauses.append(f"`tabAuthorization Decision Log`.`tenant` = {frappe.db.escape(tenant)}")
 
 	# O5: Buyer-side — kullanıcının organizasyonu (+ ancestors) için loglar
 	orgs = _user_organizations(user)
 	if orgs:
 		org_list = ", ".join(frappe.db.escape(o) for o in orgs)
-		clauses.append(
-			f"`tabAuthorization Decision Log`.`buyer_org` IN ({org_list})"
-		)
+		clauses.append(f"`tabAuthorization Decision Log`.`buyer_org` IN ({org_list})")
 
 	return "(" + " OR ".join(clauses) + ")"
 
@@ -1897,9 +1889,7 @@ def role_change_log_query_conditions(user):
 		f"`tabRole Change Log`.`changed_by` = {frappe.db.escape(user)}",
 	]
 	if tenant:
-		clauses.append(
-			f"`tabRole Change Log`.`tenant` = {frappe.db.escape(tenant)}"
-		)
+		clauses.append(f"`tabRole Change Log`.`tenant` = {frappe.db.escape(tenant)}")
 	return "(" + " OR ".join(clauses) + ")"
 
 
@@ -1932,16 +1922,12 @@ def authorization_anomaly_alert_query_conditions(user):
 	clauses: list[str] = []
 	tenant = _get_seller_profile_name(user)
 	if tenant:
-		clauses.append(
-			f"`tabAuthorization Anomaly Alert`.`tenant` = {frappe.db.escape(tenant)}"
-		)
+		clauses.append(f"`tabAuthorization Anomaly Alert`.`tenant` = {frappe.db.escape(tenant)}")
 	# D10: Buyer-side — kullanıcının organizasyonu için alarmlar
 	orgs = _user_organizations(user)
 	if orgs:
 		org_list = ", ".join(frappe.db.escape(o) for o in orgs)
-		clauses.append(
-			f"`tabAuthorization Anomaly Alert`.`buyer_org` IN ({org_list})"
-		)
+		clauses.append(f"`tabAuthorization Anomaly Alert`.`buyer_org` IN ({org_list})")
 	if not clauses:
 		return "1=0"
 	return "(" + " OR ".join(clauses) + ")"

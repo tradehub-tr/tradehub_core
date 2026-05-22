@@ -79,12 +79,16 @@ def _install_frappe_stub() -> None:
 		frappe._ = lambda s: s
 
 	if not hasattr(frappe, "PermissionError"):
+
 		class PermissionError(Exception):
 			pass
+
 		frappe.PermissionError = PermissionError
 	if not hasattr(frappe, "ValidationError"):
+
 		class ValidationError(Exception):
 			pass
+
 		frappe.ValidationError = ValidationError
 
 	def _throw(msg, exc=Exception):
@@ -116,17 +120,21 @@ def _install_frappe_stub() -> None:
 	sys.modules["tradehub_core.audit"] = audit_mod
 
 	if not hasattr(frappe, "whitelist"):
+
 		def _whitelist(*args, **kwargs):
 			def _decorator(fn):
 				return fn
+
 			if args and callable(args[0]):
 				return args[0]
 			return _decorator
+
 		frappe.whitelist = _whitelist
 
 	if not hasattr(frappe, "utils") or not hasattr(frappe.utils, "now_datetime"):
 		frappe.utils = types.ModuleType("frappe.utils")
 		from datetime import datetime, timedelta
+
 		frappe.utils.cint = int
 		frappe.utils.flt = float
 		frappe.utils.now_datetime = lambda: datetime(2026, 5, 21, 12, 0, 0)
@@ -169,9 +177,7 @@ def _setup_actor(
 	# Tenant lookup via _get_seller_profile_for_user — we patch directly
 	from tradehub_core.utils import tenant as tenant_utils
 
-	tenant_utils._get_seller_profile_for_user = lambda u=None: (
-		tenant if (u or "") == user else None
-	)
+	tenant_utils._get_seller_profile_for_user = lambda u=None: tenant if (u or "") == user else None
 	tenant_utils.is_tenant_admin = lambda user=None, tenant=None: (
 		user == "owner@acme.com" and tenant is not None
 	)
@@ -189,7 +195,7 @@ def _setup_actor(
 	# Entitlement core hooks — patch at the module
 	from tradehub_core.entitlement import core as ent_core
 
-	ent_core.get_plan = lambda store: (plan if store == tenant else None)
+	ent_core.get_plan = lambda store: plan if store == tenant else None
 	ent_core.get_capability_flags = lambda store: {"core_commerce": True}
 	ent_core.get_active_subscription = lambda store: {"status": "Active", "plan": plan}
 
@@ -234,6 +240,7 @@ class L0EntitlementTests(_SimBase):
 
 		# Plan = Starter, buyer_approval_workflow NOT in features
 		from tradehub_core.entitlement import core as ent_core
+
 		ent_core.has_feature = lambda store, key: key != "buyer_approval_workflow"
 
 		res = sim.simulate("buyer@acme.com", "approve", "Order Approval", "OA-1")
@@ -330,7 +337,10 @@ class L2ABACTests(_SimBase):
 
 		# amount=200 < 500 → needs_approval_l1 = False
 		res = sim.simulate(
-			"buyer@acme.com", "approve", "Order Approval", "OA-5",
+			"buyer@acme.com",
+			"approve",
+			"Order Approval",
+			"OA-5",
 			context={"amount": 200, "request_hour": 14},
 		)
 		l2 = next(s for s in res["trace"] if s["layer"] == sim.LAYER_L2_ABAC)
@@ -363,8 +373,11 @@ class HappyPathTests(_SimBase):
 			regions=["EU"],
 		)
 		_setup_resource(
-			"Order Approval", "OA-7",
-			total=1500, currency="EUR", seller_profile="ACME",
+			"Order Approval",
+			"OA-7",
+			total=1500,
+			currency="EUR",
+			seller_profile="ACME",
 		)
 
 		from tradehub_core.utils import pii as pii_utils
@@ -372,7 +385,10 @@ class HappyPathTests(_SimBase):
 		pii_utils.get_pii_fieldnames = lambda dt, min_permlevel=1: []
 
 		res = sim.simulate(
-			"buyer@acme.com", "approve", "Order Approval", "OA-7",
+			"buyer@acme.com",
+			"approve",
+			"Order Approval",
+			"OA-7",
 			context={"amount": 1500, "request_hour": 14},
 		)
 		self.assertEqual(res["decision"], "ALLOW")
@@ -383,12 +399,16 @@ class HappyPathTests(_SimBase):
 		_setup_resource("Order Approval", "OA-8", total=1500, seller_profile="ACME")
 
 		from tradehub_core.utils import pii as pii_utils
+
 		pii_utils.get_pii_fieldnames = lambda dt, min_permlevel=1: []
 
 		_AUDIT_LOGS.clear()
 
 		res = sim.simulate(
-			"buyer@acme.com", "approve", "Order Approval", "OA-8",
+			"buyer@acme.com",
+			"approve",
+			"Order Approval",
+			"OA-8",
 			context={"amount": 1500, "request_hour": 14},
 			audit=True,
 		)
@@ -418,11 +438,15 @@ class CallerAuthorizationTests(_SimBase):
 		_setup_resource("Order Approval", "OA-10", total=1500, seller_profile="ACME")
 
 		from tradehub_core.utils import pii as pii_utils
+
 		pii_utils.get_pii_fieldnames = lambda dt, min_permlevel=1: []
 
 		# Should succeed without PermissionError
 		res = sim.simulate(
-			"target@acme.com", "approve", "Order Approval", "OA-10",
+			"target@acme.com",
+			"approve",
+			"Order Approval",
+			"OA-10",
 			context={"amount": 1500, "request_hour": 14},
 		)
 		self.assertEqual(res["decision"], "ALLOW")
@@ -435,10 +459,14 @@ class BatchTests(_SimBase):
 		_setup_resource("Order Approval", "OA-B", total=200, seller_profile="ACME")
 
 		from tradehub_core.utils import pii as pii_utils
+
 		pii_utils.get_pii_fieldnames = lambda dt, min_permlevel=1: []
 
 		results = sim.simulate_batch(
-			"buyer@acme.com", "approve", "Order Approval", ["OA-A", "OA-B"],
+			"buyer@acme.com",
+			"approve",
+			"Order Approval",
+			["OA-A", "OA-B"],
 			context={"request_hour": 14},
 		)
 		self.assertEqual(len(results), 2)
@@ -451,7 +479,9 @@ class BatchTests(_SimBase):
 		_setup_actor("buyer@acme.com", ["Buyer Approver L1"], tenant="ACME")
 		with self.assertRaises(Exception):
 			sim.simulate_batch(
-				"buyer@acme.com", "approve", "Order Approval",
+				"buyer@acme.com",
+				"approve",
+				"Order Approval",
 				[f"OA-{i}" for i in range(sim.MAX_BATCH_SIZE + 1)],
 			)
 

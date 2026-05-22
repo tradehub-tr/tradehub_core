@@ -34,7 +34,7 @@ def parse_lang_from_path(path: str) -> tuple[str, str]:
 			return lang, "/"
 		prefix = f"/{lang}/"
 		if path.startswith(prefix):
-			remainder = "/" + path[len(prefix):]
+			remainder = "/" + path[len(prefix) :]
 			return lang, remainder
 
 	return DEFAULT_LANG, path
@@ -92,15 +92,19 @@ def build_hreflang_links(canonical_tr_path: str, site_url: str) -> list[dict]:
 	site = site_url.rstrip("/")
 	links = []
 	for lang in SUPPORTED_LANGS:
-		links.append({
-			"hreflang": lang,
-			"href": f"{site}{localize_url(canonical_tr_path, lang)}",
-		})
+		links.append(
+			{
+				"hreflang": lang,
+				"href": f"{site}{localize_url(canonical_tr_path, lang)}",
+			}
+		)
 	# x-default → TR (default dil)
-	links.append({
-		"hreflang": "x-default",
-		"href": f"{site}{canonical_tr_path}",
-	})
+	links.append(
+		{
+			"hreflang": "x-default",
+			"href": f"{site}{canonical_tr_path}",
+		}
+	)
 	return links
 
 

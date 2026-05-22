@@ -70,7 +70,9 @@ def activate_delegation(name: str, approver: str | None = None) -> None:
 
 	_audit("delegation.activate", name, "ALLOW", doc.delegate, "delegation_activated")
 	_log_role_change_safe(
-		user=doc.delegate, role=doc.role, operation="delegate_assign",
+		user=doc.delegate,
+		role=doc.role,
+		operation="delegate_assign",
 		reason=f"delegation:{name}",
 	)
 
@@ -87,10 +89,13 @@ def revoke_delegation(name: str, reason: str = "") -> None:
 	doc.save(ignore_permissions=True)
 	frappe.db.commit()
 
-	_audit("delegation.revoke", name, "ALLOW", doc.delegate, reason or "delegation_revoked",
-		severity="MEDIUM")
+	_audit(
+		"delegation.revoke", name, "ALLOW", doc.delegate, reason or "delegation_revoked", severity="MEDIUM"
+	)
 	_log_role_change_safe(
-		user=doc.delegate, role=doc.role, operation="delegate_revoke",
+		user=doc.delegate,
+		role=doc.role,
+		operation="delegate_revoke",
 		reason=f"delegation:{name}:{reason}",
 	)
 
@@ -119,7 +124,9 @@ def expire_overdue_delegations(now: datetime | None = None) -> dict[str, Any]:
 			expired += 1
 			_audit("delegation.expire", name, "ALLOW", doc.delegate, "auto_expired")
 			_log_role_change_safe(
-				user=doc.delegate, role=doc.role, operation="delegate_expire",
+				user=doc.delegate,
+				role=doc.role,
+				operation="delegate_expire",
 				reason=f"delegation:{name}",
 			)
 		except Exception as exc:
@@ -167,8 +174,7 @@ def _unassign_role(user: str, role: str) -> None:
 		frappe.log_error(f"_unassign_role failed: {exc}", "Delegation Service")
 
 
-def _audit(action: str, name: str, decision: str, target: str, reason: str,
-	severity: str = "LOW") -> None:
+def _audit(action: str, name: str, decision: str, target: str, reason: str, severity: str = "LOW") -> None:
 	try:
 		from tradehub_core.audit import log_decision
 

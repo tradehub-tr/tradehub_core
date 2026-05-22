@@ -230,14 +230,17 @@ def upsert_supplier_list(
 	for s in suppliers:
 		if not isinstance(s, dict) or not s.get("supplier"):
 			continue
-		doc.append("suppliers", {
-			"supplier": s["supplier"],
-			"min_order_amount": float(s.get("min_order_amount") or 0),
-			"max_order_amount": float(s.get("max_order_amount") or 0),
-			"allowed_categories": s.get("allowed_categories", ""),
-			"is_active": 1 if s.get("is_active", 1) else 0,
-			"notes": s.get("notes", ""),
-		})
+		doc.append(
+			"suppliers",
+			{
+				"supplier": s["supplier"],
+				"min_order_amount": float(s.get("min_order_amount") or 0),
+				"max_order_amount": float(s.get("max_order_amount") or 0),
+				"allowed_categories": s.get("allowed_categories", ""),
+				"is_active": 1 if s.get("is_active", 1) else 0,
+				"notes": s.get("notes", ""),
+			},
+		)
 
 	doc.save()
 	frappe.db.commit()

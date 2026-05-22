@@ -48,6 +48,7 @@ def _ensure_roles() -> list[str]:
 		created.append(role_name)
 	return created
 
+
 # Sentinel — DocPerm matrisi.
 # Her tuple: (doctype, role, perm dict)
 # perm dict anahtarları: r=read, w=write, c=create, d=delete, e=export,
@@ -63,7 +64,9 @@ _BUYER_VIEWER_PERMS = [
 ]
 
 _BUYER_PROCUREMENT_PERMS = [
-	("Order", "read"), ("Order", "write"), ("Order", "create"),
+	("Order", "read"),
+	("Order", "write"),
+	("Order", "create"),
 	("Order Approval", "read"),
 	("Approval Rule", "read"),
 	("Cost Center", "read"),
@@ -72,7 +75,9 @@ _BUYER_PROCUREMENT_PERMS = [
 _BUYER_FINANCE_PERMS = [
 	("Order", "read"),
 	("Order Approval", "read"),
-	("Cost Center", "read"), ("Cost Center", "write"), ("Cost Center", "create"),
+	("Cost Center", "read"),
+	("Cost Center", "write"),
+	("Cost Center", "create"),
 	("Authorization Decision Log", "read"),
 ]
 
@@ -88,9 +93,12 @@ _SELLER_VIEWER_PERMS = [
 ]
 
 _SELLER_STAFF_PERMS = [
-	("Listing", "read"), ("Listing", "write"), ("Listing", "create"),
+	("Listing", "read"),
+	("Listing", "write"),
+	("Listing", "create"),
 	("Order", "read"),
-	("Seller Inquiry", "read"), ("Seller Inquiry", "write"),
+	("Seller Inquiry", "read"),
+	("Seller Inquiry", "write"),
 	("Listing Review", "read"),
 ]
 
@@ -105,17 +113,26 @@ _SELLER_FINANCE_PERMS = [
 # verelim ki Role Profile bundle'larında işlev kazansın. Owner-level field
 # kısıtlamaları utils/owner_lock.enforce_owner_only_fields ile uygulanıyor.
 _SELLER_ADMIN_PERMS = [
-	("Listing", "read"), ("Listing", "write"), ("Listing", "create"), ("Listing", "delete"),
-	("Order", "read"), ("Order", "write"),
-	("Seller Inquiry", "read"), ("Seller Inquiry", "write"), ("Seller Inquiry", "create"),
-	("Admin Seller Profile", "read"), ("Admin Seller Profile", "write"),
+	("Listing", "read"),
+	("Listing", "write"),
+	("Listing", "create"),
+	("Listing", "delete"),
+	("Order", "read"),
+	("Order", "write"),
+	("Seller Inquiry", "read"),
+	("Seller Inquiry", "write"),
+	("Seller Inquiry", "create"),
+	("Admin Seller Profile", "read"),
+	("Admin Seller Profile", "write"),
 	("Seller Balance", "read"),
-	("Listing Review", "read"), ("Listing Review", "write"),
+	("Listing Review", "read"),
+	("Listing Review", "write"),
 	("Seller Review", "read"),
 ]
 
 _SELLER_CO_OWNER_PERMS = _SELLER_ADMIN_PERMS + [
-	("Owner Transfer Request", "read"), ("Owner Transfer Request", "write"),
+	("Owner Transfer Request", "read"),
+	("Owner Transfer Request", "write"),
 	("Role Delegation", "read"),
 ]
 
@@ -127,21 +144,35 @@ _SELLER_CO_OWNER_PERMS = _SELLER_ADMIN_PERMS + [
 # ekliyoruz — bu sayede 11 yeni ReBAC/Audit doctype'a otomatik full access
 # alır. Burada ek olarak ana storefront doctype'larına da DocPerm veriyoruz.
 _PLATFORM_ADMIN_PERMS = [
-	("Listing", "read"), ("Listing", "write"), ("Listing", "create"), ("Listing", "delete"),
-	("Order", "read"), ("Order", "write"), ("Order", "create"),
-	("Admin Seller Profile", "read"), ("Admin Seller Profile", "write"),
-	("Seller Balance", "read"), ("Seller Balance", "write"),
-	("User Profile", "read"), ("User Profile", "write"),
-	("Subscription Plan", "read"), ("Subscription Plan", "write"),
+	("Listing", "read"),
+	("Listing", "write"),
+	("Listing", "create"),
+	("Listing", "delete"),
+	("Order", "read"),
+	("Order", "write"),
+	("Order", "create"),
+	("Admin Seller Profile", "read"),
+	("Admin Seller Profile", "write"),
+	("Seller Balance", "read"),
+	("Seller Balance", "write"),
+	("User Profile", "read"),
+	("User Profile", "write"),
+	("Subscription Plan", "read"),
+	("Subscription Plan", "write"),
 	# ReBAC/Audit doctype'lar — permissions.py'de zaten Platform Admin için
 	# query_conditions bypass aktif; yine de DocPerm ihtiyacı var.
-	("Order Approval", "read"), ("Order Approval", "write"),
-	("Approval Rule", "read"), ("Approval Rule", "write"),
-	("Cost Center", "read"), ("Cost Center", "write"),
+	("Order Approval", "read"),
+	("Order Approval", "write"),
+	("Approval Rule", "read"),
+	("Approval Rule", "write"),
+	("Cost Center", "read"),
+	("Cost Center", "write"),
 	("Authorization Decision Log", "read"),
 	("Role Change Log", "read"),
-	("Authorization Anomaly Alert", "read"), ("Authorization Anomaly Alert", "write"),
-	("Authorization Anomaly Rule", "read"), ("Authorization Anomaly Rule", "write"),
+	("Authorization Anomaly Alert", "read"),
+	("Authorization Anomaly Alert", "write"),
+	("Authorization Anomaly Rule", "read"),
+	("Authorization Anomaly Rule", "write"),
 	("Permission Override Log", "read"),
 	("Owner Transfer Request", "read"),
 	("Role Delegation", "read"),
@@ -156,7 +187,9 @@ _PLATFORM_FINANCE_PERMS = [
 ]
 
 _SUPPORT_AGENT_PERMS = [
-	("HD Ticket", "read"), ("HD Ticket", "write"), ("HD Ticket", "create"),
+	("HD Ticket", "read"),
+	("HD Ticket", "write"),
+	("HD Ticket", "create"),
 	("User Profile", "read"),
 	("Listing", "read"),
 	("Order", "read"),

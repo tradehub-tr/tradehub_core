@@ -157,8 +157,14 @@ class GetSnapshotTests(unittest.TestCase):
 	def test_buyer_individual_returns_kyc_status(self):
 		sys.modules["frappe"].session.user = "buyer@x.com"
 		_DB[("roles", "buyer@x.com")] = ["Buyer"]
-		_DB[("get_value", "User Profile", "{'user': 'buyer@x.com'}",
-			"['account_type', 'kyc_status', 'kyb_status', 'can_buy', 'can_sell']")] = {
+		_DB[
+			(
+				"get_value",
+				"User Profile",
+				"{'user': 'buyer@x.com'}",
+				"['account_type', 'kyc_status', 'kyb_status', 'can_buy', 'can_sell']",
+			)
+		] = {
 			"account_type": "Individual",
 			"kyc_status": "Verified",
 			"kyb_status": None,
@@ -175,8 +181,14 @@ class GetSnapshotTests(unittest.TestCase):
 	def test_buyer_business_returns_kyb_status(self):
 		sys.modules["frappe"].session.user = "buyer@firma.com"
 		_DB[("roles", "buyer@firma.com")] = ["Buyer"]
-		_DB[("get_value", "User Profile", "{'user': 'buyer@firma.com'}",
-			"['account_type', 'kyc_status', 'kyb_status', 'can_buy', 'can_sell']")] = {
+		_DB[
+			(
+				"get_value",
+				"User Profile",
+				"{'user': 'buyer@firma.com'}",
+				"['account_type', 'kyc_status', 'kyb_status', 'can_buy', 'can_sell']",
+			)
+		] = {
 			"account_type": "Business",
 			"kyc_status": None,
 			"kyb_status": "Pending",
@@ -196,12 +208,14 @@ class GetSnapshotTests(unittest.TestCase):
 		_DB[("get_value", "User", "seller@x.com", "tradehub_tenant")] = "STORE-A"
 
 		# Active subscription
-		_DB[(
-			"get_value",
-			"Store Subscription",
-			"{'store': 'STORE-A', 'status': ['in', ['trial', 'active']]}",
-			"name",
-		)] = "STSUB-001"
+		_DB[
+			(
+				"get_value",
+				"Store Subscription",
+				"{'store': 'STORE-A', 'status': ['in', ['trial', 'active']]}",
+				"name",
+			)
+		] = "STSUB-001"
 
 		# Subscription doc mock
 		sub_doc = SimpleNamespace(
@@ -226,8 +240,14 @@ class GetSnapshotTests(unittest.TestCase):
 		_DB[("doc", "Store Subscription", "STSUB-001")] = sub_doc
 
 		# User Profile (boş ama get_value beklediği için)
-		_DB[("get_value", "User Profile", "{'user': 'seller@x.com'}",
-			"['account_type', 'kyc_status', 'kyb_status', 'can_buy', 'can_sell']")] = {}
+		_DB[
+			(
+				"get_value",
+				"User Profile",
+				"{'user': 'seller@x.com'}",
+				"['account_type', 'kyc_status', 'kyb_status', 'can_buy', 'can_sell']",
+			)
+		] = {}
 
 		result = snap.get_snapshot()
 		self.assertTrue(result["is_seller"])
@@ -249,12 +269,14 @@ class GetSnapshotTests(unittest.TestCase):
 		sys.modules["frappe"].session.user = "seller@x.com"
 		_DB[("roles", "seller@x.com")] = ["Marketplace Seller"]
 		_DB[("get_value", "User", "seller@x.com", "tradehub_tenant")] = "STORE-A"
-		_DB[(
-			"get_value",
-			"Store Subscription",
-			"{'store': 'STORE-A', 'status': ['in', ['trial', 'active']]}",
-			"name",
-		)] = "STSUB-001"
+		_DB[
+			(
+				"get_value",
+				"Store Subscription",
+				"{'store': 'STORE-A', 'status': ['in', ['trial', 'active']]}",
+				"name",
+			)
+		] = "STSUB-001"
 
 		sub_doc = SimpleNamespace(
 			name="STSUB-001",
@@ -269,8 +291,14 @@ class GetSnapshotTests(unittest.TestCase):
 		}
 		sub_doc.get_effective_quota_limits = lambda: {"quota.max_co_owners": 1}
 		_DB[("doc", "Store Subscription", "STSUB-001")] = sub_doc
-		_DB[("get_value", "User Profile", "{'user': 'seller@x.com'}",
-			"['account_type', 'kyc_status', 'kyb_status', 'can_buy', 'can_sell']")] = {}
+		_DB[
+			(
+				"get_value",
+				"User Profile",
+				"{'user': 'seller@x.com'}",
+				"['account_type', 'kyc_status', 'kyb_status', 'can_buy', 'can_sell']",
+			)
+		] = {}
 
 		result = snap.get_snapshot()
 		self.assertNotIn("feature.role.profile.seller_co_owner", result["features"])

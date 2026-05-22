@@ -298,7 +298,12 @@ doc_events = {
 	},
 	# Listing Review pipeline (Faz 1+2+3) — ürün bazlı yorum.
 	# Controller içinde de tetikleme yapılıyor; bu hook'lar savunma katmanı.
+	# Tenant isolation hook'ları (before_insert + validate) version-15'ten,
+	# review pipeline'ı HEAD'den — ikisi birlikte tek dict altında (Python duplicate
+	# dict key'lerinde ikinci birinciyi sessizce overwrite eder = pipeline kaybolur).
 	"Listing Review": {
+		"before_insert": "tradehub_core.utils.tenant.enforce_seller_isolation_on_insert",
+		"validate": "tradehub_core.utils.tenant.validate_seller_isolation_on_save",
 		"after_insert": [
 			"tradehub_core.api.review.on_review_after_insert",
 			"tradehub_core.api.risk.compute_and_apply_risk_score",
@@ -318,10 +323,14 @@ doc_events = {
 	},
 	# Faz 3: helpful/abuse → reviewer reputation güncellemesi
 	"Review Helpful Vote": {
+		"before_insert": "tradehub_core.utils.tenant.enforce_seller_isolation_on_insert",
+		"validate": "tradehub_core.utils.tenant.validate_seller_isolation_on_save",
 		"after_insert": "tradehub_core.api.reputation.recompute_on_helpful_vote",
 		"on_trash": "tradehub_core.api.reputation.recompute_on_helpful_vote",
 	},
 	"Review Abuse Report": {
+		"before_insert": "tradehub_core.utils.tenant.enforce_seller_isolation_on_insert",
+		"validate": "tradehub_core.utils.tenant.validate_seller_isolation_on_save",
 		"after_insert": "tradehub_core.api.reputation.recompute_on_abuse_report",
 	},
 	# Admin Seller Profile aktiflesince helpdesk team + agent sync +
@@ -435,18 +444,9 @@ doc_events = {
 		"before_insert": "tradehub_core.utils.tenant.enforce_seller_isolation_on_insert",
 		"validate": "tradehub_core.utils.tenant.validate_seller_isolation_on_save",
 	},
-	"Listing Review": {
-		"before_insert": "tradehub_core.utils.tenant.enforce_seller_isolation_on_insert",
-		"validate": "tradehub_core.utils.tenant.validate_seller_isolation_on_save",
-	},
-	"Review Helpful Vote": {
-		"before_insert": "tradehub_core.utils.tenant.enforce_seller_isolation_on_insert",
-		"validate": "tradehub_core.utils.tenant.validate_seller_isolation_on_save",
-	},
-	"Review Abuse Report": {
-		"before_insert": "tradehub_core.utils.tenant.enforce_seller_isolation_on_insert",
-		"validate": "tradehub_core.utils.tenant.validate_seller_isolation_on_save",
-	},
+	# Listing Review / Review Helpful Vote / Review Abuse Report — tenant isolation
+	# hook'ları yukarıdaki review pipeline tanımlarına merge edildi (duplicate dict
+	# key'leri Python'da overwrite yapardı).
 	# -------------------------------------------------------------------------
 	# FAZ 1.2 — Entitlement cache invalidation
 	# Plan veya Store Subscription değişikliğinde ilgili store'ların

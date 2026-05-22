@@ -144,9 +144,7 @@ class UserInsertTests(unittest.TestCase):
 
 	def test_owner_user_writes_owner_and_member_tuples(self):
 		"""Owner = is_owner=1 → owner + member tuple'ları."""
-		doc = _make_doc(
-			"User", "mehmet@anatolian.com", tradehub_tenant="STORE-A"
-		)
+		doc = _make_doc("User", "mehmet@anatolian.com", tradehub_tenant="STORE-A")
 		_DB[("get_value", "User", "mehmet@anatolian.com", "tradehub_is_owner")] = 1
 		_DB[("get_value", "User", "mehmet@anatolian.com", "role_profile_name")] = "Seller Full Access"
 
@@ -188,7 +186,8 @@ class UserInsertTests(unittest.TestCase):
 	def test_buyer_approver_l2_writes_both_l1_and_l2(self):
 		"""Buyer Approver L2 hem can_approve_l1 hem can_approve_l2 (kümülatif)."""
 		doc = _make_doc(
-			"User", "demet@acme.com",
+			"User",
+			"demet@acme.com",
 			tradehub_parent_organization="ACME-INC",
 		)
 		_ROLES["demet@acme.com"] = ["Buyer Approver L2"]
@@ -202,7 +201,8 @@ class UserInsertTests(unittest.TestCase):
 	def test_buyer_approver_l1_only_writes_l1(self):
 		"""Buyer Approver L1 sadece L1 — L2 tuple yazılmaz."""
 		doc = _make_doc(
-			"User", "can@acme.com",
+			"User",
+			"can@acme.com",
 			tradehub_parent_organization="ACME-INC",
 		)
 		_ROLES["can@acme.com"] = ["Buyer Approver L1"]
@@ -215,7 +215,8 @@ class UserInsertTests(unittest.TestCase):
 
 	def test_buyer_finance_writes_finance_tuple(self):
 		doc = _make_doc(
-			"User", "fin@acme.com",
+			"User",
+			"fin@acme.com",
 			tradehub_parent_organization="ACME-INC",
 		)
 		_ROLES["fin@acme.com"] = ["Buyer Finance"]
@@ -227,7 +228,8 @@ class UserInsertTests(unittest.TestCase):
 
 	def test_buyer_viewer_writes_viewer_tuple(self):
 		doc = _make_doc(
-			"User", "viewer@acme.com",
+			"User",
+			"viewer@acme.com",
 			tradehub_parent_organization="ACME-INC",
 		)
 		_ROLES["viewer@acme.com"] = ["Buyer Viewer"]
@@ -323,9 +325,7 @@ class OrganizationTests(unittest.TestCase):
 
 	def test_org_without_parent_no_hierarchy(self):
 		"""Root org → hierarchy tuple yok."""
-		doc = _make_doc(
-			"CRM Organization", "acme-root", tradehub_parent_org=None, tradehub_org_admin=None
-		)
+		doc = _make_doc("CRM Organization", "acme-root", tradehub_parent_org=None, tradehub_org_admin=None)
 		tuple_sync.on_organization_insert(doc)
 		# Boş tuples (admin yok, parent yok)
 		self.assertEqual(len(_ENQUEUED), 0)
@@ -379,9 +379,7 @@ class OrderTests(unittest.TestCase):
 
 	def test_order_administrator_owner_excluded(self):
 		"""Administrator tarafından oluşturulan order'da requisitioner skip."""
-		doc = _make_doc(
-			"Order", "ORD-001", owner="Administrator", seller_profile="STORE-A"
-		)
+		doc = _make_doc("Order", "ORD-001", owner="Administrator", seller_profile="STORE-A")
 		tuple_sync.on_order_insert(doc)
 
 		tuples = _ENQUEUED[0]["tuples"]

@@ -54,9 +54,7 @@ def expire_trial_subscriptions() -> dict:
 			finally:
 				frappe.flags.ignore_permissions = prev_flag
 			canceled.append(sub.name)
-			frappe.logger().info(
-				f"Trial expired: {sub.name} (store={sub.store}, trial_end={sub.trial_end})"
-			)
+			frappe.logger().info(f"Trial expired: {sub.name} (store={sub.store}, trial_end={sub.trial_end})")
 		except Exception as exc:  # noqa: BLE001 — bir sub'un fail'i diğerlerini durdurmasın
 			frappe.log_error(
 				f"Trial expire fail: {sub.name}: {exc}",

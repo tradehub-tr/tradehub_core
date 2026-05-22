@@ -34,9 +34,7 @@ class Region(Document):
 		code = self.region_code.strip().upper()
 		if not re.match(r"^[A-Z0-9_]+$", code):
 			frappe.throw(
-				_(
-					"Region Code yalnızca büyük harf, rakam ve alt çizgi içerebilir (örn. TR, EU, MENA)."
-				)
+				_("Region Code yalnızca büyük harf, rakam ve alt çizgi içerebilir (örn. TR, EU, MENA).")
 			)
 		self.region_code = code
 
@@ -49,9 +47,9 @@ class Region(Document):
 		invalid = [c for c in codes if not _COUNTRY_CODE_RE.match(c)]
 		if invalid:
 			frappe.throw(
-				_("Geçersiz ülke kodu/kodları: {0}. ISO 3166-1 alpha-2 formatı kullanın (örn. TR, DE, SA).").format(
-					", ".join(invalid)
-				)
+				_(
+					"Geçersiz ülke kodu/kodları: {0}. ISO 3166-1 alpha-2 formatı kullanın (örn. TR, DE, SA)."
+				).format(", ".join(invalid))
 			)
 		# Normalize edilmiş halde yaz
 		self.countries = ",".join(codes)

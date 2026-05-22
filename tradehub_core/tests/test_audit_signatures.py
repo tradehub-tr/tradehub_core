@@ -30,20 +30,47 @@ _OVERRIDE_CALLS: list[dict] = []
 
 # Gerçek log_decision imzasının kabul ettiği kwargs (audit/log.py)
 _ALLOWED_DECISION_KWARGS = {
-	"actor", "action", "decision", "rule_id", "layer",
-	"object_doctype", "object_name", "tenant", "region", "plan_code",
-	"severity", "context", "actor_role", "request_id", "ip_address", "user_agent",
+	"actor",
+	"action",
+	"decision",
+	"rule_id",
+	"layer",
+	"object_doctype",
+	"object_name",
+	"tenant",
+	"region",
+	"plan_code",
+	"severity",
+	"context",
+	"actor_role",
+	"request_id",
+	"ip_address",
+	"user_agent",
 }
 
 _ALLOWED_ROLE_CHANGE_KWARGS = {
-	"target_user", "change_type", "changed_by", "tenant",
-	"before_roles", "after_roles", "before_role_profiles", "after_role_profiles",
-	"reason", "is_temporary", "auto_revert_at",
+	"target_user",
+	"change_type",
+	"changed_by",
+	"tenant",
+	"before_roles",
+	"after_roles",
+	"before_role_profiles",
+	"after_role_profiles",
+	"reason",
+	"is_temporary",
+	"auto_revert_at",
 }
 
 _ALLOWED_OVERRIDE_KWARGS = {
-	"target_object", "override_action", "justification",
-	"admin_user", "original_decision", "final_decision", "severity", "approved_by",
+	"target_object",
+	"override_action",
+	"justification",
+	"admin_user",
+	"original_decision",
+	"final_decision",
+	"severity",
+	"approved_by",
 }
 
 
@@ -98,8 +125,12 @@ def _install_frappe_stub() -> None:
 	)
 	frappe.get_all = lambda *a, **kw: []
 	frappe.get_doc = lambda *a, **kw: SimpleNamespace(name="DOC", doctype="X")
-	frappe.new_doc = lambda dt: SimpleNamespace(doctype=dt, save=lambda *a, **kw: None, insert=lambda *a, **kw: None)
-	frappe.throw = lambda msg, exc=Exception: (_ for _ in ()).throw(exc(msg) if isinstance(exc, type) else Exception(msg))
+	frappe.new_doc = lambda dt: SimpleNamespace(
+		doctype=dt, save=lambda *a, **kw: None, insert=lambda *a, **kw: None
+	)
+	frappe.throw = lambda msg, exc=Exception: (_ for _ in ()).throw(
+		exc(msg) if isinstance(exc, type) else Exception(msg)
+	)
 	frappe.log_error = lambda *a, **kw: None
 	frappe.logger = lambda: SimpleNamespace(info=lambda *a, **kw: None)
 	frappe._ = lambda s: s
@@ -144,6 +175,7 @@ class OwnerTransferAuditTests(unittest.TestCase):
 	def setUp(self):
 		_reset()
 		from tradehub_core.services import owner_transfer
+
 		self.mod = owner_transfer
 
 	def test_audit_signature_ok(self):
@@ -183,6 +215,7 @@ class DelegationAuditTests(unittest.TestCase):
 	def setUp(self):
 		_reset()
 		from tradehub_core.services import delegation_service
+
 		self.mod = delegation_service
 
 	def test_audit_signature_ok(self):
@@ -215,6 +248,7 @@ class AnomalyActionsAuditTests(unittest.TestCase):
 	def setUp(self):
 		_reset()
 		from tradehub_core.services import anomaly_actions
+
 		self.mod = anomaly_actions
 
 	def test_log_role_change_signature_ok(self):
@@ -231,6 +265,7 @@ class SimulatorAuditTests(unittest.TestCase):
 	def setUp(self):
 		_reset()
 		from tradehub_core.services import authorization_simulator
+
 		self.mod = authorization_simulator
 
 	def test_write_audit_signature_ok(self):
@@ -262,6 +297,7 @@ class ApprovalWorkflowAuditTests(unittest.TestCase):
 	def setUp(self):
 		_reset()
 		from tradehub_core.services import approval_workflow
+
 		self.mod = approval_workflow
 
 	def test_log_admin_override_signature_ok(self):
@@ -287,6 +323,7 @@ class OrderApprovalHooksAuditTests(unittest.TestCase):
 	def setUp(self):
 		_reset()
 		from tradehub_core.services import order_approval_hooks
+
 		self.mod = order_approval_hooks
 
 	def test_admin_bypass_logged(self):
@@ -340,8 +377,15 @@ class SignatureCompatibilityTests(unittest.TestCase):
 		sig = inspect.signature(mod.log_decision)
 		params = set(sig.parameters.keys())
 		required_for_hotfixes = {
-			"actor", "action", "decision", "rule_id", "layer",
-			"object_doctype", "object_name", "severity", "context",
+			"actor",
+			"action",
+			"decision",
+			"rule_id",
+			"layer",
+			"object_doctype",
+			"object_name",
+			"severity",
+			"context",
 		}
 		missing = required_for_hotfixes - params
 		self.assertFalse(missing, f"log_decision eksik kwargs: {missing}")

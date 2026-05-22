@@ -127,9 +127,7 @@ def validate_budget(
 	if projected > budget:
 		return BudgetDecision(
 			decision="DENY",
-			reason=_("Bütçe aşıldı: mevcut {0} + yeni {1} > limit {2}").format(
-				current, amount, budget
-			),
+			reason=_("Bütçe aşıldı: mevcut {0} + yeni {1} > limit {2}").format(current, amount, budget),
 			cost_center=cost_center,
 			current_spend=current,
 			budget=budget,
@@ -161,15 +159,12 @@ def validate_order_cost_center(doc, method=None) -> None:
 	tenant = _resolve_buyer_tenant(doc)
 
 	# Tenant'ın hiç cost center'ı yok → atla (geçiş aşaması)
-	has_any_cc = bool(
-		frappe.db.get_value("Cost Center", {"tenant": tenant, "is_active": 1}, "name")
-	)
+	has_any_cc = bool(frappe.db.get_value("Cost Center", {"tenant": tenant, "is_active": 1}, "name"))
 	if not has_any_cc:
 		return
 
 	if not cost_center:
-		_audit(user, doc, "DENY", "no_cost_center", severity="LOW",
-			rule_id="procurement.no_cost_center")
+		_audit(user, doc, "DENY", "no_cost_center", severity="LOW", rule_id="procurement.no_cost_center")
 		frappe.throw(
 			_("Bu tenant için cost center zorunlu — order'a cost_center seçin"),
 			exc=frappe.ValidationError,
@@ -180,12 +175,17 @@ def validate_order_cost_center(doc, method=None) -> None:
 
 	if decision.decision == "DENY":
 		severity = "HIGH" if "Bütçe" in decision.reason else "MEDIUM"
-		_audit(user, doc, "DENY", decision.reason, severity=severity,
-			rule_id="procurement.over_budget" if severity == "HIGH" else "procurement.cost_center_invalid")
+		_audit(
+			user,
+			doc,
+			"DENY",
+			decision.reason,
+			severity=severity,
+			rule_id="procurement.over_budget" if severity == "HIGH" else "procurement.cost_center_invalid",
+		)
 		frappe.throw(decision.reason, exc=frappe.PermissionError)
 	else:
-		_audit(user, doc, "ALLOW", decision.reason, severity="LOW",
-			rule_id="procurement.cost_center_ok")
+		_audit(user, doc, "ALLOW", decision.reason, severity="LOW", rule_id="procurement.cost_center_ok")
 
 
 # ---------------------------------------------------------------------------

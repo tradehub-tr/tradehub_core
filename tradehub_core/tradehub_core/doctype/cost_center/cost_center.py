@@ -19,9 +19,7 @@ class CostCenter(NestedSet):
 	def _validate_tenant_match_with_parent(self) -> None:
 		if not self.parent_cost_center:
 			return
-		parent_tenant = frappe.db.get_value(
-			"Cost Center", self.parent_cost_center, "tenant"
-		)
+		parent_tenant = frappe.db.get_value("Cost Center", self.parent_cost_center, "tenant")
 		if parent_tenant and parent_tenant != self.tenant:
 			frappe.throw(
 				_("Parent cost center farklı bir tenant'a ait: {0}").format(parent_tenant),
@@ -31,9 +29,7 @@ class CostCenter(NestedSet):
 	def _validate_currency_match_with_parent(self) -> None:
 		if not self.parent_cost_center or not self.currency:
 			return
-		parent_currency = frappe.db.get_value(
-			"Cost Center", self.parent_cost_center, "currency"
-		)
+		parent_currency = frappe.db.get_value("Cost Center", self.parent_cost_center, "currency")
 		if parent_currency and parent_currency != self.currency:
 			frappe.msgprint(
 				_("Uyarı: parent cost center {0} para biriminde, bu cost center {1}").format(

@@ -70,9 +70,7 @@ def _install_frappe_stub() -> None:
 		ns.doctype = doctype
 		ns.name = name
 		raw = data.get("suppliers", [])
-		ns.suppliers = [
-			SimpleNamespace(**(r if isinstance(r, dict) else r.__dict__)) for r in raw
-		]
+		ns.suppliers = [SimpleNamespace(**(r if isinstance(r, dict) else r.__dict__)) for r in raw]
 		return ns
 
 	frappe.db = SimpleNamespace(
@@ -93,12 +91,16 @@ def _install_frappe_stub() -> None:
 	if not hasattr(frappe, "_"):
 		frappe._ = lambda s: s
 	if not hasattr(frappe, "PermissionError"):
+
 		class PermissionError(Exception):
 			pass
+
 		frappe.PermissionError = PermissionError
 	if not hasattr(frappe, "ValidationError"):
+
 		class ValidationError(Exception):
 			pass
+
 		frappe.ValidationError = ValidationError
 
 	def _throw(msg, exc=Exception):
@@ -111,15 +113,17 @@ def _install_frappe_stub() -> None:
 	frappe.logger = lambda: SimpleNamespace(info=lambda *a, **kw: None)
 
 	audit_mod = types.ModuleType("tradehub_core.audit")
-	audit_mod.log_decision = lambda **kw: (_AUDIT_LOGS.append(dict(kw)) or "ADL")
+	audit_mod.log_decision = lambda **kw: _AUDIT_LOGS.append(dict(kw)) or "ADL"
 	audit_mod.log_role_change = lambda **kw: "RCL"
 	sys.modules["tradehub_core.audit"] = audit_mod
 
 	if not hasattr(frappe, "whitelist"):
+
 		def _w(*a, **kw):
 			if a and callable(a[0]):
 				return a[0]
 			return lambda fn: fn
+
 		frappe.whitelist = _w
 
 
@@ -188,42 +192,98 @@ class SupplierWhitelistTests(unittest.TestCase):
 		self.assertEqual(res.reason, "no_whitelist")
 
 	def test_supplier_not_in_list_denies(self):
-		_seed_whitelist("ACME", [{"supplier": "SUPP-A", "min_order_amount": 0, "max_order_amount": 0, "allowed_categories": ""}])
+		_seed_whitelist(
+			"ACME",
+			[{"supplier": "SUPP-A", "min_order_amount": 0, "max_order_amount": 0, "allowed_categories": ""}],
+		)
 		res = sw_service.is_supplier_approved("ACME", "SUPP-B", amount=1000)
 		self.assertEqual(res.decision, "DENY")
 		self.assertIn("onaylı listede değil", res.reason)
 
 	def test_max_amount_exceeded_denies(self):
-		_seed_whitelist("ACME", [{"supplier": "SUPP-A", "min_order_amount": 0, "max_order_amount": 500, "allowed_categories": ""}])
+		_seed_whitelist(
+			"ACME",
+			[
+				{
+					"supplier": "SUPP-A",
+					"min_order_amount": 0,
+					"max_order_amount": 500,
+					"allowed_categories": "",
+				}
+			],
+		)
 		res = sw_service.is_supplier_approved("ACME", "SUPP-A", amount=1000)
 		self.assertEqual(res.decision, "DENY")
 		self.assertIn("maksimumu", res.reason)
 
 	def test_min_amount_below_denies(self):
-		_seed_whitelist("ACME", [{"supplier": "SUPP-A", "min_order_amount": 1000, "max_order_amount": 0, "allowed_categories": ""}])
+		_seed_whitelist(
+			"ACME",
+			[
+				{
+					"supplier": "SUPP-A",
+					"min_order_amount": 1000,
+					"max_order_amount": 0,
+					"allowed_categories": "",
+				}
+			],
+		)
 		res = sw_service.is_supplier_approved("ACME", "SUPP-A", amount=500)
 		self.assertEqual(res.decision, "DENY")
 		self.assertIn("minimumun", res.reason)
 
 	def test_category_filter_denies(self):
-		_seed_whitelist("ACME", [{"supplier": "SUPP-A", "min_order_amount": 0, "max_order_amount": 0, "allowed_categories": "office,it"}])
+		_seed_whitelist(
+			"ACME",
+			[
+				{
+					"supplier": "SUPP-A",
+					"min_order_amount": 0,
+					"max_order_amount": 0,
+					"allowed_categories": "office,it",
+				}
+			],
+		)
 		res = sw_service.is_supplier_approved("ACME", "SUPP-A", amount=500, categories=["furniture"])
 		self.assertEqual(res.decision, "DENY")
 		self.assertIn("kategorileri", res.reason)
 
 	def test_category_match_allows(self):
-		_seed_whitelist("ACME", [{"supplier": "SUPP-A", "min_order_amount": 0, "max_order_amount": 0, "allowed_categories": "office,it"}])
+		_seed_whitelist(
+			"ACME",
+			[
+				{
+					"supplier": "SUPP-A",
+					"min_order_amount": 0,
+					"max_order_amount": 0,
+					"allowed_categories": "office,it",
+				}
+			],
+		)
 		res = sw_service.is_supplier_approved("ACME", "SUPP-A", amount=500, categories=["office"])
 		self.assertEqual(res.decision, "ALLOW")
 
 	def test_happy_path(self):
-		_seed_whitelist("ACME", [{"supplier": "SUPP-A", "min_order_amount": 100, "max_order_amount": 5000, "allowed_categories": ""}])
+		_seed_whitelist(
+			"ACME",
+			[
+				{
+					"supplier": "SUPP-A",
+					"min_order_amount": 100,
+					"max_order_amount": 5000,
+					"allowed_categories": "",
+				}
+			],
+		)
 		res = sw_service.is_supplier_approved("ACME", "SUPP-A", amount=2500)
 		self.assertEqual(res.decision, "ALLOW")
 		self.assertEqual(res.reason, "approved")
 
 	def test_cache_invalidation(self):
-		_seed_whitelist("ACME", [{"supplier": "SUPP-A", "min_order_amount": 0, "max_order_amount": 0, "allowed_categories": ""}])
+		_seed_whitelist(
+			"ACME",
+			[{"supplier": "SUPP-A", "min_order_amount": 0, "max_order_amount": 0, "allowed_categories": ""}],
+		)
 		# Populate cache
 		sw_service.get_default_list("ACME")
 		self.assertIn("supplier_whitelist:ACME", _CACHE)
@@ -259,9 +319,11 @@ class CostCenterTests(unittest.TestCase):
 		# cost_center service: frappe.db.get_value("Cost Center", name, ["is_active", ...], as_dict=True)
 		# Stub'umuz as_dict desteklemiyor — manuel patch
 		import frappe as _f
+
 		_f.db.get_value = lambda dt, name, fl=None, **kw: (
 			SimpleNamespace(is_active=0, monthly_budget=1000, currency="EUR", budget_period="monthly")
-			if dt == "Cost Center" else None
+			if dt == "Cost Center"
+			else None
 		)
 
 		res = cc_service.validate_budget("CC-1", amount=100)
@@ -270,9 +332,11 @@ class CostCenterTests(unittest.TestCase):
 
 	def test_no_budget_limit_allows(self):
 		import frappe as _f
+
 		_f.db.get_value = lambda dt, name, fl=None, **kw: (
 			SimpleNamespace(is_active=1, monthly_budget=0, currency="EUR", budget_period="monthly")
-			if dt == "Cost Center" else None
+			if dt == "Cost Center"
+			else None
 		)
 
 		res = cc_service.validate_budget("CC-2", amount=100)
@@ -281,9 +345,11 @@ class CostCenterTests(unittest.TestCase):
 
 	def test_budget_exceeded_denies(self):
 		import frappe as _f
+
 		_f.db.get_value = lambda dt, name, fl=None, **kw: (
 			SimpleNamespace(is_active=1, monthly_budget=1000, currency="EUR", budget_period="monthly")
-			if dt == "Cost Center" else None
+			if dt == "Cost Center"
+			else None
 		)
 		_SPEND["CC-3"] = 800
 
@@ -294,9 +360,11 @@ class CostCenterTests(unittest.TestCase):
 
 	def test_within_budget_allows(self):
 		import frappe as _f
+
 		_f.db.get_value = lambda dt, name, fl=None, **kw: (
 			SimpleNamespace(is_active=1, monthly_budget=1000, currency="EUR", budget_period="monthly")
-			if dt == "Cost Center" else None
+			if dt == "Cost Center"
+			else None
 		)
 		_SPEND["CC-4"] = 200
 

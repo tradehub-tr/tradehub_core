@@ -206,13 +206,15 @@ def get_pii_fieldnames(doctype: str, min_permlevel: int = 1) -> list[str]:
 	for ps in property_setters:
 		# ps dict ya da Frappe Document — hem ikisi de _get yardımıyla erişilebilir
 		value = ps.get("value") if isinstance(ps, dict) else getattr(ps, "value", None)
-		field_name = (
-			ps.get("field_name") if isinstance(ps, dict) else getattr(ps, "field_name", None)
-		)
+		field_name = ps.get("field_name") if isinstance(ps, dict) else getattr(ps, "field_name", None)
 		if not value or not field_name:
 			continue
 		try:
-			if int(value) >= min_permlevel and field_name not in docfields and field_name not in custom_fields:
+			if (
+				int(value) >= min_permlevel
+				and field_name not in docfields
+				and field_name not in custom_fields
+			):
 				docfields.append(field_name)
 		except (ValueError, TypeError):
 			continue

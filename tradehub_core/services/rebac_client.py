@@ -175,9 +175,7 @@ def _call(method: str, endpoint: str, payload: dict | None = None) -> dict:
 	    ReBACUnavailable: Circuit open veya HTTP fail
 	"""
 	if not _REBAC_STORE_ID:
-		raise ReBACConfigError(
-			"REBAC_STORE_ID env değişkeni boş. 'make rebac-model-deploy' çalıştır."
-		)
+		raise ReBACConfigError("REBAC_STORE_ID env değişkeni boş. 'make rebac-model-deploy' çalıştır.")
 
 	if _circuit_breaker.is_open():
 		raise ReBACUnavailable("ReBAC sidecar circuit breaker OPEN (fail-closed)")
@@ -206,9 +204,7 @@ def _call(method: str, endpoint: str, payload: dict | None = None) -> dict:
 			if not resp.ok:
 				# 4xx — retry yok, hemen exception
 				_circuit_breaker.record_failure()
-				raise ReBACError(
-					f"ReBAC sidecar {resp.status_code}: {resp.text[:200]}"
-				)
+				raise ReBACError(f"ReBAC sidecar {resp.status_code}: {resp.text[:200]}")
 
 			_circuit_breaker.record_success()
 			return resp.json() if resp.content else {}
@@ -319,7 +315,7 @@ def list_objects(
 		raw_objects = result.get("objects", [])
 		# Type prefix soy
 		prefix = f"{type}:"
-		return [o[len(prefix):] if o.startswith(prefix) else o for o in raw_objects]
+		return [o[len(prefix) :] if o.startswith(prefix) else o for o in raw_objects]
 
 	except (ReBACUnavailable, ReBACError) as e:
 		frappe.log_error(f"ReBAC list_objects failed: {e}", "rebac_client.list_objects")
@@ -393,8 +389,7 @@ def delete_tuples(tuples: list[tuple[str, str, str]]) -> bool:
 	payload = {
 		"deletes": {
 			"tuple_keys": [
-				{"user": user, "relation": relation, "object": obj}
-				for (user, relation, obj) in tuples
+				{"user": user, "relation": relation, "object": obj} for (user, relation, obj) in tuples
 			]
 		}
 	}

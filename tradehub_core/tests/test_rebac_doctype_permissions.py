@@ -195,9 +195,7 @@ class OrderApprovalScopeTests(unittest.TestCase):
 		_set_roles("can@acme.com", ["Buyer Approver L1"])
 		_set_user_org("can@acme.com", "acme-istanbul")
 		doc = SimpleNamespace(organization="other-org", requisitioner="can@acme.com")
-		self.assertTrue(
-			permissions.order_approval_has_permission(doc, "read", "can@acme.com")
-		)
+		self.assertTrue(permissions.order_approval_has_permission(doc, "read", "can@acme.com"))
 
 	def test_has_permission_ancestor_org_allowed(self):
 		_set_roles("can@acme.com", ["Buyer Approver L1"])
@@ -205,17 +203,13 @@ class OrderApprovalScopeTests(unittest.TestCase):
 		_link_org_parent("acme-pazarlama", "acme-istanbul")
 		_link_org_parent("acme-istanbul", "acme-root")
 		doc = SimpleNamespace(organization="acme-root", requisitioner="other@x.com")
-		self.assertTrue(
-			permissions.order_approval_has_permission(doc, "read", "can@acme.com")
-		)
+		self.assertTrue(permissions.order_approval_has_permission(doc, "read", "can@acme.com"))
 
 	def test_has_permission_cross_org_denied(self):
 		_set_roles("can@acme.com", ["Buyer Approver L1"])
 		_set_user_org("can@acme.com", "acme-istanbul")
 		doc = SimpleNamespace(organization="globex-root", requisitioner="other@x.com")
-		self.assertFalse(
-			permissions.order_approval_has_permission(doc, "read", "can@acme.com")
-		)
+		self.assertFalse(permissions.order_approval_has_permission(doc, "read", "can@acme.com"))
 
 
 # ---------------------------------------------------------------------------
@@ -240,9 +234,7 @@ class ApprovalRuleScopeTests(unittest.TestCase):
 	def test_user_without_org_blocked(self):
 		_set_roles("loner@x.com", ["Buyer Approver L1"])
 		_set_user_org("loner@x.com", None)
-		self.assertEqual(
-			permissions.approval_rule_query_conditions("loner@x.com"), "1=0"
-		)
+		self.assertEqual(permissions.approval_rule_query_conditions("loner@x.com"), "1=0")
 
 	def test_has_permission_org_match(self):
 		_set_roles("u@acme.com", ["Buyer Approver L2"])
@@ -300,16 +292,12 @@ class OwnerTransferRequestScopeTests(unittest.TestCase):
 
 	def test_admin_full_access(self):
 		_set_roles("admin@x.com", ["System Manager"])
-		self.assertEqual(
-			permissions.owner_transfer_request_query_conditions("admin@x.com"), ""
-		)
+		self.assertEqual(permissions.owner_transfer_request_query_conditions("admin@x.com"), "")
 
 	def test_owner_sees_own_tenant(self):
 		_set_roles("mehmet@anatolian.com", ["Seller Owner"])
 		_set_user_tenant("mehmet@anatolian.com", "STORE-A")
-		clause = permissions.owner_transfer_request_query_conditions(
-			"mehmet@anatolian.com"
-		)
+		clause = permissions.owner_transfer_request_query_conditions("mehmet@anatolian.com")
 		self.assertIn("`current_owner` = 'mehmet@anatolian.com'", clause)
 		self.assertIn("`proposed_owner` = 'mehmet@anatolian.com'", clause)
 		self.assertIn("`tenant` = 'STORE-A'", clause)
@@ -321,20 +309,12 @@ class OwnerTransferRequestScopeTests(unittest.TestCase):
 			proposed_owner="co@anatolian.com",
 			tenant="STORE-A",
 		)
-		self.assertTrue(
-			permissions.owner_transfer_request_has_permission(
-				doc, "read", "co@anatolian.com"
-			)
-		)
+		self.assertTrue(permissions.owner_transfer_request_has_permission(doc, "read", "co@anatolian.com"))
 
 	def test_unrelated_user_denied(self):
 		_set_roles("other@x.com", ["Buyer"])
-		doc = SimpleNamespace(
-			current_owner="a@x.com", proposed_owner="b@x.com", tenant="STORE-A"
-		)
-		self.assertFalse(
-			permissions.owner_transfer_request_has_permission(doc, "read", "other@x.com")
-		)
+		doc = SimpleNamespace(current_owner="a@x.com", proposed_owner="b@x.com", tenant="STORE-A")
+		self.assertFalse(permissions.owner_transfer_request_has_permission(doc, "read", "other@x.com"))
 
 
 # ---------------------------------------------------------------------------
@@ -348,21 +328,13 @@ class RoleDelegationScopeTests(unittest.TestCase):
 
 	def test_delegate_can_see(self):
 		_set_roles("delegate@x.com", ["Seller Staff"])
-		doc = SimpleNamespace(
-			delegator="boss@x.com", delegate="delegate@x.com", tenant="STORE-A"
-		)
-		self.assertTrue(
-			permissions.role_delegation_has_permission(doc, "read", "delegate@x.com")
-		)
+		doc = SimpleNamespace(delegator="boss@x.com", delegate="delegate@x.com", tenant="STORE-A")
+		self.assertTrue(permissions.role_delegation_has_permission(doc, "read", "delegate@x.com"))
 
 	def test_unrelated_user_denied(self):
 		_set_roles("other@x.com", ["Buyer"])
-		doc = SimpleNamespace(
-			delegator="a@x.com", delegate="b@x.com", tenant="STORE-A"
-		)
-		self.assertFalse(
-			permissions.role_delegation_has_permission(doc, "read", "other@x.com")
-		)
+		doc = SimpleNamespace(delegator="a@x.com", delegate="b@x.com", tenant="STORE-A")
+		self.assertFalse(permissions.role_delegation_has_permission(doc, "read", "other@x.com"))
 
 	def test_query_includes_self_and_tenant(self):
 		_set_roles("u@anatolian.com", ["Seller Staff"])
@@ -384,16 +356,12 @@ class AuthorizationDecisionLogScopeTests(unittest.TestCase):
 
 	def test_compliance_officer_full_access(self):
 		_set_roles("dpo@x.com", ["Compliance Officer"])
-		self.assertEqual(
-			permissions.authorization_decision_log_query_conditions("dpo@x.com"), ""
-		)
+		self.assertEqual(permissions.authorization_decision_log_query_conditions("dpo@x.com"), "")
 
 	def test_seller_sees_own_tenant_logs(self):
 		_set_roles("seller@anatolian.com", ["Seller Owner"])
 		_set_user_tenant("seller@anatolian.com", "STORE-A")
-		clause = permissions.authorization_decision_log_query_conditions(
-			"seller@anatolian.com"
-		)
+		clause = permissions.authorization_decision_log_query_conditions("seller@anatolian.com")
 		self.assertIn("`tenant` = 'STORE-A'", clause)
 		self.assertIn("`actor` = 'seller@anatolian.com'", clause)
 
@@ -401,9 +369,7 @@ class AuthorizationDecisionLogScopeTests(unittest.TestCase):
 		_set_roles("buyer@x.com", ["Buyer"])
 		clause = permissions.authorization_decision_log_query_conditions("buyer@x.com")
 		# Yeni format her zaman parantezli (O5 sonrası clause OR join)
-		self.assertEqual(
-			clause, "(`tabAuthorization Decision Log`.`actor` = 'buyer@x.com')"
-		)
+		self.assertEqual(clause, "(`tabAuthorization Decision Log`.`actor` = 'buyer@x.com')")
 
 	def test_buyer_with_org_sees_org_audit_logs(self):
 		"""O5: Buyer'ın organization'ındaki audit logları (buyer_org) görür."""
@@ -422,11 +388,7 @@ class AuthorizationDecisionLogScopeTests(unittest.TestCase):
 			tenant=None,
 			buyer_org="acme-root",
 		)
-		self.assertTrue(
-			permissions.authorization_decision_log_has_permission(
-				doc, "read", "fin@acme.com"
-			)
-		)
+		self.assertTrue(permissions.authorization_decision_log_has_permission(doc, "read", "fin@acme.com"))
 
 
 # ---------------------------------------------------------------------------
@@ -445,54 +407,38 @@ class PlatformOnlyDoctypeTests(unittest.TestCase):
 			"1=0",
 		)
 		self.assertFalse(
-			permissions.authorization_anomaly_rule_has_permission(
-				SimpleNamespace(), "read", "seller@x.com"
-			)
+			permissions.authorization_anomaly_rule_has_permission(SimpleNamespace(), "read", "seller@x.com")
 		)
 
 	def test_anomaly_rule_compliance_officer_allowed(self):
 		_set_roles("dpo@x.com", ["Compliance Officer"])
-		self.assertEqual(
-			permissions.authorization_anomaly_rule_query_conditions("dpo@x.com"), ""
-		)
+		self.assertEqual(permissions.authorization_anomaly_rule_query_conditions("dpo@x.com"), "")
 		self.assertTrue(
-			permissions.authorization_anomaly_rule_has_permission(
-				SimpleNamespace(), "read", "dpo@x.com"
-			)
+			permissions.authorization_anomaly_rule_has_permission(SimpleNamespace(), "read", "dpo@x.com")
 		)
 
 	def test_permission_override_log_buyer_denied(self):
 		_set_roles("buyer@x.com", ["Buyer Approver L1"])
-		self.assertEqual(
-			permissions.permission_override_log_query_conditions("buyer@x.com"), "1=0"
-		)
+		self.assertEqual(permissions.permission_override_log_query_conditions("buyer@x.com"), "1=0")
 
 	def test_pii_field_policy_seller_denied(self):
 		_set_roles("seller@x.com", ["Seller Owner"])
 		self.assertFalse(
-			permissions.pii_field_policy_has_permission(
-				SimpleNamespace(), "read", "seller@x.com"
-			)
+			permissions.pii_field_policy_has_permission(SimpleNamespace(), "read", "seller@x.com")
 		)
 
 	def test_anomaly_alert_seller_sees_own_tenant(self):
 		_set_roles("seller@anatolian.com", ["Seller Owner"])
 		_set_user_tenant("seller@anatolian.com", "STORE-A")
-		clause = permissions.authorization_anomaly_alert_query_conditions(
-			"seller@anatolian.com"
-		)
+		clause = permissions.authorization_anomaly_alert_query_conditions("seller@anatolian.com")
 		# D10 sonrası clause artık parantezli (OR-list potansiyeli için)
-		self.assertEqual(
-			clause, "(`tabAuthorization Anomaly Alert`.`tenant` = 'STORE-A')"
-		)
+		self.assertEqual(clause, "(`tabAuthorization Anomaly Alert`.`tenant` = 'STORE-A')")
 
 	def test_anomaly_alert_buyer_sees_own_org(self):
 		"""D10: Buyer organization'ındaki anomaly alert'leri görür."""
 		_set_roles("fin@acme.com", ["Buyer Finance"])
 		_set_user_org("fin@acme.com", "acme-root")
-		clause = permissions.authorization_anomaly_alert_query_conditions(
-			"fin@acme.com"
-		)
+		clause = permissions.authorization_anomaly_alert_query_conditions("fin@acme.com")
 		self.assertIn("`buyer_org` IN ('acme-root')", clause)
 
 
@@ -510,47 +456,27 @@ class NewRolesBypassTests(unittest.TestCase):
 	def test_platform_admin_full_bypass_on_audit(self):
 		_set_roles("padmin@x.com", ["Platform Admin"])
 		# Platform Admin _PLATFORM_FULL_ACCESS_ROLES içinde — her şeyi görür
-		self.assertEqual(
-			permissions.authorization_decision_log_query_conditions("padmin@x.com"), ""
-		)
-		self.assertEqual(
-			permissions.permission_override_log_query_conditions("padmin@x.com"), ""
-		)
-		self.assertEqual(
-			permissions.pii_field_policy_query_conditions("padmin@x.com"), ""
-		)
+		self.assertEqual(permissions.authorization_decision_log_query_conditions("padmin@x.com"), "")
+		self.assertEqual(permissions.permission_override_log_query_conditions("padmin@x.com"), "")
+		self.assertEqual(permissions.pii_field_policy_query_conditions("padmin@x.com"), "")
 		self.assertTrue(
-			permissions.authorization_anomaly_rule_has_permission(
-				SimpleNamespace(), "write", "padmin@x.com"
-			)
+			permissions.authorization_anomaly_rule_has_permission(SimpleNamespace(), "write", "padmin@x.com")
 		)
 
 	def test_platform_finance_audit_read_but_no_admin_doctypes(self):
 		_set_roles("pfin@x.com", ["Platform Finance"])
 		# Audit log + Anomaly Alert read OK
-		self.assertEqual(
-			permissions.authorization_decision_log_query_conditions("pfin@x.com"), ""
-		)
-		self.assertEqual(
-			permissions.authorization_anomaly_alert_query_conditions("pfin@x.com"), ""
-		)
+		self.assertEqual(permissions.authorization_decision_log_query_conditions("pfin@x.com"), "")
+		self.assertEqual(permissions.authorization_anomaly_alert_query_conditions("pfin@x.com"), "")
 		# Ama Anomaly Rule / Permission Override / PII Policy yönetim doctype'ları
 		# Platform Finance'a kapalı — sadece audit-read
 		self.assertEqual(
 			permissions.authorization_anomaly_rule_query_conditions("pfin@x.com"),
 			"1=0",
 		)
-		self.assertEqual(
-			permissions.permission_override_log_query_conditions("pfin@x.com"), "1=0"
-		)
-		self.assertEqual(
-			permissions.pii_field_policy_query_conditions("pfin@x.com"), "1=0"
-		)
-		self.assertFalse(
-			permissions.pii_field_policy_has_permission(
-				SimpleNamespace(), "read", "pfin@x.com"
-			)
-		)
+		self.assertEqual(permissions.permission_override_log_query_conditions("pfin@x.com"), "1=0")
+		self.assertEqual(permissions.pii_field_policy_query_conditions("pfin@x.com"), "1=0")
+		self.assertFalse(permissions.pii_field_policy_has_permission(SimpleNamespace(), "read", "pfin@x.com"))
 
 	def test_buyer_finance_scoped_to_org(self):
 		_set_roles("bfin@acme.com", ["Buyer Finance"])
@@ -568,9 +494,7 @@ class NewRolesBypassTests(unittest.TestCase):
 		)
 		# PII Policy de kapalı
 		self.assertFalse(
-			permissions.pii_field_policy_has_permission(
-				SimpleNamespace(), "read", "v@anatolian.com"
-			)
+			permissions.pii_field_policy_has_permission(SimpleNamespace(), "read", "v@anatolian.com")
 		)
 
 	def test_support_agent_no_audit_admin_access(self):
@@ -656,9 +580,7 @@ class LegacyHandlerPlatformBypassTests(unittest.TestCase):
 
 	def test_marketplace_admin_admin_seller_profile_bypass(self):
 		_set_roles("madmin@x.com", ["Marketplace Admin"])
-		self.assertEqual(
-			permissions.admin_seller_profile_query_conditions("madmin@x.com"), ""
-		)
+		self.assertEqual(permissions.admin_seller_profile_query_conditions("madmin@x.com"), "")
 
 	def test_compliance_officer_listing_bypass(self):
 		"""Compliance Officer da platform-full set'inde → tüm listing'leri görür."""

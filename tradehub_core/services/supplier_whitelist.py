@@ -55,12 +55,14 @@ def get_default_list(tenant: str) -> dict | None:
 	for s in doc.suppliers or []:
 		if not getattr(s, "is_active", 1):
 			continue
-		suppliers.append({
-			"supplier": s.supplier,
-			"min_order_amount": float(s.min_order_amount or 0),
-			"max_order_amount": float(s.max_order_amount or 0),
-			"allowed_categories": (s.allowed_categories or "").strip(),
-		})
+		suppliers.append(
+			{
+				"supplier": s.supplier,
+				"min_order_amount": float(s.min_order_amount or 0),
+				"max_order_amount": float(s.max_order_amount or 0),
+				"allowed_categories": (s.allowed_categories or "").strip(),
+			}
+		)
 
 	data = {
 		"name": doc.name,
@@ -106,9 +108,9 @@ def is_supplier_approved(
 	if entry["max_order_amount"] and amount > entry["max_order_amount"]:
 		return WhitelistDecision(
 			decision="DENY",
-			reason=_(
-				"Order tutarı {0} izin verilen maksimumu aşıyor ({1})"
-			).format(amount, entry["max_order_amount"]),
+			reason=_("Order tutarı {0} izin verilen maksimumu aşıyor ({1})").format(
+				amount, entry["max_order_amount"]
+			),
 			matched_list=whitelist["name"],
 			matched_entry=entry,
 		)
@@ -116,9 +118,9 @@ def is_supplier_approved(
 	if entry["min_order_amount"] and amount < entry["min_order_amount"]:
 		return WhitelistDecision(
 			decision="DENY",
-			reason=_(
-				"Order tutarı {0} izin verilen minimumun altında ({1})"
-			).format(amount, entry["min_order_amount"]),
+			reason=_("Order tutarı {0} izin verilen minimumun altında ({1})").format(
+				amount, entry["min_order_amount"]
+			),
 			matched_list=whitelist["name"],
 			matched_entry=entry,
 		)
@@ -129,9 +131,9 @@ def is_supplier_approved(
 		if not offered & allowed:
 			return WhitelistDecision(
 				decision="DENY",
-				reason=_(
-					"Order kategorileri ({0}) izin verilen listede yok ({1})"
-				).format(list(offered), list(allowed)),
+				reason=_("Order kategorileri ({0}) izin verilen listede yok ({1})").format(
+					list(offered), list(allowed)
+				),
 				matched_list=whitelist["name"],
 				matched_entry=entry,
 			)
@@ -167,12 +169,12 @@ def validate_order_supplier(doc, method=None) -> None:
 	decision = is_supplier_approved(tenant, supplier, amount, categories)
 
 	if decision.decision == "DENY":
-		_audit(user, doc, "DENY", decision.reason, severity="MEDIUM",
-			rule_id="procurement.unapproved_supplier")
+		_audit(
+			user, doc, "DENY", decision.reason, severity="MEDIUM", rule_id="procurement.unapproved_supplier"
+		)
 		frappe.throw(decision.reason, exc=frappe.PermissionError)
 	else:
-		_audit(user, doc, "ALLOW", decision.reason, severity="LOW",
-			rule_id="procurement.supplier_approved")
+		_audit(user, doc, "ALLOW", decision.reason, severity="LOW", rule_id="procurement.supplier_approved")
 
 
 # ---------------------------------------------------------------------------

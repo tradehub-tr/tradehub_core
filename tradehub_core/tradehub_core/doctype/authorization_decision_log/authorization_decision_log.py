@@ -19,15 +19,15 @@ class AuthorizationDecisionLog(Document):
 		# Sadece audit helper'dan yazılabilir
 		if not self.flags.get("audit_write"):
 			frappe.throw(
-				_("Authorization Decision Log doğrudan yazılamaz. tradehub_core.audit.log_decision kullanın."),
+				_(
+					"Authorization Decision Log doğrudan yazılamaz. tradehub_core.audit.log_decision kullanın."
+				),
 				frappe.PermissionError,
 			)
 
 	def before_update_after_submit(self) -> None:
 		"""Kaydedildikten sonra değiştirilemez."""
-		frappe.throw(
-			_("Authorization Decision Log immutable — değiştirilemez."), frappe.PermissionError
-		)
+		frappe.throw(_("Authorization Decision Log immutable — değiştirilemez."), frappe.PermissionError)
 
 	def on_change(self) -> None:
 		"""Mevcut kaydın değiştirilmesini engelle.
@@ -36,7 +36,11 @@ class AuthorizationDecisionLog(Document):
 		Yeni doc'lar OK (validate'te audit_write flag kontrolü), ama mevcut
 		doc'un edit'i yasak.
 		"""
-		if self.has_value_changed("decision") or self.has_value_changed("action") or self.has_value_changed("actor"):
+		if (
+			self.has_value_changed("decision")
+			or self.has_value_changed("action")
+			or self.has_value_changed("actor")
+		):
 			# Modified-after-creation — yasak
 			if not self.is_new() and not self.flags.get("audit_write"):
 				frappe.throw(

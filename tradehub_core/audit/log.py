@@ -90,9 +90,7 @@ def log_decision(
 		# organization'ından alınır)
 		if not buyer_org and actor and actor not in ("Guest", "Administrator"):
 			try:
-				buyer_org = frappe.db.get_value(
-					"User", actor, "tradehub_parent_organization"
-				)
+				buyer_org = frappe.db.get_value("User", actor, "tradehub_parent_organization")
 			except Exception:
 				buyer_org = None
 
@@ -134,8 +132,7 @@ def log_decision(
 		# Best-effort — audit yazımı patlasa bile business flow devam etmeli
 		try:
 			frappe.log_error(
-				f"log_decision başarısız: actor={actor}, action={action}, "
-				f"decision={decision}: {exc}",
+				f"log_decision başarısız: actor={actor}, action={action}, decision={decision}: {exc}",
 				"audit.log_decision",
 			)
 		except Exception:

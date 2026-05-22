@@ -51,12 +51,15 @@ def scan_drift(sample_size: int | None = None) -> dict[str, Any]:
 	except Exception:
 		return {"skipped": "sidecar_unavailable"}
 
-	users = frappe.get_all(
-		"User",
-		filters={"enabled": 1},
-		pluck="name",
-		limit=sample_size,
-	) or []
+	users = (
+		frappe.get_all(
+			"User",
+			filters={"enabled": 1},
+			pluck="name",
+			limit=sample_size,
+		)
+		or []
+	)
 
 	drift_count = 0
 	checks_done = 0
@@ -95,9 +98,7 @@ def _check_drift(
 		return None
 
 	try:
-		frappe_allow = bool(
-			frappe.has_permission(doctype=doctype, ptype=ptype, doc=doc_name, user=user)
-		)
+		frappe_allow = bool(frappe.has_permission(doctype=doctype, ptype=ptype, doc=doc_name, user=user))
 	except Exception:
 		return None
 

@@ -46,8 +46,7 @@ def on_store_subscription_update(doc, method=None) -> None:
 			)
 	except Exception as exc:  # noqa: BLE001 — hook failure ana save'i bozmasın
 		frappe.log_error(
-			f"Plan downgrade sub-user sync fail (store={doc.store}, "
-			f"{doc.previous_plan}→{doc.plan}): {exc}",
+			f"Plan downgrade sub-user sync fail (store={doc.store}, {doc.previous_plan}→{doc.plan}): {exc}",
 			"subscription_downgrade",
 		)
 

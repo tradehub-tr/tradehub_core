@@ -66,12 +66,16 @@ def _install_frappe_stub() -> None:
 	if not hasattr(frappe, "_"):
 		frappe._ = lambda s: s
 	if not hasattr(frappe, "PermissionError"):
+
 		class PermissionError(Exception):
 			pass
+
 		frappe.PermissionError = PermissionError
 	if not hasattr(frappe, "throw"):
+
 		def _throw(msg, exc=Exception):
 			raise (exc(msg) if isinstance(exc, type) else Exception(msg))
+
 		frappe.throw = _throw
 
 	# tradehub_core.audit stub (rebac_client import için).
@@ -84,6 +88,7 @@ def _install_frappe_stub() -> None:
 	if not hasattr(frappe, "utils") or not hasattr(frappe.utils, "now_datetime"):
 		frappe.utils = types.ModuleType("frappe.utils")
 		from datetime import datetime, timedelta
+
 		frappe.utils.cint = int
 		frappe.utils.flt = float
 		frappe.utils.now_datetime = lambda: datetime(2026, 5, 21, 12, 0, 0)
@@ -207,14 +212,17 @@ class FullContextTests(unittest.TestCase):
 
 	def test_combines_order_region_time(self):
 		order = SimpleNamespace(
-			doctype="Order", name="X", total=1000, currency="EUR",
-			seller_profile="STORE-A", buyer="x@x.com", items=[],
+			doctype="Order",
+			name="X",
+			total=1000,
+			currency="EUR",
+			seller_profile="STORE-A",
+			buyer="x@x.com",
+			items=[],
 		)
 		order.get = lambda f, d=None: getattr(order, f, d)
 
-		ctx = abac_context.build_full_context(
-			order=order, user="x@x.com", include_time=True
-		)
+		ctx = abac_context.build_full_context(order=order, user="x@x.com", include_time=True)
 		# Order keys
 		self.assertIn("amount", ctx)
 		self.assertIn("currency", ctx)
@@ -299,9 +307,11 @@ class ConditionalTupleTests(unittest.TestCase):
 	@patch.object(rebac_client.requests.Session, "post")
 	def test_4_tuple_with_condition_name(self, mock_post):
 		mock_post.return_value = _mock_response(200, {})
-		rebac_client.write_tuples([
-			("user:can@x.com", "can_approve_l1", "order_approval:OA-1", "needs_approval_l1"),
-		])
+		rebac_client.write_tuples(
+			[
+				("user:can@x.com", "can_approve_l1", "order_approval:OA-1", "needs_approval_l1"),
+			]
+		)
 
 		body = json.loads(mock_post.call_args.kwargs.get("data", "{}"))
 		tk = body["writes"]["tuple_keys"][0]
@@ -310,15 +320,17 @@ class ConditionalTupleTests(unittest.TestCase):
 	@patch.object(rebac_client.requests.Session, "post")
 	def test_5_tuple_with_condition_and_context(self, mock_post):
 		mock_post.return_value = _mock_response(200, {})
-		rebac_client.write_tuples([
-			(
-				"user:demet@x.com",
-				"scope_user",
-				"region:EU",
-				"user_in_region",
-				{"user_regions": ["EU"]},
-			),
-		])
+		rebac_client.write_tuples(
+			[
+				(
+					"user:demet@x.com",
+					"scope_user",
+					"region:EU",
+					"user_in_region",
+					{"user_regions": ["EU"]},
+				),
+			]
+		)
 
 		body = json.loads(mock_post.call_args.kwargs.get("data", "{}"))
 		tk = body["writes"]["tuple_keys"][0]
@@ -328,14 +340,16 @@ class ConditionalTupleTests(unittest.TestCase):
 	@patch.object(rebac_client.requests.Session, "post")
 	def test_dict_tuple_direct(self, mock_post):
 		mock_post.return_value = _mock_response(200, {})
-		rebac_client.write_tuples([
-			{
-				"user": "user:x",
-				"relation": "member",
-				"object": "org:y",
-				"condition": {"name": "custom_cond", "context": {"foo": "bar"}},
-			}
-		])
+		rebac_client.write_tuples(
+			[
+				{
+					"user": "user:x",
+					"relation": "member",
+					"object": "org:y",
+					"condition": {"name": "custom_cond", "context": {"foo": "bar"}},
+				}
+			]
+		)
 		body = json.loads(mock_post.call_args.kwargs.get("data", "{}"))
 		self.assertEqual(body["writes"]["tuple_keys"][0]["condition"]["name"], "custom_cond")
 
@@ -350,6 +364,7 @@ class RegionAwarePiiAccessTests(unittest.TestCase):
 		_reset_state()
 		# pii modülünün lazy import yaptığı abac_context'i tetikle
 		from tradehub_core.utils import pii  # noqa: F401
+
 		self.pii = pii
 
 	def test_compliance_officer_bypass(self):
@@ -367,9 +382,7 @@ class RegionAwarePiiAccessTests(unittest.TestCase):
 		# Test'i: System Manager için bypass'ı kanıtla
 		_DB[("roles", "admin@x.com")] = ["System Manager"]
 
-		result = self.pii.has_pii_access_for_target(
-			"admin@x.com", "KYC Verification", 3, target_region="EU"
-		)
+		result = self.pii.has_pii_access_for_target("admin@x.com", "KYC Verification", 3, target_region="EU")
 		self.assertTrue(result)
 
 	def test_jurisdiction_helpers(self):

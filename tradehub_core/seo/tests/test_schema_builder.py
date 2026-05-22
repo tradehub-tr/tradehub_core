@@ -1,6 +1,6 @@
 """schema_builder pure-function testleri.
 
-	cd apps/tradehub_core && python -m unittest tradehub_core.seo.tests.test_schema_builder
+cd apps/tradehub_core && python -m unittest tradehub_core.seo.tests.test_schema_builder
 """
 
 import sys
@@ -104,12 +104,14 @@ class TestProductSchema(unittest.TestCase):
 		self.assertEqual(ar["reviewCount"], "12")
 
 	def test_product_with_reviews(self):
-		reviews = [{
-			"@type": "Review",
-			"author": {"@type": "Person", "name": "Ahmet"},
-			"reviewRating": {"@type": "Rating", "ratingValue": "5"},
-			"reviewBody": "Harika ürün",
-		}]
+		reviews = [
+			{
+				"@type": "Review",
+				"author": {"@type": "Person", "name": "Ahmet"},
+				"reviewRating": {"@type": "Rating", "ratingValue": "5"},
+				"reviewBody": "Harika ürün",
+			}
+		]
 		schema = build_product_schema(
 			listing=self._listing(),
 			site_url="https://istoc.com",
@@ -157,11 +159,13 @@ class TestProductSchema(unittest.TestCase):
 
 class TestBreadcrumbSchema(unittest.TestCase):
 	def test_three_items_positions(self):
-		schema = build_breadcrumb_schema(items=[
-			{"name": "Anasayfa", "url": "https://istoc.com/"},
-			{"name": "Elektronik", "url": "https://istoc.com/kategori/elektronik"},
-			{"name": "iPhone", "url": "https://istoc.com/urun/iphone"},
-		])
+		schema = build_breadcrumb_schema(
+			items=[
+				{"name": "Anasayfa", "url": "https://istoc.com/"},
+				{"name": "Elektronik", "url": "https://istoc.com/kategori/elektronik"},
+				{"name": "iPhone", "url": "https://istoc.com/urun/iphone"},
+			]
+		)
 		self.assertEqual(schema["@type"], "BreadcrumbList")
 		items = schema["itemListElement"]
 		self.assertEqual(len(items), 3)
@@ -169,23 +173,29 @@ class TestBreadcrumbSchema(unittest.TestCase):
 		self.assertEqual(items[2]["position"], 3)
 
 	def test_listitem_type(self):
-		schema = build_breadcrumb_schema(items=[
-			{"name": "Anasayfa", "url": "https://istoc.com/"},
-		])
+		schema = build_breadcrumb_schema(
+			items=[
+				{"name": "Anasayfa", "url": "https://istoc.com/"},
+			]
+		)
 		self.assertEqual(schema["itemListElement"][0]["@type"], "ListItem")
 
 	def test_name_and_item_fields(self):
-		schema = build_breadcrumb_schema(items=[
-			{"name": "Test", "url": "https://x.com"},
-		])
+		schema = build_breadcrumb_schema(
+			items=[
+				{"name": "Test", "url": "https://x.com"},
+			]
+		)
 		item = schema["itemListElement"][0]
 		self.assertEqual(item["name"], "Test")
 		self.assertEqual(item["item"], "https://x.com")
 
 	def test_single_item_edge_case(self):
-		schema = build_breadcrumb_schema(items=[
-			{"name": "Anasayfa", "url": "https://istoc.com/"},
-		])
+		schema = build_breadcrumb_schema(
+			items=[
+				{"name": "Anasayfa", "url": "https://istoc.com/"},
+			]
+		)
 		self.assertEqual(len(schema["itemListElement"]), 1)
 
 
@@ -246,9 +256,11 @@ class TestWebSiteSchema(unittest.TestCase):
 
 class TestFaqSchema(unittest.TestCase):
 	def test_basic_qa(self):
-		schema = build_faq_schema(questions=[
-			{"question": "Stok var mı?", "answer": "Evet 50 adet."},
-		])
+		schema = build_faq_schema(
+			questions=[
+				{"question": "Stok var mı?", "answer": "Evet 50 adet."},
+			]
+		)
 		self.assertEqual(schema["@type"], "FAQPage")
 		me = schema["mainEntity"]
 		self.assertEqual(me[0]["@type"], "Question")
@@ -260,9 +272,11 @@ class TestFaqSchema(unittest.TestCase):
 		self.assertIsNone(build_faq_schema(questions=[]))
 
 	def test_html_escape_in_question(self):
-		schema = build_faq_schema(questions=[
-			{"question": "<script>alert(1)</script>", "answer": "ok"},
-		])
+		schema = build_faq_schema(
+			questions=[
+				{"question": "<script>alert(1)</script>", "answer": "ok"},
+			]
+		)
 		self.assertNotIn("<script>", schema["mainEntity"][0]["name"])
 		self.assertIn("&lt;script&gt;", schema["mainEntity"][0]["name"])
 
@@ -273,7 +287,6 @@ from tradehub_core.seo.schema_builder import (  # noqa: E402
 	_pure_compose_for_listing,
 	_pure_compose_for_seller,
 )
-
 
 SITE_URL = "https://istoc.com"
 
@@ -343,8 +356,7 @@ class TestPureComposeForCategory(unittest.TestCase):
 class TestPureComposeForBrand(unittest.TestCase):
 	def test_two_schemas(self):
 		schemas = _pure_compose_for_brand(
-			brand={"brand_name": "Apple", "slug": "apple",
-				   "logo": "https://istoc.com/files/apple.png"},
+			brand={"brand_name": "Apple", "slug": "apple", "logo": "https://istoc.com/files/apple.png"},
 			defaults=DEFAULTS,
 			site_url=SITE_URL,
 		)

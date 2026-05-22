@@ -53,9 +53,7 @@ class SubscriptionPlan(Document):
 		unknown_keys = []
 		for key, value in flags.items():
 			if not key.startswith("feature."):
-				frappe.throw(
-					_("Capability flag key 'feature.' ile başlamalı: '{0}'").format(key)
-				)
+				frappe.throw(_("Capability flag key 'feature.' ile başlamalı: '{0}'").format(key))
 			if not isinstance(value, bool):
 				frappe.throw(
 					_("Capability flag '{0}' değeri boolean olmalı (true/false), şu an: {1}").format(

@@ -100,9 +100,7 @@ def get_approval_detail(name: str) -> dict:
 
 	# Approver mı?
 	rule = frappe.get_doc("Approval Rule", approval.approval_rule)
-	all_approvers = (
-		rule.get_approvers_at_level(1) + rule.get_approvers_at_level(2)
-	)
+	all_approvers = rule.get_approvers_at_level(1) + rule.get_approvers_at_level(2)
 	is_approver = user in all_approvers
 
 	if not (is_admin or is_requisitioner or is_approver):
@@ -180,9 +178,7 @@ def get_order_approval_status(order_name: str) -> dict:
 	is_buyer = order.buyer == user
 	if not (is_admin or is_buyer):
 		# Approver da olabilir
-		approver_rows = frappe.get_all(
-			"Approval Rule Approver", filters={"approver": user}, pluck="parent"
-		)
+		approver_rows = frappe.get_all("Approval Rule Approver", filters={"approver": user}, pluck="parent")
 		approval = frappe.db.get_value(
 			"Order Approval",
 			{"order": order_name, "approval_rule": ["in", approver_rows or [""]]},

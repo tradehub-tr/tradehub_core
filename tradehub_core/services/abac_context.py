@@ -228,8 +228,6 @@ def evaluate_user_in_region(user_regions: list[str], target_region: str) -> bool
 	return target_region in (user_regions or [])
 
 
-def evaluate_within_business_hours(
-	request_hour: int, start_hour: int = 9, end_hour: int = 18
-) -> bool:
+def evaluate_within_business_hours(request_hour: int, start_hour: int = 9, end_hour: int = 18) -> bool:
 	"""Local fallback — within_business_hours condition."""
 	return start_hour <= request_hour < end_hour

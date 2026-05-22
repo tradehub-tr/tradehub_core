@@ -172,14 +172,10 @@ def invite_sub_user(email: str, full_name: str, role_profile: str) -> dict:
 		{"email": email, "tenant": tenant, "status": "Pending"},
 	)
 	if existing_invite:
-		frappe.throw(
-			_("Bu e-postaya zaten aktif bir davet gönderilmiş: {0}").format(existing_invite)
-		)
+		frappe.throw(_("Bu e-postaya zaten aktif bir davet gönderilmiş: {0}").format(existing_invite))
 
 	# Kota kontrolü — mevcut aktif sub-user sayısı
-	current_count = frappe.db.count(
-		"User", {"tradehub_tenant": tenant, "enabled": 1}
-	)
+	current_count = frappe.db.count("User", {"tradehub_tenant": tenant, "enabled": 1})
 	check_quota_or_throw(
 		tenant,
 		"quota.max_sub_users",

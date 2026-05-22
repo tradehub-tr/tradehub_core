@@ -1,6 +1,6 @@
 """redirect_cache pure-function testleri.
 
-	cd apps/tradehub_core && python -m unittest tradehub_core.seo.tests.test_redirect_cache
+cd apps/tradehub_core && python -m unittest tradehub_core.seo.tests.test_redirect_cache
 """
 
 import sys
@@ -16,7 +16,6 @@ from tradehub_core.seo.redirect_cache import (  # noqa: E402
 	InMemoryCacheBackend,
 	RedirectCache,
 )
-
 
 REDIRECTS_SAMPLE = [
 	{"source_path": "/a", "target_path": "/b", "match_type": "exact", "status_code": "301"},

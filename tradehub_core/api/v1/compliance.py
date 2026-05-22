@@ -134,8 +134,9 @@ def upsert_field_policy(
 def delete_field_policy(name: str) -> dict:
 	_require_compliance_role()
 
-	doctype, fieldname = (
-		frappe.db.get_value("PII Field Policy", name, ["ref_doctype", "fieldname"]) or (None, None)
+	doctype, fieldname = frappe.db.get_value("PII Field Policy", name, ["ref_doctype", "fieldname"]) or (
+		None,
+		None,
 	)
 	frappe.delete_doc("PII Field Policy", name, ignore_permissions=False)
 	frappe.db.commit()

@@ -90,9 +90,7 @@ def get_active_subscription(store: str) -> dict | None:
 		"plan": sub_doc.plan,
 		"status": sub_doc.status,
 		"trial_end": str(sub_doc.trial_end) if sub_doc.trial_end else None,
-		"current_period_end": str(sub_doc.current_period_end)
-		if sub_doc.current_period_end
-		else None,
+		"current_period_end": str(sub_doc.current_period_end) if sub_doc.current_period_end else None,
 	}
 	frappe.cache().set_value(cache_key, result, expires_in_sec=_CACHE_TTL)
 	return result
@@ -247,9 +245,7 @@ def check_feature_or_throw(store: str, feature_key: str, action_description: str
 		return
 
 	# Feature Catalog'tan display_name bul
-	display_name = (
-		frappe.db.get_value("Feature Catalog", feature_key, "display_name") or feature_key
-	)
+	display_name = frappe.db.get_value("Feature Catalog", feature_key, "display_name") or feature_key
 	plan = get_plan(store) or "—"
 
 	# FAZ 1.4 — Audit log (best-effort, import circular'ı önlemek için lazy)
@@ -298,9 +294,7 @@ def check_quota_or_throw(
 	if within_quota(store, quota_key, current_count):
 		return
 
-	display_name = (
-		frappe.db.get_value("Feature Catalog", quota_key, "display_name") or quota_key
-	)
+	display_name = frappe.db.get_value("Feature Catalog", quota_key, "display_name") or quota_key
 	quotas = get_quota_limits(store)
 	limit = quotas.get(quota_key, 0)
 	plan = get_plan(store) or "—"

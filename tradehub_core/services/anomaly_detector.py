@@ -158,16 +158,25 @@ def _common_filters(rule: dict, window_start: datetime, now: datetime) -> dict:
 def _fetch_logs(filters: dict) -> list[dict]:
 	# D10: buyer_org field'ı ADL'de Custom Field (v15_5_2). get_all fields'a
 	# eklenince yoksa NULL döner — geriye dönük uyumlu.
-	return frappe.get_all(
-		"Authorization Decision Log",
-		filters=filters,
-		fields=[
-			"name", "actor", "tenant", "buyer_org",
-			"decision", "severity", "rule_id", "action",
-		],
-		limit=10000,
-		order_by="creation desc",
-	) or []
+	return (
+		frappe.get_all(
+			"Authorization Decision Log",
+			filters=filters,
+			fields=[
+				"name",
+				"actor",
+				"tenant",
+				"buyer_org",
+				"decision",
+				"severity",
+				"rule_id",
+				"action",
+			],
+			limit=10000,
+			order_by="creation desc",
+		)
+		or []
+	)
 
 
 def _first_buyer_org(entries: list[dict]) -> str | None:
@@ -179,9 +188,7 @@ def _first_buyer_org(entries: list[dict]) -> str | None:
 	return None
 
 
-def _detect_high_severity_spike(
-	rule: dict, window_start: datetime, now: datetime
-) -> list[EvidenceGroup]:
+def _detect_high_severity_spike(rule: dict, window_start: datetime, now: datetime) -> list[EvidenceGroup]:
 	filters = _common_filters(rule, window_start, now)
 	filters["severity"] = "HIGH"
 
@@ -202,9 +209,7 @@ def _detect_high_severity_spike(
 	]
 
 
-def _detect_rapid_deny_per_actor(
-	rule: dict, window_start: datetime, now: datetime
-) -> list[EvidenceGroup]:
+def _detect_rapid_deny_per_actor(rule: dict, window_start: datetime, now: datetime) -> list[EvidenceGroup]:
 	filters = _common_filters(rule, window_start, now)
 	filters["decision"] = "DENY"
 
@@ -232,9 +237,7 @@ def _detect_rapid_deny_per_actor(
 	return groups
 
 
-def _detect_cross_tenant_attempt(
-	rule: dict, window_start: datetime, now: datetime
-) -> list[EvidenceGroup]:
+def _detect_cross_tenant_attempt(rule: dict, window_start: datetime, now: datetime) -> list[EvidenceGroup]:
 	filters = _common_filters(rule, window_start, now)
 	filters["rule_id"] = [
 		"in",
@@ -267,9 +270,7 @@ def _detect_cross_tenant_attempt(
 	return groups
 
 
-def _detect_unusual_hour_burst(
-	rule: dict, window_start: datetime, now: datetime
-) -> list[EvidenceGroup]:
+def _detect_unusual_hour_burst(rule: dict, window_start: datetime, now: datetime) -> list[EvidenceGroup]:
 	hour = now.hour
 	if 9 <= hour < 18:
 		return []  # business hours — bu kural devre dışı
@@ -292,9 +293,7 @@ def _detect_unusual_hour_burst(
 	]
 
 
-def _detect_pii_bulk_export(
-	rule: dict, window_start: datetime, now: datetime
-) -> list[EvidenceGroup]:
+def _detect_pii_bulk_export(rule: dict, window_start: datetime, now: datetime) -> list[EvidenceGroup]:
 	filters = _common_filters(rule, window_start, now)
 	filters["rule_id"] = ["like", "pii.%"]
 
@@ -321,9 +320,7 @@ def _detect_pii_bulk_export(
 	return groups
 
 
-def _detect_rebac_drift(
-	rule: dict, window_start: datetime, now: datetime
-) -> list[EvidenceGroup]:
+def _detect_rebac_drift(rule: dict, window_start: datetime, now: datetime) -> list[EvidenceGroup]:
 	"""Faz 3.5 drift detection job ile devreye girer; şimdilik no-op."""
 	return []
 
@@ -333,9 +330,7 @@ def _detect_rebac_drift(
 # ---------------------------------------------------------------------------
 
 
-def _create_alert(
-	rule: dict, group: EvidenceGroup, now: datetime
-) -> str | None:
+def _create_alert(rule: dict, group: EvidenceGroup, now: datetime) -> str | None:
 	severity_map = {
 		"high_severity_spike": "HIGH",
 		"rapid_deny_per_actor": "MEDIUM",
@@ -400,7 +395,9 @@ def _run_actions(rule: dict, group: EvidenceGroup, alert_name: str) -> None:
 	if actions_taken:
 		try:
 			frappe.db.set_value(
-				"Authorization Anomaly Alert", alert_name, "action_taken",
+				"Authorization Anomaly Alert",
+				alert_name,
+				"action_taken",
 				", ".join(actions_taken),
 			)
 		except Exception as exc:

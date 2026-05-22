@@ -34,22 +34,20 @@ def notify_super_admins(alert_name: str, rule: dict, group: Any) -> None:
 	"""
 	admin_set: set[str] = set()
 	for role in _ANOMALY_NOTIFY_ROLES:
-		rows = frappe.get_all(
-			"Has Role",
-			filters={"role": role, "parenttype": "User"},
-			pluck="parent",
-		) or []
+		rows = (
+			frappe.get_all(
+				"Has Role",
+				filters={"role": role, "parenttype": "User"},
+				pluck="parent",
+			)
+			or []
+		)
 		admin_set.update(rows)
 	admins = sorted(admin_set)
 
 	subject = _("[Anomaly] {0}").format(rule.get("rule_name") or rule.get("rule_code"))
 	body = _(
-		"Anomali tetiklendi: {0}\n"
-		"Window: {1} → {2}\n"
-		"Olay sayısı: {3}\n"
-		"Actor: {4}\n"
-		"Tenant: {5}\n"
-		"Alert ID: {6}"
+		"Anomali tetiklendi: {0}\nWindow: {1} → {2}\nOlay sayısı: {3}\nActor: {4}\nTenant: {5}\nAlert ID: {6}"
 	).format(
 		rule.get("rule_code"),
 		group.window_start,
@@ -63,9 +61,11 @@ def notify_super_admins(alert_name: str, rule: dict, group: Any) -> None:
 	# Platform Notification (in-app)
 	for admin in admins:
 		try:
-			notif = frappe.new_doc("Notification Log") if frappe.db.exists(
-				"DocType", "Notification Log"
-			) else None
+			notif = (
+				frappe.new_doc("Notification Log")
+				if frappe.db.exists("DocType", "Notification Log")
+				else None
+			)
 			if notif:
 				notif.for_user = admin
 				notif.subject = subject
@@ -81,10 +81,7 @@ def notify_super_admins(alert_name: str, rule: dict, group: Any) -> None:
 
 	# Email (best-effort, sadece email_id set olanlar)
 	try:
-		recipients = [
-			u for u in admins
-			if frappe.db.get_value("User", u, "email")
-		]
+		recipients = [u for u in admins if frappe.db.get_value("User", u, "email")]
 		if recipients:
 			frappe.sendmail(
 				recipients=recipients,
@@ -106,7 +103,9 @@ def suspend_actor(user: str, reason: str = "") -> None:
 	try:
 		frappe.db.set_value("User", user, "enabled", 0)
 		_log_role_change_safe(
-			user=user, action="suspend", reason=reason,
+			user=user,
+			action="suspend",
+			reason=reason,
 		)
 	except Exception as exc:
 		frappe.log_error(f"suspend_actor failed for {user}: {exc}", "Anomaly Actions")
@@ -119,7 +118,9 @@ def disable_tenant(tenant: str, reason: str = "") -> None:
 	try:
 		frappe.db.set_value("Admin Seller Profile", tenant, "status", "Suspended")
 		_log_role_change_safe(
-			user=tenant, action="tenant_suspend", reason=reason,
+			user=tenant,
+			action="tenant_suspend",
+			reason=reason,
 		)
 	except Exception as exc:
 		frappe.log_error(f"disable_tenant failed for {tenant}: {exc}", "Anomaly Actions")

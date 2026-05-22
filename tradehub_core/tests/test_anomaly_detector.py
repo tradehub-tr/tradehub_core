@@ -138,14 +138,20 @@ def _install_frappe_stub() -> None:
 	if not hasattr(frappe, "_"):
 		frappe._ = lambda s: s
 	if not hasattr(frappe, "PermissionError"):
+
 		class PermissionError(Exception):
 			pass
+
 		frappe.PermissionError = PermissionError
 	if not hasattr(frappe, "ValidationError"):
+
 		class ValidationError(Exception):
 			pass
+
 		frappe.ValidationError = ValidationError
-	frappe.throw = lambda msg, exc=Exception: (_ for _ in ()).throw(exc(msg) if isinstance(exc, type) else Exception(msg))
+	frappe.throw = lambda msg, exc=Exception: (_ for _ in ()).throw(
+		exc(msg) if isinstance(exc, type) else Exception(msg)
+	)
 	frappe.log_error = lambda *a, **kw: None
 	frappe.logger = lambda: SimpleNamespace(info=lambda *a, **kw: None)
 
@@ -249,8 +255,13 @@ def _add_rule(**fields):
 class HighSeveritySpikeTests(unittest.TestCase):
 	def setUp(self):
 		_reset_state()
-		_add_rule(rule_code="HIGH_SPIKE", detection_type="high_severity_spike",
-			threshold_count=3, window_minutes=5, severity_filter="HIGH")
+		_add_rule(
+			rule_code="HIGH_SPIKE",
+			detection_type="high_severity_spike",
+			threshold_count=3,
+			window_minutes=5,
+			severity_filter="HIGH",
+		)
 
 	def test_below_threshold_no_alert(self):
 		now = datetime(2026, 5, 21, 14, 0, 0)
@@ -271,8 +282,9 @@ class HighSeveritySpikeTests(unittest.TestCase):
 class RapidDenyTests(unittest.TestCase):
 	def setUp(self):
 		_reset_state()
-		_add_rule(rule_code="RAPID_DENY", detection_type="rapid_deny_per_actor",
-			threshold_count=3, window_minutes=1)
+		_add_rule(
+			rule_code="RAPID_DENY", detection_type="rapid_deny_per_actor", threshold_count=3, window_minutes=1
+		)
 
 	def test_one_actor_above_threshold_one_below(self):
 		now = datetime(2026, 5, 21, 14, 0, 0)
@@ -289,8 +301,9 @@ class RapidDenyTests(unittest.TestCase):
 class CrossTenantTests(unittest.TestCase):
 	def setUp(self):
 		_reset_state()
-		_add_rule(rule_code="CROSS_T", detection_type="cross_tenant_attempt",
-			threshold_count=2, window_minutes=5)
+		_add_rule(
+			rule_code="CROSS_T", detection_type="cross_tenant_attempt", threshold_count=2, window_minutes=5
+		)
 
 	def test_triggers_on_threshold(self):
 		now = datetime(2026, 5, 21, 14, 0, 0)
@@ -304,8 +317,9 @@ class CrossTenantTests(unittest.TestCase):
 class UnusualHourTests(unittest.TestCase):
 	def setUp(self):
 		_reset_state()
-		_add_rule(rule_code="OFF_HOUR", detection_type="unusual_hour_burst",
-			threshold_count=2, window_minutes=15)
+		_add_rule(
+			rule_code="OFF_HOUR", detection_type="unusual_hour_burst", threshold_count=2, window_minutes=15
+		)
 
 	def test_business_hour_no_alert(self):
 		now = datetime(2026, 5, 21, 11, 0, 0)
@@ -325,8 +339,9 @@ class UnusualHourTests(unittest.TestCase):
 class PIIBulkTests(unittest.TestCase):
 	def setUp(self):
 		_reset_state()
-		_add_rule(rule_code="PII_BULK", detection_type="pii_bulk_export",
-			threshold_count=3, window_minutes=10)
+		_add_rule(
+			rule_code="PII_BULK", detection_type="pii_bulk_export", threshold_count=3, window_minutes=10
+		)
 
 	def test_triggers(self):
 		now = datetime(2026, 5, 21, 14, 0, 0)
@@ -339,18 +354,25 @@ class PIIBulkTests(unittest.TestCase):
 class CooldownTests(unittest.TestCase):
 	def setUp(self):
 		_reset_state()
-		_add_rule(rule_code="C_RULE", detection_type="high_severity_spike",
-			threshold_count=2, window_minutes=5, severity_filter="HIGH",
-			cooldown_minutes=30)
+		_add_rule(
+			rule_code="C_RULE",
+			detection_type="high_severity_spike",
+			threshold_count=2,
+			window_minutes=5,
+			severity_filter="HIGH",
+			cooldown_minutes=30,
+		)
 
 	def test_recent_alert_skips(self):
 		now = datetime(2026, 5, 21, 14, 0, 0)
 		# Önceki alert (10 dk önce)
-		_ALERTS.append({
-			"name": "AAA-EXISTING",
-			"rule": "C_RULE",
-			"triggered_at": now - timedelta(minutes=10),
-		})
+		_ALERTS.append(
+			{
+				"name": "AAA-EXISTING",
+				"rule": "C_RULE",
+				"triggered_at": now - timedelta(minutes=10),
+			}
+		)
 		for _ in range(3):
 			_add_log(now, severity="HIGH")
 		summary = det.run_detection(now=now)
@@ -361,8 +383,13 @@ class CooldownTests(unittest.TestCase):
 class SeverityEscalationTests(unittest.TestCase):
 	def setUp(self):
 		_reset_state()
-		_add_rule(rule_code="ESC", detection_type="high_severity_spike",
-			threshold_count=3, window_minutes=5, severity_filter="HIGH")
+		_add_rule(
+			rule_code="ESC",
+			detection_type="high_severity_spike",
+			threshold_count=3,
+			window_minutes=5,
+			severity_filter="HIGH",
+		)
 
 	def test_critical_escalation(self):
 		# count = 10 > 3 * threshold (=9) → CRITICAL
@@ -376,9 +403,14 @@ class SeverityEscalationTests(unittest.TestCase):
 class ActionTests(unittest.TestCase):
 	def setUp(self):
 		_reset_state()
-		_add_rule(rule_code="A_NOTIFY", detection_type="rapid_deny_per_actor",
-			threshold_count=2, window_minutes=5,
-			action_notify=1, action_suspend_actor=1)
+		_add_rule(
+			rule_code="A_NOTIFY",
+			detection_type="rapid_deny_per_actor",
+			threshold_count=2,
+			window_minutes=5,
+			action_notify=1,
+			action_suspend_actor=1,
+		)
 
 	def test_notify_and_suspend(self):
 		now = datetime(2026, 5, 21, 14, 0, 0)
@@ -396,9 +428,14 @@ class ActionTests(unittest.TestCase):
 class InactiveRuleTests(unittest.TestCase):
 	def setUp(self):
 		_reset_state()
-		_add_rule(rule_code="DEAD", detection_type="high_severity_spike",
-			threshold_count=1, window_minutes=5, severity_filter="HIGH",
-			is_active=0)
+		_add_rule(
+			rule_code="DEAD",
+			detection_type="high_severity_spike",
+			threshold_count=1,
+			window_minutes=5,
+			severity_filter="HIGH",
+			is_active=0,
+		)
 
 	def test_inactive_skipped(self):
 		now = datetime(2026, 5, 21, 14, 0, 0)

@@ -214,17 +214,21 @@ def _make_doc(doctype: str, name: str = "DOC-001", is_new: bool = True, **fields
 	return doc
 
 
-def _setup_seller(user: str, tenant_name: str, is_owner: bool = False, role_profile: str = "Seller Full Access"):
+def _setup_seller(
+	user: str, tenant_name: str, is_owner: bool = False, role_profile: str = "Seller Full Access"
+):
 	"""Kullanıcı + tenant + rol mapping kur."""
 	_DB[("roles", user)] = ["Seller", "Seller Owner" if is_owner else "Seller Admin"]
-	_DB[
-		("get_value", "Admin Seller Profile", "{'user': '" + user + "', 'status': 'Active'}", "name")
-	] = tenant_name
+	_DB[("get_value", "Admin Seller Profile", "{'user': '" + user + "', 'status': 'Active'}", "name")] = (
+		tenant_name
+	)
 	_DB[("get_value", "User", user, "tradehub_is_owner")] = 1 if is_owner else 0
 	_DB[("get_value", "User", user, "role_profile_name")] = role_profile
 
 
-def _setup_subscription(tenant_name: str, plan: str, capability_flags: dict, quota_limits: dict, status: str = "active"):
+def _setup_subscription(
+	tenant_name: str, plan: str, capability_flags: dict, quota_limits: dict, status: str = "active"
+):
 	"""Tenant için aktif subscription + plan doc mock'u."""
 	sub_name = f"STSUB-{tenant_name}"
 	_DB[
@@ -342,11 +346,7 @@ class EntitlementWithAuditTests(unittest.TestCase):
 		ent_core.check_feature_or_throw("STORE-PRO", "feature.pim.multi_variant")
 
 		# Audit log YAZILMAMALI (ALLOW path)
-		feature_logs = [
-			log
-			for log in _AUDIT_LOGS
-			if "feature.pim.multi_variant" in log.get("rule_id", "")
-		]
+		feature_logs = [log for log in _AUDIT_LOGS if "feature.pim.multi_variant" in log.get("rule_id", "")]
 		self.assertEqual(len(feature_logs), 0, "ALLOW path log üretmemeli")
 
 

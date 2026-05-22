@@ -26,8 +26,7 @@ def list_my_delegations(role: str | None = None) -> dict:
 		filters_out["role"] = role
 		filters_in["role"] = role
 
-	fields = ["name", "delegator", "delegate", "role", "tenant", "status",
-		"starts_at", "ends_at", "reason"]
+	fields = ["name", "delegator", "delegate", "role", "tenant", "status", "starts_at", "ends_at", "reason"]
 
 	return {
 		"delegated_by_me": frappe.get_all(
@@ -81,10 +80,7 @@ def revoke_delegation(name: str, reason: str = "") -> dict:
 	user = frappe.session.user
 	roles = set(frappe.get_roles(user))
 
-	if not (
-		roles & {"System Manager", "Administrator", "Seller Owner"}
-		or user == doc.delegator
-	):
+	if not (roles & {"System Manager", "Administrator", "Seller Owner"} or user == doc.delegator):
 		frappe.throw(_("Revoke yetkisi yok"), exc=frappe.PermissionError)
 
 	delegation_service.revoke_delegation(name, reason)

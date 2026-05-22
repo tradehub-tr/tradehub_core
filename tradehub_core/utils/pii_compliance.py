@@ -118,12 +118,14 @@ def get_field_policy(doctype: str, fieldname: str) -> dict[str, Any] | None:
 
 	rules: list[dict[str, Any]] = []
 	for r in doc.jurisdiction_rules or []:
-		rules.append({
-			"jurisdiction": r.jurisdiction,
-			"mask_strategy": r.mask_strategy,
-			"cross_border_block": bool(getattr(r, "cross_border_block", 0)),
-			"require_consent": bool(getattr(r, "require_consent", 0)),
-		})
+		rules.append(
+			{
+				"jurisdiction": r.jurisdiction,
+				"mask_strategy": r.mask_strategy,
+				"cross_border_block": bool(getattr(r, "cross_border_block", 0)),
+				"require_consent": bool(getattr(r, "require_consent", 0)),
+			}
+		)
 
 	policy = {
 		"name": doc.name,
@@ -309,11 +311,14 @@ def apply_pii_masking(doc, user: str | None = None) -> dict[str, str]:
 
 
 def _user_regions(user: str) -> set[str]:
-	rows = frappe.get_all(
-		"Subscription Plan Region",
-		filters={"parent": user, "parenttype": "User"},
-		pluck="region",
-	) or []
+	rows = (
+		frappe.get_all(
+			"Subscription Plan Region",
+			filters={"parent": user, "parenttype": "User"},
+			pluck="region",
+		)
+		or []
+	)
 	return set(rows)
 
 

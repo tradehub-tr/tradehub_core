@@ -61,9 +61,7 @@ def _install_frappe_stub() -> None:
 		ns.name = name
 		# jurisdiction_rules as list of SimpleNamespace
 		raw_rules = data.get("jurisdiction_rules", [])
-		ns.jurisdiction_rules = [
-			SimpleNamespace(**r) if isinstance(r, dict) else r for r in raw_rules
-		]
+		ns.jurisdiction_rules = [SimpleNamespace(**r) if isinstance(r, dict) else r for r in raw_rules]
 		return ns
 
 	frappe.db = SimpleNamespace(
@@ -85,12 +83,16 @@ def _install_frappe_stub() -> None:
 	if not hasattr(frappe, "_"):
 		frappe._ = lambda s: s
 	if not hasattr(frappe, "PermissionError"):
+
 		class PermissionError(Exception):
 			pass
+
 		frappe.PermissionError = PermissionError
 	if not hasattr(frappe, "ValidationError"):
+
 		class ValidationError(Exception):
 			pass
+
 		frappe.ValidationError = ValidationError
 
 	def _throw(msg, exc=Exception):
@@ -104,15 +106,17 @@ def _install_frappe_stub() -> None:
 
 	# audit module
 	audit_mod = types.ModuleType("tradehub_core.audit")
-	audit_mod.log_decision = lambda **kw: (_AUDIT_LOGS.append(dict(kw)) or "ADL")
+	audit_mod.log_decision = lambda **kw: _AUDIT_LOGS.append(dict(kw)) or "ADL"
 	audit_mod.log_role_change = lambda **kw: "RCL"
 	sys.modules["tradehub_core.audit"] = audit_mod
 
 	if not hasattr(frappe, "whitelist"):
+
 		def _w(*a, **kw):
 			if a and callable(a[0]):
 				return a[0]
 			return lambda fn: fn
+
 		frappe.whitelist = _w
 
 
@@ -147,7 +151,12 @@ def _seed_policy(
 	policy_name = f"PIIPOL-{doctype}-{fieldname}"
 	# Policy lookup by (doctype, fieldname) filters
 	_DB[
-		("get_value", "PII Field Policy", f"{{'ref_doctype': '{doctype}', 'fieldname': '{fieldname}', 'is_active': 1}}", "name")
+		(
+			"get_value",
+			"PII Field Policy",
+			f"{{'ref_doctype': '{doctype}', 'fieldname': '{fieldname}', 'is_active': 1}}",
+			"name",
+		)
 	] = policy_name if is_active else None
 
 	# Full doc fetch
@@ -195,9 +204,7 @@ class NoPolicyTests(unittest.TestCase):
 		_seed_user("ahmet@x.com", ["Buyer Requisitioner"])
 
 	def test_no_policy_returns_allow(self):
-		res = pii_comp.evaluate_pii_access(
-			"ahmet@x.com", "Some DocType", "some_field", target_region="EU"
-		)
+		res = pii_comp.evaluate_pii_access("ahmet@x.com", "Some DocType", "some_field", target_region="EU")
 		self.assertEqual(res.decision, "ALLOW")
 		self.assertEqual(res.reason, "no_policy")
 
@@ -206,17 +213,25 @@ class PermlevelTests(unittest.TestCase):
 	def setUp(self):
 		_reset_state()
 		_seed_region("EU", "GDPR")
-		_seed_policy("User Profile", "tc_no", 2, [
-			{"jurisdiction": "GDPR", "mask_strategy": "last_4", "cross_border_block": 0, "require_consent": 0},
-		])
+		_seed_policy(
+			"User Profile",
+			"tc_no",
+			2,
+			[
+				{
+					"jurisdiction": "GDPR",
+					"mask_strategy": "last_4",
+					"cross_border_block": 0,
+					"require_consent": 0,
+				},
+			],
+		)
 
 	def test_permlevel_insufficient_denies(self):
 		_seed_user("guest@x.com", [])
 		# pii_base.has_pii_access patch'i artık False döner (boş roles)
 
-		res = pii_comp.evaluate_pii_access(
-			"guest@x.com", "User Profile", "tc_no", target_region="EU"
-		)
+		res = pii_comp.evaluate_pii_access("guest@x.com", "User Profile", "tc_no", target_region="EU")
 		self.assertEqual(res.decision, "DENY")
 		self.assertIn("Permlevel", res.reason)
 
@@ -225,24 +240,30 @@ class BypassTests(unittest.TestCase):
 	def setUp(self):
 		_reset_state()
 		_seed_region("EU", "GDPR")
-		_seed_policy("User Profile", "tc_no", 2, [
-			{"jurisdiction": "GDPR", "mask_strategy": "block", "cross_border_block": 1, "require_consent": 0},
-		])
+		_seed_policy(
+			"User Profile",
+			"tc_no",
+			2,
+			[
+				{
+					"jurisdiction": "GDPR",
+					"mask_strategy": "block",
+					"cross_border_block": 1,
+					"require_consent": 0,
+				},
+			],
+		)
 
 	def test_compliance_officer_bypasses(self):
 		_seed_user("co@firm.com", ["Compliance Officer"])
 
-		res = pii_comp.evaluate_pii_access(
-			"co@firm.com", "User Profile", "tc_no", target_region="EU"
-		)
+		res = pii_comp.evaluate_pii_access("co@firm.com", "User Profile", "tc_no", target_region="EU")
 		self.assertEqual(res.decision, "ALLOW")
 		self.assertEqual(res.reason, "bypass_role")
 
 	def test_system_manager_bypasses(self):
 		_seed_user("admin@x.com", ["System Manager"])
-		res = pii_comp.evaluate_pii_access(
-			"admin@x.com", "User Profile", "tc_no", target_region="EU"
-		)
+		res = pii_comp.evaluate_pii_access("admin@x.com", "User Profile", "tc_no", target_region="EU")
 		self.assertEqual(res.decision, "ALLOW")
 
 
@@ -254,20 +275,38 @@ class JurisdictionRuleTests(unittest.TestCase):
 		_seed_region("EG", "MENA")
 
 	def test_kvkk_last_4_masks(self):
-		_seed_policy("User Profile", "tc_no", 2, [
-			{"jurisdiction": "KVKK", "mask_strategy": "last_4", "cross_border_block": 0, "require_consent": 0},
-		])
-		_seed_user("user@tr.com", ["Buyer Requisitioner"], regions=["TR"])
-		res = pii_comp.evaluate_pii_access(
-			"user@tr.com", "User Profile", "tc_no", target_region="TR"
+		_seed_policy(
+			"User Profile",
+			"tc_no",
+			2,
+			[
+				{
+					"jurisdiction": "KVKK",
+					"mask_strategy": "last_4",
+					"cross_border_block": 0,
+					"require_consent": 0,
+				},
+			],
 		)
+		_seed_user("user@tr.com", ["Buyer Requisitioner"], regions=["TR"])
+		res = pii_comp.evaluate_pii_access("user@tr.com", "User Profile", "tc_no", target_region="TR")
 		self.assertEqual(res.decision, "MASK")
 		self.assertEqual(res.mask_strategy, "last_4")
 
 	def test_gdpr_block_denies(self):
-		_seed_policy("User Profile", "medical_info", 3, [
-			{"jurisdiction": "GDPR", "mask_strategy": "block", "cross_border_block": 0, "require_consent": 1},
-		])
+		_seed_policy(
+			"User Profile",
+			"medical_info",
+			3,
+			[
+				{
+					"jurisdiction": "GDPR",
+					"mask_strategy": "block",
+					"cross_border_block": 0,
+					"require_consent": 1,
+				},
+			],
+		)
 		_seed_user("doctor@de.com", ["Buyer Requisitioner"], regions=["DE"])
 		res = pii_comp.evaluate_pii_access(
 			"doctor@de.com", "User Profile", "medical_info", target_region="DE"
@@ -276,26 +315,42 @@ class JurisdictionRuleTests(unittest.TestCase):
 		self.assertEqual(res.mask_strategy, "block")
 
 	def test_no_matching_rule_allows(self):
-		_seed_policy("User Profile", "tc_no", 2, [
-			{"jurisdiction": "KVKK", "mask_strategy": "last_4", "cross_border_block": 0, "require_consent": 0},
-		])
+		_seed_policy(
+			"User Profile",
+			"tc_no",
+			2,
+			[
+				{
+					"jurisdiction": "KVKK",
+					"mask_strategy": "last_4",
+					"cross_border_block": 0,
+					"require_consent": 0,
+				},
+			],
+		)
 		_seed_user("user@eg.com", ["Buyer Requisitioner"], regions=["EG"])
 		# Target = EG (MENA), policy only has KVKK rule
-		res = pii_comp.evaluate_pii_access(
-			"user@eg.com", "User Profile", "tc_no", target_region="EG"
-		)
+		res = pii_comp.evaluate_pii_access("user@eg.com", "User Profile", "tc_no", target_region="EG")
 		self.assertEqual(res.decision, "ALLOW")
 		self.assertIn("no_rule_for_jurisdiction", res.reason)
 
 	def test_mask_strategy_none_allows(self):
-		_seed_policy("User Profile", "email", 1, [
-			{"jurisdiction": "OTHER", "mask_strategy": "none", "cross_border_block": 0, "require_consent": 0},
-		])
+		_seed_policy(
+			"User Profile",
+			"email",
+			1,
+			[
+				{
+					"jurisdiction": "OTHER",
+					"mask_strategy": "none",
+					"cross_border_block": 0,
+					"require_consent": 0,
+				},
+			],
+		)
 		_seed_region("US", "OTHER")
 		_seed_user("user@us.com", ["Buyer Requisitioner"], regions=["US"])
-		res = pii_comp.evaluate_pii_access(
-			"user@us.com", "User Profile", "email", target_region="US"
-		)
+		res = pii_comp.evaluate_pii_access("user@us.com", "User Profile", "email", target_region="US")
 		self.assertEqual(res.decision, "ALLOW")
 		self.assertEqual(res.mask_strategy, "none")
 
@@ -304,24 +359,30 @@ class CrossBorderTests(unittest.TestCase):
 	def setUp(self):
 		_reset_state()
 		_seed_region("DE", "GDPR")
-		_seed_policy("User Profile", "tc_no", 2, [
-			{"jurisdiction": "GDPR", "mask_strategy": "last_4", "cross_border_block": 1, "require_consent": 0},
-		])
+		_seed_policy(
+			"User Profile",
+			"tc_no",
+			2,
+			[
+				{
+					"jurisdiction": "GDPR",
+					"mask_strategy": "last_4",
+					"cross_border_block": 1,
+					"require_consent": 0,
+				},
+			],
+		)
 
 	def test_cross_border_block_denies(self):
 		# User region=TR, target region=DE (GDPR), cross-border-block=1
 		_seed_user("user@tr.com", ["Buyer Requisitioner"], regions=["TR"])
-		res = pii_comp.evaluate_pii_access(
-			"user@tr.com", "User Profile", "tc_no", target_region="DE"
-		)
+		res = pii_comp.evaluate_pii_access("user@tr.com", "User Profile", "tc_no", target_region="DE")
 		self.assertEqual(res.decision, "DENY")
 		self.assertIn("Cross-border", res.reason)
 
 	def test_cross_border_allowed_when_same_region(self):
 		_seed_user("user@de.com", ["Buyer Requisitioner"], regions=["DE"])
-		res = pii_comp.evaluate_pii_access(
-			"user@de.com", "User Profile", "tc_no", target_region="DE"
-		)
+		res = pii_comp.evaluate_pii_access("user@de.com", "User Profile", "tc_no", target_region="DE")
 		# Cross-border-block satisfied (same region), strategy=last_4 → MASK
 		self.assertEqual(res.decision, "MASK")
 		self.assertEqual(res.mask_strategy, "last_4")
@@ -332,9 +393,19 @@ class CacheTests(unittest.TestCase):
 		_reset_state()
 
 	def test_invalidation_clears_cache_key(self):
-		_seed_policy("User Profile", "iban", 2, [
-			{"jurisdiction": "KVKK", "mask_strategy": "iban", "cross_border_block": 0, "require_consent": 0},
-		])
+		_seed_policy(
+			"User Profile",
+			"iban",
+			2,
+			[
+				{
+					"jurisdiction": "KVKK",
+					"mask_strategy": "iban",
+					"cross_border_block": 0,
+					"require_consent": 0,
+				},
+			],
+		)
 		pii_comp.get_field_policy("User Profile", "iban")
 		# Cache populated
 		self.assertIn("pii_policy:User Profile:iban", _CACHE)
@@ -347,34 +418,48 @@ class AuditTests(unittest.TestCase):
 	def setUp(self):
 		_reset_state()
 		_seed_region("TR", "KVKK")
-		_seed_policy("User Profile", "phone", 1, [
-			{"jurisdiction": "KVKK", "mask_strategy": "last_4", "cross_border_block": 0, "require_consent": 0},
-		])
+		_seed_policy(
+			"User Profile",
+			"phone",
+			1,
+			[
+				{
+					"jurisdiction": "KVKK",
+					"mask_strategy": "last_4",
+					"cross_border_block": 0,
+					"require_consent": 0,
+				},
+			],
+		)
 		_seed_user("user@tr.com", ["Buyer Requisitioner"], regions=["TR"])
 
 	def test_audit_default_writes_log(self):
-		pii_comp.evaluate_pii_access(
-			"user@tr.com", "User Profile", "phone", target_region="TR"
-		)
+		pii_comp.evaluate_pii_access("user@tr.com", "User Profile", "phone", target_region="TR")
 		self.assertEqual(len(_AUDIT_LOGS), 1)
 		self.assertEqual(_AUDIT_LOGS[0]["rule_id"], "pii.access.mask")
 		self.assertEqual(_AUDIT_LOGS[0]["severity"], "LOW")
 
 	def test_audit_false_skips_log(self):
-		pii_comp.evaluate_pii_access(
-			"user@tr.com", "User Profile", "phone", target_region="TR", audit=False
-		)
+		pii_comp.evaluate_pii_access("user@tr.com", "User Profile", "phone", target_region="TR", audit=False)
 		self.assertEqual(len(_AUDIT_LOGS), 0)
 
 	def test_deny_logs_medium_severity(self):
-		_seed_policy("User Profile", "medical_info", 3, [
-			{"jurisdiction": "KVKK", "mask_strategy": "block", "cross_border_block": 0, "require_consent": 1},
-		])
+		_seed_policy(
+			"User Profile",
+			"medical_info",
+			3,
+			[
+				{
+					"jurisdiction": "KVKK",
+					"mask_strategy": "block",
+					"cross_border_block": 0,
+					"require_consent": 1,
+				},
+			],
+		)
 		_seed_user("user2@tr.com", ["Buyer Requisitioner"], regions=["TR"])
 
-		pii_comp.evaluate_pii_access(
-			"user2@tr.com", "User Profile", "medical_info", target_region="TR"
-		)
+		pii_comp.evaluate_pii_access("user2@tr.com", "User Profile", "medical_info", target_region="TR")
 		deny_logs = [log for log in _AUDIT_LOGS if log["decision"] == "DENY"]
 		self.assertEqual(len(deny_logs), 1)
 		self.assertEqual(deny_logs[0]["severity"], "MEDIUM")
