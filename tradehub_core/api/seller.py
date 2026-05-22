@@ -202,7 +202,6 @@ def get_seller(slug):
 			"factory_size",
 			"business_type",
 			"main_markets",
-			"certifications",
 			"review_count",
 			"response_time",
 			"response_rate",
@@ -213,6 +212,13 @@ def get_seller(slug):
 	)
 	if not seller:
 		frappe.throw(_("Satici bulunamadi"), frappe.DoesNotExistError)
+	# Sertifikalar child table — `frappe.db.get_value` skaler kolonlar dışına çıkamaz,
+	# bu yüzden ayrı sorgu. Yalnız doğrulanmış sertifikalar storefront'a sızar.
+	seller["certifications"] = frappe.get_all(
+		"Seller Certification",
+		filters={"parent": seller["name"], "verification_status": "Verified"},
+		fields=["certification_type", "verification_status"],
+	)
 	seller["slug"] = seller.get("seller_code", "")
 	seller["rating"] = float(seller.get("rating") or 0)
 	seller["review_count"] = int(seller.get("review_count") or seller.get("total_orders") or 0)

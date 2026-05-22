@@ -238,9 +238,10 @@ def _pure_compose_for_brand(*, brand: dict, defaults: dict, site_url: str) -> li
 		same_as=None,
 	)
 
+	# Brand listesi sayfası yok — breadcrumb sadeleştirildi (eskiden /markalar'a
+	# atıf vardı, ama o URL aslında Üreticiler sayfasına gidiyordu; kavramsal hata).
 	items = [
 		{"name": "Anasayfa", "url": f"{site_url.rstrip('/')}/"},
-		{"name": "Markalar", "url": f"{site_url.rstrip('/')}/markalar"},
 		{"name": brand.get("brand_name", ""), "url": brand_url},
 	]
 	breadcrumb = build_breadcrumb_schema(items=items)

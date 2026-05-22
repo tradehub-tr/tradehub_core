@@ -24,15 +24,19 @@ TEMPLATE_MAP = {
 	"Listing": "pages/product-detail.html",
 	"Product Category": "pages/category-detail.html",
 	"Brand": "pages/brand.html",
-	"Admin Seller Profile": "pages/seller/seller-shop.html",
+	"Admin Seller Profile": "pages/seller/seller-storefront.html",
 }
 
-# Doctype → slug field eşlemesi (Product Category'de "url_slug" diğerleri "slug")
+# Doctype → slug taşıyıcı field eşlemesi. Frontend bu field'ın değerini URL
+# slug olarak gönderir; backend DB sorgusu da bu field üzerinde yapılır.
+# - Admin Seller Profile'da `slug` kolonu yok; gerçek taşıyıcı `seller_code`
+#   (örn. "DEMO-001"). API endpoint'leri response'ta `seller.slug = seller_code`
+#   ile yumuşak alias üretir, ama DB lookup için asıl kolon adı zorunlu.
 SLUG_FIELD_MAP = {
 	"Listing": "slug",
 	"Product Category": "url_slug",
 	"Brand": "slug",
-	"Admin Seller Profile": "slug",
+	"Admin Seller Profile": "seller_code",
 }
 
 
