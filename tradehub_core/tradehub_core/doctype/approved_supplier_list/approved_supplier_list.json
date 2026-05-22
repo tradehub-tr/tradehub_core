@@ -1,0 +1,94 @@
+{
+	"name": "Approved Supplier List",
+	"doctype": "DocType",
+	"module": "Tradehub Core",
+	"naming_rule": "Expression",
+	"autoname": "format:ASL-{tenant}-{####}",
+	"engine": "InnoDB",
+	"track_changes": 1,
+	"sort_field": "modified",
+	"sort_order": "DESC",
+	"fields": [
+		{
+			"fieldname": "tenant",
+			"fieldtype": "Link",
+			"label": "Tenant (Admin Seller Profile)",
+			"options": "Admin Seller Profile",
+			"reqd": 1,
+			"in_list_view": 1,
+			"in_standard_filter": 1
+		},
+		{
+			"fieldname": "list_name",
+			"fieldtype": "Data",
+			"label": "List Name",
+			"reqd": 1,
+			"in_list_view": 1
+		},
+		{
+			"fieldname": "cb_meta",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "is_default",
+			"fieldtype": "Check",
+			"label": "Default List for Tenant",
+			"default": 0,
+			"in_list_view": 1,
+			"description": "Tenant'ta sadece 1 default list olabilir"
+		},
+		{
+			"fieldname": "is_active",
+			"fieldtype": "Check",
+			"label": "Active",
+			"default": 1,
+			"in_list_view": 1
+		},
+		{
+			"fieldname": "sb_period",
+			"fieldtype": "Section Break",
+			"label": "Validity Period"
+		},
+		{
+			"fieldname": "effective_from",
+			"fieldtype": "Date",
+			"label": "Effective From"
+		},
+		{
+			"fieldname": "effective_to",
+			"fieldtype": "Date",
+			"label": "Effective To"
+		},
+		{
+			"fieldname": "sb_suppliers",
+			"fieldtype": "Section Break",
+			"label": "Approved Suppliers"
+		},
+		{
+			"fieldname": "suppliers",
+			"fieldtype": "Table",
+			"label": "Suppliers",
+			"options": "Approved Supplier Entry"
+		},
+		{
+			"fieldname": "sb_notes",
+			"fieldtype": "Section Break",
+			"label": "Notes"
+		},
+		{
+			"fieldname": "notes",
+			"fieldtype": "Text",
+			"label": "Notes"
+		}
+	],
+	"permissions": [
+		{
+			"role": "System Manager",
+			"read": 1, "write": 1, "create": 1, "delete": 1, "export": 1, "report": 1, "share": 1
+		},
+		{
+			"role": "Buyer",
+			"read": 1, "write": 1, "create": 1
+		}
+	]
+}

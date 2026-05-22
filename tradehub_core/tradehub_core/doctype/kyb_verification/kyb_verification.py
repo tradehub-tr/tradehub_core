@@ -37,7 +37,6 @@ def _validate_file_extension(file_url: str, field_label: str):
 
 class KYBVerification(Document):
 	def validate(self):
-		super().validate()
 		self._validate_company_title()
 		self._validate_tax_id()
 		self._validate_trade_registry()

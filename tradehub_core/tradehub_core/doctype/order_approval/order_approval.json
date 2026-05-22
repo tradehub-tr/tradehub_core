@@ -1,0 +1,160 @@
+{
+	"name": "Order Approval",
+	"doctype": "DocType",
+	"module": "Tradehub Core",
+	"naming_rule": "Expression (old style)",
+	"autoname": "OA-.YYYY.-.######",
+	"engine": "InnoDB",
+	"track_changes": 1,
+	"sort_field": "creation",
+	"sort_order": "DESC",
+	"title_field": "order",
+	"fields": [
+		{
+			"fieldname": "tab_main",
+			"fieldtype": "Tab Break",
+			"label": "Onay"
+		},
+		{
+			"fieldname": "order",
+			"fieldtype": "Link",
+			"label": "Order",
+			"options": "Order",
+			"reqd": 1,
+			"in_list_view": 1,
+			"in_standard_filter": 1,
+			"search_index": 1,
+			"read_only": 1
+		},
+		{
+			"fieldname": "approval_rule",
+			"fieldtype": "Link",
+			"label": "Approval Rule",
+			"options": "Approval Rule",
+			"reqd": 1,
+			"in_list_view": 1,
+			"read_only": 1
+		},
+		{
+			"fieldname": "organization",
+			"fieldtype": "Link",
+			"label": "Organization",
+			"options": "CRM Organization",
+			"read_only": 1,
+			"in_standard_filter": 1
+		},
+		{
+			"fieldname": "cb_status",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "status",
+			"fieldtype": "Select",
+			"label": "Status",
+			"options": "Pending L1\nApproved L1\nPending L2\nApproved\nRejected\nTimeout Rejected",
+			"default": "Pending L1",
+			"reqd": 1,
+			"in_list_view": 1,
+			"in_standard_filter": 1,
+			"read_only": 1
+		},
+		{
+			"fieldname": "current_level",
+			"fieldtype": "Int",
+			"label": "Current Level",
+			"default": 1,
+			"read_only": 1
+		},
+		{
+			"fieldname": "max_level",
+			"fieldtype": "Int",
+			"label": "Max Level",
+			"reqd": 1,
+			"read_only": 1
+		},
+		{
+			"fieldname": "sb_amount",
+			"fieldtype": "Section Break",
+			"label": "Snapshot"
+		},
+		{
+			"fieldname": "amount",
+			"fieldtype": "Currency",
+			"label": "Order Amount",
+			"reqd": 1,
+			"read_only": 1,
+			"in_list_view": 1,
+			"options": "currency"
+		},
+		{
+			"fieldname": "currency",
+			"fieldtype": "Link",
+			"label": "Currency",
+			"options": "Currency",
+			"read_only": 1,
+			"default": "EUR"
+		},
+		{
+			"fieldname": "requisitioner",
+			"fieldtype": "Link",
+			"label": "Requisitioner",
+			"options": "User",
+			"reqd": 1,
+			"read_only": 1
+		},
+		{
+			"fieldname": "sb_timeline",
+			"fieldtype": "Section Break",
+			"label": "Zaman"
+		},
+		{
+			"fieldname": "started_at",
+			"fieldtype": "Datetime",
+			"label": "Started At",
+			"reqd": 1,
+			"read_only": 1
+		},
+		{
+			"fieldname": "finalized_at",
+			"fieldtype": "Datetime",
+			"label": "Finalized At",
+			"read_only": 1,
+			"description": "Approved veya Rejected anına timestamp"
+		},
+		{
+			"fieldname": "expires_at",
+			"fieldtype": "Datetime",
+			"label": "Expires At",
+			"read_only": 1,
+			"description": "Bu süreye kadar onaylanmazsa otomatik Rejected (Faz 3)"
+		},
+		{
+			"fieldname": "tab_log",
+			"fieldtype": "Tab Break",
+			"label": "Onay Geçmişi"
+		},
+		{
+			"fieldname": "approval_log",
+			"fieldtype": "Table",
+			"label": "Approval Log",
+			"options": "Order Approval Log",
+			"read_only": 1
+		},
+		{
+			"fieldname": "rejection_reason",
+			"fieldtype": "Long Text",
+			"label": "Rejection Reason",
+			"read_only": 1,
+			"depends_on": "eval:doc.status === 'Rejected' || doc.status === 'Timeout Rejected'"
+		}
+	],
+	"permissions": [
+		{ "role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1, "export": 1, "report": 1 },
+		{ "role": "Marketplace Admin", "read": 1, "report": 1 },
+		{ "role": "Compliance Officer", "read": 1, "report": 1 },
+		{ "role": "Buyer Admin", "read": 1 },
+		{ "role": "Buyer Approver L1", "read": 1 },
+		{ "role": "Buyer Approver L2", "read": 1 },
+		{ "role": "Buyer", "read": 1 }
+	]
+}

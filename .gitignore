@@ -13,3 +13,9 @@ node_modules/
 *.swo
 .DS_Store
 .ruff_cache/
+
+# Geçici scratch / debug helper'ları — commit edilmemeli.
+# Tek seferlik audit/data inspection için yazılır, kaynak ağacında kalmaz.
+_audit_v*.py
+_p*.py
+**/setup/debug_*.py

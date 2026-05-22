@@ -1,0 +1,55 @@
+{
+	"name": "Approved Supplier Entry",
+	"doctype": "DocType",
+	"module": "Tradehub Core",
+	"istable": 1,
+	"editable_grid": 1,
+	"engine": "InnoDB",
+	"track_changes": 0,
+	"fields": [
+		{
+			"fieldname": "supplier",
+			"fieldtype": "Link",
+			"label": "Supplier",
+			"options": "Admin Seller Profile",
+			"reqd": 1,
+			"in_list_view": 1
+		},
+		{
+			"fieldname": "min_order_amount",
+			"fieldtype": "Currency",
+			"label": "Min Order Amount",
+			"default": 0
+		},
+		{
+			"fieldname": "max_order_amount",
+			"fieldtype": "Currency",
+			"label": "Max Order Amount",
+			"description": "0 ya da boş = limit yok"
+		},
+		{
+			"fieldname": "allowed_categories",
+			"fieldtype": "Small Text",
+			"label": "Allowed Categories",
+			"description": "Virgülle ayrılmış kategori adları; boş ise tüm kategoriler"
+		},
+		{
+			"fieldname": "is_active",
+			"fieldtype": "Check",
+			"label": "Active",
+			"default": 1,
+			"in_list_view": 1
+		},
+		{
+			"fieldname": "notes",
+			"fieldtype": "Data",
+			"label": "Notes"
+		}
+	],
+	"permissions": [
+		{
+			"role": "System Manager",
+			"read": 1, "write": 1, "create": 1, "delete": 1
+		}
+	]
+}

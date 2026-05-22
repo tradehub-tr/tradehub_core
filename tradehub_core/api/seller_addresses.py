@@ -215,6 +215,10 @@ def get_addresses():
 @frappe.whitelist()
 def save_address(address_json):
 	"""Adres oluşturur veya günceller. Kaydedilen adresi ve aktif default id'sini döndürür."""
+	from tradehub_core.utils.seller_capabilities import require_seller_capability
+
+	require_seller_capability("address.write")
+
 	user = _require_login()
 	seller_name = _resolve_seller_profile(user)
 
@@ -352,6 +356,10 @@ def delete_address(address_id):
 	commit → TX1 lock alır ama row gitmiş → frappe.delete_doc 500 verir.
 	Lock altında existence kontrolü ile kibarca DoesNotExistError mesajı.
 	"""
+	from tradehub_core.utils.seller_capabilities import require_seller_capability
+
+	require_seller_capability("address.write")
+
 	user = _require_login()
 	seller_name = _resolve_seller_profile(user)
 
@@ -383,6 +391,10 @@ def set_default_address(address_id):
 	**Lock ordering:** delete_address ile aynı pattern — owner check lock
 	altında, locked rows üzerinden. target_found falsy ise DoesNotExistError.
 	"""
+	from tradehub_core.utils.seller_capabilities import require_seller_capability
+
+	require_seller_capability("address.write")
+
 	user = _require_login()
 	seller_name = _resolve_seller_profile(user)
 

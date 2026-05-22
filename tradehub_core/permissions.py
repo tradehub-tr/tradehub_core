@@ -43,6 +43,23 @@ AML_SENSITIVE_DOCTYPES = frozenset(
 	]
 )
 
+# K7 fix: DocTypes that require an OPERATIONAL subscription for WRITE operations.
+# Suspended/canceled subscription'ı olan satıcılar read yapabilir (audit) ama
+# write (yeni listing, sipariş, ürün) yapamaz. Past_due grace period dahil edilir
+# (faturayı ödeyebilsin diye, K2 fix).
+SUBSCRIPTION_GATED_DOCTYPES = frozenset(
+	[
+		"Listing",
+		"Order",
+		"Admin Seller Profile",
+		"Seller Inquiry",
+		"Listing Certification",
+		"Seller Certification",
+		"Seller Category",
+		"Seller Gallery Image",
+	]
+)
+
 
 def get_tenant_permission_query_conditions(user=None):
 	"""
@@ -69,7 +86,7 @@ def get_tenant_permission_query_conditions(user=None):
 	user = user or frappe.session.user
 
 	# System Manager can see all tenants
-	if "System Manager" in frappe.get_roles(user):
+	if user == "Administrator" or _is_platform_full_access(user):
 		return ""
 
 	# Get current tenant context
@@ -113,7 +130,7 @@ def has_tenant_permission(doc, ptype=None, user=None):
 	ptype = ptype or "read"
 
 	# System Manager has full access
-	if "System Manager" in frappe.get_roles(user):
+	if user == "Administrator" or _is_platform_full_access(user):
 		return True
 
 	# Get document data
@@ -153,6 +170,11 @@ def has_tenant_permission(doc, ptype=None, user=None):
 
 	# AML/sanctions check for sensitive DocTypes
 	if not _check_aml_sanctions(user, doctype):
+		return False
+
+	# K7 fix: subscription must be operational for write ops on gated doctypes.
+	# Suspended/canceled subscription → write yasak (read serbest, audit için).
+	if not _check_subscription_active(user_tenant, doctype, ptype):
 		return False
 
 	# Spending limit validation for write/submit operations
@@ -279,6 +301,36 @@ def _check_aml_sanctions(user, doctype):
 	# Sprint 3 öncesi — KYB Verification'da aml/sanctions field'ları henüz yok.
 	# Graceful fallback: izin ver, log'a yaz (Sprint 3'te aktif olur).
 	return True
+
+
+def _check_subscription_active(user_tenant, doctype, ptype):
+	"""K7 fix: subscription operational değilse SUBSCRIPTION_GATED_DOCTYPES
+	üzerinde write op'ları reddet.
+
+	Operational = trial/active/past_due (past_due grace period dahil — K2).
+	Suspended/canceled → write yasak (read serbest, audit için).
+
+	Args:
+	    user_tenant: Admin Seller Profile.name
+	    doctype: erişilen DocType
+	    ptype: read/write/submit/create/delete/cancel
+
+	Returns:
+	    True izin ver, False reddet.
+	"""
+	# Sadece subscription-bağlı doctype'ları gate'le
+	if doctype not in SUBSCRIPTION_GATED_DOCTYPES:
+		return True
+	# Sadece destructive op'ları gate'le (read serbest)
+	if ptype not in ("write", "submit", "create", "delete", "cancel"):
+		return True
+	# Tenant yok = ABAC scope dışı (owner/admin yolu zaten devreye girer)
+	if not user_tenant:
+		return True
+
+	from tradehub_core.entitlement import is_subscription_operational
+
+	return is_subscription_operational(user_tenant)
 
 
 def _check_spending_limit(doc, user, ptype):
@@ -508,7 +560,7 @@ def apply_tenant_filter(filters, doctype=None, user=None):
 	user = user or frappe.session.user
 
 	# System Manager doesn't get filtered
-	if "System Manager" in frappe.get_roles(user):
+	if user == "Administrator" or _is_platform_full_access(user):
 		return filters
 
 	tenant = get_current_tenant()
@@ -529,20 +581,32 @@ def apply_tenant_filter(filters, doctype=None, user=None):
 
 
 def _get_seller_profile_name(user):
-	"""Return the Admin Seller Profile name (= seller_code) for the given user, or None."""
-	profile = frappe.db.get_value("Admin Seller Profile", {"user": user}, "name")
-	if not profile:
-		profile = frappe.db.get_value("Admin Seller Profile", {"owner": user}, "name")
-	if not profile:
-		profile = frappe.db.get_value("Admin Seller Profile", {"email": user}, "name")
-	return profile
+	"""Return the Admin Seller Profile name for the given user.
+
+	D6: Tek-source-of-truth `tenant_utils._get_seller_profile_for_user`'a
+	delege. Test stub'larında tenant_utils import edilmemişse fallback
+	(legacy lookup sırası) ile çalışmaya devam eder.
+	Detay: utils/tenant.py:86 `_get_seller_profile_for_user`.
+	"""
+	try:
+		from tradehub_core.utils.tenant import _get_seller_profile_for_user
+
+		return _get_seller_profile_for_user(user)
+	except (ImportError, AttributeError):
+		# Test fallback — production'da tenant_utils her zaman yüklü
+		profile = frappe.db.get_value("Admin Seller Profile", {"user": user}, "name")
+		if not profile:
+			profile = frappe.db.get_value("Admin Seller Profile", {"owner": user}, "name")
+		if not profile:
+			profile = frappe.db.get_value("Admin Seller Profile", {"email": user}, "name")
+		return profile
 
 
 # ── Listing ──────────────────────────────────────────────────────────────────
 
 
 def listing_query_conditions(user):
-	if "System Manager" in frappe.get_roles(user):
+	if user == "Administrator" or _is_platform_full_access(user):
 		return ""
 	profile = _get_seller_profile_name(user)
 	if profile:
@@ -551,7 +615,7 @@ def listing_query_conditions(user):
 
 
 def listing_has_permission(doc, ptype, user):
-	if "System Manager" in frappe.get_roles(user):
+	if user == "Administrator" or _is_platform_full_access(user):
 		return True
 	profile = _get_seller_profile_name(user)
 	if not profile:
@@ -572,7 +636,7 @@ def listing_has_permission(doc, ptype, user):
 
 
 def admin_seller_profile_query_conditions(user):
-	if "System Manager" in frappe.get_roles(user):
+	if user == "Administrator" or _is_platform_full_access(user):
 		return ""
 	profile = _get_seller_profile_name(user)
 	if profile:
@@ -581,7 +645,7 @@ def admin_seller_profile_query_conditions(user):
 
 
 def admin_seller_profile_has_permission(doc, ptype, user):
-	if "System Manager" in frappe.get_roles(user):
+	if user == "Administrator" or _is_platform_full_access(user):
 		return True
 	profile = _get_seller_profile_name(user)
 	doc_name = getattr(doc, "name", None) if not isinstance(doc, dict) else doc.get("name")
@@ -594,7 +658,7 @@ def admin_seller_profile_has_permission(doc, ptype, user):
 
 
 def seller_balance_query_conditions(user):
-	if "System Manager" in frappe.get_roles(user):
+	if user == "Administrator" or _is_platform_full_access(user):
 		return ""
 	# Admin Seller Profile lookup: kullanıcının mağazası filter
 	profile = _get_seller_profile_name(user)
@@ -604,7 +668,7 @@ def seller_balance_query_conditions(user):
 
 
 def seller_balance_has_permission(doc, ptype, user):
-	if "System Manager" in frappe.get_roles(user):
+	if user == "Administrator" or _is_platform_full_access(user):
 		return True
 	seller_val = getattr(doc, "seller", None) if not isinstance(doc, dict) else doc.get("seller")
 	# Sprint 2 (revised, 2026-05-15): seller artık Admin Seller Profile.name (SEL-XXXXX),
@@ -618,7 +682,7 @@ def seller_balance_has_permission(doc, ptype, user):
 
 
 def seller_review_query_conditions(user):
-	if "System Manager" in frappe.get_roles(user):
+	if user == "Administrator" or _is_platform_full_access(user):
 		return ""
 	profile = _get_seller_profile_name(user)
 	if profile:
@@ -627,7 +691,7 @@ def seller_review_query_conditions(user):
 
 
 def seller_review_has_permission(doc, ptype, user):
-	if "System Manager" in frappe.get_roles(user):
+	if user == "Administrator" or _is_platform_full_access(user):
 		return True
 	profile = _get_seller_profile_name(user)
 	seller_val = getattr(doc, "seller", None) if not isinstance(doc, dict) else doc.get("seller")
@@ -823,7 +887,7 @@ def trusted_reviewer_invitation_has_permission(doc, ptype, user):
 
 
 def seller_category_query_conditions(user):
-	if "System Manager" in frappe.get_roles(user):
+	if user == "Administrator" or _is_platform_full_access(user):
 		return ""
 	profile = _get_seller_profile_name(user)
 	if profile:
@@ -832,7 +896,7 @@ def seller_category_query_conditions(user):
 
 
 def seller_category_has_permission(doc, ptype, user):
-	if "System Manager" in frappe.get_roles(user):
+	if user == "Administrator" or _is_platform_full_access(user):
 		return True
 	profile = _get_seller_profile_name(user)
 	seller_val = getattr(doc, "seller", None) if not isinstance(doc, dict) else doc.get("seller")
@@ -844,7 +908,7 @@ def seller_category_has_permission(doc, ptype, user):
 
 
 def seller_gallery_image_query_conditions(user):
-	if "System Manager" in frappe.get_roles(user):
+	if user == "Administrator" or _is_platform_full_access(user):
 		return ""
 	profile = _get_seller_profile_name(user)
 	if profile:
@@ -853,7 +917,7 @@ def seller_gallery_image_query_conditions(user):
 
 
 def seller_gallery_image_has_permission(doc, ptype, user):
-	if "System Manager" in frappe.get_roles(user):
+	if user == "Administrator" or _is_platform_full_access(user):
 		return True
 	profile = _get_seller_profile_name(user)
 	parent_val = getattr(doc, "parent", None) if not isinstance(doc, dict) else doc.get("parent")
@@ -865,13 +929,13 @@ def seller_gallery_image_has_permission(doc, ptype, user):
 
 
 def kyb_verification_query_conditions(user):
-	if "System Manager" in frappe.get_roles(user):
+	if user == "Administrator" or _is_platform_full_access(user):
 		return ""
 	return f"`tabKYB Verification`.`user` = {frappe.db.escape(user)}"
 
 
 def kyb_verification_has_permission(doc, ptype, user):
-	if "System Manager" in frappe.get_roles(user):
+	if user == "Administrator" or _is_platform_full_access(user):
 		return True
 	user_val = getattr(doc, "user", None) if not isinstance(doc, dict) else doc.get("user")
 	return user_val == user
@@ -882,20 +946,57 @@ def kyb_verification_has_permission(doc, ptype, user):
 
 
 def order_query_conditions(user):
-	if "System Manager" in frappe.get_roles(user):
+	if not user or user == "Guest":
+		return "1=0"
+	# Platform-full rolleri tüm Order'ları görür (System Manager dahil)
+	if user == "Administrator" or _is_platform_full_access(user):
 		return ""
+
+	# Seller tarafı — kendi seller_profile'ına bağlı order'lar
 	profile = _get_seller_profile_name(user)
+	# Buyer tarafı — kendi user veya org'undaki diğer buyer'lar
+	orgs = _user_organizations(user)
+
+	clauses: list[str] = []
 	if profile:
-		return f"`tabOrder`.`seller` = {frappe.db.escape(profile)}"
-	return "1=0"
+		clauses.append(f"`tabOrder`.`seller` = {frappe.db.escape(profile)}")
+	# Kullanıcı kendi açtığı order'ı her zaman görür
+	clauses.append(f"`tabOrder`.`buyer` = {frappe.db.escape(user)}")
+	if orgs:
+		# Buyer organization üyelerinin order'ları (approver/admin/finance görsün)
+		org_list = ", ".join(frappe.db.escape(o) for o in orgs)
+		clauses.append(
+			"`tabOrder`.`buyer` IN ("
+			"SELECT `name` FROM `tabUser` "
+			f"WHERE `tradehub_parent_organization` IN ({org_list})"
+			")"
+		)
+	return "(" + " OR ".join(clauses) + ")"
 
 
 def order_has_permission(doc, ptype, user):
-	if "System Manager" in frappe.get_roles(user):
+	if user == "Administrator" or _is_platform_full_access(user):
 		return True
+	if doc is None:
+		return True
+
+	seller_val = _doc_field(doc, "seller")
+	buyer_val = _doc_field(doc, "buyer")
+
+	# Seller-side: kendi mağazasının order'ı
 	profile = _get_seller_profile_name(user)
-	seller_val = getattr(doc, "seller", None) if not isinstance(doc, dict) else doc.get("seller")
-	return profile and seller_val == profile
+	if profile and seller_val == profile:
+		return True
+
+	# Buyer-side: kendi açtığı veya aynı organizasyon
+	if buyer_val == user:
+		return True
+	if buyer_val:
+		buyer_org = frappe.db.get_value("User", buyer_val, "tradehub_parent_organization")
+		if buyer_org and buyer_org in _user_organizations(user):
+			return True
+
+	return False
 
 
 # ── Seller Inquiry ────────────────────────────────────────────────────────────
@@ -903,7 +1004,7 @@ def order_has_permission(doc, ptype, user):
 
 
 def seller_inquiry_query_conditions(user):
-	if "System Manager" in frappe.get_roles(user):
+	if user == "Administrator" or _is_platform_full_access(user):
 		return ""
 	profile = _get_seller_profile_name(user)
 	if profile:
@@ -912,7 +1013,7 @@ def seller_inquiry_query_conditions(user):
 
 
 def seller_inquiry_has_permission(doc, ptype, user):
-	if "System Manager" in frappe.get_roles(user):
+	if user == "Administrator" or _is_platform_full_access(user):
 		return True
 	profile = _get_seller_profile_name(user)
 	seller_val = getattr(doc, "seller", None) if not isinstance(doc, dict) else doc.get("seller")
@@ -924,7 +1025,7 @@ def seller_inquiry_has_permission(doc, ptype, user):
 
 
 def certification_type_query_conditions(user):
-	if "System Manager" in frappe.get_roles(user):
+	if user == "Administrator" or _is_platform_full_access(user):
 		return ""
 	escaped_user = frappe.db.escape(user)
 	return (
@@ -934,7 +1035,7 @@ def certification_type_query_conditions(user):
 
 
 def certification_type_has_permission(doc, ptype, user):
-	if "System Manager" in frappe.get_roles(user):
+	if user == "Administrator" or _is_platform_full_access(user):
 		return True
 	status_val = getattr(doc, "status", None) if not isinstance(doc, dict) else doc.get("status")
 	if status_val == "Approved":
@@ -951,13 +1052,13 @@ def certification_type_has_permission(doc, ptype, user):
 
 
 def search_history_query_conditions(user):
-	if "System Manager" in frappe.get_roles(user):
+	if user == "Administrator" or _is_platform_full_access(user):
 		return ""
 	return f"`tabSearch History`.`user` = {frappe.db.escape(user)}"
 
 
 def search_history_has_permission(doc, ptype, user):
-	if "System Manager" in frappe.get_roles(user):
+	if user == "Administrator" or _is_platform_full_access(user):
 		return True
 	doc_user = getattr(doc, "user", None) if not isinstance(doc, dict) else doc.get("user")
 	return doc_user == user
@@ -1423,6 +1524,29 @@ def rfq_has_permission(doc, ptype, user):
 # ── User Profile (Sprint 2 — User Profile Birleşmesi) ─────────────────────────
 # Platform rolleri tüm User Profile'lara erişebilir; Buyer/Seller sadece kendi profili.
 
+# D8: Platform-full-access rol haritası (mevcut ve gelecek için)
+#
+# Bu set içindeki roller her permission_query_conditions / has_permission
+# fonksiyonunda otomatik bypass alır.
+#
+# Roller arası ayrım (tasarım niyeti):
+#   - System Manager      → Frappe core super-admin (her şeyi yapar; emergency)
+#   - Marketplace Admin   → Legacy platform admin (62+ standart DocPerm).
+#                          v15 öncesi platform operasyon ekibinin rolü.
+#                          Yeni özelliklerde kullanılmaz; yeni doctype'lar
+#                          için **Platform Admin** tercih edilmeli.
+#   - Platform Admin      → v15+ standart platform admin. Yeni feature'lar
+#                          (Permission Console, Authorization Simulator vb.)
+#                          için canonical rol.
+#   - Platform Super Admin → Marketplace Admin + Platform Finance +
+#                          Compliance Officer + Support Agent kompozit
+#                          Role Profile. Tek başına DocPerm taşımaz; içerdiği
+#                          rolleri bundle eder.
+#   - Compliance Officer  → PII + Forensics rolü. Audit log + Anomaly
+#                          dashboard erişimi. Sub-Admin değil; sadece okuma.
+#
+# Migration path: yeni feature'lar `Platform Admin` üzerinden gider;
+# Marketplace Admin geriye dönük uyumluluk için tutulur.
 _PLATFORM_FULL_ACCESS_ROLES = frozenset(
 	{
 		"System Manager",
@@ -1432,6 +1556,12 @@ _PLATFORM_FULL_ACCESS_ROLES = frozenset(
 		"Compliance Officer",
 	}
 )
+
+# Platform Finance ek olarak audit log'ları okuyabilmeli (finansal denetim
+# amacıyla); ama PII Policy / Anomaly Rule / Permission Override gibi yönetim
+# doctype'larına dokunmamalı — `_PLATFORM_FULL_ACCESS_ROLES`'a değil bu set'e
+# eklendi.
+_PLATFORM_AUDIT_READ_ROLES = _PLATFORM_FULL_ACCESS_ROLES | {"Platform Finance"}
 
 
 def user_profile_query_conditions(user):
@@ -1465,3 +1595,458 @@ def user_profile_has_permission(doc, ptype, user):
 	# Buyer/Seller: sadece kendi profili
 	doc_user = getattr(doc, "user", None) if not isinstance(doc, dict) else doc.get("user")
 	return doc_user == user
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# FAZ 2/3 — ReBAC/Audit DocType izolasyonu
+# ─────────────────────────────────────────────────────────────────────────────
+# Aşağıdaki 11 yeni doctype için tenant/organization scope ve per-doc kontrol.
+# DocPerm tarafındaki if_owner=1 tuzağı kaldırıldı (Order Approval, Approval
+# Rule) — yetkilendirmeyi tamamen burada belirliyoruz.
+#
+# Buyer-side scope: User.tradehub_parent_organization (+ ancestors)
+# Seller-side scope: Admin Seller Profile (tenant)
+# Platform-only:    System Manager / Marketplace Admin / Compliance Officer
+
+
+def _doc_field(doc, name, default=None):
+	"""SimpleNamespace / dict / Document üçü için ortak getter."""
+	if doc is None:
+		return default
+	if isinstance(doc, dict):
+		return doc.get(name, default)
+	return getattr(doc, name, default)
+
+
+def _user_organizations(user):
+	"""Buyer user'ın bağlı olduğu organization + ataları.
+
+	Returns:
+	    set[str] — boşsa user bir org'a bağlı değil.
+	"""
+	if not user or user in ("Guest", "Administrator"):
+		return set()
+	org = frappe.db.get_value("User", user, "tradehub_parent_organization")
+	if not org:
+		return set()
+	from tradehub_core.utils.organization_hierarchy import get_ancestors
+
+	return {org, *get_ancestors(org)}
+
+
+def _buyer_tenant_for_user(user):
+	"""Buyer user'ın tenant (= Admin Seller Profile name'i). Yoksa None.
+
+	Cost Center.tenant ve diğer buyer-tarafı seller-link'leri için kullanılır.
+	"""
+	if not user or user in ("Guest", "Administrator"):
+		return None
+	for fieldname in ("tradehub_buyer_tenant", "tradehub_tenant"):
+		val = frappe.db.get_value("User", user, fieldname)
+		if val:
+			return val
+	return None
+
+
+def _is_platform_full_access(user):
+	if not user or user == "Guest":
+		return False
+	roles = set(frappe.get_roles(user))
+	return bool(roles & _PLATFORM_FULL_ACCESS_ROLES)
+
+
+def _is_platform_audit_reader(user):
+	"""Authorization Decision Log + Anomaly Alert için genişletilmiş okuma."""
+	if not user or user == "Guest":
+		return False
+	roles = set(frappe.get_roles(user))
+	return bool(roles & _PLATFORM_AUDIT_READ_ROLES)
+
+
+# ── Order Approval ───────────────────────────────────────────────────────────
+# Approver organization (+ ancestors) içindeki tüm approval'ları görür;
+# Requisitioner kendi başlattıkları + admin scope dışındaki herkese KAPALI.
+
+
+def order_approval_query_conditions(user):
+	if not user or user == "Guest":
+		return "1=0"
+	if user == "Administrator" or _is_platform_full_access(user):
+		return ""
+
+	orgs = _user_organizations(user)
+	clauses = []
+	if orgs:
+		org_list = ", ".join(frappe.db.escape(o) for o in orgs)
+		clauses.append(f"`tabOrder Approval`.`organization` IN ({org_list})")
+	# Requisitioner kendi başlattığı approval'ı her zaman görür
+	clauses.append(f"`tabOrder Approval`.`requisitioner` = {frappe.db.escape(user)}")
+	return "(" + " OR ".join(clauses) + ")"
+
+
+def order_approval_has_permission(doc, ptype, user):
+	if user == "Administrator" or _is_platform_full_access(user):
+		return True
+	if doc is None:
+		return True
+	doc_org = _doc_field(doc, "organization")
+	doc_req = _doc_field(doc, "requisitioner")
+	if doc_req == user:
+		return True
+	if doc_org and doc_org in _user_organizations(user):
+		return True
+	return False
+
+
+# ── Approval Rule ────────────────────────────────────────────────────────────
+
+
+def approval_rule_query_conditions(user):
+	if not user or user == "Guest":
+		return "1=0"
+	if user == "Administrator" or _is_platform_full_access(user):
+		return ""
+
+	orgs = _user_organizations(user)
+	if not orgs:
+		return "1=0"
+	org_list = ", ".join(frappe.db.escape(o) for o in orgs)
+	return f"`tabApproval Rule`.`organization` IN ({org_list})"
+
+
+def approval_rule_has_permission(doc, ptype, user):
+	if user == "Administrator" or _is_platform_full_access(user):
+		return True
+	if doc is None:
+		return True
+	doc_org = _doc_field(doc, "organization")
+	# Yeni rule oluşturulurken organization henüz set edilmemiş olabilir
+	if not doc_org:
+		return ptype in ("create", "write")
+	return doc_org in _user_organizations(user)
+
+
+# ── Cost Center ──────────────────────────────────────────────────────────────
+# Buyer'ın tenant'ına bağlı cost center'lar; sellerlar için tanımsız.
+
+
+def cost_center_query_conditions(user):
+	if not user or user == "Guest":
+		return "1=0"
+	if user == "Administrator" or _is_platform_full_access(user):
+		return ""
+
+	tenant = _buyer_tenant_for_user(user)
+	if not tenant:
+		# Seller veya tenant'sız user → cost center göremesin
+		return "1=0"
+	return f"`tabCost Center`.`tenant` = {frappe.db.escape(tenant)}"
+
+
+def cost_center_has_permission(doc, ptype, user):
+	if user == "Administrator" or _is_platform_full_access(user):
+		return True
+	if doc is None:
+		return True
+	doc_tenant = _doc_field(doc, "tenant")
+	user_tenant = _buyer_tenant_for_user(user)
+	if not user_tenant:
+		return False
+	# Yeni cost center'da tenant henüz set edilmemiş olabilir
+	if not doc_tenant:
+		return ptype in ("create", "write")
+	return doc_tenant == user_tenant
+
+
+# ── Owner Transfer Request ───────────────────────────────────────────────────
+# Seller-side. Mevcut owner ve proposed owner görür; tenant'ın diğer
+# sub-user'ları görmez (devir sürecindeki kişiler ve admin).
+
+
+def owner_transfer_request_query_conditions(user):
+	if not user or user == "Guest":
+		return "1=0"
+	if user == "Administrator" or _is_platform_full_access(user):
+		return ""
+
+	# Seller tenant'ı (kendi mağazasının devirleri)
+	tenant = _get_seller_profile_name(user)
+	clauses = [
+		f"`tabOwner Transfer Request`.`current_owner` = {frappe.db.escape(user)}",
+		f"`tabOwner Transfer Request`.`proposed_owner` = {frappe.db.escape(user)}",
+	]
+	if tenant:
+		clauses.append(
+			f"`tabOwner Transfer Request`.`tenant` = {frappe.db.escape(tenant)}"
+		)
+	return "(" + " OR ".join(clauses) + ")"
+
+
+def owner_transfer_request_has_permission(doc, ptype, user):
+	if user == "Administrator" or _is_platform_full_access(user):
+		return True
+	if doc is None:
+		return True
+	current = _doc_field(doc, "current_owner")
+	proposed = _doc_field(doc, "proposed_owner")
+	doc_tenant = _doc_field(doc, "tenant")
+	if user in (current, proposed):
+		return True
+	user_tenant = _get_seller_profile_name(user)
+	return bool(user_tenant and doc_tenant == user_tenant)
+
+
+# ── Role Delegation ──────────────────────────────────────────────────────────
+# Delegator + delegate görür; aynı tenant'ın owner'ı da görür.
+
+
+def role_delegation_query_conditions(user):
+	if not user or user == "Guest":
+		return "1=0"
+	if user == "Administrator" or _is_platform_full_access(user):
+		return ""
+
+	tenant = _get_seller_profile_name(user)
+	clauses = [
+		f"`tabRole Delegation`.`delegator` = {frappe.db.escape(user)}",
+		f"`tabRole Delegation`.`delegate` = {frappe.db.escape(user)}",
+	]
+	if tenant:
+		clauses.append(
+			f"`tabRole Delegation`.`tenant` = {frappe.db.escape(tenant)}"
+		)
+	return "(" + " OR ".join(clauses) + ")"
+
+
+def role_delegation_has_permission(doc, ptype, user):
+	if user == "Administrator" or _is_platform_full_access(user):
+		return True
+	if doc is None:
+		return True
+	delegator = _doc_field(doc, "delegator")
+	delegate = _doc_field(doc, "delegate")
+	doc_tenant = _doc_field(doc, "tenant")
+	if user in (delegator, delegate):
+		return True
+	user_tenant = _get_seller_profile_name(user)
+	return bool(user_tenant and doc_tenant == user_tenant)
+
+
+# ── Authorization Decision Log ──────────────────────────────────────────────
+# Platform rolleri tüm logları görür; seller sadece kendi tenant'ının logları.
+
+
+def authorization_decision_log_query_conditions(user):
+	if not user or user == "Guest":
+		return "1=0"
+	# Platform Finance dahil audit-read rolleri tüm logları görür
+	if user == "Administrator" or _is_platform_audit_reader(user):
+		return ""
+
+	clauses = [f"`tabAuthorization Decision Log`.`actor` = {frappe.db.escape(user)}"]
+
+	# Seller-side: kullanıcının tenant'ına ait loglar
+	tenant = _get_seller_profile_name(user)
+	if tenant:
+		clauses.append(
+			f"`tabAuthorization Decision Log`.`tenant` = {frappe.db.escape(tenant)}"
+		)
+
+	# O5: Buyer-side — kullanıcının organizasyonu (+ ancestors) için loglar
+	orgs = _user_organizations(user)
+	if orgs:
+		org_list = ", ".join(frappe.db.escape(o) for o in orgs)
+		clauses.append(
+			f"`tabAuthorization Decision Log`.`buyer_org` IN ({org_list})"
+		)
+
+	return "(" + " OR ".join(clauses) + ")"
+
+
+def authorization_decision_log_has_permission(doc, ptype, user):
+	if user == "Administrator" or _is_platform_audit_reader(user):
+		return True
+	if doc is None:
+		return True
+	doc_tenant = _doc_field(doc, "tenant")
+	doc_buyer_org = _doc_field(doc, "buyer_org")
+	doc_actor = _doc_field(doc, "actor")
+	if doc_actor == user:
+		return True
+	user_tenant = _get_seller_profile_name(user)
+	if user_tenant and doc_tenant == user_tenant:
+		return True
+	# O5: buyer organization match
+	if doc_buyer_org and doc_buyer_org in _user_organizations(user):
+		return True
+	return False
+
+
+# ── Role Change Log ──────────────────────────────────────────────────────────
+
+
+def role_change_log_query_conditions(user):
+	if not user or user == "Guest":
+		return "1=0"
+	if user == "Administrator" or _is_platform_full_access(user):
+		return ""
+
+	tenant = _get_seller_profile_name(user)
+	clauses = [
+		f"`tabRole Change Log`.`target_user` = {frappe.db.escape(user)}",
+		f"`tabRole Change Log`.`changed_by` = {frappe.db.escape(user)}",
+	]
+	if tenant:
+		clauses.append(
+			f"`tabRole Change Log`.`tenant` = {frappe.db.escape(tenant)}"
+		)
+	return "(" + " OR ".join(clauses) + ")"
+
+
+def role_change_log_has_permission(doc, ptype, user):
+	if user == "Administrator" or _is_platform_full_access(user):
+		return True
+	if doc is None:
+		return True
+	target = _doc_field(doc, "target_user")
+	changed_by = _doc_field(doc, "changed_by")
+	doc_tenant = _doc_field(doc, "tenant")
+	if user in (target, changed_by):
+		return True
+	user_tenant = _get_seller_profile_name(user)
+	return bool(user_tenant and doc_tenant == user_tenant)
+
+
+# ── Authorization Anomaly Alert ─────────────────────────────────────────────
+# Platform-only; ek olarak tenant_scope eşleşen tenant'ın owner'ı kendi
+# tenant'ının alarmlarını görebilir.
+
+
+def authorization_anomaly_alert_query_conditions(user):
+	if not user or user == "Guest":
+		return "1=0"
+	# Platform Finance dahil audit-read rolleri tüm tenant'ların alertlerini görür
+	if user == "Administrator" or _is_platform_audit_reader(user):
+		return ""
+
+	clauses: list[str] = []
+	tenant = _get_seller_profile_name(user)
+	if tenant:
+		clauses.append(
+			f"`tabAuthorization Anomaly Alert`.`tenant` = {frappe.db.escape(tenant)}"
+		)
+	# D10: Buyer-side — kullanıcının organizasyonu için alarmlar
+	orgs = _user_organizations(user)
+	if orgs:
+		org_list = ", ".join(frappe.db.escape(o) for o in orgs)
+		clauses.append(
+			f"`tabAuthorization Anomaly Alert`.`buyer_org` IN ({org_list})"
+		)
+	if not clauses:
+		return "1=0"
+	return "(" + " OR ".join(clauses) + ")"
+
+
+def authorization_anomaly_alert_has_permission(doc, ptype, user):
+	if user == "Administrator" or _is_platform_audit_reader(user):
+		return True
+	if doc is None:
+		return True
+	doc_tenant = _doc_field(doc, "tenant")
+	doc_buyer_org = _doc_field(doc, "buyer_org")
+	user_tenant = _get_seller_profile_name(user)
+	if user_tenant and doc_tenant == user_tenant:
+		return True
+	# D10: buyer organization match
+	if doc_buyer_org and doc_buyer_org in _user_organizations(user):
+		return True
+	return False
+
+
+# ── Authorization Anomaly Rule ──────────────────────────────────────────────
+# Platform-only.
+
+
+def authorization_anomaly_rule_query_conditions(user):
+	if not user or user == "Guest":
+		return "1=0"
+	if user == "Administrator" or _is_platform_full_access(user):
+		return ""
+	return "1=0"
+
+
+def authorization_anomaly_rule_has_permission(doc, ptype, user):
+	if user == "Administrator" or _is_platform_full_access(user):
+		return True
+	return False
+
+
+# ── Permission Override Log ─────────────────────────────────────────────────
+# Platform-only.
+
+
+def permission_override_log_query_conditions(user):
+	if not user or user == "Guest":
+		return "1=0"
+	if user == "Administrator" or _is_platform_full_access(user):
+		return ""
+	return "1=0"
+
+
+def permission_override_log_has_permission(doc, ptype, user):
+	if user == "Administrator" or _is_platform_full_access(user):
+		return True
+	return False
+
+
+# ── PII Field Policy ─────────────────────────────────────────────────────────
+# Platform-only.
+
+
+def pii_field_policy_query_conditions(user):
+	if not user or user == "Guest":
+		return "1=0"
+	if user == "Administrator" or _is_platform_full_access(user):
+		return ""
+	return "1=0"
+
+
+def pii_field_policy_has_permission(doc, ptype, user):
+	if user == "Administrator" or _is_platform_full_access(user):
+		return True
+	return False
+
+
+def notification_settings_has_permission(doc, ptype=None, user=None, debug=False):
+	"""Notification Settings — tenant Owner/Co-Owner kendi ekip üyelerinin
+	settings'ine erişebilsin.
+
+	Why: Owner sub-user'ı pasifleştirdiğinde User.on_update → toggle_notifications
+	→ Notification Settings.save() çağrılır. Frappe core'un default has_permission'ı
+	`doc.name == user` arar (kendi kendine erişim) ve owner'ı reddeder, akış patlar.
+	Burası tenant member yönetim yetkisini Notification Settings'e de uzatır.
+
+	How to apply: None döndürürse Frappe core has_permission zinciri devam eder
+	(reversed sırada bizim hook önce çağrılır; True dönerse erken çıkış olur).
+	"""
+	user = user or frappe.session.user
+	if not user or user == "Guest":
+		return None  # core handler'a bırak
+
+	# doc.name = Notification Settings sahibi user email'i
+	target_user = getattr(doc, "name", None) if not isinstance(doc, dict) else doc.get("name")
+	if not target_user:
+		return None
+
+	# Aynı tenant'taki Owner/Co-Owner mi?
+	current_tenant = frappe.db.get_value("User", user, "tradehub_tenant")
+	target_tenant = frappe.db.get_value("User", target_user, "tradehub_tenant")
+	if not current_tenant or current_tenant != target_tenant:
+		return None  # tenant uyuşmazlığı → core handler karar versin
+
+	is_owner = frappe.db.get_value("User", user, "tradehub_is_owner")
+	role_profile = frappe.db.get_value("User", user, "role_profile_name")
+	if is_owner or role_profile == "Seller Co-Owner":
+		return True
+
+	return None
