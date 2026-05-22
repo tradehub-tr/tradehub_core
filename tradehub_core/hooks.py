@@ -433,6 +433,7 @@ doc_events = {
 		"on_update": "tradehub_core.bulk_import.regex_lib.clear_pattern_cache",
 		"on_trash": "tradehub_core.bulk_import.regex_lib.clear_pattern_cache",
 		"after_insert": "tradehub_core.bulk_import.regex_lib.clear_pattern_cache",
+	},
 	# -------------------------------------------------------------------------
 	# FAZ 1.1 — Tenant İzolasyonu (seller-scoped doctype'lar)
 	# Her seller-scoped doctype için:
