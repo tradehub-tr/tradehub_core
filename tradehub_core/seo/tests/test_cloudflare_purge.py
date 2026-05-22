@@ -58,9 +58,12 @@ class TestCallCloudflarePurge(unittest.TestCase):
 			http_post=fake_post,
 		)
 
-		self.assertEqual(captured["json"], {
-			"files": ["https://istoc.com/urun/a", "https://istoc.com/urun/b"],
-		})
+		self.assertEqual(
+			captured["json"],
+			{
+				"files": ["https://istoc.com/urun/a", "https://istoc.com/urun/b"],
+			},
+		)
 
 	def test_sends_bearer_token_header(self):
 		captured = {}

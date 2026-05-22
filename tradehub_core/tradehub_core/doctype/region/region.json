@@ -1,0 +1,120 @@
+{
+	"name": "Region",
+	"doctype": "DocType",
+	"module": "Tradehub Core",
+	"naming_rule": "By fieldname",
+	"autoname": "field:region_code",
+	"engine": "InnoDB",
+	"track_changes": 1,
+	"sort_field": "region_code",
+	"sort_order": "ASC",
+	"title_field": "region_name",
+	"fields": [
+		{
+			"fieldname": "region_code",
+			"fieldtype": "Data",
+			"label": "Region Code",
+			"reqd": 1,
+			"unique": 1,
+			"in_list_view": 1,
+			"in_standard_filter": 1,
+			"description": "Kısa kod (TR, EU, MENA, AZ, KZ, UZ, TM, KG, GLOBAL)"
+		},
+		{
+			"fieldname": "region_name",
+			"fieldtype": "Data",
+			"label": "Region Name",
+			"reqd": 1,
+			"in_list_view": 1
+		},
+		{
+			"fieldname": "region_type",
+			"fieldtype": "Select",
+			"label": "Region Type",
+			"options": "country\neconomic_zone\nsupra_national",
+			"default": "country"
+		},
+		{
+			"fieldname": "jurisdiction",
+			"fieldtype": "Select",
+			"label": "Jurisdiction",
+			"options": "KVKK\nGDPR\nMENA\nCIS\nOTHER",
+			"default": "OTHER",
+			"in_list_view": 1,
+			"in_standard_filter": 1
+		},
+		{
+			"fieldname": "data_residency_required",
+			"fieldtype": "Check",
+			"label": "Data Residency Required",
+			"default": 0,
+			"description": "Eğer 1 ise bu bölgenin verisi başka bölgelere kopyalanmaz."
+		},
+		{
+			"fieldname": "cb_locale",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "default_currency",
+			"fieldtype": "Link",
+			"label": "Default Currency",
+			"options": "Currency"
+		},
+		{
+			"fieldname": "default_language",
+			"fieldtype": "Data",
+			"label": "Default Language Code",
+			"description": "ISO 639-1 (tr, en, ar, ru)"
+		},
+		{
+			"fieldname": "is_active",
+			"fieldtype": "Check",
+			"label": "Active",
+			"default": 1,
+			"in_list_view": 1
+		},
+		{
+			"fieldname": "sb_countries",
+			"fieldtype": "Section Break",
+			"label": "Countries"
+		},
+		{
+			"fieldname": "countries",
+			"fieldtype": "Small Text",
+			"label": "Country Codes",
+			"description": "ISO 3166-1 alpha-2 ülke kodları, virgülle ayrılmış (örn. DE,FR,IT,ES,NL)"
+		},
+		{
+			"fieldname": "sb_compliance",
+			"fieldtype": "Section Break",
+			"label": "Compliance Policy"
+		},
+		{
+			"fieldname": "pii_masking_policy",
+			"fieldtype": "JSON",
+			"label": "PII Masking Policy",
+			"description": "Bu bölgede PII alanlarının maskeleme kuralı (Faz 3'te kullanılır)"
+		}
+	],
+	"permissions": [
+		{
+			"role": "System Manager",
+			"read": 1,
+			"write": 1,
+			"create": 1,
+			"delete": 1,
+			"export": 1,
+			"report": 1,
+			"share": 1
+		},
+		{
+			"role": "Marketplace Admin",
+			"read": 1,
+			"write": 1
+		},
+		{
+			"role": "All",
+			"read": 1
+		}
+	]
+}

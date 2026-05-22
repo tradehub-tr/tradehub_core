@@ -1,6 +1,6 @@
 """redirect_resolver pure-function testleri.
 
-	cd apps/tradehub_core && python -m unittest tradehub_core.seo.tests.test_redirect_resolver
+cd apps/tradehub_core && python -m unittest tradehub_core.seo.tests.test_redirect_resolver
 """
 
 import sys

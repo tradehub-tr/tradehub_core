@@ -1,0 +1,137 @@
+{
+	"name": "Authorization Anomaly Alert",
+	"doctype": "DocType",
+	"module": "Tradehub Core",
+	"naming_rule": "Autoincrement",
+	"autoname": "format:AAA-{####}",
+	"engine": "InnoDB",
+	"track_changes": 1,
+	"sort_field": "triggered_at",
+	"sort_order": "DESC",
+	"fields": [
+		{
+			"fieldname": "rule",
+			"fieldtype": "Link",
+			"label": "Detection Rule",
+			"options": "Authorization Anomaly Rule",
+			"reqd": 1,
+			"in_list_view": 1,
+			"in_standard_filter": 1
+		},
+		{
+			"fieldname": "triggered_at",
+			"fieldtype": "Datetime",
+			"label": "Triggered At",
+			"reqd": 1,
+			"in_list_view": 1,
+			"in_standard_filter": 1
+		},
+		{
+			"fieldname": "cb_meta",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "status",
+			"fieldtype": "Select",
+			"label": "Status",
+			"options": "open\nacknowledged\nresolved\nfalse_positive",
+			"default": "open",
+			"reqd": 1,
+			"in_list_view": 1,
+			"in_standard_filter": 1
+		},
+		{
+			"fieldname": "severity",
+			"fieldtype": "Select",
+			"label": "Severity",
+			"options": "LOW\nMEDIUM\nHIGH\nCRITICAL",
+			"default": "MEDIUM",
+			"reqd": 1,
+			"in_list_view": 1
+		},
+		{
+			"fieldname": "sb_target",
+			"fieldtype": "Section Break",
+			"label": "Target"
+		},
+		{
+			"fieldname": "actor",
+			"fieldtype": "Data",
+			"label": "Actor (User)",
+			"description": "Anomalinin sahibi (varsa)"
+		},
+		{
+			"fieldname": "tenant",
+			"fieldtype": "Link",
+			"label": "Tenant",
+			"options": "Admin Seller Profile"
+		},
+		{
+			"fieldname": "cb_target",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "event_count",
+			"fieldtype": "Int",
+			"label": "Event Count"
+		},
+		{
+			"fieldname": "window_start",
+			"fieldtype": "Datetime",
+			"label": "Window Start"
+		},
+		{
+			"fieldname": "window_end",
+			"fieldtype": "Datetime",
+			"label": "Window End"
+		},
+		{
+			"fieldname": "sb_evidence",
+			"fieldtype": "Section Break",
+			"label": "Evidence"
+		},
+		{
+			"fieldname": "evidence_log_ids",
+			"fieldtype": "Small Text",
+			"label": "Evidence Log IDs",
+			"description": "Authorization Decision Log adlarının virgülle ayrılmış listesi"
+		},
+		{
+			"fieldname": "action_taken",
+			"fieldtype": "Small Text",
+			"label": "Action Taken",
+			"description": "notify, suspend, ..."
+		},
+		{
+			"fieldname": "sb_resolution",
+			"fieldtype": "Section Break",
+			"label": "Resolution"
+		},
+		{
+			"fieldname": "acknowledged_by",
+			"fieldtype": "Link",
+			"label": "Acknowledged By",
+			"options": "User"
+		},
+		{
+			"fieldname": "acknowledged_at",
+			"fieldtype": "Datetime",
+			"label": "Acknowledged At"
+		},
+		{
+			"fieldname": "resolution_notes",
+			"fieldtype": "Text",
+			"label": "Resolution Notes"
+		}
+	],
+	"permissions": [
+		{
+			"role": "System Manager",
+			"read": 1, "write": 1, "create": 1, "delete": 1, "export": 1, "report": 1, "share": 1
+		},
+		{
+			"role": "Compliance Officer",
+			"read": 1, "write": 1, "export": 1, "report": 1
+		}
+	]
+}

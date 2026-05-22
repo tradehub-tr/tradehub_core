@@ -388,12 +388,13 @@ def submit_quote(
 	rfq_id, price_per_unit=0, total_price=0, currency="TRY", lead_time_days=0, message="", listing_id=None
 ):
 	"""Seller submits a quote for an RFQ."""
+	from tradehub_core.utils.seller_capabilities import require_seller_capability
+
+	require_seller_capability("rfq.quote")
+
 	user = frappe.session.user
 	if user == "Guest":
 		frappe.throw(_("Please log in"), frappe.AuthenticationError)
-
-	if "Seller" not in frappe.get_roles(user):
-		frappe.throw(_("Only sellers can submit quotes"), frappe.PermissionError)
 
 	if not frappe.db.exists("RFQ", rfq_id):
 		frappe.throw(_("RFQ not found"), frappe.DoesNotExistError)

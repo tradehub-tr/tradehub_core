@@ -21,8 +21,18 @@ from frappe.utils import getdate, today
 # ──────────────────────────────────────────────────────────────────────────
 
 
-def _require_seller_profile() -> str:
-	"""Login satıcının Admin Seller Profile name'i; yoksa throw."""
+def _require_seller_profile(capability: str | None = None) -> str:
+	"""Login satıcının Admin Seller Profile name'i; yoksa throw.
+
+	capability: opsiyonel — verilirse önce seller capability kontrolü yapılır
+	(rol profili bazlı). Read endpoint'leri None geçer; write endpoint'leri
+	"cert.write" gibi capability key geçer.
+	"""
+	if capability:
+		from tradehub_core.utils.seller_capabilities import require_seller_capability
+
+		require_seller_capability(capability)
+
 	user = frappe.session.user
 	if not user or user == "Guest":
 		frappe.throw(_("Bu işlem için giriş yapmalısınız."), frappe.PermissionError)
@@ -120,7 +130,7 @@ def upload_seller_cert_document(file_name: str = "", file_content: str = ""):
 	import os
 	import secrets
 
-	profile_name = _require_seller_profile()
+	profile_name = _require_seller_profile("cert.write")
 
 	# CRITICAL: Response Set-Cookie yazımını engelle — session/sid değişimi
 	# tarayıcıya yansımayacak. Cookie state stable kalır.
@@ -485,7 +495,7 @@ def add_seller_cert(
 	→ response Set-Cookie tarayıcıdaki sid'i bozar → sonraki GET 417 → login redirect.
 	Snapshot+restore ile response Set-Cookie yazımını engelliyoruz.
 	"""
-	profile_name = _require_seller_profile()
+	profile_name = _require_seller_profile("cert.write")
 
 	_original_cookies = {}
 	_original_to_delete = []
@@ -605,7 +615,7 @@ def update_seller_cert(
 	Cookie protection: add_seller_cert ile aynı sid-bozulma riski (notify_admins
 	içinde Notification doc.insert tetiklenebilir).
 	"""
-	profile_name = _require_seller_profile()
+	profile_name = _require_seller_profile("cert.write")
 
 	_original_cookies = {}
 	_original_to_delete = []
@@ -677,7 +687,7 @@ def delete_seller_cert(row_name: str) -> dict:
 	Cookie protection: delete_doc on_trash hook'larını tetikler — add_seller_cert
 	ile aynı sid-bozulma riski.
 	"""
-	profile_name = _require_seller_profile()
+	profile_name = _require_seller_profile("cert.write")
 
 	_original_cookies = {}
 	_original_to_delete = []
@@ -785,7 +795,7 @@ def add_listing_cert(
 	expiry_date: str | None = None,
 ) -> dict:
 	"""Listing'e tek bir sertifika ata — tek tek atama UI'sı."""
-	profile_name = _require_seller_profile()
+	profile_name = _require_seller_profile("cert.write")
 	_validate_listing_assignment_prereq(profile_name, listing_name, certification_type)
 
 	# Aynı cert daha önce atanmış mı?
@@ -832,7 +842,7 @@ def update_listing_cert(
 	expiry_date: str | None = None,
 ) -> dict:
 	"""Listing cert atamasını düzenle (tarih override)."""
-	profile_name = _require_seller_profile()
+	profile_name = _require_seller_profile("cert.write")
 
 	row = frappe.db.get_value(
 		"Listing Certification",
@@ -877,7 +887,7 @@ def bulk_assign_listing_cert(
 	expiry_date: str | None = None,
 ) -> dict:
 	"""Toplu atama — Verified parent mağaza cert şart."""
-	profile_name = _require_seller_profile()
+	profile_name = _require_seller_profile("cert.write")
 
 	if isinstance(listing_names, str):
 		listing_names = [n.strip() for n in listing_names.split(",") if n.strip()]
@@ -943,7 +953,7 @@ def bulk_assign_listing_cert(
 @frappe.whitelist(methods=["POST"])
 def bulk_remove_listing_cert(listing_names: str, certification_type: str) -> dict:
 	"""Birden fazla listing'ten aynı sertifikayı kaldırır."""
-	profile_name = _require_seller_profile()
+	profile_name = _require_seller_profile("cert.write")
 
 	if isinstance(listing_names, str):
 		listing_names = [n.strip() for n in listing_names.split(",") if n.strip()]
@@ -989,7 +999,7 @@ def bulk_remove_listing_cert(listing_names: str, certification_type: str) -> dic
 @frappe.whitelist(methods=["POST"])
 def remove_listing_cert(row_name: str) -> dict:
 	"""Listing'den ürün sertifikası tek tek kaldır (× butonu)."""
-	profile_name = _require_seller_profile()
+	profile_name = _require_seller_profile("cert.write")
 
 	row = frappe.db.get_value(
 		"Listing Certification",

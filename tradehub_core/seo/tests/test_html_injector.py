@@ -21,11 +21,10 @@ from tradehub_core.seo.seo_html_injector import (  # noqa: E402
 	render_seo_head,
 )
 
-
 SAMPLE_HTML = (
 	"<!doctype html>\n"
 	"<html><head>\n"
-	"<meta charset=\"utf-8\">\n"
+	'<meta charset="utf-8">\n'
 	f"{PLACEHOLDER}\n"
 	"</head><body><h1>test</h1></body></html>"
 )
@@ -88,7 +87,7 @@ class TestRenderSeoHead(unittest.TestCase):
 		ld = [{"@type": "Product", "name": "Test Ürün"}]
 		out = render_seo_head(_seo(json_ld=ld))
 		self.assertIn("application/ld+json", out)
-		self.assertIn("\"@type\"", out)
+		self.assertIn('"@type"', out)
 		self.assertIn("Test", out)
 
 	def test_no_json_ld_block_when_empty(self):
@@ -119,12 +118,7 @@ class TestInjectMetaIntoHtml(unittest.TestCase):
 		self.assertEqual(once, twice)
 
 	def test_replaces_only_first_occurrence(self):
-		double = (
-			"<head>\n"
-			f"{PLACEHOLDER}\n"
-			f"{PLACEHOLDER}\n"
-			"</head>"
-		)
+		double = f"<head>\n{PLACEHOLDER}\n{PLACEHOLDER}\n</head>"
 		out = inject_meta_into_html(double, _seo())
 		# İkinci placeholder hala kalmalı (replace count=1)
 		self.assertIn(PLACEHOLDER, out)

@@ -48,7 +48,9 @@ def purge_urls(urls: list[str]) -> None:
 
 	try:
 		response = _call_cloudflare_purge(
-			zone_id=zone_id, api_token=api_token, urls=urls,
+			zone_id=zone_id,
+			api_token=api_token,
+			urls=urls,
 		)
 		if response.status_code != 200:
 			frappe.log_error(

@@ -1,0 +1,19 @@
+{
+	"name": "Subscription Plan Region",
+	"doctype": "DocType",
+	"module": "Tradehub Core",
+	"istable": 1,
+	"engine": "InnoDB",
+	"editable_grid": 1,
+	"fields": [
+		{
+			"fieldname": "region",
+			"fieldtype": "Link",
+			"label": "Region",
+			"options": "Region",
+			"reqd": 1,
+			"in_list_view": 1
+		}
+	],
+	"permissions": []
+}

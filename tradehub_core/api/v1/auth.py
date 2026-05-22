@@ -81,9 +81,19 @@ def get_session_user():
 		or {}
 	)
 
-	is_admin = "System Manager" in roles or "Administrator" in roles
+	is_admin = "System Manager" in roles or "Administrator" in roles or "Marketplace Admin" in roles
 	is_buyer = "Buyer" in roles or bool(up_data.get("can_buy"))
-	is_seller = "Seller" in roles or bool(up_data.get("can_sell"))
+	# is_seller: direkt seller rolü VEYA can_sell flag VEYA bir tenant'a bağlı sub-user
+	# (Seller Owner/Co-Owner/Admin/Finance Staff/Operations gibi tüm satıcı sub-user'lar)
+	tenant_link = frappe.db.get_value("User", frappe.session.user, "tradehub_tenant")
+	is_owner_flag = frappe.db.get_value("User", frappe.session.user, "tradehub_is_owner")
+	is_seller = (
+		"Seller" in roles
+		or bool(up_data.get("can_sell"))
+		or bool(tenant_link)
+		or any(r.startswith("Seller ") for r in roles)
+	)
+	is_owner = bool(is_owner_flag) and ("Seller Owner" in roles)
 	is_verified_seller = "Verified Seller" in roles
 
 	has_seller_profile = bool(
@@ -114,25 +124,39 @@ def get_session_user():
 	# Sprint 2: seller_profile = Admin Seller Profile.name (mağaza URL'i için
 	# `getSellerStoreUrl(user)` bu field'ı kullanır). User Profile.name = email
 	# olduğundan storefront URL'i için anlamsız.
+	#
+	# Sub-user desteği: owner değilse User.tradehub_tenant fallback'i kullan.
 	seller_profile = (
 		frappe.db.get_value("Admin Seller Profile", {"user": frappe.session.user}, "name") or None
 	)
+	if not seller_profile:
+		try:
+			from tradehub_core.utils.tenant import _get_seller_profile_for_user
+
+			seller_profile = _get_seller_profile_for_user(frappe.session.user)
+		except Exception:
+			seller_profile = None
 
 	# Admin Seller Profile — satıcının mağaza profili (filtreleme için seller_code gerekli)
 	admin_seller_profile = None
 	if is_seller:
 		try:
-			asp = frappe.db.get_value(
-				"Admin Seller Profile",
-				{"user": frappe.session.user},
-				["name", "seller_code"],
-				as_dict=True,
+			asp_name = (
+				frappe.db.get_value("Admin Seller Profile", {"user": frappe.session.user}, "name")
+				or seller_profile
 			)
-			if asp:
-				admin_seller_profile = {
-					"name": asp.name,
-					"seller_code": asp.seller_code or asp.name,
-				}
+			if asp_name:
+				asp = frappe.db.get_value(
+					"Admin Seller Profile",
+					asp_name,
+					["name", "seller_code"],
+					as_dict=True,
+				)
+				if asp:
+					admin_seller_profile = {
+						"name": asp.name,
+						"seller_code": asp.seller_code or asp.name,
+					}
 		except Exception:
 			pass
 
@@ -167,6 +191,13 @@ def get_session_user():
 
 	from frappe.sessions import get_csrf_token
 
+	# Seller capability listesi — UI gating için (v-if="can('order.ship')" deseni).
+	# Backend has_seller_capability ile tutarlı; frontend butonları gizler ama
+	# son söz backend'deki require_seller_capability'dedir (defense-in-depth).
+	from tradehub_core.utils.seller_capabilities import get_user_capabilities
+
+	capabilities = get_user_capabilities() if is_seller or is_admin else []
+
 	return {
 		"logged_in": True,
 		"csrf_token": get_csrf_token(),
@@ -178,8 +209,12 @@ def get_session_user():
 			"user_image": user_data.user_image or "",
 			"member_id": member_id,
 			"roles": roles,
+			"capabilities": capabilities,
+			"role_profile_name": frappe.db.get_value("User", frappe.session.user, "role_profile_name") or "",
 			"is_admin": is_admin,
 			"is_seller": is_seller,
+			"is_owner": is_owner,
+			"tenant": tenant_link,
 			"is_verified_seller": is_verified_seller,
 			"is_buyer": is_buyer,
 			"has_seller_profile": has_seller_profile,

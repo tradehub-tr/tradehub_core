@@ -59,10 +59,15 @@ def auto_generate_slug(doc, method=None):
 	source = doc.get(title_field) or doc.get("name") or ""
 
 	def _exists(slug: str) -> bool:
-		return bool(frappe.db.exists(doc.doctype, {
-			"slug": slug,
-			"name": ["!=", doc.name or ""],
-		}))
+		return bool(
+			frappe.db.exists(
+				doc.doctype,
+				{
+					"slug": slug,
+					"name": ["!=", doc.name or ""],
+				},
+			)
+		)
 
 	doc.slug = _build_slug(source, doc.name, _exists)
 
@@ -75,9 +80,7 @@ def validate_seo_lengths(doc, method=None):
 	if not warnings:
 		return
 
-	frappe.logger().warning(
-		f"[SEO] {doc.doctype} {doc.name or '<new>'}: " + ", ".join(warnings)
-	)
+	frappe.logger().warning(f"[SEO] {doc.doctype} {doc.name or '<new>'}: " + ", ".join(warnings))
 
 
 # ── Cloudflare cache invalidation ─────────────────────────────────────────
@@ -129,7 +132,13 @@ def invalidate_url_cache(doc, method=None):
 
 # ── Sitemap dirty flag invalidation (Faz 2) ────────────────────────────────
 
-_SITEMAP_TRACKED_DOCTYPES = {"Listing", "Product Category", "Brand", "Admin Seller Profile", "Static Page SEO"}
+_SITEMAP_TRACKED_DOCTYPES = {
+	"Listing",
+	"Product Category",
+	"Brand",
+	"Admin Seller Profile",
+	"Static Page SEO",
+}
 
 
 def invalidate_sitemap_for(doc, method=None):

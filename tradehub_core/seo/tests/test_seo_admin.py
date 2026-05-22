@@ -1,6 +1,6 @@
 """seo_admin endpoint pure-helper testleri.
 
-	cd apps/tradehub_core && python -m unittest tradehub_core.seo.tests.test_seo_admin
+cd apps/tradehub_core && python -m unittest tradehub_core.seo.tests.test_seo_admin
 """
 
 import sys
@@ -74,11 +74,24 @@ class TestSeoFieldsConfig(unittest.TestCase):
 	def test_brand_seo_fields_complete(self):
 		"""Brand SEO_FIELDS_BY_DOCTYPE entry'si TR + EN tüm field'ları kapsar."""
 		brand_fields = set(SEO_FIELDS_BY_DOCTYPE["Brand"])
-		expected_tr = {"slug", "meta_title", "meta_description", "noindex",
-			"og_image", "og_title_override", "og_description_override",
-			"canonical_url_override", "robots_directive_override"}
-		expected_en = {"slug_en", "meta_title_en", "meta_description_en",
-			"og_title_override_en", "og_description_override_en"}
+		expected_tr = {
+			"slug",
+			"meta_title",
+			"meta_description",
+			"noindex",
+			"og_image",
+			"og_title_override",
+			"og_description_override",
+			"canonical_url_override",
+			"robots_directive_override",
+		}
+		expected_en = {
+			"slug_en",
+			"meta_title_en",
+			"meta_description_en",
+			"og_title_override_en",
+			"og_description_override_en",
+		}
 		self.assertTrue(expected_tr.issubset(brand_fields))
 		self.assertTrue(expected_en.issubset(brand_fields))
 

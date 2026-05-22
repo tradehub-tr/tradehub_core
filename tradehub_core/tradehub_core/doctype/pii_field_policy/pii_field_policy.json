@@ -1,0 +1,95 @@
+{
+	"name": "PII Field Policy",
+	"doctype": "DocType",
+	"module": "Tradehub Core",
+	"naming_rule": "By fieldname",
+	"autoname": "format:PIIPOL-{ref_doctype}-{fieldname}",
+	"engine": "InnoDB",
+	"track_changes": 1,
+	"sort_field": "ref_doctype",
+	"sort_order": "ASC",
+	"fields": [
+		{
+			"fieldname": "ref_doctype",
+			"fieldtype": "Link",
+			"label": "DocType",
+			"options": "DocType",
+			"reqd": 1,
+			"in_list_view": 1,
+			"in_standard_filter": 1
+		},
+		{
+			"fieldname": "fieldname",
+			"fieldtype": "Data",
+			"label": "Fieldname",
+			"reqd": 1,
+			"in_list_view": 1
+		},
+		{
+			"fieldname": "pii_category",
+			"fieldtype": "Select",
+			"label": "PII Category",
+			"options": "identity\nfinancial\ncontact\nhealth\nlocation\nother",
+			"default": "other",
+			"reqd": 1,
+			"in_list_view": 1,
+			"in_standard_filter": 1
+		},
+		{
+			"fieldname": "permlevel",
+			"fieldtype": "Int",
+			"label": "Permlevel",
+			"default": 1,
+			"description": "Bu PII'yi görmek için gereken minimum permlevel"
+		},
+		{
+			"fieldname": "cb_meta",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "is_active",
+			"fieldtype": "Check",
+			"label": "Active",
+			"default": 1,
+			"in_list_view": 1
+		},
+		{
+			"fieldname": "sb_rules",
+			"fieldtype": "Section Break",
+			"label": "Jurisdiction Rules"
+		},
+		{
+			"fieldname": "jurisdiction_rules",
+			"fieldtype": "Table",
+			"label": "Jurisdiction Rules",
+			"options": "PII Jurisdiction Rule",
+			"description": "Her jurisdiction için ayrı mask + cross-border kuralı"
+		},
+		{
+			"fieldname": "sb_meta",
+			"fieldtype": "Section Break",
+			"label": "Metadata"
+		},
+		{
+			"fieldname": "description",
+			"fieldtype": "Small Text",
+			"label": "Description"
+		},
+		{
+			"fieldname": "legal_basis",
+			"fieldtype": "Small Text",
+			"label": "Legal Basis",
+			"description": "GDPR Article / KVKK madde referansı"
+		}
+	],
+	"permissions": [
+		{
+			"role": "System Manager",
+			"read": 1, "write": 1, "create": 1, "delete": 1, "export": 1, "report": 1, "share": 1
+		},
+		{
+			"role": "Compliance Officer",
+			"read": 1, "write": 1, "create": 1, "export": 1, "report": 1
+		}
+	]
+}

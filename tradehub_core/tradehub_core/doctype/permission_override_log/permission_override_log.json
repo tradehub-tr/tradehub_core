@@ -1,0 +1,114 @@
+{
+	"name": "Permission Override Log",
+	"doctype": "DocType",
+	"module": "Tradehub Core",
+	"naming_rule": "Expression (old style)",
+	"autoname": "POL-.YYYY.MM.DD.-.######",
+	"engine": "InnoDB",
+	"track_changes": 0,
+	"sort_field": "timestamp",
+	"sort_order": "DESC",
+	"title_field": "override_action",
+	"fields": [
+		{
+			"fieldname": "timestamp",
+			"fieldtype": "Datetime",
+			"label": "Timestamp",
+			"reqd": 1,
+			"search_index": 1,
+			"in_list_view": 1,
+			"in_standard_filter": 1,
+			"read_only": 1
+		},
+		{
+			"fieldname": "admin_user",
+			"fieldtype": "Link",
+			"label": "Admin User",
+			"options": "User",
+			"reqd": 1,
+			"search_index": 1,
+			"in_list_view": 1,
+			"read_only": 1
+		},
+		{
+			"fieldname": "cb_target",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "target_object",
+			"fieldtype": "Data",
+			"label": "Target Object",
+			"reqd": 1,
+			"in_list_view": 1,
+			"read_only": 1,
+			"description": "Format: 'DocType/Name', örn. 'Order/ORD-9382'"
+		},
+		{
+			"fieldname": "override_action",
+			"fieldtype": "Data",
+			"label": "Override Action",
+			"reqd": 1,
+			"in_list_view": 1,
+			"in_standard_filter": 1,
+			"read_only": 1,
+			"description": "force_approve, delete_locked, ignore_permissions_insert"
+		},
+		{
+			"fieldname": "sb_decision",
+			"fieldtype": "Section Break"
+		},
+		{
+			"fieldname": "original_decision",
+			"fieldtype": "Data",
+			"label": "Original Decision",
+			"read_only": 1,
+			"description": "Normal kurallarda olacak karar (DENY)"
+		},
+		{
+			"fieldname": "final_decision",
+			"fieldtype": "Data",
+			"label": "Final Decision",
+			"read_only": 1,
+			"description": "Override sonrası karar (ALLOW)"
+		},
+		{
+			"fieldname": "cb_severity",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "severity",
+			"fieldtype": "Select",
+			"label": "Severity",
+			"options": "LOW\nMEDIUM\nHIGH\nCRITICAL",
+			"default": "MEDIUM",
+			"in_list_view": 1,
+			"in_standard_filter": 1,
+			"read_only": 1
+		},
+		{
+			"fieldname": "approved_by",
+			"fieldtype": "Link",
+			"label": "Approved By (2nd-eye)",
+			"options": "User",
+			"read_only": 1,
+			"description": "Faz 3: ikinci-göz onayı"
+		},
+		{
+			"fieldname": "sb_justification",
+			"fieldtype": "Section Break",
+			"label": "Justification"
+		},
+		{
+			"fieldname": "justification",
+			"fieldtype": "Long Text",
+			"label": "Justification",
+			"reqd": 1,
+			"read_only": 1,
+			"description": "Override gerekçesi (zorunlu, audit için)"
+		}
+	],
+	"permissions": [
+		{ "role": "System Manager", "read": 1, "export": 1, "report": 1 },
+		{ "role": "Compliance Officer", "read": 1, "export": 1, "report": 1 }
+	]
+}

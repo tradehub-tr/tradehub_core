@@ -1,6 +1,6 @@
 """sitemap_generator pure-function testleri.
 
-	cd apps/tradehub_core && python -m unittest tradehub_core.seo.tests.test_sitemap_generator
+cd apps/tradehub_core && python -m unittest tradehub_core.seo.tests.test_sitemap_generator
 """
 
 import sys
@@ -22,12 +22,19 @@ from tradehub_core.seo.sitemap_generator import (  # noqa: E402
 	urlentry,
 )
 
-
 SAMPLE_URLS = [
-	{"loc": "https://istoc.com/urun/iphone-15-pro", "lastmod": "2026-05-20",
-	 "changefreq": "weekly", "priority": "0.9"},
-	{"loc": "https://istoc.com/urun/samsung-s24", "lastmod": "2026-05-21",
-	 "changefreq": "weekly", "priority": "0.9"},
+	{
+		"loc": "https://istoc.com/urun/iphone-15-pro",
+		"lastmod": "2026-05-20",
+		"changefreq": "weekly",
+		"priority": "0.9",
+	},
+	{
+		"loc": "https://istoc.com/urun/samsung-s24",
+		"lastmod": "2026-05-21",
+		"changefreq": "weekly",
+		"priority": "0.9",
+	},
 ]
 
 SAMPLE_SITEMAPS = [
@@ -108,16 +115,19 @@ class TestPagination(unittest.TestCase):
 		self.assertEqual(len(chunks[0]), 100)
 
 	def test_splits_at_50k(self):
-		urls = [{"loc": f"https://x.com/{i}", "lastmod": "2026-05-21"}
-				for i in range(MAX_URLS_PER_SITEMAP + 5)]
+		urls = [
+			{"loc": f"https://x.com/{i}", "lastmod": "2026-05-21"} for i in range(MAX_URLS_PER_SITEMAP + 5)
+		]
 		chunks = chunk_urls_for_pagination(urls)
 		self.assertEqual(len(chunks), 2)
 		self.assertEqual(len(chunks[0]), MAX_URLS_PER_SITEMAP)
 		self.assertEqual(len(chunks[1]), 5)
 
 	def test_three_chunks_when_100k(self):
-		urls = [{"loc": f"https://x.com/{i}", "lastmod": "2026-05-21"}
-				for i in range(MAX_URLS_PER_SITEMAP * 2 + 1)]
+		urls = [
+			{"loc": f"https://x.com/{i}", "lastmod": "2026-05-21"}
+			for i in range(MAX_URLS_PER_SITEMAP * 2 + 1)
+		]
 		chunks = chunk_urls_for_pagination(urls)
 		self.assertEqual(len(chunks), 3)
 
