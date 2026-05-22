@@ -191,9 +191,7 @@ def get_sitemap(name: str):
 	from tradehub_core.seo.sitemap_cache import get_default_cache
 	from tradehub_core.seo.sitemap_generator import DOCTYPE_CONFIG, build_for_type
 
-	name_to_doctype = {
-		cfg["sub_sitemap_name"]: dt for dt, cfg in DOCTYPE_CONFIG.items()
-	}
+	name_to_doctype = {cfg["sub_sitemap_name"]: dt for dt, cfg in DOCTYPE_CONFIG.items()}
 	doctype = name_to_doctype.get(name)
 	if not doctype:
 		return Response("Not Found", status=404, mimetype="text/plain")

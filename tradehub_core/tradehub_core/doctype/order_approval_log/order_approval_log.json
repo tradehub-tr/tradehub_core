@@ -1,0 +1,49 @@
+{
+	"name": "Order Approval Log",
+	"doctype": "DocType",
+	"module": "Tradehub Core",
+	"istable": 1,
+	"engine": "InnoDB",
+	"editable_grid": 0,
+	"fields": [
+		{
+			"fieldname": "timestamp",
+			"fieldtype": "Datetime",
+			"label": "Timestamp",
+			"reqd": 1,
+			"in_list_view": 1,
+			"read_only": 1
+		},
+		{
+			"fieldname": "approver",
+			"fieldtype": "Link",
+			"label": "Approver",
+			"options": "User",
+			"reqd": 1,
+			"in_list_view": 1,
+			"read_only": 1
+		},
+		{
+			"fieldname": "action",
+			"fieldtype": "Select",
+			"label": "Action",
+			"options": "approved\nrejected\nescalated\ntimeout_rejected",
+			"reqd": 1,
+			"in_list_view": 1,
+			"read_only": 1
+		},
+		{
+			"fieldname": "level",
+			"fieldtype": "Int",
+			"label": "Level",
+			"read_only": 1
+		},
+		{
+			"fieldname": "comment",
+			"fieldtype": "Small Text",
+			"label": "Comment",
+			"read_only": 1
+		}
+	],
+	"permissions": []
+}

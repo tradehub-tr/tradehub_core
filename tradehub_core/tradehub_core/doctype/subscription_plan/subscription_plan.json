@@ -1,0 +1,164 @@
+{
+	"name": "Subscription Plan",
+	"doctype": "DocType",
+	"module": "Tradehub Core",
+	"naming_rule": "By fieldname",
+	"autoname": "field:plan_code",
+	"engine": "InnoDB",
+	"track_changes": 1,
+	"sort_field": "display_order",
+	"sort_order": "ASC",
+	"title_field": "plan_name",
+	"fields": [
+		{
+			"fieldname": "tab_basic",
+			"fieldtype": "Tab Break",
+			"label": "Temel Bilgi"
+		},
+		{
+			"fieldname": "plan_code",
+			"fieldtype": "Data",
+			"label": "Plan Code",
+			"reqd": 1,
+			"unique": 1,
+			"in_list_view": 1,
+			"description": "Lowercase, dash veya underscore (örn. free, starter, pro, enterprise)"
+		},
+		{
+			"fieldname": "plan_name",
+			"fieldtype": "Data",
+			"label": "Plan Name",
+			"reqd": 1,
+			"in_list_view": 1
+		},
+		{
+			"fieldname": "description",
+			"fieldtype": "Long Text",
+			"label": "Description",
+			"description": "Pazarlama metni / plan tanıtımı"
+		},
+		{
+			"fieldname": "cb_status",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "is_active",
+			"fieldtype": "Check",
+			"label": "Active",
+			"default": 1,
+			"in_list_view": 1,
+			"in_standard_filter": 1,
+			"description": "Aktif olmayan plan yeni satıcılara açılmaz"
+		},
+		{
+			"fieldname": "is_public",
+			"fieldtype": "Check",
+			"label": "Public",
+			"default": 1,
+			"description": "Public değilse sadece davet ile (Enterprise için False)"
+		},
+		{
+			"fieldname": "display_order",
+			"fieldtype": "Int",
+			"label": "Display Order",
+			"default": 100,
+			"description": "UI'da gösterim sırası (küçük olan önce)"
+		},
+		{
+			"fieldname": "highlighted",
+			"fieldtype": "Check",
+			"label": "Highlighted",
+			"default": 0,
+			"description": "'En popüler' rozeti için"
+		},
+		{
+			"fieldname": "tab_pricing",
+			"fieldtype": "Tab Break",
+			"label": "Fiyatlandırma"
+		},
+		{
+			"fieldname": "currency",
+			"fieldtype": "Link",
+			"label": "Currency",
+			"options": "Currency",
+			"default": "EUR",
+			"reqd": 1
+		},
+		{
+			"fieldname": "monthly_price",
+			"fieldtype": "Currency",
+			"label": "Monthly Price",
+			"default": 0,
+			"reqd": 1,
+			"in_list_view": 1
+		},
+		{
+			"fieldname": "yearly_price",
+			"fieldtype": "Currency",
+			"label": "Yearly Price",
+			"default": 0,
+			"description": "Yıllık indirimli fiyat (0 = devre dışı)"
+		},
+		{
+			"fieldname": "cb_trial",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "trial_days",
+			"fieldtype": "Int",
+			"label": "Trial Days",
+			"default": 0,
+			"description": "Deneme süresi (gün); 0 = trial yok"
+		},
+		{
+			"fieldname": "tab_features",
+			"fieldtype": "Tab Break",
+			"label": "Yetenekler ve Kotalar"
+		},
+		{
+			"fieldname": "capability_flags",
+			"fieldtype": "JSON",
+			"label": "Capability Flags",
+			"description": "feature.* key'lerinden true/false eşlemesi. Örn: {\"feature.pim.multi_variant\": true, \"feature.api.access\": false}"
+		},
+		{
+			"fieldname": "quota_limits",
+			"fieldtype": "JSON",
+			"label": "Quota Limits",
+			"description": "quota.* key'lerinden sayısal eşleme. Örn: {\"quota.max_sub_users\": 10, \"quota.max_products\": 5000}"
+		},
+		{
+			"fieldname": "tab_regions",
+			"fieldtype": "Tab Break",
+			"label": "Bölgeler"
+		},
+		{
+			"fieldname": "allowed_regions",
+			"fieldtype": "Table",
+			"label": "Allowed Regions",
+			"options": "Subscription Plan Region",
+			"description": "Bu plan satın alan satıcı hangi bölgelerde satış/listeleme hakkı kazanır"
+		}
+	],
+	"permissions": [
+		{
+			"role": "System Manager",
+			"read": 1,
+			"write": 1,
+			"create": 1,
+			"delete": 1,
+			"export": 1,
+			"report": 1,
+			"share": 1
+		},
+		{
+			"role": "Marketplace Admin",
+			"read": 1,
+			"write": 1
+		},
+		{
+			"role": "All",
+			"read": 1
+		}
+	]
+}

@@ -1151,6 +1151,7 @@ def get_listing_detail(listing_id):
 	# bu payload'ı document.title + meta tag'leri güncelleyerek uygular.
 	try:
 		from tradehub_core.seo import meta_builder
+
 		seo_payload = meta_builder.build_for_listing(listing.as_dict(), lang="tr")
 	except Exception:
 		seo_payload = {}
@@ -3533,9 +3534,14 @@ def get_seller_listings(page=1, page_size=20, status=None, bulk_job=None):
 	`bulk_job`: opsiyonel — yalnızca bu Bulk Import Job tarafından
 	oluşturulan listing'leri döndürür (BIJ-XXX).
 	"""
-	seller_profile = frappe.db.get_value(
-		"Admin Seller Profile", {"owner": frappe.session.user}, "name"
-	) or frappe.db.get_value("Admin Seller Profile", {"email": frappe.session.user}, "name")
+	# FAZ 1.5 sub-user fix: sub-user'lar `tradehub_tenant` üzerinden Owner'ın
+	# mağazasına bağlıdır — Co-Owner / Finance Staff / Operations vs. hepsi
+	# aynı listing listesini görmeli.
+	seller_profile = (
+		frappe.db.get_value("User", frappe.session.user, "tradehub_tenant")
+		or frappe.db.get_value("Admin Seller Profile", {"owner": frappe.session.user}, "name")
+		or frappe.db.get_value("Admin Seller Profile", {"email": frappe.session.user}, "name")
+	)
 	if not seller_profile:
 		return {"success": True, "listings": [], "total": 0}
 
@@ -3575,6 +3581,10 @@ def get_seller_listings(page=1, page_size=20, status=None, bulk_job=None):
 @frappe.whitelist()
 def update_listing_status(listing_name, status):
 	"""Satıcı: onaylanan listing'in durumunu değiştir."""
+	from tradehub_core.utils.seller_capabilities import require_seller_capability
+
+	require_seller_capability("listing.publish")
+
 	allowed = {"Active", "Paused", "Out of Stock"}
 	if status not in allowed:
 		frappe.throw(_("Geçersiz durum"))
@@ -3583,10 +3593,10 @@ def update_listing_status(listing_name, status):
 	if listing.status in ("Pending", "Rejected", "Draft"):
 		frappe.throw(_("Bu listing henüz onaylanmamış."))
 
-	# Sahiplik kontrolü
-	seller_profile = frappe.db.get_value(
-		"Admin Seller Profile", {"owner": frappe.session.user}, "name"
-	) or frappe.db.get_value("Admin Seller Profile", {"email": frappe.session.user}, "name")
+	# Sahiplik kontrolü — sub-user'lar Owner'ın listing'ini görür (aynı tenant)
+	from tradehub_core.utils.tenant import _get_seller_profile_for_user
+
+	seller_profile = _get_seller_profile_for_user(frappe.session.user)
 	if listing.seller_profile != seller_profile:
 		frappe.throw(_("Bu listing size ait değil."), frappe.PermissionError)
 
@@ -3646,8 +3656,18 @@ def get_listing_meta():
 def recalculate_completeness_score(listing_name):
 	"""Recalculate and persist the completeness score for a single listing."""
 	from tradehub_core.utils.completeness import calculate_completeness_score
+	from tradehub_core.utils.seller_capabilities import require_seller_capability
+	from tradehub_core.utils.tenant import _get_seller_profile_for_user
+
+	require_seller_capability("listing.write")
 
 	doc = frappe.get_doc("Listing", listing_name)
+
+	# Ownership check (önceden eksikti — herkes herhangi listing'in skorunu tetikleyebiliyordu)
+	seller_profile = _get_seller_profile_for_user(frappe.session.user)
+	if doc.seller_profile != seller_profile:
+		frappe.throw(_("Bu listing size ait değil."), frappe.PermissionError)
+
 	score = calculate_completeness_score(doc)
 	doc.db_set("completeness_score", score, update_modified=False)
 	return {"success": True, "completeness_score": score}

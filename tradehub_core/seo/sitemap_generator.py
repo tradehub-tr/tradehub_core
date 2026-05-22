@@ -8,7 +8,7 @@ yapan `build_for_type()` ve `build_index()` Frappe wrapper'lar.
 from collections.abc import Iterable
 from xml.sax.saxutils import escape
 
-from tradehub_core.seo.i18n import SUPPORTED_LANGS, build_hreflang_links
+from tradehub_core.seo.i18n import build_hreflang_links
 
 MAX_URLS_PER_SITEMAP = 50_000
 SITEMAP_NS = "http://www.sitemaps.org/schemas/sitemap/0.9"
@@ -75,7 +75,7 @@ def build_urlset_xml(urls: Iterable[dict], include_hreflang: bool = True) -> str
 
 	lines = [
 		'<?xml version="1.0" encoding="UTF-8"?>',
-		f'<urlset {xmlns}>',
+		f"<urlset {xmlns}>",
 	]
 	for u in urls:
 		loc = escape(u.get("loc", ""))
@@ -89,9 +89,7 @@ def build_urlset_xml(urls: Iterable[dict], include_hreflang: bool = True) -> str
 		for alt in hreflang_links:
 			hreflang_attr = escape(alt.get("hreflang", ""))
 			href_attr = escape(alt.get("href", ""))
-			lines.append(
-				f'    <xhtml:link rel="alternate" hreflang="{hreflang_attr}" href="{href_attr}"/>'
-			)
+			lines.append(f'    <xhtml:link rel="alternate" hreflang="{hreflang_attr}" href="{href_attr}"/>')
 		if lastmod:
 			lines.append(f"    <lastmod>{lastmod}</lastmod>")
 		lines.append(f"    <changefreq>{changefreq}</changefreq>")
@@ -132,6 +130,7 @@ def chunk_urls_for_pagination(urls: list[dict]) -> list[list[dict]]:
 
 def _site_url() -> str:
 	import frappe
+
 	return frappe.utils.get_url().rstrip("/")
 
 
@@ -200,9 +199,11 @@ def build_index() -> str:
 
 	sitemaps = []
 	for _doctype, cfg in DOCTYPE_CONFIG.items():
-		sitemaps.append({
-			"loc": f"{site}/sitemap-{cfg['sub_sitemap_name']}.xml",
-			"lastmod": today,
-		})
+		sitemaps.append(
+			{
+				"loc": f"{site}/sitemap-{cfg['sub_sitemap_name']}.xml",
+				"lastmod": today,
+			}
+		)
 
 	return build_index_xml(sitemaps)

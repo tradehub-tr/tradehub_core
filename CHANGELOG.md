@@ -1,3 +1,36 @@
+## [v1.0.9-beta.6] - 2026-05-22 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Eklendi
+- feat(authz): yetki sistemi FAZ 1-5 — entitlement, RBAC bundle, (@boraydeger32)
+  - Region, Feature Catalog, Subscription Plan, Subscription Plan Region, Store Subscription, Pricing Plan Feature DocType'ları.
+  - entitlement/ modülü (core, checks, sync) + entitlement_snapshot API.
+  - Custom fields ve PII permlevel patch'leri.
+  - Approval Rule + Approval Rule Approver + Order Approval + Order Approval Log DocType'ları.
+  - services/approval_workflow.py + order_approval_hooks.py + API.
+  - Buyer Approver L1/L2 rolleri ve role profile bundle'ları.
+  - PII Field Policy + PII Jurisdiction Rule DocType'ları, utils/pii*, Compliance Officer rolü, jurisdiction-aware masking.
+  - Approved Supplier List/Entry + supplier_whitelist service.
+  - Cost Center DocType + service.
+  - Authorization Anomaly Rule/Alert + detector + actions (saatlik scheduler).
+  - Role Delegation + Role Change Log + delegation_service + rebac_drift_detection (günlük scheduler).
+  - Owner Transfer Request + owner_transfer service.
+  - Pricing Plan custom fields + presets + real prices patch'leri.
+  - public_pricing API (storefront sell sayfası için).
+  - Signup CTA unification + commission rates repair.
+  - Buyer Admin/Procurement/Finance/Viewer, Seller Admin/Co-Owner/ Finance/Staff/Viewer, Platform Admin/Finance, Support Agent rolleri.
+  - role_docperms seed + role_profiles sync + ADL buyer_org field.
+  - audit/ modülü (log, tasks, user_hooks) + Authorization Decision Log DocType + Permission Override Log.
+  - authorization_simulator (Süper Admin debug aracı).
+  - permission_console API + buyer_team + seller_users sub-user invite.
+  - rebac_client + tuple_sync (ReBAC sidecar entegrasyonu).
+  - permissions.py +657 satır (DocType bazlı yetki kuralları).
+  - utils/tenant.py +495 satır (tenant isolation hardening).
+  - hooks.py: 18 yeni patch, scheduler event'leri, doc_events.
+  - tests/: 20+ yeni test dosyası (tenant, abac, anomaly, approval, delegation, entitlement, organization hierarchy, PII, procurement, rebac, simulator, sub-users, tuple sync).
+
+---
 ## [v1.0.9-beta.5] - 2026-05-22 BETA
 
 Bu surum betaistoc.cronbi.com'da test asamasindadir.

@@ -110,6 +110,7 @@ class TestProduceResized(unittest.TestCase):
 
 	def tearDown(self):
 		import shutil
+
 		shutil.rmtree(self.tmpdir, ignore_errors=True)
 
 	def test_resizes_and_returns_cache_url(self):
@@ -143,6 +144,7 @@ class TestProduceResized(unittest.TestCase):
 
 		# Kısa bir yapay gecikme — mtime farklılığı tespit edilebilsin
 		import time
+
 		time.sleep(0.05)
 
 		r2 = _produce_resized(src_rel, public_files_root=self.public, cache_dir=self.cache)

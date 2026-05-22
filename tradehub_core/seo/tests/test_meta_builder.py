@@ -17,7 +17,6 @@ if str(_APP_ROOT) not in sys.path:
 
 from tradehub_core.seo.meta_builder import compose_seo_payload  # noqa: E402
 
-
 DEFAULTS = {
 	"title_pattern": "{title} | İstoç B2B",
 	"description": "İstoç global B2B pazaryeri.",
@@ -115,10 +114,12 @@ class TestOgFields(unittest.TestCase):
 		self.assertEqual(seo["og_title"], "OG Özel")
 
 	def test_og_description_override_wins(self):
-		seo = _payload(_listing(
-			meta_description="Meta açıklama",
-			og_description_override="OG özel açıklama",
-		))
+		seo = _payload(
+			_listing(
+				meta_description="Meta açıklama",
+				og_description_override="OG özel açıklama",
+			)
+		)
 		self.assertEqual(seo["og_description"], "OG özel açıklama")
 
 	def test_og_image_record_wins(self):
@@ -126,8 +127,7 @@ class TestOgFields(unittest.TestCase):
 		self.assertEqual(seo["og_image"], "https://istoc.com/files/listing-og.png")
 
 	def test_og_image_resolver_fallback(self):
-		seo = _payload(_listing(),
-			og_image_resolver=lambda r: "/files/auto-resized.jpg")
+		seo = _payload(_listing(), og_image_resolver=lambda r: "/files/auto-resized.jpg")
 		self.assertEqual(seo["og_image"], "https://istoc.com/files/auto-resized.jpg")
 
 	def test_og_image_site_default_fallback(self):

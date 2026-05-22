@@ -14,7 +14,6 @@ from frappe.model.document import Document
 
 class MarketplaceSettings(Document):
 	def validate(self):
-		super().validate()
 		# Tüm field'lar Select/Check, ek validasyon yok.
 		return None
 

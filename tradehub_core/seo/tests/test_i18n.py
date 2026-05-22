@@ -1,6 +1,6 @@
 """i18n pure-function testleri.
 
-	cd apps/tradehub_core && python -m unittest tradehub_core.seo.tests.test_i18n
+cd apps/tradehub_core && python -m unittest tradehub_core.seo.tests.test_i18n
 """
 
 import sys
@@ -21,7 +21,6 @@ from tradehub_core.seo.i18n import (  # noqa: E402
 	parse_lang_from_path,
 	slug_field_for,
 )
-
 
 SITE = "https://istoc.com"
 

@@ -12,7 +12,6 @@ from collections.abc import Callable
 from urllib.parse import urljoin
 
 from tradehub_core.seo.i18n import (
-	DEFAULT_LANG,
 	build_hreflang_links,
 	get_field_with_fallback,
 	localize_url,
@@ -139,10 +138,7 @@ def compose_seo_payload(
 	og_desc_override = get_field_with_fallback(record, "og_description_override", lang)
 
 	# Hreflang links (her zaman üretilir — admin tek dilliyse bile fallback iyi)
-	hreflang_links = (
-		build_hreflang_links(tr_canonical_path, site_url)
-		if tr_canonical_path else []
-	)
+	hreflang_links = build_hreflang_links(tr_canonical_path, site_url) if tr_canonical_path else []
 
 	return {
 		"title": meta_title,
