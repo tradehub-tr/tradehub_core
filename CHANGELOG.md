@@ -1,3 +1,32 @@
+## [v1.0.9-beta.7] - 2026-05-22 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Eklendi
+- feat(bulk-import): toplu ürün içe aktarma sistemi eklendi (@aliiball)
+  - BulkImportJob ve BulkImportJobError DocType'ları
+  - Excel/CSV/XML parser'ları, persister ve image matcher
+  - Çok dilli kolon eşleme için regex destekli ingestion
+  - Background runner + worker task'ları (RQ)
+  - Bildirim entegrasyonu ve hata satırı raporlama
+  - v15_bulk_import_init patch'i ile DocType + örnek veri seed
+  - EcaRule, EcaRuleLog, EcaActionTemplate DocType'ları
+  - Dispatcher: event çözümleme, condition eval, action execution
+  - SafeRegex ve validator katmanı (DoS-safe pattern çalıştırma)
+  - API endpoint'leri ve permission entegrasyonu
+  - Hooks.py: doc_events üzerinden tetikleyici kayıtları
+  - Birim testleri (eca/tests/)
+  - RegexPatternLibrary ve RegexPatternEntry DocType'ları
+  - BulkImport ve ECA kullanır (kolon başlığı → field mapping)
+  - Seed patch ile T1+T2 alan paterni hazır gelir
+  - SellerTemplateProfile DocType eklendi
+  - dashboard.py kaldırıldı, mantık dashboard_engine.py altında toplandı
+  - Total users widget patch'i UserProfile'a yönlendirildi
+  - permissions.py: ECA + BulkImport için yeni yetki tanımları
+  - utils/security.py: rate-limit yardımcısı eklendi
+  - api/listing.py: seller_sku döner, ECA tetikleyicileri bağlandı
+
+---
 ## [v1.0.9-beta.6] - 2026-05-22 BETA
 
 Bu surum betaistoc.cronbi.com'da test asamasindadir.
