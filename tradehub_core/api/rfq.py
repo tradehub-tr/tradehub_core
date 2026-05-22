@@ -217,22 +217,40 @@ def get_rfq_detail(rfq_id):
 
 	profiles_map = {}
 	if profile_ids:
+		# Sprint 2 (revised, 2026-05-15): Seller Profile → Admin Seller Profile.
+		# business_name (Admin Seller Profile'da yok) → company_name'a map edildi.
+		# year_established/employee_count/about_us/website User Profile'da, ayrı çek.
 		for sp in frappe.get_all(
-			"Seller Profile",
+			"Admin Seller Profile",
 			filters={"name": ["in", profile_ids]},
 			fields=[
 				"name",
-				"business_name",
+				"user",
+				"company_name",
 				"seller_name",
 				"country",
 				"seller_type",
-				"year_established",
-				"employee_count",
-				"about_us",
-				"website",
 			],
 		):
 			profiles_map[sp.name] = sp
+		# User Profile'dan iş bilgilerini batch çek (kullanıcı kişisel alanları)
+		user_emails = [sp.user for sp in profiles_map.values() if sp.user]
+		if user_emails:
+			up_map = {
+				up.user: up
+				for up in frappe.get_all(
+					"User Profile",
+					filters={"user": ["in", user_emails]},
+					fields=["user", "year_established", "employee_count", "about_us", "website"],
+				)
+			}
+			for sp in profiles_map.values():
+				up = up_map.get(sp.user) or {}
+				sp["year_established"] = up.get("year_established") or ""
+				sp["employee_count"] = up.get("employee_count") or ""
+				sp["about_us"] = up.get("about_us") or ""
+				sp["website"] = up.get("website") or ""
+				sp["business_name"] = sp.get("company_name") or ""  # legacy alias
 
 	listings_map = {}
 	if listing_ids:

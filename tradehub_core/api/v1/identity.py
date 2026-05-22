@@ -318,18 +318,54 @@ def register_user(
 	password: str,
 	first_name: str,
 	last_name: str,
-	account_type: str = "buyer",
+	registration_type: str = "Alici",
+	account_type: str = "Individual",
 	phone: str = "",
 	country: str = "Turkey",
+	company_name: str = "",
+	tax_id: str = "",
+	tax_id_type: str = "",
+	tax_office: str = "",
 	accept_terms: bool = False,
 	accept_kvkk: bool = False,
 	registration_token: str = "",
 ):
-	"""Register a new user after OTP verification.
+	"""Sprint 2.6 — Hesap Oluştur ekranı: Alıcı kayıt akışı.
+
+	registration_type:
+	  - "Alici" (default) — Bu endpoint Alıcı kayıt akışı için. Satıcı kayıt için
+	    register_supplier kullanılmalı. Bu parametre ileri uyumluluk için.
+
+	account_type:
+	  - "Individual" / "Business" — Sprint 2.6'da KYC formunda toggle ile set
+	    ediliyor. Bu parametre backward compat için kabul edilir ama KYC submit
+	    sırasında User Profile.account_type tekrar yazılır.
+
+	Sprint 2.6 davranışı:
+	  - Tüm Alıcılar için kyc_status="Pending" set edilir (Soru 1 cevabı).
+	  - kyb_status="Locked" — Satıcı başvurusu yapılana kadar kilitli (Soru 6).
 
 	The registration_token must have been obtained from verify_registration_otp().
 	"""
 	email = _validate_email_format(email)
+
+	# Sprint 2.6 — Alıcı endpoint'i; Satıcı için register_supplier
+	if registration_type not in ("Alici", "Satici"):
+		registration_type = "Alici"
+	if registration_type == "Satici":
+		frappe.throw(
+			_("Satıcı kaydı için /api/method/...register_supplier endpoint'i kullanılmalı."),
+			frappe.ValidationError,
+		)
+
+	# Sprint 2 — account_type normalize (backward compat for legacy "buyer"/"supplier")
+	legacy_map = {"buyer": "Individual", "supplier": "Business", "seller": "Business"}
+	account_type = legacy_map.get(account_type.lower(), account_type) if account_type else "Individual"
+	if account_type not in ("Individual", "Business"):
+		account_type = "Individual"
+
+	# Sprint 2.6: company_name/tax_id zorunluluğu KYC formuna taşındı.
+	# Bu validation kaldırıldı — KYC submit anında doğrulanır.
 
 	# ── Token validation ──
 	token_cache_key = f"registration_token:{registration_token}"
@@ -397,29 +433,49 @@ def register_user(
 	if phone and not phone_canonical:
 		frappe.throw(_("Please enter a valid Turkish phone number."), frappe.ValidationError)
 
-	# ── Create Buyer Profile ──
+	# ── Create User Profile (Sprint 2 — Buyer Profile birleşik) ──
 	# OTP doğrulaması zaten kullanıcının e-posta sahipliğini kanıtladı,
 	# bu nedenle email_verified=1 olarak başlatıyoruz.
-	buyer = frappe.new_doc("Buyer Profile")
-	buyer.user = email
-	buyer.buyer_name = f"{first_name} {last_name}"
-	buyer.member_id = member_id
-	buyer.country = country
-	buyer.phone = phone_canonical
-	buyer.status = "Active"
-	buyer.email_verified = 1
-	buyer.email_verified_at = now_datetime()
-	buyer.email_verified_method = "otp"
-	buyer.owner = email
-	buyer.insert(ignore_permissions=True)
+	up = frappe.new_doc("User Profile")
+	up.user = email
+	up.full_name = f"{first_name} {last_name}".strip() or email
+	up.member_id = member_id
+	up.country = country
+	up.phone = phone_canonical
+	up.status = "Active"
+	# Sprint 2.6 (revised): KYC Verified olunca 1 set edilir; kayıt anında 0
+	up.can_buy = 0
+	up.can_sell = 0
+	up.account_type = account_type
+	up.email_verified = 1
+	up.email_verified_at = now_datetime()
+	up.email_verified_method = "otp"
+	up.created_via = "storefront"
+	up.owner = email
+	# Backward compat — eski frontend Business kayıt göndermişse koru
+	if account_type == "Business":
+		if company_name:
+			up.company_name = company_name
+		if tax_id:
+			up.tax_id = tax_id
+		if tax_id_type:
+			up.tax_id_type = tax_id_type
+		if tax_office:
+			up.tax_office = tax_office
+	# Sprint 2.6: Tüm Alıcılar için KYC zorunlu (Soru 1). KYB Locked
+	# (Satıcı başvurusu yapılana kadar). Sidebar/banner buna göre render olur.
+	up.kyc_status = "Pending"
+	up.kyb_status = "Locked"
+	up.flags.ignore_permissions = True
+	up.flags.ignore_validate = True
+	up.insert(ignore_permissions=True)
 
-	# Defansif — Frappe Datetime field'ı insert sırasında bazen atlıyor;
-	# raw SQL UPDATE ile at + method'u garanti olarak yazıyoruz.
+	# Defansif raw SQL — Frappe v15'te Datetime field'ı insert sırasında bazen atlıyor
 	frappe.db.sql(
-		"UPDATE `tabBuyer Profile` SET `email_verified`=1, "
-		"`email_verified_at`=%s, `email_verified_method`='otp' "
+		"UPDATE `tabUser Profile` SET `email_verified`=1, "
+		"`email_verified_at`=%s, `email_verified_method`='otp', `owner`=%s "
 		"WHERE `name`=%s",
-		(now_datetime(), buyer.name),
+		(now_datetime(), email, up.name),
 	)
 
 	# ── Audit log ──
@@ -437,7 +493,10 @@ def register_user(
 	return {
 		"success": True,
 		"user": email,
+		"registration_type": registration_type,
 		"account_type": account_type,
+		"kyc_required": True,  # Sprint 2.6 — Alıcı'ya hep KYC zorunlu
+		"kyb_locked": True,  # Satıcı başvurusu yapana kadar
 	}
 
 
@@ -500,11 +559,13 @@ def register_supplier(
 		frappe.throw(_("You must accept the Terms of Service."))
 	if not accept_kvkk:
 		frappe.throw(_("You must accept the KVKK policy."))
-	if not (identity_document or "").strip():
-		frappe.throw(
-			_("Identity document upload is required."),
-			frappe.ValidationError,
-		)
+	# TEMP-DISABLED: Frontend SupplierSetupForm Step 4'te "Kimlik Belgesi" yükleme
+	# alanı yorum satırına alındı (geri getirildiğinde bu blok da açılır).
+	# if not (identity_document or "").strip():
+	# 	frappe.throw(
+	# 		_("Identity document upload is required."),
+	# 		frappe.ValidationError,
+	# 	)
 	_validate_password(password)
 
 	if frappe.db.exists("User", email):
@@ -549,27 +610,46 @@ def register_supplier(
 	if contact_phone and not contact_phone_canonical:
 		frappe.throw(_("Please enter a valid Turkish phone number."), frappe.ValidationError)
 
-	# ── Create Buyer Profile ──
-	# OTP doğrulaması zaten e-posta sahipliğini kanıtladı.
-	buyer = frappe.new_doc("Buyer Profile")
+	# ── Create User Profile (Sprint 2.6 — Satıcı kayıt akışı) ──
+	# Satıcı kayıt → can_sell=0 (henüz Seller Application onayı yok),
+	# can_buy=0 (KYC doldurulup onaylanana kadar satın alım yok).
+	# Soru 1 cevabı: KYC opsiyonel Satıcı için → kyc_status="Locked",
+	# kyb_status="Locked" (Seller Application onayında Pending'e döner).
+	buyer = frappe.new_doc("User Profile")
 	buyer.user = email
-	buyer.buyer_name = f"{first_name} {last_name}"
+	buyer.full_name = f"{first_name} {last_name}".strip() or email
 	buyer.member_id = member_id
 	buyer.country = country
 	buyer.phone = phone_canonical or contact_phone_canonical
 	buyer.status = "Active"
+	buyer.can_buy = 0
+	buyer.can_sell = 0  # Seller Application onayında 1'e döner
+	buyer.account_type = "Business"  # Satıcı = zorunlu kurumsal
+	if business_name:
+		buyer.company_name = business_name
+	if tax_id:
+		buyer.tax_id = tax_id
+	if tax_id_type:
+		buyer.tax_id_type = tax_id_type
+	if tax_office:
+		buyer.tax_office = tax_office
+	buyer.kyc_status = "Locked"
+	buyer.kyb_status = "Locked"
 	buyer.email_verified = 1
 	buyer.email_verified_at = now_datetime()
 	buyer.email_verified_method = "otp"
+	buyer.created_via = "supplier_signup"
 	buyer.owner = email
+	buyer.flags.ignore_permissions = True
+	buyer.flags.ignore_validate = True
 	buyer.insert(ignore_permissions=True)
 
 	# Defansif — Frappe Datetime field'ı insert sırasında bazen atlıyor
 	frappe.db.sql(
-		"UPDATE `tabBuyer Profile` SET `email_verified`=1, "
-		"`email_verified_at`=%s, `email_verified_method`='otp' "
+		"UPDATE `tabUser Profile` SET `email_verified`=1, "
+		"`email_verified_at`=%s, `email_verified_method`='otp', `owner`=%s "
 		"WHERE `name`=%s",
-		(now_datetime(), buyer.name),
+		(now_datetime(), email, buyer.name),
 	)
 
 	# ── Audit log ──
@@ -621,9 +701,12 @@ def register_supplier(
 	return {
 		"success": True,
 		"user": email,
-		"account_type": "supplier",
+		"registration_type": "Satici",
+		"account_type": "Business",
 		"seller_application": app.name,
 		"seller_application_status": app.status,
+		"kyb_locked": True,  # Seller Application onayında Pending'e döner
+		"kyc_locked": True,  # Alıcı olmak isterse KYC doldurulur
 	}
 
 
@@ -759,13 +842,14 @@ def verify_email(key: str):
 	if isinstance(email, bytes):
 		email = email.decode()
 
-	# Mark email as verified on Buyer Profile — doğrudan SQL UPDATE (Frappe v15
+	# Mark email as verified on User Profile — doğrudan SQL UPDATE (Frappe v15
 	# set_value `email_verified_at` Datetime field'ını bazı durumlarda yazmıyor;
-	# tek raw UPDATE ile garanti çalışır + atomik)
-	bp_name = frappe.db.get_value("Buyer Profile", {"user": email}, "name")
+	# tek raw UPDATE ile garanti çalışır + atomik).
+	# Sprint 2 (revised, 2026-05-15): tabBuyer Profile → tabUser Profile rename.
+	bp_name = frappe.db.get_value("User Profile", {"user": email}, "name")
 	if bp_name:
 		frappe.db.sql(
-			"UPDATE `tabBuyer Profile` SET `email_verified`=1, "
+			"UPDATE `tabUser Profile` SET `email_verified`=1, "
 			"`email_verified_at`=%s, `email_verified_method`='otp' "
 			"WHERE `name`=%s",
 			(now_datetime(), bp_name),
@@ -1076,7 +1160,7 @@ def _do_rename_user_email(old_email: str, new_email: str):
 	  - Hibrit kod biraz daha karmaşık (try/except + fallback dalı)
 
 	İşlem sırası (rename başarısı sonrası ortak):
-	  • Buyer Profile email_verified=1, at=now, method=otp (SQL UPDATE)
+	  • User Profile email_verified=1, at=now, method=otp (SQL UPDATE)
 	  • Eski adrese bilgilendirme maili (mail kuyruğu — async)
 	  • Email Verification Log change_completed event'i
 	  • Sessions clear (artık komut commit'lendi, fail olsa zarar yok)
@@ -1084,7 +1168,7 @@ def _do_rename_user_email(old_email: str, new_email: str):
 	**SQL fallback** sadece rename_doc başarısız olduğunda çalışır:
 	  1. ``__Auth`` tablosu — parola/secret mapping'i taşı
 	  2. ``tabUser`` primary key + email + username
-	  3. ``tabBuyer Profile`` — autoname=field:user → name == user, ikisi de UPDATE
+	  3. ``tabUser Profile`` — autoname=field:user → name == user, ikisi de UPDATE
 	  4. ``tabSeller Profile`` — user field
 	  5. ``tabSeller Application`` — applicant_user + contact_email
 	  6. Tüm User Link field'ları — ``frappe.model.rename_doc.get_link_fields``
@@ -1107,8 +1191,8 @@ def _do_rename_user_email(old_email: str, new_email: str):
 	# kabul edilir; user_type SQL UPDATE ile **zorla `Website User`** yapılır.
 	# Aksi halde (admin gibi) eski user_type korunur.
 	is_storefront_user = bool(
-		frappe.db.exists("Buyer Profile", {"user": old_email})
-		or frappe.db.exists("Seller Profile", {"user": old_email})
+		frappe.db.exists("User Profile", {"user": old_email})
+		or frappe.db.exists("User Profile", {"user": old_email})
 		or frappe.db.exists("Seller Application", {"applicant_user": old_email})
 	)
 	if is_storefront_user:
@@ -1162,9 +1246,9 @@ def _do_rename_user_email(old_email: str, new_email: str):
 	# ``autoname=field:user`` kuralı için ``BP.name``'i de senkronize etmek
 	# gerek. Frappe rename_doc bunu yapmıyor (link field cascade rename değil).
 	# Tek satır SQL UPDATE: BP.name = NEW.
-	if rename_doc_succeeded and frappe.db.exists("Buyer Profile", old_email):
+	if rename_doc_succeeded and frappe.db.exists("User Profile", old_email):
 		frappe.db.sql(
-			"UPDATE `tabBuyer Profile` SET `name`=%s WHERE `name`=%s",
+			"UPDATE `tabUser Profile` SET `name`=%s WHERE `name`=%s",
 			(new_email, old_email),
 		)
 
@@ -1205,9 +1289,10 @@ def _do_rename_user_email(old_email: str, new_email: str):
 			(new_email, new_email, new_email.split("@", 1)[0], old_email),
 		)
 
-		# 3. tabBuyer Profile — autoname=field:user, hem name hem user UPDATE
+		# 3. tabUser Profile — autoname=field:user, hem name hem user UPDATE
+		# Sprint 2 (revised, 2026-05-15): tabBuyer Profile → tabUser Profile rename.
 		frappe.db.sql(
-			"UPDATE `tabBuyer Profile` SET `name`=%s, `user`=%s WHERE `name`=%s OR `user`=%s",
+			"UPDATE `tabUser Profile` SET `name`=%s, `user`=%s WHERE `name`=%s OR `user`=%s",
 			(new_email, new_email, old_email, old_email),
 		)
 
@@ -1235,8 +1320,8 @@ def _do_rename_user_email(old_email: str, new_email: str):
 			# Yukarıda zaten elle güncellediklerimizi atla
 			if (parent, fieldname) in {
 				("User", "name"),
-				("Buyer Profile", "user"),
-				("Seller Profile", "user"),
+				("User Profile", "user"),
+				("User Profile", "user"),
 				("Seller Application", "applicant_user"),
 			}:
 				continue
@@ -1275,10 +1360,10 @@ def _do_rename_user_email(old_email: str, new_email: str):
 	# Doğrudan SQL UPDATE (Frappe v15 set_value `update_modified=False` ile
 	# Datetime field'ını bazen yazmıyor — bu Sorun 4'ün kök nedeniydi).
 	# Tek raw UPDATE garanti çalışır.
-	bp_name = frappe.db.get_value("Buyer Profile", {"user": new_email}, "name")
+	bp_name = frappe.db.get_value("User Profile", {"user": new_email}, "name")
 	if bp_name:
 		frappe.db.sql(
-			"UPDATE `tabBuyer Profile` SET `email_verified`=1, "
+			"UPDATE `tabUser Profile` SET `email_verified`=1, "
 			"`email_verified_at`=%s, `email_verified_method`='otp' "
 			"WHERE `name`=%s",
 			(now_datetime(), bp_name),
@@ -1345,7 +1430,7 @@ def resend_verification_email():
 		frappe.throw(_("Not logged in."), frappe.AuthenticationError)
 
 	# Zaten doğrulanmışsa boşa OTP gönderme
-	already_verified = bool(frappe.db.get_value("Buyer Profile", {"user": user}, "email_verified"))
+	already_verified = bool(frappe.db.get_value("User Profile", {"user": user}, "email_verified"))
 	if already_verified:
 		return {"success": True, "already_verified": True}
 
@@ -1398,24 +1483,24 @@ def admin_set_email_verified(user: str, verified: int = 1, reason: str = ""):
 			frappe.ValidationError,
 		)
 
-	if not frappe.db.exists("Buyer Profile", {"user": user}):
+	if not frappe.db.exists("User Profile", {"user": user}):
 		frappe.local.response["http_status_code"] = 400
 		frappe.throw(_("Target user has no Buyer Profile."), frappe.DoesNotExistError)
 
 	# Doğrudan SQL UPDATE (Frappe v15 set_value Datetime field'ını
 	# bazen yazmıyor — Sorun 4 kök neden)
-	bp_name = frappe.db.get_value("Buyer Profile", {"user": user}, "name")
+	bp_name = frappe.db.get_value("User Profile", {"user": user}, "name")
 	if bp_name:
 		if verified:
 			frappe.db.sql(
-				"UPDATE `tabBuyer Profile` SET `email_verified`=1, "
+				"UPDATE `tabUser Profile` SET `email_verified`=1, "
 				"`email_verified_at`=%s, `email_verified_method`='admin_override' "
 				"WHERE `name`=%s",
 				(now_datetime(), bp_name),
 			)
 		else:
 			frappe.db.sql(
-				"UPDATE `tabBuyer Profile` SET `email_verified`=0, "
+				"UPDATE `tabUser Profile` SET `email_verified`=0, "
 				"`email_verified_at`=NULL, `email_verified_method`=NULL "
 				"WHERE `name`=%s",
 				(bp_name,),
@@ -1468,10 +1553,10 @@ def verify_email_otp(code: str):
 		frappe.throw(_("Wrong verification code."), frappe.ValidationError)
 
 	# Doğrudan SQL UPDATE (Sorun 4 kök neden — set_value Datetime yazımı)
-	bp_name = frappe.db.get_value("Buyer Profile", {"user": user}, "name")
+	bp_name = frappe.db.get_value("User Profile", {"user": user}, "name")
 	if bp_name:
 		frappe.db.sql(
-			"UPDATE `tabBuyer Profile` SET `email_verified`=1, "
+			"UPDATE `tabUser Profile` SET `email_verified`=1, "
 			"`email_verified_at`=%s, `email_verified_method`='otp' "
 			"WHERE `name`=%s",
 			(now_datetime(), bp_name),
@@ -1530,13 +1615,11 @@ def change_phone(phone: str, password: str):
 	# Persist the canonical form everywhere — never the raw input.
 	frappe.db.set_value("User", user, "phone", canonical)
 
-	buyer_profile = frappe.db.get_value("Buyer Profile", {"user": user}, "name")
-	if buyer_profile:
-		frappe.db.set_value("Buyer Profile", buyer_profile, "phone", canonical)
-
-	seller_profile = frappe.db.get_value("Seller Profile", {"user": user}, "name")
-	if seller_profile:
-		frappe.db.set_value("Seller Profile", seller_profile, "contact_phone", canonical)
+	# Sprint 2.6: User Profile birleşik — tek phone field'ı. Eski Seller Profile.contact_phone
+	# User Profile.phone'a birleşti; ayrı set ÇIKARILDI.
+	user_profile = frappe.db.get_value("User Profile", {"user": user}, "name")
+	if user_profile:
+		frappe.db.set_value("User Profile", user_profile, "phone", canonical)
 
 	seller_app = frappe.db.get_value("Seller Application", {"applicant_user": user}, "name")
 	if seller_app:
@@ -1569,14 +1652,14 @@ def delete_account(password: str, reason: str = ""):
 	frappe.db.set_value("User", user, "enabled", 0)
 
 	# Deactivate Buyer Profile if exists
-	buyer_profile = frappe.db.get_value("Buyer Profile", {"user": user}, "name")
+	buyer_profile = frappe.db.get_value("User Profile", {"user": user}, "name")
 	if buyer_profile:
-		frappe.db.set_value("Buyer Profile", buyer_profile, "status", "Deactivated")
+		frappe.db.set_value("User Profile", buyer_profile, "status", "Deactivated")
 
 	# Deactivate Seller Profile if exists
-	seller_profile = frappe.db.get_value("Seller Profile", {"user": user}, "name")
+	seller_profile = frappe.db.get_value("User Profile", {"user": user}, "name")
 	if seller_profile:
-		frappe.db.set_value("Seller Profile", seller_profile, "status", "Deactivated")
+		frappe.db.set_value("User Profile", seller_profile, "status", "Deactivated")
 
 	# Log the deletion reason
 	frappe.log_error(
@@ -1643,9 +1726,38 @@ def become_seller():
 	if user == "Guest":
 		frappe.throw(_("Not logged in."), frappe.AuthenticationError)
 
-	# Already has a seller application
+	# Sprint 2.6: Mevcut Seller Application varsa, frontend form prefill için
+	# tüm field'ları döndür. Kullanıcı yarım kalan Draft'ı "kaldığı yerden devam
+	# eder" — Step 1'den boş başlamaz.
 	existing = frappe.db.get_value(
-		"Seller Application", {"applicant_user": user}, ["name", "status"], as_dict=True
+		"Seller Application",
+		{"applicant_user": user},
+		[
+			"name",
+			"status",
+			"seller_type",
+			"business_name",
+			"contact_phone",
+			"tax_id_type",
+			"tax_id",
+			"tax_office",
+			"address_line_1",
+			"city",
+			"country",
+			"bank_name",
+			"iban",
+			"account_holder_name",
+			"identity_document_type",
+			"identity_document_number",
+			"identity_document_expiry",
+			"identity_document",
+			"terms_accepted",
+			"privacy_accepted",
+			"kvkk_accepted",
+			"commission_accepted",
+			"return_policy_accepted",
+		],
+		as_dict=True,
 	)
 	if existing:
 		return {
@@ -1653,11 +1765,35 @@ def become_seller():
 			"seller_application": existing.name,
 			"seller_application_status": existing.status,
 			"already_exists": True,
+			# Prefill için Draft field değerleri
+			"data": {
+				"seller_type": existing.seller_type or "",
+				"business_name": existing.business_name or "",
+				"contact_phone": existing.contact_phone or "",
+				"tax_id_type": existing.tax_id_type or "",
+				"tax_id": existing.tax_id or "",
+				"tax_office": existing.tax_office or "",
+				"address_line_1": existing.address_line_1 or "",
+				"city": existing.city or "",
+				"country": existing.country or "Turkey",
+				"bank_name": existing.bank_name or "",
+				"iban": existing.iban or "",
+				"account_holder_name": existing.account_holder_name or "",
+				"identity_document_type": existing.identity_document_type or "",
+				"identity_document_number": existing.identity_document_number or "",
+				"identity_document_expiry": str(existing.identity_document_expiry or ""),
+				"identity_document": existing.identity_document or "",
+				"terms_accepted": int(existing.terms_accepted or 0),
+				"privacy_accepted": int(existing.privacy_accepted or 0),
+				"kvkk_accepted": int(existing.kvkk_accepted or 0),
+				"commission_accepted": int(existing.commission_accepted or 0),
+				"return_policy_accepted": int(existing.return_policy_accepted or 0),
+			},
 		}
 
 	# Generate member_id
 	user_data = frappe.db.get_value("User", user, ["email", "creation", "phone"], as_dict=True)
-	member_id = frappe.db.get_value("Buyer Profile", {"user": user}, "member_id") or _generate_member_id(
+	member_id = frappe.db.get_value("User Profile", {"user": user}, "member_id") or _generate_member_id(
 		user_data.email, user_data.creation
 	)
 
@@ -1668,7 +1804,7 @@ def become_seller():
 	# user_data.phone may be a legacy non-canonical value; canonicalize before
 	# copying it forward so the new application starts clean.
 	app.contact_phone = canonicalize_phone(user_data.phone) or ""
-	app.country = frappe.db.get_value("Buyer Profile", {"user": user}, "country") or "Turkey"
+	app.country = frappe.db.get_value("User Profile", {"user": user}, "country") or "Turkey"
 	app.status = "Draft"
 	# identity_document doctype-level reqd:1 — Draft skeleton burada boş insert
 	# edilir; gerçek zorunluluk complete_registration_application'da set ile

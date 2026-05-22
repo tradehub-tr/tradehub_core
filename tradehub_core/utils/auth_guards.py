@@ -28,16 +28,16 @@ from frappe import _
 
 
 def is_email_verified(user: str) -> bool:
-	"""Return True iff Buyer Profile.email_verified is set for ``user``.
+	"""Return True iff User Profile.email_verified is set for ``user``.
 
-	Buyer Profile yoksa ``True`` döner — sadece-seller veya admin gibi
-	Buyer Profile'sız hesapları engellememek için.
+	Sprint 2 (revised, 2026-05-15): Buyer Profile → User Profile.
+	User Profile yoksa ``True`` döner — admin gibi profilsiz hesapları engellememek için.
 	"""
 	if not user or user == "Guest":
 		return False
-	if not frappe.db.exists("Buyer Profile", {"user": user}):
+	if not frappe.db.exists("User Profile", {"user": user}):
 		return True
-	return bool(frappe.db.get_value("Buyer Profile", {"user": user}, "email_verified"))
+	return bool(frappe.db.get_value("User Profile", {"user": user}, "email_verified"))
 
 
 def require_verified_email(fn):

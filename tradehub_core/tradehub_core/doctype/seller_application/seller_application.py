@@ -22,51 +22,103 @@ class SellerApplication(Document):
 				self._notify_applicant_received()
 
 	def _approve_application(self):
-		"""Create Seller Profile, Admin Seller Profile and assign Seller role on approval."""
+		"""Sprint 2 — User Profile birleşmesi sonrası yeni onay akışı:
+		1. User Profile.can_sell=1 set (mevcut User Profile var, kayıtta yaratıldı)
+		2. account_type=Business zorla (Seller olmak için zorunlu - S6/S28)
+		3. Admin Seller Profile yarat (mağaza entity)
+		4. KYB Verification yarat (verification_kind=KYB - S26)
+		5. User'a Seller rolü ekle (Sprint 3 RBAC refactor'unda Seller Owner'a geçecek)"""
 		user = self.applicant_user
-		seller_name = self.business_name or frappe.db.get_value("User", user, "full_name")
+		seller_name = self.business_name or frappe.db.get_value("User", user, "full_name") or user
 
-		# Fields to sync from application to profile
-		profile_data = {
-			"seller_name": seller_name,
-			"member_id": self.member_id,
-			"seller_type": self.seller_type,
-			"application": self.name,
-			"business_name": self.business_name,
-			"tax_id": self.tax_id,
-			"contact_phone": self.contact_phone,
-			"country": self.country,
-			"tax_id_type": self.tax_id_type,
-			"tax_office": self.tax_office,
-			"address_line_1": self.address_line_1,
-			"city": self.city,
-			"bank_name": self.bank_name,
-			"iban": self.iban,
-			"account_holder_name": self.account_holder_name,
-		}
+		# ───── 1+2. User Profile güncellemesi (can_sell=1 + account_type=Business) ─────
+		# Sprint 2: User Profile mevcut (register sırasında yaratıldı). Buradaki başvuru
+		# kullanıcının "satıcı olmak istiyorum" talebi — UP.can_sell=1 + Business yapılır.
+		up_name = frappe.db.get_value("User Profile", {"user": user}, "name")
+		if up_name:
+			# Sprint 2.6 (revised): can_sell KYB Verified anında set edilir, başvuru onayında değil
+			up_updates = {
+				"account_type": "Business",  # Bloker 1: Seller zorunlu Business
+				"migrated_from_seller_profile": self.name,
+			}
+			# Seller-özel field'ları User Profile'a kopyala (eksikse)
+			current = (
+				frappe.db.get_value(
+					"User Profile",
+					up_name,
+					[
+						"company_name",
+						"tax_id",
+						"tax_id_type",
+						"tax_office",
+						"bank_name",
+						"iban",
+						"account_holder_name",
+						"phone",
+					],
+					as_dict=True,
+				)
+				or {}
+			)
+			if not current.get("company_name") and self.business_name:
+				up_updates["company_name"] = self.business_name[:140]
+			if not current.get("tax_id") and self.tax_id:
+				up_updates["tax_id"] = self.tax_id
+			if not current.get("tax_id_type") and self.tax_id_type:
+				up_updates["tax_id_type"] = self.tax_id_type
+			if not current.get("tax_office") and self.tax_office:
+				up_updates["tax_office"] = self.tax_office
+			if not current.get("bank_name") and self.bank_name:
+				up_updates["bank_name"] = self.bank_name
+			if not current.get("iban") and self.iban:
+				up_updates["iban"] = self.iban
+			if not current.get("account_holder_name") and self.account_holder_name:
+				up_updates["account_holder_name"] = self.account_holder_name
+			if not current.get("phone") and self.contact_phone:
+				up_updates["phone"] = (self.contact_phone or "")[:20]
 
-		# Create or update Seller Profile
-		existing = frappe.db.get_value("Seller Profile", {"user": user}, "name")
-		if existing:
-			# Update fields but do NOT touch status — admin manages it from Seller Profile
-			for field, value in profile_data.items():
-				frappe.db.set_value("Seller Profile", existing, field, value)
-			# Ensure owner is the user (for if_owner permissions)
-			frappe.db.set_value("Seller Profile", existing, "owner", user)
+			# frappe.db.set_value — controller hook bypass (set_value tek call multi-field)
+			frappe.db.set_value("User Profile", up_name, up_updates, update_modified=False)
 		else:
-			# New profile starts as Active — owner must be the user for if_owner permissions
-			profile = frappe.new_doc("Seller Profile")
-			profile.user = user
-			profile.status = "Active"
-			profile.flags.ignore_permissions = True
-			profile.owner = user
-			for field, value in profile_data.items():
-				profile.set(field, value)
-			profile.insert(ignore_permissions=True)
-			# Frappe overrides owner on insert — force correct owner for if_owner permissions
-			frappe.db.set_value("Seller Profile", profile.name, "owner", user)
+			# User Profile yoksa (edge case — register akışı atlanmış) yarat
+			frappe.log_error(
+				title="Seller Application: User Profile bulunamadı",
+				message=f"User {user} için User Profile yok; minimum User Profile yaratılıyor.",
+			)
+			frappe.db.sql(
+				"""
+				INSERT INTO `tabUser Profile` (
+					name, user, can_buy, can_sell, status, account_type,
+					full_name, phone, country, company_name, tax_id, tax_id_type, tax_office,
+					bank_name, iban, account_holder_name,
+					created_via, migrated_at, migrated_from_seller_profile,
+					creation, modified, owner, modified_by, docstatus
+				) VALUES (
+					%(user)s, %(user)s, 1, 1, 'Active', 'Business',
+					%(full_name)s, %(phone)s, %(country)s, %(company_name)s,
+					%(tax_id)s, %(tax_id_type)s, %(tax_office)s,
+					%(bank_name)s, %(iban)s, %(account_holder_name)s,
+					'seller_application', NOW(), %(sa_name)s,
+					NOW(), NOW(), %(user)s, %(user)s, 0
+				)
+			""",
+				{
+					"user": user,
+					"full_name": seller_name[:140],
+					"phone": (self.contact_phone or "")[:20],
+					"country": self.country,
+					"company_name": (self.business_name or seller_name)[:140],
+					"tax_id": self.tax_id,
+					"tax_id_type": self.tax_id_type,
+					"tax_office": self.tax_office,
+					"bank_name": self.bank_name,
+					"iban": self.iban,
+					"account_holder_name": self.account_holder_name,
+					"sa_name": self.name,
+				},
+			)
 
-		# Create Admin Seller Profile if not already exists
+		# ───── 3. Admin Seller Profile yarat (mağaza entity — değişmedi) ─────
 		if not frappe.db.exists("Admin Seller Profile", {"user": user}):
 			count = (frappe.db.count("Admin Seller Profile") or 0) + 1
 			seller_code = f"SEL-{count:05d}"
@@ -89,14 +141,7 @@ class SellerApplication(Document):
 			admin_profile.insert(ignore_permissions=True)
 			frappe.db.set_value("Admin Seller Profile", admin_profile.name, "owner", user)
 
-		# Add Seller role
-		if "Seller" not in frappe.get_roles(user):
-			user_doc = frappe.get_doc("User", user)
-			user_doc.add_roles("Seller")
-		# 2026-05-11 REVERT: System User upgrade kaldırıldı; user_type Website User
-		# olarak kalır (Frappe v15 init_request 417 edge case'leri çözülemedi).
-
-		# Create or update KYB Verification record pre-filled from application data
+		# ───── 4. KYB Verification yarat (Sprint 2.6: verification_kind kaldırıldı) ─────
 		seller_type_map = {
 			"Individual": "Şahıs",
 			"Business": "Limited Şirket",
@@ -125,36 +170,43 @@ class SellerApplication(Document):
 			for field, value in kyb_data.items():
 				kyb.set(field, value)
 			kyb.flags.ignore_permissions = True
-			# 6 belge field'ı reqd:1 — SA approval anında belgeler henüz yüklenmedi.
-			# Belge zorunluluğu submit_kyb_documents endpoint'inde Türkçe validation
-			# ile zaten kontrol ediliyor; doctype-level reqd burada bypass edilir.
 			kyb.flags.ignore_mandatory = True
 			kyb.insert(ignore_permissions=True)
-			# Ensure owner is the user (Frappe may override during insert)
 			frappe.db.set_value("KYB Verification", kyb.name, "owner", user)
 
-		# Set kyb_status on Seller Profile
-		frappe.db.set_value("Seller Profile", {"user": user}, "kyb_status", "Pending")
+		# ───── 5. Seller rolü (Sprint 3'te Seller Owner'a geçecek) ─────
+		if "Seller" not in frappe.get_roles(user):
+			user_doc = frappe.get_doc("User", user)
+			user_doc.add_roles("Seller")
+
+		# ───── 6. User Profile.kyb_status sync ─────
+		if up_name:
+			frappe.db.set_value("User Profile", up_name, "kyb_status", "Pending", update_modified=False)
 
 		# Record review metadata
 		self.db_set("reviewed_by", frappe.session.user)
 		self.db_set("reviewed_on", now_datetime())
 
 	def _revoke_approval(self):
-		"""Remove Seller role and deactivate Seller Profile when approval is revoked."""
+		"""Sprint 2 — Onay geri çekme: User Profile.can_sell=0 + Admin Seller Profile suspend."""
 		user = self.applicant_user
 
-		# Remove Seller role
+		# Seller rolünü kaldır
 		if "Seller" in frappe.get_roles(user):
 			user_doc = frappe.get_doc("User", user)
 			user_doc.remove_roles("Seller")
 
-		# Deactivate Seller Profile
-		existing_sp = frappe.db.get_value("Seller Profile", {"user": user}, "name")
-		if existing_sp:
-			frappe.db.set_value("Seller Profile", existing_sp, "status", "Suspended")
+		# User Profile.can_sell=0 set et (account_type Business kalır — TEK YÖNLÜ upgrade kuralı)
+		up_name = frappe.db.get_value("User Profile", {"user": user}, "name")
+		if up_name:
+			frappe.db.set_value(
+				"User Profile",
+				up_name,
+				{"can_sell": 0, "kyb_status": ""},
+				update_modified=False,
+			)
 
-		# Deactivate Admin Seller Profile
+		# Admin Seller Profile suspend
 		existing_asp = frappe.db.get_value("Admin Seller Profile", {"user": user}, "name")
 		if existing_asp:
 			frappe.db.set_value("Admin Seller Profile", existing_asp, "status", "Suspended")

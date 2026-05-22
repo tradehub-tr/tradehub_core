@@ -9,8 +9,10 @@ class RFQQuote(Document):
 	def before_insert(self):
 		if not self.seller:
 			self.seller = frappe.session.user
+		# Sprint 2 — Bloker 3: seller_profile artık Admin Seller Profile.name (SEL-XXXXX)
+		# Eski Seller Profile (email format) → Admin Seller Profile (SEL-XXXXX format) lookup
 		if not self.seller_profile:
-			self.seller_profile = frappe.db.get_value("Seller Profile", {"user": self.seller}, "name")
+			self.seller_profile = frappe.db.get_value("Admin Seller Profile", {"user": self.seller}, "name")
 
 	def validate(self):
 		self._validate_total_price()
@@ -60,8 +62,12 @@ class RFQQuote(Document):
 			return
 		buyer = frappe.db.get_value("RFQ", self.rfq, "buyer")
 		if buyer:
+			# Sprint 2: Mağaza adı için Admin Seller Profile.seller_name kullanılır
+			# (eski Seller Profile.seller_name'den geçiş)
 			seller_name = (
-				frappe.db.get_value("Seller Profile", {"user": self.seller}, "seller_name") or self.seller
+				frappe.db.get_value("Admin Seller Profile", {"user": self.seller}, "seller_name")
+				or frappe.db.get_value("User Profile", self.seller, "full_name")
+				or self.seller
 			)
 			notify(
 				recipient_user=buyer,

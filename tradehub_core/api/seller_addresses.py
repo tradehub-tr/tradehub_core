@@ -58,11 +58,14 @@ def _require_login():
 
 
 def _resolve_seller_profile(user):
-	"""Session user → Seller Profile name. Yoksa hata fırlatır."""
-	sp_name = frappe.db.get_value("Seller Profile", {"user": user}, "name")
+	"""Session user → Admin Seller Profile.name (SEL-XXXXX). Yoksa hata fırlatır.
+
+	Sprint 2 (revised, 2026-05-15): Seller Profile → Admin Seller Profile (mağaza entity).
+	"""
+	sp_name = frappe.db.get_value("Admin Seller Profile", {"user": user}, "name")
 	if not sp_name:
 		frappe.throw(
-			_("Bu kullanıcıya bağlı bir Seller Profile bulunamadı"),
+			_("Bu kullanıcıya bağlı bir satıcı profili bulunamadı"),
 			frappe.DoesNotExistError,
 		)
 	return sp_name

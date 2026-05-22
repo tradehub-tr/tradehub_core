@@ -8,7 +8,7 @@ def get_sellers(search=None, page=1, page_size=20):
 	if search:
 		filters["seller_name"] = ["like", "%" + search + "%"]
 	sellers = frappe.get_all(
-		"Seller Profile",
+		"Admin Seller Profile",
 		filters=filters,
 		fields=[
 			"name",
@@ -47,14 +47,14 @@ def get_sellers(search=None, page=1, page_size=20):
 			s["product_images"] = [i.image for i in images if i.image]
 		except Exception:
 			s["product_images"] = []
-	total = frappe.db.count("Seller Profile", filters=filters)
+	total = frappe.db.count("Admin Seller Profile", filters=filters)
 	return {"sellers": sellers, "total": total, "page": int(page), "page_size": int(page_size)}
 
 
 @frappe.whitelist(allow_guest=True)
 def get_seller(slug):
 	seller = frappe.db.get_value(
-		"Seller Profile",
+		"Admin Seller Profile",
 		{"seller_code": slug, "status": "Active"},
 		[
 			"name",
@@ -92,7 +92,9 @@ def get_seller(slug):
 
 @frappe.whitelist(allow_guest=True)
 def get_reviews(seller_code, page=1, page_size=10):
-	seller = frappe.db.get_value("Seller Profile", {"seller_code": seller_code, "status": "Active"}, "name")
+	seller = frappe.db.get_value(
+		"Admin Seller Profile", {"seller_code": seller_code, "status": "Active"}, "name"
+	)
 	if not seller:
 		frappe.throw(_("Satici bulunamadi"), frappe.DoesNotExistError)
 	filters = {"seller": seller}
@@ -118,7 +120,9 @@ def get_reviews(seller_code, page=1, page_size=10):
 
 @frappe.whitelist(allow_guest=True)
 def get_storefront_layout(seller_code):
-	seller = frappe.db.get_value("Seller Profile", {"seller_code": seller_code, "status": "Active"}, "name")
+	seller = frappe.db.get_value(
+		"Admin Seller Profile", {"seller_code": seller_code, "status": "Active"}, "name"
+	)
 	if not seller:
 		frappe.throw(_("Satici bulunamadi"), frappe.DoesNotExistError)
 
@@ -151,7 +155,10 @@ def save_storefront_layout(seller_code, sections, theme_config=None):
 	import json
 
 	seller = frappe.db.get_value(
-		"Seller Profile", {"seller_code": seller_code, "status": "Active"}, ["name", "user"], as_dict=True
+		"Admin Seller Profile",
+		{"seller_code": seller_code, "status": "Active"},
+		["name", "user"],
+		as_dict=True,
 	)
 	if not seller:
 		frappe.throw(_("Satici bulunamadi"), frappe.DoesNotExistError)
@@ -179,7 +186,10 @@ def save_storefront_layout(seller_code, sections, theme_config=None):
 @frappe.whitelist()
 def publish_storefront_layout(seller_code, publish=1):
 	seller = frappe.db.get_value(
-		"Seller Profile", {"seller_code": seller_code, "status": "Active"}, ["name", "user"], as_dict=True
+		"Admin Seller Profile",
+		{"seller_code": seller_code, "status": "Active"},
+		["name", "user"],
+		as_dict=True,
 	)
 	if not seller:
 		frappe.throw(_("Satici bulunamadi"), frappe.DoesNotExistError)
@@ -199,7 +209,7 @@ def publish_storefront_layout(seller_code, publish=1):
 @frappe.whitelist(allow_guest=True)
 def send_inquiry(seller_code, message, share_business_card=0):
 	seller = frappe.db.get_value(
-		"Seller Profile",
+		"Admin Seller Profile",
 		{"seller_code": seller_code, "status": "Active"},
 		["name", "seller_code"],
 		as_dict=True,

@@ -12,13 +12,48 @@
 		{
 			"fieldname": "kind",
 			"fieldtype": "Select",
-			"label": "Tür",
+			"label": "Tür (DEPRECATED)",
 			"options": "Buyer\nSeller",
 			"default": "Buyer",
+			"in_list_view": 1,
+			"in_standard_filter": 1,
+			"search_index": 1,
+			"description": "Sprint 1 (2026-05-15): purpose alanına taşındı. Geçiş penceresinde yazılmaya devam ediyor. Sprint 4'te drop."
+		},
+		{
+			"fieldname": "purpose",
+			"fieldtype": "Select",
+			"label": "Amaç",
+			"options": "Delivery\nPickup\nBilling",
+			"default": "Delivery",
 			"reqd": 1,
 			"in_list_view": 1,
 			"in_standard_filter": 1,
-			"search_index": 1
+			"search_index": 1,
+			"description": "Sprint 1 (2026-05-15): amaç-bazlı ayrım — kind (rol-bazlı) yerine. Delivery=alıcıya gelsin, Pickup=satıcı buradan göndersin, Billing=fatura adresi."
+		},
+		{
+			"fieldname": "address_type",
+			"fieldtype": "Select",
+			"label": "Adres Tipi",
+			"options": "Individual\nBusiness",
+			"default": "Individual",
+			"reqd": 1,
+			"in_standard_filter": 1,
+			"description": "Bireysel / Kurumsal. Business ise tax_no + tax_office zorunlu (Marketplace Settings.require_tax_id_business)."
+		},
+		{
+			"fieldname": "tax_no",
+			"fieldtype": "Data",
+			"label": "Vergi No (VKN/TCKN)",
+			"mandatory_depends_on": "eval:doc.address_type=='Business'",
+			"description": "Kurumsal adres için VKN (10 hane, Maliye checksum)."
+		},
+		{
+			"fieldname": "tax_office",
+			"fieldtype": "Data",
+			"label": "Vergi Dairesi",
+			"mandatory_depends_on": "eval:doc.address_type=='Business'"
 		},
 		{
 			"fieldname": "user",
@@ -34,13 +69,14 @@
 		{
 			"fieldname": "seller",
 			"fieldtype": "Link",
-			"label": "Seller Profile",
-			"options": "Seller Profile",
+			"label": "Seller Store",
+			"options": "Admin Seller Profile",
 			"depends_on": "eval:doc.kind=='Seller'",
 			"mandatory_depends_on": "eval:doc.kind=='Seller'",
 			"search_index": 1,
 			"in_list_view": 1,
-			"in_standard_filter": 1
+			"in_standard_filter": 1,
+			"description": "Sprint 2 - User Profile birleşmesi sonrası Admin Seller Profile'a (mağaza) Link"
 		},
 		{
 			"fieldname": "title",
@@ -70,7 +106,8 @@
 			"fieldname": "company",
 			"fieldtype": "Data",
 			"label": "Şirket Adı",
-			"reqd": 1
+			"mandatory_depends_on": "eval:doc.address_type=='Business'",
+			"description": "Sprint 1 (2026-05-15): reqd=1 kaldırıldı, sadece Business adresleri için zorunlu."
 		},
 		{
 			"fieldname": "sb_contact",

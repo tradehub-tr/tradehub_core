@@ -220,24 +220,24 @@ class ListingReview(Document):
 		self.seller = seller
 
 	def _populate_reviewer_from_user(self):
-		# reviewer = Buyer Profile.name (user üzerinden bulunur)
-		bp_name = frappe.db.get_value("Buyer Profile", {"user": self.reviewer_user}, "name")
-		self.reviewer = bp_name
+		# Sprint 2 — reviewer = User Profile.name (autoname=field:user; bu reviewer_user'a eşit)
+		up_name = frappe.db.get_value("User Profile", {"user": self.reviewer_user}, "name")
+		self.reviewer = up_name
 
 		display = None
-		if bp_name:
-			bp = frappe.db.get_value(
-				"Buyer Profile",
-				bp_name,
-				["company_name", "buyer_name", "city"],
+		if up_name:
+			up = frappe.db.get_value(
+				"User Profile",
+				up_name,
+				["company_name", "full_name", "country"],
 				as_dict=True,
 			)
-			if bp:
-				company = (bp.company_name or "").strip()
-				name = (bp.buyer_name or "").strip()
-				city = (bp.city or "").strip()
+			if up:
+				company = (up.company_name or "").strip()
+				name = (up.full_name or "").strip()
+				country = (up.country or "").strip()
 				base = company or name or ""
-				display = f"{base} ({city})" if base and city else base
+				display = f"{base} ({country})" if base and country else base
 		if not display:
 			# fallback: User.full_name
 			display = frappe.db.get_value("User", self.reviewer_user, "full_name") or self.reviewer_user

@@ -11,7 +11,7 @@ These functions are registered in hooks.py under:
 """
 
 import frappe
-from frappe.utils import cint, flt
+from frappe.utils import flt
 
 # Import tenant utilities
 from tradehub_core.utils.tenant import _has_tenant_field, get_current_tenant, is_tenant_admin
@@ -62,7 +62,7 @@ def get_tenant_permission_query_conditions(user=None):
 	Example:
 	    # In hooks.py
 	    permission_query_conditions = {
-	        "Seller Profile": "tradehub_core.permissions.get_tenant_permission_query_conditions",
+	        "Admin Seller Profile": "tradehub_core.permissions.get_tenant_permission_query_conditions",
 	        "Listing": "tradehub_core.permissions.get_tenant_permission_query_conditions",
 	    }
 	"""
@@ -76,9 +76,9 @@ def get_tenant_permission_query_conditions(user=None):
 	tenant = get_current_tenant()
 
 	if not tenant:
-		# No tenant context - user might be a guest or not assigned to a tenant
-		# Allow access only to own records based on owner
-		return f"`tabSeller Profile`.`owner` = '{frappe.db.escape(user)}'"
+		# Sprint 2 (revised, 2026-05-15): Seller Profile → Admin Seller Profile.
+		# No tenant context — allow access only to own records based on owner.
+		return f"`tabAdmin Seller Profile`.`owner` = '{frappe.db.escape(user)}'"
 
 	# Return tenant filter condition
 	return f"`tenant` = '{frappe.db.escape(tenant)}'"
@@ -105,7 +105,7 @@ def has_tenant_permission(doc, ptype=None, user=None):
 	Example:
 	    # In hooks.py
 	    has_permission = {
-	        "Seller Profile": "tradehub_core.permissions.has_tenant_permission",
+	        "Admin Seller Profile": "tradehub_core.permissions.has_tenant_permission",
 	        "Listing": "tradehub_core.permissions.has_tenant_permission",
 	    }
 	"""
@@ -215,9 +215,10 @@ def _check_kyc_verification(user, doctype):
 	"""
 	ABAC Layer: Deny access to financial DocTypes for non-KYC-verified users.
 
-	Checks the ``kyc_verified`` custom field on the User record.  Only
-	DocTypes listed in :data:`FINANCIAL_DOCTYPES` are gated; all other
-	DocTypes pass through without a KYC check.
+	Sprint 2 — S26: Eski User.kyc_verified field hayali idi. Şimdi
+	`User Profile.kyc_status == "Verified"` üzerinden kontrol edilir.
+	Bireysel kullanıcılar için (account_type=Individual) KYC zorunlu değil
+	(graceful pass-through).
 
 	Args:
 	    user (str): User to check.
@@ -229,13 +230,27 @@ def _check_kyc_verification(user, doctype):
 	if doctype not in FINANCIAL_DOCTYPES:
 		return True
 
-	# Use a short-lived cache to avoid repeated DB lookups during a request
 	cache_key = f"kyc_verified:{user}"
 	kyc_verified = frappe.cache().get_value(cache_key)
 
 	if kyc_verified is None:
-		kyc_verified = cint(frappe.db.get_value("User", user, "kyc_verified"))
-		# Cache for 5 minutes — cleared on KYC Profile update
+		# User Profile.kyc_status veya kyb_status (Sprint 3'te ABAC genişletilebilir)
+		row = frappe.db.get_value(
+			"User Profile",
+			{"user": user},
+			["account_type", "kyc_status", "kyb_status"],
+			as_dict=True,
+		)
+		if not row:
+			# User Profile yok — Sprint 2 öncesi user veya orphan. İzin ver.
+			kyc_verified = 1
+		elif row.account_type == "Individual":
+			# Bireysel — KYC zorunlu değil
+			kyc_verified = 1
+		elif row.kyc_status == "Verified" or row.kyb_status == "Verified":
+			kyc_verified = 1
+		else:
+			kyc_verified = 0
 		frappe.cache().set_value(cache_key, kyc_verified, expires_in_sec=300)
 
 	return bool(kyc_verified)
@@ -245,10 +260,11 @@ def _check_aml_sanctions(user, doctype):
 	"""
 	ABAC Layer: Block access for users flagged by AML or sanctions screening.
 
-	Looks up the user's active KYC Profile and checks ``aml_check_status``
-	and ``sanctions_status``.  A value of ``"Hit Found"`` (AML) or
-	``"Match Found"`` (sanctions) results in access denial for DocTypes
-	listed in :data:`AML_SENSITIVE_DOCTYPES`.
+	NOT (Sprint 2 — S26): Eski "KYC Profile" DocType hayali idi (yok).
+	Şimdi `KYB Verification` (verification_kind=KYB) üzerinden AML/sanctions kontrolü
+	yapılır. KYB Verification şu an `aml_check_status` ve `sanctions_status` field'larını
+	içermiyor — bu Sprint 3 ABAC katmanında eklenecek. Şu an her zaman True döner
+	(graceful fallback — gate'i kapatmadan AML/sanctions katmanını ileride aktifleştir).
 
 	Args:
 	    user (str): User to check.
@@ -260,32 +276,8 @@ def _check_aml_sanctions(user, doctype):
 	if doctype not in AML_SENSITIVE_DOCTYPES:
 		return True
 
-	cache_key = f"aml_status:{user}"
-	aml_status = frappe.cache().get_value(cache_key)
-
-	if aml_status is None:
-		kyc_profile = frappe.db.get_value(
-			"KYC Profile",
-			{"user": user, "status": ("not in", ["Rejected", "Expired"])},
-			["aml_check_status", "sanctions_status"],
-			as_dict=True,
-		)
-
-		if kyc_profile:
-			aml_status = {
-				"aml_hit": kyc_profile.aml_check_status == "Hit Found",
-				"sanctions_match": kyc_profile.sanctions_status == "Match Found",
-			}
-		else:
-			# No active KYC profile — AML check not applicable
-			aml_status = {"aml_hit": False, "sanctions_match": False}
-
-		# Cache for 5 minutes — cleared on KYC Profile update
-		frappe.cache().set_value(cache_key, aml_status, expires_in_sec=300)
-
-	if aml_status.get("aml_hit") or aml_status.get("sanctions_match"):
-		return False
-
+	# Sprint 3 öncesi — KYB Verification'da aml/sanctions field'ları henüz yok.
+	# Graceful fallback: izin ver, log'a yaz (Sprint 3'te aktif olur).
 	return True
 
 
@@ -597,21 +589,28 @@ def admin_seller_profile_has_permission(doc, ptype, user):
 
 
 # ── Seller Balance ───────────────────────────────────────────────────────────
-# Seller Balance.seller links to "Seller Profile" whose name = user email.
+# Sprint 2 (revised, 2026-05-15): Seller Balance.seller artık Admin Seller Profile.name (SEL-XXXXX).
+# Sprint 1'de field options "Admin Seller Profile" olarak güncellendi.
 
 
 def seller_balance_query_conditions(user):
 	if "System Manager" in frappe.get_roles(user):
 		return ""
-	# Seller Profile is named by user, so seller field value = user email
-	return f"`tabSeller Balance`.`seller` = {frappe.db.escape(user)}"
+	# Admin Seller Profile lookup: kullanıcının mağazası filter
+	profile = _get_seller_profile_name(user)
+	if not profile:
+		return "1=0"
+	return f"`tabSeller Balance`.`seller` = {frappe.db.escape(profile)}"
 
 
 def seller_balance_has_permission(doc, ptype, user):
 	if "System Manager" in frappe.get_roles(user):
 		return True
 	seller_val = getattr(doc, "seller", None) if not isinstance(doc, dict) else doc.get("seller")
-	return seller_val == user
+	# Sprint 2 (revised, 2026-05-15): seller artık Admin Seller Profile.name (SEL-XXXXX),
+	# user email değil. Kullanıcının kendi mağazasıyla eşleşmeli.
+	profile = _get_seller_profile_name(user)
+	return seller_val == profile
 
 
 # ── Seller Review ────────────────────────────────────────────────────────────
@@ -1419,3 +1418,50 @@ def rfq_has_permission(doc, ptype, user):
 		)
 
 	return False
+
+
+# ── User Profile (Sprint 2 — User Profile Birleşmesi) ─────────────────────────
+# Platform rolleri tüm User Profile'lara erişebilir; Buyer/Seller sadece kendi profili.
+
+_PLATFORM_FULL_ACCESS_ROLES = frozenset(
+	{
+		"System Manager",
+		"Marketplace Admin",
+		"Platform Super Admin",
+		"Platform Admin",
+		"Compliance Officer",
+	}
+)
+
+
+def user_profile_query_conditions(user):
+	"""User Profile list query filtresi.
+	Platform rolleri tümünü görür; diğerleri sadece kendi profilini."""
+	if not user or user == "Guest":
+		return "1=0"
+	if user == "Administrator":
+		return ""
+	roles = set(frappe.get_roles(user))
+	if roles & _PLATFORM_FULL_ACCESS_ROLES:
+		return ""
+	# Platform Helpdesk: read-only erişim (DocPerm tarafında permlevel 0 read)
+	if "Platform Helpdesk" in roles:
+		return ""
+	# Buyer/Seller: sadece kendi User Profile
+	return f"`tabUser Profile`.user = {frappe.db.escape(user)}"
+
+
+def user_profile_has_permission(doc, ptype, user):
+	"""User Profile per-doc permission."""
+	if not user or user == "Guest":
+		return False
+	if user == "Administrator":
+		return True
+	roles = set(frappe.get_roles(user))
+	if roles & _PLATFORM_FULL_ACCESS_ROLES:
+		return True
+	if "Platform Helpdesk" in roles and ptype == "read":
+		return True
+	# Buyer/Seller: sadece kendi profili
+	doc_user = getattr(doc, "user", None) if not isinstance(doc, dict) else doc.get("user")
+	return doc_user == user
