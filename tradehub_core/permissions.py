@@ -1721,6 +1721,8 @@ def seller_template_profile_has_permission(doc, ptype, user):
 	seller = _seller_of(user)
 	doc_seller = getattr(doc, "seller", None) if not isinstance(doc, dict) else doc.get("seller")
 	return bool(seller) and doc_seller == seller
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # FAZ 2/3 — ReBAC/Audit DocType izolasyonu
 # ─────────────────────────────────────────────────────────────────────────────
