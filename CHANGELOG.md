@@ -1,3 +1,13 @@
+## [v1.0.9-beta.9] - 2026-05-22 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Duzeltildi
+- fix(hooks): Regex Pattern Library dict'inde eksik brace düzeltildi (@aliiball)
+  - doc_events["Regex Pattern Library"] iç dict'i `},` ile kapatılmamış, sonraki tüm doctype'lar bu dict'in içine gömülüyordu
+  - permission_query_conditions parse hatası giderildi
+
+---
 ## [v1.0.9-beta.8] - 2026-05-22 BETA
 
 Bu surum betaistoc.cronbi.com'da test asamasindadir.
