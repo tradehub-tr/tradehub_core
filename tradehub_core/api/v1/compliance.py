@@ -220,3 +220,164 @@ def get_compliance_metadata() -> dict:
 			"other",
 		],
 	}
+
+
+# ---------------------------------------------------------------------------
+# Faz 3.5 — Data Portability (GDPR Madde 20)
+# ---------------------------------------------------------------------------
+
+
+@frappe.whitelist()
+def request_data_export(password: str) -> dict:
+	"""Kullanıcı kendi verilerini dışa aktarma talebi oluşturur. Şifre doğrulaması zorunlu."""
+	user = frappe.session.user
+	if user in ("Guest", "Administrator"):
+		frappe.throw(_("Bu işlem için oturum açmanız gerekir."), frappe.AuthenticationError)
+
+	from frappe.utils.password import check_password
+
+	check_password(user, password)
+
+	doc = frappe.get_doc({
+		"doctype": "Data Export Request",
+		"user": user,
+		"export_format": "json_csv",
+	})
+	doc.insert(ignore_permissions=True)
+	frappe.db.commit()
+
+	frappe.enqueue(
+		"tradehub_core.privacy.data_export.generate_user_data_export",
+		request_name=doc.name,
+		queue="long",
+		timeout=600,
+	)
+
+	return {"request_name": doc.name, "status": "Pending"}
+
+
+@frappe.whitelist()
+def get_export_status(request_name: str) -> dict:
+	"""Veri dışa aktarma talebinin durumunu sorgular. Kullanıcı sadece kendininkileri görebilir."""
+	user = frappe.session.user
+	doc = frappe.get_doc("Data Export Request", request_name)
+	if doc.user != user and "System Manager" not in frappe.get_roles(user):
+		frappe.throw(_("Bu talebe erişim yetkiniz yok."), frappe.PermissionError)
+	return {"status": doc.status, "completed_at": str(doc.completed_at) if doc.completed_at else None}
+
+
+@frappe.whitelist(allow_guest=True)
+def download_data_export(request_name: str, token: str):
+	"""Token doğrulamalı güvenli indirme endpoint'i."""
+	import os
+
+	doc = frappe.get_doc("Data Export Request", request_name)
+
+	if doc.status != "Ready":
+		frappe.throw(_("Bu dosya artık mevcut değil."))
+
+	if doc.download_token != token:
+		frappe.throw(_("Geçersiz indirme tokeni."), frappe.AuthenticationError)
+
+	from frappe.utils import now_datetime
+
+	if doc.expires_at and doc.expires_at < now_datetime():
+		frappe.throw(_("İndirme linkinin süresi dolmuş."))
+
+	file_path = frappe.get_site_path("private", "files", os.path.basename(doc.file_url))
+	if not os.path.exists(file_path):
+		frappe.throw(_("Dosya bulunamadı."))
+
+	with open(file_path, "rb") as f:
+		content = f.read()
+
+	frappe.local.response.filename = f"veri-export-{request_name}.zip"
+	frappe.local.response.filecontent = content
+	frappe.local.response.type = "download"
+
+
+# ---------------------------------------------------------------------------
+# Faz 3.5 — Consent Management
+# ---------------------------------------------------------------------------
+
+
+@frappe.whitelist()
+def record_consent(consent_type: str, action: str, version: str | None = None,
+				   source: str = "settings") -> dict:
+	"""Kullanıcı onay olayını kaydeder."""
+	from tradehub_core.privacy.consent import record_consent as _record
+
+	user = frappe.session.user
+	if user == "Guest":
+		frappe.throw(_("Oturum açmanız gerekir."), frappe.AuthenticationError)
+	name = _record(user, consent_type, action, version=version, source=source)
+	return {"name": name}
+
+
+@frappe.whitelist()
+def get_my_consents() -> list[dict]:
+	"""Oturum açmış kullanıcının onay durumlarını döner."""
+	from tradehub_core.privacy.consent import get_user_consents
+
+	user = frappe.session.user
+	if user == "Guest":
+		frappe.throw(_("Oturum açmanız gerekir."), frappe.AuthenticationError)
+	return get_user_consents(user)
+
+
+@frappe.whitelist()
+def withdraw_consent(consent_type: str) -> dict:
+	"""Belirli bir onay türünü geri çeker."""
+	from tradehub_core.privacy.consent import withdraw_consent as _withdraw
+
+	user = frappe.session.user
+	if user == "Guest":
+		frappe.throw(_("Oturum açmanız gerekir."), frappe.AuthenticationError)
+	name = _withdraw(user, consent_type)
+	return {"name": name, "action": "withdrawn"}
+
+
+# ---------------------------------------------------------------------------
+# Faz 3.5 — ROPA Export (GDPR Madde 30)
+# ---------------------------------------------------------------------------
+
+
+@frappe.whitelist()
+def export_ropa_report(fmt: str = "json") -> dict:
+	"""Tüm aktif Processing Activity Record'ları dışa aktarır."""
+	_require_compliance_role()
+
+	records = frappe.get_all(
+		"Processing Activity Record",
+		filters={"status": "Active"},
+		fields=[
+			"activity_name", "controller", "controller_contact",
+			"purpose", "legal_basis", "data_subjects", "data_categories",
+			"recipients", "cross_border_transfers", "retention_period",
+			"security_measures", "last_reviewed", "review_interval_days",
+		],
+		order_by="creation asc",
+	)
+
+	for r in records:
+		links = frappe.get_all(
+			"ROPA DocType Link",
+			filters={"parent": r.activity_name, "parenttype": "Processing Activity Record"},
+			pluck="ref_doctype",
+		)
+		r["ref_doctypes"] = links
+
+	if fmt == "csv":
+		import csv
+		import io
+
+		output = io.StringIO()
+		if records:
+			writer = csv.DictWriter(output, fieldnames=records[0].keys())
+			writer.writeheader()
+			for r in records:
+				row = {k: (", ".join(v) if isinstance(v, list) else v) for k, v in r.items()}
+				writer.writerow(row)
+		return {"csv": output.getvalue(), "count": len(records)}
+
+	return {"records": records, "count": len(records)}

@@ -1,0 +1,49 @@
+{
+	"actions": [],
+	"creation": "2026-05-25 00:00:00.000000",
+	"doctype": "DocType",
+	"engine": "InnoDB",
+	"issingle": 1,
+	"track_changes": 1,
+	"field_order": [
+		"sb_analytics",
+		"gtm_id",
+		"gtm_enabled",
+		"cb_analytics",
+		"metrica_id",
+		"metrica_enabled",
+		"sb_marketing",
+		"fb_pixel_id",
+		"fb_pixel_enabled",
+		"cb_marketing",
+		"criteo_partner_id",
+		"criteo_enabled"
+	],
+	"fields": [
+		{"fieldname": "sb_analytics", "fieldtype": "Section Break", "label": "Analytics"},
+		{"fieldname": "gtm_id", "fieldtype": "Data", "label": "GTM Container ID", "description": "Örn: GTM-XXXXXXX"},
+		{"fieldname": "gtm_enabled", "fieldtype": "Check", "label": "GTM Etkin", "default": "0"},
+		{"fieldname": "cb_analytics", "fieldtype": "Column Break"},
+		{"fieldname": "metrica_id", "fieldtype": "Data", "label": "Yandex Metrica ID", "description": "Sayaç numarası (sadece rakam)"},
+		{"fieldname": "metrica_enabled", "fieldtype": "Check", "label": "Metrica Etkin", "default": "0"},
+		{"fieldname": "sb_marketing", "fieldtype": "Section Break", "label": "Marketing"},
+		{"fieldname": "fb_pixel_id", "fieldtype": "Data", "label": "Facebook Pixel ID", "description": "Sadece rakam"},
+		{"fieldname": "fb_pixel_enabled", "fieldtype": "Check", "label": "FB Pixel Etkin", "default": "0"},
+		{"fieldname": "cb_marketing", "fieldtype": "Column Break"},
+		{"fieldname": "criteo_partner_id", "fieldtype": "Data", "label": "Criteo Partner ID", "description": "Sadece rakam"},
+		{"fieldname": "criteo_enabled", "fieldtype": "Check", "label": "Criteo Etkin", "default": "0"}
+	],
+	"links": [],
+	"modified": "2026-05-25 00:00:00.000000",
+	"modified_by": "Administrator",
+	"module": "Tradehub Core",
+	"name": "Tracking Settings",
+	"owner": "Administrator",
+	"permissions": [
+		{"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1},
+		{"role": "Marketplace Admin", "read": 1, "write": 1}
+	],
+	"sort_field": "modified",
+	"sort_order": "DESC",
+	"states": []
+}

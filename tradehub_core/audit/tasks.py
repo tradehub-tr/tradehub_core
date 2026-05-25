@@ -106,3 +106,63 @@ def weekly_audit_summary() -> None:
 		f"{stats['role_changes']} rol değişiklik; "
 		f"{stats['overrides']} override ({stats['critical_overrides']} CRITICAL)."
 	)
+
+
+# ---------------------------------------------------------------------------
+# Faz 3.5 — Privacy scheduled tasks
+# ---------------------------------------------------------------------------
+
+
+def run_data_retention_enforcement() -> None:
+	"""Daily: veri saklama politikalarını uygula (süresi dolan kayıtları anonimleştir)."""
+	from tradehub_core.privacy.data_retention import enforce_data_retention
+
+	enforce_data_retention()
+
+
+def cleanup_expired_data_exports() -> None:
+	"""Daily: süresi dolan veri dışa aktarma ZIP dosyalarını sil."""
+	from tradehub_core.privacy.data_export import cleanup_expired_exports
+
+	cleanup_expired_exports()
+
+
+def check_expiring_dpas() -> None:
+	"""Weekly: 30 gün içinde süresi dolacak DPA'ları Compliance Officer'a bildir."""
+	from frappe.utils import add_days, getdate
+
+	threshold = add_days(getdate(), 30)
+	expiring = frappe.get_all(
+		"Data Processing Agreement",
+		filters={
+			"status": "Active",
+			"expires_at": ("<=", threshold),
+			"auto_renew": 0,
+		},
+		fields=["name", "party_name", "expires_at"],
+	)
+
+	if not expiring:
+		return
+
+	lines = []
+	for d in expiring:
+		lines.append(f"• {d.party_name} ({d.name}) — {d.expires_at}")
+
+	body = (
+		"Aşağıdaki Veri İşleme Sözleşmelerinin süresi 30 gün içinde dolacak:\n\n"
+		+ "\n".join(lines)
+	)
+
+	compliance_users = frappe.get_all(
+		"Has Role",
+		filters={"role": ("in", ["System Manager", "Compliance Officer"]), "parenttype": "User"},
+		pluck="parent",
+	)
+	if compliance_users:
+		frappe.sendmail(
+			recipients=list(set(compliance_users)),
+			subject="DPA Süre Sonu Uyarısı",
+			message=body,
+		)
+		frappe.logger().info(f"DPA expiry warning sent for {len(expiring)} agreements")

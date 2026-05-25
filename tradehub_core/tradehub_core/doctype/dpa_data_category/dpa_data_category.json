@@ -1,0 +1,38 @@
+{
+    "name": "DPA Data Category",
+    "doctype": "DocType",
+    "module": "Tradehub Core",
+    "istable": 1,
+    "editable_grid": 1,
+    "engine": "InnoDB",
+    "track_changes": 0,
+    "fields": [
+        {
+            "fieldname": "category",
+            "fieldtype": "Select",
+            "label": "Category",
+            "options": "identity\nfinancial\ncontact\nlocation\nbehavioral\ntransactional",
+            "reqd": 1,
+            "in_list_view": 1
+        },
+        {
+            "fieldname": "description",
+            "fieldtype": "Data",
+            "label": "Description",
+            "in_list_view": 1
+        },
+        {
+            "fieldname": "retention_period",
+            "fieldtype": "Data",
+            "label": "Retention Period",
+            "in_list_view": 1,
+            "description": "e.g. 24 ay, 10 yıl"
+        }
+    ],
+    "permissions": [
+        {
+            "role": "System Manager",
+            "read": 1, "write": 1, "create": 1, "delete": 1
+        }
+    ]
+}

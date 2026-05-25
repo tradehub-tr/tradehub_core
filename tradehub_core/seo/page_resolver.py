@@ -115,15 +115,24 @@ def _find_record_by_slug(doctype: str, slug: str):
 	return frappe.get_doc(doctype, name)
 
 
-def _html_response(html: str, status_code: int = 200, cache_seconds: int = 300):
+def _html_response(html: str, status_code: int = 200, cdn_cache_seconds: int = 300):
 	"""HTML string'i Werkzeug Response olarak sarıp döner.
 
 	Frappe whitelist endpoint string return ederse JSON ile sarar; Response
-	objesi return edersek doğrudan body olarak yazar."""
+	objesi return edersek doğrudan body olarak yazar.
+
+	Cache stratejisi: CDN (Cloudflare) ``s-maxage`` ile cache'ler ve admin
+	değişikliğinde purge edilir. Browser ``max-age=0`` ile her zaman CDN'e
+	sorar → admin değişikliği anında yansır."""
 	from werkzeug.wrappers import Response
 
 	response = Response(html, status=status_code, mimetype="text/html")
-	response.headers["Cache-Control"] = f"public, max-age={cache_seconds}"
+	if status_code == 200 and cdn_cache_seconds > 0:
+		response.headers["Cache-Control"] = (
+			f"public, s-maxage={cdn_cache_seconds}, max-age=0, must-revalidate"
+		)
+	else:
+		response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
 	return response
 
 
@@ -139,7 +148,7 @@ def _render_404_response():
 	seo = _build_404_seo(frappe.utils.get_url())
 	html = _read_template("404.html")
 	rendered = seo_html_injector.inject_meta_into_html(html, seo)
-	return _html_response(rendered, status_code=404, cache_seconds=0)
+	return _html_response(rendered, status_code=404, cdn_cache_seconds=0)
 
 
 def _render_for(doctype: str, slug: str, builder_fn, lang: str = "tr"):
@@ -152,7 +161,7 @@ def _render_for(doctype: str, slug: str, builder_fn, lang: str = "tr"):
 	seo = builder_fn(record.as_dict(), lang=lang)
 	template = TEMPLATE_MAP[doctype]
 	html = _build_response_html(seo, template)
-	return _html_response(html, status_code=200, cache_seconds=300)
+	return _html_response(html, status_code=200, cdn_cache_seconds=300)
 
 
 # Whitelist endpoints --------------------------------------------------------
@@ -219,7 +228,7 @@ def render_static_page(path: str, lang: str = "tr") -> str:
 
 	html = _read_template(entry["html_path"])
 	rendered = seo_html_injector.inject_meta_into_html(html, seo)
-	return _html_response(rendered, status_code=200, cache_seconds=300)
+	return _html_response(rendered, status_code=200, cdn_cache_seconds=300)
 
 
 # Frappe whitelist decorator'ları en sona — module-import sırasında frappe
