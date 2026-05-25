@@ -1,3 +1,17 @@
+## [v1.0.9-beta.13] - 2026-05-25 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Eklendi
+- feat(rbac): rol bazlı veri maskeleme, sub-user güvenlik düzeltmeleri ve demo data (@boraydeger32)
+  - dashboard_engine.py'ye data_sensitivity + _should_mask + _mask_data katmanı
+  - Dashboard Widget'a data_sensitivity custom field (financial/profit/balance/pii)
+  - view.* capability'ler eklendi (7 adet: financial_summary, profit_detail, balance, bank_info, customer_full, customer_shipping, order_amounts)
+  - Seller Sales Rep rol profili ve _TIER_SALES tier tanımı
+  - Role_profile bazlı cache isolation (60s TTL) + invalidate_dashboard_cache()
+  - Maskeleme kararları DECISION_FIELD_MASKED audit log'a yazılıyor
+
+---
 ## [v1.0.9-rc.1] - 2026-05-25 RC
 
 Bu surum rcistoc.cronbi.com'da onay asamasindadir.
