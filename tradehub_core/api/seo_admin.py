@@ -138,6 +138,27 @@ def _slug_field_for(doctype: str) -> str:
 	return "url_slug" if doctype == "Product Category" else "slug"
 
 
+def _auto_create_static_page_seo(path: str) -> None:
+	"""Registry'de tanımlı statik sayfa için SEO kaydını lazy oluşturur."""
+	from tradehub_core.seo.static_pages_registry import find_entry
+
+	entry = find_entry(path)
+	if not entry:
+		frappe.throw(_("Bilinmeyen statik sayfa yolu: {0}").format(path))
+	doc = frappe.new_doc("Static Page SEO")
+	doc.page_path = entry["path"]
+	doc.page_title = entry["title"]
+	doc.lang = "tr"
+	doc.meta_title = entry["title"]
+	doc.meta_description = ""
+	doc.noindex = 0 if entry.get("indexable_default") else 1
+	doc.sitemap_priority = float(entry.get("sitemap_priority", "0.5"))
+	doc.sitemap_changefreq = entry.get("sitemap_changefreq", "monthly")
+	doc.flags.ignore_permissions = True
+	doc.insert(ignore_permissions=True)
+	frappe.db.commit()
+
+
 # Whitelist endpoint'ler -----------------------------------------------------
 
 
@@ -167,11 +188,18 @@ def check_slug_unique(doctype: str, slug: str, exclude_name: str = "") -> dict:
 
 @frappe.whitelist()
 def get_seo_fields(doctype: str, name: str) -> dict:
-	"""SEO field değerlerini doctype kaydından çek."""
+	"""SEO field değerlerini doctype kaydından çek.
+
+	Static Page SEO için kayıt yoksa registry'den otomatik oluşturur
+	(lazy seed — deploy'da seed script'ine gerek kalmaz).
+	"""
 	if doctype not in SEO_FIELDS_BY_DOCTYPE:
 		frappe.throw(_("Geçersiz doctype: {0}").format(doctype))
 
 	frappe.only_for(ALLOWED_ROLES)
+
+	if doctype == "Static Page SEO" and not frappe.db.exists(doctype, name):
+		_auto_create_static_page_seo(name)
 
 	doc = frappe.get_doc(doctype, name)
 	doc.check_permission("read")
