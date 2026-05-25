@@ -1,3 +1,18 @@
+## [v1.0.9-beta.11] - 2026-05-25 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Eklendi
+- feat(privacy): GDPR/KVKK Faz 3.5 — veri taşınabilirlik, onay yönetimi ve ROPA (@ahmeetseker)
+  - Veri dışa aktarma (GDPR Madde 20): şifre doğrulamalı export talebi, token bazlı güvenli indirme, süresi dolan export'ların otomatik temizliği
+  - Onay yönetimi: consent kayıt/geri çekme API'leri, kullanıcı onay durumu sorgulama
+  - ROPA export (GDPR Madde 30): JSON/CSV formatında kayıt dışa aktarma
+  - Veri saklama politikası: günlük otomatik anonimleştirme enforcement
+  - DPA yönetimi: haftalık süre sonu uyarı e-postaları
+  - SEO iyileştirmeleri: CDN cache stratejisi (s-maxage), hardcoded SEO tag temizleme, listing slug/code çözümleme
+  - Yeni DocType'lar: Tracking Settings, Consent Policy Version, Data Export Request, Data Processing Agreement, Data Retention Policy, Processing Activity Record, User Consent Log
+
+---
 ## [v1.0.9-beta.10] - 2026-05-25 BETA
 
 Bu surum betaistoc.cronbi.com'da test asamasindadir.
