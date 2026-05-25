@@ -1,3 +1,23 @@
+## [v1.0.9-beta.12] - 2026-05-25 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Duzeltildi
+- fix(pricing): ReBAC/ABAC pricing table schema, validation ve entitlement düzeltmeleri (@boraydeger32)
+  - Subscription Plan DocType'a 8 eksik alan eklendi (badge_label, badge_color, theme, short_tagline, commission_rate, max_active_listings, cta_label, cta_action) + pricing_features Table field — public_pricing API artık çalışıyor
+  - Store Subscription state machine'e trial→past_due geçişi eklendi (M2)
+  - Capability flag validation: tanımsız key'ler artık reject ediliyor (M4)
+  - Override JSON key whitelist: plan'da olmayan key'ler reddediliyor (M5)
+  - Subscription lifecycle idempotent hale getirildi — race condition önlemi (M6)
+  - Entitlement negative cache TTL 60s→10s (K2)
+  - ABAC context'e order_region eklendi + N+1 category extraction batch fetch (R2)
+  - Authorization simulator UNAVAILABLE→DENY fail-closed mapping (R3)
+  - Drift detection'a Store Subscription eklendi (R4)
+  - Approval workflow'a entitlement quota guard eklendi — key guard dahil (R1)
+  - Feature Catalog + Subscription Plan seed data (3 plan, 13 feature, 20 bullet)
+  - Product Category external_id reqd kaldırıldı (migration uyumu)
+
+---
 ## [v1.0.9-beta.11] - 2026-05-25 BETA
 
 Bu surum betaistoc.cronbi.com'da test asamasindadir.
