@@ -114,7 +114,7 @@ def _anonymize_record(doctype: str, name: str, field_rules: list[dict]) -> None:
     frappe.db.set_value(doctype, name, update_map, update_modified=False)
 
     try:
-        from tradehub_core.audit.log import log_decision, DECISION_ALLOW, LAYER_L3
+        from tradehub_core.audit.log import DECISION_ALLOW, LAYER_L3, log_decision
 
         log_decision(
             actor="System",
