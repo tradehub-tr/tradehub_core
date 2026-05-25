@@ -1,3 +1,17 @@
+## [v1.0.9-beta.10] - 2026-05-25 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Duzeltildi
+- fix(api): SEO URL geçişi sonrası kırılan endpoint'leri düzelt (@ahmeetseker)
+  - listing.py: kaldırılmış is_verified sütununu sorgulardan temizle
+  - listing.py: _format_listing_card'da href'i /urun/{slug} formatına geçir
+  - listing.py: slug eksik olan 2 sorguya slug field'ı ekle
+  - seller.py: get_sellers ürün listesine slug field'ı ekle
+  - identity.py: register created_via değerini seller_application olarak düzelt
+  - seo_admin.py: Static Page SEO kayıtlarını lazy auto-create et
+
+---
 ## [v1.0.9-beta.9] - 2026-05-22 BETA
 
 Bu surum betaistoc.cronbi.com'da test asamasindadir.
