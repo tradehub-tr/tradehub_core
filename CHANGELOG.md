@@ -1,3 +1,187 @@
+## [v1.0.9-rc.1] - 2026-05-25 RC
+
+Bu surum rcistoc.cronbi.com'da onay asamasindadir.
+
+### Eklendi
+- feat(changelog): v1.0.10-beta.1 sürüm notları eklendi (@ahmeetseker)
+- feat(addresses): Sprint 1 Faz D adres mimarisi eklendi (@aliiball)
+  - Addresses DocType'a purpose (Delivery/Pickup/Billing), address_type (Individual/Business), tax_no, tax_office field'ları
+  - kind field'ı deprecated etiketlendi (Sprint 4'te DROP)
+  - company Business hesap tipi için koşullu reqd
+  - utils/tax_validation.py: Maliye VKN + NVI TCKN checksum dispatcher
+  - patches/address_v1 idempotent migration (01_kind_to_purpose, 02_fix_seller_purpose_pickup)
+  - test_address_purpose_migration + test_tax_validation
+- feat(marketplace-settings): Marketplace Settings Single DocType eklendi (@aliiball)
+  - Pazaryeri çapında adres + fatura varsayılanları
+  - default_address_type=Individual, address_type_toggle_visible=1, require_tax_id_business=1, invoice_generation_mode=Manual
+  - test_marketplace_settings
+- feat(user-profile): User Profile DocType + 20 migration patch eklendi (@aliiball)
+  - 3 profil DocType (Buyer Profile + Seller Profile + Verified Supplier) tek User Profile + Admin Seller Profile mimarisine taşındı (Sprint 2)
+  - can_buy/can_sell capability flag'leri, account_type Individual/Business
+  - patches/user_profile_v1 (01-20) migration serisi: doctype create, verification_kind, index, controller noop, buyer/seller migrate, hybrid merge, member_id, link/dynamic_link refs, user_permissions, user_types, scoring fields, tenant placeholder, scheduler events, validate, deprecate old, owner fix, kyc_kyb_split (19), normalize_capability_flags (20)
+  - hooks.py: User Profile permission query + has_permission + Sprint 2 buyer metric/scoring scheduler events
+  - setup/install.py: Sprint 2 kapsamında 5 rol (Buyer, Seller, Marketplace Admin, Marketplace Seller, Marketplace Buyer); 14 hiyerarşik rol Sprint 3 RBAC reformuna ertelendi
+  - 3 workspace JSON: Seller Profile → User Profile + Admin Seller Profile
+  - test_user_profile
+- feat(kyc): KYC Verification DocType + 4 endpoint + checkout gate eklendi (@aliiball)
+  - KYC Verification DocType: account_type toggle (Business/Individual), Kurumsal alanları (company_name, tax_id, phone, email_field, address, billing_address) + ortak identity_document
+  - api/v1/kyc.py: submit_kyc_documents / review_kyc / get_kyc_status / get_prefill_data 4 endpoint
+  - get_prefill_data cross-form prefill — User Profile + son KYC/KYB Verification'dan değerler birleşik
+  - cart.py _ensure_buyer_kyc_verified — create_order başında KYC.Verified zorunluluğu, [KYC_<STATE>] prefix'li mesaj
+  - gate add_to_cart'tan kaldırıldı (sadece create_order'da)
+  - test_kyc_gate + test_kyc_verification
+- feat(capability-invariant): Sprint 2.6 status-bazlı auth flags eklendi (@aliiball)
+  - auth.py get_user_profile seller bloğu User Profile mimarisine taşındı (legacy alias: business_name=company_name, contact_phone=phone)
+  - is_seller artık can_sell capability + "Seller" rolü fallback
+  - kyc_locked/kyb_locked formülü "not can_buy/can_sell" yerine kyc_status=='Locked'/kyb_status=='Locked' (status-bazlı semantik)
+  - kyc_required/kyb_required Pending|Rejected listesi
+  - get_session_user response: kyc_required, kyb_required, kyc_locked, kyb_locked flag'leri
+  - register_user registration_type param (Alici/Satici)
+  - test_capability_flag_invariant
+- feat(kyb): mersis_no + kep_address + rejection_category eklendi (@aliiball)
+  - KYB Verification.mersis_no (16 hane) + kep_address (email format)
+  - rejection_category Select (Re-submit | Suspended) — KYC ve KYB ayrı
+  - verification_kind alanı kaldırıldı (KYC ayrı DocType'a taşındı)
+  - document_expiry_date kaldırıldı (Soru 8 — expiry yok)
+  - faaliyet_belgesi opsiyonel oldu
+  - kyb_verification.py table_exists("Seller Profile") backward compat guard + 10 satır dormant blok kaldırıldı
+  - api/v1/kyb.py User Profile mimarisine taşındı
+- feat(changelog): v2.1.0-beta.1 sürüm notları eklendi (@aliiball)
+  - Sprint 1 Adres Mimarisi + Sprint 2 User Profile + Sprint 2.6 capability invariant + KYC/KYB ayrımı bullet'ları
+  - CLAUDE.md aktif mimari memory referansları (§6.1) eklendi
+- feat(seo): SEO yönetim modülü, social proof ve arama API'leri eklendi (@ahmeetseker)
+  - SEO Redirect, SEO 404 Log, Static Page SEO, Listing View Counter doctype'ları eklendi
+  - tradehub_core/seo/ paketi (redirect handler + 404 logger) ve seed_static_pages script'i
+  - api/seo.py + api/seo_admin.py — public/admin SEO endpoint'leri
+  - Social Proof Settings doctype + api/social_proof.py + test'leri
+  - api/search.py arama servisi ve test'leri eklendi
+  - api/listing.py view counter, SEO meta ve filtre alanları için genişletildi
+  - hooks.py: yeni doctype'lar, fixtures ve scheduler entry'leri
+- feat(authz): yetki sistemi FAZ 1-5 — entitlement, RBAC bundle, (@boraydeger32)
+  - Region, Feature Catalog, Subscription Plan, Subscription Plan Region, Store Subscription, Pricing Plan Feature DocType'ları.
+  - entitlement/ modülü (core, checks, sync) + entitlement_snapshot API.
+  - Custom fields ve PII permlevel patch'leri.
+  - Approval Rule + Approval Rule Approver + Order Approval + Order Approval Log DocType'ları.
+  - services/approval_workflow.py + order_approval_hooks.py + API.
+  - Buyer Approver L1/L2 rolleri ve role profile bundle'ları.
+  - PII Field Policy + PII Jurisdiction Rule DocType'ları, utils/pii*, Compliance Officer rolü, jurisdiction-aware masking.
+  - Approved Supplier List/Entry + supplier_whitelist service.
+  - Cost Center DocType + service.
+  - Authorization Anomaly Rule/Alert + detector + actions (saatlik scheduler).
+  - Role Delegation + Role Change Log + delegation_service + rebac_drift_detection (günlük scheduler).
+  - Owner Transfer Request + owner_transfer service.
+  - Pricing Plan custom fields + presets + real prices patch'leri.
+  - public_pricing API (storefront sell sayfası için).
+  - Signup CTA unification + commission rates repair.
+  - Buyer Admin/Procurement/Finance/Viewer, Seller Admin/Co-Owner/ Finance/Staff/Viewer, Platform Admin/Finance, Support Agent rolleri.
+  - role_docperms seed + role_profiles sync + ADL buyer_org field.
+  - audit/ modülü (log, tasks, user_hooks) + Authorization Decision Log DocType + Permission Override Log.
+  - authorization_simulator (Süper Admin debug aracı).
+  - permission_console API + buyer_team + seller_users sub-user invite.
+  - rebac_client + tuple_sync (ReBAC sidecar entegrasyonu).
+  - permissions.py +657 satır (DocType bazlı yetki kuralları).
+  - utils/tenant.py +495 satır (tenant isolation hardening).
+  - hooks.py: 18 yeni patch, scheduler event'leri, doc_events.
+  - tests/: 20+ yeni test dosyası (tenant, abac, anomaly, approval, delegation, entitlement, organization hierarchy, PII, procurement, rebac, simulator, sub-users, tuple sync).
+- feat(bulk-import): toplu ürün içe aktarma sistemi eklendi (@aliiball)
+  - BulkImportJob ve BulkImportJobError DocType'ları
+  - Excel/CSV/XML parser'ları, persister ve image matcher
+  - Çok dilli kolon eşleme için regex destekli ingestion
+  - Background runner + worker task'ları (RQ)
+  - Bildirim entegrasyonu ve hata satırı raporlama
+  - v15_bulk_import_init patch'i ile DocType + örnek veri seed
+  - EcaRule, EcaRuleLog, EcaActionTemplate DocType'ları
+  - Dispatcher: event çözümleme, condition eval, action execution
+  - SafeRegex ve validator katmanı (DoS-safe pattern çalıştırma)
+  - API endpoint'leri ve permission entegrasyonu
+  - Hooks.py: doc_events üzerinden tetikleyici kayıtları
+  - Birim testleri (eca/tests/)
+  - RegexPatternLibrary ve RegexPatternEntry DocType'ları
+  - BulkImport ve ECA kullanır (kolon başlığı → field mapping)
+  - Seed patch ile T1+T2 alan paterni hazır gelir
+  - SellerTemplateProfile DocType eklendi
+  - dashboard.py kaldırıldı, mantık dashboard_engine.py altında toplandı
+  - Total users widget patch'i UserProfile'a yönlendirildi
+  - permissions.py: ECA + BulkImport için yeni yetki tanımları
+  - utils/security.py: rate-limit yardımcısı eklendi
+  - api/listing.py: seller_sku döner, ECA tetikleyicileri bağlandı
+- feat(privacy): GDPR/KVKK Faz 3.5 — veri taşınabilirlik, onay yönetimi ve ROPA (@ahmeetseker)
+  - Veri dışa aktarma (GDPR Madde 20): şifre doğrulamalı export talebi, token bazlı güvenli indirme, süresi dolan export'ların otomatik temizliği
+  - Onay yönetimi: consent kayıt/geri çekme API'leri, kullanıcı onay durumu sorgulama
+  - ROPA export (GDPR Madde 30): JSON/CSV formatında kayıt dışa aktarma
+  - Veri saklama politikası: günlük otomatik anonimleştirme enforcement
+  - DPA yönetimi: haftalık süre sonu uyarı e-postaları
+  - SEO iyileştirmeleri: CDN cache stratejisi (s-maxage), hardcoded SEO tag temizleme, listing slug/code çözümleme
+  - Yeni DocType'lar: Tracking Settings, Consent Policy Version, Data Export Request, Data Processing Agreement, Data Retention Policy, Processing Activity Record, User Consent Log
+
+### Duzeltildi
+- fix(release): son tag bilgisini güncelledi ve boş guard sorununu çözdü (@ahmeetseker)
+- fix(identity): email_verified UPDATE SQL User Profile tablosuna yönlendirildi (@aliiball)
+  - identity.py 6 yerde UPDATE tabBuyer Profile SQL'i tabUser Profile'a taşındı — email_verified flag artık doğru tabloya yazılıyor
+  - register_supplier User Profile Sprint 2.6 davranışına uyarlandı
+  - LIVE BUG
+- fix(permissions): seller_balance permission Admin Seller Profile.name'e taşındı (@aliiball)
+  - permissions.py seller_balance permission kullanıcı email'i yerine _get_seller_profile_name(user) (Admin Seller Profile.name) lookup
+  - permissions.py docstring örnekleri "Seller Profile" → "Admin Seller Profile"
+- fix(seo): seller storefront page_resolver ve slug registry'si düzeltildi (@ahmeetseker)
+  - Admin Seller Profile için SLUG_FIELD_MAP `slug` → `seller_code` olarak düzeltildi (DB kolonu yoktu, lookup boş dönüyordu)
+  - TEMPLATE_MAP'te seller template yolu `pages/seller/seller-shop.html` → `seller-storefront.html` güncellendi
+  - static_pages_registry'de /markalar → /ureticiler ve /firsat → /firsatlar yenilendi, başlık "Tüm Üreticiler" oldu
+  - get_seller API'sinde sertifikalar ayrı `frappe.get_all` ile çekildi, yalnız `verification_status = Verified` olanlar storefront'a sızar
+  - Brand schema breadcrumb'unda yanlış /markalar atfı kaldırıldı (o URL aslında Üreticiler sayfasına gidiyordu)
+- fix(hooks): Regex Pattern Library dict'inde eksik brace düzeltildi (@aliiball)
+  - doc_events["Regex Pattern Library"] iç dict'i `},` ile kapatılmamış, sonraki tüm doctype'lar bu dict'in içine gömülüyordu
+  - permission_query_conditions parse hatası giderildi
+- fix(api): SEO URL geçişi sonrası kırılan endpoint'leri düzelt (@ahmeetseker)
+  - listing.py: kaldırılmış is_verified sütununu sorgulardan temizle
+  - listing.py: _format_listing_card'da href'i /urun/{slug} formatına geçir
+  - listing.py: slug eksik olan 2 sorguya slug field'ı ekle
+  - seller.py: get_sellers ürün listesine slug field'ı ekle
+  - identity.py: register created_via değerini seller_application olarak düzelt
+  - seo_admin.py: Static Page SEO kayıtlarını lazy auto-create et
+- fix(pricing): ReBAC/ABAC pricing table schema, validation ve entitlement düzeltmeleri (@boraydeger32)
+  - Subscription Plan DocType'a 8 eksik alan eklendi (badge_label, badge_color, theme, short_tagline, commission_rate, max_active_listings, cta_label, cta_action) + pricing_features Table field — public_pricing API artık çalışıyor
+  - Store Subscription state machine'e trial→past_due geçişi eklendi (M2)
+  - Capability flag validation: tanımsız key'ler artık reject ediliyor (M4)
+  - Override JSON key whitelist: plan'da olmayan key'ler reddediliyor (M5)
+  - Subscription lifecycle idempotent hale getirildi — race condition önlemi (M6)
+  - Entitlement negative cache TTL 60s→10s (K2)
+  - ABAC context'e order_region eklendi + N+1 category extraction batch fetch (R2)
+  - Authorization simulator UNAVAILABLE→DENY fail-closed mapping (R3)
+  - Drift detection'a Store Subscription eklendi (R4)
+  - Approval workflow'a entitlement quota guard eklendi — key guard dahil (R1)
+  - Feature Catalog + Subscription Plan seed data (3 plan, 13 feature, 20 bullet)
+  - Product Category external_id reqd kaldırıldı (migration uyumu)
+
+### Degistirildi
+- refactor(roles): role.json fixture'ı Sprint 2 hiyerarşisine sadeleştirildi (@aliiball)
+  - 14 hiyerarşik rol Sprint 3 RBAC reformuna kadar setup/install.py'de kod tabanında refere edilen 5 role indirgendi
+  - role.json fixture %99 azaltıldı (146 → 1 satır)
+- refactor(profile): 25 modül User Profile + Admin Seller Profile'a taşındı (@aliiball)
+  - api/buyer.py + qa.py: _resolve_display_name User Profile + full_name
+  - api/seller.py: 7 endpoint Admin Seller Profile (replace_all)
+  - api/seller_addresses.py: _resolve_seller_profile Admin Seller Profile
+  - api/rfq.py: profiles batch fetch User Profile + Admin Seller Profile join (business/year_established/employee_count)
+  - api/dashboard.py + kpi_dashboard.py: _profile_status_breakdown + _platform_totals tabBuyer Profile → tabUser Profile (can_buy=1 filter)
+  - tradehub_core/api/seller.py + scoring/engine.py + utils/erpnext_sync.py + utils/seller_payout.py + webhooks/erpnext_hooks.py Sprint 2 uyumu
+  - doctype controller temizliği: buyer_profile, seller_profile, listing_review, rfq_quote, seller_application, seller_balance, seller_product
+  - utils/auth_guards.py: is_email_verified User Profile'a taşındı
+  - utils/tenant_seller_validation.py: Senaryo B bypass Sprint 3'e ertelendi
+  - tasks.py: User Profile terminolojisi + Sprint 2 scheduler events
+  - translations/en.csv + tr.csv: User Profile/Admin Seller Profile/ Mağaza Profili stringleri güncellendi
+- refactor(tests): test_cross_app_link_resolution Sprint 2.6 mimarisine uyarlandı (@aliiball)
+  - verification_kind testi kaldırıldı (KYC ayrı DocType'a taşındı)
+  - KYC Verification DocType varlığı eklendi
+  - legacy assertion temizliği (~580 satır)
+- refactor(changelog): manuel v2.1.0-beta.1 entry'si geri alındı (@aliiball)
+  - beta-release.yml workflow'unun LAST_PROD-beta.N hesabıyla çakışıyordu
+  - Ali → version-15 merge sonrası workflow doğru versiyonu (v1.0.9-beta.3) ve (@author) suffix'lerini otomatik üretecek
+- refactor(changelog): v2.1.0-beta.1 release bloğu kaldırıldı (@ahmeetseker)
+  - 413af5e revert'i Ali → version-15 back-merge sırasında uygulanmayıp v2.1.0-beta.1 bloğu version-15 üstünde kaldı, istoc-changelog viewer hatalı release gösteriyordu
+  - v1.0.9-beta.2 içindeki yanıltıcı "feat(changelog): v2.1.0-beta.1 sürüm notları eklendi" bullet'ı temizlendi
+  - v1.0.9-beta.3 içindeki revert kayıt bullet'ı, audit izi olarak bırakıldı
+
+---
 ## [v1.0.9-beta.12] - 2026-05-25 BETA
 
 Bu surum betaistoc.cronbi.com'da test asamasindadir.
