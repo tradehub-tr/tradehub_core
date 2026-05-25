@@ -1,0 +1,37 @@
+{
+    "name": "Data Processing Agreement",
+    "doctype": "DocType",
+    "module": "Tradehub Core",
+    "naming_rule": "Expression (old style)",
+    "autoname": "format:DPA-{####}",
+    "engine": "InnoDB",
+    "track_changes": 1,
+    "sort_field": "creation",
+    "sort_order": "DESC",
+    "fields": [
+        {"fieldname": "party_name", "fieldtype": "Data", "label": "Party Name", "reqd": 1, "in_list_view": 1, "in_standard_filter": 1},
+        {"fieldname": "party_user", "fieldtype": "Link", "label": "Party User", "options": "User"},
+        {"fieldname": "seller_profile", "fieldtype": "Link", "label": "Seller Profile", "options": "Seller Profile"},
+        {"fieldname": "agreement_type", "fieldtype": "Select", "label": "Agreement Type", "options": "controller_processor\ncontroller_controller\njoint_controller", "reqd": 1, "in_list_view": 1, "in_standard_filter": 1},
+        {"fieldname": "cb_status", "fieldtype": "Column Break"},
+        {"fieldname": "status", "fieldtype": "Select", "label": "Status", "options": "Draft\nSent\nSigned\nActive\nExpired\nTerminated", "default": "Draft", "reqd": 1, "in_list_view": 1, "in_standard_filter": 1},
+        {"fieldname": "jurisdiction", "fieldtype": "Select", "label": "Jurisdiction", "options": "KVKK\nGDPR\nBoth", "default": "Both", "reqd": 1, "in_standard_filter": 1},
+        {"fieldname": "signed_at", "fieldtype": "Datetime", "label": "Signed At"},
+        {"fieldname": "expires_at", "fieldtype": "Date", "label": "Expires At", "in_list_view": 1},
+        {"fieldname": "auto_renew", "fieldtype": "Check", "label": "Auto Renew", "default": 0},
+        {"fieldname": "sb_data", "fieldtype": "Section Break", "label": "Data Processing Details"},
+        {"fieldname": "data_categories", "fieldtype": "Table", "label": "Data Categories", "options": "DPA Data Category"},
+        {"fieldname": "processing_purposes", "fieldtype": "Small Text", "label": "Processing Purposes"},
+        {"fieldname": "sub_processors", "fieldtype": "Small Text", "label": "Sub-processors"},
+        {"fieldname": "sb_transfer", "fieldtype": "Section Break", "label": "Cross-Border Transfer"},
+        {"fieldname": "cross_border_transfer", "fieldtype": "Check", "label": "Cross-Border Transfer", "default": 0},
+        {"fieldname": "transfer_mechanism", "fieldtype": "Select", "label": "Transfer Mechanism", "options": "\nadequacy\nscc\nbcr\nconsent", "depends_on": "cross_border_transfer"},
+        {"fieldname": "sb_document", "fieldtype": "Section Break", "label": "Document"},
+        {"fieldname": "document", "fieldtype": "Attach", "label": "Signed Document"},
+        {"fieldname": "notes", "fieldtype": "Text", "label": "Notes"}
+    ],
+    "permissions": [
+        {"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1, "export": 1, "report": 1},
+        {"role": "Compliance Officer", "read": 1, "write": 1, "create": 1, "export": 1, "report": 1}
+    ]
+}

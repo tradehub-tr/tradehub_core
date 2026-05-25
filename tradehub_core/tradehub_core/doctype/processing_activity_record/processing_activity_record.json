@@ -1,0 +1,37 @@
+{
+    "name": "Processing Activity Record",
+    "doctype": "DocType",
+    "module": "Tradehub Core",
+    "naming_rule": "Expression (old style)",
+    "autoname": "format:ROPA-{####}",
+    "engine": "InnoDB",
+    "track_changes": 1,
+    "sort_field": "creation",
+    "sort_order": "DESC",
+    "fields": [
+        {"fieldname": "activity_name", "fieldtype": "Data", "label": "Activity Name", "reqd": 1, "in_list_view": 1, "description": "e.g. Satıcı Kayıt İşleme"},
+        {"fieldname": "status", "fieldtype": "Select", "label": "Status", "options": "Active\nUnder Review\nArchived", "default": "Active", "reqd": 1, "in_list_view": 1, "in_standard_filter": 1},
+        {"fieldname": "legal_basis", "fieldtype": "Select", "label": "Legal Basis", "options": "consent\ncontract\nlegal_obligation\nvital_interest\npublic_interest\nlegitimate_interest", "reqd": 1, "in_list_view": 1, "in_standard_filter": 1},
+        {"fieldname": "cb_controller", "fieldtype": "Column Break"},
+        {"fieldname": "controller", "fieldtype": "Data", "label": "Controller", "reqd": 1, "description": "Veri sorumlusu"},
+        {"fieldname": "controller_contact", "fieldtype": "Data", "label": "Controller Contact (DPO)", "description": "Veri koruma görevlisi iletişim"},
+        {"fieldname": "sb_processing", "fieldtype": "Section Break", "label": "Processing Details"},
+        {"fieldname": "purpose", "fieldtype": "Small Text", "label": "Purpose", "reqd": 1},
+        {"fieldname": "data_subjects", "fieldtype": "Small Text", "label": "Data Subjects", "reqd": 1, "description": "e.g. Alıcılar, Satıcılar, Ziyaretçiler"},
+        {"fieldname": "data_categories", "fieldtype": "Small Text", "label": "Data Categories", "reqd": 1, "description": "Kişisel veri kategorileri"},
+        {"fieldname": "cb_recipients", "fieldtype": "Column Break"},
+        {"fieldname": "recipients", "fieldtype": "Small Text", "label": "Recipients", "description": "Verilerin paylaşıldığı taraflar"},
+        {"fieldname": "cross_border_transfers", "fieldtype": "Small Text", "label": "Cross-Border Transfers", "description": "Yurt dışı aktarım detayları"},
+        {"fieldname": "retention_period", "fieldtype": "Data", "label": "Retention Period", "description": "e.g. 24 ay, 10 yıl"},
+        {"fieldname": "sb_security", "fieldtype": "Section Break", "label": "Security & Review"},
+        {"fieldname": "security_measures", "fieldtype": "Small Text", "label": "Security Measures", "description": "Teknik ve idari tedbirler"},
+        {"fieldname": "last_reviewed", "fieldtype": "Date", "label": "Last Reviewed"},
+        {"fieldname": "review_interval_days", "fieldtype": "Int", "label": "Review Interval (Days)", "default": 365},
+        {"fieldname": "sb_doctypes", "fieldtype": "Section Break", "label": "Related DocTypes"},
+        {"fieldname": "ref_doctypes", "fieldtype": "Table", "label": "Related DocTypes", "options": "ROPA DocType Link"}
+    ],
+    "permissions": [
+        {"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1, "export": 1, "report": 1},
+        {"role": "Compliance Officer", "read": 1, "write": 1, "create": 1, "export": 1, "report": 1}
+    ]
+}

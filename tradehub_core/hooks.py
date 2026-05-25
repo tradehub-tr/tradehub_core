@@ -142,6 +142,9 @@ scheduler_events = {
 		"tradehub_core.audit.tasks.archive_old_decision_logs",
 		# K1 fix: Trial subscription'ların auto-expiry (trial_end < now → canceled)
 		"tradehub_core.services.subscription_lifecycle.expire_trial_subscriptions",
+		# FAZ 3.5 — Privacy: veri saklama politikası uygulama + export temizliği
+		"tradehub_core.audit.tasks.run_data_retention_enforcement",
+		"tradehub_core.audit.tasks.cleanup_expired_data_exports",
 	],
 	"weekly_long": [
 		# Category embeddings + neighbour cache (build_all tail-calls
@@ -161,6 +164,8 @@ scheduler_events = {
 		"tradehub_core.audit.tasks.archive_old_role_change_logs",
 		"tradehub_core.audit.tasks.archive_old_override_logs",
 		"tradehub_core.audit.tasks.weekly_audit_summary",
+		# FAZ 3.5 — Privacy: DPA süre sonu uyarısı
+		"tradehub_core.audit.tasks.check_expiring_dpas",
 	],
 }
 

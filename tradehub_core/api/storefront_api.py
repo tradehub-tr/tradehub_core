@@ -17,6 +17,21 @@ DEFAULT_PAGE_SIZE = 10
 MAX_PAGE_SIZE = 50
 
 
+def _resolve_listing(listing: str) -> str:
+	"""Listing name, listing_code veya slug'ı Frappe name'e çözer."""
+	if not listing:
+		frappe.throw(_("Ürün bulunamadı"), frappe.DoesNotExistError)
+	if frappe.db.exists("Listing", listing):
+		return listing
+	row = frappe.db.get_value("Listing", {"listing_code": listing}, "name")
+	if row:
+		return row
+	row = frappe.db.get_value("Listing", {"slug": listing}, "name")
+	if row:
+		return row
+	frappe.throw(_("Ürün bulunamadı"), frappe.DoesNotExistError)
+
+
 def _ensure_logged_in():
 	if frappe.session.user == "Guest":
 		frappe.throw(_("Giriş yapın"), frappe.AuthenticationError)
@@ -38,8 +53,7 @@ def get_storefront_review_page(
 
 	Tek API çağrısı ile review widget'ı render edilebilir.
 	"""
-	if not listing or not frappe.db.exists("Listing", listing):
-		frappe.throw(_("Ürün bulunamadı"), frappe.DoesNotExistError)
+	listing = _resolve_listing(listing)
 
 	from tradehub_core.api.review import (
 		get_listing_rating_summary,

@@ -1,0 +1,29 @@
+{
+    "name": "Data Retention Policy",
+    "doctype": "DocType",
+    "module": "Tradehub Core",
+    "naming_rule": "By fieldname",
+    "autoname": "format:DRET-{ref_doctype}",
+    "engine": "InnoDB",
+    "track_changes": 1,
+    "sort_field": "ref_doctype",
+    "sort_order": "ASC",
+    "fields": [
+        {"fieldname": "ref_doctype", "fieldtype": "Link", "label": "DocType", "options": "DocType", "reqd": 1, "unique": 1, "in_list_view": 1, "in_standard_filter": 1},
+        {"fieldname": "retention_days", "fieldtype": "Int", "label": "Retention Days", "reqd": 1, "in_list_view": 1, "description": "Kayıtların saklanacağı gün sayısı"},
+        {"fieldname": "date_field", "fieldtype": "Data", "label": "Date Field", "default": "creation", "reqd": 1, "description": "Süreyi hesaplamak için kullanılacak tarih alanı"},
+        {"fieldname": "is_active", "fieldtype": "Check", "label": "Active", "default": 1, "in_list_view": 1},
+        {"fieldname": "cb_jurisdiction", "fieldtype": "Column Break"},
+        {"fieldname": "jurisdiction", "fieldtype": "Select", "label": "Jurisdiction", "options": "KVKK\nGDPR\nBoth\nAll", "default": "All", "reqd": 1, "in_standard_filter": 1},
+        {"fieldname": "legal_basis", "fieldtype": "Small Text", "label": "Legal Basis"},
+        {"fieldname": "sb_fields", "fieldtype": "Section Break", "label": "Fields to Anonymize"},
+        {"fieldname": "fields_to_anonymize", "fieldtype": "Table", "label": "Fields to Anonymize", "options": "Retention Anonymize Field", "description": "Süre dolduğunda anonimleştirilecek alanlar"},
+        {"fieldname": "sb_stats", "fieldtype": "Section Break", "label": "Run Statistics", "collapsible": 1},
+        {"fieldname": "last_run", "fieldtype": "Datetime", "label": "Last Run", "read_only": 1},
+        {"fieldname": "records_processed", "fieldtype": "Int", "label": "Records Processed (Last Run)", "read_only": 1}
+    ],
+    "permissions": [
+        {"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1, "export": 1, "report": 1},
+        {"role": "Compliance Officer", "read": 1, "write": 1, "create": 1, "export": 1, "report": 1}
+    ]
+}
