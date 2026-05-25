@@ -72,6 +72,49 @@
 			"description": "'En popüler' rozeti için"
 		},
 		{
+			"fieldname": "badge_label",
+			"fieldtype": "Data",
+			"label": "Badge Label",
+			"description": "Rozet metni (örn. EN POPÜLER, YENİ). Boşsa rozet gösterilmez"
+		},
+		{
+			"fieldname": "badge_color",
+			"fieldtype": "Select",
+			"label": "Badge Color",
+			"options": "\ndefault\nyellow\nblack\npremium\ngreen\nblue",
+			"default": "default",
+			"description": "Rozet rengi"
+		},
+		{
+			"fieldname": "theme",
+			"fieldtype": "Select",
+			"label": "Theme",
+			"options": "\ndefault\ndark\npremium\nlight",
+			"default": "default",
+			"description": "Pricing card teması"
+		},
+		{
+			"fieldname": "short_tagline",
+			"fieldtype": "Data",
+			"label": "Short Tagline",
+			"description": "Plan kartı altında kısa açıklama satırı"
+		},
+		{
+			"fieldname": "cta_label",
+			"fieldtype": "Data",
+			"label": "CTA Label",
+			"default": "Devam et",
+			"description": "Call-to-action buton metni"
+		},
+		{
+			"fieldname": "cta_action",
+			"fieldtype": "Select",
+			"label": "CTA Action",
+			"options": "\nsignup\nsignup_billing\ncontact_sales",
+			"default": "signup",
+			"description": "signup = kayıt, signup_billing = ödeme, contact_sales = iletişim"
+		},
+		{
 			"fieldname": "tab_pricing",
 			"fieldtype": "Tab Break",
 			"label": "Fiyatlandırma"
@@ -104,6 +147,20 @@
 			"fieldtype": "Column Break"
 		},
 		{
+			"fieldname": "commission_rate",
+			"fieldtype": "Percent",
+			"label": "Commission Rate",
+			"default": 0,
+			"description": "Platform komisyon oranı (%)"
+		},
+		{
+			"fieldname": "max_active_listings",
+			"fieldtype": "Int",
+			"label": "Max Active Listings",
+			"default": 0,
+			"description": "Aynı anda aktif olabilecek maksimum listeleme sayısı (0 = sınırsız)"
+		},
+		{
 			"fieldname": "trial_days",
 			"fieldtype": "Int",
 			"label": "Trial Days",
@@ -126,6 +183,18 @@
 			"fieldtype": "JSON",
 			"label": "Quota Limits",
 			"description": "quota.* key'lerinden sayısal eşleme. Örn: {\"quota.max_sub_users\": 10, \"quota.max_products\": 5000}"
+		},
+		{
+			"fieldname": "tab_display",
+			"fieldtype": "Tab Break",
+			"label": "Gösterim Özellikleri"
+		},
+		{
+			"fieldname": "pricing_features",
+			"fieldtype": "Table",
+			"label": "Pricing Features",
+			"options": "Pricing Plan Feature",
+			"description": "Pricing card'larda gösterilecek feature/benefit listesi"
 		},
 		{
 			"fieldname": "tab_regions",

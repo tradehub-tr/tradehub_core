@@ -65,11 +65,11 @@ class SubscriptionPlan(Document):
 				unknown_keys.append(key)
 
 		if unknown_keys:
-			# Uyarı: Feature Catalog'ta tanımlı değil. Hata fırlatmıyoruz çünkü
-			# Süper Admin dynamic key ekleyebilir; sadece log yazıyoruz.
-			frappe.log_error(
-				f"Subscription Plan '{self.name}': Tanımsız capability key'ler: {unknown_keys}",
-				"Subscription Plan Validation",
+			frappe.throw(
+				_("Capability flag key'leri Feature Catalog'ta tanımlı olmalı. Tanımsız key'ler: {0}").format(
+					", ".join(unknown_keys)
+				),
+				title=_("Tanımsız Feature Key"),
 			)
 
 	def _validate_quota_limits(self) -> None:

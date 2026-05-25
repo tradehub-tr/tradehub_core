@@ -214,6 +214,34 @@ def approve(approval_name: str, user: str | None = None, comment: str = "") -> s
 			frappe.PermissionError,
 		)
 
+	# R1 fix: Entitlement quota check — günlük approval limiti aşıldı mı?
+	# Seller tenant varsa quota check yap (admin override bypass eder).
+	# Quota key plan'da tanımlı değilse skip — yeni plan eklenmişse approval bloke olmaz.
+	if not is_admin_override:
+		tenant = frappe.db.get_value("User", user, "tradehub_tenant")
+		if tenant:
+			try:
+				from tradehub_core.entitlement.core import get_quota_limits, within_quota
+
+				quotas = get_quota_limits(tenant)
+				if "quota.daily_approval_limit" in quotas:
+					today_count = frappe.db.count(
+						"Order Approval Log",
+						filters={
+							"user": user,
+							"action": "approved",
+							"creation": [">=", frappe.utils.today()],
+						},
+					)
+					if not within_quota(tenant, "quota.daily_approval_limit", today_count):
+						frappe.throw(
+							_("Günlük onay limitinize ulaştınız. Planınızı yükseltin veya yarın tekrar deneyin."),
+						)
+			except frappe.DoesNotExistError:
+				pass  # Order Approval Log DocType yoksa skip
+			except ImportError:
+				pass  # entitlement module yoksa skip
+
 	# Log ekle
 	approval.append(
 		"approval_log",

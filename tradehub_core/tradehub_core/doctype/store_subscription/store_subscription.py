@@ -26,7 +26,7 @@ from frappe.utils import now_datetime
 
 # İzin verilen status geçişleri
 _VALID_TRANSITIONS: dict[str, set[str]] = {
-	"trial": {"active", "canceled", "suspended"},
+	"trial": {"active", "past_due", "canceled", "suspended"},
 	"active": {"past_due", "canceled", "suspended"},
 	"past_due": {"active", "canceled", "suspended"},
 	"suspended": {"active", "canceled"},
@@ -107,19 +107,36 @@ class StoreSubscription(Document):
 			)
 
 	def _validate_overrides_json(self) -> None:
-		"""custom_quota_overrides ve custom_capability_overrides geçerli JSON olmalı."""
+		"""custom_quota_overrides ve custom_capability_overrides geçerli JSON olmalı.
+		Override key'leri plan'ın mevcut key'leri ile sınırlıdır (privilege escalation önlemi)."""
 		for fieldname in ("custom_quota_overrides", "custom_capability_overrides"):
 			val = self.get(fieldname)
 			if not val:
 				continue
-			if isinstance(val, (dict, list)):
-				continue
-			try:
-				parsed = json.loads(val)
-				if not isinstance(parsed, dict):
-					frappe.throw(_("{0} JSON nesnesi (dict) olmalı.").format(fieldname))
-			except (json.JSONDecodeError, TypeError) as e:
-				frappe.throw(_("{0} geçerli JSON değil: {1}").format(fieldname, str(e)))
+			parsed = val if isinstance(val, dict) else None
+			if parsed is None:
+				try:
+					parsed = json.loads(val)
+					if not isinstance(parsed, dict):
+						frappe.throw(_("{0} JSON nesnesi (dict) olmalı.").format(fieldname))
+				except (json.JSONDecodeError, TypeError) as e:
+					frappe.throw(_("{0} geçerli JSON değil: {1}").format(fieldname, str(e)))
+					return
+
+			# Override key'leri plan'ın key'leri ile sınırla
+			if self.plan and parsed:
+				plan = frappe.get_cached_doc("Subscription Plan", self.plan)
+				if fieldname == "custom_quota_overrides":
+					allowed_keys = set(plan.get_quota_limits().keys())
+				else:
+					allowed_keys = set(plan.get_capability_flags().keys())
+				unknown = set(parsed.keys()) - allowed_keys
+				if unknown:
+					frappe.throw(
+						_("{0}: Geçersiz key'ler ({1}). İzin verilen: {2}").format(
+							fieldname, ", ".join(sorted(unknown)), ", ".join(sorted(allowed_keys)) or "(boş)"
+						)
+					)
 
 	def _track_plan_change(self) -> None:
 		"""Plan değişikliğinde previous_plan alanını güncelle."""
