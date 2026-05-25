@@ -51,6 +51,11 @@ _TIER_FINANCE: frozenset[str] = frozenset(
 	{"Seller Full Access", "Seller Co-Owner", "Seller Manager", "Seller Finance Staff"}
 )
 
+# Satış: Yönetim + Sales Rep (ürün + müşteri iletişimi, ama stok/kargo yönetimi yok).
+_TIER_SALES: frozenset[str] = frozenset(
+	{"Seller Full Access", "Seller Co-Owner", "Seller Manager", "Seller Sales Rep"}
+)
+
 # Sub-user / ekip yönetimi: yalnızca Owner + Co-Owner.
 # Manager dahil DEĞİL (Manager = Admin rol seti + ekip yönetimi yok).
 _TIER_COOWNER: frozenset[str] = frozenset({"Seller Full Access", "Seller Co-Owner"})
@@ -159,6 +164,14 @@ SELLER_CAPABILITIES: dict[str, tuple[frozenset[str], str | None]] = {
 	# Not: invite_sub_user zaten plan-bazlı role profile validation yapıyor
 	# (_validate_role_profile_for_plan). Burası UI gating için.
 	"subuser.manage": (_TIER_COOWNER, None),
+	# ── Veri görünürlük (dashboard maskeleme + UI gating) ──
+	"view.financial_summary": (_TIER_FINANCE, None),  # GMV, ortalama sepet, ciro trendi
+	"view.profit_detail": (_TIER_MANAGEMENT, None),  # Kâr marjı (yalnızca yönetim+)
+	"view.balance": (_TIER_FINANCE, None),  # Bakiye, ödeme geçmişi
+	"view.bank_info": (_TIER_COOWNER, None),  # IBAN (okuma)
+	"view.customer_full": (_TIER_SALES, None),  # Tam müşteri bilgisi
+	"view.customer_shipping": (_TIER_OPERATIONS, None),  # Kargo için min bilgi
+	"view.order_amounts": (_TIER_FINANCE, None),  # Sipariş tutarları
 }
 
 
@@ -226,7 +239,10 @@ def _plan_allows(tenant: str | None, plan_feature: str | None) -> bool:
 	if not plan_feature:
 		return True
 	if not tenant:
-		# Subscription bağlı değil → plan-bağımlı feature kullanılamaz
+		# Tenant bağlı değil → plan-bağımlı feature kullanılamaz (fail-closed).
+		# NOT: Tenant'ı olan ama subscription'ı olmayan store'lar da has_feature()
+		# tarafından False döner (entitlement.core negative cache ile).
+		# Free plan otomatik atanmıyorsa tüm plan-dependent capability'ler kapalı kalır.
 		return False
 	from tradehub_core.entitlement import has_feature
 
