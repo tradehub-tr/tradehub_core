@@ -117,6 +117,7 @@ def get_sellers(search=None, keyword=None, category=None, page=1, page_size=20):
 				filters={"seller_profile": seller_code, "status": "Active"},
 				fields=[
 					"name",
+					"slug",
 					"title",
 					"primary_image",
 					"selling_price",
@@ -144,6 +145,7 @@ def get_sellers(search=None, keyword=None, category=None, page=1, page_size=20):
 				products.append(
 					{
 						"name": l.name,
+						"slug": l.get("slug") or "",
 						"product_name": l.title,
 						"image": l.primary_image,
 						"price_min": price_min,
@@ -736,6 +738,7 @@ def get_seller_products(seller_code, category=None, page=1, page_size=40):
 		filters=filters,
 		fields=[
 			"name",
+			"slug",
 			"title",
 			"primary_image",
 			"selling_price",

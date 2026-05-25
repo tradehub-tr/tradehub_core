@@ -539,7 +539,7 @@ STATIC_PAGES = [
 	},
 	# ── Top + Special (5) ─────────────────────────────────
 	{
-		"path": "/firsat",
+		"path": "/firsatlar",
 		"title": "Fırsatlar",
 		"html_path": "pages/top-deals.html",
 		"indexable_default": True,

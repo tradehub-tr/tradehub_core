@@ -642,6 +642,7 @@ def get_listings(
 
 	fields = [
 		"name",
+		"slug",
 		"listing_code",
 		"title",
 		"primary_image",
@@ -2181,6 +2182,7 @@ def get_top_ranking_grouped(
 	# all served by the (product_category, order_count) composite index.
 	fields = [
 		"name",
+		"slug",
 		"listing_code",
 		"title",
 		"primary_image",
@@ -2248,7 +2250,7 @@ def get_top_ranking_grouped(
 		for sp in frappe.get_all(
 			"Admin Seller Profile",
 			filters=[["name", "in", seller_ids]],
-			fields=["name", "founded_year", "country", "is_verified", "rating", "review_count"],
+			fields=["name", "founded_year", "country", "rating", "review_count"],
 		):
 			seller_cache[sp.name] = sp
 
@@ -2318,6 +2320,7 @@ def get_related_listings(listing_id, limit=8):
 		filters=filters,
 		fields=[
 			"name",
+			"slug",
 			"listing_code",
 			"title",
 			"primary_image",
@@ -2403,6 +2406,7 @@ def get_related_listings_grouped(listing_id: str):
 		},
 		fields=[
 			"name",
+			"slug",
 			"listing_code",
 			"title",
 			"primary_image",
@@ -2812,7 +2816,7 @@ def _format_listing_card(
 				sp = frappe.db.get_value(
 					"Admin Seller Profile",
 					listing.get("seller_profile"),
-					["user", "founded_year", "country", "is_verified", "rating", "review_count"],
+					["user", "founded_year", "country", "rating", "review_count"],
 					as_dict=True,
 				)
 			if sp:
@@ -2891,11 +2895,15 @@ def _format_listing_card(
 	if not primary_image and all_images:
 		primary_image = all_images[0]
 
+	listing_slug = listing.get("slug") or ""
+	listing_href = f"/urun/{listing_slug}" if listing_slug else f"/pages/product-detail.html?id={listing.name}"
+
 	return {
 		"id": listing.name,
 		"listingCode": listing.get("listing_code", ""),
+		"slug": listing_slug,
 		"name": listing.title,
-		"href": f"/pages/product-detail.html?id={listing.name}",
+		"href": listing_href,
 		"price": price_display,
 		# sellingPrice in the API response means "the price the customer sees
 		# right now" — campaign price when there's a campaign, otherwise the
