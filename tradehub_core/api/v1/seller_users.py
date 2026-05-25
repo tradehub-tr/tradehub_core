@@ -118,6 +118,13 @@ def _validate_role_profile_for_plan(tenant: str, role_profile: str) -> None:
 	Profile code feature key'e çevrilir: 'Seller Manager' → 'seller_manager' →
 	'feature.role.profile.seller_manager'.
 	"""
+	# A1 fix: Role Profile existence check — typo koruması
+	if not frappe.db.exists("Role Profile", role_profile):
+		frappe.throw(
+			_("'{0}' geçerli bir rol profili değil.").format(role_profile),
+			frappe.ValidationError,
+		)
+
 	# Profile name → feature key
 	code = role_profile.lower().replace(" ", "_").replace("-", "_")
 	feature_key = f"feature.role.profile.{code}"
@@ -450,14 +457,20 @@ def accept_invite(token: str, full_name: str, password: str) -> dict:
 		frappe.throw(_("Şifre en az 8 karakter olmalı."))
 
 	token_hash = _hash_token(token)
-	invite_name = frappe.db.get_value(
-		"Seller Sub User Invite",
-		{"token_hash": token_hash, "status": "Pending"},
-		"name",
+
+	# A3 fix: Pessimistic lock — concurrent accept race condition önlemi.
+	# SELECT ... FOR UPDATE ile satır kilitlenir, ikinci request ilkini bekler.
+	locked = frappe.db.sql(
+		"SELECT name FROM `tabSeller Sub User Invite` "
+		"WHERE token_hash = %s AND status = 'Pending' "
+		"LIMIT 1 FOR UPDATE",
+		(token_hash,),
+		as_dict=True,
 	)
-	if not invite_name:
+	if not locked:
 		frappe.throw(_("Davet geçersiz veya zaten kullanılmış."), frappe.PermissionError)
 
+	invite_name = locked[0].name
 	invite = frappe.get_doc("Seller Sub User Invite", invite_name)
 
 	# Süre kontrolü
@@ -563,6 +576,25 @@ def _build_invite_url(raw_token: str) -> str:
 		or _default_panel_url()
 	)
 	panel_url = panel_url.rstrip("/")
+
+	# A5 fix: URL domain whitelist — phishing koruması.
+	# Config'ten gelen URL beklenmeyen bir domain'e işaret ediyorsa reject et.
+	from urllib.parse import urlparse
+
+	parsed = urlparse(panel_url)
+	_ALLOWED_DOMAINS = frozenset({
+		"localhost", "istoc.com", "beta.istoc.com", "rc.istoc.com",
+		"admin.istoc.com", "admin-preview.istoc.com",
+	})
+	hostname = parsed.hostname or ""
+	if hostname and hostname not in _ALLOWED_DOMAINS and not hostname.endswith(".istoc.com"):
+		frappe.log_error(
+			f"Invite URL domain not whitelisted: {panel_url}",
+			"seller_users.invite_url_security",
+		)
+		# Fallback güvenli URL'e
+		panel_url = _default_panel_url()
+
 	return f"{panel_url}/accept-invite?token={raw_token}"
 
 
@@ -579,24 +611,36 @@ def _default_panel_url() -> str:
 
 
 def _send_invite_email(invite, invite_url: str) -> None:
-	"""Davet e-postası gönder (basit template)."""
-	subject = _("[TradeHub] '{0}' mağazasına davet").format(invite.tenant)
+	"""Davet e-postası gönder (HTML template)."""
+	store_name = frappe.db.get_value("Admin Seller Profile", invite.tenant, "seller_name") or invite.tenant
+	subject = _("[TradeHub] '{0}' mağazasına davet").format(store_name)
 	message = _(
-		"""Merhaba {full_name},
+		"""<p>Merhaba {full_name},</p>
 
-{invited_by} sizi TradeHub üzerinde '{tenant}' mağazasının ekibine '{role_profile}' rolünde
-davet etti.
+<p><strong>{invited_by}</strong> sizi TradeHub üzerinde <strong>{store_name}</strong> mağazasının
+ekibine <strong>{role_profile}</strong> rolünde davet etti.</p>
 
-Daveti kabul etmek için aşağıdaki linke tıklayın (7 gün geçerli):
+<p>Daveti kabul etmek için aşağıdaki butona tıklayın (7 gün geçerli):</p>
 
-  {invite_url}
+<p style="margin: 24px 0;">
+  <a href="{invite_url}"
+     style="background-color: #7c3aed; color: #ffffff; padding: 12px 32px;
+            text-decoration: none; border-radius: 8px; font-weight: 600;
+            display: inline-block;">
+    Daveti Kabul Et
+  </a>
+</p>
 
-İyi çalışmalar,
-TradeHub Ekibi"""
+<p style="font-size: 12px; color: #888;">
+  Buton çalışmıyorsa bu linki tarayıcınıza yapıştırın:<br>
+  <a href="{invite_url}">{invite_url}</a>
+</p>
+
+<p>İyi çalışmalar,<br>TradeHub Ekibi</p>"""
 	).format(
 		full_name=invite.full_name,
 		invited_by=invite.invited_by,
-		tenant=invite.tenant,
+		store_name=store_name,
 		role_profile=invite.role_profile,
 		invite_url=invite_url,
 	)
