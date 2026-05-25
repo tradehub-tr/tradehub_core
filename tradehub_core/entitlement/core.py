@@ -80,8 +80,9 @@ def get_active_subscription(store: str) -> dict | None:
 	)
 
 	if not sub_name:
-		# Negative cache (kısa TTL) — her isteğin DB'ye gitmesini engelle
-		frappe.cache().set_value(cache_key, {}, expires_in_sec=60)
+		# Negative cache (çok kısa TTL) — her isteğin DB'ye gitmesini engelle
+		# ama yeni subscription oluşturulduğunda hızlıca expire olsun (race condition önlemi)
+		frappe.cache().set_value(cache_key, {}, expires_in_sec=10)
 		return None
 
 	sub_doc = frappe.get_cached_doc("Store Subscription", sub_name)

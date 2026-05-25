@@ -50,12 +50,24 @@ def build_order_context(order_doc_or_name: Any) -> dict[str, Any]:
 	else:
 		order = order_doc_or_name
 
+	# Order region: seller_profile'ın tenant region'u veya shipping address region
+	order_region = None
+	seller = order.get("seller_profile")
+	if seller:
+		order_region = frappe.db.get_value("Admin Seller Profile", seller, "region") or None
+	if not order_region:
+		# Fallback: shipping address'ten ülke
+		shipping_address = order.get("shipping_address")
+		if shipping_address:
+			order_region = frappe.db.get_value("Address", shipping_address, "country") or None
+
 	return {
 		"amount": float(order.get("total") or 0),
 		"currency": order.get("currency") or "EUR",
 		"category": _extract_order_category(order),
-		"supplier": order.get("seller_profile"),
+		"supplier": seller,
 		"buyer": order.get("buyer"),
+		"order_region": order_region,
 	}
 
 
@@ -70,14 +82,23 @@ def _extract_order_category(order) -> str | None:
 	if not items:
 		return None
 
-	categories = set()
+	listing_ids = []
 	for item in items:
-		listing_id = getattr(item, "listing", None) or getattr(item, "listing_id", None)
-		if not listing_id:
-			continue
-		cat = frappe.db.get_value("Listing", listing_id, "category")
-		if cat:
-			categories.add(cat)
+		lid = getattr(item, "listing", None) or getattr(item, "listing_id", None)
+		if lid:
+			listing_ids.append(lid)
+
+	if not listing_ids:
+		return None
+
+	# Batch fetch — N+1 pattern yerine tek query
+	categories = set(
+		frappe.get_all(
+			"Listing",
+			filters={"name": ["in", listing_ids]},
+			pluck="category",
+		)
+	)
 
 	if not categories:
 		return None

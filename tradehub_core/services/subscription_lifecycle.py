@@ -39,20 +39,19 @@ def expire_trial_subscriptions() -> dict:
 	canceled: list[str] = []
 	for sub in expired_subs:
 		try:
+			# Idempotent: re-check status before processing (race condition önlemi —
+			# scheduler + manual cancel aynı anda çalışırsa duplicate processing engellenir)
+			current_status = frappe.db.get_value("Store Subscription", sub.name, "status")
+			if current_status != "trial":
+				continue  # zaten başka bir process tarafından değiştirilmiş
+
 			doc = frappe.get_doc("Store Subscription", sub.name)
-			doc.previous_plan = doc.plan  # downgrade hook tetiklemesi için
 			doc.status = "canceled"
-			# DocType'da varsa cancellation_reason set et
 			if doc.meta.has_field("cancellation_reason"):
 				doc.cancellation_reason = "Trial period expired (auto)"
 			if doc.meta.has_field("canceled_at"):
 				doc.canceled_at = now
-			prev_flag = frappe.flags.ignore_permissions
-			frappe.flags.ignore_permissions = True
-			try:
-				doc.save(ignore_permissions=True)
-			finally:
-				frappe.flags.ignore_permissions = prev_flag
+			doc.save(ignore_permissions=True)
 			canceled.append(sub.name)
 			frappe.logger().info(f"Trial expired: {sub.name} (store={sub.store}, trial_end={sub.trial_end})")
 		except Exception as exc:  # noqa: BLE001 — bir sub'un fail'i diğerlerini durdurmasın

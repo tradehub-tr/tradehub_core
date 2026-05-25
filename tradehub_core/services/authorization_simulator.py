@@ -785,11 +785,17 @@ def _assert_caller_can_simulate(target_actor: str) -> None:
 
 
 def _record(result: SimulationResult, step: TraceStep) -> None:
-	"""Append a step; if DENY, capture as first_deny and flip the decision."""
+	"""Append a step; if DENY or UNAVAILABLE (fail-closed), flip to DENY."""
 
 	result.trace.append(step)
 
 	if step.result == RESULT_DENY:
+		if result.first_deny is None:
+			result.first_deny = step
+		result.decision = RESULT_DENY
+	elif step.result == RESULT_UNAVAILABLE:
+		# R3 fix: fail-closed — UNAVAILABLE → DENY (ReBAC sidecar down iken
+		# entitlement ALLOW olsa bile overall karar DENY olmalı, tutarlılık için)
 		if result.first_deny is None:
 			result.first_deny = step
 		result.decision = RESULT_DENY
