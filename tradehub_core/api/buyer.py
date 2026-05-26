@@ -262,11 +262,13 @@ def save_address(address_json):
 	# purpose (Delivery/Pickup/Billing) ve address_type (Individual/Business) yeni alanlar.
 	# Default: purpose=Delivery, address_type=Individual.
 	purpose = (data.get("purpose") or "Delivery").strip()
-	if purpose not in ("Delivery", "Pickup", "Billing"):
-		purpose = "Delivery"
+	BUYER_ALLOWED_PURPOSES = ("Delivery", "Billing")
+	if purpose not in BUYER_ALLOWED_PURPOSES:
+		frappe.throw(_("Geçersiz adres amacı: {0}. İzin verilen: {1}").format(
+			purpose, ", ".join(BUYER_ALLOWED_PURPOSES)))
 	address_type = (data.get("address_type") or "Individual").strip()
 	if address_type not in ("Individual", "Business"):
-		address_type = "Individual"
+		frappe.throw(_("Geçersiz adres tipi: {0}. İzin verilen: Individual, Business").format(address_type))
 	tax_no = (data.get("tax_no") or "").strip()
 	tax_office = (data.get("tax_office") or "").strip()
 
@@ -311,8 +313,14 @@ def save_address(address_json):
 		intl_digits = cleaned_phone.lstrip("+")
 		if not _INTL_PHONE_RE.match(intl_digits):
 			frappe.throw(_("Geçerli bir telefon numarası giriniz (7-15 rakam)"))
+		# Prefix-numara tutarlılık kontrolü: numara prefix ile başlıyorsa
+		# prefix'i çıkar ve sadece local kısmı sakla (E.164 uyumu).
+		prefix_digits = phone_prefix_in.lstrip("+")
+		if intl_digits.startswith(prefix_digits):
+			phone_to_save = intl_digits[len(prefix_digits):]
+		else:
+			phone_to_save = cleaned_phone
 		phone_prefix_to_save = phone_prefix_in
-		phone_to_save = cleaned_phone
 
 	# Ülke whitelist kontrolü — frontend countries listesi ile senkron.
 	country_in = normalize_country_code((data.get("country") or "TR").strip())
@@ -377,8 +385,10 @@ def save_address(address_json):
 	doc.tax_office = tax_office
 
 	if address_id:
+		# ignore_permissions: Ownership _lock_user_addresses + locked list check ile doğrulandı
 		doc.save(ignore_permissions=True)
 	else:
+		# ignore_permissions: Yeni kayıt, user kendi adresi — ownership API katmanında garanti
 		doc.insert(ignore_permissions=True)
 
 	# Çoklu-default invariant'ı _ensure_one_default tarafından atomik şekilde
@@ -434,6 +444,7 @@ def delete_address(address_id):
 		# az önce silindi. Üçü için de aynı mesaj — information leak yok.
 		frappe.throw(_("Adres bulunamadı"), frappe.DoesNotExistError)
 
+	# ignore_permissions: Ownership _lock_user_addresses ile doğrulandı (lock altında)
 	frappe.delete_doc("Addresses", address_id, ignore_permissions=True)
 	new_default_id = _ensure_one_default(user)
 

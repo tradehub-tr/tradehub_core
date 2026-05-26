@@ -1302,16 +1302,16 @@ class TestSaveAddressNoReloadRace(unittest.TestCase):
 		self.assertNotIn("doc.reload()", src)
 
 	def test_buyer_save_derives_is_default_from_current_default_id(self):
-		"""Reload yerine `doc.is_default = (current_default_id == doc.name)`
+		"""Reload yerine `doc.is_default = current_default_id == doc.name`
 		ile in-memory doc senkronize edilmeli."""
 		path = _APP_ROOT / "tradehub_core" / "api" / "buyer.py"
 		src = self._read_function_source(path, "save_address")
-		self.assertIn("doc.is_default = (current_default_id == doc.name)", src)
+		self.assertIn("doc.is_default = current_default_id == doc.name", src)
 
 	def test_seller_save_derives_is_default_from_current_default_id(self):
 		path = _APP_ROOT / "tradehub_core" / "api" / "seller_addresses.py"
 		src = self._read_function_source(path, "save_address")
-		self.assertIn("doc.is_default = (current_default_id == doc.name)", src)
+		self.assertIn("doc.is_default = current_default_id == doc.name", src)
 
 
 class TestSaveAddressLockedAsOwnerCheck(unittest.TestCase):
@@ -1404,6 +1404,419 @@ class TestBuyerSellerSyncOnValidators(unittest.TestCase):
 		for label, src in [("buyer", self.buyer_src), ("seller", self.seller_src)]:
 			with self.subTest(module=label):
 				self.assertIn("validate_country_code(country_in)", src)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# E2E / Cross-layer Testleri — 2026-05-26 düzeltme doğrulaması
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestBuyerPurposeValidation(unittest.TestCase):
+	"""buyer.py: Buyer kullanıcı sadece Delivery veya Billing gönderebilir."""
+
+	def setUp(self):
+		self.src = (_APP_ROOT / "tradehub_core" / "api" / "buyer.py").read_text(encoding="utf-8")
+
+	def test_buyer_rejects_pickup_purpose(self):
+		"""Buyer purpose='Pickup' sessiz fallback yerine hata fırlatmalı."""
+		self.assertIn('BUYER_ALLOWED_PURPOSES = ("Delivery", "Billing")', self.src)
+		self.assertNotIn(
+			'purpose = "Delivery"  # Silent fallback',
+			self.src,
+			"Sessiz purpose fallback hâlâ mevcut — kaldırılmalıydı",
+		)
+
+	def test_buyer_purpose_throws_on_invalid(self):
+		"""Geçersiz purpose'ta frappe.throw çağrılmalı."""
+		# save_address fonksiyonu içinde purpose kontrolü throw içermeli
+		self.assertIn("Geçersiz adres amacı", self.src)
+
+	def test_buyer_address_type_throws_on_invalid(self):
+		"""Geçersiz address_type'ta frappe.throw çağrılmalı."""
+		self.assertIn("Geçersiz adres tipi", self.src)
+
+	def test_no_silent_fallback_for_purpose(self):
+		"""purpose invalid iken sessizce 'Delivery' atanmamalı."""
+		# Eski pattern: `if purpose not in ...: purpose = "Delivery"`
+		# Yeni pattern: `if purpose not in ...: frappe.throw(...)`
+		pattern = re.compile(r'if\s+purpose\s+not\s+in.*:\s*\n\s*purpose\s*=')
+		self.assertIsNone(
+			pattern.search(self.src),
+			"Sessiz purpose fallback pattern hâlâ mevcut",
+		)
+
+	def test_no_silent_fallback_for_address_type(self):
+		"""address_type invalid iken sessizce 'Individual' atanmamalı."""
+		pattern = re.compile(r'if\s+address_type\s+not\s+in.*:\s*\n\s*address_type\s*=')
+		self.assertIsNone(
+			pattern.search(self.src),
+			"Sessiz address_type fallback pattern hâlâ mevcut",
+		)
+
+
+class TestPhonePrefixConsistency(unittest.TestCase):
+	"""buyer.py ve seller_addresses.py: Telefon prefix-numara tutarlılık kontrolü."""
+
+	def setUp(self):
+		self.buyer_src = (_APP_ROOT / "tradehub_core" / "api" / "buyer.py").read_text(encoding="utf-8")
+		self.seller_src = (_APP_ROOT / "tradehub_core" / "api" / "seller_addresses.py").read_text(
+			encoding="utf-8"
+		)
+
+	def test_buyer_has_prefix_consistency_check(self):
+		"""buyer.py non-TR phone path'inde prefix tutarlılık kontrolü olmalı."""
+		self.assertIn("prefix_digits = phone_prefix_in.lstrip", self.buyer_src)
+		self.assertIn("intl_digits.startswith(prefix_digits)", self.buyer_src)
+
+	def test_seller_has_prefix_consistency_check(self):
+		"""seller_addresses.py non-TR phone path'inde prefix tutarlılık kontrolü olmalı."""
+		self.assertIn("prefix_digits = phone_prefix_in.lstrip", self.seller_src)
+		self.assertIn("intl_digits.startswith(prefix_digits)", self.seller_src)
+
+	def test_buyer_strips_prefix_from_phone(self):
+		"""Buyer: numara prefix ile başlıyorsa local kısmı saklanmalı."""
+		self.assertIn('phone_to_save = intl_digits[len(prefix_digits):]', self.buyer_src)
+
+	def test_seller_strips_prefix_from_phone(self):
+		"""Seller: numara prefix ile başlıyorsa local kısmı saklanmalı."""
+		self.assertIn('phone_to_save = intl_digits[len(prefix_digits):]', self.seller_src)
+
+
+class TestIgnorePermissionsJustification(unittest.TestCase):
+	"""ignore_permissions=True kullanımları gerekçe yorumu içermeli."""
+
+	def _read_function_source(self, module_path: Path, func_name: str) -> str:
+		text = module_path.read_text(encoding="utf-8")
+		pattern = re.compile(
+			rf"^def {re.escape(func_name)}\(.*?(?=^def |\Z)",
+			re.MULTILINE | re.DOTALL,
+		)
+		m = pattern.search(text)
+		self.assertIsNotNone(m, f"{func_name} not found in {module_path}")
+		return m.group(0)
+
+	def test_buyer_save_has_justification(self):
+		src = self._read_function_source(
+			_APP_ROOT / "tradehub_core" / "api" / "buyer.py", "save_address"
+		)
+		# Her ignore_permissions satırından önce yorum olmalı
+		lines = src.split("\n")
+		for i, line in enumerate(lines):
+			if "ignore_permissions=True" in line:
+				# Önceki satır(lar)da yorum olmalı
+				prev_lines = "\n".join(lines[max(0, i - 2) : i])
+				self.assertIn(
+					"#",
+					prev_lines,
+					f"ignore_permissions yorumsuz: satır {i}: {line.strip()}",
+				)
+
+	def test_buyer_delete_has_justification(self):
+		src = self._read_function_source(
+			_APP_ROOT / "tradehub_core" / "api" / "buyer.py", "delete_address"
+		)
+		lines = src.split("\n")
+		for i, line in enumerate(lines):
+			if "ignore_permissions=True" in line:
+				prev_lines = "\n".join(lines[max(0, i - 2) : i])
+				self.assertIn("#", prev_lines)
+
+	def test_seller_save_has_justification(self):
+		src = self._read_function_source(
+			_APP_ROOT / "tradehub_core" / "api" / "seller_addresses.py", "save_address"
+		)
+		lines = src.split("\n")
+		for i, line in enumerate(lines):
+			if "ignore_permissions=True" in line:
+				prev_lines = "\n".join(lines[max(0, i - 2) : i])
+				self.assertIn("#", prev_lines)
+
+	def test_seller_delete_has_justification(self):
+		src = self._read_function_source(
+			_APP_ROOT / "tradehub_core" / "api" / "seller_addresses.py", "delete_address"
+		)
+		lines = src.split("\n")
+		for i, line in enumerate(lines):
+			if "ignore_permissions=True" in line:
+				prev_lines = "\n".join(lines[max(0, i - 2) : i])
+				self.assertIn("#", prev_lines)
+
+
+class TestStorefrontCheckoutCompanyOptional(unittest.TestCase):
+	"""Storefront checkout: company alanı opsiyonel olmalı."""
+
+	_CHECKOUT_PATH = (
+		Path(__file__).resolve().parents[3] / "tradehubfront" / "src" / "alpine" / "checkout.ts"
+	)
+
+	@unittest.skipUnless(
+		_CHECKOUT_PATH.exists(),
+		"tradehubfront/src/alpine/checkout.ts mevcut değil",
+	)
+	def test_company_not_in_validate_required_fields(self):
+		src = self._CHECKOUT_PATH.read_text(encoding="utf-8")
+		# validateAddAddressForm içindeki requiredFields'da "company" olmamalı
+		pattern = re.compile(
+			r'validateAddAddressForm\(\).*?requiredFields.*?\[([^\]]+)\]',
+			re.DOTALL,
+		)
+		m = pattern.search(src)
+		self.assertIsNotNone(m, "validateAddAddressForm requiredFields bulunamadı")
+		fields_str = m.group(1)
+		self.assertNotIn('"company"', fields_str)
+
+	@unittest.skipUnless(
+		_CHECKOUT_PATH.exists(),
+		"tradehubfront/src/alpine/checkout.ts mevcut değil",
+	)
+	def test_company_not_in_handlesubmit_required_fields(self):
+		src = self._CHECKOUT_PATH.read_text(encoding="utf-8")
+		# handleSubmit içindeki requiredFields'da "company" olmamalı
+		pattern = re.compile(
+			r'handleSubmit\(\).*?requiredFields\s*=\s*\[([^\]]+)\]',
+			re.DOTALL,
+		)
+		m = pattern.search(src)
+		self.assertIsNotNone(m, "handleSubmit requiredFields bulunamadı")
+		fields_str = m.group(1)
+		self.assertNotIn('"company"', fields_str)
+
+
+class TestStorefrontNoAlertCalls(unittest.TestCase):
+	"""Storefront checkout: alert() yerine showToast kullanılmalı."""
+
+	_CHECKOUT_PATH = (
+		Path(__file__).resolve().parents[3] / "tradehubfront" / "src" / "alpine" / "checkout.ts"
+	)
+
+	@unittest.skipUnless(
+		_CHECKOUT_PATH.exists(),
+		"tradehubfront/src/alpine/checkout.ts mevcut değil",
+	)
+	def test_no_alert_calls(self):
+		src = self._CHECKOUT_PATH.read_text(encoding="utf-8")
+		# `alert(` çağrısı olmamalı — window.alert da dahil
+		alert_pattern = re.compile(r'\balert\s*\(')
+		matches = alert_pattern.findall(src)
+		self.assertEqual(
+			len(matches),
+			0,
+			f"checkout.ts'de {len(matches)} adet alert() çağrısı kaldı",
+		)
+
+	@unittest.skipUnless(
+		_CHECKOUT_PATH.exists(),
+		"tradehubfront/src/alpine/checkout.ts mevcut değil",
+	)
+	def test_showtoast_imported(self):
+		src = self._CHECKOUT_PATH.read_text(encoding="utf-8")
+		self.assertIn("import { showToast }", src)
+
+	@unittest.skipUnless(
+		_CHECKOUT_PATH.exists(),
+		"tradehubfront/src/alpine/checkout.ts mevcut değil",
+	)
+	def test_showtoast_used_for_errors(self):
+		src = self._CHECKOUT_PATH.read_text(encoding="utf-8")
+		# Hata durumlarında showToast error tipiyle kullanılmalı
+		self.assertIn('showToast({ message: msg, type: "error" })', src)
+
+
+class TestStorefrontAddressBookFields(unittest.TestCase):
+	"""Storefront address book: form alanları backend ile uyumlu olmalı."""
+
+	_ADDRESSES_PATH = (
+		Path(__file__).resolve().parents[3] / "tradehubfront" / "src" / "alpine" / "addresses.ts"
+	)
+
+	@unittest.skipUnless(
+		_ADDRESSES_PATH.exists(),
+		"tradehubfront/src/alpine/addresses.ts mevcut değil",
+	)
+	def test_default_purpose_is_delivery(self):
+		src = self._ADDRESSES_PATH.read_text(encoding="utf-8")
+		self.assertIn('purpose: "Delivery"', src)
+
+	@unittest.skipUnless(
+		_ADDRESSES_PATH.exists(),
+		"tradehubfront/src/alpine/addresses.ts mevcut değil",
+	)
+	def test_no_pickup_purpose_in_buyer_storefront(self):
+		"""Buyer storefront hiçbir yerde purpose='Pickup' atamamalı."""
+		src = self._ADDRESSES_PATH.read_text(encoding="utf-8")
+		self.assertNotIn('purpose: "Pickup"', src)
+		self.assertNotIn("purpose: 'Pickup'", src)
+
+
+class TestBackendBuyerSellerFieldSymmetry(unittest.TestCase):
+	"""buyer.py ve seller_addresses.py aynı doc_to_dict alanlarını dönmeli."""
+
+	def setUp(self):
+		self.buyer_src = (_APP_ROOT / "tradehub_core" / "api" / "buyer.py").read_text(encoding="utf-8")
+		self.seller_src = (_APP_ROOT / "tradehub_core" / "api" / "seller_addresses.py").read_text(
+			encoding="utf-8"
+		)
+
+	def _extract_doc_to_dict_fields(self, src: str) -> set:
+		"""_doc_to_dict fonksiyonundaki return dict key'lerini çıkart."""
+		pattern = re.compile(
+			r"def _doc_to_dict\(.*?return\s*\{(.*?)\}",
+			re.DOTALL,
+		)
+		m = pattern.search(src)
+		self.assertIsNotNone(m)
+		# Key'leri çıkar: "field_name": ...
+		keys = re.findall(r'"(\w+)"\s*:', m.group(1))
+		return set(keys)
+
+	def test_buyer_seller_return_same_fields(self):
+		buyer_fields = self._extract_doc_to_dict_fields(self.buyer_src)
+		seller_fields = self._extract_doc_to_dict_fields(self.seller_src)
+		self.assertEqual(
+			buyer_fields,
+			seller_fields,
+			f"Buyer/Seller _doc_to_dict alan farkı: "
+			f"buyer_extra={buyer_fields - seller_fields}, "
+			f"seller_extra={seller_fields - buyer_fields}",
+		)
+
+	def test_required_api_fields_present(self):
+		"""API response'ta olması gereken kritik alanlar."""
+		expected_fields = {
+			"id", "title", "contact_name", "company", "phone_prefix", "phone",
+			"country", "state", "city", "street", "apartment", "postal_code",
+			"note", "is_default", "purpose", "address_type", "tax_no", "tax_office",
+		}
+		buyer_fields = self._extract_doc_to_dict_fields(self.buyer_src)
+		missing = expected_fields - buyer_fields
+		self.assertEqual(
+			missing,
+			set(),
+			f"API response'ta eksik alanlar: {missing}",
+		)
+
+
+class TestCartServiceTypeAlignment(unittest.TestCase):
+	"""cartService.ts BuyerAddressData tipi backend ile uyumlu olmalı."""
+
+	_CART_SERVICE_PATH = (
+		Path(__file__).resolve().parents[3] / "tradehubfront" / "src" / "services" / "cartService.ts"
+	)
+
+	@unittest.skipUnless(
+		_CART_SERVICE_PATH.exists(),
+		"tradehubfront/src/services/cartService.ts mevcut değil",
+	)
+	def test_buyer_address_data_has_required_fields(self):
+		src = self._CART_SERVICE_PATH.read_text(encoding="utf-8")
+		# BuyerAddressData type'ında backend'in döndüğü tüm alanlar olmalı
+		required = [
+			"id", "title", "contact_name", "company", "phone_prefix", "phone",
+			"country", "state", "city", "street", "apartment", "postal_code",
+			"note", "is_default", "purpose", "address_type", "tax_no", "tax_office",
+		]
+		for field in required:
+			self.assertIn(
+				field,
+				src,
+				f"cartService.ts BuyerAddressData'da '{field}' alanı eksik",
+			)
+
+
+class TestAdminPanelAddressFieldSync(unittest.TestCase):
+	"""Admin panel SellerAddressesPanel.vue: backend ile alan senkronizasyonu."""
+
+	_PANEL_PATH = (
+		Path(__file__).resolve().parents[3]
+		/ "admin-panel"
+		/ "frontend"
+		/ "src"
+		/ "components"
+		/ "seller"
+		/ "SellerAddressesPanel.vue"
+	)
+
+	@unittest.skipUnless(
+		_PANEL_PATH.exists(),
+		"admin-panel SellerAddressesPanel.vue mevcut değil",
+	)
+	def test_panel_calls_correct_api(self):
+		src = self._PANEL_PATH.read_text(encoding="utf-8")
+		self.assertIn("tradehub_core.api.seller_addresses.get_addresses", src)
+		self.assertIn("tradehub_core.api.seller_addresses.save_address", src)
+		self.assertIn("tradehub_core.api.seller_addresses.delete_address", src)
+		self.assertIn("tradehub_core.api.seller_addresses.set_default_address", src)
+
+	@unittest.skipUnless(
+		_PANEL_PATH.exists(),
+		"admin-panel SellerAddressesPanel.vue mevcut değil",
+	)
+	def test_panel_has_phone_validation(self):
+		src = self._PANEL_PATH.read_text(encoding="utf-8")
+		# Türk telefon regex'i frontend'de de olmalı
+		self.assertRegex(src, r"\(\\\+90\|0\)")
+
+
+class TestAddressDocTypeSchemaIntegrity(unittest.TestCase):
+	"""DocType JSON schema: purpose, address_type, tax alanları mevcut olmalı."""
+
+	_SCHEMA_PATH = (
+		_APP_ROOT
+		/ "tradehub_core"
+		/ "tradehub_core"
+		/ "doctype"
+		/ "addresses"
+		/ "addresses.json"
+	)
+
+	@unittest.skipUnless(
+		_SCHEMA_PATH.exists(),
+		"addresses.json mevcut değil",
+	)
+	def test_schema_has_purpose_field(self):
+		import json as _json
+		schema = _json.loads(self._SCHEMA_PATH.read_text(encoding="utf-8"))
+		field_names = [f["fieldname"] for f in schema.get("fields", [])]
+		self.assertIn("purpose", field_names)
+
+	@unittest.skipUnless(
+		_SCHEMA_PATH.exists(),
+		"addresses.json mevcut değil",
+	)
+	def test_schema_has_address_type_field(self):
+		import json as _json
+		schema = _json.loads(self._SCHEMA_PATH.read_text(encoding="utf-8"))
+		field_names = [f["fieldname"] for f in schema.get("fields", [])]
+		self.assertIn("address_type", field_names)
+
+	@unittest.skipUnless(
+		_SCHEMA_PATH.exists(),
+		"addresses.json mevcut değil",
+	)
+	def test_schema_has_tax_fields(self):
+		import json as _json
+		schema = _json.loads(self._SCHEMA_PATH.read_text(encoding="utf-8"))
+		field_names = [f["fieldname"] for f in schema.get("fields", [])]
+		self.assertIn("tax_no", field_names)
+		self.assertIn("tax_office", field_names)
+
+	@unittest.skipUnless(
+		_SCHEMA_PATH.exists(),
+		"addresses.json mevcut değil",
+	)
+	def test_purpose_options_match_backend(self):
+		"""DocType purpose seçenekleri buyer+seller allowed_purposes'ı kapsamalı."""
+		import json as _json
+		schema = _json.loads(self._SCHEMA_PATH.read_text(encoding="utf-8"))
+		purpose_field = next(
+			(f for f in schema["fields"] if f["fieldname"] == "purpose"), None
+		)
+		self.assertIsNotNone(purpose_field)
+		options = set(purpose_field.get("options", "").split("\n"))
+		# Buyer: Delivery, Billing — Seller: Pickup
+		self.assertIn("Delivery", options)
+		self.assertIn("Billing", options)
+		self.assertIn("Pickup", options)
 
 
 if __name__ == "__main__":

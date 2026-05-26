@@ -272,16 +272,32 @@ def _check_kyc_verified(user: str) -> bool:
 
 
 def _check_aml_clean(user: str) -> bool:
-	"""K5 fix: AML/sanctions placeholder.
+	"""K5 fix: AML/sanctions kontrolü.
 
-	Sprint 2 öncesi: KYB Verification'da aml_check_status field'ı yok →
-	her zaman True (ABAC ile uyumlu graceful fallback).
-	Sprint 3'te aktif olunca burası gerçek check yapacak — capability
+	KYB Verification'dan aml_check_status ve sanctions_status field'larını
+	kontrol eder. "Hit Found" veya "Match Found" ise False döner.
+	Field'lar henüz eklenmemişse graceful fallback (True). Capability
 	layer'a hook noktası şimdiden mevcut.
 	"""
-	# Sprint 3'te KYB Verification.aml_check_status okuyacak.
-	# Şu an placeholder: True.
-	_ = user  # ileride kullanılacak
+	try:
+		kyb = frappe.db.get_value(
+			"KYB Verification",
+			{"user": user, "docstatus": 1},
+			["aml_check_status", "sanctions_status"],
+			as_dict=True,
+		)
+	except Exception:
+		# Field'lar henüz yoksa (column unknown) → graceful fallback
+		return True
+
+	if not kyb:
+		return True
+
+	blocked = {"Hit Found", "Match Found"}
+	if (kyb.get("aml_check_status") or "") in blocked:
+		return False
+	if (kyb.get("sanctions_status") or "") in blocked:
+		return False
 	return True
 
 
