@@ -282,11 +282,9 @@ def _check_aml_sanctions(user, doctype):
 	"""
 	ABAC Layer: Block access for users flagged by AML or sanctions screening.
 
-	NOT (Sprint 2 — S26): Eski "KYC Profile" DocType hayali idi (yok).
-	Şimdi `KYB Verification` (verification_kind=KYB) üzerinden AML/sanctions kontrolü
-	yapılır. KYB Verification şu an `aml_check_status` ve `sanctions_status` field'larını
-	içermiyor — bu Sprint 3 ABAC katmanında eklenecek. Şu an her zaman True döner
-	(graceful fallback — gate'i kapatmadan AML/sanctions katmanını ileride aktifleştir).
+	KYB Verification üzerinden AML/sanctions kontrolü. aml_check_status veya
+	sanctions_status field'ı "Hit Found" / "Match Found" ise erişim engellenir.
+	Field'lar henüz yoksa graceful fallback (izin ver) — ama field varsa kontrol eder.
 
 	Args:
 	    user (str): User to check.
@@ -298,8 +296,37 @@ def _check_aml_sanctions(user, doctype):
 	if doctype not in AML_SENSITIVE_DOCTYPES:
 		return True
 
-	# Sprint 3 öncesi — KYB Verification'da aml/sanctions field'ları henüz yok.
-	# Graceful fallback: izin ver, log'a yaz (Sprint 3'te aktif olur).
+	# KYB Verification'dan AML/sanctions field'larını kontrol et.
+	# Field'lar henüz eklenmemişse (hasattr/column yok) graceful fallback.
+	try:
+		kyb = frappe.db.get_value(
+			"KYB Verification",
+			{"user": user, "docstatus": 1},
+			["aml_check_status", "sanctions_status"],
+			as_dict=True,
+		)
+	except Exception:
+		# Field'lar henüz yoksa (column unknown) → graceful fallback: izin ver
+		return True
+
+	if not kyb:
+		# KYB kaydı yok → AML kontrolü yapılamaz, izin ver (legacy user)
+		return True
+
+	blocked_statuses = {"Hit Found", "Match Found"}
+	if (kyb.get("aml_check_status") or "") in blocked_statuses:
+		frappe.log_error(
+			f"AML gate: {user} blocked — aml_check_status={kyb.aml_check_status}",
+			"AML/Sanctions Gate",
+		)
+		return False
+	if (kyb.get("sanctions_status") or "") in blocked_statuses:
+		frappe.log_error(
+			f"AML gate: {user} blocked — sanctions_status={kyb.sanctions_status}",
+			"AML/Sanctions Gate",
+		)
+		return False
+
 	return True
 
 
@@ -740,8 +767,8 @@ def listing_review_has_permission(doc, ptype, user):
 	# Buyer kendi yorumunu okuyabilir/güncelleyebilir
 	if reviewer_val and reviewer_val == user:
 		return True
-	# Karar verilemediyse role-level karara bırak (None döner)
-	return None
+	# Explicit deny — cross-tenant erişimi engelle (fall-through yerine)
+	return False
 
 
 # ── Review Helpful Vote ─────────────────────────────────────────────────────
@@ -766,7 +793,7 @@ def review_helpful_vote_has_permission(doc, ptype, user):
 	voter = getattr(doc, "voter", None) if not isinstance(doc, dict) else doc.get("voter")
 	if voter and voter == user:
 		return True
-	return None
+	return False
 
 
 # ── Review Abuse Report ─────────────────────────────────────────────────────
@@ -792,7 +819,7 @@ def review_abuse_report_has_permission(doc, ptype, user):
 	reporter = getattr(doc, "reporter", None) if not isinstance(doc, dict) else doc.get("reporter")
 	if reporter and reporter == user:
 		return True
-	return None
+	return False
 
 
 # ── Faz 4: Listing Question ─────────────────────────────────────────────────
@@ -824,7 +851,15 @@ def listing_question_has_permission(doc, ptype, user):
 	asker = getattr(doc, "asker", None) if not isinstance(doc, dict) else doc.get("asker")
 	if asker == user:
 		return True
-	return None
+	# Listing question: satıcı kendi listing'inin sorularını da görebilmeli
+	listing = getattr(doc, "listing", None) if not isinstance(doc, dict) else doc.get("listing")
+	if listing and ptype == "read":
+		profile = _get_seller_profile_name(user)
+		if profile:
+			seller_of_listing = frappe.db.get_value("Listing", listing, "seller_profile")
+			if seller_of_listing == profile:
+				return True
+	return False
 
 
 # ── Faz 4: Order Dispute ────────────────────────────────────────────────────
@@ -855,7 +890,7 @@ def order_dispute_has_permission(doc, ptype, user):
 	profile = _get_seller_profile_name(user)
 	if profile and seller == profile and ptype == "read":
 		return True
-	return None
+	return False
 
 
 # ── Faz 4: Trusted Reviewer Invitation ──────────────────────────────────────
@@ -879,7 +914,7 @@ def trusted_reviewer_invitation_has_permission(doc, ptype, user):
 	owner = getattr(doc, "user", None) if not isinstance(doc, dict) else doc.get("user")
 	if owner == user:
 		return True
-	return None
+	return False
 
 
 # ── Seller Category ──────────────────────────────────────────────────────────

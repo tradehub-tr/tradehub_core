@@ -81,6 +81,7 @@ def _check_address_owner(address_id, seller_name):
 
 
 def _doc_to_dict(doc):
+	"""Addresses document'ını frontend'e uygun dict'e dönüştürür."""
 	return {
 		"id": doc.name,
 		"title": doc.title or "",
@@ -96,6 +97,10 @@ def _doc_to_dict(doc):
 		"postal_code": doc.postal_code or "",
 		"note": doc.note or "",
 		"is_default": bool(doc.is_default),
+		"purpose": doc.purpose or "Pickup",
+		"address_type": doc.address_type or "Business",
+		"tax_no": doc.tax_no or "",
+		"tax_office": doc.tax_office or "",
 	}
 
 
@@ -261,8 +266,14 @@ def save_address(address_json):
 		intl_digits = cleaned_phone.lstrip("+")
 		if not _INTL_PHONE_RE.match(intl_digits):
 			frappe.throw(_("Geçerli bir telefon numarası giriniz (7-15 rakam)"))
+		# Prefix-numara tutarlılık kontrolü: numara prefix ile başlıyorsa
+		# prefix'i çıkar ve sadece local kısmı sakla (E.164 uyumu).
+		prefix_digits = phone_prefix_in.lstrip("+")
+		if intl_digits.startswith(prefix_digits):
+			phone_to_save = intl_digits[len(prefix_digits):]
+		else:
+			phone_to_save = cleaned_phone
 		phone_prefix_to_save = phone_prefix_in
-		phone_to_save = cleaned_phone
 
 	# Ülke whitelist kontrolü — frontend countries listesi ile senkron.
 	country_in = normalize_country_code((data.get("country") or "TR").strip())
@@ -316,8 +327,10 @@ def save_address(address_json):
 	doc.is_default = bool(data.get("is_default", False))
 
 	if address_id:
+		# ignore_permissions: Ownership _lock_seller_addresses + capability gate ile doğrulandı
 		doc.save(ignore_permissions=True)
 	else:
+		# ignore_permissions: Yeni kayıt, seller kendi adresi — ownership + capability API'de garanti
 		doc.insert(ignore_permissions=True)
 
 	# Çoklu-default invariant'ı _ensure_one_default tarafından atomik şekilde
@@ -371,6 +384,7 @@ def delete_address(address_id):
 	if not any(row.name == address_id for row in locked):
 		frappe.throw(_("Adres bulunamadı"), frappe.DoesNotExistError)
 
+	# ignore_permissions: Ownership _lock_seller_addresses + capability gate ile doğrulandı (lock altında)
 	frappe.delete_doc("Addresses", address_id, ignore_permissions=True)
 	new_default_id = _ensure_one_default(seller_name)
 
