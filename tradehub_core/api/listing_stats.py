@@ -61,7 +61,7 @@ def get_listing_stats(listing, days=30):
 	wishlist = doc.wishlist_count or 0
 	avg_rating = flt(doc.average_rating, 1)
 	review_count = doc.review_count or 0
-	stock_qty = doc.available_qty or doc.stock_qty or 0
+	stock_qty = doc.available_qty if doc.available_qty is not None else (doc.stock_qty or 0)
 	conversion_rate = round((orders / views * 100), 2) if views > 0 else 0
 
 	# ── Daily view data from View Log (if available) ──
