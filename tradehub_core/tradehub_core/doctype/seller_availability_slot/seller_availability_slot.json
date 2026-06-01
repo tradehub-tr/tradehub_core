@@ -1,0 +1,44 @@
+{
+ "actions": [],
+ "autoname": "format:SLOT-{#####}",
+ "creation": "2026-05-14 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "seller_user",
+  "status",
+  "column_break_1",
+  "start_at",
+  "end_at",
+  "section_meta",
+  "created_by_user",
+  "notes"
+ ],
+ "fields": [
+  {"fieldname":"seller_user","fieldtype":"Link","options":"User","label":"Satıcı","reqd":1,"in_list_view":1,"in_standard_filter":1,"search_index":1},
+  {"fieldname":"status","fieldtype":"Select","options":"Open\nClosed","label":"Durum","default":"Open","in_list_view":1,"in_standard_filter":1},
+  {"fieldname":"column_break_1","fieldtype":"Column Break"},
+  {"fieldname":"start_at","fieldtype":"Datetime","label":"Başlangıç","reqd":1,"in_list_view":1,"search_index":1},
+  {"fieldname":"end_at","fieldtype":"Datetime","label":"Bitiş","reqd":1,"in_list_view":1},
+  {"fieldname":"section_meta","fieldtype":"Section Break","label":"Detaylar","collapsible":1},
+  {"fieldname":"created_by_user","fieldtype":"Link","options":"User","label":"Oluşturan","read_only":1},
+  {"fieldname":"notes","fieldtype":"Small Text","label":"Notlar","description":"Slot hakkında kısa not (örn. 'Sadece teknik sorular')."}
+ ],
+ "links": [],
+ "modified": "2026-05-14 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "Seller Availability Slot",
+ "owner": "Administrator",
+ "permissions": [
+  {"create":1,"delete":1,"read":1,"write":1,"role":"System Manager"},
+  {"create":1,"delete":1,"read":1,"write":1,"role":"Marketplace Seller"},
+  {"create":1,"delete":1,"read":1,"write":1,"role":"Seller"},
+  {"read":1,"role":"Buyer"}
+ ],
+ "search_fields": "seller_user,start_at,end_at,status",
+ "sort_field": "start_at",
+ "sort_order": "ASC",
+ "states": [],
+ "track_changes": 1
+}

@@ -1,0 +1,46 @@
+{
+ "actions": [],
+ "autoname": "format:RES-{#####}",
+ "creation": "2026-05-14 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "buyer_user",
+  "seller_user",
+  "column_break_1",
+  "start_at",
+  "end_at",
+  "section_status",
+  "status",
+  "slot",
+  "cancelled_at"
+ ],
+ "fields": [
+  {"fieldname":"buyer_user","fieldtype":"Link","options":"User","label":"Alıcı","reqd":1,"in_list_view":1,"search_index":1},
+  {"fieldname":"seller_user","fieldtype":"Link","options":"User","label":"Satıcı","reqd":1,"in_list_view":1,"search_index":1},
+  {"fieldname":"column_break_1","fieldtype":"Column Break"},
+  {"fieldname":"start_at","fieldtype":"Datetime","label":"Başlangıç","reqd":1,"in_list_view":1},
+  {"fieldname":"end_at","fieldtype":"Datetime","label":"Bitiş","reqd":1},
+  {"fieldname":"section_status","fieldtype":"Section Break"},
+  {"fieldname":"status","fieldtype":"Select","options":"Active\nCancelled\nExpired","label":"Durum","default":"Active","in_list_view":1,"in_standard_filter":1},
+  {"fieldname":"slot","fieldtype":"Link","options":"Seller Availability Slot","label":"Bağlı Slot","read_only":1},
+  {"fieldname":"cancelled_at","fieldtype":"Datetime","label":"İptal Tarihi","read_only":1}
+ ],
+ "links": [],
+ "modified": "2026-05-14 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "Chat Reservation",
+ "owner": "Administrator",
+ "permissions": [
+  {"create":1,"delete":1,"read":1,"write":1,"role":"System Manager"},
+  {"create":0,"delete":0,"read":1,"write":1,"role":"Marketplace Seller"},
+  {"create":0,"delete":0,"read":1,"write":1,"role":"Seller"},
+  {"create":1,"delete":0,"read":1,"write":1,"role":"Buyer"}
+ ],
+ "search_fields": "buyer_user,seller_user,status",
+ "sort_field": "start_at",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

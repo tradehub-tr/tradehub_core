@@ -43,6 +43,9 @@ scheduler_events = {
 		"tradehub_core.api.sentiment.batch_analyze_pending",
 		# Sprint 2 — E2 fırsat: Buyer metric scheduler (User Profile.metrics)
 		"tradehub_core.tasks.recalculate_buyer_metrics",
+		# Aktif rezervasyon penceresi dolan kayıtları Expired yap (chat gating
+		# için doğru güncel state'i tutar).
+		"tradehub_core.api.reservation.expire_old_reservations",
 	],
 	"daily": [
 		"tradehub_core.services.tcmb.fetch_and_update_rates",

@@ -94,3 +94,6 @@ tradehub_core.patches.user_profile_v1.19_kyc_kyb_split
 tradehub_core.patches.user_profile_v1.20_normalize_capability_flags
 tradehub_core.patches.address_v1.01_kind_to_purpose
 tradehub_core.patches.address_v1.02_fix_seller_purpose_pickup
+tradehub_core.patches.add_teamslike_user_fields
+tradehub_core.patches.init_teamslike_settings
+tradehub_core.patches.add_admin_seller_chat_tier
