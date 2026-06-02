@@ -149,10 +149,7 @@ def check_expiring_dpas() -> None:
 	for d in expiring:
 		lines.append(f"• {d.party_name} ({d.name}) — {d.expires_at}")
 
-	body = (
-		"Aşağıdaki Veri İşleme Sözleşmelerinin süresi 30 gün içinde dolacak:\n\n"
-		+ "\n".join(lines)
-	)
+	body = "Aşağıdaki Veri İşleme Sözleşmelerinin süresi 30 gün içinde dolacak:\n\n" + "\n".join(lines)
 
 	compliance_users = frappe.get_all(
 		"Has Role",

@@ -264,8 +264,11 @@ def save_address(address_json):
 	purpose = (data.get("purpose") or "Delivery").strip()
 	BUYER_ALLOWED_PURPOSES = ("Delivery", "Billing")
 	if purpose not in BUYER_ALLOWED_PURPOSES:
-		frappe.throw(_("Geçersiz adres amacı: {0}. İzin verilen: {1}").format(
-			purpose, ", ".join(BUYER_ALLOWED_PURPOSES)))
+		frappe.throw(
+			_("Geçersiz adres amacı: {0}. İzin verilen: {1}").format(
+				purpose, ", ".join(BUYER_ALLOWED_PURPOSES)
+			)
+		)
 	address_type = (data.get("address_type") or "Individual").strip()
 	if address_type not in ("Individual", "Business"):
 		frappe.throw(_("Geçersiz adres tipi: {0}. İzin verilen: Individual, Business").format(address_type))
@@ -317,7 +320,7 @@ def save_address(address_json):
 		# prefix'i çıkar ve sadece local kısmı sakla (E.164 uyumu).
 		prefix_digits = phone_prefix_in.lstrip("+")
 		if intl_digits.startswith(prefix_digits):
-			phone_to_save = intl_digits[len(prefix_digits):]
+			phone_to_save = intl_digits[len(prefix_digits) :]
 		else:
 			phone_to_save = cleaned_phone
 		phone_prefix_to_save = phone_prefix_in

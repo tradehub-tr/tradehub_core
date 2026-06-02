@@ -35,7 +35,6 @@ def get_kyc_status() -> dict:
 			"identity_document",
 			"rejection_reason",
 			"rejection_category",
-			"submitted_at",
 			"reviewed_at",
 		],
 		as_dict=True,
@@ -46,7 +45,7 @@ def get_kyc_status() -> dict:
 
 
 @frappe.whitelist(methods=["POST"])
-@rate_limit(key="user", limit=1, seconds=60)
+@rate_limit(key="user", limit=10, seconds=300)
 def submit_kyc_documents(
 	account_type: str = "Business",
 	identity_document: str = "",

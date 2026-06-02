@@ -16,7 +16,6 @@ buyer ve seller'ı ayırıyor.
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Any
 
 import frappe
@@ -251,9 +250,7 @@ def _slot_to_dict(name: str) -> dict[str, Any]:
 def delete_slot(slot_id: str) -> dict[str, Any]:
 	"""Seller slot'u kaldırır. Aktif rezervasyon varsa hata."""
 	user = _require_login()
-	slot = frappe.db.get_value(
-		DOCTYPE_SLOT, slot_id, ["name", "seller_user", "status"], as_dict=True
-	)
+	slot = frappe.db.get_value(DOCTYPE_SLOT, slot_id, ["name", "seller_user", "status"], as_dict=True)
 	if not slot:
 		frappe.throw(_("Slot bulunamadı."), frappe.DoesNotExistError)
 	if slot.seller_user != user and "System Manager" not in frappe.get_roles():

@@ -235,7 +235,9 @@ def approve(approval_name: str, user: str | None = None, comment: str = "") -> s
 					)
 					if not within_quota(tenant, "quota.daily_approval_limit", today_count):
 						frappe.throw(
-							_("Günlük onay limitinize ulaştınız. Planınızı yükseltin veya yarın tekrar deneyin."),
+							_(
+								"Günlük onay limitinize ulaştınız. Planınızı yükseltin veya yarın tekrar deneyin."
+							),
 						)
 			except frappe.DoesNotExistError:
 				pass  # Order Approval Log DocType yoksa skip

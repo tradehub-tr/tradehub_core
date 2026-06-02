@@ -45,7 +45,8 @@
 			"fieldtype": "Data",
 			"label": "Company Title",
 			"reqd": 1,
-			"in_list_view": 1
+			"in_list_view": 1,
+			"permlevel": 1
 		},
 		{
 			"fieldname": "business_type",
@@ -208,13 +209,15 @@
 			"fieldname": "rejection_reason",
 			"fieldtype": "Small Text",
 			"label": "Rejection Reason",
-			"permlevel": 1
+			"permlevel": 1,
+			"depends_on": "eval:doc.status=='Rejected' || doc.status=='Suspended'"
 		},
 		{
 			"fieldname": "notes",
 			"fieldtype": "Small Text",
 			"label": "Notes",
-			"permlevel": 2
+			"permlevel": 2,
+			"depends_on": "eval:doc.status=='Rejected' || doc.status=='Suspended'"
 		}
 	],
 	"permissions": [

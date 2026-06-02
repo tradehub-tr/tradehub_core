@@ -60,7 +60,9 @@ def _settings():
 
 
 def _settings_secret(s, fieldname: str) -> str:
-	value = get_decrypted_password("Teamslike Settings", "Teamslike Settings", fieldname, raise_exception=False)
+	value = get_decrypted_password(
+		"Teamslike Settings", "Teamslike Settings", fieldname, raise_exception=False
+	)
 	if not value:
 		# Password tipindeki alan boşsa cleartext fallback (test/dev için)
 		value = s.get(fieldname) or ""
@@ -182,7 +184,9 @@ def _ensure_seller_user(seller_user: str) -> dict[str, str]:
 	"""
 	tl_user_id = frappe.db.get_value("User", seller_user, "teamslike_user_id")
 	if tl_user_id:
-		tl_password = get_decrypted_password("User", seller_user, "teamslike_password", raise_exception=False) or ""
+		tl_password = (
+			get_decrypted_password("User", seller_user, "teamslike_password", raise_exception=False) or ""
+		)
 		if tl_password:
 			return {"teamslike_user_id": tl_user_id, "teamslike_password": tl_password}
 
@@ -260,7 +264,9 @@ def _seller_token(seller_user: str) -> str:
 		timeout=REQUEST_TIMEOUT,
 	)
 	if r.status_code >= 400:
-		frappe.throw(f"Seller login başarısız ({frappe_user}): {r.status_code} {r.text}", frappe.AuthenticationError)
+		frappe.throw(
+			f"Seller login başarısız ({frappe_user}): {r.status_code} {r.text}", frappe.AuthenticationError
+		)
 	return r.json().get("access_token", "")
 
 
@@ -419,9 +425,13 @@ def list_my_threads(perspective: str | None = None) -> list[dict[str, Any]]:
 	mode = _resolve_perspective(perspective, caller)
 	s = _settings()
 	if mode == "seller":
-		r = requests.get(_api_url(s, "/v1/inbox/threads"), headers=_seller_headers(caller), timeout=REQUEST_TIMEOUT)
+		r = requests.get(
+			_api_url(s, "/v1/inbox/threads"), headers=_seller_headers(caller), timeout=REQUEST_TIMEOUT
+		)
 	else:
-		r = requests.get(_api_url(s, "/v1/portal/me/threads"), headers=_buyer_headers(caller), timeout=REQUEST_TIMEOUT)
+		r = requests.get(
+			_api_url(s, "/v1/portal/me/threads"), headers=_buyer_headers(caller), timeout=REQUEST_TIMEOUT
+		)
 	if r.status_code >= 400:
 		frappe.throw(f"Thread list başarısız: {r.status_code} {r.text}", frappe.ValidationError)
 	return r.json()
@@ -448,9 +458,7 @@ def list_messages(conversation_id: int | str, perspective: str | None = None) ->
 
 
 @frappe.whitelist()
-def send_message(
-	conversation_id: int | str, content: str, perspective: str | None = None
-) -> dict[str, Any]:
+def send_message(conversation_id: int | str, content: str, perspective: str | None = None) -> dict[str, Any]:
 	caller = frappe.session.user
 	if caller == "Guest":
 		frappe.throw("Önce oturum aç.", frappe.AuthenticationError)
@@ -635,7 +643,9 @@ def health_check() -> dict[str, Any]:
 		r = requests.get(_api_url(s, "/health"), timeout=REQUEST_TIMEOUT)
 		r.raise_for_status()
 		token = _admin_token()
-		me = requests.get(_api_url(s, "/v1/auth/me"), headers={"Authorization": f"Bearer {token}"}, timeout=REQUEST_TIMEOUT)
+		me = requests.get(
+			_api_url(s, "/v1/auth/me"), headers={"Authorization": f"Bearer {token}"}, timeout=REQUEST_TIMEOUT
+		)
 		me.raise_for_status()
 		status = "ok"
 		details = me.json()

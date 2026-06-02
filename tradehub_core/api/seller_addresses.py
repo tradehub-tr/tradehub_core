@@ -270,7 +270,7 @@ def save_address(address_json):
 		# prefix'i çıkar ve sadece local kısmı sakla (E.164 uyumu).
 		prefix_digits = phone_prefix_in.lstrip("+")
 		if intl_digits.startswith(prefix_digits):
-			phone_to_save = intl_digits[len(prefix_digits):]
+			phone_to_save = intl_digits[len(prefix_digits) :]
 		else:
 			phone_to_save = cleaned_phone
 		phone_prefix_to_save = phone_prefix_in
