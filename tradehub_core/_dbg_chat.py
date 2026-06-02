@@ -72,7 +72,9 @@ def run():
 			res = chat.list_my_threads(perspective=None)
 			print(f"OK  type={type(res).__name__} len={len(res) if hasattr(res, '__len__') else 'n/a'}")
 			if isinstance(res, list) and res:
-				print(f"first thread keys: {list(res[0].keys()) if isinstance(res[0], dict) else type(res[0])}")
+				print(
+					f"first thread keys: {list(res[0].keys()) if isinstance(res[0], dict) else type(res[0])}"
+				)
 		except Exception:
 			print("FAILED:")
 			traceback.print_exc()

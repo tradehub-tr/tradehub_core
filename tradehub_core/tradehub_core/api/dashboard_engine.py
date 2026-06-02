@@ -634,8 +634,7 @@ def _mask_data(data, widget) -> dict | list | None:
 		# Chart widget: labels koru, values sıfırla
 		if "labels" in masked_data and "datasets" in masked_data:
 			masked_data["datasets"] = [
-				{**ds, "values": [None] * len(ds.get("values", []))}
-				for ds in masked_data.get("datasets", [])
+				{**ds, "values": [None] * len(ds.get("values", []))} for ds in masked_data.get("datasets", [])
 			]
 		return masked_data
 	return data

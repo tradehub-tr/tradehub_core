@@ -238,11 +238,13 @@ def request_data_export(password: str) -> dict:
 
 	check_password(user, password)
 
-	doc = frappe.get_doc({
-		"doctype": "Data Export Request",
-		"user": user,
-		"export_format": "json_csv",
-	})
+	doc = frappe.get_doc(
+		{
+			"doctype": "Data Export Request",
+			"user": user,
+			"export_format": "json_csv",
+		}
+	)
 	doc.insert(ignore_permissions=True)
 	frappe.db.commit()
 
@@ -302,8 +304,9 @@ def download_data_export(request_name: str, token: str):
 
 
 @frappe.whitelist()
-def record_consent(consent_type: str, action: str, version: str | None = None,
-				   source: str = "settings") -> dict:
+def record_consent(
+	consent_type: str, action: str, version: str | None = None, source: str = "settings"
+) -> dict:
 	"""Kullanıcı onay olayını kaydeder."""
 	from tradehub_core.privacy.consent import record_consent as _record
 
@@ -351,10 +354,19 @@ def export_ropa_report(fmt: str = "json") -> dict:
 		"Processing Activity Record",
 		filters={"status": "Active"},
 		fields=[
-			"activity_name", "controller", "controller_contact",
-			"purpose", "legal_basis", "data_subjects", "data_categories",
-			"recipients", "cross_border_transfers", "retention_period",
-			"security_measures", "last_reviewed", "review_interval_days",
+			"activity_name",
+			"controller",
+			"controller_contact",
+			"purpose",
+			"legal_basis",
+			"data_subjects",
+			"data_categories",
+			"recipients",
+			"cross_border_transfers",
+			"retention_period",
+			"security_measures",
+			"last_reviewed",
+			"review_interval_days",
 		],
 		order_by="creation asc",
 	)

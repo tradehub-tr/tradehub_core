@@ -679,7 +679,6 @@ def get_seller_orders(status=None, page=1, page_size=20):
 
 	can_view_customer = has_seller_capability("view.customer_full", user)
 	can_view_amounts = has_seller_capability("view.order_amounts", user)
-	can_view_financial = has_seller_capability("view.financial_summary", user)
 
 	# Faz 4: maskeleme audit log (best-effort, tek sefer)
 	if not can_view_customer or not can_view_amounts:
@@ -894,9 +893,7 @@ def get_order_shipping_info(order_number: str) -> dict:
 	shipping_postal = ""
 	if order.shipping_address:
 		addr_name = order.shipping_address
-		addr = frappe.db.get_value(
-			"Addresses", addr_name, ["city", "state", "postal_code"], as_dict=True
-		)
+		addr = frappe.db.get_value("Addresses", addr_name, ["city", "state", "postal_code"], as_dict=True)
 		if addr:
 			shipping_city = addr.get("city") or ""
 			shipping_state = addr.get("state") or ""

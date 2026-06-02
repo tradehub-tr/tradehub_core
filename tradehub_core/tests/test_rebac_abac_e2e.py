@@ -11,6 +11,7 @@ Calistirma:
 import json
 import re
 import sys
+import types
 import unittest
 from pathlib import Path
 
@@ -21,8 +22,6 @@ if str(_APP_ROOT) not in sys.path:
 	sys.path.insert(0, str(_APP_ROOT))
 
 # ── Frappe stub — top-level "import frappe" geçsin diye minimal stub ─────────
-import types
-
 if "frappe" not in sys.modules:
 	_frappe = types.ModuleType("frappe")
 	_frappe._ = lambda x: x
@@ -43,7 +42,7 @@ if "frappe" not in sys.modules:
 	_frappe.get_all = lambda *a, **kw: []
 	_frappe.get_doc = lambda *a, **kw: None
 	_frappe.get_cached_doc = lambda *a, **kw: None
-	_frappe.whitelist = lambda *a, **kw: (lambda fn: fn)
+	_frappe.whitelist = lambda *a, **kw: lambda fn: fn
 	sys.modules["frappe"] = _frappe
 	# frappe.utils stub
 	_frappe_utils = types.ModuleType("frappe.utils")
@@ -56,16 +55,16 @@ if "frappe" not in sys.modules:
 	_frappe_model_doc.Document = object
 	sys.modules["frappe.model.document"] = _frappe_model_doc
 
-# ── Pure-logic imports ────────────────────────────────────────────────────────
-from tradehub_core.services.abac_context import (
+# ── Pure-logic imports (frappe stub kurulduktan SONRA gelmeli — E402 kasıtlı) ──
+from tradehub_core.entitlement.checks import _extract_region_codes, _is_variant_listing  # noqa: E402
+from tradehub_core.services.abac_context import (  # noqa: E402
 	_dominant_jurisdiction,
 	evaluate_needs_approval_l1,
 	evaluate_needs_approval_l2,
 	evaluate_user_in_region,
 	evaluate_within_business_hours,
 )
-from tradehub_core.entitlement.checks import _extract_region_codes, _is_variant_listing
-from tradehub_core.utils.seller_capabilities import (
+from tradehub_core.utils.seller_capabilities import (  # noqa: E402
 	_OWNER_ONLY_CAPABILITIES,
 	_PLATFORM_ROLES,
 	_REQUIRES_AML_CLEAN,
@@ -78,7 +77,6 @@ from tradehub_core.utils.seller_capabilities import (
 	_TIER_SALES,
 	SELLER_CAPABILITIES,
 )
-
 
 # ══════════════════════════════════════════════════════════════════════════════
 # 1. ABAC Context Evaluator Tests (pure logic)
@@ -443,8 +441,8 @@ class TestTierRoleFallback(unittest.TestCase):
 			pass  # Bilinen gap, Sales delegation desteklenmiyor
 
 	def test_fallback_roles_are_frozenset(self):
-		for tier, roles in _TIER_ROLE_FALLBACK.items():
-			self.assertIsInstance(roles, frozenset, f"Tier role fallback frozenset degil")
+		for _tier, roles in _TIER_ROLE_FALLBACK.items():
+			self.assertIsInstance(roles, frozenset, "Tier role fallback frozenset degil")
 
 
 class TestPlatformRoles(unittest.TestCase):
@@ -510,7 +508,8 @@ class TestPermissionsSourceAudit(unittest.TestCase):
 		dangerous_pattern = re.compile(r'frappe\.db\.sql\(f["\']')
 		matches = dangerous_pattern.findall(self.src)
 		self.assertEqual(
-			len(matches), 0,
+			len(matches),
+			0,
 			f"permissions.py'de {len(matches)} adet f-string SQL bulundu — injection riski",
 		)
 
@@ -667,9 +666,9 @@ class TestAuthorizationSimulatorSourceAudit(unittest.TestCase):
 	"""authorization_simulator.py — 4-layer structure mevcut olmali."""
 
 	def setUp(self):
-		self.src = (
-			_APP_ROOT / "tradehub_core" / "services" / "authorization_simulator.py"
-		).read_text(encoding="utf-8")
+		self.src = (_APP_ROOT / "tradehub_core" / "services" / "authorization_simulator.py").read_text(
+			encoding="utf-8"
+		)
 
 	def test_all_layers_defined(self):
 		"""L0-L3 layer sabitleri tanimli olmali."""
@@ -838,9 +837,7 @@ class TestDocTypeSchemaSubscriptionGating(unittest.TestCase):
 class TestSubscriptionPlanFixtureIntegrity(unittest.TestCase):
 	"""Subscription Plan fixture'lari capability flag'leri ile tutarli olmali."""
 
-	_FIXTURE_PATH = (
-		_APP_ROOT / "tradehub_core" / "tradehub_core" / "fixtures" / "subscription_plan.json"
-	)
+	_FIXTURE_PATH = _APP_ROOT / "tradehub_core" / "tradehub_core" / "fixtures" / "subscription_plan.json"
 
 	@unittest.skipUnless(
 		(_APP_ROOT / "tradehub_core" / "tradehub_core" / "fixtures" / "subscription_plan.json").exists(),
@@ -936,9 +933,7 @@ class TestWhitelistEndpointCapabilityGating(unittest.TestCase):
 	def test_seller_api_has_permission_checks(self):
 		src = self._read_api_file("seller.py")
 		has_check = (
-			"check_permission" in src
-			or "require_seller_capability" in src
-			or "frappe.only_for" in src
+			"check_permission" in src or "require_seller_capability" in src or "frappe.only_for" in src
 		)
 		self.assertTrue(has_check, "seller.py'de permission check eksik")
 
