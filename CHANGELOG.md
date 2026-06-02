@@ -1,3 +1,47 @@
+## [v1.0.9-beta.17] - 2026-06-02 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Eklendi
+- feat(rbac): rol bazlı veri maskeleme, sub-user güvenlik düzeltmeleri ve demo data (@boraydeger32)
+  - dashboard_engine.py'ye data_sensitivity + _should_mask + _mask_data katmanı
+  - Dashboard Widget'a data_sensitivity custom field (financial/profit/balance/pii)
+  - view.* capability'ler eklendi (7 adet: financial_summary, profit_detail, balance, bank_info, customer_full, customer_shipping, order_amounts)
+  - Seller Sales Rep rol profili ve _TIER_SALES tier tanımı
+  - Role_profile bazlı cache isolation (60s TTL) + invalidate_dashboard_cache()
+  - Maskeleme kararları DECISION_FIELD_MASKED audit log'a yazılıyor
+- feat(chat): TeamsLike buyer↔seller chat with Jitsi video calls (@aliturguttursab)
+  - api/chat.py: Chatwoot-backed threads, buyer external-identity JWT + seller token auth, seller auto-provisioning, attachments, and Jitsi video calls. start_video_call mints a per-user GUEST token (moderator:false) for the thread invite link so only the call initiator is moderator/host; the counterpart who opens the invite joins as a non-moderator participant.
+  - api/reservation.py: Plus-tier reservation gating + seller availability slots, with a scheduler that expires stale reservations.
+  - doctypes: Teamslike Settings, Chat Reservation, Seller Availability Slot.
+  - patches: teamslike user fields, settings init, admin/seller chat tier.
+
+### Duzeltildi
+- fix(security): address validation, AML gate, has_permission explicit deny (@boraydeger32)
+  - buyer.py: reject invalid purpose/address_type with frappe.throw (no silent fallback)
+  - buyer.py: add phone prefix-number consistency check for non-TR phones
+  - seller_addresses.py: add missing _doc_to_dict fields (purpose, address_type, tax_no, tax_office)
+  - seller_addresses.py: phone prefix consistency + ignore_permissions justification comments
+  - buyer.py: add ignore_permissions justification comments on save/insert/delete
+  - permissions.py: replace return None with return False in 6 has_permission functions (listing_review, review_helpful_vote, review_abuse_report, listing_question, order_dispute, trusted_reviewer_invitation) — prevents cross-tenant fall-through
+  - permissions.py: listing_question_has_permission now grants seller read access to questions on their own listings
+  - permissions.py: implement real AML/sanctions gate (_check_aml_sanctions) with KYB Verification aml_check_status/sanctions_status check + graceful fallback
+  - seller_capabilities.py: implement real _check_aml_clean with same pattern
+  - test_address_validators.py: 29 new E2E tests (purpose validation, phone prefix, company optional, alert→toast, field symmetry, DocType schema integrity)
+  - test_rebac_abac_e2e.py: 123 new standalone tests (ABAC evaluators, capability matrix, tier hierarchy, KYC/AML sets, source audit, cross-layer consistency, frontend-backend sync, subscription plan fixtures)
+- fix(stock): available_qty tercih edilerek stok hesaplaması düzeltildi (@ahmeetseker)
+  - cart.py: stok kontrolü ve sepet response'da available_qty (= stock_qty - reserved_qty)
+  - listing.py: get_listing_detail'de available_qty None kontrolü ile falsy 0 değeri sorunu giderildi
+  - listing_stats.py: aynı None-safe available_qty fallback mantığı uygulandı
+- fix(kyc-kyb): admin doctype görünürlük ve validation iyileştirmeleri (@aliiball)
+  - KYC submit_kyc_documents rate limit gevşetildi (1/60s -> 10/300s); kullanıcı validation hatası alıp düzeltirken 429'a takılmıyor
+  - KYC validation hataları (TCKN/VKN, dosya uzantısı, zorunlu alan eksik, rejection reason) Error Log'a defer_insert ile yazılır oldu; PII güvenliği için sadece metadata loglanıyor, hassas değerler loglanmıyor
+  - KYB company_title ve KYC account_type/company_name alanlarına permlevel 1 eklendi; admin paneldeki list view'da artık dolu görünüyor
+  - KYC tab_review yapısı KYB ile aynı hale getirildi: depends_on kaldırıldı, reviewed_by ve reviewed_at field'ları tab_account'tan tab_review'e taşındı, Doğrulama Bilgileri section break eklendi
+  - KYC submitted_at field'ı kaldırıldı; Frappe built-in creation aynı bilgiyi tutuyor, KYB ile tutarlılık sağlandı
+  - KYB rejection_reason ve notes alanları sadece Rejected/Suspended'da görünür hale getirildi; Pending'de boş textarea görünmüyor artık
+
+---
 ## [v1.0.9-beta.16] - 2026-06-02 BETA
 
 Bu surum betaistoc.cronbi.com'da test asamasindadir.
