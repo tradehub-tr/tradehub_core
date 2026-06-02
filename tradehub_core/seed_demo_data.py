@@ -2878,8 +2878,9 @@ def _set_demo_kyb_status(s, index):
 
 	kyb = frappe.get_doc("KYB Verification", kyb_name)
 	kyb.status = target_status
-	if target_status == "Rejected":
+	if target_status in ("Rejected", "Suspended"):
 		kyb.rejection_reason = DEMO_KYB_REJECTION_REASON
+		kyb.rejection_category = "Re-submit"
 	kyb.flags.ignore_permissions = True
 	kyb.flags.ignore_mandatory = True
 	kyb.save(ignore_permissions=True)
