@@ -491,9 +491,23 @@ HANDLERS = {
 
 @frappe.whitelist()
 def get_dashboard_layout(dashboard_key, period="30d", scope=None):
-	"""Return all widgets visible to the current user for a given dashboard."""
+	"""Return all widgets visible to the current user for a given dashboard.
+
+	Cache isolation: Response user'ın role_profile'ına göre cache'lenir.
+	Farklı roller (Owner vs Operations) farklı maskeleme sonucu aldığından
+	aynı cache key'ini PAYLAŞMAMALI.
+	"""
 	if not dashboard_key:
 		frappe.throw(_("dashboard_key gerekli."))
+
+	# Cache isolation: role_profile bazlı cache key
+	user = frappe.session.user or "Guest"
+	role_profile = frappe.db.get_value("User", user, "role_profile_name") or "none"
+	cache_key = f"tradehub:dashboard:{dashboard_key}:{scope or 'all'}:{period}:{role_profile}"
+
+	cached = frappe.cache().get_value(cache_key)
+	if cached:
+		return cached
 
 	user_roles = set(frappe.get_roles())
 	widget_names = frappe.get_all(
@@ -522,23 +536,109 @@ def get_dashboard_layout(dashboard_key, period="30d", scope=None):
 			error = str(e)
 			frappe.log_error(frappe.get_traceback(), f"Dashboard widget {name} failed")
 
-		layout.append(
-			{
-				"name": widget.name,
-				"widget_type": widget.widget_type,
-				"title": widget.title,
-				"subtitle": widget.subtitle,
-				"size": widget.size,
-				"position": widget.position,
-				"icon": widget.icon,
-				"icon_bg_class": widget.icon_bg_class,
-				"icon_color_class": widget.icon_color_class,
-				"is_currency": cint(widget.is_currency),
-				"data": data,
-				"error": error,
-			}
+		# Maskeleme katmanı — data_sensitivity + kullanıcı capability kontrolü
+		masked = False
+		sensitivity = (widget.get("data_sensitivity") or "").strip()
+		if sensitivity and data and not _is_super_admin():
+			masked = _should_mask(sensitivity)
+			if masked:
+				_log_masking_decision(widget.name, widget.title, sensitivity)
+
+		widget_entry = {
+			"name": widget.name,
+			"widget_type": widget.widget_type,
+			"title": widget.title,
+			"subtitle": widget.subtitle,
+			"size": widget.size,
+			"position": widget.position,
+			"icon": widget.icon,
+			"icon_bg_class": widget.icon_bg_class,
+			"icon_color_class": widget.icon_color_class,
+			"is_currency": cint(widget.is_currency),
+			"data": _mask_data(data, widget) if masked else data,
+			"error": error,
+			"masked": masked,
+		}
+		layout.append(widget_entry)
+
+	result = {"dashboard_key": dashboard_key, "period": period, "widgets": layout}
+	# Cache 60s — role_profile bazlı izole (farklı roller farklı maskeleme alır)
+	frappe.cache().set_value(cache_key, result, expires_in_sec=60)
+	return result
+
+
+# Sensitivity → seller_capability mapping
+# Key: Dashboard Widget.data_sensitivity field değeri
+# Value: seller_capabilities.py'deki capability adı
+_SENSITIVITY_CAPABILITY = {
+	"financial": "view.financial_summary",
+	"profit": "view.profit_detail",
+	"balance": "view.balance",
+	"pii": "view.customer_full",
+	"order_amount": "view.order_amounts",
+}
+
+
+def _should_mask(sensitivity: str) -> bool:
+	"""Mevcut kullanıcının bu sensitivity seviyesini görme yetkisi var mı?"""
+	cap = _SENSITIVITY_CAPABILITY.get(sensitivity)
+	if not cap:
+		return False
+	try:
+		from tradehub_core.utils.seller_capabilities import has_seller_capability
+
+		return not has_seller_capability(cap, frappe.session.user)
+	except Exception:
+		return False
+
+
+def invalidate_dashboard_cache(dashboard_key: str = "seller_overview") -> None:
+	"""Dashboard cache'ini temizle — widget veya rol değişikliğinde çağrılır."""
+	# Pattern-based delete: tüm role_profile varyasyonlarını temizle
+	for key in frappe.cache().get_keys(f"tradehub:dashboard:{dashboard_key}:*"):
+		frappe.cache().delete_value(key)
+
+
+def _log_masking_decision(widget_name: str, widget_title: str, sensitivity: str) -> None:
+	"""Maskeleme kararını audit log'a yaz (best-effort, sample-based)."""
+	try:
+		from tradehub_core.audit import DECISION_FIELD_MASKED, LAYER_L3, SEVERITY_LOW, log_decision
+
+		log_decision(
+			action=f"dashboard.widget.mask.{sensitivity}",
+			decision=DECISION_FIELD_MASKED,
+			rule_id=f"data_sensitivity.{sensitivity}",
+			layer=LAYER_L3,
+			object_doctype="Dashboard Widget",
+			object_name=widget_name,
+			severity=SEVERITY_LOW,
+			context={"widget_title": widget_title, "sensitivity": sensitivity},
 		)
-	return {"dashboard_key": dashboard_key, "period": period, "widgets": layout}
+	except Exception:
+		pass  # best-effort — audit failure ana akışı bozmasın
+
+
+def _mask_data(data, widget) -> dict | list | None:
+	"""Widget verisini maskele — değerleri gizle ama yapıyı koru."""
+	if data is None:
+		return None
+	if isinstance(data, dict):
+		masked_data = dict(data)
+		# KPI widget: value → None, masked_label oluştur
+		if "value" in masked_data:
+			if cint(widget.is_currency):
+				masked_data["masked_label"] = "₺•••••"
+			else:
+				masked_data["masked_label"] = "•••"
+			masked_data["value"] = None
+		# Chart widget: labels koru, values sıfırla
+		if "labels" in masked_data and "datasets" in masked_data:
+			masked_data["datasets"] = [
+				{**ds, "values": [None] * len(ds.get("values", []))}
+				for ds in masked_data.get("datasets", [])
+			]
+		return masked_data
+	return data
 
 
 @frappe.whitelist()
@@ -742,3 +842,15 @@ def toggle_widget(widget_id, enabled):
 	frappe.db.set_value("Dashboard Widget", widget_id, "is_enabled", enabled)
 	frappe.db.commit()
 	return {"name": widget_id, "is_enabled": enabled}
+
+
+@frappe.whitelist()
+def delete_widget(widget_id):
+	"""Remove a widget from the dashboard."""
+	if not _is_super_admin():
+		frappe.throw(_("Bu işlem için yetkiniz yok."), frappe.PermissionError)
+	if not frappe.db.exists("Dashboard Widget", widget_id):
+		frappe.throw(_("Widget bulunamadı: {0}").format(widget_id))
+	frappe.delete_doc("Dashboard Widget", widget_id, ignore_permissions=True)
+	frappe.db.commit()
+	return {"name": widget_id, "deleted": True}

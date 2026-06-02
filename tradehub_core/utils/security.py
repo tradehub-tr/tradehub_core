@@ -67,6 +67,15 @@ def reject_unsafe_files(doc, method=None):
 	# Folder kayıtlarını atla — sadece gerçek dosyalar kontrol edilir.
 	if getattr(doc, "is_folder", 0):
 		return
+	# Bulk import context'i: `tradehub_core.bulk_import.api.upload_bulk_file`
+	# kontrollü kanal (uzantı + boyut allowlist'i kendi içinde). XML/CSV gibi
+	# normalde yasaklı uzantıları bulk import için bypass eder.
+	# İki flag kanalı: doc.flags (eski) + frappe.flags.in_bulk_import_upload
+	# (save_file utility'sinde flag persistasyonu için).
+	if getattr(getattr(doc, "flags", None), "bulk_import_safe", False):
+		return
+	if getattr(frappe.flags, "in_bulk_import_upload", False):
+		return
 	ext = _extract_extension(getattr(doc, "file_name", None), getattr(doc, "file_url", None))
 	if ext and ext in _DENIED_EXTENSIONS:
 		frappe.throw(

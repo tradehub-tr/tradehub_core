@@ -1,0 +1,25 @@
+{
+    "name": "ROPA DocType Link",
+    "doctype": "DocType",
+    "module": "Tradehub Core",
+    "istable": 1,
+    "editable_grid": 1,
+    "engine": "InnoDB",
+    "track_changes": 0,
+    "fields": [
+        {
+            "fieldname": "ref_doctype",
+            "fieldtype": "Link",
+            "label": "DocType",
+            "options": "DocType",
+            "reqd": 1,
+            "in_list_view": 1
+        }
+    ],
+    "permissions": [
+        {
+            "role": "System Manager",
+            "read": 1, "write": 1, "create": 1, "delete": 1
+        }
+    ]
+}

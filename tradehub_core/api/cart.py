@@ -401,8 +401,9 @@ def _check_stock(listing_doc, listing_name, listing_variant, total_qty, variant_
 			available = float(variant_doc.stock_qty)
 
 	if available is None:
-		# 3) Listing seviyesi stok
-		available = float(listing_doc.stock_qty or 0)
+		# 3) Listing seviyesi stok — available_qty (= stock_qty - reserved_qty) tercih edilir
+		_aq = getattr(listing_doc, "available_qty", None)
+		available = float(_aq if _aq is not None else (listing_doc.stock_qty or 0))
 
 	if total_qty > available:
 		if available <= 0:
@@ -460,6 +461,7 @@ def _build_cart_response(cart_name):
 				"track_inventory",
 				"allow_backorders",
 				"stock_qty",
+				"available_qty",
 				"sample_price",
 			],
 			as_dict=True,
@@ -657,7 +659,8 @@ def _build_cart_response(cart_name):
 					if label_stock is not None:
 						max_qty = max(0, int(label_stock))
 					else:
-						max_qty = max(0, int(listing.stock_qty or 0))
+						_aq = getattr(listing, "available_qty", None)
+						max_qty = max(0, int(_aq if _aq is not None else (listing.stock_qty or 0)))
 			else:
 				max_qty = 999999
 
@@ -774,7 +777,7 @@ def check_stock(listing, quantity=1, listing_variant=None, variant_label=None, i
 	listing_doc = frappe.db.get_value(
 		"Listing",
 		listing,
-		["status", "stock_qty", "track_inventory", "allow_backorders", "sample_price"],
+		["status", "stock_qty", "available_qty", "track_inventory", "allow_backorders", "sample_price"],
 		as_dict=True,
 	)
 	if listing_doc.status != "Active":
@@ -843,6 +846,7 @@ def add_to_cart(
 			"min_order_qty",
 			"sell_in_moq_multiples",
 			"stock_qty",
+			"available_qty",
 			"track_inventory",
 			"allow_backorders",
 			"seller_profile",
@@ -1017,7 +1021,7 @@ def update_cart_item(cart_item, quantity):
 		listing_doc = frappe.db.get_value(
 			"Listing",
 			listing_name,
-			["stock_qty", "track_inventory", "allow_backorders"],
+			["stock_qty", "available_qty", "track_inventory", "allow_backorders"],
 			as_dict=True,
 		)
 		if listing_doc:

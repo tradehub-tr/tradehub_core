@@ -1,6 +1,45 @@
 [
   {
     "doctype": "Role Profile",
+    "name": "Buyer Approver L1",
+    "role_profile": "Buyer Approver L1",
+    "roles": [
+      { "doctype": "Has Role", "role": "Buyer Approver L1", "parentfield": "roles", "parenttype": "Role Profile" },
+      { "doctype": "Has Role", "role": "Buyer Viewer", "parentfield": "roles", "parenttype": "Role Profile" }
+    ]
+  },
+  {
+    "doctype": "Role Profile",
+    "name": "Buyer Approver L2",
+    "role_profile": "Buyer Approver L2",
+    "roles": [
+      { "doctype": "Has Role", "role": "Buyer Approver L1", "parentfield": "roles", "parenttype": "Role Profile" },
+      { "doctype": "Has Role", "role": "Buyer Approver L2", "parentfield": "roles", "parenttype": "Role Profile" },
+      { "doctype": "Has Role", "role": "Buyer Finance", "parentfield": "roles", "parenttype": "Role Profile" },
+      { "doctype": "Has Role", "role": "Buyer Viewer", "parentfield": "roles", "parenttype": "Role Profile" }
+    ]
+  },
+  {
+    "doctype": "Role Profile",
+    "name": "Buyer Viewer Only",
+    "role_profile": "Buyer Viewer Only",
+    "roles": [
+      { "doctype": "Has Role", "role": "Buyer Viewer", "parentfield": "roles", "parenttype": "Role Profile" }
+    ]
+  },
+  {
+    "doctype": "Role Profile",
+    "name": "Seller Co-Owner",
+    "role_profile": "Seller Co-Owner",
+    "roles": [
+      { "doctype": "Has Role", "role": "Seller Admin", "parentfield": "roles", "parenttype": "Role Profile" },
+      { "doctype": "Has Role", "role": "Seller Finance", "parentfield": "roles", "parenttype": "Role Profile" },
+      { "doctype": "Has Role", "role": "Seller Staff", "parentfield": "roles", "parenttype": "Role Profile" },
+      { "doctype": "Has Role", "role": "Seller Viewer", "parentfield": "roles", "parenttype": "Role Profile" }
+    ]
+  },
+  {
+    "doctype": "Role Profile",
     "name": "Platform Super Admin",
     "role_profile": "Platform Super Admin",
     "roles": [

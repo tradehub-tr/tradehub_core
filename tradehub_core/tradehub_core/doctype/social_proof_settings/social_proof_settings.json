@@ -1,0 +1,51 @@
+{
+	"actions": [],
+	"creation": "2026-05-20 00:00:00.000000",
+	"doctype": "DocType",
+	"engine": "InnoDB",
+	"issingle": 1,
+	"track_changes": 1,
+	"field_order": [
+		"enabled",
+		"sb_thresholds",
+		"sales_threshold",
+		"favorites_threshold",
+		"cart_now_threshold",
+		"cb_thresholds",
+		"views_24h_threshold",
+		"distinct_buyers_threshold",
+		"seller_orders_threshold",
+		"sb_cache",
+		"cache_ttl_seconds",
+		"cb_cache",
+		"view_dedup_seconds"
+	],
+	"fields": [
+		{"fieldname": "enabled", "fieldtype": "Check", "label": "Etkin", "default": "1"},
+		{"fieldname": "sb_thresholds", "fieldtype": "Section Break", "label": "Eşikler"},
+		{"fieldname": "sales_threshold", "fieldtype": "Int", "label": "Satış Eşiği", "default": "100"},
+		{"fieldname": "favorites_threshold", "fieldtype": "Int", "label": "Favori Eşiği", "default": "10"},
+		{"fieldname": "cart_now_threshold", "fieldtype": "Int", "label": "Şu An Sepette Eşiği", "default": "3"},
+		{"fieldname": "cb_thresholds", "fieldtype": "Column Break"},
+		{"fieldname": "views_24h_threshold", "fieldtype": "Int", "label": "24s Görüntülenme Eşiği", "default": "30"},
+		{"fieldname": "distinct_buyers_threshold", "fieldtype": "Int", "label": "Farklı Alıcı Eşiği", "default": "5"},
+		{"fieldname": "seller_orders_threshold", "fieldtype": "Int", "label": "Satıcı Sipariş Eşiği", "default": "50"},
+		{"fieldname": "sb_cache", "fieldtype": "Section Break", "label": "Önbellek"},
+		{"fieldname": "cache_ttl_seconds", "fieldtype": "Int", "label": "Önbellek TTL (sn)", "default": "600"},
+		{"fieldname": "cb_cache", "fieldtype": "Column Break"},
+		{"fieldname": "view_dedup_seconds", "fieldtype": "Int", "label": "Görüntülenme Dedup (sn)", "default": "1800"}
+	],
+	"links": [],
+	"modified": "2026-05-20 00:00:00.000000",
+	"modified_by": "Administrator",
+	"module": "Tradehub Core",
+	"name": "Social Proof Settings",
+	"owner": "Administrator",
+	"permissions": [
+		{"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1},
+		{"role": "Marketplace Admin", "read": 1, "write": 1}
+	],
+	"sort_field": "modified",
+	"sort_order": "DESC",
+	"states": []
+}

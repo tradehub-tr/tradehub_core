@@ -1,0 +1,145 @@
+{
+	"name": "Authorization Anomaly Rule",
+	"doctype": "DocType",
+	"module": "Tradehub Core",
+	"naming_rule": "By fieldname",
+	"autoname": "field:rule_code",
+	"engine": "InnoDB",
+	"track_changes": 1,
+	"sort_field": "modified",
+	"sort_order": "DESC",
+	"fields": [
+		{
+			"fieldname": "rule_code",
+			"fieldtype": "Data",
+			"label": "Rule Code",
+			"reqd": 1,
+			"unique": 1,
+			"in_list_view": 1,
+			"in_standard_filter": 1,
+			"description": "Unique kod, örn. HIGH_SEVERITY_SPIKE"
+		},
+		{
+			"fieldname": "rule_name",
+			"fieldtype": "Data",
+			"label": "Rule Name",
+			"reqd": 1,
+			"in_list_view": 1
+		},
+		{
+			"fieldname": "cb_meta",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "detection_type",
+			"fieldtype": "Select",
+			"label": "Detection Type",
+			"options": "high_severity_spike\nrapid_deny_per_actor\ncross_tenant_attempt\nunusual_hour_burst\npii_bulk_export\nrebac_frappe_drift",
+			"reqd": 1,
+			"in_list_view": 1,
+			"in_standard_filter": 1
+		},
+		{
+			"fieldname": "is_active",
+			"fieldtype": "Check",
+			"label": "Active",
+			"default": 1,
+			"in_list_view": 1
+		},
+		{
+			"fieldname": "sb_thresholds",
+			"fieldtype": "Section Break",
+			"label": "Thresholds"
+		},
+		{
+			"fieldname": "threshold_count",
+			"fieldtype": "Int",
+			"label": "Threshold Count",
+			"default": 10,
+			"reqd": 1,
+			"description": "Bu sayıdaki olay tetikler"
+		},
+		{
+			"fieldname": "window_minutes",
+			"fieldtype": "Int",
+			"label": "Window (minutes)",
+			"default": 5,
+			"reqd": 1
+		},
+		{
+			"fieldname": "cb_threshold2",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "severity_filter",
+			"fieldtype": "Select",
+			"label": "Severity Filter",
+			"options": "any\nLOW\nMEDIUM\nHIGH",
+			"default": "any",
+			"description": "Sadece bu severity'deki audit log'lara bakar"
+		},
+		{
+			"fieldname": "cooldown_minutes",
+			"fieldtype": "Int",
+			"label": "Cooldown (minutes)",
+			"default": 30,
+			"description": "Aynı kural için minimum tetik aralığı"
+		},
+		{
+			"fieldname": "sb_scope",
+			"fieldtype": "Section Break",
+			"label": "Scope"
+		},
+		{
+			"fieldname": "tenant_scope",
+			"fieldtype": "Link",
+			"label": "Tenant Scope",
+			"options": "Admin Seller Profile",
+			"description": "Boş = tüm tenant'lar"
+		},
+		{
+			"fieldname": "sb_actions",
+			"fieldtype": "Section Break",
+			"label": "Actions on Trigger"
+		},
+		{
+			"fieldname": "action_notify",
+			"fieldtype": "Check",
+			"label": "Notify Super Admins",
+			"default": 1
+		},
+		{
+			"fieldname": "action_suspend_actor",
+			"fieldtype": "Check",
+			"label": "Suspend Offending Actor",
+			"default": 0,
+			"description": "DİKKAT: Kullanıcı pasifleştirilir; yanlış pozitif riski"
+		},
+		{
+			"fieldname": "action_disable_tenant",
+			"fieldtype": "Check",
+			"label": "Disable Tenant (CRITICAL ONLY)",
+			"default": 0
+		},
+		{
+			"fieldname": "sb_doc",
+			"fieldtype": "Section Break",
+			"label": "Documentation"
+		},
+		{
+			"fieldname": "description",
+			"fieldtype": "Small Text",
+			"label": "Description"
+		}
+	],
+	"permissions": [
+		{
+			"role": "System Manager",
+			"read": 1, "write": 1, "create": 1, "delete": 1, "export": 1, "report": 1, "share": 1
+		},
+		{
+			"role": "Compliance Officer",
+			"read": 1, "write": 1, "report": 1
+		}
+	]
+}

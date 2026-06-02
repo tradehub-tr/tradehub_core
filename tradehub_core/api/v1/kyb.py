@@ -247,6 +247,10 @@ def submit_kyb_documents(
 	- Sadece belge field'larından en az biri değişmişse tetiklenir.
 	- Throttle: dakikada 1 kez (decorator).
 	"""
+	from tradehub_core.utils.seller_capabilities import require_seller_capability
+
+	require_seller_capability("kyb.submit")
+
 	user = frappe.session.user
 	if user == "Guest":
 		frappe.throw(_("Not logged in."), frappe.AuthenticationError)
@@ -415,6 +419,10 @@ def upload_kyb_document(filename: str = "", filedata: str = ""):
 
 	Returns: ``{"success": True, "file_url": "/private/files/..."}``.
 	"""
+	from tradehub_core.utils.seller_capabilities import require_seller_capability
+
+	require_seller_capability("kyb.submit")
+
 	user = frappe.session.user
 	if user == "Guest":
 		frappe.throw(_("Oturum açılmamış."), frappe.AuthenticationError)

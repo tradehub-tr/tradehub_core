@@ -638,7 +638,7 @@ def register_supplier(
 	buyer.email_verified = 1
 	buyer.email_verified_at = now_datetime()
 	buyer.email_verified_method = "otp"
-	buyer.created_via = "supplier_signup"
+	buyer.created_via = "seller_application"
 	buyer.owner = email
 	buyer.flags.ignore_permissions = True
 	buyer.flags.ignore_validate = True

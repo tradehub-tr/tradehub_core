@@ -1,0 +1,134 @@
+{
+	"actions": [],
+	"autoname": "hash",
+	"creation": "2026-05-21 00:00:00.000000",
+	"doctype": "DocType",
+	"engine": "InnoDB",
+	"field_order": [
+		"source_path",
+		"target_path",
+		"column_break_match",
+		"match_type",
+		"status_code",
+		"enabled",
+		"section_break_stats",
+		"hit_count",
+		"last_hit_at",
+		"column_break_notes",
+		"notes"
+	],
+	"fields": [
+		{
+			"fieldname": "source_path",
+			"fieldtype": "Data",
+			"label": "Source Path",
+			"reqd": 1,
+			"unique": 1,
+			"in_list_view": 1,
+			"in_standard_filter": 1,
+			"description": "Kaynak URL path. Örn: /eski-urun, /eski/*, ^/u/(\\d+)$"
+		},
+		{
+			"fieldname": "target_path",
+			"fieldtype": "Data",
+			"label": "Target Path",
+			"reqd": 1,
+			"in_list_view": 1,
+			"description": "Hedef URL. / ile başlamalı veya tam URL (http(s)://)"
+		},
+		{
+			"fieldname": "column_break_match",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "match_type",
+			"fieldtype": "Select",
+			"label": "Match Type",
+			"options": "exact\nprefix\nregex",
+			"default": "exact",
+			"in_list_view": 1,
+			"in_standard_filter": 1
+		},
+		{
+			"fieldname": "status_code",
+			"fieldtype": "Select",
+			"label": "Status Code",
+			"options": "301\n302",
+			"default": "301",
+			"in_list_view": 1
+		},
+		{
+			"fieldname": "enabled",
+			"fieldtype": "Check",
+			"label": "Enabled",
+			"default": "1",
+			"in_list_view": 1,
+			"in_standard_filter": 1
+		},
+		{
+			"fieldname": "section_break_stats",
+			"fieldtype": "Section Break",
+			"label": "İstatistikler"
+		},
+		{
+			"fieldname": "hit_count",
+			"fieldtype": "Int",
+			"label": "Hit Count",
+			"read_only": 1,
+			"default": "0",
+			"in_list_view": 1
+		},
+		{
+			"fieldname": "last_hit_at",
+			"fieldtype": "Datetime",
+			"label": "Son Hit Zamanı",
+			"read_only": 1
+		},
+		{
+			"fieldname": "column_break_notes",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "notes",
+			"fieldtype": "Small Text",
+			"label": "Notlar",
+			"description": "Admin yorumu (zincir nedeni vb.)"
+		}
+	],
+	"links": [],
+	"modified": "2026-05-21 00:00:00.000000",
+	"modified_by": "Administrator",
+	"module": "Tradehub Core",
+	"name": "SEO Redirect",
+	"owner": "Administrator",
+	"permissions": [
+		{
+			"create": 1,
+			"delete": 1,
+			"email": 1,
+			"export": 1,
+			"print": 1,
+			"read": 1,
+			"report": 1,
+			"role": "System Manager",
+			"share": 1,
+			"write": 1
+		},
+		{
+			"create": 1,
+			"delete": 1,
+			"email": 1,
+			"export": 1,
+			"print": 1,
+			"read": 1,
+			"report": 1,
+			"role": "Marketplace Admin",
+			"share": 1,
+			"write": 1
+		}
+	],
+	"sort_field": "modified",
+	"sort_order": "DESC",
+	"states": [],
+	"track_changes": 1
+}

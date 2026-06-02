@@ -1,0 +1,120 @@
+{
+	"name": "Cost Center",
+	"doctype": "DocType",
+	"module": "Tradehub Core",
+	"naming_rule": "Expression",
+	"autoname": "format:CC-{tenant}-{cost_center_code}",
+	"is_tree": 1,
+	"engine": "InnoDB",
+	"track_changes": 1,
+	"sort_field": "cost_center_code",
+	"sort_order": "ASC",
+	"nsm_parent_field": "parent_cost_center",
+	"fields": [
+		{
+			"fieldname": "tenant",
+			"fieldtype": "Link",
+			"label": "Tenant (Admin Seller Profile)",
+			"options": "Admin Seller Profile",
+			"reqd": 1,
+			"in_list_view": 1,
+			"in_standard_filter": 1
+		},
+		{
+			"fieldname": "cost_center_code",
+			"fieldtype": "Data",
+			"label": "Cost Center Code",
+			"reqd": 1,
+			"in_list_view": 1,
+			"description": "Tenant scope'unda unique, örn. BT-001"
+		},
+		{
+			"fieldname": "cost_center_name",
+			"fieldtype": "Data",
+			"label": "Cost Center Name",
+			"reqd": 1,
+			"in_list_view": 1
+		},
+		{
+			"fieldname": "cb_tree",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "parent_cost_center",
+			"fieldtype": "Link",
+			"label": "Parent Cost Center",
+			"options": "Cost Center"
+		},
+		{
+			"fieldname": "linked_organization",
+			"fieldtype": "Link",
+			"label": "Linked Organization",
+			"options": "CRM Organization"
+		},
+		{
+			"fieldname": "is_group",
+			"fieldtype": "Check",
+			"label": "Is Group (Tree Node)",
+			"default": 0
+		},
+		{
+			"fieldname": "sb_budget",
+			"fieldtype": "Section Break",
+			"label": "Budget"
+		},
+		{
+			"fieldname": "monthly_budget",
+			"fieldtype": "Currency",
+			"label": "Monthly Budget"
+		},
+		{
+			"fieldname": "currency",
+			"fieldtype": "Link",
+			"label": "Currency",
+			"options": "Currency",
+			"default": "EUR"
+		},
+		{
+			"fieldname": "budget_period",
+			"fieldtype": "Select",
+			"label": "Budget Period",
+			"options": "monthly\nquarterly\nannual",
+			"default": "monthly"
+		},
+		{
+			"fieldname": "cb_budget",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "is_active",
+			"fieldtype": "Check",
+			"label": "Active",
+			"default": 1,
+			"in_list_view": 1
+		},
+		{
+			"fieldname": "sb_meta",
+			"fieldtype": "Section Break",
+			"label": "Description"
+		},
+		{
+			"fieldname": "description",
+			"fieldtype": "Small Text",
+			"label": "Description"
+		}
+	],
+	"permissions": [
+		{
+			"role": "System Manager",
+			"read": 1, "write": 1, "create": 1, "delete": 1, "export": 1, "report": 1, "share": 1
+		},
+		{
+			"role": "Buyer",
+			"read": 1, "write": 1, "create": 1
+		},
+		{
+			"role": "Buyer Approver L2",
+			"read": 1
+		}
+	]
+}

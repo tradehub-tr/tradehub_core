@@ -117,6 +117,7 @@ def get_sellers(search=None, keyword=None, category=None, page=1, page_size=20):
 				filters={"seller_profile": seller_code, "status": "Active"},
 				fields=[
 					"name",
+					"slug",
 					"title",
 					"primary_image",
 					"selling_price",
@@ -144,6 +145,7 @@ def get_sellers(search=None, keyword=None, category=None, page=1, page_size=20):
 				products.append(
 					{
 						"name": l.name,
+						"slug": l.get("slug") or "",
 						"product_name": l.title,
 						"image": l.primary_image,
 						"price_min": price_min,
@@ -202,7 +204,6 @@ def get_seller(slug):
 			"factory_size",
 			"business_type",
 			"main_markets",
-			"certifications",
 			"review_count",
 			"response_time",
 			"response_rate",
@@ -213,6 +214,13 @@ def get_seller(slug):
 	)
 	if not seller:
 		frappe.throw(_("Satici bulunamadi"), frappe.DoesNotExistError)
+	# Sertifikalar child table — `frappe.db.get_value` skaler kolonlar dışına çıkamaz,
+	# bu yüzden ayrı sorgu. Yalnız doğrulanmış sertifikalar storefront'a sızar.
+	seller["certifications"] = frappe.get_all(
+		"Seller Certification",
+		filters={"parent": seller["name"], "verification_status": "Verified"},
+		fields=["certification_type", "verification_status"],
+	)
 	seller["slug"] = seller.get("seller_code", "")
 	seller["rating"] = float(seller.get("rating") or 0)
 	seller["review_count"] = int(seller.get("review_count") or seller.get("total_orders") or 0)
@@ -408,11 +416,26 @@ def get_my_supplier_profile():
 
 @frappe.whitelist()
 def get_my_admin_seller_profile():
-	"""Returns the Admin Seller Profile for the logged-in seller."""
+	"""Returns the Admin Seller Profile for the logged-in user.
+
+	Sub-user desteği: Eğer kullanıcı ASP'nin doğrudan `user`'ı değilse
+	(owner) ama `User.tradehub_tenant` ile bağlıysa (Co-Owner, Staff, vb.),
+	o tenant'ın ASP'sini döndür. Yazma yetkisi ayrı capability kontrolünden
+	geçer (`update_my_admin_seller_profile` → `seller_profile.write`).
+	"""
 	user = frappe.session.user
 	if not user or user == "Guest":
 		return None
+
+	# 1) Owner: doğrudan ASP.user
 	name = frappe.db.get_value("Admin Seller Profile", {"user": user}, "name")
+
+	# 2) Sub-user: User.tradehub_tenant → ASP.name
+	if not name:
+		from tradehub_core.utils.tenant import _get_seller_profile_for_user
+
+		name = _get_seller_profile_for_user(user)
+
 	if not name:
 		return None
 	return frappe.db.get_value(
@@ -427,6 +450,10 @@ def get_my_admin_seller_profile():
 def update_my_admin_seller_profile(logo=None, banner_image=None, slogan=None):
 	"""Mağaza başlığı (header) alanlarını günceller — sadece kendi profili.
 	Şu anlık logo, banner_image (header arka planı) ve slogan destekleniyor."""
+	from tradehub_core.utils.seller_capabilities import require_seller_capability
+
+	require_seller_capability("seller_profile.write")
+
 	user = frappe.session.user
 	if not user or user == "Guest":
 		frappe.throw(_("Yetkisiz"), frappe.PermissionError)
@@ -518,6 +545,10 @@ def get_seller_categories(seller_code):
 @frappe.whitelist()
 def add_seller_category(category_name, description="", image="", sort_order=0):
 	"""Satıcı: yeni kategori ekle (Pending olarak)."""
+	from tradehub_core.utils.seller_capabilities import require_seller_capability
+
+	require_seller_capability("category.write")
+
 	category_name = (category_name or "").strip()
 	if not category_name:
 		frappe.throw(_("Kategori adı boş olamaz."))
@@ -568,6 +599,10 @@ def get_my_seller_categories():
 @frappe.whitelist()
 def update_seller_category(category_name, new_name=None, description=None, sort_order=None, image=None):
 	"""Satıcı: kendi kategorisini düzenle — admin onayına düşer (Pending)."""
+	from tradehub_core.utils.seller_capabilities import require_seller_capability
+
+	require_seller_capability("category.write")
+
 	seller_profile = _get_seller_profile_for_session()
 	if not seller_profile:
 		frappe.throw(_("Satıcı profili bulunamadı."))
@@ -601,6 +636,10 @@ def update_seller_category(category_name, new_name=None, description=None, sort_
 @frappe.whitelist()
 def toggle_seller_category(category_name, is_enabled):
 	"""Satıcı: kendi kategorisini aktif/pasif yap."""
+	from tradehub_core.utils.seller_capabilities import require_seller_capability
+
+	require_seller_capability("category.write")
+
 	seller_profile = _get_seller_profile_for_session()
 	if not seller_profile:
 		frappe.throw(_("Satıcı profili bulunamadı."))
@@ -615,6 +654,10 @@ def toggle_seller_category(category_name, is_enabled):
 @frappe.whitelist()
 def delete_seller_category(category_name):
 	"""Satıcı: kendi kategorisini kalıcı olarak sil."""
+	from tradehub_core.utils.seller_capabilities import require_seller_capability
+
+	require_seller_capability("category.write")
+
 	seller_profile = _get_seller_profile_for_session()
 	if not seller_profile:
 		frappe.throw(_("Satıcı profili bulunamadı."))
@@ -676,11 +719,10 @@ def approve_seller_category(category_name, action="approve", reject_reason=""):
 
 
 def _get_seller_profile_for_session():
-	user = frappe.session.user
-	profile = frappe.db.get_value("Admin Seller Profile", {"owner": user}, "name")
-	if not profile:
-		profile = frappe.db.get_value("Admin Seller Profile", {"email": user}, "name")
-	return profile
+	"""FAZ 1.5 — Merkezi tenant resolver'ı kullan (sub-user için tradehub_tenant fallback)."""
+	from tradehub_core.utils.tenant import _get_seller_profile_for_user
+
+	return _get_seller_profile_for_user(frappe.session.user)
 
 
 @frappe.whitelist(allow_guest=True)
@@ -696,6 +738,7 @@ def get_seller_products(seller_code, category=None, page=1, page_size=40):
 		filters=filters,
 		fields=[
 			"name",
+			"slug",
 			"title",
 			"primary_image",
 			"selling_price",
@@ -817,6 +860,10 @@ def get_gallery():
 @frappe.whitelist()
 def add_gallery_image(image_url, caption=""):
 	"""Galerik listesine yeni fotoğraf ekler (max 20)."""
+	from tradehub_core.utils.seller_capabilities import require_seller_capability
+
+	require_seller_capability("gallery.write")
+
 	user = frappe.session.user
 	profile_name = frappe.db.get_value("Admin Seller Profile", {"user": user}, "name")
 	if not profile_name:
@@ -833,6 +880,10 @@ def add_gallery_image(image_url, caption=""):
 @frappe.whitelist()
 def remove_gallery_image(row_name):
 	"""Galeriden bir fotoğrafı kaldırır."""
+	from tradehub_core.utils.seller_capabilities import require_seller_capability
+
+	require_seller_capability("gallery.write")
+
 	user = frappe.session.user
 	profile_name = frappe.db.get_value("Admin Seller Profile", {"user": user}, "name")
 	if not profile_name:
@@ -848,6 +899,10 @@ def remove_gallery_image(row_name):
 def save_storefront_layout(seller_code, sections, theme_config):
 	"""Satıcı: mağaza layout ve tema ayarlarını kaydet."""
 	import json as _json
+
+	from tradehub_core.utils.seller_capabilities import require_seller_capability
+
+	require_seller_capability("storefront.write")
 
 	# Yetki: admin veya ilgili satıcı
 	is_admin = frappe.session.user == "Administrator" or "System Manager" in frappe.get_roles()
@@ -1086,6 +1141,10 @@ def get_inquiry(name: str):
 @frappe.whitelist()
 def reply_inquiry(name: str, message: str):
 	"""Satıcı inquiry'ye cevap verir — alıcıya e-posta gider, status=Yanıtlandı."""
+	from tradehub_core.utils.seller_capabilities import require_seller_capability
+
+	require_seller_capability("inquiry.reply")
+
 	if not name or not (message or "").strip():
 		frappe.throw(_("Inquiry ve mesaj zorunlu."), frappe.ValidationError)
 	if not frappe.has_permission("Seller Inquiry", doc=name, ptype="write"):
@@ -1149,6 +1208,10 @@ def _notify_inquiry_reply(doc, message: str):
 @frappe.whitelist()
 def trash_inquiry(name: str):
 	"""Inquiry'yi çöpe taşı (soft delete)."""
+	from tradehub_core.utils.seller_capabilities import require_seller_capability
+
+	require_seller_capability("inquiry.reply")
+
 	if not frappe.has_permission("Seller Inquiry", doc=name, ptype="write"):
 		frappe.throw(_("Yetkiniz yok."), frappe.PermissionError)
 	frappe.db.set_value("Seller Inquiry", name, "is_trashed", 1)

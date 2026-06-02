@@ -75,6 +75,14 @@ def _get_category_descendants(parent_name):
 	return result
 
 
+# Statuses that are NOT visible on the storefront. Cache invalidation for
+# these is a no-op because the cached lists never include them. Skipping
+# the Redis delete_keys storm matters during bulk import (1000 ürün ×
+# 8 pattern × Redis KEYS+DEL = significant load); single-edit flow gains
+# a small win too.
+_INVISIBLE_STATUSES = ("Pending", "Draft", "Rejected", "Archived")
+
+
 def invalidate_listing_cache(doc=None, method=None):
 	"""Drop every cached listing query so storefront reflects writes within
 	a request, not after the 30s TTL expires.
@@ -82,7 +90,16 @@ def invalidate_listing_cache(doc=None, method=None):
 	Wired from hooks.py for Listing on_update / after_insert / on_trash. Safe
 	to call with no args (e.g. from a console). The deletion patterns cover
 	every cache_key prefix used by this module.
+
+	Storefront-invisible statuses (Pending/Draft/Rejected/Archived) skip
+	invalidation entirely — their writes don't affect any cached query.
 	"""
+	# Skip storefront-invisible statuses: they're never in the cached lists,
+	# so dropping the cache yields no observable change but burns Redis CPU.
+	# Critical for bulk import (1000 Pending insert = 8000 wasted KEYS+DEL).
+	if doc is not None and getattr(doc, "status", None) in _INVISIBLE_STATUSES:
+		return
+
 	try:
 		# Patterns must match the prefixes passed to _cache_key in this file.
 		for pattern in (
@@ -625,6 +642,7 @@ def get_listings(
 
 	fields = [
 		"name",
+		"slug",
 		"listing_code",
 		"title",
 		"primary_image",
@@ -818,7 +836,12 @@ def get_listing_detail(listing_id):
 		if listings:
 			listing_name = listings[0].name
 		else:
-			frappe.throw(_("Listing not found"), frappe.DoesNotExistError)
+			# Faz 4d: pretty URL slug ile dene
+			listings = frappe.get_all("Listing", filters={"slug": listing_id}, limit=1)
+			if listings:
+				listing_name = listings[0].name
+			else:
+				frappe.throw(_("Listing not found"), frappe.DoesNotExistError)
 
 	listing = frappe.get_doc("Listing", listing_name)
 
@@ -1123,9 +1146,22 @@ def get_listing_detail(listing_id):
 	else:
 		price_range = _get_price_range(listing)
 
+	# Faz 4d: Client-side <head> override için SEO payload
+	# (admin'in girdiği meta_title, og_image, canonical, vb.)
+	# Dev'de Vite client rendering backend inject'i ezdiği için frontend
+	# bu payload'ı document.title + meta tag'leri güncelleyerek uygular.
+	try:
+		from tradehub_core.seo import meta_builder
+
+		seo_payload = meta_builder.build_for_listing(listing.as_dict(), lang="tr")
+	except Exception:
+		seo_payload = {}
+
 	result = {
 		"id": listing.name,
 		"listingCode": listing.listing_code,
+		"slug": listing.slug or "",
+		"seo": seo_payload,
 		"title": listing.title,
 		"category": category_breadcrumb,
 		"productCategoryId": listing.product_category or "",
@@ -1189,8 +1225,8 @@ def get_listing_detail(listing_id):
 		"isNewArrival": bool(listing.is_new_arrival),
 		"sellingPoint": listing.selling_point,
 		"hasVariants": bool(listing.has_variants),
-		"stockQty": 0 if is_out_of_stock else (listing.available_qty or listing.stock_qty),
-		"inStock": False if is_out_of_stock else ((listing.available_qty or listing.stock_qty or 0) > 0),
+		"stockQty": 0 if is_out_of_stock else (listing.available_qty if listing.available_qty is not None else (listing.stock_qty or 0)),
+		"inStock": False if is_out_of_stock else ((listing.available_qty if listing.available_qty is not None else (listing.stock_qty or 0)) > 0),
 		"videoUrl": listing.video_url,
 		"status": listing.status or "",
 		"outOfStock": is_out_of_stock,
@@ -1263,16 +1299,64 @@ def get_categories(parent=None, include_children=True):
 	return {"data": results}
 
 
+def _empty_facets() -> dict:
+	"""Aktif filtreler kombinasyonu hiç sonuç vermediğinde sidebar'a dönen boş sayım payload'u.
+	Frontend bu durumda sidebar count'larını sıfırlar; kullanıcı yine seçimini kaldırabilir."""
+	return {
+		"data": {
+			"countries": [],
+			"categories": [],
+			"managementCertifications": [],
+			"productCertifications": [],
+			"brands": [],
+			"attributes": [],
+			"verifiedSupplierCount": 0,
+		}
+	}
+
+
 @frappe.whitelist(allow_guest=True)
-def get_filter_facets(query=None, category=None):
+def get_filter_facets(
+	query=None,
+	category=None,
+	min_price=None,
+	max_price=None,
+	min_order=None,
+	verified_supplier=None,
+	country=None,
+	mgmt_certifications=None,
+	product_certifications=None,
+	brands=None,
+	attrs=None,
+):
 	"""Return faceted counts for sidebar filters.
 
-	Given optional query/category context, returns:
-	- countries: unique ships_from_country values with listing counts
+	Aktif filtreleri uygulayarak monotonic narrow sayım döndürür (Trendyol pattern):
+	kullanıcı bir filtre seçince geriye kalan seçeneklerin (xx) sayıları azalır.
+	Frontend filter değişimi sonrasında bu endpoint'i aktif filtrelerle tekrar çağırır.
+
+	Returns:
+	- countries: unique seller country values with listing counts
 	- categories: product categories with listing counts
+	- managementCertifications / productCertifications
+	- brands
+	- attributes (dinamik özellikler)
 	"""
-	# ── Cache check ──
-	fck = _cache_key("facets", q=query, cat=category)
+	# ── Cache check (tüm aktif filtreleri key'e dahil et — yoksa stale data) ──
+	fck = _cache_key(
+		"facets",
+		q=query,
+		cat=category,
+		minp=min_price,
+		maxp=max_price,
+		mo=min_order,
+		vs=verified_supplier,
+		co=country,
+		mc=mgmt_certifications,
+		pc=product_certifications,
+		br=brands,
+		at=attrs,
+	)
 	cached = frappe.cache.get_value(fck)
 	if cached:
 		return cached
@@ -1286,6 +1370,131 @@ def get_filter_facets(query=None, category=None):
 				descendants[0] if len(descendants) == 1 else ["in", descendants]
 			)
 
+	# ── Supplier-level filters → matching Admin Seller Profile names ──
+	# get_listings'deki aynı mantık; burada da uygulayarak count'ları aktif filtreye göre daralt.
+	seller_profile_filters: dict = {}
+	if verified_supplier:
+		verified_user_emails = frappe.db.sql_list(
+			"""SELECT parent FROM `tabHas Role`
+			   WHERE role = 'Verified Seller' AND parenttype = 'User'"""
+		)
+		if not verified_user_emails:
+			return _empty_facets()
+		seller_profile_filters["user"] = ["in", verified_user_emails]
+	if country:
+		country_list = [c.strip() for c in str(country).split(",") if c.strip()]
+		if len(country_list) == 1:
+			seller_profile_filters["country"] = country_list[0]
+		elif len(country_list) > 1:
+			seller_profile_filters["country"] = ["in", country_list]
+
+	if mgmt_certifications:
+		cert_list = [c.strip() for c in mgmt_certifications.split(",") if c.strip()]
+		if cert_list:
+			sellers_with_certs = frappe.get_all(
+				"Seller Certification",
+				filters=[
+					["certification_type", "in", cert_list],
+					["verification_status", "=", "Verified"],
+				],
+				fields=["parent"],
+				pluck="parent",
+			)
+			if sellers_with_certs:
+				seller_profile_filters["name"] = ["in", list(set(sellers_with_certs))]
+			else:
+				return _empty_facets()
+
+	if seller_profile_filters:
+		matching_sellers = frappe.get_all(
+			"Admin Seller Profile",
+			filters=seller_profile_filters,
+			fields=["name"],
+			pluck="name",
+		)
+		if matching_sellers:
+			base_filters["seller_profile"] = ["in", matching_sellers]
+		else:
+			return _empty_facets()
+
+	# ── Product certifications → matching Listing names ──
+	if product_certifications:
+		pcert_list = [c.strip() for c in product_certifications.split(",") if c.strip()]
+		if pcert_list:
+			listings_with_pcerts = frappe.get_all(
+				"Listing Certification",
+				filters=[["certification_type", "in", pcert_list]],
+				fields=["parent"],
+				pluck="parent",
+			)
+			if listings_with_pcerts:
+				base_filters["name"] = ["in", list(set(listings_with_pcerts))]
+			else:
+				return _empty_facets()
+
+	# ── Brand multi-select ──
+	if brands:
+		brand_list = [b.strip() for b in brands.split(",") if b.strip()]
+		if brand_list:
+			base_filters["brand"] = ["in", brand_list]
+
+	# ── Attribute filters (AND across attributes, OR within values) ──
+	if attrs:
+		attr_groups: list[tuple[str, list[str]]] = []
+		for chunk in attrs.split("|"):
+			if ":" not in chunk:
+				continue
+			code, vals_str = chunk.split(":", 1)
+			code = code.strip()
+			vals = [v.strip() for v in vals_str.split(",") if v.strip()]
+			if code and vals:
+				attr_groups.append((code, vals))
+
+		if attr_groups:
+			matching_listings: set | None = None
+			for code, vals in attr_groups:
+				rows = frappe.get_all(
+					"Listing Attribute Value",
+					filters=[
+						["attribute", "=", code],
+						["attribute_value", "in", vals],
+						["parenttype", "=", "Listing"],
+					],
+					fields=["parent"],
+					pluck="parent",
+				)
+				names = set(rows)
+				matching_listings = names if matching_listings is None else (matching_listings & names)
+
+			if not matching_listings:
+				return _empty_facets()
+			existing = base_filters.get("name")
+			if isinstance(existing, list) and existing[0] == "in":
+				narrowed = list(matching_listings & set(existing[1]))
+				if not narrowed:
+					return _empty_facets()
+				base_filters["name"] = ["in", narrowed]
+			else:
+				base_filters["name"] = ["in", list(matching_listings)]
+
+	# ── Price + min_order: list-of-lists ek filtreler (frappe.get_all formatı) ──
+	extra_filters: list[list] = []
+	if min_price:
+		extra_filters.append(
+			["Listing", "selling_price", ">=", safe_float(min_price, label=_("Minimum fiyat"))]
+		)
+	if max_price:
+		extra_filters.append(
+			["Listing", "selling_price", "<=", safe_float(max_price, label=_("Maksimum fiyat"))]
+		)
+	if min_order:
+		try:
+			min_order_int = safe_int(min_order, label=_("Min. sipariş"))
+		except Exception:
+			min_order_int = 0
+		if min_order_int > 0:
+			extra_filters.append(["Listing", "min_order_qty", ">=", min_order_int])
+
 	or_filters = None
 	if query:
 		or_filters = [
@@ -1296,6 +1505,7 @@ def get_filter_facets(query=None, category=None):
 
 	# Get all matching listing names first (include seller_profile for cert aggregation)
 	all_filters = [[k, v[0], v[1]] if isinstance(v, list) else [k, "=", v] for k, v in base_filters.items()]
+	all_filters.extend(extra_filters)
 	listings = frappe.get_all(
 		"Listing",
 		filters=all_filters,
@@ -1972,6 +2182,7 @@ def get_top_ranking_grouped(
 	# all served by the (product_category, order_count) composite index.
 	fields = [
 		"name",
+		"slug",
 		"listing_code",
 		"title",
 		"primary_image",
@@ -2039,7 +2250,7 @@ def get_top_ranking_grouped(
 		for sp in frappe.get_all(
 			"Admin Seller Profile",
 			filters=[["name", "in", seller_ids]],
-			fields=["name", "founded_year", "country", "is_verified", "rating", "review_count"],
+			fields=["name", "founded_year", "country", "rating", "review_count"],
 		):
 			seller_cache[sp.name] = sp
 
@@ -2109,6 +2320,7 @@ def get_related_listings(listing_id, limit=8):
 		filters=filters,
 		fields=[
 			"name",
+			"slug",
 			"listing_code",
 			"title",
 			"primary_image",
@@ -2194,6 +2406,7 @@ def get_related_listings_grouped(listing_id: str):
 		},
 		fields=[
 			"name",
+			"slug",
 			"listing_code",
 			"title",
 			"primary_image",
@@ -2603,7 +2816,7 @@ def _format_listing_card(
 				sp = frappe.db.get_value(
 					"Admin Seller Profile",
 					listing.get("seller_profile"),
-					["user", "founded_year", "country", "is_verified", "rating", "review_count"],
+					["user", "founded_year", "country", "rating", "review_count"],
 					as_dict=True,
 				)
 			if sp:
@@ -2682,11 +2895,15 @@ def _format_listing_card(
 	if not primary_image and all_images:
 		primary_image = all_images[0]
 
+	listing_slug = listing.get("slug") or ""
+	listing_href = f"/urun/{listing_slug}" if listing_slug else f"/pages/product-detail.html?id={listing.name}"
+
 	return {
 		"id": listing.name,
 		"listingCode": listing.get("listing_code", ""),
+		"slug": listing_slug,
 		"name": listing.title,
-		"href": f"/pages/product-detail.html?id={listing.name}",
+		"href": listing_href,
 		"price": price_display,
 		# sellingPrice in the API response means "the price the customer sees
 		# right now" — campaign price when there's a campaign, otherwise the
@@ -3239,17 +3456,24 @@ def _get_price_range(listing):
 
 
 @frappe.whitelist()
-def get_pending_listings(page=1, page_size=20):
-	"""Admin: Onay bekleyen listing'leri listele."""
+def get_pending_listings(page=1, page_size=20, bulk_job=None):
+	"""Admin: Onay bekleyen listing'leri listele.
+
+	`bulk_job`: opsiyonel — yalnızca bu Bulk Import Job tarafından
+	oluşturulan listing'leri döndürür (BIJ-XXX).
+	"""
 	if "System Manager" not in frappe.get_roles() and frappe.session.user != "Administrator":
 		frappe.throw(_("Yetki hatası"), frappe.PermissionError)
 
 	page = int(page)
 	page_size = int(page_size)
-	total = frappe.db.count("Listing", {"status": "Pending"})
+	filters: dict = {"status": "Pending"}
+	if bulk_job:
+		filters["created_by_bulk_job"] = bulk_job
+	total = frappe.db.count("Listing", filters)
 	listings = frappe.get_all(
 		"Listing",
-		filters={"status": "Pending"},
+		filters=filters,
 		fields=[
 			"name",
 			"title",
@@ -3310,15 +3534,22 @@ def approve_listing(listing_name, action="approve", reject_reason=""):
 
 
 @frappe.whitelist()
-def get_seller_listings(page=1, page_size=20, status=None):
+def get_seller_listings(page=1, page_size=20, status=None, bulk_job=None):
 	"""Satıcı: kendi listing'lerini listele.
 
 	`status`: opsiyonel filtre. "all" veya boş → tüm durumlar. Geçerli
 	değerler: Draft, Pending, Active, Paused, Out of Stock, Rejected.
+	`bulk_job`: opsiyonel — yalnızca bu Bulk Import Job tarafından
+	oluşturulan listing'leri döndürür (BIJ-XXX).
 	"""
-	seller_profile = frappe.db.get_value(
-		"Admin Seller Profile", {"owner": frappe.session.user}, "name"
-	) or frappe.db.get_value("Admin Seller Profile", {"email": frappe.session.user}, "name")
+	# FAZ 1.5 sub-user fix: sub-user'lar `tradehub_tenant` üzerinden Owner'ın
+	# mağazasına bağlıdır — Co-Owner / Finance Staff / Operations vs. hepsi
+	# aynı listing listesini görmeli.
+	seller_profile = (
+		frappe.db.get_value("User", frappe.session.user, "tradehub_tenant")
+		or frappe.db.get_value("Admin Seller Profile", {"owner": frappe.session.user}, "name")
+		or frappe.db.get_value("Admin Seller Profile", {"email": frappe.session.user}, "name")
+	)
 	if not seller_profile:
 		return {"success": True, "listings": [], "total": 0}
 
@@ -3327,6 +3558,8 @@ def get_seller_listings(page=1, page_size=20, status=None):
 	filters = {"seller_profile": seller_profile}
 	if status and status != "all":
 		filters["status"] = status
+	if bulk_job:
+		filters["created_by_bulk_job"] = bulk_job
 
 	total = frappe.db.count("Listing", filters)
 	listings = frappe.get_all(
@@ -3342,6 +3575,7 @@ def get_seller_listings(page=1, page_size=20, status=None):
 			"available_qty",
 			"creation",
 			"listing_code",
+			"seller_sku",
 			"rejection_reason",
 			"completeness_score",
 		],
@@ -3355,6 +3589,10 @@ def get_seller_listings(page=1, page_size=20, status=None):
 @frappe.whitelist()
 def update_listing_status(listing_name, status):
 	"""Satıcı: onaylanan listing'in durumunu değiştir."""
+	from tradehub_core.utils.seller_capabilities import require_seller_capability
+
+	require_seller_capability("listing.publish")
+
 	allowed = {"Active", "Paused", "Out of Stock"}
 	if status not in allowed:
 		frappe.throw(_("Geçersiz durum"))
@@ -3363,10 +3601,10 @@ def update_listing_status(listing_name, status):
 	if listing.status in ("Pending", "Rejected", "Draft"):
 		frappe.throw(_("Bu listing henüz onaylanmamış."))
 
-	# Sahiplik kontrolü
-	seller_profile = frappe.db.get_value(
-		"Admin Seller Profile", {"owner": frappe.session.user}, "name"
-	) or frappe.db.get_value("Admin Seller Profile", {"email": frappe.session.user}, "name")
+	# Sahiplik kontrolü — sub-user'lar Owner'ın listing'ini görür (aynı tenant)
+	from tradehub_core.utils.tenant import _get_seller_profile_for_user
+
+	seller_profile = _get_seller_profile_for_user(frappe.session.user)
 	if listing.seller_profile != seller_profile:
 		frappe.throw(_("Bu listing size ait değil."), frappe.PermissionError)
 
@@ -3426,8 +3664,18 @@ def get_listing_meta():
 def recalculate_completeness_score(listing_name):
 	"""Recalculate and persist the completeness score for a single listing."""
 	from tradehub_core.utils.completeness import calculate_completeness_score
+	from tradehub_core.utils.seller_capabilities import require_seller_capability
+	from tradehub_core.utils.tenant import _get_seller_profile_for_user
+
+	require_seller_capability("listing.write")
 
 	doc = frappe.get_doc("Listing", listing_name)
+
+	# Ownership check (önceden eksikti — herkes herhangi listing'in skorunu tetikleyebiliyordu)
+	seller_profile = _get_seller_profile_for_user(frappe.session.user)
+	if doc.seller_profile != seller_profile:
+		frappe.throw(_("Bu listing size ait değil."), frappe.PermissionError)
+
 	score = calculate_completeness_score(doc)
 	doc.db_set("completeness_score", score, update_modified=False)
 	return {"success": True, "completeness_score": score}

@@ -626,11 +626,10 @@ def get_seller_orders(status=None, page=1, page_size=20):
 	if not user or user == "Guest":
 		frappe.throw(_("Authentication required"), frappe.AuthenticationError)
 
-	seller_code = (
-		frappe.db.get_value("Admin Seller Profile", {"user": user}, "name")
-		or frappe.db.get_value("Admin Seller Profile", {"owner": user}, "name")
-		or frappe.db.get_value("Admin Seller Profile", {"email": user}, "name")
-	)
+	# FAZ 1.5 sub-user fix: merkezi resolver (tradehub_tenant fallback)
+	from tradehub_core.utils.tenant import _get_seller_profile_for_user
+
+	seller_code = _get_seller_profile_for_user(user)
 	if not seller_code:
 		frappe.throw(_("Seller profile not found"))
 
@@ -675,15 +674,59 @@ def get_seller_orders(status=None, page=1, page_size=20):
 		ignore_permissions=True,
 	)
 
+	# Rol bazlı PII maskeleme kontrolleri
+	from tradehub_core.utils.seller_capabilities import has_seller_capability
+
+	can_view_customer = has_seller_capability("view.customer_full", user)
+	can_view_amounts = has_seller_capability("view.order_amounts", user)
+	can_view_financial = has_seller_capability("view.financial_summary", user)
+
+	# Faz 4: maskeleme audit log (best-effort, tek sefer)
+	if not can_view_customer or not can_view_amounts:
+		try:
+			from tradehub_core.audit import DECISION_FIELD_MASKED, LAYER_L3, SEVERITY_LOW, log_decision
+
+			masked_fields = []
+			if not can_view_customer:
+				masked_fields.append("buyer_name")
+			if not can_view_amounts:
+				masked_fields.append("order_amounts")
+			log_decision(
+				action="order.list.pii_mask",
+				decision=DECISION_FIELD_MASKED,
+				rule_id="seller_orders.pii_masking",
+				layer=LAYER_L3,
+				tenant=seller_code,
+				severity=SEVERITY_LOW,
+				context={"masked_fields": masked_fields, "order_count": len(orders)},
+			)
+		except Exception:
+			pass
+
 	for order in orders:
 		tr_status = order.get("status", "")
 		en_status = STATUS_TR_TO_EN.get(tr_status, tr_status)
 		order["order_number"] = order.get("name", "")
 		order["status_en"] = en_status
 		order["status_color"] = STATUS_COLORS.get(en_status, "text-gray-500")
-		order["buyer_name"] = frappe.db.get_value("User", order.get("buyer"), "full_name") or order.get(
-			"buyer", ""
-		)
+
+		# Müşteri bilgisi maskeleme
+		buyer_full = frappe.db.get_value("User", order.get("buyer"), "full_name") or order.get("buyer", "")
+		if can_view_customer:
+			order["buyer_name"] = buyer_full
+		else:
+			# İlk harf + ••• formatı: "Ali Yılmaz" → "A••• Y•••"
+			parts = (buyer_full or "").split()
+			order["buyer_name"] = " ".join(f"{p[0]}•••" if p else "•••" for p in parts) if parts else "•••"
+			order["buyer_masked"] = True
+
+		# Finansal veri maskeleme
+		if not can_view_amounts:
+			for f in ("subtotal", "shipping_fee", "total", "remittance_amount", "refund_amount"):
+				if order.get(f) is not None:
+					order[f] = None
+			order["amounts_masked"] = True
+
 		order["items"] = frappe.get_all(
 			"Order Item",
 			filters={"parent": order["name"]},
@@ -691,21 +734,30 @@ def get_seller_orders(status=None, page=1, page_size=20):
 			order_by="idx asc",
 		)
 
+		# Sipariş item tutarları maskeleme
+		if not can_view_amounts:
+			for item in order["items"]:
+				item["unit_price"] = None
+				item["total_price"] = None
+
 	return {"success": True, "orders": orders, "total": total, "page": page, "page_size": page_size}
 
 
 @frappe.whitelist()
 def seller_confirm_payment(order_number):
 	"""Seller confirms payment received — changes order status to 'Onaylanıyor'."""
+	from tradehub_core.utils.seller_capabilities import require_seller_capability
+
+	require_seller_capability("order.confirm_payment")
+
 	user = frappe.session.user
 	if not user or user == "Guest":
 		frappe.throw(_("Authentication required"), frappe.AuthenticationError)
 
-	seller_code = (
-		frappe.db.get_value("Admin Seller Profile", {"user": user}, "name")
-		or frappe.db.get_value("Admin Seller Profile", {"owner": user}, "name")
-		or frappe.db.get_value("Admin Seller Profile", {"email": user}, "name")
-	)
+	# FAZ 1.5 sub-user fix: merkezi resolver (tradehub_tenant fallback)
+	from tradehub_core.utils.tenant import _get_seller_profile_for_user
+
+	seller_code = _get_seller_profile_for_user(user)
 	if not seller_code:
 		frappe.throw(_("Seller profile not found"))
 
@@ -754,15 +806,18 @@ def seller_confirm_payment(order_number):
 @frappe.whitelist()
 def seller_ship_order(order_number, tracking_number="", carrier=""):
 	"""Seller marks order as shipped — changes status to 'Kargoda'."""
+	from tradehub_core.utils.seller_capabilities import require_seller_capability
+
+	require_seller_capability("order.ship")
+
 	user = frappe.session.user
 	if not user or user == "Guest":
 		frappe.throw(_("Authentication required"), frappe.AuthenticationError)
 
-	seller_code = (
-		frappe.db.get_value("Admin Seller Profile", {"user": user}, "name")
-		or frappe.db.get_value("Admin Seller Profile", {"owner": user}, "name")
-		or frappe.db.get_value("Admin Seller Profile", {"email": user}, "name")
-	)
+	# FAZ 1.5 sub-user fix: merkezi resolver (tradehub_tenant fallback)
+	from tradehub_core.utils.tenant import _get_seller_profile_for_user
+
+	seller_code = _get_seller_profile_for_user(user)
 	if not seller_code:
 		frappe.throw(_("Seller profile not found"))
 
@@ -800,6 +855,71 @@ def seller_ship_order(order_number, tracking_number="", carrier=""):
 		)
 
 	return {"success": True, "order_number": order_number}
+
+
+@frappe.whitelist()
+def get_order_shipping_info(order_number: str) -> dict:
+	"""Operations rolü için minimum kargo bilgisi — tam adres yerine il/ilçe + alıcı kısa adı.
+
+	Bu endpoint kargo etiketi hazırlamak için yeterli bilgiyi döner,
+	tam müşteri PII'sini (telefon, e-posta, tam adres) gizler.
+	"""
+	from tradehub_core.utils.seller_capabilities import require_seller_capability
+	from tradehub_core.utils.tenant import _get_seller_profile_for_user
+
+	require_seller_capability("order.ship")
+
+	user = frappe.session.user
+	seller_code = _get_seller_profile_for_user(user)
+	if not seller_code:
+		frappe.throw(_("Seller profile not found"))
+
+	order = frappe.db.get_value(
+		"Order",
+		{"name": order_number, "seller": seller_code},
+		["name", "shipping_address", "buyer"],
+		as_dict=True,
+	)
+	if not order:
+		frappe.throw(_("Order not found"), frappe.DoesNotExistError)
+
+	# Alıcı adı maskeleme: "Ali Yılmaz" → "A. Yılmaz"
+	buyer_full = frappe.db.get_value("User", order.buyer, "full_name") or ""
+	parts = buyer_full.split()
+	masked_name = f"{parts[0][0]}. {' '.join(parts[1:])}" if len(parts) > 1 else buyer_full
+
+	# Adres: sadece il/ilçe/posta kodu
+	shipping_city = ""
+	shipping_state = ""
+	shipping_postal = ""
+	if order.shipping_address:
+		addr_name = order.shipping_address
+		addr = frappe.db.get_value(
+			"Addresses", addr_name, ["city", "state", "postal_code"], as_dict=True
+		)
+		if addr:
+			shipping_city = addr.get("city") or ""
+			shipping_state = addr.get("state") or ""
+			shipping_postal = addr.get("postal_code") or ""
+
+	# Ürünler (sadece isim + adet, tutar yok)
+	items = frappe.get_all(
+		"Order Item",
+		filters={"parent": order.name},
+		fields=["listing_title as product_name", "quantity"],
+		order_by="idx asc",
+	)
+
+	return {
+		"success": True,
+		"order_number": order_number,
+		"recipient_name": masked_name,
+		"city": shipping_city,
+		"state": shipping_state,
+		"postal_code": shipping_postal,
+		"items": items,
+		"note": _("Tam adres bilgisi için yöneticinize başvurun."),
+	}
 
 
 def _generate_invoice_html(order, items, seller_name, buyer_name):
@@ -993,15 +1113,25 @@ def submit_refund_request(order_number, reason, amount=0):
 @frappe.whitelist()
 def seller_handle_refund(order_number, action):
 	"""Seller approves or rejects a refund request. action: 'approve' or 'reject'"""
+	from tradehub_core.utils.seller_capabilities import require_seller_capability
+
+	require_seller_capability("order.refund")
+
+	# C2 fix: action whitelist — eski kod boş/null action'ı sessizce 'Rejected' yapardı.
+	if action not in ("approve", "reject"):
+		frappe.throw(
+			_("Geçersiz işlem. Sadece 'approve' veya 'reject' kabul edilir."),
+			frappe.ValidationError,
+		)
+
 	user = frappe.session.user
 	if not user or user == "Guest":
 		frappe.throw(_("Authentication required"), frappe.AuthenticationError)
 
-	seller_code = (
-		frappe.db.get_value("Admin Seller Profile", {"user": user}, "name")
-		or frappe.db.get_value("Admin Seller Profile", {"owner": user}, "name")
-		or frappe.db.get_value("Admin Seller Profile", {"email": user}, "name")
-	)
+	# FAZ 1.5 sub-user fix: merkezi resolver (tradehub_tenant fallback)
+	from tradehub_core.utils.tenant import _get_seller_profile_for_user
+
+	seller_code = _get_seller_profile_for_user(user)
 	if not seller_code:
 		frappe.throw(_("Seller profile not found"))
 

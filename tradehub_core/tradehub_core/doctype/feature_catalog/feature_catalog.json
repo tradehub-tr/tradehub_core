@@ -1,0 +1,109 @@
+{
+	"name": "Feature Catalog",
+	"doctype": "DocType",
+	"module": "Tradehub Core",
+	"naming_rule": "By fieldname",
+	"autoname": "field:feature_key",
+	"engine": "InnoDB",
+	"track_changes": 1,
+	"sort_field": "category",
+	"sort_order": "ASC",
+	"title_field": "display_name",
+	"fields": [
+		{
+			"fieldname": "feature_key",
+			"fieldtype": "Data",
+			"label": "Feature Key",
+			"reqd": 1,
+			"unique": 1,
+			"in_list_view": 1,
+			"in_standard_filter": 1,
+			"description": "Dot-notation: feature.category.name veya quota.metric_name"
+		},
+		{
+			"fieldname": "display_name",
+			"fieldtype": "Data",
+			"label": "Display Name",
+			"reqd": 1,
+			"in_list_view": 1
+		},
+		{
+			"fieldname": "category",
+			"fieldtype": "Select",
+			"label": "Category",
+			"options": "StoreFeatures\nPIMFeatures\nFunctionalFeatures\nSubUserFeatures\nQuotaLimits\nRegionEntitlement\nAPIFeatures\nAnalyticsFeatures",
+			"reqd": 1,
+			"in_list_view": 1,
+			"in_standard_filter": 1
+		},
+		{
+			"fieldname": "feature_type",
+			"fieldtype": "Select",
+			"label": "Feature Type",
+			"options": "Capability\nQuota",
+			"default": "Capability",
+			"reqd": 1,
+			"in_list_view": 1,
+			"description": "Capability = boolean toggle, Quota = numeric limit"
+		},
+		{
+			"fieldname": "cb_meta",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "default_value",
+			"fieldtype": "Data",
+			"label": "Default Value",
+			"description": "Capability için 'true'/'false', Quota için sayı"
+		},
+		{
+			"fieldname": "unit",
+			"fieldtype": "Data",
+			"label": "Unit",
+			"description": "Quota için birim (adet, MB, req/min)"
+		},
+		{
+			"fieldname": "is_deprecated",
+			"fieldtype": "Check",
+			"label": "Deprecated",
+			"default": 0
+		},
+		{
+			"fieldname": "introduced_in_version",
+			"fieldtype": "Data",
+			"label": "Introduced In Version",
+			"description": "Tanıtıldığı sürüm (örn. v15.1.2)"
+		},
+		{
+			"fieldname": "sb_description",
+			"fieldtype": "Section Break"
+		},
+		{
+			"fieldname": "description",
+			"fieldtype": "Long Text",
+			"label": "Description",
+			"description": "UI'da görünecek açıklama (pazarlama metni)"
+		}
+	],
+	"permissions": [
+		{
+			"role": "System Manager",
+			"read": 1,
+			"write": 1,
+			"create": 1,
+			"delete": 1,
+			"export": 1,
+			"report": 1,
+			"share": 1
+		},
+		{
+			"role": "Marketplace Admin",
+			"read": 1,
+			"write": 1
+		},
+		{
+			"role": "All",
+			"read": 1
+		}
+	]
+}

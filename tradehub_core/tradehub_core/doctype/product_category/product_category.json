@@ -1,279 +1,279 @@
 {
-	"actions": [],
-	"allow_rename": 1,
-	"autoname": "field:external_id",
-	"creation": "2024-01-01 00:00:00.000000",
-	"doctype": "DocType",
-	"engine": "InnoDB",
-	"field_order": [
-		"tab_category",
-		"external_id",
-		"sb_cat_info",
-		"category_name",
-		"parent_product_category",
-		"is_active",
-		"sort_order",
-		"column_break_1",
-		"image",
-		"icon_class",
-		"url_slug",
-		"tab_description",
-		"sb_desc",
-		"description",
-		"tab_compliance",
-		"sb_compliance",
-		"age_restriction",
-		"kyc_level",
-		"hs_code",
-		"country_of_origin_required",
-		"column_break_comp",
-		"prohibited_regions",
-		"required_certifications",
-		"tab_seo",
-		"sb_seo",
-		"meta_title",
-		"meta_description",
-		"sb_sitemap",
-		"sitemap_priority",
-		"sitemap_changefreq",
-		"schema_type",
-		"lft",
-		"rgt",
-		"old_parent"
-	],
-	"fields": [
-		{
-			"fieldname": "external_id",
-			"fieldtype": "Data",
-			"label": "External ID",
-			"reqd": 1,
-			"unique": 1,
-			"hidden": 1
-		},
-		{
-			"fieldname": "tab_category",
-			"fieldtype": "Tab Break",
-			"label": "Kategori"
-		},
-		{
-			"fieldname": "sb_cat_info",
-			"fieldtype": "Section Break",
-			"label": "Kategori Bilgileri"
-		},
-		{
-			"fieldname": "category_name",
-			"fieldtype": "Data",
-			"in_list_view": 1,
-			"label": "Category Name",
-			"reqd": 1
-		},
-		{
-			"fieldname": "parent_product_category",
-			"fieldtype": "Link",
-			"label": "Parent Category",
-			"options": "Product Category"
-		},
-		{
-			"default": "1",
-			"fieldname": "is_active",
-			"fieldtype": "Check",
-			"in_list_view": 1,
-			"label": "Active"
-		},
-		{
-			"default": "0",
-			"fieldname": "sort_order",
-			"fieldtype": "Int",
-			"label": "Sort Order"
-		},
-		{
-			"fieldname": "column_break_1",
-			"fieldtype": "Column Break"
-		},
-		{
-			"fieldname": "image",
-			"fieldtype": "Attach Image",
-			"label": "Image"
-		},
-		{
-			"fieldname": "icon_class",
-			"fieldtype": "Data",
-			"label": "Icon Class"
-		},
-		{
-			"fieldname": "url_slug",
-			"fieldtype": "Data",
-			"label": "URL Slug",
-			"unique": 1
-		},
-		{
-			"fieldname": "tab_description",
-			"fieldtype": "Tab Break",
-			"label": "Açıklama"
-		},
-		{
-			"fieldname": "sb_desc",
-			"fieldtype": "Section Break",
-			"label": "Açıklama"
-		},
-		{
-			"fieldname": "description",
-			"fieldtype": "Text Editor",
-			"label": "Description"
-		},
-		{
-			"fieldname": "tab_seo",
-			"fieldtype": "Tab Break",
-			"label": "SEO"
-		},
-		{
-			"fieldname": "sb_seo",
-			"fieldtype": "Section Break",
-			"label": "SEO Bilgileri"
-		},
-		{
-			"fieldname": "meta_title",
-			"fieldtype": "Data",
-			"label": "Meta Title"
-		},
-		{
-			"fieldname": "meta_description",
-			"fieldtype": "Small Text",
-			"label": "Meta Description"
-		},
-		{
-			"fieldname": "tab_compliance",
-			"fieldtype": "Tab Break",
-			"label": "Uyum"
-		},
-		{
-			"fieldname": "sb_compliance",
-			"fieldtype": "Section Break",
-			"label": "Uyum Kuralları"
-		},
-		{
-			"fieldname": "age_restriction",
-			"fieldtype": "Int",
-			"label": "Yaş Kısıtı",
-			"description": "0 = kısıt yok, 18 = yetişkin ürünü"
-		},
-		{
-			"fieldname": "kyc_level",
-			"fieldtype": "Select",
-			"label": "Gerekli KYC Seviyesi",
-			"options": "None\nBasic\nVerified\nFull",
-			"default": "None"
-		},
-		{
-			"fieldname": "hs_code",
-			"fieldtype": "Data",
-			"label": "HS Kodu (GTIP)"
-		},
-		{
-			"fieldname": "country_of_origin_required",
-			"fieldtype": "Check",
-			"label": "Menşei Ülke Zorunlu",
-			"default": "0"
-		},
-		{
-			"fieldname": "column_break_comp",
-			"fieldtype": "Column Break"
-		},
-		{
-			"fieldname": "prohibited_regions",
-			"fieldtype": "Small Text",
-			"label": "Yasaklı Bölgeler",
-			"description": "Virgülle ayrılmış ülke kodu listesi"
-		},
-		{
-			"fieldname": "required_certifications",
-			"fieldtype": "Table",
-			"label": "Zorunlu Sertifikalar",
-			"options": "Product Category Required Certification"
-		},
-		{
-			"fieldname": "sb_sitemap",
-			"fieldtype": "Section Break",
-			"label": "Sitemap / Schema"
-		},
-		{
-			"fieldname": "sitemap_priority",
-			"fieldtype": "Float",
-			"label": "Sitemap Priority",
-			"default": "0.7",
-			"description": "0.0 - 1.0 arası"
-		},
-		{
-			"fieldname": "sitemap_changefreq",
-			"fieldtype": "Select",
-			"label": "Sitemap ChangeFreq",
-			"options": "always\nhourly\ndaily\nweekly\nmonthly\nyearly\nnever",
-			"default": "weekly"
-		},
-		{
-			"fieldname": "schema_type",
-			"fieldtype": "Select",
-			"label": "Schema.org Tipi",
-			"options": "CollectionPage\nCategoryPage\nProductGroup\nItemList",
-			"default": "CollectionPage"
-		},
-		{
-			"fieldname": "lft",
-			"fieldtype": "Int",
-			"hidden": 1,
-			"label": "Left",
-			"no_copy": 1
-		},
-		{
-			"fieldname": "rgt",
-			"fieldtype": "Int",
-			"hidden": 1,
-			"label": "Right",
-			"no_copy": 1
-		},
-		{
-			"fieldname": "old_parent",
-			"fieldtype": "Link",
-			"hidden": 1,
-			"label": "Old Parent",
-			"options": "Product Category",
-			"no_copy": 1
-		}
-	],
-	"has_web_view": 0,
-	"index_web_pages_for_search": 0,
-	"is_tree": 1,
-	"links": [],
-	"modified": "2024-01-01 00:00:00.000000",
-	"modified_by": "Administrator",
-	"module": "Tradehub Core",
-	"name": "Product Category",
-	"naming_rule": "By fieldname",
-	"nsm_parent_field": "parent_product_category",
-	"owner": "Administrator",
-	"permissions": [
-		{
-			"create": 1,
-			"delete": 1,
-			"email": 1,
-			"export": 1,
-			"print": 1,
-			"read": 1,
-			"report": 1,
-			"role": "System Manager",
-			"share": 1,
-			"write": 1
-		},
-		{
-			"read": 1,
-			"role": "All"
-		}
-	],
-	"quick_entry": 1,
-	"search_fields": "category_name",
-	"show_name_in_global_search": 1,
-	"sort_field": "lft",
-	"sort_order": "ASC",
-	"title_field": "category_name",
-	"track_changes": 1
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "field:external_id",
+ "creation": "2024-01-01 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "tab_category",
+  "external_id",
+  "sb_cat_info",
+  "category_name",
+  "parent_product_category",
+  "is_active",
+  "sort_order",
+  "column_break_1",
+  "image",
+  "icon_class",
+  "url_slug",
+  "tab_description",
+  "sb_desc",
+  "description",
+  "tab_compliance",
+  "sb_compliance",
+  "age_restriction",
+  "kyc_level",
+  "hs_code",
+  "country_of_origin_required",
+  "column_break_comp",
+  "prohibited_regions",
+  "required_certifications",
+  "tab_seo",
+  "sb_seo",
+  "meta_title",
+  "meta_description",
+  "sb_sitemap",
+  "sitemap_priority",
+  "sitemap_changefreq",
+  "schema_type",
+  "lft",
+  "rgt",
+  "old_parent"
+ ],
+ "fields": [
+  {
+   "fieldname": "external_id",
+   "fieldtype": "Data",
+   "label": "External ID",
+   "reqd": 0,
+   "unique": 1,
+   "hidden": 1
+  },
+  {
+   "fieldname": "tab_category",
+   "fieldtype": "Tab Break",
+   "label": "Kategori"
+  },
+  {
+   "fieldname": "sb_cat_info",
+   "fieldtype": "Section Break",
+   "label": "Kategori Bilgileri"
+  },
+  {
+   "fieldname": "category_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Category Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "parent_product_category",
+   "fieldtype": "Link",
+   "label": "Parent Category",
+   "options": "Product Category"
+  },
+  {
+   "default": "1",
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Active"
+  },
+  {
+   "default": "0",
+   "fieldname": "sort_order",
+   "fieldtype": "Int",
+   "label": "Sort Order"
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "image",
+   "fieldtype": "Attach Image",
+   "label": "Image"
+  },
+  {
+   "fieldname": "icon_class",
+   "fieldtype": "Data",
+   "label": "Icon Class"
+  },
+  {
+   "fieldname": "url_slug",
+   "fieldtype": "Data",
+   "label": "URL Slug",
+   "unique": 1
+  },
+  {
+   "fieldname": "tab_description",
+   "fieldtype": "Tab Break",
+   "label": "Açıklama"
+  },
+  {
+   "fieldname": "sb_desc",
+   "fieldtype": "Section Break",
+   "label": "Açıklama"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Text Editor",
+   "label": "Description"
+  },
+  {
+   "fieldname": "tab_seo",
+   "fieldtype": "Tab Break",
+   "label": "SEO"
+  },
+  {
+   "fieldname": "sb_seo",
+   "fieldtype": "Section Break",
+   "label": "SEO Bilgileri"
+  },
+  {
+   "fieldname": "meta_title",
+   "fieldtype": "Data",
+   "label": "Meta Title"
+  },
+  {
+   "fieldname": "meta_description",
+   "fieldtype": "Small Text",
+   "label": "Meta Description"
+  },
+  {
+   "fieldname": "tab_compliance",
+   "fieldtype": "Tab Break",
+   "label": "Uyum"
+  },
+  {
+   "fieldname": "sb_compliance",
+   "fieldtype": "Section Break",
+   "label": "Uyum Kuralları"
+  },
+  {
+   "fieldname": "age_restriction",
+   "fieldtype": "Int",
+   "label": "Yaş Kısıtı",
+   "description": "0 = kısıt yok, 18 = yetişkin ürünü"
+  },
+  {
+   "fieldname": "kyc_level",
+   "fieldtype": "Select",
+   "label": "Gerekli KYC Seviyesi",
+   "options": "None\nBasic\nVerified\nFull",
+   "default": "None"
+  },
+  {
+   "fieldname": "hs_code",
+   "fieldtype": "Data",
+   "label": "HS Kodu (GTIP)"
+  },
+  {
+   "fieldname": "country_of_origin_required",
+   "fieldtype": "Check",
+   "label": "Menşei Ülke Zorunlu",
+   "default": "0"
+  },
+  {
+   "fieldname": "column_break_comp",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "prohibited_regions",
+   "fieldtype": "Small Text",
+   "label": "Yasaklı Bölgeler",
+   "description": "Virgülle ayrılmış ülke kodu listesi"
+  },
+  {
+   "fieldname": "required_certifications",
+   "fieldtype": "Table",
+   "label": "Zorunlu Sertifikalar",
+   "options": "Product Category Required Certification"
+  },
+  {
+   "fieldname": "sb_sitemap",
+   "fieldtype": "Section Break",
+   "label": "Sitemap / Schema"
+  },
+  {
+   "fieldname": "sitemap_priority",
+   "fieldtype": "Float",
+   "label": "Sitemap Priority",
+   "default": "0.7",
+   "description": "0.0 - 1.0 arası"
+  },
+  {
+   "fieldname": "sitemap_changefreq",
+   "fieldtype": "Select",
+   "label": "Sitemap ChangeFreq",
+   "options": "always\nhourly\ndaily\nweekly\nmonthly\nyearly\nnever",
+   "default": "weekly"
+  },
+  {
+   "fieldname": "schema_type",
+   "fieldtype": "Select",
+   "label": "Schema.org Tipi",
+   "options": "CollectionPage\nCategoryPage\nProductGroup\nItemList",
+   "default": "CollectionPage"
+  },
+  {
+   "fieldname": "lft",
+   "fieldtype": "Int",
+   "hidden": 1,
+   "label": "Left",
+   "no_copy": 1
+  },
+  {
+   "fieldname": "rgt",
+   "fieldtype": "Int",
+   "hidden": 1,
+   "label": "Right",
+   "no_copy": 1
+  },
+  {
+   "fieldname": "old_parent",
+   "fieldtype": "Link",
+   "hidden": 1,
+   "label": "Old Parent",
+   "options": "Product Category",
+   "no_copy": 1
+  }
+ ],
+ "has_web_view": 0,
+ "index_web_pages_for_search": 0,
+ "is_tree": 1,
+ "links": [],
+ "modified": "2024-01-01 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "Product Category",
+ "naming_rule": "By fieldname",
+ "nsm_parent_field": "parent_product_category",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "All"
+  }
+ ],
+ "quick_entry": 1,
+ "search_fields": "category_name",
+ "show_name_in_global_search": 1,
+ "sort_field": "lft",
+ "sort_order": "ASC",
+ "title_field": "category_name",
+ "track_changes": 1
 }

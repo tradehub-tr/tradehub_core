@@ -1,0 +1,181 @@
+{
+	"actions": [],
+	"autoname": "field:page_path",
+	"creation": "2026-05-22 00:00:00.000000",
+	"doctype": "DocType",
+	"engine": "InnoDB",
+	"field_order": [
+		"page_path",
+		"page_title",
+		"lang",
+		"section_break_seo",
+		"meta_title",
+		"meta_description",
+		"focus_keyword",
+		"column_break_seo",
+		"noindex",
+		"og_image",
+		"section_break_overrides",
+		"og_title_override",
+		"og_description_override",
+		"canonical_url_override",
+		"robots_directive_override",
+		"section_break_sitemap",
+		"sitemap_priority",
+		"sitemap_changefreq",
+		"section_break_en",
+		"meta_title_en",
+		"meta_description_en",
+		"og_title_override_en",
+		"og_description_override_en"
+	],
+	"fields": [
+		{
+			"fieldname": "page_path",
+			"fieldtype": "Data",
+			"label": "Sayfa Yolu",
+			"reqd": 1,
+			"unique": 1,
+			"in_list_view": 1,
+			"in_standard_filter": 1,
+			"description": "/yardim-merkezi gibi canonical path"
+		},
+		{
+			"fieldname": "page_title",
+			"fieldtype": "Data",
+			"label": "Sayfa Başlığı",
+			"reqd": 1,
+			"in_list_view": 1,
+			"description": "Admin için okunabilir isim"
+		},
+		{
+			"fieldname": "lang",
+			"fieldtype": "Select",
+			"label": "Dil",
+			"options": "tr\nen",
+			"default": "tr"
+		},
+		{
+			"fieldname": "section_break_seo",
+			"fieldtype": "Section Break",
+			"label": "SEO"
+		},
+		{
+			"fieldname": "meta_title",
+			"fieldtype": "Data",
+			"label": "Meta Title",
+			"translatable": 1
+		},
+		{
+			"fieldname": "meta_description",
+			"fieldtype": "Small Text",
+			"label": "Meta Description",
+			"translatable": 1
+		},
+		{
+			"fieldname": "focus_keyword",
+			"fieldtype": "Data",
+			"label": "Hedef Anahtar Kelime"
+		},
+		{
+			"fieldname": "column_break_seo",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "noindex",
+			"fieldtype": "Check",
+			"label": "Noindex",
+			"default": "1",
+			"description": "Varsayılan: gizli. Admin açmak istediğinde işareti kaldırır."
+		},
+		{
+			"fieldname": "og_image",
+			"fieldtype": "Attach Image",
+			"label": "OG Image"
+		},
+		{
+			"fieldname": "section_break_overrides",
+			"fieldtype": "Section Break",
+			"label": "Override Alanları"
+		},
+		{
+			"fieldname": "og_title_override",
+			"fieldtype": "Data",
+			"label": "OG Title (Override)",
+			"translatable": 1
+		},
+		{
+			"fieldname": "og_description_override",
+			"fieldtype": "Small Text",
+			"label": "OG Description (Override)",
+			"translatable": 1
+		},
+		{
+			"fieldname": "canonical_url_override",
+			"fieldtype": "Data",
+			"label": "Canonical URL (Override)"
+		},
+		{
+			"fieldname": "robots_directive_override",
+			"fieldtype": "Select",
+			"label": "Robots Directive (Override)",
+			"options": "\nindex,follow\nnoindex,follow\nindex,nofollow\nnoindex,nofollow"
+		},
+		{
+			"fieldname": "section_break_sitemap",
+			"fieldtype": "Section Break",
+			"label": "Sitemap"
+		},
+		{
+			"fieldname": "sitemap_priority",
+			"fieldtype": "Float",
+			"label": "Sitemap Priority",
+			"default": "0.5"
+		},
+		{
+			"fieldname": "sitemap_changefreq",
+			"fieldtype": "Select",
+			"label": "Sitemap Change Frequency",
+			"options": "always\nhourly\ndaily\nweekly\nmonthly\nyearly\nnever",
+			"default": "monthly"
+		},
+		{
+			"fieldname": "section_break_en",
+			"fieldtype": "Section Break",
+			"label": "İngilizce Sürüm"
+		},
+		{
+			"fieldname": "meta_title_en",
+			"fieldtype": "Data",
+			"label": "Meta Title (EN)"
+		},
+		{
+			"fieldname": "meta_description_en",
+			"fieldtype": "Small Text",
+			"label": "Meta Description (EN)"
+		},
+		{
+			"fieldname": "og_title_override_en",
+			"fieldtype": "Data",
+			"label": "OG Title (EN)"
+		},
+		{
+			"fieldname": "og_description_override_en",
+			"fieldtype": "Small Text",
+			"label": "OG Description (EN)"
+		}
+	],
+	"links": [],
+	"modified": "2026-05-22 00:00:00.000000",
+	"modified_by": "Administrator",
+	"module": "Tradehub Core",
+	"name": "Static Page SEO",
+	"owner": "Administrator",
+	"permissions": [
+		{"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1},
+		{"role": "Marketplace Admin", "read": 1, "write": 1, "create": 1}
+	],
+	"sort_field": "page_path",
+	"sort_order": "ASC",
+	"track_changes": 1
+}

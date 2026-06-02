@@ -1,0 +1,30 @@
+{
+    "name": "Data Export Request",
+    "doctype": "DocType",
+    "module": "Tradehub Core",
+    "naming_rule": "Expression (old style)",
+    "autoname": "format:DEXP-{####}",
+    "engine": "InnoDB",
+    "track_changes": 1,
+    "sort_field": "creation",
+    "sort_order": "DESC",
+    "fields": [
+        {"fieldname": "user", "fieldtype": "Link", "label": "User", "options": "User", "reqd": 1, "in_list_view": 1, "in_standard_filter": 1, "read_only": 1},
+        {"fieldname": "status", "fieldtype": "Select", "label": "Status", "options": "Pending\nProcessing\nReady\nExpired\nFailed", "default": "Pending", "reqd": 1, "in_list_view": 1, "in_standard_filter": 1, "read_only": 1},
+        {"fieldname": "export_format", "fieldtype": "Select", "label": "Export Format", "options": "json_csv", "default": "json_csv", "read_only": 1},
+        {"fieldname": "cb_status", "fieldtype": "Column Break"},
+        {"fieldname": "requested_at", "fieldtype": "Datetime", "label": "Requested At", "read_only": 1, "in_list_view": 1},
+        {"fieldname": "completed_at", "fieldtype": "Datetime", "label": "Completed At", "read_only": 1},
+        {"fieldname": "expires_at", "fieldtype": "Datetime", "label": "Expires At", "read_only": 1, "description": "İndirme linki 72 saat geçerli"},
+        {"fieldname": "sb_file", "fieldtype": "Section Break", "label": "Export File"},
+        {"fieldname": "file_url", "fieldtype": "Attach", "label": "File", "read_only": 1},
+        {"fieldname": "file_size", "fieldtype": "Int", "label": "File Size (bytes)", "read_only": 1},
+        {"fieldname": "download_token", "fieldtype": "Data", "label": "Download Token", "hidden": 1, "read_only": 1, "description": "Güvenli indirme için tek kullanımlık token"},
+        {"fieldname": "sb_error", "fieldtype": "Section Break", "label": "Error Details", "collapsible": 1},
+        {"fieldname": "error_message", "fieldtype": "Small Text", "label": "Error", "read_only": 1}
+    ],
+    "permissions": [
+        {"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1, "export": 1, "report": 1},
+        {"role": "Compliance Officer", "read": 1, "export": 1, "report": 1}
+    ]
+}

@@ -1,0 +1,29 @@
+{
+    "name": "User Consent Log",
+    "doctype": "DocType",
+    "module": "Tradehub Core",
+    "naming_rule": "Expression (old style)",
+    "autoname": "format:CONS-{####}",
+    "engine": "InnoDB",
+    "track_changes": 0,
+    "sort_field": "creation",
+    "sort_order": "DESC",
+    "fields": [
+        {"fieldname": "user", "fieldtype": "Link", "label": "User", "options": "User", "reqd": 1, "in_list_view": 1, "in_standard_filter": 1, "read_only": 1},
+        {"fieldname": "consent_type", "fieldtype": "Select", "label": "Consent Type", "options": "privacy_policy\nterms_of_service\nmarketing_email\nmarketing_sms\ncookie_analytics\ncookie_marketing\ncookie_functional\nkvkk_disclosure\ndata_processing", "reqd": 1, "in_list_view": 1, "in_standard_filter": 1},
+        {"fieldname": "action", "fieldtype": "Select", "label": "Action", "options": "granted\nwithdrawn\nrenewed", "reqd": 1, "in_list_view": 1, "in_standard_filter": 1},
+        {"fieldname": "version", "fieldtype": "Data", "label": "Policy Version", "in_list_view": 1, "description": "e.g. privacy_v2.1"},
+        {"fieldname": "cb_context", "fieldtype": "Column Break"},
+        {"fieldname": "source", "fieldtype": "Select", "label": "Source", "options": "registration\nsettings\nbanner\nmodal\nadmin_override", "reqd": 1, "in_list_view": 1},
+        {"fieldname": "legal_basis", "fieldtype": "Data", "label": "Legal Basis", "description": "KVKK/GDPR madde referansı"},
+        {"fieldname": "expires_at", "fieldtype": "Datetime", "label": "Expires At"},
+        {"fieldname": "sb_tech", "fieldtype": "Section Break", "label": "Technical Context", "collapsible": 1},
+        {"fieldname": "ip_address", "fieldtype": "Data", "label": "IP Address", "read_only": 1},
+        {"fieldname": "user_agent", "fieldtype": "Small Text", "label": "User Agent", "read_only": 1},
+        {"fieldname": "metadata", "fieldtype": "JSON", "label": "Metadata", "read_only": 1}
+    ],
+    "permissions": [
+        {"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1, "export": 1, "report": 1},
+        {"role": "Compliance Officer", "read": 1, "export": 1, "report": 1}
+    ]
+}
