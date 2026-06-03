@@ -1,3 +1,92 @@
+## [v1.0.9-beta.21] - 2026-06-03 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Eklendi
+- feat(rbac): rol bazlı veri maskeleme, sub-user güvenlik düzeltmeleri ve demo data (@boraydeger32)
+  - dashboard_engine.py'ye data_sensitivity + _should_mask + _mask_data katmanı
+  - Dashboard Widget'a data_sensitivity custom field (financial/profit/balance/pii)
+  - view.* capability'ler eklendi (7 adet: financial_summary, profit_detail, balance, bank_info, customer_full, customer_shipping, order_amounts)
+  - Seller Sales Rep rol profili ve _TIER_SALES tier tanımı
+  - Role_profile bazlı cache isolation (60s TTL) + invalidate_dashboard_cache()
+  - Maskeleme kararları DECISION_FIELD_MASKED audit log'a yazılıyor
+- feat(chat): TeamsLike buyer↔seller chat with Jitsi video calls (@aliturguttursab)
+  - api/chat.py: Chatwoot-backed threads, buyer external-identity JWT + seller token auth, seller auto-provisioning, attachments, and Jitsi video calls. start_video_call mints a per-user GUEST token (moderator:false) for the thread invite link so only the call initiator is moderator/host; the counterpart who opens the invite joins as a non-moderator participant.
+  - api/reservation.py: Plus-tier reservation gating + seller availability slots, with a scheduler that expires stale reservations.
+  - doctypes: Teamslike Settings, Chat Reservation, Seller Availability Slot.
+  - patches: teamslike user fields, settings init, admin/seller chat tier.
+- feat(rbac): Faz A-H — RBAC/ABAC/Pricing kapsamlı sertleştirme (@boraydeger32)
+  - v15_6_11_resync_feature_catalog: 40 fixture entry DB'ye upsert
+  - v15_6_12_sync_plan_capability_flags: FREE/STARTER/ENTERPRISE doldu
+  - v15_6_13_seed_sales_tier_grants: Sales tier grant'ları
+  - v15_6_14_seed_seller_sales_role_profile: Seller Sales Rep profile
+  - v15_6_15_fix_quota_orders_unlimited: max_orders_per_month -1
+  - seller_capabilities: _TIER_SALES_ROLES + _TIER_ROLE_FALLBACK
+  - _validate_roles_assignable allowlist (System Manager engeli)
+  - parent_profile protected klon engeli
+  - 5 mutating endpoint methods=["POST"] (CSRF)
+  - api/order.py 3 yerde ignore_permissions=True kaldırıldı
+  - update_capability_grant + update_module_policy + update_plan_capability_flag log_decision (HIGH severity, context dolu)
+  - reset_password + change_password + delete_account audit (HIGH)
+  - _merge_plan_json_field helper: partial payload veri kaybı bug'ı
+  - update_pricing_plan + update_plan_capabilities MERGE semantiği (default)
+  - _validate_capability_flags deprecated key reject
+  - api/v1/subscription.upgrade_subscription_plan self-service endpoint
+  - list_assignable_roles power-role filter
+  - v15_6_16_seed_protected_module_flags: 6 modül is_protected=1
+  - create/update/delete_role_profile object_doctype + name audit alanları
+  - _PRICING_FINANCIAL_FIELDS: Marketplace Admin fiyat erişimi yok
+  - authorization_simulator._enforce_positive_affirm: SKIP→ALLOW fail-open kapandı
+  - abac_context.normalize_amount_to_eur: TCMB Currency Rate Pair lookup
+  - workflow.py orchestrator scaffold (authorize / authorize_or_throw)
+  - v15_6_17_reset_enterprise_public_flag: storefront sızıntı engeli
+  - subscription_plan._sanitize_rich_text_fields: XSS koruması
+  - rule_id naming: auth.admin_module_policy_toggle
+  - test_protected_module_cannot_be_hidden_via_policy e2e test
+- feat(plans): Plan CRUD + v15_6_18 fixture seed + plan_code case fix (@boraydeger32)
+  - Fixture'dan Subscription Plan kayıtlarını DB'ye idempotent insert
+  - Frappe v15 `bench migrate` fixture import etmediği için (sadece schema + patches.txt) beta'da plan'lar hiç yaratılmamıştı → storefront pricing boş, admin panel Planlar tab boş
+  - Patch hem lowercase hem UPPERCASE name kontrolü ile mevcut kayıtları korur; sadece tamamen eksik senaryoyu kapatır
+  - Public pricing cache flush sonrası storefront anında dolu görür
+  - create_subscription_plan(plan_code, plan_name, monthly_price, ...) → System Manager-only (Marketplace Admin engellendi, Faz F.4 ile uyum) → Default is_public=False (admin önce capability/quota doldurur) → Audit log HIGH severity, rule_id: auth.admin_plan_crud
+  - delete_subscription_plan(plan_code) → _PROTECTED_PLAN_CODES (FREE/STARTER/PRO/ENTERPRISE) silinemez → Aktif/trial Store Subscription varsa engellenir → Cascade: pricing_features child + cache flush → Audit HIGH
+  - _PLAN_CODE_PATTERN: ^([a-z][a-z0-9_-]*|[A-Z][A-Z0-9_-]*)$ (lowercase VEYA UPPERCASE; mixed case yasak)
+  - _normalize_plan_code artık case'i zorla değiştirmez — sadece strip + validate
+  - Mevcut DB UPPERCASE plan'lar (FREE/STARTER/PRO/ENTERPRISE) save sırasında hata vermez; lowercase custom plan'lar (pro-annual, premium) yeni eklenir
+  - test_rebac_abac_e2e_phaseD: import sırası düzeltildi (test_authorization_simulator frappe stub'ı kuruyor, sim import'u sonra)
+
+### Duzeltildi
+- fix(security): address validation, AML gate, has_permission explicit deny (@boraydeger32)
+  - buyer.py: reject invalid purpose/address_type with frappe.throw (no silent fallback)
+  - buyer.py: add phone prefix-number consistency check for non-TR phones
+  - seller_addresses.py: add missing _doc_to_dict fields (purpose, address_type, tax_no, tax_office)
+  - seller_addresses.py: phone prefix consistency + ignore_permissions justification comments
+  - buyer.py: add ignore_permissions justification comments on save/insert/delete
+  - permissions.py: replace return None with return False in 6 has_permission functions (listing_review, review_helpful_vote, review_abuse_report, listing_question, order_dispute, trusted_reviewer_invitation) — prevents cross-tenant fall-through
+  - permissions.py: listing_question_has_permission now grants seller read access to questions on their own listings
+  - permissions.py: implement real AML/sanctions gate (_check_aml_sanctions) with KYB Verification aml_check_status/sanctions_status check + graceful fallback
+  - seller_capabilities.py: implement real _check_aml_clean with same pattern
+  - test_address_validators.py: 29 new E2E tests (purpose validation, phone prefix, company optional, alert→toast, field symmetry, DocType schema integrity)
+  - test_rebac_abac_e2e.py: 123 new standalone tests (ABAC evaluators, capability matrix, tier hierarchy, KYC/AML sets, source audit, cross-layer consistency, frontend-backend sync, subscription plan fixtures)
+- fix(stock): available_qty tercih edilerek stok hesaplaması düzeltildi (@ahmeetseker)
+  - cart.py: stok kontrolü ve sepet response'da available_qty (= stock_qty - reserved_qty)
+  - listing.py: get_listing_detail'de available_qty None kontrolü ile falsy 0 değeri sorunu giderildi
+  - listing_stats.py: aynı None-safe available_qty fallback mantığı uygulandı
+- fix(kyc-kyb): admin doctype görünürlük ve validation iyileştirmeleri (@aliiball)
+  - KYC submit_kyc_documents rate limit gevşetildi (1/60s -> 10/300s); kullanıcı validation hatası alıp düzeltirken 429'a takılmıyor
+  - KYC validation hataları (TCKN/VKN, dosya uzantısı, zorunlu alan eksik, rejection reason) Error Log'a defer_insert ile yazılır oldu; PII güvenliği için sadece metadata loglanıyor, hassas değerler loglanmıyor
+  - KYB company_title ve KYC account_type/company_name alanlarına permlevel 1 eklendi; admin paneldeki list view'da artık dolu görünüyor
+  - KYC tab_review yapısı KYB ile aynı hale getirildi: depends_on kaldırıldı, reviewed_by ve reviewed_at field'ları tab_account'tan tab_review'e taşındı, Doğrulama Bilgileri section break eklendi
+  - KYC submitted_at field'ı kaldırıldı; Frappe built-in creation aynı bilgiyi tutuyor, KYB ile tutarlılık sağlandı
+  - KYB rejection_reason ve notes alanları sadece Rejected/Suspended'da görünür hale getirildi; Pending'de boş textarea görünmüyor artık
+- fix(plans): v15_6_18 patch ignore_links + allowed_regions skip (@boraydeger32)
+  - allowed_regions field skip — admin sonradan ekleyebilir
+  - doc.flags.ignore_links = True — Region/Currency vs. fixture eksikse link validation bypass; plan'ın temel pricing/feature alanları seed olur
+
+### Degistirildi
+- refactor(tests): rebac/abac e2e testinde tekrarlı types importu kaldırıldı (@aliiball)
+
+---
 ## [v1.0.9-beta.20] - 2026-06-03 BETA
 
 Bu surum betaistoc.cronbi.com'da test asamasindadir.
