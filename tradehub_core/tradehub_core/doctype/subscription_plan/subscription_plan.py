@@ -17,7 +17,10 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 
-_PLAN_CODE_PATTERN = re.compile(r"^[a-z][a-z0-9_-]*$")
+# Hem UPPERCASE (eski seed — FREE/STARTER/PRO/ENTERPRISE) hem lowercase
+# (fixture/yeni custom plan'lar — pro-annual, premium) kabul. Mixed case (PrO)
+# yasak — tutarlı görünüm için her plan kendi konvansiyonunda kalır.
+_PLAN_CODE_PATTERN = re.compile(r"^([a-z][a-z0-9_-]*|[A-Z][A-Z0-9_-]*)$")
 
 
 class SubscriptionPlan(Document):
@@ -46,15 +49,21 @@ class SubscriptionPlan(Document):
 				self.set(field, sanitize_html(raw))
 
 	def _normalize_plan_code(self) -> None:
-		"""plan_code lowercase, kebab-case veya snake_case."""
+		"""plan_code tutarlı tek-case (lowercase veya UPPERCASE) içermeli.
+
+		Mevcut DB'de hem UPPERCASE (eski seed) hem lowercase (fixture) plan'lar
+		var; pattern her ikisini de kabul eder (Faz I fix). `_normalize` artık
+		case'i ZORLA değiştirmez — sadece whitespace strip + pattern validate.
+		"""
 		if not self.plan_code:
 			return
-		code = self.plan_code.strip().lower()
+		code = self.plan_code.strip()
 		if not _PLAN_CODE_PATTERN.match(code):
 			frappe.throw(
 				_(
-					"Plan Code lowercase başlamalı ve sadece harf/rakam/tire/alt-çizgi içermeli "
-					"(örn. 'free', 'starter', 'pro-annual')."
+					"Plan Code lowercase VEYA UPPERCASE (mixed case değil) olarak "
+					"yazılmalı; sadece harf/rakam/tire/alt-çizgi içerebilir "
+					"(örn. 'free', 'pro-annual', 'ENTERPRISE')."
 				)
 			)
 		self.plan_code = code
