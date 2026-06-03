@@ -34,6 +34,7 @@
 			"reqd": 1,
 			"in_list_view": 1,
 			"in_standard_filter": 1,
+			"permlevel": 1,
 			"description": "Business = Kurumsal (default). Individual = Bireysel. Bu alan KYC formundaki toggle ile set edilir."
 		},
 		{
@@ -52,27 +53,6 @@
 			"fieldtype": "Column Break"
 		},
 		{
-			"fieldname": "submitted_at",
-			"fieldtype": "Datetime",
-			"label": "Gönderildi",
-			"read_only": 1
-		},
-		{
-			"fieldname": "reviewed_at",
-			"fieldtype": "Datetime",
-			"label": "İncelendi",
-			"read_only": 1,
-			"permlevel": 1
-		},
-		{
-			"fieldname": "reviewed_by",
-			"fieldtype": "Link",
-			"label": "İnceleyen",
-			"options": "User",
-			"read_only": 1,
-			"permlevel": 1
-		},
-		{
 			"fieldname": "tab_corporate",
 			"fieldtype": "Tab Break",
 			"label": "Kurumsal Bilgiler",
@@ -89,7 +69,8 @@
 			"label": "Şirket Ünvanı",
 			"mandatory_depends_on": "eval:doc.account_type=='Business'",
 			"depends_on": "eval:doc.account_type=='Business'",
-			"in_list_view": 1
+			"in_list_view": 1,
+			"permlevel": 1
 		},
 		{
 			"fieldname": "tax_id",
@@ -155,8 +136,31 @@
 		{
 			"fieldname": "tab_review",
 			"fieldtype": "Tab Break",
-			"label": "İnceleme",
-			"depends_on": "eval:doc.status=='Rejected' || doc.status=='Suspended'"
+			"label": "İnceleme"
+		},
+		{
+			"fieldname": "sb_review",
+			"fieldtype": "Section Break",
+			"label": "Doğrulama Bilgileri"
+		},
+		{
+			"fieldname": "reviewed_by",
+			"fieldtype": "Link",
+			"label": "Son İnceleyen",
+			"options": "User",
+			"read_only": 1,
+			"permlevel": 1
+		},
+		{
+			"fieldname": "reviewed_at",
+			"fieldtype": "Datetime",
+			"label": "Son İnceleme Tarihi",
+			"read_only": 1,
+			"permlevel": 1
+		},
+		{
+			"fieldname": "cb_review",
+			"fieldtype": "Column Break"
 		},
 		{
 			"fieldname": "rejection_category",

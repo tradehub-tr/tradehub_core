@@ -11,6 +11,7 @@ Calistirma:
 import json
 import re
 import sys
+import types
 import unittest
 from pathlib import Path
 

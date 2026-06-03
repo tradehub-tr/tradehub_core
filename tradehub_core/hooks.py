@@ -89,6 +89,9 @@ scheduler_events = {
 		"tradehub_core.api.social_proof.reset_view_counters_rolling_24h",
 		# Sprint 2 — E2 fırsat: Buyer metric scheduler (User Profile.metrics)
 		"tradehub_core.tasks.recalculate_buyer_metrics",
+		# Aktif rezervasyon penceresi dolan kayıtları Expired yap (chat gating
+		# için doğru güncel state'i tutar).
+		"tradehub_core.api.reservation.expire_old_reservations",
 		# Bulk Import: 1 saatten uzun Running kalan stuck job'ları Failed'a çek.
 		# (Project crons henüz aktif değil — hourly içine alındı.)
 		"tradehub_core.bulk_import.tasks.detect_stuck_bulk_jobs",

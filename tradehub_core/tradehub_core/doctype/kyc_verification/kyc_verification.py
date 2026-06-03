@@ -18,6 +18,11 @@ def _validate_vkn(value: str) -> None:
 	"""Türkiye VKN: 10 veya 11 hane. Sprint 2.6 — esnek kabul (10 VKN, 11 TCKN-format)."""
 	digits = (value or "").strip()
 	if not re.match(r"^\d{10,11}$", digits):
+		frappe.log_error(
+			defer_insert=True,
+			title="KYC validation failed",
+			message=f"reason=vkn_length_invalid, len={len(digits)}",
+		)
 		frappe.throw(_("Vergi Numarası 10-11 haneli olmalıdır."))
 
 
@@ -25,15 +30,35 @@ def _validate_tckn(value: str) -> None:
 	"""Türkiye TCKN: 11 hane + mod-10 algoritması (resmi)."""
 	digits = (value or "").strip()
 	if not re.match(r"^\d{11}$", digits):
+		frappe.log_error(
+			defer_insert=True,
+			title="KYC validation failed",
+			message=f"reason=tckn_length_invalid, len={len(digits)}",
+		)
 		frappe.throw(_("TCKN tam 11 haneli olmalıdır."))
 	if digits[0] == "0":
+		frappe.log_error(
+			defer_insert=True,
+			title="KYC validation failed",
+			message="reason=tckn_starts_with_zero",
+		)
 		frappe.throw(_("TCKN '0' ile başlayamaz."))
 	d = [int(c) for c in digits]
 	odd = d[0] + d[2] + d[4] + d[6] + d[8]
 	even = d[1] + d[3] + d[5] + d[7]
 	if (odd * 7 - even) % 10 != d[9]:
+		frappe.log_error(
+			defer_insert=True,
+			title="KYC validation failed",
+			message="reason=tckn_checksum_10th_invalid",
+		)
 		frappe.throw(_("TCKN doğrulama hatalı (10. hane)."))
 	if sum(d[:10]) % 10 != d[10]:
+		frappe.log_error(
+			defer_insert=True,
+			title="KYC validation failed",
+			message="reason=tckn_checksum_11th_invalid",
+		)
 		frappe.throw(_("TCKN doğrulama hatalı (11. hane)."))
 
 
@@ -42,6 +67,11 @@ def _validate_file_extension(file_url: str, field_label: str) -> None:
 		return
 	ext = file_url.rsplit(".", 1)[-1].lower() if "." in file_url else ""
 	if f".{ext}" not in ALLOWED_FILE_EXTENSIONS:
+		frappe.log_error(
+			defer_insert=True,
+			title="KYC validation failed",
+			message=f"reason=invalid_file_ext, ext=.{ext}",
+		)
 		frappe.throw(_("{0}: Yalnızca PDF, JPG, PNG, WEBP, DOCX dosyaları yüklenebilir.").format(field_label))
 
 
@@ -64,9 +94,19 @@ class KYCVerification(Document):
 		}
 		if self.account_type == "Business":
 			required["company_name"] = _("Şirket Ünvanı")
-		for fname, label in required.items():
-			if not (getattr(self, fname, None) or "").strip():
-				frappe.throw(_("{0} alanı zorunludur.").format(label))
+		missing_fields: list[str] = [
+			fname for fname in required if not (getattr(self, fname, None) or "").strip()
+		]
+		if missing_fields:
+			frappe.log_error(
+				defer_insert=True,
+				title="KYC validation failed",
+				message=(
+					f"reason=required_missing, fields={','.join(missing_fields)}, "
+					f"account_type={self.account_type}, status={self.status}, user={self.user}"
+				),
+			)
+			frappe.throw(_("{0} alanı zorunludur.").format(required[missing_fields[0]]))
 
 	def _validate_tax_id(self) -> None:
 		"""Bireysel: TCKN (11 hane mod-10). Kurumsal: VKN (10-11 hane)."""
@@ -79,6 +119,14 @@ class KYCVerification(Document):
 
 	def _validate_identity_document(self) -> None:
 		if not self.identity_document:
+			frappe.log_error(
+				defer_insert=True,
+				title="KYC validation failed",
+				message=(
+					f"reason=identity_document_missing, account_type={self.account_type}, "
+					f"status={self.status}, user={self.user}"
+				),
+			)
 			frappe.throw(_("Kimlik Belgesi zorunludur."))
 		_validate_file_extension(self.identity_document, _("Kimlik Belgesi"))
 
@@ -87,6 +135,14 @@ class KYCVerification(Document):
 		if self.status in ("Rejected", "Suspended"):
 			reason = (self.rejection_reason or "").strip()
 			if len(reason) < 20:
+				frappe.log_error(
+					defer_insert=True,
+					title="KYC validation failed",
+					message=(
+						f"reason=rejection_reason_too_short, length={len(reason)}, "
+						f"status={self.status}, user={self.user}"
+					),
+				)
 				frappe.throw(
 					_(
 						"Red gerekçesi en az 20 karakter olmalı. Lütfen 'Reddet' "
@@ -95,6 +151,11 @@ class KYCVerification(Document):
 					frappe.ValidationError,
 				)
 			if not self.rejection_category:
+				frappe.log_error(
+					defer_insert=True,
+					title="KYC validation failed",
+					message=(f"reason=rejection_category_missing, status={self.status}, user={self.user}"),
+				)
 				frappe.throw(
 					_("Red kategorisi (Re-submit veya Suspended) seçilmelidir."),
 					frappe.ValidationError,
