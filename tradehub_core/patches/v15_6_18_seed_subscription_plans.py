@@ -56,13 +56,20 @@ def execute() -> dict:
 		for k, v in entry.items():
 			if k == "doctype":
 				continue
+			# Link doğrulama bypass için allowed_regions child rows'ları
+			# defansif filter — beta DB'sinde Region fixture import edilmemiş
+			# olabilir → fixture'daki regions referansları LinkValidationError
+			# atar. Plan'ın temel pricing/feature alanları olsun yeter; bölge
+			# kısıtlamasını admin sonradan ekleyebilir.
+			if k == "allowed_regions":
+				continue
 			# JSON field'ları (capability_flags, quota_limits) string'e çevir
 			if isinstance(v, (dict, list)) and k in ("capability_flags", "quota_limits"):
 				v = json.dumps(v, ensure_ascii=False)
 			doc.set(k, v)
 		doc.flags.ignore_permissions = True
 		doc.flags.ignore_mandatory = True
-		# Validate bypass — fixture'daki field'lar tutarlı varsayılır
+		doc.flags.ignore_links = True  # Region/Currency fixture eksikse skip
 		doc.insert(ignore_permissions=True, ignore_mandatory=True)
 		seeded.append(doc.name)
 
