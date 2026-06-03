@@ -22,7 +22,6 @@ if str(_APP_ROOT) not in sys.path:
 	sys.path.insert(0, str(_APP_ROOT))
 
 # ── Frappe stub — top-level "import frappe" geçsin diye minimal stub ─────────
-import types  # noqa: E402
 
 if "frappe" not in sys.modules:
 	_frappe = types.ModuleType("frappe")
