@@ -146,7 +146,7 @@ class SubscriptionPlan(Document):
 		val = self.get(fieldname)
 		if not val:
 			return None
-		if isinstance(val, (dict, list)):
+		if isinstance(val, dict | list):
 			return val
 		try:
 			return json.loads(val)

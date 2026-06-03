@@ -154,6 +154,41 @@
 			"description": "Platform komisyon oranı (%)"
 		},
 		{
+			"fieldname": "field_commission_type",
+			"fieldtype": "Select",
+			"label": "Saha Komisyon Türü",
+			"options": "Yüzde\nSabit Ücret",
+			"default": "Yüzde",
+			"description": "Yüzde: paket fiyatının %'si. Sabit Ücret: satış başına sabit tutar."
+		},
+		{
+			"fieldname": "field_commission_rate",
+			"fieldtype": "Percent",
+			"label": "Saha Komisyon Oranı",
+			"depends_on": "eval:doc.field_commission_type=='Yüzde'"
+		},
+		{
+			"fieldname": "field_commission_fixed_amount",
+			"fieldtype": "Currency",
+			"label": "Saha Sabit Ücret",
+			"depends_on": "eval:doc.field_commission_type=='Sabit Ücret'",
+			"default": 0
+		},
+		{
+			"fieldname": "field_commission_mode",
+			"fieldtype": "Select",
+			"label": "Saha Komisyon Modu",
+			"options": "Tek seferlik\nTekrarlayan\nBelirli süre",
+			"default": "Tek seferlik"
+		},
+		{
+			"fieldname": "field_commission_duration",
+			"fieldtype": "Int",
+			"label": "Komisyon Süresi (ay)",
+			"depends_on": "eval:doc.field_commission_mode=='Belirli süre'",
+			"default": "0"
+		},
+		{
 			"fieldname": "max_active_listings",
 			"fieldtype": "Int",
 			"label": "Max Active Listings",

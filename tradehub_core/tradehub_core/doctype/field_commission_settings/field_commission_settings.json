@@ -1,0 +1,30 @@
+{
+  "actions": [],
+  "creation": "2026-06-03 00:00:00.000000",
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "issingle": 1,
+  "field_order": [
+    "section_break_amount",
+    "global_per_sale_amount",
+    "currency"
+  ],
+  "fields": [
+    { "fieldname": "section_break_amount", "fieldtype": "Section Break", "label": "Satış Başı Hakediş" },
+    { "fieldname": "global_per_sale_amount", "fieldtype": "Currency", "label": "Global Satış Başı Sabit Tutar", "description": "Pakette komisyon ayarı yoksa her satış için uygulanan sabit tutar. 0 = uygulanmaz.", "options": "currency" },
+    { "fieldname": "currency", "fieldtype": "Link", "label": "Para Birimi", "options": "Currency" }
+  ],
+  "links": [],
+  "modified": "2026-06-03 00:00:00.000000",
+  "modified_by": "Administrator",
+  "module": "Tradehub Core",
+  "name": "Field Commission Settings",
+  "owner": "Administrator",
+  "permissions": [
+    { "role": "System Manager", "read": 1, "write": 1, "create": 1 },
+    { "role": "Marketplace Admin", "read": 1, "write": 1, "create": 1 }
+  ],
+  "sort_field": "modified",
+  "sort_order": "DESC",
+  "track_changes": 1
+}

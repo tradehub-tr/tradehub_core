@@ -646,9 +646,10 @@ SELLERS = [
 
 # ═══════════════════════════════════════════════════════════════
 #  DEMO KYB STATUS DAĞILIMI
-#  10 satıcı için deterministik KYB statü haritası — admin panelde
-#  her bir filtre (Verified/Under Review/Pending/Rejected) için en
-#  az bir kayıt görünsün diye çeşitli statüler dağıtılır.
+#  Tüm demo satıcılar KYB Verified — böylece satıcı hesapları tam
+#  doğrulanmış olur (can_sell=1) ve demo akışında sürtünmesiz çalışır.
+#  KYC tarafı ayrıca _set_demo_kyc_verified ile Verified'a çekilir;
+#  ikisi birlikte satıcının hem satış hem direkt satın alma yetkisini açar.
 #  Index, SELLERS listesinin sırasıyla eşleşir.
 # ═══════════════════════════════════════════════════════════════
 
@@ -657,12 +658,12 @@ DEMO_KYB_STATUSES = {
 	1: "Verified",  # Boğaziçi Deri ve Ayakkabı
 	2: "Verified",  # Marmara Elektronik
 	3: "Verified",  # İstanbul Hırdavat Merkezi
-	4: "Under Review",  # Karadeniz Gıda Toptancılık
+	4: "Verified",  # Karadeniz Gıda Toptancılık
 	5: "Verified",  # Ege Kozmetik
 	6: "Verified",  # Trakya Ev Tekstili
-	7: "Under Review",  # Akdeniz Mutfak ve Züccaciye
-	8: "Pending",  # Osmanlı Aksesuar
-	9: "Rejected",  # Yıldız Ambalaj ve Kırtasiye
+	7: "Verified",  # Akdeniz Mutfak ve Züccaciye
+	8: "Verified",  # Osmanlı Aksesuar
+	9: "Verified",  # Yıldız Ambalaj ve Kırtasiye
 }
 
 DEMO_KYB_REJECTION_REASON = (
@@ -2886,6 +2887,71 @@ def _set_demo_kyb_status(s, index):
 	kyb.save(ignore_permissions=True)
 
 
+def _set_demo_kyc_verified(email, *, account_type, company_name, tax_id, phone, address):
+	"""Demo kullanıcı için KYC Verification'ı Verified durumda oluştur/günceller.
+
+	Storefront satın alma kapısı (api/cart.py:create_order) User Profile.kyc_status'a
+	bakar; KYC.on_update zinciri Verified olunca User Profile.kyc_status=Verified +
+	can_buy=1 + kyc_verified_at damgasını set eder → demo hesaplar direkt satın alabilir.
+
+	User Profile'ın önceden var olması gerekir (satıcıda Seller Application else-branch'i,
+	alıcıda _ensure_buyer_user_profile yaratır); yoksa _sync_kyc_status no-op olur.
+
+	validate() identity_document/tax_id/phone/address/billing_address (Business iken
+	company_name) ister; demo değerleriyle doldurup ignore_mandatory ile insert ederiz.
+	Idempotent: applicant user üzerinden mevcut kaydı bulup Verified'a çeker.
+	"""
+	existing = frappe.db.get_value("KYC Verification", {"user": email}, "name")
+	kyc = frappe.get_doc("KYC Verification", existing) if existing else frappe.new_doc("KYC Verification")
+	kyc.user = email
+	kyc.account_type = account_type
+	kyc.company_name = company_name
+	kyc.tax_id = tax_id
+	kyc.phone = phone
+	kyc.email_field = email
+	kyc.address = address
+	kyc.billing_address = address
+	kyc.identity_document = DEMO_KYB_DOC_URL
+	kyc.status = "Verified"
+	kyc.owner = email
+	kyc.flags.ignore_permissions = True
+	kyc.flags.ignore_mandatory = True
+	kyc.save(ignore_permissions=True)
+
+
+def _ensure_buyer_user_profile(b):
+	"""Demo alıcı için minimum User Profile oluştur (yoksa).
+
+	Register akışı (api/v1/identity.py) User Profile'ı OTP doğrulamasıyla yaratır;
+	demo'da o akışı atladığımız için (seed yalnız eski Buyer Profile doctype'ını
+	dolduruyordu) satın alma yetkisinin dayandığı User Profile burada kurulur.
+	can_buy/kyc_status başlangıçta kapalı; _set_demo_kyc_verified Verified'a çeker.
+	"""
+	if frappe.db.exists("User Profile", {"user": b["email"]}):
+		return
+
+	creation = frappe.db.get_value("User", b["email"], "creation")
+	up = frappe.new_doc("User Profile")
+	up.user = b["email"]
+	up.full_name = b["buyer_name"]
+	up.member_id = _generate_member_id(b["email"], creation)
+	up.account_type = "Business"
+	up.company_name = b["company_name"]
+	up.country = "Turkey"
+	up.phone = b["phone"]
+	up.status = "Active"
+	up.can_buy = 0
+	up.can_sell = 0
+	up.kyc_status = "Pending"
+	up.kyb_status = "Locked"
+	up.email_verified = 1
+	up.created_via = "migration"
+	up.owner = b["email"]
+	up.flags.ignore_permissions = True
+	up.flags.ignore_validate = True
+	up.insert(ignore_permissions=True)
+
+
 def _ensure_buyer(b):
 	"""Buyer Profile oluştur veya mevcut olanı döndür.
 
@@ -3865,16 +3931,34 @@ def execute():
 		_ensure_seller_application(s)
 		_fill_demo_kyb_documents(s)
 		_set_demo_kyb_status(s, idx)
+		_set_demo_kyc_verified(
+			s["email"],
+			account_type="Business",
+			company_name=s["company_name"],
+			tax_id=s["tax_id"],
+			phone=s["phone"],
+			address=f"{s['address_line1']}, {s['district']}/{s['city']}",
+		)
 		_ensure_brand(s["code"], s.get("variant_type", "giyim"))
-		kyb_label = DEMO_KYB_STATUSES.get(idx, "Pending")
-		print(f"  ✓ {s['seller_name']} ({s['code']}) — KYB: {kyb_label}")
+		print(f"  ✓ {s['seller_name']} ({s['code']}) — KYB + KYC: Verified")
 	frappe.db.commit()
 
 	# ── 2. Alıcılar ──────────────────────────────────────────
 	print("\n[2/6] Alıcı profilleri oluşturuluyor...")
-	for b in BUYERS:
+	for idx, b in enumerate(BUYERS):
 		_ensure_buyer(b)
-		print(f"  ✓ {b['buyer_name']} ({b['company_name']})")
+		_ensure_buyer_user_profile(b)
+		# BUYERS sözlüğünde tax_id/adres yok — KYC Business doğrulaması için
+		# deterministik sentetik VKN (10 hane) + şehir tabanlı adres üretiriz.
+		_set_demo_kyc_verified(
+			b["email"],
+			account_type="Business",
+			company_name=b["company_name"],
+			tax_id=f"20000000{idx + 1:02d}",
+			phone=b["phone"],
+			address=f"{b['city']} - Demo Alıcı Adresi",
+		)
+		print(f"  ✓ {b['buyer_name']} ({b['company_name']}) — KYC: Verified")
 	frappe.db.commit()
 
 	# ── 3. Kategoriler (2 SEVİYE: Sektör parent + yaprak ürün kategorisi) ─
@@ -4117,10 +4201,17 @@ def approve_existing_demo_sellers():
 		_ensure_seller_application(s)
 		_fill_demo_kyb_documents(s)
 		_set_demo_kyb_status(s, idx)
+		_set_demo_kyc_verified(
+			s["email"],
+			account_type="Business",
+			company_name=s["company_name"],
+			tax_id=s["tax_id"],
+			phone=s["phone"],
+			address=f"{s['address_line1']}, {s['district']}/{s['city']}",
+		)
 		frappe.db.commit()
 		approved += 1
-		kyb_label = DEMO_KYB_STATUSES.get(idx, "Pending")
-		print(f"  ✓ {s['seller_name']} ({s['email']}) — KYB: {kyb_label}")
+		print(f"  ✓ {s['seller_name']} ({s['email']}) — KYB + KYC: Verified")
 
 	print(f"\n  Toplam: {approved} onay, {skipped} atlandı")
 	return {"approved": approved, "skipped": skipped}
@@ -4254,6 +4345,39 @@ def cleanup(silent=False):
 	for bp in demo_buyer_profiles:
 		frappe.delete_doc("Buyer Profile", bp, force=True, ignore_permissions=True)
 	_p(f"  ✓ {len(demo_buyer_profiles)} Buyer Profile silindi")
+
+	# 6a. KYC Verification (satıcı + alıcı demo hesapları)
+	kyc_sellers = frappe.get_all(
+		"KYC Verification",
+		filters={"user": ["like", "demo-seller-%@istoc.demo"]},
+		pluck="name",
+	)
+	kyc_buyers = frappe.get_all(
+		"KYC Verification",
+		filters={"user": ["like", "demo-buyer-%@istoc.demo"]},
+		pluck="name",
+	)
+	demo_kyc = list(set(kyc_sellers + kyc_buyers))
+	for k in demo_kyc:
+		frappe.delete_doc("KYC Verification", k, force=True, ignore_permissions=True)
+	_p(f"  ✓ {len(demo_kyc)} KYC Verification silindi")
+
+	# 6b. User Profile (satıcı + alıcı demo hesapları) — User silinmeden önce temizle
+	up_sellers = frappe.get_all(
+		"User Profile",
+		filters={"user": ["like", "demo-seller-%@istoc.demo"]},
+		pluck="name",
+	)
+	up_buyers = frappe.get_all(
+		"User Profile",
+		filters={"user": ["like", "demo-buyer-%@istoc.demo"]},
+		pluck="name",
+	)
+	demo_user_profiles = list(set(up_sellers + up_buyers))
+	for up in demo_user_profiles:
+		frappe.delete_doc("User Profile", up, force=True, ignore_permissions=True)
+	_p(f"  ✓ {len(demo_user_profiles)} User Profile silindi")
+	frappe.db.commit()
 
 	# 7. Demo Product Attributes (DEMO-ATTR-*)
 	demo_attrs = frappe.get_all(

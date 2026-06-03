@@ -707,5 +707,26 @@
   "module": "Tradehub Core",
   "translatable": 1,
   "description": "Bu sayfanın hedeflediği ana SEO anahtar kelimesi (Faz 5 skor analizi için)."
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "CRM Deal-custom_subscription_plan",
+  "dt": "CRM Deal",
+  "fieldname": "custom_subscription_plan",
+  "fieldtype": "Link",
+  "label": "Satılan Paket",
+  "options": "Subscription Plan",
+  "insert_after": "deal_value",
+  "module": "Tradehub Core"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "CRM Deal-custom_sale_amount",
+  "dt": "CRM Deal",
+  "fieldname": "custom_sale_amount",
+  "fieldtype": "Currency",
+  "label": "Satış Tutarı (override)",
+  "insert_after": "custom_subscription_plan",
+  "module": "Tradehub Core"
  }
 ]
