@@ -268,7 +268,6 @@ class TestIsVariantListing(unittest.TestCase):
 	"""entitlement/checks._is_variant_listing — heuristic detection."""
 
 	def test_no_variants_returns_false(self):
-
 		class FakeDoc:
 			def get(self, key):
 				return None
@@ -276,7 +275,6 @@ class TestIsVariantListing(unittest.TestCase):
 		self.assertFalse(_is_variant_listing(FakeDoc()))
 
 	def test_single_variant_returns_false(self):
-
 		class FakeDoc:
 			def get(self, key):
 				if key == "listing_variant_item":
@@ -286,7 +284,6 @@ class TestIsVariantListing(unittest.TestCase):
 		self.assertFalse(_is_variant_listing(FakeDoc()))
 
 	def test_multiple_variants_returns_true(self):
-
 		class FakeDoc:
 			def get(self, key):
 				if key == "listing_variant_item":
@@ -296,7 +293,6 @@ class TestIsVariantListing(unittest.TestCase):
 		self.assertTrue(_is_variant_listing(FakeDoc()))
 
 	def test_variant_count_field(self):
-
 		class FakeDoc:
 			def get(self, key):
 				if key == "variant_count":
@@ -306,7 +302,6 @@ class TestIsVariantListing(unittest.TestCase):
 		self.assertTrue(_is_variant_listing(FakeDoc()))
 
 	def test_variant_count_one_is_false(self):
-
 		class FakeDoc:
 			def get(self, key):
 				if key == "variant_count":

@@ -47,6 +47,8 @@ fixtures = [
 					"Platform Admin",
 					"Platform Finance",
 					"Support Agent",
+					# Saha pazarlama hakediş sistemi — saha elemanı rolü
+					"Saha Pazarlama",
 				],
 			]
 		],
@@ -395,6 +397,8 @@ doc_events = {
 			"tradehub_core.utils.crm_seller_autoset.autoset_seller",
 			"tradehub_core.utils.crm_seller_autoset.autoset_owner",
 		],
+		# Saha hakediş: Won olunca otomatik Beklemede hakediş üret.
+		"on_update": "tradehub_core.utils.field_commission.generate_on_deal_won",
 	},
 	"CRM Organization": {
 		"before_insert": "tradehub_core.utils.crm_seller_autoset.autoset_seller",
@@ -426,6 +430,13 @@ doc_events = {
 	# Header Notice Settings singleton → also invalidate cache when display_mode changes.
 	"Header Notice Settings": {
 		"on_update": "tradehub_core.api.header_notice.invalidate_cache",
+	},
+	# Hero Slide lifecycle → invalidate 60s Redis cache so storefront hero slider
+	# reflects admin edits within the next request.
+	"Hero Slide": {
+		"after_insert": "tradehub_core.api.hero_slider.invalidate_cache",
+		"on_update": "tradehub_core.api.hero_slider.invalidate_cache",
+		"on_trash": "tradehub_core.api.hero_slider.invalidate_cache",
 	},
 	# ECA Rule lifecycle → rule cache invalidation.
 	# Dispatcher Redis cache'inden hem aktif rule listesini hem de derlenmiş
@@ -565,6 +576,8 @@ permission_query_conditions = {
 	"Authorization Anomaly Rule": "tradehub_core.permissions.authorization_anomaly_rule_query_conditions",
 	"Permission Override Log": "tradehub_core.permissions.permission_override_log_query_conditions",
 	"PII Field Policy": "tradehub_core.permissions.pii_field_policy_query_conditions",
+	# Saha pazarlama hakediş — saha elemanı yalnız kendi (agent) kayıtlarını görür.
+	"Field Commission": "tradehub_core.permissions.field_commission_query_conditions",
 }
 
 has_permission = {
@@ -620,6 +633,8 @@ has_permission = {
 	# Seller Owner/Co-Owner kendi sub-user'ının Notification Settings'ine erişebilsin
 	# (sub-user pasifleştir/aktive et akışı User.on_update → toggle_notifications içinde tetiklenir).
 	"Notification Settings": "tradehub_core.permissions.notification_settings_has_permission",
+	# Saha pazarlama hakediş — saha elemanı yalnız kendi kaydına read/report.
+	"Field Commission": "tradehub_core.permissions.field_commission_has_permission",
 }
 
 # ---------------------------------------------------------------------------

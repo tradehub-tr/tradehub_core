@@ -212,7 +212,7 @@ def _normalize_numeric(value):
 	"""TR (`1.245,00`) ve EN formatlı sayı string'lerini float'a çevir."""
 	if value is None or value == "":
 		return None
-	if isinstance(value, (int, float)):
+	if isinstance(value, int | float):
 		return value
 	s = str(value).strip()
 	if not s:
@@ -241,7 +241,7 @@ def _normalize_boolean(value):
 		return None
 	if isinstance(value, bool):
 		return 1 if value else 0
-	if isinstance(value, (int, float)):
+	if isinstance(value, int | float):
 		return 1 if value else 0
 	s = str(value).strip().lower()
 	if s in _TRUE_TOKENS:

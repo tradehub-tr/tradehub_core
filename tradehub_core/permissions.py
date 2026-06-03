@@ -2197,3 +2197,40 @@ def notification_settings_has_permission(doc, ptype=None, user=None, debug=False
 		return True
 
 	return None
+
+
+# ---------------------------------------------------------------------------
+# Field Commission (Saha Pazarlama Hakediş)
+# Saha elemanı yalnız agent == kendisi olan kayıtları görür; admin hepsini.
+# ---------------------------------------------------------------------------
+
+# Hakedişi görme/yönetme yetkisi olan roller — API `_require_admin` ile AYNI set.
+# `_CRM_FULL_ACCESS_ROLES` (Sales* dahil) kullanılsaydı Sales rolleri permission
+# katmanında tüm hakedişleri görür ama API aksiyon alamazdı (yarı-yetki). Dar set +
+# tek kaynak: API bu sabiti import eder.
+_FIELD_COMMISSION_ADMIN_ROLES = frozenset({"System Manager", "Marketplace Admin"})
+
+
+def field_commission_query_conditions(user):
+	if not user or user == "Guest":
+		return "1=0"
+	if user == "Administrator":
+		return ""
+	roles = set(frappe.get_roles(user))
+	if roles & _FIELD_COMMISSION_ADMIN_ROLES:
+		return ""
+	if "Saha Pazarlama" in roles:
+		return f"`tabField Commission`.`agent` = {frappe.db.escape(user)}"
+	return "1=0"
+
+
+def field_commission_has_permission(doc, ptype, user):
+	if user == "Administrator":
+		return True
+	roles = set(frappe.get_roles(user))
+	if roles & _FIELD_COMMISSION_ADMIN_ROLES:
+		return True
+	if "Saha Pazarlama" in roles:
+		# Saha elemanı yalnız kendi kaydını ve yalnız okuma.
+		return ptype in ("read", "report") and doc.get("agent") == user
+	return False

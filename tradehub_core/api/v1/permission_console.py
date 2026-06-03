@@ -402,6 +402,11 @@ _PRICING_DISPLAY_FIELDS = frozenset(
 		"yearly_price",
 		"currency",
 		"commission_rate",
+		"field_commission_type",
+		"field_commission_rate",
+		"field_commission_fixed_amount",
+		"field_commission_mode",
+		"field_commission_duration",
 		"max_active_listings",
 		"cta_label",
 		"cta_action",
@@ -464,6 +469,11 @@ def get_plan_full_detail(plan_code: str) -> dict:
 		"theme": plan.theme or "default",
 		"short_tagline": plan.short_tagline,
 		"commission_rate": float(plan.commission_rate or 0),
+		"field_commission_type": plan.field_commission_type or "Yüzde",
+		"field_commission_rate": float(plan.field_commission_rate or 0),
+		"field_commission_fixed_amount": float(plan.field_commission_fixed_amount or 0),
+		"field_commission_mode": plan.field_commission_mode or "Tek seferlik",
+		"field_commission_duration": int(plan.field_commission_duration or 0),
 		"max_active_listings": int(plan.max_active_listings or 0),
 		"cta_label": plan.cta_label,
 		"cta_action": plan.cta_action or "signup",
@@ -507,7 +517,7 @@ def update_pricing_plan(
 	# String → dict parse
 	if isinstance(display, str):
 		display = json.loads(display) if display.strip() else None
-	if isinstance(capability_flags, (str,)):
+	if isinstance(capability_flags, str):
 		capability_flags = json.loads(capability_flags) if capability_flags.strip() else None
 	if isinstance(quota_limits, str):
 		quota_limits = json.loads(quota_limits) if quota_limits.strip() else None

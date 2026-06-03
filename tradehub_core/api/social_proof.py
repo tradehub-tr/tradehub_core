@@ -231,6 +231,41 @@ def get_signals(listing_id: str, supplier_id: str | None = None) -> dict:
 	return response
 
 
+@frappe.whitelist(allow_guest=True)
+def get_signals_batch(listing_ids: str) -> dict:
+	"""
+	Birden çok listing için sosyal kanıt sinyallerini tek çağrıda döner (listing grid).
+
+	listing_ids: virgülle ayrılmış listing id'leri ("L1,L2,L3").
+	Dönüş: {listing_id: {"signals": [...]}} — get_signals ile aynı per-listing yapı,
+	aynı per-listing cache'i paylaşır (tekil get_signals çağrılarıyla tutarlı).
+	"""
+	if not listing_ids:
+		return {}
+
+	# Dedup + güvenlik: aşırı büyük batch'i sınırla (storefront tek sayfa ~40 ürün)
+	ids = list(dict.fromkeys(s.strip() for s in listing_ids.split(",") if s.strip()))[:60]
+	if not ids:
+		return {}
+
+	# Sosyal kanıt compute'u supplier ister; N+1 yerine tek sorguda seller eşlemesi.
+	# Public/guest sosyal kanıt okuması — get_all bilinçli (get_signals da status'u
+	# permission'sız okuyor); sadece minimal `seller` alanı çekiliyor.
+	suppliers = {
+		r.name: r.seller
+		for r in frappe.get_all("Listing", filters={"name": ["in", ids]}, fields=["name", "seller"])
+	}
+
+	out: dict = {}
+	for lid in ids:
+		try:
+			out[lid] = get_signals(lid, suppliers.get(lid))
+		except Exception:
+			frappe.log_error(title="social_proof.get_signals_batch_item_fail")
+			out[lid] = {"signals": []}
+	return out
+
+
 @frappe.whitelist(allow_guest=True, methods=["POST"])
 def record_view(listing_id: str) -> None:
 	"""

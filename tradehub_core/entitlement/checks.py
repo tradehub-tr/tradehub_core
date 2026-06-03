@@ -191,7 +191,7 @@ def _extract_region_codes(value) -> set[str]:
 	if isinstance(value, str):
 		# Comma-separated string
 		return {v.strip().upper() for v in value.split(",") if v.strip()}
-	if isinstance(value, (list, tuple)):
+	if isinstance(value, list | tuple):
 		codes = set()
 		for item in value:
 			if isinstance(item, str):

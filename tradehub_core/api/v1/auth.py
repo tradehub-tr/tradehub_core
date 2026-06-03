@@ -82,6 +82,7 @@ def get_session_user():
 	)
 
 	is_admin = "System Manager" in roles or "Administrator" in roles or "Marketplace Admin" in roles
+	is_field_agent = "Saha Pazarlama" in roles
 	is_buyer = "Buyer" in roles or bool(up_data.get("can_buy"))
 	# is_seller: direkt seller rolü VEYA can_sell flag VEYA bir tenant'a bağlı sub-user
 	# (Seller Owner/Co-Owner/Admin/Finance Staff/Operations gibi tüm satıcı sub-user'lar)
@@ -213,6 +214,7 @@ def get_session_user():
 			"role_profile_name": frappe.db.get_value("User", frappe.session.user, "role_profile_name") or "",
 			"is_admin": is_admin,
 			"is_seller": is_seller,
+			"is_field_agent": is_field_agent,
 			"is_owner": is_owner,
 			"tenant": tenant_link,
 			"is_verified_seller": is_verified_seller,
