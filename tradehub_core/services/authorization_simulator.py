@@ -235,6 +235,9 @@ def simulate(
 	)
 	_record(result, step)
 
+	# Faz G.1 — Positive-affirm invariant: hiç ALLOW yoksa fail-closed
+	_enforce_positive_affirm(result)
+
 	# Optional audit
 	if audit:
 		_write_audit(
@@ -535,14 +538,27 @@ def _check_abac_conditions(
 	# Amount kaynağı doctype'a göre değişir:
 	#   - Order Approval: `amount` field'ı tutar
 	#   - Order: `total` field'ı tutar
+	# Faz G.2 — Threshold karşılaştırmaları EUR cinsinden çalıştığı için
+	# raw amount + currency'yi `normalize_amount_to_eur` ile çevir. Caller
+	# context'ten `amount_eur` geçirirse onu kullan (test stubs için).
 	resource_fields = resource_snapshot.get("fields", {})
-	if context.get("amount") is not None:
+	if context.get("amount_eur") is not None:
+		amount_raw = context["amount_eur"]
+		currency_for_log = "EUR"
+	elif context.get("amount") is not None:
 		amount_raw = context["amount"]
+		currency_for_log = context.get("currency") or "EUR"
 	elif resource_type == "Order Approval":
 		amount_raw = resource_fields.get("amount") or resource_fields.get("total") or 0
+		currency_for_log = resource_fields.get("currency") or "EUR"
 	else:  # Order
 		amount_raw = resource_fields.get("total") or resource_fields.get("amount") or 0
-	amount = float(amount_raw or 0)
+		currency_for_log = resource_fields.get("currency") or "EUR"
+	# Currency normalize (EUR-cinsinden threshold karşılaştırma için)
+	if context.get("amount_eur") is not None:
+		amount = float(amount_raw or 0)
+	else:
+		amount = float(abac_context.normalize_amount_to_eur(amount_raw or 0, currency_for_log))
 	current_hour = int(context.get("request_hour", abac_context.build_time_context().get("request_hour", 12)))
 	user_regions = actor_snapshot.get("regions", [])
 	target_region = context.get("target_region") or resource_snapshot.get("region")
@@ -799,6 +815,37 @@ def _record(result: SimulationResult, step: TraceStep) -> None:
 		if result.first_deny is None:
 			result.first_deny = step
 		result.decision = RESULT_DENY
+
+
+def _enforce_positive_affirm(result: SimulationResult) -> None:
+	"""Faz G.1 — Default-deny invariant.
+
+	`_record()` sadece DENY/UNAVAILABLE'da decision'ı flip ediyordu; tüm
+	katmanlar SKIP olduğunda initial ALLOW state korunuyordu → yeni DocType
+	(mapping yapılmamış) için fail-open vektörü doğuruyordu.
+
+	Bu helper simulate'in en sonunda çağrılır: decision hâlâ ALLOW ama
+	trace'te hiçbir gerçek ALLOW yoksa → fail-closed DENY'a çevir ve
+	`first_deny` olarak özel bir "no_evidence" step kayıt et. Forensics için
+	UI/audit hangi karara güvenip ALLOW dediğini görebilir.
+	"""
+	if result.decision != RESULT_ALLOW:
+		return
+	has_concrete_allow = any(t.result == RESULT_ALLOW for t in result.trace)
+	if has_concrete_allow:
+		return
+	# Hiç katman ALLOW vermedi — default-deny
+	guard_step = TraceStep(
+		layer="L0.default_deny",
+		check="no_evidence_allow",
+		result=RESULT_DENY,
+		rule_id="auth.no_positive_affirm",
+		detail=("Hiçbir katman ALLOW vermedi (tüm katmanlar SKIP). Default-deny invariant'ı devreye girdi."),
+		meta={"trace_results": [t.result for t in result.trace]},
+	)
+	result.trace.append(guard_step)
+	result.first_deny = guard_step
+	result.decision = RESULT_DENY
 
 
 def _write_audit(

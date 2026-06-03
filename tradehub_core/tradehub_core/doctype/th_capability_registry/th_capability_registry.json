@@ -1,0 +1,128 @@
+{
+	"name": "TH Capability Registry",
+	"doctype": "DocType",
+	"module": "Tradehub Core",
+	"naming_rule": "By fieldname",
+	"autoname": "field:capability_key",
+	"engine": "InnoDB",
+	"track_changes": 1,
+	"sort_field": "module_group",
+	"sort_order": "ASC",
+	"fields": [
+		{
+			"fieldname": "capability_key",
+			"fieldtype": "Data",
+			"label": "Capability Key",
+			"reqd": 1,
+			"unique": 1,
+			"in_list_view": 1,
+			"in_standard_filter": 1,
+			"description": "snake_case + nokta (örn. view.bank_info, order.ship)"
+		},
+		{
+			"fieldname": "label",
+			"fieldtype": "Data",
+			"label": "Görünen Ad",
+			"reqd": 1,
+			"in_list_view": 1
+		},
+		{
+			"fieldname": "module_group",
+			"fieldtype": "Select",
+			"label": "Modül Grubu",
+			"options": "Sipariş\nÜrün\nGaleri\nMüşteri İletişimi\nFinans\nYönetim\nEkip\nGörüntüleme\nOwner-Only\nDiğer",
+			"default": "Diğer",
+			"reqd": 1,
+			"in_list_view": 1,
+			"in_standard_filter": 1
+		},
+		{
+			"fieldname": "default_tier",
+			"fieldtype": "Select",
+			"label": "Varsayılan Tier",
+			"options": "MANAGEMENT\nOPERATIONS\nFINANCE\nSALES\nCOOWNER\nOWNER_ONLY",
+			"default": "OPERATIONS",
+			"reqd": 1,
+			"in_list_view": 1,
+			"in_standard_filter": 1,
+			"description": "Yeni Role Profile için varsayılan ait olduğu tier"
+		},
+		{
+			"fieldname": "cb_flags",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "is_owner_only",
+			"fieldtype": "Check",
+			"label": "Owner-Only",
+			"default": 0,
+			"description": "tradehub_is_owner=1 AND Seller Owner rolü şart"
+		},
+		{
+			"fieldname": "requires_kyc",
+			"fieldtype": "Check",
+			"label": "KYC Gerekir",
+			"default": 0,
+			"description": "KYC/KYB Verified olmadan reddet"
+		},
+		{
+			"fieldname": "requires_aml",
+			"fieldtype": "Check",
+			"label": "AML Temiz Gerekir",
+			"default": 0,
+			"description": "KYB AML/sanctions check temiz olmadan reddet"
+		},
+		{
+			"fieldname": "is_protected",
+			"fieldtype": "Check",
+			"label": "Korumalı",
+			"default": 0,
+			"description": "UI'dan silinemez/değiştirilemez (sistem kritik)"
+		},
+		{
+			"fieldname": "is_active",
+			"fieldtype": "Check",
+			"label": "Aktif",
+			"default": 1,
+			"in_list_view": 1
+		},
+		{
+			"fieldname": "sb_plan",
+			"fieldtype": "Section Break",
+			"label": "Plan Kapısı"
+		},
+		{
+			"fieldname": "plan_feature_flag",
+			"fieldtype": "Data",
+			"label": "Plan Feature Flag",
+			"description": "Opsiyonel: subscription_plan.capability_flags'e bağlı feature anahtarı (örn. feature.rfq_module). Boşsa plan kısıtı yok."
+		},
+		{
+			"fieldname": "sb_meta",
+			"fieldtype": "Section Break",
+			"label": "Metadata"
+		},
+		{
+			"fieldname": "description",
+			"fieldtype": "Small Text",
+			"label": "Açıklama"
+		},
+		{
+			"fieldname": "endpoint_refs",
+			"fieldtype": "Long Text",
+			"label": "Endpoint Referansları",
+			"read_only": 1,
+			"description": "Bu capability'i çağıran endpoint listesi (otomatik doldurulur)"
+		}
+	],
+	"permissions": [
+		{
+			"role": "System Manager",
+			"read": 1, "write": 1, "create": 1, "delete": 1, "export": 1, "report": 1, "share": 1
+		},
+		{
+			"role": "Marketplace Admin",
+			"read": 1, "write": 1, "create": 1, "delete": 1, "export": 1, "report": 1, "share": 1
+		}
+	]
+}

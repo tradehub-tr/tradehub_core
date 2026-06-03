@@ -1,0 +1,89 @@
+{
+	"name": "TH Module Policy",
+	"doctype": "DocType",
+	"module": "Tradehub Core",
+	"naming_rule": "Random",
+	"autoname": "hash",
+	"engine": "InnoDB",
+	"track_changes": 1,
+	"sort_field": "modified",
+	"sort_order": "DESC",
+	"fields": [
+		{
+			"fieldname": "module",
+			"fieldtype": "Link",
+			"label": "Modül",
+			"options": "TH Module Registry",
+			"reqd": 1,
+			"in_list_view": 1,
+			"in_standard_filter": 1
+		},
+		{
+			"fieldname": "role_profile",
+			"fieldtype": "Link",
+			"label": "Role Profile",
+			"options": "Role Profile",
+			"reqd": 1,
+			"in_list_view": 1,
+			"in_standard_filter": 1
+		},
+		{
+			"fieldname": "mode",
+			"fieldtype": "Select",
+			"label": "Mod",
+			"options": "visible\nmasked\nhidden",
+			"reqd": 1,
+			"default": "visible",
+			"in_list_view": 1,
+			"in_standard_filter": 1
+		},
+		{
+			"fieldname": "cb_meta",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "effective_from",
+			"fieldtype": "Date",
+			"label": "Başlangıç",
+			"description": "Boş ise hemen geçerli"
+		},
+		{
+			"fieldname": "effective_to",
+			"fieldtype": "Date",
+			"label": "Bitiş",
+			"description": "Boş ise süresiz"
+		},
+		{
+			"fieldname": "sb_advanced",
+			"fieldtype": "Section Break",
+			"label": "İleri (ABAC)"
+		},
+		{
+			"fieldname": "condition_json",
+			"fieldtype": "Code",
+			"label": "Koşul (JSON)",
+			"options": "JSON",
+			"description": "Opsiyonel ABAC koşulları (örn. {\"tenant_status\": \"active\"})"
+		},
+		{
+			"fieldname": "sb_note",
+			"fieldtype": "Section Break",
+			"label": "Gerekçe"
+		},
+		{
+			"fieldname": "note",
+			"fieldtype": "Small Text",
+			"label": "Gerekçe"
+		}
+	],
+	"permissions": [
+		{
+			"role": "System Manager",
+			"read": 1, "write": 1, "create": 1, "delete": 1, "export": 1, "report": 1, "share": 1
+		},
+		{
+			"role": "Marketplace Admin",
+			"read": 1, "write": 1, "create": 1, "delete": 1, "export": 1, "report": 1, "share": 1
+		}
+	]
+}

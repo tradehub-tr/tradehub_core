@@ -36,9 +36,15 @@ import frappe
 def build_order_context(order_doc_or_name: Any) -> dict[str, Any]:
 	"""Order için ABAC context dict üret.
 
+	Faz G.2 — `amount_eur` field'ı eklendi. ABAC threshold karşılaştırmaları
+	(needs_approval_l1: 500-5000 EUR, l2: >5000 EUR) raw amount yerine bu
+	normalize edilmiş değeri kullanmalı; aksi takdirde USD/TRY/BTC değerli
+	order'lar yanlış tier'a düşer.
+
 	Returns:
 	    {
-	      "amount": float,
+	      "amount": float,         # raw amount (order.total)
+	      "amount_eur": float,     # EUR cinsinden normalize edilmiş
 	      "currency": "EUR",
 	      "category": str | None,
 	      "supplier": str | None,
@@ -61,14 +67,70 @@ def build_order_context(order_doc_or_name: Any) -> dict[str, Any]:
 		if shipping_address:
 			order_region = frappe.db.get_value("Address", shipping_address, "country") or None
 
+	# Defansif: order.total None ise float(None or 0) = 0.0. needs_approval_l1
+	# (500 < amount <= 5000) ve l2 (> 5000) condition'ları amount=0 için False
+	# döner → ABAC tarafında "onay gerekmez" değil "L2 ABAC DENY" sonucuyla
+	# fail-closed. Yani total=None silent sızıntı değil; testle (S2) kanıtlı.
+	amount_raw = float(order.get("total") or 0)
+	currency = order.get("currency") or "EUR"
+	amount_eur = normalize_amount_to_eur(amount_raw, currency)
+
 	return {
-		"amount": float(order.get("total") or 0),
-		"currency": order.get("currency") or "EUR",
+		"amount": amount_raw,
+		"amount_eur": amount_eur,
+		"currency": currency,
 		"category": _extract_order_category(order),
 		"supplier": seller,
 		"buyer": order.get("buyer"),
 		"order_region": order_region,
 	}
+
+
+def normalize_amount_to_eur(amount: float | None, currency: str | None) -> float:
+	"""Currency-aware tutar normalize: ABAC threshold karşılaştırması için
+	tutar EUR cinsinden döner. TCMB scheduler Currency Rate Pair tablosunu
+	günlük günceller; bu fonksiyon o tabloyu hot-path lookup ile okur.
+
+	Faz G.2 — Önceden ABAC condition'ları raw amount'u doğrudan EUR threshold
+	ile kıyaslıyordu (USD 6000 → L2 branch). Currency-blind tier hesabı için
+	bu helper devreye girer.
+
+	Fallback policy:
+	  - EUR veya 0/None → raw amount
+	  - Currency Rate Pair'da kayıt yoksa → konservatif: raw döner +
+	    `frappe.log_error` ile drift sinyali (audit incidently)
+	  - DB ulaşılamazsa → raw (test/stub ortamı)
+	"""
+	if not amount:
+		return float(amount or 0)
+	if not currency or currency == "EUR":
+		return float(amount)
+	try:
+		rate = frappe.db.get_value(
+			"Currency Rate Pair",
+			{
+				"from_currency": currency,
+				"to_currency": "EUR",
+				"is_active": 1,
+			},
+			"rate",
+		)
+		if rate:
+			return float(amount) * float(rate)
+		frappe.log_error(
+			f"FX rate yok: {currency} → EUR; raw amount kullanıldı ({amount})",
+			"abac.normalize_amount_to_eur",
+		)
+	except Exception as exc:  # noqa: BLE001
+		# Test stub veya DB yok — raw'a fallback
+		try:
+			frappe.log_error(
+				f"FX lookup hatası ({currency} → EUR): {exc}",
+				"abac.normalize_amount_to_eur",
+			)
+		except Exception:  # noqa: BLE001
+			pass
+	return float(amount)
 
 
 def _extract_order_category(order) -> str | None:
