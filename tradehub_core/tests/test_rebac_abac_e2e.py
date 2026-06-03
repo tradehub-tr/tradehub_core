@@ -22,6 +22,7 @@ if str(_APP_ROOT) not in sys.path:
 	sys.path.insert(0, str(_APP_ROOT))
 
 # ── Frappe stub — top-level "import frappe" geçsin diye minimal stub ─────────
+
 if "frappe" not in sys.modules:
 	_frappe = types.ModuleType("frappe")
 	_frappe._ = lambda x: x
@@ -55,8 +56,13 @@ if "frappe" not in sys.modules:
 	_frappe_model_doc.Document = object
 	sys.modules["frappe.model.document"] = _frappe_model_doc
 
-# ── Pure-logic imports (frappe stub kurulduktan SONRA gelmeli — E402 kasıtlı) ──
-from tradehub_core.entitlement.checks import _extract_region_codes, _is_variant_listing  # noqa: E402
+# ── Pure-logic imports ────────────────────────────────────────────────────────
+# E402: imports below frappe stub installation are intentional — stub must be
+# in place before tradehub_core.* modules import frappe at module load.
+from tradehub_core.entitlement.checks import (  # noqa: E402
+	_extract_region_codes,
+	_is_variant_listing,
+)
 from tradehub_core.services.abac_context import (  # noqa: E402
 	_dominant_jurisdiction,
 	evaluate_needs_approval_l1,

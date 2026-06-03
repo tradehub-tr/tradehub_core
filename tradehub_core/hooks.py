@@ -364,6 +364,8 @@ doc_events = {
 	"Admin Seller Profile": {
 		# version-15 — SEO slug auto-generate
 		"before_validate": "tradehub_core.seo.hooks_seo.auto_generate_slug",
+		# Sprint 5 — IBAN/bank/tax_id field maskeleme (per-capability)
+		"on_load": "tradehub_core.api.v1.crm_masking.mask_pii_fields",
 		"validate": [
 			"tradehub_core.utils.cert_validate.validate_seller_certifications",
 			# FAZ 1.5 — Banka/vergi değişikliği Owner-only (Co-Owner bile yapamaz)
@@ -410,6 +412,13 @@ doc_events = {
 	},
 	"Contact": {
 		"before_insert": "tradehub_core.utils.crm_seller_autoset.autoset_seller",
+		# Sprint 5 — view.customer_pii capability'si olmayan kullanıcı için
+		# email_id, phone, mobile_no + Contact Email/Phone child satırları maskelenir.
+		"on_load": "tradehub_core.api.v1.crm_masking.mask_pii_fields",
+	},
+	"User Profile": {
+		# Sprint 5 — IBAN/bank (view.bank_info) + tax_id (view.tax_id) per-field maskeleme
+		"on_load": "tradehub_core.api.v1.crm_masking.mask_pii_fields",
 	},
 	"CRM Task": {
 		"before_insert": "tradehub_core.utils.crm_seller_autoset.autoset_seller",
@@ -517,8 +526,29 @@ doc_events = {
 			"tradehub_core.audit.user_hooks.on_user_update",
 			# FAZ 2.3 — Rol/tenant değişimi sonrası ReBAC tuple sync
 			"tradehub_core.services.tuple_sync.on_user_update",
+			# Sprint 6 — role_profile_name değişimi → capability cache flush
+			"tradehub_core.utils.permission_resolver.on_user_role_change",
 		],
 		"on_trash": "tradehub_core.services.tuple_sync.on_user_trash",
+	},
+	# Sprint 6 — TH Capability Registry / Grant değişimi → tüm capability cache flush
+	"TH Capability Registry": {
+		"on_update": "tradehub_core.utils.permission_resolver.on_capability_registry_change",
+		"after_delete": "tradehub_core.utils.permission_resolver.on_capability_registry_change",
+	},
+	"TH Capability Grant": {
+		"after_insert": "tradehub_core.utils.permission_resolver.on_capability_grant_change",
+		"on_update": "tradehub_core.utils.permission_resolver.on_capability_grant_change",
+		"after_delete": "tradehub_core.utils.permission_resolver.on_capability_grant_change",
+	},
+	"TH Module Registry": {
+		"on_update": "tradehub_core.utils.permission_resolver.on_module_registry_change",
+		"after_delete": "tradehub_core.utils.permission_resolver.on_module_registry_change",
+	},
+	"TH Module Policy": {
+		"after_insert": "tradehub_core.utils.permission_resolver.on_module_policy_change",
+		"on_update": "tradehub_core.utils.permission_resolver.on_module_policy_change",
+		"after_delete": "tradehub_core.utils.permission_resolver.on_module_policy_change",
 	},
 }
 

@@ -89,6 +89,10 @@ _PLATFORM_ROLES: frozenset[str] = frozenset({"System Manager", "Marketplace Admi
 _TIER_OPERATIONS_ROLES: frozenset[str] = frozenset({"Seller Staff", "Seller Admin", "Seller Owner"})
 _TIER_FINANCE_ROLES: frozenset[str] = frozenset({"Seller Finance", "Seller Admin", "Seller Owner"})
 _TIER_MANAGEMENT_ROLES: frozenset[str] = frozenset({"Seller Admin", "Seller Owner"})
+# Sales tier — Manager + Co-Owner + Sales Rep + Owner. Audit'te tier'ı tanımlı
+# ama _TIER_ROLE_FALLBACK'a eklenmemişti → has_seller_capability fallback yolu
+# Sales Rep'i tanımıyordu.
+_TIER_SALES_ROLES: frozenset[str] = frozenset({"Seller Sales", "Seller Admin", "Seller Owner"})
 _TIER_COOWNER_ROLES: frozenset[str] = frozenset({"Seller Co-Owner", "Seller Owner"})
 
 # Tier set → role set lookup (matrise paralel — tier kimliği için profile set kullanılıyor)
@@ -96,6 +100,7 @@ _TIER_ROLE_FALLBACK: dict[frozenset[str], frozenset[str]] = {
 	_TIER_OPERATIONS: _TIER_OPERATIONS_ROLES,
 	_TIER_FINANCE: _TIER_FINANCE_ROLES,
 	_TIER_MANAGEMENT: _TIER_MANAGEMENT_ROLES,
+	_TIER_SALES: _TIER_SALES_ROLES,
 	_TIER_COOWNER: _TIER_COOWNER_ROLES,
 }
 
@@ -146,9 +151,9 @@ SELLER_CAPABILITIES: dict[str, tuple[frozenset[str], str | None]] = {
 	"gallery.write": (_TIER_OPERATIONS, None),
 	"category.write": (_TIER_OPERATIONS, None),
 	"inquiry.reply": (_TIER_OPERATIONS, None),
-	# Plan-bağımlı operasyon feature'ları:
-	"rfq.quote": (_TIER_OPERATIONS, "feature.rfq_module"),
-	"crm.lead_capture": (_TIER_OPERATIONS, "feature.crm_module"),
+	# Plan-bağımlı operasyon feature'ları (Feature Catalog key'leri):
+	"rfq.quote": (_TIER_OPERATIONS, "feature.functional.rfq"),
+	"crm.lead_capture": (_TIER_OPERATIONS, "feature.crm.module"),
 	# ── Finans (ödeme onayı / iade / bakiye) ──
 	"order.confirm_payment": (_TIER_FINANCE, None),
 	"order.refund": (_TIER_FINANCE, None),
@@ -301,8 +306,47 @@ def _check_aml_clean(user: str) -> bool:
 	return True
 
 
+def _get_capability_metadata(capability_key: str) -> dict | None:
+	"""TH Capability Registry'den capability metadata oku.
+
+	None döner ise:
+	  - DocType henüz oluşturulmamış (migration öncesi), veya
+	  - Capability registry'e seed edilmemiş
+
+	Bu durumda Python SELLER_CAPABILITIES dict'i fallback olarak kullanılır
+	(geçiş süresi, Sprint 6 sonrası kaldırılacak).
+	"""
+	try:
+		if not frappe.db.table_exists("tabTH Capability Registry"):
+			return None
+	except Exception:
+		return None
+
+	return frappe.db.get_value(
+		"TH Capability Registry",
+		capability_key,
+		[
+			"is_active",
+			"is_owner_only",
+			"requires_kyc",
+			"requires_aml",
+			"plan_feature_flag",
+			"default_tier",
+		],
+		as_dict=True,
+	)
+
+
 def has_seller_capability(capability: str, user: str | None = None) -> bool:
 	"""User'ın verilen capability'ye sahip olup olmadığını döner.
+
+	Sprint 6 RBAC refactor sonrası:
+	  - Capability metadata TH Capability Registry'den okunur (is_owner_only,
+	    requires_kyc, requires_aml, plan_feature_flag).
+	  - Role profile → capability grant kontrolü TH Capability Grant'tan
+	    (permission_resolver.has_capability).
+	  - Capability registry'de tanımlı değilse Python SELLER_CAPABILITIES dict
+	    fallback olarak kullanılır (geçiş süresi).
 
 	Karar zinciri:
 	  1. Guest/boş user → False
@@ -310,19 +354,11 @@ def has_seller_capability(capability: str, user: str | None = None) -> bool:
 	  3. Platform admin rolleri (System Manager / Marketplace Admin) → True
 	  4. User.enabled=0 → False (deactive user capability alamaz)
 	  5. Seller relation YOK → False (C1 fix)
-	  6. Owner-only capability + user is_owner değil → False
-	  7. is_owner=1 + non-owner-only → plan kısıtı varsa plan check yap, geçerse True
-	  8. Capability tanımsız → False (fail-secure)
-	  9. user.role_profile_name in allowed_profiles AND plan allows → True
+	  6. Capability metadata DB'den (varsa) → owner-only / plan / KYC / AML kapıları
+	  7. is_owner=1 + non-owner-only + tüm kapılar geçti → True
+	  8. TH Capability Grant'tan profile match → True
+	  9. Role delegation tier_roles fallback → True
 	  10. Aksi → False
-
-	Plan-bağımlı capability'ler (rfq.quote, crm.lead_capture) için subscription
-	plan'da feature aktif olmalı. Owner bile plan yoksa o feature'ı kullanamaz
-	(pricing vaadi tutarlılığı).
-
-	Args:
-	    capability: "order.ship" gibi capability key
-	    user: Kontrol edilecek user (default: session.user)
 	"""
 	user = user or frappe.session.user
 	if not user or user in ("Guest", ""):
@@ -347,35 +383,81 @@ def has_seller_capability(capability: str, user: str | None = None) -> bool:
 
 	is_owner = bool(user_data.get("tradehub_is_owner"))
 
-	# Owner-only capability — sadece flag taşıyan Owner geçebilir.
+	# DB-first: TH Capability Registry'den metadata
+	cap_meta = _get_capability_metadata(capability)
+
+	if cap_meta is not None:
+		# DB-driven karar yolu
+		if not cap_meta.get("is_active"):
+			return False
+
+		is_owner_only_db = bool(cap_meta.get("is_owner_only"))
+		requires_kyc_db = bool(cap_meta.get("requires_kyc"))
+		requires_aml_db = bool(cap_meta.get("requires_aml"))
+		plan_feature = cap_meta.get("plan_feature_flag") or None
+
+		# Owner-only kapı
+		if is_owner_only_db:
+			if not is_owner:
+				return False
+			if requires_kyc_db and not _check_kyc_verified(user):
+				return False
+			return True
+
+		# Plan kapısı
+		tenant = _user_tenant(user, user_data)
+		if not _plan_allows(tenant, plan_feature):
+			return False
+
+		# KYC / AML
+		if requires_kyc_db and not _check_kyc_verified(user):
+			return False
+		if requires_aml_db and not _check_aml_clean(user):
+			return False
+
+		# Owner → tüm non-owner-only capability'leri alır
+		if is_owner:
+			return True
+
+		# TH Capability Grant kontrolü
+		from tradehub_core.utils.permission_resolver import has_capability as _has_cap_db
+
+		if _has_cap_db(user, capability):
+			return True
+
+		# K6: Role Delegation fallback
+		cap_def = SELLER_CAPABILITIES.get(capability)
+		if cap_def:
+			allowed_profiles, _ = cap_def
+			tier_roles = _TIER_ROLE_FALLBACK.get(allowed_profiles)
+			if tier_roles and (roles & tier_roles):
+				return True
+
+		return False
+
+	# Fallback: capability DB'de yok → eski Python sistemi
+	# (Sprint 6 sonrası bu blok kaldırılacak)
 	if capability in _OWNER_ONLY_CAPABILITIES:
 		if not is_owner:
 			return False
-		# K4: bank_info.write owner-only AMA KYC verified de şart
 		if capability in _REQUIRES_KYC and not _check_kyc_verified(user):
 			return False
 		return True
 
 	cap_def = SELLER_CAPABILITIES.get(capability)
 	if not cap_def:
-		# Tanımsız capability → fail-secure.
 		return False
 	allowed_profiles, plan_feature = cap_def
 
-	# Plan check — owner dahil herkes için (pricing tutarlılığı)
 	tenant = _user_tenant(user, user_data)
 	if not _plan_allows(tenant, plan_feature):
 		return False
 
-	# K4: KYC verified şart? (Finance + bank_info için)
 	if capability in _REQUIRES_KYC and not _check_kyc_verified(user):
 		return False
-
-	# K5: AML clean şart? (Finance için — Sprint 3'te aktif)
 	if capability in _REQUIRES_AML_CLEAN and not _check_aml_clean(user):
 		return False
 
-	# Owner non-owner-only capability'lerin hepsini alır (plan + KYC geçtiyse).
 	if is_owner:
 		return True
 
@@ -383,10 +465,6 @@ def has_seller_capability(capability: str, user: str | None = None) -> bool:
 	if user_profile in allowed_profiles:
 		return True
 
-	# K6 fix: Role Delegation görünürlüğü.
-	# Profile match etmedi — ama user delegasyonla sufficient role almış olabilir
-	# (örn. Operations user'a Seller Finance role delegate edildi → order.refund alabilir).
-	# `roles` zaten yukarıda hesaplandı.
 	tier_roles = _TIER_ROLE_FALLBACK.get(allowed_profiles)
 	if tier_roles and (roles & tier_roles):
 		return True
@@ -431,6 +509,9 @@ def seller_capability_required(capability: str) -> Callable:
 def get_user_capabilities(user: str | None = None) -> list[str]:
 	"""User'ın sahip olduğu tüm capability key'lerini döner — UI gating için.
 
+	Sprint 6 RBAC: DB-first (TH Capability Registry + TH Capability Grant).
+	Registry seed edilmemişse Python SELLER_CAPABILITIES dict fallback'i devreye girer.
+
 	Frontend bunu /api/method/...get_session_user response'unda alır,
 	useAuthStore.userCapabilities olarak expose eder, sonra v-if="can('order.ship')"
 	pattern'ı ile butonları gizler.
@@ -444,11 +525,11 @@ def get_user_capabilities(user: str | None = None) -> list[str]:
 		return []
 
 	if user == "Administrator":
-		return list(SELLER_CAPABILITIES.keys())
+		return _all_capabilities_from_db_or_python()
 
 	roles = set(frappe.get_roles(user))
 	if roles & _PLATFORM_ROLES:
-		return list(SELLER_CAPABILITIES.keys())
+		return _all_capabilities_from_db_or_python()
 
 	user_data = _resolve_user_state(user)
 
@@ -459,33 +540,35 @@ def get_user_capabilities(user: str | None = None) -> list[str]:
 		return []
 
 	is_owner = bool(user_data.get("tradehub_is_owner"))
-	profile = (user_data.get("role_profile_name") or "").strip()
 	tenant = _user_tenant(user, user_data)
-
-	# K4/K5: KYC + AML check helpers (her cap için tekrar çalıştırma, bir kez)
 	kyc_ok = _check_kyc_verified(user)
 	aml_ok = _check_aml_clean(user)
 
+	# DB-first
+	try:
+		if frappe.db.table_exists("tabTH Capability Registry"):
+			return _get_user_capabilities_db(user, is_owner, tenant, kyc_ok, aml_ok)
+	except Exception:
+		frappe.log_error(
+			"get_user_capabilities DB lookup failed — Python fallback",
+			"seller_capabilities",
+		)
+
+	# Fallback: eski Python kodu
+	profile = (user_data.get("role_profile_name") or "").strip()
 	caps: list[str] = []
-	# Owner-only — sadece tradehub_is_owner=1 alır (plan-bağımsız).
 	if is_owner:
 		for cap in _OWNER_ONLY_CAPABILITIES:
-			# K4: bank_info.write için KYC verified gereksin
 			if cap in _REQUIRES_KYC and not kyc_ok:
 				continue
 			caps.append(cap)
-	# Standart capability'ler — role tier + plan + KYC/AML kontrolü.
 	for cap, (allowed_profiles, plan_feature) in SELLER_CAPABILITIES.items():
-		# Plan check (plan_feature None ise her plan geçer)
 		if not _plan_allows(tenant, plan_feature):
 			continue
-		# K4: KYC verified şart?
 		if cap in _REQUIRES_KYC and not kyc_ok:
 			continue
-		# K5: AML clean şart?
 		if cap in _REQUIRES_AML_CLEAN and not aml_ok:
 			continue
-		# Role check: owner her şeyi alır; profile match; veya K6: delegated role match
 		if is_owner or profile in allowed_profiles:
 			caps.append(cap)
 			continue
@@ -493,3 +576,73 @@ def get_user_capabilities(user: str | None = None) -> list[str]:
 		if tier_roles and (roles & tier_roles):
 			caps.append(cap)
 	return caps
+
+
+def _all_capabilities_from_db_or_python() -> list[str]:
+	"""Platform admin için: tüm aktif capability key'leri."""
+	try:
+		if frappe.db.table_exists("tabTH Capability Registry"):
+			rows = frappe.get_all(
+				"TH Capability Registry",
+				filters={"is_active": 1},
+				fields=["capability_key"],
+			)
+			db_keys = [r["capability_key"] for r in rows]
+			if db_keys:
+				return db_keys
+	except Exception:
+		pass
+	return list(SELLER_CAPABILITIES.keys()) + list(_OWNER_ONLY_CAPABILITIES)
+
+
+def _get_user_capabilities_db(
+	user: str,
+	is_owner: bool,
+	tenant: str | None,
+	kyc_ok: bool,
+	aml_ok: bool,
+) -> list[str]:
+	"""DB-driven capability seti hesaplama."""
+	all_caps = frappe.get_all(
+		"TH Capability Registry",
+		filters={"is_active": 1},
+		fields=[
+			"name",
+			"is_owner_only",
+			"requires_kyc",
+			"requires_aml",
+			"plan_feature_flag",
+		],
+	)
+
+	from tradehub_core.utils.permission_resolver import get_capabilities as _granted_caps_fn
+
+	granted_caps = _granted_caps_fn(user) if not is_owner else set()
+
+	result: list[str] = []
+	for meta in all_caps:
+		cap_key = meta["name"]
+		is_owner_only = bool(meta.get("is_owner_only"))
+		req_kyc = bool(meta.get("requires_kyc"))
+		req_aml = bool(meta.get("requires_aml"))
+		plan_feature = meta.get("plan_feature_flag") or None
+
+		if is_owner_only:
+			if not is_owner:
+				continue
+			if req_kyc and not kyc_ok:
+				continue
+			result.append(cap_key)
+			continue
+
+		if not _plan_allows(tenant, plan_feature):
+			continue
+		if req_kyc and not kyc_ok:
+			continue
+		if req_aml and not aml_ok:
+			continue
+
+		if is_owner or cap_key in granted_caps:
+			result.append(cap_key)
+
+	return result
