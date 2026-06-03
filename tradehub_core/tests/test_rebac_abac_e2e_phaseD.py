@@ -18,8 +18,9 @@ import unittest
 
 from tradehub_core.services import authorization_simulator as sim  # noqa: E402
 
-# Re-use the heavy frappe stub + helpers from test_authorization_simulator.
-# This dosya yalnızca scenario'ları içerir; stub re-write yok.
+# ÖNEMLİ: test_authorization_simulator önce import edilmeli — module-load
+# zamanında frappe stub'ını kuruyor. authorization_simulator (`import frappe`)
+# o stub'a güvenir. Sıralama bozulursa ModuleNotFoundError: frappe.
 from tradehub_core.tests.test_authorization_simulator import (  # noqa: E402
 	_PERM_RESULTS,
 	_make_caller_system_manager,

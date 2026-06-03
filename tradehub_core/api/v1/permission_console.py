@@ -705,6 +705,183 @@ def list_users(
 # ---------------------------------------------------------------------------
 
 
+# Sistem-kritik plan kodları — silinemez. Süper admin yeni custom plan ekler
+# ama bu temel kademeler her zaman bulunmak zorunda (entitlement seed referans
+# tabanı).
+_PROTECTED_PLAN_CODES = frozenset(
+	{"FREE", "STARTER", "PRO", "ENTERPRISE", "free", "starter", "pro", "enterprise"}
+)
+
+
+def _require_system_manager_for_plan_crud(action: str) -> None:
+	"""Plan CRUD revenue-bearing — sadece System Manager + Administrator.
+	Marketplace Admin engellenir (Faz F.4 financial separation ile aynı).
+	"""
+	_require_admin(action)
+	user = frappe.session.user
+	if user == "Administrator":
+		return
+	roles = set(frappe.get_roles(user))
+	if "System Manager" not in roles:
+		log_decision(
+			action=f"permission_console.{action}",
+			decision="DENY",
+			rule_id="auth.system_manager_required_for_plan_crud",
+			layer="L2",
+			severity="HIGH",
+		)
+		frappe.throw(
+			_("Plan oluşturma/silme için System Manager yetkisi gerekir (Marketplace Admin için yetersiz)."),
+			frappe.PermissionError,
+		)
+
+
+@frappe.whitelist(methods=["POST"])
+def create_subscription_plan(
+	plan_code: str,
+	plan_name: str,
+	description: str = "",
+	monthly_price: float | int | str = 0,
+	yearly_price: float | int | str = 0,
+	currency: str = "EUR",
+	commission_rate: float | int | str = 0,
+	max_active_listings: int | str = 0,
+	trial_days: int | str = 0,
+	is_active: bool | int | str = True,
+	is_public: bool | int | str = False,
+) -> dict:
+	"""Yeni Subscription Plan oluştur.
+
+	Default: `is_public=False` — admin önce capability_flags/quota_limits
+	doldurur, sonra public yapar (storefront sızıntı koruması).
+
+	System Manager-only (revenue-bearing). Plan code unique enforced; lowercase
+	alphanumeric+hyphen-underscore (`_PLAN_CODE_PATTERN`).
+	"""
+	_require_system_manager_for_plan_crud("create_subscription_plan")
+
+	code = (plan_code or "").strip()
+	name = (plan_name or "").strip()
+	if not code:
+		frappe.throw(_("plan_code zorunlu."), frappe.ValidationError)
+	if not name:
+		frappe.throw(_("plan_name zorunlu."), frappe.ValidationError)
+	# Hem lowercase hem UPPERCASE varlık kontrolü
+	if frappe.db.exists("Subscription Plan", code) or frappe.db.exists("Subscription Plan", code.upper()):
+		frappe.throw(_("Bu plan_code zaten kullanılıyor: {0}").format(code))
+
+	doc = frappe.new_doc("Subscription Plan")
+	doc.plan_code = code
+	doc.plan_name = name
+	doc.description = description or ""
+	doc.monthly_price = float(monthly_price or 0)
+	doc.yearly_price = float(yearly_price or 0)
+	doc.currency = currency or "EUR"
+	doc.commission_rate = float(commission_rate or 0)
+	doc.max_active_listings = int(max_active_listings or 0)
+	doc.trial_days = int(trial_days or 0)
+	doc.is_active = 1 if str(is_active).lower() in ("1", "true", "yes") else 0
+	doc.is_public = 1 if str(is_public).lower() in ("1", "true", "yes") else 0
+	doc.capability_flags = "{}"
+	doc.quota_limits = "{}"
+	doc.flags.ignore_permissions = True
+	doc.insert(ignore_permissions=True)
+
+	# Public pricing cache flush
+	try:
+		frappe.cache().delete_value("tradehub:pricing:public")
+	except Exception:
+		pass
+
+	log_decision(
+		action="permission_console.create_subscription_plan",
+		decision="ALLOW",
+		rule_id="auth.admin_plan_crud",
+		layer="L0",
+		object_doctype="Subscription Plan",
+		object_name=doc.name,
+		plan_code=code,
+		severity="HIGH",
+		context={
+			"plan_code": code,
+			"plan_name": name,
+			"is_active": doc.is_active,
+			"is_public": doc.is_public,
+			"monthly_price": doc.monthly_price,
+			"currency": doc.currency,
+		},
+	)
+
+	return {
+		"name": doc.name,
+		"plan_code": code,
+		"plan_name": name,
+		"is_active": doc.is_active,
+		"is_public": doc.is_public,
+	}
+
+
+@frappe.whitelist(methods=["POST"])
+def delete_subscription_plan(plan_code: str) -> dict:
+	"""Subscription Plan sil.
+
+	Engeller:
+	  - Protected plan code (FREE/STARTER/PRO/ENTERPRISE) silinemez
+	  - Aktif/trial Store Subscription'ı olan plan silinemez
+
+	Cascade:
+	  - capability_flags + quota_limits + pricing_features child rows da silinir
+	    (Frappe delete_doc default davranışı)
+	"""
+	_require_system_manager_for_plan_crud("delete_subscription_plan")
+
+	code = (plan_code or "").strip()
+	if not code:
+		frappe.throw(_("plan_code zorunlu."), frappe.ValidationError)
+	if not frappe.db.exists("Subscription Plan", code):
+		frappe.throw(_("Plan bulunamadı: {0}").format(code))
+	if code in _PROTECTED_PLAN_CODES:
+		frappe.throw(
+			_("'{0}' korumalı temel plan kodudur; silinemez.").format(code),
+			frappe.PermissionError,
+		)
+
+	# Aktif/trial Store Subscription kontrolü
+	active_subs = frappe.db.count(
+		"Store Subscription",
+		{"plan": code, "status": ["in", ["trial", "active"]]},
+	)
+	if active_subs:
+		frappe.throw(
+			_("Bu planın {0} aktif aboneliği var. Önce abonelikleri başka plana taşıyın.").format(active_subs)
+		)
+
+	# Plan kaydını sil
+	frappe.delete_doc("Subscription Plan", code, ignore_permissions=True, force=1)
+	frappe.db.commit()
+
+	# Cache flush
+	try:
+		frappe.cache().delete_value("tradehub:pricing:public")
+		frappe.cache().delete_keys("tradehub:entitlement:")
+	except Exception:
+		pass
+
+	log_decision(
+		action="permission_console.delete_subscription_plan",
+		decision="ALLOW",
+		rule_id="auth.admin_plan_crud",
+		layer="L0",
+		object_doctype="Subscription Plan",
+		object_name=code,
+		plan_code=code,
+		severity="HIGH",
+		context={"plan_code": code},
+	)
+
+	return {"deleted": code}
+
+
 @frappe.whitelist()
 def list_subscription_plans() -> list[dict]:
 	"""Tüm planlar + kullanıcı sayısı."""
