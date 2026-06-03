@@ -27,7 +27,9 @@ class SellerApplication(Document):
 		2. account_type=Business zorla (Seller olmak için zorunlu - S6/S28)
 		3. Admin Seller Profile yarat (mağaza entity)
 		4. KYB Verification yarat (verification_kind=KYB - S26)
-		5. User'a Seller rolü ekle (Sprint 3 RBAC refactor'unda Seller Owner'a geçecek)"""
+		5. User'a Seller + Seller Owner rolleri ekle, tradehub_is_owner=1,
+		   tradehub_tenant=ASP.name, role_profile_name="Seller Full Access" set
+		   (Sprint 3 RBAC: Owner çift kapı kontrolü → auth.is_owner için zorunlu)."""
 		user = self.applicant_user
 		seller_name = self.business_name or frappe.db.get_value("User", user, "full_name") or user
 
@@ -119,7 +121,8 @@ class SellerApplication(Document):
 			)
 
 		# ───── 3. Admin Seller Profile yarat (mağaza entity — değişmedi) ─────
-		if not frappe.db.exists("Admin Seller Profile", {"user": user}):
+		asp_name = frappe.db.get_value("Admin Seller Profile", {"user": user}, "name")
+		if not asp_name:
 			count = (frappe.db.count("Admin Seller Profile") or 0) + 1
 			seller_code = f"SEL-{count:05d}"
 
@@ -140,6 +143,17 @@ class SellerApplication(Document):
 			admin_profile.owner = user
 			admin_profile.insert(ignore_permissions=True)
 			frappe.db.set_value("Admin Seller Profile", admin_profile.name, "owner", user)
+			asp_name = admin_profile.name
+
+		# ───── 3b. User'ı kendi tenant'ına bağla + Owner flag + role_profile ─────
+		# Sprint 3 RBAC: auth.is_owner = bool(tradehub_is_owner) AND "Seller Owner" in roles.
+		# Owner mağazasına bağlı olmalı (tenant_link) ki sub-user davetleri ve
+		# capability resolver çalışsın. role_profile_name = "Seller Full Access"
+		# Owner'a tüm capability'leri (Admin + Finance + Staff + Viewer) verir.
+		user_updates: dict[str, object] = {"tradehub_is_owner": 1, "tradehub_tenant": asp_name}
+		if not frappe.db.get_value("User", user, "role_profile_name"):
+			user_updates["role_profile_name"] = "Seller Full Access"
+		frappe.db.set_value("User", user, user_updates, update_modified=False)
 
 		# ───── 4. KYB Verification yarat (Sprint 2.6: verification_kind kaldırıldı) ─────
 		seller_type_map = {
@@ -174,10 +188,14 @@ class SellerApplication(Document):
 			kyb.insert(ignore_permissions=True)
 			frappe.db.set_value("KYB Verification", kyb.name, "owner", user)
 
-		# ───── 5. Seller rolü (Sprint 3'te Seller Owner'a geçecek) ─────
-		if "Seller" not in frappe.get_roles(user):
+		# ───── 5. Seller + Seller Owner rolleri (Sprint 3 RBAC) ─────
+		# auth.is_owner çift kapı: tradehub_is_owner=1 AND "Seller Owner" in roles.
+		# İkisi de bu fonksiyonda set ediliyor (yukarıda flag, burada rol).
+		current_roles = set(frappe.get_roles(user))
+		missing_roles = [r for r in ("Seller", "Seller Owner") if r not in current_roles]
+		if missing_roles:
 			user_doc = frappe.get_doc("User", user)
-			user_doc.add_roles("Seller")
+			user_doc.add_roles(*missing_roles)
 
 		# ───── 6. User Profile.kyb_status sync ─────
 		if up_name:
@@ -188,13 +206,20 @@ class SellerApplication(Document):
 		self.db_set("reviewed_on", now_datetime())
 
 	def _revoke_approval(self):
-		"""Sprint 2 — Onay geri çekme: User Profile.can_sell=0 + Admin Seller Profile suspend."""
+		"""Sprint 2 — Onay geri çekme: User Profile.can_sell=0 + Admin Seller Profile suspend.
+		Sprint 3 RBAC: Seller Owner rolü + tradehub_is_owner flag de geri alınır."""
 		user = self.applicant_user
 
-		# Seller rolünü kaldır
-		if "Seller" in frappe.get_roles(user):
+		# Seller + Seller Owner rollerini kaldır
+		current_roles = set(frappe.get_roles(user))
+		to_remove = [r for r in ("Seller", "Seller Owner") if r in current_roles]
+		if to_remove:
 			user_doc = frappe.get_doc("User", user)
-			user_doc.remove_roles("Seller")
+			user_doc.remove_roles(*to_remove)
+
+		# Owner flag'ini sıfırla (tradehub_tenant link'ini koruyoruz —
+		# Suspended ASP hâlâ aynı user'a ait, link sub-user davetleri için referans)
+		frappe.db.set_value("User", user, "tradehub_is_owner", 0, update_modified=False)
 
 		# User Profile.can_sell=0 set et (account_type Business kalır — TEK YÖNLÜ upgrade kuralı)
 		up_name = frappe.db.get_value("User Profile", {"user": user}, "name")

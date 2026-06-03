@@ -1,0 +1,179 @@
+{
+	"name": "TH Module Registry",
+	"doctype": "DocType",
+	"module": "Tradehub Core",
+	"naming_rule": "By fieldname",
+	"autoname": "field:module_key",
+	"engine": "InnoDB",
+	"track_changes": 1,
+	"is_tree": 1,
+	"nsm_parent_field": "parent_th_module_registry",
+	"sort_field": "display_order",
+	"sort_order": "ASC",
+	"fields": [
+		{
+			"fieldname": "module_key",
+			"fieldtype": "Data",
+			"label": "Module Key",
+			"reqd": 1,
+			"unique": 1,
+			"in_list_view": 1,
+			"description": "Benzersiz slug, nokta ile hiyerarşi: seller.store, seller.store.profile_finans, seller.store.profile_finans.profilim"
+		},
+		{
+			"fieldname": "parent_th_module_registry",
+			"fieldtype": "Link",
+			"label": "Üst Modül",
+			"options": "TH Module Registry",
+			"in_list_view": 1,
+			"in_standard_filter": 1
+		},
+		{
+			"fieldname": "item_type",
+			"fieldtype": "Select",
+			"label": "Tip",
+			"options": "section\ngroup\nitem",
+			"reqd": 1,
+			"default": "item",
+			"in_list_view": 1,
+			"in_standard_filter": 1
+		},
+		{
+			"fieldname": "panel",
+			"fieldtype": "Select",
+			"label": "Panel",
+			"options": "admin\nseller\nstorefront\nshared",
+			"reqd": 1,
+			"default": "seller",
+			"in_list_view": 1,
+			"in_standard_filter": 1
+		},
+		{
+			"fieldname": "section_key",
+			"fieldtype": "Data",
+			"label": "Section Key",
+			"description": "Sidebar section (dashboard, store, orders, system, ...)",
+			"in_list_view": 1,
+			"in_standard_filter": 1
+		},
+		{
+			"fieldname": "cb_visual",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "label",
+			"fieldtype": "Data",
+			"label": "Görünen Ad",
+			"reqd": 1,
+			"in_list_view": 1
+		},
+		{
+			"fieldname": "icon",
+			"fieldtype": "Data",
+			"label": "Icon",
+			"description": "lucide-vue-next icon adı (örn. shield-check)"
+		},
+		{
+			"fieldname": "color",
+			"fieldtype": "Data",
+			"label": "Renk",
+			"description": "Hex (örn. #7c3aed)"
+		},
+		{
+			"fieldname": "display_order",
+			"fieldtype": "Int",
+			"label": "Sıra",
+			"default": 0
+		},
+		{
+			"fieldname": "sb_target",
+			"fieldtype": "Section Break",
+			"label": "Hedef (sadece item için)"
+		},
+		{
+			"fieldname": "route",
+			"fieldtype": "Data",
+			"label": "Route",
+			"description": "Vue Router path (örn. /seller-team)"
+		},
+		{
+			"fieldname": "doctype_ref",
+			"fieldtype": "Link",
+			"label": "DocType Referansı",
+			"options": "DocType",
+			"description": "Frappe generic doctype view kullanılacaksa"
+		},
+		{
+			"fieldname": "cb_target",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "seller_owned",
+			"fieldtype": "Check",
+			"label": "Sadece Mağaza Sahibinin Kaydı",
+			"default": 0,
+			"description": "Listing serializer sub-user için tenant filter uygular"
+		},
+		{
+			"fieldname": "default_requires_capability",
+			"fieldtype": "Link",
+			"label": "Varsayılan Capability",
+			"options": "TH Capability Registry",
+			"description": "Bu modül için varsayılan capability gerekliliği (resolver fallback)"
+		},
+		{
+			"fieldname": "sb_meta",
+			"fieldtype": "Section Break",
+			"label": "Durum"
+		},
+		{
+			"fieldname": "is_active",
+			"fieldtype": "Check",
+			"label": "Aktif",
+			"default": 1,
+			"in_list_view": 1
+		},
+		{
+			"fieldname": "is_protected",
+			"fieldtype": "Check",
+			"label": "Korumalı",
+			"default": 0,
+			"description": "UI'dan silinemez (Profilim gibi kritik modüller)"
+		},
+		{
+			"fieldname": "cb_status",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "lft",
+			"fieldtype": "Int",
+			"label": "Left",
+			"hidden": 1,
+			"read_only": 1
+		},
+		{
+			"fieldname": "rgt",
+			"fieldtype": "Int",
+			"label": "Right",
+			"hidden": 1,
+			"read_only": 1
+		},
+		{
+			"fieldname": "old_parent",
+			"fieldtype": "Data",
+			"label": "Old Parent",
+			"hidden": 1,
+			"read_only": 1
+		}
+	],
+	"permissions": [
+		{
+			"role": "System Manager",
+			"read": 1, "write": 1, "create": 1, "delete": 1, "export": 1, "report": 1, "share": 1
+		},
+		{
+			"role": "Marketplace Admin",
+			"read": 1, "write": 1, "create": 1, "delete": 1, "export": 1, "report": 1, "share": 1
+		}
+	]
+}

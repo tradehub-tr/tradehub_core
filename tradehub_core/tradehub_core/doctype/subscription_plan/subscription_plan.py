@@ -26,6 +26,24 @@ class SubscriptionPlan(Document):
 		self._validate_capability_flags()
 		self._validate_quota_limits()
 		self._validate_pricing()
+		self._sanitize_rich_text_fields()
+
+	def _sanitize_rich_text_fields(self) -> None:
+		"""Faz H.2 — HTML/Long Text alanları XSS'e karşı sanitize et.
+
+		`description`, `short_tagline` storefront pricing card'larında render
+		ediliyor. Süper admin (veya Marketplace Admin) `<script>` veya
+		`<img onerror>` payload'ı kaydederse storefront tarafında çalışabilir.
+		Frappe'nin built-in `sanitize_html` allowlist-based filtre uygular —
+		`p`, `br`, `strong`, `em`, `ul/ol/li`, `a[href]` gibi temel tag'ler
+		korunur, `<script>` ve event handler'lar (onclick, onerror) düşer.
+		"""
+		from frappe.utils import sanitize_html
+
+		for field in ("description", "short_tagline", "badge_label", "cta_label"):
+			raw = self.get(field)
+			if raw and isinstance(raw, str):
+				self.set(field, sanitize_html(raw))
 
 	def _normalize_plan_code(self) -> None:
 		"""plan_code lowercase, kebab-case veya snake_case."""
@@ -49,8 +67,12 @@ class SubscriptionPlan(Document):
 		if not isinstance(flags, dict):
 			frappe.throw(_("Capability Flags JSON nesnesi (dict) olmalı."))
 
-		# Her key Feature Catalog'ta tanımlı olmalı
+		# Her key Feature Catalog'ta tanımlı VE deprecated olmamalı.
+		# Faz E.2 — deprecated key sızıntısına karşı koruma: önceden sadece
+		# var/yok kontrol ediliyordu, `is_deprecated=1` key (örn. eski
+		# `feature.rfq_module`) sessizce kabul ediliyordu.
 		unknown_keys = []
+		deprecated_keys = []
 		for key, value in flags.items():
 			if not key.startswith("feature."):
 				frappe.throw(_("Capability flag key 'feature.' ile başlamalı: '{0}'").format(key))
@@ -60,9 +82,11 @@ class SubscriptionPlan(Document):
 						key, type(value).__name__
 					)
 				)
-			# Feature Catalog kontrolü (graceful — registry eksikse skip)
-			if not frappe.db.exists("Feature Catalog", key):
+			fc = frappe.db.get_value("Feature Catalog", key, ["is_deprecated"], as_dict=True)
+			if not fc:
 				unknown_keys.append(key)
+			elif fc.get("is_deprecated"):
+				deprecated_keys.append(key)
 
 		if unknown_keys:
 			frappe.throw(
@@ -70,6 +94,13 @@ class SubscriptionPlan(Document):
 					", ".join(unknown_keys)
 				),
 				title=_("Tanımsız Feature Key"),
+			)
+		if deprecated_keys:
+			frappe.throw(
+				_("Şu Feature Catalog key'leri deprecated olarak işaretli ve plan'a yazılamaz: {0}").format(
+					", ".join(deprecated_keys)
+				),
+				title=_("Deprecated Feature Key"),
 			)
 
 	def _validate_quota_limits(self) -> None:

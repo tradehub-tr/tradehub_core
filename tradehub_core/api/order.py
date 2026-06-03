@@ -164,7 +164,8 @@ def get_my_orders(
 		order_by="order_date desc",
 		start=(page - 1) * page_size,
 		page_length=page_size,
-		ignore_permissions=True,
+		# Defense-in-depth: query_conditions tenant filter'ı uygulasın
+		# (manuel filters yerine permissions.py order_query_conditions devrede).
 	)
 
 	if search:
@@ -460,7 +461,8 @@ def get_my_refunds():
 			"refund_requested_at",
 		],
 		order_by="refund_requested_at desc",
-		ignore_permissions=True,
+		# Defense-in-depth: query_conditions tenant filter'ı uygulasın
+		# (manuel filters yerine permissions.py order_query_conditions devrede).
 	)
 	result = []
 	for o in orders:
@@ -671,7 +673,8 @@ def get_seller_orders(status=None, page=1, page_size=20):
 		order_by="order_date desc",
 		start=(page - 1) * page_size,
 		page_length=page_size,
-		ignore_permissions=True,
+		# Defense-in-depth: query_conditions tenant filter'ı uygulasın
+		# (permissions.py order_query_conditions devrede).
 	)
 
 	# Rol bazlı PII maskeleme kontrolleri
@@ -679,7 +682,13 @@ def get_seller_orders(status=None, page=1, page_size=20):
 
 	can_view_customer = has_seller_capability("view.customer_full", user)
 	can_view_amounts = has_seller_capability("view.order_amounts", user)
-	can_view_financial = has_seller_capability("view.financial_summary", user)
+	# `view.financial_summary` ileride aggregate (toplam ciro vs.) maskeleme
+	# için ayrı tutuluyor; şu an doğrudan kullanılmıyor ama capability check
+	# performans açısından burada tutulup audit'e hazır.
+	_can_view_financial = has_seller_capability("view.financial_summary", user)  # noqa: F841
+	# Sprint 4 — view.customer_shipping operasyon ekibi için minimum kargo
+	# bilgisini açar; view.customer_full bunu otomatik kapsar.
+	can_view_shipping = can_view_customer or has_seller_capability("view.customer_shipping", user)
 
 	# Faz 4: maskeleme audit log (best-effort, tek sefer)
 	if not can_view_customer or not can_view_amounts:
@@ -726,6 +735,11 @@ def get_seller_orders(status=None, page=1, page_size=20):
 				if order.get(f) is not None:
 					order[f] = None
 			order["amounts_masked"] = True
+
+		# Sprint 4 — Shipping address maskeleme
+		if not can_view_shipping and order.get("shipping_address"):
+			order["shipping_address"] = "•••"
+			order["shipping_address_masked"] = True
 
 		order["items"] = frappe.get_all(
 			"Order Item",
@@ -894,9 +908,7 @@ def get_order_shipping_info(order_number: str) -> dict:
 	shipping_postal = ""
 	if order.shipping_address:
 		addr_name = order.shipping_address
-		addr = frappe.db.get_value(
-			"Addresses", addr_name, ["city", "state", "postal_code"], as_dict=True
-		)
+		addr = frappe.db.get_value("Addresses", addr_name, ["city", "state", "postal_code"], as_dict=True)
 		if addr:
 			shipping_city = addr.get("city") or ""
 			shipping_state = addr.get("state") or ""

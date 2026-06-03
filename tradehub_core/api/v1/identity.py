@@ -813,6 +813,21 @@ def reset_password(key: str, new_password: str):
 	update_password(user_data.name, new_password, logout_all_sessions=True)
 	frappe.db.set_value("User", user_data.name, "reset_password_key", None)
 
+	# Audit (Faz C — K12) — şifre değişimi kritik güvenlik olayı
+	from tradehub_core.audit import log_decision
+
+	log_decision(
+		actor=user_data.name,
+		action="identity.reset_password",
+		decision="ALLOW",
+		rule_id="auth.password_reset_completed",
+		layer="L2",
+		object_doctype="User",
+		object_name=user_data.name,
+		severity="HIGH",
+		context={"all_sessions_logged_out": True},
+	)
+
 	return {
 		"success": True,
 		"message": _("Your password has been reset successfully."),
@@ -959,6 +974,21 @@ def change_password(current_password: str, new_password: str):
 	# Update password and invalidate all other sessions
 	update_password(user, new_password, logout_all_sessions=True)
 	frappe.db.commit()
+
+	# Audit (Faz C — K12) — şifre değişimi kritik güvenlik olayı
+	from tradehub_core.audit import log_decision
+
+	log_decision(
+		actor=user,
+		action="identity.change_password",
+		decision="ALLOW",
+		rule_id="auth.password_change_completed",
+		layer="L2",
+		object_doctype="User",
+		object_name=user,
+		severity="HIGH",
+		context={"all_sessions_logged_out": True},
+	)
 
 	return {"success": True, "message": _("Password changed successfully.")}
 
@@ -1671,6 +1701,25 @@ def delete_account(password: str, reason: str = ""):
 	frappe.sessions.clear_sessions(user)
 
 	frappe.db.commit()
+
+	# Audit (Faz C — K12) — hesap silme kritik HIGH severity güvenlik olayı
+	from tradehub_core.audit import log_decision
+
+	log_decision(
+		actor=user,
+		action="identity.delete_account",
+		decision="ALLOW",
+		rule_id="auth.account_soft_deleted",
+		layer="L2",
+		object_doctype="User",
+		object_name=user,
+		severity="HIGH",
+		context={
+			"reason": (reason or "")[:200],
+			"buyer_profile_deactivated": bool(buyer_profile),
+			"seller_profile_deactivated": bool(seller_profile),
+		},
+	)
 
 	return {"success": True, "message": _("Your account has been deleted.")}
 

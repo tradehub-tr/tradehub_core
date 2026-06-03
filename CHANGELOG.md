@@ -1,3 +1,138 @@
+## [v1.1.0-beta.1] - 2026-06-02 BETA — Sprint 6: DB-driven RBAC + Süper Admin Konsolu
+
+Sprint 6 yetki ve maskeleme altyapısını **kod sabitlerinden DB-driven hale** getirir. Süper admin artık tek panelden capability, modül görünürlüğü, plan kapısı ve PII maskeleme kurallarını koddan bağımsız yönetir. 96 yeni E2E test paketi (`test_sprint6_rbac.py`) regresyon kalkanı.
+
+### Eklendi
+
+- feat(rbac): TH Capability Registry + TH Capability Grant DocType'ları — capability listesi ve role profile grant matrisi DB'leştirildi (@boraydeger32)
+  - `tradehub_core/doctype/th_capability_registry/` — capability_key, label, module_group, default_tier, is_owner_only, is_protected, requires_kyc, requires_aml, plan_feature_flag
+  - `tradehub_core/doctype/th_capability_grant/` — (role_profile, capability) unique pair, granted flag, expires_at TTL, audit metadata
+  - Seed: `SELLER_CAPABILITIES` Python dict + `_TIER_*` frozenset → 31 capability + 94 grant matrix
+  - `is_protected` flag ile UI'dan silinemez korumalı capability'ler
+- feat(rbac): TH Module Registry + TH Module Policy DocType'ları — sidebar item ve modül görünürlük politikası DB-driven (@boraydeger32)
+  - `tradehub_core/doctype/th_module_registry/` — tree DocType, panel/section_key/parent hiyerarşisi, item_type (section/group/item), route/doctype_ref hedef
+  - `tradehub_core/doctype/th_module_policy/` — (module, role_profile) unique pair, mode (visible/masked/hidden), condition_json (ABAC opsiyonel)
+  - Seed: `navigation.js` sidebar item'ları → 75+ modül + 263 hidden policy (sub-user gating)
+- feat(rbac): `tradehub_core/utils/permission_resolver.py` — DB-first cache'li resolver (@boraydeger32)
+  - `get_capabilities(user)` — TH Capability Grant'tan capability seti (Redis 5dk TTL, key: `tradehub:cap:user:*`)
+  - `get_module_mode_map(user, panel)` — Modül key → mode haritası
+  - `get_navigation_tree(user, panel)` — Frontend-ready sidebar JSON
+  - `apply_field_mask(value, pattern)` — 6 pattern: none/last4/initials/iban_xxx_last4/bullets/email_domain
+  - hooks: `on_capability_*_change`, `on_module_*_change`, `on_user_role_change` ile otomatik cache invalidation
+- feat(rbac): `seller_capabilities.has_seller_capability` DB-first + Python fallback (@boraydeger32)
+  - TH Capability Registry'den metadata (is_owner_only/requires_kyc/plan_feature_flag) okur
+  - TH Capability Grant'tan role profile match kontrolü
+  - K6 Role Delegation fallback Python `_TIER_*` set'lerinden devam
+  - `get_user_capabilities()` aynı pattern — `get_session_user` payload'unda `capabilities` listesi
+- feat(api): Süper Admin Konsolu endpoint'leri — `tradehub_core/api/v1/permission_console.py` (@boraydeger32)
+  - `list_capabilities()` — capability + grant matrix JSON
+  - `update_capability_grant(role_profile, capability, granted, note)` — single cell toggle, fail-secure protected check
+  - `list_modules_tree(panel)` — module tree + policy matrix
+  - `update_module_policy(module, role_profile, mode, note)` — single cell mode set, protected hidden reddedilir
+  - `list_rbac_audit(limit)` — Frappe Version + Authorization Decision Log birleştirilmiş timeline
+  - `list_plan_capability_sync()` — Capability Registry plan_feature_flag ↔ Subscription Plan capability_flags tutarlılık tespiti
+  - `update_plan_capability_flag(plan_codes, feature_flag, enabled)` — bulk plan capability_flags güncelleme + entitlement cache flush
+- feat(api): `get_navigation(panel)` endpoint — `tradehub_core/api/v1/navigation.py` frontend için hazır sidebar tree (@boraydeger32)
+- feat(api): CRM list maskeleme — `crm_overrides.crm_list_contacts` + `apply_list_masking` helper (@boraydeger32)
+  - Frontend `frappe.client.get_list` yerine bu custom endpoint çağırır
+  - Per-field capability kontrolü (view.customer_pii / view.bank_info / view.tax_id)
+  - Per-row `_masked_fields` listesi UI badge rendering için
+- feat(rbac): Field-level PII maskeleme `on_load` hook — `tradehub_core/api/v1/crm_masking.py` (@boraydeger32)
+  - `mask_pii_fields(doc, method)` doc_event handler — Contact / Admin Seller Profile / User Profile
+  - Rate-limited audit log (`pii_mask_log:{user}:{doctype}` cache key, 1 saat TTL)
+  - `doc.flags._masked_fields` ile frontend için maskeleme listesi
+- feat(rbac): Frappe Desk PII koruması — Property Setter + Custom DocPerm (@boraydeger32)
+  - `tradehub_core/setup/pii_permlevel_setup.py` — idempotent permlevel uygulama helper
+  - PII alanları (iban, tax_id, bank_name, account_holder, email_id, phone, mobile_no) → permlevel 2
+  - Privileged role'ler (Seller Owner, Co-Owner, Compliance Officer, System Manager, Marketplace Admin) → read=1
+  - Non-privileged role'ler ("Seller", "Marketplace Seller") → read=0 (Frappe DocType migrate side-effect temizliği)
+- feat(api): Backend serializer maskeleme — `api/v1/auth.get_user_profile` (@boraydeger32)
+  - Sub-user için IBAN / bank_name / account_holder (view.bank_info kapısı)
+  - Sub-user için tax_id (view.tax_id kapısı)
+  - Response'a `_masked: {bank_info, tax_id}` flag eklendi
+- feat(api): `api/order.py` shipping_address maskeleme (`view.customer_shipping` kapısı) (@boraydeger32)
+- feat(ui): Süper Admin Konsolu Vue 3 paneli — `admin-panel/frontend/src/views/system/PermissionConsoleView.vue` 10 tab (@boraydeger32)
+  - Yeni: PermissionOverviewTab (KPI + audit timeline + Plan Sync uyarı bandı)
+  - Yeni: CapabilityMatrixTab (matrix + bulk grant + per-plan toggle + role highlight + masked event chip)
+  - Yeni: ModuleMatrixTab (3-state tree + collapse + korumalı modül modal)
+  - Mevcut: RolesTab (Sprint 6'da capability bölümü eklendi)
+  - Embed: ComplianceMaskMatrixView, AuthorizationSimulatorView, AnomalyDashboardView
+  - Mevcut: PlansTab, UsersTab, AuditLogTab (Sprint 5'te field-mask filtresi eklendi)
+  - Router refactor: `?tab=...` query param ile deep link + browser back/forward
+- feat(ui): `usePermission()` composable — `admin-panel/frontend/src/composables/usePermission.js` (@boraydeger32)
+  - `can(capability)`, `seesModule(key)`, `moduleMode(key)`, `isMasked(key)`, `isHidden(key)`
+  - `auth.js` `userCapabilities` Set'e dönüştürüldü (O(1) lookup)
+  - `canAccess()` yeni tag: `capability:<key>`
+- feat(ui): DB-driven sidebar — `stores/navigation.js` loadDbSections action (@boraydeger32)
+  - Login sonrası `/api/method/.../get_navigation` paralel fetch (admin + seller panel)
+  - Fail-safe fallback: backend ulaşılmazsa hard-coded `data/navigation.js`
+- feat(ui): `DocTypeFormView.vue` — bullet karakterli değer için 🔒 Maskeli badge + tooltip (@boraydeger32)
+- feat(ui): Owner-only / Korumalı capability detay panel banner'ları + Korumalı modül uyarı modal'ı (@boraydeger32)
+- feat(ui): Bulk Capability Grant — "Tüm sub-user role'lerine ver/çek" tek tıklama + onay modalı (@boraydeger32)
+- feat(rbac): Audit timeline genişletme — `pii.field_masked` event'lerini Frappe Version kayıtlarıyla birleştir (@boraydeger32)
+  - `list_decision_logs` endpoint `action` filter + `context` field response
+  - PermissionOverviewTab timeline'da maskeleme olayları (sarı tema, eye-off ikon)
+  - AuditLogTab "🔒 Maskeleme" hızlı filtre preset + masked_fields chip render
+- feat(rbac): Yeni capability'ler (@boraydeger32)
+  - `view.tax_id` (default tier COOWNER) — KYB Verification + Admin Seller Profile tax_id okuma
+  - `view.customer_pii` (default tier SALES, COOWNER+MANAGEMENT grant) — CRM Lead/Contact/Org email/phone okuma
+- test: 96 E2E test paketi — `tradehub_core/tests/test_sprint6_rbac.py` (@boraydeger32)
+  - TestSprint6_A (DocType existence + seed counts) — 11 test
+  - TestSprint6_B (permission_resolver functions) — 7 test
+  - TestSprint6_C (has_seller_capability decision chain) — 5 test
+  - TestSprint6_D (permission_console endpoints) — 8 test
+  - TestSprint6_E (navigation get_navigation) — 3 test
+  - TestSprint6_F (cache invalidation hooks) — 2 test
+  - TestSprint6_G (security boundaries) — 5 test
+  - TestSprint6_H (E2E scenarios) — 3 test
+  - TestSprint4_I (mask patterns) — 8 test
+  - TestSprint4_J (view.tax_id capability) — 4 test
+  - TestSprint5_K (view.customer_pii capability) — 3 test
+  - TestSprint5_L (Contact PII masking handler) — 4 test
+  - TestSprint5_M (Admin Seller Profile per-field) — 5 test
+  - TestSprint5_N (plan capability sync) — 6 test
+  - TestSprint5_O (update_plan_capability_flag) — 6 test
+  - TestSprint5_P/P2 (mask audit log + endpoint integration) — 4 test
+  - TestSprint5_Q (apply_list_masking) — 6 test
+  - TestSprint5_R (Desk permlevel protection) — 5 test
+
+### Düzeltildi
+
+- fix(rbac): Seller Application onayında "Seller Owner" rolü atama eksik — Sprint 3'te planlanmış ama yapılmamış (Sprint 1 öncesi auth.is_owner çift kapı tutarsızlığı) (@boraydeger32)
+  - `seller_application._approve_application` — Seller + Seller Owner rolleri + `tradehub_is_owner=1` + `tradehub_tenant=ASP.name` + `role_profile_name="Seller Full Access"`
+  - `seller_application._revoke_approval` — Seller Owner rolü ve flag'leri geri al
+  - Migration `v15_5_5_seller_owner_role_backfill` — mevcut Active ASP sahiplerine retroactive rol atama
+- fix(rbac): sub-user için get_session_user'da kyb_status / is_verified_seller / can_sell tenant owner'dan miras alınır (önceki: kullanıcının kendi User Profile'ından, sub-user için yanlış) (@boraydeger32)
+
+### Migration patches (sırasıyla)
+
+```
+tradehub_core.patches.v15_5_5_seller_owner_role_backfill
+tradehub_core.patches.v15_6_0_seed_capability_registry
+tradehub_core.patches.v15_6_1_seed_capability_grant
+tradehub_core.patches.v15_6_2_seed_module_registry
+tradehub_core.patches.v15_6_3_seed_module_policy
+tradehub_core.patches.v15_6_4_seed_view_tax_id
+tradehub_core.patches.v15_6_5_seed_view_customer_pii
+tradehub_core.patches.v15_6_6_apply_pii_permlevel
+tradehub_core.patches.v15_6_7_promote_pii_permlevel_to_2
+tradehub_core.patches.v15_6_8_lock_non_privileged_pii_read
+```
+
+Hepsi **idempotent** — tekrar çalıştırılabilir, mevcut kayıtlara dokunmaz.
+
+### Breaking Changes
+
+- ⚠ Frappe Desk'te `Admin Seller Profile`, `User Profile`, `Contact` DocType'larındaki IBAN/tax_id/email_id vb. alanlar artık **permlevel 2**'de. Sub-user rolleri (`Seller`, `Marketplace Seller`) bu alanları göremez. Bu kasıtlı bir güvenlik değişikliğidir; eski davranışa dönülmesi önerilmez.
+- ⚠ `auth.userCapabilities` artık `Array` değil `Set`. Eski kod `auth.userCapabilities.includes(...)` çağırıyorsa `auth.userCapabilities.has(...)` veya `auth.can(...)` ile değiştirilmeli.
+- ⚠ `navigation.js`'deki `requires:[...]` tag'leri **geriye uyumlu** kalmaya devam ediyor (fallback), ancak gerçek sidebar visibility **TH Module Policy** kayıtlarından çözümleniyor. Hard-coded değişiklik production'da etki etmez — TH Module Policy düzenlenmeli.
+
+### Deploy notları
+
+Production deploy adımları için → `Sprint6-Production-Checklist.md`
+
+---
+
 ## [v1.0.9-beta.15] - 2026-05-26 BETA
 
 Bu surum betaistoc.cronbi.com'da test asamasindadir.

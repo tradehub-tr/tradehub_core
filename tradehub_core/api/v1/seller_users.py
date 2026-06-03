@@ -582,10 +582,16 @@ def _build_invite_url(raw_token: str) -> str:
 	from urllib.parse import urlparse
 
 	parsed = urlparse(panel_url)
-	_ALLOWED_DOMAINS = frozenset({
-		"localhost", "istoc.com", "beta.istoc.com", "rc.istoc.com",
-		"admin.istoc.com", "admin-preview.istoc.com",
-	})
+	_ALLOWED_DOMAINS = frozenset(
+		{
+			"localhost",
+			"istoc.com",
+			"beta.istoc.com",
+			"rc.istoc.com",
+			"admin.istoc.com",
+			"admin-preview.istoc.com",
+		}
+	)
 	hostname = parsed.hostname or ""
 	if hostname and hostname not in _ALLOWED_DOMAINS and not hostname.endswith(".istoc.com"):
 		frappe.log_error(
