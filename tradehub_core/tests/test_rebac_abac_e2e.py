@@ -57,6 +57,7 @@ if "frappe" not in sys.modules:
 	sys.modules["frappe.model.document"] = _frappe_model_doc
 
 # ── Pure-logic imports ────────────────────────────────────────────────────────
+from tradehub_core.entitlement.checks import _extract_region_codes, _is_variant_listing
 from tradehub_core.services.abac_context import (
 	_dominant_jurisdiction,
 	evaluate_needs_approval_l1,
@@ -64,7 +65,6 @@ from tradehub_core.services.abac_context import (
 	evaluate_user_in_region,
 	evaluate_within_business_hours,
 )
-from tradehub_core.entitlement.checks import _extract_region_codes, _is_variant_listing
 from tradehub_core.utils.seller_capabilities import (
 	_OWNER_ONLY_CAPABILITIES,
 	_PLATFORM_ROLES,
@@ -78,7 +78,6 @@ from tradehub_core.utils.seller_capabilities import (
 	_TIER_SALES,
 	SELLER_CAPABILITIES,
 )
-
 
 # ══════════════════════════════════════════════════════════════════════════════
 # 1. ABAC Context Evaluator Tests (pure logic)
@@ -443,8 +442,8 @@ class TestTierRoleFallback(unittest.TestCase):
 			pass  # Bilinen gap, Sales delegation desteklenmiyor
 
 	def test_fallback_roles_are_frozenset(self):
-		for tier, roles in _TIER_ROLE_FALLBACK.items():
-			self.assertIsInstance(roles, frozenset, f"Tier role fallback frozenset degil")
+		for _tier, roles in _TIER_ROLE_FALLBACK.items():
+			self.assertIsInstance(roles, frozenset, "Tier role fallback frozenset degil")
 
 
 class TestPlatformRoles(unittest.TestCase):

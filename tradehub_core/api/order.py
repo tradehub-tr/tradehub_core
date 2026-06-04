@@ -679,7 +679,6 @@ def get_seller_orders(status=None, page=1, page_size=20):
 
 	can_view_customer = has_seller_capability("view.customer_full", user)
 	can_view_amounts = has_seller_capability("view.order_amounts", user)
-	can_view_financial = has_seller_capability("view.financial_summary", user)
 
 	# Faz 4: maskeleme audit log (best-effort, tek sefer)
 	if not can_view_customer or not can_view_amounts:
