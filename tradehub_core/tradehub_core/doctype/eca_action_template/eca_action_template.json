@@ -129,7 +129,7 @@
    "description": "only for create_document",
    "fieldname": "create_doctype",
    "fieldtype": "Link",
-   "label": "Oluşturulacak DocType",
+   "label": "Oluşturulacak Modül",
    "options": "DocType"
   },
   {

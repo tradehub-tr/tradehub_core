@@ -166,7 +166,7 @@
 		{
 			"fieldname": "source_doctype",
 			"fieldtype": "Link",
-			"label": "Kaynak DocType",
+			"label": "Kaynak Modül",
 			"options": "DocType",
 			"depends_on": "eval:!['quick_links','funnel_chart'].includes(doc.widget_type)"
 		},
