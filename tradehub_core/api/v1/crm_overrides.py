@@ -190,3 +190,71 @@ def save_contact(name=None, data=None):
 		_apply_contact_fields(doc, data)
 		doc.insert()
 	return doc.as_dict()
+
+
+# ───────────────────────────────────────────────────────────────────────────
+# Sprint 5 Faz 2 — Maskeleme uygulayan CRM list endpoint'leri
+# ───────────────────────────────────────────────────────────────────────────
+
+
+@frappe.whitelist()
+def crm_list_contacts(
+	filters=None,
+	fields=None,
+	order_by: str = "modified desc",
+	limit_page_length=20,
+	limit_start=0,
+) -> list[dict]:
+	"""Maskeli Contact listesi — frappe.get_list + apply_list_masking.
+
+	on_load hook list endpoint'lerinde tetiklenmediği için bu wrapper
+	view.customer_pii capability'si olmayan kullanıcıya phone/email'ı
+	maskelenmiş halde döner.
+
+	Frontend `api.callMethodGET("...crm_list_contacts", { ... })` ile çağırır.
+	"""
+	import json as _json
+
+	# Args parse — frappe whitelist transport quirk
+	if isinstance(filters, str):
+		try:
+			filters = _json.loads(filters)
+		except (ValueError, TypeError):
+			filters = []
+	if isinstance(fields, str):
+		try:
+			fields = _json.loads(fields)
+		except (ValueError, TypeError):
+			fields = None
+
+	if not fields:
+		fields = [
+			"name",
+			"full_name",
+			"first_name",
+			"last_name",
+			"email_id",
+			"phone",
+			"mobile_no",
+			"company_name",
+			"designation",
+			"modified",
+			"image",
+			"owner",  # apply_list_masking owner kontrolü için
+		]
+	# owner field'ı mutlaka dahil olsun (mask helper buna bakar)
+	if "owner" not in fields:
+		fields = list(fields) + ["owner"]
+
+	rows = frappe.get_list(
+		"Contact",
+		filters=filters or [],
+		fields=fields,
+		order_by=order_by,
+		start=int(limit_start or 0),
+		page_length=int(limit_page_length or 20),
+	)
+
+	from tradehub_core.api.v1.crm_masking import apply_list_masking
+
+	return apply_list_masking(rows, "Contact")

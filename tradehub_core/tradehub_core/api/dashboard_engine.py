@@ -43,15 +43,57 @@ def _is_super_admin():
 	return "System Manager" in roles or "Marketplace Manager" in roles
 
 
-def _user_can_read(doctype):
-	if not doctype:
+def _widget_is_safe(widget, scope, is_admin):
+	"""Decide if a widget can be safely rendered for the current user/scope.
+
+	Scope-resolution gate (replaces eski permission check). Mantık:
+
+	- Super admin her widget'ı görür. Veri filtrelemesi scope parametresi ile
+	  yönetilir (scope=None → tüm marketplace; scope=ACCT-X → tek satıcı).
+	- source_doctype olmayan widget'lar (örn. quick_links) güvenlidir — veri
+	  çekmediği için sızıntı riski yok.
+	- Non-admin kullanıcı + veri içeren widget için fail-safe:
+	    1) scope mutlaka resolve edilebilmeli (Admin Seller Profile bulunmalı)
+	    2) widget'ın scope_field'i tanımlı olmalı (first-class field, config_json
+	       veya DEFAULT_SCOPE_FIELDS'ten gelir)
+	  Aksi halde widget sessizce filtrelenir → handler hatalı bir scope filtresi
+	  olmadan veri çekmez.
+
+	Bu, ileride UI'dan eklenen widget'ların ayar atlanırsa rakip verisi
+	sızdırmasını engelleyen mimari güvencedir.
+	"""
+	if is_admin:
 		return True
-	if _is_super_admin():
+	if not widget.get("source_doctype"):
 		return True
-	try:
-		return frappe.has_permission(doctype, "read")
-	except Exception:
+	resolved = _resolve_scope(scope)
+	if not resolved:
 		return False
+	if not _get_scope_field(widget):
+		return False
+	return True
+
+
+def _check_dashboard_access(dashboard_key, scope):
+	"""Dashboard-key bazlı erişim kontrolü — URL crafting saldırılarına karşı.
+
+	- platform_overview → yalnızca super admin
+	- seller_overview + scope=__me__ → satıcı veya super admin
+	- seller_overview + scope=ACCT-X (başka satıcı) → yalnızca super admin
+	  (admin impersonation kullanım senaryosu)
+	- seller_overview + scope=None → yalnızca super admin (platform-wide görünüm)
+	"""
+	if _is_super_admin():
+		return
+	if dashboard_key == "platform_overview":
+		frappe.throw(
+			_("Platform dashboard'una erişim yetkiniz yok."), frappe.PermissionError
+		)
+	if dashboard_key == "seller_overview" and scope != "__me__":
+		frappe.throw(
+			_("Bu dashboard yalnızca kendi mağazanız için görüntülenebilir."),
+			frappe.PermissionError,
+		)
 
 
 # ---------------------------------------------------------------------------
@@ -148,24 +190,54 @@ DEFAULT_SCOPE_FIELDS = {
 	"Payment Transaction": "seller",
 	"Seller Review": "seller",
 	"Admin Seller Profile": "name",
+	# Genişletilmiş varsayılanlar — UI'dan widget eklendiğinde otomatik öneri
+	"RFQ": "seller",
+	"Cart": "seller",
+	"Conversation": "seller",
+	"Seller Application": "user",
+	"Seller Balance": "seller",
+	"Brand": "seller",
+	"HD Ticket": "seller",
+	"Platform Notification": "recipient_role",
 }
+
+
+def _get_scope_field(widget):
+	"""Resolve scope_field via priority chain:
+
+	1. widget.scope_field (first-class field, set via Frappe form veya patch)
+	2. widget.config_json.scope_field (legacy / backward compatible)
+	3. DEFAULT_SCOPE_FIELDS[source_doctype] (konvansiyon)
+
+	None döner → widget veri filtresi uygulayamaz; _widget_is_safe bunu
+	non-admin kullanıcılar için filtreler.
+	"""
+	scope_field = widget.get("scope_field")
+	if scope_field:
+		return scope_field
+	config = _parse_config(widget) or {}
+	scope_field = config.get("scope_field")
+	if scope_field:
+		return scope_field
+	doctype = widget.get("source_doctype")
+	if doctype:
+		return DEFAULT_SCOPE_FIELDS.get(doctype)
+	return None
 
 
 def _apply_scope_filter(filters, widget, scope):
 	"""Scope widget to a given user (seller scope).
 
-	Field lookup order:
-	1. Widget config_json.scope_field (explicit override)
-	2. DEFAULT_SCOPE_FIELDS[source_doctype] (convention)
-	3. Skip scoping if neither is resolvable
+	Field lookup _get_scope_field üzerinden yapılır. Scope resolve edilemezse
+	veya field çözülemezse filter eklenmez. Bu durumda non-admin kullanıcılar
+	için _widget_is_safe widget'ı zaten elemiş olur; admin için filter yokluğu
+	"platform geneli" anlamına gelir.
 	"""
 	resolved = _resolve_scope(scope)
 	if not resolved:
 		return filters
 	doctype = widget.get("source_doctype")
-	scope_field = (_parse_config(widget) or {}).get("scope_field")
-	if not scope_field and doctype:
-		scope_field = DEFAULT_SCOPE_FIELDS.get(doctype)
+	scope_field = _get_scope_field(widget)
 	if not scope_field:
 		return filters
 	if doctype:
@@ -442,25 +514,32 @@ def _handle_quick_links(widget, period=None, scope=None):
 	config = _parse_config(widget)
 	links = config.get("links") or []
 	resolved_scope = _resolve_scope(scope)
+	is_admin = _is_super_admin()
 	out = []
 	for link in links:
 		count = None
 		doctype = link.get("source_doctype")
 		if doctype:
-			if not _user_can_read(doctype):
-				continue
-			flt_arr = list(link.get("filters") or [])
+			# Scope-resolution gate for link counts:
+			# Admin → count görür (scope filter resolved ise uygulanır).
+			# Non-admin → scope_field + resolved_scope zorunlu; aksi halde count
+			# gizlenir ama link kendisi yine görünür (navigation amaçlı).
 			scope_field = link.get("scope_field")
-			if resolved_scope and scope_field:
+			has_safe_scope = (
+				is_admin or (resolved_scope and scope_field and link.get("source_doctype"))
+			)
+			if has_safe_scope:
+				flt_arr = list(link.get("filters") or [])
+				if resolved_scope and scope_field:
+					try:
+						_validate_field(doctype, scope_field)
+						flt_arr.append([scope_field, "=", resolved_scope])
+					except Exception:
+						pass
 				try:
-					_validate_field(doctype, scope_field)
-					flt_arr.append([scope_field, "=", resolved_scope])
+					count = _agg_count(doctype, flt_arr)
 				except Exception:
-					pass
-			try:
-				count = _agg_count(doctype, flt_arr)
-			except Exception:
-				count = None
+					count = None
 		out.append(
 			{
 				"label": link.get("label"),
@@ -500,6 +579,9 @@ def get_dashboard_layout(dashboard_key, period="30d", scope=None):
 	if not dashboard_key:
 		frappe.throw(_("dashboard_key gerekli."))
 
+	# Dashboard-key erişim kontrolü — URL crafting saldırılarına karşı
+	_check_dashboard_access(dashboard_key, scope)
+
 	# Cache isolation: role_profile bazlı cache key
 	user = frappe.session.user or "Guest"
 	role_profile = frappe.db.get_value("User", user, "role_profile_name") or "none"
@@ -509,6 +591,7 @@ def get_dashboard_layout(dashboard_key, period="30d", scope=None):
 	if cached:
 		return cached
 
+	is_admin = _is_super_admin()
 	user_roles = set(frappe.get_roles())
 	widget_names = frappe.get_all(
 		"Dashboard Widget",
@@ -520,12 +603,12 @@ def get_dashboard_layout(dashboard_key, period="30d", scope=None):
 	layout = []
 	for name in widget_names:
 		widget = frappe.get_doc("Dashboard Widget", name)
-		# Role-based visibility
+		# Role-based visibility (mevcut görünür_roller mekanizması korunur)
 		required_roles = [r.role for r in (widget.visible_roles or [])]
-		if required_roles and not (user_roles & set(required_roles)) and not _is_super_admin():
+		if required_roles and not (user_roles & set(required_roles)) and not is_admin:
 			continue
-		# DocType read permission
-		if widget.source_doctype and not _user_can_read(widget.source_doctype):
+		# Scope-resolution gate — fail-safe veri sızıntısı koruması
+		if not _widget_is_safe(widget, scope, is_admin):
 			continue
 
 		try:
@@ -634,8 +717,7 @@ def _mask_data(data, widget) -> dict | list | None:
 		# Chart widget: labels koru, values sıfırla
 		if "labels" in masked_data and "datasets" in masked_data:
 			masked_data["datasets"] = [
-				{**ds, "values": [None] * len(ds.get("values", []))}
-				for ds in masked_data.get("datasets", [])
+				{**ds, "values": [None] * len(ds.get("values", []))} for ds in masked_data.get("datasets", [])
 			]
 		return masked_data
 	return data
@@ -692,12 +774,8 @@ def preview_dashboard_widget(config, period="30d", scope=None):
 		}
 	)
 
-	# Optional read-permission guard for the source doctype.
-	if widget.source_doctype and not _user_can_read(widget.source_doctype):
-		frappe.throw(
-			_("{0} DocType'una erişim yetkiniz yok.").format(widget.source_doctype),
-			frappe.PermissionError,
-		)
+	# preview_dashboard_widget zaten _is_super_admin() ile gated; admin tüm
+	# doctype'ları okuyabilir. Ek bir perm kontrolü gereksiz.
 
 	try:
 		data = _run(widget, period=period, scope=scope)
@@ -708,15 +786,26 @@ def preview_dashboard_widget(config, period="30d", scope=None):
 
 @frappe.whitelist()
 def run_dashboard_widget(widget_id, period="30d", scope=None):
-	"""Execute a single widget by id and return its payload."""
+	"""Execute a single widget by id and return its payload.
+
+	Dashboard-key access gate + widget güvenlik kontrolü uygulanır. Bu endpoint
+	dashboard yüklemesi dışından çağrıldığında da fail-safe çalışır.
+	"""
 	widget = frappe.get_doc("Dashboard Widget", widget_id)
 
+	# Dashboard-key erişim kontrolü
+	_check_dashboard_access(widget.dashboard_key, scope)
+
+	is_admin = _is_super_admin()
 	user_roles = set(frappe.get_roles())
 	required_roles = [r.role for r in (widget.visible_roles or [])]
-	if required_roles and not (user_roles & set(required_roles)) and not _is_super_admin():
+	if required_roles and not (user_roles & set(required_roles)) and not is_admin:
 		frappe.throw(_("Bu widget'a erişim yetkiniz yok."), frappe.PermissionError)
-	if widget.source_doctype and not _user_can_read(widget.source_doctype):
-		frappe.throw(_("Bu widget'ın veri kaynağına erişim yetkiniz yok."), frappe.PermissionError)
+	if not _widget_is_safe(widget, scope, is_admin):
+		frappe.throw(
+			_("Bu widget'ın veri kaynağı için scope filtresi uygulanamıyor."),
+			frappe.PermissionError,
+		)
 
 	return {
 		"name": widget.name,
@@ -767,7 +856,12 @@ def list_dashboards():
 @frappe.whitelist()
 def list_widgets_for_admin(dashboard_key):
 	"""Return all widgets for a dashboard (including disabled), for the
-	admin management UI. Requires super admin."""
+	admin management UI. Requires super admin.
+
+	`scope_field` her satıcı widget'ı için resolve edilir (first-class field,
+	config_json fallback, DEFAULT_SCOPE_FIELDS) ve UI'da gösterilir — admin
+	bir bakışta hangi widget'ın hangi alanla filtrelendiğini görür.
+	"""
 	if not _is_super_admin():
 		frappe.throw(_("Bu veriye erişim yetkiniz yok."), frappe.PermissionError)
 	if not dashboard_key:
@@ -784,10 +878,23 @@ def list_widgets_for_admin(dashboard_key):
 			"position",
 			"is_enabled",
 			"source_doctype",
+			"scope_field",
+			"config_json",
 		],
 		order_by="position asc",
 	)
+	# scope_field çözümünü UI'ya hazır olarak ekle
+	for r in rows:
+		r["resolved_scope_field"] = _get_scope_field(r)
 	return rows
+
+
+@frappe.whitelist()
+def get_default_scope_fields():
+	"""DEFAULT_SCOPE_FIELDS map'ini UI'ya döndür — form'da source_doctype
+	seçildiğinde otomatik scope_field önerisi için kullanılır.
+	"""
+	return DEFAULT_SCOPE_FIELDS
 
 
 @frappe.whitelist()

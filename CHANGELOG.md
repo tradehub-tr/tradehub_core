@@ -1,3 +1,827 @@
+## [v1.0.9-beta.25] - 2026-06-04 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Eklendi
+- feat(rbac): rol bazlı veri maskeleme, sub-user güvenlik düzeltmeleri ve demo data (@boraydeger32)
+  - dashboard_engine.py'ye data_sensitivity + _should_mask + _mask_data katmanı
+  - Dashboard Widget'a data_sensitivity custom field (financial/profit/balance/pii)
+  - view.* capability'ler eklendi (7 adet: financial_summary, profit_detail, balance, bank_info, customer_full, customer_shipping, order_amounts)
+  - Seller Sales Rep rol profili ve _TIER_SALES tier tanımı
+  - Role_profile bazlı cache isolation (60s TTL) + invalidate_dashboard_cache()
+  - Maskeleme kararları DECISION_FIELD_MASKED audit log'a yazılıyor
+- feat(chat): TeamsLike buyer↔seller chat with Jitsi video calls (@aliturguttursab)
+  - api/chat.py: Chatwoot-backed threads, buyer external-identity JWT + seller token auth, seller auto-provisioning, attachments, and Jitsi video calls. start_video_call mints a per-user GUEST token (moderator:false) for the thread invite link so only the call initiator is moderator/host; the counterpart who opens the invite joins as a non-moderator participant.
+  - api/reservation.py: Plus-tier reservation gating + seller availability slots, with a scheduler that expires stale reservations.
+  - doctypes: Teamslike Settings, Chat Reservation, Seller Availability Slot.
+  - patches: teamslike user fields, settings init, admin/seller chat tier.
+- feat(rbac): Faz A-H — RBAC/ABAC/Pricing kapsamlı sertleştirme (@boraydeger32)
+  - v15_6_11_resync_feature_catalog: 40 fixture entry DB'ye upsert
+  - v15_6_12_sync_plan_capability_flags: FREE/STARTER/ENTERPRISE doldu
+  - v15_6_13_seed_sales_tier_grants: Sales tier grant'ları
+  - v15_6_14_seed_seller_sales_role_profile: Seller Sales Rep profile
+  - v15_6_15_fix_quota_orders_unlimited: max_orders_per_month -1
+  - seller_capabilities: _TIER_SALES_ROLES + _TIER_ROLE_FALLBACK
+  - _validate_roles_assignable allowlist (System Manager engeli)
+  - parent_profile protected klon engeli
+  - 5 mutating endpoint methods=["POST"] (CSRF)
+  - api/order.py 3 yerde ignore_permissions=True kaldırıldı
+  - update_capability_grant + update_module_policy + update_plan_capability_flag log_decision (HIGH severity, context dolu)
+  - reset_password + change_password + delete_account audit (HIGH)
+  - _merge_plan_json_field helper: partial payload veri kaybı bug'ı
+  - update_pricing_plan + update_plan_capabilities MERGE semantiği (default)
+  - _validate_capability_flags deprecated key reject
+  - api/v1/subscription.upgrade_subscription_plan self-service endpoint
+  - list_assignable_roles power-role filter
+  - v15_6_16_seed_protected_module_flags: 6 modül is_protected=1
+  - create/update/delete_role_profile object_doctype + name audit alanları
+  - _PRICING_FINANCIAL_FIELDS: Marketplace Admin fiyat erişimi yok
+  - authorization_simulator._enforce_positive_affirm: SKIP→ALLOW fail-open kapandı
+  - abac_context.normalize_amount_to_eur: TCMB Currency Rate Pair lookup
+  - workflow.py orchestrator scaffold (authorize / authorize_or_throw)
+  - v15_6_17_reset_enterprise_public_flag: storefront sızıntı engeli
+  - subscription_plan._sanitize_rich_text_fields: XSS koruması
+  - rule_id naming: auth.admin_module_policy_toggle
+  - test_protected_module_cannot_be_hidden_via_policy e2e test
+- feat(plans): Plan CRUD + v15_6_18 fixture seed + plan_code case fix (@boraydeger32)
+  - Fixture'dan Subscription Plan kayıtlarını DB'ye idempotent insert
+  - Frappe v15 `bench migrate` fixture import etmediği için (sadece schema + patches.txt) beta'da plan'lar hiç yaratılmamıştı → storefront pricing boş, admin panel Planlar tab boş
+  - Patch hem lowercase hem UPPERCASE name kontrolü ile mevcut kayıtları korur; sadece tamamen eksik senaryoyu kapatır
+  - Public pricing cache flush sonrası storefront anında dolu görür
+  - create_subscription_plan(plan_code, plan_name, monthly_price, ...) → System Manager-only (Marketplace Admin engellendi, Faz F.4 ile uyum) → Default is_public=False (admin önce capability/quota doldurur) → Audit log HIGH severity, rule_id: auth.admin_plan_crud
+  - delete_subscription_plan(plan_code) → _PROTECTED_PLAN_CODES (FREE/STARTER/PRO/ENTERPRISE) silinemez → Aktif/trial Store Subscription varsa engellenir → Cascade: pricing_features child + cache flush → Audit HIGH
+  - _PLAN_CODE_PATTERN: ^([a-z][a-z0-9_-]*|[A-Z][A-Z0-9_-]*)$ (lowercase VEYA UPPERCASE; mixed case yasak)
+  - _normalize_plan_code artık case'i zorla değiştirmez — sadece strip + validate
+  - Mevcut DB UPPERCASE plan'lar (FREE/STARTER/PRO/ENTERPRISE) save sırasında hata vermez; lowercase custom plan'lar (pro-annual, premium) yeni eklenir
+  - test_rebac_abac_e2e_phaseD: import sırası düzeltildi (test_authorization_simulator frappe stub'ı kuruyor, sim import'u sonra)
+- feat(dashboard): scope-resolution gate ile satıcı widget görünürlüğü düzeltildi (@aliiball)
+  - _user_can_read kaldırıldı; yerine _widget_is_safe scope-resolution gate
+  - _check_dashboard_access ile URL crafting saldırılarına karşı koruma (satıcı platform_overview veya başka satıcının scope'unu çağıramaz)
+  - Dashboard Widget'a first-class scope_field column eklendi (config_json'dan auto-backfill + save-time validation)
+  - DEFAULT_SCOPE_FIELDS 5'ten 13 doctype'a genişletildi (RFQ, Cart, Conversation, Seller Application, Brand, HD Ticket vb.)
+  - backfill_widget_scope_field patch'i mevcut widget'ları yeni column'a göçürür (idempotent)
+  - get_default_scope_fields whitelist endpoint UI auto-populate için
+  - list_widgets_for_admin artık resolved_scope_field döndürüyor
+
+### Duzeltildi
+- fix(security): address validation, AML gate, has_permission explicit deny (@boraydeger32)
+  - buyer.py: reject invalid purpose/address_type with frappe.throw (no silent fallback)
+  - buyer.py: add phone prefix-number consistency check for non-TR phones
+  - seller_addresses.py: add missing _doc_to_dict fields (purpose, address_type, tax_no, tax_office)
+  - seller_addresses.py: phone prefix consistency + ignore_permissions justification comments
+  - buyer.py: add ignore_permissions justification comments on save/insert/delete
+  - permissions.py: replace return None with return False in 6 has_permission functions (listing_review, review_helpful_vote, review_abuse_report, listing_question, order_dispute, trusted_reviewer_invitation) — prevents cross-tenant fall-through
+  - permissions.py: listing_question_has_permission now grants seller read access to questions on their own listings
+  - permissions.py: implement real AML/sanctions gate (_check_aml_sanctions) with KYB Verification aml_check_status/sanctions_status check + graceful fallback
+  - seller_capabilities.py: implement real _check_aml_clean with same pattern
+  - test_address_validators.py: 29 new E2E tests (purpose validation, phone prefix, company optional, alert→toast, field symmetry, DocType schema integrity)
+  - test_rebac_abac_e2e.py: 123 new standalone tests (ABAC evaluators, capability matrix, tier hierarchy, KYC/AML sets, source audit, cross-layer consistency, frontend-backend sync, subscription plan fixtures)
+- fix(stock): available_qty tercih edilerek stok hesaplaması düzeltildi (@ahmeetseker)
+  - cart.py: stok kontrolü ve sepet response'da available_qty (= stock_qty - reserved_qty)
+  - listing.py: get_listing_detail'de available_qty None kontrolü ile falsy 0 değeri sorunu giderildi
+  - listing_stats.py: aynı None-safe available_qty fallback mantığı uygulandı
+- fix(kyc-kyb): admin doctype görünürlük ve validation iyileştirmeleri (@aliiball)
+  - KYC submit_kyc_documents rate limit gevşetildi (1/60s -> 10/300s); kullanıcı validation hatası alıp düzeltirken 429'a takılmıyor
+  - KYC validation hataları (TCKN/VKN, dosya uzantısı, zorunlu alan eksik, rejection reason) Error Log'a defer_insert ile yazılır oldu; PII güvenliği için sadece metadata loglanıyor, hassas değerler loglanmıyor
+  - KYB company_title ve KYC account_type/company_name alanlarına permlevel 1 eklendi; admin paneldeki list view'da artık dolu görünüyor
+  - KYC tab_review yapısı KYB ile aynı hale getirildi: depends_on kaldırıldı, reviewed_by ve reviewed_at field'ları tab_account'tan tab_review'e taşındı, Doğrulama Bilgileri section break eklendi
+  - KYC submitted_at field'ı kaldırıldı; Frappe built-in creation aynı bilgiyi tutuyor, KYB ile tutarlılık sağlandı
+  - KYB rejection_reason ve notes alanları sadece Rejected/Suspended'da görünür hale getirildi; Pending'de boş textarea görünmüyor artık
+- fix(plans): v15_6_18 patch ignore_links + allowed_regions skip (@boraydeger32)
+  - allowed_regions field skip — admin sonradan ekleyebilir
+  - doc.flags.ignore_links = True — Region/Currency vs. fixture eksikse link validation bypass; plan'ın temel pricing/feature alanları seed olur
+- fix(plans): v15_6_19 retry patch — Patch Log bypass for plan seed (@boraydeger32)
+
+### Degistirildi
+- refactor(tests): rebac/abac e2e testinde tekrarlı types importu kaldırıldı (@aliiball)
+
+---
+## [v1.0.9-beta.24] - 2026-06-03 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Eklendi
+- feat(rbac): rol bazlı veri maskeleme, sub-user güvenlik düzeltmeleri ve demo data (@boraydeger32)
+  - dashboard_engine.py'ye data_sensitivity + _should_mask + _mask_data katmanı
+  - Dashboard Widget'a data_sensitivity custom field (financial/profit/balance/pii)
+  - view.* capability'ler eklendi (7 adet: financial_summary, profit_detail, balance, bank_info, customer_full, customer_shipping, order_amounts)
+  - Seller Sales Rep rol profili ve _TIER_SALES tier tanımı
+  - Role_profile bazlı cache isolation (60s TTL) + invalidate_dashboard_cache()
+  - Maskeleme kararları DECISION_FIELD_MASKED audit log'a yazılıyor
+- feat(chat): TeamsLike buyer↔seller chat with Jitsi video calls (@aliturguttursab)
+  - api/chat.py: Chatwoot-backed threads, buyer external-identity JWT + seller token auth, seller auto-provisioning, attachments, and Jitsi video calls. start_video_call mints a per-user GUEST token (moderator:false) for the thread invite link so only the call initiator is moderator/host; the counterpart who opens the invite joins as a non-moderator participant.
+  - api/reservation.py: Plus-tier reservation gating + seller availability slots, with a scheduler that expires stale reservations.
+  - doctypes: Teamslike Settings, Chat Reservation, Seller Availability Slot.
+  - patches: teamslike user fields, settings init, admin/seller chat tier.
+- feat(rbac): Faz A-H — RBAC/ABAC/Pricing kapsamlı sertleştirme (@boraydeger32)
+  - v15_6_11_resync_feature_catalog: 40 fixture entry DB'ye upsert
+  - v15_6_12_sync_plan_capability_flags: FREE/STARTER/ENTERPRISE doldu
+  - v15_6_13_seed_sales_tier_grants: Sales tier grant'ları
+  - v15_6_14_seed_seller_sales_role_profile: Seller Sales Rep profile
+  - v15_6_15_fix_quota_orders_unlimited: max_orders_per_month -1
+  - seller_capabilities: _TIER_SALES_ROLES + _TIER_ROLE_FALLBACK
+  - _validate_roles_assignable allowlist (System Manager engeli)
+  - parent_profile protected klon engeli
+  - 5 mutating endpoint methods=["POST"] (CSRF)
+  - api/order.py 3 yerde ignore_permissions=True kaldırıldı
+  - update_capability_grant + update_module_policy + update_plan_capability_flag log_decision (HIGH severity, context dolu)
+  - reset_password + change_password + delete_account audit (HIGH)
+  - _merge_plan_json_field helper: partial payload veri kaybı bug'ı
+  - update_pricing_plan + update_plan_capabilities MERGE semantiği (default)
+  - _validate_capability_flags deprecated key reject
+  - api/v1/subscription.upgrade_subscription_plan self-service endpoint
+  - list_assignable_roles power-role filter
+  - v15_6_16_seed_protected_module_flags: 6 modül is_protected=1
+  - create/update/delete_role_profile object_doctype + name audit alanları
+  - _PRICING_FINANCIAL_FIELDS: Marketplace Admin fiyat erişimi yok
+  - authorization_simulator._enforce_positive_affirm: SKIP→ALLOW fail-open kapandı
+  - abac_context.normalize_amount_to_eur: TCMB Currency Rate Pair lookup
+  - workflow.py orchestrator scaffold (authorize / authorize_or_throw)
+  - v15_6_17_reset_enterprise_public_flag: storefront sızıntı engeli
+  - subscription_plan._sanitize_rich_text_fields: XSS koruması
+  - rule_id naming: auth.admin_module_policy_toggle
+  - test_protected_module_cannot_be_hidden_via_policy e2e test
+- feat(plans): Plan CRUD + v15_6_18 fixture seed + plan_code case fix (@boraydeger32)
+  - Fixture'dan Subscription Plan kayıtlarını DB'ye idempotent insert
+  - Frappe v15 `bench migrate` fixture import etmediği için (sadece schema + patches.txt) beta'da plan'lar hiç yaratılmamıştı → storefront pricing boş, admin panel Planlar tab boş
+  - Patch hem lowercase hem UPPERCASE name kontrolü ile mevcut kayıtları korur; sadece tamamen eksik senaryoyu kapatır
+  - Public pricing cache flush sonrası storefront anında dolu görür
+  - create_subscription_plan(plan_code, plan_name, monthly_price, ...) → System Manager-only (Marketplace Admin engellendi, Faz F.4 ile uyum) → Default is_public=False (admin önce capability/quota doldurur) → Audit log HIGH severity, rule_id: auth.admin_plan_crud
+  - delete_subscription_plan(plan_code) → _PROTECTED_PLAN_CODES (FREE/STARTER/PRO/ENTERPRISE) silinemez → Aktif/trial Store Subscription varsa engellenir → Cascade: pricing_features child + cache flush → Audit HIGH
+  - _PLAN_CODE_PATTERN: ^([a-z][a-z0-9_-]*|[A-Z][A-Z0-9_-]*)$ (lowercase VEYA UPPERCASE; mixed case yasak)
+  - _normalize_plan_code artık case'i zorla değiştirmez — sadece strip + validate
+  - Mevcut DB UPPERCASE plan'lar (FREE/STARTER/PRO/ENTERPRISE) save sırasında hata vermez; lowercase custom plan'lar (pro-annual, premium) yeni eklenir
+  - test_rebac_abac_e2e_phaseD: import sırası düzeltildi (test_authorization_simulator frappe stub'ı kuruyor, sim import'u sonra)
+
+### Duzeltildi
+- fix(security): address validation, AML gate, has_permission explicit deny (@boraydeger32)
+  - buyer.py: reject invalid purpose/address_type with frappe.throw (no silent fallback)
+  - buyer.py: add phone prefix-number consistency check for non-TR phones
+  - seller_addresses.py: add missing _doc_to_dict fields (purpose, address_type, tax_no, tax_office)
+  - seller_addresses.py: phone prefix consistency + ignore_permissions justification comments
+  - buyer.py: add ignore_permissions justification comments on save/insert/delete
+  - permissions.py: replace return None with return False in 6 has_permission functions (listing_review, review_helpful_vote, review_abuse_report, listing_question, order_dispute, trusted_reviewer_invitation) — prevents cross-tenant fall-through
+  - permissions.py: listing_question_has_permission now grants seller read access to questions on their own listings
+  - permissions.py: implement real AML/sanctions gate (_check_aml_sanctions) with KYB Verification aml_check_status/sanctions_status check + graceful fallback
+  - seller_capabilities.py: implement real _check_aml_clean with same pattern
+  - test_address_validators.py: 29 new E2E tests (purpose validation, phone prefix, company optional, alert→toast, field symmetry, DocType schema integrity)
+  - test_rebac_abac_e2e.py: 123 new standalone tests (ABAC evaluators, capability matrix, tier hierarchy, KYC/AML sets, source audit, cross-layer consistency, frontend-backend sync, subscription plan fixtures)
+- fix(stock): available_qty tercih edilerek stok hesaplaması düzeltildi (@ahmeetseker)
+  - cart.py: stok kontrolü ve sepet response'da available_qty (= stock_qty - reserved_qty)
+  - listing.py: get_listing_detail'de available_qty None kontrolü ile falsy 0 değeri sorunu giderildi
+  - listing_stats.py: aynı None-safe available_qty fallback mantığı uygulandı
+- fix(kyc-kyb): admin doctype görünürlük ve validation iyileştirmeleri (@aliiball)
+  - KYC submit_kyc_documents rate limit gevşetildi (1/60s -> 10/300s); kullanıcı validation hatası alıp düzeltirken 429'a takılmıyor
+  - KYC validation hataları (TCKN/VKN, dosya uzantısı, zorunlu alan eksik, rejection reason) Error Log'a defer_insert ile yazılır oldu; PII güvenliği için sadece metadata loglanıyor, hassas değerler loglanmıyor
+  - KYB company_title ve KYC account_type/company_name alanlarına permlevel 1 eklendi; admin paneldeki list view'da artık dolu görünüyor
+  - KYC tab_review yapısı KYB ile aynı hale getirildi: depends_on kaldırıldı, reviewed_by ve reviewed_at field'ları tab_account'tan tab_review'e taşındı, Doğrulama Bilgileri section break eklendi
+  - KYC submitted_at field'ı kaldırıldı; Frappe built-in creation aynı bilgiyi tutuyor, KYB ile tutarlılık sağlandı
+  - KYB rejection_reason ve notes alanları sadece Rejected/Suspended'da görünür hale getirildi; Pending'de boş textarea görünmüyor artık
+- fix(plans): v15_6_18 patch ignore_links + allowed_regions skip (@boraydeger32)
+  - allowed_regions field skip — admin sonradan ekleyebilir
+  - doc.flags.ignore_links = True — Region/Currency vs. fixture eksikse link validation bypass; plan'ın temel pricing/feature alanları seed olur
+- fix(plans): v15_6_19 retry patch — Patch Log bypass for plan seed (@boraydeger32)
+
+### Degistirildi
+- refactor(tests): rebac/abac e2e testinde tekrarlı types importu kaldırıldı (@aliiball)
+
+---
+## [v1.0.9-beta.23] - 2026-06-03 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Eklendi
+- feat(rbac): rol bazlı veri maskeleme, sub-user güvenlik düzeltmeleri ve demo data (@boraydeger32)
+  - dashboard_engine.py'ye data_sensitivity + _should_mask + _mask_data katmanı
+  - Dashboard Widget'a data_sensitivity custom field (financial/profit/balance/pii)
+  - view.* capability'ler eklendi (7 adet: financial_summary, profit_detail, balance, bank_info, customer_full, customer_shipping, order_amounts)
+  - Seller Sales Rep rol profili ve _TIER_SALES tier tanımı
+  - Role_profile bazlı cache isolation (60s TTL) + invalidate_dashboard_cache()
+  - Maskeleme kararları DECISION_FIELD_MASKED audit log'a yazılıyor
+- feat(chat): TeamsLike buyer↔seller chat with Jitsi video calls (@aliturguttursab)
+  - api/chat.py: Chatwoot-backed threads, buyer external-identity JWT + seller token auth, seller auto-provisioning, attachments, and Jitsi video calls. start_video_call mints a per-user GUEST token (moderator:false) for the thread invite link so only the call initiator is moderator/host; the counterpart who opens the invite joins as a non-moderator participant.
+  - api/reservation.py: Plus-tier reservation gating + seller availability slots, with a scheduler that expires stale reservations.
+  - doctypes: Teamslike Settings, Chat Reservation, Seller Availability Slot.
+  - patches: teamslike user fields, settings init, admin/seller chat tier.
+- feat(rbac): Faz A-H — RBAC/ABAC/Pricing kapsamlı sertleştirme (@boraydeger32)
+  - v15_6_11_resync_feature_catalog: 40 fixture entry DB'ye upsert
+  - v15_6_12_sync_plan_capability_flags: FREE/STARTER/ENTERPRISE doldu
+  - v15_6_13_seed_sales_tier_grants: Sales tier grant'ları
+  - v15_6_14_seed_seller_sales_role_profile: Seller Sales Rep profile
+  - v15_6_15_fix_quota_orders_unlimited: max_orders_per_month -1
+  - seller_capabilities: _TIER_SALES_ROLES + _TIER_ROLE_FALLBACK
+  - _validate_roles_assignable allowlist (System Manager engeli)
+  - parent_profile protected klon engeli
+  - 5 mutating endpoint methods=["POST"] (CSRF)
+  - api/order.py 3 yerde ignore_permissions=True kaldırıldı
+  - update_capability_grant + update_module_policy + update_plan_capability_flag log_decision (HIGH severity, context dolu)
+  - reset_password + change_password + delete_account audit (HIGH)
+  - _merge_plan_json_field helper: partial payload veri kaybı bug'ı
+  - update_pricing_plan + update_plan_capabilities MERGE semantiği (default)
+  - _validate_capability_flags deprecated key reject
+  - api/v1/subscription.upgrade_subscription_plan self-service endpoint
+  - list_assignable_roles power-role filter
+  - v15_6_16_seed_protected_module_flags: 6 modül is_protected=1
+  - create/update/delete_role_profile object_doctype + name audit alanları
+  - _PRICING_FINANCIAL_FIELDS: Marketplace Admin fiyat erişimi yok
+  - authorization_simulator._enforce_positive_affirm: SKIP→ALLOW fail-open kapandı
+  - abac_context.normalize_amount_to_eur: TCMB Currency Rate Pair lookup
+  - workflow.py orchestrator scaffold (authorize / authorize_or_throw)
+  - v15_6_17_reset_enterprise_public_flag: storefront sızıntı engeli
+  - subscription_plan._sanitize_rich_text_fields: XSS koruması
+  - rule_id naming: auth.admin_module_policy_toggle
+  - test_protected_module_cannot_be_hidden_via_policy e2e test
+- feat(plans): Plan CRUD + v15_6_18 fixture seed + plan_code case fix (@boraydeger32)
+  - Fixture'dan Subscription Plan kayıtlarını DB'ye idempotent insert
+  - Frappe v15 `bench migrate` fixture import etmediği için (sadece schema + patches.txt) beta'da plan'lar hiç yaratılmamıştı → storefront pricing boş, admin panel Planlar tab boş
+  - Patch hem lowercase hem UPPERCASE name kontrolü ile mevcut kayıtları korur; sadece tamamen eksik senaryoyu kapatır
+  - Public pricing cache flush sonrası storefront anında dolu görür
+  - create_subscription_plan(plan_code, plan_name, monthly_price, ...) → System Manager-only (Marketplace Admin engellendi, Faz F.4 ile uyum) → Default is_public=False (admin önce capability/quota doldurur) → Audit log HIGH severity, rule_id: auth.admin_plan_crud
+  - delete_subscription_plan(plan_code) → _PROTECTED_PLAN_CODES (FREE/STARTER/PRO/ENTERPRISE) silinemez → Aktif/trial Store Subscription varsa engellenir → Cascade: pricing_features child + cache flush → Audit HIGH
+  - _PLAN_CODE_PATTERN: ^([a-z][a-z0-9_-]*|[A-Z][A-Z0-9_-]*)$ (lowercase VEYA UPPERCASE; mixed case yasak)
+  - _normalize_plan_code artık case'i zorla değiştirmez — sadece strip + validate
+  - Mevcut DB UPPERCASE plan'lar (FREE/STARTER/PRO/ENTERPRISE) save sırasında hata vermez; lowercase custom plan'lar (pro-annual, premium) yeni eklenir
+  - test_rebac_abac_e2e_phaseD: import sırası düzeltildi (test_authorization_simulator frappe stub'ı kuruyor, sim import'u sonra)
+
+### Duzeltildi
+- fix(security): address validation, AML gate, has_permission explicit deny (@boraydeger32)
+  - buyer.py: reject invalid purpose/address_type with frappe.throw (no silent fallback)
+  - buyer.py: add phone prefix-number consistency check for non-TR phones
+  - seller_addresses.py: add missing _doc_to_dict fields (purpose, address_type, tax_no, tax_office)
+  - seller_addresses.py: phone prefix consistency + ignore_permissions justification comments
+  - buyer.py: add ignore_permissions justification comments on save/insert/delete
+  - permissions.py: replace return None with return False in 6 has_permission functions (listing_review, review_helpful_vote, review_abuse_report, listing_question, order_dispute, trusted_reviewer_invitation) — prevents cross-tenant fall-through
+  - permissions.py: listing_question_has_permission now grants seller read access to questions on their own listings
+  - permissions.py: implement real AML/sanctions gate (_check_aml_sanctions) with KYB Verification aml_check_status/sanctions_status check + graceful fallback
+  - seller_capabilities.py: implement real _check_aml_clean with same pattern
+  - test_address_validators.py: 29 new E2E tests (purpose validation, phone prefix, company optional, alert→toast, field symmetry, DocType schema integrity)
+  - test_rebac_abac_e2e.py: 123 new standalone tests (ABAC evaluators, capability matrix, tier hierarchy, KYC/AML sets, source audit, cross-layer consistency, frontend-backend sync, subscription plan fixtures)
+- fix(stock): available_qty tercih edilerek stok hesaplaması düzeltildi (@ahmeetseker)
+  - cart.py: stok kontrolü ve sepet response'da available_qty (= stock_qty - reserved_qty)
+  - listing.py: get_listing_detail'de available_qty None kontrolü ile falsy 0 değeri sorunu giderildi
+  - listing_stats.py: aynı None-safe available_qty fallback mantığı uygulandı
+- fix(kyc-kyb): admin doctype görünürlük ve validation iyileştirmeleri (@aliiball)
+  - KYC submit_kyc_documents rate limit gevşetildi (1/60s -> 10/300s); kullanıcı validation hatası alıp düzeltirken 429'a takılmıyor
+  - KYC validation hataları (TCKN/VKN, dosya uzantısı, zorunlu alan eksik, rejection reason) Error Log'a defer_insert ile yazılır oldu; PII güvenliği için sadece metadata loglanıyor, hassas değerler loglanmıyor
+  - KYB company_title ve KYC account_type/company_name alanlarına permlevel 1 eklendi; admin paneldeki list view'da artık dolu görünüyor
+  - KYC tab_review yapısı KYB ile aynı hale getirildi: depends_on kaldırıldı, reviewed_by ve reviewed_at field'ları tab_account'tan tab_review'e taşındı, Doğrulama Bilgileri section break eklendi
+  - KYC submitted_at field'ı kaldırıldı; Frappe built-in creation aynı bilgiyi tutuyor, KYB ile tutarlılık sağlandı
+  - KYB rejection_reason ve notes alanları sadece Rejected/Suspended'da görünür hale getirildi; Pending'de boş textarea görünmüyor artık
+- fix(plans): v15_6_18 patch ignore_links + allowed_regions skip (@boraydeger32)
+  - allowed_regions field skip — admin sonradan ekleyebilir
+  - doc.flags.ignore_links = True — Region/Currency vs. fixture eksikse link validation bypass; plan'ın temel pricing/feature alanları seed olur
+- fix(plans): v15_6_19 retry patch — Patch Log bypass for plan seed (@boraydeger32)
+
+### Degistirildi
+- refactor(tests): rebac/abac e2e testinde tekrarlı types importu kaldırıldı (@aliiball)
+
+---
+## [v1.0.9-beta.22] - 2026-06-03 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Eklendi
+- feat(rbac): rol bazlı veri maskeleme, sub-user güvenlik düzeltmeleri ve demo data (@boraydeger32)
+  - dashboard_engine.py'ye data_sensitivity + _should_mask + _mask_data katmanı
+  - Dashboard Widget'a data_sensitivity custom field (financial/profit/balance/pii)
+  - view.* capability'ler eklendi (7 adet: financial_summary, profit_detail, balance, bank_info, customer_full, customer_shipping, order_amounts)
+  - Seller Sales Rep rol profili ve _TIER_SALES tier tanımı
+  - Role_profile bazlı cache isolation (60s TTL) + invalidate_dashboard_cache()
+  - Maskeleme kararları DECISION_FIELD_MASKED audit log'a yazılıyor
+- feat(chat): TeamsLike buyer↔seller chat with Jitsi video calls (@aliturguttursab)
+  - api/chat.py: Chatwoot-backed threads, buyer external-identity JWT + seller token auth, seller auto-provisioning, attachments, and Jitsi video calls. start_video_call mints a per-user GUEST token (moderator:false) for the thread invite link so only the call initiator is moderator/host; the counterpart who opens the invite joins as a non-moderator participant.
+  - api/reservation.py: Plus-tier reservation gating + seller availability slots, with a scheduler that expires stale reservations.
+  - doctypes: Teamslike Settings, Chat Reservation, Seller Availability Slot.
+  - patches: teamslike user fields, settings init, admin/seller chat tier.
+- feat(rbac): Faz A-H — RBAC/ABAC/Pricing kapsamlı sertleştirme (@boraydeger32)
+  - v15_6_11_resync_feature_catalog: 40 fixture entry DB'ye upsert
+  - v15_6_12_sync_plan_capability_flags: FREE/STARTER/ENTERPRISE doldu
+  - v15_6_13_seed_sales_tier_grants: Sales tier grant'ları
+  - v15_6_14_seed_seller_sales_role_profile: Seller Sales Rep profile
+  - v15_6_15_fix_quota_orders_unlimited: max_orders_per_month -1
+  - seller_capabilities: _TIER_SALES_ROLES + _TIER_ROLE_FALLBACK
+  - _validate_roles_assignable allowlist (System Manager engeli)
+  - parent_profile protected klon engeli
+  - 5 mutating endpoint methods=["POST"] (CSRF)
+  - api/order.py 3 yerde ignore_permissions=True kaldırıldı
+  - update_capability_grant + update_module_policy + update_plan_capability_flag log_decision (HIGH severity, context dolu)
+  - reset_password + change_password + delete_account audit (HIGH)
+  - _merge_plan_json_field helper: partial payload veri kaybı bug'ı
+  - update_pricing_plan + update_plan_capabilities MERGE semantiği (default)
+  - _validate_capability_flags deprecated key reject
+  - api/v1/subscription.upgrade_subscription_plan self-service endpoint
+  - list_assignable_roles power-role filter
+  - v15_6_16_seed_protected_module_flags: 6 modül is_protected=1
+  - create/update/delete_role_profile object_doctype + name audit alanları
+  - _PRICING_FINANCIAL_FIELDS: Marketplace Admin fiyat erişimi yok
+  - authorization_simulator._enforce_positive_affirm: SKIP→ALLOW fail-open kapandı
+  - abac_context.normalize_amount_to_eur: TCMB Currency Rate Pair lookup
+  - workflow.py orchestrator scaffold (authorize / authorize_or_throw)
+  - v15_6_17_reset_enterprise_public_flag: storefront sızıntı engeli
+  - subscription_plan._sanitize_rich_text_fields: XSS koruması
+  - rule_id naming: auth.admin_module_policy_toggle
+  - test_protected_module_cannot_be_hidden_via_policy e2e test
+- feat(plans): Plan CRUD + v15_6_18 fixture seed + plan_code case fix (@boraydeger32)
+  - Fixture'dan Subscription Plan kayıtlarını DB'ye idempotent insert
+  - Frappe v15 `bench migrate` fixture import etmediği için (sadece schema + patches.txt) beta'da plan'lar hiç yaratılmamıştı → storefront pricing boş, admin panel Planlar tab boş
+  - Patch hem lowercase hem UPPERCASE name kontrolü ile mevcut kayıtları korur; sadece tamamen eksik senaryoyu kapatır
+  - Public pricing cache flush sonrası storefront anında dolu görür
+  - create_subscription_plan(plan_code, plan_name, monthly_price, ...) → System Manager-only (Marketplace Admin engellendi, Faz F.4 ile uyum) → Default is_public=False (admin önce capability/quota doldurur) → Audit log HIGH severity, rule_id: auth.admin_plan_crud
+  - delete_subscription_plan(plan_code) → _PROTECTED_PLAN_CODES (FREE/STARTER/PRO/ENTERPRISE) silinemez → Aktif/trial Store Subscription varsa engellenir → Cascade: pricing_features child + cache flush → Audit HIGH
+  - _PLAN_CODE_PATTERN: ^([a-z][a-z0-9_-]*|[A-Z][A-Z0-9_-]*)$ (lowercase VEYA UPPERCASE; mixed case yasak)
+  - _normalize_plan_code artık case'i zorla değiştirmez — sadece strip + validate
+  - Mevcut DB UPPERCASE plan'lar (FREE/STARTER/PRO/ENTERPRISE) save sırasında hata vermez; lowercase custom plan'lar (pro-annual, premium) yeni eklenir
+  - test_rebac_abac_e2e_phaseD: import sırası düzeltildi (test_authorization_simulator frappe stub'ı kuruyor, sim import'u sonra)
+
+### Duzeltildi
+- fix(security): address validation, AML gate, has_permission explicit deny (@boraydeger32)
+  - buyer.py: reject invalid purpose/address_type with frappe.throw (no silent fallback)
+  - buyer.py: add phone prefix-number consistency check for non-TR phones
+  - seller_addresses.py: add missing _doc_to_dict fields (purpose, address_type, tax_no, tax_office)
+  - seller_addresses.py: phone prefix consistency + ignore_permissions justification comments
+  - buyer.py: add ignore_permissions justification comments on save/insert/delete
+  - permissions.py: replace return None with return False in 6 has_permission functions (listing_review, review_helpful_vote, review_abuse_report, listing_question, order_dispute, trusted_reviewer_invitation) — prevents cross-tenant fall-through
+  - permissions.py: listing_question_has_permission now grants seller read access to questions on their own listings
+  - permissions.py: implement real AML/sanctions gate (_check_aml_sanctions) with KYB Verification aml_check_status/sanctions_status check + graceful fallback
+  - seller_capabilities.py: implement real _check_aml_clean with same pattern
+  - test_address_validators.py: 29 new E2E tests (purpose validation, phone prefix, company optional, alert→toast, field symmetry, DocType schema integrity)
+  - test_rebac_abac_e2e.py: 123 new standalone tests (ABAC evaluators, capability matrix, tier hierarchy, KYC/AML sets, source audit, cross-layer consistency, frontend-backend sync, subscription plan fixtures)
+- fix(stock): available_qty tercih edilerek stok hesaplaması düzeltildi (@ahmeetseker)
+  - cart.py: stok kontrolü ve sepet response'da available_qty (= stock_qty - reserved_qty)
+  - listing.py: get_listing_detail'de available_qty None kontrolü ile falsy 0 değeri sorunu giderildi
+  - listing_stats.py: aynı None-safe available_qty fallback mantığı uygulandı
+- fix(kyc-kyb): admin doctype görünürlük ve validation iyileştirmeleri (@aliiball)
+  - KYC submit_kyc_documents rate limit gevşetildi (1/60s -> 10/300s); kullanıcı validation hatası alıp düzeltirken 429'a takılmıyor
+  - KYC validation hataları (TCKN/VKN, dosya uzantısı, zorunlu alan eksik, rejection reason) Error Log'a defer_insert ile yazılır oldu; PII güvenliği için sadece metadata loglanıyor, hassas değerler loglanmıyor
+  - KYB company_title ve KYC account_type/company_name alanlarına permlevel 1 eklendi; admin paneldeki list view'da artık dolu görünüyor
+  - KYC tab_review yapısı KYB ile aynı hale getirildi: depends_on kaldırıldı, reviewed_by ve reviewed_at field'ları tab_account'tan tab_review'e taşındı, Doğrulama Bilgileri section break eklendi
+  - KYC submitted_at field'ı kaldırıldı; Frappe built-in creation aynı bilgiyi tutuyor, KYB ile tutarlılık sağlandı
+  - KYB rejection_reason ve notes alanları sadece Rejected/Suspended'da görünür hale getirildi; Pending'de boş textarea görünmüyor artık
+- fix(plans): v15_6_18 patch ignore_links + allowed_regions skip (@boraydeger32)
+  - allowed_regions field skip — admin sonradan ekleyebilir
+  - doc.flags.ignore_links = True — Region/Currency vs. fixture eksikse link validation bypass; plan'ın temel pricing/feature alanları seed olur
+
+### Degistirildi
+- refactor(tests): rebac/abac e2e testinde tekrarlı types importu kaldırıldı (@aliiball)
+
+---
+## [v1.0.9-beta.21] - 2026-06-03 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Eklendi
+- feat(rbac): rol bazlı veri maskeleme, sub-user güvenlik düzeltmeleri ve demo data (@boraydeger32)
+  - dashboard_engine.py'ye data_sensitivity + _should_mask + _mask_data katmanı
+  - Dashboard Widget'a data_sensitivity custom field (financial/profit/balance/pii)
+  - view.* capability'ler eklendi (7 adet: financial_summary, profit_detail, balance, bank_info, customer_full, customer_shipping, order_amounts)
+  - Seller Sales Rep rol profili ve _TIER_SALES tier tanımı
+  - Role_profile bazlı cache isolation (60s TTL) + invalidate_dashboard_cache()
+  - Maskeleme kararları DECISION_FIELD_MASKED audit log'a yazılıyor
+- feat(chat): TeamsLike buyer↔seller chat with Jitsi video calls (@aliturguttursab)
+  - api/chat.py: Chatwoot-backed threads, buyer external-identity JWT + seller token auth, seller auto-provisioning, attachments, and Jitsi video calls. start_video_call mints a per-user GUEST token (moderator:false) for the thread invite link so only the call initiator is moderator/host; the counterpart who opens the invite joins as a non-moderator participant.
+  - api/reservation.py: Plus-tier reservation gating + seller availability slots, with a scheduler that expires stale reservations.
+  - doctypes: Teamslike Settings, Chat Reservation, Seller Availability Slot.
+  - patches: teamslike user fields, settings init, admin/seller chat tier.
+- feat(rbac): Faz A-H — RBAC/ABAC/Pricing kapsamlı sertleştirme (@boraydeger32)
+  - v15_6_11_resync_feature_catalog: 40 fixture entry DB'ye upsert
+  - v15_6_12_sync_plan_capability_flags: FREE/STARTER/ENTERPRISE doldu
+  - v15_6_13_seed_sales_tier_grants: Sales tier grant'ları
+  - v15_6_14_seed_seller_sales_role_profile: Seller Sales Rep profile
+  - v15_6_15_fix_quota_orders_unlimited: max_orders_per_month -1
+  - seller_capabilities: _TIER_SALES_ROLES + _TIER_ROLE_FALLBACK
+  - _validate_roles_assignable allowlist (System Manager engeli)
+  - parent_profile protected klon engeli
+  - 5 mutating endpoint methods=["POST"] (CSRF)
+  - api/order.py 3 yerde ignore_permissions=True kaldırıldı
+  - update_capability_grant + update_module_policy + update_plan_capability_flag log_decision (HIGH severity, context dolu)
+  - reset_password + change_password + delete_account audit (HIGH)
+  - _merge_plan_json_field helper: partial payload veri kaybı bug'ı
+  - update_pricing_plan + update_plan_capabilities MERGE semantiği (default)
+  - _validate_capability_flags deprecated key reject
+  - api/v1/subscription.upgrade_subscription_plan self-service endpoint
+  - list_assignable_roles power-role filter
+  - v15_6_16_seed_protected_module_flags: 6 modül is_protected=1
+  - create/update/delete_role_profile object_doctype + name audit alanları
+  - _PRICING_FINANCIAL_FIELDS: Marketplace Admin fiyat erişimi yok
+  - authorization_simulator._enforce_positive_affirm: SKIP→ALLOW fail-open kapandı
+  - abac_context.normalize_amount_to_eur: TCMB Currency Rate Pair lookup
+  - workflow.py orchestrator scaffold (authorize / authorize_or_throw)
+  - v15_6_17_reset_enterprise_public_flag: storefront sızıntı engeli
+  - subscription_plan._sanitize_rich_text_fields: XSS koruması
+  - rule_id naming: auth.admin_module_policy_toggle
+  - test_protected_module_cannot_be_hidden_via_policy e2e test
+- feat(plans): Plan CRUD + v15_6_18 fixture seed + plan_code case fix (@boraydeger32)
+  - Fixture'dan Subscription Plan kayıtlarını DB'ye idempotent insert
+  - Frappe v15 `bench migrate` fixture import etmediği için (sadece schema + patches.txt) beta'da plan'lar hiç yaratılmamıştı → storefront pricing boş, admin panel Planlar tab boş
+  - Patch hem lowercase hem UPPERCASE name kontrolü ile mevcut kayıtları korur; sadece tamamen eksik senaryoyu kapatır
+  - Public pricing cache flush sonrası storefront anında dolu görür
+  - create_subscription_plan(plan_code, plan_name, monthly_price, ...) → System Manager-only (Marketplace Admin engellendi, Faz F.4 ile uyum) → Default is_public=False (admin önce capability/quota doldurur) → Audit log HIGH severity, rule_id: auth.admin_plan_crud
+  - delete_subscription_plan(plan_code) → _PROTECTED_PLAN_CODES (FREE/STARTER/PRO/ENTERPRISE) silinemez → Aktif/trial Store Subscription varsa engellenir → Cascade: pricing_features child + cache flush → Audit HIGH
+  - _PLAN_CODE_PATTERN: ^([a-z][a-z0-9_-]*|[A-Z][A-Z0-9_-]*)$ (lowercase VEYA UPPERCASE; mixed case yasak)
+  - _normalize_plan_code artık case'i zorla değiştirmez — sadece strip + validate
+  - Mevcut DB UPPERCASE plan'lar (FREE/STARTER/PRO/ENTERPRISE) save sırasında hata vermez; lowercase custom plan'lar (pro-annual, premium) yeni eklenir
+  - test_rebac_abac_e2e_phaseD: import sırası düzeltildi (test_authorization_simulator frappe stub'ı kuruyor, sim import'u sonra)
+
+### Duzeltildi
+- fix(security): address validation, AML gate, has_permission explicit deny (@boraydeger32)
+  - buyer.py: reject invalid purpose/address_type with frappe.throw (no silent fallback)
+  - buyer.py: add phone prefix-number consistency check for non-TR phones
+  - seller_addresses.py: add missing _doc_to_dict fields (purpose, address_type, tax_no, tax_office)
+  - seller_addresses.py: phone prefix consistency + ignore_permissions justification comments
+  - buyer.py: add ignore_permissions justification comments on save/insert/delete
+  - permissions.py: replace return None with return False in 6 has_permission functions (listing_review, review_helpful_vote, review_abuse_report, listing_question, order_dispute, trusted_reviewer_invitation) — prevents cross-tenant fall-through
+  - permissions.py: listing_question_has_permission now grants seller read access to questions on their own listings
+  - permissions.py: implement real AML/sanctions gate (_check_aml_sanctions) with KYB Verification aml_check_status/sanctions_status check + graceful fallback
+  - seller_capabilities.py: implement real _check_aml_clean with same pattern
+  - test_address_validators.py: 29 new E2E tests (purpose validation, phone prefix, company optional, alert→toast, field symmetry, DocType schema integrity)
+  - test_rebac_abac_e2e.py: 123 new standalone tests (ABAC evaluators, capability matrix, tier hierarchy, KYC/AML sets, source audit, cross-layer consistency, frontend-backend sync, subscription plan fixtures)
+- fix(stock): available_qty tercih edilerek stok hesaplaması düzeltildi (@ahmeetseker)
+  - cart.py: stok kontrolü ve sepet response'da available_qty (= stock_qty - reserved_qty)
+  - listing.py: get_listing_detail'de available_qty None kontrolü ile falsy 0 değeri sorunu giderildi
+  - listing_stats.py: aynı None-safe available_qty fallback mantığı uygulandı
+- fix(kyc-kyb): admin doctype görünürlük ve validation iyileştirmeleri (@aliiball)
+  - KYC submit_kyc_documents rate limit gevşetildi (1/60s -> 10/300s); kullanıcı validation hatası alıp düzeltirken 429'a takılmıyor
+  - KYC validation hataları (TCKN/VKN, dosya uzantısı, zorunlu alan eksik, rejection reason) Error Log'a defer_insert ile yazılır oldu; PII güvenliği için sadece metadata loglanıyor, hassas değerler loglanmıyor
+  - KYB company_title ve KYC account_type/company_name alanlarına permlevel 1 eklendi; admin paneldeki list view'da artık dolu görünüyor
+  - KYC tab_review yapısı KYB ile aynı hale getirildi: depends_on kaldırıldı, reviewed_by ve reviewed_at field'ları tab_account'tan tab_review'e taşındı, Doğrulama Bilgileri section break eklendi
+  - KYC submitted_at field'ı kaldırıldı; Frappe built-in creation aynı bilgiyi tutuyor, KYB ile tutarlılık sağlandı
+  - KYB rejection_reason ve notes alanları sadece Rejected/Suspended'da görünür hale getirildi; Pending'de boş textarea görünmüyor artık
+- fix(plans): v15_6_18 patch ignore_links + allowed_regions skip (@boraydeger32)
+  - allowed_regions field skip — admin sonradan ekleyebilir
+  - doc.flags.ignore_links = True — Region/Currency vs. fixture eksikse link validation bypass; plan'ın temel pricing/feature alanları seed olur
+
+### Degistirildi
+- refactor(tests): rebac/abac e2e testinde tekrarlı types importu kaldırıldı (@aliiball)
+
+---
+## [v1.0.9-beta.20] - 2026-06-03 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Eklendi
+- feat(rbac): rol bazlı veri maskeleme, sub-user güvenlik düzeltmeleri ve demo data (@boraydeger32)
+  - dashboard_engine.py'ye data_sensitivity + _should_mask + _mask_data katmanı
+  - Dashboard Widget'a data_sensitivity custom field (financial/profit/balance/pii)
+  - view.* capability'ler eklendi (7 adet: financial_summary, profit_detail, balance, bank_info, customer_full, customer_shipping, order_amounts)
+  - Seller Sales Rep rol profili ve _TIER_SALES tier tanımı
+  - Role_profile bazlı cache isolation (60s TTL) + invalidate_dashboard_cache()
+  - Maskeleme kararları DECISION_FIELD_MASKED audit log'a yazılıyor
+- feat(chat): TeamsLike buyer↔seller chat with Jitsi video calls (@aliturguttursab)
+  - api/chat.py: Chatwoot-backed threads, buyer external-identity JWT + seller token auth, seller auto-provisioning, attachments, and Jitsi video calls. start_video_call mints a per-user GUEST token (moderator:false) for the thread invite link so only the call initiator is moderator/host; the counterpart who opens the invite joins as a non-moderator participant.
+  - api/reservation.py: Plus-tier reservation gating + seller availability slots, with a scheduler that expires stale reservations.
+  - doctypes: Teamslike Settings, Chat Reservation, Seller Availability Slot.
+  - patches: teamslike user fields, settings init, admin/seller chat tier.
+- feat(rbac): Faz A-H — RBAC/ABAC/Pricing kapsamlı sertleştirme (@boraydeger32)
+  - v15_6_11_resync_feature_catalog: 40 fixture entry DB'ye upsert
+  - v15_6_12_sync_plan_capability_flags: FREE/STARTER/ENTERPRISE doldu
+  - v15_6_13_seed_sales_tier_grants: Sales tier grant'ları
+  - v15_6_14_seed_seller_sales_role_profile: Seller Sales Rep profile
+  - v15_6_15_fix_quota_orders_unlimited: max_orders_per_month -1
+  - seller_capabilities: _TIER_SALES_ROLES + _TIER_ROLE_FALLBACK
+  - _validate_roles_assignable allowlist (System Manager engeli)
+  - parent_profile protected klon engeli
+  - 5 mutating endpoint methods=["POST"] (CSRF)
+  - api/order.py 3 yerde ignore_permissions=True kaldırıldı
+  - update_capability_grant + update_module_policy + update_plan_capability_flag log_decision (HIGH severity, context dolu)
+  - reset_password + change_password + delete_account audit (HIGH)
+  - _merge_plan_json_field helper: partial payload veri kaybı bug'ı
+  - update_pricing_plan + update_plan_capabilities MERGE semantiği (default)
+  - _validate_capability_flags deprecated key reject
+  - api/v1/subscription.upgrade_subscription_plan self-service endpoint
+  - list_assignable_roles power-role filter
+  - v15_6_16_seed_protected_module_flags: 6 modül is_protected=1
+  - create/update/delete_role_profile object_doctype + name audit alanları
+  - _PRICING_FINANCIAL_FIELDS: Marketplace Admin fiyat erişimi yok
+  - authorization_simulator._enforce_positive_affirm: SKIP→ALLOW fail-open kapandı
+  - abac_context.normalize_amount_to_eur: TCMB Currency Rate Pair lookup
+  - workflow.py orchestrator scaffold (authorize / authorize_or_throw)
+  - v15_6_17_reset_enterprise_public_flag: storefront sızıntı engeli
+  - subscription_plan._sanitize_rich_text_fields: XSS koruması
+  - rule_id naming: auth.admin_module_policy_toggle
+  - test_protected_module_cannot_be_hidden_via_policy e2e test
+- feat(plans): Plan CRUD + v15_6_18 fixture seed + plan_code case fix (@boraydeger32)
+  - Fixture'dan Subscription Plan kayıtlarını DB'ye idempotent insert
+  - Frappe v15 `bench migrate` fixture import etmediği için (sadece schema + patches.txt) beta'da plan'lar hiç yaratılmamıştı → storefront pricing boş, admin panel Planlar tab boş
+  - Patch hem lowercase hem UPPERCASE name kontrolü ile mevcut kayıtları korur; sadece tamamen eksik senaryoyu kapatır
+  - Public pricing cache flush sonrası storefront anında dolu görür
+  - create_subscription_plan(plan_code, plan_name, monthly_price, ...) → System Manager-only (Marketplace Admin engellendi, Faz F.4 ile uyum) → Default is_public=False (admin önce capability/quota doldurur) → Audit log HIGH severity, rule_id: auth.admin_plan_crud
+  - delete_subscription_plan(plan_code) → _PROTECTED_PLAN_CODES (FREE/STARTER/PRO/ENTERPRISE) silinemez → Aktif/trial Store Subscription varsa engellenir → Cascade: pricing_features child + cache flush → Audit HIGH
+  - _PLAN_CODE_PATTERN: ^([a-z][a-z0-9_-]*|[A-Z][A-Z0-9_-]*)$ (lowercase VEYA UPPERCASE; mixed case yasak)
+  - _normalize_plan_code artık case'i zorla değiştirmez — sadece strip + validate
+  - Mevcut DB UPPERCASE plan'lar (FREE/STARTER/PRO/ENTERPRISE) save sırasında hata vermez; lowercase custom plan'lar (pro-annual, premium) yeni eklenir
+  - test_rebac_abac_e2e_phaseD: import sırası düzeltildi (test_authorization_simulator frappe stub'ı kuruyor, sim import'u sonra)
+
+### Duzeltildi
+- fix(security): address validation, AML gate, has_permission explicit deny (@boraydeger32)
+  - buyer.py: reject invalid purpose/address_type with frappe.throw (no silent fallback)
+  - buyer.py: add phone prefix-number consistency check for non-TR phones
+  - seller_addresses.py: add missing _doc_to_dict fields (purpose, address_type, tax_no, tax_office)
+  - seller_addresses.py: phone prefix consistency + ignore_permissions justification comments
+  - buyer.py: add ignore_permissions justification comments on save/insert/delete
+  - permissions.py: replace return None with return False in 6 has_permission functions (listing_review, review_helpful_vote, review_abuse_report, listing_question, order_dispute, trusted_reviewer_invitation) — prevents cross-tenant fall-through
+  - permissions.py: listing_question_has_permission now grants seller read access to questions on their own listings
+  - permissions.py: implement real AML/sanctions gate (_check_aml_sanctions) with KYB Verification aml_check_status/sanctions_status check + graceful fallback
+  - seller_capabilities.py: implement real _check_aml_clean with same pattern
+  - test_address_validators.py: 29 new E2E tests (purpose validation, phone prefix, company optional, alert→toast, field symmetry, DocType schema integrity)
+  - test_rebac_abac_e2e.py: 123 new standalone tests (ABAC evaluators, capability matrix, tier hierarchy, KYC/AML sets, source audit, cross-layer consistency, frontend-backend sync, subscription plan fixtures)
+- fix(stock): available_qty tercih edilerek stok hesaplaması düzeltildi (@ahmeetseker)
+  - cart.py: stok kontrolü ve sepet response'da available_qty (= stock_qty - reserved_qty)
+  - listing.py: get_listing_detail'de available_qty None kontrolü ile falsy 0 değeri sorunu giderildi
+  - listing_stats.py: aynı None-safe available_qty fallback mantığı uygulandı
+- fix(kyc-kyb): admin doctype görünürlük ve validation iyileştirmeleri (@aliiball)
+  - KYC submit_kyc_documents rate limit gevşetildi (1/60s -> 10/300s); kullanıcı validation hatası alıp düzeltirken 429'a takılmıyor
+  - KYC validation hataları (TCKN/VKN, dosya uzantısı, zorunlu alan eksik, rejection reason) Error Log'a defer_insert ile yazılır oldu; PII güvenliği için sadece metadata loglanıyor, hassas değerler loglanmıyor
+  - KYB company_title ve KYC account_type/company_name alanlarına permlevel 1 eklendi; admin paneldeki list view'da artık dolu görünüyor
+  - KYC tab_review yapısı KYB ile aynı hale getirildi: depends_on kaldırıldı, reviewed_by ve reviewed_at field'ları tab_account'tan tab_review'e taşındı, Doğrulama Bilgileri section break eklendi
+  - KYC submitted_at field'ı kaldırıldı; Frappe built-in creation aynı bilgiyi tutuyor, KYB ile tutarlılık sağlandı
+  - KYB rejection_reason ve notes alanları sadece Rejected/Suspended'da görünür hale getirildi; Pending'de boş textarea görünmüyor artık
+
+### Degistirildi
+- refactor(tests): rebac/abac e2e testinde tekrarlı types importu kaldırıldı (@aliiball)
+
+---
+## [v1.0.9-beta.19] - 2026-06-03 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Eklendi
+- feat(rbac): rol bazlı veri maskeleme, sub-user güvenlik düzeltmeleri ve demo data (@boraydeger32)
+  - dashboard_engine.py'ye data_sensitivity + _should_mask + _mask_data katmanı
+  - Dashboard Widget'a data_sensitivity custom field (financial/profit/balance/pii)
+  - view.* capability'ler eklendi (7 adet: financial_summary, profit_detail, balance, bank_info, customer_full, customer_shipping, order_amounts)
+  - Seller Sales Rep rol profili ve _TIER_SALES tier tanımı
+  - Role_profile bazlı cache isolation (60s TTL) + invalidate_dashboard_cache()
+  - Maskeleme kararları DECISION_FIELD_MASKED audit log'a yazılıyor
+- feat(chat): TeamsLike buyer↔seller chat with Jitsi video calls (@aliturguttursab)
+  - api/chat.py: Chatwoot-backed threads, buyer external-identity JWT + seller token auth, seller auto-provisioning, attachments, and Jitsi video calls. start_video_call mints a per-user GUEST token (moderator:false) for the thread invite link so only the call initiator is moderator/host; the counterpart who opens the invite joins as a non-moderator participant.
+  - api/reservation.py: Plus-tier reservation gating + seller availability slots, with a scheduler that expires stale reservations.
+  - doctypes: Teamslike Settings, Chat Reservation, Seller Availability Slot.
+  - patches: teamslike user fields, settings init, admin/seller chat tier.
+- feat(rbac): Faz A-H — RBAC/ABAC/Pricing kapsamlı sertleştirme (@boraydeger32)
+  - v15_6_11_resync_feature_catalog: 40 fixture entry DB'ye upsert
+  - v15_6_12_sync_plan_capability_flags: FREE/STARTER/ENTERPRISE doldu
+  - v15_6_13_seed_sales_tier_grants: Sales tier grant'ları
+  - v15_6_14_seed_seller_sales_role_profile: Seller Sales Rep profile
+  - v15_6_15_fix_quota_orders_unlimited: max_orders_per_month -1
+  - seller_capabilities: _TIER_SALES_ROLES + _TIER_ROLE_FALLBACK
+  - _validate_roles_assignable allowlist (System Manager engeli)
+  - parent_profile protected klon engeli
+  - 5 mutating endpoint methods=["POST"] (CSRF)
+  - api/order.py 3 yerde ignore_permissions=True kaldırıldı
+  - update_capability_grant + update_module_policy + update_plan_capability_flag log_decision (HIGH severity, context dolu)
+  - reset_password + change_password + delete_account audit (HIGH)
+  - _merge_plan_json_field helper: partial payload veri kaybı bug'ı
+  - update_pricing_plan + update_plan_capabilities MERGE semantiği (default)
+  - _validate_capability_flags deprecated key reject
+  - api/v1/subscription.upgrade_subscription_plan self-service endpoint
+  - list_assignable_roles power-role filter
+  - v15_6_16_seed_protected_module_flags: 6 modül is_protected=1
+  - create/update/delete_role_profile object_doctype + name audit alanları
+  - _PRICING_FINANCIAL_FIELDS: Marketplace Admin fiyat erişimi yok
+  - authorization_simulator._enforce_positive_affirm: SKIP→ALLOW fail-open kapandı
+  - abac_context.normalize_amount_to_eur: TCMB Currency Rate Pair lookup
+  - workflow.py orchestrator scaffold (authorize / authorize_or_throw)
+  - v15_6_17_reset_enterprise_public_flag: storefront sızıntı engeli
+  - subscription_plan._sanitize_rich_text_fields: XSS koruması
+  - rule_id naming: auth.admin_module_policy_toggle
+  - test_protected_module_cannot_be_hidden_via_policy e2e test
+
+### Duzeltildi
+- fix(security): address validation, AML gate, has_permission explicit deny (@boraydeger32)
+  - buyer.py: reject invalid purpose/address_type with frappe.throw (no silent fallback)
+  - buyer.py: add phone prefix-number consistency check for non-TR phones
+  - seller_addresses.py: add missing _doc_to_dict fields (purpose, address_type, tax_no, tax_office)
+  - seller_addresses.py: phone prefix consistency + ignore_permissions justification comments
+  - buyer.py: add ignore_permissions justification comments on save/insert/delete
+  - permissions.py: replace return None with return False in 6 has_permission functions (listing_review, review_helpful_vote, review_abuse_report, listing_question, order_dispute, trusted_reviewer_invitation) — prevents cross-tenant fall-through
+  - permissions.py: listing_question_has_permission now grants seller read access to questions on their own listings
+  - permissions.py: implement real AML/sanctions gate (_check_aml_sanctions) with KYB Verification aml_check_status/sanctions_status check + graceful fallback
+  - seller_capabilities.py: implement real _check_aml_clean with same pattern
+  - test_address_validators.py: 29 new E2E tests (purpose validation, phone prefix, company optional, alert→toast, field symmetry, DocType schema integrity)
+  - test_rebac_abac_e2e.py: 123 new standalone tests (ABAC evaluators, capability matrix, tier hierarchy, KYC/AML sets, source audit, cross-layer consistency, frontend-backend sync, subscription plan fixtures)
+- fix(stock): available_qty tercih edilerek stok hesaplaması düzeltildi (@ahmeetseker)
+  - cart.py: stok kontrolü ve sepet response'da available_qty (= stock_qty - reserved_qty)
+  - listing.py: get_listing_detail'de available_qty None kontrolü ile falsy 0 değeri sorunu giderildi
+  - listing_stats.py: aynı None-safe available_qty fallback mantığı uygulandı
+- fix(kyc-kyb): admin doctype görünürlük ve validation iyileştirmeleri (@aliiball)
+  - KYC submit_kyc_documents rate limit gevşetildi (1/60s -> 10/300s); kullanıcı validation hatası alıp düzeltirken 429'a takılmıyor
+  - KYC validation hataları (TCKN/VKN, dosya uzantısı, zorunlu alan eksik, rejection reason) Error Log'a defer_insert ile yazılır oldu; PII güvenliği için sadece metadata loglanıyor, hassas değerler loglanmıyor
+  - KYB company_title ve KYC account_type/company_name alanlarına permlevel 1 eklendi; admin paneldeki list view'da artık dolu görünüyor
+  - KYC tab_review yapısı KYB ile aynı hale getirildi: depends_on kaldırıldı, reviewed_by ve reviewed_at field'ları tab_account'tan tab_review'e taşındı, Doğrulama Bilgileri section break eklendi
+  - KYC submitted_at field'ı kaldırıldı; Frappe built-in creation aynı bilgiyi tutuyor, KYB ile tutarlılık sağlandı
+  - KYB rejection_reason ve notes alanları sadece Rejected/Suspended'da görünür hale getirildi; Pending'de boş textarea görünmüyor artık
+
+### Degistirildi
+- refactor(tests): rebac/abac e2e testinde tekrarlı types importu kaldırıldı (@aliiball)
+
+---
+## [v1.0.9-beta.18] - 2026-06-03 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Eklendi
+- feat(rbac): rol bazlı veri maskeleme, sub-user güvenlik düzeltmeleri ve demo data (@boraydeger32)
+  - dashboard_engine.py'ye data_sensitivity + _should_mask + _mask_data katmanı
+  - Dashboard Widget'a data_sensitivity custom field (financial/profit/balance/pii)
+  - view.* capability'ler eklendi (7 adet: financial_summary, profit_detail, balance, bank_info, customer_full, customer_shipping, order_amounts)
+  - Seller Sales Rep rol profili ve _TIER_SALES tier tanımı
+  - Role_profile bazlı cache isolation (60s TTL) + invalidate_dashboard_cache()
+  - Maskeleme kararları DECISION_FIELD_MASKED audit log'a yazılıyor
+- feat(chat): TeamsLike buyer↔seller chat with Jitsi video calls (@aliturguttursab)
+  - api/chat.py: Chatwoot-backed threads, buyer external-identity JWT + seller token auth, seller auto-provisioning, attachments, and Jitsi video calls. start_video_call mints a per-user GUEST token (moderator:false) for the thread invite link so only the call initiator is moderator/host; the counterpart who opens the invite joins as a non-moderator participant.
+  - api/reservation.py: Plus-tier reservation gating + seller availability slots, with a scheduler that expires stale reservations.
+  - doctypes: Teamslike Settings, Chat Reservation, Seller Availability Slot.
+  - patches: teamslike user fields, settings init, admin/seller chat tier.
+- feat(rbac): Faz A-H — RBAC/ABAC/Pricing kapsamlı sertleştirme (@boraydeger32)
+  - v15_6_11_resync_feature_catalog: 40 fixture entry DB'ye upsert
+  - v15_6_12_sync_plan_capability_flags: FREE/STARTER/ENTERPRISE doldu
+  - v15_6_13_seed_sales_tier_grants: Sales tier grant'ları
+  - v15_6_14_seed_seller_sales_role_profile: Seller Sales Rep profile
+  - v15_6_15_fix_quota_orders_unlimited: max_orders_per_month -1
+  - seller_capabilities: _TIER_SALES_ROLES + _TIER_ROLE_FALLBACK
+  - _validate_roles_assignable allowlist (System Manager engeli)
+  - parent_profile protected klon engeli
+  - 5 mutating endpoint methods=["POST"] (CSRF)
+  - api/order.py 3 yerde ignore_permissions=True kaldırıldı
+  - update_capability_grant + update_module_policy + update_plan_capability_flag log_decision (HIGH severity, context dolu)
+  - reset_password + change_password + delete_account audit (HIGH)
+  - _merge_plan_json_field helper: partial payload veri kaybı bug'ı
+  - update_pricing_plan + update_plan_capabilities MERGE semantiği (default)
+  - _validate_capability_flags deprecated key reject
+  - api/v1/subscription.upgrade_subscription_plan self-service endpoint
+  - list_assignable_roles power-role filter
+  - v15_6_16_seed_protected_module_flags: 6 modül is_protected=1
+  - create/update/delete_role_profile object_doctype + name audit alanları
+  - _PRICING_FINANCIAL_FIELDS: Marketplace Admin fiyat erişimi yok
+  - authorization_simulator._enforce_positive_affirm: SKIP→ALLOW fail-open kapandı
+  - abac_context.normalize_amount_to_eur: TCMB Currency Rate Pair lookup
+  - workflow.py orchestrator scaffold (authorize / authorize_or_throw)
+  - v15_6_17_reset_enterprise_public_flag: storefront sızıntı engeli
+  - subscription_plan._sanitize_rich_text_fields: XSS koruması
+  - rule_id naming: auth.admin_module_policy_toggle
+  - test_protected_module_cannot_be_hidden_via_policy e2e test
+
+### Duzeltildi
+- fix(security): address validation, AML gate, has_permission explicit deny (@boraydeger32)
+  - buyer.py: reject invalid purpose/address_type with frappe.throw (no silent fallback)
+  - buyer.py: add phone prefix-number consistency check for non-TR phones
+  - seller_addresses.py: add missing _doc_to_dict fields (purpose, address_type, tax_no, tax_office)
+  - seller_addresses.py: phone prefix consistency + ignore_permissions justification comments
+  - buyer.py: add ignore_permissions justification comments on save/insert/delete
+  - permissions.py: replace return None with return False in 6 has_permission functions (listing_review, review_helpful_vote, review_abuse_report, listing_question, order_dispute, trusted_reviewer_invitation) — prevents cross-tenant fall-through
+  - permissions.py: listing_question_has_permission now grants seller read access to questions on their own listings
+  - permissions.py: implement real AML/sanctions gate (_check_aml_sanctions) with KYB Verification aml_check_status/sanctions_status check + graceful fallback
+  - seller_capabilities.py: implement real _check_aml_clean with same pattern
+  - test_address_validators.py: 29 new E2E tests (purpose validation, phone prefix, company optional, alert→toast, field symmetry, DocType schema integrity)
+  - test_rebac_abac_e2e.py: 123 new standalone tests (ABAC evaluators, capability matrix, tier hierarchy, KYC/AML sets, source audit, cross-layer consistency, frontend-backend sync, subscription plan fixtures)
+- fix(stock): available_qty tercih edilerek stok hesaplaması düzeltildi (@ahmeetseker)
+  - cart.py: stok kontrolü ve sepet response'da available_qty (= stock_qty - reserved_qty)
+  - listing.py: get_listing_detail'de available_qty None kontrolü ile falsy 0 değeri sorunu giderildi
+  - listing_stats.py: aynı None-safe available_qty fallback mantığı uygulandı
+- fix(kyc-kyb): admin doctype görünürlük ve validation iyileştirmeleri (@aliiball)
+  - KYC submit_kyc_documents rate limit gevşetildi (1/60s -> 10/300s); kullanıcı validation hatası alıp düzeltirken 429'a takılmıyor
+  - KYC validation hataları (TCKN/VKN, dosya uzantısı, zorunlu alan eksik, rejection reason) Error Log'a defer_insert ile yazılır oldu; PII güvenliği için sadece metadata loglanıyor, hassas değerler loglanmıyor
+  - KYB company_title ve KYC account_type/company_name alanlarına permlevel 1 eklendi; admin paneldeki list view'da artık dolu görünüyor
+  - KYC tab_review yapısı KYB ile aynı hale getirildi: depends_on kaldırıldı, reviewed_by ve reviewed_at field'ları tab_account'tan tab_review'e taşındı, Doğrulama Bilgileri section break eklendi
+  - KYC submitted_at field'ı kaldırıldı; Frappe built-in creation aynı bilgiyi tutuyor, KYB ile tutarlılık sağlandı
+  - KYB rejection_reason ve notes alanları sadece Rejected/Suspended'da görünür hale getirildi; Pending'de boş textarea görünmüyor artık
+
+---
+## [v1.1.0-beta.1] - 2026-06-02 BETA — Sprint 6: DB-driven RBAC + Süper Admin Konsolu
+
+Sprint 6 yetki ve maskeleme altyapısını **kod sabitlerinden DB-driven hale** getirir. Süper admin artık tek panelden capability, modül görünürlüğü, plan kapısı ve PII maskeleme kurallarını koddan bağımsız yönetir. 96 yeni E2E test paketi (`test_sprint6_rbac.py`) regresyon kalkanı.
+
+### Eklendi
+
+- feat(rbac): TH Capability Registry + TH Capability Grant DocType'ları — capability listesi ve role profile grant matrisi DB'leştirildi (@boraydeger32)
+  - `tradehub_core/doctype/th_capability_registry/` — capability_key, label, module_group, default_tier, is_owner_only, is_protected, requires_kyc, requires_aml, plan_feature_flag
+  - `tradehub_core/doctype/th_capability_grant/` — (role_profile, capability) unique pair, granted flag, expires_at TTL, audit metadata
+  - Seed: `SELLER_CAPABILITIES` Python dict + `_TIER_*` frozenset → 31 capability + 94 grant matrix
+  - `is_protected` flag ile UI'dan silinemez korumalı capability'ler
+- feat(rbac): TH Module Registry + TH Module Policy DocType'ları — sidebar item ve modül görünürlük politikası DB-driven (@boraydeger32)
+  - `tradehub_core/doctype/th_module_registry/` — tree DocType, panel/section_key/parent hiyerarşisi, item_type (section/group/item), route/doctype_ref hedef
+  - `tradehub_core/doctype/th_module_policy/` — (module, role_profile) unique pair, mode (visible/masked/hidden), condition_json (ABAC opsiyonel)
+  - Seed: `navigation.js` sidebar item'ları → 75+ modül + 263 hidden policy (sub-user gating)
+- feat(rbac): `tradehub_core/utils/permission_resolver.py` — DB-first cache'li resolver (@boraydeger32)
+  - `get_capabilities(user)` — TH Capability Grant'tan capability seti (Redis 5dk TTL, key: `tradehub:cap:user:*`)
+  - `get_module_mode_map(user, panel)` — Modül key → mode haritası
+  - `get_navigation_tree(user, panel)` — Frontend-ready sidebar JSON
+  - `apply_field_mask(value, pattern)` — 6 pattern: none/last4/initials/iban_xxx_last4/bullets/email_domain
+  - hooks: `on_capability_*_change`, `on_module_*_change`, `on_user_role_change` ile otomatik cache invalidation
+- feat(rbac): `seller_capabilities.has_seller_capability` DB-first + Python fallback (@boraydeger32)
+  - TH Capability Registry'den metadata (is_owner_only/requires_kyc/plan_feature_flag) okur
+  - TH Capability Grant'tan role profile match kontrolü
+  - K6 Role Delegation fallback Python `_TIER_*` set'lerinden devam
+  - `get_user_capabilities()` aynı pattern — `get_session_user` payload'unda `capabilities` listesi
+- feat(api): Süper Admin Konsolu endpoint'leri — `tradehub_core/api/v1/permission_console.py` (@boraydeger32)
+  - `list_capabilities()` — capability + grant matrix JSON
+  - `update_capability_grant(role_profile, capability, granted, note)` — single cell toggle, fail-secure protected check
+  - `list_modules_tree(panel)` — module tree + policy matrix
+  - `update_module_policy(module, role_profile, mode, note)` — single cell mode set, protected hidden reddedilir
+  - `list_rbac_audit(limit)` — Frappe Version + Authorization Decision Log birleştirilmiş timeline
+  - `list_plan_capability_sync()` — Capability Registry plan_feature_flag ↔ Subscription Plan capability_flags tutarlılık tespiti
+  - `update_plan_capability_flag(plan_codes, feature_flag, enabled)` — bulk plan capability_flags güncelleme + entitlement cache flush
+- feat(api): `get_navigation(panel)` endpoint — `tradehub_core/api/v1/navigation.py` frontend için hazır sidebar tree (@boraydeger32)
+- feat(api): CRM list maskeleme — `crm_overrides.crm_list_contacts` + `apply_list_masking` helper (@boraydeger32)
+  - Frontend `frappe.client.get_list` yerine bu custom endpoint çağırır
+  - Per-field capability kontrolü (view.customer_pii / view.bank_info / view.tax_id)
+  - Per-row `_masked_fields` listesi UI badge rendering için
+- feat(rbac): Field-level PII maskeleme `on_load` hook — `tradehub_core/api/v1/crm_masking.py` (@boraydeger32)
+  - `mask_pii_fields(doc, method)` doc_event handler — Contact / Admin Seller Profile / User Profile
+  - Rate-limited audit log (`pii_mask_log:{user}:{doctype}` cache key, 1 saat TTL)
+  - `doc.flags._masked_fields` ile frontend için maskeleme listesi
+- feat(rbac): Frappe Desk PII koruması — Property Setter + Custom DocPerm (@boraydeger32)
+  - `tradehub_core/setup/pii_permlevel_setup.py` — idempotent permlevel uygulama helper
+  - PII alanları (iban, tax_id, bank_name, account_holder, email_id, phone, mobile_no) → permlevel 2
+  - Privileged role'ler (Seller Owner, Co-Owner, Compliance Officer, System Manager, Marketplace Admin) → read=1
+  - Non-privileged role'ler ("Seller", "Marketplace Seller") → read=0 (Frappe DocType migrate side-effect temizliği)
+- feat(api): Backend serializer maskeleme — `api/v1/auth.get_user_profile` (@boraydeger32)
+  - Sub-user için IBAN / bank_name / account_holder (view.bank_info kapısı)
+  - Sub-user için tax_id (view.tax_id kapısı)
+  - Response'a `_masked: {bank_info, tax_id}` flag eklendi
+- feat(api): `api/order.py` shipping_address maskeleme (`view.customer_shipping` kapısı) (@boraydeger32)
+- feat(ui): Süper Admin Konsolu Vue 3 paneli — `admin-panel/frontend/src/views/system/PermissionConsoleView.vue` 10 tab (@boraydeger32)
+  - Yeni: PermissionOverviewTab (KPI + audit timeline + Plan Sync uyarı bandı)
+  - Yeni: CapabilityMatrixTab (matrix + bulk grant + per-plan toggle + role highlight + masked event chip)
+  - Yeni: ModuleMatrixTab (3-state tree + collapse + korumalı modül modal)
+  - Mevcut: RolesTab (Sprint 6'da capability bölümü eklendi)
+  - Embed: ComplianceMaskMatrixView, AuthorizationSimulatorView, AnomalyDashboardView
+  - Mevcut: PlansTab, UsersTab, AuditLogTab (Sprint 5'te field-mask filtresi eklendi)
+  - Router refactor: `?tab=...` query param ile deep link + browser back/forward
+- feat(ui): `usePermission()` composable — `admin-panel/frontend/src/composables/usePermission.js` (@boraydeger32)
+  - `can(capability)`, `seesModule(key)`, `moduleMode(key)`, `isMasked(key)`, `isHidden(key)`
+  - `auth.js` `userCapabilities` Set'e dönüştürüldü (O(1) lookup)
+  - `canAccess()` yeni tag: `capability:<key>`
+- feat(ui): DB-driven sidebar — `stores/navigation.js` loadDbSections action (@boraydeger32)
+  - Login sonrası `/api/method/.../get_navigation` paralel fetch (admin + seller panel)
+  - Fail-safe fallback: backend ulaşılmazsa hard-coded `data/navigation.js`
+- feat(ui): `DocTypeFormView.vue` — bullet karakterli değer için 🔒 Maskeli badge + tooltip (@boraydeger32)
+- feat(ui): Owner-only / Korumalı capability detay panel banner'ları + Korumalı modül uyarı modal'ı (@boraydeger32)
+- feat(ui): Bulk Capability Grant — "Tüm sub-user role'lerine ver/çek" tek tıklama + onay modalı (@boraydeger32)
+- feat(rbac): Audit timeline genişletme — `pii.field_masked` event'lerini Frappe Version kayıtlarıyla birleştir (@boraydeger32)
+  - `list_decision_logs` endpoint `action` filter + `context` field response
+  - PermissionOverviewTab timeline'da maskeleme olayları (sarı tema, eye-off ikon)
+  - AuditLogTab "🔒 Maskeleme" hızlı filtre preset + masked_fields chip render
+- feat(rbac): Yeni capability'ler (@boraydeger32)
+  - `view.tax_id` (default tier COOWNER) — KYB Verification + Admin Seller Profile tax_id okuma
+  - `view.customer_pii` (default tier SALES, COOWNER+MANAGEMENT grant) — CRM Lead/Contact/Org email/phone okuma
+- test: 96 E2E test paketi — `tradehub_core/tests/test_sprint6_rbac.py` (@boraydeger32)
+  - TestSprint6_A (DocType existence + seed counts) — 11 test
+  - TestSprint6_B (permission_resolver functions) — 7 test
+  - TestSprint6_C (has_seller_capability decision chain) — 5 test
+  - TestSprint6_D (permission_console endpoints) — 8 test
+  - TestSprint6_E (navigation get_navigation) — 3 test
+  - TestSprint6_F (cache invalidation hooks) — 2 test
+  - TestSprint6_G (security boundaries) — 5 test
+  - TestSprint6_H (E2E scenarios) — 3 test
+  - TestSprint4_I (mask patterns) — 8 test
+  - TestSprint4_J (view.tax_id capability) — 4 test
+  - TestSprint5_K (view.customer_pii capability) — 3 test
+  - TestSprint5_L (Contact PII masking handler) — 4 test
+  - TestSprint5_M (Admin Seller Profile per-field) — 5 test
+  - TestSprint5_N (plan capability sync) — 6 test
+  - TestSprint5_O (update_plan_capability_flag) — 6 test
+  - TestSprint5_P/P2 (mask audit log + endpoint integration) — 4 test
+  - TestSprint5_Q (apply_list_masking) — 6 test
+  - TestSprint5_R (Desk permlevel protection) — 5 test
+
+### Düzeltildi
+
+- fix(rbac): Seller Application onayında "Seller Owner" rolü atama eksik — Sprint 3'te planlanmış ama yapılmamış (Sprint 1 öncesi auth.is_owner çift kapı tutarsızlığı) (@boraydeger32)
+  - `seller_application._approve_application` — Seller + Seller Owner rolleri + `tradehub_is_owner=1` + `tradehub_tenant=ASP.name` + `role_profile_name="Seller Full Access"`
+  - `seller_application._revoke_approval` — Seller Owner rolü ve flag'leri geri al
+  - Migration `v15_5_5_seller_owner_role_backfill` — mevcut Active ASP sahiplerine retroactive rol atama
+- fix(rbac): sub-user için get_session_user'da kyb_status / is_verified_seller / can_sell tenant owner'dan miras alınır (önceki: kullanıcının kendi User Profile'ından, sub-user için yanlış) (@boraydeger32)
+
+### Migration patches (sırasıyla)
+
+```
+tradehub_core.patches.v15_5_5_seller_owner_role_backfill
+tradehub_core.patches.v15_6_0_seed_capability_registry
+tradehub_core.patches.v15_6_1_seed_capability_grant
+tradehub_core.patches.v15_6_2_seed_module_registry
+tradehub_core.patches.v15_6_3_seed_module_policy
+tradehub_core.patches.v15_6_4_seed_view_tax_id
+tradehub_core.patches.v15_6_5_seed_view_customer_pii
+tradehub_core.patches.v15_6_6_apply_pii_permlevel
+tradehub_core.patches.v15_6_7_promote_pii_permlevel_to_2
+tradehub_core.patches.v15_6_8_lock_non_privileged_pii_read
+```
+
+Hepsi **idempotent** — tekrar çalıştırılabilir, mevcut kayıtlara dokunmaz.
+
+### Breaking Changes
+
+- ⚠ Frappe Desk'te `Admin Seller Profile`, `User Profile`, `Contact` DocType'larındaki IBAN/tax_id/email_id vb. alanlar artık **permlevel 2**'de. Sub-user rolleri (`Seller`, `Marketplace Seller`) bu alanları göremez. Bu kasıtlı bir güvenlik değişikliğidir; eski davranışa dönülmesi önerilmez.
+- ⚠ `auth.userCapabilities` artık `Array` değil `Set`. Eski kod `auth.userCapabilities.includes(...)` çağırıyorsa `auth.userCapabilities.has(...)` veya `auth.can(...)` ile değiştirilmeli.
+- ⚠ `navigation.js`'deki `requires:[...]` tag'leri **geriye uyumlu** kalmaya devam ediyor (fallback), ancak gerçek sidebar visibility **TH Module Policy** kayıtlarından çözümleniyor. Hard-coded değişiklik production'da etki etmez — TH Module Policy düzenlenmeli.
+
+### Deploy notları
+
+Production deploy adımları için → `Sprint6-Production-Checklist.md`
+
+---
+
 ## [v1.0.9-beta.15] - 2026-05-26 BETA
 
 Bu surum betaistoc.cronbi.com'da test asamasindadir.

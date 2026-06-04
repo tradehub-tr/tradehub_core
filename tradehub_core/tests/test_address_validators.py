@@ -1439,7 +1439,7 @@ class TestBuyerPurposeValidation(unittest.TestCase):
 		"""purpose invalid iken sessizce 'Delivery' atanmamalı."""
 		# Eski pattern: `if purpose not in ...: purpose = "Delivery"`
 		# Yeni pattern: `if purpose not in ...: frappe.throw(...)`
-		pattern = re.compile(r'if\s+purpose\s+not\s+in.*:\s*\n\s*purpose\s*=')
+		pattern = re.compile(r"if\s+purpose\s+not\s+in.*:\s*\n\s*purpose\s*=")
 		self.assertIsNone(
 			pattern.search(self.src),
 			"Sessiz purpose fallback pattern hâlâ mevcut",
@@ -1447,7 +1447,7 @@ class TestBuyerPurposeValidation(unittest.TestCase):
 
 	def test_no_silent_fallback_for_address_type(self):
 		"""address_type invalid iken sessizce 'Individual' atanmamalı."""
-		pattern = re.compile(r'if\s+address_type\s+not\s+in.*:\s*\n\s*address_type\s*=')
+		pattern = re.compile(r"if\s+address_type\s+not\s+in.*:\s*\n\s*address_type\s*=")
 		self.assertIsNone(
 			pattern.search(self.src),
 			"Sessiz address_type fallback pattern hâlâ mevcut",
@@ -1475,11 +1475,11 @@ class TestPhonePrefixConsistency(unittest.TestCase):
 
 	def test_buyer_strips_prefix_from_phone(self):
 		"""Buyer: numara prefix ile başlıyorsa local kısmı saklanmalı."""
-		self.assertIn('phone_to_save = intl_digits[len(prefix_digits):]', self.buyer_src)
+		self.assertIn("phone_to_save = intl_digits[len(prefix_digits):]", self.buyer_src)
 
 	def test_seller_strips_prefix_from_phone(self):
 		"""Seller: numara prefix ile başlıyorsa local kısmı saklanmalı."""
-		self.assertIn('phone_to_save = intl_digits[len(prefix_digits):]', self.seller_src)
+		self.assertIn("phone_to_save = intl_digits[len(prefix_digits):]", self.seller_src)
 
 
 class TestIgnorePermissionsJustification(unittest.TestCase):
@@ -1496,9 +1496,7 @@ class TestIgnorePermissionsJustification(unittest.TestCase):
 		return m.group(0)
 
 	def test_buyer_save_has_justification(self):
-		src = self._read_function_source(
-			_APP_ROOT / "tradehub_core" / "api" / "buyer.py", "save_address"
-		)
+		src = self._read_function_source(_APP_ROOT / "tradehub_core" / "api" / "buyer.py", "save_address")
 		# Her ignore_permissions satırından önce yorum olmalı
 		lines = src.split("\n")
 		for i, line in enumerate(lines):
@@ -1512,9 +1510,7 @@ class TestIgnorePermissionsJustification(unittest.TestCase):
 				)
 
 	def test_buyer_delete_has_justification(self):
-		src = self._read_function_source(
-			_APP_ROOT / "tradehub_core" / "api" / "buyer.py", "delete_address"
-		)
+		src = self._read_function_source(_APP_ROOT / "tradehub_core" / "api" / "buyer.py", "delete_address")
 		lines = src.split("\n")
 		for i, line in enumerate(lines):
 			if "ignore_permissions=True" in line:
@@ -1545,9 +1541,7 @@ class TestIgnorePermissionsJustification(unittest.TestCase):
 class TestStorefrontCheckoutCompanyOptional(unittest.TestCase):
 	"""Storefront checkout: company alanı opsiyonel olmalı."""
 
-	_CHECKOUT_PATH = (
-		Path(__file__).resolve().parents[3] / "tradehubfront" / "src" / "alpine" / "checkout.ts"
-	)
+	_CHECKOUT_PATH = Path(__file__).resolve().parents[3] / "tradehubfront" / "src" / "alpine" / "checkout.ts"
 
 	@unittest.skipUnless(
 		_CHECKOUT_PATH.exists(),
@@ -1557,7 +1551,7 @@ class TestStorefrontCheckoutCompanyOptional(unittest.TestCase):
 		src = self._CHECKOUT_PATH.read_text(encoding="utf-8")
 		# validateAddAddressForm içindeki requiredFields'da "company" olmamalı
 		pattern = re.compile(
-			r'validateAddAddressForm\(\).*?requiredFields.*?\[([^\]]+)\]',
+			r"validateAddAddressForm\(\).*?requiredFields.*?\[([^\]]+)\]",
 			re.DOTALL,
 		)
 		m = pattern.search(src)
@@ -1573,7 +1567,7 @@ class TestStorefrontCheckoutCompanyOptional(unittest.TestCase):
 		src = self._CHECKOUT_PATH.read_text(encoding="utf-8")
 		# handleSubmit içindeki requiredFields'da "company" olmamalı
 		pattern = re.compile(
-			r'handleSubmit\(\).*?requiredFields\s*=\s*\[([^\]]+)\]',
+			r"handleSubmit\(\).*?requiredFields\s*=\s*\[([^\]]+)\]",
 			re.DOTALL,
 		)
 		m = pattern.search(src)
@@ -1585,9 +1579,7 @@ class TestStorefrontCheckoutCompanyOptional(unittest.TestCase):
 class TestStorefrontNoAlertCalls(unittest.TestCase):
 	"""Storefront checkout: alert() yerine showToast kullanılmalı."""
 
-	_CHECKOUT_PATH = (
-		Path(__file__).resolve().parents[3] / "tradehubfront" / "src" / "alpine" / "checkout.ts"
-	)
+	_CHECKOUT_PATH = Path(__file__).resolve().parents[3] / "tradehubfront" / "src" / "alpine" / "checkout.ts"
 
 	@unittest.skipUnless(
 		_CHECKOUT_PATH.exists(),
@@ -1596,7 +1588,7 @@ class TestStorefrontNoAlertCalls(unittest.TestCase):
 	def test_no_alert_calls(self):
 		src = self._CHECKOUT_PATH.read_text(encoding="utf-8")
 		# `alert(` çağrısı olmamalı — window.alert da dahil
-		alert_pattern = re.compile(r'\balert\s*\(')
+		alert_pattern = re.compile(r"\balert\s*\(")
 		matches = alert_pattern.findall(src)
 		self.assertEqual(
 			len(matches),
@@ -1683,9 +1675,24 @@ class TestBackendBuyerSellerFieldSymmetry(unittest.TestCase):
 	def test_required_api_fields_present(self):
 		"""API response'ta olması gereken kritik alanlar."""
 		expected_fields = {
-			"id", "title", "contact_name", "company", "phone_prefix", "phone",
-			"country", "state", "city", "street", "apartment", "postal_code",
-			"note", "is_default", "purpose", "address_type", "tax_no", "tax_office",
+			"id",
+			"title",
+			"contact_name",
+			"company",
+			"phone_prefix",
+			"phone",
+			"country",
+			"state",
+			"city",
+			"street",
+			"apartment",
+			"postal_code",
+			"note",
+			"is_default",
+			"purpose",
+			"address_type",
+			"tax_no",
+			"tax_office",
 		}
 		buyer_fields = self._extract_doc_to_dict_fields(self.buyer_src)
 		missing = expected_fields - buyer_fields
@@ -1711,9 +1718,24 @@ class TestCartServiceTypeAlignment(unittest.TestCase):
 		src = self._CART_SERVICE_PATH.read_text(encoding="utf-8")
 		# BuyerAddressData type'ında backend'in döndüğü tüm alanlar olmalı
 		required = [
-			"id", "title", "contact_name", "company", "phone_prefix", "phone",
-			"country", "state", "city", "street", "apartment", "postal_code",
-			"note", "is_default", "purpose", "address_type", "tax_no", "tax_office",
+			"id",
+			"title",
+			"contact_name",
+			"company",
+			"phone_prefix",
+			"phone",
+			"country",
+			"state",
+			"city",
+			"street",
+			"apartment",
+			"postal_code",
+			"note",
+			"is_default",
+			"purpose",
+			"address_type",
+			"tax_no",
+			"tax_office",
 		]
 		for field in required:
 			self.assertIn(
@@ -1760,14 +1782,7 @@ class TestAdminPanelAddressFieldSync(unittest.TestCase):
 class TestAddressDocTypeSchemaIntegrity(unittest.TestCase):
 	"""DocType JSON schema: purpose, address_type, tax alanları mevcut olmalı."""
 
-	_SCHEMA_PATH = (
-		_APP_ROOT
-		/ "tradehub_core"
-		/ "tradehub_core"
-		/ "doctype"
-		/ "addresses"
-		/ "addresses.json"
-	)
+	_SCHEMA_PATH = _APP_ROOT / "tradehub_core" / "tradehub_core" / "doctype" / "addresses" / "addresses.json"
 
 	@unittest.skipUnless(
 		_SCHEMA_PATH.exists(),
@@ -1775,6 +1790,7 @@ class TestAddressDocTypeSchemaIntegrity(unittest.TestCase):
 	)
 	def test_schema_has_purpose_field(self):
 		import json as _json
+
 		schema = _json.loads(self._SCHEMA_PATH.read_text(encoding="utf-8"))
 		field_names = [f["fieldname"] for f in schema.get("fields", [])]
 		self.assertIn("purpose", field_names)
@@ -1785,6 +1801,7 @@ class TestAddressDocTypeSchemaIntegrity(unittest.TestCase):
 	)
 	def test_schema_has_address_type_field(self):
 		import json as _json
+
 		schema = _json.loads(self._SCHEMA_PATH.read_text(encoding="utf-8"))
 		field_names = [f["fieldname"] for f in schema.get("fields", [])]
 		self.assertIn("address_type", field_names)
@@ -1795,6 +1812,7 @@ class TestAddressDocTypeSchemaIntegrity(unittest.TestCase):
 	)
 	def test_schema_has_tax_fields(self):
 		import json as _json
+
 		schema = _json.loads(self._SCHEMA_PATH.read_text(encoding="utf-8"))
 		field_names = [f["fieldname"] for f in schema.get("fields", [])]
 		self.assertIn("tax_no", field_names)
@@ -1807,10 +1825,9 @@ class TestAddressDocTypeSchemaIntegrity(unittest.TestCase):
 	def test_purpose_options_match_backend(self):
 		"""DocType purpose seçenekleri buyer+seller allowed_purposes'ı kapsamalı."""
 		import json as _json
+
 		schema = _json.loads(self._SCHEMA_PATH.read_text(encoding="utf-8"))
-		purpose_field = next(
-			(f for f in schema["fields"] if f["fieldname"] == "purpose"), None
-		)
+		purpose_field = next((f for f in schema["fields"] if f["fieldname"] == "purpose"), None)
 		self.assertIsNotNone(purpose_field)
 		options = set(purpose_field.get("options", "").split("\n"))
 		# Buyer: Delivery, Billing — Seller: Pickup

@@ -47,6 +47,8 @@ fixtures = [
 					"Platform Admin",
 					"Platform Finance",
 					"Support Agent",
+					# Saha pazarlama hakediş sistemi — saha elemanı rolü
+					"Saha Pazarlama",
 				],
 			]
 		],
@@ -362,6 +364,8 @@ doc_events = {
 	"Admin Seller Profile": {
 		# version-15 — SEO slug auto-generate
 		"before_validate": "tradehub_core.seo.hooks_seo.auto_generate_slug",
+		# Sprint 5 — IBAN/bank/tax_id field maskeleme (per-capability)
+		"on_load": "tradehub_core.api.v1.crm_masking.mask_pii_fields",
 		"validate": [
 			"tradehub_core.utils.cert_validate.validate_seller_certifications",
 			# FAZ 1.5 — Banka/vergi değişikliği Owner-only (Co-Owner bile yapamaz)
@@ -395,6 +399,8 @@ doc_events = {
 			"tradehub_core.utils.crm_seller_autoset.autoset_seller",
 			"tradehub_core.utils.crm_seller_autoset.autoset_owner",
 		],
+		# Saha hakediş: Won olunca otomatik Beklemede hakediş üret.
+		"on_update": "tradehub_core.utils.field_commission.generate_on_deal_won",
 	},
 	"CRM Organization": {
 		"before_insert": "tradehub_core.utils.crm_seller_autoset.autoset_seller",
@@ -406,6 +412,13 @@ doc_events = {
 	},
 	"Contact": {
 		"before_insert": "tradehub_core.utils.crm_seller_autoset.autoset_seller",
+		# Sprint 5 — view.customer_pii capability'si olmayan kullanıcı için
+		# email_id, phone, mobile_no + Contact Email/Phone child satırları maskelenir.
+		"on_load": "tradehub_core.api.v1.crm_masking.mask_pii_fields",
+	},
+	"User Profile": {
+		# Sprint 5 — IBAN/bank (view.bank_info) + tax_id (view.tax_id) per-field maskeleme
+		"on_load": "tradehub_core.api.v1.crm_masking.mask_pii_fields",
 	},
 	"CRM Task": {
 		"before_insert": "tradehub_core.utils.crm_seller_autoset.autoset_seller",
@@ -426,6 +439,13 @@ doc_events = {
 	# Header Notice Settings singleton → also invalidate cache when display_mode changes.
 	"Header Notice Settings": {
 		"on_update": "tradehub_core.api.header_notice.invalidate_cache",
+	},
+	# Hero Slide lifecycle → invalidate 60s Redis cache so storefront hero slider
+	# reflects admin edits within the next request.
+	"Hero Slide": {
+		"after_insert": "tradehub_core.api.hero_slider.invalidate_cache",
+		"on_update": "tradehub_core.api.hero_slider.invalidate_cache",
+		"on_trash": "tradehub_core.api.hero_slider.invalidate_cache",
 	},
 	# ECA Rule lifecycle → rule cache invalidation.
 	# Dispatcher Redis cache'inden hem aktif rule listesini hem de derlenmiş
@@ -506,8 +526,29 @@ doc_events = {
 			"tradehub_core.audit.user_hooks.on_user_update",
 			# FAZ 2.3 — Rol/tenant değişimi sonrası ReBAC tuple sync
 			"tradehub_core.services.tuple_sync.on_user_update",
+			# Sprint 6 — role_profile_name değişimi → capability cache flush
+			"tradehub_core.utils.permission_resolver.on_user_role_change",
 		],
 		"on_trash": "tradehub_core.services.tuple_sync.on_user_trash",
+	},
+	# Sprint 6 — TH Capability Registry / Grant değişimi → tüm capability cache flush
+	"TH Capability Registry": {
+		"on_update": "tradehub_core.utils.permission_resolver.on_capability_registry_change",
+		"after_delete": "tradehub_core.utils.permission_resolver.on_capability_registry_change",
+	},
+	"TH Capability Grant": {
+		"after_insert": "tradehub_core.utils.permission_resolver.on_capability_grant_change",
+		"on_update": "tradehub_core.utils.permission_resolver.on_capability_grant_change",
+		"after_delete": "tradehub_core.utils.permission_resolver.on_capability_grant_change",
+	},
+	"TH Module Registry": {
+		"on_update": "tradehub_core.utils.permission_resolver.on_module_registry_change",
+		"after_delete": "tradehub_core.utils.permission_resolver.on_module_registry_change",
+	},
+	"TH Module Policy": {
+		"after_insert": "tradehub_core.utils.permission_resolver.on_module_policy_change",
+		"on_update": "tradehub_core.utils.permission_resolver.on_module_policy_change",
+		"after_delete": "tradehub_core.utils.permission_resolver.on_module_policy_change",
 	},
 }
 
@@ -565,6 +606,8 @@ permission_query_conditions = {
 	"Authorization Anomaly Rule": "tradehub_core.permissions.authorization_anomaly_rule_query_conditions",
 	"Permission Override Log": "tradehub_core.permissions.permission_override_log_query_conditions",
 	"PII Field Policy": "tradehub_core.permissions.pii_field_policy_query_conditions",
+	# Saha pazarlama hakediş — saha elemanı yalnız kendi (agent) kayıtlarını görür.
+	"Field Commission": "tradehub_core.permissions.field_commission_query_conditions",
 }
 
 has_permission = {
@@ -620,6 +663,8 @@ has_permission = {
 	# Seller Owner/Co-Owner kendi sub-user'ının Notification Settings'ine erişebilsin
 	# (sub-user pasifleştir/aktive et akışı User.on_update → toggle_notifications içinde tetiklenir).
 	"Notification Settings": "tradehub_core.permissions.notification_settings_has_permission",
+	# Saha pazarlama hakediş — saha elemanı yalnız kendi kaydına read/report.
+	"Field Commission": "tradehub_core.permissions.field_commission_has_permission",
 }
 
 # ---------------------------------------------------------------------------

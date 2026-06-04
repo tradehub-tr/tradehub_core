@@ -82,6 +82,7 @@ def get_session_user():
 	)
 
 	is_admin = "System Manager" in roles or "Administrator" in roles or "Marketplace Admin" in roles
+	is_field_agent = "Saha Pazarlama" in roles
 	is_buyer = "Buyer" in roles or bool(up_data.get("can_buy"))
 	# is_seller: direkt seller rolü VEYA can_sell flag VEYA bir tenant'a bağlı sub-user
 	# (Seller Owner/Co-Owner/Admin/Finance Staff/Operations gibi tüm satıcı sub-user'lar)
@@ -94,7 +95,18 @@ def get_session_user():
 		or any(r.startswith("Seller ") for r in roles)
 	)
 	is_owner = bool(is_owner_flag) and ("Seller Owner" in roles)
-	is_verified_seller = "Verified Seller" in roles
+
+	# Sub-user (Co-Owner / Manager / Operations / Finance Staff) için KYB ve
+	# satıcı doğrulama statüsü tenant sahibinden (mağaza Owner'ı) miras alınır.
+	# KYB doğrulaması mağaza entity'sine ait — sub-user kendi adına yapmaz.
+	is_sub_user = bool(tenant_link) and not is_owner
+	tenant_owner_user = (
+		frappe.db.get_value("Admin Seller Profile", tenant_link, "user") if is_sub_user else None
+	)
+	kyb_source_user = tenant_owner_user or frappe.session.user
+	is_verified_seller = "Verified Seller" in (
+		frappe.get_roles(tenant_owner_user) if tenant_owner_user else roles
+	)
 
 	has_seller_profile = bool(
 		frappe.db.exists(
@@ -164,17 +176,19 @@ def get_session_user():
 
 	# KYB verification — Sprint 2.6: verification_kind kolonu kaldırıldı,
 	# KYC ayrı DocType'a taşındı. Bu DocType artık sadece KYB için.
+	# Sub-user için sorgu tenant owner'ına yönlendirilir (kyb_source_user).
 	kyb_data = frappe.db.get_value(
 		"KYB Verification",
-		{"user": frappe.session.user},
+		{"user": kyb_source_user},
 		["name", "status"],
 		as_dict=True,
 	)
 	kyb_status = kyb_data.status if kyb_data else None
 	kyb_verification = kyb_data.name if kyb_data else None
 
-	# KYC status — User Profile.kyc_status (Business Buyer için banner)
-	# Sprint 2.6 (revised): kyb_status da User Profile'dan çekilir (status bazlı locked karar için)
+	# KYC status — User Profile.kyc_status (Business Buyer için banner) kullanıcının
+	# kendi profilinden okunur (KYC kişi bazlı). kyb_status ve can_sell ise tenant
+	# owner'dan miras alınır — KYB mağaza entity'sine ait.
 	up_extra = (
 		frappe.db.get_value(
 			"User Profile",
@@ -184,10 +198,27 @@ def get_session_user():
 		)
 		or {}
 	)
+	owner_up_extra = (
+		frappe.db.get_value(
+			"User Profile",
+			{"user": tenant_owner_user},
+			["kyb_status", "can_sell"],
+			as_dict=True,
+		)
+		if is_sub_user and tenant_owner_user
+		else None
+	)
 	kyc_status = up_extra.get("kyc_status") or None
-	kyb_status_up = up_extra.get("kyb_status") or kyb_status
+	kyb_status_up = (
+		(owner_up_extra.get("kyb_status") if owner_up_extra else None)
+		or up_extra.get("kyb_status")
+		or kyb_status
+	)
 	account_type = up_extra.get("account_type") or "Individual"
 	email_verified = bool(up_extra.get("email_verified")) if up_extra else True
+	effective_can_sell = (
+		bool(owner_up_extra.get("can_sell")) if owner_up_extra else bool(up_data.get("can_sell"))
+	)
 
 	from frappe.sessions import get_csrf_token
 
@@ -213,6 +244,7 @@ def get_session_user():
 			"role_profile_name": frappe.db.get_value("User", frappe.session.user, "role_profile_name") or "",
 			"is_admin": is_admin,
 			"is_seller": is_seller,
+			"is_field_agent": is_field_agent,
 			"is_owner": is_owner,
 			"tenant": tenant_link,
 			"is_verified_seller": is_verified_seller,
@@ -228,7 +260,7 @@ def get_session_user():
 			"kyc_status": kyc_status,
 			"account_type": account_type,
 			"can_buy": bool(up_data.get("can_buy")),
-			"can_sell": bool(up_data.get("can_sell")),
+			"can_sell": effective_can_sell,
 			# Sprint 2.6 (revised) — status-bazlı locked/required kararı.
 			# can_buy/can_sell artık kyc_status/kyb_status'tan türetilen flag'ler
 			# (KYC Verified → can_buy=1; KYB Verified → can_sell=1); locked/required
@@ -338,13 +370,37 @@ def get_user_profile():
 				)
 				or {}
 			)
+			# Sprint 4 — Sensitive field maskeleme.
+			# Owner her capability'i otomatik alır; Co-Owner için view.bank_info /
+			# view.tax_id grant edilir; Manager / Operations / Finance Staff için
+			# bu capability'ler yoksa response IBAN/tax_id maskelenir.
+			from tradehub_core.utils.permission_resolver import apply_field_mask
+			from tradehub_core.utils.seller_capabilities import has_seller_capability
+
+			can_view_bank = has_seller_capability("view.bank_info", user)
+			can_view_tax = has_seller_capability("view.tax_id", user)
+
+			iban_value = sp.iban or ""
+			bank_name_value = sp.bank_name or ""
+			account_holder_value = sp.account_holder_name or ""
+			tax_id_value = sp.tax_id or ""
+
+			if iban_value and not can_view_bank:
+				iban_value = apply_field_mask(iban_value, "iban_xxx_last4")
+			if not can_view_bank:
+				bank_name_value = ""
+				if account_holder_value:
+					account_holder_value = apply_field_mask(account_holder_value, "initials")
+			if tax_id_value and not can_view_tax:
+				tax_id_value = apply_field_mask(tax_id_value, "last4")
+
 			base.update(
 				{
 					"seller_name": asp.get("seller_name") or sp.full_name or "",
 					"seller_type": asp.get("seller_type") or "",
 					"company_name": sp.company_name or "",
 					"business_name": sp.company_name or "",  # legacy alias
-					"tax_id": sp.tax_id or "",
+					"tax_id": tax_id_value,
 					"phone": sp.phone or user_data.phone or "",
 					"contact_phone": sp.phone or user_data.phone or "",  # legacy alias
 					"country": sp.country or "",
@@ -354,9 +410,9 @@ def get_user_profile():
 					"address": asp.get("address_line1") or "",
 					"city": asp.get("city") or "",
 					"postal_code": asp.get("postal_code") or "",
-					"bank_name": sp.bank_name or "",
-					"iban": sp.iban or "",
-					"account_holder_name": sp.account_holder_name or "",
+					"bank_name": bank_name_value,
+					"iban": iban_value,
+					"account_holder_name": account_holder_value,
 					"website": sp.website or "",
 					"job_title": sp.job_title or "",
 					"year_established": sp.year_established or "",
@@ -366,6 +422,10 @@ def get_user_profile():
 					"industry_preferences": sp.industry_preferences or "",
 					"sourcing_frequency": sp.sourcing_frequency or "",
 					"annual_spending": sp.annual_spending or "",
+					"_masked": {
+						"bank_info": not can_view_bank,
+						"tax_id": not can_view_tax,
+					},
 				}
 			)
 			return base

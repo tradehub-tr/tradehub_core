@@ -1,0 +1,222 @@
+{
+	"actions": [],
+	"autoname": "autoincrement",
+	"creation": "2026-06-03 00:00:00.000000",
+	"doctype": "DocType",
+	"engine": "InnoDB",
+	"field_order": [
+		"label_tr",
+		"label_en",
+		"column_break_label",
+		"title_tr",
+		"title_en",
+		"section_break_desc",
+		"description_tr",
+		"description_en",
+		"section_break_button",
+		"button_text_tr",
+		"button_text_en",
+		"button_href",
+		"section_break_bg",
+		"background_type",
+		"background_image",
+		"column_break_bg",
+		"background_color",
+		"background_color_2",
+		"gradient_angle",
+		"section_break_appearance",
+		"text_color",
+		"content_align",
+		"overlay",
+		"section_break_meta",
+		"is_active",
+		"sort_order",
+		"column_break_dates",
+		"start_at",
+		"end_at"
+	],
+	"fields": [
+		{
+			"fieldname": "label_tr",
+			"fieldtype": "Data",
+			"label": "Etiket (TR)"
+		},
+		{
+			"fieldname": "label_en",
+			"fieldtype": "Data",
+			"label": "Etiket (EN)"
+		},
+		{
+			"fieldname": "column_break_label",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "title_tr",
+			"fieldtype": "Data",
+			"label": "Başlık (TR)",
+			"reqd": 1,
+			"in_list_view": 1
+		},
+		{
+			"fieldname": "title_en",
+			"fieldtype": "Data",
+			"label": "Başlık (EN)"
+		},
+		{
+			"fieldname": "section_break_desc",
+			"fieldtype": "Section Break"
+		},
+		{
+			"fieldname": "description_tr",
+			"fieldtype": "Small Text",
+			"label": "Açıklama (TR)"
+		},
+		{
+			"fieldname": "description_en",
+			"fieldtype": "Small Text",
+			"label": "Açıklama (EN)"
+		},
+		{
+			"fieldname": "section_break_button",
+			"fieldtype": "Section Break",
+			"label": "Buton"
+		},
+		{
+			"fieldname": "button_text_tr",
+			"fieldtype": "Data",
+			"label": "Buton Metni (TR)"
+		},
+		{
+			"fieldname": "button_text_en",
+			"fieldtype": "Data",
+			"label": "Buton Metni (EN)"
+		},
+		{
+			"fieldname": "button_href",
+			"fieldtype": "Data",
+			"label": "Buton Linki"
+		},
+		{
+			"fieldname": "section_break_bg",
+			"fieldtype": "Section Break",
+			"label": "Arka Plan"
+		},
+		{
+			"fieldname": "background_type",
+			"fieldtype": "Select",
+			"label": "Arka Plan Türü",
+			"options": "gradient\ncolor\nimage",
+			"default": "gradient",
+			"in_list_view": 1
+		},
+		{
+			"fieldname": "background_image",
+			"fieldtype": "Attach Image",
+			"label": "Arka Plan Görseli",
+			"depends_on": "eval:doc.background_type=='image'"
+		},
+		{
+			"fieldname": "column_break_bg",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "background_color",
+			"fieldtype": "Color",
+			"label": "Arka Plan Rengi",
+			"default": "#1f5fae",
+			"depends_on": "eval:['color','gradient'].includes(doc.background_type)"
+		},
+		{
+			"fieldname": "background_color_2",
+			"fieldtype": "Color",
+			"label": "Gradient Bitiş Rengi",
+			"default": "#0c2e61",
+			"depends_on": "eval:doc.background_type=='gradient'"
+		},
+		{
+			"fieldname": "gradient_angle",
+			"fieldtype": "Int",
+			"label": "Gradient Açısı (derece)",
+			"default": "120",
+			"depends_on": "eval:doc.background_type=='gradient'"
+		},
+		{
+			"fieldname": "section_break_appearance",
+			"fieldtype": "Section Break",
+			"label": "Görünüm"
+		},
+		{
+			"fieldname": "text_color",
+			"fieldtype": "Color",
+			"label": "Yazı Rengi",
+			"default": "#ffffff"
+		},
+		{
+			"fieldname": "content_align",
+			"fieldtype": "Select",
+			"label": "İçerik Konumu",
+			"options": "center\nleft\nright",
+			"default": "center"
+		},
+		{
+			"fieldname": "overlay",
+			"fieldtype": "Check",
+			"label": "Görsel Üzerine Koyu Katman",
+			"default": "0"
+		},
+		{
+			"fieldname": "section_break_meta",
+			"fieldtype": "Section Break"
+		},
+		{
+			"fieldname": "is_active",
+			"fieldtype": "Check",
+			"label": "Aktif",
+			"default": "1",
+			"in_list_view": 1,
+			"search_index": 1
+		},
+		{
+			"fieldname": "sort_order",
+			"fieldtype": "Int",
+			"label": "Sıralama",
+			"default": "0",
+			"in_list_view": 1,
+			"search_index": 1
+		},
+		{
+			"fieldname": "column_break_dates",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "start_at",
+			"fieldtype": "Datetime",
+			"label": "Başlangıç"
+		},
+		{
+			"fieldname": "end_at",
+			"fieldtype": "Datetime",
+			"label": "Bitiş"
+		}
+	],
+	"links": [],
+	"modified": "2026-06-03 00:00:00.000000",
+	"modified_by": "Administrator",
+	"module": "Tradehub Core",
+	"name": "Hero Slide",
+	"owner": "Administrator",
+	"permissions": [
+		{
+			"create": 1,
+			"delete": 1,
+			"read": 1,
+			"report": 1,
+			"role": "System Manager",
+			"write": 1
+		}
+	],
+	"sort_field": "sort_order",
+	"sort_order": "ASC",
+	"title_field": "title_tr",
+	"track_changes": 1
+}

@@ -41,7 +41,7 @@ def parse_bool(value):
 		return None
 	if isinstance(value, bool):
 		return value
-	if isinstance(value, (int, float)):
+	if isinstance(value, int | float):
 		return bool(value)
 	s = str(value).strip().lower()
 	if s in TRUTHY:

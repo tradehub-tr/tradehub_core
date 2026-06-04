@@ -140,7 +140,7 @@ def _parse_context(value) -> dict:
 def _parse_bool(value) -> bool:
 	if isinstance(value, bool):
 		return value
-	if isinstance(value, (int, float)):
+	if isinstance(value, int | float):
 		return bool(value)
 	if isinstance(value, str):
 		return value.strip().lower() in {"1", "true", "yes", "on"}

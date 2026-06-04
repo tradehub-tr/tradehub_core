@@ -91,7 +91,19 @@ def _install_frappe_stub() -> None:
 		# _USERS içinde "has_admin_seller_profile" flag'i olursa True döner
 		return bool(_USERS.get(target_user, {}).get("has_admin_seller_profile"))
 
-	frappe.db = SimpleNamespace(get_value=db_get_value, exists=db_exists)
+	def db_table_exists(_table_name):
+		# Saf-Python testler için DB yok; Sprint 6 DB-driven lookup'lar
+		# Python sabit listelerine fallback eder.
+		return False
+
+	frappe.db = SimpleNamespace(
+		get_value=db_get_value,
+		exists=db_exists,
+		table_exists=db_table_exists,
+	)
+
+	if not hasattr(frappe, "log_error"):
+		frappe.log_error = lambda *args, **kwargs: None
 
 	if not hasattr(frappe, "_"):
 		frappe._ = lambda s: s
@@ -223,11 +235,15 @@ _OPERATIONS_CAPS = {
 	"inquiry.reply",
 	"rfq.quote",
 	"crm.lead_capture",
+	"view.customer_shipping",
 }
 _FINANCE_CAPS = {
 	"order.confirm_payment",
 	"order.refund",
 	"balance.withdraw",
+	"view.financial_summary",
+	"view.balance",
+	"view.order_amounts",
 }
 _MANAGEMENT_CAPS = {
 	"listing.delete",
@@ -236,8 +252,12 @@ _MANAGEMENT_CAPS = {
 	"cert.write",
 	"address.write",
 	"kyb.submit",
+	"view.profit_detail",
 }
-_COOWNER_CAPS = {"subuser.manage"}
+# Sales tier — Manager + Co-Owner + Sales Rep + Owner Full Access içerir
+# (Operations ve Finance Staff bu capability'leri görmez).
+_SALES_CAPS = {"view.customer_full"}
+_COOWNER_CAPS = {"subuser.manage", "view.bank_info"}
 _OWNER_ONLY_CAPS = {
 	"bank_info.write",
 	"tax_info.write",
@@ -265,8 +285,14 @@ class GuestAndAdminTests(unittest.TestCase):
 		sys.modules["frappe"].session.user = "Administrator"
 		self.assertTrue(sc.has_seller_capability("order.ship"))
 		self.assertTrue(sc.has_seller_capability("bank_info.write"))
-		caps = sc.get_user_capabilities()
-		self.assertEqual(set(caps), set(sc.SELLER_CAPABILITIES.keys()))
+		caps = set(sc.get_user_capabilities())
+		# Administrator en az SELLER_CAPABILITIES listesini taşımalı; Sprint 6
+		# sonrası TH Capability Registry'de ek capability'ler olabilir
+		# (örn. owner.transfer, account.delete) — superset olması yeterli.
+		self.assertTrue(
+			set(sc.SELLER_CAPABILITIES.keys()).issubset(caps),
+			f"Eksik capability'ler: {set(sc.SELLER_CAPABILITIES.keys()) - caps}",
+		)
 
 	def test_system_manager_bypasses(self):
 		_set_user("admin@x.com", roles=["System Manager"])
@@ -292,7 +318,14 @@ class FullAccessProfileTests(unittest.TestCase):
 
 	def test_owner_full_access_gets_everything(self):
 		_set_user("owner@x.com", is_owner=1, role_profile_name="Seller Full Access")
-		expected = _OPERATIONS_CAPS | _FINANCE_CAPS | _MANAGEMENT_CAPS | _COOWNER_CAPS | _OWNER_ONLY_CAPS
+		expected = (
+			_OPERATIONS_CAPS
+			| _FINANCE_CAPS
+			| _MANAGEMENT_CAPS
+			| _SALES_CAPS
+			| _COOWNER_CAPS
+			| _OWNER_ONLY_CAPS
+		)
 		got = set(sc.get_user_capabilities("owner@x.com"))
 		self.assertEqual(got, expected)
 
@@ -300,7 +333,7 @@ class FullAccessProfileTests(unittest.TestCase):
 		"""Full Access profile sahibi ama is_owner=0 → owner-only HAYIR."""
 		_set_user("co@x.com", is_owner=0, role_profile_name="Seller Full Access")
 		got = set(sc.get_user_capabilities("co@x.com"))
-		expected = _OPERATIONS_CAPS | _FINANCE_CAPS | _MANAGEMENT_CAPS | _COOWNER_CAPS
+		expected = _OPERATIONS_CAPS | _FINANCE_CAPS | _MANAGEMENT_CAPS | _SALES_CAPS | _COOWNER_CAPS
 		self.assertEqual(got, expected)
 		self.assertFalse(sc.has_seller_capability("bank_info.write", "co@x.com"))
 
@@ -312,7 +345,7 @@ class CoOwnerProfileTests(unittest.TestCase):
 	def test_coowner_gets_ops_finance_management_subuser(self):
 		_set_user("co@x.com", role_profile_name="Seller Co-Owner")
 		got = set(sc.get_user_capabilities("co@x.com"))
-		expected = _OPERATIONS_CAPS | _FINANCE_CAPS | _MANAGEMENT_CAPS | _COOWNER_CAPS
+		expected = _OPERATIONS_CAPS | _FINANCE_CAPS | _MANAGEMENT_CAPS | _SALES_CAPS | _COOWNER_CAPS
 		self.assertEqual(got, expected)
 
 	def test_coowner_denied_owner_only(self):
@@ -330,7 +363,7 @@ class ManagerProfileTests(unittest.TestCase):
 	def test_manager_gets_ops_finance_management(self):
 		_set_user("mgr@x.com", role_profile_name="Seller Manager")
 		got = set(sc.get_user_capabilities("mgr@x.com"))
-		expected = _OPERATIONS_CAPS | _FINANCE_CAPS | _MANAGEMENT_CAPS
+		expected = _OPERATIONS_CAPS | _FINANCE_CAPS | _MANAGEMENT_CAPS | _SALES_CAPS
 		self.assertEqual(got, expected)
 
 	def test_manager_denied_subuser_management(self):
@@ -619,8 +652,8 @@ class EdgeCaseRegressionTests(unittest.TestCase):
 class PlanAwareCapabilityTests(unittest.TestCase):
 	"""Plan ↔ Capability entegrasyon testleri.
 
-	rfq.quote → feature.rfq_module gerekir
-	crm.lead_capture → feature.crm_module gerekir
+	rfq.quote → feature.functional.rfq gerekir
+	crm.lead_capture → feature.crm.module gerekir
 
 	Plan'da feature yoksa role tier'da olsa bile capability reddedilmeli.
 	Pricing sayfasında "FREE plan'da RFQ yok" yazısının gerçek karşılığı.
@@ -632,14 +665,14 @@ class PlanAwareCapabilityTests(unittest.TestCase):
 	def test_pro_plan_operations_can_use_rfq(self):
 		"""Pro plan + Operations → rfq.quote PASS."""
 		_set_user("ops@pro.com", role_profile_name="Seller Operations", tenant="SEL-PRO")
-		_PLAN_FEATURES["SEL-PRO"] = {"feature.rfq_module": True, "feature.crm_module": True}
+		_PLAN_FEATURES["SEL-PRO"] = {"feature.functional.rfq": True, "feature.crm.module": True}
 		self.assertTrue(sc.has_seller_capability("rfq.quote"))
 		self.assertTrue(sc.has_seller_capability("crm.lead_capture"))
 
 	def test_free_plan_operations_cannot_use_rfq(self):
 		"""Free plan + Operations → rfq.quote BLOK (plan'da feature yok)."""
 		_set_user("ops@free.com", role_profile_name="Seller Operations", tenant="SEL-FREE")
-		_PLAN_FEATURES["SEL-FREE"] = {"feature.rfq_module": False, "feature.crm_module": False}
+		_PLAN_FEATURES["SEL-FREE"] = {"feature.functional.rfq": False, "feature.crm.module": False}
 		self.assertFalse(sc.has_seller_capability("rfq.quote"))
 		self.assertFalse(sc.has_seller_capability("crm.lead_capture"))
 		# Plan-bağımsız capability'ler hala çalışmalı:
@@ -655,7 +688,7 @@ class PlanAwareCapabilityTests(unittest.TestCase):
 			has_admin_seller_profile=True,
 		)
 		# Owner'ın tenant'ı auto-resolve edilir: "SEL-OWNER"
-		_PLAN_FEATURES["SEL-OWNER"] = {"feature.rfq_module": False, "feature.crm_module": False}
+		_PLAN_FEATURES["SEL-OWNER"] = {"feature.functional.rfq": False, "feature.crm.module": False}
 		# Owner bank_info ALABILIR (owner-only plan-bağımsız)
 		self.assertTrue(sc.has_seller_capability("bank_info.write"))
 		# Ama plan'da rfq yoksa kullanamaz
@@ -665,7 +698,7 @@ class PlanAwareCapabilityTests(unittest.TestCase):
 	def test_get_user_capabilities_filters_by_plan(self):
 		"""get_user_capabilities listesinde plan-bağımlı feature olmasın."""
 		_set_user("ops@free.com", role_profile_name="Seller Operations", tenant="SEL-FREE")
-		_PLAN_FEATURES["SEL-FREE"] = {"feature.rfq_module": False, "feature.crm_module": False}
+		_PLAN_FEATURES["SEL-FREE"] = {"feature.functional.rfq": False, "feature.crm.module": False}
 		caps = set(sc.get_user_capabilities())
 		self.assertNotIn("rfq.quote", caps)
 		self.assertNotIn("crm.lead_capture", caps)

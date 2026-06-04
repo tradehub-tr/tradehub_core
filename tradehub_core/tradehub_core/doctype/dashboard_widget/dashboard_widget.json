@@ -36,6 +36,8 @@
 		"is_currency",
 		"period_scoped",
 		"compare_previous",
+		"sb_scope",
+		"scope_field",
 		"sb_filters",
 		"filters_json",
 		"config_json",
@@ -235,6 +237,20 @@
 			"label": "Önceki Dönemi Karşılaştır",
 			"default": "0",
 			"depends_on": "eval:doc.widget_type === 'kpi_single'"
+		},
+		{
+			"fieldname": "sb_scope",
+			"fieldtype": "Section Break",
+			"label": "Satıcı Filtresi (Scope)",
+			"description": "Bu widget satıcı dashboard'unda gösterilecekse, source_doctype'ta hangi alanın satıcıyı temsil ettiğini belirtin. Aksi halde satıcılar widget'ı göremez (fail-safe güvenlik katmanı).",
+			"depends_on": "eval:doc.dashboard_key === 'seller_overview' && doc.source_doctype && !['quick_links','funnel_chart'].includes(doc.widget_type)"
+		},
+		{
+			"fieldname": "scope_field",
+			"fieldtype": "Data",
+			"label": "Scope Alanı",
+			"description": "Bu doctype'ta satıcıyı temsil eden alan (örn: seller, seller_profile, owner_seller). Boş bırakılırsa bilinen doctype'lar için varsayılan kullanılır; bilinmeyen doctype için zorunlu.",
+			"depends_on": "eval:doc.dashboard_key === 'seller_overview' && doc.source_doctype && !['quick_links','funnel_chart'].includes(doc.widget_type)"
 		},
 		{
 			"fieldname": "sb_filters",

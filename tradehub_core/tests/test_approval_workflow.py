@@ -67,7 +67,7 @@ def _install_frappe_stub() -> None:
 		if "where `order` =" in q or "where `order`=" in q:
 			return []  # no active approval (new flow)
 		if "where name =" in q:
-			approval_name = values[0] if isinstance(values, (tuple, list)) else values
+			approval_name = values[0] if isinstance(values, tuple | list) else values
 			row = {"name": approval_name, "status": "Pending L1", "current_level": 1, "max_level": 1}
 			return [row] if as_dict else [(approval_name,)]
 		return []

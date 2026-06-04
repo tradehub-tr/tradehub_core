@@ -15,7 +15,7 @@ def parse_price(value):
 	"""Türk/İngiliz fiyat formatı → float."""
 	if value is None or value == "":
 		return None
-	if isinstance(value, (int, float)):
+	if isinstance(value, int | float):
 		return float(value)
 	s = str(value).strip()
 	m = PRICE_RE.match(s)

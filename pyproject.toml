@@ -43,9 +43,6 @@ ignore = [
 # Testlerde geniş assertRaises(Exception) yaygın pattern
 "**/test_*.py" = ["B017"]
 "**/tests/**/*.py" = ["B017"]
-# Standalone test: frappe stub'ı sys.modules'a kurmak, tradehub_core modülleri
-# top-level "import frappe" yaptığı için, importlardan önce gelmek zorunda → E402.
-"**/tests/test_rebac_abac_e2e.py" = ["E402"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["tradehub_core"]
