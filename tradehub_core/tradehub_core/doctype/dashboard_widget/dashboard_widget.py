@@ -36,6 +36,76 @@ class DashboardWidget(Document):
 	def validate(self):
 		self._apply_color_preset()
 		self._validate_json_fields()
+		self._backfill_scope_field_from_config()
+		self._validate_scope_field()
+
+	def _backfill_scope_field_from_config(self):
+		"""Legacy widget'lar config_json içinde scope_field tutuyordu. Yeni
+		first-class field doluysa onu kullan; aksi halde config_json'dan
+		otomatik kopyala. Bu, eski seed/widget'ların validate sırasında
+		first-class field'a otomatik göçünü sağlar.
+		"""
+		if self.scope_field:
+			return
+		if not self.config_json:
+			return
+		try:
+			config = json.loads(self.config_json)
+		except (TypeError, ValueError):
+			return
+		legacy_scope_field = config.get("scope_field")
+		if legacy_scope_field:
+			self.scope_field = legacy_scope_field
+
+	def _validate_scope_field(self):
+		"""Satıcı dashboard widget'ı için scope_field zorunlu (fail-safe).
+
+		Kurallar:
+		- dashboard_key != 'seller_overview' → bu kontrol skip
+		- source_doctype yoksa (quick_links, funnel_chart) → skip
+		- scope_field set değil VE DEFAULT_SCOPE_FIELDS'te yoksa → hata
+		- scope_field set ama source_doctype'ta o alan yoksa → hata
+		"""
+		if self.dashboard_key != "seller_overview":
+			return
+		if not self.source_doctype:
+			return
+		# quick_links/funnel_chart veri çekmiyor — scope filter gerekmez
+		if self.widget_type in ("quick_links", "funnel_chart"):
+			return
+
+		# Import burada (circular import'tan kaçınmak için)
+		from tradehub_core.tradehub_core.api.dashboard_engine import DEFAULT_SCOPE_FIELDS
+
+		resolved_field = self.scope_field or DEFAULT_SCOPE_FIELDS.get(self.source_doctype)
+		if not resolved_field:
+			frappe.throw(
+				_(
+					"'{0}' doctype için satıcı dashboard widget'ında 'Scope Alanı' "
+					"belirtilmesi zorunlu. Bu alan, source_doctype'ta hangi field'ın "
+					"satıcıyı temsil ettiğini gösterir (örn: seller, seller_profile). "
+					"Aksi halde satıcılar widget'ı göremez veya yanlış veri görür."
+				).format(self.source_doctype)
+			)
+
+		# Field doctype'ta gerçekten var mı doğrula
+		try:
+			meta = frappe.get_meta(self.source_doctype)
+		except Exception:
+			# DocType bulunamadıysa (örn. silinmiş) sessizce geç — daha kritik
+			# bir doğrulama zaten reqd=1 source_doctype tarafında yapılmış olur
+			return
+
+		valid_fields = {f.fieldname for f in meta.fields}
+		# Standard fields (name, owner vs.) da geçerli
+		valid_fields.update({"name", "creation", "modified", "owner", "modified_by"})
+		if resolved_field not in valid_fields:
+			frappe.throw(
+				_(
+					"'{0}' alanı '{1}' doctype'ında bulunmuyor. Lütfen geçerli bir "
+					"alan adı girin (örn: seller, seller_profile, owner_seller)."
+				).format(resolved_field, self.source_doctype)
+			)
 
 	def _apply_color_preset(self):
 		"""Compute icon_bg_class / icon_color_class from color_preset.
