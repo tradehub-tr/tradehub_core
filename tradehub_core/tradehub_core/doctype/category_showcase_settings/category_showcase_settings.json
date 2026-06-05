@@ -1,0 +1,56 @@
+{
+	"actions": [],
+	"creation": "2026-06-04 00:00:00.000000",
+	"doctype": "DocType",
+	"engine": "InnoDB",
+	"field_order": [
+		"is_enabled",
+		"section_title_tr",
+		"section_title_en",
+		"columns"
+	],
+	"fields": [
+		{
+			"fieldname": "is_enabled",
+			"fieldtype": "Check",
+			"label": "Bölümü Etkinleştir",
+			"default": "1"
+		},
+		{
+			"fieldname": "section_title_tr",
+			"fieldtype": "Data",
+			"label": "Bölüm Başlığı (TR)"
+		},
+		{
+			"fieldname": "section_title_en",
+			"fieldtype": "Data",
+			"label": "Bölüm Başlığı (EN)"
+		},
+		{
+			"fieldname": "columns",
+			"fieldtype": "Int",
+			"label": "Masaüstü Sütun Sayısı",
+			"default": "4"
+		}
+	],
+	"issingle": 1,
+	"links": [],
+	"modified": "2026-06-04 00:00:00.000000",
+	"modified_by": "Administrator",
+	"module": "Tradehub Core",
+	"name": "Category Showcase Settings",
+	"owner": "Administrator",
+	"permissions": [
+		{
+			"create": 1,
+			"delete": 1,
+			"read": 1,
+			"report": 1,
+			"role": "System Manager",
+			"write": 1
+		}
+	],
+	"sort_field": "modified",
+	"sort_order": "DESC",
+	"track_changes": 1
+}

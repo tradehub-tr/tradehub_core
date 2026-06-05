@@ -3961,64 +3961,78 @@ def execute():
 		print(f"  ✓ {b['buyer_name']} ({b['company_name']}) — KYC: Verified")
 	frappe.db.commit()
 
-	# ── 3. Kategoriler (2 SEVİYE: Sektör parent + yaprak ürün kategorisi) ─
-	# Her DummyJSON kategorisi sabit bir canonical sektöre bağlı. Aynı yaprak
-	# birden fazla satıcı tarafından kullanılabilir (Alibaba modeli).
+	# ── 3. Kategoriler (3 SEVİYE: Sektör → Grup → yaprak ürün kategorisi) ─
+	# Her DummyJSON kategorisi sabit bir canonical sektör + grubuna bağlı. Aynı
+	# yaprak birden fazla satıcı tarafından kullanılabilir (Alibaba modeli).
 	print("\n[3/6] Platform kategorileri oluşturuluyor...")
 
-	# DummyJSON kategorisi → (sektör_key, canonical_sector_name, canonical_sector_code)
-	DJ_PARENT = {
-		"mens-shirts": ("giyim", "Tekstil ve Giyim", "TG"),
-		"tops": ("giyim", "Tekstil ve Giyim", "TG"),
-		"womens-dresses": ("giyim", "Tekstil ve Giyim", "TG"),
-		"mens-shoes": ("ayakkabi", "Ayakkabı ve Deri", "AD"),
-		"womens-shoes": ("ayakkabi", "Ayakkabı ve Deri", "AD"),
-		"womens-bags": ("ayakkabi", "Ayakkabı ve Deri", "AD"),
-		"smartphones": ("elektronik", "Elektronik ve Aksesuar", "EL"),
-		"mobile-accessories": ("elektronik", "Elektronik ve Aksesuar", "EL"),
-		"laptops": ("elektronik", "Elektronik ve Aksesuar", "EL"),
-		"tablets": ("elektronik", "Elektronik ve Aksesuar", "EL"),
-		"sports-accessories": ("hirdavat", "Hırdavat ve Nalburiye", "HR"),
-		"motorcycle": ("hirdavat", "Hırdavat ve Nalburiye", "HR"),
-		"vehicle": ("hirdavat", "Hırdavat ve Nalburiye", "HR"),
-		"groceries": ("gida", "Gıda ve İçecek", "GD"),
-		"beauty": ("kozmetik", "Kozmetik ve Kişisel Bakım", "KZ"),
-		"fragrances": ("kozmetik", "Kozmetik ve Kişisel Bakım", "KZ"),
-		"skin-care": ("kozmetik", "Kozmetik ve Kişisel Bakım", "KZ"),
-		"home-decoration": ("ev_tekstili", "Ev Tekstili ve Dekorasyon", "EV"),
-		"furniture": ("ev_tekstili", "Ev Tekstili ve Dekorasyon", "EV"),
-		"kitchen-accessories": ("mutfak", "Mutfak ve Züccaciye", "MU"),
-		"womens-jewellery": ("bijuteri", "Bijuteri ve Aksesuar", "BJ"),
-		"sunglasses": ("bijuteri", "Bijuteri ve Aksesuar", "BJ"),
-		"mens-watches": ("bijuteri", "Bijuteri ve Aksesuar", "BJ"),
-		"womens-watches": ("bijuteri", "Bijuteri ve Aksesuar", "BJ"),
+	# DummyJSON kategorisi →
+	#   (sektör_key, sektör_adı, sektör_kodu, grup_adı, grup_kodu)
+	DJ_TAXONOMY = {
+		"mens-shirts": ("giyim", "Tekstil ve Giyim", "TG", "Erkek Giyim", "ERKGIY"),
+		"tops": ("giyim", "Tekstil ve Giyim", "TG", "Kadın Giyim", "KADGIY"),
+		"womens-dresses": ("giyim", "Tekstil ve Giyim", "TG", "Kadın Giyim", "KADGIY"),
+		"mens-shoes": ("ayakkabi", "Ayakkabı ve Deri", "AD", "Ayakkabı", "AYAKKB"),
+		"womens-shoes": ("ayakkabi", "Ayakkabı ve Deri", "AD", "Ayakkabı", "AYAKKB"),
+		"womens-bags": ("ayakkabi", "Ayakkabı ve Deri", "AD", "Çanta ve Deri", "CANTAD"),
+		"smartphones": ("elektronik", "Elektronik ve Aksesuar", "EL", "Telefon", "TELEFN"),
+		"mobile-accessories": ("elektronik", "Elektronik ve Aksesuar", "EL", "Telefon", "TELEFN"),
+		"laptops": ("elektronik", "Elektronik ve Aksesuar", "EL", "Bilgisayar", "BILGSY"),
+		"tablets": ("elektronik", "Elektronik ve Aksesuar", "EL", "Bilgisayar", "BILGSY"),
+		"sports-accessories": ("hirdavat", "Hırdavat ve Nalburiye", "HR", "Spor", "SPOR"),
+		"motorcycle": ("hirdavat", "Hırdavat ve Nalburiye", "HR", "Motor ve Otomotiv", "MOTOR"),
+		"vehicle": ("hirdavat", "Hırdavat ve Nalburiye", "HR", "Motor ve Otomotiv", "MOTOR"),
+		"groceries": ("gida", "Gıda ve İçecek", "GD", "Market", "MARKT"),
+		"beauty": ("kozmetik", "Kozmetik ve Kişisel Bakım", "KZ", "Makyaj ve Bakım", "MAKYAJ"),
+		"skin-care": ("kozmetik", "Kozmetik ve Kişisel Bakım", "KZ", "Makyaj ve Bakım", "MAKYAJ"),
+		"fragrances": ("kozmetik", "Kozmetik ve Kişisel Bakım", "KZ", "Parfüm ve Koku", "PARFKO"),
+		"home-decoration": ("ev_tekstili", "Ev Tekstili ve Dekorasyon", "EV", "Dekorasyon", "DEKOR"),
+		"furniture": ("ev_tekstili", "Ev Tekstili ve Dekorasyon", "EV", "Mobilya ve Ev", "MOBEV"),
+		"kitchen-accessories": ("mutfak", "Mutfak ve Züccaciye", "MU", "Mutfak", "MUTFK"),
+		"womens-jewellery": ("bijuteri", "Bijuteri ve Aksesuar", "BJ", "Takı", "TAKI"),
+		"sunglasses": ("bijuteri", "Bijuteri ve Aksesuar", "BJ", "Takı", "TAKI"),
+		"mens-watches": ("bijuteri", "Bijuteri ve Aksesuar", "BJ", "Saat", "SAAT"),
+		"womens-watches": ("bijuteri", "Bijuteri ve Aksesuar", "BJ", "Saat", "SAAT"),
 	}
 
-	# Önce parent sektörleri oluştur (unique)
-	parent_ids = {}  # sector_code → product_category_name
-	for _dj_cat, (vt, sname, scode) in DJ_PARENT.items():
-		if scode in parent_ids:
+	# Önce parent sektörleri oluştur (unique, kök)
+	sector_ids = {}  # sector_code → product_category_name
+	for _dj_cat, (vt, sname, scode, _gname, _gcode) in DJ_TAXONOMY.items():
+		if scode in sector_ids:
 			continue
-		parent_id = _ensure_category(
+		sector_ids[scode] = _ensure_category(
 			sname,
 			"",
 			f"DEMO-SEC-{scode}",
 			sort_order=0,
 			sector_key=vt,
 		)
-		parent_ids[scode] = parent_id
-	print(f"  ✓ {len(parent_ids)} sektör (parent kategori)")
+	print(f"  ✓ {len(sector_ids)} sektör (kök kategori)")
 
-	# Sonra yaprakları sektörün altına
+	# Sonra grupları sektörün altına (unique)
+	group_ids = {}  # group_code → product_category_name
+	for _dj_cat, (vt, _sname, scode, gname, gcode) in DJ_TAXONOMY.items():
+		if gcode in group_ids:
+			continue
+		group_ids[gcode] = _ensure_category(
+			gname,
+			sector_ids[scode],
+			f"DEMO-GRP-{gcode}",
+			sort_order=0,
+			sector_key=vt,
+		)
+	print(f"  ✓ {len(group_ids)} grup (orta kategori)")
+
+	# En sonda yaprakları grubun altına
 	leaf_ids = {}
 	for dj_cat, (leaf_name_tr, leaf_short) in CATEGORY_TR.items():
 		products = DUMMY_PRODUCTS.get(dj_cat, [])
 		if not products:
 			continue
-		vt, _sname, scode = DJ_PARENT[dj_cat]
+		vt, _sname, _scode, _gname, gcode = DJ_TAXONOMY[dj_cat]
 		leaf_id = _ensure_category(
 			leaf_name_tr,
-			parent_ids[scode],
+			group_ids[gcode],
 			f"DEMO-CAT-{leaf_short}",
 			sort_order=0,
 			sector_key=vt,
@@ -4031,7 +4045,10 @@ def execute():
 			pass
 		leaf_ids[dj_cat] = (leaf_id, leaf_name_tr)
 	frappe.db.commit()
-	print(f"  ✓ {len(leaf_ids)} yaprak kategori ({len(parent_ids)} parent altında)")
+	print(
+		f"  ✓ {len(leaf_ids)} yaprak kategori "
+		f"({len(group_ids)} grup, {len(sector_ids)} sektör altında)"
+	)
 
 	# ── 4. Satıcı Kategorileri ──────────────────────────────
 	print("\n[4/6] Satıcı-kategori eşleşmeleri oluşturuluyor...")

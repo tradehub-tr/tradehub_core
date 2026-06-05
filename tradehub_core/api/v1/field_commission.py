@@ -7,12 +7,14 @@
 
 import frappe
 from frappe import _
-from frappe.utils import flt, now_datetime
+from frappe.utils import now_datetime
 
 # Hakediş yönetim yetkisi olan roller — permission katmanıyla TEK kaynak.
 # permissions.py'deki query_conditions/has_permission de aynı seti kullanır;
 # burada import ederek görünürlük (permission) ile aksiyon (API) hizalanır.
-from tradehub_core.permissions import _FIELD_COMMISSION_ADMIN_ROLES as _ADMIN_ROLES
+from tradehub_core.permissions import _FIELD_COMMISSION_ADMIN_ROLES as _ADMIN_ROLES  # noqa: I001
+from tradehub_core.permissions import _FIELD_COMMISSION_LEADER_ROLE as _LEADER_ROLE
+from tradehub_core.tradehub_core.utils.field_commission import recompute_quota_bonus
 
 _LIST_FIELDS = [
 	"name",
@@ -25,7 +27,11 @@ _LIST_FIELDS = [
 	"commission_amount",
 	"currency",
 	"commission_mode",
+	"kind",
 	"status",
+	"team",
+	"team_leader",
+	"leader_approved_at",
 	"approved_at",
 	"paid_at",
 	"creation",
@@ -56,7 +62,16 @@ def _summary(filters: dict) -> dict:
 	out: dict = {}
 	for r in rows:
 		cur = r.currency or ""
-		out.setdefault(cur, {"Beklemede": 0, "Onaylandı": 0, "Ödendi": 0, "Reddedildi": 0})
+		out.setdefault(
+			cur,
+			{
+				"Lider Onayı Bekliyor": 0,
+				"Süperadmin Onayı Bekliyor": 0,
+				"Onaylandı": 0,
+				"Ödendi": 0,
+				"Reddedildi": 0,
+			},
+		)
 		out[cur][r.status] = float(r.total or 0)
 	return out
 
@@ -141,13 +156,20 @@ def _transition(name: str, from_status: str, to_status: str, **extra) -> dict:
 
 @frappe.whitelist()
 def approve_commission(name: str) -> dict:
-	return _transition(
+	res = _transition(
 		name,
-		"Beklemede",
+		"Süperadmin Onayı Bekliyor",
 		"Onaylandı",
 		approved_by=frappe.session.user,
 		approved_at=now_datetime(),
 	)
+	# Onaylanan Satış/Pay → ajanın dönem kotası yeniden hesaplanır (bonus üret/güncelle).
+	row = frappe.db.get_value(
+		"Field Commission", name, ["agent", "period_key", "kind", "plan"], as_dict=True
+	)
+	if row and row.kind in ("Satış", "Pay"):
+		recompute_quota_bonus(row.agent, row.period_key, row.plan)
+	return res
 
 
 @frappe.whitelist()
@@ -155,7 +177,7 @@ def reject_commission(name: str, note: str | None = None) -> dict:
 	# note default None: parametresiz çağrıda Frappe TypeError(500) yerine i18n 417 dönsün.
 	if not note:
 		frappe.throw(_("Red sebebi (not) zorunludur."))
-	return _transition(name, "Beklemede", "Reddedildi", note=note)
+	return _transition(name, "Süperadmin Onayı Bekliyor", "Reddedildi", note=note)
 
 
 @frappe.whitelist()
@@ -167,21 +189,105 @@ def mark_paid(name: str) -> dict:
 def get_settings() -> dict:
 	"""Saha hakediş ayarlarını oku (süperadmin)."""
 	_require_admin()
+	doc = frappe.get_single("Field Commission Settings")
 	return {
-		"global_per_sale_amount": flt(
-			frappe.db.get_single_value("Field Commission Settings", "global_per_sale_amount")
-		),
+		"quota_period": doc.quota_period or "Aylık",
 	}
 
 
 @frappe.whitelist()
-def update_settings(global_per_sale_amount: float) -> dict:
-	"""Saha hakediş ayarlarını güncelle (süperadmin)."""
+def update_settings(quota_period: str = "Aylık") -> dict:
+	"""Saha hakediş ayarlarını güncelle (süperadmin).
+
+	Komisyon tamamen paket-bazıdır (Subscription Plan / Permission Console);
+	burada yalnız kota sayım dönemi yönetilir.
+	"""
 	_require_admin()
-	if flt(global_per_sale_amount) < 0:
-		frappe.throw(_("Global satış başı tutar negatif olamaz."))
 	doc = frappe.get_single("Field Commission Settings")
-	doc.global_per_sale_amount = flt(global_per_sale_amount)
+	doc.quota_period = quota_period or "Aylık"
 	# ignore_permissions: yetki yukarıda _require_admin() ile doğrulandı.
 	doc.save(ignore_permissions=True)
-	return {"ok": True, "global_per_sale_amount": flt(doc.global_per_sale_amount)}
+	return {"ok": True}
+
+
+def _require_leader_for(doc) -> None:
+	"""Çağıran, bu kaydın ekip lideri (veya admin) mi? Değilse i18n PermissionError."""
+	user = frappe.session.user
+	roles = set(frappe.get_roles(user))
+	if user == "Administrator" or (roles & _ADMIN_ROLES):
+		return
+	if _LEADER_ROLE in roles and doc.get("team_leader") == user:
+		return
+	frappe.throw(_("Bu hakedişi onaylama yetkiniz yok."), exc=frappe.PermissionError)
+
+
+@frappe.whitelist()
+def leader_approve(name: str) -> dict:
+	"""Lider Onayı Bekliyor → Süperadmin Onayı Bekliyor (ekip lideri)."""
+	doc = frappe.get_doc("Field Commission", name)
+	_require_leader_for(doc)
+	if doc.status != "Lider Onayı Bekliyor":
+		frappe.throw(
+			_("Sadece 'Lider Onayı Bekliyor' durumundaki hakediş lider onayına uygundur (mevcut: {0}).").format(
+				doc.status
+			)
+		)
+	doc.status = "Süperadmin Onayı Bekliyor"
+	doc.leader_approved_by = frappe.session.user
+	doc.leader_approved_at = now_datetime()
+	# ignore_permissions: yetki yukarıda _require_leader_for() ile doğrulandı.
+	doc.save(ignore_permissions=True)
+	return {"ok": True, "name": doc.name, "status": doc.status}
+
+
+@frappe.whitelist()
+def leader_reject(name: str, note: str | None = None) -> dict:
+	"""Lider Onayı Bekliyor → Reddedildi (ekip lideri, gerekçe zorunlu)."""
+	if not note:
+		frappe.throw(_("Red sebebi (not) zorunludur."))
+	doc = frappe.get_doc("Field Commission", name)
+	_require_leader_for(doc)
+	if doc.status != "Lider Onayı Bekliyor":
+		frappe.throw(
+			_("Sadece 'Lider Onayı Bekliyor' durumundaki hakediş reddedilebilir (mevcut: {0}).").format(
+				doc.status
+			)
+		)
+	doc.status = "Reddedildi"
+	doc.note = note
+	doc.save(ignore_permissions=True)
+	return {"ok": True, "name": doc.name, "status": doc.status}
+
+
+@frappe.whitelist()
+def get_team_commissions(
+	status: str | None = None,
+	agent: str | None = None,
+	limit_start: int = 0,
+	limit_page_length: int = 50,
+) -> dict:
+	"""Ekip liderinin kendi ekibinin (team_leader == session user) hakedişleri + özet."""
+	user = frappe.session.user
+	roles = set(frappe.get_roles(user))
+	is_leader = user == "Administrator" or (roles & _ADMIN_ROLES) or _LEADER_ROLE in roles
+	if user == "Guest" or not is_leader:
+		frappe.throw(_("Yetki gerekli."), exc=frappe.PermissionError)
+	filters: dict = {"team_leader": user}
+	if status:
+		filters["status"] = status
+	if agent:
+		filters["agent"] = agent
+	# get_list: permission_query_conditions lider dalı defense-in-depth devreye girsin.
+	rows = frappe.get_list(
+		"Field Commission",
+		filters=filters,
+		fields=_LIST_FIELDS,
+		order_by="creation desc",
+		limit_start=int(limit_start),
+		limit_page_length=int(limit_page_length),
+	)
+	return {
+		"rows": rows,
+		"total": frappe.db.count("Field Commission", filters),
+		"summary": _summary(filters),
+	}

@@ -232,6 +232,13 @@
 			"description": "Pricing card'larda gösterilecek feature/benefit listesi"
 		},
 		{
+			"fieldname": "quota_tiers",
+			"fieldtype": "Table",
+			"label": "Saha Kota Eşikleri",
+			"options": "Field Commission Quota Tier",
+			"description": "Bu pakette dönemde min_sales satışa ulaşan saha elemanı ilgili bonus_amount'u alır. En yüksek eşik kazanır."
+		},
+		{
 			"fieldname": "tab_regions",
 			"fieldtype": "Tab Break",
 			"label": "Bölgeler"
