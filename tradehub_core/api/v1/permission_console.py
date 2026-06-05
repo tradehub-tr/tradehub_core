@@ -1171,6 +1171,10 @@ def get_plan_full_detail(plan_code: str) -> dict:
 		"allowed_regions": regions,
 		# İçerik
 		"pricing_features": features,
+		"quota_tiers": [
+			{"min_sales": int(r.min_sales or 0), "bonus_amount": float(r.bonus_amount or 0)}
+			for r in (plan.quota_tiers or [])
+		],
 		# Meta
 		"active_subscription_count": active_count,
 	}
@@ -1183,6 +1187,7 @@ def update_pricing_plan(
 	capability_flags: str | dict | None = None,
 	quota_limits: str | dict | None = None,
 	pricing_features: str | list | None = None,
+	quota_tiers: str | list | None = None,
 	replace: bool | int | str = False,
 ) -> dict:
 	"""FAZ 4.1 — Tek endpoint'le tüm plan field'larını + child table güncelle.
@@ -1215,6 +1220,8 @@ def update_pricing_plan(
 		quota_limits = json.loads(quota_limits) if quota_limits.strip() else None
 	if isinstance(pricing_features, str):
 		pricing_features = json.loads(pricing_features) if pricing_features.strip() else None
+	if isinstance(quota_tiers, str):
+		quota_tiers = json.loads(quota_tiers) if quota_tiers.strip() else None
 
 	doc = frappe.get_doc("Subscription Plan", plan_code)
 	changed: list[str] = []
@@ -1274,6 +1281,21 @@ def update_pricing_plan(
 				},
 			)
 		changed.append("pricing_features")
+
+	# 5) Saha kota eşikleri (child table replace) — paket-bazı bonus tablosu
+	if quota_tiers is not None and isinstance(quota_tiers, list):
+		doc.set("quota_tiers", [])
+		for row in quota_tiers:
+			if not isinstance(row, dict):
+				continue
+			min_sales = int(row.get("min_sales") or 0)
+			if min_sales <= 0:
+				continue
+			doc.append(
+				"quota_tiers",
+				{"min_sales": min_sales, "bonus_amount": float(row.get("bonus_amount") or 0)},
+			)
+		changed.append("quota_tiers")
 
 	if not changed:
 		return {"message": _("Değişiklik yok."), "plan_code": plan_code}

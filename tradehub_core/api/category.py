@@ -19,9 +19,11 @@ def _slugify(text):
 @frappe.whitelist(allow_guest=True)
 def get_mega_menu():
 	"""
-	Mega menu için üst 2 seviye kategoriyi döndürür.
+	Mega menu için kategori ağacını 3 seviyeye kadar nested döndürür.
 	"Marketplace" gibi tek bir virtual root varsa onun çocukları döndürülür.
-	Returns: [{ id, name, slug, children: [{ id, name, slug }] }]
+	Yaprak (3. seviye) yoksa `children` boş kalır — 2 seviyeli veriyle uyumlu.
+	Returns: [{ id, name, slug, children: [
+	            { id, name, slug, children: [{ id, name, slug }] } ] }]
 	"""
 	cats = frappe.get_all(
 		"Product Category",
@@ -57,9 +59,17 @@ def get_mega_menu():
 	else:
 		top_cats = virtual_roots
 
+	def _leaf(c):
+		return {
+			"id": c.name,
+			"name": c.category_name,
+			"slug": c.url_slug or _slugify(c.category_name),
+			"image": c.image or None,
+		}
+
 	result = []
 	for top in top_cats:
-		children = [c for c in cats if c.parent_product_category == top.name]
+		groups = [c for c in cats if c.parent_product_category == top.name]
 		result.append(
 			{
 				"id": top.name,
@@ -69,12 +79,12 @@ def get_mega_menu():
 				"icon_class": top.icon_class or None,
 				"children": [
 					{
-						"id": ch.name,
-						"name": ch.category_name,
-						"slug": ch.url_slug or _slugify(ch.category_name),
-						"image": ch.image or None,
+						**_leaf(g),
+						"children": [
+							_leaf(leaf) for leaf in cats if leaf.parent_product_category == g.name
+						],
 					}
-					for ch in children
+					for g in groups
 				],
 			}
 		)

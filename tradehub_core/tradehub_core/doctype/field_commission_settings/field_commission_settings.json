@@ -6,13 +6,15 @@
   "issingle": 1,
   "field_order": [
     "section_break_amount",
-    "global_per_sale_amount",
-    "currency"
+    "currency",
+    "section_break_quota",
+    "quota_period"
   ],
   "fields": [
-    { "fieldname": "section_break_amount", "fieldtype": "Section Break", "label": "Satış Başı Hakediş" },
-    { "fieldname": "global_per_sale_amount", "fieldtype": "Currency", "label": "Global Satış Başı Sabit Tutar", "description": "Pakette komisyon ayarı yoksa her satış için uygulanan sabit tutar. 0 = uygulanmaz.", "options": "currency" },
-    { "fieldname": "currency", "fieldtype": "Link", "label": "Para Birimi", "options": "Currency" }
+    { "fieldname": "section_break_amount", "fieldtype": "Section Break", "label": "Genel" },
+    { "fieldname": "currency", "fieldtype": "Link", "label": "Para Birimi", "options": "Currency" },
+    { "fieldname": "section_break_quota", "fieldtype": "Section Break", "label": "Kota Bonusu" },
+    { "fieldname": "quota_period", "fieldtype": "Select", "label": "Kota Dönemi", "options": "Aylık\nÇeyrek\nYıllık", "default": "Aylık" }
   ],
   "links": [],
   "modified": "2026-06-03 00:00:00.000000",

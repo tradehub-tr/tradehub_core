@@ -4,5 +4,5 @@
 from frappe.model.document import Document
 
 
-class FieldCommissionSettings(Document):
+class SalesTeamMember(Document):
 	pass
