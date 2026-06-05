@@ -75,6 +75,50 @@
 			"description": "Tanıtıldığı sürüm (örn. v15.1.2)"
 		},
 		{
+			"fieldname": "sb_storefront",
+			"fieldtype": "Section Break",
+			"label": "Storefront / Pricing Matrix"
+		},
+		{
+			"fieldname": "display_category",
+			"fieldtype": "Data",
+			"label": "Display Category",
+			"description": "Storefront pricing tablosunda hangi grup başlığı altında görünecek (serbest metin; admin yeni kategori ekleyebilir)"
+		},
+		{
+			"fieldname": "value_type",
+			"fieldtype": "Select",
+			"label": "Değer Tipi (storefront)",
+			"options": "boolean\nquota\nenum\ntext",
+			"default": "boolean",
+			"description": "Plan başına hücre kontrolünü belirler: boolean=toggle, quota=sayı(+Sınırsız), enum=seçim listesi, text=serbest metin. Tüm planlarda tutarlıdır."
+		},
+		{
+			"fieldname": "enum_options",
+			"fieldtype": "Small Text",
+			"label": "Enum Seçenekleri",
+			"depends_on": "eval:doc.value_type=='enum'",
+			"description": "value_type=enum için virgülle ayrılmış seçenekler (örn. Standart,Gümüş,Altın,Platinum)"
+		},
+		{
+			"fieldname": "display_order",
+			"fieldtype": "Int",
+			"label": "Display Order",
+			"default": "0",
+			"description": "Aynı kategori içinde sıralama (küçük → büyük)"
+		},
+		{
+			"fieldname": "cb_storefront",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "show_on_card",
+			"fieldtype": "Check",
+			"label": "Kartta Göster (varsayılan)",
+			"default": 0,
+			"description": "Yeni plan hücreleri için varsayılan 'kartta göster' değeri. Plan başına kürasyon Pricing Plan Feature.show_on_card ile yapılır."
+		},
+		{
 			"fieldname": "sb_description",
 			"fieldtype": "Section Break"
 		},
