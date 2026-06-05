@@ -15,7 +15,9 @@ Görsel Kaynağı:
     Her sektör için 10-12 el seçimi Pexels fotoğrafı kullanılır.
 """
 
+import base64
 import json
+import os
 import random
 import re
 
@@ -57,6 +59,276 @@ def _seller_logo(name, size=200):
 
 	encoded = urllib.parse.quote(name)
 	return f"https://ui-avatars.com/api/?name={encoded}&size={size}&background=0D47A1&color=fff&bold=true&format=png"
+
+
+# Satıcı koduna göre sektörle ALAKALI logo: (DiceBear ikon adı, marka rengi hex).
+# Baş-harf avatarı yerine sektörü temsil eden ikon rozeti üretir
+# (ör. bijuteri → gem, elektronik → laptop). _seller_icon_logo() ile URL'e dönüşür.
+SELLER_LOGO_ICONS = {
+	"DEMO-001": ("scissors", "6d28d9"),  # Tekstil ve Giyim
+	"DEMO-002": ("handbag", "b45309"),   # Ayakkabı ve Deri
+	"DEMO-003": ("laptop", "0369a1"),    # Elektronik ve Aksesuar
+	"DEMO-004": ("building", "475569"),  # Hırdavat ve Nalburiye
+	"DEMO-005": ("basket", "15803d"),    # Gıda ve İçecek
+	"DEMO-006": ("palette", "be185d"),   # Kozmetik ve Kişisel Bakım
+	"DEMO-007": ("house", "0f766e"),     # Ev Tekstili ve Dekorasyon
+	"DEMO-008": ("cup", "c2410c"),       # Mutfak ve Züccaciye
+	"DEMO-009": ("gem", "a16207"),       # Bijuteri ve Aksesuar
+	"DEMO-010": ("boxSeam", "1d4ed8"),   # Ambalaj ve Kırtasiye
+}
+
+
+def _seller_icon_logo(seller_code, size=200):
+	"""Sektöre uygun ikon rozeti logo URL'si (DiceBear, PNG).
+
+	Baş-harf avatarından farklı olarak satıcının sektörünü temsil eden bir ikon
+	gösterir (alakalı, profesyonel logo). Bilinmeyen kod → nötr 'shop' ikonu.
+	"""
+	icon, color = SELLER_LOGO_ICONS.get(seller_code, ("shop", "0d47a1"))
+	return (
+		f"https://api.dicebear.com/9.x/icons/png?seed={seller_code}"
+		f"&icon%5B%5D={icon}&backgroundColor={color}"
+		f"&backgroundType=solid&radius=12&size={size}"
+	)
+
+
+def _pexels(photo_id, w=800):
+	"""Pexels CDN görsel URL'si (sabit format, ücretsiz/CC0)."""
+	return (
+		f"https://images.pexels.com/photos/{photo_id}/"
+		f"pexels-photo-{photo_id}.jpeg?auto=compress&cs=tinysrgb&w={w}"
+	)
+
+
+# Satıcı koduna göre SEKTÖRÜYLE ALAKALI gerçek fabrika/üretim görselleri (Pexels,
+# hepsi 200 doğrulandı). Üretici kartındaki sağ galeri (gallery_images) bunları
+# gösterir — ürün görseli DEĞİL, fabrika/atölye görselleri. Sektör eşleşmesi:
+#   tekstil→dikim hattı, ayakkabı→deri atölyesi, elektronik→PCB üretimi,
+#   hırdavat→metal/lazer kesim, gıda→üretim hattı, kozmetik→laboratuvar,
+#   mutfak/züccaciye→cam/şişeleme, bijuteri→kuyum atölyesi, ambalaj→matbaa.
+SELLER_FACTORY_IMAGES = {
+	"DEMO-001": [31091544, 6525848, 31212954, 31112181],   # Tekstil fabrikası
+	"DEMO-002": [13524733, 30433081, 11463568, 5894231],   # Ayakkabı/deri atölyesi
+	"DEMO-003": [5554948, 5554949, 36522029, 4211136],     # Elektronik/PCB üretimi
+	"DEMO-004": [29988964, 29224559, 34221993, 29988955],  # Metal/hırdavat üretimi
+	"DEMO-005": [5953663, 5532664, 18631424, 5953831],     # Gıda/içecek üretim hattı
+	"DEMO-006": [15831825, 37650270, 37466061, 20684151],  # Kozmetik laboratuvarı
+	"DEMO-007": [31112181, 6525848, 31212954, 31091544],   # Ev tekstili (dokuma)
+	"DEMO-008": [36423795, 5532716, 18631424],             # Cam/züccaciye/şişeleme
+	"DEMO-009": [7167035, 7167004, 15955332, 33873067],    # Kuyum atölyesi
+	"DEMO-010": [36376366, 9550363, 19837529],             # Ambalaj/matbaa
+}
+
+# Sektöre uygun fabrika videosu (Pexels CC0, media_type=video). Şimdilik metal/
+# hırdavat üreticisinde freze tezgahı videosu; gerekirse diğer sektörlere eklenir.
+# Değer: (video_url, poster_image_photo_id).
+SELLER_FACTORY_VIDEOS = {
+	"DEMO-004": (
+		"https://videos.pexels.com/video-files/852341/852341-hd_1920_1080_30fps.mp4",
+		29988964,
+	),
+}
+
+
+# ═══════════════════════════════════════════════════════════════
+#  YEREL DEMO GÖRSEL ÜRETİMİ (SVG — harici bağımlılık yok)
+#  Logo, kapak, kategori kartı, niş ürün döşemesi ve sertifika rozetleri
+#  app'in public/ klasörüne yazılır → /assets/tradehub_core/... ile servis edilir.
+#  Tüm görseller sektöre/ürüne göre etiketli olduğu için BİREBİR ALAKALIDIR.
+# ═══════════════════════════════════════════════════════════════
+
+_ASSET_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "public")
+_ASSET_URL = "/assets/tradehub_core"
+
+
+# sektör görsel kimliği: (etiket, glif emoji, koyu renk, açık renk)
+SECTOR_VISUAL = {
+	"giyim": ("Tekstil & Giyim", "👕", "#5b21b6", "#8b5cf6"),
+	"ayakkabi": ("Ayakkabı & Deri", "👟", "#b45309", "#f59e0b"),
+	"elektronik": ("Elektronik", "💻", "#075985", "#38bdf8"),
+	"hirdavat": ("Hırdavat & Nalburiye", "🔧", "#374151", "#9ca3af"),
+	"gida": ("Gıda & İçecek", "🛒", "#166534", "#4ade80"),
+	"kozmetik": ("Kozmetik", "💄", "#9d174d", "#f472b6"),
+	"ev_tekstili": ("Ev Tekstili", "🛏️", "#115e59", "#2dd4bf"),
+	"mutfak": ("Mutfak & Züccaciye", "🍳", "#9a3412", "#fb923c"),
+	"bijuteri": ("Bijuteri & Aksesuar", "💎", "#a16207", "#fbbf24"),
+	"kirtasiye": ("Ambalaj & Kırtasiye", "📦", "#1e40af", "#60a5fa"),
+}
+
+# sertifika rozet kimliği: ad → (kod, standart, accent renk). Özgün tasarım (telif-güvenli).
+CERT_VISUAL = {
+	"ISO 9001": ("ISO 9001", "ISO 9001:2015", "#1d4ed8"),
+	"ISO 22000": ("ISO 22000", "ISO 22000:2018", "#15803d"),
+	"ISO 22716 (GMP)": ("ISO 22716", "ISO 22716:2007", "#7c3aed"),
+	"CE": ("CE", "Yönetmelik (AB) 2016/425", "#0369a1"),
+	"RoHS": ("RoHS", "2011/65/AB", "#16a34a"),
+	"FCC": ("FCC", "47 CFR Part 15", "#b91c1c"),
+	"FDA Uyumlu": ("FDA", "21 CFR 177", "#1e40af"),
+	"OEKO-TEX Standard 100": ("OEKO-TEX", "STANDARD 100", "#0d9488"),
+	"GOTS": ("GOTS", "Sürüm 7.0", "#4d7c0f"),
+	"FSC (Orman Sertifikası)": ("FSC", "FSC-STD-40-004", "#166534"),
+	"HACCP": ("HACCP", "Codex Alimentarius", "#c2410c"),
+	"Helal": ("HELAL", "OIC/SMIIC 1", "#047857"),
+	"Organik Sertifika": ("ORGANİK", "(AB) 2018/848", "#65a30d"),
+	"Cruelty-Free": ("CRUELTY-FREE", "Leaping Bunny", "#db2777"),
+	"TSE": ("TSE", "TS Belgesi", "#1d4ed8"),
+	"Ayar Damgası": ("AYAR", "TS EN ISO 8654", "#a16207"),
+	"Nikel Testi": ("Ni TEST", "EN 1811", "#525252"),
+	"Deri Sertifikası": ("DERİ", "TS 4521", "#92400e"),
+}
+
+_TR_MAP = str.maketrans(
+	{
+		"ç": "c", "Ç": "c", "ğ": "g", "Ğ": "g", "ı": "i", "İ": "i",
+		"ö": "o", "Ö": "o", "ş": "s", "Ş": "s", "ü": "u", "Ü": "u",
+	}
+)
+
+
+def _asset_slug(name):
+	s = (name or "").translate(_TR_MAP).lower()
+	return re.sub(r"[^a-z0-9]+", "-", s).strip("-")
+
+
+def _svg_esc(s):
+	return (s or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def _write_asset(relpath, content):
+	"""SVG'yi kendi kendine yeten base64 data-URI olarak döndürür.
+
+	Dosya servisi yerine data-URI: bu kurulumda gateway `/assets`'i Frappe backend'ine
+	yönlendirmiyor (storefront tüm görselleri kendi origin'inden veya harici CDN'den
+	çekiyor). Data-URI hiçbir servis yoluna bağlı değil — hem storefront `<img>`'inde
+	hem Frappe admin önizlemesinde çalışır. Tüm görsel alanları DB'de `text` (64KB).
+	`relpath` çağıran imza uyumluluğu için tutulur (kullanılmıyor).
+	"""
+	try:
+		b64 = base64.b64encode(content.encode("utf-8")).decode("ascii")
+		return f"data:image/svg+xml;base64,{b64}"
+	except Exception:
+		return None
+
+
+def _grad(uid, c1, c2):
+	return (
+		f'<defs><linearGradient id="g{uid}" x1="0" y1="0" x2="1" y2="1">'
+		f'<stop offset="0" stop-color="{c1}"/><stop offset="1" stop-color="{c2}"/>'
+		f"</linearGradient></defs>"
+	)
+
+
+def _initials(name):
+	parts = [p for p in re.split(r"\s+", (name or "").strip()) if p and p[0].isalnum()]
+	return "".join(p[0] for p in parts[:2]).upper() or "TH"
+
+
+def _wrap_words(text, width, maxlines):
+	lines, cur = [], ""
+	for w in (text or "").split():
+		if len(cur) + len(w) + 1 <= width:
+			cur = (cur + " " + w).strip()
+		else:
+			if cur:
+				lines.append(cur)
+			cur = w
+		if len(lines) >= maxlines:
+			break
+	if cur and len(lines) < maxlines:
+		lines.append(cur)
+	return lines[:maxlines]
+
+
+def _demo_logo(seller_code, name, sector):
+	label, glyph, c1, c2 = SECTOR_VISUAL.get(sector, SECTOR_VISUAL["giyim"])
+	svg = (
+		f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" '
+		f'font-family="Arial,Helvetica,sans-serif">{_grad(seller_code, c1, c2)}'
+		f'<rect width="200" height="200" rx="28" fill="url(#g{seller_code})"/>'
+		f'<text x="100" y="92" text-anchor="middle" font-size="62">{glyph}</text>'
+		f'<text x="100" y="150" text-anchor="middle" font-size="48" font-weight="800" '
+		f'fill="#ffffff" letter-spacing="2">{_svg_esc(_initials(name))}</text></svg>'
+	)
+	return _write_asset(f"demo/logos/{seller_code}.svg", svg)
+
+
+def _demo_cover(seller_code, name, sector):
+	label, glyph, c1, c2 = SECTOR_VISUAL.get(sector, SECTOR_VISUAL["giyim"])
+	svg = (
+		f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 400" '
+		f'font-family="Arial,Helvetica,sans-serif">{_grad("c" + seller_code, c1, c2)}'
+		f'<rect width="1200" height="400" fill="url(#gc{seller_code})"/>'
+		f'<g fill="#ffffff" opacity="0.08"><circle cx="1050" cy="80" r="180"/>'
+		f'<circle cx="200" cy="360" r="160"/></g>'
+		f'<text x="80" y="170" font-size="120">{glyph}</text>'
+		f'<text x="80" y="250" font-size="54" font-weight="800" fill="#ffffff">{_svg_esc(name)}</text>'
+		f'<text x="84" y="300" font-size="26" fill="#ffffff" opacity="0.9" '
+		f'letter-spacing="3">{_svg_esc(label.upper())}</text></svg>'
+	)
+	return _write_asset(f"demo/covers/{seller_code}.svg", svg)
+
+
+def _demo_category_image(name, sector):
+	label, glyph, c1, c2 = SECTOR_VISUAL.get(sector, SECTOR_VISUAL["giyim"])
+	uid = _asset_slug(f"{sector}-{name}")[:28]
+	fs = 30 if len(name) <= 16 else 22
+	svg = (
+		f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" '
+		f'font-family="Arial,Helvetica,sans-serif">{_grad("k" + uid, c1, c2)}'
+		f'<rect width="400" height="400" fill="url(#gk{uid})"/>'
+		f'<g fill="#ffffff" opacity="0.10"><circle cx="330" cy="70" r="120"/></g>'
+		f'<text x="200" y="186" text-anchor="middle" font-size="120">{glyph}</text>'
+		f'<text x="200" y="298" text-anchor="middle" font-size="{fs}" font-weight="800" '
+		f'fill="#ffffff">{_svg_esc(name)}</text>'
+		f'<text x="200" y="336" text-anchor="middle" font-size="15" fill="#ffffff" '
+		f'opacity="0.85" letter-spacing="2">{_svg_esc(label.upper())}</text></svg>'
+	)
+	return _write_asset(f"demo/cat/{uid}.svg", svg)
+
+
+def _cert_fit(code):
+	n = len(code)
+	if n <= 4:
+		return 58
+	if n <= 6:
+		return 46
+	if n <= 9:
+		return 34
+	if n <= 12:
+		return 24
+	return 20
+
+
+def _demo_cert_image(cert_name):
+	"""Sertifika için özgün kare rozet SVG'si üretir. Bilinmeyen ad → None."""
+	meta = CERT_VISUAL.get((cert_name or "").strip())
+	if not meta:
+		return None
+	code, standard, accent = meta
+	fs = _cert_fit(code)
+	cy = fs * 0.34
+	uid = _asset_slug(cert_name)
+	svg = (
+		f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 320" '
+		f'font-family="Arial,Helvetica,sans-serif">'
+		f'<defs><linearGradient id="cg{uid}" x1="0" y1="0" x2="1" y2="1">'
+		f'<stop offset="0" stop-color="{accent}"/>'
+		f'<stop offset="1" stop-color="{accent}" stop-opacity="0.72"/></linearGradient></defs>'
+		f'<rect width="320" height="320" fill="#ffffff"/>'
+		f'<g transform="translate(160 160)">'
+		f'<circle r="140" fill="url(#cg{uid})"/><circle r="120" fill="#ffffff"/>'
+		f'<circle r="120" fill="none" stroke="{accent}" stroke-width="4"/>'
+		f'<circle r="103" fill="none" stroke="{accent}" stroke-width="1.5" stroke-dasharray="1 6"/>'
+		f'<g transform="translate(0 -66)"><circle r="21" fill="{accent}"/>'
+		f'<path d="M-8 0 L-2 8 L11 -9" fill="none" stroke="#ffffff" stroke-width="4.5" '
+		f'stroke-linecap="round" stroke-linejoin="round"/></g>'
+		f'<text y="{cy:.0f}" text-anchor="middle" font-size="{fs}" font-weight="800" '
+		f'fill="{accent}">{_svg_esc(code)}</text>'
+		f'<text y="48" text-anchor="middle" font-size="13" fill="#6b7280">{_svg_esc(standard)}</text>'
+		f'<text y="94" text-anchor="middle" font-size="13" font-weight="700" '
+		f'letter-spacing="3" fill="{accent}">SERTİFİKALI</text></g></svg>'
+	)
+	return _write_asset(f"certs/{uid}.svg", svg)
 
 
 def _desc(title, category):
@@ -2594,11 +2866,16 @@ SELLER_SECTORS = {
 # ═══════════════════════════════════════════════════════════════
 
 
-def _ensure_user(email, first_name, role="Seller", password=None):
+def _ensure_user(email, first_name, last_name="", role="Seller", password=None):
 	"""Demo kullanıcı oluştur veya mevcut olanı döndür.
 
 	Her durumda verilen şifreyle senkron tutar ve verilen rolü ekler.
 	Varsayılan rol/şifre satıcıya göredir — alıcılarda role="Buyer" kullanılır.
+
+	first_name/last_name = giriş yapan GERÇEK KİŞİ (iletişim) adı — gerçek kayıt
+	sistemindeki (api/v1/identity.py) gibi User bir kişidir; şirket/mağaza adı
+	ayrıca Seller Profile.seller_name'de tutulur. İsim sonradan eklendiyse mevcut
+	kullanıcıda da güncellenir (idempotent).
 	"""
 	if password is None:
 		password = DEMO_SELLER_PASSWORD if role == "Seller" else DEMO_BUYER_PASSWORD
@@ -2606,12 +2883,25 @@ def _ensure_user(email, first_name, role="Seller", password=None):
 		user = frappe.new_doc("User")
 		user.email = email
 		user.first_name = first_name
+		user.last_name = last_name
 		user.enabled = 1
 		user.user_type = "Website User"
 		user.send_welcome_email = 0
 		user.flags.ignore_permissions = True
 		user.flags.no_welcome_mail = True
 		user.insert(ignore_permissions=True)
+	else:
+		cur_first, cur_last = frappe.db.get_value("User", email, ["first_name", "last_name"])
+		if cur_first != first_name or (cur_last or "") != last_name:
+			# Doğrudan DB update — User controller'ı role_profile gibi link'leri
+			# yüklemeye çalışıp local'de eksikse patlıyor; sadece isim güncellemesi
+			# için doc save'i atla. full_name türetilmiş alan, elle set edilir.
+			full = (f"{first_name} {last_name}").strip()
+			frappe.db.set_value(
+				"User", email,
+				{"first_name": first_name, "last_name": last_name, "full_name": full},
+				update_modified=False,
+			)
 
 	update_password(email, password)
 
@@ -2687,9 +2977,69 @@ def _ensure_cert_type(cert_name):
 	return name
 
 
+_REVIEWERS = [
+	("Mehmet Yılmaz", "Türkiye", "🇹🇷"), ("Ayşe Demir", "Türkiye", "🇹🇷"),
+	("Hans Müller", "Almanya", "🇩🇪"), ("Sofia Rossi", "İtalya", "🇮🇹"),
+	("Ahmed Al-Farsi", "BAE", "🇦🇪"), ("Emma Johnson", "İngiltere", "🇬🇧"),
+	("Mustafa Kaya", "Türkiye", "🇹🇷"), ("Pierre Dubois", "Fransa", "🇫🇷"),
+	("Olga Petrova", "Rusya", "🇷🇺"), ("Carlos García", "İspanya", "🇪🇸"),
+	("Fatma Şahin", "Türkiye", "🇹🇷"), ("John Smith", "ABD", "🇺🇸"),
+	("Wei Chen", "Çin", "🇨🇳"), ("Zeynep Arslan", "Türkiye", "🇹🇷"),
+	("Liam Brown", "Kanada", "🇨🇦"), ("Nour Hassan", "Mısır", "🇪🇬"),
+]
+
+_REVIEW_COMMENTS = [
+	"Ürün kalitesi beklentimizin üzerindeydi, toptan siparişimiz zamanında ulaştı.",
+	"İletişim çok hızlı ve profesyoneldi. Tekrar çalışacağız.",
+	"Numune talebimize hemen yanıt verdiler, kalite tutarlı.",
+	"Paketleme özenliydi, ürünler sorunsuz teslim edildi.",
+	"Fiyat/performans açısından çok memnun kaldık.",
+	"Sevkiyat takibi şeffaftı, teslimat söz verilen tarihte yapıldı.",
+	"Büyük hacimli siparişte bile kalite düşmedi, tavsiye ederim.",
+	"Özel üretim talebimizi eksiksiz karşıladılar.",
+	"Satış sonrası destek gerçekten iyi, sorunları hızlı çözdüler.",
+	"Uzun süredir çalıştığımız güvenilir bir tedarikçi.",
+]
+
+
+def _seed_seller_reviews(seller_code):
+	"""Satıcıya gerçekçi Seller Review kayıtları basar ve rating/review_count'u
+	bunlardan yeniden hesaplar — vitrindeki değerlendirme kartı dolu gelir."""
+	if frappe.db.exists("Seller Review", {"seller": seller_code}):
+		return
+	random.seed(hash(f"reviews-{seller_code}"))
+	count = random.randint(14, 32)
+	total = 0.0
+	for i in range(count):
+		name, country, flag = _REVIEWERS[(hash(f"{seller_code}-{i}")) % len(_REVIEWERS)]
+		rating = random.choice([5, 5, 5, 4, 4, 5, 4, 5])
+		total += rating
+		rev = frappe.new_doc("Seller Review")
+		rev.seller = seller_code
+		rev.reviewer_name = name
+		rev.country = country
+		rev.country_flag = flag
+		rev.rating = rating
+		rev.comment = _REVIEW_COMMENTS[i % len(_REVIEW_COMMENTS)]
+		rev.is_featured = 1 if i < 3 else 0
+		rev.status = "Published"
+		rev.date = f"2025-{(i % 12) + 1:02d}-{(i % 27) + 1:02d} 10:00:00"
+		rev.flags.ignore_permissions = True
+		rev.insert(ignore_permissions=True)
+	# rating/review_count'u seed'lenen yorumlardan tutarlı yaz (doc.rating fallback'ini ezer).
+	frappe.db.set_value(
+		"Admin Seller Profile",
+		seller_code,
+		{"rating": round(total / count, 1), "review_count": count},
+		update_modified=False,
+	)
+
+
 def _ensure_seller(s):
 	"""Admin Seller Profile oluştur veya mevcut olanı döndür."""
-	_ensure_user(s["email"], s["seller_name"])
+	# User = gerçek kişi (iletişim/yetkili); şirket adı seller_name'de ayrı durur.
+	contact_first, contact_last = SELLER_CONTACTS.get(s["code"], (s["seller_name"], ""))
+	_ensure_user(s["email"], contact_first, contact_last)
 
 	if frappe.db.exists("Admin Seller Profile", s["code"]):
 		return s["code"]
@@ -2700,8 +3050,13 @@ def _ensure_seller(s):
 	doc.user = s["email"]
 	doc.status = "Active"
 	doc.seller_type = "Corporate"
-	doc.logo = _seller_logo(s["seller_name"], 200)
-	doc.banner_image = _img(s["variant_type"], 1200, 400, lock_id=f"{s['code']}-banner")
+	# Sektöre özel markalı SVG logo/kapak (yerel üretim, alakalı). Yazılamazsa eski kaynağa düş.
+	doc.logo = _demo_logo(s["code"], s["seller_name"], s["variant_type"]) or _seller_icon_logo(
+		s["code"], 200
+	)
+	doc.banner_image = _demo_cover(s["code"], s["seller_name"], s["variant_type"]) or _img(
+		s["variant_type"], 1200, 400, lock_id=f"{s['code']}-banner"
+	)
 	doc.description = s["description"]
 	doc.slogan = s["slogan"]
 	doc.company_name = s["company_name"]
@@ -2721,11 +3076,17 @@ def _ensure_seller(s):
 		if cert_name:
 			# verification_status default "Pending" — listing.validate Verified bekler;
 			# demo satıcı cert'leri admin tarafından onaylanmış kabul edilir.
+			# document → özgün rozet SVG'si (vitrinde thumbnail, telif-güvenli).
+			cert_no = f"TH-{_asset_slug(cert_name).upper().replace('-', '')[:10]}-{random.randint(1000, 9999)}"
 			doc.append(
 				"certifications",
 				{
 					"certification_type": cert_name,
 					"verification_status": "Verified",
+					"document": _demo_cert_image(cert_name) or "",
+					"certificate_number": cert_no,
+					"issued_date": "2024-03-12",
+					"expiry_date": "2027-03-11",
 				},
 			)
 	doc.email = s["email"]
@@ -2742,28 +3103,55 @@ def _ensure_seller(s):
 	# is_verified ve verification_type field'ları kaldırıldı (KYB Verified rolüne geçildi)
 	doc.health_score = round(random.uniform(75, 98), 1)
 	doc.score_grade = random.choice(["A", "A", "A", "B"])
+	# Mağaza puanı: StoreHeader + "Şirket Değerlendirmeleri" barları (Tedarikçi Hizmeti /
+	# Ürün Kalitesi) doğrudan bu alandan türüyor. Seed'lenmezse vitrinde "—" görünür.
+	doc.rating = round(random.uniform(4.2, 4.9), 1)
+	doc.review_count = random.randint(48, 320)
 	doc.commission_rate = s["commission_rate"]
 	doc.subscription_plan = s["subscription_plan"]
 	doc.response_time = random.choice(["< 1 saat", "< 2 saat", "< 4 saat", "< 24 saat"])
 	doc.response_rate = round(random.uniform(85, 99), 1)
 	doc.on_time_delivery = round(random.uniform(90, 99), 1)
 
-	# Gallery images — Seller Gallery Image child'ında category/media_type reqd:1
-	gallery_categories = ["overview", "production", "quality_control", "360_view", "overview"]
-	for i in range(1, random.randint(4, 6)):
+	# Gallery — SEKTÖRE UYGUN gerçek fabrika/üretim görselleri (+ varsa video).
+	# Ürün görseli DEĞİL: üretici kartının sağ galerisi fabrikayı göstermeli.
+	gallery_categories = ["overview", "production", "quality_control", "360_view"]
+	factory_imgs = SELLER_FACTORY_IMAGES.get(s["code"], [])
+	sort_i = 0
+	for i, photo_id in enumerate(factory_imgs):
+		sort_i += 1
 		doc.append(
 			"gallery_images",
 			{
-				"category": gallery_categories[(i - 1) % len(gallery_categories)],
+				"category": gallery_categories[i % len(gallery_categories)],
 				"media_type": "image",
-				"image": _img(s["variant_type"], 600, 400, lock_id=f"{s['code']}-gallery-{i}"),
-				"caption": f"Fabrika/Mağaza Görüntüsü {i}",
-				"sort_order": i,
+				"image": _pexels(photo_id, 800),
+				"caption": f"{s['seller_name']} — Üretim Tesisi {i + 1}",
+				"sort_order": sort_i,
+			},
+		)
+	# Fabrika tanıtım videosu (sektöre uygun olan satıcılarda)
+	video = SELLER_FACTORY_VIDEOS.get(s["code"])
+	if video:
+		sort_i += 1
+		video_url, poster_id = video
+		doc.append(
+			"gallery_images",
+			{
+				"category": "production",
+				"media_type": "video",
+				"video_url": video_url,
+				"poster_image": _pexels(poster_id, 800),
+				"caption": f"{s['seller_name']} — Üretim Videosu",
+				"sort_order": sort_i,
 			},
 		)
 
 	doc.flags.ignore_permissions = True
 	doc.insert(ignore_permissions=True)
+	# Gerçek Seller Review kayıtları — "Şirket Değerlendirmeleri (0)" yerine dolu liste +
+	# rating/review_count'u tutarlı şekilde yeniden hesaplar.
+	_seed_seller_reviews(s["code"])
 	return s["code"]
 
 
@@ -2855,6 +3243,36 @@ def _fill_demo_kyb_documents(s):
 	kyb.save(ignore_permissions=True)
 
 
+def _grant_verified_seller_role(email):
+	"""Satıcı User'ına 'Verified Seller' rolünü ekle (idempotent).
+
+	Storefront/listing 'Onaylanmış Satıcı' rozeti bu role bakar (listing.py:
+	Has Role WHERE role='Verified Seller'). KYB on_update hook'u status geçişi
+	olmadığında rolü eklemeyebildiği için seed açıkça garanti eder.
+	"""
+	if not email or not frappe.db.exists("Role", "Verified Seller"):
+		return
+	if frappe.db.exists("Has Role", {"parent": email, "parenttype": "User", "role": "Verified Seller"}):
+		return
+	# DİKKAT: user_doc.add_roles() BURADA İŞE YARAMAZ — demo User'ların
+	# role_profile_name="Seller Full Access" alanı var ve User.save rolleri profile'a
+	# göre resetleyip "Verified Seller"i siliyor. Has Role child satırını DOĞRUDAN
+	# ekleyerek save profile-sync'ini bypass ederiz (rol kalıcı olur).
+	try:
+		frappe.get_doc(
+			{
+				"doctype": "Has Role",
+				"parenttype": "User",
+				"parentfield": "roles",
+				"parent": email,
+				"role": "Verified Seller",
+			}
+		).insert(ignore_permissions=True)
+		frappe.clear_cache(user=email)
+	except Exception:
+		pass
+
+
 def _set_demo_kyb_status(s, index):
 	"""Demo satıcı için KYB Verification statüsünü DEMO_KYB_STATUSES'a göre ayarla.
 
@@ -2885,6 +3303,9 @@ def _set_demo_kyb_status(s, index):
 	kyb.flags.ignore_permissions = True
 	kyb.flags.ignore_mandatory = True
 	kyb.save(ignore_permissions=True)
+	# KYB Verified ise satıcı tam doğrulanmış sayılır → "Verified Seller" rolünü garanti et.
+	if target_status == "Verified":
+		_grant_verified_seller_role(s["email"])
 
 
 def _set_demo_kyc_verified(email, *, account_type, company_name, tax_id, phone, address):
@@ -3063,6 +3484,7 @@ def _create_listing(
 	title = base_title + TITLE_SUFFIXES.get(
 		variant_type, " — Toptan Satış, Premium Kalite, Hızlı Kargo Seçenekleri"
 	)
+	# Tüm ürünler gerçek DummyJSON ürün fotoğraflarını kullanır (görsel ve isim eşleşir).
 	primary_image = product["thumb"]
 	gallery = product.get("imgs") or []
 
@@ -3408,6 +3830,21 @@ def _create_listing(
 
 
 # ─── Marka haritası (seller_code → (brand_code, brand_name)) ────
+# Satıcı hesabının GERÇEK KİŞİ (iletişim/yetkili) adı — User.first_name/last_name.
+# Mağaza/şirket adı SELLERS[*]["seller_name"]'de ayrı durur (User ≠ şirket).
+SELLER_CONTACTS = {
+	"DEMO-001": ("Mehmet", "Yılmaz"),
+	"DEMO-002": ("Ayşe", "Demir"),
+	"DEMO-003": ("Mustafa", "Kaya"),
+	"DEMO-004": ("Hasan", "Çelik"),
+	"DEMO-005": ("Fatma", "Şahin"),
+	"DEMO-006": ("Zeynep", "Arslan"),
+	"DEMO-007": ("Ahmet", "Yıldız"),
+	"DEMO-008": ("Elif", "Aydın"),
+	"DEMO-009": ("Emre", "Koç"),
+	"DEMO-010": ("Selin", "Öztürk"),
+}
+
 BRANDS = {
 	"DEMO-001": ("DEMO-BRAND-ANADOLU", "Anadolu"),
 	"DEMO-002": ("DEMO-BRAND-BOGAZICI", "Boğaziçi"),
@@ -3441,8 +3878,10 @@ def _ensure_brand(seller_code, sector_key="giyim"):
 	doc.status = "Approved"
 	doc.official_status = "Verified"
 	doc.country = "Turkey"
-	doc.logo = _seller_logo(brand_name, 200)
-	doc.hero_banner = _img(sector_key, 1920, 400, lock_id=f"brand-{brand_code}-hero")
+	doc.logo = _demo_logo(seller_code, brand_name, sector_key) or _seller_icon_logo(seller_code, 200)
+	doc.hero_banner = _demo_cover(seller_code, brand_name, sector_key) or _img(
+		sector_key, 1920, 400, lock_id=f"brand-{brand_code}-hero"
+	)
 	doc.tagline = f"{brand_name} — Kalite ve Güven"
 	doc.about_title = "Hakkımızda"
 	doc.about_content = (
@@ -3868,6 +4307,181 @@ def _build_attribute_values(seller, variant_type, weight, dj_cat=None, cat_name=
 
 
 # ═══════════════════════════════════════════════════════════════
+#  ANASAYFA VİTRİNİ: Hero Slider + Kategori Vitrini (Bento Grid)
+# ═══════════════════════════════════════════════════════════════
+#
+# Bu içerikler admin panelden girilen DOCTYPE kayıtlarıdır (kod değil) —
+# git ile taşınmazlar, her ortamın kendi DB'sinde durur. Demo ortamların
+# anasayfası boş kalmasın diye seed ile deterministik olarak üretilir.
+# İlgili storefront component'leri: HeroTopSlider + CategoryShowcase (bento).
+
+# Hero slider slide'ları — B2B marketplace temalı, site içeriğine uygun.
+# bg gradient: background_color → background_color_2 (gradient_angle derece).
+HERO_SLIDES = [
+	{
+		"label_tr": "TREND UYARISI",
+		"label_en": "TRENDING NOW",
+		"title_tr": "Sezonun en çok tercih edilen ürünleri",
+		"title_en": "This season's most preferred products",
+		"description_tr": "Binlerce alıcının tercih ettiği çok satan ürünleri keşfedin, sevkiyata hazır tedarikçilerle bağlantı kurun.",
+		"description_en": "Discover best-selling products preferred by thousands of buyers and connect with ready-to-ship suppliers.",
+		"button_text_tr": "Çok satanları gör",
+		"button_text_en": "View best-sellers",
+		"button_href": "/cok-satanlar",
+		"background_color": "#059669",
+		"background_color_2": "#10b981",
+		"gradient_angle": 135,
+		"content_align": "center",
+	},
+	{
+		"label_tr": "DOĞRULANMIŞ ÜRETİCİLER",
+		"label_en": "VERIFIED MANUFACTURERS",
+		"title_tr": "Doğrulanmış üreticilerle güvenle çalışın",
+		"title_en": "Work safely with verified manufacturers",
+		"description_tr": "Binlerce doğrulanmış fabrikadan rekabetçi tekliflerle toptan tedarik edin.",
+		"description_en": "Source wholesale from thousands of verified factories with competitive offers.",
+		"button_text_tr": "Üreticileri keşfet",
+		"button_text_en": "Discover manufacturers",
+		"button_href": "/ureticiler",
+		"background_color": "#1e3a8a",
+		"background_color_2": "#3b82f6",
+		"gradient_angle": 135,
+		"content_align": "left",
+	},
+	{
+		"label_tr": "FIRSATLAR",
+		"label_en": "DEALS",
+		"title_tr": "Toptan fiyat avantajını yakalayın",
+		"title_en": "Catch the wholesale price advantage",
+		"description_tr": "%100 fiyat garantisiyle binlerce üründe avantajlı toptan fiyatlar ve günlük fırsatlar.",
+		"description_en": "Advantageous wholesale prices and daily deals on thousands of products with 100% price guarantee.",
+		"button_text_tr": "Fırsatları gör",
+		"button_text_en": "View deals",
+		"button_href": "/firsatlar",
+		"background_color": "#b45309",
+		"background_color_2": "#f59e0b",
+		"gradient_angle": 135,
+		"content_align": "left",
+	},
+]
+
+# Bento grid kutuları — gerçek demo sektör kategorilerine (DEMO-SEC-*) linkli.
+# category kutuları: sektör görselli; promo kutuları: düz renk + CTA.
+# Layout 4 sütunlu grid'e göre tasarlandı (col_span/row_span).
+SHOWCASE_TILES = [
+	{
+		"tile_type": "category", "col_span": 1, "row_span": 2, "sort_order": 0,
+		"label_tr": "Tekstil ve Giyim", "label_en": "Textile & Apparel",
+		"sector_key": "giyim", "sector_code": "TG",
+		"hover_text_tr": "Toptan tekstil ve hazır giyim", "hover_text_en": "Wholesale textile & apparel",
+	},
+	{
+		"tile_type": "category", "col_span": 1, "row_span": 2, "sort_order": 1,
+		"label_tr": "Ayakkabı ve Deri", "label_en": "Footwear & Leather",
+		"sector_key": "ayakkabi", "sector_code": "AD",
+		"hover_text_tr": "Ayakkabı, çanta ve deri ürünleri", "hover_text_en": "Shoes, bags & leather goods",
+	},
+	{
+		"tile_type": "category", "col_span": 2, "row_span": 1, "sort_order": 2,
+		"label_tr": "Elektronik ve Aksesuar", "label_en": "Electronics & Accessories",
+		"sector_key": "elektronik", "sector_code": "EL",
+		"hover_text_tr": "Telefon, bilgisayar ve aksesuar", "hover_text_en": "Phones, computers & accessories",
+	},
+	{
+		"tile_type": "category", "col_span": 1, "row_span": 1, "sort_order": 3,
+		"label_tr": "Kozmetik ve Kişisel Bakım", "label_en": "Cosmetics & Personal Care",
+		"sector_key": "kozmetik", "sector_code": "KZ",
+		"hover_text_tr": "Makyaj, bakım ve parfüm", "hover_text_en": "Makeup, care & fragrances",
+	},
+	{
+		"tile_type": "promo", "col_span": 1, "row_span": 1, "sort_order": 4,
+		"promo_badge_tr": "TİCARET GÜVENCESİ", "promo_badge_en": "TRADE ASSURANCE",
+		"promo_title_tr": "Güvenli ödeme, teslimat garantisi", "promo_title_en": "Secure payment, delivery guarantee",
+		"background_color": "#1e3a8a",
+		"cta_text_tr": "Nasıl çalışır?", "cta_text_en": "How it works", "cta_href": "/ticaret-guvencesi",
+	},
+]
+
+
+def _seed_hero_slider():
+	"""Hero slider için demo Hero Slide kayıtları (idempotent: önce hepsini sil)."""
+	frappe.db.delete("Hero Slide")
+	for idx, s in enumerate(HERO_SLIDES):
+		doc = frappe.new_doc("Hero Slide")
+		doc.update(s)
+		doc.background_type = "gradient"
+		doc.text_color = "#ffffff"
+		doc.overlay = 0
+		doc.is_active = 1
+		doc.sort_order = (idx + 1) * 10
+		doc.flags.ignore_permissions = True
+		doc.insert(ignore_permissions=True)
+	print(f"  ✓ {len(HERO_SLIDES)} Hero Slide (gradient)")
+
+
+def _seed_category_showcase():
+	"""Bento grid: Settings'i enable et + demo tile'lar (idempotent)."""
+	settings = frappe.get_single("Category Showcase Settings")
+	settings.is_enabled = 1
+	settings.columns = 4
+	settings.section_title_tr = "Kategorileri keşfet"
+	settings.section_title_en = "Explore categories"
+	settings.flags.ignore_permissions = True
+	settings.save(ignore_permissions=True)
+
+	frappe.db.delete("Category Showcase Tile")
+	for t in SHOWCASE_TILES:
+		doc = frappe.new_doc("Category Showcase Tile")
+		doc.tile_type = t["tile_type"]
+		doc.col_span = t["col_span"]
+		doc.row_span = t["row_span"]
+		doc.sort_order = t["sort_order"]
+		doc.is_active = 1
+		if t["tile_type"] == "category":
+			doc.label_tr = t["label_tr"]
+			doc.label_en = t["label_en"]
+			doc.hover_text_tr = t.get("hover_text_tr", "")
+			doc.hover_text_en = t.get("hover_text_en", "")
+			doc.image = _img(t["sector_key"], 800, 800, lock_id=f"tile-{t['sector_code']}")
+			# Ürün listeleme sayfası, kategori slug filtresiyle (?cat=).
+			# /kategori/{slug} yerine /urunler?cat= kullanılır: ikisi de canonical
+			# kategori URL'i ama /urunler tam SPA olarak local + prod'da çalışır;
+			# /kategori/{slug} local Frappe'de SEO bot-kabuğuna düşüp blank kalıyor.
+			# Sektör kategorisi DEMO-SEC-{code} → url_slug = _slug("DEMO-SEC-{code}")
+			doc.link_href = f"/urunler?cat={_slug('DEMO-SEC-' + t['sector_code'])}"
+		else:
+			doc.promo_badge_tr = t.get("promo_badge_tr", "")
+			doc.promo_badge_en = t.get("promo_badge_en", "")
+			doc.promo_title_tr = t.get("promo_title_tr", "")
+			doc.promo_title_en = t.get("promo_title_en", "")
+			doc.background_color = t.get("background_color", "#1e3a8a")
+			doc.cta_text_tr = t.get("cta_text_tr", "")
+			doc.cta_text_en = t.get("cta_text_en", "")
+			doc.cta_href = t.get("cta_href", "/kategoriler")
+		doc.flags.ignore_permissions = True
+		doc.insert(ignore_permissions=True)
+	print(f"  ✓ {len(SHOWCASE_TILES)} Category Showcase Tile (bento) + Settings enabled")
+
+
+@frappe.whitelist()
+def seed_homepage_content():
+	"""Sadece anasayfa vitrinini (slider + bento) seed et — tam reseed YAPMADAN.
+
+	Kullanım (bench):
+	    bench --site <site> execute tradehub_core.seed_demo_data.seed_homepage_content
+	"""
+	frappe.flags.ignore_permissions = True
+	print("\n[Anasayfa] Hero slider + kategori vitrini seed ediliyor...")
+	_seed_hero_slider()
+	_seed_category_showcase()
+	frappe.db.commit()
+	# 60s Redis cache'leri temizle ki storefront hemen görsün.
+	frappe.cache.delete_value("hero_slides_active")
+	frappe.cache.delete_value("category_showcase_active")
+	print("  ✅ Anasayfa vitrini hazır.")
+
+
+# ═══════════════════════════════════════════════════════════════
 #  ANA FONKSİYONLAR
 # ═══════════════════════════════════════════════════════════════
 
@@ -4039,7 +4653,11 @@ def execute():
 		)
 		try:
 			frappe.db.set_value(
-				"Product Category", leaf_id, "image", products[0]["thumb"], update_modified=False
+				"Product Category",
+				leaf_id,
+				"image",
+				products[0]["thumb"],
+				update_modified=False,
 			)
 		except Exception:
 			pass
@@ -4102,12 +4720,21 @@ def execute():
 	frappe.db.commit()
 	frappe.flags.in_import = False
 
+	# ── 6. Anasayfa vitrini: Hero slider + kategori vitrini (bento) ─
+	print("\n[6/6] Anasayfa vitrini oluşturuluyor (hero slider + bento grid)...")
+	_seed_hero_slider()
+	_seed_category_showcase()
+	frappe.db.commit()
+	frappe.cache.delete_value("hero_slides_active")
+	frappe.cache.delete_value("category_showcase_active")
+
 	print("\n" + "=" * 60)
 	print("  ✅ TAMAMLANDI!")
 	print(f"  Satıcılar:   {len(SELLERS)}")
 	print(f"  Alıcılar:    {len(BUYERS)}")
 	print("  Kategoriler: ~500")
 	print(f"  Ürünler:     {total_listings}")
+	print(f"  Hero slide:  {len(HERO_SLIDES)} · Bento kutu: {len(SHOWCASE_TILES)}")
 	print("=" * 60)
 
 	# ── Kimlik Bilgileri Tablosu ────────────────────────────
@@ -4268,6 +4895,17 @@ def cleanup(silent=False):
 	for l in demo_listings:
 		frappe.delete_doc("Listing", l, force=True, ignore_permissions=True)
 	_p(f"  ✓ {len(demo_listings)} Listing silindi")
+	frappe.db.commit()
+
+	# 1b. Seller Reviews (Admin Seller Profile DEMO-% satıcılarına bağlı)
+	demo_reviews = frappe.get_all(
+		"Seller Review",
+		filters={"seller": ["like", "DEMO-%"]},
+		pluck="name",
+	)
+	for rv in demo_reviews:
+		frappe.delete_doc("Seller Review", rv, force=True, ignore_permissions=True)
+	_p(f"  ✓ {len(demo_reviews)} Seller Review silindi")
 	frappe.db.commit()
 
 	# 2. Seller Categories
