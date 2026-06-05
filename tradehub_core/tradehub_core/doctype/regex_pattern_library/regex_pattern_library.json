@@ -56,7 +56,7 @@
    "default": "Listing",
    "fieldname": "target_doctype",
    "fieldtype": "Link",
-   "label": "Hedef DocType",
+   "label": "Hedef Modül",
    "options": "DocType"
   },
   {
