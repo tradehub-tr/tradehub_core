@@ -990,6 +990,7 @@ def get_listing_detail(listing_id, lang="tr"):
 
 	# Build category breadcrumb (prefer platform category, fallback to seller category)
 	category_breadcrumb = _get_category_breadcrumb(listing.product_category or listing.category, lang)
+	category_ranks = _get_category_ranks(listing)
 
 	# Get images — primary_image + listing_images child table
 	images = [listing.primary_image] if listing.primary_image else []
@@ -1254,6 +1255,7 @@ def get_listing_detail(listing_id, lang="tr"):
 		"rating": listing.average_rating or 0,
 		"reviewCount": listing.review_count or 0,
 		"orderCount": listing.order_count or 0,
+		"categoryRanks": category_ranks,
 		"viewCount": listing.view_count or 0,
 		"supplier": supplier_data,
 		"sellerKybVerified": listing_kyb_verified,
@@ -3478,6 +3480,80 @@ def _build_variants_from_inline(listing_name, inline_variants, lang="tr", defaul
 			opt["displayLabel"] = value_xlat.get(opt.get("value"), opt.get("label") or opt.get("value"))
 
 	return result
+
+
+def _category_rank_counts(category_id, my_orders):
+	"""(rank, total) — `category_id` alt-ağacında, `my_orders`'a göre.
+
+	rank = alt-ağaçta benden daha çok satan görünür ürün sayısı + 1
+	       (eşit satışlar aynı rank'i paylaşır — competition ranking).
+	total = alt-ağaçtaki görünür ürün sayısı.
+	Sonuç `cat_rank:{category_id}:{my_orders}` anahtarıyla 1 saat cache'lenir.
+	"""
+	rank_key = f"cat_rank:{category_id}:{my_orders}"
+	cached = frappe.cache.get_value(rank_key)
+	if cached is not None:
+		return cached["rank"], cached["total"]
+
+	descendants = _get_category_descendants(category_id)
+	base = {
+		"product_category": ["in", descendants],
+		"status": STOREFRONT_STATUS_FILTER,
+		"is_visible": 1,
+	}
+	total = frappe.db.count("Listing", base)
+	higher = frappe.db.count("Listing", {**base, "order_count": [">", my_orders]})
+	rank = higher + 1
+
+	frappe.cache.set_value(rank_key, {"rank": rank, "total": total}, expires_in_sec=3600)
+	return rank, total
+
+
+def _get_category_ranks(listing):
+	"""Ürünün ait olduğu her ata kategoride satış sıralamasını (Best Sellers Rank)
+	hesaplar. Metrik: tüm-zaman order_count.
+
+	Döner: yapraktan sektöre sıralı —
+	  [{category_id, category_name, slug, rank, total, level}, ...]  (level 0 = yaprak)
+	product_category yoksa boş liste.
+	"""
+	leaf_cat = listing.product_category
+	if not leaf_cat:
+		return []
+
+	my_orders = listing.order_count or 0
+
+	# Ata zinciri: yaprak → kök (guest-safe; parent_product_category yürüyüşü).
+	chain = []
+	current = leaf_cat
+	depth = 10  # cycle guard
+	while current and depth > 0:
+		cat = frappe.db.get_value(
+			"Product Category",
+			current,
+			["name", "category_name", "url_slug", "parent_product_category"],
+			as_dict=True,
+		)
+		if not cat:
+			break
+		chain.append(cat)
+		current = cat.parent_product_category
+		depth -= 1
+
+	ranks = []
+	for level, cat in enumerate(chain):
+		rank, total = _category_rank_counts(cat.name, my_orders)
+		ranks.append(
+			{
+				"category_id": cat.name,
+				"category_name": cat.category_name,
+				"slug": cat.url_slug or "",
+				"rank": rank,
+				"total": total,
+				"level": level,
+			}
+		)
+	return ranks
 
 
 def _get_category_breadcrumb(category_name, lang="tr"):

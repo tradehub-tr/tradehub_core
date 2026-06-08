@@ -109,6 +109,10 @@ def get_pricing_plans() -> dict:
 			"icon",
 			"is_disabled",
 			"feature_key",
+			"value_type",
+			"is_included",
+			"text_value",
+			"show_on_card",
 			"sort_order",
 			"tooltip",
 			"idx",
@@ -116,7 +120,12 @@ def get_pricing_plans() -> dict:
 		order_by="parent asc, sort_order asc, idx asc",
 	)
 
+	# Faz A — per-kart `show_on_card` artık plan başına (Pricing Plan Feature hücresi);
+	# her plan kendi kart özet listesini kürasyon eder.
 	features_by_plan: dict[str, list[dict]] = {}
+	# matris için (feature_key, plan_code) → row değeri
+	cell_by_key_and_plan: dict[tuple[str, str], dict] = {}
+	plan_code_by_name = {p["name"]: (p.get("plan_code") or p["name"]) for p in plans_raw}
 	for row in feature_rows:
 		features_by_plan.setdefault(row["parent"], []).append(
 			{
@@ -125,8 +134,17 @@ def get_pricing_plans() -> dict:
 				"is_disabled": bool(row.get("is_disabled")),
 				"feature_key": row.get("feature_key"),
 				"tooltip": row.get("tooltip"),
+				"show_on_card": bool(row.get("show_on_card")),
 			}
 		)
+		fkey = row.get("feature_key")
+		if fkey:
+			plan_code = plan_code_by_name.get(row["parent"], row["parent"])
+			cell_by_key_and_plan[(fkey, plan_code)] = {
+				"value_type": row.get("value_type") or "checkbox",
+				"is_included": bool(row.get("is_included")),
+				"text_value": row.get("text_value") or "",
+			}
 
 	plans: list[dict] = []
 	for p in plans_raw:
@@ -167,8 +185,47 @@ def get_pricing_plans() -> dict:
 		dominant_currency = counter.most_common(1)[0][0]
 		mixed = len(counter) > 1
 
+	# Storefront feature matris — Feature Catalog'tan kategorize edilmiş
+	# feature listesi + her plan için cell değeri.
+	plan_codes = [p.get("plan_code") for p in plans_raw if p.get("plan_code")]
+	# Komisyon & aktif ürün limiti İÇİN plan model field'ı TEK OTORİTEDİR
+	# (sadece boşken devreye giren bir fallback değil — matris text_value'yu
+	# EZER). Gerekçe:
+	#   1) `max_active_listings` field'ı entitlement motorunun gerçekten
+	#      uyguladığı limittir; matris text_value bundan saparsa storefront
+	#      yanlış limit reklamı yapar. Display her zaman operasyonel gerçeği
+	#      göstermeli.
+	#   2) Pricing kart "şerit"i (PricingCard) bu iki değeri doğrudan plan
+	#      field'ından okur; matris de aynı field'dan beslenince kart ve
+	#      karşılaştırma tablosu BİREBİR aynı olur (binlik ayraç, "Sınırsız",
+	#      "Özel" dahil — frontend `fmtListings` / komisyon biçimiyle eşleşir).
+	# Admin "Paket İçeriği"nde komisyon/limit düzenlerse bulk_update zaten
+	# değeri plan field'ına sync ediyor → field güncel kalır.
+	plan_field_overrides: dict[tuple[str, str], str] = {}
+	for p in plans_raw:
+		code = p.get("plan_code")
+		if not code:
+			continue
+		cr = p.get("commission_rate")
+		# Kart ile aynı: oran > 0 → "%17" / "%6.5", aksi halde "Özel".
+		plan_field_overrides[("quota.commission_rate", code)] = (
+			f"%{int(cr) if float(cr).is_integer() else cr}"
+			if cr is not None and float(cr) > 0
+			else _("Özel")
+		)
+		mal = p.get("max_active_listings")
+		# Kart `fmtListings` ile aynı: > 0 → tr-TR binlik ayraç ("2.500"),
+		# 0/None → "Sınırsız".
+		plan_field_overrides[("quota.max_active_listings", code)] = (
+			f"{int(mal):,}".replace(",", ".") if mal and int(mal) > 0 else _("Sınırsız")
+		)
+	features_matrix = _build_features_matrix(
+		cell_by_key_and_plan, plan_codes, plan_field_overrides
+	)
+
 	response = {
 		"plans": plans,
+		"features_matrix": features_matrix,
 		"meta": {
 			"currency": dominant_currency,
 			"mixed_currency": mixed,
@@ -177,6 +234,127 @@ def get_pricing_plans() -> dict:
 	}
 	frappe.cache().set_value(_CACHE_KEY, json.dumps(response), expires_in_sec=_CACHE_TTL_SECONDS)
 	return response
+
+
+def _build_features_matrix(
+	cell_by_key_and_plan: dict[tuple[str, str], dict],
+	plan_codes: list[str],
+	plan_field_overrides: dict[tuple[str, str], str] | None = None,
+) -> dict:
+	"""Feature Catalog'taki display_category'leri kategori grupları halinde
+	döndür. Her feature için 4 plan değerini map'le.
+
+	Returns:
+		{
+			"categories": [
+				{
+					"name": "Komisyon & Limitler",
+					"features": [
+						{
+							"feature_key": "...",
+							"display_name": "...",
+							"value_type": "checkbox" | "text",
+							"tooltip": "...",
+							"values_by_plan": {
+								"FREE": {"is_included": True, "text_value": ""},
+								...
+							}
+						},
+						...
+					]
+				},
+				...
+			]
+		}
+	"""
+	catalog_rows = frappe.get_all(
+		"Feature Catalog",
+		filters={"is_deprecated": 0, "display_category": ["is", "set"]},
+		fields=[
+			"feature_key",
+			"display_name",
+			"display_category",
+			"display_order",
+			"feature_type",
+			"value_type",
+			"enum_options",
+			"unit",
+			"description",
+		],
+		order_by="display_category asc, display_order asc, display_name asc",
+	)
+	# `is set` boş string'leri yakalamayabilir → ek filtre
+	catalog_rows = [r for r in catalog_rows if (r.get("display_category") or "").strip()]
+
+	categories_map: dict[str, list[dict]] = {}
+	category_order: list[str] = []
+	for row in catalog_rows:
+		cat = row["display_category"]
+		if cat not in categories_map:
+			categories_map[cat] = []
+			category_order.append(cat)
+
+		# Faz A — value_type kaynağı Feature Catalog (feature-seviyesi).
+		control_type = row.get("value_type") or "boolean"
+		legacy_vt = "checkbox" if control_type == "boolean" else "text"
+		enum_options = [o.strip() for o in (row.get("enum_options") or "").split(",") if o.strip()]
+		values_by_plan: dict[str, dict] = {}
+		overrides = plan_field_overrides or {}
+		for code in plan_codes:
+			cell = cell_by_key_and_plan.get((row["feature_key"], code))
+			# Plan field otoritesi (komisyon/limit) varsa text_value'yu EZER;
+			# diğer feature'larda override_text="" → matris hücresi geçerli.
+			override_text = overrides.get((row["feature_key"], code), "")
+			if cell:
+				text_value = override_text or cell.get("text_value", "")
+				values_by_plan[code] = {
+					"value_type": legacy_vt,
+					# Field-otoriteli key'lerde her zaman dahil (değer var);
+					# diğerlerinde hücrenin is_included'ı.
+					"is_included": True if override_text else cell.get("is_included", False),
+					"text_value": text_value,
+				}
+			else:
+				# Hücre yok: field override'ı varsa onu kullan, yoksa boş.
+				values_by_plan[code] = {
+					"value_type": legacy_vt,
+					"is_included": bool(override_text),
+					"text_value": override_text,
+				}
+
+		categories_map[cat].append(
+			{
+				"feature_key": row["feature_key"],
+				"display_name": row["display_name"],
+				"value_type": legacy_vt,
+				"control_type": control_type,
+				"enum_options": enum_options,
+				"unit": row.get("unit") or "",
+				"tooltip": row.get("description") or None,
+				"values_by_plan": values_by_plan,
+			}
+		)
+
+	# Storefront kategori sıralaması: sabit (Komisyon, Vitrin, Destek, Kurumsal)
+	preferred_order = [
+		"Komisyon & Limitler",
+		"Vitrin & Mağaza",
+		"B2B Ticaret Modülleri",
+		"Pazarlama & Görünürlük",
+		"Güven & Doğrulama",
+		"Destek & Kurumsal",
+	]
+	ordered_categories = [c for c in preferred_order if c in categories_map]
+	# kalan diğer kategoriler (varsa) — display_order alfabetik sıra ile
+	for c in category_order:
+		if c not in ordered_categories:
+			ordered_categories.append(c)
+
+	return {
+		"categories": [
+			{"name": c, "features": categories_map[c]} for c in ordered_categories
+		]
+	}
 
 
 def invalidate_pricing_cache() -> None:

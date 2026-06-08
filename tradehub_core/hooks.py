@@ -49,6 +49,8 @@ fixtures = [
 					"Support Agent",
 					# Saha pazarlama hakediş sistemi — saha elemanı rolü
 					"Saha Pazarlama",
+					# Faz C — ekip lideri onay/yönetim katmanı
+					"Saha Ekip Lideri",
 				],
 			]
 		],
@@ -103,6 +105,8 @@ scheduler_events = {
 		"tradehub_core.services.delegation_service.expire_overdue_delegations",
 	],
 	"daily": [
+		# Saha hakediş kota bonusu — on-approval tetiklemesinin günlük güvenlik ağı.
+		"tradehub_core.tradehub_core.utils.field_commission.process_quota_bonuses",
 		"tradehub_core.services.tcmb.fetch_and_update_rates",
 		"tradehub_core.setup.install.cleanup_expired_tokens",
 		"tradehub_core.utils.notification_cleanup.delete_old_notifications",
@@ -439,6 +443,17 @@ doc_events = {
 	# Header Notice Settings singleton → also invalidate cache when display_mode changes.
 	"Header Notice Settings": {
 		"on_update": "tradehub_core.api.header_notice.invalidate_cache",
+	},
+	# Category Showcase Tile lifecycle → invalidate 60s Redis cache so storefront
+	# bento grid sees changes within a minute.
+	"Category Showcase Tile": {
+		"after_insert": "tradehub_core.api.category_showcase.invalidate_cache",
+		"on_update": "tradehub_core.api.category_showcase.invalidate_cache",
+		"on_trash": "tradehub_core.api.category_showcase.invalidate_cache",
+	},
+	# Category Showcase Settings singleton → also invalidate when toggled.
+	"Category Showcase Settings": {
+		"on_update": "tradehub_core.api.category_showcase.invalidate_cache",
 	},
 	# Hero Slide lifecycle → invalidate 60s Redis cache so storefront hero slider
 	# reflects admin edits within the next request.

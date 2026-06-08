@@ -5,7 +5,6 @@ from frappe.model.document import Document
 
 class HeroSlide(Document):
 	def validate(self):
-		super().validate()
 		if self.background_type == "image" and not self.background_image:
 			frappe.throw(_("Arka plan türü 'görsel' iken arka plan görseli zorunludur."))
 		if self.background_type in ("color", "gradient") and not self.background_color:

@@ -2209,6 +2209,9 @@ def notification_settings_has_permission(doc, ptype=None, user=None, debug=False
 # katmanında tüm hakedişleri görür ama API aksiyon alamazdı (yarı-yetki). Dar set +
 # tek kaynak: API bu sabiti import eder.
 _FIELD_COMMISSION_ADMIN_ROLES = frozenset({"System Manager", "Marketplace Admin"})
+# Faz C — ekip lideri rolü. API leader_approve/leader_reject + get_team_commissions
+# bu sabiti import eder (permission ↔ aksiyon tek kaynak).
+_FIELD_COMMISSION_LEADER_ROLE = "Saha Ekip Lideri"
 
 
 def field_commission_query_conditions(user):
@@ -2219,6 +2222,10 @@ def field_commission_query_conditions(user):
 	roles = set(frappe.get_roles(user))
 	if roles & _FIELD_COMMISSION_ADMIN_ROLES:
 		return ""
+	if _FIELD_COMMISSION_LEADER_ROLE in roles:
+		# Lider kendi ekibinin (team_leader == self) + kendi (agent == self) kayıtlarını görür.
+		u = frappe.db.escape(user)
+		return f"(`tabField Commission`.`team_leader` = {u} OR `tabField Commission`.`agent` = {u})"
 	if "Saha Pazarlama" in roles:
 		return f"`tabField Commission`.`agent` = {frappe.db.escape(user)}"
 	return "1=0"
@@ -2230,6 +2237,9 @@ def field_commission_has_permission(doc, ptype, user):
 	roles = set(frappe.get_roles(user))
 	if roles & _FIELD_COMMISSION_ADMIN_ROLES:
 		return True
+	if _FIELD_COMMISSION_LEADER_ROLE in roles and doc.get("team_leader") == user:
+		# Lider kendi ekibinin kaydını okur (onay aksiyonu API'de ignore_permissions ile).
+		return ptype in ("read", "report")
 	if "Saha Pazarlama" in roles:
 		# Saha elemanı yalnız kendi kaydını ve yalnız okuma.
 		return ptype in ("read", "report") and doc.get("agent") == user
