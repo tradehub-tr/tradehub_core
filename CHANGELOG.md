@@ -1,3 +1,11 @@
+## [v1.1.0-beta.1] - 2026-06-08 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Degistirildi
+- refactor(lint): simplify lint workflow by removing auto-fix steps and changing permissions (@ahmeetseker)
+
+---
 ## [v1.1.0] - 2026-06-05 PROD
 
 Bu surum istoc.cronbi.com'da yayindadir.
