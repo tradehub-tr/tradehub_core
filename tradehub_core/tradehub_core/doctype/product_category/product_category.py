@@ -4,6 +4,8 @@ import frappe
 from frappe import _
 from frappe.utils.nestedset import NestedSet
 
+from tradehub_core.utils.content_i18n import sync_content_translations
+
 
 def _slugify(text):
 	tr_map = str.maketrans("çğıöşüÇĞİÖŞÜ", "cgiosucgiosu")
@@ -16,6 +18,7 @@ class ProductCategory(NestedSet):
 	nsm_parent_field = "parent_product_category"
 
 	def validate(self):
+		sync_content_translations(self)
 		self._validate_unique_name_under_parent()
 
 	def _validate_unique_name_under_parent(self):
