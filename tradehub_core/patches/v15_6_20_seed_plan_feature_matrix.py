@@ -225,7 +225,7 @@ def _seed_feature_catalog() -> dict:
 	"""Feature Catalog'a 18 feature'ı seed et. Mevcut kayıtları güncellemez."""
 	created: list[str] = []
 	updated_display: list[str] = []
-	for key, display_name, display_category, display_order, value_type, _values in PRICING_FEATURES:
+	for key, display_name, display_category, display_order, _value_type, _values in PRICING_FEATURES:
 		if frappe.db.exists("Feature Catalog", key):
 			# display_category / display_order eksikse doldur (yeni field)
 			doc = frappe.get_doc("Feature Catalog", key)

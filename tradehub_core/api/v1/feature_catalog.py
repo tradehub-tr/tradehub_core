@@ -63,7 +63,7 @@ def _join_options(options) -> str:
 	"""Liste veya virgüllü metni normalize edilmiş 'A,B,C' formatına getir."""
 	if isinstance(options, str):
 		items = _split_options(options)
-	elif isinstance(options, (list, tuple)):
+	elif isinstance(options, list | tuple):
 		items = [str(o).strip() for o in options if str(o).strip()]
 	else:
 		return ""
