@@ -13,12 +13,15 @@ if str(_APP_ROOT) not in sys.path:
 
 
 from tradehub_core.seo.i18n import (  # noqa: E402
+	CONTENT_LANGS,
 	DEFAULT_LANG,
 	SUPPORTED_LANGS,
 	build_hreflang_links,
 	get_field_with_fallback,
 	localize_url,
+	normalize_lang,
 	parse_lang_from_path,
+	resolve_content_field,
 	slug_field_for,
 )
 
@@ -147,6 +150,52 @@ class TestSlugFieldFor(unittest.TestCase):
 		self.assertEqual(slug_field_for("Admin Seller Profile", "en"), "slug_en")
 
 
+class TestNormalizeLang(unittest.TestCase):
+	def test_valid_content_lang(self):
+		for lang in ("tr", "en", "ar", "ru"):
+			self.assertEqual(normalize_lang(lang), lang)
+
+	def test_unknown_falls_back_to_default(self):
+		self.assertEqual(normalize_lang("de"), "tr")
+
+	def test_none_falls_back(self):
+		self.assertEqual(normalize_lang(None), "tr")
+
+	def test_empty_falls_back(self):
+		self.assertEqual(normalize_lang(""), "tr")
+
+
+class TestResolveContentField(unittest.TestCase):
+	def test_returns_requested_lang(self):
+		record = {"title_tr": "Başlık", "title_ar": "عنوان", "content_default_lang": "tr"}
+		self.assertEqual(resolve_content_field(record, "title", "ar", "tr"), "عنوان")
+
+	def test_falls_back_to_default_when_empty(self):
+		record = {"title_tr": "Başlık", "title_ar": "", "content_default_lang": "tr"}
+		self.assertEqual(resolve_content_field(record, "title", "ar", "tr"), "Başlık")
+
+	def test_falls_back_to_default_when_missing(self):
+		record = {"title_tr": "Başlık", "content_default_lang": "tr"}
+		self.assertEqual(resolve_content_field(record, "title", "ru", "tr"), "Başlık")
+
+	def test_non_tr_default(self):
+		# Kaynak dili EN olan kayıt: AR boşsa EN'e düşer (TR'ye değil)
+		record = {"title_en": "Title", "title_tr": "", "content_default_lang": "en"}
+		self.assertEqual(resolve_content_field(record, "title", "ar", "en"), "Title")
+
+	def test_legacy_base_column_fallback(self):
+		# Sufix kolonları henüz doldurulmamış eski kayıt → base kolona düşer
+		record = {"title": "Eski TR"}
+		self.assertEqual(resolve_content_field(record, "title", "en", "tr"), "Eski TR")
+
+	def test_unknown_lang_normalized(self):
+		record = {"title_tr": "Başlık", "content_default_lang": "tr"}
+		self.assertEqual(resolve_content_field(record, "title", "de", "tr"), "Başlık")
+
+	def test_empty_record(self):
+		self.assertEqual(resolve_content_field({}, "title", "en", "tr"), "")
+
+
 class TestConstants(unittest.TestCase):
 	def test_default_is_tr(self):
 		self.assertEqual(DEFAULT_LANG, "tr")
@@ -154,6 +203,9 @@ class TestConstants(unittest.TestCase):
 	def test_supported_includes_tr_en(self):
 		self.assertIn("tr", SUPPORTED_LANGS)
 		self.assertIn("en", SUPPORTED_LANGS)
+
+	def test_content_langs_four(self):
+		self.assertEqual(set(CONTENT_LANGS), {"tr", "en", "ar", "ru"})
 
 
 if __name__ == "__main__":

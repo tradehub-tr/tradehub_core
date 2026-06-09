@@ -1,3 +1,27 @@
+## [v1.1.0-beta.3] - 2026-06-09 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Eklendi
+- feat(i18n): demo içerik çevirilerini backfill eden patch (v15_7_3) (@aliturguttursab)
+  - İdempotent: yalnızca boş (_en null/'') satırları doldurur; mevcut çeviriyi ezmez.
+  - Yalnızca haritadaki kaynakla eşleşen (demo) içerik çevrilir; gerçek/farklı içerik etkilenmez (oto-çeviri ayrı özellik).
+  - patches.txt post_model_sync sonuna eklendi (kolonlar v15_7_0/2'de oluşur).
+
+---
+## [v1.1.0-beta.2] - 2026-06-08 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Eklendi
+- feat(i18n): çok-dilli içerik altyapısı + kategori/platform-terim çevirileri (@aliturguttursab)
+  - seo/i18n.py: resolve_content_field + {field}_{lang} sufix modeli, normalize_lang, CONTENT_TRANSLATABLE/CHILD config (Listing, Product Category, Listing Attribute Value, Listing Variant Item).
+  - utils/content_i18n.py + DocType controller (Listing, Product Category): validate()'te base ↔ varsayılan-dil senkronu + zorunlu-dil kontrolü.
+  - patches v15_7_0 (parent kolonlar) + v15_7_2 (child kolonlar): custom field üretimi + mevcut TR içeriği _tr koluna backfill. patches.txt + fixtures/custom_field.json güncellendi. (v15_7_1: seller-owner listing docperm patch'i de dahil.)
+  - PLATFORM_TERMS + translate_platform_term + format_discount_badge.
+  - api/listing.py: spec grup başlıkları (Genel/Teknik...), paketleme etiketleri + package_type değerleri, UOM birimleri (Adet→Piece), teslim süresi (iş günü/gün), kart stats/indirim, kategori breadcrumb; tümü lang ile çözülüyor.
+
+---
 ## [v1.1.0-beta.1] - 2026-06-08 BETA
 
 Bu surum betaistoc.cronbi.com'da test asamasindadir.
