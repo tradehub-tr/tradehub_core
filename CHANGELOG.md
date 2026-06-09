@@ -1,3 +1,18 @@
+## [v1.1.0-beta.4] - 2026-06-09 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Eklendi
+- feat(pricing): paket yapısı, kart içeriği ve quota enforcement düzeltmeleri (@boraydeger32)
+  - 3 paketlik yapı: Basic / Pro Platinium / Enterprise (STARTER kaldırıldı, fixture'dan da çıkarıldı); Enterprise "Teklif Al" + 14 gün trial alanı
+  - Subscription Plan'a price_override_label alanı (fiyat yerine özel metin)
+  - Feature Catalog'a is_coming_soon alanı (storefront "Yakında" rozeti)
+  - public_pricing: ortak kart seti gösterimi (✓/✗), display_name fallback, enum/quota text_value ve coming_soon kart verisine eklendi
+  - permission_console: boş sayısal alanları 0'a normalize (fiyatsız plan kaydında "Value missing" hatası giderildi)
+  - fix: sub-user quota sayımı owner'ı dahil ediyordu → tradehub_is_owner=0 filtresi (seller_users.invite/reactivate); limit yalnız sub-user'ları sayar
+  - patch'ler: enforcement→pricing taşıma, 3-tier yapı, Enterprise full kart, küratörlü ve ortak kart setleri (v15_6_24..28)
+
+---
 ## [v1.1.0-beta.3] - 2026-06-09 BETA
 
 Bu surum betaistoc.cronbi.com'da test asamasindadir.
