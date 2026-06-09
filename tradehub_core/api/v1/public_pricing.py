@@ -294,6 +294,7 @@ def _build_features_matrix(
 			"enum_options",
 			"unit",
 			"description",
+			"is_coming_soon",
 		],
 		order_by="display_category asc, display_order asc, display_name asc",
 	)
@@ -345,6 +346,7 @@ def _build_features_matrix(
 				"enum_options": enum_options,
 				"unit": row.get("unit") or "",
 				"tooltip": row.get("description") or None,
+				"coming_soon": bool(row.get("is_coming_soon")),
 				"values_by_plan": values_by_plan,
 			}
 		)
