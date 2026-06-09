@@ -302,6 +302,8 @@ def get_category_tree(parent=None):
 		fields=[
 			"name",
 			"category_name",
+			"content_default_lang",
+			*[f"category_name_{lng}" for lng in CONTENT_LANGS],
 			"parent_product_category",
 			"is_active",
 			"sort_order",
@@ -311,9 +313,18 @@ def get_category_tree(parent=None):
 		],
 		order_by="sort_order asc, lft asc",
 	)
-	# Her kategorinin çocuk sayısını ekle
 	for c in cats:
 		c["child_count"] = frappe.db.count("Product Category", {"parent_product_category": c.name})
+		# Çeviri tamamlanmışlık göstergesi: adı dolu olan diller (panel rozeti için).
+		dl = c.get("content_default_lang") or "tr"
+		filled = []
+		for lng in CONTENT_LANGS:
+			value = (c.get(f"category_name_{lng}") or "").strip()
+			if not value and lng == dl:
+				value = (c.get("category_name") or "").strip()  # legacy base fallback
+			if value:
+				filled.append(lng)
+		c["name_langs"] = filled
 	return cats
 
 
