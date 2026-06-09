@@ -107,6 +107,7 @@ def list_feature_catalog() -> dict:
 			"unit",
 			"description",
 			"show_on_card",
+			"is_coming_soon",
 			"is_deprecated",
 		],
 		order_by="display_category asc, display_order asc, display_name asc",
@@ -124,6 +125,7 @@ def list_feature_catalog() -> dict:
 			"unit": r.get("unit") or "",
 			"description": r.get("description") or "",
 			"show_on_card": bool(r.get("show_on_card")),
+			"is_coming_soon": bool(r.get("is_coming_soon")),
 			"is_deprecated": bool(r.get("is_deprecated")),
 		}
 		for r in rows
@@ -153,6 +155,7 @@ def create_feature(
 	display_order: int = 0,
 	description: str = "",
 	show_on_card: int = 0,
+	is_coming_soon: int = 0,
 	unit: str = "",
 ) -> dict:
 	"""Yeni storefront feature'ı oluştur + her aktif plan için boş hücre seed et.
@@ -192,6 +195,7 @@ def create_feature(
 			"display_order": int(display_order or 0),
 			"description": description or "",
 			"show_on_card": 1 if int(show_on_card or 0) else 0,
+			"is_coming_soon": 1 if int(is_coming_soon or 0) else 0,
 			"unit": unit or "",
 		}
 	)
@@ -223,6 +227,7 @@ def update_feature(
 	display_order: int | None = None,
 	description: str | None = None,
 	show_on_card: int | None = None,
+	is_coming_soon: int | None = None,
 ) -> dict:
 	"""Var olan feature'ın storefront alanlarını güncelle. feature_key sabit kalır.
 
@@ -257,6 +262,8 @@ def update_feature(
 		doc.description = description
 	if show_on_card is not None:
 		doc.show_on_card = 1 if int(show_on_card) else 0
+	if is_coming_soon is not None:
+		doc.is_coming_soon = 1 if int(is_coming_soon) else 0
 	if doc.value_type == "enum" and not _split_options(doc.enum_options):
 		frappe.throw(_("enum value_type için en az bir seçenek (enum_options) gerekir"))
 	doc.save(ignore_permissions=True)

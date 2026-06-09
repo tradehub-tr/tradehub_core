@@ -1071,6 +1071,7 @@ _PRICING_DISPLAY_FIELDS = frozenset(
 		"max_active_listings",
 		"cta_label",
 		"cta_action",
+		"price_override_label",
 		"highlighted",
 		"display_order",
 		"trial_days",
@@ -1165,6 +1166,7 @@ def get_plan_full_detail(plan_code: str) -> dict:
 		"max_active_listings": int(plan.max_active_listings or 0),
 		"cta_label": plan.cta_label,
 		"cta_action": plan.cta_action or "signup",
+		"price_override_label": plan.price_override_label or "",
 		# Yetkinlikler
 		"capability_flags": caps,
 		"quota_limits": quotas,
@@ -1233,6 +1235,20 @@ def update_pricing_plan(
 	blocked_financial: list[str] = []
 
 	# 1) Display/pricing field'ları
+	# Sayısal alanlar boş/null gelirse 0'a normalize et — teklif-bazlı planlar
+	# (ör. Enterprise) fiyatı boş bırakabilmeli; aksi halde reqd `monthly_price`
+	# "Value missing" verir.
+	_numeric_display = {
+		"monthly_price",
+		"yearly_price",
+		"commission_rate",
+		"field_commission_rate",
+		"field_commission_fixed_amount",
+		"field_commission_duration",
+		"max_active_listings",
+		"trial_days",
+		"display_order",
+	}
 	if display and isinstance(display, dict):
 		for key, value in display.items():
 			if key not in _PRICING_DISPLAY_FIELDS:
@@ -1240,6 +1256,8 @@ def update_pricing_plan(
 			if not can_edit_financial and key in _PRICING_FINANCIAL_FIELDS:
 				blocked_financial.append(key)
 				continue
+			if key in _numeric_display and (value is None or value == ""):
+				value = 0
 			old = doc.get(key)
 			if old != value:
 				doc.set(key, value)

@@ -1,153 +1,160 @@
 {
-	"name": "Feature Catalog",
-	"doctype": "DocType",
-	"module": "Tradehub Core",
-	"naming_rule": "By fieldname",
-	"autoname": "field:feature_key",
-	"engine": "InnoDB",
-	"track_changes": 1,
-	"sort_field": "category",
-	"sort_order": "ASC",
-	"title_field": "display_name",
-	"fields": [
-		{
-			"fieldname": "feature_key",
-			"fieldtype": "Data",
-			"label": "Feature Key",
-			"reqd": 1,
-			"unique": 1,
-			"in_list_view": 1,
-			"in_standard_filter": 1,
-			"description": "Dot-notation: feature.category.name veya quota.metric_name"
-		},
-		{
-			"fieldname": "display_name",
-			"fieldtype": "Data",
-			"label": "Display Name",
-			"reqd": 1,
-			"in_list_view": 1
-		},
-		{
-			"fieldname": "category",
-			"fieldtype": "Select",
-			"label": "Category",
-			"options": "StoreFeatures\nPIMFeatures\nFunctionalFeatures\nSubUserFeatures\nQuotaLimits\nRegionEntitlement\nAPIFeatures\nAnalyticsFeatures",
-			"reqd": 1,
-			"in_list_view": 1,
-			"in_standard_filter": 1
-		},
-		{
-			"fieldname": "feature_type",
-			"fieldtype": "Select",
-			"label": "Feature Type",
-			"options": "Capability\nQuota",
-			"default": "Capability",
-			"reqd": 1,
-			"in_list_view": 1,
-			"description": "Capability = boolean toggle, Quota = numeric limit"
-		},
-		{
-			"fieldname": "cb_meta",
-			"fieldtype": "Column Break"
-		},
-		{
-			"fieldname": "default_value",
-			"fieldtype": "Data",
-			"label": "Default Value",
-			"description": "Capability için 'true'/'false', Quota için sayı"
-		},
-		{
-			"fieldname": "unit",
-			"fieldtype": "Data",
-			"label": "Unit",
-			"description": "Quota için birim (adet, MB, req/min)"
-		},
-		{
-			"fieldname": "is_deprecated",
-			"fieldtype": "Check",
-			"label": "Deprecated",
-			"default": 0
-		},
-		{
-			"fieldname": "introduced_in_version",
-			"fieldtype": "Data",
-			"label": "Introduced In Version",
-			"description": "Tanıtıldığı sürüm (örn. v15.1.2)"
-		},
-		{
-			"fieldname": "sb_storefront",
-			"fieldtype": "Section Break",
-			"label": "Storefront / Pricing Matrix"
-		},
-		{
-			"fieldname": "display_category",
-			"fieldtype": "Data",
-			"label": "Display Category",
-			"description": "Storefront pricing tablosunda hangi grup başlığı altında görünecek (serbest metin; admin yeni kategori ekleyebilir)"
-		},
-		{
-			"fieldname": "value_type",
-			"fieldtype": "Select",
-			"label": "Değer Tipi (storefront)",
-			"options": "boolean\nquota\nenum\ntext",
-			"default": "boolean",
-			"description": "Plan başına hücre kontrolünü belirler: boolean=toggle, quota=sayı(+Sınırsız), enum=seçim listesi, text=serbest metin. Tüm planlarda tutarlıdır."
-		},
-		{
-			"fieldname": "enum_options",
-			"fieldtype": "Small Text",
-			"label": "Enum Seçenekleri",
-			"depends_on": "eval:doc.value_type=='enum'",
-			"description": "value_type=enum için virgülle ayrılmış seçenekler (örn. Standart,Gümüş,Altın,Platinum)"
-		},
-		{
-			"fieldname": "display_order",
-			"fieldtype": "Int",
-			"label": "Display Order",
-			"default": "0",
-			"description": "Aynı kategori içinde sıralama (küçük → büyük)"
-		},
-		{
-			"fieldname": "cb_storefront",
-			"fieldtype": "Column Break"
-		},
-		{
-			"fieldname": "show_on_card",
-			"fieldtype": "Check",
-			"label": "Kartta Göster (varsayılan)",
-			"default": 0,
-			"description": "Yeni plan hücreleri için varsayılan 'kartta göster' değeri. Plan başına kürasyon Pricing Plan Feature.show_on_card ile yapılır."
-		},
-		{
-			"fieldname": "sb_description",
-			"fieldtype": "Section Break"
-		},
-		{
-			"fieldname": "description",
-			"fieldtype": "Long Text",
-			"label": "Description",
-			"description": "UI'da görünecek açıklama (pazarlama metni)"
-		}
-	],
-	"permissions": [
-		{
-			"role": "System Manager",
-			"read": 1,
-			"write": 1,
-			"create": 1,
-			"delete": 1,
-			"export": 1,
-			"report": 1,
-			"share": 1
-		},
-		{
-			"role": "Marketplace Admin",
-			"read": 1,
-			"write": 1
-		},
-		{
-			"role": "All",
-			"read": 1
-		}
-	]
+ "name": "Feature Catalog",
+ "doctype": "DocType",
+ "module": "Tradehub Core",
+ "naming_rule": "By fieldname",
+ "autoname": "field:feature_key",
+ "engine": "InnoDB",
+ "track_changes": 1,
+ "sort_field": "category",
+ "sort_order": "ASC",
+ "title_field": "display_name",
+ "fields": [
+  {
+   "fieldname": "feature_key",
+   "fieldtype": "Data",
+   "label": "Feature Key",
+   "reqd": 1,
+   "unique": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "description": "Dot-notation: feature.category.name veya quota.metric_name"
+  },
+  {
+   "fieldname": "display_name",
+   "fieldtype": "Data",
+   "label": "Display Name",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "category",
+   "fieldtype": "Select",
+   "label": "Category",
+   "options": "StoreFeatures\nPIMFeatures\nFunctionalFeatures\nSubUserFeatures\nQuotaLimits\nRegionEntitlement\nAPIFeatures\nAnalyticsFeatures",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "feature_type",
+   "fieldtype": "Select",
+   "label": "Feature Type",
+   "options": "Capability\nQuota",
+   "default": "Capability",
+   "reqd": 1,
+   "in_list_view": 1,
+   "description": "Capability = boolean toggle, Quota = numeric limit"
+  },
+  {
+   "fieldname": "cb_meta",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "default_value",
+   "fieldtype": "Data",
+   "label": "Default Value",
+   "description": "Capability için 'true'/'false', Quota için sayı"
+  },
+  {
+   "fieldname": "unit",
+   "fieldtype": "Data",
+   "label": "Unit",
+   "description": "Quota için birim (adet, MB, req/min)"
+  },
+  {
+   "fieldname": "is_deprecated",
+   "fieldtype": "Check",
+   "label": "Deprecated",
+   "default": 0
+  },
+  {
+   "fieldname": "introduced_in_version",
+   "fieldtype": "Data",
+   "label": "Introduced In Version",
+   "description": "Tanıtıldığı sürüm (örn. v15.1.2)"
+  },
+  {
+   "fieldname": "sb_storefront",
+   "fieldtype": "Section Break",
+   "label": "Storefront / Pricing Matrix"
+  },
+  {
+   "fieldname": "display_category",
+   "fieldtype": "Data",
+   "label": "Display Category",
+   "description": "Storefront pricing tablosunda hangi grup başlığı altında görünecek (serbest metin; admin yeni kategori ekleyebilir)"
+  },
+  {
+   "fieldname": "value_type",
+   "fieldtype": "Select",
+   "label": "Değer Tipi (storefront)",
+   "options": "boolean\nquota\nenum\ntext",
+   "default": "boolean",
+   "description": "Plan başına hücre kontrolünü belirler: boolean=toggle, quota=sayı(+Sınırsız), enum=seçim listesi, text=serbest metin. Tüm planlarda tutarlıdır."
+  },
+  {
+   "fieldname": "enum_options",
+   "fieldtype": "Small Text",
+   "label": "Enum Seçenekleri",
+   "depends_on": "eval:doc.value_type=='enum'",
+   "description": "value_type=enum için virgülle ayrılmış seçenekler (örn. Standart,Gümüş,Altın,Platinum)"
+  },
+  {
+   "fieldname": "display_order",
+   "fieldtype": "Int",
+   "label": "Display Order",
+   "default": "0",
+   "description": "Aynı kategori içinde sıralama (küçük → büyük)"
+  },
+  {
+   "fieldname": "cb_storefront",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "show_on_card",
+   "fieldtype": "Check",
+   "label": "Kartta Göster (varsayılan)",
+   "default": 0,
+   "description": "Yeni plan hücreleri için varsayılan 'kartta göster' değeri. Plan başına kürasyon Pricing Plan Feature.show_on_card ile yapılır."
+  },
+  {
+   "fieldname": "is_coming_soon",
+   "fieldtype": "Check",
+   "label": "Yakında",
+   "default": "0",
+   "description": "İşaretliyse storefront pricing kartında \"Yakında\" rozeti gösterilir (henüz çalışmayan/geliştirilen özellik)."
+  },
+  {
+   "fieldname": "sb_description",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Long Text",
+   "label": "Description",
+   "description": "UI'da görünecek açıklama (pazarlama metni)"
+  }
+ ],
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "export": 1,
+   "report": 1,
+   "share": 1
+  },
+  {
+   "role": "Marketplace Admin",
+   "read": 1,
+   "write": 1
+  },
+  {
+   "role": "All",
+   "read": 1
+  }
+ ]
 }

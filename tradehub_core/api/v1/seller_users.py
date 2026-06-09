@@ -182,7 +182,10 @@ def invite_sub_user(email: str, full_name: str, role_profile: str) -> dict:
 		frappe.throw(_("Bu e-postaya zaten aktif bir davet gönderilmiş: {0}").format(existing_invite))
 
 	# Kota kontrolü — mevcut aktif sub-user sayısı
-	current_count = frappe.db.count("User", {"tradehub_tenant": tenant, "enabled": 1})
+	# Owner (mağaza sahibi) sub-user kotasına DAHİL DEĞİL — limit yalnız ek kullanıcıları sayar.
+	current_count = frappe.db.count(
+		"User", {"tradehub_tenant": tenant, "enabled": 1, "tradehub_is_owner": 0}
+	)
 	check_quota_or_throw(
 		tenant,
 		"quota.max_sub_users",
@@ -359,7 +362,10 @@ def reactivate_sub_user(user: str) -> dict:
 		frappe.throw(_("Bu kullanıcı ekibinizde değil."), frappe.PermissionError)
 
 	# Kota kontrolü
-	current_count = frappe.db.count("User", {"tradehub_tenant": tenant, "enabled": 1})
+	# Owner (mağaza sahibi) sub-user kotasına DAHİL DEĞİL — limit yalnız ek kullanıcıları sayar.
+	current_count = frappe.db.count(
+		"User", {"tradehub_tenant": tenant, "enabled": 1, "tradehub_is_owner": 0}
+	)
 	check_quota_or_throw(
 		tenant,
 		"quota.max_sub_users",
