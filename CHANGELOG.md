@@ -1,3 +1,14 @@
+## [v1.1.0-beta.3] - 2026-06-09 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Eklendi
+- feat(i18n): demo içerik çevirilerini backfill eden patch (v15_7_3) (@aliturguttursab)
+  - İdempotent: yalnızca boş (_en null/'') satırları doldurur; mevcut çeviriyi ezmez.
+  - Yalnızca haritadaki kaynakla eşleşen (demo) içerik çevrilir; gerçek/farklı içerik etkilenmez (oto-çeviri ayrı özellik).
+  - patches.txt post_model_sync sonuna eklendi (kolonlar v15_7_0/2'de oluşur).
+
+---
 ## [v1.1.0-beta.2] - 2026-06-08 BETA
 
 Bu surum betaistoc.cronbi.com'da test asamasindadir.
