@@ -87,6 +87,7 @@ def get_pricing_plans() -> dict:
 			"max_active_listings",
 			"cta_label",
 			"cta_action",
+			"price_override_label",
 			"highlighted",
 			"display_order",
 			"trial_days",
@@ -120,21 +121,33 @@ def get_pricing_plans() -> dict:
 		order_by="parent asc, sort_order asc, idx asc",
 	)
 
-	# Faz A — per-kart `show_on_card` artık plan başına (Pricing Plan Feature hücresi);
-	# her plan kendi kart özet listesini kürasyon eder.
+	# Feature Catalog'tan display_name (boş display_text fallback'i) + is_coming_soon
+	# ("Yakında" rozeti — henüz çalışmayan özellik).
+	_fc_rows = frappe.get_all(
+		"Feature Catalog", fields=["feature_key", "display_name", "is_coming_soon"]
+	)
+	name_map = {r["feature_key"]: r["display_name"] for r in _fc_rows}
+	coming_map = {r["feature_key"]: bool(r.get("is_coming_soon")) for r in _fc_rows}
+
+	# Faz A — per-kart `show_on_card` plan başına (Pricing Plan Feature hücresi);
+	# her plan kendi kart özet listesini kürasyon eder (admin "Kartta" + seed patch).
 	features_by_plan: dict[str, list[dict]] = {}
 	# matris için (feature_key, plan_code) → row değeri
 	cell_by_key_and_plan: dict[tuple[str, str], dict] = {}
 	plan_code_by_name = {p["name"]: (p.get("plan_code") or p["name"]) for p in plans_raw}
 	for row in feature_rows:
-		features_by_plan.setdefault(row["parent"], []).append(
+		fkey = row.get("feature_key")
+		parent = row["parent"]
+		features_by_plan.setdefault(parent, []).append(
 			{
-				"display_text": row["display_text"],
+				"display_text": row.get("display_text") or name_map.get(fkey) or "",
 				"icon": row.get("icon") or "check",
 				"is_disabled": bool(row.get("is_disabled")),
-				"feature_key": row.get("feature_key"),
+				"feature_key": fkey,
 				"tooltip": row.get("tooltip"),
 				"show_on_card": bool(row.get("show_on_card")),
+				"text_value": row.get("text_value") or "",
+				"coming_soon": coming_map.get(fkey, False),
 			}
 		)
 		fkey = row.get("feature_key")
@@ -164,6 +177,7 @@ def get_pricing_plans() -> dict:
 				"max_active_listings": int(p.get("max_active_listings") or 0),
 				"cta_label": p.get("cta_label") or _("Devam et"),
 				"cta_action": p.get("cta_action") or "signup",
+				"price_override_label": p.get("price_override_label") or "",
 				"highlighted": bool(p.get("highlighted")),
 				"trial_days": int(p.get("trial_days") or 0),
 				"features": features_by_plan.get(p["name"], []),
@@ -223,9 +237,24 @@ def get_pricing_plans() -> dict:
 		cell_by_key_and_plan, plan_codes, plan_field_overrides
 	)
 
+	# Global trial konfigürasyonu (Trial Settings) — storefront buton-üstü CTA + üst bant.
+	from tradehub_core.tradehub_core.doctype.trial_settings.trial_settings import (
+		get_trial_settings,
+	)
+
+	_ts = get_trial_settings()
+	_trial_plan_code = plan_code_by_name.get(_ts["trial_plan"], _ts["trial_plan"]) if _ts["trial_plan"] else ""
+	trial_config = {
+		"enabled": _ts["trial_enabled"] and bool(_trial_plan_code),
+		"plan_code": _trial_plan_code,
+		"days": _ts["trial_days"],
+		"cta_label": _ts["trial_cta_label"],
+	}
+
 	response = {
 		"plans": plans,
 		"features_matrix": features_matrix,
+		"trial_config": trial_config,
 		"meta": {
 			"currency": dominant_currency,
 			"mixed_currency": mixed,
@@ -280,6 +309,7 @@ def _build_features_matrix(
 			"enum_options",
 			"unit",
 			"description",
+			"is_coming_soon",
 		],
 		order_by="display_category asc, display_order asc, display_name asc",
 	)
@@ -331,6 +361,7 @@ def _build_features_matrix(
 				"enum_options": enum_options,
 				"unit": row.get("unit") or "",
 				"tooltip": row.get("description") or None,
+				"coming_soon": bool(row.get("is_coming_soon")),
 				"values_by_plan": values_by_plan,
 			}
 		)

@@ -7,6 +7,13 @@ from frappe import _
 
 from tradehub_core.api._input import safe_float, safe_int
 from tradehub_core.api._pagination import normalize_pagination
+from tradehub_core.seo.i18n import (
+	CONTENT_LANGS,
+	format_discount_badge,
+	normalize_lang,
+	resolve_content_field,
+	translate_platform_term,
+)
 
 
 def _cache_key(prefix: str, **kwargs) -> str:
@@ -295,6 +302,7 @@ def get_listings(
 	brands=None,
 	attrs=None,
 	status=None,
+	lang="tr",
 ):
 	"""Get paginated list of active listings for the product listing page.
 
@@ -305,10 +313,12 @@ def get_listings(
 	  attrs  = "RENK:RED,BLUE|BEDEN:M,L"        → listing has ALL of these attribute values
 	"""
 	page, page_size, _start = normalize_pagination(page, page_size)
+	lang = normalize_lang(lang)
 
 	# ── Cache check ──
 	ck = _cache_key(
 		"listings",
+		lng=lang,
 		q=query,
 		cat=category,
 		minp=min_price,
@@ -675,6 +685,11 @@ def get_listings(
 		"status",
 	]
 
+	# i18n: kart için çevrilebilir alanların dil-sufix kolonları (resolve_content_field).
+	fields += ["content_default_lang"]
+	fields += [f"title_{lng}" for lng in CONTENT_LANGS]
+	fields += [f"selling_point_{lng}" for lng in CONTENT_LANGS]
+
 	# Convert dict filters to list-of-lists and append price filters
 	all_filters = [[k, v[0], v[1]] if isinstance(v, list) else [k, "=", v] for k, v in filters.items()]
 	all_filters.extend(price_filters)
@@ -801,6 +816,7 @@ def get_listings(
 			tier_cache=tier_cache,
 			brand_cache=brand_cache,
 			verified_seller_users=verified_seller_users,
+			lang=lang,
 		)
 		results.append(item)
 
@@ -821,11 +837,13 @@ def get_listings(
 
 
 @frappe.whitelist(allow_guest=True)
-def get_listing_detail(listing_id):
+def get_listing_detail(listing_id, lang="tr"):
 	"""Get full listing detail for the product detail page.
 
-	Returns data matching the frontend ProductDetail interface.
+	Returns data matching the frontend ProductDetail interface. `lang`: içerik dili
+	(tr/en/ar/ru); başlık/açıklama o dile çözülür, eksikse content_default_lang'e düşer.
 	"""
+	lang = normalize_lang(lang)
 	if not listing_id:
 		frappe.throw(_("Listing ID is required"))
 
@@ -971,7 +989,7 @@ def get_listing_detail(listing_id):
 				)
 
 	# Build category breadcrumb (prefer platform category, fallback to seller category)
-	category_breadcrumb = _get_category_breadcrumb(listing.product_category or listing.category)
+	category_breadcrumb = _get_category_breadcrumb(listing.product_category or listing.category, lang)
 	category_ranks = _get_category_ranks(listing)
 
 	# Get images — primary_image + listing_images child table
@@ -1040,8 +1058,11 @@ def get_listing_detail(listing_id):
 			fallback_tier["originalPrice"] = float(listing.selling_price) if listing.selling_price else None
 		price_tiers = [fallback_tier]
 
+	# i18n: kaynak/varsayılan dil (specs + variants + title/desc resolve için)
+	_dl = listing.get("content_default_lang")
+
 	# Get variants
-	variants = _get_listing_variants(listing_name)
+	variants = _get_listing_variants(listing_name, lang, _dl)
 
 	# When the seller has flipped status to "Out of Stock", we still expose the
 	# listing on the storefront (so it remains browsable) but force every stock
@@ -1063,13 +1084,15 @@ def get_listing_detail(listing_id):
 	for attr in listing.attribute_values or []:
 		specs.append(
 			{
-				"label": attr.attribute_label or attr.attribute,
-				"value": attr.attribute_value,
+				"label": resolve_content_field(attr, "attribute_label", lang, _dl)
+				or attr.attribute_label
+				or attr.attribute,
+				"value": resolve_content_field(attr, "attribute_value", lang, _dl) or attr.attribute_value,
 				"group": attr.attribute_group,
 			}
 		)
 
-	spec_groups = _build_spec_groups(listing, specs)
+	spec_groups = _build_spec_groups(listing, specs, lang)
 
 	# Brand enrichment — name, slug, logo from Brand doctype
 	brand_info = None
@@ -1092,30 +1115,49 @@ def get_listing_detail(listing_id):
 		except Exception:
 			pass
 
-	# Build packaging specs from dedicated fields
+	# Build packaging specs from dedicated fields.
+	# Etiketler platform-tanımlı sabit terimler → translate_platform_term ile çevrilir;
+	# değerler ölçü/birim (cm/kg/adet) olduğu için dile bağımsız kalır.
 	packaging_specs = []
 	if listing.package_type:
-		packaging_specs.append({"label": "Paket Tipi", "value": listing.package_type})
+		packaging_specs.append(
+			{
+				"label": translate_platform_term("Paket Tipi", lang),
+				"value": translate_platform_term(listing.package_type, lang),
+			}
+		)
 	if listing.package_length and listing.package_width and listing.package_height:
 		packaging_specs.append(
 			{
-				"label": "Paket Boyutu",
+				"label": translate_platform_term("Paket Boyutu", lang),
 				"value": f"{listing.package_length} x {listing.package_width} x {listing.package_height} cm",
 			}
 		)
 	if listing.package_weight:
-		packaging_specs.append({"label": "Paket Ağırlığı", "value": f"{listing.package_weight} kg"})
+		packaging_specs.append(
+			{"label": translate_platform_term("Paket Ağırlığı", lang), "value": f"{listing.package_weight} kg"}
+		)
 	if listing.units_per_package:
-		packaging_specs.append({"label": "Koli Başına Adet", "value": str(listing.units_per_package)})
+		packaging_specs.append(
+			{
+				"label": translate_platform_term("Koli Başına Adet", lang),
+				"value": str(listing.units_per_package),
+			}
+		)
 	if listing.carton_length and listing.carton_width and listing.carton_height:
 		packaging_specs.append(
 			{
-				"label": "Koli Boyutu",
+				"label": translate_platform_term("Koli Boyutu", lang),
 				"value": f"{listing.carton_length} x {listing.carton_width} x {listing.carton_height} cm",
 			}
 		)
 	if listing.carton_gross_weight:
-		packaging_specs.append({"label": "Koli Brüt Ağırlığı", "value": f"{listing.carton_gross_weight} kg"})
+		packaging_specs.append(
+			{
+				"label": translate_platform_term("Koli Brüt Ağırlığı", lang),
+				"value": f"{listing.carton_gross_weight} kg",
+			}
+		)
 
 	# Get shipping methods
 	shipping = []
@@ -1154,23 +1196,30 @@ def get_listing_detail(listing_id):
 	try:
 		from tradehub_core.seo import meta_builder
 
-		seo_payload = meta_builder.build_for_listing(listing.as_dict(), lang="tr")
+		# SEO URL/meta katmanı şimdilik yalnızca tr/en destekliyor → ar/ru için tr canonical.
+		seo_payload = meta_builder.build_for_listing(listing.as_dict(), lang=(lang if lang == "en" else "tr"))
 	except Exception:
 		seo_payload = {}
+
+	# i18n: içerik alanlarını istenen dile çöz (eksikse content_default_lang'e fallback).
+	_title = resolve_content_field(listing, "title", lang, _dl) or listing.title
+	_description = resolve_content_field(listing, "description", lang, _dl) or listing.description
+	_short_desc = resolve_content_field(listing, "short_description", lang, _dl) or listing.short_description
+	_selling = resolve_content_field(listing, "selling_point", lang, _dl) or listing.selling_point
 
 	result = {
 		"id": listing.name,
 		"listingCode": listing.listing_code,
 		"slug": listing.slug or "",
 		"seo": seo_payload,
-		"title": listing.title,
+		"title": _title,
 		"category": category_breadcrumb,
 		"productCategoryId": listing.product_category or "",
 		"images": images,
 		"priceTiers": price_tiers,
 		"moq": listing.min_order_qty or 1,
 		"sellInMoqMultiples": bool(listing.sell_in_moq_multiples),
-		"unit": listing.stock_uom or "piece",
+		"unit": translate_platform_term(listing.stock_uom, lang) if listing.stock_uom else "piece",
 		"samplePrice": listing.sample_price,
 		"currency": listing.currency,
 		# When a campaign is active, sellingPrice is the campaign price.
@@ -1182,16 +1231,18 @@ def get_listing_detail(listing_id):
 		if has_campaign and listing.selling_price
 		else None,
 		"originalPrice": _format_price(listing.selling_price, listing.currency) if has_campaign else None,
-		"discount": f"%{int(discount_percentage)} indirim" if has_campaign else None,
+		"discount": format_discount_badge(int(discount_percentage), lang) if has_campaign else None,
 		"basePrice": listing.base_price,
 		"discountPercentage": listing.discount_percentage,
 		"priceRange": price_range,
 		"shipping": shipping,
-		"leadTime": f"{listing.handling_days or 1} iş günü" if listing.handling_days else "",
+		"leadTime": f"{listing.handling_days or 1} {translate_platform_term('iş günü', lang)}"
+		if listing.handling_days
+		else "",
 		"leadTimeRanges": [
 			{
 				"quantityRange": f"{r.min_qty}-{r.max_qty}" if r.max_qty else f"{r.min_qty}+",
-				"days": f"{r.lead_days} gün",
+				"days": f"{r.lead_days} {translate_platform_term('gün', lang)}",
 			}
 			for r in (listing.lead_time_ranges or [])
 		],
@@ -1199,8 +1250,8 @@ def get_listing_detail(listing_id):
 		"specs": specs,
 		"specGroups": spec_groups,
 		"packagingSpecs": packaging_specs,
-		"description": listing.description,
-		"shortDescription": listing.short_description,
+		"description": _description,
+		"shortDescription": _short_desc,
 		"rating": listing.average_rating or 0,
 		"reviewCount": listing.review_count or 0,
 		"orderCount": listing.order_count or 0,
@@ -1225,7 +1276,7 @@ def get_listing_detail(listing_id):
 		"isFeatured": bool(listing.is_featured),
 		"isBestSeller": bool(listing.is_best_seller),
 		"isNewArrival": bool(listing.is_new_arrival),
-		"sellingPoint": listing.selling_point,
+		"sellingPoint": _selling,
 		"hasVariants": bool(listing.has_variants),
 		"stockQty": 0
 		if is_out_of_stock
@@ -1242,11 +1293,21 @@ def get_listing_detail(listing_id):
 
 
 @frappe.whitelist(allow_guest=True)
-def get_categories(parent=None, include_children=True):
+def get_categories(parent=None, include_children=True, lang="tr"):
 	"""Get product categories, optionally filtered by parent.
 
-	Returns hierarchical category structure.
+	Returns hierarchical category structure. `lang`: içerik dili (tr/en/ar/ru);
+	kategori adları o dile çözülür, eksikse content_default_lang'e fallback eder.
 	"""
+	lang = normalize_lang(lang)
+	_name_cols = [f"category_name_{lng}" for lng in CONTENT_LANGS]
+
+	def _cat_name(cat):
+		return (
+			resolve_content_field(cat, "category_name", lang, cat.get("content_default_lang"))
+			or cat.category_name
+		)
+
 	filters = {"is_active": 1}
 	if parent:
 		filters["parent_product_category"] = parent
@@ -1256,7 +1317,16 @@ def get_categories(parent=None, include_children=True):
 	categories = frappe.get_all(
 		"Product Category",
 		filters=filters,
-		fields=["name", "category_name", "parent_product_category", "image", "icon_class", "url_slug"],
+		fields=[
+			"name",
+			"category_name",
+			"content_default_lang",
+			*_name_cols,
+			"parent_product_category",
+			"image",
+			"icon_class",
+			"url_slug",
+		],
 		order_by="category_name ASC",
 	)
 
@@ -1264,7 +1334,7 @@ def get_categories(parent=None, include_children=True):
 	for cat in categories:
 		item = {
 			"id": cat.name,
-			"name": cat.category_name,
+			"name": _cat_name(cat),
 			"slug": cat.url_slug,
 			"image": cat.image,
 			"icon": cat.icon_class,
@@ -1279,14 +1349,14 @@ def get_categories(parent=None, include_children=True):
 			child_cats = frappe.get_all(
 				"Product Category",
 				filters={"parent_product_category": cat.name, "is_active": 1},
-				fields=["name", "category_name", "url_slug", "image"],
+				fields=["name", "category_name", "content_default_lang", *_name_cols, "url_slug", "image"],
 				order_by="category_name ASC",
 			)
 			for child in child_cats:
 				item["children"].append(
 					{
 						"id": child.name,
-						"name": child.category_name,
+						"name": _cat_name(child),
 						"slug": child.url_slug,
 						"image": child.image,
 						"productCount": frappe.db.count(
@@ -1799,8 +1869,14 @@ def get_filter_facets(
 
 
 @frappe.whitelist(allow_guest=True)
-def get_shipping_methods(listing_id=None):
-	"""Get available shipping methods, optionally for a specific listing."""
+def get_shipping_methods(listing_id=None, lang: str = "tr"):
+	"""Get available shipping methods, optionally for a specific listing.
+
+	`lang`: teslim süresi metnindeki ("iş günü") sabit terim istenen dile çevrilir;
+	kargo firma adları (Yurtiçi Kargo vb.) özel isim olduğundan kaynak kalır.
+	"""
+	lang = normalize_lang(lang)
+	business_days = translate_platform_term("iş günü", lang)
 
 	if listing_id:
 		# Get listing-specific shipping methods
@@ -1814,7 +1890,7 @@ def get_shipping_methods(listing_id=None):
 					"cost": sm.cost,
 					"minDays": sm.min_days,
 					"maxDays": sm.max_days,
-					"estimatedDays": f"{sm.min_days}-{sm.max_days} iş günü"
+					"estimatedDays": f"{sm.min_days}-{sm.max_days} {business_days}"
 					if sm.min_days and sm.max_days
 					else "",
 					"currency": listing.currency,
@@ -1849,7 +1925,7 @@ def get_shipping_methods(listing_id=None):
 				"type": m.shipping_type,
 				"minDays": m.min_days,
 				"maxDays": m.max_days,
-				"estimatedDays": f"{m.min_days}-{m.max_days} iş günü" if m.min_days and m.max_days else "",
+				"estimatedDays": f"{m.min_days}-{m.max_days} {business_days}" if m.min_days and m.max_days else "",
 				"baseCost": m.base_cost,
 				"costPerKg": m.cost_per_kg,
 				"currency": m.currency,
@@ -2796,6 +2872,7 @@ def _format_listing_card(
 	tier_cache=None,
 	brand_cache=None,
 	verified_seller_users=None,
+	lang="tr",
 ):
 	"""Format a listing record into the ProductListingCard structure for frontend.
 
@@ -2906,11 +2983,18 @@ def _format_listing_card(
 		f"/urun/{listing_slug}" if listing_slug else f"/pages/product-detail.html?id={listing.name}"
 	)
 
+	# i18n: çevrilebilir alanları istenen dile çöz (eksikse content_default_lang'e fallback).
+	_default_lang = listing.get("content_default_lang")
+	_title = resolve_content_field(listing, "title", lang, _default_lang) or listing.title
+	_selling = resolve_content_field(listing, "selling_point", lang, _default_lang) or listing.get(
+		"selling_point", ""
+	)
+
 	return {
 		"id": listing.name,
 		"listingCode": listing.get("listing_code", ""),
 		"slug": listing_slug,
-		"name": listing.title,
+		"name": _title,
 		"href": listing_href,
 		"price": price_display,
 		# sellingPrice in the API response means "the price the customer sees
@@ -2927,9 +3011,9 @@ def _format_listing_card(
 		"originalPrice": (
 			_format_price(selling_price, listing.get("currency")) if effective_price is not None else None
 		),
-		"discount": (f"%{int(discount_percentage)} indirim" if discount_percentage > 0 else None),
-		"moq": f"{listing.get('min_order_qty', 1)} {listing.get('stock_uom', 'Adet')}",
-		"stats": f"{_format_number(listing.get('order_count', 0))} adet satıldı"
+		"discount": (format_discount_badge(int(discount_percentage), lang) if discount_percentage > 0 else None),
+		"moq": f"{listing.get('min_order_qty', 1)} {translate_platform_term(listing.get('stock_uom') or 'Adet', lang)}",
+		"stats": f"{_format_number(listing.get('order_count', 0))} {translate_platform_term('adet satıldı', lang)}"
 		if listing.get("order_count")
 		else None,
 		"imageSrc": primary_image,
@@ -2948,8 +3032,8 @@ def _format_listing_card(
 		"reviewCount": listing.get("review_count", 0),
 		"supplierRating": supplier_rating,
 		"supplierReviewCount": supplier_review_count,
-		"sellingPoint": listing.get("selling_point", ""),
-		"promo": listing.get("selling_point", ""),
+		"sellingPoint": _selling,
+		"promo": _selling,
 		"isFreeShipping": bool(listing.get("is_free_shipping")),
 		"isFeatured": bool(listing.get("is_featured")),
 		"isBestSeller": bool(listing.get("is_best_seller")),
@@ -2986,8 +3070,12 @@ def _brand_logo(brand_code, brand_cache=None):
 	return frappe.db.get_value("Brand", brand_code, "logo") or ""
 
 
-def _build_spec_groups(listing, specs):
-	"""Group specs by attribute_group, honoring Attribute Set group order/labels when available."""
+def _build_spec_groups(listing, specs, lang="tr"):
+	"""Group specs by attribute_group, honoring Attribute Set group order/labels when available.
+
+	`lang`: grup başlıkları platform-tanımlı sabit terimler (Genel/Teknik/Uyum...);
+	`translate_platform_term` ile istenen dile çevrilir, bilinmeyen grup kaynak kalır.
+	"""
 	if not specs:
 		return []
 
@@ -3021,12 +3109,20 @@ def _build_spec_groups(listing, specs):
 	result = []
 	for code, meta in sorted(group_meta.items(), key=lambda kv: kv[1]["order"]):
 		if code in buckets:
-			result.append({"code": code, "label": meta["label"], "items": buckets[code]})
+			result.append(
+				{
+					"code": code,
+					"label": translate_platform_term(meta["label"], lang),
+					"items": buckets[code],
+				}
+			)
 			seen.add(code)
 	for code, items in buckets.items():
 		if code in seen:
 			continue
-		result.append({"code": code, "label": code or "Genel", "items": items})
+		result.append(
+			{"code": code, "label": translate_platform_term(code or "Genel", lang), "items": items}
+		)
 	return result
 
 
@@ -3047,11 +3143,19 @@ def _brand_slug(brand_code, brand_cache=None):
 	return slug
 
 
-def _get_listing_variants(listing_name):
+def _get_listing_variants(listing_name, lang="tr", default_lang=None):
 	"""Get variants grouped by attribute name for the product detail page.
 
 	Source: Listing.variant_items child table (inline — the only supported path).
+	`lang`/`default_lang`: varyant eksen adları + değerleri için ÇEVİRİ DISPLAY'i
+	üretilir; ID/eşleşme alanları (value/name) KAYNAK dilde kalır — varyant ID'leri
+	(`LST-..-Renk-Siyah`), snapshot ve sepet eşleşmesi kaynak değere bağlıdır.
 	"""
+	i18n_cols = [
+		f"{f}_{lng}"
+		for f in ("attribute_type", "attribute_value", "attribute_type_2", "attribute_value_2")
+		for lng in CONTENT_LANGS
+	]
 	inline_variants = frappe.get_all(
 		"Listing Variant Item",
 		filters={"parent": listing_name, "parenttype": "Listing"},
@@ -3060,6 +3164,7 @@ def _get_listing_variants(listing_name):
 			"attribute_value",
 			"attribute_type_2",
 			"attribute_value_2",
+			*i18n_cols,
 			"axis_values_json",
 			"is_default",
 			"variant_image",
@@ -3073,12 +3178,32 @@ def _get_listing_variants(listing_name):
 	)
 
 	if inline_variants:
-		return _build_variants_from_inline(listing_name, inline_variants)
+		return _build_variants_from_inline(listing_name, inline_variants, lang, default_lang)
 
 	return []
 
 
-def _build_variants_from_inline(listing_name, inline_variants):
+def _build_variant_xlat(rows, lang, default_lang):
+	"""inline varyant satırlarından kaynak-metin → çeviri haritaları üret.
+
+	(eksen adı haritası, değer haritası). ID/eşleşme kaynak metne bağlı olduğundan
+	yalnızca DISPLAY (displayName/label) için kullanılır.
+	"""
+	names: dict[str, str] = {}
+	values: dict[str, str] = {}
+	for v in rows:
+		for nf in ("attribute_type", "attribute_type_2"):
+			src = (v.get(nf) or "").strip()
+			if src and src not in names:
+				names[src] = resolve_content_field(v, nf, lang, default_lang) or src
+		for vf in ("attribute_value", "attribute_value_2"):
+			src = (v.get(vf) or "").strip()
+			if src and src not in values:
+				values[src] = resolve_content_field(v, vf, lang, default_lang) or src
+	return names, values
+
+
+def _build_variants_from_inline(listing_name, inline_variants, lang="tr", default_lang=None):
 	"""Build variant groups from Listing Variant Item child table rows.
 
 	Supports N axes: axis1 (e.g. Color — with images) + axis2 (e.g. Size — text)
@@ -3345,6 +3470,15 @@ def _build_variants_from_inline(listing_name, inline_variants):
 	if sku_matrix:
 		result[0]["skuMatrix"] = sku_matrix
 
+	# i18n: çevrilmiş DISPLAY alanları EKLE — name/label/value/variantId + skuMatrix
+	# tümüyle KAYNAK kalır (varyant ID, snapshot, sepet eşleşmesi, cross-disable kaynak
+	# değere bağlı). Storefront `displayName`/`displayLabel`'ı YALNIZCA gösterimde kullanır.
+	name_xlat, value_xlat = _build_variant_xlat(inline_variants, lang, default_lang)
+	for group in result:
+		group["displayName"] = name_xlat.get(group.get("name"), group.get("name"))
+		for opt in group.get("options", []) or []:
+			opt["displayLabel"] = value_xlat.get(opt.get("value"), opt.get("label") or opt.get("value"))
+
 	return result
 
 
@@ -3422,11 +3556,15 @@ def _get_category_ranks(listing):
 	return ranks
 
 
-def _get_category_breadcrumb(category_name):
-	"""Build category breadcrumb path."""
+def _get_category_breadcrumb(category_name, lang="tr"):
+	"""Build category breadcrumb path.
+
+	`lang`: kategori adları çok-dilli suffix kolonlarından istenen dile çözülür.
+	"""
 	if not category_name:
 		return []
 
+	lang = normalize_lang(lang)
 	breadcrumb = []
 	current = category_name
 	max_depth = 10  # prevent infinite loops
@@ -3435,11 +3573,20 @@ def _get_category_breadcrumb(category_name):
 		cat = frappe.db.get_value(
 			"Product Category",
 			current,
-			["category_name", "parent_product_category"],
+			[
+				"category_name",
+				"content_default_lang",
+				*[f"category_name_{lng}" for lng in CONTENT_LANGS],
+				"parent_product_category",
+			],
 			as_dict=True,
 		)
 		if cat:
-			breadcrumb.insert(0, cat.category_name)
+			breadcrumb.insert(
+				0,
+				resolve_content_field(cat, "category_name", lang, cat.get("content_default_lang"))
+				or cat.category_name,
+			)
 			current = cat.parent_product_category
 		else:
 			break

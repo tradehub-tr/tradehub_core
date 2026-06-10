@@ -1071,6 +1071,7 @@ _PRICING_DISPLAY_FIELDS = frozenset(
 		"max_active_listings",
 		"cta_label",
 		"cta_action",
+		"price_override_label",
 		"highlighted",
 		"display_order",
 		"trial_days",
@@ -1165,6 +1166,7 @@ def get_plan_full_detail(plan_code: str) -> dict:
 		"max_active_listings": int(plan.max_active_listings or 0),
 		"cta_label": plan.cta_label,
 		"cta_action": plan.cta_action or "signup",
+		"price_override_label": plan.price_override_label or "",
 		# Yetkinlikler
 		"capability_flags": caps,
 		"quota_limits": quotas,
@@ -1233,6 +1235,20 @@ def update_pricing_plan(
 	blocked_financial: list[str] = []
 
 	# 1) Display/pricing field'ları
+	# Sayısal alanlar boş/null gelirse 0'a normalize et — teklif-bazlı planlar
+	# (ör. Enterprise) fiyatı boş bırakabilmeli; aksi halde reqd `monthly_price`
+	# "Value missing" verir.
+	_numeric_display = {
+		"monthly_price",
+		"yearly_price",
+		"commission_rate",
+		"field_commission_rate",
+		"field_commission_fixed_amount",
+		"field_commission_duration",
+		"max_active_listings",
+		"trial_days",
+		"display_order",
+	}
 	if display and isinstance(display, dict):
 		for key, value in display.items():
 			if key not in _PRICING_DISPLAY_FIELDS:
@@ -1240,6 +1256,8 @@ def update_pricing_plan(
 			if not can_edit_financial and key in _PRICING_FINANCIAL_FIELDS:
 				blocked_financial.append(key)
 				continue
+			if key in _numeric_display and (value is None or value == ""):
+				value = 0
 			old = doc.get(key)
 			if old != value:
 				doc.set(key, value)
@@ -2162,3 +2180,63 @@ def list_rbac_audit(limit: int = 50) -> dict:
 	entries = entries[:limit_int]
 
 	return {"entries": entries, "count": len(entries)}
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Trial Settings — global ücretsiz deneme konfigürasyonu (hangi paket + kaç gün)
+# ──────────────────────────────────────────────────────────────────────────
+
+
+@frappe.whitelist()
+def get_trial_settings() -> dict:
+	"""Global trial ayarlarını döndür (admin görüntüleme)."""
+	_require_admin("read")
+	from tradehub_core.tradehub_core.doctype.trial_settings.trial_settings import (
+		get_trial_settings as _get,
+	)
+
+	return _get()
+
+
+@frappe.whitelist()
+def update_trial_settings(
+	enabled: int | str | bool = 0,
+	plan_code: str = "",
+	days: int | str = 0,
+	cta_label: str = "",
+) -> dict:
+	"""Global trial ayarlarını güncelle.
+
+	Seçilen paketin Subscription Plan.trial_days'i de senkronlanır; böylece backend
+	trial başlatma (upgrade_subscription_plan plan_doc.trial_days okur) tutarlı kalır.
+	"""
+	from tradehub_core.api.v1.public_pricing import invalidate_pricing_cache
+	from tradehub_core.tradehub_core.doctype.trial_settings.trial_settings import (
+		get_trial_settings as _get,
+	)
+
+	_require_admin("write")
+
+	enabled_bool = str(enabled).strip().lower() in ("1", "true", "yes")
+	plan_code = (plan_code or "").strip()
+	days_int = max(0, int(days or 0))
+
+	if enabled_bool and not plan_code:
+		frappe.throw(_("Trial aktifken bir paket seçilmelidir."))
+	if plan_code and not frappe.db.exists("Subscription Plan", plan_code):
+		frappe.throw(_("Paket bulunamadı: {0}").format(plan_code))
+
+	doc = frappe.get_single("Trial Settings")
+	doc.trial_enabled = 1 if enabled_bool else 0
+	doc.trial_plan = plan_code
+	doc.trial_days = days_int
+	doc.trial_cta_label = (cta_label or "").strip()
+	doc.save(ignore_permissions=True)
+
+	# Seçilen planın trial_days'i ile senkronla
+	if plan_code:
+		frappe.db.set_value("Subscription Plan", plan_code, "trial_days", days_int)
+
+	frappe.db.commit()
+	invalidate_pricing_cache()
+	return _get()

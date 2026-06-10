@@ -64,7 +64,7 @@ def execute() -> dict:
 			if k == "allowed_regions":
 				continue
 			# JSON field'ları (capability_flags, quota_limits) string'e çevir
-			if isinstance(v, (dict, list)) and k in ("capability_flags", "quota_limits"):
+			if isinstance(v, dict | list) and k in ("capability_flags", "quota_limits"):
 				v = json.dumps(v, ensure_ascii=False)
 			doc.set(k, v)
 		doc.flags.ignore_permissions = True

@@ -1,0 +1,90 @@
+{
+ "actions": [],
+ "creation": "2026-06-09 12:00:00",
+ "doctype": "DocType",
+ "editable_grid": 0,
+ "engine": "InnoDB",
+ "field_order": [
+  "sb_trial",
+  "trial_enabled",
+  "trial_plan",
+  "cb_trial",
+  "trial_days",
+  "trial_cta_label"
+ ],
+ "fields": [
+  {
+   "fieldname": "sb_trial",
+   "fieldtype": "Section Break",
+   "label": "Deneme (Trial) Ayarları"
+  },
+  {
+   "default": "0",
+   "fieldname": "trial_enabled",
+   "fieldtype": "Check",
+   "label": "Trial Aktif",
+   "description": "Açıkken storefront'ta seçilen paketin butonu üstünde ve üst bantta 'ücretsiz dene' CTA'sı gösterilir."
+  },
+  {
+   "fieldname": "trial_plan",
+   "fieldtype": "Link",
+   "label": "Trial Paketi",
+   "options": "Subscription Plan",
+   "description": "Hangi paket ücretsiz denenebilecek."
+  },
+  {
+   "fieldname": "cb_trial",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "trial_days",
+   "fieldtype": "Int",
+   "label": "Deneme Süresi (gün)",
+   "description": "Kaç gün ücretsiz denenebilecek. Seçilen paketin trial_days'i ile senkronlanır."
+  },
+  {
+   "fieldname": "trial_cta_label",
+   "fieldtype": "Data",
+   "label": "Buton Metni",
+   "description": "Boşsa '{gün} gün ücretsiz dene' otomatik gösterilir."
+  }
+ ],
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-06-09 12:00:00",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "Trial Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 0,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 0,
+   "delete": 0,
+   "email": 0,
+   "export": 0,
+   "print": 0,
+   "read": 1,
+   "report": 0,
+   "role": "All",
+   "share": 0,
+   "write": 0
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

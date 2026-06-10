@@ -1,3 +1,70 @@
+## [v1.1.0-beta.9] - 2026-06-10 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Duzeltildi
+- fix(plan): planda zaten kayıtlı deprecated capability key save'i engellemesin (@boraydeger32)
+
+---
+## [v1.1.0-beta.8] - 2026-06-10 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Eklendi
+- feat(trial): global trial config + storefront trial_config + matris "Yakında" (@boraydeger32)
+  - Trial Settings (Single DocType): trial_enabled/trial_plan/trial_days/trial_cta_label + get_trial_settings helper + on_update cache invalidation
+  - permission_console: get_trial_settings / update_trial_settings (plan trial_days senkron)
+  - public_pricing: response'a trial_config; _build_features_matrix'e coming_soon
+
+---
+## [v1.1.0-beta.7] - 2026-06-10 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Eklendi
+- feat(i18n-ux): get_category_tree çeviri tamamlanmışlık bilgisi (Faz 2) (@aliturguttursab)
+- feat(i18n): get_category_translations — çeviri workbench için düz kategori listesi (@aliturguttursab)
+
+---
+## [v1.1.0-beta.4] - 2026-06-09 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Eklendi
+- feat(pricing): paket yapısı, kart içeriği ve quota enforcement düzeltmeleri (@boraydeger32)
+  - 3 paketlik yapı: Basic / Pro Platinium / Enterprise (STARTER kaldırıldı, fixture'dan da çıkarıldı); Enterprise "Teklif Al" + 14 gün trial alanı
+  - Subscription Plan'a price_override_label alanı (fiyat yerine özel metin)
+  - Feature Catalog'a is_coming_soon alanı (storefront "Yakında" rozeti)
+  - public_pricing: ortak kart seti gösterimi (✓/✗), display_name fallback, enum/quota text_value ve coming_soon kart verisine eklendi
+  - permission_console: boş sayısal alanları 0'a normalize (fiyatsız plan kaydında "Value missing" hatası giderildi)
+  - fix: sub-user quota sayımı owner'ı dahil ediyordu → tradehub_is_owner=0 filtresi (seller_users.invite/reactivate); limit yalnız sub-user'ları sayar
+  - patch'ler: enforcement→pricing taşıma, 3-tier yapı, Enterprise full kart, küratörlü ve ortak kart setleri (v15_6_24..28)
+
+---
+## [v1.1.0-beta.3] - 2026-06-09 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Eklendi
+- feat(i18n): demo içerik çevirilerini backfill eden patch (v15_7_3) (@aliturguttursab)
+  - İdempotent: yalnızca boş (_en null/'') satırları doldurur; mevcut çeviriyi ezmez.
+  - Yalnızca haritadaki kaynakla eşleşen (demo) içerik çevrilir; gerçek/farklı içerik etkilenmez (oto-çeviri ayrı özellik).
+  - patches.txt post_model_sync sonuna eklendi (kolonlar v15_7_0/2'de oluşur).
+
+---
+## [v1.1.0-beta.2] - 2026-06-08 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Eklendi
+- feat(i18n): çok-dilli içerik altyapısı + kategori/platform-terim çevirileri (@aliturguttursab)
+  - seo/i18n.py: resolve_content_field + {field}_{lang} sufix modeli, normalize_lang, CONTENT_TRANSLATABLE/CHILD config (Listing, Product Category, Listing Attribute Value, Listing Variant Item).
+  - utils/content_i18n.py + DocType controller (Listing, Product Category): validate()'te base ↔ varsayılan-dil senkronu + zorunlu-dil kontrolü.
+  - patches v15_7_0 (parent kolonlar) + v15_7_2 (child kolonlar): custom field üretimi + mevcut TR içeriği _tr koluna backfill. patches.txt + fixtures/custom_field.json güncellendi. (v15_7_1: seller-owner listing docperm patch'i de dahil.)
+  - PLATFORM_TERMS + translate_platform_term + format_discount_badge.
+  - api/listing.py: spec grup başlıkları (Genel/Teknik...), paketleme etiketleri + package_type değerleri, UOM birimleri (Adet→Piece), teslim süresi (iş günü/gün), kart stats/indirim, kategori breadcrumb; tümü lang ile çözülüyor.
+
+---
 ## [v1.1.0-beta.1] - 2026-06-08 BETA
 
 Bu surum betaistoc.cronbi.com'da test asamasindadir.

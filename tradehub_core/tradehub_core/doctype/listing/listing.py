@@ -6,6 +6,7 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import flt, now_datetime
 
+from tradehub_core.utils.content_i18n import sync_content_translations
 from tradehub_core.utils.notify import notify
 
 # Satıcının onay sonrası değiştirebileceği durumlar
@@ -38,6 +39,7 @@ class Listing(Document):
 				self.seller_profile = _get_seller_profile_from_session()
 
 	def validate(self):
+		sync_content_translations(self)
 		self._resolve_attribute_links()
 		self.calculate_available_qty()
 		self.validate_pricing()

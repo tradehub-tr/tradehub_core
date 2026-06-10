@@ -1,275 +1,281 @@
 {
-	"name": "Subscription Plan",
-	"doctype": "DocType",
-	"module": "Tradehub Core",
-	"naming_rule": "By fieldname",
-	"autoname": "field:plan_code",
-	"engine": "InnoDB",
-	"track_changes": 1,
-	"sort_field": "display_order",
-	"sort_order": "ASC",
-	"title_field": "plan_name",
-	"fields": [
-		{
-			"fieldname": "tab_basic",
-			"fieldtype": "Tab Break",
-			"label": "Temel Bilgi"
-		},
-		{
-			"fieldname": "plan_code",
-			"fieldtype": "Data",
-			"label": "Plan Code",
-			"reqd": 1,
-			"unique": 1,
-			"in_list_view": 1,
-			"description": "Lowercase, dash veya underscore (örn. free, starter, pro, enterprise)"
-		},
-		{
-			"fieldname": "plan_name",
-			"fieldtype": "Data",
-			"label": "Plan Name",
-			"reqd": 1,
-			"in_list_view": 1
-		},
-		{
-			"fieldname": "description",
-			"fieldtype": "Long Text",
-			"label": "Description",
-			"description": "Pazarlama metni / plan tanıtımı"
-		},
-		{
-			"fieldname": "cb_status",
-			"fieldtype": "Column Break"
-		},
-		{
-			"fieldname": "is_active",
-			"fieldtype": "Check",
-			"label": "Active",
-			"default": 1,
-			"in_list_view": 1,
-			"in_standard_filter": 1,
-			"description": "Aktif olmayan plan yeni satıcılara açılmaz"
-		},
-		{
-			"fieldname": "is_public",
-			"fieldtype": "Check",
-			"label": "Public",
-			"default": 1,
-			"description": "Public değilse sadece davet ile (Enterprise için False)"
-		},
-		{
-			"fieldname": "display_order",
-			"fieldtype": "Int",
-			"label": "Display Order",
-			"default": 100,
-			"description": "UI'da gösterim sırası (küçük olan önce)"
-		},
-		{
-			"fieldname": "highlighted",
-			"fieldtype": "Check",
-			"label": "Highlighted",
-			"default": 0,
-			"description": "'En popüler' rozeti için"
-		},
-		{
-			"fieldname": "badge_label",
-			"fieldtype": "Data",
-			"label": "Badge Label",
-			"description": "Rozet metni (örn. EN POPÜLER, YENİ). Boşsa rozet gösterilmez"
-		},
-		{
-			"fieldname": "badge_color",
-			"fieldtype": "Select",
-			"label": "Badge Color",
-			"options": "\ndefault\nyellow\nblack\npremium\ngreen\nblue",
-			"default": "default",
-			"description": "Rozet rengi"
-		},
-		{
-			"fieldname": "theme",
-			"fieldtype": "Select",
-			"label": "Theme",
-			"options": "\ndefault\ndark\npremium\nlight",
-			"default": "default",
-			"description": "Pricing card teması"
-		},
-		{
-			"fieldname": "short_tagline",
-			"fieldtype": "Data",
-			"label": "Short Tagline",
-			"description": "Plan kartı altında kısa açıklama satırı"
-		},
-		{
-			"fieldname": "cta_label",
-			"fieldtype": "Data",
-			"label": "CTA Label",
-			"default": "Devam et",
-			"description": "Call-to-action buton metni"
-		},
-		{
-			"fieldname": "cta_action",
-			"fieldtype": "Select",
-			"label": "CTA Action",
-			"options": "\nsignup\nsignup_billing\ncontact_sales",
-			"default": "signup",
-			"description": "signup = kayıt, signup_billing = ödeme, contact_sales = iletişim"
-		},
-		{
-			"fieldname": "tab_pricing",
-			"fieldtype": "Tab Break",
-			"label": "Fiyatlandırma"
-		},
-		{
-			"fieldname": "currency",
-			"fieldtype": "Link",
-			"label": "Currency",
-			"options": "Currency",
-			"default": "EUR",
-			"reqd": 1
-		},
-		{
-			"fieldname": "monthly_price",
-			"fieldtype": "Currency",
-			"label": "Monthly Price",
-			"default": 0,
-			"reqd": 1,
-			"in_list_view": 1
-		},
-		{
-			"fieldname": "yearly_price",
-			"fieldtype": "Currency",
-			"label": "Yearly Price",
-			"default": 0,
-			"description": "Yıllık indirimli fiyat (0 = devre dışı)"
-		},
-		{
-			"fieldname": "cb_trial",
-			"fieldtype": "Column Break"
-		},
-		{
-			"fieldname": "commission_rate",
-			"fieldtype": "Percent",
-			"label": "Commission Rate",
-			"default": 0,
-			"description": "Platform komisyon oranı (%)"
-		},
-		{
-			"fieldname": "field_commission_type",
-			"fieldtype": "Select",
-			"label": "Saha Komisyon Türü",
-			"options": "Yüzde\nSabit Ücret",
-			"default": "Yüzde",
-			"description": "Yüzde: paket fiyatının %'si. Sabit Ücret: satış başına sabit tutar."
-		},
-		{
-			"fieldname": "field_commission_rate",
-			"fieldtype": "Percent",
-			"label": "Saha Komisyon Oranı",
-			"depends_on": "eval:doc.field_commission_type=='Yüzde'"
-		},
-		{
-			"fieldname": "field_commission_fixed_amount",
-			"fieldtype": "Currency",
-			"label": "Saha Sabit Ücret",
-			"depends_on": "eval:doc.field_commission_type=='Sabit Ücret'",
-			"default": 0
-		},
-		{
-			"fieldname": "field_commission_mode",
-			"fieldtype": "Select",
-			"label": "Saha Komisyon Modu",
-			"options": "Tek seferlik\nTekrarlayan\nBelirli süre",
-			"default": "Tek seferlik"
-		},
-		{
-			"fieldname": "field_commission_duration",
-			"fieldtype": "Int",
-			"label": "Komisyon Süresi (ay)",
-			"depends_on": "eval:doc.field_commission_mode=='Belirli süre'",
-			"default": "0"
-		},
-		{
-			"fieldname": "max_active_listings",
-			"fieldtype": "Int",
-			"label": "Max Active Listings",
-			"default": 0,
-			"description": "Aynı anda aktif olabilecek maksimum listeleme sayısı (0 = sınırsız)"
-		},
-		{
-			"fieldname": "trial_days",
-			"fieldtype": "Int",
-			"label": "Trial Days",
-			"default": 0,
-			"description": "Deneme süresi (gün); 0 = trial yok"
-		},
-		{
-			"fieldname": "tab_features",
-			"fieldtype": "Tab Break",
-			"label": "Yetenekler ve Kotalar"
-		},
-		{
-			"fieldname": "capability_flags",
-			"fieldtype": "JSON",
-			"label": "Capability Flags",
-			"description": "feature.* key'lerinden true/false eşlemesi. Örn: {\"feature.pim.multi_variant\": true, \"feature.api.access\": false}"
-		},
-		{
-			"fieldname": "quota_limits",
-			"fieldtype": "JSON",
-			"label": "Quota Limits",
-			"description": "quota.* key'lerinden sayısal eşleme. Örn: {\"quota.max_sub_users\": 10, \"quota.max_products\": 5000}"
-		},
-		{
-			"fieldname": "tab_display",
-			"fieldtype": "Tab Break",
-			"label": "Gösterim Özellikleri"
-		},
-		{
-			"fieldname": "pricing_features",
-			"fieldtype": "Table",
-			"label": "Pricing Features",
-			"options": "Pricing Plan Feature",
-			"description": "Pricing card'larda gösterilecek feature/benefit listesi"
-		},
-		{
-			"fieldname": "quota_tiers",
-			"fieldtype": "Table",
-			"label": "Saha Kota Eşikleri",
-			"options": "Field Commission Quota Tier",
-			"description": "Bu pakette dönemde min_sales satışa ulaşan saha elemanı ilgili bonus_amount'u alır. En yüksek eşik kazanır."
-		},
-		{
-			"fieldname": "tab_regions",
-			"fieldtype": "Tab Break",
-			"label": "Bölgeler"
-		},
-		{
-			"fieldname": "allowed_regions",
-			"fieldtype": "Table",
-			"label": "Allowed Regions",
-			"options": "Subscription Plan Region",
-			"description": "Bu plan satın alan satıcı hangi bölgelerde satış/listeleme hakkı kazanır"
-		}
-	],
-	"permissions": [
-		{
-			"role": "System Manager",
-			"read": 1,
-			"write": 1,
-			"create": 1,
-			"delete": 1,
-			"export": 1,
-			"report": 1,
-			"share": 1
-		},
-		{
-			"role": "Marketplace Admin",
-			"read": 1,
-			"write": 1
-		},
-		{
-			"role": "All",
-			"read": 1
-		}
-	]
+ "name": "Subscription Plan",
+ "doctype": "DocType",
+ "module": "Tradehub Core",
+ "naming_rule": "By fieldname",
+ "autoname": "field:plan_code",
+ "engine": "InnoDB",
+ "track_changes": 1,
+ "sort_field": "display_order",
+ "sort_order": "ASC",
+ "title_field": "plan_name",
+ "fields": [
+  {
+   "fieldname": "tab_basic",
+   "fieldtype": "Tab Break",
+   "label": "Temel Bilgi"
+  },
+  {
+   "fieldname": "plan_code",
+   "fieldtype": "Data",
+   "label": "Plan Code",
+   "reqd": 1,
+   "unique": 1,
+   "in_list_view": 1,
+   "description": "Lowercase, dash veya underscore (örn. free, starter, pro, enterprise)"
+  },
+  {
+   "fieldname": "plan_name",
+   "fieldtype": "Data",
+   "label": "Plan Name",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Long Text",
+   "label": "Description",
+   "description": "Pazarlama metni / plan tanıtımı"
+  },
+  {
+   "fieldname": "cb_status",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "label": "Active",
+   "default": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "description": "Aktif olmayan plan yeni satıcılara açılmaz"
+  },
+  {
+   "fieldname": "is_public",
+   "fieldtype": "Check",
+   "label": "Public",
+   "default": 1,
+   "description": "Public değilse sadece davet ile (Enterprise için False)"
+  },
+  {
+   "fieldname": "display_order",
+   "fieldtype": "Int",
+   "label": "Display Order",
+   "default": 100,
+   "description": "UI'da gösterim sırası (küçük olan önce)"
+  },
+  {
+   "fieldname": "highlighted",
+   "fieldtype": "Check",
+   "label": "Highlighted",
+   "default": 0,
+   "description": "'En popüler' rozeti için"
+  },
+  {
+   "fieldname": "badge_label",
+   "fieldtype": "Data",
+   "label": "Badge Label",
+   "description": "Rozet metni (örn. EN POPÜLER, YENİ). Boşsa rozet gösterilmez"
+  },
+  {
+   "fieldname": "badge_color",
+   "fieldtype": "Select",
+   "label": "Badge Color",
+   "options": "\ndefault\nyellow\nblack\npremium\ngreen\nblue",
+   "default": "default",
+   "description": "Rozet rengi"
+  },
+  {
+   "fieldname": "theme",
+   "fieldtype": "Select",
+   "label": "Theme",
+   "options": "\ndefault\ndark\npremium\nlight",
+   "default": "default",
+   "description": "Pricing card teması"
+  },
+  {
+   "fieldname": "short_tagline",
+   "fieldtype": "Data",
+   "label": "Short Tagline",
+   "description": "Plan kartı altında kısa açıklama satırı"
+  },
+  {
+   "fieldname": "cta_label",
+   "fieldtype": "Data",
+   "label": "CTA Label",
+   "default": "Devam et",
+   "description": "Call-to-action buton metni"
+  },
+  {
+   "fieldname": "price_override_label",
+   "fieldtype": "Data",
+   "label": "Fiyat Yerine Metin",
+   "description": "Doluysa fiyat yerine bu metin gösterilir (ör. Özel teklif, Bizimle görüşün). Boşsa fiyat / Özel teklif."
+  },
+  {
+   "fieldname": "cta_action",
+   "fieldtype": "Select",
+   "label": "CTA Action",
+   "options": "\nsignup\nsignup_billing\ncontact_sales",
+   "default": "signup",
+   "description": "signup = kayıt, signup_billing = ödeme, contact_sales = iletişim"
+  },
+  {
+   "fieldname": "tab_pricing",
+   "fieldtype": "Tab Break",
+   "label": "Fiyatlandırma"
+  },
+  {
+   "fieldname": "currency",
+   "fieldtype": "Link",
+   "label": "Currency",
+   "options": "Currency",
+   "default": "EUR",
+   "reqd": 1
+  },
+  {
+   "fieldname": "monthly_price",
+   "fieldtype": "Currency",
+   "label": "Monthly Price",
+   "default": 0,
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "yearly_price",
+   "fieldtype": "Currency",
+   "label": "Yearly Price",
+   "default": 0,
+   "description": "Yıllık indirimli fiyat (0 = devre dışı)"
+  },
+  {
+   "fieldname": "cb_trial",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "commission_rate",
+   "fieldtype": "Percent",
+   "label": "Commission Rate",
+   "default": 0,
+   "description": "Platform komisyon oranı (%)"
+  },
+  {
+   "fieldname": "field_commission_type",
+   "fieldtype": "Select",
+   "label": "Saha Komisyon Türü",
+   "options": "Yüzde\nSabit Ücret",
+   "default": "Yüzde",
+   "description": "Yüzde: paket fiyatının %'si. Sabit Ücret: satış başına sabit tutar."
+  },
+  {
+   "fieldname": "field_commission_rate",
+   "fieldtype": "Percent",
+   "label": "Saha Komisyon Oranı",
+   "depends_on": "eval:doc.field_commission_type=='Yüzde'"
+  },
+  {
+   "fieldname": "field_commission_fixed_amount",
+   "fieldtype": "Currency",
+   "label": "Saha Sabit Ücret",
+   "depends_on": "eval:doc.field_commission_type=='Sabit Ücret'",
+   "default": 0
+  },
+  {
+   "fieldname": "field_commission_mode",
+   "fieldtype": "Select",
+   "label": "Saha Komisyon Modu",
+   "options": "Tek seferlik\nTekrarlayan\nBelirli süre",
+   "default": "Tek seferlik"
+  },
+  {
+   "fieldname": "field_commission_duration",
+   "fieldtype": "Int",
+   "label": "Komisyon Süresi (ay)",
+   "depends_on": "eval:doc.field_commission_mode=='Belirli süre'",
+   "default": "0"
+  },
+  {
+   "fieldname": "max_active_listings",
+   "fieldtype": "Int",
+   "label": "Max Active Listings",
+   "default": 0,
+   "description": "Aynı anda aktif olabilecek maksimum listeleme sayısı (0 = sınırsız)"
+  },
+  {
+   "fieldname": "trial_days",
+   "fieldtype": "Int",
+   "label": "Trial Days",
+   "default": 0,
+   "description": "Deneme süresi (gün); 0 = trial yok"
+  },
+  {
+   "fieldname": "tab_features",
+   "fieldtype": "Tab Break",
+   "label": "Yetenekler ve Kotalar"
+  },
+  {
+   "fieldname": "capability_flags",
+   "fieldtype": "JSON",
+   "label": "Capability Flags",
+   "description": "feature.* key'lerinden true/false eşlemesi. Örn: {\"feature.pim.multi_variant\": true, \"feature.api.access\": false}"
+  },
+  {
+   "fieldname": "quota_limits",
+   "fieldtype": "JSON",
+   "label": "Quota Limits",
+   "description": "quota.* key'lerinden sayısal eşleme. Örn: {\"quota.max_sub_users\": 10, \"quota.max_products\": 5000}"
+  },
+  {
+   "fieldname": "tab_display",
+   "fieldtype": "Tab Break",
+   "label": "Gösterim Özellikleri"
+  },
+  {
+   "fieldname": "pricing_features",
+   "fieldtype": "Table",
+   "label": "Pricing Features",
+   "options": "Pricing Plan Feature",
+   "description": "Pricing card'larda gösterilecek feature/benefit listesi"
+  },
+  {
+   "fieldname": "quota_tiers",
+   "fieldtype": "Table",
+   "label": "Saha Kota Eşikleri",
+   "options": "Field Commission Quota Tier",
+   "description": "Bu pakette dönemde min_sales satışa ulaşan saha elemanı ilgili bonus_amount'u alır. En yüksek eşik kazanır."
+  },
+  {
+   "fieldname": "tab_regions",
+   "fieldtype": "Tab Break",
+   "label": "Bölgeler"
+  },
+  {
+   "fieldname": "allowed_regions",
+   "fieldtype": "Table",
+   "label": "Allowed Regions",
+   "options": "Subscription Plan Region",
+   "description": "Bu plan satın alan satıcı hangi bölgelerde satış/listeleme hakkı kazanır"
+  }
+ ],
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "export": 1,
+   "report": 1,
+   "share": 1
+  },
+  {
+   "role": "Marketplace Admin",
+   "read": 1,
+   "write": 1
+  },
+  {
+   "role": "All",
+   "read": 1
+  }
+ ]
 }

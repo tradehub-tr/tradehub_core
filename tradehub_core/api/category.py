@@ -4,6 +4,9 @@ import re
 import frappe
 from frappe import _
 
+from tradehub_core.seo.i18n import CONTENT_LANGS, normalize_lang, resolve_content_field
+from tradehub_core.utils.content_i18n import apply_translation_payload
+
 
 def _slugify(text):
 	"""Türkçe karakterleri dönüştürüp URL slug üretir."""
@@ -17,20 +20,26 @@ def _slugify(text):
 
 
 @frappe.whitelist(allow_guest=True)
-def get_mega_menu():
+def get_mega_menu(lang="tr"):
 	"""
 	Mega menu için kategori ağacını 3 seviyeye kadar nested döndürür.
 	"Marketplace" gibi tek bir virtual root varsa onun çocukları döndürülür.
 	Yaprak (3. seviye) yoksa `children` boş kalır — 2 seviyeli veriyle uyumlu.
 	Returns: [{ id, name, slug, children: [
 	            { id, name, slug, children: [{ id, name, slug }] } ] }]
+
+	`lang`: içerik dili (tr/en/ar/ru); kategori adları o dile çözülür, eksikse
+	kaydın content_default_lang'ine fallback eder.
 	"""
+	lang = normalize_lang(lang)
 	cats = frappe.get_all(
 		"Product Category",
 		filters={"is_active": 1},
 		fields=[
 			"name",
 			"category_name",
+			"content_default_lang",
+			*[f"category_name_{lng}" for lng in CONTENT_LANGS],
 			"parent_product_category",
 			"url_slug",
 			"sort_order",
@@ -41,6 +50,11 @@ def get_mega_menu():
 		],
 		order_by="sort_order asc, lft asc",
 	)
+
+	def cat_name(c):
+		return (
+			resolve_content_field(c, "category_name", lang, c.get("content_default_lang")) or c.category_name
+		)
 
 	if not cats:
 		return []
@@ -62,7 +76,7 @@ def get_mega_menu():
 	def _leaf(c):
 		return {
 			"id": c.name,
-			"name": c.category_name,
+			"name": cat_name(c),
 			"slug": c.url_slug or _slugify(c.category_name),
 			"image": c.image or None,
 		}
@@ -73,7 +87,7 @@ def get_mega_menu():
 		result.append(
 			{
 				"id": top.name,
-				"name": top.category_name,
+				"name": cat_name(top),
 				"slug": top.url_slug or _slugify(top.category_name),
 				"image": top.image or None,
 				"icon_class": top.icon_class or None,
@@ -96,15 +110,20 @@ def get_mega_menu():
 
 
 @frappe.whitelist()
-def get_platform_category_tree(parent=None):
+def get_platform_category_tree(parent=None, lang: str = "tr"):
 	"""
 	Satıcıların ürün yüklerken platform kategorisi seçmesi için.
 	Giriş yapmış herkes (satıcı dahil) çağırabilir; yalnızca aktif kategoriler döner.
 	parent=None → kök kategoriler; parent=<id> → o kategorinin aktif çocukları.
+
+	`lang`: içerik dili (tr/en/ar/ru); dönen `category_name` o dile çözülür, eksikse
+	kaydın content_default_lang'ine, o da yoksa base TR alanına fallback eder. `name`
+	(kategori ID'si) çeviriden etkilenmez — seçim/submit kaynak ID ile yapılır.
 	"""
 	if frappe.session.user == "Guest":
 		frappe.throw(_("Giriş yapmanız gerekiyor"), frappe.AuthenticationError)
 
+	lang = normalize_lang(lang)
 	filters = {"is_active": 1}
 	if parent:
 		filters["parent_product_category"] = parent
@@ -117,6 +136,8 @@ def get_platform_category_tree(parent=None):
 		fields=[
 			"name",
 			"category_name",
+			"content_default_lang",
+			*[f"category_name_{lng}" for lng in CONTENT_LANGS],
 			"parent_product_category",
 			"url_slug",
 			"sort_order",
@@ -126,6 +147,10 @@ def get_platform_category_tree(parent=None):
 		order_by="sort_order asc, lft asc",
 	)
 	for c in cats:
+		c["category_name"] = (
+			resolve_content_field(c, "category_name", lang, c.get("content_default_lang"))
+			or c.category_name
+		)
 		c["child_count"] = frappe.db.count(
 			"Product Category",
 			{"parent_product_category": c.name, "is_active": 1},
@@ -134,12 +159,16 @@ def get_platform_category_tree(parent=None):
 
 
 @frappe.whitelist()
-def search_platform_categories(query: str, limit: int = 20):
+def search_platform_categories(query: str, limit: int = 20, lang: str = "tr"):
 	"""Aktif platform kategorilerinde isim araması.
 
 	Her sonuç için parent_path (breadcrumb) bilgisi de döner, kullanıcı
 	"Pantolon" yazıp sonucu seçtiğinde "Tekstil › Erkek › Pantolon"
 	yolunu görebilsin.
+
+	`lang`: içerik dili (tr/en/ar/ru). Arama hem kaynak (TR) hem de seçilen dilin
+	kolonunda yapılır (panel İngilizceyse "Pants" da eşleşsin); dönen isimler ve
+	breadcrumb o dile çözülür.
 	"""
 	if frappe.session.user == "Guest":
 		frappe.throw(_("Giriş yapmanız gerekiyor"), frappe.AuthenticationError)
@@ -150,12 +179,22 @@ def search_platform_categories(query: str, limit: int = 20):
 		lim = min(50, max(1, int(limit)))
 	except (ValueError, TypeError):
 		lim = 20
+
+	lang = normalize_lang(lang)
+	like = f"%{q}%"
+	# Hem kaynak (base) hem aktif dil kolonunda ara — panel dili TR değilse
+	# kullanıcı çevrilmiş ismi yazdığında da eşleşsin.
+	filters = {"is_active": 1}
+	or_filters = {"category_name": ["like", like], f"category_name_{lang}": ["like", like]}
 	cats = frappe.get_all(
 		"Product Category",
-		filters={"is_active": 1, "category_name": ["like", f"%{q}%"]},
+		filters=filters,
+		or_filters=or_filters,
 		fields=[
 			"name",
 			"category_name",
+			"content_default_lang",
+			*[f"category_name_{lng}" for lng in CONTENT_LANGS],
 			"parent_product_category",
 			"url_slug",
 			"icon_class",
@@ -163,7 +202,7 @@ def search_platform_categories(query: str, limit: int = 20):
 		order_by="category_name asc",
 		limit_page_length=lim,
 	)
-	# Her sonuç için kök'e kadar atalarının ismini topla.
+	# Her sonuç için kök'e kadar atalarının ismini topla (seçilen dile çözülmüş).
 	for c in cats:
 		path_names = []
 		cursor = c.get("parent_product_category")
@@ -177,27 +216,45 @@ def search_platform_categories(query: str, limit: int = 20):
 			row = frappe.db.get_value(
 				"Product Category",
 				cursor,
-				["category_name", "parent_product_category"],
+				[
+					"category_name",
+					"content_default_lang",
+					*[f"category_name_{lng}" for lng in CONTENT_LANGS],
+					"parent_product_category",
+				],
 				as_dict=True,
 			)
 			if not row:
 				break
-			path_names.insert(0, row["category_name"])
+			path_names.insert(
+				0,
+				resolve_content_field(row, "category_name", lang, row.get("content_default_lang"))
+				or row["category_name"],
+			)
 			cursor = row.get("parent_product_category")
 		c["path"] = " › ".join(path_names) if path_names else ""
+		# Sonucun kendi adını da seçilen dile çöz (DISPLAY).
+		c["category_name"] = (
+			resolve_content_field(c, "category_name", lang, c.get("content_default_lang"))
+			or c.category_name
+		)
 	return cats
 
 
 @frappe.whitelist()
-def get_category_ancestors(name):
+def get_category_ancestors(name, lang: str = "tr"):
 	"""
 	Verilen kategori ID'si için kök'e kadar tüm ata listesini döndürür.
 	Satıcının seçtiği kategorinin tam yolunu (breadcrumb) göstermek için kullanılır.
 	Döner: [{ name, category_name }, ...] — kökten yaprağa sıralı
+
+	`lang`: içerik dili (tr/en/ar/ru); `category_name` o dile çözülür. `name`
+	(kategori ID'si) çeviriden etkilenmez.
 	"""
 	if frappe.session.user == "Guest":
 		frappe.throw(_("Giriş yapmanız gerekiyor"), frappe.AuthenticationError)
 
+	lang = normalize_lang(lang)
 	path = []
 	current = name
 	seen = set()
@@ -206,12 +263,22 @@ def get_category_ancestors(name):
 		row = frappe.db.get_value(
 			"Product Category",
 			current,
-			["name", "category_name", "parent_product_category"],
+			[
+				"name",
+				"category_name",
+				"content_default_lang",
+				*[f"category_name_{lng}" for lng in CONTENT_LANGS],
+				"parent_product_category",
+			],
 			as_dict=True,
 		)
 		if not row:
 			break
-		path.append({"name": row.name, "category_name": row.category_name})
+		display_name = (
+			resolve_content_field(row, "category_name", lang, row.get("content_default_lang"))
+			or row.category_name
+		)
+		path.append({"name": row.name, "category_name": display_name})
 		current = row.parent_product_category
 
 	path.reverse()
@@ -235,6 +302,8 @@ def get_category_tree(parent=None):
 		fields=[
 			"name",
 			"category_name",
+			"content_default_lang",
+			*[f"category_name_{lng}" for lng in CONTENT_LANGS],
 			"parent_product_category",
 			"is_active",
 			"sort_order",
@@ -244,15 +313,63 @@ def get_category_tree(parent=None):
 		],
 		order_by="sort_order asc, lft asc",
 	)
-	# Her kategorinin çocuk sayısını ekle
 	for c in cats:
 		c["child_count"] = frappe.db.count("Product Category", {"parent_product_category": c.name})
+		# Çeviri tamamlanmışlık göstergesi: adı dolu olan diller (panel rozeti için).
+		dl = c.get("content_default_lang") or "tr"
+		filled = []
+		for lng in CONTENT_LANGS:
+			value = (c.get(f"category_name_{lng}") or "").strip()
+			if not value and lng == dl:
+				value = (c.get("category_name") or "").strip()  # legacy base fallback
+			if value:
+				filled.append(lng)
+		c["name_langs"] = filled
+	return cats
+
+
+@frappe.whitelist()
+def get_category_translations():
+	"""Çeviri workbench'i için TÜM kategoriler (düz liste) + dil-bazlı adlar.
+
+	Her kategori için base `category_name`, `content_default_lang` ve
+	`category_name_{tr/en/ar/ru}` değerleri ile dolu-dil listesi (`name_langs`) döner.
+	Satır-içi düzenleme bu değerleri kullanır; kayıt `update_category` ile yapılır.
+	"""
+	_require_admin()
+	cats = frappe.get_all(
+		"Product Category",
+		fields=[
+			"name",
+			"category_name",
+			"content_default_lang",
+			*[f"category_name_{lng}" for lng in CONTENT_LANGS],
+		],
+		order_by="lft asc",
+	)
+	for c in cats:
+		dl = c.get("content_default_lang") or "tr"
+		filled = []
+		for lng in CONTENT_LANGS:
+			value = (c.get(f"category_name_{lng}") or "").strip()
+			if not value and lng == dl:
+				value = (c.get("category_name") or "").strip()
+			if value:
+				filled.append(lng)
+		c["name_langs"] = filled
 	return cats
 
 
 @frappe.whitelist()
 def create_category(
-	category_name, parent_id=None, sort_order=0, is_active=1, icon_class=None, url_slug=None, image=None
+	category_name,
+	parent_id=None,
+	sort_order=0,
+	is_active=1,
+	icon_class=None,
+	url_slug=None,
+	image=None,
+	translations=None,
 ):
 	_require_admin()
 	import uuid
@@ -277,6 +394,7 @@ def create_category(
 	doc.url_slug = slug
 	if image is not None:
 		doc.image = image
+	apply_translation_payload(doc, translations)
 	doc.insert(ignore_permissions=True)
 	frappe.db.commit()
 	return {"name": doc.name, "external_id": ext_id, "url_slug": slug}
@@ -292,6 +410,7 @@ def update_category(
 	icon_class=None,
 	url_slug=None,
 	image=None,
+	translations=None,
 ):
 	_require_admin()
 	doc = frappe.get_doc("Product Category", name)
@@ -313,6 +432,7 @@ def update_category(
 		doc.url_slug = url_slug
 	if image is not None:
 		doc.image = image
+	apply_translation_payload(doc, translations)
 	doc.save(ignore_permissions=True)
 	frappe.db.commit()
 	return {"success": True}
