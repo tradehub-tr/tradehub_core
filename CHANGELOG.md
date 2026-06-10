@@ -1,3 +1,75 @@
+## [v1.2.0] - 2026-06-10 PROD
+
+Bu surum istoc.cronbi.com'da yayindadir.
+
+### Eklendi
+- feat(i18n): çok-dilli içerik altyapısı + kategori/platform-terim çevirileri (@aliturguttursab)
+  - seo/i18n.py: resolve_content_field + {field}_{lang} sufix modeli, normalize_lang, CONTENT_TRANSLATABLE/CHILD config (Listing, Product Category, Listing Attribute Value, Listing Variant Item).
+  - utils/content_i18n.py + DocType controller (Listing, Product Category): validate()'te base ↔ varsayılan-dil senkronu + zorunlu-dil kontrolü.
+  - patches v15_7_0 (parent kolonlar) + v15_7_2 (child kolonlar): custom field üretimi + mevcut TR içeriği _tr koluna backfill. patches.txt + fixtures/custom_field.json güncellendi. (v15_7_1: seller-owner listing docperm patch'i de dahil.)
+  - PLATFORM_TERMS + translate_platform_term + format_discount_badge.
+  - api/listing.py: spec grup başlıkları (Genel/Teknik...), paketleme etiketleri + package_type değerleri, UOM birimleri (Adet→Piece), teslim süresi (iş günü/gün), kart stats/indirim, kategori breadcrumb; tümü lang ile çözülüyor.
+- feat(i18n): demo içerik çevirilerini backfill eden patch (v15_7_3) (@aliturguttursab)
+  - İdempotent: yalnızca boş (_en null/'') satırları doldurur; mevcut çeviriyi ezmez.
+  - Yalnızca haritadaki kaynakla eşleşen (demo) içerik çevrilir; gerçek/farklı içerik etkilenmez (oto-çeviri ayrı özellik).
+  - patches.txt post_model_sync sonuna eklendi (kolonlar v15_7_0/2'de oluşur).
+- feat(pricing): paket yapısı, kart içeriği ve quota enforcement düzeltmeleri (@boraydeger32)
+  - 3 paketlik yapı: Basic / Pro Platinium / Enterprise (STARTER kaldırıldı, fixture'dan da çıkarıldı); Enterprise "Teklif Al" + 14 gün trial alanı
+  - Subscription Plan'a price_override_label alanı (fiyat yerine özel metin)
+  - Feature Catalog'a is_coming_soon alanı (storefront "Yakında" rozeti)
+  - public_pricing: ortak kart seti gösterimi (✓/✗), display_name fallback, enum/quota text_value ve coming_soon kart verisine eklendi
+  - permission_console: boş sayısal alanları 0'a normalize (fiyatsız plan kaydında "Value missing" hatası giderildi)
+  - fix: sub-user quota sayımı owner'ı dahil ediyordu → tradehub_is_owner=0 filtresi (seller_users.invite/reactivate); limit yalnız sub-user'ları sayar
+  - patch'ler: enforcement→pricing taşıma, 3-tier yapı, Enterprise full kart, küratörlü ve ortak kart setleri (v15_6_24..28)
+- feat(i18n-ux): get_category_tree çeviri tamamlanmışlık bilgisi (Faz 2) (@aliturguttursab)
+- feat(i18n): get_category_translations — çeviri workbench için düz kategori listesi (@aliturguttursab)
+- feat(trial): global trial config + storefront trial_config + matris "Yakında" (@boraydeger32)
+  - Trial Settings (Single DocType): trial_enabled/trial_plan/trial_days/trial_cta_label + get_trial_settings helper + on_update cache invalidation
+  - permission_console: get_trial_settings / update_trial_settings (plan trial_days senkron)
+  - public_pricing: response'a trial_config; _build_features_matrix'e coming_soon
+- feat(pim): mini-PIM şema + zorunlu-attribute temizliği (@aliiball)
+  - Product Attribute: attribute_label_en + include_in_bulk_template
+  - Listing Variant Item: 3. eksen (attribute_type_3/value_3) + axis_values_json
+  - product-type bazlı zorunlu-attribute enforcement kaldırıldı (cleanup patch)
+- feat(bulk-import): kolon otomatik eşleme + import boru hattı iyileştirmeleri (@aliiball)
+  - canonical_fields PIM+varyant eş anlamlıları + resolver attribute katmanı
+  - önizleme/import 4 katmanlı resolver kullanır (sessiz veri kaybı düzeltildi)
+  - get_import_status hata listesi + özet döner; örnek görsel ZIP endpoint'i
+  - runner: değer-eşleme transform + görsel URL ingest kancası + eski hata temizleme
+- feat(bulk-import): hücre değeri + kolon-adı eşleştirme (Seller Value Mapping) (@aliiball)
+  - Seller Value Mapping doctype: alan + gelen değer → hedef değer (satıcı bazlı)
+  - hardcoded _TR_*_ALIASES satıcı-yapılandırılabilir genel lookup'a taşındı
+  - regex_lib: regex'siz kolon-alias + güvenli regex üretimi endpointleri
+- feat(eca): kural sihirbazı backend (şema + derleme + canlı sayım) (@aliiball)
+  - get_rule_schema / count_matching / save_wizard_rule + get_mapping_targets
+  - sihirbaz eylemleri mevcut condition_compiler + action_type'a derlenir
+  - count_matching tenant-scoped get_all kullanır (Listing izin hatası giderildi)
+- feat(feed): URL'den otomatik XML çekme + görsel ingest + run-history (@aliiball)
+  - Seller XML Feed + saatlik scheduler (24h) + SSRF korumalı fetch + auto-disable
+  - uzak görsel URL'leri indir/doğrula/barındır (URL cache) + bulk_import_safe fix
+  - Bulk Import Job source_feed bağı → list_feed_runs + feed_dry_run (persist yok)
+- feat(feed): XML Feed plan-bazlı yetkilendirme (Pricing Table) (@aliiball)
+  - feature.import.xml_feed capability'si (Feature Catalog + plan seed)
+  - entitlement_snapshot feature.import. prefix'ini frontend'e açar
+- feat(pricing): seed feature tooltip descriptions for comparison table (@boraydeger32)
+
+### Duzeltildi
+- fix(plan): planda zaten kayıtlı deprecated capability key save'i engellemesin (@boraydeger32)
+- fix(bulk-import): listing persisteri ignore_permissions ile yazar (@aliiball)
+  - create/update/variants yolları ignore_permissions=True (güvenilir sunucu işi)
+  - seller_profile açıkça set edildiği için tenant izolasyonu korunur
+- fix(permissions): yeni doctype tenant hook'ları + satıcı Custom DocPerm onarımı (@aliiball)
+  - Seller Value Mapping / Seller XML Feed için query_conditions + has_permission
+  - Marketplace Seller 7 satıcı-doctype Custom DocPerm'ine eklendi (form erişimi)
+  - patches.txt'ye yeni migration'lar eklendi
+- fix(category): log_error başlık/mesaj ayrımı (CharacterLengthExceeded) (@aliiball)
+
+### Degistirildi
+- refactor(lint): simplify lint workflow by removing auto-fix steps and changing permissions (@ahmeetseker)
+- refactor(nav): satıcı menüsü — XML Feed maddesi + "Eşleştirmelerim" (@aliiball)
+  - TH Module Registry'ye seller-feed kaydı; "Pattern'lerim" → "Eşleştirmelerim"
+
+---
 ## [v1.1.0-rc.1] - 2026-06-10 RC
 
 Bu surum rcistoc.cronbi.com'da onay asamasindadir.
