@@ -1,3 +1,11 @@
+## [v1.1.0-beta.9] - 2026-06-10 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Duzeltildi
+- fix(plan): planda zaten kayıtlı deprecated capability key save'i engellemesin (@boraydeger32)
+
+---
 ## [v1.1.0-beta.8] - 2026-06-10 BETA
 
 Bu surum betaistoc.cronbi.com'da test asamasindadir.
