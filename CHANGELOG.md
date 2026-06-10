@@ -1,3 +1,12 @@
+## [v1.1.0-beta.7] - 2026-06-10 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Eklendi
+- feat(i18n-ux): get_category_tree çeviri tamamlanmışlık bilgisi (Faz 2) (@aliturguttursab)
+- feat(i18n): get_category_translations — çeviri workbench için düz kategori listesi (@aliturguttursab)
+
+---
 ## [v1.1.0-beta.4] - 2026-06-09 BETA
 
 Bu surum betaistoc.cronbi.com'da test asamasindadir.
