@@ -1,0 +1,51 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-06-10 00:00:00",
+ "doctype": "DocType",
+ "document_type": "Document",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "source_value",
+  "target_value",
+  "enabled"
+ ],
+ "fields": [
+  {
+   "description": "Feed/import dosyasındaki ham hücre değeri (örn. \"Large\", \"red\", \"USD\")",
+   "fieldname": "source_value",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Gelen Değer",
+   "reqd": 1
+  },
+  {
+   "description": "Sistemin beklediği değer (örn. \"XL\", \"Kırmızı\", \"TRY\")",
+   "fieldname": "target_value",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Hedef Değer",
+   "reqd": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Aktif"
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-06-10 00:00:00",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "Seller Value Mapping Row",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0
+}
