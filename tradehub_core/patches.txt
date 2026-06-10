@@ -175,3 +175,4 @@ tradehub_core.patches.v15_7_0_i18n_content_columns
 tradehub_core.patches.v15_7_1_seller_owner_listing_docperm
 tradehub_core.patches.v15_7_2_i18n_child_columns
 tradehub_core.patches.v15_7_3_backfill_content_translations
+tradehub_core.patches.v15_7_4_seed_feature_tooltips
