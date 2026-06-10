@@ -1,7 +1,7 @@
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import now_datetime
+from frappe.utils import add_days, now_datetime
 
 from tradehub_core.utils.notify import notify
 
@@ -201,9 +201,50 @@ class SellerApplication(Document):
 		if up_name:
 			frappe.db.set_value("User Profile", up_name, "kyb_status", "Pending", update_modified=False)
 
+		# ───── 7. Trial talep edildiyse 14 günlük deneme aboneliğini başlat ─────
+		self._start_trial_if_requested(asp_name)
+
 		# Record review metadata
 		self.db_set("reviewed_by", frappe.session.user)
 		self.db_set("reviewed_on", now_datetime())
+
+	def _start_trial_if_requested(self, tenant: str) -> None:
+		"""Başvuruda `requested_trial_plan` doluysa onayda deneme aboneliğini başlat.
+
+		Doğrudan Store Subscription oluşturur (upgrade_subscription_plan'ı çağırmaz —
+		o fonksiyon doc-event içinde sakıncalı `frappe.db.commit()` yapar ve gereksiz
+		role-sync tetikler; yeni satıcının henüz sub-user'ı yok).
+
+		Idempotent: mağazanın zaten bir Store Subscription'ı varsa atla (re-approve
+		guard). trial_days > 0 ve plan aktif değilse deneme başlatılmaz.
+		"""
+		plan_code = (self.get("requested_trial_plan") or "").strip()
+		if not plan_code or not tenant:
+			return
+		if frappe.db.exists("Store Subscription", {"store": tenant}):
+			return  # idempotent: zaten abonelik var
+		if not frappe.db.exists("Subscription Plan", plan_code):
+			return
+		plan = frappe.get_cached_doc("Subscription Plan", plan_code)
+		if not plan.is_active:
+			return
+		trial_days = int(plan.get("trial_days") or 0)
+		if trial_days <= 0:
+			return  # plan'da trial tanımı yoksa deneme verme
+
+		now = now_datetime()
+		sub = frappe.new_doc("Store Subscription")
+		sub.store = tenant
+		sub.plan = plan_code
+		sub.status = "trial"
+		sub.started_at = now
+		sub.current_period_start = now
+		sub.trial_start = now
+		sub.trial_end = add_days(now, trial_days)
+		sub.trial_plan = plan_code
+		sub.trial_used = 1
+		sub.flags.ignore_permissions = True
+		sub.insert(ignore_permissions=True)
 
 	def _revoke_approval(self):
 		"""Sprint 2 — Onay geri çekme: User Profile.can_sell=0 + Admin Seller Profile suspend.

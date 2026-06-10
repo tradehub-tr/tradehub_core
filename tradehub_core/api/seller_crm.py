@@ -16,6 +16,12 @@ import json
 import frappe
 from frappe import _
 
+from tradehub_core.entitlement.core import enforce_feature
+
+# CRM Modülü Pro+ özelliği — tüm satıcı CRM endpoint'leri plan kapısından geçer
+# (platform admin muaf; bkz. enforce_feature).
+_CRM_FEATURE = "feature.crm.module"
+
 
 def _get_my_seller_profile():
 	user = frappe.session.user
@@ -40,6 +46,7 @@ def dashboard_kpis():
 	tüm sistem genelini, satıcı kendi seller'ını sayar. Sales User da admin
 	tarafında full görür.
 	"""
+	enforce_feature(_CRM_FEATURE, "CRM Modülü")
 	user = frappe.session.user
 	if not user or user == "Guest":
 		frappe.throw(_("Giriş yapmalısınız."), frappe.PermissionError)
@@ -131,6 +138,7 @@ def inquiry_to_lead(inquiry: str, lead_owner: str = ""):
 	  CRM Lead.seller             → satıcının kendi profile'ı (autoset hook)
 	  CRM Lead.source             → 'Mağaza Sorusu'
 	"""
+	enforce_feature(_CRM_FEATURE, "CRM Modülü")
 	from tradehub_core.utils.seller_capabilities import require_seller_capability
 
 	require_seller_capability("crm.lead_capture")
@@ -191,6 +199,7 @@ def rfq_to_lead(rfq: str, lead_owner: str = ""):
 	RFQ doctype field'ı projeye göre değişebilir; aşağıda yaygın kabul
 	edilen field'ları kullanıyoruz; yoksa fallback davranış.
 	"""
+	enforce_feature(_CRM_FEATURE, "CRM Modülü")
 	from tradehub_core.utils.seller_capabilities import require_seller_capability
 
 	require_seller_capability("crm.lead_capture")
@@ -260,6 +269,7 @@ def lead_to_deal(lead: str, deal_data: str = ""):
 	Frappe CRM'in `convert_to_deal` method'unu kullanır; öncesinde permission
 	kontrolü yapılır. Yeni Deal'in seller alanı hook ile otomatik set edilir.
 	"""
+	enforce_feature(_CRM_FEATURE, "CRM Modülü")
 	if not lead:
 		frappe.throw(_("Lead kimliği gerekli."), frappe.ValidationError)
 	if not frappe.has_permission("CRM Lead", doc=lead, ptype="write"):

@@ -7,11 +7,15 @@ Bir Admin Seller Profile (= store) ↔ Subscription Plan ilişkisini ve dönem
 bilgisini tutar. Bir mağaza için yalnızca tek aktif Store Subscription olabilir.
 
 Status state machine:
-  trial → active | canceled | suspended
-  active → past_due | canceled | suspended
-  past_due → active | canceled | suspended
+  trial → active | past_due | expired | canceled | suspended
+  active → past_due | expired | canceled | suspended
+  past_due → active | expired | canceled | suspended
   suspended → active | canceled
+  expired → active | canceled  (yeniden abonelik / ödeme ile reaktive)
   canceled → (terminal, sadece yeniden subscription oluşturulabilir)
+
+`expired`: deneme süresi doldu, ödeme yok → panel kilitli (paywall). Veri korunur;
+ödeme/yeniden abonelikle `active`e döner (bkz. subscription.upgrade_subscription_plan).
 
 Detay: docs/yetki/03-doctype-sablonlari.md §3
 """
@@ -26,10 +30,11 @@ from frappe.utils import now_datetime
 
 # İzin verilen status geçişleri
 _VALID_TRANSITIONS: dict[str, set[str]] = {
-	"trial": {"active", "past_due", "canceled", "suspended"},
-	"active": {"past_due", "canceled", "suspended"},
-	"past_due": {"active", "canceled", "suspended"},
+	"trial": {"active", "past_due", "expired", "canceled", "suspended"},
+	"active": {"past_due", "expired", "canceled", "suspended"},
+	"past_due": {"active", "expired", "canceled", "suspended"},
 	"suspended": {"active", "canceled"},
+	"expired": {"active", "canceled"},  # ödeme/yeniden abonelik ile reaktive
 	"canceled": set(),  # terminal
 }
 

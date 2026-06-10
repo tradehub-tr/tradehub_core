@@ -1896,10 +1896,15 @@ def complete_registration_application(
 	kvkk_accepted=0,
 	commission_accepted=0,
 	return_policy_accepted=0,
+	requested_trial_plan=None,
 ):
 	"""Complete a supplier registration application with business details.
 
 	The caller must be the owner of the Seller Application.
+
+	requested_trial_plan: Storefront'ta "X gün ücretsiz dene"ye tıklandıysa o paket
+	(genelde PRO). Onayda bu paketin denemesi otomatik başlatılır
+	(bkz. SellerApplication._start_trial_if_requested).
 	"""
 	user = frappe.session.user
 	if user == "Guest":
@@ -1926,6 +1931,11 @@ def complete_registration_application(
 		)
 
 	doc = frappe.get_doc("Seller Application", seller_application)
+
+	# Trial niyeti — yalnızca geçerli bir Subscription Plan ise sakla (Link
+	# field bütünlüğü + sahte değer enjeksiyonu önlemi).
+	if requested_trial_plan and not frappe.db.exists("Subscription Plan", requested_trial_plan):
+		requested_trial_plan = None
 
 	# Canonicalize phone before assigning. Empty/None stays untouched; an
 	# unparseable value is rejected.
@@ -1958,6 +1968,7 @@ def complete_registration_application(
 		"kvkk_accepted": int(kvkk_accepted),
 		"commission_accepted": int(commission_accepted),
 		"return_policy_accepted": int(return_policy_accepted),
+		"requested_trial_plan": requested_trial_plan,
 	}
 
 	for field, value in field_map.items():

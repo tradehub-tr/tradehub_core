@@ -38,7 +38,7 @@
 			"fieldname": "status",
 			"fieldtype": "Select",
 			"label": "Status",
-			"options": "trial\nactive\npast_due\ncanceled\nsuspended",
+			"options": "trial\nactive\npast_due\nexpired\ncanceled\nsuspended",
 			"default": "active",
 			"reqd": 1,
 			"in_list_view": 1,
@@ -66,9 +66,49 @@
 			"in_list_view": 1
 		},
 		{
+			"fieldname": "trial_start",
+			"fieldtype": "Datetime",
+			"label": "Trial Start"
+		},
+		{
 			"fieldname": "trial_end",
 			"fieldtype": "Datetime",
 			"label": "Trial End"
+		},
+		{
+			"fieldname": "trial_plan",
+			"fieldtype": "Link",
+			"label": "Trial Plan",
+			"options": "Subscription Plan",
+			"description": "Deneme süresince açılan paket (genelde PRO)."
+		},
+		{
+			"fieldname": "trial_used",
+			"fieldtype": "Check",
+			"label": "Trial Used",
+			"default": "0",
+			"description": "Bu mağaza deneme hakkını kullandı mı (1 mağaza = 1 trial)."
+		},
+		{
+			"fieldname": "reminder_3d_sent",
+			"fieldtype": "Check",
+			"label": "Reminder 3d Sent",
+			"default": "0",
+			"read_only": 1
+		},
+		{
+			"fieldname": "reminder_1d_sent",
+			"fieldtype": "Check",
+			"label": "Reminder 1d Sent",
+			"default": "0",
+			"read_only": 1
+		},
+		{
+			"fieldname": "reminder_2h_sent",
+			"fieldtype": "Check",
+			"label": "Reminder 2h Sent",
+			"default": "0",
+			"read_only": 1
 		},
 		{
 			"fieldname": "canceled_at",
