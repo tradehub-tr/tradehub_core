@@ -237,9 +237,24 @@ def get_pricing_plans() -> dict:
 		cell_by_key_and_plan, plan_codes, plan_field_overrides
 	)
 
+	# Global trial konfigürasyonu (Trial Settings) — storefront buton-üstü CTA + üst bant.
+	from tradehub_core.tradehub_core.doctype.trial_settings.trial_settings import (
+		get_trial_settings,
+	)
+
+	_ts = get_trial_settings()
+	_trial_plan_code = plan_code_by_name.get(_ts["trial_plan"], _ts["trial_plan"]) if _ts["trial_plan"] else ""
+	trial_config = {
+		"enabled": _ts["trial_enabled"] and bool(_trial_plan_code),
+		"plan_code": _trial_plan_code,
+		"days": _ts["trial_days"],
+		"cta_label": _ts["trial_cta_label"],
+	}
+
 	response = {
 		"plans": plans,
 		"features_matrix": features_matrix,
+		"trial_config": trial_config,
 		"meta": {
 			"currency": dominant_currency,
 			"mixed_currency": mixed,
