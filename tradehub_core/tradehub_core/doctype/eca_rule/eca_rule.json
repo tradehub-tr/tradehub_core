@@ -21,6 +21,7 @@
   "execution_phase",
   "priority",
   "section_logic",
+  "condition_builder",
   "condition",
   "section_action",
   "action_type",
@@ -124,7 +125,14 @@
    "label": "Koşul"
   },
   {
-   "description": "Python ifadesi — doc, re, frappe.utils erişilebilir",
+   "description": "Görsel kural editörü JSON — doluysa Python koşulunu otomatik üretir",
+   "fieldname": "condition_builder",
+   "fieldtype": "Code",
+   "label": "Condition Builder (JSON)",
+   "options": "JSON"
+  },
+  {
+   "description": "Python ifadesi — doc, re, frappe.utils erişilebilir. Builder doluysa otomatik üretilir.",
    "fieldname": "condition",
    "fieldtype": "Code",
    "label": "Python Koşulu",

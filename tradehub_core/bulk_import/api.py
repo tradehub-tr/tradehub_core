@@ -99,9 +99,25 @@ def get_import_status(job_name: str) -> dict:
 	doc = frappe.get_doc("Bulk Import Job", job_name)
 	doc.check_permission("read")
 
+	# Hata satırları (child table) — UI "Hata Listesi" bunu okur. Redis progress
+	# state'i yalnız sayaç tutar; child satırları + özeti her zaman doc'tan ekle ki
+	# polling ile gelen yanıt da hata listesini içersin (önceden hiç gelmiyordu).
+	error_details = [
+		{
+			"row_number": r.row_number,
+			"sku": r.sku,
+			"product_name": r.product_name,
+			"error_type": r.error_type,
+			"error_message": r.error_message,
+		}
+		for r in (doc.error_details or [])
+	]
+
 	cache_key = f"bulk_import_progress:{job_name}"
 	redis_state = frappe.cache.get_value(cache_key)
 	if redis_state:
+		redis_state["error_details"] = error_details
+		redis_state["error_summary"] = doc.error_summary or ""
 		return redis_state
 
 	processed = (
@@ -118,6 +134,8 @@ def get_import_status(job_name: str) -> dict:
 		"updated": doc.updated_count or 0,
 		"skipped": doc.skipped_count or 0,
 		"error_count": doc.error_count or 0,
+		"error_summary": doc.error_summary or "",
+		"error_details": error_details,
 	}
 
 
@@ -131,7 +149,7 @@ def dry_run_preview(
 
 	Persist YAPMAZ — sadece parser + validator çalıştırır.
 	"""
-	from tradehub_core.bulk_import import persister, regex_lib, validator
+	from tradehub_core.bulk_import.ingestion import resolver
 	from tradehub_core.bulk_import.parsers import csv_parser, xlsx_parser, xml_parser
 
 	seller = frappe.db.get_value(
@@ -177,13 +195,52 @@ def dry_run_preview(
 			).format(type(e).__name__)
 		)
 
+	# Manuel override geldiyse onu kullan; aksi halde 4 katmanlı resolver
+	# (Profile → Regex → Attribute → Semantic) çalışır. Resolver attr:<code>,
+	# product_type, variant_* hedeflerini de üretir — persister bunları tüketir.
+	resolution: dict = {}
 	if column_mapping:
 		try:
 			mapping = json.loads(column_mapping)
 		except (ValueError, TypeError):
-			mapping = regex_lib.resolve_column_mapping(headers, seller)
+			resolution = resolver.resolve_columns(headers, seller)
+			mapping = resolution.get("mapping", {})
 	else:
-		mapping = regex_lib.resolve_column_mapping(headers, seller)
+		resolution = resolver.resolve_columns(headers, seller)
+		mapping = resolution.get("mapping", {})
+
+	return _compute_dry_run(headers, rows, mapping, resolution, seller, mode)
+
+
+def _compute_dry_run(
+	headers: list[str],
+	rows: list[dict],
+	mapping: dict,
+	resolution: dict,
+	seller: str,
+	mode: str,
+) -> dict:
+	"""Dry-run çekirdek hesabı — persist YAPMAZ, sayım + güven/varyant özeti döndürür.
+
+	`dry_run_preview` (dosyadan) ve `feed_api.feed_dry_run` (feed URL'sinden) ortak
+	bu fonksiyonu çağırır; will_insert/update/skip/error mantığı tek yerde kalsın.
+
+	Args:
+	    headers: Parse edilmiş başlık listesi.
+	    rows: Parse edilmiş satır dict'leri.
+	    mapping: {canonical_field: header} eşlemesi (resolver ya da manuel).
+	    resolution: resolver.resolve_columns çıktısı (sources/confidence/unmapped);
+	        manuel override yolunda boş dict olabilir.
+	    seller: Admin Seller Profile name (check_sku_exists scope'u).
+	    mode: "insert_only" | "upsert".
+	"""
+	from tradehub_core.bulk_import import persister, validator
+	from tradehub_core.bulk_import.ingestion import semantic
+
+	# Runner ile aynı cluster mantığı: aynı `seller_sku` altındaki satırlar
+	# parent + variant grubu. Aksi takdirde varyant satırlarını "hata" olarak
+	# sayıp kullanıcıyı yanıltıyorduk.
+	from tradehub_core.bulk_import.runner import _build_clusters
 
 	resolved_mode = mode if mode in ("insert_only", "upsert") else "insert_only"
 
@@ -191,11 +248,6 @@ def dry_run_preview(
 	sample_errors: list[dict] = []
 	variant_clusters_count = 0
 	total_variants = 0
-
-	# Runner ile aynı cluster mantığı: aynı `seller_sku` altındaki satırlar
-	# parent + variant grubu. Aksi takdirde varyant satırlarını "hata" olarak
-	# sayıp kullanıcıyı yanıltıyorduk.
-	from tradehub_core.bulk_import.runner import _build_clusters
 
 	clusters, cluster_errors = _build_clusters(rows, mapping)
 
@@ -245,6 +297,15 @@ def dry_run_preview(
 	mapped = len([h for h in headers if h and h in mapping.values()])
 	confidence_score = (mapped / len(headers)) if headers else 0.0
 
+	# Resolver çıktısı — manuel override yolunda boş olabilir; o durumda
+	# eşlenen alanlar için makul varsayılanlar üret (FE badge/confidence için).
+	sources = resolution.get("sources") or {f: "manual" for f in mapping}
+	confidence_by_field = resolution.get("confidence") or {f: 1.0 for f in mapping}
+	unmapped_headers = resolution.get("unmapped")
+	if unmapped_headers is None:
+		unmapped_headers = [h for h in headers if h and h not in mapping.values()]
+	low_confidence_fields = [f for f, c in confidence_by_field.items() if c < semantic.CONFIDENCE_THRESHOLD]
+
 	return {
 		"total": total,
 		"will_insert": will_insert,
@@ -255,6 +316,13 @@ def dry_run_preview(
 		"confidence_score": round(confidence_score, 3),
 		"detected_headers": headers,
 		"resolved_mapping": mapping,
+		# 4 katmanlı resolver çıktısı — FE source badge + confidence UI için
+		"sources": sources,
+		"confidence_by_field": confidence_by_field,
+		"unmapped_headers": unmapped_headers,
+		"low_confidence_fields": low_confidence_fields,
+		"profile_used": resolution.get("profile_used"),
+		"overall_score": resolution.get("overall_score", round(confidence_score, 3)),
 		# Varyant özeti — UI gösterimi için
 		"variant_clusters": variant_clusters_count,
 		"total_variants": total_variants,
@@ -383,51 +451,144 @@ def download_error_excel(job_name: str) -> dict:
 	return {"file_url": file_doc.file_url, "file_name": file_doc.file_name}
 
 
-# Şablon kolonları — Türkçe header (regex_lib pattern'lerle birebir eşleşiyor).
-# Sıra: kimlik → marka/sınıf → fiyat → stok → kargo → varyant → diğer.
-# Tuple: (header_tr, canonical_field, ornek_deger).
-_TEMPLATE_COLUMNS: tuple[tuple[str, str, str], ...] = (
-	("Stok Kodu", "sku", "ABC-001"),
-	("Ürün Adı", "title", "Solvent Grade A 20L"),
-	("Marka", "brand", "Petkim"),
-	("Durum", "condition", "New"),
-	("Birim Fiyat (TL)", "base_price", "1.245,00"),
-	("İndirimli Fiyat", "selling_price", ""),
-	("Para Birimi", "currency", "TRY"),
-	("İndirim %", "discount_percentage", ""),
-	("Stok", "stock_qty", "150"),
-	("Stok Birimi", "stock_uom", "Adet"),
-	("Min Sipariş", "min_order_qty", "10"),
-	("Max Sipariş", "max_order_qty", "5000"),
-	("Düşük Stok Eşiği", "low_stock_threshold", "30"),
-	("MOQ Katı Zorunlu mu", "sell_in_moq_multiples", "Hayır"),
-	("Stok Takibi", "track_inventory", "Evet"),
-	("Stoktan Az Sipariş İzni", "allow_backorders", "Hayır"),
-	("Ücretsiz Kargo", "is_free_shipping", "Hayır"),
-	("Kargo Ağırlığı", "shipping_weight", "22,5"),
-	("Hazırlık Süresi", "handling_days", "3"),
-	("Sevk Ülkesi", "ships_from_country", "Türkiye"),
-	("Sevk Şehri", "ships_from_city", "İstanbul"),
-	("Menşei", "country_of_origin", "Türkiye"),
-	("Barkod", "barcode", "8690000000001"),
+# Şablon kolonları — İngilizce header (uluslararası satıcı uyumu).
+# STATİK çekirdek + mini-PIM link kolonları. Tip-bazlı dinamik üretim YOK:
+# her satıcı için her zaman aynı tam set indirilir (UX-KOLAY: tek statik şablon).
+# Sıra: kimlik → marka/sınıf → mini-PIM link → fiyat → stok → kargo → diğer.
+# Tuple: (header_en, canonical_field, example_value). Sayı formatı EN (1,245.00).
+_TEMPLATE_CORE_COLUMNS_EN: tuple[tuple[str, str, str], ...] = (
+	# [ÇEKİRDEK] kimlik + marka
+	("SKU", "sku", "ABC-001"),
+	("Product Name", "title", "Solvent Grade A 20L"),
+	("Brand", "brand", "Petkim"),
+	("Condition", "condition", "New"),
+	# [mini-PIM LINK] Katalog yapısı (Brand zaten çekirdekte)
+	("Product Type", "product_type", ""),
+	("Product Family", "product_family", ""),
+	("Attribute Set", "attribute_set", ""),
+	# [ÇEKİRDEK] fiyat
+	("Unit Price", "base_price", "1,245.00"),
+	("Discounted Price", "selling_price", ""),
+	("Currency", "currency", "TRY"),
+	("Discount %", "discount_percentage", ""),
+	# [ÇEKİRDEK] stok
+	("Stock", "stock_qty", "150"),
+	("Stock Unit", "stock_uom", "Piece"),
+	("Min Order", "min_order_qty", "10"),
+	("Max Order", "max_order_qty", "5000"),
+	("Low Stock Threshold", "low_stock_threshold", "30"),
+	("Sell In MOQ Multiples", "sell_in_moq_multiples", "No"),
+	("Track Inventory", "track_inventory", "Yes"),
+	("Allow Backorders", "allow_backorders", "No"),
+	# [ÇEKİRDEK] kargo
+	("Free Shipping", "is_free_shipping", "No"),
+	("Shipping Weight", "shipping_weight", "22.5"),
+	("Handling Days", "handling_days", "3"),
+	("Ships From Country", "ships_from_country", "Turkey"),
+	("Ships From City", "ships_from_city", "Istanbul"),
+	("Country Of Origin", "country_of_origin", "Turkey"),
+	# [ÇEKİRDEK] diğer
+	("Barcode", "barcode", "8690000000001"),
 	("Video", "video_url", ""),
-	("Kısa Açıklama", "short_description", "ISO 9001 sertifikalı"),
-	("Açıklama", "description", "Endüstriyel kullanıma uygun"),
-	# Varyant kolonları (varyantsız ürünlerde boş bırak)
+	("Short Description", "short_description", "ISO 9001 certified"),
+	("Description", "description", "Suitable for industrial use"),
+)
+
+# [VARYANT BLOĞU] varyantsız ürünlerde boş bırak. Çekirdek + betimleyici
+# attribute kolonlarından sonra eklenir. Eksen başlıkları "Name", değer "Value".
+# Canonical alanlar persister'ın okuduğu `variant_axis_N_type` / `_value` kalır.
+_TEMPLATE_VARIANT_COLUMNS_EN: tuple[tuple[str, str, str], ...] = (
 	("Parent SKU", "parent_sku", ""),
-	("Varyant SKU", "variant_sku", ""),
-	("Varyant Eksen 1 Tipi", "variant_axis_1_type", ""),
-	("Varyant Eksen 1 Değeri", "variant_axis_1_value", ""),
-	("Varyant Eksen 2 Tipi", "variant_axis_2_type", ""),
-	("Varyant Eksen 2 Değeri", "variant_axis_2_value", ""),
-	("Varyant Fiyat", "variant_price", ""),
-	("Varyant Stok", "variant_stock", ""),
+	("Variant SKU", "variant_sku", ""),
+	("Variant Axis 1 Name", "variant_axis_1_type", ""),
+	("Variant Axis 1 Value", "variant_axis_1_value", ""),
+	("Variant Axis 2 Name", "variant_axis_2_type", ""),
+	("Variant Axis 2 Value", "variant_axis_2_value", ""),
+	("Variant Axis 3 Name", "variant_axis_3_type", ""),
+	("Variant Axis 3 Value", "variant_axis_3_value", ""),
+	("Variant Price", "variant_price", ""),
+	("Variant Stock", "variant_stock", ""),
 )
 
 
+def _descriptive_attribute_columns() -> list[tuple[str, str, str]]:
+	"""Betimleyici (varyant-ekseni-olmayan) attribute kolonlarını üret.
+
+	STATİK: tip seçimine bakmaz. `include_in_bulk_template=1 AND is_variant_axis=0`
+	olan tüm Product Attribute'ları toplar — her şablonda aynı set çıkar.
+	Kolon başlığı `attribute_label_en`, teknik ad `attr:<name>`, örnek değer boş.
+	`display_order` ile sıralanır (deterministik kolon sırası).
+
+	Returns:
+	    (header_en, canonical_field, "") tuple listesi.
+	"""
+	rows = frappe.get_all(
+		"Product Attribute",
+		filters={"include_in_bulk_template": 1, "is_variant_axis": 0},
+		fields=["name", "attribute_label_en"],
+		order_by="display_order asc, name asc",
+	)
+	columns: list[tuple[str, str, str]] = []
+	for r in rows:
+		header = r.get("attribute_label_en") or r.get("name")
+		columns.append((header, f"attr:{r['name']}", ""))
+	return columns
+
+
+# Sütun eşleştirme dropdown'ı için grup ataması (Sözleşme §3).
+# mini-PIM link kolonları çekirdekten ayrılır; geri kalan çekirdek "Temel".
+_MINI_PIM_KEYS = frozenset({"product_type", "product_family", "attribute_set"})
+
+
+def _mapping_target_groups() -> list[dict]:
+	"""Gruplu canonical hedefler — Temel / mini-PIM / Özellikler / Varyant.
+
+	"Sütun Eşleştirmelerim" ve Adım 2 manuel eşleme aynı kaynaktan beslenir.
+	Statik şablon tuple'ları + betimleyici attribute'lardan üretilir.
+	"""
+	temel = [
+		{"key": canonical, "label": header}
+		for header, canonical, _ex in _TEMPLATE_CORE_COLUMNS_EN
+		if canonical not in _MINI_PIM_KEYS
+	]
+	mini_pim = [
+		{"key": canonical, "label": header}
+		for header, canonical, _ex in _TEMPLATE_CORE_COLUMNS_EN
+		if canonical in _MINI_PIM_KEYS
+	]
+	ozellikler = [
+		{"key": canonical, "label": header} for header, canonical, _ex in _descriptive_attribute_columns()
+	]
+	varyant = [{"key": canonical, "label": header} for header, canonical, _ex in _TEMPLATE_VARIANT_COLUMNS_EN]
+
+	groups = [
+		{"label": _("Temel"), "fields": temel},
+		{"label": _("Mini-PIM"), "fields": mini_pim},
+	]
+	if ozellikler:
+		groups.append({"label": _("Özellikler"), "fields": ozellikler})
+	groups.append({"label": _("Varyant"), "fields": varyant})
+	return groups
+
+
 @frappe.whitelist()
-def download_template(format: str = "xlsx") -> None:
-	"""Boş ürün şablonu indir (TR header + örnek satır).
+def get_mapping_targets() -> dict:
+	"""Gruplu canonical eşleştirme hedefleri (UI dropdown kaynağı).
+
+	Returns:
+	    {"groups": [{"label": str, "fields": [{"key": str, "label": str}]}]}
+	"""
+	return {"groups": _mapping_target_groups()}
+
+
+@frappe.whitelist()
+def download_template(format: str = "xlsx", product_types: str = "") -> None:
+	"""Ürün şablonu indir (İngilizce başlık + örnek satır).
+
+	**STATİK şablon** (UX-KOLAY): her zaman aynı tam kolon seti üretilir —
+	çekirdek + mini-PIM link + betimleyici attribute'lar + varyant bloğu.
+	Tip seçimine göre dinamik kolon üretimi YOK. `product_types` parametresi
+	geriye dönük uyumluluk için kabul edilir ama kolon setini etkilemez.
 
 	`frappe.local.response` ile direkt binary stream döndürür.
 	"""
@@ -436,9 +597,13 @@ def download_template(format: str = "xlsx") -> None:
 	if format not in ("xlsx", "csv", "xml"):
 		frappe.throw(_("Geçersiz format"))
 
-	headers = [c[0] for c in _TEMPLATE_COLUMNS]
-	canonical = [c[1] for c in _TEMPLATE_COLUMNS]
-	example = [c[2] for c in _TEMPLATE_COLUMNS]
+	columns = list(_TEMPLATE_CORE_COLUMNS_EN)
+	columns.extend(_descriptive_attribute_columns())
+	columns.extend(_TEMPLATE_VARIANT_COLUMNS_EN)
+
+	headers = [c[0] for c in columns]
+	canonical = [c[1] for c in columns]
+	example = [c[2] for c in columns]
 
 	if format == "xlsx":
 		from openpyxl import Workbook
@@ -446,7 +611,7 @@ def download_template(format: str = "xlsx") -> None:
 
 		wb = Workbook()
 		ws = wb.active
-		ws.title = "Ürünler"
+		ws.title = "Products"
 		ws.append(headers)
 		ws.append(example)
 		# Header satırını koyu + arka plan
@@ -465,23 +630,64 @@ def download_template(format: str = "xlsx") -> None:
 		wb.save(buf)
 		buf.seek(0)
 		content = buf.read()
-		file_name = "tradehub_toplu_yukleme_sablonu.xlsx"
+		file_name = "tradehub_bulk_upload_template.xlsx"
 	elif format == "csv":
-		# UTF-8 BOM — Excel TR karakterler için
-		csv_lines = [";".join(headers), ";".join(example)]
+		# UTF-8 BOM — Excel karakter kodlaması için. EN ayraç = virgül.
+		csv_lines = [",".join(headers), ",".join(example)]
 		content = b"\xef\xbb\xbf" + ("\n".join(csv_lines) + "\n").encode("utf-8")
-		file_name = "tradehub_toplu_yukleme_sablonu.csv"
+		file_name = "tradehub_bulk_upload_template.csv"
 	else:
-		# XML için canonical (snake_case) tag adları kullanılır.
-		product_xml = "".join(f"  <{c}>{e}</{c}>\n" for c, e in zip(canonical, example, strict=False))
+		# XML için canonical (snake_case) tag adları kullanılır. Attribute kolonları
+		# "attr:<code>" formatında; ":" XML tag adında namespace ayracı olduğu için
+		# "attr_<code>" şeklinde güvenli tag'e çevrilir.
+		xml_tags = [c.replace("attr:", "attr_", 1) for c in canonical]
+		product_xml = "".join(f"  <{t}>{e}</{t}>\n" for t, e in zip(xml_tags, example, strict=False))
 		content = (
 			'<?xml version="1.0" encoding="UTF-8"?>\n'
-			"<urunler>\n  <urun>\n" + product_xml + "  </urun>\n</urunler>\n"
+			"<products>\n  <product>\n" + product_xml + "  </product>\n</products>\n"
 		).encode("utf-8")
-		file_name = "tradehub_toplu_yukleme_sablonu.xml"
+		file_name = "tradehub_bulk_upload_template.xml"
 
 	frappe.local.response.filename = file_name
 	frappe.local.response.filecontent = content
+	frappe.local.response.type = "binary"
+
+
+@frappe.whitelist()
+def download_image_archive_sample() -> None:
+	"""Gorsel arsivi (ZIP) ornegi indir — saticiya dogru klasor/adlandirma yapisini
+	gosterir: SKU.jpg, SKU/ klasor galeri, SKU_1.jpg suffix. Icindeki gorseller
+	yer tutucu (1x1 PNG). frappe.local.response ile binary stream doner."""
+	import base64
+	import io
+	import zipfile
+
+	png = base64.b64decode(
+		"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+	)
+	readme = (
+		"GORSEL ARSIVI NASIL HAZIRLANIR\n"
+		"==============================\n\n"
+		"Gorseller urunun STOK KODU (SKU) ile eslesir. Tek ZIP icinde yukleyin.\n\n"
+		"1) Tek gorsel:      URUN-001.jpg                  (dosya adi = SKU)\n"
+		"2) Coklu (klasor):  URUN-002/1.jpg, URUN-002/2.jpg (klasor adi = SKU)\n"
+		"3) Coklu (suffix):  URUN-003_1.jpg, URUN-003_2.jpg (SKU_1, SKU_2 ...)\n\n"
+		"Varyantli urunlerde VARYANT SKU'su ile de eslesir:\n"
+		"   URUN-004-KIRMIZI-40.jpg\n\n"
+		"Desteklenen formatlar: .jpg .jpeg .png .webp\n"
+		"Ornek gorseller yer tutucudur; kendi gorsellerinizle degistirin.\n"
+	)
+	buf = io.BytesIO()
+	with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+		zf.writestr("OKUBENI.txt", readme)
+		zf.writestr("URUN-001.jpg", png)
+		zf.writestr("URUN-002/1.jpg", png)
+		zf.writestr("URUN-002/2.jpg", png)
+		zf.writestr("URUN-003_1.jpg", png)
+		zf.writestr("URUN-003_2.jpg", png)
+
+	frappe.local.response.filename = "ornek_gorsel_arsivi.zip"
+	frappe.local.response.filecontent = buf.getvalue()
 	frappe.local.response.type = "binary"
 
 

@@ -1,0 +1,73 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "hash",
+ "creation": "2026-06-10 00:00:00",
+ "doctype": "DocType",
+ "document_type": "Document",
+ "editable_grid": 0,
+ "engine": "InnoDB",
+ "field_order": [
+  "seller_profile",
+  "target_field",
+  "enabled",
+  "section_rows",
+  "rows"
+ ],
+ "fields": [
+  {
+   "description": "Bu değer eşleştirmelerinin sahibi satıcı profili",
+   "fieldname": "seller_profile",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Satıcı Profili",
+   "options": "Admin Seller Profile",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "description": "Eşleştirmenin uygulanacağı canonical alan (örn. condition, brand, attr:<kod>)",
+   "fieldname": "target_field",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Hedef Alan",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Aktif"
+  },
+  {
+   "fieldname": "section_rows",
+   "fieldtype": "Section Break",
+   "label": "Değer Eşleştirmeleri"
+  },
+  {
+   "fieldname": "rows",
+   "fieldtype": "Table",
+   "label": "Eşleştirme Satırları",
+   "options": "Seller Value Mapping Row"
+  }
+ ],
+ "links": [],
+ "modified": "2026-06-10 00:00:00",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "Seller Value Mapping",
+ "naming_rule": "Random",
+ "owner": "Administrator",
+ "permissions": [
+  {"create": 1, "delete": 1, "read": 1, "write": 1, "role": "System Manager"},
+  {"create": 1, "delete": 1, "read": 1, "write": 1, "role": "Marketplace Seller"}
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

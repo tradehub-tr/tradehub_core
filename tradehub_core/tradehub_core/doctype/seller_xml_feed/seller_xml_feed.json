@@ -1,0 +1,144 @@
+{
+ "actions": [],
+ "autoname": "naming_series:",
+ "creation": "2026-06-05 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "seller_profile",
+  "feed_url",
+  "enabled",
+  "fetch_hour",
+  "update_mode",
+  "column_mapping",
+  "section_status",
+  "last_fetch",
+  "last_status",
+  "last_item_count",
+  "consecutive_failures",
+  "notify_on_error"
+ ],
+ "fields": [
+  {
+   "default": "SXF-",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "Naming Series",
+   "options": "SXF-"
+  },
+  {
+   "fieldname": "seller_profile",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Satıcı Profili",
+   "options": "Admin Seller Profile",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "feed_url",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Feed URL",
+   "reqd": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Etkin"
+  },
+  {
+   "default": "3",
+   "fieldname": "fetch_hour",
+   "fieldtype": "Int",
+   "label": "Çekme Saati (0-23)"
+  },
+  {
+   "default": "upsert",
+   "fieldname": "update_mode",
+   "fieldtype": "Select",
+   "label": "Güncelleme Modu",
+   "options": "upsert\ninsert_only"
+  },
+  {
+   "fieldname": "column_mapping",
+   "fieldtype": "Long Text",
+   "label": "Kolon Eşleme"
+  },
+  {
+   "fieldname": "section_status",
+   "fieldtype": "Section Break",
+   "label": "Durum"
+  },
+  {
+   "fieldname": "last_fetch",
+   "fieldtype": "Datetime",
+   "label": "Son Çekme",
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_status",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Son Durum",
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_item_count",
+   "fieldtype": "Int",
+   "label": "Son Ürün Sayısı",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "consecutive_failures",
+   "fieldtype": "Int",
+   "label": "Ardışık Hata Sayısı",
+   "read_only": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "notify_on_error",
+   "fieldtype": "Check",
+   "label": "Hatada Bildir"
+  }
+ ],
+ "links": [],
+ "modified": "2026-06-05 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "Seller XML Feed",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "read": 1,
+   "role": "Marketplace Seller",
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0
+}
