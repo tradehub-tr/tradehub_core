@@ -1741,6 +1741,28 @@ def regex_pattern_library_has_permission(doc, ptype, user):
 	return doc_seller == seller
 
 
+def seller_value_mapping_query_conditions(user):
+	"""Satıcı yalnız kendi değer eşleştirmelerini görür."""
+	if _is_admin(user):
+		return ""
+	seller = _seller_of(user)
+	if not seller:
+		return "1=0"
+	return f"`tabSeller Value Mapping`.seller_profile = {frappe.db.escape(seller)}"
+
+
+def seller_value_mapping_has_permission(doc, ptype, user):
+	if _is_admin(user):
+		return True
+	seller = _seller_of(user)
+	if not seller:
+		return False
+	doc_seller = (
+		getattr(doc, "seller_profile", None) if not isinstance(doc, dict) else doc.get("seller_profile")
+	)
+	return doc_seller == seller
+
+
 def seller_template_profile_query_conditions(user):
 	if _is_admin(user):
 		return ""

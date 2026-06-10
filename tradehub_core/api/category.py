@@ -646,7 +646,9 @@ def import_categories(json_data):
 				existing[item_id] = doc.name
 				inserted += 1
 			except Exception as e:
-				frappe.log_error(f"Category import error: {item_id} / {cat_name}: {e}")
+				# log_error(title, message): title 140 char ile sinirli; uzun {e} mesajini
+				# title'a koymak CharacterLengthExceededError ile tum import'u cokertiyordu.
+				frappe.log_error(title="Category import", message=f"{item_id} / {cat_name}: {e}")
 				skipped += 1
 
 		# Çocukları kuyruğa ekle
@@ -662,7 +664,7 @@ def import_categories(json_data):
 		frappe.utils.nestedset.rebuild_tree("Product Category", "parent_product_category")
 		frappe.db.commit()
 	except Exception as e:
-		frappe.log_error(f"rebuild_tree error: {e}")
+		frappe.log_error(title="Category rebuild_tree", message=str(e))
 		rebuild_warning = _(
 			"Kategori ağacı yeniden oluşturulurken hata oluştu. Kategori sıralaması bozuk olabilir, lütfen sayfayı yenileyin."
 		)
@@ -767,7 +769,9 @@ def _run_category_import(json_str, job_key):
 						existing[item_id] = doc.name
 						inserted += 1
 				except Exception as e:
-					frappe.log_error(f"Category import error: {item_id} / {cat_name}: {e}")
+					# log_error(title, message): title 140 char ile sinirli; uzun mesaji
+					# title'a koymak CharacterLengthExceededError ile tum import'u cokertiyordu.
+					frappe.log_error(title="Category import", message=f"{item_id} / {cat_name}: {e}")
 					skipped += 1
 
 			for child in children_by_parent.get(item_id, []):
@@ -795,7 +799,7 @@ def _run_category_import(json_str, job_key):
 			frappe.utils.nestedset.rebuild_tree("Product Category", "parent_product_category")
 			frappe.db.commit()
 		except Exception as e:
-			frappe.log_error(f"rebuild_tree error: {e}")
+			frappe.log_error(title="Category rebuild_tree", message=str(e))
 			warning = _("Kategori ağacı yeniden oluşturulurken hata oluştu. Sıralama bozuk olabilir.")
 
 		_update_progress(
@@ -809,7 +813,7 @@ def _run_category_import(json_str, job_key):
 			warning=warning,
 		)
 	except Exception as e:
-		frappe.log_error(f"_run_category_import error: {e}")
+		frappe.log_error(title="Category async import", message=str(e))
 		_update_progress(job_key, state="error", error=str(e)[:500])
 
 

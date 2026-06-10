@@ -8,6 +8,8 @@
   "attribute_value",
   "attribute_type_2",
   "attribute_value_2",
+  "attribute_type_3",
+  "attribute_value_3",
   "axis_values_json",
   "is_default",
   "variant_image",
@@ -48,6 +50,18 @@
    "in_list_view": 1,
    "label": "Eksen 2 Değeri",
    "description": "Örn: S, M, L, XL, 42"
+  },
+  {
+   "fieldname": "attribute_type_3",
+   "fieldtype": "Data",
+   "label": "Eksen 3 Türü",
+   "description": "Üçüncü varyant ekseni (ör: Hafıza, Malzeme). Boş bırakılabilir."
+  },
+  {
+   "fieldname": "attribute_value_3",
+   "fieldtype": "Data",
+   "label": "Eksen 3 Değeri",
+   "description": "Örn: 128 GB, Deri"
   },
   {
    "fieldname": "axis_values_json",

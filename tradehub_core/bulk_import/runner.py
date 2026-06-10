@@ -12,15 +12,68 @@ from frappe.utils import now, time_diff_in_seconds
 
 from tradehub_core.bulk_import import (
 	image_matcher,
+	image_url_ingest,
 	notifications,
 	persister,
-	regex_lib,
 	validator,
+	value_mapping,
 )
+from tradehub_core.bulk_import.ingestion import resolver
 from tradehub_core.bulk_import.parsers import csv_parser, xlsx_parser, xml_parser
 
 PROGRESS_CACHE_TTL = 3600  # 1 saat
 COMMIT_CHUNK_SIZE = 25
+MAX_IMAGES_PER_PRODUCT = 10  # plan #1 limiti (ZIP + URL birleşik)
+
+# parent_data içinde uzak görsel URL'i taşıyabilen canonical alan(lar). primary_image
+# tek hedef olduğu için tek elemanlı; satıcı buraya virgülle birden çok URL koyabilir.
+_IMAGE_URL_FIELDS = ("primary_image",)
+
+
+def _collect_image_urls(parent_data: dict) -> list[str]:
+	"""parent_data'dan http(s) ile başlayan uzak görsel URL'lerini topla.
+
+	Tek bir hücrede virgülle ayrılmış birden çok URL bulunabilir (galeri).
+	parent_data'dan ham URL alanı POP edilir — aksi halde uzak URL persister'da
+	setattr ile Listing.primary_image'a geri yazılır; biz onun yerine indirilen
+	yerel File URL'lerini listing_images olarak geçiriyoruz.
+	"""
+	urls: list[str] = []
+	for field in _IMAGE_URL_FIELDS:
+		raw = parent_data.pop(field, None)
+		if not raw or not isinstance(raw, str):
+			continue
+		for part in raw.split(","):
+			candidate = part.strip()
+			if candidate.lower().startswith(("http://", "https://")):
+				urls.append(candidate)
+	return urls
+
+
+def _resolve_images(
+	parent_data: dict,
+	sku_key: str,
+	images_idx: dict[str, list[str]],
+	seller_profile: str,
+	warnings: list[str],
+) -> list[str]:
+	"""Satır için nihai görsel listesini üret: ZIP öncelikli, sonra indirilen URL'ler.
+
+	parent_data'daki uzak URL alanı _collect_image_urls içinde pop edilir; URL'ler
+	indirilip yerel File URL'lerine çevrilir, ZIP görselleriyle birleştirilir ve
+	ürün başına MAX_IMAGES_PER_PRODUCT ile sınırlanır.
+	"""
+	remote_urls = _collect_image_urls(parent_data)
+	zip_urls = images_idx.get(sku_key, [])
+	downloaded = (
+		image_url_ingest.ingest_image_urls(remote_urls, seller_profile, warnings) if remote_urls else []
+	)
+	# ZIP öncelikli (satıcı yüklemesi en güvenilir), ardından indirilen URL'ler.
+	combined: list[str] = []
+	for url in [*zip_urls, *downloaded]:
+		if url not in combined:
+			combined.append(url)
+	return combined[:MAX_IMAGES_PER_PRODUCT]
 
 
 def run(bulk_job_name: str) -> None:
@@ -64,7 +117,11 @@ def run(bulk_job_name: str) -> None:
 			except (ValueError, TypeError):
 				mapping = None
 		if not mapping:
-			mapping = regex_lib.resolve_column_mapping(headers, job.seller_profile)
+			# 4 katmanlı resolver (Profile → Regex → Attribute → Semantic):
+			# preview ile aynı mapping üretilsin; attr:<code> / product_type /
+			# variant_* hedefleri persister'a kadar taşınsın (sessiz veri kaybını
+			# önler — yalnız-regex auto-resolve bunları düşürüyordu).
+			mapping = resolver.resolve_columns(headers, job.seller_profile).get("mapping", {})
 
 		images_idx: dict[str, list[str]] = {}
 		if job.images_zip:
@@ -74,11 +131,19 @@ def run(bulk_job_name: str) -> None:
 		inserted = updated = skipped = errors = 0
 		total = len(rows)
 
+		# Yeniden çalıştırma/retry'de önceki çalıştırmanın hata/atlama satırları
+		# kalmasın — liste bu çalıştırmanın sonucunu yansıtsın (aksi halde sayaç
+		# 0 ama Hata Listesi eski kayıtla dolu görünür).
+		frappe.db.delete("Bulk Import Job Error", {"parent": job_name})
+
 		# ── Cluster aşaması ──────────────────────────────────────────
 		# Aynı parent_sku altındaki satırları grupla. Varyantsız ürünler:
 		# tek satırlı cluster (parent_row + variant_rows=[]). Varyantlı ürünler:
 		# parent satır + N variant satır.
-		clusters, cluster_errors = _build_clusters(rows, mapping)
+		# Değer Eşleştirmelerim — satıcı hücre-değeri normalizasyonu (persist öncesi).
+		# Map bir kez kurulur (5dk cache), _canonicalize her satıra uygular.
+		value_map = value_mapping.build_value_map(job.seller_profile)
+		clusters, cluster_errors = _build_clusters(rows, mapping, value_map)
 		for c_idx, raw_row, msg in cluster_errors:
 			_record_error(job, c_idx, raw_row, mapping, "validation", msg)
 			errors += 1
@@ -124,35 +189,51 @@ def run(bulk_job_name: str) -> None:
 						skipped += 1
 						continue
 					# Upsert: variant_items'a şu an dokunmuyoruz (V1: parent fields güncellenir).
-					imgs = images_idx.get(sku_key, [])
+					row_warnings: list[str] = []
+					imgs = _resolve_images(parent_data, sku_key, images_idx, job.seller_profile, row_warnings)
 					persister.update_listing(
 						sku_key,
 						parent_data,
 						job.seller_profile,
 						job_name,
 						imgs,
+						row_warnings,
 					)
 					updated += 1
+					_record_warnings(job, parent_idx, parent_raw_row, mapping, row_warnings)
 				else:
+					row_warnings = []
 					if variant_data_rows:
-						# Varyantlı ürün
+						# Varyantlı ürün — parent'ın indirilen görsellerini images_idx'e
+						# overlay et (create_listing_with_variants dict bekliyor).
+						parent_imgs = _resolve_images(
+							parent_data, sku_key, images_idx, job.seller_profile, row_warnings
+						)
+						variant_images_idx = images_idx
+						if parent_imgs:
+							variant_images_idx = {**images_idx, sku_key: parent_imgs}
 						persister.create_listing_with_variants(
 							parent_data,
 							variant_data_rows,
 							job.seller_profile,
 							job_name,
-							images_idx,
+							variant_images_idx,
+							row_warnings,
 						)
 					else:
 						# Varyantsız ürün — eski tek-satır akış
-						imgs = images_idx.get(sku_key, [])
+						imgs = _resolve_images(
+							parent_data, sku_key, images_idx, job.seller_profile, row_warnings
+						)
 						persister.create_listing(
 							parent_data,
 							job.seller_profile,
 							job_name,
 							imgs,
+							row_warnings,
 						)
 					inserted += 1
+					_record_warnings(job, parent_idx, parent_raw_row, mapping, row_warnings)
 
 				processed = inserted + updated + skipped + errors
 				if processed % COMMIT_CHUNK_SIZE == 0:
@@ -197,6 +278,12 @@ def run(bulk_job_name: str) -> None:
 			job.status = "Partial"
 		else:
 			job.status = "Completed"
+		# Partial/Failed'da üst-düzey özet ver (önceden yalnız fatal except'te
+		# set ediliyordu → "1 hata ama özet boş" görünüyordu).
+		if errors > 0 and not job.error_summary:
+			job.error_summary = _("{0} satır içe aktarılamadı. Ayrıntılar aşağıdaki hata listesinde.").format(
+				errors
+			)
 		job.save(ignore_permissions=True)
 
 		_update_progress(
@@ -274,6 +361,25 @@ def _record_error(
 		frappe.log_error(f"_record_error failed: {e}", "bulk_import.runner")
 
 
+def _record_warnings(
+	job,
+	row_num: int,
+	raw_row: dict,
+	mapping: dict,
+	warnings: list[str],
+) -> None:
+	"""Satır başarıyla yazıldı ama persister uyarı topladıysa (örn. geçersiz
+	öznitelik kodu) bunları error_details child'ına bilgilendirici satır olarak
+	ekle. error counter'ı ARTIRMAZ — satır import edildi, bu yalnızca uyarı.
+
+	Bulk Import Job Error.error_type Select'inde "warning" option'ı yok; mevcut
+	mekanizmayı bozmamak için "validation" tipiyle kaydedilir (hata sayılmaz).
+	"""
+	if not warnings:
+		return
+	_record_error(job, row_num, raw_row, mapping, "validation", "; ".join(warnings))
+
+
 def _record_skip(job, row_num: int, sku, reason: str) -> None:
 	"""Atlanan satırı child table'a ekle."""
 	try:
@@ -294,6 +400,7 @@ def _record_skip(job, row_num: int, sku, reason: str) -> None:
 def _build_clusters(
 	rows: list[dict],
 	mapping: dict,
+	value_map: dict | None = None,
 ) -> tuple[list[dict], list[tuple[int, dict, str]]]:
 	"""xlsx satırlarını parent-variant cluster'larına böl.
 
@@ -320,11 +427,16 @@ def _build_clusters(
 	orphans: list[tuple[int, dict, str]] = []
 	pending_variants: list[tuple[int, dict, dict, str]] = []
 
+	vmap = value_map or {}
+
 	def _canonicalize(raw_row: dict) -> dict:
 		out: dict = {}
 		for target, source in mapping.items():
 			if source in raw_row:
-				out[target] = raw_row[source]
+				# Değer eşleştirmesi: gelen hücre değerini satıcı hedef değerine çevir.
+				# Kimlik alanları (sku/parent_sku vb.) value_mapping içinde atlanır —
+				# cluster bağı map'lenmemiş ham SKU üzerinden kurulur.
+				out[target] = value_mapping.apply_value_mapping(target, raw_row[source], vmap)
 		return out
 
 	for idx, raw_row in enumerate(rows, 1):

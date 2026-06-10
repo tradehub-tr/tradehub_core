@@ -320,13 +320,69 @@ def _coerce_value(db_field: str, value):
 	return value
 
 
+# Mapping/template ürünü olan PIM kolon prefix'i. "attr:<attribute_code>" deseni
+# download_template (api.py) tarafından üretilir; bu key'ler Listing field'ı değil,
+# attribute_values child tablosuna satır olarak yazılır.
+_ATTR_KEY_PREFIX = "attr:"
+
+
 def _coerce_row(row_data: dict) -> dict:
-	"""Canonical key → DB field translate + tür normalize."""
+	"""Canonical key → DB field translate + tür normalize.
+
+	`attr:<code>` key'leri Listing DB field'ı değil child-row kaynağıdır; coerce
+	dışında tutulur ve _apply_attribute_values tarafından ayrıca işlenir.
+	"""
 	out: dict = {}
 	for key, value in row_data.items():
+		if key.startswith(_ATTR_KEY_PREFIX):
+			continue
 		db_field = _CANONICAL_TO_DB.get(key, key)
 		out[db_field] = _coerce_value(db_field, value)
 	return out
+
+
+def _apply_attribute_values(doc, row_data: dict, warnings: list[str] | None = None) -> None:
+	"""`attr:<code>` key'lerini Listing.attribute_values child satırlarına çevir.
+
+	Her geçerli `attr:<attribute_code>` için {attribute, attribute_value} satırı
+	eklenir. Boş değerler atlanır. Product Attribute kaydı bulunamayan code'lar
+	satır olarak yazılmaz; bunun yerine `warnings` listesine uyarı eklenir (runner
+	bu uyarıyı satır-uyarısı mekanizmasıyla kaydeder).
+
+	Product Attribute autoname `field:attribute_code` olduğundan name == code.
+	Geçerli code'lar tek batch'le doğrulanır (loop içi DB call / N+1 yok).
+	"""
+	pairs: list[tuple[str, str]] = []
+	for key, value in row_data.items():
+		if not key.startswith(_ATTR_KEY_PREFIX):
+			continue
+		code = key[len(_ATTR_KEY_PREFIX) :].strip()
+		if not code:
+			continue
+		val = "" if value is None else str(value).strip()
+		if not val:
+			continue
+		pairs.append((code, val))
+
+	if not pairs:
+		return
+
+	codes = list({code for code, _ in pairs})
+	valid_codes = {
+		r.name
+		for r in frappe.get_all(
+			"Product Attribute",
+			filters={"name": ["in", codes]},
+			fields=["name"],
+		)
+	}
+
+	for code, val in pairs:
+		if code not in valid_codes:
+			if warnings is not None:
+				warnings.append(_("Geçersiz öznitelik kodu, satır atlandı: {0}").format(code))
+			continue
+		doc.append("attribute_values", {"attribute": code, "attribute_value": val})
 
 
 def _apply_defaults(doc) -> None:
@@ -350,6 +406,7 @@ def create_listing(
 	seller_profile: str,
 	job_name: str,
 	listing_images: list[str] | None = None,
+	warnings: list[str] | None = None,
 ) -> str:
 	"""Yeni Listing oluştur. before_insert hook status=Pending yapar."""
 	coerced = _coerce_row(row_data)
@@ -367,8 +424,12 @@ def create_listing(
 		doc.selling_price = doc.base_price
 
 	_attach_images(doc, listing_images or [])
+	_apply_attribute_values(doc, row_data, warnings)
 
-	doc.insert(ignore_permissions=False)
+	# Bulk import güvenilir sunucu-içi işlem: satıcı kimliği doğrulanmış ve
+	# seller_profile açıkça set edili (tenant izolasyonu korunur). Arka plan
+	# işinde rol-bazlı "create" izni düşmesin diye ignore_permissions=True.
+	doc.insert(ignore_permissions=True)
 	return doc.name
 
 
@@ -378,6 +439,7 @@ def update_listing(
 	seller_profile: str,
 	job_name: str,
 	listing_images: list[str] | None = None,
+	warnings: list[str] | None = None,
 ) -> tuple[str, list[str]]:
 	"""Upsert modda mevcut Listing'i güncelle. Boş alanlar korunur."""
 	name = frappe.db.get_value(
@@ -407,7 +469,16 @@ def update_listing(
 		if "listing_images" not in changed:
 			changed.append("listing_images")
 
-	doc.save(ignore_permissions=False)
+	# attr:<code> kolonu geldiyse spec'leri yeniden kur (listing_images deseni gibi);
+	# dolu attr kolonu yoksa mevcut attribute_values korunur.
+	if any(k.startswith(_ATTR_KEY_PREFIX) and (v not in (None, "")) for k, v in row_data.items()):
+		doc.set("attribute_values", [])
+		_apply_attribute_values(doc, row_data, warnings)
+		if "attribute_values" not in changed:
+			changed.append("attribute_values")
+
+	# Bulk import güvenilir sunucu-içi güncelleme (yukarıdaki create gerekçesi).
+	doc.save(ignore_permissions=True)
 	return doc.name, changed
 
 
@@ -428,27 +499,60 @@ def check_sku_exists(sku, seller_profile: str) -> bool:
 # ─────────────────────────────────────────────────────────────────
 
 
+# Varyant ekseni canonical kolon çiftleri. download_template (api.py) statik
+# olarak 1-3 ekseni üretir; 3+ eksen için axis_values_json (12'ye kadar) korunur.
+# Bu liste hem axes_config hem child satır yazımı tarafından kullanılır.
+_VARIANT_AXIS_KEYS: tuple[tuple[str, str], ...] = (
+	("variant_axis_1_type", "variant_axis_1_value"),
+	("variant_axis_2_type", "variant_axis_2_value"),
+	("variant_axis_3_type", "variant_axis_3_value"),
+)
+
+# axis_values_json en fazla bu kadar ekseni tutar (storefront kombinasyon limiti).
+_MAX_VARIANT_AXES = 12
+
+
+def _extract_variant_axes(vrow: dict) -> list[tuple[str, str]]:
+	"""Tek varyant satırından (type, value) eksen çiftlerini sırayla çıkar.
+
+	1-3 eksen `variant_axis_N_type/value` canonical kolonlarından gelir; 3+ eksen
+	için `axis:<type>` deseni (varsa) eklenir. Boş çiftler atlanır. En fazla
+	_MAX_VARIANT_AXES çift döner.
+	"""
+	axes: list[tuple[str, str]] = []
+	for type_key, value_key in _VARIANT_AXIS_KEYS:
+		t = (vrow.get(type_key) or "").strip()
+		v = (vrow.get(value_key) or "").strip()
+		if t and v:
+			axes.append((t, v))
+	# 3+ eksen genişleme kapısı: axis:<type> kolonları (statik şablonda yok ama
+	# özel mapping ile gelebilir) sıra korunarak eklenir.
+	for key, raw in vrow.items():
+		if not key.startswith("axis:"):
+			continue
+		t = key[len("axis:") :].strip()
+		v = "" if raw is None else str(raw).strip()
+		if t and v and (t, v) not in axes:
+			axes.append((t, v))
+	return axes[:_MAX_VARIANT_AXES]
+
+
 def _build_variant_axes_config(variant_rows: list[dict]) -> str:
 	"""variant_items rows'tan eksen tip → değer listesi JSON'u üret.
 
 	Listing.variant_axes_config Long Text — storefront varyant seçimini bu
-	JSON'a göre render eder.
+	JSON'a göre render eder. 1-3 eksen kolon çiftlerinden, 3+ eksen
+	`axis:<type>` deseninden toplanır.
 	Örnek çıktı: {"Renk": ["Kırmızı", "Mavi"], "Beden": ["S", "M", "L"]}
 	"""
 	import json
 
 	axes: dict[str, list[str]] = {}
 	for r in variant_rows:
-		for type_key, value_key in (
-			("variant_axis_1_type", "variant_axis_1_value"),
-			("variant_axis_2_type", "variant_axis_2_value"),
-		):
-			t = (r.get(type_key) or "").strip()
-			v = (r.get(value_key) or "").strip()
-			if t and v:
-				axes.setdefault(t, [])
-				if v not in axes[t]:
-					axes[t].append(v)
+		for t, v in _extract_variant_axes(r):
+			axes.setdefault(t, [])
+			if v not in axes[t]:
+				axes[t].append(v)
 	return json.dumps(axes, ensure_ascii=False)
 
 
@@ -458,6 +562,7 @@ def create_listing_with_variants(
 	seller_profile: str,
 	job_name: str,
 	images_idx: dict[str, list[str]] | None = None,
+	warnings: list[str] | None = None,
 ) -> str:
 	"""Varyantlı Listing oluştur: parent doc + variant_items child rows.
 
@@ -486,25 +591,39 @@ def create_listing_with_variants(
 		doc.selling_price = doc.base_price
 
 	_attach_images(doc, parent_imgs)
+	# attribute_values parent satırından — varyant eksenleri ayrı variant_items'a gider.
+	_apply_attribute_values(doc, parent_row, warnings)
 
 	# Varyant child rows
+	import json
+
 	for i, vrow in enumerate(variant_rows):
 		v_sku = str(vrow.get("variant_sku") or "").strip()
 		v_imgs = images_idx.get(v_sku, []) if v_sku else []
 		variant_image = v_imgs[0] if v_imgs else None
 		# Ek görseller JSON listesi (variant_gallery Long Text)
-		import json
-
 		gallery_json = json.dumps(v_imgs[1:], ensure_ascii=False) if len(v_imgs) > 1 else None
+
+		axes = _extract_variant_axes(vrow)
+		# 1-3 ekseni ayrı kolonlara yaz; 3+ ekseni axis_values_json'a koru.
+		# attribute_type/value reqd — 1. eksen boşsa "Renk" default'u uygulanır.
+		axis_values_json = (
+			json.dumps([{"type": t, "value": v} for t, v in axes], ensure_ascii=False)
+			if len(axes) > 2
+			else None
+		)
 
 		doc.append(
 			"variant_items",
 			{
 				"variant_sku": v_sku,
-				"attribute_type": (vrow.get("variant_axis_1_type") or "").strip() or "Renk",
-				"attribute_value": (vrow.get("variant_axis_1_value") or "").strip(),
-				"attribute_type_2": (vrow.get("variant_axis_2_type") or "").strip() or None,
-				"attribute_value_2": (vrow.get("variant_axis_2_value") or "").strip() or None,
+				"attribute_type": (axes[0][0] if len(axes) > 0 else "") or "Renk",
+				"attribute_value": axes[0][1] if len(axes) > 0 else "",
+				"attribute_type_2": (axes[1][0] if len(axes) > 1 else "") or None,
+				"attribute_value_2": (axes[1][1] if len(axes) > 1 else "") or None,
+				"attribute_type_3": (axes[2][0] if len(axes) > 2 else "") or None,
+				"attribute_value_3": (axes[2][1] if len(axes) > 2 else "") or None,
+				"axis_values_json": axis_values_json,
 				"variant_price": _normalize_numeric(vrow.get("variant_price")) or 0,
 				"variant_stock": _normalize_numeric(vrow.get("variant_stock")) or 0,
 				"variant_image": variant_image,
@@ -513,5 +632,8 @@ def create_listing_with_variants(
 			},
 		)
 
-	doc.insert(ignore_permissions=False)
+	# Bulk import güvenilir sunucu-içi işlem: satıcı kimliği doğrulanmış ve
+	# seller_profile açıkça set edili (tenant izolasyonu korunur). Arka plan
+	# işinde rol-bazlı "create" izni düşmesin diye ignore_permissions=True.
+	doc.insert(ignore_permissions=True)
 	return doc.name

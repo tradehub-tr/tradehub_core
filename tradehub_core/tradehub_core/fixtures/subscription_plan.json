@@ -1,115 +1,115 @@
 [
- {
-  "doctype": "Subscription Plan",
-  "name": "free",
-  "plan_code": "free",
-  "plan_name": "Free",
-  "description": "Bireysel/test satıcılar için ücretsiz başlangıç planı. Sadece TR bölgesi.",
-  "is_active": 1,
-  "is_public": 1,
-  "display_order": 10,
-  "highlighted": 0,
-  "currency": "EUR",
-  "monthly_price": 0,
-  "yearly_price": 0,
-  "trial_days": 0,
-  "capability_flags": "{\"feature.pim.basic_product\": true, \"feature.pim.multi_variant\": false, \"feature.pim.attribute_set\": false, \"feature.pim.product_family\": false, \"feature.pim.bulk_import\": false, \"feature.store.basic_storefront\": true, \"feature.store.custom_theme\": false, \"feature.store.custom_domain\": false, \"feature.store.multi_language\": false, \"feature.functional.rfq\": false, \"feature.functional.approval_chain\": false, \"feature.functional.cargo_integration\": false, \"feature.functional.commission_report\": true, \"feature.crm.module\": false, \"feature.b2b.approved_vendor_list\": false, \"feature.b2b.cost_center\": false, \"feature.api.access\": false, \"feature.api.webhook\": false, \"feature.analytics.basic\": true, \"feature.analytics.advanced\": false, \"feature.analytics.export\": false, \"feature.role.custom_creation\": false, \"feature.role.profile.seller_full_access\": true, \"feature.role.profile.seller_co_owner\": false, \"feature.role.profile.seller_manager\": false, \"feature.role.profile.seller_finance_staff\": false, \"feature.role.profile.seller_operations\": false, \"feature.b2b.organization_hierarchy\": false, \"feature.role.profile.buyer_full_access\": true, \"feature.role.profile.buyer_operations\": false, \"feature.role.profile.buyer_finance_staff\": false, \"feature.role.profile.buyer_approver_l1\": false, \"feature.role.profile.buyer_approver_l2\": false, \"feature.role.profile.buyer_viewer_only\": false}",
-  "quota_limits": "{\"quota.max_sub_users\": 1, \"quota.max_products\": 50, \"quota.max_regions\": 1, \"quota.api_rate_limit\": 0, \"quota.max_co_owners\": 0, \"quota.max_orders_per_month\": 0}",
-  "allowed_regions": [
-   {
-    "doctype": "Subscription Plan Region",
-    "region": "TR"
-   }
-  ]
- },
- {
-  "doctype": "Subscription Plan",
-  "name": "pro",
-  "plan_code": "pro",
-  "plan_name": "Pro",
-  "description": "KOBİ ve orta ölçek için tam donanımlı paket. CRM, API, gelişmiş analitik, 4 bölge.",
-  "is_active": 1,
-  "is_public": 1,
-  "display_order": 30,
-  "highlighted": 1,
-  "currency": "EUR",
-  "monthly_price": 599,
-  "yearly_price": 5990,
-  "trial_days": 14,
-  "capability_flags": "{\"feature.pim.basic_product\": true, \"feature.pim.multi_variant\": true, \"feature.pim.attribute_set\": true, \"feature.pim.product_family\": true, \"feature.pim.bulk_import\": true, \"feature.store.basic_storefront\": true, \"feature.store.custom_theme\": true, \"feature.store.custom_domain\": true, \"feature.store.multi_language\": true, \"feature.functional.rfq\": true, \"feature.functional.approval_chain\": true, \"feature.functional.cargo_integration\": true, \"feature.functional.commission_report\": true, \"feature.crm.module\": true, \"feature.b2b.approved_vendor_list\": false, \"feature.b2b.cost_center\": false, \"feature.api.access\": true, \"feature.api.webhook\": true, \"feature.analytics.basic\": true, \"feature.analytics.advanced\": true, \"feature.analytics.export\": true, \"feature.role.custom_creation\": false, \"feature.role.profile.seller_full_access\": true, \"feature.role.profile.seller_co_owner\": true, \"feature.role.profile.seller_manager\": true, \"feature.role.profile.seller_finance_staff\": true, \"feature.role.profile.seller_operations\": true, \"feature.b2b.organization_hierarchy\": true, \"feature.role.profile.buyer_full_access\": true, \"feature.role.profile.buyer_operations\": true, \"feature.role.profile.buyer_finance_staff\": true, \"feature.role.profile.buyer_approver_l1\": true, \"feature.role.profile.buyer_approver_l2\": false, \"feature.role.profile.buyer_viewer_only\": true}",
-  "quota_limits": "{\"quota.max_sub_users\": 10, \"quota.max_products\": 5000, \"quota.max_regions\": 4, \"quota.api_rate_limit\": 60, \"quota.max_co_owners\": 1, \"quota.max_orders_per_month\": 0}",
-  "allowed_regions": [
-   {
-    "doctype": "Subscription Plan Region",
-    "region": "TR"
-   },
-   {
-    "doctype": "Subscription Plan Region",
-    "region": "EU"
-   },
-   {
-    "doctype": "Subscription Plan Region",
-    "region": "MENA"
-   },
-   {
-    "doctype": "Subscription Plan Region",
-    "region": "AZ"
-   }
-  ]
- },
- {
-  "doctype": "Subscription Plan",
-  "name": "enterprise",
-  "plan_code": "enterprise",
-  "plan_name": "Enterprise",
-  "description": "Kurumsal ve holding ölçek. Sınırsız çalışan, custom rol oluşturma, tüm bölgeler, özel fiyatlandırma.",
-  "is_active": 1,
-  "is_public": 0,
-  "display_order": 40,
-  "highlighted": 0,
-  "currency": "EUR",
-  "monthly_price": 0,
-  "yearly_price": 0,
-  "trial_days": 30,
-  "capability_flags": "{\"feature.pim.basic_product\": true, \"feature.pim.multi_variant\": true, \"feature.pim.attribute_set\": true, \"feature.pim.product_family\": true, \"feature.pim.bulk_import\": true, \"feature.store.basic_storefront\": true, \"feature.store.custom_theme\": true, \"feature.store.custom_domain\": true, \"feature.store.multi_language\": true, \"feature.functional.rfq\": true, \"feature.functional.approval_chain\": true, \"feature.functional.cargo_integration\": true, \"feature.functional.commission_report\": true, \"feature.crm.module\": true, \"feature.b2b.approved_vendor_list\": true, \"feature.b2b.cost_center\": true, \"feature.api.access\": true, \"feature.api.webhook\": true, \"feature.analytics.basic\": true, \"feature.analytics.advanced\": true, \"feature.analytics.export\": true, \"feature.role.custom_creation\": true, \"feature.role.profile.seller_full_access\": true, \"feature.role.profile.seller_co_owner\": true, \"feature.role.profile.seller_manager\": true, \"feature.role.profile.seller_finance_staff\": true, \"feature.role.profile.seller_operations\": true, \"feature.b2b.organization_hierarchy\": true, \"feature.role.profile.buyer_full_access\": true, \"feature.role.profile.buyer_operations\": true, \"feature.role.profile.buyer_finance_staff\": true, \"feature.role.profile.buyer_approver_l1\": true, \"feature.role.profile.buyer_approver_l2\": true, \"feature.role.profile.buyer_viewer_only\": true}",
-  "quota_limits": "{\"quota.max_sub_users\": -1, \"quota.max_products\": -1, \"quota.max_regions\": -1, \"quota.api_rate_limit\": 1000, \"quota.max_co_owners\": -1, \"quota.max_orders_per_month\": 0}",
-  "allowed_regions": [
-   {
-    "doctype": "Subscription Plan Region",
-    "region": "TR"
-   },
-   {
-    "doctype": "Subscription Plan Region",
-    "region": "EU"
-   },
-   {
-    "doctype": "Subscription Plan Region",
-    "region": "MENA"
-   },
-   {
-    "doctype": "Subscription Plan Region",
-    "region": "AZ"
-   },
-   {
-    "doctype": "Subscription Plan Region",
-    "region": "KZ"
-   },
-   {
-    "doctype": "Subscription Plan Region",
-    "region": "UZ"
-   },
-   {
-    "doctype": "Subscription Plan Region",
-    "region": "TM"
-   },
-   {
-    "doctype": "Subscription Plan Region",
-    "region": "KG"
-   },
-   {
-    "doctype": "Subscription Plan Region",
-    "region": "GLOBAL"
-   }
-  ]
- }
+	{
+		"doctype": "Subscription Plan",
+		"name": "free",
+		"plan_code": "free",
+		"plan_name": "Free",
+		"description": "Bireysel/test satıcılar için ücretsiz başlangıç planı. Sadece TR bölgesi.",
+		"is_active": 1,
+		"is_public": 1,
+		"display_order": 10,
+		"highlighted": 0,
+		"currency": "EUR",
+		"monthly_price": 0,
+		"yearly_price": 0,
+		"trial_days": 0,
+		"capability_flags": "{\"feature.pim.basic_product\": true, \"feature.pim.multi_variant\": false, \"feature.pim.attribute_set\": false, \"feature.pim.product_family\": false, \"feature.pim.bulk_import\": false, \"feature.import.xml_feed\": false, \"feature.store.basic_storefront\": true, \"feature.store.custom_theme\": false, \"feature.store.custom_domain\": false, \"feature.store.multi_language\": false, \"feature.functional.rfq\": false, \"feature.functional.approval_chain\": false, \"feature.functional.cargo_integration\": false, \"feature.functional.commission_report\": true, \"feature.crm.module\": false, \"feature.b2b.approved_vendor_list\": false, \"feature.b2b.cost_center\": false, \"feature.api.access\": false, \"feature.api.webhook\": false, \"feature.analytics.basic\": true, \"feature.analytics.advanced\": false, \"feature.analytics.export\": false, \"feature.role.custom_creation\": false, \"feature.role.profile.seller_full_access\": true, \"feature.role.profile.seller_co_owner\": false, \"feature.role.profile.seller_manager\": false, \"feature.role.profile.seller_finance_staff\": false, \"feature.role.profile.seller_operations\": false, \"feature.b2b.organization_hierarchy\": false, \"feature.role.profile.buyer_full_access\": true, \"feature.role.profile.buyer_operations\": false, \"feature.role.profile.buyer_finance_staff\": false, \"feature.role.profile.buyer_approver_l1\": false, \"feature.role.profile.buyer_approver_l2\": false, \"feature.role.profile.buyer_viewer_only\": false}",
+		"quota_limits": "{\"quota.max_sub_users\": 1, \"quota.max_products\": 50, \"quota.max_regions\": 1, \"quota.api_rate_limit\": 0, \"quota.max_co_owners\": 0, \"quota.max_orders_per_month\": 0}",
+		"allowed_regions": [
+			{
+				"doctype": "Subscription Plan Region",
+				"region": "TR"
+			}
+		]
+	},
+	{
+		"doctype": "Subscription Plan",
+		"name": "pro",
+		"plan_code": "pro",
+		"plan_name": "Pro",
+		"description": "KOBİ ve orta ölçek için tam donanımlı paket. CRM, API, gelişmiş analitik, 4 bölge.",
+		"is_active": 1,
+		"is_public": 1,
+		"display_order": 30,
+		"highlighted": 1,
+		"currency": "EUR",
+		"monthly_price": 599,
+		"yearly_price": 5990,
+		"trial_days": 14,
+		"capability_flags": "{\"feature.pim.basic_product\": true, \"feature.pim.multi_variant\": true, \"feature.pim.attribute_set\": true, \"feature.pim.product_family\": true, \"feature.pim.bulk_import\": true, \"feature.import.xml_feed\": true, \"feature.store.basic_storefront\": true, \"feature.store.custom_theme\": true, \"feature.store.custom_domain\": true, \"feature.store.multi_language\": true, \"feature.functional.rfq\": true, \"feature.functional.approval_chain\": true, \"feature.functional.cargo_integration\": true, \"feature.functional.commission_report\": true, \"feature.crm.module\": true, \"feature.b2b.approved_vendor_list\": false, \"feature.b2b.cost_center\": false, \"feature.api.access\": true, \"feature.api.webhook\": true, \"feature.analytics.basic\": true, \"feature.analytics.advanced\": true, \"feature.analytics.export\": true, \"feature.role.custom_creation\": false, \"feature.role.profile.seller_full_access\": true, \"feature.role.profile.seller_co_owner\": true, \"feature.role.profile.seller_manager\": true, \"feature.role.profile.seller_finance_staff\": true, \"feature.role.profile.seller_operations\": true, \"feature.b2b.organization_hierarchy\": true, \"feature.role.profile.buyer_full_access\": true, \"feature.role.profile.buyer_operations\": true, \"feature.role.profile.buyer_finance_staff\": true, \"feature.role.profile.buyer_approver_l1\": true, \"feature.role.profile.buyer_approver_l2\": false, \"feature.role.profile.buyer_viewer_only\": true}",
+		"quota_limits": "{\"quota.max_sub_users\": 10, \"quota.max_products\": 5000, \"quota.max_regions\": 4, \"quota.api_rate_limit\": 60, \"quota.max_co_owners\": 1, \"quota.max_orders_per_month\": 0}",
+		"allowed_regions": [
+			{
+				"doctype": "Subscription Plan Region",
+				"region": "TR"
+			},
+			{
+				"doctype": "Subscription Plan Region",
+				"region": "EU"
+			},
+			{
+				"doctype": "Subscription Plan Region",
+				"region": "MENA"
+			},
+			{
+				"doctype": "Subscription Plan Region",
+				"region": "AZ"
+			}
+		]
+	},
+	{
+		"doctype": "Subscription Plan",
+		"name": "enterprise",
+		"plan_code": "enterprise",
+		"plan_name": "Enterprise",
+		"description": "Kurumsal ve holding ölçek. Sınırsız çalışan, custom rol oluşturma, tüm bölgeler, özel fiyatlandırma.",
+		"is_active": 1,
+		"is_public": 0,
+		"display_order": 40,
+		"highlighted": 0,
+		"currency": "EUR",
+		"monthly_price": 0,
+		"yearly_price": 0,
+		"trial_days": 30,
+		"capability_flags": "{\"feature.pim.basic_product\": true, \"feature.pim.multi_variant\": true, \"feature.pim.attribute_set\": true, \"feature.pim.product_family\": true, \"feature.pim.bulk_import\": true, \"feature.import.xml_feed\": true, \"feature.store.basic_storefront\": true, \"feature.store.custom_theme\": true, \"feature.store.custom_domain\": true, \"feature.store.multi_language\": true, \"feature.functional.rfq\": true, \"feature.functional.approval_chain\": true, \"feature.functional.cargo_integration\": true, \"feature.functional.commission_report\": true, \"feature.crm.module\": true, \"feature.b2b.approved_vendor_list\": true, \"feature.b2b.cost_center\": true, \"feature.api.access\": true, \"feature.api.webhook\": true, \"feature.analytics.basic\": true, \"feature.analytics.advanced\": true, \"feature.analytics.export\": true, \"feature.role.custom_creation\": true, \"feature.role.profile.seller_full_access\": true, \"feature.role.profile.seller_co_owner\": true, \"feature.role.profile.seller_manager\": true, \"feature.role.profile.seller_finance_staff\": true, \"feature.role.profile.seller_operations\": true, \"feature.b2b.organization_hierarchy\": true, \"feature.role.profile.buyer_full_access\": true, \"feature.role.profile.buyer_operations\": true, \"feature.role.profile.buyer_finance_staff\": true, \"feature.role.profile.buyer_approver_l1\": true, \"feature.role.profile.buyer_approver_l2\": true, \"feature.role.profile.buyer_viewer_only\": true}",
+		"quota_limits": "{\"quota.max_sub_users\": -1, \"quota.max_products\": -1, \"quota.max_regions\": -1, \"quota.api_rate_limit\": 1000, \"quota.max_co_owners\": -1, \"quota.max_orders_per_month\": 0}",
+		"allowed_regions": [
+			{
+				"doctype": "Subscription Plan Region",
+				"region": "TR"
+			},
+			{
+				"doctype": "Subscription Plan Region",
+				"region": "EU"
+			},
+			{
+				"doctype": "Subscription Plan Region",
+				"region": "MENA"
+			},
+			{
+				"doctype": "Subscription Plan Region",
+				"region": "AZ"
+			},
+			{
+				"doctype": "Subscription Plan Region",
+				"region": "KZ"
+			},
+			{
+				"doctype": "Subscription Plan Region",
+				"region": "UZ"
+			},
+			{
+				"doctype": "Subscription Plan Region",
+				"region": "TM"
+			},
+			{
+				"doctype": "Subscription Plan Region",
+				"region": "KG"
+			},
+			{
+				"doctype": "Subscription Plan Region",
+				"region": "GLOBAL"
+			}
+		]
+	}
 ]
