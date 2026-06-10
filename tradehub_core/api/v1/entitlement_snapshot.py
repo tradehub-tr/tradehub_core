@@ -25,6 +25,7 @@ from tradehub_core.entitlement import get_active_subscription, get_capability_fl
 # (gizli/finansal/role-management gibi backend-only feature'lar dışarı sızmaz)
 _STOREFRONT_FEATURE_PREFIXES = (
 	"feature.pim.",  # Çoklu varyant, attribute set vb.
+	"feature.import.",  # XML Feed otomatik ürün çekme (satıcı panel gating'i)
 	"feature.functional.",  # RFQ, onay zinciri, kargo
 	"feature.store.",  # Vitrin, tema, domain
 	"feature.api.",  # API erişimi (storefront'ta bilgi amaçlı)
