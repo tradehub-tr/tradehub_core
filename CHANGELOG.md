@@ -1,3 +1,48 @@
+## [v1.1.0-beta.10] - 2026-06-10 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Eklendi
+- feat(pim): mini-PIM şema + zorunlu-attribute temizliği (@aliiball)
+  - Product Attribute: attribute_label_en + include_in_bulk_template
+  - Listing Variant Item: 3. eksen (attribute_type_3/value_3) + axis_values_json
+  - product-type bazlı zorunlu-attribute enforcement kaldırıldı (cleanup patch)
+- feat(bulk-import): kolon otomatik eşleme + import boru hattı iyileştirmeleri (@aliiball)
+  - canonical_fields PIM+varyant eş anlamlıları + resolver attribute katmanı
+  - önizleme/import 4 katmanlı resolver kullanır (sessiz veri kaybı düzeltildi)
+  - get_import_status hata listesi + özet döner; örnek görsel ZIP endpoint'i
+  - runner: değer-eşleme transform + görsel URL ingest kancası + eski hata temizleme
+- feat(bulk-import): hücre değeri + kolon-adı eşleştirme (Seller Value Mapping) (@aliiball)
+  - Seller Value Mapping doctype: alan + gelen değer → hedef değer (satıcı bazlı)
+  - hardcoded _TR_*_ALIASES satıcı-yapılandırılabilir genel lookup'a taşındı
+  - regex_lib: regex'siz kolon-alias + güvenli regex üretimi endpointleri
+- feat(eca): kural sihirbazı backend (şema + derleme + canlı sayım) (@aliiball)
+  - get_rule_schema / count_matching / save_wizard_rule + get_mapping_targets
+  - sihirbaz eylemleri mevcut condition_compiler + action_type'a derlenir
+  - count_matching tenant-scoped get_all kullanır (Listing izin hatası giderildi)
+- feat(feed): URL'den otomatik XML çekme + görsel ingest + run-history (@aliiball)
+  - Seller XML Feed + saatlik scheduler (24h) + SSRF korumalı fetch + auto-disable
+  - uzak görsel URL'leri indir/doğrula/barındır (URL cache) + bulk_import_safe fix
+  - Bulk Import Job source_feed bağı → list_feed_runs + feed_dry_run (persist yok)
+- feat(feed): XML Feed plan-bazlı yetkilendirme (Pricing Table) (@aliiball)
+  - feature.import.xml_feed capability'si (Feature Catalog + plan seed)
+  - entitlement_snapshot feature.import. prefix'ini frontend'e açar
+
+### Duzeltildi
+- fix(bulk-import): listing persisteri ignore_permissions ile yazar (@aliiball)
+  - create/update/variants yolları ignore_permissions=True (güvenilir sunucu işi)
+  - seller_profile açıkça set edildiği için tenant izolasyonu korunur
+- fix(permissions): yeni doctype tenant hook'ları + satıcı Custom DocPerm onarımı (@aliiball)
+  - Seller Value Mapping / Seller XML Feed için query_conditions + has_permission
+  - Marketplace Seller 7 satıcı-doctype Custom DocPerm'ine eklendi (form erişimi)
+  - patches.txt'ye yeni migration'lar eklendi
+- fix(category): log_error başlık/mesaj ayrımı (CharacterLengthExceeded) (@aliiball)
+
+### Degistirildi
+- refactor(nav): satıcı menüsü — XML Feed maddesi + "Eşleştirmelerim" (@aliiball)
+  - TH Module Registry'ye seller-feed kaydı; "Pattern'lerim" → "Eşleştirmelerim"
+
+---
 ## [v1.1.0-beta.9] - 2026-06-10 BETA
 
 Bu surum betaistoc.cronbi.com'da test asamasindadir.
