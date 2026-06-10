@@ -194,6 +194,14 @@ def apply_pii_permlevels(dry_run: bool = False, target_permlevel: int = 2) -> di
 			skipped_fields.append(f"{doctype}(DocType yok)")
 			continue
 
+		# Custom DocPerm standart DocPerm'i TAMAMEN ezer. permlevel 1+ Custom
+		# DocPerm eklemeden önce permlevel-0 taban izinlerini JSON'dan kopyala,
+		# yoksa taban `read` düşer (KYB/KYC'de yaşanan 403 hatası). Idempotent.
+		if not dry_run:
+			from frappe.permissions import setup_custom_perms
+
+			setup_custom_perms(doctype)
+
 		# 1) Field'ları hedef permlevel'e yükselt
 		for fieldname in fields:
 			if dry_run:

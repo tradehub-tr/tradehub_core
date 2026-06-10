@@ -31,6 +31,7 @@ Detay: docs/yetki/01-karar-dosyasi.md §3.1, §6.1
 """
 
 import frappe
+from frappe.permissions import setup_custom_perms
 
 # DocType'lar — PII permlevel'ı olan, role permission'larına ek satır eklenecek
 _TARGET_DOCTYPES: list[str] = [
@@ -75,6 +76,14 @@ def execute() -> None:
 		if not frappe.db.exists("DocType", doctype):
 			skipped += 1
 			continue
+
+		# Custom DocPerm standart DocPerm'i (DocType JSON) TAMAMEN ezer. İlk
+		# Custom DocPerm satırını eklemeden önce permlevel-0 taban izinlerini
+		# JSON'dan Custom DocPerm'e kopyala; yoksa permlevel 1/2/3 satırları
+		# eklenince taban `read` düşer ve generic formda "does not have doctype
+		# access via role permission" 403'üne yol açar. setup_custom_perms
+		# idempotent — Custom DocPerm zaten varsa no-op.
+		setup_custom_perms(doctype)
 
 		for role, permlevel, read, write, if_owner in _PERM_MATRIX:
 			# Role var mı?

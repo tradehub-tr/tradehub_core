@@ -71,6 +71,7 @@ def validate_production_readiness() -> dict[str, Any]:
 
 	_check_doctypes(r)
 	_check_roles(r)
+	_check_custom_docperm_baseline(r)
 	_check_default_seeds(r)
 	_check_scheduler(r)
 	_check_hooks(r)
@@ -147,6 +148,33 @@ def _check_roles(r: ValidationReport) -> None:
 		r.add("roles", "FAIL", f"Eksik roller: {', '.join(missing)}")
 	else:
 		r.add("roles", "PASS", f"{len(_REQUIRED_ROLES)} required rol mevcut")
+
+
+def _check_custom_docperm_baseline(r: ValidationReport) -> None:
+	"""Custom DocPerm invariant'ı: Custom DocPerm'i olan her doctype'ın en az bir
+	permlevel-0 satırı olmalı.
+
+	Frappe'de Custom DocPerm standart DocPerm'i (DocType JSON) TAMAMEN ezer.
+	permlevel-0 satırı olmayan bir doctype'ta hiçbir rol temel `read` alamaz →
+	Administrator dışında herkes generic formda "does not have doctype access
+	via role permission" (403) alır. PII permlevel patch'leri permlevel 1/2/3
+	eklerken taban satırı kopyalamayı atlarsa bu tuzak yeniden oluşur."""
+	# Custom DocPerm.parent = hedef DocType adı (Link field, framework parent değil).
+	parents = frappe.get_all("Custom DocPerm", pluck="parent", distinct=True)
+	missing = [dt for dt in parents if not frappe.db.exists("Custom DocPerm", {"parent": dt, "permlevel": 0})]
+	if missing:
+		r.add(
+			"custom_docperm_baseline",
+			"FAIL",
+			"permlevel-0 Custom DocPerm satırı olmayan doctype'lar (taban read düşmüş): "
+			+ ", ".join(missing),
+		)
+	else:
+		r.add(
+			"custom_docperm_baseline",
+			"PASS",
+			f"{len(parents)} Custom DocPerm doctype'ının hepsinde permlevel-0 taban izni var",
+		)
 
 
 def _check_default_seeds(r: ValidationReport) -> None:
