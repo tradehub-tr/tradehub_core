@@ -178,3 +178,4 @@ tradehub_core.patches.v15_7_3_backfill_content_translations
 tradehub_core.patches.v15_7_4_value_mapping_scope
 tradehub_core.patches.v15_7_5_regex_match_count
 tradehub_core.patches.v15_7_6_kyb_kyc_permlevel0_repair
+tradehub_core.patches.v15_7_4_seed_feature_tooltips
