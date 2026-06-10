@@ -1,3 +1,25 @@
+## [v1.2.1-beta.2] - 2026-06-10 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Eklendi
+- feat(eca): süper admin kural sihirbazı + governance + tıklama-bazlı eylemler (@aliiball)
+  - admin şema 12 eylem + canlı sayım + dry-run önizleme (preview_rule_effect, persist yok)
+  - governance: detect_rule_conflicts, get/restore_rule_versions, test_rule_on_product
+  - create_document tıklama-bazlı (get_creatable_doctypes/get_doctype_target_fields/get_link_options)
+  - "DocType" kelimesi kullanıcıya gösterilmez; satıcı çağrıları regresyonsuz (5 eylem)
+- feat(bulk-import): admin Sistem Eşleştirme + parametrik SKU/XML (@aliiball)
+  - System-scope kolon/değer eşleme endpointleri (admin guard) + Seller Value Mapping scope alanı
+  - SKU/XML parametrik: fiyat ayraç + XML etiket adı (regex sistem üretir), ham regex gated
+  - Regex Pattern Library kullanım sayacı (match_count); link-değer okunur ad (title_field)
+- feat(bulk-import): admin geçmişinde satıcı adı zenginleştirme (@aliiball)
+  - get_my_history admin yanıtına satıcı (mağaza) adını ekler; tabloda Satıcı kolonu için
+
+### Duzeltildi
+- fix(patches): has_column'a DocType adı verilerek migrate hatası giderildi (@aliiball)
+  - "tabSeller Value Mapping" gibi tab-önekli ad ikinci kez prefix'lenip TableMissingError veriyordu; tablo + sütun kontrolü doğru DocType adıyla yapılır (v15_7_4)
+
+---
 ## [v1.2.1-beta.1] - 2026-06-10 BETA
 
 Bu surum betaistoc.cronbi.com'da test asamasindadir.
