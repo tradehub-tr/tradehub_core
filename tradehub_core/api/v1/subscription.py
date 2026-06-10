@@ -24,7 +24,9 @@ from frappe.utils import add_days, now_datetime
 
 from tradehub_core.audit import log_decision
 
-_ALLOWED_TARGET_STATUS = frozenset({"active", "trial"})
+# Panele erişim veren abonelik durumları (abonelik kapısı / paywall kuralı).
+# Bu set dışındaki her durum (expired/canceled/past_due/suspended/yok) → panel kilitli.
+_ACCESS_GRANTING_STATUS = frozenset({"active", "trial"})
 
 
 def _resolve_tenant_for_caller() -> str:
@@ -97,25 +99,39 @@ def upgrade_subscription_plan(
 
 	start_trial_bool = str(start_trial).strip().lower() in ("1", "true", "yes")
 
-	# Mevcut aktif/trial Store Subscription
+	# Mağazanın mevcut Store Subscription'ı (store unique → en fazla 1 satır).
+	# Status'tan bağımsız ara: `expired`/`past_due` bir mağaza tekrar abone/öde
+	# olduğunda AYNI satır reaktive edilmeli — yeni insert `store` unique
+	# kısıtını ihlal eder (bkz. store_subscription state machine: expired→active).
 	existing = frappe.db.get_value(
 		"Store Subscription",
-		{"store": tenant, "status": ["in", list(_ALLOWED_TARGET_STATUS)]},
-		["name", "plan", "status"],
+		{"store": tenant},
+		["name", "plan", "status", "trial_used"],
 		as_dict=True,
 	)
 
+	# 1 mağaza = 1 trial: deneme hakkı kullanılmışsa yeniden trial verme → active.
+	if start_trial_bool and existing and existing.get("trial_used"):
+		start_trial_bool = False
+
 	old_plan = existing.plan if existing else None
 	target_status = "trial" if start_trial_bool else "active"
+
+	def _apply_trial_fields(doc) -> None:
+		"""Trial başlatılıyorsa trial_start/end/plan/used alanlarını set et."""
+		trial_days = int(plan_doc.get("trial_days") or 0)
+		now = now_datetime()
+		doc.trial_start = now
+		doc.trial_plan = new_plan
+		doc.trial_used = 1
+		doc.trial_end = add_days(now, trial_days) if trial_days > 0 else None
 
 	if existing:
 		sub_doc = frappe.get_doc("Store Subscription", existing.name)
 		sub_doc.plan = new_plan
 		sub_doc.status = target_status
 		if start_trial_bool:
-			trial_days = int(plan_doc.get("trial_days") or 0)
-			if trial_days > 0:
-				sub_doc.trial_end = add_days(now_datetime(), trial_days)
+			_apply_trial_fields(sub_doc)
 		sub_doc.current_period_start = now_datetime()
 		sub_doc.flags.ignore_permissions = True
 		sub_doc.save(ignore_permissions=True)
@@ -127,9 +143,7 @@ def upgrade_subscription_plan(
 		sub_doc.started_at = now_datetime()
 		sub_doc.current_period_start = now_datetime()
 		if start_trial_bool:
-			trial_days = int(plan_doc.get("trial_days") or 0)
-			if trial_days > 0:
-				sub_doc.trial_end = add_days(now_datetime(), trial_days)
+			_apply_trial_fields(sub_doc)
 		sub_doc.flags.ignore_permissions = True
 		sub_doc.insert(ignore_permissions=True)
 
@@ -188,4 +202,104 @@ def upgrade_subscription_plan(
 		"status": target_status,
 		"subscription": sub_doc.name,
 		"role_sync": role_sync,
+	}
+
+
+# Locked durum → frontend bu reason'a göre paywall mesajı gösterir.
+_LOCK_REASON_BY_STATUS = {
+	"expired": "trial_expired",
+	"canceled": "canceled",
+	"past_due": "past_due",
+	"suspended": "suspended",
+}
+
+
+@frappe.whitelist()
+def get_seller_access_state() -> dict[str, Any]:
+	"""Abonelik kapısı kararı — satıcı panele girebilir mi?
+
+	Frontend her açılışta/rotada çağırır. `access`:
+	  - "ok"      → panel açık (status trial veya active). is_trial/trial_end döner.
+	  - "locked"  → panele girilemez; paket-seçme/abonelik sayfasına yönlendir.
+	  - "no_store"→ kullanıcı satıcı değil (mağaza yok); kapı kapsamı dışı.
+	  - "guest"   → giriş yok.
+
+	Güvenlik notu: Bu sadece yönlendirme/UX kararıdır. Asıl enforcement, hassas
+	satıcı endpoint'lerinde ayrıca yapılır (Faz 4).
+	"""
+	user = frappe.session.user
+	if user in ("Guest", ""):
+		return {"access": "guest", "reason": "not_logged_in"}
+
+	tenant = frappe.db.get_value("User", user, "tradehub_tenant")
+	if not tenant:
+		# Mağazası olmayan kullanıcı (alıcı vb.) — kapı bu kullanıcıyı kapsamaz.
+		return {"access": "no_store", "reason": "no_seller_profile"}
+
+	sub = frappe.db.get_value(
+		"Store Subscription",
+		{"store": tenant},
+		["status", "plan", "trial_end", "trial_plan", "trial_used"],
+		as_dict=True,
+	)
+
+	if sub and sub.status in _ACCESS_GRANTING_STATUS:
+		return {
+			"access": "ok",
+			"status": sub.status,
+			"plan": sub.plan,
+			"is_trial": sub.status == "trial",
+			"trial_end": sub.trial_end,
+		}
+
+	# Kilitli: hiç abonelik yok ya da erişim vermeyen durum (expired/canceled/...).
+	return {
+		"access": "locked",
+		"status": sub.status if sub else None,
+		"reason": _LOCK_REASON_BY_STATUS.get(sub.status, sub.status) if sub else "no_subscription",
+		"redirect": "/abonelik",
+		# Deneme hakkı hiç kullanılmadıysa paywall "14 gün ücretsiz dene" sunabilir.
+		"can_start_trial": not (sub and sub.trial_used),
+	}
+
+
+@frappe.whitelist()
+def get_seller_subscription(user: str) -> dict[str, Any]:
+	"""Bir satıcının abonelik planını döndür — admin panel Satıcı Profili kartı için.
+
+	Yetki: System Manager / Marketplace Admin herhangi satıcıyı görebilir + değiştirebilir
+	(can_edit=True). Diğer kullanıcılar yalnızca kendi profilini (read-only) görebilir.
+	Satıcı değilse (tradehub_tenant yok) {"is_seller": False} döner → kart gizlenir.
+	"""
+	from tradehub_core.entitlement.core import get_active_subscription
+
+	user = (user or "").strip()
+	if not user:
+		frappe.throw(_("user gerekli"))
+
+	caller = frappe.session.user
+	roles = set(frappe.get_roles(caller))
+	is_admin = bool({"System Manager", "Marketplace Admin", "Administrator"} & roles)
+
+	if not is_admin and user != caller:
+		frappe.throw(_("Bu profili görüntüleme yetkiniz yok."), frappe.PermissionError)
+
+	tenant = frappe.db.get_value("User", user, "tradehub_tenant")
+	if not tenant:
+		return {"is_seller": False}
+
+	sub = get_active_subscription(tenant)
+	plan_code = sub.get("plan") if sub else None
+	plan_name = (
+		frappe.db.get_value("Subscription Plan", plan_code, "plan_name") if plan_code else None
+	)
+
+	return {
+		"is_seller": True,
+		"store": tenant,
+		"plan_code": plan_code,
+		"plan_name": plan_name,
+		"status": sub.get("status") if sub else None,
+		"trial_end": sub.get("trial_end") if sub else None,
+		"can_edit": is_admin,
 	}

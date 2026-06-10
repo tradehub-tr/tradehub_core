@@ -6,6 +6,11 @@ import os
 import frappe
 from frappe import _
 
+from tradehub_core.entitlement.core import enforce_feature
+
+# Toplu içe aktarım Pro+ özelliği (plan kapısı; platform admin muaf).
+_BULK_IMPORT_FEATURE = "feature.pim.bulk_import"
+
 MAX_DATA_FILE_BYTES = 25 * 1024 * 1024  # 25 MB
 MAX_IMAGES_ZIP_BYTES = 200 * 1024 * 1024  # 200 MB
 DEFAULT_HISTORY_LIMIT = 50
@@ -31,6 +36,7 @@ def start_product_import(
 	    header_row: 1-indexed başlık satırı
 	    sheet_name: xlsx için sheet adı
 	"""
+	enforce_feature(_BULK_IMPORT_FEATURE, "Toplu İçe Aktarım")
 	seller = frappe.db.get_value(
 		"Admin Seller Profile",
 		{"owner": frappe.session.user},
@@ -149,6 +155,8 @@ def dry_run_preview(
 
 	Persist YAPMAZ — sadece parser + validator çalıştırır.
 	"""
+	enforce_feature(_BULK_IMPORT_FEATURE, "Toplu İçe Aktarım")
+	from tradehub_core.bulk_import import persister, regex_lib, validator
 	from tradehub_core.bulk_import.ingestion import resolver
 	from tradehub_core.bulk_import.parsers import csv_parser, xlsx_parser, xml_parser
 

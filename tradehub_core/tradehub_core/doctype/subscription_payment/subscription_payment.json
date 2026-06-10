@@ -1,0 +1,135 @@
+{
+	"name": "Subscription Payment",
+	"doctype": "DocType",
+	"module": "Tradehub Core",
+	"naming_rule": "Expression (old style)",
+	"autoname": "SPAY-.YYYY.-.#####",
+	"engine": "InnoDB",
+	"track_changes": 1,
+	"sort_field": "modified",
+	"sort_order": "DESC",
+	"title_field": "store",
+	"fields": [
+		{
+			"fieldname": "store",
+			"fieldtype": "Link",
+			"label": "Store (Admin Seller Profile)",
+			"options": "Admin Seller Profile",
+			"reqd": 1,
+			"in_list_view": 1,
+			"in_standard_filter": 1
+		},
+		{
+			"fieldname": "plan",
+			"fieldtype": "Link",
+			"label": "Plan",
+			"options": "Subscription Plan",
+			"reqd": 1,
+			"in_list_view": 1
+		},
+		{
+			"fieldname": "billing_cycle",
+			"fieldtype": "Select",
+			"label": "Billing Cycle",
+			"options": "monthly\nyearly",
+			"default": "yearly"
+		},
+		{
+			"fieldname": "cb_amount",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "amount",
+			"fieldtype": "Float",
+			"label": "Amount",
+			"in_list_view": 1
+		},
+		{
+			"fieldname": "currency",
+			"fieldtype": "Data",
+			"label": "Currency",
+			"default": "EUR"
+		},
+		{
+			"fieldname": "method",
+			"fieldtype": "Data",
+			"label": "Method",
+			"default": "bank_transfer",
+			"read_only": 1
+		},
+		{
+			"fieldname": "sb_status",
+			"fieldtype": "Section Break",
+			"label": "Durum"
+		},
+		{
+			"fieldname": "reference_code",
+			"fieldtype": "Data",
+			"label": "Reference Code",
+			"unique": 1,
+			"reqd": 1,
+			"read_only": 1,
+			"in_list_view": 1,
+			"in_standard_filter": 1,
+			"description": "Havale açıklamasına yazılacak eşleştirme kodu."
+		},
+		{
+			"fieldname": "status",
+			"fieldtype": "Select",
+			"label": "Status",
+			"options": "pending\nconfirmed\nrejected\ncanceled",
+			"default": "pending",
+			"reqd": 1,
+			"in_list_view": 1,
+			"in_standard_filter": 1
+		},
+		{
+			"fieldname": "cb_status2",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "requested_at",
+			"fieldtype": "Datetime",
+			"label": "Requested At"
+		},
+		{
+			"fieldname": "confirmed_at",
+			"fieldtype": "Datetime",
+			"label": "Confirmed At"
+		},
+		{
+			"fieldname": "confirmed_by",
+			"fieldtype": "Link",
+			"label": "Confirmed By",
+			"options": "User"
+		},
+		{
+			"fieldname": "rejection_reason",
+			"fieldtype": "Small Text",
+			"label": "Rejection Reason"
+		},
+		{
+			"fieldname": "notes",
+			"fieldtype": "Small Text",
+			"label": "Notes"
+		}
+	],
+	"permissions": [
+		{
+			"role": "System Manager",
+			"read": 1,
+			"write": 1,
+			"create": 1,
+			"delete": 1,
+			"export": 1,
+			"report": 1,
+			"share": 1
+		},
+		{
+			"role": "Marketplace Admin",
+			"read": 1,
+			"write": 1,
+			"create": 1
+		}
+	]
+}
