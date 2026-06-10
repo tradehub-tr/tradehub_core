@@ -1,3 +1,16 @@
+## [v1.2.1] - 2026-06-10 PROD
+
+Bu surum istoc.cronbi.com'da yayindadir.
+
+### Eklendi
+- feat(subscription): trial + paywall gate, havale ödeme ve feature enforcement (@boraydeger32)
+  - Store Subscription: `expired` durumu + trial alanları (trial_start/used, reminder bayrakları, trial_plan); state machine + reaktivasyon fix
+  - get_seller_access_state kapı endpoint'i; onayda otomatik Pro trial (Seller Application.requested_trial_plan -> _start_trial_if_requested)
+  - 30-dk cron: trial bitiş bildirimleri (T-3g/1g/2s, idempotent) + expiry->expired
+  - Havale/EFT ödeme: Subscription Payment doctype + Marketplace Settings banka alanlari + create/confirm/reject/list endpoint'leri (manuel admin onayi)
+  - Feature enforcement: enforce_feature helper + CRM ve toplu ice aktarim endpoint'lerinde plan kapisi (platform admin muaf)
+
+---
 ## [v1.2.0-rc.1] - 2026-06-10 RC
 
 Bu surum rcistoc.cronbi.com'da onay asamasindadir.
