@@ -2180,3 +2180,63 @@ def list_rbac_audit(limit: int = 50) -> dict:
 	entries = entries[:limit_int]
 
 	return {"entries": entries, "count": len(entries)}
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Trial Settings — global ücretsiz deneme konfigürasyonu (hangi paket + kaç gün)
+# ──────────────────────────────────────────────────────────────────────────
+
+
+@frappe.whitelist()
+def get_trial_settings() -> dict:
+	"""Global trial ayarlarını döndür (admin görüntüleme)."""
+	_require_admin("read")
+	from tradehub_core.tradehub_core.doctype.trial_settings.trial_settings import (
+		get_trial_settings as _get,
+	)
+
+	return _get()
+
+
+@frappe.whitelist()
+def update_trial_settings(
+	enabled: int | str | bool = 0,
+	plan_code: str = "",
+	days: int | str = 0,
+	cta_label: str = "",
+) -> dict:
+	"""Global trial ayarlarını güncelle.
+
+	Seçilen paketin Subscription Plan.trial_days'i de senkronlanır; böylece backend
+	trial başlatma (upgrade_subscription_plan plan_doc.trial_days okur) tutarlı kalır.
+	"""
+	from tradehub_core.api.v1.public_pricing import invalidate_pricing_cache
+	from tradehub_core.tradehub_core.doctype.trial_settings.trial_settings import (
+		get_trial_settings as _get,
+	)
+
+	_require_admin("write")
+
+	enabled_bool = str(enabled).strip().lower() in ("1", "true", "yes")
+	plan_code = (plan_code or "").strip()
+	days_int = max(0, int(days or 0))
+
+	if enabled_bool and not plan_code:
+		frappe.throw(_("Trial aktifken bir paket seçilmelidir."))
+	if plan_code and not frappe.db.exists("Subscription Plan", plan_code):
+		frappe.throw(_("Paket bulunamadı: {0}").format(plan_code))
+
+	doc = frappe.get_single("Trial Settings")
+	doc.trial_enabled = 1 if enabled_bool else 0
+	doc.trial_plan = plan_code
+	doc.trial_days = days_int
+	doc.trial_cta_label = (cta_label or "").strip()
+	doc.save(ignore_permissions=True)
+
+	# Seçilen planın trial_days'i ile senkronla
+	if plan_code:
+		frappe.db.set_value("Subscription Plan", plan_code, "trial_days", days_int)
+
+	frappe.db.commit()
+	invalidate_pricing_cache()
+	return _get()
