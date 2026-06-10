@@ -336,6 +336,31 @@ def check_quota_or_throw(
 	frappe.throw(msg, EntitlementError)
 
 
+def enforce_feature(feature_key: str, action_description: str = "") -> None:
+	"""Whitelist endpoint'lerde inline feature kapısı — mevcut oturum kullanıcısının
+	mağazası için.
+
+	Mağaza, `User.tradehub_tenant`'tan çözülür (owner + sub-user ikisi de mağazaya
+	bağlıdır). Platform admin (System Manager / Marketplace Admin) ve Administrator
+	muaftır. Mağazası olmayan / capability'si olmayan kullanıcı → EntitlementError
+	(403). `expired`/`canceled`/`suspended` aboneliklerde mağaza operasyonel
+	olmadığından (bkz. _OPERATIONAL_STATUSES) capability düşer → erişim reddedilir.
+
+	Kullanım (endpoint başında):
+	    enforce_feature("feature.crm.module", "CRM Modülü")
+	"""
+	user = frappe.session.user
+	if user in ("Administrator", "Guest", ""):
+		# Guest zaten whitelist (allow_guest olmayan) tarafından durdurulur;
+		# Administrator muaf.
+		if user == "Administrator":
+			return
+	if {"System Manager", "Marketplace Admin"} & set(frappe.get_roles(user)):
+		return
+	store = frappe.db.get_value("User", user, "tradehub_tenant")
+	check_feature_or_throw(store, feature_key, action_description)
+
+
 # ---------------------------------------------------------------------------
 # Cache invalidation
 # ---------------------------------------------------------------------------

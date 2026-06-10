@@ -45,6 +45,13 @@
 			"in_standard_filter": 1
 		},
 		{
+			"fieldname": "requested_trial_plan",
+			"fieldtype": "Link",
+			"label": "Requested Trial Plan",
+			"options": "Subscription Plan",
+			"description": "Başvuru sahibi storefront'ta 'X gün ücretsiz dene'ye tıkladıysa bu paket (genelde PRO) doludur. Onayda bu paketin denemesi otomatik başlatılır."
+		},
+		{
 			"fieldname": "tab_business",
 			"fieldtype": "Tab Break",
 			"label": "İş Bilgileri"

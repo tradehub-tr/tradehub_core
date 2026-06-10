@@ -61,6 +61,32 @@
    "fieldtype": "Select",
    "label": "Fatura Üretim Modu",
    "options": "Manual\nAutomatic"
+  },
+  {
+   "fieldname": "sb_subscription_bank",
+   "fieldtype": "Section Break",
+   "label": "Abonelik Ödeme (Havale/EFT)"
+  },
+  {
+   "fieldname": "subscription_bank_name",
+   "fieldtype": "Data",
+   "label": "Banka Adı"
+  },
+  {
+   "fieldname": "subscription_account_holder",
+   "fieldtype": "Data",
+   "label": "Hesap Sahibi / Ünvan"
+  },
+  {
+   "fieldname": "subscription_iban",
+   "fieldtype": "Data",
+   "label": "IBAN"
+  },
+  {
+   "fieldname": "subscription_payment_instructions",
+   "fieldtype": "Small Text",
+   "label": "Ödeme Açıklaması / Talimat",
+   "description": "Satıcıya havale ekranında gösterilir (ör. açıklamaya referans kodunu yazın)."
   }
  ],
  "issingle": 1,

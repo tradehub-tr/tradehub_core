@@ -80,6 +80,13 @@ fixtures = [
 ]
 
 scheduler_events = {
+	# Trial reminder (T-3g / T-1g / T-2s) + expiry. 2 saat hassasiyeti günlük
+	# job ile yakalanamaz → 30 dakikada bir. Idempotent (reminder_*_sent flag'leri).
+	"cron": {
+		"*/30 * * * *": [
+			"tradehub_core.services.subscription_lifecycle.process_trial_lifecycle",
+		],
+	},
 	"hourly": [
 		# Refresh the Complementary tab of Related Products as new orders land.
 		"tradehub_core.recommendations.tasks.refresh_copurchase_lift",
@@ -149,8 +156,8 @@ scheduler_events = {
 		"tradehub_core.bulk_import.tasks.cleanup_stale_seller_template_profiles",
 		# FAZ 1.4 — Audit retention (90 gün sıcak)
 		"tradehub_core.audit.tasks.archive_old_decision_logs",
-		# K1 fix: Trial subscription'ların auto-expiry (trial_end < now → canceled)
-		"tradehub_core.services.subscription_lifecycle.expire_trial_subscriptions",
+		# Trial lifecycle (reminder + auto-expiry) → cron */30'a taşındı
+		# (bkz. scheduler_events["cron"]; 2 saat reminder hassasiyeti için).
 		# FAZ 3.5 — Privacy: veri saklama politikası uygulama + export temizliği
 		"tradehub_core.audit.tasks.run_data_retention_enforcement",
 		"tradehub_core.audit.tasks.cleanup_expired_data_exports",
