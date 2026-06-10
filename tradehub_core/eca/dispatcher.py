@@ -960,12 +960,27 @@ def _send_webhook_v2(url: str, method: str, body: str) -> None:
 def _do_create_document_v2(doc, rule, template) -> bool:
 	import json
 
+	from tradehub_core.eca.api import CREATABLE_DOCTYPES
+
 	if not template.create_doctype:
 		return False
+	# Çalışma anı son savunma: ignore_permissions ile insert edileceği için yalnız
+	# allowlist'teki kayıt türleri + allowlist'teki alanlar yazılabilir (rastgele
+	# DocType/alan yaratımı engellenir). get_rule_schema + _compile_action ile aynı sabit.
+	meta = CREATABLE_DOCTYPES.get(template.create_doctype)
+	if not meta:
+		frappe.log_error(
+			f"ECA create_document allowlist dışı doctype: {template.create_doctype}",
+			"_do_create_document_v2",
+		)
+		return False
+	allowed_fields = {f["key"] for f in meta["fields"]}
 	try:
 		mappings = json.loads(template.create_field_mappings or "{}")
 		new_doc = frappe.new_doc(template.create_doctype)
 		for field, expr in mappings.items():
+			if field not in allowed_fields:
+				continue
 			new_doc.set(field, _eval_value_expr_v2(expr, doc))
 		new_doc.insert(ignore_permissions=True)
 		return True
