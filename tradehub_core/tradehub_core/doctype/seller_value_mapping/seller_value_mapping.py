@@ -15,19 +15,19 @@ class SellerValueMapping(Document):
 	def _validate_target_field(self):
 		if not (self.target_field or "").strip():
 			frappe.throw(_("Hedef alan zorunlu"))
-		if not self.seller_profile:
+		# System scope tüm satıcılar için taban katman — seller_profile boş olur.
+		if self.scope != "System" and not self.seller_profile:
 			frappe.throw(_("Satıcı profili zorunlu"))
 
 	def _validate_unique_per_seller(self):
-		# Aynı satıcı + aynı hedef alan için tek kayıt — runner lookup'ı tek dökümana
-		# güvenir (value_map cache target_field başına tek satır seti tutar).
+		# Aynı kapsam (System veya satıcı) + aynı hedef alan için tek kayıt — runner
+		# lookup'ı tek dökümana güvenir (value_map cache target_field başına tek satır).
+		scope_filter = (
+			{"scope": "System"} if self.scope == "System" else {"seller_profile": self.seller_profile}
+		)
 		existing = frappe.db.get_value(
 			"Seller Value Mapping",
-			{
-				"seller_profile": self.seller_profile,
-				"target_field": self.target_field,
-				"name": ["!=", self.name or ""],
-			},
+			{**scope_filter, "target_field": self.target_field, "name": ["!=", self.name or ""]},
 			"name",
 		)
 		if existing:
@@ -47,17 +47,22 @@ class SellerValueMapping(Document):
 		# Çakışan satırları kaldırmıyoruz (UI'ı bozmamak için), yalnız doğruluyoruz.
 
 	def on_update(self):
-		_clear_value_map_cache(self.seller_profile)
+		_clear_value_map_cache(self.scope, self.seller_profile)
 
 	def on_trash(self):
-		_clear_value_map_cache(self.seller_profile)
+		_clear_value_map_cache(self.scope, self.seller_profile)
 
 
-def _clear_value_map_cache(seller_profile: str | None) -> None:
-	"""Satıcının value-map cache'ini temizle (runner 5dk cache'liyor)."""
-	if not seller_profile:
-		return
+def _clear_value_map_cache(scope: str | None, seller_profile: str | None) -> None:
+	"""value-map cache'ini temizle (runner 5dk cache'liyor).
+
+	System scope tüm satıcıların value_map'ini etkiler → tüm key'leri temizle.
+	Seller Override yalnızca o satıcının key'ini.
+	"""
 	try:
-		frappe.cache.delete_value(f"value_map:{seller_profile}")
+		if scope == "System":
+			frappe.cache.delete_keys("value_map:*")
+		elif seller_profile:
+			frappe.cache.delete_value(f"value_map:{seller_profile}")
 	except Exception as exc:
 		frappe.log_error(f"value_map cache clear failed: {exc}", "seller_value_mapping")

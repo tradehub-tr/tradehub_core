@@ -15,11 +15,15 @@ def resolve_column_mapping(headers: list[str], seller_profile: str) -> dict[str,
 	1. Seller Override patterns (priority asc)
 	2. System patterns (priority asc)
 	3. Unmapped headers → manuel
+
+	Yan etki: eşleşen Pattern Library kayıtlarının match_count sayacını artırır
+	(kullanım istatistiği). Header sayısı küçük olduğundan toplu artış N+1 değil.
 	"""
 	mapping: dict[str, str] = {}
 	seller_patterns = _get_patterns(seller_profile, "Column Header")
 	system_patterns = _get_patterns(None, "Column Header")
 
+	matched_library_names: list[str] = []
 	for header in headers:
 		if not header:
 			continue
@@ -27,17 +31,20 @@ def resolve_column_mapping(headers: list[str], seller_profile: str) -> dict[str,
 		if not header_lower:
 			continue
 
-		target = _match_patterns(header_lower, seller_patterns)
-		if not target:
-			target = _match_patterns(header_lower, system_patterns)
-		if target and target not in mapping:
-			mapping[target] = header
+		match = _match_patterns(header_lower, seller_patterns)
+		if not match:
+			match = _match_patterns(header_lower, system_patterns)
+		if match and match[0] not in mapping:
+			target_field, library_name = match
+			mapping[target_field] = header
+			matched_library_names.append(library_name)
 
+	_increment_match_counts(matched_library_names)
 	return mapping
 
 
-def _match_patterns(text: str, patterns: list[dict]) -> str | None:
-	"""Patterns listesinden ilk eşleşeni döndür."""
+def _match_patterns(text: str, patterns: list[dict]) -> tuple[str, str] | None:
+	"""Patterns listesinden ilk eşleşeni döndür → (target_field, library_name)."""
 	for p in patterns:
 		for entry in p.get("patterns", []):
 			if not entry.get("enabled"):
@@ -48,10 +55,31 @@ def _match_patterns(text: str, patterns: list[dict]) -> str | None:
 			flags = _parse_flags(entry.get("flags", ""))
 			try:
 				if re.search(regex_str, text, flags):
-					return p["target_field"]
+					return p["target_field"], p["name"]
 			except re.error:
 				continue
 	return None
+
+
+def _increment_match_counts(library_names: list[str]) -> None:
+	"""Eşleşen Library kayıtlarının match_count sayacını DB'de atomik artır.
+
+	Cache'i (PATTERN_CACHE_TTL) değiştirmez — yalnız kalıcı sayaç. İçe aktarma
+	sırasında çağrılır (sıcak yol değil); başarısızlık import'u bozmamalı.
+	"""
+	for name in set(library_names):
+		count = library_names.count(name)
+		try:
+			frappe.db.sql(
+				"""
+				UPDATE `tabRegex Pattern Library`
+				SET match_count = COALESCE(match_count, 0) + %s
+				WHERE name = %s
+				""",
+				(count, name),
+			)
+		except Exception as e:
+			frappe.log_error(f"match_count increment failed: {e}", "regex_lib")
 
 
 def _parse_flags(flags_str: str | None) -> int:
@@ -101,6 +129,7 @@ def _get_patterns(seller_profile: str | None, category: str) -> list[dict]:
 			continue
 		result.append(
 			{
+				"name": lib.name,
 				"target_field": doc.target_field,
 				"priority": doc.priority,
 				"patterns": [
@@ -396,6 +425,331 @@ def delete_value_mapping(name: str) -> dict:
 	return {"ok": True, "name": name}
 
 
+# ── Sistem Eşleştirme (admin, scope=System) ──────────────────────────────────
+#
+# Satıcı save_column_alias/save_value_mapping desenini System-scope aynalar.
+# _build_safe_alias_regex aynen kullanılır (güvenli regex); fark scope="System",
+# seller_profile=None, priority=100 (satıcı override 50 daha öncelikli kalır) ve
+# admin rol guard.
+
+
+def _require_admin() -> None:
+	frappe.only_for(["System Manager", "Marketplace Admin"])
+
+
+@frappe.whitelist()
+def save_system_column_alias(my_header: str, target_field: str, alternatives: str = "") -> dict:
+	"""Sistem sütun eşleştirmesi (admin) — TÜM satıcıları etkiler.
+
+	Admin "başlık + alternatif → alan" girer; backend güvenli regex üretir ve
+	scope="System" Regex Pattern Library kaydı oluşturur. Ham regex GÖRÜNMEZ.
+
+	Returns:
+	    {"ok": True, "name": <pattern>, "regex": <üretilen>, "target_field": ...}
+	"""
+	from tradehub_core.eca.safe_regex import RegexError, SafeRegex
+
+	_require_admin()
+
+	my_header = (my_header or "").strip()
+	target_field = (target_field or "").strip()
+	if not my_header:
+		frappe.throw(_("Başlık zorunlu"))
+	if not target_field:
+		frappe.throw(_("Hedef alan zorunlu"))
+
+	headers = [my_header] + [a for a in (alternatives or "").split(",")]
+	regex = _build_safe_alias_regex(headers)
+
+	# Üretilen deseni doğrula — catastrophic backtracking koruması.
+	try:
+		SafeRegex.search(regex, my_header.lower(), SafeRegex.IGNORECASE | SafeRegex.UNICODE)
+	except RegexError as e:
+		frappe.throw(_("Desen güvenli değil: {0}").format(str(e)))
+
+	doc = frappe.new_doc("Regex Pattern Library")
+	doc.pattern_name = f"Sistem — {my_header} → {target_field}"
+	doc.enabled = 1
+	doc.target_field = target_field
+	doc.target_doctype = "Listing"
+	doc.pattern_category = "Column Header"
+	doc.scope = "System"
+	doc.seller_profile = None
+	doc.priority = 100
+	doc.append(
+		"patterns",
+		{
+			"regex": regex,
+			"flags": "IGNORECASE,UNICODE",
+			"enabled": 1,
+			"description": _("Sistem sütun eşleştirmesi: {0}").format(my_header),
+		},
+	)
+	doc.insert()
+
+	return {"ok": True, "name": doc.name, "regex": regex, "target_field": target_field}
+
+
+# ── SKU/XML parametrik desen üreticileri (Karar2=A) ──────────────────────────
+#
+# Price Normalizer + XML Tag kullanıcıdan parametre alır, güvenli regex'i SİSTEM
+# üretir (satıcı/admin ham regex YAZMAZ). SKU Filename + özel durumlar ham regex
+# (gated) yolunda kalır. Üretilen desenler SafeRegex._validate'i geçer.
+
+# Ayraç seçenekleri — kullanıcı dropdown anahtarı -> gerçek karakter.
+_PRICE_SEPARATORS: dict[str, str] = {"comma": ",", "dot": ".", "none": ""}
+
+
+def _build_price_normalizer_regex(decimal_sep: str, thousands_sep: str) -> tuple[str, str]:
+	"""Fiyat metnini normalize eden güvenli (regex, flags) çifti üret.
+
+	Binlik ayracı kaldıran ve ondalık ayracı noktaya çeviren bir desen üretir.
+	Örn: decimal=",", thousands="." → "1.234,56" okunurken nokta silinir, virgül
+	noktaya döner. Tek bir karakter-sınıfı tabanlı desen — backtracking yok.
+
+	Yalnız izin verilen ayraçlar (virgül/nokta/yok) kabul edilir; aksi halde throw.
+	"""
+	dec = _PRICE_SEPARATORS.get(decimal_sep)
+	thou = _PRICE_SEPARATORS.get(thousands_sep)
+	if dec is None or thou is None:
+		frappe.throw(_("Geçersiz ayraç seçimi"))
+	if dec == "":
+		frappe.throw(_("Ondalık ayraç zorunlu"))
+	if dec == thou:
+		frappe.throw(_("Ondalık ve binlik ayraç aynı olamaz"))
+	# Rakam + ayraçlardan oluşan parayı yakalayan sabit desen (ReDoS-güvenli).
+	chars = re.escape(dec) + re.escape(thou) if thou else re.escape(dec)
+	regex = r"[0-9" + chars + r"]+"
+	return regex, "UNICODE"
+
+
+def _build_xml_tag_regex(tag: str, attribute: str = "") -> tuple[str, str]:
+	"""Bir XML etiketinin içeriğini yakalayan güvenli (regex, flags) çifti üret.
+
+	Örn: tag="price" → r"<price[^>]*>([^<]*)</price>". `.*?` yerine `[^<]*`
+	kullanılır (catastrophic backtracking yerine lineer). Öznitelik verilirse
+	açılış etiketinde varlığını şart koşar.
+
+	tag/attribute yalnız harf/rakam/-/_ içerebilir (XML adı doğrulaması + güvenlik).
+	"""
+	tag = (tag or "").strip()
+	if not tag or not re.fullmatch(r"[A-Za-z_][\w\-.]*", tag):
+		frappe.throw(_("Geçersiz etiket adı"))
+	attr = (attribute or "").strip()
+	open_tag = re.escape(tag)
+	if attr:
+		if not re.fullmatch(r"[A-Za-z_][\w\-.]*", attr):
+			frappe.throw(_("Geçersiz öznitelik adı"))
+		# Açılış etiketinde öznitelik geçsin (değeri serbest); içeriği yakala.
+		regex = r"<" + open_tag + r"[^>]*\b" + re.escape(attr) + r"\b[^>]*>([^<]*)</" + open_tag + r">"
+	else:
+		regex = r"<" + open_tag + r"[^>]*>([^<]*)</" + open_tag + r">"
+	return regex, "IGNORECASE,UNICODE"
+
+
+@frappe.whitelist()
+def save_system_advanced_pattern(
+	category: str, target_field: str, params_json: str = "{}", pattern_name: str = ""
+) -> dict:
+	"""SKU/XML gelişmiş sistem deseni kaydet (admin) — kategoriye göre parametrik.
+
+	Karar2=A:
+	- "Price Normalizer": params {decimal_sep, thousands_sep} → sistem güvenli regex üretir.
+	- "XML Tag": params {tag, attribute?} → sistem güvenli regex üretir.
+	- "SKU Filename": params {regex} → ham regex (gated; SafeRegex ile doğrulanır).
+
+	Hepsi scope="System" Regex Pattern Library kaydı oluşturur (save_system_column_alias
+	desenini aynalar). Üretilen/verilen regex SafeRegex._validate'ten geçirilir.
+
+	Returns:
+	    {"ok": True, "name": <pattern>, "regex": <üretilen>, "target_field": ...}
+	"""
+	import json
+
+	from tradehub_core.eca.safe_regex import RegexError, SafeRegex
+
+	_require_admin()
+
+	category = (category or "").strip()
+	target_field = (target_field or "").strip()
+	if not target_field:
+		frappe.throw(_("Hedef alan zorunlu"))
+
+	try:
+		params = json.loads(params_json or "{}")
+	except (ValueError, TypeError):
+		frappe.throw(_("Geçersiz parametre verisi"))
+	if not isinstance(params, dict):
+		params = {}
+
+	if category == "Price Normalizer":
+		regex, flags = _build_price_normalizer_regex(
+			params.get("decimal_sep") or "", params.get("thousands_sep") or ""
+		)
+		default_name = _("Fiyat normalleştirme: {0}").format(target_field)
+	elif category == "XML Tag":
+		regex, flags = _build_xml_tag_regex(params.get("tag") or "", params.get("attribute") or "")
+		default_name = _("XML etiketi: {0}").format(params.get("tag") or target_field)
+	elif category == "SKU Filename":
+		regex = (params.get("regex") or "").strip()
+		flags = "IGNORECASE,UNICODE"
+		if not regex:
+			frappe.throw(_("Regex zorunlu"))
+		default_name = _("SKU dosya adı: {0}").format(target_field)
+	else:
+		frappe.throw(_("Geçersiz kategori"))
+
+	# Üretilen/verilen deseni doğrula — catastrophic backtracking koruması.
+	try:
+		SafeRegex.search(regex, "", SafeRegex.IGNORECASE | SafeRegex.UNICODE)
+	except RegexError as e:
+		frappe.throw(_("Desen güvenli değil: {0}").format(str(e)))
+
+	doc = frappe.new_doc("Regex Pattern Library")
+	doc.pattern_name = (pattern_name or "").strip() or f"Sistem — {default_name}"
+	doc.enabled = 1
+	doc.target_field = target_field
+	doc.target_doctype = "Listing"
+	doc.pattern_category = category
+	doc.scope = "System"
+	doc.seller_profile = None
+	doc.priority = 100
+	doc.append(
+		"patterns",
+		{"regex": regex, "flags": flags, "enabled": 1, "description": default_name},
+	)
+	doc.insert()
+
+	return {"ok": True, "name": doc.name, "regex": regex, "target_field": target_field}
+
+
+@frappe.whitelist()
+def list_system_aliases() -> list[dict]:
+	"""Sistem sütun eşleştirmelerini listele (admin; regex gizli)."""
+	_require_admin()
+	return frappe.get_list(
+		"Regex Pattern Library",
+		filters={"scope": "System", "pattern_category": "Column Header"},
+		fields=["name", "pattern_name", "target_field", "enabled", "match_count"],
+		order_by="match_count desc, modified desc",
+	)
+
+
+@frappe.whitelist()
+def delete_system_alias(name: str) -> dict:
+	"""Sistem sütun eşleştirmesini sil (admin; yalnızca System scope)."""
+	_require_admin()
+	scope = frappe.db.get_value("Regex Pattern Library", name, "scope")
+	if scope != "System":
+		frappe.throw(_("Yalnızca sistem eşleştirmeleri silinebilir"))
+	frappe.delete_doc("Regex Pattern Library", name)
+	return {"ok": True, "name": name}
+
+
+@frappe.whitelist()
+def save_system_value_mapping(target_field: str, rows_json: str) -> dict:
+	"""Sistem değer eşleştirmesi (admin) — TÜM satıcılar için taban katman.
+
+	Satıcı save_value_mapping ile aynı şekil; fark scope="System",
+	seller_profile boş. build_value_map System katmanını taban, satıcı katmanını
+	override olarak birleştirir.
+
+	Returns:
+	    {"ok": True, "name": <name>, "target_field": ..., "row_count": int}
+	"""
+	import json
+
+	_require_admin()
+
+	target_field = (target_field or "").strip()
+	if not target_field:
+		frappe.throw(_("Hedef alan zorunlu"))
+
+	try:
+		rows = json.loads(rows_json or "[]")
+	except (ValueError, TypeError):
+		frappe.throw(_("Geçersiz satır verisi"))
+	if not isinstance(rows, list):
+		frappe.throw(_("Satır verisi liste olmalı"))
+
+	existing = frappe.db.get_value(
+		"Seller Value Mapping",
+		{"scope": "System", "target_field": target_field},
+		"name",
+	)
+	if existing:
+		doc = frappe.get_doc("Seller Value Mapping", existing)
+		doc.set("rows", [])
+	else:
+		doc = frappe.new_doc("Seller Value Mapping")
+		doc.scope = "System"
+		doc.seller_profile = None
+		doc.target_field = target_field
+		doc.enabled = 1
+
+	for r in rows:
+		if not isinstance(r, dict):
+			continue
+		src = str(r.get("source_value") or "").strip()
+		tgt = str(r.get("target_value") or "").strip()
+		if not src or not tgt:
+			continue
+		doc.append(
+			"rows",
+			{"source_value": src, "target_value": tgt, "enabled": 1 if r.get("enabled", 1) else 0},
+		)
+
+	doc.save()
+	return {
+		"ok": True,
+		"name": doc.name,
+		"target_field": target_field,
+		"row_count": len(doc.rows or []),
+	}
+
+
+@frappe.whitelist()
+def list_system_value_mappings() -> list[dict]:
+	"""Sistem değer eşleştirmelerini satırlarıyla listele (admin)."""
+	_require_admin()
+	mappings = frappe.get_list(
+		"Seller Value Mapping",
+		filters={"scope": "System"},
+		fields=["name", "target_field", "enabled"],
+		order_by="modified desc",
+	)
+	result: list[dict] = []
+	for m in mappings:
+		doc = frappe.get_doc("Seller Value Mapping", m["name"])
+		result.append(
+			{
+				"name": doc.name,
+				"target_field": doc.target_field,
+				"enabled": doc.enabled,
+				"rows": [
+					{
+						"source_value": row.source_value,
+						"target_value": row.target_value,
+						"enabled": row.enabled,
+					}
+					for row in (doc.rows or [])
+				],
+			}
+		)
+	return result
+
+
+@frappe.whitelist()
+def delete_system_value_mapping(name: str) -> dict:
+	"""Sistem değer eşleştirmesini sil (admin; yalnızca System scope)."""
+	_require_admin()
+	scope = frappe.db.get_value("Seller Value Mapping", name, "scope")
+	if scope != "System":
+		frappe.throw(_("Yalnızca sistem eşleştirmeleri silinebilir"))
+	frappe.delete_doc("Seller Value Mapping", name)
+	return {"ok": True, "name": name}
+
+
 @frappe.whitelist()
 def get_field_values(target_field: str) -> dict:
 	"""Bir hedef alanın geçerli değerlerini döndür (hedef-değer dropdown'u için).
@@ -452,17 +806,31 @@ def _select_field_values(fieldname: str) -> dict | None:
 	}
 
 
-def _link_field_values(doctype: str) -> dict:
-	"""Link DocType kayıtları → değer listesi. Country/UOM ~200 seed olabilir."""
-	label_field = f"{doctype.lower().replace(' ', '_')}_name"
+def _link_label_field(doctype: str) -> str | None:
+	"""Link DocType'ın okunur ad alanı — meta.title_field (heuristik fallback ile).
+
+	Product Category/Brand/Product Type gibi DocType'lar autoname=field:<code> ile
+	UUID-benzeri `name` üretir; title_field (category_name/brand_name/type_name)
+	okunur ad verir. Eski "{dt}_name" heuristiği yalnız Brand'de doğruydu
+	(Product Category→category_name, Product Type→type_name'i kaçırıyordu).
+	"""
 	meta = frappe.get_meta(doctype)
-	fields = ["name"]
-	if meta.get_field(label_field):
-		fields.append(label_field)
-	rows = frappe.get_all(doctype, fields=fields, order_by="name asc", limit_page_length=0)
+	title_field = (meta.title_field or "").strip()
+	if title_field and meta.get_field(title_field):
+		return title_field
+	heuristic = f"{doctype.lower().replace(' ', '_')}_name"
+	return heuristic if meta.get_field(heuristic) else None
+
+
+def _link_field_values(doctype: str) -> dict:
+	"""Link DocType kayıtları → değer listesi (okunur label). Country/UOM ~200 seed olabilir."""
+	label_field = _link_label_field(doctype)
+	fields = ["name"] + ([label_field] if label_field else [])
+	order_by = f"{label_field} asc" if label_field else "name asc"
+	rows = frappe.get_all(doctype, fields=fields, order_by=order_by, limit_page_length=0)
 	values = []
 	for r in rows:
-		label = r.get(label_field) if len(fields) > 1 else None
+		label = r.get(label_field) if label_field else None
 		values.append({"value": r["name"], "label": label or r["name"]})
 	return {"kind": "link", "values": values, "free": False}
 

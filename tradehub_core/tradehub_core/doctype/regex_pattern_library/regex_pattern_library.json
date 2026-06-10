@@ -21,7 +21,8 @@
   "section_patterns",
   "patterns",
   "section_meta",
-  "last_modified_by"
+  "last_modified_by",
+  "match_count"
  ],
  "fields": [
   {
@@ -115,6 +116,15 @@
    "fieldtype": "Link",
    "label": "Son Değiştiren",
    "options": "User",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "description": "Bu desenin toplam eşleşme sayısı (içe aktarmada artar)",
+   "fieldname": "match_count",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Eşleşme Sayısı",
    "read_only": 1
   }
  ],

@@ -33,25 +33,38 @@ _KEY_FIELDS_NO_MAPPING: frozenset[str] = frozenset(
 
 
 def build_value_map(seller_profile: str | None) -> dict[str, dict[str, str]]:
-	"""Satıcının değer eşleştirmelerini {target_field: {source_lower: target}} kur.
+	"""Değer eşleştirmelerini {target_field: {source_lower: target}} kur.
 
-	5 dakika Redis cache'lenir (key: value_map:{seller}). Aktif olmayan kayıt/satır
-	atlanır. source_value lower-case anahtar (case-insensitive eşleşme).
+	İki katman: System (tüm satıcılar için taban) + Seller Override (satıcıya özel,
+	System'i ezer). 5 dakika Redis cache'lenir. Aktif olmayan kayıt/satır atlanır.
+	source_value lower-case anahtar (case-insensitive eşleşme).
 	"""
-	if not seller_profile:
-		return {}
-
-	cache_key = f"value_map:{seller_profile}"
+	cache_key = f"value_map:{seller_profile or 'SYSTEM'}"
 	cached = frappe.cache.get_value(cache_key)
 	if cached is not None:
 		return cached
 
+	# Önce System taban, sonra satıcı override (aynı key'i ezer).
+	value_map = _load_mapping_layer({"scope": "System", "enabled": 1})
+	if seller_profile:
+		seller_layer = _load_mapping_layer({"seller_profile": seller_profile, "enabled": 1})
+		for target_field, field_map in seller_layer.items():
+			value_map.setdefault(target_field, {}).update(field_map)
+
+	frappe.cache.set_value(cache_key, value_map, expires_in_sec=VALUE_MAP_CACHE_TTL)
+	return value_map
+
+
+def _load_mapping_layer(filters: dict) -> dict[str, dict[str, str]]:
+	"""Verilen filtreye uyan Seller Value Mapping kayıtlarını katman dict'e indir.
+
+	Sistem işi: arka plan runner bağlamı, perm by-pass kasıtlı (scope/seller_profile
+	filtresi tenant izolasyonunu zaten sağlıyor).
+	"""
 	value_map: dict[str, dict[str, str]] = {}
-	# Sistem işi: arka plan runner bağlamı, perm by-pass kasıtlı (seller_profile
-	# filtresi tenant izolasyonunu zaten sağlıyor).
 	mappings = frappe.get_all(
 		"Seller Value Mapping",
-		filters={"seller_profile": seller_profile, "enabled": 1},
+		filters=filters,
 		fields=["name", "target_field"],
 	)
 	for m in mappings:
@@ -72,8 +85,6 @@ def build_value_map(seller_profile: str | None) -> dict[str, dict[str, str]]:
 			if not src or not tgt:
 				continue
 			field_map[src.lower()] = tgt
-
-	frappe.cache.set_value(cache_key, value_map, expires_in_sec=VALUE_MAP_CACHE_TTL)
 	return value_map
 
 
