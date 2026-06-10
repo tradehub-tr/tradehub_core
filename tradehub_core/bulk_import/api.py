@@ -358,12 +358,14 @@ def get_my_history(limit: int = DEFAULT_HISTORY_LIMIT) -> list:
 
 	roles = set(frappe.get_roles())
 	if roles & {"System Manager", "Marketplace Admin"}:
-		return frappe.get_list(
+		jobs = frappe.get_list(
 			"Bulk Import Job",
 			fields=fields,
 			order_by="creation desc",
 			limit=limit_int,
 		)
+		_enrich_seller_names(jobs)
+		return jobs
 
 	seller = frappe.db.get_value(
 		"Admin Seller Profile",
@@ -380,6 +382,24 @@ def get_my_history(limit: int = DEFAULT_HISTORY_LIMIT) -> list:
 		order_by="creation desc",
 		limit=limit_int,
 	)
+
+
+def _enrich_seller_names(jobs: list) -> None:
+	"""Admin geçmişine mağaza adı ekle — tek sorguyla batch (N+1 yok).
+
+	Her job'a `seller_name` ekler (seller_profile → Admin Seller Profile).
+	"""
+	profile_ids = {j["seller_profile"] for j in jobs if j.get("seller_profile")}
+	if not profile_ids:
+		return
+	rows = frappe.get_all(
+		"Admin Seller Profile",
+		filters={"name": ["in", list(profile_ids)]},
+		fields=["name", "seller_name", "company_name"],
+	)
+	name_map = {r["name"]: (r.get("seller_name") or r.get("company_name") or r["name"]) for r in rows}
+	for j in jobs:
+		j["seller_name"] = name_map.get(j.get("seller_profile"))
 
 
 @frappe.whitelist()
@@ -449,6 +469,33 @@ def download_error_excel(job_name: str) -> dict:
 	file_doc.insert(ignore_permissions=True)
 
 	return {"file_url": file_doc.file_url, "file_name": file_doc.file_name}
+
+
+@frappe.whitelist()
+def resolve_error_skus(job_name: str) -> dict:
+	"""Hata satırlarındaki SKU'ları job'ın mevcut Listing'leriyle eşleştir.
+
+	Detay sayfası hata tablosunda (özellikle "duplicate" hatasında) kullanıcıyı
+	çakışan mevcut ürüne yönlendirmek için kullanılır. Yalnızca job'ın
+	`seller_profile` kapsamında arar — admin de aynı kapsamı görür, get_list ile
+	tenant izolasyonu ayrıca uygulanır.
+
+	Returns: {"matches": {seller_sku: listing_name}}
+	"""
+	doc = frappe.get_doc("Bulk Import Job", job_name)
+	doc.check_permission("read")
+
+	skus = {(e.sku or "").strip() for e in (doc.error_details or []) if (e.sku or "").strip()}
+	if not skus or not doc.seller_profile:
+		return {"matches": {}}
+
+	rows = frappe.get_list(
+		"Listing",
+		filters={"seller_profile": doc.seller_profile, "seller_sku": ["in", list(skus)]},
+		fields=["name", "seller_sku"],
+		ignore_permissions=False,
+	)
+	return {"matches": {r["seller_sku"]: r["name"] for r in rows if r.get("seller_sku")}}
 
 
 # Şablon kolonları — İngilizce header (uluslararası satıcı uyumu).
