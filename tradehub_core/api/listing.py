@@ -3720,6 +3720,7 @@ def get_pending_listings(page=1, page_size=20, bulk_job=None):
 			"category",
 			"category_name",
 			"product_category",
+			"created_by_bulk_job",
 		],
 		order_by="creation asc",
 		start=(page - 1) * page_size,
@@ -3763,13 +3764,15 @@ def approve_listing(listing_name, action="approve", reject_reason=""):
 
 
 @frappe.whitelist()
-def get_seller_listings(page=1, page_size=20, status=None, bulk_job=None):
+def get_seller_listings(page=1, page_size=20, status=None, bulk_job=None, source=None):
 	"""Satıcı: kendi listing'lerini listele.
 
 	`status`: opsiyonel filtre. "all" veya boş → tüm durumlar. Geçerli
 	değerler: Draft, Pending, Active, Paused, Out of Stock, Rejected.
 	`bulk_job`: opsiyonel — yalnızca bu Bulk Import Job tarafından
 	oluşturulan listing'leri döndürür (BIJ-XXX).
+	`source`: opsiyonel — "feed" (toplu/feed ile yüklenenler) veya "manual"
+	(elle eklenenler). `bulk_job` verilmişse yok sayılır.
 	"""
 	# FAZ 1.5 sub-user fix: sub-user'lar `tradehub_tenant` üzerinden Owner'ın
 	# mağazasına bağlıdır — Co-Owner / Finance Staff / Operations vs. hepsi
@@ -3789,6 +3792,10 @@ def get_seller_listings(page=1, page_size=20, status=None, bulk_job=None):
 		filters["status"] = status
 	if bulk_job:
 		filters["created_by_bulk_job"] = bulk_job
+	elif source == "feed":
+		filters["created_by_bulk_job"] = ["is", "set"]
+	elif source == "manual":
+		filters["created_by_bulk_job"] = ["is", "not set"]
 
 	total = frappe.db.count("Listing", filters)
 	listings = frappe.get_all(
@@ -3807,6 +3814,7 @@ def get_seller_listings(page=1, page_size=20, status=None, bulk_job=None):
 			"seller_sku",
 			"rejection_reason",
 			"completeness_score",
+			"created_by_bulk_job",
 		],
 		order_by="creation desc",
 		start=(page - 1) * page_size,

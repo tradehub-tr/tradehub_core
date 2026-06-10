@@ -8,6 +8,7 @@
  "editable_grid": 0,
  "engine": "InnoDB",
  "field_order": [
+  "scope",
   "seller_profile",
   "target_field",
   "enabled",
@@ -16,14 +17,25 @@
  ],
  "fields": [
   {
-   "description": "Bu değer eşleştirmelerinin sahibi satıcı profili",
+   "default": "Seller Override",
+   "description": "System → tüm satıcılar için taban katman; Seller Override → tek satıcı",
+   "fieldname": "scope",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Kapsam",
+   "options": "System\nSeller Override",
+   "search_index": 1
+  },
+  {
+   "depends_on": "eval:doc.scope!='System'",
+   "description": "Bu değer eşleştirmelerinin sahibi satıcı profili (System scope'ta boş)",
    "fieldname": "seller_profile",
    "fieldtype": "Link",
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Satıcı Profili",
    "options": "Admin Seller Profile",
-   "reqd": 1,
    "search_index": 1
   },
   {
@@ -64,6 +76,7 @@
  "owner": "Administrator",
  "permissions": [
   {"create": 1, "delete": 1, "read": 1, "write": 1, "role": "System Manager"},
+  {"create": 1, "delete": 1, "read": 1, "write": 1, "role": "Marketplace Admin"},
   {"create": 1, "delete": 1, "read": 1, "write": 1, "role": "Marketplace Seller"}
  ],
  "sort_field": "modified",
