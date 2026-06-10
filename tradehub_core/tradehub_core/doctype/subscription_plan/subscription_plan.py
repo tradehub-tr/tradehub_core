@@ -80,6 +80,18 @@ class SubscriptionPlan(Document):
 		# Faz E.2 — deprecated key sızıntısına karşı koruma: önceden sadece
 		# var/yok kontrol ediliyordu, `is_deprecated=1` key (örn. eski
 		# `feature.rfq_module`) sessizce kabul ediliyordu.
+		# Planda HALİHAZIRDA kayıtlı capability key'leri — bunlar deprecated olsa
+		# bile (sonradan deprecate edildiyse) korunur; aksi halde komisyon gibi
+		# başka bir alanı değiştirmek bile imkânsız olurdu. Sadece YENİ eklenen
+		# deprecated key reddedilir.
+		existing_keys: set[str] = set()
+		before = self.get_doc_before_save()
+		if before:
+			try:
+				existing_keys = set((json.loads(before.capability_flags or "{}") or {}).keys())
+			except (ValueError, TypeError):
+				existing_keys = set()
+
 		unknown_keys = []
 		deprecated_keys = []
 		for key, value in flags.items():
@@ -94,7 +106,7 @@ class SubscriptionPlan(Document):
 			fc = frappe.db.get_value("Feature Catalog", key, ["is_deprecated"], as_dict=True)
 			if not fc:
 				unknown_keys.append(key)
-			elif fc.get("is_deprecated"):
+			elif fc.get("is_deprecated") and key not in existing_keys:
 				deprecated_keys.append(key)
 
 		if unknown_keys:
