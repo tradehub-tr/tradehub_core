@@ -1,3 +1,11 @@
+## [v1.1.0-beta.11] - 2026-06-10 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Eklendi
+- feat(pricing): seed feature tooltip descriptions for comparison table (@boraydeger32)
+
+---
 ## [v1.1.0-beta.10] - 2026-06-10 BETA
 
 Bu surum betaistoc.cronbi.com'da test asamasindadir.
