@@ -103,6 +103,9 @@ scheduler_events = {
 		"tradehub_core.services.anomaly_detector.run_detection",
 		# FAZ 3.5 — Geçici yetki expire
 		"tradehub_core.services.delegation_service.expire_overdue_delegations",
+		# Seller XML Feed: vadesi gelen (fetch_hour == şu an, 24 saatten eski)
+		# etkin feed'leri long-queue'ya çekme işine atar.
+		"tradehub_core.bulk_import.feed_scheduler.process_due_feeds",
 	],
 	"daily": [
 		# Saha hakediş kota bonusu — on-approval tetiklemesinin günlük güvenlik ağı.
@@ -608,6 +611,7 @@ permission_query_conditions = {
 	"ECA Rule": "tradehub_core.permissions.eca_rule_query_conditions",
 	"ECA Rule Log": "tradehub_core.permissions.eca_rule_log_query_conditions",
 	"Regex Pattern Library": "tradehub_core.permissions.regex_pattern_library_query_conditions",
+	"Seller Value Mapping": "tradehub_core.permissions.seller_value_mapping_query_conditions",
 	"Seller Template Profile": "tradehub_core.permissions.seller_template_profile_query_conditions",
 	# FAZ 2/3 — ReBAC/Audit DocType izolasyonu
 	"Order Approval": "tradehub_core.permissions.order_approval_query_conditions",
@@ -662,6 +666,7 @@ has_permission = {
 	"Bulk Import Job": "tradehub_core.permissions.bulk_import_job_has_permission",
 	"ECA Rule": "tradehub_core.permissions.eca_rule_has_permission",
 	"Regex Pattern Library": "tradehub_core.permissions.regex_pattern_library_has_permission",
+	"Seller Value Mapping": "tradehub_core.permissions.seller_value_mapping_has_permission",
 	"Seller Template Profile": "tradehub_core.permissions.seller_template_profile_has_permission",
 	# FAZ 2/3 — ReBAC/Audit DocType izolasyonu (per-doc)
 	"Order Approval": "tradehub_core.permissions.order_approval_has_permission",
