@@ -1,3 +1,14 @@
+## [v1.1.0-beta.8] - 2026-06-10 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Eklendi
+- feat(trial): global trial config + storefront trial_config + matris "Yakında" (@boraydeger32)
+  - Trial Settings (Single DocType): trial_enabled/trial_plan/trial_days/trial_cta_label + get_trial_settings helper + on_update cache invalidation
+  - permission_console: get_trial_settings / update_trial_settings (plan trial_days senkron)
+  - public_pricing: response'a trial_config; _build_features_matrix'e coming_soon
+
+---
 ## [v1.1.0-beta.7] - 2026-06-10 BETA
 
 Bu surum betaistoc.cronbi.com'da test asamasindadir.
