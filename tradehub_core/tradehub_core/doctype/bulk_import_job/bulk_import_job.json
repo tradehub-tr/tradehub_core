@@ -10,6 +10,7 @@
  "field_order": [
   "naming_series",
   "seller_profile",
+  "source_feed",
   "section_input",
   "data_file",
   "images_zip",
@@ -52,6 +53,14 @@
    "label": "Satıcı Profili",
    "options": "Admin Seller Profile",
    "reqd": 1
+  },
+  {
+   "description": "Bu job bir Seller XML Feed çekiminden oluştuysa kaynak feed (otomatik set edilir).",
+   "fieldname": "source_feed",
+   "fieldtype": "Link",
+   "label": "Kaynak Feed",
+   "options": "Seller XML Feed",
+   "read_only": 1
   },
   {
    "fieldname": "section_input",
