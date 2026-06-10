@@ -1,3 +1,17 @@
+## [v1.2.1-beta.1] - 2026-06-10 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Eklendi
+- feat(handover): Custom DocPerm permlevel-0 taban izni invariant kontrolü eklendi (@aliiball)
+
+### Duzeltildi
+- fix(kyb): satıcı kendi KYB/KYC kaydını panelde açarken 403 hatası düzeltildi (@aliiball)
+  - v15_1_3 PII patch'i permlevel 1/2/3 Custom DocPerm eklerken taban permlevel-0 satırını kopyalamadığı için Custom DocPerm standart DocPerm'i ezdi ve temel read düştü
+  - v15_7_6 onarım patch'i: tabDocPerm permlevel-0 satırlarını Custom DocPerm'e aynalar
+  - v15_1_3 + pii_permlevel_setup: setup_custom_perms ile taban izinler korunur
+
+---
 ## [v1.2.1] - 2026-06-10 PROD
 
 Bu surum istoc.cronbi.com'da yayindadir.
