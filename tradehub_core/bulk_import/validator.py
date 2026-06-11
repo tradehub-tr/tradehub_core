@@ -53,6 +53,31 @@ def validate_title(title) -> tuple[bool, str | None]:
 	return True, None
 
 
+# Import için zorunlu, fallback'i olmayan canonical alanlar → kullanıcıya gösterilen etiket.
+# Bunlar mapping'de yoksa her satır insert'te ham Frappe "MandatoryError" üretir;
+# onun yerine yükleme öncesi tek ve anlaşılır bir mesaj veriyoruz.
+_REQUIRED_MAPPING_FIELDS = {
+	"sku": "Stok Kodu (SKU)",
+	"title": "Ürün Adı",
+	"base_price": "Fiyat",
+}
+
+
+def validate_mapping(mapping: dict) -> list[str]:
+	"""Satır-bağımsız mapping kontrolü — zorunlu sütunlar eşleşti mi?
+
+	mapping: {canonical_field: source_header}
+	Returns: eksik varsa tek anlaşılır mesaj içeren liste, yoksa boş liste.
+	"""
+	missing = [label for field, label in _REQUIRED_MAPPING_FIELDS.items() if field not in mapping]
+	if not missing:
+		return []
+	return [
+		"Şu zorunlu sütun(lar) hiçbir başlıkla eşleşmedi: {}. "
+		"Lütfen yükleme öncesi eşleştirme ekranında doğru sütunlara bağlayın.".format(", ".join(missing))
+	]
+
+
 def validate_row(row: dict, mapping: dict) -> list[dict]:
 	"""Tüm row için validasyonları çalıştır. Errors listesi döner.
 

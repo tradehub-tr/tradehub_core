@@ -156,6 +156,99 @@ class TestResolverLayers(unittest.TestCase):
 			# (0.9 + 0.8) / 2 = 0.85
 			self.assertAlmostEqual(result["overall_score"], 0.85, places=2)
 
+	def test_higher_score_wins_conflict(self):
+		"""Aynı alana iki başlık yarışınca en yüksek skor kazanır, kaybeden conflicts'e düşer.
+
+		Regresyon: "BİRİM" (0.765) sıralamada önce gelse de "BİRİM FİYAT" (0.956)
+		base_price'ı almalı; eski 'ilk gelen kapar' davranışı fiyatı yanlış sütuna
+		bağlıyordu.
+		"""
+		with (
+			patch("tradehub_core.bulk_import.ingestion.resolver.profile_store.lookup_profile") as mock_lookup,
+			patch(
+				"tradehub_core.bulk_import.ingestion.resolver.regex_lib.resolve_column_mapping"
+			) as mock_regex,
+			patch("tradehub_core.bulk_import.ingestion.resolver._resolve_attributes") as mock_attr,
+			patch(
+				"tradehub_core.bulk_import.ingestion.resolver.semantic.resolve_header_semantic"
+			) as mock_semantic,
+		):
+			mock_lookup.return_value = None
+			mock_regex.return_value = {}
+			mock_attr.return_value = {}
+
+			def semantic_side(header):
+				return {"BİRİM": ("base_price", 0.765), "BİRİM FİYAT": ("base_price", 0.956)}.get(
+					header, (None, 0.0)
+				)
+
+			mock_semantic.side_effect = semantic_side
+
+			from tradehub_core.bulk_import.ingestion.resolver import resolve_columns
+
+			# Kaybeden "BİRİM" sıralamada önce gelsin diye listede ilk
+			result = resolve_columns(headers=["BİRİM", "BİRİM FİYAT"], seller_profile="SELLER-001")
+
+			self.assertEqual(result["mapping"]["base_price"], "BİRİM FİYAT")
+			self.assertEqual(len(result["conflicts"]), 1)
+			conflict = result["conflicts"][0]
+			self.assertEqual(conflict["field"], "base_price")
+			self.assertEqual(conflict["winner_header"], "BİRİM FİYAT")
+			self.assertIn("BİRİM", [l["header"] for l in conflict["loser_headers"]])
+			# Kaybeden başlık unmapped'e düşer (kullanıcı yeniden atayabilsin)
+			self.assertIn("BİRİM", result["unmapped"])
+
+	def test_no_conflict_single_candidate(self):
+		"""Tek aday varsa conflicts boş kalır."""
+		with (
+			patch("tradehub_core.bulk_import.ingestion.resolver.profile_store.lookup_profile") as mock_lookup,
+			patch(
+				"tradehub_core.bulk_import.ingestion.resolver.regex_lib.resolve_column_mapping"
+			) as mock_regex,
+			patch("tradehub_core.bulk_import.ingestion.resolver._resolve_attributes") as mock_attr,
+			patch(
+				"tradehub_core.bulk_import.ingestion.resolver.semantic.resolve_header_semantic"
+			) as mock_semantic,
+		):
+			mock_lookup.return_value = None
+			mock_regex.return_value = {}
+			mock_attr.return_value = {}
+			mock_semantic.side_effect = lambda h: ("brand", 0.88) if h == "Marka" else (None, 0.0)
+
+			from tradehub_core.bulk_import.ingestion.resolver import resolve_columns
+
+			result = resolve_columns(headers=["Marka"], seller_profile="SELLER-001")
+
+			self.assertEqual(result["mapping"]["brand"], "Marka")
+			self.assertEqual(result["conflicts"], [])
+
+	def test_multi_image_columns_go_to_slots(self):
+		"""Birden çok görsel başlığı çakışma değil; primary_image + image_2/3'e dağılır."""
+		with (
+			patch("tradehub_core.bulk_import.ingestion.resolver.profile_store.lookup_profile") as mock_lookup,
+			patch(
+				"tradehub_core.bulk_import.ingestion.resolver.regex_lib.resolve_column_mapping"
+			) as mock_regex,
+			patch("tradehub_core.bulk_import.ingestion.resolver._resolve_attributes") as mock_attr,
+			patch(
+				"tradehub_core.bulk_import.ingestion.resolver.semantic.resolve_header_semantic"
+			) as mock_semantic,
+		):
+			mock_lookup.return_value = None
+			mock_regex.return_value = {}
+			mock_attr.return_value = {}
+			mock_semantic.side_effect = lambda h: ("primary_image", 0.9)
+
+			from tradehub_core.bulk_import.ingestion.resolver import resolve_columns
+
+			result = resolve_columns(headers=["Image 1", "Image 2", "Image 3"], seller_profile="S1")
+
+			self.assertEqual(result["mapping"]["primary_image"], "Image 1")
+			self.assertEqual(result["mapping"]["image_2"], "Image 2")
+			self.assertEqual(result["mapping"]["image_3"], "Image 3")
+			# Görsel sütunları çakışma üretmemeli
+			self.assertEqual(result["conflicts"], [])
+
 
 class TestConfidenceReport(unittest.TestCase):
 	def test_build_confidence_report(self):

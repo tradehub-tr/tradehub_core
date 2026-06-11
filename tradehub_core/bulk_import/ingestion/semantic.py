@@ -16,6 +16,27 @@ _vectorizer: TfidfVectorizer | None = None
 _field_vectors = None
 _field_labels: list[str] | None = None
 
+# Türkçe karakterleri ASCII'ye indir — canonical alias'lar ASCII ("birim fiyat")
+# olduğundan, başlıklar fold edilmezse "BİRİM FİYAT" str.lower() ile "bi̇rim"
+# (combining dot) üretir ve char n-gram'lar uyuşmaz → düşük benzerlik. resolver
+# tarafıyla aynı fold tablosu (bkz. resolver._TR_FOLD).
+_TR_FOLD = str.maketrans(
+	{
+		"ı": "i",
+		"İ": "i",
+		"ş": "s",
+		"Ş": "s",
+		"ğ": "g",
+		"Ğ": "g",
+		"ü": "u",
+		"Ü": "u",
+		"ö": "o",
+		"Ö": "o",
+		"ç": "c",
+		"Ç": "c",
+	}
+)
+
 
 def _ensure_vectorizer() -> None:
 	"""Lazy init TF-IDF — corpus fit'i sadece 1 kez."""
@@ -35,8 +56,8 @@ def _ensure_vectorizer() -> None:
 
 
 def _normalize(text: str) -> str:
-	"""Lowercase, strip, collapse whitespace, remove non-word chars."""
-	text = (text or "").lower().strip()
+	"""Türkçe-fold + lowercase, strip, collapse whitespace, remove non-word chars."""
+	text = (text or "").translate(_TR_FOLD).lower().strip()
 	text = re.sub(r"[^\w\s]+", " ", text, flags=re.UNICODE)
 	text = re.sub(r"\s+", " ", text)
 	return text

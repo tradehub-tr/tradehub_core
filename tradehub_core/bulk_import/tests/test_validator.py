@@ -100,6 +100,25 @@ class TestValidateTitle(unittest.TestCase):
 		self.assertFalse(ok)
 
 
+class TestValidateMapping(unittest.TestCase):
+	def test_complete_mapping_ok(self):
+		mapping = {"sku": "Stok Kodu", "title": "Ürün Adı", "base_price": "Fiyat"}
+		self.assertEqual(validator.validate_mapping(mapping), [])
+
+	def test_missing_price_reported(self):
+		# Fiyat sütunu eşleşmemiş — ham MandatoryError yerine anlaşılır mesaj
+		mapping = {"sku": "Stok Kodu", "title": "Ürün Adı"}
+		errors = validator.validate_mapping(mapping)
+		self.assertEqual(len(errors), 1)
+		self.assertIn("Fiyat", errors[0])
+
+	def test_multiple_missing_listed(self):
+		errors = validator.validate_mapping({"title": "Ürün Adı"})
+		self.assertEqual(len(errors), 1)
+		self.assertIn("Fiyat", errors[0])
+		self.assertIn("Stok Kodu", errors[0])
+
+
 class TestValidateRow(unittest.TestCase):
 	def test_valid_row(self):
 		row = {"Stok Kodu": "ABC-001", "Ürün Adı": "Solvent", "Fiyat": "100"}
