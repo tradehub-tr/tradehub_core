@@ -120,7 +120,6 @@
 			"options": "Individual\nBusiness",
 			"reqd": 1,
 			"default": "Individual",
-			"in_standard_filter": 1,
 			"description": "Bireysel veya Kurumsal. can_sell=1 ise Business ZORUNLU. Individual → Business upgrade TEK YÖNLÜDÜR."
 		},
 		{
