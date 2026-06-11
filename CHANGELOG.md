@@ -1,3 +1,16 @@
+## [v1.3.0-rc.1] - 2026-06-11 RC
+
+Bu surum rcistoc.cronbi.com'da onay asamasindadir.
+
+### Duzeltildi
+- fix(seo): paylaşım ve SEO URL'leri backend domaini gösterme hatası düzeltildi (@ahmeetseker)
+  - canonical, og:url, hreflang, sitemap, robots ve JSON-LD schema URL'leri artık site_config.storefront_url üzerinden üretiliyor (örn. https://istoc.com); frappe.utils.get_url() request Host'unu döndürdüğü için backend domaini (istoc.cronbi.com) çıkıyordu
+  - ortak storefront_url() helper'ı eklendi (seo/site_url.py); meta_builder, sitemap_generator, schema_builder, robots_generator, hooks_seo ve page_resolver bu helper'a bağlandı
+
+### Degistirildi
+- refactor(format): backend kaynakları Ruff ile yeniden biçimlendirildi (@ahmeetseker)
+
+---
 ## [v1.3.0-beta.1] - 2026-06-11 BETA
 
 Bu surum betaistoc.cronbi.com'da test asamasindadir.
