@@ -1,3 +1,11 @@
+## [v1.3.1-rc.1] - 2026-06-11 RC
+
+Bu surum rcistoc.cronbi.com'da onay asamasindadir.
+
+### Duzeltildi
+- fix(seo): satıcı kendi ürününün SEO'sunu düzenleyebilsin (@boraydeger32)
+
+---
 ## [v1.3.1-beta.1] - 2026-06-11 BETA
 
 Bu surum betaistoc.cronbi.com'da test asamasindadir.
