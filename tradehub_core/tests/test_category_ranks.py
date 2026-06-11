@@ -40,8 +40,10 @@ class TestCategoryRanks(FrappeTestCase):
 			# order_count list filtresi ("higher" sorgusu) → 2; aksi halde total → 10
 			return 2 if isinstance(filters.get("order_count"), list) else 10
 
-		with mock.patch.object(li, "_get_category_descendants", side_effect=lambda c: [c]), \
-			mock.patch.object(li.frappe.db, "count", side_effect=fake_count):
+		with (
+			mock.patch.object(li, "_get_category_descendants", side_effect=lambda c: [c]),
+			mock.patch.object(li.frappe.db, "count", side_effect=fake_count),
+		):
 			ranks = li._get_category_ranks(listing)
 
 		# Yapraktan sektöre sıralı
@@ -61,8 +63,10 @@ class TestCategoryRanks(FrappeTestCase):
 			# Hiç kimse 0'dan fazla satmıyorsa higher=0 → rank 1
 			return 0 if isinstance(filters.get("order_count"), list) else 3
 
-		with mock.patch.object(li, "_get_category_descendants", side_effect=lambda c: [c]), \
-			mock.patch.object(li.frappe.db, "count", side_effect=fake_count):
+		with (
+			mock.patch.object(li, "_get_category_descendants", side_effect=lambda c: [c]),
+			mock.patch.object(li.frappe.db, "count", side_effect=fake_count),
+		):
 			ranks = li._get_category_ranks(listing)
 
 		self.assertEqual(ranks[0]["rank"], 1)

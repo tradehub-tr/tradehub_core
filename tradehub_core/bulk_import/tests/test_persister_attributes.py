@@ -248,9 +248,7 @@ class TestPersisterAttributes(FrappeTestCase):
 				"variant_stock": "5",
 			},
 		]
-		name = persister.create_listing_with_variants(
-			parent, variant_rows, self.seller, self.job
-		)
+		name = persister.create_listing_with_variants(parent, variant_rows, self.seller, self.job)
 		doc = frappe.get_doc("Listing", name)
 
 		# parent attr:color attribute_values'a yazilmis olmali
@@ -356,16 +354,96 @@ class TestPimAutoMappingEndToEnd(FrappeTestCase):
 
 		# urunler-pim.xlsx satir verisi (parent + 4 varyant).
 		raw_rows = [
-			["SHOE-A", "Spor Ayakkabi", "Nike", "AYAKKABI", "Deri", 24, "1200.00", 0,
-				None, None, None, None, None, None, None, None],
-			[None, None, None, None, None, None, None, None,
-				"SHOE-A", "SHOE-A-KIR-40", "Renk", "Kirmizi", "Beden", "40", "1200.00", 20],
-			[None, None, None, None, None, None, None, None,
-				"SHOE-A", "SHOE-A-KIR-41", "Renk", "Kirmizi", "Beden", "41", "1200.00", 15],
-			[None, None, None, None, None, None, None, None,
-				"SHOE-A", "SHOE-A-MAV-40", "Renk", "Mavi", "Beden", "40", "1250.00", 10],
-			[None, None, None, None, None, None, None, None,
-				"SHOE-A", "SHOE-A-MAV-41", "Renk", "Mavi", "Beden", "41", "1250.00", 8],
+			[
+				"SHOE-A",
+				"Spor Ayakkabi",
+				"Nike",
+				"AYAKKABI",
+				"Deri",
+				24,
+				"1200.00",
+				0,
+				None,
+				None,
+				None,
+				None,
+				None,
+				None,
+				None,
+				None,
+			],
+			[
+				None,
+				None,
+				None,
+				None,
+				None,
+				None,
+				None,
+				None,
+				"SHOE-A",
+				"SHOE-A-KIR-40",
+				"Renk",
+				"Kirmizi",
+				"Beden",
+				"40",
+				"1200.00",
+				20,
+			],
+			[
+				None,
+				None,
+				None,
+				None,
+				None,
+				None,
+				None,
+				None,
+				"SHOE-A",
+				"SHOE-A-KIR-41",
+				"Renk",
+				"Kirmizi",
+				"Beden",
+				"41",
+				"1200.00",
+				15,
+			],
+			[
+				None,
+				None,
+				None,
+				None,
+				None,
+				None,
+				None,
+				None,
+				"SHOE-A",
+				"SHOE-A-MAV-40",
+				"Renk",
+				"Mavi",
+				"Beden",
+				"40",
+				"1250.00",
+				10,
+			],
+			[
+				None,
+				None,
+				None,
+				None,
+				None,
+				None,
+				None,
+				None,
+				"SHOE-A",
+				"SHOE-A-MAV-41",
+				"Renk",
+				"Mavi",
+				"Beden",
+				"41",
+				"1250.00",
+				8,
+			],
 		]
 
 		def to_canonical(raw: list) -> dict:
@@ -394,9 +472,7 @@ class TestPimAutoMappingEndToEnd(FrappeTestCase):
 		self.assertIsNotNone(parent_canon)
 		self.assertEqual(len(variant_canons), 4)
 
-		name = persister.create_listing_with_variants(
-			parent_canon, variant_canons, self.seller, self.job
-		)
+		name = persister.create_listing_with_variants(parent_canon, variant_canons, self.seller, self.job)
 		doc = frappe.get_doc("Listing", name)
 
 		# product_type Link

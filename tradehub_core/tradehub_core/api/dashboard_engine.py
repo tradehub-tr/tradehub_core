@@ -86,9 +86,7 @@ def _check_dashboard_access(dashboard_key, scope):
 	if _is_super_admin():
 		return
 	if dashboard_key == "platform_overview":
-		frappe.throw(
-			_("Platform dashboard'una erişim yetkiniz yok."), frappe.PermissionError
-		)
+		frappe.throw(_("Platform dashboard'una erişim yetkiniz yok."), frappe.PermissionError)
 	if dashboard_key == "seller_overview" and scope != "__me__":
 		frappe.throw(
 			_("Bu dashboard yalnızca kendi mağazanız için görüntülenebilir."),
@@ -525,9 +523,7 @@ def _handle_quick_links(widget, period=None, scope=None):
 			# Non-admin → scope_field + resolved_scope zorunlu; aksi halde count
 			# gizlenir ama link kendisi yine görünür (navigation amaçlı).
 			scope_field = link.get("scope_field")
-			has_safe_scope = (
-				is_admin or (resolved_scope and scope_field and link.get("source_doctype"))
-			)
+			has_safe_scope = is_admin or (resolved_scope and scope_field and link.get("source_doctype"))
 			if has_safe_scope:
 				flt_arr = list(link.get("filters") or [])
 				if resolved_scope and scope_field:

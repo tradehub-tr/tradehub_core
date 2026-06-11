@@ -355,9 +355,7 @@ def reorder_features(orders: str | list) -> dict:
 		fkey = (entry.get("feature_key") or "").strip()
 		if not fkey or not frappe.db.exists("Feature Catalog", fkey):
 			continue
-		frappe.db.set_value(
-			"Feature Catalog", fkey, "display_order", int(entry.get("display_order") or 0)
-		)
+		frappe.db.set_value("Feature Catalog", fkey, "display_order", int(entry.get("display_order") or 0))
 		updated += 1
 
 	frappe.db.commit()
@@ -379,15 +377,11 @@ def _seed_feature_cells(
 	Feature Catalog.value_type'tan türetilir). show_on_card hücre başına
 	varsayılan kart görünürlüğüdür. Zaten hücresi olan planı atlar.
 	"""
-	plans = frappe.get_all(
-		"Subscription Plan", filters={"is_active": 1}, fields=["name"]
-	)
+	plans = frappe.get_all("Subscription Plan", filters={"is_active": 1}, fields=["name"])
 	seeded = 0
 	for p in plans:
 		plan = frappe.get_doc("Subscription Plan", p["name"])
-		already = any(
-			(row.get("feature_key") == feature_key) for row in (plan.get("pricing_features") or [])
-		)
+		already = any((row.get("feature_key") == feature_key) for row in (plan.get("pricing_features") or []))
 		if already:
 			continue
 		new_row = plan.append("pricing_features", {})

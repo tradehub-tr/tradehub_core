@@ -38,6 +38,4 @@ class SalesTeam(Document):
 		)
 		for d in dupes:
 			if d.parent in active_parents:
-				frappe.throw(
-					_("{0} zaten aktif bir ekipte: {1}").format(d.agent, d.parent)
-				)
+				frappe.throw(_("{0} zaten aktif bir ekipte: {1}").format(d.agent, d.parent))

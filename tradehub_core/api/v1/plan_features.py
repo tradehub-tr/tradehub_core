@@ -287,9 +287,7 @@ def list_plan_features() -> dict:
 			}
 			for p in plans_raw
 		],
-		"categories": [
-			{"name": c, "features": categories_map[c]} for c in ordered_categories
-		],
+		"categories": [{"name": c, "features": categories_map[c]} for c in ordered_categories],
 	}
 
 

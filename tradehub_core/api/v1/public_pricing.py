@@ -123,9 +123,7 @@ def get_pricing_plans() -> dict:
 
 	# Feature Catalog'tan display_name (boş display_text fallback'i) + is_coming_soon
 	# ("Yakında" rozeti — henüz çalışmayan özellik).
-	_fc_rows = frappe.get_all(
-		"Feature Catalog", fields=["feature_key", "display_name", "is_coming_soon"]
-	)
+	_fc_rows = frappe.get_all("Feature Catalog", fields=["feature_key", "display_name", "is_coming_soon"])
 	name_map = {r["feature_key"]: r["display_name"] for r in _fc_rows}
 	coming_map = {r["feature_key"]: bool(r.get("is_coming_soon")) for r in _fc_rows}
 
@@ -223,9 +221,7 @@ def get_pricing_plans() -> dict:
 		cr = p.get("commission_rate")
 		# Kart ile aynı: oran > 0 → "%17" / "%6.5", aksi halde "Özel".
 		plan_field_overrides[("quota.commission_rate", code)] = (
-			f"%{int(cr) if float(cr).is_integer() else cr}"
-			if cr is not None and float(cr) > 0
-			else _("Özel")
+			f"%{int(cr) if float(cr).is_integer() else cr}" if cr is not None and float(cr) > 0 else _("Özel")
 		)
 		mal = p.get("max_active_listings")
 		# Kart `fmtListings` ile aynı: > 0 → tr-TR binlik ayraç ("2.500"),
@@ -233,9 +229,7 @@ def get_pricing_plans() -> dict:
 		plan_field_overrides[("quota.max_active_listings", code)] = (
 			f"{int(mal):,}".replace(",", ".") if mal and int(mal) > 0 else _("Sınırsız")
 		)
-	features_matrix = _build_features_matrix(
-		cell_by_key_and_plan, plan_codes, plan_field_overrides
-	)
+	features_matrix = _build_features_matrix(cell_by_key_and_plan, plan_codes, plan_field_overrides)
 
 	# Global trial konfigürasyonu (Trial Settings) — storefront buton-üstü CTA + üst bant.
 	from tradehub_core.tradehub_core.doctype.trial_settings.trial_settings import (
@@ -243,7 +237,9 @@ def get_pricing_plans() -> dict:
 	)
 
 	_ts = get_trial_settings()
-	_trial_plan_code = plan_code_by_name.get(_ts["trial_plan"], _ts["trial_plan"]) if _ts["trial_plan"] else ""
+	_trial_plan_code = (
+		plan_code_by_name.get(_ts["trial_plan"], _ts["trial_plan"]) if _ts["trial_plan"] else ""
+	)
 	trial_config = {
 		"enabled": _ts["trial_enabled"] and bool(_trial_plan_code),
 		"plan_code": _trial_plan_code,
@@ -381,11 +377,7 @@ def _build_features_matrix(
 		if c not in ordered_categories:
 			ordered_categories.append(c)
 
-	return {
-		"categories": [
-			{"name": c, "features": categories_map[c]} for c in ordered_categories
-		]
-	}
+	return {"categories": [{"name": c, "features": categories_map[c]} for c in ordered_categories]}
 
 
 def invalidate_pricing_cache() -> None:
