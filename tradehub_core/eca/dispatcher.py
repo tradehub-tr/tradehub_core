@@ -15,6 +15,15 @@ import frappe
 from frappe.utils import cint, flt, getdate, now_datetime
 
 
+class ECARejectionError(Exception):
+	"""reject_row aksiyonu satırı reddetti — bulk import bunu yakalayıp skip eder.
+
+	validate fazında fırlatılır; doc.insert() DB yazımından önce iptal olur
+	(hiçbir şey yazılmaz). Bulk runner bu istisnayı yakalayıp satırı 'eca_rejected'
+	olarak raporlar (genel 'system' hatasından ayrı).
+	"""
+
+
 def evaluate_rules(doc, method=None):
 	"""
 	Evaluate all active ECA rules for a document event.
@@ -642,6 +651,13 @@ def evaluate_rules_two_phase(doc, method=None):
 	admin_rules = _get_phase_rules_v2(doctype, event, "Admin Phase", doc)
 	for rule in admin_rules:
 		_process_rule_v2(doc, rule, event)
+
+	# reject_row aksiyonu flag set ettiyse insert'i burada (per-rule try/except
+	# DIŞINDA) iptal et → DB yazımından ÖNCEKİ event'te fırlatınca hiçbir şey
+	# yazılmaz, bulk runner ECARejectionError'ı yakalayıp satırı skip olarak
+	# raporlar. after_insert/on_update'te raise ETME (doc zaten yazılı → orphan).
+	if getattr(doc.flags, "eca_rejected", False) and event in ("validate", "before_save", "before_insert"):
+		raise ECARejectionError(getattr(doc.flags, "eca_reject_reason", "") or "ECA kuralı tarafından reddedildi")
 
 
 def _get_phase_rules_v2(doctype: str, event: str, phase: str, doc) -> list:

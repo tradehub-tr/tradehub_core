@@ -12,7 +12,7 @@ from tradehub_core.entitlement.core import enforce_feature
 _BULK_IMPORT_FEATURE = "feature.pim.bulk_import"
 
 MAX_DATA_FILE_BYTES = 25 * 1024 * 1024  # 25 MB
-MAX_IMAGES_ZIP_BYTES = 200 * 1024 * 1024  # 200 MB
+MAX_IMAGES_ZIP_BYTES = 50 * 1024 * 1024  # 50 MB (base64-JSON upload; web-optimize sunucuda)
 DEFAULT_HISTORY_LIMIT = 50
 MAX_HISTORY_LIMIT = 200
 
@@ -25,6 +25,7 @@ def start_product_import(
 	column_mapping: str | None = None,
 	header_row: int = 1,
 	sheet_name: str | None = None,
+	remember_mapping: int = 1,
 ) -> dict:
 	"""Bulk import job oluştur ve enqueue et.
 
@@ -35,6 +36,7 @@ def start_product_import(
 	    column_mapping: JSON string {canonical_field: header}
 	    header_row: 1-indexed başlık satırı
 	    sheet_name: xlsx için sheet adı
+	    remember_mapping: 1 ise onaylanan eşleştirme satıcı profili olarak kaydedilir
 	"""
 	enforce_feature(_BULK_IMPORT_FEATURE, "Toplu İçe Aktarım")
 	seller = frappe.db.get_value(
@@ -83,6 +85,7 @@ def start_product_import(
 	job.column_mapping = column_mapping
 	job.header_row = header_row_int
 	job.sheet_name = sheet_name
+	job.remember_mapping = 1 if str(remember_mapping) in ("1", "True", "true") else 0
 	job.status = "Queued"
 	job.insert()
 
@@ -114,6 +117,8 @@ def get_import_status(job_name: str) -> dict:
 			"sku": r.sku,
 			"product_name": r.product_name,
 			"error_type": r.error_type,
+			"severity": r.get("severity") or "error",
+			"field": r.get("field") or "",
 			"error_message": r.error_message,
 		}
 		for r in (doc.error_details or [])
@@ -150,10 +155,15 @@ def dry_run_preview(
 	file_id: str,
 	mode: str = "insert_only",
 	column_mapping: str | None = None,
+	header_row: int | None = None,
+	sheet_name: str | None = None,
 ) -> dict:
 	"""Dosyayı parse et, eklenecek/güncellenecek/atlanacak özetini döndür.
 
 	Persist YAPMAZ — sadece parser + validator çalıştırır.
+
+	header_row / sheet_name verilmezse (xlsx) sniffer ile tahmin edilir; dönüşteki
+	detected_* alanları + needs_header_pick UI'a önerilir.
 	"""
 	enforce_feature(_BULK_IMPORT_FEATURE, "Toplu İçe Aktarım")
 	from tradehub_core.bulk_import.ingestion import resolver
@@ -181,11 +191,22 @@ def dry_run_preview(
 	file_format = _detect_format(file_doc.file_name)
 	file_path = _file_absolute_path(file_doc)
 
+	# header_row str gelebilir (whitelist) — coerce; 0/boş → None (oto-tespit).
+	try:
+		header_row_int = int(header_row) if header_row not in (None, "", 0, "0") else None
+	except (ValueError, TypeError):
+		header_row_int = None
+
+	# xlsx: ana sayfa + başlık satırını tespit et (kullanıcı vermediyse).
+	layout = {"sheet_name": sheet_name, "header_row": header_row_int or 1, "sheet_names": [], "needs_header_pick": False}
+	if file_format == "xlsx":
+		layout = _detect_xlsx_layout(file_path, sheet_name, header_row_int)
+
 	try:
 		if file_format == "xlsx":
-			headers, rows = xlsx_parser.parse_xlsx(file_path)
+			headers, rows = xlsx_parser.parse_xlsx(file_path, layout["sheet_name"], layout["header_row"])
 		elif file_format == "csv":
-			headers, rows = csv_parser.parse_csv(file_path)
+			headers, rows = csv_parser.parse_csv(file_path, header_row_int or 1)
 		else:
 			headers, rows = xml_parser.parse_xml(file_path)
 	except Exception as e:
@@ -216,7 +237,13 @@ def dry_run_preview(
 		resolution = resolver.resolve_columns(headers, seller)
 		mapping = resolution.get("mapping", {})
 
-	return _compute_dry_run(headers, rows, mapping, resolution, seller, mode)
+	result = _compute_dry_run(headers, rows, mapping, resolution, seller, mode)
+	# Sniffer tespiti — UI başlık/sayfa onayı için (frontend bunları geri gönderir).
+	result["detected_header_row"] = layout["header_row"]
+	result["detected_sheet"] = layout["sheet_name"]
+	result["sheet_names"] = layout["sheet_names"]
+	result["needs_header_pick"] = layout["needs_header_pick"]
+	return result
 
 
 def _compute_dry_run(
@@ -328,6 +355,8 @@ def _compute_dry_run(
 		"confidence_by_field": confidence_by_field,
 		"unmapped_headers": unmapped_headers,
 		"low_confidence_fields": low_confidence_fields,
+		# Aynı alana yarışan başlıklar — FE kullanıcıyı uyarıp düzelttirir
+		"conflicts": resolution.get("conflicts") or [],
 		"profile_used": resolution.get("profile_used"),
 		"overall_score": resolution.get("overall_score", round(confidence_score, 3)),
 		# Varyant özeti — UI gösterimi için
@@ -546,6 +575,11 @@ _TEMPLATE_CORE_COLUMNS_EN: tuple[tuple[str, str, str], ...] = (
 	("Video", "video_url", ""),
 	("Short Description", "short_description", "ISO 9001 certified"),
 	("Description", "description", "Suitable for industrial use"),
+	# [GÖRSEL] URL kolonları (alternatif: ZIP içinde "SKU.jpg" / "SKU/1.jpg").
+	# Çoklu kolon (Image 1/2/3) resolver tarafından galeriye toplanır.
+	("Image 1", "primary_image", "https://example.com/abc-001-1.jpg"),
+	("Image 2", "image_2", ""),
+	("Image 3", "image_3", ""),
 )
 
 # [VARYANT BLOĞU] varyantsız ürünlerde boş bırak. Çekirdek + betimleyici
@@ -865,6 +899,45 @@ def _detect_format(filename: str) -> str:
 	frappe.throw(_("Desteklenmeyen dosya formatı: {0}").format(filename))
 
 
+def _detect_xlsx_layout(file_path: str, sheet_name: str | None, header_row: int | None) -> dict:
+	"""xlsx için ana sayfa + başlık satırını tespit et (sniffer).
+
+	Tedarikçi Excel'lerinde başlık çoğu zaman 1. satırda değil (logo/başlık satırları)
+	ya da ürünler 2. sayfadadır. Kullanıcı değer verdiyse ona dokunulmaz; yalnız
+	eksikler tahmin edilir. needs_header_pick → UI onay ister.
+	"""
+	from tradehub_core.bulk_import.ingestion import sniffer
+	from tradehub_core.bulk_import.parsers import xlsx_parser
+
+	sheet_names = xlsx_parser.list_sheets(file_path)
+
+	chosen_sheet = sheet_name
+	if not chosen_sheet:
+		if len(sheet_names) > 1:
+			sample = {s: xlsx_parser.read_raw(file_path, s, max_rows=30) for s in sheet_names}
+			chosen_sheet = sniffer.pick_main_sheet(sample) or sheet_names[0]
+		elif sheet_names:
+			chosen_sheet = sheet_names[0]
+
+	header_confident = True
+	resolved_header = header_row
+	if not resolved_header:
+		raw = xlsx_parser.read_raw(file_path, chosen_sheet, max_rows=15)
+		detected = sniffer.find_header_row(raw)
+		header_confident = detected is not None
+		resolved_header = detected or 1
+
+	needs_pick = (
+		not header_confident or (resolved_header or 1) > 1 or (not sheet_name and len(sheet_names) > 1)
+	)
+	return {
+		"sheet_name": chosen_sheet,
+		"header_row": resolved_header or 1,
+		"sheet_names": sheet_names,
+		"needs_header_pick": needs_pick,
+	}
+
+
 def _file_absolute_path(file_doc) -> str:
 	"""File doc → absolute disk path."""
 	if hasattr(file_doc, "get_full_path"):
@@ -1015,7 +1088,7 @@ def save_xml_mapping(file_id: str, mapping: str, source_format: str = "xml") -> 
 _BULK_DATA_EXTS = frozenset({".xlsx", ".xls", ".csv", ".tsv", ".xml"})
 _BULK_IMAGE_EXTS = frozenset({".zip"})
 _BULK_DATA_MAX = 25 * 1024 * 1024  # 25 MB
-_BULK_IMAGE_MAX = 200 * 1024 * 1024  # 200 MB
+_BULK_IMAGE_MAX = 50 * 1024 * 1024  # 50 MB
 
 
 @frappe.whitelist()

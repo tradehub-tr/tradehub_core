@@ -11,6 +11,8 @@
   "sku",
   "product_name",
   "error_type",
+  "severity",
+  "field",
   "error_message",
   "raw_row_json"
  ],
@@ -39,7 +41,20 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Hata Tipi",
-   "options": "validation\nduplicate\nimage_missing\nsystem\neca_action_failed"
+   "options": "validation\nduplicate\nimage_missing\nsystem\neca_action_failed\neca_rejected"
+  },
+  {
+   "default": "error",
+   "fieldname": "severity",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Önem",
+   "options": "error\nwarning"
+  },
+  {
+   "fieldname": "field",
+   "fieldtype": "Data",
+   "label": "İlgili Alan"
   },
   {
    "fieldname": "error_message",

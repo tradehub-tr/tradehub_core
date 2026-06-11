@@ -61,6 +61,41 @@ def _match_patterns(text: str, patterns: list[dict]) -> tuple[str, str] | None:
 	return None
 
 
+def extract_sku_from_filename(filename: str, seller_profile: str | None = None) -> str | None:
+	"""'SKU Filename' kategorisindeki desenlerle dosya adından SKU çıkar.
+
+	image_matcher'ın varsayılan SKU_FILENAME_RE'si eşleşmezse fallback olarak
+	çağrılır (satıcıya özel dosya adı formatları için). Seller Override önce,
+	System sonra; desenin 'sku' adlı grubu (yoksa ilk grup, o da yoksa tüm eşleşme)
+	SKU sayılır. Hiçbiri eşleşmezse None.
+	"""
+	if not filename:
+		return None
+	scopes = [seller_profile, None] if seller_profile else [None]
+	for sp in scopes:
+		for p in _get_patterns(sp, "SKU Filename"):
+			for entry in p.get("patterns", []):
+				if not entry.get("enabled"):
+					continue
+				regex_str = entry.get("regex", "")
+				if not regex_str or len(regex_str) > 200:
+					continue
+				flags = _parse_flags(entry.get("flags", ""))
+				try:
+					m = re.search(regex_str, filename, flags)
+				except re.error:
+					continue
+				if not m:
+					continue
+				try:
+					sku = m.group("sku")
+				except IndexError:
+					sku = m.group(1) if m.groups() else m.group(0)
+				if sku:
+					return sku.strip()
+	return None
+
+
 def _increment_match_counts(library_names: list[str]) -> None:
 	"""Eşleşen Library kayıtlarının match_count sayacını DB'de atomik artır.
 

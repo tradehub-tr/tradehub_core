@@ -9,6 +9,8 @@ import re
 import frappe
 from frappe import _
 
+from tradehub_core.bulk_import.image_matcher import normalize_sku_key
+
 # canonical (regex_lib pattern target_field) → Listing DB field adı
 _CANONICAL_TO_DB: dict[str, str] = {
 	"sku": "seller_sku",
@@ -573,7 +575,9 @@ def create_listing_with_variants(
 	"""
 	images_idx = images_idx or {}
 	parent_sku = str(parent_row.get("sku") or "").strip()
-	parent_imgs = images_idx.get(parent_sku, []) if parent_sku else []
+	# Görsel lookup'ı normalize anahtarla — index key'leri build_image_index'te
+	# normalize edildi (büyük/küçük & Türkçe bağımsız eşleşme).
+	parent_imgs = images_idx.get(normalize_sku_key(parent_sku), []) if parent_sku else []
 
 	coerced = _coerce_row(parent_row)
 	doc = frappe.new_doc("Listing")
@@ -599,7 +603,7 @@ def create_listing_with_variants(
 
 	for i, vrow in enumerate(variant_rows):
 		v_sku = str(vrow.get("variant_sku") or "").strip()
-		v_imgs = images_idx.get(v_sku, []) if v_sku else []
+		v_imgs = images_idx.get(normalize_sku_key(v_sku), []) if v_sku else []
 		variant_image = v_imgs[0] if v_imgs else None
 		# Ek görseller JSON listesi (variant_gallery Long Text)
 		gallery_json = json.dumps(v_imgs[1:], ensure_ascii=False) if len(v_imgs) > 1 else None

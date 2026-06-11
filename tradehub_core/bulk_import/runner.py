@@ -5,6 +5,7 @@ Parse → validate → persist → progress → notify döngüsü.
 """
 
 import json
+import re
 
 import frappe
 from frappe import _
@@ -18,16 +19,18 @@ from tradehub_core.bulk_import import (
 	validator,
 	value_mapping,
 )
-from tradehub_core.bulk_import.ingestion import resolver
+from tradehub_core.bulk_import.ingestion import profile_store, resolver
 from tradehub_core.bulk_import.parsers import csv_parser, xlsx_parser, xml_parser
+from tradehub_core.eca.dispatcher import ECARejectionError
 
 PROGRESS_CACHE_TTL = 3600  # 1 saat
 COMMIT_CHUNK_SIZE = 25
 MAX_IMAGES_PER_PRODUCT = 10  # plan #1 limiti (ZIP + URL birleşik)
 
-# parent_data içinde uzak görsel URL'i taşıyabilen canonical alan(lar). primary_image
-# tek hedef olduğu için tek elemanlı; satıcı buraya virgülle birden çok URL koyabilir.
-_IMAGE_URL_FIELDS = ("primary_image",)
+# parent_data içinde uzak görsel URL'i taşıyabilen canonical alan(lar). Tek hücrede
+# virgülle çoklu URL olabilir; ayrıca resolver çoklu görsel kolonunu (Image #1/#2/#3)
+# primary_image + image_2..image_N slotlarına dağıtır (bkz. resolver._next_image_slot).
+_IMAGE_URL_FIELDS = ("primary_image", *(f"image_{i}" for i in range(2, 11)))
 
 
 def _collect_image_urls(parent_data: dict) -> list[str]:
@@ -74,6 +77,83 @@ def _resolve_images(
 		if url not in combined:
 			combined.append(url)
 	return combined[:MAX_IMAGES_PER_PRODUCT]
+
+
+def _collect_known_skus(rows: list[dict], mapping: dict) -> set[str]:
+	"""Veri dosyasındaki ürün SKU'larını (parent + variant) normalize küme olarak
+	çıkar — görsel eşleştirici bunları derinlik-bağımsız eşleştirmede sözlük olarak
+	kullanır (SKU'yu tahmin etmek yerine gerçek listeye göre doğrular)."""
+	keys: set[str] = set()
+	for col in (mapping.get("sku"), mapping.get("variant_sku")):
+		if not col:
+			continue
+		for r in rows:
+			v = r.get(col)
+			if v:
+				k = image_matcher.normalize_sku_key(v)
+				if k:
+					keys.add(k)
+	return keys
+
+
+def _build_orphan_note(orphan_skus: list[str], orphan_files: list[str]) -> str:
+	"""Eşleşmeyen ZIP görselleri için kullanıcıya anlaşılır özet satırı.
+
+	orphan_skus: SKU paternine uyan ama satışta karşılığı olmayan anahtarlar.
+	orphan_files: görsel uzantılı ama SKU adı paternine hiç uymayan dosyalar.
+	"""
+
+	def _fmt(items: list[str]) -> str:
+		sample = ", ".join(items[:10])
+		return f"{sample} (+{len(items) - 10})" if len(items) > 10 else sample
+
+	parts: list[str] = []
+	if orphan_skus:
+		parts.append(
+			_("{0} SKU için yüklenen görseller hiçbir ürünle eşleşmedi: {1}").format(
+				len(orphan_skus), _fmt(orphan_skus)
+			)
+		)
+	if orphan_files:
+		parts.append(
+			_("{0} görsel dosyası SKU adı paternine uymadı: {1}").format(
+				len(orphan_files), _fmt(orphan_files)
+			)
+		)
+	return " ".join(parts)
+
+
+# canonical alan → kullanıcıya gösterilen TR etiketi (humanize için).
+_FIELD_TR_LABELS = {
+	"base_price": "Fiyat",
+	"selling_price": "Satış Fiyatı",
+	"currency": "Para Birimi",
+	"condition": "Durum",
+	"title": "Ürün Adı",
+	"sku": "Stok Kodu",
+	"stock_qty": "Stok",
+}
+
+
+def _humanize_exception(e) -> tuple[str, str | None]:
+	"""Ham Frappe istisnasını anlaşılır TR mesaja + ilgili alan(lar)a çevir.
+
+	En sık 'system' hatası MandatoryError'dır ("[Listing, X]: base_price,
+	selling_price") — zorunlu alan boş kalması, genelde yanlış sütun eşleşmesi.
+	Kullanıcı ham mesaj yerine ne yapması gerektiğini görür.
+	"""
+	raw = str(e)
+	if type(e).__name__ == "MandatoryError":
+		fields_part = raw.rsplit(":", 1)[-1] if ":" in raw else raw
+		field_keys = [f.strip() for f in re.sub(r"<[^>]+>", "", fields_part).split(",") if f.strip()]
+		labels = [_FIELD_TR_LABELS.get(f, f) for f in field_keys]
+		if labels:
+			msg = _(
+				"Zorunlu alanlar boş kaldı: {0}. Büyük olasılıkla ilgili sütun(lar) yanlış "
+				"eşleşti — yükleme öncesi eşleştirme ekranından düzeltin."
+			).format(", ".join(labels))
+			return msg[:500], ", ".join(field_keys)[:140]
+	return raw[:500], None
 
 
 def run(bulk_job_name: str) -> None:
@@ -124,9 +204,17 @@ def run(bulk_job_name: str) -> None:
 			mapping = resolver.resolve_columns(headers, job.seller_profile).get("mapping", {})
 
 		images_idx: dict[str, list[str]] = {}
+		image_orphans: list[str] = []
+		matched_img_keys: set[str] = set()
 		if job.images_zip:
 			zip_path = _get_file_absolute_path(job.images_zip)
-			images_idx = image_matcher.build_image_index(zip_path, job.seller_profile)
+			# Gerçek ürün SKU'larını sözlük olarak ver → görsel eşleştirici SKU'yu
+			# yolun herhangi bir derinliğinde, bu listeye göre bulur (derin/dağınık
+			# klasör yapısı belirsizlik olmadan çözülür).
+			known_skus = _collect_known_skus(rows, mapping)
+			images_idx, image_orphans = image_matcher.build_image_index(
+				zip_path, job.seller_profile, known_skus
+			)
 
 		inserted = updated = skipped = errors = 0
 		total = len(rows)
@@ -135,6 +223,54 @@ def run(bulk_job_name: str) -> None:
 		# kalmasın — liste bu çalıştırmanın sonucunu yansıtsın (aksi halde sayaç
 		# 0 ama Hata Listesi eski kayıtla dolu görünür).
 		frappe.db.delete("Bulk Import Job Error", {"parent": job_name})
+
+		# ── Mapping ön-kontrolü ──────────────────────────────────────
+		# Fiyat/SKU/ad gibi zorunlu sütunlar hiç eşleşmediyse erkenden, tek ve
+		# anlaşılır mesajla dur. Aksi halde her satır insert'te ham Frappe
+		# "MandatoryError: base_price, selling_price" üretir (eski davranış).
+		mapping_errors = validator.validate_mapping(mapping)
+		if mapping_errors:
+			summary = " ".join(mapping_errors)
+			_record_error(job, 0, {}, mapping, "validation", summary)
+			job.reload()
+			job.inserted_count = job.updated_count = job.skipped_count = 0
+			job.error_count = total
+			job.status = "Failed"
+			job.error_summary = summary
+			job.completed_at = now()
+			job.save(ignore_permissions=True)
+			_update_progress(
+				job_name,
+				state="done",
+				total=total,
+				processed=total,
+				inserted=0,
+				updated=0,
+				skipped=0,
+				error_count=total,
+			)
+			notifications.notify("job_failed", {"job": job})
+			return
+
+		# ── Öğrenme döngüsü ──────────────────────────────────────────
+		# Onaylanan/çözülen eşleştirmeyi satıcı profili olarak hatırla — aynı
+		# başlıklı sonraki dosyalar resolver Layer 1'de %100 güvenle otomatik
+		# eşlenir, manuel iş tekrarı biter. Profil kaydı kritik değil; hata
+		# import'u düşürmesin.
+		if job.remember_mapping and mapping:
+			try:
+				profile_store.save_profile(
+					headers,
+					job.seller_profile,
+					mapping,
+					source_format=job.file_format or "xlsx",
+					sheet_name=job.sheet_name,
+				)
+			except Exception:
+				frappe.log_error(
+					title="Bulk import profile save failed",
+					message=frappe.get_traceback(),
+				)
 
 		# ── Cluster aşaması ──────────────────────────────────────────
 		# Aynı parent_sku altındaki satırları grupla. Varyantsız ürünler:
@@ -159,6 +295,8 @@ def run(bulk_job_name: str) -> None:
 				# Validator (sadece parent satır için; variant'ların kendi validator'ı yok)
 				row_errors = validator.validate_row(parent_raw_row, mapping)
 				if row_errors:
+					# Hangi alan(lar) hatalı — UI vurgusu için field bilgisini koru
+					# (önceden yalnız mesaj join ediliyordu, field atılıyordu).
 					_record_error(
 						job,
 						parent_idx,
@@ -166,6 +304,7 @@ def run(bulk_job_name: str) -> None:
 						mapping,
 						"validation",
 						"; ".join(e["message"] for e in row_errors),
+						field=", ".join(dict.fromkeys(e["field"] for e in row_errors if e.get("field"))),
 					)
 					errors += 1
 					continue
@@ -177,6 +316,13 @@ def run(bulk_job_name: str) -> None:
 					continue
 
 				sku_key = str(sku).strip()
+				# Görsel eşleştirme anahtarı — büyük/küçük & Türkçe bağımsız (DB SKU'su
+				# orijinal kalır, yalnız ZIP index lookup'ı normalize edilir).
+				img_key = image_matcher.normalize_sku_key(sku_key)
+				for _s in (sku_key, *(v.get("variant_sku") for v in variant_data_rows)):
+					_k = image_matcher.normalize_sku_key(_s)
+					if _k in images_idx:
+						matched_img_keys.add(_k)
 
 				if persister.check_sku_exists(sku_key, job.seller_profile):
 					if job.update_mode == "insert_only":
@@ -190,7 +336,7 @@ def run(bulk_job_name: str) -> None:
 						continue
 					# Upsert: variant_items'a şu an dokunmuyoruz (V1: parent fields güncellenir).
 					row_warnings: list[str] = []
-					imgs = _resolve_images(parent_data, sku_key, images_idx, job.seller_profile, row_warnings)
+					imgs = _resolve_images(parent_data, img_key, images_idx, job.seller_profile, row_warnings)
 					persister.update_listing(
 						sku_key,
 						parent_data,
@@ -207,11 +353,11 @@ def run(bulk_job_name: str) -> None:
 						# Varyantlı ürün — parent'ın indirilen görsellerini images_idx'e
 						# overlay et (create_listing_with_variants dict bekliyor).
 						parent_imgs = _resolve_images(
-							parent_data, sku_key, images_idx, job.seller_profile, row_warnings
+							parent_data, img_key, images_idx, job.seller_profile, row_warnings
 						)
 						variant_images_idx = images_idx
 						if parent_imgs:
-							variant_images_idx = {**images_idx, sku_key: parent_imgs}
+							variant_images_idx = {**images_idx, img_key: parent_imgs}
 						persister.create_listing_with_variants(
 							parent_data,
 							variant_data_rows,
@@ -223,7 +369,7 @@ def run(bulk_job_name: str) -> None:
 					else:
 						# Varyantsız ürün — eski tek-satır akış
 						imgs = _resolve_images(
-							parent_data, sku_key, images_idx, job.seller_profile, row_warnings
+							parent_data, img_key, images_idx, job.seller_profile, row_warnings
 						)
 						persister.create_listing(
 							parent_data,
@@ -248,12 +394,21 @@ def run(bulk_job_name: str) -> None:
 						skipped=skipped,
 						error_count=errors,
 					)
+			except ECARejectionError as e:
+				# İş kuralı (ECA reject_row) satırı reddetti — sistem hatası değil,
+				# bilinçli skip. Sebebini eca_rejected tipiyle raporla.
+				_record_error(job, parent_idx, parent_raw_row, mapping, "eca_rejected", str(e)[:500])
+				skipped += 1
 			except Exception as e:
 				frappe.log_error(
 					title=f"Bulk import row {parent_idx} error: {job_name}",
 					message=frappe.get_traceback(),
 				)
-				_record_error(job, parent_idx, parent_raw_row, mapping, "system", str(e)[:500])
+				# Ham Frappe mesajı yerine anlaşılır mesaj + ilgili alan üret.
+				human_msg, human_field = _humanize_exception(e)
+				_record_error(
+					job, parent_idx, parent_raw_row, mapping, "system", human_msg, field=human_field
+				)
 				errors += 1
 
 		frappe.db.commit()
@@ -284,6 +439,15 @@ def run(bulk_job_name: str) -> None:
 			job.error_summary = _("{0} satır içe aktarılamadı. Ayrıntılar aşağıdaki hata listesinde.").format(
 				errors
 			)
+
+		# Yetim görsel raporu — hiçbir ürünle eşleşmeyen ZIP görselleri (yanlış SKU
+		# adı verildiğinde sessizce kaybolmasınlar). orphan_skus: SKU paternine uyan
+		# ama satışta karşılığı olmayan; image_orphans: SKU paternine hiç uymayanlar.
+		orphan_skus = [k for k in images_idx if k not in matched_img_keys]
+		orphan_note = _build_orphan_note(orphan_skus, image_orphans)
+		if orphan_note:
+			job.error_summary = f"{job.error_summary or ''}\n{orphan_note}".strip()
+
 		job.save(ignore_permissions=True)
 
 		_update_progress(
@@ -328,8 +492,14 @@ def _record_error(
 	mapping: dict,
 	error_type: str,
 	msg: str,
+	field: str | None = None,
+	severity: str = "error",
 ) -> None:
-	"""Hatalı satırı child table'a ekle."""
+	"""Hatalı satırı child table'a ekle.
+
+	field: hangi canonical alan(lar) hatalı (UI vurgusu için).
+	severity: "error" | "warning" (uyarılar error sayılmaz).
+	"""
 	sku = ""
 	name = ""
 	if mapping:
@@ -351,6 +521,8 @@ def _record_error(
 		child.sku = str(sku)[:140] if sku else ""
 		child.product_name = str(name)[:250] if name else ""
 		child.error_type = error_type
+		child.severity = severity
+		child.field = (field or "")[:140]
 		child.error_message = (msg or "")[:500]
 		try:
 			child.raw_row_json = json.dumps(raw_row, default=str)[:5000]
@@ -372,12 +544,13 @@ def _record_warnings(
 	öznitelik kodu) bunları error_details child'ına bilgilendirici satır olarak
 	ekle. error counter'ı ARTIRMAZ — satır import edildi, bu yalnızca uyarı.
 
-	Bulk Import Job Error.error_type Select'inde "warning" option'ı yok; mevcut
-	mekanizmayı bozmamak için "validation" tipiyle kaydedilir (hata sayılmaz).
+	severity="warning" ile kaydedilir → UI gerçek hatadan ayırt edebilsin.
 	"""
 	if not warnings:
 		return
-	_record_error(job, row_num, raw_row, mapping, "validation", "; ".join(warnings))
+	_record_error(
+		job, row_num, raw_row, mapping, "validation", "; ".join(warnings), severity="warning"
+	)
 
 
 def _record_skip(job, row_num: int, sku, reason: str) -> None:

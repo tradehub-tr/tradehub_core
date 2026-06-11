@@ -12,6 +12,8 @@ Yöntemler:
 import frappe
 from frappe import _
 
+from tradehub_core.bulk_import.regex_lib import _link_label_field
+
 # Tip -> izinli operatör listesi. condition_compiler._COMPARISON_OPS / _SPECIAL_OPS
 # ile uyumlu; sihirbaz cascade'inin kalbi (alan tipi operatör menüsünü belirler).
 _TYPE_OPERATORS: dict[str, list[str]] = {
@@ -409,8 +411,22 @@ def _build_value_source(field: dict) -> dict:
 	if ftype == "select":
 		return {"kind": "enum", "options": _enum_options(field["_enum_field"])}
 	if ftype == "link":
-		return {"kind": "doctype", "doctype": field["_doctype"]}
+		# is_tree → frontend ağaç-gezinme picker'ı kullanır (düz 11k dump yerine).
+		return {
+			"kind": "doctype",
+			"doctype": field["_doctype"],
+			"is_tree": _is_tree_doctype(field["_doctype"]),
+		}
 	return {"kind": "text"}
+
+
+def _is_tree_doctype(doctype: str) -> bool:
+	"""Doctype NSM ağaç mı (Product Category gibi) — picker mod seçimi için."""
+	try:
+		return bool(frappe.get_meta(doctype).is_tree)
+	except Exception:
+		frappe.log_error(f"is_tree meta okunamadı: {doctype}", "eca.api._is_tree_doctype")
+		return False
 
 
 def _enrich_action_params(action: dict) -> dict:
@@ -429,7 +445,12 @@ def _enrich_action_params(action: dict) -> dict:
 			else:
 				entry["value_source"] = {"kind": "enum", "options": p.get("options", [])}
 		elif ptype == "doctype" and p.get("_doctype"):
-			entry["value_source"] = {"kind": "doctype", "doctype": p["_doctype"]}
+			# is_tree → set_category gibi ağaç param'ında frontend ağaç-gezinme picker'ı kullanır.
+			entry["value_source"] = {
+				"kind": "doctype",
+				"doctype": p["_doctype"],
+				"is_tree": _is_tree_doctype(p["_doctype"]),
+			}
 		elif ptype == "creatable_doctype":
 			# Curated "kayıt türü" — {key, label} obj'leri; frontend Türkçe label gösterir.
 			entry["value_source"] = {"kind": "creatable_doctype", "options": _creatable_doctype_options()}
@@ -563,6 +584,191 @@ def get_link_options(doctype: str) -> list[dict]:
 		return []
 	values = _link_field_values(doctype).get("values", [])
 	return [{"v": v["value"], "l": v["label"]} for v in values]
+
+
+# ── Ağaç + arama değer seçici (büyük link alanları) ───────────────────────────
+#
+# get_link_options TÜM kayıtları düz döker — Product Category (11k+ düğüm) gibi
+# büyük/ağaç alanlarda kullanılamaz (UUID-benzeri name'ler alfabetik sıralanır,
+# sembol/sayı yapraklar başa gelir). Aşağıdaki üçlü, picker'ın AĞAÇ-GEZİNME +
+# ARAMA modlarını besler: küçük flat listeler için get_link_options KALIR.
+
+
+def _allowed_picker_doctypes() -> set[str]:
+	"""Picker endpoint'lerinin izin verdiği doctype'lar (get_link_options ile aynı).
+
+	Şema sözleşmesi: yalnız _RULE_FIELDS / admin eylemlerinde geçen doctype'lar —
+	rastgele DocType taraması engellenir.
+	"""
+	allowed = {f["_doctype"] for f in _RULE_FIELDS if f.get("_doctype")}
+	allowed |= {p["_doctype"] for a in _ADMIN_EXTRA_ACTIONS for p in a["params"] if p.get("_doctype")}
+	return allowed
+
+
+def _resolve_picker_doctype(doctype: str) -> str:
+	"""Picker doctype'ını doğrula + admin guard. Geçersizse throw."""
+	frappe.only_for(["System Manager", "Marketplace Admin"])
+	doctype = (doctype or "").strip()
+	if doctype not in _allowed_picker_doctypes():
+		frappe.throw(_("Bu kayıt türü için seçici kullanılamaz: {0}").format(doctype or "—"))
+	return doctype
+
+
+def _tree_parent_field(doctype: str) -> str | None:
+	"""Ağaç doctype'ın NSM parent alanı (Product Category → parent_product_category).
+
+	is_tree değilse None döner — caller flat link davranışına geçer.
+	"""
+	meta = frappe.get_meta(doctype)
+	if not meta.is_tree:
+		return None
+	return meta.nsm_parent_field or f"parent_{doctype.lower().replace(' ', '_')}"
+
+
+def _picker_row(doctype: str, name: str, label: str, parent_field: str) -> dict:
+	"""Tek ağaç düğümünü {value, label, has_children} olarak döndür."""
+	return {
+		"value": name,
+		"label": label or name,
+		"has_children": bool(frappe.db.count(doctype, {parent_field: name})),
+	}
+
+
+@frappe.whitelist()
+def link_tree_roots(doctype: str) -> list[dict]:
+	"""Ağaç (is_tree) doctype için KÖK kayıtları döndürür — picker ağaç-gezinme modu.
+
+	Yalnız admin caller + allowlist guard. Her kök {value, label, has_children}
+	(lazy chevron için) içerir. is_tree değilse boş liste (caller arama kullanmalı).
+
+	`label` = title_field (Product Category → category_name). `value` = name.
+	"""
+	doctype = _resolve_picker_doctype(doctype)
+	parent_field = _tree_parent_field(doctype)
+	if not parent_field:
+		return []
+	label_field = _link_label_field(doctype) or "name"
+	rows = frappe.get_all(
+		doctype,
+		filters={parent_field: ["is", "not set"]},
+		fields=["name", label_field],
+		order_by=f"{label_field} asc",
+		limit_page_length=0,
+	)
+	return [_picker_row(doctype, r["name"], r.get(label_field), parent_field) for r in rows]
+
+
+@frappe.whitelist()
+def link_tree_children(doctype: str, parent: str) -> list[dict]:
+	"""Ağaç doctype'ta `parent`'ın doğrudan çocukları (lazy) — {value, label, has_children}.
+
+	Yalnız admin caller + allowlist guard. is_tree değilse veya parent boşsa boş döner.
+	"""
+	doctype = _resolve_picker_doctype(doctype)
+	parent_field = _tree_parent_field(doctype)
+	parent = (parent or "").strip()
+	if not parent_field or not parent:
+		return []
+	label_field = _link_label_field(doctype) or "name"
+	rows = frappe.get_all(
+		doctype,
+		filters={parent_field: parent},
+		fields=["name", label_field],
+		order_by=f"{label_field} asc",
+		limit_page_length=0,
+	)
+	return [_picker_row(doctype, r["name"], r.get(label_field), parent_field) for r in rows]
+
+
+def _ancestor_path(doctype: str, parent_field: str, label_field: str, parent: str | None) -> str:
+	"""`parent`'tan köke ata zincirini "Hizmet › Web › .com" formatında döndürür.
+
+	Cycle koruması (max 20 derinlik) — `_depth` kullanılıyor çünkü `_` i18n
+	fonksiyonunu gölgeler ve fonksiyon başındaki throw(_(...)) ile çakışır.
+	"""
+	names: list[str] = []
+	cursor = parent
+	for _depth in range(20):
+		if not cursor:
+			break
+		row = frappe.db.get_value(doctype, cursor, [label_field, parent_field], as_dict=True)
+		if not row:
+			break
+		names.insert(0, row.get(label_field) or cursor)
+		cursor = row.get(parent_field)
+	return " › ".join(names)
+
+
+@frappe.whitelist()
+def link_search(doctype: str, q: str, limit: int = 20) -> list[dict]:
+	"""Link alan değer araması — okunur ad (title_field) üzerinde, UUID name'de DEĞİL.
+
+	Yalnız admin caller + allowlist guard. q < 2 ise boş döner. Ağaç doctype'ta
+	her sonuç ata zinciri `path` ("Hizmet › Web › .com") taşır; flat link'te
+	(Brand/Product Type) path boş. Sonuç {value, label, path}. limit max 50.
+	"""
+	doctype = _resolve_picker_doctype(doctype)
+	query = (q or "").strip()
+	if len(query) < 2:
+		return []
+	try:
+		lim = min(50, max(1, int(limit)))
+	except (ValueError, TypeError):
+		lim = 20
+
+	label_field = _link_label_field(doctype) or "name"
+	parent_field = _tree_parent_field(doctype)
+	fields = ["name", label_field]
+	if parent_field:
+		fields.append(parent_field)
+	rows = frappe.get_all(
+		doctype,
+		filters={label_field: ["like", f"%{query}%"]},
+		fields=fields,
+		order_by=f"{label_field} asc",
+		limit_page_length=lim,
+	)
+	results = []
+	for r in rows:
+		results.append(
+			{
+				"value": r["name"],
+				"label": r.get(label_field) or r["name"],
+				"path": (
+					_ancestor_path(doctype, parent_field, label_field, r.get(parent_field))
+					if parent_field
+					else ""
+				),
+			}
+		)
+	return results
+
+
+@frappe.whitelist()
+def link_resolve(doctype: str, value: str) -> dict | None:
+	"""Kayıtlı tek `value` (name) için okunur ad + path döndürür — düzenleme açılışı.
+
+	Picker bir UUID name ile yüklendiğinde label/path göstermek için kullanılır.
+	Yalnız admin caller + allowlist guard. Ağaç doctype'ta `path` ata zinciri taşır;
+	flat link'te boş. Kayıt yoksa None. Sonuç {value, label, path}.
+	"""
+	doctype = _resolve_picker_doctype(doctype)
+	value = (value or "").strip()
+	if not value:
+		return None
+	label_field = _link_label_field(doctype) or "name"
+	parent_field = _tree_parent_field(doctype)
+	wanted = [label_field] + ([parent_field] if parent_field else [])
+	row = frappe.db.get_value(doctype, value, wanted, as_dict=True)
+	if not row:
+		return None
+	return {
+		"value": value,
+		"label": row.get(label_field) or value,
+		"path": (
+			_ancestor_path(doctype, parent_field, label_field, row.get(parent_field)) if parent_field else ""
+		),
+	}
 
 
 # ── Canlı önizleme sayacı (tenant-scoped) ─────────────────────────────────────

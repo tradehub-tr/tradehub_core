@@ -49,3 +49,22 @@ def list_sheets(file_path: str) -> list[str]:
 		return list(wb.sheetnames)
 	finally:
 		wb.close()
+
+
+def read_raw(file_path: str, sheet_name: str | None = None, max_rows: int | None = None) -> list[list]:
+	"""Ham satırları (header extraction yapmadan) döndür — sniffer içindir.
+
+	max_rows verilirse yalnız ilk N satır okunur (başlık/sayfa tespiti için
+	tüm dosyayı belleğe almaya gerek yok).
+	"""
+	wb = load_workbook(file_path, read_only=True, data_only=True)
+	try:
+		sheet = wb[sheet_name] if sheet_name else wb.worksheets[0]
+		out: list[list] = []
+		for i, row in enumerate(sheet.iter_rows(values_only=True)):
+			if max_rows is not None and i >= max_rows:
+				break
+			out.append(list(row))
+		return out
+	finally:
+		wb.close()

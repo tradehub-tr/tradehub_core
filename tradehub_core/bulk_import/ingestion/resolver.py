@@ -30,6 +30,20 @@ def _fold(text: str) -> str:
 	return (text or "").strip().translate(_TR_FOLD).lower()
 
 
+# Çoklu görsel kolonu için sentetik slot tavanı (primary_image + image_2..image_N).
+# runner._IMAGE_URL_FIELDS ile hizalı kalmalı.
+_MAX_IMAGE_COLUMNS = 10
+
+
+def _next_image_slot(mapping: dict) -> str | None:
+	"""primary_image dolu olduğunda boş image_2..image_N slotunu döndür."""
+	for i in range(2, _MAX_IMAGE_COLUMNS + 1):
+		key = f"image_{i}"
+		if key not in mapping:
+			return key
+	return None
+
+
 def _resolve_attributes(headers: list[str], used_headers: set[str]) -> dict[str, str]:
 	"""Eşlenmemiş başlıkları Product Attribute kayıtlarıyla dinamik eşle.
 
@@ -88,12 +102,18 @@ def resolve_columns(
 	Returns:
 		{
 			"mapping": {canonical_field: header},
-			"sources": {canonical_field: "profile" | "regex" | "semantic" | "manual"},
+			"sources": {canonical_field: "profile" | "regex" | "attribute" | "semantic"},
 			"confidence": {canonical_field: float 0..1},
 			"unmapped": [headers that couldn't be resolved],
+			"conflicts": [{field, winner_header, winner_score, loser_headers}],
 			"profile_used": profile_name | None,
 			"overall_score": float 0..1,
 		}
+
+	`conflicts`: Aynı canonical alana birden çok başlık aday olduğunda en yüksek
+	skorlu kazanır; kaybeden başlıklar sessizce yutulmaz, burada raporlanır ki
+	kullanıcı önizlemede görüp düzeltebilsin (ör. "BİRİM" vs "BİRİM FİYAT" fiyat
+	alanı için yarışınca yanlış olanın base_price'ı kapması engellenir).
 	"""
 	# Layer 1: Profile (full match)
 	profile = profile_store.lookup_profile(headers, seller_profile)
@@ -109,6 +129,7 @@ def resolve_columns(
 			"sources": sources,
 			"confidence": confidence,
 			"unmapped": unmapped,
+			"conflicts": [],
 			"profile_used": profile["profile_name"],
 			"overall_score": 1.0,
 		}
@@ -128,18 +149,52 @@ def resolve_columns(
 			sources[target] = "attribute"
 			confidence[target] = 0.95  # tam etiket eşleşmesi = yüksek güven
 
-	# Layer 4: Semantic for unmapped headers
+	# Layer 4: Semantic — skorlu arbitrasyon (en yüksek skor kazanır)
+	# Önce tüm eşlenmemiş başlıkların en iyi semantic adayını topla, sonra skora
+	# göre azalan sırada ata. Aynı alana ikinci aday gelirse atlanmaz: çakışma
+	# olarak kaydedilir. Böylece "ilk gelen kapar" yüzünden düşük skorlu başlık
+	# (örn. "BİRİM", 0.76) yüksek skorluyu (örn. "BİRİM FİYAT", 0.96) ezemez.
+	candidates: list[tuple[float, str, str]] = []
 	for header in headers:
-		if header in used_headers:
-			continue
-		if not header or not header.strip():
+		if header in used_headers or not header or not str(header).strip():
 			continue
 		target, score = semantic.resolve_header_semantic(header)
 		if target and target not in mapping:
-			mapping[target] = header
-			sources[target] = "semantic"
-			confidence[target] = round(score, 3)
-			used_headers.add(header)
+			candidates.append((score, target, header))
+
+	candidates.sort(key=lambda c: c[0], reverse=True)
+	conflicts_by_target: dict[str, dict] = {}
+	for score, target, header in candidates:
+		if header in used_headers:
+			continue
+		if target in mapping:
+			# Görsel sütunları çoklu olabilir (Image #1/#2/#3) — çakışma değil galeri:
+			# ek başlıkları image_2..image_N slotlarına ata (runner hepsini okur).
+			if target == "primary_image":
+				slot = _next_image_slot(mapping)
+				if slot:
+					mapping[slot] = header
+					sources[slot] = "semantic"
+					confidence[slot] = round(score, 3)
+					used_headers.add(header)
+					continue
+			conflict = conflicts_by_target.setdefault(
+				target,
+				{
+					"field": target,
+					"winner_header": mapping[target],
+					"winner_score": confidence.get(target, 0.0),
+					"loser_headers": [],
+				},
+			)
+			conflict["loser_headers"].append({"header": header, "score": round(score, 3)})
+			continue
+		mapping[target] = header
+		sources[target] = "semantic"
+		confidence[target] = round(score, 3)
+		used_headers.add(header)
+
+	conflicts = list(conflicts_by_target.values())
 
 	# Compute overall score
 	if confidence:
@@ -154,6 +209,7 @@ def resolve_columns(
 		"sources": sources,
 		"confidence": confidence,
 		"unmapped": unmapped,
+		"conflicts": conflicts,
 		"profile_used": None,
 		"overall_score": round(overall, 3),
 	}
