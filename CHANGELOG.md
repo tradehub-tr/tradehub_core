@@ -1,3 +1,46 @@
+## [v1.4.0] - 2026-06-11 PROD
+
+Bu surum istoc.cronbi.com'da yayindadir.
+
+### Eklendi
+- feat(bulk-import): kolon eşleştirme dayanıklılığı eklendi (@aliiball)
+  - Kolon eşleştirmede ilk-gelen-kapar yerine skorlu arbitrasyon (en yüksek skor kazanır); kaybeden başlıklar conflicts olarak raporlanır
+  - Semantic eşleştirmeye Türkçe-fold eklendi (BİRİM/İ/Ş gibi başlıklar ASCII alias'larla doğru eşleşir)
+  - 15 eksik canonical alan alias'ı eklendi (stock_uom/currency/condition/kargo vb.); 'birim' artık stock_uom'a gider, fiyatı çalmaz
+  - Çoklu görsel kolonu için primary_image + image_2..N slot ataması
+  - validate_mapping ile fiyat/SKU/ad sütunu eşleşmezse ham MandatoryError yerine anlaşılır hata
+- feat(bulk-import): derin görsel eşleştirme ve optimizasyon eklendi (@aliiball)
+  - SKU anahtarları normalize edilir (büyük/küçük + Türkçe-fold); klasör galerisi doğal/sayısal sıralanır
+  - ZIP içeriği magic-number ile doğrulanır; eşleşmeyen dosyalar yetim olarak raporlanır
+  - Satıcıya özel 'SKU Filename' desenleri görsel eşleştirmede fallback olarak tüketilir
+  - Yüklenen görseller web boyutuna küçültülür + yeniden sıkıştırılır (1600px, format korunur, başarısızsa orijinal); ZIP ve URL
+- feat(bulk-import): import akışı orkestrasyonu güçlendirildi (@aliiball)
+  - Onaylanan eşleştirme satıcı profili olarak öğrenilir (xlsx/csv); aynı başlıklı sonraki dosyalar otomatik eşlenir
+  - Sniffer ile xlsx başlık satırı ve ana sayfa otomatik tespiti (dry_run önizlemeye taşınır)
+  - Mapping ön-kontrolü: zorunlu sütun eşleşmezse tek anlaşılır hatayla erken durdurma
+  - Görsel eşleştiriciye gerçek ürün SKU listesi (known_skus) geçirilir
+  - ECA reject satırları yakalanıp eca_rejected olarak skip raporlanır
+  - Ham MandatoryError anlaşılır mesaja çevrilir; hata kayıtlarına ilgili alan + önem derecesi yazılır; yetim görsel özeti eklenir
+  - dry_run çıktısına conflicts/detected alanları, şablona görsel kolonları, görsel limiti 50 MB, get_import_status'a severity/field
+- feat(bulk-import): DocType alanları ve migration'lar eklendi (@aliiball)
+  - Bulk Import Job'a remember_mapping (Check) alanı
+  - Bulk Import Job Error.error_type'a eca_rejected seçeneği; error'a field + severity alanları
+  - İlgili idempotent reload-doc migration'ları (v15_7_7/8/9) ve patches.txt kayıtları
+- feat(eca): süper admin kural sihirbazı + governance + ağaç/arama değer seçici (@aliiball)
+  - admin şema 12 eylem + canlı sayım + dry-run önizleme (persist yok)
+  - governance: çakışma uyarısı, versiyon geçmişi/geri-al, örnek üründe test
+  - create_document tıklama-bazlı (kayıt türü dropdown + alan eşleyici; "DocType"/JSON yok)
+  - kategori değeri için link_tree_roots/children/search (path'li, 11k düz dump yerine)
+  - satıcı çağrıları regresyonsuz (5 eylem korunur)
+- feat(bulk-import): xlsx ham satır okuyucu eklendi (sniffer başlık/sayfa tespiti) (@aliiball)
+  - read_raw(): başlık satırı ve ana sayfa tespiti için tüm dosyayı belleğe almadan ilk N ham satırı döndürür (sniffer.find_header_row / pick_main_sheet ile kullanılır)
+
+### Duzeltildi
+- fix(eca): reject_row toplu yüklemede satır atlamaya bağlandı (@aliiball)
+  - reject_row aksiyonu flag set ediyordu ama hiçbir yer okumuyordu; artık validate fazında ECARejectionError fırlatılır ve insert DB yazımından önce iptal edilir
+  - Yalnız validate/before_save/before_insert event'lerinde fırlatılır (after_insert/on_update'te orphan kayıt koruması)
+
+---
 ## [v1.3.2-rc.1] - 2026-06-11 RC
 
 Bu surum rcistoc.cronbi.com'da onay asamasindadir.
