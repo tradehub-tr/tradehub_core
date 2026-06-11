@@ -47,9 +47,7 @@ def execute():
 			continue
 
 		# Direct SQL ile field'a yaz (validate'i tetiklemez, döngüsel hatadan korur)
-		frappe.db.set_value(
-			"Dashboard Widget", w["name"], "scope_field", legacy_field, update_modified=False
-		)
+		frappe.db.set_value("Dashboard Widget", w["name"], "scope_field", legacy_field, update_modified=False)
 		updated += 1
 
 	frappe.db.commit()

@@ -106,8 +106,6 @@ def invalidate_url_cache(doc, method=None):
 	"""on_update hook: bu kaydın canonical URL'ini Cloudflare cache'ten temizle.
 
 	Cloudflare credential yoksa sessizce no-op (dev ortamı güvenli)."""
-	import frappe
-
 	from tradehub_core.seo.cloudflare_api import purge_urls
 
 	if doc.doctype not in _DOCTYPE_URL_PREFIX_MAP:
@@ -121,7 +119,9 @@ def invalidate_url_cache(doc, method=None):
 	if not slug:
 		return
 
-	site_url = frappe.utils.get_url().rstrip("/")
+	from tradehub_core.seo.site_url import storefront_url
+
+	site_url = storefront_url()
 	# Static Page SEO: page_path zaten / ile başlar; prefix boş → site_url + slug
 	if prefix:
 		canonical = f"{site_url}{prefix}/{slug}"

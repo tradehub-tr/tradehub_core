@@ -129,9 +129,9 @@ def chunk_urls_for_pagination(urls: list[dict]) -> list[list[dict]]:
 
 
 def _site_url() -> str:
-	import frappe
+	from tradehub_core.seo.site_url import storefront_url
 
-	return frappe.utils.get_url().rstrip("/")
+	return storefront_url()
 
 
 def _fetch_records_for(doctype: str) -> list[dict]:

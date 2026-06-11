@@ -177,9 +177,9 @@ def _load_site_defaults() -> dict:
 
 
 def _site_url() -> str:
-	import frappe
+	from tradehub_core.seo.site_url import storefront_url
 
-	return frappe.utils.get_url()
+	return storefront_url()
 
 
 def build_for_listing(listing: dict, lang: str = "tr") -> dict:

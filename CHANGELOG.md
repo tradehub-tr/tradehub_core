@@ -1,3 +1,136 @@
+## [v1.3.2] - 2026-06-11 PROD
+
+Bu surum istoc.cronbi.com'da yayindadir.
+
+### Duzeltildi
+- fix(seo): satıcı kendi ürününün SEO'sunu düzenleyebilsin (@boraydeger32)
+
+---
+## [v1.3.1-rc.1] - 2026-06-11 RC
+
+Bu surum rcistoc.cronbi.com'da onay asamasindadir.
+
+### Duzeltildi
+- fix(seo): satıcı kendi ürününün SEO'sunu düzenleyebilsin (@boraydeger32)
+
+---
+## [v1.3.1-beta.1] - 2026-06-11 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Duzeltildi
+- fix(seo): satıcı kendi ürününün SEO'sunu düzenleyebilsin (@boraydeger32)
+
+---
+## [v1.3.1] - 2026-06-11 PROD
+
+Bu surum istoc.cronbi.com'da yayindadir.
+
+### Duzeltildi
+- fix(seo): paylaşım ve SEO URL'leri backend domaini gösterme hatası düzeltildi (@ahmeetseker)
+  - canonical, og:url, hreflang, sitemap, robots ve JSON-LD schema URL'leri artık site_config.storefront_url üzerinden üretiliyor (örn. https://istoc.com); frappe.utils.get_url() request Host'unu döndürdüğü için backend domaini (istoc.cronbi.com) çıkıyordu
+  - ortak storefront_url() helper'ı eklendi (seo/site_url.py); meta_builder, sitemap_generator, schema_builder, robots_generator, hooks_seo ve page_resolver bu helper'a bağlandı
+
+### Degistirildi
+- refactor(format): backend kaynakları Ruff ile yeniden biçimlendirildi (@ahmeetseker)
+
+---
+## [v1.3.0-rc.1] - 2026-06-11 RC
+
+Bu surum rcistoc.cronbi.com'da onay asamasindadir.
+
+### Duzeltildi
+- fix(seo): paylaşım ve SEO URL'leri backend domaini gösterme hatası düzeltildi (@ahmeetseker)
+  - canonical, og:url, hreflang, sitemap, robots ve JSON-LD schema URL'leri artık site_config.storefront_url üzerinden üretiliyor (örn. https://istoc.com); frappe.utils.get_url() request Host'unu döndürdüğü için backend domaini (istoc.cronbi.com) çıkıyordu
+  - ortak storefront_url() helper'ı eklendi (seo/site_url.py); meta_builder, sitemap_generator, schema_builder, robots_generator, hooks_seo ve page_resolver bu helper'a bağlandı
+
+### Degistirildi
+- refactor(format): backend kaynakları Ruff ile yeniden biçimlendirildi (@ahmeetseker)
+
+---
+## [v1.3.0-beta.1] - 2026-06-11 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Duzeltildi
+- fix(seo): paylaşım ve SEO URL'leri backend domaini gösterme hatası düzeltildi (@ahmeetseker)
+  - canonical, og:url, hreflang, sitemap, robots ve JSON-LD schema URL'leri artık site_config.storefront_url üzerinden üretiliyor (örn. https://istoc.com); frappe.utils.get_url() request Host'unu döndürdüğü için backend domaini (istoc.cronbi.com) çıkıyordu
+  - ortak storefront_url() helper'ı eklendi (seo/site_url.py); meta_builder, sitemap_generator, schema_builder, robots_generator, hooks_seo ve page_resolver bu helper'a bağlandı
+
+### Degistirildi
+- refactor(format): backend kaynakları Ruff ile yeniden biçimlendirildi (@ahmeetseker)
+
+---
+## [v1.3.0] - 2026-06-11 PROD
+
+Bu surum istoc.cronbi.com'da yayindadir.
+
+### Eklendi
+- feat(handover): Custom DocPerm permlevel-0 taban izni invariant kontrolü eklendi (@aliiball)
+- feat(eca): süper admin kural sihirbazı + governance + tıklama-bazlı eylemler (@aliiball)
+  - admin şema 12 eylem + canlı sayım + dry-run önizleme (preview_rule_effect, persist yok)
+  - governance: detect_rule_conflicts, get/restore_rule_versions, test_rule_on_product
+  - create_document tıklama-bazlı (get_creatable_doctypes/get_doctype_target_fields/get_link_options)
+  - "DocType" kelimesi kullanıcıya gösterilmez; satıcı çağrıları regresyonsuz (5 eylem)
+- feat(bulk-import): admin Sistem Eşleştirme + parametrik SKU/XML (@aliiball)
+  - System-scope kolon/değer eşleme endpointleri (admin guard) + Seller Value Mapping scope alanı
+  - SKU/XML parametrik: fiyat ayraç + XML etiket adı (regex sistem üretir), ham regex gated
+  - Regex Pattern Library kullanım sayacı (match_count); link-değer okunur ad (title_field)
+- feat(bulk-import): admin geçmişinde satıcı adı zenginleştirme (@aliiball)
+  - get_my_history admin yanıtına satıcı (mağaza) adını ekler; tabloda Satıcı kolonu için
+- feat(subscription): "Abonelik" sidebar item + mevcut abonelik detayı (@boraydeger32)
+  - Satıcı sidebar'ına (Profil & Finans) "Abonelik" → /abonelik nav item'ı (module_navigation_spec + TH Module Registry seed patch v15_7_5)
+  - get_seller_access_state ok yanıtına trial_start/started_at/current_period_end (abonelik ekranındaki mevcut paket/durum/tarih kartı için)
+
+### Duzeltildi
+- fix(kyb): satıcı kendi KYB/KYC kaydını panelde açarken 403 hatası düzeltildi (@aliiball)
+  - v15_1_3 PII patch'i permlevel 1/2/3 Custom DocPerm eklerken taban permlevel-0 satırını kopyalamadığı için Custom DocPerm standart DocPerm'i ezdi ve temel read düştü
+  - v15_7_6 onarım patch'i: tabDocPerm permlevel-0 satırlarını Custom DocPerm'e aynalar
+  - v15_1_3 + pii_permlevel_setup: setup_custom_perms ile taban izinler korunur
+- fix(patches): has_column'a DocType adı verilerek migrate hatası giderildi (@aliiball)
+  - "tabSeller Value Mapping" gibi tab-önekli ad ikinci kez prefix'lenip TableMissingError veriyordu; tablo + sütun kontrolü doğru DocType adıyla yapılır (v15_7_4)
+
+---
+## [v1.2.1-rc.1] - 2026-06-11 RC
+
+Bu surum rcistoc.cronbi.com'da onay asamasindadir.
+
+### Eklendi
+- feat(handover): Custom DocPerm permlevel-0 taban izni invariant kontrolü eklendi (@aliiball)
+- feat(eca): süper admin kural sihirbazı + governance + tıklama-bazlı eylemler (@aliiball)
+  - admin şema 12 eylem + canlı sayım + dry-run önizleme (preview_rule_effect, persist yok)
+  - governance: detect_rule_conflicts, get/restore_rule_versions, test_rule_on_product
+  - create_document tıklama-bazlı (get_creatable_doctypes/get_doctype_target_fields/get_link_options)
+  - "DocType" kelimesi kullanıcıya gösterilmez; satıcı çağrıları regresyonsuz (5 eylem)
+- feat(bulk-import): admin Sistem Eşleştirme + parametrik SKU/XML (@aliiball)
+  - System-scope kolon/değer eşleme endpointleri (admin guard) + Seller Value Mapping scope alanı
+  - SKU/XML parametrik: fiyat ayraç + XML etiket adı (regex sistem üretir), ham regex gated
+  - Regex Pattern Library kullanım sayacı (match_count); link-değer okunur ad (title_field)
+- feat(bulk-import): admin geçmişinde satıcı adı zenginleştirme (@aliiball)
+  - get_my_history admin yanıtına satıcı (mağaza) adını ekler; tabloda Satıcı kolonu için
+- feat(subscription): "Abonelik" sidebar item + mevcut abonelik detayı (@boraydeger32)
+  - Satıcı sidebar'ına (Profil & Finans) "Abonelik" → /abonelik nav item'ı (module_navigation_spec + TH Module Registry seed patch v15_7_5)
+  - get_seller_access_state ok yanıtına trial_start/started_at/current_period_end (abonelik ekranındaki mevcut paket/durum/tarih kartı için)
+
+### Duzeltildi
+- fix(kyb): satıcı kendi KYB/KYC kaydını panelde açarken 403 hatası düzeltildi (@aliiball)
+  - v15_1_3 PII patch'i permlevel 1/2/3 Custom DocPerm eklerken taban permlevel-0 satırını kopyalamadığı için Custom DocPerm standart DocPerm'i ezdi ve temel read düştü
+  - v15_7_6 onarım patch'i: tabDocPerm permlevel-0 satırlarını Custom DocPerm'e aynalar
+  - v15_1_3 + pii_permlevel_setup: setup_custom_perms ile taban izinler korunur
+- fix(patches): has_column'a DocType adı verilerek migrate hatası giderildi (@aliiball)
+  - "tabSeller Value Mapping" gibi tab-önekli ad ikinci kez prefix'lenip TableMissingError veriyordu; tablo + sütun kontrolü doğru DocType adıyla yapılır (v15_7_4)
+
+---
+## [v1.2.1-beta.3] - 2026-06-11 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Eklendi
+- feat(subscription): "Abonelik" sidebar item + mevcut abonelik detayı (@boraydeger32)
+  - Satıcı sidebar'ına (Profil & Finans) "Abonelik" → /abonelik nav item'ı (module_navigation_spec + TH Module Registry seed patch v15_7_5)
+  - get_seller_access_state ok yanıtına trial_start/started_at/current_period_end (abonelik ekranındaki mevcut paket/durum/tarih kartı için)
+
+---
 ## [v1.2.1-beta.2] - 2026-06-10 BETA
 
 Bu surum betaistoc.cronbi.com'da test asamasindadir.

@@ -164,9 +164,7 @@ def approve_commission(name: str) -> dict:
 		approved_at=now_datetime(),
 	)
 	# Onaylanan Satış/Pay → ajanın dönem kotası yeniden hesaplanır (bonus üret/güncelle).
-	row = frappe.db.get_value(
-		"Field Commission", name, ["agent", "period_key", "kind", "plan"], as_dict=True
-	)
+	row = frappe.db.get_value("Field Commission", name, ["agent", "period_key", "kind", "plan"], as_dict=True)
 	if row and row.kind in ("Satış", "Pay"):
 		recompute_quota_bonus(row.agent, row.period_key, row.plan)
 	return res
@@ -228,9 +226,9 @@ def leader_approve(name: str) -> dict:
 	_require_leader_for(doc)
 	if doc.status != "Lider Onayı Bekliyor":
 		frappe.throw(
-			_("Sadece 'Lider Onayı Bekliyor' durumundaki hakediş lider onayına uygundur (mevcut: {0}).").format(
-				doc.status
-			)
+			_(
+				"Sadece 'Lider Onayı Bekliyor' durumundaki hakediş lider onayına uygundur (mevcut: {0})."
+			).format(doc.status)
 		)
 	doc.status = "Süperadmin Onayı Bekliyor"
 	doc.leader_approved_by = frappe.session.user

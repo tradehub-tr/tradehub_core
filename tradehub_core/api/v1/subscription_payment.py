@@ -83,9 +83,7 @@ def create_bank_transfer_request(plan: str, billing_cycle: str = "yearly") -> di
 		frappe.throw(_("Bu paket için lütfen satış ekibiyle iletişime geçin."), frappe.ValidationError)
 
 	# Aynı mağaza için zaten bekleyen talep varsa onu döndür (çift kayıt önle).
-	existing = frappe.db.get_value(
-		"Subscription Payment", {"store": tenant, "status": "pending"}, "name"
-	)
+	existing = frappe.db.get_value("Subscription Payment", {"store": tenant, "status": "pending"}, "name")
 	if existing:
 		payment = frappe.get_doc("Subscription Payment", existing)
 		# Plan/dönem değiştiyse güncelle (kullanıcı farklı paket seçmiş olabilir).
