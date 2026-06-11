@@ -327,8 +327,10 @@ def _get_listing_extra_context(listing_name: str) -> dict:
 
 	# Category
 	if listing.get("category_name"):
+		from tradehub_core.seo.site_url import storefront_url
+
 		ctx["category_name"] = listing["category_name"]
-		site_url = frappe.utils.get_url().rstrip("/")
+		site_url = storefront_url()
 		ctx["category_url"] = f"{site_url}/kategori/{listing.get('category', '')}"
 
 	# AggregateRating
