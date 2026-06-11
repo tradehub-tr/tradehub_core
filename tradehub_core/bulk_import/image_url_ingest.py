@@ -71,6 +71,10 @@ def _save_file(content: bytes, kind: str, url: str, seller_profile: str) -> str:
 	image_matcher._extract_and_save desenini yansıtır (public, ignore_permissions);
 	dosya adı URL-hash'inden türetilir (dedup ve tahmin edilemez ad için).
 	"""
+	# Web boyutuna küçült + yeniden sıkıştır (format korunur; başarısızsa orijinal).
+	from tradehub_core.bulk_import.image_matcher import optimize_image
+
+	content = optimize_image(content)
 	digest = hashlib.sha1(url.encode("utf-8")).hexdigest()
 	file_name = f"{digest}{ALLOWED_EXT[kind]}"
 	file_doc = frappe.get_doc(
