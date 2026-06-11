@@ -112,7 +112,12 @@ SEO_FIELDS_BY_DOCTYPE = {
 	],
 }
 
-ALLOWED_ROLES = ["System Manager", "Marketplace Admin", "Marketplace Seller"]
+# Global SEO yönetimi (redirect / 404 / statik sayfa) yalnızca admin işidir.
+# NOT: Eskiden "Marketplace Seller" da vardı ama gerçek satıcılar bu role sahip
+# değil (Seller Owner/Admin/... taşıyorlar) → satıcının kendi ürününün SEO'sunu
+# get/save etmesi yanlışlıkla engelleniyordu. Ürün SEO'su artık doc.check_permission
+# ile (sahiplik/tenant) korunuyor; bu liste sadece global-SEO endpoint'leri içindir.
+ALLOWED_ROLES = ["System Manager", "Marketplace Admin"]
 
 
 # Pure helper ----------------------------------------------------------------
@@ -196,10 +201,12 @@ def get_seo_fields(doctype: str, name: str) -> dict:
 	if doctype not in SEO_FIELDS_BY_DOCTYPE:
 		frappe.throw(_("Geçersiz doctype: {0}").format(doctype))
 
-	frappe.only_for(ALLOWED_ROLES)
-
-	if doctype == "Static Page SEO" and not frappe.db.exists(doctype, name):
-		_auto_create_static_page_seo(name)
+	# Static Page SEO (global) sadece admin; ürün SEO'su (Listing) satıcının kendi
+	# ürünüyse okunabilir — ikisi de doc.check_permission("read") ile korunur.
+	if doctype == "Static Page SEO":
+		frappe.only_for(ALLOWED_ROLES)
+		if not frappe.db.exists(doctype, name):
+			_auto_create_static_page_seo(name)
 
 	doc = frappe.get_doc(doctype, name)
 	doc.check_permission("read")
@@ -292,11 +299,11 @@ def save_seo_fields(doctype: str, name: str, fields: str | dict) -> dict:
 	if doctype not in SEO_FIELDS_BY_DOCTYPE:
 		frappe.throw(_("Geçersiz doctype: {0}").format(doctype))
 
-	frappe.only_for(ALLOWED_ROLES)
-
 	if isinstance(fields, str):
 		fields = json.loads(fields)
 
+	# Yetki doc-level: Listing → satıcı kendi ürününü (tenant) yazabilir; Static Page
+	# SEO → admin-only DocType permission. Sabit rol whitelist'i yerine sahiplik.
 	doc = frappe.get_doc(doctype, name)
 	doc.check_permission("write")
 
