@@ -1,3 +1,13 @@
+## [v1.2.1-beta.3] - 2026-06-11 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Eklendi
+- feat(subscription): "Abonelik" sidebar item + mevcut abonelik detayı (@boraydeger32)
+  - Satıcı sidebar'ına (Profil & Finans) "Abonelik" → /abonelik nav item'ı (module_navigation_spec + TH Module Registry seed patch v15_7_5)
+  - get_seller_access_state ok yanıtına trial_start/started_at/current_period_end (abonelik ekranındaki mevcut paket/durum/tarih kartı için)
+
+---
 ## [v1.2.1-beta.2] - 2026-06-10 BETA
 
 Bu surum betaistoc.cronbi.com'da test asamasindadir.
