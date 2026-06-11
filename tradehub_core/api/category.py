@@ -94,9 +94,7 @@ def get_mega_menu(lang="tr"):
 				"children": [
 					{
 						**_leaf(g),
-						"children": [
-							_leaf(leaf) for leaf in cats if leaf.parent_product_category == g.name
-						],
+						"children": [_leaf(leaf) for leaf in cats if leaf.parent_product_category == g.name],
 					}
 					for g in groups
 				],
@@ -148,8 +146,7 @@ def get_platform_category_tree(parent=None, lang: str = "tr"):
 	)
 	for c in cats:
 		c["category_name"] = (
-			resolve_content_field(c, "category_name", lang, c.get("content_default_lang"))
-			or c.category_name
+			resolve_content_field(c, "category_name", lang, c.get("content_default_lang")) or c.category_name
 		)
 		c["child_count"] = frappe.db.count(
 			"Product Category",
@@ -235,8 +232,7 @@ def search_platform_categories(query: str, limit: int = 20, lang: str = "tr"):
 		c["path"] = " › ".join(path_names) if path_names else ""
 		# Sonucun kendi adını da seçilen dile çöz (DISPLAY).
 		c["category_name"] = (
-			resolve_content_field(c, "category_name", lang, c.get("content_default_lang"))
-			or c.category_name
+			resolve_content_field(c, "category_name", lang, c.get("content_default_lang")) or c.category_name
 		)
 	return cats
 

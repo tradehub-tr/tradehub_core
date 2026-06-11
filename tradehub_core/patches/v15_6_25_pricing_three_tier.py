@@ -44,9 +44,7 @@ def execute():
 				{"is_active": 0, "is_public": 0},
 				update_modified=False,
 			)
-			frappe.logger().info(
-				"v15_6_25: STARTER aboneliği var, silinmedi; pasifleştirildi."
-			)
+			frappe.logger().info("v15_6_25: STARTER aboneliği var, silinmedi; pasifleştirildi.")
 		else:
 			frappe.delete_doc("Subscription Plan", "STARTER", force=True, ignore_permissions=True)
 

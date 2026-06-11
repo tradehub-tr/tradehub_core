@@ -143,9 +143,9 @@ def _build_response_html(seo: dict, template_relpath: str) -> str:
 
 
 def _render_404_response():
-	import frappe
+	from tradehub_core.seo.site_url import storefront_url
 
-	seo = _build_404_seo(frappe.utils.get_url())
+	seo = _build_404_seo(storefront_url())
 	html = _read_template("404.html")
 	rendered = seo_html_injector.inject_meta_into_html(html, seo)
 	return _html_response(rendered, status_code=404, cdn_cache_seconds=0)

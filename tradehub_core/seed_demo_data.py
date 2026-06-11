@@ -66,15 +66,15 @@ def _seller_logo(name, size=200):
 # (ör. bijuteri → gem, elektronik → laptop). _seller_icon_logo() ile URL'e dönüşür.
 SELLER_LOGO_ICONS = {
 	"DEMO-001": ("scissors", "6d28d9"),  # Tekstil ve Giyim
-	"DEMO-002": ("handbag", "b45309"),   # Ayakkabı ve Deri
-	"DEMO-003": ("laptop", "0369a1"),    # Elektronik ve Aksesuar
+	"DEMO-002": ("handbag", "b45309"),  # Ayakkabı ve Deri
+	"DEMO-003": ("laptop", "0369a1"),  # Elektronik ve Aksesuar
 	"DEMO-004": ("building", "475569"),  # Hırdavat ve Nalburiye
-	"DEMO-005": ("basket", "15803d"),    # Gıda ve İçecek
-	"DEMO-006": ("palette", "be185d"),   # Kozmetik ve Kişisel Bakım
-	"DEMO-007": ("house", "0f766e"),     # Ev Tekstili ve Dekorasyon
-	"DEMO-008": ("cup", "c2410c"),       # Mutfak ve Züccaciye
-	"DEMO-009": ("gem", "a16207"),       # Bijuteri ve Aksesuar
-	"DEMO-010": ("boxSeam", "1d4ed8"),   # Ambalaj ve Kırtasiye
+	"DEMO-005": ("basket", "15803d"),  # Gıda ve İçecek
+	"DEMO-006": ("palette", "be185d"),  # Kozmetik ve Kişisel Bakım
+	"DEMO-007": ("house", "0f766e"),  # Ev Tekstili ve Dekorasyon
+	"DEMO-008": ("cup", "c2410c"),  # Mutfak ve Züccaciye
+	"DEMO-009": ("gem", "a16207"),  # Bijuteri ve Aksesuar
+	"DEMO-010": ("boxSeam", "1d4ed8"),  # Ambalaj ve Kırtasiye
 }
 
 
@@ -107,16 +107,16 @@ def _pexels(photo_id, w=800):
 #   hırdavat→metal/lazer kesim, gıda→üretim hattı, kozmetik→laboratuvar,
 #   mutfak/züccaciye→cam/şişeleme, bijuteri→kuyum atölyesi, ambalaj→matbaa.
 SELLER_FACTORY_IMAGES = {
-	"DEMO-001": [31091544, 6525848, 31212954, 31112181],   # Tekstil fabrikası
-	"DEMO-002": [13524733, 30433081, 11463568, 5894231],   # Ayakkabı/deri atölyesi
-	"DEMO-003": [5554948, 5554949, 36522029, 4211136],     # Elektronik/PCB üretimi
+	"DEMO-001": [31091544, 6525848, 31212954, 31112181],  # Tekstil fabrikası
+	"DEMO-002": [13524733, 30433081, 11463568, 5894231],  # Ayakkabı/deri atölyesi
+	"DEMO-003": [5554948, 5554949, 36522029, 4211136],  # Elektronik/PCB üretimi
 	"DEMO-004": [29988964, 29224559, 34221993, 29988955],  # Metal/hırdavat üretimi
-	"DEMO-005": [5953663, 5532664, 18631424, 5953831],     # Gıda/içecek üretim hattı
+	"DEMO-005": [5953663, 5532664, 18631424, 5953831],  # Gıda/içecek üretim hattı
 	"DEMO-006": [15831825, 37650270, 37466061, 20684151],  # Kozmetik laboratuvarı
-	"DEMO-007": [31112181, 6525848, 31212954, 31091544],   # Ev tekstili (dokuma)
-	"DEMO-008": [36423795, 5532716, 18631424],             # Cam/züccaciye/şişeleme
-	"DEMO-009": [7167035, 7167004, 15955332, 33873067],    # Kuyum atölyesi
-	"DEMO-010": [36376366, 9550363, 19837529],             # Ambalaj/matbaa
+	"DEMO-007": [31112181, 6525848, 31212954, 31091544],  # Ev tekstili (dokuma)
+	"DEMO-008": [36423795, 5532716, 18631424],  # Cam/züccaciye/şişeleme
+	"DEMO-009": [7167035, 7167004, 15955332, 33873067],  # Kuyum atölyesi
+	"DEMO-010": [36376366, 9550363, 19837529],  # Ambalaj/matbaa
 }
 
 # Sektöre uygun fabrika videosu (Pexels CC0, media_type=video). Şimdilik metal/
@@ -179,8 +179,18 @@ CERT_VISUAL = {
 
 _TR_MAP = str.maketrans(
 	{
-		"ç": "c", "Ç": "c", "ğ": "g", "Ğ": "g", "ı": "i", "İ": "i",
-		"ö": "o", "Ö": "o", "ş": "s", "Ş": "s", "ü": "u", "Ü": "u",
+		"ç": "c",
+		"Ç": "c",
+		"ğ": "g",
+		"Ğ": "g",
+		"ı": "i",
+		"İ": "i",
+		"ö": "o",
+		"Ö": "o",
+		"ş": "s",
+		"Ş": "s",
+		"ü": "u",
+		"Ü": "u",
 	}
 )
 
@@ -2898,7 +2908,8 @@ def _ensure_user(email, first_name, last_name="", role="Seller", password=None):
 			# için doc save'i atla. full_name türetilmiş alan, elle set edilir.
 			full = (f"{first_name} {last_name}").strip()
 			frappe.db.set_value(
-				"User", email,
+				"User",
+				email,
 				{"first_name": first_name, "last_name": last_name, "full_name": full},
 				update_modified=False,
 			)
@@ -2978,14 +2989,22 @@ def _ensure_cert_type(cert_name):
 
 
 _REVIEWERS = [
-	("Mehmet Yılmaz", "Türkiye", "🇹🇷"), ("Ayşe Demir", "Türkiye", "🇹🇷"),
-	("Hans Müller", "Almanya", "🇩🇪"), ("Sofia Rossi", "İtalya", "🇮🇹"),
-	("Ahmed Al-Farsi", "BAE", "🇦🇪"), ("Emma Johnson", "İngiltere", "🇬🇧"),
-	("Mustafa Kaya", "Türkiye", "🇹🇷"), ("Pierre Dubois", "Fransa", "🇫🇷"),
-	("Olga Petrova", "Rusya", "🇷🇺"), ("Carlos García", "İspanya", "🇪🇸"),
-	("Fatma Şahin", "Türkiye", "🇹🇷"), ("John Smith", "ABD", "🇺🇸"),
-	("Wei Chen", "Çin", "🇨🇳"), ("Zeynep Arslan", "Türkiye", "🇹🇷"),
-	("Liam Brown", "Kanada", "🇨🇦"), ("Nour Hassan", "Mısır", "🇪🇬"),
+	("Mehmet Yılmaz", "Türkiye", "🇹🇷"),
+	("Ayşe Demir", "Türkiye", "🇹🇷"),
+	("Hans Müller", "Almanya", "🇩🇪"),
+	("Sofia Rossi", "İtalya", "🇮🇹"),
+	("Ahmed Al-Farsi", "BAE", "🇦🇪"),
+	("Emma Johnson", "İngiltere", "🇬🇧"),
+	("Mustafa Kaya", "Türkiye", "🇹🇷"),
+	("Pierre Dubois", "Fransa", "🇫🇷"),
+	("Olga Petrova", "Rusya", "🇷🇺"),
+	("Carlos García", "İspanya", "🇪🇸"),
+	("Fatma Şahin", "Türkiye", "🇹🇷"),
+	("John Smith", "ABD", "🇺🇸"),
+	("Wei Chen", "Çin", "🇨🇳"),
+	("Zeynep Arslan", "Türkiye", "🇹🇷"),
+	("Liam Brown", "Kanada", "🇨🇦"),
+	("Nour Hassan", "Mısır", "🇪🇬"),
 ]
 
 _REVIEW_COMMENTS = [
@@ -3051,9 +3070,7 @@ def _ensure_seller(s):
 	doc.status = "Active"
 	doc.seller_type = "Corporate"
 	# Sektöre özel markalı SVG logo/kapak (yerel üretim, alakalı). Yazılamazsa eski kaynağa düş.
-	doc.logo = _demo_logo(s["code"], s["seller_name"], s["variant_type"]) or _seller_icon_logo(
-		s["code"], 200
-	)
+	doc.logo = _demo_logo(s["code"], s["seller_name"], s["variant_type"]) or _seller_icon_logo(s["code"], 200)
 	doc.banner_image = _demo_cover(s["code"], s["seller_name"], s["variant_type"]) or _img(
 		s["variant_type"], 1200, 400, lock_id=f"{s['code']}-banner"
 	)
@@ -3077,7 +3094,9 @@ def _ensure_seller(s):
 			# verification_status default "Pending" — listing.validate Verified bekler;
 			# demo satıcı cert'leri admin tarafından onaylanmış kabul edilir.
 			# document → özgün rozet SVG'si (vitrinde thumbnail, telif-güvenli).
-			cert_no = f"TH-{_asset_slug(cert_name).upper().replace('-', '')[:10]}-{random.randint(1000, 9999)}"
+			cert_no = (
+				f"TH-{_asset_slug(cert_name).upper().replace('-', '')[:10]}-{random.randint(1000, 9999)}"
+			)
 			doc.append(
 				"certifications",
 				{
@@ -4370,35 +4389,66 @@ HERO_SLIDES = [
 # Layout 4 sütunlu grid'e göre tasarlandı (col_span/row_span).
 SHOWCASE_TILES = [
 	{
-		"tile_type": "category", "col_span": 1, "row_span": 2, "sort_order": 0,
-		"label_tr": "Tekstil ve Giyim", "label_en": "Textile & Apparel",
-		"sector_key": "giyim", "sector_code": "TG",
-		"hover_text_tr": "Toptan tekstil ve hazır giyim", "hover_text_en": "Wholesale textile & apparel",
+		"tile_type": "category",
+		"col_span": 1,
+		"row_span": 2,
+		"sort_order": 0,
+		"label_tr": "Tekstil ve Giyim",
+		"label_en": "Textile & Apparel",
+		"sector_key": "giyim",
+		"sector_code": "TG",
+		"hover_text_tr": "Toptan tekstil ve hazır giyim",
+		"hover_text_en": "Wholesale textile & apparel",
 	},
 	{
-		"tile_type": "category", "col_span": 1, "row_span": 2, "sort_order": 1,
-		"label_tr": "Ayakkabı ve Deri", "label_en": "Footwear & Leather",
-		"sector_key": "ayakkabi", "sector_code": "AD",
-		"hover_text_tr": "Ayakkabı, çanta ve deri ürünleri", "hover_text_en": "Shoes, bags & leather goods",
+		"tile_type": "category",
+		"col_span": 1,
+		"row_span": 2,
+		"sort_order": 1,
+		"label_tr": "Ayakkabı ve Deri",
+		"label_en": "Footwear & Leather",
+		"sector_key": "ayakkabi",
+		"sector_code": "AD",
+		"hover_text_tr": "Ayakkabı, çanta ve deri ürünleri",
+		"hover_text_en": "Shoes, bags & leather goods",
 	},
 	{
-		"tile_type": "category", "col_span": 2, "row_span": 1, "sort_order": 2,
-		"label_tr": "Elektronik ve Aksesuar", "label_en": "Electronics & Accessories",
-		"sector_key": "elektronik", "sector_code": "EL",
-		"hover_text_tr": "Telefon, bilgisayar ve aksesuar", "hover_text_en": "Phones, computers & accessories",
+		"tile_type": "category",
+		"col_span": 2,
+		"row_span": 1,
+		"sort_order": 2,
+		"label_tr": "Elektronik ve Aksesuar",
+		"label_en": "Electronics & Accessories",
+		"sector_key": "elektronik",
+		"sector_code": "EL",
+		"hover_text_tr": "Telefon, bilgisayar ve aksesuar",
+		"hover_text_en": "Phones, computers & accessories",
 	},
 	{
-		"tile_type": "category", "col_span": 1, "row_span": 1, "sort_order": 3,
-		"label_tr": "Kozmetik ve Kişisel Bakım", "label_en": "Cosmetics & Personal Care",
-		"sector_key": "kozmetik", "sector_code": "KZ",
-		"hover_text_tr": "Makyaj, bakım ve parfüm", "hover_text_en": "Makeup, care & fragrances",
+		"tile_type": "category",
+		"col_span": 1,
+		"row_span": 1,
+		"sort_order": 3,
+		"label_tr": "Kozmetik ve Kişisel Bakım",
+		"label_en": "Cosmetics & Personal Care",
+		"sector_key": "kozmetik",
+		"sector_code": "KZ",
+		"hover_text_tr": "Makyaj, bakım ve parfüm",
+		"hover_text_en": "Makeup, care & fragrances",
 	},
 	{
-		"tile_type": "promo", "col_span": 1, "row_span": 1, "sort_order": 4,
-		"promo_badge_tr": "TİCARET GÜVENCESİ", "promo_badge_en": "TRADE ASSURANCE",
-		"promo_title_tr": "Güvenli ödeme, teslimat garantisi", "promo_title_en": "Secure payment, delivery guarantee",
+		"tile_type": "promo",
+		"col_span": 1,
+		"row_span": 1,
+		"sort_order": 4,
+		"promo_badge_tr": "TİCARET GÜVENCESİ",
+		"promo_badge_en": "TRADE ASSURANCE",
+		"promo_title_tr": "Güvenli ödeme, teslimat garantisi",
+		"promo_title_en": "Secure payment, delivery guarantee",
 		"background_color": "#1e3a8a",
-		"cta_text_tr": "Nasıl çalışır?", "cta_text_en": "How it works", "cta_href": "/ticaret-guvencesi",
+		"cta_text_tr": "Nasıl çalışır?",
+		"cta_text_en": "How it works",
+		"cta_href": "/ticaret-guvencesi",
 	},
 ]
 
@@ -4664,8 +4714,7 @@ def execute():
 		leaf_ids[dj_cat] = (leaf_id, leaf_name_tr)
 	frappe.db.commit()
 	print(
-		f"  ✓ {len(leaf_ids)} yaprak kategori "
-		f"({len(group_ids)} grup, {len(sector_ids)} sektör altında)"
+		f"  ✓ {len(leaf_ids)} yaprak kategori " f"({len(group_ids)} grup, {len(sector_ids)} sektör altında)"
 	)
 
 	# ── 4. Satıcı Kategorileri ──────────────────────────────

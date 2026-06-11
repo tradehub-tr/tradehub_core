@@ -276,9 +276,7 @@ def _seed_plan_features() -> dict:
 		plan = frappe.get_doc("Subscription Plan", plan_name)
 		# Mevcut feature_key'lerin set'i (yeniden eklemeyiz)
 		existing_keys = {
-			row.get("feature_key")
-			for row in (plan.get("pricing_features") or [])
-			if row.get("feature_key")
+			row.get("feature_key") for row in (plan.get("pricing_features") or []) if row.get("feature_key")
 		}
 		row_changed = False
 		for key, display_name, _display_category, display_order, value_type, values in PRICING_FEATURES:
@@ -308,7 +306,11 @@ def _seed_plan_features() -> dict:
 			plan.flags.ignore_mandatory = True
 			plan.flags.ignore_links = True
 			plan.save(ignore_permissions=True)
-	return {"added_rows": added, "skipped_existing": skipped_existing, "plans_seeded": list(plans_by_code.values())}
+	return {
+		"added_rows": added,
+		"skipped_existing": skipped_existing,
+		"plans_seeded": list(plans_by_code.values()),
+	}
 
 
 def execute() -> dict:

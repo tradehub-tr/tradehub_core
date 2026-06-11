@@ -1135,7 +1135,10 @@ def get_listing_detail(listing_id, lang="tr"):
 		)
 	if listing.package_weight:
 		packaging_specs.append(
-			{"label": translate_platform_term("Paket Ağırlığı", lang), "value": f"{listing.package_weight} kg"}
+			{
+				"label": translate_platform_term("Paket Ağırlığı", lang),
+				"value": f"{listing.package_weight} kg",
+			}
 		)
 	if listing.units_per_package:
 		packaging_specs.append(
@@ -1925,7 +1928,9 @@ def get_shipping_methods(listing_id=None, lang: str = "tr"):
 				"type": m.shipping_type,
 				"minDays": m.min_days,
 				"maxDays": m.max_days,
-				"estimatedDays": f"{m.min_days}-{m.max_days} {business_days}" if m.min_days and m.max_days else "",
+				"estimatedDays": f"{m.min_days}-{m.max_days} {business_days}"
+				if m.min_days and m.max_days
+				else "",
 				"baseCost": m.base_cost,
 				"costPerKg": m.cost_per_kg,
 				"currency": m.currency,
@@ -3011,7 +3016,9 @@ def _format_listing_card(
 		"originalPrice": (
 			_format_price(selling_price, listing.get("currency")) if effective_price is not None else None
 		),
-		"discount": (format_discount_badge(int(discount_percentage), lang) if discount_percentage > 0 else None),
+		"discount": (
+			format_discount_badge(int(discount_percentage), lang) if discount_percentage > 0 else None
+		),
 		"moq": f"{listing.get('min_order_qty', 1)} {translate_platform_term(listing.get('stock_uom') or 'Adet', lang)}",
 		"stats": f"{_format_number(listing.get('order_count', 0))} {translate_platform_term('adet satıldı', lang)}"
 		if listing.get("order_count")
@@ -3120,9 +3127,7 @@ def _build_spec_groups(listing, specs, lang="tr"):
 	for code, items in buckets.items():
 		if code in seen:
 			continue
-		result.append(
-			{"code": code, "label": translate_platform_term(code or "Genel", lang), "items": items}
-		)
+		result.append({"code": code, "label": translate_platform_term(code or "Genel", lang), "items": items})
 	return result
 
 

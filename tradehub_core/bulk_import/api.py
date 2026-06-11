@@ -156,7 +156,6 @@ def dry_run_preview(
 	Persist YAPMAZ — sadece parser + validator çalıştırır.
 	"""
 	enforce_feature(_BULK_IMPORT_FEATURE, "Toplu İçe Aktarım")
-	from tradehub_core.bulk_import import persister, regex_lib, validator
 	from tradehub_core.bulk_import.ingestion import resolver
 	from tradehub_core.bulk_import.parsers import csv_parser, xlsx_parser, xml_parser
 

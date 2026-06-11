@@ -50,9 +50,11 @@ def get_robots_txt() -> str:
 	"""Site config'den env oku + Website Settings.robots_txt override kontrolü."""
 	import frappe
 
+	from tradehub_core.seo.site_url import storefront_url
+
 	config = frappe.get_site_config() or {}
 	env = config.get("seo_environment", "beta")
-	site_url = frappe.utils.get_url()
+	site_url = storefront_url()
 
 	ws = frappe.get_single("Website Settings")
 	manual = (ws.get("robots_txt") or "").strip()

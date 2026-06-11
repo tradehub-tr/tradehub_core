@@ -122,7 +122,7 @@ def _serialize_value(value):
 	"""Değeri güvenli Python literal'e çevir (repr — string/sayı/bool/None)."""
 	if isinstance(value, bool):
 		return repr(value)  # True / False
-	if isinstance(value, (int, float)):
+	if isinstance(value, int | float):
 		return repr(value)
 	if value is None:
 		return "None"
@@ -133,7 +133,7 @@ def _serialize_value(value):
 
 def _serialize_list(value):
 	"""in_list operatörü için liste literal üret."""
-	if not isinstance(value, (list, tuple)):
+	if not isinstance(value, list | tuple):
 		raise CompileError("Liste operatörü için value bir dizi olmalı")
 	items = ", ".join(_serialize_value(v) for v in value)
 	return f"[{items}]"
@@ -197,7 +197,7 @@ def compile_condition(builder_json: dict, doctype: str = "Listing") -> str:
 def _describe_value(op: str, value) -> str:
 	if op in ("is_set", "is_empty"):
 		return ""
-	if op in ("in_list", "not_in_list") and isinstance(value, (list, tuple)):
+	if op in ("in_list", "not_in_list") and isinstance(value, list | tuple):
 		return " [" + ", ".join(str(v) for v in value) + "]"
 	return f" {value!r}"
 

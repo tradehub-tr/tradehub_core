@@ -239,7 +239,16 @@ def get_seller_access_state() -> dict[str, Any]:
 	sub = frappe.db.get_value(
 		"Store Subscription",
 		{"store": tenant},
-		["status", "plan", "trial_start", "trial_end", "trial_plan", "trial_used", "started_at", "current_period_end"],
+		[
+			"status",
+			"plan",
+			"trial_start",
+			"trial_end",
+			"trial_plan",
+			"trial_used",
+			"started_at",
+			"current_period_end",
+		],
 		as_dict=True,
 	)
 
@@ -293,9 +302,7 @@ def get_seller_subscription(user: str) -> dict[str, Any]:
 
 	sub = get_active_subscription(tenant)
 	plan_code = sub.get("plan") if sub else None
-	plan_name = (
-		frappe.db.get_value("Subscription Plan", plan_code, "plan_name") if plan_code else None
-	)
+	plan_name = frappe.db.get_value("Subscription Plan", plan_code, "plan_name") if plan_code else None
 
 	return {
 		"is_seller": True,
