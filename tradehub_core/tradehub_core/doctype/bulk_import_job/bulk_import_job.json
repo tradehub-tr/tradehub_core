@@ -19,6 +19,7 @@
   "header_row",
   "sheet_name",
   "column_mapping",
+  "remember_mapping",
   "section_progress",
   "status",
   "started_at",
@@ -107,6 +108,13 @@
    "fieldname": "column_mapping",
    "fieldtype": "Long Text",
    "label": "Kolon Eşleşme (JSON)"
+  },
+  {
+   "default": "1",
+   "description": "Bu eşleştirmeyi satıcı profili olarak kaydet — aynı başlıklı sonraki dosyalar otomatik eşlenir.",
+   "fieldname": "remember_mapping",
+   "fieldtype": "Check",
+   "label": "Eşleştirmeyi Hatırla"
   },
   {
    "fieldname": "section_progress",
