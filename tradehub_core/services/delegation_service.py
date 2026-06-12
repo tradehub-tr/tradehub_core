@@ -21,6 +21,28 @@ import frappe
 from frappe import _
 from frappe.utils import now_datetime
 
+# C2 fix — delegation üzerinden privilege escalation engeli.
+# Bu power-role'ler hiçbir delegation ile atanamaz (permission_console'daki
+# _FORBIDDEN_ASSIGNABLE_ROLES ile aynı set; coupling/circular-import'tan kaçınmak
+# için burada da tanımlı).
+_FORBIDDEN_DELEGATION_ROLES = frozenset(
+	{
+		"System Manager",
+		"Administrator",
+		"All",
+		"Marketplace Admin",
+	}
+)
+
+
+def _assert_role_delegatable(role: str) -> None:
+	"""Power-role delegation denemesini fail-closed reddet."""
+	if role in _FORBIDDEN_DELEGATION_ROLES:
+		frappe.throw(
+			_("Bu rol delegation ile atanamaz: {0}").format(role),
+			exc=frappe.PermissionError,
+		)
+
 
 def create_delegation(
 	delegator: str,
@@ -36,6 +58,8 @@ def create_delegation(
 		frappe.throw(_("Kendine delegation yapılamaz"), exc=frappe.ValidationError)
 	if starts_at >= ends_at:
 		frappe.throw(_("ends_at, starts_at'tan sonra olmalı"), exc=frappe.ValidationError)
+	# C2 fix — power-role'ler delegation ile atanamaz.
+	_assert_role_delegatable(role)
 
 	doc = frappe.new_doc("Role Delegation")
 	doc.delegator = delegator
@@ -143,6 +167,8 @@ def expire_overdue_delegations(now: datetime | None = None) -> dict[str, Any]:
 
 def _assign_role(user: str, role: str, until: datetime | None = None) -> None:
 	"""Add role to user + set temporary_role_until."""
+	# C2 fix — son savunma katmanı: power-role atama her yolda reddedilir.
+	_assert_role_delegatable(role)
 	try:
 		user_doc = frappe.get_doc("User", user)
 		existing_roles = {r.role for r in (user_doc.roles or [])}

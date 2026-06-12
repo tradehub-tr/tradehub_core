@@ -1749,6 +1749,11 @@ def upload_private_file(filename: str = "", filedata: str = ""):
 
 	content = base64.b64decode(filedata)
 
+	# M8 fix — hard boyut limiti (guest yükleyebildiği için depolama-doldurma/DoS engeli).
+	_MAX_BYTES = 5 * 1024 * 1024  # 5 MB
+	if len(content) > _MAX_BYTES:
+		frappe.throw(_("Dosya boyutu 5 MB'ı aşamaz."), frappe.ValidationError)
+
 	file_doc = frappe.get_doc(
 		{
 			"doctype": "File",

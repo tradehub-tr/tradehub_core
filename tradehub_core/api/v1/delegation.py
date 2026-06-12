@@ -51,6 +51,16 @@ def create_delegation(
 	if not user or user == "Guest":
 		frappe.throw(_("Yetki gerekli"), exc=frappe.PermissionError)
 
+	# C2 fix — sahip olmadığın bir rolü delege edemezsin (admin hariç).
+	# delegation_service'teki power-role blocklist'ine ek ikinci kapı.
+	caller_roles = set(frappe.get_roles(user))
+	is_admin = bool(caller_roles & {"System Manager", "Administrator", "Marketplace Admin"})
+	if not is_admin and role not in caller_roles:
+		frappe.throw(
+			_("Yalnızca kendinizde olan bir rolü delege edebilirsiniz: {0}").format(role),
+			exc=frappe.PermissionError,
+		)
+
 	name = delegation_service.create_delegation(
 		delegator=user,
 		delegate=delegate,

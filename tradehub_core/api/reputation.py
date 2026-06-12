@@ -306,6 +306,11 @@ def get_invitation_list(user: str | None = None, status: str | None = None):
 	if frappe.session.user == "Guest":
 		frappe.throw("Giriş yapın", frappe.AuthenticationError)
 	user = user or frappe.session.user
+	# M15 fix — IDOR guard: başka kullanıcının davet listesini sorgulayamazsın (admin hariç).
+	if user != frappe.session.user:
+		roles = set(frappe.get_roles(frappe.session.user))
+		if not (roles & {"System Manager", "Marketplace Admin", "Administrator"}):
+			frappe.throw("Bu listeyi görme yetkiniz yok", frappe.PermissionError)
 	filters = {"user": user}
 	if status:
 		filters["status"] = status

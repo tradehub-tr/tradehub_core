@@ -182,7 +182,10 @@ def upload_seller_cert_document(file_name: str = "", file_content: str = ""):
 	random_id = secrets.token_hex(12)
 	stored_name = f"cert_{random_id}{ext}"
 
-	site_files_path = frappe.get_site_path("public", "files")
+	# M14 fix — sertifika belgeleri (ticari/hassas) PRIVATE saklanır; eskiden public/files'a
+	# yazılıp /files/ ile tahmin edilebilir/auth'suz erişilebiliyordu. Fiziksel yol + file_url
+	# + is_private birlikte private'a alınır (permissioned File route'undan servis edilir).
+	site_files_path = frappe.get_site_path("private", "files")
 	try:
 		os.makedirs(site_files_path, exist_ok=True)
 	except Exception:
@@ -199,9 +202,9 @@ def upload_seller_cert_document(file_name: str = "", file_content: str = ""):
 		{
 			"doctype": "File",
 			"file_name": file_name,
-			"file_url": f"/files/{stored_name}",
+			"file_url": f"/private/files/{stored_name}",
 			"folder": folder_path,
-			"is_private": 0,
+			"is_private": 1,
 			"file_size": len(content),
 		}
 	)

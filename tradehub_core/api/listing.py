@@ -3927,6 +3927,14 @@ def recalculate_completeness_score(listing_name):
 def get_completeness_breakdown(listing_name):
 	"""Return detailed score breakdown for admin panel display."""
 	from tradehub_core.utils.completeness import get_score_breakdown
+	from tradehub_core.utils.tenant import _get_seller_profile_for_user
 
 	doc = frappe.get_doc("Listing", listing_name)
+	# M12 fix — recalculate_completeness_score ile aynı sahiplik kontrolü; eskiden
+	# herhangi bir kullanıcı başka satıcının (Draft dahil) listing skor detayını okuyabiliyordu.
+	roles = set(frappe.get_roles(frappe.session.user))
+	if not (roles & {"System Manager", "Marketplace Admin", "Administrator"}):
+		seller_profile = _get_seller_profile_for_user(frappe.session.user)
+		if doc.seller_profile != seller_profile:
+			frappe.throw(_("Bu listing size ait değil."), frappe.PermissionError)
 	return get_score_breakdown(doc)

@@ -4,6 +4,7 @@ import frappe
 from frappe import _
 
 from tradehub_core.api._input import safe_float
+from tradehub_core.api.rate_limit import rate_limit
 
 
 def _strip_html(text):
@@ -986,7 +987,10 @@ def get_storefront_layout(seller_code):
 	return {"sections": sections, "theme": theme}
 
 
+# M18 fix — guest erişimli; sender bilgisi oturumdan alınıyor (impersonation engelli),
+# ek olarak spam'e karşı rate-limit (IP/oturum başına 10 / 5 dk).
 @frappe.whitelist(allow_guest=True)
+@rate_limit(max_calls=10, window_seconds=300, per_user=True)
 def send_inquiry(seller_code, message, share_business_card=0):
 	# Admin Seller Profile'da name = seller_code
 	if not frappe.db.exists("Admin Seller Profile", seller_code):
@@ -1076,6 +1080,11 @@ def list_my_inquiries(status: str = "all", page: int = 1, page_size: int = 20):
 	if not caller or caller == "Guest":
 		frappe.throw(_("Giriş yapmalısınız."), frappe.PermissionError)
 
+	# C4 fix — KRİTİK tenant guard. `get_all` permission_query_conditions'ı UYGULAMAZ;
+	# bu yüzden seller filtresi ELLE eklenmeli, aksi halde tüm mağazaların inquiry'leri
+	# (alıcı PII dahil) sızar. Çağıranın kendi Admin Seller Profile'ı:
+	profile, _user = _get_my_seller_profile()
+
 	try:
 		page = int(page) or 1
 	except (TypeError, ValueError):
@@ -1086,7 +1095,7 @@ def list_my_inquiries(status: str = "all", page: int = 1, page_size: int = 20):
 		page_size = 20
 	page_size = min(max(page_size, 1), 100)
 
-	filters = {"is_trashed": 0}
+	filters = {"is_trashed": 0, "seller": profile}
 	if status and status != "all":
 		filters["status"] = status
 
@@ -1378,14 +1387,16 @@ def get_customer_detail(buyer: str):
 		limit_page_length=50,
 	)
 
-	# 4) HD Ticket'lar (raised_by = buyer + related_order satıcının siparişine bağlı)
+	# 4) HD Ticket'lar — yalnızca bu satıcının siparişine bağlı ticket'lar.
+	# H11 fix — eski koşul `OR t.related_order IS NULL` alıcının diğer satıcılara/
+	# platforma açtığı (bu satıcıyla ilgisiz) ticket'ları da sızdırıyordu; kaldırıldı.
 	tickets = frappe.db.sql(
 		"""
 		SELECT t.name, t.subject, t.status, t.priority, t.creation
 		FROM `tabHD Ticket` t
-		LEFT JOIN `tabOrder` o ON o.name = t.related_order
+		INNER JOIN `tabOrder` o ON o.name = t.related_order
 		WHERE t.raised_by = %(buyer)s
-		  AND (o.seller = %(seller)s OR t.related_order IS NULL)
+		  AND o.seller = %(seller)s
 		ORDER BY t.creation DESC
 		LIMIT 50
 		""",
@@ -1407,6 +1418,13 @@ def get_customer_detail(buyer: str):
 	stats = stats_row[0] if stats_row else {}
 	stats["total_revenue"] = float(stats.get("total_revenue") or 0)
 	stats["order_count"] = int(stats.get("order_count") or 0)
+
+	# H11 fix — User PII (full_name/email/mobile_no) yalnız bu satıcıyla gerçek bir
+	# ilişki varsa döndürülür (sipariş, inquiry veya seller-scoped ticket). Aksi halde
+	# herhangi bir satıcı keyfi e-posta sorgulayarak PII hasat edebilirdi.
+	has_relationship = bool(stats["order_count"] > 0 or inquiries or tickets)
+	if not has_relationship:
+		user_doc = None
 
 	return {
 		"buyer": buyer,

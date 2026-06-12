@@ -634,6 +634,8 @@ permission_query_conditions = {
 	"PII Field Policy": "tradehub_core.permissions.pii_field_policy_query_conditions",
 	# Saha pazarlama hakediş — saha elemanı yalnız kendi (agent) kayıtlarını görür.
 	"Field Commission": "tradehub_core.permissions.field_commission_query_conditions",
+	# H14 fix — abonelik tenant izolasyonu (seller yalnız kendi mağaza aboneliği).
+	"Store Subscription": "tradehub_core.permissions.store_subscription_query_conditions",
 }
 
 has_permission = {
@@ -692,6 +694,8 @@ has_permission = {
 	"Notification Settings": "tradehub_core.permissions.notification_settings_has_permission",
 	# Saha pazarlama hakediş — saha elemanı yalnız kendi kaydına read/report.
 	"Field Commission": "tradehub_core.permissions.field_commission_has_permission",
+	# H14 fix — abonelik per-doc: seller kendi mağaza aboneliğini okur, yazma admin-only.
+	"Store Subscription": "tradehub_core.permissions.store_subscription_has_permission",
 }
 
 # ---------------------------------------------------------------------------

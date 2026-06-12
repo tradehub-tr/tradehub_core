@@ -509,6 +509,13 @@ def send_attachment(conversation_id: int | str, content: str = "") -> dict[str, 
 
 	filename = upload.filename or "file"
 	mime = upload.mimetype or "application/octet-stream"
+	# M20 fix — uzantı allowlist (yürütülebilir/aktif içerik reddi; boyut limiti zaten var).
+	_ALLOWED_CHAT_EXT = (
+		".pdf", ".jpg", ".jpeg", ".png", ".gif", ".webp",
+		".doc", ".docx", ".xls", ".xlsx", ".csv", ".txt", ".zip",
+	)
+	if not filename.lower().endswith(_ALLOWED_CHAT_EXT):
+		frappe.throw("Bu dosya türü desteklenmiyor.", frappe.ValidationError)
 	frappe.logger("chat").info(
 		f"send_attachment caller={caller} conv={conv_id} file={filename!r} bytes={len(data)} mime={mime}"
 	)

@@ -1104,7 +1104,9 @@ def upload_bulk_file(file_name: str, file_content: str, kind: str = "data") -> d
 			dt="",
 			dn="",
 			decode=False,
-			is_private=0,
+			# M19 fix — bulk import dosyaları private saklanır (tahmin edilebilir public
+			# URL ile başka tenant verisinin okunmasını engeller).
+			is_private=1,
 		)
 	except Exception as e:
 		# DEBUG: tam stack trace Error Log'a düşsün ki sorunu görelim

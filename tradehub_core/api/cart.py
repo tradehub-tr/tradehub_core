@@ -1175,6 +1175,44 @@ def merge_guest_cart(items):
 	return _build_cart_response_cached(cart_name)
 
 
+def _compute_server_coupon_discount(coupon_code: str | None, order_total: float) -> float:
+	"""C6 fix — kupon indirimini SERVER'da koddan hesaplar; client'ın gönderdiği
+	`coupon_discount` değerine ASLA güvenmez.
+
+	Geçersiz/şartları sağlamayan kuponda 0 döner (sipariş kupon olmadan devam eder).
+	İndirim her halükarda [0, order_total] aralığına clamp'lenir.
+	"""
+	if not coupon_code:
+		return 0.0
+
+	import datetime
+
+	order_total = max(0.0, float(order_total or 0))
+	coupon = frappe.db.get_value(
+		"Coupon",
+		{"code": str(coupon_code).strip().upper(), "is_active": 1},
+		["name", "coupon_type", "value", "min_order", "max_uses", "used_count", "expires_at"],
+		as_dict=True,
+	)
+	if not coupon:
+		return 0.0
+
+	# Süre / max kullanım / min sipariş şartları (validate_coupon ile aynı kurallar)
+	if coupon.expires_at and coupon.expires_at < datetime.date.today():
+		return 0.0
+	if coupon.max_uses and int(coupon.max_uses) > 0 and int(coupon.used_count or 0) >= int(coupon.max_uses):
+		return 0.0
+	if float(coupon.min_order or 0) > 0 and order_total < float(coupon.min_order):
+		return 0.0
+
+	value = float(coupon.value or 0)
+	if str(coupon.coupon_type or "").lower().startswith("percent"):
+		discount = order_total * value / 100.0
+	else:  # fixed
+		discount = value
+	return max(0.0, min(discount, order_total))
+
+
 @frappe.whitelist()
 @require_verified_email
 def create_order(
@@ -1237,7 +1275,12 @@ def create_order(
 			continue
 		recomputed_items = _recompute_order_items_server_side(o["products"])
 		server_subtotal = sum(it["server_total_price"] for it in recomputed_items)
-		server_shipping = float(o.get("shipping_fee", 0))
+		# C7 fix — kargo ücreti client'tan gelir; negatif değer toplam'ı düşürmek için
+		# istismar edilebilir. Negatifi reddet (server-side tarife hesabı ayrı iş — bkz. rapor).
+		raw_shipping = float(o.get("shipping_fee", 0) or 0)
+		if raw_shipping < 0:
+			frappe.throw(_("Geçersiz kargo ücreti"), frappe.ValidationError)
+		server_shipping = raw_shipping
 		prepared_orders.append(
 			{
 				"order_data": o,
@@ -1249,9 +1292,10 @@ def create_order(
 
 	order_count = len(prepared_orders)
 
-	# Kupon indirimi tüm siparişlerin sunucu-recompute total'ını aşamaz.
+	# C6 fix — kupon indirimi SERVER'da koddan hesaplanır; client'ın gönderdiği
+	# `coupon_discount` parametresi YOK SAYILIR (bedava sipariş istismarı engeli).
 	total_payable = sum(po["subtotal"] + po["shipping_fee"] for po in prepared_orders)
-	coupon_discount_val = min(float(coupon_discount or 0), total_payable)
+	coupon_discount_val = _compute_server_coupon_discount(coupon_code, total_payable)
 	# Kupon indirimini siparişlere eşit dağıt
 	per_order_coupon_discount = round(coupon_discount_val / order_count, 2) if order_count > 0 else 0
 
@@ -1379,8 +1423,8 @@ def create_order(
 	if not created_orders:
 		frappe.throw(_("Hiçbir sipariş oluşturulamadı"))
 
-	# Kupon used_count artır
-	if coupon_code:
+	# Kupon used_count artır — yalnızca gerçekten indirim uygulandıysa (C6 fix).
+	if coupon_code and coupon_discount_val > 0:
 		coupon_name = frappe.db.get_value(
 			"Coupon", {"code": coupon_code.strip().upper(), "is_active": 1}, "name"
 		)

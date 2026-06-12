@@ -352,7 +352,10 @@ def export_transactions(transaction_type=None, status=None, date_from=None, date
 			"reference_number",
 		],
 		order_by="transaction_date desc",
-		page_length=0,
+		# M21 fix — sınırsız (page_length=0) döküm yerine makul cap; `buyer` filtresi
+		# cross-tenant'ı zaten engelliyor, bu ek olarak filtre-regresyonunda toplu
+		# sızıntı/DoS riskini sınırlar.
+		page_length=10000,
 		ignore_permissions=True,
 	)
 
@@ -519,14 +522,11 @@ def verify_supplier_account(iban):
 
 	clean_iban = iban.replace(" ", "").upper()
 
-	seller_info = frappe.db.get_value(
-		"Admin Seller Profile",
-		{"iban": clean_iban},
-		["name", "seller_name", "bank_name", "iban", "account_holder"],
-		as_dict=True,
-	)
-
-	if not seller_info:
+	# H10 fix — banka PII enumerasyonu engeli. Eskiden herhangi bir alıcı IBAN deneyerek
+	# tüm satıcıların seller_name/bank_name/account_holder bilgisini hasat edebiliyordu.
+	# Artık yalnızca boolean `verified` dönülür; hiçbir PII döndürülmez.
+	exists = frappe.db.exists("Admin Seller Profile", {"iban": clean_iban})
+	if not exists:
 		return {
 			"success": True,
 			"verified": False,
@@ -536,10 +536,6 @@ def verify_supplier_account(iban):
 	return {
 		"success": True,
 		"verified": True,
-		"seller_name": seller_info.seller_name or "",
-		"bank_name": seller_info.bank_name or "",
-		"iban": seller_info.iban or "",
-		"account_holder": seller_info.account_holder or "",
 	}
 
 

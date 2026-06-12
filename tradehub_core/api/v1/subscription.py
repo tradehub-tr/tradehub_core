@@ -99,6 +99,19 @@ def upgrade_subscription_plan(
 
 	start_trial_bool = str(start_trial).strip().lower() in ("1", "true", "yes")
 
+	# C8 fix — ödemesiz plan aktivasyonu engeli.
+	# Platform admin (caller_tenant == "" → System Manager/Marketplace Admin) ücretli
+	# aktivasyon yapabilir (ödeme onayı süreci dışından). Mağaza sahibi self-service
+	# olarak YALNIZCA trial başlatabilir; ücretli `active` plana geçiş onaylı ödeme
+	# gerektirir (confirm_subscription_payment akışı, admin-only). Bu kontrol olmadan
+	# her owner ücret ödemeden ENTERPRISE'a geçebiliyordu.
+	is_platform_admin = caller_tenant == ""
+	if not is_platform_admin and not start_trial_bool:
+		frappe.throw(
+			_("Ücretli plana geçiş için ödeme onayı gerekir; lütfen ödeme akışını kullanın."),
+			frappe.PermissionError,
+		)
+
 	# Mağazanın mevcut Store Subscription'ı (store unique → en fazla 1 satır).
 	# Status'tan bağımsız ara: `expired`/`past_due` bir mağaza tekrar abone/öde
 	# olduğunda AYNI satır reaktive edilmeli — yeni insert `store` unique

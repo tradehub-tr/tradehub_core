@@ -62,6 +62,27 @@ def _resolve_caller_tenant(allow_global: bool = False) -> str | None:
 	return tenant
 
 
+def _resolve_tenant_arg(tenant: str | None, allow_global: bool = False) -> str | None:
+	"""C3 fix — `tenant` parametresini güvenli çöz.
+
+	Eski `tenant or _resolve_caller_tenant()` kalıbı, çağıran `tenant` verdiğinde
+	aidiyeti doğrulamadan kabul ediyordu → cross-tenant okuma/yazma. Bu yardımcı:
+	  - Super Admin: verilen `tenant`'ı (ya da None=tümü) aynen kullanır.
+	  - Normal user: kendi tenant'ını çözer; `tenant` açıkça verilmiş ve kendi
+	    tenant'ından farklıysa PermissionError fırlatır.
+	"""
+	own = _resolve_caller_tenant(allow_global=allow_global)
+	if _is_super_admin():
+		# Super admin verilen tenant'ı seçebilir; vermezse None (tüm tenant).
+		return tenant or own
+	if tenant and tenant != own:
+		frappe.throw(
+			_("Başka bir tenant adına işlem yapamazsınız"),
+			exc=frappe.PermissionError,
+		)
+	return own
+
+
 # ---------------------------------------------------------------------------
 # Cost Center
 # ---------------------------------------------------------------------------
@@ -69,7 +90,7 @@ def _resolve_caller_tenant(allow_global: bool = False) -> str | None:
 
 @frappe.whitelist()
 def get_cost_center_tree(tenant: str | None = None) -> list[dict]:
-	tenant = tenant or _resolve_caller_tenant(allow_global=True)
+	tenant = _resolve_tenant_arg(tenant, allow_global=True)
 	return cc_service.get_tree(tenant)
 
 
@@ -88,7 +109,7 @@ def upsert_cost_center(
 	description: str = "",
 ) -> dict:
 	_require_write_role()
-	tenant = tenant or _resolve_caller_tenant()
+	tenant = _resolve_tenant_arg(tenant)
 	if not tenant:
 		frappe.throw(
 			_("Cost Center oluşturmak için tenant gerekli (Super Admin manuel seçmeli)"),
@@ -152,7 +173,7 @@ def check_budget_availability(cost_center: str, amount: float) -> dict:
 
 @frappe.whitelist()
 def get_approved_suppliers(tenant: str | None = None) -> list[dict]:
-	tenant = tenant or _resolve_caller_tenant(allow_global=True)
+	tenant = _resolve_tenant_arg(tenant, allow_global=True)
 	filters: dict = {}
 	if tenant:
 		filters["tenant"] = tenant
@@ -199,7 +220,7 @@ def upsert_supplier_list(
 	notes: str = "",
 ) -> dict:
 	_require_write_role()
-	tenant = tenant or _resolve_caller_tenant()
+	tenant = _resolve_tenant_arg(tenant)
 	if not tenant:
 		frappe.throw(
 			_("Liste oluşturmak için tenant gerekli (Super Admin manuel seçmeli)"),
@@ -215,6 +236,12 @@ def upsert_supplier_list(
 
 	if name:
 		doc = frappe.get_doc("Approved Supplier List", name)
+		# C3 fix — mevcut kaydı düzenlerken kaydın tenant'ı caller'ınkiyle eşleşmeli.
+		if not _is_super_admin() and doc.tenant != tenant:
+			frappe.throw(
+				_("Bu listeye erişim yetkiniz yok"),
+				exc=frappe.PermissionError,
+			)
 	else:
 		doc = frappe.new_doc("Approved Supplier List")
 		doc.tenant = tenant
@@ -264,7 +291,7 @@ def check_supplier_approval(
 	tenant: str | None = None,
 ) -> dict:
 	"""UI preflight — does NOT audit."""
-	tenant = tenant or _resolve_caller_tenant()
+	tenant = _resolve_tenant_arg(tenant)
 
 	if isinstance(categories, str):
 		try:

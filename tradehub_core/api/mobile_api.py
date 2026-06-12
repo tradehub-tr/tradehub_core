@@ -14,6 +14,7 @@ import secrets
 import time
 
 import frappe
+from frappe import _
 from frappe.utils import add_to_date, now_datetime
 
 from tradehub_core.api.rate_limit import rate_limit
@@ -24,14 +25,26 @@ REFRESH_TOKEN_TTL_DAYS = 30
 
 
 def _jwt_secret() -> str:
-	"""Frappe site secret veya generate."""
-	try:
-		key = frappe.conf.get("encryption_key") or frappe.conf.get("secret_key")
-		if key:
-			return key
-	except Exception:
-		pass
-	return "tradehub-mobile-jwt-fallback-secret"
+	"""Mobil JWT imza anahtarı — site secret'ından (fail-closed).
+
+	C5 fix — eskiden hardcoded fallback ("tradehub-mobile-jwt-fallback-secret")
+	döndürülüyordu; bu string kaynak kodda public olduğundan saldırgan geçerli
+	token imzalayabiliyordu. Artık site secret yoksa hata fırlatılır (fail-closed):
+	hiçbir koşulda tahmin edilebilir bir anahtarla imza atılmaz.
+	Tercihen ayrı bir anahtar (`mobile_jwt_secret`) tanımlanır; yoksa Frappe'nin
+	site-özgü `encryption_key`/`secret_key`'ine düşer.
+	"""
+	key = (
+		frappe.conf.get("mobile_jwt_secret")
+		or frappe.conf.get("encryption_key")
+		or frappe.conf.get("secret_key")
+	)
+	if not key:
+		frappe.throw(
+			_("Mobil JWT secret yapılandırılmamış (site_config.encryption_key eksik)"),
+			exc=frappe.ValidationError,
+		)
+	return key
 
 
 def _b64u(data: bytes) -> str:

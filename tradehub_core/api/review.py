@@ -214,6 +214,14 @@ def submit_listing_review(
 	if not oi or oi.parenttype != "Order":
 		frappe.throw(_("Sipariş kalemi bulunamadı"), frappe.DoesNotExistError)
 
+	# H8 fix — BOLA guard: yalnız siparişin sahibi (buyer) o kaleme yorum yazabilir.
+	# Eskiden order_item doğrudan kabul ediliyor, parent Order'ın sahipliği
+	# doğrulanmıyordu → herhangi bir kullanıcı başkasının siparişine "doğrulanmış
+	# satın alım" yorumu oluşturabiliyordu.
+	order_buyer = frappe.db.get_value("Order", oi.parent, "buyer")
+	if order_buyer != frappe.session.user:
+		frappe.throw(_("Bu siparişe ait olmadığınız için yorum yazamazsınız"), frappe.PermissionError)
+
 	rating_int = _safe_int(rating, _("Puan"), 1, 5)
 
 	doc = frappe.new_doc("Listing Review")
@@ -620,6 +628,17 @@ def get_order_item_listing(order_item: str):
 	)
 	if not row or row.parenttype != "Order":
 		return {"listing": None}
+	# M11 fix — IDOR guard: caller, order'ın alıcısı VEYA listing'in satıcısı ya da
+	# admin olmalı. Eskiden herhangi bir kullanıcı keyfi order_item id'siyle
+	# listing/order eşlemesini enumerate edebiliyordu.
+	if not _is_admin():
+		caller = frappe.session.user
+		order_buyer = frappe.db.get_value("Order", row.parent, "buyer")
+		if order_buyer != caller:
+			seller_profile = frappe.db.get_value("Listing", row.listing, "seller_profile")
+			caller_seller = frappe.db.get_value("Admin Seller Profile", {"user": caller}, "name")
+			if not (seller_profile and caller_seller and seller_profile == caller_seller):
+				frappe.throw(_("Bu kayda erişim yetkiniz yok"), frappe.PermissionError)
 	return {"listing": row.listing, "order": row.parent}
 
 
