@@ -1,3 +1,26 @@
+## [v1.4.0-beta.1] - 2026-06-12 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Duzeltildi
+- fix(security): tenant izolasyonu, IDOR/BOLA ve yetki sertleştirmesi (@boraydeger32)
+  - procurement: `_resolve_tenant_arg` ile `tenant` parametresi cross-tenant baypası kapatıldı; mevcut kayıtta sahiplik kontrolü
+  - seller.list_my_inquiries: get_all -> seller filtreli sorgu (cross-tenant sızıntı)
+  - Store Subscription: permission_query_conditions + has_permission + DocType'tan seller `write` izni kaldırıldı (ödemesiz plan yükseltme)
+  - subscription.upgrade_subscription_plan: ücretli aktivasyon admin/ödeme koşulu
+  - delegation: power-role blocklist + delegator rol doğrulaması
+  - buyer_team: rol profili allowlist (davet + güncelleme)
+  - owner_transfer: reject/request_transfer için owner/admin guard
+  - review.submit_listing_review, ab_testing.get_ab_test_report, review.get_order_item_listing, listing.get_completeness_breakdown, reputation.get_invitation_list, compliance.get_field_policies: sahiplik/rol kontrolü
+  - payment.verify_supplier_account: banka PII enumerasyonu -> yalnız boolean
+  - seller.get_customer_detail: ilişki kapısı + ticket sızıntısı düzeltildi
+  - cart.create_order: kupon indirimi ve kargo server-side (client manipülasyonu)
+  - mobile_api: hardcoded JWT fallback secret kaldırıldı (fail-closed)
+  - identity.upload_private_file: 5MB cap; social_proof/seller: rate-limit
+  - bulk_import + seller_certifications: dosyalar private; chat: uzantı allowlist
+  - payment.export_transactions: sayfa limiti
+
+---
 ## [v1.4.0] - 2026-06-11 PROD
 
 Bu surum istoc.cronbi.com'da yayindadir.
