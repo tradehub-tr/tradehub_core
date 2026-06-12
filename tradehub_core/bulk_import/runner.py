@@ -555,9 +555,7 @@ def _record_warnings(
 	"""
 	if not warnings:
 		return
-	_record_error(
-		job, row_num, raw_row, mapping, "validation", "; ".join(warnings), severity="warning"
-	)
+	_record_error(job, row_num, raw_row, mapping, "validation", "; ".join(warnings), severity="warning")
 
 
 def _record_skip(job, row_num: int, sku, reason: str) -> None:

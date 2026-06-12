@@ -193,7 +193,12 @@ def dry_run_preview(
 		header_row_int = None
 
 	# xlsx: ana sayfa + başlık satırını tespit et (kullanıcı vermediyse).
-	layout = {"sheet_name": sheet_name, "header_row": header_row_int or 1, "sheet_names": [], "needs_header_pick": False}
+	layout = {
+		"sheet_name": sheet_name,
+		"header_row": header_row_int or 1,
+		"sheet_names": [],
+		"needs_header_pick": False,
+	}
 	if file_format == "xlsx":
 		layout = _detect_xlsx_layout(file_path, sheet_name, header_row_int)
 

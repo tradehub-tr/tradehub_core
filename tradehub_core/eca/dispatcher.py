@@ -657,7 +657,9 @@ def evaluate_rules_two_phase(doc, method=None):
 	# yazılmaz, bulk runner ECARejectionError'ı yakalayıp satırı skip olarak
 	# raporlar. after_insert/on_update'te raise ETME (doc zaten yazılı → orphan).
 	if getattr(doc.flags, "eca_rejected", False) and event in ("validate", "before_save", "before_insert"):
-		raise ECARejectionError(getattr(doc.flags, "eca_reject_reason", "") or "ECA kuralı tarafından reddedildi")
+		raise ECARejectionError(
+			getattr(doc.flags, "eca_reject_reason", "") or "ECA kuralı tarafından reddedildi"
+		)
 
 
 def _get_phase_rules_v2(doctype: str, event: str, phase: str, doc) -> list:
