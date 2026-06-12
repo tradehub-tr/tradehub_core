@@ -157,6 +157,43 @@ class TestBuildImageIndex(FrappeTestCase):
 		index, _orphans = image_matcher.build_image_index(self.zip_path, "__TEST__")
 		self.assertEqual(len(index["307"]), 2)
 
+	def test_image_overrides_force_and_ignore(self):
+		# Yetim klasörler: biri SKU'ya atanır, diğeri yoksayılır.
+		self._make_zip(
+			{
+				"FOTO/DOLAP/a.jpg": _JPEG,  # KOD yok → override ile 307'ye
+				"FOTO/RAF/b.jpg": _JPEG,  # KOD yok → override ile yoksay
+			}
+		)
+		overrides = {"FOTO/DOLAP": "307", "FOTO/RAF": "__ignore__"}
+		index, orphans = image_matcher.build_image_index(
+			self.zip_path, "__TEST__", known_skus={"307"}, image_overrides=overrides
+		)
+		self.assertEqual(len(index["307"]), 1)  # DOLAP → 307'ye zorlandı
+		self.assertEqual(orphans, [])  # RAF yoksayıldı, DOLAP atandı → yetim kalmadı
+
+	def test_preview_grouping_dry_with_thumbnails(self):
+		# Önizleme: File KAYDETMEDEN matched/orphan + thumbnail döndürür.
+		self._make_zip(
+			{
+				"FOTO/KATEGORI/307/307-1.jpg": _JPEG,
+				"FOTO/KATEGORI/307/307-2.jpg": _JPEG,
+				"FOTO/KATLANIR DOLAP/x.jpg": _JPEG,  # KOD yok → yetim
+			}
+		)
+		res = image_matcher.preview_zip_grouping(self.zip_path, {"307"}, "__TEST__")
+		self.assertEqual(res["total_images"], 3)
+		# Eşleşen: 307 → 2 görsel + thumbnail
+		m = {x["sku"]: x for x in res["matched"]}
+		self.assertEqual(m["307"]["count"], 2)
+		self.assertTrue(m["307"]["thumb"].startswith("data:image/jpeg;base64,"))
+		# Yetim: KATLANIR DOLAP klasörü
+		self.assertEqual(len(res["orphans"]), 1)
+		o = res["orphans"][0]
+		self.assertEqual(o["label"], "KATLANIR DOLAP")
+		self.assertEqual(o["count"], 1)
+		self.assertTrue(o["thumbs"][0].startswith("data:image/jpeg;base64,"))
+
 
 @unittest.skipUnless(HAS_FRAPPE, "Frappe context required")
 class TestEcaRejectionRaise(FrappeTestCase):

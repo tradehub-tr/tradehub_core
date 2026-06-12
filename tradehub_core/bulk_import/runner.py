@@ -212,8 +212,15 @@ def run(bulk_job_name: str) -> None:
 			# yolun herhangi bir derinliğinde, bu listeye göre bulur (derin/dağınık
 			# klasör yapısı belirsizlik olmadan çözülür).
 			known_skus = _collect_known_skus(rows, mapping)
+			# Kullanıcının 'Görseller' adımında yaptığı manuel atamalar (varsa).
+			overrides = None
+			if job.image_overrides:
+				try:
+					overrides = json.loads(job.image_overrides)
+				except (ValueError, TypeError):
+					overrides = None
 			images_idx, image_orphans = image_matcher.build_image_index(
-				zip_path, job.seller_profile, known_skus
+				zip_path, job.seller_profile, known_skus, overrides
 			)
 
 		inserted = updated = skipped = errors = 0

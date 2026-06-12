@@ -27,6 +27,7 @@ def start_product_import(
 	header_row: int = 1,
 	sheet_name: str | None = None,
 	remember_mapping: int = 1,
+	image_overrides: str | None = None,
 ) -> dict:
 	"""Bulk import job oluştur ve enqueue et.
 
@@ -83,6 +84,7 @@ def start_product_import(
 	job.header_row = header_row_int
 	job.sheet_name = sheet_name
 	job.remember_mapping = 1 if str(remember_mapping) in ("1", "True", "true") else 0
+	job.image_overrides = image_overrides
 	job.status = "Queued"
 	job.insert()
 
@@ -809,12 +811,18 @@ def download_image_archive_sample() -> None:
 	readme = (
 		"GORSEL ARSIVI NASIL HAZIRLANIR\n"
 		"==============================\n\n"
-		"Gorseller urunun STOK KODU (SKU) ile eslesir. Tek ZIP icinde yukleyin.\n\n"
+		"Gorseller urunun STOK KODU (SKU) ile eslesir. Tek ZIP icinde yukleyin.\n"
+		"En fazla 50 MB. Daha buyukse gorselleri kuculterek/azaltarak yukleyin\n"
+		"(sistem ayrica gorselleri web boyutuna otomatik optimize eder).\n\n"
 		"1) Tek gorsel:      URUN-001.jpg                  (dosya adi = SKU)\n"
 		"2) Coklu (klasor):  URUN-002/1.jpg, URUN-002/2.jpg (klasor adi = SKU)\n"
 		"3) Coklu (suffix):  URUN-003_1.jpg, URUN-003_2.jpg (SKU_1, SKU_2 ...)\n\n"
+		"Klasorler kategori altinda da olabilir; sistem SKU'yu yolun her\n"
+		"derinliginde bulur:   Kategori/URUN-001/1.jpg\n\n"
 		"Varyantli urunlerde VARYANT SKU'su ile de eslesir:\n"
 		"   URUN-004-KIRMIZI-40.jpg\n\n"
+		"Eslesmeyen gorseller icin yukleme sirasinda 'Gorseller' adiminda\n"
+		"manuel olarak ilgili urune atayabilirsiniz.\n\n"
 		"Desteklenen formatlar: .jpg .jpeg .png .webp\n"
 		"Ornek gorseller yer tutucudur; kendi gorsellerinizle degistirin.\n"
 	)
