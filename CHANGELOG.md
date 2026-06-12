@@ -1,3 +1,24 @@
+## [v1.4.1-beta.1] - 2026-06-12 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Eklendi
+- feat(bulk-import): interaktif yetim-görsel atama (önizleme + override) (@aliiball)
+
+### Duzeltildi
+- fix(bulk-import): satıcı profili owner yerine kanonik resolver ile çözülüyor (@aliiball)
+  - api.py (6 yer) ve feed_api.py owner lookup'ları get_current_seller_profile() (utils/tenant) ile değiştirildi — user/email/tradehub_tenant kaskadı
+  - tradehub_tenant ile davet edilen alt-kullanıcılar (Co-Owner, Finance Staff) artık ortak mağazaya toplu yükleme yapabiliyor
+  - regex_lib.py zaten kanonik resolver kullanıyordu, dokunulmadı
+
+### Degistirildi
+- refactor(auth): kayıt ve re-verify OTP süresi 30 dakikaya çıkarıldı (@aliiball)
+  - registration_otp ve reverify_otp cache TTL 600s → 1800s
+  - yanlış denemede TTL reset değerleri de 1800s'e hizalandı (süre kısalma hatası önlendi)
+  - send/resend dönüş değeri expires_in_minutes 10 → 30
+  - OTP e-posta şablonundaki geçerlilik metni 30 dakika olarak güncellendi
+
+---
 ## [v1.4.1] - 2026-06-12 PROD
 
 Bu surum istoc.cronbi.com'da yayindadir.
