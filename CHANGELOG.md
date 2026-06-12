@@ -1,3 +1,21 @@
+## [v1.4.1-beta.3] - 2026-06-12 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Eklendi
+- feat(seed): demo satıcı sayısı 16'ya çıkarıldı ve after_migrate idempotent seed eklendi (@ahmeetseker)
+  - DEMO-011..016 eklendi (Şeker Tekstil, Bal Gıda, Aydeğer Elektronik, Anadolu Ayakkabı, Lale Kozmetik, Marmara Ev Tekstili)
+  - run_idempotent_seed after_migrate hook'una bağlandı; site_config.demo_seed_enabled bayrağıyla çalışır
+  - _seed(cleanup_first) ile manuel reset / otomatik idempotent path ayrıldı
+  - _create_listing ve _ensure_seller idempotent hale getirildi (rename ile gerçek hesabı demo'ya dönüştürme)
+  - gerçek ekip e-postaları (ahmet.seker/ali.bal/bora.aydeger) cleanup'ta korunuyor, User silinmez
+  - demo şifresi Turksab2026! olarak güncellendi
+
+### Degistirildi
+- refactor(ci): lint workflow PR tetiği kaldırıldı (@ahmeetseker)
+  - pull_request trigger silindi; lint artık sadece push'ta çalışır
+
+---
 ## [v1.4.1-beta.1] - 2026-06-12 BETA
 
 Bu surum betaistoc.cronbi.com'da test asamasindadir.
