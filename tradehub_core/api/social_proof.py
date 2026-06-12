@@ -21,6 +21,8 @@ import frappe
 from frappe import _
 from frappe.utils import add_to_date, now_datetime
 
+from tradehub_core.api.rate_limit import rate_limit
+
 _SETTINGS_CACHE_KEY = "social_proof_settings"
 _RESPONSE_CACHE_PREFIX = "sp:"
 _VIEW_DEDUP_PREFIX = "sp:view:"
@@ -266,7 +268,9 @@ def get_signals_batch(listing_ids: str) -> dict:
 	return out
 
 
+# M16 fix — guest sayaç şişirmeye karşı IP/oturum başına rate-limit (30dk dedup'a ek).
 @frappe.whitelist(allow_guest=True, methods=["POST"])
+@rate_limit(max_calls=60, window_seconds=300, per_user=True)
 def record_view(listing_id: str) -> None:
 	"""
 	Records a single view of the listing. Same IP+listing within

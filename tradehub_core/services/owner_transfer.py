@@ -33,6 +33,24 @@ def create_transfer(
 	if not current_owner:
 		frappe.throw(_("Tenant {0} için Owner bulunamadı").format(tenant), exc=frappe.ValidationError)
 
+	# M7 fix — devir talebini yalnız ilgili taraf başlatabilir: non-force yolda çağıran
+	# mevcut owner (veya admin) olmalı; force yalnız platform admin. Eskiden hiç kontrol
+	# yoktu → herhangi bir kullanıcı başka tenant için devir talebi açabiliyordu.
+	caller = frappe.session.user
+	_roles = set(frappe.get_roles(caller))
+	_is_admin = bool(_roles & {"System Manager", "Marketplace Admin", "Administrator"})
+	if is_force:
+		if not _is_admin:
+			frappe.throw(
+				_("Force transfer yalnız platform admin tarafından yapılabilir"),
+				exc=frappe.PermissionError,
+			)
+	elif caller != current_owner and not _is_admin:
+		frappe.throw(
+			_("Devir talebini yalnız mevcut mağaza sahibi başlatabilir"),
+			exc=frappe.PermissionError,
+		)
+
 	if not is_force and not _is_co_owner(proposed_owner, tenant):
 		frappe.throw(
 			_("proposed_owner Co-Owner rolünde olmalı: {0}").format(proposed_owner),
@@ -134,6 +152,15 @@ def reject(name: str, reason: str) -> None:
 	doc = frappe.get_doc("Owner Transfer Request", name)
 	if doc.status in {"completed", "cancelled", "rejected"}:
 		frappe.throw(_("Transfer zaten kapanmış: {0}").format(doc.status))
+
+	# H4 fix — yalnız ilgili taraflar reddedebilir: mevcut owner, devralması teklif
+	# edilen kişi (proposed_owner) veya platform admin. Eskiden hiçbir kontrol yoktu →
+	# herhangi bir kullanıcı başka tenant'ın transfer'ini sabote edebiliyordu.
+	user = frappe.session.user
+	roles = set(frappe.get_roles(user))
+	is_admin = bool(roles & {"System Manager", "Marketplace Admin", "Administrator"})
+	if not is_admin and user not in {doc.current_owner, doc.proposed_owner}:
+		frappe.throw(_("Bu transfer'i reddetme yetkiniz yok"), exc=frappe.PermissionError)
 
 	doc.status = "rejected"
 	doc.rejection_reason = reason

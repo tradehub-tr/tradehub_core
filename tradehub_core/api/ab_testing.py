@@ -123,7 +123,15 @@ def evaluate_finished_tests():
 @frappe.whitelist()
 def get_ab_test_report(test_name: str) -> dict:
 	"""Test detayını + her varyantın güncel score'ını döner."""
+	from tradehub_core.api.review import _is_admin
+
 	doc = frappe.get_doc("Listing AB Test", test_name)
+	# H9 fix — BOLA guard: yalnız testin sahibi satıcı veya admin raporu görebilir
+	# (start_ab_test ile aynı kontrol). Eskiden hiçbir kontrol yoktu → rakip satıcı
+	# verisi (metric/varyant/skor) sızıyordu.
+	seller_user = frappe.db.get_value("Admin Seller Profile", doc.seller, "user")
+	if not _is_admin() and seller_user != frappe.session.user:
+		frappe.throw("Bu raporu görme yetkiniz yok", frappe.PermissionError)
 	out = _evaluate_one(doc)
 	return {
 		"name": doc.name,

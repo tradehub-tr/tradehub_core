@@ -37,6 +37,9 @@ def _require_compliance_role() -> None:
 @frappe.whitelist()
 def get_field_policies(doctype: str | None = None) -> list[dict]:
 	"""Aktif PII Field Policy'lerin listesi. doctype filtresi opsiyonel."""
+	# M5 fix — PII politika konfigürasyonu hassastır; dosyadaki diğer endpoint'lerle
+	# tutarlı olarak compliance/admin yetkisi gerekir (eskiden hiç kontrol yoktu).
+	_require_compliance_role()
 	filters: dict = {"is_active": 1}
 	if doctype:
 		filters["ref_doctype"] = doctype

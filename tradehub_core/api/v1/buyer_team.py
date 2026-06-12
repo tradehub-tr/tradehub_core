@@ -97,6 +97,51 @@ def _generate_invite_token() -> tuple[str, str]:
 	return raw, _hash_token(raw)
 
 
+# H6/H7 fix — Buyer ekibi yalnızca buyer-side rol profillerine atanabilir.
+# Bu power-role'ler hiçbir buyer profilinde bulunamaz (isim bypass'ına karşı).
+_FORBIDDEN_BUYER_PROFILE_ROLES = frozenset(
+	{
+		"System Manager",
+		"Administrator",
+		"Marketplace Admin",
+		"All",
+		"Seller Owner",
+		"Marketplace Seller",
+		"Compliance Officer",
+	}
+)
+
+
+def _assert_buyer_role_profile(role_profile: str) -> None:
+	"""Buyer sub-user'a atanacak role_profile'ı allowlist'e karşı doğrula (fail-closed).
+
+	`_validate_role_profile_for_plan` tenant yokken kontrolü atlıyordu; bu guard her
+	yolda çalışır: profil var olmalı, 'Buyer' ile başlamalı ve ayrıcalıklı rol içermemeli.
+	"""
+	if not role_profile or not str(role_profile).strip():
+		frappe.throw(_("Rol profili gerekli"), exc=frappe.ValidationError)
+	role_profile = str(role_profile).strip()
+	if not frappe.db.exists("Role Profile", role_profile):
+		frappe.throw(_("Geçersiz rol profili: {0}").format(role_profile), exc=frappe.ValidationError)
+	if not role_profile.lower().startswith("buyer"):
+		frappe.throw(
+			_("Yalnızca Buyer rol profilleri atanabilir: {0}").format(role_profile),
+			exc=frappe.PermissionError,
+		)
+	# İsim bypass'ına karşı: profilin içerdiği roller power-role içermemeli.
+	try:
+		rp = frappe.get_doc("Role Profile", role_profile)
+		roles = {r.role for r in (rp.roles or [])}
+	except Exception:
+		roles = set()
+	forbidden = roles & _FORBIDDEN_BUYER_PROFILE_ROLES
+	if forbidden:
+		frappe.throw(
+			_("Bu rol profili ayrıcalıklı rol içeriyor: {0}").format(", ".join(sorted(forbidden))),
+			exc=frappe.PermissionError,
+		)
+
+
 def _validate_role_profile_for_plan(organization: str, role_profile: str) -> None:
 	"""Plan kelepçesi — bu organization'ın aktif plan'ında bu role profile var mı?
 
@@ -203,6 +248,8 @@ def invite_buyer_sub_user(
 			action_description=_("Yeni B2B çalışan daveti"),
 		)
 
+	# H6 fix — role_profile allowlist (plan kelepçesinden ÖNCE, fail-closed)
+	_assert_buyer_role_profile(role_profile)
 	# Plan kelepçesi
 	_validate_role_profile_for_plan(target_org, role_profile)
 
@@ -285,6 +332,8 @@ def update_buyer_sub_user_role(user: str, role_profile: str) -> dict:
 	if user_org != caller_org:
 		frappe.throw(_("Bu kullanıcı ekibinizde değil."), frappe.PermissionError)
 
+	# H6 fix — role_profile allowlist (fail-closed)
+	_assert_buyer_role_profile(role_profile)
 	_validate_role_profile_for_plan(caller_org, role_profile)
 
 	old_profile = frappe.db.get_value("User", user, "role_profile_name")
@@ -442,6 +491,9 @@ def accept_buyer_invite(token: str, full_name: str, password: str) -> dict:
 			"tradehub_parent_organization": invite.organization,
 		}
 	)
+	# H7 fix — davetteki role_profile kabul anında yeniden doğrulanır (allowlist).
+	# Aksi halde davet üretiminde atlanmış/manipüle edilmiş ayrıcalıklı profil guest'e geçerdi.
+	_assert_buyer_role_profile(invite.role_profile)
 	user.flags.ignore_permissions = True
 	user.flags.from_insert = True
 	user.insert(ignore_permissions=True)

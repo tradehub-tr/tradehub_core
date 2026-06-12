@@ -36,6 +36,31 @@ def _validate_file_extension(file_url: str, field_label: str):
 
 
 class KYBVerification(Document):
+	def before_insert(self):
+		# Admin panel generic formunda Seller, permlevel-1 alanlarını (user,
+		# company_title) yazamaz — boş gelirse session kullanıcısı ve SA/UP
+		# profil verisinden doldur. Admin için user alanı boş bırakılırsa
+		# Frappe'nin standart mandatory hatası devreye girer (autoset edilmez;
+		# admin başka bir satıcı adına kayıt açıyor olabilir).
+		roles = frappe.get_roles()
+		is_admin = "System Manager" in roles or "Marketplace Admin" in roles
+		if not self.user and not is_admin:
+			self.user = frappe.session.user
+		if self.user and not self.company_title:
+			from tradehub_core.api.v1.kyb import _get_seller_data
+
+			seller_data = _get_seller_data(self.user)
+			for field in (
+				"company_title",
+				"business_type",
+				"authorized_person",
+				"tax_id_type",
+				"tax_id",
+				"tax_office",
+			):
+				if not self.get(field) and seller_data.get(field):
+					self.set(field, seller_data[field])
+
 	def validate(self):
 		self._validate_company_title()
 		self._validate_tax_id()

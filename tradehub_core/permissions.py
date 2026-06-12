@@ -1941,6 +1941,37 @@ def cost_center_has_permission(doc, ptype, user):
 	return doc_tenant == user_tenant
 
 
+# ── Store Subscription ───────────────────────────────────────────────────────
+# H14 fix — abonelik kayıtları tenant izolasyonunda eksikti. Seller yalnız kendi
+# mağazasının (store = Admin Seller Profile) aboneliğini OKUR; plan/status yazımı
+# admin'e kapalı (C8/C9 ile tutarlı — ücretli aktivasyon ödeme/admin akışından).
+
+
+def store_subscription_query_conditions(user):
+	if not user or user == "Guest":
+		return "1=0"
+	if user == "Administrator" or _is_platform_full_access(user):
+		return ""
+	store = _get_seller_profile_name(user)
+	if not store:
+		return "1=0"
+	return f"`tabStore Subscription`.`store` = {frappe.db.escape(store)}"
+
+
+def store_subscription_has_permission(doc, ptype, user):
+	if user == "Administrator" or _is_platform_full_access(user):
+		return True
+	# Yazma/oluşturma/silme yalnız admin (self-service ücretli aktivasyon yasak).
+	if ptype in ("write", "create", "delete"):
+		return False
+	if doc is None:
+		return True
+	store = _get_seller_profile_name(user)
+	if not store:
+		return False
+	return _doc_field(doc, "store") == store
+
+
 # ── Owner Transfer Request ───────────────────────────────────────────────────
 # Seller-side. Mevcut owner ve proposed owner görür; tenant'ın diğer
 # sub-user'ları görmez (devir sürecindeki kişiler ve admin).

@@ -187,7 +187,6 @@
 		{
 			"role": "Marketplace Seller",
 			"read": 1,
-			"write": 1,
 			"if_owner": 1
 		},
 		{

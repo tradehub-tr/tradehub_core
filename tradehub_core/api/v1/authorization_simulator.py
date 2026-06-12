@@ -20,6 +20,16 @@ from frappe import _
 
 from tradehub_core.services import authorization_simulator as simulator
 
+# H5 fix — simülatör keyfi actor için 4-katmanlı yetki kararlarını ifşa eden bir
+# recon aracıdır; yalnız platform admin erişebilmeli.
+_ADMIN_ROLES = frozenset({"System Manager", "Marketplace Admin", "Administrator"})
+
+
+def _require_admin() -> None:
+	roles = set(frappe.get_roles(frappe.session.user))
+	if not (roles & _ADMIN_ROLES):
+		frappe.throw(_("Bu işlem için platform admin yetkisi gerekli"), exc=frappe.PermissionError)
+
 
 @frappe.whitelist()
 def simulate(
@@ -35,6 +45,7 @@ def simulate(
 	`context` may arrive as JSON string from the frontend; we tolerate both.
 	`audit` may arrive as "true"/"false" or 1/0.
 	"""
+	_require_admin()
 	if not actor or not action or not resource_type:
 		frappe.throw(_("actor, action ve resource_type zorunlu"), exc=frappe.ValidationError)
 
@@ -61,6 +72,7 @@ def simulate_batch(
 	audit: bool | int | str = False,
 ) -> list[dict]:
 	"""Batch simulation for many resources of the same type."""
+	_require_admin()
 	if isinstance(resource_names, str):
 		try:
 			resource_names = json.loads(resource_names)
