@@ -37,6 +37,16 @@ def sync_marketplace_seller_role(doc, method=None):
 	if not user or user in ("Guest", "Administrator"):
 		return
 
+	# Satıcı KENDİ profilini kaydediyorsa rol senkronunu çalıştırma. _add_role,
+	# desk_access=1 olan "Marketplace Seller"ı eklerken user_type'ı geçici olarak
+	# System→Website User'a çalkalıyor; bu canlı oturumun (panel = desk route)
+	# auth state'ini bozuyor → sonraki istekte init_request 417 → satıcı logout
+	# olur. Sahip zaten kendi profilini düzenleyebildiği için bu request'te rol
+	# senkronuna ihtiyaç yok; admin'in başka satıcıyı güncellediği yol (session
+	# user != doc.user) sağlam kalır.
+	if user == frappe.session.user:
+		return
+
 	# User henüz commit'lenmemiş olabilir — exists kontrolü
 	if not frappe.db.exists("User", user):
 		return
