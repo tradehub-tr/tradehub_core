@@ -160,6 +160,13 @@
    "description": "Platform komisyon oranı (%)"
   },
   {
+   "fieldname": "commission_is_custom",
+   "fieldtype": "Check",
+   "label": "Komisyon Özel Teklif",
+   "default": "0",
+   "description": "Admin panelde komisyon alanı boş bırakıldıysa 1 — storefront'ta oran yerine 'Özel' gösterilir."
+  },
+  {
    "fieldname": "field_commission_type",
    "fieldtype": "Select",
    "label": "Saha Komisyon Türü",
