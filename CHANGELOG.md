@@ -1,3 +1,15 @@
+## [v1.5.0-beta.1] - 2026-06-12 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Eklendi
+- feat(pricing): komisyon "Özel" ayrımı — commission_is_custom alanı (@boraydeger32)
+  - Subscription Plan: commission_is_custom (Check) — admin komisyonu boş bıraktıysa 1; DB kolonu NOT NULL olduğundan 0'dan ayırt etmek için şart
+  - public_pricing: payload'a commission_custom eklendi; matris hücresi artık "boş → Özel, sayı → %X (0 dahil)" (önceden 0 da Özel sayılıyordu)
+  - permission_console: yeni alan display whitelist + finansal alan (SM-only) listesinde; create/update/full_detail endpoint'leri taşıyor
+  - Deploy notu: prod'da bench migrate gerekli (yeni kolon)
+
+---
 ## [v1.5.0] - 2026-06-12 PROD
 
 Bu surum istoc.cronbi.com'da yayindadir.
