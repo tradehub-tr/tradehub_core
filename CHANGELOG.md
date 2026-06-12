@@ -1,3 +1,33 @@
+## [v1.4.1-rc.1] - 2026-06-12 RC
+
+Bu surum rcistoc.cronbi.com'da onay asamasindadir.
+
+### Eklendi
+- feat(bulk-import): interaktif yetim-görsel atama (önizleme + override) (@aliiball)
+- feat(seed): demo satıcı sayısı 16'ya çıkarıldı ve after_migrate idempotent seed eklendi (@ahmeetseker)
+  - DEMO-011..016 eklendi (Şeker Tekstil, Bal Gıda, Aydeğer Elektronik, Anadolu Ayakkabı, Lale Kozmetik, Marmara Ev Tekstili)
+  - run_idempotent_seed after_migrate hook'una bağlandı; site_config.demo_seed_enabled bayrağıyla çalışır
+  - _seed(cleanup_first) ile manuel reset / otomatik idempotent path ayrıldı
+  - _create_listing ve _ensure_seller idempotent hale getirildi (rename ile gerçek hesabı demo'ya dönüştürme)
+  - gerçek ekip e-postaları (ahmet.seker/ali.bal/bora.aydeger) cleanup'ta korunuyor, User silinmez
+  - demo şifresi Turksab2026! olarak güncellendi
+
+### Duzeltildi
+- fix(bulk-import): satıcı profili owner yerine kanonik resolver ile çözülüyor (@aliiball)
+  - api.py (6 yer) ve feed_api.py owner lookup'ları get_current_seller_profile() (utils/tenant) ile değiştirildi — user/email/tradehub_tenant kaskadı
+  - tradehub_tenant ile davet edilen alt-kullanıcılar (Co-Owner, Finance Staff) artık ortak mağazaya toplu yükleme yapabiliyor
+  - regex_lib.py zaten kanonik resolver kullanıyordu, dokunulmadı
+
+### Degistirildi
+- refactor(auth): kayıt ve re-verify OTP süresi 30 dakikaya çıkarıldı (@aliiball)
+  - registration_otp ve reverify_otp cache TTL 600s → 1800s
+  - yanlış denemede TTL reset değerleri de 1800s'e hizalandı (süre kısalma hatası önlendi)
+  - send/resend dönüş değeri expires_in_minutes 10 → 30
+  - OTP e-posta şablonundaki geçerlilik metni 30 dakika olarak güncellendi
+- refactor(ci): lint workflow PR tetiği kaldırıldı (@ahmeetseker)
+  - pull_request trigger silindi; lint artık sadece push'ta çalışır
+
+---
 ## [v1.4.1-beta.3] - 2026-06-12 BETA
 
 Bu surum betaistoc.cronbi.com'da test asamasindadir.
