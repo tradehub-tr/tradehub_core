@@ -4713,9 +4713,7 @@ def execute():
 			pass
 		leaf_ids[dj_cat] = (leaf_id, leaf_name_tr)
 	frappe.db.commit()
-	print(
-		f"  ✓ {len(leaf_ids)} yaprak kategori " f"({len(group_ids)} grup, {len(sector_ids)} sektör altında)"
-	)
+	print(f"  ✓ {len(leaf_ids)} yaprak kategori ({len(group_ids)} grup, {len(sector_ids)} sektör altında)")
 
 	# ── 4. Satıcı Kategorileri ──────────────────────────────
 	print("\n[4/6] Satıcı-kategori eşleşmeleri oluşturuluyor...")

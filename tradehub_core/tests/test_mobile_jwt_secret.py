@@ -6,6 +6,7 @@ api/mobile_api._jwt_secret:
 
     cd apps/tradehub_core && python -m unittest tradehub_core.tests.test_mobile_jwt_secret
 """
+
 from __future__ import annotations
 
 import sys
@@ -37,7 +38,7 @@ def _install_frappe_stub() -> None:
 
 	frappe.throw = _throw
 	frappe.conf = SimpleNamespace(get=lambda k, default=None: _CONF.get(k, default))
-	frappe.whitelist = lambda *a, **k: (a[0] if (a and callable(a[0])) else (lambda fn: fn))
+	frappe.whitelist = lambda *a, **k: a[0] if (a and callable(a[0])) else (lambda fn: fn)
 	frappe.utils = types.ModuleType("frappe.utils")
 	frappe.utils.add_to_date = lambda *a, **k: None
 	frappe.utils.now_datetime = lambda: None
@@ -46,7 +47,7 @@ def _install_frappe_stub() -> None:
 
 	# rate_limit decorator stub
 	rl = types.ModuleType("tradehub_core.api.rate_limit")
-	rl.rate_limit = lambda *a, **k: (lambda fn: fn)
+	rl.rate_limit = lambda *a, **k: lambda fn: fn
 	sys.modules["tradehub_core.api.rate_limit"] = rl
 
 

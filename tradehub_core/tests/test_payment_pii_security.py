@@ -5,6 +5,7 @@ seller_name/bank_name/iban/account_holder gibi PII DÖNMEZ.
 
     cd apps/tradehub_core && python -m unittest tradehub_core.tests.test_payment_pii_security
 """
+
 from __future__ import annotations
 
 import sys
@@ -40,7 +41,7 @@ def _install_frappe_stub() -> None:
 		raise exc(msg)
 
 	frappe.throw = _throw
-	frappe.whitelist = lambda *a, **k: (a[0] if (a and callable(a[0])) else (lambda fn: fn))
+	frappe.whitelist = lambda *a, **k: a[0] if (a and callable(a[0])) else (lambda fn: fn)
 	frappe.session = SimpleNamespace(user="buyer@test")
 	frappe.get_roles = lambda u=None: ["Buyer"]
 
@@ -61,7 +62,7 @@ _FRAPPE_STUB = sys.modules["frappe"]
 
 # payment.py importu için bağımlılık stub'ları (minimal)
 for _mod, _attrs in {
-	"tradehub_core.api.rate_limit": {"rate_limit": lambda *a, **k: (lambda fn: fn)},
+	"tradehub_core.api.rate_limit": {"rate_limit": lambda *a, **k: lambda fn: fn},
 	"tradehub_core.api._pagination": {
 		"normalize_pagination": lambda p=1, ps=20, *a, **k: (int(p or 1), int(ps or 20), None)
 	},

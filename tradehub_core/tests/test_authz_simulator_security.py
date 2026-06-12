@@ -4,6 +4,7 @@ api/v1/authorization_simulator.simulate / simulate_batch yalnız platform admin.
 
     cd apps/tradehub_core && python -m unittest tradehub_core.tests.test_authz_simulator_security
 """
+
 from __future__ import annotations
 
 import sys
@@ -39,7 +40,7 @@ def _install_frappe_stub() -> None:
 		raise exc(msg)
 
 	frappe.throw = _throw
-	frappe.whitelist = lambda *a, **k: (a[0] if (a and callable(a[0])) else (lambda fn: fn))
+	frappe.whitelist = lambda *a, **k: a[0] if (a and callable(a[0])) else (lambda fn: fn)
 	frappe.session = SimpleNamespace(user="u@test")
 	frappe.get_roles = lambda u=None: list(_STATE["roles"])
 

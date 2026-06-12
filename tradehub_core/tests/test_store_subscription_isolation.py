@@ -7,6 +7,7 @@ permissions.store_subscription_query_conditions / store_subscription_has_permiss
 
     cd apps/tradehub_core && python -m unittest tradehub_core.tests.test_store_subscription_isolation
 """
+
 from __future__ import annotations
 
 import sys

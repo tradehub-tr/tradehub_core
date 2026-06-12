@@ -6,6 +6,7 @@ api/seller.get_customer_detail:
 
     cd apps/tradehub_core && python -m unittest tradehub_core.tests.test_get_customer_detail_pii
 """
+
 from __future__ import annotations
 
 import sys
@@ -47,7 +48,7 @@ def _install_frappe_stub() -> None:
 		raise exc(msg)
 
 	frappe.throw = _throw
-	frappe.whitelist = lambda *a, **k: (a[0] if (a and callable(a[0])) else (lambda fn: fn))
+	frappe.whitelist = lambda *a, **k: a[0] if (a and callable(a[0])) else (lambda fn: fn)
 	frappe.session = SimpleNamespace(user="seller@test")
 
 	def _get_value(doctype, name=None, fieldname=None, as_dict=False, **kw):
@@ -62,8 +63,14 @@ def _install_frappe_stub() -> None:
 	def _sql(query, params=None, as_dict=False):
 		q = " ".join(query.split())
 		if "COUNT(*) AS order_count" in q:
-			return [{"order_count": _SCENARIO["order_count"], "total_revenue": 0,
-				"last_order_date": None, "first_order_date": None}]
+			return [
+				{
+					"order_count": _SCENARIO["order_count"],
+					"total_revenue": 0,
+					"last_order_date": None,
+					"first_order_date": None,
+				}
+			]
 		if "FROM `tabOrder`" in q:  # sipariş listesi
 			return [{"name": "O1"}] * _SCENARIO["order_count"]
 		if "tabHD Ticket" in q:
