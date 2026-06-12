@@ -7,6 +7,7 @@ api/v1/subscription.upgrade_subscription_plan:
 
     cd apps/tradehub_core && python -m unittest tradehub_core.tests.test_subscription_upgrade_security
 """
+
 from __future__ import annotations
 
 import sys
@@ -48,7 +49,7 @@ def _install_frappe_stub() -> None:
 		raise exc(msg)
 
 	frappe.throw = _throw
-	frappe.whitelist = lambda *a, **k: (a[0] if (a and callable(a[0])) else (lambda fn: fn))
+	frappe.whitelist = lambda *a, **k: a[0] if (a and callable(a[0])) else (lambda fn: fn)
 	frappe.session = SimpleNamespace(user=_STATE["user"])
 	frappe.get_roles = lambda u=None: list(_STATE["roles"])
 	frappe.log_error = lambda *a, **k: None
@@ -127,7 +128,9 @@ class TestUpgradeGuard(unittest.TestCase):
 		_STATE["roles"] = {"System Manager"}
 		_STATE["is_owner"] = 0
 		sub.upgrade_subscription_plan(new_plan="ENTERPRISE", tenant="SELLER-A", start_trial=False)
-		self.assertTrue(any(s[1] == "active" for s in _STATE["saved"]), "Admin ücretli aktivasyon yapabilmeli")
+		self.assertTrue(
+			any(s[1] == "active" for s in _STATE["saved"]), "Admin ücretli aktivasyon yapabilmeli"
+		)
 
 
 if __name__ == "__main__":

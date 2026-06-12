@@ -5,6 +5,7 @@ Marketplace Seller / Seller rolleri kendi aboneliklerini DEĞİŞTİREMEMELİ
 
     cd apps/tradehub_core && python -m unittest tradehub_core.tests.test_store_subscription_perms
 """
+
 from __future__ import annotations
 
 import json

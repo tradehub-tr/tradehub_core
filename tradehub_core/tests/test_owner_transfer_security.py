@@ -6,6 +6,7 @@ services.owner_transfer.reject:
 
     cd apps/tradehub_core && python -m unittest tradehub_core.tests.test_owner_transfer_security
 """
+
 from __future__ import annotations
 
 import sys
@@ -51,8 +52,11 @@ def _install_frappe_stub() -> None:
 
 	def _get_doc(doctype, name=None):
 		return _Doc(
-			name=name, status="awaiting_owner_confirm",
-			current_owner="owner@test", proposed_owner="newowner@test", rejection_reason="",
+			name=name,
+			status="awaiting_owner_confirm",
+			current_owner="owner@test",
+			proposed_owner="newowner@test",
+			rejection_reason="",
 		)
 
 	frappe.get_doc = _get_doc

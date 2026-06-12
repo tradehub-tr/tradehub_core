@@ -5,6 +5,7 @@ H9: api/ab_testing.get_ab_test_report — yalnız test sahibi satıcı/admin gö
 
     cd apps/tradehub_core && python -m unittest tradehub_core.tests.test_review_abtest_bola
 """
+
 from __future__ import annotations
 
 import sys
@@ -50,7 +51,7 @@ def _install_frappe_stub() -> None:
 		raise exc(msg)
 
 	frappe.throw = _throw
-	frappe.whitelist = lambda *a, **k: (a[0] if (a and callable(a[0])) else (lambda fn: fn))
+	frappe.whitelist = lambda *a, **k: a[0] if (a and callable(a[0])) else (lambda fn: fn)
 	frappe.session = SimpleNamespace(user=_STATE["user"])
 
 	def _get_value(doctype, name=None, fieldname=None, as_dict=False, **kw):
@@ -73,8 +74,14 @@ def _install_frappe_stub() -> None:
 		if doctype == "Listing AB Test" and name in _AB_TESTS:
 			sp, _u = _AB_TESTS[name]
 			return SimpleNamespace(
-				name=name, seller=sp, status="Running", metric="ctr",
-				start_date=None, end_date=None, winner=None, variants=[],
+				name=name,
+				seller=sp,
+				status="Running",
+				metric="ctr",
+				start_date=None,
+				end_date=None,
+				winner=None,
+				variants=[],
 			)
 		return SimpleNamespace(name=name)
 
@@ -93,7 +100,7 @@ def _install_frappe_stub() -> None:
 
 	# review._is_admin için: review modülü import edilecek; _is_admin'i _STATE'e bağla
 	# (review.py içindeki gerçek _is_admin frappe.get_roles kullanır)
-	frappe.get_roles = lambda u=None: (["System Manager"] if _STATE["is_admin"] else ["Buyer"])
+	frappe.get_roles = lambda u=None: ["System Manager"] if _STATE["is_admin"] else ["Buyer"]
 
 
 _install_frappe_stub()
@@ -101,7 +108,7 @@ _FRAPPE_STUB = sys.modules["frappe"]
 
 # review.py / ab_testing.py importu için rate_limit decorator stub'ı
 _rl = types.ModuleType("tradehub_core.api.rate_limit")
-_rl.rate_limit = lambda *a, **k: (lambda fn: fn)
+_rl.rate_limit = lambda *a, **k: lambda fn: fn
 sys.modules["tradehub_core.api.rate_limit"] = _rl
 
 from tradehub_core.api import ab_testing as abt  # noqa: E402

@@ -5,6 +5,7 @@ api/seller.list_my_inquiries'in `get_all`/`count` çağrılarına çağıranın 
 
     cd apps/tradehub_core && python -m unittest tradehub_core.tests.test_seller_inquiry_isolation
 """
+
 from __future__ import annotations
 
 import sys
@@ -45,7 +46,7 @@ def _install_frappe_stub() -> None:
 		raise exc(msg)
 
 	frappe.throw = _throw
-	frappe.whitelist = lambda *a, **k: (a[0] if (a and callable(a[0])) else (lambda fn: fn))
+	frappe.whitelist = lambda *a, **k: a[0] if (a and callable(a[0])) else (lambda fn: fn)
 	frappe.session = SimpleNamespace(user="seller-a@test")
 
 	def _get_all(doctype, filters=None, **kw):
@@ -70,9 +71,7 @@ def _install_frappe_stub() -> None:
 _install_frappe_stub()
 
 # seller.py geniş bir modül; importu kolaylaştırmak için eksik bağımlılıkları stub'la.
-for _mod in (
-	"tradehub_core.utils.tenant",
-):
+for _mod in ("tradehub_core.utils.tenant",):
 	if _mod not in sys.modules:
 		m = types.ModuleType(_mod)
 		m._get_seller_profile_for_user = lambda user: "SELLER-A-PROFILE"

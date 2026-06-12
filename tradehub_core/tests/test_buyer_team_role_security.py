@@ -8,6 +8,7 @@ api/v1/buyer_team._assert_buyer_role_profile:
 
     cd apps/tradehub_core && python -m unittest tradehub_core.tests.test_buyer_team_role_security
 """
+
 from __future__ import annotations
 
 import sys
@@ -49,7 +50,7 @@ def _install_frappe_stub() -> None:
 		raise exc(msg)
 
 	frappe.throw = _throw
-	frappe.whitelist = lambda *a, **k: (a[0] if (a and callable(a[0])) else (lambda fn: fn))
+	frappe.whitelist = lambda *a, **k: a[0] if (a and callable(a[0])) else (lambda fn: fn)
 	frappe.session = SimpleNamespace(user="buyeradmin@test")
 	frappe.exists = None
 

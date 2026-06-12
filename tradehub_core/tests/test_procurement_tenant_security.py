@@ -9,6 +9,7 @@ Saf-Python unittest; Frappe runtime stub'lanır:
 
     cd apps/tradehub_core && python -m unittest tradehub_core.tests.test_procurement_tenant_security
 """
+
 from __future__ import annotations
 
 import sys

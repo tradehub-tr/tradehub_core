@@ -8,6 +8,7 @@ api/cart._compute_server_coupon_discount:
 
     cd apps/tradehub_core && python -m unittest tradehub_core.tests.test_cart_price_tampering
 """
+
 from __future__ import annotations
 
 import datetime
@@ -35,7 +36,9 @@ def _install_frappe_stub() -> None:
 	sys.modules["frappe"] = frappe
 	frappe.ValidationError = _ValidationError
 	frappe._ = lambda s: s
-	frappe.throw = lambda msg, exc=_ValidationError: (_ for _ in ()).throw(exc(msg)) if False else (_raise(exc, msg))
+	frappe.throw = lambda msg, exc=_ValidationError: (
+		(_ for _ in ()).throw(exc(msg)) if False else (_raise(exc, msg))
+	)
 
 	def _get_value(doctype, filters=None, fieldname=None, as_dict=False, **kw):
 		if doctype == "Coupon" and isinstance(filters, dict):
@@ -49,7 +52,7 @@ def _install_frappe_stub() -> None:
 		return None
 
 	frappe.db = SimpleNamespace(get_value=_get_value)
-	frappe.whitelist = lambda *a, **k: (a[0] if (a and callable(a[0])) else (lambda fn: fn))
+	frappe.whitelist = lambda *a, **k: a[0] if (a and callable(a[0])) else (lambda fn: fn)
 
 
 def _raise(exc, msg):
@@ -66,7 +69,7 @@ _FRAPPE_STUB = sys.modules["frappe"]
 # kullanır) ve başka testler (seller) `safe_float`'a ihtiyaç duyar; eksik stub sızıntısı
 # import kırardı. Gerçek modül stub frappe altında sorunsuz import edilir.
 for _mod, _attrs in {
-	"tradehub_core.api.rate_limit": {"rate_limit": lambda *a, **k: (lambda fn: fn)},
+	"tradehub_core.api.rate_limit": {"rate_limit": lambda *a, **k: lambda fn: fn},
 	"tradehub_core.utils.auth_guards": {"require_verified_email": lambda fn: fn},
 	"tradehub_core.utils.stock": {
 		"deduct_stock_for_order": lambda *a, **k: None,
@@ -113,44 +116,74 @@ class TestCouponServerSide(unittest.TestCase):
 
 	def test_fixed_discount_computed_server_side(self):
 		_COUPONS["SAVE10"] = {
-			"name": "c1", "coupon_type": "fixed", "value": 10, "min_order": 0,
-			"max_uses": 0, "used_count": 0, "expires_at": None,
+			"name": "c1",
+			"coupon_type": "fixed",
+			"value": 10,
+			"min_order": 0,
+			"max_uses": 0,
+			"used_count": 0,
+			"expires_at": None,
 		}
 		self.assertEqual(self.cart._compute_server_coupon_discount("save10", 100), 10.0)
 
 	def test_percent_discount_computed_server_side(self):
 		_COUPONS["P20"] = {
-			"name": "c2", "coupon_type": "percent", "value": 20, "min_order": 0,
-			"max_uses": 0, "used_count": 0, "expires_at": None,
+			"name": "c2",
+			"coupon_type": "percent",
+			"value": 20,
+			"min_order": 0,
+			"max_uses": 0,
+			"used_count": 0,
+			"expires_at": None,
 		}
 		self.assertEqual(self.cart._compute_server_coupon_discount("p20", 100), 20.0)
 
 	def test_discount_clamped_to_order_total(self):
 		# Bedava sipariş istismarı: value order_total'dan büyük → clamp.
 		_COUPONS["HUGE"] = {
-			"name": "c3", "coupon_type": "fixed", "value": 999999, "min_order": 0,
-			"max_uses": 0, "used_count": 0, "expires_at": None,
+			"name": "c3",
+			"coupon_type": "fixed",
+			"value": 999999,
+			"min_order": 0,
+			"max_uses": 0,
+			"used_count": 0,
+			"expires_at": None,
 		}
 		self.assertEqual(self.cart._compute_server_coupon_discount("huge", 50), 50.0)
 
 	def test_maxed_out_coupon_returns_zero(self):
 		_COUPONS["DONE"] = {
-			"name": "c4", "coupon_type": "fixed", "value": 10, "min_order": 0,
-			"max_uses": 5, "used_count": 5, "expires_at": None,
+			"name": "c4",
+			"coupon_type": "fixed",
+			"value": 10,
+			"min_order": 0,
+			"max_uses": 5,
+			"used_count": 5,
+			"expires_at": None,
 		}
 		self.assertEqual(self.cart._compute_server_coupon_discount("done", 100), 0.0)
 
 	def test_min_order_not_met_returns_zero(self):
 		_COUPONS["MIN"] = {
-			"name": "c5", "coupon_type": "fixed", "value": 10, "min_order": 200,
-			"max_uses": 0, "used_count": 0, "expires_at": None,
+			"name": "c5",
+			"coupon_type": "fixed",
+			"value": 10,
+			"min_order": 200,
+			"max_uses": 0,
+			"used_count": 0,
+			"expires_at": None,
 		}
 		self.assertEqual(self.cart._compute_server_coupon_discount("min", 100), 0.0)
 
 	def test_expired_coupon_returns_zero(self):
 		_COUPONS["OLD"] = {
-			"name": "c6", "coupon_type": "fixed", "value": 10, "min_order": 0,
-			"max_uses": 0, "used_count": 0, "expires_at": datetime.date(2000, 1, 1),
+			"name": "c6",
+			"coupon_type": "fixed",
+			"value": 10,
+			"min_order": 0,
+			"max_uses": 0,
+			"used_count": 0,
+			"expires_at": datetime.date(2000, 1, 1),
 		}
 		self.assertEqual(self.cart._compute_server_coupon_discount("old", 100), 0.0)
 
