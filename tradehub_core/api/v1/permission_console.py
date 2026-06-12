@@ -745,6 +745,7 @@ def create_subscription_plan(
 	yearly_price: float | int | str = 0,
 	currency: str = "EUR",
 	commission_rate: float | int | str = 0,
+	commission_is_custom: bool | int | str = False,
 	max_active_listings: int | str = 0,
 	trial_days: int | str = 0,
 	is_active: bool | int | str = True,
@@ -778,6 +779,7 @@ def create_subscription_plan(
 	doc.yearly_price = float(yearly_price or 0)
 	doc.currency = currency or "EUR"
 	doc.commission_rate = float(commission_rate or 0)
+	doc.commission_is_custom = 1 if str(commission_is_custom).lower() in ("1", "true", "yes") else 0
 	doc.max_active_listings = int(max_active_listings or 0)
 	doc.trial_days = int(trial_days or 0)
 	doc.is_active = 1 if str(is_active).lower() in ("1", "true", "yes") else 0
@@ -1063,6 +1065,7 @@ _PRICING_DISPLAY_FIELDS = frozenset(
 		"yearly_price",
 		"currency",
 		"commission_rate",
+		"commission_is_custom",
 		"field_commission_type",
 		"field_commission_rate",
 		"field_commission_fixed_amount",
@@ -1090,6 +1093,7 @@ _PRICING_FINANCIAL_FIELDS = frozenset(
 		"yearly_price",
 		"currency",
 		"commission_rate",
+		"commission_is_custom",
 		"trial_days",
 		"is_active",
 		"is_public",
@@ -1158,6 +1162,7 @@ def get_plan_full_detail(plan_code: str) -> dict:
 		"theme": plan.theme or "default",
 		"short_tagline": plan.short_tagline,
 		"commission_rate": float(plan.commission_rate or 0),
+		"commission_is_custom": bool(plan.get("commission_is_custom")),
 		"field_commission_type": plan.field_commission_type or "Yüzde",
 		"field_commission_rate": float(plan.field_commission_rate or 0),
 		"field_commission_fixed_amount": float(plan.field_commission_fixed_amount or 0),

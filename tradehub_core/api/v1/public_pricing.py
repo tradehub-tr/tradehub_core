@@ -84,6 +84,7 @@ def get_pricing_plans() -> dict:
 			"yearly_price",
 			"currency",
 			"commission_rate",
+			"commission_is_custom",
 			"max_active_listings",
 			"cta_label",
 			"cta_action",
@@ -172,6 +173,7 @@ def get_pricing_plans() -> dict:
 				"yearly_price": float(p.get("yearly_price") or 0),
 				"currency": p.get("currency") or "EUR",
 				"commission_rate": float(p.get("commission_rate") or 0),
+				"commission_custom": bool(p.get("commission_is_custom")),
 				"max_active_listings": int(p.get("max_active_listings") or 0),
 				"cta_label": p.get("cta_label") or _("Devam et"),
 				"cta_action": p.get("cta_action") or "signup",
@@ -218,10 +220,11 @@ def get_pricing_plans() -> dict:
 		code = p.get("plan_code")
 		if not code:
 			continue
-		cr = p.get("commission_rate")
-		# Kart ile aynı: oran > 0 → "%17" / "%6.5", aksi halde "Özel".
+		cr = float(p.get("commission_rate") or 0)
+		# Kart ile aynı: admin komisyonu boş bıraktıysa (commission_is_custom)
+		# "Özel"; aksi halde gerçek oran — 0 dahil ("%0" geçerli pazarlama değeri).
 		plan_field_overrides[("quota.commission_rate", code)] = (
-			f"%{int(cr) if float(cr).is_integer() else cr}" if cr is not None and float(cr) > 0 else _("Özel")
+			_("Özel") if p.get("commission_is_custom") else f"%{int(cr) if cr.is_integer() else cr}"
 		)
 		mal = p.get("max_active_listings")
 		# Kart `fmtListings` ile aynı: > 0 → tr-TR binlik ayraç ("2.500"),
