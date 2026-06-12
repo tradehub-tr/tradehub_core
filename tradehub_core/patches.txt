@@ -185,3 +185,4 @@ tradehub_core.patches.v15_7_9_bije_field_severity
 tradehub_core.patches.v15_7_5_seed_subscription_nav
 tradehub_core.patches.v15_8_0_bij_image_overrides
 tradehub_core.patches.v15_8_1_seller_owner_asp_docperm
+tradehub_core.patches.v15_8_2_seller_owner_sibling_docperms
