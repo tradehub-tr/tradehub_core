@@ -7,6 +7,7 @@ import frappe
 from frappe import _
 
 from tradehub_core.entitlement.core import enforce_feature
+from tradehub_core.utils.tenant import get_current_seller_profile
 
 # Toplu içe aktarım Pro+ özelliği (plan kapısı; platform admin muaf).
 _BULK_IMPORT_FEATURE = "feature.pim.bulk_import"
@@ -26,6 +27,7 @@ def start_product_import(
 	header_row: int = 1,
 	sheet_name: str | None = None,
 	remember_mapping: int = 1,
+	image_overrides: str | None = None,
 ) -> dict:
 	"""Bulk import job oluştur ve enqueue et.
 
@@ -39,11 +41,7 @@ def start_product_import(
 	    remember_mapping: 1 ise onaylanan eşleştirme satıcı profili olarak kaydedilir
 	"""
 	enforce_feature(_BULK_IMPORT_FEATURE, "Toplu İçe Aktarım")
-	seller = frappe.db.get_value(
-		"Admin Seller Profile",
-		{"owner": frappe.session.user},
-		"name",
-	)
+	seller = get_current_seller_profile()
 	if not seller:
 		frappe.throw(_("Satıcı profili bulunamadı"))
 
@@ -86,6 +84,7 @@ def start_product_import(
 	job.header_row = header_row_int
 	job.sheet_name = sheet_name
 	job.remember_mapping = 1 if str(remember_mapping) in ("1", "True", "true") else 0
+	job.image_overrides = image_overrides
 	job.status = "Queued"
 	job.insert()
 
@@ -169,11 +168,7 @@ def dry_run_preview(
 	from tradehub_core.bulk_import.ingestion import resolver
 	from tradehub_core.bulk_import.parsers import csv_parser, xlsx_parser, xml_parser
 
-	seller = frappe.db.get_value(
-		"Admin Seller Profile",
-		{"owner": frappe.session.user},
-		"name",
-	)
+	seller = get_current_seller_profile()
 	if not seller:
 		frappe.throw(_("Satıcı profili bulunamadı"))
 
@@ -244,6 +239,70 @@ def dry_run_preview(
 	result["sheet_names"] = layout["sheet_names"]
 	result["needs_header_pick"] = layout["needs_header_pick"]
 	return result
+
+
+@frappe.whitelist()
+def preview_image_archive(
+	images_zip_id: str,
+	file_id: str,
+	column_mapping: str | None = None,
+	header_row: int | None = None,
+	sheet_name: str | None = None,
+) -> dict:
+	"""Görsel ZIP'ini commit ÖNCESİ eşleştir (File KAYDETMEDEN) → 'Görseller' adımı.
+
+	SKU sözlüğü veri dosyasından çıkarılır; ZIP içeriği derinlik-bağımsız eşlenir.
+	Döner: {matched:[{sku,count,thumb}], orphans:[{folder,label,count,thumbs}], total_images}.
+	"""
+	enforce_feature(_BULK_IMPORT_FEATURE, "Toplu İçe Aktarım")
+	from tradehub_core.bulk_import import image_matcher
+	from tradehub_core.bulk_import.ingestion import resolver
+	from tradehub_core.bulk_import.parsers import csv_parser, xlsx_parser, xml_parser
+
+	seller = frappe.db.get_value("Admin Seller Profile", {"owner": frappe.session.user}, "name")
+	if not seller and "System Manager" not in frappe.get_roles():
+		frappe.throw(_("Satıcı profili bulunamadı"))
+
+	# Veri dosyasını parse et → SKU kümesi (görsel eşleştirme sözlüğü)
+	data_doc = frappe.get_doc("File", file_id)
+	file_format = _detect_format(data_doc.file_name)
+	data_path = _file_absolute_path(data_doc)
+	try:
+		header_row_int = int(header_row) if header_row not in (None, "", 0, "0") else 1
+	except (ValueError, TypeError):
+		header_row_int = 1
+	if file_format == "xlsx":
+		headers, rows = xlsx_parser.parse_xlsx(data_path, sheet_name, header_row_int)
+	elif file_format == "csv":
+		headers, rows = csv_parser.parse_csv(data_path, header_row_int)
+	else:
+		headers, rows = xml_parser.parse_xml(data_path)
+
+	mapping: dict = {}
+	if column_mapping:
+		try:
+			mapping = json.loads(column_mapping)
+		except (ValueError, TypeError):
+			mapping = {}
+	if not mapping:
+		mapping = resolver.resolve_columns(headers, seller).get("mapping", {})
+
+	known: set[str] = set()
+	for col in (mapping.get("sku"), mapping.get("variant_sku")):
+		if not col:
+			continue
+		for r in rows:
+			v = r.get(col)
+			if v:
+				k = image_matcher.normalize_sku_key(v)
+				if k:
+					known.add(k)
+
+	zip_doc = frappe.get_doc("File", images_zip_id)
+	if (zip_doc.file_size or 0) > MAX_IMAGES_ZIP_BYTES:
+		frappe.throw(_("Resim ZIP'i {0} MB'ı aşamaz").format(MAX_IMAGES_ZIP_BYTES // (1024 * 1024)))
+	zip_path = _file_absolute_path(zip_doc)
+	return image_matcher.preview_zip_grouping(zip_path, known, seller)
 
 
 def _compute_dry_run(
@@ -403,11 +462,7 @@ def get_my_history(limit: int = DEFAULT_HISTORY_LIMIT) -> list:
 		_enrich_seller_names(jobs)
 		return jobs
 
-	seller = frappe.db.get_value(
-		"Admin Seller Profile",
-		{"owner": frappe.session.user},
-		"name",
-	)
+	seller = get_current_seller_profile()
 	if not seller:
 		return []
 
@@ -756,12 +811,18 @@ def download_image_archive_sample() -> None:
 	readme = (
 		"GORSEL ARSIVI NASIL HAZIRLANIR\n"
 		"==============================\n\n"
-		"Gorseller urunun STOK KODU (SKU) ile eslesir. Tek ZIP icinde yukleyin.\n\n"
+		"Gorseller urunun STOK KODU (SKU) ile eslesir. Tek ZIP icinde yukleyin.\n"
+		"En fazla 50 MB. Daha buyukse gorselleri kuculterek/azaltarak yukleyin\n"
+		"(sistem ayrica gorselleri web boyutuna otomatik optimize eder).\n\n"
 		"1) Tek gorsel:      URUN-001.jpg                  (dosya adi = SKU)\n"
 		"2) Coklu (klasor):  URUN-002/1.jpg, URUN-002/2.jpg (klasor adi = SKU)\n"
 		"3) Coklu (suffix):  URUN-003_1.jpg, URUN-003_2.jpg (SKU_1, SKU_2 ...)\n\n"
+		"Klasorler kategori altinda da olabilir; sistem SKU'yu yolun her\n"
+		"derinliginde bulur:   Kategori/URUN-001/1.jpg\n\n"
 		"Varyantli urunlerde VARYANT SKU'su ile de eslesir:\n"
 		"   URUN-004-KIRMIZI-40.jpg\n\n"
+		"Eslesmeyen gorseller icin yukleme sirasinda 'Gorseller' adiminda\n"
+		"manuel olarak ilgili urune atayabilirsiniz.\n\n"
 		"Desteklenen formatlar: .jpg .jpeg .png .webp\n"
 		"Ornek gorseller yer tutucudur; kendi gorsellerinizle degistirin.\n"
 	)
@@ -1015,11 +1076,7 @@ def discover_xml_schema(file_id: str) -> dict:
 		)
 
 	# Önerilen mapping mevcut resolver kaskadından (profile → regex → semantic) gelir
-	seller = frappe.db.get_value(
-		"Admin Seller Profile",
-		{"owner": frappe.session.user},
-		"name",
-	)
+	seller = get_current_seller_profile()
 	suggested: dict = {}
 	if seller:
 		try:
@@ -1052,11 +1109,7 @@ def save_xml_mapping(file_id: str, mapping: str, source_format: str = "xml") -> 
 	from tradehub_core.bulk_import.ingestion import profile_store
 	from tradehub_core.bulk_import.parsers import xml_parser
 
-	seller = frappe.db.get_value(
-		"Admin Seller Profile",
-		{"owner": frappe.session.user},
-		"name",
-	)
+	seller = get_current_seller_profile()
 	if not seller:
 		frappe.throw(_("Satıcı profili bulunamadı"))
 
@@ -1157,11 +1210,7 @@ def upload_bulk_file(file_name: str, file_content: str, kind: str = "data") -> d
 		)
 
 	# Satıcı yetkisi
-	seller = frappe.db.get_value(
-		"Admin Seller Profile",
-		{"owner": frappe.session.user},
-		"name",
-	)
+	seller = get_current_seller_profile()
 	if not seller and "System Manager" not in frappe.get_roles():
 		frappe.throw(_("Satıcı profili bulunamadı"))
 

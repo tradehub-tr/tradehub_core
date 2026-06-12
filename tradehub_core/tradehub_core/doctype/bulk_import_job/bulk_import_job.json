@@ -20,6 +20,7 @@
   "sheet_name",
   "column_mapping",
   "remember_mapping",
+  "image_overrides",
   "section_progress",
   "status",
   "started_at",
@@ -115,6 +116,12 @@
    "fieldname": "remember_mapping",
    "fieldtype": "Check",
    "label": "Eşleştirmeyi Hatırla"
+  },
+  {
+   "description": "Yetim görsel klasörü → SKU/yoksay manuel atamaları (JSON).",
+   "fieldname": "image_overrides",
+   "fieldtype": "Long Text",
+   "label": "Görsel Atamaları (JSON)"
   },
   {
    "fieldname": "section_progress",

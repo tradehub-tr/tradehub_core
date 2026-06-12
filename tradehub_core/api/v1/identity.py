@@ -229,7 +229,7 @@ def send_registration_otp(email: str):
 	frappe.cache.set_value(
 		f"registration_otp:{email}",
 		json.dumps({"code": otp_code, "attempts": 0}),
-		expires_in_sec=600,
+		expires_in_sec=1800,
 	)
 
 	frappe.sendmail(
@@ -241,7 +241,7 @@ def send_registration_otp(email: str):
 		communication=False,
 	)
 
-	return {"success": True, "expires_in_minutes": 10}
+	return {"success": True, "expires_in_minutes": 30}
 
 
 @frappe.whitelist(allow_guest=True, methods=["POST"])
@@ -285,7 +285,7 @@ def verify_registration_otp(email: str, code: str):
 		frappe.cache.set_value(
 			cache_key,
 			json.dumps(otp_data),
-			expires_in_sec=600,
+			expires_in_sec=1800,
 		)
 		# Frontend uses this to render the staged "Kalan deneme" UX; capped at 0
 		# so the lockout case stays consistent with the 429 branch above.
@@ -1468,7 +1468,7 @@ def resend_verification_email():
 	frappe.cache.set_value(
 		f"reverify_otp:{user}",
 		json.dumps({"code": otp_code, "attempts": 0}),
-		expires_in_sec=600,
+		expires_in_sec=1800,
 	)
 
 	frappe.sendmail(
@@ -1480,7 +1480,7 @@ def resend_verification_email():
 		communication=False,
 	)
 
-	return {"success": True, "expires_in_minutes": 10}
+	return {"success": True, "expires_in_minutes": 30}
 
 
 @frappe.whitelist(methods=["POST"])
@@ -1577,7 +1577,7 @@ def verify_email_otp(code: str):
 
 	if (code or "").strip() != data.get("code"):
 		data["attempts"] = data.get("attempts", 0) + 1
-		frappe.cache.set_value(cache_key, json.dumps(data), expires_in_sec=600)
+		frappe.cache.set_value(cache_key, json.dumps(data), expires_in_sec=1800)
 		frappe.local.response["http_status_code"] = 422
 		frappe.local.response["attempts_remaining"] = max(0, OTP_MAX_ATTEMPTS - data["attempts"])
 		frappe.throw(_("Wrong verification code."), frappe.ValidationError)

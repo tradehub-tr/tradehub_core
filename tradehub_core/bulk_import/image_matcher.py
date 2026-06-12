@@ -137,6 +137,7 @@ def build_image_index(
 	zip_path: str,
 	seller_profile: str,
 	known_skus: set[str] | list[str] | None = None,
+	image_overrides: dict[str, str] | None = None,
 ) -> tuple[dict[str, list[str]], list[str]]:
 	"""ZIP'i aç ve (SKU → [File URLs], yetim_dosyalar) döndür.
 
@@ -144,11 +145,14 @@ def build_image_index(
 	gerçek ürün SKU listesine göre eşler — derin yuvalama, kategori sarmalı,
 	"325 LOGOSUZ" eki, "308-1" varyantı belirsizlik olmadan çözülür.
 	known_skus boşsa: geriye uyumlu eski davranış (üst-klasör=SKU + SKU.jpg).
+	image_overrides: {klasör_anahtarı: sku | "__ignore__"} — kullanıcının 'Görseller'
+	adımında yaptığı manuel atama; otomatik eşleştirmeyi ezer.
 	SKU anahtarları normalize edilir; orphans = hiçbir SKU'ya eşleşmeyen dosyalar.
 	"""
 	index: dict[str, list[str]] = {}
 	orphans: list[str] = []
 	known = {normalize_sku_key(s) for s in (known_skus or []) if s}
+	overrides = image_overrides or {}
 
 	with zipfile.ZipFile(zip_path, "r") as zf:
 		names = zf.namelist()
@@ -177,6 +181,13 @@ def build_image_index(
 			# SKU-küme-bilinçli, derinlik-bağımsız eşleştirme.
 			groups: dict[str, list[str]] = {}
 			for name, norm in valid:
+				# Kullanıcı manuel atama yaptıysa (Görseller adımı) otomatiği ez.
+				ov = overrides.get(_orphan_key(norm)[0])
+				if ov == "__ignore__":
+					continue  # bilinçli yoksay
+				if ov:
+					groups.setdefault(normalize_sku_key(ov), []).append(name)
+					continue
 				sku = _match_sku_in_path(norm, known, seller_profile)
 				if sku:
 					groups.setdefault(sku, []).append(name)
@@ -257,3 +268,102 @@ def _extract_and_save(
 			"bulk_import.image_matcher",
 		)
 		return None
+
+
+def _orphan_key(norm_name: str) -> tuple[str, str]:
+	"""Yetim dosya için (override anahtarı, görünen etiket).
+
+	Klasör altıysa: anahtar = tam üst klasör yolu, etiket = son segment.
+	Top-level ise: anahtar = dosya adı, etiket = dosya adı.
+	"""
+	if "/" in norm_name:
+		folder = norm_name.rsplit("/", 1)[0]
+		return folder, folder.rsplit("/", 1)[-1]
+	return norm_name, norm_name
+
+
+def _thumb_data_url(zf: zipfile.ZipFile, entry: str, px: int = 80) -> str | None:
+	"""ZIP içindeki görseli küçük base64 data-URL thumbnail'a çevir (File kaydetmeden)."""
+	try:
+		import base64
+		import io
+
+		from PIL import Image
+
+		content = zf.read(entry)
+		if not _looks_like_image(content):
+			return None
+		im = Image.open(io.BytesIO(content))
+		if getattr(im, "is_animated", False):
+			im.seek(0)
+		im = im.convert("RGB")
+		im.thumbnail((px, px))
+		buf = io.BytesIO()
+		im.save(buf, "JPEG", quality=70)
+		return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode("ascii")
+	except Exception:
+		return None
+
+
+def preview_zip_grouping(
+	zip_path: str,
+	known_skus: set[str] | list[str] | None,
+	seller_profile: str,
+	max_thumbs_per_group: int = 6,
+) -> dict:
+	"""Önizleme: ZIP'i SKU'lara eşle — File KAYDETMEDEN — eşleşen/yetim grupları +
+	base64 thumbnail döndür. Sihirbazın 'Görseller' adımı bunu kullanır.
+
+	Returns:
+		{
+			"matched": [{"sku", "count", "thumb"}],
+			"orphans": [{"folder", "label", "count", "thumbs": [data-url, ...]}],
+			"total_images": int,
+		}
+	"""
+	known = {normalize_sku_key(s) for s in (known_skus or []) if s}
+	matched_groups: dict[str, list[str]] = {}
+	orphan_groups: dict[str, dict] = {}  # key -> {label, files}
+
+	with zipfile.ZipFile(zip_path, "r") as zf:
+		names = zf.namelist()
+		if len(names) > MAX_FILES_IN_ZIP:
+			frappe.throw(_("ZIP'te {0}'den fazla dosya var").format(MAX_FILES_IN_ZIP))
+
+		for name in names:
+			if name.startswith("__MACOSX/") or name.startswith("._") or "/._" in name:
+				continue
+			if name.endswith("/"):
+				continue
+			if os.path.splitext(name)[1].lower() not in ALLOWED_EXT:
+				continue
+			norm = os.path.normpath(name).replace("\\", "/")
+			if norm.startswith("..") or norm.startswith("/") or os.path.isabs(norm):
+				continue
+
+			sku = _match_sku_in_path(norm, known, seller_profile) if known else None
+			if sku:
+				matched_groups.setdefault(sku, []).append(name)
+			else:
+				key, label = _orphan_key(norm)
+				grp = orphan_groups.setdefault(key, {"label": label, "files": []})
+				grp["files"].append(name)
+
+		matched = []
+		for sku, files in sorted(matched_groups.items()):
+			files.sort(key=_natural_key)
+			matched.append(
+				{"sku": sku, "count": len(files), "thumb": _thumb_data_url(zf, files[0])}
+			)
+
+		orphans = []
+		for key, grp in sorted(orphan_groups.items()):
+			files = sorted(grp["files"], key=_natural_key)
+			thumbs = [t for t in (_thumb_data_url(zf, f) for f in files[:max_thumbs_per_group]) if t]
+			orphans.append(
+				{"folder": key, "label": grp["label"], "count": len(files), "thumbs": thumbs}
+			)
+
+	total = sum(m["count"] for m in matched) + sum(o["count"] for o in orphans)
+	# skus: yetim atama dropdown'ı için bu yüklemedeki tüm SKU'lar (sıralı).
+	return {"matched": matched, "orphans": orphans, "total_images": total, "skus": sorted(known)}

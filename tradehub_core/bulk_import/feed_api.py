@@ -17,6 +17,8 @@ import tempfile
 import frappe
 from frappe import _
 
+from tradehub_core.utils.tenant import get_current_seller_profile
+
 FEED_DOCTYPE = "Seller XML Feed"
 PREVIEW_SAMPLE_LIMIT = 5
 _ADMIN_ROLES = {"System Manager", "Marketplace Admin"}
@@ -34,11 +36,7 @@ def _require_xml_feed_feature(seller: str) -> None:
 
 def _current_seller() -> str:
 	"""Oturum kullanicisinin Admin Seller Profile name'ini dondur, yoksa throw."""
-	seller = frappe.db.get_value(
-		"Admin Seller Profile",
-		{"owner": frappe.session.user},
-		"name",
-	)
+	seller = get_current_seller_profile()
 	if not seller:
 		frappe.throw(_("Satıcı profili bulunamadı"))
 	return seller
