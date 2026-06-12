@@ -27,8 +27,8 @@ from frappe.utils.password import update_password
 
 from tradehub_core.api.v1.auth import _generate_member_id
 
-DEMO_SELLER_PASSWORD = "Demo1234!"
-DEMO_BUYER_PASSWORD = "Demo1234!"
+DEMO_SELLER_PASSWORD = "Turksab2026!"
+DEMO_BUYER_PASSWORD = "Turksab2026!"
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -75,6 +75,12 @@ SELLER_LOGO_ICONS = {
 	"DEMO-008": ("cup", "c2410c"),  # Mutfak ve Züccaciye
 	"DEMO-009": ("gem", "a16207"),  # Bijuteri ve Aksesuar
 	"DEMO-010": ("boxSeam", "1d4ed8"),  # Ambalaj ve Kırtasiye
+	"DEMO-011": ("scissors", "7c3aed"),  # Şeker Tekstil (giyim)
+	"DEMO-012": ("basket", "16a34a"),  # Bal Gıda (gıda)
+	"DEMO-013": ("laptop", "0284c7"),  # Aydeğer Elektronik (elektronik)
+	"DEMO-014": ("handbag", "92400e"),  # Jenerik ayakkabı/deri
+	"DEMO-015": ("palette", "db2777"),  # Jenerik kozmetik
+	"DEMO-016": ("house", "0d9488"),  # Jenerik ev tekstili
 }
 
 
@@ -117,6 +123,12 @@ SELLER_FACTORY_IMAGES = {
 	"DEMO-008": [36423795, 5532716, 18631424],  # Cam/züccaciye/şişeleme
 	"DEMO-009": [7167035, 7167004, 15955332, 33873067],  # Kuyum atölyesi
 	"DEMO-010": [36376366, 9550363, 19837529],  # Ambalaj/matbaa
+	"DEMO-011": [31091544, 6525848, 31212954, 31112181],  # Tekstil (giyim)
+	"DEMO-012": [5953663, 5532664, 18631424, 5953831],  # Gıda üretim hattı
+	"DEMO-013": [5554948, 5554949, 36522029, 4211136],  # Elektronik/PCB
+	"DEMO-014": [13524733, 30433081, 11463568, 5894231],  # Ayakkabı/deri atölyesi
+	"DEMO-015": [15831825, 37650270, 37466061, 20684151],  # Kozmetik laboratuvarı
+	"DEMO-016": [31112181, 6525848, 31212954, 31091544],  # Ev tekstili (dokuma)
 }
 
 # Sektöre uygun fabrika videosu (Pexels CC0, media_type=video). Şimdilik metal/
@@ -923,6 +935,192 @@ SELLERS = [
 		"commission_rate": 9.0,
 		"main_markets": "Türkiye",
 	},
+	{
+		"code": "DEMO-011",
+		"seller_name": "Şeker Tekstil",
+		"company_name": "Şeker Tekstil Sanayi ve Ticaret A.Ş.",
+		"email": "ahmet.seker@turksab.com",
+		"sector": "Tekstil ve Giyim",
+		"variant_type": "giyim",
+		"price_range": (30, 500),
+		"description": "Şeker Tekstil, pamuklu örme ve dokuma kumaşta uzmanlaşmış, toptan tekstil üretimi yapan köklü bir firmadır. Geniş renk ve gramaj seçenekleriyle kurumsal alıcılara özel üretim sunar.",
+		"slogan": "Pamuğun En Saf Hâli",
+		"business_type": "Manufacturer",
+		"founded_year": "1997",
+		"staff_count": "95",
+		"annual_revenue": "38M+ TL",
+		"factory_size": "2200 m²",
+		"certifications": "ISO 9001, OEKO-TEX Standard 100, GOTS",
+		"phone": "+90 212 438 00 11",
+		"website": "https://sekertekstil.demo.istoc.com",
+		"address_line1": "İstoç Ticaret Merkezi 11. Ada No:9",
+		"district": "Bağcılar",
+		"city": "İstanbul",
+		"postal_code": "34030",
+		"bank_name": "Garanti BBVA",
+		"iban": "TR00 0001 0000 0000 0000 0011 11",
+		"account_holder": "Şeker Tekstil San. Tic. A.Ş.",
+		"tax_id": "1234567011",
+		"tax_office": "Bağcılar VD",
+		"subscription_plan": "Pro",
+		"commission_rate": 6.5,
+		"main_markets": "Türkiye, Almanya, Hollanda",
+	},
+	{
+		"code": "DEMO-012",
+		"seller_name": "Bal Gıda",
+		"company_name": "Bal Gıda Tarım Ürünleri Tic. A.Ş.",
+		"email": "ali.bal@turksab.com",
+		"sector": "Gıda ve İçecek",
+		"variant_type": "gida",
+		"price_range": (10, 250),
+		"description": "Bal Gıda, doğal bal, kuruyemiş ve organik bakliyat tedarikinde uzmanlaşmış bir toptancıdır. Üretici köylerden doğrudan tedarik ile rekabetçi fiyat ve izlenebilir kalite sunar.",
+		"slogan": "Doğanın Bereketi, Toptan Fiyatla",
+		"business_type": "Wholesaler",
+		"founded_year": "2004",
+		"staff_count": "48",
+		"annual_revenue": "22M+ TL",
+		"factory_size": "1600 m²",
+		"certifications": "ISO 22000, HACCP, Organik Sertifika, Helal",
+		"phone": "+90 212 438 00 12",
+		"website": "https://balgida.demo.istoc.com",
+		"address_line1": "İstoç Ticaret Merkezi 12. Ada No:4",
+		"district": "Bağcılar",
+		"city": "İstanbul",
+		"postal_code": "34030",
+		"bank_name": "Ziraat Bankası",
+		"iban": "TR00 0001 0000 0000 0000 0012 12",
+		"account_holder": "Bal Gıda Tic. A.Ş.",
+		"tax_id": "1234567012",
+		"tax_office": "Bağcılar VD",
+		"subscription_plan": "Pro",
+		"commission_rate": 5.5,
+		"main_markets": "Türkiye, Almanya, BAE",
+	},
+	{
+		"code": "DEMO-013",
+		"seller_name": "Aydeğer Elektronik",
+		"company_name": "Aydeğer Elektronik Tic. Ltd. Şti.",
+		"email": "bora.aydeger@turksab.com",
+		"sector": "Elektronik ve Aksesuar",
+		"variant_type": "elektronik",
+		"price_range": (15, 500),
+		"description": "Aydeğer Elektronik, telefon ve bilgisayar aksesuarlarında geniş stok ve hızlı sevkiyat sunan toptancı firmadır. Orijinal ürün garantisi ve kurumsal fatura ile çalışır.",
+		"slogan": "Teknolojiye Hızlı Erişim",
+		"business_type": "Wholesaler",
+		"founded_year": "2009",
+		"staff_count": "38",
+		"annual_revenue": "27M+ TL",
+		"factory_size": "700 m²",
+		"certifications": "CE, RoHS, FCC",
+		"phone": "+90 212 438 00 13",
+		"website": "https://aydegerelektronik.demo.istoc.com",
+		"address_line1": "İstoç Ticaret Merkezi 13. Ada No:21",
+		"district": "Bağcılar",
+		"city": "İstanbul",
+		"postal_code": "34030",
+		"bank_name": "Yapı Kredi",
+		"iban": "TR00 0001 0000 0000 0000 0013 13",
+		"account_holder": "Aydeğer Elektronik Tic. Ltd. Şti.",
+		"tax_id": "1234567013",
+		"tax_office": "Bağcılar VD",
+		"subscription_plan": "Pro",
+		"commission_rate": 8.0,
+		"main_markets": "Türkiye, Orta Doğu",
+	},
+	{
+		"code": "DEMO-014",
+		"seller_name": "Anadolu Ayakkabı",
+		"company_name": "Anadolu Ayakkabı ve Deri San. Tic. A.Ş.",
+		"email": "demo-seller-14@istoc.demo",
+		"sector": "Ayakkabı ve Deri",
+		"variant_type": "ayakkabi",
+		"price_range": (80, 1500),
+		"description": "Anadolu Ayakkabı, klasik ve günlük deri ayakkabı üretiminde el işçiliğiyle öne çıkan bir üretici firmadır. Toptan alımlarda özel kalıp ve renk seçenekleri sunar.",
+		"slogan": "Adımlarınıza Değer Katan Kalite",
+		"business_type": "Manufacturer",
+		"founded_year": "1994",
+		"staff_count": "72",
+		"annual_revenue": "30M+ TL",
+		"factory_size": "1500 m²",
+		"certifications": "ISO 9001, CE, Deri Sertifikası",
+		"phone": "+90 212 438 00 14",
+		"website": "https://anadoluayakkabi.demo.istoc.com",
+		"address_line1": "İstoç Ticaret Merkezi 14. Ada No:7",
+		"district": "Bağcılar",
+		"city": "İstanbul",
+		"postal_code": "34030",
+		"bank_name": "İş Bankası",
+		"iban": "TR00 0001 0000 0000 0000 0014 14",
+		"account_holder": "Anadolu Ayakkabı San. Tic. A.Ş.",
+		"tax_id": "1234567014",
+		"tax_office": "Bağcılar VD",
+		"subscription_plan": "Pro",
+		"commission_rate": 7.0,
+		"main_markets": "Türkiye, Rusya, Irak",
+	},
+	{
+		"code": "DEMO-015",
+		"seller_name": "Lale Kozmetik",
+		"company_name": "Lale Kozmetik ve Kişisel Bakım San. A.Ş.",
+		"email": "demo-seller-15@istoc.demo",
+		"sector": "Kozmetik ve Kişisel Bakım",
+		"variant_type": "kozmetik",
+		"price_range": (15, 400),
+		"description": "Lale Kozmetik, cilt bakımı ve makyaj ürünlerinde yerli üretim yapan, dermatolojik test standartlarına uygun bir üretici firmadır. Özel marka (private label) üretimine açıktır.",
+		"slogan": "Bakımın İnce Dokunuşu",
+		"business_type": "Manufacturer",
+		"founded_year": "2006",
+		"staff_count": "64",
+		"annual_revenue": "24M+ TL",
+		"factory_size": "1400 m²",
+		"certifications": "ISO 22716 (GMP), ISO 9001, Cruelty-Free",
+		"phone": "+90 212 438 00 15",
+		"website": "https://lalekozmetik.demo.istoc.com",
+		"address_line1": "İstoç Ticaret Merkezi 15. Ada No:13",
+		"district": "Bağcılar",
+		"city": "İstanbul",
+		"postal_code": "34030",
+		"bank_name": "Akbank",
+		"iban": "TR00 0001 0000 0000 0000 0015 15",
+		"account_holder": "Lale Kozmetik San. A.Ş.",
+		"tax_id": "1234567015",
+		"tax_office": "Bağcılar VD",
+		"subscription_plan": "Pro",
+		"commission_rate": 8.0,
+		"main_markets": "Türkiye, Rusya, Kazakistan",
+	},
+	{
+		"code": "DEMO-016",
+		"seller_name": "Marmara Ev Tekstili",
+		"company_name": "Marmara Ev Tekstili San. Tic. A.Ş.",
+		"email": "demo-seller-16@istoc.demo",
+		"sector": "Ev Tekstili ve Dekorasyon",
+		"variant_type": "ev_tekstili",
+		"price_range": (25, 800),
+		"description": "Marmara Ev Tekstili, nevresim, havlu ve dekoratif ev ürünlerinde modern koleksiyonlar sunan bir üretici firmadır. Yüksek iplik kalitesi ve dayanıklı boya teknolojisiyle öne çıkar.",
+		"slogan": "Evinizin Sıcak Dokusu",
+		"business_type": "Manufacturer",
+		"founded_year": "1999",
+		"staff_count": "88",
+		"annual_revenue": "33M+ TL",
+		"factory_size": "2600 m²",
+		"certifications": "ISO 9001, OEKO-TEX Standard 100, GOTS",
+		"phone": "+90 212 438 00 16",
+		"website": "https://marmaraev.demo.istoc.com",
+		"address_line1": "İstoç Ticaret Merkezi 16. Ada No:6",
+		"district": "Bağcılar",
+		"city": "İstanbul",
+		"postal_code": "34030",
+		"bank_name": "Garanti BBVA",
+		"iban": "TR00 0001 0000 0000 0000 0016 16",
+		"account_holder": "Marmara Ev Tekstili San. Tic. A.Ş.",
+		"tax_id": "1234567016",
+		"tax_office": "Bağcılar VD",
+		"subscription_plan": "Pro",
+		"commission_rate": 6.5,
+		"main_markets": "Türkiye, Almanya, Fransa",
+	},
 ]
 
 
@@ -946,6 +1144,12 @@ DEMO_KYB_STATUSES = {
 	7: "Verified",  # Akdeniz Mutfak ve Züccaciye
 	8: "Verified",  # Osmanlı Aksesuar
 	9: "Verified",  # Yıldız Ambalaj ve Kırtasiye
+	10: "Verified",  # Şeker Tekstil
+	11: "Verified",  # Bal Gıda
+	12: "Verified",  # Aydeğer Elektronik
+	13: "Verified",  # Anadolu Ayakkabı
+	14: "Verified",  # Lale Kozmetik
+	15: "Verified",  # Marmara Ev Tekstili
 }
 
 DEMO_KYB_REJECTION_REASON = (
@@ -971,6 +1175,15 @@ DEMO_KYB_DOC_FIELDS = (
 	"vergi_levhasi",
 	"bank_account_document",
 )
+
+# Demo satıcı olarak kullanılan GERÇEK ekip e-postaları (demo-seller-%@istoc.demo
+# desenine uymaz). cleanup() bunların demo artefaktlarını temizler AMA User hesabını
+# ASLA silmez (gerçek login korunur).
+NAMED_DEMO_SELLER_EMAILS = [
+	"ahmet.seker@turksab.com",
+	"ali.bal@turksab.com",
+	"bora.aydeger@turksab.com",
+]
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -2868,6 +3081,54 @@ SELLER_SECTORS = {
 			("Ambalaj ve Çanta", ["womens-bags"]),
 		],
 	},
+	"DEMO-011": {
+		"sector_name": "Tekstil ve Giyim",
+		"sector_code": "TG",
+		"groups": [
+			("Erkek Giyim", ["mens-shirts"]),
+			("Kadın Giyim", ["tops", "womens-dresses"]),
+		],
+	},
+	"DEMO-012": {
+		"sector_name": "Gıda ve İçecek",
+		"sector_code": "GD",
+		"groups": [
+			("Market", ["groceries"]),
+		],
+	},
+	"DEMO-013": {
+		"sector_name": "Elektronik ve Aksesuar",
+		"sector_code": "EL",
+		"groups": [
+			("Telefon", ["smartphones", "mobile-accessories"]),
+			("Bilgisayar", ["laptops", "tablets"]),
+		],
+	},
+	"DEMO-014": {
+		"sector_name": "Ayakkabı ve Deri",
+		"sector_code": "AD",
+		"groups": [
+			("Erkek Ayakkabı", ["mens-shoes"]),
+			("Kadın Ayakkabı", ["womens-shoes"]),
+			("Çantalar", ["womens-bags"]),
+		],
+	},
+	"DEMO-015": {
+		"sector_name": "Kozmetik ve Kişisel Bakım",
+		"sector_code": "KZ",
+		"groups": [
+			("Makyaj ve Bakım", ["beauty", "skin-care"]),
+			("Parfüm", ["fragrances"]),
+		],
+	},
+	"DEMO-016": {
+		"sector_name": "Ev Tekstili ve Dekorasyon",
+		"sector_code": "EV",
+		"groups": [
+			("Dekorasyon", ["home-decoration"]),
+			("Mobilya", ["furniture"]),
+		],
+	},
 }
 
 
@@ -3060,11 +3321,28 @@ def _ensure_seller(s):
 	contact_first, contact_last = SELLER_CONTACTS.get(s["code"], (s["seller_name"], ""))
 	_ensure_user(s["email"], contact_first, contact_last)
 
-	if frappe.db.exists("Admin Seller Profile", s["code"]):
+	# Aynı user başka bir kodla zaten satıcı olabilir (gerçek hesap; Admin Seller
+	# Profile.user UNIQUE). Bu durumda o profili demo koduna taşı (rename) ve aşağıda
+	# demo alanlarıyla güncelle — "convert" davranışı tüm ortamlarda tutarlı olsun.
+	existing_by_user = frappe.db.get_value("Admin Seller Profile", {"user": s["email"]}, "name")
+	converting = bool(existing_by_user) and existing_by_user != s["code"]
+	if converting:
+		# ignore_permissions kwarg'ı yok; _seed zaten frappe.flags.ignore_permissions=True set etti.
+		frappe.rename_doc("Admin Seller Profile", existing_by_user, s["code"], force=True)
+
+	# Kod zaten varsa (ve dönüşüm değilse) idempotent erken çık — mevcut alanları ezme.
+	if not converting and frappe.db.exists("Admin Seller Profile", s["code"]):
 		return s["code"]
 
-	doc = frappe.new_doc("Admin Seller Profile")
-	doc.seller_code = s["code"]
+	# Dönüşümde mevcut (rename edilmiş) doc'u demo alanlarıyla güncelle; aksi halde yeni oluştur.
+	if converting:
+		doc = frappe.get_doc("Admin Seller Profile", s["code"])
+		doc.seller_code = s["code"]
+		doc.set("certifications", [])
+		doc.set("gallery_images", [])
+	else:
+		doc = frappe.new_doc("Admin Seller Profile")
+		doc.seller_code = s["code"]
 	doc.seller_name = s["seller_name"]
 	doc.user = s["email"]
 	doc.status = "Active"
@@ -3167,7 +3445,10 @@ def _ensure_seller(s):
 		)
 
 	doc.flags.ignore_permissions = True
-	doc.insert(ignore_permissions=True)
+	if converting:
+		doc.save(ignore_permissions=True)
+	else:
+		doc.insert(ignore_permissions=True)
 	# Gerçek Seller Review kayıtları — "Şirket Değerlendirmeleri (0)" yerine dolu liste +
 	# rating/review_count'u tutarlı şekilde yeniden hesaplar.
 	_seed_seller_reviews(s["code"])
@@ -3518,6 +3799,14 @@ def _create_listing(
 	slug = _slug(base_title)
 	currency = "TRY" if frappe.db.exists("Currency", "TRY") else "USD"
 
+	# İdempotent guard: aynı satıcı + route için listing zaten varsa yeniden oluşturma
+	# (after_migrate her deploy'da çalıştığında çift kayıt oluşmasını engeller).
+	# route satıcı-içi benzersiz; aynı ürünü satan iki satıcı route'u paylaşabilir,
+	# bu yüzden seller_profile ile birlikte filtrelenir.
+	_existing_listing = frappe.db.exists("Listing", {"seller_profile": seller, "route": f"urun/{slug}"})
+	if _existing_listing:
+		return _existing_listing
+
 	# Varyant satırları (Listing Variant Item child table — 2-eksen destekli)
 	# Varyant görselleri: gerçek ürün galerisini tekrarla, yetmezse primary'ye düş
 	variant_image_pool = gallery + [primary_image]
@@ -3862,6 +4151,12 @@ SELLER_CONTACTS = {
 	"DEMO-008": ("Elif", "Aydın"),
 	"DEMO-009": ("Emre", "Koç"),
 	"DEMO-010": ("Selin", "Öztürk"),
+	"DEMO-011": ("Ahmet", "Şeker"),
+	"DEMO-012": ("Ali", "Bal"),
+	"DEMO-013": ("Bora", "Aydeğer"),
+	"DEMO-014": ("Murat", "Kaya"),
+	"DEMO-015": ("Elif", "Demir"),
+	"DEMO-016": ("Selin", "Yıldız"),
 }
 
 BRANDS = {
@@ -4539,10 +4834,11 @@ def seed_homepage_content():
 @frappe.whitelist()
 def execute():
 	"""
-	Demo veri oluştur: 10 satıcı · 5 alıcı · 500 kategori · 1.000 ürün
+	Demo veri oluştur: 16 satıcı · 5 alıcı · 500 kategori · 1.000+ ürün
 
-	Bu fonksiyon **önce `cleanup()`'ı çağırır** — eski demo verileri silip
-	yenilerini yeniden kurar. Böylece her çalıştırma deterministik sonuç verir.
+	Bu fonksiyon **önce `cleanup()`'ı çağırır** (`_seed(cleanup_first=True)`) — eski
+	demo verileri silip yenilerini yeniden kurar; her çalıştırma deterministik sonuç verir.
+	Otomatik (after_migrate) path için silmeyen idempotent varyant: `run_idempotent_seed`.
 
 	Kullanım (bench):
 	    bench --site <site> execute tradehub_core.seed_demo_data.execute
@@ -4554,6 +4850,18 @@ def execute():
 		"Admin Seller Profile", "create"
 	):
 		frappe.throw(_("Bu işlem için Administrator yetkisi gereklidir."))
+	return _seed(cleanup_first=True)
+
+
+def _seed(cleanup_first=True):
+	"""Demo veriyi kur.
+
+	cleanup_first=True  → önce mevcut demo veriyi siler, sonra sıfırdan kurar
+	                      (manuel `execute()` davranışı — deterministik reset).
+	cleanup_first=False → hiçbir şey silmez; yalnız eksik kayıtları ekler
+	                      (after_migrate idempotent path). Tüm `_ensure_*` fonksiyonları
+	                      ve `_create_listing` create-if-missing olduğundan güvenlidir.
+	"""
 	frappe.flags.ignore_permissions = True
 	frappe.flags.in_import = True
 	random.seed(42)  # Tekrarlanabilir sonuçlar
@@ -4564,10 +4872,11 @@ def execute():
 	print("  TradeHub Demo Data Seed")
 	print("=" * 60)
 
-	# ── −1. Oto-temizlik: eski demo verileri kaldır ───────────
-	print("\n[Oto-temizlik] Önceki demo veriler kaldırılıyor...")
-	cleanup(silent=True)
-	frappe.db.commit()
+	# ── −1. Oto-temizlik: yalnız cleanup_first=True iken eski demo verileri kaldır ──
+	if cleanup_first:
+		print("\n[Oto-temizlik] Önceki demo veriler kaldırılıyor...")
+		cleanup(silent=True)
+		frappe.db.commit()
 
 	# ── 0. Global sözlükler: kargo yöntemleri + spec attribute'ları ─
 	print("\n[0/6] Global sözlükler oluşturuluyor (Shipping Method, Product Attribute)...")
@@ -4805,6 +5114,24 @@ def execute():
 	print()
 
 
+def run_idempotent_seed():
+	"""after_migrate hook: site_config.demo_seed_enabled=1 olan sitelerde demo
+	seed'i cleanup ÇAĞIRMADAN idempotent çalıştırır.
+
+	- Bayrak yoksa no-op (lokal dev / ilgisiz siteler güvende).
+	- Hata migrate'i bozmasın diye geniş try/except + frappe.log_error.
+	  (Anti-pattern istisnası: after_migrate'de hata yutmak deploy'u korur; log var.)
+	"""
+	if not frappe.conf.get("demo_seed_enabled"):
+		return
+	try:
+		_seed(cleanup_first=False)
+		frappe.db.commit()
+	except Exception:
+		frappe.db.rollback()
+		frappe.log_error(frappe.get_traceback(), "run_idempotent_seed başarısız")
+
+
 @frappe.whitelist()
 def verify_email(user_email):
 	"""Belirtilen user için Buyer Profile.email_verified=1 yap (yoksa oluştur).
@@ -5008,12 +5335,26 @@ def cleanup(silent=False):
 		frappe.delete_doc("Admin Seller Profile", sp, force=True, ignore_permissions=True)
 	_p(f"  ✓ {len(demo_sellers)} Admin Seller Profile silindi")
 
+	# Korunan gerçek e-posta hesaplarının (NAMED_DEMO_SELLER_EMAILS) User kaydındaki
+	# tradehub_tenant link'i, az önce silinen DEMO-* profiline işaret ediyor olabilir.
+	# User'ı silmiyoruz (gerçek login) ama dangling link kalırsa _ensure_user save'i
+	# LinkValidationError ile patlar — bu yüzden link'i temizle (re-seed yeniden bağlar).
+	for _named_email in NAMED_DEMO_SELLER_EMAILS:
+		if frappe.db.exists("User", _named_email):
+			frappe.db.set_value("User", _named_email, "tradehub_tenant", None, update_modified=False)
+
 	# 5a. Seller Application (KYB + Seller Profile referans kayıtları için ilk silinir)
 	demo_apps = frappe.get_all(
 		"Seller Application",
 		filters={"applicant_user": ["like", "demo-seller-%@istoc.demo"]},
 		pluck="name",
 	)
+	demo_apps += frappe.get_all(
+		"Seller Application",
+		filters={"applicant_user": ["in", NAMED_DEMO_SELLER_EMAILS]},
+		pluck="name",
+	)
+	demo_apps = list(set(demo_apps))
 	for app in demo_apps:
 		frappe.delete_doc("Seller Application", app, force=True, ignore_permissions=True)
 	_p(f"  ✓ {len(demo_apps)} Seller Application silindi")
@@ -5024,6 +5365,12 @@ def cleanup(silent=False):
 		filters={"user": ["like", "demo-seller-%@istoc.demo"]},
 		pluck="name",
 	)
+	demo_kyb += frappe.get_all(
+		"KYB Verification",
+		filters={"user": ["in", NAMED_DEMO_SELLER_EMAILS]},
+		pluck="name",
+	)
+	demo_kyb = list(set(demo_kyb))
 	for k in demo_kyb:
 		frappe.delete_doc("KYB Verification", k, force=True, ignore_permissions=True)
 	_p(f"  ✓ {len(demo_kyb)} KYB Verification silindi")
@@ -5034,6 +5381,12 @@ def cleanup(silent=False):
 		filters={"user": ["like", "demo-seller-%@istoc.demo"]},
 		pluck="name",
 	)
+	demo_seller_profiles += frappe.get_all(
+		"Seller Profile",
+		filters={"user": ["in", NAMED_DEMO_SELLER_EMAILS]},
+		pluck="name",
+	)
+	demo_seller_profiles = list(set(demo_seller_profiles))
 	for sp in demo_seller_profiles:
 		frappe.delete_doc("Seller Profile", sp, force=True, ignore_permissions=True)
 	_p(f"  ✓ {len(demo_seller_profiles)} Seller Profile silindi")
@@ -5054,6 +5407,11 @@ def cleanup(silent=False):
 		filters={"user": ["like", "demo-seller-%@istoc.demo"]},
 		pluck="name",
 	)
+	kyc_sellers += frappe.get_all(
+		"KYC Verification",
+		filters={"user": ["in", NAMED_DEMO_SELLER_EMAILS]},
+		pluck="name",
+	)
 	kyc_buyers = frappe.get_all(
 		"KYC Verification",
 		filters={"user": ["like", "demo-buyer-%@istoc.demo"]},
@@ -5068,6 +5426,11 @@ def cleanup(silent=False):
 	up_sellers = frappe.get_all(
 		"User Profile",
 		filters={"user": ["like", "demo-seller-%@istoc.demo"]},
+		pluck="name",
+	)
+	up_sellers += frappe.get_all(
+		"User Profile",
+		filters={"user": ["in", NAMED_DEMO_SELLER_EMAILS]},
 		pluck="name",
 	)
 	up_buyers = frappe.get_all(

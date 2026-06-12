@@ -143,9 +143,7 @@ class TestBuildImageIndex(FrappeTestCase):
 				"FOTO - VIDEO/KATLANIR DOLAP/random.jpg": _JPEG,  # KOD yok → yetim
 			}
 		)
-		index, orphans = image_matcher.build_image_index(
-			self.zip_path, "__TEST__", known_skus={"307", "325"}
-		)
+		index, orphans = image_matcher.build_image_index(self.zip_path, "__TEST__", known_skus={"307", "325"})
 		self.assertEqual(len(index["307"]), 2)  # derin klasör eşleşti
 		self.assertEqual(len(index["325"]), 1)  # ekli klasör (token) eşleşti
 		self.assertIn("random.jpg", orphans)  # KOD'suz klasör yetim
@@ -267,9 +265,13 @@ class TestSkuFilenameExtraction(FrappeTestCase):
 	def test_named_group_extraction(self):
 		from tradehub_core.bulk_import import regex_lib
 
-		fake = [{"name": "L1", "target_field": "sku", "patterns": [
-			{"enabled": 1, "regex": r"^urun-(?P<sku>\d+)", "flags": "IGNORECASE"}
-		]}]
+		fake = [
+			{
+				"name": "L1",
+				"target_field": "sku",
+				"patterns": [{"enabled": 1, "regex": r"^urun-(?P<sku>\d+)", "flags": "IGNORECASE"}],
+			}
+		]
 		with patch.object(regex_lib, "_get_patterns", side_effect=lambda sp, cat: fake if sp is None else []):
 			self.assertEqual(regex_lib.extract_sku_from_filename("urun-12345.jpg", None), "12345")
 
