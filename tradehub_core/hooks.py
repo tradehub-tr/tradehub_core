@@ -299,10 +299,12 @@ doc_events = {
 	# read-only fields, so the in-memory metrics_credited would always be
 	# 0 and re-credit on every save (count inflated 2x, 3x, ...).
 	"Order": {
-		# FAZ 1.1 — Tenant izolasyonu (seller_profile cross-seller koruma).
-		# Order'da buyer create eder → before_insert'te seller_profile boş kalabilir
-		# (buyer'ın seller'ı yok); hook field'a dokunmaz. Cross-seller attempt'i
-		# (buyer A, seller Y'nin order ID'sini override etmeye çalışırsa) reddeder.
+		# FAZ 1.1 — Tenant izolasyonu. NOT: Order bir counterparty kaydıdır
+		# (seller = ürünün satıcısı, kaydı oluşturan alıcının kendi mağazası
+		# DEĞİL). Bu yüzden enforce/validate hook'ları tenant.py'deki
+		# COUNTERPARTY_SELLER_DOCTYPES seti üzerinden erken return yapar.
+		# Order'ın izolasyonu order_query_conditions + order_has_permission ile,
+		# buyer == session.user kontrolü ise cart.py checkout akışında sağlanır.
 		"before_insert": [
 			"tradehub_core.utils.tenant.enforce_seller_isolation_on_insert",
 			# FAZ 3.3 — Procurement gating: onaylı tedarikçi + cost center bütçesi
