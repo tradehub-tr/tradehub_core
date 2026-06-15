@@ -1,3 +1,13 @@
+## [v1.5.2-beta.1] - 2026-06-15 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Duzeltildi
+- fix(tenant): counterparty doctype'lar seller izolasyon hook'undan muaf tutuldu (@ahmeetseker)
+  - Order/Order Dispute/Seller Review/Listing Review/Seller Inquiry için seller field'ı sahiplik değil karşı taraf referansı; enforce/validate hook'ları COUNTERPARTY_SELLER_DOCTYPES seti ile erken return yapıyor
+  - Satıcı sıfatı da olan kullanıcı başka satıcıdan alışveriş yaptığında oluşan hatalı cross-tenant reddi giderildi; izolasyon zaten query_conditions + has_permission + API buyer==session.user katmanında sağlanıyor
+
+---
 ## [v1.5.2] - 2026-06-15 PROD
 
 Bu surum istoc.cronbi.com'da yayindadir.
