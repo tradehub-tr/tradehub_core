@@ -83,6 +83,31 @@ TENANT_EXEMPT_DOCTYPES: frozenset[str] = frozenset(
 )
 
 
+# Counterparty doctype'lar: `seller`/`seller_profile` field'ı kaydı oluşturanın
+# KENDİ mağazası değil, KARŞI TARAF (merchant) referansıdır. Bu kayıtları alıcı
+# oluşturur ve seller field'ı alışveriş/etkileşim yaptığı satıcıya işaret eder.
+#
+# enforce_seller_isolation_on_insert "seller field == oluşturanın mağazası"
+# varsayar; bu varsayım yalnızca satıcının SAHİP olduğu kayıtlar (Listing,
+# Seller Balance, KYB ...) için doğrudur. Counterparty kayıtlarda yanlıştır:
+# satıcı sıfatı da olan bir kullanıcı başka bir satıcıdan alışveriş yaptığında
+# user_seller != seller olur ve hook hatalı "cross-tenant" reddi fırlatır.
+#
+# Bu doctype'ların tenant izolasyonu ZATEN doğru katmanda sağlanıyor:
+#   - Okuma: permission_query_conditions + has_permission (hooks.py)
+#   - Yazma: API endpoint'lerinde buyer/asker == frappe.session.user kontrolü
+# Bu yüzden seller-isolation insert/save hook'larından muaf tutulurlar.
+COUNTERPARTY_SELLER_DOCTYPES: frozenset[str] = frozenset(
+	{
+		"Order",
+		"Order Dispute",
+		"Seller Review",
+		"Listing Review",
+		"Seller Inquiry",
+	}
+)
+
+
 def _get_seller_profile_for_user(user: str | None = None) -> str | None:
 	"""User'a bağlı aktif Admin Seller Profile name'i — yoksa None.
 
@@ -187,6 +212,11 @@ def enforce_seller_isolation_on_insert(doc, method=None):
 	if doc.doctype in TENANT_EXEMPT_DOCTYPES:
 		return
 
+	# Counterparty kayıtlarda seller = karşı taraf (sahibi değil) — bu hook'un
+	# ownership varsayımı geçersiz. İzolasyon query_conditions + API ile sağlanır.
+	if doc.doctype in COUNTERPARTY_SELLER_DOCTYPES:
+		return
+
 	field_name = _resolve_seller_field_name(doc.doctype)
 	if not field_name:
 		return
@@ -258,6 +288,11 @@ def validate_seller_isolation_on_save(doc, method=None):
 	    method: Frappe doc_event method adı
 	"""
 	if doc.doctype in TENANT_EXEMPT_DOCTYPES:
+		return
+
+	# Counterparty kayıtlarda seller = karşı taraf — ownership-değişimi koruması
+	# uygulanmaz (bkz. COUNTERPARTY_SELLER_DOCTYPES açıklaması).
+	if doc.doctype in COUNTERPARTY_SELLER_DOCTYPES:
 		return
 
 	field_name = _resolve_seller_field_name(doc.doctype)
