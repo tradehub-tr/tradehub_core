@@ -1,3 +1,18 @@
+## [v1.5.1-rc.1] - 2026-06-15 RC
+
+Bu surum rcistoc.cronbi.com'da onay asamasindadir.
+
+### Duzeltildi
+- fix(perm): Seller Owner mağaza profili yazma izni geri verildi (@ahmeetseker)
+  - Admin Seller Profile Custom DocPerm'inde Seller Owner permlevel-0 satırı eksikti; satıcı kendi profilini okuyabiliyor ama kaydedemiyordu ("does not have doctype access via role permission" 403)
+  - v15_8_1_seller_owner_asp_docperm patch'i permlevel-0 read/write ekler (if_owner=0; izolasyonu admin_seller_profile_has_permission hook sağlar)
+  - v15_5_1 RBAC reseed regresyonu; Listing (v15_7_1) ve KYB/KYC (v15_7_6) düzeltilmişti, Admin Seller Profile atlanmıştı
+- fix(perm): Seller Owner kardeş satıcı-doctype read izinleri geri verildi (@ahmeetseker)
+  - Order/Seller Balance/Seller Review/Seller Inquiry/Listing Review permlevel-0 read (v15_8_2 patch); alt-rol union ayna alındı
+  - 5 doctype'ta da permission_query_conditions + has_permission tenant hook'u var → satıcı yalnız kendi kayıtlarını görür (izolasyon korunur)
+  - v15_5_1 RBAC reseed regresyonu; Seller Owner sistemik atlanmıştı (Admin Seller Profile v15_8_1, Listing v15_7_1, KYB/KYC v15_7_6)
+
+---
 ## [v1.5.1-beta.2] - 2026-06-12 BETA
 
 Bu surum betaistoc.cronbi.com'da test asamasindadir.
