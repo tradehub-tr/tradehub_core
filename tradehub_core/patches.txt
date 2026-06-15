@@ -187,3 +187,4 @@ tradehub_core.patches.v15_8_0_bij_image_overrides
 tradehub_core.patches.v15_8_1_seller_owner_asp_docperm
 tradehub_core.patches.v15_8_2_seller_owner_sibling_docperms
 tradehub_core.patches.v15_8_3_seller_owner_kyb_kyc_docperm
+tradehub_core.patches.v15_8_4_kyb_draft_status_backfill

@@ -182,7 +182,7 @@ class KYBVerification(Document):
 			if self.status == "Verified":
 				updates["kyb_verified_at"] = now_datetime()
 				updates["can_sell"] = 1
-			elif self.status in ("Rejected", "Suspended", "Pending"):
+			elif self.status in ("Rejected", "Suspended", "Pending", "Draft"):
 				updates["can_sell"] = 0
 			frappe.db.set_value("User Profile", user_profile, updates, update_modified=False)
 			# Suspended → User Profile.status da Suspended
@@ -210,7 +210,7 @@ class KYBVerification(Document):
 		Tarihçe Frappe'in built-in Version DocType'ında tutuluyor
 		(track_changes:1) — admin Frappe Desk Activity panelinden geçmişi görür.
 		"""
-		if self.status == "Pending":
+		if self.status in ("Pending", "Draft"):
 			self.db_set("verified_by", None)
 			self.db_set("verified_at", None)
 			return
