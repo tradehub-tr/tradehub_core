@@ -1,3 +1,37 @@
+## [v1.5.2-rc.1] - 2026-06-16 RC
+
+Bu surum rcistoc.cronbi.com'da onay asamasindadir.
+
+### Duzeltildi
+- fix(tenant): counterparty doctype'lar seller izolasyon hook'undan muaf tutuldu (@ahmeetseker)
+  - Order/Order Dispute/Seller Review/Listing Review/Seller Inquiry için seller field'ı sahiplik değil karşı taraf referansı; enforce/validate hook'ları COUNTERPARTY_SELLER_DOCTYPES seti ile erken return yapıyor
+  - Satıcı sıfatı da olan kullanıcı başka satıcıdan alışveriş yaptığında oluşan hatalı cross-tenant reddi giderildi; izolasyon zaten query_conditions + has_permission + API buyer==session.user katmanında sağlanıyor
+- fix(rbac): Seller Owner rolüne KYB/KYC erişim izni eklendi (@aliiball)
+  - Panelde KYB/KYC Doğrulama açılırken alınan 403 "does not have doctype access via role permission" hatası düzeltildi
+  - v15_8_1/v15_8_2 kapsamı dışında kalan KYB/KYC Verification için Seller Owner'a permlevel-0 read/write Custom DocPerm ekleyen v15_8_3 patch'i eklendi
+  - Tenant izolasyonu has_permission + query_conditions hook'larıyla korunuyor (if_owner=0; satıcı yalnızca kendi kaydına erişir)
+- fix(kyb): belge yüklenmeden "Beklemede" görünmesi düzeltildi (@aliiball)
+  - KYB Verification'a "Draft" başlangıç durumu eklendi; auto-create noktaları (onay akışı, get_kyb_status, belge upload) artık Pending yerine Draft yaratıyor
+  - Gerçek başvuru yalnızca tüm zorunlu belgeler yüklenip gönderilince (submit_kyb_documents: Draft→Pending) oluşuyor; admin'e bildirim de artık sadece bu noktada gidiyor
+  - Draft durumunda satış kapalı (can_sell=0)
+  - v15_8_4 patch: belgesiz mevcut "Pending" kayıtları "Draft"a taşıyor
+- fix(kyb): doğrulanmış satıcının rolü kalıcı eklenmiyordu düzeltildi (@aliiball)
+  - role_profile_name="Seller Full Access" User.save'de rolleri resetleyip "Verified Seller"ı sildiği için KYB Verified satıcılar storefront'ta "doğrulanmadı" görünüyordu
+  - _sync_verified_seller_role artık Has Role'u doğrudan yönetiyor (add_roles değil); User on_update kalkanı rolü silinmeye karşı koruyor
+  - v15_8_5 patch: tüm Verified satıcılara rolü doğrudan ekleyerek mevcut bozuk kayıtları iyileştirir
+- fix(order): sipariş oluşturmada olmayan tradehub_buyer_tenant kolonu 500 hatası düzeltildi (@aliiball)
+  - _resolve_buyer_tenant / _buyer_tenant_for_user döngüleri olmayan kolona get_value çağırıp MariaDB 1054 fırlatıyordu; has_column guard ile olmayan alan atlanıp var olan tradehub_tenant'a düşülüyor
+  - supplier_whitelist.py, cost_center.py, permissions.py
+- fix(listing): b2b fiyat aralığında hardcoded $ yerine listing para birimi kullanıldı (@aliiball)
+  - _get_price_range ve _format_listing_card b2b dalı listing.currency'yi yok sayıp sabit $ basıyordu; _format_price(..., currency) ile düzeltildi
+- fix(rbac): mağaza sahiplerine Marketplace Seller temel rolünü ver (@boraydeger32)
+  - Marketplace Seller'ı "Seller Full Access" Role Profile'ına ekler (kalıcı kaynak; profil _PROTECTED_ROLE_PROFILES'ta olduğu için UI'dan silinemez)
+  - Mevcut owner user'lara Has Role'u doğrudan ekler (User save etmeden → desk_access rolü user_type'ı System User'a çevirmez; seed _grant_verified_seller_role deseni)
+
+### Degistirildi
+- refactor(seller): listing currency fallback default'u USD'ye hizalandı (@aliiball)
+
+---
 ## [v1.5.2-beta.3] - 2026-06-16 BETA
 
 Bu surum betaistoc.cronbi.com'da test asamasindadir.
