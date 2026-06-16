@@ -6,7 +6,10 @@ app_email = "dev@tradehub.com"
 app_license = "MIT"
 
 after_install = "tradehub_core.setup.install.after_install"
-after_migrate = "tradehub_core.setup.install.after_install"
+after_migrate = [
+	"tradehub_core.setup.install.after_install",
+	"tradehub_core.seed_demo_data.run_idempotent_seed",
+]
 app_icon = "octicon octicon-organization"
 app_color = "#0066CC"
 
@@ -296,10 +299,12 @@ doc_events = {
 	# read-only fields, so the in-memory metrics_credited would always be
 	# 0 and re-credit on every save (count inflated 2x, 3x, ...).
 	"Order": {
-		# FAZ 1.1 — Tenant izolasyonu (seller_profile cross-seller koruma).
-		# Order'da buyer create eder → before_insert'te seller_profile boş kalabilir
-		# (buyer'ın seller'ı yok); hook field'a dokunmaz. Cross-seller attempt'i
-		# (buyer A, seller Y'nin order ID'sini override etmeye çalışırsa) reddeder.
+		# FAZ 1.1 — Tenant izolasyonu. NOT: Order bir counterparty kaydıdır
+		# (seller = ürünün satıcısı, kaydı oluşturan alıcının kendi mağazası
+		# DEĞİL). Bu yüzden enforce/validate hook'ları tenant.py'deki
+		# COUNTERPARTY_SELLER_DOCTYPES seti üzerinden erken return yapar.
+		# Order'ın izolasyonu order_query_conditions + order_has_permission ile,
+		# buyer == session.user kontrolü ise cart.py checkout akışında sağlanır.
 		"before_insert": [
 			"tradehub_core.utils.tenant.enforce_seller_isolation_on_insert",
 			# FAZ 3.3 — Procurement gating: onaylı tedarikçi + cost center bütçesi
@@ -553,6 +558,9 @@ doc_events = {
 			"tradehub_core.services.tuple_sync.on_user_update",
 			# Sprint 6 — role_profile_name değişimi → capability cache flush
 			"tradehub_core.utils.permission_resolver.on_user_role_change",
+			# 2026-06-15 — role-profile sync "Verified Seller"ı silmiş olabilir;
+			# KYB Verified ise rolü doğrudan yeniden garanti et (kalkan).
+			"tradehub_core.utils.verified_seller.reassert_verified_seller_on_user_save",
 		],
 		"on_trash": "tradehub_core.services.tuple_sync.on_user_trash",
 	},

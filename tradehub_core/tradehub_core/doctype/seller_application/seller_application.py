@@ -174,13 +174,13 @@ class SellerApplication(Document):
 		if existing_kyb:
 			for field, value in kyb_data.items():
 				frappe.db.set_value("KYB Verification", existing_kyb, field, value)
-			frappe.db.set_value("KYB Verification", existing_kyb, "status", "Pending")
+			frappe.db.set_value("KYB Verification", existing_kyb, "status", "Draft")
 			frappe.db.set_value("KYB Verification", existing_kyb, "owner", user)
 		else:
 			kyb = frappe.new_doc("KYB Verification")
 			kyb.user = user
 			kyb.owner = user
-			kyb.status = "Pending"
+			kyb.status = "Draft"
 			for field, value in kyb_data.items():
 				kyb.set(field, value)
 			kyb.flags.ignore_permissions = True

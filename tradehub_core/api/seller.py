@@ -764,7 +764,7 @@ def get_seller_products(seller_code, category=None, page=1, page_size=40):
 		l["id"] = l.get("name", "")
 		l["product_name"] = l.get("title", "")
 		l["image"] = l.get("primary_image", "")
-		l["currency"] = l.get("currency") or "TRY"
+		l["currency"] = l.get("currency") or "USD"
 		l["view_count"] = int(l.get("view_count") or 0)
 		l["sold_count"] = int(l.get("order_count") or 0)
 		price_min = l.get("selling_price") or l.get("base_price") or 0

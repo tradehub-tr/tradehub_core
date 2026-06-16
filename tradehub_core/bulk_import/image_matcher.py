@@ -29,8 +29,18 @@ MAX_UNCOMPRESSED_SIZE = 2 * 1024 * 1024 * 1024  # 2 GB
 # karakter farkı sessiz eşleşme kaybına yol açmasın.
 _TR_FOLD = str.maketrans(
 	{
-		"ı": "i", "İ": "i", "ş": "s", "Ş": "s", "ğ": "g", "Ğ": "g",
-		"ü": "u", "Ü": "u", "ö": "o", "Ö": "o", "ç": "c", "Ç": "c",
+		"ı": "i",
+		"İ": "i",
+		"ş": "s",
+		"Ş": "s",
+		"ğ": "g",
+		"Ğ": "g",
+		"ü": "u",
+		"Ü": "u",
+		"ö": "o",
+		"Ö": "o",
+		"ç": "c",
+		"Ç": "c",
 	}
 )
 
@@ -352,17 +362,13 @@ def preview_zip_grouping(
 		matched = []
 		for sku, files in sorted(matched_groups.items()):
 			files.sort(key=_natural_key)
-			matched.append(
-				{"sku": sku, "count": len(files), "thumb": _thumb_data_url(zf, files[0])}
-			)
+			matched.append({"sku": sku, "count": len(files), "thumb": _thumb_data_url(zf, files[0])})
 
 		orphans = []
 		for key, grp in sorted(orphan_groups.items()):
 			files = sorted(grp["files"], key=_natural_key)
 			thumbs = [t for t in (_thumb_data_url(zf, f) for f in files[:max_thumbs_per_group]) if t]
-			orphans.append(
-				{"folder": key, "label": grp["label"], "count": len(files), "thumbs": thumbs}
-			)
+			orphans.append({"folder": key, "label": grp["label"], "count": len(files), "thumbs": thumbs})
 
 	total = sum(m["count"] for m in matched) + sum(o["count"] for o in orphans)
 	# skus: yetim atama dropdown'ı için bu yüklemedeki tüm SKU'lar (sıralı).

@@ -1,3 +1,207 @@
+## [v1.5.2-beta.2] - 2026-06-16 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Duzeltildi
+- fix(rbac): Seller Owner rolüne KYB/KYC erişim izni eklendi (@aliiball)
+  - Panelde KYB/KYC Doğrulama açılırken alınan 403 "does not have doctype access via role permission" hatası düzeltildi
+  - v15_8_1/v15_8_2 kapsamı dışında kalan KYB/KYC Verification için Seller Owner'a permlevel-0 read/write Custom DocPerm ekleyen v15_8_3 patch'i eklendi
+  - Tenant izolasyonu has_permission + query_conditions hook'larıyla korunuyor (if_owner=0; satıcı yalnızca kendi kaydına erişir)
+- fix(kyb): belge yüklenmeden "Beklemede" görünmesi düzeltildi (@aliiball)
+  - KYB Verification'a "Draft" başlangıç durumu eklendi; auto-create noktaları (onay akışı, get_kyb_status, belge upload) artık Pending yerine Draft yaratıyor
+  - Gerçek başvuru yalnızca tüm zorunlu belgeler yüklenip gönderilince (submit_kyb_documents: Draft→Pending) oluşuyor; admin'e bildirim de artık sadece bu noktada gidiyor
+  - Draft durumunda satış kapalı (can_sell=0)
+  - v15_8_4 patch: belgesiz mevcut "Pending" kayıtları "Draft"a taşıyor
+- fix(kyb): doğrulanmış satıcının rolü kalıcı eklenmiyordu düzeltildi (@aliiball)
+  - role_profile_name="Seller Full Access" User.save'de rolleri resetleyip "Verified Seller"ı sildiği için KYB Verified satıcılar storefront'ta "doğrulanmadı" görünüyordu
+  - _sync_verified_seller_role artık Has Role'u doğrudan yönetiyor (add_roles değil); User on_update kalkanı rolü silinmeye karşı koruyor
+  - v15_8_5 patch: tüm Verified satıcılara rolü doğrudan ekleyerek mevcut bozuk kayıtları iyileştirir
+- fix(order): sipariş oluşturmada olmayan tradehub_buyer_tenant kolonu 500 hatası düzeltildi (@aliiball)
+  - _resolve_buyer_tenant / _buyer_tenant_for_user döngüleri olmayan kolona get_value çağırıp MariaDB 1054 fırlatıyordu; has_column guard ile olmayan alan atlanıp var olan tradehub_tenant'a düşülüyor
+  - supplier_whitelist.py, cost_center.py, permissions.py
+- fix(listing): b2b fiyat aralığında hardcoded $ yerine listing para birimi kullanıldı (@aliiball)
+  - _get_price_range ve _format_listing_card b2b dalı listing.currency'yi yok sayıp sabit $ basıyordu; _format_price(..., currency) ile düzeltildi
+
+### Degistirildi
+- refactor(seller): listing currency fallback default'u USD'ye hizalandı (@aliiball)
+
+---
+## [v1.5.2-beta.1] - 2026-06-15 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Duzeltildi
+- fix(tenant): counterparty doctype'lar seller izolasyon hook'undan muaf tutuldu (@ahmeetseker)
+  - Order/Order Dispute/Seller Review/Listing Review/Seller Inquiry için seller field'ı sahiplik değil karşı taraf referansı; enforce/validate hook'ları COUNTERPARTY_SELLER_DOCTYPES seti ile erken return yapıyor
+  - Satıcı sıfatı da olan kullanıcı başka satıcıdan alışveriş yaptığında oluşan hatalı cross-tenant reddi giderildi; izolasyon zaten query_conditions + has_permission + API buyer==session.user katmanında sağlanıyor
+
+---
+## [v1.5.2] - 2026-06-15 PROD
+
+Bu surum istoc.cronbi.com'da yayindadir.
+
+### Duzeltildi
+- fix(perm): Seller Owner mağaza profili yazma izni geri verildi (@ahmeetseker)
+  - Admin Seller Profile Custom DocPerm'inde Seller Owner permlevel-0 satırı eksikti; satıcı kendi profilini okuyabiliyor ama kaydedemiyordu ("does not have doctype access via role permission" 403)
+  - v15_8_1_seller_owner_asp_docperm patch'i permlevel-0 read/write ekler (if_owner=0; izolasyonu admin_seller_profile_has_permission hook sağlar)
+  - v15_5_1 RBAC reseed regresyonu; Listing (v15_7_1) ve KYB/KYC (v15_7_6) düzeltilmişti, Admin Seller Profile atlanmıştı
+- fix(perm): Seller Owner kardeş satıcı-doctype read izinleri geri verildi (@ahmeetseker)
+  - Order/Seller Balance/Seller Review/Seller Inquiry/Listing Review permlevel-0 read (v15_8_2 patch); alt-rol union ayna alındı
+  - 5 doctype'ta da permission_query_conditions + has_permission tenant hook'u var → satıcı yalnız kendi kayıtlarını görür (izolasyon korunur)
+  - v15_5_1 RBAC reseed regresyonu; Seller Owner sistemik atlanmıştı (Admin Seller Profile v15_8_1, Listing v15_7_1, KYB/KYC v15_7_6)
+
+---
+## [v1.5.1-rc.1] - 2026-06-15 RC
+
+Bu surum rcistoc.cronbi.com'da onay asamasindadir.
+
+### Duzeltildi
+- fix(perm): Seller Owner mağaza profili yazma izni geri verildi (@ahmeetseker)
+  - Admin Seller Profile Custom DocPerm'inde Seller Owner permlevel-0 satırı eksikti; satıcı kendi profilini okuyabiliyor ama kaydedemiyordu ("does not have doctype access via role permission" 403)
+  - v15_8_1_seller_owner_asp_docperm patch'i permlevel-0 read/write ekler (if_owner=0; izolasyonu admin_seller_profile_has_permission hook sağlar)
+  - v15_5_1 RBAC reseed regresyonu; Listing (v15_7_1) ve KYB/KYC (v15_7_6) düzeltilmişti, Admin Seller Profile atlanmıştı
+- fix(perm): Seller Owner kardeş satıcı-doctype read izinleri geri verildi (@ahmeetseker)
+  - Order/Seller Balance/Seller Review/Seller Inquiry/Listing Review permlevel-0 read (v15_8_2 patch); alt-rol union ayna alındı
+  - 5 doctype'ta da permission_query_conditions + has_permission tenant hook'u var → satıcı yalnız kendi kayıtlarını görür (izolasyon korunur)
+  - v15_5_1 RBAC reseed regresyonu; Seller Owner sistemik atlanmıştı (Admin Seller Profile v15_8_1, Listing v15_7_1, KYB/KYC v15_7_6)
+
+---
+## [v1.5.1-beta.2] - 2026-06-12 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Duzeltildi
+- fix(perm): Seller Owner kardeş satıcı-doctype read izinleri geri verildi (@ahmeetseker)
+  - Order/Seller Balance/Seller Review/Seller Inquiry/Listing Review permlevel-0 read (v15_8_2 patch); alt-rol union ayna alındı
+  - 5 doctype'ta da permission_query_conditions + has_permission tenant hook'u var → satıcı yalnız kendi kayıtlarını görür (izolasyon korunur)
+  - v15_5_1 RBAC reseed regresyonu; Seller Owner sistemik atlanmıştı (Admin Seller Profile v15_8_1, Listing v15_7_1, KYB/KYC v15_7_6)
+
+---
+## [v1.5.1-beta.1] - 2026-06-12 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Duzeltildi
+- fix(perm): Seller Owner mağaza profili yazma izni geri verildi (@ahmeetseker)
+  - Admin Seller Profile Custom DocPerm'inde Seller Owner permlevel-0 satırı eksikti; satıcı kendi profilini okuyabiliyor ama kaydedemiyordu ("does not have doctype access via role permission" 403)
+  - v15_8_1_seller_owner_asp_docperm patch'i permlevel-0 read/write ekler (if_owner=0; izolasyonu admin_seller_profile_has_permission hook sağlar)
+  - v15_5_1 RBAC reseed regresyonu; Listing (v15_7_1) ve KYB/KYC (v15_7_6) düzeltilmişti, Admin Seller Profile atlanmıştı
+
+---
+## [v1.5.1] - 2026-06-12 PROD
+
+Bu surum istoc.cronbi.com'da yayindadir.
+
+### Eklendi
+- feat(pricing): komisyon "Özel" ayrımı — commission_is_custom alanı (@boraydeger32)
+  - Subscription Plan: commission_is_custom (Check) — admin komisyonu boş bıraktıysa 1; DB kolonu NOT NULL olduğundan 0'dan ayırt etmek için şart
+  - public_pricing: payload'a commission_custom eklendi; matris hücresi artık "boş → Özel, sayı → %X (0 dahil)" (önceden 0 da Özel sayılıyordu)
+  - permission_console: yeni alan display whitelist + finansal alan (SM-only) listesinde; create/update/full_detail endpoint'leri taşıyor
+  - Deploy notu: prod'da bench migrate gerekli (yeni kolon)
+
+---
+## [v1.5.0-rc.1] - 2026-06-12 RC
+
+Bu surum rcistoc.cronbi.com'da onay asamasindadir.
+
+### Eklendi
+- feat(pricing): komisyon "Özel" ayrımı — commission_is_custom alanı (@boraydeger32)
+  - Subscription Plan: commission_is_custom (Check) — admin komisyonu boş bıraktıysa 1; DB kolonu NOT NULL olduğundan 0'dan ayırt etmek için şart
+  - public_pricing: payload'a commission_custom eklendi; matris hücresi artık "boş → Özel, sayı → %X (0 dahil)" (önceden 0 da Özel sayılıyordu)
+  - permission_console: yeni alan display whitelist + finansal alan (SM-only) listesinde; create/update/full_detail endpoint'leri taşıyor
+  - Deploy notu: prod'da bench migrate gerekli (yeni kolon)
+
+---
+## [v1.5.0-beta.1] - 2026-06-12 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Eklendi
+- feat(pricing): komisyon "Özel" ayrımı — commission_is_custom alanı (@boraydeger32)
+  - Subscription Plan: commission_is_custom (Check) — admin komisyonu boş bıraktıysa 1; DB kolonu NOT NULL olduğundan 0'dan ayırt etmek için şart
+  - public_pricing: payload'a commission_custom eklendi; matris hücresi artık "boş → Özel, sayı → %X (0 dahil)" (önceden 0 da Özel sayılıyordu)
+  - permission_console: yeni alan display whitelist + finansal alan (SM-only) listesinde; create/update/full_detail endpoint'leri taşıyor
+  - Deploy notu: prod'da bench migrate gerekli (yeni kolon)
+
+---
+## [v1.5.0] - 2026-06-12 PROD
+
+Bu surum istoc.cronbi.com'da yayindadir.
+
+### Eklendi
+- feat(bulk-import): interaktif yetim-görsel atama (önizleme + override) (@aliiball)
+- feat(seed): demo satıcı sayısı 16'ya çıkarıldı ve after_migrate idempotent seed eklendi (@ahmeetseker)
+  - DEMO-011..016 eklendi (Şeker Tekstil, Bal Gıda, Aydeğer Elektronik, Anadolu Ayakkabı, Lale Kozmetik, Marmara Ev Tekstili)
+  - run_idempotent_seed after_migrate hook'una bağlandı; site_config.demo_seed_enabled bayrağıyla çalışır
+  - _seed(cleanup_first) ile manuel reset / otomatik idempotent path ayrıldı
+  - _create_listing ve _ensure_seller idempotent hale getirildi (rename ile gerçek hesabı demo'ya dönüştürme)
+  - gerçek ekip e-postaları (ahmet.seker/ali.bal/bora.aydeger) cleanup'ta korunuyor, User silinmez
+  - demo şifresi Turksab2026! olarak güncellendi
+
+### Duzeltildi
+- fix(bulk-import): satıcı profili owner yerine kanonik resolver ile çözülüyor (@aliiball)
+  - api.py (6 yer) ve feed_api.py owner lookup'ları get_current_seller_profile() (utils/tenant) ile değiştirildi — user/email/tradehub_tenant kaskadı
+  - tradehub_tenant ile davet edilen alt-kullanıcılar (Co-Owner, Finance Staff) artık ortak mağazaya toplu yükleme yapabiliyor
+  - regex_lib.py zaten kanonik resolver kullanıyordu, dokunulmadı
+
+### Degistirildi
+- refactor(auth): kayıt ve re-verify OTP süresi 30 dakikaya çıkarıldı (@aliiball)
+  - registration_otp ve reverify_otp cache TTL 600s → 1800s
+  - yanlış denemede TTL reset değerleri de 1800s'e hizalandı (süre kısalma hatası önlendi)
+  - send/resend dönüş değeri expires_in_minutes 10 → 30
+  - OTP e-posta şablonundaki geçerlilik metni 30 dakika olarak güncellendi
+- refactor(ci): lint workflow PR tetiği kaldırıldı (@ahmeetseker)
+  - pull_request trigger silindi; lint artık sadece push'ta çalışır
+
+---
+## [v1.4.1-rc.1] - 2026-06-12 RC
+
+Bu surum rcistoc.cronbi.com'da onay asamasindadir.
+
+### Eklendi
+- feat(bulk-import): interaktif yetim-görsel atama (önizleme + override) (@aliiball)
+- feat(seed): demo satıcı sayısı 16'ya çıkarıldı ve after_migrate idempotent seed eklendi (@ahmeetseker)
+  - DEMO-011..016 eklendi (Şeker Tekstil, Bal Gıda, Aydeğer Elektronik, Anadolu Ayakkabı, Lale Kozmetik, Marmara Ev Tekstili)
+  - run_idempotent_seed after_migrate hook'una bağlandı; site_config.demo_seed_enabled bayrağıyla çalışır
+  - _seed(cleanup_first) ile manuel reset / otomatik idempotent path ayrıldı
+  - _create_listing ve _ensure_seller idempotent hale getirildi (rename ile gerçek hesabı demo'ya dönüştürme)
+  - gerçek ekip e-postaları (ahmet.seker/ali.bal/bora.aydeger) cleanup'ta korunuyor, User silinmez
+  - demo şifresi Turksab2026! olarak güncellendi
+
+### Duzeltildi
+- fix(bulk-import): satıcı profili owner yerine kanonik resolver ile çözülüyor (@aliiball)
+  - api.py (6 yer) ve feed_api.py owner lookup'ları get_current_seller_profile() (utils/tenant) ile değiştirildi — user/email/tradehub_tenant kaskadı
+  - tradehub_tenant ile davet edilen alt-kullanıcılar (Co-Owner, Finance Staff) artık ortak mağazaya toplu yükleme yapabiliyor
+  - regex_lib.py zaten kanonik resolver kullanıyordu, dokunulmadı
+
+### Degistirildi
+- refactor(auth): kayıt ve re-verify OTP süresi 30 dakikaya çıkarıldı (@aliiball)
+  - registration_otp ve reverify_otp cache TTL 600s → 1800s
+  - yanlış denemede TTL reset değerleri de 1800s'e hizalandı (süre kısalma hatası önlendi)
+  - send/resend dönüş değeri expires_in_minutes 10 → 30
+  - OTP e-posta şablonundaki geçerlilik metni 30 dakika olarak güncellendi
+- refactor(ci): lint workflow PR tetiği kaldırıldı (@ahmeetseker)
+  - pull_request trigger silindi; lint artık sadece push'ta çalışır
+
+---
+## [v1.4.1-beta.3] - 2026-06-12 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Eklendi
+- feat(seed): demo satıcı sayısı 16'ya çıkarıldı ve after_migrate idempotent seed eklendi (@ahmeetseker)
+  - DEMO-011..016 eklendi (Şeker Tekstil, Bal Gıda, Aydeğer Elektronik, Anadolu Ayakkabı, Lale Kozmetik, Marmara Ev Tekstili)
+  - run_idempotent_seed after_migrate hook'una bağlandı; site_config.demo_seed_enabled bayrağıyla çalışır
+  - _seed(cleanup_first) ile manuel reset / otomatik idempotent path ayrıldı
+  - _create_listing ve _ensure_seller idempotent hale getirildi (rename ile gerçek hesabı demo'ya dönüştürme)
+  - gerçek ekip e-postaları (ahmet.seker/ali.bal/bora.aydeger) cleanup'ta korunuyor, User silinmez
+  - demo şifresi Turksab2026! olarak güncellendi
+
+### Degistirildi
+- refactor(ci): lint workflow PR tetiği kaldırıldı (@ahmeetseker)
+  - pull_request trigger silindi; lint artık sadece push'ta çalışır
+
+---
 ## [v1.4.1-beta.1] - 2026-06-12 BETA
 
 Bu surum betaistoc.cronbi.com'da test asamasindadir.
