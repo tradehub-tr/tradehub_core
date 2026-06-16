@@ -109,19 +109,14 @@ class KYBVerification(Document):
 		Kural: tek doğru durum 'Verified' — diğer tüm durumlarda (Pending, Under Review,
 		Rejected, Suspended, Draft) rol kaldırılır. "Under Review" iken eski Verified
 		durumundan kalan rol kaldırılmazsa kullanıcı yanlışlıkla satışa devam edebilir.
+
+		NOT: add_roles DEĞİL — satıcı User'larında role_profile_name="Seller Full Access"
+		var ve User.save rolleri profile'a göre resetleyip "Verified Seller"ı siler.
+		sync_verified_seller_role Has Role satırını doğrudan yönetir (bkz. utils).
 		"""
-		if not self.user or not frappe.db.exists("User", self.user):
-			return
+		from tradehub_core.utils.verified_seller import sync_verified_seller_role
 
-		has_role = "Verified Seller" in frappe.get_roles(self.user)
-		should_have_role = self.status == "Verified"
-
-		if should_have_role and not has_role:
-			user_doc = frappe.get_doc("User", self.user)
-			user_doc.add_roles("Verified Seller")
-		elif not should_have_role and has_role:
-			user_doc = frappe.get_doc("User", self.user)
-			user_doc.remove_roles("Verified Seller")
+		sync_verified_seller_role(self.user, self.status == "Verified")
 
 	def _validate_company_title(self):
 		if not self.company_title or not self.company_title.strip():
