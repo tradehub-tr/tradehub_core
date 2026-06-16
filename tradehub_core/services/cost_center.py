@@ -197,7 +197,11 @@ def _resolve_buyer_tenant(order_doc) -> str | None:
 	buyer = getattr(order_doc, "buyer", None)
 	if not buyer:
 		return None
+	# has_column guard: tradehub_buyer_tenant custom field olmayabilir; olmayan
+	# kolona get_value 1054 fırlatır → atlayıp var olan kolona düş.
 	for fieldname in ("tradehub_buyer_tenant", "tradehub_tenant"):
+		if not frappe.db.has_column("User", fieldname):
+			continue
 		val = frappe.db.get_value("User", buyer, fieldname)
 		if val:
 			return val

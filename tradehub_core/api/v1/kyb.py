@@ -140,7 +140,7 @@ def get_kyb_status():
 		doc = frappe.new_doc("KYB Verification")
 		doc.user = user
 		doc.owner = user
-		doc.status = "Pending"
+		doc.status = "Draft"
 		for field, value in seller_data.items():
 			doc.set(field, value)
 		doc.flags.ignore_permissions = True
@@ -312,7 +312,12 @@ def submit_kyb_documents(
 		# - Sadece belge değişikliği status flicker'ını tetikler
 		previous_status = doc.status
 		status_changed_to_pending = False
-		if previous_status == "Rejected" and documents_changed:
+		# Draft → Pending: ilk gerçek başvuru (5 zorunlu belge yukarıda doğrulandı).
+		# Rejected → Pending: resubmit, yalnızca belge değişikliğiyle.
+		if previous_status == "Draft":
+			doc.status = "Pending"
+			status_changed_to_pending = True
+		elif previous_status == "Rejected" and documents_changed:
 			doc.status = "Pending"
 			status_changed_to_pending = True
 
@@ -482,7 +487,7 @@ def upload_kyb_document(filename: str = "", filedata: str = ""):
 		kyb_doc = frappe.new_doc("KYB Verification")
 		kyb_doc.user = user
 		kyb_doc.owner = user
-		kyb_doc.status = "Pending"
+		kyb_doc.status = "Draft"
 		for f, v in seller_data.items():
 			kyb_doc.set(f, v)
 		kyb_doc.flags.ignore_permissions = True
