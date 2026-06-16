@@ -2960,10 +2960,11 @@ def _format_listing_card(
 		if tiers:
 			min_price_val = min(t.price for t in tiers)
 			max_price_val = max(t.price for t in tiers)
+			cur = listing.get("currency")
 			if min_price_val != max_price_val:
-				price_display = f"${min_price_val:.2f}-{max_price_val:.2f}"
+				price_display = f"{_format_price(min_price_val, cur)}-{_format_price(max_price_val, cur)}"
 			else:
-				price_display = f"${min_price_val:.2f}"
+				price_display = _format_price(min_price_val, cur)
 
 	# Get images (primary + child table)
 	primary_image = listing.get("primary_image", "")
@@ -3679,9 +3680,10 @@ def _get_price_range(listing):
 		if prices:
 			min_p = min(prices)
 			max_p = max(prices)
+			cur = listing.currency
 			if min_p != max_p:
-				return f"${min_p:.2f}-${max_p:.2f}"
-			return f"${min_p:.2f}"
+				return f"{_format_price(min_p, cur)}-{_format_price(max_p, cur)}"
+			return _format_price(min_p, cur)
 
 	return _format_price(listing.selling_price, listing.currency)
 
