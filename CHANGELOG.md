@@ -1,3 +1,13 @@
+## [v1.5.2-beta.3] - 2026-06-16 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Duzeltildi
+- fix(rbac): mağaza sahiplerine Marketplace Seller temel rolünü ver (@boraydeger32)
+  - Marketplace Seller'ı "Seller Full Access" Role Profile'ına ekler (kalıcı kaynak; profil _PROTECTED_ROLE_PROFILES'ta olduğu için UI'dan silinemez)
+  - Mevcut owner user'lara Has Role'u doğrudan ekler (User save etmeden → desk_access rolü user_type'ı System User'a çevirmez; seed _grant_verified_seller_role deseni)
+
+---
 ## [v1.5.2-beta.2] - 2026-06-16 BETA
 
 Bu surum betaistoc.cronbi.com'da test asamasindadir.
