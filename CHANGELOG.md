@@ -1,3 +1,14 @@
+## [v1.5.3-rc.1] - 2026-06-17 RC
+
+Bu surum rcistoc.cronbi.com'da onay asamasindadir.
+
+### Eklendi
+- feat(seller): üretici kartı için iş bilgisi alanları get_sellers'a eklendi (@ahmeetseker)
+  - founded_year, staff_count, annual_revenue, factory_size, business_type, main_markets alanları storefront kart istatistik/servis satırı için döndürülüyor
+  - v15_8_6 patch'i: Custom DocPerm'i olan tüm tradehub_core doctype'larında satıcıya permlevel>0 read tanımlıysa permlevel-0 read+write (if_owner) ekler
+  - "Seller" ve "Marketplace Seller" rolleri birlikte eklenir, rol şeması geçişine dayanıklı; PII permlevel 1/2/3 satırlarına dokunulmaz; idempotent
+
+---
 ## [v1.5.3-beta.1] - 2026-06-17 BETA
 
 Bu surum betaistoc.cronbi.com'da test asamasindadir.
