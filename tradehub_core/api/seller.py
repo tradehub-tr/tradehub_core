@@ -80,6 +80,13 @@ def get_sellers(search=None, keyword=None, category=None, page=1, page_size=20):
 			"rating",
 			"total_orders",
 			"health_score",
+			# İş bilgisi — storefront üretici kartındaki istatistik + servis satırı için
+			"founded_year",
+			"staff_count",
+			"annual_revenue",
+			"factory_size",
+			"business_type",
+			"main_markets",
 		],
 		limit_start=(int(page) - 1) * int(page_size),
 		limit_page_length=int(page_size),
