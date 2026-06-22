@@ -2,7 +2,7 @@ name: Deploy to Frappe Cloud
 
 on:
   workflow_run:
-    workflows: ["Beta Release"]
+    workflows: ["Alpha Release"]
     types:
       - completed
 
@@ -20,7 +20,7 @@ jobs:
           echo "Frappe Cloud'un yeni release'i algilamasi icin 60 saniye bekleniyor..."
           sleep 60
 
-      - name: Frappe Press - Deploy & Site Update (BETA)
+      - name: Frappe Press - Deploy & Site Update (ALPHA)
         env:
           FRAPPE_API_KEY: ${{ secrets.FRAPPE_API_KEY }}
           FRAPPE_API_SECRET: ${{ secrets.FRAPPE_API_SECRET }}
@@ -28,12 +28,13 @@ jobs:
           set -e
 
           # --- AYARLAR ---
-          # Bu workflow SADECE beta sitesini günceller.
-          # rcistoc.cronbi.com ve istoc.cronbi.com için Jenkins pipeline'ları kullanılır.
+          # Bu workflow SADECE alpha sitesini günceller (core build BURADA yapilir).
+          # betaistoc / rcistoc / istoc.cronbi.com için Jenkins pipeline'ları kullanılır
+          # (schedule_update ile aynı candidate promote edilir, build yok).
           BASE_URL="https://press.cronbi.com/api/method"
           BENCH_NAME="bench-0001"
           APP_SOURCE="SRC-tradehub_core-004"
-          SITE_NAME="betaistoc.cronbi.com"
+          SITE_NAME="alphaistoc.cronbi.com"
           SITE_SERVER="apphtznr.cronbi.com"
           AUTH_H="Authorization: token $FRAPPE_API_KEY:$FRAPPE_API_SECRET"
 
