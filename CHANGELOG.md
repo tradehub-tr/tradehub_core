@@ -1,3 +1,11 @@
+## [v1.6.3-alpha.1] - 2026-06-24 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Duzeltildi
+- fix(permissions): seller profili owner yerine kanonik tenant resolver ile çözülür (@aliiball)
+
+---
 ## [v1.6.0] - 2026-06-17 PROD
 
 Bu surum istoc.cronbi.com'da yayindadir.
