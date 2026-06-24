@@ -1,3 +1,11 @@
+## [v1.6.3-rc.1] - 2026-06-24 RC
+
+Bu surum rcistoc.cronbi.com'da onay asamasindadir.
+
+### Duzeltildi
+- fix(permissions): seller profili owner yerine kanonik tenant resolver ile çözülür (@aliiball)
+
+---
 ## [v1.6.3-alpha.1] - 2026-06-24 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
