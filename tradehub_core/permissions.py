@@ -1646,7 +1646,15 @@ def _is_admin(user: str) -> bool:
 
 
 def _seller_of(user: str) -> str | None:
-	return frappe.db.get_value("Admin Seller Profile", {"owner": user}, "name")
+	# Kanonik tenant resolver'ı kullan (User.tradehub_tenant → Admin Seller
+	# Profile.user → .email). `owner` (Frappe kayıt-yaratıcı sistem alanı)
+	# ile aramak hatalıydı: profili admin/onboarding oluşturan satıcılarda
+	# owner != satıcı user → resolver None döner, has_permission "create"
+	# reddederdi (toplu içe aktarım job'ı patlardı). Resolver, import
+	# endpoint'inin (get_current_seller_profile) kullandığıyla aynı olmalı.
+	from tradehub_core.utils.tenant import _get_seller_profile_for_user
+
+	return _get_seller_profile_for_user(user)
 
 
 def bulk_import_job_query_conditions(user):
