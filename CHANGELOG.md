@@ -1,3 +1,11 @@
+## [v1.6.4-alpha.1] - 2026-06-25 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(nav): satıcı sidebar'ına Mesajlarım + Müsaitlik item'ları (@aliturguttursab)
+
+---
 ## [v1.6.4] - 2026-06-24 PROD
 
 Bu surum istoc.cronbi.com'da yayindadir.
