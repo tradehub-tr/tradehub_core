@@ -242,8 +242,9 @@ def _build_safe_alias_regex(headers: list[str]) -> str:
 		if not token or token in seen:
 			continue
 		seen.add(token)
-		# Önce escape, sonra kaçırılmış boşlukları esnek boşluğa çevir.
-		escaped = re.escape(token).replace("\\ ", r"\s+")
+		# Önce escape, sonra kaçırılmış boşlukları esnek ayraca çevir. Boşluk;
+		# alt çizgiyi de kabul eder (XML snake_case tag: "base_price" == "base price").
+		escaped = re.escape(token).replace("\\ ", r"[\s_]+")
 		parts.append(escaped)
 	if not parts:
 		frappe.throw(_("En az bir geçerli başlık gerekli"))
