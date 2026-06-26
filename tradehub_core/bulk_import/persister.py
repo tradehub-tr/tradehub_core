@@ -148,6 +148,11 @@ _TR_UOM_ALIASES: dict[str, str] = {
 	"adet": "Nos",
 	"ad": "Nos",
 	"adt": "Nos",
+	# İngilizce şablon örneği "Piece" kullanır; ERPNext seed'inde countable UOM "Nos".
+	"piece": "Nos",
+	"pieces": "Nos",
+	"pcs": "Nos",
+	"pc": "Nos",
 	"kg": "Kg",
 	"kilogram": "Kg",
 	"gram": "Gram",

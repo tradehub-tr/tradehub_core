@@ -56,8 +56,14 @@ def _ensure_vectorizer() -> None:
 
 
 def _normalize(text: str) -> str:
-	"""Türkçe-fold + lowercase, strip, collapse whitespace, remove non-word chars."""
+	"""Türkçe-fold + lowercase, strip, alt çizgi→boşluk, non-word temizliği.
+
+	Alt çizgi boşluğa çevrilir: XML şablonu canonical snake_case tag üretir
+	(`base_price`, `stock_qty`); alias korpusu boşluklu yazıma ("base price")
+	dayandığından, dönüşüm olmadan char-ngram eşleşmesi zayıf kalıyordu.
+	"""
 	text = (text or "").translate(_TR_FOLD).lower().strip()
+	text = text.replace("_", " ")
 	text = re.sub(r"[^\w\s]+", " ", text, flags=re.UNICODE)
 	text = re.sub(r"\s+", " ", text)
 	return text

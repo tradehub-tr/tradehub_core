@@ -598,7 +598,8 @@ def resolve_error_skus(job_name: str) -> dict:
 # STATİK çekirdek + mini-PIM link kolonları. Tip-bazlı dinamik üretim YOK:
 # her satıcı için her zaman aynı tam set indirilir (UX-KOLAY: tek statik şablon).
 # Sıra: kimlik → marka/sınıf → mini-PIM link → fiyat → stok → kargo → diğer.
-# Tuple: (header_en, canonical_field, example_value). Sayı formatı EN (1,245.00).
+# Tuple: (header_en, canonical_field, example_value). Sayı örnekleri ayraçsız
+# ondalık (1245.00) — CSV'de virgülün hücreyi bölmesini önler.
 _TEMPLATE_CORE_COLUMNS_EN: tuple[tuple[str, str, str], ...] = (
 	# [ÇEKİRDEK] kimlik + marka
 	("SKU", "sku", "ABC-001"),
@@ -610,7 +611,7 @@ _TEMPLATE_CORE_COLUMNS_EN: tuple[tuple[str, str, str], ...] = (
 	("Product Family", "product_family", ""),
 	("Attribute Set", "attribute_set", ""),
 	# [ÇEKİRDEK] fiyat
-	("Unit Price", "base_price", "1,245.00"),
+	("Unit Price", "base_price", "1245.00"),
 	("Discounted Price", "selling_price", ""),
 	("Currency", "currency", "TRY"),
 	("Discount %", "discount_percentage", ""),
@@ -780,19 +781,43 @@ def download_template(format: str = "xlsx", product_types: str = "") -> None:
 		content = buf.read()
 		file_name = "tradehub_bulk_upload_template.xlsx"
 	elif format == "csv":
-		# UTF-8 BOM — Excel karakter kodlaması için. EN ayraç = virgül.
-		csv_lines = [",".join(headers), ",".join(example)]
-		content = b"\xef\xbb\xbf" + ("\n".join(csv_lines) + "\n").encode("utf-8")
+		# UTF-8 BOM — Excel'in karakter kodlamasını doğru algılaması için.
+		# csv.writer ile yaz: değer içinde virgül/tırnak olsa bile alanı quote'lar,
+		# böylece açıklama veya ondalık değerler hücre sınırını bozmaz.
+		import csv
+
+		buf = io.StringIO()
+		writer = csv.writer(buf)
+		writer.writerow(headers)
+		writer.writerow(example)
+		content = b"\xef\xbb\xbf" + buf.getvalue().encode("utf-8")
 		file_name = "tradehub_bulk_upload_template.csv"
 	else:
 		# XML için canonical (snake_case) tag adları kullanılır. Attribute kolonları
 		# "attr:<code>" formatında; ":" XML tag adında namespace ayracı olduğu için
 		# "attr_<code>" şeklinde güvenli tag'e çevrilir.
+		from xml.sax.saxutils import escape
+
 		xml_tags = [c.replace("attr:", "attr_", 1) for c in canonical]
-		product_xml = "".join(f"  <{t}>{e}</{t}>\n" for t, e in zip(xml_tags, example, strict=False))
+
+		def _product_block(values: list[str]) -> str:
+			rows = "".join(
+				f"    <{t}>{escape(v)}</{t}>\n" for t, v in zip(xml_tags, values, strict=False)
+			)
+			return "  <product>\n" + rows + "  </product>\n"
+
+		# İKİ örnek ürün üret: XML parser "en uzun homojen diziyi" arar; tek <product>
+		# ile dizi uzunluğu 1 kalır ve hiçbir satır ayrıştırılamaz. İkinci örnek
+		# (farklı SKU/ad) ile yapı tek başına da doğru parse edilir.
+		second = list(example)
+		for i, c in enumerate(canonical):
+			if c == "sku":
+				second[i] = "ABC-002"
+			elif c == "title":
+				second[i] = "Solvent Grade B 20L"
 		content = (
 			'<?xml version="1.0" encoding="UTF-8"?>\n'
-			"<products>\n  <product>\n" + product_xml + "  </product>\n</products>\n"
+			"<products>\n" + _product_block(example) + _product_block(second) + "</products>\n"
 		).encode("utf-8")
 		file_name = "tradehub_bulk_upload_template.xml"
 

@@ -74,7 +74,10 @@ def _resolve_attributes(headers: list[str], used_headers: set[str]) -> dict[str,
 	label_to_code: dict[str, str] = {}
 	for a in attrs:
 		code = a.get("attribute_code") or a.get("name")
-		for label in (a.get("attribute_label_en"), a.get("attribute_label"), code):
+		# Etiketler + XML şablonunun ürettiği "attr_<code>" / "attr:<code>" tag formları.
+		# (CSV/Excel başlığı etiketle gelir; XML tag'i prefix'li canonical ile gelir.)
+		candidates = (a.get("attribute_label_en"), a.get("attribute_label"), code, f"attr_{code}", f"attr:{code}")
+		for label in candidates:
 			key = _fold(label)
 			if key and key not in label_to_code:
 				label_to_code[key] = code
