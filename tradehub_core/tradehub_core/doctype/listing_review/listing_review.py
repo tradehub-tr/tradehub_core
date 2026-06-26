@@ -15,7 +15,6 @@ from frappe.utils import now_datetime, time_diff_in_hours
 from tradehub_core.utils.notify import notify
 
 EDITABLE_HOURS = 24
-MAX_EDIT_COUNT = 1
 MIN_BODY_LENGTH = 10
 MAX_BODY_LENGTH = 5000
 MAX_TITLE_LENGTH = 140
@@ -284,10 +283,40 @@ class ListingReview(Document):
 
 		actor_admin = self._actor_is_admin()
 
-		# Status, published_at, rejected_reason yalnız admin değiştirebilir
+		# İçerik düzenlemesi: rating/title/body/aspect/video
+		content_changed = (
+			old.rating != self.rating
+			or (old.title or "") != (self.title or "")
+			or (old.body or "") != (self.body or "")
+			or any((old.get(f) or 0) != (self.get(f) or 0) for f in ASPECT_FIELDS)
+			or (old.video_url or "") != (self.video_url or "")
+		)
+
+		# Buyer içerik düzenlemesi → 24 saat penceresi + yeniden moderasyon.
+		# Her düzenleme yorumu tekrar onaya soktuğu (status=Pending) için ayrı bir
+		# "max edit" limiti uygulanmaz; pencere içinde tekrar tekrar düzenlenebilir.
+		if content_changed and not actor_admin:
+			if old.submitted_at:
+				hours = time_diff_in_hours(now_datetime(), old.submitted_at)
+				if hours > EDITABLE_HOURS:
+					frappe.throw(
+						_("Yorum yalnızca gönderimden sonraki {0} saat içinde düzenlenebilir").format(
+							EDITABLE_HOURS
+						)
+					)
+			self.edit_count = (old.edit_count or 0) + 1
+			self.updated_at = now_datetime()
+			# Düzenlenen içerik yeniden moderasyona girsin (Approved/Hidden → Pending)
+			self.status = "Pending"
+
+		# Status, published_at, rejected_reason yalnız admin değiştirebilir.
+		# İstisna: buyer içerik düzenlemesinin tetiklediği sistemsel "Pending"
+		# geçişi (yukarıda) serbest — kontrollü re-moderasyon akışı.
 		admin_only_fields = {"status", "published_at", "rejected_reason"}
 		for f in admin_only_fields:
 			if (old.get(f) or "") != (self.get(f) or "") and not actor_admin:
+				if f == "status" and content_changed and self.status == "Pending":
+					continue
 				frappe.throw(_("Bu alanı yalnızca yöneticiler değiştirebilir: {0}").format(f))
 
 		# Faz 2: helpful/abuse cache'leri ve seller_reply_* alanları
@@ -306,28 +335,6 @@ class ListingReview(Document):
 				# Buyer formdan değiştiremez; admin/sistem geçer
 				if not self._actor_is_seller_owner():
 					self.set(f, old.get(f))
-
-		# İçerik düzenlemesi: rating/title/body
-		content_changed = (
-			old.rating != self.rating
-			or (old.title or "") != (self.title or "")
-			or (old.body or "") != (self.body or "")
-			or any((old.get(f) or 0) != (self.get(f) or 0) for f in ASPECT_FIELDS)
-			or (old.video_url or "") != (self.video_url or "")
-		)
-		if content_changed and not actor_admin:
-			if (old.edit_count or 0) >= MAX_EDIT_COUNT:
-				frappe.throw(_("Yorumunuzu yalnızca bir kez düzenleyebilirsiniz"))
-			if old.submitted_at:
-				hours = time_diff_in_hours(now_datetime(), old.submitted_at)
-				if hours > EDITABLE_HOURS:
-					frappe.throw(
-						_("Yorum yalnızca gönderimden sonraki {0} saat içinde düzenlenebilir").format(
-							EDITABLE_HOURS
-						)
-					)
-			self.edit_count = (old.edit_count or 0) + 1
-			self.updated_at = now_datetime()
 
 	# ------------------------------------------------------------------
 	# Status transitions

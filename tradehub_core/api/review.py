@@ -283,15 +283,11 @@ def submit_listing_review(
 def update_listing_review(name: str, rating=None, title: str | None = None, body: str | None = None):
 	"""Buyer endpoint — yorumun içeriğini günceller.
 
-	Kurallar (admin değilse):
-	  - Sadece yorum sahibi düzenleyebilir
-	  - Submission'dan sonra 24 saat içinde
-	  - Max 1 kez düzenleme (edit_count < 1)
+	Düzenleme penceresi (24s), edit_count artışı ve yeniden-moderasyon
+	(status=Pending) DocType controller'ında (`_enforce_edit_window`) tek
+	noktadan uygulanır — buyer içeriği değiştirince yorum tekrar onaya girer.
+	Burada yalnız sahiplik kontrolü + alan ataması yapılır.
 	"""
-	from datetime import timedelta
-
-	from frappe.utils import get_datetime, now_datetime
-
 	_ensure_logged_in()
 	doc = frappe.get_doc("Listing Review", name)
 	user = frappe.session.user
@@ -302,24 +298,12 @@ def update_listing_review(name: str, rating=None, title: str | None = None, body
 			frappe.PermissionError,
 		)
 
-	# Buyer (admin değilse) için 24 saat + max 1 edit kuralı
-	if not is_admin:
-		if (doc.edit_count or 0) >= 1:
-			frappe.throw(_("Bu yorumu daha önce düzenlediniz, tekrar düzenlenemez"))
-		if doc.submitted_at:
-			submitted = get_datetime(doc.submitted_at)
-			if now_datetime() - submitted >= timedelta(hours=24):
-				frappe.throw(_("Yorum düzenleme süresi (24 saat) doldu"))
-
 	if rating is not None:
 		doc.rating = _safe_int(rating, _("Puan"), 1, 5)
 	if title is not None:
 		doc.title = (title or "").strip() or None
 	if body is not None:
 		doc.body = (body or "").strip()
-	# edit_count manuel artır (admin değilse)
-	if not is_admin:
-		doc.edit_count = (doc.edit_count or 0) + 1
 	doc.save(ignore_permissions=True)
 	frappe.db.commit()
 	return {
@@ -443,8 +427,6 @@ def list_listing_reviews(
 	edit_window_hours = 24
 	for r in reviews:
 		r["edited"] = bool(r.get("edit_count") or 0)
-		# edit_count'u tut, frontend butonu için kullanılır
-		_edit_count = r.get("edit_count") or 0
 		r.pop("edit_count", None)
 		r["images"] = images_by_review.get(str(r["name"]), [])
 		r["aspects"] = {
@@ -469,9 +451,10 @@ def list_listing_reviews(
 		is_mine = (not is_guest) and r.get("reviewer_user") == user
 		r["is_own_pending"] = is_mine and r.get("status") == "Pending"
 		r["is_mine"] = is_mine
-		# Edit penceresi: kendi yorumum + 24 saat içinde + max 1 edit
+		# Edit penceresi: kendi yorumum + 24 saat içinde (her düzenleme tekrar
+		# moderasyona gittiği için ayrı bir edit-sayısı limiti yok).
 		can_edit = False
-		if is_mine and _edit_count < 1 and r.get("submitted_at"):
+		if is_mine and r.get("submitted_at"):
 			submitted = get_datetime(r["submitted_at"])
 			if now_ts - submitted < timedelta(hours=edit_window_hours):
 				can_edit = True
