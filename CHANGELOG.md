@@ -1,3 +1,14 @@
+## [v1.7.0-alpha.1] - 2026-06-26 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(review): yorum düzenlemede yeniden moderasyon + çoklu düzenleme (@boraydeger32)
+  - "max 1 düzenleme" (MAX_EDIT_COUNT) limiti kaldırıldı; 24s pencere içinde birden çok kez düzenlenebilir, her biri yeniden onaya gider
+  - can_edit flag'i artık edit_count'a bakmaz, 24s pencere boyunca açık
+  - update_listing_review endpoint'i sadeleştirildi (tekrar eden pencere/ status/edit_count mantığı controller'a devredildi)
+
+---
 ## [v1.7.0] - 2026-06-26 PROD
 
 Bu surum istoc.cronbi.com'da yayindadir.
