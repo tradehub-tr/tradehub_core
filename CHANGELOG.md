@@ -1,3 +1,21 @@
+## [v1.7.0] - 2026-06-26 PROD
+
+Bu surum istoc.cronbi.com'da yayindadir.
+
+### Eklendi
+- feat(nav): satıcı sidebar'ına Mesajlarım + Müsaitlik item'ları (@aliturguttursab)
+
+### Duzeltildi
+- fix(bulk-import): şablon CSV virgül bölünmesi ve XML tek-ürün hatası düzeltildi (@aliiball)
+  - CSV şablonu csv.writer ile üretiliyor; değer içindeki virgül/tırnak artık hücre sınırını bozmuyor
+  - Örnek Unit Price değeri ayraçsız ondalığa çekildi (1245.00)
+  - XML şablonu iki örnek ürünle üretiliyor; tek <product> ile parser'ın 0 satır döndürmesi giderildi, XML özel karakter escape'i eklendi
+  - UOM alias tablosuna piece/pcs/pc → Nos eklendi; şablonun "Piece" örnek değeri her zaman çözülüyor
+- fix(bulk-import): XML snake_case başlık eşleştirmesi düzeltildi (@aliiball)
+  - Semantic ve regex katmanlarında alt çizgi boşlukla eşdeğer sayılıyor; canonical snake_case tag'leri (base_price, stock_qty) alias korpusuyla eşleşiyor
+  - XML attr_<code> tag'leri ilgili öznitelik koduna geri eşleniyor; doldurulmuş özellik kolonları kaybolmuyor
+
+---
 ## [v1.6.4-rc.1] - 2026-06-26 RC
 
 Bu surum rcistoc.cronbi.com'da onay asamasindadir.
