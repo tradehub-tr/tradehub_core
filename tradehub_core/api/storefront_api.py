@@ -238,11 +238,17 @@ def get_my_reviews(page: int = 1, page_size: int = 10):
 # ─────────────────────────────────────────────────────────────────────────────
 @frappe.whitelist()
 @rate_limit(max_calls=10, window_seconds=60, scope="sf_update_review")
-def update_review(name: str, rating=None, title: str | None = None, body: str | None = None):
+def update_review(
+	name: str,
+	rating=None,
+	title: str | None = None,
+	body: str | None = None,
+	images=None,
+):
 	"""Storefront wrapper — buyer kendi yorumunu 24h içinde düzenler."""
 	from tradehub_core.api.review import update_listing_review
 
-	return update_listing_review(name=name, rating=rating, title=title, body=body)
+	return update_listing_review(name=name, rating=rating, title=title, body=body, images=images)
 
 
 @frappe.whitelist()

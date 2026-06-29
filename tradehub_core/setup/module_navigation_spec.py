@@ -254,38 +254,11 @@ SELLER_MODULES: list[dict] = [
 		"doctype": "Product Family",
 		"order": 2,
 	},
-	{
-		"key": "seller.products.ozellik",
-		"parent": "seller.products",
-		"type": "group",
-		"panel": "seller",
-		"section": "products",
-		"label": "Özellik Yönetimi",
-		"color": "#6366f1",
-		"order": 3,
-	},
-	{
-		"key": "seller.products.ozellik.ozellikler",
-		"parent": "seller.products.ozellik",
-		"type": "item",
-		"panel": "seller",
-		"section": "products",
-		"label": "Ürün Özellikleri",
-		"icon": "settings-2",
-		"doctype": "Product Attribute",
-		"order": 0,
-	},
-	{
-		"key": "seller.products.ozellik.setler",
-		"parent": "seller.products.ozellik",
-		"type": "item",
-		"panel": "seller",
-		"section": "products",
-		"label": "Özellik Setleri",
-		"icon": "grid",
-		"doctype": "Attribute Set",
-		"order": 1,
-	},
+	# NOT: "Özellik Yönetimi" (Ürün Özellikleri + Özellik Setleri) satıcı panelinden
+	# kaldırıldı — satıcı bunları yönetmiyor (Product Attribute backend'de spec
+	# yazılırken otomatik bağlanır; Attribute Set admin işidir). Kayıtlar
+	# patch v15_8_9 ile is_active=0 yapılır. Admin panelinde ilgili menü
+	# admin-panel/frontend navigation.js üzerinden gelmeye devam eder.
 	# ─── SECTION: Siparişlerim ───
 	{
 		"key": "seller.orders",

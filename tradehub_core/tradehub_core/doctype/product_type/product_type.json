@@ -56,7 +56,7 @@
   {"fieldname": "is_active", "fieldtype": "Check", "label": "Aktif", "default": "1", "in_list_view": 1},
   {"fieldname": "column_break_1", "fieldtype": "Column Break"},
   {"fieldname": "parent_product_type", "fieldtype": "Link", "label": "Üst Tip", "options": "Product Type"},
-  {"fieldname": "icon_class", "fieldtype": "Data", "label": "İkon Sınıfı"},
+  {"fieldname": "icon_class", "fieldtype": "Data", "label": "İkon Sınıfı", "hidden": 1, "default": "package", "description": "Lucide ikon adı. Form'dan gizli — varsayılan 'package'; mevcut özel değerler (ör. ELECTRONICS=cpu) korunur."},
   {"fieldname": "sort_order", "fieldtype": "Int", "label": "Sıralama", "default": "0"},
   {"fieldname": "sb_classification", "fieldtype": "Section Break", "label": "Sınıflandırma"},
   {"fieldname": "description", "fieldtype": "Text Editor", "label": "Açıklama"},
