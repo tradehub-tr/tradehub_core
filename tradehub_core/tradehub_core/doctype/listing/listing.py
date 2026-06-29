@@ -41,6 +41,7 @@ class Listing(Document):
 	def validate(self):
 		sync_content_translations(self)
 		self._resolve_attribute_links()
+		self._ensure_primary_image()
 		self.calculate_available_qty()
 		self.validate_pricing()
 		self.validate_stock()
@@ -74,6 +75,26 @@ class Listing(Document):
 				new_attr.insert(ignore_permissions=True)
 			row.attribute = code
 			row.attribute_label = label
+
+	def _ensure_primary_image(self):
+		"""Ana görsel boşsa ilk ek görseli ana görsel yap.
+
+		Kart, sepet ve liste görünümleri primary_image kullanır; detay sayfası
+		ise tüm galeriyi (primary + listing_images) gösterir. Satıcı görseli
+		yalnızca "ek görsel" olarak eklediğinde primary_image boş kalıyor ve
+		ürün kartta/sepette fotoğrafsız görünüyordu. sort_order, sonra child
+		idx (ekleme sırası) ile ilk görsel seçilir.
+		"""
+		if self.primary_image:
+			return
+		rows = sorted(
+			(self.get("listing_images") or []),
+			key=lambda r: ((r.sort_order or 0), (r.idx or 0)),
+		)
+		for row in rows:
+			if row.image:
+				self.primary_image = row.image
+				break
 
 	def _calculate_completeness(self):
 		from tradehub_core.utils.completeness import calculate_completeness_score
