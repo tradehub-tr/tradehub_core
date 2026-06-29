@@ -1,3 +1,16 @@
+## [v1.7.0-alpha.2] - 2026-06-29 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(listing): satıcı ürün listesine sunucu-taraflı filtre, arama ve sıralama eklendi (@aliiball)
+  - get_seller_listings: arama (başlık/SKU/ilan kodu), çoklu statü, fiyat/stok/ tamamlanma/MOQ aralık filtreleri, çoklu-sıralama (whitelist'li alanlar)
+  - product_category, primary_image, published_at, modified alanları döndürülüyor
+  - kategori filtresi product_category (platform kategorisi) üzerinden çalışıyor
+  - update_listing_field: satıcı-alanları whitelist'i (title/fiyat/stok/MOQ/
+  - get_seller_listing_categories: satıcının fiilen ürün yüklediği platform kategorilerini döndürür
+
+---
 ## [v1.7.0-alpha.1] - 2026-06-26 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
