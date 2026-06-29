@@ -730,6 +730,22 @@ def get_mapping_targets() -> dict:
 	return {"groups": _mapping_target_groups()}
 
 
+def build_template_columns() -> list[tuple[str, str, str]]:
+	"""Toplu yükleme şablonunun TAM kolon listesini üret (sıralı).
+
+	Çekirdek + betimleyici attribute + varyant bloğu. `download_template` ve
+	`export_seller_listings` aynı kaynağı kullanır → şablon ile export her zaman
+	birebir aynı sütun başlığı/sırasında kalır (round-trip için zorunlu).
+
+	Returns:
+	    (header, canonical_field, example) tuple listesi.
+	"""
+	columns = list(_TEMPLATE_CORE_COLUMNS_EN)
+	columns.extend(_descriptive_attribute_columns())
+	columns.extend(_TEMPLATE_VARIANT_COLUMNS_EN)
+	return columns
+
+
 @frappe.whitelist()
 def download_template(format: str = "xlsx", product_types: str = "") -> None:
 	"""Ürün şablonu indir (İngilizce başlık + örnek satır).
@@ -746,9 +762,7 @@ def download_template(format: str = "xlsx", product_types: str = "") -> None:
 	if format not in ("xlsx", "csv", "xml"):
 		frappe.throw(_("Geçersiz format"))
 
-	columns = list(_TEMPLATE_CORE_COLUMNS_EN)
-	columns.extend(_descriptive_attribute_columns())
-	columns.extend(_TEMPLATE_VARIANT_COLUMNS_EN)
+	columns = build_template_columns()
 
 	headers = [c[0] for c in columns]
 	canonical = [c[1] for c in columns]

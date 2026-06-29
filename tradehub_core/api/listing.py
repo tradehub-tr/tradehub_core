@@ -3830,18 +3830,15 @@ def _num(value):
 		return None
 
 
-@frappe.whitelist()
-def get_seller_listings(
-	page=1,
-	page_size=20,
+def build_seller_listing_filters(
+	seller_profile,
+	*,
 	status=None,
 	bulk_job=None,
 	source=None,
-	search=None,
-	sort=None,
+	product_category=None,
 	title=None,
 	listing_code=None,
-	product_category=None,
 	price_min=None,
 	price_max=None,
 	stock_min=None,
@@ -3854,34 +3851,13 @@ def get_seller_listings(
 	published_to=None,
 	modified_from=None,
 	modified_to=None,
+	search=None,
 ):
-	"""Satıcı: kendi listing'lerini listele (enterprise tablo destekli).
+	"""Satıcı liste + export ortak filtre üreticisi → (filters, or_filters).
 
-	`status`: opsiyonel filtre. "all"/boş → tüm durumlar. Tek değer veya
-	virgülle ayrılmış çoklu değer (sütun multiselect) kabul eder. Geçerli
-	değerler: Draft, Pending, Active, Paused, Out of Stock, Rejected.
-	`bulk_job`: opsiyonel — yalnızca bu Bulk Import Job'tan eklenenler (BIJ-XXX).
-	`source`: "feed" / "manual"; `bulk_job` verilmişse yok sayılır.
-	`search`: title / seller_sku / listing_code üzerinde kısmi arama (OR, global).
-	`title` / `listing_code`: ilgili sütunda kısmi arama (sütun-başı filtre).
-	`category`: virgülle ayrılmış kategori (Link) değerleri — multiselect.
-	`sort`: JSON çoklu-sıralama payload'ı; `_seller_listing_sort_clause` süzer.
-	`price/stock/completeness/moq_min/max`: sayısal aralık filtreleri.
-	`published_from/to`, `modified_from/to`: tarih aralığı filtreleri (yyyy-mm-dd).
+	get_seller_listings ve export_seller_listings aynı filtre mantığını paylaşır;
+	böylece export, ekrandaki aktif filtre/arama sonucunu birebir yansıtır.
 	"""
-	# FAZ 1.5 sub-user fix: sub-user'lar `tradehub_tenant` üzerinden Owner'ın
-	# mağazasına bağlıdır — Co-Owner / Finance Staff / Operations vs. hepsi
-	# aynı listing listesini görmeli.
-	seller_profile = (
-		frappe.db.get_value("User", frappe.session.user, "tradehub_tenant")
-		or frappe.db.get_value("Admin Seller Profile", {"owner": frappe.session.user}, "name")
-		or frappe.db.get_value("Admin Seller Profile", {"email": frappe.session.user}, "name")
-	)
-	if not seller_profile:
-		return {"success": True, "listings": [], "total": 0}
-
-	page, page_size, start = normalize_pagination(page, page_size)
-
 	# Tenant izolasyonu list-of-lists filtre ile korunur (range için tek alanda
 	# iki koşul gerektiğinden dict yerine liste kullanıyoruz).
 	filters = [["seller_profile", "=", seller_profile]]
@@ -3951,6 +3927,84 @@ def get_seller_listings(
 			["seller_sku", "like", term],
 			["listing_code", "like", term],
 		]
+
+	return filters, or_filters
+
+
+@frappe.whitelist()
+def get_seller_listings(
+	page=1,
+	page_size=20,
+	status=None,
+	bulk_job=None,
+	source=None,
+	search=None,
+	sort=None,
+	title=None,
+	listing_code=None,
+	product_category=None,
+	price_min=None,
+	price_max=None,
+	stock_min=None,
+	stock_max=None,
+	completeness_min=None,
+	completeness_max=None,
+	moq_min=None,
+	moq_max=None,
+	published_from=None,
+	published_to=None,
+	modified_from=None,
+	modified_to=None,
+):
+	"""Satıcı: kendi listing'lerini listele (enterprise tablo destekli).
+
+	`status`: opsiyonel filtre. "all"/boş → tüm durumlar. Tek değer veya
+	virgülle ayrılmış çoklu değer (sütun multiselect) kabul eder. Geçerli
+	değerler: Draft, Pending, Active, Paused, Out of Stock, Rejected.
+	`bulk_job`: opsiyonel — yalnızca bu Bulk Import Job'tan eklenenler (BIJ-XXX).
+	`source`: "feed" / "manual"; `bulk_job` verilmişse yok sayılır.
+	`search`: title / seller_sku / listing_code üzerinde kısmi arama (OR, global).
+	`title` / `listing_code`: ilgili sütunda kısmi arama (sütun-başı filtre).
+	`category`: virgülle ayrılmış kategori (Link) değerleri — multiselect.
+	`sort`: JSON çoklu-sıralama payload'ı; `_seller_listing_sort_clause` süzer.
+	`price/stock/completeness/moq_min/max`: sayısal aralık filtreleri.
+	`published_from/to`, `modified_from/to`: tarih aralığı filtreleri (yyyy-mm-dd).
+	"""
+	# FAZ 1.5 sub-user fix: sub-user'lar `tradehub_tenant` üzerinden Owner'ın
+	# mağazasına bağlıdır — Co-Owner / Finance Staff / Operations vs. hepsi
+	# aynı listing listesini görmeli.
+	seller_profile = (
+		frappe.db.get_value("User", frappe.session.user, "tradehub_tenant")
+		or frappe.db.get_value("Admin Seller Profile", {"owner": frappe.session.user}, "name")
+		or frappe.db.get_value("Admin Seller Profile", {"email": frappe.session.user}, "name")
+	)
+	if not seller_profile:
+		return {"success": True, "listings": [], "total": 0}
+
+	page, page_size, start = normalize_pagination(page, page_size)
+
+	filters, or_filters = build_seller_listing_filters(
+		seller_profile,
+		status=status,
+		bulk_job=bulk_job,
+		source=source,
+		product_category=product_category,
+		title=title,
+		listing_code=listing_code,
+		price_min=price_min,
+		price_max=price_max,
+		stock_min=stock_min,
+		stock_max=stock_max,
+		completeness_min=completeness_min,
+		completeness_max=completeness_max,
+		moq_min=moq_min,
+		moq_max=moq_max,
+		published_from=published_from,
+		published_to=published_to,
+		modified_from=modified_from,
+		modified_to=modified_to,
+		search=search,
+	)
 
 	# or_filters varken frappe.db.count uygulanamadığından isim listesiyle say;
 	# satıcının kendi ürünleriyle sınırlı (tenant filtresi) olduğundan bounded.
