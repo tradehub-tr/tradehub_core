@@ -1,3 +1,13 @@
+## [v1.7.0-alpha.5] - 2026-06-29 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Duzeltildi
+- fix(listing): ana görsel yoksa ilk ek görseli ana görsel yap (@boraydeger32)
+  - Listing.validate._ensure_primary_image: primary_image boşsa ilk ek görseli (sort_order, sonra ekleme sırası idx) ana görsel yapar
+  - patch v15_9_2: mevcut kayıtları backfill eder + storefront cache'i temizler
+
+---
 ## [v1.7.0-beta.2] - 2026-06-29 BETA
 
 Bu surum betaistoc.cronbi.com'da test asamasindadir.
