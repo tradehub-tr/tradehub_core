@@ -1,3 +1,13 @@
+## [v1.7.0-alpha.3] - 2026-06-29 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(bulk-import): mevcut ürünleri şablon formatında dışa aktarma eklendi (@aliiball)
+  - export_seller_listings endpoint'i: filtreli (durum/kategori/arama + liste filtreleri), şablonla birebir sütunlar, SKU + attribute + varyant + görsel, XLSX/CSV, tenant-scoped, 5000 satır tavanı; çıktı upsert ile re-import edilebilir
+  - build_template_columns ve build_seller_listing_filters ortak helper'lara çıkarıldı (şablon + liste + export aynı kaynağı paylaşır)
+
+---
 ## [v1.7.0-alpha.2] - 2026-06-29 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
