@@ -1,3 +1,33 @@
+## [v1.7.1] - 2026-06-29 PROD
+
+Bu surum istoc.cronbi.com'da yayindadir.
+
+### Eklendi
+- feat(review): yorum düzenlemede yeniden moderasyon + çoklu düzenleme (@boraydeger32)
+  - "max 1 düzenleme" (MAX_EDIT_COUNT) limiti kaldırıldı; 24s pencere içinde birden çok kez düzenlenebilir, her biri yeniden onaya gider
+  - can_edit flag'i artık edit_count'a bakmaz, 24s pencere boyunca açık
+  - update_listing_review endpoint'i sadeleştirildi (tekrar eden pencere/ status/edit_count mantığı controller'a devredildi)
+- feat(listing): satıcı ürün listesine sunucu-taraflı filtre, arama ve sıralama eklendi (@aliiball)
+  - get_seller_listings: arama (başlık/SKU/ilan kodu), çoklu statü, fiyat/stok/ tamamlanma/MOQ aralık filtreleri, çoklu-sıralama (whitelist'li alanlar)
+  - product_category, primary_image, published_at, modified alanları döndürülüyor
+  - kategori filtresi product_category (platform kategorisi) üzerinden çalışıyor
+  - update_listing_field: satıcı-alanları whitelist'i (title/fiyat/stok/MOQ/
+  - get_seller_listing_categories: satıcının fiilen ürün yüklediği platform kategorilerini döndürür
+- feat(bulk-import): mevcut ürünleri şablon formatında dışa aktarma eklendi (@aliiball)
+  - export_seller_listings endpoint'i: filtreli (durum/kategori/arama + liste filtreleri), şablonla birebir sütunlar, SKU + attribute + varyant + görsel, XLSX/CSV, tenant-scoped, 5000 satır tavanı; çıktı upsert ile re-import edilebilir
+  - build_template_columns ve build_seller_listing_filters ortak helper'lara çıkarıldı (şablon + liste + export aynı kaynağı paylaşır)
+
+### Duzeltildi
+- fix: yorum görsel düzenleme, puan recompute, satıcı nav ve product type ikonları (@boraydeger32)
+  - update_review images parametresi (düzenlerken foto ekle/sil); ortak _parse_review_images helper; kayan @frappe.whitelist() dekoratörü düzeltildi
+  - Approved→Rejected geçişinde review_count/average_rating recompute edilmiyordu
+  - Satıcı panelinden "Özellik Yönetimi" (Product Attribute + Attribute Set) kaldırıldı (patch v15_8_9)
+  - icon_class form'dan gizlendi, default "package"; her tipe anlamlı lucide ikon (patch v15_9_0, v15_9_1)
+- fix(listing): ana görsel yoksa ilk ek görseli ana görsel yap (@boraydeger32)
+  - Listing.validate._ensure_primary_image: primary_image boşsa ilk ek görseli (sort_order, sonra ekleme sırası idx) ana görsel yapar
+  - patch v15_9_2: mevcut kayıtları backfill eder + storefront cache'i temizler
+
+---
 ## [v1.7.0-rc.1] - 2026-06-29 RC
 
 Bu surum rcistoc.cronbi.com'da onay asamasindadir.
