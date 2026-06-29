@@ -365,9 +365,13 @@ class ListingReview(Document):
 			self._notify_seller_hidden()
 			self._notify_buyer_hidden()
 		elif new_status == "Rejected":
+			# Rejected her zaman agregasyon dışıdır; Approved -> Rejected geçişinde
+			# review_count/average_rating bayat kalmasın diye burada da recompute
+			# şart (bu elif, alttaki "Approved'dan çıktı" dalını gölgeliyordu).
+			_recompute_listing_rating(self.listing)
 			self._notify_buyer_rejected()
 		elif old_status == "Approved" and new_status != "Approved":
-			# Approved -> başka bir state: agregasyondan çıkar
+			# Approved -> başka bir state (ör. Pending): agregasyondan çıkar
 			_recompute_listing_rating(self.listing)
 
 	# ------------------------------------------------------------------

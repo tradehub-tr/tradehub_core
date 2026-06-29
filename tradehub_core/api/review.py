@@ -182,6 +182,30 @@ def on_review_on_trash(doc, method=None):
 # ---------------------------------------------------------------------------
 # Public / Buyer API
 # ---------------------------------------------------------------------------
+def _parse_review_images(images) -> list[dict]:
+	"""Review görsel girdisini normalize eder → [{image, caption}, ...] (max 10).
+
+	Hem submit hem de update akışı aynı doğrulamayı kullansın diye ayrıldı:
+	JSON string kabul eder, dict olmayan / image'sız satırları atar.
+	Internal helper — whitelist edilmez (user input'u doğrudan endpoint'lerden gelir).
+	"""
+	if not images:
+		return []
+	if isinstance(images, str):
+		try:
+			images = json.loads(images)
+		except (ValueError, TypeError):
+			return []
+	if not isinstance(images, list):
+		return []
+	rows: list[dict] = []
+	for img in images[:10]:
+		if not isinstance(img, dict) or not img.get("image"):
+			continue
+		rows.append({"image": img["image"], "caption": img.get("caption")})
+	return rows
+
+
 @frappe.whitelist()
 def submit_listing_review(
 	order_item: str,
@@ -255,20 +279,8 @@ def submit_listing_review(
 					doc.set(db_field, _safe_int(aspects[k], k, 1, 5))
 
 	# Faz 2: images
-	if images:
-		if isinstance(images, str):
-			try:
-				images = json.loads(images)
-			except (ValueError, TypeError):
-				images = []
-		if isinstance(images, list):
-			for img in images[:10]:
-				if not isinstance(img, dict) or not img.get("image"):
-					continue
-				doc.append(
-					"images",
-					{"image": img["image"], "caption": img.get("caption")},
-				)
+	for row in _parse_review_images(images):
+		doc.append("images", row)
 
 	# Faz 2: video URL
 	if video_url:
@@ -280,13 +292,22 @@ def submit_listing_review(
 
 
 @frappe.whitelist()
-def update_listing_review(name: str, rating=None, title: str | None = None, body: str | None = None):
+def update_listing_review(
+	name: str,
+	rating=None,
+	title: str | None = None,
+	body: str | None = None,
+	images=None,
+):
 	"""Buyer endpoint — yorumun içeriğini günceller.
 
 	Düzenleme penceresi (24s), edit_count artışı ve yeniden-moderasyon
 	(status=Pending) DocType controller'ında (`_enforce_edit_window`) tek
 	noktadan uygulanır — buyer içeriği değiştirince yorum tekrar onaya girer.
 	Burada yalnız sahiplik kontrolü + alan ataması yapılır.
+
+	`images` verilirse (None değilse) görsel child table'ı tamamen onunla
+	değiştirilir — boş liste tüm fotoğrafları kaldırır. None ise dokunulmaz.
 	"""
 	_ensure_logged_in()
 	doc = frappe.get_doc("Listing Review", name)
@@ -304,6 +325,8 @@ def update_listing_review(name: str, rating=None, title: str | None = None, body
 		doc.title = (title or "").strip() or None
 	if body is not None:
 		doc.body = (body or "").strip()
+	if images is not None:
+		doc.set("images", _parse_review_images(images))
 	doc.save(ignore_permissions=True)
 	frappe.db.commit()
 	return {
