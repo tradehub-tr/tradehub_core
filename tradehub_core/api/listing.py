@@ -3770,16 +3770,104 @@ def approve_listing(listing_name, action="approve", reject_reason=""):
 	return {"success": True, "status": listing.status}
 
 
-@frappe.whitelist()
-def get_seller_listings(page=1, page_size=20, status=None, bulk_job=None, source=None):
-	"""Satıcı: kendi listing'lerini listele.
+# Enterprise tablo (DataTable) için sütun-başı filtre + çoklu sıralamada izin
+# verilen alanlar. Kullanıcıdan gelen `sort` payload'ı bu kümeyle kısıtlanır —
+# keyfi alan adı (SQL injection / izinsiz alan sızıntısı) engellenir.
+SELLER_LISTING_SORT_FIELDS = {
+	"title",
+	"status",
+	"selling_price",
+	"stock_qty",
+	"available_qty",
+	"completeness_score",
+	"product_category_name",
+	"listing_code",
+	"min_order_qty",
+	"published_at",
+	"modified",
+	"creation",
+}
 
-	`status`: opsiyonel filtre. "all" veya boş → tüm durumlar. Geçerli
+# Satıcının hücre-içi (inline) düzenleyebileceği alanlar — admin/sistem alanları
+# (status, listing_code, completeness vb.) bilinçli olarak HARİÇ.
+SELLER_LISTING_EDITABLE_FIELDS = {
+	"title",
+	"selling_price",
+	"stock_qty",
+	"min_order_qty",
+	"product_category",
+}
+
+
+def _seller_listing_sort_clause(sort) -> str:
+	"""Frontend'den gelen çoklu-sıralama payload'ını güvenli `order_by`'a çevir.
+
+	`sort`: JSON list — `[{"field": "selling_price", "desc": true}, ...]`.
+	Geçersiz/izinsiz alanlar atlanır; hiçbiri kalmazsa varsayılan döner.
+	"""
+	if not sort:
+		return "creation desc"
+	if isinstance(sort, str):
+		try:
+			sort = json.loads(sort)
+		except (ValueError, TypeError):
+			return "creation desc"
+	parts = []
+	for entry in sort if isinstance(sort, list) else []:
+		field = (entry or {}).get("field")
+		if field in SELLER_LISTING_SORT_FIELDS:
+			parts.append(f"{field} {'desc' if (entry or {}).get('desc') else 'asc'}")
+	return ", ".join(parts) or "creation desc"
+
+
+def _num(value):
+	"""Opsiyonel sayısal query parametresini float'a çevir (boş/None → None)."""
+	if value is None or value == "":
+		return None
+	try:
+		return float(value)
+	except (TypeError, ValueError):
+		return None
+
+
+@frappe.whitelist()
+def get_seller_listings(
+	page=1,
+	page_size=20,
+	status=None,
+	bulk_job=None,
+	source=None,
+	search=None,
+	sort=None,
+	title=None,
+	listing_code=None,
+	product_category=None,
+	price_min=None,
+	price_max=None,
+	stock_min=None,
+	stock_max=None,
+	completeness_min=None,
+	completeness_max=None,
+	moq_min=None,
+	moq_max=None,
+	published_from=None,
+	published_to=None,
+	modified_from=None,
+	modified_to=None,
+):
+	"""Satıcı: kendi listing'lerini listele (enterprise tablo destekli).
+
+	`status`: opsiyonel filtre. "all"/boş → tüm durumlar. Tek değer veya
+	virgülle ayrılmış çoklu değer (sütun multiselect) kabul eder. Geçerli
 	değerler: Draft, Pending, Active, Paused, Out of Stock, Rejected.
-	`bulk_job`: opsiyonel — yalnızca bu Bulk Import Job tarafından
-	oluşturulan listing'leri döndürür (BIJ-XXX).
-	`source`: opsiyonel — "feed" (toplu/feed ile yüklenenler) veya "manual"
-	(elle eklenenler). `bulk_job` verilmişse yok sayılır.
+	`bulk_job`: opsiyonel — yalnızca bu Bulk Import Job'tan eklenenler (BIJ-XXX).
+	`source`: "feed" / "manual"; `bulk_job` verilmişse yok sayılır.
+	`search`: title / seller_sku / listing_code üzerinde kısmi arama (OR, global).
+	`title` / `listing_code`: ilgili sütunda kısmi arama (sütun-başı filtre).
+	`category`: virgülle ayrılmış kategori (Link) değerleri — multiselect.
+	`sort`: JSON çoklu-sıralama payload'ı; `_seller_listing_sort_clause` süzer.
+	`price/stock/completeness/moq_min/max`: sayısal aralık filtreleri.
+	`published_from/to`, `modified_from/to`: tarih aralığı filtreleri (yyyy-mm-dd).
 	"""
 	# FAZ 1.5 sub-user fix: sub-user'lar `tradehub_tenant` üzerinden Owner'ın
 	# mağazasına bağlıdır — Co-Owner / Finance Staff / Operations vs. hepsi
@@ -3792,22 +3880,91 @@ def get_seller_listings(page=1, page_size=20, status=None, bulk_job=None, source
 	if not seller_profile:
 		return {"success": True, "listings": [], "total": 0}
 
-	page = int(page)
-	page_size = int(page_size)
-	filters = {"seller_profile": seller_profile}
-	if status and status != "all":
-		filters["status"] = status
-	if bulk_job:
-		filters["created_by_bulk_job"] = bulk_job
-	elif source == "feed":
-		filters["created_by_bulk_job"] = ["is", "set"]
-	elif source == "manual":
-		filters["created_by_bulk_job"] = ["is", "not set"]
+	page, page_size, start = normalize_pagination(page, page_size)
 
-	total = frappe.db.count("Listing", filters)
+	# Tenant izolasyonu list-of-lists filtre ile korunur (range için tek alanda
+	# iki koşul gerektiğinden dict yerine liste kullanıyoruz).
+	filters = [["seller_profile", "=", seller_profile]]
+
+	if status and status != "all":
+		statuses = [s.strip() for s in str(status).split(",") if s.strip()]
+		if len(statuses) == 1:
+			filters.append(["status", "=", statuses[0]])
+		elif statuses:
+			filters.append(["status", "in", statuses])
+
+	if bulk_job:
+		filters.append(["created_by_bulk_job", "=", bulk_job])
+	elif source == "feed":
+		filters.append(["created_by_bulk_job", "is", "set"])
+	elif source == "manual":
+		filters.append(["created_by_bulk_job", "is", "not set"])
+
+	if product_category and str(product_category) != "all":
+		cats = [c.strip() for c in str(product_category).split(",") if c.strip()]
+		if len(cats) == 1:
+			filters.append(["product_category", "=", cats[0]])
+		elif cats:
+			filters.append(["product_category", "in", cats])
+
+	if title and str(title).strip():
+		filters.append(["title", "like", f"%{str(title).strip()}%"])
+	if listing_code and str(listing_code).strip():
+		filters.append(["listing_code", "like", f"%{str(listing_code).strip()}%"])
+
+	price_min, price_max = _num(price_min), _num(price_max)
+	stock_min, stock_max = _num(stock_min), _num(stock_max)
+	completeness_min, completeness_max = _num(completeness_min), _num(completeness_max)
+	moq_min, moq_max = _num(moq_min), _num(moq_max)
+	if price_min is not None:
+		filters.append(["selling_price", ">=", price_min])
+	if price_max is not None:
+		filters.append(["selling_price", "<=", price_max])
+	if stock_min is not None:
+		filters.append(["stock_qty", ">=", stock_min])
+	if stock_max is not None:
+		filters.append(["stock_qty", "<=", stock_max])
+	if completeness_min is not None:
+		filters.append(["completeness_score", ">=", completeness_min])
+	if completeness_max is not None:
+		filters.append(["completeness_score", "<=", completeness_max])
+	if moq_min is not None:
+		filters.append(["min_order_qty", ">=", moq_min])
+	if moq_max is not None:
+		filters.append(["min_order_qty", "<=", moq_max])
+
+	# Tarih aralıkları — "to" gün sonuna kadar kapsasın (yyyy-mm-dd → 23:59:59).
+	if published_from:
+		filters.append(["published_at", ">=", str(published_from)])
+	if published_to:
+		filters.append(["published_at", "<=", f"{published_to} 23:59:59"])
+	if modified_from:
+		filters.append(["modified", ">=", str(modified_from)])
+	if modified_to:
+		filters.append(["modified", "<=", f"{modified_to} 23:59:59"])
+
+	or_filters = None
+	if search and str(search).strip():
+		term = f"%{str(search).strip()}%"
+		or_filters = [
+			["title", "like", term],
+			["seller_sku", "like", term],
+			["listing_code", "like", term],
+		]
+
+	# or_filters varken frappe.db.count uygulanamadığından isim listesiyle say;
+	# satıcının kendi ürünleriyle sınırlı (tenant filtresi) olduğundan bounded.
+	if or_filters:
+		total = len(
+			frappe.get_all("Listing", filters=filters, or_filters=or_filters, pluck="name", limit_page_length=0)
+		)
+	else:
+		total = frappe.db.count("Listing", filters)
+
 	listings = frappe.get_all(
 		"Listing",
 		filters=filters,
+		or_filters=or_filters,
 		fields=[
 			"name",
 			"title",
@@ -3817,17 +3974,106 @@ def get_seller_listings(page=1, page_size=20, status=None, bulk_job=None, source
 			"stock_qty",
 			"available_qty",
 			"creation",
+			"modified",
+			"published_at",
 			"listing_code",
 			"seller_sku",
+			"primary_image",
+			"product_category",
+			"product_category_name",
+			"min_order_qty",
 			"rejection_reason",
 			"completeness_score",
 			"created_by_bulk_job",
 		],
-		order_by="creation desc",
-		start=(page - 1) * page_size,
+		order_by=_seller_listing_sort_clause(sort),
+		start=start,
 		page_length=page_size,
 	)
 	return {"success": True, "listings": listings, "total": total}
+
+
+@frappe.whitelist()
+def get_seller_listing_categories():
+	"""Satıcının listing'lerinde fiilen KULLANDIĞI platform kategorilerini döndür.
+
+	Kategori filtresi dropdown'ı bununla doldurulur — satıcı 15 kategoriye
+	sahip olsa da yalnızca ürün yüklediği kategoriler görünür.
+	"""
+	from tradehub_core.utils.tenant import _get_seller_profile_for_user
+
+	seller_profile = _get_seller_profile_for_user(frappe.session.user)
+	if not seller_profile:
+		return {"success": True, "categories": []}
+
+	rows = frappe.get_all(
+		"Listing",
+		filters={"seller_profile": seller_profile, "product_category": ["is", "set"]},
+		fields=["product_category", "product_category_name"],
+		distinct=True,
+	)
+	seen = {}
+	for r in rows:
+		if r.product_category and r.product_category not in seen:
+			seen[r.product_category] = r.product_category_name or r.product_category
+	categories = [{"value": k, "label": v} for k, v in sorted(seen.items(), key=lambda kv: kv[1].lower())]
+	return {"success": True, "categories": categories}
+
+
+@frappe.whitelist()
+def update_listing_field(listing_name: str, fieldname: str, value=None):
+	"""Satıcı: kendi listing'inin tek bir alanını hücre-içi (inline) güncelle.
+
+	Yalnızca `SELLER_LISTING_EDITABLE_FIELDS` izinli — admin/sistem alanları
+	(status, listing_code, completeness vb.) reddedilir. Sahiplik + capability
+	kontrolü update_listing_status ile aynı deseni izler. save() çağrısı
+	doğrulama + completeness yeniden-hesaplama hook'larını tetikler.
+	"""
+	from tradehub_core.utils.seller_capabilities import require_seller_capability
+	from tradehub_core.utils.tenant import _get_seller_profile_for_user
+
+	require_seller_capability("listing.write")
+
+	if fieldname not in SELLER_LISTING_EDITABLE_FIELDS:
+		frappe.throw(_("Bu alan düzenlenemez."))
+
+	listing = frappe.get_doc("Listing", listing_name)
+
+	seller_profile = _get_seller_profile_for_user(frappe.session.user)
+	if listing.seller_profile != seller_profile:
+		frappe.throw(_("Bu listing size ait değil."), frappe.PermissionError)
+
+	# Sayısal alanlar negatif olamaz; metin alanı boş olamaz.
+	if fieldname in ("selling_price", "stock_qty", "min_order_qty"):
+		num = _num(value)
+		if num is None or num < 0:
+			frappe.throw(_("Geçerli bir sayı girin (negatif olamaz)."))
+		value = num
+	elif fieldname == "title":
+		value = (value or "").strip()
+		if not value:
+			frappe.throw(_("Ürün adı boş bırakılamaz."))
+	elif fieldname == "product_category":
+		if value and not frappe.db.exists("Product Category", value):
+			frappe.throw(_("Geçersiz kategori."))
+
+	setattr(listing, fieldname, value)
+	listing.save()
+
+	return {
+		"success": True,
+		"listing": {
+			"name": listing.name,
+			"title": listing.title,
+			"selling_price": listing.selling_price,
+			"stock_qty": listing.stock_qty,
+			"available_qty": listing.available_qty,
+			"min_order_qty": listing.min_order_qty,
+			"product_category": listing.product_category,
+			"product_category_name": listing.product_category_name,
+			"completeness_score": listing.completeness_score,
+		},
+	}
 
 
 @frappe.whitelist()
