@@ -1,3 +1,31 @@
+## [v1.7.1-alpha.3] - 2026-06-30 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(seller): satıcı doğrulama (verification) sistemi eklendi (@ahmeetseker)
+  - Seller Verification ve Verification Source doctype'ları eklendi
+  - Satıcı self-service başvuru API'leri eklendi (get_my_verifications, create_my_verification) — seller her zaman session.user'dan türetilir
+  - Admin onay kuyruğu eklendi (list_pending/approve/reject), onay yalnız Administrator'a kısıtlandı
+  - Public get_seller_verifications endpoint'i eklendi (yalnız Verified ve geçerlilik tarihi geçmemiş kayıtlar görünür)
+  - get_sellers, get_seller ve listing detayı supplier verisine verification rozetleri eklendi (tek sorgulu batch helper, N+1 yok)
+  - Seller Verification için tenant izolasyonu eklendi (query_conditions + has_permission): satıcı yalnız kendi başvurularını görür
+- feat(category): boş kategori gizleme ve mega menü versiyonlama eklendi (@ahmeetseker)
+  - Marketplace Settings'e "Boş Kategorileri Gizle" ayarı eklendi (varsayılan kapalı, tüm aktif kategoriler görünür)
+  - get_mega_menu alt ağacında aktif Listing olmayan kategorileri eler (NSM lft/rgt), include_empty param'ı ile override edilebilir
+  - get_category_version eklendi: storefront IndexedDB cache-busting için kategori ağacı parmak izi döner
+  - Administrator-only get_category_admin_settings ve set_hide_empty_categories endpoint'leri eklendi
+
+### Duzeltildi
+- fix(theme): tema override'larından inset shadow değerleri temizlendi (@ahmeetseker)
+  - v15_8_8 patch'i eklendi: Tradehub Theme Settings overrides JSON'undan inset içeren shadow değerleri düşürülür
+  - Storefront'tan kaldırılan neumorphic press efektinin uzaktan tema override'ı ile geri ezilmesi engellendi
+  - Patch idempotent: ikinci çalışmada inset kalmadığı için no-op
+- fix(seo): Seller Profile legacy URL slug kaynağı düzeltildi (@ahmeetseker)
+  - _LEGACY_SLUG_SOURCE_MAP eklendi: Seller Profile slug'ı kendi tablosunda değil Admin Seller Profile'da tutulduğundan resolve_legacy_url slug'ı doğru doctype'tan okur
+  - Seller Profile legacy URL'leri artık 404 yerine doğru slug'a çözülür
+
+---
 ## [v1.7.1-alpha.2] - 2026-06-30 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
