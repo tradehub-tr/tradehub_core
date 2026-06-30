@@ -975,6 +975,13 @@ def get_listing_detail(listing_id, lang="tr"):
 				)
 				certifications = [r.certification_type for r in cert_rows if r.certification_type]
 
+				# Doğrulama rozetleri — batch helper ile N+1 yok.
+				from tradehub_core.api.seller import _verifications_by_seller
+
+				seller_verifs = _verifications_by_seller([listing.seller_profile]).get(
+					listing.seller_profile, []
+				)
+
 				supplier_data = {
 					"name": seller.seller_name or seller.company_name,
 					"sellerCode": seller.seller_code,
@@ -995,6 +1002,7 @@ def get_listing_detail(listing_id, lang="tr"):
 					"certifications": certifications,
 					"rating": seller.rating or 0,
 					"reviewCount": seller.review_count or 0,
+					"verifications": seller_verifs,
 				}
 			except Exception as _e2:
 				frappe.log_error(
