@@ -41,16 +41,18 @@
   },
   {
    "fieldname": "video_url",
-   "fieldtype": "Data",
+   "fieldtype": "Attach",
    "in_list_view": 1,
-   "label": "Video URL",
-   "description": "MP4/WebM dogrudan link veya YouTube/Vimeo embed URL (sadece video icin)"
+   "label": "Video Dosyası",
+   "depends_on": "eval:doc.media_type==='video'",
+   "description": "Video dosyası yükleyin (MP4/WebM, maks 10MB) — sadece video icin"
   },
   {
    "fieldname": "poster_image",
    "fieldtype": "Attach Image",
    "in_list_view": 1,
-   "label": "Video Kapagi"
+   "label": "Video Kapagi",
+   "depends_on": "eval:doc.media_type==='video'"
   },
   {
    "fieldname": "caption",

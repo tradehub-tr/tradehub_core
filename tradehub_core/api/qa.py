@@ -81,6 +81,30 @@ def submit_listing_question(listing: str, question: str):
 	return {"success": True, "name": doc.name, "status": doc.status}
 
 
+@frappe.whitelist()
+def update_listing_question(name: str, question: str):
+	"""Soran kişi, sorusu onaylanana kadar (status=Pending) düzenleyebilir.
+
+	Soru cevaplandığında/yayımlandığında (Answered) veya gizlendiğinde (Hidden)
+	düzenleme kapanır. Yalnızca sahiplik + Pending kontrolü yapılır.
+	"""
+	_ensure_logged_in()
+	doc = frappe.get_doc("Listing Question", name)
+	if doc.asker != frappe.session.user:
+		frappe.throw(_("Bu soruyu yalnızca soran kişi düzenleyebilir"), frappe.PermissionError)
+	if doc.status != "Pending":
+		frappe.throw(_("Yalnızca onay bekleyen sorular düzenlenebilir"))
+	q = (question or "").strip()
+	if len(q) < 10:
+		frappe.throw(_("Soru en az 10 karakter olmalı"))
+	if len(q) > 1000:
+		frappe.throw(_("Soru en fazla 1000 karakter olabilir"))
+	doc.question = q
+	doc.save(ignore_permissions=True)
+	frappe.db.commit()
+	return {"success": True, "name": doc.name, "status": doc.status}
+
+
 @frappe.whitelist(allow_guest=True)
 def list_listing_questions(
 	listing: str, page: int = 1, page_size: int = 10, sort_by: str = "recent", status: str = "Answered"

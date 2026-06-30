@@ -107,7 +107,7 @@
   {"fieldname": "hero_banner", "fieldtype": "Attach Image", "label": "Hero Banner", "description": "Marka sayfası üstündeki geniş görsel (önerilen 1920×400)"},
   {"fieldname": "column_break_hero", "fieldtype": "Column Break"},
   {"fieldname": "theme_color", "fieldtype": "Color", "label": "Tema Rengi", "description": "Marka sayfasındaki vurgu rengi"},
-  {"fieldname": "video_url", "fieldtype": "Data", "label": "Tanıtım Video URL", "description": "YouTube/Vimeo embed URL"},
+  {"fieldname": "video_url", "fieldtype": "Attach", "label": "Tanıtım Videosu", "description": "Video dosyası yükleyin (MP4/WebM, maks 10MB)"},
   {"fieldname": "sb_about", "fieldtype": "Section Break", "label": "Hakkımızda"},
   {"fieldname": "about_title", "fieldtype": "Data", "label": "Başlık", "default": "Hakkımızda"},
   {"fieldname": "about_content", "fieldtype": "Text Editor", "label": "İçerik", "description": "Marka hikayesi / zengin metin"},
