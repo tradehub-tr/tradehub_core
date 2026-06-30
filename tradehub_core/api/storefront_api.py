@@ -296,6 +296,15 @@ def submit_question(listing: str, question: str):
 
 
 @frappe.whitelist()
+@rate_limit(max_calls=10, window_seconds=60, scope="sf_update_question")
+def update_question(name: str, question: str):
+	"""Storefront wrapper — soran kişi onay beklerken sorusunu düzenler."""
+	from tradehub_core.api.qa import update_listing_question
+
+	return update_listing_question(name=name, question=question)
+
+
+@frappe.whitelist()
 @rate_limit(max_calls=10, window_seconds=60, scope="sf_submit_answer")
 def submit_answer(question: str, answer: str):
 	from tradehub_core.api.qa import submit_question_answer
