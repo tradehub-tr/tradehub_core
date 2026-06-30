@@ -1222,3 +1222,76 @@ def _aggregate_kpi_summary_for_buyer(buyer_name):
 		},
 		update_modified=False,
 	)
+
+
+# ── Mağaza profili (Admin Seller Profile) performans metrikleri ──
+# Günlük recompute: total_orders (Order sayımı), response_rate/response_time
+# (Listing Review yanıt verisi), score_grade (rating'den). health_score ve
+# on_time_delivery beslenmez — gerçek veri kaynağı yok, Property Setter ile gizli.
+
+_RESPONSE_BUCKETS = [(1, "< 1 saat"), (24, "< 24 saat"), (72, "1-3 gün")]
+
+
+def _format_response_time(avg_hours):
+	"""Ort. yanıt saatini insan-okur bucket'a çevir; veri yoksa boş."""
+	if not avg_hours:
+		return ""
+	for threshold, label in _RESPONSE_BUCKETS:
+		if avg_hours < threshold:
+			return label
+	return "> 3 gün"
+
+
+def _seller_response_metrics(seller):
+	"""Satıcının Listing Review'lerine yanıt oranı (%) ve ort. yanıt süresi bucket'ı.
+
+	Sistemdeki tek gerçek yanıt verisi yorum-yanıtıdır (seller_reply). Satıcının
+	hiç listing'i/yorumu yoksa (0.0, "") döner.
+	"""
+	# Sistem scheduler işi — perm bypass kasıtlı (tüm satıcılar).
+	listings = frappe.get_all("Listing", filters={"seller_profile": seller}, pluck="name")
+	if not listings:
+		return 0.0, ""
+	reviews = frappe.get_all(
+		"Listing Review",
+		filters={"listing": ["in", listings], "status": "Approved"},
+		fields=["seller_reply", "seller_reply_within_hours"],
+	)
+	total = len(reviews)
+	if not total:
+		return 0.0, ""
+	replied = [r for r in reviews if r.seller_reply]
+	rate = round(len(replied) * 100 / total, 2)
+	hours = [r.seller_reply_within_hours for r in replied if r.seller_reply_within_hours]
+	avg = sum(hours) / len(hours) if hours else 0
+	return rate, _format_response_time(avg)
+
+
+def recompute_seller_performance_metrics():
+	"""Günlük: Admin Seller Profile total_orders / response_rate / response_time /
+	score_grade alanlarını gerçek veriden yeniden hesapla.
+
+	score_grade yorum gelince _recalculate_seller_rating'de anında güncellenir;
+	burası günlük güvenlik ağı. health_score / on_time_delivery beslenmez.
+	"""
+	from tradehub_core.api.listing import SOLD_STATES
+	from tradehub_core.tradehub_core.scoring.grading import seller_rating_to_grade
+
+	# Sistem scheduler işi — perm bypass kasıtlı.
+	sellers = frappe.get_all("Admin Seller Profile", fields=["name", "rating", "review_count"])
+	for s in sellers:
+		total_orders = frappe.db.count("Order", {"seller": s.name, "status": ["in", list(SOLD_STATES)]})
+		response_rate, response_time = _seller_response_metrics(s.name)
+		frappe.db.set_value(
+			"Admin Seller Profile",
+			s.name,
+			{
+				"total_orders": total_orders,
+				"response_rate": response_rate,
+				"response_time": response_time,
+				"score_grade": seller_rating_to_grade(s.rating, s.review_count),
+			},
+			update_modified=False,
+		)
+	frappe.db.commit()
+	frappe.logger().info(f"recompute_seller_performance_metrics: {len(sellers)} satıcı güncellendi")

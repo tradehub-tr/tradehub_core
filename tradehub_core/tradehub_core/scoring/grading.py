@@ -105,6 +105,26 @@ def score_to_grade(score):
 	return "F"
 
 
+# Admin Seller Profile.score_grade Select'i A/B/C/D/F (E yok) — score_to_grade'in
+# döndürdüğü "E" geçersiz olur. Satıcı kalite notu yorum puanından (0-5) türetilir.
+_SELLER_RATING_GRADES = [(4.5, "A"), (3.5, "B"), (2.5, "C"), (1.5, "D")]
+
+
+def seller_rating_to_grade(rating, review_count):
+	"""Satıcı yorum puanından (0-5) ASP score_grade harfi (A/B/C/D/F) türet.
+
+	Yorum yoksa (review_count=0) boş döner — "F" göstermek yanıltıcı olur
+	(düşük puan değil, veri yok).
+	"""
+	if not review_count:
+		return ""
+	rating = float(rating or 0)
+	for threshold, grade in _SELLER_RATING_GRADES:
+		if rating >= threshold:
+			return grade
+	return "F"
+
+
 def normalize_metric(value, normalization_type, target_good, target_poor=None):
 	"""
 	Normalize a single metric value based on its normalization strategy.

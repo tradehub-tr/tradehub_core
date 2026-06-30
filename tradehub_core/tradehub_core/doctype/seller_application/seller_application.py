@@ -133,8 +133,11 @@ class SellerApplication(Document):
 			admin_profile.company_name = self.business_name or seller_name
 			admin_profile.email = frappe.db.get_value("User", user, "email") or self.contact_email or ""
 			admin_profile.tax_id = self.tax_id or ""
+			admin_profile.tax_office = self.tax_office or ""
 			admin_profile.phone = self.contact_phone or ""
 			admin_profile.country = self.country or "Turkey"
+			admin_profile.address_line1 = self.address_line_1 or ""
+			admin_profile.city = self.city or ""
 			admin_profile.bank_name = self.bank_name or ""
 			admin_profile.iban = self.iban or ""
 			admin_profile.account_holder = self.account_holder_name or ""
