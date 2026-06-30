@@ -1,3 +1,13 @@
+## [v1.7.1-alpha.2] - 2026-06-30 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat: soru düzenleme + video bölümlerini upload-only yap (@boraydeger32)
+  - qa: soruyu onay beklerken (Pending) düzenleme (update_listing_question + storefront update_question; sahiplik + status kontrolü)
+  - media: galeri + marka video_url Data→Attach (URL yerine dosya yükleme); galeri poster_image'a depends_on=video (kapak yalnız video satırında)
+
+---
 ## [v1.7.1-alpha.1] - 2026-06-30 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
