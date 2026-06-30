@@ -139,6 +139,8 @@ scheduler_events = {
 		# Faz 6: AB test winner + seller analytics
 		"tradehub_core.api.ab_testing.evaluate_finished_tests",
 		"tradehub_core.api.seller_analytics.compute_all_sellers",
+		# Mağaza profili performans metrikleri (total_orders/response/score_grade)
+		"tradehub_core.tasks.recompute_seller_performance_metrics",
 		# Related Products light-maintenance: cheap O(C) jobs that don't
 		# need long_queue. Heavy similarity matrix rebuild moved to
 		# weekly_long (sharded dispatcher + atomic swap).

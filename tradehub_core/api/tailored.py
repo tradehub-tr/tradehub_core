@@ -79,15 +79,20 @@ def _listing_to_card(l) -> dict:
 	has_campaign = dp > 0
 	effective = round(selling * (1 - dp / 100), 2) if has_campaign else selling
 
+	from tradehub_core.api.listing import _format_price
+
+	listing_currency = getattr(l, "currency", None) or "USD"
 	card = {
 		"id": l.name,
 		"listingCode": l.listing_code,
 		"name": getattr(l, "name_display", None) or l.name,
-		"price": f"₺{effective:,.2f}",
+		# Currency-aware sembol (eskiden hardcoded ₺); frontend zaten sellingPrice
+		# + baseCurrency ile formatlıyor, bu yalnız fallback string.
+		"price": _format_price(effective, listing_currency),
 		"sellingPrice": effective,
 		"originalSellingPrice": selling if has_campaign and selling > 0 else None,
 		"discount": f"%{int(dp)} indirim" if has_campaign else None,
-		"baseCurrency": getattr(l, "currency", None) or "TRY",
+		"baseCurrency": listing_currency,
 		"moq": f"{l.min_order_qty or 1} {l.stock_uom or 'Adet'}",
 		"imageSrc": image_src,
 		"stats": {

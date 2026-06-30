@@ -248,45 +248,43 @@ def get_seller(slug):
 	seller["response_rate"] = float(seller.get("response_rate") or 0)
 	seller["on_time_delivery"] = float(seller.get("on_time_delivery") or 0)
 
-	# Satıcının varsayılan adresini ekle. Addresses DocType'ı Seller Profile'a bağlı,
-	# bu yüzden Admin Seller Profile → user → Seller Profile köprüsü kuruyoruz.
+	# Satıcının varsayılan adresini ekle. Addresses.seller → Admin Seller Profile'a link
+	# (save_address oraya yazar) ve seller["name"] zaten ASP adıdır. Önceki kod yanlışlıkla
+	# User Profile adıyla filtreliyordu → hiç eşleşmiyordu (adres her zaman boş dönüyordu).
 	# Misafire (login olmamış) PII (adres, email, telefon, user) sızdırılmaz — KVKK.
 	is_guest = frappe.session.user == "Guest"
 	default_addr = None
 	if not is_guest:
-		seller_user = seller.get("user")
-		if seller_user:
-			sp_name = frappe.db.get_value("User Profile", {"user": seller_user}, "name")
-			if sp_name:
-				addr_fields = [
-					"title",
-					"contact_name",
-					"company",
-					"phone_prefix",
-					"phone",
-					"country",
-					"state",
-					"city",
-					"street",
-					"apartment",
-					"postal_code",
-					"note",
-				]
-				default_addr = frappe.db.get_value(
-					"Addresses",
-					{"kind": "Seller", "seller": sp_name, "is_default": 1},
-					addr_fields,
-					as_dict=True,
-				)
-				if not default_addr:
-					rows = frappe.get_all(
-						"Addresses",
-						filters={"kind": "Seller", "seller": sp_name},
-						fields=addr_fields,
-						order_by="creation asc",
-						limit=1,
-					)
-					default_addr = rows[0] if rows else None
+		asp_name = seller["name"]
+		addr_fields = [
+			"title",
+			"contact_name",
+			"company",
+			"phone_prefix",
+			"phone",
+			"country",
+			"state",
+			"city",
+			"street",
+			"apartment",
+			"postal_code",
+			"note",
+		]
+		default_addr = frappe.db.get_value(
+			"Addresses",
+			{"kind": "Seller", "seller": asp_name, "is_default": 1},
+			addr_fields,
+			as_dict=True,
+		)
+		if not default_addr:
+			rows = frappe.get_all(
+				"Addresses",
+				filters={"kind": "Seller", "seller": asp_name},
+				fields=addr_fields,
+				order_by="creation asc",
+				limit=1,
+			)
+			default_addr = rows[0] if rows else None
 	seller["address"] = default_addr
 	if is_guest:
 		seller.pop("email", None)
@@ -819,7 +817,13 @@ def _recalculate_seller_rating(seller_code):
 	)
 	count = len(rows)
 	avg = round(sum((r.rating or 0) for r in rows) / count, 2) if count else 0
-	frappe.db.set_value("Admin Seller Profile", seller_code, {"rating": avg, "review_count": count})
+	from tradehub_core.tradehub_core.scoring.grading import seller_rating_to_grade
+
+	frappe.db.set_value(
+		"Admin Seller Profile",
+		seller_code,
+		{"rating": avg, "review_count": count, "score_grade": seller_rating_to_grade(avg, count)},
+	)
 
 
 @frappe.whitelist()

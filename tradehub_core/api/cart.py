@@ -1269,24 +1269,49 @@ def create_order(
 	# Geçiş 1: Tüm siparişlerin item fiyatlarını sunucu-tarafında yeniden hesapla
 	# (price tampering korumasi). Client'ın gönderdiği unit_price/total_price/subtotal
 	# DİKKATE ALINMAZ — gerçek fiyat listing/variant'tan üretilir.
+	from tradehub_core.api.currency import _get_exchange_rate
+
 	prepared_orders = []
 	for o in orders_data:
 		if not o.get("products"):
 			continue
 		recomputed_items = _recompute_order_items_server_side(o["products"])
 		server_subtotal = sum(it["server_total_price"] for it in recomputed_items)
+
+		# Sipariş para birimi = listing'in NATIVE para birimi (client'ın seçtiği
+		# görüntüleme para birimi DEĞİL). Recompute zaten native fiyat üretiyor;
+		# etiketi de native tutmak "ödenen ≠ görülen" hatasını engeller. Tek
+		# satıcının tüm ürünleri aynı native currency'de olmalı — aksi halde
+		# server_subtotal taban-karışık (anlamsız) bir toplam olur.
+		native_currencies = {(it["listing_doc"].get("currency") or "USD") for it in recomputed_items}
+		if len(native_currencies) > 1:
+			frappe.throw(
+				_("Bu satıcının ürünleri farklı para birimlerinde; tek siparişte birleştirilemez")
+			)
+		native_currency = next(iter(native_currencies))
+
 		# C7 fix — kargo ücreti client'tan gelir; negatif değer toplam'ı düşürmek için
 		# istismar edilebilir. Negatifi reddet (server-side tarife hesabı ayrı iş — bkz. rapor).
 		raw_shipping = float(o.get("shipping_fee", 0) or 0)
 		if raw_shipping < 0:
 			frappe.throw(_("Geçersiz kargo ücreti"), frappe.ValidationError)
-		server_shipping = raw_shipping
+		# Kargo, client'tan görüntüleme para biriminde geliyor; sipariş native
+		# para biriminde saklandığı için native'e çevir (tutar ile etiket uyumlu kalsın).
+		display_currency = o.get("currency") or native_currency
+		if display_currency != native_currency and raw_shipping > 0:
+			server_shipping = round(
+				raw_shipping * _get_exchange_rate(display_currency, native_currency), 2
+			)
+		else:
+			server_shipping = raw_shipping
+
 		prepared_orders.append(
 			{
 				"order_data": o,
 				"recomputed": recomputed_items,
 				"subtotal": server_subtotal,
 				"shipping_fee": server_shipping,
+				"currency": native_currency,
 			}
 		)
 
@@ -1306,7 +1331,8 @@ def create_order(
 		seller_id = order_data.get("seller_id", "")
 		products = order_data.get("products", [])
 		shipping_fee = po["shipping_fee"]
-		currency = order_data.get("currency", "USD")
+		# Native listing currency (FAZ 1 / K1) — client'ın display currency'si değil.
+		currency = po["currency"]
 
 		if not products:
 			continue

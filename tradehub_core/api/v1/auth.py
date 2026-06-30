@@ -692,6 +692,42 @@ def update_user_profile(
 		for field, value in updates.items():
 			frappe.db.set_value("Seller Application", seller_app, field, value)
 
+	# Admin Seller Profile (mağaza entity) — payout (payment.py ASP.iban okur) ve panelin
+	# "Mağaza Profilleri" formu ASP'yi gösterir. Eskiden burada güncellenmediği için ASP
+	# eskiyordu (split-brain). User Profile / Seller Application ile aynı alanları ASP'ye de
+	# yaz (set_value doc_event tetiklemez — diğer bloklarla tutarlı). PII alanları (banka,
+	# vergi dairesi) permlevel 2; User Profile bloğuyla aynı is_admin kuralına tabi.
+	asp_name = frappe.db.get_value("Admin Seller Profile", {"user": user}, "name")
+	if asp_name:
+		asp_updates: dict[str, object] = {}
+		if phone is not None:
+			asp_updates["phone"] = phone
+		if country is not None:
+			asp_updates["country"] = country
+		if company_name is not None:
+			asp_updates["company_name"] = company_name
+		if business_name is not None and not company_name:
+			asp_updates["company_name"] = business_name
+		if website is not None:
+			asp_updates["website"] = website
+		if address is not None:
+			asp_updates["address_line1"] = address
+		if city is not None:
+			asp_updates["city"] = city
+		if postal_code is not None:
+			asp_updates["postal_code"] = postal_code
+		if tax_office is not None and is_admin:
+			asp_updates["tax_office"] = tax_office
+		if bank_name is not None and is_admin:
+			asp_updates["bank_name"] = bank_name
+		if iban is not None and is_admin:
+			asp_updates["iban"] = iban
+		# ASP alanı `account_holder` (User Profile'da `account_holder_name`)
+		if account_holder_name is not None and is_admin:
+			asp_updates["account_holder"] = account_holder_name
+		for field, value in asp_updates.items():
+			frappe.db.set_value("Admin Seller Profile", asp_name, field, value)
+
 	frappe.db.commit()
 
 	return {"success": True, "message": _("Profile updated successfully.")}
