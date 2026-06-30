@@ -92,6 +92,8 @@ def get_my_favorites():
 			"snapshot_image",
 			"snapshot_title",
 			"snapshot_price_range",
+			"snapshot_price",
+			"snapshot_currency",
 			"snapshot_min_order",
 			"creation",
 		],
@@ -103,6 +105,9 @@ def get_my_favorites():
 			"image": r.get("snapshot_image") or "",
 			"title": r.get("snapshot_title") or "",
 			"priceRange": r.get("snapshot_price_range") or "",
+			# Native fiyat + para birimi — frontend gösterimde güncel kura çevirir.
+			"price": r.get("snapshot_price") or 0,
+			"currency": r.get("snapshot_currency") or "",
 			"minOrder": r.get("snapshot_min_order") or "",
 			"listIds": _parse_list_ids(r.get("list_ids")),
 			"addedAt": int(r["creation"].timestamp() * 1000) if r.get("creation") else 0,
@@ -117,10 +122,13 @@ def get_my_favorites():
 
 
 @frappe.whitelist()
-def upsert_favorite(listing, list_ids=None, image="", title="", price_range="", min_order=""):
+def upsert_favorite(
+	listing, list_ids=None, image="", title="", price_range="", min_order="", price=0, currency=""
+):
 	"""
 	Bir favori öğeyi ekler veya günceller.
 	list_ids: JSON string ya da list (örn '["default","<uuid>"]'). Boşsa ['default'].
+	price/currency: native (çevrilmemiş) fiyat + para birimi — gösterimde kura çevrilir.
 	"""
 	user = _require_user()
 	if not listing:
@@ -145,6 +153,10 @@ def upsert_favorite(listing, list_ids=None, image="", title="", price_range="", 
 			doc.snapshot_title = title
 		if price_range:
 			doc.snapshot_price_range = price_range
+		if price:
+			doc.snapshot_price = price
+		if currency:
+			doc.snapshot_currency = currency
 		if min_order:
 			doc.snapshot_min_order = min_order
 		doc.save(ignore_permissions=True)
@@ -156,6 +168,8 @@ def upsert_favorite(listing, list_ids=None, image="", title="", price_range="", 
 		doc.snapshot_image = image or ""
 		doc.snapshot_title = title or ""
 		doc.snapshot_price_range = price_range or ""
+		doc.snapshot_price = price or 0
+		doc.snapshot_currency = currency or ""
 		doc.snapshot_min_order = min_order or ""
 		doc.insert(ignore_permissions=True)
 
@@ -178,7 +192,9 @@ def remove_favorite(listing):
 
 
 @frappe.whitelist()
-def toggle_favorite_in_list(listing, list_id, image="", title="", price_range="", min_order=""):
+def toggle_favorite_in_list(
+	listing, list_id, image="", title="", price_range="", min_order="", price=0, currency=""
+):
 	"""
 	Bir ürünü belirli bir listeye ekler/çıkarır.
 	Eğer ürün hiçbir listeye ait kalmazsa tamamen silinir.
@@ -208,6 +224,8 @@ def toggle_favorite_in_list(listing, list_id, image="", title="", price_range=""
 		doc.snapshot_image = image or ""
 		doc.snapshot_title = title or ""
 		doc.snapshot_price_range = price_range or ""
+		doc.snapshot_price = price or 0
+		doc.snapshot_currency = currency or ""
 		doc.snapshot_min_order = min_order or ""
 		doc.insert(ignore_permissions=True)
 		frappe.db.commit()
@@ -237,6 +255,10 @@ def toggle_favorite_in_list(listing, list_id, image="", title="", price_range=""
 			doc.snapshot_title = title
 		if price_range:
 			doc.snapshot_price_range = price_range
+		if price:
+			doc.snapshot_price = price
+		if currency:
+			doc.snapshot_currency = currency
 		if min_order:
 			doc.snapshot_min_order = min_order
 		doc.save(ignore_permissions=True)
@@ -412,6 +434,10 @@ def sync_favorites(state):
 				existing.snapshot_title = it["title"]
 			if it.get("priceRange"):
 				existing.snapshot_price_range = it["priceRange"]
+			if it.get("price"):
+				existing.snapshot_price = it["price"]
+			if it.get("currency"):
+				existing.snapshot_currency = it["currency"]
 			if it.get("minOrder"):
 				existing.snapshot_min_order = it["minOrder"]
 			try:
@@ -428,6 +454,8 @@ def sync_favorites(state):
 				doc.snapshot_image = it.get("image") or ""
 				doc.snapshot_title = it.get("title") or ""
 				doc.snapshot_price_range = it.get("priceRange") or ""
+				doc.snapshot_price = it.get("price") or 0
+				doc.snapshot_currency = it.get("currency") or ""
 				doc.snapshot_min_order = it.get("minOrder") or ""
 				doc.insert(ignore_permissions=True)
 			except Exception:

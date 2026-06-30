@@ -12,6 +12,8 @@
 		"snapshot_image",
 		"snapshot_title",
 		"snapshot_price_range",
+		"snapshot_price",
+		"snapshot_currency",
 		"snapshot_min_order"
 	],
 	"fields": [
@@ -56,6 +58,17 @@
 			"fieldname": "snapshot_price_range",
 			"fieldtype": "Data",
 			"label": "Price Range"
+		},
+		{
+			"fieldname": "snapshot_price",
+			"fieldtype": "Float",
+			"label": "Native Price",
+			"description": "Ham (çevrilmemiş) fiyat; gösterimde güncel kura çevrilir"
+		},
+		{
+			"fieldname": "snapshot_currency",
+			"fieldtype": "Data",
+			"label": "Native Currency"
 		},
 		{
 			"fieldname": "snapshot_min_order",
