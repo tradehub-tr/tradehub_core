@@ -1,3 +1,41 @@
+## [v1.7.1-alpha.1] - 2026-06-30 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(favorites): favori snapshot'ına native fiyat ve para birimi eklendi (@aliiball)
+  - Buyer Favorite Item'a snapshot_price (Float) + snapshot_currency (Data)
+  - get_my_favorites/upsert_favorite/toggle_favorite_in_list/sync_favorites bunları taşıyor
+  - frontend favori gösterimi güncel kura çevirebiliyor (donmuş string yerine)
+- feat(listing): fiyat filtresi ve sıralaması para birimi-bağımsız normalize edildi (@aliiball)
+  - Listing.selling_price_base (TRY, indexli) alanı eklendi; validate'te hesaplanır
+  - get_listings filtre + price_asc/desc sıralaması selling_price_base üzerinden
+  - filter_currency param: min/max bound seçili birimden baz birime (TRY) çevrilir
+  - TCMB job sonrası günlük refresh_listing_price_base (currency başına bulk update)
+  - mevcut listing'ler için backfill patch (v15_9_6)
+- feat(seller): performans metrikleri gerçek veriden beslenir, sahte alanlar gizlenir (@aliiball)
+  - total_orders Order sayımından, score_grade rating'den, response_rate/time Listing Review yanıt verisinden (günlük scheduler + anlık grade)
+  - health_score ve on_time_delivery gizlendi (beslenebilir kaynak yok)
+
+### Duzeltildi
+- fix(cart): sipariş listing'in native para biriminde kaydediliyor (@aliiball)
+  - order_doc.currency artık client display birimi değil, listing native birimi
+  - kargo client'tan display geliyorsa native'e çevriliyor (_get_exchange_rate)
+  - payment transaction da native birimde
+  - tek satıcının ürünleri farklı native currency'deyse hata (subtotal taban-karışık olmasın)
+  - "ödenen ≠ görülen" tutarsızlığı giderildi
+- fix(tailored): öneri kartında hardcoded ₺ yerine currency-aware fiyat (@aliiball)
+  - f"₺{...}" yerine _format_price(effective, listing.currency)
+  - baseCurrency default "TRY" → "USD" (sistem geneliyle hizalı)
+
+### Degistirildi
+- refactor(seller): Supplier Profile DocType kaldırıldı (@aliiball)
+  - v15_9_3: hidden + read_only Property Setter (deprecate)
+  - v15_9_4: tablo + DocType + Property Setter drop (ASP'siz orphan guard)
+  - supplier_profile/ doctype klasörü silindi
+  - Verisi zaten Admin Seller Profile'a taşınmıştı (migrate patch'i)
+
+---
 ## [v1.7.1] - 2026-06-29 PROD
 
 Bu surum istoc.cronbi.com'da yayindadir.
