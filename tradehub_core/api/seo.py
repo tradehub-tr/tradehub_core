@@ -121,6 +121,13 @@ _LEGACY_SLUG_FIELD_MAP = {
 	"Seller Profile": "slug",
 }
 
+# slug bazı doctype'larda kendi tablosunda değil, eşlenik yönetim doctype'ında
+# tutulur: Seller Profile'ın slug alanı Admin Seller Profile'da yaşar (name'ler
+# 1:1). Burada anahtar yoksa slug doctype'ın kendisinden okunur.
+_LEGACY_SLUG_SOURCE_MAP = {
+	"Seller Profile": "Admin Seller Profile",
+}
+
 
 @frappe.whitelist(allow_guest=True)
 def resolve_legacy_url(doctype: str, legacy_id: str) -> dict:
@@ -134,7 +141,8 @@ def resolve_legacy_url(doctype: str, legacy_id: str) -> dict:
 	if not prefix or not slug_field:
 		return {"status_code": 404}
 
-	slug = frappe.db.get_value(doctype, legacy_id, slug_field)
+	slug_source = _LEGACY_SLUG_SOURCE_MAP.get(doctype, doctype)
+	slug = frappe.db.get_value(slug_source, legacy_id, slug_field)
 	if not slug:
 		return {"status_code": 404}
 
