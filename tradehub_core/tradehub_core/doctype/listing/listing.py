@@ -229,6 +229,20 @@ class Listing(Document):
 		if listing_price and selling_price and selling_price > listing_price:
 			frappe.throw(_("Satış fiyatı Listeleme fiyatından büyük olamaz"))
 
+		# Y3 — Filtre ve fiyat sıralaması karışık para birimli listing'leri ham
+		# selling_price üzerinden karşılaştıramaz. selling_price'ı baz para
+		# birimine (TRY) çevirip karşılaştırılabilir selling_price_base'e yaz.
+		self.selling_price_base = self._to_base_price(selling_price)
+
+	def _to_base_price(self, amount):
+		"""Bir tutarı listing'in native para biriminden baz birime (TRY) çevirir."""
+		from tradehub_core.api.currency import _get_exchange_rate
+
+		currency = self.currency or "TRY"
+		if currency == "TRY":
+			return round(flt(amount), 2)
+		return round(flt(amount) * _get_exchange_rate(currency, "TRY"), 2)
+
 	def validate_stock(self):
 		"""Stok ve siparis miktari negatif olamaz (HATA 24)."""
 		if flt(self.stock_qty) < 0:

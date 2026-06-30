@@ -118,6 +118,10 @@ def fetch_and_update_rates():
 
 	frappe.db.commit()
 
+	# Y3 — Kur değişti; listing'lerin baz-birim (TRY) fiyatlarını tazele ki
+	# fiyat filtresi/sıralaması güncel kurla çalışsın.
+	refresh_listing_price_base()
+
 	return {
 		"success": True,
 		"pairs_updated": len(updated_pairs),
@@ -125,6 +129,26 @@ def fetch_and_update_rates():
 		"currencies": list(tracked_codes & set(try_rates.keys())),
 		"updated_at": str(now),
 	}
+
+
+def refresh_listing_price_base():
+	"""Tüm listing'lerin selling_price_base (TRY) alanını güncel kurla yeniden
+	hesaplar. Para birimi başına TEK parametreli bulk UPDATE (N+1 yok).
+
+	TCMB job'undan sonra çağrılır; ayrıca her Listing.validate'inde tekil hesap
+	yapılır (bkz. Listing._to_base_price)."""
+	from tradehub_core.api.currency import _get_exchange_rate
+
+	currencies = frappe.db.get_all("Listing", fields=["currency"], distinct=True, pluck="currency")
+	for cur in currencies:
+		code = cur or "TRY"
+		rate = 1.0 if code == "TRY" else _get_exchange_rate(code, "TRY")
+		frappe.db.sql(
+			"""UPDATE `tabListing` SET selling_price_base = ROUND(selling_price * %s, 2)
+			WHERE COALESCE(currency, 'TRY') = %s""",
+			(rate, code),
+		)
+	frappe.db.commit()
 
 
 @frappe.whitelist()

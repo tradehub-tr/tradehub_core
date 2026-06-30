@@ -302,6 +302,7 @@ def get_listings(
 	brands=None,
 	attrs=None,
 	status=None,
+	filter_currency=None,
 	lang="tr",
 ):
 	"""Get paginated list of active listings for the product listing page.
@@ -314,6 +315,19 @@ def get_listings(
 	"""
 	page, page_size, _start = normalize_pagination(page, page_size)
 	lang = normalize_lang(lang)
+
+	# Y3 — Fiyat filtresi kullanıcının SEÇİLİ görüntüleme biriminde gelir; ürünler
+	# selling_price_base (TRY) üzerinden filtrelenip sıralandığı için bound'ları
+	# baz birime (TRY) çevir. filter_currency yoksa değer zaten TRY kabul edilir.
+	# Çevrilmiş değerler hem cache key'ine hem filtreye girer (doğru dedup).
+	if filter_currency and filter_currency != "TRY":
+		from tradehub_core.api.currency import _get_exchange_rate
+
+		_fx = _get_exchange_rate(filter_currency, "TRY")
+		if min_price:
+			min_price = safe_float(min_price, label=_("Minimum fiyat")) * _fx
+		if max_price:
+			max_price = safe_float(max_price, label=_("Maksimum fiyat")) * _fx
 
 	# ── Cache check ──
 	ck = _cache_key(
@@ -598,11 +612,11 @@ def get_listings(
 	price_filters = []
 	if min_price:
 		price_filters.append(
-			["Listing", "selling_price", ">=", safe_float(min_price, label=_("Minimum fiyat"))]
+			["Listing", "selling_price_base", ">=", safe_float(min_price, label=_("Minimum fiyat"))]
 		)
 	if max_price:
 		price_filters.append(
-			["Listing", "selling_price", "<=", safe_float(max_price, label=_("Maksimum fiyat"))]
+			["Listing", "selling_price_base", "<=", safe_float(max_price, label=_("Maksimum fiyat"))]
 		)
 	# Min order filter — B2B "toptan eşik" mantığı (Alibaba modeli):
 	# Kullanıcı "100 adet ve üstü MOQ'lu ürünler arıyorum" der → listing.min_order_qty >= user_input.
@@ -621,8 +635,8 @@ def get_listings(
 
 	valid_sort_fields = {
 		"modified": "modified",
-		"price_asc": "selling_price",
-		"price_desc": "selling_price",
+		"price_asc": "selling_price_base",
+		"price_desc": "selling_price_base",
 		"newest": "creation",
 		"rating": "average_rating",
 		"orders": "order_count",

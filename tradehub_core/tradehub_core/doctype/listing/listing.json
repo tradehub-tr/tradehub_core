@@ -37,6 +37,7 @@
   "currency",
   "base_price",
   "selling_price",
+  "selling_price_base",
   "column_break_pricing",
   "discount_percentage",
   "sample_price",
@@ -360,6 +361,14 @@
    "label": "Selling Price",
    "options": "currency",
    "reqd": 1
+  },
+  {
+   "fieldname": "selling_price_base",
+   "fieldtype": "Float",
+   "label": "Selling Price (Base TRY)",
+   "description": "selling_price'ın baz para birimine (TRY) çevrilmiş hali — filtre ve fiyat sıralaması bu alan üzerinden çalışır. Sistemce hesaplanır (Listing.validate + günlük scheduler).",
+   "read_only": 1,
+   "search_index": 1
   },
   {
    "fieldname": "column_break_pricing",
