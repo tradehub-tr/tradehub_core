@@ -646,6 +646,8 @@ permission_query_conditions = {
 	"Field Commission": "tradehub_core.permissions.field_commission_query_conditions",
 	# H14 fix — abonelik tenant izolasyonu (seller yalnız kendi mağaza aboneliği).
 	"Store Subscription": "tradehub_core.permissions.store_subscription_query_conditions",
+	# Satıcı Doğrulama — satıcı yalnız kendi başvurularını görür.
+	"Seller Verification": "tradehub_core.permissions.seller_verification_query_conditions",
 }
 
 has_permission = {
@@ -706,6 +708,8 @@ has_permission = {
 	"Field Commission": "tradehub_core.permissions.field_commission_has_permission",
 	# H14 fix — abonelik per-doc: seller kendi mağaza aboneliğini okur, yazma admin-only.
 	"Store Subscription": "tradehub_core.permissions.store_subscription_has_permission",
+	# Satıcı Doğrulama — per-doc: satıcı yalnız kendi başvurusunu görür.
+	"Seller Verification": "tradehub_core.permissions.seller_verification_has_permission",
 }
 
 # ---------------------------------------------------------------------------

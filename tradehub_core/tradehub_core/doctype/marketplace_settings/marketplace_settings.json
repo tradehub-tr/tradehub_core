@@ -12,7 +12,9 @@
   "require_tax_id_business",
   "require_tax_id_individual",
   "sb_invoice",
-  "invoice_generation_mode"
+  "invoice_generation_mode",
+  "sb_categories",
+  "hide_empty_categories"
  ],
  "fields": [
   {
@@ -61,6 +63,18 @@
    "fieldtype": "Select",
    "label": "Fatura Üretim Modu",
    "options": "Manual\nAutomatic"
+  },
+  {
+   "fieldname": "sb_categories",
+   "fieldtype": "Section Break",
+   "label": "Kategori Ayarları"
+  },
+  {
+   "default": "0",
+   "fieldname": "hide_empty_categories",
+   "fieldtype": "Check",
+   "label": "Boş Kategorileri Gizle",
+   "description": "Varsayılan kapalı: tüm aktif kategoriler görünür. Açılırsa, alt kategorileri dahil hiç aktif ürünü/satıcısı olmayan kategoriler storefront mega menüde ve üretici filtresinde gösterilmez."
   },
   {
    "fieldname": "sb_subscription_bank",

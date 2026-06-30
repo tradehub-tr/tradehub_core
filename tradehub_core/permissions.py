@@ -2309,3 +2309,27 @@ def field_commission_has_permission(doc, ptype, user):
 		# Saha elemanı yalnız kendi kaydını ve yalnız okuma.
 		return ptype in ("read", "report") and doc.get("agent") == user
 	return False
+
+
+# ── Seller Verification ───────────────────────────────────────────────────────
+# Seller Verification.seller links to Admin Seller Profile.
+# Satıcı yalnız kendi başvurularını görür; status değişikliği controller'da kısıtlı.
+
+
+def seller_verification_query_conditions(user):
+	if not user or user == "Guest":
+		return "1=0"
+	if user == "Administrator" or _is_platform_full_access(user):
+		return ""
+	profile = _get_seller_profile_name(user)
+	if profile:
+		return f"`tabSeller Verification`.`seller` = {frappe.db.escape(profile)}"
+	return "1=0"
+
+
+def seller_verification_has_permission(doc, ptype, user):
+	if user == "Administrator" or _is_platform_full_access(user):
+		return True
+	profile = _get_seller_profile_name(user)
+	seller_val = _doc_field(doc, "seller")
+	return bool(profile and seller_val == profile)

@@ -3,6 +3,7 @@ import re
 
 import frappe
 from frappe import _
+from frappe.query_builder.functions import Count, Max
 
 from tradehub_core.seo.i18n import CONTENT_LANGS, normalize_lang, resolve_content_field
 from tradehub_core.utils.content_i18n import apply_translation_payload
@@ -20,7 +21,7 @@ def _slugify(text):
 
 
 @frappe.whitelist(allow_guest=True)
-def get_mega_menu(lang="tr"):
+def get_mega_menu(lang="tr", include_empty=0):
 	"""
 	Mega menu için kategori ağacını 3 seviyeye kadar nested döndürür.
 	"Marketplace" gibi tek bir virtual root varsa onun çocukları döndürülür.
@@ -61,6 +62,50 @@ def get_mega_menu(lang="tr"):
 
 	active_ids = {c.name for c in cats}
 
+	# Boş kategorileri ele: alt ağacında (kendisi dahil) hiç aktif Listing olmayan
+	# kategoriler storefront mega menüde gösterilmez (dead-end önleme). NSM lft/rgt ile
+	# bir kategori, aktif listing'i olan bir kategoriyi alt ağacında barındırıyorsa doludur.
+	# Varsayılan: GİZLEME YOK (tüm aktif kategoriler görünür). Yalnız Administrator
+	# Marketplace Settings'ten "Boş Kategorileri Gizle"yi açarsa boşlar elenir.
+	# include_empty=1 query param'ı ayarı override eder (gösterir).
+	if frappe.utils.cint(include_empty):
+		hide_empty = False
+	else:
+		_setting = frappe.db.get_single_value("Marketplace Settings", "hide_empty_categories")
+		hide_empty = frappe.utils.cint(_setting) == 1
+
+	populated_lfts = []
+	if hide_empty:
+		populated_names = {
+			r.product_category
+			for r in frappe.get_all(
+				"Listing",
+				filters={"status": "Active"},
+				fields=["product_category"],
+				distinct=True,
+				limit_page_length=0,
+			)
+			if r.product_category
+		}
+		if populated_names:
+			populated_lfts = [
+				d.lft
+				for d in frappe.get_all(
+					"Product Category",
+					filters={"name": ["in", list(populated_names)]},
+					fields=["lft"],
+				)
+				if d.get("lft") is not None
+			]
+
+	def has_listings(c):
+		if not hide_empty:
+			return True
+		# NSM kurulmamışsa (lft/rgt yok) güvenli taraf: gizleme
+		if c.get("lft") is None or c.get("rgt") is None:
+			return True
+		return any(c.lft <= dlft <= c.rgt for dlft in populated_lfts)
+
 	# Virtual root'ları bul (parent'ı olmayan veya aktif olmayan)
 	virtual_roots = [
 		c for c in cats if not c.parent_product_category or c.parent_product_category not in active_ids
@@ -83,7 +128,9 @@ def get_mega_menu(lang="tr"):
 
 	result = []
 	for top in top_cats:
-		groups = [c for c in cats if c.parent_product_category == top.name]
+		if not has_listings(top):
+			continue
+		groups = [c for c in cats if c.parent_product_category == top.name and has_listings(c)]
 		result.append(
 			{
 				"id": top.name,
@@ -94,7 +141,11 @@ def get_mega_menu(lang="tr"):
 				"children": [
 					{
 						**_leaf(g),
-						"children": [_leaf(leaf) for leaf in cats if leaf.parent_product_category == g.name],
+						"children": [
+							_leaf(leaf)
+							for leaf in cats
+							if leaf.parent_product_category == g.name and has_listings(leaf)
+						],
 					}
 					for g in groups
 				],
@@ -102,6 +153,60 @@ def get_mega_menu(lang="tr"):
 		)
 
 	return result
+
+
+@frappe.whitelist(allow_guest=True)
+def get_category_version() -> str:
+	"""Kategori ağacının parmak izi — storefront cache-busting için.
+
+	`get_mega_menu` storefront'ta IndexedDB'ye 24s persist ediliyor; admin'deki
+	değişiklik yansımıyordu. Bu string client tarafında kategori cache anahtarına
+	gömülür — değişince anahtar değişir, tanstack-query otomatik yeniden çeker.
+
+	Hook'a gerek yok: değer read-side hesaplanır.
+	- düzenleme → MAX(modified) değişir
+	- ekleme/silme → COUNT değişir
+	- "Boş Kategorileri Gizle" toggle → bayrak değişir
+
+	`is_active=1` filtresi `get_mega_menu` içeriğiyle tutarlı (pasife alınan kök
+	menüden düşer, sayım da düşmeli). Sınırlama: hide_empty AÇIKKEN bir Listing'in
+	eklenmesi/çıkması versiyona girmez (Listing sayımı pahalı) — tazelik o durumda
+	client'taki versiyon staleTime penceresine düşer; ayar şu an kapalı.
+	"""
+	PC = frappe.qb.DocType("Product Category")
+	row = (
+		frappe.qb.from_(PC)
+		.select(Count(PC.name).as_("cnt"), Max(PC.modified).as_("last_mod"))
+		.where(PC.is_active == 1)
+	).run(as_dict=True)[0]
+	hide_empty = frappe.db.get_single_value("Marketplace Settings", "hide_empty_categories") or "0"
+	return f"{row.cnt}-{row.last_mod}-{hide_empty}"
+
+
+@frappe.whitelist()
+def get_category_admin_settings() -> dict:
+	"""Kategori sistemi ayarları (admin panel toggle'ı için) — yalnızca Administrator."""
+	if frappe.session.user != "Administrator":
+		frappe.throw(_("Bu ayara yalnızca Administrator erişebilir"), frappe.PermissionError)
+	return {
+		"hide_empty_categories": frappe.utils.cint(
+			frappe.db.get_single_value("Marketplace Settings", "hide_empty_categories")
+		)
+	}
+
+
+@frappe.whitelist()
+def set_hide_empty_categories(enabled: int = 0) -> dict:
+	"""Boş kategori gizleme ayarını değiştir — yalnızca Administrator.
+
+	`enabled`: 0/1 — truthy ise boş kategoriler storefront mega menüde ve üretici
+	filtresinde gizlenir. Kategori sistemini yalnızca Administrator ayarlayabilir.
+	"""
+	if frappe.session.user != "Administrator":
+		frappe.throw(_("Bu ayarı yalnızca Administrator değiştirebilir"), frappe.PermissionError)
+	value = 1 if frappe.utils.cint(enabled) else 0
+	frappe.db.set_single_value("Marketplace Settings", "hide_empty_categories", value)
+	return {"hide_empty_categories": value}
 
 
 # ──────────────────────────── Seller / Public ─────────────────────────────────

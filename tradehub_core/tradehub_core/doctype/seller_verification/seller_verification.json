@@ -1,0 +1,99 @@
+{
+ "name": "Seller Verification",
+ "module": "Tradehub Core",
+ "doctype": "DocType",
+ "document_type": "Document",
+ "engine": "InnoDB",
+ "naming_rule": "Autoincrement",
+ "autoname": "autoincrement",
+ "allow_rename": 0,
+ "is_submittable": 0,
+ "istable": 0,
+ "editable_grid": 1,
+ "track_changes": 1,
+ "fields": [
+  {
+   "fieldname": "seller",
+   "fieldtype": "Link",
+   "label": "Satıcı",
+   "options": "Admin Seller Profile",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "source",
+   "fieldtype": "Link",
+   "label": "Doğrulama Kaynağı",
+   "options": "Verification Source",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Durum",
+   "options": "Pending\nVerified\nRejected",
+   "default": "Pending",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "inspection_date",
+   "fieldtype": "Date",
+   "label": "Denetim Tarihi"
+  },
+  {
+   "fieldname": "expiry_date",
+   "fieldtype": "Date",
+   "label": "Geçerlilik Bitiş Tarihi"
+  },
+  {
+   "fieldname": "section_break_1",
+   "fieldtype": "Section Break",
+   "label": "Belge"
+  },
+  {
+   "fieldname": "document",
+   "fieldtype": "Attach",
+   "label": "Denetim Belgesi",
+   "reqd": 1,
+   "description": "Satıcının yüklediği 3. taraf denetim belgesi/raporu"
+  }
+ ],
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "export": 1,
+   "import": 1
+  },
+  {
+   "role": "Marketplace Seller",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "if_owner": 1
+  },
+  {
+   "role": "Seller",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "if_owner": 1
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "title_field": "seller"
+}

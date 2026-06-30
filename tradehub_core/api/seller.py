@@ -102,6 +102,9 @@ def get_sellers(search=None, keyword=None, category=None, page=1, page_size=20):
 			{"users": tuple(seller_users)},
 		)
 		verified_users_set = {row[0] for row in verified_rows}
+	# Batch fetch verifications — tek sorguda tüm satıcılar (N+1 önle)
+	seller_names = [s["name"] for s in sellers]
+	verif_map = _verifications_by_seller(seller_names) if seller_names else {}
 	is_guest = frappe.session.user == "Guest"
 	for s in sellers:
 		s["slug"] = s.get("seller_code") or s.get("name", "")
@@ -113,6 +116,8 @@ def get_sellers(search=None, keyword=None, category=None, page=1, page_size=20):
 		# User.role.Verified Seller (KYB Verified satıcılar).
 		s["verified"] = bool(s.get("user") and s["user"] in verified_users_set)
 		s["kybVerified"] = s["verified"]
+		seller_verifs = list(verif_map.get(s["name"], []))
+		s["verifications"] = seller_verifs
 		if is_guest:
 			# KVKK: misafire iletisim PII sizdirma
 			s.pop("email", None)
@@ -304,6 +309,10 @@ def get_seller(slug):
 	# bozulmasın diye.
 	seller["certifications"] = ", ".join(c["certification_name"] for c in seller["verified_certifications"])
 
+	# Saha doğrulama rozetleri — mağaza sayfası header + satıcı bilgisi için.
+	seller_verifs = _verifications_by_seller([seller["name"]]).get(seller["name"], [])
+	seller["verifications"] = seller_verifs
+
 	return seller
 
 
@@ -337,6 +346,73 @@ def _get_verified_seller_certs(profile_name: str) -> list:
 		as_dict=True,
 	)
 	return rows
+
+
+# ── Satıcı Doğrulama (Verification) API'leri ─────────────────────────────────
+
+
+def _verifications_by_seller(seller_profile_names: list) -> dict:
+	"""TEK sorguda (N+1 yok) Seller Verification + Verification Source join.
+
+	Dönen: {seller_profile_name: [{source_name, icon, description, inspection_date, document_url}]}.
+	Yalnız status='Verified' ve geçerlilik tarihi geçmemiş kayıtlar dahil edilir.
+	"""
+	if not seller_profile_names:
+		return {}
+	rows = frappe.db.sql(
+		"""
+		SELECT
+			sv.seller,
+			sv.inspection_date,
+			sv.document,
+			vs.source_name,
+			vs.icon,
+			vs.description
+		FROM `tabSeller Verification` sv
+		INNER JOIN `tabVerification Source` vs ON vs.name = sv.source
+		WHERE sv.seller IN %(names)s
+		  AND sv.status = 'Verified'
+		  AND (sv.expiry_date IS NULL OR sv.expiry_date >= CURDATE())
+		  AND vs.is_active = 1
+		ORDER BY sv.seller ASC, sv.creation ASC
+		""",
+		{"names": tuple(seller_profile_names)},
+		as_dict=True,
+	)
+	result: dict = {}
+	for row in rows:
+		seller = row.seller
+		if seller not in result:
+			result[seller] = []
+		result[seller].append(
+			{
+				"source_name": row.source_name or "",
+				"icon": row.icon or "",
+				"description": row.description or "",
+				"inspection_date": str(row.inspection_date) if row.inspection_date else "",
+				"document_url": row.document or "",
+			}
+		)
+	return result
+
+
+@frappe.whitelist(allow_guest=True)
+def get_seller_verifications(seller_code: str) -> list:
+	"""Public: Satıcının onaylı doğrulama rozetlerini döndür.
+
+	seller_code = Admin Seller Profile.seller_code (URL slug / name).
+	Yalnız status='Verified' + geçerli (expiry geçmemiş) kayıtlar görünür;
+	Pending/Rejected gizlenir.
+	"""
+	if not seller_code:
+		return []
+	profile_name = frappe.db.get_value(
+		"Admin Seller Profile", {"seller_code": seller_code, "status": "Active"}, "name"
+	)
+	if not profile_name:
+		return []
+	verifs = _verifications_by_seller([profile_name]).get(profile_name, [])
+	return verifs
 
 
 _MEDIA_CATEGORIES = (
@@ -722,6 +798,112 @@ def approve_seller_category(category_name, action="approve", reject_reason=""):
 		frappe.throw(_("Geçersiz işlem"))
 	cat.save(ignore_permissions=True)
 	return {"success": True, "status": cat.status}
+
+
+# ── Satıcı Doğrulama (Seller Verification) Onay Kuyruğu ─────────────────
+
+
+@frappe.whitelist()
+def list_pending_seller_verifications() -> list:
+	"""Admin: Onay bekleyen Seller Verification kayıtlarını listele (N+1 yok)."""
+	if (
+		"System Manager" not in frappe.get_roles(frappe.session.user)
+		and frappe.session.user != "Administrator"
+	):
+		frappe.throw(_("Yetki hatası"), frappe.PermissionError)
+
+	# System Manager/Administrator sistem işlemi — get_all ile perm bypass kasıtlı
+	rows = frappe.get_all(
+		"Seller Verification",
+		filters={"status": "Pending"},
+		fields=[
+			"name",
+			"seller",
+			"source",
+			"status",
+			"inspection_date",
+			"expiry_date",
+			"document",
+			"creation",
+		],
+		order_by="creation asc",
+	)
+	if not rows:
+		return []
+
+	# Batch: seller_name + source_name — N+1 yoktur
+	seller_ids = list({r.seller for r in rows if r.get("seller")})
+	source_ids = list({r.source for r in rows if r.get("source")})
+
+	seller_map = (
+		{
+			r.name: r.seller_name
+			for r in frappe.get_all(
+				"Admin Seller Profile",
+				filters={"name": ["in", seller_ids]},
+				fields=["name", "seller_name"],
+			)
+		}
+		if seller_ids
+		else {}
+	)
+	source_map = (
+		{
+			r.name: r.source_name
+			for r in frappe.get_all(
+				"Verification Source",
+				filters={"name": ["in", source_ids]},
+				fields=["name", "source_name"],
+			)
+		}
+		if source_ids
+		else {}
+	)
+
+	for r in rows:
+		r["seller_name"] = seller_map.get(r.seller, r.seller or "-")
+		r["source_name"] = source_map.get(r.source, r.source or "-")
+
+	return rows
+
+
+@frappe.whitelist()
+def approve_seller_verification(name: str) -> dict:
+	"""Superadmin: Seller Verification kaydını 'Verified' olarak onayla."""
+	if frappe.session.user != "Administrator":
+		frappe.throw(_("Bu işlemi yalnızca Administrator yapabilir"), frappe.PermissionError)
+
+	doc = frappe.get_doc("Seller Verification", name)
+	doc.status = "Verified"
+	doc.save(ignore_permissions=True)  # Administrator tarafından tetiklenen sistem işlemi
+	return {"ok": True, "name": doc.name, "status": doc.status}
+
+
+@frappe.whitelist()
+def reject_seller_verification(name: str, reason: str = "") -> dict:
+	"""Superadmin: Seller Verification kaydını 'Rejected' olarak reddet.
+
+	Doctype'ta reason alanı yok; reason varsa Frappe Comment olarak eklenir.
+	"""
+	if frappe.session.user != "Administrator":
+		frappe.throw(_("Bu işlemi yalnızca Administrator yapabilir"), frappe.PermissionError)
+
+	doc = frappe.get_doc("Seller Verification", name)
+	doc.status = "Rejected"
+	doc.save(ignore_permissions=True)  # Administrator tarafından tetiklenen sistem işlemi
+
+	if reason and reason.strip():
+		frappe.get_doc(
+			{
+				"doctype": "Comment",
+				"comment_type": "Comment",
+				"reference_doctype": "Seller Verification",
+				"reference_name": name,
+				"content": reason.strip(),
+			}
+		).insert(ignore_permissions=True)
+
+	return {"ok": True, "name": doc.name, "status": doc.status}
 
 
 def _get_seller_profile_for_session():
