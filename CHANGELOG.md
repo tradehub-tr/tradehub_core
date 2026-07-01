@@ -1,3 +1,16 @@
+## [v1.7.1-alpha.5] - 2026-07-01 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(verification): belgesiz denetim talebi akışı eklendi (@ahmeetseker)
+  - Requested/Scheduled statüleri + request_note/scheduled_date/admin_note alanları
+  - request_my_verification / attach_verification_document / schedule_verification API'leri
+  - durum geçiş kuralları (Requested→Scheduled yalnız admin, →Pending belge şartı)
+  - satıcı sidebar'ına "Doğrulamalarım" navigasyonu (patch v15_8_10)
+  - belge alanı talep aşamasında opsiyonel yapıldı
+
+---
 ## [v1.7.1-alpha.4] - 2026-07-01 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
