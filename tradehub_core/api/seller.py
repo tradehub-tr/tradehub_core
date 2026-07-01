@@ -556,6 +556,100 @@ def update_my_admin_seller_profile(logo=None, banner_image=None, slogan=None):
 	return {"updated": list(updates.keys())}
 
 
+# Storefront satıcı self-servis profil formu (seller-dashboard) alan setleri.
+# YAZILABILIR allowlist — hassas alanlar (tax_id/tax_office/iban → KYB/finansal,
+# ayrı güvenli akışla düzenlenir) ve toplanmayan adres alanları
+# (address_line2/district/postal_code → doğru evi Addresses doctype'ı) HARİÇ.
+_PROFILE_EDITABLE_FIELDS = frozenset(
+	{
+		"seller_name",
+		"slogan",
+		"description",
+		"logo",
+		"banner_image",
+		"phone",
+		"website",
+		"address_line1",
+		"city",
+		"company_name",
+		"business_type",
+		"founded_year",
+		"staff_count",
+		"annual_revenue",
+		"factory_size",
+		"main_markets",
+	}
+)
+
+# Forma yüklenen (okuma) alanlar — yazılamayanlar (tax/iban) da dahil,
+# çünkü formda görüntüleniyorlar (update_profile yalnızca allowlist'i yazar).
+_PROFILE_READ_FIELDS = [
+	"seller_name",
+	"company_name",
+	"phone",
+	"website",
+	"slogan",
+	"description",
+	"logo",
+	"banner_image",
+	"business_type",
+	"founded_year",
+	"staff_count",
+	"annual_revenue",
+	"factory_size",
+	"main_markets",
+	"address_line1",
+	"city",
+	"tax_id",
+	"tax_office",
+	"iban",
+]
+
+
+def _get_my_seller_profile_name() -> str:
+	"""Giriş yapan kullanıcının kendi Admin Seller Profile adını döndürür.
+	Sahiplik garantisi: lookup {"user": session.user} — başka profil erişilemez."""
+	user = frappe.session.user
+	if not user or user == "Guest":
+		frappe.throw(_("Yetkisiz"), frappe.PermissionError)
+	name = frappe.db.get_value("Admin Seller Profile", {"user": user}, "name")
+	if not name:
+		frappe.throw(_("Satıcı profili bulunamadı"), frappe.DoesNotExistError)
+	return name
+
+
+@frappe.whitelist()
+def get_my_profile() -> dict:
+	"""Giriş yapan satıcının kendi mağaza profilini (self-servis form için) döndürür."""
+	name = _get_my_seller_profile_name()
+	return frappe.db.get_value("Admin Seller Profile", name, _PROFILE_READ_FIELDS, as_dict=True) or {}
+
+
+@frappe.whitelist()
+def update_profile(data=None) -> dict:
+	"""Satıcının kendi mağaza profilini günceller — SADECE allowlist alanları.
+
+	Güvenlik: hassas (tax_id/tax_office/iban) ve toplanmayan (address_line2/
+	district/postal_code) alanlar allowlist dışı; gelseler bile yoksayılır.
+	Sahiplik {"user": session.user} lookup'ı ile garanti (başka profil yazılamaz)."""
+	from tradehub_core.utils.seller_capabilities import require_seller_capability
+
+	require_seller_capability("seller_profile.write")
+	name = _get_my_seller_profile_name()
+
+	if isinstance(data, str):
+		data = frappe.parse_json(data)
+	if not isinstance(data, dict):
+		frappe.throw(_("Geçersiz veri"), frappe.ValidationError)
+
+	updates = {k: v for k, v in data.items() if k in _PROFILE_EDITABLE_FIELDS}
+	for field, value in updates.items():
+		frappe.db.set_value("Admin Seller Profile", name, field, value)
+	if updates:
+		frappe.db.commit()
+	return {"updated": sorted(updates.keys())}
+
+
 @frappe.whitelist(allow_guest=True)
 def get_seller_categories(seller_code):
 	"""Public: Satıcının aktif listing'lerinden türetilen kategorileri döndür.
