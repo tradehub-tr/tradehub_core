@@ -35,8 +35,8 @@
    "fieldname": "status",
    "fieldtype": "Select",
    "label": "Durum",
-   "options": "Pending\nVerified\nRejected",
-   "default": "Pending",
+   "options": "Requested\nScheduled\nPending\nVerified\nRejected",
+   "default": "Requested",
    "reqd": 1,
    "in_list_view": 1,
    "in_standard_filter": 1
@@ -56,6 +56,22 @@
    "label": "Geçerlilik Bitiş Tarihi"
   },
   {
+   "fieldname": "request_note",
+   "fieldtype": "Small Text",
+   "label": "Talep Notu",
+   "description": "Satıcının denetim talebiyle ilettiği not (tesis, müsait zaman vb.)"
+  },
+  {
+   "fieldname": "scheduled_date",
+   "fieldtype": "Date",
+   "label": "Planlanan Denetim Tarihi"
+  },
+  {
+   "fieldname": "admin_note",
+   "fieldtype": "Small Text",
+   "label": "Yönetici Notu"
+  },
+  {
    "fieldname": "section_break_1",
    "fieldtype": "Section Break",
    "label": "Belge"
@@ -64,8 +80,8 @@
    "fieldname": "document",
    "fieldtype": "Attach",
    "label": "Denetim Belgesi",
-   "reqd": 1,
-   "description": "Satıcının yüklediği 3. taraf denetim belgesi/raporu"
+   "reqd": 0,
+   "description": "Satıcının yüklediği 3. taraf denetim belgesi/raporu (talep aşamasında boş olabilir)"
   }
  ],
  "permissions": [

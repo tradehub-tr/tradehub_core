@@ -203,3 +203,4 @@ tradehub_core.patches.v15_9_5_backfill_asp_contact
 tradehub_core.patches.v15_9_6_backfill_selling_price_base
 tradehub_core.patches.v15_9_7_hide_asp_fake_perf_fields
 tradehub_core.patches.v15_9_8_backfill_seller_performance
+tradehub_core.patches.v15_8_10_seed_verification_nav

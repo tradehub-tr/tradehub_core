@@ -385,6 +385,20 @@ SELLER_MODULES: list[dict] = [
 		"requires": ["owner", "admin"],
 	},
 	{
+		# Saha/tedarikçi doğrulama başvurusu — KYB (işletme doğrulama) komşusu.
+		# Rol kısıtı yok: create_my_verification session kullanıcısının satıcı
+		# profiline bağlı, tüm satıcı personeli başvurabilir (Sertifikalarım gibi).
+		"key": "seller.store.profil.dogrulama",
+		"parent": "seller.store.profil",
+		"type": "item",
+		"panel": "seller",
+		"section": "store",
+		"label": "Doğrulamalarım",
+		"icon": "badge-check",
+		"route": "/my-verifications",
+		"order": 3,
+	},
+	{
 		"key": "seller.store.profil.abonelik",
 		"parent": "seller.store.profil",
 		"type": "item",
@@ -394,7 +408,7 @@ SELLER_MODULES: list[dict] = [
 		"icon": "credit-card",
 		"route": "/abonelik",
 		"seller_owned": True,
-		"order": 3,
+		"order": 4,
 		"requires": ["owner_or_co", "admin"],
 	},
 	{

@@ -805,7 +805,7 @@ def approve_seller_category(category_name, action="approve", reject_reason=""):
 
 @frappe.whitelist()
 def list_pending_seller_verifications() -> list:
-	"""Admin: Onay bekleyen Seller Verification kayıtlarını listele (N+1 yok)."""
+	"""Admin: Onay ve talep bekleyen Seller Verification kayıtlarını listele (N+1 yok)."""
 	if (
 		"System Manager" not in frappe.get_roles(frappe.session.user)
 		and frappe.session.user != "Administrator"
@@ -815,7 +815,7 @@ def list_pending_seller_verifications() -> list:
 	# System Manager/Administrator sistem işlemi — get_all ile perm bypass kasıtlı
 	rows = frappe.get_all(
 		"Seller Verification",
-		filters={"status": "Pending"},
+		filters={"status": ["in", ["Requested", "Scheduled", "Pending"]]},
 		fields=[
 			"name",
 			"seller",
@@ -823,6 +823,8 @@ def list_pending_seller_verifications() -> list:
 			"status",
 			"inspection_date",
 			"expiry_date",
+			"scheduled_date",
+			"request_note",
 			"document",
 			"creation",
 		],
@@ -865,6 +867,26 @@ def list_pending_seller_verifications() -> list:
 		r["source_name"] = source_map.get(r.source, r.source or "-")
 
 	return rows
+
+
+@frappe.whitelist()
+def schedule_verification(name: str, scheduled_date: str, admin_note: str = "") -> dict:
+	"""Superadmin: Denetim talebini planla (Requested → Scheduled)."""
+	if frappe.session.user != "Administrator":
+		frappe.throw(_("Bu işlemi yalnızca Administrator yapabilir"), frappe.PermissionError)
+	if not scheduled_date:
+		frappe.throw(_("Planlanan tarih zorunludur."))
+
+	doc = frappe.get_doc("Seller Verification", name)
+	if doc.status not in ("Requested", "Scheduled"):
+		frappe.throw(_("Yalnızca talep aşamasındaki kayıtlar planlanabilir."))
+	doc.scheduled_date = scheduled_date
+	if admin_note:
+		doc.admin_note = admin_note
+	doc.status = "Scheduled"
+	doc.save(ignore_permissions=True)  # Administrator sistem işlemi
+	frappe.db.commit()
+	return {"ok": True, "name": doc.name, "status": doc.status}
 
 
 @frappe.whitelist()
