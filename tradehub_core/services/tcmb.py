@@ -137,12 +137,19 @@ def refresh_listing_price_base():
 
 	TCMB job'undan sonra çağrılır; ayrıca her Listing.validate'inde tekil hesap
 	yapılır (bkz. Listing._to_base_price)."""
-	from tradehub_core.api.currency import _get_exchange_rate
+	from tradehub_core.api.currency import _get_exchange_rate_strict
 
 	currencies = frappe.db.get_all("Listing", fields=["currency"], distinct=True, pluck="currency")
 	for cur in currencies:
 		code = cur or "TRY"
-		rate = 1.0 if code == "TRY" else _get_exchange_rate(code, "TRY")
+		rate = 1.0 if code == "TRY" else _get_exchange_rate_strict(code, "TRY")
+		if rate is None:
+			# Kur çifti yok — base price'ı ×1.0 ile BOZMA; son değeri koru, logla.
+			frappe.log_error(
+				f"{code}-TRY kuru yok; selling_price_base güncellenmedi.",
+				"refresh_listing_price_base",
+			)
+			continue
 		frappe.db.sql(
 			"""UPDATE `tabListing` SET selling_price_base = ROUND(selling_price * %s, 2)
 			WHERE COALESCE(currency, 'TRY') = %s""",
