@@ -235,7 +235,7 @@ def _setup_subscription(
 		(
 			"get_value",
 			"Store Subscription",
-			"{'store': '" + tenant_name + "', 'status': ['in', ['trial', 'active']]}",
+			"{'store': '" + tenant_name + "', 'status': ['in', ['trial', 'active', 'past_due']]}",
 			"name",
 		)
 	] = sub_name

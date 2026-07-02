@@ -28,10 +28,13 @@ DEFAULT_SAMPLE_USERS = 20
 # (amount > 5000 doc'larda L1 check her zaman False döner, Frappe DocPerm submit
 # yes ise false-positive `frappe_overpermits` patlardı). Approval doğrulaması
 # için amount-aware ayrı job gerekli.
+# #C4 — Yalnız model.fga'da TANIMLI tipler drift'te sorgulanır. "Store Subscription"
+# çıkarıldı: model.fga'da `store_subscription` tipi YOK → OpenFGA validation error
+# (400) → her Store Subscription için yanlış `frappe_overpermits` + breaker besleme.
+# Abonelik gating ReBAC değil ABAC/entitlement katmanında (guardrail) yapılıyor.
 DRIFT_DOCTYPES = [
 	("Order", "read", "can_view"),
 	("Admin Seller Profile", "read", "can_view"),
-	("Store Subscription", "read", "can_view"),
 ]
 
 # Conditional tuple'lı relation'lar — defansif skip (ileride DRIFT_DOCTYPES'a

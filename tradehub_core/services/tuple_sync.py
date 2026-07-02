@@ -220,8 +220,10 @@ def on_user_trash(doc, method=None) -> None:
 			]
 		)
 
-	# delete_tuples idempotent — olmayan tuple'lar OpenFGA tarafından sessizce
-	# kabul edilir (OpenFGA write API delete'i kontrol etmez)
+	# #C1 — OpenFGA Write API transactional'dır; olmayan tuple'ı silmek 400 verir.
+	# Idempotency delete_tuples içindeki per-tuple fallback ile sağlanır (batch 4xx
+	# alırsa tek tek dener, "mevcut değil" hatalarını tolere eder). Bu downgrade
+	# senaryosunda "tüm olası relation"ları toplu silmek artık güvenli.
 	_enqueue_delete(tuples)
 
 
@@ -239,6 +241,24 @@ def on_admin_seller_profile_insert(doc, method=None) -> None:
 	user = f"user:{doc.user}"
 
 	_enqueue_write([(user, "owner", store), (user, "member", store)])
+
+
+def on_admin_seller_profile_update(doc, method=None) -> None:
+	"""#C2 — Admin Seller Profile.user (owner) değişince eski owner/member
+	tuple'larını sil, yeni owner'a yaz. Aksi halde eski owner store'a erişmeye
+	devam eder (stale grant)."""
+	before = doc.get_doc_before_save() if hasattr(doc, "get_doc_before_save") else None
+	if before is None:
+		return
+	old_user = before.get("user")
+	new_user = doc.get("user")
+	if old_user == new_user:
+		return
+	store = f"store:{doc.name}"
+	if old_user:
+		_enqueue_delete([(f"user:{old_user}", "owner", store), (f"user:{old_user}", "member", store)])
+	if new_user:
+		_enqueue_write([(f"user:{new_user}", "owner", store), (f"user:{new_user}", "member", store)])
 
 
 def on_admin_seller_profile_trash(doc, method=None) -> None:
@@ -298,22 +318,88 @@ def on_organization_trash(doc, method=None) -> None:
 # ---------------------------------------------------------------------------
 
 
+# Faz 6 — alan-bazlı izin part'ları (Airbnb type:id:part). Object:
+# `listing_field:<listing>:<PART>`.
+LISTING_FIELD_PARTS = ("PRICE", "DESCRIPTION", "COST")
+
+
+def _owner_field_tuples(listing_name: str, owner_user: str) -> list[tuple[str, str, str]]:
+	"""Mağaza sahibine tüm part'larda field_editor (owner tüm alanları düzenler)."""
+	u = f"user:{owner_user}"
+	# Ayraç '/': OpenFGA id'sinde ':' geçersiz (bkz. registry.field_target_for).
+	return [(u, "field_editor", f"listing_field:{listing_name}/{p}") for p in LISTING_FIELD_PARTS]
+
+
 def on_listing_insert(doc, method=None) -> None:
-	"""Listing after_insert → listing.store_link tuple."""
+	"""Listing after_insert → store_link + mağaza sahibi field_editor (tüm part'lar)."""
 	if not doc.get("seller_profile"):
 		return
 	listing = f"listing:{doc.name}"
 	store = f"store:{doc.seller_profile}"
-	_enqueue_write([(listing, "store_link", store)])
+	tuples = [(listing, "store_link", store)]
+	owner = frappe.db.get_value("Admin Seller Profile", doc.seller_profile, "user")
+	if owner:
+		tuples.extend(_owner_field_tuples(doc.name, owner))
+	_enqueue_write(tuples)
+
+
+def on_listing_update(doc, method=None) -> None:
+	"""#C2 — Listing başka mağazaya taşınırsa (seller_profile değişimi) eski
+	store_link tuple'ını sil, yeniyi yaz (orphan tuple önle)."""
+	before = doc.get_doc_before_save() if hasattr(doc, "get_doc_before_save") else None
+	if before is None:
+		return
+	old_store = before.get("seller_profile")
+	new_store = doc.get("seller_profile")
+	if old_store == new_store:
+		return
+	listing = f"listing:{doc.name}"
+	if old_store:
+		_enqueue_delete([(listing, "store_link", f"store:{old_store}")])
+	if new_store:
+		_enqueue_write([(listing, "store_link", f"store:{new_store}")])
 
 
 def on_listing_trash(doc, method=None) -> None:
-	"""Listing silindi → tüm ilişkileri sil."""
+	"""Listing silindi → store_link + owner field_editor tuple'larını sil."""
 	if not doc.get("seller_profile"):
 		return
 	listing = f"listing:{doc.name}"
 	store = f"store:{doc.seller_profile}"
-	_enqueue_delete([(listing, "store_link", store)])
+	tuples = [(listing, "store_link", store)]
+	owner = frappe.db.get_value("Admin Seller Profile", doc.seller_profile, "user")
+	if owner:
+		tuples.extend(_owner_field_tuples(doc.name, owner))
+	_enqueue_delete(tuples)
+
+
+# ---------------------------------------------------------------------------
+# Field-level grant/revoke (alt-hesap operasyon/finans rolleri) — Faz 6
+# ---------------------------------------------------------------------------
+
+
+def grant_field_access(user: str, listing_name: str, part: str, relation: str = "field_editor") -> bool:
+	"""Bir kullanıcıya listing'in BELİRLİ bir alanında (part) izin ver.
+
+	relation: 'field_editor' (düzenle) | 'field_viewer' (gör). SENKRON yazar
+	(admin aksiyonu hemen etkili olsun). part LISTING_FIELD_PARTS içinde olmalı.
+	"""
+	if part not in LISTING_FIELD_PARTS:
+		frappe.throw(frappe._("Geçersiz alan: {0}").format(part))
+	from tradehub_core.services import rebac_client
+
+	return rebac_client.write_tuples(
+		[(f"user:{user}", relation, f"listing_field:{listing_name}/{part}")]
+	)
+
+
+def revoke_field_access(user: str, listing_name: str, part: str, relation: str = "field_editor") -> bool:
+	"""grant_field_access'in tersi — alan iznini kaldır (senkron)."""
+	from tradehub_core.services import rebac_client
+
+	return rebac_client.delete_tuples(
+		[(f"user:{user}", relation, f"listing_field:{listing_name}/{part}")]
+	)
 
 
 # ---------------------------------------------------------------------------
@@ -342,6 +428,38 @@ def on_order_insert(doc, method=None) -> None:
 	_enqueue_write(tuples)
 
 
+def on_order_update(doc, method=None) -> None:
+	"""#C2 — Order.seller_profile / buyer_org değişince eski link tuple'larını
+	sil, yenilerini yaz (reassignment sonrası orphan/stale link önle)."""
+	before = doc.get_doc_before_save() if hasattr(doc, "get_doc_before_save") else None
+	if before is None:
+		return
+	order = f"order:{doc.name}"
+	stale: list[tuple[str, str, str]] = []
+	fresh: list[tuple[str, str, str]] = []
+
+	old_seller = before.get("seller_profile")
+	new_seller = doc.get("seller_profile")
+	if old_seller != new_seller:
+		if old_seller:
+			stale.append((order, "store_link", f"store:{old_seller}"))
+		if new_seller:
+			fresh.append((order, "store_link", f"store:{new_seller}"))
+
+	old_bo = before.get("buyer_organization") or before.get("buyer_profile")
+	new_bo = doc.get("buyer_organization") or doc.get("buyer_profile")
+	if old_bo != new_bo:
+		if old_bo:
+			stale.append((order, "buyer_org_link", f"buyer_org:{old_bo}"))
+		if new_bo:
+			fresh.append((order, "buyer_org_link", f"buyer_org:{new_bo}"))
+
+	if stale:
+		_enqueue_delete(stale)
+	if fresh:
+		_enqueue_write(fresh)
+
+
 def on_order_trash(doc, method=None) -> None:
 	"""Order silindi → tüm ilişkileri sil."""
 	order = f"order:{doc.name}"
@@ -358,3 +476,43 @@ def on_order_trash(doc, method=None) -> None:
 		tuples.append((order, "requisitioner", f"user:{doc.owner}"))
 
 	_enqueue_delete(tuples)
+
+
+# ---------------------------------------------------------------------------
+# Reconciliation (#C6) — Frappe = kaynak-doğru; eksik grant'ları self-heal et
+# ---------------------------------------------------------------------------
+
+
+def reconcile_user(user_name: str) -> int:
+	"""Kullanıcının beklenen seller/buyer tuple'larını Frappe'den yeniden üretip
+	OpenFGA'ya (idempotent) yazar → EKSİK grant'ları self-heal eder.
+
+	Sınır: write-only. EXTRA/stale tuple'ların SİLİNMESİ OpenFGA Read API'si
+	gerektirir (henüz yok); o yön owner-transfer event'leri (on_*_update) +
+	drift_detection ile ele alınır. Bu fonksiyon "missing grant" tarafını kapatır.
+	Idempotency rebac_client.write_tuples per-tuple fallback'i (#C1) ile sağlanır.
+	"""
+	tenant = frappe.db.get_value("User", user_name, "tradehub_tenant")
+	parent_org = frappe.db.get_value("User", user_name, "tradehub_parent_organization")
+	tuples: list[tuple[str, str, str]] = []
+	if tenant:
+		tuples.extend(_user_tuples_for_seller(user_name, tenant))
+	if parent_org:
+		tuples.extend(_user_tuples_for_buyer(user_name, parent_org))
+	if not tuples:
+		return 0
+	_enqueue_write(tuples)
+	return len(tuples)
+
+
+def reconcile_users(limit: int = 100) -> dict:
+	"""Batch reconciliation — enabled user örneğini self-heal eder (scheduler'dan
+	çağrılabilir). Sidecar down ise write no-op (fail-closed)."""
+	users = frappe.get_all("User", filters={"enabled": 1}, pluck="name", limit=limit) or []
+	total = 0
+	for u in users:
+		try:
+			total += reconcile_user(u)
+		except Exception as exc:  # noqa: BLE001
+			frappe.log_error(f"reconcile_user {u} failed: {exc}", "tuple_sync.reconcile")
+	return {"users": len(users), "tuples_written": total}

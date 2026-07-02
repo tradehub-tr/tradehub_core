@@ -28,6 +28,12 @@ from typing import Any
 
 import frappe
 
+# #D3 — Tutar EUR'a güvenilir normalize edilemediğinde (FX rate yok / total
+# bilinmiyor) kullanılan fail-closed sentinel: her gerçek onay-threshold'unu
+# aşar → en yüksek onay tier'ını (L2) tetikler. inf yerine büyük sonlu değer
+# (JSON-safe, audit context'e serialize edilebilir).
+FX_UNRESOLVED_EUR = 1e18
+
 # ---------------------------------------------------------------------------
 # Order context (amount, currency, category, supplier)
 # ---------------------------------------------------------------------------
@@ -67,13 +73,17 @@ def build_order_context(order_doc_or_name: Any) -> dict[str, Any]:
 		if shipping_address:
 			order_region = frappe.db.get_value("Address", shipping_address, "country") or None
 
-	# Defansif: order.total None ise float(None or 0) = 0.0. needs_approval_l1
-	# (500 < amount <= 5000) ve l2 (> 5000) condition'ları amount=0 için False
-	# döner → ABAC tarafında "onay gerekmez" değil "L2 ABAC DENY" sonucuyla
-	# fail-closed. Yani total=None silent sızıntı değil; testle (S2) kanıtlı.
-	amount_raw = float(order.get("total") or 0)
+	# #D3 — Tutar EUR'a güvenilir normalize edilemezse fail-closed: en yüksek
+	# onay tier'ını tetikleyen sentinel. total None (tutar bilinmiyor) → onay zorla;
+	# under-escalation (yüksek değerli order'ın onayı atlaması) engellenir.
 	currency = order.get("currency") or "EUR"
-	amount_eur = normalize_amount_to_eur(amount_raw, currency)
+	total = order.get("total")
+	if total is None:
+		amount_raw = 0.0
+		amount_eur = FX_UNRESOLVED_EUR
+	else:
+		amount_raw = float(total or 0)
+		amount_eur = normalize_amount_to_eur(amount_raw, currency)
 
 	return {
 		"amount": amount_raw,
@@ -117,20 +127,23 @@ def normalize_amount_to_eur(amount: float | None, currency: str | None) -> float
 		)
 		if rate:
 			return float(amount) * float(rate)
+		# #D3 — FX rate yok → raw (under-escalation) yerine fail-closed sentinel:
+		# tutar EUR olarak doğrulanamadığı için en yüksek onay tier'ı zorlanır.
 		frappe.log_error(
-			f"FX rate yok: {currency} → EUR; raw amount kullanıldı ({amount})",
+			f"FX rate yok: {currency} → EUR; fail-closed (onay zorlandı, amount={amount})",
 			"abac.normalize_amount_to_eur",
 		)
+		return FX_UNRESOLVED_EUR
 	except Exception as exc:  # noqa: BLE001
-		# Test stub veya DB yok — raw'a fallback
+		# DB/stub hatası — tutar doğrulanamıyor → fail-closed (onay zorla).
 		try:
 			frappe.log_error(
-				f"FX lookup hatası ({currency} → EUR): {exc}",
+				f"FX lookup hatası ({currency} → EUR): {exc}; fail-closed",
 				"abac.normalize_amount_to_eur",
 			)
 		except Exception:  # noqa: BLE001
 			pass
-	return float(amount)
+		return FX_UNRESOLVED_EUR
 
 
 def _extract_order_category(order) -> str | None:

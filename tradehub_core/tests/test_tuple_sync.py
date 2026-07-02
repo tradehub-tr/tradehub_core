@@ -298,6 +298,54 @@ class AdminSellerProfileTests(unittest.TestCase):
 		self.assertEqual(len(_ENQUEUED), 0)
 
 
+class OwnerTransferUpdateTests(unittest.TestCase):
+	"""#C2 — on_*_update owner/reassignment tuple bakımı (orphan/stale önleme)."""
+
+	def setUp(self):
+		_reset_state()
+
+	def _upd(self, doctype, name, before_fields, after_fields):
+		before = _make_doc(doctype, name, **before_fields)
+		doc = _make_doc(doctype, name, **after_fields)
+		doc.get_doc_before_save = lambda: before
+		return doc
+
+	def _writes(self):
+		return [t for e in _ENQUEUED if e["method"].endswith("write_tuples") for t in e["tuples"]]
+
+	def _deletes(self):
+		return [t for e in _ENQUEUED if e["method"].endswith("delete_tuples") for t in e["tuples"]]
+
+	def test_asp_owner_change_realigns(self):
+		doc = self._upd("Admin Seller Profile", "STORE-A", {"user": "old@x"}, {"user": "new@x"})
+		tuple_sync.on_admin_seller_profile_update(doc)
+		self.assertIn(("user:old@x", "owner", "store:STORE-A"), self._deletes())
+		self.assertIn(("user:new@x", "owner", "store:STORE-A"), self._writes())
+
+	def test_asp_no_change_noop(self):
+		doc = self._upd("Admin Seller Profile", "STORE-A", {"user": "same@x"}, {"user": "same@x"})
+		tuple_sync.on_admin_seller_profile_update(doc)
+		self.assertEqual(len(_ENQUEUED), 0)
+
+	def test_listing_moved_to_new_store(self):
+		doc = self._upd("Listing", "LST-1", {"seller_profile": "S1"}, {"seller_profile": "S2"})
+		tuple_sync.on_listing_update(doc)
+		self.assertIn(("listing:LST-1", "store_link", "store:S1"), self._deletes())
+		self.assertIn(("listing:LST-1", "store_link", "store:S2"), self._writes())
+
+	def test_order_reassigned(self):
+		doc = self._upd("Order", "ORD-1", {"seller_profile": "S1"}, {"seller_profile": "S2"})
+		tuple_sync.on_order_update(doc)
+		self.assertIn(("order:ORD-1", "store_link", "store:S1"), self._deletes())
+		self.assertIn(("order:ORD-1", "store_link", "store:S2"), self._writes())
+
+	def test_no_before_save_noop(self):
+		doc = _make_doc("Listing", "LST-9", seller_profile="S1")
+		doc.get_doc_before_save = lambda: None
+		tuple_sync.on_listing_update(doc)
+		self.assertEqual(len(_ENQUEUED), 0)
+
+
 # ---------------------------------------------------------------------------
 # Organization hooks
 # ---------------------------------------------------------------------------
@@ -402,6 +450,30 @@ class EnqueueAfterCommitTests(unittest.TestCase):
 		doc = _make_doc("Listing", "L-1", seller_profile="STORE-A")
 		tuple_sync.on_listing_insert(doc)
 		self.assertTrue(_ENQUEUED[0].get("enqueue_after_commit"))
+
+
+class ReconcileTests(unittest.TestCase):
+	"""#C6 — reconcile_user beklenen tuple'ları (idempotent) yeniden yazar."""
+
+	def setUp(self):
+		_reset_state()
+
+	def test_reconcile_writes_expected_tuples(self):
+		_DB[("get_value", "User", "seller@x", "tradehub_tenant")] = "STORE-A"
+		_DB[("get_value", "User", "seller@x", "tradehub_parent_organization")] = None
+		_ROLES["seller@x"] = ["Seller Owner"]
+		n = tuple_sync.reconcile_user("seller@x")
+		self.assertGreater(n, 0)
+		tuples = [t for e in _ENQUEUED for t in e["tuples"]]
+		self.assertIn(("user:seller@x", "owner", "store:STORE-A"), tuples)
+		self.assertIn(("user:seller@x", "member", "store:STORE-A"), tuples)
+
+	def test_reconcile_no_tenant_noop(self):
+		_DB[("get_value", "User", "nobody@x", "tradehub_tenant")] = None
+		_DB[("get_value", "User", "nobody@x", "tradehub_parent_organization")] = None
+		n = tuple_sync.reconcile_user("nobody@x")
+		self.assertEqual(n, 0)
+		self.assertEqual(len(_ENQUEUED), 0)
 
 
 if __name__ == "__main__":

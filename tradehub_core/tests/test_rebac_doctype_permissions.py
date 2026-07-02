@@ -66,7 +66,9 @@ def _install_frappe_stub() -> None:
 		exists=db_exists,
 		escape=lambda s: f"'{s}'",
 		count=lambda *a, **kw: 0,
-		has_column=lambda *a, **kw: False,
+		# _buyer_tenant_for_user has_column guard'ı kullanıyor; stub'ın bu alanları
+		# "var" sayması lazım yoksa buyer tenant çözülemez → cost_center 1=0 (drift).
+		has_column=lambda dt, col, *a, **kw: col in ("tradehub_buyer_tenant", "tradehub_tenant"),
 	)
 	frappe.session = SimpleNamespace(user="Guest")
 	frappe.local = SimpleNamespace()

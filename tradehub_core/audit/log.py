@@ -15,11 +15,80 @@ Detay: docs/yetki/01-karar-dosyasi.md §4, docs/yetki/03-doctype-sablonlari.md
 
 from __future__ import annotations
 
+import hashlib
 import json
 from typing import Any
 
 import frappe
 from frappe.utils import now_datetime
+
+# --- #F1 Tamper-evident hash-chain (Authorization Decision Log) ---
+# Her ADL kaydı, içeriğinin + bir önceki kaydın entry_hash'inin SHA-256'sıdır.
+# Herhangi bir alanın sonradan değiştirilmesi → yeniden hesaplanan hash uyuşmaz
+# (içerik kurcalaması); bir kaydın silinmesi/yeniden sıralanması → prev_hash
+# linkage kopar (zincir kurcalaması). Bkz. verify_chain().
+ADL_HASH_FIELDS = [
+	"timestamp", "actor", "actor_role", "tenant", "buyer_org", "action",
+	"object_doctype", "object_name", "decision", "rule_id", "layer", "region",
+	"plan_code", "severity", "context", "request_id", "ip_address", "user_agent",
+]
+_GENESIS_HASH = "GENESIS"
+
+
+def adl_canonical(row: Any) -> str:
+	"""ADL kaydından deterministik kanonik string (dict veya doc kabul eder)."""
+	get = row.get if hasattr(row, "get") else (lambda k: getattr(row, k, None))
+	return json.dumps(
+		{f: str(get(f) if get(f) is not None else "") for f in ADL_HASH_FIELDS},
+		sort_keys=True,
+		ensure_ascii=False,
+	)
+
+
+def adl_entry_hash(row: Any, prev_hash: str | None) -> str:
+	"""entry_hash = SHA-256(kanonik_içerik | prev_hash)."""
+	payload = adl_canonical(row) + "|" + (prev_hash or _GENESIS_HASH)
+	return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def verify_chain(limit: int = 5000, start: str | None = None) -> dict:
+	"""#F1 — ADL hash-chain'ini doğrula; kurcalamayı tespit et.
+
+	Kayıtlar creation ASC sırada yürünür. Her kayıt için:
+	  - entry_hash yeniden hesaplanır → uyuşmazsa İÇERİK kurcalanmış.
+	  - prev_hash bir önceki kaydın entry_hash'ine eşit olmalı → değilse
+	    SIRALAMA/SİLME kurcalaması (zincir kopması).
+
+	Returns: {"ok": bool, "checked": n, "tampered": [{name, kind}], "broken_links": [...]}
+	"""
+	# Yalnız hash-chain adoption'ı SONRASI kayıtlar (entry_hash dolu). Öncekiler
+	# hash taşımaz → zincire dahil edilmez.
+	rows = frappe.get_all(
+		"Authorization Decision Log",
+		filters={"entry_hash": ["is", "set"]},
+		fields=["name", "prev_hash", "entry_hash", "creation", *ADL_HASH_FIELDS],
+		order_by="creation asc, name asc",
+		limit=limit,
+	)
+	tampered: list[dict] = []
+	broken: list[dict] = []
+	expected_prev = None  # ilk kaydın prev_hash'i GENESIS olmalı
+	for i, r in enumerate(rows):
+		recomputed = adl_entry_hash(r, r.get("prev_hash"))
+		if recomputed != r.get("entry_hash"):
+			tampered.append({"name": r["name"], "kind": "content"})
+		if i == 0:
+			if r.get("prev_hash") not in (None, "", _GENESIS_HASH):
+				broken.append({"name": r["name"], "kind": "bad_genesis"})
+		elif r.get("prev_hash") != expected_prev:
+			broken.append({"name": r["name"], "kind": "broken_link"})
+		expected_prev = r.get("entry_hash")
+	return {
+		"ok": not tampered and not broken,
+		"checked": len(rows),
+		"tampered": tampered,
+		"broken_links": broken,
+	}
 
 # --- Constants (decision values) ---
 DECISION_ALLOW = "ALLOW"

@@ -130,7 +130,7 @@ def has_tenant_permission(doc, ptype=None, user=None):
 	ptype = ptype or "read"
 
 	# System Manager has full access
-	if user == "Administrator" or _is_platform_full_access(user):
+	if user == "Administrator" or _is_platform_full_access(user, ptype):
 		return True
 
 	# Get document data
@@ -642,7 +642,7 @@ def listing_query_conditions(user):
 
 
 def listing_has_permission(doc, ptype, user):
-	if user == "Administrator" or _is_platform_full_access(user):
+	if user == "Administrator" or _is_platform_full_access(user, ptype):
 		return True
 	profile = _get_seller_profile_name(user)
 	if not profile:
@@ -672,11 +672,11 @@ def admin_seller_profile_query_conditions(user):
 
 
 def admin_seller_profile_has_permission(doc, ptype, user):
-	if user == "Administrator" or _is_platform_full_access(user):
+	if user == "Administrator" or _is_platform_full_access(user, ptype):
 		return True
 	profile = _get_seller_profile_name(user)
 	doc_name = getattr(doc, "name", None) if not isinstance(doc, dict) else doc.get("name")
-	return profile and doc_name == profile
+	return bool(profile and doc_name == profile)
 
 
 # ── Seller Balance ───────────────────────────────────────────────────────────
@@ -695,7 +695,7 @@ def seller_balance_query_conditions(user):
 
 
 def seller_balance_has_permission(doc, ptype, user):
-	if user == "Administrator" or _is_platform_full_access(user):
+	if user == "Administrator" or _is_platform_full_access(user, ptype):
 		return True
 	seller_val = getattr(doc, "seller", None) if not isinstance(doc, dict) else doc.get("seller")
 	# Sprint 2 (revised, 2026-05-15): seller artık Admin Seller Profile.name (SEL-XXXXX),
@@ -718,11 +718,11 @@ def seller_review_query_conditions(user):
 
 
 def seller_review_has_permission(doc, ptype, user):
-	if user == "Administrator" or _is_platform_full_access(user):
+	if user == "Administrator" or _is_platform_full_access(user, ptype):
 		return True
 	profile = _get_seller_profile_name(user)
 	seller_val = getattr(doc, "seller", None) if not isinstance(doc, dict) else doc.get("seller")
-	return profile and seller_val == profile
+	return bool(profile and seller_val == profile)
 
 
 # ── Listing Review ───────────────────────────────────────────────────────────
@@ -931,11 +931,11 @@ def seller_category_query_conditions(user):
 
 
 def seller_category_has_permission(doc, ptype, user):
-	if user == "Administrator" or _is_platform_full_access(user):
+	if user == "Administrator" or _is_platform_full_access(user, ptype):
 		return True
 	profile = _get_seller_profile_name(user)
 	seller_val = getattr(doc, "seller", None) if not isinstance(doc, dict) else doc.get("seller")
-	return profile and seller_val == profile
+	return bool(profile and seller_val == profile)
 
 
 # ── Seller Gallery Image ─────────────────────────────────────────────────────
@@ -952,11 +952,11 @@ def seller_gallery_image_query_conditions(user):
 
 
 def seller_gallery_image_has_permission(doc, ptype, user):
-	if user == "Administrator" or _is_platform_full_access(user):
+	if user == "Administrator" or _is_platform_full_access(user, ptype):
 		return True
 	profile = _get_seller_profile_name(user)
 	parent_val = getattr(doc, "parent", None) if not isinstance(doc, dict) else doc.get("parent")
-	return profile and parent_val == profile
+	return bool(profile and parent_val == profile)
 
 
 # ── KYB Verification ─────────────────────────────────────────────────────────
@@ -970,7 +970,7 @@ def kyb_verification_query_conditions(user):
 
 
 def kyb_verification_has_permission(doc, ptype, user):
-	if user == "Administrator" or _is_platform_full_access(user):
+	if user == "Administrator" or _is_platform_full_access(user, ptype):
 		return True
 	user_val = getattr(doc, "user", None) if not isinstance(doc, dict) else doc.get("user")
 	return user_val == user
@@ -1010,7 +1010,7 @@ def order_query_conditions(user):
 
 
 def order_has_permission(doc, ptype, user):
-	if user == "Administrator" or _is_platform_full_access(user):
+	if user == "Administrator" or _is_platform_full_access(user, ptype):
 		return True
 	if doc is None:
 		return True
@@ -1048,11 +1048,11 @@ def seller_inquiry_query_conditions(user):
 
 
 def seller_inquiry_has_permission(doc, ptype, user):
-	if user == "Administrator" or _is_platform_full_access(user):
+	if user == "Administrator" or _is_platform_full_access(user, ptype):
 		return True
 	profile = _get_seller_profile_name(user)
 	seller_val = getattr(doc, "seller", None) if not isinstance(doc, dict) else doc.get("seller")
-	return profile and seller_val == profile
+	return bool(profile and seller_val == profile)
 
 
 # ── Certification Type ───────────────────────────────────────────────────────
@@ -1070,7 +1070,7 @@ def certification_type_query_conditions(user):
 
 
 def certification_type_has_permission(doc, ptype, user):
-	if user == "Administrator" or _is_platform_full_access(user):
+	if user == "Administrator" or _is_platform_full_access(user, ptype):
 		return True
 	status_val = getattr(doc, "status", None) if not isinstance(doc, dict) else doc.get("status")
 	if status_val == "Approved":
@@ -1093,7 +1093,7 @@ def search_history_query_conditions(user):
 
 
 def search_history_has_permission(doc, ptype, user):
-	if user == "Administrator" or _is_platform_full_access(user):
+	if user == "Administrator" or _is_platform_full_access(user, ptype):
 		return True
 	doc_user = getattr(doc, "user", None) if not isinstance(doc, dict) else doc.get("user")
 	return doc_user == user
@@ -1843,11 +1843,24 @@ def _buyer_tenant_for_user(user):
 	return None
 
 
-def _is_platform_full_access(user):
+# Write/delete yetkisi olan platform rolleri — Compliance Officer HARİÇ.
+# Compliance Officer yalnız-okuma (audit/forensics, bkz. _PLATFORM_FULL_ACCESS_ROLES
+# yorumu). Yalnız Compliance Officer'a sahip bir kullanıcı write/delete yapamaz (#D2).
+_PLATFORM_WRITE_ACCESS_ROLES = _PLATFORM_FULL_ACCESS_ROLES - {"Compliance Officer"}
+_WRITE_PTYPES = frozenset({"write", "create", "delete", "submit", "cancel", "amend"})
+
+
+def _is_platform_full_access(user, ptype=None):
 	if not user or user == "Guest":
 		return False
 	roles = set(frappe.get_roles(user))
-	return bool(roles & _PLATFORM_FULL_ACCESS_ROLES)
+	if not (roles & _PLATFORM_FULL_ACCESS_ROLES):
+		return False
+	# Compliance Officer read-only: write ptype'ında gerçek bir write-access rolü
+	# yoksa reddet. ptype=None (query_conditions / okuma bağlamı) → tam erişim korunur.
+	if ptype in _WRITE_PTYPES and not (roles & _PLATFORM_WRITE_ACCESS_ROLES):
+		return False
+	return True
 
 
 def _is_platform_audit_reader(user):
@@ -1880,7 +1893,7 @@ def order_approval_query_conditions(user):
 
 
 def order_approval_has_permission(doc, ptype, user):
-	if user == "Administrator" or _is_platform_full_access(user):
+	if user == "Administrator" or _is_platform_full_access(user, ptype):
 		return True
 	if doc is None:
 		return True
@@ -1910,7 +1923,7 @@ def approval_rule_query_conditions(user):
 
 
 def approval_rule_has_permission(doc, ptype, user):
-	if user == "Administrator" or _is_platform_full_access(user):
+	if user == "Administrator" or _is_platform_full_access(user, ptype):
 		return True
 	if doc is None:
 		return True
@@ -1939,7 +1952,7 @@ def cost_center_query_conditions(user):
 
 
 def cost_center_has_permission(doc, ptype, user):
-	if user == "Administrator" or _is_platform_full_access(user):
+	if user == "Administrator" or _is_platform_full_access(user, ptype):
 		return True
 	if doc is None:
 		return True
@@ -1971,7 +1984,7 @@ def store_subscription_query_conditions(user):
 
 
 def store_subscription_has_permission(doc, ptype, user):
-	if user == "Administrator" or _is_platform_full_access(user):
+	if user == "Administrator" or _is_platform_full_access(user, ptype):
 		return True
 	# Yazma/oluşturma/silme yalnız admin (self-service ücretli aktivasyon yasak).
 	if ptype in ("write", "create", "delete"):
@@ -2007,7 +2020,7 @@ def owner_transfer_request_query_conditions(user):
 
 
 def owner_transfer_request_has_permission(doc, ptype, user):
-	if user == "Administrator" or _is_platform_full_access(user):
+	if user == "Administrator" or _is_platform_full_access(user, ptype):
 		return True
 	if doc is None:
 		return True
@@ -2041,7 +2054,7 @@ def role_delegation_query_conditions(user):
 
 
 def role_delegation_has_permission(doc, ptype, user):
-	if user == "Administrator" or _is_platform_full_access(user):
+	if user == "Administrator" or _is_platform_full_access(user, ptype):
 		return True
 	if doc is None:
 		return True
@@ -2120,7 +2133,7 @@ def role_change_log_query_conditions(user):
 
 
 def role_change_log_has_permission(doc, ptype, user):
-	if user == "Administrator" or _is_platform_full_access(user):
+	if user == "Administrator" or _is_platform_full_access(user, ptype):
 		return True
 	if doc is None:
 		return True
@@ -2188,7 +2201,7 @@ def authorization_anomaly_rule_query_conditions(user):
 
 
 def authorization_anomaly_rule_has_permission(doc, ptype, user):
-	if user == "Administrator" or _is_platform_full_access(user):
+	if user == "Administrator" or _is_platform_full_access(user, ptype):
 		return True
 	return False
 
@@ -2206,7 +2219,7 @@ def permission_override_log_query_conditions(user):
 
 
 def permission_override_log_has_permission(doc, ptype, user):
-	if user == "Administrator" or _is_platform_full_access(user):
+	if user == "Administrator" or _is_platform_full_access(user, ptype):
 		return True
 	return False
 
@@ -2224,7 +2237,7 @@ def pii_field_policy_query_conditions(user):
 
 
 def pii_field_policy_has_permission(doc, ptype, user):
-	if user == "Administrator" or _is_platform_full_access(user):
+	if user == "Administrator" or _is_platform_full_access(user, ptype):
 		return True
 	return False
 
@@ -2302,6 +2315,10 @@ def field_commission_has_permission(doc, ptype, user):
 	roles = set(frappe.get_roles(user))
 	if roles & _FIELD_COMMISSION_ADMIN_ROLES:
 		return True
+	# doc yoksa (doctype-seviyesi kontrol) — per-doc kontrolüne devret (kardeş
+	# handler'larla tutarlı); doc.get(...) None'da AttributeError vermesin.
+	if doc is None:
+		return True
 	if _FIELD_COMMISSION_LEADER_ROLE in roles and doc.get("team_leader") == user:
 		# Lider kendi ekibinin kaydını okur (onay aksiyonu API'de ignore_permissions ile).
 		return ptype in ("read", "report")
@@ -2328,7 +2345,7 @@ def seller_verification_query_conditions(user):
 
 
 def seller_verification_has_permission(doc, ptype, user):
-	if user == "Administrator" or _is_platform_full_access(user):
+	if user == "Administrator" or _is_platform_full_access(user, ptype):
 		return True
 	profile = _get_seller_profile_name(user)
 	seller_val = _doc_field(doc, "seller")

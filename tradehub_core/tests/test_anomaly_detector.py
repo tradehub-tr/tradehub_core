@@ -445,5 +445,38 @@ class InactiveRuleTests(unittest.TestCase):
 		self.assertEqual(len(_ALERTS), 0)
 
 
+class RebacDriftDetectionTests(unittest.TestCase):
+	"""#F5 — _detect_rebac_drift no-op'tan çıkıp scan_drift'e bağlandı."""
+
+	def _rule(self, threshold=5):
+		return {"name": "R-DRIFT", "tenant_scope": None, "threshold_count": threshold}
+
+	def _fake_drift(self, summary):
+		m = types.ModuleType("tradehub_core.services.rebac_drift_detection")
+		m.scan_drift = lambda sample_size=20: summary
+		sys.modules["tradehub_core.services.rebac_drift_detection"] = m
+
+	def _win(self):
+		now = datetime(2026, 7, 2, 12, 0, 0)
+		return now - timedelta(hours=1), now
+
+	def test_drift_above_threshold_emits_evidence(self):
+		self._fake_drift({"drift_count": 10, "checks_done": 20})
+		ws, now = self._win()
+		groups = det._detect_rebac_drift(self._rule(5), ws, now)
+		self.assertEqual(len(groups), 1)
+		self.assertEqual(groups[0].count, 10)
+
+	def test_drift_below_threshold_no_evidence(self):
+		self._fake_drift({"drift_count": 2, "checks_done": 20})
+		ws, now = self._win()
+		self.assertEqual(det._detect_rebac_drift(self._rule(5), ws, now), [])
+
+	def test_sidecar_unavailable_skips(self):
+		self._fake_drift({"skipped": "sidecar_unavailable"})
+		ws, now = self._win()
+		self.assertEqual(det._detect_rebac_drift(self._rule(5), ws, now), [])
+
+
 if __name__ == "__main__":
 	unittest.main()

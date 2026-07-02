@@ -25,6 +25,7 @@ import frappe
 from frappe import _
 
 from tradehub_core import audit as audit_mod
+from tradehub_core.authz import registry as authz_registry
 from tradehub_core.entitlement import core as ent_core
 from tradehub_core.entitlement.core import EntitlementError
 from tradehub_core.services import abac_context, rebac_client
@@ -48,50 +49,10 @@ RESULT_SKIP = "SKIP"
 RESULT_UNAVAILABLE = "UNAVAILABLE"
 
 # Action → minimum Frappe permission mapping (heuristic)
-_ACTION_TO_PERM = {
-	"read": "read",
-	"view": "read",
-	"list": "read",
-	"write": "write",
-	"update": "write",
-	"create": "create",
-	"insert": "create",
-	"delete": "delete",
-	"submit": "submit",
-	"cancel": "cancel",
-	"approve": "submit",
-	"reject": "submit",
-}
-
-# Action → ReBAC relation (model.fga ile birebir; tanımlı olmayan relation kullanılmaz)
-_ACTION_TO_REBAC_RELATION = {
-	("Order Approval", "approve"): "can_approve_l1",
-	("Order Approval", "approve_l1"): "can_approve_l1",
-	("Order Approval", "approve_l2"): "can_approve_l2",
-	("Order Approval", "reject"): "can_approve_l1",
-	("Order Approval", "read"): "current_approver",
-	("Order", "read"): "can_view",
-	("Order", "view"): "can_view",
-	("Order", "approve"): "can_approve",
-	("Order", "submit"): "can_approve",
-	("Admin Seller Profile", "read"): "can_view",
-	("Admin Seller Profile", "view"): "can_view",
-	("CRM Organization", "read"): "can_view",
-	("CRM Organization", "view"): "can_view",
-	("CRM Organization", "create"): "can_create_order",
-	("Listing", "write"): "can_edit",
-	("Listing", "update"): "can_edit",
-	("Listing", "read"): "can_view",
-}
-
-# Doctype → ReBAC object type (sadece model.fga'da tanımlı tipler)
-_DOCTYPE_TO_REBAC_OBJECT = {
-	"Order Approval": "order_approval",
-	"Order": "order",
-	"Admin Seller Profile": "store",
-	"CRM Organization": "buyer_org",
-	"Listing": "listing",
-}
+# Map'ler tek kaynaktan (authz.registry) gelir — PDP ile ortak, drift önlenir (#F3).
+_ACTION_TO_PERM = authz_registry.VERB_TO_PTYPE
+_ACTION_TO_REBAC_RELATION = authz_registry.ACTION_TO_REBAC_RELATION
+_DOCTYPE_TO_REBAC_OBJECT = authz_registry.DOCTYPE_TO_REBAC_OBJECT
 
 # Max resources per batch call
 MAX_BATCH_SIZE = 50
@@ -232,6 +193,7 @@ def simulate(
 		resource_type=resource_type,
 		resource_name=resource_name,
 		context=context,
+		resource_snapshot=result.resource_snapshot,
 	)
 	_record(result, step)
 
@@ -338,16 +300,8 @@ def _check_entitlement(
 
 
 def _resource_action_to_feature(resource_type: str, action: str) -> str | None:
-	"""Heuristic mapping. Extend as plans evolve."""
-
-	mapping = {
-		("Order Approval", "approve"): "buyer_approval_workflow",
-		("Order Approval", "approve_l2"): "buyer_approval_l2",
-		("Order", "create"): "core_commerce",
-		("RFQ", "create"): "rfq_module",
-		("Buyer Sub User Invite", "create"): "buyer_team_management",
-	}
-	return mapping.get((resource_type, action))
+	"""Guardrail feature eşlemesi — tek kaynak authz.registry (#F3)."""
+	return authz_registry.feature_for(resource_type, action)
 
 
 # ---------------------------------------------------------------------------
@@ -625,6 +579,7 @@ def _check_field_pii(
 	resource_type: str,
 	resource_name: str | None,
 	context: dict[str, Any],
+	resource_snapshot: dict[str, Any] | None = None,
 ) -> TraceStep:
 	"""Check whether actor can see PII fields on this doctype."""
 
@@ -647,8 +602,10 @@ def _check_field_pii(
 			meta={"permlevel": max_lvl, "pii_fields": pii_fields},
 		)
 
-	# Region jurisdiction check (when context has target_region)
-	target_region = context.get("target_region")
+	# Region jurisdiction check. #F4 — caller context'i region vermezse KAYNAĞIN
+	# gerçek region'una fallback (ABAC katmanıyla hizalı). Aksi halde jurisdiction
+	# kontrolü, çağıran region koymadığında hiç tetiklenmez = KVKK/GDPR bypass.
+	target_region = context.get("target_region") or (resource_snapshot or {}).get("region")
 	if target_region and pii_utils.is_strict_jurisdiction(target_region):
 		user_regions = actor_snapshot.get("regions", [])
 		if target_region not in user_regions:
@@ -839,9 +796,11 @@ def _enforce_positive_affirm(result: SimulationResult) -> None:
 		layer="L0.default_deny",
 		check="no_evidence_allow",
 		result=RESULT_DENY,
-		rule_id="auth.no_positive_affirm",
 		detail=("Hiçbir katman ALLOW vermedi (tüm katmanlar SKIP). Default-deny invariant'ı devreye girdi."),
-		meta={"trace_results": [t.result for t in result.trace]},
+		meta={
+			"rule_id": "auth.no_positive_affirm",
+			"trace_results": [t.result for t in result.trace],
+		},
 	)
 	result.trace.append(guard_step)
 	result.first_deny = guard_step

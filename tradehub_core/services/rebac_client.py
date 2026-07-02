@@ -38,10 +38,23 @@ import requests
 # Config (env'den okunur)
 # ---------------------------------------------------------------------------
 
-_REBAC_BASE_URL = os.getenv("REBAC_BASE_URL", "http://rebac-sidecar:8080")
-_REBAC_API_KEY = os.getenv("REBAC_API_KEY", "")
-_REBAC_STORE_ID = os.getenv("REBAC_STORE_ID", "")
-_REBAC_MODEL_ID = os.getenv("REBAC_MODEL_ID", "")
+# #C5 — Config env'den HER KULLANIMDA okunur (import-time değil). deploy_model.sh
+# STORE_ID/MODEL_ID'yi worker ayağa kalktıktan sonra .env'e yazar; import-time
+# cache boş string'i kalıcılaştırıyordu → model deploy edilse bile no-op kalıyordu.
+def _base_url() -> str:
+	return os.getenv("REBAC_BASE_URL", "http://rebac-sidecar:8080")
+
+
+def _api_key() -> str:
+	return os.getenv("REBAC_API_KEY", "")
+
+
+def _store_id() -> str:
+	return os.getenv("REBAC_STORE_ID", "")
+
+
+def _model_id() -> str:
+	return os.getenv("REBAC_MODEL_ID", "")
 
 # Timeouts (saniye)
 _CONNECT_TIMEOUT = 2.0
@@ -137,12 +150,9 @@ def _get_session() -> requests.Session:
 		with _session_lock:
 			if _session is None:
 				s = requests.Session()
-				s.headers.update(
-					{
-						"Authorization": f"Bearer {_REBAC_API_KEY}",
-						"Content-Type": "application/json",
-					}
-				)
+				# #C5 — Authorization header'ı session'a GÖMÜLMEZ; her istekte
+				# _api_key() ile taze set edilir (key rotasyonu/geç-doldurma için).
+				s.headers.update({"Content-Type": "application/json"})
 				adapter = requests.adapters.HTTPAdapter(
 					pool_connections=10,
 					pool_maxsize=20,
@@ -174,14 +184,15 @@ def _call(method: str, endpoint: str, payload: dict | None = None) -> dict:
 	    ReBACConfigError: REBAC_STORE_ID eksik
 	    ReBACUnavailable: Circuit open veya HTTP fail
 	"""
-	if not _REBAC_STORE_ID:
+	if not _store_id():
 		raise ReBACConfigError("REBAC_STORE_ID env değişkeni boş. 'make rebac-model-deploy' çalıştır.")
 
 	if _circuit_breaker.is_open():
 		raise ReBACUnavailable("ReBAC sidecar circuit breaker OPEN (fail-closed)")
 
-	url = f"{_REBAC_BASE_URL}{endpoint}"
+	url = f"{_base_url()}{endpoint}"
 	session = _get_session()
+	auth_headers = {"Authorization": f"Bearer {_api_key()}"}  # #C5 — taze key
 	last_err: Exception | None = None
 
 	for attempt in range(_MAX_RETRIES):
@@ -190,10 +201,11 @@ def _call(method: str, endpoint: str, payload: dict | None = None) -> dict:
 				resp = session.post(
 					url,
 					data=json.dumps(payload or {}),
+					headers=auth_headers,
 					timeout=(_CONNECT_TIMEOUT, _READ_TIMEOUT),
 				)
 			else:
-				resp = session.get(url, timeout=(_CONNECT_TIMEOUT, _READ_TIMEOUT))
+				resp = session.get(url, headers=auth_headers, timeout=(_CONNECT_TIMEOUT, _READ_TIMEOUT))
 
 			# 5xx → retry; 4xx → exception (config/data hatası)
 			if 500 <= resp.status_code < 600:
@@ -202,8 +214,11 @@ def _call(method: str, endpoint: str, payload: dict | None = None) -> dict:
 				continue
 
 			if not resp.ok:
-				# 4xx — retry yok, hemen exception
-				_circuit_breaker.record_failure()
+				# #C3 — 4xx = veri/config hatası (erişilebilirlik DEĞİL). Sidecar
+				# yanıt verdi → bağlantı sağlam; breaker'ı TETİKLEME, aksine
+				# connectivity fail sayacını sıfırla. Yalnız 5xx/timeout/bağlantı
+				# hataları breaker'ı açar (bkz. son satır record_failure).
+				_circuit_breaker.record_success()
 				raise ReBACError(f"ReBAC sidecar {resp.status_code}: {resp.text[:200]}")
 
 			_circuit_breaker.record_success()
@@ -224,11 +239,20 @@ def _call(method: str, endpoint: str, payload: dict | None = None) -> dict:
 # ---------------------------------------------------------------------------
 
 
+# #C6/Faz4 — OpenFGA consistency modları (zookie/new-enemy koruması).
+#   MINIMIZE_LATENCY: cache'ten sunabilir (browse/okuma-ağırlıklı yol — varsayılan).
+#   HIGHER_CONSISTENCY: cache atlar, read-your-writes (güvenlik-azaltıcı mutasyon
+#     sonrası: askıya-alma, üye-çıkarma, rol-iptal → eski erişim hemen kesilsin).
+CONSISTENCY_MINIMIZE_LATENCY = "MINIMIZE_LATENCY"
+CONSISTENCY_HIGHER = "HIGHER_CONSISTENCY"
+
+
 def check(
 	user: str,
 	relation: str,
 	object: str,
 	context: dict[str, Any] | None = None,
+	consistency: str | None = None,
 ) -> bool:
 	"""Bir ilişkinin var olup olmadığını kontrol et.
 
@@ -237,6 +261,8 @@ def check(
 	    relation: 'member', 'can_view', 'can_approve_l1', ...
 	    object: 'buyer_org:acme', 'order:ORD-9382', ...
 	    context: ABAC condition input'ları (örn. {"amount": 7450})
+	    consistency: HIGHER_CONSISTENCY (güvenlik-kritik, read-your-writes) veya
+	        MINIMIZE_LATENCY (varsayılan, cache'li). Bkz. CONSISTENCY_* sabitleri.
 
 	Returns:
 	    True: izinli, False: değil veya hata (fail-closed)
@@ -244,13 +270,15 @@ def check(
 	payload: dict[str, Any] = {
 		"tuple_key": {"user": user, "relation": relation, "object": object},
 	}
-	if _REBAC_MODEL_ID:
-		payload["authorization_model_id"] = _REBAC_MODEL_ID
+	if _model_id():
+		payload["authorization_model_id"] = _model_id()
 	if context:
 		payload["context"] = context
+	if consistency:
+		payload["consistency"] = consistency
 
 	try:
-		result = _call("POST", f"/stores/{_REBAC_STORE_ID}/check", payload)
+		result = _call("POST", f"/stores/{_store_id()}/check", payload)
 		allowed = bool(result.get("allowed", False))
 
 		# DENY audit log (best-effort, sadece DENY için sample)
@@ -304,13 +332,13 @@ def list_objects(
 		"relation": relation,
 		"user": user,
 	}
-	if _REBAC_MODEL_ID:
-		payload["authorization_model_id"] = _REBAC_MODEL_ID
+	if _model_id():
+		payload["authorization_model_id"] = _model_id()
 	if context:
 		payload["context"] = context
 
 	try:
-		result = _call("POST", f"/stores/{_REBAC_STORE_ID}/list-objects", payload)
+		result = _call("POST", f"/stores/{_store_id()}/list-objects", payload)
 		# OpenFGA döner: {"objects": ["order:ORD-9382", "order:ORD-9401"]}
 		raw_objects = result.get("objects", [])
 		# Type prefix soy
@@ -369,39 +397,70 @@ def write_tuples(tuples: list) -> bool:
 			)
 			continue
 
-	payload = {"writes": {"tuple_keys": payload_tuples}}
-	if _REBAC_MODEL_ID:
-		payload["authorization_model_id"] = _REBAC_MODEL_ID
+	return _send_tuple_op("writes", payload_tuples, "write_tuples")
 
-	try:
-		_call("POST", f"/stores/{_REBAC_STORE_ID}/write", payload)
+
+def _tuple_op_payload(op: str, tuple_keys: list) -> dict:
+	payload: dict[str, Any] = {op: {"tuple_keys": tuple_keys}}
+	mid = _model_id()
+	if mid:
+		payload["authorization_model_id"] = mid
+	return payload
+
+
+def _is_idempotency_error(err) -> bool:
+	"""OpenFGA 4xx'i idempotency (zaten var / mevcut değil) mi yoksa gerçek hata
+	(validation_error / invalid object) mı ayırır. Yalnız idempotency tolere edilir."""
+	msg = str(err).lower()
+	return "already exist" in msg or "does not exist" in msg or "cannot delete" in msg
+
+
+def _send_tuple_op(op: str, tuple_keys: list, scope: str) -> bool:
+	"""#C1 — OpenFGA Write API transactional'dır: batch'teki TEK geçersiz tuple
+	(write'ta zaten var / delete'te mevcut değil) tüm batch'i 400 ile düşürür.
+	Bu yüzden: önce batch dene; batch 4xx (ReBACError) alırsa per-tuple fallback
+	ile idempotency hatalarını tolere et — stale-cleanup ve fresh-write artık tek
+	bozuk tuple yüzünden komple kaybolmaz. Sidecar erişilemezse (ReBACUnavailable)
+	fallback yapılmaz (N kez fail etmesin)."""
+	if not tuple_keys:
 		return True
-	except (ReBACUnavailable, ReBACError) as e:
-		frappe.log_error(f"ReBAC write_tuples failed: {e}", "rebac_client.write_tuples")
+	store = _store_id()
+	try:
+		_call("POST", f"/stores/{store}/write", _tuple_op_payload(op, tuple_keys))
+		return True
+	except ReBACUnavailable as e:
+		frappe.log_error(f"ReBAC {scope} unavailable: {e}", f"rebac_client.{scope}")
 		return False
+	except ReBACError:
+		ok = True
+		for tk in tuple_keys:
+			try:
+				_call("POST", f"/stores/{store}/write", _tuple_op_payload(op, [tk]))
+			except ReBACUnavailable as e:
+				frappe.log_error(f"ReBAC {scope} unavailable (per-tuple): {e}", f"rebac_client.{scope}")
+				ok = False
+			except ReBACError as e:
+				if _is_idempotency_error(e):
+					frappe.log_error(
+						f"ReBAC {scope} tuple tolerated (idempotent): {tk}: {e}",
+						f"rebac_client.{scope}",
+					)
+				else:
+					# Gerçek hata (validation_error / invalid object) → YUTMA; başarısızlık say.
+					frappe.log_error(
+						f"ReBAC {scope} tuple FAILED (non-idempotent): {tk}: {e}",
+						f"rebac_client.{scope}",
+					)
+					ok = False
+		return ok
 
 
 def delete_tuples(tuples: list[tuple[str, str, str]]) -> bool:
-	"""Birden çok tuple sil (sync delete)."""
+	"""Birden çok tuple sil (sync delete). Idempotent — bkz. _send_tuple_op (#C1)."""
 	if not tuples:
 		return True
-
-	payload = {
-		"deletes": {
-			"tuple_keys": [
-				{"user": user, "relation": relation, "object": obj} for (user, relation, obj) in tuples
-			]
-		}
-	}
-	if _REBAC_MODEL_ID:
-		payload["authorization_model_id"] = _REBAC_MODEL_ID
-
-	try:
-		_call("POST", f"/stores/{_REBAC_STORE_ID}/write", payload)
-		return True
-	except (ReBACUnavailable, ReBACError) as e:
-		frappe.log_error(f"ReBAC delete_tuples failed: {e}", "rebac_client.delete_tuples")
-		return False
+	tuple_keys = [{"user": user, "relation": relation, "object": obj} for (user, relation, obj) in tuples]
+	return _send_tuple_op("deletes", tuple_keys, "delete_tuples")
 
 
 # ---------------------------------------------------------------------------
@@ -478,8 +537,11 @@ def _log_decision_safely(
 def healthz() -> bool:
 	"""Sidecar erişilebilir mi?"""
 	try:
-		url = f"{_REBAC_BASE_URL}/healthz"
-		resp = requests.get(url, timeout=(_CONNECT_TIMEOUT, _READ_TIMEOUT))
+		url = f"{_base_url()}/healthz"
+		# #C5/#12 — auth açıkken healthz de Bearer key ister; aksi halde 401'i
+		# "unavailable" sanır (yanıltıcı sinyal).
+		headers = {"Authorization": f"Bearer {_api_key()}"} if _api_key() else {}
+		resp = requests.get(url, headers=headers, timeout=(_CONNECT_TIMEOUT, _READ_TIMEOUT))
 		return resp.ok
 	except Exception:
 		return False

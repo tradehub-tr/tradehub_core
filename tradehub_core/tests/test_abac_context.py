@@ -137,11 +137,29 @@ class OrderContextTests(unittest.TestCase):
 		self.assertIsNone(ctx["category"])
 
 	def test_amount_zero_default(self):
-		"""total=None → amount=0."""
+		"""total=None → amount=0 (raw), amount_eur fail-closed."""
 		order = SimpleNamespace(doctype="Order", name="X", total=None, currency="USD")
 		order.get = lambda f, d=None: getattr(order, f, d)
 		ctx = abac_context.build_order_context(order)
 		self.assertEqual(ctx["amount"], 0.0)
+
+	def test_total_none_forces_approval(self):
+		"""#D3 — total bilinmiyor → amount_eur sentinel → L2 onay zorlanır."""
+		order = SimpleNamespace(doctype="Order", name="Y", total=None, currency="USD")
+		order.get = lambda f, d=None: getattr(order, f, d)
+		ctx = abac_context.build_order_context(order)
+		self.assertEqual(ctx["amount_eur"], abac_context.FX_UNRESOLVED_EUR)
+		self.assertTrue(abac_context.evaluate_needs_approval_l2(ctx["amount_eur"]))
+
+	def test_fx_missing_forces_approval(self):
+		"""#D3 — non-EUR + FX rate yok → fail-closed sentinel (raw değil)."""
+		eur = abac_context.normalize_amount_to_eur(100, "USD")
+		self.assertEqual(eur, abac_context.FX_UNRESOLVED_EUR)
+		self.assertTrue(abac_context.evaluate_needs_approval_l2(eur))
+
+	def test_eur_amount_unchanged(self):
+		"""EUR tutar normalize'de değişmez (regresyon guard)."""
+		self.assertEqual(abac_context.normalize_amount_to_eur(7450, "EUR"), 7450.0)
 
 
 # ---------------------------------------------------------------------------

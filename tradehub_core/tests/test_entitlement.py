@@ -226,14 +226,12 @@ def _install_frappe_stub_force():
 def _make_subscription(store: str, plan: str, status: str = "active"):
 	"""Mock Store Subscription doc döner."""
 	sub_name = f"STSUB-{store}"
-	# get_value('Store Subscription', {store, status in trial,active}, 'name')
-	_DB_STATE[
-		(
-			"Store Subscription",
-			f"{{'store': '{store}', 'status': ['in', ['trial', 'active']]}}",
-			"name",
-		)
-	] = sub_name
+	# get_value('Store Subscription', {store, status in OPERATIONAL_STATUSES}, 'name')
+	# Filtre string'ini core'un gerçek sorgusundan türet (drift-proof): core
+	# _OPERATIONAL_STATUSES = trial/active/past_due kullanıyor. Stub anahtarı
+	# db_get_value'nun str(filters) hesabıyla birebir eşleşmeli.
+	_sub_filters = {"store": store, "status": ["in", list(ent_core._OPERATIONAL_STATUSES)]}
+	_DB_STATE[("Store Subscription", str(_sub_filters), "name")] = sub_name
 
 	sub_doc = SimpleNamespace(
 		name=sub_name,

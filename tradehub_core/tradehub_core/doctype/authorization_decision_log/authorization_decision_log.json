@@ -1,204 +1,224 @@
 {
-	"name": "Authorization Decision Log",
-	"doctype": "DocType",
-	"module": "Tradehub Core",
-	"naming_rule": "Expression (old style)",
-	"autoname": "ADL-.YYYY.MM.DD.-.######",
-	"engine": "InnoDB",
-	"track_changes": 0,
-	"sort_field": "timestamp",
-	"sort_order": "DESC",
-	"title_field": "action",
-	"in_create": 0,
-	"fields": [
-		{
-			"fieldname": "timestamp",
-			"fieldtype": "Datetime",
-			"label": "Timestamp",
-			"reqd": 1,
-			"search_index": 1,
-			"in_list_view": 1,
-			"in_standard_filter": 1,
-			"read_only": 1
-		},
-		{
-			"fieldname": "request_id",
-			"fieldtype": "Data",
-			"label": "Request ID",
-			"search_index": 1,
-			"read_only": 1,
-			"description": "Frappe X-Frappe-Request-Id veya UUID — debug/trace"
-		},
-		{
-			"fieldname": "cb_actor",
-			"fieldtype": "Column Break"
-		},
-		{
-			"fieldname": "actor",
-			"fieldtype": "Link",
-			"label": "Actor",
-			"options": "User",
-			"search_index": 1,
-			"in_list_view": 1,
-			"in_standard_filter": 1,
-			"read_only": 1
-		},
-		{
-			"fieldname": "actor_role",
-			"fieldtype": "Data",
-			"label": "Actor Role (snapshot)",
-			"read_only": 1,
-			"description": "Karar anındaki birincil rol (snapshot; sonradan değişebilir)"
-		},
-		{
-			"fieldname": "tenant",
-			"fieldtype": "Link",
-			"label": "Tenant",
-			"options": "Admin Seller Profile",
-			"search_index": 1,
-			"in_standard_filter": 1,
-			"read_only": 1
-		},
-		{
-			"fieldname": "sb_object",
-			"fieldtype": "Section Break",
-			"label": "Eylem & Nesne"
-		},
-		{
-			"fieldname": "action",
-			"fieldtype": "Data",
-			"label": "Action",
-			"reqd": 1,
-			"in_list_view": 1,
-			"in_standard_filter": 1,
-			"read_only": 1,
-			"description": "dot-notation: listing.create, order.approve, sub_user.invite"
-		},
-		{
-			"fieldname": "object_doctype",
-			"fieldtype": "Data",
-			"label": "Object DocType",
-			"read_only": 1,
-			"in_standard_filter": 1
-		},
-		{
-			"fieldname": "object_name",
-			"fieldtype": "Data",
-			"label": "Object Name",
-			"read_only": 1
-		},
-		{
-			"fieldname": "cb_decision",
-			"fieldtype": "Column Break"
-		},
-		{
-			"fieldname": "decision",
-			"fieldtype": "Select",
-			"label": "Decision",
-			"options": "ALLOW\nDENY\nFIELD_MASKED\nALLOW_PENDING\nERROR",
-			"reqd": 1,
-			"in_list_view": 1,
-			"in_standard_filter": 1,
-			"read_only": 1
-		},
-		{
-			"fieldname": "rule_id",
-			"fieldtype": "Data",
-			"label": "Rule ID",
-			"read_only": 1,
-			"description": "Hangi kural tetiklendi: auth.store.owner, tenant.isolation, entitlement.feature.x"
-		},
-		{
-			"fieldname": "layer",
-			"fieldtype": "Select",
-			"label": "Layer",
-			"options": "L0\nL1\nL2\nL3",
-			"read_only": 1,
-			"in_standard_filter": 1
-		},
-		{
-			"fieldname": "sb_context",
-			"fieldtype": "Section Break",
-			"label": "Bağlam"
-		},
-		{
-			"fieldname": "region",
-			"fieldtype": "Link",
-			"label": "Region",
-			"options": "Region",
-			"read_only": 1
-		},
-		{
-			"fieldname": "plan_code",
-			"fieldtype": "Data",
-			"label": "Plan Code (snapshot)",
-			"read_only": 1
-		},
-		{
-			"fieldname": "severity",
-			"fieldtype": "Select",
-			"label": "Severity",
-			"options": "LOW\nNORMAL\nHIGH",
-			"default": "NORMAL",
-			"in_standard_filter": 1,
-			"read_only": 1
-		},
-		{
-			"fieldname": "cb_meta",
-			"fieldtype": "Column Break"
-		},
-		{
-			"fieldname": "ip_address",
-			"fieldtype": "Data",
-			"label": "IP Address",
-			"read_only": 1
-		},
-		{
-			"fieldname": "user_agent",
-			"fieldtype": "Small Text",
-			"label": "User Agent",
-			"read_only": 1
-		},
-		{
-			"fieldname": "sb_payload",
-			"fieldtype": "Section Break",
-			"label": "Payload"
-		},
-		{
-			"fieldname": "context",
-			"fieldtype": "JSON",
-			"label": "Context",
-			"read_only": 1,
-			"description": "Request payload özeti + ABAC condition input'ları"
-		}
-	],
-	"permissions": [
-		{
-			"role": "System Manager",
-			"read": 1,
-			"export": 1,
-			"report": 1
-		},
-		{
-			"role": "Marketplace Admin",
-			"read": 1,
-			"report": 1
-		},
-		{
-			"role": "Compliance Officer",
-			"read": 1,
-			"export": 1,
-			"report": 1
-		},
-		{
-			"role": "Marketplace Seller",
-			"read": 1,
-			"if_owner": 1
-		},
-		{
-			"role": "Seller",
-			"read": 1,
-			"if_owner": 1
-		}
-	]
+ "name": "Authorization Decision Log",
+ "doctype": "DocType",
+ "module": "Tradehub Core",
+ "naming_rule": "Expression (old style)",
+ "autoname": "ADL-.YYYY.MM.DD.-.######",
+ "engine": "InnoDB",
+ "track_changes": 0,
+ "sort_field": "timestamp",
+ "sort_order": "DESC",
+ "title_field": "action",
+ "in_create": 0,
+ "fields": [
+  {
+   "fieldname": "timestamp",
+   "fieldtype": "Datetime",
+   "label": "Timestamp",
+   "reqd": 1,
+   "search_index": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "request_id",
+   "fieldtype": "Data",
+   "label": "Request ID",
+   "search_index": 1,
+   "read_only": 1,
+   "description": "Frappe X-Frappe-Request-Id veya UUID — debug/trace"
+  },
+  {
+   "fieldname": "cb_actor",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "actor",
+   "fieldtype": "Link",
+   "label": "Actor",
+   "options": "User",
+   "search_index": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "actor_role",
+   "fieldtype": "Data",
+   "label": "Actor Role (snapshot)",
+   "read_only": 1,
+   "description": "Karar anındaki birincil rol (snapshot; sonradan değişebilir)"
+  },
+  {
+   "fieldname": "tenant",
+   "fieldtype": "Link",
+   "label": "Tenant",
+   "options": "Admin Seller Profile",
+   "search_index": 1,
+   "in_standard_filter": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "sb_object",
+   "fieldtype": "Section Break",
+   "label": "Eylem & Nesne"
+  },
+  {
+   "fieldname": "action",
+   "fieldtype": "Data",
+   "label": "Action",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "read_only": 1,
+   "description": "dot-notation: listing.create, order.approve, sub_user.invite"
+  },
+  {
+   "fieldname": "object_doctype",
+   "fieldtype": "Data",
+   "label": "Object DocType",
+   "read_only": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "object_name",
+   "fieldtype": "Data",
+   "label": "Object Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "cb_decision",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "decision",
+   "fieldtype": "Select",
+   "label": "Decision",
+   "options": "ALLOW\nDENY\nFIELD_MASKED\nALLOW_PENDING\nERROR",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "rule_id",
+   "fieldtype": "Data",
+   "label": "Rule ID",
+   "read_only": 1,
+   "description": "Hangi kural tetiklendi: auth.store.owner, tenant.isolation, entitlement.feature.x"
+  },
+  {
+   "fieldname": "layer",
+   "fieldtype": "Select",
+   "label": "Layer",
+   "options": "L0\nL1\nL2\nL3",
+   "read_only": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "sb_context",
+   "fieldtype": "Section Break",
+   "label": "Bağlam"
+  },
+  {
+   "fieldname": "region",
+   "fieldtype": "Link",
+   "label": "Region",
+   "options": "Region",
+   "read_only": 1
+  },
+  {
+   "fieldname": "plan_code",
+   "fieldtype": "Data",
+   "label": "Plan Code (snapshot)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "severity",
+   "fieldtype": "Select",
+   "label": "Severity",
+   "options": "LOW\nNORMAL\nHIGH",
+   "default": "NORMAL",
+   "in_standard_filter": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "cb_meta",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "ip_address",
+   "fieldtype": "Data",
+   "label": "IP Address",
+   "read_only": 1
+  },
+  {
+   "fieldname": "user_agent",
+   "fieldtype": "Small Text",
+   "label": "User Agent",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sb_payload",
+   "fieldtype": "Section Break",
+   "label": "Payload"
+  },
+  {
+   "fieldname": "context",
+   "fieldtype": "JSON",
+   "label": "Context",
+   "read_only": 1,
+   "description": "Request payload özeti + ABAC condition input'ları"
+  },
+  {
+   "fieldname": "sb_integrity",
+   "fieldtype": "Section Break",
+   "label": "Integrity (tamper-evident)"
+  },
+  {
+   "fieldname": "prev_hash",
+   "fieldtype": "Data",
+   "label": "Prev Hash",
+   "read_only": 1,
+   "length": 64
+  },
+  {
+   "fieldname": "entry_hash",
+   "fieldtype": "Data",
+   "label": "Entry Hash",
+   "read_only": 1,
+   "length": 64,
+   "search_index": 1
+  }
+ ],
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "export": 1,
+   "report": 1
+  },
+  {
+   "role": "Marketplace Admin",
+   "read": 1,
+   "report": 1
+  },
+  {
+   "role": "Compliance Officer",
+   "read": 1,
+   "export": 1,
+   "report": 1
+  },
+  {
+   "role": "Marketplace Seller",
+   "read": 1,
+   "if_owner": 1
+  },
+  {
+   "role": "Seller",
+   "read": 1,
+   "if_owner": 1
+  }
+ ]
 }

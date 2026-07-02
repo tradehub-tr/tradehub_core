@@ -537,6 +537,39 @@ class StateMachineTests(unittest.TestCase):
 		with self.assertRaises(Exception):
 			wf.approve(approval_name)
 
+	def test_self_approval_rejected(self):
+		"""#E1 — Talep sahibi kendi siparişini onaylayamaz (görev ayrılığı)."""
+		# Order sahibi = can@acme.com; aynı zamanda L1 approver.
+		_make_order("ORD-7", "can@acme.com", total=1500)
+		_make_rule("AR-7", "acme", 0, None, l1_users=["can@acme.com"])
+		_DB[("get_value", "User", "can@acme.com", "tradehub_parent_organization")] = "acme"
+
+		approval_name = wf.start_approval("ORD-7", "AR-7")
+		sys.modules["frappe"].session.user = "can@acme.com"
+		_DB[("roles", "can@acme.com")] = ["Buyer Approver L1"]
+
+		with self.assertRaises(Exception):
+			wf.approve(approval_name)
+
+	def test_l1_approver_cannot_approve_l2(self):
+		"""#E1 — Level 1'i onaylayan kişi Level 2'yi onaylayamaz."""
+		_make_order("ORD-8", "ayse@acme.com", total=10000)
+		# Aynı kişi (can) hem L1 hem L2 approver.
+		_make_rule(
+			"AR-8", "acme", 5000, None, l1_users=["can@acme.com"], l2_users=["can@acme.com"]
+		)
+		_DB[("get_value", "User", "ayse@acme.com", "tradehub_parent_organization")] = "acme"
+
+		approval_name = wf.start_approval("ORD-8", "AR-8")
+		sys.modules["frappe"].session.user = "can@acme.com"
+		_DB[("roles", "can@acme.com")] = ["Buyer Approver L1", "Buyer Approver L2"]
+		status = wf.approve(approval_name, comment="L1")
+		self.assertEqual(status, "Pending L2")
+
+		# can L2'yi onaylamaya çalışır → SoD reddi
+		with self.assertRaises(Exception):
+			wf.approve(approval_name, comment="L2 self")
+
 
 if __name__ == "__main__":
 	unittest.main()

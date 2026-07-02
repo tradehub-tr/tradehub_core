@@ -1,0 +1,266 @@
+model
+  schema 1.1
+
+# ============================================================================
+# TradeHub ReBAC Authorization Model — Faz 2
+# ============================================================================
+#
+# Bu model OpenFGA DSL'de yazılmıştır. Kapsam: B2B alıcı hiyerarşisi + onay
+# zinciri + bölge bazlı ABAC koşulları.
+#
+# Satıcı tarafı (Faz 1 Frappe permissions.py) bu modele dokunmaz — sadece
+# B2B alıcı (Organization) ve sipariş onay zinciri için ReBAC kullanılır.
+#
+# Detay: docs/yetki/faz-2/01-tasarim-kararlari.md §6
+# ============================================================================
+
+
+# ----------------------------------------------------------------------------
+# Type: user
+# ----------------------------------------------------------------------------
+# Tüm aktör'lerin tabanı. Frappe User entity'siyle 1:1 eşleşir.
+# Tuple: user:<frappe-user-email>
+type user
+
+
+# ----------------------------------------------------------------------------
+# Type: group (departman / cost center / lokasyon / proje)
+# ----------------------------------------------------------------------------
+# Hiyerarşik organizasyon yapısı — kendisine self-referans (parent).
+# "Müdür altındakileri görür" senaryosu inherited_member ile çözülür.
+#
+# Tuple örnekleri:
+#   (group:acme-marketing, parent, group:acme-istanbul)
+#   (group:acme-istanbul, parent, group:acme-root)
+#   (group:acme-marketing, member, user:ahmet@acme.com)
+type group
+  relations
+    define parent: [group]
+    define member: [user, group#member]
+    define inherited_member: member or inherited_member from parent
+
+
+# ----------------------------------------------------------------------------
+# Type: buyer_org (Organization — B2B alıcı tenant)
+# ----------------------------------------------------------------------------
+# Frappe `Organization` doctype'ı ile 1:1 eşleşir. Hem yönetim (admin) hem
+# operasyonel roller (requisitioner, approver) burada tanımlanır.
+#
+# Tuple örnekleri:
+#   (buyer_org:acme, admin, user:bora@acme.com)
+#   (buyer_org:acme, member, user:ahmet@acme.com)
+#   (buyer_org:acme, member, group:acme-istanbul#member)  ← grup birleşik
+#   (buyer_org:acme, requisitioner, user:ahmet@acme.com)
+#   (buyer_org:acme, approver_l1, user:can@acme.com)
+#   (buyer_org:acme, approver_l2, user:demet@acme.com)  ← CFO
+type buyer_org
+  relations
+    # Yönetim
+    define admin: [user]
+
+    # Üyeler (direkt user veya grup üyesi)
+    define member: [user, group#member, group#inherited_member]
+
+    # Operasyonel roller
+    define requisitioner: [user, group#member]
+    define approver_l1: [user]
+    define approver_l2: [user]
+    define finance: [user, group#member]
+    define viewer: [user, group#member, group#inherited_member]
+
+    # Türetilmiş: kim okuyabilir
+    define can_view: admin or member or requisitioner or approver_l1 or approver_l2 or finance or viewer
+
+    # Türetilmiş: kim sipariş açabilir
+    define can_create_order: admin or requisitioner
+
+
+# ----------------------------------------------------------------------------
+# Type: store (Admin Seller Profile — satıcı tenant)
+# ----------------------------------------------------------------------------
+# Faz 1'de Frappe tarafında zaten yönetiliyor. Burada SADECE ReBAC için
+# gerekli minimum ilişki: store ↔ owner / co_owner. Mevcut tenant izolasyonu
+# (`permission_query_conditions`) korunuyor; bu type'ı ReBAC `list-objects`
+# için kullanırız (sub-user'ın görebildiği store).
+#
+# Tuple örnekleri:
+#   (store:anatolian, owner, user:mehmet@anatolian.com)
+#   (store:anatolian, co_owner, user:selin@anatolian.com)
+#   (store:anatolian, member, user:ahmet@anatolian.com)
+type store
+  relations
+    define owner: [user]
+    define co_owner: [user]
+    define member: [user, group#member]
+
+    # Türetilmiş: kim okuyabilir
+    define can_view: owner or co_owner or member
+
+
+# ----------------------------------------------------------------------------
+# Type: listing (Ürün — satıcının catalog'u)
+# ----------------------------------------------------------------------------
+# Listing.seller_profile = store. Editor'lar store üyesidir.
+# Storefront'ta listing public — bu type sadece WRITE/EDIT senaryolarında
+# kullanılır.
+#
+# Tuple örnekleri:
+#   (listing:LIST-9821, store_link, store:anatolian)
+#   (listing:LIST-9821, editor, user:burak@anatolian.com)
+type listing
+  relations
+    define store_link: [store]
+    define editor: [user, group#member]
+
+    # Türetilmiş: kim düzenleyebilir
+    define can_edit: editor or owner from store_link or co_owner from store_link
+
+    # Türetilmiş: kim okuyabilir
+    define can_view: can_edit or member from store_link
+
+
+# ----------------------------------------------------------------------------
+# Type: listing_field (Alan-bazlı izin — Airbnb type:id:part deseni) — Faz 6
+# ----------------------------------------------------------------------------
+# Object: listing_field:<listing>/<PART>  (örn. listing_field:LST-9821/PRICE)
+# NOT: ayraç '/' — OpenFGA object id'sinde ':' GEÇERSİZ (type ayracı).
+# Alan-bazlı erişim EXPLICIT'tir: listing 'editor' (operasyon alt-hesabı) alan
+# iznini MİRAS ALMAZ → "operasyon açıklamayı düzenler ama fiyatı DÜZENLEYEMEZ".
+# Mağaza sahibi tüm part'larda field_editor tuple'ı alır (tuple_sync, listing insert).
+#
+# Tuple örnekleri:
+#   (listing_field:LST-9821/PRICE,       field_editor, user:owner@store.com)
+#   (listing_field:LST-9821/DESCRIPTION, field_editor, user:ops@store.com)
+#   (listing_field:LST-9821/COST,        field_viewer, user:finance@store.com)
+type listing_field
+  relations
+    define parent_listing: [listing]
+    define field_editor: [user, group#member]
+    define field_viewer: [user, group#member]
+    define can_edit: field_editor
+    define can_view: field_viewer or field_editor
+
+
+# ----------------------------------------------------------------------------
+# Type: order (Sipariş — alıcı ↔ satıcı)
+# ----------------------------------------------------------------------------
+# Order birden çok ilişki tutar:
+#   store_link: hangi satıcı
+#   buyer_org_link: hangi alıcı organizasyonu
+#   requisitioner: sipariş açan kişi (buyer sub-user)
+#   approver: onaylayan kişi (varsa, onay zinciri çıktısı)
+#
+# Tuple örnekleri:
+#   (order:ORD-9382, store_link, store:anatolian)
+#   (order:ORD-9382, buyer_org_link, buyer_org:acme)
+#   (order:ORD-9382, requisitioner, user:ahmet@acme.com)
+#   (order:ORD-9382, approver, user:can@acme.com)
+type order
+  relations
+    define store_link: [store]
+    define buyer_org_link: [buyer_org]
+    define requisitioner: [user]
+    define approver: [user]
+
+    # Türetilmiş: kim okuyabilir
+    # - Satıcı tarafı: store sahibi/co-owner
+    # - Alıcı tarafı: requisitioner + approver + admin + finance + viewer
+    # #C6 — viewer eklendi: buyer_org.can_view viewer'ı içerir; order görünürlüğü
+    # onunla tutarlı olmalı (Buyer Viewer rolü org'u görüp order'ı göremiyordu).
+    define can_view: requisitioner or approver or owner from store_link or co_owner from store_link or admin from buyer_org_link or finance from buyer_org_link or approver_l1 from buyer_org_link or approver_l2 from buyer_org_link or viewer from buyer_org_link
+
+    # Türetilmiş: kim onaylayabilir (COARSE capability — "approver mı?").
+    # #C6 — Amount-gating burada YOK; yetkili onay kararı order_approval.can_approve_l1/l2
+    # üzerinde (needs_approval_l1/l2 condition'ı ile) verilir. Bu relation'ı doğrudan
+    # enforce ETME; approval kararı için order_approval tipini kullan.
+    define can_approve: approver_l1 from buyer_org_link or approver_l2 from buyer_org_link
+
+
+# ----------------------------------------------------------------------------
+# Type: order_approval (Çok katmanlı onay süreci)
+# ----------------------------------------------------------------------------
+# Bir order için onay zinciri instance'ı. ABAC koşulu (amount) ile hangi
+# katmanın gerekli olduğu çözülür.
+#
+# Tuple örnekleri:
+#   (order_approval:ORD-9382-APP, target_order, order:ORD-9382)
+#   (order_approval:ORD-9382-APP, can_approve_l1, user:can@acme.com)
+#       with condition: needs_approval_l1(amount=7450)
+#   (order_approval:ORD-9382-APP, can_approve_l2, user:demet@acme.com)
+#       with condition: needs_approval_l2(amount=7450)
+type order_approval
+  relations
+    define target_order: [order]
+    define can_approve_l1: [user with needs_approval_l1]
+    define can_approve_l2: [user with needs_approval_l2]
+    define current_approver: can_approve_l1 or can_approve_l2
+
+
+# ----------------------------------------------------------------------------
+# Type: region (Bölge — ABAC kesişimi)
+# ----------------------------------------------------------------------------
+# Frappe Region doctype ile 1:1 eşleşir. ReBAC'da bölge bir attribute olarak
+# kullanılır.
+#
+# Tuple örnekleri:
+#   (region:EU, scope_user, user:selin@acme.com)
+#       — Selin EU bölgesinde (unconditional)
+#   (region:EU, scoped_user, user:selin@acme.com)
+#       with condition: user_in_region(user_regions=["EU","TR"], target_region="EU")
+#       — runtime'da user'ın aktif bölge listesi context'ten geliyor
+type region
+  relations
+    # Geriye dönük uyumluluk — koşulsuz scope
+    define scope_user: [user]
+    # ABAC condition'lı erişim — Faz 4 PII maskeleme bu relation üzerinden işler
+    define scoped_user: [user with user_in_region]
+
+
+# ============================================================================
+# ABAC Conditions (FGA 1.4+ Conditions DSL)
+# ============================================================================
+#
+# Bu condition'lar OpenFGA'da tanımlı ve relation'lara `with <name>` ile
+# bağlandığında runtime'da check sırasında değerlendirilir.
+#
+# Mevcut kullanım haritası:
+#   needs_approval_l1, needs_approval_l2:
+#       — `order_approval.can_approve_l1`, `can_approve_l2` üzerinde aktif
+#       (services/approval_workflow._sync_approval_tuples ile conditional
+#       tuple yazılıyor; rebac_client.check() context={"amount": N} geçiyor).
+#   user_in_region:
+#       — `region.scoped_user` üzerinde tanımlı (PII jurisdiction kapısı için
+#       Faz 4 kapsamında). Şu an primary enforcement Python tarafında
+#       (utils/pii.py + services/abac_context); ReBAC tuple yazımı opsiyonel.
+#   within_business_hours:
+#       — Hiçbir relation'a bağlı değil. **Tasarım kararı:** Mesai saati
+#       constraint'i Python tarafında advisory olarak hesaplanıyor (simulator
+#       trace'inde gösterilir; karar yetkisi yok). OpenFGA tarafına bağlanması
+#       Faz 5'te değerlendirilecek — şu an "deny by time" senaryosu yok.
+
+# Onay limiti: 500 < amount <= 5000 → L1 onayı yeterli.
+# #C6 — `amount` EUR-normalize edilmiş tutardır (services/abac_context.build_order_context
+# → amount_eur; FX yok/total None ise fail-closed sentinel = en yüksek tier). Çağıranlar
+# (approval_workflow, simulator) check context'ine EUR değerini geçmelidir — raw döviz DEĞİL.
+condition needs_approval_l1(amount: int) {
+  amount > 500 && amount <= 5000
+}
+
+# Onay limiti: amount(EUR) > 5000 → L2 (CFO) onayı gerekli.
+condition needs_approval_l2(amount: int) {
+  amount > 5000
+}
+
+# Bölge koşulu: user'ın bölgeleri target'ı kapsıyor mu
+# Wired to: region.scoped_user
+condition user_in_region(user_regions: list<string>, target_region: string) {
+  target_region in user_regions
+}
+
+# Zaman koşulu: belirli saat aralığında işlem (örn. mesai saati)
+# UNWIRED — şu an sadece Python tarafında advisory olarak değerlendirilir
+# (services/authorization_simulator._check_abac_conditions). OpenFGA tarafına
+# bağlanması için bir relation tanımlandığında bu yorum güncellenecek.
+condition within_business_hours(request_time: timestamp, start_hour: int, end_hour: int) {
+  request_time.getHours() >= start_hour && request_time.getHours() < end_hour
+}

@@ -214,6 +214,29 @@ def approve(approval_name: str, user: str | None = None, comment: str = "") -> s
 			frappe.PermissionError,
 		)
 
+	# #E1 — Separation of Duties: talep sahibi kendi siparişini onaylayamaz.
+	# Admin override yine bloke edilir (görev ayrılığı admin için de geçerli;
+	# gerçekten gerekirse override başka bir System Manager tarafından yapılır).
+	if user == approval.requisitioner:
+		frappe.throw(
+			_("Kendi talebinizi onaylayamazsınız (görev ayrılığı)."),
+			frappe.PermissionError,
+		)
+
+	# #E1 — Level 1'i onaylayan kişi Level 2'yi onaylayamaz (çok-seviyeli onayda
+	# farklı kişi şartı; tek kişi iki seviyeyi tek başına geçiremesin).
+	if current_level == 2:
+		l1_approvers = {
+			log.approver
+			for log in approval.approval_log
+			if log.action == "approved" and log.level == 1
+		}
+		if user in l1_approvers:
+			frappe.throw(
+				_("Level 1'i onaylayan kişi Level 2'yi onaylayamaz (görev ayrılığı)."),
+				frappe.PermissionError,
+			)
+
 	# R1 fix: Entitlement quota check — günlük approval limiti aşıldı mı?
 	# Seller tenant varsa quota check yap (admin override bypass eder).
 	# Quota key plan'da tanımlı değilse skip — yeni plan eklenmişse approval bloke olmaz.
@@ -225,10 +248,14 @@ def approve(approval_name: str, user: str | None = None, comment: str = "") -> s
 
 				quotas = get_quota_limits(tenant)
 				if "quota.daily_approval_limit" in quotas:
+					# #F5 — Order Approval Log child alanı 'approver' (user DEĞİL);
+					# eski filtre {"user": ...} hiç eşleşmiyordu → kota fiilen
+					# uygulanmıyordu. Doğru alan + submitted level'lardaki approved
+					# aksiyonlar sayılır.
 					today_count = frappe.db.count(
 						"Order Approval Log",
 						filters={
-							"user": user,
+							"approver": user,
 							"action": "approved",
 							"creation": [">=", frappe.utils.today()],
 						},
@@ -240,7 +267,7 @@ def approve(approval_name: str, user: str | None = None, comment: str = "") -> s
 							),
 						)
 			except frappe.DoesNotExistError:
-				pass  # Order Approval Log DocType yoksa skip
+				pass  # savunma amaçlı — child doctype yoksa kota atlanır
 			except ImportError:
 				pass  # entitlement module yoksa skip
 
