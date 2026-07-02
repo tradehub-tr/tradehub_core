@@ -22,8 +22,11 @@ def get_current_user():
 
 	user = frappe.get_doc("User", user_email)
 
+	# Sprint 2 sonrası mağaza entity'si "Admin Seller Profile" (user link'li); eski
+	# "Seller Profile" doctype'ı emekliye ayrıldı ve seller_code/logo/health_score
+	# kolonlarını taşımıyor (1054). Mağaza alanları buradan okunur.
 	seller = frappe.db.get_value(
-		"Seller Profile",
+		"Admin Seller Profile",
 		{"user": user_email},
 		["name", "seller_name", "seller_code", "status", "logo", "health_score", "score_grade"],
 		as_dict=True,
