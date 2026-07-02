@@ -262,7 +262,11 @@ from tradehub_core.services import owner_transfer as ot  # noqa: E402
 class DelegationCreateTests(unittest.TestCase):
 	def setUp(self):
 		_reset_state()
-		_USERS["a@x.com"] = {"role_names": ["Buyer Requisitioner"]}
+		# #E4 — delegator delege ettiği role sahip olmalı (get_roles "roles"'u okur).
+		_USERS["a@x.com"] = {
+			"role_names": ["Buyer Requisitioner"],
+			"roles": ["Buyer Approver L1", "Buyer Requisitioner"],
+		}
 		_USERS["b@x.com"] = {"role_names": []}
 
 	def test_create_pending(self):
@@ -304,7 +308,11 @@ class DelegationCreateTests(unittest.TestCase):
 class DelegationLifecycleTests(unittest.TestCase):
 	def setUp(self):
 		_reset_state()
-		_USERS["a@x.com"] = {"role_names": ["Buyer Requisitioner"]}
+		# #E4 — delegator delege ettiği role sahip olmalı (get_roles "roles"'u okur).
+		_USERS["a@x.com"] = {
+			"role_names": ["Buyer Requisitioner"],
+			"roles": ["Buyer Approver L1", "Buyer Requisitioner"],
+		}
 		_USERS["b@x.com"] = {"role_names": []}
 
 	def test_activate_assigns_role(self):
@@ -350,6 +358,55 @@ class DelegationLifecycleTests(unittest.TestCase):
 		self.assertEqual(summary["expired"], 1)
 		self.assertEqual(_DOCS[name]["status"], "expired")
 		self.assertNotIn("Buyer Approver L1", _USERS["b@x.com"]["role_names"])
+
+	def test_own_role_invariant(self):
+		"""#E4 — delegator sahip olmadığı rolü delege edemez."""
+		# a@x.com yalnız Buyer Approver L1 + Requisitioner'a sahip; L2 yok.
+		with self.assertRaises(Exception):
+			dele.create_delegation(
+				"a@x.com",
+				"b@x.com",
+				"Buyer Approver L2",  # sahip değil
+				"ACME",
+				datetime(2026, 5, 21, 10),
+				datetime(2026, 5, 28, 18),
+			)
+
+	def test_chain_redelegation_rejected(self):
+		"""#E2 — delege edilmiş bir rol yeniden delege edilemez (zincir yasak)."""
+		# b@x.com'a Buyer Approver L1 aktif delegation'la verilmiş olsun.
+		name = dele.create_delegation(
+			"a@x.com", "b@x.com", "Buyer Approver L1", "ACME",
+			datetime(2026, 5, 21, 10), datetime(2026, 5, 28, 18),
+		)
+		dele.activate_delegation(name)
+		# b artık rolü get_roles'ta da görsün (delegated).
+		_USERS["b@x.com"]["roles"] = ["Buyer Approver L1"]
+		# b bu rolü c'ye yeniden delege edemez.
+		with self.assertRaises(Exception):
+			dele.create_delegation(
+				"b@x.com", "c@x.com", "Buyer Approver L1", "ACME",
+				datetime(2026, 5, 21, 10), datetime(2026, 5, 28, 18),
+			)
+
+	def test_activate_before_starts_at_rejected(self):
+		"""#E3 — starts_at gelecekteyse aktive edilemez (now=14:00)."""
+		name = dele.create_delegation(
+			"a@x.com", "b@x.com", "Buyer Approver L1", "ACME",
+			datetime(2026, 5, 25, 10), datetime(2026, 5, 28, 18),  # gelecekte başlar
+		)
+		with self.assertRaises(Exception):
+			dele.activate_delegation(name)
+
+	def test_activate_cross_tenant_rejected(self):
+		"""#E3 — platform/tenant-sahibi olmayan approver başka tenant'ı aktive edemez."""
+		name = dele.create_delegation(
+			"a@x.com", "b@x.com", "Buyer Approver L1", "ACME",
+			datetime(2026, 5, 21, 10), datetime(2026, 5, 28, 18),
+		)
+		_USERS["outsider@x.com"] = {"roles": ["Buyer"]}  # platform değil, ACME sahibi değil
+		with self.assertRaises(Exception):
+			dele.activate_delegation(name, approver="outsider@x.com")
 
 
 # ---------------------------------------------------------------------------

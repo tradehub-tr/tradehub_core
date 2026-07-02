@@ -35,6 +35,18 @@ _FORBIDDEN_DELEGATION_ROLES = frozenset(
 )
 
 
+# #E3 — delegation'ı aktive edebilecek platform rolleri (tenant-agnostic yetki).
+_PLATFORM_DELEGATION_APPROVER_ROLES = frozenset(
+	{
+		"System Manager",
+		"Administrator",
+		"Marketplace Admin",
+		"Platform Admin",
+		"Platform Super Admin",
+	}
+)
+
+
 def _assert_role_delegatable(role: str) -> None:
 	"""Power-role delegation denemesini fail-closed reddet."""
 	if role in _FORBIDDEN_DELEGATION_ROLES:
@@ -42,6 +54,52 @@ def _assert_role_delegatable(role: str) -> None:
 			_("Bu rol delegation ile atanamaz: {0}").format(role),
 			exc=frappe.PermissionError,
 		)
+
+
+def _assert_can_delegate(delegator: str, role: str) -> None:
+	"""#E4/#E2 — delegator sahip olduğu bir rolü delege edebilir; sahip olmadığı
+	rolü veremez (escalation engeli) ve DELEGE EDİLMİŞ bir rolü yeniden delege
+	edemez (zincir/escalation engeli). Service katmanı invariant'ı (API bypass'a
+	karşı defense-in-depth)."""
+	if role not in set(frappe.get_roles(delegator)):
+		frappe.throw(
+			_("Sahip olmadığınız bir rolü delege edemezsiniz: {0}").format(role),
+			exc=frappe.PermissionError,
+		)
+	# Rolü yalnızca aktif bir delegation'dan alıyorsa yeniden delege edemez.
+	delegated_source = frappe.db.get_value(
+		"Role Delegation",
+		{"delegate": delegator, "role": role, "status": "active"},
+		"name",
+	)
+	if delegated_source:
+		frappe.throw(
+			_("Delege edilmiş bir rol yeniden delege edilemez (zincir yasak)."),
+			exc=frappe.PermissionError,
+		)
+
+
+def _assert_tenant_authority(approver: str, tenant: str | None) -> None:
+	"""#E3 — approver bu tenant için yetkili mi? Platform admini VEYA tenant sahibi
+	olmalı; aksi halde cross-tenant delegation aktivasyonu engellenir."""
+	if approver == "Administrator":
+		return
+	roles = set(frappe.get_roles(approver))
+	if roles & _PLATFORM_DELEGATION_APPROVER_ROLES:
+		return
+	if tenant:
+		try:
+			owner = frappe.db.get_value("Admin Seller Profile", tenant, "user") or frappe.db.get_value(
+				"Admin Seller Profile", tenant, "owner"
+			)
+			if owner and owner == approver:
+				return
+		except Exception:  # noqa: BLE001 — lookup hatası yetkiyi genişletmez
+			pass
+	frappe.throw(
+		_("Bu tenant için delegation aktive etme yetkiniz yok: {0}").format(tenant),
+		exc=frappe.PermissionError,
+	)
 
 
 def create_delegation(
@@ -60,6 +118,9 @@ def create_delegation(
 		frappe.throw(_("ends_at, starts_at'tan sonra olmalı"), exc=frappe.ValidationError)
 	# C2 fix — power-role'ler delegation ile atanamaz.
 	_assert_role_delegatable(role)
+	# #E4/#E2 — delegator rolü sahiplenmiş olmalı ve delege-edilmiş rol yeniden
+	# delege edilemez (escalation + zincir engeli, service katmanı).
+	_assert_can_delegate(delegator, role)
 
 	doc = frappe.new_doc("Role Delegation")
 	doc.delegator = delegator
@@ -84,6 +145,13 @@ def activate_delegation(name: str, approver: str | None = None) -> None:
 		frappe.throw(_("Yalnızca pending delegation aktive edilebilir: {0}").format(doc.status))
 
 	approver = approver or frappe.session.user
+	# #E3 — starts_at gelecekteyse aktive etme (pencere başlamadı).
+	if doc.starts_at and now_datetime() < doc.starts_at:
+		frappe.throw(
+			_("Delegation başlangıç zamanı henüz gelmedi: {0}").format(doc.starts_at)
+		)
+	# #E3 — approver bu tenant için yetkili olmalı (cross-tenant aktivasyon engeli).
+	_assert_tenant_authority(approver, doc.tenant)
 	_assign_role(doc.delegate, doc.role, until=doc.ends_at)
 
 	doc.status = "active"
@@ -107,7 +175,7 @@ def revoke_delegation(name: str, reason: str = "") -> None:
 		frappe.throw(_("Bu delegation revoke edilemez: {0}").format(doc.status))
 
 	if doc.status == "active":
-		_unassign_role(doc.delegate, doc.role)
+		_unassign_role(doc.delegate, doc.role, exclude_delegation=doc.name)
 
 	doc.status = "revoked"
 	doc.save(ignore_permissions=True)
@@ -142,7 +210,7 @@ def expire_overdue_delegations(now: datetime | None = None) -> dict[str, Any]:
 	for name in candidates:
 		try:
 			doc = frappe.get_doc("Role Delegation", name)
-			_unassign_role(doc.delegate, doc.role)
+			_unassign_role(doc.delegate, doc.role, exclude_delegation=doc.name)
 			doc.status = "expired"
 			doc.save(ignore_permissions=True)
 			expired += 1
@@ -182,15 +250,31 @@ def _assign_role(user: str, role: str, until: datetime | None = None) -> None:
 		frappe.throw(_("Rol atama başarısız: {0}").format(exc), exc=frappe.ValidationError)
 
 
-def _unassign_role(user: str, role: str) -> None:
-	"""Remove role from user."""
+def _unassign_role(user: str, role: str, exclude_delegation: str | None = None) -> None:
+	"""Remove role from user.
+
+	#E4 — Başka bir AKTİF delegation aynı rolü veriyorsa rolü KALDIRMA (yetki
+	kaybı/DoS önlemi). exclude_delegation: revoke/expire edilen mevcut kayıt
+	(hâlâ 'active' göründüğü için sayımdan çıkarılır).
+	"""
 	try:
 		user_doc = frappe.get_doc("User", user)
-		user_doc.roles = [r for r in (user_doc.roles or []) if r.role != role]
-		# Eğer başka aktif delegation yoksa temporary_role_until temizle
+		other_same_role = frappe.db.get_value(
+			"Role Delegation",
+			{
+				"delegate": user,
+				"status": "active",
+				"role": role,
+				"name": ["!=", exclude_delegation or ""],
+			},
+			"name",
+		)
+		if not other_same_role:
+			user_doc.roles = [r for r in (user_doc.roles or []) if r.role != role]
+		# Başka HİÇ aktif delegation yoksa temporary_role_until temizle.
 		other_active = frappe.db.get_value(
 			"Role Delegation",
-			{"delegate": user, "status": "active", "role": ["!=", role]},
+			{"delegate": user, "status": "active", "name": ["!=", exclude_delegation or ""]},
 			"name",
 		)
 		if not other_active:
