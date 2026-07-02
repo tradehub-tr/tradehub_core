@@ -169,8 +169,9 @@ def _handle_breach(ticket: dict, breach_kind: str, tag: str, breach_at, policy_m
 def _email_body_html(heading: str, body_text: str, ticket_name: str) -> str:
 	from urllib.parse import quote
 
-	site = (frappe.local.conf.get("admin_url") or frappe.utils.get_url() or "").rstrip("/")
-	link = f"{site}/helpdesk/tickets/{quote(ticket_name, safe='')}"
+	from tradehub_core.seo.site_url import admin_panel_url
+
+	link = f"{admin_panel_url()}/helpdesk/tickets/{quote(ticket_name, safe='')}"
 	safe_body = frappe.utils.escape_html(body_text or "")
 	return f"""
 <div style="font-family: -apple-system, Segoe UI, Roboto, sans-serif; color: #222; max-width: 560px;">

@@ -564,20 +564,13 @@ def _ensure_user_roles_from_profile(user_doc, role_profile_name: str) -> None:
 def _build_invite_url(raw_token: str) -> str:
 	"""Davet kabul URL'i — environment-aware.
 
-	Öncelik sırası:
-	  1. site_config.json → `tradehub_admin_panel_url` (örn: https://beta.istoc.com)
-	  2. site_config.json → `admin_panel_url`
-	  3. Frappe `get_url()` fallback (backend domain)
-
-	Production deploy: site_config.json'da `tradehub_admin_panel_url`'i set et.
-	Local dev: fallback `http://localhost:8082` veya manuel config.
+	URL merkezî `admin_panel_url()` helper'ından üretilir: backend site adına
+	göre (restore-proof) `<storefront>/panel`. Config restore prod'dan geldiği
+	için site_config'e güvenilmez; site adı eşlemesi kullanılır.
 	"""
-	panel_url = (
-		frappe.conf.get("tradehub_admin_panel_url")
-		or frappe.conf.get("admin_panel_url")
-		or _default_panel_url()
-	)
-	panel_url = panel_url.rstrip("/")
+	from tradehub_core.seo.site_url import admin_panel_url
+
+	panel_url = admin_panel_url().rstrip("/")
 
 	# A5 fix: URL domain whitelist — phishing koruması.
 	# Config'ten gelen URL beklenmeyen bir domain'e işaret ediyorsa reject et.
@@ -587,9 +580,11 @@ def _build_invite_url(raw_token: str) -> str:
 	_ALLOWED_DOMAINS = frozenset(
 		{
 			"localhost",
+			"tradehub.localhost",
 			"istoc.com",
 			"beta.istoc.com",
 			"rc.istoc.com",
+			"alpha.istoc.com",
 			"admin.istoc.com",
 			"admin-preview.istoc.com",
 		}
