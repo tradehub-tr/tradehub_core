@@ -3,6 +3,8 @@ name: Authz Tests
 # Faz 0 — Yetkilendirme (RBAC/ReBAC/ABAC) regresyon kapısı.
 # Bu testler frappe'yi kendi içinde stub'lar → gerçek Frappe/DB kurulumu
 # GEREKTİRMEZ; saf python3 ile koşar. Authz regresyonu build'i KIRAR (blocking).
+# Not: rebac_client.py top-level `requests` import ediyor (stub'lanmaz) → tek
+# gerçek third-party bağımlılık; taze CI runner'ında kurulmalı.
 
 on:
   push:
@@ -24,6 +26,9 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
+      - name: Install runtime deps (rebac_client → requests)
+        run: pip install requests
 
       - name: Run authz test gate
         run: bash scripts/run_authz_tests.sh
