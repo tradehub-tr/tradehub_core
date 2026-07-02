@@ -212,7 +212,7 @@ class GetSnapshotTests(unittest.TestCase):
 			(
 				"get_value",
 				"Store Subscription",
-				"{'store': 'STORE-A', 'status': ['in', ['trial', 'active']]}",
+				"{'store': 'STORE-A', 'status': ['in', ['trial', 'active', 'past_due']]}",
 				"name",
 			)
 		] = "STSUB-001"
@@ -273,7 +273,7 @@ class GetSnapshotTests(unittest.TestCase):
 			(
 				"get_value",
 				"Store Subscription",
-				"{'store': 'STORE-A', 'status': ['in', ['trial', 'active']]}",
+				"{'store': 'STORE-A', 'status': ['in', ['trial', 'active', 'past_due']]}",
 				"name",
 			)
 		] = "STSUB-001"
