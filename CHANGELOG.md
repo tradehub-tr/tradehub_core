@@ -1,3 +1,11 @@
+## [v1.7.1-alpha.9] - 2026-07-02 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Duzeltildi
+- fix(listing): count management-cert facet per listing, not per seller cert row (@boraydeger32)
+
+---
 ## [v1.7.1-alpha.8] - 2026-07-02 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
