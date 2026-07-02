@@ -1,3 +1,14 @@
+## [v1.7.1-alpha.7] - 2026-07-02 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Degistirildi
+- refactor(product-type): required_attributes child DocType'ını kaldır (@boraydeger32)
+  - Product Type JSON'dan sb_attributes + required_attributes alanlarını çıkar
+  - Orphan "Product Type Required Attribute" child DocType'ını sil
+  - v15_9_9 patch'i: DocType + tab tablosunu idempotent temizle
+
+---
 ## [v1.7.1-alpha.6] - 2026-07-02 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
