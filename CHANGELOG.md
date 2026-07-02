@@ -1,3 +1,47 @@
+## [v1.7.1-alpha.11] - 2026-07-02 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(authz): unified PDP + shared action registry (single decision point) (@boraydeger32)
+  - Faz 1: authorize(principal, action, resource, context) — 4 katmanlı fail-closed karar hattı (L0 registry → L1 hard_deny → L2 guardrail → L3 RBAC∪ReBAC → L4 deny). Davranış garantisi: authorize().allow == frappe.has_permission() (regresyonsuz).
+  - #F3: registry TEK KAYNAK; simülatör aynı map'leri kullanır (map-drift imkânsız).
+  - #F2: TraceStep.rule_id TypeError (meta'ya taşındı).
+  - #F4: L3 PII jurisdiction kaynağın region'una fallback (KVKK/GDPR bypass kapandı).
+  - Faz 4: L3'e ReBAC SHADOW-wiring — check() karşılaştırma için çağrılır, sapma 'rebac.shadow_divergence' etiketiyle loglanır; karar HÂLÂ RBAC (enforce YOK), fail-safe.
+  - Faz 5: authz/enforcement.py — per-doctype mode (shadow|enforce) + kill-switch; enforce modda L3 = RBAC ∪ ReBAC (ReBAC ilişki-grant EKLER, lock-out yok).
+  - Faz 6(b): registry FIELD_ACTIONS + field_target_for; pdp field-object'e çözer (listing_field:LST/PART) → alan-bazlı izin (Airbnb type:id:part).
+  - Faz 7: authz/break_glass.py — platform-admin acil süper-erişim (zorunlu gerekçe + HIGH audit + TTL); pdp _finalize aktif break-glass'ta DENY→ALLOW (L0.break_glass).
+- feat(authz): ABAC guardrail layer — KYC/AML/subscription + plan boundary [#D1] (@boraydeger32)
+- feat(audit): tamper-evident hash-chain + anomaly blind-spot fixes (@boraydeger32)
+  - #F1: Authorization Decision Log hash-chain (prev_hash + entry_hash = SHA-256( içerik | önceki hash)); verify_chain() içerik-tamper + linkage kopması tespit eder; on_change tam immutability (kayıt sonrası HİÇBİR alan değişemez).
+  - #F5: _detect_rebac_drift no-op'tan çıkıp scan_drift'e bağlandı (drift → alert).
+
+### Duzeltildi
+- fix(permissions): fail-closed has_permission + Compliance Officer read-only (@boraydeger32)
+  - #B1 (CANLI): 5 has_permission handler'ı bool() ile sarıldı; profil None iken None yerine False döner (cross-tenant read + owner-PII sızıntısı kapandı).
+  - #D2: _is_platform_full_access ptype-aware; Compliance Officer yalnız-read (write/delete gate). 23 has_permission çağrısı ptype iletir.
+  - #D4: field_commission_has_permission doc=None guard.
+- fix(authz): separation-of-duties + delegation boundary + FX fail-closed (@boraydeger32)
+  - #E1: self-approval reddi + L1 onaylayan L2'yi onaylayamaz.
+  - #E2-E4: delegation own-role invariant (service), zincir yasağı, activate tenant-scope + starts_at, revoke'ta bağımsız rol korunur.
+  - #D3: FX rate yok / total None → raw-fallback yerine fail-closed sentinel.
+  - #F5 (Faz 6): approval günlük kota 'approver' alanı ile sayar (önceden 'user' ile hiç eşleşmiyordu → kota fiilen uygulanmıyordu).
+- fix(rebac): client resilience — idempotent sync + breaker 4xx + config reload (@boraydeger32)
+  - #C1: batch 4xx → per-tuple fallback + idempotency toleransı.
+  - #C3: 4xx breaker'ı tetiklemez (sadece 5xx/timeout/bağlantı).
+  - #C5: config env'den runtime okunur; auth per-request; healthz auth.
+  - Faz 4: check() consistency param (HIGHER / MINIMIZE_LATENCY) — new-enemy koruması.
+  - Faz 6: #C1 tolerans refine — yalnız idempotency yutulur, validation_error → fail.
+- fix(rebac): OpenFGA model (in-repo) + owner-transfer sync + drift/reconcile (@boraydeger32)
+  - rebac/: OpenFGA model + deploy scriptleri artık tradehub_core içinde (önceden repo-dışı tradehub_rebac/ idi → org kontrolüne alındı).
+  - #C6 model: order.can_view'e viewer; can_approve coarse; condition'lar amount_eur. Union tek-satıra çevrildi → model fga CLI ile VALID/deploy edilebilir.
+  - #C2: on_listing/order/admin_seller_profile_update — owner-transfer orphan önle.
+  - #C4: drift'ten modelde-olmayan Store Subscription çıkarıldı.
+  - #C6: reconcile_user/reconcile_users — eksik grant self-heal.
+  - Faz 6(b): model.fga listing_field type (Airbnb type:id:part, explicit) + tuple_sync field grants (grant/revoke_field_access). Ayraç '/' (: geçersiz).
+
+---
 ## [v1.7.1-alpha.10] - 2026-07-02 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
