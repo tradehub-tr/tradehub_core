@@ -556,6 +556,100 @@ def update_my_admin_seller_profile(logo=None, banner_image=None, slogan=None):
 	return {"updated": list(updates.keys())}
 
 
+# Storefront satıcı self-servis profil formu (seller-dashboard) alan setleri.
+# YAZILABILIR allowlist — hassas alanlar (tax_id/tax_office/iban → KYB/finansal,
+# ayrı güvenli akışla düzenlenir) ve toplanmayan adres alanları
+# (address_line2/district/postal_code → doğru evi Addresses doctype'ı) HARİÇ.
+_PROFILE_EDITABLE_FIELDS = frozenset(
+	{
+		"seller_name",
+		"slogan",
+		"description",
+		"logo",
+		"banner_image",
+		"phone",
+		"website",
+		"address_line1",
+		"city",
+		"company_name",
+		"business_type",
+		"founded_year",
+		"staff_count",
+		"annual_revenue",
+		"factory_size",
+		"main_markets",
+	}
+)
+
+# Forma yüklenen (okuma) alanlar — yazılamayanlar (tax/iban) da dahil,
+# çünkü formda görüntüleniyorlar (update_profile yalnızca allowlist'i yazar).
+_PROFILE_READ_FIELDS = [
+	"seller_name",
+	"company_name",
+	"phone",
+	"website",
+	"slogan",
+	"description",
+	"logo",
+	"banner_image",
+	"business_type",
+	"founded_year",
+	"staff_count",
+	"annual_revenue",
+	"factory_size",
+	"main_markets",
+	"address_line1",
+	"city",
+	"tax_id",
+	"tax_office",
+	"iban",
+]
+
+
+def _get_my_seller_profile_name() -> str:
+	"""Giriş yapan kullanıcının kendi Admin Seller Profile adını döndürür.
+	Sahiplik garantisi: lookup {"user": session.user} — başka profil erişilemez."""
+	user = frappe.session.user
+	if not user or user == "Guest":
+		frappe.throw(_("Yetkisiz"), frappe.PermissionError)
+	name = frappe.db.get_value("Admin Seller Profile", {"user": user}, "name")
+	if not name:
+		frappe.throw(_("Satıcı profili bulunamadı"), frappe.DoesNotExistError)
+	return name
+
+
+@frappe.whitelist()
+def get_my_profile() -> dict:
+	"""Giriş yapan satıcının kendi mağaza profilini (self-servis form için) döndürür."""
+	name = _get_my_seller_profile_name()
+	return frappe.db.get_value("Admin Seller Profile", name, _PROFILE_READ_FIELDS, as_dict=True) or {}
+
+
+@frappe.whitelist()
+def update_profile(data=None) -> dict:
+	"""Satıcının kendi mağaza profilini günceller — SADECE allowlist alanları.
+
+	Güvenlik: hassas (tax_id/tax_office/iban) ve toplanmayan (address_line2/
+	district/postal_code) alanlar allowlist dışı; gelseler bile yoksayılır.
+	Sahiplik {"user": session.user} lookup'ı ile garanti (başka profil yazılamaz)."""
+	from tradehub_core.utils.seller_capabilities import require_seller_capability
+
+	require_seller_capability("seller_profile.write")
+	name = _get_my_seller_profile_name()
+
+	if isinstance(data, str):
+		data = frappe.parse_json(data)
+	if not isinstance(data, dict):
+		frappe.throw(_("Geçersiz veri"), frappe.ValidationError)
+
+	updates = {k: v for k, v in data.items() if k in _PROFILE_EDITABLE_FIELDS}
+	for field, value in updates.items():
+		frappe.db.set_value("Admin Seller Profile", name, field, value)
+	if updates:
+		frappe.db.commit()
+	return {"updated": sorted(updates.keys())}
+
+
 @frappe.whitelist(allow_guest=True)
 def get_seller_categories(seller_code):
 	"""Public: Satıcının aktif listing'lerinden türetilen kategorileri döndür.
@@ -805,7 +899,7 @@ def approve_seller_category(category_name, action="approve", reject_reason=""):
 
 @frappe.whitelist()
 def list_pending_seller_verifications() -> list:
-	"""Admin: Onay bekleyen Seller Verification kayıtlarını listele (N+1 yok)."""
+	"""Admin: Onay ve talep bekleyen Seller Verification kayıtlarını listele (N+1 yok)."""
 	if (
 		"System Manager" not in frappe.get_roles(frappe.session.user)
 		and frappe.session.user != "Administrator"
@@ -815,7 +909,7 @@ def list_pending_seller_verifications() -> list:
 	# System Manager/Administrator sistem işlemi — get_all ile perm bypass kasıtlı
 	rows = frappe.get_all(
 		"Seller Verification",
-		filters={"status": "Pending"},
+		filters={"status": ["in", ["Requested", "Scheduled", "Pending"]]},
 		fields=[
 			"name",
 			"seller",
@@ -823,6 +917,8 @@ def list_pending_seller_verifications() -> list:
 			"status",
 			"inspection_date",
 			"expiry_date",
+			"scheduled_date",
+			"request_note",
 			"document",
 			"creation",
 		],
@@ -865,6 +961,26 @@ def list_pending_seller_verifications() -> list:
 		r["source_name"] = source_map.get(r.source, r.source or "-")
 
 	return rows
+
+
+@frappe.whitelist()
+def schedule_verification(name: str, scheduled_date: str, admin_note: str = "") -> dict:
+	"""Superadmin: Denetim talebini planla (Requested → Scheduled)."""
+	if frappe.session.user != "Administrator":
+		frappe.throw(_("Bu işlemi yalnızca Administrator yapabilir"), frappe.PermissionError)
+	if not scheduled_date:
+		frappe.throw(_("Planlanan tarih zorunludur."))
+
+	doc = frappe.get_doc("Seller Verification", name)
+	if doc.status not in ("Requested", "Scheduled"):
+		frappe.throw(_("Yalnızca talep aşamasındaki kayıtlar planlanabilir."))
+	doc.scheduled_date = scheduled_date
+	if admin_note:
+		doc.admin_note = admin_note
+	doc.status = "Scheduled"
+	doc.save(ignore_permissions=True)  # Administrator sistem işlemi
+	frappe.db.commit()
+	return {"ok": True, "name": doc.name, "status": doc.status}
 
 
 @frappe.whitelist()

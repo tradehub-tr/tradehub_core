@@ -1,3 +1,45 @@
+## [v1.7.1-alpha.6] - 2026-07-02 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Duzeltildi
+- fix(chat): DB restore sonrası TeamsLike bağlantı hatası düzeltildi (@ahmeetseker)
+  - TeamsLike bağlantı ayarları ve secret'ları site_config.json'dan okunuyor (DocType fallback); prod DB'si başka site'a restore edilince encryption_key uyuşmazlığıyla bozulmuyor
+  - Admin access token DB single yerine Redis'te tutuluyor (55dk TTL) — restore stale prod token'ı getirmiyor
+  - TeamsLike yapılandırılmamış/erişilemez ise list_my_threads boş liste dönüyor; Mağazam panelindeki 10 sn'lik hata spam'i giderildi
+
+---
+## [v1.7.1-alpha.5] - 2026-07-01 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(verification): belgesiz denetim talebi akışı eklendi (@ahmeetseker)
+  - Requested/Scheduled statüleri + request_note/scheduled_date/admin_note alanları
+  - request_my_verification / attach_verification_document / schedule_verification API'leri
+  - durum geçiş kuralları (Requested→Scheduled yalnız admin, →Pending belge şartı)
+  - satıcı sidebar'ına "Doğrulamalarım" navigasyonu (patch v15_8_10)
+  - belge alanı talep aşamasında opsiyonel yapıldı
+
+---
+## [v1.7.1-alpha.4] - 2026-07-01 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(seller): satıcı self-servis profil endpoint'leri (get_my_profile/update_profile) eklendi (@aliiball)
+  - get_my_profile: satıcı kendi profilini okur (auth + sahiplik garantisi)
+  - update_profile: güvenli field-allowlist ile yazar; hassas (tax/iban) ve toplanmayan (adres2/ilçe/posta) alanlar allowlist dışı
+
+### Duzeltildi
+- fix(currency): eksik kur çiftinde 1.0 fallback ayrıştırıldı, base-price bozulması engellendi (@aliiball)
+  - _get_exchange_rate_strict: aynı para birimi 1.0, kur çifti yoksa None
+  - _get_exchange_rate: eksik durumu loglar, geriye uyum için 1.0 döner
+  - refresh_listing_price_base: kuru olmayan para birimini atlar (×1.0 ile bozmaz)
+- fix(seller): ASP'de kaynağı olmayan adres alanları (adres2/ilçe/posta) panelde gizlendi (@aliiball)
+  - v15_9_9 patch: Property Setter hidden=1 (website hariç — self-servis kaynağı var)
+
+---
 ## [v1.7.1-alpha.3] - 2026-06-30 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.

@@ -38,7 +38,8 @@ def get_my_verifications() -> list:
 
 	Dönüş:
 	    list[dict]: name, source, source_name, status, inspection_date,
-	                expiry_date, document alanlarını içeren kayıt listesi.
+	                expiry_date, document, request_note, scheduled_date,
+	                admin_note alanlarını içeren kayıt listesi.
 	                Satıcı profili yoksa boş liste.
 	"""
 	user = frappe.session.user
@@ -58,7 +59,17 @@ def get_my_verifications() -> list:
 	verifications = frappe.get_all(
 		"Seller Verification",
 		filters={"seller": profile_name},
-		fields=["name", "source", "status", "inspection_date", "expiry_date", "document"],
+		fields=[
+			"name",
+			"source",
+			"status",
+			"inspection_date",
+			"expiry_date",
+			"document",
+			"request_note",
+			"scheduled_date",
+			"admin_note",
+		],
 		order_by="creation DESC",
 	)
 
@@ -162,4 +173,84 @@ def create_my_verification(
 		frappe.log_error(title="create_my_verification: beklenmeyen hata")
 		frappe.throw(_("Başvuru oluşturulamadı. Lütfen alanları kontrol edin."))
 
+	return {"ok": True, "name": doc.name, "status": "Pending"}
+
+
+@frappe.whitelist(methods=["POST"])
+def request_my_verification(source: str, request_note: str | None = None) -> dict:
+	"""Belgesiz denetim talebi oluşturur (İstoç koordine eder).
+
+	Güvenlik: seller session.user'ın profilinden türetilir (parametre kabul edilmez).
+	Status controller tarafından değil burada "Requested" set edilir; belge yok.
+	Aynı (seller, source) çifti için ikinci kayıt _check_duplicate ile engellenir.
+	"""
+	profile_name = _require_seller_profile()
+
+	if not source or not str(source).strip():
+		frappe.throw(_("Doğrulama kaynağı zorunludur."))
+
+	vs_is_active = frappe.db.get_value("Verification Source", source, "is_active")
+	if vs_is_active is None:
+		frappe.throw(_("Belirtilen doğrulama kaynağı bulunamadı."))
+	if not vs_is_active:
+		frappe.throw(_("Bu doğrulama kaynağı artık aktif değil."))
+
+	try:
+		doc = frappe.get_doc(
+			{
+				"doctype": "Seller Verification",
+				"seller": profile_name,
+				"source": source,
+				"status": "Requested",
+				"request_note": (request_note or "").strip() or None,
+			}
+		)
+		# ignore_permissions: güvenlik seller=kendi profil kısıtıyla sağlanıyor.
+		doc.insert(ignore_permissions=True)
+		frappe.db.commit()
+	except frappe.DuplicateEntryError:
+		frappe.throw(_("Bu kaynak için zaten bir başvurunuz var."))
+	except frappe.ValidationError:
+		raise
+	except Exception:
+		frappe.log_error(title="request_my_verification: beklenmeyen hata")
+		frappe.throw(_("Talep oluşturulamadı. Lütfen alanları kontrol edin."))
+
+	return {"ok": True, "name": doc.name, "status": "Requested"}
+
+
+@frappe.whitelist(methods=["POST"])
+def attach_verification_document(
+	name: str,
+	document: str,
+	inspection_date: str | None = None,
+	expiry_date: str | None = None,
+) -> dict:
+	"""Var olan talebe (Requested/Scheduled) belge ekler → Pending.
+
+	Ownership: satıcı yalnız kendi kaydı; Administrator herhangi biri.
+	Controller Pending'e geçişte belgeyi zaten şart koşar; burada erken doğrulama.
+	"""
+	if not document or not str(document).strip():
+		frappe.throw(_("Denetim belgesi yüklemek zorunludur."))
+
+	doc = frappe.get_doc("Seller Verification", name)
+
+	# Ownership: Administrator değilse, kayıt session kullanıcısının profiline ait olmalı.
+	if frappe.session.user != "Administrator":
+		profile_name = _require_seller_profile()
+		if doc.seller != profile_name:
+			frappe.throw(_("Bu başvuruya erişim yetkiniz yok."), frappe.PermissionError)
+
+	if doc.status not in ("Requested", "Scheduled", "Pending"):
+		frappe.throw(_("Bu başvuru belge yükleme aşamasında değil."))
+
+	doc.document = document
+	if inspection_date:
+		doc.inspection_date = inspection_date
+	if expiry_date:
+		doc.expiry_date = expiry_date
+	doc.status = "Pending"
+	doc.save(ignore_permissions=True)  # ownership yukarıda doğrulandı
+	frappe.db.commit()
 	return {"ok": True, "name": doc.name, "status": "Pending"}

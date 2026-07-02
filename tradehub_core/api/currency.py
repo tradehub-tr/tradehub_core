@@ -149,8 +149,12 @@ def _get_exchange_rates():
 	return rates
 
 
-def _get_exchange_rate(from_currency, to_currency):
-	"""Get exchange rate between two currencies."""
+def _get_exchange_rate_strict(from_currency, to_currency):
+	"""Kur döndürür; çift (direkt veya ters) yoksa None — çağıran karar versin.
+	Aynı para birimi için 1.0 (kur çiftine bağımlı değil)."""
+	if from_currency == to_currency:
+		return 1.0
+
 	rate = frappe.db.get_value(
 		"Currency Rate Pair",
 		f"{from_currency}-{to_currency}",
@@ -168,7 +172,23 @@ def _get_exchange_rate(from_currency, to_currency):
 	if reverse_rate and float(reverse_rate) > 0:
 		return 1.0 / float(reverse_rate)
 
-	return 1.0
+	return None
+
+
+def _get_exchange_rate(from_currency, to_currency):
+	"""Get exchange rate between two currencies.
+
+	Kur çifti yoksa 1.0 döner (çağıranlar crash olmasın diye) — ama bu YANLIŞ
+	çevrimdir (yabancı para 1:1 sayılır); görünürlük için loglanır. Base-price
+	gibi kritik yollar _get_exchange_rate_strict kullanıp None'ı kendisi ele almalı."""
+	rate = _get_exchange_rate_strict(from_currency, to_currency)
+	if rate is None:
+		frappe.log_error(
+			f"Kur çifti bulunamadı: {from_currency}->{to_currency}. Geçici 1.0 kullanıldı.",
+			"currency._get_exchange_rate",
+		)
+		return 1.0
+	return rate
 
 
 def _get_currency_meta(currency_code):

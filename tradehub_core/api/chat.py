@@ -32,7 +32,7 @@ import hmac
 import json
 import secrets
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Any
 from urllib.parse import urljoin
 
@@ -41,8 +41,24 @@ import requests
 from frappe.utils.password import get_decrypted_password
 
 REQUEST_TIMEOUT = 10
-TOKEN_REFRESH_MARGIN_SECONDS = 60
+# TeamsLike login access token TTL'i 60 dk (JWT_ACCESS_TOKEN_EXPIRE_MINUTES);
+# margin bırakmak için Redis cache'ini 55 dk'da süresiz bırakıyoruz.
+ADMIN_TOKEN_TTL_SECONDS = 55 * 60
 BUYER_TOKEN_TTL_SECONDS = 3600
+
+# site_config.json (frappe.conf) ile ortam-bazlı override.
+# NEDEN: prod DB'si başka bir site'a (alpha/beta) restore edilince `Teamslike
+# Settings` de gelir; şifreli alanlar (admin_password/signing_secret) hedefin
+# farklı encryption_key'iyle ÇÖZÜLEMEZ, base_url de prod'u işaret eder. site_config
+# DB dump'ına girmediği için her ortam kendi TeamsLike config'ini burada tutar ve
+# restore bunu ezmez. `teamslike_<fieldname>` anahtarı DocType alanını geçersiz kılar.
+_CONF_PREFIX = "teamslike_"
+_CONF_FIELDS = ("enabled", "base_url", "tenant_slug", "admin_email")
+_ADMIN_TOKEN_CACHE_KEY = "teamslike:admin_token"
+
+
+def _conf(fieldname: str):
+	return frappe.conf.get(f"{_CONF_PREFIX}{fieldname}")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -52,6 +68,11 @@ BUYER_TOKEN_TTL_SECONDS = 3600
 
 def _settings():
 	s = frappe.get_single("Teamslike Settings")
+	# site_config.json değerleri DocType'ı geçersiz kılar (DB restore'a dayanıklı)
+	for f in _CONF_FIELDS:
+		v = _conf(f)
+		if v is not None:
+			s.set(f, v)
 	if not s.get("enabled"):
 		frappe.throw("Chat servisi (Teamslike Settings) etkin değil.", frappe.PermissionError)
 	if not s.get("base_url") or not s.get("tenant_slug"):
@@ -59,7 +80,32 @@ def _settings():
 	return s
 
 
+def _settings_or_none():
+	"""TeamsLike yapılandırılmamışsa throw etmeden None döner.
+
+	Polling endpoint'lerinin (list_my_threads) config eksik/kapalı ortamda —
+	örn. prod DB'si site_config'siz restore edilmiş alpha — her 10 sn'de hata
+	fırlatıp UI'ı spam'lemesini önler.
+	"""
+	try:
+		return _settings()
+	except (frappe.ValidationError, frappe.PermissionError):
+		return None
+
+
+def _log_chat_unavailable(context: str, detail: str) -> None:
+	# Polling error-log'u sel basmasın: 10 dk'da en fazla bir kez logla.
+	if frappe.cache().get_value("teamslike:err_logged"):
+		return
+	frappe.cache().set_value("teamslike:err_logged", 1, expires_in_sec=600)
+	frappe.log_error(detail, context)
+
+
 def _settings_secret(s, fieldname: str) -> str:
+	# Önce site_config.json — restore'da ezilmez, hedef encryption_key'ine bağlı değil
+	conf_val = _conf(fieldname)
+	if conf_val:
+		return conf_val
 	value = get_decrypted_password(
 		"Teamslike Settings", "Teamslike Settings", fieldname, raise_exception=False
 	)
@@ -97,20 +143,14 @@ def _sign_hs256(payload: dict, secret: str) -> str:
 
 
 def _admin_token() -> str:
-	s = _settings()
-	expires_at = s.get("admin_token_expires_at")
-	cached = s.get("admin_access_token")
-	now = datetime.now(timezone.utc).replace(tzinfo=None)
-	# Frappe Datetime field'ı bazen str, bazen datetime döner — normalize et
-	if isinstance(expires_at, str):
-		try:
-			expires_at = datetime.fromisoformat(expires_at)
-		except ValueError:
-			expires_at = None
-	if cached and isinstance(expires_at, datetime):
-		if expires_at - timedelta(seconds=TOKEN_REFRESH_MARGIN_SECONDS) > now:
-			return cached
-	return _refresh_admin_token(s)
+	# Token Redis'te tutulur (DB single'da DEĞİL). NEDEN: prod DB'si başka site'a
+	# restore edilince DB'deki stale prod token'ı gelir ve süresi dolana kadar
+	# yanlış tenant'a çağrı yapılırdı. Redis dump'a girmez → her ortam kendi
+	# token'ını üretir; cache miss'te admin_password (site_config) ile yeniden login.
+	cached = frappe.cache().get_value(_ADMIN_TOKEN_CACHE_KEY)
+	if cached:
+		return cached
+	return _refresh_admin_token(_settings())
 
 
 def _refresh_admin_token(s) -> str:
@@ -131,11 +171,7 @@ def _refresh_admin_token(s) -> str:
 		frappe.throw(f"TeamsLike admin login başarısız: {r.status_code} {r.text}", frappe.AuthenticationError)
 	data = r.json()
 	token = data.get("access_token") or ""
-	# Access token TTL teamslike .env'inde JWT_ACCESS_TOKEN_EXPIRE_MINUTES (default 60)
-	expires_at = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=55)
-	frappe.db.set_single_value("Teamslike Settings", "admin_access_token", token)
-	frappe.db.set_single_value("Teamslike Settings", "admin_token_expires_at", expires_at)
-	frappe.db.commit()
+	frappe.cache().set_value(_ADMIN_TOKEN_CACHE_KEY, token, expires_in_sec=ADMIN_TOKEN_TTL_SECONDS)
 	return token
 
 
@@ -422,18 +458,29 @@ def list_my_threads(perspective: str | None = None) -> list[dict[str, Any]]:
 	caller = frappe.session.user
 	if caller == "Guest":
 		frappe.throw("Önce oturum aç.", frappe.AuthenticationError)
+	# B (dayanıklılık): bu endpoint frontend'de her ~10 sn polling'lenir. Config
+	# eksik/kapalı ya da TeamsLike erişilemez ise throw yerine boş liste dön —
+	# aksi halde restore edilmiş (config'siz) ortamda panel hata spam'ine boğulur.
+	s = _settings_or_none()
+	if s is None:
+		return []
 	mode = _resolve_perspective(perspective, caller)
-	s = _settings()
-	if mode == "seller":
-		r = requests.get(
-			_api_url(s, "/v1/inbox/threads"), headers=_seller_headers(caller), timeout=REQUEST_TIMEOUT
-		)
-	else:
-		r = requests.get(
-			_api_url(s, "/v1/portal/me/threads"), headers=_buyer_headers(caller), timeout=REQUEST_TIMEOUT
-		)
+	try:
+		if mode == "seller":
+			r = requests.get(
+				_api_url(s, "/v1/inbox/threads"), headers=_seller_headers(caller), timeout=REQUEST_TIMEOUT
+			)
+		else:
+			r = requests.get(
+				_api_url(s, "/v1/portal/me/threads"), headers=_buyer_headers(caller), timeout=REQUEST_TIMEOUT
+			)
+	except (requests.RequestException, frappe.ValidationError, frappe.AuthenticationError) as e:
+		# Bozuk secret (restore) / ağ / login hatası — polling'i sessiz bırak
+		_log_chat_unavailable("chat.list_my_threads", f"TeamsLike erişilemedi: {e}")
+		return []
 	if r.status_code >= 400:
-		frappe.throw(f"Thread list başarısız: {r.status_code} {r.text}", frappe.ValidationError)
+		_log_chat_unavailable("chat.list_my_threads", f"Thread list {r.status_code}: {r.text}")
+		return []
 	return r.json()
 
 
