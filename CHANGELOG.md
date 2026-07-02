@@ -1,3 +1,26 @@
+## [v1.7.1-alpha.9] - 2026-07-02 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Duzeltildi
+- fix(listing): count management-cert facet per listing, not per seller cert row (@boraydeger32)
+
+---
+## [v1.7.1-alpha.8] - 2026-07-02 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Duzeltildi
+- fix(auth): get_current_user mağaza entity'si Admin Seller Profile'a taşındı (@aliiball)
+  - Eski "Seller Profile" doctype'ında seller_code/logo/health_score kolonları yok (Sprint 2'de Admin Seller Profile'a taşındı) → 1054 çökmesi
+  - get_current_user her satıcıda 500 veriyordu → seller dashboard hiç açılmıyordu
+  - Sorgu user-link'li Admin Seller Profile'a alındı; is_seller doğru dönüyor
+- fix(seller): get_my_profile'a salt-okunur mağaza metrikleri eklendi (@aliiball)
+  - seller_code/score_grade/total_orders/rating eklendi (dashboard header + mağaza linki + Performans kartları gerçek değerle dolsun)
+  - health_score bilinçli hariç (kaynağı güvenilmez; panelde de hidden=1)
+  - Alanlar _PROFILE_EDITABLE_FIELDS dışında → update_profile yazamaz (read-only)
+
+---
 ## [v1.7.1-alpha.7] - 2026-07-02 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.

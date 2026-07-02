@@ -1713,7 +1713,7 @@ def get_filter_facets(
 					["parenttype", "=", "Admin Seller Profile"],
 					["verification_status", "=", "Verified"],
 				],
-				fields=["certification_type"],
+				fields=["certification_type", "parent"],
 			)
 			for sc in seller_certs:
 				all_assigned_certs.add(sc.certification_type)
@@ -1742,12 +1742,20 @@ def get_filter_facets(
 	# Count by actual category from Certification Type master
 	if listing_names:
 		if seller_profiles:
+			# Yönetim sertifikaları SATICIYA ait — sayaç, o sertifikaya sahip
+			# satıcıların ürün sayısını yansıtmalı (satıcı başına 1 değil).
+			# Filtre uygulaması da (bkz. cert filtresi) aynı satıcının tüm
+			# listing'lerini döndürdüğü için facet↔filtre tutarlı olsun diye
+			# cert_type → o sertifikaya sahip satıcı kümesi kurup listing sayarız.
+			mgmt_cert_sellers: dict[str, set] = {}
 			for sc in seller_certs:
 				info = cert_info_map.get(sc.certification_type)
 				if info and info["category"] == "Management":
-					mgmt_cert_counts[sc.certification_type] = (
-						mgmt_cert_counts.get(sc.certification_type, 0) + 1
-					)
+					mgmt_cert_sellers.setdefault(sc.certification_type, set()).add(sc.parent)
+			for cert_type, seller_set in mgmt_cert_sellers.items():
+				mgmt_cert_counts[cert_type] = sum(
+					1 for l in listings if l.get("seller_profile") in seller_set
+				)
 
 		for pc in product_certs:
 			info = cert_info_map.get(pc.certification_type)
