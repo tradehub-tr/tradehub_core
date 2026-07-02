@@ -241,6 +241,8 @@ doc_events = {
 			"tradehub_core.recommendations.engine.schedule_recompute_on_listing_update",
 			# ECA two-phase dispatcher (post-save context).
 			"tradehub_core.eca.dispatcher.evaluate_rules_two_phase",
+			# #C2 — seller_profile değişiminde ReBAC store_link tuple'ını hizala.
+			"tradehub_core.services.tuple_sync.on_listing_update",
 		],
 		"after_insert": [
 			"tradehub_core.api.listing.invalidate_listing_cache",
@@ -324,7 +326,11 @@ doc_events = {
 			# FAZ 2.5 — approval workflow başlat (rule match → Order Approval create)
 			"tradehub_core.services.order_approval_hooks.on_order_after_insert",
 		],
-		"on_update": "tradehub_core.api.tailored.invalidate_tailored_user_cache",
+		"on_update": [
+			"tradehub_core.api.tailored.invalidate_tailored_user_cache",
+			# #C2 — seller_profile/buyer_org değişiminde ReBAC link tuple'larını hizala.
+			"tradehub_core.services.tuple_sync.on_order_update",
+		],
 		"on_trash": "tradehub_core.services.tuple_sync.on_order_trash",
 	},
 	# Seller Review pipeline → seller-proxy rating + review_count denormalized
@@ -404,6 +410,8 @@ doc_events = {
 			"tradehub_core.utils.seller_role_sync.sync_marketplace_seller_role",
 			"tradehub_core.seo.hooks_seo.invalidate_url_cache",
 			"tradehub_core.seo.hooks_seo.invalidate_sitemap_for",
+			# #C2 — owner (user) değişiminde ReBAC owner/member tuple'larını hizala.
+			"tradehub_core.services.tuple_sync.on_admin_seller_profile_update",
 		],
 		"on_trash": "tradehub_core.services.tuple_sync.on_admin_seller_profile_trash",
 	},
