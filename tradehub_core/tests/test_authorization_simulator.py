@@ -486,5 +486,67 @@ class BatchTests(_SimBase):
 			)
 
 
+class PiiJurisdictionFallbackTests(_SimBase):
+	"""#F4 — L3 PII jurisdiction, context region vermezse KAYNAĞIN region'una
+	fallback etmeli (aksi halde çağıran region koymadığında KVKK/GDPR bypass)."""
+
+	def _stub_pii(self, strict_regions):
+		from tradehub_core.utils import pii as pii_utils
+
+		pii_utils.get_pii_fieldnames = lambda dt, min_permlevel=1: ["tc_no"]
+		pii_utils.get_user_max_permlevel = lambda u, dt: 2  # permlevel yeterli
+		pii_utils.is_strict_jurisdiction = lambda r: r in strict_regions
+		pii_utils.get_jurisdiction_for_region = lambda r: "KVKK" if r in strict_regions else None
+
+	def test_resource_region_fallback_denies(self):
+		self._stub_pii({"TR"})
+		step = sim._check_field_pii(
+			actor="u@x",
+			actor_snapshot={"regions": ["EU"]},  # kullanıcı TR'de değil
+			resource_type="Order",
+			resource_name="ORD-1",
+			context={},  # caller region VERMEDİ
+			resource_snapshot={"region": "TR"},  # kaynak KVKK bölgesinde
+		)
+		self.assertEqual(step.result, "DENY")
+		self.assertEqual(step.check, "pii.jurisdiction_mismatch")
+
+	def test_user_in_resource_region_allows(self):
+		self._stub_pii({"TR"})
+		step = sim._check_field_pii(
+			actor="u@x",
+			actor_snapshot={"regions": ["TR"]},  # kullanıcı TR'de
+			resource_type="Order",
+			resource_name="ORD-1",
+			context={},
+			resource_snapshot={"region": "TR"},
+		)
+		self.assertEqual(step.result, "ALLOW")
+
+	def test_no_region_anywhere_allows(self):
+		self._stub_pii({"TR"})
+		step = sim._check_field_pii(
+			actor="u@x",
+			actor_snapshot={"regions": ["EU"]},
+			resource_type="Order",
+			resource_name="ORD-1",
+			context={},
+			resource_snapshot={},  # region yok → jurisdiction kontrolü yok
+		)
+		self.assertEqual(step.result, "ALLOW")
+
+	def test_context_region_takes_precedence(self):
+		self._stub_pii({"TR"})
+		step = sim._check_field_pii(
+			actor="u@x",
+			actor_snapshot={"regions": ["EU"]},
+			resource_type="Order",
+			resource_name="ORD-1",
+			context={"target_region": "TR"},  # açık context region
+			resource_snapshot={"region": "EU"},
+		)
+		self.assertEqual(step.result, "DENY")  # context TR kazanır
+
+
 if __name__ == "__main__":
 	unittest.main()
