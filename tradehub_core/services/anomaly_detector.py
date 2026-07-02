@@ -321,8 +321,34 @@ def _detect_pii_bulk_export(rule: dict, window_start: datetime, now: datetime) -
 
 
 def _detect_rebac_drift(rule: dict, window_start: datetime, now: datetime) -> list[EvidenceGroup]:
-	"""Faz 3.5 drift detection job ile devreye girer; şimdilik no-op."""
-	return []
+	"""#F5 — ReBAC↔Frappe drift'i örnekle; eşik üstü drift → evidence + alert.
+
+	Önceden no-op idi (drift hiç anomaly'ye dönüşmüyordu). scan_drift örnekleme
+	yapar; sidecar down ise (skipped) sinyal yok. drift_count eşiği aşarsa alert.
+	"""
+	try:
+		from tradehub_core.services import rebac_drift_detection as drift
+
+		summary = drift.scan_drift(sample_size=20)
+	except Exception as exc:  # noqa: BLE001 — anomaly job'u kırma
+		frappe.log_error(f"_detect_rebac_drift scan hatası: {exc}", "anomaly._detect_rebac_drift")
+		return []
+	if summary.get("skipped"):
+		return []  # sidecar unavailable → drift değerlendirilemez
+	n = int(summary.get("drift_count", 0))
+	if n < int(rule["threshold_count"]):
+		return []
+	return [
+		EvidenceGroup(
+			actor=None,
+			tenant=rule.get("tenant_scope"),
+			count=n,
+			log_ids=[],
+			window_start=window_start,
+			window_end=now,
+			buyer_org=None,
+		)
+	]
 
 
 # ---------------------------------------------------------------------------
