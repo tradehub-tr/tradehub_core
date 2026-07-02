@@ -1,3 +1,14 @@
+## [v1.7.1-alpha.6] - 2026-07-02 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Duzeltildi
+- fix(chat): DB restore sonrası TeamsLike bağlantı hatası düzeltildi (@ahmeetseker)
+  - TeamsLike bağlantı ayarları ve secret'ları site_config.json'dan okunuyor (DocType fallback); prod DB'si başka site'a restore edilince encryption_key uyuşmazlığıyla bozulmuyor
+  - Admin access token DB single yerine Redis'te tutuluyor (55dk TTL) — restore stale prod token'ı getirmiyor
+  - TeamsLike yapılandırılmamış/erişilemez ise list_my_threads boş liste dönüyor; Mağazam panelindeki 10 sn'lik hata spam'i giderildi
+
+---
 ## [v1.7.1-alpha.5] - 2026-07-01 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
