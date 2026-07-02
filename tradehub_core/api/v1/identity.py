@@ -10,6 +10,7 @@ from frappe.utils import now_datetime
 from frappe.utils.password import check_password, update_password
 
 from tradehub_core.api.v1.auth import _generate_member_id
+from tradehub_core.seo.site_url import storefront_url
 from tradehub_core.utils.auth_guards import require_verified_email
 from tradehub_core.utils.phone import canonicalize_phone
 
@@ -188,8 +189,7 @@ def _create_email_verification(email: str, first_name: str):
 	"""
 	key = frappe.generate_hash(length=32)
 	frappe.cache.set_value(f"email_verification:{key}", email, expires_in_sec=86400)
-	storefront = frappe.conf.get("storefront_url", "https://rc.istoc.com")
-	link = f"{storefront}/api/method/tradehub_core.api.v1.identity.verify_email?key={key}"
+	link = f"{storefront_url()}/api/method/tradehub_core.api.v1.identity.verify_email?key={key}"
 
 	frappe.sendmail(
 		recipients=email,
@@ -734,8 +734,7 @@ def forgot_password(email: str):
 		user.db_set("last_reset_password_key_generated_on", now_datetime())
 
 		# Build reset link pointing to the storefront page
-		storefront = frappe.conf.get("storefront_url", "https://rc.istoc.com")
-		link = f"{storefront}/pages/auth/reset-password?key={reset_key}"
+		link = f"{storefront_url()}/pages/auth/reset-password?key={reset_key}"
 
 		frappe.sendmail(
 			recipients=email,
@@ -842,8 +841,7 @@ def verify_email(key: str):
 	On failure, redirects with ?verified=0.
 	"""
 	key = (key or "").strip()
-	storefront = frappe.conf.get("storefront_url", "https://rc.istoc.com")
-	login_url = f"{storefront}/pages/auth/login"
+	login_url = f"{storefront_url()}/pages/auth/login"
 
 	cache_key = f"email_verification:{key}"
 	email = frappe.cache.get_value(cache_key)

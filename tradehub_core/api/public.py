@@ -17,6 +17,7 @@ import frappe
 from frappe import _
 from frappe.rate_limiter import rate_limit
 
+from tradehub_core.seo.site_url import admin_panel_url, storefront_url
 from tradehub_core.utils.helpdesk_routing import (
 	ensure_platform_support_team,
 	resolve_team_for_order,
@@ -27,23 +28,17 @@ EMAIL_RE = re.compile(r"^[\w\.-]+@[\w\.-]+\.\w+$")
 
 
 # ── Ticket URL helpers ─────────────────────────────────────────────────
-# Storefront ve admin panel ayrı path/host'larda olabilir; site_config
-# `storefront_url` / `admin_url` override'larını kabul ediyoruz, yoksa
-# Frappe site URL'ine düşeriz. Bildirim e-postalarındaki tıklanabilir
-# link bu fonksiyonlardan üretilir.
-
-
-def _site_base(key: str) -> str:
-	conf = frappe.local.conf or {}
-	return (conf.get(key) or frappe.utils.get_url() or "").rstrip("/")
+# Storefront ve admin panel URL'leri ortam-özel; merkezî site_url helper'ından
+# (backend site adına göre, restore-proof) türetilir. Bildirim e-postalarındaki
+# tıklanabilir link bu fonksiyonlardan üretilir.
 
 
 def _storefront_ticket_url(name: str) -> str:
-	return f"{_site_base('storefront_url')}/pages/help/help-ticket.html?id={quote(name, safe='')}"
+	return f"{storefront_url()}/pages/help/help-ticket.html?id={quote(name, safe='')}"
 
 
 def _admin_ticket_url(name: str) -> str:
-	return f"{_site_base('admin_url')}/helpdesk/tickets/{quote(name, safe='')}"
+	return f"{admin_panel_url()}/helpdesk/tickets/{quote(name, safe='')}"
 
 
 def _ticket_email_html(heading: str, ticket_subject: str, body_text: str, link: str, link_label: str) -> str:

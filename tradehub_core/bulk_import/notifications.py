@@ -108,7 +108,9 @@ def _send_failure_email(context: dict) -> None:
 	if not seller_email:
 		return
 
-	panel_url = frappe.utils.get_url(f"/panel/bulk-import/{job.name}")
+	from tradehub_core.seo.site_url import admin_panel_url
+
+	panel_url = f"{admin_panel_url()}/bulk-import/{job.name}"
 	try:
 		frappe.sendmail(
 			recipients=[seller_email],
