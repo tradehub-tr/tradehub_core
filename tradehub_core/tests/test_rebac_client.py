@@ -245,9 +245,9 @@ class ConfigErrorTests(unittest.TestCase):
 	def setUp(self):
 		_reset_state()
 
-	@patch.object(rebac_client, "_REBAC_STORE_ID", "")
+	@patch.dict(os.environ, {"REBAC_STORE_ID": ""})
 	def test_missing_store_id_raises(self):
-		"""STORE_ID boşsa _call() ConfigError fırlatır."""
+		"""STORE_ID boşsa _call() ConfigError fırlatır (#C5 — env runtime okunur)."""
 		with self.assertRaises(rebac_client.ReBACConfigError):
 			rebac_client._call("POST", "/test", {})
 
@@ -280,6 +280,108 @@ class AuthZENWrapperTests(unittest.TestCase):
 		self.assertEqual(body["tuple_key"]["user"], "user:ayse@x.com")
 		self.assertEqual(body["tuple_key"]["relation"], "can_view")
 		self.assertEqual(body["tuple_key"]["object"], "order:ORD-9382")
+
+
+class Phase3ResilienceTests(unittest.TestCase):
+	"""#C1 idempotent tuple sync + #C3 breaker 4xx ayrımı."""
+
+	def setUp(self):
+		_reset_state()
+
+	@patch.object(rebac_client.requests.Session, "post")
+	def test_4xx_does_not_trip_breaker(self, mock_post):
+		"""#C3 — 4xx (veri/config) breaker'ı AÇMAMALI (5 threshold aşılsa bile)."""
+		mock_post.return_value = _mock_response(400, {"code": "validation_error"})
+		for _ in range(10):
+			rebac_client.check("user:x@x.com", "member", "buyer_org:y")
+		self.assertFalse(rebac_client._circuit_breaker.is_open())
+
+	@patch.object(rebac_client.time, "sleep", lambda *a: None)
+	@patch.object(rebac_client.requests.Session, "post")
+	def test_5xx_trips_breaker(self, mock_post):
+		"""Regresyon guard — 5xx (erişilemezlik) hâlâ breaker'ı açar."""
+		mock_post.return_value = _mock_response(503, {})
+		for _ in range(6):
+			rebac_client.check("user:x@x.com", "member", "buyer_org:y")
+		self.assertTrue(rebac_client._circuit_breaker.is_open())
+
+	@patch.object(rebac_client.requests.Session, "post")
+	def test_write_batch_fails_per_tuple_fallback(self, mock_post):
+		"""#C1 — batch 4xx → per-tuple fallback; tek bozuk tuple tümünü düşürmez."""
+		mock_post.side_effect = [
+			_mock_response(400, {"code": "invalid"}),  # batch reddedildi
+			_mock_response(200, {}),  # per-tuple 1
+			_mock_response(200, {}),  # per-tuple 2
+			_mock_response(200, {}),  # per-tuple 3
+		]
+		result = rebac_client.write_tuples(
+			[
+				("user:a@x", "member", "buyer_org:x"),
+				("user:b@x", "member", "buyer_org:x"),
+				("user:c@x", "member", "buyer_org:x"),
+			]
+		)
+		self.assertTrue(result)
+		self.assertEqual(mock_post.call_count, 4)  # 1 batch + 3 per-tuple
+
+	@patch.object(rebac_client.requests.Session, "post")
+	def test_delete_idempotent_tolerates_missing(self, mock_post):
+		"""#C1 — batch 4xx sonrası per-tuple'da 'mevcut değil' tolere edilir → True."""
+		mock_post.side_effect = [
+			# batch idempotency hatası (biri zaten yok) — gerçekçi OpenFGA mesajı
+			_mock_response(400, {"message": "cannot delete a tuple which does not exist"}),
+			_mock_response(200, {}),  # tuple 1 silindi
+			# tuple 2 zaten yok → idempotent tolere edilir
+			_mock_response(400, {"message": "cannot delete a tuple which does not exist"}),
+		]
+		result = rebac_client.delete_tuples(
+			[
+				("user:a@x", "member", "buyer_org:x"),
+				("user:b@x", "member", "buyer_org:x"),
+			]
+		)
+		self.assertTrue(result)
+
+	@patch.object(rebac_client.requests.Session, "post")
+	def test_validation_error_not_tolerated(self, mock_post):
+		"""#C1 refinement — validation_error (geçersiz object) idempotency DEĞİL →
+		yutulmaz, write_tuples False döner (bozuk tuple sessizce kaybolmasın)."""
+		mock_post.side_effect = [
+			_mock_response(400, {"message": "invalid 'object' field"}),  # batch
+			_mock_response(400, {"code": "validation_error", "message": "invalid 'object' field"}),
+		]
+		result = rebac_client.write_tuples([("user:a@x", "field_editor", "bad:obj:colon")])
+		self.assertFalse(result)
+
+	@patch.object(rebac_client.time, "sleep", lambda *a: None)
+	@patch.object(rebac_client.requests.Session, "post")
+	def test_unavailable_no_per_tuple_fallback(self, mock_post):
+		"""Sidecar erişilemezse (5xx exhausted) per-tuple fallback YAPILMAZ → False."""
+		mock_post.return_value = _mock_response(503, {})
+		result = rebac_client.write_tuples([("user:a@x", "member", "buyer_org:x")])
+		self.assertFalse(result)
+
+	@patch.object(rebac_client.requests.Session, "post")
+	def test_check_consistency_in_payload(self, mock_post):
+		"""Faz 4 — consistency param check payload'ına eklenir (zookie/new-enemy)."""
+		import json
+
+		mock_post.return_value = _mock_response(200, {"allowed": True})
+		rebac_client.check(
+			"user:a@x", "can_view", "store:S1", consistency=rebac_client.CONSISTENCY_HIGHER
+		)
+		body = json.loads(mock_post.call_args.kwargs.get("data", "{}"))
+		self.assertEqual(body.get("consistency"), "HIGHER_CONSISTENCY")
+
+	@patch.object(rebac_client.requests.Session, "post")
+	def test_check_no_consistency_by_default(self, mock_post):
+		"""Varsayılan: consistency payload'da YOK (MINIMIZE_LATENCY = OpenFGA default)."""
+		import json
+
+		mock_post.return_value = _mock_response(200, {"allowed": True})
+		rebac_client.check("user:a@x", "can_view", "store:S1")
+		body = json.loads(mock_post.call_args.kwargs.get("data", "{}"))
+		self.assertNotIn("consistency", body)
 
 
 if __name__ == "__main__":
