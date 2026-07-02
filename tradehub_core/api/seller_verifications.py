@@ -117,9 +117,11 @@ def create_my_verification(
 	    - document: boş olamaz (URL/path).
 	    - (seller, source) çifti zaten varsa anlamlı i18n hatası döner.
 
-	Controller notu (seller_verification.py._enforce_status_rule):
-	    Yeni kayıtlarda status her zaman "Pending"'e zorlanır;
-	    buradan farklı bir değer göndermek etkisizdir.
+	Status:
+	    Belge zorunlu olduğundan kayıt doğrudan "Pending" (onaya hazır) oluşturulur.
+	    DocType default'u "Requested"tir (belgesiz denetim akışı için); bu yüzden
+	    Pending burada explicit set edilir. Controller _enforce_status_rule yeni
+	    Pending kayıtta belge şartını doğrular. Belgesiz akış: request_my_verification.
 
 	ignore_permissions gerekçesi:
 	    DocType permission tablosunda Seller / Marketplace Seller rolleri
@@ -157,7 +159,9 @@ def create_my_verification(
 				"document": document,
 				"inspection_date": inspection_date or None,
 				"expiry_date": expiry_date or None,
-				# status: controller._enforce_status_rule "Pending"'e zorlar
+				# Belgeli başvuru doğrudan onaya hazır; DocType default "Requested" olduğu
+				# için Pending burada explicit set edilir (aksi halde onay aksiyonu çıkmaz).
+				"status": "Pending",
 			}
 		)
 		# ignore_permissions: güvenlik seller=kendi profil kısıtıyla sağlanıyor
@@ -221,7 +225,7 @@ def request_my_verification(source: str, request_note: str | None = None) -> dic
 
 @frappe.whitelist(methods=["POST"])
 def attach_verification_document(
-	name: str,
+	name: str | int,
 	document: str,
 	inspection_date: str | None = None,
 	expiry_date: str | None = None,
