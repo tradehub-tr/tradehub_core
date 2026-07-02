@@ -603,6 +603,13 @@ _PROFILE_READ_FIELDS = [
 	"tax_id",
 	"tax_office",
 	"iban",
+	# Salt-okunur mağaza metrikleri (dashboard header + Performans kartları).
+	# update_profile yalnızca _PROFILE_EDITABLE_FIELDS'i yazar → bunlar yazılamaz.
+	# health_score bilinçli HARİÇ (kaynağı güvenilmez; Admin panelde de hidden=1).
+	"seller_code",
+	"score_grade",
+	"total_orders",
+	"rating",
 ]
 
 
