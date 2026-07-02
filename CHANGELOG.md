@@ -1,3 +1,22 @@
+## [v1.7.1-alpha.10] - 2026-07-02 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Duzeltildi
+- fix(auth): parola sıfırlama ve e-posta doğrulama linkleri doğru ortama yönlendirildi (@aliiball)
+  - identity.py'deki 3 hardcoded "https://rc.istoc.com" default'u storefront_url() ile değiştirildi; prod linkleri artık istoc.com'a gidiyor
+  - Kök neden: config set edilmemişken hardcoded RC default'u tüm ortamları RC'ye yönlendiriyordu → reset key farklı DB'de kalıyor → sıfırlama başarısız
+
+### Degistirildi
+- refactor(seo): storefront/admin URL helper'ı site adı eşlemesiyle güçlendirildi (@aliiball)
+  - site_config restore ile prod'dan ezildiği için URL artık frappe.local.site'tan türetiliyor (restore-proof); config override en üstte korundu
+  - admin_panel_url() helper eklendi (<storefront>/panel)
+- refactor(url): destek/davet/bulk-import linkleri merkezî site_url helper'ına taşındı (@aliiball)
+  - public.py, sla_checker.py, seller_users.py, bulk_import/notifications.py
+  - tutarsız admin_url/tradehub_admin_panel_url anahtarları admin_panel_url()'da toplandı
+  - davet whitelist'ine tradehub.localhost ve alpha.istoc.com eklendi
+
+---
 ## [v1.7.1-alpha.9] - 2026-07-02 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
