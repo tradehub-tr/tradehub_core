@@ -171,6 +171,10 @@ scheduler_events = {
 		"tradehub_core.audit.tasks.cleanup_expired_data_exports",
 	],
 	"weekly_long": [
+		# A2 — ReBAC enforce-hazırlık raporu (RBAC vs ReBAC, doctype-başına verdict).
+		# İnvaziv değil: read-only, enforce açmaz; özeti Error Log'a yazar
+		# (title=rebac.enforce_readiness; over-grant belirirse [OVER-GRANT]).
+		"tradehub_core.services.rebac_drift_detection.weekly_enforce_readiness_report",
 		# Category embeddings + neighbour cache (build_all tail-calls
 		# neighbour_cache.rebuild_all so they stay coherent).
 		"tradehub_core.recommendations.tasks.build_category_embeddings",
