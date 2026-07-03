@@ -905,8 +905,12 @@ def approve_seller_category(category_name, action="approve", reject_reason=""):
 
 
 @frappe.whitelist()
-def list_pending_seller_verifications() -> list:
-	"""Admin: Onay ve talep bekleyen Seller Verification kayıtlarını listele (N+1 yok)."""
+def list_pending_seller_verifications() -> dict:
+	"""Admin: Onay ve talep bekleyen Seller Verification kayıtlarını listele (N+1 yok).
+
+	Dönüş {"data": [...], "total": N} — kardeş endpoint list_pending_seller_certs
+	ile aynı zarf; admin panel res.message.data bekler, düz liste boş görünür.
+	"""
 	if (
 		"System Manager" not in frappe.get_roles(frappe.session.user)
 		and frappe.session.user != "Administrator"
@@ -932,7 +936,7 @@ def list_pending_seller_verifications() -> list:
 		order_by="creation asc",
 	)
 	if not rows:
-		return []
+		return {"data": [], "total": 0}
 
 	# Batch: seller_name + source_name — N+1 yoktur
 	seller_ids = list({r.seller for r in rows if r.get("seller")})
@@ -967,12 +971,16 @@ def list_pending_seller_verifications() -> list:
 		r["seller_name"] = seller_map.get(r.seller, r.seller or "-")
 		r["source_name"] = source_map.get(r.source, r.source or "-")
 
-	return rows
+	return {"data": rows, "total": len(rows)}
 
 
 @frappe.whitelist()
-def schedule_verification(name: str, scheduled_date: str, admin_note: str = "") -> dict:
-	"""Superadmin: Denetim talebini planla (Requested → Scheduled)."""
+def schedule_verification(name: str | int, scheduled_date: str, admin_note: str = "") -> dict:
+	"""Superadmin: Denetim talebini planla (Requested → Scheduled).
+
+	name int|str: Seller Verification autoincrement (name = bigint); v15 whitelist
+	type-check'i saf str beklerse int argümanı FrappeTypeError ile reddeder.
+	"""
 	if frappe.session.user != "Administrator":
 		frappe.throw(_("Bu işlemi yalnızca Administrator yapabilir"), frappe.PermissionError)
 	if not scheduled_date:
@@ -991,7 +999,7 @@ def schedule_verification(name: str, scheduled_date: str, admin_note: str = "") 
 
 
 @frappe.whitelist()
-def approve_seller_verification(name: str) -> dict:
+def approve_seller_verification(name: str | int) -> dict:
 	"""Superadmin: Seller Verification kaydını 'Verified' olarak onayla."""
 	if frappe.session.user != "Administrator":
 		frappe.throw(_("Bu işlemi yalnızca Administrator yapabilir"), frappe.PermissionError)
@@ -1003,7 +1011,7 @@ def approve_seller_verification(name: str) -> dict:
 
 
 @frappe.whitelist()
-def reject_seller_verification(name: str, reason: str = "") -> dict:
+def reject_seller_verification(name: str | int, reason: str = "") -> dict:
 	"""Superadmin: Seller Verification kaydını 'Rejected' olarak reddet.
 
 	Doctype'ta reason alanı yok; reason varsa Frappe Comment olarak eklenir.
