@@ -167,6 +167,39 @@ def enforce_readiness_report(
 	}
 
 
+def weekly_enforce_readiness_report() -> dict[str, Any]:
+	"""Scheduler entry (weekly_long) — enforce-hazırlık raporunu üretir ve KALICI
+	olarak Error Log'a yazar. Scheduler job'un dönüş değerini attığı için özet
+	burada persist edilir; trend Error Log'da (title=rebac.enforce_readiness) izlenir.
+
+	İNVAZIV DEĞİL: read-only, enforce açmaz, istek yoluna dokunmaz. rebac_overpermits
+	> 0 (tehlikeli over-grant) belirirse title'a [OVER-GRANT] eklenir (görünürlük).
+	"""
+	report = enforce_readiness_report()
+	if report.get("skipped"):
+		return report
+
+	lines = [
+		f"enforce_safe_all={report.get('enforce_safe_all')} sample_users={report.get('sample_users')}"
+	]
+	danger = False
+	for key, st in (report.get("doctypes") or {}).items():
+		lines.append(
+			f"{key}: compared={st['compared']} agree={st['agree']} "
+			f"frappe_over={st['frappe_overpermits']} rebac_over={st['rebac_overpermits']} "
+			f"safe={st['enforce_safe']}"
+		)
+		if st["rebac_overpermits"] > 0:
+			danger = True
+
+	title = "rebac.enforce_readiness" + (" [OVER-GRANT]" if danger else "")
+	try:
+		frappe.log_error("\n".join(lines), title)
+	except Exception:
+		pass
+	return report
+
+
 def _compare(
 	user: str,
 	doctype: str,
