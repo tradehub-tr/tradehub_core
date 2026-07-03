@@ -22,14 +22,90 @@ from frappe.model.document import Document
 # yasak — tutarlı görünüm için her plan kendi konvansiyonunda kalır.
 _PLAN_CODE_PATTERN = re.compile(r"^([a-z][a-z0-9_-]*|[A-Z][A-Z0-9_-]*)$")
 
+# Kota metni → int limit için "sınırsız" eşdeğerleri (-1).
+_UNLIMITED_TOKENS = frozenset({"sınırsız", "sinirsiz", "limitsiz", "unlimited", "∞", "-1"})
+
+
+def _quota_value_from_row(row) -> int | None:
+	"""pricing_features quota.* satırından int limit (saf).
+
+	Semantik: is_included=0 → 0 (devre dışı); 'Sınırsız' → -1; sayısal → N.
+	Parse edilemezse None → çağıran mevcut quota_limits değerini KORUR (bozulmaz).
+	"""
+	if not row.get("is_included"):
+		return 0
+	tv = (row.get("text_value") or "").strip().lower()
+	if not tv:
+		return None  # dahil ama değer yok → belirsiz, dokunma
+	if tv in _UNLIMITED_TOKENS:
+		return -1
+	cleaned = tv.replace(".", "").replace(",", "").replace("%", "").replace(" ", "")
+	try:
+		return int(cleaned)
+	except ValueError:
+		return None
+
+
+def merge_matrix_into_entitlement(rows, caps: dict, quotas: dict, valid_keys: set) -> tuple[dict, dict, bool]:
+	"""pricing_features satırlarını capability_flags/quota_limits'e MERGE eder (saf).
+
+	MERGE semantiği: matris satırı OLAN key'ler güncellenir (feature.* → is_included
+	bool; quota.* → parse int); matris satırı OLMAYAN mevcut key'ler KORUNUR (veri
+	kaybı yok). Yalnız `valid_keys` (Feature Catalog tanımlı, deprecated-olmayan)
+	işlenir. (caps, quotas, changed) döner.
+	"""
+	caps = dict(caps)
+	quotas = dict(quotas)
+	changed = False
+	for row in rows:
+		fkey = (row.get("feature_key") or "").strip()
+		if not fkey or fkey not in valid_keys:
+			continue
+		if fkey.startswith("feature."):
+			caps[fkey] = bool(row.get("is_included"))
+			changed = True
+		elif fkey.startswith("quota."):
+			qv = _quota_value_from_row(row)
+			if qv is not None:
+				quotas[fkey] = qv
+				changed = True
+	return caps, quotas, changed
+
 
 class SubscriptionPlan(Document):
 	def validate(self) -> None:
 		self._normalize_plan_code()
+		# Matris (pricing_features) → capability_flags/quota_limits senkronu
+		# VALİDASYONDAN ÖNCE: admin "Paket İçeriği" matrisinde bir özelliği
+		# işaretleyince entitlement (has_feature/within_quota) ANINDA yansısın.
+		# Önceden pricing_features yalnız storefront gösterimini besliyordu;
+		# capability_flags JSON'a bağlı DEĞİLDİ → işaret entitlement'a ulaşmıyordu.
+		self._sync_entitlement_from_matrix()
 		self._validate_capability_flags()
 		self._validate_quota_limits()
 		self._validate_pricing()
 		self._sanitize_rich_text_fields()
+
+	def _sync_entitlement_from_matrix(self) -> None:
+		"""pricing_features (admin matris) → capability_flags + quota_limits JSON.
+
+		Yalnız Feature Catalog'ta tanımlı + deprecated-olmayan key'leri işler
+		(validasyon patlamasın). Asıl birleştirme saf `merge_matrix_into_entitlement`
+		fonksiyonunda (test edilebilir).
+		"""
+		rows = self.get("pricing_features") or []
+		if not rows:
+			return
+		valid = {
+			r.name
+			for r in frappe.get_all("Feature Catalog", filters={"is_deprecated": 0}, fields=["name"])
+		}
+		caps, quotas, changed = merge_matrix_into_entitlement(
+			rows, self.get_capability_flags(), self.get_quota_limits(), valid
+		)
+		if changed:
+			self.capability_flags = json.dumps(caps, ensure_ascii=False, sort_keys=True)
+			self.quota_limits = json.dumps(quotas, ensure_ascii=False, sort_keys=True)
 
 	def _sanitize_rich_text_fields(self) -> None:
 		"""Faz H.2 — HTML/Long Text alanları XSS'e karşı sanitize et.
@@ -184,3 +260,32 @@ class SubscriptionPlan(Document):
 	def get_quota(self, quota_key: str, default: int = 0) -> int:
 		"""Bu plan için verilen quota değeri (-1 = sınırsız)."""
 		return int(self.get_quota_limits().get(quota_key, default))
+
+
+def reconcile_all_plans(dry_run: int | bool = 1) -> dict:
+	"""Geriye-dönük backfill — mevcut planların capability_flags/quota_limits'ini
+	pricing_features matrisi ile hizalar (yeni senkron mantığını uygular).
+
+	dry_run=1 (varsayılan): HİÇBİR ŞEY KAYDETMEZ, yalnız plan-başına farkı raporlar
+	(gained = matriste işaretli artık entitlement'a gelen; lost = matriste işaretsiz
+	olduğu için kalkacak). dry_run=0 → farkı uygular + kaydeder + cache flush.
+
+	Çağrı: bench execute tradehub_core...subscription_plan.reconcile_all_plans
+	       --kwargs '{"dry_run": 1}'
+	"""
+	dry_run = bool(int(dry_run))
+	report: dict[str, dict] = {}
+	for pn in frappe.get_all("Subscription Plan", pluck="name"):
+		plan = frappe.get_doc("Subscription Plan", pn)
+		before = {k: v for k, v in plan.get_capability_flags().items() if v}
+		plan._sync_entitlement_from_matrix()
+		after = {k: v for k, v in plan.get_capability_flags().items() if v}
+		gained = sorted(k for k in after if k not in before)
+		lost = sorted(k for k in before if k not in after)
+		report[pn] = {"gained": gained, "lost": lost, "changed": bool(gained or lost)}
+		if not dry_run and (gained or lost):
+			plan.save(ignore_permissions=True)
+	if not dry_run:
+		frappe.db.commit()
+	report["_meta"] = {"dry_run": dry_run, "plans": len([k for k in report if k != "_meta"])}
+	return report
