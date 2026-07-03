@@ -37,6 +37,7 @@ MODULES=(
 	test_buyer_team_role_security
 	test_rebac_client
 	test_tuple_sync
+	test_enforce_readiness
 	test_approval_workflow
 	test_anomaly_detector
 	test_audit

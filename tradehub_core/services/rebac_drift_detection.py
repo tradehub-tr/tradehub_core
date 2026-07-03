@@ -87,14 +87,98 @@ def scan_drift(sample_size: int | None = None) -> dict[str, Any]:
 	}
 
 
-def _check_drift(
+# Enforce-hazırlık raporu kapsamı — yalnız KOŞULSUZ (amount-gate'siz) relation'lar.
+# Public-read olan doctype'lar (Listing storefront) dışarıda: RBAC public True vs
+# ReBAC store-member False → devasa frappe_overpermits gürültüsü (union'da zararsız
+# ama sinyal boğar). Enforce adayları burada.
+READINESS_DOCTYPES = [
+	("Order", "read", "can_view"),
+	("Admin Seller Profile", "read", "can_view"),
+]
+
+
+def enforce_readiness_report(
+	sample_size: int | None = None,
+	docs_per_type: int = 5,
+	scope: list | None = None,
+) -> dict[str, Any]:
+	"""A2 — Enforce-hazırlık raporu. INVAZIV DEĞİL: read-only, alert ÜRETMEZ,
+	istek yoluna dokunmaz. Elle çalıştırılır (bench execute).
+
+	Her (doctype, ptype, relation) için gerçek (user, doc) örnekleri üzerinde
+	RBAC vs ReBAC karşılaştırır ve doctype-başına özet + verdict döner.
+
+	UNION enforce semantiği (enforce = RBAC ∪ ReBAC): davranış YALNIZ ReBAC'in
+	RBAC'tan fazla verdiği yerde değişir (rebac_overpermits → erişim EKLENİR).
+	  → enforce-GÜVENLİ koşul: rebac_overpermits == 0.
+	frappe_overpermits union altında ZARARSIZ (RBAC erişimi korunur) ama ReBAC'in
+	henüz eksik grant'ı olduğunu gösterir (tuple_sync.reconcile ile kapatılır).
+	"""
+	sample_size = sample_size or DEFAULT_SAMPLE_USERS
+	scope = scope or READINESS_DOCTYPES
+
+	try:
+		from tradehub_core.services import rebac_client
+
+		if not rebac_client.healthz():
+			return {"skipped": "sidecar_unavailable"}
+	except Exception:
+		return {"skipped": "sidecar_unavailable"}
+
+	users = frappe.get_all("User", filters={"enabled": 1}, pluck="name", limit=sample_size) or []
+	report: dict[str, Any] = {}
+
+	for doctype, ptype, relation in scope:
+		st: dict[str, Any] = {
+			"compared": 0,
+			"skipped": 0,
+			"agree": 0,
+			"frappe_overpermits": 0,
+			"rebac_overpermits": 0,
+			"samples": [],
+		}
+		docs = frappe.get_all(doctype, fields=["name"], limit=docs_per_type)
+		for user in users:
+			for d in docs:
+				cmp = _compare(user, doctype, ptype, relation, d["name"])
+				if cmp is None:
+					st["skipped"] += 1
+					continue
+				st["compared"] += 1
+				frappe_allow, rebac_allow = cmp
+				if frappe_allow == rebac_allow:
+					st["agree"] += 1
+				elif frappe_allow and not rebac_allow:
+					st["frappe_overpermits"] += 1
+				else:
+					st["rebac_overpermits"] += 1
+					if len(st["samples"]) < 8:
+						st["samples"].append({"user": user, "doc": d["name"]})
+		# Enforce-güvenli: en az bir gerçek karşılaştırma yapıldı VE hiç over-grant yok.
+		st["enforce_safe"] = st["compared"] > 0 and st["rebac_overpermits"] == 0
+		report[f"{doctype} [{ptype}]"] = st
+
+	overall = bool(report) and all(s["enforce_safe"] for s in report.values())
+	return {
+		"enforce_safe_all": overall,
+		"sample_users": len(users),
+		"doctypes": report,
+		"note": "enforce=RBAC∪ReBAC → yalnız rebac_overpermits davranış değiştirir; 0 ise enforce-güvenli",
+	}
+
+
+def _compare(
 	user: str,
 	doctype: str,
 	ptype: str,
 	relation: str,
 	doc_name: str,
-) -> str | None:
-	"""Returns drift type or None."""
+) -> tuple[bool, bool] | None:
+	"""(frappe_allow, rebac_allow) döner; karşılaştırılamıyorsa None.
+
+	None = atla (conditional relation / has_permission hatası / modelde-olmayan tip /
+	sidecar hatası). Karşılaştırma yapılabildiğinde iki bool döner.
+	"""
 	from tradehub_core.services import rebac_client
 
 	# O4 defensive: ABAC condition'lı relation'lar drift için güvenilir değil
@@ -124,6 +208,21 @@ def _check_drift(
 	except Exception:
 		return None
 
+	return (frappe_allow, bool(rebac_allow))
+
+
+def _check_drift(
+	user: str,
+	doctype: str,
+	ptype: str,
+	relation: str,
+	doc_name: str,
+) -> str | None:
+	"""Returns drift type or None."""
+	cmp = _compare(user, doctype, ptype, relation, doc_name)
+	if cmp is None:
+		return None
+	frappe_allow, rebac_allow = cmp
 	if frappe_allow and not rebac_allow:
 		return "frappe_overpermits"
 	if rebac_allow and not frappe_allow:
