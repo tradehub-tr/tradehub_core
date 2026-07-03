@@ -1,3 +1,15 @@
+## [v1.8.0-alpha.1] - 2026-07-03 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Duzeltildi
+- fix(entitlement): wire plan feature matrix into capability_flags (dynamic gating) (@boraydeger32)
+  - Subscription Plan.validate() içinde _sync_entitlement_from_matrix(): pricing_features → capability_flags (feature.* bool) + quota_limits (quota.* int) MERGE. Matris satırı olan key güncellenir, olmayan korunur (veri kaybı yok). Yalnız Feature Catalog'ta tanımlı + deprecated-olmayan key işlenir (validasyon patlamasın).
+  - Saf, test-edilebilir merge_matrix_into_entitlement() + _quota_value_from_row() (Sınırsız→-1, dahil-değil→0, bozuk metin→koru).
+  - reconcile_all_plans(dry_run) — mevcut planları hizalayan geriye-dönük backfill.
+  - Cache: mevcut Subscription Plan.on_update hook'u zaten capabilities/quotas cache'ini flush ediyor → değişiklik anında etkili.
+
+---
 ## [v1.8.0] - 2026-07-03 PROD
 
 Bu surum istoc.cronbi.com'da yayindadir.
