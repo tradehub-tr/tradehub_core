@@ -1,3 +1,14 @@
+## [v1.7.1-alpha.12] - 2026-07-03 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Duzeltildi
+- fix(verification): onay listesi zarfı ve tip hataları düzeltildi (@ahmeetseker)
+  - list_pending_seller_verifications düz liste yerine {data, total} zarfı döndürecek şekilde düzeltildi; admin panel res.message.data beklediği için bekleyen doğrulamalar boş görünüyordu
+  - Autoincrement (bigint) name parametreleri str|int kabul edecek şekilde genişletildi; v15 whitelist tip kontrolündeki FrappeTypeError giderildi
+  - create_my_verification status'u açıkça "Pending" set edecek şekilde düzeltildi; DocType default'u "Requested" kaldığından onay aksiyonu çıkmıyordu
+
+---
 ## [v1.7.1-alpha.11] - 2026-07-02 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
