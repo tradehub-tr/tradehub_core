@@ -1,3 +1,150 @@
+## [v1.8.0] - 2026-07-03 PROD
+
+Bu surum istoc.cronbi.com'da yayindadir.
+
+### Eklendi
+- feat(favorites): favori snapshot'ına native fiyat ve para birimi eklendi (@aliiball)
+  - Buyer Favorite Item'a snapshot_price (Float) + snapshot_currency (Data)
+  - get_my_favorites/upsert_favorite/toggle_favorite_in_list/sync_favorites bunları taşıyor
+  - frontend favori gösterimi güncel kura çevirebiliyor (donmuş string yerine)
+- feat(listing): fiyat filtresi ve sıralaması para birimi-bağımsız normalize edildi (@aliiball)
+  - Listing.selling_price_base (TRY, indexli) alanı eklendi; validate'te hesaplanır
+  - get_listings filtre + price_asc/desc sıralaması selling_price_base üzerinden
+  - filter_currency param: min/max bound seçili birimden baz birime (TRY) çevrilir
+  - TCMB job sonrası günlük refresh_listing_price_base (currency başına bulk update)
+  - mevcut listing'ler için backfill patch (v15_9_6)
+- feat(seller): performans metrikleri gerçek veriden beslenir, sahte alanlar gizlenir (@aliiball)
+  - total_orders Order sayımından, score_grade rating'den, response_rate/time Listing Review yanıt verisinden (günlük scheduler + anlık grade)
+  - health_score ve on_time_delivery gizlendi (beslenebilir kaynak yok)
+- feat: soru düzenleme + video bölümlerini upload-only yap (@boraydeger32)
+  - qa: soruyu onay beklerken (Pending) düzenleme (update_listing_question + storefront update_question; sahiplik + status kontrolü)
+  - media: galeri + marka video_url Data→Attach (URL yerine dosya yükleme); galeri poster_image'a depends_on=video (kapak yalnız video satırında)
+- feat(seller): satıcı doğrulama (verification) sistemi eklendi (@ahmeetseker)
+  - Seller Verification ve Verification Source doctype'ları eklendi
+  - Satıcı self-service başvuru API'leri eklendi (get_my_verifications, create_my_verification) — seller her zaman session.user'dan türetilir
+  - Admin onay kuyruğu eklendi (list_pending/approve/reject), onay yalnız Administrator'a kısıtlandı
+  - Public get_seller_verifications endpoint'i eklendi (yalnız Verified ve geçerlilik tarihi geçmemiş kayıtlar görünür)
+  - get_sellers, get_seller ve listing detayı supplier verisine verification rozetleri eklendi (tek sorgulu batch helper, N+1 yok)
+  - Seller Verification için tenant izolasyonu eklendi (query_conditions + has_permission): satıcı yalnız kendi başvurularını görür
+- feat(category): boş kategori gizleme ve mega menü versiyonlama eklendi (@ahmeetseker)
+  - Marketplace Settings'e "Boş Kategorileri Gizle" ayarı eklendi (varsayılan kapalı, tüm aktif kategoriler görünür)
+  - get_mega_menu alt ağacında aktif Listing olmayan kategorileri eler (NSM lft/rgt), include_empty param'ı ile override edilebilir
+  - get_category_version eklendi: storefront IndexedDB cache-busting için kategori ağacı parmak izi döner
+  - Administrator-only get_category_admin_settings ve set_hide_empty_categories endpoint'leri eklendi
+- feat(seller): satıcı self-servis profil endpoint'leri (get_my_profile/update_profile) eklendi (@aliiball)
+  - get_my_profile: satıcı kendi profilini okur (auth + sahiplik garantisi)
+  - update_profile: güvenli field-allowlist ile yazar; hassas (tax/iban) ve toplanmayan (adres2/ilçe/posta) alanlar allowlist dışı
+- feat(verification): belgesiz denetim talebi akışı eklendi (@ahmeetseker)
+  - Requested/Scheduled statüleri + request_note/scheduled_date/admin_note alanları
+  - request_my_verification / attach_verification_document / schedule_verification API'leri
+  - durum geçiş kuralları (Requested→Scheduled yalnız admin, →Pending belge şartı)
+  - satıcı sidebar'ına "Doğrulamalarım" navigasyonu (patch v15_8_10)
+  - belge alanı talep aşamasında opsiyonel yapıldı
+- feat(authz): unified PDP + shared action registry (single decision point) (@boraydeger32)
+  - Faz 1: authorize(principal, action, resource, context) — 4 katmanlı fail-closed karar hattı (L0 registry → L1 hard_deny → L2 guardrail → L3 RBAC∪ReBAC → L4 deny). Davranış garantisi: authorize().allow == frappe.has_permission() (regresyonsuz).
+  - #F3: registry TEK KAYNAK; simülatör aynı map'leri kullanır (map-drift imkânsız).
+  - #F2: TraceStep.rule_id TypeError (meta'ya taşındı).
+  - #F4: L3 PII jurisdiction kaynağın region'una fallback (KVKK/GDPR bypass kapandı).
+  - Faz 4: L3'e ReBAC SHADOW-wiring — check() karşılaştırma için çağrılır, sapma 'rebac.shadow_divergence' etiketiyle loglanır; karar HÂLÂ RBAC (enforce YOK), fail-safe.
+  - Faz 5: authz/enforcement.py — per-doctype mode (shadow|enforce) + kill-switch; enforce modda L3 = RBAC ∪ ReBAC (ReBAC ilişki-grant EKLER, lock-out yok).
+  - Faz 6(b): registry FIELD_ACTIONS + field_target_for; pdp field-object'e çözer (listing_field:LST/PART) → alan-bazlı izin (Airbnb type:id:part).
+  - Faz 7: authz/break_glass.py — platform-admin acil süper-erişim (zorunlu gerekçe + HIGH audit + TTL); pdp _finalize aktif break-glass'ta DENY→ALLOW (L0.break_glass).
+- feat(authz): ABAC guardrail layer — KYC/AML/subscription + plan boundary [#D1] (@boraydeger32)
+- feat(audit): tamper-evident hash-chain + anomaly blind-spot fixes (@boraydeger32)
+  - #F1: Authorization Decision Log hash-chain (prev_hash + entry_hash = SHA-256( içerik | önceki hash)); verify_chain() içerik-tamper + linkage kopması tespit eder; on_change tam immutability (kayıt sonrası HİÇBİR alan değişemez).
+  - #F5: _detect_rebac_drift no-op'tan çıkıp scan_drift'e bağlandı (drift → alert).
+- feat(authz): enforce-readiness report (A2 — non-invasive shadow analysis) (@boraydeger32)
+  - _check_drift → _compare refactor (davranış korunur; (frappe_allow, rebac_allow) tuple veya None döner → rapor agree/skip/drift'i hassas ayırır).
+  - Union semantiği: yalnız rebac_overpermits (ReBAC RBAC'tan fazla verir) enforce'ta davranış değiştirir → enforce-güvenli koşulu rebac_overpermits == 0.
+  - Canlı baseline: Order[read] + Admin Seller Profile[read] rebac_overpermits=0 (enforce-hazır); ~%10 frappe_overpermits (ReBAC eksik grant → reconcile ile kapanır).
+  - Stub testleri (5) + authz gate (40 modül).
+- feat(authz): schedule weekly enforce-readiness report (non-invasive) (@boraydeger32)
+
+### Duzeltildi
+- fix(cart): sipariş listing'in native para biriminde kaydediliyor (@aliiball)
+  - order_doc.currency artık client display birimi değil, listing native birimi
+  - kargo client'tan display geliyorsa native'e çevriliyor (_get_exchange_rate)
+  - payment transaction da native birimde
+  - tek satıcının ürünleri farklı native currency'deyse hata (subtotal taban-karışık olmasın)
+  - "ödenen ≠ görülen" tutarsızlığı giderildi
+- fix(tailored): öneri kartında hardcoded ₺ yerine currency-aware fiyat (@aliiball)
+  - f"₺{...}" yerine _format_price(effective, listing.currency)
+  - baseCurrency default "TRY" → "USD" (sistem geneliyle hizalı)
+- fix(theme): tema override'larından inset shadow değerleri temizlendi (@ahmeetseker)
+  - v15_8_8 patch'i eklendi: Tradehub Theme Settings overrides JSON'undan inset içeren shadow değerleri düşürülür
+  - Storefront'tan kaldırılan neumorphic press efektinin uzaktan tema override'ı ile geri ezilmesi engellendi
+  - Patch idempotent: ikinci çalışmada inset kalmadığı için no-op
+- fix(seo): Seller Profile legacy URL slug kaynağı düzeltildi (@ahmeetseker)
+  - _LEGACY_SLUG_SOURCE_MAP eklendi: Seller Profile slug'ı kendi tablosunda değil Admin Seller Profile'da tutulduğundan resolve_legacy_url slug'ı doğru doctype'tan okur
+  - Seller Profile legacy URL'leri artık 404 yerine doğru slug'a çözülür
+- fix(currency): eksik kur çiftinde 1.0 fallback ayrıştırıldı, base-price bozulması engellendi (@aliiball)
+  - _get_exchange_rate_strict: aynı para birimi 1.0, kur çifti yoksa None
+  - _get_exchange_rate: eksik durumu loglar, geriye uyum için 1.0 döner
+  - refresh_listing_price_base: kuru olmayan para birimini atlar (×1.0 ile bozmaz)
+- fix(seller): ASP'de kaynağı olmayan adres alanları (adres2/ilçe/posta) panelde gizlendi (@aliiball)
+  - v15_9_9 patch: Property Setter hidden=1 (website hariç — self-servis kaynağı var)
+- fix(chat): DB restore sonrası TeamsLike bağlantı hatası düzeltildi (@ahmeetseker)
+  - TeamsLike bağlantı ayarları ve secret'ları site_config.json'dan okunuyor (DocType fallback); prod DB'si başka site'a restore edilince encryption_key uyuşmazlığıyla bozulmuyor
+  - Admin access token DB single yerine Redis'te tutuluyor (55dk TTL) — restore stale prod token'ı getirmiyor
+  - TeamsLike yapılandırılmamış/erişilemez ise list_my_threads boş liste dönüyor; Mağazam panelindeki 10 sn'lik hata spam'i giderildi
+- fix(auth): get_current_user mağaza entity'si Admin Seller Profile'a taşındı (@aliiball)
+  - Eski "Seller Profile" doctype'ında seller_code/logo/health_score kolonları yok (Sprint 2'de Admin Seller Profile'a taşındı) → 1054 çökmesi
+  - get_current_user her satıcıda 500 veriyordu → seller dashboard hiç açılmıyordu
+  - Sorgu user-link'li Admin Seller Profile'a alındı; is_seller doğru dönüyor
+- fix(seller): get_my_profile'a salt-okunur mağaza metrikleri eklendi (@aliiball)
+  - seller_code/score_grade/total_orders/rating eklendi (dashboard header + mağaza linki + Performans kartları gerçek değerle dolsun)
+  - health_score bilinçli hariç (kaynağı güvenilmez; panelde de hidden=1)
+  - Alanlar _PROFILE_EDITABLE_FIELDS dışında → update_profile yazamaz (read-only)
+- fix(listing): count management-cert facet per listing, not per seller cert row (@boraydeger32)
+- fix(auth): parola sıfırlama ve e-posta doğrulama linkleri doğru ortama yönlendirildi (@aliiball)
+  - identity.py'deki 3 hardcoded "https://rc.istoc.com" default'u storefront_url() ile değiştirildi; prod linkleri artık istoc.com'a gidiyor
+  - Kök neden: config set edilmemişken hardcoded RC default'u tüm ortamları RC'ye yönlendiriyordu → reset key farklı DB'de kalıyor → sıfırlama başarısız
+- fix(permissions): fail-closed has_permission + Compliance Officer read-only (@boraydeger32)
+  - #B1 (CANLI): 5 has_permission handler'ı bool() ile sarıldı; profil None iken None yerine False döner (cross-tenant read + owner-PII sızıntısı kapandı).
+  - #D2: _is_platform_full_access ptype-aware; Compliance Officer yalnız-read (write/delete gate). 23 has_permission çağrısı ptype iletir.
+  - #D4: field_commission_has_permission doc=None guard.
+- fix(authz): separation-of-duties + delegation boundary + FX fail-closed (@boraydeger32)
+  - #E1: self-approval reddi + L1 onaylayan L2'yi onaylayamaz.
+  - #E2-E4: delegation own-role invariant (service), zincir yasağı, activate tenant-scope + starts_at, revoke'ta bağımsız rol korunur.
+  - #D3: FX rate yok / total None → raw-fallback yerine fail-closed sentinel.
+  - #F5 (Faz 6): approval günlük kota 'approver' alanı ile sayar (önceden 'user' ile hiç eşleşmiyordu → kota fiilen uygulanmıyordu).
+- fix(rebac): client resilience — idempotent sync + breaker 4xx + config reload (@boraydeger32)
+  - #C1: batch 4xx → per-tuple fallback + idempotency toleransı.
+  - #C3: 4xx breaker'ı tetiklemez (sadece 5xx/timeout/bağlantı).
+  - #C5: config env'den runtime okunur; auth per-request; healthz auth.
+  - Faz 4: check() consistency param (HIGHER / MINIMIZE_LATENCY) — new-enemy koruması.
+  - Faz 6: #C1 tolerans refine — yalnız idempotency yutulur, validation_error → fail.
+- fix(rebac): OpenFGA model (in-repo) + owner-transfer sync + drift/reconcile (@boraydeger32)
+  - rebac/: OpenFGA model + deploy scriptleri artık tradehub_core içinde (önceden repo-dışı tradehub_rebac/ idi → org kontrolüne alındı).
+  - #C6 model: order.can_view'e viewer; can_approve coarse; condition'lar amount_eur. Union tek-satıra çevrildi → model fga CLI ile VALID/deploy edilebilir.
+  - #C2: on_listing/order/admin_seller_profile_update — owner-transfer orphan önle.
+  - #C4: drift'ten modelde-olmayan Store Subscription çıkarıldı.
+  - #C6: reconcile_user/reconcile_users — eksik grant self-heal.
+  - Faz 6(b): model.fga listing_field type (Airbnb type:id:part, explicit) + tuple_sync field grants (grant/revoke_field_access). Ayraç '/' (: geçersiz).
+- fix(verification): onay listesi zarfı ve tip hataları düzeltildi (@ahmeetseker)
+  - list_pending_seller_verifications düz liste yerine {data, total} zarfı döndürecek şekilde düzeltildi; admin panel res.message.data beklediği için bekleyen doğrulamalar boş görünüyordu
+  - Autoincrement (bigint) name parametreleri str|int kabul edecek şekilde genişletildi; v15 whitelist tip kontrolündeki FrappeTypeError giderildi
+  - create_my_verification status'u açıkça "Pending" set edecek şekilde düzeltildi; DocType default'u "Requested" kaldığından onay aksiyonu çıkmıyordu
+
+### Degistirildi
+- refactor(seller): Supplier Profile DocType kaldırıldı (@aliiball)
+  - v15_9_3: hidden + read_only Property Setter (deprecate)
+  - v15_9_4: tablo + DocType + Property Setter drop (ASP'siz orphan guard)
+  - supplier_profile/ doctype klasörü silindi
+  - Verisi zaten Admin Seller Profile'a taşınmıştı (migrate patch'i)
+- refactor(product-type): required_attributes child DocType'ını kaldır (@boraydeger32)
+  - Product Type JSON'dan sb_attributes + required_attributes alanlarını çıkar
+  - Orphan "Product Type Required Attribute" child DocType'ını sil
+  - v15_9_9 patch'i: DocType + tab tablosunu idempotent temizle
+- refactor(seo): storefront/admin URL helper'ı site adı eşlemesiyle güçlendirildi (@aliiball)
+  - site_config restore ile prod'dan ezildiği için URL artık frappe.local.site'tan türetiliyor (restore-proof); config override en üstte korundu
+  - admin_panel_url() helper eklendi (<storefront>/panel)
+- refactor(url): destek/davet/bulk-import linkleri merkezî site_url helper'ına taşındı (@aliiball)
+  - public.py, sla_checker.py, seller_users.py, bulk_import/notifications.py
+  - tutarsız admin_url/tradehub_admin_panel_url anahtarları admin_panel_url()'da toplandı
+  - davet whitelist'ine tradehub.localhost ve alpha.istoc.com eklendi
+
+---
 ## [v1.7.1-rc.1] - 2026-07-03 RC
 
 Bu surum rcistoc.cronbi.com'da onay asamasindadir.
