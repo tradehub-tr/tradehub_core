@@ -1,3 +1,16 @@
+## [v1.7.1-alpha.13] - 2026-07-03 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(authz): enforce-readiness report (A2 — non-invasive shadow analysis) (@boraydeger32)
+  - _check_drift → _compare refactor (davranış korunur; (frappe_allow, rebac_allow) tuple veya None döner → rapor agree/skip/drift'i hassas ayırır).
+  - Union semantiği: yalnız rebac_overpermits (ReBAC RBAC'tan fazla verir) enforce'ta davranış değiştirir → enforce-güvenli koşulu rebac_overpermits == 0.
+  - Canlı baseline: Order[read] + Admin Seller Profile[read] rebac_overpermits=0 (enforce-hazır); ~%10 frappe_overpermits (ReBAC eksik grant → reconcile ile kapanır).
+  - Stub testleri (5) + authz gate (40 modül).
+- feat(authz): schedule weekly enforce-readiness report (non-invasive) (@boraydeger32)
+
+---
 ## [v1.7.1-alpha.12] - 2026-07-03 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
