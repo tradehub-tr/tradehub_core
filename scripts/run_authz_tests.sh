@@ -23,6 +23,7 @@ MODULES=(
 	test_break_glass
 	test_entitlement
 	test_entitlement_snapshot
+	test_plan_feature_sync
 	test_phase1_integration
 	test_phase2_integration
 	test_rebac_doctype_permissions
