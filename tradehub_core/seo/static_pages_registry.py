@@ -91,6 +91,14 @@ STATIC_PAGES = [
 		"sitemap_priority": "0.1",
 		"sitemap_changefreq": "never",
 	},
+	{
+		"path": "/davet-kabul",
+		"title": "Daveti Kabul Et",
+		"html_path": "pages/auth/accept-invite.html",
+		"indexable_default": False,
+		"sitemap_priority": "0.1",
+		"sitemap_changefreq": "never",
+	},
 	# ── Yardım (6) ────────────────────────────────────────
 	{
 		"path": "/yardim-merkezi",
