@@ -1,3 +1,21 @@
+## [v1.8.0-alpha.2] - 2026-07-08 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(auth): alıcı ekip daveti için /davet-kabul route'u eklendi (@aliiball)
+
+### Duzeltildi
+- fix(auth): e-posta doğrulama/gönderim kilitlenmesi giderildi (@aliiball)
+  - sendmail çağrılarından communication=False kaldırıldı: Email Queue Link alanı "0"'a çevrilip flush'ta get_doc("Communication","0") ile çökerek now=False maillerini (doğrulama, e-posta değiştirme) kilitliyordu
+  - resend_verification_email OTP+now=False yerine link'li _create_email_verification (now=True) akışına çevrildi
+- fix(email): davet ve indirme linkleri storefront_url'e taşındı (@aliiball)
+  - get_url() backend host döndürüyordu; buyer_team daveti ve KVKK indirme linki artık storefront_url() (ortam-özel, restore-proof) kullanır
+
+### Degistirildi
+- refactor(email): sistem e-posta şablonları Türkçe'ye çevrildi (@aliiball)
+
+---
 ## [v1.8.0-alpha.1] - 2026-07-03 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
