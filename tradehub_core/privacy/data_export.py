@@ -311,8 +311,11 @@ def _records_to_csv(records: list[dict]) -> str:
 
 
 def _send_export_ready_email(user: str, request_name: str, token: str) -> None:
-	download_url = frappe.utils.get_url(
-		f"/api/method/tradehub_core.api.v1.compliance.download_data_export"
+	# storefront_url() ortam-özel + restore-proof; get_url() backend host'u döner.
+	from tradehub_core.seo.site_url import storefront_url
+
+	download_url = (
+		f"{storefront_url()}/api/method/tradehub_core.api.v1.compliance.download_data_export"
 		f"?request_name={request_name}&token={token}"
 	)
 	frappe.sendmail(
