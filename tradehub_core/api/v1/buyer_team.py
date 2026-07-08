@@ -547,8 +547,12 @@ def _ensure_user_roles_from_profile(user_doc, role_profile_name: str) -> None:
 
 
 def _build_invite_url(raw_token: str) -> str:
-	site_url = frappe.utils.get_url()
-	return f"{site_url}/accept-buyer-invite?token={raw_token}"
+	# Public storefront URL (restore-proof, ortam-özel). `get_url()` isteğin
+	# backend host'unu (istoc.cronbi.com) döndürdüğü için kullanılmaz — davet
+	# linki storefront'taki `/davet-kabul` sayfasına gitmeli.
+	from tradehub_core.seo.site_url import storefront_url
+
+	return f"{storefront_url()}/davet-kabul?token={raw_token}"
 
 
 def _send_invite_email(invite, invite_url: str) -> None:

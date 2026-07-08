@@ -180,12 +180,11 @@ def _log_email_verification_event(
 
 
 def _create_email_verification(email: str, first_name: str):
-	"""DEPRECATED — eski post-registration link akışı.
+	"""Link'li e-posta doğrulama maili gönderir (24 saat geçerli tek-kullanımlık key).
 
-	Pattern A (OTP-only) sonrası kayıt sırasında çağrılmaz. Yalnızca eski
-	maillerden gelen `verify_email?key=...` linklerinin TTL süresince çalışmasını
-	sağlamak için Redis key seti hâlâ duruyor. ``resend_verification_email``
-	çağrılırsa OTP-temelli yeni akışa düşer.
+	Kayıt akışı OTP-only olduğundan kayıt sırasında çağrılmaz; ancak
+	``resend_verification_email`` (dashboard "Doğrula" banner'ı) bu akışı kullanır:
+	kullanıcı maildeki linke tıklar → ``verify_email`` email_verified=1 yapar.
 	"""
 	key = frappe.generate_hash(length=32)
 	frappe.cache.set_value(f"email_verification:{key}", email, expires_in_sec=86400)
@@ -197,7 +196,6 @@ def _create_email_verification(email: str, first_name: str):
 		template="tradehub_email_verification",
 		args={"link": link, "first_name": first_name},
 		now=True,
-		communication=False,
 	)
 
 
@@ -238,7 +236,6 @@ def send_registration_otp(email: str):
 		template="registration_otp",
 		args={"code": otp_code},
 		now=True,
-		communication=False,
 	)
 
 	return {"success": True, "expires_in_minutes": 30}
@@ -742,7 +739,6 @@ def forgot_password(email: str):
 			template="tradehub_password_reset",
 			args={"link": link, "full_name": user.full_name},
 			now=True,
-			communication=False,
 		)
 
 	return {
@@ -1070,16 +1066,16 @@ def request_email_change(new_email: str, password: str):
 		method="otp",
 	)
 
-	# Yeni adrese OTP gönder — now=False ile mail kuyruğuna alınır (async)
-	# communication=False: Frappe Desk inbox'ında sistem mailleri görünmesin
-	# (başka kullanıcılar pinar.kaya'nın inbox'ından görmesin)
+	# Yeni adrese OTP gönder — now=False ile mail kuyruğuna alınır (async).
+	# communication argümanı VERİLMEZ: `communication=False` Email Queue'da
+	# communication="0" olarak saklanıp flush'ta get_doc("Communication","0")
+	# ile çökerek maili sonsuza dek kilitliyordu; None (varsayılan) temizdir.
 	frappe.sendmail(
 		recipients=new_email,
 		subject="iSTOC — Yeni E-posta Adresi Doğrulama",
 		template="email_change_otp",
 		args={"code": otp_code, "old_email": old_email},
 		now=False,
-		communication=False,
 	)
 
 	return {"success": True, "expires_in_minutes": 30}
@@ -1397,8 +1393,8 @@ def _do_rename_user_email(old_email: str, new_email: str):
 			(now_datetime(), bp_name),
 		)
 
-	# 8. Eski adrese bilgilendirme maili (now=False → mail kuyruğu)
-	# communication=False: Frappe Desk inbox'ı sistem mailini göstermesin
+	# 8. Eski adrese bilgilendirme maili (now=False → mail kuyruğu).
+	# communication argümanı verilmez (yukarıdaki "0" zehiri notu geçerli).
 	try:
 		frappe.sendmail(
 			recipients=old_email,
@@ -1406,7 +1402,6 @@ def _do_rename_user_email(old_email: str, new_email: str):
 			template="email_change_notice",
 			args={"old_email": old_email, "new_email": new_email},
 			now=False,
-			communication=False,
 		)
 	except Exception:
 		frappe.log_error(
@@ -1446,39 +1441,29 @@ def _do_rename_user_email(old_email: str, new_email: str):
 @frappe.whitelist(methods=["POST"])
 @rate_limit(key="user", limit=3, seconds=3600)
 def resend_verification_email():
-	"""Doğrulanmamış kullanıcı için yeni bir OTP gönderir.
+	"""Doğrulanmamış kullanıcı için yeni bir doğrulama LİNKİ gönderir.
 
-	Pattern A'da kayıt sırasında zaten verified=1 set edildiği için bu endpoint
-	yalnızca migrate edilmiş eski kullanıcılar veya admin tarafından unverify
-	edilmiş hesaplar için anlamlı.
+	Kayıt sırasında zaten verified=1 set edildiğinden bu endpoint yalnızca
+	e-posta değiştiren / migrate edilmiş / admin tarafından unverify edilmiş
+	hesaplar için anlamlıdır. Dashboard banner'ından tetiklenir; kullanıcı
+	maildeki linke tıklayınca ``verify_email`` doğrulamayı tamamlar — dashboard'da
+	ayrıca OTP kodu girmeye gerek yoktur.
 	"""
 	user = frappe.session.user
 
 	if user == "Guest":
 		frappe.throw(_("Not logged in."), frappe.AuthenticationError)
 
-	# Zaten doğrulanmışsa boşa OTP gönderme
+	# Zaten doğrulanmışsa boşa mail gönderme; frontend "zaten doğrulı" gösterir.
 	already_verified = bool(frappe.db.get_value("User Profile", {"user": user}, "email_verified"))
 	if already_verified:
 		return {"success": True, "already_verified": True}
 
-	otp_code = _generate_otp()
-	frappe.cache.set_value(
-		f"reverify_otp:{user}",
-		json.dumps({"code": otp_code, "attempts": 0}),
-		expires_in_sec=1800,
-	)
+	first_name = frappe.db.get_value("User", user, "first_name") or ""
+	# Link'li doğrulama maili (now=True → kuyruğu atlar, anında gider).
+	_create_email_verification(user, first_name)
 
-	frappe.sendmail(
-		recipients=user,
-		subject="iSTOC — E-posta Doğrulama Kodu",
-		template="registration_otp",
-		args={"code": otp_code},
-		now=False,
-		communication=False,
-	)
-
-	return {"success": True, "expires_in_minutes": 30}
+	return {"success": True, "method": "link"}
 
 
 @frappe.whitelist(methods=["POST"])
