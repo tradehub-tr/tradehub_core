@@ -1,3 +1,14 @@
+## [v1.8.0-alpha.3] - 2026-07-09 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Duzeltildi
+- fix(rfq): RFQ oluşturmayı capability-tabanlı yetkilendirmeye çevirdi (@aliiball)
+  - create_rfq artık "Buyer" rolü yerine is_buyer (Buyer rolü VEYA can_buy) VEYA admin kontrol ediyor + doc.insert(ignore_permissions=True)
+  - Satıcı hesaplarında role_profile="Seller Full Access" User.save'de "Buyer" rolünü resetleyip siliyordu; can_buy=1 (KYC) hybrid satıcılar RFQ açamıyordu
+  - Kodun kendi is_buyer tanımıyla (auth.py) hizalandı; okuma/hook'lar değişmedi
+
+---
 ## [v1.8.0-alpha.2] - 2026-07-08 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
