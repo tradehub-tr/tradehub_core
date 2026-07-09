@@ -39,6 +39,22 @@ def create_rfq(product_name, description, quantity, unit, category=None, share_b
 	if user == "Guest":
 		frappe.throw(_("Please log in to create an RFQ"), frappe.AuthenticationError)
 
+	# Yetkilendirme: RFQ oluşturma capability-tabanlıdır, "Buyer" rolü DEĞİL.
+	# Satıcı hesaplarında role_profile="Seller Full Access" User.save'de rolleri
+	# resetleyip "Buyer" rolünü siliyor; oysa can_buy=1 (KYC Verified) kullanıcı
+	# satın alabilir. Bu yüzden kodun kendi is_buyer tanımını (auth.py:
+	# `"Buyer" in roles or can_buy`) kullanıyoruz — böylece hybrid satıcılar da
+	# RFQ açabilir. RFQ zaten Pending açılır + admin onayıyla satıcılara gider.
+	roles = frappe.get_roles(user)
+	is_admin = "System Manager" in roles or "Marketplace Admin" in roles
+	is_buyer = "Buyer" in roles or bool(frappe.db.get_value("User Profile", {"user": user}, "can_buy"))
+	if not (is_admin or is_buyer):
+		frappe.local.response["http_status_code"] = 403
+		frappe.throw(
+			_("RFQ oluşturmak için alıcı yetkiniz yok. Lütfen KYC doğrulamanızı tamamlayın."),
+			frappe.PermissionError,
+		)
+
 	pn = (product_name or "").strip()
 	if len(pn) < 2:
 		frappe.throw(_("Ürün adı en az 2 karakter olmalı"))
@@ -55,7 +71,11 @@ def create_rfq(product_name, description, quantity, unit, category=None, share_b
 	doc.share_business_card = int(share_business_card)
 	doc.ai_enabled = int(ai_enabled)
 	doc.status = "Pending"
-	doc.insert()
+	# Yetki yukarıda capability ile doğrulandı; DocType rol-izni ("Buyer") satıcı
+	# hesaplarında olmadığı için ignore_permissions ile insert ediyoruz. Sahibi
+	# (doc.buyer=user) biz set ettiğimiz için başkası adına RFQ açılamaz;
+	# validate/before_insert/after_insert (admin bildirimi) yine çalışır.
+	doc.insert(ignore_permissions=True)
 	frappe.db.commit()
 
 	return {"success": True, "rfq_id": doc.name}
