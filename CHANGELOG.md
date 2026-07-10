@@ -1,3 +1,15 @@
+## [v1.8.0-alpha.4] - 2026-07-10 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(authz): ReBAC'ı enforce'a al, ABAC kapılarını bağla, denetim açıklarını kapat (@boraydeger32)
+  - authz/shadow.py + permissions._apply_rebac: shadow gözlem / enforce union (RBAC ∪ ReBAC — yalnız genişletir, fail-safe, request-scoped memo).
+  - pdp._rebac_decide (saf karar) ↔ _rebac_reconcile (divergence log) ayrıldı.
+  - Order/Listing/Admin Seller Profile enforce (site_config).
+  - tuple_sync: store_link/order/buyer tuple YÖN hatası düzeltildi + backfill().
+
+---
 ## [v1.8.0-alpha.3] - 2026-07-09 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
