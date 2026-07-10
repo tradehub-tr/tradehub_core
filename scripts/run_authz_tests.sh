@@ -28,6 +28,9 @@ MODULES=(
 	test_phase2_integration
 	test_rebac_doctype_permissions
 	test_abac_context
+	test_abac_gate_enforcement
+	test_shadow_observe
+	test_rebac_enforce
 	test_authorization_simulator
 	test_authz_simulator_security
 	test_tenant_isolation
@@ -40,6 +43,7 @@ MODULES=(
 	test_tuple_sync
 	test_enforce_readiness
 	test_approval_workflow
+	test_rebac_approval_gating
 	test_anomaly_detector
 	test_audit
 	test_audit_signatures

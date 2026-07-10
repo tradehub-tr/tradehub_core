@@ -55,6 +55,7 @@ def _install_frappe_stub() -> None:
 		exists=lambda *a, **kw: False,
 		escape=lambda s: f"'{s}'",
 		count=lambda *a, **kw: 0,
+		has_column=lambda *a, **kw: True,
 	)
 	frappe.get_all = get_all
 	frappe.get_roles = lambda user: _ROLES.get(user, [])
@@ -96,6 +97,7 @@ def _reset_state():
 		exists=lambda *a, **kw: False,
 		escape=lambda s: f"'{s}'",
 		count=lambda *a, **kw: 0,
+		has_column=lambda *a, **kw: True,
 	)
 	frappe.get_all = get_all
 	frappe.get_roles = lambda user: _ROLES.get(user, [])
@@ -330,14 +332,14 @@ class OwnerTransferUpdateTests(unittest.TestCase):
 	def test_listing_moved_to_new_store(self):
 		doc = self._upd("Listing", "LST-1", {"seller_profile": "S1"}, {"seller_profile": "S2"})
 		tuple_sync.on_listing_update(doc)
-		self.assertIn(("listing:LST-1", "store_link", "store:S1"), self._deletes())
-		self.assertIn(("listing:LST-1", "store_link", "store:S2"), self._writes())
+		self.assertIn(("store:S1", "store_link", "listing:LST-1"), self._deletes())
+		self.assertIn(("store:S2", "store_link", "listing:LST-1"), self._writes())
 
 	def test_order_reassigned(self):
-		doc = self._upd("Order", "ORD-1", {"seller_profile": "S1"}, {"seller_profile": "S2"})
+		doc = self._upd("Order", "ORD-1", {"seller": "S1"}, {"seller": "S2"})
 		tuple_sync.on_order_update(doc)
-		self.assertIn(("order:ORD-1", "store_link", "store:S1"), self._deletes())
-		self.assertIn(("order:ORD-1", "store_link", "store:S2"), self._writes())
+		self.assertIn(("store:S1", "store_link", "order:ORD-1"), self._deletes())
+		self.assertIn(("store:S2", "store_link", "order:ORD-1"), self._writes())
 
 	def test_no_before_save_noop(self):
 		doc = _make_doc("Listing", "LST-9", seller_profile="S1")
@@ -392,7 +394,7 @@ class ListingTests(unittest.TestCase):
 		doc = _make_doc("Listing", "LIST-001", seller_profile="STORE-A")
 		tuple_sync.on_listing_insert(doc)
 		tuples = _ENQUEUED[0]["tuples"]
-		self.assertEqual(tuples, [("listing:LIST-001", "store_link", "store:STORE-A")])
+		self.assertEqual(tuples, [("store:STORE-A", "store_link", "listing:LIST-001")])
 
 	def test_listing_without_seller_skips(self):
 		doc = _make_doc("Listing", "LIST-X", seller_profile=None)
@@ -410,30 +412,48 @@ class OrderTests(unittest.TestCase):
 		_reset_state()
 
 	def test_order_insert_full(self):
-		"""Order = store_link + buyer_org_link + requisitioner tuple'ları."""
+		"""Order = store_link + buyer + buyer_org_link + requisitioner tuple'ları.
+
+		buyer_org, Order.buyer'ın User.tradehub_parent_organization'ından çözülür.
+		"""
+		# buyer'ın org'u User lookup'tan gelir
+		_DB[("get_value", "User", "ali@acme.com", "tradehub_parent_organization")] = "ACME-INC"
 		doc = _make_doc(
 			"Order",
 			"ORD-9382",
 			owner="ayse@acme.com",
-			seller_profile="STORE-A",
-			buyer_organization="ACME-INC",
+			seller="STORE-A",
+			buyer="ali@acme.com",
 		)
 		tuple_sync.on_order_insert(doc)
 
 		tuples = _ENQUEUED[0]["tuples"]
-		self.assertIn(("order:ORD-9382", "store_link", "store:STORE-A"), tuples)
-		self.assertIn(("order:ORD-9382", "buyer_org_link", "buyer_org:ACME-INC"), tuples)
-		self.assertIn(("order:ORD-9382", "requisitioner", "user:ayse@acme.com"), tuples)
+		self.assertIn(("store:STORE-A", "store_link", "order:ORD-9382"), tuples)
+		self.assertIn(("user:ali@acme.com", "buyer", "order:ORD-9382"), tuples)
+		self.assertIn(("buyer_org:ACME-INC", "buyer_org_link", "order:ORD-9382"), tuples)
+		self.assertIn(("user:ayse@acme.com", "requisitioner", "order:ORD-9382"), tuples)
+
+	def test_order_buyer_no_org(self):
+		"""Org'suz (bireysel) buyer → sadece buyer tuple'ı, buyer_org_link YOK."""
+		_DB[("get_value", "User", "solo@x.com", "tradehub_parent_organization")] = None
+		doc = _make_doc("Order", "ORD-2", owner="Administrator", seller="STORE-A", buyer="solo@x.com")
+		tuple_sync.on_order_insert(doc)
+		tuples = _ENQUEUED[0]["tuples"]
+		self.assertIn(("user:solo@x.com", "buyer", "order:ORD-2"), tuples)
+		self.assertFalse(
+			any(t[1] == "buyer_org_link" for t in tuples),
+			"org'suz buyer için buyer_org_link yazılmamalı",
+		)
 
 	def test_order_administrator_owner_excluded(self):
 		"""Administrator tarafından oluşturulan order'da requisitioner skip."""
-		doc = _make_doc("Order", "ORD-001", owner="Administrator", seller_profile="STORE-A")
+		doc = _make_doc("Order", "ORD-001", owner="Administrator", seller="STORE-A")
 		tuple_sync.on_order_insert(doc)
 
 		tuples = _ENQUEUED[0]["tuples"]
-		# Sadece store_link, requisitioner yok
+		# Sadece store_link (buyer yok, requisitioner yok)
 		self.assertEqual(len(tuples), 1)
-		self.assertEqual(tuples[0], ("order:ORD-001", "store_link", "store:STORE-A"))
+		self.assertEqual(tuples[0], ("store:STORE-A", "store_link", "order:ORD-001"))
 
 
 # ---------------------------------------------------------------------------
@@ -473,6 +493,75 @@ class ReconcileTests(unittest.TestCase):
 		_DB[("get_value", "User", "nobody@x", "tradehub_parent_organization")] = None
 		n = tuple_sync.reconcile_user("nobody@x")
 		self.assertEqual(n, 0)
+		self.assertEqual(len(_ENQUEUED), 0)
+
+
+# ---------------------------------------------------------------------------
+# Faz 3 — backfill (enforce öncesi tam tuple basımı)
+# ---------------------------------------------------------------------------
+
+
+class BackfillTests(unittest.TestCase):
+	def setUp(self):
+		_reset_state()
+
+	def _seed(self):
+		def row(name, **f):
+			r = SimpleNamespace(name=name, **f)
+			r.get = lambda field, default=None: getattr(r, field, default)
+			return r
+
+		# Store: SEL-1 owner var, SEL-2 owner YOK (skip edilmeli).
+		_DB[("get_all", "Admin Seller Profile", "None", None)] = [
+			row("SEL-1", user="owner@x"),
+			row("SEL-2", user=None),
+		]
+		# User: seller@x, SEL-1 tenant + owner flag.
+		_DB[("get_all", "User", "{'enabled': 1}", "name")] = ["seller@x"]
+		_DB[("get_value", "User", "seller@x", "tradehub_tenant")] = "SEL-1"
+		_DB[("get_value", "User", "seller@x", "tradehub_parent_organization")] = None
+		_DB[("get_value", "User", "seller@x", "tradehub_is_owner")] = 1
+		# Listing: LST-1 seller_profile var, LST-2 YOK (skip).
+		_DB[("get_all", "Listing", "None", None)] = [
+			row("LST-1", seller_profile="SEL-1"),
+			row("LST-2", seller_profile=None),
+		]
+		# Order: ORD-1 seller_profile var.
+		_DB[("get_all", "Order", "None", None)] = [row("ORD-1", seller="SEL-1")]
+
+	def test_dry_run_counts_and_no_write(self):
+		self._seed()
+		res = tuple_sync.backfill(dry_run=True)
+		self.assertEqual(res["stores"], 1, "owner'sız SEL-2 skip edilmeli")
+		self.assertEqual(res["listings"], 1, "seller_profile'sız LST-2 skip edilmeli")
+		self.assertEqual(res["orders"], 1)
+		self.assertEqual(res["users"], 1)
+		self.assertGreater(res["tuples"], 0)
+		self.assertEqual(len(_ENQUEUED), 0, "dry_run → OpenFGA'ya yazmamalı")
+
+	def test_writes_when_configured(self):
+		self._seed()
+		orig = tuple_sync._is_rebac_configured
+		tuple_sync._is_rebac_configured = lambda: True
+		try:
+			res = tuple_sync.backfill(chunk_size=2)
+		finally:
+			tuple_sync._is_rebac_configured = orig
+		self.assertNotIn("skipped", res)
+		written = [t for e in _ENQUEUED for t in e["tuples"]]
+		self.assertIn(("store:SEL-1", "store_link", "listing:LST-1"), written)
+		self.assertIn(("store:SEL-1", "store_link", "order:ORD-1"), written)
+		self.assertIn(("user:owner@x", "owner", "store:SEL-1"), written)
+
+	def test_skipped_when_not_configured(self):
+		self._seed()
+		orig = tuple_sync._is_rebac_configured
+		tuple_sync._is_rebac_configured = lambda: False
+		try:
+			res = tuple_sync.backfill()
+		finally:
+			tuple_sync._is_rebac_configured = orig
+		self.assertTrue(res.get("skipped"), "STORE_ID boşken backfill skip etmeli")
 		self.assertEqual(len(_ENQUEUED), 0)
 
 
