@@ -65,6 +65,8 @@ def _listing_to_card(l) -> dict:
 	Applies active campaign discount (discount_percentage > 0) the same way
 	api.listing.get_listing_detail does, so prices stay consistent across
 	the storefront (Tailored cards ↔ product detail ↔ top ranking)."""
+	# Galeri görseli yoksa panelden yüklenen primary_image'a düş —
+	# gerçek satıcı ilanları çoğunlukla yalnız primary_image taşıyor.
 	image_src = (
 		frappe.db.get_value(
 			"Listing Image",
@@ -72,6 +74,7 @@ def _listing_to_card(l) -> dict:
 			"image",
 			order_by="idx ASC",
 		)
+		or getattr(l, "primary_image", None)
 		or ""
 	)
 	selling = float(l.selling_price or 0)
@@ -332,11 +335,14 @@ def _get_global_top_categories(limit: int) -> list:
 	popularity (view_count + order_count). Uses only active, leaf-or-main
 	categories that have at least one Listing.
 	"""
+	# INNER JOIN: silinmiş/var olmayan kategoriye işaret eden ilanlar
+	# (dangling referans) vitrine bozuk kart olarak düşmesin.
 	rows = frappe.db.sql(
 		"""
         SELECT l.product_category AS category,
                SUM(COALESCE(l.view_count, 0) + COALESCE(l.order_count, 0)) AS score
         FROM `tabListing` l
+        INNER JOIN `tabProduct Category` pc ON pc.name = l.product_category
         WHERE l.product_category IS NOT NULL
           AND l.status = 'Active'
         GROUP BY l.product_category
@@ -359,7 +365,7 @@ def _top_listings_for_category(category: str, limit: int) -> list:
         SELECT l.name, l.listing_code, l.title AS name_display,
                l.selling_price, l.discount_percentage, l.currency,
                l.view_count, l.order_count,
-               l.min_order_qty, l.stock_uom
+               l.min_order_qty, l.stock_uom, l.primary_image
         FROM `tabListing` l
         WHERE l.product_category = %(category)s
           AND l.status = 'Active'
@@ -489,10 +495,37 @@ def _category_display(category_name: str) -> dict:
 		as_dict=True,
 	)
 	views_count = int(total_views[0].total) if total_views else 0
+	# Kategori görseli girilmemişse en popüler ilanının görseline düş —
+	# kategori ağacı importu image alanı boş geldiği için hero kartları
+	# aksi halde görselsiz kalıyor.
+	image = cat.image or ""
+	if not image:
+		top = frappe.db.sql(
+			"""
+            SELECT l.name, l.primary_image
+            FROM `tabListing` l
+            WHERE l.product_category = %(cat)s AND l.status = 'Active'
+            ORDER BY (COALESCE(l.order_count, 0) + COALESCE(l.view_count, 0)) DESC
+            LIMIT 1
+            """,
+			{"cat": category_name},
+			as_dict=True,
+		)
+		if top:
+			image = (
+				frappe.db.get_value(
+					"Listing Image",
+					{"parent": top[0].name},
+					"image",
+					order_by="idx ASC",
+				)
+				or top[0].primary_image
+				or ""
+			)
 	return {
 		"slug": cat.url_slug or cat.name,
 		"name": cat.category_name or cat.name,
-		"image": cat.image or "",
+		"image": image,
 		"parent": cat.parent_product_category,
 		"categoryId": cat.name,
 		"viewsCount": views_count,
@@ -616,7 +649,14 @@ def get_tailored_group_detail(category: str, subcategory: str = None, page: int 
 
 	active_category = _resolve_category(subcategory) or _resolve_category(category)
 	if not active_category:
-		return {"page": page, "page_size": page_size, "products": [], "hasNext": False, "total": 0}
+		return {
+			"page": page,
+			"page_size": page_size,
+			"products": [],
+			"hasNext": False,
+			"total": 0,
+			"total_pages": 1,
+		}
 
 	offset = (page - 1) * page_size
 
@@ -630,10 +670,7 @@ def get_tailored_group_detail(category: str, subcategory: str = None, page: int 
 
 	listings = frappe.db.sql(
 		"""
-        SELECT l.name, l.listing_code, l.title AS name_display,
-               l.selling_price, l.discount_percentage, l.currency,
-               l.view_count, l.order_count,
-               l.min_order_qty, l.stock_uom, l.product_category
+        SELECT l.*
         FROM `tabListing` l
         WHERE l.product_category IN %(cats)s
           AND l.status = 'Active'
@@ -647,7 +684,53 @@ def get_tailored_group_detail(category: str, subcategory: str = None, page: int 
 	has_next = len(listings) > page_size
 	listings = listings[:page_size]
 
-	products = [_listing_to_card(l) for l in listings]
+	from tradehub_core.api.listing import _format_listing_card
+
+	# get_listings'teki batch-prefetch deseni: seller_cache olmadan
+	# _format_listing_card supplierName'i dolduramıyor (supplier_display_name
+	# çoğu ilanda NULL, seller_cache=None dalı hiç sorgu atmıyor).
+	seller_ids = list({l.seller_profile for l in listings if l.get("seller_profile")})
+	seller_cache = (
+		{
+			sp.name: sp
+			for sp in frappe.get_all(
+				"Admin Seller Profile",
+				filters=[["name", "in", seller_ids]],
+				fields=["name", "user", "founded_year", "country", "rating", "review_count", "seller_name"],
+			)
+		}
+		if seller_ids
+		else {}
+	)
+
+	# brand_cache olmadan _brand_name kod'a (DEMO-BRAND-...) düşer — get_listings'teki
+	# aynı prefetch deseni (listing.py ~803-811).
+	brand_codes = list({l.brand for l in listings if l.get("brand")})
+	brand_cache = (
+		{
+			b.name: b
+			for b in frappe.get_all(
+				"Brand",
+				filters=[["name", "in", brand_codes]],
+				fields=["name", "brand_name", "slug", "logo"],
+			)
+		}
+		if brand_codes
+		else {}
+	)
+
+	products = [_format_listing_card(l, seller_cache=seller_cache, brand_cache=brand_cache) for l in listings]
+
+	total = frappe.db.sql(
+		"""
+        SELECT COUNT(*)
+        FROM `tabListing` l
+        WHERE l.product_category IN %(cats)s
+          AND l.status = 'Active'
+        """,
+		{"cats": tuple(target_categories)},
+	)[0][0]
+	total_pages = max(1, -(-total // page_size))
 
 	# Alt kategori seçenekleri (filter UI için)
 	sub_categories = frappe.get_all(
@@ -662,6 +745,8 @@ def get_tailored_group_detail(category: str, subcategory: str = None, page: int 
 		"page": page,
 		"page_size": page_size,
 		"hasNext": has_next,
+		"total": total,
+		"total_pages": total_pages,
 		"products": products,
 		"category": {
 			"slug": display["slug"],

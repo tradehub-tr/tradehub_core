@@ -38,6 +38,7 @@ from urllib.parse import urljoin
 
 import frappe
 import requests
+from frappe import _
 from frappe.utils.password import get_decrypted_password
 
 REQUEST_TIMEOUT = 10
@@ -502,6 +503,34 @@ def list_messages(conversation_id: int | str, perspective: str | None = None) ->
 	if r.status_code >= 400:
 		frappe.throw(f"Mesaj listesi başarısız: {r.status_code} {r.text}", frappe.ValidationError)
 	return r.json()
+
+
+@frappe.whitelist()
+def mark_read(conversation_id: int | str, perspective: str | None = None) -> dict[str, Any]:
+	"""Konuşmayı okundu işaretle — TeamsLike /threads/{id}/read proxy'si.
+
+	Inbox rozetleri (unread_count) Chatwoot agent_last_seen'e bağlı; bu çağrı
+	olmadan frontend'in lokal sıfırlaması bir sonraki polling'de geri gelir.
+	"""
+	caller = frappe.session.user
+	if caller == "Guest":
+		frappe.throw(_("Önce oturum aç."), frappe.AuthenticationError)
+	conv_id = int(conversation_id)
+	mode = _resolve_perspective(perspective, caller)
+	s = _settings()
+	if mode == "seller":
+		path = f"/v1/inbox/threads/{conv_id}/read"
+		headers = _seller_headers(caller)
+	else:
+		path = f"/v1/portal/me/threads/{conv_id}/read"
+		headers = _buyer_headers(caller)
+	r = requests.post(_api_url(s, path), headers=headers, timeout=REQUEST_TIMEOUT)
+	if r.status_code >= 400:
+		frappe.throw(
+			_("Okundu işaretleme başarısız: {0} {1}").format(r.status_code, r.text),
+			frappe.ValidationError,
+		)
+	return {"ok": True}
 
 
 @frappe.whitelist()

@@ -5487,3 +5487,103 @@ def cleanup(silent=False):
 	frappe.db.commit()
 	if not silent:
 		print("\n✅ Tüm demo veri temizlendi!")
+
+
+# ─── Onarım: sarkan DEMO kategori referanslarını gerçek taksonomiye eşle ──────
+
+# DEMO-CAT-<KOD> → gerçek kategori yol tarifi: (category_name, parent_adı, büyükparent_adı)
+# parent/büyükparent None ise o seviye filtrelenmez. Gerçek kategori ağacı
+# (UUID external_id'li import) ortamlar arası aynı isim yapısını taşıdığı için
+# UUID yerine isim-yoluyla çözümleme yapılır.
+DEMO_CAT_REMAP = {
+	"DEMO-CAT-ERKGOM": ("Gömlek", "Üst Giyim", "Erkek Giyim"),
+	"DEMO-CAT-USTGIY": ("Üst Giyim", "Kadın Giyim", None),
+	"DEMO-CAT-KADELB": ("Elbise", "Kadın Giyim", None),
+	"DEMO-CAT-ERKAYK": ("Erkek Ayakkabı", "Ayakkabı", None),
+	"DEMO-CAT-KADAYK": ("Kadın Ayakkabı", "Ayakkabı", None),
+	"DEMO-CAT-KADCNT": ("Kadın Çanta", None, None),
+	"DEMO-CAT-SMARTF": ("Akıllı Telefon", "Telefon", None),
+	"DEMO-CAT-TELAKS": ("Aksesuar", "Telefon", "Tüketici Elektronik"),
+	"DEMO-CAT-LAPTOP": ("Dizüstü", "Bilgisayar", None),
+	"DEMO-CAT-TABLET": ("Tablet", "Tüketici Elektronik", None),
+	"DEMO-CAT-SPORAK": ("Fitness", "Spor & Outdoor", None),
+	"DEMO-CAT-MOTOSK": ("Motosiklet", "Taşıtlar", None),
+	"DEMO-CAT-OTOMTV": ("Oto Aksesuar", "Perakende", None),
+	"DEMO-CAT-MARKET": ("Market", "Gıda", None),
+	"DEMO-CAT-GUZELL": ("Kişisel Bakım", "Sağlık", None),
+	"DEMO-CAT-PARFUM": ("Parfüm", None, None),
+	"DEMO-CAT-CILTBK": ("Cilt Bakım", "Kişisel Bakım", None),
+	"DEMO-CAT-EVDEKR": ("Dekorasyon", "Ev & Yaşam", None),
+	"DEMO-CAT-MOBILY": ("Mobilya", "Ev & Yaşam", None),
+	"DEMO-CAT-MUTFAK": ("Mutfak", "Ev & Yaşam", None),
+	"DEMO-CAT-KADTAK": ("Takı", "Aksesuar", "Moda"),
+	"DEMO-CAT-GUNESG": ("Güneş Gözlüğü", "Gözlük", None),
+	"DEMO-CAT-ERKSAT": ("Erkek Saat", "Saat", None),
+	"DEMO-CAT-KADSAT": ("Kadın Saat", "Saat", None),
+}
+
+
+def _resolve_category_by_path(name, parent_name=None, grandparent_name=None):
+	"""İsim yoluyla ((büyük)parent adlarıyla daraltılmış) tek Product Category çöz.
+	Birden fazla veya sıfır eşleşmede None döner."""
+	rows = frappe.db.sql(
+		"""
+		SELECT c.name
+		FROM `tabProduct Category` c
+		LEFT JOIN `tabProduct Category` p ON p.name = c.parent_product_category
+		LEFT JOIN `tabProduct Category` gp ON gp.name = p.parent_product_category
+		WHERE c.category_name = %(name)s
+		  AND (%(parent)s IS NULL OR p.category_name = %(parent)s)
+		  AND (%(gparent)s IS NULL OR gp.category_name = %(gparent)s)
+		""",
+		{"name": name, "parent": parent_name, "gparent": grandparent_name},
+		as_dict=True,
+	)
+	if len(rows) == 1:
+		return rows[0].name
+	return None
+
+
+def fix_demo_category_links():
+	"""Silinen DEMO-CAT-* kategorilerine işaret eden Listing ve Seller Category
+	kayıtlarını gerçek (UUID) kategori ağacına eşler.
+
+	Kullanım:
+	    bench --site <site> execute tradehub_core.seed_demo_data.fix_demo_category_links
+
+	Idempotent: eşlenecek sarkan referans kalmadığında hiçbir şey yapmaz.
+	"""
+	resolved = {}
+	unresolved = []
+	for demo_code, (name, parent, gparent) in DEMO_CAT_REMAP.items():
+		target = _resolve_category_by_path(name, parent, gparent)
+		if target:
+			resolved[demo_code] = target
+		else:
+			unresolved.append(demo_code)
+
+	listing_total = 0
+	seller_cat_total = 0
+	for demo_code, target in resolved.items():
+		listings = frappe.get_all("Listing", filters={"product_category": demo_code}, pluck="name")
+		for lname in listings:
+			frappe.db.set_value("Listing", lname, "product_category", target, update_modified=False)
+		listing_total += len(listings)
+
+		seller_cats = frappe.get_all("Seller Category", filters={"category": demo_code}, pluck="name")
+		for scname in seller_cats:
+			frappe.db.set_value("Seller Category", scname, "category", target, update_modified=False)
+		seller_cat_total += len(seller_cats)
+
+	frappe.db.commit()
+
+	# Tailored cache'lerini düşür — guest 15 dk cache'te kalmasın
+	try:
+		frappe.cache.delete_value("tailored:global")
+	except Exception:
+		pass
+
+	print(f"✓ {listing_total} Listing, {seller_cat_total} Seller Category eşlendi ({len(resolved)} kategori)")
+	if unresolved:
+		print(f"⚠ Çözülemeyen kategori kodları: {', '.join(unresolved)}")
+	return {"listings": listing_total, "seller_categories": seller_cat_total, "unresolved": unresolved}
