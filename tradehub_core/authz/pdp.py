@@ -276,17 +276,18 @@ def authorize(
 	return _finalize(False, "default_deny", "L4.default_deny")
 
 
-def _rebac_reconcile(principal, verb, doctype, name, rbac_allow: bool, ctx: dict):
-	"""ReBAC'i değerlendir → rebac_allow (True/False) veya None (uygulanamaz).
+def _rebac_decide(principal, verb, doctype, name, ctx: dict | None = None, consistency=None):
+	"""ReBAC ilişki kararı: True/False (grant/deny) veya None (uygulanamaz/hata).
 
-	Her modda (shadow/enforce) ÇAĞRILIR: RBAC ile uyuşmazsa 'shadow divergence'
-	loglanır (Carta/Figma geçiş dersi — sapmayı 0'a indir). Dönen değer authorize()
-	tarafından enforce modda union-grant için kullanılır.
+	SAF karar — loglama/side-effect YOK. Hem shadow (reconcile) hem enforce
+	(union-grant) bunu kullanır. Kesinlikle fail-safe: STORE_ID yok / resource
+	modellenmemiş / privileged / herhangi bir istisna → None (enforce union
+	tetiklenmez, RBAC kararı geçerli → lock-out yok).
 
-	Kesinlikle fail-safe: hiçbir istisna/erişilemezlik kararı/isteği etkilemez →
-	None döner (enforce union tetiklenmez, RBAC geçerli). Yalnız ReBAC konfigüreyse
-	(STORE_ID var), resource modellenmişse ve kullanıcı privileged değilse değerlendirir.
+	consistency: enforce-grant için `HIGHER_CONSISTENCY` geçilmeli (read-your-writes;
+	revoke/suspend sonrası stale ALLOW'u önler). Shadow'da None (cache OK).
 	"""
+	ctx = ctx or {}
 	try:
 		from tradehub_core.services import rebac_client
 
@@ -311,12 +312,22 @@ def _rebac_reconcile(principal, verb, doctype, name, rbac_allow: bool, ctx: dict
 		fga_ctx = None
 		if "amount_eur" in ctx or "amount" in ctx:
 			fga_ctx = {"amount": int(ctx.get("amount_eur") or ctx.get("amount") or 0)}
-		rebac_allow = rebac_client.check(f"user:{principal}", relation, obj, context=fga_ctx)
-		if rebac_allow != rbac_allow:
-			_log_shadow_divergence(principal, verb, doctype, name, relation, rbac_allow, rebac_allow)
-		return rebac_allow
+		return rebac_client.check(
+			f"user:{principal}", relation, obj, context=fga_ctx, consistency=consistency
+		)
 	except Exception:  # noqa: BLE001 — ReBAC ASLA kararı/isteği etkilemez (fail-safe)
 		return None
+
+
+def _rebac_reconcile(principal, verb, doctype, name, rbac_allow: bool, ctx: dict):
+	"""Shadow karşılaştırma: `_rebac_decide` + RBAC ile uyuşmazsa 'shadow divergence'
+	loglar (Carta/Figma dersi — sapmayı 0'a indir). Dönen değer authorize()
+	tarafından enforce modda union-grant için de kullanılır."""
+	rebac_allow = _rebac_decide(principal, verb, doctype, name, ctx)
+	if rebac_allow is not None and rebac_allow != rbac_allow:
+		relation = registry.rebac_relation_for(doctype, verb) or verb
+		_log_shadow_divergence(principal, verb, doctype, name, relation, rbac_allow, rebac_allow)
+	return rebac_allow
 
 
 def _log_break_glass_override(actor, action_label, doctype, name, decision_id) -> None:

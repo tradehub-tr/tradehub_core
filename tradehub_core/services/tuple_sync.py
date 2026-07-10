@@ -336,7 +336,10 @@ def on_listing_insert(doc, method=None) -> None:
 		return
 	listing = f"listing:{doc.name}"
 	store = f"store:{doc.seller_profile}"
-	tuples = [(listing, "store_link", store)]
+	# OpenFGA yön: `store_link` LISTING üzerinde tanımlı ([store]) → tuple
+	# (user=store, relation=store_link, object=listing). Ters yön (listing,
+	# store_link, store) OpenFGA'da GEÇERSİZ (store'da store_link relation'ı yok).
+	tuples = [(store, "store_link", listing)]
 	owner = frappe.db.get_value("Admin Seller Profile", doc.seller_profile, "user")
 	if owner:
 		tuples.extend(_owner_field_tuples(doc.name, owner))
@@ -354,10 +357,11 @@ def on_listing_update(doc, method=None) -> None:
 	if old_store == new_store:
 		return
 	listing = f"listing:{doc.name}"
+	# Yön: (user=store, store_link, object=listing) — bkz. on_listing_insert notu.
 	if old_store:
-		_enqueue_delete([(listing, "store_link", f"store:{old_store}")])
+		_enqueue_delete([(f"store:{old_store}", "store_link", listing)])
 	if new_store:
-		_enqueue_write([(listing, "store_link", f"store:{new_store}")])
+		_enqueue_write([(f"store:{new_store}", "store_link", listing)])
 
 
 def on_listing_trash(doc, method=None) -> None:
@@ -366,7 +370,8 @@ def on_listing_trash(doc, method=None) -> None:
 		return
 	listing = f"listing:{doc.name}"
 	store = f"store:{doc.seller_profile}"
-	tuples = [(listing, "store_link", store)]
+	# Yön: (user=store, store_link, object=listing) — bkz. on_listing_insert notu.
+	tuples = [(store, "store_link", listing)]
 	owner = frappe.db.get_value("Admin Seller Profile", doc.seller_profile, "user")
 	if owner:
 		tuples.extend(_owner_field_tuples(doc.name, owner))
@@ -407,23 +412,47 @@ def revoke_field_access(user: str, listing_name: str, part: str, relation: str =
 # ---------------------------------------------------------------------------
 
 
+def _order_buyer_tuples(order_name: str, buyer_user: str | None) -> list[tuple[str, str, str]]:
+	"""Order alıcı-tarafı tuple'ları: direkt buyer + buyer'ın organizasyonu.
+
+	RBAC eşleniği (order_has_permission): buyer kendi order'ını görür + buyer ile
+	AYNI organizasyondaki kullanıcılar görür. ReBAC karşılığı:
+	  - (user:buyer, buyer, order)               → buyer kendi order'ını görür
+	  - (buyer_org:<org>, buyer_org_link, order) → aynı org üyeleri (member from
+	    buyer_org_link) + org rolleri (admin/finance/approver/viewer) görür
+
+	NOT: Order'da `buyer_organization` alanı YOK — sadece `buyer` (user). Org,
+	User.tradehub_parent_organization'dan çözülür. Yön: (user=<subject>, rel, order).
+	"""
+	if not buyer_user:
+		return []
+	order = f"order:{order_name}"
+	tuples = [(f"user:{buyer_user}", "buyer", order)]
+	org = frappe.db.get_value("User", buyer_user, "tradehub_parent_organization")
+	if org:
+		tuples.append((f"buyer_org:{org}", "buyer_org_link", order))
+	return tuples
+
+
 def on_order_insert(doc, method=None) -> None:
-	"""Order after_insert → store + buyer_org + requisitioner tuple'ları."""
+	"""Order after_insert → store + buyer + buyer_org + requisitioner tuple'ları."""
 	tuples: list[tuple[str, str, str]] = []
 	order = f"order:{doc.name}"
 
-	if doc.get("seller_profile"):
-		tuples.append((order, "store_link", f"store:{doc.seller_profile}"))
+	# Order.seller = Admin Seller Profile.name (SEL-XXXXX). `seller_profile` alanı
+	# Order'da YOK — RBAC katmanı (order_has_permission) da `seller` kullanır.
+	# OpenFGA yön: store_link/buyer_org_link/requisitioner ORDER üzerinde tanımlı
+	# → tuple (user=<subject>, relation, object=order). Ters yön OpenFGA'da geçersiz.
+	if doc.get("seller"):
+		tuples.append((f"store:{doc.seller}", "store_link", order))
 
-	# Buyer organization (varsa)
-	buyer_org = doc.get("buyer_organization") or doc.get("buyer_profile")
-	if buyer_org:
-		tuples.append((order, "buyer_org_link", f"buyer_org:{buyer_org}"))
+	# Alıcı tarafı — buyer + buyer'ın organizasyonu (Order.buyer'dan çözülür).
+	tuples.extend(_order_buyer_tuples(doc.name, doc.get("buyer")))
 
 	# Requisitioner (sipariş açan user)
 	created_by = doc.owner  # Frappe Document owner field
 	if created_by and created_by != "Administrator":
-		tuples.append((order, "requisitioner", f"user:{created_by}"))
+		tuples.append((f"user:{created_by}", "requisitioner", order))
 
 	_enqueue_write(tuples)
 
@@ -438,21 +467,24 @@ def on_order_update(doc, method=None) -> None:
 	stale: list[tuple[str, str, str]] = []
 	fresh: list[tuple[str, str, str]] = []
 
-	old_seller = before.get("seller_profile")
-	new_seller = doc.get("seller_profile")
+	# Yön: (user=<subject>, relation, object=order) — bkz. on_order_insert notu.
+	old_seller = before.get("seller")
+	new_seller = doc.get("seller")
 	if old_seller != new_seller:
 		if old_seller:
-			stale.append((order, "store_link", f"store:{old_seller}"))
+			stale.append((f"store:{old_seller}", "store_link", order))
 		if new_seller:
-			fresh.append((order, "store_link", f"store:{new_seller}"))
+			fresh.append((f"store:{new_seller}", "store_link", order))
 
-	old_bo = before.get("buyer_organization") or before.get("buyer_profile")
-	new_bo = doc.get("buyer_organization") or doc.get("buyer_profile")
-	if old_bo != new_bo:
-		if old_bo:
-			stale.append((order, "buyer_org_link", f"buyer_org:{old_bo}"))
-		if new_bo:
-			fresh.append((order, "buyer_org_link", f"buyer_org:{new_bo}"))
+	# Alıcı değişimi — Order.buyer değişince eski buyer + buyer_org linklerini
+	# sil, yenilerini yaz (buyer'ın org'u User.tradehub_parent_organization'dan).
+	old_buyer = before.get("buyer")
+	new_buyer = doc.get("buyer")
+	if old_buyer != new_buyer:
+		if old_buyer:
+			stale.extend(_order_buyer_tuples(doc.name, old_buyer))
+		if new_buyer:
+			fresh.extend(_order_buyer_tuples(doc.name, new_buyer))
 
 	if stale:
 		_enqueue_delete(stale)
@@ -465,15 +497,15 @@ def on_order_trash(doc, method=None) -> None:
 	order = f"order:{doc.name}"
 	tuples: list[tuple[str, str, str]] = []
 
-	if doc.get("seller_profile"):
-		tuples.append((order, "store_link", f"store:{doc.seller_profile}"))
+	# Yön: (user=<subject>, relation, object=order) — bkz. on_order_insert notu.
+	if doc.get("seller"):
+		tuples.append((f"store:{doc.seller}", "store_link", order))
 
-	buyer_org = doc.get("buyer_organization") or doc.get("buyer_profile")
-	if buyer_org:
-		tuples.append((order, "buyer_org_link", f"buyer_org:{buyer_org}"))
+	# Alıcı tarafı — buyer + buyer org (Order.buyer'dan çözülür).
+	tuples.extend(_order_buyer_tuples(doc.name, doc.get("buyer")))
 
 	if doc.owner:
-		tuples.append((order, "requisitioner", f"user:{doc.owner}"))
+		tuples.append((f"user:{doc.owner}", "requisitioner", order))
 
 	_enqueue_delete(tuples)
 
@@ -516,3 +548,155 @@ def reconcile_users(limit: int = 100) -> dict:
 		except Exception as exc:  # noqa: BLE001
 			frappe.log_error(f"reconcile_user {u} failed: {exc}", "tuple_sync.reconcile")
 	return {"users": len(users), "tuples_written": total}
+
+
+# ---------------------------------------------------------------------------
+# Faz 3 — ReBAC enforce ÖNCESİ tam tuple backfill
+# ---------------------------------------------------------------------------
+# Event-driven sync (on_*_insert/update/trash) yalnız İLERİYE dönük çalışır.
+# `enforce` moduna geçmeden önce OpenFGA'da GEÇMİŞ veriye ait tuple'lar da
+# olmalı; yoksa enforce = mevcut tüm Listing/Order/Store için toplu DENY.
+# Bu modül tüm mevcut kayıtları OpenFGA'ya (idempotent) basar.
+#
+# Sözleşme: write-only (missing-grant self-heal). Stale/extra temizlik
+# drift_detection + owner-transfer event'lerinin işi. Idempotency
+# rebac_client.write_tuples per-tuple fallback'i (#C1) ile sağlanır. Config
+# yoksa (STORE_ID boş) hiç enqueue etmeden erken çıkar (binlerce no-op job'ı
+# önler).
+
+
+def _store_tuples(profile_name: str, owner_user: str | None) -> list[tuple[str, str, str]]:
+	"""Admin Seller Profile → Owner/member tuple'ları (on_admin_seller_profile_insert
+	ile aynı yapı)."""
+	if not owner_user:
+		return []
+	store = f"store:{profile_name}"
+	user = f"user:{owner_user}"
+	return [(user, "owner", store), (user, "member", store)]
+
+
+def _listing_tuples(listing_name: str, seller_profile: str | None) -> list[tuple[str, str, str]]:
+	"""Listing → store_link tuple'ı (on_listing_insert ile aynı yapı+yön).
+
+	OpenFGA yön: (user=store, store_link, object=listing).
+	"""
+	if not seller_profile:
+		return []
+	return [(f"store:{seller_profile}", "store_link", f"listing:{listing_name}")]
+
+
+def _order_tuples(order_name: str, seller: str | None) -> list[tuple[str, str, str]]:
+	"""Order → store_link tuple'ı (on_order_insert ile aynı yapı+yön).
+
+	NOT: Order'ın store alanı `seller` (Admin Seller Profile.name), `seller_profile`
+	DEĞİL. OpenFGA yön: (user=store, store_link, object=order).
+	"""
+	if not seller:
+		return []
+	return [(f"store:{seller}", "store_link", f"order:{order_name}")]
+
+
+def _is_rebac_configured() -> bool:
+	"""OpenFGA STORE_ID set mi? Değilse backfill anlamsız (write no-op)."""
+	try:
+		from tradehub_core.services import rebac_client
+
+		return bool(rebac_client._store_id())  # noqa: SLF001 — konfig kontrolü
+	except Exception:  # noqa: BLE001
+		return False
+
+
+def backfill(chunk_size: int = 200, dry_run: bool = False) -> dict:
+	"""Faz 3 — enforce öncesi tam tuple backfill.
+
+	Tüm mevcut Admin Seller Profile / User / Listing / Order kayıtlarının
+	beklenen tuple'larını üretip OpenFGA'ya chunk'lı ve idempotent yazar.
+
+	Args:
+	    chunk_size: Tek enqueue'da yazılacak tuple sayısı.
+	    dry_run: True ise yalnız sayar, OpenFGA'ya yazmaz (planlama için).
+
+	Returns:
+	    dict: her entity tipi için kayıt + tuple sayıları.
+
+	Kullanım:
+	    bench --site <site> execute \
+	        tradehub_core.services.tuple_sync.backfill
+	"""
+	if not dry_run and not _is_rebac_configured():
+		return {
+			"skipped": True,
+			"reason": "REBAC_STORE_ID boş — önce `make rebac-model-deploy`.",
+		}
+
+	counts = {"stores": 0, "users": 0, "listings": 0, "orders": 0, "tuples": 0}
+	batch: list[tuple[str, str, str]] = []
+
+	def _flush() -> None:
+		if not batch:
+			return
+		if not dry_run:
+			_enqueue_write(list(batch))
+		counts["tuples"] += len(batch)
+		batch.clear()
+
+	def _add(tuples: list[tuple[str, str, str]]) -> None:
+		batch.extend(tuples)
+		if len(batch) >= chunk_size:
+			_flush()
+
+	def _has(doctype: str, column: str) -> bool:
+		"""Şema-drift koruması: kolon yoksa o entity backfill'ini atla (crash yerine)."""
+		try:
+			return bool(frappe.db.has_column(doctype, column))
+		except Exception:  # noqa: BLE001
+			return False
+
+	# 1) Store'lar (Admin Seller Profile) — owner/member.
+	if _has("Admin Seller Profile", "user"):
+		for row in frappe.get_all(
+			"Admin Seller Profile", fields=["name", "user"], limit_page_length=0
+		):
+			t = _store_tuples(row.name, row.get("user"))
+			if t:
+				counts["stores"] += 1
+				_add(t)
+
+	# 2) User'lar — seller/buyer tuple'ları (reconcile_user builder'ı ile aynı).
+	if _has("User", "tradehub_tenant"):
+		for uname in frappe.get_all("User", filters={"enabled": 1}, pluck="name") or []:
+			tenant = frappe.db.get_value("User", uname, "tradehub_tenant")
+			parent_org = frappe.db.get_value("User", uname, "tradehub_parent_organization")
+			t: list[tuple[str, str, str]] = []
+			if tenant:
+				t.extend(_user_tuples_for_seller(uname, tenant))
+			if parent_org:
+				t.extend(_user_tuples_for_buyer(uname, parent_org))
+			if t:
+				counts["users"] += 1
+				_add(t)
+
+	# 3) Listing'ler — store_link.
+	if _has("Listing", "seller_profile"):
+		for row in frappe.get_all(
+			"Listing", fields=["name", "seller_profile"], limit_page_length=0
+		):
+			t = _listing_tuples(row.name, row.get("seller_profile"))
+			if t:
+				counts["listings"] += 1
+				_add(t)
+
+	# 4) Order'lar — store_link (store alanı `seller`) + buyer/buyer_org.
+	if _has("Order", "seller"):
+		for row in frappe.get_all(
+			"Order", fields=["name", "seller", "buyer"], limit_page_length=0
+		):
+			t = _order_tuples(row.name, row.get("seller"))
+			t += _order_buyer_tuples(row.name, row.get("buyer"))
+			if t:
+				counts["orders"] += 1
+				_add(t)
+
+	_flush()
+	counts["dry_run"] = dry_run
+	return counts

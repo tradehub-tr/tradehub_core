@@ -284,11 +284,13 @@ def _build_abac_context(doctype: str, doc_name: str, relation: str) -> dict | No
 def _doctype_to_rebac(doctype: str) -> str | None:
 	# Sadece model.fga'da tanımlı tipler. RFQ/Quote tipi model'de YOK; ekleneceği
 	# zaman buraya eklenecek (bkz. model.fga `type rfq`/`quote`).
+	# NOT: Store Subscription buraya EKLENMEZ — model.fga'da `store_subscription`
+	# tipi yok; eklenirse OpenFGA 400 döner (#C4). Model'e tip eklenmeden map'e
+	# de eklenmemeli.
 	mapping = {
 		"Order Approval": "order_approval",
 		"Order": "order",
 		"Admin Seller Profile": "store",
-		"Store Subscription": "store_subscription",
 	}
 	return mapping.get(doctype)
 

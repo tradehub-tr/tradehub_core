@@ -50,7 +50,7 @@ type group
 #   (buyer_org:acme, admin, user:bora@acme.com)
 #   (buyer_org:acme, member, user:ahmet@acme.com)
 #   (buyer_org:acme, member, group:acme-istanbul#member)  ← grup birleşik
-#   (buyer_org:acme, requisitioner, user:ahmet@acme.com)
+#   (user:ahmet@acme.com, requisitioner, buyer_org:acme)
 #   (buyer_org:acme, approver_l1, user:can@acme.com)
 #   (buyer_org:acme, approver_l2, user:demet@acme.com)  ← CFO
 type buyer_org
@@ -105,7 +105,7 @@ type store
 # kullanılır.
 #
 # Tuple örnekleri:
-#   (listing:LIST-9821, store_link, store:anatolian)
+#   (store:anatolian, store_link, listing:LIST-9821)   # yön: user=store, object=listing
 #   (listing:LIST-9821, editor, user:burak@anatolian.com)
 type listing
   relations
@@ -151,9 +151,9 @@ type listing_field
 #   approver: onaylayan kişi (varsa, onay zinciri çıktısı)
 #
 # Tuple örnekleri:
-#   (order:ORD-9382, store_link, store:anatolian)
-#   (order:ORD-9382, buyer_org_link, buyer_org:acme)
-#   (order:ORD-9382, requisitioner, user:ahmet@acme.com)
+#   (store:anatolian, store_link, order:ORD-9382)       # yön: user=<subject>, object=order
+#   (buyer_org:acme, buyer_org_link, order:ORD-9382)
+#   (user:ahmet@acme.com, requisitioner, order:ORD-9382)
 #   (order:ORD-9382, approver, user:can@acme.com)
 type order
   relations
@@ -161,19 +161,30 @@ type order
     define buyer_org_link: [buyer_org]
     define requisitioner: [user]
     define approver: [user]
+    # Alıcı-tarafı: Order.buyer (user). tuple_sync buyer'ı + org'unu (buyer_org_link)
+    # yazar. RBAC eşleniği: buyer kendi order'ını + aynı org üyeleri görür.
+    define buyer: [user]
+    # #C6 — order → onay süreci instance'ı (order_approval). _sync_approval_tuples
+    # yazar: (order_approval:APP, approval, order:X). can_approve bunun üzerinden
+    # amount-gated çözülür.
+    define approval: [order_approval]
 
     # Türetilmiş: kim okuyabilir
     # - Satıcı tarafı: store sahibi/co-owner
-    # - Alıcı tarafı: requisitioner + approver + admin + finance + viewer
+    # - Alıcı tarafı: buyer + aynı org üyesi (member) + org rolleri (requisitioner/
+    #   approver/admin/finance/approver_l1/l2/viewer)
     # #C6 — viewer eklendi: buyer_org.can_view viewer'ı içerir; order görünürlüğü
     # onunla tutarlı olmalı (Buyer Viewer rolü org'u görüp order'ı göremiyordu).
-    define can_view: requisitioner or approver or owner from store_link or co_owner from store_link or admin from buyer_org_link or finance from buyer_org_link or approver_l1 from buyer_org_link or approver_l2 from buyer_org_link or viewer from buyer_org_link
+    # buyer-path — buyer + member eklendi: RBAC "buyer kendi + aynı org görür"
+    # kuralıyla ReBAC'i eşitle (aksi halde buyer kendi order'ını göremiyordu).
+    define can_view: buyer or requisitioner or approver or owner from store_link or co_owner from store_link or member from buyer_org_link or admin from buyer_org_link or finance from buyer_org_link or approver_l1 from buyer_org_link or approver_l2 from buyer_org_link or viewer from buyer_org_link
 
-    # Türetilmiş: kim onaylayabilir (COARSE capability — "approver mı?").
-    # #C6 — Amount-gating burada YOK; yetkili onay kararı order_approval.can_approve_l1/l2
-    # üzerinde (needs_approval_l1/l2 condition'ı ile) verilir. Bu relation'ı doğrudan
-    # enforce ETME; approval kararı için order_approval tipini kullan.
-    define can_approve: approver_l1 from buyer_org_link or approver_l2 from buyer_org_link
+    # Türetilmiş: kim onaylayabilir — AMOUNT-GATED (#C6 fix).
+    # Onay yetkisi order_approval'ın KOŞULLU can_approve_l1/l2'sinden gelir
+    # (needs_approval_l1: 500<amount<=5000; needs_approval_l2: amount>5000).
+    # Böylece L1 approver, limitini AŞAN bir order'ı onaylayamaz (eski coarse
+    # org-rol yerine amount-koşullu). check context={"amount": <EUR>} geçilmeli.
+    define can_approve: current_approver from approval
 
 
 # ----------------------------------------------------------------------------
@@ -183,7 +194,7 @@ type order
 # katmanın gerekli olduğu çözülür.
 #
 # Tuple örnekleri:
-#   (order_approval:ORD-9382-APP, target_order, order:ORD-9382)
+#   (order:ORD-9382, target_order, order_approval:ORD-9382-APP)   # yön: user=order, object=order_approval
 #   (order_approval:ORD-9382-APP, can_approve_l1, user:can@acme.com)
 #       with condition: needs_approval_l1(amount=7450)
 #   (order_approval:ORD-9382-APP, can_approve_l2, user:demet@acme.com)

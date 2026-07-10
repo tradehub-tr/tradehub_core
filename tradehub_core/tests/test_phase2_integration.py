@@ -269,7 +269,7 @@ class ConditionalTupleABACChainTests(unittest.TestCase):
 
 		# Approval workflow'un yazacağı tuple'lar
 		tuples = [
-			("order_approval:OA-1", "target_order", "order:ORD-1"),
+			("order:ORD-1", "target_order", "order_approval:OA-1"),
 			("user:can@acme.com", "can_approve_l1", "order_approval:OA-1", "needs_approval_l1"),
 			("user:demet@acme.com", "can_approve_l2", "order_approval:OA-1", "needs_approval_l2"),
 		]

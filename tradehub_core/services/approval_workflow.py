@@ -396,7 +396,15 @@ def _sync_approval_tuples(approval, rule) -> None:
 
 	oa_obj = f"order_approval:{approval.name}"
 	order_obj = f"order:{approval.order}"
-	tuples: list = [(oa_obj, "target_order", order_obj)]
+	# target_order: order_approval → order referansı. Model: order_approval üzerinde
+	# `define target_order: [order]` → doğru yön (user=order, object=order_approval).
+	# #C6 — `approval`: order → order_approval linki (order üzerinde `[order_approval]`
+	# → user=order_approval, object=order); order.can_approve bunun üzerinden
+	# order_approval'ın amount-gated can_approve_l1/l2'sine çözülür.
+	tuples: list = [
+		(order_obj, "target_order", oa_obj),
+		(oa_obj, "approval", order_obj),
+	]
 
 	try:
 		# L1 — condition'lı tuple (4-tuple: user, relation, object, condition_name)

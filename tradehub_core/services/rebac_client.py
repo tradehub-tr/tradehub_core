@@ -415,6 +415,15 @@ def _is_idempotency_error(err) -> bool:
 	return "already exist" in msg or "does not exist" in msg or "cannot delete" in msg
 
 
+def _safe_log(title: str, detail: str) -> None:
+	"""Crash-proof Error Log — başlık Frappe'nin 140-char limitine sığdırılır ve
+	logging hatası (uzun başlık vb.) tuple işlemini ASLA düşürmez."""
+	try:
+		frappe.log_error(message=str(detail)[:1000], title=str(title)[:120])
+	except Exception:  # noqa: BLE001 — logging enforcement/sync'i bozmamalı
+		pass
+
+
 def _send_tuple_op(op: str, tuple_keys: list, scope: str) -> bool:
 	"""#C1 — OpenFGA Write API transactional'dır: batch'teki TEK geçersiz tuple
 	(write'ta zaten var / delete'te mevcut değil) tüm batch'i 400 ile düşürür.
@@ -429,7 +438,7 @@ def _send_tuple_op(op: str, tuple_keys: list, scope: str) -> bool:
 		_call("POST", f"/stores/{store}/write", _tuple_op_payload(op, tuple_keys))
 		return True
 	except ReBACUnavailable as e:
-		frappe.log_error(f"ReBAC {scope} unavailable: {e}", f"rebac_client.{scope}")
+		_safe_log(f"rebac_client.{scope}", f"unavailable: {e}")
 		return False
 	except ReBACError:
 		ok = True
@@ -437,20 +446,17 @@ def _send_tuple_op(op: str, tuple_keys: list, scope: str) -> bool:
 			try:
 				_call("POST", f"/stores/{store}/write", _tuple_op_payload(op, [tk]))
 			except ReBACUnavailable as e:
-				frappe.log_error(f"ReBAC {scope} unavailable (per-tuple): {e}", f"rebac_client.{scope}")
+				_safe_log(f"rebac_client.{scope}", f"unavailable (per-tuple): {e}")
 				ok = False
 			except ReBACError as e:
 				if _is_idempotency_error(e):
-					frappe.log_error(
-						f"ReBAC {scope} tuple tolerated (idempotent): {tk}: {e}",
-						f"rebac_client.{scope}",
-					)
+					# Benign: tuple zaten var (write) / mevcut değil (delete). Backfill
+					# ve reconcile re-run'larında NORMAL — sessiz tolere et (eski kod
+					# Error Log'a yazıyordu → re-run'da spam + uzun-başlık crash'i).
+					pass
 				else:
 					# Gerçek hata (validation_error / invalid object) → YUTMA; başarısızlık say.
-					frappe.log_error(
-						f"ReBAC {scope} tuple FAILED (non-idempotent): {tk}: {e}",
-						f"rebac_client.{scope}",
-					)
+					_safe_log(f"rebac_client.{scope}", f"tuple FAILED (non-idempotent): {tk}: {e}")
 					ok = False
 		return ok
 

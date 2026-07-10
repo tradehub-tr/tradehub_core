@@ -348,8 +348,9 @@ def _check_subscription_active(user_tenant, doctype, ptype):
 	# Sadece subscription-bağlı doctype'ları gate'le
 	if doctype not in SUBSCRIPTION_GATED_DOCTYPES:
 		return True
-	# Sadece destructive op'ları gate'le (read serbest)
-	if ptype not in ("write", "submit", "create", "delete", "cancel"):
+	# Sadece destructive op'ları gate'le (read serbest). `amend` = write (submittable
+	# doctype'ta iptal-sonrası yeniden oluşturma) → dahil (#1.3 fix).
+	if ptype not in ("write", "submit", "create", "delete", "cancel", "amend"):
 		return True
 	# Tenant yok = ABAC scope dışı (owner/admin yolu zaten devreye girer)
 	if not user_tenant:
@@ -358,6 +359,20 @@ def _check_subscription_active(user_tenant, doctype, ptype):
 	from tradehub_core.entitlement import is_subscription_operational
 
 	return is_subscription_operational(user_tenant)
+
+
+# Doctype'lar arası tutar alan adları farklı: Order→`total`, diğerleri→amount/
+# grand_total/total_amount. Tek noktadan çıkar (F4/F5 fix: Order.total dahil).
+_AMOUNT_FIELDS = ("amount", "total", "grand_total", "total_amount", "subtotal")
+
+
+def _doc_amount(doc):
+	"""Doküman tutarını yaygın alan adlarından çıkar (dict veya Document)."""
+	for f in _AMOUNT_FIELDS:
+		val = doc.get(f) if isinstance(doc, dict) else getattr(doc, f, None)
+		if val:
+			return val
+	return None
 
 
 def _check_spending_limit(doc, user, ptype):
@@ -383,18 +398,12 @@ def _check_spending_limit(doc, user, ptype):
 	Returns:
 	    bool: True if within limits or approved, False if denied.
 	"""
-	if ptype not in ("write", "submit", "create"):
+	if ptype not in ("write", "submit", "create", "amend"):
 		return True
 
-	# Extract amount from document (check common amount field names)
-	if isinstance(doc, dict):
-		amount = doc.get("amount") or doc.get("total_amount") or doc.get("grand_total")
-	else:
-		amount = (
-			getattr(doc, "amount", None)
-			or getattr(doc, "total_amount", None)
-			or getattr(doc, "grand_total", None)
-		)
+	# Extract amount from document (paylaşılan çıkarıcı — Order'da `total`, diğer
+	# doctype'larda amount/grand_total/... F4 fix: Order.total dahil edildi).
+	amount = _doc_amount(doc)
 
 	if not amount:
 		return True
@@ -449,6 +458,154 @@ def _check_spending_limit(doc, user, ptype):
 		pass
 
 	return True
+
+
+# ---------------------------------------------------------------------------
+# ABAC deny-only enforcement overlay (#D1 fix)
+# ---------------------------------------------------------------------------
+# `has_tenant_permission` (yukarıda) KYC/AML/abonelik/harcama ABAC kapılarını
+# içeriyordu ama hooks.py'ye register EDİLMEMİŞTİ → ölü koddu. Frappe doctype
+# başına yalnız TEK has_permission handler'ına izin verdiği için, bu kapıları
+# kayıtlı per-doctype handler'lara *deny-only overlay* olarak bağlıyoruz.
+#
+# Sözleşme: ABAC yalnız DENY edebilir, asla GRANT etmez. Handler'lar kendi
+# allow mantığından ÖNCE şu deseni uygular:
+#
+#     if _abac_deny(doc, ptype, user, "Listing"):
+#         return False
+#
+# Her alt-check veri eksikse graceful pass-through (izin) yapar; deny yalnız
+# açık ihlalde döner (suspended subscription write, AML hit, financial doctype'a
+# KYC'siz erişim, harcama limiti aşımı).
+
+
+def _abac_deny(doc, ptype, user, doctype):
+	"""Deny-only ABAC overlay. DENY gerekiyorsa True, aksi halde False döner.
+
+	Args:
+	    doc: Kontrol edilen doküman (Document | dict | None).
+	    ptype: İzin tipi (read/write/create/submit/delete/cancel).
+	    user: Kullanıcı.
+	    doctype: DocType adı (handler kendi tipini bildiği için açıkça geçilir).
+
+	Returns:
+	    bool: True → ABAC bir kapıyı ihlal etti, erişim reddedilmeli.
+	          False → ABAC açısından engel yok (handler kendi kararını verir).
+	"""
+	# Satıcı mağaza kimliği — abonelik kapısı bunun üstünden çalışır. Satıcı
+	# değilse None döner ve _check_subscription_active pass-through yapar.
+	store = _get_seller_profile_name(user)
+
+	if not _check_kyc_verification(user, doctype):
+		return True
+	if not _check_aml_sanctions(user, doctype):
+		return True
+	if not _check_subscription_active(store, doctype, ptype):
+		return True
+	if ptype in ("write", "submit", "create") and not _check_spending_limit(doc, user, ptype):
+		return True
+	return False
+
+
+def _observe_shadow(doc, ptype, user, doctype, result):
+	"""Faz 5 — ReBAC shadow gözlemi: RBAC sonucunu ReBAC ile karşılaştır (config-gated
+	`rebac_shadow_observe`, varsayılan KAPALI). Kararı DEĞİŞTİRMEZ, fail-safe.
+	ReBAC-modellenmiş handler'lar (Listing/Order/Admin Seller Profile) sonuç-sonrası
+	çağırır → enforce öncesi burn-in verisi (divergence) toplanır."""
+	try:
+		from tradehub_core.authz import shadow
+
+		name = getattr(doc, "name", None) if not isinstance(doc, dict) else doc.get("name")
+		shadow.observe(user, doctype, name, ptype, bool(result))
+	except Exception:  # noqa: BLE001 — gözlem asla kararı bozmaz
+		pass
+
+
+def _apply_rebac(doc, ptype, user, doctype, rbac_result):
+	"""Faz 5 — ReBAC katmanı. ReBAC-modellenmiş handler'lar (Listing/Order/Admin
+	Seller Profile) RBAC kararından SONRA çağırır:
+
+	  - shadow modda: yalnız gözlem + divergence log (karar DEĞİŞMEZ).
+	  - enforce modda: RBAC ∪ ReBAC (union) — RBAC deny verdiyse ve ReBAC ilişki-
+	    temelli grant veriyorsa erişim AÇILIR (RBAC'ın vermediği grant eklenir).
+	    Yalnızca GENİŞLETİR (asla kısıtlamaz).
+
+	Güvenlik: her hata/erişilemezlik → RBAC kararı geçerli (fail-safe, lock-out yok).
+	`enforcement.is_enforced` kill-switch'e ve `rebac_enforcement` config'ine bakar.
+	"""
+	try:
+		from tradehub_core.authz import enforcement, pdp
+
+		name = getattr(doc, "name", None) if not isinstance(doc, dict) else doc.get("name")
+		if not name:
+			return rbac_result
+
+		if not enforcement.is_enforced(doctype):
+			# Shadow — yalnız gözlem, karar değişmez.
+			_observe_shadow(doc, ptype, user, doctype, rbac_result)
+			return rbac_result
+
+		# Enforce — RBAC zaten grant ettiyse ReBAC'a gerek yok.
+		if rbac_result:
+			return True
+		# GÜVENLİK: ABAC regülatif deny'i (suspended subscription / KYC / AML /
+		# harcama-limiti) ReBAC union ile AŞILAMAZ — hard floor. Union yalnız
+		# tenant/ownership kaynaklı RBAC-deny'ini genişletmeli; ilişki-grant'ı
+		# regülatif bir engeli açmamalı. Aksi halde askıya-alınmış abonelikli
+		# satıcı, bir ReBAC ilişkisi üzerinden yazma iznini geri kazanabilirdi.
+		if _abac_deny(doc, ptype, user, doctype):
+			return rbac_result
+		# RBAC deny (tenant/ownership) → ReBAC ilişki-grant'ı var mı?
+		verb = (ptype or "read").lower()
+		ctx = {}
+		# Amount-gated relation'lar (can_approve: needs_approval_l1/l2) EUR-normalize
+		# tutar ister. F2 fix: raw döviz tutarı DEĞİL, abac_context.amount_eur (FX +
+		# fail-closed sentinel). Yalnız onay-fiil'lerinde hesapla (read/write kullanmaz).
+		if verb in ("submit", "approve", "cancel"):
+			try:
+				from tradehub_core.services import abac_context
+
+				octx = abac_context.build_order_context(name)
+				if octx and octx.get("amount_eur") is not None:
+					ctx["amount_eur"] = octx["amount_eur"]
+			except Exception:  # noqa: BLE001 — fail-safe; amount yoksa condition fail-closed
+				pass
+			if "amount_eur" not in ctx:
+				amt = _doc_amount(doc)
+				if amt:
+					ctx["amount"] = amt
+		# F3 fix: enforce-grant HIGHER_CONSISTENCY ile — revoke/suspend sonrası stale
+		# ALLOW'u (new-enemy) önle (grant güvenlik-kritik, cache'den servis edilmemeli).
+		from tradehub_core.services import rebac_client as _rc
+
+		# F6 fix: request-scoped memo — aynı istekte (örn. liste render'ında)
+		# tekrarlı OpenFGA check'ini önle. frappe.local istek-başına temizlenir.
+		memo = getattr(frappe.local, "_rebac_enforce_memo", None)
+		if memo is None:
+			memo = frappe.local._rebac_enforce_memo = {}
+		mkey = (doctype, name, user, verb)
+		if mkey in memo:
+			decided = memo[mkey]
+		else:
+			decided = pdp._rebac_decide(user, verb, doctype, name, ctx, consistency=_rc.CONSISTENCY_HIGHER)
+			memo[mkey] = decided
+		if decided is True:
+			_log_enforce_grant(user, doctype, name, verb)
+			return True
+		return rbac_result
+	except Exception:  # noqa: BLE001 — ReBAC katmanı kararı ASLA bozmaz
+		return rbac_result
+
+
+def _log_enforce_grant(user, doctype, name, verb):
+	"""ReBAC enforce ile RBAC-deny → ALLOW yükseltmesini audit'le (kalıcı iz)."""
+	try:
+		frappe.log_error(
+			message=f"actor={user} action={doctype}.{verb} object={doctype}:{name} granted-by=rebac",
+			title="rebac.enforce_grant",
+		)
+	except Exception:  # noqa: BLE001
+		pass
 
 
 def setup_tenant_permission_query_conditions():
@@ -642,8 +799,18 @@ def listing_query_conditions(user):
 
 
 def listing_has_permission(doc, ptype, user):
+	# Faz 5 — thin wrapper: RBAC kararını _impl verir; sonra ReBAC katmanı
+	# (shadow: gözlem / enforce: union-grant). hooks.py bu adı register eder.
+	result = _listing_has_permission_impl(doc, ptype, user)
+	return _apply_rebac(doc, ptype, user, "Listing", result)
+
+
+def _listing_has_permission_impl(doc, ptype, user):
 	if user == "Administrator" or _is_platform_full_access(user, ptype):
 		return True
+	# #D1: ABAC deny-only overlay — suspended/canceled subscription write engeli.
+	if _abac_deny(doc, ptype, user, "Listing"):
+		return False
 	profile = _get_seller_profile_name(user)
 	if not profile:
 		return False
@@ -672,8 +839,16 @@ def admin_seller_profile_query_conditions(user):
 
 
 def admin_seller_profile_has_permission(doc, ptype, user):
+	result = _admin_seller_profile_has_permission_impl(doc, ptype, user)
+	return _apply_rebac(doc, ptype, user, "Admin Seller Profile", result)
+
+
+def _admin_seller_profile_has_permission_impl(doc, ptype, user):
 	if user == "Administrator" or _is_platform_full_access(user, ptype):
 		return True
+	# #D1: ABAC deny-only overlay — suspended/canceled subscription write engeli.
+	if _abac_deny(doc, ptype, user, "Admin Seller Profile"):
+		return False
 	profile = _get_seller_profile_name(user)
 	doc_name = getattr(doc, "name", None) if not isinstance(doc, dict) else doc.get("name")
 	return bool(profile and doc_name == profile)
@@ -697,11 +872,17 @@ def seller_balance_query_conditions(user):
 def seller_balance_has_permission(doc, ptype, user):
 	if user == "Administrator" or _is_platform_full_access(user, ptype):
 		return True
+	# #D1: ABAC deny-only overlay — Seller Balance FINANCIAL+AML doctype'ı; KYC
+	# doğrulanmamış veya AML/sanctions hit olan kullanıcı erişemez.
+	if _abac_deny(doc, ptype, user, "Seller Balance"):
+		return False
 	seller_val = getattr(doc, "seller", None) if not isinstance(doc, dict) else doc.get("seller")
 	# Sprint 2 (revised, 2026-05-15): seller artık Admin Seller Profile.name (SEL-XXXXX),
 	# user email değil. Kullanıcının kendi mağazasıyla eşleşmeli.
 	profile = _get_seller_profile_name(user)
-	return seller_val == profile
+	# #B1-sınıfı düzeltme: profile ve seller_val ikisi de None iken `None == None`
+	# → True (cross-tenant read) olmasını engelle; açıkça bool ve non-empty şart.
+	return bool(profile and seller_val == profile)
 
 
 # ── Seller Review ────────────────────────────────────────────────────────────
@@ -933,6 +1114,9 @@ def seller_category_query_conditions(user):
 def seller_category_has_permission(doc, ptype, user):
 	if user == "Administrator" or _is_platform_full_access(user, ptype):
 		return True
+	# #D1: ABAC deny-only overlay — suspended/canceled subscription write engeli.
+	if _abac_deny(doc, ptype, user, "Seller Category"):
+		return False
 	profile = _get_seller_profile_name(user)
 	seller_val = getattr(doc, "seller", None) if not isinstance(doc, dict) else doc.get("seller")
 	return bool(profile and seller_val == profile)
@@ -954,9 +1138,46 @@ def seller_gallery_image_query_conditions(user):
 def seller_gallery_image_has_permission(doc, ptype, user):
 	if user == "Administrator" or _is_platform_full_access(user, ptype):
 		return True
+	# #D1: ABAC deny-only overlay — suspended/canceled subscription write engeli.
+	if _abac_deny(doc, ptype, user, "Seller Gallery Image"):
+		return False
 	profile = _get_seller_profile_name(user)
 	parent_val = getattr(doc, "parent", None) if not isinstance(doc, dict) else doc.get("parent")
 	return bool(profile and parent_val == profile)
+
+
+# ── Seller/Listing Certification (child tables) ──────────────────────────────
+# #1.1 fix: ikisi de SUBSCRIPTION_GATED_DOCTYPES'te ama handler'ları yoktu →
+# suspended abonelikli satıcının bu doctype'larda subscription gate'i atlanıyordu.
+# Child table'lar normalde parent üzerinden yazılır (parent zaten gated) ama
+# tutarlılık + defense-in-depth için _abac_deny + parent-izolasyon ekliyoruz
+# (seller_gallery_image deseni).
+
+
+def seller_certification_has_permission(doc, ptype, user):
+	"""Seller Certification child table — parent = Admin Seller Profile.name (store)."""
+	if user == "Administrator" or _is_platform_full_access(user, ptype):
+		return True
+	if _abac_deny(doc, ptype, user, "Seller Certification"):
+		return False
+	profile = _get_seller_profile_name(user)
+	parent_val = getattr(doc, "parent", None) if not isinstance(doc, dict) else doc.get("parent")
+	return bool(profile and parent_val == profile)
+
+
+def listing_certification_has_permission(doc, ptype, user):
+	"""Listing Certification child table — parent = Listing.name; o listing'in
+	seller_profile'ı kullanıcının mağazasıyla eşleşmeli."""
+	if user == "Administrator" or _is_platform_full_access(user, ptype):
+		return True
+	if _abac_deny(doc, ptype, user, "Listing Certification"):
+		return False
+	profile = _get_seller_profile_name(user)
+	parent_val = getattr(doc, "parent", None) if not isinstance(doc, dict) else doc.get("parent")
+	if not (profile and parent_val):
+		return False
+	seller_of_listing = frappe.db.get_value("Listing", parent_val, "seller_profile")
+	return bool(seller_of_listing and seller_of_listing == profile)
 
 
 # ── KYB Verification ─────────────────────────────────────────────────────────
@@ -1010,10 +1231,18 @@ def order_query_conditions(user):
 
 
 def order_has_permission(doc, ptype, user):
+	result = _order_has_permission_impl(doc, ptype, user)
+	return _apply_rebac(doc, ptype, user, "Order", result)
+
+
+def _order_has_permission_impl(doc, ptype, user):
 	if user == "Administrator" or _is_platform_full_access(user, ptype):
 		return True
 	if doc is None:
 		return True
+	# #D1: ABAC deny-only overlay — suspended/canceled subscription write engeli.
+	if _abac_deny(doc, ptype, user, "Order"):
+		return False
 
 	seller_val = _doc_field(doc, "seller")
 	buyer_val = _doc_field(doc, "buyer")
@@ -1050,6 +1279,9 @@ def seller_inquiry_query_conditions(user):
 def seller_inquiry_has_permission(doc, ptype, user):
 	if user == "Administrator" or _is_platform_full_access(user, ptype):
 		return True
+	# #D1: ABAC deny-only overlay — suspended/canceled subscription write engeli.
+	if _abac_deny(doc, ptype, user, "Seller Inquiry"):
+		return False
 	profile = _get_seller_profile_name(user)
 	seller_val = getattr(doc, "seller", None) if not isinstance(doc, dict) else doc.get("seller")
 	return bool(profile and seller_val == profile)

@@ -677,6 +677,8 @@ has_permission = {
 	"Trusted Reviewer Invitation": "tradehub_core.permissions.trusted_reviewer_invitation_has_permission",
 	"Seller Category": "tradehub_core.permissions.seller_category_has_permission",
 	"Seller Gallery Image": "tradehub_core.permissions.seller_gallery_image_has_permission",
+	"Seller Certification": "tradehub_core.permissions.seller_certification_has_permission",
+	"Listing Certification": "tradehub_core.permissions.listing_certification_has_permission",
 	"KYB Verification": "tradehub_core.permissions.kyb_verification_has_permission",
 	"Order": "tradehub_core.permissions.order_has_permission",
 	"Seller Inquiry": "tradehub_core.permissions.seller_inquiry_has_permission",

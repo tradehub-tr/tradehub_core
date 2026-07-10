@@ -52,6 +52,14 @@ def get_navigation(panel: str = "seller") -> dict:
 	if panel not in ("seller", "admin", "storefront", "shared"):
 		panel = "seller"
 
+	# #2.1 fix: `admin` paneli yalnız platform admin'lerine. Resolver fail-open
+	# (policy yoksa modül visible) olduğu için, aksi halde bir satıcı
+	# `panel=admin` çağırıp admin sidebar ağacını (modül/route/doctype) görebilir.
+	if panel == "admin":
+		roles = set(frappe.get_roles(frappe.session.user))
+		if not (roles & {"System Manager", "Administrator", "Marketplace Admin"}):
+			panel = "seller"
+
 	tree = get_navigation_tree(panel=panel)
 
 	sections: list[dict] = []
