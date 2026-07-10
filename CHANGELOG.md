@@ -1,3 +1,24 @@
+## [v1.8.0-alpha.5] - 2026-07-10 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(storefront): mobil PDP, chat, hero ve vitrin yenilemeleri eklendi (@ahmeetseker)
+  - Mobil ürün detay sayfası Alibaba tarzında yeniden tasarlandı: MediaViewer galerisi, OptionsSheet varyant seçimi, simetrik alt aksiyon barı; "Soru sor" QAModal'a bağlandı
+  - Chat: konuşma okundu işaretleme (unread rozet sıfırlama) ve mesaja gömülü ürün marker'ı eklendi; sabitlenen ürün konuşma-başına izole edildi
+  - Ana sayfa hero split yapıya geçirildi: Sarı İmza slider + En İyi Fırsatlar/RFQ yan paneli (HeroSidePanel)
+  - Size Özel Seçimler hero'su sahne + kanal şeridi + sparkline tasarımıyla yenilendi; Swiper/coverflow bağımlılığı ve mock veri dosyası kaldırıldı
+  - Paylaşılan ListingCard ve Pagination bileşenleri eklendi; Top Fırsatlar, Top Sıralama ve kategori grid'leri zengin karta geçirildi
+  - Kategori Vitrini'ne mock modu (?mock_cs=1) ve redesign uygulandı
+  - Siparişler: İadeler ve Değerlendirmeler sekmeleri yeniden tasarlandı; kullanılmayan kupon modülü silindi
+  - KYC, KYB ve Adresler sayfaları responsive iyileştirildi; KYB başvuru durumu Pending→Draft mantık hatası düzeltildi
+  - Buyer dashboard mobil düzeni düzeltildi (KYB banner, KPI grid, eksenler)
+  - Mobil menü drawer'ı TopBar'dan çıkarılıp MobileDashboardNav'a taşındı
+  - Mağaza başlığı rozet satırı sadeleştirildi; Tedarikçi sekmesi yalnız ikonlu kayıt satırlarına indirildi
+  - Auth sayfalarında beyaz iSTOC logosu kullanıldı
+  - chatPopup, ListingCard ve Pagination için testler eklendi; 4 dil dosyası güncellendi
+
+---
 ## [v1.8.0-alpha.4] - 2026-07-10 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
