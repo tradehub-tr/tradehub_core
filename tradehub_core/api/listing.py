@@ -3064,6 +3064,9 @@ def _format_listing_card(
 		),
 		"verified": supplier_verified,
 		"sellerKybVerified": seller_kyb_verified,
+		# Kartta marka adını satıcı mağazasına linklemek için — /magaza/<name>
+		# (Admin Seller Profile docname'i page_resolver.render_seller slug'ı olarak çözülür).
+		"supplierSlug": listing.get("seller_profile") or "",
 		"supplierYears": supplier_years,
 		"supplierCountry": supplier_country,
 		"rating": listing.get("average_rating", 0),

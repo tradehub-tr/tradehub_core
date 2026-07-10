@@ -2,6 +2,7 @@ import re
 
 import frappe
 from frappe import _
+from frappe.utils import getdate, nowdate
 
 from tradehub_core.api._input import safe_float
 from tradehub_core.api.rate_limit import rate_limit
@@ -362,6 +363,7 @@ def _verifications_by_seller(seller_profile_names: list) -> dict:
 	rows = frappe.db.sql(
 		"""
 		SELECT
+			sv.name AS verification_name,
 			sv.seller,
 			sv.inspection_date,
 			sv.document,
@@ -390,7 +392,14 @@ def _verifications_by_seller(seller_profile_names: list) -> dict:
 				"icon": row.icon or "",
 				"description": row.description or "",
 				"inspection_date": str(row.inspection_date) if row.inspection_date else "",
-				"document_url": row.document or "",
+				# Belge private File; ziyaretçi ham /private/files yolunu açamaz (403).
+				# Guest download endpoint'i Verified + süresi geçmemiş kontrolüyle servis eder.
+				"document_url": (
+					"/api/method/tradehub_core.api.seller.download_verification_document"
+					f"?verification={row.verification_name}"
+					if row.document
+					else ""
+				),
 			}
 		)
 	return result
@@ -413,6 +422,41 @@ def get_seller_verifications(seller_code: str) -> list:
 		return []
 	verifs = _verifications_by_seller([profile_name]).get(profile_name, [])
 	return verifs
+
+
+@frappe.whitelist(allow_guest=True)
+def download_verification_document(verification: str):
+	"""Public: Onaylı saha doğrulama (denetim) belgesini indir.
+
+	Belge private File olarak saklanır; yalnız status='Verified' + süresi
+	geçmemiş kayıtların belgesi bu endpoint üzerinden dışa açılır (mağaza
+	sayfası "Raporu indirin" + rozet tooltip'i). Pending/Rejected belge sızmaz.
+	"""
+	if not verification:
+		frappe.throw(_("Geçersiz parametre"))
+	row = frappe.db.get_value(
+		"Seller Verification",
+		verification,
+		["document", "status", "expiry_date"],
+		as_dict=True,
+	)
+	if (
+		not row
+		or not row.document
+		or row.status != "Verified"
+		or (row.expiry_date and getdate(row.expiry_date) < getdate(nowdate()))
+	):
+		frappe.throw(_("Belge bulunamadı"), frappe.DoesNotExistError)
+
+	file_name = frappe.db.get_value("File", {"file_url": row.document}, "name")
+	if not file_name:
+		frappe.throw(_("Belge bulunamadı"), frappe.DoesNotExistError)
+	# Private File izni guest'e kapalı; erişim kararını yukarıdaki
+	# Verified + expiry kontrolü veriyor, bu yüzden içerik doğrudan okunur.
+	file_doc = frappe.get_doc("File", file_name)
+	frappe.local.response.filename = file_doc.file_name
+	frappe.local.response.filecontent = file_doc.get_content()
+	frappe.local.response.type = "download"
 
 
 _MEDIA_CATEGORIES = (
@@ -903,11 +947,15 @@ def approve_seller_category(category_name, action="approve", reject_reason=""):
 
 # ── Satıcı Doğrulama (Seller Verification) Onay Kuyruğu ─────────────────
 
+VERIFICATION_STATUSES = ("Requested", "Scheduled", "Pending", "Verified", "Rejected")
+
 
 @frappe.whitelist()
-def list_pending_seller_verifications() -> dict:
-	"""Admin: Onay ve talep bekleyen Seller Verification kayıtlarını listele (N+1 yok).
+def list_pending_seller_verifications(status: str | None = None) -> dict:
+	"""Admin: Seller Verification kayıtlarını listele (N+1 yok).
 
+	status None → onay/talep bekleyenler (Requested/Scheduled/Pending) — eski davranış.
+	status "all" → tüm kayıtlar. Tek durum adı → yalnız o durum.
 	Dönüş {"data": [...], "total": N} — kardeş endpoint list_pending_seller_certs
 	ile aynı zarf; admin panel res.message.data bekler, düz liste boş görünür.
 	"""
@@ -917,10 +965,19 @@ def list_pending_seller_verifications() -> dict:
 	):
 		frappe.throw(_("Yetki hatası"), frappe.PermissionError)
 
+	if status and status != "all" and status not in VERIFICATION_STATUSES:
+		frappe.throw(_("Geçersiz durum filtresi."))
+	if not status:
+		status_filter = ["in", ["Requested", "Scheduled", "Pending"]]
+	elif status == "all":
+		status_filter = ["in", list(VERIFICATION_STATUSES)]
+	else:
+		status_filter = status
+
 	# System Manager/Administrator sistem işlemi — get_all ile perm bypass kasıtlı
 	rows = frappe.get_all(
 		"Seller Verification",
-		filters={"status": ["in", ["Requested", "Scheduled", "Pending"]]},
+		filters={"status": status_filter},
 		fields=[
 			"name",
 			"seller",
@@ -930,6 +987,7 @@ def list_pending_seller_verifications() -> dict:
 			"expiry_date",
 			"scheduled_date",
 			"request_note",
+			"admin_note",
 			"document",
 			"creation",
 		],
@@ -1034,6 +1092,51 @@ def reject_seller_verification(name: str | int, reason: str = "") -> dict:
 			}
 		).insert(ignore_permissions=True)
 
+	return {"ok": True, "name": doc.name, "status": doc.status}
+
+
+@frappe.whitelist(methods=["POST"])
+def update_seller_verification(
+	name: str | int,
+	source: str | None = None,
+	document: str | None = None,
+	inspection_date: str | None = None,
+	expiry_date: str | None = None,
+	scheduled_date: str | None = None,
+	admin_note: str | None = None,
+	status: str | None = None,
+) -> dict:
+	"""Superadmin: Seller Verification kaydının alanlarını düzenle (yanlış tarih vb.).
+
+	Yalnız gönderilen (None olmayan) alanlar yazılır; boş string alanı temizler.
+	seller alanı parametre olarak kabul edilmez — kayıt başka satıcıya taşınamaz.
+	doc.save() controller validate()'ini çalıştırır: duplicate kuralı (source
+	değişikliği aktif kayıtla çakışırsa engellenir) ve durum kuralları korunur.
+	"""
+	if frappe.session.user != "Administrator":
+		frappe.throw(_("Bu işlemi yalnızca Administrator yapabilir"), frappe.PermissionError)
+
+	doc = frappe.get_doc("Seller Verification", name)
+
+	if status is not None:
+		if status not in VERIFICATION_STATUSES:
+			frappe.throw(_("Geçersiz durum değeri."))
+		doc.status = status
+	if source is not None:
+		doc.source = source
+	if document is not None:
+		doc.document = document.strip() or None
+	if inspection_date is not None:
+		doc.inspection_date = inspection_date or None
+	if expiry_date is not None:
+		doc.expiry_date = expiry_date or None
+	if scheduled_date is not None:
+		doc.scheduled_date = scheduled_date or None
+	if admin_note is not None:
+		doc.admin_note = admin_note.strip() or None
+
+	doc.save(ignore_permissions=True)  # Administrator sistem işlemi
+	frappe.db.commit()
 	return {"ok": True, "name": doc.name, "status": doc.status}
 
 

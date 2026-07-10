@@ -10,17 +10,35 @@ class SellerVerification(Document):
 		self._enforce_status_rule()
 
 	def _check_duplicate(self):
-		"""Aynı (seller, source) çifti ikinci kez eklenememeli."""
+		"""Aynı (seller, source) çifti için yalnız bir AKTİF kayıt olabilir.
+
+		Engelleyici: Requested/Scheduled/Pending veya süresi geçmemiş Verified.
+		Rejected ve süresi dolmuş Verified yeni kaydı ENGELLEMEZ — red sonrası
+		yeniden başvuru ve süre dolunca yenileme bu sayede mümkün.
+		"""
 		if not self.seller or not self.source:
 			return
 		filters = {"seller": self.seller, "source": self.source}
 		if not self.is_new():
 			filters["name"] = ["!=", self.name]
-		if frappe.db.exists("Seller Verification", filters):
-			frappe.throw(
-				_("Bu satıcı için bu doğrulama kaynağı zaten kayıtlı."),
-				frappe.DuplicateEntryError,
-			)
+		# Koşul (status + expiry birleşimi) dict-filter ile ifade edilemiyor;
+		# satıcı+kaynak başına birkaç kayıt olduğundan Python'da değerlendirilir.
+		rows = frappe.get_all(
+			"Seller Verification", filters=filters, fields=["status", "expiry_date"]
+		)
+		bugun = frappe.utils.getdate()
+		for row in rows:
+			if row.status in ("Requested", "Scheduled", "Pending"):
+				engelleyici = True
+			elif row.status == "Verified":
+				engelleyici = not row.expiry_date or frappe.utils.getdate(row.expiry_date) >= bugun
+			else:  # Rejected
+				engelleyici = False
+			if engelleyici:
+				frappe.throw(
+					_("Bu kaynak için zaten aktif bir başvurunuz veya geçerli bir doğrulamanız var."),
+					frappe.DuplicateEntryError,
+				)
 
 	def _enforce_status_rule(self):
 		"""Durum geçiş kuralları.

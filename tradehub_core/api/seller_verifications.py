@@ -170,7 +170,7 @@ def create_my_verification(
 		frappe.db.commit()
 	except frappe.DuplicateEntryError:
 		# controller._check_duplicate bu hatayı fırlatır
-		frappe.throw(_("Bu kaynak için zaten bir başvurunuz var."))
+		frappe.throw(_("Bu kaynak için zaten aktif bir başvurunuz veya geçerli bir doğrulamanız var."))
 	except frappe.ValidationError:
 		raise
 	except Exception:
@@ -213,7 +213,7 @@ def request_my_verification(source: str, request_note: str | None = None) -> dic
 		doc.insert(ignore_permissions=True)
 		frappe.db.commit()
 	except frappe.DuplicateEntryError:
-		frappe.throw(_("Bu kaynak için zaten bir başvurunuz var."))
+		frappe.throw(_("Bu kaynak için zaten aktif bir başvurunuz veya geçerli bir doğrulamanız var."))
 	except frappe.ValidationError:
 		raise
 	except Exception:
