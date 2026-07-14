@@ -136,8 +136,8 @@
 			"fieldname": "color_preset",
 			"fieldtype": "Select",
 			"label": "Renk",
-			"options": "violet\nblue\nemerald\namber\nrose\nindigo\nteal\norange\ngray",
-			"default": "violet",
+			"options": "brand\nviolet\nblue\nemerald\namber\nrose\nindigo\nteal\norange\ngray",
+			"default": "brand",
 			"description": "Renk paletinden tek tıkla seçin. Arka plan + renk class'ları otomatik oluşturulur."
 		},
 		{
