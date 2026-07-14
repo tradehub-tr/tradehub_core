@@ -1,3 +1,23 @@
+## [v1.8.0-alpha.6] - 2026-07-14 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(storefront): bilgi sayfaları redesign'ı ve değerlendirme akışı tamamlandı (@ahmeetseker)
+  - Yardım merkezi 3 sayfada V2.5 Split İstatistik düzenine geçirildi
+  - Satış sonrası hizmetler sayfası "Taşan Kartlar" (5D) ile yenilendi
+  - İade politikası bindirmeli kart (D) varyantıyla yeniden tasarlandı
+  - Trade Assurance sayfası Varyant 1 ile yenilendi, videolar Vite import'una alındı
+  - Satıcı Ol sayfası mobilde Sade Akış (TrustStrip + accordion + sticky CTA) oldu
+  - Kargo ifadeleri Sevkiyat'a dönüştürüldü, Ambar ve Liman kartları eklendi
+  - Değerlendirmelerim sekmesi bekleyen/yayınlanan yorum API'lerine bağlandı
+  - PDP breadcrumb'ındaki kategoriler listeleme sayfasına link oldu
+  - Native select'ler için paylaşılan SelectMenu enhancer'ı eklendi
+  - Favoriler filtreleri mobilde bottom sheet olarak açılır oldu
+  - Ayarlar profil kartı grid tabanlı V4 düzenine geçirildi
+  - Kullanılmayan avif görseller, perf raporları ve eski task dokümanları silindi
+
+---
 ## [v1.8.0-alpha.5] - 2026-07-10 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
