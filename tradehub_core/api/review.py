@@ -40,6 +40,16 @@ ASPECT_LISTING_CACHE = {
 	"documentation_rating": "documentation_avg",
 }
 
+# Sabit SQL fragment'i; değerler parametreli kaldığından injection yüzeyi değişmez.
+_PENDING_REVIEWS_FROM = """
+	FROM `tabOrder Item` oi
+	INNER JOIN `tabOrder` o ON o.name = oi.parent
+	LEFT JOIN `tabListing Review` lr ON lr.order_item = oi.name
+	WHERE o.buyer = %(user)s
+	  AND o.status = 'Tamamlandı'
+	  AND lr.name IS NULL
+"""
+
 
 # ---------------------------------------------------------------------------
 # Internal helpers
@@ -565,9 +575,10 @@ def get_listing_rating_summary(listing: str):
 
 @frappe.whitelist()
 def get_my_pending_reviews(page: int = 1, page_size: int = 10):
-	"""Buyer endpoint — teslim alınmış ama henüz yorum yapılmamış order item'lar.
+	"""Buyer endpoint — tamamlanan siparişlerde henüz yorum yapılmamış order item'lar.
 
-	Order.status in ('Tamamlandı', 'Kargoda') ve Order Item.has_review=0.
+	Bekleyen değerlendirme kuyruğu yalnız tamamlanan siparişleri gösterir;
+	PDP değerlendirme uygunluğu ayrı ve daha geniş kalır.
 	"""
 	_ensure_logged_in()
 	user = frappe.session.user
@@ -575,23 +586,18 @@ def get_my_pending_reviews(page: int = 1, page_size: int = 10):
 	page_size = min(50, max(1, cint(page_size)))
 	offset = (page - 1) * page_size
 
-	# Bench/SQL — Order ve Order Item join
+	# has_review yalnız Approved durumunda 1 olduğu için Pending yorumlu kalemler yeniden kuyruğa düşmemeli.
 	rows = frappe.db.sql(
-		"""
+		f"""
 		SELECT
 			oi.name AS order_item,
 			oi.listing AS listing,
-			oi.listing_title AS listing_title,
+			oi.listing_title AS product_name,
 			oi.image AS image,
 			oi.quantity AS quantity,
-			o.name AS `order`,
-			o.order_date AS order_date,
-			o.status AS order_status
-		FROM `tabOrder Item` oi
-		INNER JOIN `tabOrder` o ON o.name = oi.parent
-		WHERE o.buyer = %(user)s
-		  AND o.status IN ('Tamamlandı','Kargoda')
-		  AND COALESCE(oi.has_review, 0) = 0
+			o.name AS order_number,
+			o.order_date AS order_date
+		{_PENDING_REVIEWS_FROM}
 		ORDER BY o.order_date DESC, oi.idx ASC
 		LIMIT %(limit)s OFFSET %(offset)s
 		""",
@@ -599,18 +605,19 @@ def get_my_pending_reviews(page: int = 1, page_size: int = 10):
 		as_dict=True,
 	)
 	total = frappe.db.sql(
-		"""
+		f"""
 		SELECT COUNT(*) AS cnt
-		FROM `tabOrder Item` oi
-		INNER JOIN `tabOrder` o ON o.name = oi.parent
-		WHERE o.buyer = %(user)s
-		  AND o.status IN ('Tamamlandı','Kargoda')
-		  AND COALESCE(oi.has_review, 0) = 0
+		{_PENDING_REVIEWS_FROM}
 		""",
 		{"user": user},
 		as_dict=True,
 	)
-	return {"items": rows, "total": int(total[0].cnt) if total else 0}
+	return {
+		"items": rows,
+		"total": int(total[0].cnt) if total else 0,
+		"page": page,
+		"page_size": page_size,
+	}
 
 
 # ---------------------------------------------------------------------------

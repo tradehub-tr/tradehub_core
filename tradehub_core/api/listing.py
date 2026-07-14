@@ -378,16 +378,32 @@ def get_listings(
 	else:
 		filters = {"status": STOREFRONT_STATUS_FILTER, "is_visible": 1}
 
+	category_display_name = None
 	if category:
 		# category param is a url_slug from Product Category.
 		# Try to resolve it as a platform category first (url_slug lookup),
 		# then fall back to exact match on the seller category field.
-		platform_cat = frappe.db.get_value("Product Category", {"url_slug": category}, "name")
-		if platform_cat:
+		cat_row = frappe.db.get_value(
+			"Product Category",
+			{"url_slug": category},
+			[
+				"name",
+				"category_name",
+				"content_default_lang",
+				*[f"category_name_{lng}" for lng in CONTENT_LANGS],
+			],
+			as_dict=True,
+		)
+		if cat_row:
 			# Expand to the full subtree so "Tümünü Gör" on a parent category
 			# surfaces products attached to any descendant sub-category.
-			descendants = _get_category_descendants(platform_cat)
+			descendants = _get_category_descendants(cat_row.name)
 			filters["product_category"] = descendants[0] if len(descendants) == 1 else ["in", descendants]
+			# Mega menü client'ta 3 seviye — derin kategorilerde frontend slug'ı
+			# ada çözemez; görünen adı yanıtla birlikte döndürüyoruz.
+			category_display_name = resolve_content_field(
+				cat_row, "category_name", lang, cat_row.get("content_default_lang")
+			)
 		else:
 			# Fallback: treat as seller category name/id
 			filters["category"] = category
@@ -842,6 +858,7 @@ def get_listings(
 		"total_pages": max(1, -(-total // page_size)),  # ceil division
 		"has_next": (start + page_size) < total,
 		"has_prev": page > 1,
+		"category_name": category_display_name,
 	}
 
 	# ── Cache write ──
@@ -1011,7 +1028,9 @@ def get_listing_detail(listing_id, lang="tr"):
 				)
 
 	# Build category breadcrumb (prefer platform category, fallback to seller category)
-	category_breadcrumb = _get_category_breadcrumb(listing.product_category or listing.category, lang)
+	category_path = _get_category_breadcrumb(listing.product_category or listing.category, lang)
+	# `category` (isim listesi) eski clientlar için korunur; slug'lı hali categoryPath.
+	category_breadcrumb = [c["name"] for c in category_path]
 	category_ranks = _get_category_ranks(listing)
 
 	# Get images — primary_image + listing_images child table
@@ -1239,6 +1258,7 @@ def get_listing_detail(listing_id, lang="tr"):
 		"seo": seo_payload,
 		"title": _title,
 		"category": category_breadcrumb,
+		"categoryPath": category_path,
 		"productCategoryId": listing.product_category or "",
 		"images": images,
 		"priceTiers": price_tiers,
@@ -3596,9 +3616,11 @@ def _get_category_ranks(listing):
 
 
 def _get_category_breadcrumb(category_name, lang="tr"):
-	"""Build category breadcrumb path.
+	"""Build category breadcrumb path as [{"name": ..., "slug": ...}].
 
 	`lang`: kategori adları çok-dilli suffix kolonlarından istenen dile çözülür.
+	`slug`: Product Category.url_slug — frontend breadcrumb'ı kategori listeleme
+	sayfasına (`/pages/products.html?cat=<slug>`) bağlayabilsin diye eklendi.
 	"""
 	if not category_name:
 		return []
@@ -3614,6 +3636,7 @@ def _get_category_breadcrumb(category_name, lang="tr"):
 			current,
 			[
 				"category_name",
+				"url_slug",
 				"content_default_lang",
 				*[f"category_name_{lng}" for lng in CONTENT_LANGS],
 				"parent_product_category",
@@ -3623,8 +3646,11 @@ def _get_category_breadcrumb(category_name, lang="tr"):
 		if cat:
 			breadcrumb.insert(
 				0,
-				resolve_content_field(cat, "category_name", lang, cat.get("content_default_lang"))
-				or cat.category_name,
+				{
+					"name": resolve_content_field(cat, "category_name", lang, cat.get("content_default_lang"))
+					or cat.category_name,
+					"slug": cat.url_slug or "",
+				},
 			)
 			current = cat.parent_product_category
 		else:

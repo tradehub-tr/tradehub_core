@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import frappe
 from frappe import _
-from frappe.utils import cint
+from frappe.utils import cint, cstr
 
 from tradehub_core.api.rate_limit import rate_limit
 
@@ -216,6 +216,7 @@ def get_my_reviews(page: int = 1, page_size: int = 10):
 		fields=[
 			"name",
 			"listing",
+			"order_item",
 			"rating",
 			"title",
 			"body",
@@ -230,7 +231,31 @@ def get_my_reviews(page: int = 1, page_size: int = 10):
 		limit_start=(page - 1) * page_size,
 		limit_page_length=page_size,
 	)
+	order_item_names = list({r.order_item for r in rows if r.order_item})
+	order_item_snapshots = {}
+	if order_item_names:
+		# reviewer_user filtresi izolasyonu sağladığı ve child table'a permission-aware get_list uygulanamadığı için get_all kullanılır.
+		order_items = frappe.get_all(
+			"Order Item",
+			filters={"name": ["in", order_item_names]},
+			fields=["name", "listing_title", "image"],
+		)
+		# Numerik name'ler int dönebildiği için (ör. Order Item "4") anahtarlar cstr ile normalize edilir.
+		order_item_snapshots = {cstr(r.name): r for r in order_items}
+	for row in rows:
+		snapshot = order_item_snapshots.get(cstr(row.order_item))
+		row["product_name"] = snapshot.listing_title if snapshot else None
+		row["image"] = snapshot.image if snapshot else None
 	return {"reviews": rows, "total": total, "page": page, "page_size": page_size}
+
+
+@frappe.whitelist()
+@rate_limit(max_calls=30, window_seconds=60, scope="sf_my_pending_reviews")
+def get_my_pending_reviews(page: int = 1, page_size: int = 10):
+	"""Login'li buyer'ın bekleyen değerlendirme kalemlerini listeler."""
+	from tradehub_core.api.review import get_my_pending_reviews as _pending
+
+	return _pending(page=page, page_size=page_size)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

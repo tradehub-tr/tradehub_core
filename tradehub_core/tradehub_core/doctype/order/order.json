@@ -83,7 +83,8 @@
 			"fieldtype": "Link",
 			"label": "Alıcı",
 			"options": "User",
-			"reqd": 1
+			"reqd": 1,
+			"search_index": 1
 		},
 		{
 			"fieldname": "seller",
