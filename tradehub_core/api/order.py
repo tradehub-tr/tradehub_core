@@ -53,7 +53,20 @@ def _require_buyer():
 	return user
 
 
-def _translate_order(order):
+def _batch_fetch_seller_names(orders: list) -> dict:
+	"""Batch fetch seller names to avoid N+1 queries in _translate_order loop."""
+	seller_ids = {o.get("seller") for o in orders if o.get("seller")}
+	if not seller_ids:
+		return {}
+	rows = frappe.get_all(
+		"Admin Seller Profile",
+		filters={"name": ["in", list(seller_ids)]},
+		fields=["name", "seller_name"],
+	)
+	return {r.name: r.seller_name for r in rows}
+
+
+def _translate_order(order, seller_names_cache=None):
 	"""Order dict'indeki Türkçe status'u İngilizce'ye çevir ve eksik alanları ekle."""
 	tr_status = order.get("status", "")
 	en_status = STATUS_TR_TO_EN.get(tr_status, tr_status)
@@ -61,7 +74,10 @@ def _translate_order(order):
 	seller_name = ""
 	seller_id = order.get("seller")
 	if seller_id:
-		seller_name = frappe.db.get_value("Admin Seller Profile", seller_id, "seller_name") or seller_id
+		if seller_names_cache is not None:
+			seller_name = seller_names_cache.get(seller_id, seller_id)
+		else:
+			seller_name = frappe.db.get_value("Admin Seller Profile", seller_id, "seller_name") or seller_id
 
 	order["order_number"] = order.get("name", "")
 	order["seller_name"] = seller_name
@@ -136,6 +152,9 @@ def get_my_orders(
 
 	total = frappe.db.count("Order", filters=filters)
 
+	# ignore_permissions: buyer filtresi zaten uygulanmış — kullanıcı sadece kendi
+	# siparişlerini görür. permission_query_conditions aynı filtreyi tekrar uygular,
+	# burada bypass performans için yapılıyor.
 	orders = frappe.get_list(
 		"Order",
 		filters=filters,
@@ -182,8 +201,11 @@ def get_my_orders(
 				filtered.append(o)
 		orders = filtered
 
+	# Batch fetch seller names — N+1 sorguyu önler
+	seller_names_cache = _batch_fetch_seller_names(orders)
+
 	for order in orders:
-		_translate_order(order)
+		_translate_order(order, seller_names_cache)
 		order["items"] = frappe.get_all(
 			"Order Item",
 			filters={"parent": order["name"]},
@@ -424,6 +446,13 @@ def get_seller_bank_info(order_number):
 		if first_listing:
 			seller_code = frappe.db.get_value("Listing", first_listing, "seller_profile")
 
+	if not seller_code:
+		frappe.log_error(
+			f"Seller not found for order {order_number}",
+			"order.get_seller_bank_info",
+		)
+		return {"iban": "", "bank_name": "", "account_holder": "", "seller_name": ""}
+
 	seller_info = frappe.db.get_value(
 		"Admin Seller Profile",
 		seller_code,
@@ -517,10 +546,28 @@ def upload_receipt(order_number, file_name, file_data):
 	for f in old_files:
 		try:
 			frappe.delete_doc("File", f["name"], ignore_permissions=True, force=True)
-		except Exception:
-			pass  # Silinemeyen dosya varsa sessizce geç, yeni yüklemeyi engelleme
+		except Exception as e:
+			# Silinemeyen dosya varsa logla, yeni yüklemeyi engelleme
+			frappe.log_error(
+				f"Failed to delete old receipt file {f['name']}: {e}",
+				"order.upload_receipt",
+			)
+
+	# Dosya tipi doğrulaması — yalnızca görüntü ve PDF kabul edilir
+	ALLOWED_RECEIPT_EXTENSIONS = (".pdf", ".jpg", ".jpeg", ".png", ".webp")
+	file_ext = ("." + file_name.rsplit(".", 1)[-1]).lower() if "." in file_name else ""
+	if file_ext not in ALLOWED_RECEIPT_EXTENSIONS:
+		frappe.throw(
+			_("Desteklenmeyen dosya türü. Yalnızca PDF ve görsel dosyalar kabul edilir ({0}).").format(
+				", ".join(ALLOWED_RECEIPT_EXTENSIONS)
+			)
+		)
 
 	content = base64.b64decode(file_data)
+
+	# Dosya boyutu limiti: max 5MB
+	if len(content) > 5 * 1024 * 1024:
+		frappe.throw(_("Dosya boyutu 5MB'ı aşamaz."))
 
 	file_doc = frappe.get_doc(
 		{
@@ -530,7 +577,7 @@ def upload_receipt(order_number, file_name, file_data):
 			"attached_to_name": order_number,
 			"attached_to_field": "receipt_url",
 			"content": content,
-			"is_private": 0,
+			"is_private": 1,
 		}
 	)
 	file_doc.flags.ignore_permissions = True
@@ -709,8 +756,12 @@ def get_seller_orders(status=None, page=1, page_size=20):
 				severity=SEVERITY_LOW,
 				context={"masked_fields": masked_fields, "order_count": len(orders)},
 			)
-		except Exception:
-			pass
+		except Exception as e:
+			# PII maskeleme log hatası — güvenlik açısından maskeleme yine de uygulanır
+			frappe.log_error(
+				f"PII mask decision logging failed: {e}",
+				"seller_orders.pii_mask_log",
+			)
 
 	for order in orders:
 		tr_status = order.get("status", "")
@@ -1156,8 +1207,15 @@ def seller_handle_refund(order_number, action):
 	if order.refund_status != "Pending":
 		frappe.throw(_("No pending refund request for this order"))
 
+	# Atomik status güncelleme — concurrent refund approval race condition'ını önler.
+	# Sadece hâlâ "Pending" durumundaysa güncelle.
 	new_status = "Approved" if action == "approve" else "Rejected"
-	frappe.db.set_value("Order", order_number, "refund_status", new_status)
+	affected = frappe.db.sql(
+		"UPDATE `tabOrder` SET refund_status = %s WHERE name = %s AND refund_status = 'Pending'",
+		(new_status, order_number),
+	)
+	if frappe.db._cursor.rowcount == 0:
+		frappe.throw(_("Refund request already processed by another user"))
 
 	# İade Transaction status güncelle
 	from tradehub_core.api.payment import update_transaction_status

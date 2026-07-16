@@ -60,7 +60,7 @@ def _verify_bearer() -> dict:
 
 
 @frappe.whitelist(allow_guest=True)
-@rate_limit(max_calls=20, window_seconds=60, scope="oauth_token", per_user=False)
+@rate_limit(max_calls=5, window_seconds=60, scope="oauth_token", per_user=False)
 def token(grant_type: str, client_id: str, client_secret: str, scope: str = ""):
 	"""OAuth2 token endpoint (Client Credentials grant)."""
 	if grant_type != "client_credentials":

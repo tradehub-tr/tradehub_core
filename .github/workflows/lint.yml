@@ -24,3 +24,9 @@ jobs:
 
       - name: Run Ruff
         run: ruff check .
+
+      - name: Audit Python dependencies for vulnerabilities
+        run: |
+          pip install pip-audit
+          pip-audit -r requirements.txt
+        continue-on-error: true

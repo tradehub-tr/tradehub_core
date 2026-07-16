@@ -70,13 +70,17 @@ def _find_variant_item_row(listing_name, variation_label):
 def _update_variant_stock(listing_name, variation_label, qty_delta):
 	"""Update variant_stock on the matching Listing Variant Item row.
 	qty_delta is negative for deductions, positive for releases.
+
+	Atomik SQL UPDATE kullanır — concurrent worker'ların aynı satıra
+	eşzamanlı yazmasında check-then-act race condition'ını önler.
 	"""
 	row_name = _find_variant_item_row(listing_name, variation_label)
 	if not row_name:
 		return
-	current = flt(frappe.db.get_value("Listing Variant Item", row_name, "variant_stock"))
-	new_stock = max(0, current + qty_delta)
-	frappe.db.set_value("Listing Variant Item", row_name, "variant_stock", new_stock)
+	frappe.db.sql(
+		"UPDATE `tabListing Variant Item` SET variant_stock = GREATEST(0, COALESCE(variant_stock, 0) + %s) WHERE name = %s",
+		(qty_delta, row_name),
+	)
 
 
 def _lock_listing_row(listing_name):

@@ -53,6 +53,9 @@ def _require_buyer():
 def _backfill_missing_transactions_for_buyer(buyer):
 	"""Alıcının havale yaptığı ama Payment Transaction kaydı oluşmamış
 	siparişler için eksik kayıtları oluşturur. Idempotent."""
+	# ignore_permissions: backfill sistem işlemi — buyer zaten _require_buyer() ile doğrulanmış,
+	# Order doctype'ın permission_query_conditions'ı buyer filtresi uyguluyor ama
+	# burada ek status filtreleri nedeniyle get_list perm check'i gereksiz yük olur.
 	orders = frappe.get_list(
 		"Order",
 		filters={"buyer": buyer, "remittance_amount": [">", 0]},
@@ -71,6 +74,9 @@ def _backfill_missing_transactions_for_buyer(buyer):
 
 	created = 0
 	for order in orders:
+		# Idempotency: aynı order+type kombinasyonu için zaten transaction varsa atla.
+		# Race condition notu: concurrent çağrılarda duplicate mümkün ama
+		# create_payment_transaction içindeki DuplicateEntryError catch ile korunur.
 		if frappe.db.exists(
 			"Payment Transaction",
 			{"order": order.name, "transaction_type": "Ödeme"},
@@ -139,6 +145,8 @@ def get_recent_payments(page=1, page_size=10):
 
 	total = frappe.db.count("Payment Transaction", filters=filters)
 
+	# ignore_permissions: buyer filtresi zaten uygulanmış — kendi transaction'larını görür.
+	# Payment Transaction doctype'ın perm check'i ek maliyet; buyer=session.user ile izole.
 	transactions = frappe.get_list(
 		"Payment Transaction",
 		filters=filters,
@@ -702,6 +710,15 @@ def create_payment_transaction(
 	if not status:
 		status = "Beklemede" if transaction_type == "İade" else "Gönderildi"
 
+	# Idempotency: aynı order + transaction_type + buyer için zaten kayıt varsa tekrar oluşturma
+	existing_tx = frappe.db.get_value(
+		"Payment Transaction",
+		{"order": order_name, "transaction_type": transaction_type, "buyer": buyer},
+		"name",
+	)
+	if existing_tx:
+		return existing_tx
+
 	tx = frappe.new_doc("Payment Transaction")
 	tx.transaction_type = transaction_type
 	tx.order = order_name
@@ -720,7 +737,16 @@ def create_payment_transaction(
 	tx.receipt_url = receipt_url
 	tx.refund_reason = refund_reason
 	tx.flags.ignore_permissions = True
-	tx.insert(ignore_permissions=True)
+	try:
+		tx.insert(ignore_permissions=True)
+	except frappe.DuplicateEntryError:
+		# Race condition: başka bir request arada oluşturmuş
+		frappe.db.rollback()
+		return frappe.db.get_value(
+			"Payment Transaction",
+			{"order": order_name, "transaction_type": transaction_type, "buyer": buyer},
+			"name",
+		)
 
 	return tx.name
 
@@ -760,25 +786,25 @@ def upsert_bank_interaction(buyer, seller_code, amount, currency="TRY"):
 	)
 
 	if existing:
-		current = frappe.db.get_value(
-			"Buyer Bank Interaction",
-			existing,
-			["total_wire_amount", "pending_match_amount"],
-			as_dict=True,
-		)
-		new_total = float(current.total_wire_amount or 0) + float(amount)
-		new_pending = float(current.pending_match_amount or 0) + float(amount)
-		frappe.db.set_value(
-			"Buyer Bank Interaction",
-			existing,
-			{
-				"total_wire_amount": new_total,
-				"pending_match_amount": new_pending,
-				"last_transaction_date": now_datetime(),
-				"seller_iban": seller_info.iban or "",
-				"seller_bank_name": seller_info.bank_name or "",
-				"seller_account_holder": seller_info.account_holder or "",
-			},
+		# Atomik UPDATE — race condition'da concurrent worker'lar doğru toplam hesaplar
+		frappe.db.sql(
+			"""UPDATE `tabBuyer Bank Interaction`
+			   SET total_wire_amount = COALESCE(total_wire_amount, 0) + %s,
+			       pending_match_amount = COALESCE(pending_match_amount, 0) + %s,
+			       last_transaction_date = %s,
+			       seller_iban = %s,
+			       seller_bank_name = %s,
+			       seller_account_holder = %s
+			   WHERE name = %s""",
+			(
+				float(amount),
+				float(amount),
+				now_datetime(),
+				seller_info.iban or "",
+				seller_info.bank_name or "",
+				seller_info.account_holder or "",
+				existing,
+			),
 		)
 	else:
 		bi = frappe.new_doc("Buyer Bank Interaction")
@@ -794,7 +820,21 @@ def upsert_bank_interaction(buyer, seller_code, amount, currency="TRY"):
 		bi.last_transaction_date = now_datetime()
 		bi.match_status = "Beklemede"
 		bi.flags.ignore_permissions = True
-		bi.insert(ignore_permissions=True)
+		try:
+			bi.insert(ignore_permissions=True)
+		except frappe.DuplicateEntryError:
+			# Race condition: başka request aynı buyer+seller için oluşturmuş, UPDATE yap
+			frappe.db.rollback()
+			existing = frappe.db.get_value("Buyer Bank Interaction", {"buyer": buyer, "seller": seller_code}, "name")
+			if existing:
+				frappe.db.sql(
+					"""UPDATE `tabBuyer Bank Interaction`
+					   SET total_wire_amount = COALESCE(total_wire_amount, 0) + %s,
+					       pending_match_amount = COALESCE(pending_match_amount, 0) + %s,
+					       last_transaction_date = %s
+					   WHERE name = %s""",
+					(float(amount), float(amount), now_datetime(), existing),
+				)
 
 
 def update_bank_interaction_on_confirm(buyer, seller_code, amount):
