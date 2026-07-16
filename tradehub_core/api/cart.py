@@ -14,11 +14,6 @@ INSTANT_PAYMENT_METHODS = {"credit_card", "iyzico", "paytr", "stripe"}
 DEFERRED_PAYMENT_METHODS = {"bank_transfer", "check_promissory", "negotiated", "installment"}
 
 
-def _invalidate_cart_cache(_cart_name):
-	"""No-op: cache kaldırıldı. Listing status değiştiğinde stale data önlemek için."""
-	pass
-
-
 def _ensure_buyer_kyc_verified(user: str = ""):
 	"""Sprint 2.6 (revised): Alıcı KYC Verified olmadan sipariş veremez
 	(create_order gate'i — add_to_cart açık, kullanıcı her şeyi doldurabilsin).
@@ -89,11 +84,6 @@ def _ensure_seller_kyb_verified(seller_profile_name: str, listing_label: str = "
 				_("Bu satıcının KYB doğrulaması henüz tamamlanmadığı için ürün satın alınamaz."),
 				frappe.ValidationError,
 			)
-
-
-def _build_cart_response_cached(cart_name):
-	"""Cache kaldırıldı — her istek DB'den taze veri çeker."""
-	return _build_cart_response(cart_name)
 
 
 # ──────────────────────────── helpers ────────────────────────────────────────
@@ -321,7 +311,7 @@ def _recompute_order_items_server_side(products):
 			server_price = _get_variant_price_by_label(
 				listing_name, variant_label
 			) or _get_listing_effective_price(listing_doc)
-			if server_price is None or float(server_price) <= 0:
+			if server_price is None or float(server_price) < 0:
 				frappe.throw(_("Ürün fiyatı hesaplanamadı: {0}").format(listing_name))
 
 		unit_price = round(float(server_price), 2)
@@ -393,6 +383,10 @@ def _check_stock(listing_doc, listing_name, listing_variant, total_qty, variant_
 		label_stock = _get_variant_stock_by_label(listing_name, variant_label)
 		if label_stock is not None:
 			available = label_stock
+		else:
+			# Belirtilen varyant bulunamadı — base stock'a sessiz fallback tehlikeli,
+			# hata ver (olmayan varyant için sipariş oluşmasını engeller).
+			frappe.throw(_("Seçilen varyant bulunamadı: {0}").format(variant_label))
 
 	if available is None and listing_variant:
 		# 2) Gerçek Listing Variant doc'u
@@ -759,7 +753,7 @@ def get_cart():
 	if not cart_name:
 		return {"suppliers": []}
 
-	return _build_cart_response_cached(cart_name)
+	return _build_cart_response(cart_name)
 
 
 @frappe.whitelist()
@@ -984,8 +978,8 @@ def add_to_cart(
 		cart_doc.save(ignore_permissions=True)
 
 	frappe.db.commit()
-	_invalidate_cart_cache(cart_name)
-	return _build_cart_response_cached(cart_name)
+
+	return _build_cart_response(cart_name)
 
 
 @frappe.whitelist()
@@ -1033,7 +1027,7 @@ def update_cart_item(cart_item, quantity):
 	frappe.db.commit()
 	cart_name = frappe.db.get_value("Cart", {"buyer": user, "status": "Active"}, "name")
 	if cart_name:
-		_invalidate_cart_cache(cart_name)
+	
 	return {"success": True}
 
 
@@ -1047,7 +1041,7 @@ def remove_cart_item(cart_item):
 	cart_name = _verify_cart_item_owner(cart_item, user)
 	frappe.delete_doc("Cart Item", cart_item, ignore_permissions=True)
 	frappe.db.commit()
-	_invalidate_cart_cache(cart_name)
+
 	return {"success": True}
 
 
@@ -1064,7 +1058,7 @@ def clear_cart():
 
 	frappe.db.delete("Cart Item", {"parent": cart_name})
 	frappe.db.commit()
-	_invalidate_cart_cache(cart_name)
+
 	return {"success": True}
 
 
@@ -1171,8 +1165,8 @@ def merge_guest_cart(items):
 		cart_doc.save(ignore_permissions=True)
 
 	frappe.db.commit()
-	_invalidate_cart_cache(cart_name)
-	return _build_cart_response_cached(cart_name)
+
+	return _build_cart_response(cart_name)
 
 
 def _compute_server_coupon_discount(coupon_code: str | None, order_total: float) -> float:
@@ -1449,14 +1443,16 @@ def create_order(
 	if not created_orders:
 		frappe.throw(_("Hiçbir sipariş oluşturulamadı"))
 
-	# Kupon used_count artır — yalnızca gerçekten indirim uygulandıysa (C6 fix).
+	# Kupon used_count artır — yalnızca gerçekten indirim uygulandıysa + atomik UPDATE
 	if coupon_code and coupon_discount_val > 0:
 		coupon_name = frappe.db.get_value(
 			"Coupon", {"code": coupon_code.strip().upper(), "is_active": 1}, "name"
 		)
 		if coupon_name:
-			current_count = int(frappe.db.get_value("Coupon", coupon_name, "used_count") or 0)
-			frappe.db.set_value("Coupon", coupon_name, "used_count", current_count + 1)
+			frappe.db.sql(
+				"UPDATE `tabCoupon` SET used_count = COALESCE(used_count, 0) + 1 WHERE name = %s",
+				(coupon_name,),
+			)
 
 	# Sadece sipariş verilen ürünleri sepetten sil (diğer satıcıların ürünleri kalır)
 	cart_name = frappe.db.get_value("Cart", {"buyer": user, "status": "Active"}, "name")
