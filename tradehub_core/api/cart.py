@@ -4,6 +4,7 @@ import frappe
 from frappe import _
 
 from tradehub_core.api._input import safe_int
+from tradehub_core.api.rate_limit import rate_limit
 from tradehub_core.utils.auth_guards import require_verified_email
 from tradehub_core.utils.stock import deduct_stock_for_order, reserve_stock_for_order
 
@@ -1025,9 +1026,7 @@ def update_cart_item(cart_item, quantity):
 
 	frappe.db.set_value("Cart Item", cart_item, "quantity", qty)
 	frappe.db.commit()
-	cart_name = frappe.db.get_value("Cart", {"buyer": user, "status": "Active"}, "name")
-	if cart_name:
-	
+
 	return {"success": True}
 
 
@@ -1199,6 +1198,17 @@ def _compute_server_coupon_discount(coupon_code: str | None, order_total: float)
 	if float(coupon.min_order or 0) > 0 and order_total < float(coupon.min_order):
 		return 0.0
 
+	# F-024: Per-user kupon kullanım kontrolü — aynı kullanıcı aynı kuponu tekrar kullanamasın
+	current_user = frappe.session.user
+	if current_user and current_user != "Guest":
+		user_usage = frappe.db.count("Order", {
+			"buyer": current_user,
+			"coupon_code": str(coupon_code).strip().upper(),
+			"status": ["not in", ["İptal Edildi"]],
+		})
+		if user_usage > 0:
+			return 0.0
+
 	value = float(coupon.value or 0)
 	if str(coupon.coupon_type or "").lower().startswith("percent"):
 		discount = order_total * value / 100.0
@@ -1286,8 +1296,12 @@ def create_order(
 
 		# C7 fix — kargo ücreti client'tan gelir; negatif değer toplam'ı düşürmek için
 		# istismar edilebilir. Negatifi reddet (server-side tarife hesabı ayrı iş — bkz. rapor).
+		# F-023: Üst sınır kontrolü eklendi — sıfır kargo istismarını azaltır.
 		raw_shipping = float(o.get("shipping_fee", 0) or 0)
 		if raw_shipping < 0:
+			frappe.throw(_("Geçersiz kargo ücreti"), frappe.ValidationError)
+		_MAX_SHIPPING_FEE = 50000  # TRY — makul üst sınır (TODO: server-side tarife hesabı)
+		if raw_shipping > _MAX_SHIPPING_FEE:
 			frappe.throw(_("Geçersiz kargo ücreti"), frappe.ValidationError)
 		# Kargo, client'tan görüntüleme para biriminde geliyor; sipariş native
 		# para biriminde saklandığı için native'e çevir (tutar ile etiket uyumlu kalsın).
@@ -1489,9 +1503,11 @@ def get_orders(page=1, page_size=20):
 
 
 @frappe.whitelist(allow_guest=True)
+@rate_limit(max_calls=10, window_seconds=300, per_user=True)
 def validate_coupon(code, order_total=0):
 	"""
 	Kupon kodunu doğrular ve indirim bilgisini döndürür.
+	F-052: Rate limit eklendi (10/5dk). Guest brute-force'u engeller.
 	"""
 	if not code:
 		frappe.throw(_("Kupon kodu boş olamaz"))

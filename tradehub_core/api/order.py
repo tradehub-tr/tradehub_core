@@ -3,6 +3,7 @@ from frappe import _
 from frappe.utils import cint, getdate
 
 from tradehub_core.api._pagination import normalize_pagination
+from tradehub_core.api.cart import DEFERRED_PAYMENT_METHODS
 from tradehub_core.utils.auth_guards import require_verified_email
 from tradehub_core.utils.notify import notify
 from tradehub_core.utils.stock import deduct_stock_for_order, release_stock_for_order
@@ -46,10 +47,14 @@ FILTER_STATUS_MAP = {
 
 
 def _require_buyer():
-	"""Ensure user is logged in and return user email."""
+	"""Ensure user is logged in and active, return user email."""
 	user = frappe.session.user
 	if not user or user == "Guest":
 		frappe.throw(_("You must be logged in"), frappe.AuthenticationError)
+	# F-036: Defense-in-depth — devre dışı hesapların erişimini engelle
+	enabled = frappe.db.get_value("User", user, "enabled")
+	if not enabled:
+		frappe.throw(_("Hesabınız devre dışı bırakılmıştır."), frappe.AuthenticationError)
 	return user
 
 
@@ -272,9 +277,19 @@ def cancel_order(order_number, reason=None):
 
 	order = frappe.get_doc("Order", order_number)
 
-	if order.status in ("Tamamlandı", "İptal Edildi"):
+	# F-053/F-054: İptal edilemeyen durumları genişlet — kargodaki ve tamamlanan siparişler
+	_NON_CANCELLABLE = ("Tamamlandı", "İptal Edildi", "Kargoda")
+	if order.status in _NON_CANCELLABLE:
 		en_status = STATUS_TR_TO_EN.get(order.status, order.status)
 		frappe.throw(_("Cannot cancel an order with status: {0}").format(en_status))
+
+	# F-053: Pending refund varsa iptal engelle — çift stok iadesi riskini önler
+	refund_status = frappe.db.get_value("Order", order.name, "refund_status")
+	if refund_status == "Pending":
+		frappe.throw(
+			_("Bekleyen iade talebi olan sipariş iptal edilemez. Önce iade talebini çözümleyin."),
+			frappe.ValidationError,
+		)
 
 	# Stok yön kararını save'den ÖNCE yap — save sırasında trigger'lar
 	# stock_deducted flag'ini değiştirebilir.
@@ -435,9 +450,18 @@ def get_seller_bank_info(order_number):
 	"""Returns seller's IBAN and bank info for the given order."""
 	buyer = _require_buyer()
 
-	order = frappe.db.get_value("Order", {"name": order_number, "buyer": buyer}, ["seller"], as_dict=True)
+	order = frappe.db.get_value(
+		"Order", {"name": order_number, "buyer": buyer},
+		["seller", "status", "payment_method"], as_dict=True,
+	)
 	if not order:
 		frappe.throw(_("Order not found"), frappe.DoesNotExistError)
+
+	# F-050: IBAN yalnızca deferred payment yöntemi + aktif siparişlerde gösterilmeli
+	if order.status in ("İptal Edildi", "Tamamlandı"):
+		frappe.throw(_("Bu sipariş için banka bilgisi artık mevcut değil."), frappe.ValidationError)
+	if order.payment_method and order.payment_method not in DEFERRED_PAYMENT_METHODS:
+		frappe.throw(_("Bu sipariş için banka havalesi gerekmemektedir."), frappe.ValidationError)
 
 	seller_code = order.seller
 	# Fallback: if seller not set on order, derive it from the first listing item
@@ -604,8 +628,26 @@ def submit_remittance(
 	"""Buyer submits bank transfer proof — saves remittance details on order."""
 	buyer = _require_buyer()
 
-	if not frappe.db.exists("Order", {"name": order_number, "buyer": buyer}):
+	order_data = frappe.db.get_value(
+		"Order", {"name": order_number, "buyer": buyer},
+		["name", "status", "remittance_amount"], as_dict=True,
+	)
+	if not order_data:
 		frappe.throw(_("Order not found"), frappe.DoesNotExistError)
+
+	# F-025: Yalnızca "Ödeme Bekleniyor" durumundaki siparişler için havale kabul et
+	if order_data.status != "Ödeme Bekleniyor":
+		frappe.throw(
+			_("Havale yalnızca 'Ödeme Bekleniyor' durumundaki siparişler için gönderilebilir."),
+			frappe.ValidationError,
+		)
+
+	# F-008: Aynı sipariş için tekrar havale gönderimini engelle
+	if float(order_data.remittance_amount or 0) > 0:
+		frappe.throw(
+			_("Bu sipariş için zaten bir havale gönderilmiş."),
+			frappe.ValidationError,
+		)
 
 	order = frappe.get_doc("Order", order_number)
 
@@ -987,17 +1029,26 @@ def get_order_shipping_info(order_number: str) -> dict:
 
 def _generate_invoice_html(order, items, seller_name, buyer_name):
 	"""Generate a clean HTML invoice for an order."""
+	from markupsafe import escape
+
 	from frappe.utils import format_date
 
 	order_date = format_date(order.order_date) if order.order_date else ""
-	currency = order.currency or "USD"
+	currency = escape(order.currency or "USD")
+
+	# F-005: Tüm kullanıcı kontrollü değerler XSS önlemi için escape edilir.
+	seller_name = escape(seller_name or "")
+	buyer_name = escape(buyer_name or "")
+	order_name = escape(order.name or "")
 
 	rows = ""
 	for item in items:
+		title = escape(item.listing_title or "")
+		variation = escape(item.variation or "")
 		rows += f"""
         <tr>
-          <td style="padding:10px 12px;border-bottom:1px solid #f1f5f9;">{item.listing_title or ""}</td>
-          <td style="padding:10px 12px;border-bottom:1px solid #f1f5f9;color:#64748b;">{item.variation or ""}</td>
+          <td style="padding:10px 12px;border-bottom:1px solid #f1f5f9;">{title}</td>
+          <td style="padding:10px 12px;border-bottom:1px solid #f1f5f9;color:#64748b;">{variation}</td>
           <td style="padding:10px 12px;border-bottom:1px solid #f1f5f9;text-align:right;">{currency} {float(item.unit_price or 0):,.2f}</td>
           <td style="padding:10px 12px;border-bottom:1px solid #f1f5f9;text-align:center;">{int(item.quantity or 1)}</td>
           <td style="padding:10px 12px;border-bottom:1px solid #f1f5f9;text-align:right;font-weight:600;">{currency} {float(item.total_price or 0):,.2f}</td>
@@ -1007,7 +1058,7 @@ def _generate_invoice_html(order, items, seller_name, buyer_name):
 <html lang="tr">
 <head>
   <meta charset="UTF-8">
-  <title>Fatura — {order.name}</title>
+  <title>Fatura — {order_name}</title>
   <style>
     *{{box-sizing:border-box;margin:0;padding:0}}
     body{{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#1e293b;background:#f8fafc;padding:40px 20px}}
@@ -1041,7 +1092,7 @@ def _generate_invoice_html(order, items, seller_name, buyer_name):
         <div class="inv-num">Sipariş Faturası</div>
       </div>
       <div style="text-align:right">
-        <div style="font-size:22px;font-weight:700">{order.name}</div>
+        <div style="font-size:22px;font-weight:700">{order_name}</div>
         <div class="badge" style="margin-top:8px">Fatura</div>
       </div>
     </div>
@@ -1127,7 +1178,34 @@ def submit_refund_request(order_number, reason, amount=0):
 	if order.refund_status in ("Pending", "Approved"):
 		frappe.throw(_("Bu sipariş için zaten bir iade talebi mevcut"))
 
+	# F-056: Reddedilen iade sonrası yeniden gönderim limiti (maks 3 deneme)
+	_MAX_REFUND_ATTEMPTS = 3
+	past_refund_count = frappe.db.count("Payment Transaction", {
+		"order": order_number,
+		"transaction_type": "İade",
+	})
+	if past_refund_count >= _MAX_REFUND_ATTEMPTS:
+		frappe.throw(
+			_("Bu sipariş için maksimum iade talebi sayısına ({0}) ulaşıldı.").format(_MAX_REFUND_ATTEMPTS),
+			frappe.ValidationError,
+		)
+
 	refund_amount = float(amount or 0)
+
+	# F-006: İade tutarını sipariş toplamına karşı doğrula
+	if refund_amount <= 0:
+		frappe.throw(_("İade tutarı sıfırdan büyük olmalıdır."), frappe.ValidationError)
+	order_total = float(
+		frappe.db.get_value("Order", order_number, "grand_total")
+		or frappe.db.get_value("Order", order_number, "total")
+		or 0
+	)
+	if order_total > 0 and refund_amount > order_total:
+		frappe.throw(
+			_("İade tutarı sipariş toplamını ({0}) aşamaz.").format(f"{order_total:,.2f}"),
+			frappe.ValidationError,
+		)
+
 	frappe.db.set_value(
 		"Order",
 		order_number,

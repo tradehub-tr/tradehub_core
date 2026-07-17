@@ -32,19 +32,19 @@ def get_select_options(doctype: str):
 
 
 @frappe.whitelist(allow_guest=True, methods=["POST"])
-@rate_limit(limit=30, seconds=300)
+@rate_limit(limit=10, seconds=300)
 def check_email_exists(email: str):
 	"""Check whether an email is already registered as a User.
 
-	Returns exists=True and disabled=True if the user account was deactivated.
+	F-051: Rate limit sıkılaştırıldı (30→10/5dk). `disabled` bilgisi kaldırıldı —
+	hesap durumunu ifşa etmek phishing vektörü oluşturuyordu.
 	"""
 	email = (email or "").strip().lower()
-	user_data = frappe.db.get_value("User", email, ["name", "enabled"], as_dict=True)
+	user_data = frappe.db.get_value("User", email, ["name"], as_dict=True)
 	if not user_data:
-		return {"success": True, "exists": False, "disabled": False}
+		return {"success": True, "exists": False}
 
-	disabled = not user_data.enabled
-	return {"success": True, "exists": True, "disabled": disabled}
+	return {"success": True, "exists": True}
 
 
 @frappe.whitelist(allow_guest=True, methods=["GET"])

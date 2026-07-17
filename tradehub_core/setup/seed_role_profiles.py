@@ -75,10 +75,15 @@ def execute() -> dict:
 
 def reset_user_password(email: str, new_password: str = "Bora1234!") -> dict:
 	"""Hızlı: bir kullanıcının şifresini reset et (test için)."""
+	# F-010: Production guard
+	site_name = getattr(frappe.local, "site", "")
+	if site_name and not (site_name.endswith(".localhost") or site_name.endswith(".local")):
+		return {"error": "Bu fonksiyon yalnızca .localhost/.local sitelerde çalışabilir"}
 	if not frappe.db.exists("User", email):
 		return {"error": f"User {email} bulunamadı"}
 	from frappe.utils.password import update_password
 
 	update_password(email, new_password)
 	frappe.db.commit()
-	return {"ok": True, "user": email, "new_password": new_password}
+	# F-010: Şifreyi response'da döndürme
+	return {"ok": True, "user": email}

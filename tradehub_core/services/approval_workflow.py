@@ -444,7 +444,8 @@ def _log_tuple_sync_failure(approval_name: str, tuples: list, error: str) -> Non
 			},
 		)
 	except Exception:
-		pass
+		# F-016: Denetim kaydı yazma hatası sessizce yutulmamalı
+		frappe.log_error(title="Approval tuple sync log failed")
 
 
 def _notify_approvers(approval, approvers: list[str], level: int) -> None:
@@ -494,8 +495,8 @@ Onaylamak veya reddetmek için admin paneline gidin:
 				}
 			).insert(ignore_permissions=True)
 		except Exception:
-			# Platform Notification yoksa veya field mismatch → skip
-			pass
+			# F-016: Bildirim oluşturma hatası loglanmalı
+			frappe.log_error(title=f"Approval notification failed for {user}")
 
 
 def _sync_order_after_approval(approval, approved: bool) -> None:
@@ -535,7 +536,8 @@ def _log_approval_decision(approval, user: str, action: str, level: int, reason:
 			},
 		)
 	except Exception:
-		pass
+		# F-016: Audit log yazma hatası sessizce yutulmamalı
+		frappe.log_error(title="Approval decision audit log failed")
 
 
 def _log_admin_override(approval, admin_user: str, action: str, level: int, reason: str = "") -> None:
