@@ -1,3 +1,35 @@
+## [v1.9.0-alpha.2] - 2026-07-17 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Duzeltildi
+- fix(security): Faz 0-4 güvenlik denetim düzeltmeleri — 32 bulgu (@boraydeger32)
+  - Webhook imza doğrulaması fail-closed (F-002, F-007)
+  - Rate limiter Redis hatasında fail-closed (F-004)
+  - Fatura HTML XSS — markupsafe.escape ile koruma (F-005)
+  - Demo seed production guard + şifreler env variable'a (F-010)
+  - Debug dosyası (_dbg_chat.py) silindi (F-011)
+  - İade tutarı sipariş toplamına karşı doğrulanıyor (F-006)
+  - submit_remittance durum kontrolü + idempotency (F-008, F-025)
+  - Storefront layout IDOR — ownership alanı düzeltildi (F-012)
+  - cancel_order: Kargoda + pending refund engeli (F-053, F-054)
+  - İade yeniden gönderim limiti: maks 3 deneme (F-056)
+  - Kargo ücreti üst sınır kontrolü (F-023)
+  - Per-user kupon kullanım kontrolü (F-024)
+  - SQL injection: _safe_avg + data_retention whitelist (F-017)
+  - ECA webhook SSRF koruması + method whitelist (F-022)
+  - validate_coupon rate limit eklendi (F-052)
+  - Email enumeration: disabled bilgisi kaldırıldı (F-051)
+  - IBAN yalnızca deferred payment + aktif siparişlerde (F-050)
+  - _require_buyer: User.enabled kontrolü (F-036)
+  - Onay iş akışı sessiz except → log_error (F-016)
+  - Stale push subscription 410 Gone temizliği (F-059)
+  - PII reveal server-side audit endpoint (F-041)
+  - Guest inquiry spam koruması (F-034)
+  - Reservation race condition: FOR UPDATE (F-026)
+  - Payment race condition: atomik SQL (F-039)
+
+---
 ## [v1.9.0] - 2026-07-14 PROD
 
 Bu surum istoc.cronbi.com'da yayindadir.
