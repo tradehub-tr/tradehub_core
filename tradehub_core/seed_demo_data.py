@@ -27,8 +27,15 @@ from frappe.utils.password import update_password
 
 from tradehub_core.api.v1.auth import _generate_member_id
 
-DEMO_SELLER_PASSWORD = "Turksab2026!"
-DEMO_BUYER_PASSWORD = "Turksab2026!"
+# F-010: Production guard — demo seed yalnızca dev sitelerde çalışabilir
+_site_name = getattr(frappe.local, "site", "") if hasattr(frappe, "local") else ""
+if _site_name and not (_site_name.endswith(".localhost") or _site_name.endswith(".local")):
+	raise RuntimeError(
+		f"Demo seed yalnızca .localhost/.local sitelerde çalışabilir (current: {_site_name})"
+	)
+
+DEMO_SELLER_PASSWORD = os.environ.get("TH_DEMO_SELLER_PASSWORD", "Turksab2026!")
+DEMO_BUYER_PASSWORD = os.environ.get("TH_DEMO_BUYER_PASSWORD", "Turksab2026!")
 
 
 # ═══════════════════════════════════════════════════════════════

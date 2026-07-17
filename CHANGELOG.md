@@ -1,3 +1,173 @@
+## [v1.9.0-alpha.2] - 2026-07-17 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Duzeltildi
+- fix(security): Faz 0-4 güvenlik denetim düzeltmeleri — 32 bulgu (@boraydeger32)
+  - Webhook imza doğrulaması fail-closed (F-002, F-007)
+  - Rate limiter Redis hatasında fail-closed (F-004)
+  - Fatura HTML XSS — markupsafe.escape ile koruma (F-005)
+  - Demo seed production guard + şifreler env variable'a (F-010)
+  - Debug dosyası (_dbg_chat.py) silindi (F-011)
+  - İade tutarı sipariş toplamına karşı doğrulanıyor (F-006)
+  - submit_remittance durum kontrolü + idempotency (F-008, F-025)
+  - Storefront layout IDOR — ownership alanı düzeltildi (F-012)
+  - cancel_order: Kargoda + pending refund engeli (F-053, F-054)
+  - İade yeniden gönderim limiti: maks 3 deneme (F-056)
+  - Kargo ücreti üst sınır kontrolü (F-023)
+  - Per-user kupon kullanım kontrolü (F-024)
+  - SQL injection: _safe_avg + data_retention whitelist (F-017)
+  - ECA webhook SSRF koruması + method whitelist (F-022)
+  - validate_coupon rate limit eklendi (F-052)
+  - Email enumeration: disabled bilgisi kaldırıldı (F-051)
+  - IBAN yalnızca deferred payment + aktif siparişlerde (F-050)
+  - _require_buyer: User.enabled kontrolü (F-036)
+  - Onay iş akışı sessiz except → log_error (F-016)
+  - Stale push subscription 410 Gone temizliği (F-059)
+  - PII reveal server-side audit endpoint (F-041)
+  - Guest inquiry spam koruması (F-034)
+  - Reservation race condition: FOR UPDATE (F-026)
+  - Payment race condition: atomik SQL (F-039)
+
+---
+## [v1.9.0] - 2026-07-14 PROD
+
+Bu surum istoc.cronbi.com'da yayindadir.
+
+### Eklendi
+- feat(auth): alıcı ekip daveti için /davet-kabul route'u eklendi (@aliiball)
+- feat(authz): ReBAC'ı enforce'a al, ABAC kapılarını bağla, denetim açıklarını kapat (@boraydeger32)
+  - authz/shadow.py + permissions._apply_rebac: shadow gözlem / enforce union (RBAC ∪ ReBAC — yalnız genişletir, fail-safe, request-scoped memo).
+  - pdp._rebac_decide (saf karar) ↔ _rebac_reconcile (divergence log) ayrıldı.
+  - Order/Listing/Admin Seller Profile enforce (site_config).
+  - tuple_sync: store_link/order/buyer tuple YÖN hatası düzeltildi + backfill().
+- feat(storefront): mobil PDP, chat, hero ve vitrin yenilemeleri eklendi (@ahmeetseker)
+  - Mobil ürün detay sayfası Alibaba tarzında yeniden tasarlandı: MediaViewer galerisi, OptionsSheet varyant seçimi, simetrik alt aksiyon barı; "Soru sor" QAModal'a bağlandı
+  - Chat: konuşma okundu işaretleme (unread rozet sıfırlama) ve mesaja gömülü ürün marker'ı eklendi; sabitlenen ürün konuşma-başına izole edildi
+  - Ana sayfa hero split yapıya geçirildi: Sarı İmza slider + En İyi Fırsatlar/RFQ yan paneli (HeroSidePanel)
+  - Size Özel Seçimler hero'su sahne + kanal şeridi + sparkline tasarımıyla yenilendi; Swiper/coverflow bağımlılığı ve mock veri dosyası kaldırıldı
+  - Paylaşılan ListingCard ve Pagination bileşenleri eklendi; Top Fırsatlar, Top Sıralama ve kategori grid'leri zengin karta geçirildi
+  - Kategori Vitrini'ne mock modu (?mock_cs=1) ve redesign uygulandı
+  - Siparişler: İadeler ve Değerlendirmeler sekmeleri yeniden tasarlandı; kullanılmayan kupon modülü silindi
+  - KYC, KYB ve Adresler sayfaları responsive iyileştirildi; KYB başvuru durumu Pending→Draft mantık hatası düzeltildi
+  - Buyer dashboard mobil düzeni düzeltildi (KYB banner, KPI grid, eksenler)
+  - Mobil menü drawer'ı TopBar'dan çıkarılıp MobileDashboardNav'a taşındı
+  - Mağaza başlığı rozet satırı sadeleştirildi; Tedarikçi sekmesi yalnız ikonlu kayıt satırlarına indirildi
+  - Auth sayfalarında beyaz iSTOC logosu kullanıldı
+  - chatPopup, ListingCard ve Pagination için testler eklendi; 4 dil dosyası güncellendi
+- feat(storefront): bilgi sayfaları redesign'ı ve değerlendirme akışı tamamlandı (@ahmeetseker)
+  - Yardım merkezi 3 sayfada V2.5 Split İstatistik düzenine geçirildi
+  - Satış sonrası hizmetler sayfası "Taşan Kartlar" (5D) ile yenilendi
+  - İade politikası bindirmeli kart (D) varyantıyla yeniden tasarlandı
+  - Trade Assurance sayfası Varyant 1 ile yenilendi, videolar Vite import'una alındı
+  - Satıcı Ol sayfası mobilde Sade Akış (TrustStrip + accordion + sticky CTA) oldu
+  - Kargo ifadeleri Sevkiyat'a dönüştürüldü, Ambar ve Liman kartları eklendi
+  - Değerlendirmelerim sekmesi bekleyen/yayınlanan yorum API'lerine bağlandı
+  - PDP breadcrumb'ındaki kategoriler listeleme sayfasına link oldu
+  - Native select'ler için paylaşılan SelectMenu enhancer'ı eklendi
+  - Favoriler filtreleri mobilde bottom sheet olarak açılır oldu
+  - Ayarlar profil kartı grid tabanlı V4 düzenine geçirildi
+  - Kullanılmayan avif görseller, perf raporları ve eski task dokümanları silindi
+
+### Duzeltildi
+- fix(entitlement): wire plan feature matrix into capability_flags (dynamic gating) (@boraydeger32)
+  - Subscription Plan.validate() içinde _sync_entitlement_from_matrix(): pricing_features → capability_flags (feature.* bool) + quota_limits (quota.* int) MERGE. Matris satırı olan key güncellenir, olmayan korunur (veri kaybı yok). Yalnız Feature Catalog'ta tanımlı + deprecated-olmayan key işlenir (validasyon patlamasın).
+  - Saf, test-edilebilir merge_matrix_into_entitlement() + _quota_value_from_row() (Sınırsız→-1, dahil-değil→0, bozuk metin→koru).
+  - reconcile_all_plans(dry_run) — mevcut planları hizalayan geriye-dönük backfill.
+  - Cache: mevcut Subscription Plan.on_update hook'u zaten capabilities/quotas cache'ini flush ediyor → değişiklik anında etkili.
+- fix(auth): e-posta doğrulama/gönderim kilitlenmesi giderildi (@aliiball)
+  - sendmail çağrılarından communication=False kaldırıldı: Email Queue Link alanı "0"'a çevrilip flush'ta get_doc("Communication","0") ile çökerek now=False maillerini (doğrulama, e-posta değiştirme) kilitliyordu
+  - resend_verification_email OTP+now=False yerine link'li _create_email_verification (now=True) akışına çevrildi
+- fix(email): davet ve indirme linkleri storefront_url'e taşındı (@aliiball)
+  - get_url() backend host döndürüyordu; buyer_team daveti ve KVKK indirme linki artık storefront_url() (ortam-özel, restore-proof) kullanır
+- fix(rfq): RFQ oluşturmayı capability-tabanlı yetkilendirmeye çevirdi (@aliiball)
+  - create_rfq artık "Buyer" rolü yerine is_buyer (Buyer rolü VEYA can_buy) VEYA admin kontrol ediyor + doc.insert(ignore_permissions=True)
+  - Satıcı hesaplarında role_profile="Seller Full Access" User.save'de "Buyer" rolünü resetleyip siliyordu; can_buy=1 (KYC) hybrid satıcılar RFQ açamıyordu
+  - Kodun kendi is_buyer tanımıyla (auth.py) hizalandı; okuma/hook'lar değişmedi
+
+### Degistirildi
+- refactor(email): sistem e-posta şablonları Türkçe'ye çevrildi (@aliiball)
+
+---
+## [v1.8.0-rc.1] - 2026-07-14 RC
+
+Bu surum rcistoc.cronbi.com'da onay asamasindadir.
+
+### Eklendi
+- feat(auth): alıcı ekip daveti için /davet-kabul route'u eklendi (@aliiball)
+- feat(authz): ReBAC'ı enforce'a al, ABAC kapılarını bağla, denetim açıklarını kapat (@boraydeger32)
+  - authz/shadow.py + permissions._apply_rebac: shadow gözlem / enforce union (RBAC ∪ ReBAC — yalnız genişletir, fail-safe, request-scoped memo).
+  - pdp._rebac_decide (saf karar) ↔ _rebac_reconcile (divergence log) ayrıldı.
+  - Order/Listing/Admin Seller Profile enforce (site_config).
+  - tuple_sync: store_link/order/buyer tuple YÖN hatası düzeltildi + backfill().
+- feat(storefront): mobil PDP, chat, hero ve vitrin yenilemeleri eklendi (@ahmeetseker)
+  - Mobil ürün detay sayfası Alibaba tarzında yeniden tasarlandı: MediaViewer galerisi, OptionsSheet varyant seçimi, simetrik alt aksiyon barı; "Soru sor" QAModal'a bağlandı
+  - Chat: konuşma okundu işaretleme (unread rozet sıfırlama) ve mesaja gömülü ürün marker'ı eklendi; sabitlenen ürün konuşma-başına izole edildi
+  - Ana sayfa hero split yapıya geçirildi: Sarı İmza slider + En İyi Fırsatlar/RFQ yan paneli (HeroSidePanel)
+  - Size Özel Seçimler hero'su sahne + kanal şeridi + sparkline tasarımıyla yenilendi; Swiper/coverflow bağımlılığı ve mock veri dosyası kaldırıldı
+  - Paylaşılan ListingCard ve Pagination bileşenleri eklendi; Top Fırsatlar, Top Sıralama ve kategori grid'leri zengin karta geçirildi
+  - Kategori Vitrini'ne mock modu (?mock_cs=1) ve redesign uygulandı
+  - Siparişler: İadeler ve Değerlendirmeler sekmeleri yeniden tasarlandı; kullanılmayan kupon modülü silindi
+  - KYC, KYB ve Adresler sayfaları responsive iyileştirildi; KYB başvuru durumu Pending→Draft mantık hatası düzeltildi
+  - Buyer dashboard mobil düzeni düzeltildi (KYB banner, KPI grid, eksenler)
+  - Mobil menü drawer'ı TopBar'dan çıkarılıp MobileDashboardNav'a taşındı
+  - Mağaza başlığı rozet satırı sadeleştirildi; Tedarikçi sekmesi yalnız ikonlu kayıt satırlarına indirildi
+  - Auth sayfalarında beyaz iSTOC logosu kullanıldı
+  - chatPopup, ListingCard ve Pagination için testler eklendi; 4 dil dosyası güncellendi
+- feat(storefront): bilgi sayfaları redesign'ı ve değerlendirme akışı tamamlandı (@ahmeetseker)
+  - Yardım merkezi 3 sayfada V2.5 Split İstatistik düzenine geçirildi
+  - Satış sonrası hizmetler sayfası "Taşan Kartlar" (5D) ile yenilendi
+  - İade politikası bindirmeli kart (D) varyantıyla yeniden tasarlandı
+  - Trade Assurance sayfası Varyant 1 ile yenilendi, videolar Vite import'una alındı
+  - Satıcı Ol sayfası mobilde Sade Akış (TrustStrip + accordion + sticky CTA) oldu
+  - Kargo ifadeleri Sevkiyat'a dönüştürüldü, Ambar ve Liman kartları eklendi
+  - Değerlendirmelerim sekmesi bekleyen/yayınlanan yorum API'lerine bağlandı
+  - PDP breadcrumb'ındaki kategoriler listeleme sayfasına link oldu
+  - Native select'ler için paylaşılan SelectMenu enhancer'ı eklendi
+  - Favoriler filtreleri mobilde bottom sheet olarak açılır oldu
+  - Ayarlar profil kartı grid tabanlı V4 düzenine geçirildi
+  - Kullanılmayan avif görseller, perf raporları ve eski task dokümanları silindi
+
+### Duzeltildi
+- fix(entitlement): wire plan feature matrix into capability_flags (dynamic gating) (@boraydeger32)
+  - Subscription Plan.validate() içinde _sync_entitlement_from_matrix(): pricing_features → capability_flags (feature.* bool) + quota_limits (quota.* int) MERGE. Matris satırı olan key güncellenir, olmayan korunur (veri kaybı yok). Yalnız Feature Catalog'ta tanımlı + deprecated-olmayan key işlenir (validasyon patlamasın).
+  - Saf, test-edilebilir merge_matrix_into_entitlement() + _quota_value_from_row() (Sınırsız→-1, dahil-değil→0, bozuk metin→koru).
+  - reconcile_all_plans(dry_run) — mevcut planları hizalayan geriye-dönük backfill.
+  - Cache: mevcut Subscription Plan.on_update hook'u zaten capabilities/quotas cache'ini flush ediyor → değişiklik anında etkili.
+- fix(auth): e-posta doğrulama/gönderim kilitlenmesi giderildi (@aliiball)
+  - sendmail çağrılarından communication=False kaldırıldı: Email Queue Link alanı "0"'a çevrilip flush'ta get_doc("Communication","0") ile çökerek now=False maillerini (doğrulama, e-posta değiştirme) kilitliyordu
+  - resend_verification_email OTP+now=False yerine link'li _create_email_verification (now=True) akışına çevrildi
+- fix(email): davet ve indirme linkleri storefront_url'e taşındı (@aliiball)
+  - get_url() backend host döndürüyordu; buyer_team daveti ve KVKK indirme linki artık storefront_url() (ortam-özel, restore-proof) kullanır
+- fix(rfq): RFQ oluşturmayı capability-tabanlı yetkilendirmeye çevirdi (@aliiball)
+  - create_rfq artık "Buyer" rolü yerine is_buyer (Buyer rolü VEYA can_buy) VEYA admin kontrol ediyor + doc.insert(ignore_permissions=True)
+  - Satıcı hesaplarında role_profile="Seller Full Access" User.save'de "Buyer" rolünü resetleyip siliyordu; can_buy=1 (KYC) hybrid satıcılar RFQ açamıyordu
+  - Kodun kendi is_buyer tanımıyla (auth.py) hizalandı; okuma/hook'lar değişmedi
+
+### Degistirildi
+- refactor(email): sistem e-posta şablonları Türkçe'ye çevrildi (@aliiball)
+
+---
+## [v1.8.0-alpha.6] - 2026-07-14 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(storefront): bilgi sayfaları redesign'ı ve değerlendirme akışı tamamlandı (@ahmeetseker)
+  - Yardım merkezi 3 sayfada V2.5 Split İstatistik düzenine geçirildi
+  - Satış sonrası hizmetler sayfası "Taşan Kartlar" (5D) ile yenilendi
+  - İade politikası bindirmeli kart (D) varyantıyla yeniden tasarlandı
+  - Trade Assurance sayfası Varyant 1 ile yenilendi, videolar Vite import'una alındı
+  - Satıcı Ol sayfası mobilde Sade Akış (TrustStrip + accordion + sticky CTA) oldu
+  - Kargo ifadeleri Sevkiyat'a dönüştürüldü, Ambar ve Liman kartları eklendi
+  - Değerlendirmelerim sekmesi bekleyen/yayınlanan yorum API'lerine bağlandı
+  - PDP breadcrumb'ındaki kategoriler listeleme sayfasına link oldu
+  - Native select'ler için paylaşılan SelectMenu enhancer'ı eklendi
+  - Favoriler filtreleri mobilde bottom sheet olarak açılır oldu
+  - Ayarlar profil kartı grid tabanlı V4 düzenine geçirildi
+  - Kullanılmayan avif görseller, perf raporları ve eski task dokümanları silindi
+
+---
 ## [v1.8.0-alpha.5] - 2026-07-10 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.

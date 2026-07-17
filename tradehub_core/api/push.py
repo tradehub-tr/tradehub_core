@@ -89,7 +89,7 @@ def get_public_key():
 def _send_via_pywebpush(sub: dict, payload: dict, settings: dict) -> bool:
 	"""pywebpush yüklüyse gerçek push gönder."""
 	try:
-		from pywebpush import webpush
+		from pywebpush import WebPushException, webpush
 	except ImportError:
 		return False
 	try:
@@ -103,6 +103,16 @@ def _send_via_pywebpush(sub: dict, payload: dict, settings: dict) -> bool:
 			vapid_claims={"sub": settings["subject"]},
 		)
 		return True
+	except WebPushException as e:
+		# F-059: 410 Gone → subscription süresi dolmuş, temizle
+		if hasattr(e, "response") and e.response is not None and e.response.status_code == 410:
+			try:
+				frappe.delete_doc("Push Subscription", sub["name"], ignore_permissions=True)
+			except Exception:
+				frappe.log_error(title="push_stale_cleanup_failed", message=f"sub={sub['name']}")
+		else:
+			frappe.log_error(title="webpush_send_failed", message=str(e))
+		return False
 	except Exception as e:
 		frappe.log_error(title="webpush_send_failed", message=str(e))
 		return False

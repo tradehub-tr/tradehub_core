@@ -339,6 +339,15 @@ def _send_webhook(url, payload, headers):
 
 	import requests
 
+	# F-022: SSRF koruması — private/reserved IP aralıklarını engelle
+	try:
+		from tradehub_core.utils.feed_security import validate_feed_url
+
+		validate_feed_url(url)
+	except Exception as e:
+		frappe.log_error(message=f"Webhook URL SSRF validation failed: {url} — {e}", title="ECA Webhook SSRF Block")
+		return
+
 	try:
 		response = requests.post(url, data=json.dumps(payload, default=str), headers=headers, timeout=30)
 		response.raise_for_status()
@@ -960,12 +969,30 @@ def _do_webhook_v2(doc, rule, template) -> bool:
 		return False
 
 
+_ALLOWED_WEBHOOK_METHODS = frozenset({"GET", "POST", "PUT", "PATCH", "DELETE"})
+
+
 def _send_webhook_v2(url: str, method: str, body: str) -> None:
 	import requests
 
+	# F-022: HTTP method whitelist doğrulaması
+	method_upper = (method or "POST").upper()
+	if method_upper not in _ALLOWED_WEBHOOK_METHODS:
+		frappe.log_error(f"Invalid webhook method: {method}", "_send_webhook_v2")
+		return
+
+	# F-022: SSRF koruması — private/reserved IP aralıklarını engelle
+	try:
+		from tradehub_core.utils.feed_security import validate_feed_url
+
+		validate_feed_url(url)
+	except Exception as e:
+		frappe.log_error(f"Webhook URL SSRF validation failed: {url} — {e}", "_send_webhook_v2")
+		return
+
 	try:
 		requests.request(
-			method=method,
+			method=method_upper,
 			url=url,
 			data=body,
 			headers={"Content-Type": "application/json"},

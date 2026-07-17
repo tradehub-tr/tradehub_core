@@ -2365,8 +2365,13 @@ def _generate_webhook_signature(payload: dict[str, Any]) -> str:
 	import hmac
 	import json
 
-	# Get webhook secret from settings
-	secret = frappe.conf.get("webhook_secret", "trade_hub_webhook_secret")
+	# Get webhook secret from settings — F-007: hardcoded fallback kaldırıldı
+	secret = frappe.conf.get("webhook_secret")
+	if not secret:
+		frappe.throw(
+			_("webhook_secret must be configured in site_config.json"),
+			frappe.AuthenticationError,
+		)
 
 	message = json.dumps(payload, sort_keys=True)
 	signature = hmac.new(secret.encode(), message.encode(), hashlib.sha256).hexdigest()
@@ -2473,12 +2478,15 @@ def _verify_webhook_signature(payload: bytes, signature: str) -> bool:
 	import hashlib
 	import hmac
 
-	# Get webhook secret from settings
+	# Get webhook secret from settings — F-002: fail-closed, secret yoksa reddet
 	secret = frappe.conf.get("erpnext_webhook_secret")
 
-	# If no secret configured, skip verification (for development)
 	if not secret:
-		return True
+		frappe.log_error(
+			title="Webhook secret not configured",
+			message="erpnext_webhook_secret is missing from site_config.json. Rejecting webhook.",
+		)
+		return False
 
 	if not signature:
 		return False

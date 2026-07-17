@@ -1332,13 +1332,11 @@ def save_storefront_layout(seller_code, sections, theme_config):
 
 	require_seller_capability("storefront.write")
 
-	# Yetki: admin veya ilgili satıcı
+	# F-012: Yetki kontrolü — _get_seller_profile_for_session ile tutarlı pattern
 	is_admin = frappe.session.user == "Administrator" or "System Manager" in frappe.get_roles()
 	if not is_admin:
-		seller_profile = frappe.db.get_value(
-			"Admin Seller Profile", {"owner": frappe.session.user}, "name"
-		) or frappe.db.get_value("Admin Seller Profile", {"email": frappe.session.user}, "name")
-		if seller_profile != seller_code:
+		resolved_profile = _get_seller_profile_for_session()
+		if not resolved_profile or resolved_profile != seller_code:
 			frappe.throw(_("Bu mağazayı düzenleme yetkiniz yok."), frappe.PermissionError)
 
 	# JSON doğrulama
@@ -1434,10 +1432,17 @@ def send_inquiry(seller_code, message, share_business_card=0):
 			sender_name = user.full_name or ""
 			sender_email = user.email or ""
 			buyer_user = frappe.session.user
+	# F-034: Spam koruması — boş/çok kısa mesaj ve guest'te email zorunluluğu
+	clean_message = (message or "").strip()
+	if len(clean_message) < 10:
+		frappe.throw(_("Mesaj en az 10 karakter olmalıdır."), frappe.ValidationError)
+	if not sender_email:
+		frappe.throw(_("İletişim bilgisi gereklidir. Lütfen giriş yapın veya e-posta adresinizi girin."), frappe.ValidationError)
+
 	doc = frappe.new_doc("Seller Inquiry")
 	doc.seller = seller_code
 	doc.seller_code = seller_code
-	doc.message = message.strip()
+	doc.message = clean_message
 	doc.sender_name = sender_name
 	doc.sender_email = sender_email
 	if buyer_user:

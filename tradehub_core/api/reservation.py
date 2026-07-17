@@ -289,6 +289,12 @@ def reserve_slot(slot_id: str) -> dict[str, Any]:
 	if frappe.utils.get_datetime(slot.end_at) < frappe.utils.now_datetime():
 		frappe.throw(_("Geçmiş bir slot için rezervasyon yapılamaz."), frappe.ValidationError)
 
+	# F-026: Race condition koruması — slot'u row-level lock ile kilitle
+	frappe.db.sql(
+		"SELECT name FROM `tabChat Reservation Slot` WHERE name = %s FOR UPDATE",
+		slot.name,
+	)
+
 	# Çift rezervasyon kontrolü — slot zaten kilitliyse hata
 	if _slot_active_reservation(slot.name):
 		frappe.throw(_("Bu slot başka bir alıcı tarafından alınmış."), frappe.ValidationError)
