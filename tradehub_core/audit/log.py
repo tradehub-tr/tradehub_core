@@ -334,3 +334,27 @@ def log_override(
 		except Exception:
 			pass
 		return None
+
+
+# ─── F-041: PII reveal audit endpoint ──────────────────────────────────────
+
+
+@frappe.whitelist()
+def log_pii_reveal(doctype: str = "", name: str = "", field: str = "") -> dict:
+	"""Admin panelinde maskelenmiş PII alanı açıldığında server-side audit kaydı oluşturur."""
+	user = frappe.session.user
+	if not user or user == "Guest":
+		frappe.throw("Authentication required", frappe.AuthenticationError)
+
+	log_decision(
+		actor=user,
+		action="pii.reveal",
+		decision=DECISION_ALLOW,
+		rule_id="data_masking.reveal",
+		layer=LAYER_L2,
+		object_doctype=doctype or None,
+		object_name=name or None,
+		severity=SEVERITY_NORMAL,
+		context={"field": field},
+	)
+	return {"ok": True}

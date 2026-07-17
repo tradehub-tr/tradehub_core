@@ -17,12 +17,32 @@ def _safe_count(doctype: str, filters: dict | None = None) -> int:
 		return 0
 
 
+_SAFE_AVG_ALLOWED_DOCTYPES = frozenset({
+	"Listing Review", "Order", "Listing", "Review Risk Score",
+})
+
+_SAFE_AVG_ALLOWED_FIELDS = frozenset({
+	"rating", "weighted_rating", "grand_total", "total", "risk_score",
+	"subtotal", "shipping_fee", "coupon_discount", "score", "status",
+})
+
+
 def _safe_avg(doctype: str, field: str, filters: dict | None = None) -> float:
+	# F-017: SQL injection koruması — whitelist ile tablo/sütun adı doğrulaması
+	if doctype not in _SAFE_AVG_ALLOWED_DOCTYPES:
+		frappe.log_error(f"_safe_avg: disallowed doctype '{doctype}'", "analytics")
+		return 0.0
+	if field not in _SAFE_AVG_ALLOWED_FIELDS:
+		frappe.log_error(f"_safe_avg: disallowed field '{field}'", "analytics")
+		return 0.0
 	try:
 		filters = filters or {}
 		where = "1=1"
 		params = []
 		for k, v in filters.items():
+			if k not in _SAFE_AVG_ALLOWED_FIELDS:
+				frappe.log_error(f"_safe_avg: disallowed filter key '{k}'", "analytics")
+				return 0.0
 			where += f" AND `{k}` = %s"
 			params.append(v)
 		row = frappe.db.sql(

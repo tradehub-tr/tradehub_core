@@ -847,20 +847,17 @@ def update_bank_interaction_on_confirm(buyer, seller_code, amount):
 	if not existing:
 		return
 
-	current = frappe.db.get_value(
-		"Buyer Bank Interaction",
-		existing,
-		["pending_match_amount"],
-		as_dict=True,
-	)
-	new_pending = max(0, float(current.pending_match_amount or 0) - float(amount))
-	match_status = "Tam Eşleşme" if new_pending == 0 else "Kısmi Eşleşme"
+	# F-039: Atomik SQL — read-modify-write race condition'ı önler
+	from frappe.utils import now_datetime
 
-	frappe.db.set_value(
-		"Buyer Bank Interaction",
-		existing,
-		{
-			"pending_match_amount": new_pending,
-			"match_status": match_status,
-		},
+	frappe.db.sql(
+		"""UPDATE `tabBuyer Bank Interaction`
+		   SET pending_match_amount = GREATEST(0, COALESCE(pending_match_amount, 0) - %s),
+		       match_status = IF(
+		           GREATEST(0, COALESCE(pending_match_amount, 0) - %s) = 0,
+		           'Tam Eşleşme', 'Kısmi Eşleşme'
+		       ),
+		       modified = %s
+		   WHERE name = %s""",
+		(float(amount), float(amount), now_datetime(), existing),
 	)

@@ -48,6 +48,24 @@ def _enforce_single_policy(policy: dict) -> None:
 	if not field_rules:
 		return
 
+	# F-017: SQL injection koruması — DocType meta'sına karşı alan adlarını doğrula
+	if not frappe.db.exists("DocType", policy.ref_doctype):
+		frappe.log_error(f"Retention: invalid ref_doctype '{policy.ref_doctype}'", "data_retention")
+		return
+	meta = frappe.get_meta(policy.ref_doctype)
+	valid_fields = {f.fieldname for f in meta.fields} | {"name", "creation", "modified", "owner"}
+	if policy.date_field not in valid_fields:
+		frappe.log_error(
+			f"Retention: invalid date_field '{policy.date_field}' for {policy.ref_doctype}", "data_retention"
+		)
+		return
+	for rule in field_rules:
+		if rule["fieldname"] not in valid_fields:
+			frappe.log_error(
+				f"Retention: invalid fieldname '{rule['fieldname']}' for {policy.ref_doctype}", "data_retention"
+			)
+			return
+
 	total_processed = 0
 	while True:
 		conditions = [f"`{policy.date_field}` < %s"]
