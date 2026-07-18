@@ -5,6 +5,7 @@ from frappe import _
 from frappe.model.document import Document
 
 COLOR_PRESETS = {
+	"brand": ("bg-brand-100 dark:bg-brand-500/10", "text-brand-600"),
 	"violet": ("bg-violet-100 dark:bg-violet-500/10", "text-violet-500"),
 	"blue": ("bg-blue-100 dark:bg-blue-500/10", "text-blue-500"),
 	"emerald": ("bg-emerald-100 dark:bg-emerald-500/10", "text-emerald-500"),
@@ -113,8 +114,8 @@ class DashboardWidget(Document):
 		Admin selects a preset; Tailwind class pairs are generated in a single
 		source of truth to guarantee visual consistency across the dashboard.
 		"""
-		preset = (self.color_preset or "violet").lower()
-		bg, color = COLOR_PRESETS.get(preset, COLOR_PRESETS["violet"])
+		preset = (self.color_preset or "brand").lower()
+		bg, color = COLOR_PRESETS.get(preset, COLOR_PRESETS["brand"])
 		self.icon_bg_class = bg
 		self.icon_color_class = color
 

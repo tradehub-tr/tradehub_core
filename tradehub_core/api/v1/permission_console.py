@@ -11,6 +11,7 @@ Endpoints:
   - list_roles() — tüm rol profilleri + rol kapsamı
   - get_role_profile_detail(name) — tek rol profili detayı (kullanıcı sayısı dahil)
   - list_users(filters) — tüm kullanıcılar (tenant/role filtreli)
+  - update_user(user, enabled, role_profile) — aktif/pasif + rol profili atama
   - list_subscription_plans() — planlar + kullanıcı sayısı
   - get_plan_detail(plan_code) — capability_flags + quota_limits + kullanan
     satıcı sayısı
@@ -698,6 +699,99 @@ def list_users(
 	)
 
 	return users
+
+
+@frappe.whitelist(methods=["POST"])
+def update_user(
+	user: str,
+	enabled: int | None = None,
+	role_profile: str | None = None,
+) -> dict:
+	"""Kullanıcının aktiflik durumunu ve/veya rol profilini günceller.
+
+	Guard'lar:
+	  - Administrator / Guest hesapları düzenlenemez.
+	  - Admin kendi hesabını pasifleştiremez (lockout).
+	  - Atanan rol profili power role içeremez (privilege escalation —
+	    update_role_profile'daki K5 kuralının atama tarafı).
+
+	Args:
+	    user: User.name (e-posta)
+	    enabled: 1/0 (None → dokunma)
+	    role_profile: Role Profile adı; "" profili kaldırır (None → dokunma)
+	"""
+	_require_admin("update_user")
+
+	if user in ("Administrator", "Guest"):
+		frappe.throw(_("'{0}' hesabı Permission Console üzerinden düzenlenemez.").format(user))
+	if not frappe.db.exists("User", user):
+		frappe.throw(_("Kullanıcı bulunamadı: {0}").format(user))
+
+	doc = frappe.get_doc("User", user)
+	if doc.user_type != "System User":
+		frappe.throw(_("Yalnızca sistem kullanıcıları düzenlenebilir."))
+
+	before = {"enabled": int(doc.enabled or 0), "role_profile": doc.role_profile_name or None}
+	changes: dict = {}
+
+	if enabled is not None:
+		enabled = int(enabled)
+		if enabled == 0 and user == frappe.session.user:
+			frappe.throw(_("Kendi hesabınızı pasifleştiremezsiniz."))
+		if enabled != before["enabled"]:
+			doc.enabled = enabled
+			changes["enabled"] = enabled
+
+	if role_profile is not None:
+		role_profile = role_profile.strip()
+		if role_profile:
+			if not frappe.db.exists("Role Profile", role_profile):
+				frappe.throw(_("Rol profili bulunamadı: {0}").format(role_profile))
+			profile_roles = frappe.get_all(
+				"Has Role",
+				filters={"parent": role_profile, "parenttype": "Role Profile"},
+				pluck="role",
+			)
+			forbidden = _validate_roles_assignable(profile_roles)
+			if forbidden:
+				frappe.throw(
+					_("'{0}' profili power role içerdiği için atanamaz: {1}").format(
+						role_profile, ", ".join(forbidden)
+					)
+				)
+		if (role_profile or None) != before["role_profile"]:
+			# Frappe, role_profile_name set edilince kullanıcının rollerini
+			# validate aşamasında profil rolleriyle senkronlar.
+			doc.role_profile_name = role_profile or None
+			changes["role_profile"] = role_profile or None
+
+	if not changes:
+		return {"user": user, "changed": False, **before}
+
+	doc.save(ignore_permissions=True)
+	frappe.db.commit()
+
+	from tradehub_core.utils.permission_resolver import flush_all_cache
+
+	flush_all_cache()
+
+	log_decision(
+		action="permission_console.update_user",
+		decision="ALLOW",
+		rule_id="auth.admin_user_update",
+		layer="L2",
+		object_doctype="User",
+		object_name=user,
+		severity="HIGH",
+		context={"before": before, "after": changes},
+	)
+
+	return {
+		"user": user,
+		"changed": True,
+		"enabled": int(doc.enabled or 0),
+		"role_profile": doc.role_profile_name or None,
+	}
 
 
 # ---------------------------------------------------------------------------

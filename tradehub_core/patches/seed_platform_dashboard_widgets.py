@@ -24,8 +24,8 @@ PLATFORM_WIDGETS = [
 		"size": "sm",
 		"position": 10,
 		"icon": "fas fa-lira-sign",
-		"icon_bg_class": "bg-violet-100 dark:bg-violet-500/10",
-		"icon_color_class": "text-violet-500",
+		"icon_bg_class": "bg-brand-100 dark:bg-brand-500/10",
+		"icon_color_class": "text-brand-600",
 		"source_doctype": "Order",
 		"aggregation": "sum",
 		"metric_field": "total",
@@ -120,8 +120,8 @@ PLATFORM_WIDGETS = [
 		"size": "sm",
 		"position": 130,
 		"icon": "fas fa-users",
-		"icon_bg_class": "bg-violet-100 dark:bg-violet-500/10",
-		"icon_color_class": "text-violet-500",
+		"icon_bg_class": "bg-brand-100 dark:bg-brand-500/10",
+		"icon_color_class": "text-brand-600",
 		# Sprint 2 sonrası canonical: User Profile = marketplace kullanıcı entity.
 		# User + user_type filtresi sadece Frappe Desk erişimi olanları sayıyordu
 		# (alıcılar Website User olduğu için sayıma girmiyordu).
@@ -181,7 +181,7 @@ PLATFORM_WIDGETS = [
 						"label": "Kullanıcılar",
 						"to": "/app/User Profile",
 						"icon": "fas fa-users",
-						"icon_class": "bg-violet-100 dark:bg-violet-500/10 text-violet-500",
+						"icon_class": "bg-brand-100 dark:bg-brand-500/10 text-brand-600",
 						"source_doctype": "User Profile",
 					},
 				],

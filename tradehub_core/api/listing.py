@@ -4103,7 +4103,18 @@ def get_seller_listings(
 		start=start,
 		page_length=page_size,
 	)
-	return {"success": True, "listings": listings, "total": total}
+
+	# Mobil özet şerit: satıcının TÜM portföyünün durum dağılımı (aktif filtre/
+	# aramadan bağımsız). get_all tenant filtresiyle sınırlı olduğundan güvenli.
+	status_rows = frappe.get_all(
+		"Listing",
+		filters={"seller_profile": seller_profile},
+		fields=["status", "count(name) as count"],
+		group_by="status",
+	)
+	status_counts = {r.status: r.count for r in status_rows}
+
+	return {"success": True, "listings": listings, "total": total, "status_counts": status_counts}
 
 
 @frappe.whitelist()
