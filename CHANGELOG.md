@@ -1,3 +1,20 @@
+## [v1.9.0-alpha.3] - 2026-07-18 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(permission-console): update_user endpoint + satıcı ilan durum sayaçları + Cart doctype TR etiketleri (@ahmeetseker)
+  - Permission Console: aktif/pasif ve rol profili atayan update_user() eklendi; guard'lar — Administrator/Guest düzenlenemez, admin kendi hesabını pasifleştiremez, power role içeren profil atanamaz (privilege escalation). Değişiklik log_decision ile HIGH severity denetime yazılır.
+  - get_seller_listings: mobil özet şerit için filtreden bağımsız status_counts (satıcının tüm portföyünün durum dağılımı) döndürür.
+  - Cart / Cart Item doctype: alan etiketleri Türkçeleştirildi, açıklama/description ve list_view sütunları düzenlendi, Cart'a title_field=buyer eklendi.
+
+### Degistirildi
+- refactor(dashboard): widget renk varsayılanı iStoc marka preset'ine geçirildi (@ahmeetseker)
+  - Dashboard Widget'a "brand" renk preset'i eklendi ve varsayılan yapıldı
+  - Seed patch'lerindeki violet sınıfları brand'e çevrildi
+  - v15_9_11 migration patch'i mevcut violet widget'ları topluca brand'e taşıdı
+
+---
 ## [v1.9.0-alpha.2] - 2026-07-17 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
