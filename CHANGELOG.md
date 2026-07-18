@@ -1,3 +1,11 @@
+## [v1.9.0-alpha.4] - 2026-07-18 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Duzeltildi
+- fix(seed): after_migrate demo-seed hook'unu kaldır (prod migrate kırılması) (@ahmeetseker)
+
+---
 ## [v1.9.0-alpha.3] - 2026-07-18 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
