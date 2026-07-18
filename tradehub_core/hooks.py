@@ -8,7 +8,6 @@ app_license = "MIT"
 after_install = "tradehub_core.setup.install.after_install"
 after_migrate = [
 	"tradehub_core.setup.install.after_install",
-	"tradehub_core.seed_demo_data.run_idempotent_seed",
 ]
 app_icon = "octicon octicon-organization"
 app_color = "#0066CC"
