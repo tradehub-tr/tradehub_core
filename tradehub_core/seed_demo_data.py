@@ -27,12 +27,17 @@ from frappe.utils.password import update_password
 
 from tradehub_core.api.v1.auth import _generate_member_id
 
-# F-010: Production guard — demo seed yalnızca dev sitelerde çalışabilir
-_site_name = getattr(frappe.local, "site", "") if hasattr(frappe, "local") else ""
-if _site_name and not (_site_name.endswith(".localhost") or _site_name.endswith(".local")):
-	raise RuntimeError(
-		f"Demo seed yalnızca .localhost/.local sitelerde çalışabilir (current: {_site_name})"
-	)
+# F-010: Production guard — demo seed'i FİİLEN çalıştıran elle-tetiklenen giriş
+# noktalarında (execute/cleanup) uygulanır. Guard'ı modül top-level'ında raise ETME:
+# after_migrate hook'u (run_idempotent_seed) bu modülü HER migrate'te import eder;
+# import-time raise, production/staging migrate'ini kırar (site adı .localhost değil).
+# Otomatik path zaten `demo_seed_enabled` config bayrağıyla korunur (run_idempotent_seed).
+def _assert_dev_site() -> None:
+	site = getattr(frappe.local, "site", "") if hasattr(frappe, "local") else ""
+	if site and not (site.endswith(".localhost") or site.endswith(".local")):
+		frappe.throw(
+			_("Demo seed yalnızca .localhost/.local sitelerde çalışabilir (current: {0})").format(site)
+		)
 
 DEMO_SELLER_PASSWORD = os.environ.get("TH_DEMO_SELLER_PASSWORD", "Turksab2026!")
 DEMO_BUYER_PASSWORD = os.environ.get("TH_DEMO_BUYER_PASSWORD", "Turksab2026!")
@@ -4853,6 +4858,7 @@ def execute():
 	Kullanım (tarayıcı konsolu — Login as Administrator sonrası):
 	    frappe.call({method: "tradehub_core.seed_demo_data.execute"})
 	"""
+	_assert_dev_site()
 	if not frappe.session.user == "Administrator" and not frappe.has_permission(
 		"Admin Seller Profile", "create"
 	):
@@ -5251,6 +5257,10 @@ def cleanup(silent=False):
 	    bench --site <site> execute tradehub_core.seed_demo_data.cleanup
 
 	silent=True → execute() içinden çağrıldığında sadeleştirilmiş çıktı.
+
+	NOT: Demo seed mekanizması komple kaldırılıyor; bu son cleanup'ın alpha/prod
+	sitede (site adı .localhost değil) çalışabilmesi için site guard'ı bilinçli
+	olarak YOK. Administrator yetki kontrolü + gerçek-e-posta koruması korunuyor.
 	"""
 	if not frappe.session.user == "Administrator" and not frappe.has_permission(
 		"Admin Seller Profile", "delete"
