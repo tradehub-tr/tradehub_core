@@ -21,15 +21,14 @@
    "fieldname": "listing",
    "fieldtype": "Link",
    "in_list_view": 1,
-   "label": "Listing",
+   "label": "İlan",
    "options": "Listing",
    "reqd": 1
   },
   {
    "fieldname": "listing_variant",
    "fieldtype": "Data",
-   "in_list_view": 1,
-   "label": "Variant"
+   "label": "Varyant Kodu"
   },
   {
    "fieldname": "color_variant",
@@ -39,7 +38,8 @@
   {
    "fieldname": "variant_label",
    "fieldtype": "Data",
-   "label": "Varyant Etiketi"
+   "in_list_view": 1,
+   "label": "Varyant"
   },
   {
    "default": "0",
@@ -53,7 +53,7 @@
    "fieldname": "quantity",
    "fieldtype": "Int",
    "in_list_view": 1,
-   "label": "Quantity",
+   "label": "Adet",
    "reqd": 1
   },
   {
@@ -65,7 +65,8 @@
   {
    "fieldname": "snapshot_title",
    "fieldtype": "Data",
-   "label": "Ürün Adı (Snapshot)"
+   "in_list_view": 1,
+   "label": "Ürün Adı"
   },
   {
    "fieldname": "snapshot_image",
@@ -75,7 +76,8 @@
   {
    "fieldname": "snapshot_price",
    "fieldtype": "Float",
-   "label": "Fiyat (Snapshot)"
+   "in_list_view": 1,
+   "label": "Fiyat"
   },
   {
    "fieldname": "snapshot_currency",

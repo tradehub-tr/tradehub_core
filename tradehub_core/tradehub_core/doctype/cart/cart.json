@@ -2,6 +2,7 @@
 	"actions": [],
 	"autoname": "hash",
 	"creation": "2024-01-01 00:00:00.000000",
+	"description": "Her kullanıcının kalıcı alışveriş sepeti. Kullanıcı ilk ürünü eklediğinde otomatik oluşur; sipariş tamamlanınca ürünler boşalır ama sepet kaydı silinmez.",
 	"doctype": "DocType",
 	"engine": "InnoDB",
 	"field_order": [
@@ -16,9 +17,11 @@
 			"label": "Sepet"
 		},
 		{
+			"description": "Sepetin sahibi olan kullanıcının e-posta adresi",
 			"fieldname": "buyer",
 			"fieldtype": "Link",
-			"label": "Buyer",
+			"in_list_view": 1,
+			"label": "Alıcı",
 			"options": "User",
 			"reqd": 1,
 			"unique": 1
@@ -27,13 +30,13 @@
 			"default": "Active",
 			"fieldname": "status",
 			"fieldtype": "Select",
-			"label": "Status",
+			"label": "Durum",
 			"options": "Active\nArchived"
 		},
 		{
 			"fieldname": "items",
 			"fieldtype": "Table",
-			"label": "Items",
+			"label": "Sepet Ürünleri",
 			"options": "Cart Item"
 		}
 	],
@@ -62,5 +65,6 @@
 	],
 	"sort_field": "modified",
 	"sort_order": "DESC",
+	"title_field": "buyer",
 	"track_changes": 0
 }
