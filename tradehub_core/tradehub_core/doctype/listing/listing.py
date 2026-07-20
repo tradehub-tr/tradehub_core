@@ -50,6 +50,19 @@ class Listing(Document):
 		self._validate_variant_defaults()
 		self._validate_variant_pricing()
 		self._calculate_completeness()
+		self._set_storefront_visible()
+
+	def _set_storefront_visible(self):
+		"""Denormalize is_visible + status → tek eşitlik kolonu `storefront_visible`.
+
+		Storefront sorguları `is_visible=1 AND status IN('Active','Out of Stock')`
+		yerine `storefront_visible=1` ile filtreler → (storefront_visible, <sort>)
+		index'i filesort'suz, index-ordered tarama sağlar (2-değerli status IN
+		filesort'a zorluyordu). is_visible/status'un tüm validate mutasyonlarından
+		SONRA çağrılır ki değer nihai duruma göre hesaplansın."""
+		from tradehub_core.api.listing import STOREFRONT_VISIBLE_STATUSES
+
+		self.storefront_visible = 1 if (self.is_visible and self.status in STOREFRONT_VISIBLE_STATUSES) else 0
 
 	def _resolve_attribute_links(self):
 		"""Auto-resolve free-text attribute names to Product Attribute records.

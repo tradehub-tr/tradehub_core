@@ -107,6 +107,7 @@
   "is_new_arrival",
   "column_break_settings",
   "is_visible",
+  "storefront_visible",
   "is_searchable",
   "selling_point",
   "statistics_tab",
@@ -766,6 +767,16 @@
    "fieldname": "is_visible",
    "fieldtype": "Check",
    "label": "Visible"
+  },
+  {
+   "default": "0",
+   "description": "Auto-computed in Listing.validate(): 1 when is_visible=1 AND status is storefront-visible (Active/Out of Stock). Storefront queries filter on this single-equality column for filesort-free, index-ordered scans.",
+   "fieldname": "storefront_visible",
+   "fieldtype": "Check",
+   "hidden": 1,
+   "label": "Storefront Visible",
+   "no_copy": 1,
+   "read_only": 1
   },
   {
    "default": "1",
