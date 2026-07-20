@@ -1420,6 +1420,34 @@ def get_categories(parent=None, include_children=True, lang="tr"):
 	return {"data": results}
 
 
+def _build_price_buckets(prices: list, num_buckets: int = 10) -> dict:
+	"""Eşit genişlikli fiyat histogramı: min–max aralığını num_buckets eşit dilime böler.
+
+	Fiyatlar selling_price_base (TRY) cinsindedir; frontend görüntüleme birimine çevirir.
+	Son bucket üst sınırı kapalı [.., max]; diğerleri yarı-açık [lo, hi)."""
+	vals = [float(p) for p in prices if p]
+	if not vals:
+		return {"min": 0, "max": 0, "buckets": []}
+	lo, hi = min(vals), max(vals)
+	if lo >= hi:
+		return {
+			"min": round(lo, 2),
+			"max": round(lo, 2),
+			"buckets": [{"min": round(lo, 2), "max": round(lo, 2), "count": len(vals)}],
+		}
+	width = (hi - lo) / num_buckets
+	buckets = []
+	for i in range(num_buckets):
+		b_lo = lo + i * width
+		b_hi = hi if i == num_buckets - 1 else lo + (i + 1) * width
+		if i == num_buckets - 1:
+			count = sum(1 for p in vals if b_lo <= p <= b_hi)
+		else:
+			count = sum(1 for p in vals if b_lo <= p < b_hi)
+		buckets.append({"min": round(b_lo, 2), "max": round(b_hi, 2), "count": count})
+	return {"min": round(lo, 2), "max": round(hi, 2), "buckets": buckets}
+
+
 def _empty_facets() -> dict:
 	"""Aktif filtreler kombinasyonu hiç sonuç vermediğinde sidebar'a dönen boş sayım payload'u.
 	Frontend bu durumda sidebar count'larını sıfırlar; kullanıcı yine seçimini kaldırabilir."""
@@ -1432,6 +1460,7 @@ def _empty_facets() -> dict:
 			"brands": [],
 			"attributes": [],
 			"verifiedSupplierCount": 0,
+			"priceRange": {"min": 0, "max": 0, "buckets": []},
 		}
 	}
 
@@ -1449,6 +1478,7 @@ def get_filter_facets(
 	product_certifications=None,
 	brands=None,
 	attrs=None,
+	filter_currency=None,
 ):
 	"""Return faceted counts for sidebar filters.
 
@@ -1462,7 +1492,20 @@ def get_filter_facets(
 	- managementCertifications / productCertifications
 	- brands
 	- attributes (dinamik özellikler)
+	- priceRange (selling_price_base histogramı)
 	"""
+	# Fiyat filtresi kullanıcının SEÇİLİ görüntüleme biriminde gelir; ürünler
+	# selling_price_base (TRY) üzerinden filtrelendiği için bound'ları baza çevir
+	# (get_listings ile aynı desen). Çevrilmiş değer hem cache key'ine hem count'a girer.
+	if filter_currency and filter_currency != "TRY":
+		from tradehub_core.api.currency import _get_exchange_rate
+
+		_fx = _get_exchange_rate(filter_currency, "TRY")
+		if min_price:
+			min_price = safe_float(min_price, label=_("Minimum fiyat")) * _fx
+		if max_price:
+			max_price = safe_float(max_price, label=_("Maksimum fiyat")) * _fx
+
 	# ── Cache check (tüm aktif filtreleri key'e dahil et — yoksa stale data) ──
 	fck = _cache_key(
 		"facets",
@@ -1625,7 +1668,10 @@ def get_filter_facets(
 		]
 
 	# Get all matching listing names first (include seller_profile for cert aggregation)
-	all_filters = [[k, v[0], v[1]] if isinstance(v, list) else [k, "=", v] for k, v in base_filters.items()]
+	base_filters_list = [
+		[k, v[0], v[1]] if isinstance(v, list) else [k, "=", v] for k, v in base_filters.items()
+	]
+	all_filters = list(base_filters_list)
 	all_filters.extend(extra_filters)
 	listings = frappe.get_all(
 		"Listing",
@@ -1633,6 +1679,16 @@ def get_filter_facets(
 		or_filters=or_filters,
 		fields=["name", "ships_from_country", "product_category", "seller_profile", "brand"],
 	)
+
+	# Fiyat histogramı: yalnızca kategorik filtrelere göre (fiyat + MOQ hariç) — kullanıcı
+	# slider'ı sürükleyip aralık seçince dağılım sabit kalsın (fiyat filtresi bar'ları kırpmasın).
+	price_rows = frappe.get_all(
+		"Listing",
+		filters=base_filters_list,
+		or_filters=or_filters,
+		fields=["selling_price_base"],
+	)
+	price_range = _build_price_buckets([r.get("selling_price_base") for r in price_rows])
 
 	# Aggregate countries — UI başlığı "Tedarikçi Ülkesi" → satıcının kayıtlı ülkesi
 	# (Admin Seller Profile.country) kullanılır. Listing.ships_from_country lojistik
@@ -1715,13 +1771,13 @@ def get_filter_facets(
 	listing_names = [l.name for l in listings] if listings else []
 	mgmt_cert_counts: dict[str, int] = {}
 	product_cert_counts: dict[str, int] = {}
+	# Aşağıdaki `if all_assigned_certs:` bloğu `if listing_names` DIŞINDA kullanılıyor;
+	# boş sonuçta (ör. fiyat filtresi tüm ürünleri eledi) tanımlı kalması için default set.
+	all_assigned_certs: set = set()
 
 	if listing_names:
 		# Get seller profiles directly from already-fetched listings
 		seller_profiles = list({l.seller_profile for l in listings if l.get("seller_profile")})
-
-		# Build a lookup of Certification Type → category for filtering
-		all_assigned_certs = set()
 
 		# Collect all assigned cert IDs from both child tables
 		# v4: Sadece verification_status='Verified' mağaza cert'leri facet'ta sayılır.
@@ -1912,6 +1968,8 @@ def get_filter_facets(
 			"attributes": attributes_list,
 			# Tedarikçi Türleri filter — Onaylanmış Satıcı (KYB Verified) listing sayısı
 			"verifiedSupplierCount": verified_supplier_count,
+			# Fiyat slider histogramı — selling_price_base (TRY) eşit-genişlikli 10 bucket
+			"priceRange": price_range,
 		}
 	}
 
