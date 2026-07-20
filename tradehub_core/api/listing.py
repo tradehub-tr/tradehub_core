@@ -316,18 +316,11 @@ def get_listings(
 	page, page_size, _start = normalize_pagination(page, page_size)
 	lang = normalize_lang(lang)
 
-	# Y3 — Fiyat filtresi kullanıcının SEÇİLİ görüntüleme biriminde gelir; ürünler
-	# selling_price_base (TRY) üzerinden filtrelenip sıralandığı için bound'ları
-	# baz birime (TRY) çevir. filter_currency yoksa değer zaten TRY kabul edilir.
+	# Y3 — Fiyat filtresi görüntüleme biriminde gelir; ürünler selling_price_base (TRY)
+	# üzerinden filtrelenip sıralandığı için bound'ları baza çevir (kur yoksa filtre atlanır).
 	# Çevrilmiş değerler hem cache key'ine hem filtreye girer (doğru dedup).
-	if filter_currency and filter_currency != "TRY":
-		from tradehub_core.api.currency import _get_exchange_rate
-
-		_fx = _get_exchange_rate(filter_currency, "TRY")
-		if min_price:
-			min_price = safe_float(min_price, label=_("Minimum fiyat")) * _fx
-		if max_price:
-			max_price = safe_float(max_price, label=_("Maksimum fiyat")) * _fx
+	min_price = _to_base_price_bound(min_price, filter_currency, _("Minimum fiyat"))
+	max_price = _to_base_price_bound(max_price, filter_currency, _("Maksimum fiyat"))
 
 	# ── Cache check ──
 	ck = _cache_key(
@@ -1420,6 +1413,29 @@ def get_categories(parent=None, include_children=True, lang="tr"):
 	return {"data": results}
 
 
+def _to_base_price_bound(value, filter_currency, label):
+	"""Görüntüleme birimindeki fiyat bound'unu selling_price_base (TRY) birimine çevirir.
+
+	get_listings + get_filter_facets ortak fiyat-filtresi çevrimi. Kur çifti yoksa None döner →
+	çağıran filtreyi ATLAR: yanlış kurla (1:1) yanlış ürün listesi göstermektense fiyat filtresini
+	hiç uygulamamak daha güvenli."""
+	if not value:
+		return None
+	val = safe_float(value, label=label)
+	if not filter_currency or filter_currency == "TRY":
+		return val
+	from tradehub_core.api.currency import _get_exchange_rate_strict
+
+	fx = _get_exchange_rate_strict(filter_currency, "TRY")
+	if fx is None:
+		frappe.log_error(
+			f"Kur bulunamadı: {filter_currency}->TRY; fiyat filtresi atlandı.",
+			"listing.price_filter",
+		)
+		return None
+	return val * fx
+
+
 def _build_price_buckets(prices: list, num_buckets: int = 10) -> dict:
 	"""Eşit genişlikli fiyat histogramı: min–max aralığını num_buckets eşit dilime böler.
 
@@ -1494,17 +1510,10 @@ def get_filter_facets(
 	- attributes (dinamik özellikler)
 	- priceRange (selling_price_base histogramı)
 	"""
-	# Fiyat filtresi kullanıcının SEÇİLİ görüntüleme biriminde gelir; ürünler
-	# selling_price_base (TRY) üzerinden filtrelendiği için bound'ları baza çevir
-	# (get_listings ile aynı desen). Çevrilmiş değer hem cache key'ine hem count'a girer.
-	if filter_currency and filter_currency != "TRY":
-		from tradehub_core.api.currency import _get_exchange_rate
-
-		_fx = _get_exchange_rate(filter_currency, "TRY")
-		if min_price:
-			min_price = safe_float(min_price, label=_("Minimum fiyat")) * _fx
-		if max_price:
-			max_price = safe_float(max_price, label=_("Maksimum fiyat")) * _fx
+	# Fiyat bound'ları görüntüleme biriminden selling_price_base (TRY) birimine çevrilir
+	# (get_listings ile ortak helper; kur yoksa filtre atlanır).
+	min_price = _to_base_price_bound(min_price, filter_currency, _("Minimum fiyat"))
+	max_price = _to_base_price_bound(max_price, filter_currency, _("Maksimum fiyat"))
 
 	# ── Cache check (tüm aktif filtreleri key'e dahil et — yoksa stale data) ──
 	fck = _cache_key(
