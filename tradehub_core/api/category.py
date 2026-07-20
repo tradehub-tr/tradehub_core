@@ -686,6 +686,9 @@ def import_categories(json_data):
 	updated = 0
 	skipped = 0
 
+	# Bulk: per-doc kategori cache invalidation'ını sustur; sonda tek sefer temizlenir.
+	frappe.flags.in_category_import = True
+
 	# BFS sırasıyla işle (parent'lar önce eklensin)
 	from collections import deque
 
@@ -770,6 +773,12 @@ def import_categories(json_data):
 			"Kategori ağacı yeniden oluşturulurken hata oluştu. Kategori sıralaması bozuk olabilir, lütfen sayfayı yenileyin."
 		)
 
+	# Bulk bitti: kategori-bağımlı storefront cache'lerini TEK sefer düş.
+	frappe.flags.in_category_import = False
+	from tradehub_core.api.listing import invalidate_listing_cache
+
+	invalidate_listing_cache()
+
 	result = {
 		"inserted": inserted,
 		"updated": updated,
@@ -803,6 +812,9 @@ def _run_category_import(json_str, job_key):
 	try:
 		items = json.loads(json_str) if isinstance(json_str, str) else json_str
 		total = len(items)
+
+		# Bulk: per-doc kategori cache invalidation'ını sustur; sonda tek sefer temizlenir.
+		frappe.flags.in_category_import = True
 
 		# O(n) child index — eski kod her item için tüm listeyi tarıyordu
 		children_by_parent = {}
@@ -902,6 +914,12 @@ def _run_category_import(json_str, job_key):
 		except Exception as e:
 			frappe.log_error(title="Category rebuild_tree", message=str(e))
 			warning = _("Kategori ağacı yeniden oluşturulurken hata oluştu. Sıralama bozuk olabilir.")
+
+		# Bulk bitti: kategori-bağımlı storefront cache'lerini TEK sefer düş.
+		frappe.flags.in_category_import = False
+		from tradehub_core.api.listing import invalidate_listing_cache
+
+		invalidate_listing_cache()
 
 		_update_progress(
 			job_key,

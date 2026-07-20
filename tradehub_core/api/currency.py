@@ -20,6 +20,25 @@ COUNTRY_CURRENCY_MAP = {
 	"TW": "CNY",
 }
 
+# ── Cache (theme.py modeli) ────────────────────────────────────────────────
+# Kurlar günde bir (TCMB daily job) güncellenir; desteklenen para birimleri
+# neredeyse hiç değişmez. Storefront her sayfa boot'unda get_currency_settings
+# çağırdığı için bu iki DB okuması cache'lenir. Invalidation üç yoldan:
+#   1) Currency Rate Pair / Supported Currency doc_event'leri (admin düzenlemesi)
+#   2) tcmb_fx daily job — db.set_value kullandığı için doc_event tetiklemez,
+#      commit sonrası explicit invalidate_currency_cache() çağırır.
+_CURRENCY_CACHE_TTL = 3600  # 1 saat
+_SUPPORTED_CACHE_KEY = "tradehub:currency:supported"
+_RATES_CACHE_KEY = "tradehub:currency:rates"
+
+
+def invalidate_currency_cache(doc=None, method=None):
+	"""Currency cache'ini düşür. doc/method parametreleri doc_event imzası için
+	(Currency Rate Pair / Supported Currency on_update/after_insert/on_trash)."""
+	cache = frappe.cache()
+	cache.delete_value(_SUPPORTED_CACHE_KEY)
+	cache.delete_value(_RATES_CACHE_KEY)
+
 
 @frappe.whitelist(allow_guest=True)
 def get_currency_settings():
@@ -86,6 +105,16 @@ def get_currency_info(currency_code):
 
 
 def _get_supported_currencies():
+	"""Enabled currencies — cache'li (theme.py modeli, 1sa TTL)."""
+	cached = frappe.cache().get_value(_SUPPORTED_CACHE_KEY)
+	if cached is not None:
+		return cached
+	result = _compute_supported_currencies()
+	frappe.cache().set_value(_SUPPORTED_CACHE_KEY, result, expires_in_sec=_CURRENCY_CACHE_TTL)
+	return result
+
+
+def _compute_supported_currencies():
 	"""Read enabled currencies from Supported Currency DocType."""
 	rows = frappe.get_all(
 		"Supported Currency",
@@ -126,6 +155,16 @@ def _get_supported_currencies():
 
 
 def _get_exchange_rates():
+	"""Active exchange rates — cache'li (theme.py modeli, 1sa TTL)."""
+	cached = frappe.cache().get_value(_RATES_CACHE_KEY)
+	if cached is not None:
+		return cached
+	result = _compute_exchange_rates()
+	frappe.cache().set_value(_RATES_CACHE_KEY, result, expires_in_sec=_CURRENCY_CACHE_TTL)
+	return result
+
+
+def _compute_exchange_rates():
 	"""Read active exchange rates from Currency Rate Pair DocType."""
 	rates = {}
 	pairs = frappe.get_all(
@@ -151,26 +190,23 @@ def _get_exchange_rates():
 
 def _get_exchange_rate_strict(from_currency, to_currency):
 	"""Kur döndürür; çift (direkt veya ters) yoksa None — çağıran karar versin.
-	Aynı para birimi için 1.0 (kur çiftine bağımlı değil)."""
+	Aynı para birimi için 1.0.
+
+	Cache'li rates map'inden okur (per-pair DB get_value yerine): listing fiyat
+	filtresi/sıralaması bunu her istekte çağırıyor, hot path DB'ye gitmesin.
+	Not: map yalnızca is_active=1 çiftleri içerir — pasif çift artık çeviride
+	kullanılmaz (istenen davranış; tcmb_fx zaten tüm izlenen çiftleri aktif tutar)."""
 	if from_currency == to_currency:
 		return 1.0
 
-	rate = frappe.db.get_value(
-		"Currency Rate Pair",
-		f"{from_currency}-{to_currency}",
-		"rate",
-	)
-	if rate:
-		return float(rate)
+	rates = _get_exchange_rates()
+	direct = rates.get(from_currency, {}).get(to_currency)
+	if direct:
+		return float(direct)
 
-	# Try reverse
-	reverse_rate = frappe.db.get_value(
-		"Currency Rate Pair",
-		f"{to_currency}-{from_currency}",
-		"rate",
-	)
-	if reverse_rate and float(reverse_rate) > 0:
-		return 1.0 / float(reverse_rate)
+	reverse = rates.get(to_currency, {}).get(from_currency)
+	if reverse and float(reverse) > 0:
+		return 1.0 / float(reverse)
 
 	return None
 

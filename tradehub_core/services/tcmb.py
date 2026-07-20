@@ -118,6 +118,12 @@ def fetch_and_update_rates():
 
 	frappe.db.commit()
 
+	# Kur güncellemesi çoğunlukla db.set_value ile yapıldığı için doc_event
+	# tetiklenmez → currency cache'ini explicit düş (bkz. api/currency.py).
+	from tradehub_core.api.currency import invalidate_currency_cache
+
+	invalidate_currency_cache()
+
 	# Y3 — Kur değişti; listing'lerin baz-birim (TRY) fiyatlarını tazele ki
 	# fiyat filtresi/sıralaması güncel kurla çalışsın.
 	refresh_listing_price_base()
