@@ -209,3 +209,4 @@ tradehub_core.patches.v15_9_9_hide_asp_uncollected_fields
 tradehub_core.patches.v15_9_10_seed_category_showcase
 tradehub_core.patches.v15_9_11_migrate_widget_violet_to_brand
 tradehub_core.patches.add_storefront_global_sort_indexes
+tradehub_core.patches.add_storefront_visible_flag
