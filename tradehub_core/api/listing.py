@@ -128,6 +128,29 @@ def invalidate_listing_cache(doc=None, method=None):
 		pass
 
 
+def invalidate_category_cache(doc=None, method=None):
+	"""Product Category yazımında kategori-bağımlı storefront cache'lerini düşür.
+
+	Wired: Product Category on_update / after_insert / on_trash (hooks.py).
+	Kategori adı/ağaç değişimi; descendant lookup (pc_desc), facet sayımları
+	(filter_facets), top-ranking ve listing kartlarındaki kategori adını
+	etkilediği için invalidate_listing_cache (bu anahtarların hepsini temizler)
+	yeniden kullanılır. Kategori yazımı nadir olduğundan geniş temizlik ucuz.
+
+	Bulk kategori import'unda (binlerce upsert) per-doc invalidate ETME — importer
+	`frappe.flags.in_category_import` set eder ve sonunda TEK sefer temizler
+	(bkz. api/category.import_categories / _run_category_import). Aksi halde
+	11.919 kategori × ~8 delete_keys = gereksiz Redis SCAN fırtınası."""
+	if (
+		getattr(frappe.flags, "in_category_import", False)
+		or frappe.flags.in_import
+		or frappe.flags.in_migrate
+		or frappe.flags.in_install
+	):
+		return
+	invalidate_listing_cache()
+
+
 # ── Order → Listing.order_count pipeline ──
 #
 # Wired from hooks.py as a `before_save` hook on Order. We deliberately use

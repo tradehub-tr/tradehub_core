@@ -209,6 +209,18 @@ doc_events = {
 	"File": {
 		"before_insert": "tradehub_core.utils.security.reject_unsafe_files",
 	},
+	# Currency cache invalidation — admin manuel düzenlemesinde düş.
+	# (tcmb_fx daily job db.set_value kullandığı için ayrıca explicit invalidate eder.)
+	"Currency Rate Pair": {
+		"on_update": "tradehub_core.api.currency.invalidate_currency_cache",
+		"after_insert": "tradehub_core.api.currency.invalidate_currency_cache",
+		"on_trash": "tradehub_core.api.currency.invalidate_currency_cache",
+	},
+	"Supported Currency": {
+		"on_update": "tradehub_core.api.currency.invalidate_currency_cache",
+		"after_insert": "tradehub_core.api.currency.invalidate_currency_cache",
+		"on_trash": "tradehub_core.api.currency.invalidate_currency_cache",
+	},
 	"Listing": {
 		# FAZ 1.1 — Tenant izolasyonu (seller_profile autoset + cross-seller koruma).
 		# FAZ 1.2 — Entitlement check (multi_variant capability + max_products quota).
@@ -268,12 +280,20 @@ doc_events = {
 	# (Category Embedding + Category Neighbour Cache + Related Listing Cache
 	# rows for listings under this category).
 	"Product Category": {
-		"on_trash": "tradehub_core.recommendations.cleanup.on_product_category_trash",
+		"on_trash": [
+			"tradehub_core.recommendations.cleanup.on_product_category_trash",
+			# Kategori silinince kategori-bağımlı storefront cache'lerini düş.
+			"tradehub_core.api.listing.invalidate_category_cache",
+		],
 		"before_validate": "tradehub_core.seo.hooks_seo.auto_generate_slug",
 		"validate": "tradehub_core.seo.hooks_seo.validate_seo_lengths",
+		# Yeni kategori eklenince cache'i düş (bulk import guard'lı — bkz. invalidate_category_cache).
+		"after_insert": "tradehub_core.api.listing.invalidate_category_cache",
 		"on_update": [
 			"tradehub_core.seo.hooks_seo.invalidate_url_cache",
 			"tradehub_core.seo.hooks_seo.invalidate_sitemap_for",
+			# Kategori adı/ağaç değişince kategori-bağımlı storefront cache'lerini düş.
+			"tradehub_core.api.listing.invalidate_category_cache",
 		],
 	},
 	# Brand / Seller Profile SEO altyapısı: slug auto-generate + meta length warn
