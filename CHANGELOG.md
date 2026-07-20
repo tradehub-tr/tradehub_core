@@ -1,3 +1,25 @@
+## [v1.9.0-alpha.5] - 2026-07-20 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(listing): fiyat aralığı facet + filter_currency desteği eklendi (@aliiball)
+  - get_filter_facets priceRange (eşit-genişlikli histogram bucket'ları)
+  - facet endpoint'i filter_currency ile fiyat bound'larını TRY baza çevirir
+  - fix: fiyat filtresi boş sonuç bırakınca facet 500 hatası (all_assigned_certs) giderildi
+- feat(listing): kategori-siz storefront sıralamaları için composite index eklendi (@aliiball)
+
+### Duzeltildi
+- fix(listing): kur yok / boş sonuç fiyat filtresi hataları düzeltildi (@aliiball)
+  - _to_base_price_bound helper: kur çifti yoksa 1:1 çevrim yerine fiyat filtresi atlanır
+  - all_assigned_certs boş sonuçta UnboundLocalError (facet 500) düzeltildi
+  - filter_currency çevrimi ortak helper'a taşındı (get_listings + get_filter_facets)
+
+### Degistirildi
+- refactor(currency): kur ve para birimi okumaları cache'lendi (1sa TTL + invalidation) (@aliiball)
+- refactor(category): Product Category yazımında kategori cache'i invalidate edildi (@aliiball)
+
+---
 ## [v1.9.0-alpha.4] - 2026-07-18 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
