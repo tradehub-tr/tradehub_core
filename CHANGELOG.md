@@ -1,3 +1,11 @@
+## [v1.9.0-alpha.6] - 2026-07-20 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Degistirildi
+- refactor(listing): storefront_visible denormalize flag + composite index'ler eklendi (@aliiball)
+
+---
 ## [v1.9.0-alpha.5] - 2026-07-20 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
