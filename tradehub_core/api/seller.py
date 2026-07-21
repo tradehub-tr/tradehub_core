@@ -15,21 +15,60 @@ def _strip_html(text):
 	return re.sub(r"<[^>]+>", "", text).strip()
 
 
-@frappe.whitelist(allow_guest=True)
-def get_sellers(search=None, keyword=None, category=None, page=1, page_size=20):
+def _seller_codes_from_listing_filters(listing_filters: dict) -> set:
+	"""Verilen Listing filtresine uyan aktif ilanların satıcı (seller_profile) kod setini döndürür.
+	Manufacturer filtrelerinden Listing-türevli olanlar (kategori, min_order, ürün sertifikası)
+	bu set üzerinden Admin Seller Profile.seller_code'a indirgenir."""
+	rows = frappe.get_all(
+		"Listing",
+		filters=listing_filters,
+		fields=["seller_profile"],
+		distinct=True,
+		limit_page_length=0,
+	)
+	return {r.seller_profile for r in rows if r.get("seller_profile")}
+
+
+def _verified_seller_codes() -> set:
+	"""'Verified Seller' rolüne sahip kullanıcıların Admin Seller Profile.seller_code seti.
+	Onaylanmış Satıcı filtresi için tek doğruluk kaynağı User.role (bkz. get_sellers verified akışı)."""
+	rows = frappe.db.sql(
+		"""SELECT asp.seller_code
+		   FROM `tabAdmin Seller Profile` asp
+		   JOIN `tabHas Role` hr ON hr.parent = asp.user
+		   WHERE hr.role = 'Verified Seller' AND hr.parenttype = 'User'
+		     AND asp.seller_code IS NOT NULL AND asp.seller_code != ''"""
+	)
+	return {r[0] for r in rows if r[0]}
+
+
+def _resolve_seller_filters(
+	search=None,
+	keyword=None,
+	category=None,
+	country=None,
+	min_rating=None,
+	min_order=None,
+	founded_year_min=None,
+	verified=None,
+	mgmt_certs=None,
+	product_certs=None,
+) -> dict | None:
+	"""Manufacturer filtre paramlarını Admin Seller Profile get_all filtre dict'ine çevirir.
+
+	Dönüş: filters dict; hiçbir satıcı eşleşemiyorsa None (çağıran boş sonuç döndürür).
+	get_sellers (liste) ve get_manufacturer_facets (sayım) AYNI çözümü paylaşır → count ↔ liste tutarlı."""
 	filters = {"status": "Active"}
 	if search:
-		filters["seller_name"] = ["like", "%" + search + "%"]
+		filters["seller_name"] = ["like", "%" + str(search) + "%"]
 
-	# keyword/category verildiyse, eşleşen Listing'lerden seller_profile setini çıkar
-	# ve Admin Seller Profile sorgusunu bu sete daralt.
+	# seller_code daraltmaları: her biri bir kod seti; hepsi kesişir.
+	code_sets: list[set] = []
 	keyword = (keyword or "").strip()
 	category = (category or "").strip()
 	if keyword or category:
 		listing_filters = {"status": "Active"}
 		if category:
-			# category param hem url_slug hem direct name olabilir
-			# (listing.get_listings ile aynı çözümleme).
 			from tradehub_core.api.listing import _get_category_descendants
 
 			platform_cat = frappe.db.get_value("Product Category", {"url_slug": category}, "name")
@@ -38,27 +77,243 @@ def get_sellers(search=None, keyword=None, category=None, page=1, page_size=20):
 				listing_filters["product_category"] = (
 					descendants[0] if len(descendants) == 1 else ["in", descendants]
 				)
+			elif frappe.db.exists("Product Category", category):
+				listing_filters["product_category"] = category
 			else:
-				# Fallback: doğrudan Product Category name veya seller category
-				if frappe.db.exists("Product Category", category):
-					listing_filters["product_category"] = category
-				else:
-					listing_filters["category"] = category
+				listing_filters["category"] = category
 		if keyword:
 			listing_filters["title"] = ["like", "%" + keyword + "%"]
-		matching_sellers = frappe.get_all(
+		code_sets.append(_seller_codes_from_listing_filters(listing_filters))
+
+	if min_order:
+		mo = safe_float(min_order, label=_("Min. sipariş"))
+		if mo > 0:
+			code_sets.append(
+				_seller_codes_from_listing_filters({"status": "Active", "min_order_qty": [">=", mo]})
+			)
+
+	if product_certs:
+		pcert_list = [c.strip() for c in str(product_certs).split(",") if c.strip()]
+		if pcert_list:
+			cert_parents = frappe.get_all(
+				"Listing Certification",
+				filters={"certification_type": ["in", pcert_list]},
+				fields=["parent"],
+				distinct=True,
+				limit_page_length=0,
+			)
+			pnames = [r.parent for r in cert_parents if r.get("parent")]
+			codes = (
+				_seller_codes_from_listing_filters({"status": "Active", "name": ["in", pnames]})
+				if pnames
+				else set()
+			)
+			code_sets.append(codes)
+
+	if verified:
+		code_sets.append(_verified_seller_codes())
+
+	if code_sets:
+		final_codes = set.intersection(*code_sets) if len(code_sets) > 1 else code_sets[0]
+		if not final_codes:
+			return None
+		filters["seller_code"] = ["in", sorted(final_codes)]
+
+	# Direct Admin Seller Profile alanları
+	if country:
+		clist = [c.strip() for c in str(country).split(",") if c.strip()]
+		if clist:
+			filters["country"] = ["in", clist] if len(clist) > 1 else clist[0]
+	if min_rating:
+		filters["rating"] = [">=", safe_float(min_rating, label=_("Puan"))]
+	if founded_year_min:
+		# Firma yaşı X+ yıl → kuruluş yılı (bu yıl - X) ve öncesi.
+		try:
+			threshold = getdate(nowdate()).year - int(founded_year_min)
+			filters["founded_year"] = ["<=", threshold]
+		except (ValueError, TypeError):
+			pass
+
+	# Yönetim sertifikası: doğrulanmış Seller Certification'a sahip ASP name seti.
+	if mgmt_certs:
+		mcert_list = [c.strip() for c in str(mgmt_certs).split(",") if c.strip()]
+		if mcert_list:
+			cert_rows = frappe.get_all(
+				"Seller Certification",
+				filters={"certification_type": ["in", mcert_list], "verification_status": "Verified"},
+				fields=["parent"],
+				distinct=True,
+				limit_page_length=0,
+			)
+			cert_names = sorted({r.parent for r in cert_rows if r.get("parent")})
+			if not cert_names:
+				return None
+			filters["name"] = ["in", cert_names]
+
+	return filters
+
+
+def _empty_manufacturer_facets() -> dict:
+	return {
+		"countries": [],
+		"ratings": [],
+		"foundedYears": [],
+		"managementCertifications": [],
+		"productCertifications": [],
+		"verifiedSupplierCount": 0,
+		"total": 0,
+	}
+
+
+@frappe.whitelist(allow_guest=True)
+def get_manufacturer_facets(
+	search=None,
+	keyword=None,
+	category=None,
+	country=None,
+	min_rating=None,
+	min_order=None,
+	founded_year_min=None,
+	verified=None,
+	mgmt_certs=None,
+	product_certs=None,
+) -> dict:
+	"""Üreticiler sayfası facet sayımları — count birimi = ÜRETİCİ (listing değil).
+
+	get_sellers ile AYNI _resolve_seller_filters çözümünü kullanır → count ↔ liste tutarlı.
+	Tüm aktif filtreler uygulanıp kalan üretici seti üzerinde her boyut sayılır (monotonic narrow)."""
+	filters = _resolve_seller_filters(
+		search, keyword, category, country, min_rating, min_order,
+		founded_year_min, verified, mgmt_certs, product_certs,
+	)
+	if filters is None:
+		return {"data": _empty_manufacturer_facets()}
+
+	matched = frappe.get_all(
+		"Admin Seller Profile",
+		filters=filters,
+		fields=["name", "seller_code", "country", "rating", "founded_year"],
+		limit_page_length=0,
+	)
+	if not matched:
+		return {"data": _empty_manufacturer_facets()}
+
+	names = [m.name for m in matched]
+	codes = [m.seller_code for m in matched if m.get("seller_code")]
+
+	# Ülke — üretici sayısı
+	country_counts: dict[str, int] = {}
+	for m in matched:
+		if m.get("country"):
+			country_counts[m.country] = country_counts.get(m.country, 0) + 1
+	countries = [
+		{"value": c, "label": c, "count": n}
+		for c, n in sorted(country_counts.items(), key=lambda x: -x[1])
+	]
+
+	# Mağaza puanı — eşik başına üretici sayısı (4+/3+/2+/1+)
+	ratings = []
+	for th in (4, 3, 2, 1):
+		cnt = sum(1 for m in matched if (m.get("rating") or 0) >= th)
+		if cnt:
+			ratings.append({"value": str(th), "label": f"{th}+", "count": cnt})
+
+	# Firma yaşı — eşik başına üretici sayısı (5+/10+/15+ yıl → kuruluş yılı ≤ cutoff)
+	current_year = getdate(nowdate()).year
+	foundedYears = []
+	for th in (5, 10, 15):
+		cutoff = current_year - th
+		cnt = sum(1 for m in matched if m.get("founded_year") and m.founded_year <= cutoff)
+		if cnt:
+			foundedYears.append({"value": str(th), "label": f"{th}+", "count": cnt})
+
+	# Onaylanmış Satıcı — üretici sayısı
+	verified_codes = _verified_seller_codes()
+	verifiedSupplierCount = sum(1 for m in matched if m.get("seller_code") in verified_codes)
+
+	# Yönetim sertifikaları — cert türü başına DISTINCT üretici sayısı
+	mgmt_seen: dict[str, set] = {}
+	if names:
+		for r in frappe.get_all(
+			"Seller Certification",
+			filters={"parent": ["in", names], "verification_status": "Verified"},
+			fields=["parent", "certification_type"],
+			limit_page_length=0,
+		):
+			if r.get("certification_type"):
+				mgmt_seen.setdefault(r.certification_type, set()).add(r.parent)
+	managementCertifications = [
+		{"value": ct, "label": ct, "count": len(ps)}
+		for ct, ps in sorted(mgmt_seen.items(), key=lambda x: -len(x[1]))
+	]
+
+	# Ürün sertifikaları — cert türü başına DISTINCT üretici sayısı (Listing üzerinden)
+	prod_seen: dict[str, set] = {}
+	if codes:
+		listings = frappe.get_all(
 			"Listing",
-			filters=listing_filters,
-			fields=["seller_profile"],
-			distinct=True,
+			filters={"seller_profile": ["in", codes], "status": "Active"},
+			fields=["name", "seller_profile"],
 			limit_page_length=0,
 		)
-		seller_codes = sorted(
-			{(r.get("seller_profile") or "") for r in matching_sellers if r.get("seller_profile")}
-		)
-		if not seller_codes:
-			return {"sellers": [], "total": 0, "page": int(page), "page_size": int(page_size)}
-		filters["seller_code"] = ["in", seller_codes]
+		listing_to_seller = {l.name: l.seller_profile for l in listings}
+		if listing_to_seller:
+			for r in frappe.get_all(
+				"Listing Certification",
+				filters={"parent": ["in", list(listing_to_seller.keys())]},
+				fields=["parent", "certification_type"],
+				limit_page_length=0,
+			):
+				seller = listing_to_seller.get(r.parent)
+				if r.get("certification_type") and seller:
+					prod_seen.setdefault(r.certification_type, set()).add(seller)
+	productCertifications = [
+		{"value": ct, "label": ct, "count": len(ss)}
+		for ct, ss in sorted(prod_seen.items(), key=lambda x: -len(x[1]))
+	]
+
+	return {
+		"data": {
+			"countries": countries,
+			"ratings": ratings,
+			"foundedYears": foundedYears,
+			"managementCertifications": managementCertifications,
+			"productCertifications": productCertifications,
+			"verifiedSupplierCount": verifiedSupplierCount,
+			"total": len(matched),
+		}
+	}
+
+
+@frappe.whitelist(allow_guest=True)
+def get_sellers(
+	search=None,
+	keyword=None,
+	category=None,
+	page=1,
+	page_size=20,
+	country=None,
+	min_rating=None,
+	min_order=None,
+	founded_year_min=None,
+	verified=None,
+	mgmt_certs=None,
+	product_certs=None,
+):
+	filters = _resolve_seller_filters(
+		search,
+		keyword,
+		category,
+		country,
+		min_rating,
+		min_order,
+		founded_year_min,
+		verified,
+		mgmt_certs,
+		product_certs,
+	)
+	if filters is None:
+		return {"sellers": [], "total": 0, "page": int(page), "page_size": int(page_size)}
 
 	sellers = frappe.get_all(
 		"Admin Seller Profile",
