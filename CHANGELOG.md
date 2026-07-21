@@ -1,3 +1,16 @@
+## [v1.9.0-alpha.8] - 2026-07-21 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(api): "Yeni ürün" rozeti ve footer SEO link endpoint'i eklendi (@ahmeetseker)
+  - Social Proof Settings'e "Yeni Ürün Rozeti" bölümü eklendi (new_badge_enabled, new_badge_max_age_days; 0 = sınırsız pencere)
+  - Eşik geçen sinyali olmayan ürünlerde "Yeni ürün" fallback rozeti get_signals ve admin canlı önizlemesinde döndürülüyor
+  - api/footer.py: aktif ilanı olan popüler marka/mağaza/kategori linklerini döndüren get_footer_seo_links endpoint'i eklendi (1 saat cache, dil bazlı)
+  - get_signals_batch'te Listing alanı seller → seller_profile olarak düzeltildi
+  - Başlangıç planı sloganı "Avrupa pazarına" → "Global pazara" güncellendi
+
+---
 ## [v1.9.0-alpha.7] - 2026-07-21 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
