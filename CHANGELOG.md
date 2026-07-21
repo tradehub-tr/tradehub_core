@@ -1,3 +1,11 @@
+## [v1.9.0-alpha.10] - 2026-07-21 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(listing): delete_listing endpoint'i (akıllı silme) (@boraydeger32)
+
+---
 ## [v1.9.0-alpha.9] - 2026-07-21 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
