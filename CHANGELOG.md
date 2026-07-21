@@ -1,3 +1,14 @@
+## [v1.9.0-alpha.7] - 2026-07-21 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(seller): üretici filtreleri server-side + facet endpoint eklendi (@aliiball)
+  - get_sellers: country/min_rating/min_order/founded_year_min/verified/mgmt_certs/product_certs
+  - get_manufacturer_facets: üretici-sayılı facet (monotonic narrow, liste ile tutarlı)
+  - _resolve_seller_filters ortak helper (count ↔ liste tek kaynaktan)
+
+---
 ## [v1.9.0-alpha.6] - 2026-07-20 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
