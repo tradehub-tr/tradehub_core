@@ -31,6 +31,19 @@ def _cache_key(prefix: str, **kwargs) -> str:
 STOREFRONT_VISIBLE_STATUSES = ("Active", "Out of Stock")
 STOREFRONT_STATUS_FILTER = ["in", list(STOREFRONT_VISIBLE_STATUSES)]
 
+# Listing silinirken otomatik temizlenecek saf analitik/cache doctype'ları
+# (doctype, link_fieldname). Bunların iş değeri yok ve her görüntülemede/öneri
+# hesabında otomatik oluşur; temizlenmezse Frappe LinkExistsError ile silmeyi
+# spurious biçimde bloklar (bir kez görüntülenen HER ürün silinemez, hep arşive
+# düşerdi). İş kayıtları (Order Item, Review, Question, Quote, Cart, Favorite...)
+# bu listede DEĞİL → onlar varsa ürün yine arşivlenir.
+_LISTING_DELETE_ANALYTICS_LINKS = (
+	("Listing View Counter", "listing"),
+	("User Product View", "listing"),
+	("Related Listing Cache", "source_listing"),
+	("Related Listing Cache", "target_listing"),
+)
+
 
 CACHE_TTL = 30  # seconds — short TTL for listing queries
 
@@ -4343,6 +4356,67 @@ def update_listing_status(listing_name, status):
 		{"status": status, "storefront_visible": storefront_visible},
 	)
 	return {"success": True}
+
+
+@frappe.whitelist()
+def delete_listing(listing_name: str) -> dict:
+	"""Satıcı: kendi ürününü sil (akıllı silme).
+
+	Önce saf analitik/cache referansları (görüntülenme sayacı, öneri cache'i)
+	temizlenir. Ardından ürüne GERÇEK iş kaydı (Order Item, Review, Question,
+	Quote, Cart, Favorite...) bağlı DEĞİLSE kayıt kalıcı silinir. Bağlıysa Frappe
+	`LinkExistsError` fırlatır → geçmiş korunmak için ürün 'Archived' statüsüne
+	çekilir (soft-delete). Her iki durumda da ürün listeden ve storefront'tan kalkar.
+
+	Sahiplik + capability kontrolü update_listing_status ile aynı deseni izler.
+	"""
+	from tradehub_core.utils.seller_capabilities import require_seller_capability
+	from tradehub_core.utils.tenant import _get_seller_profile_for_user
+
+	require_seller_capability("listing.delete")
+
+	if not frappe.db.exists("Listing", listing_name):
+		frappe.throw(_("Ürün bulunamadı."), frappe.DoesNotExistError)
+
+	listing = frappe.get_doc("Listing", listing_name)
+
+	# Sahiplik: sub-user'lar Owner'ın ürününü yönetir (aynı tenant). profile boşsa
+	# None == None sızıntısına düşmemek için dolu olduğunu da doğrula.
+	seller_profile = _get_seller_profile_for_user(frappe.session.user)
+	if not seller_profile or listing.seller_profile != seller_profile:
+		frappe.throw(_("Bu ürün size ait değil."), frappe.PermissionError)
+
+	# Silmeyi bloklayan ama iş değeri olmayan otomatik analitik/cache kayıtlarını
+	# önce temizle (aksi halde görüntülenmiş her ürün spurious LinkExistsError alır).
+	for _doctype, _field in _LISTING_DELETE_ANALYTICS_LINKS:
+		frappe.db.delete(_doctype, {_field: listing_name})
+
+	# Sonra kalıcı silmeyi dene. Gerçek iş kaydı varsa Frappe link kontrolü
+	# LinkExistsError fırlatır (destructive işlemden ÖNCE). Ownership yukarıda
+	# doğrulandığı için ignore_permissions gerekçeli (bkz. seller_addresses.delete_address).
+	frappe.db.savepoint("before_listing_delete")
+	try:
+		frappe.delete_doc("Listing", listing_name, ignore_permissions=True)
+		frappe.db.commit()
+		# on_trash hook'u cache + ReBAC tuple temizliğini otomatik yapar.
+		return {"action": "deleted", "listing": listing_name}
+	except frappe.LinkExistsError:
+		# Sipariş/sepet/favori bağımlılığı → kalıcı silinemez; geçmişi koru, arşivle.
+		frappe.db.rollback(save_point="before_listing_delete")
+
+	# Soft-delete: db.set_value hem validate'i (satıcı 'Archived'a geçemez kuralı)
+	# hem _set_storefront_visible'ı atlar → storefront_visible'ı manuel 0'la
+	# (update_listing_status ile aynı desen; aksi halde flag drift eder).
+	frappe.db.set_value(
+		"Listing",
+		listing_name,
+		{"status": "Archived", "is_visible": 0, "storefront_visible": 0},
+	)
+	frappe.db.commit()
+	# set_value doc_event tetiklemez → arşivlenen ürünü cache'li 'Active'
+	# listelerinden düşürmek için invalidation'ı manuel çağır.
+	invalidate_listing_cache()
+	return {"action": "archived", "listing": listing_name}
 
 
 @frappe.whitelist()
