@@ -7,6 +7,9 @@
 	"track_changes": 1,
 	"field_order": [
 		"enabled",
+		"sb_new_badge",
+		"new_badge_enabled",
+		"new_badge_max_age_days",
 		"sb_thresholds",
 		"sales_threshold",
 		"favorites_threshold",
@@ -22,6 +25,9 @@
 	],
 	"fields": [
 		{"fieldname": "enabled", "fieldtype": "Check", "label": "Etkin", "default": "1"},
+		{"fieldname": "sb_new_badge", "fieldtype": "Section Break", "label": "Yeni Ürün Rozeti"},
+		{"fieldname": "new_badge_enabled", "fieldtype": "Check", "label": "Yeni Ürün Rozeti Etkin", "default": "1", "description": "Sinyal eşiği geçmeyen ürünlerde 'Yeni ürün' rozeti göster."},
+		{"fieldname": "new_badge_max_age_days", "fieldtype": "Int", "label": "Maks. Yaş (gün)", "default": "0", "description": "0 = sinyali olmayan tüm ürünlerde göster. >0 = yalnızca bu kadar günden yeni eklenen ürünlerde."},
 		{"fieldname": "sb_thresholds", "fieldtype": "Section Break", "label": "Eşikler"},
 		{"fieldname": "sales_threshold", "fieldtype": "Int", "label": "Satış Eşiği", "default": "100"},
 		{"fieldname": "favorites_threshold", "fieldtype": "Int", "label": "Favori Eşiği", "default": "10"},

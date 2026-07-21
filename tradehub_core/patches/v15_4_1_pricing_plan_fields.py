@@ -157,7 +157,7 @@ _PRESETS = {
 		"badge_label": "BAŞLANGIÇ",
 		"badge_color": "default",
 		"theme": "default",
-		"short_tagline": "Avrupa pazarına ilk adımını atan küçük üreticiler için.",
+		"short_tagline": "Global pazara ilk adımını atan küçük üreticiler için.",
 		"commission_rate": 8.0,
 		"max_active_listings": 50,
 		"cta_label": "Ücretsiz başla",

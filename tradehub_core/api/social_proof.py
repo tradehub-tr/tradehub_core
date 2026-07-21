@@ -66,6 +66,10 @@ def _get_settings() -> dict:
 			),
 			"cache_ttl_seconds": int(doc.cache_ttl_seconds or 600),
 			"view_dedup_seconds": int(doc.view_dedup_seconds or 1800),
+			# Field'lar Settings doc'una eklenmeden (migrate öncesi) None gelebilir —
+			# None → "Yeni ürün" fallback varsayılan olarak açık, pencere sınırsız.
+			"new_badge_enabled": True if doc.new_badge_enabled is None else bool(doc.new_badge_enabled),
+			"new_badge_max_age_days": int(doc.new_badge_max_age_days or 0),
 		}
 	except Exception:
 		# Settings doc henüz install edilmedi — default'lara düş
@@ -79,6 +83,8 @@ def _get_settings() -> dict:
 			"seller_orders_threshold": _DEFAULT_THRESHOLDS["seller_orders"],
 			"cache_ttl_seconds": 600,
 			"view_dedup_seconds": 1800,
+			"new_badge_enabled": True,
+			"new_badge_max_age_days": 0,
 		}
 	frappe.cache().set_value(_SETTINGS_CACHE_KEY, settings, expires_in_sec=3600)
 	return settings
@@ -184,6 +190,22 @@ def _compute_seller_orders(listing_id: str, supplier_id: str | None, settings: d
 	return {"type": "seller_orders", "value": int(count), "threshold": threshold}
 
 
+def _is_new_listing(listing_id: str, settings: dict) -> bool:
+	"""'Yeni ürün' fallback rozetinin bu listing'de gösterilip gösterilmeyeceği.
+
+	max_age_days=0 → sinyali olmayan TÜM ürünler yeni sayılır (fallback her zaman).
+	max_age_days>0 → yalnızca son N günde eklenen ürünler. Yalnızca eşik geçen sinyal
+	yokken çağrılır; hot path'e (sinyalli ürün) ekstra sorgu getirmez.
+	"""
+	max_age = settings["new_badge_max_age_days"]
+	if max_age <= 0:
+		return True
+	created = frappe.db.get_value("Listing", listing_id, "creation")
+	if not created:
+		return True
+	return created >= add_to_date(now_datetime(), days=-max_age)
+
+
 @frappe.whitelist(allow_guest=True)
 def get_signals(listing_id: str, supplier_id: str | None = None) -> dict:
 	"""
@@ -228,6 +250,11 @@ def get_signals(listing_id: str, supplier_id: str | None = None) -> dict:
 			frappe.log_error(title=f"social_proof.{fn.__name__}_fail")
 			continue
 
+	# Eşik geçen gerçek sinyal yoksa "Yeni ürün" fallback rozeti — kart/detay alanı
+	# boş kalmasın (statik selling point kaldırıldı, alan tamamen sosyal kanıta ait).
+	if not signals and settings["new_badge_enabled"] and _is_new_listing(listing_id, settings):
+		signals.append(_serialize_signal("new", 0))
+
 	response = {"signals": signals}
 	frappe.cache().set_value(cache_key, response, expires_in_sec=settings["cache_ttl_seconds"])
 	return response
@@ -254,8 +281,8 @@ def get_signals_batch(listing_ids: str) -> dict:
 	# Public/guest sosyal kanıt okuması — get_all bilinçli (get_signals da status'u
 	# permission'sız okuyor); sadece minimal `seller` alanı çekiliyor.
 	suppliers = {
-		r.name: r.seller
-		for r in frappe.get_all("Listing", filters={"name": ["in", ids]}, fields=["name", "seller"])
+		r.name: r.seller_profile
+		for r in frappe.get_all("Listing", filters={"name": ["in", ids]}, fields=["name", "seller_profile"])
 	}
 
 	out: dict = {}
@@ -408,6 +435,11 @@ def _validate_payload(payload: dict) -> None:
 	_require_int_in_range(payload.get("cache_ttl_seconds"), "Önbellek TTL (sn)", _TTL_MIN, _TTL_MAX)
 	_require_int_in_range(payload.get("view_dedup_seconds"), "Görüntülenme dedup (sn)", _TTL_MIN, _TTL_MAX)
 
+	# Opsiyonel — yalnızca gönderildiyse doğrula (eski payload'larla geriye uyum).
+	# 0 = tüm ürünler; üst sınır 365 gün.
+	if "new_badge_max_age_days" in payload:
+		_require_int_in_range(payload.get("new_badge_max_age_days"), "Yeni ürün maks. yaş (gün)", 0, 365)
+
 
 _SAMPLE_CACHE_KEY = "social_proof:admin_samples"
 _SAMPLE_CACHE_TTL_SEC = 300
@@ -470,6 +502,8 @@ def get_admin_settings() -> dict:
 	doc = frappe.get_single("Social Proof Settings")
 	return {
 		"enabled": bool(doc.enabled),
+		"new_badge_enabled": True if doc.new_badge_enabled is None else bool(doc.new_badge_enabled),
+		"new_badge_max_age_days": int(doc.new_badge_max_age_days or 0),
 		"thresholds": {
 			"sales": int(doc.sales_threshold),
 			"favorites": int(doc.favorites_threshold),
@@ -502,6 +536,10 @@ def update_admin_settings(payload: dict | str) -> dict:
 		setattr(doc, f"{sig}_threshold", int(payload["thresholds"][sig]))
 	doc.cache_ttl_seconds = int(payload["cache_ttl_seconds"])
 	doc.view_dedup_seconds = int(payload["view_dedup_seconds"])
+	# Yeni ürün rozeti alanları opsiyonel — eski admin payload'ı göndermezse
+	# varsayılan korunur (enabled açık, pencere sınırsız).
+	doc.new_badge_enabled = 0 if payload.get("new_badge_enabled") is False else 1
+	doc.new_badge_max_age_days = int(payload.get("new_badge_max_age_days") or 0)
 	doc.save()
 	return {"ok": True}
 
@@ -554,6 +592,11 @@ def get_admin_preview_signals(threshold_overrides: dict | str | None = None) -> 
 			except Exception:
 				frappe.log_error(title=f"social_proof.preview_{fn.__name__}_fail")
 				continue
+
+		# Canlı önizleme, gerçek get_signals ile tutarlı olsun: eşik geçen sinyal
+		# yoksa "Yeni ürün" fallback rozeti burada da görünsün.
+		if not passed and settings["new_badge_enabled"] and _is_new_listing(listing_id, settings):
+			passed.append(_serialize_signal("new", 0))
 
 		results.append(
 			{
