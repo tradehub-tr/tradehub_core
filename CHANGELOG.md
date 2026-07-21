@@ -1,3 +1,11 @@
+## [v1.9.0-alpha.11] - 2026-07-21 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Duzeltildi
+- fix(seller): get_manufacturer_facets kategori görünen adını döndürüyor (başlıkta raw slug kalıyordu) (@aliiball)
+
+---
 ## [v1.9.0-alpha.10] - 2026-07-21 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
