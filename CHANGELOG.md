@@ -1,3 +1,11 @@
+## [v1.9.0-alpha.9] - 2026-07-21 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Degistirildi
+- refactor(api): storefront_visible geçişi + listing_detail/facet cache + signals batch (@aliiball)
+
+---
 ## [v1.9.0-alpha.8] - 2026-07-21 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
