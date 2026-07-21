@@ -233,14 +233,93 @@ def get_signals(listing_id: str, supplier_id: str | None = None) -> dict:
 	return response
 
 
+# ── A-6: batch compute helpers (listing başına 6 sorgu → sinyal-tipi başına 1 GROUP BY) ──
+# Her helper tekil _compute_* ile AYNI değeri üretir; get_signals_batch bunları kullanıp
+# get_signals'in serialize/threshold mantığını birebir tekrarlar (get_signals değişmedi,
+# referans olarak duruyor; eşdeğerlik get_signals_batch == {lid: get_signals(lid)} ile kanıtlanır).
+
+
+def _batch_sales_and_buyers(ids: list) -> tuple[dict, dict]:
+	"""_compute_sales + _compute_distinct_buyers — ortak Order join, tek sorgu."""
+	if not ids:
+		return {}, {}
+	from_dt = add_to_date(now_datetime(), days=-30)
+	rows = frappe.db.sql(
+		"""
+		SELECT oi.listing AS listing, COALESCE(SUM(oi.quantity), 0) AS qty,
+		       COUNT(DISTINCT o.buyer) AS buyers
+		FROM `tabOrder Item` oi
+		JOIN `tabOrder` o ON o.name = oi.parent
+		WHERE oi.listing IN %(ids)s AND o.status IN %(states)s AND o.creation >= %(dt)s
+		GROUP BY oi.listing
+		""",
+		{"ids": tuple(ids), "states": SOLD_STATES, "dt": from_dt},
+		as_dict=True,
+	)
+	return (
+		{r.listing: int(r.qty or 0) for r in rows},
+		{r.listing: int(r.buyers or 0) for r in rows},
+	)
+
+
+def _batch_favorites(ids: list) -> dict:
+	if not ids:
+		return {}
+	rows = frappe.db.sql(
+		"""SELECT listing, COUNT(*) AS cnt FROM `tabBuyer Favorite Item`
+		   WHERE listing IN %(ids)s GROUP BY listing""",
+		{"ids": tuple(ids)},
+		as_dict=True,
+	)
+	return {r.listing: int(r.cnt or 0) for r in rows}
+
+
+def _batch_cart_now(ids: list) -> dict:
+	if not ids:
+		return {}
+	rows = frappe.db.sql(
+		"""SELECT ci.listing AS listing, COUNT(DISTINCT c.buyer) AS cnt
+		   FROM `tabCart Item` ci JOIN `tabCart` c ON c.name = ci.parent
+		   WHERE ci.listing IN %(ids)s AND c.status = 'Active' GROUP BY ci.listing""",
+		{"ids": tuple(ids)},
+		as_dict=True,
+	)
+	return {r.listing: int(r.cnt or 0) for r in rows}
+
+
+def _batch_views_24h(ids: list) -> dict:
+	if not ids:
+		return {}
+	rows = frappe.get_all(
+		"Listing View Counter",
+		filters={"name": ["in", ids]},
+		fields=["name", "view_count_24h"],
+	)
+	return {r.name: int(r.view_count_24h or 0) for r in rows}
+
+
+def _batch_seller_orders(supplier_ids: list) -> dict:
+	"""Satıcı başına tamamlanmış sipariş sayısı (seller_orders sinyali)."""
+	if not supplier_ids:
+		return {}
+	rows = frappe.db.sql(
+		"""SELECT seller, COUNT(*) AS cnt FROM `tabOrder`
+		   WHERE seller IN %(sids)s AND status = 'Tamamlandı' GROUP BY seller""",
+		{"sids": tuple(supplier_ids)},
+		as_dict=True,
+	)
+	return {r.seller: int(r.cnt or 0) for r in rows}
+
+
 @frappe.whitelist(allow_guest=True)
 def get_signals_batch(listing_ids: str) -> dict:
 	"""
 	Birden çok listing için sosyal kanıt sinyallerini tek çağrıda döner (listing grid).
 
 	listing_ids: virgülle ayrılmış listing id'leri ("L1,L2,L3").
-	Dönüş: {listing_id: {"signals": [...]}} — get_signals ile aynı per-listing yapı,
-	aynı per-listing cache'i paylaşır (tekil get_signals çağrılarıyla tutarlı).
+	Dönüş: {listing_id: {"signals": [...]}} — get_signals ile AYNI per-listing yapı +
+	aynı per-listing cache. Sinyaller tekil get_signals gibi listing başına değil,
+	sinyal-tipi başına TEK GROUP BY sorgusuyla hesaplanır (60 kart × 6 = 360 → ~5 sorgu).
 	"""
 	if not listing_ids:
 		return {}
@@ -250,21 +329,72 @@ def get_signals_batch(listing_ids: str) -> dict:
 	if not ids:
 		return {}
 
-	# Sosyal kanıt compute'u supplier ister; N+1 yerine tek sorguda seller eşlemesi.
-	# Public/guest sosyal kanıt okuması — get_all bilinçli (get_signals da status'u
-	# permission'sız okuyor); sadece minimal `seller` alanı çekiliyor.
-	suppliers = {
-		r.name: r.seller
-		for r in frappe.get_all("Listing", filters={"name": ["in", ids]}, fields=["name", "seller"])
-	}
+	settings = _get_settings()
+	if not settings["enabled"]:
+		return {lid: {"signals": []} for lid in ids}
 
+	# Per-listing cache — get_signals ile paylaşımlı (tekil çağrılarla tutarlı).
 	out: dict = {}
+	uncached: list = []
 	for lid in ids:
-		try:
-			out[lid] = get_signals(lid, suppliers.get(lid))
-		except Exception:
-			frappe.log_error(title="social_proof.get_signals_batch_item_fail")
-			out[lid] = {"signals": []}
+		cached = frappe.cache().get_value(f"{_RESPONSE_CACHE_PREFIX}{lid}")
+		if cached is not None:
+			out[lid] = cached
+		else:
+			uncached.append(lid)
+
+	if not uncached:
+		return out
+
+	# Uncached listing'lerin status + supplier bilgisi (Archived elenir).
+	meta = {
+		r.name: r
+		for r in frappe.get_all(
+			"Listing",
+			filters={"name": ["in", uncached]},
+			fields=["name", "status", "seller_profile"],
+		)
+	}
+	active = [lid for lid in uncached if meta.get(lid) and meta[lid].status != "Archived"]
+
+	# Batch compute — sinyal-tipi başına tek sorgu.
+	sales_map, buyers_map = _batch_sales_and_buyers(active)
+	fav_map = _batch_favorites(active)
+	cart_map = _batch_cart_now(active)
+	views_map = _batch_views_24h(active)
+	# supplier_id = Listing.seller_profile — _compute_seller_orders'ın fallback'iyle aynı
+	# (Listing'de "seller" kolonu yok; tekil compute de supplier None gelince seller_profile'a düşer).
+	supplier_of = {lid: meta[lid].seller_profile for lid in active}
+	seller_orders_map = _batch_seller_orders(list({s for s in supplier_of.values() if s}))
+
+	for lid in uncached:
+		m = meta.get(lid)
+		if not m or m.status == "Archived":
+			resp = {"signals": []}
+		else:
+			# get_signals ile AYNI sıra + threshold + serialize.
+			raw = [
+				("sales", sales_map.get(lid, 0), settings["sales_threshold"], 30),
+				("favorites", fav_map.get(lid, 0), settings["favorites_threshold"], None),
+				("cart_now", cart_map.get(lid, 0), settings["cart_now_threshold"], None),
+				("views_24h", views_map.get(lid, 0), settings["views_24h_threshold"], None),
+				("distinct_buyers", buyers_map.get(lid, 0), settings["distinct_buyers_threshold"], 30),
+			]
+			signals = [
+				_serialize_signal(typ, val, win) for (typ, val, thr, win) in raw if val >= thr
+			]
+			supplier_id = supplier_of.get(lid)
+			if supplier_id:
+				so_val = seller_orders_map.get(supplier_id, 0)
+				if so_val >= settings["seller_orders_threshold"]:
+					signals.append(_serialize_signal("seller_orders", so_val, None))
+			resp = {"signals": signals}
+
+		frappe.cache().set_value(
+			f"{_RESPONSE_CACHE_PREFIX}{lid}", resp, expires_in_sec=settings["cache_ttl_seconds"]
+		)
+		out[lid] = resp
+
 	return out
 
 

@@ -39,6 +39,10 @@ CACHE_TTL = 30  # seconds — short TTL for listing queries
 # view counter. Long enough to defeat refresh spam, short enough that
 # legitimate return visitors are still counted on subsequent days.
 VIEW_DEDUP_TTL = 3600  # 1 hour
+# Ürün detayı response cache (per listing × lang). Payload isteyen kullanıcıya
+# bağlı değil → paylaşımlı cache güvenli. Invalidation: Listing on_update.
+_LISTING_DETAIL_CACHE_TTL = 300  # 5 dk
+_LISTING_DETAIL_CACHE_PREFIX = "tradehub:listing_detail:"
 
 # Product Category descendant resolver cache TTL (10 min). The tree rarely
 # changes; invalidate_listing_cache drops this alongside listing caches.
@@ -123,6 +127,12 @@ def invalidate_listing_cache(doc=None, method=None):
 				frappe.cache.delete_keys(pattern)
 			except Exception:
 				# delete_keys is best-effort; never block a doc save on cache
+				pass
+		# Per-listing ürün detayı response cache'i hedefli düş (listing_detail:{name}:{lang}).
+		if doc is not None and getattr(doc, "name", None):
+			try:
+				frappe.cache.delete_keys(f"{_LISTING_DETAIL_CACHE_PREFIX}{doc.name}:*")
+			except Exception:
 				pass
 	except Exception:
 		pass
@@ -390,9 +400,9 @@ def get_listings(
 			if status == "Active":
 				filters["is_visible"] = 1
 		else:
-			filters = {"status": STOREFRONT_STATUS_FILTER, "is_visible": 1}
+			filters = {"storefront_visible": 1}
 	else:
-		filters = {"status": STOREFRONT_STATUS_FILTER, "is_visible": 1}
+		filters = {"storefront_visible": 1}
 
 	category_display_name = None
 	if category:
@@ -883,6 +893,46 @@ def get_listings(
 	return result
 
 
+def _record_listing_view(listing_name):
+	"""get_listing_detail'in yan etkileri: görüntülenme sayacı (IP-dedup) +
+	per-user view log (Tailored Selections). Response cache'ten AYRI tutulur —
+	cache hit'te de çalışsın diye full get_doc yerine hafif db.get_value ile
+	view_count/category okur. Payload'u DEĞİŞTİRMEZ."""
+	meta = (
+		frappe.db.get_value("Listing", listing_name, ["view_count", "product_category"], as_dict=True) or {}
+	)
+	# Görüntülenme sayacı — per-(listing × client IP) dedup, VIEW_DEDUP_TTL içinde tek sayım.
+	try:
+		client_ip = (
+			frappe.local.request_ip if getattr(frappe.local, "request", None) is not None else None
+		) or "no-ip"
+		dedup_key = f"view_seen:{listing_name}:{client_ip}"
+		if not frappe.cache.get_value(dedup_key):
+			frappe.db.set_value(
+				"Listing",
+				listing_name,
+				"view_count",
+				(meta.get("view_count") or 0) + 1,
+				update_modified=False,
+			)
+			try:
+				frappe.db.commit()
+			except Exception:
+				pass
+			frappe.cache.set_value(dedup_key, 1, expires_in_sec=VIEW_DEDUP_TTL)
+	except Exception:
+		# View counting must never break the detail page render.
+		pass
+
+	# Per-user view log — feeds Tailored Selections recommendations.
+	try:
+		from tradehub_core.api.tailored import log_product_view
+
+		log_product_view(listing_name, category=meta.get("product_category"))
+	except Exception:
+		pass
+
+
 @frappe.whitelist(allow_guest=True)
 def get_listing_detail(listing_id, lang="tr"):
 	"""Get full listing detail for the product detail page.
@@ -908,46 +958,17 @@ def get_listing_detail(listing_id, lang="tr"):
 			else:
 				frappe.throw(_("Listing not found"), frappe.DoesNotExistError)
 
+	# Yan etkiler (görüntülenme sayacı + per-user log) response cache'ten ÖNCE —
+	# cache hit'te de çalışsın diye. Payload'u değiştirmez.
+	_record_listing_view(listing_name)
+
+	# Response cache (per listing × lang) — payload isteyen kullanıcıya bağlı değil.
+	cache_key = f"{_LISTING_DETAIL_CACHE_PREFIX}{listing_name}:{lang}"
+	cached = frappe.cache.get_value(cache_key)
+	if cached is not None:
+		return cached
+
 	listing = frappe.get_doc("Listing", listing_name)
-
-	# Increment view count, with per-(listing × client IP) dedup so a
-	# single user (or scraper) refreshing the page repeatedly does not
-	# inflate the popularity metric. Same IP + same listing within
-	# VIEW_DEDUP_TTL (1 hour) counts as one view.
-	#
-	# GET endpoints run in read-only mode by default, so the side-effect
-	# write needs an explicit commit. The Redis cache key uses Frappe's
-	# native cache (already deployed) — no extra infrastructure.
-	try:
-		client_ip = (
-			frappe.local.request_ip if getattr(frappe.local, "request", None) is not None else None
-		) or "no-ip"
-		dedup_key = f"view_seen:{listing_name}:{client_ip}"
-		if not frappe.cache.get_value(dedup_key):
-			frappe.db.set_value(
-				"Listing",
-				listing_name,
-				"view_count",
-				(listing.view_count or 0) + 1,
-				update_modified=False,
-			)
-			try:
-				frappe.db.commit()
-			except Exception:
-				pass
-			frappe.cache.set_value(dedup_key, 1, expires_in_sec=VIEW_DEDUP_TTL)
-	except Exception:
-		# View counting must never break the detail page render.
-		pass
-
-	# Per-user view log — feeds Tailored Selections recommendations.
-	# Guest views are skipped; dedup is handled inside log_product_view.
-	try:
-		from tradehub_core.api.tailored import log_product_view
-
-		log_product_view(listing_name, category=listing.product_category)
-	except Exception:
-		pass
 
 	# Üst-seviye sellerKybVerified flag — supplier objesi load fail etse bile
 	# (legacy veri vb.) frontend'in KYB rozeti/disabled buton göstermesi için.
@@ -1350,7 +1371,9 @@ def get_listing_detail(listing_id, lang="tr"):
 		"outOfStock": is_out_of_stock,
 	}
 
-	return {"data": result}
+	response = {"data": result}
+	frappe.cache.set_value(cache_key, response, expires_in_sec=_LISTING_DETAIL_CACHE_TTL)
+	return response
 
 
 @frappe.whitelist(allow_guest=True)
@@ -1402,7 +1425,7 @@ def get_categories(parent=None, include_children=True, lang="tr"):
 			"parent": cat.parent_product_category,
 			"children": [],
 			"productCount": frappe.db.count(
-				"Listing", {"product_category": cat.name, "status": STOREFRONT_STATUS_FILTER, "is_visible": 1}
+				"Listing", {"product_category": cat.name, "storefront_visible": 1}
 			),
 		}
 
@@ -1424,8 +1447,7 @@ def get_categories(parent=None, include_children=True, lang="tr"):
 							"Listing",
 							{
 								"product_category": child.name,
-								"status": STOREFRONT_STATUS_FILTER,
-								"is_visible": 1,
+								"storefront_visible": 1,
 							},
 						),
 					}
@@ -1557,7 +1579,7 @@ def get_filter_facets(
 	if cached:
 		return cached
 
-	base_filters = {"status": STOREFRONT_STATUS_FILTER, "is_visible": 1}
+	base_filters = {"storefront_visible": 1}
 	if category:
 		platform_cat = frappe.db.get_value("Product Category", {"url_slug": category}, "name")
 		if platform_cat:
@@ -1705,11 +1727,13 @@ def get_filter_facets(
 	]
 	all_filters = list(base_filters_list)
 	all_filters.extend(extra_filters)
-	listings = frappe.get_all(
+	# A-4b: yalnızca isim listesi (child-table facet'leri için). Kategori/marka/ülke/
+	# cert sayımları artık limitsiz fetch + Python counting yerine group_by ile (yukarıda).
+	listing_names = frappe.get_all(
 		"Listing",
 		filters=all_filters,
 		or_filters=or_filters,
-		fields=["name", "ships_from_country", "product_category", "seller_profile", "brand"],
+		pluck="name",
 	)
 
 	# Fiyat histogramı: yalnızca kategorik filtrelere göre (fiyat + MOQ hariç) — kullanıcı
@@ -1722,48 +1746,63 @@ def get_filter_facets(
 	)
 	price_range = _build_price_buckets([r.get("selling_price_base") for r in price_rows])
 
+	# ── A-4b: facet sayımları DB GROUP BY ile (limitsiz fetch + Python counting yerine) ──
+	# Aynı all_filters/or_filters kullanıldığı için SQL GROUP BY count, eski
+	# "hepsini çek + Python'da say" ile construction-eşdeğerdir. Kategori/marka
+	# doğrudan kolon; seller_profile bazlı boyutlar (ülke/verified/mgmt_cert) için
+	# seller_profile başına listing sayısı map'i çıkarılır.
+	def _facet_grouped_counts(field):
+		rows = frappe.get_all(
+			"Listing",
+			filters=all_filters,
+			or_filters=or_filters,
+			fields=[field, "count(name) as cnt"],
+			group_by=field,
+		)
+		return {r.get(field): r.get("cnt") for r in rows if r.get(field)}
+
+	cat_counts_db = _facet_grouped_counts("product_category")
+	brand_counts_db = _facet_grouped_counts("brand")
+	profile_counts_db = _facet_grouped_counts("seller_profile")
+
 	# Aggregate countries — UI başlığı "Tedarikçi Ülkesi" → satıcının kayıtlı ülkesi
 	# (Admin Seller Profile.country) kullanılır. Listing.ships_from_country lojistik
 	# alanı; "Ships From" gerekirse ileride ayrı filter olur (DHGate modeli).
 	# Filter uygulaması da get_listings içinde aynı alana bağlı — facet ↔ filter tutarlı.
 	country_counts: dict[str, int] = {}
-	if listings:
-		seller_profiles_for_countries = {l.seller_profile for l in listings if l.get("seller_profile")}
-		if seller_profiles_for_countries:
-			profile_country_rows = frappe.get_all(
-				"Admin Seller Profile",
-				filters=[["name", "in", list(seller_profiles_for_countries)]],
-				fields=["name", "country"],
-			)
-			profile_to_country = {r.name: r.country for r in profile_country_rows if r.country}
-			for l in listings:
-				c = profile_to_country.get(l.get("seller_profile"))
-				if c:
-					country_counts[c] = country_counts.get(c, 0) + 1
+	if profile_counts_db:
+		profile_country_rows = frappe.get_all(
+			"Admin Seller Profile",
+			filters=[["name", "in", list(profile_counts_db.keys())]],
+			fields=["name", "country"],
+		)
+		profile_to_country = {r.name: r.country for r in profile_country_rows if r.country}
+		for profile, cnt in profile_counts_db.items():
+			c = profile_to_country.get(profile)
+			if c:
+				country_counts[c] = country_counts.get(c, 0) + cnt
 
 	# Verified Seller (KYB Verified) listing sayısı — filter sidebar facet için
 	verified_supplier_count = 0
-	if listings:
-		seller_profiles_in_listings = {l.seller_profile for l in listings if l.get("seller_profile")}
-		if seller_profiles_in_listings:
-			# Bu seller_profile'lerin user'larından "Verified Seller" rolüne sahip olanları bul
-			seller_users_rows = frappe.get_all(
-				"Admin Seller Profile",
-				filters=[["name", "in", list(seller_profiles_in_listings)]],
-				fields=["name", "user"],
+	if profile_counts_db:
+		# Bu seller_profile'lerin user'larından "Verified Seller" rolüne sahip olanları bul
+		seller_users_rows = frappe.get_all(
+			"Admin Seller Profile",
+			filters=[["name", "in", list(profile_counts_db.keys())]],
+			fields=["name", "user"],
+		)
+		user_to_profile = {row.user: row.name for row in seller_users_rows if row.user}
+		if user_to_profile:
+			verified_users = frappe.db.sql_list(
+				"""SELECT DISTINCT parent FROM `tabHas Role`
+				   WHERE role = 'Verified Seller' AND parenttype = 'User' AND parent IN %(users)s""",
+				{"users": tuple(user_to_profile.keys())},
 			)
-			user_to_profile = {row.user: row.name for row in seller_users_rows if row.user}
-			if user_to_profile:
-				verified_users = frappe.db.sql_list(
-					"""SELECT DISTINCT parent FROM `tabHas Role`
-					   WHERE role = 'Verified Seller' AND parenttype = 'User' AND parent IN %(users)s""",
-					{"users": tuple(user_to_profile.keys())},
-				)
-				verified_profiles = {user_to_profile[u] for u in verified_users if u in user_to_profile}
-				# Bu profile'lere ait listing sayısı
-				verified_supplier_count = sum(
-					1 for l in listings if l.get("seller_profile") in verified_profiles
-				)
+			verified_profiles = {user_to_profile[u] for u in verified_users if u in user_to_profile}
+			# Bu profile'lere ait listing sayısı (profile başına DB count)
+			verified_supplier_count = sum(
+				cnt for profile, cnt in profile_counts_db.items() if profile in verified_profiles
+			)
 
 	# Resolve country names
 	countries = []
@@ -1779,12 +1818,8 @@ def get_filter_facets(
 			}
 		)
 
-	# Aggregate categories
-	cat_counts: dict[str, int] = {}
-	for l in listings:
-		pc = l.get("product_category")
-		if pc:
-			cat_counts[pc] = cat_counts.get(pc, 0) + 1
+	# Aggregate categories (A-4b: DB GROUP BY)
+	cat_counts = cat_counts_db
 
 	categories = []
 	for cat_name, count in sorted(cat_counts.items(), key=lambda x: -x[1]):
@@ -1800,7 +1835,6 @@ def get_filter_facets(
 		)
 
 	# Aggregate management certifications from Seller Certification child table
-	listing_names = [l.name for l in listings] if listings else []
 	mgmt_cert_counts: dict[str, int] = {}
 	product_cert_counts: dict[str, int] = {}
 	# Aşağıdaki `if all_assigned_certs:` bloğu `if listing_names` DIŞINDA kullanılıyor;
@@ -1808,8 +1842,8 @@ def get_filter_facets(
 	all_assigned_certs: set = set()
 
 	if listing_names:
-		# Get seller profiles directly from already-fetched listings
-		seller_profiles = list({l.seller_profile for l in listings if l.get("seller_profile")})
+		# Seller profiles — group_by seller_profile map'inin anahtarları (A-4b).
+		seller_profiles = list(profile_counts_db.keys())
 
 		# Collect all assigned cert IDs from both child tables
 		# v4: Sadece verification_status='Verified' mağaza cert'leri facet'ta sayılır.
@@ -1862,7 +1896,7 @@ def get_filter_facets(
 					mgmt_cert_sellers.setdefault(sc.certification_type, set()).add(sc.parent)
 			for cert_type, seller_set in mgmt_cert_sellers.items():
 				mgmt_cert_counts[cert_type] = sum(
-					1 for l in listings if l.get("seller_profile") in seller_set
+					cnt for profile, cnt in profile_counts_db.items() if profile in seller_set
 				)
 
 		for pc in product_certs:
@@ -1883,12 +1917,8 @@ def get_filter_facets(
 		if cert in cert_info_map
 	]
 
-	# ── Brand facet ──
-	brand_counts: dict[str, int] = {}
-	for l in listings:
-		b = l.get("brand")
-		if b:
-			brand_counts[b] = brand_counts.get(b, 0) + 1
+	# ── Brand facet (A-4b: DB GROUP BY) ──
+	brand_counts = brand_counts_db
 
 	brands_list = []
 	if brand_counts:
@@ -2168,8 +2198,7 @@ def get_top_ranking_categories(limit=6, sort="hot-selling"):
 			{agg_expr} AS metric,
 			COUNT(l.name) AS listing_count
 		FROM `tabListing` l
-		WHERE l.status IN ('Active', 'Out of Stock')
-		  AND l.is_visible = 1
+		WHERE l.storefront_visible = 1
 		  AND l.product_category IS NOT NULL
 		  AND l.product_category != ''
 		GROUP BY l.product_category
@@ -2206,8 +2235,7 @@ def get_top_ranking_categories(limit=6, sort="hot-selling"):
 		top = frappe.get_all(
 			"Listing",
 			filters=[
-				["status", "in", list(STOREFRONT_VISIBLE_STATUSES)],
-				["is_visible", "=", 1],
+				["storefront_visible", "=", 1],
 				["product_category", "=", cat_id],
 				[sort_field, ">", 0],
 			],
@@ -2367,8 +2395,7 @@ def get_top_ranking_grouped(
 			l.product_category AS cat_id,
 			{agg_expr} AS metric
 		FROM `tabListing` l
-		WHERE l.status IN ('Active', 'Out of Stock')
-		  AND l.is_visible = 1
+		WHERE l.storefront_visible = 1
 		  AND l.product_category IS NOT NULL
 		  AND l.product_category != ''
 		  {where_extra}
@@ -2451,8 +2478,7 @@ def get_top_ranking_grouped(
 		listings = frappe.get_all(
 			"Listing",
 			filters=[
-				["status", "in", list(STOREFRONT_VISIBLE_STATUSES)],
-				["is_visible", "=", 1],
+				["storefront_visible", "=", 1],
 				["product_category", "=", cat_id],
 				[sort_field, ">", 0],
 			],
@@ -2534,8 +2560,7 @@ def get_related_listings(listing_id, limit=8):
 		return {"data": []}
 
 	filters = {
-		"status": STOREFRONT_STATUS_FILTER,
-		"is_visible": 1,
+		"storefront_visible": 1,
 		"name": ["!=", listing_id],
 	}
 
@@ -2628,8 +2653,7 @@ def get_related_listings_grouped(listing_id: str):
 		"Listing",
 		filters={
 			"name": ["in", list(all_ids)],
-			"status": STOREFRONT_STATUS_FILTER,
-			"is_visible": 1,
+			"storefront_visible": 1,
 		},
 		fields=[
 			"name",
@@ -2810,8 +2834,7 @@ def get_search_suggestions(limit=6):
 			matches = frappe.get_all(
 				"Listing",
 				filters={
-					"status": STOREFRONT_STATUS_FILTER,
-					"is_visible": 1,
+					"storefront_visible": 1,
 					"title": ["like", f"%{q_text}%"],
 				},
 				fields=["title"],
@@ -2843,8 +2866,7 @@ def get_search_suggestions(limit=6):
 						"Listing",
 						filters=[
 							["product_category", "in", cat_ids],
-							["status", "in", list(STOREFRONT_VISIBLE_STATUSES)],
-							["is_visible", "=", 1],
+							["storefront_visible", "=", 1],
 						],
 						fields=["title"],
 						order_by="order_count DESC",
@@ -2896,7 +2918,7 @@ def get_search_suggestions(limit=6):
 	pool_size = max(limit * 3, 20)
 	listing_pool = frappe.get_all(
 		"Listing",
-		filters={"status": STOREFRONT_STATUS_FILTER, "is_visible": 1},
+		filters={"storefront_visible": 1},
 		fields=["title"],
 		order_by="order_count DESC, view_count DESC",
 		limit=pool_size,
@@ -2929,7 +2951,7 @@ def get_search_suggestions(limit=6):
 		SELECT pc.category_name, pc.url_slug, pc.name, COUNT(*) as cnt
 		FROM `tabListing` l
 		JOIN `tabProduct Category` pc ON pc.name = l.product_category
-		WHERE l.status IN ('Active', 'Out of Stock') AND l.is_visible = 1 AND pc.is_active = 1
+		WHERE l.storefront_visible = 1 AND pc.is_active = 1
 		GROUP BY pc.name
 		HAVING cnt > 0
 		ORDER BY cnt DESC
@@ -3647,8 +3669,7 @@ def _category_rank_counts(category_id, my_orders):
 	descendants = _get_category_descendants(category_id)
 	base = {
 		"product_category": ["in", descendants],
-		"status": STOREFRONT_STATUS_FILTER,
-		"is_visible": 1,
+		"storefront_visible": 1,
 	}
 	total = frappe.db.count("Listing", base)
 	higher = frappe.db.count("Listing", {**base, "order_count": [">", my_orders]})
@@ -4312,7 +4333,15 @@ def update_listing_status(listing_name, status):
 	if listing.seller_profile != seller_profile:
 		frappe.throw(_("Bu listing size ait değil."), frappe.PermissionError)
 
-	frappe.db.set_value("Listing", listing_name, "status", status)
+	# storefront_visible flag'ini status ile birlikte güncelle: set_value validate'i
+	# atladığı için controller _set_storefront_visible çalışmaz → yoksa flag drift eder
+	# ve storefront sorguları (storefront_visible=1) bu ürünü yanlış filtreler.
+	storefront_visible = 1 if (status in STOREFRONT_VISIBLE_STATUSES and listing.is_visible) else 0
+	frappe.db.set_value(
+		"Listing",
+		listing_name,
+		{"status": status, "storefront_visible": storefront_visible},
+	)
 	return {"success": True}
 
 
