@@ -165,6 +165,24 @@ def _empty_manufacturer_facets() -> dict:
 	}
 
 
+def _resolve_category_display_name(category: str) -> str:
+	"""Product Category url_slug'ından görünen adı çözer (manufacturers başlığı için).
+
+	Frontend `findCategoryBySlug` client ağacı sığ olduğu için hash'li/derin
+	kategori slug'larını çözemiyor; products backend'den (get_listings.categoryName)
+	çözdüğü için tutarsızlık oluyordu. Burada backend authoritative adı döndürür.
+	Bulunamazsa boş string (frontend slug'ı korur)."""
+	category = (category or "").strip()
+	if not category:
+		return ""
+	cat_name = frappe.db.get_value("Product Category", {"url_slug": category}, "name")
+	if not cat_name and frappe.db.exists("Product Category", category):
+		cat_name = category
+	if not cat_name:
+		return ""
+	return frappe.db.get_value("Product Category", cat_name, "category_name") or ""
+
+
 @frappe.whitelist(allow_guest=True)
 def get_manufacturer_facets(
 	search=None,
@@ -182,12 +200,15 @@ def get_manufacturer_facets(
 
 	get_sellers ile AYNI _resolve_seller_filters çözümünü kullanır → count ↔ liste tutarlı.
 	Tüm aktif filtreler uygulanıp kalan üretici seti üzerinde her boyut sayılır (monotonic narrow)."""
+	# Kategori görünen adı — satıcı olmasa bile başlık çözülsün diye boş-kontrolden ÖNCE.
+	category_display = _resolve_category_display_name(category)
+
 	filters = _resolve_seller_filters(
 		search, keyword, category, country, min_rating, min_order,
 		founded_year_min, verified, mgmt_certs, product_certs,
 	)
 	if filters is None:
-		return {"data": _empty_manufacturer_facets()}
+		return {"data": {**_empty_manufacturer_facets(), "categoryName": category_display}}
 
 	matched = frappe.get_all(
 		"Admin Seller Profile",
@@ -196,7 +217,7 @@ def get_manufacturer_facets(
 		limit_page_length=0,
 	)
 	if not matched:
-		return {"data": _empty_manufacturer_facets()}
+		return {"data": {**_empty_manufacturer_facets(), "categoryName": category_display}}
 
 	names = [m.name for m in matched]
 	codes = [m.seller_code for m in matched if m.get("seller_code")]
@@ -281,6 +302,7 @@ def get_manufacturer_facets(
 			"productCertifications": productCertifications,
 			"verifiedSupplierCount": verifiedSupplierCount,
 			"total": len(matched),
+			"categoryName": category_display,
 		}
 	}
 
