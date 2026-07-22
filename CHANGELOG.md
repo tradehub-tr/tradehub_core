@@ -1,3 +1,11 @@
+## [v1.10.1-alpha.1] - 2026-07-22 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(listing): delete_listing admin/System Manager için ownership bypass (@boraydeger32)
+
+---
 ## [v1.10.0] - 2026-07-22 PROD
 
 Bu surum istoc.cronbi.com'da yayindadir.
