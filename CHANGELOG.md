@@ -1,3 +1,73 @@
+## [v1.10.0] - 2026-07-22 PROD
+
+Bu surum istoc.cronbi.com'da yayindadir.
+
+### Eklendi
+- feat(permission-console): update_user endpoint + satıcı ilan durum sayaçları + Cart doctype TR etiketleri (@ahmeetseker)
+  - Permission Console: aktif/pasif ve rol profili atayan update_user() eklendi; guard'lar — Administrator/Guest düzenlenemez, admin kendi hesabını pasifleştiremez, power role içeren profil atanamaz (privilege escalation). Değişiklik log_decision ile HIGH severity denetime yazılır.
+  - get_seller_listings: mobil özet şerit için filtreden bağımsız status_counts (satıcının tüm portföyünün durum dağılımı) döndürür.
+  - Cart / Cart Item doctype: alan etiketleri Türkçeleştirildi, açıklama/description ve list_view sütunları düzenlendi, Cart'a title_field=buyer eklendi.
+- feat(listing): fiyat aralığı facet + filter_currency desteği eklendi (@aliiball)
+  - get_filter_facets priceRange (eşit-genişlikli histogram bucket'ları)
+  - facet endpoint'i filter_currency ile fiyat bound'larını TRY baza çevirir
+  - fix: fiyat filtresi boş sonuç bırakınca facet 500 hatası (all_assigned_certs) giderildi
+- feat(listing): kategori-siz storefront sıralamaları için composite index eklendi (@aliiball)
+- feat(seller): üretici filtreleri server-side + facet endpoint eklendi (@aliiball)
+  - get_sellers: country/min_rating/min_order/founded_year_min/verified/mgmt_certs/product_certs
+  - get_manufacturer_facets: üretici-sayılı facet (monotonic narrow, liste ile tutarlı)
+  - _resolve_seller_filters ortak helper (count ↔ liste tek kaynaktan)
+- feat(api): "Yeni ürün" rozeti ve footer SEO link endpoint'i eklendi (@ahmeetseker)
+  - Social Proof Settings'e "Yeni Ürün Rozeti" bölümü eklendi (new_badge_enabled, new_badge_max_age_days; 0 = sınırsız pencere)
+  - Eşik geçen sinyali olmayan ürünlerde "Yeni ürün" fallback rozeti get_signals ve admin canlı önizlemesinde döndürülüyor
+  - api/footer.py: aktif ilanı olan popüler marka/mağaza/kategori linklerini döndüren get_footer_seo_links endpoint'i eklendi (1 saat cache, dil bazlı)
+  - get_signals_batch'te Listing alanı seller → seller_profile olarak düzeltildi
+  - Başlangıç planı sloganı "Avrupa pazarına" → "Global pazara" güncellendi
+- feat(listing): delete_listing endpoint'i (akıllı silme) (@boraydeger32)
+
+### Duzeltildi
+- fix(security): Faz 0-4 güvenlik denetim düzeltmeleri — 32 bulgu (@boraydeger32)
+  - Webhook imza doğrulaması fail-closed (F-002, F-007)
+  - Rate limiter Redis hatasında fail-closed (F-004)
+  - Fatura HTML XSS — markupsafe.escape ile koruma (F-005)
+  - Demo seed production guard + şifreler env variable'a (F-010)
+  - Debug dosyası (_dbg_chat.py) silindi (F-011)
+  - İade tutarı sipariş toplamına karşı doğrulanıyor (F-006)
+  - submit_remittance durum kontrolü + idempotency (F-008, F-025)
+  - Storefront layout IDOR — ownership alanı düzeltildi (F-012)
+  - cancel_order: Kargoda + pending refund engeli (F-053, F-054)
+  - İade yeniden gönderim limiti: maks 3 deneme (F-056)
+  - Kargo ücreti üst sınır kontrolü (F-023)
+  - Per-user kupon kullanım kontrolü (F-024)
+  - SQL injection: _safe_avg + data_retention whitelist (F-017)
+  - ECA webhook SSRF koruması + method whitelist (F-022)
+  - validate_coupon rate limit eklendi (F-052)
+  - Email enumeration: disabled bilgisi kaldırıldı (F-051)
+  - IBAN yalnızca deferred payment + aktif siparişlerde (F-050)
+  - _require_buyer: User.enabled kontrolü (F-036)
+  - Onay iş akışı sessiz except → log_error (F-016)
+  - Stale push subscription 410 Gone temizliği (F-059)
+  - PII reveal server-side audit endpoint (F-041)
+  - Guest inquiry spam koruması (F-034)
+  - Reservation race condition: FOR UPDATE (F-026)
+  - Payment race condition: atomik SQL (F-039)
+- fix(seed): after_migrate demo-seed hook'unu kaldır (prod migrate kırılması) (@ahmeetseker)
+- fix(listing): kur yok / boş sonuç fiyat filtresi hataları düzeltildi (@aliiball)
+  - _to_base_price_bound helper: kur çifti yoksa 1:1 çevrim yerine fiyat filtresi atlanır
+  - all_assigned_certs boş sonuçta UnboundLocalError (facet 500) düzeltildi
+  - filter_currency çevrimi ortak helper'a taşındı (get_listings + get_filter_facets)
+- fix(seller): get_manufacturer_facets kategori görünen adını döndürüyor (başlıkta raw slug kalıyordu) (@aliiball)
+
+### Degistirildi
+- refactor(dashboard): widget renk varsayılanı iStoc marka preset'ine geçirildi (@ahmeetseker)
+  - Dashboard Widget'a "brand" renk preset'i eklendi ve varsayılan yapıldı
+  - Seed patch'lerindeki violet sınıfları brand'e çevrildi
+  - v15_9_11 migration patch'i mevcut violet widget'ları topluca brand'e taşıdı
+- refactor(currency): kur ve para birimi okumaları cache'lendi (1sa TTL + invalidation) (@aliiball)
+- refactor(category): Product Category yazımında kategori cache'i invalidate edildi (@aliiball)
+- refactor(listing): storefront_visible denormalize flag + composite index'ler eklendi (@aliiball)
+- refactor(api): storefront_visible geçişi + listing_detail/facet cache + signals batch (@aliiball)
+
+---
 ## [v1.9.0-rc.1] - 2026-07-22 RC
 
 Bu surum rcistoc.cronbi.com'da onay asamasindadir.
