@@ -4380,10 +4380,13 @@ def delete_listing(listing_name: str) -> dict:
 
 	listing = frappe.get_doc("Listing", listing_name)
 
-	# Sahiplik: sub-user'lar Owner'ın ürününü yönetir (aynı tenant). profile boşsa
-	# None == None sızıntısına düşmemek için dolu olduğunu da doğrula.
+	# Admin/System Manager tüm ürünleri yönetebilir (admin liste görünümü toplu silme).
+	# Satıcı ise yalnızca kendi ürününü siler: sub-user'lar Owner'ın ürününü yönetir
+	# (aynı tenant); profile boşsa None == None sızıntısına düşmemek için dolu olduğunu
+	# da doğrula.
+	is_admin = frappe.session.user == "Administrator" or "System Manager" in frappe.get_roles()
 	seller_profile = _get_seller_profile_for_user(frappe.session.user)
-	if not seller_profile or listing.seller_profile != seller_profile:
+	if not is_admin and (not seller_profile or listing.seller_profile != seller_profile):
 		frappe.throw(_("Bu ürün size ait değil."), frappe.PermissionError)
 
 	# Silmeyi bloklayan ama iş değeri olmayan otomatik analitik/cache kayıtlarını
