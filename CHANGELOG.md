@@ -1,3 +1,32 @@
+## [v1.10.1-rc.1] - 2026-07-23 RC
+
+Bu surum rcistoc.cronbi.com'da onay asamasindadir.
+
+### Eklendi
+- feat(listing): delete_listing admin/System Manager için ownership bypass (@boraydeger32)
+- feat(seo): parçalı sitemap, ortam-farkında robots ve noindex guard (@ahmeetseker)
+  - Sitemap: 5 doctype + index; rebuild LONG queue'ya enqueue, milyon-kayıt ölçeği için parçalı disk cache (BE-MAP)
+  - robots_generator: site adı → ortam eşlemesi (restore-proof); prod'da izinli + Disallow seti, diğer ortamlarda block-all
+  - noindex_guard: after_request hook'u ile staging/backend yanıtlarına X-Robots-Tag noindex (seo_noindex_guard bayrağı, default kapalı)
+  - www/robots.txt endpoint'i
+  - 5 idempotent patch: static pages cleanup, sitemap initial build, legal noindex, static meta defaults, üyelik sayfası kaldırma
+  - Generator/robots/registry/meta_builder testleri genişletildi
+
+### Duzeltildi
+- fix: hata yönetimi iyileştirmesi, performans limitleri ve finansal düzeltmeler (@boraydeger32)
+  - 60+ dosyada except Exception: pass → frappe.log_error eklendi
+  - print() → frappe.logger().info() standardizasyonu (seed_demo_data, authz/verify)
+  - limit_page_length=0 → güvenli üst sınırlar (dashboard, data_export, listing)
+  - tuple_sync backfill'e chunk pagination eklendi (memory leak önlemi)
+  - rate_limit: Redis fail → graceful degradation (fail-closed yerine)
+  - stock.py: bare Exception → JSONDecodeError/AttributeError + continue
+  - cart.py: kupon dağıtımında kuruş kaybı düzeltildi (remainder son siparişe)
+  - data_export: 5000 limit + truncated uyarısı manifest'e eklendi
+  - identity: hesap silmeye @rate_limit eklendi
+  - eca/api: len(get_all) → frappe.db.count optimizasyonu
+  - hooks.py: KVKK Madde 7 privacy task eklendi
+
+---
 ## [v1.10.1-alpha.3] - 2026-07-23 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
