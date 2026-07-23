@@ -357,16 +357,46 @@ def _get_listing_extra_context(listing_name: str) -> dict:
 
 
 def _frappe_defaults() -> dict:
-	"""Website Settings SEO defaults + sosyal medya URL'leri."""
+	"""Website Settings SEO defaults + sosyal medya URL'leri.
+
+	Sosyal profiller (Organization `sameAs` — marka sinyali, bilgi paneli
+	hedefi) panelden yönetilir: Website Settings'e `seo_social_*` custom
+	field'ları eklendiğinde otomatik toplanır; alan yoksa/boşsa şemaya girmez.
+	"""
 	import frappe
 
 	ws = frappe.get_single("Website Settings")
 	twitter_handle = (ws.get("seo_twitter_handle") or "").lstrip("@")
-	return {
-		"site_name": ws.get("seo_site_name") or "İstoç",
+	defaults = {
+		"site_name": ws.get("seo_site_name") or "iStoc",
 		"logo": ws.get("seo_og_image") or "",
 		"twitter": (f"https://twitter.com/{twitter_handle}" if twitter_handle else None),
 	}
+	for social in ("facebook", "linkedin", "instagram", "youtube"):
+		defaults[social] = ws.get(f"seo_social_{social}") or None
+	return defaults
+
+
+def compose_for_home(defaults: dict, site_url: str) -> list[dict]:
+	"""Ana sayfa ('/') için Organization + WebSite şemaları.
+
+	Organization: marka bilgi paneli sinyali (sameAs sosyal profiller).
+	WebSite: sitelinks searchbox (SearchAction → /urunler?q=).
+	"""
+	merged = dict(_frappe_defaults())
+	merged.update({k: v for k, v in (defaults or {}).items() if v})
+	site_url = site_url.rstrip("/")
+	org = build_organization_schema(
+		site_name=merged.get("site_name") or "istoc",
+		site_url=site_url,
+		logo_url=merged.get("logo") or merged.get("og_image") or None,
+		same_as=_same_as_from_defaults(merged),
+	)
+	website = build_website_schema(
+		site_url=site_url,
+		search_url_template=f"{site_url}/urunler?q={{search_term_string}}",
+	)
+	return [org, website]
 
 
 def compose_for_listing(listing: dict, defaults: dict, site_url: str) -> list[dict]:

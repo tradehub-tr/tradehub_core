@@ -591,6 +591,18 @@ def get_seller(slug):
 	seller_verifs = _verifications_by_seller([seller["name"]]).get(seller["name"], [])
 	seller["verifications"] = seller_verifs
 
+	# Panelden yönetilen SEO payload'ı (BE-LD) — storefront applyServerSeo ile
+	# uygular. Üretim hatası public endpoint'i DÜŞÜRMEMELİ → None fallback.
+	try:
+		from tradehub_core.seo.meta_builder import build_for_seller
+
+		record = dict(seller)
+		record.setdefault("slug", seller.get("seller_code"))
+		seller["seo"] = build_for_seller(record)
+	except Exception:
+		frappe.log_error(frappe.get_traceback(), "seller.get_seller seo payload")
+		seller["seo"] = None
+
 	return seller
 
 

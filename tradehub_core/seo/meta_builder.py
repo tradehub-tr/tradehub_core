@@ -9,7 +9,7 @@ ve site URL'sini Frappe'den okuyup pure fonksiyonu çağırır.
 """
 
 from collections.abc import Callable
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlsplit
 
 from tradehub_core.seo.i18n import (
 	build_hreflang_links,
@@ -47,6 +47,25 @@ def _pick_description_source(record: dict) -> str:
 	return ""
 
 
+def _normalize_override(override: str, site_url: str) -> str:
+	"""Admin'in girdiği canonical override'ını kanonik host'a sabitler.
+
+	Override göreli path olabilir ("/ozel-url") ya da yanlış host'la girilmiş
+	mutlak URL olabilir (www.istoc.com, istoc.cronbi.com). Canonical her zaman
+	site_url (apex) üzerinden yayınlanmalı — path+query korunur, host değişir.
+	(Frontend'deki setPageMeta.toCurrentOrigin ile ayna davranış.)
+	"""
+	if not override:
+		return ""
+	override = override.strip()
+	if not override.startswith(("http://", "https://")):
+		return _absolute(override, site_url)
+	parts = urlsplit(override)
+	path = parts.path or "/"
+	query = f"?{parts.query}" if parts.query else ""
+	return f"{site_url.rstrip('/')}{path}{query}"
+
+
 def _resolve_robots(record: dict, default: str) -> str:
 	"""Robots directive: override > noindex flag > default."""
 	override = record.get("robots_directive_override")
@@ -55,17 +74,6 @@ def _resolve_robots(record: dict, default: str) -> str:
 	if record.get("noindex"):
 		return "noindex,follow"
 	return default
-
-
-def _resolve_canonical(record: dict, url_prefix: str, slug_field: str, site_url: str) -> str:
-	"""Canonical URL: override > <site>/<prefix>/<slug>."""
-	override = record.get("canonical_url_override")
-	if override:
-		return override
-	slug = record.get(slug_field) or record.get("slug") or ""
-	if not slug:
-		return ""
-	return _absolute(f"{url_prefix}/{slug}", site_url)
 
 
 # Main pure entry point ------------------------------------------------------
@@ -114,7 +122,7 @@ def compose_seo_payload(
 	tr_slug = record.get(slug_field) or record.get("slug") or ""
 	tr_canonical_path = f"{url_prefix}/{tr_slug}" if tr_slug else ""
 
-	canonical_override = record.get("canonical_url_override")
+	canonical_override = _normalize_override(record.get("canonical_url_override") or "", site_url)
 	if canonical_override:
 		canonical = canonical_override
 	elif tr_canonical_path:
@@ -296,6 +304,15 @@ def build_for_static_page(
 	if not working_record.get("title"):
 		working_record["title"] = page_meta.get("title", "")
 
+	# Ana sayfada Organization + WebSite JSON-LD (BE-LD): marka bilgi paneli
+	# sinyali + sitelinks searchbox. Diğer statik sayfalarda şema yok.
+	home_path = working_record.get("page_path") or page_meta.get("path") or ""
+	json_ld = None
+	if home_path == "/":
+		from tradehub_core.seo.schema_builder import compose_for_home
+
+		json_ld = compose_for_home(defaults, site_url)
+
 	seo = compose_seo_payload(
 		record=working_record,
 		url_prefix="",
@@ -304,13 +321,13 @@ def build_for_static_page(
 		og_type="website",
 		slug_field="page_path",
 		og_image_resolver=None,
-		json_ld=None,
+		json_ld=json_ld,
 		lang=lang,
 	)
 
 	# Canonical'ı path-bazlı yeniden inşa et (slug zaten / içeriyor, prefix yok)
-	page_path = working_record.get("page_path") or page_meta.get("path") or ""
-	canonical_override = working_record.get("canonical_url_override")
+	page_path = home_path
+	canonical_override = _normalize_override(working_record.get("canonical_url_override") or "", site_url)
 	if canonical_override:
 		seo["canonical"] = canonical_override
 		seo["og_url"] = canonical_override

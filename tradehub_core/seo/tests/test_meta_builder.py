@@ -89,6 +89,22 @@ class TestCanonical(unittest.TestCase):
 		seo = _payload(record, url_prefix="/kategori", slug_field="url_slug")
 		self.assertEqual(seo["canonical"], "https://istoc.com/kategori/elektronik")
 
+	def test_override_relative_path_absolutized(self):
+		seo = _payload(_listing(canonical_url_override="/ozel-url"))
+		self.assertEqual(seo["canonical"], "https://istoc.com/ozel-url")
+
+	def test_override_www_host_rebased_to_apex(self):
+		seo = _payload(_listing(canonical_url_override="https://www.istoc.com/urun/iphone-15-pro-128gb"))
+		self.assertEqual(seo["canonical"], "https://istoc.com/urun/iphone-15-pro-128gb")
+
+	def test_override_backend_host_rebased_to_apex(self):
+		seo = _payload(_listing(canonical_url_override="https://istoc.cronbi.com/urun/x?varyant=kirmizi"))
+		self.assertEqual(seo["canonical"], "https://istoc.com/urun/x?varyant=kirmizi")
+
+	def test_override_og_url_matches_normalized_canonical(self):
+		seo = _payload(_listing(canonical_url_override="http://www.istoc.com/ozel-url"))
+		self.assertEqual(seo["og_url"], "https://istoc.com/ozel-url")
+
 
 class TestRobots(unittest.TestCase):
 	def test_default_directive(self):

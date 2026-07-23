@@ -39,10 +39,13 @@ class TestStaticPagesRegistry(unittest.TestCase):
 		self.assertIsNotNone(entry)
 		self.assertTrue(entry["indexable_default"])
 
-	def test_kvkk_is_indexable(self):
-		entry = find_entry("/kvkk")
-		self.assertIsNotNone(entry)
-		self.assertTrue(entry["indexable_default"])
+	def test_legal_pages_are_noindex(self):
+		"""Kullanıcı kararı 2026-07-23: 4 yasal sayfa Google'a kapalı,
+		sitede erişilebilir (frontend staticMeta NOINDEX_FILES ile senkron)."""
+		for path in ("/kvkk", "/iade-kosullari", "/fikri-mulkiyet", "/yasal-uyari"):
+			entry = find_entry(path)
+			self.assertIsNotNone(entry, path)
+			self.assertFalse(entry["indexable_default"], path)
 
 	def test_cart_is_hidden(self):
 		entry = find_entry("/sepet")
@@ -55,8 +58,9 @@ class TestStaticPagesRegistry(unittest.TestCase):
 	def test_indexable_paths_helper(self):
 		paths = indexable_paths()
 		self.assertIn("/", paths)
-		self.assertIn("/kvkk", paths)
+		self.assertIn("/gizlilik", paths)
 		self.assertNotIn("/sepet", paths)
+		self.assertNotIn("/kvkk", paths)
 
 
 if __name__ == "__main__":

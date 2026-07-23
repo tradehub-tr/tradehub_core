@@ -170,19 +170,8 @@ def legacy_redirect_handler(doctype: str, legacy_id: str):
 # ── Sitemap + robots.txt endpoint'leri (Faz 2) ──────────────────────────────
 
 
-@frappe.whitelist(allow_guest=True)
-def get_sitemap_index():
-	"""GET /sitemap.xml → cache'ten index XML."""
+def _xml_response(xml: str):
 	from werkzeug.wrappers import Response
-
-	from tradehub_core.seo.sitemap_cache import get_default_cache
-	from tradehub_core.seo.sitemap_generator import build_index
-
-	cache = get_default_cache()
-	xml = cache.get_xml("index")
-	if not xml:
-		xml = build_index()
-		cache.set_xml("index", xml)
 
 	response = Response(xml, mimetype="application/xml")
 	response.headers["Cache-Control"] = "public, max-age=3600"
@@ -190,18 +179,46 @@ def get_sitemap_index():
 
 
 @frappe.whitelist(allow_guest=True)
-def get_sitemap(name: str):
-	"""GET /sitemap-<name>.xml → cache'ten alt-sitemap XML.
+def get_sitemap_index():
+	"""GET /sitemap.xml → disk → Redis → on-demand build sırasıyla index XML."""
+	from tradehub_core.seo.sitemap_cache import get_default_cache, read_sitemap_file
+	from tradehub_core.seo.sitemap_generator import build_index
 
-	`name`: 'products' | 'categories' | 'brands' | 'sellers'."""
+	xml = read_sitemap_file("sitemap-index.xml")
+	if not xml:
+		cache = get_default_cache()
+		xml = cache.get_xml("index")
+	if not xml:
+		xml = build_index()
+		get_default_cache().set_xml("index", xml)
+
+	return _xml_response(xml)
+
+
+@frappe.whitelist(allow_guest=True)
+def get_sitemap(name: str):
+	"""GET /sitemap-<name>.xml → alt-sitemap XML (parçalı).
+
+	`name`: 'products' | 'products-2' | 'categories' | ... —
+	`parse_sitemap_name` guard'ı bilinmeyen/keyfi adları 404'ler
+	(path traversal koruması; disk'ten yalnız beklenen dosya adı okunur)."""
 	from werkzeug.wrappers import Response
 
-	from tradehub_core.seo.sitemap_cache import get_default_cache
-	from tradehub_core.seo.sitemap_generator import DOCTYPE_CONFIG, build_for_type
+	from tradehub_core.seo.sitemap_cache import get_default_cache, read_sitemap_file
+	from tradehub_core.seo.sitemap_generator import build_for_type, parse_sitemap_name
 
-	name_to_doctype = {cfg["sub_sitemap_name"]: dt for dt, cfg in DOCTYPE_CONFIG.items()}
-	doctype = name_to_doctype.get(name)
+	doctype, part = parse_sitemap_name(name or "")
 	if not doctype:
+		return Response("Not Found", status=404, mimetype="text/plain")
+
+	# Disk (rebuild çıktısı) — parçalı adların tek kaynağı
+	xml = read_sitemap_file(f"sitemap-{name}.xml")
+	if xml:
+		return _xml_response(xml)
+
+	# Fallback yalnız 1. parça için: Redis → on-demand build (küçük site /
+	# rebuild henüz koşmadı). Yüksek parçalar diske yazılmadan var olamaz.
+	if part != 1:
 		return Response("Not Found", status=404, mimetype="text/plain")
 
 	cache = get_default_cache()
@@ -210,9 +227,7 @@ def get_sitemap(name: str):
 		xml = build_for_type(doctype)
 		cache.set_xml(doctype, xml)
 
-	response = Response(xml, mimetype="application/xml")
-	response.headers["Cache-Control"] = "public, max-age=3600"
-	return response
+	return _xml_response(xml)
 
 
 @frappe.whitelist(allow_guest=True)

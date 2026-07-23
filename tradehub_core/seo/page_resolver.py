@@ -61,7 +61,7 @@ def _minimal_fallback_html() -> str:
 	)
 
 
-def _build_404_seo(site_url: str, site_name: str = "İstoç") -> dict:
+def _build_404_seo(site_url: str, site_name: str = "iStoc") -> dict:
 	"""404 sayfası için SEO payload — noindex zorunlu."""
 	return {
 		"title": f"Sayfa Bulunamadı | {site_name}",
