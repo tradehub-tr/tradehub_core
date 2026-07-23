@@ -40,7 +40,9 @@ DOCTYPE_CONFIG = {
 		"url_prefix": "/magaza",
 		"priority": "0.6",
 		"changefreq": "weekly",
-		"slug_field": "slug",
+		# BUG FIX (BE-MAP): mağaza URL'leri seller_code taşır (/magaza/<code>,
+		# get_seller de seller_code ile arar) — "slug" alanı yok/boş kalıyordu.
+		"slug_field": "seller_code",
 		"sub_sitemap_name": "sellers",
 	},
 	"Static Page SEO": {
@@ -125,6 +127,35 @@ def chunk_urls_for_pagination(urls: list[dict]) -> list[list[dict]]:
 	return chunks or [[]]
 
 
+def sitemap_file_name(sub_name: str, part: int, total_parts: int) -> str:
+	"""Parça dosya adı: tek parça → sitemap-products.xml; çok parça → -N ekli."""
+	if total_parts <= 1:
+		return f"sitemap-{sub_name}.xml"
+	return f"sitemap-{sub_name}-{part}.xml"
+
+
+_NAME_TO_DOCTYPE = {cfg["sub_sitemap_name"]: dt for dt, cfg in DOCTYPE_CONFIG.items()}
+
+
+def parse_sitemap_name(name: str) -> tuple[str | None, int]:
+	"""`/sitemap-<name>.xml` içindeki <name>'i (doctype, part) ikilisine çözer.
+
+	Guard (BE-MAP): yalnız bilinen sub-sitemap adları + opsiyonel pozitif parça
+	numarası kabul edilir — path traversal / keyfi dosya adı reddedilir (None).
+	Örnek: "products" → ("Listing", 1); "products-3" → ("Listing", 3);
+	"../etc" → (None, 0).
+	"""
+	base, _, suffix = name.rpartition("-")
+	if suffix.isdigit() and base in _NAME_TO_DOCTYPE:
+		part = int(suffix)
+		if part < 1 or part > 50_000:
+			return None, 0
+		return _NAME_TO_DOCTYPE[base], part
+	if name in _NAME_TO_DOCTYPE:
+		return _NAME_TO_DOCTYPE[name], 1
+	return None, 0
+
+
 # Frappe wrappers ------------------------------------------------------------
 
 
@@ -134,76 +165,127 @@ def _site_url() -> str:
 	return storefront_url()
 
 
-def _fetch_records_for(doctype: str) -> list[dict]:
-	"""DB'den sitemap'e dahil edilecek kayıtları çek."""
+FETCH_BATCH_SIZE = 5_000
+
+
+def _iter_records_for(doctype: str):
+	"""DB'den sitemap kayıtlarını KEYSET pagination ile akıt (BE-MAP ölçek).
+
+	`limit_page_length=0` milyon-satırlık tabloyu tek seferde belleğe alırdı;
+	keyset (`name > last`) + sabit batch ile bellek düz kalır, OFFSET taraması
+	da yapılmaz. Sistem işi: get_all bilinçli (perm bypass — public sitemap).
+	"""
 	import frappe
 
 	cfg = DOCTYPE_CONFIG[doctype]
 	slug_field = cfg["slug_field"]
 
-	filters: dict = {"noindex": 0}
+	base_filters: dict = {"noindex": 0}
 	if doctype == "Listing":
-		filters["status"] = "Active"
+		# BUG FIX (BE-MAP): status=Active yerine denormalize storefront_visible
+		# bayrağı — is_visible=0 (satıcı gizledi) ürünler sitemap'e SIZMAZ,
+		# Out of Stock ama görünür ürünler sitemap'ten DÜŞMEZ.
+		base_filters["storefront_visible"] = 1
 	elif doctype == "Brand":
-		filters["status"] = "Approved"
+		base_filters["status"] = "Approved"
 
 	fields = ["name", slug_field, "modified"]
 	if doctype in ("Product Category", "Static Page SEO"):
 		fields.extend(["sitemap_priority", "sitemap_changefreq"])
 
-	rows = frappe.get_all(doctype, filters=filters, fields=fields, limit_page_length=0)
-	return [r for r in rows if r.get(slug_field)]
+	last_name = ""
+	while True:
+		filters = dict(base_filters)
+		if last_name:
+			filters["name"] = [">", last_name]
+		rows = frappe.get_all(
+			doctype,
+			filters=filters,
+			fields=fields,
+			order_by="name asc",
+			limit_page_length=FETCH_BATCH_SIZE,
+		)
+		if not rows:
+			return
+		for r in rows:
+			if r.get(slug_field):
+				yield r
+		last_name = rows[-1]["name"]
+		if len(rows) < FETCH_BATCH_SIZE:
+			return
+
+
+def _entry_for_row(row: dict, cfg: dict, site: str) -> dict:
+	slug = row.get(cfg["slug_field"])
+	# Static Page SEO: page_path zaten / ile başlıyor (örn. "/kvkk")
+	# Diğerleri: prefix + "/" + slug (örn. "/urun" + "/" + "iphone")
+	if cfg["url_prefix"]:
+		tr_path = f"{cfg['url_prefix']}/{slug}"
+	else:
+		tr_path = slug if slug.startswith("/") else f"/{slug}"
+
+	entry = urlentry(
+		loc=f"{site}{tr_path}",
+		lastmod=str(row.get("modified", ""))[:10],
+		priority=str(row.get("sitemap_priority") or cfg["priority"]),
+		changefreq=str(row.get("sitemap_changefreq") or cfg["changefreq"]),
+	)
+	# Faz 7: hreflang annotations (xhtml:link) — her TR URL'sine tr+en+x-default
+	entry["hreflang_links"] = build_hreflang_links(tr_path, site)
+	return entry
+
+
+def build_chunks_for_type(doctype: str):
+	"""Tek doctype için <urlset> XML PARÇALARINI akıt (generator).
+
+	BUG FIX (BE-MAP): eski build_for_type yalnız chunks[0]'ı döndürüyordu —
+	50k üzeri her kayıt sessizce sitemap dışı kalıyordu. Artık her 50k'lık
+	parça ayrı XML olarak üretilir; disk cache'e parça parça yazılır (bellekte
+	tek parça tutulur).
+	"""
+	cfg = DOCTYPE_CONFIG[doctype]
+	site = _site_url()
+
+	batch: list[dict] = []
+	yielded = False
+	for row in _iter_records_for(doctype):
+		batch.append(_entry_for_row(row, cfg, site))
+		if len(batch) >= MAX_URLS_PER_SITEMAP:
+			yield build_urlset_xml(batch)
+			yielded = True
+			batch = []
+	# Son parça; hiç kayıt yoksa geçerli boş urlset (tam-50k katında fazladan
+	# boş parça üretme)
+	if batch or not yielded:
+		yield build_urlset_xml(batch)
 
 
 def build_for_type(doctype: str) -> str:
-	"""Tek doctype için <urlset> XML üret (DB'den okur)."""
-	cfg = DOCTYPE_CONFIG[doctype]
-	rows = _fetch_records_for(doctype)
-	site = _site_url()
-
-	urls = []
-	for row in rows:
-		slug = row.get(cfg["slug_field"])
-		# Static Page SEO: page_path zaten / ile başlıyor (örn. "/kvkk")
-		# Diğerleri: prefix + "/" + slug (örn. "/urun" + "/" + "iphone")
-		if cfg["url_prefix"]:
-			tr_path = f"{cfg['url_prefix']}/{slug}"
-		else:
-			tr_path = slug if slug.startswith("/") else f"/{slug}"
-		loc = f"{site}{tr_path}"
-		lastmod = str(row.get("modified", ""))[:10]
-
-		priority = row.get("sitemap_priority") or cfg["priority"]
-		changefreq = row.get("sitemap_changefreq") or cfg["changefreq"]
-
-		entry = urlentry(
-			loc=loc,
-			lastmod=lastmod,
-			priority=str(priority),
-			changefreq=str(changefreq),
-		)
-		# Faz 7: hreflang annotations (xhtml:link) — her TR URL'sine tr+en+x-default
-		entry["hreflang_links"] = build_hreflang_links(tr_path, site)
-		urls.append(entry)
-
-	chunks = chunk_urls_for_pagination(urls)
-	return build_urlset_xml(chunks[0])
+	"""Geriye uyumlu wrapper: İLK parçayı döndürür (küçük doctype'lar tek parça)."""
+	return next(build_chunks_for_type(doctype))
 
 
-def build_index() -> str:
-	"""Sitemap index'i üret — 4 sub-sitemap loc'una işaret eder."""
+def build_index(parts_by_sub_name: dict[str, int] | None = None) -> str:
+	"""Sitemap index'i üret.
+
+	parts_by_sub_name: {sub_sitemap_name: parça_sayısı}. Verilmezse her tip
+	tek parça varsayılır (küçük site fallback'i)."""
 	from datetime import date
 
 	site = _site_url()
 	today = date.today().isoformat()
+	parts_by_sub_name = parts_by_sub_name or {}
 
 	sitemaps = []
 	for _doctype, cfg in DOCTYPE_CONFIG.items():
-		sitemaps.append(
-			{
-				"loc": f"{site}/sitemap-{cfg['sub_sitemap_name']}.xml",
-				"lastmod": today,
-			}
-		)
+		sub = cfg["sub_sitemap_name"]
+		total = max(1, parts_by_sub_name.get(sub, 1))
+		for part in range(1, total + 1):
+			sitemaps.append(
+				{
+					"loc": f"{site}/{sitemap_file_name(sub, part, total)}",
+					"lastmod": today,
+				}
+			)
 
 	return build_index_xml(sitemaps)

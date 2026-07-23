@@ -499,3 +499,35 @@ $ curl http://localhost/sitemap-brands.xml | grep xhtml:link
 - ✓ Admin panel "Statik Sayfalar" tab + SeoStaticPageEditView + route
 - ✓ Backend test suite yeşil
 - [ ] Production Nginx gateway config (manuel deploy task — kritik 30 indexable path için location bloku)
+
+---
+
+## BE-ROB — Robots temeli + noindex guard manuel doğrulama (2026-07)
+
+### Ortam eşlemesi (eşleme-önce, restore-proof)
+
+- [ ] `docker exec istocc-cd-backend-1 bench --site istoc.cronbi.com console` →
+      `from tradehub_core.seo.robots_generator import resolve_env; resolve_env()` → `"prod"`
+- [ ] Aynı komut rcistoc/betaistoc sitelerinde → `"rc"` / `"beta"`
+- [ ] Restore senaryosu: rc'ye prod DB restore + site_config'te `seo_environment: prod` artığı →
+      `resolve_env()` YİNE `"rc"` (eşleme kazanır)
+
+### Backend /robots.txt override (www/robots.txt.py — koşulsuz block-all)
+
+- [ ] `curl https://istoc.cronbi.com/robots.txt` → `User-agent: *` + `Disallow: /` (başka satır yok)
+- [ ] `curl https://rcistoc.cronbi.com/robots.txt` ve betaistoc → aynı block-all
+- [ ] Website Settings.robots_txt DOLU olsa bile block-all döner (override okumaz)
+- [ ] GATE-A (env-aware içerik AYRI route'ta):
+      `curl https://istoc.cronbi.com/api/method/tradehub_core.api.seo.get_robots` →
+      `Allow: /` + `Sitemap:` (yalnız BE-MAP canlıyken anlamlı)
+
+### noindex_guard (bayrak SÖZLEŞMESİ: default=0 = tam no-op)
+
+- [ ] Bayrak yokken: `curl -I https://rcistoc.cronbi.com/` → `X-Robots-Tag` header YOK
+- [ ] `bench --site rcistoc.cronbi.com set-config seo_noindex_guard 1` + `clear-website-cache` →
+      `curl -I https://rcistoc.cronbi.com/` → `X-Robots-Tag: noindex, nofollow` VAR
+- [ ] Prod'da bayrak açıkken bile: `curl -I https://istoc.cronbi.com/` → header YOK (site eşlemesi prod)
+- [ ] Marker muafiyeti: `curl -I -H "X-Istoc-Storefront: 1" https://rcistoc.cronbi.com/` → header YOK
+- [ ] PROD'DA BAYRAK AÇMA KOŞULU: FAZ C canlı + Googlebot UA ile
+      `curl -I -A "Googlebot" https://istoc.com/urun/<slug>` yanıtında `X-Robots-Tag` YOK kanıtı
+- [ ] Geri alma: `set-config seo_noindex_guard 0` + `clear-website-cache`

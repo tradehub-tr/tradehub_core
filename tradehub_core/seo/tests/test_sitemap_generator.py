@@ -148,6 +148,106 @@ class TestDoctypeConfig(unittest.TestCase):
 		expected = {"Listing", "Product Category", "Brand", "Admin Seller Profile", "Static Page SEO"}
 		self.assertEqual(set(DOCTYPE_CONFIG.keys()), expected)
 
+	def test_seller_uses_seller_code_slug(self):
+		"""BE-MAP bug fix: mağaza URL'leri seller_code taşır, 'slug' değil."""
+		self.assertEqual(DOCTYPE_CONFIG["Admin Seller Profile"]["slug_field"], "seller_code")
+
+
+class TestSitemapFileName(unittest.TestCase):
+	def test_single_part_has_no_suffix(self):
+		from tradehub_core.seo.sitemap_generator import sitemap_file_name
+
+		self.assertEqual(sitemap_file_name("products", 1, 1), "sitemap-products.xml")
+
+	def test_multi_part_is_numbered(self):
+		from tradehub_core.seo.sitemap_generator import sitemap_file_name
+
+		self.assertEqual(sitemap_file_name("products", 3, 21), "sitemap-products-3.xml")
+
+
+class TestParseSitemapName(unittest.TestCase):
+	"""BE-MAP guard: yalnız bilinen adlar + pozitif parça; keyfi ad 404."""
+
+	def test_plain_name(self):
+		from tradehub_core.seo.sitemap_generator import parse_sitemap_name
+
+		self.assertEqual(parse_sitemap_name("products"), ("Listing", 1))
+		self.assertEqual(parse_sitemap_name("static-pages"), ("Static Page SEO", 1))
+
+	def test_numbered_part(self):
+		from tradehub_core.seo.sitemap_generator import parse_sitemap_name
+
+		self.assertEqual(parse_sitemap_name("products-3"), ("Listing", 3))
+		self.assertEqual(parse_sitemap_name("static-pages-2"), ("Static Page SEO", 2))
+
+	def test_unknown_or_malicious_rejected(self):
+		from tradehub_core.seo.sitemap_generator import parse_sitemap_name
+
+		for bad in ("unknown", "products-0", "products--2", "../etc/passwd", "products-x", ""):
+			self.assertEqual(parse_sitemap_name(bad)[0], None, bad)
+
+
+class TestBuildIndexParts(unittest.TestCase):
+	def test_multi_part_index_lists_numbered_files(self):
+		"""build_index parça sayısına göre numaralı loc'lar üretir."""
+		from unittest.mock import patch
+
+		from tradehub_core.seo import sitemap_generator
+
+		with patch.object(sitemap_generator, "_site_url", return_value="https://istoc.com"):
+			xml = sitemap_generator.build_index({"products": 3, "brands": 1})
+		self.assertIn("https://istoc.com/sitemap-products-1.xml", xml)
+		self.assertIn("https://istoc.com/sitemap-products-3.xml", xml)
+		self.assertIn("https://istoc.com/sitemap-brands.xml", xml)
+		self.assertNotIn("sitemap-brands-1.xml", xml)
+
+
+class TestChunkStreaming(unittest.TestCase):
+	"""BE-MAP bug fix: chunks[0] kaybı — tüm parçalar üretilmeli."""
+
+	def test_all_chunks_emitted_and_no_empty_tail(self):
+		from unittest.mock import patch
+
+		from tradehub_core.seo import sitemap_generator as sg
+
+		rows = [{"name": f"L{i}", "slug": f"urun-{i}", "modified": "2026-07-23"} for i in range(120)]
+		with (
+			patch.object(sg, "MAX_URLS_PER_SITEMAP", 50),
+			patch.object(sg, "_iter_records_for", return_value=iter(rows)),
+			patch.object(sg, "_site_url", return_value="https://istoc.com"),
+		):
+			chunks = list(sg.build_chunks_for_type("Listing"))
+		self.assertEqual(len(chunks), 3)  # 50 + 50 + 20
+		self.assertIn("urun-0", chunks[0])
+		self.assertIn("urun-119", chunks[2])
+
+	def test_exact_multiple_has_no_extra_empty_chunk(self):
+		from unittest.mock import patch
+
+		from tradehub_core.seo import sitemap_generator as sg
+
+		rows = [{"name": f"L{i}", "slug": f"u-{i}", "modified": "2026-07-23"} for i in range(100)]
+		with (
+			patch.object(sg, "MAX_URLS_PER_SITEMAP", 50),
+			patch.object(sg, "_iter_records_for", return_value=iter(rows)),
+			patch.object(sg, "_site_url", return_value="https://istoc.com"),
+		):
+			chunks = list(sg.build_chunks_for_type("Listing"))
+		self.assertEqual(len(chunks), 2)
+
+	def test_empty_dataset_yields_single_valid_urlset(self):
+		from unittest.mock import patch
+
+		from tradehub_core.seo import sitemap_generator as sg
+
+		with (
+			patch.object(sg, "_iter_records_for", return_value=iter([])),
+			patch.object(sg, "_site_url", return_value="https://istoc.com"),
+		):
+			chunks = list(sg.build_chunks_for_type("Listing"))
+		self.assertEqual(len(chunks), 1)
+		self.assertIn("<urlset", chunks[0])
+
 
 if __name__ == "__main__":
 	unittest.main()

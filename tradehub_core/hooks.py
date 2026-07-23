@@ -16,6 +16,10 @@ required_apps = ["frappe", "erpnext"]
 
 app_include_js = "seller_redirect.js"
 
+# SEO: staging/backend ortam yanıtlarına X-Robots-Tag noindex basar.
+# `seo_noindex_guard` site-config bayrağı default=0 — bayrak açılmadan no-op.
+after_request = ["tradehub_core.seo.noindex_guard.apply_noindex_header"]
+
 fixtures = [
 	{
 		"dt": "Role",
@@ -150,7 +154,8 @@ scheduler_events = {
 		"tradehub_core.utils.cert_expiry_check.check_certificate_expiry",
 		# FAZ 3.5 — ReBAC ↔ Frappe drift detection
 		"tradehub_core.services.rebac_drift_detection.scan_drift",
-		# SEO sitemap rebuild — 4 doctype + index. 254 row için < 1 sn.
+		# SEO sitemap rebuild — 5 doctype + index; asıl iş LONG queue'ya
+		# enqueue edilir (BE-MAP: milyon-kayıt ölçeğinde parçalı disk cache).
 		"tradehub_core.seo.tasks.daily_sitemap_rebuild",
 		# Sprint 2 — E2 fırsat: Buyer scoring + level pipeline (daily)
 		"tradehub_core.tasks.calculate_buyer_scores",

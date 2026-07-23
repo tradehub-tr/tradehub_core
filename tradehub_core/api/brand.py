@@ -237,6 +237,9 @@ def get_brand_detail(slug=None, code=None, page=1, page_size=20, sort_by="modifi
 
 	return {
 		"brand": brand_payload,
+		# Panelden yönetilen SEO payload'ı (BE-LD) — storefront applyServerSeo
+		# ile DOM head'ine uygular. None dönerse client statik fallback kullanır.
+		"seo": _build_brand_seo(brand.name),
 		"featured": featured_cards,
 		"listings": listings_result.get("data", []),
 		"total": listings_result.get("total", 0),
@@ -245,3 +248,14 @@ def get_brand_detail(slug=None, code=None, page=1, page_size=20, sort_by="modifi
 		"hasNext": listings_result.get("has_next", False),
 		"hasPrev": listings_result.get("has_prev", False),
 	}
+
+
+def _build_brand_seo(brand_name: str) -> dict | None:
+	"""Marka SEO payload'ı — üretim hatası public endpoint'i DÜŞÜRMEMELİ."""
+	try:
+		from tradehub_core.seo.meta_builder import build_for_brand
+
+		return build_for_brand(frappe.get_doc("Brand", brand_name).as_dict())
+	except Exception:
+		frappe.log_error(frappe.get_traceback(), "brand.get_brand_detail seo payload")
+		return None

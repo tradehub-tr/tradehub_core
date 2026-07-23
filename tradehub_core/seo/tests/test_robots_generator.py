@@ -16,6 +16,7 @@ from tradehub_core.seo.robots_generator import (  # noqa: E402
 	BLOCK_ALL_TEMPLATE,
 	build_prod_robots,
 	build_robots_txt,
+	resolve_env_for_site,
 )
 
 
@@ -31,16 +32,28 @@ class TestBuildProdRobots(unittest.TestCase):
 	def test_disallows_dashboard(self):
 		out = build_prod_robots("https://istoc.com")
 		self.assertIn("Disallow: /pages/dashboard/", out)
+		self.assertIn("Disallow: /hesabim$", out)
+		self.assertIn("Disallow: /hesabim/", out)
 
-	def test_disallows_cart_checkout(self):
+	def test_disallows_cart_checkout_pretty_urls(self):
 		out = build_prod_robots("https://istoc.com")
-		self.assertIn("Disallow: /cart.html", out)
-		self.assertIn("Disallow: /checkout.html", out)
+		self.assertIn("Disallow: /sepet$", out)
+		self.assertIn("Disallow: /odeme$", out)
+		self.assertIn("Disallow: /odeme/", out)
+		self.assertIn("Disallow: /pages/cart.html$", out)
+		self.assertIn("Disallow: /pages/order/", out)
+
+	def test_anchored_odeme_does_not_shadow_info_page(self):
+		"""`/odeme$` ankrajı `/odeme-secenekleri` info sayfasını engellememeli."""
+		out = build_prod_robots("https://istoc.com")
+		self.assertNotIn("Disallow: /odeme\n", out.replace("Disallow: /odeme$\n", ""))
+		self.assertNotIn("Disallow: /odeme-secenekleri", out)
 
 	def test_disallows_search_params(self):
 		out = build_prod_robots("https://istoc.com")
 		self.assertIn("Disallow: /*?q=", out)
-		self.assertIn("Disallow: /*?utm_*", out)
+		self.assertIn("Disallow: /*?utm_", out)
+		self.assertIn("Disallow: /*?lng=", out)
 
 	def test_includes_sitemap_url(self):
 		out = build_prod_robots("https://istoc.com")
@@ -82,6 +95,38 @@ class TestBuildRobotsTxt(unittest.TestCase):
 			manual_override="User-agent: *\nDisallow: /test",
 		)
 		self.assertEqual(out, "User-agent: *\nDisallow: /test")
+
+
+class TestSiteToEnvMapping(unittest.TestCase):
+	"""Ç1 kararı: eşleme-önce; config yalnız eşleme-dışı fallback (restore-proof)."""
+
+	def test_prod_site_maps_to_prod(self):
+		self.assertEqual(resolve_env_for_site("istoc.cronbi.com"), "prod")
+
+	def test_rc_site_maps_to_rc(self):
+		self.assertEqual(resolve_env_for_site("rcistoc.cronbi.com"), "rc")
+
+	def test_beta_site_maps_to_beta(self):
+		self.assertEqual(resolve_env_for_site("betaistoc.cronbi.com"), "beta")
+
+	def test_alpha_site_maps_to_beta(self):
+		self.assertEqual(resolve_env_for_site("alphaistoc.cronbi.com"), "beta")
+
+	def test_mapping_wins_over_config(self):
+		"""Restore artığı `seo_environment=prod` staging'i indexe açamaz."""
+		self.assertEqual(resolve_env_for_site("rcistoc.cronbi.com", "prod"), "rc")
+		self.assertEqual(resolve_env_for_site("betaistoc.cronbi.com", "prod"), "beta")
+
+	def test_unmapped_site_falls_back_to_config(self):
+		self.assertEqual(resolve_env_for_site("tradehub.localhost", "prod"), "prod")
+
+	def test_unmapped_site_without_config_defaults_to_beta(self):
+		"""Güvenli default: bilinmeyen site + config yok → beta (noindex tarafı)."""
+		self.assertEqual(resolve_env_for_site("tradehub.localhost"), "beta")
+		self.assertEqual(resolve_env_for_site(None), "beta")
+
+	def test_site_name_normalized(self):
+		self.assertEqual(resolve_env_for_site(" ISTOC.CRONBI.COM "), "prod")
 
 
 if __name__ == "__main__":

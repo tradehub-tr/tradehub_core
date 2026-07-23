@@ -25,7 +25,9 @@ _template_cache = None
 
 _SEO_STRIP_RE = re.compile(
 	r"[ \t]*(?:"
-	r"<title>[^<]*</title>"
+	# Attribute'lu title'ları da yakala (<title data-i18n="...">) — aksi halde
+	# backend kendi title'ını eklerken statik title kalır → çift <title> bug'ı.
+	r"<title\b[^>]*>[^<]*</title>"
 	r'|<meta\b[^>]*\bname="description"[^>]*/?\s*>'
 	r'|<meta\b[^>]*\bname="robots"[^>]*/?\s*>'
 	r'|<meta\b[^>]*\bproperty="og:[^"]*"[^>]*/?\s*>'

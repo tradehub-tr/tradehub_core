@@ -1,11 +1,18 @@
 """Storefront statik sayfa kayıtları (Faz 4c).
 
-63 statik HTML sayfası için path → metadata. Admin paneli bu listeden
+64 statik HTML sayfası için path → metadata. Admin paneli bu listeden
 Static Page SEO record'larını seed eder ve render_static_page endpoint'i
 path lookup için kullanır.
 
 Yeni sayfa eklerken: bu listeye entry ekle, sonra
 `bench execute tradehub_core.setup.seed_static_pages.run` çalıştır.
+
+NGX-1 senkron notu (2026-07): dist'te HTML'i olmayan 9 hayalet path silindi
+(/blog, /kariyer, /kurumsal-sorumluluk, /izleme, /haberler, /ortakliklar,
+/kargo-koruma, /vergi, /satici/dogrulama) ve /markalar → /ureticiler'e
+taşındı (nginx'te /markalar → 301 /ureticiler). Bu liste nginx
+$seo_static_page_path map'i ile SENKRON tutulmalı; seed edilmiş eski DB
+kayıtları `v15_seo_static_pages_cleanup` patch'i ile temizlenir.
 """
 
 # Her entry: {
@@ -20,6 +27,8 @@ STATIC_PAGES = [
 	# ── Ana + listing (5) ─────────────────────────────────
 	{
 		"path": "/",
+		"meta_title": "iStoc | Türkiye'nin B2B Toptan Satış Pazaryeri",
+		"meta_description": "Türkiye'nin B2B toptan satış pazaryeri iStoc'ta doğrulanmış tedarikçilerden güvenli ödemeyle toptan ürün alın. Toptan fiyat avantajını keşfedin.",
 		"title": "Anasayfa",
 		"html_path": "index.html",
 		"indexable_default": True,
@@ -28,6 +37,8 @@ STATIC_PAGES = [
 	},
 	{
 		"path": "/urunler",
+		"meta_title": "Toptan Ürünler – Tüm Kategoriler | iStoc",
+		"meta_description": "Elektronikten tekstile binlerce toptan ürünü fiyat, marka ve kategoriye göre karşılaştırın; doğrulanmış tedarikçilerden toptan fiyatına alın.",
 		"title": "Tüm Ürünler",
 		"html_path": "pages/products.html",
 		"indexable_default": True,
@@ -36,6 +47,8 @@ STATIC_PAGES = [
 	},
 	{
 		"path": "/kategoriler",
+		"meta_title": "Toptan Ürün Kategorileri | iStoc",
+		"meta_description": "Elektronik, tekstil, kozmetik ve daha yüzlerce kategoride toptan ürünleri keşfedin; aradığınız toptan kategoriye tek sayfadan ulaşın.",
 		"title": "Tüm Kategoriler",
 		"html_path": "pages/categories.html",
 		"indexable_default": True,
@@ -43,7 +56,9 @@ STATIC_PAGES = [
 		"sitemap_changefreq": "weekly",
 	},
 	{
-		"path": "/markalar",
+		"path": "/ureticiler",
+		"meta_title": "Üreticiler ve Toptancılar | iStoc",
+		"meta_description": "Türkiye'nin üretici, toptancı ve markalarını tek listede keşfedin; güvenilir tedarikçilerle doğrudan bağlantı kurun.",
 		"title": "Tüm Markalar",
 		"html_path": "pages/manufacturers.html",
 		"indexable_default": True,
@@ -102,6 +117,8 @@ STATIC_PAGES = [
 	# ── Yardım (6) ────────────────────────────────────────
 	{
 		"path": "/yardim-merkezi",
+		"meta_title": "Yardım Merkezi | iStoc",
+		"meta_description": "Sipariş takibi, iade, ödeme ve kargo konularında adım adım rehberler. Çözüm bulamazsanız destek ekibine buradan ulaşın.",
 		"title": "Yardım Merkezi",
 		"html_path": "pages/help/help-center.html",
 		"indexable_default": True,
@@ -110,6 +127,8 @@ STATIC_PAGES = [
 	},
 	{
 		"path": "/sss",
+		"meta_title": "Sık Sorulan Sorular (SSS) | iStoc",
+		"meta_description": "Alışveriş, ödeme, kargo, iade ve satıcılık hakkında en çok sorulan soruların net cevapları iStoc SSS sayfasında.",
 		"title": "Sık Sorulan Sorular",
 		"html_path": "pages/help/faq.html",
 		"indexable_default": True,
@@ -118,6 +137,8 @@ STATIC_PAGES = [
 	},
 	{
 		"path": "/sss/detay",
+		"meta_title": "Soru Detayı – SSS | iStoc",
+		"meta_description": "Sorunuzun ayrıntılı cevabını okuyun; ilgili rehberlere ve benzer sorulara bu sayfadan kolayca geçiş yapın.",
 		"title": "SSS Detay",
 		"html_path": "pages/help/faq-detail.html",
 		"indexable_default": False,
@@ -151,6 +172,8 @@ STATIC_PAGES = [
 	# ── Bilgi (14) ────────────────────────────────────────
 	{
 		"path": "/satis-sonrasi",
+		"meta_title": "Satış Sonrası Destek ve Korumalar | iStoc",
+		"meta_description": "Garanti şartları, iade süreçleri ve teknik destek: iStoc'ta satış sonrası korumalarla toptan alışverişiniz güvence altında.",
 		"title": "Satış Sonrası",
 		"html_path": "pages/info/after-sales.html",
 		"indexable_default": True,
@@ -158,63 +181,9 @@ STATIC_PAGES = [
 		"sitemap_changefreq": "monthly",
 	},
 	{
-		"path": "/blog",
-		"title": "Blog",
-		"html_path": "pages/info/blog.html",
-		"indexable_default": True,
-		"sitemap_priority": "0.6",
-		"sitemap_changefreq": "weekly",
-	},
-	{
-		"path": "/kariyer",
-		"title": "Kariyer",
-		"html_path": "pages/info/careers.html",
-		"indexable_default": True,
-		"sitemap_priority": "0.5",
-		"sitemap_changefreq": "monthly",
-	},
-	{
-		"path": "/kurumsal-sorumluluk",
-		"title": "Kurumsal Sorumluluk",
-		"html_path": "pages/info/csr.html",
-		"indexable_default": True,
-		"sitemap_priority": "0.5",
-		"sitemap_changefreq": "monthly",
-	},
-	{
-		"path": "/uyelik",
-		"title": "Üyelik",
-		"html_path": "pages/info/membership.html",
-		"indexable_default": True,
-		"sitemap_priority": "0.5",
-		"sitemap_changefreq": "monthly",
-	},
-	{
-		"path": "/izleme",
-		"title": "İzleme",
-		"html_path": "pages/info/monitoring.html",
-		"indexable_default": False,
-		"sitemap_priority": "0.3",
-		"sitemap_changefreq": "monthly",
-	},
-	{
-		"path": "/haberler",
-		"title": "Haberler",
-		"html_path": "pages/info/news.html",
-		"indexable_default": True,
-		"sitemap_priority": "0.5",
-		"sitemap_changefreq": "weekly",
-	},
-	{
-		"path": "/ortakliklar",
-		"title": "Ortaklıklar",
-		"html_path": "pages/info/partnerships.html",
-		"indexable_default": True,
-		"sitemap_priority": "0.4",
-		"sitemap_changefreq": "monthly",
-	},
-	{
 		"path": "/odeme-secenekleri",
+		"meta_title": "Ödeme Seçenekleri – Güvenli Ödeme | iStoc",
+		"meta_description": "Kredi kartı, havale ve güvenceli ödeme seçenekleri iStoc'ta. Alıcı korumasıyla toptan siparişlerinizi risk almadan tamamlayın.",
 		"title": "Ödeme Seçenekleri",
 		"html_path": "pages/info/payments.html",
 		"indexable_default": True,
@@ -223,6 +192,8 @@ STATIC_PAGES = [
 	},
 	{
 		"path": "/iade-politikasi",
+		"meta_title": "Para İade Politikası | iStoc",
+		"meta_description": "Para iadesinin hangi koşullarda ve kaç günde yapıldığını öğrenin; iade talebi açma ve anlaşmazlık çözümü adımları bu sayfada.",
 		"title": "İade Politikası",
 		"html_path": "pages/info/refund-policy.html",
 		"indexable_default": True,
@@ -231,6 +202,8 @@ STATIC_PAGES = [
 	},
 	{
 		"path": "/kargo-lojistik",
+		"meta_title": "Kargo ve Lojistik Süreçleri | iStoc",
+		"meta_description": "Toptan siparişlerde kargo süreleri, sevkiyat takibi ve teslimat güvencesi: iStoc lojistik süreçlerinin tamamını inceleyin.",
 		"title": "Kargo ve Lojistik",
 		"html_path": "pages/info/shipping-logistics.html",
 		"indexable_default": True,
@@ -238,23 +211,9 @@ STATIC_PAGES = [
 		"sitemap_changefreq": "monthly",
 	},
 	{
-		"path": "/kargo-koruma",
-		"title": "Kargo Koruması",
-		"html_path": "pages/info/shipping-protection.html",
-		"indexable_default": True,
-		"sitemap_priority": "0.4",
-		"sitemap_changefreq": "monthly",
-	},
-	{
-		"path": "/vergi",
-		"title": "Vergi Bilgileri",
-		"html_path": "pages/info/tax.html",
-		"indexable_default": True,
-		"sitemap_priority": "0.4",
-		"sitemap_changefreq": "monthly",
-	},
-	{
 		"path": "/ticaret-guvencesi/detay",
+		"meta_title": "Ticari Güvence Nasıl Çalışır? | iStoc",
+		"meta_description": "Ticari Güvence'nin adımlarını öğrenin: ödeme koruması, teslimat takibi ve anlaşmazlık çözümü süreçleri örneklerle bu sayfada.",
 		"title": "Ticaret Güvencesi Detay",
 		"html_path": "pages/info/trade-assurance-detail.html",
 		"indexable_default": True,
@@ -264,6 +223,8 @@ STATIC_PAGES = [
 	# ── Hukuki (10) ───────────────────────────────────────
 	{
 		"path": "/erisilebilirlik",
+		"meta_title": "Erişilebilirlik Politikası | iStoc",
+		"meta_description": "iStoc'un erişilebilirlik taahhüdü: uygulanan standartlar ve siteyi herkes için kullanılabilir kılan iyileştirmeler.",
 		"title": "Erişilebilirlik",
 		"html_path": "pages/legal/accessibility.html",
 		"indexable_default": True,
@@ -272,6 +233,8 @@ STATIC_PAGES = [
 	},
 	{
 		"path": "/cerezler",
+		"meta_title": "Çerez Politikası | iStoc",
+		"meta_description": "iStoc'ta kullanılan çerez türlerini, kullanım amaçlarını ve çerez tercihlerinizi nasıl yöneteceğinizi adım adım öğrenin.",
 		"title": "Çerez Politikası",
 		"html_path": "pages/legal/cookies.html",
 		"indexable_default": True,
@@ -280,6 +243,8 @@ STATIC_PAGES = [
 	},
 	{
 		"path": "/mesafeli-satis",
+		"meta_title": "Mesafeli Satış Sözleşmesi | iStoc",
+		"meta_description": "Mesafeli satış sözleşmesinin tam metni: cayma hakkı, teslimat süreleri, iade koşulları ve tarafların yükümlülükleri.",
 		"title": "Mesafeli Satış Sözleşmesi",
 		"html_path": "pages/legal/distance-sales.html",
 		"indexable_default": True,
@@ -290,7 +255,7 @@ STATIC_PAGES = [
 		"path": "/fikri-mulkiyet",
 		"title": "Fikri Mülkiyet",
 		"html_path": "pages/legal/ip.html",
-		"indexable_default": True,
+		"indexable_default": False,
 		"sitemap_priority": "0.3",
 		"sitemap_changefreq": "yearly",
 	},
@@ -298,7 +263,7 @@ STATIC_PAGES = [
 		"path": "/kvkk",
 		"title": "KVKK Aydınlatma Metni",
 		"html_path": "pages/legal/kvkk.html",
-		"indexable_default": True,
+		"indexable_default": False,
 		"sitemap_priority": "0.5",
 		"sitemap_changefreq": "yearly",
 	},
@@ -306,12 +271,14 @@ STATIC_PAGES = [
 		"path": "/yasal-uyari",
 		"title": "Yasal Uyarı",
 		"html_path": "pages/legal/notice.html",
-		"indexable_default": True,
+		"indexable_default": False,
 		"sitemap_priority": "0.3",
 		"sitemap_changefreq": "yearly",
 	},
 	{
 		"path": "/gizlilik",
+		"meta_title": "Gizlilik Politikası | iStoc",
+		"meta_description": "iStoc gizlilik politikası: hangi verilerin toplandığı, nasıl korunduğu ve haklarınızı nasıl kullanacağınız bu sayfada.",
 		"title": "Gizlilik Politikası",
 		"html_path": "pages/legal/privacy.html",
 		"indexable_default": True,
@@ -320,6 +287,8 @@ STATIC_PAGES = [
 	},
 	{
 		"path": "/urun-listeleme-kurallari",
+		"meta_title": "Ürün Listeleme Kuralları | iStoc",
+		"meta_description": "Satıcılar için ürün listeleme kuralları: kategori seçimi, görsel ve içerik standartları ile fiyatlandırma ilkeleri rehberi.",
 		"title": "Ürün Listeleme Kuralları",
 		"html_path": "pages/legal/product-listing.html",
 		"indexable_default": True,
@@ -330,12 +299,14 @@ STATIC_PAGES = [
 		"path": "/iade-kosullari",
 		"title": "İade Koşulları",
 		"html_path": "pages/legal/returns.html",
-		"indexable_default": True,
+		"indexable_default": False,
 		"sitemap_priority": "0.5",
 		"sitemap_changefreq": "yearly",
 	},
 	{
 		"path": "/kullanim-kosullari",
+		"meta_title": "Kullanım Koşulları | iStoc",
+		"meta_description": "iStoc B2B pazaryeri kullanım koşulları: üyelik, sipariş ve ödeme kuralları ile alıcı-satıcı yükümlülüklerinin güncel metni.",
 		"title": "Kullanım Koşulları",
 		"html_path": "pages/legal/terms.html",
 		"indexable_default": True,
@@ -491,6 +462,8 @@ STATIC_PAGES = [
 	# ── Seller (7) ────────────────────────────────────────
 	{
 		"path": "/satici-ol",
+		"meta_title": "Satıcı Ol – Toptan Satış Yapın | iStoc",
+		"meta_description": "Ürünlerinizi binlerce B2B alıcısına satın. Başvuru ücretsiz: mağazanızı açın, toptan satışa bugün başlayın.",
 		"title": "Satıcı Ol",
 		"html_path": "pages/seller/sell.html",
 		"indexable_default": True,
@@ -499,6 +472,8 @@ STATIC_PAGES = [
 	},
 	{
 		"path": "/satici/fiyatlandirma",
+		"meta_title": "Satıcı Paketleri ve Komisyonlar | iStoc",
+		"meta_description": "Satıcı üyelik paketlerini, komisyon oranlarını ve fiyatlandırmayı karşılaştırın; işletmenize uygun planla satışa başlayın.",
 		"title": "Satıcı Fiyatlandırması",
 		"html_path": "pages/seller/sell-pricing.html",
 		"indexable_default": True,
@@ -530,14 +505,6 @@ STATIC_PAGES = [
 		"sitemap_changefreq": "never",
 	},
 	{
-		"path": "/satici/dogrulama",
-		"title": "Satıcı Doğrulama",
-		"html_path": "pages/seller/verification.html",
-		"indexable_default": False,
-		"sitemap_priority": "0.1",
-		"sitemap_changefreq": "never",
-	},
-	{
 		"path": "/satici/vitrin",
 		"title": "Satıcı Vitrini",
 		"html_path": "pages/seller/seller-storefront.html",
@@ -548,6 +515,8 @@ STATIC_PAGES = [
 	# ── Top + Special (5) ─────────────────────────────────
 	{
 		"path": "/firsatlar",
+		"meta_title": "Toptan Kampanyalar ve Fırsat Ürünleri | iStoc",
+		"meta_description": "Güncel kampanyalı toptan ürünler ve indirimli fırsatlar iStoc'ta. Stoklarla sınırlı toptan fiyat avantajlarını kaçırmayın.",
 		"title": "Fırsatlar",
 		"html_path": "pages/top-deals.html",
 		"indexable_default": True,
@@ -556,6 +525,8 @@ STATIC_PAGES = [
 	},
 	{
 		"path": "/cok-satanlar",
+		"meta_title": "En Çok Satan Toptan Ürünler | iStoc",
+		"meta_description": "iStoc'ta en çok satan toptan ürünleri görün; popüler kategorilerde öne çıkan tedarikçileri karşılaştırıp siparişinizi hemen verin.",
 		"title": "Çok Satanlar",
 		"html_path": "pages/top-ranking.html",
 		"indexable_default": True,
@@ -564,6 +535,8 @@ STATIC_PAGES = [
 	},
 	{
 		"path": "/cok-satanlar/kategori",
+		"meta_title": "Kategoriye Göre En Çok Satanlar | iStoc",
+		"meta_description": "Her kategorinin en çok satan toptan ürünlerini ayrı ayrı inceleyin; talep gören ürünlerle stoğunuzu doğru planlayın.",
 		"title": "Kategoriye Göre Çok Satanlar",
 		"html_path": "pages/top-ranking-category.html",
 		"indexable_default": True,
@@ -580,6 +553,8 @@ STATIC_PAGES = [
 	},
 	{
 		"path": "/ticaret-guvencesi",
+		"meta_title": "Ticari Güvence – Güvenli Toptan Alışveriş | iStoc",
+		"meta_description": "iStoc Ticari Güvence ile ödemeniz teslimata kadar korumada: güvenli ödeme, para iade garantisi ve sevkiyat takibi tek pakette.",
 		"title": "Ticaret Güvencesi",
 		"html_path": "pages/trade-assurance.html",
 		"indexable_default": True,
