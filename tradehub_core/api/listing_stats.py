@@ -98,6 +98,7 @@ def get_listing_stats(listing, days=30):
 			if idx is not None:
 				daily_views[idx] = r.cnt
 	except Exception:
+		frappe.log_error(frappe.get_traceback(), "listing_stats.view_log_query")
 		pass
 
 	# Order data — from Order Item if doctype exists
@@ -120,6 +121,7 @@ def get_listing_stats(listing, days=30):
 					daily_orders[idx] = r.cnt
 					daily_revenue[idx] = flt(r.rev, 2)
 	except Exception:
+		frappe.log_error(frappe.get_traceback(), "listing_stats.order_item_query")
 		pass
 
 	# If no View Log data, generate synthetic curve from total view_count
@@ -167,6 +169,7 @@ def get_listing_stats(listing, days=30):
 					}
 				)
 	except Exception:
+		frappe.log_error(frappe.get_traceback(), "listing_stats.top_variants_query")
 		pass
 
 	# Fallback: variant_items child table (static, no order data)
@@ -189,6 +192,7 @@ def get_listing_stats(listing, days=30):
 					}
 				)
 		except Exception:
+			frappe.log_error(frappe.get_traceback(), "listing_stats.variant_items_fallback")
 			pass
 
 	return {

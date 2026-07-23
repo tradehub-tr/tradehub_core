@@ -35,6 +35,7 @@ def _determine_stage(submitted_at, now=None) -> str:
 	try:
 		sub = get_datetime(submitted_at)
 	except Exception:
+		frappe.log_error("Review submitted_at parse failed in _determine_stage", "timeline")
 		return "Initial"
 	days = max(0, (now - sub).days)
 	if days >= 180:
@@ -208,6 +209,7 @@ def _send_reminder(review_doc, stage: str):
 			reference_name=review_doc.name,
 		)
 	except Exception:
+		frappe.log_error("Timeline stage reminder notification failed", "timeline")
 		pass
 
 
@@ -229,7 +231,7 @@ def _check_and_send(stage: str, min_days: int, max_days: int):
 			doc = frappe.get_doc("Listing Review", r["name"])
 			_send_reminder(doc, stage)
 		except Exception:
-			frappe.log_error(title="t_stage_reminder_failed", message=f"review={r['name']} stage={stage}")
+			frappe.log_error(f"Timeline stage reminder failed: review={r['name']} stage={stage}", "timeline")
 
 
 def send_t30_reminders():

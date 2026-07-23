@@ -53,12 +53,13 @@ def execute():
 		try:
 			frappe.db.sql("DELETE FROM `tabSessions` WHERE user = %s", (user,))
 		except Exception:
+			frappe.log_error(f"Failed to delete stale sessions for user {user}", "normalize_seller_user_type")
 			pass
 		updated += 1
-		print(f"  [updated] {user}: {current_type} → System User")
+		frappe.logger("patches").info(f"  [updated] {user}: {current_type} → System User")
 
 	frappe.db.commit()
-	print(
+	frappe.logger("patches").info(
 		f"[normalize_seller_user_type] updated={updated}, "
 		f"already_correct={already_correct}, missing_user_doc={missing}"
 	)

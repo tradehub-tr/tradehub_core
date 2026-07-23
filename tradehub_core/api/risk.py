@@ -186,6 +186,7 @@ def _check_velocity(review_doc, factors):
 	try:
 		diff_hours = time_diff_in_hours(get_datetime(review_doc.submitted_at), get_datetime(order_modified))
 	except Exception:
+		frappe.log_error(f"Failed to compute time diff for velocity check on review {review_doc.name}", "risk._check_velocity")
 		return
 	if 0 <= diff_hours < (1 / 60):  # 1 dakikadan az
 		_add_factor(

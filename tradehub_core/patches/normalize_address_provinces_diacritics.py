@@ -72,4 +72,4 @@ def execute():
 			updated += 1
 
 	frappe.db.commit()
-	print(f"normalize_address_provinces_diacritics: {len(ASCII_TO_DIACRITIC)} il varyantı tarandı")
+	frappe.logger("patches").info(f"normalize_address_provinces_diacritics: {len(ASCII_TO_DIACRITIC)} il varyantı tarandı")

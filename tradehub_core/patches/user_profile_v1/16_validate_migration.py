@@ -84,9 +84,9 @@ def execute():
 	if errors:
 		msg = "\n".join(errors)
 		frappe.log_error(title="Patch 16: VALIDATION FAILED", message=msg)
-		print(f"\n===VALIDATION_FAILED===\n{msg}\n===END===\n")
+		frappe.logger("patches").error(f"===VALIDATION_FAILED===\n{msg}\n===END===")
 	else:
-		print("\n===VALIDATION_OK=== Tüm kontroller geçti\n")
+		frappe.logger("patches").info("===VALIDATION_OK=== Tüm kontroller geçti")
 		frappe.log_error(
 			title="Patch 16: VALIDATION OK",
 			message=f"User Profile count: {up_count}, Hybrid: {hybrid_up}, Buyer: {buyer_count}, Seller: {seller_count}",

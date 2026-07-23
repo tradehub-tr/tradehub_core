@@ -53,7 +53,7 @@ def _sum_spend(user, start, end):
 			["order_date", "<", end],
 		],
 		fields=["total"],
-		limit_page_length=0,
+		page_length=5000,  # harcama toplaması — pratik üst sınır; daha fazlası chunk'a alınmalı
 	)
 	return sum(flt(r.total) for r in rows)
 
@@ -93,7 +93,7 @@ def _active_orders(user):
 
 def _pending_quotes(user):
 	open_rfqs = frappe.get_list(
-		"RFQ", filters={"buyer": user, "status": "Pending"}, pluck="name", limit_page_length=0
+		"RFQ", filters={"buyer": user, "status": "Pending"}, pluck="name", page_length=1000  # buyer'a ait sınırlı dataset
 	)
 	quote_count = 0
 	if open_rfqs:
@@ -107,7 +107,7 @@ def _zero_savings():
 
 
 def _negotiation_savings(user):
-	rfqs = frappe.get_list("RFQ", filters={"buyer": user}, fields=["name", "quantity"], limit_page_length=0)
+	rfqs = frappe.get_list("RFQ", filters={"buyer": user}, fields=["name", "quantity"], page_length=5000)  # tasarruf toplaması — pratik üst sınır
 	qty_by_rfq = {r.name: flt(r.quantity) for r in rfqs}
 	if not qty_by_rfq:
 		return _zero_savings()
@@ -163,7 +163,7 @@ def _spending_trend(user):
 			["order_date", "<", next_start],
 		],
 		fields=["order_date", "total"],
-		limit_page_length=0,
+		page_length=5000,  # 6 aylık trend toplaması — pratik üst sınır
 	)
 
 	# (yıl, ay) → [harcama, sipariş adedi]
@@ -210,7 +210,7 @@ def _category_breakdown(user):
 			["order_date", ">=", window_start],
 		],
 		pluck="name",
-		limit_page_length=0,
+		page_length=1000,  # buyer'a ait sınırlı dataset — güvenlik tavanı
 	)
 	if not order_names:
 		return []

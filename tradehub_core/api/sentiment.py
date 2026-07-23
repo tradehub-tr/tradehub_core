@@ -125,6 +125,7 @@ def _get_openai_config() -> tuple[str | None, str]:
 			model = settings.openai_model or "gpt-4o-mini"
 			return api_key, model
 	except Exception:
+		frappe.log_error("OpenAI config fetch failed in _get_openai_config", "sentiment")
 		pass
 	return None, "gpt-4o-mini"
 
@@ -249,6 +250,7 @@ def get_listing_sentiment_summary(listing: str) -> dict:
 				for t in json.loads(r.topics_json):
 					topic_freq[t] = topic_freq.get(t, 0) + 1
 			except Exception:
+				frappe.log_error("Sentiment topics_json parse failed", "sentiment")
 				pass
 	top_topics = sorted(topic_freq.items(), key=lambda x: -x[1])[:10]
 	total = sum(counts.values())

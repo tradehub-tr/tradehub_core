@@ -698,6 +698,7 @@ def _snapshot_resource(resource_type: str, resource_name: str | None) -> dict[st
 	try:
 		doc = frappe.get_doc(resource_type, resource_name)
 	except Exception:
+		frappe.log_error(f"Failed to fetch resource {resource_type}/{resource_name} for snapshot", "authorization_simulator")
 		return snap
 
 	tenant = None

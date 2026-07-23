@@ -158,6 +158,7 @@ def revoke_non_privileged_permlevel_reads(target_permlevel: int = 2) -> dict:
 	try:
 		frappe.clear_cache()
 	except Exception:
+		frappe.log_error("Cache clear failed after revoking non-privileged permlevel reads", "pii_permlevel_setup")
 		pass
 	return {"non_privileged_revoked": revoked, "target_permlevel": target_permlevel}
 
@@ -239,6 +240,7 @@ def apply_pii_permlevels(dry_run: bool = False, target_permlevel: int = 2) -> di
 		try:
 			frappe.clear_cache()
 		except Exception:
+			frappe.log_error("Cache clear failed after applying PII permlevels", "pii_permlevel_setup")
 			pass
 
 	return {

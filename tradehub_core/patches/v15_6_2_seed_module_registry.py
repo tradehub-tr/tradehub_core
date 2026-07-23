@@ -62,6 +62,7 @@ def execute() -> dict:
 	try:
 		frappe.utils.nestedset.rebuild_tree("TH Module Registry", "parent_th_module_registry")
 	except Exception:
+		frappe.log_error("Failed to rebuild NestedSet tree for TH Module Registry", "v15_6_2_seed_module_registry")
 		pass
 
 	return {

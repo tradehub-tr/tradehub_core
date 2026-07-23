@@ -59,6 +59,7 @@ def _recency_decay(review: dict) -> float:
 		now = get_datetime(now_datetime())
 		days = max(0, (now - pub_dt).days)
 	except Exception:
+		frappe.log_error(frappe.get_traceback(), "rating_engine.recency_decay")
 		return 1.0
 	months = days / 30.0
 	if months <= RECENCY_MONTHS_FULL:
@@ -88,6 +89,7 @@ def _risk_penalty(review: dict) -> float:
 	try:
 		return flt(wc)
 	except Exception:
+		frappe.log_error(frappe.get_traceback(), "rating_engine.risk_penalty")
 		return 1.0
 
 
@@ -172,6 +174,7 @@ def compute_weighted_rating(listing_name: str) -> dict:
 			try:
 				age_days_sum += max(0, (get_datetime(now_datetime()) - get_datetime(pub)).days)
 			except Exception:
+				frappe.log_error(frappe.get_traceback(), "rating_engine.age_days_calc")
 				pass
 
 	cnt = len(rows)

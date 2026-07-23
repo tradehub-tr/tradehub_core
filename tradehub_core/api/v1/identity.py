@@ -162,12 +162,14 @@ def _log_email_verification_event(
 		try:
 			log.ip_address = frappe.local.request_ip
 		except Exception:
+			frappe.log_error("Failed to read request_ip for Email Verification Log", "identity")
 			pass
 		try:
 			ua = frappe.get_request_header("User-Agent") if frappe.local.request else None
 			if ua:
 				log.user_agent = ua[:500]
 		except Exception:
+			frappe.log_error("Failed to read User-Agent for Email Verification Log", "identity")
 			pass
 		log.flags.ignore_permissions = True
 		log.insert(ignore_permissions=True)
@@ -1422,6 +1424,7 @@ def _do_rename_user_email(old_email: str, new_email: str):
 		frappe.clear_cache(user=old_email)
 		frappe.clear_cache(user=new_email)
 	except Exception:
+		frappe.log_error("Failed to clear cache after email rename", "identity")
 		pass
 
 	# 11. Sessions temizle (try/except — connection ölürse de transaction etkilenmez,
@@ -1644,12 +1647,13 @@ def change_phone(phone: str, password: str):
 
 
 @frappe.whitelist(methods=["POST"])
+@rate_limit(key="user", limit=3, seconds=3600)
 def delete_account(password: str, reason: str = ""):
 	"""Soft-delete the currently logged-in user's account.
 
 	Requires the current password for security verification.
 	The user is disabled (not physically deleted) so data can be recovered
-	within a grace period.
+	within a grace period.  PII is anonymized after a 30-day grace window.
 
 	Session cleanup is handled by the frontend (calls /api/method/logout
 	after receiving the success response).
@@ -1661,18 +1665,31 @@ def delete_account(password: str, reason: str = ""):
 	# Verify password — returns 400 on failure (not 401)
 	_verify_password(user, password)
 
+	# Send confirmation email before disabling the account
+	user_doc = frappe.get_doc("User", user)
+	frappe.sendmail(
+		recipients=user,
+		subject="iSTOC — Hesabınız Silindi",
+		template="account_deletion_confirmation",
+		args={
+			"full_name": user_doc.full_name,
+			"reason": reason or _("Not specified"),
+		},
+		now=True,
+	)
+
 	# Disable the user (soft-delete)
 	frappe.db.set_value("User", user, "enabled", 0)
 
-	# Deactivate Buyer Profile if exists
+	# Deactivate Buyer Profile (User Profile) if exists
 	buyer_profile = frappe.db.get_value("User Profile", {"user": user}, "name")
 	if buyer_profile:
 		frappe.db.set_value("User Profile", buyer_profile, "status", "Deactivated")
 
-	# Deactivate Seller Profile if exists
-	seller_profile = frappe.db.get_value("User Profile", {"user": user}, "name")
+	# Suspend Admin Seller Profile (store entity) if exists
+	seller_profile = frappe.db.get_value("Admin Seller Profile", {"user": user}, "name")
 	if seller_profile:
-		frappe.db.set_value("User Profile", seller_profile, "status", "Deactivated")
+		frappe.db.set_value("Admin Seller Profile", seller_profile, "status", "Suspended")
 
 	# Log the deletion reason
 	frappe.log_error(
@@ -1682,6 +1699,14 @@ def delete_account(password: str, reason: str = ""):
 
 	# Clear all active sessions for this user
 	frappe.sessions.clear_sessions(user)
+
+	# Clear mobile API tokens
+	frappe.db.delete("Mobile API Token", {"user": user})
+
+	# Store deletion timestamp for the daily anonymization scheduler
+	# (anonymize_pending_deletions runs daily and picks up users whose
+	# 30-day grace period has expired)
+	frappe.db.set_value("User", user, "deletion_requested_on", frappe.utils.now_datetime())
 
 	frappe.db.commit()
 

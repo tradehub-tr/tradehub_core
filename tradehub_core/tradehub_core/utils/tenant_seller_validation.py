@@ -108,6 +108,7 @@ def _get_seller_tenant(seller_name: str) -> str | None:
 		return frappe.db.get_value("Seller Profile", seller_name, "tenant")
 	except Exception:
 		# Seller Profile DocType might not exist or seller not found
+		frappe.log_error(f"Failed to get tenant for seller: {seller_name}", "tenant_seller_validation._get_seller_tenant")
 		return None
 
 

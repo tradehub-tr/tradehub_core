@@ -140,14 +140,17 @@ def invalidate_listing_cache(doc=None, method=None):
 				frappe.cache.delete_keys(pattern)
 			except Exception:
 				# delete_keys is best-effort; never block a doc save on cache
+				frappe.log_error(f"Cache key deletion failed for pattern {pattern}", "listing")
 				pass
 		# Per-listing ürün detayı response cache'i hedefli düş (listing_detail:{name}:{lang}).
 		if doc is not None and getattr(doc, "name", None):
 			try:
 				frappe.cache.delete_keys(f"{_LISTING_DETAIL_CACHE_PREFIX}{doc.name}:*")
 			except Exception:
+				frappe.log_error(f"Listing detail cache deletion failed for {doc.name}", "listing")
 				pass
 	except Exception:
+		frappe.log_error("invalidate_listing_cache failed", "listing")
 		pass
 
 
@@ -681,6 +684,7 @@ def get_listings(
 		try:
 			min_order_int = safe_int(min_order, label=_("Min. sipariş"))
 		except Exception:
+			frappe.log_error(f"min_order parse failed (value={min_order})", "listing")
 			min_order_int = 0
 		if min_order_int > 0:
 			price_filters.append(["Listing", "min_order_qty", ">=", min_order_int])
@@ -931,10 +935,12 @@ def _record_listing_view(listing_name):
 			try:
 				frappe.db.commit()
 			except Exception:
+				frappe.log_error("View count DB commit failed", "listing")
 				pass
 			frappe.cache.set_value(dedup_key, 1, expires_in_sec=VIEW_DEDUP_TTL)
 	except Exception:
 		# View counting must never break the detail page render.
+		frappe.log_error("View counter update failed", "listing")
 		pass
 
 	# Per-user view log — feeds Tailored Selections recommendations.
@@ -943,6 +949,7 @@ def _record_listing_view(listing_name):
 
 		log_product_view(listing_name, category=meta.get("product_category"))
 	except Exception:
+		frappe.log_error("log_product_view failed", "listing")
 		pass
 
 
@@ -993,6 +1000,7 @@ def get_listing_detail(listing_id, lang="tr"):
 			if sp_user:
 				listing_kyb_verified = "Verified Seller" in frappe.get_roles(sp_user)
 	except Exception:
+		frappe.log_error(f"KYB verified check failed for seller_profile {listing.seller_profile}", "listing")
 		listing_kyb_verified = False
 
 	# Get supplier info from Admin Seller Profile
@@ -1204,6 +1212,7 @@ def get_listing_detail(listing_id, lang="tr"):
 					"isApproved": b.get("status") == "Approved",
 				}
 		except Exception:
+			frappe.log_error(f"Brand enrichment failed for brand {listing.brand}", "listing")
 			pass
 
 	# Build packaging specs from dedicated fields.
@@ -1293,6 +1302,7 @@ def get_listing_detail(listing_id, lang="tr"):
 		# SEO URL/meta katmanı şimdilik yalnızca tr/en destekliyor → ar/ru için tr canonical.
 		seo_payload = meta_builder.build_for_listing(listing.as_dict(), lang=(lang if lang == "en" else "tr"))
 	except Exception:
+		frappe.log_error("SEO meta_builder.build_for_listing failed", "listing")
 		seo_payload = {}
 
 	# i18n: içerik alanlarını istenen dile çöz (eksikse content_default_lang'e fallback).
@@ -1722,6 +1732,7 @@ def get_filter_facets(
 		try:
 			min_order_int = safe_int(min_order, label=_("Min. sipariş"))
 		except Exception:
+			frappe.log_error(f"min_order parse failed (value={min_order})", "listing")
 			min_order_int = 0
 		if min_order_int > 0:
 			extra_filters.append(["Listing", "min_order_qty", ">=", min_order_int])
@@ -2012,6 +2023,7 @@ def get_filter_facets(
 						"order": row.sort_order or 0,
 					}
 			except Exception:
+				frappe.log_error(f"Option meta fetch failed for attribute {code}", "listing")
 				pass
 
 			options = []
@@ -2925,6 +2937,7 @@ def get_search_suggestions(limit=6):
 				if len(personalized_cat_chips) >= 3:
 					break
 		except Exception:
+			frappe.log_error("Personalized category chips build failed", "listing")
 			pass
 
 	# ── Popular pool (guests + fill remaining for logged-in) ──
@@ -3101,6 +3114,7 @@ def _format_listing_card(
 						seller_kyb_verified = "Verified Seller" in frappe.get_roles(sp_user)
 				supplier_verified = seller_kyb_verified
 		except Exception:
+			frappe.log_error(f"Supplier info fetch failed for seller_profile {listing.get('seller_profile')}", "listing")
 			pass
 
 	# Get price range from pricing tiers — use cache if available
@@ -3282,6 +3296,7 @@ def _build_spec_groups(listing, specs, lang="tr"):
 					"order": r.display_order if r.display_order is not None else i,
 				}
 		except Exception:
+			frappe.log_error(f"Attribute Set group meta fetch failed for set {set_code}", "listing")
 			pass
 
 	# Bucket specs by group_code
@@ -3430,6 +3445,7 @@ def _build_variants_from_inline(listing_name, inline_variants, lang="tr", defaul
 				if ac.get("hasImage"):
 					image_axes.add((ac.get("name") or "").strip())
 		except Exception:
+			frappe.log_error("variant_axes_config JSON parse failed", "listing")
 			pass
 	# Fallback: if no config, axis1 is image by default
 	if not image_axes:
@@ -3500,6 +3516,7 @@ def _build_variants_from_inline(listing_name, inline_variants, lang="tr", defaul
 							extra_axes_set[ax_name].add(ax_val)
 							extra_axes[ax_name].append(ax_val)
 			except Exception:
+				frappe.log_error("axis_values_json parse failed for variant", "listing")
 				pass
 
 		# Parse images for axis1
@@ -3518,6 +3535,7 @@ def _build_variants_from_inline(listing_name, inline_variants, lang="tr", defaul
 						if u and u not in images:
 							images.append(u)
 			except Exception:
+				frappe.log_error("variant_gallery JSON parse failed", "listing")
 				pass
 
 		is_default = bool(v.get("is_default") if hasattr(v, "get") else getattr(v, "is_default", 0))

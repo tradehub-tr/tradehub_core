@@ -56,6 +56,7 @@ def _get_provider() -> tuple[str, str | None, str]:
 				provider = "stub"
 			return provider, api_key, model
 	except Exception:
+		frappe.log_error(frappe.get_traceback(), "translation.get_provider")
 		pass
 
 	# Fallback: site_config
@@ -83,6 +84,7 @@ def _check_quota_and_increment() -> tuple[bool, str]:
 		frappe.db.set_single_value("Translation Settings", "usage_today", used + 1)
 		return True, ""
 	except Exception:
+		frappe.log_error(frappe.get_traceback(), "translation.check_quota")
 		# Settings yoksa quota kontrolü atlanır
 		return True, ""
 
@@ -109,6 +111,7 @@ def _log_usage(
 		doc.logged_at = now_datetime()
 		doc.insert(ignore_permissions=True)
 	except Exception:
+		frappe.log_error(frappe.get_traceback(), "translation.log_usage")
 		# Log kaydı kritik değil
 		pass
 
@@ -119,6 +122,7 @@ def daily_reset_usage():
 		frappe.db.set_single_value("Translation Settings", "usage_today", 0)
 		frappe.db.set_single_value("Translation Settings", "last_reset_at", now_datetime())
 	except Exception:
+		frappe.log_error(frappe.get_traceback(), "translation.daily_reset_usage")
 		pass
 
 
@@ -315,4 +319,5 @@ def cleanup_old_cache():
 		try:
 			frappe.delete_doc("Review Translation", n, ignore_permissions=True, force=True)
 		except Exception:
+			frappe.log_error(frappe.get_traceback(), "translation.cleanup_old_cache")
 			pass

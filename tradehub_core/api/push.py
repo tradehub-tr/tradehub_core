@@ -31,6 +31,7 @@ def _get_settings():
 			"private_key": settings.get_password("vapid_private_key", raise_exception=False),
 		}
 	except Exception:
+		frappe.log_error("Failed to load Push Notification Settings", "push._get_settings")
 		return {"enabled": False, "subject": "", "public_key": "", "private_key": ""}
 
 

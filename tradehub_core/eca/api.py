@@ -873,7 +873,7 @@ def count_matching(
 	if err:
 		return {"count": 0, "total": 0, "error": err}
 
-	total_count = len(frappe.get_all("Listing", filters=base, limit_page_length=0, as_list=True))
+	total_count = frappe.db.count("Listing", filters=base)
 
 	if not condition_builder_json or not condition_builder_json.strip():
 		return {"count": total_count, "total": total_count, "error": None}
@@ -952,7 +952,7 @@ def preview_rule_effect(
 	if not isinstance(params, dict):
 		params = {}
 
-	total_count = len(frappe.get_all("Listing", filters=base, limit_page_length=0, as_list=True))
+	total_count = frappe.db.count("Listing", filters=base)
 
 	# Eylemi derle — yalnız field_update örneklerinde before/after gösterilebilir.
 	owner_role = "Marketplace Admin" if _is_admin_caller() else "Seller"

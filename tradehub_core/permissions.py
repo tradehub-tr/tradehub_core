@@ -307,6 +307,7 @@ def _check_aml_sanctions(user, doctype):
 		)
 	except Exception:
 		# Field'lar henüz yoksa (column unknown) → graceful fallback: izin ver
+		frappe.log_error("KYB Verification AML/sanctions field query failed", "permissions")
 		return True
 
 	if not kyb:
@@ -455,6 +456,7 @@ def _check_spending_limit(doc, user, ptype):
 	except Exception:
 		# Gracefully degrade: if anything fails (e.g., DocType not migrated),
 		# allow the operation rather than locking out users.
+		frappe.log_error("Spending limit check failed — defaulting to allow", "permissions")
 		pass
 
 	return True
@@ -518,6 +520,7 @@ def _observe_shadow(doc, ptype, user, doctype, result):
 		name = getattr(doc, "name", None) if not isinstance(doc, dict) else doc.get("name")
 		shadow.observe(user, doctype, name, ptype, bool(result))
 	except Exception:  # noqa: BLE001 — gözlem asla kararı bozmaz
+		frappe.log_error("ReBAC shadow observation failed", "permissions")
 		pass
 
 
@@ -569,6 +572,7 @@ def _apply_rebac(doc, ptype, user, doctype, rbac_result):
 				if octx and octx.get("amount_eur") is not None:
 					ctx["amount_eur"] = octx["amount_eur"]
 			except Exception:  # noqa: BLE001 — fail-safe; amount yoksa condition fail-closed
+				frappe.log_error("ABAC context amount_eur build failed for order", "permissions")
 				pass
 			if "amount_eur" not in ctx:
 				amt = _doc_amount(doc)
@@ -594,6 +598,7 @@ def _apply_rebac(doc, ptype, user, doctype, rbac_result):
 			return True
 		return rbac_result
 	except Exception:  # noqa: BLE001 — ReBAC katmanı kararı ASLA bozmaz
+		frappe.log_error("ReBAC enforce layer failed — falling back to RBAC result", "permissions")
 		return rbac_result
 
 
@@ -605,6 +610,7 @@ def _log_enforce_grant(user, doctype, name, verb):
 			title="rebac.enforce_grant",
 		)
 	except Exception:  # noqa: BLE001
+		frappe.log_error("ReBAC enforce grant audit log failed", "permissions")
 		pass
 
 

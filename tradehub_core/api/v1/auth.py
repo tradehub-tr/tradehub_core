@@ -170,6 +170,7 @@ def get_session_user():
 						"seller_code": asp.seller_code or asp.name,
 					}
 		except Exception:
+			frappe.log_error(f"Failed to fetch admin_seller_profile for user {frappe.session.user}", "auth.get_session_user")
 			pass
 
 	member_id = _generate_member_id(user_data.email, user_data.creation)

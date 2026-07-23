@@ -81,6 +81,7 @@ def optimize_image(content: bytes) -> bytes:
 		# Yalnız gerçekten küçülttüyse kullan (küçük görseli şişirme).
 		return out if out and len(out) < len(content) else content
 	except Exception:
+		frappe.log_error("Image optimize failed, returning original", "bulk_import.image_matcher")
 		return content
 
 
@@ -312,6 +313,7 @@ def _thumb_data_url(zf: zipfile.ZipFile, entry: str, px: int = 80) -> str | None
 		im.save(buf, "JPEG", quality=70)
 		return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode("ascii")
 	except Exception:
+		frappe.log_error("Thumbnail generation failed", "bulk_import.image_matcher")
 		return None
 
 

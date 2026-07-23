@@ -191,6 +191,8 @@ def generate_user_data_export(request_name: str) -> None:
 		user = req.user
 		zip_buffer = io.BytesIO()
 
+		_PAGE_LIMIT = 5000
+
 		with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
 			manifest = {}
 
@@ -204,14 +206,16 @@ def generate_user_data_export(request_name: str) -> None:
 						dt,
 						filters={cfg["filters_field"]: user},
 						fields=export_fields or ["name", "creation"],
-						limit_page_length=0,
+						limit_page_length=_PAGE_LIMIT,
 					)
 				except Exception:
+					frappe.log_error(f"Failed to fetch records for doctype {dt} during user data export for user {user}", "data_export.generate_user_data_export")
 					continue
 
 				if not records:
 					continue
 
+				truncated = len(records) >= _PAGE_LIMIT
 				clean = records
 				slug = frappe.scrub(dt)
 
@@ -221,7 +225,11 @@ def generate_user_data_export(request_name: str) -> None:
 					csv_data = _records_to_csv(clean)
 					zf.writestr(f"{slug}.csv", csv_data)
 
-				manifest[dt] = {"label": cfg["label"], "count": len(clean)}
+				entry = {"label": cfg["label"], "count": len(clean)}
+				if truncated:
+					entry["truncated"] = True
+					entry["note"] = "Kayıt sayısı limiti aştığından veriler kısmi olabilir."
+				manifest[dt] = entry
 
 			zf.writestr(
 				"manifest.json",

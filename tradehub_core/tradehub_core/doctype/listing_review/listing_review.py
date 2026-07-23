@@ -97,6 +97,7 @@ class ListingReview(Document):
 					update_modified=False,
 				)
 			except Exception:
+				frappe.log_error(f"Failed to clear translation cache for Listing Review {self.name}", "listing_review.on_update")
 				pass
 
 	def on_trash(self):

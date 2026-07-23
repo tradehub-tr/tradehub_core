@@ -592,4 +592,5 @@ def _redis_cleanup(rebuild_id: str) -> None:
 		try:
 			cache.delete(_rk(rebuild_id, suffix))
 		except Exception:
+			frappe.log_error(f"Redis cleanup failed for rebuild_id={rebuild_id} suffix={suffix}", "recommendations.engine")
 			pass

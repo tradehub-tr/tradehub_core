@@ -55,7 +55,7 @@ def _fix_total_users_kpi():
 			"filters_json": json.dumps([["status", "=", "Active"]]),
 		},
 	)
-	print(f"  [updated] {name}: 'Toplam Kullanıcı' → User Profile + status=Active")
+	frappe.logger("patches").info(f"  [updated] {name}: 'Toplam Kullanıcı' → User Profile + status=Active")
 
 
 def _fix_quick_links_user_entry():
@@ -93,7 +93,7 @@ def _fix_quick_links_user_entry():
 			changed = True
 	if changed:
 		frappe.db.set_value("Dashboard Widget", name, "config_json", json.dumps(config))
-		print(f"  [updated] {name}: 'Hızlı Erişim' linkler güncellendi (Kullanıcılar, Alıcı Profilleri)")
+		frappe.logger("patches").info(f"  [updated] {name}: 'Hızlı Erişim' linkler güncellendi (Kullanıcılar, Alıcı Profilleri)")
 
 
 def _fix_onboarding_funnel_first_stage():
@@ -121,4 +121,4 @@ def _fix_onboarding_funnel_first_stage():
 			changed = True
 	if changed:
 		frappe.db.set_value("Dashboard Widget", name, "config_json", json.dumps(config))
-		print(f"  [updated] {name}: 'Satıcı Onboarding Funnel' users stage → User Profile")
+		frappe.logger("patches").info(f"  [updated] {name}: 'Satıcı Onboarding Funnel' users stage → User Profile")

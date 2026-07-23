@@ -161,6 +161,7 @@ def log_decision(
 			try:
 				buyer_org = frappe.db.get_value("User", actor, "tradehub_parent_organization")
 			except Exception:
+				frappe.log_error(frappe.get_traceback(), "audit.log_decision_buyer_org")
 				buyer_org = None
 
 		# Context'i JSON-serializable yap

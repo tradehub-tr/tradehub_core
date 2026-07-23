@@ -52,4 +52,4 @@ def execute():
 		migrated += 1
 
 	frappe.db.commit()
-	print(f"[migrate_listing_brand_to_link] Migrated {migrated} rows, skipped {skipped} unmapped.")
+	frappe.logger("patches").info(f"[migrate_listing_brand_to_link] Migrated {migrated} rows, skipped {skipped} unmapped.")

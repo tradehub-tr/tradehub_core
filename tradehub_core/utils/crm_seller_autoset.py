@@ -32,6 +32,7 @@ def autoset_seller(doc, method=None):
 		if not meta.has_field("seller"):
 			return
 	except Exception:
+		frappe.log_error("Meta fetch failed in autoset_seller", "crm_seller_autoset")
 		return
 
 	current = getattr(doc, "seller", None)
@@ -60,6 +61,7 @@ def autoset_owner(doc, method=None):
 	try:
 		meta = frappe.get_meta(doc.doctype)
 	except Exception:
+		frappe.log_error("Meta fetch failed in autoset_owner", "crm_seller_autoset")
 		return
 	for field in _OWNER_FIELDS:
 		if meta.has_field(field) and not getattr(doc, field, None):

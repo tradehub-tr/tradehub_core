@@ -28,4 +28,4 @@ def execute():
 
 	if updated:
 		frappe.db.commit()
-		print(f"[clean_short_rfq_titles] {updated} RFQ başlığı düzeltildi.")
+		frappe.logger("patches").info(f"[clean_short_rfq_titles] {updated} RFQ başlığı düzeltildi.")

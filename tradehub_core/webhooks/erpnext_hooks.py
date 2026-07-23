@@ -202,5 +202,6 @@ def _get_erpnext_integration_settings():
 		if frappe.db.exists("DocType", "ERPNext Integration Settings"):
 			return frappe.get_single("ERPNext Integration Settings")
 	except Exception:
+		frappe.log_error("Failed to retrieve ERPNext Integration Settings", "erpnext_hooks")
 		pass
 	return None

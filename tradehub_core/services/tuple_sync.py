@@ -629,6 +629,7 @@ def backfill(chunk_size: int = 200, dry_run: bool = False) -> dict:
 			"reason": "REBAC_STORE_ID boş — önce `make rebac-model-deploy`.",
 		}
 
+	_CHUNK_SIZE = 500
 	counts = {"stores": 0, "users": 0, "listings": 0, "orders": 0, "tuples": 0}
 	batch: list[tuple[str, str, str]] = []
 
@@ -654,13 +655,19 @@ def backfill(chunk_size: int = 200, dry_run: bool = False) -> dict:
 
 	# 1) Store'lar (Admin Seller Profile) — owner/member.
 	if _has("Admin Seller Profile", "user"):
-		for row in frappe.get_all(
-			"Admin Seller Profile", fields=["name", "user"], limit_page_length=0
-		):
-			t = _store_tuples(row.name, row.get("user"))
-			if t:
-				counts["stores"] += 1
-				_add(t)
+		offset = 0
+		while True:
+			batch_rows = frappe.get_all(
+				"Admin Seller Profile", fields=["name", "user"], start=offset, page_length=_CHUNK_SIZE
+			)
+			if not batch_rows:
+				break
+			for row in batch_rows:
+				t = _store_tuples(row.name, row.get("user"))
+				if t:
+					counts["stores"] += 1
+					_add(t)
+			offset += _CHUNK_SIZE
 
 	# 2) User'lar — seller/buyer tuple'ları (reconcile_user builder'ı ile aynı).
 	if _has("User", "tradehub_tenant"):
@@ -678,24 +685,36 @@ def backfill(chunk_size: int = 200, dry_run: bool = False) -> dict:
 
 	# 3) Listing'ler — store_link.
 	if _has("Listing", "seller_profile"):
-		for row in frappe.get_all(
-			"Listing", fields=["name", "seller_profile"], limit_page_length=0
-		):
-			t = _listing_tuples(row.name, row.get("seller_profile"))
-			if t:
-				counts["listings"] += 1
-				_add(t)
+		offset = 0
+		while True:
+			batch_rows = frappe.get_all(
+				"Listing", fields=["name", "seller_profile"], start=offset, page_length=_CHUNK_SIZE
+			)
+			if not batch_rows:
+				break
+			for row in batch_rows:
+				t = _listing_tuples(row.name, row.get("seller_profile"))
+				if t:
+					counts["listings"] += 1
+					_add(t)
+			offset += _CHUNK_SIZE
 
 	# 4) Order'lar — store_link (store alanı `seller`) + buyer/buyer_org.
 	if _has("Order", "seller"):
-		for row in frappe.get_all(
-			"Order", fields=["name", "seller", "buyer"], limit_page_length=0
-		):
-			t = _order_tuples(row.name, row.get("seller"))
-			t += _order_buyer_tuples(row.name, row.get("buyer"))
-			if t:
-				counts["orders"] += 1
-				_add(t)
+		offset = 0
+		while True:
+			batch_rows = frappe.get_all(
+				"Order", fields=["name", "seller", "buyer"], start=offset, page_length=_CHUNK_SIZE
+			)
+			if not batch_rows:
+				break
+			for row in batch_rows:
+				t = _order_tuples(row.name, row.get("seller"))
+				t += _order_buyer_tuples(row.name, row.get("buyer"))
+				if t:
+					counts["orders"] += 1
+					_add(t)
+			offset += _CHUNK_SIZE
 
 	_flush()
 	counts["dry_run"] = dry_run

@@ -51,6 +51,7 @@ def _safe_avg(doctype: str, field: str, filters: dict | None = None) -> float:
 		)
 		return round(float(row[0][0] or 0), 2)
 	except Exception:
+		frappe.log_error(frappe.get_traceback(), "analytics.safe_avg")
 		return 0.0
 
 
@@ -78,6 +79,7 @@ def daily_snapshot():
 		row = frappe.db.sql("SELECT AVG(weighted_rating) FROM `tabListing` WHERE weighted_rating > 0")
 		doc.avg_weighted_rating = round(float(row[0][0] or 0), 2)
 	except Exception:
+		frappe.log_error(frappe.get_traceback(), "analytics.avg_weighted_rating")
 		doc.avg_weighted_rating = 0
 
 	# Risk skoru dağılımı
@@ -97,6 +99,7 @@ def daily_snapshot():
 			doc.medium_risk_count = int(risk_rows[0].med or 0)
 			doc.low_risk_count = int(risk_rows[0].low or 0)
 	except Exception:
+		frappe.log_error(frappe.get_traceback(), "analytics.risk_score_distribution")
 		pass
 
 	doc.total_helpful_votes = _safe_count("Review Helpful Vote")
@@ -110,6 +113,7 @@ def daily_snapshot():
 		)
 		doc.total_translations_today = int(row[0][0] or 0) if row else 0
 	except Exception:
+		frappe.log_error(frappe.get_traceback(), "analytics.translations_today")
 		doc.total_translations_today = 0
 
 	doc.total_disputes_open = _safe_count("Order Dispute", {"status": "Open"})

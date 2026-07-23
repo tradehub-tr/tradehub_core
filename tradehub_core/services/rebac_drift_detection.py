@@ -53,6 +53,7 @@ def scan_drift(sample_size: int | None = None) -> dict[str, Any]:
 		if not rebac_client.healthz():
 			return {"skipped": "sidecar_unavailable"}
 	except Exception:
+		frappe.log_error("ReBAC sidecar healthz check failed during drift scan", "rebac_drift_detection")
 		return {"skipped": "sidecar_unavailable"}
 
 	users = (
@@ -123,6 +124,7 @@ def enforce_readiness_report(
 		if not rebac_client.healthz():
 			return {"skipped": "sidecar_unavailable"}
 	except Exception:
+		frappe.log_error("ReBAC sidecar healthz check failed during enforce readiness report", "rebac_drift_detection")
 		return {"skipped": "sidecar_unavailable"}
 
 	users = frappe.get_all("User", filters={"enabled": 1}, pluck="name", limit=sample_size) or []
@@ -196,6 +198,7 @@ def weekly_enforce_readiness_report() -> dict[str, Any]:
 	try:
 		frappe.log_error("\n".join(lines), title)
 	except Exception:
+		frappe.log_error("Failed to persist weekly enforce readiness report to Error Log", "rebac_drift_detection")
 		pass
 	return report
 
@@ -221,6 +224,7 @@ def _compare(
 	try:
 		frappe_allow = bool(frappe.has_permission(doctype=doctype, ptype=ptype, doc=doc_name, user=user))
 	except Exception:
+		frappe.log_error(f"frappe.has_permission raised for user={user} doctype={doctype} doc={doc_name}", "rebac_drift_detection")
 		return None
 
 	rebac_object_type = _doctype_to_rebac(doctype)
@@ -239,6 +243,7 @@ def _compare(
 			context=context,
 		)
 	except Exception:
+		frappe.log_error(f"rebac_client.check raised for user={user} relation={relation} object={rebac_object_type}:{doc_name}", "rebac_drift_detection")
 		return None
 
 	return (frappe_allow, bool(rebac_allow))
@@ -278,6 +283,7 @@ def _build_abac_context(doctype: str, doc_name: str, relation: str) -> dict | No
 			return None
 		return {"amount": int(round(float(amount)))}
 	except Exception:
+		frappe.log_error(f"Failed to build ABAC context for Order Approval doc={doc_name} relation={relation}", "rebac_drift_detection")
 		return None
 
 

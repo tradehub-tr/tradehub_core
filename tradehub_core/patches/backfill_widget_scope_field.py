@@ -51,7 +51,7 @@ def execute():
 		updated += 1
 
 	frappe.db.commit()
-	print(
+	frappe.logger("patches").info(
 		f"[backfill_widget_scope_field] updated={updated} "
 		f"skipped_already_set={skipped_already_set} skipped_no_config={skipped_no_config}"
 	)

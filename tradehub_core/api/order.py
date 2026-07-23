@@ -1,6 +1,6 @@
 import frappe
 from frappe import _
-from frappe.utils import cint, getdate
+from frappe.utils import cint, flt, getdate
 
 from tradehub_core.api._pagination import normalize_pagination
 from tradehub_core.api.cart import DEFERRED_PAYMENT_METHODS
@@ -89,7 +89,7 @@ def _translate_order(order, seller_names_cache=None):
 	order["status"] = en_status
 	order["status_color"] = STATUS_COLORS.get(en_status, "text-gray-500")
 	order["status_description"] = STATUS_DESCRIPTIONS.get(en_status, "")
-	order["grand_total"] = float(order.get("total") or 0)
+	order["grand_total"] = flt(order.get("total") or 0, 2)
 	refund_status = order.get("refund_status") or ""
 	if refund_status == "Approved":
 		order["payment_status"] = "Refunded"
@@ -643,7 +643,7 @@ def submit_remittance(
 		)
 
 	# F-008: Aynı sipariş için tekrar havale gönderimini engelle
-	if float(order_data.remittance_amount or 0) > 0:
+	if flt(order_data.remittance_amount or 0, 2) > 0:
 		frappe.throw(
 			_("Bu sipariş için zaten bir havale gönderilmiş."),
 			frappe.ValidationError,
@@ -651,7 +651,7 @@ def submit_remittance(
 
 	order = frappe.get_doc("Order", order_number)
 
-	amount_float = float(amount or 0)
+	amount_float = flt(amount or 0, 2)
 	if amount_float <= 0:
 		frappe.throw(_("Havale tutarı sıfırdan büyük olmalıdır"))
 
@@ -889,7 +889,7 @@ def seller_confirm_payment(order_number):
 		)
 		remittance_amount = frappe.db.get_value("Order", order_number, "remittance_amount")
 		if remittance_amount:
-			update_bank_interaction_on_confirm(buyer_email, seller_code, float(remittance_amount))
+			update_bank_interaction_on_confirm(buyer_email, seller_code, flt(remittance_amount, 2))
 
 	frappe.db.commit()
 
@@ -1190,15 +1190,16 @@ def submit_refund_request(order_number, reason, amount=0):
 			frappe.ValidationError,
 		)
 
-	refund_amount = float(amount or 0)
+	refund_amount = flt(amount or 0, 2)
 
 	# F-006: İade tutarını sipariş toplamına karşı doğrula
 	if refund_amount <= 0:
 		frappe.throw(_("İade tutarı sıfırdan büyük olmalıdır."), frappe.ValidationError)
-	order_total = float(
+	order_total = flt(
 		frappe.db.get_value("Order", order_number, "grand_total")
 		or frappe.db.get_value("Order", order_number, "total")
-		or 0
+		or 0,
+		2,
 	)
 	if order_total > 0 and refund_amount > order_total:
 		frappe.throw(

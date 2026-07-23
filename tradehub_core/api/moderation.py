@@ -144,6 +144,7 @@ def check_image_content(doc, method=None):
 			settings = frappe.get_single("Translation Settings")
 			api_key = settings.get_password("openai_api_key", raise_exception=False)
 	except Exception:
+		frappe.log_error("OpenAI API key fetch failed in check_image_content", "moderation")
 		pass
 
 	if api_key:
@@ -187,6 +188,7 @@ def admin_check_image(image_url: str):
 		settings = frappe.get_single("Translation Settings")
 		api_key = settings.get_password("openai_api_key", raise_exception=False)
 	except Exception:
+		frappe.log_error("OpenAI API key fetch failed in admin_check_image", "moderation")
 		pass
 	if api_key:
 		return _openai_vision_check(image_url, api_key)

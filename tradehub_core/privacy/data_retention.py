@@ -141,6 +141,7 @@ def _anonymize_record(doctype: str, name: str, field_rules: list[dict]) -> None:
 			context={"fields_anonymized": list(update_map.keys())},
 		)
 	except Exception:
+		frappe.log_error(f"Failed to write audit log after anonymizing {doctype}/{name}", "data_retention._anonymize_record")
 		pass
 
 

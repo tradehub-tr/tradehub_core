@@ -85,6 +85,7 @@ def enforce_owner_only_fields(doc, method=None) -> None:
 			as_dict=True,
 		)
 	except Exception:
+		frappe.log_error("Owner-only field DB fetch failed", "owner_lock")
 		return
 
 	if not db_doc:
@@ -122,6 +123,7 @@ def enforce_owner_only_fields(doc, method=None) -> None:
 			context={"attempted_fields": changed_fields},
 		)
 	except Exception:
+		frappe.log_error("Owner-only field change audit log failed", "owner_lock")
 		pass
 
 	frappe.throw(

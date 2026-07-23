@@ -269,6 +269,7 @@ def check_feature_or_throw(store: str, feature_key: str, action_description: str
 			context={"feature_key": feature_key, "display_name": display_name},
 		)
 	except Exception:
+		frappe.log_error("Entitlement feature deny audit log failed", "entitlement.core")
 		pass
 
 	msg = _("Bu özellik ({0}) aktif planınızda ({1}) mevcut değil.").format(display_name, plan)
@@ -325,6 +326,7 @@ def check_quota_or_throw(
 			},
 		)
 	except Exception:
+		frappe.log_error("Entitlement quota deny audit log failed", "entitlement.core")
 		pass
 
 	msg = _("Planınızın limitine ulaştınız: {0} = {1} (mevcut: {2}, plan: {3}).").format(

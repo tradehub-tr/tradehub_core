@@ -103,6 +103,7 @@ def _compute_seller_period(seller: str, period: str) -> dict:
 					for t in json.loads(s.topics_json):
 						topic_freq[t] = topic_freq.get(t, 0) + 1
 				except Exception:
+					frappe.log_error(f"Failed to parse topics_json for sentiment row: {s.name}", "seller_analytics._compute_seller_period")
 					pass
 	top_topics = sorted(topic_freq.items(), key=lambda x: -x[1])[:10]
 

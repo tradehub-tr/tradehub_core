@@ -41,6 +41,7 @@ def execute():
 		try:
 			records = frappe.get_all(doctype, fields=["name", "seller", "owner"])
 		except Exception:
+			frappe.log_error(f"Failed to fetch records for doctype {doctype} during seller profile owner fix", "fix_seller_profile_owner")
 			continue
 
 		for r in records:

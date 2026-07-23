@@ -170,6 +170,7 @@ def _doctype_has_seller_field(doctype: str) -> bool:
 		meta = frappe.get_meta(doctype)
 		has_field = meta.has_field("seller_profile") or meta.has_field("seller")
 	except Exception:
+		frappe.log_error(frappe.get_traceback(), "tenant.doctype_has_seller_field")
 		has_field = False
 
 	frappe.cache().set_value(cache_key, "yes" if has_field else "no", expires_in_sec=86400)
@@ -181,6 +182,7 @@ def _resolve_seller_field_name(doctype: str) -> str | None:
 	try:
 		meta = frappe.get_meta(doctype)
 	except Exception:
+		frappe.log_error(frappe.get_traceback(), "tenant.resolve_seller_field_name")
 		return None
 
 	if meta.has_field("seller_profile"):
@@ -263,6 +265,7 @@ def enforce_seller_isolation_on_insert(doc, method=None):
 				},
 			)
 		except Exception:
+			frappe.log_error(frappe.get_traceback(), "tenant.cross_tenant_audit_log")
 			pass
 
 		frappe.throw(
@@ -311,6 +314,7 @@ def validate_seller_isolation_on_save(doc, method=None):
 	try:
 		db_value = frappe.db.get_value(doc.doctype, doc.name, field_name)
 	except Exception:
+		frappe.log_error(frappe.get_traceback(), "tenant.validate_seller_isolation_on_save")
 		return
 
 	if not db_value:
