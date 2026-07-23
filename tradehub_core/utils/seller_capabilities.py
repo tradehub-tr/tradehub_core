@@ -292,6 +292,7 @@ def _check_aml_clean(user: str) -> bool:
 			as_dict=True,
 		)
 	except Exception:
+		frappe.log_error("AML check DB query failed", "seller_capabilities")
 		# Field'lar henüz yoksa (column unknown) → graceful fallback
 		return True
 
@@ -591,6 +592,7 @@ def _all_capabilities_from_db_or_python() -> list[str]:
 			if db_keys:
 				return db_keys
 	except Exception:
+		frappe.log_error("Capability Registry DB lookup failed", "seller_capabilities")
 		pass
 	return list(SELLER_CAPABILITIES.keys()) + list(_OWNER_ONLY_CAPABILITIES)
 

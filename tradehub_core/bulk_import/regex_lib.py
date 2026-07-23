@@ -154,6 +154,7 @@ def _get_patterns(seller_profile: str | None, category: str) -> list[dict]:
 			order_by="priority asc",
 		)
 	except Exception:
+		frappe.log_error(frappe.get_traceback(), "regex_lib.get_patterns_fetch")
 		libs = []
 
 	result: list[dict] = []
@@ -161,6 +162,7 @@ def _get_patterns(seller_profile: str | None, category: str) -> list[dict]:
 		try:
 			doc = frappe.get_doc("Regex Pattern Library", lib.name)
 		except Exception:
+			frappe.log_error(frappe.get_traceback(), "regex_lib.get_patterns_doc_fetch")
 			continue
 		result.append(
 			{
@@ -187,6 +189,7 @@ def clear_pattern_cache(doc=None, method=None) -> None:
 	try:
 		frappe.cache.delete_keys("regex_patterns:*")
 	except Exception:
+		frappe.log_error(frappe.get_traceback(), "regex_lib.clear_pattern_cache")
 		pass
 
 

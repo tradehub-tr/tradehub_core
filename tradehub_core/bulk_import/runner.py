@@ -485,6 +485,7 @@ def run(bulk_job_name: str) -> None:
 			job.db_set("error_summary", str(e)[:500])
 			notifications.notify("job_failed", {"job": job})
 		except Exception:
+			frappe.log_error(f"Failed to update job status/notify after fatal error for job {job_name}", "bulk_import.runner")
 			pass
 		_update_progress(job_name, state="error", error=str(e)[:500])
 	finally:

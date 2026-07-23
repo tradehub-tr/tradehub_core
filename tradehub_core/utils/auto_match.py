@@ -360,6 +360,7 @@ def _get_target_fields(doctype):
 	try:
 		meta = frappe.get_meta(doctype)
 	except Exception:
+		frappe.log_error(f"Failed to get meta for doctype: {doctype}", "auto_match._get_target_fields")
 		return []
 
 	# Fieldtypes that are not data-holding (layout/structural)

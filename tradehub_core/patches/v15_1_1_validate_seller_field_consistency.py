@@ -95,10 +95,10 @@ def execute() -> None:
 
 		message = "\n".join(report_lines)
 		frappe.log_error(message, "FAZ 1.1 — Seller Field Consistency Warning")
-		print(f"\n{message}\n")  # noqa: T201 — patch output
+		frappe.logger("patches").warning(message)
 	else:
-		print(  # noqa: T201
-			"✅ FAZ 1.1 sanity check: tüm seller-scoped DocType'larda "
+		frappe.logger("patches").info(
+			"FAZ 1.1 sanity check: tüm seller-scoped DocType'larda "
 			"seller_profile/seller_code field'ı dolu."
 		)
 
@@ -117,12 +117,13 @@ def execute() -> None:
 			if null_count > 0:
 				optional_nulls[doctype] = null_count
 		except Exception:
+			frappe.log_error(f"Failed to count null seller_profile records for doctype {doctype}", "v15_1_1_validate_seller_field_consistency")
 			pass
 
 	if optional_nulls:
-		print(  # noqa: T201
-			"ℹ️  Hybrid (buyer+seller) DocType'larda NULL seller_profile sayısı "
+		frappe.logger("patches").info(
+			"Hybrid (buyer+seller) DocType'larda NULL seller_profile sayısı "
 			"(beklenen davranış, bilgi amaçlı):"
 		)
 		for doctype, count in optional_nulls.items():
-			print(f"     {doctype}: {count} kayıt")  # noqa: T201
+			frappe.logger("patches").info(f"     {doctype}: {count} kayıt")

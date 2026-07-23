@@ -54,4 +54,4 @@ def execute():
 		)
 		updated += 1
 	frappe.db.commit()
-	print(f"Dashboard Widget color_preset backfilled for {updated} rows.")
+	frappe.logger("patches").info(f"Dashboard Widget color_preset backfilled for {updated} rows.")

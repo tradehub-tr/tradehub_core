@@ -61,6 +61,7 @@ def clear_invalid_session():
 			try:
 				frappe.local.cookie_manager.delete_cookie(cookie_name)
 			except Exception:
+				frappe.log_error(f"Cookie silinemedi: {cookie_name}", "seller_certifications")
 				pass
 	return {"success": True, "message": "Session cookies cleared."}
 
@@ -144,6 +145,7 @@ def upload_seller_cert_document(file_name: str = "", file_content: str = ""):
 			_original_cookies = dict(cm.cookies)
 			_original_to_delete = list(cm.to_delete)
 	except Exception:
+		frappe.log_error("Cookie manager snapshot alınamadı (upload_seller_cert_document)", "seller_certifications")
 		pass
 
 	seller_code = frappe.db.get_value("Admin Seller Profile", profile_name, "seller_code")
@@ -189,6 +191,7 @@ def upload_seller_cert_document(file_name: str = "", file_content: str = ""):
 	try:
 		os.makedirs(site_files_path, exist_ok=True)
 	except Exception:
+		frappe.log_error(f"Private files dizini oluşturulamadı: {site_files_path}", "seller_certifications")
 		pass
 
 	disk_path = os.path.join(site_files_path, stored_name)
@@ -224,6 +227,7 @@ def upload_seller_cert_document(file_name: str = "", file_content: str = ""):
 			cm.cookies = _original_cookies
 			cm.to_delete = _original_to_delete
 	except Exception:
+		frappe.log_error("Cookie manager restore edilemedi (upload_seller_cert_document)", "seller_certifications")
 		pass
 
 	return {
@@ -508,6 +512,7 @@ def add_seller_cert(
 			_original_cookies = dict(cm.cookies)
 			_original_to_delete = list(cm.to_delete)
 	except Exception:
+		frappe.log_error("Cookie manager snapshot alınamadı (add_seller_cert)", "seller_certifications")
 		pass
 
 	if not certification_type:
@@ -593,6 +598,7 @@ def add_seller_cert(
 			cm.cookies = _original_cookies
 			cm.to_delete = _original_to_delete
 	except Exception:
+		frappe.log_error("Cookie manager restore edilemedi (add_seller_cert)", "seller_certifications")
 		pass
 
 	return {
@@ -628,6 +634,7 @@ def update_seller_cert(
 			_original_cookies = dict(cm.cookies)
 			_original_to_delete = list(cm.to_delete)
 	except Exception:
+		frappe.log_error("Cookie manager snapshot alınamadı (update_seller_cert)", "seller_certifications")
 		pass
 
 	if not document or not str(document).strip():
@@ -667,6 +674,7 @@ def update_seller_cert(
 			row_name=row_name,
 		)
 	except Exception:
+		frappe.log_error(f"update_seller_cert: admin notify gönderilemedi ({row_name})", "seller_certifications")
 		pass
 
 	# Cookie restore — response Set-Cookie ile sid değişmesin
@@ -676,6 +684,7 @@ def update_seller_cert(
 			cm.cookies = _original_cookies
 			cm.to_delete = _original_to_delete
 	except Exception:
+		frappe.log_error("Cookie manager restore edilemedi (update_seller_cert)", "seller_certifications")
 		pass
 
 	return {"success": True, "message": _("Sertifika güncellendi. Admin yeniden doğrulayacak.")}
@@ -700,6 +709,7 @@ def delete_seller_cert(row_name: str) -> dict:
 			_original_cookies = dict(cm.cookies)
 			_original_to_delete = list(cm.to_delete)
 	except Exception:
+		frappe.log_error("Cookie manager snapshot alınamadı (delete_seller_cert)", "seller_certifications")
 		pass
 
 	parent = frappe.db.get_value("Seller Certification", row_name, "parent")
@@ -739,6 +749,7 @@ def delete_seller_cert(row_name: str) -> dict:
 			cm.cookies = _original_cookies
 			cm.to_delete = _original_to_delete
 	except Exception:
+		frappe.log_error("Cookie manager restore edilemedi (delete_seller_cert)", "seller_certifications")
 		pass
 
 	return {"success": True, "message": _("Sertifika silindi. Bağlı ürün atamaları da kaldırıldı.")}

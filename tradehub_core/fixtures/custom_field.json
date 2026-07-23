@@ -16,8 +16,8 @@
   "fieldname": "seo_meta_title_pattern",
   "fieldtype": "Data",
   "label": "Default Meta Title Pattern",
-  "description": "Örnek: '{title} | İstoç B2B'. Sayfa başlığı bu pattern ile birleşir.",
-  "default": "{title} | İstoç B2B",
+  "description": "\u00d6rnek: '{title} | \u0130sto\u00e7 B2B'. Sayfa ba\u015fl\u0131\u011f\u0131 bu pattern ile birle\u015fir.",
+  "default": "{title} | \u0130sto\u00e7 B2B",
   "insert_after": "seo_tab",
   "module": "Tradehub Core"
  },
@@ -39,7 +39,7 @@
   "fieldname": "seo_og_image",
   "fieldtype": "Attach Image",
   "label": "Default OG Image",
-  "description": "Sayfa kendi og_image'i yoksa kullanılır. 1200x630 önerilir.",
+  "description": "Sayfa kendi og_image'i yoksa kullan\u0131l\u0131r. 1200x630 \u00f6nerilir.",
   "insert_after": "seo_meta_description",
   "module": "Tradehub Core"
  },
@@ -50,7 +50,7 @@
   "fieldname": "seo_site_name",
   "fieldtype": "Data",
   "label": "Site Name (Open Graph)",
-  "default": "İstoç",
+  "default": "\u0130sto\u00e7",
   "insert_after": "seo_og_image",
   "module": "Tradehub Core"
  },
@@ -61,7 +61,7 @@
   "fieldname": "seo_twitter_handle",
   "fieldtype": "Data",
   "label": "Twitter Handle",
-  "description": "Örnek: @istoctr",
+  "description": "\u00d6rnek: @istoctr",
   "insert_after": "seo_site_name",
   "module": "Tradehub Core"
  },
@@ -82,7 +82,7 @@
   "fieldname": "seo_gsc_verification",
   "fieldtype": "Data",
   "label": "Google Search Console Verification",
-  "description": "<meta name='google-site-verification' content='...'> içeriği.",
+  "description": "<meta name='google-site-verification' content='...'> i\u00e7eri\u011fi.",
   "insert_after": "seo_facebook_app_id",
   "module": "Tradehub Core"
  },
@@ -108,7 +108,7 @@
   "insert_after": "seo_section",
   "module": "Tradehub Core",
   "unique": 1,
-  "description": "URL parçası. Boş bırakılırsa title'dan otomatik üretilir."
+  "description": "URL par\u00e7as\u0131. Bo\u015f b\u0131rak\u0131l\u0131rsa title'dan otomatik \u00fcretilir."
  },
  {
   "doctype": "Custom Field",
@@ -120,7 +120,7 @@
   "insert_after": "meta_keywords",
   "module": "Tradehub Core",
   "default": "0",
-  "description": "İşaretli ise bu kayıt arama motorları tarafından indekslenmez."
+  "description": "\u0130\u015faretli ise bu kay\u0131t arama motorlar\u0131 taraf\u0131ndan indekslenmez."
  },
  {
   "doctype": "Custom Field",
@@ -131,7 +131,7 @@
   "label": "OG Image",
   "insert_after": "noindex",
   "module": "Tradehub Core",
-  "description": "Boş bırakılırsa ana görsel 1200x630'a otomatik resize edilir."
+  "description": "Bo\u015f b\u0131rak\u0131l\u0131rsa ana g\u00f6rsel 1200x630'a otomatik resize edilir."
  },
  {
   "doctype": "Custom Field",
@@ -143,7 +143,7 @@
   "insert_after": "og_image",
   "module": "Tradehub Core",
   "translatable": 1,
-  "description": "Boş bırakılırsa meta_title kullanılır."
+  "description": "Bo\u015f b\u0131rak\u0131l\u0131rsa meta_title kullan\u0131l\u0131r."
  },
  {
   "doctype": "Custom Field",
@@ -155,7 +155,7 @@
   "insert_after": "og_title_override",
   "module": "Tradehub Core",
   "translatable": 1,
-  "description": "Boş bırakılırsa meta_description kullanılır."
+  "description": "Bo\u015f b\u0131rak\u0131l\u0131rsa meta_description kullan\u0131l\u0131r."
  },
  {
   "doctype": "Custom Field",
@@ -166,7 +166,7 @@
   "label": "Canonical URL (Override)",
   "insert_after": "og_description_override",
   "module": "Tradehub Core",
-  "description": "Boş bırakılırsa otomatik kanonik URL üretilir."
+  "description": "Bo\u015f b\u0131rak\u0131l\u0131rsa otomatik kanonik URL \u00fcretilir."
  },
  {
   "doctype": "Custom Field",
@@ -178,7 +178,7 @@
   "insert_after": "canonical_url_override",
   "module": "Tradehub Core",
   "options": "\nindex,follow\nnoindex,follow\nindex,nofollow\nnoindex,nofollow",
-  "description": "Boş bırakılırsa Website Settings default kullanılır."
+  "description": "Bo\u015f b\u0131rak\u0131l\u0131rsa Website Settings default kullan\u0131l\u0131r."
  },
  {
   "doctype": "Custom Field",
@@ -190,7 +190,7 @@
   "insert_after": "schema_type",
   "module": "Tradehub Core",
   "default": "0",
-  "description": "İşaretli ise bu kayıt arama motorları tarafından indekslenmez."
+  "description": "\u0130\u015faretli ise bu kay\u0131t arama motorlar\u0131 taraf\u0131ndan indekslenmez."
  },
  {
   "doctype": "Custom Field",
@@ -201,7 +201,7 @@
   "label": "OG Image",
   "insert_after": "noindex",
   "module": "Tradehub Core",
-  "description": "Boş bırakılırsa ana görsel 1200x630'a otomatik resize edilir."
+  "description": "Bo\u015f b\u0131rak\u0131l\u0131rsa ana g\u00f6rsel 1200x630'a otomatik resize edilir."
  },
  {
   "doctype": "Custom Field",
@@ -213,7 +213,7 @@
   "insert_after": "og_image",
   "module": "Tradehub Core",
   "translatable": 1,
-  "description": "Boş bırakılırsa meta_title kullanılır."
+  "description": "Bo\u015f b\u0131rak\u0131l\u0131rsa meta_title kullan\u0131l\u0131r."
  },
  {
   "doctype": "Custom Field",
@@ -225,7 +225,7 @@
   "insert_after": "og_title_override",
   "module": "Tradehub Core",
   "translatable": 1,
-  "description": "Boş bırakılırsa meta_description kullanılır."
+  "description": "Bo\u015f b\u0131rak\u0131l\u0131rsa meta_description kullan\u0131l\u0131r."
  },
  {
   "doctype": "Custom Field",
@@ -236,7 +236,7 @@
   "label": "Canonical URL (Override)",
   "insert_after": "og_description_override",
   "module": "Tradehub Core",
-  "description": "Boş bırakılırsa otomatik kanonik URL üretilir."
+  "description": "Bo\u015f b\u0131rak\u0131l\u0131rsa otomatik kanonik URL \u00fcretilir."
  },
  {
   "doctype": "Custom Field",
@@ -248,7 +248,7 @@
   "insert_after": "canonical_url_override",
   "module": "Tradehub Core",
   "options": "\nindex,follow\nnoindex,follow\nindex,nofollow\nnoindex,nofollow",
-  "description": "Boş bırakılırsa Website Settings default kullanılır."
+  "description": "Bo\u015f b\u0131rak\u0131l\u0131rsa Website Settings default kullan\u0131l\u0131r."
  },
  {
   "doctype": "Custom Field",
@@ -260,7 +260,7 @@
   "insert_after": "meta_description",
   "module": "Tradehub Core",
   "default": "0",
-  "description": "İşaretli ise bu kayıt arama motorları tarafından indekslenmez."
+  "description": "\u0130\u015faretli ise bu kay\u0131t arama motorlar\u0131 taraf\u0131ndan indekslenmez."
  },
  {
   "doctype": "Custom Field",
@@ -271,7 +271,7 @@
   "label": "OG Image",
   "insert_after": "noindex",
   "module": "Tradehub Core",
-  "description": "Boş bırakılırsa ana görsel 1200x630'a otomatik resize edilir."
+  "description": "Bo\u015f b\u0131rak\u0131l\u0131rsa ana g\u00f6rsel 1200x630'a otomatik resize edilir."
  },
  {
   "doctype": "Custom Field",
@@ -283,7 +283,7 @@
   "insert_after": "og_image",
   "module": "Tradehub Core",
   "translatable": 1,
-  "description": "Boş bırakılırsa meta_title kullanılır."
+  "description": "Bo\u015f b\u0131rak\u0131l\u0131rsa meta_title kullan\u0131l\u0131r."
  },
  {
   "doctype": "Custom Field",
@@ -295,7 +295,7 @@
   "insert_after": "og_title_override",
   "module": "Tradehub Core",
   "translatable": 1,
-  "description": "Boş bırakılırsa meta_description kullanılır."
+  "description": "Bo\u015f b\u0131rak\u0131l\u0131rsa meta_description kullan\u0131l\u0131r."
  },
  {
   "doctype": "Custom Field",
@@ -306,7 +306,7 @@
   "label": "Canonical URL (Override)",
   "insert_after": "og_description_override",
   "module": "Tradehub Core",
-  "description": "Boş bırakılırsa otomatik kanonik URL üretilir."
+  "description": "Bo\u015f b\u0131rak\u0131l\u0131rsa otomatik kanonik URL \u00fcretilir."
  },
  {
   "doctype": "Custom Field",
@@ -318,7 +318,7 @@
   "insert_after": "canonical_url_override",
   "module": "Tradehub Core",
   "options": "\nindex,follow\nnoindex,follow\nindex,nofollow\nnoindex,nofollow",
-  "description": "Boş bırakılırsa Website Settings default kullanılır."
+  "description": "Bo\u015f b\u0131rak\u0131l\u0131rsa Website Settings default kullan\u0131l\u0131r."
  },
  {
   "doctype": "Custom Field",
@@ -329,7 +329,7 @@
   "label": "URL Slug (EN)",
   "insert_after": "slug",
   "module": "Tradehub Core",
-  "description": "EN sürüm. Boşsa TR slug fallback."
+  "description": "EN s\u00fcr\u00fcm. Bo\u015fsa TR slug fallback."
  },
  {
   "doctype": "Custom Field",
@@ -380,7 +380,7 @@
   "label": "URL Slug (EN)",
   "insert_after": "url_slug",
   "module": "Tradehub Core",
-  "description": "EN sürüm. Boşsa TR slug fallback."
+  "description": "EN s\u00fcr\u00fcm. Bo\u015fsa TR slug fallback."
  },
  {
   "doctype": "Custom Field",
@@ -431,7 +431,7 @@
   "label": "URL Slug (EN)",
   "insert_after": "slug",
   "module": "Tradehub Core",
-  "description": "EN sürüm. Boşsa TR slug fallback."
+  "description": "EN s\u00fcr\u00fcm. Bo\u015fsa TR slug fallback."
  },
  {
   "doctype": "Custom Field",
@@ -503,7 +503,7 @@
   "insert_after": "seo_section",
   "module": "Tradehub Core",
   "unique": 1,
-  "description": "URL parçası. Boş bırakılırsa profil adından otomatik üretilir."
+  "description": "URL par\u00e7as\u0131. Bo\u015f b\u0131rak\u0131l\u0131rsa profil ad\u0131ndan otomatik \u00fcretilir."
  },
  {
   "doctype": "Custom Field",
@@ -537,7 +537,7 @@
   "insert_after": "meta_description",
   "module": "Tradehub Core",
   "default": "0",
-  "description": "İşaretli ise bu kayıt arama motorları tarafından indekslenmez."
+  "description": "\u0130\u015faretli ise bu kay\u0131t arama motorlar\u0131 taraf\u0131ndan indekslenmez."
  },
  {
   "doctype": "Custom Field",
@@ -548,7 +548,7 @@
   "label": "OG Image",
   "insert_after": "noindex",
   "module": "Tradehub Core",
-  "description": "Boş bırakılırsa ana görsel 1200x630'a otomatik resize edilir."
+  "description": "Bo\u015f b\u0131rak\u0131l\u0131rsa ana g\u00f6rsel 1200x630'a otomatik resize edilir."
  },
  {
   "doctype": "Custom Field",
@@ -560,7 +560,7 @@
   "insert_after": "og_image",
   "module": "Tradehub Core",
   "translatable": 1,
-  "description": "Boş bırakılırsa meta_title kullanılır."
+  "description": "Bo\u015f b\u0131rak\u0131l\u0131rsa meta_title kullan\u0131l\u0131r."
  },
  {
   "doctype": "Custom Field",
@@ -572,7 +572,7 @@
   "insert_after": "og_title_override",
   "module": "Tradehub Core",
   "translatable": 1,
-  "description": "Boş bırakılırsa meta_description kullanılır."
+  "description": "Bo\u015f b\u0131rak\u0131l\u0131rsa meta_description kullan\u0131l\u0131r."
  },
  {
   "doctype": "Custom Field",
@@ -583,7 +583,7 @@
   "label": "Canonical URL (Override)",
   "insert_after": "og_description_override",
   "module": "Tradehub Core",
-  "description": "Boş bırakılırsa otomatik kanonik URL üretilir."
+  "description": "Bo\u015f b\u0131rak\u0131l\u0131rsa otomatik kanonik URL \u00fcretilir."
  },
  {
   "doctype": "Custom Field",
@@ -595,7 +595,7 @@
   "insert_after": "canonical_url_override",
   "module": "Tradehub Core",
   "options": "\nindex,follow\nnoindex,follow\nindex,nofollow\nnoindex,nofollow",
-  "description": "Boş bırakılırsa Website Settings default kullanılır."
+  "description": "Bo\u015f b\u0131rak\u0131l\u0131rsa Website Settings default kullan\u0131l\u0131r."
  },
  {
   "doctype": "Custom Field",
@@ -606,7 +606,7 @@
   "label": "URL Slug (EN)",
   "insert_after": "slug",
   "module": "Tradehub Core",
-  "description": "EN sürüm. Boşsa TR slug fallback."
+  "description": "EN s\u00fcr\u00fcm. Bo\u015fsa TR slug fallback."
  },
  {
   "doctype": "Custom Field",
@@ -654,11 +654,11 @@
   "dt": "Listing",
   "fieldname": "primary_image_alt",
   "fieldtype": "Data",
-  "label": "Ana Görsel Alt Metni",
+  "label": "Ana G\u00f6rsel Alt Metni",
   "insert_after": "primary_image",
   "module": "Tradehub Core",
   "translatable": 1,
-  "description": "Erişilebilirlik ve SEO için ana görselin alt metni. Boşsa ürün başlığı + 'görseli' fallback olarak kullanılır."
+  "description": "Eri\u015filebilirlik ve SEO i\u00e7in ana g\u00f6rselin alt metni. Bo\u015fsa \u00fcr\u00fcn ba\u015fl\u0131\u011f\u0131 + 'g\u00f6rseli' fallback olarak kullan\u0131l\u0131r."
  },
  {
   "doctype": "Custom Field",
@@ -670,7 +670,7 @@
   "insert_after": "meta_description",
   "module": "Tradehub Core",
   "translatable": 1,
-  "description": "Bu sayfanın hedeflediği ana SEO anahtar kelimesi (Faz 5 skor analizi için)."
+  "description": "Bu sayfan\u0131n hedefledi\u011fi ana SEO anahtar kelimesi (Faz 5 skor analizi i\u00e7in)."
  },
  {
   "doctype": "Custom Field",
@@ -682,7 +682,7 @@
   "insert_after": "meta_description",
   "module": "Tradehub Core",
   "translatable": 1,
-  "description": "Bu sayfanın hedeflediği ana SEO anahtar kelimesi (Faz 5 skor analizi için)."
+  "description": "Bu sayfan\u0131n hedefledi\u011fi ana SEO anahtar kelimesi (Faz 5 skor analizi i\u00e7in)."
  },
  {
   "doctype": "Custom Field",
@@ -694,7 +694,7 @@
   "insert_after": "meta_description",
   "module": "Tradehub Core",
   "translatable": 1,
-  "description": "Bu sayfanın hedeflediği ana SEO anahtar kelimesi (Faz 5 skor analizi için)."
+  "description": "Bu sayfan\u0131n hedefledi\u011fi ana SEO anahtar kelimesi (Faz 5 skor analizi i\u00e7in)."
  },
  {
   "doctype": "Custom Field",
@@ -706,7 +706,7 @@
   "insert_after": "meta_description",
   "module": "Tradehub Core",
   "translatable": 1,
-  "description": "Bu sayfanın hedeflediği ana SEO anahtar kelimesi (Faz 5 skor analizi için)."
+  "description": "Bu sayfan\u0131n hedefledi\u011fi ana SEO anahtar kelimesi (Faz 5 skor analizi i\u00e7in)."
  },
  {
   "doctype": "Custom Field",
@@ -714,7 +714,7 @@
   "dt": "CRM Deal",
   "fieldname": "custom_subscription_plan",
   "fieldtype": "Link",
-  "label": "Satılan Paket",
+  "label": "Sat\u0131lan Paket",
   "options": "Subscription Plan",
   "insert_after": "deal_value",
   "module": "Tradehub Core"
@@ -725,7 +725,7 @@
   "dt": "CRM Deal",
   "fieldname": "custom_sale_amount",
   "fieldtype": "Currency",
-  "label": "Satış Tutarı (override)",
+  "label": "Sat\u0131\u015f Tutar\u0131 (override)",
   "insert_after": "custom_subscription_plan",
   "module": "Tradehub Core"
  },
@@ -735,7 +735,7 @@
   "dt": "Listing",
   "module": "Tradehub Core",
   "fieldname": "content_default_lang",
-  "label": "İçerik Varsayılan Dili",
+  "label": "\u0130\u00e7erik Varsay\u0131lan Dili",
   "fieldtype": "Select",
   "options": "tr\nen\nar\nru",
   "default": "tr",
@@ -932,7 +932,7 @@
   "dt": "Product Category",
   "module": "Tradehub Core",
   "fieldname": "content_default_lang",
-  "label": "İçerik Varsayılan Dili",
+  "label": "\u0130\u00e7erik Varsay\u0131lan Dili",
   "fieldtype": "Select",
   "options": "tr\nen\nar\nru",
   "default": "tr",
@@ -1290,5 +1290,18 @@
   "fieldtype": "Data",
   "insert_after": "attribute_value_2_ar",
   "translatable": 0
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "User-deletion_requested_on",
+  "dt": "User",
+  "module": "Tradehub Core",
+  "fieldname": "deletion_requested_on",
+  "label": "Deletion Requested On",
+  "fieldtype": "Datetime",
+  "insert_after": "enabled",
+  "hidden": 1,
+  "read_only": 1,
+  "description": "Timestamp when account deletion was requested. Used by daily anonymization scheduler."
  }
 ]

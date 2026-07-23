@@ -97,6 +97,7 @@ def _is_eca_enabled():
 		return 1 if val is None else cint(val)
 	except Exception:
 		# Prevent recursion by suppressing error logging here
+		frappe.log_error("_is_eca_enabled: Analytics Settings check failed", "eca_dispatcher")
 		return 1
 
 
@@ -559,6 +560,7 @@ def _log_rule_execution(rule, doc, event, success=True):
 		log.flags.ignore_permissions = True
 		log.insert()
 	except Exception:
+		frappe.log_error("_log_rule_execution: failed to insert ECA Rule Log", "eca_dispatcher")
 		pass  # Don't fail the main operation for logging issues
 
 
@@ -594,6 +596,7 @@ def _log_rule_error(rule, doc, event, error):
 		log.flags.ignore_permissions = True
 		log.insert()
 	except Exception:
+		frappe.log_error("_log_rule_error: failed to insert ECA Rule Log for failed rule", "eca_dispatcher")
 		pass
 
 
@@ -645,6 +648,7 @@ def evaluate_rules_two_phase(doc, method=None):
 		if not _is_eca_enabled():
 			return
 	except Exception:
+		frappe.log_error("evaluate_rules_two_phase: _is_eca_enabled check failed", "eca_dispatcher")
 		return
 
 	doctype = getattr(doc, "doctype", None)
@@ -734,6 +738,7 @@ def _process_rule_v2(doc, rule: dict, event: str) -> None:
 			try:
 				log["doc_snapshot_before"] = frappe.as_json(doc.as_dict())[:2000]
 			except Exception:
+				frappe.log_error("_process_rule_v2: doc_snapshot_before serialization failed", "eca_dispatcher")
 				pass
 
 		cond_ok = _evaluate_condition_v2(doc, rule)
@@ -750,6 +755,7 @@ def _process_rule_v2(doc, rule: dict, event: str) -> None:
 			try:
 				log["doc_snapshot_after"] = frappe.as_json(doc.as_dict())[:2000]
 			except Exception:
+				frappe.log_error("_process_rule_v2: doc_snapshot_after serialization failed", "eca_dispatcher")
 				pass
 	except Exception as e:
 		log["status"] = "error"
@@ -831,6 +837,7 @@ def _execute_action_v2(doc, rule: dict) -> bool:
 	try:
 		template = frappe.get_doc("ECA Action Template", template_name)
 	except Exception:
+		frappe.log_error(f"_execute_action_v2: failed to load ECA Action Template '{template_name}'", "eca_dispatcher")
 		return False
 
 	if action_type == "field_update":
@@ -877,6 +884,7 @@ def _do_field_update_v2(doc, rule, template, owner_role) -> bool:
 	try:
 		updates = json.loads(template.field_updates or "[]")
 	except Exception:
+		frappe.log_error(f"_do_field_update_v2: failed to parse field_updates JSON for template '{template.name}'", "eca_dispatcher")
 		return False
 	if not isinstance(updates, list):
 		return False
@@ -924,6 +932,7 @@ def _eval_value_expr_v2(expr, doc):
 	try:
 		return frappe.safe_eval(expr, ctx)
 	except Exception:
+		frappe.log_error(f"_eval_value_expr_v2: safe_eval failed for expr '{expr[:200]}', falling back to literal", "eca_dispatcher")
 		return expr  # literal fallback
 
 
@@ -1060,4 +1069,5 @@ def _write_log_v2(log_data: dict) -> None:
 				setattr(log, k, v)
 		log.insert(ignore_permissions=True)
 	except Exception:
+		frappe.log_error("_write_log_v2: failed to insert ECA Rule Log", "eca_dispatcher")
 		pass

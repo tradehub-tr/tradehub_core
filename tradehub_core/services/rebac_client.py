@@ -550,6 +550,7 @@ def healthz() -> bool:
 		resp = requests.get(url, headers=headers, timeout=(_CONNECT_TIMEOUT, _READ_TIMEOUT))
 		return resp.ok
 	except Exception:
+		frappe.log_error("ReBAC sidecar health check failed", "rebac_client")
 		return False
 
 

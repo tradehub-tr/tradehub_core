@@ -28,6 +28,7 @@ def assign_plan(tenant: str, plan_code: str = "PRO") -> dict:
 			doc.max_sub_users = 25
 			doc.max_listings = 500
 		except Exception:
+			frappe.log_error("Store Subscription field set failed on update", "seed_subscription")
 			pass
 		doc.save(ignore_permissions=True)
 		action = "updated"
@@ -42,6 +43,7 @@ def assign_plan(tenant: str, plan_code: str = "PRO") -> dict:
 			doc.max_sub_users = 25
 			doc.max_listings = 500
 		except Exception:
+			frappe.log_error("Store Subscription field set failed on insert", "seed_subscription")
 			pass
 		doc.insert(ignore_permissions=True)
 		action = "created"

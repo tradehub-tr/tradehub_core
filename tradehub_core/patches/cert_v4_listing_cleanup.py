@@ -52,4 +52,4 @@ def execute():
 			)
 
 	frappe.db.commit()
-	print(f"[cert_v4_listing_cleanup] Migrated, audited rows: {len(rows)}")
+	frappe.logger("patches").info(f"[cert_v4_listing_cleanup] Migrated, audited rows: {len(rows)}")

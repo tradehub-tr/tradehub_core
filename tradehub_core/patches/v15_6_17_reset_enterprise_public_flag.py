@@ -37,6 +37,7 @@ def execute() -> dict:
 	try:
 		frappe.cache().delete_keys("tradehub:pricing:public")
 	except Exception:
+		frappe.log_error("Failed to flush public pricing cache after enterprise public flag reset", "v15_6_17_reset_enterprise_public_flag")
 		pass
 
 	return {"reset": "ENTERPRISE.is_public=0"}

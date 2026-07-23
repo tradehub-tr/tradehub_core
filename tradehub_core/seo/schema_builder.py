@@ -292,6 +292,7 @@ def _fetch_answered_questions_for(listing_name: str) -> list[dict]:
 			if r.get("answer")
 		]
 	except Exception:
+		frappe.log_error("Listing Question fetch failed", "schema_builder")
 		return []
 
 
@@ -348,6 +349,7 @@ def _get_listing_extra_context(listing_name: str) -> dict:
 		if isinstance(review_schema, dict) and review_schema.get("review"):
 			ctx["reviews"] = review_schema["review"]
 	except Exception:
+		frappe.log_error("Review schema fetch failed for listing context", "schema_builder")
 		pass
 
 	# FAQ (Listing Question)

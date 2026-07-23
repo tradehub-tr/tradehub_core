@@ -32,4 +32,4 @@ def execute():
 			update_modified=False,
 		)
 	frappe.db.commit()
-	print(f"[approve_existing_brands] {len(rows)} mevcut marka Approved olarak işaretlendi.")
+	frappe.logger("patches").info(f"[approve_existing_brands] {len(rows)} mevcut marka Approved olarak işaretlendi.")

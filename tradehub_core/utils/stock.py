@@ -60,8 +60,9 @@ def _find_variant_item_row(listing_name, variation_label):
 						break
 				if skip:
 					continue
-			except Exception:
-				pass
+			except (_json.JSONDecodeError, AttributeError):
+				frappe.log_error(f"Failed to parse variant attributes JSON for row {row.name}", "stock._find_variant_item_row")
+				continue
 		return row.name
 
 	return None

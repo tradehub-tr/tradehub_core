@@ -17,7 +17,7 @@ import frappe
 
 def execute():
 	if not frappe.db.exists("DocType", "RFQ Attachment"):
-		print("[drop_rfq_attachment_doctype] doctype already absent — skip")
+		frappe.logger("patches").info("[drop_rfq_attachment_doctype] doctype already absent — skip")
 		return
 
 	# Drop any child rows first (table is empty if rfq.json no longer references it,
@@ -25,8 +25,8 @@ def execute():
 	try:
 		frappe.db.sql("DROP TABLE IF EXISTS `tabRFQ Attachment`")
 	except Exception as e:
-		print(f"[drop_rfq_attachment_doctype] WARN: could not drop table: {e}")
+		frappe.logger("patches").warning(f"[drop_rfq_attachment_doctype] WARN: could not drop table: {e}")
 
 	frappe.delete_doc("DocType", "RFQ Attachment", force=1, ignore_missing=True)
 	frappe.db.commit()
-	print("[drop_rfq_attachment_doctype] removed RFQ Attachment doctype")
+	frappe.logger("patches").info("[drop_rfq_attachment_doctype] removed RFQ Attachment doctype")

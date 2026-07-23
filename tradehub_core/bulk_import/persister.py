@@ -281,6 +281,7 @@ def _resolve_link(doctype: str, raw_value):
 			if match:
 				return match
 		except Exception:
+			frappe.log_error(f"Failed to resolve link field for doctype={doctype} value={v!r}", "bulk_import.persister._resolve_link")
 			continue
 	return None
 

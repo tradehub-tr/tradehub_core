@@ -20,7 +20,7 @@ def execute():
 		role.is_custom = 1
 		role.flags.ignore_permissions = True
 		role.insert(ignore_permissions=True)
-		print("[assign_verified_seller_role] 'Verified Seller' rolü oluşturuldu")
+		frappe.logger("patches").info("[assign_verified_seller_role] 'Verified Seller' rolü oluşturuldu")
 
 	# 2) CLEANUP — KYB durumu Verified DEĞİL olduğu halde role sahip user'ları bul ve rolü kaldır.
 	# (Geçmişte hook'un eski sürümü "Under Review", "Draft" durumlarını handle etmiyordu.)
@@ -81,7 +81,7 @@ def execute():
 	if assigned or removed:
 		frappe.db.commit()
 
-	print(
+	frappe.logger("patches").info(
 		f"[assign_verified_seller_role] cleanup={removed} kullanıcıdan rol kaldırıldı, "
 		f"assigned={assigned} kullanıcıya rol atandı"
 	)

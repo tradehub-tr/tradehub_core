@@ -22,11 +22,11 @@ def run() -> dict:
 	def check(name: str, ok: bool, detail: str = "") -> None:
 		results.append((name, bool(ok), detail))
 		tag = "PASS" if ok else "FAIL"
-		print(f"  {tag}  {name}" + (f"  — {detail}" if detail else ""))
+		frappe.logger("authz_verify").info(f"  {tag}  {name}" + (f"  — {detail}" if detail else ""))
 
-	print("=" * 66)
-	print("FAZ 0 — Güvenlik taban çizgisi")
-	print("=" * 66)
+	frappe.logger("authz_verify").info("=" * 66)
+	frappe.logger("authz_verify").info("FAZ 0 — Güvenlik taban çizgisi")
+	frappe.logger("authz_verify").info("=" * 66)
 
 	from tradehub_core.permissions import (
 		_is_platform_full_access,
@@ -64,10 +64,10 @@ def run() -> dict:
 	else:
 		check("#D2 Compliance-only senaryo", True, "SKIP — saf Compliance Officer kullanıcı yok")
 
-	print()
-	print("=" * 66)
-	print("FAZ 1 — Birleşik PDP (authz.authorize)")
-	print("=" * 66)
+	frappe.logger("authz_verify").info("")
+	frappe.logger("authz_verify").info("=" * 66)
+	frappe.logger("authz_verify").info("FAZ 1 — Birleşik PDP (authz.authorize)")
+	frappe.logger("authz_verify").info("=" * 66)
 
 	from tradehub_core.authz import authorize
 
@@ -115,10 +115,10 @@ def run() -> dict:
 	d5 = authorize("Administrator", "read", None, audit="none")
 	check("PDP doctype yok → fail-closed DENY", d5.allow is False, f"reason={d5.reason}")
 
-	print()
-	print("=" * 66)
-	print("FAZ 2 — ABAC Guardrail (L1 hard_deny + L2 boundary)")
-	print("=" * 66)
+	frappe.logger("authz_verify").info("")
+	frappe.logger("authz_verify").info("=" * 66)
+	frappe.logger("authz_verify").info("FAZ 2 — ABAC Guardrail (L1 hard_deny + L2 boundary)")
+	frappe.logger("authz_verify").info("=" * 66)
 
 	from tradehub_core.authz import guardrail
 
@@ -164,10 +164,10 @@ def run() -> dict:
 	except Exception:
 		sidecar = False
 
-	print()
-	print("=" * 66)
-	print("FAZ 3-7 — ReBAC canlı + enforce + audit + field-level + break-glass")
-	print("=" * 66)
+	frappe.logger("authz_verify").info("")
+	frappe.logger("authz_verify").info("=" * 66)
+	frappe.logger("authz_verify").info("FAZ 3-7 — ReBAC canlı + enforce + audit + field-level + break-glass")
+	frappe.logger("authz_verify").info("=" * 66)
 
 	if not sidecar:
 		check("FAZ 3-6 (ReBAC)", True, "SKIP — sidecar down/konfigüresiz (make rebac-up + rebac-model-deploy)")
@@ -242,8 +242,8 @@ def run() -> dict:
 	passed = sum(1 for _, ok, _ in results if ok)
 	total = len(results)
 	fails = [n for n, ok, _ in results if not ok]
-	print()
-	print("=" * 66)
-	print(f"SONUÇ: {passed}/{total} kontrol PASS" + (f" | FAIL: {', '.join(fails)}" if fails else ""))
-	print("=" * 66)
+	frappe.logger("authz_verify").info("")
+	frappe.logger("authz_verify").info("=" * 66)
+	frappe.logger("authz_verify").info(f"SONUÇ: {passed}/{total} kontrol PASS" + (f" | FAIL: {', '.join(fails)}" if fails else ""))
+	frappe.logger("authz_verify").info("=" * 66)
 	return {"passed": passed, "total": total, "fails": fails}

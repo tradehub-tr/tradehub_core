@@ -34,18 +34,18 @@ def execute():
 
 	for role in ROLES_TO_DISABLE_DESK:
 		if not frappe.db.exists("Role", role):
-			print(f"  [skip] Role bulunamadı: {role}")
+			frappe.logger("patches").warning(f"  [skip] Role bulunamadı: {role}")
 			missing += 1
 			continue
 
 		current = frappe.db.get_value("Role", role, "desk_access")
 		if current == 0 or current is None:
-			print(f"  [skip] {role}: desk_access zaten {current}")
+			frappe.logger("patches").info(f"  [skip] {role}: desk_access zaten {current}")
 			already_correct += 1
 			continue
 
 		frappe.db.set_value("Role", role, "desk_access", 0, update_modified=False)
-		print(f"  [updated] {role}: desk_access {current} → 0")
+		frappe.logger("patches").info(f"  [updated] {role}: desk_access {current} → 0")
 		updated += 1
 
 	frappe.db.commit()
@@ -54,13 +54,15 @@ def execute():
 	try:
 		frappe.cache.delete_value("roles")
 	except Exception:
+		frappe.log_error("Roles cache delete failed in disable_desk_access patch", "disable_desk_access_for_marketplace_roles")
 		pass
 	try:
 		frappe.clear_cache()
 	except Exception:
+		frappe.log_error("Full cache clear failed in disable_desk_access patch", "disable_desk_access_for_marketplace_roles")
 		pass
 
-	print(
+	frappe.logger("patches").info(
 		f"[disable_desk_access_for_marketplace_roles] "
 		f"updated={updated}, already_correct={already_correct}, missing={missing}"
 	)

@@ -38,8 +38,9 @@ def execute():
 			try:
 				frappe.db.sql("DELETE FROM `tabSessions` WHERE user = %s", (user,))
 			except Exception:
+				frappe.log_error(f"Session cleanup failed for user {user}", "revert_to_website_user_mimari")
 				pass
-			print(f"  [user] {user}: {current} → Website User")
+			frappe.logger("patches").info(f"  [user] {user}: {current} → Website User")
 			updated_users += 1
 
 	# 2. Buyer + Seller rollerinin desk_access=1 (eski state)
@@ -49,7 +50,7 @@ def execute():
 		current = frappe.db.get_value("Role", role, "desk_access")
 		if current != 1:
 			frappe.db.set_value("Role", role, "desk_access", 1, update_modified=False)
-			print(f"  [role] {role}: desk_access {current} → 1")
+			frappe.logger("patches").info(f"  [role] {role}: desk_access {current} → 1")
 			updated_roles += 1
 
 	frappe.db.commit()
@@ -57,6 +58,7 @@ def execute():
 	try:
 		frappe.clear_cache()
 	except Exception:
+		frappe.log_error("Cache clear failed in revert_to_website_user_mimari patch", "revert_to_website_user_mimari")
 		pass
 
-	print(f"[revert_to_website_user_mimari] users={updated_users}, roles={updated_roles}")
+	frappe.logger("patches").info(f"[revert_to_website_user_mimari] users={updated_users}, roles={updated_roles}")

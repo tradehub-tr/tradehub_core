@@ -2,6 +2,7 @@ import json
 
 import frappe
 from frappe import _
+from frappe.utils import flt
 
 from tradehub_core.api._input import safe_int
 from tradehub_core.api.rate_limit import rate_limit
@@ -315,13 +316,13 @@ def _recompute_order_items_server_side(products):
 			if server_price is None or float(server_price) < 0:
 				frappe.throw(_("Ürün fiyatı hesaplanamadı: {0}").format(listing_name))
 
-		unit_price = round(float(server_price), 2)
+		unit_price = flt(server_price, 2)
 		recomputed.append(
 			{
 				"p": p,
 				"listing_doc": listing_doc,
 				"server_unit_price": unit_price,
-				"server_total_price": round(unit_price * qty, 2),
+				"server_total_price": flt(unit_price * qty, 2),
 				"quantity": qty,
 				"is_sample": is_sample,
 			}
@@ -344,7 +345,7 @@ def _get_discount_factor(listing):
 		if hasattr(listing, "get")
 		else getattr(listing, "discount_percentage", 0)
 	)
-	dp = float(dp or 0)
+	dp = flt(dp or 0, 2)
 	return (1 - dp / 100) if dp > 0 else 1.0
 
 
@@ -357,13 +358,14 @@ def _get_listing_effective_price(listing):
 	aynı sonucu üretir; cart akışı (add_to_cart snapshot, _build_cart_response,
 	merge_guest_cart) bunu kullanarak ürün detay sayfası ile tutarlı kalır.
 	"""
-	base = float(
+	base = flt(
 		(listing.get("selling_price") if hasattr(listing, "get") else getattr(listing, "selling_price", 0))
 		or (listing.get("base_price") if hasattr(listing, "get") else getattr(listing, "base_price", 0))
-		or 0
+		or 0,
+		2,
 	)
 	factor = _get_discount_factor(listing)
-	return round(base * factor, 2)
+	return flt(base * factor, 2)
 
 
 def _check_stock(listing_doc, listing_name, listing_variant, total_qty, variant_label=None):
@@ -519,7 +521,7 @@ def _build_cart_response(cart_name):
 					{
 						"minQty": t.min_qty,
 						"maxQty": t.max_qty or None,
-						"price": round(float(t.price) * tier_factor, 2),
+						"price": flt(flt(t.price) * tier_factor, 2),
 					}
 					for t in tiers
 				]
@@ -563,7 +565,7 @@ def _build_cart_response(cart_name):
 			# Numune satırlarında snapshot fiyatı (sample_price) referans alınır;
 			# numune fiyatı kampanya indirimine TABİ DEĞİL — ayrı fiyat noktası.
 			if row_is_sample:
-				base_price = float(item.snapshot_price or listing.sample_price or 0)
+				base_price = flt(item.snapshot_price or listing.sample_price or 0, 2)
 			else:
 				# Listing seviyesi fiyat: selling_price × discount_factor.
 				# Kampanya indirimi listing detayında uygulandığı için cart'ta da
@@ -608,7 +610,7 @@ def _build_cart_response(cart_name):
 					if variant.primary_image:
 						sku_image = variant.primary_image
 					if variant.price:
-						base_price_addon = float(variant.price) - base_price
+						base_price_addon = flt(flt(variant.price) - base_price, 2)
 				else:
 					# Inline (sentetik) varyant: "LST-00004-Renk-Siyah" formatı
 					# Attribute değerini ID'den çıkar
@@ -638,7 +640,7 @@ def _build_cart_response(cart_name):
 							if iv.variant_image:
 								sku_image = iv.variant_image
 							if iv.variant_price and iv.variant_price > 0:
-								base_price_addon = float(iv.variant_price) - base_price
+								base_price_addon = flt(flt(iv.variant_price) - base_price, 2)
 
 			# maxQty: track_inventory açıksa variant stoğunu, yoksa listing stoğunu kullan
 			if listing.track_inventory and not listing.allow_backorders:
@@ -1180,7 +1182,7 @@ def _compute_server_coupon_discount(coupon_code: str | None, order_total: float)
 
 	import datetime
 
-	order_total = max(0.0, float(order_total or 0))
+	order_total = max(0.0, flt(order_total or 0, 2))
 	coupon = frappe.db.get_value(
 		"Coupon",
 		{"code": str(coupon_code).strip().upper(), "is_active": 1},
@@ -1209,7 +1211,7 @@ def _compute_server_coupon_discount(coupon_code: str | None, order_total: float)
 		if user_usage > 0:
 			return 0.0
 
-	value = float(coupon.value or 0)
+	value = flt(coupon.value or 0, 2)
 	if str(coupon.coupon_type or "").lower().startswith("percent"):
 		discount = order_total * value / 100.0
 	else:  # fixed
@@ -1329,12 +1331,19 @@ def create_order(
 	# `coupon_discount` parametresi YOK SAYILIR (bedava sipariş istismarı engeli).
 	total_payable = sum(po["subtotal"] + po["shipping_fee"] for po in prepared_orders)
 	coupon_discount_val = _compute_server_coupon_discount(coupon_code, total_payable)
-	# Kupon indirimini siparişlere eşit dağıt
-	per_order_coupon_discount = round(coupon_discount_val / order_count, 2) if order_count > 0 else 0
+	# Kupon indirimini siparişlere eşit dağıt — son siparişe kalanı ata (kuruş kaybı önlemi)
+	if order_count > 0:
+		per_order_coupon_discount = flt(coupon_discount_val / order_count, 2)
+		coupon_remainder = flt(coupon_discount_val - (per_order_coupon_discount * order_count), 2)
+	else:
+		per_order_coupon_discount = 0
+		coupon_remainder = 0
 
 	created_orders = []
+	# Ürünlü siparişleri filtrele — remainder son geçerli siparişe atanmalı
+	valid_orders = [po for po in prepared_orders if po["order_data"].get("products")]
 
-	for po in prepared_orders:
+	for idx, po in enumerate(valid_orders):
 		order_data = po["order_data"]
 		seller_id = order_data.get("seller_id", "")
 		products = order_data.get("products", [])
@@ -1342,11 +1351,11 @@ def create_order(
 		# Native listing currency (FAZ 1 / K1) — client'ın display currency'si değil.
 		currency = po["currency"]
 
-		if not products:
-			continue
-
 		subtotal = po["subtotal"]
-		total = subtotal + shipping_fee - per_order_coupon_discount
+		# Son siparişe kuruş farkını (remainder) ekle — toplam tam tutarsın
+		is_last = (idx == len(valid_orders) - 1)
+		discount = per_order_coupon_discount + (coupon_remainder if is_last else 0)
+		total = subtotal + shipping_fee - discount
 
 		if not seller_id or not frappe.db.exists("Admin Seller Profile", seller_id):
 			frappe.throw(_("Geçersiz satıcı: {0}").format(seller_id or "(boş)"), frappe.DoesNotExistError)
@@ -1368,7 +1377,7 @@ def create_order(
 		order_doc.subtotal = subtotal
 		order_doc.shipping_fee = shipping_fee
 		order_doc.coupon_code = coupon_code or ""
-		order_doc.coupon_discount = per_order_coupon_discount
+		order_doc.coupon_discount = discount
 		order_doc.total = max(0, total)
 		order_doc.shipping_address = shipping_address or ""
 		order_doc.shipping_method = order_data.get("shipping_method", "")
@@ -1546,15 +1555,15 @@ def validate_coupon(code, order_total=0):
 			frappe.throw(_("Bu kupon maksimum kullanım sayısına ulaştı"))
 
 	# Min sipariş tutarı kontrolü
-	order_amount = float(order_total or 0)
-	min_order = float(coupon.min_order or 0)
+	order_amount = flt(order_total or 0, 2)
+	min_order = flt(coupon.min_order or 0, 2)
 	if min_order > 0 and order_amount < min_order:
 		frappe.throw(_("Bu kupon için minimum sipariş tutarı: {0}").format(min_order))
 
 	# İndirim tutarını sipariş toplamı ile sınırla (HATA 26).
 	# fixed type'ta gerçek değerin clamplenmiş hali döndürülür ki frontend
 	# "ücretsiz değil" diye yanlış total göstermesin.
-	value = float(coupon.value or 0)
+	value = flt(coupon.value or 0, 2)
 	if coupon.coupon_type == "fixed" and order_amount > 0 and value > order_amount:
 		value = order_amount
 

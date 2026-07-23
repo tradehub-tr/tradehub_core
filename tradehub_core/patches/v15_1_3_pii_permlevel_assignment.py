@@ -85,12 +85,12 @@ def execute() -> None:
 			)
 
 	# Rapor
-	print(  # noqa: T201
-		f"\n✅ FAZ 1.3 PII permlevel ataması: {applied} field güncellendi, {skipped} field bulunamadı (skip)."
+	frappe.logger("patches").info(
+		f"FAZ 1.3 PII permlevel ataması: {applied} field güncellendi, {skipped} field bulunamadı (skip)."
 	)
 	if errors:
-		print(f"⚠️  {len(errors)} hata var:")  # noqa: T201
+		frappe.logger("patches").warning(f"FAZ 1.3 PII permlevel ataması: {len(errors)} hata var:")
 		for err in errors[:10]:
-			print(f"   {err}")  # noqa: T201
+			frappe.logger("patches").error(f"   {err}")
 
 	frappe.db.commit()

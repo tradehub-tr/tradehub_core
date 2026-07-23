@@ -241,6 +241,7 @@ def _write_asset(relpath, content):
 		b64 = base64.b64encode(content.encode("utf-8")).decode("ascii")
 		return f"data:image/svg+xml;base64,{b64}"
 	except Exception:
+		frappe.log_error("SVG asset base64 encoding failed", "seed_demo_data")
 		return None
 
 
@@ -3582,6 +3583,7 @@ def _grant_verified_seller_role(email):
 		).insert(ignore_permissions=True)
 		frappe.clear_cache(user=email)
 	except Exception:
+		frappe.log_error("Verified Seller role grant failed", "seed_demo_data")
 		pass
 
 
@@ -4773,7 +4775,7 @@ def _seed_hero_slider():
 		doc.sort_order = (idx + 1) * 10
 		doc.flags.ignore_permissions = True
 		doc.insert(ignore_permissions=True)
-	print(f"  ✓ {len(HERO_SLIDES)} Hero Slide (gradient)")
+	frappe.logger("seed_demo_data").info(f"  ✓ {len(HERO_SLIDES)} Hero Slide (gradient)")
 
 
 def _seed_category_showcase():
@@ -4817,7 +4819,7 @@ def _seed_category_showcase():
 			doc.cta_href = t.get("cta_href", "/kategoriler")
 		doc.flags.ignore_permissions = True
 		doc.insert(ignore_permissions=True)
-	print(f"  ✓ {len(SHOWCASE_TILES)} Category Showcase Tile (bento) + Settings enabled")
+	frappe.logger("seed_demo_data").info(f"  ✓ {len(SHOWCASE_TILES)} Category Showcase Tile (bento) + Settings enabled")
 
 
 @frappe.whitelist()
@@ -4828,14 +4830,14 @@ def seed_homepage_content():
 	    bench --site <site> execute tradehub_core.seed_demo_data.seed_homepage_content
 	"""
 	frappe.flags.ignore_permissions = True
-	print("\n[Anasayfa] Hero slider + kategori vitrini seed ediliyor...")
+	frappe.logger("seed_demo_data").info("\n[Anasayfa] Hero slider + kategori vitrini seed ediliyor...")
 	_seed_hero_slider()
 	_seed_category_showcase()
 	frappe.db.commit()
 	# 60s Redis cache'leri temizle ki storefront hemen görsün.
 	frappe.cache.delete_value("hero_slides_active")
 	frappe.cache.delete_value("category_showcase_active")
-	print("  ✅ Anasayfa vitrini hazır.")
+	frappe.logger("seed_demo_data").info("  ✅ Anasayfa vitrini hazır.")
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -4881,24 +4883,24 @@ def _seed(cleanup_first=True):
 
 	total_listings = 0
 
-	print("=" * 60)
-	print("  TradeHub Demo Data Seed")
-	print("=" * 60)
+	frappe.logger("seed_demo_data").info("=" * 60)
+	frappe.logger("seed_demo_data").info("  TradeHub Demo Data Seed")
+	frappe.logger("seed_demo_data").info("=" * 60)
 
 	# ── −1. Oto-temizlik: yalnız cleanup_first=True iken eski demo verileri kaldır ──
 	if cleanup_first:
-		print("\n[Oto-temizlik] Önceki demo veriler kaldırılıyor...")
+		frappe.logger("seed_demo_data").info("\n[Oto-temizlik] Önceki demo veriler kaldırılıyor...")
 		cleanup(silent=True)
 		frappe.db.commit()
 
 	# ── 0. Global sözlükler: kargo yöntemleri + spec attribute'ları ─
-	print("\n[0/6] Global sözlükler oluşturuluyor (Shipping Method, Product Attribute)...")
+	frappe.logger("seed_demo_data").info("\n[0/6] Global sözlükler oluşturuluyor (Shipping Method, Product Attribute)...")
 	for m in SHIPPING_METHODS:
 		_ensure_shipping_method(m)
-	print(f"  ✓ {len(SHIPPING_METHODS)} Shipping Method")
+	frappe.logger("seed_demo_data").info(f"  ✓ {len(SHIPPING_METHODS)} Shipping Method")
 	for a in PRODUCT_ATTRIBUTES:
 		_ensure_product_attribute(a)
-	print(f"  ✓ {len(PRODUCT_ATTRIBUTES)} Product Attribute")
+	frappe.logger("seed_demo_data").info(f"  ✓ {len(PRODUCT_ATTRIBUTES)} Product Attribute")
 	frappe.db.commit()
 
 	# ── 1. Satıcılar + Markalar ──────────────────────────────
@@ -4911,7 +4913,7 @@ def _seed(cleanup_first=True):
 	#    on_update tetiklenerek Seller Profile (panelde görünen satıcı kaydı) +
 	#    KYB Verification (Pending) otomatik üretilir. Admin Seller Profile zaten
 	#    var olduğundan o adım atlanır.
-	print("\n[1/6] Satıcı profilleri ve markalar oluşturuluyor...")
+	frappe.logger("seed_demo_data").info("\n[1/6] Satıcı profilleri ve markalar oluşturuluyor...")
 	for idx, s in enumerate(SELLERS):
 		_ensure_seller(s)
 		_ensure_seller_application(s)
@@ -4926,11 +4928,11 @@ def _seed(cleanup_first=True):
 			address=f"{s['address_line1']}, {s['district']}/{s['city']}",
 		)
 		_ensure_brand(s["code"], s.get("variant_type", "giyim"))
-		print(f"  ✓ {s['seller_name']} ({s['code']}) — KYB + KYC: Verified")
+		frappe.logger("seed_demo_data").info(f"  ✓ {s['seller_name']} ({s['code']}) — KYB + KYC: Verified")
 	frappe.db.commit()
 
 	# ── 2. Alıcılar ──────────────────────────────────────────
-	print("\n[2/6] Alıcı profilleri oluşturuluyor...")
+	frappe.logger("seed_demo_data").info("\n[2/6] Alıcı profilleri oluşturuluyor...")
 	for idx, b in enumerate(BUYERS):
 		_ensure_buyer(b)
 		_ensure_buyer_user_profile(b)
@@ -4944,13 +4946,13 @@ def _seed(cleanup_first=True):
 			phone=b["phone"],
 			address=f"{b['city']} - Demo Alıcı Adresi",
 		)
-		print(f"  ✓ {b['buyer_name']} ({b['company_name']}) — KYC: Verified")
+		frappe.logger("seed_demo_data").info(f"  ✓ {b['buyer_name']} ({b['company_name']}) — KYC: Verified")
 	frappe.db.commit()
 
 	# ── 3. Kategoriler (3 SEVİYE: Sektör → Grup → yaprak ürün kategorisi) ─
 	# Her DummyJSON kategorisi sabit bir canonical sektör + grubuna bağlı. Aynı
 	# yaprak birden fazla satıcı tarafından kullanılabilir (Alibaba modeli).
-	print("\n[3/6] Platform kategorileri oluşturuluyor...")
+	frappe.logger("seed_demo_data").info("\n[3/6] Platform kategorileri oluşturuluyor...")
 
 	# DummyJSON kategorisi →
 	#   (sektör_key, sektör_adı, sektör_kodu, grup_adı, grup_kodu)
@@ -4993,7 +4995,7 @@ def _seed(cleanup_first=True):
 			sort_order=0,
 			sector_key=vt,
 		)
-	print(f"  ✓ {len(sector_ids)} sektör (kök kategori)")
+	frappe.logger("seed_demo_data").info(f"  ✓ {len(sector_ids)} sektör (kök kategori)")
 
 	# Sonra grupları sektörün altına (unique)
 	group_ids = {}  # group_code → product_category_name
@@ -5007,7 +5009,7 @@ def _seed(cleanup_first=True):
 			sort_order=0,
 			sector_key=vt,
 		)
-	print(f"  ✓ {len(group_ids)} grup (orta kategori)")
+	frappe.logger("seed_demo_data").info(f"  ✓ {len(group_ids)} grup (orta kategori)")
 
 	# En sonda yaprakları grubun altına
 	leaf_ids = {}
@@ -5032,13 +5034,14 @@ def _seed(cleanup_first=True):
 				update_modified=False,
 			)
 		except Exception:
+			frappe.log_error("Product Category image set failed", "seed_demo_data")
 			pass
 		leaf_ids[dj_cat] = (leaf_id, leaf_name_tr)
 	frappe.db.commit()
-	print(f"  ✓ {len(leaf_ids)} yaprak kategori ({len(group_ids)} grup, {len(sector_ids)} sektör altında)")
+	frappe.logger("seed_demo_data").info(f"  ✓ {len(leaf_ids)} yaprak kategori ({len(group_ids)} grup, {len(sector_ids)} sektör altında)")
 
 	# ── 4. Satıcı Kategorileri ──────────────────────────────
-	print("\n[4/6] Satıcı-kategori eşleşmeleri oluşturuluyor...")
+	frappe.logger("seed_demo_data").info("\n[4/6] Satıcı-kategori eşleşmeleri oluşturuluyor...")
 	# (seller_code, dj_cat) → seller_category_name
 	seller_cat_map = {}
 	for seller_code, sdef in SELLER_SECTORS.items():
@@ -5052,10 +5055,10 @@ def _seed(cleanup_first=True):
 				sc_name = _ensure_seller_category(seller_code, leaf_id, leaf_name_tr, sector_key=vt)
 				seller_cat_map[(seller_code, dj_cat)] = sc_name
 	frappe.db.commit()
-	print(f"  ✓ {len(seller_cat_map)} satıcı-kategori eşleşmesi")
+	frappe.logger("seed_demo_data").info(f"  ✓ {len(seller_cat_map)} satıcı-kategori eşleşmesi")
 
 	# ── 5. Ürün İlanları — her DummyJSON ürünü = 1 Listing ─
-	print("\n[5/6] Ürün ilanları oluşturuluyor...")
+	frappe.logger("seed_demo_data").info("\n[5/6] Ürün ilanları oluşturuluyor...")
 	for seller_code, sdef in SELLER_SECTORS.items():
 		seller_data = next(s for s in SELLERS if s["code"] == seller_code)
 		variant_type = seller_data["variant_type"]
@@ -5084,47 +5087,47 @@ def _seed(cleanup_first=True):
 					if sector_listings % 20 == 0:
 						frappe.db.commit()
 		frappe.db.commit()
-		print(f"  ✓ {seller_data['seller_name']}: {sector_listings} ürün")
+		frappe.logger("seed_demo_data").info(f"  ✓ {seller_data['seller_name']}: {sector_listings} ürün")
 
 	frappe.db.commit()
 	frappe.flags.in_import = False
 
 	# ── 6. Anasayfa vitrini: Hero slider + kategori vitrini (bento) ─
-	print("\n[6/6] Anasayfa vitrini oluşturuluyor (hero slider + bento grid)...")
+	frappe.logger("seed_demo_data").info("\n[6/6] Anasayfa vitrini oluşturuluyor (hero slider + bento grid)...")
 	_seed_hero_slider()
 	_seed_category_showcase()
 	frappe.db.commit()
 	frappe.cache.delete_value("hero_slides_active")
 	frappe.cache.delete_value("category_showcase_active")
 
-	print("\n" + "=" * 60)
-	print("  ✅ TAMAMLANDI!")
-	print(f"  Satıcılar:   {len(SELLERS)}")
-	print(f"  Alıcılar:    {len(BUYERS)}")
-	print("  Kategoriler: ~500")
-	print(f"  Ürünler:     {total_listings}")
-	print(f"  Hero slide:  {len(HERO_SLIDES)} · Bento kutu: {len(SHOWCASE_TILES)}")
-	print("=" * 60)
+	frappe.logger("seed_demo_data").info("\n" + "=" * 60)
+	frappe.logger("seed_demo_data").info("  ✅ TAMAMLANDI!")
+	frappe.logger("seed_demo_data").info(f"  Satıcılar:   {len(SELLERS)}")
+	frappe.logger("seed_demo_data").info(f"  Alıcılar:    {len(BUYERS)}")
+	frappe.logger("seed_demo_data").info("  Kategoriler: ~500")
+	frappe.logger("seed_demo_data").info(f"  Ürünler:     {total_listings}")
+	frappe.logger("seed_demo_data").info(f"  Hero slide:  {len(HERO_SLIDES)} · Bento kutu: {len(SHOWCASE_TILES)}")
+	frappe.logger("seed_demo_data").info("=" * 60)
 
 	# ── Kimlik Bilgileri Tablosu ────────────────────────────
-	print("\n" + "═" * 76)
-	print("  🔑 DEMO GİRİŞ BİLGİLERİ")
-	print("═" * 76)
-	print(f"\n  SATICI HESAPLARI (Rol: Seller — Şifre: {DEMO_SELLER_PASSWORD})")
-	print("  " + "─" * 74)
-	print(f"  {'Kod':<11} {'E-posta':<32} {'Satıcı Adı':<30}")
-	print("  " + "─" * 74)
+	frappe.logger("seed_demo_data").info("\n" + "═" * 76)
+	frappe.logger("seed_demo_data").info("  🔑 DEMO GİRİŞ BİLGİLERİ")
+	frappe.logger("seed_demo_data").info("═" * 76)
+	frappe.logger("seed_demo_data").info(f"\n  SATICI HESAPLARI (Rol: Seller — Şifre: {DEMO_SELLER_PASSWORD})")
+	frappe.logger("seed_demo_data").info("  " + "─" * 74)
+	frappe.logger("seed_demo_data").info(f"  {'Kod':<11} {'E-posta':<32} {'Satıcı Adı':<30}")
+	frappe.logger("seed_demo_data").info("  " + "─" * 74)
 	for s in SELLERS:
-		print(f"  {s['code']:<11} {s['email']:<32} {s['seller_name']:<30}")
+		frappe.logger("seed_demo_data").info(f"  {s['code']:<11} {s['email']:<32} {s['seller_name']:<30}")
 
-	print(f"\n  ALICI HESAPLARI (Rol: Buyer — Şifre: {DEMO_BUYER_PASSWORD})")
-	print("  " + "─" * 74)
-	print(f"  {'Kod':<15} {'E-posta':<32} {'Alıcı Adı':<25}")
-	print("  " + "─" * 74)
+	frappe.logger("seed_demo_data").info(f"\n  ALICI HESAPLARI (Rol: Buyer — Şifre: {DEMO_BUYER_PASSWORD})")
+	frappe.logger("seed_demo_data").info("  " + "─" * 74)
+	frappe.logger("seed_demo_data").info(f"  {'Kod':<15} {'E-posta':<32} {'Alıcı Adı':<25}")
+	frappe.logger("seed_demo_data").info("  " + "─" * 74)
 	for b in BUYERS:
-		print(f"  {b['code']:<15} {b['email']:<32} {b['buyer_name']:<25}")
-	print("═" * 76)
-	print()
+		frappe.logger("seed_demo_data").info(f"  {b['code']:<15} {b['email']:<32} {b['buyer_name']:<25}")
+	frappe.logger("seed_demo_data").info("═" * 76)
+	frappe.logger("seed_demo_data").info("")
 
 
 def run_idempotent_seed():
@@ -5200,7 +5203,7 @@ def verify_email(user_email):
 		user_doc.save(ignore_permissions=True)
 
 	frappe.db.commit()
-	print(f"✓ {user_email} — Buyer Profile {action}, email_verified=1")
+	frappe.logger("seed_demo_data").info(f"✓ {user_email} — Buyer Profile {action}, email_verified=1")
 	return {"user": user_email, "email_verified": 1}
 
 
@@ -5226,7 +5229,7 @@ def approve_existing_demo_sellers():
 	skipped = 0
 	for idx, s in enumerate(SELLERS):
 		if not frappe.db.exists("User", s["email"]):
-			print(f"  ⚠️  User yok: {s['email']} — önce execute() çalıştırın")
+			frappe.logger("seed_demo_data").warning(f"  ⚠️  User yok: {s['email']} — önce execute() çalıştırın")
 			skipped += 1
 			continue
 		_ensure_seller_application(s)
@@ -5242,9 +5245,9 @@ def approve_existing_demo_sellers():
 		)
 		frappe.db.commit()
 		approved += 1
-		print(f"  ✓ {s['seller_name']} ({s['email']}) — KYB + KYC: Verified")
+		frappe.logger("seed_demo_data").info(f"  ✓ {s['seller_name']} ({s['email']}) — KYB + KYC: Verified")
 
-	print(f"\n  Toplam: {approved} onay, {skipped} atlandı")
+	frappe.logger("seed_demo_data").info(f"\n  Toplam: {approved} onay, {skipped} atlandı")
 	return {"approved": approved, "skipped": skipped}
 
 
@@ -5270,10 +5273,10 @@ def cleanup(silent=False):
 
 	def _p(msg):
 		if not silent:
-			print(msg)
+			frappe.logger("seed_demo_data").info(msg)
 
 	if not silent:
-		print("Demo veri temizleniyor...")
+		frappe.logger("seed_demo_data").info("Demo veri temizleniyor...")
 
 	# Sırayla sil (bağımlılık sırası: en bağımlıdan başla)
 
@@ -5503,7 +5506,7 @@ def cleanup(silent=False):
 
 	frappe.db.commit()
 	if not silent:
-		print("\n✅ Tüm demo veri temizlendi!")
+		frappe.logger("seed_demo_data").info("\n✅ Tüm demo veri temizlendi!")
 
 
 # ─── Onarım: sarkan DEMO kategori referanslarını gerçek taksonomiye eşle ──────
@@ -5598,9 +5601,10 @@ def fix_demo_category_links():
 	try:
 		frappe.cache.delete_value("tailored:global")
 	except Exception:
+		frappe.log_error("Tailored cache invalidation failed", "seed_demo_data")
 		pass
 
-	print(f"✓ {listing_total} Listing, {seller_cat_total} Seller Category eşlendi ({len(resolved)} kategori)")
+	frappe.logger("seed_demo_data").info(f"✓ {listing_total} Listing, {seller_cat_total} Seller Category eşlendi ({len(resolved)} kategori)")
 	if unresolved:
-		print(f"⚠ Çözülemeyen kategori kodları: {', '.join(unresolved)}")
+		frappe.logger("seed_demo_data").warning(f"⚠ Çözülemeyen kategori kodları: {', '.join(unresolved)}")
 	return {"listings": listing_total, "seller_categories": seller_cat_total, "unresolved": unresolved}

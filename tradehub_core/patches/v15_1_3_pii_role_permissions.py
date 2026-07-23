@@ -142,13 +142,13 @@ def execute() -> None:
 				)
 
 	# Rapor
-	print(  # noqa: T201
-		f"\n✅ FAZ 1.3 Role permission matrisi: {added} yeni, {updated} güncellendi, {skipped} doctype skip."
+	frappe.logger("patches").info(
+		f"FAZ 1.3 Role permission matrisi: {added} yeni, {updated} güncellendi, {skipped} doctype skip."
 	)
 	if errors:
-		print(f"⚠️  {len(errors)} hata:")  # noqa: T201
+		frappe.logger("patches").warning(f"FAZ 1.3 Role permission matrisi: {len(errors)} hata:")
 		for err in errors[:10]:
-			print(f"   {err}")  # noqa: T201
+			frappe.logger("patches").error(f"   {err}")
 
 	frappe.db.commit()
 

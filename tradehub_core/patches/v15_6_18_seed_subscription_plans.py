@@ -79,6 +79,7 @@ def execute() -> dict:
 	try:
 		frappe.cache().delete_value("tradehub:pricing:public")
 	except Exception:
+		frappe.log_error("Failed to flush public pricing cache after seeding subscription plans", "v15_6_18_seed_subscription_plans")
 		pass
 
 	return {

@@ -54,7 +54,9 @@ def rate_limit(
 			key = _bucket_key(key_scope, user)
 			cache = frappe.cache()
 
-			# F-004: Redis hatası → fail-closed (isteği reddet, brute-force'u engelle)
+			# F-004: Redis hatası → graceful degradation (rate limit devre dışı,
+			# sistem çalışmaya devam eder). Fail-closed tüm kullanıcıları kilitler;
+			# Redis downtime sırasında kısa süreli rate-limit kaybı kabul edilebilir.
 			try:
 				current = cache.get_value(key)
 				current = int(current) if current else 0
@@ -63,9 +65,8 @@ def rate_limit(
 					title="Rate limiter Redis read failed",
 					message=f"key={key}, endpoint={key_scope}",
 				)
-				raise TooManyRequestsError(
-					_("Servis geçici olarak kullanılamıyor — lütfen tekrar deneyin.")
-				)
+				# Redis down → rate limit olmadan devam et, sistemi kilitleme
+				return func(*args, **kwargs)
 
 			if current >= max_calls:
 				raise TooManyRequestsError(
@@ -84,6 +85,8 @@ def rate_limit(
 					title="Rate limiter Redis write failed",
 					message=f"key={key}, endpoint={key_scope}",
 				)
+				# Write fail → limit kontrolü zaten geçti, isteğe izin ver.
+				# Counter artmaz ama Redis gelince sıfırdan başlar.
 
 			return func(*args, **kwargs)
 
@@ -111,6 +114,7 @@ def reset_bucket(name: str, user: str | None = None):
 	try:
 		frappe.cache().delete_value(key)
 	except Exception:
+		frappe.log_error(f"Failed to reset rate limit bucket: name={name} user={user}", "rate_limit.reset_bucket")
 		pass
 
 

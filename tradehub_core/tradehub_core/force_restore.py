@@ -5,7 +5,7 @@ import frappe
 
 
 def run():
-	print("--- Force Restore V2 ---")
+	frappe.logger("force_restore").info("--- Force Restore V2 ---")
 	bench_dir = "/home/ali/Masaüstü/istoc.com/tradehubback"
 
 	# Clean old ones
@@ -29,9 +29,9 @@ def run():
 		doc.flags.ignore_permissions = True
 		doc.insert()
 		frappe.db.commit()
-		print("  ✓ TR Tradehub imported")
+		frappe.logger("force_restore").info("  ✓ TR Tradehub imported")
 	else:
-		print(f"  X {main_json} not found")
+		frappe.logger("force_restore").warning(f"  X {main_json} not found")
 
 	# Children
 	apps = [
@@ -59,6 +59,6 @@ def run():
 				frappe.delete_doc("Workspace", doc.name, ignore_permissions=True, force=True)
 			doc.insert()
 			frappe.db.commit()
-			print(f"  ✓ {doc.name} imported")
+			frappe.logger("force_restore").info(f"  ✓ {doc.name} imported")
 
-	print("--- Finished ---")
+	frappe.logger("force_restore").info("--- Finished ---")

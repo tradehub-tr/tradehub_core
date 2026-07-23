@@ -1049,6 +1049,7 @@ def _file_absolute_path(file_doc) -> str:
 		try:
 			return file_doc.get_full_path()
 		except Exception:
+			frappe.log_error(f"get_full_path() failed for file doc {getattr(file_doc, 'name', '?')}, falling back to URL", "bulk_import.api._file_absolute_path")
 			pass
 	return _file_absolute_path_from_url(file_doc.file_url)
 

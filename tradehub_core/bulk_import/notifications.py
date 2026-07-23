@@ -84,6 +84,7 @@ def _email_master_enabled() -> bool:
 			)
 		)
 	except Exception:
+		frappe.log_error("Failed to read Analytics Settings for failure email check", "bulk_import.notifications._email_master_enabled")
 		return False
 
 

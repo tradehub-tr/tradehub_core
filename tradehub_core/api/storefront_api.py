@@ -308,6 +308,7 @@ def submit_review(
 
 			submit_template_answers(review=res["name"], answers=template_answers)
 		except Exception:
+			frappe.log_error("Failed to save template answers for review", "storefront_api.submit_review")
 			pass
 	return res
 

@@ -55,7 +55,7 @@ def execute():
 		_canonicalize_addresses(totals)
 
 	frappe.db.commit()
-	print(
+	frappe.logger("patches").info(
 		"canonicalize_phone_numbers: "
 		f"updated={totals['updated']} "
 		f"already_canonical={totals['skipped_already_canonical']} "

@@ -173,6 +173,8 @@ scheduler_events = {
 		# FAZ 3.5 — Privacy: veri saklama politikası uygulama + export temizliği
 		"tradehub_core.audit.tasks.run_data_retention_enforcement",
 		"tradehub_core.audit.tasks.cleanup_expired_data_exports",
+		# KVKK Madde 7 — hesap silme sonrası 30 gün geçen PII anonimleştirme
+		"tradehub_core.privacy.account_deletion.anonymize_pending_deletions",
 	],
 	"weekly_long": [
 		# A2 — ReBAC enforce-hazırlık raporu (RBAC vs ReBAC, doctype-başına verdict).

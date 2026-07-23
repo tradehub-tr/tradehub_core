@@ -257,6 +257,7 @@ def invite_trusted_reviewer(user: str, listing: str, compensation: str = "Free S
 			reference_name=doc.name,
 		)
 	except Exception:
+		frappe.log_error("Trusted reviewer invitation notification failed", "reputation")
 		pass
 
 	frappe.db.commit()
@@ -384,6 +385,7 @@ def send_trusted_reviewer_invitations():
 				sent += 1
 				break
 			except Exception:
+				frappe.log_error("Trusted reviewer auto-invite failed", "reputation")
 				continue
 		if sent >= 10:  # haftalık cap
 			break

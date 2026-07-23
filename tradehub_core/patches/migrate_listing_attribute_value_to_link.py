@@ -89,7 +89,7 @@ def execute():
 		migrated += 1
 
 	frappe.db.commit()
-	print(
+	frappe.logger("patches").info(
 		f"[migrate_listing_attribute_value_to_link] Migrated {migrated} rows, "
 		f"auto-created {auto_created} Product Attribute records."
 	)

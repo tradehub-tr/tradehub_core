@@ -887,6 +887,7 @@ def create_subscription_plan(
 	try:
 		frappe.cache().delete_value("tradehub:pricing:public")
 	except Exception:
+		frappe.log_error(frappe.get_traceback(), "permission_console.create_subscription_plan_cache")
 		pass
 
 	log_decision(
@@ -961,6 +962,7 @@ def delete_subscription_plan(plan_code: str) -> dict:
 		frappe.cache().delete_value("tradehub:pricing:public")
 		frappe.cache().delete_keys("tradehub:entitlement:")
 	except Exception:
+		frappe.log_error(frappe.get_traceback(), "permission_console.delete_subscription_plan_cache")
 		pass
 
 	log_decision(
@@ -2148,6 +2150,7 @@ def update_plan_capability_flag(
 
 		flush_all_cache()
 	except Exception:
+		frappe.log_error(frappe.get_traceback(), "permission_console.update_plan_capability_flag_resolver")
 		pass
 
 	frappe.db.commit()
@@ -2271,6 +2274,7 @@ def list_rbac_audit(limit: int = 50) -> dict:
 				}
 			)
 	except Exception:
+		frappe.log_error(frappe.get_traceback(), "permission_console.list_rbac_audit_mask_events")
 		# Authorization Decision Log opsiyonel — yoksa sessizce devam
 		pass
 

@@ -26,7 +26,7 @@ def execute():
 		limit_page_length=0,
 	)
 	if not files:
-		print("[migrate_rfq_attachments_to_private] No public RFQ files found — skip.")
+		frappe.logger("patches").info("[migrate_rfq_attachments_to_private] No public RFQ files found — skip.")
 		return
 
 	public_root = get_files_path(is_private=0)
@@ -56,7 +56,7 @@ def execute():
 			continue
 
 		if not os.path.exists(src):
-			print(f"[migrate_rfq_attachments_to_private] WARN: source missing for {f.name} ({src})")
+			frappe.logger("patches").warning(f"[migrate_rfq_attachments_to_private] WARN: source missing for {f.name} ({src})")
 			missing += 1
 			continue
 
@@ -66,6 +66,6 @@ def execute():
 		moved += 1
 
 	frappe.db.commit()
-	print(
+	frappe.logger("patches").info(
 		f"[migrate_rfq_attachments_to_private] moved={moved} already_private={already_private} missing={missing}"
 	)

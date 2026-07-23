@@ -33,6 +33,7 @@ def _parse_list_ids(raw):
 		if isinstance(val, list) and val:
 			return [str(x) for x in val]
 	except Exception:
+		frappe.log_error(f"Failed to parse list_ids JSON: {raw!r}", "favorites._parse_list_ids")
 		pass
 	return ["default"]
 

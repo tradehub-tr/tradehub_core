@@ -67,4 +67,4 @@ def execute():
 			)
 
 	frappe.db.commit()
-	print(f"[create_default_product_types] Created {created} Product Type records.")
+	frappe.logger("patches").info(f"[create_default_product_types] Created {created} Product Type records.")

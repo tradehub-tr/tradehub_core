@@ -52,7 +52,7 @@ def execute():
 			)
 
 	frappe.db.commit()
-	print(f"[create_brand_records_from_listing_strings] Created {created} Brand records.")
+	frappe.logger("patches").info(f"[create_brand_records_from_listing_strings] Created {created} Brand records.")
 
 
 def _slugify_code(name: str) -> str:

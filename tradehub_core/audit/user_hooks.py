@@ -73,4 +73,5 @@ def on_user_update(doc, method=None) -> None:
 				"audit.user_hooks",
 			)
 		except Exception:
+			frappe.log_error("audit.user_hooks: secondary log_error call also failed", "audit.user_hooks")
 			pass

@@ -73,6 +73,7 @@ def _has_tenant_and_seller_fields(doctype: str) -> tuple:
 	try:
 		meta = frappe.get_meta(doctype)
 	except Exception:
+		frappe.log_error(f"Failed to get meta for doctype: {doctype}", "tenant_seller_validation._has_tenant_and_seller_fields")
 		return (False, None, None)
 
 	has_tenant = meta.has_field("tenant")

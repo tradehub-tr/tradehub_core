@@ -47,4 +47,4 @@ def execute():
 	if updated:
 		frappe.db.commit()
 
-	print(f"[assign_seller_role_legacy] Seller rolü atanan kullanıcı sayısı: {updated}")
+	frappe.logger("patches").info(f"[assign_seller_role_legacy] Seller rolü atanan kullanıcı sayısı: {updated}")

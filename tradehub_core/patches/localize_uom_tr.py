@@ -70,7 +70,7 @@ def execute() -> None:
 	name_field_updated: list[tuple[str, str]] = []
 	skipped: list[tuple[str, str, str]] = []
 
-	print("\n[localize_uom_tr] başlıyor")
+	frappe.logger("patches").info("[localize_uom_tr] başlıyor")
 
 	for old_name, new_name in UOM_TR.items():
 		if not frappe.db.exists("UOM", old_name):
@@ -96,7 +96,7 @@ def execute() -> None:
 				)
 				frappe.db.set_value("UOM", new_name, "uom_name", new_name)
 				merged.append((old_name, new_name))
-				print(f"  MERGED  {old_name} -> {new_name}")
+				frappe.logger("patches").info(f"  MERGED  {old_name} -> {new_name}")
 			else:
 				rename_doc(
 					"UOM",
@@ -109,10 +109,10 @@ def execute() -> None:
 				)
 				frappe.db.set_value("UOM", new_name, "uom_name", new_name)
 				renamed.append((old_name, new_name))
-				print(f"  RENAMED {old_name} -> {new_name}")
+				frappe.logger("patches").info(f"  RENAMED {old_name} -> {new_name}")
 		except Exception as e:
 			skipped.append((old_name, new_name, str(e)))
-			print(f"  FAILED  {old_name} -> {new_name}: {e}")
+			frappe.logger("patches").error(f"  FAILED  {old_name} -> {new_name}: {e}")
 
 	frappe.db.commit()
 
@@ -120,11 +120,11 @@ def execute() -> None:
 		frappe.db.set_value("DocType", "UOM", "allow_rename", original_allow_rename or 0)
 		frappe.db.commit()
 
-	print(
-		f"\n[localize_uom_tr] bitti: "
+	frappe.logger("patches").info(
+		f"[localize_uom_tr] bitti: "
 		f"{len(renamed)} rename, {len(merged)} merge, "
 		f"{len(name_field_updated)} sadece-uom_name, {len(skipped)} atlanan"
 	)
 	if skipped:
 		for old, new, err in skipped:
-			print(f"  ATLANAN: {old} -> {new}: {err}")
+			frappe.logger("patches").warning(f"  ATLANAN: {old} -> {new}: {err}")

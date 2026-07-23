@@ -48,7 +48,7 @@ def execute():
 			)
 			if exists and exists[0][0]:
 				frappe.db.sql(f"ALTER TABLE `tabAdmin Seller Profile` DROP COLUMN `{column}`")
-				print(f"[cleanup_legacy_verification_fields] Sütun düşürüldü: {column}")
+				frappe.logger("patches").info(f"[cleanup_legacy_verification_fields] Sütun düşürüldü: {column}")
 		except Exception as e:
 			frappe.log_error(
 				title="cleanup_legacy_verification_fields drop column",
@@ -56,4 +56,4 @@ def execute():
 			)
 
 	frappe.db.commit()
-	print(f"[cleanup_legacy_verification_fields] Loglanan kayıt: {len(rows)}")
+	frappe.logger("patches").info(f"[cleanup_legacy_verification_fields] Loglanan kayıt: {len(rows)}")

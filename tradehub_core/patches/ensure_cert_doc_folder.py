@@ -14,7 +14,7 @@ import frappe
 
 def execute():
 	if frappe.db.exists("File", {"name": "Home/sertifikalar", "is_folder": 1}):
-		print("[ensure_cert_doc_folder] Home/sertifikalar already exists")
+		frappe.logger("patches").info("[ensure_cert_doc_folder] Home/sertifikalar already exists")
 		return
 
 	doc = frappe.get_doc(
@@ -27,4 +27,4 @@ def execute():
 	)
 	doc.insert(ignore_permissions=True)
 	frappe.db.commit()
-	print(f"[ensure_cert_doc_folder] Created Home/sertifikalar ({doc.name})")
+	frappe.logger("patches").info(f"[ensure_cert_doc_folder] Created Home/sertifikalar ({doc.name})")

@@ -242,6 +242,7 @@ def _apply_scope_filter(filters, widget, scope):
 		try:
 			_validate_field(doctype, scope_field)
 		except Exception:
+			frappe.log_error(frappe.get_traceback(), "dashboard_engine.apply_scope_filter")
 			return filters
 	return list(filters) + [[scope_field, "=", resolved]]
 
@@ -351,7 +352,8 @@ def _handle_line_chart(widget, period=None, scope=None):
 
 	# Frappe ORM doesn't support DATE_FORMAT directly — use db.sql with safe params.
 	# Build WHERE from filters via frappe.get_all + names, then reuse.
-	names = frappe.get_all(doctype, filters=filters, pluck="name", limit_page_length=0)
+	# Limit to 10 000 to avoid loading the full table into memory.
+	names = frappe.get_all(doctype, filters=filters, pluck="name", limit_page_length=10000)
 	if not names:
 		return {"points": [], "bucket": bucket}
 
@@ -401,7 +403,8 @@ def _handle_bar_chart(widget, period=None, scope=None):
 		metric_sql = "COUNT(*)"
 
 	limit = cint(widget.get("result_limit") or 10)
-	names = frappe.get_all(doctype, filters=filters, pluck="name", limit_page_length=0)
+	# Limit to 10 000 to avoid loading the full table into memory.
+	names = frappe.get_all(doctype, filters=filters, pluck="name", limit_page_length=10000)
 	if not names:
 		return {"rows": []}
 
@@ -470,7 +473,8 @@ def _handle_status_breakdown(widget, period=None, scope=None):
 	filters, _from, _to = _apply_period_filter(filters, widget, period)
 	filters = _apply_scope_filter(filters, widget, scope)
 
-	names = frappe.get_all(doctype, filters=filters, pluck="name", limit_page_length=0)
+	# Limit to 10 000 to avoid loading the full table into memory.
+	names = frappe.get_all(doctype, filters=filters, pluck="name", limit_page_length=10000)
 	if not names:
 		return {"rows": []}
 
@@ -531,10 +535,12 @@ def _handle_quick_links(widget, period=None, scope=None):
 						_validate_field(doctype, scope_field)
 						flt_arr.append([scope_field, "=", resolved_scope])
 					except Exception:
+						frappe.log_error(frappe.get_traceback(), "dashboard_engine.quick_links_scope_field")
 						pass
 				try:
 					count = _agg_count(doctype, flt_arr)
 				except Exception:
+					frappe.log_error(frappe.get_traceback(), "dashboard_engine.quick_links_count")
 					count = None
 		out.append(
 			{
@@ -668,6 +674,7 @@ def _should_mask(sensitivity: str) -> bool:
 
 		return not has_seller_capability(cap, frappe.session.user)
 	except Exception:
+		frappe.log_error(frappe.get_traceback(), "dashboard_engine.should_mask")
 		return False
 
 
@@ -694,6 +701,7 @@ def _log_masking_decision(widget_name: str, widget_title: str, sensitivity: str)
 			context={"widget_title": widget_title, "sensitivity": sensitivity},
 		)
 	except Exception:
+		frappe.log_error(frappe.get_traceback(), "dashboard_engine.log_masking_decision")
 		pass  # best-effort — audit failure ana akışı bozmasın
 
 

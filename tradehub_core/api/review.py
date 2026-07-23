@@ -161,6 +161,7 @@ def recompute_listing_rating(listing_name: str | None, exclude_review_name: str 
 
 		invalidate_listing_cache()
 	except Exception:
+		frappe.log_error("Listing cache invalidation failed after rating recompute", "review")
 		# Cache invalidation kritik değil; ana yazma yine de geçerli kalır
 		pass
 
@@ -713,6 +714,7 @@ def admin_delete_listing_review(name: str):
 	try:
 		recompute_listing_rating(listing_name)
 	except Exception:
+		frappe.log_error("Listing rating recompute failed after admin delete", "review")
 		pass
 
 	frappe.db.commit()

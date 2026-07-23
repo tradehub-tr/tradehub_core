@@ -129,7 +129,7 @@ def execute() -> dict:
 		lines.append(f"{env}_USER={email}")
 		lines.append(f"{env}_PASS={TEST_PASSWORD}")
 	env_block = "\n".join(lines)
-	print(env_block)  # noqa: T201 — bench execute çıktısına yazdırılır
+	frappe.logger("seed_security").info(env_block)
 
 	return {
 		"created": created,
@@ -172,5 +172,5 @@ def discover_refs() -> dict:
 	for k, v in refs.items():
 		lines.append(f"{k}={v or ''}")
 	block = "\n".join(lines)
-	print(block)  # noqa: T201
+	frappe.logger("seed_security").info(block)
 	return {"refs": refs, "env_block": block}
