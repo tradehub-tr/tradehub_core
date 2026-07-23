@@ -1,3 +1,17 @@
+## [v1.10.1-alpha.2] - 2026-07-23 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(seo): parçalı sitemap, ortam-farkında robots ve noindex guard (@ahmeetseker)
+  - Sitemap: 5 doctype + index; rebuild LONG queue'ya enqueue, milyon-kayıt ölçeği için parçalı disk cache (BE-MAP)
+  - robots_generator: site adı → ortam eşlemesi (restore-proof); prod'da izinli + Disallow seti, diğer ortamlarda block-all
+  - noindex_guard: after_request hook'u ile staging/backend yanıtlarına X-Robots-Tag noindex (seo_noindex_guard bayrağı, default kapalı)
+  - www/robots.txt endpoint'i
+  - 5 idempotent patch: static pages cleanup, sitemap initial build, legal noindex, static meta defaults, üyelik sayfası kaldırma
+  - Generator/robots/registry/meta_builder testleri genişletildi
+
+---
 ## [v1.10.1-alpha.1] - 2026-07-22 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
