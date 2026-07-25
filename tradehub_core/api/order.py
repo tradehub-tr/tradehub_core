@@ -68,7 +68,41 @@ def _batch_fetch_seller_names(orders: list) -> dict:
 		filters={"name": ["in", list(seller_ids)]},
 		fields=["name", "seller_name"],
 	)
-	return {r.name: r.seller_name for r in rows}
+	return {r.get("name"): r.get("seller_name") for r in rows}
+
+
+def _batch_fetch_order_items(order_names: list) -> dict:
+	"""Fetch all candidate order items once so search happens before pagination."""
+	if not order_names:
+		return {}
+	rows = frappe.get_all(
+		"Order Item",
+		filters={"parent": ["in", order_names]},
+		fields=[
+			"parent",
+			"listing_title as product_name",
+			"variation",
+			"unit_price",
+			"quantity",
+			"total_price",
+			"image",
+			"idx",
+		],
+		order_by="parent asc, idx asc",
+	)
+	items_by_order = {name: [] for name in order_names}
+	for row in rows:
+		items_by_order.setdefault(row.get("parent"), []).append(
+			{
+				"product_name": row.get("product_name"),
+				"variation": row.get("variation"),
+				"unit_price": row.get("unit_price"),
+				"quantity": row.get("quantity"),
+				"total_price": row.get("total_price"),
+				"image": row.get("image"),
+			}
+		)
+	return items_by_order
 
 
 def _translate_order(order, seller_names_cache=None):
@@ -142,11 +176,12 @@ def get_my_orders(
 		if own_sellers:
 			filters["seller"] = ["not in", own_sellers]
 
+	selected_statuses = None
 	if status and status != "all":
 		tr_statuses = FILTER_STATUS_MAP.get(status)
 		if not tr_statuses:
 			frappe.throw(_("Geçersiz status: {0}").format(status))
-		filters["status"] = ["in", tr_statuses]
+		selected_statuses = set(tr_statuses)
 
 	if date_from and date_to:
 		filters["order_date"] = ["between", [getdate(date_from), getdate(date_to)]]
@@ -155,11 +190,9 @@ def get_my_orders(
 	elif date_to:
 		filters["order_date"] = ["<=", getdate(date_to)]
 
-	total = frappe.db.count("Order", filters=filters)
-
-	# ignore_permissions: buyer filtresi zaten uygulanmış — kullanıcı sadece kendi
-	# siparişlerini görür. permission_query_conditions aynı filtreyi tekrar uygular,
-	# burada bypass performans için yapılıyor.
+	# Search can include seller and child item title, so collect the already
+	# buyer/date-scoped candidate set first. Pagination is deliberately applied
+	# only after every server-side filter below.
 	orders = frappe.get_list(
 		"Order",
 		filters=filters,
@@ -185,45 +218,47 @@ def get_my_orders(
 			"tracking_number",
 			"carrier",
 		],
-		order_by="order_date desc",
-		start=(page - 1) * page_size,
-		page_length=page_size,
+		order_by="order_date desc, name desc",
+		start=0,
+		page_length=0,
 		# Defense-in-depth: query_conditions tenant filter'ı uygulasın
 		# (manuel filters yerine permissions.py order_query_conditions devrede).
 	)
 
-	if search:
-		q = search.lower()
-		filtered = []
-		for o in orders:
-			name_match = q in (o.get("name") or "").lower()
-			seller_id = o.get("seller")
-			seller_name = ""
-			if seller_id:
-				seller_name = frappe.db.get_value("Admin Seller Profile", seller_id, "seller_name") or ""
-			seller_match = q in seller_name.lower()
-			if name_match or seller_match:
-				filtered.append(o)
-		orders = filtered
-
-	# Batch fetch seller names — N+1 sorguyu önler
+	# Batch metadata for every candidate; this avoids per-order seller/item reads
+	# while making order number, seller and item-title search deterministic.
 	seller_names_cache = _batch_fetch_seller_names(orders)
+	items_by_order = _batch_fetch_order_items([order.get("name") for order in orders])
+
+	if search:
+		query = str(search).strip().lower()
+		if query:
+			orders = [
+				order
+				for order in orders
+				if query in (order.get("name") or "").lower()
+				or query in (seller_names_cache.get(order.get("seller")) or "").lower()
+				or any(query in (item.get("product_name") or "").lower() for item in items_by_order.get(order.get("name"), []))
+			]
+
+	# Tab counts intentionally reflect all non-status filters (buyer/date/search),
+	# so the UI can show the available counts even when one status tab is selected.
+	status_counts = {}
+	for order in orders:
+		key = STATUS_TR_TO_EN.get(order.get("status", ""), order.get("status", ""))
+		status_counts[key] = status_counts.get(key, 0) + 1
+
+	if selected_statuses:
+		orders = [order for order in orders if order.get("status") in selected_statuses]
+
+	orders.sort(key=lambda order: (str(order.get("order_date") or ""), str(order.get("name") or "")), reverse=True)
+	total = len(orders)
+	start = (page - 1) * page_size
+	orders = orders[start : start + page_size]
 
 	for order in orders:
 		_translate_order(order, seller_names_cache)
-		order["items"] = frappe.get_all(
-			"Order Item",
-			filters={"parent": order["name"]},
-			fields=[
-				"listing_title as product_name",
-				"variation",
-				"unit_price",
-				"quantity",
-				"total_price",
-				"image",
-			],
-			order_by="idx asc",
-		)
+		order["items"] = items_by_order.get(order["name"], [])
 
 	return {
 		"success": True,
@@ -231,6 +266,7 @@ def get_my_orders(
 		"total": total,
 		"page": page,
 		"page_size": page_size,
+		"status_counts": status_counts,
 	}
 
 

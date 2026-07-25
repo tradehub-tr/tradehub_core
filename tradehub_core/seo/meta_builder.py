@@ -174,14 +174,19 @@ def _load_site_defaults() -> dict:
 	import frappe
 
 	ws = frappe.get_single("Website Settings")
-	return {
+	twitter_handle = (ws.get("seo_twitter_handle") or "").lstrip("@")
+	defaults = {
 		"title_pattern": ws.get("seo_meta_title_pattern") or "{title}",
 		"description": ws.get("seo_meta_description") or "",
 		"og_image": ws.get("seo_og_image") or "",
 		"site_name": ws.get("seo_site_name") or "",
-		"twitter_handle": ws.get("seo_twitter_handle") or "",
+		"twitter_handle": f"@{twitter_handle}" if twitter_handle else "",
+		"twitter": f"https://twitter.com/{twitter_handle}" if twitter_handle else None,
 		"robots": ws.get("seo_robots_directive") or "index,follow",
 	}
+	for social in ("facebook", "linkedin", "instagram", "youtube"):
+		defaults[social] = ws.get(f"seo_social_{social}") or None
+	return defaults
 
 
 def _site_url() -> str:
@@ -274,6 +279,20 @@ def build_for_seller(seller: dict, lang: str = "tr") -> dict:
 	)
 
 
+def build_home_json_ld(
+	defaults: dict | None = None,
+	site_url: str | None = None,
+) -> list[dict]:
+	"""Ana sayfa istemcisi ve bot SSR'ı için ortak Organization/WebSite kaynağı."""
+	from tradehub_core.seo.schema_builder import compose_for_home
+
+	if defaults is None:
+		defaults = _load_site_defaults()
+	if site_url is None:
+		site_url = _site_url()
+	return compose_for_home(defaults, site_url)
+
+
 def build_for_static_page(
 	record: dict,
 	page_meta: dict,
@@ -309,9 +328,7 @@ def build_for_static_page(
 	home_path = working_record.get("page_path") or page_meta.get("path") or ""
 	json_ld = None
 	if home_path == "/":
-		from tradehub_core.seo.schema_builder import compose_for_home
-
-		json_ld = compose_for_home(defaults, site_url)
+		json_ld = build_home_json_ld(defaults=defaults, site_url=site_url)
 
 	seo = compose_seo_payload(
 		record=working_record,

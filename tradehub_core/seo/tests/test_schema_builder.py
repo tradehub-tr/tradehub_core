@@ -6,6 +6,8 @@ cd apps/tradehub_core && python -m unittest tradehub_core.seo.tests.test_schema_
 import sys
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
 _APP_ROOT = Path(__file__).resolve().parents[3]
 if str(_APP_ROOT) not in sys.path:
@@ -13,8 +15,10 @@ if str(_APP_ROOT) not in sys.path:
 
 
 from tradehub_core.seo.schema_builder import (  # noqa: E402
+	_get_listing_extra_context,
 	build_breadcrumb_schema,
 	build_faq_schema,
+	build_item_list_schema,
 	build_organization_schema,
 	build_product_schema,
 	build_website_schema,
@@ -156,6 +160,39 @@ class TestProductSchema(unittest.TestCase):
 		)
 		self.assertEqual(schema["offers"]["priceCurrency"], "TRY")
 
+	def test_product_uses_absolute_image_effective_price_currency_and_stock(self):
+		schema = build_product_schema(
+			listing=self._listing(
+				primary_image="/files/x.jpg",
+				selling_price=100.0,
+				discount_percentage=20,
+				currency="USD",
+				status="Out of Stock",
+			),
+			site_url="https://istoc.com",
+			brand=None,
+			category_name=None,
+			aggregate_rating=None,
+			reviews=None,
+		)
+		self.assertEqual(schema["@id"], "https://istoc.com/urun/iphone-15-pro#product")
+		self.assertEqual(schema["image"], ["https://istoc.com/files/x.jpg"])
+		self.assertEqual(schema["offers"]["@id"], "https://istoc.com/urun/iphone-15-pro#offer")
+		self.assertEqual(schema["offers"]["price"], "80.0")
+		self.assertEqual(schema["offers"]["priceCurrency"], "USD")
+		self.assertEqual(schema["offers"]["availability"], "https://schema.org/OutOfStock")
+
+	def test_tracked_zero_available_quantity_is_out_of_stock(self):
+		schema = build_product_schema(
+			listing=self._listing(track_inventory=1, available_qty=0),
+			site_url="https://istoc.com",
+			brand=None,
+			category_name=None,
+			aggregate_rating=None,
+			reviews=None,
+		)
+		self.assertEqual(schema["offers"]["availability"], "https://schema.org/OutOfStock")
+
 
 class TestBreadcrumbSchema(unittest.TestCase):
 	def test_three_items_positions(self):
@@ -198,6 +235,13 @@ class TestBreadcrumbSchema(unittest.TestCase):
 		)
 		self.assertEqual(len(schema["itemListElement"]), 1)
 
+	def test_schema_id_is_exposed_when_provided(self):
+		schema = build_breadcrumb_schema(
+			items=[{"name": "Anasayfa", "url": "https://istoc.com/"}],
+			schema_id="https://istoc.com/#breadcrumb",
+		)
+		self.assertEqual(schema["@id"], "https://istoc.com/#breadcrumb")
+
 
 class TestOrganizationSchema(unittest.TestCase):
 	def test_basic(self):
@@ -211,6 +255,7 @@ class TestOrganizationSchema(unittest.TestCase):
 		self.assertEqual(schema["name"], "İstoç")
 		self.assertEqual(schema["url"], "https://istoc.com")
 		self.assertEqual(schema["logo"], "https://istoc.com/logo.png")
+		self.assertEqual(schema["@id"], "https://istoc.com/#organization")
 
 	def test_same_as_array(self):
 		schema = build_organization_schema(
@@ -230,6 +275,16 @@ class TestOrganizationSchema(unittest.TestCase):
 		)
 		self.assertNotIn("logo", schema)
 
+	def test_relative_logo_is_absolute(self):
+		schema = build_organization_schema(
+			site_name="X",
+			site_url="https://istoc.com/marka/x",
+			logo_url="/files/x.png",
+			same_as=None,
+		)
+		self.assertEqual(schema["logo"], "https://istoc.com/files/x.png")
+		self.assertEqual(schema["@id"], "https://istoc.com/marka/x#organization")
+
 
 class TestWebSiteSchema(unittest.TestCase):
 	def test_search_action_target(self):
@@ -238,6 +293,7 @@ class TestWebSiteSchema(unittest.TestCase):
 			search_url_template="https://istoc.com/?q={search_term_string}",
 		)
 		self.assertEqual(schema["@type"], "WebSite")
+		self.assertEqual(schema["@id"], "https://istoc.com/#website")
 		self.assertEqual(
 			schema["potentialAction"]["target"],
 			"https://istoc.com/?q={search_term_string}",
@@ -279,6 +335,25 @@ class TestFaqSchema(unittest.TestCase):
 		)
 		self.assertNotIn("<script>", schema["mainEntity"][0]["name"])
 		self.assertIn("&lt;script&gt;", schema["mainEntity"][0]["name"])
+
+
+class TestItemListSchema(unittest.TestCase):
+	def test_current_page_items_have_absolute_urls_and_positions(self):
+		schema = build_item_list_schema(
+			items=[
+				{"name": "Ürün A", "href": "/urun/urun-a", "imageSrc": "/files/a.jpg"},
+				{"name": "Ürün B", "slug": "urun-b"},
+			],
+			canonical_url="https://istoc.com/urunler",
+			site_url="https://istoc.com",
+		)
+		self.assertEqual(schema["@type"], "ItemList")
+		self.assertEqual(schema["@id"], "https://istoc.com/urunler#itemlist")
+		self.assertEqual(len(schema["itemListElement"]), 2)
+		first = schema["itemListElement"][0]
+		self.assertEqual(first["position"], 1)
+		self.assertEqual(first["item"]["@id"], "https://istoc.com/urun/urun-a#product")
+		self.assertEqual(first["item"]["image"], "https://istoc.com/files/a.jpg")
 
 
 from tradehub_core.seo.schema_builder import (  # noqa: E402
@@ -340,6 +415,38 @@ class TestPureComposeForListing(unittest.TestCase):
 		self.assertEqual(items[0]["name"], "Anasayfa")
 		self.assertEqual(items[1]["name"], "Elektronik")
 		self.assertEqual(items[2]["name"], "iPhone 15 Pro")
+		self.assertEqual(bc["@id"], "https://istoc.com/urun/iphone-15-pro#breadcrumb")
+
+	def test_listing_context_uses_platform_taxonomy_slug(self):
+		class FakeDb:
+			@staticmethod
+			def get_value(doctype, name, fields, as_dict=False):
+				if doctype == "Listing":
+					return {
+						"brand": None,
+						"product_category": "PC-001",
+						"product_category_name": "Elektronik",
+						"average_rating": 0,
+						"review_count": 0,
+					}
+				if doctype == "Product Category":
+					return {"category_name": "Elektronik", "url_slug": "elektronik"}
+				return None
+
+		fake_frappe = SimpleNamespace(
+			db=FakeDb(),
+			get_all=lambda *args, **kwargs: [],
+			log_error=lambda *args, **kwargs: None,
+		)
+		fake_site_url = SimpleNamespace(storefront_url=lambda: SITE_URL)
+		with (
+			patch.dict(sys.modules, {"frappe": fake_frappe}),
+			patch.dict(sys.modules, {"tradehub_core.seo.site_url": fake_site_url}),
+		):
+			ctx = _get_listing_extra_context("LST-001")
+
+		self.assertEqual(ctx["category_name"], "Elektronik")
+		self.assertEqual(ctx["category_url"], "https://istoc.com/kategori/elektronik")
 
 
 class TestPureComposeForCategory(unittest.TestCase):
@@ -382,6 +489,15 @@ class TestPureComposeForSeller(unittest.TestCase):
 		)
 		types = [s["@type"] for s in schemas]
 		self.assertEqual(types, ["Organization", "BreadcrumbList"])
+
+	def test_seller_breadcrumb_points_to_existing_producer_directory(self):
+		schemas = _pure_compose_for_seller(
+			seller={"seller_name": "ABC Firma", "slug": "abc-firma"},
+			defaults=DEFAULTS,
+			site_url=SITE_URL,
+		)
+		breadcrumb = schemas[1]
+		self.assertEqual(breadcrumb["itemListElement"][1]["item"], "https://istoc.com/ureticiler")
 
 
 if __name__ == "__main__":

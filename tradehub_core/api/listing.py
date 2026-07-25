@@ -10,6 +10,7 @@ from tradehub_core.api._pagination import normalize_pagination
 from tradehub_core.seo.i18n import (
 	CONTENT_LANGS,
 	format_discount_badge,
+	localize_url,
 	normalize_lang,
 	resolve_content_field,
 	translate_platform_term,
@@ -421,6 +422,7 @@ def get_listings(
 		filters = {"storefront_visible": 1}
 
 	category_display_name = None
+	cat_row = None
 	if category:
 		# category param is a url_slug from Product Category.
 		# Try to resolve it as a platform category first (url_slug lookup),
@@ -902,6 +904,27 @@ def get_listings(
 		"has_next": (start + page_size) < total,
 		"has_prev": page > 1,
 		"category_name": category_display_name,
+	}
+
+	# API sonucuyla aynı anda üretilir: yalnız bu sayfada gerçekten görünür
+	# kartlar ItemList'e girer. Pretty kategori route'u varsa onu, aksi halde
+	# /urunler'i kullanır; sonraki sayfalar ayrı liste kimliği taşır.
+	from tradehub_core.seo.schema_builder import build_item_list_schema
+	from tradehub_core.seo.site_url import storefront_url
+
+	site_url = storefront_url().rstrip("/")
+	canonical_path = f"/kategori/{category}" if cat_row else "/urunler"
+	canonical_url = f"{site_url}{localize_url(canonical_path, lang)}"
+	if page > 1:
+		canonical_url = f"{canonical_url}?page={page}"
+	result["seo"] = {
+		"json_ld": [
+			build_item_list_schema(
+				items=results,
+				canonical_url=canonical_url,
+				site_url=site_url,
+			)
+		]
 	}
 
 	# ── Cache write ──

@@ -165,6 +165,16 @@ def _empty_manufacturer_facets() -> dict:
 	}
 
 
+def _is_founded_year_at_most(value, cutoff: int) -> bool:
+	"""Frappe'nin string döndürebildiği kuruluş yılını facet sayımı için güvenle karşılaştırır."""
+	if value in (None, ""):
+		return False
+	try:
+		return int(value) <= cutoff
+	except (TypeError, ValueError):
+		return False
+
+
 def _resolve_category_display_name(category: str) -> str:
 	"""Product Category url_slug'ından görünen adı çözer (manufacturers başlığı için).
 
@@ -244,7 +254,7 @@ def get_manufacturer_facets(
 	foundedYears = []
 	for th in (5, 10, 15):
 		cutoff = current_year - th
-		cnt = sum(1 for m in matched if m.get("founded_year") and m.founded_year <= cutoff)
+		cnt = sum(1 for m in matched if _is_founded_year_at_most(m.get("founded_year"), cutoff))
 		if cnt:
 			foundedYears.append({"value": str(th), "label": f"{th}+", "count": cnt})
 
@@ -1436,14 +1446,62 @@ def _get_seller_profile_for_session():
 	return _get_seller_profile_for_user(frappe.session.user)
 
 
+def _safe_page_int(value, *, default: int, minimum: int, maximum: int) -> int:
+	"""Guest query değerlerini kontrollü bir pozitif tam sayıya indirger."""
+	try:
+		parsed = int(value)
+	except (TypeError, ValueError):
+		return default
+	return min(maximum, max(minimum, parsed))
+
+
+def _seller_products_order_by(sort_by=None, sort_dir=None, sort=None) -> str:
+	"""Public seller-store ürünleri için yalnız izinli ve deterministik sıralama.
+
+	`sort` mevcut storefront UI adlarını destekler; `sort_by` + `sort_dir` yeni,
+	açık API sözleşmesidir. Kolon isimleri kullanıcı girdisinden asla kurulmaz.
+	"""
+	aliases = {
+		"default": ("creation", "desc"),
+		"newest": ("creation", "desc"),
+		"price_asc": ("selling_price", "asc"),
+		"price_desc": ("selling_price", "desc"),
+		"best_selling": ("order_count", "desc"),
+	}
+	if sort in aliases:
+		sort_by, sort_dir = aliases[sort]
+
+	columns = {"creation", "selling_price", "order_count"}
+	direction = str(sort_dir or "").lower()
+	if sort_by not in columns:
+		sort_by, direction = "creation", "desc"
+	elif direction not in {"asc", "desc"}:
+		direction = "desc"
+
+	return f"{sort_by} {direction}, name {direction}"
+
+
 @frappe.whitelist(allow_guest=True)
-def get_seller_products(seller_code, category=None, page=1, page_size=40):
+def get_seller_products(
+	seller_code,
+	category=None,
+	page=1,
+	page_size=40,
+	category_type="seller",
+	sort_by=None,
+	sort_dir=None,
+	sort=None,
+):
 	# seller_code = Admin Seller Profile name
 	if not frappe.db.exists("Admin Seller Profile", seller_code):
 		return {"products": [], "total": 0}
 	filters = {"seller_profile": seller_code, "status": "Active"}
 	if category:
-		filters["category"] = category
+		# Eski istemciler category_type göndermediği için seller-category davranışı
+		# varsayılan kalır. Platform kategorisi ancak açık tip ile filtrelenir.
+		filters["product_category" if category_type == "platform" else "category"] = category
+	page_number = _safe_page_int(page, default=1, minimum=1, maximum=100_000)
+	page_limit = _safe_page_int(page_size, default=40, minimum=1, maximum=100)
 	listings = frappe.get_all(
 		"Listing",
 		filters=filters,
@@ -1466,9 +1524,9 @@ def get_seller_products(seller_code, category=None, page=1, page_size=40):
 			"order_count",
 			"creation",
 		],
-		limit_start=(int(page) - 1) * int(page_size),
-		limit_page_length=int(page_size),
-		order_by="creation desc",
+		limit_start=(page_number - 1) * page_limit,
+		limit_page_length=page_limit,
+		order_by=_seller_products_order_by(sort_by=sort_by, sort_dir=sort_dir, sort=sort),
 	)
 	for l in listings:
 		l["id"] = l.get("name", "")
