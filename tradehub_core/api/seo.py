@@ -18,6 +18,40 @@ MAX_REVIEWS_IN_SCHEMA = 10  # Google önerisi: en güncel 10
 
 
 @frappe.whitelist(allow_guest=True)
+def get_public_page_seo(page_type: str, slug: str | None = None, lang: str = "tr") -> dict:
+	"""Client storefront için allowlist'li backend SEO/JSON-LD payload'u.
+
+	Product/brand/seller kendi detay API'lerinden `seo` alır. Burada yalnız
+	ayrı bir detay payload'u olmayan ana sayfa ve kategori pretty route'u
+	açılır; keyfi doctype veya document erişimine izin verilmez.
+	"""
+	from tradehub_core.seo.i18n import normalize_lang
+	from tradehub_core.seo.meta_builder import build_for_category, build_home_json_ld
+
+	lang = normalize_lang(lang)
+	page_type = (page_type or "").strip().lower()
+
+	if page_type == "home":
+		return {"json_ld": build_home_json_ld(), "lang": lang}
+
+	if page_type == "category":
+		slug = (slug or "").strip()
+		if not slug:
+			frappe.throw(_("Kategori slug zorunludur"), frappe.ValidationError)
+		category_name = frappe.db.get_value(
+			"Product Category",
+			{"url_slug": slug, "is_active": 1},
+			"name",
+		)
+		if not category_name:
+			frappe.throw(_("Kategori bulunamadı"), frappe.DoesNotExistError)
+		category = frappe.get_doc("Product Category", category_name).as_dict()
+		return build_for_category(category, lang=lang)
+
+	frappe.throw(_("Geçersiz SEO sayfa türü"), frappe.ValidationError)
+
+
+@frappe.whitelist(allow_guest=True)
 def get_review_schema_jsonld(listing: str) -> dict:
 	"""Belirli bir Listing için schema.org Product + AggregateRating + Review JSON-LD."""
 	if not listing or not frappe.db.exists("Listing", listing):

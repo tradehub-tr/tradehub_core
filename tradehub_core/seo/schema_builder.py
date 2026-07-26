@@ -6,8 +6,48 @@ Pure fonksiyonlar Frappe runtime'a bağımlı değildir. Composer'lar
 """
 
 import html
+from urllib.parse import urljoin, urlsplit
 
 SCHEMA_CONTEXT = "https://schema.org"
+
+
+def _absolute_url(value: str | None, site_url: str) -> str:
+	"""Relative storefront asset/page URL'lerini mutlak URL'ye çevir."""
+	if not value:
+		return ""
+	if str(value).startswith(("http://", "https://")):
+		return str(value)
+	parts = urlsplit(site_url)
+	origin = f"{parts.scheme}://{parts.netloc}/"
+	return urljoin(origin, str(value).lstrip("/"))
+
+
+def _effective_listing_price(listing: dict) -> float | str:
+	"""Kart/detay görünümündeki satış fiyatını şemaya yansıt."""
+	price = listing.get("selling_price")
+	if price in (None, ""):
+		price = listing.get("base_price", 0)
+	try:
+		numeric_price = float(price or 0)
+		discount = float(listing.get("discount_percentage") or 0)
+		if discount > 0:
+			numeric_price *= 1 - discount / 100
+		return round(numeric_price, 2)
+	except (TypeError, ValueError):
+		return price or 0
+	return price or 0
+
+
+def _listing_availability(listing: dict) -> str:
+	status = str(listing.get("status") or "")
+	is_out_of_stock = status == "Out of Stock"
+	if listing.get("track_inventory"):
+		try:
+			is_out_of_stock = is_out_of_stock or float(listing.get("available_qty") or 0) <= 0
+		except (TypeError, ValueError):
+			pass
+	state = "OutOfStock" if is_out_of_stock else "InStock"
+	return f"{SCHEMA_CONTEXT}/{state}"
 
 
 def build_product_schema(
@@ -26,11 +66,12 @@ def build_product_schema(
 	url = f"{site_url.rstrip('/')}/urun/{slug}"
 
 	primary_image = listing.get("primary_image")
-	images = [primary_image] if primary_image else []
+	images = [_absolute_url(primary_image, site_url)] if primary_image else []
 
 	schema = {
 		"@context": SCHEMA_CONTEXT,
 		"@type": "Product",
+		"@id": f"{url}#product",
 		"name": listing.get("title", ""),
 		"image": images,
 		"description": listing.get("description", "") or "",
@@ -38,10 +79,11 @@ def build_product_schema(
 		"inLanguage": lang,
 		"offers": {
 			"@type": "Offer",
+			"@id": f"{url}#offer",
 			"url": url,
-			"priceCurrency": currency,
-			"price": str(listing.get("base_price", "0")),
-			"availability": f"{SCHEMA_CONTEXT}/InStock",
+			"priceCurrency": listing.get("currency") or currency,
+			"price": str(_effective_listing_price(listing)),
+			"availability": _listing_availability(listing),
 		},
 	}
 
@@ -69,9 +111,9 @@ def build_product_schema(
 	return schema
 
 
-def build_breadcrumb_schema(*, items: list[dict]) -> dict:
+def build_breadcrumb_schema(*, items: list[dict], schema_id: str | None = None) -> dict:
 	"""BreadcrumbList schema üret. items: [{"name", "url"}, ...]"""
-	return {
+	schema = {
 		"@context": SCHEMA_CONTEXT,
 		"@type": "BreadcrumbList",
 		"itemListElement": [
@@ -84,6 +126,9 @@ def build_breadcrumb_schema(*, items: list[dict]) -> dict:
 			for idx, item in enumerate(items)
 		],
 	}
+	if schema_id:
+		schema["@id"] = schema_id
+	return schema
 
 
 def build_organization_schema(
@@ -94,14 +139,18 @@ def build_organization_schema(
 	same_as: list[str] | None,
 ) -> dict:
 	"""Organization schema üret."""
+	normalized_url = site_url.rstrip("/")
+	path = urlsplit(normalized_url).path.rstrip("/")
+	schema_id = f"{normalized_url}/#organization" if not path else f"{normalized_url}#organization"
 	schema = {
 		"@context": SCHEMA_CONTEXT,
 		"@type": "Organization",
+		"@id": schema_id,
 		"name": site_name,
-		"url": site_url.rstrip("/"),
+		"url": normalized_url,
 	}
 	if logo_url:
-		schema["logo"] = logo_url
+		schema["logo"] = _absolute_url(logo_url, site_url)
 	if same_as:
 		schema["sameAs"] = list(same_as)
 	return schema
@@ -114,12 +163,46 @@ def build_website_schema(*, site_url: str, search_url_template: str | None = Non
 	return {
 		"@context": SCHEMA_CONTEXT,
 		"@type": "WebSite",
+		"@id": f"{site_url}/#website",
 		"url": site_url,
 		"potentialAction": {
 			"@type": "SearchAction",
 			"target": template,
 			"query-input": "required name=search_term_string",
 		},
+	}
+
+
+def build_item_list_schema(*, items: list[dict], canonical_url: str, site_url: str) -> dict:
+	"""Yalnızca API'nin döndürdüğü görünür sayfa ürünlerinden ItemList üret."""
+	canonical_url = canonical_url.rstrip("/")
+	elements = []
+	for position, item in enumerate(items, start=1):
+		href = item.get("href") or f"/urun/{item.get('slug', '')}"
+		product_url = _absolute_url(href, site_url).rstrip("/")
+		product = {
+			"@type": "Product",
+			"@id": f"{product_url}#product",
+			"name": item.get("name") or item.get("title") or "",
+			"url": product_url,
+		}
+		image = item.get("imageSrc") or item.get("primary_image")
+		if image:
+			product["image"] = _absolute_url(image, site_url)
+		elements.append(
+			{
+				"@type": "ListItem",
+				"position": position,
+				"item": product,
+			}
+		)
+	return {
+		"@context": SCHEMA_CONTEXT,
+		"@type": "ItemList",
+		"@id": f"{canonical_url}#itemlist",
+		"url": canonical_url,
+		"numberOfItems": len(elements),
+		"itemListElement": elements,
 	}
 
 
@@ -187,7 +270,8 @@ def _pure_compose_for_listing(*, ctx: dict, defaults: dict, site_url: str) -> li
 			"url": f"{site_url.rstrip('/')}/urun/{listing.get('slug', '')}",
 		}
 	)
-	schemas.append(build_breadcrumb_schema(items=items))
+	listing_url = f"{site_url.rstrip('/')}/urun/{listing.get('slug', '')}"
+	schemas.append(build_breadcrumb_schema(items=items, schema_id=f"{listing_url}#breadcrumb"))
 
 	# 3. Organization
 	schemas.append(
@@ -216,7 +300,10 @@ def _pure_compose_for_category(*, category: dict, defaults: dict, site_url: str)
 		{"name": category.get("category_name", ""), "url": f"{site_url.rstrip('/')}/kategori/{slug}"},
 	]
 	return [
-		build_breadcrumb_schema(items=items),
+		build_breadcrumb_schema(
+			items=items,
+			schema_id=f"{site_url.rstrip('/')}/kategori/{slug}#breadcrumb",
+		),
 		build_organization_schema(
 			site_name=defaults.get("site_name", ""),
 			site_url=site_url,
@@ -244,7 +331,7 @@ def _pure_compose_for_brand(*, brand: dict, defaults: dict, site_url: str) -> li
 		{"name": "Anasayfa", "url": f"{site_url.rstrip('/')}/"},
 		{"name": brand.get("brand_name", ""), "url": brand_url},
 	]
-	breadcrumb = build_breadcrumb_schema(items=items)
+	breadcrumb = build_breadcrumb_schema(items=items, schema_id=f"{brand_url}#breadcrumb")
 
 	return [org, breadcrumb]
 
@@ -263,10 +350,10 @@ def _pure_compose_for_seller(*, seller: dict, defaults: dict, site_url: str) -> 
 
 	items = [
 		{"name": "Anasayfa", "url": f"{site_url.rstrip('/')}/"},
-		{"name": "Mağazalar", "url": f"{site_url.rstrip('/')}/magazalar"},
+		{"name": "Üreticiler", "url": f"{site_url.rstrip('/')}/ureticiler"},
 		{"name": seller.get("seller_name", ""), "url": seller_url},
 	]
-	breadcrumb = build_breadcrumb_schema(items=items)
+	breadcrumb = build_breadcrumb_schema(items=items, schema_id=f"{seller_url}#breadcrumb")
 
 	return [org, breadcrumb]
 
@@ -312,7 +399,14 @@ def _get_listing_extra_context(listing_name: str) -> dict:
 	listing = frappe.db.get_value(
 		"Listing",
 		listing_name,
-		["brand", "brand_name", "category", "category_name", "average_rating", "review_count"],
+		[
+			"brand",
+			"brand_name",
+			"product_category",
+			"product_category_name",
+			"average_rating",
+			"review_count",
+		],
 		as_dict=True,
 	)
 	if not listing:
@@ -327,12 +421,23 @@ def _get_listing_extra_context(listing_name: str) -> dict:
 		}
 
 	# Category
-	if listing.get("category_name"):
+	if listing.get("product_category"):
 		from tradehub_core.seo.site_url import storefront_url
 
-		ctx["category_name"] = listing["category_name"]
+		category = frappe.db.get_value(
+			"Product Category",
+			listing["product_category"],
+			["category_name", "url_slug"],
+			as_dict=True,
+		)
+		category = category or {}
+		ctx["category_name"] = (
+			listing.get("product_category_name") or category.get("category_name") or ""
+		)
 		site_url = storefront_url()
-		ctx["category_url"] = f"{site_url}/kategori/{listing.get('category', '')}"
+		category_slug = category.get("url_slug")
+		if category_slug:
+			ctx["category_url"] = f"{site_url}/kategori/{category_slug}"
 
 	# AggregateRating
 	if listing.get("review_count"):
@@ -385,8 +490,10 @@ def compose_for_home(defaults: dict, site_url: str) -> list[dict]:
 	Organization: marka bilgi paneli sinyali (sameAs sosyal profiller).
 	WebSite: sitelinks searchbox (SearchAction → /urunler?q=).
 	"""
-	merged = dict(_frappe_defaults())
-	merged.update({k: v for k, v in (defaults or {}).items() if v})
+	# Caller (meta_builder) Website Settings defaults'ını tek kez yükleyip verir.
+	# Böylece aynı üretici hem bot SSR'da hem public client payload'ında kullanılır
+	# ve pure testlerde Frappe runtime gerektirmez.
+	merged = {k: v for k, v in (defaults or {}).items() if v}
 	site_url = site_url.rstrip("/")
 	org = build_organization_schema(
 		site_name=merged.get("site_name") or "istoc",

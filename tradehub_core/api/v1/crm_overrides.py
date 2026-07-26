@@ -16,6 +16,7 @@ method'lar üst düzey alanları + child table'ları doğru şekilde senkronlar.
 
 import frappe
 
+from tradehub_core.api._pagination import normalize_offset
 from tradehub_core.permissions import (
 	_CRM_FULL_ACCESS_ROLES,
 )
@@ -75,6 +76,152 @@ _CRM_COUNTABLE_DOCTYPES = frozenset(
 		"Contact",
 	}
 )
+
+# Kanban kartları için bilinçli dar alan setleri. Özellikle Lead e-posta/telefonu
+# burada taşınmaz; kartın detay görünümü mevcut izinli detail endpoint'inden alınır.
+_CRM_KANBAN_CONFIG = {
+	"CRM Lead": {
+		"fields": (
+			"name",
+			"lead_name",
+			"first_name",
+			"last_name",
+			"organization",
+			"status",
+			"lead_owner",
+			"modified",
+			"creation",
+		),
+		"status_field": "status",
+	},
+	"CRM Deal": {
+		"fields": (
+			"name",
+			"organization",
+			"deal_owner",
+			"status",
+			"currency",
+			"deal_value",
+			"expected_deal_value",
+			"modified",
+			"creation",
+		),
+		"status_field": "status",
+	},
+	"CRM Task": {
+		"fields": (
+			"name",
+			"title",
+			"status",
+			"priority",
+			"due_date",
+			"assigned_to",
+			"reference_doctype",
+			"reference_docname",
+			"modified",
+			"creation",
+		),
+		"status_field": "status",
+	},
+}
+
+_CRM_KANBAN_ORDER_BY = {
+	"modified desc": ("modified desc, name desc", "modified"),
+	"modified asc": ("modified asc, name asc", "modified"),
+	"creation desc": ("creation desc, name desc", "creation"),
+	"creation asc": ("creation asc, name asc", "creation"),
+}
+
+
+def _parse_kanban_filters(filters):
+	"""Whitelisted transport'tan gelen filtreleri güvenli bir listeye çevir."""
+	if isinstance(filters, str):
+		import json
+
+		try:
+			filters = json.loads(filters)
+		except (TypeError, ValueError):
+			filters = []
+	return list(filters) if isinstance(filters, (list, tuple)) else []
+
+
+@frappe.whitelist()
+def crm_get_kanban_page(
+	doctype: str,
+	status=None,
+	filters=None,
+	limit_page_length=50,
+	limit_start=0,
+	order_by: str = "modified desc",
+) -> dict:
+	"""CRM Kanban için izinli, status-bazlı ve sayfalı kart okuması.
+
+	`frappe.get_list` kasıtlı olarak kullanılır: tenant permission query
+	conditions burada uygulanır. İstemci sıralama SQL'i gönderemez; izinli dört
+	stabil sıralamadan biri seçilir ve `name` deterministik tie-breaker olur.
+
+	Bu endpoint kart yüklemek içindir. `order_token`, aktif okuma sırasının
+	anchor'ıdır; kalıcı drag-reorder değildir. Bunun için önce ayrı bir kanonik
+	rank alanı ve transaction'lı yazma endpoint'i gerekir.
+	"""
+	config = _CRM_KANBAN_CONFIG.get(doctype)
+	if not config:
+		frappe.throw(frappe._("Bu doctype için Kanban desteklenmez"))
+
+	start, length = normalize_offset(
+		limit_start, limit_page_length, default_length=50, max_length=100
+	)
+	stable_order_by, token_field = _CRM_KANBAN_ORDER_BY.get(
+		str(order_by or "").strip().lower(), _CRM_KANBAN_ORDER_BY["modified desc"]
+	)
+	query_filters = _parse_kanban_filters(filters)
+	status_field = config["status_field"]
+	if status not in (None, ""):
+		# Status filtresi endpoint sahipliğindedir; istemci filtreleri ile
+		# çelişse bile kolona ait sonuç seti değişmez.
+		query_filters = [
+			item
+			for item in query_filters
+			if not (isinstance(item, (list, tuple)) and item and item[0] == status_field)
+		]
+		query_filters.append([status_field, "=", status])
+
+	# db.count permission_query_conditions'i garanti etmez. get_list hem count
+	# hem kart sorgusunda aynı hook'u çalıştırır.
+	total = len(
+		frappe.get_list(
+			doctype,
+			filters=query_filters,
+			pluck="name",
+			limit_page_length=0,
+		)
+	)
+	items = frappe.get_list(
+		doctype,
+		filters=query_filters,
+		fields=list(config["fields"]),
+		order_by=stable_order_by,
+		start=start,
+		page_length=length,
+	)
+	for item in items:
+		item["order_token"] = f"{item.get(token_field) or ''}|{item['name']}"
+
+	next_offset = start + length if total > start + length else None
+	return {
+		"items": items,
+		"total": total,
+		"has_more": next_offset is not None,
+		"next_offset": next_offset,
+		"status_field": status_field,
+		"order_by": stable_order_by,
+		"drag_contract": {
+			"id_field": "name",
+			"status_field": status_field,
+			"order_token_field": "order_token",
+			"reorder_supported": False,
+		},
+	}
 
 
 @frappe.whitelist()

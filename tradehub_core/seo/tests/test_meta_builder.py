@@ -15,7 +15,7 @@ if str(_APP_ROOT) not in sys.path:
 	sys.path.insert(0, str(_APP_ROOT))
 
 
-from tradehub_core.seo.meta_builder import compose_seo_payload  # noqa: E402
+from tradehub_core.seo.meta_builder import build_home_json_ld, compose_seo_payload  # noqa: E402
 
 DEFAULTS = {
 	"title_pattern": "{title} | İstoç B2B",
@@ -181,6 +181,12 @@ class TestJsonLdAndSiteFields(unittest.TestCase):
 	def test_twitter_handle_from_defaults(self):
 		seo = _payload(_listing())
 		self.assertEqual(seo["twitter_handle"], "@istoctr")
+
+	def test_home_json_ld_uses_backend_defaults(self):
+		schemas = build_home_json_ld(defaults=DEFAULTS, site_url=SITE_URL)
+		self.assertEqual([schema["@type"] for schema in schemas], ["Organization", "WebSite"])
+		self.assertEqual(schemas[0]["name"], "İstoç")
+		self.assertEqual(schemas[1]["url"], SITE_URL)
 
 
 if __name__ == "__main__":

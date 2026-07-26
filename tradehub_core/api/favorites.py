@@ -58,6 +58,79 @@ def _get_item_doc(user, listing):
 	return frappe.get_doc("Buyer Favorite Item", name)
 
 
+def _get_listing_summary(listing_ids):
+	"""Return one current, storefront-safe summary per requested favorite id.
+
+	The map intentionally contains every requested id. A ``None`` value means the
+	listing is missing or no longer storefront-accessible; callers must keep the
+	favorite snapshot instead of attempting a detail request for it.
+	"""
+	ids = list(dict.fromkeys(str(listing_id) for listing_id in listing_ids if listing_id))
+	summary = {listing_id: None for listing_id in ids}
+	if not ids:
+		return summary
+
+	listings = frappe.get_all(
+		"Listing",
+		filters={"name": ["in", ids], "storefront_visible": 1},
+		fields=[
+			"name",
+			"category_name",
+			"product_category_name",
+			"seller_profile",
+			"supplier_display_name",
+			"status",
+			"available_qty",
+			"stock_qty",
+			"selling_price",
+			"discount_percentage",
+			"currency",
+		],
+	)
+	profile_ids = list(dict.fromkeys(row.get("seller_profile") for row in listings if row.get("seller_profile")))
+	profiles = frappe.get_all(
+		"Admin Seller Profile",
+		filters={"name": ["in", profile_ids]},
+		fields=["name", "seller_name", "user", "country"],
+	) if profile_ids else []
+	profiles_by_id = {profile.get("name"): profile for profile in profiles}
+	users = list(dict.fromkeys(profile.get("user") for profile in profiles if profile.get("user")))
+	verified_users = set(
+		frappe.get_all(
+			"Has Role",
+			filters={"parent": ["in", users], "parenttype": "User", "role": "Verified Seller"},
+			pluck="parent",
+		)
+	) if users else set()
+
+	for listing in listings:
+		profile = profiles_by_id.get(listing.get("seller_profile"), {})
+		status = listing.get("status") or ""
+		out_of_stock = status == "Out of Stock"
+		stock_qty = 0 if out_of_stock else (
+			listing.get("available_qty")
+			if listing.get("available_qty") is not None
+			else (listing.get("stock_qty") or 0)
+		)
+		regular_price = float(listing.get("selling_price") or 0)
+		discount = float(listing.get("discount_percentage") or 0)
+		current_price = round(regular_price * (1 - discount / 100), 2) if discount > 0 else regular_price
+		summary[listing.get("name")] = {
+			"category": listing.get("category_name") or listing.get("product_category_name") or "",
+			"supplier": {
+				"name": listing.get("supplier_display_name") or profile.get("seller_name") or "",
+				"verified": bool(profile.get("user") in verified_users),
+				"country": profile.get("country") or "",
+			},
+			"stock_qty": stock_qty,
+			"in_stock": bool(stock_qty > 0),
+			"current_price": current_price,
+			"currency": listing.get("currency") or "",
+		}
+
+	return summary
+
+
 # ──────────────────────────── READ ─────────────────────────────────────────
 
 
@@ -116,7 +189,7 @@ def get_my_favorites():
 		for r in items_raw
 	]
 
-	return {"lists": lists, "items": items}
+	return {"lists": lists, "items": items, "listing_summary": _get_listing_summary([item["id"] for item in items])}
 
 
 # ──────────────────────────── WRITE: items ─────────────────────────────────
