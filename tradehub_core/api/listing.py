@@ -1101,7 +1101,12 @@ def get_listing_detail(listing_id, lang="tr"):
 					"certifications": certifications,
 					"rating": seller.rating or 0,
 					"reviewCount": seller.review_count or 0,
-					"reorderRate": seller.reorder_rate,
+					# Frappe `Percent` alanına kaydederken flt() uygular ve flt(None) == 0.0 —
+					# bir admin Admin Seller Profile'ı açıp kaydettiğinde "veri yok" anlamındaki
+					# NULL sessizce 0.0'a döner. Gerçek %0 ile "veri yok" ayırt edilemediği için
+					# güvenli yön gizlemektir: falsy 0 -> None (frontend hücreyi hiç basmaz).
+					# Böylece 5 alıcı altındaki satıcı yanlışlıkla "%0" reklamı yapmaz.
+					"reorderRate": seller.reorder_rate or None,
 					"verifications": seller_verifs,
 				}
 			except Exception as _e2:
