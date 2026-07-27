@@ -13,6 +13,7 @@ node_modules/
 *.swo
 .DS_Store
 .ruff_cache/
+.worktrees/
 
 # Geçici scratch / debug helper'ları — commit edilmemeli.
 # Tek seferlik audit/data inspection için yazılır, kaynak ağacında kalmaz.

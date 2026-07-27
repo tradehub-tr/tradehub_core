@@ -194,23 +194,24 @@ def _resolve_static_page(path: str, lang: str = "tr") -> dict | None:
 	return find_entry(path)
 
 
-def render_static_page(path: str, lang: str = "tr") -> str:
-	"""GET /<static-path> → HTML response with SEO meta'lar (Faz 4c).
+def _normalize_static_seo_language(lang: str) -> str:
+	"""Public static-page metadata supports Turkish and English only."""
+	return "en" if lang == "en" else "tr"
 
-	Path STATIC_PAGES_REGISTRY'den lookup edilir; varsa HTML template
-	okunup Static Page SEO override'larıyla render edilir; yoksa 404."""
-	import frappe
 
+def _load_static_page_seo(path: str, lang: str = "tr") -> dict | None:
+	"""Kayıtlı statik sayfa için SEO payload'ını yükle."""
+	lang = _normalize_static_seo_language(lang)
 	entry = _resolve_static_page(path, lang=lang)
 	if not entry:
-		return _render_404_response()
+		return None
 
-	# Static Page SEO doctype'tan override çek (varsa)
+	import frappe
+
 	override = {}
 	if frappe.db.exists("Static Page SEO", path):
 		override = frappe.get_doc("Static Page SEO", path).as_dict()
 
-	# Override yoksa güvenli default: noindex=1
 	if not override:
 		override = {
 			"page_path": path,
@@ -219,12 +220,23 @@ def render_static_page(path: str, lang: str = "tr") -> str:
 			"meta_description": "",
 			"noindex": 1,
 		}
+	return meta_builder.build_for_static_page(record=override, page_meta=entry, lang=lang)
 
-	seo = meta_builder.build_for_static_page(
-		record=override,
-		page_meta=entry,
-		lang=lang,
-	)
+
+def get_static_page_meta(path: str, lang: str = "tr") -> dict | None:
+	"""Return public SEO metadata for a registered static storefront path."""
+	return _load_static_page_seo(path, lang=lang)
+
+
+def render_static_page(path: str, lang: str = "tr") -> str:
+	"""GET /<static-path> → HTML response with SEO meta'lar (Faz 4c).
+
+	Path STATIC_PAGES_REGISTRY'den lookup edilir; varsa HTML template
+	okunup Static Page SEO override'larıyla render edilir; yoksa 404."""
+	entry = _resolve_static_page(path, lang=lang)
+	seo = _load_static_page_seo(path, lang=lang)
+	if seo is None:
+		return _render_404_response()
 
 	html = _read_template(entry["html_path"])
 	rendered = seo_html_injector.inject_meta_into_html(html, seo)
@@ -245,6 +257,7 @@ def _register_whitelists():
 	globals()["render_brand"] = frappe.whitelist(allow_guest=True)(render_brand)
 	globals()["render_seller"] = frappe.whitelist(allow_guest=True)(render_seller)
 	globals()["render_static_page"] = frappe.whitelist(allow_guest=True)(render_static_page)
+	globals()["get_static_page_meta"] = frappe.whitelist(allow_guest=True)(get_static_page_meta)
 
 
 try:
