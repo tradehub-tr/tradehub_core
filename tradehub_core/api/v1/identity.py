@@ -806,9 +806,23 @@ def reset_password(key: str, new_password: str):
 			frappe.ValidationError,
 		)
 
-	# Update password and clear reset key
+	# Atomic token invalidation + doğrulama: UPDATE yalnızca key eşleşirse çalışır.
+	# Frappe aynı DB connection'ı kullandığı için cursor.rowcount güvenilirdir
+	# (ROW_COUNT() ayrı sorgusu gibi session-arası sorun yok).
+	result = frappe.db.sql(
+		"UPDATE `tabUser` SET `reset_password_key` = NULL"
+		" WHERE `name` = %s AND `reset_password_key` = %s",
+		(user_data.name, key),
+	)
+	# Frappe v15 db.sql UPDATE sonrası affected row sayısı: frappe.db._cursor.rowcount
+	if not frappe.db._cursor.rowcount:
+		frappe.throw(
+			_("This reset link has already been used or expired."),
+			frappe.AuthenticationError,
+		)
+
+	# Token invalidated — şimdi password'ü güvenle güncelle
 	update_password(user_data.name, new_password, logout_all_sessions=True)
-	frappe.db.set_value("User", user_data.name, "reset_password_key", None)
 
 	# Audit (Faz C — K12) — şifre değişimi kritik güvenlik olayı
 	from tradehub_core.audit import log_decision
@@ -842,7 +856,19 @@ def verify_email(key: str):
 	login_url = f"{storefront_url()}/pages/auth/login"
 
 	cache_key = f"email_verification:{key}"
-	email = frappe.cache.get_value(cache_key)
+
+	# Atomic single-use: Redis GETDEL semantiği — oku VE sil tek adımda.
+	# Frappe'de GETDEL yok; bunun yerine Lua script ile atomic get+delete.
+	redis_client = frappe.cache.get_connection() if hasattr(frappe.cache, "get_connection") else None
+	if redis_client:
+		# Lua script: key varsa değeri döndür ve sil, yoksa nil döndür (atomic)
+		lua = "local v = redis.call('GET', KEYS[1]); if v then redis.call('DEL', KEYS[1]) end; return v"
+		email = redis_client.eval(lua, 1, cache_key)
+	else:
+		# Fallback: standart get+delete (non-atomic ama en iyi effort)
+		email = frappe.cache.get_value(cache_key)
+		if email:
+			frappe.cache.delete_value(cache_key)
 
 	if not email:
 		frappe.local.response["type"] = "redirect"
@@ -873,9 +899,6 @@ def verify_email(key: str):
 		method="otp",
 		actor=email,
 	)
-
-	# Delete verification key (single-use)
-	frappe.cache.delete_value(cache_key)
 
 	frappe.local.response["type"] = "redirect"
 	frappe.local.response["location"] = f"{login_url}?verified=1"
@@ -1591,6 +1614,7 @@ def verify_email_otp(code: str):
 
 
 @frappe.whitelist(methods=["POST"])
+@rate_limit(key="user", limit=5, seconds=300)
 def change_phone(phone: str, password: str):
 	"""Change the phone number for the currently logged-in user.
 
@@ -1653,7 +1677,8 @@ def delete_account(password: str, reason: str = ""):
 
 	Requires the current password for security verification.
 	The user is disabled (not physically deleted) so data can be recovered
-	within a grace period.  PII is anonymized after a 30-day grace window.
+	within a grace period.  PII is anonymized after a 15-day grace window
+	(KVKK Madde 7 zorunluluğu).
 
 	Session cleanup is handled by the frontend (calls /api/method/logout
 	after receiving the success response).
@@ -1705,7 +1730,7 @@ def delete_account(password: str, reason: str = ""):
 
 	# Store deletion timestamp for the daily anonymization scheduler
 	# (anonymize_pending_deletions runs daily and picks up users whose
-	# 30-day grace period has expired)
+	# 15-day grace period has expired — KVKK Madde 7 zorunluluğu).
 	frappe.db.set_value("User", user, "deletion_requested_on", frappe.utils.now_datetime())
 
 	frappe.db.commit()

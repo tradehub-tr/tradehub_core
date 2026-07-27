@@ -249,6 +249,13 @@ def on_admin_seller_profile_update(doc, method=None) -> None:
 	devam eder (stale grant)."""
 	before = doc.get_doc_before_save() if hasattr(doc, "get_doc_before_save") else None
 	if before is None:
+		# Fallback: get_doc_before_save mevcut değil → eski değeri bilemiyoruz.
+		# on_update hook'unda DB zaten yeni değeri tutar; güvenli çözüm:
+		# yeni owner'ın tuple'larını idempotent yaz (OpenFGA "already exists" tolere eder).
+		new_user = doc.get("user")
+		if new_user:
+			store = f"store:{doc.name}"
+			_enqueue_write([(f"user:{new_user}", "owner", store), (f"user:{new_user}", "member", store)])
 		return
 	old_user = before.get("user")
 	new_user = doc.get("user")
@@ -351,6 +358,11 @@ def on_listing_update(doc, method=None) -> None:
 	store_link tuple'ını sil, yeniyi yaz (orphan tuple önle)."""
 	before = doc.get_doc_before_save() if hasattr(doc, "get_doc_before_save") else None
 	if before is None:
+		# Fallback: eski değeri bilemiyoruz → yeni store_link'i idempotent yaz.
+		new_store = doc.get("seller_profile")
+		if new_store:
+			listing = f"listing:{doc.name}"
+			_enqueue_write([(f"store:{new_store}", "store_link", listing)])
 		return
 	old_store = before.get("seller_profile")
 	new_store = doc.get("seller_profile")
@@ -462,6 +474,15 @@ def on_order_update(doc, method=None) -> None:
 	sil, yenilerini yaz (reassignment sonrası orphan/stale link önle)."""
 	before = doc.get_doc_before_save() if hasattr(doc, "get_doc_before_save") else None
 	if before is None:
+		# Fallback: eski değeri bilemiyoruz → yeni tuple'ları idempotent yaz.
+		order = f"order:{doc.name}"
+		fresh: list[tuple[str, str, str]] = []
+		if doc.get("seller"):
+			fresh.append((f"store:{doc.get('seller')}", "store_link", order))
+		if doc.get("buyer"):
+			fresh.extend(_order_buyer_tuples(doc.name, doc.get("buyer")))
+		if fresh:
+			_enqueue_write(fresh)
 		return
 	order = f"order:{doc.name}"
 	stale: list[tuple[str, str, str]] = []

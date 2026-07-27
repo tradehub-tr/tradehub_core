@@ -1,6 +1,6 @@
 """Hesap silme sonrası PII anonimleştirme.
 
-30 günlük bekleme süresinin ardından (veya hemen, admin tarafından tetiklenirse)
+15 günlük bekleme süresinin ardından (veya hemen, admin tarafından tetiklenirse)
 kullanıcıya ait tüm kişisel verileri anonimleştirir.
 
 KVKK Madde 7 uyarınca: kişisel verilerin işlenmesini gerektiren sebeplerin
@@ -8,7 +8,7 @@ ortadan kalkması halinde, kişisel veriler resen veya ilgili kişinin talebi
 üzerine silinir, yok edilir veya anonim hale getirilir.
 
 Scheduler entegrasyonu: `anonymize_pending_deletions` günlük çalışır ve
-`User.deletion_requested_on` alanı 30+ gün öncesine ait, hâlâ deaktif
+`User.deletion_requested_on` alanı 15+ gün öncesine ait, hâlâ deaktif
 kullanıcıları bulup anonimleştirir.
 """
 
@@ -19,13 +19,13 @@ from frappe.utils import add_days, now_datetime
 
 _DELETED_USER_LABEL = "[Silinmiş Kullanıcı]"
 _ANONYMOUS_LABEL = "[Anonim]"
-_GRACE_PERIOD_DAYS = 30
+_GRACE_PERIOD_DAYS = 15  # KVKK Madde 7 — 15 gün içinde anonimleştirme zorunlu
 
 
 def anonymize_pending_deletions() -> None:
 	"""Günlük scheduler tarafından çağrılır.
 
-	deletion_requested_on alanı 30+ gün öncesine ait, hâlâ deaktif
+	deletion_requested_on alanı 15+ gün öncesine ait, hâlâ deaktif
 	kullanıcıları bulup anonimleştirir.
 	"""
 	cutoff = add_days(now_datetime(), -_GRACE_PERIOD_DAYS)
@@ -61,8 +61,10 @@ def anonymize_deleted_account(user: str) -> None:
 		frappe.logger("account_deletion").info(f"User {user} re-enabled, skipping anonymization")
 		return
 
+	_anonymize_user_doc(user)
 	_anonymize_user_profile(user)
 	_anonymize_seller_profile(user)
+	_anonymize_seller_application(user)
 	_anonymize_addresses(user)
 	_anonymize_orders(user)
 	_anonymize_reviews(user)
@@ -84,7 +86,7 @@ def anonymize_deleted_account(user: str) -> None:
 			rule_id="kvkk.article7",
 			layer=LAYER_L3,
 			severity="HIGH",
-			context={"user": user, "reason": "30-day grace period expired after account deletion"},
+			context={"user": user, "reason": "15-day grace period expired after account deletion (KVKK Madde 7)"},
 		)
 	except Exception:
 		frappe.log_error(
@@ -94,6 +96,51 @@ def anonymize_deleted_account(user: str) -> None:
 
 	frappe.db.commit()
 	frappe.logger("account_deletion").info(f"Account anonymized: {user}")
+
+
+def _anonymize_user_doc(user: str) -> None:
+	"""User DocType'ındaki PII alanlarını anonimleştirir.
+
+	Frappe User tablosunda email, phone, full_name doğrudan PII içerir.
+	Email login key olduğu için tamamen silinemez — anonim format kullanılır.
+	"""
+	frappe.db.set_value(
+		"User",
+		user,
+		{
+			"full_name": _DELETED_USER_LABEL,
+			"first_name": _DELETED_USER_LABEL,
+			"last_name": "",
+			"phone": None,
+			"mobile_no": None,
+			"bio": None,
+			"location": None,
+			"user_image": None,
+		},
+		update_modified=False,
+	)
+
+
+def _anonymize_seller_application(user: str) -> None:
+	"""Seller Application iletişim bilgilerini anonimleştirir."""
+	if not frappe.db.exists("DocType", "Seller Application"):
+		return
+	apps = frappe.get_all(
+		"Seller Application",
+		filters={"applicant_user": user},
+		pluck="name",
+	)
+	for app_name in apps:
+		frappe.db.set_value(
+			"Seller Application",
+			app_name,
+			{
+				"contact_email": None,
+				"contact_phone": None,
+				"business_name": _DELETED_USER_LABEL,
+			},
+			update_modified=False,
+		)
 
 
 def _anonymize_user_profile(user: str) -> None:
