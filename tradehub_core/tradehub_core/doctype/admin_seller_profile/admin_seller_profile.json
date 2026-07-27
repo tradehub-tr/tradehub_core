@@ -60,6 +60,7 @@
   "response_time",
   "response_rate",
   "on_time_delivery",
+  "reorder_rate",
   "tab_admin",
   "commission_rate",
   "subscription_plan",
@@ -366,6 +367,13 @@
    "fieldname": "on_time_delivery",
    "fieldtype": "Percent",
    "label": "Zamanında Teslimat",
+   "read_only": 1
+  },
+  {
+   "description": "Son 12 ayda 2+ sipariş veren alıcıların oranı. Günlük scheduler hesaplar; benzersiz alıcı < 5 ise boş kalır.",
+   "fieldname": "reorder_rate",
+   "fieldtype": "Percent",
+   "label": "Tekrar Sipariş Oranı",
    "read_only": 1
   },
   {
