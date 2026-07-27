@@ -194,8 +194,14 @@ def _resolve_static_page(path: str, lang: str = "tr") -> dict | None:
 	return find_entry(path)
 
 
+def _normalize_static_seo_language(lang: str) -> str:
+	"""Public static-page metadata supports Turkish and English only."""
+	return "en" if lang == "en" else "tr"
+
+
 def _load_static_page_seo(path: str, lang: str = "tr") -> dict | None:
 	"""Kayıtlı statik sayfa için SEO payload'ını yükle."""
+	lang = _normalize_static_seo_language(lang)
 	entry = _resolve_static_page(path, lang=lang)
 	if not entry:
 		return None

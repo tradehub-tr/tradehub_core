@@ -149,6 +149,67 @@ class TestLoadStaticPageSeo(unittest.TestCase):
 		self.assertEqual(record["meta_title"], "Anasayfa")
 		self.assertEqual(record["noindex"], 1)
 
+	def test_unsupported_language_uses_turkish_metadata(self):
+		entry = {"path": "/", "title": "Anasayfa", "html_path": "index.html"}
+		frappe = SimpleNamespace(
+			db=SimpleNamespace(exists=lambda doctype, name: False),
+		)
+		with (
+			patch.object(page_resolver, "_resolve_static_page", return_value=entry),
+			patch.dict(sys.modules, {"frappe": frappe}),
+			patch.object(
+				page_resolver.meta_builder,
+				"build_for_static_page",
+				return_value={"title": "Anasayfa"},
+			) as build,
+		):
+			page_resolver.get_static_page_meta("/", "unsupported")
+		build.assert_called_once_with(
+			record={
+				"page_path": "/",
+				"page_title": "Anasayfa",
+				"meta_title": "Anasayfa",
+				"meta_description": "",
+				"noindex": 1,
+			},
+			page_meta=entry,
+			lang="tr",
+		)
+
+
+class TestWhitelistRegistration(unittest.TestCase):
+	def test_static_meta_endpoint_is_registered_for_guests(self):
+		registered = []
+
+		def whitelist(**kwargs):
+			def decorate(fn):
+				registered.append((fn, kwargs))
+				return fn
+
+			return decorate
+
+		original_functions = {
+			name: getattr(page_resolver, name)
+			for name in (
+				"render_listing",
+				"render_category",
+				"render_brand",
+				"render_seller",
+				"render_static_page",
+				"get_static_page_meta",
+			)
+		}
+		try:
+			with patch.dict(sys.modules, {"frappe": SimpleNamespace(whitelist=whitelist)}):
+				page_resolver._register_whitelists()
+			self.assertIn(
+				(original_functions["get_static_page_meta"], {"allow_guest": True}),
+				registered,
+			)
+		finally:
+			for name, fn in original_functions.items():
+				setattr(page_resolver, name, fn)
+
 
 if __name__ == "__main__":
 	unittest.main()
