@@ -1094,12 +1094,14 @@ def get_listing_detail(listing_id, lang="tr"):
 					"responseTime": seller.response_time,
 					"responseRate": seller.response_rate or 0,
 					"onTimeDelivery": seller.on_time_delivery or 0,
-					"mainProducts": main_products,
+					"mainProducts": main_products,  # @deprecated — aslında main_markets; mainMarkets kullanın
+					"mainMarkets": main_products,
 					"employees": seller.staff_count,
 					"annualRevenue": seller.annual_revenue,
 					"certifications": certifications,
 					"rating": seller.rating or 0,
 					"reviewCount": seller.review_count or 0,
+					"reorderRate": seller.reorder_rate,
 					"verifications": seller_verifs,
 				}
 			except Exception as _e2:
