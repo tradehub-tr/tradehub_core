@@ -22,6 +22,9 @@ from tradehub_core.utils.tenant import _has_tenant_field, get_current_tenant, is
 
 # Financial DocTypes that require KYC verification before access is granted.
 # Users without a verified KYC profile will be denied access to these DocTypes.
+# NOT: Payment Intent, Escrow Account, Commission Plan/Rule henüz oluşturulmadı.
+# Bu DocType'lar oluşturulduğunda permission_query_conditions + has_permission
+# handler'ları hooks.py'ye kaydedilmeli (seller_balance deseni referans).
 FINANCIAL_DOCTYPES = frozenset(
 	[
 		"Payment Intent",

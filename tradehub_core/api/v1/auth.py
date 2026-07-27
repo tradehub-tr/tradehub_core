@@ -48,6 +48,7 @@ def check_email_exists(email: str):
 
 
 @frappe.whitelist(allow_guest=True, methods=["GET"])
+@rate_limit(limit=60, seconds=60)
 def get_session_user():
 	"""Return current session user info with role flags.
 

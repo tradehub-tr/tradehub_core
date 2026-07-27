@@ -35,6 +35,10 @@ DEFAULT_SAMPLE_USERS = 20
 DRIFT_DOCTYPES = [
 	("Order", "read", "can_view"),
 	("Admin Seller Profile", "read", "can_view"),
+	# NOT: Listing kasıtlı olarak DAHIL EDİLMEDİ — storefront'ta public-read açık,
+	# RBAC True vs ReBAC store-member False → her Listing için false-positive
+	# "frappe_overpermits" alert üretir (sinyal boğar). Listing write drift'i
+	# tuple_sync idempotent backfill ile yakalanıyor.
 ]
 
 # Conditional tuple'lı relation'lar — defansif skip (ileride DRIFT_DOCTYPES'a
@@ -297,6 +301,7 @@ def _doctype_to_rebac(doctype: str) -> str | None:
 		"Order Approval": "order_approval",
 		"Order": "order",
 		"Admin Seller Profile": "store",
+		"Listing": "listing",
 	}
 	return mapping.get(doctype)
 
