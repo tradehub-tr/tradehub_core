@@ -1,3 +1,14 @@
+## [v1.11.1-beta.2] - 2026-07-27 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Eklendi
+- feat(seo): expose static page metadata (@ahmeetseker)
+
+### Duzeltildi
+- fix(seo): normalize static metadata language (@ahmeetseker)
+
+---
 ## [v1.11.1-alpha.2] - 2026-07-27 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
