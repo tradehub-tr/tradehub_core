@@ -10,12 +10,15 @@ bu test paketinde sadece pure helper'lar test edilir.
 import sys
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
 _APP_ROOT = Path(__file__).resolve().parents[3]
 if str(_APP_ROOT) not in sys.path:
 	sys.path.insert(0, str(_APP_ROOT))
 
 
+from tradehub_core.seo import page_resolver  # noqa: E402
 from tradehub_core.seo.page_resolver import (  # noqa: E402
 	SLUG_FIELD_MAP,
 	TEMPLATE_MAP,
@@ -92,14 +95,59 @@ class TestMaps(unittest.TestCase):
 	def test_product_category_uses_url_slug(self):
 		self.assertEqual(SLUG_FIELD_MAP["Product Category"], "url_slug")
 
-	def test_other_doctypes_use_slug(self):
-		for dt in ("Listing", "Brand", "Admin Seller Profile"):
+	def test_listing_and_brand_use_slug(self):
+		for dt in ("Listing", "Brand"):
 			self.assertEqual(SLUG_FIELD_MAP[dt], "slug")
+
+	def test_admin_seller_profile_uses_seller_code(self):
+		self.assertEqual(SLUG_FIELD_MAP["Admin Seller Profile"], "seller_code")
 
 	def test_template_paths_are_relative(self):
 		for path in TEMPLATE_MAP.values():
 			self.assertFalse(path.startswith("/"))
 			self.assertTrue(path.endswith(".html"))
+
+
+class TestLoadStaticPageSeo(unittest.TestCase):
+	def test_unknown_path_returns_none(self):
+		with patch.object(page_resolver, "_resolve_static_page", return_value=None):
+			self.assertIsNone(page_resolver._load_static_page_seo("/unknown"))
+
+	def test_database_override_is_built_with_shared_meta_builder(self):
+		entry = {"path": "/", "title": "Anasayfa", "html_path": "index.html"}
+		override = {"page_path": "/", "meta_title": "Güncel"}
+		frappe = SimpleNamespace(
+			db=SimpleNamespace(exists=lambda doctype, name: True),
+			get_doc=lambda doctype, name: SimpleNamespace(as_dict=lambda: override),
+		)
+		payload = {"title": "Güncel"}
+		with (
+			patch.object(page_resolver, "_resolve_static_page", return_value=entry),
+			patch.dict(sys.modules, {"frappe": frappe}),
+			patch.object(page_resolver.meta_builder, "build_for_static_page", return_value=payload) as build,
+		):
+			self.assertEqual(page_resolver._load_static_page_seo("/", "tr"), payload)
+		build.assert_called_once_with(record=override, page_meta=entry, lang="tr")
+
+	def test_missing_override_uses_safe_registry_default(self):
+		entry = {"path": "/", "title": "Anasayfa", "html_path": "index.html"}
+		frappe = SimpleNamespace(
+			db=SimpleNamespace(exists=lambda doctype, name: False),
+		)
+		with (
+			patch.object(page_resolver, "_resolve_static_page", return_value=entry),
+			patch.dict(sys.modules, {"frappe": frappe}),
+			patch.object(
+				page_resolver.meta_builder,
+				"build_for_static_page",
+				return_value={"title": "Anasayfa"},
+			) as build,
+		):
+			page_resolver._load_static_page_seo("/", "tr")
+		record = build.call_args.kwargs["record"]
+		self.assertEqual(record["page_path"], "/")
+		self.assertEqual(record["meta_title"], "Anasayfa")
+		self.assertEqual(record["noindex"], 1)
 
 
 if __name__ == "__main__":
