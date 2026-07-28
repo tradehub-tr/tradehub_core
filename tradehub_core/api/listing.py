@@ -44,6 +44,9 @@ _LISTING_DELETE_ANALYTICS_LINKS = (
 	("Related Listing Cache", "source_listing"),
 	("Related Listing Cache", "target_listing"),
 )
+# NOT: Cart Item ve Buyer Favorite Item bu listede DEĞİL — iş kaydı niteliğinde.
+# Bunların varlığı LinkExistsError üretir → ürün soft-delete (Archived) olur.
+# Soft-delete sonrası _cleanup_listing_references() bu kayıtları temizler.
 
 
 CACHE_TTL = 30  # seconds — short TTL for listing queries
@@ -4406,6 +4409,25 @@ def update_listing_status(listing_name, status):
 	return {"success": True}
 
 
+def _cleanup_listing_references(listing_name: str) -> None:
+	"""Arşivlenen/silinen ürüne ait sepet, favori ve stok reservation kayıtlarını temizle.
+
+	Soft-delete (Archived) sonrası çağrılır — kullanıcılar kopuk referans görmez,
+	stok sayıları tutarlı kalır. Hard delete'te Frappe on_trash zaten cascade yapar.
+	"""
+	# 1) Sepetteki Cart Item'ları sil — kullanıcı sepete girdiğinde "ürün bulunamadı" önlenir
+	frappe.db.delete("Cart Item", {"listing": listing_name})
+
+	# 2) Favorilerden kaldır — favori listesinde kopuk referans önlenir
+	frappe.db.delete("Buyer Favorite Item", {"listing": listing_name})
+
+	# 3) Stok reservation'ı sıfırla — arşivlenen ürünün reserved_qty phantom stok tutmasını önle
+	frappe.db.sql(
+		"UPDATE `tabListing` SET reserved_qty = 0 WHERE name = %s AND reserved_qty > 0",
+		(listing_name,),
+	)
+
+
 @frappe.whitelist()
 def delete_listing(listing_name: str) -> dict:
 	"""Satıcı: kendi ürününü sil (akıllı silme).
@@ -4463,6 +4485,11 @@ def delete_listing(listing_name: str) -> dict:
 		listing_name,
 		{"status": "Archived", "is_visible": 0, "storefront_visible": 0},
 	)
+
+	# Arşivlenen ürünün sepet/favori/stok reservation'ını temizle — kullanıcılar
+	# kopuk referans görmez, stok sayıları tutarlı kalır.
+	_cleanup_listing_references(listing_name)
+
 	frappe.db.commit()
 	# set_value doc_event tetiklemez → arşivlenen ürünü cache'li 'Active'
 	# listelerinden düşürmek için invalidation'ı manuel çağır.

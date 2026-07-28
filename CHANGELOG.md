@@ -1,3 +1,63 @@
+## [v1.12.0-alpha.1] - 2026-07-27 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Duzeltildi
+- fix(security): password reset race condition, KVKK anonymization ve ReBAC tuple sync (@boraydeger32)
+  - identity.py: password reset token atomic invalidation (cursor.rowcount)
+  - identity.py: email verify Redis Lua GETDEL (tek kullanımlık link)
+  - identity.py: change_phone + get_session_user rate limit eklendi
+  - account_deletion.py: KVKK grace period 30→15 gün, User/Seller App PII temizliği
+  - listing.py: ürün silme soft-delete regresyonu düzeltildi, reserved_qty sıfırlama
+  - tuple_sync.py: fallback idempotent write pattern (on_update timing fix)
+  - rebac_drift_detection.py: Listing mapping eklendi, public-read gürültü notu
+  - permissions.py: Financial DocType handler uyarı notu
+
+---
+## [v1.12.0] - 2026-07-27 PROD
+
+Bu surum istoc.cronbi.com'da yayindadir.
+
+### Eklendi
+- feat(seo): expose static page metadata (@ahmeetseker)
+
+### Duzeltildi
+- fix(seo): normalize static metadata language (@ahmeetseker)
+
+---
+## [v1.11.1-rc.1] - 2026-07-27 RC
+
+Bu surum rcistoc.cronbi.com'da onay asamasindadir.
+
+### Eklendi
+- feat(seo): expose static page metadata (@ahmeetseker)
+
+### Duzeltildi
+- fix(seo): normalize static metadata language (@ahmeetseker)
+
+---
+## [v1.11.1-beta.2] - 2026-07-27 BETA
+
+Bu surum betaistoc.cronbi.com'da test asamasindadir.
+
+### Eklendi
+- feat(seo): expose static page metadata (@ahmeetseker)
+
+### Duzeltildi
+- fix(seo): normalize static metadata language (@ahmeetseker)
+
+---
+## [v1.11.1-alpha.2] - 2026-07-27 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(seo): expose static page metadata (@ahmeetseker)
+
+### Duzeltildi
+- fix(seo): normalize static metadata language (@ahmeetseker)
+
+---
 ## [v1.11.0] - 2026-07-23 PROD
 
 Bu surum istoc.cronbi.com'da yayindadir.
