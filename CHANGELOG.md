@@ -1,3 +1,11 @@
+## [v1.12.0-alpha.2] - 2026-07-28 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(doctype): erpnext_item ve erpnext_customer alanlarını gizle (hidden) (@boraydeger32)
+
+---
 ## [v1.12.0-alpha.1] - 2026-07-27 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
