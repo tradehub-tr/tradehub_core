@@ -1226,8 +1226,9 @@ def _aggregate_kpi_summary_for_buyer(buyer_name):
 
 # ── Mağaza profili (Admin Seller Profile) performans metrikleri ──
 # Günlük recompute: total_orders (Order sayımı), response_rate/response_time
-# (Listing Review yanıt verisi), score_grade (rating'den). health_score ve
-# on_time_delivery beslenmez — gerçek veri kaynağı yok, Property Setter ile gizli.
+# (Listing Review yanıt verisi), reorder_rate (tekrar eden alıcı oranı),
+# score_grade (rating'den). health_score ve on_time_delivery beslenmez —
+# gerçek veri kaynağı yok, Property Setter ile gizli.
 
 _RESPONSE_BUCKETS = [(1, "< 1 saat"), (24, "< 24 saat"), (72, "1-3 gün")]
 
@@ -1267,9 +1268,43 @@ def _seller_response_metrics(seller):
 	return rate, _format_response_time(avg)
 
 
+# Tekrar sipariş oranı için minimum benzersiz alıcı sayısı — altında istatistiksel
+# olarak anlamsız olduğu için None döner (storefront hücreyi hiç basmaz).
+_REORDER_MIN_BUYERS = 5
+
+
+def _seller_reorder_rate(seller: str) -> float | None:
+	"""Son 12 ayda 2+ sipariş vermiş benzersiz alıcı oranı (%).
+
+	Sayılan siparişler: status ∈ SOLD_STATES, iadesi onaylanmamış.
+	Benzersiz alıcı sayısı _REORDER_MIN_BUYERS altındaysa None.
+	"""
+	from tradehub_core.api.listing import SOLD_STATES
+
+	rows = frappe.db.sql(
+		"""
+		SELECT buyer, COUNT(*) AS cnt
+		FROM `tabOrder`
+		WHERE seller = %(seller)s
+			AND status IN %(states)s
+			AND IFNULL(refund_status, '') != 'Approved'
+			AND order_date >= DATE_SUB(NOW(), INTERVAL 12 MONTH)
+			AND IFNULL(buyer, '') != ''
+		GROUP BY buyer
+		""",
+		{"seller": seller, "states": tuple(SOLD_STATES)},
+		as_dict=True,
+	)
+	total_buyers = len(rows)
+	if total_buyers < _REORDER_MIN_BUYERS:
+		return None
+	repeat_buyers = sum(1 for r in rows if r.cnt > 1)
+	return round(repeat_buyers * 100 / total_buyers, 2)
+
+
 def recompute_seller_performance_metrics():
 	"""Günlük: Admin Seller Profile total_orders / response_rate / response_time /
-	score_grade alanlarını gerçek veriden yeniden hesapla.
+	reorder_rate / score_grade alanlarını gerçek veriden yeniden hesapla.
 
 	score_grade yorum gelince _recalculate_seller_rating'de anında güncellenir;
 	burası günlük güvenlik ağı. health_score / on_time_delivery beslenmez.
@@ -1282,6 +1317,7 @@ def recompute_seller_performance_metrics():
 	for s in sellers:
 		total_orders = frappe.db.count("Order", {"seller": s.name, "status": ["in", list(SOLD_STATES)]})
 		response_rate, response_time = _seller_response_metrics(s.name)
+		reorder_rate = _seller_reorder_rate(s.name)
 		frappe.db.set_value(
 			"Admin Seller Profile",
 			s.name,
@@ -1289,6 +1325,7 @@ def recompute_seller_performance_metrics():
 				"total_orders": total_orders,
 				"response_rate": response_rate,
 				"response_time": response_time,
+				"reorder_rate": reorder_rate,
 				"score_grade": seller_rating_to_grade(s.rating, s.review_count),
 			},
 			update_modified=False,

@@ -39,11 +39,17 @@ def _pick_title_source(record: dict) -> str:
 
 
 def _pick_description_source(record: dict) -> str:
-	"""Free-text description benzeri field'lardan ilk doluyu döner."""
+	"""Free-text description benzeri field'lardan ilk doluyu döner.
+
+	description/short_description artık zengin editörden HTML gelebilir —
+	meta description düz metin olmalı, tag'ler burada soyulur.
+	"""
+	from frappe.utils import strip_html
+
 	for key in ("description", "short_description", "summary", "about"):
 		val = record.get(key)
 		if val:
-			return val
+			return " ".join(strip_html(str(val)).split())
 	return ""
 
 

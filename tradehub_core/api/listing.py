@@ -1097,12 +1097,19 @@ def get_listing_detail(listing_id, lang="tr"):
 					"responseTime": seller.response_time,
 					"responseRate": seller.response_rate or 0,
 					"onTimeDelivery": seller.on_time_delivery or 0,
-					"mainProducts": main_products,
+					"mainProducts": main_products,  # @deprecated — aslında main_markets; mainMarkets kullanın
+					"mainMarkets": main_products,
 					"employees": seller.staff_count,
 					"annualRevenue": seller.annual_revenue,
 					"certifications": certifications,
 					"rating": seller.rating or 0,
 					"reviewCount": seller.review_count or 0,
+					# Frappe `Percent` alanına kaydederken flt() uygular ve flt(None) == 0.0 —
+					# bir admin Admin Seller Profile'ı açıp kaydettiğinde "veri yok" anlamındaki
+					# NULL sessizce 0.0'a döner. Gerçek %0 ile "veri yok" ayırt edilemediği için
+					# güvenli yön gizlemektir: falsy 0 -> None (frontend hücreyi hiç basmaz).
+					# Böylece 5 alıcı altındaki satıcı yanlışlıkla "%0" reklamı yapmaz.
+					"reorderRate": seller.reorder_rate or None,
 					"verifications": seller_verifs,
 				}
 			except Exception as _e2:
@@ -1331,6 +1338,24 @@ def get_listing_detail(listing_id, lang="tr"):
 		frappe.log_error("SEO meta_builder.build_for_listing failed", "listing")
 		seo_payload = {}
 
+	# Ürün sertifikaları — child satırlar get_doc ile zaten bellekte (idx sıralı);
+	# yalnız Certification Type açıklamaları için tek toplu sorgu gerekir.
+	# Satıcı sertifikalarından (supplier.certifications) ayrı bir kavramdır.
+	_cert_types = [r.certification_type for r in listing.product_certifications if r.certification_type]
+	_cert_descs = (
+		dict(
+			frappe.get_all(
+				"Certification Type",
+				filters={"name": ("in", _cert_types)},
+				fields=["name", "description"],
+				as_list=True,
+			)
+		)
+		if _cert_types
+		else {}
+	)
+	product_certifications = [{"name": t, "description": _cert_descs.get(t) or ""} for t in _cert_types]
+
 	# i18n: içerik alanlarını istenen dile çöz (eksikse content_default_lang'e fallback).
 	_title = resolve_content_field(listing, "title", lang, _dl) or listing.title
 	_description = resolve_content_field(listing, "description", lang, _dl) or listing.description
@@ -1418,6 +1443,7 @@ def get_listing_detail(listing_id, lang="tr"):
 		"videoUrl": listing.video_url,
 		"status": listing.status or "",
 		"outOfStock": is_out_of_stock,
+		"productCertifications": product_certifications,
 	}
 
 	response = {"data": result}
