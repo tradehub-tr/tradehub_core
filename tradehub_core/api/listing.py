@@ -1338,6 +1338,24 @@ def get_listing_detail(listing_id, lang="tr"):
 		frappe.log_error("SEO meta_builder.build_for_listing failed", "listing")
 		seo_payload = {}
 
+	# Ürün sertifikaları — child satırlar get_doc ile zaten bellekte (idx sıralı);
+	# yalnız Certification Type açıklamaları için tek toplu sorgu gerekir.
+	# Satıcı sertifikalarından (supplier.certifications) ayrı bir kavramdır.
+	_cert_types = [r.certification_type for r in listing.product_certifications if r.certification_type]
+	_cert_descs = (
+		dict(
+			frappe.get_all(
+				"Certification Type",
+				filters={"name": ("in", _cert_types)},
+				fields=["name", "description"],
+				as_list=True,
+			)
+		)
+		if _cert_types
+		else {}
+	)
+	product_certifications = [{"name": t, "description": _cert_descs.get(t) or ""} for t in _cert_types]
+
 	# i18n: içerik alanlarını istenen dile çöz (eksikse content_default_lang'e fallback).
 	_title = resolve_content_field(listing, "title", lang, _dl) or listing.title
 	_description = resolve_content_field(listing, "description", lang, _dl) or listing.description
@@ -1425,6 +1443,7 @@ def get_listing_detail(listing_id, lang="tr"):
 		"videoUrl": listing.video_url,
 		"status": listing.status or "",
 		"outOfStock": is_out_of_stock,
+		"productCertifications": product_certifications,
 	}
 
 	response = {"data": result}
