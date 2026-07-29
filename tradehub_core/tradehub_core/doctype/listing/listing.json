@@ -977,6 +977,7 @@
   {
    "fieldname": "erpnext_item",
    "fieldtype": "Link",
+   "hidden": 1,
    "label": "ERPNext Item",
    "options": "Item",
    "read_only": 1
