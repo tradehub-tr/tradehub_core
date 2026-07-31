@@ -1,3 +1,28 @@
+## [v1.12.0-rc.1] - 2026-07-31 RC
+
+Bu surum rcistoc.cronbi.com'da onay asamasindadir.
+
+### Eklendi
+- feat(seller): tekrar sipariş oranı metriği (@ahmeetseker)
+- feat(listing): supplier payload'a mainMarkets + reorderRate (@ahmeetseker)
+- feat(doctype): erpnext_item ve erpnext_customer alanlarını gizle (hidden) (@boraydeger32)
+- feat(listing): ürün sertifikaları detail payload'ına eklendi (@ahmeetseker)
+  - get_listing_detail artık Listing Certification kayıtlarını Certification Type açıklamalarıyla birlikte productCertifications alanında döner
+  - SEO meta description üretiminde HTML etiketleri temizlenir oldu (zengin editör içeriği meta'ya tag sızdırmaz)
+
+### Duzeltildi
+- fix(security): password reset race condition, KVKK anonymization ve ReBAC tuple sync (@boraydeger32)
+  - identity.py: password reset token atomic invalidation (cursor.rowcount)
+  - identity.py: email verify Redis Lua GETDEL (tek kullanımlık link)
+  - identity.py: change_phone + get_session_user rate limit eklendi
+  - account_deletion.py: KVKK grace period 30→15 gün, User/Seller App PII temizliği
+  - listing.py: ürün silme soft-delete regresyonu düzeltildi, reserved_qty sıfırlama
+  - tuple_sync.py: fallback idempotent write pattern (on_update timing fix)
+  - rebac_drift_detection.py: Listing mapping eklendi, public-read gürültü notu
+  - permissions.py: Financial DocType handler uyarı notu
+- fix(listing): reorderRate falsy 0'ı None'a çevir — Percent NULL kaybı (@ahmeetseker)
+
+---
 ## [v1.12.0-beta.2] - 2026-07-31 BETA
 
 Bu surum betaistoc.cronbi.com'da test asamasindadir.
