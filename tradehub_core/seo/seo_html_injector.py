@@ -33,6 +33,11 @@ _SEO_STRIP_RE = re.compile(
 	r'|<meta\b[^>]*\bproperty="og:[^"]*"[^>]*/?\s*>'
 	r'|<meta\b[^>]*\bname="twitter:[^"]*"[^>]*/?\s*>'
 	r'|<link\b[^>]*\brel="canonical"[^>]*/?\s*>'
+	# Favicon linkleri: bot yolunda tek otorite şablon olsun. Storefront dist
+	# mount edilmemişse fallback HTML'de favicon hiç yoktu → Google SERP'te
+	# jenerik dünya ikonu gösteriyordu.
+	r'|<link\b[^>]*\brel="(?:shortcut )?icon"[^>]*/?\s*>'
+	r'|<link\b[^>]*\brel="apple-touch-icon"[^>]*/?\s*>'
 	r")[ \t]*\n?",
 	re.IGNORECASE,
 )

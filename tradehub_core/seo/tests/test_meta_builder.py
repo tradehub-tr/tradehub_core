@@ -15,7 +15,11 @@ if str(_APP_ROOT) not in sys.path:
 	sys.path.insert(0, str(_APP_ROOT))
 
 
-from tradehub_core.seo.meta_builder import build_home_json_ld, compose_seo_payload  # noqa: E402
+from tradehub_core.seo.meta_builder import (  # noqa: E402
+	build_for_static_page,
+	build_home_json_ld,
+	compose_seo_payload,
+)
 
 DEFAULTS = {
 	"title_pattern": "{title} | İstoç B2B",
@@ -187,6 +191,37 @@ class TestJsonLdAndSiteFields(unittest.TestCase):
 		self.assertEqual([schema["@type"] for schema in schemas], ["Organization", "WebSite"])
 		self.assertEqual(schemas[0]["name"], "İstoç")
 		self.assertEqual(schemas[1]["url"], SITE_URL)
+
+
+class TestStaticPageHreflang(unittest.TestCase):
+	"""Statik sayfada slug zaten tam path; `//` üretilmemeli."""
+
+	def _home(self, lang="tr"):
+		return build_for_static_page(
+			record={"page_path": "/", "meta_title": "iStoc", "meta_description": "test"},
+			page_meta={"path": "/", "title": "iStoc"},
+			defaults=DEFAULTS,
+			site_url=SITE_URL,
+			lang=lang,
+		)
+
+	def test_home_hreflang_has_no_double_slash(self):
+		hrefs = [link["href"] for link in self._home()["hreflang_links"]]
+		self.assertNotIn(f"{SITE_URL}//", hrefs)
+		self.assertEqual(hrefs, [f"{SITE_URL}/", f"{SITE_URL}/en/", f"{SITE_URL}/"])
+
+	def test_inner_static_page_hreflang(self):
+		seo = build_for_static_page(
+			record={"page_path": "/urunler", "meta_title": "Ürünler", "meta_description": "test"},
+			page_meta={"path": "/urunler", "title": "Ürünler"},
+			defaults=DEFAULTS,
+			site_url=SITE_URL,
+		)
+		hrefs = [link["href"] for link in seo["hreflang_links"]]
+		self.assertEqual(hrefs, [f"{SITE_URL}/urunler", f"{SITE_URL}/en/urunler", f"{SITE_URL}/urunler"])
+
+	def test_canonical_still_lang_aware(self):
+		self.assertEqual(self._home(lang="en")["canonical"], f"{SITE_URL}/en/")
 
 
 if __name__ == "__main__":
