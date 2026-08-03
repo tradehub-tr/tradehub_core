@@ -361,4 +361,10 @@ def build_for_static_page(
 		seo["canonical"] = canonical
 		seo["og_url"] = canonical
 
+	# hreflang de path-bazlı yeniden inşa edilir: compose_seo_payload slug'ı
+	# `f"{url_prefix}/{slug}"` ile kurar, statik sayfada slug zaten tam path
+	# olduğu için ana sayfada `//` (→ https://istoc.com//) üretiyordu.
+	if page_path:
+		seo["hreflang_links"] = build_hreflang_links(page_path, site_url)
+
 	return seo

@@ -117,6 +117,25 @@ class TestInjectMetaIntoHtml(unittest.TestCase):
 		twice = inject_meta_into_html(once, _seo())
 		self.assertEqual(once, twice)
 
+	def test_favicon_links_always_rendered(self):
+		"""Storefront dist mount edilmese de bot HTML'i favicon taşımalı."""
+		out = inject_meta_into_html(SAMPLE_HTML, _seo())
+		self.assertIn('rel="icon" href="/favicon.ico"', out)
+		self.assertIn('sizes="96x96" href="/images/istoc-favicon-96.png"', out)
+		self.assertIn('rel="apple-touch-icon"', out)
+
+	def test_hardcoded_favicon_links_deduplicated(self):
+		"""Vite build'den gelen ikon linkleri sökülür; şablon tek otorite."""
+		raw = SAMPLE_HTML.replace(
+			'<meta charset="utf-8">',
+			'<meta charset="utf-8">\n'
+			'<link rel="icon" type="image/png" sizes="32x32" href="/images/istoc-favicon-32.png" />\n'
+			'<link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png" />',
+		)
+		out = inject_meta_into_html(raw, _seo())
+		self.assertEqual(out.count('rel="apple-touch-icon"'), 1)
+		self.assertEqual(out.count('href="/images/istoc-favicon-32.png"'), 1)
+
 	def test_replaces_only_first_occurrence(self):
 		double = f"<head>\n{PLACEHOLDER}\n{PLACEHOLDER}\n</head>"
 		out = inject_meta_into_html(double, _seo())
