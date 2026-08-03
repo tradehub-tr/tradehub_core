@@ -1,3 +1,14 @@
+## [v1.13.0-rc.1] - 2026-08-03 RC
+
+Bu surum rcistoc.cronbi.com'da onay asamasindadir.
+
+### Duzeltildi
+- fix(seo): favicon ve statik hreflang çıktısını düzelt (@ahmeetseker)
+  - Bot HTML'ine favicon linklerini şablondan ekle ve build kaynaklı tekrarları temizle
+  - Statik sayfalarda hreflang URL'lerini path bazlı kurarak ana sayfadaki çift slash hatasını önle
+  - canonical davranışını koruyan ve favicon tekrarını yakalayan testler ekle
+
+---
 ## [v1.13.0-alpha.1] - 2026-08-03 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
