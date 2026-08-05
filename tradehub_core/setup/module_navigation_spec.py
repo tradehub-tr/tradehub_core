@@ -454,6 +454,17 @@ SELLER_MODULES: list[dict] = [
 		"order": 0,
 	},
 	{
+		"key": "seller.store.vitrin.medya",
+		"parent": "seller.store.vitrin",
+		"type": "item",
+		"panel": "seller",
+		"section": "store",
+		"label": "Medya Kütüphanesi",
+		"icon": "image",
+		"route": "/media-library",
+		"order": 1,
+	},
+	{
 		"key": "seller.store.musteri",
 		"parent": "seller.store",
 		"type": "group",
