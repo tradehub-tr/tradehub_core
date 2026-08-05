@@ -1,3 +1,11 @@
+## [v1.13.1-alpha.1] - 2026-08-05 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(nav): satıcı sidebar Vitrin grubuna Medya Kütüphanesi item'ı (@Metin Bektemur)
+
+---
 ## [v1.13.1] - 2026-08-03 PROD
 
 Bu surum istoc.cronbi.com'da yayindadir.
