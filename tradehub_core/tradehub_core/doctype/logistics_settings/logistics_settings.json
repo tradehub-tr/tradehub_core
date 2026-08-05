@@ -1,0 +1,130 @@
+{
+	"actions": [],
+	"allow_rename": 0,
+	"creation": "2026-08-05 00:00:00.000000",
+	"doctype": "DocType",
+	"engine": "InnoDB",
+	"field_order": [
+		"tab_genel",
+		"section_temel_ayarlar",
+		"logistics_enabled",
+		"auto_tracking_enabled",
+		"column_break_1",
+		"tracking_poll_interval_minutes",
+		"sla_breach_notify_hours",
+		"tab_ozellik_bayraklari",
+		"section_feature_flags",
+		"feature_flags",
+		"tab_varsayilanlar",
+		"section_varsayilan_degerler",
+		"default_currency",
+		"shipment_naming_series"
+	],
+	"fields": [
+		{
+			"fieldname": "tab_genel",
+			"fieldtype": "Tab Break",
+			"label": "Genel"
+		},
+		{
+			"fieldname": "section_temel_ayarlar",
+			"fieldtype": "Section Break",
+			"label": "Temel Ayarlar"
+		},
+		{
+			"default": "0",
+			"fieldname": "logistics_enabled",
+			"fieldtype": "Check",
+			"label": "Lojistik Mod\u00fcl\u00fc Aktif"
+		},
+		{
+			"default": "0",
+			"fieldname": "auto_tracking_enabled",
+			"fieldtype": "Check",
+			"label": "Otomatik Takip Aktif"
+		},
+		{
+			"fieldname": "column_break_1",
+			"fieldtype": "Column Break"
+		},
+		{
+			"default": "60",
+			"fieldname": "tracking_poll_interval_minutes",
+			"fieldtype": "Int",
+			"label": "Takip Sorgulama Aral\u0131\u011f\u0131 (dk)"
+		},
+		{
+			"default": "48",
+			"fieldname": "sla_breach_notify_hours",
+			"fieldtype": "Int",
+			"label": "SLA \u0130hlal Bildirim S\u00fcresi (saat)"
+		},
+		{
+			"fieldname": "tab_ozellik_bayraklari",
+			"fieldtype": "Tab Break",
+			"label": "\u00d6zellik Bayraklar\u0131"
+		},
+		{
+			"fieldname": "section_feature_flags",
+			"fieldtype": "Section Break",
+			"label": "Feature Flags"
+		},
+		{
+			"description": "JSON format\u0131nda \u00f6zellik bayraklar\u0131",
+			"fieldname": "feature_flags",
+			"fieldtype": "JSON",
+			"label": "\u00d6zellik Bayraklar\u0131"
+		},
+		{
+			"fieldname": "tab_varsayilanlar",
+			"fieldtype": "Tab Break",
+			"label": "Varsay\u0131lanlar"
+		},
+		{
+			"fieldname": "section_varsayilan_degerler",
+			"fieldtype": "Section Break",
+			"label": "Varsay\u0131lan De\u011ferler"
+		},
+		{
+			"default": "TRY",
+			"fieldname": "default_currency",
+			"fieldtype": "Link",
+			"label": "Varsay\u0131lan Para Birimi",
+			"options": "Currency"
+		},
+		{
+			"default": "SHP-.YYYY.-.#####",
+			"fieldname": "shipment_naming_series",
+			"fieldtype": "Data",
+			"label": "Sevkiyat Numaralama Serisi"
+		}
+	],
+	"index_web_pages_for_search": 0,
+	"issingle": 1,
+	"links": [],
+	"modified": "2026-08-05 00:00:00.000000",
+	"modified_by": "Administrator",
+	"module": "Tradehub Core",
+	"name": "Logistics Settings",
+	"owner": "Administrator",
+	"permissions": [
+		{
+			"create": 1,
+			"delete": 1,
+			"email": 1,
+			"print": 1,
+			"read": 1,
+			"role": "System Manager",
+			"share": 1,
+			"write": 1
+		},
+		{
+			"read": 1,
+			"role": "Marketplace Admin",
+			"write": 1
+		}
+	],
+	"sort_field": "modified",
+	"sort_order": "DESC",
+	"track_changes": 1
+}
