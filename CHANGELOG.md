@@ -1,3 +1,23 @@
+## [v1.13.1-alpha.2] - 2026-08-05 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(logistics): TUR-102 lojistik modül mimari temelini kur (@boraydeger32)
+  - logistics/ alt-modül iskeleti (services, adapters, jobs, reports, tests)
+  - Logistics Settings singleton DocType (feature flags, varsayılanlar)
+  - BaseCarrierAdapter ABC + CarrierCapability enum + registry pattern
+  - MockCarrierAdapter (test/development)
+  - Durum makinesi sabitleri (11 durum, geçiş matrisi)
+  - Exception hiyerarşisi (8 sınıf)
+  - Desi hesaplama utility (calculate_desi, chargeable_weight)
+  - Feature flag mekanizması (3 katmanlı: DocType > site_config > default)
+  - API stub'ları (v1/shipment.py + logistics.py)
+  - Bootstrap patch (v15_logistics_001)
+  - hooks.py: 3 lojistik rol + Logistics Settings doc_events/permissions
+  - 43+ unit test (import smoke, state machine invariant, adapter contract, desi)
+
+---
 ## [v1.13.1-alpha.1] - 2026-08-05 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
