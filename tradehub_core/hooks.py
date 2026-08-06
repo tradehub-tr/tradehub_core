@@ -125,6 +125,12 @@ scheduler_events = {
 		"tradehub_core.bulk_import.feed_scheduler.process_due_feeds",
 	],
 	"daily": [
+		# Görsel optimizasyonunda saklanan orijinallerin geri alma penceresi dolunca
+		# silinmesi. Nihai depolama kazancı burada gerçekleşir — o güne kadar arşiv
+		# diski geçici olarak şişirir (GORSEL-OPTIMIZASYON.md §6).
+		"tradehub_core.media.archive.purge_expired",
+		# Çöpe taşınan görsellerin 30 günlük geri alma penceresi dolunca kalıcı silinmesi.
+		"tradehub_core.media.trash.purge_expired",
 		# Saha hakediş kota bonusu — on-approval tetiklemesinin günlük güvenlik ağı.
 		"tradehub_core.tradehub_core.utils.field_commission.process_quota_bonuses",
 		"tradehub_core.services.tcmb.fetch_and_update_rates",
