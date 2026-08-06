@@ -57,6 +57,10 @@ fixtures = [
 					"Saha Pazarlama",
 					# Faz C — ekip lideri onay/yönetim katmanı
 					"Saha Ekip Lideri",
+					# Lojistik modül rolleri (TUR-103)
+					"Logistics Manager",
+					"Logistics Operator",
+					"Carrier Integration Manager",
 				],
 			]
 		],
@@ -629,6 +633,12 @@ doc_events = {
 		"on_update": "tradehub_core.utils.permission_resolver.on_module_policy_change",
 		"after_delete": "tradehub_core.utils.permission_resolver.on_module_policy_change",
 	},
+	# -------------------------------------------------------------------------
+	# Lojistik modül — Shipment lifecycle (TUR-102 iskelet)
+	# -------------------------------------------------------------------------
+	"Logistics Settings": {
+		"on_update": "tradehub_core.logistics.cache.invalidate_logistics_dashboard",
+	},
 }
 
 # ---------------------------------------------------------------------------
@@ -692,6 +702,8 @@ permission_query_conditions = {
 	"Store Subscription": "tradehub_core.permissions.store_subscription_query_conditions",
 	# Satıcı Doğrulama — satıcı yalnız kendi başvurularını görür.
 	"Seller Verification": "tradehub_core.permissions.seller_verification_query_conditions",
+	# Lojistik modül (TUR-102 iskelet)
+	"Logistics Settings": "tradehub_core.logistics.permissions.logistics_settings_query_conditions",
 }
 
 has_permission = {
@@ -756,6 +768,8 @@ has_permission = {
 	"Store Subscription": "tradehub_core.permissions.store_subscription_has_permission",
 	# Satıcı Doğrulama — per-doc: satıcı yalnız kendi başvurusunu görür.
 	"Seller Verification": "tradehub_core.permissions.seller_verification_has_permission",
+	# Lojistik modül (TUR-102 iskelet)
+	"Logistics Settings": "tradehub_core.logistics.permissions.logistics_settings_has_permission",
 }
 
 # ---------------------------------------------------------------------------
