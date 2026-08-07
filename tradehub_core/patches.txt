@@ -217,3 +217,4 @@ tradehub_core.patches.v15_seo_legal_noindex
 tradehub_core.patches.v15_seo_static_meta_defaults
 tradehub_core.patches.v15_seo_remove_uyelik_page
 tradehub_core.patches.v15_logistics_001_bootstrap
+tradehub_core.patches.v15_tur103_seed_logistics_capabilities
