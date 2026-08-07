@@ -1,3 +1,11 @@
+## [v1.13.1-alpha.3] - 2026-08-07 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(media): görsel optimizasyon + kullanım raporu + çöp kutusu (@Metin Bektemur)
+
+---
 ## [v1.13.1-alpha.2] - 2026-08-05 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
