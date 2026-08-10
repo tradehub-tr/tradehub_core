@@ -10,6 +10,7 @@ from typing import Any, Optional
 from frappe import _
 
 from tradehub_core.logistics.adapters.base import BaseCarrierAdapter
+from tradehub_core.logistics.exceptions import CarrierNotFoundError
 
 
 _CARRIER_REGISTRY: dict[str, type[BaseCarrierAdapter]] = {}
@@ -21,13 +22,16 @@ def register_carrier(
 ) -> None:
 	"""Yeni bir kargo adapter sinifini registry'ye kaydet.
 
+	Idempotent: ayni carrier_code ile AYNI sinif tekrar kaydedilirse sessiz
+	no-op (cift import senaryosu); ayni kodla FARKLI sinif gelirse hata.
+
 	Args:
 		carrier_code: Benzersiz kargo firma kodu (orn. "yurtici", "aras").
 		adapter_class: BaseCarrierAdapter'dan turetilmis adapter sinifi.
 
 	Raises:
 		TypeError: adapter_class, BaseCarrierAdapter'dan turetilmemisse.
-		ValueError: carrier_code zaten kayitliysa.
+		ValueError: carrier_code farkli bir sinifla zaten kayitliysa.
 	"""
 	if not isinstance(carrier_code, str) or not carrier_code.strip():
 		raise ValueError(_("carrier_code bos olamaz."))
@@ -41,9 +45,14 @@ def register_carrier(
 			)
 		)
 
-	if carrier_code in _CARRIER_REGISTRY:
+	existing: type[BaseCarrierAdapter] | None = _CARRIER_REGISTRY.get(carrier_code)
+	if existing is not None:
+		if existing is adapter_class:
+			return  # Idempotent no-op — ayni sinif tekrar kaydediliyor (cift import)
 		raise ValueError(
-			_("{0} kargo kodu zaten kayitli.").format(carrier_code)
+			_("{0} kargo kodu farkli bir sinifla ({1}) zaten kayitli.").format(
+				carrier_code, existing.__name__
+			)
 		)
 
 	_CARRIER_REGISTRY[carrier_code] = adapter_class
@@ -65,12 +74,12 @@ def get_adapter(
 		BaseCarrierAdapter instance.
 
 	Raises:
-		KeyError: carrier_code kayitli degilse.
+		CarrierNotFoundError: carrier_code kayitli degilse (HTTP 404).
 	"""
 	carrier_code = carrier_code.strip().lower()
 
 	if carrier_code not in _CARRIER_REGISTRY:
-		raise KeyError(
+		raise CarrierNotFoundError(
 			_("{0} kargo kodu kayitli degil. Kayitli kodlar: {1}").format(
 				carrier_code,
 				", ".join(sorted(_CARRIER_REGISTRY.keys())) or "-",

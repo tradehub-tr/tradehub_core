@@ -282,5 +282,31 @@
         "parenttype": "Role Profile"
       }
     ]
+  },
+  {
+    "doctype": "Role Profile",
+    "name": "Logistics Manager",
+    "role_profile": "Logistics Manager",
+    "roles": [
+      { "doctype": "Has Role", "role": "Logistics Manager", "parentfield": "roles", "parenttype": "Role Profile" },
+      { "doctype": "Has Role", "role": "Logistics Operator", "parentfield": "roles", "parenttype": "Role Profile" }
+    ]
+  },
+  {
+    "doctype": "Role Profile",
+    "name": "Logistics Operator",
+    "role_profile": "Logistics Operator",
+    "roles": [
+      { "doctype": "Has Role", "role": "Logistics Operator", "parentfield": "roles", "parenttype": "Role Profile" }
+    ]
+  },
+  {
+    "doctype": "Role Profile",
+    "name": "Carrier Integration Manager",
+    "role_profile": "Carrier Integration Manager",
+    "roles": [
+      { "doctype": "Has Role", "role": "Carrier Integration Manager", "parentfield": "roles", "parenttype": "Role Profile" },
+      { "doctype": "Has Role", "role": "Logistics Operator", "parentfield": "roles", "parenttype": "Role Profile" }
+    ]
   }
 ]

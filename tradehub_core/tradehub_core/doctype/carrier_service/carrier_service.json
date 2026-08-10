@@ -1,0 +1,142 @@
+{
+ "actions": [],
+ "autoname": "field:service_code",
+ "creation": "2026-08-07 10:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "service_name",
+  "service_code",
+  "carrier",
+  "service_type",
+  "is_active",
+  "column_break_basic",
+  "max_weight",
+  "max_desi",
+  "estimated_days_min",
+  "estimated_days_max",
+  "sb_capabilities",
+  "supports_cod",
+  "supports_insurance"
+ ],
+ "fields": [
+  {
+   "fieldname": "service_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Service Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "service_code",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Service Code",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "carrier",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Carrier",
+   "options": "Logistics Provider",
+   "reqd": 1
+  },
+  {
+   "default": "Standard",
+   "fieldname": "service_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Service Type",
+   "options": "Standard\nExpress\nEconomy\nSame Day\nScheduled"
+  },
+  {
+   "default": "1",
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "label": "Active"
+  },
+  {
+   "fieldname": "column_break_basic",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "max_weight",
+   "fieldtype": "Float",
+   "label": "Max Weight (kg)"
+  },
+  {
+   "fieldname": "max_desi",
+   "fieldtype": "Float",
+   "label": "Max Desi"
+  },
+  {
+   "fieldname": "estimated_days_min",
+   "fieldtype": "Int",
+   "label": "Estimated Days Min"
+  },
+  {
+   "fieldname": "estimated_days_max",
+   "fieldtype": "Int",
+   "label": "Estimated Days Max"
+  },
+  {
+   "fieldname": "sb_capabilities",
+   "fieldtype": "Section Break",
+   "label": "Yetenekler"
+  },
+  {
+   "default": "0",
+   "fieldname": "supports_cod",
+   "fieldtype": "Check",
+   "label": "Supports COD"
+  },
+  {
+   "default": "0",
+   "fieldname": "supports_insurance",
+   "fieldtype": "Check",
+   "label": "Supports Insurance"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-08-07 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "Carrier Service",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "export": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Logistics Manager",
+   "write": 1
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "role": "Logistics Operator"
+  }
+ ],
+ "search_fields": "service_name,service_code",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "title_field": "service_name",
+ "track_changes": 1
+}

@@ -1,3 +1,63 @@
+## [v1.13.1-alpha.6] - 2026-08-10 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Duzeltildi
+- fix(logistics): Faz 3.5 stabilizasyon — kritik güvenlik ve hesaplama düzeltmeleri (@boraydeger32)
+  - Desi: ücretlendirilebilir ağırlık parsel başına Σ max(ağırlık, desi) × adet (toplam bazlı hesap karışık yüklerde sistematik düşük fiyatlıyordu)
+  - Permission: Platform Finance Shipment'ta yalnız read (J.2 matrisi); doc=None yazma ptype'ları rol matrisine bağlandı; boş-tenant Carrier Account tenant kullanıcısına kapatıldı; ölü Marketplace/Platform Admin grant'leri temizlendi
+  - Adapters: register_carrier idempotent; CarrierNotFoundError (404) ve CarrierCapabilityError (400) devrede — 500 dönen KeyError/NotImplementedError kalktı
+  - 7 katalog DocType'ında kod normalizasyonu before_insert'e taşındı (autoname ↔ alan drift'i önlendi)
+  - test_logistics_permissions bench'te güvenli: _REAL_FRAPPE + skipIf (sys.modules mock'u gerçek frappe'yi ezip PicklingError veriyordu)
+  - docs/LOGISTICS-ARCHITECTURE.md gerçek implementasyonla senkronlandı (Carrier Account rename, autoname'ler, parsel-desi kuralı)
+
+---
+## [v1.13.1-alpha.5] - 2026-08-10 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(logistics): lojistik modül iskeleti, durum makinesi ve rol/yetki modeli (@boraydeger32)
+  - Modül klasör yapısı ve isimlendirme standardı (adapters, services, jobs, reports)
+  - 11 durumlu sevkiyat state machine ve geçiş matrisi
+  - 8 özel hata sınıfı, 12 feature flag, fixture seed verileri
+  - BaseCarrierAdapter ABC ve MockCarrierAdapter
+  - Desi/şarj edilebilir ağırlık hesaplama servisi
+  - Logistics Settings singleton DocType
+  - API v1 endpoint iskeletleri (public + auth)
+  - Logistics Manager, Operator, Carrier Integration Manager rolleri
+  - Satıcı/alıcı tenant izolasyonu ve query_conditions
+  - Taşıyıcı credential görüntüleme sınırı ve hassas alan maskeleme
+  - ReBAC tuple sync (shipment insert/update/trash)
+  - Yetki capability seed patch (8 capability, 4 rol profili)
+  - 48+ birim test (state machine, adapter contract, desi, permissions)
+- feat(logistics): ana lojistik kataloglarını oluştur (Faz 3) (@boraydeger32)
+  - 12 yeni DocType: Logistics Provider, Carrier Account, Carrier Service, Carrier Branch, Shipping Channel, Package Type, Vehicle Type, Shipment Exception Code, Carrier Status Mapping, Service Coverage Area, Provider Operating Channel, Carrier Service Item
+  - Shipping Method legacy DocType genişletildi (channel, max_weight, max_desi)
+  - Carrier Account: tenant izolasyonu, şifreli credential alanları (Password)
+  - Carrier Account hooks.py'a kayıtlı (permission_query_conditions + has_permission)
+  - Logistics Settings'e default provider/package/vehicle alanları eklendi
+  - 6 idempotent seed patch (providers, channels, vehicles, packages, exceptions, settings)
+
+---
+## [v1.13.1-alpha.4] - 2026-08-10 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(media): medya olayları için denetim kaydı (TUR-140) (@Metin Bektemur)
+  - yıkıcı ve tekil işlemler (çöp, geri al, kalıcı sil) → dosya başına
+  - toplu ve tekrarlanabilir işler (optimize, purge)    → iş başına özet
+
+---
+## [v1.13.1-alpha.3] - 2026-08-07 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(media): görsel optimizasyon + kullanım raporu + çöp kutusu (@Metin Bektemur)
+
+---
 ## [v1.13.1-alpha.2] - 2026-08-05 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.

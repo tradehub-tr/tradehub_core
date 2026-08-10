@@ -27,6 +27,11 @@ from tradehub_core.logistics.adapters.registry import (
 	list_registered_carriers,
 	register_carrier,
 )
+from tradehub_core.logistics.exceptions import (
+	CarrierCapabilityError,
+	CarrierNotFoundError,
+	LogisticsError,
+)
 
 
 class TestMockCarrierAdapterContract(unittest.TestCase):
@@ -138,9 +143,10 @@ class TestAdapterRegistry(unittest.TestCase):
 		self.assertIn("mock_carrier", codes)
 
 	def test_unknown_carrier_raises(self) -> None:
-		"""Bilinmeyen carrier kodu hata firlatmali."""
-		with self.assertRaises(KeyError):
+		"""Bilinmeyen carrier kodu CarrierNotFoundError (LogisticsError turevi) firlatmali."""
+		with self.assertRaises(CarrierNotFoundError):
 			get_adapter("bilinmeyen_firma")
+		self.assertTrue(issubclass(CarrierNotFoundError, LogisticsError))
 
 	def test_register_invalid_class_raises(self) -> None:
 		"""BaseCarrierAdapter'dan turetilmemis sinif kaydedilemez."""
@@ -152,11 +158,45 @@ class TestAdapterRegistry(unittest.TestCase):
 		with self.assertRaises(ValueError):
 			register_carrier("", MockCarrierAdapter)
 
-	def test_duplicate_registration_raises(self) -> None:
-		"""Ayni carrier kodu iki kez kaydedilemez."""
+	def test_duplicate_registration_same_class_noop(self) -> None:
+		"""Ayni sinifla tekrar register sessiz no-op olmali (cift import senaryosu)."""
+		register_carrier("mock_carrier", MockCarrierAdapter)
+		register_carrier("mock_carrier", MockCarrierAdapter)  # hata YOK
+		self.assertIs(_CARRIER_REGISTRY["mock_carrier"], MockCarrierAdapter)
+
+	def test_duplicate_registration_different_class_raises(self) -> None:
+		"""Ayni kodla FARKLI sinif kaydedilirse ValueError firlatilmali."""
+
+		class _OtherAdapter(MockCarrierAdapter):
+			pass
+
 		register_carrier("mock_carrier", MockCarrierAdapter)
 		with self.assertRaises(ValueError):
-			register_carrier("mock_carrier", MockCarrierAdapter)
+			register_carrier("mock_carrier", _OtherAdapter)
+
+
+class TestCapabilityErrors(unittest.TestCase):
+	"""Capability ihlali CarrierCapabilityError firlatmali (HTTP 400)."""
+
+	def test_check_capability_raises_capability_error(self) -> None:
+		"""Desteklenmeyen capability kontrolu CarrierCapabilityError firlatir."""
+
+		class _LimitedAdapter(MockCarrierAdapter):
+			capabilities: set[CarrierCapability] = set()
+
+		adapter: _LimitedAdapter = _LimitedAdapter()
+		with self.assertRaises(CarrierCapabilityError):
+			adapter._check_capability(CarrierCapability.QUOTE)
+
+	def test_optional_method_default_raises_capability_error(self) -> None:
+		"""Base'deki opsiyonel metot varsayilanlari CarrierCapabilityError firlatir."""
+		adapter: MockCarrierAdapter = MockCarrierAdapter()
+		with self.assertRaises(CarrierCapabilityError):
+			BaseCarrierAdapter.get_label(adapter, "SHP-1")
+		with self.assertRaises(CarrierCapabilityError):
+			BaseCarrierAdapter.cancel_shipment(adapter, "SHP-1")
+		with self.assertRaises(CarrierCapabilityError):
+			BaseCarrierAdapter.schedule_pickup(adapter, {})
 
 
 if __name__ == "__main__":
