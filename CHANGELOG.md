@@ -1,3 +1,31 @@
+## [v1.13.1-alpha.5] - 2026-08-10 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(logistics): lojistik modül iskeleti, durum makinesi ve rol/yetki modeli (@boraydeger32)
+  - Modül klasör yapısı ve isimlendirme standardı (adapters, services, jobs, reports)
+  - 11 durumlu sevkiyat state machine ve geçiş matrisi
+  - 8 özel hata sınıfı, 12 feature flag, fixture seed verileri
+  - BaseCarrierAdapter ABC ve MockCarrierAdapter
+  - Desi/şarj edilebilir ağırlık hesaplama servisi
+  - Logistics Settings singleton DocType
+  - API v1 endpoint iskeletleri (public + auth)
+  - Logistics Manager, Operator, Carrier Integration Manager rolleri
+  - Satıcı/alıcı tenant izolasyonu ve query_conditions
+  - Taşıyıcı credential görüntüleme sınırı ve hassas alan maskeleme
+  - ReBAC tuple sync (shipment insert/update/trash)
+  - Yetki capability seed patch (8 capability, 4 rol profili)
+  - 48+ birim test (state machine, adapter contract, desi, permissions)
+- feat(logistics): ana lojistik kataloglarını oluştur (Faz 3) (@boraydeger32)
+  - 12 yeni DocType: Logistics Provider, Carrier Account, Carrier Service, Carrier Branch, Shipping Channel, Package Type, Vehicle Type, Shipment Exception Code, Carrier Status Mapping, Service Coverage Area, Provider Operating Channel, Carrier Service Item
+  - Shipping Method legacy DocType genişletildi (channel, max_weight, max_desi)
+  - Carrier Account: tenant izolasyonu, şifreli credential alanları (Password)
+  - Carrier Account hooks.py'a kayıtlı (permission_query_conditions + has_permission)
+  - Logistics Settings'e default provider/package/vehicle alanları eklendi
+  - 6 idempotent seed patch (providers, channels, vehicles, packages, exceptions, settings)
+
+---
 ## [v1.13.1-alpha.4] - 2026-08-10 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
