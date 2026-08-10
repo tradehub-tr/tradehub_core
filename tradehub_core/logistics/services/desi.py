@@ -61,6 +61,12 @@ def get_chargeable_weight(actual_weight_kg: float, desi: float) -> float:
 def calculate_shipment_totals(items: list[dict]) -> dict:
 	"""Gonderi icindeki tum parcalar icin toplam agirlik, desi ve ucretlendirilebilir agirlik hesapla.
 
+	Kargo sektor kurali: ucretlendirilebilir agirlik PARSEL BASINA
+	max(fiili_agirlik, desi) alinip toplanir:
+	chargeable = SUM(max(weight_i, desi_i) * qty_i).
+	Toplamlar uzerinden max almak, agir-kucuk + hafif-hacimli karisik
+	yuklerde ucreti eksik hesaplar.
+
 	Her item dict'i su alanlari icermelidir:
 		- length_cm (float)
 		- width_cm (float)
@@ -84,6 +90,7 @@ def calculate_shipment_totals(items: list[dict]) -> dict:
 	"""
 	total_weight: float = 0.0
 	total_desi: float = 0.0
+	chargeable_weight: float = 0.0
 	parcel_count: int = 0
 
 	for item in items:
@@ -102,9 +109,8 @@ def calculate_shipment_totals(items: list[dict]) -> dict:
 
 		total_weight += weight * qty
 		total_desi += desi * qty
+		chargeable_weight += get_chargeable_weight(weight, desi) * qty
 		parcel_count += qty
-
-	chargeable_weight: float = get_chargeable_weight(total_weight, total_desi)
 
 	return {
 		"total_weight": total_weight,
