@@ -1,0 +1,147 @@
+{
+	"actions": [],
+	"allow_rename": 0,
+	"autoname": "hash",
+	"creation": "2026-08-07 10:00:00.000000",
+	"doctype": "DocType",
+	"engine": "InnoDB",
+	"field_order": [
+		"account_name",
+		"carrier",
+		"seller_profile",
+		"environment",
+		"is_active",
+		"is_default",
+		"section_credentials",
+		"api_key",
+		"api_secret",
+		"webhook_secret",
+		"access_token",
+		"token_expiry",
+		"base_url",
+		"additional_config"
+	],
+	"fields": [
+		{
+			"fieldname": "account_name",
+			"fieldtype": "Data",
+			"in_list_view": 1,
+			"label": "Hesap Adı",
+			"reqd": 1
+		},
+		{
+			"fieldname": "carrier",
+			"fieldtype": "Link",
+			"in_list_view": 1,
+			"label": "Taşıyıcı",
+			"options": "Logistics Provider",
+			"reqd": 1
+		},
+		{
+			"fieldname": "seller_profile",
+			"fieldtype": "Link",
+			"in_list_view": 1,
+			"label": "Satıcı Profili",
+			"options": "Admin Seller Profile",
+			"reqd": 1,
+			"search_index": 1
+		},
+		{
+			"default": "Sandbox",
+			"fieldname": "environment",
+			"fieldtype": "Select",
+			"in_list_view": 1,
+			"label": "Ortam",
+			"options": "Production\nSandbox"
+		},
+		{
+			"default": "1",
+			"fieldname": "is_active",
+			"fieldtype": "Check",
+			"label": "Aktif"
+		},
+		{
+			"default": "0",
+			"fieldname": "is_default",
+			"fieldtype": "Check",
+			"label": "Varsayılan"
+		},
+		{
+			"fieldname": "section_credentials",
+			"fieldtype": "Section Break",
+			"label": "API Kimlik Bilgileri"
+		},
+		{
+			"fieldname": "api_key",
+			"fieldtype": "Password",
+			"label": "API Key"
+		},
+		{
+			"fieldname": "api_secret",
+			"fieldtype": "Password",
+			"label": "API Secret"
+		},
+		{
+			"fieldname": "webhook_secret",
+			"fieldtype": "Password",
+			"label": "Webhook Secret"
+		},
+		{
+			"fieldname": "access_token",
+			"fieldtype": "Password",
+			"label": "Access Token"
+		},
+		{
+			"fieldname": "token_expiry",
+			"fieldtype": "Datetime",
+			"label": "Token Geçerlilik Sonu"
+		},
+		{
+			"fieldname": "base_url",
+			"fieldtype": "Data",
+			"label": "Base URL"
+		},
+		{
+			"description": "Taşıyıcıya özel ek yapılandırma (JSON)",
+			"fieldname": "additional_config",
+			"fieldtype": "JSON",
+			"label": "Ek Yapılandırma"
+		}
+	],
+	"index_web_pages_for_search": 0,
+	"links": [],
+	"modified": "2026-08-07 10:00:00.000000",
+	"modified_by": "Administrator",
+	"module": "Tradehub Core",
+	"name": "Carrier Account",
+	"owner": "Administrator",
+	"permissions": [
+		{
+			"create": 1,
+			"delete": 1,
+			"email": 1,
+			"export": 1,
+			"print": 1,
+			"read": 1,
+			"report": 1,
+			"role": "System Manager",
+			"share": 1,
+			"write": 1
+		},
+		{
+			"create": 1,
+			"delete": 1,
+			"read": 1,
+			"role": "Carrier Integration Manager",
+			"write": 1
+		},
+		{
+			"read": 1,
+			"role": "Logistics Manager"
+		}
+	],
+	"sort_field": "modified",
+	"sort_order": "DESC",
+	"title_field": "account_name",
+	"track_changes": 1
+}

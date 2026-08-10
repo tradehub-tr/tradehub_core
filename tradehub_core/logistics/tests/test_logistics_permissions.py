@@ -13,8 +13,8 @@ Test senaryolari:
   AC-4: Support Agent sadece read yapabilir
   AC-5: Platform Finance read + shipping_cost write yapabilir
   AC-6: Cancel sadece Logistics Manager yapabilir
-  AC-7: Carrier Credential — Carrier Integration Manager tam CRUD
-  AC-8: Carrier Credential — Logistics Manager sadece read
+  AC-7: Carrier Account — Carrier Integration Manager tam CRUD
+  AC-8: Carrier Account — Logistics Manager sadece read
   AC-9: Guest erisim reddedilir
   AC-10: Administrator tam erisim
 """
@@ -74,9 +74,9 @@ tenant_mock._get_seller_profile_for_user = MagicMock(return_value=None)
 
 # Simdi import edebiliriz
 from tradehub_core.logistics.permissions import (  # noqa: E402
-	carrier_credential_has_permission,
-	carrier_credential_query_conditions,
-	mask_carrier_credential_fields,
+	carrier_account_has_permission,
+	carrier_account_query_conditions,
+	mask_carrier_account_fields,
 	mask_shipment_cost_fields,
 	shipment_has_permission,
 	shipment_query_conditions,
@@ -84,7 +84,7 @@ from tradehub_core.logistics.permissions import (  # noqa: E402
 
 
 class _FakeDoc:
-	"""Minimal Shipment/Carrier Credential doc mock'u."""
+	"""Minimal Shipment/Carrier Account doc mock'u."""
 
 	def __init__(self, **kwargs):
 		for k, v in kwargs.items():
@@ -206,8 +206,8 @@ class TestShipmentHasPermission(unittest.TestCase):
 		self.assertFalse(shipment_has_permission(doc, "read", "seller2@example.com"))
 
 
-class TestCarrierCredentialPermissions(unittest.TestCase):
-	"""AC-7, AC-8: Carrier Credential permission testleri."""
+class TestCarrierAccountPermissions(unittest.TestCase):
+	"""AC-7, AC-8: Carrier Account permission testleri."""
 
 	def setUp(self):
 		_frappe.session.user = "test@example.com"
@@ -222,7 +222,7 @@ class TestCarrierCredentialPermissions(unittest.TestCase):
 
 		for ptype in ("read", "write", "create", "delete"):
 			self.assertTrue(
-				carrier_credential_has_permission(doc, ptype, "carrier@example.com"),
+				carrier_account_has_permission(doc, ptype, "carrier@example.com"),
 				f"Carrier Integration Manager should have {ptype} access",
 			)
 
@@ -232,23 +232,23 @@ class TestCarrierCredentialPermissions(unittest.TestCase):
 		tenant_mock._get_seller_profile_for_user.return_value = "SEL-00001"
 		doc = _FakeDoc(name="CC-001", seller_profile="SEL-00001")
 
-		self.assertTrue(carrier_credential_has_permission(doc, "read", "logmanager@example.com"))
-		self.assertFalse(carrier_credential_has_permission(doc, "write", "logmanager@example.com"))
-		self.assertFalse(carrier_credential_has_permission(doc, "delete", "logmanager@example.com"))
+		self.assertTrue(carrier_account_has_permission(doc, "read", "logmanager@example.com"))
+		self.assertFalse(carrier_account_has_permission(doc, "write", "logmanager@example.com"))
+		self.assertFalse(carrier_account_has_permission(doc, "delete", "logmanager@example.com"))
 
-	def test_carrier_credential_query_no_role(self):
-		"""Rolleri olmayan kullanici Carrier Credential'lari goremez."""
+	def test_carrier_account_query_no_role(self):
+		"""Rolleri olmayan kullanici Carrier Account'lari goremez."""
 		_frappe.get_roles.return_value = ["Customer"]
-		result = carrier_credential_query_conditions("norole@example.com")
+		result = carrier_account_query_conditions("norole@example.com")
 		self.assertEqual(result, "1=0")
 
-	def test_carrier_credential_tenant_isolation(self):
-		"""Farkli tenant'in Carrier Credential'ina erisilemez."""
+	def test_carrier_account_tenant_isolation(self):
+		"""Farkli tenant'in Carrier Account'ina erisilemez."""
 		_frappe.get_roles.return_value = ["Carrier Integration Manager"]
 		tenant_mock._get_seller_profile_for_user.return_value = "SEL-00002"
 		doc = _FakeDoc(name="CC-001", seller_profile="SEL-00001")
 		self.assertFalse(
-			carrier_credential_has_permission(doc, "read", "carrier@example.com")
+			carrier_account_has_permission(doc, "read", "carrier@example.com")
 		)
 
 
@@ -328,13 +328,13 @@ class TestMaskShipmentCostFields(unittest.TestCase):
 		self.assertEqual(doc.total_cost, 175.0)
 
 
-class TestMaskCarrierCredentialFields(unittest.TestCase):
-	"""mask_carrier_credential_fields testleri — MAJOR-2."""
+class TestMaskCarrierAccountFields(unittest.TestCase):
+	"""mask_carrier_account_fields testleri — MAJOR-2."""
 
 	def setUp(self):
 		_frappe.session.user = "test@example.com"
 
-	def test_mask_carrier_credential_hides_api_key(self):
+	def test_mask_carrier_account_hides_api_key(self):
 		"""Capability yoksa api_key maskelenir."""
 		doc = _FakeDoc(
 			name="CC-001", api_key="secret-key-123",
@@ -345,13 +345,13 @@ class TestMaskCarrierCredentialFields(unittest.TestCase):
 			"tradehub_core.utils.permission_resolver.has_capability",
 			return_value=False,
 		):
-			mask_carrier_credential_fields(doc, "operator@example.com")
+			mask_carrier_account_fields(doc, "operator@example.com")
 		self.assertEqual(doc.api_key, "••••••••")
 		self.assertEqual(doc.api_secret, "••••••••")
 		self.assertEqual(doc.webhook_secret, "••••••••")
 		self.assertEqual(doc.access_token, "••••••••")
 
-	def test_mask_carrier_credential_shows_with_capability(self):
+	def test_mask_carrier_account_shows_with_capability(self):
 		"""Capability varsa api_key gösterilir."""
 		doc = _FakeDoc(
 			name="CC-001", api_key="secret-key-123",
@@ -361,7 +361,7 @@ class TestMaskCarrierCredentialFields(unittest.TestCase):
 			"tradehub_core.utils.permission_resolver.has_capability",
 			return_value=True,
 		):
-			mask_carrier_credential_fields(doc, "admin@example.com")
+			mask_carrier_account_fields(doc, "admin@example.com")
 		self.assertEqual(doc.api_key, "secret-key-123")
 		self.assertEqual(doc.api_secret, "secret-value")
 

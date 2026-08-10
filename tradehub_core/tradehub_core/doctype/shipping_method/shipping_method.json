@@ -13,6 +13,13 @@
 		"column_break_1",
 		"min_days",
 		"max_days",
+		"channel",
+		"max_weight",
+		"max_desi",
+		"estimated_delivery_days_min",
+		"estimated_delivery_days_max",
+		"sb_carrier_services",
+		"carrier_services",
 		"tab_pricing",
 		"sb_pricing",
 		"base_cost",
@@ -75,6 +82,43 @@
 			"label": "Max Days"
 		},
 		{
+			"fieldname": "channel",
+			"fieldtype": "Link",
+			"label": "Channel",
+			"options": "Shipping Channel"
+		},
+		{
+			"fieldname": "max_weight",
+			"fieldtype": "Float",
+			"label": "Max Weight (kg)"
+		},
+		{
+			"fieldname": "max_desi",
+			"fieldtype": "Float",
+			"label": "Max Desi"
+		},
+		{
+			"fieldname": "estimated_delivery_days_min",
+			"fieldtype": "Int",
+			"label": "Estimated Delivery Days Min"
+		},
+		{
+			"fieldname": "estimated_delivery_days_max",
+			"fieldtype": "Int",
+			"label": "Estimated Delivery Days Max"
+		},
+		{
+			"fieldname": "sb_carrier_services",
+			"fieldtype": "Section Break",
+			"label": "Taşıyıcı Servisleri"
+		},
+		{
+			"fieldname": "carrier_services",
+			"fieldtype": "Table",
+			"label": "Carrier Services",
+			"options": "Carrier Service Item"
+		},
+		{
 			"fieldname": "tab_pricing",
 			"fieldtype": "Tab Break",
 			"label": "Fiyatlandırma"
@@ -125,7 +169,7 @@
 	],
 	"index_web_pages_for_search": 0,
 	"links": [],
-	"modified": "2024-01-01 00:00:00.000000",
+	"modified": "2026-08-07 10:00:00.000000",
 	"modified_by": "Administrator",
 	"module": "Tradehub Core",
 	"name": "Shipping Method",

@@ -7,8 +7,8 @@ Platform yöneticileri tam erişime sahipken, seller ve buyer kullanıcıları
 yalnızca kendi sevkiyatlarına erişebilir (tenant izolasyonu).
 
 Bu fonksiyonlar hooks.py içinde permission_query_conditions ve
-has_permission olarak kayıt edilir. TUR-105'te Shipment/Carrier Credential
-DocType'ları oluşturulunca hooks.py kaydı yapılacak.
+has_permission olarak kayıt edilir. Carrier Account kaydı LOG-028 ile
+yapıldı; Shipment DocType'ı oluşturulunca hooks.py kaydı yapılacak.
 
 Rol matrisi:
   - Platform full access: System Manager, Marketplace Admin, Logistics Manager,
@@ -20,10 +20,7 @@ Rol matrisi:
 
 from __future__ import annotations
 
-from typing import Optional
-
 import frappe
-from frappe import _
 
 # ---------------------------------------------------------------------------
 # Platform rol kümeleri — permissions.py ana modülündeki ile tutarlı
@@ -94,7 +91,7 @@ def _log_deny(
 			action=action,
 			decision=audit.DECISION_DENY,
 			layer=audit.LAYER_L2,
-			object_doctype="Shipment" if "shipment" in action else "Carrier Credential",
+			object_doctype="Shipment" if "shipment" in action else "Carrier Account",
 			object_name=_doc_field(doc, "name") if doc else None,
 			tenant=_doc_field(doc, "seller_profile") if doc else None,
 			rule_id=f"logistics.{action}",
@@ -112,7 +109,7 @@ def _log_deny(
 # ---------------------------------------------------------------------------
 
 
-def shipment_query_conditions(user: Optional[str] = None) -> str:
+def shipment_query_conditions(user: str | None = None) -> str:
 	"""Shipment listesi için SQL koşulu döndürür.
 
 	Platform rolleri (System Manager, Logistics Manager, Support Agent,
@@ -157,8 +154,8 @@ def shipment_query_conditions(user: Optional[str] = None) -> str:
 
 def shipment_has_permission(
 	doc: object,
-	ptype: Optional[str] = None,
-	user: Optional[str] = None,
+	ptype: str | None = None,
+	user: str | None = None,
 ) -> bool:
 	"""Tek bir Shipment dokümanı için yetki kontrolü.
 
@@ -247,12 +244,12 @@ def shipment_has_permission(
 
 
 # ---------------------------------------------------------------------------
-# Carrier Credential permission fonksiyonları
+# Carrier Account permission fonksiyonları
 # ---------------------------------------------------------------------------
 
 
-def carrier_credential_query_conditions(user: Optional[str] = None) -> str:
-	"""Carrier Credential listesi için SQL koşulu döndürür.
+def carrier_account_query_conditions(user: str | None = None) -> str:
+	"""Carrier Account listesi için SQL koşulu döndürür.
 
 	Carrier Integration Manager tam erişim (kendi tenant).
 	Logistics Manager read-only (kendi tenant).
@@ -282,7 +279,7 @@ def carrier_credential_query_conditions(user: Optional[str] = None) -> str:
 		seller_profile = _get_user_seller_profile(user)
 		if seller_profile:
 			return (
-				f"`tabCarrier Credential`.`seller_profile`"
+				f"`tabCarrier Account`.`seller_profile`"
 				f" = {frappe.db.escape(seller_profile)}"
 			)
 
@@ -290,12 +287,12 @@ def carrier_credential_query_conditions(user: Optional[str] = None) -> str:
 	return "1=0"
 
 
-def carrier_credential_has_permission(
+def carrier_account_has_permission(
 	doc: object,
-	ptype: Optional[str] = None,
-	user: Optional[str] = None,
+	ptype: str | None = None,
+	user: str | None = None,
 ) -> bool:
-	"""Tek bir Carrier Credential dokümanı için yetki kontrolü.
+	"""Tek bir Carrier Account dokümanı için yetki kontrolü.
 
 	Carrier Integration Manager → tam CRUD (kendi tenant).
 	Logistics Manager → sadece read (kendi tenant).
@@ -303,7 +300,7 @@ def carrier_credential_has_permission(
 	Diğer → False.
 
 	Args:
-		doc: Carrier Credential dokümanı.
+		doc: Carrier Account dokümanı.
 		ptype: İzin tipi (read, write, create, delete).
 		user: Kullanıcı e-posta adresi. None ise mevcut oturum kullanıcısı.
 
@@ -312,7 +309,7 @@ def carrier_credential_has_permission(
 	"""
 	user = user or frappe.session.user
 	if not user or user == "Guest":
-		_log_deny(user or "Guest", "carrier_credential.access", doc, "guest_denied")
+		_log_deny(user or "Guest", "carrier_account.access", doc, "guest_denied")
 		return False
 
 	if user == "Administrator":
@@ -328,7 +325,7 @@ def carrier_credential_has_permission(
 	if doc is None:
 		if roles & {"Carrier Integration Manager", "Logistics Manager"}:
 			return True
-		_log_deny(user, "carrier_credential.access", doc, "no_role")
+		_log_deny(user, "carrier_account.access", doc, "no_role")
 		return False
 
 	# Tenant izolasyonu: seller_profile eşleşmesi
@@ -337,7 +334,7 @@ def carrier_credential_has_permission(
 
 	if not seller_profile or (doc_seller and doc_seller != seller_profile):
 		_log_deny(
-			user, f"carrier_credential.{ptype or 'read'}", doc,
+			user, f"carrier_account.{ptype or 'read'}", doc,
 			"seller_profile_mismatch",
 		)
 		return False
@@ -350,13 +347,13 @@ def carrier_credential_has_permission(
 	if "Logistics Manager" in roles:
 		if ptype and ptype != "read":
 			_log_deny(
-				user, f"carrier_credential.{ptype}", doc,
+				user, f"carrier_account.{ptype}", doc,
 				"logistics_manager_read_only",
 			)
 			return False
 		return True
 
-	_log_deny(user, f"carrier_credential.{ptype or 'read'}", doc, "no_role")
+	_log_deny(user, f"carrier_account.{ptype or 'read'}", doc, "no_role")
 	return False
 
 
@@ -365,7 +362,7 @@ def carrier_credential_has_permission(
 # ---------------------------------------------------------------------------
 
 
-def mask_shipment_cost_fields(doc: object, user: Optional[str] = None) -> None:
+def mask_shipment_cost_fields(doc: object, user: str | None = None) -> None:
 	"""view.logistics_cost capability yoksa maliyet alanlarını maskele.
 
 	Shipment dokümanında shipping_cost, insurance_cost, total_cost gibi
@@ -398,14 +395,14 @@ def mask_shipment_cost_fields(doc: object, user: Optional[str] = None) -> None:
 			setattr(doc, field, 0)
 
 
-def mask_carrier_credential_fields(doc: object, user: Optional[str] = None) -> None:
+def mask_carrier_account_fields(doc: object, user: str | None = None) -> None:
 	"""view.carrier_secret capability yoksa api_key/api_secret maskele.
 
-	Carrier Credential dokümanında hassas API anahtarlarını capability
+	Carrier Account dokümanında hassas API anahtarlarını capability
 	kontrolü ile maskeler.
 
 	Args:
-		doc: Carrier Credential dokümanı.
+		doc: Carrier Account dokümanı.
 		user: Kullanıcı e-posta adresi. None ise mevcut oturum kullanıcısı.
 	"""
 	user = user or frappe.session.user
@@ -459,7 +456,7 @@ def logistics_settings_query_conditions(user: str | None = None) -> str:
 
 
 def logistics_settings_has_permission(
-	doc: Optional["frappe.Document"] = None,
+	doc: frappe.Document | None = None,
 	ptype: str = "read",
 	user: str | None = None,
 ) -> bool:
