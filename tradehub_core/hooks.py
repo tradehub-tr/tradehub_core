@@ -643,6 +643,13 @@ doc_events = {
 	"Logistics Settings": {
 		"on_update": "tradehub_core.logistics.cache.invalidate_logistics_dashboard",
 	},
+	# Lojistik Faz 3 — Carrier Account tenant izolasyonu (LOG-027/LOG-028).
+	# Proje konvansiyonu: before_insert (autoset + cross-tenant koruma) +
+	# validate (seller_profile değişim kilidi) çift hook.
+	"Carrier Account": {
+		"before_insert": "tradehub_core.utils.tenant.enforce_seller_isolation_on_insert",
+		"validate": "tradehub_core.utils.tenant.validate_seller_isolation_on_save",
+	},
 }
 
 # ---------------------------------------------------------------------------
@@ -708,6 +715,8 @@ permission_query_conditions = {
 	"Seller Verification": "tradehub_core.permissions.seller_verification_query_conditions",
 	# Lojistik modül (TUR-102 iskelet)
 	"Logistics Settings": "tradehub_core.logistics.permissions.logistics_settings_query_conditions",
+	# Lojistik Faz 3 — Carrier Account tenant izolasyonu (LOG-028)
+	"Carrier Account": "tradehub_core.logistics.permissions.carrier_account_query_conditions",
 }
 
 has_permission = {
@@ -774,6 +783,8 @@ has_permission = {
 	"Seller Verification": "tradehub_core.permissions.seller_verification_has_permission",
 	# Lojistik modül (TUR-102 iskelet)
 	"Logistics Settings": "tradehub_core.logistics.permissions.logistics_settings_has_permission",
+	# Lojistik Faz 3 — Carrier Account tenant izolasyonu (LOG-028)
+	"Carrier Account": "tradehub_core.logistics.permissions.carrier_account_has_permission",
 }
 
 # ---------------------------------------------------------------------------

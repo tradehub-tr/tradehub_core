@@ -1,0 +1,88 @@
+{
+	"actions": [],
+	"autoname": "hash",
+	"creation": "2026-08-07 10:00:00.000000",
+	"doctype": "DocType",
+	"engine": "InnoDB",
+	"field_order": [
+		"carrier",
+		"carrier_status_code",
+		"carrier_status_text",
+		"internal_status",
+		"exception_code"
+	],
+	"fields": [
+		{
+			"fieldname": "carrier",
+			"fieldtype": "Link",
+			"in_list_view": 1,
+			"label": "Carrier",
+			"options": "Logistics Provider",
+			"reqd": 1
+		},
+		{
+			"fieldname": "carrier_status_code",
+			"fieldtype": "Data",
+			"in_list_view": 1,
+			"label": "Carrier Status Code",
+			"reqd": 1
+		},
+		{
+			"fieldname": "carrier_status_text",
+			"fieldtype": "Data",
+			"in_list_view": 1,
+			"label": "Carrier Status Text"
+		},
+		{
+			"fieldname": "internal_status",
+			"fieldtype": "Select",
+			"in_list_view": 1,
+			"label": "Internal Status",
+			"options": "Draft\nPending\nReady for Pickup\nPicked Up\nIn Transit\nAt Warehouse\nOut for Delivery\nDelivered\nReturned\nCancelled\nFailed",
+			"reqd": 1
+		},
+		{
+			"fieldname": "exception_code",
+			"fieldtype": "Link",
+			"label": "Exception Code",
+			"options": "Shipment Exception Code"
+		}
+	],
+	"index_web_pages_for_search": 0,
+	"links": [],
+	"modified": "2026-08-07 10:00:00.000000",
+	"modified_by": "Administrator",
+	"module": "Tradehub Core",
+	"name": "Carrier Status Mapping",
+	"owner": "Administrator",
+	"permissions": [
+		{
+			"create": 1,
+			"delete": 1,
+			"email": 1,
+			"export": 1,
+			"print": 1,
+			"read": 1,
+			"report": 1,
+			"role": "System Manager",
+			"share": 1,
+			"write": 1
+		},
+		{
+			"create": 1,
+			"export": 1,
+			"read": 1,
+			"report": 1,
+			"role": "Logistics Manager",
+			"write": 1
+		},
+		{
+			"read": 1,
+			"report": 1,
+			"role": "Logistics Operator"
+		}
+	],
+	"sort_field": "modified",
+	"sort_order": "DESC",
+	"track_changes": 1
+}
