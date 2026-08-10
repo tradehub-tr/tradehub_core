@@ -1,3 +1,17 @@
+## [v1.13.1-alpha.6] - 2026-08-10 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Duzeltildi
+- fix(logistics): Faz 3.5 stabilizasyon — kritik güvenlik ve hesaplama düzeltmeleri (@boraydeger32)
+  - Desi: ücretlendirilebilir ağırlık parsel başına Σ max(ağırlık, desi) × adet (toplam bazlı hesap karışık yüklerde sistematik düşük fiyatlıyordu)
+  - Permission: Platform Finance Shipment'ta yalnız read (J.2 matrisi); doc=None yazma ptype'ları rol matrisine bağlandı; boş-tenant Carrier Account tenant kullanıcısına kapatıldı; ölü Marketplace/Platform Admin grant'leri temizlendi
+  - Adapters: register_carrier idempotent; CarrierNotFoundError (404) ve CarrierCapabilityError (400) devrede — 500 dönen KeyError/NotImplementedError kalktı
+  - 7 katalog DocType'ında kod normalizasyonu before_insert'e taşındı (autoname ↔ alan drift'i önlendi)
+  - test_logistics_permissions bench'te güvenli: _REAL_FRAPPE + skipIf (sys.modules mock'u gerçek frappe'yi ezip PicklingError veriyordu)
+  - docs/LOGISTICS-ARCHITECTURE.md gerçek implementasyonla senkronlandı (Carrier Account rename, autoname'ler, parsel-desi kuralı)
+
+---
 ## [v1.13.1-alpha.5] - 2026-08-10 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
