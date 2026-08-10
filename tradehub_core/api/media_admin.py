@@ -13,7 +13,7 @@ from __future__ import annotations
 import frappe
 from frappe import _
 
-from tradehub_core.media import archive, inventory, presets, runner, trash, usage
+from tradehub_core.media import archive, audit, inventory, presets, runner, trash, usage
 
 ALLOWED_ROLES: tuple[str, ...] = ("System Manager", "Marketplace Admin")
 
@@ -27,11 +27,41 @@ MAX_BATCH: int = 2000
 
 
 def _guard() -> None:
-	frappe.only_for(list(ALLOWED_ROLES))
+	_only_for(ALLOWED_ROLES, "media_admin")
 
 
 def _guard_destructive() -> None:
-	frappe.only_for(list(DESTRUCTIVE_ROLES))
+	_only_for(DESTRUCTIVE_ROLES, "media_destructive")
+
+
+def _only_for(roles: tuple[str, ...], scope: str) -> None:
+	"""Rol kontrolü + reddi denetime yazma.
+
+	`frappe.only_for` reddettiğinde `PermissionError` fırlatır ve geriye iz
+	bırakmaz. Yetkisiz erişim denemesi TUR-140'ın kapsamındaki bir güvenlik
+	olayı; kimin hangi uçnoktaya erişmeye çalıştığı kayda geçmeli.
+
+	Not: `Administrator` `only_for`'u tamamen atlar (frappe/__init__.py) —
+	dolayısıyla bu kayıt Administrator için hiç tetiklenmez, onun işlemleri
+	başarılı işlem kayıtlarından izlenir.
+	"""
+	try:
+		frappe.only_for(list(roles))
+	except frappe.PermissionError:
+		# Denetim yazımı reddi ASLA yutmamalı. `frappe.form_dict` HTTP dışı
+		# bağlamda bulunmayabilir; buradaki bir AttributeError PermissionError'ı
+		# maskeleyip çağırana yanlış hata tipi döndürürdü.
+		try:
+			endpoint = (frappe.form_dict or {}).get("cmd")
+		except Exception:
+			endpoint = None
+		audit.log_media_event(
+			action=audit.ACTION_ACCESS_DENIED,
+			allowed=False,
+			reason=f"missing_role:{scope}",
+			context={"required_roles": list(roles), "endpoint": endpoint},
+		)
+		raise
 
 
 @frappe.whitelist()
@@ -357,3 +387,119 @@ def get_pending_count(search: str = "", only_optimizable: int = 0, min_bytes: in
 		min_bytes=int(min_bytes or 0),
 	)
 	return {"count": len(names)}
+
+
+@frappe.whitelist()
+def get_media_audit(
+	page: int = 1,
+	page_size: int = 50,
+	action: str = "",
+	severity: str = "",
+	decision: str = "",
+	actor: str = "",
+	tenant: str = "",
+	file_url: str = "",
+	search: str = "",
+	days: int = 0,
+	sort_by: str = "timestamp",
+	sort_dir: str = "desc",
+) -> dict:
+	"""Medya denetim kayıtları — "kim ne zaman ne yaptı" görünümü (TUR-140).
+
+	Yalnız medya olaylarını döndürür; `Authorization Decision Log`'un geri kalanı
+	(yetkilendirme kararları) bu uçnoktanın kapsamı dışındadır. Denetim kaydını
+	okumak da yetkili bir işlemdir — envanteri görebilen rol seti geçerlidir.
+	"""
+	_guard()
+	result = audit.list_events(
+		page=int(page or 1),
+		page_size=int(page_size or 50),
+		action=(action or "").strip(),
+		severity=(severity or "").strip(),
+		decision=(decision or "").strip(),
+		actor=(actor or "").strip(),
+		tenant=(tenant or "").strip(),
+		file_url=(file_url or "").strip(),
+		search=(search or "").strip(),
+		days=int(days or 0),
+		sort_by=(sort_by or "timestamp").strip(),
+		sort_dir=(sort_dir or "desc").strip(),
+	)
+	result["actions"] = list(audit.MEDIA_ACTIONS)
+	result["sortable"] = list(audit.SORTABLE)
+	return result
+
+
+@frappe.whitelist()
+def get_media_audit_facets(days: int = 0) -> dict:
+	"""Filtre rayı sayaçları — hangi olaydan kaç tane, kaç reddedilen istek."""
+	_guard()
+	return audit.facets(days=int(days or 0))
+
+
+@frappe.whitelist()
+def get_media_audit_actors(limit: int = 50) -> dict:
+	"""Denetimde geçen kullanıcı/satıcı listesi — filtre açılır kutusu için."""
+	_guard()
+	return {"items": audit.actors(limit=int(limit or 50))}
+
+
+@frappe.whitelist()
+def get_media_audit_report(name: str) -> dict:
+	"""Tek denetim kaydının tam raporu — dosya künyesi, kullanım, etki, geçmiş.
+
+	Maskeli kayıtlarda dosya ve kullanım blokları boş döner; aksi hâlde
+	gizlediğimiz belge rapor üzerinden okunabilir hâle gelirdi.
+	"""
+	_guard()
+	return audit.report((name or "").strip())
+
+
+@frappe.whitelist()
+def get_media_audit_targets(limit: int = 10) -> dict:
+	"""En çok olay üreten dosyalar."""
+	_guard()
+	return {"items": audit.top_targets(limit=int(limit or 10))}
+
+
+@frappe.whitelist()
+def export_media_audit(
+	action: str = "",
+	severity: str = "",
+	decision: str = "",
+	actor: str = "",
+	tenant: str = "",
+	file_url: str = "",
+	search: str = "",
+	days: int = 0,
+	limit: int = 5000,
+) -> dict:
+	"""Filtreye uyan kayıtları CSV olarak döndür.
+
+	İstemci tarafında yalnız görünen sayfayı dışa aktarmak yanıltıcı olurdu —
+	operatör "filtrelediğim her şeyi ver" bekliyor.
+	"""
+	_guard()
+	rows = audit.export_rows(
+		action=(action or "").strip(),
+		severity=(severity or "").strip(),
+		decision=(decision or "").strip(),
+		actor=(actor or "").strip(),
+		tenant=(tenant or "").strip(),
+		file_url=(file_url or "").strip(),
+		search=(search or "").strip(),
+		days=int(days or 0),
+		limit=int(limit or 5000),
+	)
+
+	import csv
+	import io
+
+	buf = io.StringIO()
+	cols = ["timestamp", "action", "decision", "severity", "actor", "tenant", "object_name", "ip_address", "context"]
+	writer = csv.DictWriter(buf, fieldnames=cols, extrasaction="ignore")
+	writer.writeheader()
+	for r in rows:
+		writer.writerow({c: r.get(c) for c in cols})
+
+	return {"csv": buf.getvalue(), "count": len(rows)}
