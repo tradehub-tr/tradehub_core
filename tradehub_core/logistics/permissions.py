@@ -48,6 +48,12 @@ _WRITE_PTYPES: frozenset[str] = frozenset({
 	"write", "create", "delete", "submit", "cancel", "amend",
 })
 
+# doc=None (doctype-seviyesi) kontrolde yazma-turu ptype'lara izinli roller:
+# platform yazma rolleri + tenant-scoped Logistics Operator (J.2 matrisi)
+_DOCTYPE_LEVEL_WRITE_ROLES: frozenset[str] = _SHIPMENT_WRITE_ROLES | frozenset({
+	"Logistics Operator",
+})
+
 
 # ---------------------------------------------------------------------------
 # Helper: seller_profile resolver (mevcut permissions.py pattern)
@@ -162,7 +168,7 @@ def shipment_has_permission(
 	Rol + ptype matrisi:
 	  - Administrator: tam erişim
 	  - cancel: sadece Logistics Manager
-	  - write + shipping_cost değişti: Logistics Manager veya Platform Finance
+	  - Platform Finance: yalnız read/report/export (tüm yazma-türü ptype'lar False)
 	  - read: tenant izolasyonu (seller_profile match veya buyer match)
 	  - Support Agent: sadece read
 	  - Buyer: sadece read, kendi siparişi
@@ -201,24 +207,27 @@ def shipment_has_permission(
 		# read izni için tenant kontrolüne gerek yok — tüm sevkiyatları okuyabilir
 		return True
 
-	# Platform Finance → read + shipping_cost write
+	# Platform Finance → yalnız READ (J.2 yetki matrisi: read/report/export);
+	# write dahil tüm yazma-türü ptype'lar reddedilir
 	if "Platform Finance" in roles and not (roles & _SHIPMENT_WRITE_ROLES):
 		if ptype and ptype in _WRITE_PTYPES:
-			# shipping_cost değişikliği için özel izin: has_value_changed kontrolü
-			# doc.get_doc_before_save() ile yapılır; burada sadece write ptype'ı
-			# kabul edilir (Logistics Manager + Platform Finance)
-			if ptype == "write":
-				return True  # Controller tarafında field-level kontrol yapılacak
-			_log_deny(user, f"shipment.{ptype}", doc, "platform_finance_limited_write")
+			_log_deny(user, f"shipment.{ptype}", doc, "platform_finance_read_only")
 			return False
-		return True  # read izni
+		return True  # read/report/export türü izinler
 
 	# Platform full access rolleri — write dahil tam erişim
 	if roles & _SHIPMENT_WRITE_ROLES:
 		return True
 
-	# doc yoksa (doctype-seviyesi kontrol) → tenant kontrolü yapılamaz
+	# doc yoksa (doctype-seviyesi kontrol) → tenant kontrolü yapılamaz.
+	# Okuma-türü ptype'lar liste görünümlerini kırmamak için serbest;
+	# yazma-türü ptype'larda rol matrisi uygulanır (fail-open kapatıldı).
 	if doc is None:
+		if ptype and ptype in _WRITE_PTYPES:
+			if roles & _DOCTYPE_LEVEL_WRITE_ROLES:
+				return True
+			_log_deny(user, f"shipment.{ptype}", doc, "doctype_level_write_denied")
+			return False
 		return True
 
 	# Seller-scoped: kendi mağazasının sevkiyatı
@@ -270,8 +279,10 @@ def carrier_account_query_conditions(user: str | None = None) -> str:
 
 	roles = set(frappe.get_roles(user))
 
-	# Platform admin rolleri: tam erişim
-	if roles & {"System Manager", "Marketplace Admin", "Platform Admin"}:
+	# System Manager: tam liste erişimi.
+	# Marketplace Admin / Platform Admin kaldırıldı — DocPerm satırları yok,
+	# has_permission'daki ölü grant temizliğinin simetriği (BE-4d).
+	if "System Manager" in roles:
 		return ""
 
 	# Carrier Integration Manager veya Logistics Manager: kendi tenant'ı
@@ -317,8 +328,11 @@ def carrier_account_has_permission(
 
 	roles = set(frappe.get_roles(user))
 
-	# Platform admin rolleri: tam erişim
-	if roles & {"System Manager", "Marketplace Admin", "Platform Admin"}:
+	# System Manager: tenant kısıtı uygulanmaz.
+	# NOT: Frappe'de has_permission hook'u izin VEREMEZ, yalnız kısıtlar —
+	# DocPerm satırı olmayan Marketplace Admin / Platform Admin grant'ları
+	# bu yüzden kaldırıldı (yanıltıcı ölü kod idi).
+	if "System Manager" in roles:
 		return True
 
 	# doc yoksa (doctype-seviyesi kontrol)
@@ -332,7 +346,17 @@ def carrier_account_has_permission(
 	seller_profile = _get_user_seller_profile(user)
 	doc_seller = _doc_field(doc, "seller_profile")
 
-	if not seller_profile or (doc_seller and doc_seller != seller_profile):
+	if not doc_seller:
+		# Platform-global hesap (seller_profile boş): yalnız seller_profile'ı
+		# OLMAYAN platform kullanıcıları (ör. platform Carrier Integration
+		# Manager) erişebilir; tenant kullanıcısına kapalı.
+		if seller_profile:
+			_log_deny(
+				user, f"carrier_account.{ptype or 'read'}", doc,
+				"platform_global_account_tenant_denied",
+			)
+			return False
+	elif not seller_profile or doc_seller != seller_profile:
 		_log_deny(
 			user, f"carrier_account.{ptype or 'read'}", doc,
 			"seller_profile_mismatch",
@@ -373,26 +397,29 @@ def mask_shipment_cost_fields(doc: object, user: str | None = None) -> None:
 		user: Kullanıcı e-posta adresi. None ise mevcut oturum kullanıcısı.
 	"""
 	user = user or frappe.session.user
-	if not user or user == "Administrator":
+	# Yalnız Administrator muaf; user falsy ise maskeleme UYGULANIR (fail-closed)
+	if user == "Administrator":
 		return
 
-	try:
-		from tradehub_core.utils.permission_resolver import has_capability
+	if user:
+		try:
+			from tradehub_core.utils.permission_resolver import has_capability
 
-		if has_capability(user, "view.logistics_cost"):
-			return
-	except (ImportError, AttributeError):
-		# permission_resolver mevcut değilse maskeleme UYGULA (fail-closed — güvenli taraf)
-		pass
+			if has_capability(user, "view.logistics_cost"):
+				return
+		except (ImportError, AttributeError):
+			# permission_resolver mevcut değilse maskeleme UYGULA (fail-closed — güvenli taraf)
+			pass
 
-	# Maliyet alanlarını maskele
+	# Maliyet alanlarını maskele — None yazılır, 0 DEĞİL: write yetkili ama
+	# capability'siz bir kullanıcı doc'u kaydederse 0 DB'deki gerçek maliyeti ezerdi
 	cost_fields = (
 		"shipping_cost", "insurance_cost", "total_cost",
 		"carrier_cost", "fuel_surcharge", "packaging_cost",
 	)
 	for field in cost_fields:
 		if hasattr(doc, field) and getattr(doc, field, None) is not None:
-			setattr(doc, field, 0)
+			setattr(doc, field, None)
 
 
 def mask_carrier_account_fields(doc: object, user: str | None = None) -> None:
@@ -406,21 +433,26 @@ def mask_carrier_account_fields(doc: object, user: str | None = None) -> None:
 		user: Kullanıcı e-posta adresi. None ise mevcut oturum kullanıcısı.
 	"""
 	user = user or frappe.session.user
-	if not user or user == "Administrator":
+	# Yalnız Administrator muaf; user falsy ise maskeleme UYGULANIR (fail-closed)
+	if user == "Administrator":
 		return
 
-	try:
-		from tradehub_core.utils.permission_resolver import has_capability
+	if user:
+		try:
+			from tradehub_core.utils.permission_resolver import has_capability
 
-		if has_capability(user, "view.carrier_secret"):
-			return
-	except (ImportError, AttributeError):
-		# permission_resolver mevcut değilse maskeleme UYGULA (fail-closed — güvenli taraf)
-		pass
+			if has_capability(user, "view.carrier_secret"):
+				return
+		except (ImportError, AttributeError):
+			# permission_resolver mevcut değilse maskeleme UYGULA (fail-closed — güvenli taraf)
+			pass
 
-	# Hassas alanları maskele
+	# Hassas alanları maskele.
+	# CONSTRAINT: Frappe BaseDocument._save_passwords yalnız TÜM-asterisk
+	# değerleri dummy sayıp kaydetmede atlar; bullet (•) içeren bir mask,
+	# doc kaydedilirse __Auth'taki gerçek secret'ın üzerine yazılırdı.
 	secret_fields = ("api_key", "api_secret", "webhook_secret", "access_token")
-	mask_value = "••••••••"
+	mask_value = "*" * 8
 	for field in secret_fields:
 		if hasattr(doc, field) and getattr(doc, field, None):
 			setattr(doc, field, mask_value)

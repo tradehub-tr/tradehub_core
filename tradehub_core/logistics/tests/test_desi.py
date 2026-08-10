@@ -101,6 +101,40 @@ class TestCalculateShipmentTotals(unittest.TestCase):
 		self.assertEqual(result["total_weight"], 5.5)
 		self.assertEqual(result["parcel_count"], 5)
 
+	def test_mixed_load_chargeable_per_parcel(self) -> None:
+		"""Karisik yuk: agir-kucuk + hafif-hacimli parseller — parsel-bazli kural.
+
+		Parsel 1: 20 kg, 20x15x20 = 6000/3000 = 2 desi -> max(20, 2) = 20
+		Parsel 2:  2 kg, 50x30x30 = 45000/3000 = 15 desi -> max(2, 15) = 15
+		Eski toplam-bazli hesap: max(22, 17) = 22 (eksik ucretlendirme).
+		Yeni parsel-bazli sektor kurali: 20 + 15 = 35.
+		"""
+		items: list[dict] = [
+			{
+				"length_cm": 20,
+				"width_cm": 15,
+				"height_cm": 20,
+				"weight_kg": 20.0,
+				"qty": 1,
+			},
+			{
+				"length_cm": 50,
+				"width_cm": 30,
+				"height_cm": 30,
+				"weight_kg": 2.0,
+				"qty": 1,
+			},
+		]
+		result: dict = calculate_shipment_totals(items)
+		self.assertEqual(result["total_weight"], 22.0)
+		self.assertEqual(result["total_desi"], 17.0)
+		self.assertEqual(result["chargeable_weight"], 35.0)
+		# Eski toplam-bazli hesabin dondurecegi degerle AYNI OLMAMALI
+		self.assertNotEqual(
+			result["chargeable_weight"],
+			max(result["total_weight"], result["total_desi"]),
+		)
+
 
 if __name__ == "__main__":
 	unittest.main()
