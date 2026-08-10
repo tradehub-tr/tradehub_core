@@ -68,13 +68,25 @@ def _chunks(seq: list, n: int = _CHUNK):
 		yield seq[i : i + n]
 
 
+def _search_variants(url: str) -> list[str]:
+	r"""Bir adresin veritabanında geçebileceği yazımları.
+
+	`Storefront Layout.sections` JSON'u kaçışlı yazılıyor: `/files/Adsız.jpg`
+	orada `/files/Adsız.jpg` olarak duruyor. Yalnız ham yazım arandığı
+	sürece o satır hiç GETİRİLMİYORDU — dolayısıyla Türkçe adlı vitrin görselleri
+	"kullanılmıyor" görünüp silme adayı oluyordu.
+	"""
+	kacisli = json.dumps(url, ensure_ascii=True)[1:-1]
+	return [url] if kacisli == url else [url, kacisli]
+
+
 def _match_rows(table: str, column: str, urls: list[str], extra: str = "") -> list[dict]:
 	"""`urls` içindeki herhangi biri geçen satırları dön. LIKE ile, chunk'lı."""
 	out: list[dict] = []
 	for chunk in _chunks(urls):
 		# LOCATE: LIKE utf8mb4'te 4 baytlık karakterli satırlarda eşleşmiyor.
-		cond = " or ".join([f"locate(%s, `{column}`) > 0"] * len(chunk))
-		vals = list(chunk)
+		vals = [v for u in chunk for v in _search_variants(u)]
+		cond = " or ".join([f"locate(%s, `{column}`) > 0"] * len(vals))
 		sel = f"`{column}` as _val" + (f", {extra}" if extra else "")
 		try:
 			out += frappe.db.sql(f"select {sel} from `{table}` where {cond}", vals, as_dict=True)
@@ -86,12 +98,150 @@ def _match_rows(table: str, column: str, urls: list[str], extra: str = "") -> li
 	return out
 
 
-def _urls_in(value: str, wanted: set[str]) -> set[str]:
-	"""Bir metin alanında geçen ve aradığımız kümede olan URL'ler."""
+def extract_file_urls(value: str | None) -> set[str]:
+	"""Bir metin alanında geçen TÜM dosya adresleri — tek kaynak.
+
+	Bu mantığın dört ayrı kopyası vardı ve biri düzeltilince diğerleri geride
+	kaldı: liste "kullanılmıyor", detay penceresi "kullanılıyor" diyordu. Aynı
+	soruyu iki farklı yerin farklı cevaplaması, silme akışını besleyen bir
+	ekranda kabul edilemez — hepsi buradan geçiyor.
+
+	Dosya adında BOŞLUK olabiliyor ve üç yol da gerekli:
+
+	  1. Düz alan (ana görsel, logo): alanın tamamı tek adres. Sadece desen
+	     araması yapılırsa boşlukta kesiliyor ve `/files/WhatsApp Image ...jpeg`
+	     adresi `/files/WhatsApp` oluyordu — ölçüm: 168 gerçek ürün görseli
+	     "kullanılmıyor" görünüyor ve silme adayı listesine düşüyordu.
+	  2. Tırnak içinde gömülü (JSON): tırnağa kadar oku, boşluk sorun değil.
+	  3. Tırnaksız gömülü: ayraçta kes.
+	"""
 	if not isinstance(value, str) or "/files/" not in value:
 		return set()
-	found = set(re.findall(r"/(?:private/)?files/[^\"'\s\\,\)\]}>]+", value))
-	return {u.split("?")[0] for u in found} & wanted
+
+	metinler = [value]
+	cozulmus = _decode_unicode_escapes(value)
+	if cozulmus != value:
+		metinler.append(cozulmus)
+
+	found: set[str] = set()
+	for metin in metinler:
+		found |= set(re.findall(r"/(?:private/)?files/[^\"'\s\\,\)\]}>]+", metin))
+		found |= set(re.findall(r"[\"'](/(?:private/)?files/[^\"']+)[\"']", metin))
+
+	duz = value.strip()
+	if duz.startswith("/files/") or duz.startswith("/private/files/"):
+		found.add(duz)
+
+	temiz = {u.split("?")[0] for u in found}
+	return temiz - _truncation_artifacts(temiz)
+
+
+def _decode_unicode_escapes(value: str) -> str:
+	r"""JSON'da kaçışlı yazılmış Türkçe harfleri gerçek harfe çevir.
+
+	`Storefront Layout.sections` JSON'u veritabanına kaçışlı yazılıyor: dosya
+	adındaki `ı` harfi metinde `ı` olarak duruyor. Karşılaştırma ham metin
+	üzerinde yapıldığı için `/files/Adsız tasarım.jpg` adresi hiç eşleşmiyordu.
+
+	Sonuç YANLIŞ YÖNDEYDİ: vitrin bölümünde kullanılan Türkçe adlı görseller
+	"hiçbir yerde kullanılmıyor" görünüyor, yani silme adayı listesine düşüyordu.
+	Silinseler vitrin bölümü boş kalırdı.
+
+	Çözülmüş metin ham metnin YERİNE geçmez, yanına eklenir — biri kaçırırsa
+	diğeri yakalasın.
+	"""
+	if "\\u" not in value:
+		return value
+	return re.sub(r"\\u([0-9a-fA-F]{4})", lambda m: chr(int(m.group(1), 16)), value)
+
+
+def _truncation_artifacts(urls: set[str]) -> set[str]:
+	"""Boşlukta kesilmiş yarım adresleri ayıkla.
+
+	1. yol (tırnaksız desen) boşlukta durduğu için `/files/2 li süzgeç.tif`
+	adresinden ayrıca `/files/2` parçasını da üretiyor. 2. yol tam adresi zaten
+	yakaladığı için ikisi birden sete giriyordu.
+
+	Atma koşulu KASITEN dar tutuldu, çünkü fazladan atmak yanlış yönde hata:
+	adres listeden düşerse dosya "kullanılmıyor" görünür ve silinebilir hâle
+	gelir. Bu yüzden yalnız ikisi birden doğruysa atılır:
+
+	  a) parçanın uzantısı yok — gerçek bir dosya adresi değil,
+	  b) aynı metinde bu parçayla başlayıp boşlukla devam eden TAM adres var.
+
+	Yani atılan her parçanın yerine, onu kapsayan tam adres sette duruyor.
+	"""
+	return {
+		kisa
+		for kisa in urls
+		if "." not in kisa.rsplit("/", 1)[-1]
+		and any(uzun.startswith(kisa + " ") for uzun in urls)
+	}
+
+
+def _urls_in(value: str, wanted: set[str]) -> set[str]:
+	"""Alanda geçip aradığımız kümede de olan adresler."""
+	return extract_file_urls(value) & wanted
+
+
+def public_urls_for(pairs: set[tuple[str, str]]) -> dict[tuple[str, str], str]:
+	"""Kayıtların ziyaretçiye görünen sayfa YOLU (host olmadan).
+
+	TUR-136 "hangi içeriklerde, hangi alanlarda ve **hangi URL'lerde**" diyor.
+	İlk iki boyut vardı, üçüncüsü eksikti: bir görselin hangi sayfada göründüğü.
+	SEO görünürlüğü de bu boyuttan çıkıyor.
+
+	**Host bilerek eklenmiyor.** Mağaza vitrini backend'den ayrı bir uygulama ve
+	adresi ortama göre değişiyor — yerelde ayrı port, prod'da ayrı alan adı.
+	Backend bunu güvenilir biçimde bilemez; `get_url()` backend'in kendi adresini
+	döndürüyor ve panelde yanlış adres çıkıyordu. Panel `VITE_STOREFRONT_URL` ile
+	zaten doğru kökü biliyor, yolu onun başına ekliyor.
+
+	Yol kurgusu SEO modülünden alınıyor (`sitemap_generator.DOCTYPE_CONFIG`);
+	burada ikinci bir kurgu yazmak sitemap ile panelin ayrışması demek olurdu.
+
+	Slug'ı olmayan kayıt için boş döner — o sayfa yayında değildir.
+	"""
+	if not pairs:
+		return {}
+
+	try:
+		from tradehub_core.seo.sitemap_generator import DOCTYPE_CONFIG
+	except Exception:
+		frappe.log_error(title="media.usage public_urls import failed", message=frappe.get_traceback())
+		return {}
+
+	out: dict[tuple[str, str], str] = {}
+
+	# Doctype başına tek sorgu — kayıt başına sorgu 22 görselli üründe 22 sorgu eder.
+	by_doctype: dict[str, set[str]] = defaultdict(set)
+	for doctype, name in pairs:
+		by_doctype[doctype].add(name)
+
+	for doctype, names in by_doctype.items():
+		cfg = DOCTYPE_CONFIG.get(doctype)
+		if not cfg:
+			continue
+		slug_field = cfg.get("slug_field")
+		prefix = cfg.get("url_prefix") or ""
+		try:
+			rows = frappe.get_all(
+				doctype,
+				filters={"name": ["in", list(names)]},
+				fields=["name", slug_field],
+				limit_page_length=0,
+			)
+		except Exception:
+			continue
+		for row in rows:
+			slug = row.get(slug_field)
+			if not slug:
+				continue
+			out[(doctype, row["name"])] = (
+				f"{prefix}/{slug}" if prefix else (slug if str(slug).startswith("/") else f"/{slug}")
+			)
+
+	return out
 
 
 def verdicts_for(urls: list[str], deep: bool = False) -> dict[str, dict]:
@@ -165,9 +315,7 @@ def _referenced_urls(group: tuple) -> set[str]:
 			)
 			continue
 		for (val,) in rows:
-			if isinstance(val, str) and "/files/" in val:
-				for m in re.findall(r"/(?:private/)?files/[^\"\'\s\\,\)\]}>]+", val):
-					found.add(m.split("?")[0])
+			found |= extract_file_urls(val)
 	return found
 
 
@@ -193,9 +341,10 @@ def usage_counts_all(refresh: bool = False) -> dict[str, int]:
 		except Exception:
 			continue
 		for (val,) in rows:
-			if isinstance(val, str) and "/files/" in val:
-				for m in re.findall(r"/(?:private/)?files/[^\"\'\s\\,\)\]}>]+", val):
-					counts[m.split("?")[0]] += 1
+			# Aynı alanda aynı adres iki kez geçebilir; kullanım sayısı satır
+			# başına birdir, bu yüzden küme üzerinden sayılır.
+			for u in extract_file_urls(val):
+				counts[u] += 1
 
 	out = dict(counts)
 	frappe.cache.set_value(key, out, expires_in_sec=VERDICT_TTL)
@@ -310,6 +459,12 @@ def resolve(file_url: str) -> dict:
 			u["label"] = meta.get("title") or u["name"]
 			u["status"] = meta.get("status") or ""
 
+	# TUR-136'nın üçüncü boyutu: görselin göründüğü SAYFA adresi. Hangi üründe
+	# ve hangi alanda olduğunu biliyorduk ama hangi adreste yayınlandığını değil.
+	sayfalar = public_urls_for({(u["doctype"], u["name"]) for u in usages if u.get("name")})
+	for u in usages:
+		u["page_path"] = sayfalar.get((u["doctype"], u["name"]), "")
+
 	# ── Sipariş kopyaları ─────────────────────────────────────────────
 	orders: list[dict] = []
 	for table, column, kind, label in ORDER_SOURCES:
@@ -361,6 +516,107 @@ def resolve(file_url: str) -> dict:
 		# Kaç kayıt fazladan: aynı dosyaya işaret eden File kayıtlarının
 		# kullanılandan fazlası. Temizlik adayı sayısı.
 		"redundant_records": max(0, len(records) - max(1, len({u["name"] for u in usages}))),
+	}
+
+
+def images_of(doctype: str, name: str) -> dict:
+	"""Ters arama — bir kaydın kullandığı TÜM medya (TUR-136).
+
+	`resolve()` "bu dosya nerede kullanılıyor" sorusunu cevaplıyor; bu fonksiyon
+	tersini yapar: "bu ürünün / mağazanın hangi görselleri var".
+
+	Ürün sayfasını incelerken ya da bir mağazanın medya yükünü ölçerken tek tek
+	dosyadan başlamak zorunda kalmamak için. Silme kararı da kolaylaşır: bir
+	üründeki tüm görseller tek listede, hangisi başka ürünlerde de kullanılıyor
+	yanında yazılı.
+	"""
+	name = (name or "").strip()
+	if not name:
+		frappe.throw(frappe._("Kayıt adı zorunlu."))
+
+	# Hangi kaynak hangi doctype'a ait — ters yönde sorgu için sahiplik kolonu.
+	if doctype == "Listing":
+		kaynaklar = [
+			("tabListing", "primary_image", "listing_main", "Ana görsel", "name"),
+			("tabListing", "video_url", "listing_video", "Video", "name"),
+			("tabListing Image", "image", "listing_gallery", "Galeri", "parent"),
+			("tabListing Variant Item", "variant_image", "variant_main", "Varyant görseli", "parent"),
+			("tabListing Variant Item", "variant_gallery", "variant_gallery", "Varyant galerisi", "parent"),
+		]
+	elif doctype == "Admin Seller Profile":
+		kaynaklar = [
+			("tabAdmin Seller Profile", "logo", "seller_logo", "Mağaza logosu", "name"),
+			("tabSeller Gallery Image", "image", "seller_gallery", "Satıcı galerisi", "parent"),
+		]
+	elif doctype == "Storefront Layout":
+		kaynaklar = [("tabStorefront Layout", "sections", "storefront", "Vitrin düzeni", "name")]
+	else:
+		frappe.throw(frappe._("Bu kayıt türü için medya taraması tanımlı değil: {0}").format(doctype))
+
+	slotlar: list[dict] = []
+	for table, column, kind, label, ownercol in kaynaklar:
+		try:
+			rows = frappe.db.sql(
+				f"""select `{column}` as val, name as rowname
+					from `{table}` where `{ownercol}` = %s""",  # noqa: S608 — sabit listeden
+				(name,),
+				as_dict=True,
+			)
+		except Exception:
+			continue
+		for row in rows:
+			for url in extract_file_urls(row.get("val")):
+				slotlar.append(
+					{
+						"file_url": url,
+						"kind": kind,
+						"field": label,
+						"row": row["rowname"],
+					}
+				)
+
+	urls = list({s["file_url"] for s in slotlar})
+	# Her görselin BAŞKA yerlerde de kullanılıp kullanılmadığı: silme kararının
+	# asıl belirleyicisi. Tek üründe geçen görsel silinebilir, paylaşılan değil.
+	kararlar = verdicts_for(urls, deep=True) if urls else {}
+	sayilar = usage_counts_all() if urls else {}
+
+	dosyalar = frappe.get_all(
+		"File",
+		filters={"file_url": ["in", urls]} if urls else {"name": ["is", "not set"]},
+		fields=["file_url", "file_name", "file_size", "th_media_state", "th_optimized_at"],
+		limit_page_length=0,
+	)
+	kunye = {}
+	for f in dosyalar:
+		# Aynı adrese birden çok kayıt işaret edebiliyor; ilki temsilci.
+		kunye.setdefault(f["file_url"], f)
+
+	for s in slotlar:
+		bilgi = kunye.get(s["file_url"], {})
+		s["file_name"] = bilgi.get("file_name") or s["file_url"].rsplit("/", 1)[-1]
+		s["file_size"] = bilgi.get("file_size") or 0
+		s["state"] = bilgi.get("th_media_state") or ("" if bilgi else "missing")
+		s["optimized"] = bool(bilgi.get("th_optimized_at"))
+		# `verdicts_for` her url için sözlük döner: {verdict, live, order, history}.
+		karar = kararlar.get(s["file_url"]) or {}
+		s["verdict"] = karar.get("verdict") or "unused"
+		s["live_usage"] = karar.get("live") or 0
+		toplam = sayilar.get(s["file_url"], 0)
+		s["used_elsewhere"] = max(0, toplam - 1)
+
+	# Kaydın kendi sayfa yolu — host'u panel ekler (ortama göre değişiyor).
+	sayfa = public_urls_for({(doctype, name)}).get((doctype, name), "")
+
+	return {
+		"doctype": doctype,
+		"name": name,
+		"page_path": sayfa,
+		"slots": slotlar,
+		"unique_files": len(urls),
+		"total_bytes": sum(kunye.get(u, {}).get("file_size") or 0 for u in urls),
+		"missing": [s["file_url"] for s in slotlar if s["state"] == "missing"],
+		"shared": [s["file_url"] for s in slotlar if s["used_elsewhere"]],
 	}
 
 

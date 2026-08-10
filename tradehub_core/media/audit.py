@@ -478,13 +478,17 @@ def _decorate_targets(rows: list[dict]) -> None:
 		for row in frappe.get_all(
 			"File",
 			filters={"file_url": ["in", list(urls)]},
-			fields=["file_url", "th_trashed_at"],
+			fields=["file_url", "th_media_state", "th_trashed_at"],
 			limit_page_length=0,
 		):
 			# Aynı dosyaya birden çok kayıt işaret edebiliyor; biri bile canlıysa
-			# dosya canlıdır.
+			# dosya canlıdır. Durum `th_media_state`'ten okunur; alan boşsa damgaya
+			# düşülür (TUR-138 patch'i öncesi kayıtlar).
 			prev = known.get(row["file_url"], "missing")
-			state = "trashed" if row.get("th_trashed_at") else "live"
+			from tradehub_core.media.states import STATE_TRASHED
+
+			is_trashed = (row.get("th_media_state") == STATE_TRASHED) or bool(row.get("th_trashed_at"))
+			state = "trashed" if is_trashed else "live"
 			known[row["file_url"]] = "live" if "live" in (prev, state) else state
 
 	for r in rows:

@@ -13,7 +13,7 @@ from __future__ import annotations
 import frappe
 from frappe import _
 
-from tradehub_core.media import archive, audit, inventory, presets, runner, trash, usage
+from tradehub_core.media import archive, audit, inventory, presets, refs, runner, trash, usage
 
 ALLOWED_ROLES: tuple[str, ...] = ("System Manager", "Marketplace Admin")
 
@@ -339,7 +339,8 @@ def purge_trash(older_than_days: int = -1) -> dict:
 		if older_than_days is None or int(older_than_days) < 0
 		else int(older_than_days)
 	)
-	return trash.purge_expired(retention_days=days)
+	# Kullanıcı düğmesinden geldi — zamanlanmış işten ayrılsın.
+	return trash.purge_expired(retention_days=days, trigger="manual")
 
 
 @frappe.whitelist(methods=["POST"])
@@ -356,7 +357,7 @@ def purge_archive(older_than_days: int = -1) -> dict:
 	"""
 	_guard_destructive()
 	days = presets.ARCHIVE_RETENTION_DAYS if older_than_days is None or int(older_than_days) < 0 else int(older_than_days)
-	result = archive.purge_expired(retention_days=days)
+	result = archive.purge_expired(retention_days=days, trigger="manual")
 	frappe.logger("media").info(
 		f"archive purge: days={days} deleted={result['deleted']} freed={result['freed_bytes']}"
 	)
@@ -428,6 +429,46 @@ def get_media_audit(
 	result["actions"] = list(audit.MEDIA_ACTIONS)
 	result["sortable"] = list(audit.SORTABLE)
 	return result
+
+
+@frappe.whitelist()
+def get_file_references(file_url: str) -> dict:
+	"""Bu dosyayı gösteren TÜM satırlar — silmeden önce etki listesi.
+
+	`get_file_usage` "nerede kullanılıyor" sorusunu ürün diliyle cevaplıyor;
+	bu uçnokta ise temizlenecek somut satırları verir (tablo, kolon, kayıt).
+	"""
+	_guard()
+	url = (file_url or "").strip()
+	return {"file_url": url, "items": refs.find(url), "preview": refs.clear(url, dry_run=True)}
+
+
+@frappe.whitelist()
+def get_record_media(doctype: str, name: str) -> dict:
+	"""Ters arama — bir ürünün/mağazanın kullandığı tüm medya (TUR-136).
+
+	`get_file_usage` "bu dosya nerede kullanılıyor" der; bu uçnokta tersini
+	yapar. Her görselin yanında başka yerlerde de kullanılıp kullanılmadığı
+	yazar — silme kararının asıl belirleyicisi o.
+	"""
+	_guard()
+	return usage.images_of((doctype or "").strip(), (name or "").strip())
+
+
+@frappe.whitelist()
+def get_dangling_references(limit: int = 500) -> dict:
+	"""Hedefi olmayan referanslar — geçmişte bozulmuş bağların raporu."""
+	_guard()
+	items = refs.find_dangling(limit=int(limit or 500))
+	return {"items": items, "total_rows": sum(i["rows"] for i in items)}
+
+
+@frappe.whitelist(methods=["POST"])
+def repair_dangling_references(dry_run: int = 1) -> dict:
+	"""Kırık referansları temizle. Varsayılan kuru çalışma — yıkıcı iş sessizce
+	çalışmamalı; `dry_run=0` gerçekten uygular."""
+	_guard_destructive()
+	return refs.repair_dangling(dry_run=bool(int(dry_run or 0)))
 
 
 @frappe.whitelist()

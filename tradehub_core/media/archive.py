@@ -110,7 +110,9 @@ def usage_bytes() -> int:
 	return total
 
 
-def purge_expired(retention_days: int = ARCHIVE_RETENTION_DAYS) -> dict:
+def purge_expired(
+	retention_days: int = ARCHIVE_RETENTION_DAYS, trigger: str = "scheduled"
+) -> dict:
 	"""Süresi dolan arşiv dosyalarını sil. Günlük scheduler job'ı çağırır.
 
 	Geri alma penceresi kapandıktan sonra nihai depolama kazancı burada gerçekleşir.
@@ -141,7 +143,12 @@ def purge_expired(retention_days: int = ARCHIVE_RETENTION_DAYS) -> dict:
 	# geri alma penceresinin kapandığı an denetimde görünmeli.
 	audit.log_media_batch(
 		action=audit.ACTION_PURGE_ARCHIVE,
-		summary={"retention_days": retention_days, "deleted": deleted, "freed_bytes": freed},
+		summary={
+			"trigger": trigger,
+			"retention_days": retention_days,
+			"deleted": deleted,
+			"freed_bytes": freed,
+		},
 	)
 	return {"deleted": deleted, "freed_bytes": freed}
 

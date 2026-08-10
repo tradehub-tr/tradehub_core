@@ -18,7 +18,7 @@ import os
 
 import frappe
 
-from tradehub_core.media import archive, audit, engine, gates, presets
+from tradehub_core.media import archive, audit, engine, gates, presets, states
 
 
 def progress_key(job_key: str) -> str:
@@ -285,6 +285,9 @@ def _update_metadata(file_url: str, *, new_size: int, original_size: int) -> Non
 		},
 		update_modified=False,
 	)
+	# Orijinali arşivde bekleyen dosya "Archived" (TUR-138). Damga ile durum
+	# aynı yerde yazılır, ayrışamaz.
+	states.transition(file_url, states.STATE_ARCHIVED)
 
 
 def restore_batch(file_names: list[str], job_key: str = "") -> dict:
@@ -350,6 +353,7 @@ def restore_original(file_name: str) -> dict:
 			{"file_size": len(content), "th_optimized_at": None, "th_original_size": 0},
 			update_modified=False,
 		)
+		states.transition(doc.file_url, states.STATE_ACTIVE)
 		_write_original(doc, content)
 	except Exception:
 		frappe.db.rollback()
