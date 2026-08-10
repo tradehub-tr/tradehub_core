@@ -1,3 +1,13 @@
+## [v1.13.1-alpha.4] - 2026-08-10 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(media): medya olayları için denetim kaydı (TUR-140) (@Metin Bektemur)
+  - yıkıcı ve tekil işlemler (çöp, geri al, kalıcı sil) → dosya başına
+  - toplu ve tekrarlanabilir işler (optimize, purge)    → iş başına özet
+
+---
 ## [v1.13.1-alpha.3] - 2026-08-07 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
