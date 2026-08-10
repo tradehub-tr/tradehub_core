@@ -19,6 +19,7 @@ import time
 
 import frappe
 
+from tradehub_core.media import audit
 from tradehub_core.media.presets import ARCHIVE_DIRNAME, ARCHIVE_RETENTION_DAYS
 
 
@@ -135,6 +136,13 @@ def purge_expired(retention_days: int = ARCHIVE_RETENTION_DAYS) -> dict:
 				continue
 
 	_prune_empty_dirs(root)
+
+	# Arşiv silindikten sonra o dosyalar bir daha orijinaline döndürülemez —
+	# geri alma penceresinin kapandığı an denetimde görünmeli.
+	audit.log_media_batch(
+		action=audit.ACTION_PURGE_ARCHIVE,
+		summary={"retention_days": retention_days, "deleted": deleted, "freed_bytes": freed},
+	)
 	return {"deleted": deleted, "freed_bytes": freed}
 
 

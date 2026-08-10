@@ -18,7 +18,7 @@ import os
 
 import frappe
 
-from tradehub_core.media import archive, engine, gates, presets
+from tradehub_core.media import archive, audit, engine, gates, presets
 
 
 def progress_key(job_key: str) -> str:
@@ -104,6 +104,25 @@ def run_batch(
 		f"skipped={state['skipped']} errors={state['errors']} "
 		f"saved={state['original_bytes'] - state['new_bytes']}"
 	)
+
+	# Denetim kaydı iş başına: dosya başına yazmak 2.800'lük bir işte ADL'i
+	# şişirir ve zinciri okunamaz kılar (bkz. media/audit.py docstring).
+	# `dry_run` diske dokunmadığı için ayrıca işaretlenir — denetimde "bu iş
+	# gerçekten dosya değiştirdi mi" sorusu buradan cevaplanır.
+	audit.log_media_batch(
+		action=audit.ACTION_OPTIMIZE,
+		job_key=job_key,
+		summary={
+			"preset": preset,
+			"dry_run": bool(dry_run),
+			"total": state["total"],
+			"optimized": state["optimized"],
+			"skipped": state["skipped"],
+			"errors": state["errors"],
+			"saved_bytes": state["original_bytes"] - state["new_bytes"],
+			"skip_reasons": state["skip_reasons"],
+		},
+	)
 	return state
 
 
@@ -120,9 +139,11 @@ def _assert_in_scope(doc) -> None:
 	from tradehub_core.media.inventory import EXCLUDED_DOCTYPES
 
 	if doc.is_private or not (doc.file_url or "").startswith("/files/"):
+		_deny(doc, "private_or_outside_files")
 		frappe.throw(frappe._("Private dosya optimizasyon kapsamı dışında: {0}").format(doc.file_url))
 
 	if doc.attached_to_doctype in EXCLUDED_DOCTYPES:
+		_deny(doc, f"excluded_doctype:{doc.attached_to_doctype}")
 		frappe.throw(
 			frappe._("{0} eki optimizasyon kapsamı dışında: {1}").format(
 				doc.attached_to_doctype, doc.file_name
@@ -133,9 +154,30 @@ def _assert_in_scope(doc) -> None:
 	# `is_private`/`attached_to` KAYIT bazında çalıştığı için o kopyayı
 	# yakalamıyor — ölçümde 44 böyle dosya çıktı, biri KYC kimlik belgesiydi.
 	if doc.content_hash and _has_sensitive_twin(doc.content_hash):
+		_deny(doc, "sensitive_content_twin")
 		frappe.throw(
 			frappe._("Bu dosya hassas bir belgenin kopyası, kapsam dışında: {0}").format(doc.file_name)
 		)
+
+
+def _deny(doc, reason: str) -> None:
+	"""Kapsam ihlalini denetime yaz — bu bir güvenlik olayı, sessiz geçilmez.
+
+	Buraya düşmek istemci listesinin manipüle edildiği anlamına gelir: `inventory`
+	bu dosyaları zaten listelemiyor, dolayısıyla normal kullanımda tetiklenmez.
+	Tekil kaydedilir (toplu özet değil) çünkü tek bir ihlal bile incelenmeli.
+
+	`sensitive=True`: buraya düşen her dosya tanım gereği kapsam dışıdır (private,
+	hassas doctype eki ya da hassas belgenin kopyası). URL'ini kayda yazmak,
+	panelden gizlediğimiz adresi denetim penceresinden geri sızdırır.
+	"""
+	audit.log_media_event(
+		action=audit.ACTION_SCOPE_DENIED,
+		file_url=doc.file_url or "",
+		allowed=False,
+		reason=reason,
+		sensitive=True,
+	)
 
 
 def _has_sensitive_twin(content_hash: str) -> bool:
@@ -271,6 +313,16 @@ def restore_batch(file_names: list[str], job_key: str = "") -> dict:
 
 	state["state"] = "completed" if not state["errors"] else "partial"
 	_write_progress(job_key, state)
+	audit.log_media_batch(
+		action=audit.ACTION_RESTORE,
+		job_key=job_key,
+		summary={
+			"total": state["total"],
+			"restored": state["optimized"],
+			"errors": state["errors"],
+			"bytes": state["new_bytes"],
+		},
+	)
 	return state
 
 

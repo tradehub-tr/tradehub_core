@@ -24,6 +24,7 @@ import time
 
 import frappe
 
+from tradehub_core.media import audit
 from tradehub_core.media.presets import EXCLUDED_DOCTYPES
 
 TRASH_DIRNAME: str = "media_trash"
@@ -77,14 +78,17 @@ def _assert_trashable(file_url: str, force: bool = False) -> None:
 	if not rows:
 		frappe.throw(frappe._("Dosya kaydı bulunamadı: {0}").format(file_url))
 	if any(r.get("is_private") for r in rows):
+		_deny(file_url, "private")
 		frappe.throw(frappe._("Private dosya çöpe taşınamaz: {0}").format(file_url))
 	if any(r.get("attached_to_doctype") in EXCLUDED_DOCTYPES for r in rows):
+		_deny(file_url, "excluded_doctype")
 		frappe.throw(frappe._("Kapsam dışı doctype eki çöpe taşınamaz: {0}").format(file_url))
 
 	# İçerik bazlı kontrol — hassas bir belgenin public kopyası olabilir.
 	from tradehub_core.media.runner import _has_sensitive_twin
 
 	if any(_has_sensitive_twin(r["content_hash"]) for r in rows if r.get("content_hash")):
+		_deny(file_url, "sensitive_content_twin")
 		frappe.throw(
 			frappe._("Bu dosya hassas bir belgenin kopyası, çöpe taşınamaz: {0}").format(file_url)
 		)
@@ -96,11 +100,34 @@ def _assert_trashable(file_url: str, force: bool = False) -> None:
 
 	verdict = usage.verdict_map_all(deep=True).get(file_url)
 	if verdict not in TRASHABLE_VERDICTS:
+		_deny(file_url, f"in_use:{verdict or 'unknown'}", sensitive=False)
 		frappe.throw(
 			frappe._("Bu dosya sitede kullanılıyor, çöpe taşınamaz ({0}): {1}").format(
 				verdict or "bilinmiyor", file_url
 			)
 		)
+
+
+def _deny(file_url: str, reason: str, *, sensitive: bool = True) -> None:
+	"""Reddedilen silme isteğini denetime yaz.
+
+	Kapsam engelleri (`private`, `excluded_doctype`, `sensitive_content_twin`)
+	`force` ile de aşılamaz; buraya düşen kayıt istemcinin kapsam dışı bir
+	dosyayı silmeye çalıştığını gösterir. Bu durumda URL maskelenir — dosya
+	zaten panelde görünmemesi gereken bir belge.
+
+	`in_use` farklı: sıradan bir ürün görseli, gizlenecek bir şey yok. Orada
+	`sensitive=False` geçilir ki operatör hangi dosyanın silinmek istendiğini
+	görebilsin.
+	"""
+	audit.log_media_event(
+		action=audit.ACTION_SCOPE_DENIED,
+		file_url=file_url,
+		allowed=False,
+		reason=reason,
+		sensitive=sensitive,
+		context={"operation": "trash"},
+	)
 
 
 def move_to_trash(file_url: str, force: bool = False) -> dict:
@@ -134,6 +161,11 @@ def move_to_trash(file_url: str, force: bool = False) -> dict:
 		raise
 
 	frappe.db.commit()
+	# `force` ayrıca kaydedilir: kullanımdaki bir dosyanın uyarı onaylanarak
+	# silinmesi ile kullanılmayan bir dosyanın silinmesi denetimde ayrılmalı.
+	audit.log_media_event(
+		action=audit.ACTION_TRASH, file_url=file_url, context={"bytes": size, "forced": bool(force)}
+	)
 	return {"file_url": file_url, "bytes": size}
 
 
@@ -160,6 +192,7 @@ def restore(file_url: str) -> dict:
 		raise
 
 	frappe.db.commit()
+	audit.log_media_event(action=audit.ACTION_UNTRASH, file_url=file_url, context={"bytes": size})
 	return {"file_url": file_url, "bytes": size}
 
 
@@ -180,6 +213,13 @@ def delete_permanently(file_url: str) -> dict:
 		frappe.delete_doc("File", name, force=True, ignore_permissions=True, delete_permanently=True)
 	os.remove(path)
 	frappe.db.commit()
+	# Geri dönüşü YOK — HIGH severity ile kaydedilir. Silinen `File` kayıtlarının
+	# adları da yazılır; kayıt gittikten sonra tek iz bu olur.
+	audit.log_media_event(
+		action=audit.ACTION_DELETE,
+		file_url=file_url,
+		context={"bytes": size, "records": records},
+	)
 	return {"file_url": file_url, "bytes": size, "records": len(records)}
 
 
@@ -231,4 +271,15 @@ def purge_expired(retention_days: int = TRASH_RETENTION_DAYS) -> dict:
 				continue
 
 	frappe.db.commit()
+	# Zamanlanmış iş — aktörü Administrator görünür. Hiçbir şey silinmediyse de
+	# kayıt atılır: "purge çalıştı mı" sorusu denetimden cevaplanabilmeli.
+	audit.log_media_batch(
+		action=audit.ACTION_PURGE_TRASH,
+		summary={
+			"retention_days": retention_days,
+			"deleted": deleted,
+			"freed_bytes": freed,
+			"records": records,
+		},
+	)
 	return {"deleted": deleted, "freed_bytes": freed, "records": records}
