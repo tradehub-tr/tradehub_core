@@ -255,104 +255,10 @@ _QUANTITY_KEYS = frozenset(
 	}
 )
 
-# --- v5: Ürün kartı tokenları (3 katmanlı cascade: generic → product-card → section) ---
-_PRODUCT_CARD_KEYS = frozenset(
-	{
-		# --- Generic card (mini / related / featured) ---
-		"--card-bg",
-		"--card-border-width",
-		"--card-border-color",
-		"--card-title-size",
-		"--card-title-weight",
-		"--card-price-color",
-		"--card-price-size",
-		"--card-price-weight",
-		"--card-desc-color",
-		"--card-desc-size",
-		"--card-moq-color",
-		"--card-moq-size",
-		"--card-badge-bg",
-		"--card-badge-text",
-		"--card-badge-size",
-		"--card-badge-radius",
-		"--card-verified-color",
-		"--card-verified-size",
-		"--card-supplier-color",
-		"--card-supplier-size",
-		# --- Product card (listing base) ---
-		"--product-card-bg",
-		"--product-card-border",
-		"--product-card-border-width",
-		"--product-card-radius",
-		"--product-card-padding",
-		"--product-card-shadow",
-		"--product-card-hover-shadow",
-		"--product-card-min-height",
-		# --- Hero subcomponents: title / image / lens ---
-		"--product-title-color",
-		"--product-title-size",
-		"--product-title-weight",
-		"--product-title-line-height",
-		"--product-title-letter-spacing",
-		"--product-image-size",
-		"--product-image-ratio",
-		"--product-image-radius",
-		"--product-image-padding",
-		"--product-image-hover-scale",
-		"--product-lens-size",
-		"--product-lens-bg",
-		"--product-lens-shadow",
-		"--product-lens-color",
-		# --- Section override'ları ---
-		"--topdeals-card-bg",
-		"--topdeals-card-border",
-		"--topdeals-price-color",
-		"--topdeals-badge-bg",
-		"--topranking-card-bg",
-		"--topranking-card-border",
-		"--tailored-card-bg",
-		"--tailored-card-border",
-		"--tailored-price-color",
-		"--tailored-views-color",
-		"--tailored-collection-title-color",
-		# --- Varyant-başına layout tokenları (--pc-{v}-*) ---
-		# Default'lar orijinal görünümü korur; admin override edince sadece o
-		# varyant değişir (tasarım diğer yerlerde bozulmaz).
-		# Mini (shared/ProductCard)
-		"--pc-mini-bg",
-		"--pc-mini-border-color",
-		"--pc-mini-border-width",
-		"--pc-mini-radius",
-		# Top Deals (top-deals.html flat)
-		"--pc-topdeals-bg",
-		"--pc-topdeals-border-color",
-		"--pc-topdeals-border-width",
-		"--pc-topdeals-radius",
-		"--pc-topdeals-padding",
-		# Top Ranking (top-ranking.html flat)
-		"--pc-topranking-bg",
-		"--pc-topranking-border-color",
-		"--pc-topranking-border-width",
-		"--pc-topranking-radius",
-		"--pc-topranking-padding",
-		# RFQ arama (rfq.ts)
-		"--pc-rfq-bg",
-		"--pc-rfq-border-color",
-		"--pc-rfq-border-width",
-		"--pc-rfq-radius",
-		# Featured / HotProducts (seller/HotProducts)
-		"--pc-featured-bg",
-		"--pc-featured-border-color",
-		"--pc-featured-border-width",
-		"--pc-featured-radius",
-		"--pc-featured-padding",
-		# Related (product detay .rp-card)
-		"--pc-related-bg",
-		"--pc-related-border-color",
-		"--pc-related-border-width",
-		"--pc-related-radius",
-	}
-)
+# NOT (v5 kaldırıldı): Ürün kartı tokenları (--card-*, --product-card-*, --pc-{v}-*,
+# section override'ları) storefront kart redesign'ında karşılıksız kaldığı için
+# whitelist'ten çıkarıldı. Kayıtlı override'lar
+# v15_9_0_theme_drop_product_card_keys patch'i ile temizlenir.
 
 ALLOWED_THEME_KEYS = frozenset(
 	_BUTTON_KEYS
@@ -363,7 +269,6 @@ ALLOWED_THEME_KEYS = frozenset(
 	| _INPUT_KEYS
 	| _CHECKBOX_KEYS
 	| _QUANTITY_KEYS
-	| _PRODUCT_CARD_KEYS
 )
 
 # Renk tipi olan anahtarlar (tip bazlı doğrulama için)
@@ -407,48 +312,6 @@ _COLOR_KEYS = frozenset(
 		"--quantity-border-color",
 		"--quantity-button-bg-hover",
 		"--quantity-text-color",
-		# Product card — generic card renkleri
-		"--card-bg",
-		"--card-border-color",
-		"--card-price-color",
-		"--card-desc-color",
-		"--card-moq-color",
-		"--card-badge-bg",
-		"--card-badge-text",
-		"--card-verified-color",
-		"--card-supplier-color",
-		# Product card — base
-		"--product-card-bg",
-		"--product-card-border",
-		# Product card — hero subcomponents
-		"--product-title-color",
-		"--product-lens-bg",
-		"--product-lens-color",
-		# Section override renkleri
-		"--topdeals-card-bg",
-		"--topdeals-card-border",
-		"--topdeals-price-color",
-		"--topdeals-badge-bg",
-		"--topranking-card-bg",
-		"--topranking-card-border",
-		"--tailored-card-bg",
-		"--tailored-card-border",
-		"--tailored-price-color",
-		"--tailored-views-color",
-		"--tailored-collection-title-color",
-		# Varyant-başına renkler (bg + border-color × 6 varyant)
-		"--pc-mini-bg",
-		"--pc-mini-border-color",
-		"--pc-topdeals-bg",
-		"--pc-topdeals-border-color",
-		"--pc-topranking-bg",
-		"--pc-topranking-border-color",
-		"--pc-rfq-bg",
-		"--pc-rfq-border-color",
-		"--pc-featured-bg",
-		"--pc-featured-border-color",
-		"--pc-related-bg",
-		"--pc-related-border-color",
 	}
 )
 
@@ -490,47 +353,6 @@ _NUMERIC_KEYS = frozenset(
 		"--quantity-button-size",
 		"--quantity-text-size",
 		"--quantity-disabled-opacity",
-		# Product card numeric
-		"--card-border-width",
-		"--card-title-size",
-		"--card-title-weight",
-		"--card-price-size",
-		"--card-price-weight",
-		"--card-desc-size",
-		"--card-moq-size",
-		"--card-badge-size",
-		"--card-badge-radius",
-		"--card-verified-size",
-		"--card-supplier-size",
-		"--product-card-border-width",
-		"--product-card-radius",
-		"--product-card-padding",
-		"--product-card-min-height",
-		"--product-title-size",
-		"--product-title-weight",
-		"--product-title-line-height",
-		"--product-title-letter-spacing",
-		"--product-image-size",
-		"--product-image-radius",
-		"--product-image-padding",
-		"--product-image-hover-scale",
-		"--product-lens-size",
-		# Varyant-başına numeric (border-width + radius + padding)
-		"--pc-mini-border-width",
-		"--pc-mini-radius",
-		"--pc-topdeals-border-width",
-		"--pc-topdeals-radius",
-		"--pc-topdeals-padding",
-		"--pc-topranking-border-width",
-		"--pc-topranking-radius",
-		"--pc-topranking-padding",
-		"--pc-rfq-border-width",
-		"--pc-rfq-radius",
-		"--pc-featured-border-width",
-		"--pc-featured-radius",
-		"--pc-featured-padding",
-		"--pc-related-border-width",
-		"--pc-related-radius",
 	}
 )
 

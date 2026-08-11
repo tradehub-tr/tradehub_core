@@ -94,7 +94,6 @@ from tradehub_core.tradehub_core.doctype.tradehub_theme_settings.tradehub_theme_
 	_INPUT_KEYS,
 	_NUMERIC_KEYS,
 	_PALETTE_KEYS,
-	_PRODUCT_CARD_KEYS,
 	_QUANTITY_KEYS,
 	_RADIUS_KEYS,
 	_SPACING_KEYS,
@@ -154,11 +153,6 @@ class TestWhitelistSize(unittest.TestCase):
 	def test_quantity_key_count(self):
 		self.assertEqual(len(_QUANTITY_KEYS), 11)
 
-	def test_product_card_key_count(self):
-		# 20 generic card + 8 product-card base + 14 hero subcomponent + 11 section
-		# + 27 varyant layout (6 varyant × ortalama 4.5 token) = 80
-		self.assertEqual(len(_PRODUCT_CARD_KEYS), 80)
-
 	def test_allowed_is_union(self):
 		expected = (
 			_BUTTON_KEYS
@@ -169,11 +163,10 @@ class TestWhitelistSize(unittest.TestCase):
 			| _INPUT_KEYS
 			| _CHECKBOX_KEYS
 			| _QUANTITY_KEYS
-			| _PRODUCT_CARD_KEYS
 		)
 		self.assertEqual(ALLOWED_THEME_KEYS, expected)
-		# 18 + 61 + 25 + 11 + 14 + 24 + 9 + 11 + 80 = 253
-		self.assertEqual(len(ALLOWED_THEME_KEYS), 253)
+		# 18 + 61 + 25 + 11 + 14 + 24 + 9 + 11 = 173
+		self.assertEqual(len(ALLOWED_THEME_KEYS), 173)
 
 	def test_palette_in_color_keys(self):
 		"""Her palet anahtarı _COLOR_KEYS içinde olmalı (tip doğrulaması için)."""
@@ -182,9 +175,8 @@ class TestWhitelistSize(unittest.TestCase):
 
 	def test_numeric_keys_composition(self):
 		"""Sayısal anahtarlar: button (7) + typo (25) + radius (11) + spacing (14)
-		+ input (10) + checkbox (4) + quantity (7) + product-card numeric (24)
-		+ varyant layout numeric (15) = 117."""
-		self.assertEqual(len(_NUMERIC_KEYS), 117)
+		+ input (10) + checkbox (4) + quantity (7) = 78."""
+		self.assertEqual(len(_NUMERIC_KEYS), 78)
 		self.assertNotIn("--color-primary-500", _NUMERIC_KEYS)
 		self.assertIn("--font-size-base", _NUMERIC_KEYS)
 		self.assertIn("--radius-card", _NUMERIC_KEYS)
@@ -194,11 +186,9 @@ class TestWhitelistSize(unittest.TestCase):
 		self.assertIn("--input-height-md", _NUMERIC_KEYS)
 		self.assertIn("--checkbox-size", _NUMERIC_KEYS)
 		self.assertIn("--quantity-button-size", _NUMERIC_KEYS)
-		# Product card numeric
-		self.assertIn("--product-card-radius", _NUMERIC_KEYS)
-		self.assertIn("--product-card-padding", _NUMERIC_KEYS)
-		self.assertIn("--card-price-size", _NUMERIC_KEYS)
-		self.assertIn("--product-image-hover-scale", _NUMERIC_KEYS)
+		# Ürün kartı numeric anahtarları kaldırıldı
+		self.assertNotIn("--product-card-radius", _NUMERIC_KEYS)
+		self.assertNotIn("--card-price-size", _NUMERIC_KEYS)
 
 	def test_primary_scale_complete(self):
 		for step in (50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950):
@@ -413,120 +403,41 @@ class TestValidateButtonTokens(unittest.TestCase):
 		doc.validate()
 
 
-class TestValidateProductCardTokens(unittest.TestCase):
-	"""Ürün kartı token'ları (Faz 5) — generic card + product-card + hero + section."""
+class TestProductCardTokensRemoved(unittest.TestCase):
+	"""Ürün kartı token aileleri whitelist'ten kaldırıldı — hepsi reddedilmeli.
 
-	def test_valid_generic_card_colors(self):
-		doc = _make_doc(
-			{
-				"--card-bg": "#ffffff",
-				"--card-border-color": "#e5e7eb",
-				"--card-price-color": "#111827",
-				"--card-supplier-color": "#9ca3af",
-				"--card-badge-bg": "#fff3e0",
-				"--card-badge-text": "#e65100",
-			}
-		)
-		doc.validate()
+	Storefront kart redesign'ı sonrası bu token'ların sitede karşılığı kalmadı;
+	kayıtlı override'lar v15_9_0_theme_drop_product_card_keys patch'i ile temizlenir.
+	"""
 
-	def test_valid_generic_card_numeric(self):
-		doc = _make_doc(
-			{
-				"--card-border-width": "1px",
-				"--card-title-size": "14px",
-				"--card-title-weight": "600",
-				"--card-price-size": "15px",
-				"--card-moq-size": "11px",
-				"--card-badge-radius": "4px",
-			}
-		)
-		doc.validate()
-
-	def test_valid_product_card_base(self):
-		doc = _make_doc(
-			{
-				"--product-card-bg": "#ffffff",
-				"--product-card-border": "#e5e7eb",
-				"--product-card-border-width": "0px",
-				"--product-card-radius": "16px",
-				"--product-card-padding": "12px",
-				"--product-card-min-height": "384px",
-			}
-		)
-		doc.validate()
-
-	def test_valid_product_card_shadow_text(self):
-		doc = _make_doc({"--product-card-shadow": "none"})
-		doc.validate()
-
-	def test_valid_product_card_hover_scale_unitless(self):
-		doc = _make_doc({"--product-image-hover-scale": "1.06"})
-		doc.validate()
-
-	def test_valid_hero_title_typography(self):
-		doc = _make_doc(
-			{
-				"--product-title-color": "#222222",
-				"--product-title-size": "14px",
-				"--product-title-weight": "400",
-				"--product-title-line-height": "1.2857",
-				"--product-title-letter-spacing": "0em",
-			}
-		)
-		doc.validate()
-
-	def test_valid_section_overrides(self):
-		doc = _make_doc(
-			{
-				"--topdeals-card-bg": "#ffffff",
-				"--topdeals-price-color": "#dc2626",
-				"--topdeals-badge-bg": "#de0505",
-				"--topranking-card-bg": "#f3f4f6",
-				"--tailored-card-bg": "#ffffff",
-				"--tailored-collection-title-color": "#222222",
-			}
-		)
-		doc.validate()
-
-	def test_reject_unknown_product_card_key(self):
-		doc = _make_doc({"--product-card-glow": "#ff0000"})
+	def test_reject_generic_card_key(self):
+		doc = _make_doc({"--card-bg": "#ffffff"})
 		with self.assertRaises(Exception) as ctx:
 			doc.validate()
 		self.assertIn("İzin verilmeyen", str(ctx.exception))
 
-	def test_reject_card_price_garbage(self):
-		doc = _make_doc({"--card-price-size": "huge"})
-		with self.assertRaises(Exception):
-			doc.validate()
-
-	def test_valid_variant_layout_tokens(self):
-		"""Her varyantın kendi --pc-{v}-* layout token'ı whitelist'te ve doğrulanabilir."""
-		doc = _make_doc(
-			{
-				"--pc-mini-radius": "6px",
-				"--pc-mini-border-width": "1px",
-				"--pc-mini-bg": "#ffffff",
-				"--pc-mini-border-color": "#e5e7eb",
-				"--pc-topdeals-radius": "10px",
-				"--pc-topdeals-padding": "16px",
-				"--pc-topdeals-border-width": "2px",
-				"--pc-topranking-radius": "4px",
-				"--pc-topranking-padding": "8px",
-				"--pc-rfq-radius": "12px",
-				"--pc-rfq-border-width": "1px",
-				"--pc-featured-radius": "16px",
-				"--pc-featured-padding": "20px",
-				"--pc-related-radius": "6px",
-				"--pc-related-border-color": "#d1d5db",
-			}
-		)
-		doc.validate()
-
-	def test_reject_unknown_variant_key(self):
-		doc = _make_doc({"--pc-sidebar-radius": "8px"})  # sidebar varyantı yok
+	def test_reject_product_card_base_key(self):
+		doc = _make_doc({"--product-card-radius": "16px"})
 		with self.assertRaises(Exception) as ctx:
 			doc.validate()
 		self.assertIn("İzin verilmeyen", str(ctx.exception))
+
+	def test_reject_section_override_key(self):
+		doc = _make_doc({"--topdeals-card-bg": "#ffffff"})
+		with self.assertRaises(Exception) as ctx:
+			doc.validate()
+		self.assertIn("İzin verilmeyen", str(ctx.exception))
+
+	def test_reject_variant_layout_key(self):
+		doc = _make_doc({"--pc-mini-radius": "6px"})
+		with self.assertRaises(Exception) as ctx:
+			doc.validate()
+		self.assertIn("İzin verilmeyen", str(ctx.exception))
+
+	def test_no_product_card_keys_in_whitelist(self):
+		removed_prefixes = ("--card-", "--product-", "--pc-", "--topdeals-", "--topranking-", "--tailored-")
+		leftovers = [k for k in ALLOWED_THEME_KEYS if k.startswith(removed_prefixes)]
+		self.assertEqual(leftovers, [])
 
 
 class TestValidateCssInjection(unittest.TestCase):
