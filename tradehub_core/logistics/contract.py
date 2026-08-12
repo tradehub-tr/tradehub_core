@@ -87,6 +87,23 @@ SHIPMENT_DETAIL_FIELDS = [
 	_f("delivery_code_required", "Check", False, "Tek kullanımlık teslim kodu (TUR-108)"),
 	_f("payment_required_before_delivery", "Check", False, "Ödeme şartlı teslim (TUR-108)"),
 	_f("notes", "Small Text", False),
+	# TUR-108 — satıcı aracı ve alıcı teslim alma akışları. Kargo dışı
+	# kanallarda taşıyıcı/takip no yerine BUNLAR izleniyor; panelin
+	# "taşıyıcı atanmadı" demesi bu akışlarda yanlış olurdu.
+	_f("driver_name", "Data", False, "Satıcı aracı sürücüsü (TUR-108)"),
+	_f("driver_phone", "Data", False, "Sürücü iletişim"),
+	_f("vehicle_plate", "Data", False, "Araç plakası"),
+	_f("appointment_at", "Datetime", False, "Randevu zamanı — satıcı teslimi / alıcı teslim alma"),
+	_f("appointment_window", "Data", False, "Randevu aralığı, ör. 09:00-12:00"),
+	_f(
+		"delivery_code_status",
+		"Select",
+		False,
+		"not_required | pending | verified | failed — kodun DEĞERİ hiç dönmez",
+	),
+	_f("delivery_code_attempts", "Int", False, "Yanlış kod denemesi sayısı"),
+	_f("pickup_location", "Data", False, "Alıcı teslim alma noktası (TUR-108)"),
+	_f("payment_status", "Select", False, "unpaid | paid | waived — ödeme şartlı teslimde kapı"),
 ]
 
 SHIPMENT_ITEM_FIELDS = [
@@ -207,6 +224,130 @@ PRICE_QUOTE_FIELDS = [
 ]
 
 # ---------------------------------------------------------------------------
+# Taşıyıcı entegrasyonu — TUR-110, TUR-111
+# ---------------------------------------------------------------------------
+
+CONNECTION_TEST_FIELDS = [
+	_f("carrier_account", "Link", True, "Denenen hesap"),
+	_f("probe", "Select", True, "authenticate | quote | track — hangi yetenek denendi"),
+	_f("succeeded", "Check", True),
+	_f("http_status", "Int", False, "Taşıyıcı yanıt kodu"),
+	_f("duration_ms", "Int", False, "Gecikme — yavaş entegrasyon da bir arıza"),
+	_f("message", "Small Text", False, "Kullanıcıya gösterilecek özet"),
+	_f("error_code", "Data", False, "Taşıyıcının hata kodu — dallanma için"),
+	_f("tested_at", "Datetime", True),
+	_f("tested_by", "Link", False, "Denemeyi yapan kullanıcı — audit"),
+]
+
+#: Entegrasyon logu (TUR-110).
+#:
+#: MASKELEME SÖZLEŞMESİ: `request_body` ve `response_body` panele **maskelenmiş**
+#: gelir. `Authorization`, `X-Api-Key` gibi başlıklar ve gövdedeki
+#: `api_key`/`api_secret`/`token`/`password` anahtarları backend'de değiştirilir.
+#: Maskeleme İSTEMCİDE yapılamaz: ham gövde yanıtta dolaşırsa tarayıcı
+#: geçmişinde ve ara sunucu loglarında kalır (aynı gerekçe `logistics_admin.py`
+#: gizli alan sözleşmesinde de yazılı).
+INTEGRATION_LOG_FIELDS = [
+	_f("name", "Data", True),
+	_f("carrier", "Link", True),
+	_f("carrier_account", "Link", False),
+	_f("operation", "Select", True, "create_shipment | cancel | label | quote | track | webhook"),
+	_f("direction", "Select", True, "outbound | inbound"),
+	_f("shipment", "Link", False, "İlgili sevkiyat — varsa"),
+	_f("succeeded", "Check", True),
+	_f("http_status", "Int", False),
+	_f("duration_ms", "Int", False),
+	_f("attempt", "Int", False, "Kaçıncı deneme (yeniden çalıştırma sayacı)"),
+	_f("error_code", "Data", False),
+	_f("error_message", "Small Text", False),
+	_f("request_body", "Code", False, "MASKELİ — credential'lar backend'de değiştirilir"),
+	_f("response_body", "Code", False, "MASKELİ"),
+	_f("is_retriable", "Check", False, "Yeniden çalıştırma anlamlı mı"),
+	_f("created_at", "Datetime", True),
+]
+
+# ---------------------------------------------------------------------------
+# Palet planı — TUR-120
+# ---------------------------------------------------------------------------
+
+PALLET_PLAN_FIELDS = [
+	_f("name", "Data", True),
+	_f("shipment", "Link", True),
+	_f("pallet_code", "Data", True, "Paket hiyerarşisinde parent_package değeri"),
+	_f("pallet_type", "Link", False, "Package Type katalogundan (palet tipleri)"),
+	_f("layer_count", "Int", False, "Yerleşen katman"),
+	_f("max_layers", "Int", False, "Palet tipinin katman kapasitesi"),
+	_f("package_count", "Int", False, "Palete yerleşen koli"),
+	_f("loaded_weight_kg", "Float", False),
+	_f("max_weight_kg", "Float", False, "Aşılırsa AŞIRI YÜK uyarısı (TUR-120)"),
+	_f("loaded_desi", "Float", False),
+	_f("is_overloaded", "Check", False, "Ağırlık veya katman kapasitesi aşıldı"),
+]
+
+# ---------------------------------------------------------------------------
+# Toplu içe aktarma — TUR-107
+# ---------------------------------------------------------------------------
+
+IMPORT_JOB_FIELDS = [
+	_f("name", "Data", True),
+	_f("file_name", "Data", True),
+	_f("status", "Select", True, "mapping | previewing | applying | completed | failed"),
+	_f("total_rows", "Int", True),
+	_f("valid_rows", "Int", False),
+	_f("error_rows", "Int", False),
+	_f("applied_rows", "Int", False, "Gerçekten yazılan — kısmi başarı mümkün"),
+	_f("column_mapping", "JSON", False, "CSV başlığı → sevkiyat alanı"),
+	_f("errors", "JSON", False, "[{row, column, message}] — satır bazlı hata raporu"),
+	_f("created_at", "Datetime", True),
+	_f("created_by", "Link", False),
+]
+
+# ---------------------------------------------------------------------------
+# Bildirim — TUR-113
+# ---------------------------------------------------------------------------
+
+NOTIFICATION_TEMPLATE_FIELDS = [
+	_f("name", "Data", True),
+	_f("event", "Select", True, "Hangi lojistik olayında tetiklenir"),
+	_f("channel", "Select", True, "email | in_app | sms"),
+	_f("recipient_role", "Select", True, "buyer | seller | operations"),
+	_f("subject", "Data", False, "E-posta konusu"),
+	_f("body", "Text Editor", False, "Değişkenler: {{shipment}}, {{tracking_number}}, {{status}}"),
+	_f("is_active", "Check", False),
+	_f("is_mandatory", "Check", False, "Zorunlu operasyon bildirimi — kapatılamaz (TUR-113)"),
+]
+
+#: Tercih yönetimi (TUR-113).
+#:
+#: `is_mandatory` şablondan gelir ve tercihe İZİN VERMEZ. Kabul kriteri
+#: "zorunlu operasyon bildirimleri kullanıcı tercihiyle kapatılamaz" — bu
+#: bir arayüz nezaketi değil, veri kısıtı; `enabled` alanı zorunlu şablonda
+#: yazılamaz olmalı.
+NOTIFICATION_PREFERENCE_FIELDS = [
+	_f("template", "Link", True),
+	_f("event", "Select", True),
+	_f("channel", "Select", True),
+	_f("recipient_role", "Select", True),
+	_f("enabled", "Check", True),
+	_f("is_mandatory", "Check", False, "Şablondan miras — true ise enabled yazılamaz"),
+	_f("locked_reason", "Data", False, "Neden kapatılamadığı kullanıcıya açıklanır"),
+]
+
+OPERATION_ALERT_FIELDS = [
+	_f("name", "Data", True),
+	_f("alert_type", "Select", True, "sla_breach | integration_failure | exception_spike | stuck_shipment"),
+	_f("severity", "Select", True, "Info | Warning | Critical"),
+	_f("title", "Data", True),
+	_f("detail", "Small Text", False),
+	_f("shipment", "Link", False),
+	_f("carrier", "Link", False),
+	_f("affected_count", "Int", False, "Kaç kaydı etkiliyor — tekil mi toplu mu"),
+	_f("raised_at", "Datetime", True),
+	_f("acknowledged_at", "Datetime", False),
+	_f("acknowledged_by", "Link", False),
+]
+
+# ---------------------------------------------------------------------------
 # Şemaya girecek toplu tanım
 # ---------------------------------------------------------------------------
 
@@ -241,6 +382,56 @@ PROVISIONAL_ENTITIES: dict[str, dict[str, Any]] = {
 		"label": "Fiyat Teklifi",
 		"source_tasks": ["TUR-121"],
 		"list_fields": PRICE_QUOTE_FIELDS,
+		"detail_fields": [],
+		"child_tables": {},
+	},
+	"connection_test": {
+		"label": "Bağlantı Testi Sonucu",
+		"source_tasks": ["TUR-110", "TUR-111"],
+		"list_fields": CONNECTION_TEST_FIELDS,
+		"detail_fields": [],
+		"child_tables": {},
+	},
+	"integration_log": {
+		"label": "Entegrasyon Logu",
+		"source_tasks": ["TUR-110"],
+		"list_fields": INTEGRATION_LOG_FIELDS,
+		"detail_fields": [],
+		"child_tables": {},
+		"masked_fields": ["request_body", "response_body"],
+	},
+	"pallet_plan": {
+		"label": "Palet Planı",
+		"source_tasks": ["TUR-120"],
+		"list_fields": PALLET_PLAN_FIELDS,
+		"detail_fields": [],
+		"child_tables": {},
+	},
+	"import_job": {
+		"label": "Toplu İçe Aktarma",
+		"source_tasks": ["TUR-107"],
+		"list_fields": IMPORT_JOB_FIELDS,
+		"detail_fields": [],
+		"child_tables": {},
+	},
+	"notification_template": {
+		"label": "Bildirim Şablonu",
+		"source_tasks": ["TUR-113"],
+		"list_fields": NOTIFICATION_TEMPLATE_FIELDS,
+		"detail_fields": [],
+		"child_tables": {},
+	},
+	"notification_preference": {
+		"label": "Bildirim Tercihi",
+		"source_tasks": ["TUR-113"],
+		"list_fields": NOTIFICATION_PREFERENCE_FIELDS,
+		"detail_fields": [],
+		"child_tables": {},
+	},
+	"operation_alert": {
+		"label": "Operasyon Alarmı",
+		"source_tasks": ["TUR-113"],
+		"list_fields": OPERATION_ALERT_FIELDS,
 		"detail_fields": [],
 		"child_tables": {},
 	},
@@ -382,6 +573,18 @@ SAMPLE_SHIPMENT_DETAIL: dict[str, Any] = {
 	"delivery_code_required": 0,
 	"payment_required_before_delivery": 0,
 	"notes": "Kırılabilir ürün içerir, istifleme yapılmamalı.",
+	# Kargo kanalıyla giden bir sevkiyat: satıcı aracı/alıcı teslim alma
+	# alanları BOŞ. D1/D2 ekranları kendi senaryolarını bu boşluğun üzerine
+	# kuruyor — dolu bırakmak "her sevkiyatta sürücü var" izlenimi verirdi.
+	"driver_name": None,
+	"driver_phone": None,
+	"vehicle_plate": None,
+	"appointment_at": None,
+	"appointment_window": None,
+	"delivery_code_status": "not_required",
+	"delivery_code_attempts": 0,
+	"pickup_location": None,
+	"payment_status": "paid",
 	"items": [
 		{
 			"item": "LST-00121", "item_name": "Pamuklu Kumaş Topu 40m",
@@ -536,9 +739,170 @@ SAMPLE_PRICE_QUOTES: list[dict[str, Any]] = [
 	},
 ]
 
+SAMPLE_CONNECTION_TESTS: list[dict[str, Any]] = [
+	{
+		"carrier_account": "CACC-YK-PLATFORM", "probe": "authenticate", "succeeded": 1,
+		"http_status": 200, "duration_ms": 412, "message": "Kimlik doğrulama başarılı.",
+		"error_code": None, "tested_at": "2026-08-12 09:05:00", "tested_by": "operasyon@istoc.com",
+	},
+	{
+		"carrier_account": "CACC-YK-PLATFORM", "probe": "quote", "succeeded": 1,
+		"http_status": 200, "duration_ms": 1980,
+		"message": "Fiyat sorgusu döndü (42 desi → 268,40 TL).",
+		"error_code": None, "tested_at": "2026-08-12 09:05:01", "tested_by": "operasyon@istoc.com",
+	},
+	# Kısmi başarı gerçek hayatta en sık senaryo: hesap doğrulanıyor ama
+	# takip yetkisi verilmemiş oluyor. Ekran "bağlantı çalışıyor" DEMEMELİ.
+	{
+		"carrier_account": "CACC-YK-PLATFORM", "probe": "track", "succeeded": 0,
+		"http_status": 403, "duration_ms": 305,
+		"message": "Takip servisi için hesap yetkilendirilmemiş.",
+		"error_code": "TRACK_NOT_AUTHORIZED", "tested_at": "2026-08-12 09:05:03",
+		"tested_by": "operasyon@istoc.com",
+	},
+]
+
+SAMPLE_INTEGRATION_LOGS: list[dict[str, Any]] = [
+	{
+		"name": "ILOG-2026-004512", "carrier": "YK", "carrier_account": "CACC-YK-PLATFORM",
+		"operation": "create_shipment", "direction": "outbound", "shipment": "SHP-2026-00042",
+		"succeeded": 1, "http_status": 201, "duration_ms": 842, "attempt": 1,
+		"error_code": None, "error_message": None,
+		"request_body": '{"apiKey":"***MASKELİ***","desi":42,"alici":{"il":"Ankara"}}',
+		"response_body": '{"takipNo":"7801234567890","durum":"OLUSTURULDU"}',
+		"is_retriable": 0, "created_at": "2026-08-10 08:05:00",
+	},
+	{
+		"name": "ILOG-2026-004518", "carrier": "YK", "carrier_account": "CACC-YK-PLATFORM",
+		"operation": "track", "direction": "outbound", "shipment": "SHP-2026-00042",
+		"succeeded": 0, "http_status": 403, "duration_ms": 305, "attempt": 2,
+		"error_code": "TRACK_NOT_AUTHORIZED",
+		"error_message": "Takip servisi için hesap yetkilendirilmemiş.",
+		"request_body": '{"apiKey":"***MASKELİ***","takipNo":"7801234567890"}',
+		"response_body": '{"hata":"YETKISIZ","kod":403}',
+		"is_retriable": 1, "created_at": "2026-08-12 09:05:03",
+	},
+	{
+		"name": "ILOG-2026-004520", "carrier": "AK", "carrier_account": "CACC-AK-SEL00001",
+		"operation": "webhook", "direction": "inbound", "shipment": "SHP-2026-00038",
+		"succeeded": 0, "http_status": 400, "duration_ms": 12, "attempt": 1,
+		"error_code": "UNKNOWN_STATUS_CODE",
+		"error_message": "Eşlenmemiş taşıyıcı durum kodu: 942",
+		"request_body": '{"imza":"***MASKELİ***","durumKodu":"942","zaman":"2026-08-12T10:11:00"}',
+		"response_body": '{"ok":false,"error":{"code":"UNKNOWN_STATUS_CODE"}}',
+		"is_retriable": 1, "created_at": "2026-08-12 10:11:02",
+	},
+]
+
+# Palet kapasitesi 800 kg / 5 katman; ikinci palet ağırlıkta aşıyor.
+SAMPLE_PALLET_PLANS: list[dict[str, Any]] = [
+	{
+		"name": "PLT-2026-00019", "shipment": "SHP-2026-00042", "pallet_code": "PLT-42-A",
+		"pallet_type": "PALLET_EU", "layer_count": 3, "max_layers": 5,
+		"package_count": 2, "loaded_weight_kg": 26.0, "max_weight_kg": 800.0,
+		"loaded_desi": 60.0, "is_overloaded": 0,
+	},
+	{
+		"name": "PLT-2026-00020", "shipment": "SHP-2026-00042", "pallet_code": "PLT-42-B",
+		"pallet_type": "PALLET_EU", "layer_count": 6, "max_layers": 5,
+		"package_count": 1, "loaded_weight_kg": 12.5, "max_weight_kg": 800.0,
+		"loaded_desi": 18.0, "is_overloaded": 1,
+	},
+]
+
+SAMPLE_IMPORT_JOBS: list[dict[str, Any]] = [
+	{
+		"name": "IMP-2026-00031", "file_name": "sevkiyatlar-agustos.csv", "status": "previewing",
+		"total_rows": 128, "valid_rows": 124, "error_rows": 4, "applied_rows": 0,
+		"column_mapping": {
+			"Siparis No": "order",
+			"Kargo": "carrier",
+			"Takip": "tracking_number",
+			"Sevk Tarihi": "shipped_date",
+			"Tutar": "carrier_cost",
+		},
+		"errors": [
+			{"row": 12, "column": "Kargo", "message": "Bilinmeyen taşıyıcı kodu: YRTC"},
+			{"row": 45, "column": "Sevk Tarihi", "message": "Tarih çözümlenemedi: 32.08.2026"},
+			{"row": 77, "column": "Siparis No", "message": "Sipariş bulunamadı: ORD-2026-99999"},
+			{"row": 103, "column": "Tutar", "message": "Sayı değil: '—'"},
+		],
+		"created_at": "2026-08-12 08:30:00", "created_by": "operasyon@istoc.com",
+	},
+]
+
+SAMPLE_NOTIFICATION_TEMPLATES: list[dict[str, Any]] = [
+	{
+		"name": "NT-SHIPPED-BUYER-EMAIL", "event": "shipment_shipped", "channel": "email",
+		"recipient_role": "buyer", "subject": "Siparişiniz yola çıktı — {{tracking_number}}",
+		"body": "<p>{{shipment}} numaralı sevkiyatınız {{carrier}} ile yola çıktı.</p>",
+		"is_active": 1, "is_mandatory": 0,
+	},
+	{
+		"name": "NT-EXCEPTION-OPS-INAPP", "event": "shipment_exception", "channel": "in_app",
+		"recipient_role": "operations", "subject": None,
+		"body": "<p>{{shipment}}: {{exception_code}} — {{status}}</p>",
+		"is_active": 1, "is_mandatory": 1,
+	},
+	{
+		"name": "NT-DELIVERED-SELLER-EMAIL", "event": "shipment_delivered", "channel": "email",
+		"recipient_role": "seller", "subject": "Teslim edildi — {{shipment}}",
+		"body": "<p>{{shipment}} teslim edildi.</p>",
+		"is_active": 0, "is_mandatory": 0,
+	},
+]
+
+SAMPLE_NOTIFICATION_PREFERENCES: list[dict[str, Any]] = [
+	{
+		"template": "NT-SHIPPED-BUYER-EMAIL", "event": "shipment_shipped", "channel": "email",
+		"recipient_role": "buyer", "enabled": 1, "is_mandatory": 0, "locked_reason": None,
+	},
+	{
+		"template": "NT-EXCEPTION-OPS-INAPP", "event": "shipment_exception", "channel": "in_app",
+		"recipient_role": "operations", "enabled": 1, "is_mandatory": 1,
+		"locked_reason": "Zorunlu operasyon bildirimi — kapatılamaz.",
+	},
+	{
+		"template": "NT-DELIVERED-SELLER-EMAIL", "event": "shipment_delivered", "channel": "email",
+		"recipient_role": "seller", "enabled": 0, "is_mandatory": 0, "locked_reason": None,
+	},
+]
+
+SAMPLE_OPERATION_ALERTS: list[dict[str, Any]] = [
+	{
+		"name": "ALR-2026-00088", "alert_type": "integration_failure", "severity": "Critical",
+		"title": "YK takip servisi 403 dönüyor",
+		"detail": "Son 30 dakikada 14 takip sorgusu yetkisiz hatası aldı.",
+		"shipment": None, "carrier": "YK", "affected_count": 14,
+		"raised_at": "2026-08-12 09:35:00", "acknowledged_at": None, "acknowledged_by": None,
+	},
+	{
+		"name": "ALR-2026-00087", "alert_type": "sla_breach", "severity": "Warning",
+		"title": "3 sevkiyat tahmini teslim tarihini aştı",
+		"detail": "SHP-2026-00035, SHP-2026-00038, SHP-2026-00041",
+		"shipment": None, "carrier": None, "affected_count": 3,
+		"raised_at": "2026-08-12 06:00:00", "acknowledged_at": "2026-08-12 08:10:00",
+		"acknowledged_by": "operasyon@istoc.com",
+	},
+	{
+		"name": "ALR-2026-00086", "alert_type": "stuck_shipment", "severity": "Warning",
+		"title": "SHP-2026-00035 üç gündür durum değiştirmedi",
+		"detail": "Son olay: 2026-08-09 14:20 · At Warehouse",
+		"shipment": "SHP-2026-00035", "carrier": "AK", "affected_count": 1,
+		"raised_at": "2026-08-12 05:00:00", "acknowledged_at": None, "acknowledged_by": None,
+	},
+]
+
 PROVISIONAL_SAMPLES: dict[str, dict[str, Any]] = {
 	"shipment": {"rows": SAMPLE_SHIPMENTS, "detail": SAMPLE_SHIPMENT_DETAIL},
 	"proof_of_delivery": {"rows": SAMPLE_PROOF_OF_DELIVERY, "detail": {}},
 	"return_request": {"rows": SAMPLE_RETURN_REQUESTS, "detail": SAMPLE_RETURN_DETAIL},
 	"price_quote": {"rows": SAMPLE_PRICE_QUOTES, "detail": {}},
+	"connection_test": {"rows": SAMPLE_CONNECTION_TESTS, "detail": {}},
+	"integration_log": {"rows": SAMPLE_INTEGRATION_LOGS, "detail": {}},
+	"pallet_plan": {"rows": SAMPLE_PALLET_PLANS, "detail": {}},
+	"import_job": {"rows": SAMPLE_IMPORT_JOBS, "detail": {}},
+	"notification_template": {"rows": SAMPLE_NOTIFICATION_TEMPLATES, "detail": {}},
+	"notification_preference": {"rows": SAMPLE_NOTIFICATION_PREFERENCES, "detail": {}},
+	"operation_alert": {"rows": SAMPLE_OPERATION_ALERTS, "detail": {}},
 }

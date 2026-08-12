@@ -167,6 +167,15 @@
 			"delivery_code_required": 0,
 			"payment_required_before_delivery": 0,
 			"notes": "Kırılabilir ürün içerir, istifleme yapılmamalı.",
+			"driver_name": null,
+			"driver_phone": null,
+			"vehicle_plate": null,
+			"appointment_at": null,
+			"appointment_window": null,
+			"delivery_code_status": "not_required",
+			"delivery_code_attempts": 0,
+			"pickup_location": null,
+			"payment_status": "paid",
 			"items": [
 				{
 					"item": "LST-00121",

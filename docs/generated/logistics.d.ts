@@ -320,6 +320,15 @@ export interface ShipmentDetail extends ShipmentListItem {
   delivery_code_required?: number;
   payment_required_before_delivery?: number;
   notes?: string;
+  driver_name?: string;
+  driver_phone?: string;
+  vehicle_plate?: string;
+  appointment_at?: string;
+  appointment_window?: string;
+  delivery_code_status?: string;
+  delivery_code_attempts?: number;
+  pickup_location?: string;
+  payment_status?: string;
   items: ShipmentItemsRow[];
   packages: ShipmentPackagesRow[];
   legs: ShipmentLegsRow[];
@@ -382,6 +391,121 @@ export interface PriceQuoteListItem {
 }
 
 export type PriceQuoteDetail = PriceQuoteListItem;
+
+/** Bağlantı Testi Sonucu — kaynak: TUR-110, TUR-111 */
+export interface ConnectionTestListItem {
+  carrier_account: string;
+  probe: string;
+  succeeded: number;
+  http_status?: number;
+  duration_ms?: number;
+  message?: string;
+  error_code?: string;
+  tested_at: string;
+  tested_by?: string;
+}
+
+export type ConnectionTestDetail = ConnectionTestListItem;
+
+/** Entegrasyon Logu — kaynak: TUR-110 */
+export interface IntegrationLogListItem {
+  name: string;
+  carrier: string;
+  carrier_account?: string;
+  operation: string;
+  direction: string;
+  shipment?: string;
+  succeeded: number;
+  http_status?: number;
+  duration_ms?: number;
+  attempt?: number;
+  error_code?: string;
+  error_message?: string;
+  request_body?: unknown;
+  response_body?: unknown;
+  is_retriable?: number;
+  created_at: string;
+}
+
+export type IntegrationLogDetail = IntegrationLogListItem;
+
+/** Palet Planı — kaynak: TUR-120 */
+export interface PalletPlanListItem {
+  name: string;
+  shipment: string;
+  pallet_code: string;
+  pallet_type?: string;
+  layer_count?: number;
+  max_layers?: number;
+  package_count?: number;
+  loaded_weight_kg?: number;
+  max_weight_kg?: number;
+  loaded_desi?: number;
+  is_overloaded?: number;
+}
+
+export type PalletPlanDetail = PalletPlanListItem;
+
+/** Toplu İçe Aktarma — kaynak: TUR-107 */
+export interface ImportJobListItem {
+  name: string;
+  file_name: string;
+  status: string;
+  total_rows: number;
+  valid_rows?: number;
+  error_rows?: number;
+  applied_rows?: number;
+  column_mapping?: Record<string, unknown> | null;
+  errors?: Record<string, unknown> | null;
+  created_at: string;
+  created_by?: string;
+}
+
+export type ImportJobDetail = ImportJobListItem;
+
+/** Bildirim Şablonu — kaynak: TUR-113 */
+export interface NotificationTemplateListItem {
+  name: string;
+  event: string;
+  channel: string;
+  recipient_role: string;
+  subject?: string;
+  body?: string;
+  is_active?: number;
+  is_mandatory?: number;
+}
+
+export type NotificationTemplateDetail = NotificationTemplateListItem;
+
+/** Bildirim Tercihi — kaynak: TUR-113 */
+export interface NotificationPreferenceListItem {
+  template: string;
+  event: string;
+  channel: string;
+  recipient_role: string;
+  enabled: number;
+  is_mandatory?: number;
+  locked_reason?: string;
+}
+
+export type NotificationPreferenceDetail = NotificationPreferenceListItem;
+
+/** Operasyon Alarmı — kaynak: TUR-113 */
+export interface OperationAlertListItem {
+  name: string;
+  alert_type: string;
+  severity: string;
+  title: string;
+  detail?: string;
+  shipment?: string;
+  carrier?: string;
+  affected_count?: number;
+  raised_at: string;
+  acknowledged_at?: string;
+  acknowledged_by?: string;
+}
+
+export type OperationAlertDetail = OperationAlertListItem;
 
 // ── Taşıyıcı hesabı ──
 export interface CarrierAccount {

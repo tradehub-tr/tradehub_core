@@ -1,0 +1,68 @@
+{
+	"default": {
+		"ok": true,
+		"data": {
+			"items": [
+				{
+					"name": "IMP-2026-00031",
+					"file_name": "sevkiyatlar-agustos.csv",
+					"status": "previewing",
+					"total_rows": 128,
+					"valid_rows": 124,
+					"error_rows": 4,
+					"applied_rows": 0,
+					"column_mapping": {
+						"Siparis No": "order",
+						"Kargo": "carrier",
+						"Takip": "tracking_number",
+						"Sevk Tarihi": "shipped_date",
+						"Tutar": "carrier_cost"
+					},
+					"errors": [
+						{
+							"row": 12,
+							"column": "Kargo",
+							"message": "Bilinmeyen taşıyıcı kodu: YRTC"
+						},
+						{
+							"row": 45,
+							"column": "Sevk Tarihi",
+							"message": "Tarih çözümlenemedi: 32.08.2026"
+						},
+						{
+							"row": 77,
+							"column": "Siparis No",
+							"message": "Sipariş bulunamadı: ORD-2026-99999"
+						},
+						{
+							"row": 103,
+							"column": "Tutar",
+							"message": "Sayı değil: '—'"
+						}
+					],
+					"created_at": "2026-08-12 08:30:00",
+					"created_by": "operasyon@istoc.com"
+				}
+			],
+			"total": 1,
+			"page": 1,
+			"page_size": 50
+		}
+	},
+	"empty": {
+		"ok": true,
+		"data": {
+			"items": [],
+			"total": 0,
+			"page": 1,
+			"page_size": 50
+		}
+	},
+	"error": {
+		"ok": false,
+		"error": {
+			"code": "PERMISSION_DENIED",
+			"message": "Bu kaydı görüntüleme yetkiniz yok."
+		}
+	}
+}

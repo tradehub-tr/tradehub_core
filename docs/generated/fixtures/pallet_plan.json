@@ -1,0 +1,54 @@
+{
+	"default": {
+		"ok": true,
+		"data": {
+			"items": [
+				{
+					"name": "PLT-2026-00019",
+					"shipment": "SHP-2026-00042",
+					"pallet_code": "PLT-42-A",
+					"pallet_type": "PALLET_EU",
+					"layer_count": 3,
+					"max_layers": 5,
+					"package_count": 2,
+					"loaded_weight_kg": 26.0,
+					"max_weight_kg": 800.0,
+					"loaded_desi": 60.0,
+					"is_overloaded": 0
+				},
+				{
+					"name": "PLT-2026-00020",
+					"shipment": "SHP-2026-00042",
+					"pallet_code": "PLT-42-B",
+					"pallet_type": "PALLET_EU",
+					"layer_count": 6,
+					"max_layers": 5,
+					"package_count": 1,
+					"loaded_weight_kg": 12.5,
+					"max_weight_kg": 800.0,
+					"loaded_desi": 18.0,
+					"is_overloaded": 1
+				}
+			],
+			"total": 2,
+			"page": 1,
+			"page_size": 50
+		}
+	},
+	"empty": {
+		"ok": true,
+		"data": {
+			"items": [],
+			"total": 0,
+			"page": 1,
+			"page_size": 50
+		}
+	},
+	"error": {
+		"ok": false,
+		"error": {
+			"code": "PERMISSION_DENIED",
+			"message": "Bu kaydı görüntüleme yetkiniz yok."
+		}
+	}
+}
