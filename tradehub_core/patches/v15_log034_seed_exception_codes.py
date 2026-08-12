@@ -7,20 +7,7 @@ from __future__ import annotations
 
 import frappe
 
-from tradehub_core.logistics.seed import EXCEPTION_CODES
-
-# code -> (severity, exception_category, is_retriable, suggested_action)
-# Seed severity esleme kurali: critical->Critical, high->Warning, medium->Warning, low->Info
-EXCEPTION_META: dict[str, tuple[str, str, int, str]] = {
-	"ADDR_NOT_FOUND": ("Warning", "Address", 1, "Alıcıdan adres teyidi alın, düzeltme sonrası yeniden dene"),
-	"RECIPIENT_ABSENT": ("Warning", "Recipient", 1, "Sonraki gün yeniden dağıtım dene"),
-	"REFUSED": ("Warning", "Recipient", 0, "İade sürecini başlat"),
-	"DAMAGED": ("Critical", "Package", 0, "Hasar tutanağı + satıcıya bildirim"),
-	"CUSTOMS_HOLD": ("Warning", "Customs", 1, "Gümrük evraklarını kontrol et"),
-	"WRONG_ADDRESS": ("Warning", "Address", 1, "Doğru adresi al, yönlendirme talep et"),
-	"SIZE_EXCEED": ("Warning", "Package", 0, "Farklı servis/kanal ile yeniden gönder"),
-	"WEATHER": ("Info", "Weather", 1, "Bekle; SLA'ya gecikme notu düş"),
-}
+from tradehub_core.logistics.seed import EXCEPTION_CODES, EXCEPTION_META
 
 
 def execute() -> None:

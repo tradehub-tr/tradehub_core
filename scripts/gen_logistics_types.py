@@ -52,8 +52,17 @@ FIXTURE_ROOT = GENERATED_ROOT / "fixtures"
 DTS_PATH = GENERATED_ROOT / "logistics.d.ts"
 
 #: --sync ile yazılacak kardeş repo hedefleri (repo kökünden göreli)
+#: Tek dosya hedefleri (kaynak, repo kökünden göreli hedef)
 SYNC_TARGETS: tuple[tuple[Path, Path], ...] = (
 	(DTS_PATH, Path("../tradehubfront/src/types/logistics.d.ts")),
+)
+
+#: Dizin hedefleri — fixture'lar Storybook story'lerini besliyor.
+#: admin-panel saf JS olduğu için TİP üretilmiyor (Faz B kararı); yalnız mock
+#: veri kopyalanıyor. Hedef dizindeki eski JSON'lar temizlenir ki silinen bir
+#: katalogun fixture'ı geride kalmasın.
+SYNC_DIR_TARGETS: tuple[tuple[Path, Path], ...] = (
+	(FIXTURE_ROOT, Path("../admin-panel/frontend/src/mocks/logistics")),
 )
 
 BANNER = (
@@ -228,6 +237,42 @@ def _child_doctype(parent_doctype: str, table_fieldname: str) -> str:
 	return info["options"]
 
 
+def _collect_provisional() -> dict[str, Any]:
+	"""Geçici sevkiyat sözleşmesini şema biçimine çevirir.
+
+	Katalog varlıklarından farkı: alan TİPLERİ bir DocType'tan okunmuyor,
+	`logistics/contract.py` içinde beyan ediliyor — çünkü `Shipment` DocType'ı
+	henüz yok. Bu yüzden her varlık `provisional: true` işaretlenir.
+	"""
+	from tradehub_core.logistics.contract import PROVISIONAL_ENTITIES
+
+	def to_schema(fields: list[dict[str, Any]]) -> list[dict[str, Any]]:
+		return [
+			{
+				"name": field["name"],
+				"type": field["type"],
+				"ts": FIELDTYPE_TO_TS.get(field["type"], "unknown"),
+				"required": field["required"],
+				**({"note": field["note"]} if field.get("note") else {}),
+			}
+			for field in fields
+		]
+
+	return {
+		key: {
+			"provisional": True,
+			"label": entity["label"],
+			"source_tasks": entity["source_tasks"],
+			"list_fields": to_schema(entity["list_fields"]),
+			"detail_fields": to_schema(entity["detail_fields"]),
+			"child_tables": {
+				table: to_schema(rows) for table, rows in entity["child_tables"].items()
+			},
+		}
+		for key, entity in PROVISIONAL_ENTITIES.items()
+	}
+
+
 def _collect_admin() -> dict[str, Any]:
 	from tradehub_core.api.v1 import logistics_admin as A
 
@@ -285,6 +330,9 @@ def build_schema() -> dict[str, Any]:
 		"error_codes": _collect_error_codes(),
 		"catalogs": _collect_catalogs(),
 		"admin": _collect_admin(),
+		# Henüz DocType'ı olmayan varlıklar. Faz F backend'i BU sözleşmeye
+		# implement eder; sapma açık karar gerektirir.
+		"provisional": _collect_provisional(),
 	}
 
 
@@ -367,6 +415,32 @@ def render_dts(schema: dict[str, Any]) -> str:
 
 		if detail_extra:
 			body = _ts_interface(f"{base}Detail", detail_extra).replace(
+				f"export interface {base}Detail {{",
+				f"export interface {base}Detail extends {base}ListItem {{",
+			)
+			out.append(body)
+		else:
+			out.append(f"export type {base}Detail = {base}ListItem;")
+		out.append("")
+
+	out.append("// ── Sevkiyat ve ilgili varlıklar (GEÇİCİ SÖZLEŞME) ──")
+	out.append("// DocType'ları henüz yok; alanlar logistics/contract.py'de beyan edildi.")
+	out.append("// Faz F backend'i bu sözleşmeye implement edecek.")
+	for key, entity in schema.get("provisional", {}).items():
+		base = _pascal(key)
+		out.append(f"/** {entity['label']} — kaynak: {', '.join(entity['source_tasks'])} */")
+		out.append(_ts_interface(f"{base}ListItem", entity["list_fields"]))
+		out.append("")
+
+		extra = list(entity["detail_fields"])
+		for table, child_fields in entity["child_tables"].items():
+			child_name = f"{base}{_pascal(table)}Row"
+			out.append(_ts_interface(child_name, child_fields))
+			out.append("")
+			extra.append({"name": table, "ts": f"{child_name}[]", "required": True})
+
+		if extra:
+			body = _ts_interface(f"{base}Detail", extra).replace(
 				f"export interface {base}Detail {{",
 				f"export interface {base}Detail extends {base}ListItem {{",
 			)
@@ -480,12 +554,17 @@ def render_fixtures(schema: dict[str, Any]) -> dict[str, Any]:
 			}
 			for row in seed.VEHICLE_TYPES
 		],
+		# Severity/kategori/retriable seed patch'inin okudugu sozlukten geliyor.
+		# Alan tipinden turetilseydi kategori choices listesini dolasip
+		# "DAMAGED / Customs" gibi gerceklikte olmayan eslesmeler uretirdi.
 		"shipment_exception_code": [
 			{
 				"name": row["code"],
 				"exception_name": row["label"],
 				"exception_code": row["code"],
-				"severity": {"critical": "Critical", "low": "Info"}.get(row["severity"], "Warning"),
+				"severity": seed.EXCEPTION_META[row["code"]][0],
+				"exception_category": seed.EXCEPTION_META[row["code"]][1],
+				"is_retriable": seed.EXCEPTION_META[row["code"]][2],
 			}
 			for row in seed.EXCEPTION_CODES
 		],
@@ -609,7 +688,70 @@ def render_fixtures(schema: dict[str, Any]) -> dict[str, Any]:
 				"message": "Bu kataloğu görüntüleme yetkiniz yok.",
 			}},
 		}
+
+	fixtures.update(_render_provisional_fixtures())
 	return fixtures
+
+
+def render_catalog_meta(schema: dict[str, Any]) -> dict[str, Any]:
+	"""Katalog ekranının sütun/filtre türetmesi için ince meta.
+
+	Jenerik katalog ekranı 10 kataloğu tek bileşenle sürüyor; hangi sütunun
+	görüneceğini, hangi alanın aranabilir/filtrelenebilir olduğunu ve Select
+	seçeneklerini buradan okur. Tam şemayı frontend'e taşımak gereksiz.
+	"""
+	return {
+		"$comment": BANNER,
+		"catalogs": {
+			key: {
+				"doctype": spec["doctype"],
+				"searchable": spec["searchable"],
+				"filters": spec["filters"],
+				"default_sort": spec["default_sort"],
+				"list_fields": spec["list_fields"],
+				"detail_fields": spec["detail_fields"],
+				"child_tables": spec["child_tables"],
+			}
+			for key, spec in schema["catalogs"].items()
+		},
+	}
+
+
+def _render_provisional_fixtures() -> dict[str, Any]:
+	"""Sevkiyat ve ilgili varlıklar için mock veri.
+
+	Katalog fixture'larından farkı: veriler alan tipinden TÜRETİLMİYOR, elle
+	yazılmış TUTARLI örnekler kullanılıyor (`contract.py`). Sevkiyat verisi
+	kendi içinde tutarlı olmak zorunda — olay akışı duruma, miktarlar
+	birbirine, paket ölçüleri desi kuralına uymalı. Türetilmiş veri bu
+	tutarlılığı veremez ve tasarım incelemesini yanıltır.
+	"""
+	from tradehub_core.logistics.contract import PROVISIONAL_SAMPLES
+
+	out: dict[str, Any] = {}
+	for key, sample in PROVISIONAL_SAMPLES.items():
+		rows = sample["rows"]
+		scenarios: dict[str, Any] = {
+			"default": {"ok": True, "data": {
+				"items": rows, "total": len(rows), "page": 1, "page_size": 50,
+			}},
+			"empty": {"ok": True, "data": {
+				"items": [], "total": 0, "page": 1, "page_size": 50,
+			}},
+			"error": {"ok": False, "error": {
+				"code": "PERMISSION_DENIED",
+				"message": "Bu kaydı görüntüleme yetkiniz yok.",
+			}},
+		}
+		if sample["detail"]:
+			# Detay, listenin İLK satırıyla birleştirilir — iki ayrı gerçek
+			# olmasın, ekran aynı kaydı gösteriyor olsun.
+			scenarios["detail"] = {
+				"ok": True,
+				"data": {**rows[0], **sample["detail"]},
+			}
+		out[key] = scenarios
+	return out
 
 
 # ---------------------------------------------------------------------------
@@ -622,6 +764,12 @@ def _render_all() -> dict[Path, str]:
 	outputs: dict[Path, str] = {
 		SCHEMA_PATH: json.dumps(schema, indent="\t", ensure_ascii=False) + "\n",
 		DTS_PATH: render_dts(schema) + "\n",
+		# Jenerik katalog ekranı sütun ve filtrelerini BUNDAN türetiyor. Tam
+		# şemayı frontend'e taşımak yerine yalnız ekranın ihtiyacı verilir.
+		FIXTURE_ROOT
+		/ "_catalog-meta.json": (
+			json.dumps(render_catalog_meta(schema), indent="\t", ensure_ascii=False) + "\n"
+		),
 	}
 	for key, payload in render_fixtures(schema).items():
 		outputs[FIXTURE_ROOT / f"{key}.json"] = (
@@ -644,10 +792,19 @@ def main() -> int:
 			path for path, content in outputs.items()
 			if not path.exists() or path.read_text(encoding="utf-8") != content
 		]
+		# Kardeş repo kopyaları da kontrol edilir. Yalnız docs/generated'a
+		# bakmak yeterli değildi: `--sync`siz üretim yapıldığında burası
+		# "Güncel" derken admin-panel mock'ları bayat kalıyordu.
+		stale.extend(_stale_synced_copies(outputs))
 		if stale:
 			print("BAYAT üretilmiş dosya(lar):", file=sys.stderr)
 			for path in stale:
-				print(f"  {path.relative_to(APP_ROOT)}", file=sys.stderr)
+				# Kardeş repo yolları APP_ROOT'un altında değil — relative_to
+				# patlar. Mutlak yol da okunabilir, kırılgan olmasın.
+				printable = (
+					path.relative_to(APP_ROOT) if path.is_relative_to(APP_ROOT) else path
+				)
+				print(f"  {printable}", file=sys.stderr)
 			print(
 				"\nÇöz: python3 scripts/gen_logistics_types.py --sync", file=sys.stderr
 			)
@@ -663,14 +820,88 @@ def main() -> int:
 	if args.sync:
 		for source, relative_target in SYNC_TARGETS:
 			target = (APP_ROOT / relative_target).resolve()
-			if not target.parent.parent.exists():
+			if not _sibling_repo_exists(target):
 				print(f"  ATLANDI (repo yok): {target}", file=sys.stderr)
 				continue
 			target.parent.mkdir(parents=True, exist_ok=True)
 			target.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
 			print(f"  senkron: {target}")
 
+		for source_dir, relative_target in SYNC_DIR_TARGETS:
+			target_dir = (APP_ROOT / relative_target).resolve()
+			if not _sibling_repo_exists(target_dir):
+				print(f"  ATLANDI (repo yok): {target_dir}", file=sys.stderr)
+				continue
+			target_dir.mkdir(parents=True, exist_ok=True)
+
+			produced = {path.name for path in source_dir.glob("*.json")}
+			# Kaynakta olmayan eski fixture'ları temizle — silinen bir katalogun
+			# mock'u geride kalırsa story sessizce ölü veriye bağlanır.
+			for stale in target_dir.glob("*.json"):
+				if stale.name not in produced:
+					stale.unlink()
+					print(f"  temizlendi: {stale}")
+
+			for path in sorted(source_dir.glob("*.json")):
+				(target_dir / path.name).write_text(
+					path.read_text(encoding="utf-8"), encoding="utf-8"
+				)
+			print(f"  senkron: {target_dir} ({len(produced)} fixture)")
+
 	return 0
+
+
+def _stale_synced_copies(outputs: dict[Path, str]) -> list[Path]:
+	"""Kardeş repo'daki kopyalardan üretilen içerikle uyuşmayanlar.
+
+	Kardeş repo yoksa (CI tek repo checkout eder) boş liste döner — senkron
+	zaten atlanacağı için bayat sayılmaz.
+	"""
+	stale: list[Path] = []
+
+	for source, relative_target in SYNC_TARGETS:
+		target = (APP_ROOT / relative_target).resolve()
+		if not _sibling_repo_exists(target):
+			continue
+		content = outputs.get(source)
+		if content is None:
+			continue
+		if not target.exists() or target.read_text(encoding="utf-8") != content:
+			stale.append(target)
+
+	for source_dir, relative_target in SYNC_DIR_TARGETS:
+		target_dir = (APP_ROOT / relative_target).resolve()
+		if not _sibling_repo_exists(target_dir):
+			continue
+		expected = {
+			path.name: content
+			for path, content in outputs.items()
+			if path.parent == source_dir and path.suffix == ".json"
+		}
+		for name, content in expected.items():
+			target = target_dir / name
+			if not target.exists() or target.read_text(encoding="utf-8") != content:
+				stale.append(target)
+		# Kaynakta olmayan artık fixture da bayat sayılır — story ölü veriye bağlanır.
+		stale.extend(
+			path for path in target_dir.glob("*.json") if path.name not in expected
+		)
+
+	return stale
+
+
+def _sibling_repo_exists(target: Path) -> bool:
+	"""Hedefin bağlı olduğu kardeş repo çalışma kopyasında var mı?
+
+	CI'da yalnız tek repo checkout edildiği için kardeş repo bulunmaz; bu
+	durumda senkron sessizce atlanır, üretim başarısız SAYILMAZ.
+	"""
+	# APP_ROOT/.. = orkestrasyon klasörü; hedefin ilk seviyesi repo adı
+	try:
+		repo_root = target.relative_to(APP_ROOT.parent).parts[0]
+	except ValueError:
+		return False
+	return (APP_ROOT.parent / repo_root).is_dir()
 
 
 if __name__ == "__main__":
