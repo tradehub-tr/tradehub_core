@@ -1,3 +1,14 @@
+## [v1.13.1-alpha.8] - 2026-08-12 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(theme): ürün kartı token whitelist'ini kaldır (_PRODUCT_CARD_KEYS) (@TurksabYonetim)
+  - _PRODUCT_CARD_KEYS + _COLOR_KEYS/_NUMERIC_KEYS'teki kart girdileri silindi
+  - v15_9_0_theme_drop_product_card_keys patch'i: kayıtlı override'lardan kaldırılan aileleri temizler (idempotent), cache'i invalide eder
+  - testler: 173/78 sayımlarına güncellendi; kart anahtarlarının artık reddedildiğini doğrulayan TestProductCardTokensRemoved eklendi
+
+---
 ## [v1.13.1-alpha.7] - 2026-08-12 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
