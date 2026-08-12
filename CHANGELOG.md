@@ -1,3 +1,11 @@
+## [v1.13.1-alpha.7] - 2026-08-12 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(media): durum modeli, referans zinciri ve kullanım eşlemesi (TUR-138, TUR-136) (@Metin Bektemur)
+
+---
 ## [v1.13.1-alpha.6] - 2026-08-10 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
