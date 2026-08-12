@@ -690,7 +690,70 @@ def render_fixtures(schema: dict[str, Any]) -> dict[str, Any]:
 		}
 
 	fixtures.update(_render_provisional_fixtures())
+	fixtures["carrier_account"] = _render_carrier_account_fixture(schema)
 	return fixtures
+
+
+def _render_carrier_account_fixture(schema: dict[str, Any]) -> dict[str, Any]:
+	"""Taşıyıcı hesabı mock'u — gizli değer YOK, yalnız `has_<alan>` bayrakları.
+
+	Fixture'ın gizli alan taşımaması bilinçli ve sözleşmeyle aynı: panel
+	"••••• (tanımlı)" gösterip üzerine yazmayı teklif ediyor. Mock'a örnek
+	bir `api_secret` koymak ekranın onu göstermesini normalleştirirdi.
+	"""
+	secrets = schema["admin"]["carrier_account"]["secret_fields"]
+
+	def account(**values: Any) -> dict[str, Any]:
+		row = {
+			"name": values["name"],
+			"account_name": values["account_name"],
+			"carrier": values["carrier"],
+			"seller_profile": values.get("seller_profile"),
+			"environment": values.get("environment", "production"),
+			"is_active": values.get("is_active", 1),
+			"is_default": values.get("is_default", 0),
+			"base_url": values.get("base_url"),
+			"token_expiry": values.get("token_expiry"),
+			"is_platform_account": not values.get("seller_profile"),
+		}
+		defined = values.get("defined_secrets", ())
+		row.update({f"has_{field}": int(field in defined) for field in secrets})
+		return row
+
+	items = [
+		account(
+			name="CACC-YK-PLATFORM", account_name="Yurtiçi Kargo — Platform",
+			carrier="YK", is_default=1, base_url="https://api.yurticikargo.com/v2",
+			token_expiry="2026-09-01 00:00:00",
+			defined_secrets=("api_key", "api_secret", "webhook_secret"),
+		),
+		account(
+			name="CACC-AK-SEL00001", account_name="Aras Kargo — Demir Tekstil",
+			carrier="AK", seller_profile="SEL-00001",
+			base_url="https://api.araskargo.com.tr/v1",
+			defined_secrets=("api_key", "api_secret"),
+		),
+		# Kimlik bilgisi hiç girilmemiş hesap: ekran "bağlantıyı test et"
+		# demeden önce bunu ayırt edebilmeli.
+		account(
+			name="CACC-MNG-SANDBOX", account_name="MNG Kargo — Sandbox",
+			carrier="MNG", environment="sandbox", is_active=0,
+			base_url="https://sandbox.mngkargo.com.tr/v1", defined_secrets=(),
+		),
+	]
+
+	return {
+		"default": {"ok": True, "data": {
+			"items": items, "total": len(items), "page": 1, "page_size": 50,
+		}},
+		"empty": {"ok": True, "data": {
+			"items": [], "total": 0, "page": 1, "page_size": 50,
+		}},
+		"error": {"ok": False, "error": {
+			"code": "CAPABILITY_REQUIRED",
+			"message": "Taşıyıcı kimlik bilgilerini yönetme yetkiniz yok.",
+		}},
+	}
 
 
 def render_catalog_meta(schema: dict[str, Any]) -> dict[str, Any]:
@@ -754,6 +817,48 @@ def _render_provisional_fixtures() -> dict[str, Any]:
 	return out
 
 
+def _assert_samples_cover_contract(schema: dict[str, Any]) -> None:
+	"""Beyan edilen her geçici alanın en az bir örnek satırda karşılığı olsun.
+
+	Alan sözleşmeye eklenip örneğe eklenmezse ekran o alanı TASARLAYAMAZ:
+	Storybook'ta hep boş görünür, tasarım onayı eksik veriyle alınır ve
+	eksiklik Faz F'te gerçek veri gelince ortaya çıkar. Bu yüzden sessiz
+	geçilmiyor, üretim durduruluyor.
+	"""
+	from tradehub_core.logistics.contract import PROVISIONAL_SAMPLES
+
+	problems: list[str] = []
+	for key, spec in schema["provisional"].items():
+		sample = PROVISIONAL_SAMPLES.get(key)
+		if not sample:
+			problems.append(f"{key}: hiç örnek satır yok")
+			continue
+
+		merged: dict[str, Any] = {}
+		for row in sample["rows"]:
+			merged.update(row)
+		merged.update(sample["detail"] or {})
+
+		declared = [f["name"] for f in (*spec["list_fields"], *spec["detail_fields"])]
+		missing = [name for name in declared if name not in merged]
+		if missing:
+			problems.append(f"{key}: örnekte yok → {', '.join(missing)}")
+
+		for table, fields in spec["child_tables"].items():
+			child_rows = merged.get(table) or []
+			child_merged: dict[str, Any] = {}
+			for row in child_rows:
+				child_merged.update(row)
+			child_missing = [f["name"] for f in fields if f["name"] not in child_merged]
+			if child_missing:
+				problems.append(f"{key}.{table}: örnekte yok → {', '.join(child_missing)}")
+
+	if problems:
+		raise SystemExit(
+			"Sözleşme ile örnek veri uyuşmuyor:\n  " + "\n  ".join(problems)
+		)
+
+
 # ---------------------------------------------------------------------------
 # Yazma / doğrulama
 # ---------------------------------------------------------------------------
@@ -761,6 +866,7 @@ def _render_provisional_fixtures() -> dict[str, Any]:
 
 def _render_all() -> dict[Path, str]:
 	schema = build_schema()
+	_assert_samples_cover_contract(schema)
 	outputs: dict[Path, str] = {
 		SCHEMA_PATH: json.dumps(schema, indent="\t", ensure_ascii=False) + "\n",
 		DTS_PATH: render_dts(schema) + "\n",
