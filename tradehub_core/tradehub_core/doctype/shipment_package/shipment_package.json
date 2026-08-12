@@ -1,0 +1,89 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "hash",
+ "creation": "2026-08-12 10:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "package_type",
+  "length_cm",
+  "width_cm",
+  "height_cm",
+  "weight_kg",
+  "qty",
+  "barcode",
+  "desi"
+ ],
+ "fields": [
+  {
+   "fieldname": "package_type",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Paket Tipi",
+   "options": "Package Type"
+  },
+  {
+   "fieldname": "length_cm",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Uzunluk (cm)",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "width_cm",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Geni\u015flik (cm)",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "height_cm",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Y\u00fckseklik (cm)",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "weight_kg",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "A\u011f\u0131rl\u0131k (kg)",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "qty",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Adet"
+  },
+  {
+   "fieldname": "barcode",
+   "fieldtype": "Data",
+   "label": "Barkod"
+  },
+  {
+   "fieldname": "desi",
+   "fieldtype": "Float",
+   "label": "Desi",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-08-12 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "Shipment Package",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC"
+}

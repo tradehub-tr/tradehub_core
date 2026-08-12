@@ -1,0 +1,295 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "hash",
+ "creation": "2026-08-12 10:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "shipment",
+  "seller_profile",
+  "leg_sequence",
+  "leg_type",
+  "status",
+  "sb_route",
+  "origin_type",
+  "origin_branch",
+  "origin_address_text",
+  "cb_route",
+  "destination_type",
+  "destination_branch",
+  "destination_address_text",
+  "sb_carrier",
+  "carrier",
+  "vehicle_type",
+  "vehicle_plate",
+  "cb_carrier",
+  "driver_name",
+  "driver_phone",
+  "sb_tracking",
+  "tracking_number",
+  "waybill_number",
+  "sb_times",
+  "planned_departure",
+  "actual_departure",
+  "cb_times",
+  "planned_arrival",
+  "actual_arrival",
+  "sb_cost",
+  "cost",
+  "currency"
+ ],
+ "fields": [
+  {
+   "fieldname": "shipment",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Sevkiyat",
+   "options": "Shipment",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "seller_profile",
+   "fieldtype": "Link",
+   "label": "Sat\u0131c\u0131 Profili",
+   "options": "Admin Seller Profile",
+   "read_only": 1,
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "leg_sequence",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Bacak S\u0131ras\u0131",
+   "reqd": 1
+  },
+  {
+   "fieldname": "leg_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Bacak Tipi",
+   "options": "Pickup\nLine Haul\nTransfer\nLast Mile\nReturn"
+  },
+  {
+   "default": "Planned",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Durum",
+   "options": "Planned\nIn Progress\nArrived\nCompleted\nCancelled"
+  },
+  {
+   "fieldname": "sb_route",
+   "fieldtype": "Section Break",
+   "label": "G\u00fczergah"
+  },
+  {
+   "fieldname": "origin_type",
+   "fieldtype": "Select",
+   "label": "\u00c7\u0131k\u0131\u015f Noktas\u0131 Tipi",
+   "options": "Seller Address\nWarehouse\nCustomer Address\nCarrier Hub"
+  },
+  {
+   "fieldname": "origin_branch",
+   "fieldtype": "Link",
+   "label": "\u00c7\u0131k\u0131\u015f \u015eubesi",
+   "options": "Carrier Branch"
+  },
+  {
+   "fieldname": "origin_address_text",
+   "fieldtype": "Small Text",
+   "label": "\u00c7\u0131k\u0131\u015f Adresi"
+  },
+  {
+   "fieldname": "cb_route",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "destination_type",
+   "fieldtype": "Select",
+   "label": "Var\u0131\u015f Noktas\u0131 Tipi",
+   "options": "Seller Address\nWarehouse\nCustomer Address\nCarrier Hub"
+  },
+  {
+   "fieldname": "destination_branch",
+   "fieldtype": "Link",
+   "label": "Var\u0131\u015f \u015eubesi",
+   "options": "Carrier Branch"
+  },
+  {
+   "fieldname": "destination_address_text",
+   "fieldtype": "Small Text",
+   "label": "Var\u0131\u015f Adresi"
+  },
+  {
+   "fieldname": "sb_carrier",
+   "fieldtype": "Section Break",
+   "label": "Ta\u015f\u0131ma"
+  },
+  {
+   "fieldname": "carrier",
+   "fieldtype": "Link",
+   "label": "Ta\u015f\u0131y\u0131c\u0131",
+   "options": "Logistics Provider"
+  },
+  {
+   "fieldname": "vehicle_type",
+   "fieldtype": "Link",
+   "label": "Ara\u00e7 Tipi",
+   "options": "Vehicle Type"
+  },
+  {
+   "fieldname": "vehicle_plate",
+   "fieldtype": "Data",
+   "label": "Ara\u00e7 Plakas\u0131"
+  },
+  {
+   "fieldname": "cb_carrier",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "driver_name",
+   "fieldtype": "Data",
+   "label": "S\u00fcr\u00fcc\u00fc Ad\u0131"
+  },
+  {
+   "fieldname": "driver_phone",
+   "fieldtype": "Data",
+   "label": "S\u00fcr\u00fcc\u00fc Telefonu",
+   "options": "Phone"
+  },
+  {
+   "fieldname": "sb_tracking",
+   "fieldtype": "Section Break",
+   "label": "Takip"
+  },
+  {
+   "fieldname": "tracking_number",
+   "fieldtype": "Data",
+   "label": "Takip Numaras\u0131"
+  },
+  {
+   "fieldname": "waybill_number",
+   "fieldtype": "Data",
+   "label": "Ambar Fi\u015fi / \u0130rsaliye No"
+  },
+  {
+   "fieldname": "sb_times",
+   "fieldtype": "Section Break",
+   "label": "Zamanlar"
+  },
+  {
+   "fieldname": "planned_departure",
+   "fieldtype": "Datetime",
+   "label": "Planlanan \u00c7\u0131k\u0131\u015f"
+  },
+  {
+   "fieldname": "actual_departure",
+   "fieldtype": "Datetime",
+   "label": "Fiili \u00c7\u0131k\u0131\u015f"
+  },
+  {
+   "fieldname": "cb_times",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "planned_arrival",
+   "fieldtype": "Datetime",
+   "label": "Planlanan Var\u0131\u015f"
+  },
+  {
+   "fieldname": "actual_arrival",
+   "fieldtype": "Datetime",
+   "label": "Fiili Var\u0131\u015f"
+  },
+  {
+   "fieldname": "sb_cost",
+   "fieldtype": "Section Break",
+   "label": "Maliyet"
+  },
+  {
+   "fieldname": "cost",
+   "fieldtype": "Currency",
+   "label": "Maliyet",
+   "options": "currency",
+   "permlevel": 1
+  },
+  {
+   "default": "TRY",
+   "fieldname": "currency",
+   "fieldtype": "Link",
+   "label": "Para Birimi",
+   "options": "Currency"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-08-12 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "Shipment Leg",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "cancel": 1,
+   "create": 1,
+   "read": 1,
+   "role": "Logistics Manager",
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "Logistics Operator",
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "Seller Logistics"
+  },
+  {
+   "export": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Platform Finance"
+  },
+  {
+   "read": 1,
+   "role": "Support Agent"
+  },
+  {
+   "permlevel": 1,
+   "read": 1,
+   "role": "System Manager",
+   "write": 1
+  },
+  {
+   "permlevel": 1,
+   "read": 1,
+   "role": "Logistics Manager",
+   "write": 1
+  },
+  {
+   "permlevel": 1,
+   "read": 1,
+   "role": "Platform Finance"
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "track_changes": 1
+}

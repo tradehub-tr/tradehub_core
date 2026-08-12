@@ -15,7 +15,7 @@ logistics/
 ├── __init__.py              # Public API: is_enabled(), get_logistics_settings()
 ├── constants.py             # ShipmentStatus, ALLOWED_TRANSITIONS, feature flags
 ├── exceptions.py            # LogisticsError ve alt siniflar
-├── hooks.py                 # doc_event handler stub'lari (validate, snapshot, vb.)
+├── hooks.py                 # doc_event handler'lari (state validate, snapshot, fulfillment)
 ├── permissions.py           # Sevkiyat erisim kontrolleri
 ├── cache.py                 # Redis cache yardimcilari (tc:logistics: prefix)
 ├── seed.py                  # Lojistik katalog seed verileri (provider, paket tipi vb.)
@@ -29,21 +29,25 @@ logistics/
 │       └── mock_carrier.py  # Test/dev icin deterministik sahte adapter
 ├── services/
 │   ├── __init__.py
-│   ├── shipment_service.py  # Sevkiyat CRUD + state machine (stub, TUR-105)
-│   ├── tracking_service.py  # Takip sorgu servisi
-│   ├── split_engine.py      # Sevkiyat bolme motoru (INV-1..5)
-│   ├── pricing_engine.py    # Kargo fiyatlandirma motoru
-│   ├── rate_calculator.py   # Tarife hesaplayici
+│   ├── shipment_service.py  # Durum gecis motoru: transition_status + cancel_shipment (LOG-049/050)
+│   ├── tracking_service.py  # Takip sorgu servisi (stub, TUR-112)
+│   ├── split_engine.py      # Sevkiyat bolme motoru INV-1..5 (LOG-045)
+│   ├── pricing_engine.py    # Kargo fiyatlandirma motoru (stub, TUR-121)
+│   ├── rate_calculator.py   # Tarife hesaplayici (stub, TUR-121)
 │   ├── desi.py              # Desi/hacimsel agirlik hesaplama
-│   └── notifier.py          # Bildirim servisi
+│   └── notifier.py          # Bildirim servisi (stub, TUR-113)
 ├── jobs/                    # Arka plan islemleri (tracking poll, vb.)
 ├── reports/                 # Lojistik raporlari (TUR-102)
 │   └── __init__.py
 └── tests/
     ├── __init__.py
-    ├── test_module_import.py      # Import smoke testi
-    ├── test_constants.py          # Durum makinesi invariant testleri
-    └── test_adapter_contract.py   # Adapter ABC sozlesme + registry testleri
+    ├── test_module_import.py         # Import smoke testi
+    ├── test_constants.py             # Durum makinesi invariant testleri
+    ├── test_state_machine.py         # is_transition_allowed saf kural testleri
+    ├── test_desi.py                  # Desi hesaplama testleri
+    ├── test_adapter_contract.py      # Adapter ABC sozlesme + registry testleri
+    ├── test_logistics_permissions.py # Permission unit testleri (standalone mock)
+    └── test_shipment_core.py         # Bench entegrasyon paketi (split/state/API, LOG-054)
 ```
 
 ## Feature Flags
@@ -112,16 +116,17 @@ Sevkiyat durumlari `ShipmentStatus` sinifinda, gecis matrisi
 
 ```
 Draft -> Pending -> Ready for Pickup -> Picked Up -> In Transit
-                                                        |
-                                          +-------------+-------------+
-                                          |             |             |
-                                     At Warehouse  Out for Delivery  Failed
-                                          |             |             |
-                                          +------+------+       +----+----+
-                                                 |               |        |
-                                             Delivered      In Transit  Returned
-                                                                         |
-                                                                      Cancelled
+
+In Transit       -> At Warehouse | Out for Delivery | Delivered | Failed
+At Warehouse     -> In Transit   | Out for Delivery
+Out for Delivery -> Delivered    | Failed | Returned
+Failed           -> In Transit   | Returned
+
+Cancelled: Out for Delivery haric tum terminal-olmayan durumlardan erisilir
+(Draft, Pending, Ready for Pickup, Picked Up, In Transit, At Warehouse, Failed).
+
+Terminal: Delivered, Returned, Cancelled — cikis gecisi YOKTUR
+(Returned'dan Cancelled'a gecis de yoktur; kaynak: constants.ALLOWED_TRANSITIONS).
 ```
 
 ## Naming Conventions

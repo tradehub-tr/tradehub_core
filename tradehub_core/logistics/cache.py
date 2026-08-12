@@ -9,14 +9,10 @@ ve invalidation fonksiyonlarını sağlar.
 
 from __future__ import annotations
 
-from typing import Optional
-
 import frappe
-from frappe import _
 from frappe.model.document import Document
 
 from tradehub_core.logistics.constants import CACHE_PREFIX
-
 
 # ---------------------------------------------------------------------------
 # Cache key tanımları
@@ -34,8 +30,8 @@ LOGISTICS_CACHE_KEYS: list[str] = [
 
 
 def invalidate_logistics_dashboard(
-	doc: Optional[Document] = None,
-	method: Optional[str] = None,
+	doc: Document | None = None,
+	method: str | None = None,
 ) -> None:
 	"""Tüm lojistik dashboard cache key'lerini siler.
 
@@ -52,9 +48,10 @@ def invalidate_logistics_dashboard(
 	# Platform dashboard cache'i her zaman temizle
 	cache.delete_value(f"{CACHE_PREFIX}dashboard:platform")
 
-	# Seller-spesifik cache temizliği
-	if doc and hasattr(doc, "seller") and doc.seller:
-		seller_id = doc.seller
+	# Seller-spesifik cache temizliği — Shipment tenant alanı seller_profile
+	# (Dalga B düzeltmesi: eski `seller` alan adı şemada hiç var olmadı).
+	if doc and hasattr(doc, "seller_profile") and doc.seller_profile:
+		seller_id = doc.seller_profile
 		cache.delete_value(f"{CACHE_PREFIX}dashboard:seller:{seller_id}")
 		cache.delete_value(f"{CACHE_PREFIX}shipment:count:{seller_id}")
 
