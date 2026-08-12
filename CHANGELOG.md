@@ -1,3 +1,23 @@
+## [v1.13.1-alpha.9] - 2026-08-12 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Degistirildi
+- refactor(platform): ERPNext siteden kaldırıldı, UOM tradehub_core'a devralındı (@boraydeger32)
+  - UOM DocType'ı 239 kayıt korunarak devralındı (module re-home patch + minimal uom.json; RFQ.unit ve Listing.stock_uom linkleri çalışıyor)
+  - tabShipment'taki 38 ERPNext kolonu temizlendi (idempotent patch)
+  - hooks.py required_apps = ["frappe"]; compose'dan --install-app erpnext çıkarıldı (Dockerfile taban imajı bilinçli korundu)
+  - Ölü modüller silindi: utils/erpnext_sync.py (2809 satır, 22 endpoint), webhooks/erpnext_hooks.py; Listing.erpnext_item ve User Profile.erpnext_customer alanları kaldırıldı
+  - Durum motoru: constants.is_transition_allowed tek kaynak; geçersiz geçiş ShipmentStateError (409); geçiş başına append-only Shipment Event (event_hash unique); aynı duruma geçiş no-op
+  - Siparişten sevkiyat: split_engine (INV-1/INV-5 invariant'ları, idempotency_key + IdempotencyConflictError, yabancı order_item reddi)
+  - Desi entegrasyonu: parsel-başına chargeable weight, Settings'e default_desi_divisor alanı
+  - Order denormalizasyonu: fulfillment_status + shipment_count + patch
+  - API v1: create/list/detail/update_status/cancel ({ok, data, meta})
+  - Güvenlik: Shipment/Leg/Event üçünde query_conditions + has_permission + tenant çift hook; maliyet alanları permlevel=1; adres + kalem snapshot değişmezlik guard'ları; Event spoofing koruması
+  - Testler: test_shipment_core 18 (cross-tenant izolasyon, split, idempotency, state machine e2e) + test_state_machine 11; bench toplam 76 yeşil
+  - Doküman: LOGISTICS-ARCHITECTURE.md durum matrisi ve Carrier Account gerçek implementasyonla senkronlandı
+
+---
 ## [v1.13.1-alpha.8] - 2026-08-12 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
