@@ -10,14 +10,10 @@ fazlarda tamamlanacaktır.
 
 from __future__ import annotations
 
-from typing import Optional
-
-import frappe
-from frappe import _
 from frappe.model.document import Document
 
 
-def validate_state_transition(doc: Document, method: Optional[str] = None) -> None:
+def validate_state_transition(doc: Document, method: str | None = None) -> None:
 	"""Sevkiyat durum geçişini doğrular.
 
 	ALLOWED_TRANSITIONS matrisine göre geçersiz durum geçişlerini engeller.
@@ -30,7 +26,7 @@ def validate_state_transition(doc: Document, method: Optional[str] = None) -> No
 	pass
 
 
-def snapshot_addresses(doc: Document, method: Optional[str] = None) -> None:
+def snapshot_addresses(doc: Document, method: str | None = None) -> None:
 	"""Sevkiyat adres snapshot'ı alır.
 
 	Gönderici ve alıcı adreslerinin anlık kopyasını sevkiyat üzerine
@@ -43,7 +39,7 @@ def snapshot_addresses(doc: Document, method: Optional[str] = None) -> None:
 	pass
 
 
-def snapshot_items(doc: Document, method: Optional[str] = None) -> None:
+def snapshot_items(doc: Document, method: str | None = None) -> None:
 	"""Sevkiyat kalem snapshot'ı alır.
 
 	Sevk edilen ürün kalemlerinin anlık kopyasını (miktar, ağırlık, hacim)
@@ -56,7 +52,7 @@ def snapshot_items(doc: Document, method: Optional[str] = None) -> None:
 	pass
 
 
-def on_shipment_created(doc: Document, method: Optional[str] = None) -> None:
+def on_shipment_created(doc: Document, method: str | None = None) -> None:
 	"""Sevkiyat oluşturulduğunda tetiklenen handler.
 
 	Yeni sevkiyat oluşturulduğunda bildirim gönderme, dashboard
@@ -69,7 +65,7 @@ def on_shipment_created(doc: Document, method: Optional[str] = None) -> None:
 	pass
 
 
-def on_shipment_status_change(doc: Document, method: Optional[str] = None) -> None:
+def on_shipment_status_change(doc: Document, method: str | None = None) -> None:
 	"""Sevkiyat durum değişikliğinde tetiklenen handler.
 
 	Durum değişikliğinde tracking log kaydı, bildirim gönderme ve
@@ -82,7 +78,7 @@ def on_shipment_status_change(doc: Document, method: Optional[str] = None) -> No
 	pass
 
 
-def update_order_fulfillment(doc: Document, method: Optional[str] = None) -> None:
+def update_order_fulfillment(doc: Document, method: str | None = None) -> None:
 	"""Order.fulfillment_status alanını günceller.
 
 	Sevkiyat durumuna göre bağlı Order'ın fulfillment_status alanını
@@ -99,7 +95,7 @@ def update_order_fulfillment(doc: Document, method: Optional[str] = None) -> Non
 	pass
 
 
-def validate_split_invariants(doc: Document, method: Optional[str] = None) -> None:
+def validate_split_invariants(doc: Document, method: str | None = None) -> None:
 	"""Sevkiyat bölme değişmezlerini kontrol eder (INV-1..5).
 
 	INV-1: Bölünen kalemlerin toplam miktarı orijinal miktara eşit olmalı.

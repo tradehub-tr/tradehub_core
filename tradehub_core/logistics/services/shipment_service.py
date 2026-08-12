@@ -3,6 +3,5 @@
 
 """Shipment CRUD + state machine is mantigi."""
 
-from frappe import _
 
 # TODO(TUR-105): create_shipment, transition_status, get_shipment_detail

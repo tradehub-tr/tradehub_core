@@ -9,7 +9,6 @@ default'larını içerir. Tüm lojistik modülleri bu sabitleri referans alır.
 
 from __future__ import annotations
 
-
 # ---------------------------------------------------------------------------
 # Shipment Status
 # ---------------------------------------------------------------------------

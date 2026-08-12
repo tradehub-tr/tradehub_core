@@ -3,6 +3,5 @@
 
 """Kargo ucret hesaplama servisi."""
 
-from frappe import _
 
 # TODO(TUR-121): calculate_shipping_rate

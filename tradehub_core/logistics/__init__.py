@@ -63,7 +63,7 @@ def is_enabled(flag: str) -> bool:
 	return LOGISTICS_FEATURE_FLAGS.get(flag, False)
 
 
-def get_logistics_settings() -> "frappe.Document":
+def get_logistics_settings() -> frappe.Document:
 	"""Logistics Settings singleton DocType'ını döndürür.
 
 	Returns:
