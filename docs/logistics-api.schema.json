@@ -1933,9 +1933,86 @@
 					"ts": "string",
 					"required": false,
 					"note": "Değişim gönderisi"
+				},
+				{
+					"name": "closed_at",
+					"type": "Datetime",
+					"ts": "string",
+					"required": false,
+					"note": "Kapanış zamanı — sonrası DEĞİŞTİRİLEMEZ"
+				},
+				{
+					"name": "closed_by",
+					"type": "Link",
+					"ts": "string",
+					"required": false,
+					"note": "Kapatan kullanıcı — audit"
 				}
 			],
-			"child_tables": {}
+			"child_tables": {
+				"items": [
+					{
+						"name": "item",
+						"type": "Link",
+						"ts": "string",
+						"required": true,
+						"note": "Listing / ürün"
+					},
+					{
+						"name": "item_name",
+						"type": "Data",
+						"ts": "string",
+						"required": true
+					},
+					{
+						"name": "requested_qty",
+						"type": "Float",
+						"ts": "number",
+						"required": true,
+						"note": "Alıcının iade etmek istediği"
+					},
+					{
+						"name": "received_qty",
+						"type": "Float",
+						"ts": "number",
+						"required": false,
+						"note": "Depoya ULAŞAN — eksik gelebilir"
+					},
+					{
+						"name": "accepted_qty",
+						"type": "Float",
+						"ts": "number",
+						"required": false,
+						"note": "Kontrol sonrası kabul edilen"
+					},
+					{
+						"name": "uom",
+						"type": "Data",
+						"ts": "string",
+						"required": false
+					},
+					{
+						"name": "inspection_result",
+						"type": "Select",
+						"ts": "string",
+						"required": false,
+						"note": "ok | damaged | missing_parts | mismatch"
+					},
+					{
+						"name": "inspection_note",
+						"type": "Small Text",
+						"ts": "string",
+						"required": false
+					},
+					{
+						"name": "unit_refund",
+						"type": "Currency",
+						"ts": "number",
+						"required": false,
+						"note": "Birim iade tutarı"
+					}
+				]
+			}
 		},
 		"price_quote": {
 			"provisional": true,
@@ -2574,6 +2651,307 @@
 					"type": "Link",
 					"ts": "string",
 					"required": false
+				}
+			],
+			"detail_fields": [],
+			"child_tables": {}
+		},
+		"pricing_rule": {
+			"provisional": true,
+			"label": "Fiyatlandırma Kuralı",
+			"source_tasks": [
+				"TUR-121"
+			],
+			"list_fields": [
+				{
+					"name": "name",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "rule_name",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "carrier",
+					"type": "Link",
+					"ts": "string",
+					"required": false,
+					"note": "Boş = tüm taşıyıcılar"
+				},
+				{
+					"name": "carrier_service",
+					"type": "Link",
+					"ts": "string",
+					"required": false
+				},
+				{
+					"name": "shipping_method",
+					"type": "Link",
+					"ts": "string",
+					"required": false
+				},
+				{
+					"name": "priority",
+					"type": "Int",
+					"ts": "number",
+					"required": true,
+					"note": "Küçük sayı önce değerlendirilir — çakışma çözümü"
+				},
+				{
+					"name": "is_active",
+					"type": "Check",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "min_desi",
+					"type": "Float",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "max_desi",
+					"type": "Float",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "min_weight_kg",
+					"type": "Float",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "max_weight_kg",
+					"type": "Float",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "origin_city",
+					"type": "Data",
+					"ts": "string",
+					"required": false
+				},
+				{
+					"name": "destination_city",
+					"type": "Data",
+					"ts": "string",
+					"required": false
+				},
+				{
+					"name": "zone",
+					"type": "Data",
+					"ts": "string",
+					"required": false,
+					"note": "Bölge kodu — bölge bazlı fiyatlandırma"
+				},
+				{
+					"name": "min_order_total",
+					"type": "Currency",
+					"ts": "number",
+					"required": false,
+					"note": "Ücretsiz kargo eşiği bu alanla kurulur"
+				},
+				{
+					"name": "base_cost",
+					"type": "Currency",
+					"ts": "number",
+					"required": false,
+					"note": "Taşıyıcı ALIŞ maliyeti tabanı"
+				},
+				{
+					"name": "base_charge",
+					"type": "Currency",
+					"ts": "number",
+					"required": false,
+					"note": "Müşteriye YANSITILAN taban ücret"
+				},
+				{
+					"name": "per_desi_charge",
+					"type": "Currency",
+					"ts": "number",
+					"required": false,
+					"note": "Desi başına ek ücret"
+				},
+				{
+					"name": "currency",
+					"type": "Link",
+					"ts": "string",
+					"required": false
+				},
+				{
+					"name": "valid_from",
+					"type": "Date",
+					"ts": "string",
+					"required": false
+				},
+				{
+					"name": "valid_until",
+					"type": "Date",
+					"ts": "string",
+					"required": false
+				}
+			],
+			"detail_fields": [],
+			"child_tables": {}
+		},
+		"performance_report": {
+			"provisional": true,
+			"label": "Performans Raporu",
+			"source_tasks": [
+				"TUR-118"
+			],
+			"list_fields": [
+				{
+					"name": "dimension",
+					"type": "Data",
+					"ts": "string",
+					"required": true,
+					"note": "Kırılım değeri, ör. taşıyıcı kodu"
+				},
+				{
+					"name": "dimension_label",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "shipment_count",
+					"type": "Int",
+					"ts": "number",
+					"required": true
+				},
+				{
+					"name": "delivered_count",
+					"type": "Int",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "delayed_count",
+					"type": "Int",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "failed_count",
+					"type": "Int",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "returned_count",
+					"type": "Int",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "avg_delivery_days",
+					"type": "Float",
+					"ts": "number",
+					"required": false,
+					"note": "Yalnız teslim edilenler üzerinden"
+				},
+				{
+					"name": "p90_delivery_days",
+					"type": "Float",
+					"ts": "number",
+					"required": false,
+					"note": "Kuyruk davranışı — ortalama gizler"
+				},
+				{
+					"name": "on_time_rate",
+					"type": "Float",
+					"ts": "number",
+					"required": false,
+					"note": "0-1 arası oran"
+				},
+				{
+					"name": "failure_rate",
+					"type": "Float",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "return_rate",
+					"type": "Float",
+					"ts": "number",
+					"required": false
+				}
+			],
+			"detail_fields": [],
+			"child_tables": {}
+		},
+		"cost_report": {
+			"provisional": true,
+			"label": "Maliyet Raporu",
+			"source_tasks": [
+				"TUR-118",
+				"TUR-121"
+			],
+			"list_fields": [
+				{
+					"name": "dimension",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "dimension_label",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "shipment_count",
+					"type": "Int",
+					"ts": "number",
+					"required": true
+				},
+				{
+					"name": "carrier_cost_total",
+					"type": "Currency",
+					"ts": "number",
+					"required": true,
+					"note": "Taşıyıcıya ÖDENEN"
+				},
+				{
+					"name": "customer_charge_total",
+					"type": "Currency",
+					"ts": "number",
+					"required": true,
+					"note": "Müşteriden ALINAN"
+				},
+				{
+					"name": "margin_total",
+					"type": "Currency",
+					"ts": "number",
+					"required": true,
+					"note": "Backend hesaplar — arayüz yuvarlama üretmesin"
+				},
+				{
+					"name": "margin_rate",
+					"type": "Float",
+					"ts": "number",
+					"required": false,
+					"note": "0-1 arası; negatif olabilir"
+				},
+				{
+					"name": "avg_cost_per_shipment",
+					"type": "Currency",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "currency",
+					"type": "Link",
+					"ts": "string",
+					"required": true
 				}
 			],
 			"detail_fields": [],

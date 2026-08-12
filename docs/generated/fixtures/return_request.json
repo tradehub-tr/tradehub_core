@@ -81,7 +81,33 @@
 			"inspection_note": "İki top kumaşta su hasarı tespit edildi.",
 			"refund_amount": 2480.0,
 			"refund_triggered_at": null,
-			"exchange_shipment": null
+			"exchange_shipment": null,
+			"closed_at": null,
+			"closed_by": null,
+			"items": [
+				{
+					"item": "LST-00121",
+					"item_name": "Pamuklu Kumaş Topu 40m",
+					"requested_qty": 6,
+					"received_qty": 6,
+					"accepted_qty": 4,
+					"uom": "Top",
+					"inspection_result": "damaged",
+					"inspection_note": "2 topta su hasarı — kabul edilmedi.",
+					"unit_refund": 620.0
+				},
+				{
+					"item": "LST-00133",
+					"item_name": "Polyester Astar 50m",
+					"requested_qty": 3,
+					"received_qty": 2,
+					"accepted_qty": 0,
+					"uom": "Top",
+					"inspection_result": "missing_parts",
+					"inspection_note": "1 top hiç ulaşmadı, gelen 2 top eksik parçalı.",
+					"unit_refund": 0.0
+				}
+			]
 		}
 	}
 }

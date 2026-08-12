@@ -363,6 +363,18 @@ export interface ReturnRequestListItem {
   is_closed?: number;
 }
 
+export interface ReturnRequestItemsRow {
+  item: string;
+  item_name: string;
+  requested_qty: number;
+  received_qty?: number;
+  accepted_qty?: number;
+  uom?: string;
+  inspection_result?: string;
+  inspection_note?: string;
+  unit_refund?: number;
+}
+
 export interface ReturnRequestDetail extends ReturnRequestListItem {
   decision_note?: string;
   return_shipment?: string;
@@ -372,6 +384,9 @@ export interface ReturnRequestDetail extends ReturnRequestListItem {
   refund_amount?: number;
   refund_triggered_at?: string;
   exchange_shipment?: string;
+  closed_at?: string;
+  closed_by?: string;
+  items: ReturnRequestItemsRow[];
 }
 
 /** Fiyat Teklifi — kaynak: TUR-121 */
@@ -506,6 +521,66 @@ export interface OperationAlertListItem {
 }
 
 export type OperationAlertDetail = OperationAlertListItem;
+
+/** Fiyatlandırma Kuralı — kaynak: TUR-121 */
+export interface PricingRuleListItem {
+  name: string;
+  rule_name: string;
+  carrier?: string;
+  carrier_service?: string;
+  shipping_method?: string;
+  priority: number;
+  is_active?: number;
+  min_desi?: number;
+  max_desi?: number;
+  min_weight_kg?: number;
+  max_weight_kg?: number;
+  origin_city?: string;
+  destination_city?: string;
+  zone?: string;
+  min_order_total?: number;
+  base_cost?: number;
+  base_charge?: number;
+  per_desi_charge?: number;
+  currency?: string;
+  valid_from?: string;
+  valid_until?: string;
+}
+
+export type PricingRuleDetail = PricingRuleListItem;
+
+/** Performans Raporu — kaynak: TUR-118 */
+export interface PerformanceReportListItem {
+  dimension: string;
+  dimension_label: string;
+  shipment_count: number;
+  delivered_count?: number;
+  delayed_count?: number;
+  failed_count?: number;
+  returned_count?: number;
+  avg_delivery_days?: number;
+  p90_delivery_days?: number;
+  on_time_rate?: number;
+  failure_rate?: number;
+  return_rate?: number;
+}
+
+export type PerformanceReportDetail = PerformanceReportListItem;
+
+/** Maliyet Raporu — kaynak: TUR-118, TUR-121 */
+export interface CostReportListItem {
+  dimension: string;
+  dimension_label: string;
+  shipment_count: number;
+  carrier_cost_total: number;
+  customer_charge_total: number;
+  margin_total: number;
+  margin_rate?: number;
+  avg_cost_per_shipment?: number;
+  currency: string;
+}
+
+export type CostReportDetail = CostReportListItem;
 
 // ── Taşıyıcı hesabı ──
 export interface CarrierAccount {

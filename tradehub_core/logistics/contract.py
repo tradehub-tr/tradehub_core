@@ -202,6 +202,25 @@ RETURN_REQUEST_DETAIL_FIELDS = [
 	_f("refund_amount", "Currency", False),
 	_f("refund_triggered_at", "Datetime", False, "Escrow/para iadesi tetikleyicisi"),
 	_f("exchange_shipment", "Link", False, "Değişim gönderisi"),
+	_f("closed_at", "Datetime", False, "Kapanış zamanı — sonrası DEĞİŞTİRİLEMEZ"),
+	_f("closed_by", "Link", False, "Kapatan kullanıcı — audit"),
+]
+
+#: Kalem bazlı iade kontrolü (TUR-116 depo kontrolü).
+#:
+#: Talep düzeyinde tek bir `inspection_result` yetmiyor: üç kalemlik bir
+#: iadede biri hasarlı diğeri sağlam olabilir ve para iadesi tutarı buna
+#: göre değişir. Tek alan, kısmi kabulü ifade edemez.
+RETURN_ITEM_FIELDS = [
+	_f("item", "Link", True, "Listing / ürün"),
+	_f("item_name", "Data", True),
+	_f("requested_qty", "Float", True, "Alıcının iade etmek istediği"),
+	_f("received_qty", "Float", False, "Depoya ULAŞAN — eksik gelebilir"),
+	_f("accepted_qty", "Float", False, "Kontrol sonrası kabul edilen"),
+	_f("uom", "Data", False),
+	_f("inspection_result", "Select", False, "ok | damaged | missing_parts | mismatch"),
+	_f("inspection_note", "Small Text", False),
+	_f("unit_refund", "Currency", False, "Birim iade tutarı"),
 ]
 
 # ---------------------------------------------------------------------------
@@ -221,6 +240,82 @@ PRICE_QUOTE_FIELDS = [
 	_f("valid_until", "Datetime", False, "Teklif geçerlilik süresi"),
 	_f("is_snapshot", "Check", False, "Sipariş anındaki fiyat korunur"),
 	_f("surcharges", "JSON", False, "Yakıt farkı, kat teslimatı, sigorta vb."),
+]
+
+#: Fiyatlandırma kuralı (TUR-121).
+#:
+#: TUR-121 kabul kriteri: *"Kural çakışması deterministik çözülür ve
+#: AÇIKLANABİLİR olmalıdır."* Bunun sözleşmedeki karşılığı `priority` +
+#: eşleşme aralıklarının açıkça alan olması: bir teklifin neden o fiyatı
+#: aldığı, kuralın alanlarına bakılarak anlatılabilmeli. Ölçütler bir JSON
+#: ifadesine gömülseydi arayüz "şu kural uygulandı" diyebilir ama NEDEN
+#: uygulandığını gösteremezdi.
+PRICING_RULE_FIELDS = [
+	_f("name", "Data", True),
+	_f("rule_name", "Data", True),
+	_f("carrier", "Link", False, "Boş = tüm taşıyıcılar"),
+	_f("carrier_service", "Link", False),
+	_f("shipping_method", "Link", False),
+	_f("priority", "Int", True, "Küçük sayı önce değerlendirilir — çakışma çözümü"),
+	_f("is_active", "Check", False),
+	# Eşleşme ölçütleri — hepsi opsiyonel, boş olan "sınırlama yok" demek
+	_f("min_desi", "Float", False),
+	_f("max_desi", "Float", False),
+	_f("min_weight_kg", "Float", False),
+	_f("max_weight_kg", "Float", False),
+	_f("origin_city", "Data", False),
+	_f("destination_city", "Data", False),
+	_f("zone", "Data", False, "Bölge kodu — bölge bazlı fiyatlandırma"),
+	_f("min_order_total", "Currency", False, "Ücretsiz kargo eşiği bu alanla kurulur"),
+	# Sonuç
+	_f("base_cost", "Currency", False, "Taşıyıcı ALIŞ maliyeti tabanı"),
+	_f("base_charge", "Currency", False, "Müşteriye YANSITILAN taban ücret"),
+	_f("per_desi_charge", "Currency", False, "Desi başına ek ücret"),
+	_f("currency", "Link", False),
+	_f("valid_from", "Date", False),
+	_f("valid_until", "Date", False),
+]
+
+# ---------------------------------------------------------------------------
+# Raporlar — TUR-118
+# ---------------------------------------------------------------------------
+
+#: Performans raporu satırı (TUR-118).
+#:
+#: Her satır bir KIRILIM (taşıyıcı / yöntem / satıcı) için toplulaştırılmış
+#: ölçüm. Ham sevkiyat listesi döndürüp arayüzde toplamak, sayfalama
+#: yüzünden yanlış sonuç verirdi — 50 satırlık sayfadan hesaplanan
+#: "ortalama teslim süresi" tüm veriyi temsil etmez.
+PERFORMANCE_REPORT_FIELDS = [
+	_f("dimension", "Data", True, "Kırılım değeri, ör. taşıyıcı kodu"),
+	_f("dimension_label", "Data", True),
+	_f("shipment_count", "Int", True),
+	_f("delivered_count", "Int", False),
+	_f("delayed_count", "Int", False),
+	_f("failed_count", "Int", False),
+	_f("returned_count", "Int", False),
+	_f("avg_delivery_days", "Float", False, "Yalnız teslim edilenler üzerinden"),
+	_f("p90_delivery_days", "Float", False, "Kuyruk davranışı — ortalama gizler"),
+	_f("on_time_rate", "Float", False, "0-1 arası oran"),
+	_f("failure_rate", "Float", False),
+	_f("return_rate", "Float", False),
+]
+
+#: Maliyet raporu satırı (TUR-118, TUR-121).
+#:
+#: Alış ve satış AYRI kolonlar. Tek bir "kargo geliri" alanı TUR-121'in
+#: ayrım kriterini ihlal ederdi; marj ayrıca hesaplanmış geliyor ki arayüz
+#: yuvarlama farkı üretmesin.
+COST_REPORT_FIELDS = [
+	_f("dimension", "Data", True),
+	_f("dimension_label", "Data", True),
+	_f("shipment_count", "Int", True),
+	_f("carrier_cost_total", "Currency", True, "Taşıyıcıya ÖDENEN"),
+	_f("customer_charge_total", "Currency", True, "Müşteriden ALINAN"),
+	_f("margin_total", "Currency", True, "Backend hesaplar — arayüz yuvarlama üretmesin"),
+	_f("margin_rate", "Float", False, "0-1 arası; negatif olabilir"),
+	_f("avg_cost_per_shipment", "Currency", False),
+	_f("currency", "Link", True),
 ]
 
 # ---------------------------------------------------------------------------
@@ -376,7 +471,7 @@ PROVISIONAL_ENTITIES: dict[str, dict[str, Any]] = {
 		"source_tasks": ["TUR-116"],
 		"list_fields": RETURN_REQUEST_LIST_FIELDS,
 		"detail_fields": RETURN_REQUEST_DETAIL_FIELDS,
-		"child_tables": {},
+		"child_tables": {"items": RETURN_ITEM_FIELDS},
 	},
 	"price_quote": {
 		"label": "Fiyat Teklifi",
@@ -432,6 +527,27 @@ PROVISIONAL_ENTITIES: dict[str, dict[str, Any]] = {
 		"label": "Operasyon Alarmı",
 		"source_tasks": ["TUR-113"],
 		"list_fields": OPERATION_ALERT_FIELDS,
+		"detail_fields": [],
+		"child_tables": {},
+	},
+	"pricing_rule": {
+		"label": "Fiyatlandırma Kuralı",
+		"source_tasks": ["TUR-121"],
+		"list_fields": PRICING_RULE_FIELDS,
+		"detail_fields": [],
+		"child_tables": {},
+	},
+	"performance_report": {
+		"label": "Performans Raporu",
+		"source_tasks": ["TUR-118"],
+		"list_fields": PERFORMANCE_REPORT_FIELDS,
+		"detail_fields": [],
+		"child_tables": {},
+	},
+	"cost_report": {
+		"label": "Maliyet Raporu",
+		"source_tasks": ["TUR-118", "TUR-121"],
+		"list_fields": COST_REPORT_FIELDS,
 		"detail_fields": [],
 		"child_tables": {},
 	},
@@ -710,9 +826,30 @@ SAMPLE_RETURN_DETAIL: dict[str, Any] = {
 	"return_label_url": "/files/etiket/iade-RET-2026-00007.pdf",
 	"inspection_result": "damaged",
 	"inspection_note": "İki top kumaşta su hasarı tespit edildi.",
+	# Kabul edilen kalemlerden: 4 × 620,00 + 0 × 0,00 = 2480,00
 	"refund_amount": 2480.00,
 	"refund_triggered_at": None,
 	"exchange_shipment": None,
+	"closed_at": None,
+	"closed_by": None,
+	"items": [
+		{
+			"item": "LST-00121", "item_name": "Pamuklu Kumaş Topu 40m",
+			"requested_qty": 6, "received_qty": 6, "accepted_qty": 4, "uom": "Top",
+			"inspection_result": "damaged",
+			"inspection_note": "2 topta su hasarı — kabul edilmedi.",
+			"unit_refund": 620.00,
+		},
+		# Eksik gelen kalem: istenen 3, ulaşan 2. Depo kontrolünün asıl
+		# yakaladığı durum bu ve para iadesi buna göre kısılıyor.
+		{
+			"item": "LST-00133", "item_name": "Polyester Astar 50m",
+			"requested_qty": 3, "received_qty": 2, "accepted_qty": 0, "uom": "Top",
+			"inspection_result": "missing_parts",
+			"inspection_note": "1 top hiç ulaşmadı, gelen 2 top eksik parçalı.",
+			"unit_refund": 0.00,
+		},
+	],
 }
 
 SAMPLE_PRICE_QUOTES: list[dict[str, Any]] = [
@@ -893,6 +1030,105 @@ SAMPLE_OPERATION_ALERTS: list[dict[str, Any]] = [
 	},
 ]
 
+#: Öncelik sırası bilinçli olarak çakışmalı: 42 desilik bir gönderi hem
+#: "Standart 30-50 desi" (öncelik 10) hem "Ücretsiz kargo 5000 TL üzeri"
+#: (öncelik 1) kuralına uyar. Küçük sayı kazanır — simülasyon ekranı bu
+#: çözümü göstermek için var.
+SAMPLE_PRICING_RULES: list[dict[str, Any]] = [
+	{
+		"name": "PR-FREE-5000", "rule_name": "Ücretsiz kargo · 5000 TL üzeri sipariş",
+		"carrier": None, "carrier_service": None, "shipping_method": None,
+		"priority": 1, "is_active": 1,
+		"min_desi": None, "max_desi": None, "min_weight_kg": None, "max_weight_kg": None,
+		"origin_city": None, "destination_city": None, "zone": None,
+		"min_order_total": 5000.00,
+		"base_cost": 0.00, "base_charge": 0.00, "per_desi_charge": 0.00, "currency": "TRY",
+		"valid_from": "2026-01-01", "valid_until": None,
+	},
+	{
+		"name": "PR-STD-30-50", "rule_name": "Standart Kargo · 30-50 desi",
+		"carrier": "YK", "carrier_service": "YK-STD", "shipping_method": "Standart Kargo",
+		"priority": 10, "is_active": 1,
+		"min_desi": 30.0, "max_desi": 50.0, "min_weight_kg": None, "max_weight_kg": None,
+		"origin_city": None, "destination_city": None, "zone": "TR-IC",
+		"min_order_total": None,
+		"base_cost": 210.00, "base_charge": 280.00, "per_desi_charge": 1.40, "currency": "TRY",
+		"valid_from": "2026-01-01", "valid_until": None,
+	},
+	{
+		"name": "PR-EAST-SURCHARGE", "rule_name": "Doğu bölgesi ek ücreti",
+		"carrier": None, "carrier_service": None, "shipping_method": None,
+		"priority": 20, "is_active": 1,
+		"min_desi": None, "max_desi": None, "min_weight_kg": None, "max_weight_kg": None,
+		"origin_city": None, "destination_city": None, "zone": "TR-DOGU",
+		"min_order_total": None,
+		"base_cost": 260.00, "base_charge": 360.00, "per_desi_charge": 2.10, "currency": "TRY",
+		"valid_from": "2026-01-01", "valid_until": None,
+	},
+	{
+		"name": "PR-HEAVY", "rule_name": "Ağır yük · 100 kg üzeri",
+		"carrier": None, "carrier_service": None, "shipping_method": "Ambar Teslim",
+		"priority": 15, "is_active": 0,
+		"min_desi": None, "max_desi": None, "min_weight_kg": 100.0, "max_weight_kg": None,
+		"origin_city": None, "destination_city": None, "zone": None,
+		"min_order_total": None,
+		"base_cost": 850.00, "base_charge": 1100.00, "per_desi_charge": 0.90, "currency": "TRY",
+		"valid_from": "2026-06-01", "valid_until": "2026-12-31",
+	},
+]
+
+#: Oranlar sayılarla TUTARLI: YK için 120 sevkiyat, 108 teslim, 9 gecikme,
+#: 3 başarısız → on_time = (108-9)/120 = 0,825; failure = 3/120 = 0,025.
+SAMPLE_PERFORMANCE_REPORT: list[dict[str, Any]] = [
+	{
+		"dimension": "YK", "dimension_label": "Yurtiçi Kargo",
+		"shipment_count": 120, "delivered_count": 108, "delayed_count": 9,
+		"failed_count": 3, "returned_count": 6,
+		"avg_delivery_days": 2.4, "p90_delivery_days": 4.8,
+		"on_time_rate": 0.825, "failure_rate": 0.025, "return_rate": 0.05,
+	},
+	{
+		"dimension": "AK", "dimension_label": "Aras Kargo",
+		"shipment_count": 84, "delivered_count": 79, "delayed_count": 4,
+		"failed_count": 1, "returned_count": 3,
+		"avg_delivery_days": 2.1, "p90_delivery_days": 3.6,
+		"on_time_rate": 0.893, "failure_rate": 0.012, "return_rate": 0.036,
+	},
+	# Kötü performans: ortalama iyi görünüyor ama p90 iki katı ve
+	# başarısızlık oranı yüksek. Yalnız ortalamaya bakan bir rapor bunu
+	# gizlerdi — p90 alanı bu yüzden sözleşmede.
+	{
+		"dimension": "MNG", "dimension_label": "MNG Kargo",
+		"shipment_count": 41, "delivered_count": 30, "delayed_count": 11,
+		"failed_count": 7, "returned_count": 4,
+		"avg_delivery_days": 2.9, "p90_delivery_days": 8.5,
+		"on_time_rate": 0.463, "failure_rate": 0.171, "return_rate": 0.098,
+	},
+]
+
+#: Marj tutarları kolonlarla TUTARLI: 32 208,00 − 24 108,00 = 8 100,00.
+#: MNG satırı bilinçli olarak ZARARDA — negatif marj görünmeli.
+SAMPLE_COST_REPORT: list[dict[str, Any]] = [
+	{
+		"dimension": "YK", "dimension_label": "Yurtiçi Kargo", "shipment_count": 120,
+		"carrier_cost_total": 24108.00, "customer_charge_total": 32208.00,
+		"margin_total": 8100.00, "margin_rate": 0.2515,
+		"avg_cost_per_shipment": 200.90, "currency": "TRY",
+	},
+	{
+		"dimension": "AK", "dimension_label": "Aras Kargo", "shipment_count": 84,
+		"carrier_cost_total": 16380.00, "customer_charge_total": 21504.00,
+		"margin_total": 5124.00, "margin_rate": 0.2383,
+		"avg_cost_per_shipment": 195.00, "currency": "TRY",
+	},
+	{
+		"dimension": "MNG", "dimension_label": "MNG Kargo", "shipment_count": 41,
+		"carrier_cost_total": 12710.00, "customer_charge_total": 11480.00,
+		"margin_total": -1230.00, "margin_rate": -0.1071,
+		"avg_cost_per_shipment": 310.00, "currency": "TRY",
+	},
+]
+
 PROVISIONAL_SAMPLES: dict[str, dict[str, Any]] = {
 	"shipment": {"rows": SAMPLE_SHIPMENTS, "detail": SAMPLE_SHIPMENT_DETAIL},
 	"proof_of_delivery": {"rows": SAMPLE_PROOF_OF_DELIVERY, "detail": {}},
@@ -905,4 +1141,7 @@ PROVISIONAL_SAMPLES: dict[str, dict[str, Any]] = {
 	"notification_template": {"rows": SAMPLE_NOTIFICATION_TEMPLATES, "detail": {}},
 	"notification_preference": {"rows": SAMPLE_NOTIFICATION_PREFERENCES, "detail": {}},
 	"operation_alert": {"rows": SAMPLE_OPERATION_ALERTS, "detail": {}},
+	"pricing_rule": {"rows": SAMPLE_PRICING_RULES, "detail": {}},
+	"performance_report": {"rows": SAMPLE_PERFORMANCE_REPORT, "detail": {}},
+	"cost_report": {"rows": SAMPLE_COST_REPORT, "detail": {}},
 }

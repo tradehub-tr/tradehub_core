@@ -1,0 +1,61 @@
+{
+	"default": {
+		"ok": true,
+		"data": {
+			"items": [
+				{
+					"dimension": "YK",
+					"dimension_label": "Yurtiçi Kargo",
+					"shipment_count": 120,
+					"carrier_cost_total": 24108.0,
+					"customer_charge_total": 32208.0,
+					"margin_total": 8100.0,
+					"margin_rate": 0.2515,
+					"avg_cost_per_shipment": 200.9,
+					"currency": "TRY"
+				},
+				{
+					"dimension": "AK",
+					"dimension_label": "Aras Kargo",
+					"shipment_count": 84,
+					"carrier_cost_total": 16380.0,
+					"customer_charge_total": 21504.0,
+					"margin_total": 5124.0,
+					"margin_rate": 0.2383,
+					"avg_cost_per_shipment": 195.0,
+					"currency": "TRY"
+				},
+				{
+					"dimension": "MNG",
+					"dimension_label": "MNG Kargo",
+					"shipment_count": 41,
+					"carrier_cost_total": 12710.0,
+					"customer_charge_total": 11480.0,
+					"margin_total": -1230.0,
+					"margin_rate": -0.1071,
+					"avg_cost_per_shipment": 310.0,
+					"currency": "TRY"
+				}
+			],
+			"total": 3,
+			"page": 1,
+			"page_size": 50
+		}
+	},
+	"empty": {
+		"ok": true,
+		"data": {
+			"items": [],
+			"total": 0,
+			"page": 1,
+			"page_size": 50
+		}
+	},
+	"error": {
+		"ok": false,
+		"error": {
+			"code": "PERMISSION_DENIED",
+			"message": "Bu kaydı görüntüleme yetkiniz yok."
+		}
+	}
+}
