@@ -138,7 +138,6 @@
   "system_tab",
   "system_section",
   "naming_series",
-  "erpnext_item",
   "published_at"
  ],
  "fields": [
@@ -973,14 +972,6 @@
    "hidden": 1,
    "label": "Naming Series",
    "options": "LST-.#####"
-  },
-  {
-   "fieldname": "erpnext_item",
-   "fieldtype": "Link",
-   "hidden": 1,
-   "label": "ERPNext Item",
-   "options": "Item",
-   "read_only": 1
   },
   {
    "fieldname": "published_at",

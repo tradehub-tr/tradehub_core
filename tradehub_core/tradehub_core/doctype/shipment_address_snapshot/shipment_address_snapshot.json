@@ -1,0 +1,115 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "hash",
+ "creation": "2026-08-12 10:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "snapshot_type",
+  "source_address",
+  "contact_name",
+  "company",
+  "phone_prefix",
+  "phone",
+  "country",
+  "state",
+  "city",
+  "street",
+  "apartment",
+  "postal_code",
+  "tax_no",
+  "tax_office"
+ ],
+ "fields": [
+  {
+   "fieldname": "snapshot_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Snapshot Tipi",
+   "options": "Origin\nDestination",
+   "reqd": 1
+  },
+  {
+   "fieldname": "source_address",
+   "fieldtype": "Link",
+   "label": "Kaynak Adres",
+   "options": "Addresses"
+  },
+  {
+   "fieldname": "contact_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "\u0130leti\u015fim Ad\u0131"
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Data",
+   "label": "Firma"
+  },
+  {
+   "fieldname": "phone_prefix",
+   "fieldtype": "Data",
+   "label": "Telefon \u00d6n Eki"
+  },
+  {
+   "fieldname": "phone",
+   "fieldtype": "Data",
+   "label": "Telefon",
+   "options": "Phone"
+  },
+  {
+   "fieldname": "country",
+   "fieldtype": "Data",
+   "label": "\u00dclke"
+  },
+  {
+   "fieldname": "state",
+   "fieldtype": "Data",
+   "label": "\u0130l"
+  },
+  {
+   "fieldname": "city",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "\u0130l\u00e7e"
+  },
+  {
+   "fieldname": "street",
+   "fieldtype": "Small Text",
+   "label": "Sokak / Cadde"
+  },
+  {
+   "fieldname": "apartment",
+   "fieldtype": "Data",
+   "label": "Bina / Daire"
+  },
+  {
+   "fieldname": "postal_code",
+   "fieldtype": "Data",
+   "label": "Posta Kodu"
+  },
+  {
+   "fieldname": "tax_no",
+   "fieldtype": "Data",
+   "label": "Vergi No"
+  },
+  {
+   "fieldname": "tax_office",
+   "fieldtype": "Data",
+   "label": "Vergi Dairesi"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-08-12 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "Shipment Address Snapshot",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC"
+}

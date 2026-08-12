@@ -4532,7 +4532,6 @@ def get_listing_meta():
 		"reserved_qty",
 		"available_qty",
 		"published_at",
-		"erpnext_item",
 		"naming_series",
 		"variants_html",
 		"view_count",

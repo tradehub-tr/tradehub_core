@@ -1,0 +1,132 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "hash",
+ "creation": "2026-08-12 10:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "shipment",
+  "leg",
+  "seller_profile",
+  "event_hash",
+  "event_time",
+  "internal_status",
+  "carrier_status_code",
+  "source",
+  "actor",
+  "payload",
+  "note"
+ ],
+ "fields": [
+  {
+   "fieldname": "shipment",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Sevkiyat",
+   "options": "Shipment",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "leg",
+   "fieldtype": "Link",
+   "label": "Sevkiyat Baca\u011f\u0131",
+   "options": "Shipment Leg"
+  },
+  {
+   "fieldname": "seller_profile",
+   "fieldtype": "Link",
+   "label": "Sat\u0131c\u0131 Profili",
+   "options": "Admin Seller Profile",
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "event_hash",
+   "fieldtype": "Data",
+   "label": "Event Hash",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "event_time",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Olay Zaman\u0131",
+   "reqd": 1
+  },
+  {
+   "fieldname": "internal_status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "\u0130\u00e7 Durum",
+   "options": "Draft\nPending\nReady for Pickup\nPicked Up\nIn Transit\nAt Warehouse\nOut for Delivery\nDelivered\nReturned\nCancelled\nFailed"
+  },
+  {
+   "fieldname": "carrier_status_code",
+   "fieldtype": "Data",
+   "label": "Ta\u015f\u0131y\u0131c\u0131 Durum Kodu"
+  },
+  {
+   "fieldname": "source",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Kaynak",
+   "options": "System\nWebhook\nPoll\nManual"
+  },
+  {
+   "fieldname": "actor",
+   "fieldtype": "Link",
+   "label": "Akt\u00f6r",
+   "options": "User"
+  },
+  {
+   "fieldname": "payload",
+   "fieldtype": "JSON",
+   "label": "Payload"
+  },
+  {
+   "fieldname": "note",
+   "fieldtype": "Small Text",
+   "label": "Not"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-08-12 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "Shipment Event",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "role": "Logistics Manager"
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "role": "Logistics Operator"
+  },
+  {
+   "read": 1,
+   "role": "Seller Logistics"
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC"
+}

@@ -9,7 +9,6 @@ default'larını içerir. Tüm lojistik modülleri bu sabitleri referans alır.
 
 from __future__ import annotations
 
-
 # ---------------------------------------------------------------------------
 # Shipment Status
 # ---------------------------------------------------------------------------
@@ -101,6 +100,36 @@ ALLOWED_TRANSITIONS: dict[str, set[str]] = {
 		ShipmentStatus.CANCELLED,
 	},
 }
+
+
+# ---------------------------------------------------------------------------
+# Durum geçiş kuralı — saf fonksiyon (Dalga B, LOG-049)
+#
+# Bu fonksiyon BİLİNÇLİ olarak frappe'siz tutulmuştur: hem shipment_service
+# (transition_status) hem logistics/hooks.py (validate_state_transition) aynı
+# kuralı buradan kullanır (DRY) ve tests/test_state_machine.py bench olmadan
+# standalone çalıştırabilir.
+# ---------------------------------------------------------------------------
+
+def is_transition_allowed(from_status: str, to_status: str) -> bool:
+	"""from_status → to_status geçişi ALLOWED_TRANSITIONS matrisine göre geçerli mi?
+
+	Kurallar:
+	  - Aynı duruma geçiş her zaman True (idempotent no-op — motor event
+	    üretmeden dokümanı olduğu gibi döndürür).
+	  - Terminal durumlardan çıkış matriste boş set olduğu için otomatik False.
+	  - Matriste tanımsız (bilinmeyen) kaynak durum → False (fail-closed).
+
+	Args:
+		from_status: Mevcut sevkiyat durumu.
+		to_status: Hedef sevkiyat durumu.
+
+	Returns:
+		Geçiş izinliyse True.
+	"""
+	if from_status == to_status:
+		return True
+	return to_status in ALLOWED_TRANSITIONS.get(from_status, set())
 
 
 # ---------------------------------------------------------------------------

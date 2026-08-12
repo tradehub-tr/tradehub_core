@@ -1,0 +1,409 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "naming_series:",
+ "creation": "2026-08-12 10:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "tab_details",
+  "naming_series",
+  "order",
+  "seller_profile",
+  "buyer",
+  "status",
+  "shipment_type",
+  "is_partial",
+  "cb_head",
+  "shipping_method",
+  "carrier",
+  "carrier_service",
+  "tracking_number",
+  "waybill_number",
+  "idempotency_key",
+  "sb_dates",
+  "ship_date",
+  "estimated_delivery",
+  "cb_dates",
+  "actual_delivery",
+  "last_polled_at",
+  "sb_measure",
+  "total_weight",
+  "total_desi",
+  "chargeable_weight",
+  "tab_items",
+  "items",
+  "tab_packages",
+  "packages",
+  "tab_addresses",
+  "address_snapshots",
+  "tab_cost",
+  "shipping_cost",
+  "carrier_cost",
+  "insurance_cost",
+  "fuel_surcharge",
+  "packaging_cost",
+  "total_cost",
+  "cb_cost",
+  "cost_paid_by",
+  "currency",
+  "tab_documents",
+  "documents",
+  "tab_notes",
+  "seller_note",
+  "buyer_note",
+  "internal_note"
+ ],
+ "fields": [
+  {
+   "fieldname": "tab_details",
+   "fieldtype": "Tab Break",
+   "label": "Sevkiyat"
+  },
+  {
+   "default": "SHP-.YYYY.-.#####",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Naming Series",
+   "options": "SHP-.YYYY.-.#####"
+  },
+  {
+   "fieldname": "order",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Sipari\u015f",
+   "options": "Order",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "seller_profile",
+   "fieldtype": "Link",
+   "label": "Sat\u0131c\u0131 Profili",
+   "options": "Admin Seller Profile",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "buyer",
+   "fieldtype": "Link",
+   "label": "Al\u0131c\u0131",
+   "options": "User",
+   "search_index": 1
+  },
+  {
+   "default": "Draft",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Durum",
+   "options": "Draft\nPending\nReady for Pickup\nPicked Up\nIn Transit\nAt Warehouse\nOut for Delivery\nDelivered\nReturned\nCancelled\nFailed",
+   "reqd": 1
+  },
+  {
+   "default": "Standard",
+   "fieldname": "shipment_type",
+   "fieldtype": "Select",
+   "label": "Sevkiyat Tipi",
+   "options": "Standard\nSeller Delivery\nBuyer Pickup\nWarehouse Transfer"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_partial",
+   "fieldtype": "Check",
+   "label": "K\u0131smi Sevkiyat"
+  },
+  {
+   "fieldname": "cb_head",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "shipping_method",
+   "fieldtype": "Link",
+   "label": "Kargo Y\u00f6ntemi",
+   "options": "Shipping Method"
+  },
+  {
+   "fieldname": "carrier",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Ta\u015f\u0131y\u0131c\u0131",
+   "options": "Logistics Provider"
+  },
+  {
+   "fieldname": "carrier_service",
+   "fieldtype": "Link",
+   "label": "Ta\u015f\u0131y\u0131c\u0131 Hizmeti",
+   "options": "Carrier Service"
+  },
+  {
+   "fieldname": "tracking_number",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Takip Numaras\u0131",
+   "search_index": 1
+  },
+  {
+   "fieldname": "waybill_number",
+   "fieldtype": "Data",
+   "label": "\u0130rsaliye No"
+  },
+  {
+   "fieldname": "idempotency_key",
+   "fieldtype": "Data",
+   "label": "Idempotency Anahtar\u0131",
+   "read_only": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "sb_dates",
+   "fieldtype": "Section Break",
+   "label": "Tarihler"
+  },
+  {
+   "fieldname": "ship_date",
+   "fieldtype": "Date",
+   "label": "\u00c7\u0131k\u0131\u015f Tarihi"
+  },
+  {
+   "fieldname": "estimated_delivery",
+   "fieldtype": "Date",
+   "label": "Tahmini Teslim"
+  },
+  {
+   "fieldname": "cb_dates",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "actual_delivery",
+   "fieldtype": "Datetime",
+   "label": "Fiili Teslim"
+  },
+  {
+   "fieldname": "last_polled_at",
+   "fieldtype": "Datetime",
+   "label": "Son Sorgulama Zaman\u0131",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sb_measure",
+   "fieldtype": "Section Break",
+   "label": "\u00d6l\u00e7\u00fcler"
+  },
+  {
+   "fieldname": "total_weight",
+   "fieldtype": "Float",
+   "label": "Toplam A\u011f\u0131rl\u0131k (kg)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "total_desi",
+   "fieldtype": "Float",
+   "label": "Toplam Desi",
+   "read_only": 1
+  },
+  {
+   "fieldname": "chargeable_weight",
+   "fieldtype": "Float",
+   "label": "\u00dccretlendirilebilir A\u011f\u0131rl\u0131k",
+   "read_only": 1
+  },
+  {
+   "fieldname": "tab_items",
+   "fieldtype": "Tab Break",
+   "label": "Kalemler"
+  },
+  {
+   "fieldname": "items",
+   "fieldtype": "Table",
+   "label": "Kalemler",
+   "options": "Shipment Item"
+  },
+  {
+   "fieldname": "tab_packages",
+   "fieldtype": "Tab Break",
+   "label": "Paketler"
+  },
+  {
+   "fieldname": "packages",
+   "fieldtype": "Table",
+   "label": "Paketler",
+   "options": "Shipment Package"
+  },
+  {
+   "fieldname": "tab_addresses",
+   "fieldtype": "Tab Break",
+   "label": "Adresler"
+  },
+  {
+   "fieldname": "address_snapshots",
+   "fieldtype": "Table",
+   "label": "Adres Snapshot'lar\u0131",
+   "options": "Shipment Address Snapshot"
+  },
+  {
+   "fieldname": "tab_cost",
+   "fieldtype": "Tab Break",
+   "label": "Maliyet"
+  },
+  {
+   "fieldname": "shipping_cost",
+   "fieldtype": "Currency",
+   "label": "Kargo \u00dccreti",
+   "options": "currency",
+   "permlevel": 1
+  },
+  {
+   "fieldname": "carrier_cost",
+   "fieldtype": "Currency",
+   "label": "Ta\u015f\u0131y\u0131c\u0131 Maliyeti",
+   "options": "currency",
+   "permlevel": 1
+  },
+  {
+   "fieldname": "insurance_cost",
+   "fieldtype": "Currency",
+   "label": "Sigorta Maliyeti",
+   "options": "currency",
+   "permlevel": 1
+  },
+  {
+   "fieldname": "fuel_surcharge",
+   "fieldtype": "Currency",
+   "label": "Yak\u0131t Ek \u00dccreti",
+   "options": "currency",
+   "permlevel": 1
+  },
+  {
+   "fieldname": "packaging_cost",
+   "fieldtype": "Currency",
+   "label": "Paketleme Maliyeti",
+   "options": "currency",
+   "permlevel": 1
+  },
+  {
+   "fieldname": "total_cost",
+   "fieldtype": "Currency",
+   "label": "Toplam Maliyet",
+   "options": "currency",
+   "permlevel": 1
+  },
+  {
+   "fieldname": "cb_cost",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "cost_paid_by",
+   "fieldtype": "Select",
+   "label": "\u00dccreti \u00d6deyen",
+   "options": "Seller\nBuyer\nPlatform"
+  },
+  {
+   "default": "TRY",
+   "fieldname": "currency",
+   "fieldtype": "Link",
+   "label": "Para Birimi",
+   "options": "Currency"
+  },
+  {
+   "fieldname": "tab_documents",
+   "fieldtype": "Tab Break",
+   "label": "Belgeler"
+  },
+  {
+   "fieldname": "documents",
+   "fieldtype": "Table",
+   "label": "Belgeler",
+   "options": "Shipment Document"
+  },
+  {
+   "fieldname": "tab_notes",
+   "fieldtype": "Tab Break",
+   "label": "Notlar"
+  },
+  {
+   "fieldname": "seller_note",
+   "fieldtype": "Small Text",
+   "label": "Sat\u0131c\u0131 Notu"
+  },
+  {
+   "fieldname": "buyer_note",
+   "fieldtype": "Small Text",
+   "label": "Al\u0131c\u0131 Notu"
+  },
+  {
+   "fieldname": "internal_note",
+   "fieldtype": "Small Text",
+   "label": "\u0130\u00e7 Not"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-08-12 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "Shipment",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "cancel": 1,
+   "create": 1,
+   "read": 1,
+   "role": "Logistics Manager",
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "Logistics Operator",
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "Seller Logistics"
+  },
+  {
+   "export": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Platform Finance"
+  },
+  {
+   "read": 1,
+   "role": "Support Agent"
+  },
+  {
+   "permlevel": 1,
+   "read": 1,
+   "role": "System Manager",
+   "write": 1
+  },
+  {
+   "permlevel": 1,
+   "read": 1,
+   "role": "Logistics Manager",
+   "write": 1
+  },
+  {
+   "permlevel": 1,
+   "read": 1,
+   "role": "Platform Finance"
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "track_changes": 1
+}
