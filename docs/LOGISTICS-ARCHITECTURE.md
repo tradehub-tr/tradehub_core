@@ -367,16 +367,27 @@ Bu belge yazıldığı anda kapalı **olmayan** maddeler. Kapandıkça buradan s
 
 | # | Açık | Nereye |
 |---|---|---|
-| 1 | Ortak hata zarfı endpoint'lere bağlı değil | B bloğu |
-| 2 | Idempotency implementasyonu yok | B (sözleşme) / F (kod) |
-| 3 | `is_enabled()` hiçbir kapıda kullanılmıyor | B bloğu |
-| 4 | `api/logistics.py` sürümsüz namespace'te | B bloğu |
-| 5 | Boot'ta hiçbir carrier register edilmiyor | F bloğu |
-| 6 | `adapters/http_client.py` boş (retry/timeout/circuit breaker yok) | F bloğu |
-| 7 | Shipment DocType yok → durum makinesi uygulanmıyor | F bloğu |
-| 8 | ReBAC `model.fga`'da `shipment` tipi yok, `tuple_sync` buna rağmen tuple üretiyor | F bloğu |
-| 9 | `logistics/hooks.py`'deki 7 handler `pass` ve ana `hooks.py`'a bağlı değil | F bloğu |
-| 10 | Katalog yönetim ekranları yok (admin-panel) | C–E blokları |
+| 1 | Boot'ta hiçbir carrier register edilmiyor → `list_registered_carriers()` boş döner | F bloğu |
+| 2 | `adapters/http_client.py` boş (retry/timeout/circuit breaker yok) | F bloğu |
+| 3 | Shipment DocType yok → durum makinesi uygulanmıyor | F bloğu |
+| 4 | Idempotency **implementasyonu** yok (sözleşme dondurulmuş, kod yok) | F bloğu |
+| 5 | ReBAC `model.fga`'da `shipment` tipi yok, `tuple_sync` buna rağmen tuple üretiyor | F bloğu |
+| 6 | `logistics/hooks.py`'deki 7 handler `pass` ve ana `hooks.py`'a bağlı değil | F bloğu |
+| 7 | `services/` (5 modül), `jobs/` (2 modül) gövdesiz; `scheduler_events` kaydı yok | F bloğu |
+| 8 | `logistics/reports/` boş | F bloğu |
+| 9 | Katalog yönetim ekranları yok (admin-panel) | C–E blokları |
+| 10 | Storefront lojistik yüzeyi yok | C–E blokları |
+
+### Faz B'de kapananlar (2026-08-12)
+
+| Eski açık | Nasıl kapandı |
+|---|---|
+| Ortak hata zarfı endpoint'lere bağlı değil | `logistics/api_utils.py` — tüm uçlar `{ok,data}`/`{ok,error}` zarfında, 16 kararlı hata kodu |
+| `is_enabled()` hiçbir kapıda kullanılmıyor | Dekoratör bayrak kapısı + `logistics_enabled` ana anahtar |
+| `api/logistics.py` sürümsüz namespace'te | `api/v1/logistics.py`'ye taşındı, eski dosya kaldırıldı |
+| Platform seviyesi Carrier Account modellenemiyor (ölü permission dalı) | `seller_profile` zorunluluğu kalktı; iki katmanlı guard + 10 test |
+| Misafir taslak ilanın kargo verisini görebiliyordu | İlan durumu doğrulanıyor; var olduğu da sızdırılmıyor (404) |
+| Sözleşme makine-okunur değil | `docs/logistics-api.schema.json` + üretilmiş `.d.ts` + mock fixture |
 
 Ayrıntılı bulgu listesi ve plan: kök `docs/PLAN-lojistik-eksik-giderme.md`,
-`docs/YOL-HARITASI-lojistik.md`.
+`docs/YOL-HARITASI-lojistik.md`. Sözleşme: `docs/LOGISTICS-API-CONTRACT.md`.

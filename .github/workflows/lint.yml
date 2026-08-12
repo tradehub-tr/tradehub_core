@@ -25,6 +25,12 @@ jobs:
       - name: Run Ruff
         run: ruff check .
 
+      # Lojistik API sözleşmesi Python kaynağından üretiliyor; kaynak değişip
+      # üretici çalıştırılmadıysa frontend bayat tiplere ve bayat mock'lara
+      # kodlar. Üretici frappe gerektirmez (stub kullanır), burada koşabilir.
+      - name: Lojistik sözleşme artefaktları güncel mi
+        run: python3 scripts/gen_logistics_types.py --check
+
       - name: Audit Python dependencies for vulnerabilities
         run: |
           pip install pip-audit

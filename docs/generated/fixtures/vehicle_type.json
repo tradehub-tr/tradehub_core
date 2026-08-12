@@ -1,0 +1,68 @@
+{
+	"default": {
+		"ok": true,
+		"data": {
+			"items": [
+				{
+					"name": "MOTO",
+					"vehicle_name": "Motokurye",
+					"vehicle_code": "MOTO",
+					"vehicle_category": "Motokurye",
+					"is_active": 1,
+					"max_weight_kg": 10
+				},
+				{
+					"name": "VAN",
+					"vehicle_name": "Panelvan",
+					"vehicle_code": "VAN",
+					"vehicle_category": "Panelvan",
+					"is_active": 1,
+					"max_weight_kg": 500
+				},
+				{
+					"name": "TRUCK_S",
+					"vehicle_name": "Kamyonet",
+					"vehicle_code": "TRUCK_S",
+					"vehicle_category": "Kamyonet",
+					"is_active": 1,
+					"max_weight_kg": 3500
+				},
+				{
+					"name": "TRUCK_M",
+					"vehicle_name": "Kamyon",
+					"vehicle_code": "TRUCK_M",
+					"vehicle_category": "Kamyon",
+					"is_active": 1,
+					"max_weight_kg": 12000
+				},
+				{
+					"name": "TRUCK_L",
+					"vehicle_name": "TIR",
+					"vehicle_code": "TRUCK_L",
+					"vehicle_category": "TIR",
+					"is_active": 1,
+					"max_weight_kg": 24000
+				}
+			],
+			"total": 5,
+			"page": 1,
+			"page_size": 50
+		}
+	},
+	"empty": {
+		"ok": true,
+		"data": {
+			"items": [],
+			"total": 0,
+			"page": 1,
+			"page_size": 50
+		}
+	},
+	"error": {
+		"ok": false,
+		"error": {
+			"code": "PERMISSION_DENIED",
+			"message": "Bu kataloğu görüntüleme yetkiniz yok."
+		}
+	}
+}
