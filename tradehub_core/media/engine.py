@@ -20,6 +20,27 @@ from dataclasses import dataclass
 
 SUPPORTED_FORMATS: frozenset[str] = frozenset({"JPEG", "PNG", "WEBP", "TIFF"})
 
+# Motorun işleyebildiği biçimlerin dosya adı karşılığı. Liste ayrıca elle
+# yazılmıştı (`inventory.OPTIMIZABLE_EXTENSIONS`) ve biçim eklenince sessizce
+# eskiyordu: motor yeni biçimi işler ama panelin "optimize edilebilir" süzgeci
+# onu görmezdi. Artık tek kaynak burası, uzantılar biçimden türetiliyor.
+FORMAT_EXTENSIONS: dict[str, tuple[str, ...]] = {
+	"JPEG": (".jpg", ".jpeg"),
+	"PNG": (".png",),
+	"WEBP": (".webp",),
+	"TIFF": (".tif", ".tiff"),
+	"AVIF": (".avif",),
+	"GIF": (".gif",),
+	"BMP": (".bmp",),
+}
+
+
+def supported_extensions() -> tuple[str, ...]:
+	"""İşlenebilir biçimlerin uzantıları — `SUPPORTED_FORMATS` ile hep uyumlu."""
+	return tuple(
+		ext for fmt in sorted(SUPPORTED_FORMATS) for ext in FORMAT_EXTENSIONS.get(fmt, ())
+	)
+
 # TIFF bir konteyner: içindeki sıkıştırma değiştirilebilir, uzantı ve dolayısıyla
 # `file_url` sabit kalır. Ölçüm (8 gerçek dosya, 101,7 MB):
 #   2000px + LZW      → 19,2 MB  (%81)

@@ -24,7 +24,7 @@ import time
 
 import frappe
 
-from tradehub_core.media import audit
+from tradehub_core.media import audit, refs, states
 from tradehub_core.media.presets import EXCLUDED_DOCTYPES
 
 TRASH_DIRNAME: str = "media_trash"
@@ -151,6 +151,8 @@ def move_to_trash(file_url: str, force: bool = False) -> dict:
 		frappe.db.set_value(
 			"File", {"file_url": file_url}, {"th_trashed_at": frappe.utils.now()}, update_modified=False
 		)
+		# Damga ile durum aynı transaction'da yazılır; ayrışmaları imkânsız (TUR-138).
+		states.transition(file_url, states.STATE_TRASHED)
 		os.makedirs(os.path.dirname(dst), exist_ok=True)
 		shutil.move(src, dst)
 	except Exception:
@@ -178,9 +180,13 @@ def restore(file_url: str) -> dict:
 	dst = _live_path(file_url)
 	size = os.path.getsize(src)
 	try:
+		# Optimize edilmiş dosya çöpten Active'e değil Archived'a döner —
+		# orijinali hâlâ arşivde ve geri alınabilir.
+		hedef = states.state_after_untrash(file_url)
 		frappe.db.set_value(
 			"File", {"file_url": file_url}, {"th_trashed_at": None}, update_modified=False
 		)
+		states.transition(file_url, hedef)
 		os.makedirs(os.path.dirname(dst), exist_ok=True)
 		shutil.move(src, dst)
 	except Exception:
@@ -209,6 +215,12 @@ def delete_permanently(file_url: str) -> dict:
 
 	size = os.path.getsize(path)
 	records = frappe.get_all("File", filters={"file_url": file_url}, pluck="name")
+
+	# Referans zinciri: dosya gidince onu gösteren alanlar da temizlenmeli.
+	# Aksi hâlde üründe boş bir görsel yuvası kalıyor ve kullanıcı önce o boşluğu
+	# silip sonra yeniden yüklemek zorunda kalıyor (ölçüldü).
+	temizlik = refs.clear(file_url)
+
 	for name in records:
 		frappe.delete_doc("File", name, force=True, ignore_permissions=True, delete_permanently=True)
 	os.remove(path)
@@ -218,9 +230,20 @@ def delete_permanently(file_url: str) -> dict:
 	audit.log_media_event(
 		action=audit.ACTION_DELETE,
 		file_url=file_url,
-		context={"bytes": size, "records": records},
+		context={
+			"bytes": size,
+			"records": records,
+			"refs_cleared": temizlik["total"],
+			"refs_detail": (temizlik["rows_deleted"] + temizlik["fields_cleared"])[:10],
+			"refs_skipped": temizlik["skipped"][:10],
+		},
 	)
-	return {"file_url": file_url, "bytes": size, "records": len(records)}
+	return {
+		"file_url": file_url,
+		"bytes": size,
+		"records": len(records),
+		"refs_cleared": temizlik["total"],
+	}
 
 
 def usage_bytes() -> int:
@@ -237,10 +260,18 @@ def usage_bytes() -> int:
 	return total
 
 
-def purge_expired(retention_days: int = TRASH_RETENTION_DAYS) -> dict:
+def purge_expired(
+	retention_days: int = TRASH_RETENTION_DAYS, trigger: str = "scheduled"
+) -> dict:
 	"""Süresi dolanları KALICI sil — hem dosya hem `File` kayıtları.
 
-	Günlük scheduler çağırır. Geri alma penceresi burada kapanır.
+	İki yerden çağrılır ve ikisi farklı işlemdir:
+
+	  scheduled — günlük job, yalnız 30 günü dolanları siler
+	  manual    — kullanıcı "Çöpü boşalt" dedi, çöpün TAMAMI hemen silinir
+
+	Denetim kaydında ikisi aynı olay adıyla görünüyordu ve "çöp temizliği"
+	ifadesi bakım işi gibi okunuyordu; `trigger` bu ikisini ayırır.
 	"""
 	root = _root()
 	if not os.path.isdir(root):
@@ -248,6 +279,11 @@ def purge_expired(retention_days: int = TRASH_RETENTION_DAYS) -> dict:
 
 	cutoff = time.time() - retention_days * 86400
 	deleted = freed = records = 0
+	# Hangi dosyaların silindiği kayda geçmeli. Önce yalnız sayı yazılıyordu ve
+	# "çöpü boşalt" sonrası kaybolan dosyayı bulmak için media.trash olaylarını
+	# elle karşılaştırmak gerekiyordu (ölçüldü).
+	silinenler: list[str] = []
+	temizlenen_ref = 0
 
 	for dirpath, _dirs, files in os.walk(root, topdown=False):
 		for name in files:
@@ -258,12 +294,16 @@ def purge_expired(retention_days: int = TRASH_RETENTION_DAYS) -> dict:
 				rel = os.path.relpath(path, root)
 				url = "/files/" + rel.replace(os.sep, "/")
 				size = os.path.getsize(path)
+				# Referans zinciri: dosya gidince onu gösteren alanlar da
+				# temizlenmeli, yoksa üründe boş görsel yuvası kalıyor.
+				temizlenen_ref += refs.clear(url)["total"]
 				for r in frappe.get_all("File", filters={"file_url": url}, pluck="name"):
 					frappe.delete_doc("File", r, force=True, ignore_permissions=True, delete_permanently=True)
 					records += 1
 				os.remove(path)
 				deleted += 1
 				freed += size
+				silinenler.append(url)
 			except Exception:
 				frappe.log_error(
 					title="Trash purge failed", message=frappe.get_traceback(with_context=True)
@@ -276,10 +316,21 @@ def purge_expired(retention_days: int = TRASH_RETENTION_DAYS) -> dict:
 	audit.log_media_batch(
 		action=audit.ACTION_PURGE_TRASH,
 		summary={
+			"trigger": trigger,
 			"retention_days": retention_days,
 			"deleted": deleted,
 			"freed_bytes": freed,
 			"records": records,
+			"refs_cleared": temizlenen_ref,
+			# İlk 50 dosya; tamamı bağlam alanını şişirirdi (5 KB sınırı var).
+			"files": silinenler[:50],
+			"files_truncated": max(0, len(silinenler) - 50),
 		},
 	)
-	return {"deleted": deleted, "freed_bytes": freed, "records": records}
+	return {
+		"deleted": deleted,
+		"freed_bytes": freed,
+		"records": records,
+		"files": silinenler,
+		"refs_cleared": temizlenen_ref,
+	}

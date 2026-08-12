@@ -228,7 +228,12 @@ doc_events = {
 		# Medya yüklemesini denetime yaz — "bu görseli hangi satıcı yükledi"
 		# sorusunun tek kaynağı (TUR-140). Yalnız görsel/video uzantıları
 		# kaydedilir; kanca best-effort, yüklemeyi asla engellemez.
-		"after_insert": "tradehub_core.media.audit.on_file_insert",
+		# İki kanca: durum damgası (TUR-138) + denetim kaydı (TUR-140).
+		# Durum önce yazılır ki denetim kaydı dosyayı doğru durumda görsün.
+		"after_insert": [
+			"tradehub_core.media.states.on_file_insert",
+			"tradehub_core.media.audit.on_file_insert",
+		],
 	},
 	# Currency cache invalidation — admin manuel düzenlemesinde düş.
 	# (tcmb_fx daily job db.set_value kullandığı için ayrıca explicit invalidate eder.)

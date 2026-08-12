@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import frappe
 from frappe.query_builder import DocType
-from frappe.query_builder.functions import Count, CustomFunction, Max, Min, Sum
+from frappe.query_builder.functions import Coalesce, Count, CustomFunction, Max, Min, Sum
 
 # MariaDB utf8mb4_unicode_ci'de LIKE, 4 baytlık karakter (emoji, matematiksel
 # alfabe) içeren satırlarda EŞLEŞMİYOR — ölçüldü: `file_url like '/files/%'`
@@ -34,6 +34,7 @@ Locate = CustomFunction("LOCATE", ["needle", "haystack"])
 NullIf = CustomFunction("NULLIF", ["expr", "value"])
 
 # Kapsam dışı doctype listesi `presets`te — `usage` da aynısını kullanıyor.
+from tradehub_core.media import engine, states  # noqa: E402
 from tradehub_core.media.presets import EXCLUDED_DOCTYPES  # noqa: E402
 
 SORT_FIELDS: dict[str, str] = {
@@ -48,8 +49,9 @@ COMPUTED_SORTS: tuple[str, ...] = ("saved", "state", "usage")
 MAX_PAGE_SIZE: int = 200
 
 # `only_optimizable` filtresi için — motorun gerçekten işleyebildiği formatlar
-# (engine.SUPPORTED_FORMATS'ın uzantı karşılığı) ve Kapı 1'in alt sınırı.
-OPTIMIZABLE_EXTENSIONS: tuple[str, ...] = (".jpg", ".jpeg", ".png", ".webp", ".tif", ".tiff")
+# ve Kapı 1'in alt sınırı. Uzantılar motordan türetiliyor; elle kopyalandığı
+# sürece motora biçim eklenince bu süzgeç sessizce eskiyordu.
+OPTIMIZABLE_EXTENSIONS: tuple[str, ...] = engine.supported_extensions()
 MIN_OPTIMIZABLE_BYTES: int = 200 * 1024
 
 
@@ -101,16 +103,26 @@ def _apply_filters(
 		# LIKE yerine LOCATE: 4 baytlık karakter içeren dosya adları aksi hâlde
 		# aramada hiç çıkmıyor.
 		query = query.where(Locate(search, f.file_name) > 0)
-	# Çöpe taşınanlar varsayılan olarak listede yok; ayrı filtreyle görünürler.
+	# Durum filtresi `th_media_state` üzerinden (TUR-138). Damga koşulu yedek
+	# olarak duruyor: alanı henüz dolmamış kayıtlar (patch öncesi ya da dışarıdan
+	# eklenen) filtreden sessizce düşmesin.
+	# NULL tuzağı: `Max(state) != 'Trashed'` alan boşken SQL'de NULL döner ve
+	# HAVING NULL'ı doğru saymaz — durumu henüz dolmamış kayıtlar listeden
+	# sessizce düşüyordu (test T10 yakaladı). COALESCE ile boş değer "" olur.
+	cur_state = Coalesce(Max(f.th_media_state), "")
 	if state == "trashed":
-		query = query.having(Max(f.th_trashed_at).isnotnull())
+		query = query.having((cur_state == states.STATE_TRASHED) | Max(f.th_trashed_at).isnotnull())
 	else:
-		query = query.having(Max(f.th_trashed_at).isnull())
+		query = query.having((cur_state != states.STATE_TRASHED) & Max(f.th_trashed_at).isnull())
 
 	if state == "optimized":
-		query = query.having(Max(f.th_optimized_at).isnotnull())
+		query = query.having(
+			(cur_state == states.STATE_ARCHIVED) | Max(f.th_optimized_at).isnotnull()
+		)
 	elif state == "pending":
-		query = query.having(Max(f.th_optimized_at).isnull())
+		query = query.having(
+			(cur_state != states.STATE_ARCHIVED) & Max(f.th_optimized_at).isnull()
+		)
 
 	if only_optimizable:
 		# Kapı 2 ve 1'in liste karşılığı: yalnız motorun işleyebildiği formatlar ve
