@@ -5,7 +5,7 @@
 			"items": [
 				{
 					"name": "YK",
-					"provider_name": "Yurtici Kargo",
+					"provider_name": "Yurtiçi Kargo",
 					"provider_code": "YK",
 					"provider_type": "Kargo",
 					"integration_type": "Manual",
@@ -41,7 +41,7 @@
 				},
 				{
 					"name": "SK",
-					"provider_name": "Surat Kargo",
+					"provider_name": "Sürat Kargo",
 					"provider_code": "SK",
 					"provider_type": "Kargo",
 					"integration_type": "Manual",

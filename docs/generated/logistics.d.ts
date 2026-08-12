@@ -227,6 +227,162 @@ export interface ShipmentExceptionCodeDetail extends ShipmentExceptionCodeListIt
   suggested_action?: string;
 }
 
+// ── Sevkiyat ve ilgili varlıklar (GEÇİCİ SÖZLEŞME) ──
+// DocType'ları henüz yok; alanlar logistics/contract.py'de beyan edildi.
+// Faz F backend'i bu sözleşmeye implement edecek.
+/** Sevkiyat — kaynak: TUR-105, TUR-106, TUR-107 */
+export interface ShipmentListItem {
+  name: string;
+  order: string;
+  seller_profile: string;
+  buyer?: string;
+  status: string;
+  shipment_type: string;
+  channel?: string;
+  carrier?: string;
+  carrier_service?: string;
+  tracking_number?: string;
+  package_count?: number;
+  chargeable_weight?: number;
+  shipped_date?: string;
+  estimated_delivery_date?: string;
+  delivered_date?: string;
+  is_delayed?: number;
+  modified?: string;
+}
+
+export interface ShipmentItemsRow {
+  item: string;
+  item_name: string;
+  ordered_qty: number;
+  shipped_qty: number;
+  remaining_qty?: number;
+  uom?: string;
+  weight_kg?: number;
+  returned_qty?: number;
+}
+
+export interface ShipmentPackagesRow {
+  package_code: string;
+  sequence_label: string;
+  package_type?: string;
+  parent_package?: string;
+  length_cm?: number;
+  width_cm?: number;
+  height_cm?: number;
+  weight_kg?: number;
+  desi?: number;
+  barcode_url?: string;
+  label_url?: string;
+  label_printed_at?: string;
+}
+
+export interface ShipmentLegsRow {
+  sequence: number;
+  leg_type: string;
+  status: string;
+  carrier?: string;
+  origin_branch?: string;
+  destination_branch?: string;
+  handover_point?: string;
+  handover_proof?: string;
+  vehicle_type?: string;
+  started_at?: string;
+  completed_at?: string;
+  cost?: number;
+}
+
+export interface ShipmentEventsRow {
+  event_time: string;
+  status: string;
+  source: string;
+  carrier_status_code?: string;
+  carrier_status_text?: string;
+  location?: string;
+  description?: string;
+  exception_code?: string;
+  actor?: string;
+  reason?: string;
+  dedupe_key?: string;
+}
+
+export interface ShipmentDetail extends ShipmentListItem {
+  origin_address_snapshot?: Record<string, unknown> | null;
+  destination_address_snapshot?: Record<string, unknown> | null;
+  warehouse?: string;
+  total_weight?: number;
+  total_desi?: number;
+  cost_paid_by?: string;
+  carrier_cost?: number;
+  customer_charge?: number;
+  currency?: string;
+  exception_code?: string;
+  delivery_code_required?: number;
+  payment_required_before_delivery?: number;
+  notes?: string;
+  items: ShipmentItemsRow[];
+  packages: ShipmentPackagesRow[];
+  legs: ShipmentLegsRow[];
+  events: ShipmentEventsRow[];
+}
+
+/** Teslim Kanıtı — kaynak: TUR-115 */
+export interface ProofOfDeliveryListItem {
+  delivered_at: string;
+  received_by: string;
+  delivery_code_used?: number;
+  signature_url?: string;
+  photo_url?: string;
+  document_url?: string;
+  location_source?: string;
+  location_recorded_at?: string;
+}
+
+export type ProofOfDeliveryDetail = ProofOfDeliveryListItem;
+
+/** İade Talebi — kaynak: TUR-116 */
+export interface ReturnRequestListItem {
+  name: string;
+  order: string;
+  shipment?: string;
+  seller_profile: string;
+  buyer: string;
+  status: string;
+  reason: string;
+  requested_at: string;
+  decided_at?: string;
+  is_closed?: number;
+}
+
+export interface ReturnRequestDetail extends ReturnRequestListItem {
+  decision_note?: string;
+  return_shipment?: string;
+  return_label_url?: string;
+  inspection_result?: string;
+  inspection_note?: string;
+  refund_amount?: number;
+  refund_triggered_at?: string;
+  exchange_shipment?: string;
+}
+
+/** Fiyat Teklifi — kaynak: TUR-121 */
+export interface PriceQuoteListItem {
+  quote_id: string;
+  carrier: string;
+  carrier_service?: string;
+  carrier_cost: number;
+  customer_charge: number;
+  currency: string;
+  chargeable_weight?: number;
+  applied_rule?: string;
+  rule_priority?: number;
+  valid_until?: string;
+  is_snapshot?: number;
+  surcharges?: Record<string, unknown> | null;
+}
+
+export type PriceQuoteDetail = PriceQuoteListItem;
+
 // ── Taşıyıcı hesabı ──
 export interface CarrierAccount {
   name: string;

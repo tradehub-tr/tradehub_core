@@ -1,0 +1,38 @@
+{
+	"default": {
+		"ok": true,
+		"data": {
+			"items": [
+				{
+					"delivered_at": "2026-08-08 14:32:00",
+					"received_by": "Mehmet Yıldız (Depo Sorumlusu)",
+					"delivery_code_used": 1,
+					"signature_url": "/files/pod/imza-41.png",
+					"photo_url": "/files/pod/foto-41.jpg",
+					"document_url": null,
+					"location_source": "carrier_api",
+					"location_recorded_at": "2026-08-08 14:32:00"
+				}
+			],
+			"total": 1,
+			"page": 1,
+			"page_size": 50
+		}
+	},
+	"empty": {
+		"ok": true,
+		"data": {
+			"items": [],
+			"total": 0,
+			"page": 1,
+			"page_size": 50
+		}
+	},
+	"error": {
+		"ok": false,
+		"error": {
+			"code": "PERMISSION_DENIED",
+			"message": "Bu kaydı görüntüleme yetkiniz yok."
+		}
+	}
+}

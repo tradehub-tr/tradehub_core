@@ -1163,5 +1163,806 @@
 			"carrier_credential.manage",
 			"view.carrier_secret"
 		]
+	},
+	"provisional": {
+		"shipment": {
+			"provisional": true,
+			"label": "Sevkiyat",
+			"source_tasks": [
+				"TUR-105",
+				"TUR-106",
+				"TUR-107"
+			],
+			"list_fields": [
+				{
+					"name": "name",
+					"type": "Data",
+					"ts": "string",
+					"required": true,
+					"note": "SHP-YYYY-##### (TUR-105 naming)"
+				},
+				{
+					"name": "order",
+					"type": "Link",
+					"ts": "string",
+					"required": true,
+					"note": "Kaynak sipariş"
+				},
+				{
+					"name": "seller_profile",
+					"type": "Link",
+					"ts": "string",
+					"required": true,
+					"note": "Tenant sahibi — satıcı yalnız kendi grubunu görür"
+				},
+				{
+					"name": "buyer",
+					"type": "Link",
+					"ts": "string",
+					"required": false,
+					"note": "Alıcı kullanıcı"
+				},
+				{
+					"name": "status",
+					"type": "Select",
+					"ts": "string",
+					"required": true,
+					"note": "ShipmentStatus enum'ından"
+				},
+				{
+					"name": "shipment_type",
+					"type": "Select",
+					"ts": "string",
+					"required": true,
+					"note": "ShipmentType enum'ından"
+				},
+				{
+					"name": "channel",
+					"type": "Link",
+					"ts": "string",
+					"required": false,
+					"note": "Shipping Channel"
+				},
+				{
+					"name": "carrier",
+					"type": "Link",
+					"ts": "string",
+					"required": false,
+					"note": "Logistics Provider"
+				},
+				{
+					"name": "carrier_service",
+					"type": "Link",
+					"ts": "string",
+					"required": false,
+					"note": "Carrier Service"
+				},
+				{
+					"name": "tracking_number",
+					"type": "Data",
+					"ts": "string",
+					"required": false,
+					"note": "Takip veya fiş numarası (TUR-107)"
+				},
+				{
+					"name": "package_count",
+					"type": "Int",
+					"ts": "number",
+					"required": false,
+					"note": "Toplam koli adedi"
+				},
+				{
+					"name": "chargeable_weight",
+					"type": "Float",
+					"ts": "number",
+					"required": false,
+					"note": "Ücretlendirilebilir ağırlık (desi kuralı)"
+				},
+				{
+					"name": "shipped_date",
+					"type": "Date",
+					"ts": "string",
+					"required": false,
+					"note": "Sevk tarihi"
+				},
+				{
+					"name": "estimated_delivery_date",
+					"type": "Date",
+					"ts": "string",
+					"required": false,
+					"note": "Tahmini teslim"
+				},
+				{
+					"name": "delivered_date",
+					"type": "Date",
+					"ts": "string",
+					"required": false,
+					"note": "Gerçekleşen teslim"
+				},
+				{
+					"name": "is_delayed",
+					"type": "Check",
+					"ts": "number",
+					"required": false,
+					"note": "Gecikme tespiti (TUR-112)"
+				},
+				{
+					"name": "modified",
+					"type": "Datetime",
+					"ts": "string",
+					"required": false,
+					"note": "Son güncelleme"
+				}
+			],
+			"detail_fields": [
+				{
+					"name": "origin_address_snapshot",
+					"type": "JSON",
+					"ts": "Record<string, unknown> | null",
+					"required": false,
+					"note": "Adres SNAPSHOT — sonradan bozulmaz (TUR-105)"
+				},
+				{
+					"name": "destination_address_snapshot",
+					"type": "JSON",
+					"ts": "Record<string, unknown> | null",
+					"required": false,
+					"note": "Adres snapshot"
+				},
+				{
+					"name": "warehouse",
+					"type": "Link",
+					"ts": "string",
+					"required": false,
+					"note": "Çıkış deposu"
+				},
+				{
+					"name": "total_weight",
+					"type": "Float",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "total_desi",
+					"type": "Float",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "cost_paid_by",
+					"type": "Select",
+					"ts": "string",
+					"required": false,
+					"note": "CostPaidBy enum'ından (TUR-107)"
+				},
+				{
+					"name": "carrier_cost",
+					"type": "Currency",
+					"ts": "number",
+					"required": false,
+					"note": "Taşıyıcı ALIŞ maliyeti — TUR-121 ayrımı"
+				},
+				{
+					"name": "customer_charge",
+					"type": "Currency",
+					"ts": "number",
+					"required": false,
+					"note": "Müşteriye YANSITILAN ücret"
+				},
+				{
+					"name": "currency",
+					"type": "Link",
+					"ts": "string",
+					"required": false
+				},
+				{
+					"name": "exception_code",
+					"type": "Link",
+					"ts": "string",
+					"required": false,
+					"note": "Shipment Exception Code"
+				},
+				{
+					"name": "delivery_code_required",
+					"type": "Check",
+					"ts": "number",
+					"required": false,
+					"note": "Tek kullanımlık teslim kodu (TUR-108)"
+				},
+				{
+					"name": "payment_required_before_delivery",
+					"type": "Check",
+					"ts": "number",
+					"required": false,
+					"note": "Ödeme şartlı teslim (TUR-108)"
+				},
+				{
+					"name": "notes",
+					"type": "Small Text",
+					"ts": "string",
+					"required": false
+				}
+			],
+			"child_tables": {
+				"items": [
+					{
+						"name": "item",
+						"type": "Link",
+						"ts": "string",
+						"required": true,
+						"note": "Listing / ürün"
+					},
+					{
+						"name": "item_name",
+						"type": "Data",
+						"ts": "string",
+						"required": true
+					},
+					{
+						"name": "ordered_qty",
+						"type": "Float",
+						"ts": "number",
+						"required": true,
+						"note": "Siparişteki miktar"
+					},
+					{
+						"name": "shipped_qty",
+						"type": "Float",
+						"ts": "number",
+						"required": true,
+						"note": "Bu sevkiyattaki miktar"
+					},
+					{
+						"name": "remaining_qty",
+						"type": "Float",
+						"ts": "number",
+						"required": false,
+						"note": "Kalan — TUR-106 invariant'ı"
+					},
+					{
+						"name": "uom",
+						"type": "Data",
+						"ts": "string",
+						"required": false,
+						"note": "Birim"
+					},
+					{
+						"name": "weight_kg",
+						"type": "Float",
+						"ts": "number",
+						"required": false
+					},
+					{
+						"name": "returned_qty",
+						"type": "Float",
+						"ts": "number",
+						"required": false,
+						"note": "İade edilen (TUR-116)"
+					}
+				],
+				"packages": [
+					{
+						"name": "package_code",
+						"type": "Data",
+						"ts": "string",
+						"required": true,
+						"note": "Benzersiz paket kodu (TUR-114)"
+					},
+					{
+						"name": "sequence_label",
+						"type": "Data",
+						"ts": "string",
+						"required": true,
+						"note": "X/Y koli numarası, ör. 2/5"
+					},
+					{
+						"name": "package_type",
+						"type": "Link",
+						"ts": "string",
+						"required": false,
+						"note": "Package Type katalogundan"
+					},
+					{
+						"name": "parent_package",
+						"type": "Data",
+						"ts": "string",
+						"required": false,
+						"note": "Palet hiyerarşisi (TUR-120)"
+					},
+					{
+						"name": "length_cm",
+						"type": "Float",
+						"ts": "number",
+						"required": false
+					},
+					{
+						"name": "width_cm",
+						"type": "Float",
+						"ts": "number",
+						"required": false
+					},
+					{
+						"name": "height_cm",
+						"type": "Float",
+						"ts": "number",
+						"required": false
+					},
+					{
+						"name": "weight_kg",
+						"type": "Float",
+						"ts": "number",
+						"required": false
+					},
+					{
+						"name": "desi",
+						"type": "Float",
+						"ts": "number",
+						"required": false
+					},
+					{
+						"name": "barcode_url",
+						"type": "Data",
+						"ts": "string",
+						"required": false,
+						"note": "Barkod görseli"
+					},
+					{
+						"name": "label_url",
+						"type": "Data",
+						"ts": "string",
+						"required": false,
+						"note": "Etiket PDF'i"
+					},
+					{
+						"name": "label_printed_at",
+						"type": "Datetime",
+						"ts": "string",
+						"required": false,
+						"note": "Yeniden üretim geçmişi için"
+					}
+				],
+				"legs": [
+					{
+						"name": "sequence",
+						"type": "Int",
+						"ts": "number",
+						"required": true,
+						"note": "Bacak sırası"
+					},
+					{
+						"name": "leg_type",
+						"type": "Select",
+						"ts": "string",
+						"required": true,
+						"note": "LegType enum'ından"
+					},
+					{
+						"name": "status",
+						"type": "Select",
+						"ts": "string",
+						"required": true,
+						"note": "LegStatus enum'ından"
+					},
+					{
+						"name": "carrier",
+						"type": "Link",
+						"ts": "string",
+						"required": false,
+						"note": "Bu bacağın taşıyıcısı"
+					},
+					{
+						"name": "origin_branch",
+						"type": "Link",
+						"ts": "string",
+						"required": false,
+						"note": "Carrier Branch — çıkış"
+					},
+					{
+						"name": "destination_branch",
+						"type": "Link",
+						"ts": "string",
+						"required": false,
+						"note": "Carrier Branch — varış"
+					},
+					{
+						"name": "handover_point",
+						"type": "Data",
+						"ts": "string",
+						"required": false,
+						"note": "Kargoya devir noktası (TUR-109)"
+					},
+					{
+						"name": "handover_proof",
+						"type": "Data",
+						"ts": "string",
+						"required": false,
+						"note": "Devir kanıtı"
+					},
+					{
+						"name": "vehicle_type",
+						"type": "Link",
+						"ts": "string",
+						"required": false
+					},
+					{
+						"name": "started_at",
+						"type": "Datetime",
+						"ts": "string",
+						"required": false
+					},
+					{
+						"name": "completed_at",
+						"type": "Datetime",
+						"ts": "string",
+						"required": false
+					},
+					{
+						"name": "cost",
+						"type": "Currency",
+						"ts": "number",
+						"required": false,
+						"note": "Bacak bazlı maliyet — bağımsız görülebilmeli"
+					}
+				],
+				"events": [
+					{
+						"name": "event_time",
+						"type": "Datetime",
+						"ts": "string",
+						"required": true
+					},
+					{
+						"name": "status",
+						"type": "Select",
+						"ts": "string",
+						"required": true,
+						"note": "Normalize edilmiş iç durum"
+					},
+					{
+						"name": "source",
+						"type": "Select",
+						"ts": "string",
+						"required": true,
+						"note": "manual | api | webhook | polling (TUR-112)"
+					},
+					{
+						"name": "carrier_status_code",
+						"type": "Data",
+						"ts": "string",
+						"required": false,
+						"note": "Ham taşıyıcı kodu — izlenebilirlik"
+					},
+					{
+						"name": "carrier_status_text",
+						"type": "Data",
+						"ts": "string",
+						"required": false
+					},
+					{
+						"name": "location",
+						"type": "Data",
+						"ts": "string",
+						"required": false,
+						"note": "İstasyon/şube (TUR-115)"
+					},
+					{
+						"name": "description",
+						"type": "Small Text",
+						"ts": "string",
+						"required": false
+					},
+					{
+						"name": "exception_code",
+						"type": "Link",
+						"ts": "string",
+						"required": false
+					},
+					{
+						"name": "actor",
+						"type": "Link",
+						"ts": "string",
+						"required": false,
+						"note": "Manuel değişiklikte kullanıcı (audit)"
+					},
+					{
+						"name": "reason",
+						"type": "Small Text",
+						"ts": "string",
+						"required": false,
+						"note": "Manuel değişiklik gerekçesi (TUR-107)"
+					},
+					{
+						"name": "dedupe_key",
+						"type": "Data",
+						"ts": "string",
+						"required": false,
+						"note": "Aynı olay iki kez işlenmesin (TUR-112)"
+					}
+				]
+			}
+		},
+		"proof_of_delivery": {
+			"provisional": true,
+			"label": "Teslim Kanıtı",
+			"source_tasks": [
+				"TUR-115"
+			],
+			"list_fields": [
+				{
+					"name": "delivered_at",
+					"type": "Datetime",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "received_by",
+					"type": "Data",
+					"ts": "string",
+					"required": true,
+					"note": "Teslim alan kişi"
+				},
+				{
+					"name": "delivery_code_used",
+					"type": "Check",
+					"ts": "number",
+					"required": false,
+					"note": "Tek kullanımlık kod doğrulandı mı"
+				},
+				{
+					"name": "signature_url",
+					"type": "Data",
+					"ts": "string",
+					"required": false,
+					"note": "Yetki kontrollü"
+				},
+				{
+					"name": "photo_url",
+					"type": "Data",
+					"ts": "string",
+					"required": false,
+					"note": "Yetki kontrollü"
+				},
+				{
+					"name": "document_url",
+					"type": "Data",
+					"ts": "string",
+					"required": false
+				},
+				{
+					"name": "location_source",
+					"type": "Select",
+					"ts": "string",
+					"required": false,
+					"note": "Konum kaynağı görünür olmalı"
+				},
+				{
+					"name": "location_recorded_at",
+					"type": "Datetime",
+					"ts": "string",
+					"required": false
+				}
+			],
+			"detail_fields": [],
+			"child_tables": {}
+		},
+		"return_request": {
+			"provisional": true,
+			"label": "İade Talebi",
+			"source_tasks": [
+				"TUR-116"
+			],
+			"list_fields": [
+				{
+					"name": "name",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "order",
+					"type": "Link",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "shipment",
+					"type": "Link",
+					"ts": "string",
+					"required": false,
+					"note": "Orijinal sevkiyatla çift yönlü ilişki"
+				},
+				{
+					"name": "seller_profile",
+					"type": "Link",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "buyer",
+					"type": "Link",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "status",
+					"type": "Select",
+					"ts": "string",
+					"required": true,
+					"note": "requested | approved | rejected | in_transit | inspecting | closed"
+				},
+				{
+					"name": "reason",
+					"type": "Select",
+					"ts": "string",
+					"required": true,
+					"note": "İade nedeni"
+				},
+				{
+					"name": "requested_at",
+					"type": "Datetime",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "decided_at",
+					"type": "Datetime",
+					"ts": "string",
+					"required": false
+				},
+				{
+					"name": "is_closed",
+					"type": "Check",
+					"ts": "number",
+					"required": false,
+					"note": "Kapanınca DEĞİŞTİRİLEMEZ"
+				}
+			],
+			"detail_fields": [
+				{
+					"name": "decision_note",
+					"type": "Small Text",
+					"ts": "string",
+					"required": false,
+					"note": "Onay/red gerekçesi — audit"
+				},
+				{
+					"name": "return_shipment",
+					"type": "Link",
+					"ts": "string",
+					"required": false,
+					"note": "Ters yönlü sevkiyat"
+				},
+				{
+					"name": "return_label_url",
+					"type": "Data",
+					"ts": "string",
+					"required": false
+				},
+				{
+					"name": "inspection_result",
+					"type": "Select",
+					"ts": "string",
+					"required": false,
+					"note": "ok | damaged | missing_parts | mismatch"
+				},
+				{
+					"name": "inspection_note",
+					"type": "Small Text",
+					"ts": "string",
+					"required": false
+				},
+				{
+					"name": "refund_amount",
+					"type": "Currency",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "refund_triggered_at",
+					"type": "Datetime",
+					"ts": "string",
+					"required": false,
+					"note": "Escrow/para iadesi tetikleyicisi"
+				},
+				{
+					"name": "exchange_shipment",
+					"type": "Link",
+					"ts": "string",
+					"required": false,
+					"note": "Değişim gönderisi"
+				}
+			],
+			"child_tables": {}
+		},
+		"price_quote": {
+			"provisional": true,
+			"label": "Fiyat Teklifi",
+			"source_tasks": [
+				"TUR-121"
+			],
+			"list_fields": [
+				{
+					"name": "quote_id",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "carrier",
+					"type": "Link",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "carrier_service",
+					"type": "Link",
+					"ts": "string",
+					"required": false
+				},
+				{
+					"name": "carrier_cost",
+					"type": "Currency",
+					"ts": "number",
+					"required": true,
+					"note": "Taşıyıcı ALIŞ maliyeti"
+				},
+				{
+					"name": "customer_charge",
+					"type": "Currency",
+					"ts": "number",
+					"required": true,
+					"note": "Müşteriye YANSITILAN ücret — ayrı raporlanır"
+				},
+				{
+					"name": "currency",
+					"type": "Link",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "chargeable_weight",
+					"type": "Float",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "applied_rule",
+					"type": "Data",
+					"ts": "string",
+					"required": false,
+					"note": "Hangi kural uygulandı — AÇIKLANABİLİR olmalı"
+				},
+				{
+					"name": "rule_priority",
+					"type": "Int",
+					"ts": "number",
+					"required": false,
+					"note": "Çakışma çözümü deterministik"
+				},
+				{
+					"name": "valid_until",
+					"type": "Datetime",
+					"ts": "string",
+					"required": false,
+					"note": "Teklif geçerlilik süresi"
+				},
+				{
+					"name": "is_snapshot",
+					"type": "Check",
+					"ts": "number",
+					"required": false,
+					"note": "Sipariş anındaki fiyat korunur"
+				},
+				{
+					"name": "surcharges",
+					"type": "JSON",
+					"ts": "Record<string, unknown> | null",
+					"required": false,
+					"note": "Yakıt farkı, kat teslimatı, sigorta vb."
+				}
+			],
+			"detail_fields": [],
+			"child_tables": {}
+		}
 	}
 }
