@@ -416,7 +416,25 @@ def run_scheduled() -> dict:
 			message=frappe.get_traceback(with_context=True),
 		)
 
-	return {"snapshot": alinan, "prune": temizlik, "exports": paketler}
+	# Yarım kalan parçalı yükleme oturumları (TUR-123). Tarayıcı kapanırsa
+	# parçalar diskte kalıyor; temizleyen olmazsa depo sessizce şişer.
+	oturumlar = {}
+	try:
+		from tradehub_core.media import chunked
+
+		oturumlar = chunked.cleanup()
+	except Exception:
+		frappe.log_error(
+			title="Medya yukleme oturumlari temizlenemedi",
+			message=frappe.get_traceback(with_context=True),
+		)
+
+	return {
+		"snapshot": alinan,
+		"prune": temizlik,
+		"exports": paketler,
+		"upload_sessions": oturumlar,
+	}
 
 
 def delete_set(set_id: str) -> dict:
