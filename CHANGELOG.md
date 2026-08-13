@@ -1,3 +1,12 @@
+## [v1.13.1-alpha.12] - 2026-08-13 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(media): yedeği dışa aktarma — dosyalar ve sahiplik bilgisi tek pakette (@Metin Bektemur)
+- feat(media): yedeğe veritabanı yapı künyesi — örtüşme farkı önceden görünsün (@Metin Bektemur)
+
+---
 ## [v1.13.1-alpha.11] - 2026-08-13 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.

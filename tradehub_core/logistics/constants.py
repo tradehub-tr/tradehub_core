@@ -240,6 +240,8 @@ LOGISTICS_FEATURE_FLAGS: dict[str, bool] = {
 
 CACHE_PREFIX: str = "tc:logistics:"
 
+# Tek dogruluk kaynagi shipment.json naming_series options'i — bu sabit yalnizca
+# referans amaclidir (runtime adlandirmayi Shipment DocType'in kendi serisi yapar).
 SHIPMENT_NAMING_SERIES: str = "SHP-.YYYY.-.#####"
 
 API_VERSION: str = "v1"

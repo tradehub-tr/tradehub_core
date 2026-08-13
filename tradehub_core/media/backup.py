@@ -236,6 +236,20 @@ def snapshot(*, label: str = "") -> dict:
 	_yaz(os.path.join(hedef, "manifest.json"), manifest)
 	_yaz(os.path.join(hedef, "records.json"), kayitlar)
 
+	# Yapı künyesi: kayıtlar bugünkü sütunlara göre yazıldı. Yedek başka bir
+	# veritabanının üzerine açılırsa hangi alanların karşılığı olmadığı ancak
+	# bununla anlaşılır — künye olmadan fark sessizce kaybolurdu.
+	try:
+		from tradehub_core.media import schema
+
+		_yaz(os.path.join(hedef, "schema.json"), schema.capture())
+	except Exception:
+		# Künye alınamadı diye yedek düşmemeli: asıl iş dosyalar ve kayıtlar.
+		frappe.log_error(
+			title=f"Medya yedegi: yapi kunyesi alinamadi {set_id}",
+			message=frappe.get_traceback(with_context=True),
+		)
+
 	return {"set_id": set_id, **manifest["stats"]}
 
 
@@ -262,6 +276,18 @@ def manifest_of(set_id: str) -> dict:
 def records_of(set_id: str) -> list[dict]:
 	yol = os.path.join(_set_path(set_id), "records.json")
 	return _oku(yol) if os.path.isfile(yol) else []
+
+
+def schema_of(set_id: str) -> dict | None:
+	"""Yedek alındığındaki veritabanı yapısı — künye eklenmeden önceki
+	yedeklerde yoktur, o zaman None döner."""
+	yol = os.path.join(_set_path(set_id), "schema.json")
+	if not os.path.isfile(yol):
+		return None
+	try:
+		return _oku(yol)
+	except Exception:
+		return None
 
 
 def list_sets() -> list[dict]:
@@ -373,7 +399,24 @@ def run_scheduled() -> dict:
 		raise
 
 	temizlik = prune(keep=KEEP_SETS)
-	return {"snapshot": alinan, "prune": temizlik}
+
+	# Dışa aktarma paketleri yedeğin ikinci kopyası; süresi geçenler burada
+	# düşer. Ayrı bir zamanlanmış görev açmak yerine buraya bağlandı: ikisi de
+	# aynı deponun yerini yönetiyor ve sıraları önemli (önce yedek, sonra
+	# temizlik).
+	paketler = {}
+	try:
+		from tradehub_core.media import backup_export
+
+		paketler = backup_export.cleanup()
+	except Exception:
+		# Paket temizliği yedeği düşürmemeli: yedek alındı, asıl iş bitti.
+		frappe.log_error(
+			title="Medya yedek paketleri temizlenemedi",
+			message=frappe.get_traceback(with_context=True),
+		)
+
+	return {"snapshot": alinan, "prune": temizlik, "exports": paketler}
 
 
 def delete_set(set_id: str) -> dict:

@@ -25,7 +25,7 @@ import frappe
 from frappe.tests.utils import FrappeTestCase
 
 from tradehub_core.api.v1 import shipment as shipment_api
-from tradehub_core.logistics.constants import ShipmentStatus
+from tradehub_core.logistics.constants import LegStatus, ShipmentStatus
 from tradehub_core.logistics.exceptions import (
 	IdempotencyConflictError,
 	ShipmentStateError,
@@ -34,6 +34,7 @@ from tradehub_core.logistics.exceptions import (
 from tradehub_core.logistics.permissions import (
 	shipment_event_has_permission,
 	shipment_has_permission,
+	shipment_query_conditions,
 )
 from tradehub_core.logistics.services.shipment_service import cancel_shipment, transition_status
 from tradehub_core.logistics.services.split_engine import (
@@ -132,6 +133,12 @@ class TestShipmentCore(FrappeTestCase):
 		)
 		cls.seller2 = _make_seller_profile(cls.seller2_user, "Seller2")
 
+		# Seller 3 — P1-1 invariant testi: PLATFORM rolü (Logistics Manager)
+		# taşıyan ama seller_profile'ı OLAN kullanıcı tenant-scoped kalmalı;
+		# başka tenant'ın sevkiyatına platform-full erişim alamamalı.
+		cls.seller3_user = _make_user(f"log-seller3-{suffix}@test.local", ("Logistics Manager",))
+		cls.seller3 = _make_seller_profile(cls.seller3_user, "Seller3")
+
 		cls.buyer = _make_user(f"log-buyer-{suffix}@test.local")
 
 	def setUp(self) -> None:
@@ -174,6 +181,19 @@ class TestShipmentCore(FrappeTestCase):
 
 	def _event_count(self, shipment_name: str) -> int:
 		return frappe.db.count("Shipment Event", {"shipment": shipment_name})
+
+	def _make_leg(
+		self, shipment_name: str, sequence: int = 1, status: str | None = None
+	) -> frappe.model.document.Document:
+		"""Shipment Leg fixture'i (status None → JSON default Planned)."""
+		payload: dict = {
+			"doctype": "Shipment Leg",
+			"shipment": shipment_name,
+			"leg_sequence": sequence,
+		}
+		if status:
+			payload["status"] = status
+		return frappe.get_doc(payload).insert(ignore_permissions=True)
 
 	# -------------------------------------------------------------------
 	# 1. Split motoru
@@ -461,3 +481,102 @@ class TestShipmentCore(FrappeTestCase):
 		self.assertEqual(frappe.db.count("Shipment", {"idempotency_key": key}), 1)
 		# Ikinci cagri yeni kalem sevk etmedi — kalan miktar degismedi.
 		self.assertEqual(get_remaining_qty(self.order_item), _ORDER_QTY - 3)
+
+	# -------------------------------------------------------------------
+	# 6. P1 duzeltme paketi (guvenlik/butunluk)
+	# -------------------------------------------------------------------
+	def test_platform_role_with_tenant_scoped(self) -> None:
+		"""P1-1: seller_profile'li kullanici Logistics Manager rolu tasisa bile tenant-scoped kalir.
+
+		Platform-full dallar (bos filtre / kosulsuz True) yalniz seller_profile'i
+		OLMAYAN kullaniciya uygulanir — baska tenant'in sevkiyati ne listelenir
+		ne okunur ne yazilir ne iptal edilir.
+		"""
+		shipment = self._draft()  # seller1 tenant'inin sevkiyati
+
+		# Liste katmani: platform-full bos filtre DONMEMELI, tenant filtresi donmeli.
+		condition: str = shipment_query_conditions(self.seller3_user)
+		self.assertNotEqual(condition, "")
+		self.assertIn(self.seller3, condition)
+
+		# Per-doc katman: cross-tenant erisim tum ptype'larda reddedilir.
+		self.assertFalse(shipment_has_permission(shipment, "read", self.seller3_user))
+		self.assertFalse(shipment_has_permission(shipment, "write", self.seller3_user))
+		self.assertFalse(shipment_has_permission(shipment, "cancel", self.seller3_user))
+
+	def test_new_shipment_must_be_draft(self) -> None:
+		"""P1-3: yeni Shipment yalniz Draft ile dogar — Delivered-insert baypasi kapali."""
+		with self.assertRaises(ShipmentStateError):
+			frappe.get_doc(
+				{
+					"doctype": "Shipment",
+					"order": self.order.name,
+					"seller_profile": self.seller1,
+					"buyer": self.buyer,
+					"status": ShipmentStatus.DELIVERED,
+					"items": [{"order_item": self.order_item, "listing": self.listing, "qty": 1}],
+				}
+			).insert(ignore_permissions=True)
+
+	def test_delete_updates_fulfillment(self) -> None:
+		"""P1-2: sevkiyat silinince Order fulfillment_status + shipment_count tazelenir."""
+		shipment = self._draft()
+		state = frappe.db.get_value(
+			"Order", self.order.name, ["fulfillment_status", "shipment_count"], as_dict=True
+		)
+		self.assertEqual(state.fulfillment_status, "Fulfilled")
+		self.assertEqual(state.shipment_count, 1)
+
+		shipment.delete()
+
+		state = frappe.db.get_value(
+			"Order", self.order.name, ["fulfillment_status", "shipment_count"], as_dict=True
+		)
+		self.assertEqual(state.fulfillment_status, "Unfulfilled")
+		self.assertEqual(state.shipment_count, 0)
+
+	def test_leg_completed_terminal(self) -> None:
+		"""P1-5: Completed bacak terminaldir — Cancelled'a dahi gecilemez."""
+		shipment = self._draft()
+		leg = self._make_leg(shipment.name)
+
+		for status in (LegStatus.IN_PROGRESS, LegStatus.ARRIVED, LegStatus.COMPLETED):
+			leg.status = status
+			leg.save(ignore_permissions=True)
+
+		leg.status = LegStatus.CANCELLED
+		with self.assertRaises(frappe.ValidationError):
+			leg.save(ignore_permissions=True)
+
+	def test_leg_insert_only_planned(self) -> None:
+		"""P1-5: yeni bacak yalniz Planned durumuyla insert edilebilir."""
+		shipment = self._draft()
+		with self.assertRaises(frappe.ValidationError):
+			self._make_leg(shipment.name, status=LegStatus.COMPLETED)
+
+	def test_leg_sequence_unique(self) -> None:
+		"""P1-5: ayni Shipment icinde leg_sequence tekildir; farkli sira serbesttir."""
+		shipment = self._draft()
+		self._make_leg(shipment.name, sequence=1)
+
+		with self.assertRaises(frappe.ValidationError):
+			self._make_leg(shipment.name, sequence=1)
+
+		second = self._make_leg(shipment.name, sequence=2)
+		self.assertTrue(second.name)
+
+	def test_empty_idempotency_key(self) -> None:
+		"""P1-6a: '' idempotency key None'a normalize edilir — iki bos-key create cakismaz."""
+		first = self._draft(qty=3, idempotency_key="")
+		second = self._draft(qty=3, idempotency_key="")
+
+		self.assertNotEqual(first.name, second.name)
+		self.assertIsNone(frappe.db.get_value("Shipment", first.name, "idempotency_key"))
+		self.assertIsNone(frappe.db.get_value("Shipment", second.name, "idempotency_key"))
+
+	def test_buyer_can_read_own_shipment(self) -> None:
+		"""P1-6f: buyer (seller_profile'siz) kendi siparisinin sevkiyatini okuyabilir, yazamaz."""
+		shipment = self._draft()
+
+		self.assertTrue(shipment_has_permission(shipment, "read", self.buyer))
+		self.assertFalse(shipment_has_permission(shipment, "write", self.buyer))
