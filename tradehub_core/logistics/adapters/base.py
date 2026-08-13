@@ -1,4 +1,4 @@
-# Copyright (c) 2024, Istoc.com and contributors
+# Copyright (c) 2026, TradeHub Team and contributors
 # For license information, please see license.txt
 
 """Kargo firma adapter sozlesmesi (Abstract Base Class)."""
@@ -8,7 +8,7 @@ from __future__ import annotations
 import abc
 import enum
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any
 
 from frappe import _
 
@@ -42,7 +42,7 @@ class QuoteRequest:
 	origin: dict[str, Any]
 	destination: dict[str, Any]
 	parcels: list[dict[str, Any]]
-	service_type: Optional[str] = None
+	service_type: str | None = None
 
 
 @dataclass
@@ -61,10 +61,10 @@ class ShipmentRequest:
 	origin: dict[str, Any] = field(default_factory=dict)
 	destination: dict[str, Any] = field(default_factory=dict)
 	parcels: list[dict[str, Any]] = field(default_factory=list)
-	service_type: Optional[str] = None
-	reference_number: Optional[str] = None
-	cod_amount: Optional[float] = None
-	insurance_amount: Optional[float] = None
+	service_type: str | None = None
+	reference_number: str | None = None
+	cod_amount: float | None = None
+	insurance_amount: float | None = None
 	metadata: dict[str, Any] = field(default_factory=dict)
 
 
@@ -74,7 +74,7 @@ class ShipmentResponse:
 
 	tracking_number: str
 	carrier_shipment_id: str
-	label_url: Optional[str] = None
+	label_url: str | None = None
 	raw_response: dict[str, Any] = field(default_factory=dict)
 
 
@@ -85,7 +85,7 @@ class TrackingEvent:
 	timestamp: str
 	status: str
 	description: str
-	location: Optional[str] = None
+	location: str | None = None
 	raw: dict[str, Any] = field(default_factory=dict)
 
 
@@ -94,7 +94,7 @@ class TrackingResponse:
 	"""Takip sorgu yaniti."""
 
 	events: list[TrackingEvent] = field(default_factory=list)
-	current_status: Optional[str] = None
+	current_status: str | None = None
 	raw_response: dict[str, Any] = field(default_factory=dict)
 
 
@@ -124,10 +124,10 @@ class BaseCarrierAdapter(abc.ABC):
 
 	def __init__(
 		self,
-		credential_doc: Optional[dict[str, Any]] = None,
+		credential_doc: dict[str, Any] | None = None,
 		environment: str = "production",
 	) -> None:
-		self.credential_doc: Optional[dict[str, Any]] = credential_doc
+		self.credential_doc: dict[str, Any] | None = credential_doc
 		self.environment: str = environment
 		self.capabilities: set[CarrierCapability] = getattr(self, "capabilities", set())
 

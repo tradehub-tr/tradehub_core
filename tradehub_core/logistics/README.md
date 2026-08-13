@@ -37,7 +37,7 @@ logistics/
 │   ├── desi.py              # Desi/hacimsel agirlik hesaplama
 │   └── notifier.py          # Bildirim servisi (stub, TUR-113)
 ├── jobs/                    # Arka plan islemleri (tracking poll, vb.)
-├── reports/                 # Lojistik raporlari (TUR-102)
+├── reports/                 # Lojistik raporlari (stub — TUR-117)
 │   └── __init__.py
 └── tests/
     ├── __init__.py
@@ -84,6 +84,10 @@ Kontrol sirasi:
 
 ## Yeni Tasiyici Ekleme (Adapter Pattern)
 
+> NOT: Adapter kaydi henuz kablolanmadi — registry bos baslar, MockCarrierAdapter
+> dahil hicbir adapter otomatik register edilmez. Ilk gercek adapter TUR-107/109'da
+> baglanacak.
+
 1. `adapters/carriers/` altina yeni dosya olustur (orn. `yurtici.py`)
 2. `BaseCarrierAdapter`'i extend et ve abstract metotlari implement et:
    - `authenticate()` -- kimlik dogrulama
@@ -97,7 +101,7 @@ Kontrol sirasi:
 
    register_carrier("yk", YurticiAdapter)
    ```
-4. `Carrier Credential` DocType'ina hesap bilgilerini gir (TUR-106)
+4. `Carrier Account` DocType'ina hesap bilgilerini gir (TUR-106)
 
 ### Adapter Data Contract'lari
 

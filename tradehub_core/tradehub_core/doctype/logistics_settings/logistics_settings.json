@@ -103,6 +103,7 @@
 		},
 		{
 			"default": "SHP-.YYYY.-.#####",
+			"description": "BİLGİ AMAÇLI — runtime'da okunmaz; gerçek kaynak Shipment DocType naming series (shipment.json options).",
 			"fieldname": "shipment_naming_series",
 			"fieldtype": "Data",
 			"label": "Sevkiyat Numaralama Serisi"

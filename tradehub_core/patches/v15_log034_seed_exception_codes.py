@@ -10,7 +10,8 @@ import frappe
 from tradehub_core.logistics.seed import EXCEPTION_CODES
 
 # code -> (severity, exception_category, is_retriable, suggested_action)
-# Seed severity esleme kurali: critical->Critical, high->Warning, medium->Warning, low->Info
+# Severity'nin TEK KAYNAGI bu tablo (seed.py yalniz code+label tasir).
+# Tarihsel esleme kurali: critical->Critical, high->Warning, medium->Warning, low->Info
 EXCEPTION_META: dict[str, tuple[str, str, int, str]] = {
 	"ADDR_NOT_FOUND": ("Warning", "Address", 1, "Alıcıdan adres teyidi alın, düzeltme sonrası yeniden dene"),
 	"RECIPIENT_ABSENT": ("Warning", "Recipient", 1, "Sonraki gün yeniden dağıtım dene"),

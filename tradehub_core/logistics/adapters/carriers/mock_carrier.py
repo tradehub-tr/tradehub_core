@@ -1,4 +1,4 @@
-# Copyright (c) 2024, Istoc.com and contributors
+# Copyright (c) 2026, TradeHub Team and contributors
 # For license information, please see license.txt
 
 """Test ve development icin MockCarrierAdapter."""
@@ -6,9 +6,7 @@
 from __future__ import annotations
 
 import hashlib
-from typing import Any, Optional
-
-from frappe import _
+from typing import Any
 
 from tradehub_core.logistics.adapters.base import (
 	BaseCarrierAdapter,
@@ -47,7 +45,7 @@ class MockCarrierAdapter(BaseCarrierAdapter):
 
 	def __init__(
 		self,
-		credential_doc: Optional[dict[str, Any]] = None,
+		credential_doc: dict[str, Any] | None = None,
 		environment: str = "sandbox",
 	) -> None:
 		super().__init__(credential_doc=credential_doc, environment=environment)

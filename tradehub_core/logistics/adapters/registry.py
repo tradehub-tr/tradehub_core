@@ -1,17 +1,16 @@
-# Copyright (c) 2024, Istoc.com and contributors
+# Copyright (c) 2026, TradeHub Team and contributors
 # For license information, please see license.txt
 
 """Carrier adapter registry — yeni tasiyici ekleme plug-and-play."""
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 from frappe import _
 
 from tradehub_core.logistics.adapters.base import BaseCarrierAdapter
 from tradehub_core.logistics.exceptions import CarrierNotFoundError
-
 
 _CARRIER_REGISTRY: dict[str, type[BaseCarrierAdapter]] = {}
 
@@ -60,7 +59,7 @@ def register_carrier(
 
 def get_adapter(
 	carrier_code: str,
-	credential_doc: Optional[dict[str, Any]] = None,
+	credential_doc: dict[str, Any] | None = None,
 	environment: str = "production",
 ) -> BaseCarrierAdapter:
 	"""Kayitli bir adapter'in yeni bir instance'ini dondur.

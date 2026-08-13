@@ -54,11 +54,20 @@ def validate_state_transition(doc: Document, method: str | None = None) -> None:
 	kullanılır; Desk/API üzerinden yapılan doğrudan status yazımları da
 	böylece aynı matrise tabidir. Geçersiz geçişte ShipmentStateError.
 
+	P1-3: yeni Shipment yalnız Draft status'la doğabilir — insert'te farklı
+	status vermek (ör. doğrudan Delivered) durum makinesini baypas ederdi.
+	Boş status kabul edilir: JSON default'u Draft atar.
+
 	Args:
 		doc: Shipment dokümanı.
 		method: Frappe hook method adı.
 	"""
 	if doc.is_new():
+		if doc.status and doc.status != ShipmentStatus.DRAFT:
+			frappe.throw(
+				_("Yeni sevkiyat yalnız Draft durumuyla oluşturulabilir; mevcut: {0}").format(_(doc.status)),
+				exc=ShipmentStateError,
+			)
 		return
 
 	before = doc.get_doc_before_save()
@@ -395,19 +404,28 @@ def _get_seller_origin_address(seller_profile: str | None) -> Document | None:
 
 	# get_all: sistem akışı (snapshot hook) — satıcının kendi adresi,
 	# kullanıcı permission katmanı Shipment create'te zaten uygulandı.
+	# P1-6d: Pickup purpose SORGUDA filtrelenir — önceki limit-20 + Python
+	# filtreleme deseni, 20'den fazla adresi olan satıcıda Pickup adresini
+	# kaçırabilirdi. Pickup yoksa purpose'suz fallback sorgusu koşar.
 	rows = frappe.get_all(
 		"Addresses",
-		filters={"seller": seller_profile},
-		fields=["name", "purpose", "is_default"],
+		filters={"seller": seller_profile, "purpose": "Pickup"},
+		fields=["name"],
 		order_by="is_default desc, modified desc",
-		limit=20,
+		limit=1,
 	)
+	if not rows:
+		rows = frappe.get_all(
+			"Addresses",
+			filters={"seller": seller_profile},
+			fields=["name"],
+			order_by="is_default desc, modified desc",
+			limit=1,
+		)
 	if not rows:
 		return None
 
-	pickup_rows = [row for row in rows if row.purpose == "Pickup"]
-	chosen = (pickup_rows or rows)[0]
-	return frappe.get_doc("Addresses", chosen.name)
+	return frappe.get_doc("Addresses", rows[0].name)
 
 
 def _get_order_shipping_address(order_name: str | None) -> Document | None:
