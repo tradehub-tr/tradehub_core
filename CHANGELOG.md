@@ -1,3 +1,25 @@
+## [v1.13.1-alpha.11] - 2026-08-13 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(media): satıcı medya kütüphanesi ve yedekleme (TUR-138, TUR-136, TUR-131) (@Metin Bektemur)
+  - Sahiplik modeli: dosya yükleyen üzerinden mağazaya bağlanıyor (%100 kapsam), kullanılan dosyalar da sahiplik sayılıyor
+  - Arşivle ve kalıcı sil AYRI işlemler; kalıcı silme sayaçlı, dosya diskten yalnız son sahip de silince gidiyor (5 mağaza aynı içeriği yükleyince 1 dosya + 5 kayıt ölçüldü)
+  - Kullanımdaki dosya hiçbir yoldan silinemiyor; zorlama parametresi yok
+  - Üstveri (başlık, alternatif metin, açıklama, etiket, favori) kayıt düzeyinde: paylaşılan görselde her mağaza kendi metnini yazar
+  - Yükleme, yeniden adlandırma, kopyalama, içerik değiştirme, depolama kullanımı
+  - İzolasyon sunucuda: mağaza oturumdan çözülüyor, parametre olarak alınmıyor
+  - İçerik-adresli depolama: her görüntü kendi başına eksiksiz, depolama artımlı
+  - Dosya ve File kayıtları birlikte; günlük zamanlanmış görev, 14 görüntü saklama
+  - Geri yükleme önce planlanır, hiçbir şey silmez, değişmiş dosyanın üzerine varsayılan olarak yazmaz
+  - Hızlı ve derin doğrulama
+  - Geri yükleme dosyanın sahibini kaybediyordu (satıcı dosyasını göremez hale geliyordu)
+  - Yedek kimliği dosya yolundan kaçabiliyordu
+  - Kopyanın kopyasında ad sınırsız uzuyordu
+  - Uzun adda ham veritabanı hatası
+
+---
 ## [v1.13.1-alpha.10] - 2026-08-13 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
