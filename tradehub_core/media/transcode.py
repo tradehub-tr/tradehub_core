@@ -106,3 +106,13 @@ def _run_transcode(file_url: str) -> None:
 		frappe.db.set_value("File", name, "th_media_video_status", VIDEO_STATUS_FAILED, update_modified=False)
 		frappe.db.commit()
 		frappe.log_error(title="Video transcode başarısız", message=f"{file_url}: {exc}")
+		# Fix round 1, Bulgu 2: yalnız Error Log yeterli değil — transcode
+		# başarısızlığı medya denetim ekranında (ADL) da görünmeli, başarı
+		# dalıyla (yukarıda) AYNI desen.
+		audit.log_media_event(
+			action=audit.ACTION_OPTIMIZE,
+			file_url=file_url,
+			allowed=False,
+			reason=f"video_transcode_failed:{type(exc).__name__}",
+			context={"kind": "video_transcode"},
+		)
