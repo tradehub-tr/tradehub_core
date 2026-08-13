@@ -239,3 +239,4 @@ tradehub_core.patches.v15_faz4_drop_erpnext_shipment_columns
 tradehub_core.patches.v15_faz4_desi_divisor_setting
 tradehub_core.patches.v15_faz4_order_fulfillment_backfill
 tradehub_core.patches.v15_9_0_theme_drop_product_card_keys
+tradehub_core.patches.v15_9_17_seed_storage_quota
