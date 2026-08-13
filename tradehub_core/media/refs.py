@@ -60,12 +60,16 @@ def _assert_writable(table: str, column: str) -> None:
 		frappe.throw(frappe._("Bu alan üzerinde yazma yetkisi yok: {0}.{1}").format(table, column))
 
 
-def find(file_url: str) -> list[dict]:
+def find(file_url: str, store: str | None = None) -> list[dict]:
 	"""Bu dosyayı gösteren tüm satırlar.
 
 	`sections` gibi JSON/metin alanlarında URL gömülü geçebiliyor; tam eşitlik
 	yetmez, `LOCATE` ile içerik araması yapılır. LIKE kullanılmaz — MariaDB'nin
 	utf8mb4 collation'ında 4 baytlık karakterli satırlarda hatalı sonuç veriyor.
+
+	`store` verilirse yalnız o mağazanın kayıtları taranır. Satıcı bir dosyayı
+	bıraktığında YALNIZ kendi bağları temizlenmeli; aynı dosyayı kullanan başka
+	mağazanın ürünü olduğu gibi kalmalı.
 	"""
 	url = (file_url or "").split("?")[0]
 	if not url:
@@ -93,11 +97,24 @@ def find(file_url: str) -> list[dict]:
 			continue
 
 		ek = ", parent, parenttype" if {"parent", "parenttype"} <= sutunlar else ""
+
+		tam_kosul = kosul.format(col=column)
+		degerler = list(yazimlar)
+		if store:
+			magaza = usage.STORE_FILTERS.get(table)
+			if not magaza:
+				# Mağaza bağı tanımlanmamış kaynak — satıcı bağlamında hiç
+				# dokunulmaz. Bilmediğimiz bir tabloda satır silmektense o
+				# tabloyu atlamak doğru yön.
+				continue
+			tam_kosul = f"({tam_kosul}) and {magaza}"
+			degerler.append(store)
+
 		try:
 			rows = frappe.db.sql(
 				f"""select name, `{column}` as val{ek}
-					from `{table}` where {kosul.format(col=column)}""",  # noqa: S608 — tablo/kolon sabit listeden
-				yazimlar,
+					from `{table}` where {tam_kosul}""",  # noqa: S608 — tablo/kolon sabit listeden
+				degerler,
 				as_dict=True,
 			)
 		except Exception:
@@ -127,18 +144,20 @@ def find(file_url: str) -> list[dict]:
 	return out
 
 
-def clear(file_url: str, *, dry_run: bool = False) -> dict:
+def clear(file_url: str, *, dry_run: bool = False, store: str | None = None) -> dict:
 	"""Dosyayı gösteren bağları temizle.
 
 	Yalnız TAM EŞLEŞEN alanlara dokunulur. `sections` gibi gömülü metinlerde
 	URL'i kesip atmak JSON'u bozabilir; onlar raporlanır ama değiştirilmez —
 	yanlış temizlik, kırık referanstan daha kötüdür.
+
+	`store` verilirse yalnız o mağazanın kayıtlarındaki bağlar temizlenir.
 	"""
 	silinen_satir: list[str] = []
 	bosaltilan: list[str] = []
 	atlanan: list[str] = []
 
-	for ref in find(file_url):
+	for ref in find(file_url, store=store):
 		hedef = f"{ref['owner_doctype']}:{ref['owner']}·{ref['column']}"
 		if ref["readonly"]:
 			atlanan.append(f"{hedef} (sipariş geçmişi)")

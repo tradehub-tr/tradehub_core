@@ -80,13 +80,50 @@ def _search_variants(url: str) -> list[str]:
 	return [url] if kacisli == url else [url, kacisli]
 
 
-def _match_rows(table: str, column: str, urls: list[str], extra: str = "") -> list[dict]:
-	"""`urls` içindeki herhangi biri geçen satırları dön. LIKE ile, chunk'lı."""
+# Bir kaydın hangi mağazaya ait olduğunu söyleyen koşullar. Satıcı kendi medya
+# kütüphanesine baktığında kullanım hesabı YALNIZ kendi kayıtları üzerinden
+# yapılır: başka satıcının ürününde geçtiği bilgisi ona ne gösterilir ne de
+# sayılır.
+#
+# Buradaki koşullar tablo bazında elle yazıldı çünkü mağaza bağı her tabloda
+# farklı: kimi doğrudan alan taşıyor, kimi ana kaydına bakıyor, mağaza kaydının
+# kendisi ise zaten mağazanın ta kendisi.
+#
+# Listede OLMAYAN bir tablo, mağaza süzgeci istendiğinde tamamen DIŞARIDA
+# bırakılır (bkz. `_match_rows`). Yeni bir kaynak eklenip buraya koşulu
+# yazılmazsa sonuç eksik olur — ama sızıntı olmaz. Yanlış yön bilinçli seçildi.
+STORE_FILTERS: dict[str, str] = {
+	"tabListing": "seller_profile = %s",
+	"tabListing Image": "parent in (select name from tabListing where seller_profile = %s)",
+	"tabListing Variant Item": "parent in (select name from tabListing where seller_profile = %s)",
+	"tabStorefront Layout": "seller_profile = %s",
+	"tabSeller Gallery Image": "parent = %s",
+	"tabAdmin Seller Profile": "name = %s",
+	"tabCart Item": "seller = %s",
+	"tabOrder": "seller = %s",
+}
+
+
+def _match_rows(
+	table: str, column: str, urls: list[str], extra: str = "", store: str | None = None
+) -> list[dict]:
+	"""`urls` içindeki herhangi biri geçen satırları dön. LIKE ile, chunk'lı.
+
+	`store` verilirse yalnız o mağazanın kayıtları taranır.
+	"""
+	magaza_kosulu = STORE_FILTERS.get(table) if store else None
+	if store and not magaza_kosulu:
+		# Mağaza bağı tanımlanmamış kaynak — satıcı bağlamında hiç taranmaz.
+		return []
+
 	out: list[dict] = []
 	for chunk in _chunks(urls):
 		# LOCATE: LIKE utf8mb4'te 4 baytlık karakterli satırlarda eşleşmiyor.
 		vals = [v for u in chunk for v in _search_variants(u)]
 		cond = " or ".join([f"locate(%s, `{column}`) > 0"] * len(vals))
+		if magaza_kosulu:
+			cond = f"({cond}) and {magaza_kosulu}"
+			vals = [*vals, store]
 		sel = f"`{column}` as _val" + (f", {extra}" if extra else "")
 		try:
 			out += frappe.db.sql(f"select {sel} from `{table}` where {cond}", vals, as_dict=True)
@@ -244,8 +281,14 @@ def public_urls_for(pairs: set[tuple[str, str]]) -> dict[tuple[str, str], str]:
 	return out
 
 
-def verdicts_for(urls: list[str], deep: bool = False) -> dict[str, dict]:
+def verdicts_for(urls: list[str], deep: bool = False, store: str | None = None) -> dict[str, dict]:
 	"""Toplu karar — `{url: {verdict, live, order, history}}`.
+
+	`store` verilirse karar YALNIZ o mağazanın kayıtlarına bakar. Bu kasıtlı:
+	satıcı için doğru soru "bu dosyayı BEN kullanıyor muyum" — çünkü sildiğinde
+	yalnız kendi bağı kalkıyor, başka mağazanınki olduğu gibi duruyor
+	(bkz. `ownership` modülü). Başka mağazanın kullanımını saymak satıcıya
+	silemeyeceği bir dosya gösterir ve üstelik o mağazanın varlığını sızdırır.
 
 	İki kademeli, çünkü kaynakların maliyeti taban tabana zıt (50 dosya, ölçüm):
 
@@ -270,7 +313,7 @@ def verdicts_for(urls: list[str], deep: bool = False) -> dict[str, dict]:
 	acc: dict[str, dict[str, int]] = {u: {"live": 0, "order": 0, "history": 0} for u in wanted}
 	for group, key in groups:
 		for table, column, _kind, _label in group:
-			for row in _match_rows(table, column, list(wanted)):
+			for row in _match_rows(table, column, list(wanted), store=store):
 				for u in _urls_in(row.get("_val"), wanted):
 					acc[u][key] += 1
 
@@ -415,8 +458,13 @@ def _listing_labels(names: set[str]) -> dict[str, dict]:
 	return {r["name"]: r for r in rows}
 
 
-def resolve(file_url: str) -> dict:
-	"""Tek dosyanın tam kullanım dökümü — detay penceresi bunu gösterir."""
+def resolve(file_url: str, store: str | None = None) -> dict:
+	"""Tek dosyanın tam kullanım dökümü — detay penceresi bunu gösterir.
+
+	`store` verilirse döküm YALNIZ o mağazanın kayıtlarını içerir. Satıcı
+	penceresinde başka mağazanın ürün adı, mağaza adı veya sayfa adresi
+	görünmez; paylaşılan dosyada bile satıcı yalnız kendi kullanımını görür.
+	"""
 	url = (file_url or "").split("?")[0]
 	if not url:
 		frappe.throw(frappe._("Dosya yolu zorunlu."))
@@ -430,7 +478,7 @@ def resolve(file_url: str) -> dict:
 		extra = "name" if table in ("tabListing", "tabStorefront Layout", "tabAdmin Seller Profile") else "parent, idx"
 		if table == "tabListing Variant Item":
 			extra = "parent, idx, attribute_type, attribute_value, variant_sku, is_default"
-		for row in _match_rows(table, column, [url], extra=extra):
+		for row in _match_rows(table, column, [url], extra=extra, store=store):
 			if not _urls_in(row.get("_val"), wanted):
 				continue
 			owner = row.get("name") or row.get("parent")
@@ -469,14 +517,18 @@ def resolve(file_url: str) -> dict:
 	orders: list[dict] = []
 	for table, column, kind, label in ORDER_SOURCES:
 		extra = "name" if table == "tabOrder" else "parent"
-		for row in _match_rows(table, column, [url], extra=extra):
+		for row in _match_rows(table, column, [url], extra=extra, store=store):
 			if _urls_in(row.get("_val"), wanted):
 				orders.append({"kind": kind, "field": label, "name": row.get("name") or row.get("parent")})
 
 	# ── Geçmiş izleri (sayı yeter, detay gürültü) ─────────────────────
 	history: list[dict] = []
 	for table, column, kind, label in HISTORY_SOURCES:
-		n = sum(1 for row in _match_rows(table, column, [url]) if _urls_in(row.get("_val"), wanted))
+		n = sum(
+			1
+			for row in _match_rows(table, column, [url], store=store)
+			if _urls_in(row.get("_val"), wanted)
+		)
 		if n:
 			history.append({"kind": kind, "label": label, "count": n})
 

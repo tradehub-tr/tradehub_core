@@ -130,6 +130,11 @@ def _deny(file_url: str, reason: str, *, sensitive: bool = True) -> None:
 	)
 
 
+def in_trash(file_url: str) -> bool:
+	"""Dosya fiziksel olarak çöp klasöründe mi."""
+	return os.path.isfile(_trash_path(file_url))
+
+
 def move_to_trash(file_url: str, force: bool = False) -> dict:
 	"""Dosyayı çöpe taşı — geri alınabilir.
 

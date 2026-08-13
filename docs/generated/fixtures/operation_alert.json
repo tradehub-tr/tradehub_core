@@ -1,0 +1,67 @@
+{
+	"default": {
+		"ok": true,
+		"data": {
+			"items": [
+				{
+					"name": "ALR-2026-00088",
+					"alert_type": "integration_failure",
+					"severity": "Critical",
+					"title": "YK takip servisi 403 dönüyor",
+					"detail": "Son 30 dakikada 14 takip sorgusu yetkisiz hatası aldı.",
+					"shipment": null,
+					"carrier": "YK",
+					"affected_count": 14,
+					"raised_at": "2026-08-12 09:35:00",
+					"acknowledged_at": null,
+					"acknowledged_by": null
+				},
+				{
+					"name": "ALR-2026-00087",
+					"alert_type": "sla_breach",
+					"severity": "Warning",
+					"title": "3 sevkiyat tahmini teslim tarihini aştı",
+					"detail": "SHP-2026-00035, SHP-2026-00038, SHP-2026-00041",
+					"shipment": null,
+					"carrier": null,
+					"affected_count": 3,
+					"raised_at": "2026-08-12 06:00:00",
+					"acknowledged_at": "2026-08-12 08:10:00",
+					"acknowledged_by": "operasyon@istoc.com"
+				},
+				{
+					"name": "ALR-2026-00086",
+					"alert_type": "stuck_shipment",
+					"severity": "Warning",
+					"title": "SHP-2026-00035 üç gündür durum değiştirmedi",
+					"detail": "Son olay: 2026-08-09 14:20 · At Warehouse",
+					"shipment": "SHP-2026-00035",
+					"carrier": "AK",
+					"affected_count": 1,
+					"raised_at": "2026-08-12 05:00:00",
+					"acknowledged_at": null,
+					"acknowledged_by": null
+				}
+			],
+			"total": 3,
+			"page": 1,
+			"page_size": 50
+		}
+	},
+	"empty": {
+		"ok": true,
+		"data": {
+			"items": [],
+			"total": 0,
+			"page": 1,
+			"page_size": 50
+		}
+	},
+	"error": {
+		"ok": false,
+		"error": {
+			"code": "PERMISSION_DENIED",
+			"message": "Bu kaydı görüntüleme yetkiniz yok."
+		}
+	}
+}

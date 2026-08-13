@@ -34,7 +34,7 @@ Locate = CustomFunction("LOCATE", ["needle", "haystack"])
 NullIf = CustomFunction("NULLIF", ["expr", "value"])
 
 # Kapsam dışı doctype listesi `presets`te — `usage` da aynısını kullanıyor.
-from tradehub_core.media import engine, states  # noqa: E402
+from tradehub_core.media import engine, ownership, states  # noqa: E402
 from tradehub_core.media.presets import EXCLUDED_DOCTYPES  # noqa: E402
 
 SORT_FIELDS: dict[str, str] = {
@@ -98,6 +98,7 @@ def _apply_filters(
 	min_bytes: int = 0,
 	usage: str = "",
 	usage_state: str = "",
+	store: str | None = None,
 ):
 	if search:
 		# LIKE yerine LOCATE: 4 baytlık karakter içeren dosya adları aksi hâlde
@@ -109,11 +110,19 @@ def _apply_filters(
 	# NULL tuzağı: `Max(state) != 'Trashed'` alan boşken SQL'de NULL döner ve
 	# HAVING NULL'ı doğru saymaz — durumu henüz dolmamış kayıtlar listeden
 	# sessizce düşüyordu (test T10 yakaladı). COALESCE ile boş değer "" olur.
+	# Damgada `Min` kullanılıyor, `Max` değil. Satıcı bir dosyayı bıraktığında
+	# YALNIZ kendi kayıtları damgalanıyor (paylaşılan dosyada diğer mağazanınki
+	# olduğu gibi kalıyor). `Max` ile bakılırsa tek bir mağazanın bırakması
+	# dosyayı yönetim listesinde de çöpe düşürürdü — oysa dosya hâlâ canlı,
+	# başka mağaza kullanıyor. `Min` "hepsi bırakmış mı" diye sorar.
+	#
+	# Yönetimin kendi çöp akışı damgayı zaten TÜM kayıtlara birden yazıyor,
+	# dolayısıyla orada `Min` ile `Max` aynı sonucu verir.
 	cur_state = Coalesce(Max(f.th_media_state), "")
 	if state == "trashed":
-		query = query.having((cur_state == states.STATE_TRASHED) | Max(f.th_trashed_at).isnotnull())
+		query = query.having((cur_state == states.STATE_TRASHED) | Min(f.th_trashed_at).isnotnull())
 	else:
-		query = query.having((cur_state != states.STATE_TRASHED) & Max(f.th_trashed_at).isnull())
+		query = query.having((cur_state != states.STATE_TRASHED) & Min(f.th_trashed_at).isnull())
 
 	if state == "optimized":
 		query = query.having(
@@ -149,7 +158,18 @@ def _apply_filters(
 	if usage_state:
 		from tradehub_core.media import usage as usage_mod
 
-		matching = [u for u, v in usage_mod.verdict_map_all(deep=True).items() if v == usage_state]
+		if store:
+			# Satıcı için önbellekli GENEL harita kullanılamaz: o harita kararı
+			# tüm mağazaların kullanımına göre veriyor. Satıcı kendi kapsamındaki
+			# kararı görmeli — başka mağaza kullandığı için "kullanılıyor" yazsa
+			# hem yanlış olur hem o mağazanın varlığını ele verir.
+			# Küme küçük (mağaza başına yüzlerce dosya), anında hesaplanabilir.
+			f_s, q_s = _base_query()
+			kendi = [r[0] for r in ownership.scope(q_s, f_s, store).select(f_s.file_url).run()]
+			kararlar = usage_mod.verdicts_for(kendi, deep=True, store=store)
+			matching = [u for u, v in kararlar.items() if v.get("verdict") == usage_state]
+		else:
+			matching = [u for u, v in usage_mod.verdict_map_all(deep=True).items() if v == usage_state]
 		query = query.where(f.file_url.isin(matching or ["__none__"]))
 
 	if usage == "multi_use":
@@ -173,12 +193,23 @@ def list_files(
 	min_bytes: int = 0,
 	usage: str = "",
 	usage_state: str = "",
+	store: str | None = None,
 ) -> dict:
-	"""Sayfalı, tekilleştirilmiş dosya listesi."""
+	"""Sayfalı, tekilleştirilmiş dosya listesi.
+
+	`store` verilirse yalnız o mağazanın yüklediği dosyalar döner. Süzgeç
+	sorgunun EN BAŞINA giriyor; sayfalama, sıralama ve toplam sayı hepsi
+	daraltılmış küme üzerinde hesaplanıyor. Sonradan filtrelenseydi toplam
+	sayı başka mağazaların dosya adedini sızdırırdı.
+	"""
 	page = max(1, int(page or 1))
 	page_size = min(MAX_PAGE_SIZE, max(1, int(page_size or 50)))
 	f, query = _base_query()
-	query = _apply_filters(f, query, search, state, bool(only_optimizable), min_bytes, usage, usage_state)
+	if store:
+		query = ownership.scope(query, f, store)
+	query = _apply_filters(
+		f, query, search, state, bool(only_optimizable), min_bytes, usage, usage_state, store
+	)
 
 	# `usage` sıralaması özel: sayı SQL'de yok. Önce filtreye uyan TÜM url'ler
 	# alınır, önbellekli sayıya göre sıralanır, sayfa dilimlenir; sonra yalnız o
@@ -194,6 +225,8 @@ def list_files(
 		if not page_urls:
 			return {"items": [], "total": total, "page": page, "page_size": page_size}
 		f2, q2 = _base_query()
+		if store:
+			q2 = ownership.scope(q2, f2, store)
 		rows = (
 			q2.where(f2.file_url.isin(page_urls))
 			.select(
@@ -212,7 +245,7 @@ def list_files(
 		)
 		order = {u: i for i, u in enumerate(page_urls)}
 		rows.sort(key=lambda r: order.get(r["file_url"], 0))
-		return _decorate(rows, total, page, page_size, counts)
+		return _decorate(rows, total, page, page_size, counts, store=store)
 
 	rows = (
 		query.select(
@@ -236,18 +269,40 @@ def list_files(
 
 	return _decorate(
 		rows,
-		_count(search, state, bool(only_optimizable), min_bytes, usage, usage_state),
+		_count(search, state, bool(only_optimizable), min_bytes, usage, usage_state, store),
 		page,
 		page_size,
+		store=store,
 	)
 
 
-def _decorate(rows: list[dict], total: int, page: int, page_size: int, counts: dict | None = None) -> dict:
-	"""Satırlara karar/kazanç/kullanım alanlarını ekler."""
+def _decorate(
+	rows: list[dict],
+	total: int,
+	page: int,
+	page_size: int,
+	counts: dict | None = None,
+	store: str | None = None,
+) -> dict:
+	"""Satırlara karar/kazanç/kullanım alanlarını ekler.
+
+	`store` verilirse karar ve kullanım sayısı O MAĞAZANIN kapsamında
+	hesaplanır. Önbellekli genel harita satıcıya verilemez: başka mağaza
+	kullandığı için "kullanılıyor" yazardı — hem satıcı için yanlış bilgi,
+	hem o mağazanın varlığının sızması.
+	"""
 	from tradehub_core.media import usage as usage_mod
 
-	vmap = usage_mod.verdict_map_all(deep=True)
-	counts = counts if counts is not None else usage_mod.usage_counts_all()
+	if store:
+		# Yalnız EKRANDAKİ satırlar için hesaplanıyor (sayfa başına en çok 200),
+		# genel harita gibi tüm envanteri taramıyor.
+		urls = [r["file_url"] for r in rows]
+		kararlar = usage_mod.verdicts_for(urls, deep=True, store=store)
+		vmap = {u: v.get("verdict") for u, v in kararlar.items()}
+		counts = {u: v.get("live", 0) for u, v in kararlar.items()}
+	else:
+		vmap = usage_mod.verdict_map_all(deep=True)
+		counts = counts if counts is not None else usage_mod.usage_counts_all()
 	for r in rows:
 		r["usage_verdict"] = vmap.get(r["file_url"], "unknown")
 		r["live_usage"] = counts.get(r["file_url"], 0)
@@ -288,10 +343,13 @@ def _count(
 	min_bytes: int = 0,
 	usage: str = "",
 	usage_state: str = "",
+	store: str | None = None,
 ) -> int:
 	"""Tekilleştirilmiş satır sayısı — GROUP BY sonucu sarmalanarak sayılır."""
 	f, query = _base_query()
-	query = _apply_filters(f, query, search, state, only_optimizable, min_bytes, usage, usage_state)
+	if store:
+		query = ownership.scope(query, f, store)
+	query = _apply_filters(f, query, search, state, only_optimizable, min_bytes, usage, usage_state, store)
 	sub = query.select(f.file_url)
 	rows = frappe.qb.from_(sub).select(Count("*")).run()
 	return rows[0][0] if rows else 0

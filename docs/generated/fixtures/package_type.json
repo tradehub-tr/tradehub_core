@@ -1,0 +1,68 @@
+{
+	"default": {
+		"ok": true,
+		"data": {
+			"items": [
+				{
+					"name": "BOX",
+					"package_name": "Standart Koli",
+					"package_code": "BOX",
+					"is_default": 1,
+					"is_active": 1,
+					"max_weight_kg": 30
+				},
+				{
+					"name": "LBOX",
+					"package_name": "Buyuk Koli",
+					"package_code": "LBOX",
+					"is_default": 0,
+					"is_active": 1,
+					"max_weight_kg": 50
+				},
+				{
+					"name": "PLT",
+					"package_name": "Palet",
+					"package_code": "PLT",
+					"is_default": 0,
+					"is_active": 1,
+					"max_weight_kg": 1000
+				},
+				{
+					"name": "ENV",
+					"package_name": "Zarf",
+					"package_code": "ENV",
+					"is_default": 0,
+					"is_active": 1,
+					"max_weight_kg": 1
+				},
+				{
+					"name": "TUBE",
+					"package_name": "Tup",
+					"package_code": "TUBE",
+					"is_default": 0,
+					"is_active": 1,
+					"max_weight_kg": 15
+				}
+			],
+			"total": 5,
+			"page": 1,
+			"page_size": 50
+		}
+	},
+	"empty": {
+		"ok": true,
+		"data": {
+			"items": [],
+			"total": 0,
+			"page": 1,
+			"page_size": 50
+		}
+	},
+	"error": {
+		"ok": false,
+		"error": {
+			"code": "PERMISSION_DENIED",
+			"message": "Bu kataloğu görüntüleme yetkiniz yok."
+		}
+	}
+}

@@ -49,6 +49,15 @@ ACTION_PURGE_TRASH: str = "media.purge_trash"
 ACTION_PURGE_ARCHIVE: str = "media.purge_archive"
 ACTION_SCOPE_DENIED: str = "media.scope_denied"
 ACTION_ACCESS_DENIED: str = "media.access_denied"
+# Satıcı kendi sahipliğini bıraktı. Silmeden ayrı bir olay: dosya diskte
+# duruyor olabilir (başka mağaza da sahipse). "Sildim ama dosya duruyor"
+# durumunun denetimde açıkça görünmesi gerekiyor.
+ACTION_RELEASE: str = "media.release"
+ACTION_RECLAIM: str = "media.reclaim"
+# Yedek paketi sunucudan dışarı çıkarıldı. Paket TÜM medyayı içeriyor, özel
+# belgeler dahil — verinin sunucuyu terk ettiği tek nokta bu. Kimin ne zaman
+# dışarı aktardığı iz bırakmadan gerçekleşmemeli.
+ACTION_EXPORT: str = "media.export"
 
 MEDIA_ACTIONS: tuple[str, ...] = (
 	ACTION_UPLOAD,
@@ -61,6 +70,9 @@ MEDIA_ACTIONS: tuple[str, ...] = (
 	ACTION_PURGE_ARCHIVE,
 	ACTION_SCOPE_DENIED,
 	ACTION_ACCESS_DENIED,
+	ACTION_RELEASE,
+	ACTION_RECLAIM,
+	ACTION_EXPORT,
 )
 
 # Geri dönüşü olmayan ya da güvenlik anlamı taşıyan olaylar HIGH ile işaretlenir;
@@ -72,6 +84,8 @@ _HIGH_SEVERITY_ACTIONS: frozenset[str] = frozenset(
 		ACTION_PURGE_ARCHIVE,
 		ACTION_SCOPE_DENIED,
 		ACTION_ACCESS_DENIED,
+		# Geri alınamaz değil ama güvenlik anlamı taşıyor: veri sunucudan çıktı.
+		ACTION_EXPORT,
 	}
 )
 

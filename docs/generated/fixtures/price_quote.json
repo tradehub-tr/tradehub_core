@@ -1,0 +1,79 @@
+{
+	"default": {
+		"ok": true,
+		"data": {
+			"items": [
+				{
+					"quote_id": "Q-2026-0912-A",
+					"carrier": "YK",
+					"carrier_service": "YK-STD",
+					"carrier_cost": 268.4,
+					"customer_charge": 349.9,
+					"currency": "TRY",
+					"chargeable_weight": 42.0,
+					"applied_rule": "Standart Kargo · 30-50 desi",
+					"rule_priority": 10,
+					"valid_until": "2026-08-13 09:00:00",
+					"is_snapshot": 0,
+					"surcharges": {
+						"yakit_farki": 18.4,
+						"sigorta": 0
+					}
+				},
+				{
+					"quote_id": "Q-2026-0912-B",
+					"carrier": "AK",
+					"carrier_service": "AK-STD",
+					"carrier_cost": 245.0,
+					"customer_charge": 349.9,
+					"currency": "TRY",
+					"chargeable_weight": 42.0,
+					"applied_rule": "Standart Kargo · 30-50 desi",
+					"rule_priority": 10,
+					"valid_until": "2026-08-13 09:00:00",
+					"is_snapshot": 0,
+					"surcharges": {
+						"yakit_farki": 15.0,
+						"sigorta": 0
+					}
+				},
+				{
+					"quote_id": "Q-2026-0912-C",
+					"carrier": "YK",
+					"carrier_service": "YK-EXP",
+					"carrier_cost": 410.0,
+					"customer_charge": 0.0,
+					"currency": "TRY",
+					"chargeable_weight": 42.0,
+					"applied_rule": "Ücretsiz kargo · 5000 TL üzeri sipariş",
+					"rule_priority": 1,
+					"valid_until": "2026-08-13 09:00:00",
+					"is_snapshot": 1,
+					"surcharges": {
+						"yakit_farki": 24.0,
+						"sigorta": 12.5
+					}
+				}
+			],
+			"total": 3,
+			"page": 1,
+			"page_size": 50
+		}
+	},
+	"empty": {
+		"ok": true,
+		"data": {
+			"items": [],
+			"total": 0,
+			"page": 1,
+			"page_size": 50
+		}
+	},
+	"error": {
+		"ok": false,
+		"error": {
+			"code": "PERMISSION_DENIED",
+			"message": "Bu kaydı görüntüleme yetkiniz yok."
+		}
+	}
+}

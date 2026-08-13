@@ -10,6 +10,8 @@ optimize etmesi için. Satıcı self-service kapsam dışı (GORSEL-OPTIMIZASYON
 
 from __future__ import annotations
 
+import os
+
 import frappe
 from frappe import _
 
@@ -544,3 +546,186 @@ def export_media_audit(
 		writer.writerow({c: r.get(c) for c in cols})
 
 	return {"csv": buf.getvalue(), "count": len(rows)}
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Yedekleme ve geri yükleme (TUR-131)
+#
+# Geri yükleme YIKICI RİSK taşıyor: yanlış çalışırsa bugünkü veriyi dünkiyle
+# ezer. Bu yüzden okuma uçları normal yönetim yetkisiyle, YAZAN uçlar en
+# yüksek yetkiyle korunuyor — arşiv silme ile aynı seviye.
+# ─────────────────────────────────────────────────────────────────────
+
+
+@frappe.whitelist()
+def list_media_backups() -> dict:
+	"""Alınmış yedekler + deponun kapladığı yer."""
+	_guard()
+	from tradehub_core.media import backup
+
+	return {"sets": backup.list_sets(), "usage": backup.usage(), "keep": backup.KEEP_SETS}
+
+
+@frappe.whitelist(methods=["POST"])
+def create_media_backup(label: str = "") -> dict:
+	"""Elle yedek al. Zamanlanmış görev bunu günlük çalıştırıyor."""
+	_guard_destructive()
+	from tradehub_core.media import backup
+
+	return backup.snapshot(label=label)
+
+
+@frappe.whitelist()
+def verify_media_backup(set_id: str, deep: int = 0) -> dict:
+	"""Yedek geri yüklenebilir mi — dokunmadan kontrol.
+
+	`deep=1` havuzdaki içeriğin imzasını da yeniden hesaplar; sessiz disk
+	bozulmasını ancak bu yakalar, karşılığında yavaştır.
+	"""
+	_guard()
+	from tradehub_core.media import backup
+
+	return backup.verify(set_id, deep=bool(int(deep or 0)))
+
+
+@frappe.whitelist()
+def plan_media_restore(set_id: str) -> dict:
+	"""Geri yüklersem ne olur — HİÇBİR ŞEYE DOKUNMAZ.
+
+	Uygulama ayrı uçta. Kimse tek çağrıyla geri yükleme başlatamasın diye.
+	"""
+	_guard()
+	from tradehub_core.media import restore
+
+	return restore.plan(set_id)
+
+
+@frappe.whitelist(methods=["POST"])
+def apply_media_restore(
+	set_id: str,
+	files: int = 1,
+	records: int = 1,
+	overwrite: int = 0,
+	only: str | list[str] | None = None,
+) -> dict:
+	"""Geri yüklemeyi uygula.
+
+	`overwrite=0` (varsayılan): içeriği değişmiş dosyalara DOKUNULMAZ, çatışma
+	olarak raporlanır. `1` yapmak, bugünkü içeriği yedekteki eski hâliyle
+	değiştirmeyi açıkça istemek demektir.
+
+	Hiçbir durumda dosya ya da kayıt SİLİNMEZ.
+	"""
+	_guard_destructive()
+	from tradehub_core.media import restore
+
+	yollar = frappe.parse_json(only) if isinstance(only, str) else only
+	return restore.apply(
+		set_id,
+		files=bool(int(files or 0)),
+		records=bool(int(records or 0)),
+		overwrite=bool(int(overwrite or 0)),
+		only=yollar or None,
+	)
+
+
+@frappe.whitelist(methods=["POST"])
+def repair_missing_media(set_id: str = "") -> dict:
+	"""Kaydı olup dosyası kaybolanları en yeni yedekten geri getir.
+
+	Felaket kurtarmanın en sık hâli: veritabanı sağlam, diskten dosya gitmiş.
+	Tüm yedeği uygulamaya gerek yok, yalnız eksikler yazılır.
+	"""
+	_guard_destructive()
+	from tradehub_core.media import restore
+
+	return restore.repair_missing_files(set_id or None)
+
+
+@frappe.whitelist(methods=["POST"])
+def prune_media_backups(keep: int = 0) -> dict:
+	"""Eski yedekleri ve artık kimsenin göstermediği içerikleri temizle."""
+	_guard_destructive()
+	from tradehub_core.media import backup
+
+	return backup.prune(keep=int(keep) if keep else backup.KEEP_SETS)
+
+
+@frappe.whitelist(methods=["POST"])
+def delete_media_backup(set_id: str) -> dict:
+	"""Tek bir yedeği sil.
+
+	`set_id` istekten geliyor ve dosya yoluna giriyor — kalıp ve kök kontrolü
+	`backup._set_path` içinde, bu uç onu atlayamaz.
+	"""
+	_guard_destructive()
+	from tradehub_core.media import backup
+
+	return backup.delete_set(set_id)
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Dışa aktarma (TUR-131)
+#
+# Yedek, koruduğu medyayla aynı diskte duruyor — TUR-131'in karşılanmayan tek
+# maddesi buydu. Paket indirilip başka bir yere konduğu anda yedek gerçekten
+# ikinci bir yerde olur.
+#
+# Paket TÜM medyayı içerir, ÖZEL BELGELER dahil. Bu yüzden üç ucun da yetkisi
+# en yüksek seviyede: dışa aktarma, verinin sunucuyu terk ettiği tek nokta.
+# ─────────────────────────────────────────────────────────────────────
+
+
+@frappe.whitelist(methods=["POST"])
+def start_media_backup_export(set_id: str) -> dict:
+	"""Paketlemeyi başlat — hazırlık arkada sürer, bu uç beklemez."""
+	_guard_destructive()
+	from tradehub_core.media import backup_export
+
+	return backup_export.start(set_id)
+
+
+@frappe.whitelist()
+def media_backup_export_status(set_id: str) -> dict:
+	"""Paket ne durumda — ekran bunu düzenli aralıkla sorar."""
+	_guard()
+	from tradehub_core.media import backup_export
+
+	return backup_export.status(set_id)
+
+
+@frappe.whitelist(methods=["POST"])
+def discard_media_backup_export(set_id: str) -> dict:
+	"""Hazır paketi sunucudan kaldır."""
+	_guard_destructive()
+	from tradehub_core.media import backup_export
+
+	return backup_export.discard(set_id)
+
+
+@frappe.whitelist(methods=["GET"])
+def download_media_backup_export(set_id: str):
+	"""Paketi indir.
+
+	Dosya belleğe ALINMIYOR: 1 GB'lık bir paketi yanıt gövdesine koymak süreci
+	şişirirdi. Frappe'nin özel dosya göndericisi kullanılıyor — parça parça
+	akıtıyor, yarıda kalan indirme kaldığı yerden devam edebiliyor.
+
+	`set_id` istekten geliyor ve dosya yoluna giriyor; kalıp, kök ve varlık
+	kontrolü `backup_export.package_path` içinde.
+	"""
+	_guard_destructive()
+	from frappe.utils.response import send_private_file
+
+	from tradehub_core.media import audit, backup_export
+
+	tam = backup_export.package_path(set_id)
+	audit.log_media_event(
+		action=audit.ACTION_EXPORT,
+		sensitive=True,
+		context={"set_id": set_id, "downloaded": True},
+	)
+
+	# Gönderici site'ın private kökünden itibaren göreli yol bekliyor.
+	kok = frappe.get_site_path("private")
+	return send_private_file(os.path.relpath(tam, kok))

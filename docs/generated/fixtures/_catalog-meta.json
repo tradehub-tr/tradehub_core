@@ -1,0 +1,888 @@
+{
+	"$comment": "ÜRETİLMİŞ DOSYA — elle düzenlemeyin.\nKaynak: tradehub_core Python sözleşmesi\nYeniden üret: python3 scripts/gen_logistics_types.py --sync",
+	"catalogs": {
+		"shipping_channel": {
+			"doctype": "Shipping Channel",
+			"searchable": [
+				"channel_name",
+				"channel_code"
+			],
+			"filters": [],
+			"default_sort": "channel_name asc",
+			"list_fields": [
+				{
+					"name": "name",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "channel_name",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "channel_code",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "is_active",
+					"type": "Check",
+					"ts": "number",
+					"required": false
+				}
+			],
+			"detail_fields": [
+				{
+					"name": "icon",
+					"type": "Attach Image",
+					"ts": "string",
+					"required": false
+				},
+				{
+					"name": "description",
+					"type": "Small Text",
+					"ts": "string",
+					"required": false
+				}
+			],
+			"child_tables": {}
+		},
+		"shipping_method": {
+			"doctype": "Shipping Method",
+			"searchable": [
+				"method_name"
+			],
+			"filters": [
+				"channel",
+				"shipping_type"
+			],
+			"default_sort": "method_name asc",
+			"list_fields": [
+				{
+					"name": "name",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "method_name",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "shipping_type",
+					"type": "Select",
+					"ts": "string",
+					"required": false,
+					"choices": [
+						"Express",
+						"Air",
+						"Sea",
+						"Land",
+						"Standard"
+					]
+				},
+				{
+					"name": "channel",
+					"type": "Link",
+					"ts": "string",
+					"required": false,
+					"link": "Shipping Channel"
+				},
+				{
+					"name": "is_active",
+					"type": "Check",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "min_days",
+					"type": "Int",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "max_days",
+					"type": "Int",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "base_cost",
+					"type": "Currency",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "currency",
+					"type": "Link",
+					"ts": "string",
+					"required": false,
+					"link": "Currency"
+				}
+			],
+			"detail_fields": [
+				{
+					"name": "max_weight",
+					"type": "Float",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "max_desi",
+					"type": "Float",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "cost_per_kg",
+					"type": "Currency",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "free_shipping_threshold",
+					"type": "Currency",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "description",
+					"type": "Small Text",
+					"ts": "string",
+					"required": false
+				}
+			],
+			"child_tables": {
+				"carrier_services": [
+					{
+						"name": "carrier_service",
+						"type": "Link",
+						"ts": "string",
+						"required": true,
+						"link": "Carrier Service"
+					},
+					{
+						"name": "service_name",
+						"type": "Data",
+						"ts": "string",
+						"required": false
+					},
+					{
+						"name": "is_preferred",
+						"type": "Check",
+						"ts": "number",
+						"required": false
+					},
+					{
+						"name": "priority",
+						"type": "Int",
+						"ts": "number",
+						"required": false
+					}
+				]
+			}
+		},
+		"logistics_provider": {
+			"doctype": "Logistics Provider",
+			"searchable": [
+				"provider_name",
+				"provider_code"
+			],
+			"filters": [
+				"provider_type",
+				"integration_type",
+				"country"
+			],
+			"default_sort": "provider_name asc",
+			"list_fields": [
+				{
+					"name": "name",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "provider_name",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "provider_code",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "provider_type",
+					"type": "Select",
+					"ts": "string",
+					"required": false,
+					"choices": [
+						"Kargo",
+						"Ambar",
+						"Kurye",
+						"Marketplace"
+					]
+				},
+				{
+					"name": "integration_type",
+					"type": "Select",
+					"ts": "string",
+					"required": false,
+					"choices": [
+						"API",
+						"Manual",
+						"Webhook"
+					]
+				},
+				{
+					"name": "country",
+					"type": "Link",
+					"ts": "string",
+					"required": false,
+					"link": "Country"
+				},
+				{
+					"name": "is_active",
+					"type": "Check",
+					"ts": "number",
+					"required": false
+				}
+			],
+			"detail_fields": [
+				{
+					"name": "logo",
+					"type": "Attach Image",
+					"ts": "string",
+					"required": false
+				},
+				{
+					"name": "website",
+					"type": "Data",
+					"ts": "string",
+					"required": false
+				},
+				{
+					"name": "support_phone",
+					"type": "Data",
+					"ts": "string",
+					"required": false
+				},
+				{
+					"name": "support_email",
+					"type": "Data",
+					"ts": "string",
+					"required": false
+				}
+			],
+			"child_tables": {
+				"operating_channels": [
+					{
+						"name": "shipping_channel",
+						"type": "Link",
+						"ts": "string",
+						"required": true,
+						"link": "Shipping Channel"
+					},
+					{
+						"name": "channel_name",
+						"type": "Data",
+						"ts": "string",
+						"required": false
+					}
+				]
+			}
+		},
+		"carrier_service": {
+			"doctype": "Carrier Service",
+			"searchable": [
+				"service_name",
+				"service_code"
+			],
+			"filters": [
+				"carrier",
+				"service_type"
+			],
+			"default_sort": "service_name asc",
+			"list_fields": [
+				{
+					"name": "name",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "service_name",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "service_code",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "carrier",
+					"type": "Link",
+					"ts": "string",
+					"required": true,
+					"link": "Logistics Provider"
+				},
+				{
+					"name": "service_type",
+					"type": "Select",
+					"ts": "string",
+					"required": false,
+					"choices": [
+						"Standard",
+						"Express",
+						"Economy",
+						"Same Day",
+						"Scheduled"
+					]
+				},
+				{
+					"name": "is_active",
+					"type": "Check",
+					"ts": "number",
+					"required": false
+				}
+			],
+			"detail_fields": [
+				{
+					"name": "max_weight",
+					"type": "Float",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "max_desi",
+					"type": "Float",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "estimated_days_min",
+					"type": "Int",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "estimated_days_max",
+					"type": "Int",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "supports_cod",
+					"type": "Check",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "supports_insurance",
+					"type": "Check",
+					"ts": "number",
+					"required": false
+				}
+			],
+			"child_tables": {}
+		},
+		"carrier_branch": {
+			"doctype": "Carrier Branch",
+			"searchable": [
+				"branch_name",
+				"branch_code",
+				"city"
+			],
+			"filters": [
+				"carrier",
+				"city",
+				"branch_type"
+			],
+			"default_sort": "city asc",
+			"list_fields": [
+				{
+					"name": "name",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "branch_name",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "branch_code",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "carrier",
+					"type": "Link",
+					"ts": "string",
+					"required": true,
+					"link": "Logistics Provider"
+				},
+				{
+					"name": "branch_type",
+					"type": "Select",
+					"ts": "string",
+					"required": false,
+					"choices": [
+						"Hub",
+						"Transfer Center",
+						"Distribution Point",
+						"Service Point",
+						"Locker"
+					]
+				},
+				{
+					"name": "city",
+					"type": "Data",
+					"ts": "string",
+					"required": false
+				},
+				{
+					"name": "district",
+					"type": "Data",
+					"ts": "string",
+					"required": false
+				},
+				{
+					"name": "is_active",
+					"type": "Check",
+					"ts": "number",
+					"required": false
+				}
+			],
+			"detail_fields": [
+				{
+					"name": "postal_code",
+					"type": "Data",
+					"ts": "string",
+					"required": false
+				},
+				{
+					"name": "address",
+					"type": "Small Text",
+					"ts": "string",
+					"required": false
+				},
+				{
+					"name": "phone",
+					"type": "Data",
+					"ts": "string",
+					"required": false
+				},
+				{
+					"name": "latitude",
+					"type": "Float",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "longitude",
+					"type": "Float",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "operating_hours",
+					"type": "JSON",
+					"ts": "Record<string, unknown> | null",
+					"required": false
+				}
+			],
+			"child_tables": {}
+		},
+		"service_coverage_area": {
+			"doctype": "Service Coverage Area",
+			"searchable": [
+				"city",
+				"district"
+			],
+			"filters": [
+				"carrier",
+				"carrier_service",
+				"city"
+			],
+			"default_sort": "city asc",
+			"list_fields": [
+				{
+					"name": "name",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "carrier",
+					"type": "Link",
+					"ts": "string",
+					"required": true,
+					"link": "Logistics Provider"
+				},
+				{
+					"name": "carrier_service",
+					"type": "Link",
+					"ts": "string",
+					"required": false,
+					"link": "Carrier Service"
+				},
+				{
+					"name": "city",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "district",
+					"type": "Data",
+					"ts": "string",
+					"required": false
+				},
+				{
+					"name": "is_active",
+					"type": "Check",
+					"ts": "number",
+					"required": false
+				}
+			],
+			"detail_fields": [
+				{
+					"name": "postal_code_from",
+					"type": "Data",
+					"ts": "string",
+					"required": false
+				},
+				{
+					"name": "postal_code_to",
+					"type": "Data",
+					"ts": "string",
+					"required": false
+				},
+				{
+					"name": "estimated_days_override",
+					"type": "Int",
+					"ts": "number",
+					"required": false
+				}
+			],
+			"child_tables": {}
+		},
+		"carrier_status_mapping": {
+			"doctype": "Carrier Status Mapping",
+			"searchable": [
+				"carrier_status_code",
+				"carrier_status_text"
+			],
+			"filters": [
+				"carrier",
+				"internal_status"
+			],
+			"default_sort": "carrier asc",
+			"list_fields": [
+				{
+					"name": "name",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "carrier",
+					"type": "Link",
+					"ts": "string",
+					"required": true,
+					"link": "Logistics Provider"
+				},
+				{
+					"name": "carrier_status_code",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "carrier_status_text",
+					"type": "Data",
+					"ts": "string",
+					"required": false
+				},
+				{
+					"name": "internal_status",
+					"type": "Select",
+					"ts": "string",
+					"required": true,
+					"choices": [
+						"Draft",
+						"Pending",
+						"Ready for Pickup",
+						"Picked Up",
+						"In Transit",
+						"At Warehouse",
+						"Out for Delivery",
+						"Delivered",
+						"Returned",
+						"Cancelled",
+						"Failed"
+					]
+				},
+				{
+					"name": "exception_code",
+					"type": "Link",
+					"ts": "string",
+					"required": false,
+					"link": "Shipment Exception Code"
+				}
+			],
+			"detail_fields": [],
+			"child_tables": {}
+		},
+		"package_type": {
+			"doctype": "Package Type",
+			"searchable": [
+				"package_name",
+				"package_code"
+			],
+			"filters": [],
+			"default_sort": "package_name asc",
+			"list_fields": [
+				{
+					"name": "name",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "package_name",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "package_code",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "is_default",
+					"type": "Check",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "is_active",
+					"type": "Check",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "max_weight_kg",
+					"type": "Float",
+					"ts": "number",
+					"required": false
+				}
+			],
+			"detail_fields": [
+				{
+					"name": "max_length_cm",
+					"type": "Float",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "max_width_cm",
+					"type": "Float",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "max_height_cm",
+					"type": "Float",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "max_desi",
+					"type": "Float",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "description",
+					"type": "Small Text",
+					"ts": "string",
+					"required": false
+				}
+			],
+			"child_tables": {}
+		},
+		"vehicle_type": {
+			"doctype": "Vehicle Type",
+			"searchable": [
+				"vehicle_name",
+				"vehicle_code"
+			],
+			"filters": [
+				"vehicle_category"
+			],
+			"default_sort": "vehicle_name asc",
+			"list_fields": [
+				{
+					"name": "name",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "vehicle_name",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "vehicle_code",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "vehicle_category",
+					"type": "Select",
+					"ts": "string",
+					"required": false,
+					"choices": [
+						"Motokurye",
+						"Panelvan",
+						"Kamyonet",
+						"Kamyon",
+						"TIR"
+					]
+				},
+				{
+					"name": "is_active",
+					"type": "Check",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "max_weight_kg",
+					"type": "Float",
+					"ts": "number",
+					"required": false
+				}
+			],
+			"detail_fields": [
+				{
+					"name": "max_volume_m3",
+					"type": "Float",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "max_desi",
+					"type": "Float",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "description",
+					"type": "Small Text",
+					"ts": "string",
+					"required": false
+				}
+			],
+			"child_tables": {}
+		},
+		"shipment_exception_code": {
+			"doctype": "Shipment Exception Code",
+			"searchable": [
+				"exception_name",
+				"exception_code"
+			],
+			"filters": [
+				"exception_category",
+				"severity"
+			],
+			"default_sort": "exception_code asc",
+			"list_fields": [
+				{
+					"name": "name",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "exception_name",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "exception_code",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "exception_category",
+					"type": "Select",
+					"ts": "string",
+					"required": false,
+					"choices": [
+						"Address",
+						"Recipient",
+						"Package",
+						"Customs",
+						"Weather",
+						"Other"
+					]
+				},
+				{
+					"name": "severity",
+					"type": "Select",
+					"ts": "string",
+					"required": false,
+					"choices": [
+						"Info",
+						"Warning",
+						"Critical"
+					]
+				},
+				{
+					"name": "is_retriable",
+					"type": "Check",
+					"ts": "number",
+					"required": false
+				}
+			],
+			"detail_fields": [
+				{
+					"name": "description",
+					"type": "Small Text",
+					"ts": "string",
+					"required": false
+				},
+				{
+					"name": "suggested_action",
+					"type": "Small Text",
+					"ts": "string",
+					"required": false
+				}
+			],
+			"child_tables": {}
+		}
+	}
+}

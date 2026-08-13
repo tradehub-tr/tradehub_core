@@ -3,8 +3,15 @@
 
 """Lojistik modülü exception sınıfları.
 
-Tüm lojistik hataları LogisticsError'dan türer. Her exception sınıfı
-uygun HTTP status kodu ve i18n-ready mesaj taşır.
+Tüm lojistik hataları LogisticsError'dan türer. Her sınıf üç şey taşır:
+
+	http_status_code : Frappe'nin yanıta koyacağı HTTP durumu
+	code             : istemcinin dallanma yapacağı KARARLI hata kodu
+	docstring        : ne zaman fırlatıldığı
+
+`code` değerleri sözleşmenin parçasıdır — `docs/logistics-api.schema.json`
+içine bu sınıflardan üretilir ve istemci bunlara göre dallanır. Bir kodu
+DEĞİŞTİRMEK kırıcı değişikliktir; yeni durum için yeni kod ekle.
 """
 
 from __future__ import annotations
@@ -20,6 +27,7 @@ class LogisticsError(frappe.ValidationError):
 	"""
 
 	http_status_code = 417
+	code = "LOGISTICS_ERROR"
 
 
 class CarrierAPIError(LogisticsError):
@@ -30,6 +38,7 @@ class CarrierAPIError(LogisticsError):
 	"""
 
 	http_status_code = 502
+	code = "CARRIER_API_ERROR"
 
 
 class CarrierTimeoutError(CarrierAPIError):
@@ -40,6 +49,7 @@ class CarrierTimeoutError(CarrierAPIError):
 	"""
 
 	http_status_code = 504
+	code = "CARRIER_TIMEOUT"
 
 
 class ShipmentStateError(LogisticsError):
@@ -50,6 +60,7 @@ class ShipmentStateError(LogisticsError):
 	"""
 
 	http_status_code = 409
+	code = "SHIPMENT_STATE_INVALID"
 
 
 class TrackingNotFoundError(LogisticsError):
@@ -60,6 +71,7 @@ class TrackingNotFoundError(LogisticsError):
 	"""
 
 	http_status_code = 404
+	code = "TRACKING_NOT_FOUND"
 
 
 class IdempotencyConflictError(LogisticsError):
@@ -70,6 +82,7 @@ class IdempotencyConflictError(LogisticsError):
 	"""
 
 	http_status_code = 409
+	code = "IDEMPOTENCY_CONFLICT"
 
 
 class SplitInvariantError(LogisticsError):
@@ -80,6 +93,7 @@ class SplitInvariantError(LogisticsError):
 	"""
 
 	http_status_code = 422
+	code = "SPLIT_INVARIANT_VIOLATION"
 
 
 class CarrierNotFoundError(LogisticsError):
@@ -90,6 +104,7 @@ class CarrierNotFoundError(LogisticsError):
 	"""
 
 	http_status_code = 404
+	code = "CARRIER_NOT_FOUND"
 
 
 class CarrierCapabilityError(LogisticsError):
@@ -100,3 +115,28 @@ class CarrierCapabilityError(LogisticsError):
 	"""
 
 	http_status_code = 400
+	code = "CARRIER_CAPABILITY_UNSUPPORTED"
+
+
+class FeatureDisabledError(LogisticsError):
+	"""İlgili lojistik feature flag'i kapalı.
+
+	HTTP 403 — Forbidden.
+	Modül veya özellik `Logistics Settings` üzerinden kapatıldığında fırlatılır.
+	Yetki eksikliğinden AYRI tutulur: istemci "yetkiniz yok" yerine
+	"bu özellik henüz açık değil" göstermeli.
+	"""
+
+	http_status_code = 403
+	code = "FEATURE_DISABLED"
+
+
+class CapabilityRequiredError(LogisticsError):
+	"""Gerekli capability kullanıcıda yok.
+
+	HTTP 403 — Forbidden.
+	Rol var ama ince taneli yetki (ör. `view.carrier_secret`) yoksa fırlatılır.
+	"""
+
+	http_status_code = 403
+	code = "CAPABILITY_REQUIRED"
