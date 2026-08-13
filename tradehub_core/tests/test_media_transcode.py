@@ -22,7 +22,9 @@ from frappe.tests.utils import FrappeTestCase
 from tradehub_core.media import transcode
 
 
-def _yeni_video_dosyasi(file_name: str, content: bytes = b"sahte video icerigi") -> "frappe.model.document.Document":
+def _yeni_video_dosyasi(
+	file_name: str, content: bytes = b"sahte video icerigi"
+) -> "frappe.model.document.Document":
 	doc = frappe.get_doc(
 		{"doctype": "File", "file_name": file_name, "is_private": 0, "content": content}
 	)
