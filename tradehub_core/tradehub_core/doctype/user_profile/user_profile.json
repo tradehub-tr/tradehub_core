@@ -527,14 +527,6 @@
 			"fieldtype": "Data",
 			"label": "Migrated From Seller Profile",
 			"read_only": 1
-		},
-		{
-			"fieldname": "erpnext_customer",
-			"fieldtype": "Link",
-			"hidden": 1,
-			"label": "ERPNext Customer",
-			"options": "Customer",
-			"read_only": 1
 		}
 	],
 	"permissions": [

@@ -19,6 +19,7 @@
 		"section_varsayilan_degerler",
 		"default_currency",
 		"shipment_naming_series",
+		"default_desi_divisor",
 		"section_varsayilanlar",
 		"default_logistics_provider",
 		"default_package_type",
@@ -107,6 +108,13 @@
 			"label": "Sevkiyat Numaralama Serisi"
 		},
 		{
+			"default": "3000",
+			"description": "Hacimsel ağırlık (desi) böleni. Türkiye standardı 3000, uluslararası DIM weight 5000.",
+			"fieldname": "default_desi_divisor",
+			"fieldtype": "Int",
+			"label": "Varsayılan Desi Böleni"
+		},
+		{
 			"fieldname": "section_varsayilanlar",
 			"fieldtype": "Section Break",
 			"label": "Varsayılanlar"
@@ -155,7 +163,7 @@
 	"index_web_pages_for_search": 0,
 	"issingle": 1,
 	"links": [],
-	"modified": "2026-08-07 10:00:00.000000",
+	"modified": "2026-08-12 10:00:00.000000",
 	"modified_by": "Administrator",
 	"module": "Tradehub Core",
 	"name": "Logistics Settings",

@@ -48,13 +48,10 @@ def invalidate_logistics_dashboard(
 	# Platform dashboard cache'i her zaman temizle
 	cache.delete_value(f"{CACHE_PREFIX}dashboard:platform")
 
-	# Seller-spesifik cache temizliği.
-	# Alan adı `seller_profile` — `seller` DEĞİL. Lojistik DocType'larında tenant
-	# alanı `Admin Seller Profile` link'i olan `seller_profile`'dır (bkz.
-	# permissions.py ve docs/LOGISTICS-ARCHITECTURE.md §9); `seller` başka anlam
-	# taşır. Yanlış alan adı okunduğu sürece satıcı cache'i hiç temizlenmiyordu.
-	seller_id = getattr(doc, "seller_profile", None) if doc else None
-	if seller_id:
+	# Seller-spesifik cache temizliği — Shipment tenant alanı seller_profile
+	# (Dalga B düzeltmesi: eski `seller` alan adı şemada hiç var olmadı).
+	if doc and hasattr(doc, "seller_profile") and doc.seller_profile:
+		seller_id = doc.seller_profile
 		cache.delete_value(f"{CACHE_PREFIX}dashboard:seller:{seller_id}")
 		cache.delete_value(f"{CACHE_PREFIX}shipment:count:{seller_id}")
 
