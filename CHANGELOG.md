@@ -1,3 +1,20 @@
+## [v1.13.1-alpha.13] - 2026-08-13 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(media): yükleme kuralları tek modülde, her kapıda geçerli (TUR-123) (@Metin Bektemur)
+
+### Duzeltildi
+- fix(logistics): tam denetim bulguları — tenant invariant'ı, yaşam döngüsü ve bütünlük düzeltmeleri (@boraydeger32)
+  - Platform-erişim invariant'ı: seller_profile'ı olan kullanıcı platform rolü (Logistics Manager) taşısa bile tenant-scoped değerlendirilir — cross-tenant erişim deliği kapandı; iptal dalı da aynı kurala bağlandı
+  - Sevkiyat silinince sipariş karşılanma durumu ve sevkiyat sayacı after_delete hook'uyla yeniden hesaplanıyor (bayat "Fulfilled" kalmıyor)
+  - Yeni sevkiyat yalnız Draft durumuyla oluşturulabilir — doğrudan "Delivered" insert ile durum makinesi baypası kapandı
+  - Tenant kullanıcısında ptype ayrımı: okuma serbest, yazma yalnız Logistics Operator/Manager; Seller Logistics salt-okuma
+  - Shipment Leg: Completed terminal, insert yalnız Planned, shipment başına leg_sequence tekliği
+  - Küçük mantık: boş idempotency_key normalize; iptalde already_cancelled bilgisi; desi böleni >0 validasyonu; origin adres Pickup sorguda; audit log'a doğru doctype; alıcı kendi alımının sevkiyatını görebilir; paket qty>=1 + paketler silinince toplamlar sıfırlanır
+
+---
 ## [v1.13.1-alpha.12] - 2026-08-13 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
