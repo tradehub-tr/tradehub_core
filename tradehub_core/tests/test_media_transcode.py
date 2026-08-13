@@ -99,6 +99,28 @@ class TestRunTranscode(FrappeTestCase):
 		durum = frappe.db.get_value("File", self.doc.name, "th_media_video_status")
 		self.assertEqual(durum, transcode.VIDEO_STATUS_FAILED)
 
+	def test_run_transcode_hata_durumunda_audit_log_yazar(self):
+		"""Fix round 1, Bulgu 2: hata dalı yalnız `frappe.log_error` çağırıyordu —
+		transcode başarısızlığı medya denetim ekranında (ADL) hiç görünmüyordu.
+		Brief Step 8: "hatada `failed` + audit" — başarı dalıyla aynı desen.
+		"""
+		with (
+			mock.patch(
+				"tradehub_core.media.transcode.subprocess.run",
+				side_effect=Exception("ffmpeg patladı"),
+			),
+			mock.patch("tradehub_core.media.transcode.audit.log_media_event") as mock_audit,
+		):
+			transcode._run_transcode(self.doc.file_url)
+
+		mock_audit.assert_called_once()
+		_args, kwargs = mock_audit.call_args
+		self.assertEqual(kwargs.get("file_url"), self.doc.file_url)
+		self.assertFalse(kwargs.get("allowed"))
+
+		durum = frappe.db.get_value("File", self.doc.name, "th_media_video_status")
+		self.assertEqual(durum, transcode.VIDEO_STATUS_FAILED)
+
 	def test_run_transcode_dosya_bulunamazsa_sessizce_cikar(self):
 		# Kuyruğa alındıktan sonra dosya silinmiş olabilir (satıcı bırakmış) —
 		# worker patlamamalı.
