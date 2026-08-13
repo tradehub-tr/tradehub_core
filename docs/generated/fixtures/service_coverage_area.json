@@ -1,0 +1,52 @@
+{
+	"default": {
+		"ok": true,
+		"data": {
+			"items": [
+				{
+					"name": "YK-YK-STD-İstanbul-Başakşehir",
+					"carrier": "YK",
+					"carrier_service": "YK-STD",
+					"city": "İstanbul",
+					"district": "Başakşehir",
+					"is_active": 1
+				},
+				{
+					"name": "YK-YK-STD-Şanlıurfa-Haliliye",
+					"carrier": "YK",
+					"carrier_service": "YK-STD",
+					"city": "Şanlıurfa",
+					"district": "Haliliye",
+					"is_active": 1
+				},
+				{
+					"name": "AK-AK-STD-Ankara-Çankaya",
+					"carrier": "AK",
+					"carrier_service": "AK-STD",
+					"city": "Ankara",
+					"district": "Çankaya",
+					"is_active": 1
+				}
+			],
+			"total": 3,
+			"page": 1,
+			"page_size": 50
+		}
+	},
+	"empty": {
+		"ok": true,
+		"data": {
+			"items": [],
+			"total": 0,
+			"page": 1,
+			"page_size": 50
+		}
+	},
+	"error": {
+		"ok": false,
+		"error": {
+			"code": "PERMISSION_DENIED",
+			"message": "Bu kataloğu görüntüleme yetkiniz yok."
+		}
+	}
+}

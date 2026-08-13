@@ -3,6 +3,5 @@
 
 """Fiyatlandirma kural motoru (ECA-inspired)."""
 
-from frappe import _
 
 # TODO(TUR-121): evaluate_pricing_rules, simulate_price

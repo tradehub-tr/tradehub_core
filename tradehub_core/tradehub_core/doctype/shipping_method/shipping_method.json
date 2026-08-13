@@ -16,8 +16,6 @@
 		"channel",
 		"max_weight",
 		"max_desi",
-		"estimated_delivery_days_min",
-		"estimated_delivery_days_max",
 		"sb_carrier_services",
 		"carrier_services",
 		"tab_pricing",
@@ -98,16 +96,6 @@
 			"label": "Max Desi"
 		},
 		{
-			"fieldname": "estimated_delivery_days_min",
-			"fieldtype": "Int",
-			"label": "Estimated Delivery Days Min"
-		},
-		{
-			"fieldname": "estimated_delivery_days_max",
-			"fieldtype": "Int",
-			"label": "Estimated Delivery Days Max"
-		},
-		{
 			"fieldname": "sb_carrier_services",
 			"fieldtype": "Section Break",
 			"label": "Taşıyıcı Servisleri"
@@ -169,7 +157,7 @@
 	],
 	"index_web_pages_for_search": 0,
 	"links": [],
-	"modified": "2026-08-07 10:00:00.000000",
+	"modified": "2026-08-12 15:00:00.000000",
 	"modified_by": "Administrator",
 	"module": "Tradehub Core",
 	"name": "Shipping Method",
@@ -191,6 +179,16 @@
 		{
 			"read": 1,
 			"role": "All"
+		},
+		{
+			"create": 1,
+			"read": 1,
+			"role": "Logistics Manager",
+			"write": 1
+		},
+		{
+			"read": 1,
+			"role": "Logistics Operator"
 		}
 	],
 	"quick_entry": 1,

@@ -1,0 +1,61 @@
+{
+	"default": {
+		"ok": true,
+		"data": {
+			"items": [
+				{
+					"name": "Standart Kargo",
+					"method_name": "Standart Kargo",
+					"shipping_type": "Standard",
+					"channel": "CARGO",
+					"is_active": 1,
+					"min_days": 2,
+					"max_days": 4,
+					"base_cost": 89.9,
+					"currency": "TRY"
+				},
+				{
+					"name": "Hızlı Kargo",
+					"method_name": "Hızlı Kargo",
+					"shipping_type": "Express",
+					"channel": "CARGO",
+					"is_active": 1,
+					"min_days": 1,
+					"max_days": 2,
+					"base_cost": 149.9,
+					"currency": "TRY"
+				},
+				{
+					"name": "Ambar Teslim",
+					"method_name": "Ambar Teslim",
+					"shipping_type": "Land",
+					"channel": "WAREHOUSE",
+					"is_active": 1,
+					"min_days": 3,
+					"max_days": 7,
+					"base_cost": 0,
+					"currency": "TRY"
+				}
+			],
+			"total": 3,
+			"page": 1,
+			"page_size": 50
+		}
+	},
+	"empty": {
+		"ok": true,
+		"data": {
+			"items": [],
+			"total": 0,
+			"page": 1,
+			"page_size": 50
+		}
+	},
+	"error": {
+		"ok": false,
+		"error": {
+			"code": "PERMISSION_DENIED",
+			"message": "Bu kataloğu görüntüleme yetkiniz yok."
+		}
+	}
+}

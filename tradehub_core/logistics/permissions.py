@@ -22,6 +22,8 @@ from __future__ import annotations
 
 import frappe
 
+from tradehub_core.logistics.constants import CACHE_PREFIX
+
 # ---------------------------------------------------------------------------
 # Platform rol kümeleri — permissions.py ana modülündeki ile tutarlı
 # ---------------------------------------------------------------------------
@@ -82,15 +84,55 @@ def _doc_field(doc: object, field: str) -> str | None:
 	return getattr(doc, field, None)
 
 
+# Tenant/kapsam sınırını aşma denemesi sayılan reddetme gerekçeleri — bunlar
+# saldırı sinyali olabilir, HIGH severity ile kaydedilir (utils/tenant.py ile aynı
+# konvansiyon).
+_CROSS_BOUNDARY_REASONS: frozenset[str] = frozenset({
+	"seller_profile_mismatch",
+	"platform_global_account_tenant_denied",
+})
+
+# Aynı (kullanıcı, eylem, nesne) reddi bu süre içinde tekrar yazılmaz.
+_DENY_DEDUP_TTL_SECONDS: int = 60
+
+
 def _log_deny(
 	user: str,
 	action: str,
 	doc: object | None = None,
 	reason: str = "",
 ) -> None:
-	"""Permission DENY kararını audit log'a yaz (best-effort)."""
+	"""Permission DENY kararını audit log'a yaz (best-effort).
+
+	İki filtre uygulanır — `log_decision` senkron bir DB insert'i olduğu için
+	her reddi yazmak istek gecikmesine ve ADL tablosunun şişmesine yol açıyordu:
+
+	1. **doc=None atlanır.** Doctype seviyesindeki kontrolleri Frappe her liste
+	   ve form açılışında çağırır ("Yeni" butonu gösterilsin mi?). Kullanıcı
+	   henüz bir şey denememişken satır yazmak sinyal değil gürültüdür; üstelik
+	   ADL şeması nesne bazlıdır, `object_name` boş kalırdı.
+	2. **Kısa süreli tekrar bastırma.** Aynı kullanıcının aynı nesneye aynı
+	   eylemi tekrar denemesi (sayfa yenileme, retry) 60 sn içinde tek satır
+	   üretir.
+
+	Tenant sınırını aşma denemeleri HIGH severity ile kaydedilir.
+	"""
+	if doc is None:
+		return
+
+	object_name = _doc_field(doc, "name")
+	dedup_key = f"{CACHE_PREFIX}deny:{user}:{action}:{object_name}"
+
 	try:
 		from tradehub_core.audit import log as audit
+
+		# expires=True ZORUNLU: Frappe'de `set_value(..., expires_in_sec=...)`
+		# değeri yalnız Redis'e yazar, `frappe.local.cache`'e yazmaz. `get_value`
+		# ise varsayılan `expires=False` ile ilk miss'i local cache'e None olarak
+		# yazar ve sonraki okumalar Redis'e hiç gitmez — dedup sessizce çalışmaz.
+		if frappe.cache.get_value(dedup_key, expires=True):
+			return
+		frappe.cache.set_value(dedup_key, 1, expires_in_sec=_DENY_DEDUP_TTL_SECONDS)
 
 		audit.log_decision(
 			actor=user,
@@ -98,9 +140,14 @@ def _log_deny(
 			decision=audit.DECISION_DENY,
 			layer=audit.LAYER_L2,
 			object_doctype="Shipment" if "shipment" in action else "Carrier Account",
-			object_name=_doc_field(doc, "name") if doc else None,
-			tenant=_doc_field(doc, "seller_profile") if doc else None,
+			object_name=object_name,
+			tenant=_doc_field(doc, "seller_profile"),
 			rule_id=f"logistics.{action}",
+			severity=(
+				audit.SEVERITY_HIGH
+				if reason in _CROSS_BOUNDARY_REASONS
+				else audit.SEVERITY_NORMAL
+			),
 			context={"reason": reason} if reason else None,
 		)
 	except Exception:  # noqa: BLE001 — audit hatası business flow'u bozmaz

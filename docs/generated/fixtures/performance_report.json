@@ -1,0 +1,70 @@
+{
+	"default": {
+		"ok": true,
+		"data": {
+			"items": [
+				{
+					"dimension": "YK",
+					"dimension_label": "Yurtiçi Kargo",
+					"shipment_count": 120,
+					"delivered_count": 108,
+					"delayed_count": 9,
+					"failed_count": 3,
+					"returned_count": 6,
+					"avg_delivery_days": 2.4,
+					"p90_delivery_days": 4.8,
+					"on_time_rate": 0.825,
+					"failure_rate": 0.025,
+					"return_rate": 0.05
+				},
+				{
+					"dimension": "AK",
+					"dimension_label": "Aras Kargo",
+					"shipment_count": 84,
+					"delivered_count": 79,
+					"delayed_count": 4,
+					"failed_count": 1,
+					"returned_count": 3,
+					"avg_delivery_days": 2.1,
+					"p90_delivery_days": 3.6,
+					"on_time_rate": 0.893,
+					"failure_rate": 0.012,
+					"return_rate": 0.036
+				},
+				{
+					"dimension": "MNG",
+					"dimension_label": "MNG Kargo",
+					"shipment_count": 41,
+					"delivered_count": 30,
+					"delayed_count": 11,
+					"failed_count": 7,
+					"returned_count": 4,
+					"avg_delivery_days": 2.9,
+					"p90_delivery_days": 8.5,
+					"on_time_rate": 0.463,
+					"failure_rate": 0.171,
+					"return_rate": 0.098
+				}
+			],
+			"total": 3,
+			"page": 1,
+			"page_size": 50
+		}
+	},
+	"empty": {
+		"ok": true,
+		"data": {
+			"items": [],
+			"total": 0,
+			"page": 1,
+			"page_size": 50
+		}
+	},
+	"error": {
+		"ok": false,
+		"error": {
+			"code": "PERMISSION_DENIED",
+			"message": "Bu kaydı görüntüleme yetkiniz yok."
+		}
+	}
+}

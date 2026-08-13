@@ -1,0 +1,92 @@
+{
+	"default": {
+		"ok": true,
+		"data": {
+			"items": [
+				{
+					"name": "ADDR_NOT_FOUND",
+					"exception_name": "Adres bulunamadi",
+					"exception_code": "ADDR_NOT_FOUND",
+					"exception_category": "Address",
+					"severity": "Warning",
+					"is_retriable": 1
+				},
+				{
+					"name": "RECIPIENT_ABSENT",
+					"exception_name": "Alici adreste degil",
+					"exception_code": "RECIPIENT_ABSENT",
+					"exception_category": "Recipient",
+					"severity": "Warning",
+					"is_retriable": 1
+				},
+				{
+					"name": "REFUSED",
+					"exception_name": "Teslim alinmadi / reddedildi",
+					"exception_code": "REFUSED",
+					"exception_category": "Recipient",
+					"severity": "Warning",
+					"is_retriable": 0
+				},
+				{
+					"name": "DAMAGED",
+					"exception_name": "Paket hasarli",
+					"exception_code": "DAMAGED",
+					"exception_category": "Package",
+					"severity": "Critical",
+					"is_retriable": 0
+				},
+				{
+					"name": "CUSTOMS_HOLD",
+					"exception_name": "Gumrukte bekliyor",
+					"exception_code": "CUSTOMS_HOLD",
+					"exception_category": "Customs",
+					"severity": "Warning",
+					"is_retriable": 1
+				},
+				{
+					"name": "WRONG_ADDRESS",
+					"exception_name": "Yanlis adres",
+					"exception_code": "WRONG_ADDRESS",
+					"exception_category": "Address",
+					"severity": "Warning",
+					"is_retriable": 1
+				},
+				{
+					"name": "SIZE_EXCEED",
+					"exception_name": "Boyut/agirlik limiti asildi",
+					"exception_code": "SIZE_EXCEED",
+					"exception_category": "Package",
+					"severity": "Warning",
+					"is_retriable": 0
+				},
+				{
+					"name": "WEATHER",
+					"exception_name": "Hava kosullari nedeniyle gecikme",
+					"exception_code": "WEATHER",
+					"exception_category": "Weather",
+					"severity": "Info",
+					"is_retriable": 1
+				}
+			],
+			"total": 8,
+			"page": 1,
+			"page_size": 50
+		}
+	},
+	"empty": {
+		"ok": true,
+		"data": {
+			"items": [],
+			"total": 0,
+			"page": 1,
+			"page_size": 50
+		}
+	},
+	"error": {
+		"ok": false,
+		"error": {
+			"code": "PERMISSION_DENIED",
+			"message": "Bu kataloğu görüntüleme yetkiniz yok."
+		}
+	}
+}

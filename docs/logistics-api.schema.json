@@ -1,0 +1,2961 @@
+{
+	"$comment": "ÜRETİLMİŞ DOSYA — elle düzenlemeyin.\nKaynak: tradehub_core Python sözleşmesi\nYeniden üret: python3 scripts/gen_logistics_types.py --sync",
+	"contract_version": "1.0.0",
+	"envelope": {
+		"success": {
+			"ok": true,
+			"data": "<payload>"
+		},
+		"error": {
+			"ok": false,
+			"error": {
+				"code": "<ErrorCode>",
+				"message": "<i18n>",
+				"details": "<optional>"
+			}
+		},
+		"note": "İstemci error.code üzerinden dallanır; error.message yalnız kullanıcıya gösterilir ve dallanma için kullanılmaz."
+	},
+	"pagination": {
+		"default_page_size": 50,
+		"max_page_size": 200,
+		"response_keys": [
+			"items",
+			"total",
+			"page",
+			"page_size"
+		]
+	},
+	"idempotency": {
+		"header": "Idempotency-Key",
+		"applies_to": [
+			"gönderi oluşturan/iptal eden uçlar (Faz F'te gelecek)"
+		],
+		"behavior": {
+			"same_key_same_body": "ilk yanıt tekrar döner, yeni işlem yapılmaz",
+			"same_key_different_body": "IDEMPOTENCY_CONFLICT (409)"
+		},
+		"ttl_hours": 24,
+		"status": "SÖZLEŞME REZERVE — implementasyon Faz F"
+	},
+	"enums": {
+		"ShipmentStatus": [
+			"Draft",
+			"Pending",
+			"Ready for Pickup",
+			"Picked Up",
+			"In Transit",
+			"At Warehouse",
+			"Out for Delivery",
+			"Delivered",
+			"Returned",
+			"Cancelled",
+			"Failed"
+		],
+		"ShipmentType": [
+			"Standard",
+			"Seller Delivery",
+			"Buyer Pickup",
+			"Warehouse Transfer"
+		],
+		"LegType": [
+			"Pickup",
+			"Line Haul",
+			"Transfer",
+			"Last Mile",
+			"Return"
+		],
+		"LegStatus": [
+			"Planned",
+			"In Progress",
+			"Arrived",
+			"Completed",
+			"Cancelled"
+		],
+		"CostPaidBy": [
+			"Seller",
+			"Buyer",
+			"Platform"
+		],
+		"TerminalStatus": [
+			"Cancelled",
+			"Delivered",
+			"Returned"
+		],
+		"FeatureFlag": [
+			"auto_tracking_enabled",
+			"buyer_pickup_enabled",
+			"carrier_api_enabled",
+			"cost_estimation_enabled",
+			"multi_carrier_enabled",
+			"multi_leg_enabled",
+			"return_flow_enabled",
+			"seller_delivery_enabled",
+			"shipping_zone_pricing_enabled",
+			"split_shipment_enabled",
+			"warehouse_transfer_enabled",
+			"webhook_notifications_enabled"
+		]
+	},
+	"error_codes": {
+		"CAPABILITY_REQUIRED": 403,
+		"CARRIER_API_ERROR": 502,
+		"CARRIER_CAPABILITY_UNSUPPORTED": 400,
+		"CARRIER_NOT_FOUND": 404,
+		"CARRIER_TIMEOUT": 504,
+		"DUPLICATE_ENTRY": 409,
+		"FEATURE_DISABLED": 403,
+		"IDEMPOTENCY_CONFLICT": 409,
+		"INTERNAL_ERROR": 500,
+		"LOGISTICS_ERROR": 417,
+		"NOT_FOUND": 404,
+		"PERMISSION_DENIED": 403,
+		"SHIPMENT_STATE_INVALID": 409,
+		"SPLIT_INVARIANT_VIOLATION": 422,
+		"TRACKING_NOT_FOUND": 404,
+		"VALIDATION_ERROR": 417
+	},
+	"catalogs": {
+		"shipping_channel": {
+			"doctype": "Shipping Channel",
+			"list_fields": [
+				{
+					"name": "name",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "channel_name",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "channel_code",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "is_active",
+					"type": "Check",
+					"ts": "number",
+					"required": false
+				}
+			],
+			"detail_fields": [
+				{
+					"name": "icon",
+					"type": "Attach Image",
+					"ts": "string",
+					"required": false
+				},
+				{
+					"name": "description",
+					"type": "Small Text",
+					"ts": "string",
+					"required": false
+				}
+			],
+			"child_tables": {},
+			"searchable": [
+				"channel_name",
+				"channel_code"
+			],
+			"filters": [],
+			"default_sort": "channel_name asc"
+		},
+		"shipping_method": {
+			"doctype": "Shipping Method",
+			"list_fields": [
+				{
+					"name": "name",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "method_name",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "shipping_type",
+					"type": "Select",
+					"ts": "string",
+					"required": false,
+					"choices": [
+						"Express",
+						"Air",
+						"Sea",
+						"Land",
+						"Standard"
+					]
+				},
+				{
+					"name": "channel",
+					"type": "Link",
+					"ts": "string",
+					"required": false,
+					"link": "Shipping Channel"
+				},
+				{
+					"name": "is_active",
+					"type": "Check",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "min_days",
+					"type": "Int",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "max_days",
+					"type": "Int",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "base_cost",
+					"type": "Currency",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "currency",
+					"type": "Link",
+					"ts": "string",
+					"required": false,
+					"link": "Currency"
+				}
+			],
+			"detail_fields": [
+				{
+					"name": "max_weight",
+					"type": "Float",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "max_desi",
+					"type": "Float",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "cost_per_kg",
+					"type": "Currency",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "free_shipping_threshold",
+					"type": "Currency",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "description",
+					"type": "Small Text",
+					"ts": "string",
+					"required": false
+				}
+			],
+			"child_tables": {
+				"carrier_services": [
+					{
+						"name": "carrier_service",
+						"type": "Link",
+						"ts": "string",
+						"required": true,
+						"link": "Carrier Service"
+					},
+					{
+						"name": "service_name",
+						"type": "Data",
+						"ts": "string",
+						"required": false
+					},
+					{
+						"name": "is_preferred",
+						"type": "Check",
+						"ts": "number",
+						"required": false
+					},
+					{
+						"name": "priority",
+						"type": "Int",
+						"ts": "number",
+						"required": false
+					}
+				]
+			},
+			"searchable": [
+				"method_name"
+			],
+			"filters": [
+				"channel",
+				"shipping_type"
+			],
+			"default_sort": "method_name asc"
+		},
+		"logistics_provider": {
+			"doctype": "Logistics Provider",
+			"list_fields": [
+				{
+					"name": "name",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "provider_name",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "provider_code",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "provider_type",
+					"type": "Select",
+					"ts": "string",
+					"required": false,
+					"choices": [
+						"Kargo",
+						"Ambar",
+						"Kurye",
+						"Marketplace"
+					]
+				},
+				{
+					"name": "integration_type",
+					"type": "Select",
+					"ts": "string",
+					"required": false,
+					"choices": [
+						"API",
+						"Manual",
+						"Webhook"
+					]
+				},
+				{
+					"name": "country",
+					"type": "Link",
+					"ts": "string",
+					"required": false,
+					"link": "Country"
+				},
+				{
+					"name": "is_active",
+					"type": "Check",
+					"ts": "number",
+					"required": false
+				}
+			],
+			"detail_fields": [
+				{
+					"name": "logo",
+					"type": "Attach Image",
+					"ts": "string",
+					"required": false
+				},
+				{
+					"name": "website",
+					"type": "Data",
+					"ts": "string",
+					"required": false
+				},
+				{
+					"name": "support_phone",
+					"type": "Data",
+					"ts": "string",
+					"required": false
+				},
+				{
+					"name": "support_email",
+					"type": "Data",
+					"ts": "string",
+					"required": false
+				}
+			],
+			"child_tables": {
+				"operating_channels": [
+					{
+						"name": "shipping_channel",
+						"type": "Link",
+						"ts": "string",
+						"required": true,
+						"link": "Shipping Channel"
+					},
+					{
+						"name": "channel_name",
+						"type": "Data",
+						"ts": "string",
+						"required": false
+					}
+				]
+			},
+			"searchable": [
+				"provider_name",
+				"provider_code"
+			],
+			"filters": [
+				"provider_type",
+				"integration_type",
+				"country"
+			],
+			"default_sort": "provider_name asc"
+		},
+		"carrier_service": {
+			"doctype": "Carrier Service",
+			"list_fields": [
+				{
+					"name": "name",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "service_name",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "service_code",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "carrier",
+					"type": "Link",
+					"ts": "string",
+					"required": true,
+					"link": "Logistics Provider"
+				},
+				{
+					"name": "service_type",
+					"type": "Select",
+					"ts": "string",
+					"required": false,
+					"choices": [
+						"Standard",
+						"Express",
+						"Economy",
+						"Same Day",
+						"Scheduled"
+					]
+				},
+				{
+					"name": "is_active",
+					"type": "Check",
+					"ts": "number",
+					"required": false
+				}
+			],
+			"detail_fields": [
+				{
+					"name": "max_weight",
+					"type": "Float",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "max_desi",
+					"type": "Float",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "estimated_days_min",
+					"type": "Int",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "estimated_days_max",
+					"type": "Int",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "supports_cod",
+					"type": "Check",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "supports_insurance",
+					"type": "Check",
+					"ts": "number",
+					"required": false
+				}
+			],
+			"child_tables": {},
+			"searchable": [
+				"service_name",
+				"service_code"
+			],
+			"filters": [
+				"carrier",
+				"service_type"
+			],
+			"default_sort": "service_name asc"
+		},
+		"carrier_branch": {
+			"doctype": "Carrier Branch",
+			"list_fields": [
+				{
+					"name": "name",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "branch_name",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "branch_code",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "carrier",
+					"type": "Link",
+					"ts": "string",
+					"required": true,
+					"link": "Logistics Provider"
+				},
+				{
+					"name": "branch_type",
+					"type": "Select",
+					"ts": "string",
+					"required": false,
+					"choices": [
+						"Hub",
+						"Transfer Center",
+						"Distribution Point",
+						"Service Point",
+						"Locker"
+					]
+				},
+				{
+					"name": "city",
+					"type": "Data",
+					"ts": "string",
+					"required": false
+				},
+				{
+					"name": "district",
+					"type": "Data",
+					"ts": "string",
+					"required": false
+				},
+				{
+					"name": "is_active",
+					"type": "Check",
+					"ts": "number",
+					"required": false
+				}
+			],
+			"detail_fields": [
+				{
+					"name": "postal_code",
+					"type": "Data",
+					"ts": "string",
+					"required": false
+				},
+				{
+					"name": "address",
+					"type": "Small Text",
+					"ts": "string",
+					"required": false
+				},
+				{
+					"name": "phone",
+					"type": "Data",
+					"ts": "string",
+					"required": false
+				},
+				{
+					"name": "latitude",
+					"type": "Float",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "longitude",
+					"type": "Float",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "operating_hours",
+					"type": "JSON",
+					"ts": "Record<string, unknown> | null",
+					"required": false
+				}
+			],
+			"child_tables": {},
+			"searchable": [
+				"branch_name",
+				"branch_code",
+				"city"
+			],
+			"filters": [
+				"carrier",
+				"city",
+				"branch_type"
+			],
+			"default_sort": "city asc"
+		},
+		"service_coverage_area": {
+			"doctype": "Service Coverage Area",
+			"list_fields": [
+				{
+					"name": "name",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "carrier",
+					"type": "Link",
+					"ts": "string",
+					"required": true,
+					"link": "Logistics Provider"
+				},
+				{
+					"name": "carrier_service",
+					"type": "Link",
+					"ts": "string",
+					"required": false,
+					"link": "Carrier Service"
+				},
+				{
+					"name": "city",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "district",
+					"type": "Data",
+					"ts": "string",
+					"required": false
+				},
+				{
+					"name": "is_active",
+					"type": "Check",
+					"ts": "number",
+					"required": false
+				}
+			],
+			"detail_fields": [
+				{
+					"name": "postal_code_from",
+					"type": "Data",
+					"ts": "string",
+					"required": false
+				},
+				{
+					"name": "postal_code_to",
+					"type": "Data",
+					"ts": "string",
+					"required": false
+				},
+				{
+					"name": "estimated_days_override",
+					"type": "Int",
+					"ts": "number",
+					"required": false
+				}
+			],
+			"child_tables": {},
+			"searchable": [
+				"city",
+				"district"
+			],
+			"filters": [
+				"carrier",
+				"carrier_service",
+				"city"
+			],
+			"default_sort": "city asc"
+		},
+		"carrier_status_mapping": {
+			"doctype": "Carrier Status Mapping",
+			"list_fields": [
+				{
+					"name": "name",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "carrier",
+					"type": "Link",
+					"ts": "string",
+					"required": true,
+					"link": "Logistics Provider"
+				},
+				{
+					"name": "carrier_status_code",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "carrier_status_text",
+					"type": "Data",
+					"ts": "string",
+					"required": false
+				},
+				{
+					"name": "internal_status",
+					"type": "Select",
+					"ts": "string",
+					"required": true,
+					"choices": [
+						"Draft",
+						"Pending",
+						"Ready for Pickup",
+						"Picked Up",
+						"In Transit",
+						"At Warehouse",
+						"Out for Delivery",
+						"Delivered",
+						"Returned",
+						"Cancelled",
+						"Failed"
+					]
+				},
+				{
+					"name": "exception_code",
+					"type": "Link",
+					"ts": "string",
+					"required": false,
+					"link": "Shipment Exception Code"
+				}
+			],
+			"detail_fields": [],
+			"child_tables": {},
+			"searchable": [
+				"carrier_status_code",
+				"carrier_status_text"
+			],
+			"filters": [
+				"carrier",
+				"internal_status"
+			],
+			"default_sort": "carrier asc"
+		},
+		"package_type": {
+			"doctype": "Package Type",
+			"list_fields": [
+				{
+					"name": "name",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "package_name",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "package_code",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "is_default",
+					"type": "Check",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "is_active",
+					"type": "Check",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "max_weight_kg",
+					"type": "Float",
+					"ts": "number",
+					"required": false
+				}
+			],
+			"detail_fields": [
+				{
+					"name": "max_length_cm",
+					"type": "Float",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "max_width_cm",
+					"type": "Float",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "max_height_cm",
+					"type": "Float",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "max_desi",
+					"type": "Float",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "description",
+					"type": "Small Text",
+					"ts": "string",
+					"required": false
+				}
+			],
+			"child_tables": {},
+			"searchable": [
+				"package_name",
+				"package_code"
+			],
+			"filters": [],
+			"default_sort": "package_name asc"
+		},
+		"vehicle_type": {
+			"doctype": "Vehicle Type",
+			"list_fields": [
+				{
+					"name": "name",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "vehicle_name",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "vehicle_code",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "vehicle_category",
+					"type": "Select",
+					"ts": "string",
+					"required": false,
+					"choices": [
+						"Motokurye",
+						"Panelvan",
+						"Kamyonet",
+						"Kamyon",
+						"TIR"
+					]
+				},
+				{
+					"name": "is_active",
+					"type": "Check",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "max_weight_kg",
+					"type": "Float",
+					"ts": "number",
+					"required": false
+				}
+			],
+			"detail_fields": [
+				{
+					"name": "max_volume_m3",
+					"type": "Float",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "max_desi",
+					"type": "Float",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "description",
+					"type": "Small Text",
+					"ts": "string",
+					"required": false
+				}
+			],
+			"child_tables": {},
+			"searchable": [
+				"vehicle_name",
+				"vehicle_code"
+			],
+			"filters": [
+				"vehicle_category"
+			],
+			"default_sort": "vehicle_name asc"
+		},
+		"shipment_exception_code": {
+			"doctype": "Shipment Exception Code",
+			"list_fields": [
+				{
+					"name": "name",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "exception_name",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "exception_code",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "exception_category",
+					"type": "Select",
+					"ts": "string",
+					"required": false,
+					"choices": [
+						"Address",
+						"Recipient",
+						"Package",
+						"Customs",
+						"Weather",
+						"Other"
+					]
+				},
+				{
+					"name": "severity",
+					"type": "Select",
+					"ts": "string",
+					"required": false,
+					"choices": [
+						"Info",
+						"Warning",
+						"Critical"
+					]
+				},
+				{
+					"name": "is_retriable",
+					"type": "Check",
+					"ts": "number",
+					"required": false
+				}
+			],
+			"detail_fields": [
+				{
+					"name": "description",
+					"type": "Small Text",
+					"ts": "string",
+					"required": false
+				},
+				{
+					"name": "suggested_action",
+					"type": "Small Text",
+					"ts": "string",
+					"required": false
+				}
+			],
+			"child_tables": {},
+			"searchable": [
+				"exception_name",
+				"exception_code"
+			],
+			"filters": [
+				"exception_category",
+				"severity"
+			],
+			"default_sort": "exception_code asc"
+		}
+	},
+	"admin": {
+		"carrier_account": {
+			"doctype": "Carrier Account",
+			"fields": [
+				{
+					"name": "name",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "account_name",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "carrier",
+					"type": "Link",
+					"ts": "string",
+					"required": true,
+					"link": "Logistics Provider"
+				},
+				{
+					"name": "seller_profile",
+					"type": "Link",
+					"ts": "string",
+					"required": false,
+					"link": "Admin Seller Profile"
+				},
+				{
+					"name": "environment",
+					"type": "Select",
+					"ts": "string",
+					"required": false,
+					"choices": [
+						"Production",
+						"Sandbox"
+					]
+				},
+				{
+					"name": "is_active",
+					"type": "Check",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "is_default",
+					"type": "Check",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "base_url",
+					"type": "Data",
+					"ts": "string",
+					"required": false
+				},
+				{
+					"name": "token_expiry",
+					"type": "Datetime",
+					"ts": "string",
+					"required": false
+				}
+			],
+			"secret_fields": [
+				"api_key",
+				"api_secret",
+				"webhook_secret",
+				"access_token"
+			]
+		},
+		"settings": {
+			"doctype": "Logistics Settings",
+			"fields": [
+				{
+					"name": "logistics_enabled",
+					"type": "Check",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "auto_tracking_enabled",
+					"type": "Check",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "tracking_poll_interval_minutes",
+					"type": "Int",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "sla_breach_notify_hours",
+					"type": "Int",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "default_currency",
+					"type": "Link",
+					"ts": "string",
+					"required": false,
+					"link": "Currency"
+				},
+				{
+					"name": "shipment_naming_series",
+					"type": "Data",
+					"ts": "string",
+					"required": false
+				},
+				{
+					"name": "default_logistics_provider",
+					"type": "Link",
+					"ts": "string",
+					"required": false,
+					"link": "Logistics Provider"
+				},
+				{
+					"name": "default_package_type",
+					"type": "Link",
+					"ts": "string",
+					"required": false,
+					"link": "Package Type"
+				},
+				{
+					"name": "default_vehicle_type",
+					"type": "Link",
+					"ts": "string",
+					"required": false,
+					"link": "Vehicle Type"
+				},
+				{
+					"name": "auto_assign_carrier",
+					"type": "Check",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "max_delivery_attempts",
+					"type": "Int",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "return_window_days",
+					"type": "Int",
+					"ts": "number",
+					"required": false
+				}
+			]
+		},
+		"capabilities": [
+			"shipment.create",
+			"shipment.write",
+			"shipment.cancel",
+			"shipment.split",
+			"view.logistics_cost",
+			"view.tracking",
+			"carrier_credential.manage",
+			"view.carrier_secret"
+		]
+	},
+	"provisional": {
+		"shipment": {
+			"provisional": true,
+			"label": "Sevkiyat",
+			"source_tasks": [
+				"TUR-105",
+				"TUR-106",
+				"TUR-107"
+			],
+			"list_fields": [
+				{
+					"name": "name",
+					"type": "Data",
+					"ts": "string",
+					"required": true,
+					"note": "SHP-YYYY-##### (TUR-105 naming)"
+				},
+				{
+					"name": "order",
+					"type": "Link",
+					"ts": "string",
+					"required": true,
+					"note": "Kaynak sipariş"
+				},
+				{
+					"name": "seller_profile",
+					"type": "Link",
+					"ts": "string",
+					"required": true,
+					"note": "Tenant sahibi — satıcı yalnız kendi grubunu görür"
+				},
+				{
+					"name": "buyer",
+					"type": "Link",
+					"ts": "string",
+					"required": false,
+					"note": "Alıcı kullanıcı"
+				},
+				{
+					"name": "status",
+					"type": "Select",
+					"ts": "string",
+					"required": true,
+					"note": "ShipmentStatus enum'ından"
+				},
+				{
+					"name": "shipment_type",
+					"type": "Select",
+					"ts": "string",
+					"required": true,
+					"note": "ShipmentType enum'ından"
+				},
+				{
+					"name": "channel",
+					"type": "Link",
+					"ts": "string",
+					"required": false,
+					"note": "Shipping Channel"
+				},
+				{
+					"name": "carrier",
+					"type": "Link",
+					"ts": "string",
+					"required": false,
+					"note": "Logistics Provider"
+				},
+				{
+					"name": "carrier_service",
+					"type": "Link",
+					"ts": "string",
+					"required": false,
+					"note": "Carrier Service"
+				},
+				{
+					"name": "tracking_number",
+					"type": "Data",
+					"ts": "string",
+					"required": false,
+					"note": "Takip veya fiş numarası (TUR-107)"
+				},
+				{
+					"name": "package_count",
+					"type": "Int",
+					"ts": "number",
+					"required": false,
+					"note": "Toplam koli adedi"
+				},
+				{
+					"name": "chargeable_weight",
+					"type": "Float",
+					"ts": "number",
+					"required": false,
+					"note": "Ücretlendirilebilir ağırlık (desi kuralı)"
+				},
+				{
+					"name": "shipped_date",
+					"type": "Date",
+					"ts": "string",
+					"required": false,
+					"note": "Sevk tarihi"
+				},
+				{
+					"name": "estimated_delivery_date",
+					"type": "Date",
+					"ts": "string",
+					"required": false,
+					"note": "Tahmini teslim"
+				},
+				{
+					"name": "delivered_date",
+					"type": "Date",
+					"ts": "string",
+					"required": false,
+					"note": "Gerçekleşen teslim"
+				},
+				{
+					"name": "is_delayed",
+					"type": "Check",
+					"ts": "number",
+					"required": false,
+					"note": "Gecikme tespiti (TUR-112)"
+				},
+				{
+					"name": "modified",
+					"type": "Datetime",
+					"ts": "string",
+					"required": false,
+					"note": "Son güncelleme"
+				}
+			],
+			"detail_fields": [
+				{
+					"name": "origin_address_snapshot",
+					"type": "JSON",
+					"ts": "Record<string, unknown> | null",
+					"required": false,
+					"note": "Adres SNAPSHOT — sonradan bozulmaz (TUR-105)"
+				},
+				{
+					"name": "destination_address_snapshot",
+					"type": "JSON",
+					"ts": "Record<string, unknown> | null",
+					"required": false,
+					"note": "Adres snapshot"
+				},
+				{
+					"name": "warehouse",
+					"type": "Link",
+					"ts": "string",
+					"required": false,
+					"note": "Çıkış deposu"
+				},
+				{
+					"name": "total_weight",
+					"type": "Float",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "total_desi",
+					"type": "Float",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "cost_paid_by",
+					"type": "Select",
+					"ts": "string",
+					"required": false,
+					"note": "CostPaidBy enum'ından (TUR-107)"
+				},
+				{
+					"name": "carrier_cost",
+					"type": "Currency",
+					"ts": "number",
+					"required": false,
+					"note": "Taşıyıcı ALIŞ maliyeti — TUR-121 ayrımı"
+				},
+				{
+					"name": "customer_charge",
+					"type": "Currency",
+					"ts": "number",
+					"required": false,
+					"note": "Müşteriye YANSITILAN ücret"
+				},
+				{
+					"name": "currency",
+					"type": "Link",
+					"ts": "string",
+					"required": false
+				},
+				{
+					"name": "exception_code",
+					"type": "Link",
+					"ts": "string",
+					"required": false,
+					"note": "Shipment Exception Code"
+				},
+				{
+					"name": "delivery_code_required",
+					"type": "Check",
+					"ts": "number",
+					"required": false,
+					"note": "Tek kullanımlık teslim kodu (TUR-108)"
+				},
+				{
+					"name": "payment_required_before_delivery",
+					"type": "Check",
+					"ts": "number",
+					"required": false,
+					"note": "Ödeme şartlı teslim (TUR-108)"
+				},
+				{
+					"name": "notes",
+					"type": "Small Text",
+					"ts": "string",
+					"required": false
+				},
+				{
+					"name": "driver_name",
+					"type": "Data",
+					"ts": "string",
+					"required": false,
+					"note": "Satıcı aracı sürücüsü (TUR-108)"
+				},
+				{
+					"name": "driver_phone",
+					"type": "Data",
+					"ts": "string",
+					"required": false,
+					"note": "Sürücü iletişim"
+				},
+				{
+					"name": "vehicle_plate",
+					"type": "Data",
+					"ts": "string",
+					"required": false,
+					"note": "Araç plakası"
+				},
+				{
+					"name": "appointment_at",
+					"type": "Datetime",
+					"ts": "string",
+					"required": false,
+					"note": "Randevu zamanı — satıcı teslimi / alıcı teslim alma"
+				},
+				{
+					"name": "appointment_window",
+					"type": "Data",
+					"ts": "string",
+					"required": false,
+					"note": "Randevu aralığı, ör. 09:00-12:00"
+				},
+				{
+					"name": "delivery_code_status",
+					"type": "Select",
+					"ts": "string",
+					"required": false,
+					"note": "not_required | pending | verified | failed — kodun DEĞERİ hiç dönmez"
+				},
+				{
+					"name": "delivery_code_attempts",
+					"type": "Int",
+					"ts": "number",
+					"required": false,
+					"note": "Yanlış kod denemesi sayısı"
+				},
+				{
+					"name": "pickup_location",
+					"type": "Data",
+					"ts": "string",
+					"required": false,
+					"note": "Alıcı teslim alma noktası (TUR-108)"
+				},
+				{
+					"name": "payment_status",
+					"type": "Select",
+					"ts": "string",
+					"required": false,
+					"note": "unpaid | paid | waived — ödeme şartlı teslimde kapı"
+				}
+			],
+			"child_tables": {
+				"items": [
+					{
+						"name": "item",
+						"type": "Link",
+						"ts": "string",
+						"required": true,
+						"note": "Listing / ürün"
+					},
+					{
+						"name": "item_name",
+						"type": "Data",
+						"ts": "string",
+						"required": true
+					},
+					{
+						"name": "ordered_qty",
+						"type": "Float",
+						"ts": "number",
+						"required": true,
+						"note": "Siparişteki miktar"
+					},
+					{
+						"name": "shipped_qty",
+						"type": "Float",
+						"ts": "number",
+						"required": true,
+						"note": "Bu sevkiyattaki miktar"
+					},
+					{
+						"name": "remaining_qty",
+						"type": "Float",
+						"ts": "number",
+						"required": false,
+						"note": "Kalan — TUR-106 invariant'ı"
+					},
+					{
+						"name": "uom",
+						"type": "Data",
+						"ts": "string",
+						"required": false,
+						"note": "Birim"
+					},
+					{
+						"name": "weight_kg",
+						"type": "Float",
+						"ts": "number",
+						"required": false
+					},
+					{
+						"name": "returned_qty",
+						"type": "Float",
+						"ts": "number",
+						"required": false,
+						"note": "İade edilen (TUR-116)"
+					}
+				],
+				"packages": [
+					{
+						"name": "package_code",
+						"type": "Data",
+						"ts": "string",
+						"required": true,
+						"note": "Benzersiz paket kodu (TUR-114)"
+					},
+					{
+						"name": "sequence_label",
+						"type": "Data",
+						"ts": "string",
+						"required": true,
+						"note": "X/Y koli numarası, ör. 2/5"
+					},
+					{
+						"name": "package_type",
+						"type": "Link",
+						"ts": "string",
+						"required": false,
+						"note": "Package Type katalogundan"
+					},
+					{
+						"name": "parent_package",
+						"type": "Data",
+						"ts": "string",
+						"required": false,
+						"note": "Palet hiyerarşisi (TUR-120)"
+					},
+					{
+						"name": "length_cm",
+						"type": "Float",
+						"ts": "number",
+						"required": false
+					},
+					{
+						"name": "width_cm",
+						"type": "Float",
+						"ts": "number",
+						"required": false
+					},
+					{
+						"name": "height_cm",
+						"type": "Float",
+						"ts": "number",
+						"required": false
+					},
+					{
+						"name": "weight_kg",
+						"type": "Float",
+						"ts": "number",
+						"required": false
+					},
+					{
+						"name": "desi",
+						"type": "Float",
+						"ts": "number",
+						"required": false
+					},
+					{
+						"name": "barcode_url",
+						"type": "Data",
+						"ts": "string",
+						"required": false,
+						"note": "Barkod görseli"
+					},
+					{
+						"name": "label_url",
+						"type": "Data",
+						"ts": "string",
+						"required": false,
+						"note": "Etiket PDF'i"
+					},
+					{
+						"name": "label_printed_at",
+						"type": "Datetime",
+						"ts": "string",
+						"required": false,
+						"note": "Yeniden üretim geçmişi için"
+					}
+				],
+				"legs": [
+					{
+						"name": "sequence",
+						"type": "Int",
+						"ts": "number",
+						"required": true,
+						"note": "Bacak sırası"
+					},
+					{
+						"name": "leg_type",
+						"type": "Select",
+						"ts": "string",
+						"required": true,
+						"note": "LegType enum'ından"
+					},
+					{
+						"name": "status",
+						"type": "Select",
+						"ts": "string",
+						"required": true,
+						"note": "LegStatus enum'ından"
+					},
+					{
+						"name": "carrier",
+						"type": "Link",
+						"ts": "string",
+						"required": false,
+						"note": "Bu bacağın taşıyıcısı"
+					},
+					{
+						"name": "origin_branch",
+						"type": "Link",
+						"ts": "string",
+						"required": false,
+						"note": "Carrier Branch — çıkış"
+					},
+					{
+						"name": "destination_branch",
+						"type": "Link",
+						"ts": "string",
+						"required": false,
+						"note": "Carrier Branch — varış"
+					},
+					{
+						"name": "handover_point",
+						"type": "Data",
+						"ts": "string",
+						"required": false,
+						"note": "Kargoya devir noktası (TUR-109)"
+					},
+					{
+						"name": "handover_proof",
+						"type": "Data",
+						"ts": "string",
+						"required": false,
+						"note": "Devir kanıtı"
+					},
+					{
+						"name": "vehicle_type",
+						"type": "Link",
+						"ts": "string",
+						"required": false
+					},
+					{
+						"name": "started_at",
+						"type": "Datetime",
+						"ts": "string",
+						"required": false
+					},
+					{
+						"name": "completed_at",
+						"type": "Datetime",
+						"ts": "string",
+						"required": false
+					},
+					{
+						"name": "cost",
+						"type": "Currency",
+						"ts": "number",
+						"required": false,
+						"note": "Bacak bazlı maliyet — bağımsız görülebilmeli"
+					}
+				],
+				"events": [
+					{
+						"name": "event_time",
+						"type": "Datetime",
+						"ts": "string",
+						"required": true
+					},
+					{
+						"name": "status",
+						"type": "Select",
+						"ts": "string",
+						"required": true,
+						"note": "Normalize edilmiş iç durum"
+					},
+					{
+						"name": "source",
+						"type": "Select",
+						"ts": "string",
+						"required": true,
+						"note": "manual | api | webhook | polling (TUR-112)"
+					},
+					{
+						"name": "carrier_status_code",
+						"type": "Data",
+						"ts": "string",
+						"required": false,
+						"note": "Ham taşıyıcı kodu — izlenebilirlik"
+					},
+					{
+						"name": "carrier_status_text",
+						"type": "Data",
+						"ts": "string",
+						"required": false
+					},
+					{
+						"name": "location",
+						"type": "Data",
+						"ts": "string",
+						"required": false,
+						"note": "İstasyon/şube (TUR-115)"
+					},
+					{
+						"name": "description",
+						"type": "Small Text",
+						"ts": "string",
+						"required": false
+					},
+					{
+						"name": "exception_code",
+						"type": "Link",
+						"ts": "string",
+						"required": false
+					},
+					{
+						"name": "actor",
+						"type": "Link",
+						"ts": "string",
+						"required": false,
+						"note": "Manuel değişiklikte kullanıcı (audit)"
+					},
+					{
+						"name": "reason",
+						"type": "Small Text",
+						"ts": "string",
+						"required": false,
+						"note": "Manuel değişiklik gerekçesi (TUR-107)"
+					},
+					{
+						"name": "dedupe_key",
+						"type": "Data",
+						"ts": "string",
+						"required": false,
+						"note": "Aynı olay iki kez işlenmesin (TUR-112)"
+					}
+				]
+			}
+		},
+		"proof_of_delivery": {
+			"provisional": true,
+			"label": "Teslim Kanıtı",
+			"source_tasks": [
+				"TUR-115"
+			],
+			"list_fields": [
+				{
+					"name": "delivered_at",
+					"type": "Datetime",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "received_by",
+					"type": "Data",
+					"ts": "string",
+					"required": true,
+					"note": "Teslim alan kişi"
+				},
+				{
+					"name": "delivery_code_used",
+					"type": "Check",
+					"ts": "number",
+					"required": false,
+					"note": "Tek kullanımlık kod doğrulandı mı"
+				},
+				{
+					"name": "signature_url",
+					"type": "Data",
+					"ts": "string",
+					"required": false,
+					"note": "Yetki kontrollü"
+				},
+				{
+					"name": "photo_url",
+					"type": "Data",
+					"ts": "string",
+					"required": false,
+					"note": "Yetki kontrollü"
+				},
+				{
+					"name": "document_url",
+					"type": "Data",
+					"ts": "string",
+					"required": false
+				},
+				{
+					"name": "location_source",
+					"type": "Select",
+					"ts": "string",
+					"required": false,
+					"note": "Konum kaynağı görünür olmalı"
+				},
+				{
+					"name": "location_recorded_at",
+					"type": "Datetime",
+					"ts": "string",
+					"required": false
+				}
+			],
+			"detail_fields": [],
+			"child_tables": {}
+		},
+		"return_request": {
+			"provisional": true,
+			"label": "İade Talebi",
+			"source_tasks": [
+				"TUR-116"
+			],
+			"list_fields": [
+				{
+					"name": "name",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "order",
+					"type": "Link",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "shipment",
+					"type": "Link",
+					"ts": "string",
+					"required": false,
+					"note": "Orijinal sevkiyatla çift yönlü ilişki"
+				},
+				{
+					"name": "seller_profile",
+					"type": "Link",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "buyer",
+					"type": "Link",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "status",
+					"type": "Select",
+					"ts": "string",
+					"required": true,
+					"note": "requested | approved | rejected | in_transit | inspecting | closed"
+				},
+				{
+					"name": "reason",
+					"type": "Select",
+					"ts": "string",
+					"required": true,
+					"note": "İade nedeni"
+				},
+				{
+					"name": "requested_at",
+					"type": "Datetime",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "decided_at",
+					"type": "Datetime",
+					"ts": "string",
+					"required": false
+				},
+				{
+					"name": "is_closed",
+					"type": "Check",
+					"ts": "number",
+					"required": false,
+					"note": "Kapanınca DEĞİŞTİRİLEMEZ"
+				}
+			],
+			"detail_fields": [
+				{
+					"name": "decision_note",
+					"type": "Small Text",
+					"ts": "string",
+					"required": false,
+					"note": "Onay/red gerekçesi — audit"
+				},
+				{
+					"name": "return_shipment",
+					"type": "Link",
+					"ts": "string",
+					"required": false,
+					"note": "Ters yönlü sevkiyat"
+				},
+				{
+					"name": "return_label_url",
+					"type": "Data",
+					"ts": "string",
+					"required": false
+				},
+				{
+					"name": "inspection_result",
+					"type": "Select",
+					"ts": "string",
+					"required": false,
+					"note": "ok | damaged | missing_parts | mismatch"
+				},
+				{
+					"name": "inspection_note",
+					"type": "Small Text",
+					"ts": "string",
+					"required": false
+				},
+				{
+					"name": "refund_amount",
+					"type": "Currency",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "refund_triggered_at",
+					"type": "Datetime",
+					"ts": "string",
+					"required": false,
+					"note": "Escrow/para iadesi tetikleyicisi"
+				},
+				{
+					"name": "exchange_shipment",
+					"type": "Link",
+					"ts": "string",
+					"required": false,
+					"note": "Değişim gönderisi"
+				},
+				{
+					"name": "closed_at",
+					"type": "Datetime",
+					"ts": "string",
+					"required": false,
+					"note": "Kapanış zamanı — sonrası DEĞİŞTİRİLEMEZ"
+				},
+				{
+					"name": "closed_by",
+					"type": "Link",
+					"ts": "string",
+					"required": false,
+					"note": "Kapatan kullanıcı — audit"
+				}
+			],
+			"child_tables": {
+				"items": [
+					{
+						"name": "item",
+						"type": "Link",
+						"ts": "string",
+						"required": true,
+						"note": "Listing / ürün"
+					},
+					{
+						"name": "item_name",
+						"type": "Data",
+						"ts": "string",
+						"required": true
+					},
+					{
+						"name": "requested_qty",
+						"type": "Float",
+						"ts": "number",
+						"required": true,
+						"note": "Alıcının iade etmek istediği"
+					},
+					{
+						"name": "received_qty",
+						"type": "Float",
+						"ts": "number",
+						"required": false,
+						"note": "Depoya ULAŞAN — eksik gelebilir"
+					},
+					{
+						"name": "accepted_qty",
+						"type": "Float",
+						"ts": "number",
+						"required": false,
+						"note": "Kontrol sonrası kabul edilen"
+					},
+					{
+						"name": "uom",
+						"type": "Data",
+						"ts": "string",
+						"required": false
+					},
+					{
+						"name": "inspection_result",
+						"type": "Select",
+						"ts": "string",
+						"required": false,
+						"note": "ok | damaged | missing_parts | mismatch"
+					},
+					{
+						"name": "inspection_note",
+						"type": "Small Text",
+						"ts": "string",
+						"required": false
+					},
+					{
+						"name": "unit_refund",
+						"type": "Currency",
+						"ts": "number",
+						"required": false,
+						"note": "Birim iade tutarı"
+					}
+				]
+			}
+		},
+		"price_quote": {
+			"provisional": true,
+			"label": "Fiyat Teklifi",
+			"source_tasks": [
+				"TUR-121"
+			],
+			"list_fields": [
+				{
+					"name": "quote_id",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "carrier",
+					"type": "Link",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "carrier_service",
+					"type": "Link",
+					"ts": "string",
+					"required": false
+				},
+				{
+					"name": "carrier_cost",
+					"type": "Currency",
+					"ts": "number",
+					"required": true,
+					"note": "Taşıyıcı ALIŞ maliyeti"
+				},
+				{
+					"name": "customer_charge",
+					"type": "Currency",
+					"ts": "number",
+					"required": true,
+					"note": "Müşteriye YANSITILAN ücret — ayrı raporlanır"
+				},
+				{
+					"name": "currency",
+					"type": "Link",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "chargeable_weight",
+					"type": "Float",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "applied_rule",
+					"type": "Data",
+					"ts": "string",
+					"required": false,
+					"note": "Hangi kural uygulandı — AÇIKLANABİLİR olmalı"
+				},
+				{
+					"name": "rule_priority",
+					"type": "Int",
+					"ts": "number",
+					"required": false,
+					"note": "Çakışma çözümü deterministik"
+				},
+				{
+					"name": "valid_until",
+					"type": "Datetime",
+					"ts": "string",
+					"required": false,
+					"note": "Teklif geçerlilik süresi"
+				},
+				{
+					"name": "is_snapshot",
+					"type": "Check",
+					"ts": "number",
+					"required": false,
+					"note": "Sipariş anındaki fiyat korunur"
+				},
+				{
+					"name": "surcharges",
+					"type": "JSON",
+					"ts": "Record<string, unknown> | null",
+					"required": false,
+					"note": "Yakıt farkı, kat teslimatı, sigorta vb."
+				}
+			],
+			"detail_fields": [],
+			"child_tables": {}
+		},
+		"connection_test": {
+			"provisional": true,
+			"label": "Bağlantı Testi Sonucu",
+			"source_tasks": [
+				"TUR-110",
+				"TUR-111"
+			],
+			"list_fields": [
+				{
+					"name": "carrier_account",
+					"type": "Link",
+					"ts": "string",
+					"required": true,
+					"note": "Denenen hesap"
+				},
+				{
+					"name": "probe",
+					"type": "Select",
+					"ts": "string",
+					"required": true,
+					"note": "authenticate | quote | track — hangi yetenek denendi"
+				},
+				{
+					"name": "succeeded",
+					"type": "Check",
+					"ts": "number",
+					"required": true
+				},
+				{
+					"name": "http_status",
+					"type": "Int",
+					"ts": "number",
+					"required": false,
+					"note": "Taşıyıcı yanıt kodu"
+				},
+				{
+					"name": "duration_ms",
+					"type": "Int",
+					"ts": "number",
+					"required": false,
+					"note": "Gecikme — yavaş entegrasyon da bir arıza"
+				},
+				{
+					"name": "message",
+					"type": "Small Text",
+					"ts": "string",
+					"required": false,
+					"note": "Kullanıcıya gösterilecek özet"
+				},
+				{
+					"name": "error_code",
+					"type": "Data",
+					"ts": "string",
+					"required": false,
+					"note": "Taşıyıcının hata kodu — dallanma için"
+				},
+				{
+					"name": "tested_at",
+					"type": "Datetime",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "tested_by",
+					"type": "Link",
+					"ts": "string",
+					"required": false,
+					"note": "Denemeyi yapan kullanıcı — audit"
+				}
+			],
+			"detail_fields": [],
+			"child_tables": {}
+		},
+		"integration_log": {
+			"provisional": true,
+			"label": "Entegrasyon Logu",
+			"source_tasks": [
+				"TUR-110"
+			],
+			"list_fields": [
+				{
+					"name": "name",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "carrier",
+					"type": "Link",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "carrier_account",
+					"type": "Link",
+					"ts": "string",
+					"required": false
+				},
+				{
+					"name": "operation",
+					"type": "Select",
+					"ts": "string",
+					"required": true,
+					"note": "create_shipment | cancel | label | quote | track | webhook"
+				},
+				{
+					"name": "direction",
+					"type": "Select",
+					"ts": "string",
+					"required": true,
+					"note": "outbound | inbound"
+				},
+				{
+					"name": "shipment",
+					"type": "Link",
+					"ts": "string",
+					"required": false,
+					"note": "İlgili sevkiyat — varsa"
+				},
+				{
+					"name": "succeeded",
+					"type": "Check",
+					"ts": "number",
+					"required": true
+				},
+				{
+					"name": "http_status",
+					"type": "Int",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "duration_ms",
+					"type": "Int",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "attempt",
+					"type": "Int",
+					"ts": "number",
+					"required": false,
+					"note": "Kaçıncı deneme (yeniden çalıştırma sayacı)"
+				},
+				{
+					"name": "error_code",
+					"type": "Data",
+					"ts": "string",
+					"required": false
+				},
+				{
+					"name": "error_message",
+					"type": "Small Text",
+					"ts": "string",
+					"required": false
+				},
+				{
+					"name": "request_body",
+					"type": "Code",
+					"ts": "unknown",
+					"required": false,
+					"note": "MASKELİ — credential'lar backend'de değiştirilir"
+				},
+				{
+					"name": "response_body",
+					"type": "Code",
+					"ts": "unknown",
+					"required": false,
+					"note": "MASKELİ"
+				},
+				{
+					"name": "is_retriable",
+					"type": "Check",
+					"ts": "number",
+					"required": false,
+					"note": "Yeniden çalıştırma anlamlı mı"
+				},
+				{
+					"name": "created_at",
+					"type": "Datetime",
+					"ts": "string",
+					"required": true
+				}
+			],
+			"detail_fields": [],
+			"child_tables": {}
+		},
+		"pallet_plan": {
+			"provisional": true,
+			"label": "Palet Planı",
+			"source_tasks": [
+				"TUR-120"
+			],
+			"list_fields": [
+				{
+					"name": "name",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "shipment",
+					"type": "Link",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "pallet_code",
+					"type": "Data",
+					"ts": "string",
+					"required": true,
+					"note": "Paket hiyerarşisinde parent_package değeri"
+				},
+				{
+					"name": "pallet_type",
+					"type": "Link",
+					"ts": "string",
+					"required": false,
+					"note": "Package Type katalogundan (palet tipleri)"
+				},
+				{
+					"name": "layer_count",
+					"type": "Int",
+					"ts": "number",
+					"required": false,
+					"note": "Yerleşen katman"
+				},
+				{
+					"name": "max_layers",
+					"type": "Int",
+					"ts": "number",
+					"required": false,
+					"note": "Palet tipinin katman kapasitesi"
+				},
+				{
+					"name": "package_count",
+					"type": "Int",
+					"ts": "number",
+					"required": false,
+					"note": "Palete yerleşen koli"
+				},
+				{
+					"name": "loaded_weight_kg",
+					"type": "Float",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "max_weight_kg",
+					"type": "Float",
+					"ts": "number",
+					"required": false,
+					"note": "Aşılırsa AŞIRI YÜK uyarısı (TUR-120)"
+				},
+				{
+					"name": "loaded_desi",
+					"type": "Float",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "is_overloaded",
+					"type": "Check",
+					"ts": "number",
+					"required": false,
+					"note": "Ağırlık veya katman kapasitesi aşıldı"
+				}
+			],
+			"detail_fields": [],
+			"child_tables": {}
+		},
+		"import_job": {
+			"provisional": true,
+			"label": "Toplu İçe Aktarma",
+			"source_tasks": [
+				"TUR-107"
+			],
+			"list_fields": [
+				{
+					"name": "name",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "file_name",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "status",
+					"type": "Select",
+					"ts": "string",
+					"required": true,
+					"note": "mapping | previewing | applying | completed | failed"
+				},
+				{
+					"name": "total_rows",
+					"type": "Int",
+					"ts": "number",
+					"required": true
+				},
+				{
+					"name": "valid_rows",
+					"type": "Int",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "error_rows",
+					"type": "Int",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "applied_rows",
+					"type": "Int",
+					"ts": "number",
+					"required": false,
+					"note": "Gerçekten yazılan — kısmi başarı mümkün"
+				},
+				{
+					"name": "column_mapping",
+					"type": "JSON",
+					"ts": "Record<string, unknown> | null",
+					"required": false,
+					"note": "CSV başlığı → sevkiyat alanı"
+				},
+				{
+					"name": "errors",
+					"type": "JSON",
+					"ts": "Record<string, unknown> | null",
+					"required": false,
+					"note": "[{row, column, message}] — satır bazlı hata raporu"
+				},
+				{
+					"name": "created_at",
+					"type": "Datetime",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "created_by",
+					"type": "Link",
+					"ts": "string",
+					"required": false
+				}
+			],
+			"detail_fields": [],
+			"child_tables": {}
+		},
+		"notification_template": {
+			"provisional": true,
+			"label": "Bildirim Şablonu",
+			"source_tasks": [
+				"TUR-113"
+			],
+			"list_fields": [
+				{
+					"name": "name",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "event",
+					"type": "Select",
+					"ts": "string",
+					"required": true,
+					"note": "Hangi lojistik olayında tetiklenir"
+				},
+				{
+					"name": "channel",
+					"type": "Select",
+					"ts": "string",
+					"required": true,
+					"note": "email | in_app | sms"
+				},
+				{
+					"name": "recipient_role",
+					"type": "Select",
+					"ts": "string",
+					"required": true,
+					"note": "buyer | seller | operations"
+				},
+				{
+					"name": "subject",
+					"type": "Data",
+					"ts": "string",
+					"required": false,
+					"note": "E-posta konusu"
+				},
+				{
+					"name": "body",
+					"type": "Text Editor",
+					"ts": "string",
+					"required": false,
+					"note": "Değişkenler: {{shipment}}, {{tracking_number}}, {{status}}"
+				},
+				{
+					"name": "is_active",
+					"type": "Check",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "is_mandatory",
+					"type": "Check",
+					"ts": "number",
+					"required": false,
+					"note": "Zorunlu operasyon bildirimi — kapatılamaz (TUR-113)"
+				}
+			],
+			"detail_fields": [],
+			"child_tables": {}
+		},
+		"notification_preference": {
+			"provisional": true,
+			"label": "Bildirim Tercihi",
+			"source_tasks": [
+				"TUR-113"
+			],
+			"list_fields": [
+				{
+					"name": "template",
+					"type": "Link",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "event",
+					"type": "Select",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "channel",
+					"type": "Select",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "recipient_role",
+					"type": "Select",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "enabled",
+					"type": "Check",
+					"ts": "number",
+					"required": true
+				},
+				{
+					"name": "is_mandatory",
+					"type": "Check",
+					"ts": "number",
+					"required": false,
+					"note": "Şablondan miras — true ise enabled yazılamaz"
+				},
+				{
+					"name": "locked_reason",
+					"type": "Data",
+					"ts": "string",
+					"required": false,
+					"note": "Neden kapatılamadığı kullanıcıya açıklanır"
+				}
+			],
+			"detail_fields": [],
+			"child_tables": {}
+		},
+		"operation_alert": {
+			"provisional": true,
+			"label": "Operasyon Alarmı",
+			"source_tasks": [
+				"TUR-113"
+			],
+			"list_fields": [
+				{
+					"name": "name",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "alert_type",
+					"type": "Select",
+					"ts": "string",
+					"required": true,
+					"note": "sla_breach | integration_failure | exception_spike | stuck_shipment"
+				},
+				{
+					"name": "severity",
+					"type": "Select",
+					"ts": "string",
+					"required": true,
+					"note": "Info | Warning | Critical"
+				},
+				{
+					"name": "title",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "detail",
+					"type": "Small Text",
+					"ts": "string",
+					"required": false
+				},
+				{
+					"name": "shipment",
+					"type": "Link",
+					"ts": "string",
+					"required": false
+				},
+				{
+					"name": "carrier",
+					"type": "Link",
+					"ts": "string",
+					"required": false
+				},
+				{
+					"name": "affected_count",
+					"type": "Int",
+					"ts": "number",
+					"required": false,
+					"note": "Kaç kaydı etkiliyor — tekil mi toplu mu"
+				},
+				{
+					"name": "raised_at",
+					"type": "Datetime",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "acknowledged_at",
+					"type": "Datetime",
+					"ts": "string",
+					"required": false
+				},
+				{
+					"name": "acknowledged_by",
+					"type": "Link",
+					"ts": "string",
+					"required": false
+				}
+			],
+			"detail_fields": [],
+			"child_tables": {}
+		},
+		"pricing_rule": {
+			"provisional": true,
+			"label": "Fiyatlandırma Kuralı",
+			"source_tasks": [
+				"TUR-121"
+			],
+			"list_fields": [
+				{
+					"name": "name",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "rule_name",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "carrier",
+					"type": "Link",
+					"ts": "string",
+					"required": false,
+					"note": "Boş = tüm taşıyıcılar"
+				},
+				{
+					"name": "carrier_service",
+					"type": "Link",
+					"ts": "string",
+					"required": false
+				},
+				{
+					"name": "shipping_method",
+					"type": "Link",
+					"ts": "string",
+					"required": false
+				},
+				{
+					"name": "priority",
+					"type": "Int",
+					"ts": "number",
+					"required": true,
+					"note": "Küçük sayı önce değerlendirilir — çakışma çözümü"
+				},
+				{
+					"name": "is_active",
+					"type": "Check",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "min_desi",
+					"type": "Float",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "max_desi",
+					"type": "Float",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "min_weight_kg",
+					"type": "Float",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "max_weight_kg",
+					"type": "Float",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "origin_city",
+					"type": "Data",
+					"ts": "string",
+					"required": false
+				},
+				{
+					"name": "destination_city",
+					"type": "Data",
+					"ts": "string",
+					"required": false
+				},
+				{
+					"name": "zone",
+					"type": "Data",
+					"ts": "string",
+					"required": false,
+					"note": "Bölge kodu — bölge bazlı fiyatlandırma"
+				},
+				{
+					"name": "min_order_total",
+					"type": "Currency",
+					"ts": "number",
+					"required": false,
+					"note": "Ücretsiz kargo eşiği bu alanla kurulur"
+				},
+				{
+					"name": "base_cost",
+					"type": "Currency",
+					"ts": "number",
+					"required": false,
+					"note": "Taşıyıcı ALIŞ maliyeti tabanı"
+				},
+				{
+					"name": "base_charge",
+					"type": "Currency",
+					"ts": "number",
+					"required": false,
+					"note": "Müşteriye YANSITILAN taban ücret"
+				},
+				{
+					"name": "per_desi_charge",
+					"type": "Currency",
+					"ts": "number",
+					"required": false,
+					"note": "Desi başına ek ücret"
+				},
+				{
+					"name": "currency",
+					"type": "Link",
+					"ts": "string",
+					"required": false
+				},
+				{
+					"name": "valid_from",
+					"type": "Date",
+					"ts": "string",
+					"required": false
+				},
+				{
+					"name": "valid_until",
+					"type": "Date",
+					"ts": "string",
+					"required": false
+				}
+			],
+			"detail_fields": [],
+			"child_tables": {}
+		},
+		"performance_report": {
+			"provisional": true,
+			"label": "Performans Raporu",
+			"source_tasks": [
+				"TUR-118"
+			],
+			"list_fields": [
+				{
+					"name": "dimension",
+					"type": "Data",
+					"ts": "string",
+					"required": true,
+					"note": "Kırılım değeri, ör. taşıyıcı kodu"
+				},
+				{
+					"name": "dimension_label",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "shipment_count",
+					"type": "Int",
+					"ts": "number",
+					"required": true
+				},
+				{
+					"name": "delivered_count",
+					"type": "Int",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "delayed_count",
+					"type": "Int",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "failed_count",
+					"type": "Int",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "returned_count",
+					"type": "Int",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "avg_delivery_days",
+					"type": "Float",
+					"ts": "number",
+					"required": false,
+					"note": "Yalnız teslim edilenler üzerinden"
+				},
+				{
+					"name": "p90_delivery_days",
+					"type": "Float",
+					"ts": "number",
+					"required": false,
+					"note": "Kuyruk davranışı — ortalama gizler"
+				},
+				{
+					"name": "on_time_rate",
+					"type": "Float",
+					"ts": "number",
+					"required": false,
+					"note": "0-1 arası oran"
+				},
+				{
+					"name": "failure_rate",
+					"type": "Float",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "return_rate",
+					"type": "Float",
+					"ts": "number",
+					"required": false
+				}
+			],
+			"detail_fields": [],
+			"child_tables": {}
+		},
+		"cost_report": {
+			"provisional": true,
+			"label": "Maliyet Raporu",
+			"source_tasks": [
+				"TUR-118",
+				"TUR-121"
+			],
+			"list_fields": [
+				{
+					"name": "dimension",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "dimension_label",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "shipment_count",
+					"type": "Int",
+					"ts": "number",
+					"required": true
+				},
+				{
+					"name": "carrier_cost_total",
+					"type": "Currency",
+					"ts": "number",
+					"required": true,
+					"note": "Taşıyıcıya ÖDENEN"
+				},
+				{
+					"name": "customer_charge_total",
+					"type": "Currency",
+					"ts": "number",
+					"required": true,
+					"note": "Müşteriden ALINAN"
+				},
+				{
+					"name": "margin_total",
+					"type": "Currency",
+					"ts": "number",
+					"required": true,
+					"note": "Backend hesaplar — arayüz yuvarlama üretmesin"
+				},
+				{
+					"name": "margin_rate",
+					"type": "Float",
+					"ts": "number",
+					"required": false,
+					"note": "0-1 arası; negatif olabilir"
+				},
+				{
+					"name": "avg_cost_per_shipment",
+					"type": "Currency",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "currency",
+					"type": "Link",
+					"ts": "string",
+					"required": true
+				}
+			],
+			"detail_fields": [],
+			"child_tables": {}
+		}
+	}
+}

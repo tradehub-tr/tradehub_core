@@ -3,6 +3,5 @@
 
 """Lojistik bildirim servisi (utils/notify.py uzerine insa)."""
 
-from frappe import _
 
 # TODO(TUR-113): notify_shipment_status_change, notify_delivery

@@ -1,0 +1,61 @@
+{
+	"default": {
+		"ok": true,
+		"data": {
+			"items": [
+				{
+					"carrier_account": "CACC-YK-PLATFORM",
+					"probe": "authenticate",
+					"succeeded": 1,
+					"http_status": 200,
+					"duration_ms": 412,
+					"message": "Kimlik doğrulama başarılı.",
+					"error_code": null,
+					"tested_at": "2026-08-12 09:05:00",
+					"tested_by": "operasyon@istoc.com"
+				},
+				{
+					"carrier_account": "CACC-YK-PLATFORM",
+					"probe": "quote",
+					"succeeded": 1,
+					"http_status": 200,
+					"duration_ms": 1980,
+					"message": "Fiyat sorgusu döndü (42 desi → 268,40 TL).",
+					"error_code": null,
+					"tested_at": "2026-08-12 09:05:01",
+					"tested_by": "operasyon@istoc.com"
+				},
+				{
+					"carrier_account": "CACC-YK-PLATFORM",
+					"probe": "track",
+					"succeeded": 0,
+					"http_status": 403,
+					"duration_ms": 305,
+					"message": "Takip servisi için hesap yetkilendirilmemiş.",
+					"error_code": "TRACK_NOT_AUTHORIZED",
+					"tested_at": "2026-08-12 09:05:03",
+					"tested_by": "operasyon@istoc.com"
+				}
+			],
+			"total": 3,
+			"page": 1,
+			"page_size": 50
+		}
+	},
+	"empty": {
+		"ok": true,
+		"data": {
+			"items": [],
+			"total": 0,
+			"page": 1,
+			"page_size": 50
+		}
+	},
+	"error": {
+		"ok": false,
+		"error": {
+			"code": "PERMISSION_DENIED",
+			"message": "Bu kaydı görüntüleme yetkiniz yok."
+		}
+	}
+}

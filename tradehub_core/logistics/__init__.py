@@ -21,14 +21,47 @@ from frappe import _
 
 from tradehub_core.logistics.constants import LOGISTICS_FEATURE_FLAGS
 
+# Modülün ana kapısı. `Logistics Settings.logistics_enabled` alanı — feature_flags
+# JSON'unun İÇİNDE değil, ayrı bir Check alanı.
+MASTER_FLAG = "logistics_enabled"
+
+
+def _is_master_enabled() -> bool:
+	"""Lojistik modülünün ana anahtarı açık mı?
+
+	Sıra `is_enabled` ile aynı: DocType alanı → site_config → varsayılan (kapalı).
+	"""
+	try:
+		settings_doc = frappe.get_cached_doc("Logistics Settings")
+		value = settings_doc.get(MASTER_FLAG)
+		if value is not None:
+			return bool(value)
+	except frappe.DoesNotExistError:
+		pass
+
+	site_val = frappe.conf.get(f"tradehub_{MASTER_FLAG}")
+	if site_val is not None:
+		return bool(site_val)
+
+	return False
+
 
 def is_enabled(flag: str) -> bool:
 	"""Lojistik feature flag kontrolü.
 
 	Kontrol sırası:
+		0. Ana bayrak (`logistics_enabled`) — kapalıysa diğer TÜM bayraklar kapalı
 		1. Logistics Settings DocType'ındaki feature_flags JSON alanı
 		2. site_config'deki tradehub_logistics_{flag} key'i
 		3. LOGISTICS_FEATURE_FLAGS default dict'i
+
+	Ana bayrak neden ayrı: kademeli açılışta (Beta → RC → PROD) tek anahtarla
+	tüm lojistik yüzeyini kapatabilmek gerekiyor. Alt bayraklar tek tek açık
+	bırakılsa bile ana bayrak kapalıyken hiçbiri devreye girmez.
+
+	DİKKAT — katalog yönetimi bu kapıya BAĞLI DEĞİL: yönetici, modül müşteriye
+	açılmadan ÖNCE katalogları yapılandırabilmeli. Katalog endpoint'leri rol ve
+	capability ile korunur, feature flag ile değil.
 
 	Args:
 		flag: Kontrol edilecek feature flag adı.
@@ -41,6 +74,13 @@ def is_enabled(flag: str) -> bool:
 	"""
 	if not flag:
 		frappe.throw(_("Feature flag adı boş olamaz."))
+
+	if flag == MASTER_FLAG:
+		return _is_master_enabled()
+
+	# 0. Ana bayrak kapalıysa alt bayrakların değeri okunmaz
+	if not _is_master_enabled():
+		return False
 
 	# 1. Logistics Settings DocType feature_flags JSON
 	try:
@@ -63,7 +103,7 @@ def is_enabled(flag: str) -> bool:
 	return LOGISTICS_FEATURE_FLAGS.get(flag, False)
 
 
-def get_logistics_settings() -> "frappe.Document":
+def get_logistics_settings() -> frappe.Document:
 	"""Logistics Settings singleton DocType'ını döndürür.
 
 	Returns:
@@ -76,6 +116,7 @@ def get_logistics_settings() -> "frappe.Document":
 
 
 __all__ = [
+	"MASTER_FLAG",
 	"get_logistics_settings",
 	"is_enabled",
 ]

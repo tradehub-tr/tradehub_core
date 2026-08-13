@@ -1,0 +1,58 @@
+{
+	"default": {
+		"ok": true,
+		"data": {
+			"items": [
+				{
+					"name": "YK-34001",
+					"branch_name": "Yurtiçi Kargo İkitelli Şubesi",
+					"branch_code": "34001",
+					"carrier": "YK",
+					"branch_type": "Distribution Point",
+					"city": "İstanbul",
+					"district": "Başakşehir",
+					"is_active": 1
+				},
+				{
+					"name": "AK-06010",
+					"branch_name": "Aras Kargo Ostim Aktarma Merkezi",
+					"branch_code": "06010",
+					"carrier": "AK",
+					"branch_type": "Transfer Center",
+					"city": "Ankara",
+					"district": "Yenimahalle",
+					"is_active": 1
+				},
+				{
+					"name": "MNG-35004",
+					"branch_name": "MNG Kargo Çiğli Hub",
+					"branch_code": "35004",
+					"carrier": "MNG",
+					"branch_type": "Hub",
+					"city": "İzmir",
+					"district": "Çiğli",
+					"is_active": 1
+				}
+			],
+			"total": 3,
+			"page": 1,
+			"page_size": 50
+		}
+	},
+	"empty": {
+		"ok": true,
+		"data": {
+			"items": [],
+			"total": 0,
+			"page": 1,
+			"page_size": 50
+		}
+	},
+	"error": {
+		"ok": false,
+		"error": {
+			"code": "PERMISSION_DENIED",
+			"message": "Bu kataloğu görüntüleme yetkiniz yok."
+		}
+	}
+}

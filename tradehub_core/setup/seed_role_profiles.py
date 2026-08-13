@@ -1,14 +1,93 @@
 """Eksik role profile'ları fixture'tan oku ve DB'ye seed et.
 
 Frappe v15 fixture sync sub-user invite akışında çağrılmadığı için manuel.
+
+DİKKAT — fixture tuzağı:
+`hooks.py` içindeki `fixtures` listesinde `Role Profile` YOK. Yani
+`tradehub_core/fixtures/role_profile.json`'a yeni bir profil eklemek tek başına
+hiçbir şey yapmaz; dosyayı DB'ye taşıyan tek mekanizma patch'lerdir ve uygulanmış
+bir patch Patch Log yüzünden tekrar çalışmaz. Yeni profil eklerken
+`seed_role_profiles_by_name()` çağıran YENİ bir patch yaz.
 """
 
 from __future__ import annotations
 
 import json
 import os
+from collections.abc import Iterable
 
 import frappe
+
+FIXTURE_RELATIVE_PATH = ("tradehub_core", "fixtures", "role_profile.json")
+
+
+def _load_role_profile_fixture() -> list[dict]:
+	"""role_profile.json içeriğini döndürür."""
+	fixture_path = os.path.join(frappe.get_app_path("tradehub_core"), *FIXTURE_RELATIVE_PATH)
+	with open(fixture_path) as f:
+		return json.load(f)
+
+
+def seed_role_profiles_by_name(profile_names: Iterable[str]) -> dict:
+	"""Yalnız adı verilen Role Profile'ları fixture'tan okuyup DB'ye yazar.
+
+	`execute()`'dan farkı: tüm fixture'ı değil, yalnız istenen profilleri işler ve
+	Role tablosuna dokunmaz. Bir modülün kendi rol profillerini seed etmesi için.
+
+	İdempotent: var olan profile dokunmaz. Atlanan her kayıt için gerekçe döner —
+	sessiz `continue` yok, çağıran patch sonucu loglayabilsin.
+
+	Args:
+		profile_names: Oluşturulacak Role Profile adları.
+
+	Returns:
+		created / skipped_existing / missing_in_fixture / missing_roles anahtarlı rapor.
+	"""
+	wanted = list(profile_names)
+	fixture_by_name = {
+		(row.get("name") or row.get("role_profile")): row for row in _load_role_profile_fixture()
+	}
+
+	created: list[str] = []
+	skipped_existing: list[str] = []
+	missing_in_fixture: list[str] = []
+	missing_roles: dict[str, list[str]] = {}
+
+	for name in wanted:
+		if frappe.db.exists("Role Profile", name):
+			skipped_existing.append(name)
+			continue
+
+		row = fixture_by_name.get(name)
+		if not row:
+			missing_in_fixture.append(name)
+			continue
+
+		# Fixture'da referans edilen ama DB'de olmayan rol, Role Profile'ı sessizce
+		# boş bırakır — bu durumu rapora taşı ki çağıran görebilsin.
+		absent = [
+			r["role"]
+			for r in row.get("roles", [])
+			if r.get("role") and not frappe.db.exists("Role", r["role"])
+		]
+		if absent:
+			missing_roles[name] = absent
+
+		doc = frappe.new_doc("Role Profile")
+		doc.role_profile = row.get("role_profile") or name
+		for role_row in row.get("roles", []):
+			role_name = role_row.get("role")
+			if role_name and frappe.db.exists("Role", role_name):
+				doc.append("roles", {"role": role_name})
+		doc.insert(ignore_permissions=True)  # Sistem seed'i, kullanıcı akışı değil
+		created.append(name)
+
+	return {
+		"created": created,
+		"skipped_existing": skipped_existing,
+		"missing_in_fixture": missing_in_fixture,
+		"missing_roles": missing_roles,
+	}
 
 
 def execute() -> dict:

@@ -1,0 +1,52 @@
+{
+	"default": {
+		"ok": true,
+		"data": {
+			"items": [
+				{
+					"name": "YK-101",
+					"carrier": "YK",
+					"carrier_status_code": "101",
+					"carrier_status_text": "Kargo şubeye teslim edildi",
+					"internal_status": "Picked Up",
+					"exception_code": null
+				},
+				{
+					"name": "YK-205",
+					"carrier": "YK",
+					"carrier_status_code": "205",
+					"carrier_status_text": "Dağıtıma çıktı",
+					"internal_status": "Out for Delivery",
+					"exception_code": null
+				},
+				{
+					"name": "YK-902",
+					"carrier": "YK",
+					"carrier_status_code": "902",
+					"carrier_status_text": "Alıcı adreste bulunamadı",
+					"internal_status": "Failed",
+					"exception_code": "RECIPIENT_ABSENT"
+				}
+			],
+			"total": 3,
+			"page": 1,
+			"page_size": 50
+		}
+	},
+	"empty": {
+		"ok": true,
+		"data": {
+			"items": [],
+			"total": 0,
+			"page": 1,
+			"page_size": 50
+		}
+	},
+	"error": {
+		"ok": false,
+		"error": {
+			"code": "PERMISSION_DENIED",
+			"message": "Bu kataloğu görüntüleme yetkiniz yok."
+		}
+	}
+}

@@ -9,11 +9,14 @@ import frappe
 
 from tradehub_core.logistics.seed import LOGISTICS_PROVIDERS
 
-# Seed ulke kodu -> DocType country alanindaki gorunen ad
+# ISO ulke kodu -> Frappe `Country` DocType kayit adi.
+# DIKKAT: Country kayitlari INGILIZCE adlanir (Turkey / United States / Germany).
+# Turkce yazmak Link dogrulamasini kirar; LOG-039 mevcut satirlari bu esleme ile
+# duzeltiyor.
 COUNTRY_NAMES: dict[str, str] = {
-	"TR": "Türkiye",
-	"US": "ABD",
-	"DE": "Almanya",
+	"TR": "Turkey",
+	"US": "United States",
+	"DE": "Germany",
 }
 
 
