@@ -131,6 +131,11 @@ scheduler_events = {
 		"tradehub_core.media.archive.purge_expired",
 		# Çöpe taşınan görsellerin 30 günlük geri alma penceresi dolunca kalıcı silinmesi.
 		"tradehub_core.media.trash.purge_expired",
+		# Medya yedeği: dosyalar + `File` kayıtları (TUR-131). Günlük, çünkü
+		# ölçüm günde ~12 MB değişim gösteriyor — daha sık almanın kazancı yok,
+		# daha seyrek almak bir günden fazla veri riske atıyor. Depolama
+		# içerik-adresli: değişmeyen dosya yeniden yazılmıyor.
+		"tradehub_core.media.backup.run_scheduled",
 		# Saha hakediş kota bonusu — on-approval tetiklemesinin günlük güvenlik ağı.
 		"tradehub_core.tradehub_core.utils.field_commission.process_quota_bonuses",
 		"tradehub_core.services.tcmb.fetch_and_update_rates",

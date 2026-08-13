@@ -220,3 +220,4 @@ tradehub_core.patches.v15_9_12_media_optimize_fields
 tradehub_core.patches.v15_9_13_media_trash_field
 tradehub_core.patches.v15_logistics_001_bootstrap
 tradehub_core.patches.v15_9_14_media_state_field
+tradehub_core.patches.v15_9_15_media_metadata_fields
