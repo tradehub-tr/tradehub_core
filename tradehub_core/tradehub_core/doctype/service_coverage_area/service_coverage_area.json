@@ -1,0 +1,125 @@
+{
+ "actions": [],
+ "autoname": "hash",
+ "creation": "2026-08-07 10:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "carrier",
+  "carrier_service",
+  "is_active",
+  "column_break_basic",
+  "city",
+  "district",
+  "sb_postal",
+  "postal_code_from",
+  "column_break_postal",
+  "postal_code_to",
+  "estimated_days_override"
+ ],
+ "fields": [
+  {
+   "fieldname": "carrier",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Carrier",
+   "options": "Logistics Provider",
+   "reqd": 1
+  },
+  {
+   "fieldname": "carrier_service",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Carrier Service",
+   "options": "Carrier Service"
+  },
+  {
+   "default": "1",
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "label": "Active"
+  },
+  {
+   "fieldname": "column_break_basic",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "city",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "City",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "district",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "District"
+  },
+  {
+   "fieldname": "sb_postal",
+   "fieldtype": "Section Break",
+   "label": "Posta Kodu Aralığı"
+  },
+  {
+   "fieldname": "postal_code_from",
+   "fieldtype": "Data",
+   "label": "Postal Code From"
+  },
+  {
+   "fieldname": "column_break_postal",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "postal_code_to",
+   "fieldtype": "Data",
+   "label": "Postal Code To"
+  },
+  {
+   "fieldname": "estimated_days_override",
+   "fieldtype": "Int",
+   "label": "Estimated Days Override"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-08-07 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "Service Coverage Area",
+ "naming_rule": "Random",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "export": 1,
+   "import": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Logistics Manager",
+   "write": 1
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "role": "Logistics Operator"
+  }
+ ],
+ "search_fields": "carrier,city,district",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "track_changes": 1
+}

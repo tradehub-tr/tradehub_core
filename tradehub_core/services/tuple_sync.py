@@ -740,3 +740,120 @@ def backfill(chunk_size: int = 200, dry_run: bool = False) -> dict:
 	_flush()
 	counts["dry_run"] = dry_run
 	return counts
+
+
+# ---------------------------------------------------------------------------
+# Shipment hooks (TUR-103 — Lojistik modülü ReBAC tuple sync)
+# ---------------------------------------------------------------------------
+# Shipment OpenFGA relation'ları:
+#   - (store:<seller_profile>, store_link, shipment:<name>)  → satıcı erişimi
+#   - (user:<buyer>, buyer, shipment:<name>)                 → alıcı erişimi
+#   - (user:<created_by>, creator, shipment:<name>)          → oluşturan erişimi
+#
+# hooks.py kaydı TUR-105'te yapılacak (Shipment DocType oluşturulunca).
+# ---------------------------------------------------------------------------
+
+
+def _shipment_tuples(doc) -> list[tuple[str, str, str]]:
+	"""Shipment dokümanından beklenen tüm ReBAC tuple'larını üret."""
+	shipment = f"shipment:{doc.name}"
+	tuples: list[tuple[str, str, str]] = []
+
+	# Satıcı tarafı — seller_profile → store entity
+	seller_profile = doc.get("seller_profile") if hasattr(doc, "get") else getattr(doc, "seller_profile", None)
+	if seller_profile:
+		tuples.append((f"store:{seller_profile}", "store_link", shipment))
+
+	# Alıcı tarafı — buyer (user email)
+	buyer = doc.get("buyer") if hasattr(doc, "get") else getattr(doc, "buyer", None)
+	if buyer:
+		tuples.append((f"user:{buyer}", "buyer", shipment))
+
+	# Oluşturan — Frappe Document owner
+	created_by = getattr(doc, "owner", None)
+	if created_by and created_by != "Administrator":
+		tuples.append((f"user:{created_by}", "creator", shipment))
+
+	return tuples
+
+
+def _shipment_all_possible_tuples(doc) -> list[tuple[str, str, str]]:
+	"""Shipment için tüm potansiyel relation tuple'larını üret (stale temizlik)."""
+	shipment = f"shipment:{doc.name}"
+	tuples: list[tuple[str, str, str]] = []
+
+	seller_profile = doc.get("seller_profile") if hasattr(doc, "get") else getattr(doc, "seller_profile", None)
+	if seller_profile:
+		tuples.append((f"store:{seller_profile}", "store_link", shipment))
+
+	buyer = doc.get("buyer") if hasattr(doc, "get") else getattr(doc, "buyer", None)
+	if buyer:
+		tuples.append((f"user:{buyer}", "buyer", shipment))
+
+	created_by = getattr(doc, "owner", None)
+	if created_by and created_by != "Administrator":
+		tuples.append((f"user:{created_by}", "creator", shipment))
+
+	return tuples
+
+
+def on_shipment_insert(doc, method=None) -> None:
+	"""Shipment after_insert → ReBAC tuple'larını yaz.
+
+	Satıcı (store_link), alıcı (buyer) ve oluşturan (creator)
+	tuple'larını async olarak OpenFGA'ya yazar.
+	"""
+	tuples = _shipment_tuples(doc)
+	_enqueue_write(tuples)
+
+
+def on_shipment_update(doc, method=None) -> None:
+	"""Shipment on_update → değişen tuple'ları güncelle.
+
+	seller_profile veya buyer değişimi durumunda eski tuple'ları siler,
+	yenilerini yazar. Stale tuple önleme stratejisi on_user_update ile aynı.
+	"""
+	before = doc.get_doc_before_save() if hasattr(doc, "get_doc_before_save") else None
+	if before is None:
+		# Fallback: eski değeri bilemiyoruz → yeni tuple'ları idempotent yaz
+		fresh = _shipment_tuples(doc)
+		if fresh:
+			_enqueue_write(fresh)
+		return
+
+	shipment = f"shipment:{doc.name}"
+	stale: list[tuple[str, str, str]] = []
+	fresh: list[tuple[str, str, str]] = []
+
+	# seller_profile değişimi
+	old_seller = before.get("seller_profile") if hasattr(before, "get") else getattr(before, "seller_profile", None)
+	new_seller = doc.get("seller_profile") if hasattr(doc, "get") else getattr(doc, "seller_profile", None)
+	if old_seller != new_seller:
+		if old_seller:
+			stale.append((f"store:{old_seller}", "store_link", shipment))
+		if new_seller:
+			fresh.append((f"store:{new_seller}", "store_link", shipment))
+
+	# buyer değişimi
+	old_buyer = before.get("buyer") if hasattr(before, "get") else getattr(before, "buyer", None)
+	new_buyer = doc.get("buyer") if hasattr(doc, "get") else getattr(doc, "buyer", None)
+	if old_buyer != new_buyer:
+		if old_buyer:
+			stale.append((f"user:{old_buyer}", "buyer", shipment))
+		if new_buyer:
+			fresh.append((f"user:{new_buyer}", "buyer", shipment))
+
+	if stale:
+		_enqueue_delete(stale)
+	if fresh:
+		_enqueue_write(fresh)
+
+
+def on_shipment_trash(doc, method=None) -> None:
+	"""Shipment on_trash → tuple'ları sil.
+
+	Shipment silindiğinde tüm ilişkili tuple'ları (store_link, buyer,
+	creator) async olarak OpenFGA'dan siler.
+	"""
+	tuples = _shipment_all_possible_tuples(doc)
+	_enqueue_delete(tuples)

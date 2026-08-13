@@ -1,0 +1,154 @@
+{
+ "actions": [],
+ "autoname": "field:provider_code",
+ "creation": "2026-08-07 10:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "provider_name",
+  "provider_code",
+  "provider_type",
+  "is_active",
+  "column_break_basic",
+  "logo",
+  "website",
+  "support_phone",
+  "support_email",
+  "sb_integration",
+  "integration_type",
+  "column_break_integration",
+  "country",
+  "sb_channels",
+  "operating_channels"
+ ],
+ "fields": [
+  {
+   "fieldname": "provider_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Provider Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "provider_code",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Provider Code",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "default": "Kargo",
+   "fieldname": "provider_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Provider Type",
+   "options": "Kargo\nAmbar\nKurye\nMarketplace"
+  },
+  {
+   "default": "1",
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Active"
+  },
+  {
+   "fieldname": "column_break_basic",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "logo",
+   "fieldtype": "Attach Image",
+   "label": "Logo"
+  },
+  {
+   "fieldname": "website",
+   "fieldtype": "Data",
+   "label": "Website"
+  },
+  {
+   "fieldname": "support_phone",
+   "fieldtype": "Data",
+   "label": "Support Phone"
+  },
+  {
+   "fieldname": "support_email",
+   "fieldtype": "Data",
+   "label": "Support Email",
+   "options": "Email"
+  },
+  {
+   "fieldname": "sb_integration",
+   "fieldtype": "Section Break",
+   "label": "Entegrasyon"
+  },
+  {
+   "default": "Manual",
+   "fieldname": "integration_type",
+   "fieldtype": "Select",
+   "label": "Integration Type",
+   "options": "API\nManual\nWebhook"
+  },
+  {
+   "fieldname": "column_break_integration",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Türkiye",
+   "fieldname": "country",
+   "fieldtype": "Data",
+   "label": "Country"
+  },
+  {
+   "fieldname": "sb_channels",
+   "fieldtype": "Section Break",
+   "label": "Kanallar"
+  },
+  {
+   "fieldname": "operating_channels",
+   "fieldtype": "Table",
+   "label": "Operating Channels",
+   "options": "Provider Operating Channel"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-08-07 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "Logistics Provider",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "export": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Logistics Manager",
+   "write": 1
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "role": "Logistics Operator"
+  }
+ ],
+ "search_fields": "provider_name,provider_code",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "title_field": "provider_name",
+ "track_changes": 1
+}

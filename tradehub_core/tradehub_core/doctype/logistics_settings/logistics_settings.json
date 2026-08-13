@@ -18,7 +18,15 @@
 		"tab_varsayilanlar",
 		"section_varsayilan_degerler",
 		"default_currency",
-		"shipment_naming_series"
+		"shipment_naming_series",
+		"section_varsayilanlar",
+		"default_logistics_provider",
+		"default_package_type",
+		"default_vehicle_type",
+		"column_break_varsayilanlar",
+		"auto_assign_carrier",
+		"max_delivery_attempts",
+		"return_window_days"
 	],
 	"fields": [
 		{
@@ -97,12 +105,57 @@
 			"fieldname": "shipment_naming_series",
 			"fieldtype": "Data",
 			"label": "Sevkiyat Numaralama Serisi"
+		},
+		{
+			"fieldname": "section_varsayilanlar",
+			"fieldtype": "Section Break",
+			"label": "Varsayılanlar"
+		},
+		{
+			"fieldname": "default_logistics_provider",
+			"fieldtype": "Link",
+			"label": "Varsayılan Lojistik Sağlayıcı",
+			"options": "Logistics Provider"
+		},
+		{
+			"fieldname": "default_package_type",
+			"fieldtype": "Link",
+			"label": "Varsayılan Paket Tipi",
+			"options": "Package Type"
+		},
+		{
+			"fieldname": "default_vehicle_type",
+			"fieldtype": "Link",
+			"label": "Varsayılan Araç Tipi",
+			"options": "Vehicle Type"
+		},
+		{
+			"fieldname": "column_break_varsayilanlar",
+			"fieldtype": "Column Break"
+		},
+		{
+			"default": "0",
+			"fieldname": "auto_assign_carrier",
+			"fieldtype": "Check",
+			"label": "Otomatik Taşıyıcı Atama"
+		},
+		{
+			"default": "3",
+			"fieldname": "max_delivery_attempts",
+			"fieldtype": "Int",
+			"label": "Maksimum Teslimat Denemesi"
+		},
+		{
+			"default": "15",
+			"fieldname": "return_window_days",
+			"fieldtype": "Int",
+			"label": "İade Penceresi (gün)"
 		}
 	],
 	"index_web_pages_for_search": 0,
 	"issingle": 1,
 	"links": [],
-	"modified": "2026-08-05 00:00:00.000000",
+	"modified": "2026-08-07 10:00:00.000000",
 	"modified_by": "Administrator",
 	"module": "Tradehub Core",
 	"name": "Logistics Settings",

@@ -12,6 +12,8 @@ from typing import Any, Optional
 
 from frappe import _
 
+from tradehub_core.logistics.exceptions import CarrierCapabilityError
+
 
 class CarrierCapability(enum.Enum):
 	"""Bir kargo firmasinin destekledigi yetenekler."""
@@ -154,24 +156,24 @@ class BaseCarrierAdapter(abc.ABC):
 		...
 
 	# -------------------------------------------------------------------
-	# Opsiyonel metotlar (varsayilan NotImplementedError)
+	# Opsiyonel metotlar (varsayilan CarrierCapabilityError — HTTP 400)
 	# -------------------------------------------------------------------
 
 	def cancel_shipment(self, shipment_id: str) -> CancelResponse:
 		"""Gonderiyi iptal et."""
-		raise NotImplementedError(
+		raise CarrierCapabilityError(
 			_("{0} adapteri iptal islemini desteklemiyor.").format(self.display_name)
 		)
 
 	def get_label(self, shipment_id: str, fmt: str = "PDF") -> bytes:
 		"""Gonderi etiketini indir."""
-		raise NotImplementedError(
+		raise CarrierCapabilityError(
 			_("{0} adapteri etiket indirmeyi desteklemiyor.").format(self.display_name)
 		)
 
 	def schedule_pickup(self, request: dict[str, Any]) -> dict[str, Any]:
 		"""Kurye cagrisi planla."""
-		raise NotImplementedError(
+		raise CarrierCapabilityError(
 			_("{0} adapteri kurye cagrisini desteklemiyor.").format(self.display_name)
 		)
 
@@ -184,9 +186,9 @@ class BaseCarrierAdapter(abc.ABC):
 		return capability in self.capabilities
 
 	def _check_capability(self, capability: CarrierCapability) -> None:
-		"""Yetenek kontrolu yap, desteklenmiyorsa hata firsat."""
+		"""Yetenek kontrolu yap, desteklenmiyorsa CarrierCapabilityError firlat."""
 		if not self.supports(capability):
-			raise NotImplementedError(
+			raise CarrierCapabilityError(
 				_("{0} adapteri {1} yetenegini desteklemiyor.").format(
 					self.display_name, capability.value
 				)

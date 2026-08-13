@@ -83,6 +83,16 @@ class SplitInvariantError(LogisticsError):
 	http_status_code = 422
 
 
+class CarrierNotFoundError(LogisticsError):
+	"""Kayıtlı olmayan kargo firması hatası.
+
+	HTTP 404 — Not Found.
+	Registry'de kayıtlı olmayan bir carrier_code istendiğinde fırlatılır.
+	"""
+
+	http_status_code = 404
+
+
 class CarrierCapabilityError(LogisticsError):
 	"""Kargo firması yetenek hatası.
 

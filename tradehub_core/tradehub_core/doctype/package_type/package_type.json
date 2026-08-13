@@ -1,0 +1,119 @@
+{
+	"actions": [],
+	"autoname": "field:package_code",
+	"creation": "2026-08-07 10:00:00.000000",
+	"doctype": "DocType",
+	"engine": "InnoDB",
+	"field_order": [
+		"package_name",
+		"package_code",
+		"is_default",
+		"is_active",
+		"max_weight_kg",
+		"max_length_cm",
+		"max_width_cm",
+		"max_height_cm",
+		"max_desi",
+		"description"
+	],
+	"fields": [
+		{
+			"fieldname": "package_name",
+			"fieldtype": "Data",
+			"in_list_view": 1,
+			"label": "Package Name",
+			"reqd": 1
+		},
+		{
+			"fieldname": "package_code",
+			"fieldtype": "Data",
+			"in_list_view": 1,
+			"label": "Package Code",
+			"reqd": 1,
+			"unique": 1
+		},
+		{
+			"default": "0",
+			"fieldname": "is_default",
+			"fieldtype": "Check",
+			"in_list_view": 1,
+			"label": "Is Default"
+		},
+		{
+			"default": "1",
+			"fieldname": "is_active",
+			"fieldtype": "Check",
+			"label": "Is Active"
+		},
+		{
+			"fieldname": "max_weight_kg",
+			"fieldtype": "Float",
+			"in_list_view": 1,
+			"label": "Max Weight (kg)"
+		},
+		{
+			"fieldname": "max_length_cm",
+			"fieldtype": "Float",
+			"label": "Max Length (cm)"
+		},
+		{
+			"fieldname": "max_width_cm",
+			"fieldtype": "Float",
+			"label": "Max Width (cm)"
+		},
+		{
+			"fieldname": "max_height_cm",
+			"fieldtype": "Float",
+			"label": "Max Height (cm)"
+		},
+		{
+			"fieldname": "max_desi",
+			"fieldtype": "Float",
+			"label": "Max Desi"
+		},
+		{
+			"fieldname": "description",
+			"fieldtype": "Small Text",
+			"label": "Description"
+		}
+	],
+	"index_web_pages_for_search": 0,
+	"links": [],
+	"modified": "2026-08-07 10:00:00.000000",
+	"modified_by": "Administrator",
+	"module": "Tradehub Core",
+	"name": "Package Type",
+	"naming_rule": "By fieldname",
+	"owner": "Administrator",
+	"permissions": [
+		{
+			"create": 1,
+			"delete": 1,
+			"email": 1,
+			"export": 1,
+			"print": 1,
+			"read": 1,
+			"report": 1,
+			"role": "System Manager",
+			"share": 1,
+			"write": 1
+		},
+		{
+			"create": 1,
+			"export": 1,
+			"read": 1,
+			"report": 1,
+			"role": "Logistics Manager",
+			"write": 1
+		},
+		{
+			"read": 1,
+			"report": 1,
+			"role": "Logistics Operator"
+		}
+	],
+	"sort_field": "modified",
+	"sort_order": "DESC",
+	"title_field": "package_name",
+	"track_changes": 1
+}
