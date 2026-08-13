@@ -244,11 +244,28 @@ export interface ShipmentListItem {
   tracking_number?: string;
   package_count?: number;
   chargeable_weight?: number;
-  shipped_date?: string;
-  estimated_delivery_date?: string;
-  delivered_date?: string;
+  ship_date?: string;
+  estimated_delivery?: string;
+  actual_delivery?: string;
   is_delayed?: number;
   modified?: string;
+}
+
+export interface ShipmentAddressSnapshotsRow {
+  snapshot_type: string;
+  source_address?: string;
+  contact_name?: string;
+  company?: string;
+  phone_prefix?: string;
+  phone?: string;
+  country?: string;
+  state?: string;
+  city?: string;
+  street?: string;
+  apartment?: string;
+  postal_code?: string;
+  tax_no?: string;
+  tax_office?: string;
 }
 
 export interface ShipmentItemsRow {
@@ -307,8 +324,6 @@ export interface ShipmentEventsRow {
 }
 
 export interface ShipmentDetail extends ShipmentListItem {
-  origin_address_snapshot?: Record<string, unknown> | null;
-  destination_address_snapshot?: Record<string, unknown> | null;
   warehouse?: string;
   total_weight?: number;
   total_desi?: number;
@@ -319,7 +334,9 @@ export interface ShipmentDetail extends ShipmentListItem {
   exception_code?: string;
   delivery_code_required?: number;
   payment_required_before_delivery?: number;
-  notes?: string;
+  seller_note?: string;
+  buyer_note?: string;
+  internal_note?: string;
   driver_name?: string;
   driver_phone?: string;
   vehicle_plate?: string;
@@ -329,6 +346,7 @@ export interface ShipmentDetail extends ShipmentListItem {
   delivery_code_attempts?: number;
   pickup_location?: string;
   payment_status?: string;
+  address_snapshots: ShipmentAddressSnapshotsRow[];
   items: ShipmentItemsRow[];
   packages: ShipmentPackagesRow[];
   legs: ShipmentLegsRow[];

@@ -66,16 +66,17 @@ SHIPMENT_LIST_FIELDS = [
 	_f("tracking_number", "Data", False, "Takip veya fiş numarası (TUR-107)"),
 	_f("package_count", "Int", False, "Toplam koli adedi"),
 	_f("chargeable_weight", "Float", False, "Ücretlendirilebilir ağırlık (desi kuralı)"),
-	_f("shipped_date", "Date", False, "Sevk tarihi"),
-	_f("estimated_delivery_date", "Date", False, "Tahmini teslim"),
-	_f("delivered_date", "Date", False, "Gerçekleşen teslim"),
+	# Ad hizalaması (2026-08-13): bu üç alan gerçek DocType'taki adlarını
+	# taşıyor. Sözleşme Linear metinlerinden çıkarılmıştı; şema otoritesi
+	# `doctype/shipment/shipment.json`.
+	_f("ship_date", "Date", False, "Sevk tarihi"),
+	_f("estimated_delivery", "Date", False, "Tahmini teslim"),
+	_f("actual_delivery", "Datetime", False, "Gerçekleşen teslim"),
 	_f("is_delayed", "Check", False, "Gecikme tespiti (TUR-112)"),
 	_f("modified", "Datetime", False, "Son güncelleme"),
 ]
 
 SHIPMENT_DETAIL_FIELDS = [
-	_f("origin_address_snapshot", "JSON", False, "Adres SNAPSHOT — sonradan bozulmaz (TUR-105)"),
-	_f("destination_address_snapshot", "JSON", False, "Adres snapshot"),
 	_f("warehouse", "Link", False, "Çıkış deposu"),
 	_f("total_weight", "Float", False),
 	_f("total_desi", "Float", False),
@@ -86,7 +87,12 @@ SHIPMENT_DETAIL_FIELDS = [
 	_f("exception_code", "Link", False, "Shipment Exception Code"),
 	_f("delivery_code_required", "Check", False, "Tek kullanımlık teslim kodu (TUR-108)"),
 	_f("payment_required_before_delivery", "Check", False, "Ödeme şartlı teslim (TUR-108)"),
-	_f("notes", "Small Text", False),
+	# DocType notu ÜÇE ayırıyor: satıcı, alıcı ve operasyon notu. Tek bir
+	# `notes` alanı bunları birleştirirdi; `internal_note` ayrıca alıcıya
+	# sızdırılmıyor (api/v1/shipment.py `_can_view_operational_fields`).
+	_f("seller_note", "Small Text", False, "Satıcının notu"),
+	_f("buyer_note", "Small Text", False, "Alıcının notu"),
+	_f("internal_note", "Small Text", False, "Operasyon notu — alıcıya dönmez"),
 	# TUR-108 — satıcı aracı ve alıcı teslim alma akışları. Kargo dışı
 	# kanallarda taşıyıcı/takip no yerine BUNLAR izleniyor; panelin
 	# "taşıyıcı atanmadı" demesi bu akışlarda yanlış olurdu.
@@ -104,6 +110,25 @@ SHIPMENT_DETAIL_FIELDS = [
 	_f("delivery_code_attempts", "Int", False, "Yanlış kod denemesi sayısı"),
 	_f("pickup_location", "Data", False, "Alıcı teslim alma noktası (TUR-108)"),
 	_f("payment_status", "Select", False, "unpaid | paid | waived — ödeme şartlı teslimde kapı"),
+]
+
+#: Adres snapshot'ları (TUR-105) — DocType'ta JSON alan DEĞİL, child tablo.
+#: `Shipment Address Snapshot` ile birebir; `snapshot_type` Origin/Destination.
+SHIPMENT_ADDRESS_SNAPSHOT_FIELDS = [
+	_f("snapshot_type", "Select", True, "Origin | Destination"),
+	_f("source_address", "Link", False, "Kaynak Addresses kaydı"),
+	_f("contact_name", "Data", False),
+	_f("company", "Data", False),
+	_f("phone_prefix", "Data", False),
+	_f("phone", "Data", False),
+	_f("country", "Link", False),
+	_f("state", "Data", False),
+	_f("city", "Data", False),
+	_f("street", "Small Text", False),
+	_f("apartment", "Data", False),
+	_f("postal_code", "Data", False),
+	_f("tax_no", "Data", False),
+	_f("tax_office", "Data", False),
 ]
 
 SHIPMENT_ITEM_FIELDS = [
@@ -453,6 +478,7 @@ PROVISIONAL_ENTITIES: dict[str, dict[str, Any]] = {
 		"list_fields": SHIPMENT_LIST_FIELDS,
 		"detail_fields": SHIPMENT_DETAIL_FIELDS,
 		"child_tables": {
+			"address_snapshots": SHIPMENT_ADDRESS_SNAPSHOT_FIELDS,
 			"items": SHIPMENT_ITEM_FIELDS,
 			"packages": SHIPMENT_PACKAGE_FIELDS,
 			"legs": SHIPMENT_LEG_FIELDS,
@@ -576,9 +602,9 @@ SAMPLE_SHIPMENTS: list[dict[str, Any]] = [
 		"tracking_number": "7801234567890",
 		"package_count": 3,
 		"chargeable_weight": 42.0,
-		"shipped_date": "2026-08-10",
-		"estimated_delivery_date": "2026-08-13",
-		"delivered_date": None,
+		"ship_date": "2026-08-10",
+		"estimated_delivery": "2026-08-13",
+		"actual_delivery": None,
 		"is_delayed": 0,
 		"modified": "2026-08-12 09:14:00",
 	},
@@ -595,9 +621,9 @@ SAMPLE_SHIPMENTS: list[dict[str, Any]] = [
 		"tracking_number": "AK-556677",
 		"package_count": 1,
 		"chargeable_weight": 8.0,
-		"shipped_date": "2026-08-06",
-		"estimated_delivery_date": "2026-08-09",
-		"delivered_date": "2026-08-08",
+		"ship_date": "2026-08-06",
+		"estimated_delivery": "2026-08-09",
+		"actual_delivery": "2026-08-08",
 		"is_delayed": 0,
 		"modified": "2026-08-08 16:22:00",
 	},
@@ -614,9 +640,9 @@ SAMPLE_SHIPMENTS: list[dict[str, Any]] = [
 		"tracking_number": "MNG-99001",
 		"package_count": 2,
 		"chargeable_weight": 120.0,
-		"shipped_date": "2026-08-04",
-		"estimated_delivery_date": "2026-08-07",
-		"delivered_date": None,
+		"ship_date": "2026-08-04",
+		"estimated_delivery": "2026-08-07",
+		"actual_delivery": None,
 		"is_delayed": 1,
 		"modified": "2026-08-11 11:05:00",
 	},
@@ -633,9 +659,9 @@ SAMPLE_SHIPMENTS: list[dict[str, Any]] = [
 		"tracking_number": None,
 		"package_count": 1,
 		"chargeable_weight": 15.0,
-		"shipped_date": None,
-		"estimated_delivery_date": "2026-08-14",
-		"delivered_date": None,
+		"ship_date": None,
+		"estimated_delivery": "2026-08-14",
+		"actual_delivery": None,
 		"is_delayed": 0,
 		"modified": "2026-08-12 08:00:00",
 	},
@@ -652,9 +678,9 @@ SAMPLE_SHIPMENTS: list[dict[str, Any]] = [
 		"tracking_number": "AMB-4471",
 		"package_count": 12,
 		"chargeable_weight": 860.0,
-		"shipped_date": "2026-08-09",
-		"estimated_delivery_date": "2026-08-16",
-		"delivered_date": None,
+		"ship_date": "2026-08-09",
+		"estimated_delivery": "2026-08-16",
+		"actual_delivery": None,
 		"is_delayed": 0,
 		"modified": "2026-08-11 19:40:00",
 	},
@@ -662,22 +688,26 @@ SAMPLE_SHIPMENTS: list[dict[str, Any]] = [
 
 #: SHP-2026-00042'nin detayı — liste satırıyla TUTARLI olmalı
 SAMPLE_SHIPMENT_DETAIL: dict[str, Any] = {
-	"origin_address_snapshot": {
-		"unvan": "Demir Tekstil Ltd. Şti.",
-		"adres": "İkitelli OSB, Bağcılar Cad. No:12",
-		"ilce": "Başakşehir",
-		"il": "İstanbul",
-		"posta_kodu": "34490",
-		"telefon": "+90 212 000 00 00",
-	},
-	"destination_address_snapshot": {
-		"unvan": "Yıldız Mağazacılık A.Ş.",
-		"adres": "Ostim Sanayi Sitesi 100. Sokak No:4",
-		"ilce": "Yenimahalle",
-		"il": "Ankara",
-		"posta_kodu": "06370",
-		"telefon": "+90 312 000 00 00",
-	},
+	# Adres snapshot'ları child tablo — alan adları `Addresses` DocType'ından
+	# birebir kopyalanıyor (hooks.py `_ADDRESS_COPY_FIELDS`), Türkçe anahtar yok.
+	"address_snapshots": [
+		{
+			"snapshot_type": "Origin", "source_address": "ADDR-00042",
+			"contact_name": "Mehmet Demir", "company": "Demir Tekstil Ltd. Şti.",
+			"phone_prefix": "+90", "phone": "212 000 00 00",
+			"country": "Turkey", "state": "İstanbul", "city": "Başakşehir",
+			"street": "İkitelli OSB, Bağcılar Cad. No:12", "apartment": "Blok C",
+			"postal_code": "34490", "tax_no": "1234567890", "tax_office": "İkitelli",
+		},
+		{
+			"snapshot_type": "Destination", "source_address": "ADDR-00117",
+			"contact_name": "Ayşe Yıldız", "company": "Yıldız Mağazacılık A.Ş.",
+			"phone_prefix": "+90", "phone": "312 000 00 00",
+			"country": "Turkey", "state": "Ankara", "city": "Yenimahalle",
+			"street": "Ostim Sanayi Sitesi 100. Sokak No:4", "apartment": "No:4",
+			"postal_code": "06370", "tax_no": "9876543210", "tax_office": "Ostim",
+		},
+	],
 	"warehouse": None,
 	"total_weight": 38.5,
 	"total_desi": 42.0,
@@ -688,7 +718,9 @@ SAMPLE_SHIPMENT_DETAIL: dict[str, Any] = {
 	"exception_code": None,
 	"delivery_code_required": 0,
 	"payment_required_before_delivery": 0,
-	"notes": "Kırılabilir ürün içerir, istifleme yapılmamalı.",
+	"seller_note": "Kırılabilir ürün içerir, istifleme yapılmamalı.",
+	"buyer_note": "Teslimat öncesi lütfen arayın.",
+	"internal_note": "Müşteri daha önce hasarlı teslim bildirmişti — fotoğraf çekilsin.",
 	# Kargo kanalıyla giden bir sevkiyat: satıcı aracı/alıcı teslim alma
 	# alanları BOŞ. D1/D2 ekranları kendi senaryolarını bu boşluğun üzerine
 	# kuruyor — dolu bırakmak "her sevkiyatta sürücü var" izlenimi verirdi.
@@ -955,7 +987,7 @@ SAMPLE_IMPORT_JOBS: list[dict[str, Any]] = [
 			"Siparis No": "order",
 			"Kargo": "carrier",
 			"Takip": "tracking_number",
-			"Sevk Tarihi": "shipped_date",
+			"Sevk Tarihi": "ship_date",
 			"Tutar": "carrier_cost",
 		},
 		"errors": [
