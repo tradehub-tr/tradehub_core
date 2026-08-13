@@ -238,11 +238,16 @@ doc_events = {
 		# Medya yüklemesini denetime yaz — "bu görseli hangi satıcı yükledi"
 		# sorusunun tek kaynağı (TUR-140). Yalnız görsel/video uzantıları
 		# kaydedilir; kanca best-effort, yüklemeyi asla engellemez.
-		# İki kanca: durum damgası (TUR-138) + denetim kaydı (TUR-140).
-		# Durum önce yazılır ki denetim kaydı dosyayı doğru durumda görsün.
+		# Üç kanca: durum damgası (TUR-138) + denetim kaydı (TUR-140) + KOŞULLU
+		# video transcode güvenlik ağı (WP5, TUR-296/297). Durum önce yazılır ki
+		# denetim kaydı dosyayı doğru durumda görsün. Transcode kancası SADECE
+		# satıcıya ait public video / Listing'e eklenmiş video için tetiklenir
+		# (chat/KYB/private muaf) ve `enqueue_transcode` kendi içinde koşullu +
+		# idempotent — `upload_media`'nın kendi ardışık çağrısıyla çakışmaz.
 		"after_insert": [
 			"tradehub_core.media.states.on_file_insert",
 			"tradehub_core.media.audit.on_file_insert",
+			"tradehub_core.media.transcode.maybe_transcode_on_insert",
 		],
 	},
 	# Currency cache invalidation — admin manuel düzenlemesinde düş.
