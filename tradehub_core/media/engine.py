@@ -145,6 +145,31 @@ def optimize(content: bytes, max_dim: int, quality: int) -> OptimizeResult:
 		return OptimizeResult(ok=False, reason=f"error:{type(exc).__name__}")
 
 
+def to_webp(data: bytes, quality: int = 80) -> bytes:
+	"""Görseli KOŞULSUZ WebP'ye çevirir — sunucu tarafı garanti-WebP (TUR-128).
+
+	`optimize()`'dan FARKLI, AYRI bir giriş: `optimize` formatı korur (JPEG
+	kalır JPEG), bu fonksiyon her zaman WebP üretir. Safari/iOS/Capacitor'da
+	`canvas.toBlob('image/webp')` yok — client bu ortamlarda JPEG fallback'i
+	gönderir; `api/seller_media.py:upload_media` bu fonksiyonu çağırıp sunucuda
+	WebP'ye tamamlar. `optimize`'ın format-koruma yolu bu değişiklikten
+	ETKİLENMEZ, ikisi paralel çalışır.
+
+	`file_url` semantiği burada bilinmiyor — çağıran, dosya adının uzantısını
+	`.webp` yapmaktan sorumlu.
+	"""
+	from PIL import Image, ImageOps
+
+	im = Image.open(io.BytesIO(data))
+	im = ImageOps.exif_transpose(im)
+	im = im.convert("RGB")
+	im.thumbnail((1920, 1920))
+
+	buf = io.BytesIO()
+	im.save(buf, "WEBP", quality=quality, method=4)
+	return buf.getvalue()
+
+
 def _verify(content: bytes) -> bool:
 	"""Üretilen baytlar geçerli bir görsel mi."""
 	try:
