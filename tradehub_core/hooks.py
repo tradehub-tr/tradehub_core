@@ -229,7 +229,12 @@ doc_events = {
 	# SVG/HTML/JS/XML gibi browser-execute edebilir formatlar engellenir;
 	# raster image, PDF, Office, video, txt güvenli kabul edilir.
 	"File": {
-		"before_insert": "tradehub_core.utils.security.reject_unsafe_files",
+		# İki before_insert: uzantı güvenliği (HATA 23) + satıcı depolama kotası
+		# (TUR-139, WP3 dolduracak — şu an no-op stub, yüklemeyi engellemez).
+		"before_insert": [
+			"tradehub_core.utils.security.reject_unsafe_files",
+			"tradehub_core.entitlement.checks.check_media_storage_quota",
+		],
 		# Medya yüklemesini denetime yaz — "bu görseli hangi satıcı yükledi"
 		# sorusunun tek kaynağı (TUR-140). Yalnız görsel/video uzantıları
 		# kaydedilir; kanca best-effort, yüklemeyi asla engellemez.
@@ -854,3 +859,8 @@ override_whitelisted_methods = {
 	"crm.api.session.get_users": "tradehub_core.api.v1.crm_overrides.get_users",
 	"crm.api.session.get_organizations": "tradehub_core.api.v1.crm_overrides.get_organizations",
 }
+
+# Yeni yüklemeleri içerik-hash'iyle adlandır (enumeration önleme, TUR-141/130).
+# WP4 naming.py'yi doldurunca aşağıdaki satır aktifleştirilecek. Şu an stub
+# NotImplementedError attığı için YORUMDA — aktif olsaydı her upload kırılırdı.
+# write_file = "tradehub_core.media.naming.write_file_hashed"

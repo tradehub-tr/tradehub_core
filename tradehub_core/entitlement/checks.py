@@ -204,3 +204,13 @@ def _extract_region_codes(value) -> set[str]:
 				codes.add(item.region)
 		return codes
 	return set()
+
+
+def check_media_storage_quota(doc, method=None):
+	"""File.before_insert — satıcı medya depolama kotası (TUR-139).
+
+	Faz 0 iskeleti: şu an no-op. WP3 gerçek enforcement'ı buraya koyacak
+	(EXCLUDED_DOCTYPES muafiyeti + get_current_seller_profile + within_quota).
+	Kancaya şimdi bağlı olduğu için NotImplementedError DEĞİL — sessizce geçer.
+	"""
+	return
