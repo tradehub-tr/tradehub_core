@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import frappe
 
-from tradehub_core.media import audit, files, inventory, metadata, ownership, usage
+from tradehub_core.media import audit, engine, files, inventory, metadata, ownership, transcode, usage
 from tradehub_core.media import seller_media as islem
 
 # Tek istekte işlenebilecek azami dosya — kazara "hepsini" tetiklemeye karşı.
@@ -235,6 +235,16 @@ UPLOAD_EXTENSIONS: frozenset[str] = frozenset(
 	}
 )
 
+# Sunucu garanti-WebP (TUR-128) yalnız `engine.to_webp`'in açabildiği raster
+# biçimlere uygulanır. GIF kasıtlı DIŞARIDA: `engine.optimize` de animasyonlu
+# GIF'i atlıyor (`OptimizeResult(reason="animated")`), aynı davranış burada da
+# korunuyor — tek kare WebP'ye çevirmek animasyonu kırar.
+IMAGE_TO_WEBP_EXTENSIONS: frozenset[str] = frozenset(
+	{".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".avif", ".heic"}
+)
+
+VIDEO_EXTENSIONS: frozenset[str] = frozenset({".mp4", ".webm", ".mov", ".m4v"})
+
 # Tek dosya üst sınırı. Sınır olmaması, tek istekle diski doldurmayı mümkün
 # kılardı. Depolama kotası ayrı bir iş (TUR-139); bu yalnız tek dosya kalkanı.
 MAX_UPLOAD_BYTES: int = 25 * 1024 * 1024
@@ -280,6 +290,22 @@ def upload_media(file_name: str = "", content: str = "") -> dict:
 			frappe._("Dosya çok büyük: en fazla {0} MB.").format(MAX_UPLOAD_BYTES // (1024 * 1024))
 		)
 
+	video_mi = uzanti in VIDEO_EXTENSIONS
+
+	# Sunucu garanti-WebP (TUR-128): Safari/iOS/Capacitor `canvas.toBlob(
+	# 'image/webp')` desteklemiyor, client bu ortamlarda JPEG/PNG fallback'i
+	# gönderir. `.webp` uzantısıyla gelen içerik zaten WebP'yse dokunulmaz —
+	# çift sıkıştırma yok.
+	if uzanti in IMAGE_TO_WEBP_EXTENSIONS:
+		try:
+			icerik = engine.to_webp(icerik)
+			ad = os.path.splitext(ad)[0] + ".webp"
+		except Exception as exc:
+			# `to_webp` Pillow'un açamadığı bir biçimle (ör. bazı HEIC varyantları)
+			# karşılaşırsa orijinal içerikle devam edilir — yükleme reddedilmez,
+			# yalnız Safari-fallback tamamlanmamış olur.
+			frappe.log_error(title="upload_media to_webp başarısız", message=f"{ad}: {exc}")
+
 	doc = frappe.get_doc(
 		{"doctype": "File", "file_name": ad[: files.MAX_NAME], "is_private": 0, "content": icerik}
 	)
@@ -294,6 +320,13 @@ def upload_media(file_name: str = "", content: str = "") -> dict:
 		tenant=store,
 		context={"bytes": len(icerik), "via": "seller_library"},
 	)
+
+	if video_mi:
+		# Video normalize'i dakikalar sürebilir — istek içinde SENKRON
+		# çalıştırılmaz (checklists.md §2 kural 9). `enqueue_transcode` durumu
+		# hemen `processing` yapıp gerçek işi `long` kuyruğa devreder.
+		transcode.enqueue_transcode(doc.file_url)
+
 	return {"file_url": doc.file_url, "file_name": doc.file_name, "bytes": doc.file_size}
 
 
