@@ -8,6 +8,27 @@ entegrasyonlari, takip otomasyonu ve fiyatlandirma motorunu kapsar.
 Bu modul `tradehub_core` monolitik app'in bir parcasidir ve bagimsiz bir Frappe
 app'i olarak calistirilmaz.
 
+Mimari kararlar, repo sınırları ve API sözleşmesi: **`tradehub_core/docs/LOGISTICS-ARCHITECTURE.md`**
+
+## ⚠️ Mevcut olgunluk (2026-08-12)
+
+Bu modül **iskelet aşamasındadır**. Aşağıdaki tablo neyin çalıştığını, neyin
+sadece yer tuttuğunu gösterir — dosya varlığını "hazır" diye okuma.
+
+| Bileşen | Durum |
+|---|---|
+| Katalog DocType'ları (12) + seed | ✅ Çalışıyor |
+| Logistics Settings singleton + feature flag okuyucu | ✅ Çalışıyor (ama `is_enabled()` **hiçbir yerden çağrılmıyor**) |
+| Rol / permission / tenant izolasyonu (`permissions.py`) | ✅ Kod hazır — Carrier Account için `hooks.py`'a bağlı |
+| Adapter ABC + registry + MockCarrierAdapter | ✅ Çalışıyor (ama boot'ta **hiçbir carrier register edilmiyor**) |
+| Desi / ücretlendirilebilir ağırlık | ✅ Çalışıyor |
+| Durum makinesi sabitleri | ✅ Tanımlı — **uygulayan kod yok** (Shipment DocType henüz yok) |
+| `hooks.py` içindeki 7 doc_event handler | 🔸 **Hepsi `pass`** — ana `hooks.py`'a bağlı değil |
+| `services/` (6 modül), `jobs/` (2 modül), `adapters/http_client.py` | 🔸 **Docstring + TODO** — gövde yok |
+| `reports/` | 🔸 Boş |
+| API endpoint'leri (8) | 🔸 7'si `throw("henüz aktif değil")` |
+| Shipment DocType | ❌ Yok |
+
 ## Dizin Yapisi
 
 ```
@@ -15,7 +36,7 @@ logistics/
 ├── __init__.py              # Public API: is_enabled(), get_logistics_settings()
 ├── constants.py             # ShipmentStatus, ALLOWED_TRANSITIONS, feature flags
 ├── exceptions.py            # LogisticsError ve alt siniflar
-├── hooks.py                 # doc_event handler stub'lari (validate, snapshot, vb.)
+├── hooks.py                 # doc_event handler'lari (state validate, snapshot, fulfillment)
 ├── permissions.py           # Sevkiyat erisim kontrolleri
 ├── cache.py                 # Redis cache yardimcilari (tc:logistics: prefix)
 ├── seed.py                  # Lojistik katalog seed verileri (provider, paket tipi vb.)
@@ -29,21 +50,25 @@ logistics/
 │       └── mock_carrier.py  # Test/dev icin deterministik sahte adapter
 ├── services/
 │   ├── __init__.py
-│   ├── shipment_service.py  # Sevkiyat CRUD + state machine (stub, TUR-105)
-│   ├── tracking_service.py  # Takip sorgu servisi
-│   ├── split_engine.py      # Sevkiyat bolme motoru (INV-1..5)
-│   ├── pricing_engine.py    # Kargo fiyatlandirma motoru
-│   ├── rate_calculator.py   # Tarife hesaplayici
+│   ├── shipment_service.py  # Durum gecis motoru: transition_status + cancel_shipment (LOG-049/050)
+│   ├── tracking_service.py  # Takip sorgu servisi (stub, TUR-112)
+│   ├── split_engine.py      # Sevkiyat bolme motoru INV-1..5 (LOG-045)
+│   ├── pricing_engine.py    # Kargo fiyatlandirma motoru (stub, TUR-121)
+│   ├── rate_calculator.py   # Tarife hesaplayici (stub, TUR-121)
 │   ├── desi.py              # Desi/hacimsel agirlik hesaplama
-│   └── notifier.py          # Bildirim servisi
+│   └── notifier.py          # Bildirim servisi (stub, TUR-113)
 ├── jobs/                    # Arka plan islemleri (tracking poll, vb.)
 ├── reports/                 # Lojistik raporlari (TUR-102)
 │   └── __init__.py
 └── tests/
     ├── __init__.py
-    ├── test_module_import.py      # Import smoke testi
-    ├── test_constants.py          # Durum makinesi invariant testleri
-    └── test_adapter_contract.py   # Adapter ABC sozlesme + registry testleri
+    ├── test_module_import.py         # Import smoke testi
+    ├── test_constants.py             # Durum makinesi invariant testleri
+    ├── test_state_machine.py         # is_transition_allowed saf kural testleri
+    ├── test_desi.py                  # Desi hesaplama testleri
+    ├── test_adapter_contract.py      # Adapter ABC sozlesme + registry testleri
+    ├── test_logistics_permissions.py # Permission unit testleri (standalone mock)
+    └── test_shipment_core.py         # Bench entegrasyon paketi (split/state/API, LOG-054)
 ```
 
 ## Feature Flags
@@ -93,7 +118,13 @@ Kontrol sirasi:
 
    register_carrier("yk", YurticiAdapter)
    ```
-4. `Carrier Credential` DocType'ina hesap bilgilerini gir (TUR-106)
+4. `Carrier Account` DocType'ına hesap bilgilerini gir (satıcı bazlı; secret
+   alanları `Password` fieldtype ile saklanır, `view.carrier_secret`
+   capability'si olmayan kullanıcıya maskelenir)
+
+> ⚠️ Şu an **hiçbir adapter boot sırasında register edilmiyor** —
+> `register_carrier` yalnızca testlerden çağrılıyor, dolayısıyla production'da
+> `list_registered_carriers()` boş döner. Bootstrap kaydı F bloğunda eklenecek.
 
 ### Adapter Data Contract'lari
 
@@ -112,16 +143,17 @@ Sevkiyat durumlari `ShipmentStatus` sinifinda, gecis matrisi
 
 ```
 Draft -> Pending -> Ready for Pickup -> Picked Up -> In Transit
-                                                        |
-                                          +-------------+-------------+
-                                          |             |             |
-                                     At Warehouse  Out for Delivery  Failed
-                                          |             |             |
-                                          +------+------+       +----+----+
-                                                 |               |        |
-                                             Delivered      In Transit  Returned
-                                                                         |
-                                                                      Cancelled
+
+In Transit       -> At Warehouse | Out for Delivery | Delivered | Failed
+At Warehouse     -> In Transit   | Out for Delivery
+Out for Delivery -> Delivered    | Failed | Returned
+Failed           -> In Transit   | Returned
+
+Cancelled: Out for Delivery haric tum terminal-olmayan durumlardan erisilir
+(Draft, Pending, Ready for Pickup, Picked Up, In Transit, At Warehouse, Failed).
+
+Terminal: Delivered, Returned, Cancelled — cikis gecisi YOKTUR
+(Returned'dan Cancelled'a gecis de yoktur; kaynak: constants.ALLOWED_TRANSITIONS).
 ```
 
 ## Naming Conventions
@@ -133,24 +165,36 @@ Draft -> Pending -> Ready for Pickup -> Picked Up -> In Transit
 
 ## Test Calistirma
 
-```bash
-# Tum lojistik testleri
-cd /path/to/frappe-bench
-bench --site dev.localhost run-tests --module tradehub_core.logistics.tests
+LOCAL dev'de bench komutları container içinde çalışır (kök `CLAUDE.md` §4.4):
 
-# Belirli test dosyasi
-bench --site dev.localhost run-tests --module tradehub_core.logistics.tests.test_constants
+```bash
+# Test modülü bazında (paket adı değil, MODÜL adı verilmeli)
+docker exec istoccom-backend-1 bash -c "cd /home/frappe/workspace/frappe-bench && \
+  bench --site dev.localhost run-tests --module tradehub_core.logistics.tests.test_constants"
+
+# Mevcut test modülleri
+#   test_module_import          — import smoke
+#   test_constants              — durum makinesi invariantları
+#   test_adapter_contract       — adapter ABC sözleşmesi + registry
+#   test_desi                   — desi / ücretlendirilebilir ağırlık
+#   test_logistics_permissions  — rol/yetki + tenant izolasyonu
+#   test_logistics_roles        — Role Profile + capability grant bütünlüğü
 ```
 
 ## Ilgili Gorevler (Linear)
 
-| Gorev | Konu |
-|-------|------|
-| TUR-102 | Lojistik modul iskelet ve adapter pattern |
-| TUR-103 | Shipment DocType + state machine |
-| TUR-104 | Ana lojistik kataloglari (provider, paket tipi, arac) |
-| TUR-105 | Shipment CRUD + state transitions |
-| TUR-106 | Carrier Credential DocType |
-| TUR-107 | Yurtici Kargo adapter entegrasyonu |
-| TUR-108 | Aras Kargo adapter entegrasyonu |
-| TUR-109 ~ TUR-121 | Diger lojistik gorevleri |
+**Doğrulanmış** (commit geçmişinden):
+
+| Görev | Konu | Durum |
+|-------|------|-------|
+| TUR-102 | Lojistik mimari temeli — modül iskeleti, adapter pattern, feature flag, durum makinesi sabitleri | Kısmi |
+| TUR-103 | Rol ve yetki modeli — 3 rol, permission query, tenant izolasyonu, alan maskeleme, audit | Kısmi |
+| TUR-104 | Ana lojistik katalogları — 12 DocType + 6 seed patch | Kısmi |
+
+> ⚠️ **TUR-105 ve sonrası için bu dosyada eşleşme TUTULMUYOR.** Önceki sürümde
+> burada TUR-103'ü "Shipment DocType", TUR-104'ü "kataloglar" diye gösteren bir
+> tablo vardı; **yanlıştı**. Güncel görev listesi için Linear otoritedir —
+> tahmini eşleşme yazma.
+
+Patch adlandırması ayrı bir seri kullanıyor (`v15_log0NN_*`), Linear ID'siyle
+birebir örtüşmez; ikisini karıştırma.

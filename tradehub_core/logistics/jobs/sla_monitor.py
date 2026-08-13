@@ -3,6 +3,5 @@
 
 """SLA izleme ve uyari job'i."""
 
-from frappe import _
 
 # TODO(TUR-112): check_sla_breaches, escalate_overdue_shipments

@@ -22,6 +22,8 @@ from __future__ import annotations
 
 import frappe
 
+from tradehub_core.logistics.constants import CACHE_PREFIX
+
 # ---------------------------------------------------------------------------
 # Platform rol kümeleri — permissions.py ana modülündeki ile tutarlı
 # ---------------------------------------------------------------------------
@@ -82,15 +84,55 @@ def _doc_field(doc: object, field: str) -> str | None:
 	return getattr(doc, field, None)
 
 
+# Tenant/kapsam sınırını aşma denemesi sayılan reddetme gerekçeleri — bunlar
+# saldırı sinyali olabilir, HIGH severity ile kaydedilir (utils/tenant.py ile aynı
+# konvansiyon).
+_CROSS_BOUNDARY_REASONS: frozenset[str] = frozenset({
+	"seller_profile_mismatch",
+	"platform_global_account_tenant_denied",
+})
+
+# Aynı (kullanıcı, eylem, nesne) reddi bu süre içinde tekrar yazılmaz.
+_DENY_DEDUP_TTL_SECONDS: int = 60
+
+
 def _log_deny(
 	user: str,
 	action: str,
 	doc: object | None = None,
 	reason: str = "",
 ) -> None:
-	"""Permission DENY kararını audit log'a yaz (best-effort)."""
+	"""Permission DENY kararını audit log'a yaz (best-effort).
+
+	İki filtre uygulanır — `log_decision` senkron bir DB insert'i olduğu için
+	her reddi yazmak istek gecikmesine ve ADL tablosunun şişmesine yol açıyordu:
+
+	1. **doc=None atlanır.** Doctype seviyesindeki kontrolleri Frappe her liste
+	   ve form açılışında çağırır ("Yeni" butonu gösterilsin mi?). Kullanıcı
+	   henüz bir şey denememişken satır yazmak sinyal değil gürültüdür; üstelik
+	   ADL şeması nesne bazlıdır, `object_name` boş kalırdı.
+	2. **Kısa süreli tekrar bastırma.** Aynı kullanıcının aynı nesneye aynı
+	   eylemi tekrar denemesi (sayfa yenileme, retry) 60 sn içinde tek satır
+	   üretir.
+
+	Tenant sınırını aşma denemeleri HIGH severity ile kaydedilir.
+	"""
+	if doc is None:
+		return
+
+	object_name = _doc_field(doc, "name")
+	dedup_key = f"{CACHE_PREFIX}deny:{user}:{action}:{object_name}"
+
 	try:
 		from tradehub_core.audit import log as audit
+
+		# expires=True ZORUNLU: Frappe'de `set_value(..., expires_in_sec=...)`
+		# değeri yalnız Redis'e yazar, `frappe.local.cache`'e yazmaz. `get_value`
+		# ise varsayılan `expires=False` ile ilk miss'i local cache'e None olarak
+		# yazar ve sonraki okumalar Redis'e hiç gitmez — dedup sessizce çalışmaz.
+		if frappe.cache.get_value(dedup_key, expires=True):
+			return
+		frappe.cache.set_value(dedup_key, 1, expires_in_sec=_DENY_DEDUP_TTL_SECONDS)
 
 		audit.log_decision(
 			actor=user,
@@ -98,9 +140,14 @@ def _log_deny(
 			decision=audit.DECISION_DENY,
 			layer=audit.LAYER_L2,
 			object_doctype="Shipment" if "shipment" in action else "Carrier Account",
-			object_name=_doc_field(doc, "name") if doc else None,
-			tenant=_doc_field(doc, "seller_profile") if doc else None,
+			object_name=object_name,
+			tenant=_doc_field(doc, "seller_profile"),
 			rule_id=f"logistics.{action}",
+			severity=(
+				audit.SEVERITY_HIGH
+				if reason in _CROSS_BOUNDARY_REASONS
+				else audit.SEVERITY_NORMAL
+			),
 			context={"reason": reason} if reason else None,
 		)
 	except Exception:  # noqa: BLE001 — audit hatası business flow'u bozmaz
@@ -249,6 +296,211 @@ def shipment_has_permission(
 		return True
 
 	_log_deny(user, f"shipment.{ptype or 'read'}", doc, "no_access")
+	return False
+
+
+# ---------------------------------------------------------------------------
+# Shipment Leg permission fonksiyonları (Dalga B — LOG-055)
+#
+# Leg'ler operasyonel kayıtlardır; izolasyon Shipment üzerinden JOIN ile
+# değil, Carrier Account emsalindeki gibi denormalize seller_profile alanı
+# üzerinden sağlanır (Shipment Leg.seller_profile — tenant çift hook set eder).
+# ---------------------------------------------------------------------------
+
+
+def shipment_leg_query_conditions(user: str | None = None) -> str:
+	"""Shipment Leg listesi için SQL koşulu döndürür.
+
+	Platform full access rolleri (+ read-only Platform Finance) tüm
+	bacakları görür; seller-scoped kullanıcı yalnız kendi tenant'ının
+	bacaklarını görür. Buyer'a leg listesi açılmaz (operasyonel veri —
+	buyer takibi Shipment/Event üzerinden yapılır).
+
+	Args:
+		user: Kullanıcı e-posta adresi. None ise mevcut oturum kullanıcısı.
+
+	Returns:
+		SQL WHERE koşul string'i.
+	"""
+	user = user or frappe.session.user
+	if not user or user == "Guest":
+		return "1=0"
+
+	if user == "Administrator":
+		return ""
+
+	roles = set(frappe.get_roles(user))
+
+	if roles & _PLATFORM_FULL_ACCESS_ROLES or "Platform Finance" in roles:
+		return ""
+
+	seller_profile = _get_user_seller_profile(user)
+	if seller_profile:
+		return (
+			f"`tabShipment Leg`.`seller_profile` = {frappe.db.escape(seller_profile)}"
+		)
+
+	return "1=0"
+
+
+def shipment_leg_has_permission(
+	doc: object,
+	ptype: str | None = None,
+	user: str | None = None,
+) -> bool:
+	"""Tek bir Shipment Leg dokümanı için yetki kontrolü.
+
+	Platform yazma rolleri tam erişim; Support Agent + Platform Finance
+	yalnız read; seller-scoped kullanıcı kendi tenant'ının leg'ine erişir.
+	Buyer erişemez.
+
+	Args:
+		doc: Shipment Leg dokümanı.
+		ptype: İzin tipi (read, write, create, delete).
+		user: Kullanıcı e-posta adresi. None ise mevcut oturum kullanıcısı.
+
+	Returns:
+		Erişim izni varsa True.
+	"""
+	user = user or frappe.session.user
+	if not user or user == "Guest":
+		_log_deny(user or "Guest", "shipment_leg.access", doc, "guest_denied")
+		return False
+
+	if user == "Administrator":
+		return True
+
+	roles = set(frappe.get_roles(user))
+
+	# Platform yazma rolleri → tam erişim
+	if roles & _SHIPMENT_WRITE_ROLES:
+		return True
+
+	# Support Agent / Platform Finance → yalnız okuma-türü ptype'lar
+	if roles & {"Support Agent", "Platform Finance"}:
+		if ptype and ptype in _WRITE_PTYPES:
+			_log_deny(user, f"shipment_leg.{ptype}", doc, "read_only_role")
+			return False
+		return True
+
+	# doc yoksa (doctype-seviyesi kontrol): seller-scoped roller liste/create
+	# görebilsin; per-doc tenant kontrolü doc'lu çağrıda uygulanır.
+	seller_profile = _get_user_seller_profile(user)
+	if doc is None:
+		if seller_profile:
+			return True
+		_log_deny(user, f"shipment_leg.{ptype or 'read'}", doc, "no_tenant")
+		return False
+
+	# Tenant izolasyonu: denormalize seller_profile eşleşmesi
+	doc_seller = _doc_field(doc, "seller_profile")
+	if seller_profile and doc_seller == seller_profile:
+		return True
+
+	_log_deny(user, f"shipment_leg.{ptype or 'read'}", doc, "seller_profile_mismatch")
+	return False
+
+
+# ---------------------------------------------------------------------------
+# Shipment Event permission fonksiyonları (Faz 4 — F1 tenant okuma izolasyonu)
+#
+# Event'ler append-only operasyonel kayıtlardır; izolasyon Shipment Leg
+# emsalindeki gibi denormalize seller_profile alanı üzerinden sağlanır
+# (Shipment Event.seller_profile — tenant çift hook set eder).
+# ---------------------------------------------------------------------------
+
+
+def shipment_event_query_conditions(user: str | None = None) -> str:
+	"""Shipment Event listesi için SQL koşulu döndürür.
+
+	Platform full access rolleri (+ read-only Platform Finance) tüm
+	olayları görür; seller-scoped kullanıcı yalnız kendi tenant'ının
+	olaylarını görür. Buyer'a event listesi açılmaz (operasyonel veri —
+	buyer takibi Shipment üzerinden yapılır; Shipment Leg emsali).
+
+	Args:
+		user: Kullanıcı e-posta adresi. None ise mevcut oturum kullanıcısı.
+
+	Returns:
+		SQL WHERE koşul string'i.
+	"""
+	user = user or frappe.session.user
+	if not user or user == "Guest":
+		return "1=0"
+
+	if user == "Administrator":
+		return ""
+
+	roles = set(frappe.get_roles(user))
+
+	if roles & _PLATFORM_FULL_ACCESS_ROLES or "Platform Finance" in roles:
+		return ""
+
+	seller_profile = _get_user_seller_profile(user)
+	if seller_profile:
+		return (
+			f"`tabShipment Event`.`seller_profile` = {frappe.db.escape(seller_profile)}"
+		)
+
+	return "1=0"
+
+
+def shipment_event_has_permission(
+	doc: object,
+	ptype: str | None = None,
+	user: str | None = None,
+) -> bool:
+	"""Tek bir Shipment Event dokümanı için yetki kontrolü.
+
+	Platform yazma rolleri tam erişim; Support Agent + Platform Finance
+	yalnız read; seller-scoped kullanıcı kendi tenant'ının event'ine erişir.
+	Buyer erişemez. (Append-only update/delete kilidi ayrıca controller'da —
+	shipment_event.py validate/on_trash.)
+
+	Args:
+		doc: Shipment Event dokümanı.
+		ptype: İzin tipi (read, write, create, delete).
+		user: Kullanıcı e-posta adresi. None ise mevcut oturum kullanıcısı.
+
+	Returns:
+		Erişim izni varsa True.
+	"""
+	user = user or frappe.session.user
+	if not user or user == "Guest":
+		_log_deny(user or "Guest", "shipment_event.access", doc, "guest_denied")
+		return False
+
+	if user == "Administrator":
+		return True
+
+	roles = set(frappe.get_roles(user))
+
+	# Platform yazma rolleri → tam erişim
+	if roles & _SHIPMENT_WRITE_ROLES:
+		return True
+
+	# Support Agent / Platform Finance → yalnız okuma-türü ptype'lar
+	if roles & {"Support Agent", "Platform Finance"}:
+		if ptype and ptype in _WRITE_PTYPES:
+			_log_deny(user, f"shipment_event.{ptype}", doc, "read_only_role")
+			return False
+		return True
+
+	# doc yoksa (doctype-seviyesi kontrol): seller-scoped roller liste/create
+	# görebilsin; per-doc tenant kontrolü doc'lu çağrıda uygulanır.
+	seller_profile = _get_user_seller_profile(user)
+	if doc is None:
+		if seller_profile:
+			return True
+		_log_deny(user, f"shipment_event.{ptype or 'read'}", doc, "no_tenant")
+		return False
+
+	# Tenant izolasyonu: denormalize seller_profile eşleşmesi
+	doc_seller = _doc_field(doc, "seller_profile")
+	if seller_profile and doc_seller == seller_profile:
+		return True
+
+	_log_deny(user, f"shipment_event.{ptype or 'read'}", doc, "seller_profile_mismatch")
 	return False
 
 

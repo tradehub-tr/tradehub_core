@@ -3,6 +3,5 @@
 
 """Carrier HTTP client — retry, circuit breaker, credential masking."""
 
-from frappe import _
 
 # TODO(TUR-110): CarrierHttpClient class

@@ -1,0 +1,58 @@
+{
+	"default": {
+		"ok": true,
+		"data": {
+			"items": [
+				{
+					"name": "NT-SHIPPED-BUYER-EMAIL",
+					"event": "shipment_shipped",
+					"channel": "email",
+					"recipient_role": "buyer",
+					"subject": "Siparişiniz yola çıktı — {{tracking_number}}",
+					"body": "<p>{{shipment}} numaralı sevkiyatınız {{carrier}} ile yola çıktı.</p>",
+					"is_active": 1,
+					"is_mandatory": 0
+				},
+				{
+					"name": "NT-EXCEPTION-OPS-INAPP",
+					"event": "shipment_exception",
+					"channel": "in_app",
+					"recipient_role": "operations",
+					"subject": null,
+					"body": "<p>{{shipment}}: {{exception_code}} — {{status}}</p>",
+					"is_active": 1,
+					"is_mandatory": 1
+				},
+				{
+					"name": "NT-DELIVERED-SELLER-EMAIL",
+					"event": "shipment_delivered",
+					"channel": "email",
+					"recipient_role": "seller",
+					"subject": "Teslim edildi — {{shipment}}",
+					"body": "<p>{{shipment}} teslim edildi.</p>",
+					"is_active": 0,
+					"is_mandatory": 0
+				}
+			],
+			"total": 3,
+			"page": 1,
+			"page_size": 50
+		}
+	},
+	"empty": {
+		"ok": true,
+		"data": {
+			"items": [],
+			"total": 0,
+			"page": 1,
+			"page_size": 50
+		}
+	},
+	"error": {
+		"ok": false,
+		"error": {
+			"code": "PERMISSION_DENIED",
+			"message": "Bu kaydı görüntüleme yetkiniz yok."
+		}
+	}
+}

@@ -43,8 +43,10 @@ _CAPABILITIES: list[tuple[str, str, str, str, int]] = [
 
 # ---------------------------------------------------------------------------
 # Grant matrisi: role_profile → capability_key listesi
+#
+# Public: LOG-038 backfill patch'i de bu matrisi kullanır (tek kaynak).
 # ---------------------------------------------------------------------------
-_GRANTS: dict[str, list[str]] = {
+GRANTS: dict[str, list[str]] = {
 	"Logistics Manager": [
 		"shipment.create",
 		"shipment.write",
@@ -74,12 +76,63 @@ _GRANTS: dict[str, list[str]] = {
 }
 
 
+def seed_capability_grants(grants: dict[str, list[str]]) -> dict:
+	"""Verilen matrise göre TH Capability Grant kayıtlarını oluşturur (idempotent).
+
+	Role Profile veya capability DB'de yoksa atlanır — ama **sessizce değil**:
+	atlanan her kayıt gerekçesiyle rapora girer, böylece çağıran patch loglayabilir.
+	Bu fonksiyon LOG-038 backfill patch'i tarafından da çağrılır.
+
+	Args:
+		grants: role_profile adı → capability_key listesi.
+
+	Returns:
+		created / skipped_existing / missing_profiles / missing_capabilities raporu.
+	"""
+	created: list[tuple[str, str]] = []
+	skipped_existing: list[tuple[str, str]] = []
+	missing_profiles: list[str] = []
+	missing_capabilities: set[str] = set()
+
+	for profile_name, cap_keys in grants.items():
+		if not frappe.db.exists("Role Profile", profile_name):
+			missing_profiles.append(profile_name)
+			continue
+
+		for cap_key in cap_keys:
+			if not frappe.db.exists("TH Capability Registry", cap_key):
+				missing_capabilities.add(cap_key)
+				continue
+
+			if frappe.db.get_value(
+				"TH Capability Grant",
+				{"role_profile": profile_name, "capability": cap_key},
+				"name",
+			):
+				skipped_existing.append((profile_name, cap_key))
+				continue
+
+			doc = frappe.new_doc("TH Capability Grant")
+			doc.role_profile = profile_name
+			doc.capability = cap_key
+			doc.granted = 1
+			doc.note = "Seed: TUR-103 lojistik modülü"
+			doc.flags.ignore_permissions = True
+			doc.insert(ignore_permissions=True)
+			created.append((profile_name, cap_key))
+
+	return {
+		"created": created,
+		"skipped_existing": skipped_existing,
+		"missing_profiles": missing_profiles,
+		"missing_capabilities": sorted(missing_capabilities),
+	}
+
+
 def execute() -> dict:
 	"""Lojistik capability registry + grant seed."""
 	created_caps: list[str] = []
 	skipped_caps: list[str] = []
-	created_grants: list[tuple[str, str]] = []
-	skipped_grants: list[tuple[str, str]] = []
 
 	# 1) TH Capability Registry kayıtları
 	for cap_key, label, module_group, default_tier, is_owner_only in _CAPABILITIES:
@@ -103,37 +156,22 @@ def execute() -> dict:
 		created_caps.append(cap_key)
 
 	# 2) TH Capability Grant kayıtları
-	for profile_name, cap_keys in _GRANTS.items():
-		if not frappe.db.exists("Role Profile", profile_name):
-			continue
+	grant_result = seed_capability_grants(GRANTS)
 
-		for cap_key in cap_keys:
-			if not frappe.db.exists("TH Capability Registry", cap_key):
-				continue
-
-			existing = frappe.db.get_value(
-				"TH Capability Grant",
-				{"role_profile": profile_name, "capability": cap_key},
-				"name",
-			)
-			if existing:
-				skipped_grants.append((profile_name, cap_key))
-				continue
-
-			doc = frappe.new_doc("TH Capability Grant")
-			doc.role_profile = profile_name
-			doc.capability = cap_key
-			doc.granted = 1
-			doc.note = "Seed: TUR-103 lojistik modülü"
-			doc.flags.ignore_permissions = True
-			doc.insert(ignore_permissions=True)
-			created_grants.append((profile_name, cap_key))
+	# Temiz kurulumda lojistik Role Profile'ları bu patch'ten SONRA (LOG-037)
+	# oluşur; o yüzden burada eksik kalmaları beklenen bir durumdur ve LOG-038
+	# backfill'i tamamlar. Yine de sessiz geçme — görünür olsun.
+	if grant_result["missing_profiles"]:
+		frappe.log_error(
+			f"Grant atlandı, Role Profile yok: {grant_result['missing_profiles']}"
+			" — LOG-037/LOG-038 tamamlayacak",
+			"v15_tur103_seed_logistics_capabilities",
+		)
 
 	frappe.db.commit()
 
 	return {
 		"created_capabilities": created_caps,
 		"skipped_capabilities": skipped_caps,
-		"created_grants": created_grants,
-		"skipped_grants": skipped_grants,
+		"grants": grant_result,
 	}

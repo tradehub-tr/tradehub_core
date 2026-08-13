@@ -1,0 +1,58 @@
+{
+	"default": {
+		"ok": true,
+		"data": {
+			"items": [
+				{
+					"name": "CARGO",
+					"channel_name": "Kargo",
+					"channel_code": "CARGO",
+					"is_active": 1
+				},
+				{
+					"name": "WAREHOUSE",
+					"channel_name": "Ambar",
+					"channel_code": "WAREHOUSE",
+					"is_active": 1
+				},
+				{
+					"name": "COURIER",
+					"channel_name": "Kurye",
+					"channel_code": "COURIER",
+					"is_active": 1
+				},
+				{
+					"name": "SELLER_VEHICLE",
+					"channel_name": "Satici Araci",
+					"channel_code": "SELLER_VEHICLE",
+					"is_active": 1
+				},
+				{
+					"name": "BUYER_PICKUP",
+					"channel_name": "Alici Teslim Alma",
+					"channel_code": "BUYER_PICKUP",
+					"is_active": 1
+				}
+			],
+			"total": 5,
+			"page": 1,
+			"page_size": 50
+		}
+	},
+	"empty": {
+		"ok": true,
+		"data": {
+			"items": [],
+			"total": 0,
+			"page": 1,
+			"page_size": 50
+		}
+	},
+	"error": {
+		"ok": false,
+		"error": {
+			"code": "PERMISSION_DENIED",
+			"message": "Bu kataloğu görüntüleme yetkiniz yok."
+		}
+	}
+}

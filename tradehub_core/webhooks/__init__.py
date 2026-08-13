@@ -1,2 +1,2 @@
 # TradeHub Core Webhooks
-# ERPNext integration handlers for reverse synchronization
+# Dış sistem webhook handler'ları (Faz 4: ERPNext sync modülü kaldırıldı)

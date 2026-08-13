@@ -1,0 +1,76 @@
+{
+	"default": {
+		"ok": true,
+		"data": {
+			"items": [
+				{
+					"name": "CACC-YK-PLATFORM",
+					"account_name": "Yurtiçi Kargo — Platform",
+					"carrier": "YK",
+					"seller_profile": null,
+					"environment": "production",
+					"is_active": 1,
+					"is_default": 1,
+					"base_url": "https://api.yurticikargo.com/v2",
+					"token_expiry": "2026-09-01 00:00:00",
+					"is_platform_account": true,
+					"has_api_key": 1,
+					"has_api_secret": 1,
+					"has_webhook_secret": 1,
+					"has_access_token": 0
+				},
+				{
+					"name": "CACC-AK-SEL00001",
+					"account_name": "Aras Kargo — Demir Tekstil",
+					"carrier": "AK",
+					"seller_profile": "SEL-00001",
+					"environment": "production",
+					"is_active": 1,
+					"is_default": 0,
+					"base_url": "https://api.araskargo.com.tr/v1",
+					"token_expiry": null,
+					"is_platform_account": false,
+					"has_api_key": 1,
+					"has_api_secret": 1,
+					"has_webhook_secret": 0,
+					"has_access_token": 0
+				},
+				{
+					"name": "CACC-MNG-SANDBOX",
+					"account_name": "MNG Kargo — Sandbox",
+					"carrier": "MNG",
+					"seller_profile": null,
+					"environment": "sandbox",
+					"is_active": 0,
+					"is_default": 0,
+					"base_url": "https://sandbox.mngkargo.com.tr/v1",
+					"token_expiry": null,
+					"is_platform_account": true,
+					"has_api_key": 0,
+					"has_api_secret": 0,
+					"has_webhook_secret": 0,
+					"has_access_token": 0
+				}
+			],
+			"total": 3,
+			"page": 1,
+			"page_size": 50
+		}
+	},
+	"empty": {
+		"ok": true,
+		"data": {
+			"items": [],
+			"total": 0,
+			"page": 1,
+			"page_size": 50
+		}
+	},
+	"error": {
+		"ok": false,
+		"error": {
+			"code": "CAPABILITY_REQUIRED",
+			"message": "Taşıyıcı kimlik bilgilerini yönetme yetkiniz yok."
+		}
+	}
+}

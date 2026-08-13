@@ -8,14 +8,32 @@ from __future__ import annotations
 import math
 from typing import Literal
 
+import frappe
 from frappe import _
+
+# Standart Türkiye kargo desi böleni (uluslararası DIM weight için 5000).
+# Site geneli override: Logistics Settings.default_desi_divisor (get_desi_divisor).
+DEFAULT_DESI_DIVISOR: int = 3000
+
+
+def get_desi_divisor() -> int:
+	"""Etkin desi bölenini döndürür.
+
+	Logistics Settings.default_desi_divisor okunur; boş/0 ise
+	DEFAULT_DESI_DIVISOR sabiti kullanılır (LOG-039).
+
+	Returns:
+		Pozitif desi böleni.
+	"""
+	value = frappe.db.get_single_value("Logistics Settings", "default_desi_divisor")
+	return int(value) if value else DEFAULT_DESI_DIVISOR
 
 
 def calculate_desi(
 	length_cm: float,
 	width_cm: float,
 	height_cm: float,
-	divisor: int = 3000,
+	divisor: int = DEFAULT_DESI_DIVISOR,
 	rounding: Literal["ceil", "floor", "none"] = "ceil",
 ) -> float:
 	"""Hacimsel agirlik (desi) hesapla.
@@ -95,7 +113,7 @@ def calculate_shipment_totals(items: list[dict]) -> dict:
 
 	for item in items:
 		qty: int = int(item.get("qty", 1))
-		divisor: int = int(item.get("divisor", 3000))
+		divisor: int = int(item.get("divisor", DEFAULT_DESI_DIVISOR))
 
 		desi: float = calculate_desi(
 			length_cm=float(item["length_cm"]),

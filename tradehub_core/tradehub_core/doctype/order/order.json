@@ -30,6 +30,8 @@
 		"ship_from",
 		"tracking_number",
 		"carrier",
+		"fulfillment_status",
+		"shipment_count",
 		"buyer_note",
 		"tab_payment",
 		"remittance_section",
@@ -197,14 +199,33 @@
 			"label": "Gönderim Yeri"
 		},
 		{
+			"description": "DEPRECATED: Shipment DocType kullanın (takip numarası artık Shipment.tracking_number üzerinde).",
 			"fieldname": "tracking_number",
 			"fieldtype": "Data",
 			"label": "Kargo Takip Numarası"
 		},
 		{
+			"description": "DEPRECATED: Shipment DocType kullanın (kargo firması artık Shipment.carrier üzerinde).",
 			"fieldname": "carrier",
 			"fieldtype": "Data",
 			"label": "Kargo Firması"
+		},
+		{
+			"default": "Unfulfilled",
+			"description": "Sevkiyatlardan türetilen alan — logistics.hooks.update_order_fulfillment yazar, elle düzenlenmez.",
+			"fieldname": "fulfillment_status",
+			"fieldtype": "Select",
+			"label": "Karşılama Durumu",
+			"options": "Unfulfilled\nPartially Fulfilled\nFulfilled",
+			"read_only": 1
+		},
+		{
+			"default": "0",
+			"description": "Aktif (iptal/iade edilmemiş) sevkiyat sayısı — logistics.hooks.update_order_fulfillment yazar.",
+			"fieldname": "shipment_count",
+			"fieldtype": "Int",
+			"label": "Sevkiyat Sayısı",
+			"read_only": 1
 		},
 		{
 			"fieldname": "buyer_note",
@@ -378,7 +399,7 @@
 		}
 	],
 	"links": [],
-	"modified": "2026-04-02 00:00:00.000000",
+	"modified": "2026-08-12 10:00:00.000000",
 	"modified_by": "Administrator",
 	"module": "Tradehub Core",
 	"name": "Order",

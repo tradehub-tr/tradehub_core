@@ -3,6 +3,5 @@
 
 """Periyodik kargo takip sorgulama job'i."""
 
-from frappe import _
 
 # TODO(TUR-112): poll_active_shipments, update_tracking_status

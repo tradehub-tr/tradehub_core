@@ -12,7 +12,7 @@ after_migrate = [
 app_icon = "octicon octicon-organization"
 app_color = "#0066CC"
 
-required_apps = ["frappe", "erpnext"]
+required_apps = ["frappe"]
 
 app_include_js = "seller_redirect.js"
 
@@ -660,6 +660,41 @@ doc_events = {
 		"before_insert": "tradehub_core.utils.tenant.enforce_seller_isolation_on_insert",
 		"validate": "tradehub_core.utils.tenant.validate_seller_isolation_on_save",
 	},
+	# Lojistik Faz 4 Dalga B — Shipment lifecycle (LOG-055).
+	# Sıra önemli: tenant hook önce (seller_profile set edilsin), sonra
+	# snapshot'lar (seller_profile'dan origin adres okunur) / durum + split
+	# doğrulaması. Event üretimi on_update'te bayrak korumalı
+	# (bkz. logistics/hooks.py on_shipment_status_change).
+	"Shipment": {
+		"before_insert": [
+			"tradehub_core.utils.tenant.enforce_seller_isolation_on_insert",
+			"tradehub_core.logistics.hooks.snapshot_addresses",
+			"tradehub_core.logistics.hooks.snapshot_items",
+		],
+		"validate": [
+			"tradehub_core.utils.tenant.validate_seller_isolation_on_save",
+			"tradehub_core.logistics.hooks.validate_state_transition",
+			"tradehub_core.logistics.hooks.validate_split_invariants",
+		],
+		"after_insert": [
+			"tradehub_core.logistics.hooks.on_shipment_created",
+		],
+		"on_update": [
+			"tradehub_core.logistics.hooks.on_shipment_status_change",
+		],
+		"on_trash": [
+			"tradehub_core.logistics.cache.invalidate_logistics_dashboard",
+		],
+	},
+	# Shipment Leg / Event — denormalize seller_profile alanı için tenant çift hook.
+	"Shipment Leg": {
+		"before_insert": "tradehub_core.utils.tenant.enforce_seller_isolation_on_insert",
+		"validate": "tradehub_core.utils.tenant.validate_seller_isolation_on_save",
+	},
+	"Shipment Event": {
+		"before_insert": "tradehub_core.utils.tenant.enforce_seller_isolation_on_insert",
+		"validate": "tradehub_core.utils.tenant.validate_seller_isolation_on_save",
+	},
 }
 
 # ---------------------------------------------------------------------------
@@ -727,6 +762,11 @@ permission_query_conditions = {
 	"Logistics Settings": "tradehub_core.logistics.permissions.logistics_settings_query_conditions",
 	# Lojistik Faz 3 — Carrier Account tenant izolasyonu (LOG-028)
 	"Carrier Account": "tradehub_core.logistics.permissions.carrier_account_query_conditions",
+	# Lojistik Faz 4 Dalga B — Shipment + Shipment Leg tenant izolasyonu (LOG-055)
+	"Shipment": "tradehub_core.logistics.permissions.shipment_query_conditions",
+	"Shipment Leg": "tradehub_core.logistics.permissions.shipment_leg_query_conditions",
+	# Lojistik Faz 4 — Shipment Event tenant okuma izolasyonu (F1, denormalize seller_profile)
+	"Shipment Event": "tradehub_core.logistics.permissions.shipment_event_query_conditions",
 }
 
 has_permission = {
@@ -795,6 +835,11 @@ has_permission = {
 	"Logistics Settings": "tradehub_core.logistics.permissions.logistics_settings_has_permission",
 	# Lojistik Faz 3 — Carrier Account tenant izolasyonu (LOG-028)
 	"Carrier Account": "tradehub_core.logistics.permissions.carrier_account_has_permission",
+	# Lojistik Faz 4 Dalga B — Shipment + Shipment Leg per-doc kontrolleri (LOG-055)
+	"Shipment": "tradehub_core.logistics.permissions.shipment_has_permission",
+	"Shipment Leg": "tradehub_core.logistics.permissions.shipment_leg_has_permission",
+	# Lojistik Faz 4 — Shipment Event tenant okuma izolasyonu (F1, denormalize seller_profile)
+	"Shipment Event": "tradehub_core.logistics.permissions.shipment_event_has_permission",
 }
 
 # ---------------------------------------------------------------------------

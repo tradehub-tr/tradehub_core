@@ -23,27 +23,75 @@ from frappe.model.document import Document
 
 
 class CarrierAccount(Document):
+	def before_insert(self) -> None:
+		self._normalize_seller_profile()
+
 	def validate(self) -> None:
 		# super().validate() — Frappe v15: Document.validate yok
+		self._normalize_seller_profile()
+		self._validate_platform_account_authority()
 		self._validate_unique_active_account()
 
+	def _normalize_seller_profile(self) -> None:
+		"""Boş seller_profile'ı tek biçimde None'a indirger.
+
+		Frappe boş Link alanını duruma göre `''` ya da `NULL` olarak yazabiliyor.
+		İki farklı "boş" değeri platform hesabı sorgularını sessizce ıskalatır —
+		tek biçime indirgeyip belirsizliği kaynağında bitiriyoruz.
+		"""
+		if not self.seller_profile:
+			self.seller_profile = None
+
+	def _validate_platform_account_authority(self) -> None:
+		"""Platform seviyesi (satıcısız) hesabı yalnız platform kullanıcısı açabilir.
+
+		Tenant'ı olan bir kullanıcı seller_profile'ı boşaltarak platform hesabı
+		oluşturamaz — bu, kendi mağazası dışına yazma yolu açardı. Tenant
+		kullanıcılarında alan zaten `before_insert` hook'uyla otomatik doluyor
+		(`utils/tenant.enforce_seller_isolation_on_insert`); bu kontrol o hook'un
+		atlandığı yolları (ör. doğrudan `doc.insert()`) kapatır.
+		"""
+		if self.seller_profile:
+			return
+
+		user = frappe.session.user
+		if user == "Administrator" or "System Manager" in frappe.get_roles(user):
+			return
+
+		from tradehub_core.logistics.permissions import _get_user_seller_profile
+
+		if _get_user_seller_profile(user):
+			frappe.throw(
+				_("Platform seviyesi taşıyıcı hesabı oluşturamazsınız; satıcı profiliniz zorunlu."),
+				frappe.PermissionError,
+			)
+
 	def _validate_unique_active_account(self) -> None:
-		"""Aynı seller_profile + carrier için ikinci aktif hesabı engelle."""
+		"""Aynı kapsam + carrier için ikinci aktif hesabı engelle.
+
+		Kapsam = seller_profile, ya da platform hesabında "boş". Filtre semantiğine
+		güvenilmiyor: `{"seller_profile": None}` `IS NULL` üretir ve `''` satırını
+		ıskalar. Bu yüzden taşıyıcının aktif hesapları çekilip karşılaştırma
+		Python'da yapılıyor — satır sayısı taşıyıcı başına tek haneli.
+		"""
 		if not self.is_active:
 			return
 
-		exists = frappe.db.exists(
+		siblings = frappe.get_all(
 			"Carrier Account",
-			{
-				"seller_profile": self.seller_profile,
-				"carrier": self.carrier,
-				"is_active": 1,
-				"name": ["!=", self.name],
-			},
+			filters={"carrier": self.carrier, "is_active": 1, "name": ["!=", self.name]},
+			fields=["name", "seller_profile"],
 		)
-		if exists:
+		scope = self.seller_profile or None
+		if any((row.seller_profile or None) == scope for row in siblings):
+			if scope:
+				frappe.throw(
+					_("Bu satıcı için {0} taşıyıcısına ait zaten aktif bir hesap var").format(
+						self.carrier
+					)
+				)
 			frappe.throw(
-				_("Bu satıcı için {0} taşıyıcısına ait zaten aktif bir hesap var").format(self.carrier)
+				_("{0} taşıyıcısı için zaten aktif bir platform hesabı var").format(self.carrier)
 			)
 
 	def on_update(self) -> None:

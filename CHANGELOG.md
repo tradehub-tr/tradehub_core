@@ -1,3 +1,163 @@
+## [v1.13.1-alpha.10] - 2026-08-13 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(logistics): API hata zarfı ve yetki kapıları eklendi (@aliiball)
+  - Tüm lojistik uçları tek yanıt zarfına bağlandı: başarıda {ok, data}, hatada {ok, error{code, message, details}}
+  - Onbir exception sınıfına kararlı hata kodu eklendi; kodlar sözleşmenin parçasıdır ve istemci bunlara göre dallanır
+  - Frappe hata sınıfları da zarfa eşlendi (izin, bulunamadı, yinelenen kayıt, doğrulama); istemci tek bir hata şekliyle çalışır
+  - Beklenmeyen hatanın ayrıntısı istemciye verilmiyor, denetim kaydına yazılıyor
+  - logistics_endpoint dekoratörü özellik bayrağı, rol ve capability kapılarını tek yerde uyguluyor; sıra bayrak, rol, capability biçiminde
+  - Kapalı özellik artık yetki hatası değil FEATURE_DISABLED döndürüyor
+  - logistics_enabled ana anahtar yapıldı; kapalıyken diğer oniki bayrağın değeri okunmuyor, kademeli açılış tek anahtarla geri alınabiliyor
+  - Katalog yönetimi bilinçli olarak bayrak kapısının dışında; yönetici modül müşteriye açılmadan önce yapılandırabilmeli
+  - Hata yolunda işlem geri alınıyor; exception yutulduğu için Frappe'nin otomatik geri alması devreye girmiyordu ve yarım yazma kaydedilebilirdi
+  - Yirmibeş birim testi eklendi
+- feat(logistics): platform seviyesi taşıyıcı hesabı desteklendi (@aliiball)
+  - Taşıyıcı hesabında satıcı profili zorunluluğu kaldırıldı; platformun kendi kargo sözleşmesi tanımlanabiliyor
+  - Yetki kodundaki platform hesabı dalı ölü kod olmaktan çıktı, alan zorunlu olduğu için ulaşılamıyordu
+  - Boş metin ile boş değer tek biçime indirgeniyor; iki farklı boşluk platform hesabı sorgularını sessizce ıskalatıyordu
+  - Benzersizlik kontrolü sorgu filtresine bağlı olmaktan çıkarıldı; boş değer filtresi bazı satırları yakalamıyordu
+  - Satıcı kullanıcısının platform hesabı açmasına karşı ikinci savunma katmanı eklendi, tenant kancası atlanan yolları kapatıyor
+  - Platform hesabı ile satıcı hesabı aynı taşıyıcıda birlikte yaşayabiliyor
+  - On test eklendi
+- feat(logistics): katalog yönetim API'si eklendi (@aliiball)
+  - On katalog için listeleme, detay, oluşturma, güncelleme ve aktiflik
+  - Kayıt defteri deseni kullanıldı; elli tekrarlı fonksiyon yerine sözleşme
+  - Katalog parametresi izin listesidir, rastgele doctype erişimi açmaz
+  - Alan listeleri elle yazılı; doctype'a alan eklemek API'yi kendiliğinden
+  - Sözleşmede olmayan filtre veya yazma alanı sessizce yok sayılmıyor, açık hata veriyor
+  - Silme yok, kayıtlar başka dokümanlardan referans alınabildiği için aktiflik bayrağı düşürülüyor
+  - Alt tablo satırlarında yalnız sözleşme alanları dönüyor; sistem alanları sızıyordu ve yanıt seri hale getirilemiyordu
+  - Taşıyıcı hesabı ve ayarlar ayrı modüle alındı, gizli bilgi ve tekil kayıt davranışları ortak şablona uymuyor
+  - Gizli kimlik bilgileri liste ve detay yanıtlarında hiç dönmüyor, yalnız
+  - Gizli değer ayrı uçtan, capability ile ve yüksek önem dereceli denetim kaydı bırakarak alınabiliyor
+  - Boş gönderilen gizli alan dokunma anlamına geliyor; panel formu her kaydettiğinde mevcut değeri silmiyor
+  - Özellik bayrakları tek anahtar üzerinden değiştiriliyor; tüm sözlüğü göndermek eşzamanlı iki yöneticinin birbirini ezmesine yol açıyordu
+  - Oturumun yetkilerini bildiren uç eklendi, panel aksiyonları buna göre gizlenecek; güvenlik sınırı değil kullanıcı deneyimi kolaylığıdır
+  - Yirmidokuz test eklendi
+- feat(logistics): API sözleşmesi makine-okunur hale getirildi (@aliiball)
+  - Sözleşme belgesi yazıldı; yanıt zarfı, onyedi uç, onaltı hata kodu, gizli bilgi sınırı, yetki modeli, bayrak politikası ve sürüm kuralları
+  - Üretici betik eklendi; python kaynağından makine-okunur şema, arayüz tip tanımları ve on adet sahte veri dosyası üretiyor
+  - Şema elle yazılmıyor, kaynaktan türetiliyor; ikinci bir kaynak yaratmak sürüklenme demekti
+  - Betik frappe kurulu olmadan çalışıyor, sürekli tümleştirmede koşabiliyor
+  - Alan tipleri doctype tanımlarından okunuyor; onay kutusu alanları sayı olarak yazıldı, çerçeve sıfır bir döndürüyor
+  - Sahte veriler seed verisinden besleniyor, seed'i olmayan kataloglar için gerçekçi örnekler eklendi; tasarım incelemesi uydurma metinle yapılamaz
+  - Sürekli tümleştirmeye bayat artefakt kapısı eklendi; kaynak değişip üretici çalıştırılmadıysa yapı kırılıyor
+  - Sözleşme bütünlüğü testleri eklendi; şema kodla, sahte veriler sözleşmeyle birebir uyumlu olmak zorunda
+  - Mimari belgedeki bilinen açıklar listesi güncellendi
+  - Onbeş test eklendi
+- feat(logistics): sevkiyat sözleşmesi ve Storybook fixture üretimi eklendi (@aliiball)
+  - contract.py: Shipment/POD/ReturnRequest/PriceQuote icin 111 alanlik gecici sozlesme, semada provisional:true ile isaretli
+  - Uretici dizin senkron hedefi: 15 fixture admin-panel mocks'a akiyor
+  - _catalog-meta.json: jenerik katalog ekrani sutun/filtre turetiyor
+- feat(logistics): KT2 ekranlari icin sozlesme genisletildi (@aliiball)
+  - 7 gecici varlik: connection_test, integration_log, pallet_plan, import_job, notification_template, notification_preference, operation_alert
+  - Shipment'a TUR-108 alanlari: surucu, plaka, randevu, teslim kodu DURUMU (degeri degil), odeme durumu
+  - integration_log.masked_fields: istek/yanit govdesi maskeleme sinirini sozlesmeye yaziyor
+- feat(logistics): fixture ureticisine kapsam denetimi ve carrier_account eklendi (@aliiball)
+  - _assert_samples_cover_contract: beyan edilen her gecici alanin en az bir ornek satirda karsiligi olmali, yoksa uretim durur
+  - carrier_account fixture'i gizli DEGER tasimaz, yalniz has_<alan>
+- feat(logistics): KT3 ekranlari icin sozlesme genisletildi (@aliiball)
+  - return_request'e kalem bazli kontrol child tablosu: istenen / ulasan / kabul edilen. Talep duzeyinde tek inspection_result kismi kabulu ifade edemiyordu
+  - return_request.closed_at / closed_by: kapanis denetim izi
+  - pricing_rule: olcutler ayri alan olarak: bir teklifin NEDEN o fiyati
+  - performance_report, cost_report: toplulastirilmis rapor satirlari
+
+### Duzeltildi
+- fix(logistics): lojistik rol profilleri ve yetki atamaları oluşturuldu (@aliiball)
+  - Logistics Manager, Logistics Operator ve Carrier Integration Manager rol profilleri veritabanında hiç oluşmamıştı; fixture'a eklenmelerine rağmen onları yükleyen patch Patch Log nedeniyle tekrar çalışmıyordu
+  - Rol profilleri olmadığı için capability seed'i grant'ları sessizce atlıyordu: shipment.cancel, shipment.split, carrier_credential.manage ve view.carrier_secret hiçbir role atanmamıştı
+  - Taşıyıcı API anahtarları fail-closed maskeleme nedeniyle yetkili kullanıcılara da görünmüyordu
+  - setup/seed_role_profiles.py modülüne kapsamlı seed fonksiyonu eklendi
+  - Ön koşul sağlanmadığında sessiz atlama yerine log_error yazılıyor
+  - Role Profile 0 -> 3, capability grant 4 -> 18
+- fix(logistics): permission testleri ve denetim kaydı düzeltildi (@aliiball)
+  - 30 permission testi hiçbir ortamda çalışmıyordu: bench'te tamamı skip ediliyor, standalone'da sys.modules hijack'ı gerçek paketi gölgelediği için ImportError veriyordu
+  - Süit FrappeTestCase tabanlı entegrasyon testine dönüştürüldü; yalnız frappe.get_roles ve tenant resolver nokta atışı patch'leniyor
+  - Gerçek kayıt ve gerçek get_list ile 2 uçtan uca izolasyon testi eklendi
+  - Denetim kaydı doctype seviyesindeki her liste/form açılışında senkron DB insert'i üretiyordu; doc=None kontrolleri artık kayıt yazmıyor
+  - Aynı kullanıcı, eylem ve nesne için 60 saniyelik tekrar bastırma eklendi
+  - Tenant sınırı aşma denemeleri HIGH severity ile kaydediliyor
+  - 25 reddetmelik senaryoda denetim satırı 25'ten 1'e indi
+  - Çalışan test sayısı 30 skip'ten 36 aktif teste çıktı
+- fix(logistics): katalog veri modeli tutarsızlıkları giderildi (@aliiball)
+  - Shipping Method'da çatallanmış teslim süresi alanları kaldırıldı; storefront min_days/max_days okurken doğrulama yalnız yeni çifti kontrol ediyor, iki kaynak bağımsız sürükleniyordu
+  - Shipping Method yetkilerine Logistics Manager ve Logistics Operator eklendi; diğer yedi katalogda var olan simetri kurulmuştu
+  - Carrier Status Mapping ve Service Coverage Area benzersizliği veritabanı seviyesine taşındı; hash autoname aynı kaydın tekrar girilmesine izin veriyor ve takip durumu çözümünü belirsizleştiriyordu
+  - Servis kapsama alanında il adları kanonik biçime normalize ediliyor
+  - Logistics Provider ülke alanı Link: Country'ye çevrildi; seed Türkçe metin yazdığı için sekiz kaydın tamamı geçersiz referans taşıyordu
+  - Cache invalidation yanlış alan adı okuyordu, satıcı cache'i hiç temizlenmiyordu (seller yerine seller_profile)
+  - Kanal ile birebir aynı adı taşıyan beş sevkiyat yöntemi pasifleştirildi;
+- fix(logistics): public uçlar sürümlü namespace'e taşındı (@aliiball)
+  - Lojistik public uçları api/v1/logistics.py altında toplandı; lojistik yüzeyinin tamamı tek sürümlü namespace'te
+  - Taşıma kırıcı değil, uçlar hiçbir arayüzden çağrılmıyordu
+  - Misafir kullanıcı yayında olmayan ilanın kargo verisine erişebiliyordu; ilan durumu artık doğrulanıyor
+  - İlanın var olduğu da sızdırılmıyor, görünmeyen ilan bulunamadı olarak yanıtlanıyor
+  - Yanıttaki çift veri katmanı düzeltildi
+  - Uygulanmamış uçlar sessiz kalmak yerine açık hata döndürüyor
+- fix(logistics): kargo firma adlarindaki eksik aksanlar duzeltildi (@aliiball)
+  - seed.py: "Yurtici Kargo" -> "Yurtiçi Kargo", "Surat" -> "Sürat"
+  - v15_log042 idempotent patch mevcut kayitlari cevirir; elle degistirilmis adlara dokunmaz
+- fix(logistics): fixture ureticisi istisna kategorilerini uyduruyordu (@aliiball)
+  - EXCEPTION_META seed.py'ye tasindi; patch ve uretici ayni sozlugu okur
+  - Onceden override bloğu exception_category/is_retriable atladigi icin uretici choices listesini dolasip "DAMAGED/Customs" gibi gercek olmayan eslesmeler uretiyordu
+  - --check artik kardes repo kopyalarini da dogruluyor: --sync'siz uretimden sonra "Guncel" derken admin-panel mock'lari bayat kaliyordu
+
+### Degistirildi
+- refactor(logistics): tip ifadeleri PEP 604'e taşındı. (@aliiball)
+  - Optional[X] yazımları X | None ile değiştirildi (21 nokta)
+  - Kullanılmayan from frappe import _ importları kaldırıldı (14 dosya)
+  - Import sıralaması düzeltildi
+  - CI lint (ruff check .) lojistik kaynaklı 39 hatadan arındırıldı
+- refactor(logistics): modül belgeleri gerçek implementasyonla eşitlendi (@aliiball)
+  - README'ye "Mevcut olgunluk" tablosu eklendi: çalışan bileşenler ile yalnız yer tutan stub'lar (services, jobs, hooks, http_client) ayrıldı
+  - Hatalı Linear görev eşlemesi kaldırıldı; TUR-103 rol/yetki, TUR-104 katalog olarak düzeltildi, TUR-105+ için tahmini eşleme yazılmıyor
+  - Carrier Credential referansları Carrier Account olarak düzeltildi
+  - Test çalıştırma komutları container desenine göre yenilendi
+  - LOGISTICS-ARCHITECTURE.md yazıldı: 3 repo sınırı, katman kuralları, isimlendirme, API sözleşmesi, feature flag, patch/fixture standardı, ülke/bölge genişlemesi, adapter sözleşmesi, yetki modeli, kurulum
+
+---
+## [v1.13.1-alpha.9] - 2026-08-12 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Degistirildi
+- refactor(platform): ERPNext siteden kaldırıldı, UOM tradehub_core'a devralındı (@boraydeger32)
+  - UOM DocType'ı 239 kayıt korunarak devralındı (module re-home patch + minimal uom.json; RFQ.unit ve Listing.stock_uom linkleri çalışıyor)
+  - tabShipment'taki 38 ERPNext kolonu temizlendi (idempotent patch)
+  - hooks.py required_apps = ["frappe"]; compose'dan --install-app erpnext çıkarıldı (Dockerfile taban imajı bilinçli korundu)
+  - Ölü modüller silindi: utils/erpnext_sync.py (2809 satır, 22 endpoint), webhooks/erpnext_hooks.py; Listing.erpnext_item ve User Profile.erpnext_customer alanları kaldırıldı
+  - Durum motoru: constants.is_transition_allowed tek kaynak; geçersiz geçiş ShipmentStateError (409); geçiş başına append-only Shipment Event (event_hash unique); aynı duruma geçiş no-op
+  - Siparişten sevkiyat: split_engine (INV-1/INV-5 invariant'ları, idempotency_key + IdempotencyConflictError, yabancı order_item reddi)
+  - Desi entegrasyonu: parsel-başına chargeable weight, Settings'e default_desi_divisor alanı
+  - Order denormalizasyonu: fulfillment_status + shipment_count + patch
+  - API v1: create/list/detail/update_status/cancel ({ok, data, meta})
+  - Güvenlik: Shipment/Leg/Event üçünde query_conditions + has_permission + tenant çift hook; maliyet alanları permlevel=1; adres + kalem snapshot değişmezlik guard'ları; Event spoofing koruması
+  - Testler: test_shipment_core 18 (cross-tenant izolasyon, split, idempotency, state machine e2e) + test_state_machine 11; bench toplam 76 yeşil
+  - Doküman: LOGISTICS-ARCHITECTURE.md durum matrisi ve Carrier Account gerçek implementasyonla senkronlandı
+
+---
+## [v1.13.1-alpha.8] - 2026-08-12 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(theme): ürün kartı token whitelist'ini kaldır (_PRODUCT_CARD_KEYS) (@TurksabYonetim)
+  - _PRODUCT_CARD_KEYS + _COLOR_KEYS/_NUMERIC_KEYS'teki kart girdileri silindi
+  - v15_9_0_theme_drop_product_card_keys patch'i: kayıtlı override'lardan kaldırılan aileleri temizler (idempotent), cache'i invalide eder
+  - testler: 173/78 sayımlarına güncellendi; kart anahtarlarının artık reddedildiğini doğrulayan TestProductCardTokensRemoved eklendi
+
+---
+## [v1.13.1-alpha.7] - 2026-08-12 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(media): durum modeli, referans zinciri ve kullanım eşlemesi (TUR-138, TUR-136) (@Metin Bektemur)
+
+---
 ## [v1.13.1-alpha.6] - 2026-08-10 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.

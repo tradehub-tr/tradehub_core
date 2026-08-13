@@ -3,6 +3,5 @@
 
 """Takip sorgu + event isleme servisi."""
 
-from frappe import _
 
 # TODO(TUR-112): process_tracking_event, normalize_carrier_status

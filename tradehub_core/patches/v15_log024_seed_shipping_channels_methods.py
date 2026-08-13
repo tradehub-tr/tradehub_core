@@ -1,7 +1,21 @@
 # Copyright (c) 2026, TradeHub Team and contributors
 # For license information, please see license.txt
 
-"""LOG-024: Shipping Channel + Shipping Method seed verileri (idempotent)."""
+"""LOG-024: Shipping Channel seed verileri (idempotent).
+
+TARIHCE — Shipping Method seed'i KALDIRILDI (Faz A.6):
+	Bu patch ilk surumunde 5 kanalin her biri icin ayni adla bir Shipping Method
+	kaydi da uretiyordu (Kargo->CARGO, Ambar->WAREHOUSE, ...). Bu, TUR-104'un
+	"tasima yontemi ile isletim kanali BAGIMSIZDIR" kabul kriterini veri
+	duzeyinde cignemisti: yontem ve kanal birebir kopya haline gelmisti.
+
+	Kanal = isin hangi kanaldan yurudugu (Kargo / Ambar / Kurye / Satici Araci /
+	Alici Teslim Alma). Yontem = satisa sunulan somut tasima secenegi
+	("Standart Kargo 1-3 gun" gibi) ve bir kanala BAGLANIR.
+
+	Uretilmis 5 kopya kayit LOG-040 ile pasiflestiriliyor. Gercek Shipping Method
+	katalogu bir urun karari oldugu icin burada seed EDILMIYOR.
+"""
 
 from __future__ import annotations
 
@@ -18,21 +32,11 @@ CHANNEL_DISPLAY_NAMES: dict[str, str] = {
 	"BUYER_PICKUP": "Alıcı Teslim Alma",
 }
 
-# method_name -> (channel_code, shipping_type)
-SHIPPING_METHODS: dict[str, tuple[str, str]] = {
-	"Kargo": ("CARGO", "Standard"),
-	"Ambar": ("WAREHOUSE", "Land"),
-	"Kurye": ("COURIER", "Express"),
-	"Satıcı Aracı": ("SELLER_VEHICLE", "Land"),
-	"Alıcı Teslim Alma": ("BUYER_PICKUP", "Standard"),
-}
-
 
 def execute() -> None:
-	"""Shipping Channel ve Shipping Method kayitlarini olusturur (idempotent)."""
+	"""Shipping Channel kayitlarini olusturur (idempotent)."""
 	# Yeni DocType henuz migrate edilmemis olabilir
 	frappe.reload_doc("tradehub_core", "doctype", "shipping_channel")
-	frappe.reload_doc("tradehub_core", "doctype", "shipping_method")
 
 	for row in SHIPPING_CHANNELS:
 		channel_code = row["code"]
@@ -43,17 +47,6 @@ def execute() -> None:
 		# seed dict'inde "name" anahtari doc.name ile cakisir -- alan alan atama yapiyoruz
 		doc.channel_name = CHANNEL_DISPLAY_NAMES[channel_code]
 		doc.channel_code = channel_code
-		doc.is_active = 1
-		doc.insert(ignore_permissions=True)  # Sistem migration'i, kullanici akisi degil
-
-	for method_name, (channel_code, shipping_type) in SHIPPING_METHODS.items():
-		# Idempotent -- zaten varsa dokunma (autoname field:method_name)
-		if frappe.db.exists("Shipping Method", method_name):
-			continue
-		doc = frappe.new_doc("Shipping Method")
-		doc.method_name = method_name
-		doc.channel = channel_code
-		doc.shipping_type = shipping_type
 		doc.is_active = 1
 		doc.insert(ignore_permissions=True)  # Sistem migration'i, kullanici akisi degil
 
