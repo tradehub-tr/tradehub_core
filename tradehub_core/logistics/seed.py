@@ -3,8 +3,9 @@
 
 """TUR-102: Lojistik katalog seed verileri.
 
-Bu veriler TUR-104 (Ana lojistik kataloglari) gorevinde DocType'lar
-olusturuldugunda kullanilacak. Simdilik veri sozlukleri olarak tanimlanir.
+Bu veri sozluklerini v15_log024-036 seed patch'leri tuketiyor
+(Shipping Channel/Method, Logistics Provider, Vehicle Type, Package Type,
+Shipment Exception Code). Patch'lerin okumadigi anahtarlar burada tutulmaz.
 
 Kullanim:
 	from tradehub_core.logistics.seed import LOGISTICS_PROVIDERS, PACKAGE_TYPES
@@ -57,15 +58,18 @@ VEHICLE_TYPES: list[dict[str, Any]] = [
 # Istisna kodlari
 # ---------------------------------------------------------------------------
 
+# Severity + kategori + aksiyon TEK KAYNAK olarak asagidaki EXCEPTION_META'da tutulur
+# (seed patch'i v15_log034 + Storybook fixture ureticisi ayni sozlugu okur).
+# Buradaki eski "severity" anahtari hic okunmadigi icin kaldirildi (P2-2).
 EXCEPTION_CODES: list[dict[str, Any]] = [
-	{"code": "ADDR_NOT_FOUND", "label": "Adres bulunamadi", "severity": "high"},
-	{"code": "RECIPIENT_ABSENT", "label": "Alici adreste degil", "severity": "medium"},
-	{"code": "REFUSED", "label": "Teslim alinmadi / reddedildi", "severity": "high"},
-	{"code": "DAMAGED", "label": "Paket hasarli", "severity": "critical"},
-	{"code": "CUSTOMS_HOLD", "label": "Gumrukte bekliyor", "severity": "medium"},
-	{"code": "WRONG_ADDRESS", "label": "Yanlis adres", "severity": "high"},
-	{"code": "SIZE_EXCEED", "label": "Boyut/agirlik limiti asildi", "severity": "medium"},
-	{"code": "WEATHER", "label": "Hava kosullari nedeniyle gecikme", "severity": "low"},
+	{"code": "ADDR_NOT_FOUND", "label": "Adres bulunamadi"},
+	{"code": "RECIPIENT_ABSENT", "label": "Alici adreste degil"},
+	{"code": "REFUSED", "label": "Teslim alinmadi / reddedildi"},
+	{"code": "DAMAGED", "label": "Paket hasarli"},
+	{"code": "CUSTOMS_HOLD", "label": "Gumrukte bekliyor"},
+	{"code": "WRONG_ADDRESS", "label": "Yanlis adres"},
+	{"code": "SIZE_EXCEED", "label": "Boyut/agirlik limiti asildi"},
+	{"code": "WEATHER", "label": "Hava kosullari nedeniyle gecikme"},
 ]
 
 # code -> (severity, exception_category, is_retriable, suggested_action)
@@ -89,10 +93,13 @@ EXCEPTION_META: dict[str, tuple[str, str, int, str]] = {
 # Gonderim kanallari
 # ---------------------------------------------------------------------------
 
+# Gorunen adlar (Turkce aksanli) TEK KAYNAK olarak
+# v15_log024_seed_shipping_channels_methods.CHANNEL_DISPLAY_NAMES'te tutulur —
+# buradaki eski "name" anahtari hic okunmadigi icin kaldirildi (P2-2).
 SHIPPING_CHANNELS: list[dict[str, Any]] = [
-	{"name": "Kargo", "code": "CARGO"},
-	{"name": "Ambar", "code": "WAREHOUSE"},
-	{"name": "Kurye", "code": "COURIER"},
-	{"name": "Satici Araci", "code": "SELLER_VEHICLE"},
-	{"name": "Alici Teslim Alma", "code": "BUYER_PICKUP"},
+	{"code": "CARGO"},
+	{"code": "WAREHOUSE"},
+	{"code": "COURIER"},
+	{"code": "SELLER_VEHICLE"},
+	{"code": "BUYER_PICKUP"},
 ]

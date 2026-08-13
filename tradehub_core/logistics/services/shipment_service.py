@@ -1,4 +1,4 @@
-# Copyright (c) 2024, Istoc.com and contributors
+# Copyright (c) 2026, TradeHub Team and contributors
 # For license information, please see license.txt
 
 """Shipment durum geçiş motoru (Dalga B — LOG-049/050/051).
@@ -91,6 +91,10 @@ def cancel_shipment(shipment: str | Document, reason: str) -> Document:
 	matrisinden gelir — burada ek kural yoktur. reason internal_note'a
 	eklenir ve Order fulfillment yeniden hesaplanır.
 
+	P1-6b: sevkiyat ZATEN Cancelled ise çağrı no-op'tur — reason
+	internal_note'a YAZILMAZ (ilk iptalin nedeni ezilmesin/şişmesin) ve
+	event üretilmez; doc değiştirilmeden döndürülür.
+
 	Args:
 		shipment: Shipment adı veya Document nesnesi.
 		reason: İptal nedeni (event note + internal_note).
@@ -99,6 +103,10 @@ def cancel_shipment(shipment: str | Document, reason: str) -> Document:
 		İptal edilmiş Shipment dokümanı.
 	"""
 	doc: Document = shipment if isinstance(shipment, Document) else frappe.get_doc("Shipment", shipment)
+
+	# P1-6b: zaten iptal — sessiz no-op, reason yazılmaz.
+	if doc.status == ShipmentStatus.CANCELLED:
+		return doc
 
 	# internal_note geçişten ÖNCE doc'a yazılır: transition_status'un save'i
 	# ile aynı kayıtta kalıcılaşır; geçersiz geçişte throw ile birlikte düşer.

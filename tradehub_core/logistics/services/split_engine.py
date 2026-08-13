@@ -1,4 +1,4 @@
-# Copyright (c) 2024, Istoc.com and contributors
+# Copyright (c) 2026, TradeHub Team and contributors
 # For license information, please see license.txt
 
 """Çok satıcılı/depolu sipariş bölme motoru (Dalga B — LOG-045).
@@ -84,6 +84,10 @@ def create_shipment_draft_from_order(
 	Returns:
 		Insert edilmiş Draft Shipment dokümanı.
 	"""
+	# P1-6a: boş string '' None'a normalize edilir — unique idempotency_key
+	# kolonuna '' yazılırsa iki boş-key'li kayıt constraint'te çakışırdı.
+	idempotency_key = idempotency_key or None
+
 	# İdempotency: aynı key ile daha önce oluşturulmuş sevkiyat varsa onu döndür.
 	if idempotency_key:
 		# Composite lookup (key + order): idempotency_key kolonu global unique
