@@ -1,0 +1,332 @@
+{
+	"default": {
+		"ok": true,
+		"data": {
+			"items": [
+				{
+					"name": "SHP-2026-00042",
+					"order": "ORD-2026-00871",
+					"seller_profile": "SEL-00001",
+					"buyer": "alici@ornek.com",
+					"status": "In Transit",
+					"shipment_type": "Standard",
+					"channel": "CARGO",
+					"carrier": "YK",
+					"carrier_service": "YK-STD",
+					"tracking_number": "7801234567890",
+					"package_count": 3,
+					"chargeable_weight": 42.0,
+					"shipped_date": "2026-08-10",
+					"estimated_delivery_date": "2026-08-13",
+					"delivered_date": null,
+					"is_delayed": 0,
+					"modified": "2026-08-12 09:14:00"
+				},
+				{
+					"name": "SHP-2026-00041",
+					"order": "ORD-2026-00871",
+					"seller_profile": "SEL-00001",
+					"buyer": "alici@ornek.com",
+					"status": "Delivered",
+					"shipment_type": "Standard",
+					"channel": "CARGO",
+					"carrier": "AK",
+					"carrier_service": "AK-STD",
+					"tracking_number": "AK-556677",
+					"package_count": 1,
+					"chargeable_weight": 8.0,
+					"shipped_date": "2026-08-06",
+					"estimated_delivery_date": "2026-08-09",
+					"delivered_date": "2026-08-08",
+					"is_delayed": 0,
+					"modified": "2026-08-08 16:22:00"
+				},
+				{
+					"name": "SHP-2026-00038",
+					"order": "ORD-2026-00863",
+					"seller_profile": "SEL-00002",
+					"buyer": "kurumsal@ornek.com",
+					"status": "Failed",
+					"shipment_type": "Standard",
+					"channel": "CARGO",
+					"carrier": "MNG",
+					"carrier_service": null,
+					"tracking_number": "MNG-99001",
+					"package_count": 2,
+					"chargeable_weight": 120.0,
+					"shipped_date": "2026-08-04",
+					"estimated_delivery_date": "2026-08-07",
+					"delivered_date": null,
+					"is_delayed": 1,
+					"modified": "2026-08-11 11:05:00"
+				},
+				{
+					"name": "SHP-2026-00035",
+					"order": "ORD-2026-00840",
+					"seller_profile": "SEL-00001",
+					"buyer": "alici@ornek.com",
+					"status": "Ready for Pickup",
+					"shipment_type": "Buyer Pickup",
+					"channel": "BUYER_PICKUP",
+					"carrier": null,
+					"carrier_service": null,
+					"tracking_number": null,
+					"package_count": 1,
+					"chargeable_weight": 15.0,
+					"shipped_date": null,
+					"estimated_delivery_date": "2026-08-14",
+					"delivered_date": null,
+					"is_delayed": 0,
+					"modified": "2026-08-12 08:00:00"
+				},
+				{
+					"name": "SHP-2026-00030",
+					"order": "ORD-2026-00822",
+					"seller_profile": "SEL-00002",
+					"buyer": "kurumsal@ornek.com",
+					"status": "At Warehouse",
+					"shipment_type": "Warehouse Transfer",
+					"channel": "WAREHOUSE",
+					"carrier": "SK",
+					"carrier_service": null,
+					"tracking_number": "AMB-4471",
+					"package_count": 12,
+					"chargeable_weight": 860.0,
+					"shipped_date": "2026-08-09",
+					"estimated_delivery_date": "2026-08-16",
+					"delivered_date": null,
+					"is_delayed": 0,
+					"modified": "2026-08-11 19:40:00"
+				}
+			],
+			"total": 5,
+			"page": 1,
+			"page_size": 50
+		}
+	},
+	"empty": {
+		"ok": true,
+		"data": {
+			"items": [],
+			"total": 0,
+			"page": 1,
+			"page_size": 50
+		}
+	},
+	"error": {
+		"ok": false,
+		"error": {
+			"code": "PERMISSION_DENIED",
+			"message": "Bu kaydı görüntüleme yetkiniz yok."
+		}
+	},
+	"detail": {
+		"ok": true,
+		"data": {
+			"name": "SHP-2026-00042",
+			"order": "ORD-2026-00871",
+			"seller_profile": "SEL-00001",
+			"buyer": "alici@ornek.com",
+			"status": "In Transit",
+			"shipment_type": "Standard",
+			"channel": "CARGO",
+			"carrier": "YK",
+			"carrier_service": "YK-STD",
+			"tracking_number": "7801234567890",
+			"package_count": 3,
+			"chargeable_weight": 42.0,
+			"shipped_date": "2026-08-10",
+			"estimated_delivery_date": "2026-08-13",
+			"delivered_date": null,
+			"is_delayed": 0,
+			"modified": "2026-08-12 09:14:00",
+			"origin_address_snapshot": {
+				"unvan": "Demir Tekstil Ltd. Şti.",
+				"adres": "İkitelli OSB, Bağcılar Cad. No:12",
+				"ilce": "Başakşehir",
+				"il": "İstanbul",
+				"posta_kodu": "34490",
+				"telefon": "+90 212 000 00 00"
+			},
+			"destination_address_snapshot": {
+				"unvan": "Yıldız Mağazacılık A.Ş.",
+				"adres": "Ostim Sanayi Sitesi 100. Sokak No:4",
+				"ilce": "Yenimahalle",
+				"il": "Ankara",
+				"posta_kodu": "06370",
+				"telefon": "+90 312 000 00 00"
+			},
+			"warehouse": null,
+			"total_weight": 38.5,
+			"total_desi": 42.0,
+			"cost_paid_by": "Buyer",
+			"carrier_cost": null,
+			"customer_charge": 349.9,
+			"currency": "TRY",
+			"exception_code": null,
+			"delivery_code_required": 0,
+			"payment_required_before_delivery": 0,
+			"notes": "Kırılabilir ürün içerir, istifleme yapılmamalı.",
+			"driver_name": null,
+			"driver_phone": null,
+			"vehicle_plate": null,
+			"appointment_at": null,
+			"appointment_window": null,
+			"delivery_code_status": "not_required",
+			"delivery_code_attempts": 0,
+			"pickup_location": null,
+			"payment_status": "paid",
+			"items": [
+				{
+					"item": "LST-00121",
+					"item_name": "Pamuklu Kumaş Topu 40m",
+					"ordered_qty": 20,
+					"shipped_qty": 12,
+					"remaining_qty": 8,
+					"uom": "Top",
+					"weight_kg": 2.4,
+					"returned_qty": 0
+				},
+				{
+					"item": "LST-00133",
+					"item_name": "Polyester Astar 50m",
+					"ordered_qty": 10,
+					"shipped_qty": 10,
+					"remaining_qty": 0,
+					"uom": "Top",
+					"weight_kg": 1.1,
+					"returned_qty": 0
+				}
+			],
+			"packages": [
+				{
+					"package_code": "PKG-42-001",
+					"sequence_label": "1/3",
+					"package_type": "BOX",
+					"parent_package": null,
+					"length_cm": 60,
+					"width_cm": 40,
+					"height_cm": 40,
+					"weight_kg": 14.0,
+					"desi": 32.0,
+					"barcode_url": "/files/barkod/PKG-42-001.png",
+					"label_url": "/files/etiket/PKG-42-001.pdf",
+					"label_printed_at": "2026-08-10 08:12:00"
+				},
+				{
+					"package_code": "PKG-42-002",
+					"sequence_label": "2/3",
+					"package_type": "BOX",
+					"parent_package": null,
+					"length_cm": 60,
+					"width_cm": 40,
+					"height_cm": 40,
+					"weight_kg": 13.5,
+					"desi": 32.0,
+					"barcode_url": "/files/barkod/PKG-42-002.png",
+					"label_url": "/files/etiket/PKG-42-002.pdf",
+					"label_printed_at": "2026-08-10 08:12:00"
+				},
+				{
+					"package_code": "PKG-42-003",
+					"sequence_label": "3/3",
+					"package_type": "LBOX",
+					"parent_package": null,
+					"length_cm": 80,
+					"width_cm": 50,
+					"height_cm": 45,
+					"weight_kg": 11.0,
+					"desi": 60.0,
+					"barcode_url": "/files/barkod/PKG-42-003.png",
+					"label_url": null,
+					"label_printed_at": null
+				}
+			],
+			"legs": [
+				{
+					"sequence": 1,
+					"leg_type": "Pickup",
+					"status": "Completed",
+					"carrier": "YK",
+					"origin_branch": null,
+					"destination_branch": "YK-34001",
+					"handover_point": null,
+					"handover_proof": null,
+					"vehicle_type": "VAN",
+					"started_at": "2026-08-10 09:00:00",
+					"completed_at": "2026-08-10 11:30:00",
+					"cost": 45.0
+				},
+				{
+					"sequence": 2,
+					"leg_type": "Line Haul",
+					"status": "In Progress",
+					"carrier": "YK",
+					"origin_branch": "YK-34001",
+					"destination_branch": "AK-06010",
+					"handover_point": "Ankara Aktarma",
+					"handover_proof": "/files/devir/42-2.pdf",
+					"vehicle_type": "TRUCK_M",
+					"started_at": "2026-08-10 18:00:00",
+					"completed_at": null,
+					"cost": 180.4
+				},
+				{
+					"sequence": 3,
+					"leg_type": "Last Mile",
+					"status": "Planned",
+					"carrier": "YK",
+					"origin_branch": "AK-06010",
+					"destination_branch": null,
+					"handover_point": null,
+					"handover_proof": null,
+					"vehicle_type": "VAN",
+					"started_at": null,
+					"completed_at": null,
+					"cost": 43.0
+				}
+			],
+			"events": [
+				{
+					"event_time": "2026-08-10 09:05:00",
+					"status": "Picked Up",
+					"source": "api",
+					"carrier_status_code": "101",
+					"carrier_status_text": "Kargo şubeye teslim edildi",
+					"location": "İkitelli",
+					"description": "Gönderi kuryeden teslim alındı",
+					"exception_code": null,
+					"actor": null,
+					"reason": null,
+					"dedupe_key": "YK-7801234567890-101"
+				},
+				{
+					"event_time": "2026-08-10 18:20:00",
+					"status": "In Transit",
+					"source": "webhook",
+					"carrier_status_code": "150",
+					"carrier_status_text": "Transfer merkezinde",
+					"location": "İstanbul Aktarma",
+					"description": "Ankara'ya sevk edildi",
+					"exception_code": null,
+					"actor": null,
+					"reason": null,
+					"dedupe_key": "YK-7801234567890-150"
+				},
+				{
+					"event_time": "2026-08-12 07:40:00",
+					"status": "In Transit",
+					"source": "polling",
+					"carrier_status_code": "160",
+					"carrier_status_text": "Varış şubesinde",
+					"location": "Ostim",
+					"description": "Dağıtıma hazırlanıyor",
+					"exception_code": null,
+					"actor": null,
+					"reason": null,
+					"dedupe_key": "YK-7801234567890-160"
+				}
+			]
+		}
+	}
+}
