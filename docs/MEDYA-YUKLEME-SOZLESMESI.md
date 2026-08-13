@@ -44,7 +44,7 @@ yüklenemiyordu.
 | İçerik imzası (sihirli baytlar) | ✅ ilk 512 bayt | ✅ zorunlu | **Sunucu** |
 | Tehlikeli içerik (HTML/SVG/script) | ✅ hızlı ret | ✅ zorunlu | **Sunucu** |
 | Ad kırpma (140 karakter) | — | ✅ | **Sunucu** |
-| Ön izleme / küçük resim | ✅ | — | İstemci |
+| Ön izleme (yükleme öncesi küçük resim) | ✅ | — | İstemci |
 | İlerleme göstergesi | ✅ | — | İstemci |
 | Parçalara bölme | ✅ | ✅ birleştirme + doğrulama | **Sunucu** |
 | Yeniden deneme kararı | ✅ koda göre | ✅ kodu üretir | **Sunucu** |
