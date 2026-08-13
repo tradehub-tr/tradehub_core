@@ -228,7 +228,10 @@ def _run_transcode(file_url: str) -> None:
 		"nice", "-n", "10",
 		"ffmpeg", "-y",
 		"-i", src_path,
-		"-vf", "scale=min(1280,iw):-2",
+		# `min(1280,iw)` ifadesindeki virgül ffmpeg filtergraph'ta zincir ayracıdır;
+		# tek tırnakla quote edilmezse "scale" filtresi "min(1280" olarak kesilip
+		# patlar (gerçek ffmpeg ile doğrulandı — mock testlerde görülmüyordu).
+		"-vf", "scale='min(1280,iw)':-2",
 		"-c:v", "libvpx-vp9",
 		"-b:v", "0",
 		"-crf", "32",
