@@ -544,3 +544,119 @@ def export_media_audit(
 		writer.writerow({c: r.get(c) for c in cols})
 
 	return {"csv": buf.getvalue(), "count": len(rows)}
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Yedekleme ve geri yükleme (TUR-131)
+#
+# Geri yükleme YIKICI RİSK taşıyor: yanlış çalışırsa bugünkü veriyi dünkiyle
+# ezer. Bu yüzden okuma uçları normal yönetim yetkisiyle, YAZAN uçlar en
+# yüksek yetkiyle korunuyor — arşiv silme ile aynı seviye.
+# ─────────────────────────────────────────────────────────────────────
+
+
+@frappe.whitelist()
+def list_media_backups() -> dict:
+	"""Alınmış yedekler + deponun kapladığı yer."""
+	_guard()
+	from tradehub_core.media import backup
+
+	return {"sets": backup.list_sets(), "usage": backup.usage(), "keep": backup.KEEP_SETS}
+
+
+@frappe.whitelist(methods=["POST"])
+def create_media_backup(label: str = "") -> dict:
+	"""Elle yedek al. Zamanlanmış görev bunu günlük çalıştırıyor."""
+	_guard_destructive()
+	from tradehub_core.media import backup
+
+	return backup.snapshot(label=label)
+
+
+@frappe.whitelist()
+def verify_media_backup(set_id: str, deep: int = 0) -> dict:
+	"""Yedek geri yüklenebilir mi — dokunmadan kontrol.
+
+	`deep=1` havuzdaki içeriğin imzasını da yeniden hesaplar; sessiz disk
+	bozulmasını ancak bu yakalar, karşılığında yavaştır.
+	"""
+	_guard()
+	from tradehub_core.media import backup
+
+	return backup.verify(set_id, deep=bool(int(deep or 0)))
+
+
+@frappe.whitelist()
+def plan_media_restore(set_id: str) -> dict:
+	"""Geri yüklersem ne olur — HİÇBİR ŞEYE DOKUNMAZ.
+
+	Uygulama ayrı uçta. Kimse tek çağrıyla geri yükleme başlatamasın diye.
+	"""
+	_guard()
+	from tradehub_core.media import restore
+
+	return restore.plan(set_id)
+
+
+@frappe.whitelist(methods=["POST"])
+def apply_media_restore(
+	set_id: str,
+	files: int = 1,
+	records: int = 1,
+	overwrite: int = 0,
+	only: str | list[str] | None = None,
+) -> dict:
+	"""Geri yüklemeyi uygula.
+
+	`overwrite=0` (varsayılan): içeriği değişmiş dosyalara DOKUNULMAZ, çatışma
+	olarak raporlanır. `1` yapmak, bugünkü içeriği yedekteki eski hâliyle
+	değiştirmeyi açıkça istemek demektir.
+
+	Hiçbir durumda dosya ya da kayıt SİLİNMEZ.
+	"""
+	_guard_destructive()
+	from tradehub_core.media import restore
+
+	yollar = frappe.parse_json(only) if isinstance(only, str) else only
+	return restore.apply(
+		set_id,
+		files=bool(int(files or 0)),
+		records=bool(int(records or 0)),
+		overwrite=bool(int(overwrite or 0)),
+		only=yollar or None,
+	)
+
+
+@frappe.whitelist(methods=["POST"])
+def repair_missing_media(set_id: str = "") -> dict:
+	"""Kaydı olup dosyası kaybolanları en yeni yedekten geri getir.
+
+	Felaket kurtarmanın en sık hâli: veritabanı sağlam, diskten dosya gitmiş.
+	Tüm yedeği uygulamaya gerek yok, yalnız eksikler yazılır.
+	"""
+	_guard_destructive()
+	from tradehub_core.media import restore
+
+	return restore.repair_missing_files(set_id or None)
+
+
+@frappe.whitelist(methods=["POST"])
+def prune_media_backups(keep: int = 0) -> dict:
+	"""Eski yedekleri ve artık kimsenin göstermediği içerikleri temizle."""
+	_guard_destructive()
+	from tradehub_core.media import backup
+
+	return backup.prune(keep=int(keep) if keep else backup.KEEP_SETS)
+
+
+@frappe.whitelist(methods=["POST"])
+def delete_media_backup(set_id: str) -> dict:
+	"""Tek bir yedeği sil.
+
+	`set_id` istekten geliyor ve dosya yoluna giriyor — kalıp ve kök kontrolü
+	`backup._set_path` içinde, bu uç onu atlayamaz.
+	"""
+	_guard_destructive()
+	from tradehub_core.media import backup
+
+	return backup.delete_set(set_id)

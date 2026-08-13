@@ -49,6 +49,11 @@ ACTION_PURGE_TRASH: str = "media.purge_trash"
 ACTION_PURGE_ARCHIVE: str = "media.purge_archive"
 ACTION_SCOPE_DENIED: str = "media.scope_denied"
 ACTION_ACCESS_DENIED: str = "media.access_denied"
+# Satıcı kendi sahipliğini bıraktı. Silmeden ayrı bir olay: dosya diskte
+# duruyor olabilir (başka mağaza da sahipse). "Sildim ama dosya duruyor"
+# durumunun denetimde açıkça görünmesi gerekiyor.
+ACTION_RELEASE: str = "media.release"
+ACTION_RECLAIM: str = "media.reclaim"
 
 MEDIA_ACTIONS: tuple[str, ...] = (
 	ACTION_UPLOAD,
@@ -61,6 +66,8 @@ MEDIA_ACTIONS: tuple[str, ...] = (
 	ACTION_PURGE_ARCHIVE,
 	ACTION_SCOPE_DENIED,
 	ACTION_ACCESS_DENIED,
+	ACTION_RELEASE,
+	ACTION_RECLAIM,
 )
 
 # Geri dönüşü olmayan ya da güvenlik anlamı taşıyan olaylar HIGH ile işaretlenir;
