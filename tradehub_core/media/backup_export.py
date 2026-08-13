@@ -246,9 +246,23 @@ def _build(set_id: str, actor: str) -> dict:
 
 		zf.writestr("dosya-listesi.csv", _dosya_csv(dosyalar), zipfile.ZIP_DEFLATED)
 		zf.writestr("kayit-listesi.csv", _kayit_csv(kayitlar), zipfile.ZIP_DEFLATED)
+
+		# Yapı künyesi pakete GİRİYOR. Paket başka bir sunucuda açılacak; oradaki
+		# veritabanının sütunları tutmuyorsa kayıtlar sessizce eksik yazılır.
+		# Künye olmadan bunu anlamanın yolu yok, çünkü CSV'de alan boş görünür
+		# ama bunun "değer yoktu" mu "sütun yoktu" mu olduğu belli olmaz.
+		kunye = backup.schema_of(set_id)
+		if kunye:
+			zf.writestr(
+				"veritabani-yapisi.json",
+				frappe.as_json(kunye),
+				zipfile.ZIP_DEFLATED,
+			)
+		zf.writestr("yapi-listesi.csv", _yapi_csv(kunye), zipfile.ZIP_DEFLATED)
+
 		zf.writestr(
 			"ozet.txt",
-			_ozet(m, kayitlar, yazilan, atlanan, actor),
+			_ozet(m, kayitlar, yazilan, atlanan, actor, kunye),
 			zipfile.ZIP_DEFLATED,
 		)
 
@@ -395,6 +409,37 @@ def _kayit_csv(kayitlar: list[dict]) -> str:
 	)
 
 
+def _yapi_csv(kunye: dict | None) -> str:
+	"""Yapı künyesinin tablo hâli — JSON'u herkes açamaz, CSV'yi Excel açar.
+
+	Aynı bilgi iki biçimde: makine `veritabani-yapisi.json`'u okur, insan bu
+	listeye bakar. Sütun tipini görmeden "alan var mı" sorusu yarım kalıyordu.
+	"""
+	if not kunye:
+		return _csv_metni(
+			["tablo", "sutun", "tip", "kapsam"],
+			[["—", "—", "—", "künye yok"]],
+		)
+
+	satirlar: list[list] = []
+	for tablo, kayit in (kunye.get("tables") or {}).items():
+		for ad, tur in (kayit.get("columns") or {}).items():
+			satirlar.append([tablo, ad, tur, "medya kaydı"])
+	for b in kunye.get("media_links") or []:
+		satirlar.append(
+			[
+				b.get("table") or "",
+				b.get("column") or "",
+				b.get("type") or "",
+				f"medya bağı ({b.get('scope')})" + ("" if b.get("exists") else " — SÜTUN YOK"),
+			]
+		)
+	for p in kunye.get("patches") or []:
+		satirlar.append(["—", p, "—", "uygulanmış yama"])
+
+	return _csv_metni(["tablo", "sutun", "tip", "kapsam"], satirlar)
+
+
 def _zaman(damga) -> str:
 	if not damga:
 		return ""
@@ -408,7 +453,14 @@ def _mb(bayt: int) -> str:
 	return f"{(bayt or 0) / 1024 / 1024:.1f} MB"
 
 
-def _ozet(m: dict, kayitlar: list[dict], yazilan: int, atlanan: list[str], actor: str) -> str:
+def _ozet(
+	m: dict,
+	kayitlar: list[dict],
+	yazilan: int,
+	atlanan: list[str],
+	actor: str,
+	kunye: dict | None = None,
+) -> str:
 	"""Paketin içindeki okunabilir künye.
 
 	Paket aylar sonra başka bir makinede açılabilir. O anda "bu ne, ne zaman
@@ -430,9 +482,11 @@ def _ozet(m: dict, kayitlar: list[dict], yazilan: int, atlanan: list[str], actor
 		f"Paketleyen      : {actor or frappe.session.user}",
 		"",
 		"İÇERİK",
-		"  dosyalar/          Görsellerin ve belgelerin kendisi",
-		"  dosya-listesi.csv  Her dosyanın yolu, imzası, boyutu",
-		"  kayit-listesi.csv  Her dosyanın adresi, SAHİP MAĞAZASI, imzası, tarihi",
+		"  dosyalar/               Görsellerin ve belgelerin kendisi",
+		"  dosya-listesi.csv       Her dosyanın yolu, imzası, boyutu",
+		"  kayit-listesi.csv       Her dosyanın adresi, SAHİP MAĞAZASI, imzası, tarihi",
+		"  yapi-listesi.csv        Medyanın kullandığı tablo ve sütunlar",
+		"  veritabani-yapisi.json  Aynı bilgi, makine okuması için",
 		"",
 		"SAYILAR",
 		f"  Yedekteki dosya : {istatistik.get('file_count') or 0}",
@@ -445,6 +499,34 @@ def _ozet(m: dict, kayitlar: list[dict], yazilan: int, atlanan: list[str], actor
 		f"  Bu paket ÖZEL BELGELER de içeriyor ({ozel} kayıt) — satıcı doğrulama",
 		"  evrakı gibi. Güvenli bir yerde saklayın, paylaşmayın.",
 	]
+
+	# Yapı bölümü paketin İÇİNDE olmalı: paket aylar sonra başka bir sunucuda
+	# açılacak ve "bu kayıtlar hangi sütunlara göre yazıldı" sorusunun cevabı
+	# o an elde olmalı. Burada karşılaştırma değil, künyenin kendisi yazılıyor
+	# — karşılaştıracak "bugün" paketin açıldığı yerde belli olur.
+	if kunye:
+		baglar = kunye.get("media_links") or []
+		dosya_sutun = len((kunye.get("tables", {}).get("tabFile") or {}).get("columns") or {})
+		satirlar += [
+			"",
+			"VERİTABANI YAPISI (yedek alındığındaki hâl)",
+			f"  Uygulama sürümü : {kunye.get('app_version') or '—'}",
+			f"  Frappe sürümü   : {kunye.get('frappe_version') or '—'}",
+			f"  Medya kaydı     : {dosya_sutun} sütun",
+			f"  Medya bağı      : {sum(1 for b in baglar if b.get('exists'))}/{len(baglar)} sütun mevcut",
+			f"  Medya yaması    : {len(kunye.get('patches') or [])} tanesi uygulanmış",
+			"",
+			"  Bu paketi başka bir veritabanına açacaksan yapı-listesi.csv ile",
+			"  oradaki sütunları karşılaştır: eksik sütun varsa o alanlar geri",
+			"  yüklenemez ve fark sessiz kalır.",
+		]
+	else:
+		satirlar += [
+			"",
+			"VERİTABANI YAPISI",
+			"  Bu yedek yapı künyesi eklenmeden önce alınmış; hangi sütunlara göre",
+			"  yazıldığı bilinmiyor. Yeni bir yedek alırsan künye de gelir.",
+		]
 
 	if atlanan:
 		satirlar += [
