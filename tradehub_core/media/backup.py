@@ -373,7 +373,24 @@ def run_scheduled() -> dict:
 		raise
 
 	temizlik = prune(keep=KEEP_SETS)
-	return {"snapshot": alinan, "prune": temizlik}
+
+	# Dışa aktarma paketleri yedeğin ikinci kopyası; süresi geçenler burada
+	# düşer. Ayrı bir zamanlanmış görev açmak yerine buraya bağlandı: ikisi de
+	# aynı deponun yerini yönetiyor ve sıraları önemli (önce yedek, sonra
+	# temizlik).
+	paketler = {}
+	try:
+		from tradehub_core.media import backup_export
+
+		paketler = backup_export.cleanup()
+	except Exception:
+		# Paket temizliği yedeği düşürmemeli: yedek alındı, asıl iş bitti.
+		frappe.log_error(
+			title="Medya yedek paketleri temizlenemedi",
+			message=frappe.get_traceback(with_context=True),
+		)
+
+	return {"snapshot": alinan, "prune": temizlik, "exports": paketler}
 
 
 def delete_set(set_id: str) -> dict:
