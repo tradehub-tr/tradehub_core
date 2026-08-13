@@ -23,7 +23,7 @@ import frappe
 
 from tradehub_core.logistics.seed import SHIPPING_CHANNELS
 
-# Seed "code" -> Türkçe aksanlı görünen ad (seed "name" anahtarı aksansız, doc.name ile çakışır)
+# Seed "code" -> Türkçe aksanlı görünen ad (TEK KAYNAK — seed.py yalnız "code" taşır)
 CHANNEL_DISPLAY_NAMES: dict[str, str] = {
 	"CARGO": "Kargo",
 	"WAREHOUSE": "Ambar",
@@ -44,7 +44,7 @@ def execute() -> None:
 		if frappe.db.exists("Shipping Channel", channel_code):
 			continue
 		doc = frappe.new_doc("Shipping Channel")
-		# seed dict'inde "name" anahtari doc.name ile cakisir -- alan alan atama yapiyoruz
+		# Gorunen ad CHANNEL_DISPLAY_NAMES'ten -- alan alan atama yapiyoruz
 		doc.channel_name = CHANNEL_DISPLAY_NAMES[channel_code]
 		doc.channel_code = channel_code
 		doc.is_active = 1

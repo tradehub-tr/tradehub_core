@@ -110,6 +110,10 @@ Kontrol sirasi:
 
 ## Yeni Tasiyici Ekleme (Adapter Pattern)
 
+> NOT: Adapter kaydi henuz kablolanmadi — registry bos baslar, MockCarrierAdapter
+> dahil hicbir adapter otomatik register edilmez. Ilk gercek adapter TUR-107/109'da
+> baglanacak.
+
 1. `adapters/carriers/` altina yeni dosya olustur (orn. `yurtici.py`)
 2. `BaseCarrierAdapter`'i extend et ve abstract metotlari implement et:
    - `authenticate()` -- kimlik dogrulama
@@ -129,7 +133,8 @@ Kontrol sirasi:
 
 > ⚠️ Şu an **hiçbir adapter boot sırasında register edilmiyor** —
 > `register_carrier` yalnızca testlerden çağrılıyor, dolayısıyla production'da
-> `list_registered_carriers()` boş döner. Bootstrap kaydı F bloğunda eklenecek.
+> `list_registered_carriers()` boş döner. Bootstrap kaydı ilk gerçek adapter
+> göreviyle (TUR-107/109) eklenecek.
 
 ### Adapter Data Contract'lari
 

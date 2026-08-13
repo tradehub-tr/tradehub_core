@@ -54,6 +54,10 @@ ACTION_ACCESS_DENIED: str = "media.access_denied"
 # durumunun denetimde açıkça görünmesi gerekiyor.
 ACTION_RELEASE: str = "media.release"
 ACTION_RECLAIM: str = "media.reclaim"
+# Yedek paketi sunucudan dışarı çıkarıldı. Paket TÜM medyayı içeriyor, özel
+# belgeler dahil — verinin sunucuyu terk ettiği tek nokta bu. Kimin ne zaman
+# dışarı aktardığı iz bırakmadan gerçekleşmemeli.
+ACTION_EXPORT: str = "media.export"
 
 MEDIA_ACTIONS: tuple[str, ...] = (
 	ACTION_UPLOAD,
@@ -68,6 +72,7 @@ MEDIA_ACTIONS: tuple[str, ...] = (
 	ACTION_ACCESS_DENIED,
 	ACTION_RELEASE,
 	ACTION_RECLAIM,
+	ACTION_EXPORT,
 )
 
 # Geri dönüşü olmayan ya da güvenlik anlamı taşıyan olaylar HIGH ile işaretlenir;
@@ -79,6 +84,8 @@ _HIGH_SEVERITY_ACTIONS: frozenset[str] = frozenset(
 		ACTION_PURGE_ARCHIVE,
 		ACTION_SCOPE_DENIED,
 		ACTION_ACCESS_DENIED,
+		# Geri alınamaz değil ama güvenlik anlamı taşıyor: veri sunucudan çıktı.
+		ACTION_EXPORT,
 	}
 )
 
