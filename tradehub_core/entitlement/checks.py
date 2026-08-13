@@ -20,7 +20,11 @@ from tradehub_core.entitlement.core import (
 	check_feature_or_throw,
 	check_quota_or_throw,
 	get_active_subscription,
+	get_quota_limits,
 )
+from tradehub_core.media import files
+from tradehub_core.media.presets import EXCLUDED_DOCTYPES
+from tradehub_core.utils.tenant import get_current_seller_profile
 
 
 def check_listing_creation_quota(doc, method=None) -> None:
@@ -206,11 +210,66 @@ def _extract_region_codes(value) -> set[str]:
 	return set()
 
 
-def check_media_storage_quota(doc, method=None):
-	"""File.before_insert — satıcı medya depolama kotası (TUR-139).
+def check_media_storage_quota(doc, method=None) -> None:
+	"""File.before_insert — satıcı medya depolama kotası enforcement (TUR-139, WP3).
 
-	Faz 0 iskeleti: şu an no-op. WP3 gerçek enforcement'ı buraya koyacak
-	(EXCLUDED_DOCTYPES muafiyeti + get_current_seller_profile + within_quota).
-	Kancaya şimdi bağlı olduğu için NotImplementedError DEĞİL — sessizce geçer.
+	Faz 0'daki no-op stub'ın yerini aldı. Muafiyetler (sırayla):
+	  - Klasör kayıtları (`is_folder`) — depolama tüketmez.
+	  - System Manager / Marketplace Admin — platform yönetimi kısıtlanmaz.
+	  - `EXCLUDED_DOCTYPES` (KYB/KYC/Order/Payment Transaction vb.) — bunlar zaten
+	    `media.presets`'te "kota dışı" sayılıyor (inventory/usage aynı listeyi
+	    kullanıyor); aynı muafiyet burada da geçerli olmalı, aksi hâlde bir
+	    belge yükleyen satıcı hiç göremediği bir sayaç yüzünden reddedilir.
+	  - Bulk import kanalı (`frappe.flags.in_bulk_import_upload` / `doc.flags.
+	    bulk_import_safe`) — `utils.security.reject_unsafe_files` ile aynı iki
+	    bayrak kanalı.
+	  - Private dosyalar — `media.files.storage_usage` yalnız `is_private=0`
+	    dosyaları sayıyor (dedup `file_url` bazında); ÖLÇÜLMEYEN bir metrikle
+	    private yüklemeyi reddetmek tutarsız olurdu.
+	  - Mağazası çözülemeyen oturum (guest/admin/tenant'sız kullanıcı) — kota
+	    kavramı mağazaya bağlı, mağazasız oturum muaf.
+
+	Limit semantiği `entitlement.core.within_quota` ile aynı: `-1` sınırsız,
+	plan'da tanımsız (`None`) → WP3 seed patch'i (`v15_9_17_seed_storage_quota`)
+	çalıştıysa normalde görülmez; yine de fail-open değil fail-safe: sınır
+	yoksa GÖSTERİLMEZ/UYGULANMAZ (yeni yüklemeyi engellemez) — tıpkı
+	`media.files._quota()`'nın tanımsız kotayı `None` dönmesi gibi.
 	"""
-	return
+	if getattr(doc, "is_folder", 0):
+		return
+
+	if "System Manager" in frappe.get_roles(frappe.session.user):
+		return
+	if "Marketplace Admin" in frappe.get_roles(frappe.session.user):
+		return
+
+	if doc.get("attached_to_doctype") in EXCLUDED_DOCTYPES:
+		return
+
+	if getattr(getattr(doc, "flags", None), "bulk_import_safe", False):
+		return
+	if getattr(frappe.flags, "in_bulk_import_upload", False):
+		return
+
+	if doc.get("is_private"):
+		return
+
+	store = get_current_seller_profile()
+	if not store:
+		return
+
+	limit_mb = get_quota_limits(store).get("quota.max_storage_mb")
+	if limit_mb is None:
+		return  # plan'da tanımsız — seed patch atlandıysa bile yükleme reddedilmez
+	limit_mb = int(limit_mb)
+	if limit_mb == -1:
+		return  # sınırsız
+
+	incoming_bytes = int(doc.get("file_size") or len(doc.get("content") or b"") or 0)
+	current_bytes = files.storage_usage(store)["bytes"]
+	limit_bytes = limit_mb * 1024 * 1024
+
+	if current_bytes + incoming_bytes > limit_bytes:
+		frappe.throw(
+			_("Depolama kotanız doldu ({0} MB). Yükleme yapılamadı.").format(limit_mb),
+		)
