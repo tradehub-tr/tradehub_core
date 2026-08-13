@@ -77,6 +77,22 @@ PY
 
 ---
 
+## 2.5. Otomatik entegrasyon testi (deploy'suz, hızlı ilk kanıt)
+
+Manuel senaryolardan önce, dört WP'nin birlikte çalıştığını doğrulayan uçtan
+uca test hazır — build/deploy gerektirmez:
+
+```bash
+docker exec istoc-dev-backend-1 bench --site istoc.localhost run-tests \
+  --module tradehub_core.tests.test_media_pipeline_integration
+```
+**Beklenen:** `Ran 5 tests ... OK` — görsel zinciri (hash+WebP), kota reddi,
+KYB muafiyeti, video kuyruğu, hash dedup. (Bu test 2026-08-13'te 5/5 geçti.)
+
+> ⚠️ Bu test tek başına çalıştırılmalı. `test_media_quota.py` ile AYNI `bench
+> run-tests --app` çağrısında çalıştırma — o dosya global `frappe` stub'ı yükleyip
+> aynı process'teki diğer testleri kırıyor (izole düzeltme bekleyen test-borcu).
+
 ## 3. Satıcı test senaryoları
 
 Panel: satıcı olarak giriş → **Medya Kütüphanesi** (`/media-library`).
