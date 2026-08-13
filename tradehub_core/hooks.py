@@ -861,6 +861,5 @@ override_whitelisted_methods = {
 }
 
 # Yeni yüklemeleri içerik-hash'iyle adlandır (enumeration önleme, TUR-141/130).
-# WP4 naming.py'yi doldurunca aşağıdaki satır aktifleştirilecek. Şu an stub
-# NotImplementedError attığı için YORUMDA — aktif olsaydı her upload kırılırdı.
-# write_file = "tradehub_core.media.naming.write_file_hashed"
+# WP4 — naming.write_file_hashed gerçek implementasyonla dolduruldu, hook aktif.
+write_file = "tradehub_core.media.naming.write_file_hashed"
