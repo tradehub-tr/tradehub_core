@@ -87,6 +87,10 @@ def create_shipment(
 	"""
 	user: str = _require_authenticated_user()
 
+	# P1-6a: bos string idempotency key None'a normalize edilir — '' unique
+	# kolona yazilmasin (split_engine de ayrica normalize eder; cift katman).
+	idempotency_key = idempotency_key or None
+
 	# Yetki: kullanici siparisi okuyabiliyor olmali. Order'in DocPerm modeli
 	# (System Manager full + "All" if_owner=1) hicbir role doctype-seviyesi
 	# read vermez — check_permission("read") sahibi olmayan HERKESI dusurur
@@ -291,9 +295,14 @@ def cancel_shipment(name: str, reason: str | None = None) -> dict:
 	logistics.permissions.shipment_has_permission (cancel → yalniz
 	Logistics Manager) fallback olarak dogrudan uygulanir.
 
+	P1-6b: sevkiyat ZATEN Cancelled ise servis no-op doner — reason
+	internal_note'a YAZILMAZ, event uretilmez ve yanit meta'sinda
+	"already_cancelled": true isaretlenir.
+
 	Args:
 		name: Shipment doc adi.
-		reason: Iptal nedeni (event note + internal_note).
+		reason: Iptal nedeni (event note + internal_note). Zaten iptal
+			edilmis sevkiyatta yok sayilir.
 
 	Returns:
 		{"ok": True, "data": {"name", "status"}, "meta": {...}}.
@@ -313,10 +322,13 @@ def cancel_shipment(name: str, reason: str | None = None) -> dict:
 
 	from tradehub_core.logistics.services.shipment_service import cancel_shipment as cancel_shipment_service
 
+	# P1-6b: transition oncesi status Cancelled ise servis no-op donecek.
+	already_cancelled: bool = doc.status == ShipmentStatus.CANCELLED
+
 	doc = cancel_shipment_service(doc, reason or "")
 
 	return {
 		"ok": True,
 		"data": {"name": doc.name, "status": doc.status},
-		"meta": _meta(),
+		"meta": _meta(already_cancelled=True if already_cancelled else None),
 	}

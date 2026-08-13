@@ -61,7 +61,8 @@
    "fieldname": "qty",
    "fieldtype": "Int",
    "in_list_view": 1,
-   "label": "Adet"
+   "label": "Adet",
+   "non_negative": 1
   },
   {
    "fieldname": "barcode",
