@@ -63,6 +63,9 @@ ACTION_EXPORT: str = "media.export"
 # `media_access.download`'ın tek başarı kaydı: kim/ne zaman değil (link
 # giriş gerektirmiyor), hangi dosyanın hangi imzalı linkle dışarı çıktığı.
 ACTION_SIGNED_ACCESS: str = "media.signed_access"
+# TUR-126 §4 — süper-admin bir dosyanın erişim seviyesini (public↔private)
+# değiştirdi. `media_admin.set_access_level` / `media/access_level.py` yazar.
+ACTION_LEVEL_CHANGED: str = "media.level_changed"
 
 MEDIA_ACTIONS: tuple[str, ...] = (
 	ACTION_UPLOAD,
@@ -79,6 +82,7 @@ MEDIA_ACTIONS: tuple[str, ...] = (
 	ACTION_RECLAIM,
 	ACTION_EXPORT,
 	ACTION_SIGNED_ACCESS,
+	ACTION_LEVEL_CHANGED,
 )
 
 # Geri dönüşü olmayan ya da güvenlik anlamı taşıyan olaylar HIGH ile işaretlenir;
@@ -92,6 +96,8 @@ _HIGH_SEVERITY_ACTIONS: frozenset[str] = frozenset(
 		ACTION_ACCESS_DENIED,
 		# Geri alınamaz değil ama güvenlik anlamı taşıyor: veri sunucudan çıktı.
 		ACTION_EXPORT,
+		# Erişim kontrolü kararı: private→public bir dosyayı anonim erişime açar.
+		ACTION_LEVEL_CHANGED,
 	}
 )
 
