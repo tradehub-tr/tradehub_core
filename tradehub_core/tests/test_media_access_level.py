@@ -25,6 +25,7 @@ kontrolünü açar — Frappe çekirdeğinin kendi testlerinde de kullanılan de
 from __future__ import annotations
 
 import contextlib
+import json
 import os
 from unittest import mock
 
@@ -255,6 +256,125 @@ class KybProtectionTests(MediaAccessLevelTestBase):
 		self.assertTrue(result["is_private"])
 
 
+class ReverseReferencePiiTests(MediaAccessLevelTestBase):
+	"""CRITICAL güvenlik testi (canlı DB review bulgusu): bazı PII belgeleri
+	`File.attached_to_doctype` set edilmeden yükleniyor, yalnız EXCLUDED bir
+	doctype'ın kendi alanından (`Seller Application.identity_document`)
+	string olarak referanslanıyor. `attached_to_doctype in EXCLUDED_DOCTYPES`
+	kontrolü TEK BAŞINA bunu kaçırıyordu — canlı DB'de 144+2 = 146 dosya bu
+	deseni kullanıyor."""
+
+	def _make_applicant_user(self, tag: str) -> str:
+		suffix = frappe.generate_hash(length=8)
+		email = f"erisim-seviyesi-basvuru-{tag}-{suffix}@test.local"
+		frappe.get_doc(
+			{
+				"doctype": "User",
+				"email": email,
+				"first_name": "Basvuru",
+				"send_welcome_email": 0,
+				"enabled": 1,
+			}
+		).insert(ignore_permissions=True)
+		frappe.db.commit()
+		self.addCleanup(lambda: self._delete_and_commit("User", email))
+		return email
+
+	def _make_seller_application(self, applicant: str, tag: str) -> str:
+		application = frappe.get_doc({"doctype": "Seller Application", "applicant_user": applicant})
+		application.flags.ignore_mandatory = True
+		application.insert(ignore_permissions=True)
+		frappe.db.commit()
+		self.addCleanup(lambda: self._delete_and_commit("Seller Application", application.name))
+		return application.name
+
+	def _attach_via_db(self, application_name: str, field: str, url: str) -> None:
+		"""`identity_document`'i doc controller'ı ATLAYARAK doğrudan SQL ile
+		set eder — canlı DB'deki 146 dosyanın gerçek deseni bu.
+
+		`frappe.get_doc({...}).insert()` ile Attach alanını KURULUŞ ANINDA
+		set edersek, Frappe'nin kendi doc-save akışı var olan `file_url`'e
+		işaret eden İKİNCİ bir `File` kaydı oluşturup onu bu doküman'a
+		otomatik LİNKLİYOR (`attached_to_doctype` dolduruluyor) — bu da
+		mevcut (henüz düzeltilmemiş) `attached_to_doctype` kontrolünü
+		yanlışlıkla tetikleyip testi anlamsız kılıyor (doğrulandı: canlı
+		debug'da `doc.insert()` yolu attached_to_doctype='Seller
+		Application' ile YENİ bir File satırı yaratıyor). Production'daki
+		146 dosya ise migration/toplu-yükleme gibi bu doc-save akışını
+		ATLAYAN bir yoldan geldiği için `attached_to_doctype` hâlâ BOŞ —
+		`db.set_value` bunu birebir simüle eder.
+		"""
+		frappe.db.set_value("Seller Application", application_name, field, url, update_modified=False)
+		frappe.db.commit()
+
+	def test_attached_to_doctype_bos_ama_seller_application_referansli_dosya_public_yapilamaz(self):
+		"""Tam olarak kaçan senaryo: `attached_to_doctype` YOK, yalnız
+		`Seller Application.identity_document` bu dosyayı gösteriyor."""
+		file_doc = self._make_private_file("sa-ref")
+		applicant = self._make_applicant_user("sa-ref")
+		application_name = self._make_seller_application(applicant, "sa-ref")
+		self._attach_via_db(application_name, "identity_document", file_doc.file_url)
+
+		# Bypass'ın gerçekten tetiklendiğini doğrula: attached_to_doctype BOŞ.
+		self.assertIsNone(frappe.db.get_value("File", file_doc.name, "attached_to_doctype"))
+
+		with self.assertRaisesRegex(frappe.ValidationError, "KVKK/PII"):
+			access_level.set_level(file_doc.file_url, make_private=False)
+
+		# Reddedilen istek dosyayı private'ta bırakmalı (değişmemeli).
+		file_doc.reload()
+		self.assertEqual(int(file_doc.is_private), 1)
+
+	def test_ayni_dosya_private_yapmak_icin_serbest(self):
+		"""Ters referanslı PII dosyayı private yapmak serbest — yalnız
+		PUBLIC yapmak yasak (KybProtectionTests ile aynı asimetri)."""
+		file_doc = self._make_public_file("sa-ref-priv")
+		applicant = self._make_applicant_user("sa-ref-priv")
+		application_name = self._make_seller_application(applicant, "sa-ref-priv")
+		self._attach_via_db(application_name, "identity_document", file_doc.file_url)
+
+		result = access_level.set_level(file_doc.file_url, make_private=True)
+
+		self.assertTrue(result["changed"])
+		self.assertTrue(result["is_private"])
+
+
+class RefsSkippedTests(MediaAccessLevelTestBase):
+	def test_gomulu_referans_atlanir_ve_donuste_gorunur(self):
+		"""Important fix: `retarget`'ın atladığı (JSON gömülü) referanslar API
+		cevabından kaybolmamalı — operatör kırık referans riskinden haberdar
+		olmalı. `Storefront Layout.sections` JSON içine gömülü URL tam eşleşme
+		OLMADIĞI için güncellenmez, atlanmış olarak raporlanmalı."""
+		file_doc = self._make_public_file("refs-skipped")
+		seller = self._make_seller("refs-skipped")
+
+		sections = [
+			{
+				"type": "gallery",
+				"order": 1,
+				"enabled": True,
+				"settings": {"columns": 4, "lightbox": True, "cover_image": file_doc.file_url},
+			}
+		]
+		layout = frappe.get_doc(
+			{
+				"doctype": "Storefront Layout",
+				"seller_profile": seller,
+				"sections": json.dumps(sections),
+			}
+		)
+		layout.insert(ignore_permissions=True)
+		frappe.db.commit()
+		self.addCleanup(lambda: self._delete_and_commit("Storefront Layout", layout.name))
+
+		result = access_level.set_level(file_doc.file_url, make_private=True)
+
+		self.assertIn("refs_skipped", result)
+		self.assertGreaterEqual(result["refs_skipped"], 1)
+		self.assertIn("refs_skipped_detail", result)
+		self.assertTrue(result["refs_skipped_detail"])
+
+
 class IdempotentTests(MediaAccessLevelTestBase):
 	def test_zaten_hedef_seviyedeyse_no_op(self):
 		file_doc = self._make_public_file("idem")
@@ -281,9 +401,43 @@ class AuditTests(MediaAccessLevelTestBase):
 		_, kwargs = m.call_args
 		self.assertEqual(kwargs["action"], audit.ACTION_LEVEL_CHANGED)
 		self.assertEqual(kwargs["file_url"], result["file_url"])
-		self.assertEqual(kwargs["context"]["old_url"], file_doc.file_url)
 		self.assertTrue(kwargs["context"]["new_private"])
 		self.assertFalse(kwargs["context"]["old_private"])
+
+	def test_gecis_hassas_isaretlenir_ve_ham_url_context_e_yazilmaz(self):
+		"""Important fix: her geçiş kaynak ya da hedefte bir private durumu
+		içerir (ikisi asla aynı olamaz — idempotent kontrolü zaten farklı
+		olmasını garanti eder). `log_media_event`'e `sensitive=True`
+		geçilmeli VE context'e KENDİ eklediğimiz ham yol alanları (`old_url`
+		gibi) düz metin sızdırmamalı — `log_media_event` yalnız sabit üç
+		anahtarı ("file_name"/"file_url"/"attached_to_doctype") otomatik
+		siliyor, bizim özel anahtarımızı silmiyor."""
+		file_doc = self._make_public_file("audit-mask")
+
+		with mock_log_media_event() as m:
+			access_level.set_level(file_doc.file_url, make_private=True)
+
+		_, kwargs = m.call_args
+		self.assertTrue(kwargs["sensitive"])
+		self.assertNotIn(file_doc.file_url, str(kwargs["context"]))
+
+	def test_gercek_adl_kaydinda_object_name_maskeli(self):
+		"""Mock değil — gerçek DB'ye yazılan ADL satırı kontrol edilir:
+		maskeleme sahiden kalıcı kayda yansıyor mu."""
+		file_doc = self._make_public_file("audit-real")
+
+		access_level.set_level(file_doc.file_url, make_private=True)
+
+		rows = frappe.get_all(
+			"Authorization Decision Log",
+			filters={"action": audit.ACTION_LEVEL_CHANGED},
+			fields=["object_name", "context"],
+			order_by="creation desc",
+			limit_page_length=1,
+		)
+		self.assertTrue(rows)
+		self.assertTrue(rows[0]["object_name"].startswith("masked:"))
+		self.assertNotIn(file_doc.file_url, rows[0]["context"] or "")
 
 
 class GuardTests(MediaAccessLevelTestBase):

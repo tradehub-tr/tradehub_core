@@ -53,6 +53,29 @@ EXCLUDED_DOCTYPES: Final[tuple[str, ...]] = (
 )
 
 
+# TUR-126 §4 CRITICAL fix — bazı hassas belgeler `File.attached_to_doctype`
+# set edilmeden yükleniyor; yalnız EXCLUDED bir doctype'ın kendi Attach/Data
+# alanından string olarak referanslanıyor. Canlı DB'de doğrulandı:
+# `Seller Application.identity_document` 144 dosya, `Seller Certification.
+# document` 2 dosya — ikisinde de `attached_to_doctype` BOŞ. `EXCLUDED_
+# DOCTYPES` + `attached_to_doctype` kontrolü TEK BAŞINA bu 146 kimlik/PII
+# belgesini (TC kimlik taraması dahil) yakalayamıyor; `media/access_level.py`
+# `set_level()` public'e geçişten önce bu haritayla TERS REFERANS taraması
+# (`frappe.db.exists(doctype, {field: file_url})`) da yapmalı.
+#
+# KVKK BAKIM NOTU: `EXCLUDED_DOCTYPES`'e yeni bir doctype eklenirse ve o
+# doctype'ta dosya-tutan bir alan (Attach/Attach Image/Data) varsa, BU HARİTA
+# da güncellenmeli — aksi hâlde o doctype'ın dosyaları toggle korumasından
+# sessizce kaçar.
+EXCLUDED_MEDIA_FIELDS: Final[dict[str, tuple[str, ...]]] = {
+	"KYC Verification": ("identity_document",),
+	"Seller Application": ("identity_document",),
+	"KYB Verification": ("identity_document", "bank_account_document"),
+	"Seller Certification": ("document",),
+	"Seller Verification": ("document",),
+}
+
+
 def resolve(preset: str | None) -> dict[str, int]:
 	"""Preset adını ayara çevir; bilinmeyen ad varsayılana düşer."""
 	return PRESETS.get(preset or DEFAULT_PRESET, PRESETS[DEFAULT_PRESET])
