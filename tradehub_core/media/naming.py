@@ -56,6 +56,24 @@ def _hashed_name(original: str, content: bytes) -> str:
 	return f"{h}{ext}"
 
 
+def _shard(hashed_name: str) -> str:
+	"""Hash-prefix shard alt dizini: adın ilk 2 hex karakteri (00–ff).
+
+	Tek dizinde milyonlarca dosya yerine ~256 dengeli alt dizin (TUR-130).
+	İçerik-adresli adla doğal uyumlu; yedek blob'ları (media-backups/blobs/<xx>)
+	zaten aynı deseni kullanıyor.
+	"""
+	return hashed_name[:2]
+
+
+def _ensure_shard_dir(is_private: int, shard: str) -> None:
+	"""Shard alt dizinini diskte oluştur — Frappe `write_file()` mkdir YAPMAZ
+	(doğrudan `open(get_full_path(), "wb+")` çağırır), yoksa yükleme kırılır.
+	"""
+	base = get_files_path(is_private=is_private)
+	frappe.create_folder(os.path.join(base, shard))
+
+
 def write_file_hashed(*args, **kwargs) -> dict:
 	"""Frappe `write_file` hook implementasyonu — iki çağrı yolunu da destekler.
 
@@ -78,7 +96,10 @@ def _write_file_from_doc(doc: Document) -> dict:
 	content_bytes = content.encode() if isinstance(content, str) else content
 
 	hashed_name = _hashed_name(doc.file_name, content_bytes)
-	doc.file_url = f"/private/files/{hashed_name}" if doc.is_private else f"/files/{hashed_name}"
+	shard = _shard(hashed_name)
+	_ensure_shard_dir(doc.is_private, shard)
+	prefix = "/private/files" if doc.is_private else "/files"
+	doc.file_url = f"{prefix}/{shard}/{hashed_name}"
 
 	fpath = doc.write_file()
 	return {"file_name": os.path.basename(fpath), "file_url": doc.file_url}
@@ -90,12 +111,15 @@ def _write_file_legacy(fname: str, content, content_type: str | None = None, is_
 		content = content.encode()
 
 	hashed_name = _hashed_name(fname, content)
+	shard = _shard(hashed_name)
 
 	folder_path = get_files_path(is_private=is_private)
-	frappe.create_folder(folder_path)
-	disk_path = os.path.join(folder_path.encode("utf-8"), hashed_name.encode("utf-8"))
+	shard_path = os.path.join(folder_path, shard)
+	frappe.create_folder(shard_path)
+	disk_path = os.path.join(shard_path.encode("utf-8"), hashed_name.encode("utf-8"))
 	with open(disk_path, "wb+") as f:
 		f.write(content)
 
-	file_url = f"/private/files/{hashed_name}" if is_private else f"/files/{hashed_name}"
+	prefix = "/private/files" if is_private else "/files"
+	file_url = f"{prefix}/{shard}/{hashed_name}"
 	return {"file_name": hashed_name, "file_url": file_url}
