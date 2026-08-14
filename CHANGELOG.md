@@ -1,3 +1,12 @@
+## [v1.13.1-alpha.20] - 2026-08-14 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Duzeltildi
+- fix(media): kota reddi yükleme sözleşmesinden geçiyor (TUR-123/TUR-139) (@Metin Bektemur)
+- fix(media): geri yüklenen video yeniden kodlanıp ezilmiyor (TUR-131) (@Metin Bektemur)
+
+---
 ## [v1.13.1-alpha.18] - 2026-08-14 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
