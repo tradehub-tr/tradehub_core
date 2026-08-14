@@ -25,6 +25,7 @@ import shutil
 import frappe
 
 from tradehub_core.media import audit, ownership, trash
+from tradehub_core.utils.tenant import get_current_seller_profile
 
 # `File.file_name` sütununun sınırı. Ad kırpması bu değere UZANTI DAHİL
 # uyar; aksi hâlde veritabanı ham "Data too long" hatası veriyor ve kullanıcı
@@ -35,11 +36,6 @@ MAX_NAME: int = 140
 # harfler 2 bayt olduğu için karakter sayısı bunun yarısına kadar inebilir;
 # güvenli tarafta kalmak için 120 karakter kabul ediliyor.
 MAX_FS_NAME: int = 120
-
-# Kota ayarı bulunamazsa sınır GÖSTERİLMEZ. Uydurma bir sınır göstermek,
-# satıcıya var olmayan bir kısıt olduğunu düşündürürdü (gerçek kota modeli
-# TUR-139'un işi).
-QUOTA_SETTING = ("Marketplace Settings", "media_storage_quota_bytes")
 
 
 def _unique_path(govde: str, uzanti: str) -> tuple[str, str]:
@@ -256,10 +252,29 @@ def storage_usage(store: str) -> dict:
 
 
 def _quota() -> int | None:
-	"""Yapılandırılmış depolama sınırı — tanımsızsa None (sınır gösterilmez)."""
-	doctype, alan = QUOTA_SETTING
-	try:
-		deger = frappe.db.get_single_value(doctype, alan)
-	except Exception:
+	"""Oturumdaki mağazanın entitlement kotası (bayt) — tanımsızsa None.
+
+	TUR-139/WP3 öncesi burada tek bir global `Marketplace Settings.
+	media_storage_quota_bytes` okunuyordu (tüm satıcılar aynı sınırı görürdü).
+	Gerçek kota modeli plan-bazlı: `entitlement.core.get_quota_limits`'ten
+	`quota.max_storage_mb` okunur. `-1` (sınırsız) veya tanımsız → None (sınır
+	gösterilmez, `entitlement.checks.check_media_storage_quota` da aynı
+	semantiği paylaşıyor — bkz. o fonksiyonun docstring'i).
+
+	NOT (metin'e): bu fonksiyon `media/files.py`'nin parçası ama artık
+	`entitlement` paketine bağımlı — WP3 enforcement'ının (checks.py) kaynağı
+	burasıyla aynı `get_quota_limits` çağrısı.
+	"""
+	from tradehub_core.entitlement.core import get_quota_limits
+
+	store = get_current_seller_profile()
+	if not store:
 		return None
-	return int(deger) if deger else None
+
+	limit_mb = get_quota_limits(store).get("quota.max_storage_mb")
+	if limit_mb is None:
+		return None
+	limit_mb = int(limit_mb)
+	if limit_mb == -1:
+		return None
+	return limit_mb * 1024 * 1024

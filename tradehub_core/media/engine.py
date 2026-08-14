@@ -145,6 +145,42 @@ def optimize(content: bytes, max_dim: int, quality: int) -> OptimizeResult:
 		return OptimizeResult(ok=False, reason=f"error:{type(exc).__name__}")
 
 
+def to_webp(data: bytes, quality: int = 80) -> bytes:
+	"""Görseli KOŞULSUZ WebP'ye çevirir — sunucu tarafı garanti-WebP (TUR-128).
+
+	`optimize()`'dan FARKLI, AYRI bir giriş: `optimize` formatı korur (JPEG
+	kalır JPEG), bu fonksiyon her zaman WebP üretir. Safari/iOS/Capacitor'da
+	`canvas.toBlob('image/webp')` yok — client bu ortamlarda JPEG fallback'i
+	gönderir; `api/seller_media.py:upload_media` bu fonksiyonu çağırıp sunucuda
+	WebP'ye tamamlar. `optimize`'ın format-koruma yolu bu değişiklikten
+	ETKİLENMEZ, ikisi paralel çalışır.
+
+	`file_url` semantiği burada bilinmiyor — çağıran, dosya adının uzantısını
+	`.webp` yapmaktan sorumlu.
+	"""
+	from PIL import Image, ImageOps
+
+	im = Image.open(io.BytesIO(data))
+	im = ImageOps.exif_transpose(im)
+
+	# WebP alfayı doğal destekler — koşulsuz `convert("RGB")` şeffaf PNG/AVIF/
+	# HEIC'in alfa kanalını düşürüp şeffaf logo/kesim görselini opaklaştırırdı
+	# (Fix round 1, Bulgu 1). `optimize()`'ın generic WebP dalıyla (yukarıda,
+	# TIFF olmayan/JPEG/PNG olmayan biçimler) TUTARLI: o da `convert("RGB")`
+	# YAPMADAN kaydediyor. RGB/RGBA zaten hedef modda — dokunma; "P" (paletli,
+	# GIF/bazı PNG'ler) ve "LA" alfa taşıyabildiği için RGBA'ya, geri kalanı
+	# (L, CMYK, ...) RGB'ye çevrilir.
+	if im.mode not in ("RGB", "RGBA"):
+		alfali_mi = im.mode == "LA" or (im.mode == "P" and "transparency" in im.info)
+		im = im.convert("RGBA" if alfali_mi else "RGB")
+
+	im.thumbnail((1920, 1920))
+
+	buf = io.BytesIO()
+	im.save(buf, "WEBP", quality=quality, method=4)
+	return buf.getvalue()
+
+
 def _verify(content: bytes) -> bool:
 	"""Üretilen baytlar geçerli bir görsel mi."""
 	try:

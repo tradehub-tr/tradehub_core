@@ -36,6 +36,7 @@ _STOREFRONT_QUOTA_KEYS = (
 	"quota.max_products",
 	"quota.max_regions",
 	"quota.max_sub_users",
+	"quota.max_storage_mb",
 )
 
 

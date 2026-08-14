@@ -19,10 +19,11 @@ Bu dosyada iş mantığı YOKTUR: yetki, parametre doğrulama, çağırma. Aynı
 from __future__ import annotations
 
 import base64
+import os
 
 import frappe
 
-from tradehub_core.media import audit, files, inventory, metadata, ownership, usage
+from tradehub_core.media import audit, engine, files, inventory, metadata, ownership, transcode, usage
 from tradehub_core.media import seller_media as islem
 from tradehub_core.media import chunked, upload_policy
 
@@ -236,6 +237,15 @@ UPLOAD_EXTENSIONS: frozenset[str] = frozenset(
 )
 MAX_UPLOAD_BYTES: int = upload_policy.MAX_BYTES[upload_policy.KIND_IMAGE]
 
+# Sunucu garanti-WebP (TUR-128) yalnız `engine.to_webp`'in açabildiği raster
+# biçimlere uygulanır. Politikanın izin listesinden DAR: `.webp` (zaten hedef
+# biçim, çift sıkıştırma yok) ve `.gif` kasıtlı DIŞARIDA — `engine.optimize` de
+# animasyonlu GIF'i atlıyor (`OptimizeResult(reason="animated")`), aynı davranış
+# burada da korunuyor; tek kare WebP'ye çevirmek animasyonu kırar.
+IMAGE_TO_WEBP_EXTENSIONS: frozenset[str] = frozenset(
+	{".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".avif", ".heic"}
+)
+
 
 @frappe.whitelist()
 def upload_media(file_name: str = "", content: str = "") -> dict:
@@ -265,9 +275,29 @@ def _kaydet(file_name: str, icerik: bytes, store: str, *, via: str) -> dict:
 
 	Tek parça ve parçalı yükleme aynı kuyruğa buradan giriyor. İki ayrı yerde
 	kayıt açmak, ikinci kapıda denetim ya da sahiplik adımının unutulması
-	demekti — yeni kapı açmanın klasik bedeli.
+	demekti — yeni kapı açmanın klasik bedeli. WebP dönüşümü ve video transcode
+	de bu yüzden burada: parçalı yükleme aynı garantileri kendiliğinden alır.
 	"""
 	karar = upload_policy.check(file_name, content=icerik, media_endpoint=True)
+
+	video_mi = karar.kind == upload_policy.KIND_VIDEO
+
+	# Sunucu garanti-WebP (TUR-128): Safari/iOS/Capacitor `canvas.toBlob(
+	# 'image/webp')` desteklemiyor, client bu ortamlarda JPEG/PNG fallback'i
+	# gönderir. `.webp` uzantısıyla gelen içerik zaten WebP'yse dokunulmaz —
+	# çift sıkıştırma yok. Politika denetimi ORİJİNAL içerik üstünde yapıldı;
+	# dönüşüm ancak ondan sonra.
+	if upload_policy.extension_of(karar.file_name) in IMAGE_TO_WEBP_EXTENSIONS:
+		try:
+			icerik = engine.to_webp(icerik)
+			karar.file_name = os.path.splitext(karar.file_name)[0] + ".webp"
+		except Exception as exc:
+			# `to_webp` Pillow'un açamadığı bir biçimle (ör. bazı HEIC varyantları)
+			# karşılaşırsa orijinal içerikle devam edilir — yükleme reddedilmez,
+			# yalnız Safari-fallback tamamlanmamış olur.
+			frappe.log_error(
+				title="upload_media to_webp başarısız", message=f"{karar.file_name}: {exc}"
+			)
 
 	doc = frappe.get_doc(
 		{"doctype": "File", "file_name": karar.file_name, "is_private": 0, "content": icerik}
@@ -290,6 +320,13 @@ def _kaydet(file_name: str, icerik: bytes, store: str, *, via: str) -> dict:
 			**({"warnings": karar.warnings} if karar.warnings else {}),
 		},
 	)
+
+	if video_mi:
+		# Video normalize'i dakikalar sürebilir — istek içinde SENKRON
+		# çalıştırılmaz (checklists.md §2 kural 9). `enqueue_transcode` durumu
+		# hemen `processing` yapıp gerçek işi `long` kuyruğa devreder.
+		transcode.enqueue_transcode(doc.file_url)
+
 	return {"file_url": doc.file_url, "file_name": doc.file_name, "bytes": doc.file_size}
 
 

@@ -229,15 +229,25 @@ doc_events = {
 	# SVG/HTML/JS/XML gibi browser-execute edebilir formatlar engellenir;
 	# raster image, PDF, Office, video, txt güvenli kabul edilir.
 	"File": {
-		"before_insert": "tradehub_core.utils.security.reject_unsafe_files",
+		# İki before_insert: uzantı güvenliği (HATA 23) + satıcı depolama kotası
+		# (TUR-139, WP3 dolduracak — şu an no-op stub, yüklemeyi engellemez).
+		"before_insert": [
+			"tradehub_core.utils.security.reject_unsafe_files",
+			"tradehub_core.entitlement.checks.check_media_storage_quota",
+		],
 		# Medya yüklemesini denetime yaz — "bu görseli hangi satıcı yükledi"
 		# sorusunun tek kaynağı (TUR-140). Yalnız görsel/video uzantıları
 		# kaydedilir; kanca best-effort, yüklemeyi asla engellemez.
-		# İki kanca: durum damgası (TUR-138) + denetim kaydı (TUR-140).
-		# Durum önce yazılır ki denetim kaydı dosyayı doğru durumda görsün.
+		# Üç kanca: durum damgası (TUR-138) + denetim kaydı (TUR-140) + KOŞULLU
+		# video transcode güvenlik ağı (WP5, TUR-296/297). Durum önce yazılır ki
+		# denetim kaydı dosyayı doğru durumda görsün. Transcode kancası SADECE
+		# satıcıya ait public video / Listing'e eklenmiş video için tetiklenir
+		# (chat/KYB/private muaf) ve `enqueue_transcode` kendi içinde koşullu +
+		# idempotent — `upload_media`'nın kendi ardışık çağrısıyla çakışmaz.
 		"after_insert": [
 			"tradehub_core.media.states.on_file_insert",
 			"tradehub_core.media.audit.on_file_insert",
+			"tradehub_core.media.transcode.maybe_transcode_on_insert",
 		],
 	},
 	# Currency cache invalidation — admin manuel düzenlemesinde düş.
@@ -862,3 +872,7 @@ override_whitelisted_methods = {
 	"crm.api.session.get_users": "tradehub_core.api.v1.crm_overrides.get_users",
 	"crm.api.session.get_organizations": "tradehub_core.api.v1.crm_overrides.get_organizations",
 }
+
+# Yeni yüklemeleri içerik-hash'iyle adlandır (enumeration önleme, TUR-141/130).
+# WP4 — naming.write_file_hashed gerçek implementasyonla dolduruldu, hook aktif.
+write_file = "tradehub_core.media.naming.write_file_hashed"
