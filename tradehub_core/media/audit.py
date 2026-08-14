@@ -36,6 +36,7 @@ from tradehub_core.audit import (
 	SEVERITY_NORMAL,
 	log_decision,
 )
+from tradehub_core.media import timefmt
 
 # Kritik olay listesi — TUR-140 kabul kriteri 1.
 # İsimlendirme mevcut ADL kuralına uyar: "<alan>.<eylem>".
@@ -405,6 +406,9 @@ def list_events(
 	rows = q.limit(page_size).offset((page - 1) * page_size).run(as_dict=True)
 	_decorate_targets(rows)
 	_decorate_actors(rows)
+
+	# TUR-124 — tarih standart biçimde çıkıyor.
+	timefmt.apply_all(rows)
 
 	return {"items": rows, "total": total, "page": page, "page_size": page_size}
 

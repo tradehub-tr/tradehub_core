@@ -34,7 +34,7 @@ Locate = CustomFunction("LOCATE", ["needle", "haystack"])
 NullIf = CustomFunction("NULLIF", ["expr", "value"])
 
 # Kapsam dışı doctype listesi `presets`te — `usage` da aynısını kullanıyor.
-from tradehub_core.media import engine, ownership, states  # noqa: E402
+from tradehub_core.media import engine, ownership, states, timefmt  # noqa: E402
 from tradehub_core.media.presets import EXCLUDED_DOCTYPES  # noqa: E402
 
 SORT_FIELDS: dict[str, str] = {
@@ -309,6 +309,11 @@ def _decorate(
 		r["saved_bytes"] = max(0, (r.get("original_size") or 0) - (r.get("file_size") or 0))
 		r["state"] = "optimized" if r.get("optimized_at") else "pending"
 		r["usage_kind"] = _usage_kind(r.get("record_count") or 1, r.get("usage_count") or 0)
+	# Tarihler standart çıktı biçimine çevriliyor (TUR-124): saat dilimi
+	# işareti olmadan gönderilen tarih, tarayıcıda kullanıcının kendi saati
+	# sanılıyordu — İstanbul dışındaki her kullanıcı saatleri kaymış görüyordu.
+	timefmt.apply_all(rows)
+
 	return {"items": rows, "total": total, "page": page, "page_size": page_size}
 
 
