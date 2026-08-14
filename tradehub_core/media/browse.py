@@ -37,6 +37,11 @@ NO_CATEGORY = "__none__"  # üründe kullanılıyor ama ürün kategorisiz
 UNUSED = "__unused__"  # yüklenmiş ama hiçbir üründe durmuyor
 OTHER_GROUP = "__other__"
 
+# Bu belge türleri mağazaya göre bir seviye daha klasörlenir: yüzlerce KYB/KYC
+# belgesini tek düz listede vermek kullanılamaz. Bağ: dosya → doğrulama
+# belgesi (`attached_to_name`) → belgenin kullanıcısı → kullanıcının mağazası.
+DETAILED_PRIVATE_GROUPS: tuple[str, ...] = ("KYB Verification", "KYC Verification")
+
 MAX_PAGE_SIZE = 100
 
 # (tablo, url kolonu, parent üzerinden mi) — ürün görseli taşıyan canlı alanlar.
@@ -240,6 +245,56 @@ def private_groups() -> dict:
 	return {"folders": folders}
 
 
+def _group_doc_store_map(group: str) -> dict[str, str]:
+	"""Belge adı → mağaza; kullanıcısı bir mağazaya çözülemeyen belgede ""."""
+	from tradehub_core.media import ownership
+
+	docs = frappe.get_all(group, fields=["name", "user"], limit_page_length=0)
+	user_store: dict[str, str] = {}
+	mapping: dict[str, str] = {}
+	for d in docs:
+		u = d.user or ""
+		if u not in user_store:
+			user_store[u] = (ownership.store_of(u) if u else None) or ""
+		mapping[d.name] = user_store[u]
+	return mapping
+
+
+def private_group_stores(group: str) -> dict:
+	"""KYB/KYC gibi detaylı grupların mağaza alt klasörleri."""
+	rows = frappe.get_all(
+		"File",
+		filters={
+			"is_private": 1,
+			"attached_to_doctype": group,
+			"file_url": ["like", "/private/files/%"],
+		},
+		fields=["attached_to_name"],
+		limit_page_length=0,
+	)
+	doc_store = _group_doc_store_map(group)
+	counts: dict[str, int] = defaultdict(int)
+	for r in rows:
+		counts[doc_store.get(r.attached_to_name, "")] += 1
+
+	store_ids = [s for s in counts if s]
+	labels = {}
+	if store_ids:
+		labels = {
+			r.name: r.seller_name or r.name
+			for r in frappe.get_all(
+				"Admin Seller Profile",
+				filters={"name": ["in", store_ids]},
+				fields=["name", "seller_name"],
+			)
+		}
+	folders = [{"id": s, "label": labels.get(s, s), "count": n} for s, n in counts.items() if s]
+	folders.sort(key=lambda f: (-f["count"], f["label"]))
+	if counts.get(""):
+		folders.append({"id": OTHER_GROUP, "label": "", "count": counts[""]})
+	return {"folders": folders}
+
+
 def _paginate_urls(urls: list[str], page: int, page_size: int, search: str) -> dict:
 	"""URL kümesini File satırlarına çevirip sayfala — küme zaten bellekte."""
 	if search:
@@ -270,6 +325,7 @@ def files(
 	store: str = "",
 	category: str = "",
 	group: str = "",
+	sub: str = "",
 	page: int = 1,
 	page_size: int = 50,
 	search: str = "",
@@ -285,6 +341,14 @@ def files(
 			q = q.where((f.attached_to_doctype.isnull()) | (f.attached_to_doctype == ""))
 		elif group:
 			q = q.where(f.attached_to_doctype == group)
+		if group in DETAILED_PRIVATE_GROUPS and sub:
+			doc_store = _group_doc_store_map(group)
+			if sub == OTHER_GROUP:
+				names = [n for n, s in doc_store.items() if not s]
+			else:
+				names = [n for n, s in doc_store.items() if s == sub]
+			# Boş liste SQL'de "her şey" olmasın — eşleşme yoksa hiçbir şey dön.
+			q = q.where(f.attached_to_name.isin(names or ["__no_match__"]))
 		if search:
 			pattern = f"%{search}%"
 			q = q.where((f.file_name.like(pattern)) | (f.file_url.like(pattern)))

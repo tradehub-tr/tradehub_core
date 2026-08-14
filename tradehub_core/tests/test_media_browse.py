@@ -163,6 +163,67 @@ class BrowseTreeTests(MediaBrowseTestBase):
 		self.assertGreaterEqual(files["total"], 1)
 
 
+class PrivateStoreSplitTests(MediaBrowseTestBase):
+	"""KYB/KYC klasörleri mağazaya göre alt klasörlenir — 489 belgeyi tek düz
+	listede vermek kullanılamazdı. Bağ: dosya → doğrulama belgesi (`attached_
+	to_name`) → belgenin kullanıcısı → kullanıcının mağazası."""
+
+	def _make_store_user(self, seller: str, tag: str) -> str:
+		suffix = frappe.generate_hash(length=8)
+		email = f"gezgin-{tag}-{suffix}@test.local"
+		user = frappe.get_doc(
+			{
+				"doctype": "User",
+				"email": email,
+				"first_name": "Gezgin",
+				"send_welcome_email": 0,
+				"enabled": 1,
+			}
+		).insert(ignore_permissions=True)
+		frappe.db.commit()
+		self.addCleanup(lambda: self._delete_and_commit("User", user.name))
+		frappe.db.set_value("Admin Seller Profile", seller, "user", email, update_modified=False)
+		frappe.db.commit()
+		return email
+
+	def test_kyb_dosyalari_magazaya_gore_alt_klasorlenir(self):
+		seller = self._make_seller("kyb-split")
+		email = self._make_store_user(seller, "kyb-split")
+
+		kyb = frappe.get_doc(
+			{
+				"doctype": "KYB Verification",
+				"user": email,
+				"company_title": f"Gezgin KYB Test {frappe.generate_hash(length=6)}",
+			}
+		)
+		kyb.flags.ignore_mandatory = True
+		kyb.insert(ignore_permissions=True)
+		frappe.db.commit()
+		self.addCleanup(lambda: self._delete_and_commit("KYB Verification", kyb.name))
+
+		file_doc = self._make_private_file("kyb-split")
+		frappe.db.set_value(
+			"File",
+			file_doc.name,
+			{"attached_to_doctype": "KYB Verification", "attached_to_name": kyb.name},
+			update_modified=False,
+		)
+		frappe.db.commit()
+
+		out = browse.private_group_stores("KYB Verification")
+		self.assertIn(seller, {f["id"] for f in out["folders"]})
+
+		files = browse.files(scope="private", group="KYB Verification", sub=seller)
+		urls = {r["file_url"] for r in files["items"]}
+		self.assertIn(file_doc.file_url, urls)
+
+	def test_endpoint_kyb_grubunda_once_magaza_klasorleri_doner(self):
+		out = media_admin.browse_media(scope="private", group="KYB Verification")
+		self.assertIn("folders", out)
+		self.assertNotIn("items", out)
+
+
 class BrowseEndpointTests(MediaBrowseTestBase):
 	def test_endpoint_kok_ve_yetki(self):
 		out = media_admin.browse_media()

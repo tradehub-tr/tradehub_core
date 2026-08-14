@@ -523,6 +523,7 @@ def browse_media(
 	store: str = "",
 	category: str = "",
 	group: str = "",
+	sub: str = "",
 	page: int = 1,
 	page_size: int = 50,
 	search: str = "",
@@ -531,22 +532,31 @@ def browse_media(
 
 	Parametre derinliği seviyeyi belirler: hiçbiri yoksa kök (public/private),
 	`scope=public` mağazalar, `+store` kategoriler, `+category` dosyalar;
-	`scope=private` belge türü grupları, `+group` dosyalar. Klasörler sanal —
-	disk yapısına dokunulmaz (bkz. `media/browse.py`).
+	`scope=private` belge türü grupları, `+group` dosyalar — KYB/KYC gibi
+	detaylı gruplarda önce mağaza alt klasörleri, `+sub` dosyalar. Klasörler
+	sanal — disk yapısına dokunulmaz (bkz. `media/browse.py`).
 	"""
 	_guard()
 	scope = (scope or "").strip()
 	store = (store or "").strip()
 	category = (category or "").strip()
 	group = (group or "").strip()
+	sub = (sub or "").strip()
 
 	if not scope:
 		return browse.root()
 	if scope == "private":
 		if not group:
 			return browse.private_groups()
+		if group in browse.DETAILED_PRIVATE_GROUPS and not sub:
+			return browse.private_group_stores(group)
 		return browse.files(
-			scope="private", group=group, page=int(page), page_size=int(page_size), search=search
+			scope="private",
+			group=group,
+			sub=sub,
+			page=int(page),
+			page_size=int(page_size),
+			search=search,
 		)
 	if scope != "public":
 		frappe.throw(_("Geçersiz kapsam: {0}").format(scope))
