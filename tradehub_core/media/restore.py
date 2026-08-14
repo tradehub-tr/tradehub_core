@@ -97,9 +97,18 @@ def plan(set_id: str) -> dict:
 	mevcut_kayitlar = set(frappe.get_all("File", pluck="name", limit_page_length=0))
 	eksik_kayit = [r for r in kayitlar if r.get("name") not in mevcut_kayitlar]
 
+	# Yapı karşılaştırması: dosya sayıları tutsa bile veritabanı yapısı
+	# ayrışmışsa geri yükleme sessizce eksik çalışır. Kayıtlar yedeğin
+	# alındığı andaki sütunlara göre yazıldı; bugün o sütun yoksa alan
+	# yazılamaz ve kimse fark etmez. Plan bunu ÖNCEDEN söylemeli.
+	from tradehub_core.media import schema
+
+	yapi = schema.compare(backup.schema_of(set_id))
+
 	return {
 		"set_id": set_id,
 		"created": m.get("created"),
+		"schema": yapi,
 		"ok": len(ok),
 		"missing_file": eksik_dosya,
 		"missing_file_count": len(eksik_dosya),

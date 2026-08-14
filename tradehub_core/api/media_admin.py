@@ -10,6 +10,8 @@ optimize etmesi için. Satıcı self-service kapsam dışı (GORSEL-OPTIMIZASYON
 
 from __future__ import annotations
 
+import os
+
 import frappe
 from frappe import _
 
@@ -660,3 +662,70 @@ def delete_media_backup(set_id: str) -> dict:
 	from tradehub_core.media import backup
 
 	return backup.delete_set(set_id)
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Dışa aktarma (TUR-131)
+#
+# Yedek, koruduğu medyayla aynı diskte duruyor — TUR-131'in karşılanmayan tek
+# maddesi buydu. Paket indirilip başka bir yere konduğu anda yedek gerçekten
+# ikinci bir yerde olur.
+#
+# Paket TÜM medyayı içerir, ÖZEL BELGELER dahil. Bu yüzden üç ucun da yetkisi
+# en yüksek seviyede: dışa aktarma, verinin sunucuyu terk ettiği tek nokta.
+# ─────────────────────────────────────────────────────────────────────
+
+
+@frappe.whitelist(methods=["POST"])
+def start_media_backup_export(set_id: str) -> dict:
+	"""Paketlemeyi başlat — hazırlık arkada sürer, bu uç beklemez."""
+	_guard_destructive()
+	from tradehub_core.media import backup_export
+
+	return backup_export.start(set_id)
+
+
+@frappe.whitelist()
+def media_backup_export_status(set_id: str) -> dict:
+	"""Paket ne durumda — ekran bunu düzenli aralıkla sorar."""
+	_guard()
+	from tradehub_core.media import backup_export
+
+	return backup_export.status(set_id)
+
+
+@frappe.whitelist(methods=["POST"])
+def discard_media_backup_export(set_id: str) -> dict:
+	"""Hazır paketi sunucudan kaldır."""
+	_guard_destructive()
+	from tradehub_core.media import backup_export
+
+	return backup_export.discard(set_id)
+
+
+@frappe.whitelist(methods=["GET"])
+def download_media_backup_export(set_id: str):
+	"""Paketi indir.
+
+	Dosya belleğe ALINMIYOR: 1 GB'lık bir paketi yanıt gövdesine koymak süreci
+	şişirirdi. Frappe'nin özel dosya göndericisi kullanılıyor — parça parça
+	akıtıyor, yarıda kalan indirme kaldığı yerden devam edebiliyor.
+
+	`set_id` istekten geliyor ve dosya yoluna giriyor; kalıp, kök ve varlık
+	kontrolü `backup_export.package_path` içinde.
+	"""
+	_guard_destructive()
+	from frappe.utils.response import send_private_file
+
+	from tradehub_core.media import audit, backup_export
+
+	tam = backup_export.package_path(set_id)
+	audit.log_media_event(
+		action=audit.ACTION_EXPORT,
+		sensitive=True,
+		context={"set_id": set_id, "downloaded": True},
+	)
+
+	# Gönderici site'ın private kökünden itibaren göreli yol bekliyor.
+	kok = frappe.get_site_path("private")
+	return send_private_file(os.path.relpath(tam, kok))

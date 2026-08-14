@@ -18,10 +18,14 @@ Bu dosyada iş mantığı YOKTUR: yetki, parametre doğrulama, çağırma. Aynı
 
 from __future__ import annotations
 
+import base64
+import os
+
 import frappe
 
 from tradehub_core.media import audit, engine, files, inventory, metadata, ownership, transcode, usage
 from tradehub_core.media import seller_media as islem
+from tradehub_core.media import chunked, upload_policy
 
 # Tek istekte işlenebilecek azami dosya — kazara "hepsini" tetiklemeye karşı.
 MAX_BATCH: int = 200
@@ -217,37 +221,30 @@ def get_my_summary() -> dict:
 	}
 
 
-# Satıcı medya kütüphanesine kabul edilen türler — İZİN listesi.
+# Kabul edilen türler ve boyut sınırları artık `media.upload_policy` içinde —
+# TEK yerde (TUR-123).
 #
-# Sistemde zaten bir YASAK listesi var (`utils.security.reject_unsafe_files`)
-# ve çalıştırılabilir/betik dosyalarını engelliyor. Ama ekran "sadece görsel,
-# video ve PDF" diyor; yasak listesi bunu karşılamıyor — arada kalan her tür
-# (zip, docx, exe olmayan her şey) geçebiliyordu. Ekrandaki kural sunucuda da
-# olmalı, yoksa ekranı baypas eden istek onu tanımaz.
+# Buradaki listeler bu ucun kuralıydı ve yalnız bu uçta geçerliydi; panelde
+# yükleme yapan diğer 22 ekran Frappe'nin genel ucundan geçiyor ve hiçbirini
+# tanımıyordu. Kural tek modüle taşındı, hem bu uç hem `File` kancası oradan
+# soruyor. İki kopya tutmak, biri değişince sessizce ayrışan iki kural demekti.
 #
-# Yasak listesi KALDIRILMADI, bu onun ÜSTÜNE biniyor: orası tüm sistemi
-# koruyan güvenlik kararı, burası bu kütüphanenin içerik kuralı.
+# Adlar geriye dönük uyumluluk için duruyor; değer politikadan geliyor.
 UPLOAD_EXTENSIONS: frozenset[str] = frozenset(
-	{
-		".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".tif", ".tiff", ".avif", ".heic",
-		".mp4", ".webm", ".mov", ".m4v",
-		".pdf",
-	}
+	e
+	for e, t in upload_policy.EXTENSIONS.items()
+	if t in upload_policy.MEDIA_KINDS or e in upload_policy.MEDIA_EXTRA_EXTENSIONS
 )
+MAX_UPLOAD_BYTES: int = upload_policy.MAX_BYTES[upload_policy.KIND_IMAGE]
 
 # Sunucu garanti-WebP (TUR-128) yalnız `engine.to_webp`'in açabildiği raster
-# biçimlere uygulanır. GIF kasıtlı DIŞARIDA: `engine.optimize` de animasyonlu
-# GIF'i atlıyor (`OptimizeResult(reason="animated")`), aynı davranış burada da
-# korunuyor — tek kare WebP'ye çevirmek animasyonu kırar.
+# biçimlere uygulanır. Politikanın izin listesinden DAR: `.webp` (zaten hedef
+# biçim, çift sıkıştırma yok) ve `.gif` kasıtlı DIŞARIDA — `engine.optimize` de
+# animasyonlu GIF'i atlıyor (`OptimizeResult(reason="animated")`), aynı davranış
+# burada da korunuyor; tek kare WebP'ye çevirmek animasyonu kırar.
 IMAGE_TO_WEBP_EXTENSIONS: frozenset[str] = frozenset(
 	{".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".avif", ".heic"}
 )
-
-VIDEO_EXTENSIONS: frozenset[str] = frozenset({".mp4", ".webm", ".mov", ".m4v"})
-
-# Tek dosya üst sınırı. Sınır olmaması, tek istekle diski doldurmayı mümkün
-# kılardı. Depolama kotası ayrı bir iş (TUR-139); bu yalnız tek dosya kalkanı.
-MAX_UPLOAD_BYTES: int = 25 * 1024 * 1024
 
 
 @frappe.whitelist()
@@ -258,58 +255,54 @@ def upload_media(file_name: str = "", content: str = "") -> dict:
 	kütüphanenin tür ve boyut kuralları yok. İçerik base64 gelir; bu kurulumda
 	çok parçalı gönderim oturum katmanında CSRF uyuşmazlığı üretiyor.
 	"""
-	import base64
-	import os
-
 	store = _store()
 
-	ad = (file_name or "").strip()
-	if not ad:
-		frappe.throw(frappe._("Dosya adı zorunlu."))
-	if any(k in ad for k in ("/", "\\", "\0")):
-		frappe.throw(frappe._("Dosya adında yol karakteri kullanılamaz."))
-
-	uzanti = os.path.splitext(ad)[1].lower()
-	if uzanti not in UPLOAD_EXTENSIONS:
-		frappe.throw(
-			frappe._("Bu dosya türü kabul edilmiyor: {0}. Görsel, video veya PDF yükleyin.").format(
-				uzanti or "?"
-			)
-		)
-
 	if not content:
-		frappe.throw(frappe._("Dosya içeriği boş."))
+		upload_policy.reddet(upload_policy.CONTENT_EMPTY, frappe._("Dosya içeriği boş."))
 	ham = content.split(",", 1)[-1] if content.startswith("data:") else content
 	try:
 		icerik = base64.b64decode(ham, validate=True)
 	except Exception:
-		frappe.throw(frappe._("Dosya içeriği okunamadı."))
-
-	if len(icerik) > MAX_UPLOAD_BYTES:
-		frappe.throw(
-			frappe._("Dosya çok büyük: en fazla {0} MB.").format(MAX_UPLOAD_BYTES // (1024 * 1024))
+		upload_policy.reddet(
+			upload_policy.CONTENT_UNREADABLE, frappe._("Dosya içeriği okunamadı.")
 		)
 
-	video_mi = uzanti in VIDEO_EXTENSIONS
+	return _kaydet(file_name, icerik, store, via="seller_library")
+
+
+def _kaydet(file_name: str, icerik: bytes, store: str, *, via: str) -> dict:
+	"""Politikadan geçir, kaydı aç, denetime yaz.
+
+	Tek parça ve parçalı yükleme aynı kuyruğa buradan giriyor. İki ayrı yerde
+	kayıt açmak, ikinci kapıda denetim ya da sahiplik adımının unutulması
+	demekti — yeni kapı açmanın klasik bedeli. WebP dönüşümü ve video transcode
+	de bu yüzden burada: parçalı yükleme aynı garantileri kendiliğinden alır.
+	"""
+	karar = upload_policy.check(file_name, content=icerik, media_endpoint=True)
+
+	video_mi = karar.kind == upload_policy.KIND_VIDEO
 
 	# Sunucu garanti-WebP (TUR-128): Safari/iOS/Capacitor `canvas.toBlob(
 	# 'image/webp')` desteklemiyor, client bu ortamlarda JPEG/PNG fallback'i
 	# gönderir. `.webp` uzantısıyla gelen içerik zaten WebP'yse dokunulmaz —
-	# çift sıkıştırma yok.
-	if uzanti in IMAGE_TO_WEBP_EXTENSIONS:
+	# çift sıkıştırma yok. Politika denetimi ORİJİNAL içerik üstünde yapıldı;
+	# dönüşüm ancak ondan sonra.
+	if upload_policy.extension_of(karar.file_name) in IMAGE_TO_WEBP_EXTENSIONS:
 		try:
 			icerik = engine.to_webp(icerik)
-			ad = os.path.splitext(ad)[0] + ".webp"
+			karar.file_name = os.path.splitext(karar.file_name)[0] + ".webp"
 		except Exception as exc:
 			# `to_webp` Pillow'un açamadığı bir biçimle (ör. bazı HEIC varyantları)
 			# karşılaşırsa orijinal içerikle devam edilir — yükleme reddedilmez,
 			# yalnız Safari-fallback tamamlanmamış olur.
-			frappe.log_error(title="upload_media to_webp başarısız", message=f"{ad}: {exc}")
+			frappe.log_error(
+				title="upload_media to_webp başarısız", message=f"{karar.file_name}: {exc}"
+			)
 
 	doc = frappe.get_doc(
-		{"doctype": "File", "file_name": ad[: files.MAX_NAME], "is_private": 0, "content": icerik}
+		{"doctype": "File", "file_name": karar.file_name, "is_private": 0, "content": icerik}
 	)
-	# `reject_unsafe_files` kancası burada da çalışır — izin listesi onun yerine
+	# `reject_unsafe_files` kancası burada da çalışır — politika onun yerine
 	# geçmiyor, üstüne biniyor.
 	doc.insert(ignore_permissions=True)
 	frappe.db.commit()
@@ -318,7 +311,14 @@ def upload_media(file_name: str = "", content: str = "") -> dict:
 		action=audit.ACTION_UPLOAD,
 		file_url=doc.file_url,
 		tenant=store,
-		context={"bytes": len(icerik), "via": "seller_library"},
+		context={
+			"bytes": len(icerik),
+			"via": via,
+			"kind": karar.kind,
+			# Zararsız tür uyuşmazlığı reddedilmiyor ama iz bırakıyor: sahada
+			# ne kadar sık olduğunu ancak ölçerek bilebiliriz.
+			**({"warnings": karar.warnings} if karar.warnings else {}),
+		},
 	)
 
 	if video_mi:
@@ -328,6 +328,75 @@ def upload_media(file_name: str = "", content: str = "") -> dict:
 		transcode.enqueue_transcode(doc.file_url)
 
 	return {"file_url": doc.file_url, "file_name": doc.file_name, "bytes": doc.file_size}
+
+
+@frappe.whitelist()
+def upload_limits() -> dict:
+	"""Sunucunun uyguladığı sınırlar — istemci aynısını uygulasın diye.
+
+	İstemci sınırları kendi içine YAZMIYOR, buradan alıyor. İki tarafa ayrı
+	sabit koymak, biri değişince sessizce ayrışan iki kural demekti: kullanıcı
+	ekranda kabul edilen dosyanın sunucuda reddedildiğini görürdü.
+	"""
+	_store()
+	return upload_policy.limits()
+
+
+@frappe.whitelist(methods=["POST"])
+def upload_begin(file_name: str = "", total_bytes: int = 0) -> dict:
+	"""Parçalı yükleme oturumu aç.
+
+	Büyük dosya tek istekte gönderilemiyor: base64 içeriği %33 şişiriyor ve
+	tamamı iki tarafın belleğinde duruyor. Ad ve boyut daha ilk adımda
+	denetleniyor — 150 parçayı alıp sonunda "çok büyük" demek boşa iş olurdu.
+	"""
+	return chunked.begin(file_name, int(total_bytes or 0), _store())
+
+
+@frappe.whitelist(methods=["POST"])
+def upload_chunk(upload_id: str = "", index: int = 0, content: str = "") -> dict:
+	"""Tek parçayı gönder. Parçalar sırasız gelebilir."""
+	store = _store()
+	if not content:
+		upload_policy.reddet(upload_policy.CONTENT_EMPTY, frappe._("Parça boş."))
+	ham = content.split(",", 1)[-1] if content.startswith("data:") else content
+	try:
+		veri = base64.b64decode(ham, validate=True)
+	except Exception:
+		upload_policy.reddet(upload_policy.CONTENT_UNREADABLE, frappe._("Parça okunamadı."))
+	return chunked.put_chunk(upload_id, int(index or 0), veri, store)
+
+
+@frappe.whitelist(methods=["POST"])
+def upload_finish(upload_id: str = "") -> dict:
+	"""Parçaları birleştir ve dosyayı kaydet.
+
+	Politika birleşimden SONRA uygulanıyor: ilk parça geçerli bir görsel
+	başlığı taşıyıp devamı bambaşka bir içerik olabilirdi.
+	"""
+	store = _store()
+	icerik = chunked.finish(upload_id, store)
+	meta = chunked.meta_of(upload_id, store)
+	try:
+		return _kaydet(meta["file_name"], icerik, store, via="seller_library_chunked")
+	finally:
+		# Kayıt açılsa da açılmasa da parçalar gitmeli; başarısız bir yüklemenin
+		# artıkları diskte birikirse depo sessizce şişer.
+		chunked.cleanup_session(upload_id)
+
+
+@frappe.whitelist(methods=["POST"])
+def upload_abort(upload_id: str = "") -> dict:
+	"""Yarıda bırakılan yüklemeyi temizle — iptal gerçekten iptal olsun."""
+	store = _store()
+	chunked.cleanup_session(upload_id, store)
+	return {"upload_id": upload_id, "aborted": True}
+
+
+@frappe.whitelist()
+def upload_status(upload_id: str = "") -> dict:
+	"""Oturumun durumu — kopan yükleme kaldığı yerden sürebilsin."""
+	return chunked.meta_of(upload_id, _store())
 
 
 @frappe.whitelist()
@@ -401,8 +470,6 @@ def replace_media(file_url: str, content: str = "", file_name: str = "") -> dict
 	yaratıp CSRF uyuşmazlığı üretiyor (aynı ders `api.js/uploadCertDocument`
 	yorumunda kayıtlı).
 	"""
-	import base64
-
 	store = _store()
 	if not content:
 		frappe.throw(frappe._("Dosya gönderilmedi."))

@@ -695,6 +695,12 @@ doc_events = {
 		"on_trash": [
 			"tradehub_core.logistics.cache.invalidate_logistics_dashboard",
 		],
+		# P1-2: silme sonrası Order fulfillment bayat kalmasın — after_delete'te
+		# Shipment satırları DB'den gitmiş olduğundan yeniden hesap doğal doğrudur
+		# (doc nesnesi bellekte durur, doc.order okunabilir).
+		"after_delete": [
+			"tradehub_core.logistics.hooks.update_order_fulfillment",
+		],
 	},
 	# Shipment Leg / Event — denormalize seller_profile alanı için tenant çift hook.
 	"Shipment Leg": {
@@ -768,8 +774,10 @@ permission_query_conditions = {
 	"Store Subscription": "tradehub_core.permissions.store_subscription_query_conditions",
 	# Satıcı Doğrulama — satıcı yalnız kendi başvurularını görür.
 	"Seller Verification": "tradehub_core.permissions.seller_verification_query_conditions",
-	# Lojistik modül (TUR-102 iskelet)
-	"Logistics Settings": "tradehub_core.logistics.permissions.logistics_settings_query_conditions",
+	# Lojistik modül — "Logistics Settings" satırı P2-4'te kaldırıldı: DocType
+	# issingle, permission_query_conditions tekil DocType'ta hiç uygulanmaz
+	# (ölü kayıt; Faz 3.5 ölü-grant temizliği emsali). has_permission kaydı
+	# aşağıda KORUNUR.
 	# Lojistik Faz 3 — Carrier Account tenant izolasyonu (LOG-028)
 	"Carrier Account": "tradehub_core.logistics.permissions.carrier_account_query_conditions",
 	# Lojistik Faz 4 Dalga B — Shipment + Shipment Leg tenant izolasyonu (LOG-055)

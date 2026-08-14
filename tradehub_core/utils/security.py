@@ -44,6 +44,16 @@ _DENIED_EXTENSIONS = frozenset(
 )
 
 
+def is_denied_extension(ext: str) -> bool:
+	"""Uzantı yasak listesinde mi.
+
+	Yükleme politikası (TUR-123) bu listeyi kendi içine kopyalamak yerine buradan
+	soruyor: iki kopya zamanla ayrışır ve biri güncellenince diğeri sessizce
+	eski listeyle çalışmaya devam ederdi.
+	"""
+	return bool(ext) and ext.lower() in _DENIED_EXTENSIONS
+
+
 def _extract_extension(file_name: str | None, file_url: str | None) -> str:
 	"""Dosya uzantısını küçük harfe normalize ederek döner. Yoksa boş string."""
 	source = (file_name or "").strip() or (file_url or "").strip()
@@ -82,3 +92,54 @@ def reject_unsafe_files(doc, method=None):
 			_("Bu dosya türü güvenlik nedeniyle kabul edilmiyor: {0}").format(ext),
 			frappe.PermissionError,
 		)
+
+	_apply_upload_policy(doc)
+
+
+# Politika ATLANACAK bağlamlar. Hepsi sistemin kendi yazdığı dosyalar:
+# kurulum, göç, yama, içe aktarma ve yedekten geri yükleme. Bunlara kullanıcı
+# yükleme kuralı uygulamak, geri yüklemeyi kendi korumamızla kırmak olurdu.
+_SYSTEM_FLAGS: tuple[str, ...] = (
+	"in_install",
+	"in_install_app",
+	"in_migrate",
+	"in_patch",
+	"in_import",
+	"in_test",
+)
+
+
+def _apply_upload_policy(doc) -> None:
+	"""Boyut ve içerik kuralları — TÜM yükleme yollarında (TUR-123).
+
+	Bu kanca Frappe'nin genel yükleme ucu dahil her `File` kaydında çalışıyor.
+	Kuralı buraya bağlamak, panelde yükleme yapan 22 ekranın hiçbirine
+	dokunmadan hepsini aynı sözleşmeye sokuyor — ölçüm şuydu: kurallar yalnız
+	medya kütüphanesinde geçerliydi, ürün formundan geçen dosyada boyut sınırı
+	bile yoktu.
+
+	İzin listesi burada UYGULANMIYOR (bkz. `upload_policy` başlığı): mevcut
+	kanca bir yasak listesiydi, izin listesine çevirmek listede olmayan her
+	çalışan akışı sessizce kırardı.
+	"""
+	if any(getattr(frappe.flags, bayrak, False) for bayrak in _SYSTEM_FLAGS):
+		return
+	# Dosya zaten diskte ve doğrulanmış sayılıyor (yedekten geri yükleme bunu
+	# kullanıyor); içerik elde yok, yeniden doğrulanamaz.
+	if getattr(getattr(doc, "flags", None), "ignore_file_validate", False):
+		return
+
+	from tradehub_core.media import upload_policy
+
+	icerik = getattr(doc, "content", None)
+	if isinstance(icerik, str):
+		# Frappe bazı yollarda içeriği base64 metin olarak taşıyor; bu kancada
+		# çözmeye çalışmak yanlış pozitif üretir. Boyut alanına düşülüyor.
+		icerik = None
+
+	upload_policy.check(
+		getattr(doc, "file_name", "") or getattr(doc, "file_url", "") or "dosya",
+		content=icerik,
+		size=int(getattr(doc, "file_size", 0) or 0),
+		media_endpoint=False,
+	)

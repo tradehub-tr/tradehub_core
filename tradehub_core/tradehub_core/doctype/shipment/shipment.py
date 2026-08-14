@@ -9,7 +9,7 @@ ve view.logistics_cost capability'si olmayan kullanıcılara onload'da maskeleni
 
 Tenant izolasyonu: seller_profile alanı + logistics/permissions.py
 (shipment_query_conditions + shipment_has_permission); hooks.py kablolaması
-Dalga C'de yapılacak. Adres snapshot değişmezliği F.3 kuralı ile korunur.
+LOG-055 ile yapıldı. Adres snapshot değişmezliği F.3 kuralı ile korunur.
 """
 
 from __future__ import annotations
@@ -110,7 +110,9 @@ class Shipment(Document):
 		total_desi / chargeable_weight alanları calculate_shipment_totals
 		ile doldurulur (bölen: Logistics Settings.default_desi_divisor).
 		packages boşsa mevcut değerlere dokunulmaz — manuel/adaptör girişi
-		ezilmesin.
+		ezilmesin. P1-6g istisnası: paketler ÖNCEDEN doluyken tamamen
+		silindiyse toplamlar 0'a çekilir (bayat toplam kalmasın); hiç paket
+		kullanılmamışsa (önce de boştu) dokunulmaz.
 		"""
 		from tradehub_core.logistics.services.desi import (
 			calculate_desi,
@@ -120,6 +122,14 @@ class Shipment(Document):
 
 		packages = self.get("packages") or []
 		if not packages:
+			# P1-6g: önce dolu → şimdi boş = kullanıcı paketleri sildi; paket
+			# kaynaklı toplamlar bayatladı, sıfırlanır. Önce de boşsa packages
+			# hiç kullanılmamıştır — manuel/adaptör girilen toplamlar korunur.
+			before = None if self.is_new() else self.get_doc_before_save()
+			if before is not None and (before.get("packages") or []):
+				self.total_weight = 0.0
+				self.total_desi = 0.0
+				self.chargeable_weight = 0.0
 			return
 
 		divisor: int = get_desi_divisor()
@@ -129,6 +139,13 @@ class Shipment(Document):
 		# anlamlı ValidationError'a çevrilir (API/adaptör yolları dahil).
 		try:
 			for package in packages:
+				# P1-6g: qty >= 1 zorunlu — 0/negatif adet toplam hesabını
+				# sessizce bozar (şemadaki non_negative yalnız negatifi keser).
+				if package.get("qty") is not None and int(package.get("qty")) < 1:
+					frappe.throw(
+						_("Paket adedi en az 1 olmalıdır (satır {0}).").format(package.idx),
+						exc=frappe.ValidationError,
+					)
 				length = package.get("length_cm") or 0.0
 				width = package.get("width_cm") or 0.0
 				height = package.get("height_cm") or 0.0
