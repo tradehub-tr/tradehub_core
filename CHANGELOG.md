@@ -1,3 +1,46 @@
+## [v1.13.1-alpha.17] - 2026-08-14 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(logistics): storefront fixture senkronu eklendi (@aliiball)
+  - 26 fixture'un 12'si storefront'a akiyor; beyaz liste, kara liste degil:
+  - Disarida kalanlar platform ici: carrier_account, integration_log,
+  - Maliyet alanlari maskeleniyor: mask_shipment_cost_fields ile ayni kume. Maskelemeden kopyalamak, ekranlari hic almayacaklari veriye gore tasarlamak olurdu
+  - BULGU (kodda yorumlu): Shipment Leg.cost maskelenmiyor. Backend'de child tablo maskelemesi yok, Shipment Leg icin yalniz tenant izolasyonu var.
+
+### Degistirildi
+- refactor(logistics): modul belgesi gercek durumla esitlendi (@aliiball)
+  - README durum tablosu merge sonrasi bayatti: handler'lar artik ana hooks.py'a bagli, Shipment DocType ailesi var, durum makinesi ve bolme motoru uygulaniyor
+  - Hala eksik olanlar acikca isaretlendi: jobs/ scheduler_events'e kayitli degil, reports/ bos, 4 servis docstring'den ibaret
+  - cache.py: seller_profile alan adi gerekcesi geri kondu (iki dal ayni
+- refactor(logistics): sozlesme gercek DocType semasina hizalandi (@aliiball)
+  - 6 alan adi DocType otoritesine gore duzeltildi: ship_date,
+  - Sozlesme Linear metinlerinden cikarilmisti; otorite gercek sema
+  - Storefront fixture senkronu: 26'dan 12'si akiyor (beyaz liste), maliyet alanlari mask_shipment_cost_fields ile ayni kumede maskeleniyor
+  - Kalan 17 alan gercek sema eksigi -- NOT-Bora-lojistik-sema.md
+
+---
+## [v1.13.1-alpha.15] - 2026-08-14 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(media): içerik-hash'li dosya adlandırma + nginx sertleştirme (TUR-141/130/124) (@TurksabYonetim)
+- feat(media): satıcı depolama kotası enforcement (TUR-139, WP3) (@TurksabYonetim)
+- feat(media): engine.to_webp — sunucu garanti-WebP (TUR-128, WP2 step 3) (@TurksabYonetim)
+- feat(media): video async ffmpeg transcode kuyruğu (TUR-296/297, WP2 step 8) (@TurksabYonetim)
+- feat(media): upload_media görsel WebP + video transcode dalları (WP2 step 5) (@TurksabYonetim)
+- feat(media): video transcode'u koşullu + global yap (WP5, TUR-296/297) (@TurksabYonetim)
+
+### Duzeltildi
+- fix(media): write_file_hashed iki farklı Frappe write_file çağrı imzasını da desteklesin (TUR-141/130/124) (@TurksabYonetim)
+  - _write_file_from_doc(doc): doc.file_url'i hash'li adla ayarlar, doc.write_file() ile diske yazar (File.save_file_on_filesystem ile aynı desen); doc.file_name (görünen ad) değişmez.
+  - _write_file_legacy(fname, content, ...): önceki implementasyon.
+- fix(media): to_webp alfayı korur + transcode hatası audit'e düşer (fix round 1) (@TurksabYonetim)
+- fix(media): ffmpeg scale filtresindeki virgülü quote et (gerçek transcode bug'ı) (@TurksabYonetim)
+
+---
 ## [v1.13.1-alpha.13] - 2026-08-13 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.

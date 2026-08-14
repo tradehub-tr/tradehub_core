@@ -1,0 +1,100 @@
+{
+	"default": {
+		"ok": true,
+		"data": {
+			"items": [
+				{
+					"name": "YK",
+					"provider_name": "Yurtiçi Kargo",
+					"provider_code": "YK",
+					"provider_type": "Kargo",
+					"integration_type": "Manual",
+					"country": "Turkey",
+					"is_active": 1
+				},
+				{
+					"name": "AK",
+					"provider_name": "Aras Kargo",
+					"provider_code": "AK",
+					"provider_type": "Kargo",
+					"integration_type": "Manual",
+					"country": "Turkey",
+					"is_active": 1
+				},
+				{
+					"name": "MNG",
+					"provider_name": "MNG Kargo",
+					"provider_code": "MNG",
+					"provider_type": "Kargo",
+					"integration_type": "Manual",
+					"country": "Turkey",
+					"is_active": 1
+				},
+				{
+					"name": "PTT",
+					"provider_name": "PTT Kargo",
+					"provider_code": "PTT",
+					"provider_type": "Kargo",
+					"integration_type": "Manual",
+					"country": "Turkey",
+					"is_active": 1
+				},
+				{
+					"name": "SK",
+					"provider_name": "Sürat Kargo",
+					"provider_code": "SK",
+					"provider_type": "Kargo",
+					"integration_type": "Manual",
+					"country": "Turkey",
+					"is_active": 1
+				},
+				{
+					"name": "UPS",
+					"provider_name": "UPS",
+					"provider_code": "UPS",
+					"provider_type": "Kargo",
+					"integration_type": "Manual",
+					"country": "United States",
+					"is_active": 1
+				},
+				{
+					"name": "DHL",
+					"provider_name": "DHL",
+					"provider_code": "DHL",
+					"provider_type": "Kargo",
+					"integration_type": "Manual",
+					"country": "Germany",
+					"is_active": 1
+				},
+				{
+					"name": "FEDEX",
+					"provider_name": "FedEx",
+					"provider_code": "FEDEX",
+					"provider_type": "Kargo",
+					"integration_type": "Manual",
+					"country": "United States",
+					"is_active": 1
+				}
+			],
+			"total": 8,
+			"page": 1,
+			"page_size": 50
+		}
+	},
+	"empty": {
+		"ok": true,
+		"data": {
+			"items": [],
+			"total": 0,
+			"page": 1,
+			"page_size": 50
+		}
+	},
+	"error": {
+		"ok": false,
+		"error": {
+			"code": "PERMISSION_DENIED",
+			"message": "Bu kataloğu görüntüleme yetkiniz yok."
+		}
+	}
+}

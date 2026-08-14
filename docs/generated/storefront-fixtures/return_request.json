@@ -1,0 +1,113 @@
+{
+	"default": {
+		"ok": true,
+		"data": {
+			"items": [
+				{
+					"name": "RET-2026-00007",
+					"order": "ORD-2026-00871",
+					"shipment": "SHP-2026-00041",
+					"seller_profile": "SEL-00001",
+					"buyer": "alici@ornek.com",
+					"status": "inspecting",
+					"reason": "damaged",
+					"requested_at": "2026-08-09 10:00:00",
+					"decided_at": "2026-08-09 15:20:00",
+					"is_closed": 0
+				},
+				{
+					"name": "RET-2026-00006",
+					"order": "ORD-2026-00863",
+					"shipment": "SHP-2026-00038",
+					"seller_profile": "SEL-00002",
+					"buyer": "kurumsal@ornek.com",
+					"status": "requested",
+					"reason": "wrong_item",
+					"requested_at": "2026-08-11 09:15:00",
+					"decided_at": null,
+					"is_closed": 0
+				},
+				{
+					"name": "RET-2026-00003",
+					"order": "ORD-2026-00840",
+					"shipment": "SHP-2026-00035",
+					"seller_profile": "SEL-00001",
+					"buyer": "alici@ornek.com",
+					"status": "closed",
+					"reason": "missing_parts",
+					"requested_at": "2026-07-28 11:00:00",
+					"decided_at": "2026-07-29 09:00:00",
+					"is_closed": 1
+				}
+			],
+			"total": 3,
+			"page": 1,
+			"page_size": 50
+		}
+	},
+	"empty": {
+		"ok": true,
+		"data": {
+			"items": [],
+			"total": 0,
+			"page": 1,
+			"page_size": 50
+		}
+	},
+	"error": {
+		"ok": false,
+		"error": {
+			"code": "PERMISSION_DENIED",
+			"message": "Bu kaydı görüntüleme yetkiniz yok."
+		}
+	},
+	"detail": {
+		"ok": true,
+		"data": {
+			"name": "RET-2026-00007",
+			"order": "ORD-2026-00871",
+			"shipment": "SHP-2026-00041",
+			"seller_profile": "SEL-00001",
+			"buyer": "alici@ornek.com",
+			"status": "inspecting",
+			"reason": "damaged",
+			"requested_at": "2026-08-09 10:00:00",
+			"decided_at": "2026-08-09 15:20:00",
+			"is_closed": 0,
+			"decision_note": "Hasar fotoğrafları incelendi, iade onaylandı.",
+			"return_shipment": "SHP-2026-00044",
+			"return_label_url": "/files/etiket/iade-RET-2026-00007.pdf",
+			"inspection_result": "damaged",
+			"inspection_note": "İki top kumaşta su hasarı tespit edildi.",
+			"refund_amount": 2480.0,
+			"refund_triggered_at": null,
+			"exchange_shipment": null,
+			"closed_at": null,
+			"closed_by": null,
+			"items": [
+				{
+					"item": "LST-00121",
+					"item_name": "Pamuklu Kumaş Topu 40m",
+					"requested_qty": 6,
+					"received_qty": 6,
+					"accepted_qty": 4,
+					"uom": "Top",
+					"inspection_result": "damaged",
+					"inspection_note": "2 topta su hasarı — kabul edilmedi.",
+					"unit_refund": 620.0
+				},
+				{
+					"item": "LST-00133",
+					"item_name": "Polyester Astar 50m",
+					"requested_qty": 3,
+					"received_qty": 2,
+					"accepted_qty": 0,
+					"uom": "Top",
+					"inspection_result": "missing_parts",
+					"inspection_note": "1 top hiç ulaşmadı, gelen 2 top eksik parçalı.",
+					"unit_refund": 0.0
+				}
+			]
+		}
+	}
+}

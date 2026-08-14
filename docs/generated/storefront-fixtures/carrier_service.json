@@ -1,0 +1,52 @@
+{
+	"default": {
+		"ok": true,
+		"data": {
+			"items": [
+				{
+					"name": "YK-STD",
+					"service_name": "Yurtiçi Standart",
+					"service_code": "YK-STD",
+					"carrier": "YK",
+					"service_type": "Standard",
+					"is_active": 1
+				},
+				{
+					"name": "YK-EXP",
+					"service_name": "Yurtiçi Ertesi Gün",
+					"service_code": "YK-EXP",
+					"carrier": "YK",
+					"service_type": "Express",
+					"is_active": 1
+				},
+				{
+					"name": "AK-STD",
+					"service_name": "Aras Standart",
+					"service_code": "AK-STD",
+					"carrier": "AK",
+					"service_type": "Standard",
+					"is_active": 1
+				}
+			],
+			"total": 3,
+			"page": 1,
+			"page_size": 50
+		}
+	},
+	"empty": {
+		"ok": true,
+		"data": {
+			"items": [],
+			"total": 0,
+			"page": 1,
+			"page_size": 50
+		}
+	},
+	"error": {
+		"ok": false,
+		"error": {
+			"code": "PERMISSION_DENIED",
+			"message": "Bu kataloğu görüntüleme yetkiniz yok."
+		}
+	}
+}

@@ -1,0 +1,55 @@
+{
+	"default": {
+		"ok": true,
+		"data": {
+			"items": [
+				{
+					"template": "NT-SHIPPED-BUYER-EMAIL",
+					"event": "shipment_shipped",
+					"channel": "email",
+					"recipient_role": "buyer",
+					"enabled": 1,
+					"is_mandatory": 0,
+					"locked_reason": null
+				},
+				{
+					"template": "NT-EXCEPTION-OPS-INAPP",
+					"event": "shipment_exception",
+					"channel": "in_app",
+					"recipient_role": "operations",
+					"enabled": 1,
+					"is_mandatory": 1,
+					"locked_reason": "Zorunlu operasyon bildirimi — kapatılamaz."
+				},
+				{
+					"template": "NT-DELIVERED-SELLER-EMAIL",
+					"event": "shipment_delivered",
+					"channel": "email",
+					"recipient_role": "seller",
+					"enabled": 0,
+					"is_mandatory": 0,
+					"locked_reason": null
+				}
+			],
+			"total": 3,
+			"page": 1,
+			"page_size": 50
+		}
+	},
+	"empty": {
+		"ok": true,
+		"data": {
+			"items": [],
+			"total": 0,
+			"page": 1,
+			"page_size": 50
+		}
+	},
+	"error": {
+		"ok": false,
+		"error": {
+			"code": "PERMISSION_DENIED",
+			"message": "Bu kaydı görüntüleme yetkiniz yok."
+		}
+	}
+}
