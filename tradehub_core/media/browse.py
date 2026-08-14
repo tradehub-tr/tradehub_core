@@ -260,6 +260,42 @@ def _group_doc_store_map(group: str) -> dict[str, str]:
 	return mapping
 
 
+def _docs_of_store(group: str, sub: str) -> list[str]:
+	"""Detaylı grubun bir mağaza alt klasörüne düşen belge adları."""
+	doc_store = _group_doc_store_map(group)
+	if sub == OTHER_GROUP:
+		return [n for n, s in doc_store.items() if not s]
+	return [n for n, s in doc_store.items() if s == sub]
+
+
+def private_store_fields(group: str, sub: str) -> dict:
+	"""Mağaza klasörünün belge-alanı alt klasörleri (vergi levhası, kimlik...).
+
+	Bir KYB kaydında 6 belge alanı var ve ölçümde eklerin yarısı hiçbir alana
+	bağlı değil (serbest ek) — hangi dosyanın hangi evrak olduğu ancak bu
+	seviyeyle görünür. Alan bilgisi olmayanlar `OTHER_GROUP` klasöründe.
+	"""
+	names = _docs_of_store(group, sub)
+	rows = frappe.get_all(
+		"File",
+		filters={
+			"is_private": 1,
+			"attached_to_doctype": group,
+			"attached_to_name": ["in", names or ["__no_match__"]],
+		},
+		fields=["attached_to_field"],
+		limit_page_length=0,
+	)
+	counts: dict[str, int] = defaultdict(int)
+	for r in rows:
+		counts[r.attached_to_field or ""] += 1
+	folders = [{"id": f, "label": "", "count": n} for f, n in counts.items() if f]
+	folders.sort(key=lambda x: (-x["count"], x["id"]))
+	if counts.get(""):
+		folders.append({"id": OTHER_GROUP, "label": "", "count": counts[""]})
+	return {"folders": folders}
+
+
 def private_group_stores(group: str) -> dict:
 	"""KYB/KYC gibi detaylı grupların mağaza alt klasörleri."""
 	rows = frappe.get_all(
@@ -326,6 +362,7 @@ def files(
 	category: str = "",
 	group: str = "",
 	sub: str = "",
+	doc_field: str = "",
 	page: int = 1,
 	page_size: int = 50,
 	search: str = "",
@@ -342,13 +379,13 @@ def files(
 		elif group:
 			q = q.where(f.attached_to_doctype == group)
 		if group in DETAILED_PRIVATE_GROUPS and sub:
-			doc_store = _group_doc_store_map(group)
-			if sub == OTHER_GROUP:
-				names = [n for n, s in doc_store.items() if not s]
-			else:
-				names = [n for n, s in doc_store.items() if s == sub]
+			names = _docs_of_store(group, sub)
 			# Boş liste SQL'de "her şey" olmasın — eşleşme yoksa hiçbir şey dön.
 			q = q.where(f.attached_to_name.isin(names or ["__no_match__"]))
+		if doc_field == OTHER_GROUP:
+			q = q.where((f.attached_to_field.isnull()) | (f.attached_to_field == ""))
+		elif doc_field:
+			q = q.where(f.attached_to_field == doc_field)
 		if search:
 			pattern = f"%{search}%"
 			q = q.where((f.file_name.like(pattern)) | (f.file_url.like(pattern)))

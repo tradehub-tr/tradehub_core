@@ -223,6 +223,59 @@ class PrivateStoreSplitTests(MediaBrowseTestBase):
 		self.assertIn("folders", out)
 		self.assertNotIn("items", out)
 
+	def test_magaza_altinda_belge_alani_klasorleri(self):
+		"""Mağaza klasörünün içi de belge türüne ayrılır: vergi levhası, imza
+		sirküleri... Alan bilgisi olmayan ekler 'serbest ekler' klasöründe."""
+		seller = self._make_seller("alan-split")
+		email = self._make_store_user(seller, "alan-split")
+		kyb = frappe.get_doc(
+			{
+				"doctype": "KYB Verification",
+				"user": email,
+				"company_title": f"Gezgin Alan Test {frappe.generate_hash(length=6)}",
+			}
+		)
+		kyb.flags.ignore_mandatory = True
+		kyb.insert(ignore_permissions=True)
+		frappe.db.commit()
+		self.addCleanup(lambda: self._delete_and_commit("KYB Verification", kyb.name))
+
+		alanli = self._make_private_file("alanli")
+		frappe.db.set_value(
+			"File",
+			alanli.name,
+			{
+				"attached_to_doctype": "KYB Verification",
+				"attached_to_name": kyb.name,
+				"attached_to_field": "vergi_levhasi",
+			},
+			update_modified=False,
+		)
+		serbest = self._make_private_file("serbest")
+		frappe.db.set_value(
+			"File",
+			serbest.name,
+			{"attached_to_doctype": "KYB Verification", "attached_to_name": kyb.name},
+			update_modified=False,
+		)
+		frappe.db.commit()
+
+		out = media_admin.browse_media(scope="private", group="KYB Verification", sub=seller)
+		ids = {f["id"] for f in out["folders"]}
+		self.assertIn("vergi_levhasi", ids)
+		self.assertIn(browse.OTHER_GROUP, ids)
+		self.assertNotIn("items", out)
+
+		vergili = browse.files(
+			scope="private", group="KYB Verification", sub=seller, doc_field="vergi_levhasi"
+		)
+		self.assertEqual({r["file_url"] for r in vergili["items"]}, {alanli.file_url})
+
+		serbestler = browse.files(
+			scope="private", group="KYB Verification", sub=seller, doc_field=browse.OTHER_GROUP
+		)
+		self.assertEqual({r["file_url"] for r in serbestler["items"]}, {serbest.file_url})
+
 
 class BrowseEndpointTests(MediaBrowseTestBase):
 	def test_endpoint_kok_ve_yetki(self):

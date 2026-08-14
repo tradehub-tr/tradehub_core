@@ -524,6 +524,7 @@ def browse_media(
 	category: str = "",
 	group: str = "",
 	sub: str = "",
+	doc_field: str = "",
 	page: int = 1,
 	page_size: int = 50,
 	search: str = "",
@@ -533,8 +534,9 @@ def browse_media(
 	Parametre derinliği seviyeyi belirler: hiçbiri yoksa kök (public/private),
 	`scope=public` mağazalar, `+store` kategoriler, `+category` dosyalar;
 	`scope=private` belge türü grupları, `+group` dosyalar — KYB/KYC gibi
-	detaylı gruplarda önce mağaza alt klasörleri, `+sub` dosyalar. Klasörler
-	sanal — disk yapısına dokunulmaz (bkz. `media/browse.py`).
+	detaylı gruplarda önce mağaza alt klasörleri (`+sub`), sonra belge-alanı
+	klasörleri (`+doc_field`) gelir. Klasörler sanal — disk yapısına
+	dokunulmaz (bkz. `media/browse.py`).
 	"""
 	_guard()
 	scope = (scope or "").strip()
@@ -542,18 +544,23 @@ def browse_media(
 	category = (category or "").strip()
 	group = (group or "").strip()
 	sub = (sub or "").strip()
+	doc_field = (doc_field or "").strip()
 
 	if not scope:
 		return browse.root()
 	if scope == "private":
 		if not group:
 			return browse.private_groups()
-		if group in browse.DETAILED_PRIVATE_GROUPS and not sub:
-			return browse.private_group_stores(group)
+		if group in browse.DETAILED_PRIVATE_GROUPS:
+			if not sub:
+				return browse.private_group_stores(group)
+			if not doc_field:
+				return browse.private_store_fields(group, sub)
 		return browse.files(
 			scope="private",
 			group=group,
 			sub=sub,
+			doc_field=doc_field,
 			page=int(page),
 			page_size=int(page_size),
 			search=search,
