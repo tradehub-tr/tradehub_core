@@ -141,16 +141,18 @@ def enqueue_transcode(file_url: str) -> None:
 		return
 
 	doc = frappe.get_doc("File", name)
+	# Durum, filtre sözlüğüyle DEĞİL kayıt adıyla yazılıyor: içerik-hash'li
+	# adlandırma (WP4) aynı içeriği aynı `file_url`'e eşliyor, yani tek adrese
+	# birden çok `File` kaydı düşmesi artık olağan. Filtreyle yazmak başka
+	# satıcının kaydına da durum basardı.
 	if not needs_transcode(doc.get_full_path()):
 		frappe.db.set_value(
-			"File", {"file_url": file_url}, "th_media_video_status", VIDEO_STATUS_READY,
+			"File", name, "th_media_video_status", VIDEO_STATUS_READY,
 			update_modified=False,
 		)
 		return
 
-	frappe.db.set_value(
-		"File", {"file_url": file_url}, "th_media_video_status", VIDEO_STATUS_PROCESSING
-	)
+	frappe.db.set_value("File", name, "th_media_video_status", VIDEO_STATUS_PROCESSING)
 	frappe.enqueue(
 		"tradehub_core.media.transcode._run_transcode",
 		queue="long",
@@ -183,6 +185,12 @@ def maybe_transcode_on_insert(doc, method: str | None = None) -> None:
 	(`states.on_file_insert` ile aynı desen).
 	"""
 	try:
+		# Geri yükleme (`media.restore.apply`) dosyayı yedekteki hâliyle diske
+		# yazıp kaydı sonra açıyor. Burada transcode'a girmek az önce geri
+		# yüklenen dosyayı ezer — bayrak varsa dokunma.
+		if getattr(getattr(doc, "flags", None), "th_skip_transcode", False):
+			return
+
 		if doc.get("is_folder") or doc.get("is_private"):
 			return
 
