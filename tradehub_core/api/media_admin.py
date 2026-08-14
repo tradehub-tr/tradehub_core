@@ -16,7 +16,18 @@ import frappe
 from frappe import _
 from frappe.query_builder.functions import Count
 
-from tradehub_core.media import access_level, archive, audit, inventory, presets, refs, runner, trash, usage
+from tradehub_core.media import (
+	access_level,
+	archive,
+	audit,
+	browse,
+	inventory,
+	presets,
+	refs,
+	runner,
+	trash,
+	usage,
+)
 
 ALLOWED_ROLES: tuple[str, ...] = ("System Manager", "Marketplace Admin")
 
@@ -504,6 +515,53 @@ def get_private_files(page: int = 1, page_size: int = 50, search: str = "") -> d
 		# aynı kaynak, liste ile toggle farklı karar vermesin.
 		r["pii"] = access_level._is_protected_pii(r, r.file_url)
 	return {"items": rows, "total": total, "page": page, "page_size": page_size}
+
+
+@frappe.whitelist()
+def browse_media(
+	scope: str = "",
+	store: str = "",
+	category: str = "",
+	group: str = "",
+	page: int = 1,
+	page_size: int = 50,
+	search: str = "",
+) -> dict:
+	"""Medya Gezgini — sanal klasör ağacında bir seviye (TUR-126 devamı).
+
+	Parametre derinliği seviyeyi belirler: hiçbiri yoksa kök (public/private),
+	`scope=public` mağazalar, `+store` kategoriler, `+category` dosyalar;
+	`scope=private` belge türü grupları, `+group` dosyalar. Klasörler sanal —
+	disk yapısına dokunulmaz (bkz. `media/browse.py`).
+	"""
+	_guard()
+	scope = (scope or "").strip()
+	store = (store or "").strip()
+	category = (category or "").strip()
+	group = (group or "").strip()
+
+	if not scope:
+		return browse.root()
+	if scope == "private":
+		if not group:
+			return browse.private_groups()
+		return browse.files(
+			scope="private", group=group, page=int(page), page_size=int(page_size), search=search
+		)
+	if scope != "public":
+		frappe.throw(_("Geçersiz kapsam: {0}").format(scope))
+	if not store:
+		return browse.public_stores()
+	if not category and store != browse.PLATFORM_STORE:
+		return browse.public_categories(store)
+	return browse.files(
+		scope="public",
+		store=store,
+		category=category,
+		page=int(page),
+		page_size=int(page_size),
+		search=search,
+	)
 
 
 @frappe.whitelist()
