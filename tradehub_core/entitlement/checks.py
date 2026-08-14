@@ -22,7 +22,7 @@ from tradehub_core.entitlement.core import (
 	get_active_subscription,
 	get_quota_limits,
 )
-from tradehub_core.media import files
+from tradehub_core.media import files, upload_policy
 from tradehub_core.media.presets import EXCLUDED_DOCTYPES
 from tradehub_core.utils.tenant import get_current_seller_profile
 
@@ -270,6 +270,12 @@ def check_media_storage_quota(doc, method=None) -> None:
 	limit_bytes = limit_mb * 1024 * 1024
 
 	if current_bytes + incoming_bytes > limit_bytes:
-		frappe.throw(
+		# Ret, medya yükleme sözleşmesinden (TUR-123) geçiyor: mesajın sonuna
+		# `[upload_quota_exceeded]` markörü konur ve istemci hata METNİNE değil
+		# KODA bakarak karar verir. Düz `frappe.throw` bu kapıyı sözleşmenin
+		# dışında bırakıyordu — panel reddi sınıflandıramıyor, kullanıcıya ham
+		# sunucu metni gidiyordu.
+		upload_policy.reddet(
+			upload_policy.QUOTA_EXCEEDED,
 			_("Depolama kotanız doldu ({0} MB). Yükleme yapılamadı.").format(limit_mb),
 		)

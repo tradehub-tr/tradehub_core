@@ -194,6 +194,11 @@ def apply(
 				)
 				# Dosya zaten diskte; Frappe'nin yeniden yazmasına gerek yok.
 				doc.flags.ignore_file_validate = True
+				# Geri yükleme dosyayı yedekteki HÂLİYLE kuruyor. `after_insert`
+				# zincirindeki video transcode kancası burada çalışırsa dosyayı
+				# yeniden kodlayıp diskte EZER — "asla üzerine yazmaz" garantisi
+				# kayda değer biçimde kırılırdı. Bayrak o kancayı susturur.
+				doc.flags.th_skip_transcode = True
 				doc.insert(ignore_permissions=True, set_name=ad)
 
 				# SAHİP VE OLUŞTURMA ZAMANI GERİ YAZILIYOR.

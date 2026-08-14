@@ -114,6 +114,10 @@ SESSION_UNKNOWN = Kod("upload_session_unknown", False)
 CHUNK_ORDER = Kod("upload_chunk_order", True)
 CHUNK_MISSING = Kod("upload_chunk_missing", True)
 TOO_MANY_CHUNKS = Kod("upload_too_many_chunks", False)
+# Kota reddi bu modülün KENDİ kontrolü değil — `entitlement.checks.
+# check_media_storage_quota` veriyor. Kod yine burada tanımlı: istemci tek bir
+# ret sözleşmesi görsün diye. Tekrar denenmez; satıcı yer açmadan aynı cevap.
+QUOTA_EXCEEDED = Kod("upload_quota_exceeded", False)
 
 ALL_CODES: tuple[Kod, ...] = (
 	NAME_REQUIRED,
@@ -129,6 +133,7 @@ ALL_CODES: tuple[Kod, ...] = (
 	CHUNK_ORDER,
 	CHUNK_MISSING,
 	TOO_MANY_CHUNKS,
+	QUOTA_EXCEEDED,
 )
 
 RETRYABLE: frozenset[str] = frozenset(k.kod for k in ALL_CODES if k.retryable)
@@ -144,8 +149,16 @@ class UploadRejected(frappe.ValidationError):
 
 
 def reddet(kod: Kod, mesaj: str) -> None:
-	"""Kodlu ret — mesaj kullanıcıya, kod istemciye."""
-	frappe.local.response["upload_error"] = kod.kod
+	"""Kodlu ret — mesaj kullanıcıya, kod istemciye.
+
+	`frappe.local.response` istek dışı bağlamlarda (scheduler, konsol, stub'lı
+	test) bulunmayabiliyor; markör mesajın sonunda zaten taşındığı için yanıt
+	sözlüğüne yazamamak reddi düşürmemeli.
+	"""
+	try:
+		frappe.local.response["upload_error"] = kod.kod
+	except Exception:
+		pass
 	frappe.throw(f"{mesaj} [{kod.kod}]", exc=UploadRejected)
 
 
