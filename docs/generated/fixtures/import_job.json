@@ -15,7 +15,7 @@
 						"Siparis No": "order",
 						"Kargo": "carrier",
 						"Takip": "tracking_number",
-						"Sevk Tarihi": "shipped_date",
+						"Sevk Tarihi": "ship_date",
 						"Tutar": "carrier_cost"
 					},
 					"errors": [

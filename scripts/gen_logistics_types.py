@@ -49,6 +49,8 @@ DOCTYPE_ROOT = PACKAGE_ROOT / "tradehub_core" / "doctype"
 SCHEMA_PATH = APP_ROOT / "docs" / "logistics-api.schema.json"
 GENERATED_ROOT = APP_ROOT / "docs" / "generated"
 FIXTURE_ROOT = GENERATED_ROOT / "fixtures"
+#: Storefront alt kümesi ayrı dizinde üretiliyor ki `--check` onu da denetlesin.
+STOREFRONT_FIXTURE_ROOT = GENERATED_ROOT / "storefront-fixtures"
 DTS_PATH = GENERATED_ROOT / "logistics.d.ts"
 
 #: --sync ile yazılacak kardeş repo hedefleri (repo kökünden göreli)
@@ -63,7 +65,60 @@ SYNC_TARGETS: tuple[tuple[Path, Path], ...] = (
 #: katalogun fixture'ı geride kalmasın.
 SYNC_DIR_TARGETS: tuple[tuple[Path, Path], ...] = (
 	(FIXTURE_ROOT, Path("../admin-panel/frontend/src/mocks/logistics")),
+	(STOREFRONT_FIXTURE_ROOT, Path("../tradehubfront/src/mocks/logistics")),
 )
+
+#: Storefront'a AKAN varlıklar — beyaz liste.
+#:
+#: Kara liste değil beyaz liste: sözleşmeye yeni bir varlık eklendiğinde
+#: storefront'a sızması için BİLİNÇLİ bir satır gerekiyor. Dışarıda bırakılanlar
+#: platform içi: `carrier_account` (kimlik bilgisi bayrakları),
+#: `integration_log` (taşıyıcı API trafiği), `pricing_rule` + `price_quote`
+#: (alış maliyeti), `cost_report` / `performance_report` (platform raporları),
+#: `carrier_status_mapping` (iç eşleme), `connection_test`, `import_job`,
+#: `operation_alert`, `notification_template` (operasyon araçları),
+#: `service_coverage_area`, `pallet_plan`.
+STOREFRONT_ENTITIES: frozenset[str] = frozenset({
+	"shipment",
+	"proof_of_delivery",
+	"return_request",
+	"shipping_method",
+	"shipping_channel",
+	"logistics_provider",
+	"carrier_service",
+	"carrier_branch",
+	"package_type",
+	"vehicle_type",
+	"shipment_exception_code",
+	"notification_preference",
+})
+
+#: Storefront fixture'ında `null`'lanan alanlar.
+#:
+#: `logistics/permissions.py::mask_shipment_cost_fields` ile AYNI küme.
+#: Alıcı ve satıcının `view.logistics_cost` capability'si yok; backend bu
+#: alanları `None` döndürüyor. Fixture'ı maskelemeden kopyalamak, storefront
+#: ekranlarını HİÇ ALMAYACAKLARI veriye göre tasarlamak olurdu — tasarım
+#: onayı gerçeğe uymayan bir ekrana verilirdi.
+#:
+#: BİLİNÇLİ EKSİK — `Shipment Leg.cost`:
+#:   Bu liste backend'i TAKLİT ediyor, DÜZELTMİYOR. `mask_shipment_cost_fields`
+#:   yalnız Shipment'ın kendi alanlarını geziyor; child tablolardaki `cost`
+#:   alanına dokunmuyor ve `Shipment Leg` için ayrı bir maskeleme yok (yalnız
+#:   `shipment_leg_query_conditions` tenant izolasyonu var — hangi bacakları
+#:   göreceğini sınırlar, hangi ALANLARI göreceğini değil).
+#:   Sonuç: satıcı kendi sevkiyatının bacak bazlı ALIŞ maliyetini görebiliyor.
+#:   Burada maskeleseydik fixture gerçekten farklı olur, ekran var olmayan bir
+#:   korumaya göre tasarlanırdı. Açık backend'de kapatılmalı; kapatılınca bu
+#:   listeye `cost` eklenecek.
+STOREFRONT_MASKED_FIELDS: frozenset[str] = frozenset({
+	"shipping_cost",
+	"insurance_cost",
+	"total_cost",
+	"carrier_cost",
+	"fuel_surcharge",
+	"packaging_cost",
+})
 
 BANNER = (
 	"ÜRETİLMİŞ DOSYA — elle düzenlemeyin.\n"
@@ -877,8 +932,15 @@ def _render_all() -> dict[Path, str]:
 			json.dumps(render_catalog_meta(schema), indent="\t", ensure_ascii=False) + "\n"
 		),
 	}
-	for key, payload in render_fixtures(schema).items():
+	fixtures = render_fixtures(schema)
+	for key, payload in fixtures.items():
 		outputs[FIXTURE_ROOT / f"{key}.json"] = (
+			json.dumps(payload, indent="\t", ensure_ascii=False) + "\n"
+		)
+
+	# Storefront alt kümesi: filtrelenmiş + maskelenmiş.
+	for key, payload in render_storefront_fixtures(fixtures).items():
+		outputs[STOREFRONT_FIXTURE_ROOT / f"{key}.json"] = (
 			json.dumps(payload, indent="\t", ensure_ascii=False) + "\n"
 		)
 	return outputs
@@ -994,6 +1056,43 @@ def _stale_synced_copies(outputs: dict[Path, str]) -> list[Path]:
 		)
 
 	return stale
+
+
+def _mask_for_storefront(value: Any) -> Any:
+	"""Maliyet alanlarını özyinelemeli olarak `None` yapar.
+
+	Özyineleme şart: `shipment.detail` içinde `items`/`packages`/`legs`
+	çocuk dizileri var ve maliyet alanı orada da geçebiliyor.
+	"""
+	if isinstance(value, dict):
+		return {
+			key: (None if key in STOREFRONT_MASKED_FIELDS else _mask_for_storefront(inner))
+			for key, inner in value.items()
+		}
+	if isinstance(value, list):
+		return [_mask_for_storefront(item) for item in value]
+	return value
+
+
+def render_storefront_fixtures(all_fixtures: dict[str, Any]) -> dict[str, Any]:
+	"""Storefront'a yazılacak fixture alt kümesi: filtrelenmiş + maskelenmiş.
+
+	Bilinmeyen bir anahtar beyaz listede varsa sessizce atlanmaz — sözleşmeden
+	kalkmış bir varlığın storefront listesinde unutulması, ilerideki bir
+	story'nin var olmayan dosyayı import etmesi demek olurdu.
+	"""
+	unknown = STOREFRONT_ENTITIES - set(all_fixtures)
+	if unknown:
+		raise SystemExit(
+			"STOREFRONT_ENTITIES sözleşmede olmayan anahtar içeriyor: "
+			+ ", ".join(sorted(unknown))
+		)
+
+	return {
+		key: _mask_for_storefront(payload)
+		for key, payload in all_fixtures.items()
+		if key in STOREFRONT_ENTITIES
+	}
 
 
 def _sibling_repo_exists(target: Path) -> bool:

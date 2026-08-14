@@ -12,22 +12,25 @@ Mimari kararlar, repo sınırları ve API sözleşmesi: **`tradehub_core/docs/LO
 
 ## ⚠️ Mevcut olgunluk (2026-08-12)
 
-Bu modül **iskelet aşamasındadır**. Aşağıdaki tablo neyin çalıştığını, neyin
+Modül **kısmen çalışır durumda**. Aşağıdaki tablo neyin çalıştığını, neyin
 sadece yer tuttuğunu gösterir — dosya varlığını "hazır" diye okuma.
 
 | Bileşen | Durum |
 |---|---|
 | Katalog DocType'ları (12) + seed | ✅ Çalışıyor |
-| Logistics Settings singleton + feature flag okuyucu | ✅ Çalışıyor (ama `is_enabled()` **hiçbir yerden çağrılmıyor**) |
-| Rol / permission / tenant izolasyonu (`permissions.py`) | ✅ Kod hazır — Carrier Account için `hooks.py`'a bağlı |
-| Adapter ABC + registry + MockCarrierAdapter | ✅ Çalışıyor (ama boot'ta **hiçbir carrier register edilmiyor**) |
-| Desi / ücretlendirilebilir ağırlık | ✅ Çalışıyor |
-| Durum makinesi sabitleri | ✅ Tanımlı — **uygulayan kod yok** (Shipment DocType henüz yok) |
-| `hooks.py` içindeki 7 doc_event handler | 🔸 **Hepsi `pass`** — ana `hooks.py`'a bağlı değil |
-| `services/` (6 modül), `jobs/` (2 modül), `adapters/http_client.py` | 🔸 **Docstring + TODO** — gövde yok |
-| `reports/` | 🔸 Boş |
-| API endpoint'leri (8) | 🔸 7'si `throw("henüz aktif değil")` |
-| Shipment DocType | ❌ Yok |
+| Shipment DocType ailesi (Shipment + Item/Event/Leg/Package/Document/Address Snapshot) | ✅ Var |
+| Logistics Settings singleton + feature flag okuyucu | ✅ Çalışıyor — `is_enabled()` `api_utils.logistics_endpoint` kapısından çağrılıyor |
+| Rol / permission / tenant izolasyonu (`permissions.py`) | ✅ Çalışıyor |
+| Desi / ücretlendirilebilir ağırlık (`services/desi.py`) | ✅ Çalışıyor |
+| Durum makinesi (`constants` + `services/shipment_service.py`) | ✅ `transition_status` + `cancel_shipment` uygulanıyor (LOG-049/050) |
+| Sevkiyat bölme (`services/split_engine.py`) | ✅ INV-1..5 veri katmanı uygulanıyor (LOG-045) |
+| `hooks.py` doc_event handler'ları | ✅ 6'sı ana `hooks.py`'a **bağlı** (`snapshot_*`, `validate_*`, `on_shipment_*`); `update_order_fulfillment` içeriden çağrılıyor |
+| Katalog + admin API'si (`api/v1/logistics*.py`) | ✅ Çalışıyor — `{ok,data}` zarfı, yetki kapıları, gizli alan sözleşmesi |
+| Adapter ABC + registry + MockCarrierAdapter | 🔸 Çalışıyor ama boot'ta **hiçbir carrier register edilmiyor** (yalnız testlerde) |
+| `services/`: `tracking_service`, `pricing_engine`, `rate_calculator`, `notifier` | 🔸 **Docstring'den ibaret** (7'şer satır) — gövde yok |
+| `jobs/`: `tracking_poll`, `sla_monitor` | 🔸 Docstring'den ibaret **ve `scheduler_events`'e KAYITLI DEĞİL** — yazılsalar da çalışmazlar |
+| `reports/` | 🔸 **Boş** (yalnız `__init__.py`) |
+| Sevkiyat operasyon uçları (oluştur/iptal/böl/takip) | ❌ Yok — Faz F |
 
 ## Dizin Yapisi
 
@@ -57,8 +60,10 @@ logistics/
 │   ├── rate_calculator.py   # Tarife hesaplayici (stub, TUR-121)
 │   ├── desi.py              # Desi/hacimsel agirlik hesaplama
 │   └── notifier.py          # Bildirim servisi (stub, TUR-113)
-├── jobs/                    # Arka plan islemleri (tracking poll, vb.)
-├── reports/                 # Lojistik raporlari (stub — TUR-117)
+├── jobs/                    # STUB — scheduler_events'e KAYITLI DEGIL
+│   ├── tracking_poll.py     #   (yazilsa da calismaz)
+│   └── sla_monitor.py
+├── reports/                 # BOS — yalniz __init__.py (TUR-102)
 │   └── __init__.py
 └── tests/
     ├── __init__.py

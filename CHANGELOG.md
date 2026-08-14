@@ -1,3 +1,26 @@
+## [v1.13.1-alpha.17] - 2026-08-14 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(logistics): storefront fixture senkronu eklendi (@aliiball)
+  - 26 fixture'un 12'si storefront'a akiyor; beyaz liste, kara liste degil:
+  - Disarida kalanlar platform ici: carrier_account, integration_log,
+  - Maliyet alanlari maskeleniyor: mask_shipment_cost_fields ile ayni kume. Maskelemeden kopyalamak, ekranlari hic almayacaklari veriye gore tasarlamak olurdu
+  - BULGU (kodda yorumlu): Shipment Leg.cost maskelenmiyor. Backend'de child tablo maskelemesi yok, Shipment Leg icin yalniz tenant izolasyonu var.
+
+### Degistirildi
+- refactor(logistics): modul belgesi gercek durumla esitlendi (@aliiball)
+  - README durum tablosu merge sonrasi bayatti: handler'lar artik ana hooks.py'a bagli, Shipment DocType ailesi var, durum makinesi ve bolme motoru uygulaniyor
+  - Hala eksik olanlar acikca isaretlendi: jobs/ scheduler_events'e kayitli degil, reports/ bos, 4 servis docstring'den ibaret
+  - cache.py: seller_profile alan adi gerekcesi geri kondu (iki dal ayni
+- refactor(logistics): sozlesme gercek DocType semasina hizalandi (@aliiball)
+  - 6 alan adi DocType otoritesine gore duzeltildi: ship_date,
+  - Sozlesme Linear metinlerinden cikarilmisti; otorite gercek sema
+  - Storefront fixture senkronu: 26'dan 12'si akiyor (beyaz liste), maliyet alanlari mask_shipment_cost_fields ile ayni kumede maskeleniyor
+  - Kalan 17 alan gercek sema eksigi -- NOT-Bora-lojistik-sema.md
+
+---
 ## [v1.13.1-alpha.15] - 2026-08-14 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
