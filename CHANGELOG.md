@@ -1,3 +1,11 @@
+## [v1.13.1-alpha.18] - 2026-08-14 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(media): tarih ve saat standardı — çıktı ISO 8601 + saat dilimi (TUR-124) (@Metin Bektemur)
+
+---
 ## [v1.13.1-alpha.17] - 2026-08-14 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
