@@ -59,6 +59,10 @@ ACTION_RECLAIM: str = "media.reclaim"
 # belgeler dahil — verinin sunucuyu terk ettiği tek nokta bu. Kimin ne zaman
 # dışarı aktardığı iz bırakmadan gerçekleşmemeli.
 ACTION_EXPORT: str = "media.export"
+# TUR-126 — private dosya imzalı süreli link ile (girişsiz) indirildi.
+# `media_access.download`'ın tek başarı kaydı: kim/ne zaman değil (link
+# giriş gerektirmiyor), hangi dosyanın hangi imzalı linkle dışarı çıktığı.
+ACTION_SIGNED_ACCESS: str = "media.signed_access"
 
 MEDIA_ACTIONS: tuple[str, ...] = (
 	ACTION_UPLOAD,
@@ -74,6 +78,7 @@ MEDIA_ACTIONS: tuple[str, ...] = (
 	ACTION_RELEASE,
 	ACTION_RECLAIM,
 	ACTION_EXPORT,
+	ACTION_SIGNED_ACCESS,
 )
 
 # Geri dönüşü olmayan ya da güvenlik anlamı taşıyan olaylar HIGH ile işaretlenir;
