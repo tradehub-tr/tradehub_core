@@ -194,6 +194,48 @@ def clear(file_url: str, *, dry_run: bool = False, store: str | None = None) -> 
 	}
 
 
+def retarget(old_url: str, new_url: str) -> dict:
+	"""Dosyanın URL'i değiştiğinde (erişim-seviyesi toggle, TUR-126 §4) onu
+	gösteren TAM eşleşen referansları yeni URL'e çevir.
+
+	`clear()` ile aynı disiplin: yalnız TAM eşleşen alanlara dokunulur — gömülü
+	metin (`sections` gibi JSON alanları) atlanır, URL'i içeride kesip
+	yapıştırmak JSON'u bozabilir. Sipariş kaynakları (`READONLY_TABLES`) hiç
+	dokunulmaz — geçmiş siparişin görüntüsü o anki hâli yansıtmalı, taşıma
+	geçmişi değiştirmemeli.
+
+	Satır silinmez (dosya hâlâ var, yalnız yeri değişti); galeri/varyant
+	satırları da tekil alanlar (`Listing.primary_image`) da aynı şekilde
+	kolonu yeni URL'e günceller.
+	"""
+	guncellenen: list[str] = []
+	atlanan: list[str] = []
+
+	for ref in find(old_url):
+		hedef = f"{ref['owner_doctype']}:{ref['owner']}·{ref['column']}"
+		if ref["readonly"]:
+			atlanan.append(f"{hedef} (sipariş geçmişi)")
+			continue
+		if not ref["exact"]:
+			atlanan.append(f"{hedef} (gömülü metin)")
+			continue
+
+		_assert_writable(ref["table"], ref["column"])
+		frappe.db.sql(  # noqa: S608 — tablo/kolon _WRITABLE allow-list'inden
+			f"update `{ref['table']}` set `{ref['column']}`=%s where name=%s",
+			(new_url, ref["row"]),
+		)
+		guncellenen.append(hedef)
+
+	return {
+		"old_url": old_url,
+		"new_url": new_url,
+		"updated": guncellenen,
+		"skipped": atlanan,
+		"total": len(guncellenen),
+	}
+
+
 def find_dangling(limit: int = 500) -> list[dict]:
 	"""Hedefi olmayan referansları tara — geçmişte bozulmuş bağlar.
 
