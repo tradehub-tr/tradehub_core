@@ -286,6 +286,34 @@ class TestVideoDali(_MediaPipelineIntegrationBase):
 		durum = frappe.db.get_value("File", {"file_url": result["file_url"]}, "th_media_video_status")
 		self.assertEqual(durum, transcode.VIDEO_STATUS_PROCESSING)
 
+	def test_video_status_upload_donusunde_ve_listede_gorunur(self):
+		"""Video durumu uçlardan dönmeli (TUR video-durum düzeltmesi): panel rozeti
+		hem `upload_media` dönüşünden (yükleme anında "işleniyor") hem
+		`get_my_media` listesinden (kütüphane ızgarası) besleniyor."""
+		store, email = self._make_store(quota_mb=100, tag="video-status")
+		self._as_seller(email)
+
+		video_bytes = b"\x00\x00\x00\x18ftypmp42" + os.urandom(256)
+
+		with mock.patch("tradehub_core.media.transcode.frappe.enqueue"):
+			result = seller_media.upload_media(file_name="rozet.mp4", content=_b64(video_bytes))
+		self.addCleanup(lambda: self._cleanup_file(result["file_url"]))
+
+		# (a) upload dönüşü — panel "Video yüklendi" toast'ı yerine duruma bakabilsin
+		self.assertEqual(result.get("video_status"), transcode.VIDEO_STATUS_PROCESSING)
+
+		# (b) liste ucu — kütüphane ızgarasındaki her satırda durum var
+		liste = seller_media.get_my_media()
+		satir = next((i for i in liste["items"] if i["file_url"] == result["file_url"]), None)
+		self.assertIsNotNone(satir, f"yüklenen video listede yok: {result['file_url']}")
+		self.assertEqual(satir.get("video_status"), transcode.VIDEO_STATUS_PROCESSING)
+
+		# (c) video olmayan satırlar patlamıyor — alan boş/None dönebilir, KeyError değil
+		jpeg = _jpeg_bytes(color=(120, 120, 40))
+		r_img = seller_media.upload_media(file_name="gorsel.jpg", content=_b64(jpeg))
+		self.addCleanup(lambda: self._cleanup_file(r_img["file_url"]))
+		self.assertFalse(r_img.get("video_status"))
+
 
 class TestHashDedup(_MediaPipelineIntegrationBase):
 	"""Senaryo 5 — hash dedup: aynı JPEG içeriği iki AYRI upload_media çağrısıyla

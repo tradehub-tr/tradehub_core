@@ -236,6 +236,7 @@ def list_files(
 				Max(f2.file_size).as_("file_size"),
 				Min(f2.creation).as_("creation"),
 				Max(f2.th_optimized_at).as_("optimized_at"),
+				Max(f2.th_media_video_status).as_("video_status"),
 				Max(f2.th_original_size).as_("original_size"),
 				Count("*").as_("record_count"),
 				Count(NullIf(f2.attached_to_name, "")).distinct().as_("usage_count"),
@@ -255,6 +256,9 @@ def list_files(
 			Max(f.file_size).as_("file_size"),
 			Min(f.creation).as_("creation"),
 			Max(f.th_optimized_at).as_("optimized_at"),
+			# Dedup gruplamasında Max yeterli: durum `file_url` filtresiyle tüm
+			# kayıtlara birden yazılıyor (enqueue_transcode), kopyalar ayrışmaz.
+			Max(f.th_media_video_status).as_("video_status"),
 			Max(f.th_original_size).as_("original_size"),
 			Count("*").as_("record_count"),
 			Count(NullIf(f.attached_to_name, "")).distinct().as_("usage_count"),

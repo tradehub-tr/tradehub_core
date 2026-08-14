@@ -100,6 +100,25 @@ class TestRunTranscode(FrappeTestCase):
 		durum = frappe.db.get_value("File", self.doc.name, "th_media_video_status")
 		self.assertEqual(durum, transcode.VIDEO_STATUS_READY)
 
+	def test_run_transcode_basarida_optimized_at_yazar(self):
+		"""Panel "optimize edildi / bekliyor" durumunu `th_optimized_at`'ten türetiyor
+		(inventory._decorate). Başarılı transcode bu damgayı yazmazsa video panelde
+		sonsuza dek "bekliyor" görünür — TUR video-durum düzeltmesi."""
+
+		def _sahte_ffmpeg(cmd, **kwargs):
+			dst = cmd[-1]
+			with open(dst, "wb") as f:
+				f.write(b"sahte transcode edilmis veri")
+			return mock.Mock(returncode=0)
+
+		with mock.patch(
+			"tradehub_core.media.transcode.subprocess.run", side_effect=_sahte_ffmpeg
+		):
+			transcode._run_transcode(self.doc.file_url)
+
+		optimized_at = frappe.db.get_value("File", self.doc.name, "th_optimized_at")
+		self.assertIsNotNone(optimized_at, "başarılı transcode th_optimized_at yazmalı")
+
 	def test_run_transcode_hata_durumunda_failed_isaretler(self):
 		with mock.patch(
 			"tradehub_core.media.transcode.subprocess.run", side_effect=Exception("ffmpeg patladı")

@@ -327,7 +327,17 @@ def _kaydet(file_name: str, icerik: bytes, store: str, *, via: str) -> dict:
 		# hemen `processing` yapıp gerçek işi `long` kuyruğa devreder.
 		transcode.enqueue_transcode(doc.file_url)
 
-	return {"file_url": doc.file_url, "file_name": doc.file_name, "bytes": doc.file_size}
+	return {
+		"file_url": doc.file_url,
+		"file_name": doc.file_name,
+		"bytes": doc.file_size,
+		# Panel yükleme anında rozet gösterebilsin diye durum dönüşe ekleniyor.
+		# `enqueue_transcode` durumu doc'a değil DB'ye yazdı — taze okunmalı;
+		# video değilse alan hiç yazılmadı, None döner.
+		"video_status": (
+			frappe.db.get_value("File", doc.name, "th_media_video_status") if video_mi else None
+		),
+	}
 
 
 @frappe.whitelist()
