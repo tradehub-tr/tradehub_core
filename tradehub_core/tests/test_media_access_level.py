@@ -474,6 +474,79 @@ class GuardTests(MediaAccessLevelTestBase):
 			frappe.set_user("Administrator")
 
 
+class PrivateFilesListTest(MediaAccessLevelTestBase):
+	"""`get_private_files` — panelin 'Özel dosyalar' görünümü (TUR-126 §4.2).
+
+	Public envanter (`inventory.list_files`) bilinçli olarak private dosyaları
+	dışlıyor; özele taşınan dosyanın panelden geri alınabilmesi ve imzalı link
+	üretilebilmesi için ayrı, süper-admin'e kapılı bir liste gerekir.
+	"""
+
+	def test_private_dosya_listelenir_public_listelenmez(self):
+		priv = self._make_private_file("ozel-liste")
+		pub = self._make_public_file("ozel-liste")
+
+		out = media_admin.get_private_files(search=priv.file_name)
+		self.assertEqual(out["total"], 1)
+		self.assertEqual(out["items"][0]["file_url"], priv.file_url)
+
+		out_pub = media_admin.get_private_files(search=pub.file_name)
+		self.assertEqual(out_pub["total"], 0)
+
+	def test_pii_bagli_dosya_bayraklanir(self):
+		suffix = frappe.generate_hash(length=10)
+		name = f"{suffix}.txt"
+		url = _write_private_file(name, b"pii-liste-fixture")
+		self._cleanup_both_locations(name)
+		doc = frappe.get_doc(
+			{
+				"doctype": "File",
+				"file_name": name,
+				"file_url": url,
+				"is_private": 1,
+				"attached_to_doctype": "KYB Verification",
+				"attached_to_name": "FIXTURE-YOK",
+			}
+		)
+		doc.flags.ignore_mandatory = True
+		doc.insert(ignore_permissions=True)
+		frappe.db.commit()
+		self.addCleanup(lambda: self._delete_and_commit("File", doc.name))
+
+		out = media_admin.get_private_files(search=name)
+		self.assertEqual(out["total"], 1)
+		self.assertTrue(out["items"][0]["pii"])
+
+		normal = self._make_private_file("pii-degil")
+		out2 = media_admin.get_private_files(search=normal.file_name)
+		self.assertFalse(out2["items"][0]["pii"])
+
+	def test_yetkisiz_kullanici_liste_alamaz(self):
+		suffix = frappe.generate_hash(length=8)
+		email = f"ozel-liste-yetkisiz-{suffix}@test.local"
+		user = frappe.get_doc(
+			{
+				"doctype": "User",
+				"email": email,
+				"first_name": "Yetkisiz",
+				"send_welcome_email": 0,
+				"enabled": 1,
+			}
+		).insert(ignore_permissions=True)
+		frappe.db.commit()
+		self.addCleanup(lambda: self._delete_and_commit("User", user.name))
+
+		frappe.set_user(email)
+		prev = frappe.flags.in_test
+		frappe.flags.in_test = False
+		try:
+			with self.assertRaises(frappe.PermissionError):
+				media_admin.get_private_files()
+		finally:
+			frappe.flags.in_test = prev
+			frappe.set_user("Administrator")
+
+
 if __name__ == "__main__":
 	import unittest
 

@@ -14,6 +14,7 @@ import os
 
 import frappe
 from frappe import _
+from frappe.query_builder.functions import Count
 
 from tradehub_core.media import access_level, archive, audit, inventory, presets, refs, runner, trash, usage
 
@@ -457,6 +458,52 @@ def set_access_level(file_url: str, make_private: int = 0) -> dict:
 	"""
 	_guard()
 	return access_level.set_level((file_url or "").strip(), make_private=bool(int(make_private or 0)))
+
+
+@frappe.whitelist()
+def get_private_files(page: int = 1, page_size: int = 50, search: str = "") -> dict:
+	"""Özel (private) dosya envanteri — panel "Özel dosyalar" görünümü (TUR-126 §4.2).
+
+	`inventory.list_files` bilinçli olarak public-only (optimize akışı private
+	belge işlemez); özele taşınan bir dosyayı panelden GERİ almak ve imzalı
+	link üretmek için private dosyaların da kimliğiyle listelenmesi gerekir.
+	Denetim akışındaki maskeleme burada geçerli değil: bu uç `_guard()` ile
+	süper-admin'e kapılı ve Desk'in File listesinin zaten gösterdiğinden
+	fazlasını göstermez. PII kapsamındaki dosyalar `pii=True` bayrağıyla döner —
+	bunlar public yapılamaz (backend `set_level` zorlar, UI aksiyonu gizler).
+	"""
+	_guard()
+	page = max(1, int(page or 1))
+	page_size = min(100, max(1, int(page_size or 50)))
+	search = (search or "").strip()
+
+	f = frappe.qb.DocType("File")
+	base = frappe.qb.from_(f).where(f.is_private == 1).where(f.file_url.like("/private/files/%"))
+	if search:
+		pattern = f"%{search}%"
+		base = base.where((f.file_name.like(pattern)) | (f.file_url.like(pattern)))
+
+	total = base.select(Count(f.name)).run()[0][0]
+	rows = (
+		base.select(
+			f.name,
+			f.file_name,
+			f.file_url,
+			f.file_size,
+			f.creation,
+			f.attached_to_doctype,
+			f.attached_to_name,
+		)
+		.orderby(f.creation, order=frappe.qb.desc)
+		.limit(page_size)
+		.offset((page - 1) * page_size)
+		.run(as_dict=True)
+	)
+	for r in rows:
+		# İki yönlü PII kontrolü (attached + ters referans) — access_level ile
+		# aynı kaynak, liste ile toggle farklı karar vermesin.
+		r["pii"] = access_level._is_protected_pii(r, r.file_url)
+	return {"items": rows, "total": total, "page": page, "page_size": page_size}
 
 
 @frappe.whitelist()
