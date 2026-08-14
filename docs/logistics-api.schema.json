@@ -1259,22 +1259,22 @@
 					"note": "Ücretlendirilebilir ağırlık (desi kuralı)"
 				},
 				{
-					"name": "shipped_date",
+					"name": "ship_date",
 					"type": "Date",
 					"ts": "string",
 					"required": false,
 					"note": "Sevk tarihi"
 				},
 				{
-					"name": "estimated_delivery_date",
+					"name": "estimated_delivery",
 					"type": "Date",
 					"ts": "string",
 					"required": false,
 					"note": "Tahmini teslim"
 				},
 				{
-					"name": "delivered_date",
-					"type": "Date",
+					"name": "actual_delivery",
+					"type": "Datetime",
 					"ts": "string",
 					"required": false,
 					"note": "Gerçekleşen teslim"
@@ -1295,20 +1295,6 @@
 				}
 			],
 			"detail_fields": [
-				{
-					"name": "origin_address_snapshot",
-					"type": "JSON",
-					"ts": "Record<string, unknown> | null",
-					"required": false,
-					"note": "Adres SNAPSHOT — sonradan bozulmaz (TUR-105)"
-				},
-				{
-					"name": "destination_address_snapshot",
-					"type": "JSON",
-					"ts": "Record<string, unknown> | null",
-					"required": false,
-					"note": "Adres snapshot"
-				},
 				{
 					"name": "warehouse",
 					"type": "Link",
@@ -1377,10 +1363,25 @@
 					"note": "Ödeme şartlı teslim (TUR-108)"
 				},
 				{
-					"name": "notes",
+					"name": "seller_note",
 					"type": "Small Text",
 					"ts": "string",
-					"required": false
+					"required": false,
+					"note": "Satıcının notu"
+				},
+				{
+					"name": "buyer_note",
+					"type": "Small Text",
+					"ts": "string",
+					"required": false,
+					"note": "Alıcının notu"
+				},
+				{
+					"name": "internal_note",
+					"type": "Small Text",
+					"ts": "string",
+					"required": false,
+					"note": "Operasyon notu — alıcıya dönmez"
 				},
 				{
 					"name": "driver_name",
@@ -1447,6 +1448,94 @@
 				}
 			],
 			"child_tables": {
+				"address_snapshots": [
+					{
+						"name": "snapshot_type",
+						"type": "Select",
+						"ts": "string",
+						"required": true,
+						"note": "Origin | Destination"
+					},
+					{
+						"name": "source_address",
+						"type": "Link",
+						"ts": "string",
+						"required": false,
+						"note": "Kaynak Addresses kaydı"
+					},
+					{
+						"name": "contact_name",
+						"type": "Data",
+						"ts": "string",
+						"required": false
+					},
+					{
+						"name": "company",
+						"type": "Data",
+						"ts": "string",
+						"required": false
+					},
+					{
+						"name": "phone_prefix",
+						"type": "Data",
+						"ts": "string",
+						"required": false
+					},
+					{
+						"name": "phone",
+						"type": "Data",
+						"ts": "string",
+						"required": false
+					},
+					{
+						"name": "country",
+						"type": "Link",
+						"ts": "string",
+						"required": false
+					},
+					{
+						"name": "state",
+						"type": "Data",
+						"ts": "string",
+						"required": false
+					},
+					{
+						"name": "city",
+						"type": "Data",
+						"ts": "string",
+						"required": false
+					},
+					{
+						"name": "street",
+						"type": "Small Text",
+						"ts": "string",
+						"required": false
+					},
+					{
+						"name": "apartment",
+						"type": "Data",
+						"ts": "string",
+						"required": false
+					},
+					{
+						"name": "postal_code",
+						"type": "Data",
+						"ts": "string",
+						"required": false
+					},
+					{
+						"name": "tax_no",
+						"type": "Data",
+						"ts": "string",
+						"required": false
+					},
+					{
+						"name": "tax_office",
+						"type": "Data",
+						"ts": "string",
+						"required": false
+					}
+				],
 				"items": [
 					{
 						"name": "item",
