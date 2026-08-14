@@ -184,8 +184,9 @@ class TestGorselZinciri(_MediaPipelineIntegrationBase):
 		self.assertEqual(ext, ".webp")
 		self.assertEqual(os.path.splitext(result["file_name"])[1], ".webp")
 
-		# (c) diskteki dosya GERÇEK WebP (RIFF/WEBP header)
-		disk_path = os.path.join(get_files_path(is_private=0), base_name)
+		# (c) diskteki dosya GERÇEK WebP (RIFF/WEBP header) — hash-prefix shard'lı
+		# yolda (TUR-130): public/files/<ab>/<hash>.webp
+		disk_path = os.path.join(get_files_path(is_private=0), base_name[:2], base_name)
 		self.assertTrue(os.path.isfile(disk_path), f"diskte yok: {disk_path}")
 		with open(disk_path, "rb") as f:
 			header = f.read(12)

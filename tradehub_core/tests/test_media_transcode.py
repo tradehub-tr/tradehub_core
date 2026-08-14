@@ -8,7 +8,7 @@ Eksenler:
      (`processing` + `frappe.enqueue(..., queue="long")`). İkinci kez
      çağrılırsa (durum zaten `processing`/`ready`) idempotent — no-op.
   2. `_run_transcode`: ffmpeg komutu doğru argümanlarla kurulur (VP9/Opus,
-     `scale=min(1280,iw)`), başarıda `ready`, hatada `failed` yazar.
+     `scale='min(1280,iw)'`), başarıda `ready`, hatada `failed` yazar.
   3. `needs_transcode` (WP5): `ffprobe` ile gerçek video parametreleri
      (genişlik + bitrate) okunur — eşiğin üstündeyse VEYA ffprobe
      okuyamıyorsa (güvenli taraf) True; client zaten sıkıştırmışsa False.
@@ -93,7 +93,7 @@ class TestRunTranscode(FrappeTestCase):
 		self.assertIn("-c:a", cmd)
 		self.assertIn("libopus", cmd)
 		self.assertTrue(
-			any("scale=min(1280,iw)" in str(parca) for parca in cmd),
+			any("scale='min(1280,iw)'" in str(parca) for parca in cmd),
 			f"scale filtresi bulunamadı: {cmd}",
 		)
 
