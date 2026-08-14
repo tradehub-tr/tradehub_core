@@ -1,3 +1,23 @@
+## [v1.13.1-alpha.15] - 2026-08-14 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(media): içerik-hash'li dosya adlandırma + nginx sertleştirme (TUR-141/130/124) (@TurksabYonetim)
+- feat(media): satıcı depolama kotası enforcement (TUR-139, WP3) (@TurksabYonetim)
+- feat(media): engine.to_webp — sunucu garanti-WebP (TUR-128, WP2 step 3) (@TurksabYonetim)
+- feat(media): video async ffmpeg transcode kuyruğu (TUR-296/297, WP2 step 8) (@TurksabYonetim)
+- feat(media): upload_media görsel WebP + video transcode dalları (WP2 step 5) (@TurksabYonetim)
+- feat(media): video transcode'u koşullu + global yap (WP5, TUR-296/297) (@TurksabYonetim)
+
+### Duzeltildi
+- fix(media): write_file_hashed iki farklı Frappe write_file çağrı imzasını da desteklesin (TUR-141/130/124) (@TurksabYonetim)
+  - _write_file_from_doc(doc): doc.file_url'i hash'li adla ayarlar, doc.write_file() ile diske yazar (File.save_file_on_filesystem ile aynı desen); doc.file_name (görünen ad) değişmez.
+  - _write_file_legacy(fname, content, ...): önceki implementasyon.
+- fix(media): to_webp alfayı korur + transcode hatası audit'e düşer (fix round 1) (@TurksabYonetim)
+- fix(media): ffmpeg scale filtresindeki virgülü quote et (gerçek transcode bug'ı) (@TurksabYonetim)
+
+---
 ## [v1.13.1-alpha.13] - 2026-08-13 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
