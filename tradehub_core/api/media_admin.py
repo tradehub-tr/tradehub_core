@@ -15,7 +15,7 @@ import os
 import frappe
 from frappe import _
 
-from tradehub_core.media import archive, audit, inventory, presets, refs, runner, trash, usage
+from tradehub_core.media import access_level, archive, audit, inventory, presets, refs, runner, trash, usage
 
 ALLOWED_ROLES: tuple[str, ...] = ("System Manager", "Marketplace Admin")
 
@@ -443,6 +443,20 @@ def get_file_references(file_url: str) -> dict:
 	_guard()
 	url = (file_url or "").strip()
 	return {"file_url": url, "items": refs.find(url), "preview": refs.clear(url, dry_run=True)}
+
+
+@frappe.whitelist(methods=["POST"])
+def set_access_level(file_url: str, make_private: int = 0) -> dict:
+	"""Dosyanın erişim seviyesini public↔private çevir (TUR-126 §4).
+
+	Fiziksel taşıma + `File.file_url`/`is_private` güncelleme + tüm referansların
+	(`Listing.primary_image` vb.) yeni URL'e çevrilmesi tek işlemde yapılır —
+	iş `tradehub_core/media/access_level.py`'da. KYB/KYC gibi kapsam dışı
+	doctype'a bağlı dosya ASLA public yapılamaz (PII sızıntısı koruması);
+	zaten hedef seviyedeyse no-op (idempotent).
+	"""
+	_guard()
+	return access_level.set_level((file_url or "").strip(), make_private=bool(int(make_private or 0)))
 
 
 @frappe.whitelist()
