@@ -249,3 +249,97 @@ class DownloadTests(MediaAccessTestBase):
 		with mock.patch.object(media_access, "verify_request", return_value=True):
 			with self.assertRaises(frappe.ValidationError):
 				media_access.download()
+
+	# --- Regresyon: exp yolu izole (fix round 1, Bulgu 1) -------------------
+	#
+	# `int(exp_raw)` çağrısını çevreleyen `try/except` kaldırılırsa (ya da
+	# yanlışlıkla daraltılırsa) `exp` unbound kalır ya da malformed bir değer
+	# sessizce geçer — gerçek bir bypass. Bu iki test yalnız `exp` yolunu
+	# izole eder (`verify_request` True mock'lanır) ki regresyon panel'in
+	# "false positive" dediği unbound uyarısı gerçek bir davranış sözleşmesi
+	# olarak sabitlensin.
+
+	def test_exp_sayisal_degilse_reddedilir(self):
+		"""KRİTİK güvenlik testi (regresyon): `exp="abc"` — sayısal olmayan
+		bir `exp`, dosya serve edilmeden reddedilmeli."""
+		frappe.local.form_dict = frappe._dict(file=self.private_file.file_url, exp="abc")
+
+		with mock.patch.object(media_access, "verify_request", return_value=True):
+			with mock.patch.object(media_access, "send_private_file") as m:
+				with self.assertRaises(frappe.PermissionError):
+					media_access.download()
+
+		m.assert_not_called()
+
+	def test_exp_eksikse_reddedilir(self):
+		"""KRİTİK güvenlik testi (regresyon): `exp` parametresi HİÇ
+		gelmezse (`None`) de aynı red yolundan geçmeli, dosya serve
+		edilmemeli."""
+		frappe.local.form_dict = frappe._dict(file=self.private_file.file_url)
+
+		with mock.patch.object(media_access, "verify_request", return_value=True):
+			with mock.patch.object(media_access, "send_private_file") as m:
+				with self.assertRaises(frappe.PermissionError):
+					media_access.download()
+
+		m.assert_not_called()
+
+	# --- Güvenlik izlenebilirliği: reddedilen denemeler de audit'e yazılır
+	# (fix round 1, Bulgu 2) — signed-URL guest'e açık, reddedilen denemeler
+	# denetimsiz kalırsa brute-force/probe iz bırakmadan geçer.
+
+	def test_gecersiz_imza_reddi_audit_a_yazar(self):
+		self._set_params(self.private_file.file_url, _now() + 900)
+
+		with mock.patch.object(media_access, "verify_request", return_value=False):
+			with mock.patch.object(media_access.audit, "log_media_event") as m:
+				with self.assertRaises(frappe.PermissionError):
+					media_access.download()
+
+		m.assert_called_once()
+		_, kwargs = m.call_args
+		self.assertEqual(kwargs["action"], media_access.audit.ACTION_ACCESS_DENIED)
+		self.assertFalse(kwargs["allowed"])
+		self.assertEqual(kwargs["reason"], "invalid_signature")
+
+	def test_suresi_dolmus_reddi_audit_a_yazar(self):
+		self._set_params(self.private_file.file_url, _now() - 10)
+
+		with mock.patch.object(media_access, "verify_request", return_value=True):
+			with mock.patch.object(media_access.audit, "log_media_event") as m:
+				with self.assertRaises(frappe.PermissionError):
+					media_access.download()
+
+		m.assert_called_once()
+		_, kwargs = m.call_args
+		self.assertEqual(kwargs["action"], media_access.audit.ACTION_ACCESS_DENIED)
+		self.assertFalse(kwargs["allowed"])
+		self.assertEqual(kwargs["reason"], "expired")
+
+	def test_bad_path_reddi_audit_a_yazar(self):
+		self._set_params("/private/files/../../../etc/passwd", _now() + 900)
+
+		with mock.patch.object(media_access, "verify_request", return_value=True):
+			with mock.patch.object(media_access.audit, "log_media_event") as m:
+				with self.assertRaises(frappe.ValidationError):
+					media_access.download()
+
+		m.assert_called_once()
+		_, kwargs = m.call_args
+		self.assertEqual(kwargs["action"], media_access.audit.ACTION_ACCESS_DENIED)
+		self.assertFalse(kwargs["allowed"])
+		self.assertEqual(kwargs["reason"], "bad_path")
+
+	def test_malformed_exp_reddi_audit_a_yazar(self):
+		frappe.local.form_dict = frappe._dict(file=self.private_file.file_url, exp="abc")
+
+		with mock.patch.object(media_access, "verify_request", return_value=True):
+			with mock.patch.object(media_access.audit, "log_media_event") as m:
+				with self.assertRaises(frappe.PermissionError):
+					media_access.download()
+
+		m.assert_called_once()
+		_, kwargs = m.call_args
+		self.assertEqual(kwargs["action"], media_access.audit.ACTION_ACCESS_DENIED)
+		self.assertFalse(kwargs["allowed"])
+		self.assertEqual(kwargs["reason"], "malformed_exp")

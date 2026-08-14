@@ -76,6 +76,29 @@ def _require_private_path(file_url: str) -> str:
 	return file_url
 
 
+def _log_denied(reason: str, file_url: str = "") -> None:
+	"""`download()`'da reddedilen bir denemeyi denetime yaz.
+
+	`download` guest'e açık — imzasız/süresi geçmiş/bozuk link denemeleri
+	(brute-force, probe) bugüne kadar HİÇ iz bırakmadan geçiyordu (yalnız
+	başarılı indirme `media.signed_access` ile kaydediliyordu). Reddedilen
+	istekler her zaman tekil kaydedilir kuralı burada da geçerli (bkz.
+	`media/audit.py` modül dokümanı: "kapsam ihlali güvenlik olayıdır").
+
+	`file_url` doğrulanmamış/iddia edilen değer olabilir (örn. imza henüz
+	kontrol edilmeden önce) — `sensitive=True` ile fingerprint'e çevrilir,
+	ham yol denetim kaydına düşmez. `log_media_event` zaten best-effort
+	(hata patlarsa yutar) — red akışını bozmaz.
+	"""
+	audit.log_media_event(
+		action=audit.ACTION_ACCESS_DENIED,
+		file_url=file_url,
+		allowed=False,
+		reason=reason,
+		sensitive=bool(file_url),
+	)
+
+
 @frappe.whitelist()
 def get_signed_url(file_url: str, ttl_seconds: int = DEFAULT_TTL_SECONDS) -> dict:
 	"""Çağıranın read yetkisi olan bir private dosya için imzalı süreli link üret.
@@ -122,24 +145,38 @@ def get_signed_url(file_url: str, ttl_seconds: int = DEFAULT_TTL_SECONDS) -> dic
 def download():
 	"""İmzalı süreli link ile private dosya indir — oturum GEREKMEZ.
 
-	Sıra: imza doğrula → süre doğrula → path tekrar doğrula (defansif, imza
-	zaten `file`'ı kapsıyor ama servis katmanı kendi başına da emin olmalı)
-	→ serve et → audit'e yaz.
+	Sıra: imza doğrula → path doğrula (defansif) → süre doğrula → path
+	tekrar doğrula (disk'e inmeden hemen önce, ikinci savunma katmanı) →
+	serve et → audit'e yaz. **Her red dalı da denetime yazılır** (`_log_
+	denied`) — guest'e açık bir uçnokta olduğu için aksi hâlde brute-force/
+	probe denemeleri hiç iz bırakmadan geçer.
 	"""
+	# Denetim amaçlı: imza/exp geçersiz çıksa bile hangi dosyanın hedeflendiği
+	# soruşturma değeri taşır. Yalnız KAYIT amaçlı — serve kararı asla bu ham
+	# değere dayanmaz, aşağıdaki her adım kendi başına yeniden doğrular.
+	claimed_file = (frappe.form_dict.get("file") or "").strip()
+
 	if not verify_request():
+		_log_denied("invalid_signature", claimed_file)
 		frappe.throw(_("Bağlantı geçersiz."), frappe.PermissionError)
 
-	file_url = (frappe.form_dict.get("file") or "").strip()
+	try:
+		file_url = _require_private_path(claimed_file)
+	except Exception:
+		_log_denied("bad_path", claimed_file)
+		raise
+
 	exp_raw = frappe.form_dict.get("exp")
-
-	file_url = _require_private_path(file_url)
-
 	try:
 		exp = int(exp_raw)
 	except (TypeError, ValueError):
+		# `exp_raw` sayısal değilse (`"abc"`) ya da hiç gelmediyse (`None`)
+		# — ikisi de aynı `int()` çağrısında patlar, aynı red yoluna düşer.
+		_log_denied("malformed_exp", file_url)
 		frappe.throw(_("Geçersiz bağlantı parametresi."), frappe.PermissionError)
 
 	if exp <= int(time.time()):
+		_log_denied("expired", file_url)
 		frappe.throw(_("Bağlantının süresi doldu."), frappe.PermissionError)
 
 	# `file_url` imza tarafından kapsandığı için burada değiştirilemez, ama
@@ -150,6 +187,7 @@ def download():
 	relative = file_url[len("/private/") :]  # "files/ab/xyz.jpg"
 	target = frappe.get_site_path("private", relative)
 	if not check_path_safety(base_path=private_root, requested_path=target):
+		_log_denied("bad_path", file_url)
 		frappe.throw(_("Geçersiz dosya yolu."), frappe.PermissionError)
 
 	response = send_private_file(relative)
