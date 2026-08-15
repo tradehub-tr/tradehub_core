@@ -548,6 +548,12 @@ def browse_media(
 
 	if not scope:
 		return browse.root()
+	if scope == "chat":
+		if not store:
+			return browse.chat_stores()
+		return browse.files(
+			scope="chat", store=store, page=int(page), page_size=int(page_size), search=search
+		)
 	if scope == "private":
 		if not group:
 			return browse.private_groups()

@@ -445,7 +445,77 @@ def start_or_get_thread(seller_id: str, initial_message: str | None = None) -> d
 	)
 	if r.status_code >= 400:
 		frappe.throw(f"Thread create başarısız: {r.status_code} {r.text}", frappe.ValidationError)
-	return r.json()
+	payload = r.json()
+	_record_thread_map(payload, seller_user, caller)
+	return payload
+
+
+def _record_thread_map(thread_payload: dict, seller_user: str, buyer: str) -> None:
+	"""Konuşma → mağaza eşlemesini künyele (Medya Gezgini "Sohbet ekleri" için).
+
+	Sohbet dış serviste yaşadığından bu eşleme yalnız thread yaratılırken
+	yakalanabilir. Künye yazımı chat akışını ASLA kırmamalı — her hata
+	yutulmaz, loglanır ama kullanıcıya yansıtılmaz.
+	"""
+	try:
+		conv_id = str(
+			thread_payload.get("id")
+			or (thread_payload.get("thread") or {}).get("id")
+			or ""
+		)
+		if not conv_id:
+			return
+		if frappe.db.exists("Chat Thread Map", {"conversation_id": conv_id}):
+			return
+		seller = frappe.db.get_value("Admin Seller Profile", {"user": seller_user})
+		# Künye sistem kaydı — kullanıcı bu doctype'a yazamaz, akış backend'de.
+		frappe.get_doc(
+			{
+				"doctype": "Chat Thread Map",
+				"conversation_id": conv_id,
+				"seller": seller,
+				"buyer_user": buyer,
+			}
+		).insert(ignore_permissions=True)
+	except Exception:
+		frappe.log_error(title="Chat thread map kaydı başarısız", message=frappe.get_traceback())
+
+
+def _record_attachment(
+	conv_id: int | str,
+	sender: str,
+	filename: str,
+	size: int,
+	mime: str,
+	caption: str,
+	remote: dict,
+) -> None:
+	"""Teamslike'a iletilen ekin künyesini yaz (dosya baytı bizde durmaz).
+
+	Medya Gezgini "Sohbet ekleri" ağacı bu kayıtlardan kurulur. Yazım hatası
+	chat akışını kırmamalı — loglanır, kullanıcıya yansıtılmaz.
+	"""
+	try:
+		import json as _json
+
+		seller = frappe.db.get_value(
+			"Chat Thread Map", {"conversation_id": str(conv_id)}, "seller"
+		)
+		frappe.get_doc(
+			{
+				"doctype": "Chat Attachment",
+				"conversation_id": str(conv_id),
+				"seller": seller,
+				"sender": sender,
+				"file_name": filename,
+				"file_size": int(size or 0),
+				"mime": mime or "",
+				"caption": (caption or "")[:500],
+				"remote_meta": _json.dumps(remote or {}, ensure_ascii=False)[:4000],
+			}
+		).insert(ignore_permissions=True)  # sistem künyesi; kullanıcı doctype'a yazamaz
+	except Exception:
+		frappe.log_error(title="Chat attachment kaydı başarısız", message=frappe.get_traceback())
 
 
 @frappe.whitelist()
@@ -621,7 +691,9 @@ def send_attachment(conversation_id: int | str, content: str = "") -> dict[str, 
 	)
 	if r.status_code >= 400:
 		frappe.throw(f"Dosya yüklenemedi: {r.status_code} {r.text}", frappe.ValidationError)
-	return r.json()
+	payload = r.json()
+	_record_attachment(conv_id, caller, filename, len(data), mime, content, payload)
+	return payload
 
 
 VIDEO_CALL_MARKER = "🎥"

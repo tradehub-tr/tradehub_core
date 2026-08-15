@@ -175,12 +175,51 @@ def _store_urls(data: dict) -> set[str]:
 def root() -> dict:
 	public_total = frappe.db.count("File", {"is_private": 0, "file_url": ["like", "/files/%"]})
 	private_total = frappe.db.count("File", {"is_private": 1, "file_url": ["like", "/private/files/%"]})
+	# Sohbet ekleri dış serviste (teamslike) durur; sayı yerel KÜNYEDEN gelir.
+	chat_total = frappe.db.count("Chat Attachment")
 	return {
 		"folders": [
 			{"id": "public", "count": public_total},
 			{"id": "private", "count": private_total},
+			{"id": "chat", "count": chat_total},
 		]
 	}
+
+
+def chat_stores() -> dict:
+	"""Sohbet eklerinin mağaza klasörleri — künyedeki `seller` alanından.
+
+	Eşlemesi olmayan konuşmaların ekleri (map'ten önce açılmış thread'ler)
+	`OTHER_GROUP` klasöründe toplanır; backfill gelene dek kaybolmasınlar.
+	"""
+	f = frappe.qb.DocType("Chat Attachment")
+	rows = (
+		frappe.qb.from_(f)
+		.select(f.seller, Count(f.name).as_("n"))
+		.groupby(f.seller)
+		.run(as_dict=True)
+	)
+	store_ids = [r.seller for r in rows if r.seller]
+	labels = {}
+	if store_ids:
+		labels = {
+			r.name: r.seller_name or r.name
+			for r in frappe.get_all(
+				"Admin Seller Profile",
+				filters={"name": ["in", store_ids]},
+				fields=["name", "seller_name"],
+			)
+		}
+	folders = [
+		{"id": r.seller, "label": labels.get(r.seller, r.seller), "count": r.n}
+		for r in rows
+		if r.seller
+	]
+	folders.sort(key=lambda x: (-x["count"], x["label"]))
+	other = sum(r.n for r in rows if not r.seller)
+	if other:
+		folders.append({"id": OTHER_GROUP, "label": "", "count": other})
+	return {"folders": folders}
 
 
 def public_stores(refresh: bool = False) -> dict:
@@ -370,6 +409,31 @@ def files(
 	page = max(1, int(page or 1))
 	page_size = min(MAX_PAGE_SIZE, max(1, int(page_size or 50)))
 	search = (search or "").strip()
+
+	if scope == "chat":
+		f = frappe.qb.DocType("Chat Attachment")
+		q = frappe.qb.from_(f)
+		if store == OTHER_GROUP:
+			q = q.where((f.seller.isnull()) | (f.seller == ""))
+		elif store:
+			q = q.where(f.seller == store)
+		if search:
+			pattern = f"%{search}%"
+			q = q.where((f.file_name.like(pattern)) | (f.conversation_id.like(pattern)))
+		total = q.select(Count(f.name)).run()[0][0]
+		rows = (
+			q.select(
+				f.name, f.file_name, f.file_size, f.mime, f.creation, f.sender, f.conversation_id
+			)
+			.orderby(f.creation, order=frappe.qb.desc)
+			.limit(page_size)
+			.offset((page - 1) * page_size)
+			.run(as_dict=True)
+		)
+		for r in rows:
+			# Dosya baytı dış serviste — gezgin satırı erişim aksiyonu göstermez.
+			r["chat"] = True
+		return {"items": rows, "total": total}
 
 	if scope == "private":
 		f = frappe.qb.DocType("File")

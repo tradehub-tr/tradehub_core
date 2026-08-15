@@ -277,6 +277,88 @@ class PrivateStoreSplitTests(MediaBrowseTestBase):
 		self.assertEqual({r["file_url"] for r in serbestler["items"]}, {serbest.file_url})
 
 
+class ChatAttachmentBrowseTests(MediaBrowseTestBase):
+	"""Sohbet ekleri: dosyalar teamslike'ta (dış chat servisi) durur, bizde
+	yalnız KÜNYE tutulur (Chat Attachment) — gezgin bu künyeden 'Sohbet
+	ekleri → mağaza → dosyalar' ağacını kurar. Dosya kopyalanmaz."""
+
+	def _make_chat_attachment(self, seller: str | None, tag: str) -> frappe._dict:
+		doc = frappe.get_doc(
+			{
+				"doctype": "Chat Attachment",
+				"conversation_id": f"conv-{tag}-{frappe.generate_hash(length=6)}",
+				"seller": seller,
+				"sender": "Administrator",
+				"file_name": f"gezgin-{tag}-{frappe.generate_hash(length=6)}.pdf",
+				"file_size": 1234,
+				"mime": "application/pdf",
+			}
+		)
+		doc.flags.ignore_mandatory = True
+		doc.insert(ignore_permissions=True)
+		frappe.db.commit()
+		self.addCleanup(lambda: self._delete_and_commit("Chat Attachment", doc.name))
+		return doc
+
+	def test_kokte_sohbet_ekleri_klasoru_var(self):
+		self._make_chat_attachment(None, "kok")
+		out = browse.root()
+		ids = {f["id"]: f for f in out["folders"]}
+		self.assertIn("chat", ids)
+		self.assertGreaterEqual(ids["chat"]["count"], 1)
+
+	def test_sohbet_ekleri_magazaya_gore_klasorlenir(self):
+		seller = self._make_seller("chat")
+		att = self._make_chat_attachment(seller, "magaza")
+		sahipsiz = self._make_chat_attachment(None, "sahipsiz")
+
+		out = browse.chat_stores()
+		ids = {f["id"] for f in out["folders"]}
+		self.assertIn(seller, ids)
+		self.assertIn(browse.OTHER_GROUP, ids)
+
+		files = browse.files(scope="chat", store=seller)
+		names = {r["file_name"] for r in files["items"]}
+		self.assertIn(att.file_name, names)
+		self.assertNotIn(sahipsiz.file_name, names)
+		self.assertTrue(all(r.get("chat") for r in files["items"]))
+
+	def test_endpoint_chat_kapsamini_yonlendirir(self):
+		out = media_admin.browse_media(scope="chat")
+		self.assertIn("folders", out)
+
+
+class ChatAttachmentLogTests(MediaBrowseTestBase):
+	def test_kayit_yardimcisi_kunye_yazar(self):
+		"""`chat._record_attachment` teamslike'a iletilen eki künyeler —
+		chat akışını asla kırmamalı, o yüzden ayrı ve savunmacı."""
+		from tradehub_core.api import chat
+
+		seller = self._make_seller("chat-log")
+		conv = f"conv-log-{frappe.generate_hash(length=6)}"
+		frappe.get_doc(
+			{"doctype": "Chat Thread Map", "conversation_id": conv, "seller": seller}
+		).insert(ignore_permissions=True)
+		frappe.db.commit()
+		self.addCleanup(
+			lambda: frappe.db.delete("Chat Thread Map", {"conversation_id": conv}) or frappe.db.commit()
+		)
+
+		chat._record_attachment(conv, "Administrator", "dekont.pdf", 2048, "application/pdf", "", {})
+		frappe.db.commit()
+		row = frappe.db.get_value(
+			"Chat Attachment",
+			{"conversation_id": conv},
+			["file_name", "seller"],
+			as_dict=True,
+		)
+		self.addCleanup(
+			lambda: frappe.db.delete("Chat Attachment", {"conversation_id": conv}) or frappe.db.commit()
+		)
+		self.assertEqual(row.file_name, "dekont.pdf")
+		self.assertEqual(row.seller, seller)
+
+
 class BrowseEndpointTests(MediaBrowseTestBase):
 	def test_endpoint_kok_ve_yetki(self):
 		out = media_admin.browse_media()
