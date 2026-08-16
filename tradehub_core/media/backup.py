@@ -76,6 +76,12 @@ RECORD_FIELDS: tuple[str, ...] = (
 	"th_media_favorite",
 	"th_media_width",
 	"th_media_height",
+	# Video işleme durumu (WP5). Yedeklenmezse geri yüklenen video "hiç
+	# işlenmemiş" görünür ve `File.after_insert` kancası onu yeniden ffmpeg'e
+	# sokup DİSKTEKİ dosyayı ezer — yani bit-bit geri yüklenen dosya bozulur.
+	# `_records` alan listesini kolon varlığına göre süzdüğü için alanın
+	# bulunmadığı site'larda sorun çıkarmaz.
+	"th_media_video_status",
 )
 
 # Okuma parçası — 1 GB'lık dosyayı belleğe almadan imzalamak için.

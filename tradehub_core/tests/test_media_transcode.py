@@ -93,7 +93,7 @@ class TestRunTranscode(FrappeTestCase):
 		self.assertIn("-c:a", cmd)
 		self.assertIn("libopus", cmd)
 		self.assertTrue(
-			any("scale='min(1280,iw)'" in str(parca) for parca in cmd),
+			any("scale='min(1280,iw)':-2" in str(parca) for parca in cmd),
 			f"scale filtresi bulunamadı: {cmd}",
 		)
 

@@ -28,86 +28,129 @@ if str(_APP_ROOT) not in sys.path:
 _INSERTED_DOCS: list[dict] = []  # Audit'in yazdığı dummy doc'lar
 
 
-def _install_frappe_stub() -> None:
-	frappe = sys.modules.get("frappe")
-	if frappe is None:
-		frappe = types.ModuleType("frappe")
-		sys.modules["frappe"] = frappe
-
-	# get_doc — bizim dummy mock document'ı döner
-	class _DummyDoc:
-		def __init__(self, data):
-			self._data = dict(data)
-			self.flags = SimpleNamespace(audit_write=False, audit_archive=False)
-			self.name = None
-
-		def insert(self, ignore_permissions=False, **kwargs):
-			# audit_write flag set edilmiş olmalı (tek doğru yazma yolu)
-			if not getattr(self.flags, "audit_write", False):
-				raise Exception("Audit log doğrudan yazılamaz")
-			self.name = f"{self._data.get('doctype', 'DOC')}-{len(_INSERTED_DOCS) + 1:06d}"
-			self._data["name"] = self.name
-			_INSERTED_DOCS.append(dict(self._data))
-			return self
-
-	frappe.get_doc = _DummyDoc
-
-	# Session
-	if not hasattr(frappe, "session"):
-		frappe.session = SimpleNamespace(user="tester@x.com")
-	else:
-		frappe.session.user = "tester@x.com"
-
-	# Roles + i18n + exceptions + log_error
-	if not hasattr(frappe, "get_roles"):
-		frappe.get_roles = lambda u: []
-	if not hasattr(frappe, "_"):
-		frappe._ = lambda s: s
-	if not hasattr(frappe, "PermissionError"):
-
-		class PermissionError(Exception):
-			pass
-
-		frappe.PermissionError = PermissionError
-	if not hasattr(frappe, "throw"):
-
-		def _throw(msg, exc=Exception):
-			raise exc(msg) if isinstance(exc, type) else Exception(msg)
-
-		frappe.throw = _throw
-	if not hasattr(frappe, "log_error"):
-		frappe.log_error = lambda *a, **kw: None
-
-	# DB minimal
-	if not hasattr(frappe, "db"):
-		frappe.db = SimpleNamespace(
-			get_value=lambda *a, **kw: None,
-			exists=lambda *a, **kw: False,
-			escape=lambda s: f"'{s}'",
-			count=lambda *a, **kw: 0,
-			has_column=lambda *a, **kw: True,
-		)
-
-	# Utils
-	if not hasattr(frappe, "utils") or not hasattr(frappe.utils, "now_datetime"):
-		frappe.utils = types.ModuleType("frappe.utils")
-		frappe.utils.cint = int
-		frappe.utils.flt = float
-		from datetime import datetime
-
-		frappe.utils.now_datetime = lambda: datetime(2026, 5, 21, 12, 0, 0)
-		frappe.utils.add_days = lambda dt, days: dt
-		sys.modules["frappe.utils"] = frappe.utils
+try:  # Gerçek frappe (bench env). Bulunamazsa asgari bir modül kurulur.
+	import frappe
+except ModuleNotFoundError:  # pragma: no cover — bench dışı ortam
+	frappe = types.ModuleType("frappe")
+	sys.modules["frappe"] = frappe
+	# Import ANINDA gereken adlar: `audit.log`'un import zinciri dekoratör
+	# (`@frappe.whitelist()`) ve `from frappe import _` kullanıyor. Davranışsal
+	# yamalar (session/get_doc/db) `FrappeStubCase.setUp` içinde kuruluyor.
+	frappe._ = lambda s, *a, **kw: s
+	frappe.whitelist = lambda *a, **kw: (lambda fn: fn)
+	frappe.ValidationError = type("ValidationError", (Exception,), {})
+	frappe.PermissionError = type("PermissionError", (Exception,), {})
+	frappe.DoesNotExistError = type("DoesNotExistError", (Exception,), {})
 
 
-_install_frappe_stub()
+# `frappe` üzerinde GEÇİCİ olarak değiştirilen adlar. Eskiden bu dosya adları
+# kalıcı olarak eziyordu; bench ile koşulduğunda gerçek `frappe.get_doc` ve
+# `frappe.db` test bitince de sahte kalıyor, aynı süreçteki diğer testler
+# çöküyordu (`test_media_quota` da aynı desendeydi). Artık her test kendi
+# yamalarını kurup `addCleanup` ile geri alıyor.
+_YOK = object()
+
+
+class _DummyDoc:
+	"""`frappe.get_doc({...})` yerine geçen sahte belge."""
+
+	def __init__(self, data):
+		self._data = dict(data)
+		self.flags = SimpleNamespace(audit_write=False, audit_archive=False)
+		self.name = None
+
+	def insert(self, ignore_permissions=False, **kwargs):
+		# audit_write flag set edilmiş olmalı (tek doğru yazma yolu)
+		if not getattr(self.flags, "audit_write", False):
+			raise Exception("Audit log doğrudan yazılamaz")
+		self.name = f"{self._data.get('doctype', 'DOC')}-{len(_INSERTED_DOCS) + 1:06d}"
+		self._data["name"] = self.name
+		_INSERTED_DOCS.append(dict(self._data))
+		return self
+
+
+class FrappeStubCase(unittest.TestCase):
+	"""Testin ihtiyaç duyduğu `frappe` adlarını yamalar, sonra geri alır.
+
+	Yalnız sözlükle çağrılan `get_doc` sahteye yönlendirilir; `get_doc("X", ad)`
+	biçimindeki gerçek çağrılar (Frappe'nin kendi iç işleyişi test sırasında da
+	sürüyor) özgün fonksiyona devredilir.
+	"""
+
+	def setUp(self):
+		_INSERTED_DOCS.clear()
+		self._orijinaller: dict[str, object] = {}
+		gercek_get_doc = getattr(frappe, "get_doc", None)
+
+		def sahte_get_doc(*args, **kwargs):
+			if len(args) == 1 and isinstance(args[0], dict) and not kwargs:
+				return _DummyDoc(args[0])
+			if gercek_get_doc is None:
+				raise TypeError("get_doc yalnız sözlükle destekleniyor")
+			return gercek_get_doc(*args, **kwargs)
+
+		self._yamala("get_doc", sahte_get_doc)
+		self._yamala("session", SimpleNamespace(user="tester@x.com"))
+		self._yamala("log_error", lambda *a, **kw: None)
+		self._yamala("get_traceback", lambda *a, **kw: "")
+		# Gerçek bağlantı VARSA `frappe.db`'ye dokunulmuyor. Sahte bir db koymak,
+		# `now_datetime()`'ın saat dilimi için System Settings'i okuması gibi
+		# çerçeve içi çağrıları kırıyordu; `log_decision` best-effort olduğu için
+		# hatayı yutup None dönüyor ve test "unexpectedly None" diye düşüyordu.
+		# Testin db'den beklediği tek şey `get_value`'nun zararsız dönmesi.
+		if getattr(frappe, "db", None) is None:
+			self._yamala(
+				"db",
+				SimpleNamespace(
+					get_value=lambda *a, **kw: None,
+					exists=lambda *a, **kw: False,
+					escape=lambda s: f"'{s}'",
+					count=lambda *a, **kw: 0,
+					has_column=lambda *a, **kw: True,
+					get_singles_dict=lambda *a, **kw: {},
+					get_single_value=lambda *a, **kw: None,
+				),
+			)
+		if not hasattr(frappe, "get_roles"):
+			self._yamala("get_roles", lambda u: [])
+		if not hasattr(frappe, "_"):
+			self._yamala("_", lambda s: s)
+		if not hasattr(frappe, "PermissionError"):
+			self._yamala("PermissionError", type("PermissionError", (Exception,), {}))
+		if not hasattr(frappe, "throw"):
+
+			def _throw(msg, exc=Exception):
+				raise exc(msg) if isinstance(exc, type) else Exception(msg)
+
+			self._yamala("throw", _throw)
+
+		self.addCleanup(self._geri_al)
+
+	def _yamala(self, ad: str, deger) -> None:
+		self._orijinaller.setdefault(ad, getattr(frappe, ad, _YOK))
+		setattr(frappe, ad, deger)
+
+	def _geri_al(self) -> None:
+		for ad, eski in self._orijinaller.items():
+			if eski is _YOK:
+				delattr(frappe, ad)
+			else:
+				setattr(frappe, ad, eski)
+		self._orijinaller.clear()
+
+
+if not hasattr(frappe, "utils") or not hasattr(frappe.utils, "now_datetime"):
+	# Yalnız bench dışı ortamda gerekli; gerçek `frappe.utils` varsa dokunulmaz.
+	frappe.utils = types.ModuleType("frappe.utils")
+	frappe.utils.cint = int
+	frappe.utils.flt = float
+	from datetime import datetime
+
+	frappe.utils.now_datetime = lambda: datetime(2026, 5, 21, 12, 0, 0)
+	frappe.utils.add_days = lambda dt, days: dt
+	sys.modules["frappe.utils"] = frappe.utils
 
 from tradehub_core.audit import log as audit_log  # noqa: E402
-
-
-def _reset_inserted():
-	_INSERTED_DOCS.clear()
-	_install_frappe_stub()
 
 
 # ---------------------------------------------------------------------------
@@ -115,10 +158,7 @@ def _reset_inserted():
 # ---------------------------------------------------------------------------
 
 
-class LogDecisionTests(unittest.TestCase):
-	def setUp(self):
-		_reset_inserted()
-
+class LogDecisionTests(FrappeStubCase):
 	def test_minimal_call(self):
 		"""En küçük çağrı: action + decision."""
 		result = audit_log.log_decision(
@@ -187,10 +227,7 @@ class LogDecisionTests(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 
-class LogRoleChangeTests(unittest.TestCase):
-	def setUp(self):
-		_reset_inserted()
-
+class LogRoleChangeTests(FrappeStubCase):
 	def test_invite(self):
 		audit_log.log_role_change(
 			target_user="newuser@x.com",
@@ -231,10 +268,7 @@ class LogRoleChangeTests(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 
-class LogOverrideTests(unittest.TestCase):
-	def setUp(self):
-		_reset_inserted()
-
+class LogOverrideTests(FrappeStubCase):
 	def test_minimal_call(self):
 		result = audit_log.log_override(
 			target_object="Order/ORD-001",
@@ -317,10 +351,7 @@ class ConstantsTests(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 
-class BestEffortTests(unittest.TestCase):
-	def setUp(self):
-		_reset_inserted()
-
+class BestEffortTests(FrappeStubCase):
 	def test_log_decision_swallows_db_error(self):
 		"""DB hatası olsa bile log_decision exception fırlatmaz, None döner."""
 		# get_doc'u hata fırlatacak şekilde değiştir

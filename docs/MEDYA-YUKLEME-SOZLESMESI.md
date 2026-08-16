@@ -54,6 +54,10 @@ yüklenemiyordu.
 | Denetim kaydı | — | ✅ | **Sunucu** |
 | Üstveri temizleme | — | ✅ (TUR-132) | **Sunucu** |
 | Dönüştürme / optimizasyon | — | ✅ (TUR-127/128) | **Sunucu** |
+| Görsel sıkıştırma (WebP'ye çevirme) | ✅ önce dener | ✅ garanti tamamlar | **Sunucu** |
+| Video normalize (transcode) | ✅ önce dener | ✅ kuyrukta garanti | **Sunucu** |
+| Depolama kotası | — | ✅ zorunlu, aşımda ret | **Sunucu** |
+| Dosya adı üretimi (içerik hash'i) | — | ✅ | **Sunucu** |
 
 **İstemcide karar verilen hiçbir güvenlik kuralı yoktur.** Tarayıcıdaki tüm
 kontroller sunucuda tekrarlanır; JavaScript kapatılsa ya da istek elle
@@ -198,6 +202,7 @@ Her ret bir **kodla** döner. İstemci koda bakar, metne değil — metne bakmak
 | `upload_chunk_order` | Parça sırası bozuk | ✓ |
 | `upload_chunk_missing` | Parça eksik | ✓ |
 | `upload_too_many_chunks` | Çok fazla parça | ✗ |
+| `upload_quota_exceeded` | Mağazanın depolama kotası dolu | ✗ |
 
 **Kural:** kullanıcının dosyasıyla ilgili hatalar yeniden denenmez — aynı dosya
 aynı cevabı verir. Ağ kopması ve geçici sunucu hataları (5xx, 429) denenir.
@@ -213,8 +218,16 @@ sayım görünür; kullanıcı beklemek istemezse iptal edebilir.
 | Yükleniyor | Gerçek yüzde + ilerleme çubuğu + iptal düğmesi |
 | Geçici hata | "Bağlantı sorunu — {n} sn sonra {k}. deneme" + iptal |
 | Kalıcı hata | Sebep metni + elle "Yeniden dene" düğmesi |
+| Kota dolu | Kalıcı hata gibi davranır (`upload_quota_exceeded`), yer açması istenir |
 | İptal | Satır kaldırılır, gönderim durur, sunucudaki oturum silinir |
 | Bitti | Yeşil onay, liste yenilenir |
+
+> **Açık madde — yükleme sonrası işleme.** Video normalize'i yükleme
+> bittikten SONRA kuyrukta çalışıyor (`th_media_video_status`:
+> `processing` / `ready` / `failed`). Bu durum şu an hiçbir uçtan
+> dönmüyor ve panelde gösterilmiyor; yani işleme başarısız olursa
+> kullanıcı bunu göremiyor. Durumun dışarı verilmesi ve "işleniyor"
+> rozeti TUR-296'ya bağlı.
 
 ---
 
@@ -235,6 +248,13 @@ koymak, biri değişince sessizce ayrışan iki kural demekti: kullanıcı ekran
 kabul edilen dosyanın sunucuda reddedildiğini görürdü.
 
 Mağaza kodu **hiçbir uçta parametre değildir**, oturumdan çözülür.
+
+**Dönen ad gönderilen adla aynı olmayabilir.** Sunucu iki şeyi değiştirir:
+görsel WebP'ye çevrilirse uzantı `.webp` olur, ve dosya diske içerik hash'iyle
+yazılır (`<sha256[:32]>.<uzantı>`). İstemci **kendi gönderdiği adı değil,
+yanıttaki `file_url` ve `file_name` alanlarını** kullanmalıdır. Aynı içerik
+ikinci kez yüklenirse aynı adrese düşer — bu kasıtlı tekilleştirmedir, hata
+değildir.
 
 ---
 
@@ -307,7 +327,12 @@ Test yazarken iki şey "hata değil" diye işaretlendi ve sebebi kayıtlı:
 |---|---|
 | EXIF temizleme, gerçek mime doğrulaması | TUR-132 |
 | Kırpma / ölçekleme | TUR-127 |
-| Optimizasyon ve dönüştürme | TUR-128 |
-| Depolama dizin yapısı, obje depolama | TUR-130 |
-| Mağaza depolama kotası | TUR-139 |
+| Obje depolama (S3 vb.), CDN | TUR-129 |
 | Public/private erişim modeli | TUR-126 |
+
+> **2026-08-14 güncellemesi.** Bu tablodan üç satır çıktı: optimizasyon/
+> dönüştürme (TUR-128), depolama dizin yapısı ve adlandırma (TUR-130/141) ve
+> mağaza depolama kotası (TUR-139) artık *kapsam dışı değil* — üçü de yükleme
+> akışının içinde çalışıyor ve §2 matrisine işlendi. Kota, yüklemeyi **reddedebilen**
+> ikinci sunucu kapısıdır; reddi bu belgedeki kod sözleşmesinden geçer
+> (`upload_quota_exceeded`).
