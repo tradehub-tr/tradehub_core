@@ -100,12 +100,13 @@ class TestRunTranscode(FrappeTestCase):
 		durum = frappe.db.get_value("File", self.doc.name, "th_media_video_status")
 		self.assertEqual(durum, transcode.VIDEO_STATUS_READY)
 
-	def test_run_transcode_ilk_hatada_failed_degil_retry_kuyruklanir(self):
+	def test_run_transcode_ilk_hatada_failed_degil_deneme_planlanir(self):
 		"""TUR-296 davranış değişikliği: tek hata artık dead-letter DEĞİL.
 
-		Eski beklenti "ilk hatada `failed`" idi; retry geldiğinden beri ilk
-		hata sayaç 1'i yazar, durumu `processing`'te tutar ve işi kuyruğa geri
-		koyar. Dead-letter kapsamı `test_media_transcode_retry.py`'de.
+		Eski beklenti "ilk hatada `failed`" idi; retry geldiğinden beri ilk hata
+		sayaç 1'i yazar, durumu `processing`'te tutar ve yeni bir deneme
+		PLANLAR. Kuyruğa anında konmaz (backoff) — işi süpürücü alır.
+		Dead-letter ve süpürücü kapsamı `test_media_transcode_retry.py`'de.
 		"""
 		with (
 			mock.patch(
@@ -116,11 +117,15 @@ class TestRunTranscode(FrappeTestCase):
 		):
 			transcode._run_transcode(self.doc.file_url)
 
-		mock_enqueue.assert_called_once()
+		mock_enqueue.assert_not_called()
 		durum = frappe.db.get_value("File", self.doc.name, "th_media_video_status")
 		self.assertNotEqual(durum, transcode.VIDEO_STATUS_FAILED)
 		deneme = frappe.db.get_value("File", self.doc.name, "th_media_transcode_attempts")
 		self.assertEqual(int(deneme or 0), 1)
+		self.assertTrue(
+			frappe.db.get_value("File", self.doc.name, "th_media_transcode_next_at"),
+			"hata sonrası yeni deneme planlanmalı",
+		)
 
 	def test_run_transcode_hata_durumunda_audit_log_yazar(self):
 		"""Fix round 1, Bulgu 2: hata dalı yalnız `frappe.log_error` çağırıyordu —

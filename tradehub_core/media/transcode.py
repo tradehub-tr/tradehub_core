@@ -22,19 +22,37 @@ Akış:
      küçük/sıkışmış) kuyruğa HİÇ girmez, durumu direkt `ready` yapar. True
      dönerse durumu `processing` yapar (kullanıcı ekranda "işleniyor" görsün)
      ve gerçek işi `_run_transcode`'a devreder.
-  2. `_run_transcode(file_url)` — worker'da çalışır. ffmpeg ile videoyu VP9/
+  2. `_run_transcode(file_url, name)` — worker'da çalışır. ffmpeg ile videoyu VP9/
      Opus WebM'e normalize eder, diskteki dosyanın YERİNE yazar (`file_url`
      sabit kalır — `Listing` gibi referanslar kırılmaz), durumu `ready`
      yapar.
 
 Retry + dead-letter (TUR-296): hata `failed`'a DOĞRUDAN düşmez. Deneme sayısı
-`th_media_transcode_attempts`'te tutulur; `MAX_TRANSCODE_ATTEMPTS` altındaysa
-iş aynı kuyruğa geri konur ve durum `processing` kalır — kullanıcı ekranda
-"işleniyor" görmeye devam eder, geçici bir hata (disk dolu, OOM-kill, imajdan
-ffmpeg'in kısa süreliğine kalkması) kalıcı başarısızlık sayılmaz. Sayaç dolunca
-dosya dead-letter'dır: durum `failed`, denetim kaydına `attempts` ile düşer ve
-bir insan (satıcı `retry_video`, yönetici `retry_transcode`) elle tetiklemeden
-sistem o dosyaya bir daha dokunmaz — sonsuz kuyruk döngüsü bilerek yok.
+`th_media_transcode_attempts`'te tutulur; `jobs.MAX_ATTEMPTS` altındaysa yeni
+bir deneme PLANLANIR (`th_media_transcode_next_at`) ve durum `processing` kalır
+— kullanıcı ekranda "işleniyor" görmeye devam eder, geçici bir hata (disk dolu,
+imajdan ffmpeg'in kısa süreliğine kalkması) kalıcı başarısızlık sayılmaz. Sayaç
+dolunca dosya dead-letter'dır: durum `failed`, denetim kaydına `attempts` ile
+düşer ve bir insan (satıcı `retry_video`, yönetici `retry_transcode`) elle
+tetiklemeden sistem o dosyaya bir daha dokunmaz.
+
+Retry KUYRUĞA ANINDA KONMAZ. İki nedenle:
+
+  1. Backoff — disk dolduysa ya da ffmpeg yoksa saniyeler içinde düzelmez; üç
+     hak saniyeler içinde yanar ve dosya boşuna dead-letter'a düşerdi.
+  2. Sert kill — RQ zaman aşımı ya da OOM-killer worker'ı vurduğunda `except`
+     bloğu HİÇ çalışmaz; sayaç artmaz, dosya sonsuza kadar `processing`de
+     asılı kalırdı. Kuyruğa geri koyma işini süpürücüye devredince bu iki
+     durum tek mekanizmayla çözülüyor.
+
+`sweep_stuck_transcodes` (hooks.py, 5 dakikada bir) iki şeyi toplar: zamanı
+gelmiş planlı denemeleri ve `jobs.STALE_AFTER_SECONDS` boyunca `processing`de
+asılı kalmış (worker'ın bıraktığı) işleri.
+
+Zaman aşımı merdiveni — her katman bir üsttekinden kısa, ki hata KENDİ
+katmanında yakalansın ve bir üstteki sert kill devreye girmesin:
+
+    ffprobe  20 sn  <  ffmpeg 1700 sn  <  kuyruk 1800 sn  <  kayıp eşiği 2700 sn
 
 `ffmpeg`/`ffprobe` yoksa `_run_transcode`/`needs_transcode` `FileNotFoundError`
 alır; ikisi de bunu güvenli tarafa düşerek yakalar (worker çökmez).
@@ -47,20 +65,26 @@ import os
 import subprocess
 
 import frappe
+from frappe.utils import now_datetime
 
-from tradehub_core.media import audit, ownership
+from tradehub_core.media import audit, jobs, ownership
 
 VIDEO_STATUS_PROCESSING: str = "processing"
 VIDEO_STATUS_READY: str = "ready"
 VIDEO_STATUS_FAILED: str = "failed"
 
-# Toplam deneme hakkı (ilk çalıştırma dahil). 3 seçildi: geçici hatalar (disk,
-# OOM, kuyruk restart'ı) genelde ilk tekrarda geçer; 3'te de geçmeyen hata
-# neredeyse her zaman dosyanın kendisindedir ve insan bakmadan düzelmez.
-MAX_TRANSCODE_ATTEMPTS: int = 3
+# Toplam deneme hakkı (ilk çalıştırma dahil). Politika `media/jobs.py`'de —
+# medyadaki bütün kuyruk işleri aynı sayıyı kullanır. Bu ad geriye dönük
+# uyumluluk için duruyor (testler ve `MEDYA-ISLEME-PIPELINE.md` ona atıf yapar).
+MAX_TRANSCODE_ATTEMPTS: int = jobs.MAX_ATTEMPTS
 
-# ffmpeg zaman aşımı — kuyruk timeout'undan (1800 sn) biraz kısa tutuluyor ki
-# ffmpeg kendi içinde durup "failed" yazsın, RQ'nun sert kill'i devreye girmesin.
+# Kuyruk (RQ) zaman aşımı. ffmpeg'inkinden BÜYÜK olmalı: küçük olursa RQ, ffmpeg
+# kendi kendine durup hatayı yazamadan süreci sert öldürür ve iş sayaca
+# yazılmadan kaybolur.
+QUEUE_TIMEOUT_SECONDS: int = 1800
+
+# ffmpeg zaman aşımı — kuyruk timeout'undan biraz kısa tutuluyor ki ffmpeg kendi
+# içinde durup hatayı yazsın, RQ'nun sert kill'i devreye girmesin.
 _FFMPEG_TIMEOUT_SECONDS: int = 1700
 
 # ffprobe çok daha hızlı olmalı — yalnız metadata okuyor, transcode yapmıyor.
@@ -169,16 +193,31 @@ def enqueue_transcode(file_url: str) -> None:
 	frappe.db.set_value("File", name, "th_media_video_status", VIDEO_STATUS_PROCESSING)
 	# Taze başlangıç: önceki (başarısız) turdan kalan sayaç yeni yüklemeye
 	# sayılmasın — retry hakkı dosya başına değil, İŞ başına.
-	frappe.db.set_value(
-		"File", name, "th_media_transcode_attempts", 0, update_modified=False
-	)
+	_stamp_started(name, attempts=0)
 	frappe.enqueue(
 		"tradehub_core.media.transcode._run_transcode",
 		queue="long",
-		timeout=1800,
+		timeout=QUEUE_TIMEOUT_SECONDS,
 		file_url=file_url,
+		name=name,
 		enqueue_after_commit=True,
 	)
+
+
+def _stamp_started(name: str, *, attempts: int | None = None) -> None:
+	"""İşi "şu an çalışıyor" diye damgala — süpürücü buna bakar.
+
+	`next_at` TEMİZLENİR: planlı deneme kuyruğa girdiği anda plan tüketilmiştir;
+	kalsaydı süpürücü aynı dosyayı bir kez daha kuyruğa koyar ve iki worker aynı
+	dosyaya yazardı.
+	"""
+	degerler: dict = {
+		"th_media_transcode_next_at": None,
+		"th_media_transcode_started_at": now_datetime(),
+	}
+	if attempts is not None:
+		degerler["th_media_transcode_attempts"] = attempts
+	frappe.db.set_value("File", name, degerler, update_modified=False)
 
 
 def maybe_transcode_on_insert(doc, method: str | None = None) -> None:
@@ -230,19 +269,34 @@ def maybe_transcode_on_insert(doc, method: str | None = None) -> None:
 		)
 
 
-def _run_transcode(file_url: str) -> None:
+def _run_transcode(file_url: str, name: str | None = None) -> None:
 	"""Worker'da çalışır — ffmpeg ile videoyu normalize eder.
 
 	Başarısızlıkta asla yarım dosya diske YAZILMAZ: ffmpeg çıktısı geçici bir
 	dosyaya yazılır, yalnız süreç başarıyla bitince kaynağın YERİNE
 	`os.replace` ile taşınır (atomik) — yarıda kesilen bir transcode orijinal
 	videoyu bozmaz.
+
+	`name` ZORUNLU DEĞİL ama verilmesi gerekir: aynı `file_url`'e 39 kayda kadar
+	işaret edebiliyor (bkz. `media/inventory.py`) ve adresten çözmek O ADRESTEKİ
+	İLK kaydı buluyor. Süpürücü kayıt bazında çalıştığı için sayaç başka kayıtta
+	artıyor, süpürücünün hedef kaydı ise sonsuza kadar `processing`de kalıyordu.
+	Kayıt adı kuyruğa taşınınca durum makinesi hep aynı kayıt üzerinde yürüyor.
+	Adres üstünden çözme yalnız geriye dönük uyumluluk için duruyor (deploy
+	anında kuyrukta bekleyen eski işler `name` taşımıyor).
 	"""
-	name = frappe.db.get_value("File", {"file_url": file_url}, "name")
+	if name and not frappe.db.exists("File", name):
+		name = None
+	name = name or frappe.db.get_value("File", {"file_url": file_url}, "name")
 	if not name:
 		# Kuyruğa alındıktan sonra dosya bırakılmış/silinmiş olabilir — worker
 		# bunun için patlamamalı.
 		return
+
+	# Damgayı worker BAŞLARKEN tazele: kuyrukta uzun bekleyen bir iş, gerçekte
+	# yeni başlamışken "kayıp" ilan edilip ikinci kez kuyruğa girmesin.
+	_stamp_started(name)
+	frappe.db.commit()
 
 	doc = frappe.get_doc("File", name)
 	src_path = doc.get_full_path()
@@ -284,7 +338,7 @@ def _run_transcode(file_url: str) -> None:
 
 
 def _on_transcode_failure(name: str, file_url: str, exc: Exception) -> None:
-	"""Başarısız denemeyi sayar; hakkı varsa yeniden kuyruğa koyar, yoksa
+	"""Başarısız denemeyi sayar; hakkı varsa yenisini planlar, yoksa
 	dead-letter'a düşürür.
 
 	Retry'da durum `processing` KALIR: kullanıcıya "başarısız" gösterip iki
@@ -299,37 +353,67 @@ def _on_transcode_failure(name: str, file_url: str, exc: Exception) -> None:
 	)
 
 	if attempts < MAX_TRANSCODE_ATTEMPTS:
-		frappe.db.commit()
-		frappe.log_error(
-			title="Video transcode başarısız — yeniden denenecek",
-			message=f"{file_url} (deneme {attempts}/{MAX_TRANSCODE_ATTEMPTS}): {exc}",
-		)
-		# Denetimde retry ayrı bir olaydır: "3 deneme yapıldı" bilgisi yalnız
-		# dead-letter kaydından çıkarılamaz.
-		audit.log_media_event(
-			action=audit.ACTION_OPTIMIZE,
-			file_url=file_url,
-			allowed=False,
-			reason=f"video_transcode_retry:{type(exc).__name__}",
-			context={"kind": "video_transcode", "attempt": attempts},
-		)
-		# Worker bağlamındayız ve az önce commit ettik — `enqueue_after_commit`
-		# burada gereksiz (istek thread'indeki race bu yolda yok).
-		frappe.enqueue(
-			"tradehub_core.media.transcode._run_transcode",
-			queue="long",
-			timeout=1800,
-			file_url=file_url,
-		)
+		_schedule_retry(name, file_url, attempts, sebep=type(exc).__name__, detay=str(exc))
 		return
 
-	# Dead-letter: hak bitti. Bundan sonra bu dosyaya yalnız insan eliyle
-	# (`retry_failed`) dokunulur.
+	_dead_letter(name, file_url, attempts, sebep=type(exc).__name__, detay=str(exc))
+
+
+def _schedule_retry(name: str, file_url: str, attempts: int, *, sebep: str, detay: str) -> None:
+	"""Yeni denemeyi PLANLA — kuyruğa koymaz, damgayı yazar.
+
+	Kuyruğa anında koymak backoff'u anlamsız kılardı: `frappe.enqueue`'un
+	gecikme parametresi yok (v15), o yüzden bekleme damga üzerinden yürütülüyor
+	ve işi süpürücü alıyor.
+	"""
 	frappe.db.set_value(
-		"File", name, "th_media_video_status", VIDEO_STATUS_FAILED, update_modified=False
+		"File",
+		name,
+		"th_media_transcode_next_at",
+		jobs.next_attempt_at(attempts),
+		update_modified=False,
 	)
 	frappe.db.commit()
-	frappe.log_error(title="Video transcode başarısız", message=f"{file_url}: {exc}")
+	frappe.log_error(
+		title="Video transcode başarısız — yeniden denenecek",
+		message=(
+			f"{file_url} (deneme {attempts}/{MAX_TRANSCODE_ATTEMPTS}, "
+			f"{jobs.backoff_seconds(attempts)} sn sonra): {detay}"
+		),
+	)
+	# Denetimde retry ayrı bir olaydır: "3 deneme yapıldı" bilgisi yalnız
+	# dead-letter kaydından çıkarılamaz.
+	audit.log_media_event(
+		action=audit.ACTION_OPTIMIZE,
+		file_url=file_url,
+		allowed=False,
+		reason=f"video_transcode_retry:{sebep}",
+		context={
+			"kind": "video_transcode",
+			"attempt": attempts,
+			"retry_in": jobs.backoff_seconds(attempts),
+		},
+	)
+
+
+def _dead_letter(name: str, file_url: str, attempts: int, *, sebep: str, detay: str) -> None:
+	"""Hak bitti. Bundan sonra bu dosyaya yalnız insan eliyle dokunulur.
+
+	`next_at` temizlenir: dead-letter'daki dosya süpürücünün kapsamından
+	tamamen çıkmalı, aksi halde plan damgası kalır ve iş sessizce yeniden
+	kuyruğa girerdi.
+	"""
+	frappe.db.set_value(
+		"File",
+		name,
+		{
+			"th_media_video_status": VIDEO_STATUS_FAILED,
+			"th_media_transcode_next_at": None,
+		},
+		update_modified=False,
+	)
+	frappe.db.commit()
+	frappe.log_error(title="Video transcode başarısız", message=f"{file_url}: {detay}")
 	# Fix round 1, Bulgu 2: yalnız Error Log yeterli değil — transcode
 	# başarısızlığı medya denetim ekranında (ADL) da görünmeli, başarı
 	# dalıyla AYNI desen.
@@ -337,7 +421,7 @@ def _on_transcode_failure(name: str, file_url: str, exc: Exception) -> None:
 		action=audit.ACTION_OPTIMIZE,
 		file_url=file_url,
 		allowed=False,
-		reason=f"video_transcode_failed:{type(exc).__name__}",
+		reason=f"video_transcode_failed:{sebep}",
 		context={"kind": "video_transcode", "attempts": attempts},
 	)
 
@@ -362,15 +446,87 @@ def retry_failed(file_url: str) -> dict:
 			)
 		)
 
-	frappe.db.set_value(
-		"File", name, "th_media_transcode_attempts", 0, update_modified=False
-	)
+	_stamp_started(name, attempts=0)
 	frappe.db.set_value("File", name, "th_media_video_status", VIDEO_STATUS_PROCESSING)
 	frappe.enqueue(
 		"tradehub_core.media.transcode._run_transcode",
 		queue="long",
-		timeout=1800,
+		timeout=QUEUE_TIMEOUT_SECONDS,
 		file_url=file_url,
+		name=name,
 		enqueue_after_commit=True,
 	)
 	return {"file_url": file_url, "status": VIDEO_STATUS_PROCESSING}
+
+
+def sweep_stuck_transcodes(limit: int = 200) -> dict:
+	"""Zamanlanmış görev — planlı denemeleri ve bırakılmış işleri toplar.
+
+	İki ayrı kusuru TEK mekanizmayla kapatır:
+
+	  1. **Planlı retry** (`next_at` dolu, zamanı gelmiş): backoff süresi
+	     dolduğu için iş kuyruğa konur.
+	  2. **Bırakılmış iş** (`next_at` boş, `started_at` çok eski): RQ zaman
+	     aşımı ya da OOM-killer worker'ı vurmuş; `except` bloğu hiç çalışmadığı
+	     için sayaç artmamış ve dosya `processing`de asılı kalmış. Burada
+	     başarısızlık sayılır — hakkı varsa yeni deneme planlanır, yoksa
+	     dead-letter.
+
+	`limit`: tek turda dokunulacak azami kayıt. Bir kuyruk kazası binlerce
+	dosyayı aynı anda takılı bırakabilir; hepsini tek turda kuyruğa boşaltmak
+	süpürücüyü kendisi bir olay hâline getirirdi.
+	"""
+	kayitlar = frappe.get_all(
+		# Sistem işi: süpürücünün oturumu yok, kullanıcı yetkisi aranmaz.
+		"File",
+		filters={"th_media_video_status": VIDEO_STATUS_PROCESSING},
+		fields=[
+			"name",
+			"file_url",
+			"th_media_transcode_attempts",
+			"th_media_transcode_next_at",
+			"th_media_transcode_started_at",
+		],
+		limit=limit,
+		order_by="modified asc",
+	)
+
+	kuyruga_konan = 0
+	dusen = 0
+	for k in kayitlar:
+		if k.th_media_transcode_next_at:
+			if not jobs.is_due(k.th_media_transcode_next_at):
+				continue
+			_stamp_started(k.name)
+			frappe.db.commit()
+			frappe.enqueue(
+				"tradehub_core.media.transcode._run_transcode",
+				queue="long",
+				timeout=QUEUE_TIMEOUT_SECONDS,
+				file_url=k.file_url,
+				name=k.name,
+			)
+			kuyruga_konan += 1
+			continue
+
+		if not jobs.is_stale(k.th_media_transcode_started_at):
+			continue
+
+		# Bırakılmış iş: sayacı ilerlet, sonra normal başarısızlık yolundan geç.
+		attempts = int(k.th_media_transcode_attempts or 0) + 1
+		frappe.db.set_value(
+			"File", k.name, "th_media_transcode_attempts", attempts, update_modified=False
+		)
+		detay = "worker işi bıraktı (kuyruk zaman aşımı ya da süreç öldürüldü)"
+		if attempts < MAX_TRANSCODE_ATTEMPTS:
+			_schedule_retry(k.name, k.file_url, attempts, sebep="Abandoned", detay=detay)
+		else:
+			_dead_letter(k.name, k.file_url, attempts, sebep="Abandoned", detay=detay)
+		dusen += 1
+
+	if kuyruga_konan or dusen:
+		frappe.logger("media").info(
+			f"transcode sweep: requeued={kuyruga_konan} abandoned={dusen} "
+			f"scanned={len(kayitlar)}"
+		)
+	return {"scanned": len(kayitlar), "requeued": kuyruga_konan, "abandoned": dusen}

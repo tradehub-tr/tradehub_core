@@ -96,6 +96,15 @@ scheduler_events = {
 		"*/30 * * * *": [
 			"tradehub_core.services.subscription_lifecycle.process_trial_lifecycle",
 		],
+		# Medya: video transcode süpürücüsü (TUR-296). İki işi var — backoff
+		# süresi dolmuş retry'ları kuyruğa koymak ve worker'ın bıraktığı
+		# (`processing`de asılı kalmış) işleri yakalamak. Sert kill `except`
+		# bloğunu çalıştırmadığı için bu tarama olmadan o dosyalar sonsuza
+		# kadar "işleniyor" görünürdü. Periyot `media/jobs.py`
+		# `SWEEP_EVERY_SECONDS` ile TUTARLI olmalı — backoff çözünürlüğü bu.
+		"*/5 * * * *": [
+			"tradehub_core.media.transcode.sweep_stuck_transcodes",
+		],
 	},
 	"hourly": [
 		# Refresh the Complementary tab of Related Products as new orders land.
