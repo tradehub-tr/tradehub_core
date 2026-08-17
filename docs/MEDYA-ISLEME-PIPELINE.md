@@ -271,6 +271,31 @@ başına kayıt ADL'i şişirir ve zinciri okunamaz kılar.
 Kodda hiçbir sabit host, port, site adı ya da dosya yolu yok; her şey Frappe'nin
 kendi bağlamından geliyor. Ortama özel yapılandırma gerekmiyor.
 
+#### Scheduler nerede açılıp kapanıyor
+
+Bayrak **repoda değil**, site'ın kendi veritabanında: `System Settings`
+doctype'ının `enable_scheduler` alanı. Yani her ortamda (local / alpha / canlı)
+ayrı ayrı kontrol edilmesi gerekiyor; merge ile taşınmaz.
+
+| Yol | Ne yapar |
+|---|---|
+| Desk → **System Settings → Enable Scheduler** | DB alanını yazar. En kolay kontrol noktası |
+| `bench --site <site> enable-scheduler` / `disable-scheduler` | Aynı DB alanını yazar |
+| `sites/<site>/site_config.json` → `pause_scheduler` / `disable_scheduler` | **DB'yi EZER** |
+
+Öncelik: `site_config.json` bayrağı varsa o kazanır, yoksa `System Settings`'e
+bakılır. Bu yüzden Desk'te "Enable Scheduler" işaretli görünürken bile scheduler
+durmuş olabilir — iki yere de bakmak gerekir.
+
+> **Tuzak.** `bench migrate` başlarken `pause_scheduler`'ı 1 yapıp bitince
+> siliyor. Migrate yarıda patlarsa o satır dosyada KALIR: deploy "başarılı"
+> görünür, zamanlı işlerin hiçbiri koşmaz, hata da vermez. Süpürücünün
+> çalışmadığından şüphelenildiğinde ilk bakılacak yer burasıdır.
+
+Scheduler'ın yaşadığını doğrulamanın en hızlı yolu: Desk → `Scheduled Job Type`
+listesinde `last_execution` sütunu. Tarihler son birkaç dakika içindeyse hat
+çalışıyor; hepsi eski ya da boşsa scheduler durmuş.
+
 ### 7.2 Ayarlar kod sabiti — çalışma anında değiştirilemez
 
 `jobs.py` ve `transcode.py` içindeki politika sayıları (deneme hakkı, backoff,
