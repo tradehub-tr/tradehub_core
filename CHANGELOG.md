@@ -1,3 +1,14 @@
+## [v1.13.1-alpha.23] - 2026-08-17 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(media): backoff, takılı iş süpürücüsü ve kuyruk işleri için ortak sözleşme (TUR-296) (@Metin Bektemur)
+
+### Duzeltildi
+- fix(media): video rozeti en kötü durumu gösteriyor, "hazır" yalanı bitti (TUR-296) (@Metin Bektemur)
+
+---
 ## [v1.13.1-alpha.22] - 2026-08-17 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
