@@ -59,6 +59,10 @@ ACTION_RECLAIM: str = "media.reclaim"
 # belgeler dahil — verinin sunucuyu terk ettiği tek nokta bu. Kimin ne zaman
 # dışarı aktardığı iz bırakmadan gerçekleşmemeli.
 ACTION_EXPORT: str = "media.export"
+# Satıcı kendi medyasının yedeğini aldı (TUR-131). Geri yüklemeden ayrı bir
+# olay: yedek almak veriyi değiştirmez ama disk tüketir ve "ne zaman yedek
+# aldım" sorusunun cevabı denetimden okunabilmeli.
+ACTION_BACKUP: str = "media.backup"
 
 MEDIA_ACTIONS: tuple[str, ...] = (
 	ACTION_UPLOAD,
@@ -74,6 +78,7 @@ MEDIA_ACTIONS: tuple[str, ...] = (
 	ACTION_RELEASE,
 	ACTION_RECLAIM,
 	ACTION_EXPORT,
+	ACTION_BACKUP,
 )
 
 # Geri dönüşü olmayan ya da güvenlik anlamı taşıyan olaylar HIGH ile işaretlenir;
