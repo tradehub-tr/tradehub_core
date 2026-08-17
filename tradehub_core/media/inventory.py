@@ -240,6 +240,10 @@ def list_files(
 				Count("*").as_("record_count"),
 				Count(NullIf(f2.attached_to_name, "")).distinct().as_("usage_count"),
 				Max(f2.attached_to_doctype).as_("usage_doctype"),
+				# Video işleme durumu (TUR-296) — panel "işleniyor/başarısız"
+				# rozetini buradan okur. GROUP BY altında Max: aynı adresin tüm
+				# kayıtlarına aynı durum yazılıyor, Max hangisini seçse aynı.
+				Max(f2.th_media_video_status).as_("video_status"),
 			)
 			.run(as_dict=True)
 		)
@@ -259,6 +263,8 @@ def list_files(
 			Count("*").as_("record_count"),
 			Count(NullIf(f.attached_to_name, "")).distinct().as_("usage_count"),
 			Max(f.attached_to_doctype).as_("usage_doctype"),
+			# Video işleme durumu (TUR-296) — üstteki usage-sıralı dalla aynı.
+			Max(f.th_media_video_status).as_("video_status"),
 		)
 		.orderby(_order_term(f, sort_by), order=frappe.qb.desc if sort_dir == "desc" else frappe.qb.asc)
 		.limit(page_size)

@@ -25,7 +25,16 @@ Akış:
   2. `_run_transcode(file_url)` — worker'da çalışır. ffmpeg ile videoyu VP9/
      Opus WebM'e normalize eder, diskteki dosyanın YERİNE yazar (`file_url`
      sabit kalır — `Listing` gibi referanslar kırılmaz), durumu `ready`
-     yapar. Hata olursa `failed` + `frappe.log_error`.
+     yapar.
+
+Retry + dead-letter (TUR-296): hata `failed`'a DOĞRUDAN düşmez. Deneme sayısı
+`th_media_transcode_attempts`'te tutulur; `MAX_TRANSCODE_ATTEMPTS` altındaysa
+iş aynı kuyruğa geri konur ve durum `processing` kalır — kullanıcı ekranda
+"işleniyor" görmeye devam eder, geçici bir hata (disk dolu, OOM-kill, imajdan
+ffmpeg'in kısa süreliğine kalkması) kalıcı başarısızlık sayılmaz. Sayaç dolunca
+dosya dead-letter'dır: durum `failed`, denetim kaydına `attempts` ile düşer ve
+bir insan (satıcı `retry_video`, yönetici `retry_transcode`) elle tetiklemeden
+sistem o dosyaya bir daha dokunmaz — sonsuz kuyruk döngüsü bilerek yok.
 
 `ffmpeg`/`ffprobe` yoksa `_run_transcode`/`needs_transcode` `FileNotFoundError`
 alır; ikisi de bunu güvenli tarafa düşerek yakalar (worker çökmez).
@@ -44,6 +53,11 @@ from tradehub_core.media import audit, ownership
 VIDEO_STATUS_PROCESSING: str = "processing"
 VIDEO_STATUS_READY: str = "ready"
 VIDEO_STATUS_FAILED: str = "failed"
+
+# Toplam deneme hakkı (ilk çalıştırma dahil). 3 seçildi: geçici hatalar (disk,
+# OOM, kuyruk restart'ı) genelde ilk tekrarda geçer; 3'te de geçmeyen hata
+# neredeyse her zaman dosyanın kendisindedir ve insan bakmadan düzelmez.
+MAX_TRANSCODE_ATTEMPTS: int = 3
 
 # ffmpeg zaman aşımı — kuyruk timeout'undan (1800 sn) biraz kısa tutuluyor ki
 # ffmpeg kendi içinde durup "failed" yazsın, RQ'nun sert kill'i devreye girmesin.
@@ -153,6 +167,11 @@ def enqueue_transcode(file_url: str) -> None:
 		return
 
 	frappe.db.set_value("File", name, "th_media_video_status", VIDEO_STATUS_PROCESSING)
+	# Taze başlangıç: önceki (başarısız) turdan kalan sayaç yeni yüklemeye
+	# sayılmasın — retry hakkı dosya başına değil, İŞ başına.
+	frappe.db.set_value(
+		"File", name, "th_media_transcode_attempts", 0, update_modified=False
+	)
 	frappe.enqueue(
 		"tradehub_core.media.transcode._run_transcode",
 		queue="long",
@@ -261,16 +280,97 @@ def _run_transcode(file_url: str) -> None:
 				os.remove(dst_path)
 		except OSError:
 			pass
-		frappe.db.set_value("File", name, "th_media_video_status", VIDEO_STATUS_FAILED, update_modified=False)
+		_on_transcode_failure(name, file_url, exc)
+
+
+def _on_transcode_failure(name: str, file_url: str, exc: Exception) -> None:
+	"""Başarısız denemeyi sayar; hakkı varsa yeniden kuyruğa koyar, yoksa
+	dead-letter'a düşürür.
+
+	Retry'da durum `processing` KALIR: kullanıcıya "başarısız" gösterip iki
+	dakika sonra kendiliğinden "hazır"a dönmek güven bozar — başarısızlık ancak
+	sistem gerçekten pes ettiğinde gösterilir.
+	"""
+	attempts = (
+		frappe.db.get_value("File", name, "th_media_transcode_attempts") or 0
+	) + 1
+	frappe.db.set_value(
+		"File", name, "th_media_transcode_attempts", attempts, update_modified=False
+	)
+
+	if attempts < MAX_TRANSCODE_ATTEMPTS:
 		frappe.db.commit()
-		frappe.log_error(title="Video transcode başarısız", message=f"{file_url}: {exc}")
-		# Fix round 1, Bulgu 2: yalnız Error Log yeterli değil — transcode
-		# başarısızlığı medya denetim ekranında (ADL) da görünmeli, başarı
-		# dalıyla (yukarıda) AYNI desen.
+		frappe.log_error(
+			title="Video transcode başarısız — yeniden denenecek",
+			message=f"{file_url} (deneme {attempts}/{MAX_TRANSCODE_ATTEMPTS}): {exc}",
+		)
+		# Denetimde retry ayrı bir olaydır: "3 deneme yapıldı" bilgisi yalnız
+		# dead-letter kaydından çıkarılamaz.
 		audit.log_media_event(
 			action=audit.ACTION_OPTIMIZE,
 			file_url=file_url,
 			allowed=False,
-			reason=f"video_transcode_failed:{type(exc).__name__}",
-			context={"kind": "video_transcode"},
+			reason=f"video_transcode_retry:{type(exc).__name__}",
+			context={"kind": "video_transcode", "attempt": attempts},
 		)
+		# Worker bağlamındayız ve az önce commit ettik — `enqueue_after_commit`
+		# burada gereksiz (istek thread'indeki race bu yolda yok).
+		frappe.enqueue(
+			"tradehub_core.media.transcode._run_transcode",
+			queue="long",
+			timeout=1800,
+			file_url=file_url,
+		)
+		return
+
+	# Dead-letter: hak bitti. Bundan sonra bu dosyaya yalnız insan eliyle
+	# (`retry_failed`) dokunulur.
+	frappe.db.set_value(
+		"File", name, "th_media_video_status", VIDEO_STATUS_FAILED, update_modified=False
+	)
+	frappe.db.commit()
+	frappe.log_error(title="Video transcode başarısız", message=f"{file_url}: {exc}")
+	# Fix round 1, Bulgu 2: yalnız Error Log yeterli değil — transcode
+	# başarısızlığı medya denetim ekranında (ADL) da görünmeli, başarı
+	# dalıyla AYNI desen.
+	audit.log_media_event(
+		action=audit.ACTION_OPTIMIZE,
+		file_url=file_url,
+		allowed=False,
+		reason=f"video_transcode_failed:{type(exc).__name__}",
+		context={"kind": "video_transcode", "attempts": attempts},
+	)
+
+
+def retry_failed(file_url: str) -> dict:
+	"""Dead-letter'daki (`failed`) videoyu insan eliyle yeniden kuyruğa koy.
+
+	Yalnız `failed` durumundaki dosyayı kabul eder: `processing` zaten kuyrukta,
+	`ready`'yi yeniden işlemek kullanıcının onayladığı çıktıyı ezer, boş durum
+	video değildir. Yetki kontrolü BURADA YAPILMAZ — çağıran API katmanı yapar
+	(satıcı: sahiplik, yönetici: rol); bu modül HTTP'den doğrudan erişilemez.
+	"""
+	name = frappe.db.get_value("File", {"file_url": file_url}, "name")
+	if not name:
+		frappe.throw(frappe._("Dosya bulunamadı: {0}").format(file_url))
+
+	durum = frappe.db.get_value("File", name, "th_media_video_status")
+	if durum != VIDEO_STATUS_FAILED:
+		frappe.throw(
+			frappe._("Yalnız başarısız videolar yeniden denenebilir (durum: {0}).").format(
+				durum or "-"
+			)
+		)
+
+	frappe.db.set_value(
+		"File", name, "th_media_transcode_attempts", 0, update_modified=False
+	)
+	frappe.db.set_value("File", name, "th_media_video_status", VIDEO_STATUS_PROCESSING)
+	frappe.enqueue(
+		"tradehub_core.media.transcode._run_transcode",
+		queue="long",
+		timeout=1800,
+		file_url=file_url,
+		enqueue_after_commit=True,
+	)
+	return {"file_url": file_url, "status": VIDEO_STATUS_PROCESSING}

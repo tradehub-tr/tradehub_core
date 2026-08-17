@@ -15,7 +15,7 @@ import os
 import frappe
 from frappe import _
 
-from tradehub_core.media import archive, audit, inventory, presets, refs, runner, trash, usage
+from tradehub_core.media import archive, audit, inventory, presets, refs, runner, transcode, trash, usage
 
 ALLOWED_ROLES: tuple[str, ...] = ("System Manager", "Marketplace Admin")
 
@@ -213,6 +213,25 @@ def restore_image(file_name: str) -> dict:
 	if not file_name:
 		frappe.throw(_("Dosya adı zorunlu."))
 	return runner.restore_original(file_name)
+
+
+@frappe.whitelist(methods=["POST"])
+def retry_transcode(file_url: str) -> dict:
+	"""Dead-letter'daki videoyu yönetici eliyle yeniden kuyruğa koy (TUR-296).
+
+	Sahiplik aranmaz — yönetim tüm envanteri görür; rol yeterli. Durum kuralı
+	(`failed` dışında ret) `transcode.retry_failed` içinde.
+	"""
+	_guard()
+	if not file_url:
+		frappe.throw(_("Dosya adresi zorunlu."))
+	sonuc = transcode.retry_failed(file_url)
+	audit.log_media_event(
+		action=audit.ACTION_OPTIMIZE,
+		file_url=file_url,
+		context={"kind": "video_transcode", "manual_retry": True},
+	)
+	return sonuc
 
 
 @frappe.whitelist(methods=["POST"])
