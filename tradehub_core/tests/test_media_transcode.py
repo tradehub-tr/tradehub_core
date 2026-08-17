@@ -100,25 +100,40 @@ class TestRunTranscode(FrappeTestCase):
 		durum = frappe.db.get_value("File", self.doc.name, "th_media_video_status")
 		self.assertEqual(durum, transcode.VIDEO_STATUS_READY)
 
-	def test_run_transcode_hata_durumunda_failed_isaretler(self):
-		with mock.patch(
-			"tradehub_core.media.transcode.subprocess.run", side_effect=Exception("ffmpeg patladı")
-		):
-			transcode._run_transcode(self.doc.file_url)
+	def test_run_transcode_ilk_hatada_failed_degil_retry_kuyruklanir(self):
+		"""TUR-296 davranış değişikliği: tek hata artık dead-letter DEĞİL.
 
-		durum = frappe.db.get_value("File", self.doc.name, "th_media_video_status")
-		self.assertEqual(durum, transcode.VIDEO_STATUS_FAILED)
-
-	def test_run_transcode_hata_durumunda_audit_log_yazar(self):
-		"""Fix round 1, Bulgu 2: hata dalı yalnız `frappe.log_error` çağırıyordu —
-		transcode başarısızlığı medya denetim ekranında (ADL) hiç görünmüyordu.
-		Brief Step 8: "hatada `failed` + audit" — başarı dalıyla aynı desen.
+		Eski beklenti "ilk hatada `failed`" idi; retry geldiğinden beri ilk
+		hata sayaç 1'i yazar, durumu `processing`'te tutar ve işi kuyruğa geri
+		koyar. Dead-letter kapsamı `test_media_transcode_retry.py`'de.
 		"""
 		with (
 			mock.patch(
 				"tradehub_core.media.transcode.subprocess.run",
 				side_effect=Exception("ffmpeg patladı"),
 			),
+			mock.patch("tradehub_core.media.transcode.frappe.enqueue") as mock_enqueue,
+		):
+			transcode._run_transcode(self.doc.file_url)
+
+		mock_enqueue.assert_called_once()
+		durum = frappe.db.get_value("File", self.doc.name, "th_media_video_status")
+		self.assertNotEqual(durum, transcode.VIDEO_STATUS_FAILED)
+		deneme = frappe.db.get_value("File", self.doc.name, "th_media_transcode_attempts")
+		self.assertEqual(int(deneme or 0), 1)
+
+	def test_run_transcode_hata_durumunda_audit_log_yazar(self):
+		"""Fix round 1, Bulgu 2: hata dalı yalnız `frappe.log_error` çağırıyordu —
+		transcode başarısızlığı medya denetim ekranında (ADL) hiç görünmüyordu.
+		TUR-296 sonrası ilk hata `retry` olayı yazar (dead-letter olayı ayrı,
+		`test_media_transcode_retry.py`'de) — desen aynı: allowed=False + dosya.
+		"""
+		with (
+			mock.patch(
+				"tradehub_core.media.transcode.subprocess.run",
+				side_effect=Exception("ffmpeg patladı"),
+			),
+			mock.patch("tradehub_core.media.transcode.frappe.enqueue"),
 			mock.patch("tradehub_core.media.transcode.audit.log_media_event") as mock_audit,
 		):
 			transcode._run_transcode(self.doc.file_url)
@@ -127,9 +142,7 @@ class TestRunTranscode(FrappeTestCase):
 		_args, kwargs = mock_audit.call_args
 		self.assertEqual(kwargs.get("file_url"), self.doc.file_url)
 		self.assertFalse(kwargs.get("allowed"))
-
-		durum = frappe.db.get_value("File", self.doc.name, "th_media_video_status")
-		self.assertEqual(durum, transcode.VIDEO_STATUS_FAILED)
+		self.assertIn("video_transcode_retry", kwargs.get("reason") or "")
 
 	def test_run_transcode_dosya_bulunamazsa_sessizce_cikar(self):
 		# Kuyruğa alındıktan sonra dosya silinmiş olabilir (satıcı bırakmış) —

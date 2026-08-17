@@ -448,6 +448,27 @@ def get_dimensions(file_url: str) -> dict:
 	return metadata.ensure_dimensions(file_url, store)
 
 
+@frappe.whitelist(methods=["POST"])
+def retry_video(file_url: str) -> dict:
+	"""Başarısız (dead-letter) video işlemesini yeniden başlat (TUR-296).
+
+	Yalnız kendi dosyası: sahiplik doğrulanmadan kuyruk tetiklenemez —
+	`file_url` tahmin edilebilir olsaydı bile başka mağazanın videosu buradan
+	yeniden işletilemez. Durum kuralı (`failed` dışında ret) `transcode`
+	modülünde; burada tekrar edilmiyor.
+	"""
+	store = _store()
+	ownership.assert_owns(store, file_url)
+	sonuc = transcode.retry_failed(file_url)
+	audit.log_media_event(
+		action=audit.ACTION_OPTIMIZE,
+		file_url=file_url,
+		tenant=store,
+		context={"kind": "video_transcode", "manual_retry": True},
+	)
+	return sonuc
+
+
 @frappe.whitelist()
 def rename_media(file_url: str, new_name: str) -> dict:
 	"""Görünen adı değiştir. Dosyanın YOLU değişmez — değişseydi onu gösteren
