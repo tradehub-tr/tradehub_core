@@ -18,7 +18,7 @@ Kapsam: yalnız **public** dosyalar. Private = hassas (KYB/KYC evrakı) ve
 from __future__ import annotations
 
 import frappe
-from frappe.query_builder import DocType
+from frappe.query_builder import Case, DocType
 from frappe.query_builder.functions import Coalesce, Count, CustomFunction, Max, Min, Sum
 
 # MariaDB utf8mb4_unicode_ci'de LIKE, 4 baytlık karakter (emoji, matematiksel
@@ -53,6 +53,27 @@ MAX_PAGE_SIZE: int = 200
 # sürece motora biçim eklenince bu süzgeç sessizce eskiyordu.
 OPTIMIZABLE_EXTENSIONS: tuple[str, ...] = engine.supported_extensions()
 MIN_OPTIMIZABLE_BYTES: int = 200 * 1024
+
+# Video durumu GRUPLANMIŞ satırda toplanıyor: aynı `file_url`'e 39 kayda kadar
+# işaret edebiliyor (bkz. modül docstring'i) ve bu kayıtların durumları
+# AYRIŞABİLİYOR — biri `failed`, biri `processing` olabilir. Önceden `Max()`
+# doğrudan metin üstünde alınıyordu; alfabetik sıra (`ready` > `processing` >
+# `failed`) yüzünden başarısız bir dosya panelde "işleniyor", hatta "hazır"
+# görünüyordu. Artık açık öncelik: kötü haber kazanır.
+_VIDEO_STATUS_RANKS: tuple[tuple[str, int], ...] = (
+	("failed", 3),
+	("processing", 2),
+	("ready", 1),
+)
+_RANK_TO_STATUS: dict[int, str] = {rank: durum for durum, rank in _VIDEO_STATUS_RANKS}
+
+
+def _video_status_term(f):
+	"""Grup içindeki en "kötü" video durumunu seçen toplama ifadesi."""
+	ifade = Case()
+	for durum, rank in _VIDEO_STATUS_RANKS:
+		ifade = ifade.when(f.th_media_video_status == durum, rank)
+	return Max(ifade.else_(0)).as_("video_status_rank")
 
 
 def _base_query():
@@ -241,9 +262,9 @@ def list_files(
 				Count(NullIf(f2.attached_to_name, "")).distinct().as_("usage_count"),
 				Max(f2.attached_to_doctype).as_("usage_doctype"),
 				# Video işleme durumu (TUR-296) — panel "işleniyor/başarısız"
-				# rozetini buradan okur. GROUP BY altında Max: aynı adresin tüm
-				# kayıtlarına aynı durum yazılıyor, Max hangisini seçse aynı.
-				Max(f2.th_media_video_status).as_("video_status"),
+				# rozetini buradan okur. Grup içinde en kötü durum kazanır;
+				# gerekçe `_video_status_term` yorumunda.
+				_video_status_term(f2),
 			)
 			.run(as_dict=True)
 		)
@@ -264,7 +285,7 @@ def list_files(
 			Count(NullIf(f.attached_to_name, "")).distinct().as_("usage_count"),
 			Max(f.attached_to_doctype).as_("usage_doctype"),
 			# Video işleme durumu (TUR-296) — üstteki usage-sıralı dalla aynı.
-			Max(f.th_media_video_status).as_("video_status"),
+			_video_status_term(f),
 		)
 		.orderby(_order_term(f, sort_by), order=frappe.qb.desc if sort_dir == "desc" else frappe.qb.asc)
 		.limit(page_size)
@@ -315,6 +336,9 @@ def _decorate(
 		r["saved_bytes"] = max(0, (r.get("original_size") or 0) - (r.get("file_size") or 0))
 		r["state"] = "optimized" if r.get("optimized_at") else "pending"
 		r["usage_kind"] = _usage_kind(r.get("record_count") or 1, r.get("usage_count") or 0)
+		# Sıra numarası SQL'in iç işi; ön yüz durum metni bekliyor. 0 = bu adreste
+		# video durumu olan hiçbir kayıt yok (video değil ya da hiç işlenmemiş).
+		r["video_status"] = _RANK_TO_STATUS.get(int(r.pop("video_status_rank", 0) or 0), "")
 	# Tarihler standart çıktı biçimine çevriliyor (TUR-124): saat dilimi
 	# işareti olmadan gönderilen tarih, tarayıcıda kullanıcının kendi saati
 	# sanılıyordu — İstanbul dışındaki her kullanıcı saatleri kaymış görüyordu.
