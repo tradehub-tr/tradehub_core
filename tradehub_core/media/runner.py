@@ -18,7 +18,7 @@ import os
 
 import frappe
 
-from tradehub_core.media import archive, audit, engine, gates, presets, states
+from tradehub_core.media import archive, audit, engine, gates, jobs, presets, states
 
 
 def progress_key(job_key: str) -> str:
@@ -33,9 +33,34 @@ def _write_progress(job_key: str, payload: dict) -> None:
 	frappe.cache.set_value(progress_key(job_key), payload, expires_in_sec=presets.PROGRESS_TTL)
 
 
+def _mark_job_error(job_key: str, kind: str) -> None:
+	"""İşi bir BÜTÜN olarak başarısız işaretle (TUR-296 ortak sözleşme).
+
+	Dosya bazında hatalar zaten döngü içinde yakalanıp `errors` sayacına
+	yazılıyor ve iş "partial" bitiyor. Buraya ancak işin kendisi yürüyemezse
+	düşülür (preset çözülemedi, cache yazılamadı, beklenmeyen çökme). Öncesinde
+	ekran "running"de asılı kalıyordu: ilerleme sözlüğü Redis TTL'i dolana
+	kadar (1 saat) "çalışıyor" diyordu, oysa çalışan bir şey yoktu.
+
+	`error` durumu ön yüzde zaten TERMİNAL kabul ediliyor (`useMediaOptimize`
+	`TERMINAL_STATES`), yani ekran yeni bir durum adı öğrenmek zorunda değil —
+	yoklamayı durdurur ve sonucu gösterir.
+	"""
+	durum = read_progress(job_key)
+	if durum.get("state") == "not_found":
+		durum = _new_state(0, kind, False)
+	durum["state"] = jobs.STATE_ERROR
+	durum["message"] = frappe._("İşlem tamamlanamadı.")
+	_write_progress(job_key, durum)
+	frappe.log_error(
+		title=f"Media {kind} job failed: {job_key}",
+		message=frappe.get_traceback(with_context=True),
+	)
+
+
 def _new_state(total: int, preset: str, dry_run: bool) -> dict:
 	return {
-		"state": "running",
+		"state": jobs.STATE_RUNNING,
 		"preset": preset,
 		"dry_run": bool(dry_run),
 		"total": total,
@@ -60,7 +85,24 @@ def run_batch(
 
 	`dry_run=1` iken kapılar ve dönüşüm çalışır ama **diske hiçbir şey yazılmaz** —
 	beklenen kazancı doğrulamak için (GORSEL-OPTIMIZASYON.md §10.1 Adım 1).
+
+	İşin kendisi yürüyemezse ekran "çalışıyor"da asılı kalmaz: durum `error`
+	yazılır (TUR-296 ortak sözleşme, bkz. `_mark_job_error`). Hata yutulmaz —
+	kuyruk kaydında da görünsün diye yeniden fırlatılır.
 	"""
+	try:
+		return _run_batch(file_names, preset, job_key, dry_run)
+	except Exception:
+		_mark_job_error(job_key, "optimize")
+		raise
+
+
+def _run_batch(
+	file_names: list[str],
+	preset: str,
+	job_key: str,
+	dry_run: int,
+) -> dict:
 	cfg = presets.resolve(preset)
 	state = _new_state(len(file_names), preset, dry_run)
 	_write_progress(job_key, state)
@@ -95,7 +137,7 @@ def run_batch(
 	if not dry_run:
 		frappe.db.commit()
 
-	state["state"] = "completed" if not state["errors"] else "partial"
+	state["state"] = jobs.STATE_COMPLETED if not state["errors"] else jobs.STATE_PARTIAL
 	_write_progress(job_key, state)
 
 	# İş sonunda TEK özet log — 1000 hatada Error Log şişmesin.
@@ -294,8 +336,17 @@ def restore_batch(file_names: list[str], job_key: str = "") -> dict:
 	"""Birden fazla dosyayı arşivdeki orijinaline döndür — worker girişi.
 
 	Optimizasyonla aynı ilerleme mekanizmasını kullanır; ekran aynı çubuğu gösterir.
-	Bir dosyanın başarısız olması diğerlerini durdurmaz.
+	Bir dosyanın başarısız olması diğerlerini durdurmaz; işin kendisi yürüyemezse
+	durum `error` yazılır (TUR-296 ortak sözleşme).
 	"""
+	try:
+		return _restore_batch(file_names, job_key)
+	except Exception:
+		_mark_job_error(job_key, "restore")
+		raise
+
+
+def _restore_batch(file_names: list[str], job_key: str) -> dict:
 	state = _new_state(len(file_names), "restore", False)
 	state["mode"] = "restore"
 	_write_progress(job_key, state)
@@ -314,7 +365,7 @@ def restore_batch(file_names: list[str], job_key: str = "") -> dict:
 		if index % presets.COMMIT_EVERY == 0:
 			_write_progress(job_key, state)
 
-	state["state"] = "completed" if not state["errors"] else "partial"
+	state["state"] = jobs.STATE_COMPLETED if not state["errors"] else jobs.STATE_PARTIAL
 	_write_progress(job_key, state)
 	audit.log_media_batch(
 		action=audit.ACTION_RESTORE,
