@@ -1,3 +1,11 @@
+## [v1.13.1-alpha.25] - 2026-08-17 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(media): satıcı medya yedeği — kendi deposu, kendi kapsamı (TUR-131) (@Metin Bektemur)
+
+---
 ## [v1.13.1-alpha.23] - 2026-08-17 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
