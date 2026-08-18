@@ -1,0 +1,25 @@
+{
+  "$schema": "./_schema.md",
+  "slot_key": "brand.hero_banner",
+  "doctype_field": "Brand.hero_banner",
+  "kind": "image",
+  "is_product_slot": false,
+  "min_long_edge": 1840,
+  "max_long_edge": 2560,
+  "target_long_edge": 2560,
+  "aspect_ratio": "free",
+  "aspect_tolerance": null,
+  "fit": "cover",
+  "dpi_policy": {
+    "output_dpi": 72,
+    "strip_input_dpi": true,
+    "pixels_preserved": true
+  },
+  "olcum": {
+    "render_box_css_px": 1840,
+    "render_box_kaynak": "docs/reports/00-upload-slot-envanteri.md — brand.hero_banner satiri: kap 'container-boxed' = max-width var(--container-lg), tradehubfront/src/style.css:1540-1543 yorumunda 1840px",
+    "min_long_edge_gerekce": "1x retina olmayan ekranda kabin genisligi = 1840 CSS px. Bunun altina inen dosya buyutulerek gosterilir (blur).",
+    "max_long_edge_gerekce": "DPR2 tam karsiligi 3680 px olurdu; bu presets.py 'safe' tavani 2560'in ustunde. BILINCLI TAVIZ: 2560 tavan, yani DPR2 ekranda ~1.39x. Tavani 3680'e cikarmak agirligi ~2x artirirdi ve bu slot arka plan (CSS background) olarak render ediliyor — srcset uygulanamiyor (ayni satir, §7-B4).",
+    "uyari": "Gorsel <img> degil CSS background → loading/decoding/srcset uygulanamiyor. Bu policy tek boyut uretmek zorunda."
+  }
+}

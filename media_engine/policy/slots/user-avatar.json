@@ -1,0 +1,199 @@
+{
+  "$schema": "../schema/slot-policy.schema.json",
+  "schema_version": "1.0.0",
+  "status": "draft",
+  "slot_key": "user.avatar",
+  "title": "Kullanıcı profil fotoğrafı",
+  "description": "Alıcı/satıcı/yönetici profil fotoğrafı. Kod tabanındaki TEK gerçek çift doğrulamalı görsel slotu: uzantı allowlist'i ve 5 MB tavanı hem sunucuda (tradehub_core/api/v1/identity.py:939-953) hem iki ayrı istemcide aynı sayıyla yazılı. Buna karşılık en büyük gerçek kutu 72 CSS px — yani sistemdeki en küçük piksel talebi ve potansiyel olarak en büyük israf oranı burada.",
+  "roles": ["buyer", "seller", "admin"],
+
+  "bound_to": [
+    {
+      "doctype": "User",
+      "field": "user_image",
+      "fieldtype": "Attach Image",
+      "source": "tradehub_core/api/v1/identity.py:966 — frappe.db.set_value('User', user, 'user_image', file_doc.file_url). Frappe ÇEKİRDEK doctype'ı olduğu için docs/reports/00-upload-slot-envanteri.md'nin 41 alanlık tradehub_core taramasında çıkmaz (§5 'Kullanıcı avatarı' satırı bunu not ediyor)."
+    }
+  ],
+
+  "accept": {
+    "mime": ["image/jpeg", "image/png", "image/webp"],
+    "extensions": [".jpg", ".jpeg", ".png", ".webp"],
+    "max_bytes": 5242880,
+    "max_megapixels_hard": 80,
+    "allow_animated": false
+  },
+
+  "require": {
+    "min_short_edge": 96,
+    "min_area": 9216,
+    "allowed_ratios": ["1:1"],
+    "ratio_tolerance": 0.02,
+    "max_count": 1
+  },
+
+  "master": {
+    "max_long_edge": 256,
+    "min_long_edge": 96,
+    "max_megapixels": 0.0655,
+    "dpi_out": 72,
+    "colorspace": "srgb",
+    "format": "webp",
+    "orientation": "apply_exif",
+    "strip_metadata": {"exif": true, "gps": true, "xmp": true, "icc": false}
+  },
+
+  "quality": {
+    "metric": "ssim",
+    "target_ssim_per_class": {"photo": 0.96, "graphic": 0.98},
+    "reencode_floor_saving_ratio": 0.1
+  },
+
+  "profiles": [
+    {
+      "name": "avatar_96",
+      "width": 96,
+      "formats": ["webp"],
+      "encoder_quality": {"webp": 82},
+      "fit": "cover",
+      "target_ratio": "1:1",
+      "serves": ["mesaj balonu avatarı 28px @3x", "sohbet/panel başlığı 36px @2x", "mesaj listesi 40px @2x", "mobil ayarlar avatarı 48px @2x"],
+      "derived_from": "hesap: max(28 @3x = 84; 36 @2x = 72; 40 @2x = 80; 48 @2x = 96) = 96. Kutular: tradehubfront/src/components/messages/MessageContent.ts:128 (w-7), :81 (w-9), tradehubfront/src/components/messages/MessageList.ts:100 (w-10), tradehubfront/src/components/settings/SettingsLayout.ts:98 (max-sm:size-12)",
+      "max_overshoot": 1.14
+    },
+    {
+      "name": "avatar_160",
+      "width": 160,
+      "formats": ["webp"],
+      "encoder_quality": {"webp": 82},
+      "fit": "cover",
+      "target_ratio": "1:1",
+      "serves": ["panel IconRail avatarı 36px @3x", "mobil ayarlar avatarı 48px @3x", "hesap düzenleme avatarı 64px @2x", "ayarlar profil başlığı 72px @2x"],
+      "derived_from": "hesap: max(36 @3x = 108; 48 @3x = 144; 64 @2x = 128; 72 @2x = 144) = 144 → üst basamak 160. Kutular: admin-panel/frontend/src/components/layout/IconRail.vue:45 (w-9), tradehubfront/src/components/settings/SettingsLayout.ts:98 (size-[72px], max-sm:size-12), tradehubfront/src/components/settings/SettingsAccountEdit.ts:223 (w-16)",
+      "max_overshoot": 1.11
+    },
+    {
+      "name": "avatar_256",
+      "width": 256,
+      "formats": ["webp"],
+      "encoder_quality": {"webp": 82},
+      "fit": "cover",
+      "target_ratio": "1:1",
+      "serves": ["ayarlar profil başlığı 72px @3x", "hesap düzenleme avatarı 64px @3x", "master"],
+      "derived_from": "hesap: max(72 @3x = 216; 64 @3x = 192) = 216 → üst basamak 256. En büyük avatar kutusu 72 CSS px (tradehubfront/src/components/settings/SettingsLayout.ts:98 size-[72px]); 256 üstünde HİÇBİR avatar yüzeyinin talebi yok.",
+      "max_overshoot": 1.19
+    }
+  ],
+
+  "content_rules": [
+    {
+      "rule": "long_edge",
+      "threshold": 256,
+      "comparator": "gt",
+      "action": "auto_fix",
+      "message_key": "kuculttuk",
+      "source": "hesap: en büyük gerçek kutu 72 CSS px × DPR3 = 216 → master 256. 256 üstü piksel hiçbir avatar yüzeyinde kullanılamaz. Bugün küçültme YAPILMIYOR (aşağıdaki notes/optimizasyon maddesi)."
+    },
+    {
+      "rule": "is_animated",
+      "threshold": true,
+      "comparator": "eq",
+      "action": "auto_fix",
+      "message_key": "animasyon_duruldu",
+      "source": "tradehub_core/api/v1/identity.py:939 `.gif`'i KABUL ediyor, ama tradehub_core/media/engine.py:106 `if getattr(im, 'is_animated', False): return OptimizeResult(ok=False, reason='animated')` → animasyonlu GIF hiç işlenmez, olduğu gibi saklanır. Aynı kapı media/gates.py:68-69'da da var. Bu politika .gif'i accept listesinden çıkarıyor; mevcut kayıtlar için auto_fix (ilk kare) öneriliyor."
+    },
+    {
+      "rule": "magic_byte_matches_extension",
+      "threshold": false,
+      "comparator": "eq",
+      "action": "reject",
+      "message_key": "icerik_uzantiyla_uyusmuyor",
+      "source": "tradehub_core/api/v1/identity.py:939-941 yalnız UZANTIYA bakıyor; magic-byte kontrolü YOK. Karşılaştırma: tradehub_core/api/v1/kyb.py:23-58 aynı işi magic-byte ile yapıyor. L0'ın tehlikeli içerik taraması (tradehub_core/media/upload_policy.py:187-224) devrede ama uzantı/içerik eşleşmesini doğrulamıyor (:366-369 yalnız uyarı)."
+    },
+    {
+      "rule": "circle_inscribed_square_fraction",
+      "threshold": 0.707,
+      "comparator": "lt",
+      "action": "warn",
+      "message_key": "daire_maskesi",
+      "source": "hesap: tüm avatar render'ları rounded-full (daire maske). Bir dairenin içine yazılabilen en büyük karenin kenarı = çap / sqrt(2) = çapın %70,7'si. Yani görselin köşeleri HER ZAMAN maskelenir; yüz/logo merkez %70,7 × %70,7 karesinde olmalı."
+    },
+    {
+      "rule": "optimizer_ran",
+      "threshold": false,
+      "comparator": "eq",
+      "action": "review",
+      "message_key": "optimize_edilmedi",
+      "source": "tradehub_core/api/v1/identity.py:955-966 — File kaydı DOĞRUDAN açılıyor; engine.optimize() veya engine.to_webp() ÇAĞRILMIYOR. Ayrıca media/gates.py:57 Kapı 1 (presets.py:23 MIN_FILE_SIZE = 200 KB) 200 KB altını zaten atlıyor. Sonuç: 4 MB'lık bir avatar 36 px'lik kutuya 4 MB olarak indirilebilir."
+    }
+  ],
+
+  "on_violation": {
+    "default": "reject",
+    "accept": "reject",
+    "require": "reject",
+    "master": "auto_fix",
+    "content_rules": "warn",
+    "error_code_prefix": "upload",
+    "retryable": false
+  },
+
+  "messages": {
+    "tr": {
+      "bicim_desteklenmiyor": "Bu görsel biçimi profil fotoğrafı olarak kabul edilmiyor ({bicim}). JPG, PNG veya WebP seçin ({izinli_bicimler}).",
+      "cok_buyuk": "Dosya {mb} MB; sınır {max_mb} MB. Profil fotoğrafı 256×256 pikselden büyük olmasına gerek yok; telefonunuzun kırpma aracıyla küçültüp yükleyin.",
+      "cok_kucuk": "Profil fotoğrafı {kisa_kenar} piksel; en az {gerekli_kisa_kenar} piksel gerekiyor. Bu ölçünün altı ayarlar sayfasındaki büyük avatarda bulanık görünür.",
+      "kare_degil": "Profil fotoğrafı kare olmalı; şu anki oran {oran}. Fotoğrafı kare kırpın, aksi hâlde kenarlardan otomatik kesilir.",
+      "kuculttuk": "Fotoğraf 256×256 piksele küçültüldü. Profil fotoğrafı en büyük 72 piksellik bir alanda gösterildiği için daha yükseği gereksiz veri demek.",
+      "animasyon_duruldu": "Hareketli görseller profil fotoğrafı olarak desteklenmiyor; ilk kare alındı. Sabit bir fotoğraf yüklemeniz önerilir.",
+      "icerik_uzantiyla_uyusmuyor": "Dosyanın içeriği uzantısıyla uyuşmuyor. Görseli bir görsel düzenleyicide açıp JPG veya PNG olarak yeniden kaydedip yükleyin.",
+      "daire_maskesi": "Profil fotoğrafı daire içinde gösteriliyor; köşeler kesilir. Yüzü veya logoyu görselin ortasına, kenarlardan uzak yerleştirin.",
+      "optimize_edilmedi": "Profil fotoğrafı sıkıştırılmadan saklandı. Sayfa yükleme süresini etkileyebilir; teknik ekibin bu uca optimizasyon eklemesi gerekiyor."
+    }
+  },
+
+  "sources": {
+    "accept.mime": "tradehubfront/src/alpine/settings.ts:76 `/^image\\/(jpeg|png|webp|gif)$/i` + admin-panel/frontend/src/stores/auth.js:201-206 (aynı regex) + tradehubfront/src/components/settings/SettingsLayout.ts:97 (accept özniteliği). BU POLİTİKA image/gif'i ÇIKARDI — gerekçe content_rules.is_animated kaynağında.",
+    "accept.extensions": "tradehub_core/api/v1/identity.py:939 `allowed_ext = ('.jpg', '.jpeg', '.png', '.webp', '.gif')` — bu politika .gif'i çıkardı.",
+    "accept.max_bytes": "ÜÇ YERDE AYNI SAYI: tradehub_core/api/v1/identity.py:952-953 (sunucu, 5*1024*1024), tradehubfront/src/alpine/settings.ts:81 (istemci), admin-panel/frontend/src/stores/auth.js:201-206 (panel istemcisi). Kod tabanında bu tutarlılığın olduğu tek slot.",
+    "accept.max_megapixels_hard": "media_engine/policy/slots/product-image.json ile aynı (80 MP) — decompression-bomb koruması slot bazlı değişmemeli. Kod tabanında karşılığı YOK.",
+    "accept.allow_animated": "tradehub_core/media/engine.py:106 ve tradehub_core/media/gates.py:68-69 — motor animasyonlu dosyayı işlemiyor; kabul etmek onu ham hâlde saklamak demek.",
+    "require.min_short_edge": "hesap: en büyük gerçek avatar kutusu 72 CSS px (tradehubfront/src/components/settings/SettingsLayout.ts:98 `size-[72px]`). 96, 72'nin üstündeki ilk yuvarlak değer ve 64 px kutusunun (SettingsAccountEdit.ts:223 `w-16`) @1,5x'i.",
+    "require.min_area": "hesap: 96 × 96 = 9.216 piksel.",
+    "require.allowed_ratios": "Bulunan 9 avatar render'ının TAMAMI kare kutu + rounded-full + object-cover: SettingsLayout.ts:98, SettingsAccountEdit.ts:223,335, MessageList.ts:100, MessageContent.ts:81,128, chat-popup/InboxPanel.ts:71, chat-shared/ChatHeader.ts:31, admin-panel IconRail.vue:45. İstisna yok.",
+    "require.ratio_tolerance": "hesap: ±%2 — 256×255 gibi encoder/kırpma yuvarlamalarını geçirir, 4:3'ü geçirmez.",
+    "require.max_count": "User.user_image tek alan.",
+    "master.max_long_edge": "hesap: 72 CSS px (en büyük kutu) × DPR3 = 216 → üst basamak 256.",
+    "master.min_long_edge": "hesap: require.min_short_edge ile aynı (96) — kare slot.",
+    "master.max_megapixels": "hesap: 256 × 256 / 1e6 = 0,065536 → aşağı yuvarlanarak 0,0655. Şema invaryantı: 256² / 1e6 = 0,065536 ≥ 0,0655 (yukarı yuvarlansaydı 0,0656 > 0,065536 olur ve invaryant kırılırdı — kare slotlarda yuvarlama YÖNÜ önemli).",
+    "master.dpi_out": "Ekran medyası — 72 dpi metadata normalizasyonu.",
+    "master.colorspace": "srgb SEÇİMİ: avatarlar mesaj listesinde yan yana diziliyor; farklı gamut'lardan gelen fotoğrafların birbirine göre kayması burada göze çarpar. Mevcut motor davranışı 'preserve' (tradehub_core/media/engine.py:114-116).",
+    "master.format": "tradehub_core/media/engine.py:147-181 to_webp() — sunucu tarafı garanti-WebP zaten var; avatar ucu bunu bugün ÇAĞIRMIYOR (content_rules.optimizer_ran).",
+    "master.strip_metadata.gps": "KVKK: profil fotoğrafı genelde telefonla çekiliyor ve GPS koordinatı kullanıcının ev/iş adresini sızdırır. Bugün silinmiyor — avatar ucu engine'e hiç girmediği için EXIF bloğu olduğu gibi saklanıyor (identity.py:955-966).",
+    "master.strip_metadata.icc": "false — tradehub_core/media/engine.py:11-13 ICC'yi bilinçli koruyor.",
+    "profiles[0].width": "hesap: max(28 @3x = 84; 36 @2x = 72; 40 @2x = 80; 48 @2x = 96) = 96",
+    "profiles[1].width": "hesap: max(36 @3x = 108; 48 @3x = 144; 64 @2x = 128; 72 @2x = 144) = 144 → 160",
+    "profiles[2].width": "hesap: max(72 @3x = 216; 64 @3x = 192) = 216 → 256",
+    "profiles[].encoder_quality.webp": "82 SEÇİMİ: tradehub_core/media/presets.py:16 `aggressive` preset quality = 82. Avatar en küçük yüzey ve kalite riski en düşük olan slot; kod tabanında var olan en agresif değer seçildi. ÖLÇÜLMEDİ: 96 px'lik bir avatarda 82 ile 88 arasındaki görsel fark ölçülmedi.",
+    "on_violation.require": "reject — diğer slotlarda 'warn' seçilirken burada 'reject': 1:1 dışı bir avatar daire maskede sistematik olarak bozuk görünür ve düzeltmesi kullanıcı için kolaydır (kare kırpma).",
+    "on_violation.error_code_prefix": "tradehub_core/media/upload_policy.py:104-139. NOT: identity.py bu sözleşmeyi KULLANMIYOR, düz `frappe.throw` metni fırlatıyor (identity.py:940, :952) — istemci koda değil metne bakmak zorunda.",
+    "on_violation.retryable": "tradehub_core/media/upload_policy.py:97-100"
+  },
+
+  "open_questions": [
+    "User.user_image dolu kaç kayıt var ve dosyaların medyan/p95 BAYT ve PİKSEL boyutu ne? Doğrulama: `frappe.db.count('User', {'user_image': ['is','set']})` + docs/reports/00-upload-slot-envanteri.md §9-M5 betiği (PIL ile boyut okuma), `attached_to_doctype='User'` filtresiyle.",
+    "Kaç avatar 256 pikselden büyük? Bu sayı, bu slottaki israfın doğrudan ölçüsü — 72 px'lik bir kutuya inen her fazladan piksel boşa giden bant.",
+    "Kaç avatar animasyonlu GIF? Doğrulama: `attached_to_doctype='User'` dosyalarında PIL ile `is_animated` sayımı.",
+    "Avatar dosyalarında GPS EXIF bloğu var mı? Doğrulama: `exiftool -gpslatitude -gpslongitude` ya da PIL `_getexif()` ile üretim dosyalarında tarama. KVKK açısından ölçülmesi gereken bir sayı.",
+    "profiles[].encoder_quality.webp = 82 kalibre EDİLMEDİ; 96 px'lik bir avatarda 82 ile 88 arasındaki SSIM farkı ölçülmeli.",
+    "master.colorspace='srgb' bir DEĞİŞİKLİK önerisi (mevcut 'preserve'); üretim görselleriyle karşılaştırılmadan 'active' edilmemeli."
+  ],
+
+  "notes": [
+    "EN BÜYÜK ÖLÇÜLEBİLİR İSRAF BURADA: tradehub_core/api/v1/identity.py:955-966 File kaydını doğrudan açıyor, engine.optimize()/to_webp() çağrılmıyor. Ayrıca media/gates.py:57 Kapı 1 (presets.py:23 MIN_FILE_SIZE = 200 KB) 200 KB altını zaten atlıyor. Yani 5 MB'lık 4000×3000 bir fotoğraf, 36 px'lik bir sohbet avatarına 5 MB olarak indirilebiliyor. Oran: 4000 / (36 × 3) = 37 kat fazla piksel genişliği.",
+    "ZATEN ÇÖZÜLMÜŞ — yeniden tasarlanmayacak: (1) uzantı allowlist + 5 MB SUNUCUDA (identity.py:939-953) — kod tabanında yalnız 3 uçta L1 var, bu onlardan biri; (2) aynı sınır iki istemcide de yazılı ve SAYILAR UYUŞUYOR (settings.ts:76-84, auth.js:201-206); (3) rate limit 10/300 sn (identity.py:921); (4) yükleme sonrası cache-buster `?t=Date.now()` (tradehubfront/src/alpine/settings.ts:126) — avatar değişince tarayıcı eski dosyayı göstermiyor; ileride CDN eklenirse bu sorun ZATEN çözülmüş demektir; (5) File kaydı User'a attach ediliyor (identity.py:962-964) → media/usage.py silme kararında sahipsiz görünmüyor; (6) yükleme ilerleme çubuğu KYC/KYB/SlotDropzone ile aynı UX değerlerinde (settings.ts:89-95 yorumu).",
+    "ATTRIBUTE TUTARSIZLIĞI: tradehubfront/src/components/settings/SettingsLayout.ts:99 `width=\"64\" height=\"64\"` yazıyor ama kutu `size-[72px]` (:98). Tarayıcı 64×64 rezerve edip 72×72 boyar. CLS riski yok (kap sabit px) ama attribute yanlış.",
+    "AVATAR GÖRSELİ KULLANMAYAN YÜZEY: ürün yorumlarında avatar dosyası hiç inmiyor, baş harf + üretilmiş renk kullanılıyor (tradehubfront/src/components/product/ProductReviews.ts:315). Yani avatar trafiği yorum listelerinde SIFIR.",
+    "Bu politika dosyası bugün kod tarafından OKUNMUYOR (tradehub_core/media/upload_policy.py:307-313)."
+  ]
+}

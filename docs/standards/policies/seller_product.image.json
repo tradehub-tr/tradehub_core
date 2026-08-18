@@ -1,0 +1,27 @@
+{
+  "$schema": "./_schema.md",
+  "slot_key": "seller_product.image",
+  "doctype_field": "Seller Product.image",
+  "kind": "image",
+  "is_product_slot": true,
+  "min_long_edge": 2000,
+  "max_long_edge": 2560,
+  "target_long_edge": 2000,
+  "aspect_ratio": "1:1",
+  "aspect_tolerance": 0.02,
+  "fit": "contain",
+  "dpi_policy": {
+    "output_dpi": 72,
+    "strip_input_dpi": true,
+    "pixels_preserved": true,
+    "note": "Urun ailesi tabani."
+  },
+  "olcum": {
+    "render_box_css_px": null,
+    "render_box_kaynak": "docs/reports/00-upload-slot-envanteri.md:152 — 'OLCULEMEDI'; LIVE_SOURCES'ta YOK",
+    "min_long_edge_gerekce": "Urun slotu tabani (T-024).",
+    "max_long_edge_gerekce": "tradehub_core/media/presets.py:14 'safe' preset max_dim=2560",
+    "uretimde_dogrulanmali": true,
+    "not": "Bu doctype hala kullaniliyor mu belirsiz (00-upload-slot-envanteri.md:152 → §9-M3). Olu ise policy de dusurulur."
+  }
+}

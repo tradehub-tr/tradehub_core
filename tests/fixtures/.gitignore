@@ -1,0 +1,15 @@
+# T-006 golden fixture korpusu — ikili dosyalar versiyonlanmaz.
+#
+# Gerekçe: 61 MB'lık üretilmiş ikili dosya git geçmişini kalıcı şişirir ve
+# tamamı betiklerden BİREBİR yeniden üretilebiliyor (2026-08-18'de doğrulandı:
+# 34 görsel + 10 kötücül dosya, aynı dosya listesi).
+#
+# Yeniden üretmek için:
+#   python3 scripts/gen_fixtures_images.py      # 34 görsel + 10 kötücül
+#   sh      scripts/gen_fixtures_video.sh       # 7 video (ffmpeg gerekir)
+#   python3 scripts/build_fixture_manifest.py   # manifest.json
+#
+# Versiyonlanan: manifest.json (beklenen sonuçların sözleşmesi) + üretici betikler.
+media/images/
+media/video/
+malicious/

@@ -1,0 +1,26 @@
+{
+  "$schema": "./_schema.md",
+  "slot_key": "listing.variant_image",
+  "doctype_field": "Listing Variant Item.variant_image",
+  "kind": "image",
+  "is_product_slot": true,
+  "min_long_edge": 2000,
+  "max_long_edge": 2560,
+  "target_long_edge": 2000,
+  "aspect_ratio": "1:1",
+  "aspect_tolerance": 0.02,
+  "fit": "contain",
+  "dpi_policy": {
+    "output_dpi": 72,
+    "strip_input_dpi": true,
+    "pixels_preserved": true,
+    "note": "Varyant secilince ana galeriye girebiliyor — primary_image ile ayni taban zorunlu."
+  },
+  "olcum": {
+    "render_box_css_px": null,
+    "render_box_kaynak": "docs/reports/00-upload-slot-envanteri.md:134 — 'OLCULEMEDI (varyant matrisi variantMatrix.ts, render kutusu olculmedi)'",
+    "min_long_edge_gerekce": "Urun slotu tabani (T-024). Render kutusu olculemedi, taban urun ailesinden miras alindi.",
+    "max_long_edge_gerekce": "tradehub_core/media/presets.py:14 'safe' preset max_dim=2560",
+    "uretimde_dogrulanmali": true
+  }
+}

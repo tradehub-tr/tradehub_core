@@ -1,0 +1,351 @@
+{
+  "$schema": "../schema/slot-policy.schema.json",
+  "schema_version": "1.0.0",
+  "status": "draft",
+
+  "slot_key": "product.image",
+  "title": "Ürün görseli",
+  "description": "Bir ilanın ana görseli, galeri görselleri ve varyant görselleri. Sistemdeki en yüksek trafikli ve en yüksek piksel talebi olan slot: 20 render noktasının 20'si de bu slotu basıyor (docs/reports/03-render-envanteri.md §2).",
+
+  "roles": ["seller", "admin"],
+
+  "bound_to": [
+    {
+      "doctype": "Listing",
+      "field": "primary_image",
+      "fieldtype": "Attach Image",
+      "source": "docs/reports/00-upload-slot-envanteri.md §2 satır `listing.primary_image`; media/usage.py:33 LIVE_SOURCES"
+    },
+    {
+      "doctype": "Listing Image",
+      "field": "image",
+      "fieldtype": "Attach Image",
+      "source": "docs/reports/00-upload-slot-envanteri.md §2 satır `listing.gallery_image` (reqd)"
+    },
+    {
+      "doctype": "Listing Variant Item",
+      "field": "variant_image",
+      "fieldtype": "Attach Image",
+      "source": "docs/reports/00-upload-slot-envanteri.md §2 satır `listing.variant_image`; media/usage.py:36"
+    },
+    {
+      "doctype": "Listing Variant Item",
+      "field": "variant_gallery",
+      "fieldtype": "Long Text",
+      "source": "docs/reports/00-upload-slot-envanteri.md §2 — JSON dizi içinde URL listesi (bulk_import/persister.py:614-640); Attach taramasıyla BULUNAMAZ"
+    }
+  ],
+
+  "accept": {
+    "mime": ["image/jpeg", "image/png", "image/webp", "image/tiff"],
+    "extensions": [".jpg", ".jpeg", ".png", ".webp", ".tif", ".tiff"],
+    "max_bytes": 26214400,
+    "max_megapixels_hard": 80,
+    "allow_animated": false
+  },
+
+  "require": {
+    "min_short_edge": 1000,
+    "min_area": 1000000,
+    "allowed_ratios": ["1:1", "4:5", "3:4"],
+    "ratio_tolerance": 0.02,
+    "max_count": 12
+  },
+
+  "master": {
+    "max_long_edge": 2400,
+    "min_long_edge": 2000,
+    "max_megapixels": 5.76,
+    "dpi_out": 72,
+    "colorspace": "srgb",
+    "format": "webp",
+    "orientation": "apply_exif",
+    "strip_metadata": {
+      "exif": true,
+      "gps": true,
+      "xmp": true,
+      "icc": false
+    }
+  },
+
+  "quality": {
+    "metric": "ssim",
+    "target_ssim_per_class": {
+      "photo": 0.96,
+      "graphic": 0.98,
+      "text": 0.99,
+      "fine_detail": 0.975
+    },
+    "reencode_floor_saving_ratio": 0.1
+  },
+
+  "profiles": [
+    {
+      "name": "w96",
+      "width": 96,
+      "formats": ["webp"],
+      "encoder_quality": { "webp": 80 },
+      "fit": "pad",
+      "target_ratio": "1:1",
+      "pad_color": "#FFFFFF",
+      "serves": ["R5 lightbox karosu", "R14 sepet SKU satırı"],
+      "derived_from": "hesap: max(lightbox karosu 52px @1x = 52; sepet SKU 40px @2x = 80) = 80 → üst basamak 96. Kutular: docs/reports/03-render-envanteri.md §3.8 (ProductImageGallery.ts:339; SkuRow.ts:36)",
+      "max_overshoot": 1.85
+    },
+    {
+      "name": "w192",
+      "width": 192,
+      "formats": ["webp"],
+      "encoder_quality": { "webp": 80 },
+      "fit": "pad",
+      "target_ratio": "1:1",
+      "pad_color": "#FFFFFF",
+      "serves": ["R3 PD galeri karosu", "R7 PD mobil karo şeridi", "R13 sepet ürün başlığı", "R15 checkout özet şeridi", "R16 sepet çekmecesi"],
+      "derived_from": "hesap: max(checkout özet 64px @3x = 192; mobil karo 80px @2x = 160; PD karosu 70px @2x = 140; lightbox karosu 52px @2x = 104) = 192. Kutular: docs/reports/03-render-envanteri.md §3.8 (CartSummary.ts:20; MobileLayout.ts:198; ProductImageGallery.ts:86,103)",
+      "max_overshoot": 1.85
+    },
+    {
+      "name": "w384",
+      "width": 384,
+      "formats": ["avif", "webp"],
+      "encoder_quality": { "avif": null, "webp": 80 },
+      "fit": "pad",
+      "target_ratio": "1:1",
+      "pad_color": "#FFFFFF",
+      "serves": ["R1 ListingCard @1x", "R7 mobil karo @3x", "R3 PD karosu @3x", "R20 buyer dashboard mini kart @2x"],
+      "derived_from": "hesap: max(kart @1x 1920 viewport = 343 (§3.1/§3.4); mini kart 169.5px @2x = 340 (§3.8); mobil karo 80px @3x = 240) = 343 → üst basamak 384. Kaynak: docs/reports/03-render-envanteri.md §3.1 satır 1920, §3.4 satır 1920, §3.8",
+      "max_overshoot": 1.83
+    },
+    {
+      "name": "w640",
+      "width": 640,
+      "formats": ["avif", "webp"],
+      "encoder_quality": { "avif": null, "webp": 80 },
+      "fit": "pad",
+      "target_ratio": "1:1",
+      "pad_color": "#FFFFFF",
+      "serves": ["R1/R8/R9/R10/R11/R17/R18 kart ızgaraları @2x", "R2 PD masaüstü ana görsel @1x"],
+      "derived_from": "hesap: max(kart @2x 640 viewport = 592 (§3.1); PD masaüstü ana görsel ≥1536 viewport @1x = 502 (§3.5)) = 592 → üst basamak 640. Kaynak: docs/reports/03-render-envanteri.md §3.1, §3.5",
+      "max_overshoot": 1.66
+    },
+    {
+      "name": "w768",
+      "width": 768,
+      "formats": ["avif", "webp"],
+      "encoder_quality": { "avif": null, "webp": 80 },
+      "fit": "pad",
+      "target_ratio": "1:1",
+      "pad_color": "#FFFFFF",
+      "serves": ["R6 PD mobil ana görsel @1x (tablet dikey)", "R1 kart @2x en geniş hâl"],
+      "derived_from": "hesap: max(PD mobil ana görsel = tam viewport, 768px tablet dikey @1x = 768 (§3.6); kart @2x 1920 viewport = 685 (§3.4)) = 768. Kaynak: docs/reports/03-render-envanteri.md §3.6 satır 768, §3.4 satır 1920",
+      "max_overshoot": 1.16
+    },
+    {
+      "name": "w1280",
+      "width": 1280,
+      "formats": ["avif", "webp"],
+      "encoder_quality": { "avif": null, "webp": 80 },
+      "fit": "contain",
+      "serves": ["R6 PD mobil ana görsel @3x (360-390px telefon)", "R4 lightbox ana görsel @2x", "R1 kart @3x"],
+      "derived_from": "hesap: max(lightbox ana görsel 636px @2x = 1272 (§3.8); PD mobil 360px @3x = 1080 (§3.6); kart @3x 1920 viewport = 1028 (§3.4)) = 1272 → üst basamak 1280. Kaynak: docs/reports/03-render-envanteri.md §3.8 satır 'PD lightbox ana görsel', §3.6, §3.4",
+      "max_overshoot": 1.59
+    },
+    {
+      "name": "w1920",
+      "width": 1920,
+      "formats": ["avif", "webp"],
+      "encoder_quality": { "avif": null, "webp": 80 },
+      "fit": "contain",
+      "serves": ["R6 PD mobil ana görsel @3x (430px iPhone Pro Max) ve @2x (768px tablet)", "R2 masaüstü hover-zoom kaynağı", "R4 lightbox @3x"],
+      "derived_from": "hesap: max(masaüstü hover-zoom ≥1536 viewport: 502px × 1.85 = 929 CSS @2x = 1858 (§3.5b); lightbox 636px @3x = 1908 (§3.8); tablet 768px @2x = 1536 (§3.6); iPhone Pro Max 430px @3x = 1290 (§3.6)) = 1908 → üst basamak 1920. Kaynak: docs/reports/03-render-envanteri.md §3.5b, §3.8, §3.6",
+      "max_overshoot": 1.49
+    }
+  ],
+
+  "content_rules": [
+    {
+      "rule": "animated",
+      "threshold": true,
+      "comparator": "eq",
+      "action": "reject",
+      "message_key": "animated",
+      "source": "tradehub_core/media/engine.py:111-112 — motor animasyonlu görseli işleyemiyor (reason='animated'); kabul edilse türev üretilemez"
+    },
+    {
+      "rule": "unreadable",
+      "threshold": true,
+      "comparator": "eq",
+      "action": "reject",
+      "message_key": "unreadable",
+      "source": "tradehub_core/media/engine.py:79-93 probe(readable=False) — mevcut davranışın slot düzeyine taşınması"
+    },
+    {
+      "rule": "entropy_bits",
+      "threshold": 2.0,
+      "comparator": "lt",
+      "action": "reject",
+      "message_key": "blank",
+      "source": "ÖLÇÜLMEDİ: eşik üretim korpusunda kalibre edilmeli — docs/standards/product-image.md §9.6. Kural boş/tek renk yüklemeyi keser; kalibre edilene kadar status=draft olduğu için zorlanmaz"
+    },
+    {
+      "rule": "blur_laplacian_variance",
+      "threshold": 100,
+      "comparator": "lt",
+      "action": "warn",
+      "message_key": "blurry",
+      "source": "ÖLÇÜLMEDİ: Laplacian varyans eşiği bu korpusta hiç ölçülmedi — docs/standards/product-image.md §9.6. 'warn'dan sert bir aksiyona ancak kalibrasyondan sonra çıkılabilir"
+    },
+    {
+      "rule": "border_ratio",
+      "threshold": 0.25,
+      "comparator": "gt",
+      "action": "auto_fix",
+      "message_key": "border_excessive",
+      "source": "hesap: ürün kutusu 1:1 (ProductImageGallery.ts:246-248, ListingCard.ts:163). Kenarlarda %25'ten fazla tek renk dolgu, kart ızgarasında ürünün görünen alanını yarıya indirir. Eşik ÖLÇÜLMEDİ: kırpma öncesi/sonrası tıklama oranı etkisi bilinmiyor"
+    },
+    {
+      "rule": "background_uniformity",
+      "threshold": 0.6,
+      "comparator": "lt",
+      "action": "warn",
+      "message_key": "background_not_uniform",
+      "applies_to": ["Listing.primary_image"],
+      "source": "ÖLÇÜLMEDİ: platformda beyaz zemin zorunluluğu bugün hiçbir yerde yazılı değil (grep: 00-upload-slot-envanteri.md §7-B B2 — kod tabanında oran/zemin kuralı yok). Eşik ticari karar bekliyor"
+    },
+    {
+      "rule": "text_area_ratio",
+      "threshold": 0.2,
+      "comparator": "gt",
+      "action": "review",
+      "message_key": "text_overlay",
+      "source": "ÖLÇÜLMEDİ: metin alanı ölçümü için bir dedektör (OCR/CTPN) kod tabanında YOK. Kural, dedektör gelene kadar action='ignore' ile ölçüm modunda çalıştırılmalı"
+    },
+    {
+      "rule": "watermark_suspect",
+      "threshold": 0.5,
+      "comparator": "gt",
+      "action": "review",
+      "message_key": "watermark_suspect",
+      "source": "ÖLÇÜLMEDİ: dedektör yok. Rakip/tedarikçi filigranı taşıyan görsel B2B pazaryerinde hukuki risk; kural kayıt altına alındı, eşik keyfî ve zorlanmamalı"
+    },
+    {
+      "rule": "collage_suspect",
+      "threshold": 0.5,
+      "comparator": "gt",
+      "action": "warn",
+      "message_key": "collage_suspect",
+      "source": "ÖLÇÜLMEDİ: dedektör yok. Kolaj görseller karo (70px, ProductImageGallery.ts:86) ölçeğinde tamamen okunamaz hâle gelir — bu yüzden kural tanımlı"
+    },
+    {
+      "rule": "duplicate_phash",
+      "threshold": { "hamming": 6 },
+      "comparator": "lte",
+      "action": "warn",
+      "message_key": "duplicate",
+      "source": "ÖLÇÜLMEDİ: hamming eşiği bu korpusta doğrulanmadı. Mevcut sistemde içerik-eşliği yalnız sayaçlı silme tarafında ele alınıyor (tradehub_core/media/seller_media.py — aynı içerik birden çok mağazada tek fiziksel dosya), yükleme anında tekrar tespiti YOK"
+    }
+  ],
+
+  "on_violation": {
+    "default": "reject",
+    "accept": "reject",
+    "require": "reject",
+    "master": "warn",
+    "quality": "warn",
+    "content_rules": "warn",
+    "error_code_prefix": "product_image",
+    "retryable": false
+  },
+
+  "messages": {
+    "tr": {
+      "short_edge_too_small": "Görselin kısa kenarı {kisa_kenar} piksel; en az {gerekli_kisa_kenar} piksel gerekiyor. Bu boyutta görsel ürün sayfasının büyük görselinde ve yakınlaştırmada bulanık çıkar. Fotoğrafı telefonunuzun en yüksek çözünürlük ayarıyla yeniden çekin veya orijinal (kırpılmamış) dosyayı yükleyin. WhatsApp'tan gelen görseller sıkıştırıldığı için genelde bu sınırın altında kalır; dosyayı e-posta veya bilgisayar üzerinden alın.",
+      "area_too_small": "Görselin toplam piksel alanı {mp} MP; en az {max_mp} MP gerekiyor (örnek: 1000 × 1000 piksel). Ekran görüntüsü veya küçültülmüş bir kopya yüklemiş olabilirsiniz. Orijinal fotoğraf dosyasını yükleyin.",
+      "ratio_not_allowed": "Görselin en-boy oranı {oran}; kabul edilen oranlar {izinli_oranlar} (±%2 sapma). Ürün ızgaralarındaki kutu kare olduğu için bu oranın dışındaki görsellerin kenarları kırpılır ya da ürünün etrafında geniş boş bantlar kalır. Görseli düzenleyicide {izinli_oranlar} oranlarından birine kırpın; ürünü ortalayıp boşluğu beyazla tamamlamak da geçerli bir çözümdür.",
+      "too_many_pixels": "Görsel {mp} MP; işlenebilir üst sınır {max_mp} MP. Bu boyuttaki dosyalar sunucuda aşırı bellek tükettiği için açılmadan reddedilir. Görseli bir düzenleyicide en fazla 2400 piksel uzun kenara küçültüp yeniden yükleyin.",
+      "too_large_bytes": "Dosya {mb} MB; bu slot için üst sınır {max_mb} MB. Kalite kaybı olmadan küçültmek için dosyayı JPEG veya WebP olarak kaydedin; ürün görselleri için 2400 piksel uzun kenar yeterlidir, bu ölçüde bir görsel normalde 1 MB'ın altında kalır.",
+      "format_not_supported": "{bicim} biçimi bu slotta kabul edilmiyor. Kabul edilen biçimler: {izinli_bicimler}. iPhone kullanıyorsanız Ayarlar > Kamera > Biçimler > 'En Uyumlu' seçeneğini işaretleyin ya da görseli JPEG olarak dışa aktarın.",
+      "animated": "Hareketli görsel (animasyonlu GIF/WebP) ürün görseli olarak kullanılamaz; sistem hareketli dosyalardan küçük boy türevleri üretemez. Ürünü tek karede gösteren sabit bir fotoğraf yükleyin. Ürünü hareketli anlatmak istiyorsanız ilanın video alanını kullanın.",
+      "unreadable": "Dosya bir görsel olarak açılamadı; aktarım sırasında bozulmuş ya da uzantısı içeriğiyle uyuşmuyor olabilir. Dosyayı bilgisayarınızda açıp görüntülenebildiğini doğrulayın, sonra 'Farklı kaydet' ile JPEG veya PNG olarak yeniden kaydedip yükleyin.",
+      "master_under_spec": "Görselin uzun kenarı {uzun_kenar} piksel; tam kalite için {gerekli_uzun_kenar} piksel öneriyoruz. Görsel kabul edildi, ancak yakınlaştırma ve büyük ekran görünümünde ayrıntı kaybı olacak: sistem görselleri büyütmez. Daha büyük bir orijinal varsa onu yüklemeniz görselin tüm ekranlarda net görünmesini sağlar.",
+      "blurry": "Görsel bulanık görünüyor. Ürün sayfasında yakınlaştırma yapıldığında ayrıntı okunamaz. Fotoğrafı sabit bir yüzeyde, iyi ışıkta ve odağı ürüne kilitleyerek yeniden çekin.",
+      "blank": "Görsel boş ya da tek renk görünüyor; ürüne ait bir içerik bulunamadı. Yanlış dosyayı seçmiş olabilirsiniz. Ürünü gösteren fotoğrafı yükleyin.",
+      "border_excessive": "Görselin kenarlarında geniş boş alan var (%{yuzde}). Ürün, kart ızgaralarında olması gerekenden küçük görünür. Sistem fazla boşluğu otomatik kırptı; sonucu kontrol edin. Kırpmayı kendiniz yapmak isterseniz ürünü kadrajın en az %75'ini kaplayacak şekilde kırpıp yeniden yükleyin.",
+      "background_not_uniform": "Ana ürün görselinin arka planı karışık. Ürün, arama sonuçlarındaki küçük kartlarda arka plandan ayırt edilemiyor. Ürünü düz beyaz veya açık gri bir zeminde çekin; ana görselde ürün dışında nesne bulunmasın. İkinci ve sonraki görsellerde kullanım ortamı gösterebilirsiniz.",
+      "text_overlay": "Görselin üzerinde geniş bir metin/etiket alanı var (%{yuzde}). Bu metin küçük kartlarda (70 piksel) okunamaz ve reklam gibi göründüğü için ilan onaya düşer. Fiyat, kampanya ve iletişim bilgisini görselden çıkarıp ilan alanlarına yazın.",
+      "watermark_suspect": "Görselde filigran ya da başka bir firmaya ait logo olabilir. Başkasının görselini kullanmak ilanın kaldırılmasına yol açar; ilan incelemeye alındı. Görsel sizinse filigransız orijinalini yükleyin.",
+      "collage_suspect": "Görsel birden çok fotoğrafın birleştirilmiş hâli gibi görünüyor. Kolajlar 70 piksellik galeri karolarında okunamaz. Her açıyı ayrı bir galeri görseli olarak yükleyin; galeride 12 görsele kadar yer var.",
+      "duplicate": "Bu görselin aynısı ya da neredeyse aynısı bu ilanda zaten var. Aynı görselin iki kez görünmesi alıcıda güven kaybı yaratır. Tekrarı kaldırıp ürünün farklı bir açısını, ölçeğini ya da ayrıntısını gösteren bir fotoğraf ekleyin.",
+      "too_many_files": "Bu ilana en fazla {max_adet} görsel eklenebilir; şu an {adet} görsel var. Devam etmek için en zayıf görselleri kaldırın: birbirinin benzeri açılar yerine ürünün farklı yönlerini gösterenleri tutun."
+    },
+    "en": {
+      "short_edge_too_small": "The image's short edge is {kisa_kenar}px; at least {gerekli_kisa_kenar}px is required. At this size the image looks blurry in the product page hero and in zoom. Re-shoot at your camera's highest resolution, or upload the original uncropped file.",
+      "area_too_small": "Total pixel area is {mp} MP; at least {max_mp} MP is required (e.g. 1000 × 1000 px). You may have uploaded a screenshot or a downscaled copy. Upload the original photo file.",
+      "ratio_not_allowed": "Aspect ratio is {oran}; allowed ratios are {izinli_oranlar} (±2%). Product grid boxes are square, so images outside these ratios get cropped or surrounded by wide empty bands. Crop to one of {izinli_oranlar}, or centre the product and pad with white.",
+      "too_many_pixels": "The image is {mp} MP; the processing limit is {max_mp} MP. Files this large are rejected before decoding to protect server memory. Resize to at most 2400px on the long edge and upload again.",
+      "too_large_bytes": "The file is {mb} MB; the limit for this slot is {max_mb} MB. Save as JPEG or WebP; 2400px on the long edge is enough for product images and normally stays under 1 MB.",
+      "format_not_supported": "{bicim} is not accepted in this slot. Accepted formats: {izinli_bicimler}. On iPhone, set Settings > Camera > Formats > 'Most Compatible', or export the image as JPEG.",
+      "animated": "Animated images (GIF/animated WebP) cannot be used as product images; the system cannot generate resized derivatives from them. Upload a still photo instead, and use the listing's video field for motion.",
+      "unreadable": "The file could not be opened as an image; it may be corrupted or its extension may not match its content. Open it locally to confirm it displays, then re-save as JPEG or PNG and upload again.",
+      "master_under_spec": "The long edge is {uzun_kenar}px; we recommend {gerekli_uzun_kenar}px for full quality. The image was accepted, but zoom and large-screen views will lose detail — the system never upscales. Upload a larger original if you have one.",
+      "blurry": "The image looks out of focus. Detail becomes unreadable when buyers zoom. Re-shoot with the camera steady, in good light, focused on the product.",
+      "blank": "The image looks empty or single-coloured; no product content was found. You may have picked the wrong file. Upload a photo of the product.",
+      "border_excessive": "The image has wide empty margins ({yuzde}%). The product appears smaller than it should in card grids. The system auto-cropped the excess — please review. To crop it yourself, make the product fill at least 75% of the frame.",
+      "background_not_uniform": "The main product image has a busy background. The product cannot be distinguished on small search-result cards. Shoot on a plain white or light grey background with nothing else in frame; use later gallery images for context shots.",
+      "text_overlay": "A large text/badge area covers this image ({yuzde}%). That text is unreadable on 70px cards and reads as advertising, so the listing has been queued for review. Move price, promotion and contact details out of the image and into the listing fields.",
+      "watermark_suspect": "The image may carry a watermark or another company's logo. Using someone else's image can get the listing removed; it has been queued for review. If the image is yours, upload the unwatermarked original.",
+      "collage_suspect": "The image looks like several photos merged together. Collages are unreadable in 70px gallery thumbnails. Upload each angle as a separate gallery image — up to 12 are allowed.",
+      "duplicate": "This image, or a near-identical one, is already on this listing. Duplicates reduce buyer trust. Remove the repeat and add a different angle, scale or detail shot.",
+      "too_many_files": "This listing allows at most {max_adet} images; it currently has {adet}. Remove the weakest ones, keeping shots that show different sides of the product rather than near-identical angles."
+    }
+  },
+
+  "sources": {
+    "accept.mime": "tradehub_core/media/engine.py:21 SUPPORTED_FORMATS = {JPEG, PNG, WEBP, TIFF} — motorun bugün gerçekten çözebildiği küme. upload_policy.py:57-60 .avif/.heic'i görsel sayıyor, api/seller_media.py:245-247 IMAGE_TO_WEBP_EXTENSIONS ikisini de içeriyor, ama engine.SUPPORTED_FORMATS içermiyor ve requirements.txt/pyproject.toml'da pillow-heif ya da pillow-avif-plugin YOK. Eklenti yoksa to_webp istisnası api/seller_media.py:294-300'de YAKALANIYOR: dosya orijinal HEIC hâliyle kaydediliyor, kullanıcıya uyarı gitmiyor, yalnız log_error yazılıyor → HEIC'i çözemeyen tarayıcıda görsel hiç görünmüyor. Sessiz kayıp yerine açık ret tercih edildiği için allowlist'e alınmadı (bkz. open_questions[0])",
+    "accept.extensions": "engine.py:27-35 FORMAT_EXTENSIONS ∩ SUPPORTED_FORMATS; upload_policy.check() kararını uzantı üzerinden veriyor (upload_policy.py:317-320)",
+    "accept.max_bytes": "tradehub_core/media/upload_policy.py:68 MAX_BYTES[image] = 25 * 1024 * 1024. Slot tavanı bilinçli olarak global tavanla AYNI: bugünkü fiili durum bu ve slot politikası buraya sıkılaştırma getirmeden önce gerçek p95 dosya boyutu ölçülmeli (bkz. open_questions[3])",
+    "accept.max_megapixels_hard": "T-020 görev tanımı / kaynak tasarım dokümanı: 80 MP. Kod tabanında karşılığı YOK (grep 'MAX_IMAGE_PIXELS' → tradehub_core/ içinde 0 sonuç)",
+    "accept.allow_animated": "engine.py:111-112 — animasyonlu görsel işlenemiyor",
+    "require.min_short_edge": "T-020 görev tanımı / kaynak tasarım dokümanı: 1000 px. Çapraz kontrol: docs/reports/03-render-envanteri.md §3.6 — PD mobil ana görsel 360px telefonda @3x 1080 px istiyor; 1000 px'lik bir orijinal bu talebi bile karşılamıyor, yani 1000 gerçekten TABAN, hedef değil",
+    "require.min_area": "T-020 görev tanımı: 1.000.000 px. Karşılaştırma >= olmak zorunda: 1:1 oranda 1000×1000 = 1.000.000 tam sınırda buluşur, > kullanılsa min_short_edge ile çelişirdi",
+    "require.allowed_ratios": "T-020 görev tanımı: 1:1, 4:5, 3:4. Çapraz kontrol: render tarafındaki TÜM ürün kutuları kare (docs/reports/03-render-envanteri.md §2 — R1, R2, R4, R6, R8, R9, R10, R17, R18, R20 hepsi 'aspect-square'); 4:5 ve 3:4 kabul edildiği için profiles[] içinde 1:1 dolgu kararı verildi",
+    "require.ratio_tolerance": "T-020 görev tanımı: ±%2 → 0.02. Bantlar (hesap: |w/h − r| / r ≤ 0.02): 1:1 → 0.980-1.020; 4:5 → 0.784-0.816; 3:4 → 0.735-0.765. Bantlar çakışmıyor (0.816 < 0.980 ve 0.765 < 0.784), yani oran ataması tek anlamlı",
+    "require.max_count": "ÖLÇÜLMEDİ: bugün hiçbir galeri slotunda adet kuralı yok (docs/reports/00-upload-slot-envanteri.md §7-A 'panel.listing_gallery: boyut yok, adet yok'). 12 değeri mevcut ilanların gerçek görsel sayısı dağılımına göre doğrulanmalı (bkz. open_questions[4])",
+    "master.max_long_edge.mevcut_durum": "Bugün üç ayrı tavan var: to_webp yolu 1920 (engine.py:177, testi tests/test_engine_webp.py:33) — ürün görselleri fiilen bu yoldan geçiyor (api/seller_media.py:245-247, :292); optimize yolu varsayılan 2000 (presets.py:15); safe 2560 / aggressive 1600 (presets.py:14,16). Hiçbiri 2400 değil. Çelişkinin tartışması: docs/standards/product-image.md §5",
+    "master.max_long_edge": "hesap: docs/reports/03-render-envanteri.md §3.6 — PD mobil ana görsel kutusu tam viewport genişliği; en büyük gerçek cihaz sınıfı tablet dikey 768 CSS px, × DPR 3 = 2304 → üst basamak 2400. Çapraz kontrol: 1023 px viewport @2x = 2046 < 2400; masaüstü hover-zoom @2x = 1858 (§3.5b); lightbox @3x = 1908 (§3.8). Gerekçe ve mevcut koddaki 1920/2000 ile çelişkinin tartışması: docs/standards/product-image.md §5",
+    "master.min_long_edge": "T-020 görev tanımı: 2000. Bu bir RET eşiği değil: kaynak daha küçükse büyütülmez (engine.py:117 thumbnail yalnız küçültür), master 'under-spec' işaretlenir ve w1920 profili üretilmez",
+    "master.max_megapixels": "hesap: 2400 × 2400 = 5.760.000 px = 5.76 MP. max_long_edge ile tutarlı (invariant: 2400^2/1e6 = 5.76 >= 5.76)",
+    "master.dpi_out": "T-020 görev tanımı: 72. Ekran medyasında piksel ölçüsünü etkilemez; 300 DPI etiketli baskı dosyalarının metadata'sını normalize eder",
+    "master.colorspace": "KARAR: 'srgb'. Mevcut motor 'preserve' davranıyor (engine.py:115,122,126,131 ICC profili çıktıya taşınıyor, dönüştürülmüyor). Değişiklik motor işi gerektirir (bkz. open_questions[2])",
+    "master.strip_metadata.icc": "false — engine.py:11-13 EXIF/ICC notu: convert('RGB') ICC'yi düşürüyor, bu yüzden profil bilinçli olarak çıktıya taşınıyor. Silmek renk yönetimini bozar",
+    "master.strip_metadata.gps": "true — KVKK/gizlilik: satıcının fabrika ya da ev konumu ürün fotoğrafının EXIF GPS bloğuyla sızabilir. Kod tabanında bugün EXIF temizliği YOK; engine.py:116 yalnız yön bilgisini piksele uyguluyor",
+    "master.orientation": "engine.py:116 ImageOps.exif_transpose — mevcut davranış korunuyor",
+    "quality.metric": "ÖLÇÜLMEDİ: kod tabanında hiçbir kalite ölçütü yok (grep 'ssim|butteraugli|dssim' → tradehub_core/ ve docs/ içinde 0 anlamlı sonuç)",
+    "quality.target_ssim_per_class": "HEDEF, ölçüm değil. Sınıflar arası sıralamanın gerekçesi: metin ve düz renk alanları quantization'a fotoğraftan daha duyarlıdır (banding, halka artefaktı), bu yüzden 'text' > 'graphic' > 'fine_detail' > 'photo'. Sayılar kalibrasyonla doğrulanacak (bkz. open_questions[1])",
+    "quality.reencode_floor_saving_ratio": "tradehub_core/media/presets.py:25 MIN_SAVING_RATIO = 0.10 — mevcut Kapı 6 ile aynı değer",
+    "profiles": "Genişlikler docs/reports/03-render-envanteri.md §3.9'un aday kümesinden (96, 192, 384, 640, 768, 1080, 1280, 1600, 1920) seçildi; aralarındaki oran 1.25'in altında kalan çiftler birleştirildi (1080+1280 → 1280, 1600+1920 → 1920). Her profilin dayandığı kutu 'derived_from' alanında yazılı. Birleştirme gerekçesi: docs/standards/product-image.md §6",
+    "profiles[].encoder_quality.webp": "engine.py:148 to_webp(quality=80) — sistemin bugün fiilen kullandığı WebP kalitesi. presets.py:14-16 optimize yolunda 90/88/82 kullanıyor; ikisi ayrı yol, karıştırılmamalı",
+    "profiles[].encoder_quality.avif": "null = KALİBRE EDİLMEDİ. Kod tabanında AVIF encode yolu yok; AVIF yalnız iki statik pazarlama görselinde kullanılıyor (docs/reports/03-render-envanteri.md §4 — liman.avif, kargo.avif)",
+    "profiles[].fit": "KARAR: 1:1 kutuya giden profiller (w96-w768) 'pad' → beyaz dolgu ile 1:1. Gerekçe: kartlarda 'object-cover' var (ListingCard.ts:163 aspect-square) ve 3:4 bir görsel cover ile yüksekliğinin %25'ini kaybeder. 1:1'e dolgulanmış görsel kare kutuda cover ile de tam görünür. w1280/w1920 'contain': bunlar detay ve zoom kaynağıdır, dolgu piksel bütçesini boşa harcar (docs/standards/product-image.md §7)",
+    "profiles[].max_overshoot": "hesap: profil genişliği / o profilin karşıladığı EN KÜÇÜK talep (bir alt profil genişliğinin üstündeki en küçük CSS kutusu × DPR değeri). Talep listesi docs/reports/03-render-envanteri.md §3.1-3.8 tablolarından",
+    "on_violation.error_code_prefix": "tradehub_core/media/upload_policy.py:104-139 — mevcut kodlu ret sözleşmesi (14 kod + retryable). Yeni kodlar aynı biçimde üretilmeli: 'product_image_<message_key>'",
+    "on_violation.retryable": "upload_policy.py:97-100 kuralı: kullanıcının dosyasıyla ilgili hatalar tekrar denenmez",
+    "messages": "Metinler T-020 kapsamında yazıldı. Her metin NEDEN + NASIL içerir. Mevcut ret metinleriyle aynı ton: upload_policy.py:328-360 (ör. 'Dosya çok büyük: {0} MB. Bu tür için sınır {1} MB.')"
+  },
+
+  "open_questions": [
+    "HEIC/AVIF kabul edilecek mi? Bugün bir iPhone HEIC'i L0'ı geçer, optimize() 'unsupported_format' döner (engine.py:109-110), to_webp() Pillow eklentisi yoksa istisna atar ama istisna api/seller_media.py:294-300'de yakalanır ve dosya orijinal .heic hâliyle kaydedilir — kullanıcıya uyarı gitmez. Sonuç: HEIC'i çözemeyen tarayıcıda ürün görseli hiç görünmez. Ya pillow-heif bağımlılığı eklenir ya .heic/.avif upload_policy.EXTENSIONS'tan çıkarılıp açık ret verilir. Doğrulama: docs/standards/product-image.md §9.7",
+    "profiles[].encoder_quality.avif hepsinde null. AVIF kalitesi hedef SSIM'e göre kalibre edilmeden bu politika 'active' olamaz.",
+    "master.colorspace='srgb' motorun bugünkü 'preserve' davranışından farklı (engine.py:115,122,126,131). Geniş gamut (Display P3) telefon fotoğraflarının tarayıcıda nasıl göründüğü ölçülmeden dönüşüm zorunlu kılınmamalı.",
+    "accept.max_bytes bugünkü global tavanla aynı (25 MB) bırakıldı. Gerçek ürün görseli p95 dosya boyutu ölçülmedi (docs/reports/03-render-envanteri.md §7.3) — ölçüldükten sonra slot tavanı sıkılaştırılabilir.",
+    "require.max_count=12 doğrulanmadı: mevcut ilanların görsel sayısı dağılımı bilinmiyor. Bugün hiçbir adet kuralı olmadığı için 12'nin üstünde galerisi olan ilanlar var olabilir; kural geçmişe dönük uygulanırsa o ilanlar kaydedilemez hâle gelir.",
+    "content_rules içindeki 7 kuralın eşiği kalibre edilmedi ve 3'ünün (text_area_ratio, watermark_suspect, collage_suspect) dedektörü kod tabanında hiç yok.",
+    "require.* kurallarının GEÇMİŞE dönük uygulanıp uygulanmayacağı belirsiz. Mevcut ürün görsellerinin kaçının min_short_edge=1000 ve allowed_ratios'u geçtiği ölçülmedi — bu sayı bilinmeden politika zorlanamaz (docs/standards/product-image.md §9.1)."
+  ],
+
+  "notes": [
+    "Bu politika bugün HİÇBİR kod yolu tarafından okunmuyor. upload_policy.check() imzasında slot parametresi yok (tradehub_core/media/upload_policy.py:306-312), yani slot kimliği sunucuya hiç ulaşmıyor — docs/reports/00-upload-slot-envanteri.md §7-B B1. Politikanın uygulanabilmesi için önce o kimlik taşınmalıdır.",
+    "profiles[] üretimi de bugün YOK: bir yükleme → bir dosya (docs/reports/03-render-envanteri.md §6.3). srcset'i frontend'e yazmak İKİNCİ adımdır; birinci adım türev üretimi ve URL sözleşmesidir.",
+    "srcset eklenmeden önce tradehubfront/src/utils/mediaUrl.ts genişletilmelidir: MutationObserver attributeFilter ['src','style'] (mediaUrl.ts:76) 'srcset' içermiyor — docs/reports/03-render-envanteri.md §6.1 uyarısı."
+  ]
+}

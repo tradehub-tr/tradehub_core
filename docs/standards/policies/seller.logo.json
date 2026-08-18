@@ -1,0 +1,25 @@
+{
+  "$schema": "./_schema.md",
+  "slot_key": "seller.logo",
+  "doctype_field": "Admin Seller Profile.logo",
+  "kind": "image",
+  "is_product_slot": false,
+  "min_long_edge": 400,
+  "max_long_edge": 1024,
+  "target_long_edge": 512,
+  "aspect_ratio": "free",
+  "aspect_tolerance": null,
+  "fit": "contain",
+  "dpi_policy": {
+    "output_dpi": 72,
+    "strip_input_dpi": true,
+    "pixels_preserved": true,
+    "note": "Logolar sik sik 300 dpi baski dosyasi olarak geliyor; DPI dusurulur, piksel dusurulmez."
+  },
+  "olcum": {
+    "render_box_css_px": 120,
+    "render_box_kaynak": "docs/reports/00-upload-slot-envanteri.md — seller.logo satiri: CompanyInfo 'w-[120px] h-auto object-contain'; CompanyProfile 48x48 ('w-12 h-12')",
+    "min_long_edge_gerekce": "Panelin zaten ekranda yazdigi tavsiye: 400x400 (admin-panel .../DocTypeFormView.vue:448). Ayrica 120 CSS px kutu x DPR2 = 240 px; 400 bunu rahat karsilar.",
+    "max_long_edge_gerekce": "Logo hicbir yerde 120 CSS px'ten buyuk render edilmiyor; 1024 px ustu saf israf."
+  }
+}

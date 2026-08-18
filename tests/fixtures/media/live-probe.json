@@ -1,0 +1,600 @@
+{
+ "_ortam": {
+  "aciklama": "Bu blok KONTEYNERDE ölçüldü (istoc-dev-backend-1), yerel makinede değil.",
+  "konteyner": "istoc-dev-backend-1",
+  "python": "frappe-bench/env (3.11)",
+  "pillow_konteyner": "12.2.0",
+  "pillow_yerel": "11.3.0",
+  "PIL_MAX_IMAGE_PIXELS_konteyner": 89478485,
+  "engine_kaynak": "/home/frappe/frappe-bench/apps/tradehub_core/tradehub_core/media/engine.py",
+  "engine_SUPPORTED_FORMATS": [
+   "JPEG",
+   "PNG",
+   "TIFF",
+   "WEBP"
+  ],
+  "transcode_kaynak": "/home/frappe/frappe-bench/apps/tradehub_core/tradehub_core/media/transcode.py",
+  "transcode_sabitleri": {
+   "NEEDS_TRANSCODE_MAX_WIDTH": 1280,
+   "NEEDS_TRANSCODE_MAX_BITRATE": 2500000
+  },
+  "engine_optimize_parametreleri": {
+   "max_dim": 2000,
+   "quality": 85
+  },
+  "not": "Yerel Pillow 11.3.0 ile konteyner Pillow'u AYNI DEĞİL. Görsel geometri ölçümleri yerelde, engine./ffprobe ölçümleri konteynerde yapıldı; ikisi de manifest'te ayrı bloklarda duruyor."
+ },
+ "engine_probe": {
+  "anim_6frames.gif": {
+   "fmt": "GIF",
+   "w": 600,
+   "h": 600,
+   "animated": true,
+   "readable": true,
+   "supported": false
+  },
+  "anim_webp.webp": {
+   "fmt": "WEBP",
+   "w": 600,
+   "h": 600,
+   "animated": true,
+   "readable": true,
+   "supported": true
+  },
+  "bound_short1000.jpg": {
+   "fmt": "JPEG",
+   "w": 1000,
+   "h": 1000,
+   "animated": false,
+   "readable": true,
+   "supported": true
+  },
+  "bound_short999.jpg": {
+   "fmt": "JPEG",
+   "w": 999,
+   "h": 999,
+   "animated": false,
+   "readable": true,
+   "supported": true
+  },
+  "content_blank_white.png": {
+   "fmt": "PNG",
+   "w": 1200,
+   "h": 1200,
+   "animated": false,
+   "readable": true,
+   "supported": true
+  },
+  "content_border_08pct.png": {
+   "fmt": "PNG",
+   "w": 1400,
+   "h": 1400,
+   "animated": false,
+   "readable": true,
+   "supported": true
+  },
+  "content_border_40pct.png": {
+   "fmt": "PNG",
+   "w": 1400,
+   "h": 1400,
+   "animated": false,
+   "readable": true,
+   "supported": true
+  },
+  "dpi_3000x3000_300dpi.tif": {
+   "fmt": "TIFF",
+   "w": 3000,
+   "h": 3000,
+   "animated": false,
+   "readable": true,
+   "supported": true
+  },
+  "edge_72mp.jpg": {
+   "fmt": "JPEG",
+   "w": 8527,
+   "h": 8527,
+   "animated": false,
+   "readable": true,
+   "supported": true
+  },
+  "edge_short32.jpg": {
+   "fmt": "JPEG",
+   "w": 32,
+   "h": 48,
+   "animated": false,
+   "readable": true,
+   "supported": true
+  },
+  "edge_short4480.jpg": {
+   "fmt": "JPEG",
+   "w": 4480,
+   "h": 5600,
+   "animated": false,
+   "readable": true,
+   "supported": true
+  },
+  "enc_progressive.jpg": {
+   "fmt": "JPEG",
+   "w": 1800,
+   "h": 1800,
+   "animated": false,
+   "readable": true,
+   "supported": true
+  },
+  "enc_webp_lossless.webp": {
+   "fmt": "WEBP",
+   "w": 1024,
+   "h": 1024,
+   "animated": false,
+   "readable": true,
+   "supported": true
+  },
+  "enc_webp_lossy.webp": {
+   "fmt": "WEBP",
+   "w": 1600,
+   "h": 1600,
+   "animated": false,
+   "readable": true,
+   "supported": true
+  },
+  "exif_gps.jpg": {
+   "fmt": "JPEG",
+   "w": 1600,
+   "h": 1600,
+   "animated": false,
+   "readable": true,
+   "supported": true
+  },
+  "exif_orientation6.jpg": {
+   "fmt": "JPEG",
+   "w": 1200,
+   "h": 1600,
+   "animated": false,
+   "readable": true,
+   "supported": true
+  },
+  "fmt_tiff_lzw.tif": {
+   "fmt": "TIFF",
+   "w": 1500,
+   "h": 1500,
+   "animated": false,
+   "readable": true,
+   "supported": true
+  },
+  "geom_1x1.png": {
+   "fmt": "PNG",
+   "w": 1,
+   "h": 1,
+   "animated": false,
+   "readable": true,
+   "supported": true
+  },
+  "geom_strip_400x4000.png": {
+   "fmt": "PNG",
+   "w": 400,
+   "h": 4000,
+   "animated": false,
+   "readable": true,
+   "supported": true
+  },
+  "icc_srgb_embedded.jpg": {
+   "fmt": "JPEG",
+   "w": 1600,
+   "h": 1600,
+   "animated": false,
+   "readable": true,
+   "supported": true
+  },
+  "logo_alpha_512.png": {
+   "fmt": "PNG",
+   "w": 512,
+   "h": 512,
+   "animated": false,
+   "readable": true,
+   "supported": true
+  },
+  "logo_jpeg_noalpha.jpg": {
+   "fmt": "JPEG",
+   "w": 600,
+   "h": 600,
+   "animated": false,
+   "readable": true,
+   "supported": true
+  },
+  "logo_short200.png": {
+   "fmt": "PNG",
+   "w": 200,
+   "h": 200,
+   "animated": false,
+   "readable": true,
+   "supported": true
+  },
+  "logo_wordmark_2876.png": {
+   "fmt": "PNG",
+   "w": 1438,
+   "h": 500,
+   "animated": false,
+   "readable": true,
+   "supported": true
+  },
+  "mode_cmyk.jpg": {
+   "fmt": "JPEG",
+   "w": 1600,
+   "h": 1600,
+   "animated": false,
+   "readable": true,
+   "supported": true
+  },
+  "mode_grayscale_l.png": {
+   "fmt": "PNG",
+   "w": 1400,
+   "h": 1400,
+   "animated": false,
+   "readable": true,
+   "supported": true
+  },
+  "mode_palette_p.png": {
+   "fmt": "PNG",
+   "w": 1200,
+   "h": 1200,
+   "animated": false,
+   "readable": true,
+   "supported": true
+  },
+  "mode_rgba_alpha.png": {
+   "fmt": "PNG",
+   "w": 1200,
+   "h": 1200,
+   "animated": false,
+   "readable": true,
+   "supported": true
+  },
+  "ok_avatar_96.png": {
+   "fmt": "PNG",
+   "w": 96,
+   "h": 96,
+   "animated": false,
+   "readable": true,
+   "supported": true
+  },
+  "ok_banner_2x1.jpg": {
+   "fmt": "JPEG",
+   "w": 2000,
+   "h": 1000,
+   "animated": false,
+   "readable": true,
+   "supported": true
+  },
+  "ok_cover_24x5.jpg": {
+   "fmt": "JPEG",
+   "w": 2400,
+   "h": 500,
+   "animated": false,
+   "readable": true,
+   "supported": true
+  },
+  "ok_product_1x1_2400.jpg": {
+   "fmt": "JPEG",
+   "w": 2400,
+   "h": 2400,
+   "animated": false,
+   "readable": true,
+   "supported": true
+  },
+  "ok_product_4x5.jpg": {
+   "fmt": "JPEG",
+   "w": 2000,
+   "h": 2500,
+   "animated": false,
+   "readable": true,
+   "supported": true
+  },
+  "p01_18mp_1mb.jpg": {
+   "fmt": "JPEG",
+   "w": 5184,
+   "h": 3456,
+   "animated": false,
+   "readable": true,
+   "supported": true
+  },
+  "bomb_100mp.png": {
+   "fmt": "PNG",
+   "w": 10000,
+   "h": 10000,
+   "animated": false,
+   "readable": true,
+   "supported": true
+  },
+  "data_uri_svg.txt": {
+   "fmt": "",
+   "w": 0,
+   "h": 0,
+   "animated": false,
+   "readable": false,
+   "supported": false
+  },
+  "empty_zero_byte.jpg": {
+   "fmt": "",
+   "w": 0,
+   "h": 0,
+   "animated": false,
+   "readable": false,
+   "supported": false
+  },
+  "executable_as.png": {
+   "fmt": "",
+   "w": 0,
+   "h": 0,
+   "animated": false,
+   "readable": false,
+   "supported": false
+  },
+  "fake_docx.docx": {
+   "fmt": "",
+   "w": 0,
+   "h": 0,
+   "animated": false,
+   "readable": false,
+   "supported": false
+  },
+  "jpeg_with_html_tail.jpg": {
+   "fmt": "JPEG",
+   "w": 320,
+   "h": 320,
+   "animated": false,
+   "readable": true,
+   "supported": true
+  },
+  "polyglot_pdf_as.jpg": {
+   "fmt": "",
+   "w": 0,
+   "h": 0,
+   "animated": false,
+   "readable": false,
+   "supported": false
+  },
+  "polyglot_png_as.jpg": {
+   "fmt": "PNG",
+   "w": 256,
+   "h": 256,
+   "animated": false,
+   "readable": true,
+   "supported": true
+  },
+  "script_payload.svg": {
+   "fmt": "",
+   "w": 0,
+   "h": 0,
+   "animated": false,
+   "readable": false,
+   "supported": false
+  },
+  "truncated.jpg": {
+   "fmt": "JPEG",
+   "w": 1600,
+   "h": 1200,
+   "animated": false,
+   "readable": true,
+   "supported": true
+  }
+ },
+ "engine_optimize": {
+  "bomb_100mp.png": {
+   "ok": true,
+   "reason": "",
+   "w": 2000,
+   "h": 2000,
+   "out_bytes": 3982,
+   "in_bytes": 97221,
+   "sure_ms": 314.8
+  },
+  "truncated.jpg": {
+   "ok": false,
+   "reason": "error:OSError",
+   "w": 0,
+   "h": 0,
+   "out_bytes": 0,
+   "in_bytes": 247095,
+   "sure_ms": 3.9
+  },
+  "polyglot_png_as.jpg": {
+   "ok": true,
+   "reason": "",
+   "w": 256,
+   "h": 256,
+   "out_bytes": 967,
+   "in_bytes": 1417,
+   "sure_ms": 3.5
+  },
+  "jpeg_with_html_tail.jpg": {
+   "ok": true,
+   "reason": "",
+   "w": 320,
+   "h": 320,
+   "out_bytes": 15561,
+   "in_bytes": 14760,
+   "sure_ms": 2.1
+  },
+  "mode_cmyk.jpg": {
+   "ok": true,
+   "reason": "",
+   "w": 1600,
+   "h": 1600,
+   "out_bytes": 565723,
+   "in_bytes": 1983979,
+   "sure_ms": 78.4
+  },
+  "mode_rgba_alpha.png": {
+   "ok": true,
+   "reason": "",
+   "w": 1200,
+   "h": 1200,
+   "out_bytes": 9863,
+   "in_bytes": 10484,
+   "sure_ms": 52.8
+  },
+  "anim_webp.webp": {
+   "ok": false,
+   "reason": "animated",
+   "w": 0,
+   "h": 0,
+   "out_bytes": 0,
+   "in_bytes": 14938,
+   "sure_ms": 14.6
+  },
+  "anim_6frames.gif": {
+   "ok": false,
+   "reason": "unsupported_format",
+   "w": 0,
+   "h": 0,
+   "out_bytes": 0,
+   "in_bytes": 5503,
+   "sure_ms": 0.1
+  },
+  "p01_18mp_1mb.jpg": {
+   "ok": true,
+   "reason": "",
+   "w": 2000,
+   "h": 1333,
+   "out_bytes": 272469,
+   "in_bytes": 1074753,
+   "sure_ms": 209.6
+  },
+  "edge_72mp.jpg": {
+   "ok": true,
+   "reason": "",
+   "w": 2000,
+   "h": 2000,
+   "out_bytes": 331944,
+   "in_bytes": 1410088,
+   "sure_ms": 379.2
+  },
+  "dpi_3000x3000_300dpi.tif": {
+   "ok": true,
+   "reason": "",
+   "w": 2000,
+   "h": 2000,
+   "out_bytes": 10115646,
+   "in_bytes": 21993992,
+   "sure_ms": 518.9
+  },
+  "exif_orientation6.jpg": {
+   "ok": true,
+   "reason": "",
+   "w": 1600,
+   "h": 1200,
+   "out_bytes": 24074,
+   "in_bytes": 47997,
+   "sure_ms": 16.8
+  }
+ },
+ "ffprobe": {
+  "video_16x9_1080p.mp4": {
+   "bytes": 1131368,
+   "container": "mov,mp4,m4a,3gp,3g2,mj2",
+   "duration_s": 6.0,
+   "bitrate_kbps": 1508,
+   "video_codec": "h264",
+   "width": 1920,
+   "height": 1080,
+   "pix_fmt": "yuv420p",
+   "fps": "25/1",
+   "video_bitrate_kbps": 1505,
+   "has_audio": false,
+   "audio_codec": null
+  },
+  "video_bloated_720p_8m.mp4": {
+   "bytes": 6292244,
+   "container": "mov,mp4,m4a,3gp,3g2,mj2",
+   "duration_s": 6.0,
+   "bitrate_kbps": 8390,
+   "video_codec": "h264",
+   "width": 1280,
+   "height": 720,
+   "pix_fmt": "yuv420p",
+   "fps": "30/1",
+   "video_bitrate_kbps": 8249,
+   "has_audio": true,
+   "audio_codec": "aac"
+  },
+  "video_efficient_720p_750k.mp4": {
+   "bytes": 677639,
+   "container": "mov,mp4,m4a,3gp,3g2,mj2",
+   "duration_s": 6.0,
+   "bitrate_kbps": 904,
+   "video_codec": "h264",
+   "width": 1280,
+   "height": 720,
+   "pix_fmt": "yuv420p",
+   "fps": "30/1",
+   "video_bitrate_kbps": 797,
+   "has_audio": true,
+   "audio_codec": "aac"
+  },
+  "video_long_540s_320x240.mp4": {
+   "bytes": 3989924,
+   "container": "mov,mp4,m4a,3gp,3g2,mj2",
+   "duration_s": 540.0,
+   "bitrate_kbps": 59,
+   "video_codec": "h264",
+   "width": 320,
+   "height": 240,
+   "pix_fmt": "yuv420p",
+   "fps": "10/1",
+   "video_bitrate_kbps": 59,
+   "has_audio": false,
+   "audio_codec": null
+  },
+  "video_silent_noaudio_720p.mp4": {
+   "bytes": 838179,
+   "container": "mov,mp4,m4a,3gp,3g2,mj2",
+   "duration_s": 8.0,
+   "bitrate_kbps": 838,
+   "video_codec": "h264",
+   "width": 1280,
+   "height": 720,
+   "pix_fmt": "yuv420p",
+   "fps": "25/1",
+   "video_bitrate_kbps": 835,
+   "has_audio": false,
+   "audio_codec": null
+  },
+  "video_square_352.mp4": {
+   "bytes": 294350,
+   "container": "mov,mp4,m4a,3gp,3g2,mj2",
+   "duration_s": 6.0,
+   "bitrate_kbps": 392,
+   "video_codec": "h264",
+   "width": 352,
+   "height": 352,
+   "pix_fmt": "yuv420p",
+   "fps": "25/1",
+   "video_bitrate_kbps": 389,
+   "has_audio": false,
+   "audio_codec": null
+  },
+  "video_vertical_9x16.mp4": {
+   "bytes": 1017771,
+   "container": "mov,mp4,m4a,3gp,3g2,mj2",
+   "duration_s": 8.0,
+   "bitrate_kbps": 1018,
+   "video_codec": "h264",
+   "width": 720,
+   "height": 1280,
+   "pix_fmt": "yuv420p",
+   "fps": "30/1",
+   "video_bitrate_kbps": 911,
+   "has_audio": true,
+   "audio_codec": "aac"
+  }
+ },
+ "needs_transcode": {
+  "video_16x9_1080p.mp4": true,
+  "video_bloated_720p_8m.mp4": true,
+  "video_efficient_720p_750k.mp4": false,
+  "video_long_540s_320x240.mp4": false,
+  "video_silent_noaudio_720p.mp4": false,
+  "video_square_352.mp4": false,
+  "video_vertical_9x16.mp4": false
+ }
+}

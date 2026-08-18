@@ -1,0 +1,411 @@
+{
+  "$schema": "../schema/slot-policy.schema.json",
+  "schema_version": "1.2.0",
+  "status": "draft",
+
+  "slot_key": "seller.logo",
+  "title": "Satıcı (mağaza) logosu",
+  "description": "Mağaza logosu — mağaza vitrini başlığı, ürün detay tedarikçi kartı, üretici listesi ve hero'su, favoriler, vitrin şablonu kartları, satıcı dashboard'u ve admin panel önizlemeleri. 16 render noktası ölçüldü; en büyük piksel talebi 480 px (admin dropzone 160 CSS px @ DPR3). Standart: docs/standards/logo.md",
+
+  "roles": ["seller", "admin"],
+
+  "bound_to": [
+    {
+      "doctype": "Admin Seller Profile",
+      "field": "logo",
+      "fieldtype": "Attach Image",
+      "source": "docs/reports/00-upload-slot-envanteri.md §2 Tablo A satır `seller.logo`; media/usage.py:39 LIVE_SOURCES ('seller_logo') — kayıtlı"
+    },
+    {
+      "doctype": "Storefront Layout",
+      "field": "sections (JSON içinde header.logo)",
+      "fieldtype": "Long Text",
+      "source": "docs/reports/00-upload-slot-envanteri.md §2 satır `panel.storefront_layout_logo`; yazan ekran admin-panel/frontend/src/views/seller/StorefrontLayoutEditor.vue:272-278 (accept=\"image/*\", boyut kontrolü YOK). Attach taramasıyla BULUNAMAZ — JSON içinde URL"
+    }
+  ],
+
+  "accept": {
+    "mime": ["image/png", "image/webp", "image/jpeg"],
+    "extensions": [".png", ".webp", ".jpg", ".jpeg"],
+    "conditional_extensions": [".svg"],
+    "rejected_extensions": [".gif", ".tif", ".tiff", ".bmp", ".heic", ".avif", ".svgz"],
+    "format_priority": ["svg", "png_with_alpha", "webp_lossless", "jpeg_opaque"],
+    "max_bytes": 1048576,
+    "max_bytes_svg": 32768,
+    "allow_animated": false,
+    "allow_data_uri": false
+  },
+
+  "require": {
+    "min_short_edge": 256,
+    "recommended_edge": 512,
+    "low_resolution_warn_below": 512,
+    "max_edge": 4096,
+    "aspect_band": { "min_w_over_h": 0.5, "max_w_over_h": 2.0 },
+    "alpha_channel": "optional",
+    "alpha_accepted_pil_modes": ["RGBA", "LA", "P_with_transparency"],
+    "max_count": 1
+  },
+
+  "master": {
+    "target_ratio": "1:1",
+    "fit": "pad",
+    "pad_color": "transparent",
+    "allow_crop": false,
+    "allow_upscale": false,
+    "max_long_edge": 4096,
+    "min_long_edge": 256,
+    "format": "webp",
+    "encoding": "lossless",
+    "colorspace": "srgb",
+    "orientation": "apply_exif",
+    "in_file_safe_area_percent": 0,
+    "strip_metadata": { "exif": true, "gps": true, "xmp": true, "icc": false }
+  },
+
+  "quality": {
+    "metric": "bit_exact",
+    "lossless_required": true,
+    "reason": "Logo düz renk + keskin kenar. Kayıplı encode halkalanma (ringing) üretir; SSIM bu artefaktı logoda güvenilir ölçmez. Kayıpsızlık ölçülebilir bir kriter: çıktı, girdiyle piksel-eş olmalı.",
+    "reencode_floor_saving_ratio": null
+  },
+
+  "profiles": [
+    {
+      "name": "w64",
+      "width": 64,
+      "height": 64,
+      "formats": ["webp"],
+      "encoder_quality": { "webp": "lossless" },
+      "fit": "pad",
+      "target_ratio": "1:1",
+      "pad_color": "transparent",
+      "max_bytes": 4096,
+      "serves": ["S11 marka sayfası satıcı rozeti @3x", "S8 favoriler satırı @2x", "S4/S6/S6b/S10 @1x-2x", "S2/S5/S9/S12/S13/S16 @1x"],
+      "derived_from": "hesap: max(S11 16px @3x = 48; S8 32px @2x = 64; S5 64px @1x = 64) = 64. Kutular: docs/standards/logo.md §3.1 (brand.ts:138; FavoritesLayout.ts:368-370; product/CompanyProfile.ts:109)",
+      "max_overshoot": 1.33,
+      "byte_reference": "tradehubfront/icons/icon-48.webp 1332 B, icon-72.webp 2021 B (stat -f %z; file → gerçekte PNG) → 64 px ara değer ≈ 1700 B"
+    },
+    {
+      "name": "w128",
+      "width": 128,
+      "height": 128,
+      "formats": ["webp"],
+      "encoder_quality": { "webp": "lossless" },
+      "fit": "pad",
+      "target_ratio": "1:1",
+      "pad_color": "transparent",
+      "max_bytes": 8192,
+      "serves": ["S8/S10/S4/S6/S6b @3x", "S9/S12/S2/S13/S5/S16 @2x", "S15/S7/S3 @1x"],
+      "derived_from": "hesap: max(S4 40px @3x = 120; S6 42px @3x = 126; S5 64px @2x = 128; S3 120px @1x = 120) = 128. Kutular: docs/standards/logo.md §3.2",
+      "max_overshoot": 1.07,
+      "byte_reference": "tradehubfront/icons/icon-128.webp 3600 B (file → gerçekte PNG 128×128 RGBA)"
+    },
+    {
+      "name": "w256",
+      "width": 256,
+      "height": 256,
+      "formats": ["webp"],
+      "encoder_quality": { "webp": "lossless" },
+      "fit": "pad",
+      "target_ratio": "1:1",
+      "pad_color": "transparent",
+      "max_bytes": 16384,
+      "serves": ["S9/S2/S13/S5/S16 @3x", "S15 @2x-3x", "S7/S3 @2x", "S1/S14 @1x"],
+      "derived_from": "hesap: max(S13 56px @3x = 168; S16 64px @3x = 192; S15 80px @3x = 240; S7 116px @2x = 232; S3 120px @2x = 240; S14 160px @1x = 160) = 240 → üst basamak 256. Kutular: docs/standards/logo.md §3.2",
+      "max_overshoot": 1.60,
+      "byte_reference": "tradehubfront/icons/icon-256.webp 9159 B (file → gerçekte PNG 256×256 RGBA)"
+    },
+    {
+      "name": "w512",
+      "width": 512,
+      "height": 512,
+      "formats": ["webp"],
+      "encoder_quality": { "webp": "lossless" },
+      "fit": "pad",
+      "target_ratio": "1:1",
+      "pad_color": "transparent",
+      "max_bytes": 40960,
+      "serves": ["S7/S3 @3x", "S1 @2x-3x", "S14 @2x-3x"],
+      "derived_from": "hesap: max(S1 140px @3x = 420; S14 160px @3x = 480) = 480 → üst basamak 512. Kutular: docs/standards/logo.md §3.2 (seller-shop.ts:124-129; ProfileImageDropzone.vue:135)",
+      "max_overshoot": 1.83,
+      "max_overshoot_note": "En kötü durum S1 @2x (280 → 512 = 1,83× doğrusal / 3,35× piksel). 384 rung'u bunu 1,37×'e indirir — docs/standards/logo.md §13-K3.",
+      "byte_reference": "tradehubfront/public/icons/icon-512.png 27128 B (stat -f %z; file → PNG 512×512 RGBA kayıpsız)"
+    },
+    {
+      "name": "og1200x630",
+      "width": 1200,
+      "height": 630,
+      "formats": ["jpeg"],
+      "encoder_quality": { "jpeg": 85 },
+      "fit": "pad",
+      "target_ratio": "1200:630",
+      "pad_color": "#FFFFFF",
+      "max_bytes": 122880,
+      "max_content_height": 453,
+      "serves": ["og:image", "twitter:image"],
+      "derived_from": "seo/og_image.py:20-21 OG_WIDTH=1200, OG_HEIGHT=630. Bağlanma: seo/meta_builder.py:261 og_image_resolver=lambda r: ensure_og_image(r, source_field='logo'). max_content_height = 630 × 0,72 = 453,6 → 453 (%14 üst + %14 alt güvenli alan).",
+      "fixes": "seo/og_image.py:45-49 bugün COVER-CROP yapıyor: 1:1 logo için new_h=1200, top=(1200−630)//2=285, crop(0,285,1200,915) → logonun yüksekliğinin %47,5'i (570/1200) kesiliyor. Ayrıca :34 img.convert('RGB') alfayı belirsiz zemine düşürüyor, :51 JPEG q85 kayıplı. Bu profil üçünü de düzeltir: pad (crop değil) + açıkça beyaz zemin.",
+      "byte_reference": "tradehubfront/public/images/og-default.jpg 47649 B (file → JPEG 1200×630)"
+    }
+  ],
+
+  "content_rules": [
+    {
+      "rule": "animated",
+      "threshold": true,
+      "comparator": "eq",
+      "action": "reject",
+      "message_key": "animated",
+      "source": "media/engine.py:111-112 animasyonluyu atlıyor (reason='animated'); api/seller_media.py:245-247 .gif'i WebP dönüşümünden bilinçli dışarıda tutuyor. Logo animasyonlu olmamalı."
+    },
+    {
+      "rule": "no_alpha_channel",
+      "threshold": true,
+      "comparator": "eq",
+      "action": "warn",
+      "message_key": "format_no_alpha",
+      "source": "16 render noktasının 11'i logonun altına açık plaka boyuyor: bg-gray-50 ×6 (seller/CompanyProfile.ts:1029, ManufacturerList.ts:242, ManufacturersHero.ts:277, FavoritesLayout.ts:368, section-registry.ts:749, seller-dashboard.ts:157), bg-white ×2 (seller-shop.ts:204, product/CompanyProfile.ts:109), bg-gray-100 ×2 (section-registry.ts:620, seller-dashboard.ts:65), bg-white/10 ×1 (brand.ts:138). Opak dikdörtgen bu plakaların üzerinde görünür kutu bırakır. Ayrıca seller-shop.ts:124 HİÇ plaka koymuyor — arka plan satıcının kendi header_bg_image'i (:118-119). ACTION=WARN (RET DEĞİL) — K1 ölçümle çözüldü: docs/reports/08-canli-olcum.md §2.1 (2026-08-18), ölçülen 18 gerçek logonun 9'u JPEG = %50 ve yalnız 4'ü (%22) alfa taşıyor. docs/standards/logo.md §13-K1'in kendi sayısal tetiği ('JPEG payı %10'u geçerse B') aşıldı → Öneri A (ret) DÜŞTÜ, seçenek B yürürlükte: kabul + uyarı + geçiş penceresi. Görsel gerekçe (11 plaka) geçerliliğini KORUYOR; değişen tek şey yaptırımın sertliği. GEÇİŞ PENCERESİ: mevcut opak logolar dokunulmadan yaşar; yeni yüklemede uyarı gösterilir ve kayıt envantere logo_opaque olarak düşer; sert rette ısrar, mevcut logoların yarısını anında geçersiz kılardı."
+    },
+    {
+      "rule": "aspect_out_of_band",
+      "threshold": [0.5, 2.0],
+      "comparator": "outside",
+      "action": "reject",
+      "message_key": "aspect_out_of_band",
+      "source": "En küçük içerik kutusu 32×32 (FavoritesLayout.ts:368 size-10 + p-1). object-contain ile 2:1 logo 32×16 px çizilir = platform logosunun en küçük render'ı (CartSummary.ts:126 sm:h-4 = 16 px) ile aynı okunabilirlik tabanı. 4:1'de 32×8 px = tabanın yarısı, okunmaz. K2 ÖLÇÜMLE ONAYLANDI (docs/reports/08-canli-olcum.md §2.1, 2026-08-18): 18 gerçek logonun 16'sı (%89) 1:2…2:1 bandının İÇİNDE; band dışı yalnız 2 dosya (egemen-plastik, timex-logo — ikisi de w/h = 2,876). §13-K2'nin tetiği ('%20'den fazlası band dışıysa iki-dosya modeline geç') = %11 < %20 → seçenek A yürürlükte, band DEĞİŞMEDİ. Band dışı 2 dosya istisna olarak ele alınır (kare 'mark' sürümü istenir), kural gevşetilmez."
+    },
+    {
+      "rule": "aspect_normalize_to_square",
+      "threshold": "1:1",
+      "comparator": "pad_to",
+      "action": "auto_fix",
+      "message_key": null,
+      "source": "5 render noktası object-cover kullanıyor ve kare olmayan logoyu MERKEZDEN KIRPIYOR: seller-shop.ts:129 (140×140), seller-dashboard.ts:66 (48×48), seller-dashboard.ts:158 (56×56), StorefrontEdit.vue:79 (80×80), StorefrontLayoutEditor.vue:247 (64×64). 9 nokta object-contain ile kırpmıyor → aynı dosya iki farklı davranış görüyor. Master 1:1'e saydam letterbox ile padlenirse kare kutu × kare kaynak = kırpma matematiksel olarak imkânsız; MEVCUT KODUN TEK SATIRINA dokunulmaz."
+    },
+    {
+      "rule": "data_uri_value",
+      "threshold": true,
+      "comparator": "eq",
+      "action": "reject",
+      "message_key": "data_uri_forbidden",
+      "source": "seed_demo_data.py:231-245 _write_asset() SVG'yi data:image/svg+xml;base64 olarak DOĞRUDAN alan değerine yazıyor (:287 → :3364 satıcı logosu). File kaydı açılmadığı için utils/security.py:29-30 ve upload_policy.py:190 kapılarının İKİSİ DE devre dışı. Sonuçlar: (a) alan değeri text (64KB, :237 docstring); (b) seo/og_image.py:59-69 data: URI'yi çözemiyor → og:image sessizce site varsayılanına düşüyor; (c) media/usage.py envanteri File kaydı olmadığı için bu logoları görmüyor. Demo seed muafiyeti utils/security.py:98-109 _SYSTEM_FLAGS desenini kullanmalı."
+    },
+    {
+      "rule": "svg_dtd_or_entity",
+      "threshold": true,
+      "comparator": "eq",
+      "action": "reject",
+      "message_key": "svg_dtd_forbidden",
+      "source": "XXE / billion-laughs. Entity genişletmesi sanitize'den ÖNCE bellek tüketir; temizlemeye çalışmak yerine reddetmek doğru sıra. Parser defusedxml olmalı — standart xml.etree varsayılan olarak entity çözer. docs/standards/logo.md §6.2 SVG-5."
+    },
+    {
+      "rule": "svg_node_count",
+      "threshold": 256,
+      "comparator": "gt",
+      "action": "reject",
+      "message_key": "svg_too_complex",
+      "measured_on": "sanitize çıktısı",
+      "source": "Ölçüm (regex `<([a-zA-Z][\\w:-]*)`): amex.svg 2, public/vite.svg 11, ta-logo.svg 20 (gerçek kelime markası, 305×46), O1CN..tps-222-221.svg 32, svgviewer-output.svg 75 (otomatik trace edilmiş illüstrasyon), public/icons/ui.svg 463 (çok-ikonlu sprite). 256 = gerçek kelime markasının 12,8 katı, otomatik-trace örneğinin 3,4 katı, sprite'ın altında. İKİNCİL savunma — svgviewer-output.svg yalnız 75 düğüm ama 137695 bayt, tüm ağırlık path d verisinde; bayt tavanı birincil."
+    },
+    {
+      "rule": "svg_empty_after_sanitize",
+      "threshold": 0,
+      "comparator": "eq",
+      "action": "reject",
+      "message_key": "svg_empty_after_sanitize",
+      "source": "Allowlist temizliği sonrası çizim elementi (path/rect/circle/ellipse/line/polyline/polygon/use) kalmadıysa dosya işlevsiz. Sessizce boş logo kaydetmek yerine ret."
+    },
+    {
+      "rule": "derivative_oversize",
+      "threshold": "profiles[].max_bytes",
+      "comparator": "gt",
+      "action": "warn",
+      "message_key": "derivative_oversize",
+      "source": "Tavan aşılırsa üretim BAŞARISIZ SAYILMAZ; uyarıyla yazılır ve envantere düşer. Aksi hâlde meşru ama karmaşık bir logo sessizce türevsiz kalırdı."
+    }
+  ],
+
+  "on_violation": {
+    "default": "reject",
+    "accept": "reject",
+    "require": "reject",
+    "master": "warn",
+    "quality": "warn",
+    "content_rules": "reject",
+    "error_code_prefix": "logo",
+    "retryable": false,
+    "retryable_reason": "upload_policy.py:98-100 kuralı: kullanıcının dosyasıyla ilgili hatalar tekrar denenmez (aynı dosya aynı sonucu verir)"
+  },
+
+  "messages": {
+    "tr": {
+      "too_small": "Logo en az 256×256 piksel olmalı; yüklediğiniz {w}×{h}. Bu boyutta logo mağaza vitrini başlığında (140 piksel kutu) yüksek çözünürlüklü ekranda bulanık çıkar. Logonuzun orijinal dosyasını yükleyin; bir vektör dosyanız (AI, EPS, SVG) varsa oradan 512×512 PNG olarak dışa aktarın.",
+      "low_resolution": "Logonuz yüksek çözünürlüklü ekranlarda bulanık görünebilir ({w}×{h}). Önerilen: 512×512 piksel. Bu bir engel değil — logonuz kaydedildi.",
+      "aspect_out_of_band": "Logo oranı 1:2 ile 2:1 arasında olmalı; yüklediğiniz {w}:{h}. Mağaza listelerinde logo 32 piksellik kutulara kadar küçülüyor; daha geniş bir logo o kutularda okunmaz hâle gelir. Geniş bir kelime markanız varsa, onun kare (simge) sürümünü yükleyin.",
+      "format_no_alpha": "Logonuz saydam zeminli değil. JPEG biçiminde saydamlık olamaz; logonuz mağaza kartlarında gri zemin üzerinde beyaz bir kutu içinde görünecek. Logonuz kaydedildi — bu bir engel değil, uyarı. Düzeltmek için logoyu saydam zeminli PNG veya WebP olarak yeniden kaydedip yükleyin.",
+      "format_animated": "Logo animasyonlu olamaz. Tek kareli bir PNG veya WebP yükleyin.",
+      "format_not_supported": "{bicim} biçimi logo için kabul edilmiyor. Kabul edilen biçimler: PNG, WebP, JPEG — JPEG saydamlık taşımadığı için kabul edilir ama uyarı üretir. iPhone kullanıyorsanız Ayarlar > Kamera > Biçimler > 'En Uyumlu' seçeneğini işaretleyin ya da logoyu PNG olarak dışa aktarın.",
+      "too_large": "Logo dosyası çok büyük ({mb} MB); üst sınır {max_mb} MB. Bir logo, 512×512 pikselde normalde 30 KB'ın altında kalır. Bu boyutta bir dosya büyük olasılıkla fotoğraf ya da gereksiz büyük bir kopya.",
+      "svg_dtd_forbidden": "SVG dosyası desteklenmeyen bir yapı içeriyor. Tasarım programınızdan 'sade SVG' / 'optimize SVG' seçeneğiyle yeniden dışa aktarın.",
+      "svg_too_complex": "SVG çok karmaşık ({dugum} öğe; üst sınır 256). Bu dosya büyük olasılıkla bir fotoğraftan otomatik olarak vektöre çevrilmiş. Logo olarak tasarlanmış, sadeleştirilmiş bir dosya yükleyin.",
+      "svg_empty_after_sanitize": "SVG dosyasında güvenli olmayan içerik temizlendikten sonra çizilecek bir şey kalmadı. Dosya beklenmeyen bir yapıda; PNG olarak yükleyin.",
+      "data_uri_forbidden": "Logo bir dosya olarak yüklenmeli; gömülü veri (data: URI) kabul edilmiyor.",
+      "derivative_oversize": "Logo kaydedildi, ancak bazı boyutları beklenenden büyük çıktı. Görüntülenmeyi etkilemez; teknik ekip bilgilendirildi."
+    }
+  },
+
+  "logo": {
+    "svg_policy": {
+      "enabled": false,
+      "enable_requires": "docs/standards/logo.md §6.2 SVG-1…SVG-10 maddelerinin TÜMÜ. Kısmi uygulama sistemi bugünkünden daha güvensiz hâle getirir.",
+      "gate_1": "tradehub_core/utils/security.py:27-44 _DENIED_EXTENSIONS içinde '.svg' (:29) ve '.svgz' (:30) → security.py:90-95 frappe.PermissionError",
+      "gate_2": "tradehub_core/media/upload_policy.py:190 _DANGEROUS_MARKERS içinde b'<svg' → upload_policy.py:225-231 is_dangerous(); baştaki boşluk ve UTF-8 BOM atlanıyor (:229)",
+      "gate_3_open": "seed_demo_data.py:231-245 data: URI kanalı — File kaydı yok, iki gate de devre dışı. SVG logolar demo DB'de ZATEN VAR.",
+      "both_gates_must_open_together": true,
+      "scope": "slot-kapsamlı; yalnız seller.logo ve brand.logo. Global açılış YASAK. Bugün slot semantiği katmanı YOK (docs/reports/00-upload-slot-envanteri.md §1: 'L3 — Slot semantiği: Sistemde hiç yok') → bu politikayı okuyan kayıt defteri ÖNCE kurulmalı. T-021'in 'KİLİT' olmasının teknik nedeni budur.",
+      "sanitize_location": "sunucu, File kaydı yazılmadan ÖNCE. İstemci DOMPurify (tradehubfront ^3.3.2) UX kolaylığı, kapı değil — docs/MEDYA-YUKLEME-SOZLESMESI.md: 'İstemcideki her kontrol hızlandırmak içindir. Karar her zaman sunucunundur.'",
+      "stored_content": "sanitize edilmiş sürüm; orijinal DEĞİL",
+      "pipeline_order": [
+        "1. slot_key logo slotu mu — değilse bugünkü davranış (RET)",
+        "2. uzantı .svg mi — .svgz ise RET",
+        "3. XML iyi biçimli mi (defusedxml) — değilse RET",
+        "4. DTD / ENTITY var mı — varsa RET",
+        "5. sanitize (allowlist) çalıştır",
+        "6. çıktı düğüm sayısı <= 256 mı — değilse RET",
+        "7. çıktı <= 32768 B mi — değilse RET",
+        "8. is_dangerous() ATLA — YALNIZ burada, 'sanitize edildi' bayrağına bağlı (uzantıya veya slot adına DEĞİL)",
+        "9. File kaydını SANITIZE EDİLMİŞ içerikle aç"
+      ],
+      "is_dangerous_bypass_note": "Sanitize çıktısı tanım gereği '<svg' ile başlar → upload_policy.py:190 marker'ı onu reddeder. Ayrıca aynı listede b'<?xml' de var (:191 civarı) — XML bildirimiyle başlayan meşru SVG de çarpar. Bypass ikisini de kapsar, ama YALNIZ adım 4 geçtikten sonra.",
+      "allowed_elements": ["svg", "g", "path", "rect", "circle", "ellipse", "line", "polyline", "polygon", "defs", "linearGradient", "radialGradient", "stop", "clipPath", "mask", "use", "title", "desc", "symbol"],
+      "allowed_attributes": ["viewBox", "xmlns", "width", "height", "d", "x", "y", "x1", "y1", "x2", "y2", "cx", "cy", "r", "rx", "ry", "points", "transform", "fill", "fill-rule", "fill-opacity", "stroke", "stroke-width", "stroke-linecap", "stroke-linejoin", "stroke-dasharray", "stroke-opacity", "opacity", "offset", "stop-color", "stop-opacity", "gradientUnits", "gradientTransform", "clip-path", "mask", "id", "class"],
+      "stripped_with_reason": {
+        "script, handler": "doğrudan kod çalıştırma",
+        "foreignObject": "içine HTML gömülebilir; gömüldüğü an SVG bir HTML belgesi olur",
+        "image": "dış kaynak isteği (SSRF / iz sürme); gömülü base64 raster 'vektör logo' iddiasını yalanlar",
+        "style elementi ve style attribute": "background:url(...), @import → CSS ile dış istek. Stil bilgisi fill/stroke presentation attribute'larıyla zaten ifade edilebiliyor",
+        "animate, animateTransform, animateMotion, set, discard": "logo animasyonlu olmaz (allow_animated=false ile tutarlı); SMIL geçmişte XSS vektörü",
+        "on* attribute'larının tamamı": "allowlist bunları otomatik siler; ayrıca isim-öneki kuralıyla ikinci kez taranır",
+        "filter, feImage, fe*": "feImage dış kaynak çekebiliyor; filter zinciri logoda gerekmiyor ve render maliyeti öngörülemez",
+        "XML processing instruction, yorum, <!DOCTYPE>, <!ENTITY>": "silinir / RET"
+      },
+      "href_rule": "yalnız '#' ile başlayan değer korunur (aynı dosya içi <use> referansı). http:, https:, data:, javascript:, protokol-relatif '//', göreli yol → attribute silinir",
+      "svgz_allowed": false,
+      "svgz_reason": "utils/security.py:30. Gzip'i sanitize'den önce açmak zip-bomb yüzeyi ekler; 32 KiB tavanında kazanç ~20 KB ve HTTP Content-Encoding: gzip aynı tasarrufu zaten sağlıyor.",
+      "viewbox_required": true,
+      "viewbox_reason": "viewBox yoksa object-contain ölçekleme davranışı tarayıcılar arasında ayrışır. Ölçülen 8 SVG'nin 8'inde de viewBox var.",
+      "serving": {
+        "img_src_only": true,
+        "dom_inline_forbidden": true,
+        "dom_inline_reason": "<img> ile yüklenen SVG tarayıcıda script çalıştırmaz — sanitize kaçırsa bile İKİNCİ savunma hattı. Storefront bugün de satıcı logosunu yalnız <img src>/:src ile basıyor (16 render noktasının 16'sı). İnline <svg> olan tek yerler sabit kodlanmış ikonlar (MessageList.ts:9, ManufacturersHero.ts:284). Bu ayrım korunmalı: ne innerHTML, ne Alpine x-html, ne Vue v-html.",
+        "content_type": "image/svg+xml",
+        "x_content_type_options": "nosniff",
+        "content_security_policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox",
+        "verification_note": "MEMORY.md 'prod'a ulaşmamış nginx sertleştirmesi' bulgusu taşıyor → bu başlıklar ÜRETİMDE DOĞRULANMALI (docs/standards/logo.md §12-D6). Doğrulanmadan svg_policy.enabled=true yapılamaz."
+      },
+      "bundled_svg_out_of_scope": "src/assets/images/ta-logo.svg, public/icons/ui.svg (463 düğüm), public/vite.svg derleme zamanında Vite ile paketleniyor; File kaydı yok, kullanıcı girdisi değil. Yasak yalnız YÜKLENEN dosyaya uygulanır."
+    },
+
+    "dark_theme": {
+      "variant_required": false,
+      "reason": "16 render noktasının 11'i logonun altına açık plaka boyuyor ve bu plakaların HİÇBİRİ dark: varyantı taşımıyor (style.css:19 @variant dark (&:where(.dark, .dark *))) — koyu temada da açık kalıyorlar. Logo her koşulda açık zemin üzerinde. Satıcıdan iki dosya istemek 11 noktada gereksiz, 1 noktada çözülebilir bir sorun için.",
+      "rule": "logo her zaman açık bir plaka üzerinde render edilir",
+      "violating_render": {
+        "id": "S1",
+        "file": "tradehubfront/src/pages/seller-shop.ts:124-126",
+        "problem": "alt plaka YOK; arka plan satıcının yüklediği header_bg_image (:118-119). Karanlık bir header görseline koyu bir logo binebilir.",
+        "status": "bulgu olarak kayıtlı (docs/standards/logo.md §11-F3); düzeltmesi T-021 kapsamı DIŞINDA"
+      }
+    },
+
+    "css_safe_area": {
+      "standard_percent": 8,
+      "scope": "yalnız YENİ render noktaları",
+      "in_file_percent": 0,
+      "reason": "Mevcut 7 nokta padding'i CSS'te ZATEN uyguluyor. Ölçülen kenar-başına yüzdeler: section-registry.ts:750 p-0.5/40 = %5,00; section-registry.ts:621 p-1/56 = %7,14; seller/CompanyProfile.ts:1030 p-1/48 = %8,33; ManufacturerList.ts:245 p-1/48 = %8,33; brand.ts:101 p-3/128 = %9,375; FavoritesLayout.ts:370 p-1/40 = %10,00; brand.ts:101 p-3/96 = %12,50. Medyan %8,33 → standart %8. Dosyaya gömmek çift padding üretir (%8 + %8,33 = %16,3 → 40 px kutuda logo 27 px'e düşer) ve 7 mevcut dosyada CSS değişikliği gerektirir.",
+      "exception": "Oran normalizasyonu paddingi SAYDAM pikseldir, görsel kenar boşluğu değil. Logonun kendi kenarı ile canvas kenarı arasına EK boşluk konmaz."
+    },
+
+    "render_points": [
+      { "id": "S1",  "where": "Mağaza vitrini başlığı (masaüstü, ≥480px)", "file": "tradehubfront/src/pages/seller-shop.ts:124-129",                        "outer_box_px": 140, "padding_px": 0, "content_box_px": 140, "fit": "cover",    "plate": null,          "dpr": [140, 280, 420], "note": "object-cover → KIRPIYOR; alt plaka YOK, arka plan header_bg_image" },
+      { "id": "S2",  "where": "Mağaza vitrini başlığı (mobil, sm:hidden)", "file": "tradehubfront/src/pages/seller-shop.ts:204-207",                        "outer_box_px": 50,  "padding_px": 0, "content_box_px": 50,  "fit": "contain",  "plate": "bg-white",    "dpr": [50, 100, 150] },
+      { "id": "S3",  "where": "Şirket bilgisi bloğu",                      "file": "tradehubfront/src/components/seller/CompanyInfo.ts:47",                 "outer_box_px": 120, "padding_px": 0, "content_box_px": 120, "fit": "contain",  "plate": null,          "dpr": [120, 240, 360], "note": "w-[120px] h-auto — TEK serbest yükseklikli nokta" },
+      { "id": "S4",  "where": "Mağaza 'Tedarikçiye ulaş' yan kutusu",      "file": "tradehubfront/src/components/seller/CompanyProfile.ts:1029-1030",       "outer_box_px": 48,  "padding_px": 4, "content_box_px": 40,  "fit": "contain",  "plate": "bg-gray-50",  "dpr": [40, 80, 120] },
+      { "id": "S5",  "where": "Ürün detay tedarikçi kartı",                "file": "tradehubfront/src/components/product/CompanyProfile.ts:109",            "outer_box_px": 64,  "padding_px": 0, "content_box_px": 64,  "fit": "contain",  "plate": "bg-white",    "dpr": [64, 128, 192] },
+      { "id": "S6",  "where": "Üretici listesi kartı (≥768px lg:)",        "file": "tradehubfront/src/components/manufacturers/ManufacturerList.ts:242-246", "outer_box_px": 50,  "padding_px": 4, "content_box_px": 42,  "fit": "contain",  "plate": "bg-gray-50",  "dpr": [42, 84, 126] },
+      { "id": "S6b", "where": "Üretici listesi kartı (<768px)",            "file": "tradehubfront/src/components/manufacturers/ManufacturerList.ts:242-246", "outer_box_px": 48,  "padding_px": 4, "content_box_px": 40,  "fit": "contain",  "plate": "bg-gray-50",  "dpr": [40, 80, 120] },
+      { "id": "S7",  "where": "Üretici hero 'top ranking' karosu",         "file": "tradehubfront/src/components/manufacturers/ManufacturersHero.ts:277-279","outer_box_px": 116, "padding_px": 0, "content_box_px": 116, "fit": "contain",  "plate": "bg-gray-50",  "dpr": [116, 232, 348] },
+      { "id": "S8",  "where": "Favoriler — kayıtlı satıcı satırı",         "file": "tradehubfront/src/components/favorites/FavoritesLayout.ts:368-370",     "outer_box_px": 40,  "padding_px": 4, "content_box_px": 32,  "fit": "contain",  "plate": "bg-gray-50",  "dpr": [32, 64, 96],   "note": "EN KÜÇÜK kutu — oran bandını belirleyen nokta" },
+      { "id": "S9",  "where": "Vitrin şablonu — kişi bilgisi kartı",       "file": "tradehubfront/src/utils/seller/section-registry.ts:620-621",            "outer_box_px": 56,  "padding_px": 4, "content_box_px": 48,  "fit": "contain",  "plate": "bg-gray-100", "dpr": [48, 96, 144] },
+      { "id": "S10", "where": "Vitrin şablonu — şirket mini kartı",        "file": "tradehubfront/src/utils/seller/section-registry.ts:749-750",            "outer_box_px": 40,  "padding_px": 2, "content_box_px": 36,  "fit": "contain",  "plate": "bg-gray-50",  "dpr": [36, 72, 108] },
+      { "id": "S11", "where": "Marka sayfası 'satıcı' rozeti",             "file": "tradehubfront/src/pages/brand.ts:138",                                  "outer_box_px": 16,  "padding_px": 0, "content_box_px": 16,  "fit": "contain",  "plate": "bg-white/10", "dpr": [16, 32, 48] },
+      { "id": "S12", "where": "Satıcı dashboard üst başlık",               "file": "tradehubfront/src/pages/seller-dashboard.ts:65-66",                     "outer_box_px": 48,  "padding_px": 0, "content_box_px": 48,  "fit": "cover",    "plate": "bg-gray-100", "dpr": [48, 96, 144], "note": "object-cover → KIRPIYOR" },
+      { "id": "S13", "where": "Satıcı dashboard hesap formu önizleme",     "file": "tradehubfront/src/pages/seller-dashboard.ts:157-158",                   "outer_box_px": 56,  "padding_px": 0, "content_box_px": 56,  "fit": "cover",    "plate": "bg-gray-50",  "dpr": [56, 112, 168], "note": "object-cover → KIRPIYOR" },
+      { "id": "S14", "where": "Admin panel — ASP formu dropzone (kare)",   "file": "admin-panel/frontend/src/components/upload/ProfileImageDropzone.vue:135 (bağlanma: src/views/doctype/DocTypeFormView.vue:439-451)", "outer_box_px": 160, "padding_px": 0, "content_box_px": 160, "fit": "dropzone", "plate": null, "dpr": [160, 320, 480], "note": "EN BÜYÜK TALEP (480 px) — master alt sınırını belirler. recommendedSize metni '400×400' (DocTypeFormView.vue:448) bu standartla ÇELİŞİYOR" },
+      { "id": "S15", "where": "Admin panel — Mağaza Ayarları önizleme",    "file": "admin-panel/frontend/src/views/seller/StorefrontEdit.vue:74-82",        "outer_box_px": 80,  "padding_px": 0, "content_box_px": 80,  "fit": "cover",    "plate": "dashed",      "dpr": [80, 160, 240], "note": "object-cover → KIRPIYOR; accept=\"image/*\", boyut kontrolü YOK" },
+      { "id": "S16", "where": "Admin panel — Vitrin düzeni header önizleme","file": "admin-panel/frontend/src/views/seller/StorefrontLayoutEditor.vue:241-249","outer_box_px": 64,  "padding_px": 0, "content_box_px": 64,  "fit": "cover",    "plate": "bg-gray-50",  "dpr": [64, 128, 192], "note": "object-cover → KIRPIYOR" }
+    ],
+
+    "not_render_points": [
+      { "file": "tradehubfront/src/components/product/ProductSellerPanel.ts:122-124", "why": "yorumda 'logo 40×40' yazıyor ama kod harf baş harfleri basıyor (sellerInitial); <img> YOK" },
+      { "file": "tradehubfront/src/components/product/MobileLayout.ts:490", "why": "sınıf adı pdm-supplier-logo ama içerik baş harfler (si.name.charAt(0))" },
+      { "file": "tradehubfront/src/alpine/messages.ts:97-100", "why": "sohbet avatarı satıcı logosu DEĞİL — avatarFor() üçüncü parti https://ui-avatars.com/api/?... URL'i üretiyor. Ayrı bulgu: docs/standards/logo.md §11-F7" }
+    ]
+  },
+
+  "sources": {
+    "require.min_short_edge=256": "S1 (140 CSS px, seller-shop.ts:124) DPR2 talebi 280; 256 bunu %8,6 açıkla karşılamıyor — görsel olarak fark edilmesi zor, işlevsel olarak kabul edilebilir. 256'nın altında S7 (116 px) DPR2'de (232) sınıra dayanır.",
+    "require.recommended_edge=512": "En büyük rung. media/engine.py:117 im.thumbnail() YALNIZ küçültür (engine.py:97 docstring: 'Yalnız downscale — upscale yok'), yani 512 rung'unu doğurabilen tek alt sınır. Bugünkü panel tavsiyesi 400×400 (DocTypeFormView.vue:448) 512 rung'unu ASLA doğurmaz → docs/standards/logo.md §13-K5.",
+    "require.max_edge=4096": "media/presets.py:15-17 max_dim değerlerinden (2560/2000/1600) büyük; niyet vektörden export edilmiş büyük PNG'yi reddetmemek ama sınırsız da bırakmamak.",
+    "require.aspect_band": "content_rules[aspect_out_of_band].source. ÖLÇÜMLE ONAYLANDI (K2): docs/reports/08-canli-olcum.md §2.1 — 16/18 = %89 band içinde, %11 dışında; §13-K2 tetiği %20 → band 1:2…2:1 olarak KALDI.",
+    "require.alpha_channel=optional": "docs/reports/08-canli-olcum.md §2.1 (2026-08-18): 9/18 = %50 JPEG, 4/18 = %22 alfalı → docs/standards/logo.md §13-K1 tetiği (%10) aşıldı, değer 'required'dan 'optional'a indirildi ve yaptırım content_rules[no_alpha_channel].action='warn' oldu. 'optional' burada 'fark etmez' demek DEĞİL: alfasızlık ölçülür, kullanıcıya uyarı gösterilir ve envantere yazılır. Görsel gerekçe: content_rules[no_alpha_channel].source. Motor bu üç modu ZATEN doğru ayırt ediyor: engine.py:169-176 — o mantık logo slotunda yeniden yazılmamalı, çağrılmalı. Alfa korunuyor: tests/test_engine_webp.py:54.",
+    "require.max_count=1": "Attach Image alanı tek değer tutuyor (Admin Seller Profile.logo).",
+    "accept.mime += image/jpeg": "docs/reports/08-canli-olcum.md §2.2 K1 (2026-08-18): ölçüm %50 JPEG → §13-K1 seçenek B. .jpg/.jpeg rejected_extensions'tan çıkarıldı, mime'a image/jpeg eklendi. format_priority'de EN SONA konuldu ('jpeg_opaque'): kabul edilir ama tavsiye edilmez. Bu tek başına bir gevşetme değil — content_rules[no_alpha_channel] uyarısı ve messages.tr.format_no_alpha metni bedeli kullanıcıya söylüyor.",
+    "accept.max_bytes=1048576": "512 × 512 × 4 (RGBA) = 1048576 B — depolanan en büyük master'ın SIKIŞTIRILMAMIŞ boyutu. Kendi ham raster'ından büyük dosya tanım gereği logo değil. Bugünkü fiili tavanlar: upload_policy.py:68 = 25 MB (global), ProfileImageDropzone.vue:123 = 5 MB (istemci), api/v1/identity.py:940-955 = 5 MB. 1 MiB üçünden de dar.",
+    "accept.max_bytes_svg=32768": "Ölçüm: tradehubfront/src/assets/images/ta-logo.svg = 12379 B (stat -f %z; gerçek kelime markası, 305×46, 20 düğüm) × 2,65. Karşı örnek — tavansız hâlde ne olduğu: aynı klasörde ta-shield-pattern.svg 105516 B, svgviewer-output.svg 137695 B. İkisi de reddedilir.",
+    "accept.mime": "upload_policy.py:57-60 EXTENSIONS görsel kümesinden, logo için DARALTILMIŞ. DÜZELTME 2026-08-18 (K1): .jpg/.jpeg ARTIK DIŞARIDA DEĞİL — alfa yokluğu ret sebebi olmaktan çıkıp uyarıya indi (bkz. accept.mime += image/jpeg girdisi ve content_rules[no_alpha_channel]). Hâlâ dışarıda bırakılanlar ve nedenleri: .gif → engine.py:111-112 animasyonlu atlanıyor + api/seller_media.py:245 WebP dönüşümünden dışarıda; .tif/.tiff/.bmp/.heic → tarayıcı render etmez, ayrıca iki yol ayrışıyor (seller_media WebP'ye çevirir api/seller_media.py:245, runner TIFF'i TIFF bırakır engine.py:126-131); .avif → upload_policy.py:59 izinli AMA engine.py:21 SUPPORTED_FORMATS={JPEG,PNG,WEBP,TIFF} içinde değil → engine.py:109 'unsupported_format', yani AVIF logo bugün AVIF olarak yaşamıyor.",
+    "accept.allow_data_uri=false": "content_rules[data_uri_value].source",
+    "master.pad_color=transparent": "Ürün görseli slotu #FFFFFF padliyor (product-image.json profiles[].pad_color) — logo için beyaz pad YANLIŞ olurdu: 11 render noktası logoyu gri plaka (bg-gray-50/bg-gray-100) üzerine basıyor, beyaz pad orada görünür kutu bırakır. Saydam pad hem gri hem beyaz plakada doğru.",
+    "master.allow_upscale=false": "engine.py:97 docstring 'Yalnız downscale — upscale yok' + :117 im.thumbnail(). Upscale kalite kazandırmaz, yalnız bayt harcar.",
+    "master.encoding=lossless": "api/seller_media.py:292 → media/engine.py:148 to_webp(data, quality: int = 80) → :180 im.save(buf,'WEBP',quality=quality,method=4) KAYIPLI. Logonun keskin kenarında halkalanma üretir. Karşılaştırma: engine.py:120-122 PNG yolu kayıpsız ('PNG kayıpsızdır; quality parametresi geçerli değil'). Aynı dosya runner.py:229 yolundan geçse PNG kalır ve kayıpsız olur → İKİ YOL AYRIŞIYOR (docs/standards/logo.md §11-F5).",
+    "master.in_file_safe_area_percent=0": "css_safe_area.reason",
+    "profiles[].width": "docs/standards/logo.md §3.2 piksel tablosu; her profilin derived_from alanı kendi hesabını taşıyor. 14 farklı içerik kutusunun DPR 1/2/3 kombinasyonu = 42 talep, 4 rung ile karşılanıyor.",
+    "profiles[].max_bytes": "Her profilin byte_reference alanı ölçülen dosyayı gösteriyor (stat -f %z + file). Payların küçük rung'da genişlemesi kasıtlı: ölçülen B/px eğrisi 0,103 (icon-512.png) → 0,220 (icon-128) → 0,578 (icon-48) — küçük ölçekte PNG başlık maliyeti (IHDR + palet + CRC) baytın sabit bir yüzdesini yiyor.",
+    "profiles[og1200x630]": "profiles[og1200x630].derived_from ve .fixes",
+    "png_fallback_not_generated": "docs/standards/logo.md §13-K4. Storefront'ta <picture> kullanımı 0 (grep -rni '<picture' src | wc -l → 0, docs/reports/03-render-envanteri.md §0-1) — PNG yedeği 19 render noktasında yeni markup demek. engine.py:151-160 docstring'inin bahsettiği WebP eksikliği ENCODE tarafı (Safari canvas.toBlob), decode değil.",
+    "dpr_range=[1,2,3]": "capacitor.config.ts:22 appId 'com.istoc.app' (iOS+Android hedefi tanımlı), :35 preferredContentMode 'mobile'. Modern iPhone ekranları DPR 3. DPR 4 desteklenmiyor — piyasada anlamlı payı olan cihaz yok ve her rung'ı 1,78× büyütürdü.",
+    "breakpoints": "tradehubfront/src/style.css:256-260 — bu projede Tailwind varsayılanları EZİLMİŞ: sm=480, md=640, lg=768, xl=1024. Logo kutularında kullanılan kırılımlar: lg:w-[50px] (ManufacturerList.ts:242) → ≥768px; sm:hidden (seller-shop.ts:202) → ≥480px. Çapraz kontrol: docs/reports/03-render-envanteri.md §1.1"
+  },
+
+  "open_questions": [
+    "K3 — Merdiven 4 rung mu (64/128/256/512), 5 rung mu (+384)? ÖNERİ: 4 rung. En kötü aşırı-servis 280→512 = 1,83× doğrusal / 3,35× piksel; mutlak bedel ~13 KB. KARAR D4'e bağlı: 512 rung'u gerçekte 40 KiB tavanına yakın çıkıyorsa 384 eklenmeli. docs/standards/logo.md §13-K3",
+    "K4 — PNG yedeği üretilsin mi? ÖNERİ: hayır, yalnız kayıpsız WebP. Depolamayı 256 → 188 KiB/logo'ya indirir. docs/standards/logo.md §13-K4",
+    "K5 — Panelin 400×400 tavsiyesi (DocTypeFormView.vue:448) ne olacak? ÖNERİ: 512×512'ye çıkarılsın (tek satır metin, AYRI görev). Aksi hâlde 512 rung'u her satıcı için ölü kalır (engine.py:117 upscale yapmaz). docs/standards/logo.md §13-K5",
+    "K6 — min_short_edge=256 sert reddi GEÇMİŞE dönük uygulanacak mı? ÖNERİ: yalnız YENİ yüklemelere; mevcut logolar dokunulmadan yaşar, envanterde low_resolution işaretlenir. D1 çalıştıktan sonra ayrı karar. docs/standards/logo.md §13-K6",
+    "svg_policy.enabled=false → true geçişi: SVG-1…SVG-10'un tümü + D6 (nginx başlıkları) doğrulanmadan yapılamaz. En kritik ön koşul slot kayıt defteri (notes[0])."
+  ],
+
+  "production_verification_required": [
+    "D1 — Gerçek logo dosyalarının piksel/oran/PIL-mode/bayt dağılımı. require.min_short_edge=256 sert reddi bu çıktı olmadan üretime alınamaz (kaç satıcının logosunu anında geçersiz kılacağı bilinmiyor). Tam betik: docs/standards/logo.md §12-D1",
+    "D2 — data: URI logoların gerçek sayısı. seed_demo_data.py:3364 kaynaklı; üretimde 0 olmalı. 0 değilse content_rules[data_uri_value] acil. Tam betik: §12-D2",
+    "D3 — Tarayıcıda hesaplanmış (computed) kutu ölçüleri. render_points[].content_box_px değerleri Tailwind sınıfından TÜRETİLDİ, ÖLÇÜLMEDİ. DPR 1/2/3 için ayrı ayrı. Tam betik: §12-D3",
+    "D4 — Türev baytlarının gerçek ölçümü (kayıpsız WebP vs PNG, gerçek logolar üzerinde). profiles[].max_bytes tavanlarını onaylar ya da düzeltir; kayıpsız WebP PNG'den küçük ÇIKMIYORSA format_priority'de PNG öne alınmalı. Tam betik: §12-D4",
+    "D5 — og:image kırpma hasarının GÖRSEL doğrulaması (%47,5 kesilme beklenir). Tam betik: §12-D5",
+    "D6 — SVG servis başlıkları (Content-Type, nosniff, CSP sandbox). svg_policy.enabled=true'nun ön koşulu. Tam betik: §12-D6",
+    "D7 — Depolama etkisi. Logolu satıcı sayısı bilinmiyor. Yalnız WebP: 68 + 120 = 188 KiB/logo. docs/reports/06-depolama-maliyet.md ile çapraz kontrol. Tam betik: §12-D7",
+    "D8 — Koyu temanın gerçek kullanım oranı + S1 (seller-shop.ts:124, plakasız) noktasının koyu temada ekran görüntüsü. dark_theme.variant_required=false kararının ve F3 bulgusunun ciddiyetini belirler. Tam betik: §12-D8"
+  ],
+
+  "notes": [
+    "KARAR K1 — KAPANDI (2026-08-18, ölçümle). 'JPEG logo RET mi, uyarıyla kabul mü?' → UYARIYLA KABUL + geçiş penceresi (seçenek B). Tetik §13-K1'de önceden yazılıydı: 'JPEG payı %10'u geçerse B'. docs/reports/08-canli-olcum.md §2.1 ölçtü: Admin Seller Profile.logo (27) + Brand.logo (11) = 38 referanstan diskte gerçek dosya olan 18'inin 9'u JPEG = %50; alfa kanallı 4/18 = %22. Öneri A (ret) ölçümle DÜŞTÜ. Bu politikada değişen alanlar: accept.mime (+image/jpeg), accept.extensions (+.jpg/.jpeg), accept.rejected_extensions (−.jpg/.jpeg), accept.format_priority (+jpeg_opaque, en sonda), require.alpha_channel (required → optional), content_rules[no_alpha_channel].action (reject → warn), messages.tr.format_no_alpha (ret metni → uyarı metni), messages.tr.format_not_supported (JPEG eklendi). DEĞİŞMEYEN: 11 render noktasının açık plaka gerekçesi ve S1'in plakasız oluşu — görsel sorun duruyor, yalnız yaptırım sertliği düştü.",
+    "KARAR K2 — KAPANDI (2026-08-18, ölçümle). 'Oran bandı 1:2…2:1 mi, 1:4…4:1 + kare mark varyantı mı?' → 1:2…2:1 KALDI (seçenek A onaylandı). Tetik: '%20'den fazlası band dışıysa B'. Ölçüm (docs/reports/08-canli-olcum.md §2.1): 16/18 = %89 band içinde, band dışı 2 dosya (%11) ve ikisi de w/h = 2,876 geniş kelime markası. %11 < %20 → iki-dosya modelinin maliyeti haklı çıkmadı. Bu politikada DEĞİŞEN SAYI YOK: require.aspect_band = {0.5, 2.0} aynen kaldı; yalnız sources ve content_rules[aspect_out_of_band].source ölçüm referansıyla güncellendi. Band dışı 2 dosya istisna olarak (kare 'mark' sürümü istenerek) ele alınır.",
+    "KARAR K3 — AÇIK KALDI. 'Merdiven 4 rung mu (64/128/256/512), 5 rung mu (+384)?' Ölçülemedi ve bu turda ölçülemezdi: tetik (§13-K3) '512 rung'unun gerçek baytı 40 KiB tavanına yaklaşıyor mu' sorusudur; rung baytı ancak TÜREV ÜRETİMİ (T-063) yazıldıktan sonra ölçülebilir. Bugün türev hiç üretilmiyor (notes[1]: bir yükleme → bir dosya, media/engine.py:117). Varsayılan yürürlükte: 4 rung. docs/reports/08-canli-olcum.md §2.2.",
+    "Bu politika bugün HİÇBİR kod yolu tarafından okunmuyor. media_engine/ altında bu görevden önce hiçbir dosya yoktu (find media_engine -type f → boş). Ayrıca upload_policy.check() imzasında slot parametresi YOK (media/upload_policy.py:306-312), yani slot kimliği sunucuya hiç ulaşmıyor — docs/reports/00-upload-slot-envanteri.md §1: 'L3 — Slot semantiği (boyut / oran / adet / rol): Sistemde hiç yok'. Politikanın uygulanabilmesi için önce o kimlik taşınmalıdır.",
+    "profiles[] üretimi de bugün YOK: bir yükleme → bir dosya. media/engine.py:117 im.thumbnail((max_dim, max_dim)) ve :177 im.thumbnail((1920,1920)) — yükleme anında tek master küçültülüp saklanıyor, türev üretilmiyor (docs/reports/03-render-envanteri.md §0-5).",
+    "srcset'i frontend'e yazmak İKİNCİ adımdır. Storefront'ta srcset kullanımı 0, <picture> 0, sizes 0 (docs/reports/03-render-envanteri.md §0-1). Merdiven kurulmadan srcset yazmanın gösterecek ikinci dosyası yok.",
+    "Uygulama sırası (bağımlılık zinciri): 1) slot kayıt defteri → 2) logo doğrulama kodları → 3) oran normalizasyonu (1:1 saydam pad) → 4) türev merdiveni (kayıpsız WebP) → 5) og:image logo yolu düzeltmesi → 6) srcset → 7) SVG kabulü. Adım 7 en sonda: SVG kabulü slot-kapsamlı olmak zorunda ve slot kapsamı adım 1'de doğuyor. docs/standards/logo.md §10",
+    "Bu görev MEVCUT KOD DOSYALARINI DEĞİŞTİRMEDİ. Açığa çıkan 18 bulgu docs/standards/logo.md §11'de kayıtlı — aralarında: platform logosunun 87×32 olması (F1), header'da koyu tema varyantının bağlanmamış olması (F2), 5 object-cover kırpma noktası (F4), kayıplı WebP dönüşümü (F5), og:image'in logoyu %47,5 kırpması (F13), data: URI SVG kanalı (F14), admin panel favicon 404 (F10).",
+    "ŞEMA NOTU: bu dosya media_engine/policy/slots/ altındaki çoğunluk şemasına (product-image.json, product-video.json, company-cover-image.json, category-banner.json) hizalandı. Kardeş dosyalarda 4 farklı şema var (document-attachment.json ve user-avatar.json Türkçe anahtarlar, company-cover-video.json ayrı bir yapı) — kayıt defteri yazılmadan önce tek şemaya indirilmeli."
+  ]
+}

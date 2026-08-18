@@ -1,0 +1,25 @@
+{
+  "$schema": "./_schema.md",
+  "slot_key": "shipping_channel.icon",
+  "doctype_field": "Shipping Channel.icon",
+  "kind": "image",
+  "is_product_slot": false,
+  "min_long_edge": 128,
+  "max_long_edge": 512,
+  "target_long_edge": 256,
+  "aspect_ratio": "1:1",
+  "aspect_tolerance": 0.02,
+  "fit": "contain",
+  "dpi_policy": {
+    "output_dpi": 72,
+    "strip_input_dpi": true,
+    "pixels_preserved": true
+  },
+  "olcum": {
+    "render_box_css_px": null,
+    "render_box_kaynak": "docs/reports/00-upload-slot-envanteri.md:149 — 'OLCULEMEDI'; belgenin kendi notu: 'Kucuk ikon — L3 boyut kurali en cok burada anlamli olurdu'",
+    "min_long_edge_gerekce": "Ikon slotu. 128 px, tipik 24-32 CSS px ikon kutusunu DPR2/DPR3'te karsilar.",
+    "max_long_edge_gerekce": "512 px ustu bir ikon icin anlamsiz — bu tavan asil isi yapiyor: 4000 px logo dosyasinin ikon slotuna girmesini engeller.",
+    "uretimde_dogrulanmali": true
+  }
+}

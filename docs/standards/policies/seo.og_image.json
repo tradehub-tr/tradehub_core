@@ -1,0 +1,26 @@
+{
+  "$schema": "./_schema.md",
+  "slot_key": "seo.og_image",
+  "doctype_field": "Static Page SEO.og_image",
+  "kind": "image",
+  "is_product_slot": false,
+  "min_long_edge": 1200,
+  "max_long_edge": 2400,
+  "target_long_edge": 1200,
+  "aspect_ratio": "1.91:1",
+  "aspect_tolerance": 0.02,
+  "fit": "cover",
+  "dpi_policy": {
+    "output_dpi": 72,
+    "strip_input_dpi": true,
+    "pixels_preserved": true,
+    "note": "OG tuketicileri (Facebook/X/WhatsApp) DPI'ye hic bakmaz; yalniz piksel okur. DPI'yi dusurmek paylasim onizlemesini etkilemez."
+  },
+  "olcum": {
+    "render_box_css_px": 448,
+    "render_box_kaynak": "docs/reports/00-upload-slot-envanteri.md:150 — panel onizleme 'w-full max-w-md aspect-[1.91/1]' → maks 448x235 px",
+    "min_long_edge_gerekce": "Open Graph tavsiye edilen asgari 1200x630 (harici standart, kod tabaninda degil). Panel onizleme kutusu (448 px) render boyutu degil — dosya sosyal aga gider.",
+    "max_long_edge_gerekce": "1200'un 2 kati; ustu OG tuketicileri tarafindan zaten kucultuluyor.",
+    "not": "1.91:1 kod tabaninda en-boy oranini ACIKCA yazan TEK slot (OgImageUpload.vue:57) — ama UI'da zorlanmiyor. Policy zorunlu kilar."
+  }
+}

@@ -1,0 +1,507 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://istoc.local/media_engine/policy/retention.schema.json",
+  "title": "Medya Saklama (Retention) Politikası",
+  "description": "İstoç medya motoru saklama politikası şeması. Görev T-026. Belge: docs/standards/retention.md. Varsayılan değerler mevcut koddaki sabitlerden alındı; ilk uygulamada davranış değişmemesi hedeflendi. 'x-current-implementation' alanları o kuralı BUGÜN kimin uyguladığını dosya:satır olarak taşır; 'YOK' yazan yerler uygulanmamış demektir.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "policy_version",
+    "original_retention",
+    "derivative_retention",
+    "legal_hold",
+    "soft_delete"
+  ],
+  "properties": {
+    "policy_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Politika sürümü. Saklama süresi değişimi geriye dönük etkili olduğu için her değişiklik sürüm artırmalı ve audit'e yazılmalı.",
+      "examples": ["1.0.0"]
+    },
+
+    "original_retention": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Orijinal varlık = kullanıcının yüklediği dosyanın kendisi. VARSAYILAN: süresiz saklanır. Bugünkü fiilî davranış budur: hiçbir zamanlanmış görev canlı medya dosyasını silmiyor; silme yalnız kullanıcı eylemiyle (çöpe taşıma) başlıyor.",
+      "required": ["keep_forever", "legal_hold_overrides"],
+      "properties": {
+        "keep_forever": {
+          "type": "boolean",
+          "default": true,
+          "description": "true → orijinal hiçbir zamanlanmış politikayla silinmez veya taşınmaz. Bunu false yapmak bilinçli bir veri kaybı kararıdır; false ise local_days ve then ZORUNLU olur.",
+          "x-current-implementation": "Fiilî davranış: hooks.py:127-192 günlük bloğunda canlı dosyayı silen tek yol trash.purge_expired ve o da yalnız private/media_trash/ altını geziyor (trash.py:281-293). Açık bir sabit YOK."
+        },
+        "local_days": {
+          "type": ["integer", "null"],
+          "minimum": 1,
+          "default": null,
+          "description": "Orijinalin yerel diskte tutulacağı gün sayısı. keep_forever=true iken anlamsızdır ve null olmalıdır.",
+          "x-current-implementation": "YOK"
+        },
+        "then": {
+          "type": "string",
+          "enum": ["s3_standard", "s3_cold", "delete"],
+          "default": "delete",
+          "description": "local_days dolduğunda ne yapılacak. DİKKAT: s3_standard ve s3_cold bu kod tabanında UYGULANMADI (bkz. storage_targets). Uygulanmamış bir hedef seçilirse yükleyici konfigürasyonu REDDETMELİ — sessizce delete'e düşmek en tehlikeli davranıştır.",
+          "x-current-implementation": "delete → trash.purge_expired (trash.py:268). s3_standard / s3_cold → YOK; tradehub_core/ altında boto3/minio/s3 istemcisi yok, requirements.txt'te de yok."
+        },
+        "legal_hold_overrides": {
+          "const": true,
+          "default": true,
+          "description": "legal_hold=1 olan varlık bu politikayla silinemez. Değiştirilemez (const): şemaya uyan hiçbir konfigürasyon yasal saklamayı kapatamaz.",
+          "x-current-implementation": "YOK — legal_hold alanı repoda hiç yok (grep: 0 eşleşme)."
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "keep_forever": { "const": false } },
+            "required": ["keep_forever"]
+          },
+          "then": {
+            "required": ["local_days", "then"],
+            "properties": {
+              "local_days": { "type": "integer", "minimum": 1 }
+            },
+            "description": "Süresiz saklama kapatıldıysa süre ve sonraki eylem yazılmak ZORUNDA. 'Kapattım ama ne olacağını yazmadım' durumu şema düzeyinde imkânsız."
+          }
+        },
+        {
+          "if": {
+            "properties": { "keep_forever": { "const": true } },
+            "required": ["keep_forever"]
+          },
+          "then": {
+            "properties": { "local_days": { "const": null } },
+            "description": "keep_forever=true iken local_days null olmalı; dolu bir değer okuyucuyu yanıltır."
+          }
+        }
+      ]
+    },
+
+    "derivative_retention": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Türev varlık = orijinalden üretilmiş ikincil dosya (responsive boyutlar, WebP/AVIF varyantları, video renditions). ÖNEMLİ: bu kod tabanı BUGÜN türev üretmiyor — hem görsel optimizasyonu (archive.py:4-6) hem video transcode (transcode.py:26-29) dosyanın ÜSTÜNE yazıyor, file_url sabit kalıyor, ayrı bir türev varlığı ve ayrı bir file_url oluşmuyor. Bu bölüm türev boru hattı geldiğinde politikanın ÖNCEDEN tanımlı olması için var; bugün boş kümeye uygulanır.",
+      "required": ["pipeline_status", "unused_after_days", "action", "unused_definition"],
+      "properties": {
+        "pipeline_status": {
+          "type": "string",
+          "enum": ["absent", "in_place_overwrite", "separate_artifacts"],
+          "default": "absent",
+          "description": "absent → türev varlığı yok, bu bölüm etkisiz. in_place_overwrite → dönüşüm var ama ayrı çıktı yok (bugünkü koda en yakın durum; yine de ayrı türev VARLIĞI olmadığı için doğru cevap 'absent'). separate_artifacts → gerçek türev dosyaları var, politika etkin.",
+          "x-current-implementation": "absent. Kanıt: engine.py:117 ve engine.py:177 im.thumbnail() çağrıları aynı dosyayı küçültüyor, ayrı çıktı üretmiyor; 'thumbnail_url' repoda hiç geçmiyor."
+        },
+        "unused_after_days": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 90,
+          "description": "Türev 'kullanılmadı' sayıldıktan sonra kaç gün beklenip action uygulanacak.",
+          "x-provenance": "Bu 90 sayısı T-026 görev tanımından gelir, bir ÖLÇÜM DEĞİLDİR. Kod tabanında 90 günlük bir medya penceresi yok; audit/tasks.py:32 _HOT_DAYS_DECISION=90 audit satırları için, medya için değil.",
+          "x-current-implementation": "YOK"
+        },
+        "action": {
+          "type": "string",
+          "enum": ["delete", "s3_cold", "notify_only"],
+          "default": "notify_only",
+          "description": "Varsayılan notify_only: türev boru hattı yokken (pipeline_status=absent) delete varsayılanı sıfır faydayla sıfır olmayan risk taşır. s3_cold uygulanmadı (bkz. storage_targets).",
+          "x-current-implementation": "YOK"
+        },
+        "regenerate_on_demand": {
+          "type": "boolean",
+          "default": true,
+          "description": "true → silinen türev ilk istekte orijinalden yeniden üretilebilir; silme veri kaybı değil cache tahliyesidir. false + action=delete kombinasyonu GERÇEK veri kaybıdır.",
+          "x-requires-review": "regenerate_on_demand=false ve action='delete' birlikte verilirse yükleyici uyarı üretmeli ve açık onay istemeli.",
+          "x-current-implementation": "YOK"
+        },
+        "always_keep_profiles": {
+          "type": "array",
+          "default": [],
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Hiçbir koşulda silinmeyecek türev profil adları. LCP yolundaki boyutlar buraya yazılır (örn. liste kartı ve ürün sayfası ilk görseli). Boş dizi varsayılan, çünkü bugün profil adı diye bir şey yok.",
+          "examples": [["thumb_320", "card_640"]],
+          "x-current-implementation": "YOK"
+        },
+        "unused_definition": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "'Kullanılmadı' tanımı — mevcut kodda media/usage.py'de ve VERİTABANI TARAMASINA dayanıyor. Bu nesne o tanımı açık, sürümlü ve makinece okunabilir hâle getirir.",
+          "required": ["verdicts_considered_unused", "deep_scan_required", "frontend_scan_completed"],
+          "properties": {
+            "source_of_truth": {
+              "type": "string",
+              "default": "tradehub_core.media.usage",
+              "description": "Taranan (tablo, kolon) çiftlerinin TEK kaynağı. Buraya ikinci bir kopya yazılmamalı — schema.py:22-23 aynı gerekçeyi kaydediyor: 'buraya ikinci bir kopya yazmak, zamanla ayrışan iki liste demekti'.",
+              "x-current-implementation": "usage.py:32-42 (LIVE, 8 çift), usage.py:46-49 (ORDER, 2 çift), usage.py:52-59 (HISTORY, 6 çift) = 16 çift."
+            },
+            "verdicts_considered_unused": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "default": ["unused", "history_only"],
+              "items": {
+                "type": "string",
+                "enum": ["in_use", "order_only", "history_only", "unused"]
+              },
+              "description": "Hangi karar etiketleri 'kullanılmadı' sayılır. in_use ASLA eklenmemeli (trash.py:33: 'asla — sitede kırılma yaratır'). order_only da dışta: refs.py:38-42 sipariş kaynaklarını 'geçmiş siparişin delili' sayıyor ve referansı silmeyi 'geçmişi değiştirmek' olarak tanımlıyor.",
+              "x-current-implementation": "trash.py:34 — TRASHABLE_VERDICTS = frozenset({'unused','history_only'}). Etiket kümesi: usage.py:61."
+            },
+            "deep_scan_required": {
+              "type": "boolean",
+              "default": true,
+              "description": "Silme kararı derin tarama sonucuna dayanmalı mı. false yapılırsa hızlı ama eksik tarama ile silme kararı verilir.",
+              "x-current-implementation": "trash.py:101 — usage.verdict_map_all(deep=True)."
+            },
+            "grace_days_after_last_reference": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "description": "Bir dosyanın SON referansı kalktıktan sonra silme adayı sayılmadan önce beklenecek gün. Bugün 0: referans kalkar kalkmaz dosya adaydır. Yanlışlıkla temizlenen bir galeri satırı bu yüzden dosyayı anında adaya çeviriyor.",
+              "x-current-implementation": "YOK — bu bekleme kodda hiç yok."
+            },
+            "frontend_scan_completed": {
+              "type": "boolean",
+              "default": false,
+              "description": "Frontend kaynak kodunda SABİT YAZILMIŞ medya adresleri tarandı mı. false iken otomatik silme (action='delete') ETKİNLEŞTİRİLMEMELİ. Gerekçe trash.py:10-13'te yazılı: 'kullanılmıyor taraması yalnız veritabanını kapsıyor. Frontend kodunda sabit yazılmış ya da dışarıdan link verilmiş bir görsel taramada kullanılmıyor görünür ama sitede kırılır.' Çöp kutusunun 30 günlük penceresi tam olarak bu hatayı geri alınabilir kılmak için var.",
+              "x-current-implementation": "YOK — böyle bir tarama kodda yok."
+            },
+            "json_blob_encoding_variants": {
+              "type": "boolean",
+              "default": true,
+              "description": "JSON blob alanlarında (örn. Storefront Layout.sections) kaçışlı yazım varyantları da aranmalı mı. false yaparsanız Türkçe karakterli adlar yeniden gözden kaçar.",
+              "x-current-implementation": "usage.py:71-79 — _search_variants(). Kod yorumu bu hatanın gerçekleştiğini kaydediyor: 'Türkçe adlı vitrin görselleri kullanılmıyor görünüp silme adayı oluyordu.'"
+            }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "action": { "const": "delete" } },
+            "required": ["action"]
+          },
+          "then": {
+            "properties": {
+              "unused_definition": {
+                "properties": {
+                  "frontend_scan_completed": { "const": true }
+                },
+                "required": ["frontend_scan_completed"]
+              }
+            },
+            "description": "Otomatik silme yalnız frontend taraması tamamlandıysa açılabilir."
+          }
+        }
+      ]
+    },
+
+    "legal_hold": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Yasal saklama. legal_hold=1 olan varlık HİÇBİR politikayla silinemez — orijinal, türev, çöp, arşiv ve yedek dahil. Bu kod tabanında BUGÜN YOK: repo tarandı, legal_hold/legalhold/litigation için 0 eşleşme.",
+      "required": ["enabled", "field", "overrides_all_policies", "applies_to", "audit_action"],
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Yasal saklama mekanizması kurulu mu. Uygulama gelene kadar false; false iken bu şemayı okuyan sistem 'yasal saklama koruması YOK' uyarısı üretmeli.",
+          "x-current-implementation": "YOK"
+        },
+        "field": {
+          "type": "string",
+          "default": "th_legal_hold",
+          "pattern": "^th_[a-z0-9_]+$",
+          "description": "File doctype üzerindeki custom alan adı. th_ öneki mevcut isimlendirmeyle tutarlı: th_trashed_at, th_media_state, th_media_video_status, th_media_title, th_media_alt, th_media_description, th_media_tags, th_media_favorite, th_media_width, th_media_height, th_optimized_at, th_original_size (patches/v15_9_12..16).",
+          "x-current-implementation": "YOK — böyle bir custom alan yok."
+        },
+        "overrides_all_policies": {
+          "const": true,
+          "default": true,
+          "description": "Değiştirilemez. Bu şemayı okuyup legal_hold kontrolünü atlayan bir uygulama şemaya UYMAMIŞ olur.",
+          "x-current-implementation": "YOK"
+        },
+        "applies_to": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "default": ["original", "derivative", "trash", "archive", "backup"],
+          "items": {
+            "type": "string",
+            "enum": ["original", "derivative", "trash", "archive", "backup"]
+          },
+          "description": "Korumanın kapsadığı depolar. 'trash' listede olması bilinçli: yasal saklama ÇÖPTEKİ dosyayı da korumalı. Uygulama maliyeti var — trash.purge_expired (trash.py:293) bugün diskte dolaşıp yalnız mtime'a bakıyor, hiçbir File alanı okumuyor; legal hold eklendiğinde purge'un dosya→kayıt yönünde (toplu) sorgu yapması gerekecek.",
+          "x-current-implementation": "YOK"
+        },
+        "bypass_allowed_for_roles": {
+          "type": "array",
+          "default": [],
+          "maxItems": 0,
+          "items": { "type": "string" },
+          "description": "Boş olmak ZORUNDA (maxItems: 0). Hiçbir rol yasal saklamayı aşamaz — System Manager ve Marketplace Admin dahil. Bu, entitlement.checks.check_media_storage_quota'daki rol muafiyetlerinden (checks.py:241-244) kasıtlı olarak FARKLI bir tercih: kota bir ticari sınır, yasal saklama bir hukuki yükümlülük."
+        },
+        "audit_action": {
+          "type": "string",
+          "default": "media.legal_hold_block",
+          "pattern": "^media\\.[a-z0-9_]+$",
+          "description": "Engellenen silme girişiminin audit action adı. media.* deseni audit.py:43-68 ile tutarlı. Uygulamada trash.py:111-130'daki _deny deseni aynen kullanılabilir.",
+          "x-current-implementation": "YOK — audit.py'de böyle bir action sabiti yok."
+        },
+        "release_requires_reason": {
+          "type": "boolean",
+          "default": true,
+          "description": "Yasal saklamanın KALDIRILMASI serbest metin gerekçe istemeli ve audit'e yazılmalı. Kaldırma, silmenin ön adımıdır; izsiz olmamalı."
+        }
+      }
+    },
+
+    "soft_delete": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Silme her zaman soft-delete + bekleme + audit. Bu kod tabanında ZATEN böyle çalışıyor; buradaki varsayılanlar mevcut davranışı yazıya geçiriyor, değiştirmiyor.",
+      "required": [
+        "require_two_step",
+        "trash_retention_days",
+        "archive_retention_days",
+        "audit_required"
+      ],
+      "properties": {
+        "require_two_step": {
+          "const": true,
+          "default": true,
+          "description": "Canlı dosya tek adımda silinemez: önce çöpe taşınır, sonra kalıcı silinir. Değiştirilemez.",
+          "x-current-implementation": "trash.py:210-215 — delete_permanently yalnız çöpteki dosyaya uygulanır. Kod yorumu: 'Bu iki adımlı akış, tek bir yanlış tıklamanın geri dönüşü olmayan sonuç doğurmasını engelliyor.'"
+        },
+        "trash_retention_days": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 30,
+          "description": "Çöpteki dosyanın kalıcı silinmeden önce bekleme süresi. Bu pencere sadece kullanıcı hatası için değil, 'kullanılmıyor' taramasının bilinen boşlukları (frontend'de sabit yazılmış görseller) için de emniyet ağı.",
+          "x-current-implementation": "trash.py:31 — TRASH_RETENTION_DAYS = 30. Uygulayan: trash.purge_expired (trash.py:268), fonksiyon zaten retention_days parametresi kabul ediyor (trash.py:269), sabit yalnız VARSAYILAN — konfigürasyon katmanı eklemek çağrı yerini değiştirmek demek."
+        },
+        "archive_retention_days": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 30,
+          "description": "Optimizasyon öncesi orijinalin arşivde tutulma süresi (geri alma penceresi). trash_retention_days ile aynı değere sahip ama AYRI bir sabit; ikisinin aynı kalması gerektiğini bugün hiçbir yer söylemiyor.",
+          "x-current-implementation": "presets.py:38 — ARCHIVE_RETENTION_DAYS = 30. Uygulayan: archive.purge_expired (archive.py:113), retention_days parametresi kabul ediyor (archive.py:114). Arşiv yolu: presets.py:35 ARCHIVE_DIRNAME='image_originals'; File kaydı YARATILMAZ (archive.py:8-9) — bu yüzden satıcı kotasına yansımaz."
+        },
+        "clear_references_on_delete": {
+          "type": "boolean",
+          "default": true,
+          "description": "Kalıcı silmede dosyayı gösteren alanlar da temizlenmeli. false yapılırsa üründe boş görsel yuvası kalır.",
+          "x-current-implementation": "refs.clear() — tek dosya silmede trash.py:227, purge'de trash.py:304. Davranış: ROW_OWNED_TABLES (refs.py:34-36 → tabListing Image, tabListing Variant Item, tabSeller Gallery Image) satır SİLER; diğerlerinde alan BOŞALTIR."
+        },
+        "readonly_reference_tables": {
+          "type": "array",
+          "uniqueItems": true,
+          "default": ["tabCart Item", "tabOrder"],
+          "items": { "type": "string" },
+          "description": "Referansı ASLA temizlenmeyecek tablolar — yalnız raporlanır. Sipariş kayıtları geçmişin delili.",
+          "x-current-implementation": "refs.py:38-42 — READONLY_TABLES, usage.ORDER_SOURCES'tan türetiliyor. Kod yorumu: 'Referansı silmek geçmişi değiştirmek olur — yalnız raporlanır.'"
+        },
+        "scope_gates": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Silme kapıları ve hangilerinin kullanıcı onayıyla (force) aşılabildiği. Kapsam engelleri 'gizlilik kararı, kullanıcı tercihi değil' (trash.py:67-71).",
+          "properties": {
+            "private_files_never_deletable": {
+              "type": "boolean",
+              "default": true,
+              "x-current-implementation": "trash.py:80-82 — is_private → reddet, force ile AŞILAMAZ."
+            },
+            "excluded_doctypes_never_deletable": {
+              "type": "boolean",
+              "default": true,
+              "x-current-implementation": "trash.py:83-85 — attached_to_doctype in EXCLUDED_DOCTYPES → reddet, force ile AŞILAMAZ. Liste (8 doctype): presets.py:44-53 — KYB Verification, KYC Verification, Seller Certification, Seller Verification, Seller Application, Order, Payment Transaction, Data Export Request."
+            },
+            "sensitive_content_twin_never_deletable": {
+              "type": "boolean",
+              "default": true,
+              "x-current-implementation": "trash.py:88-94 — _has_sensitive_twin(content_hash) → reddet, force ile AŞILAMAZ. İçerik bazlı: hassas bir belgenin public kopyası olabilir."
+            },
+            "in_use_deletable_with_force": {
+              "type": "boolean",
+              "default": true,
+              "description": "true → kullanıcı 'bu dosya {n} üründe kullanılıyor, görselleri kırılacak' uyarısını onaylayarak silebilir. Onay göstermek çağıranın sorumluluğu.",
+              "x-current-implementation": "trash.py:98-108 + trash.py:138-143. Audit'te ayrıştırılıyor: trash.py:171-175 context'e 'forced' bayrağı yazıyor."
+            },
+            "reverse_reference_scan_required": {
+              "type": "boolean",
+              "default": true,
+              "description": "EXCLUDED_DOCTYPES + attached_to_doctype kontrolü TEK BAŞINA yeterli değil: bazı hassas belgeler attached_to_doctype BOŞ olarak yükleniyor ve yalnız o doctype'ın Attach/Data alanından string olarak referanslanıyor.",
+              "x-current-implementation": "presets.py:56-76 — EXCLUDED_MEDIA_FIELDS haritası (KYC/Seller Application/KYB/Seller Certification/Seller Verification). Yorum canlı DB'de doğrulanmış iki sayı veriyor (Seller Application.identity_document 144 dosya, Seller Certification.document 2 dosya, ikisinde de attached_to_doctype BOŞ) — bu sayılar O YORUMDAN ALINTI, bu görevde ölçülmedi. Ters tarama access_level.py set_level() içinde yapılıyor; trash kapısında AYNI taramanın yapıldığı doğrulanmadı."
+            }
+          }
+        },
+        "audit_required": {
+          "const": true,
+          "default": true,
+          "description": "Her silme/geri alma/purge olayı audit'e yazılmalı. Değiştirilemez.",
+          "x-current-implementation": "media.trash (trash.py:173), media.untrash (trash.py:206), media.delete (trash.py:235-245), media.purge_trash (trash.py:321-334), media.purge_archive (archive.py:144-152), media.scope_denied (trash.py:123-130). Action sabitleri: audit.py:43-68."
+        },
+        "audit_empty_runs": {
+          "type": "boolean",
+          "default": true,
+          "description": "Hiçbir şey silinmediyse de purge kaydı atılmalı. Gerekçe trash.py:319-320'de yazılı: \"'purge çalıştı mı' sorusu denetimden cevaplanabilmeli.\"",
+          "x-current-implementation": "trash.py:321 — log_media_batch koşulsuz çağrılıyor."
+        },
+        "distinguish_manual_and_scheduled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Elle 'Çöpü boşalt' (çöpün TAMAMI hemen) ile zamanlanmış purge (yalnız süresi dolanlar) audit'te ayrı görünmeli.",
+          "x-current-implementation": "trash.py:269 trigger parametresi + trash.py:275-279 gerekçe: 'Denetim kaydında ikisi aynı olay adıyla görünüyordu ve çöp temizliği ifadesi bakım işi gibi okunuyordu.'"
+        },
+        "states": {
+          "type": "array",
+          "uniqueItems": true,
+          "default": ["Active", "Archived", "Trashed", "Deleted"],
+          "items": { "type": "string" },
+          "description": "Medya durum makinesinin durumları. Çöpten geri alma Active'e değil, uygun duruma döner.",
+          "x-current-implementation": "states.py:48-51. Geri alma hedefi states.state_after_untrash (trash.py:190); trash.py:188-189: 'Optimize edilmiş dosya çöpten Active'e değil Archived'a döner — orijinali hâlâ arşivde.'"
+        }
+      }
+    },
+
+    "backup": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Yedek ve dışa aktarma paketi saklama pencereleri. Bunlar §1'deki 3. ve 4. pencereler.",
+      "properties": {
+        "keep_sets": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 14,
+          "description": "Tutulacak en yeni anlık görüntü seti sayısı.",
+          "x-current-implementation": "backup.py:385 — KEEP_SETS = 14. Uygulayan: backup.prune(keep=…) (backup.py:357), çağrı backup.py:407. Havuz içerik-adresli: bir içerik ancak HİÇBİR set onu göstermiyorsa silinir (backup.py:364-366).",
+          "x-provenance": "backup.py:360-366 ve backup.py:382-384 yorumları bu değerin ölçümle seçildiğini söylüyor (994 MB toplam, günde ~12 MB değişim, diskte 382 GB boş → 14 gün ≈ 1 GB havuz + ~170 MB değişim). Bu sayılar O YORUMLARDAN ALINTI; bu görevde ölçülmedi."
+        },
+        "export_keep_hours": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 48,
+          "description": "Dışa aktarma paketinin (yedeğin indirilebilir kopyası) saklanma süresi.",
+          "x-current-implementation": "backup_export.py:45 — KEEP_HOURS = 48. Uygulayan: backup_export.cleanup() (backup_export.py:568), backup.run_scheduled içinden çağrılıyor (backup.py:409-417)."
+        },
+        "on_backup_failure": {
+          "type": "string",
+          "enum": ["skip_purge", "purge_anyway"],
+          "default": "skip_purge",
+          "description": "Yedek alınamazsa eski yedeklerin temizliği yapılmasın. purge_anyway seçmek 'yedek yok + eski yedekler de silindi' durumunu mümkün kılar.",
+          "x-current-implementation": "backup.py:398-407 — snapshot() hata verirse raise ediliyor, prune HİÇ çalışmıyor. Gerekçe backup.py:390-393: 'ÖNCE yedek alınır, SONRA eskiler temizlenir. Tersi olsaydı temizlik başarılı, yedek başarısız olduğunda elde daha az yedek kalırdı.'"
+        },
+        "export_cleanup_failure_is_fatal": {
+          "type": "boolean",
+          "default": false,
+          "description": "Paket temizliği hatası yedeği düşürmemeli.",
+          "x-current-implementation": "backup.py:414-419 — cleanup() try/except içinde, hatası yutuluyor: 'Paket temizliği yedeği düşürmemeli: yedek alındı, asıl iş bitti.'"
+        }
+      }
+    },
+
+    "storage_targets": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Saklama hedeflerinin uygulanma durumu. Bir politika 'not_implemented' bir hedefi seçerse yükleyici konfigürasyonu REDDETMELİ.",
+      "properties": {
+        "local_private": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "implementation_status": { "const": "implemented" },
+            "path_pattern": { "type": "string", "default": "<site>/private/{dir}" }
+          },
+          "x-current-implementation": "frappe.get_site_path('private', …) — trash.py:37-38 (media_trash), archive.py:26-27 (image_originals)."
+        },
+        "s3_standard": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "implementation_status": {
+              "type": "string",
+              "enum": ["implemented", "not_implemented"],
+              "default": "not_implemented"
+            }
+          },
+          "x-current-implementation": "YOK. Kanıt: tradehub_core/ altında boto3|s3_bucket|aws_access|minio geçen TEK satır audit/__init__.py:23 ve o bir yorum ('Retention: 90 gün sıcak (Frappe DB), 10 yıl arşiv (S3/MinIO — Faz 3'te encryption)'). requirements.txt'te S3 istemcisi yok."
+        },
+        "s3_cold": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "implementation_status": {
+              "type": "string",
+              "enum": ["implemented", "not_implemented"],
+              "default": "not_implemented"
+            }
+          },
+          "x-current-implementation": "YOK — s3_standard ile aynı gerekçe."
+        }
+      }
+    },
+
+    "orphan_reconciliation": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Disk ile veritabanı arasındaki ayrışmayı bulan periyodik uzlaştırma. İhtiyaç sebebi: purge_expired (trash.py:293-316) her dosya için 'except Exception: … continue' uyguluyor; refs.clear → delete_doc → os.remove zincirinin ortasında kesinti olursa kısmi durum SESSİZCE kalıcı olabiliyor.",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false,
+          "x-current-implementation": "Kısmen: refs.find_dangling() (refs.py:19) 'hedefi olmayan referansları tarar'. Ama hooks.py:92-219 scheduler bloklarında find_dangling çağrısı YOK — yani zamanlanmış değil, elle çağrılıyor."
+        },
+        "schedule": {
+          "type": "string",
+          "enum": ["daily", "weekly", "weekly_long"],
+          "default": "weekly_long",
+          "description": "weekly_long öneriliyor: tarama tüm medya tablolarını dolaşıyor, günlük bloğu şişirmemeli. hooks.py:194-218'de weekly_long bloğu mevcut."
+        },
+        "directions": {
+          "type": "array",
+          "uniqueItems": true,
+          "default": ["db_without_disk", "disk_without_db", "dangling_references"],
+          "items": {
+            "type": "string",
+            "enum": ["db_without_disk", "disk_without_db", "dangling_references"]
+          },
+          "description": "db_without_disk → File kaydı var, dosya yok. disk_without_db → dosya var, kayıt yok (purge yarıda kesilirse). dangling_references → referans var, hedef yok (bugün refs.find_dangling bunu yapıyor)."
+        },
+        "auto_repair": {
+          "type": "boolean",
+          "default": false,
+          "description": "Varsayılan false: uzlaştırma önce RAPORLAR. Otomatik onarım, tanımı gereği kayıp veriyi silmek anlamına gelebilir."
+        }
+      }
+    },
+
+    "configurability": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "T-026'nın tespit ettiği asıl eksik: dört saklama penceresinin dördü de Python sabiti, hiçbiri konfigüre edilemiyor. Değiştirmek kod düzenlemesi + deploy (+ imaj tabanlı kurulumda imaj rebuild) gerektiriyor.",
+      "properties": {
+        "source": {
+          "type": "string",
+          "enum": ["python_constant", "site_config", "doctype_single", "policy_file"],
+          "default": "python_constant",
+          "description": "Saklama sürelerinin okunduğu yer. Bugün python_constant. Hedef: policy_file (bu şema) ya da doctype_single.",
+          "x-current-implementation": "python_constant — trash.py:31, presets.py:38, backup.py:385, backup_export.py:45. Dördünde de frappe.db.get_single_value / frappe.conf okuması YOK."
+        },
+        "call_sites_ready": {
+          "const": true,
+          "description": "İyi haber: fonksiyon imzaları konfigürasyona HAZIR. trash.purge_expired(retention_days=…) (trash.py:268-270) ve archive.purge_expired(retention_days=…) (archive.py:113-115) parametre kabul ediyor; sabit yalnız varsayılan değer. Konfigürasyon katmanı eklemek çağrı yerini değiştirmek demek, mantığı değiştirmek değil."
+        },
+        "change_requires_audit": {
+          "type": "boolean",
+          "default": true,
+          "description": "Saklama süresi değişimi geriye dönük etkili: 30 günü 7'ye düşürmek, çöpteki 23 günlük dosyaları anında silme adayı yapar. Her değişiklik audit'e yazılmalı ve policy_version artırılmalı."
+        },
+        "shorten_requires_confirmation": {
+          "type": "boolean",
+          "default": true,
+          "description": "Süre KISALTMA, uzatmadan farklı bir işlemdir ve açık onay istemeli. Kısaltma bir sonraki purge koşusunda veri kaybı üretir."
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,483 @@
+{
+  "$comment": "T-025 — İçerik uygunluk kuralları. HİÇBİR EŞİK KALİBRE EDİLMEDİ. Her eşik literatürden/yaygın pratikten türetilmiş BAŞLANGIÇ değeridir; scripts/calibrate_content_rules.py gerçek korpusla çalıştırılmadan üretime alınmamalıdır. Gerekçe ve ölçüm yöntemleri: docs/standards/icerik-kurallari.md",
+  "schema_version": "1.0.0",
+  "policy_id": "content_rules",
+  "task": "T-025",
+  "created": "2026-08-17",
+  "calibration_status": "UNCALIBRATED",
+  "calibration_script": "scripts/calibrate_content_rules.py",
+  "false_positive_budget": 0.05,
+  "false_positive_budget_note": "Her kural için hedef: temiz (kabul edilebilir) görsellerde tetiklenme oranı < %5. Bu oran ÖLÇÜLMEDİ — korpus yok.",
+
+  "decision_model": {
+    "actions": ["pass", "warn", "manual_review", "reject"],
+    "reject_allowed_rules": ["nsfw_content", "extreme_blur"],
+    "reject_allowed_note": "KRİTİK KURAL: yalnız bu iki kural RED üretebilir. Diğer tüm kurallar en fazla 'warn' döner ve yüklemeyi/yayını ASLA engellemez.",
+    "aggregation": "Bir görselde birden çok kural tetiklenirse en yüksek aksiyon kazanır (reject > manual_review > warn > pass). Uyarılar birikimli listelenir, biri diğerini bastırmaz.",
+    "warn_semantics": "Uyarı = kullanıcıya gösterilen, kapatılabilir (dismissible) öneri. Kayıt yine de oluşur, yayın engellenmez. Uyarı sayısı Listing üzerinde raporlanır ama completeness_score'u DÜŞÜRMEZ (mevcut skorlama tradehub_core/utils/completeness.py:134-147'de tanımlı; bu politika ona dokunmaz).",
+    "reject_semantics": "Red = dosya kaydedilir ama ilgili kayıt 'Hidden' duruma alınır ve moderasyon kuyruğuna düşer. Sessiz silme YOK.",
+    "error_code_convention": "Kodlar tradehub_core/media/upload_policy.py:99-122'deki `Kod(kod, retryable)` sözleşmesiyle aynı biçimdedir (istemci METNE değil KODA bakar). Ön ek `content_` — yükleme reddi değil, içerik değerlendirmesi olduğu için `upload_` ön ekinden ayrıldı."
+  },
+
+  "preprocessing": {
+    "$comment": "Tüm ölçümler bu ön işlemden GEÇMİŞ görsel üzerinde yapılır. Aksi hâlde eşikler çözünürlüğe göre kayar — özellikle Laplacian varyansı ölçek bağımlıdır.",
+    "orientation": "PIL.ImageOps.exif_transpose — EXIF rotasyonu piksele uygulanır (tradehub_core/media/engine.py:102 ile aynı yaklaşım)",
+    "analysis_long_edge_px": 512,
+    "analysis_resample": "LANCZOS",
+    "colorspace": "RGB; parlaklık metrikleri için ITU-R BT.601 luma (0.299R+0.587G+0.114B)",
+    "alpha_handling": "Alfa kanalı varsa beyaz zemine kompozit edilir (PNG şeffaf ürün fotoğrafı yaygın)",
+    "skip_if": {
+      "animated": true,
+      "long_edge_below_px": 200,
+      "note": "Animasyonlu ve çok küçük görsellerde metriklerin hiçbiri güvenilir değil; kural motoru 'pass' döner ve sebebi 'not_measurable' olarak loglar. Animasyon tespiti tradehub_core/media/engine.py'deki Probe.animated ile aynı mantık."
+    }
+  },
+
+  "rules": [
+    {
+      "id": "flat_background",
+      "order": 1,
+      "title_tr": "Düz / beyaz zemin",
+      "action": "warn",
+      "can_reject": false,
+      "enabled": true,
+      "code": "content_background_not_flat",
+      "retryable": false,
+      "measurement": {
+        "method": "border_ring_uniformity",
+        "description": "Görselin dış kenarından 2 piksel kalınlığında bir halka (ring) alınır. Halkadaki piksellerin medyan rengi 'zemin rengi' kabul edilir. Zemin rengine kanal-başına maksimum farkı tolerans içinde kalan piksellerin oranı = flat_bg_ratio.",
+        "metric": "flat_bg_ratio",
+        "range": [0.0, 1.0],
+        "direction": "higher_is_better",
+        "implementation": "scripts/calibrate_content_rules.py :: flat_bg_ratio()"
+      },
+      "threshold": {
+        "flat_bg_ratio_min": 0.90,
+        "color_tolerance_per_channel": 12,
+        "ring_thickness_px": 2,
+        "white_luma_min": 240
+      },
+      "threshold_status": "KALİBRE EDİLMEDİ — başlangıç değeri",
+      "threshold_source": "%90 oranı görev tanımından geldi. Tolerans 12/255 (~%4.7) JPEG blok gürültüsünün tipik genliğinden türetildi: q88 JPEG'de düz alanlarda ±8-10 seviye sapma olağan (tradehub_core/media/presets.py:15 varsayılan kalite 88). white_luma_min=240 pazaryeri pratiğidir (saf beyaz 255; 240 stüdyo aydınlatma sapmasına pay bırakır).",
+      "trigger": "flat_bg_ratio < 0.90",
+      "sub_signal": {
+        "id": "background_not_white",
+        "trigger": "flat_bg_ratio >= 0.90 VE zemin luma < 240",
+        "action": "warn",
+        "code": "content_background_not_white",
+        "message_tr": "Zemin düz ama beyaz değil. Beyaz zeminli fotoğraflar arama sonuçlarında daha iyi görünür.",
+        "note": "Bu ayrı bir uyarıdır ve kural motorunun ana sinyalini bastırmaz."
+      },
+      "message_tr": "Fotoğrafın arka planı karışık görünüyor. Ürünü düz, tercihen beyaz bir zemin üzerinde çekerseniz alıcılar ürünü daha net görür.",
+      "hint_tr": "Beyaz bir kâğıt/fon üzerine koyup tekrar çekebilir ya da arka planı silen bir uygulama kullanabilirsiniz.",
+      "false_positive_risk": {
+        "level": "orta",
+        "cases": [
+          "Ortam/lifestyle çekimleri (ürün kullanımda) — kasıtlı olarak karışık zeminlidir",
+          "Ürünün kendisi kenara taşan geniş desenli tekstil ise (İstoç'ta tekstil satıcısı yoğun) zemin halkası ürünün kendisidir",
+          "Gradyan stüdyo fonları — düz değil ama profesyoneldir"
+        ],
+        "mitigation": "Bu yüzden yalnız UYARI. Kalibrasyonda lifestyle görselleri ayrı etiketlenmeli (label=lifestyle) ve FP hesabına dahil edilmeli."
+      }
+    },
+
+    {
+      "id": "frame_fill",
+      "order": 2,
+      "title_tr": "Ürün çerçeve doluluğu",
+      "action": "warn",
+      "can_reject": false,
+      "enabled": true,
+      "code": "content_frame_fill_low",
+      "retryable": false,
+      "measurement": {
+        "method": "background_subtraction_bbox",
+        "description": "Zemin rengi flat_background kuralındaki gibi kenar halkasından bulunur. Zemin renginden tolerans üstünde sapan pikseller ön plan (foreground) maskesini oluşturur. Maskenin satır/sütun kütle dağılımında %0.5 ve %99.5 yüzdelikleri bbox sınırı sayılır (tek tük gürültü pikseli bbox'ı şişirmesin). fill_ratio = (bbox genişlik × bbox yükseklik) / (görsel genişlik × yükseklik).",
+        "metric": "fill_ratio",
+        "range": [0.0, 1.0],
+        "direction": "higher_is_better",
+        "implementation": "scripts/calibrate_content_rules.py :: frame_fill_ratio()"
+      },
+      "threshold": {
+        "fill_ratio_min": 0.70,
+        "color_tolerance_per_channel": 20,
+        "bbox_percentile_low": 0.005,
+        "bbox_percentile_high": 0.995,
+        "min_foreground_ratio": 0.02
+      },
+      "threshold_status": "KALİBRE EDİLMEDİ — başlangıç değeri",
+      "threshold_source": "%70 görev tanımından geldi ve büyük pazaryerlerinin ürün fotoğrafı kılavuzlarındaki '%85 doluluk' önerisinden bilinçli olarak GEVŞETİLMİŞTİR — %85 eşiği ambalajlı/kutulu ürünlerde yanlış pozitif üretir. Tolerans 20/255, zemin kuralındakinden yüksek: burada amaç zemini değil ÜRÜNÜ bulmak, gölge ve yansımayı zemin saymak istiyoruz. min_foreground_ratio=0.02: ön plan maskesi görselin %2'sinden küçükse ölçüm anlamsız kabul edilir ve kural 'not_measurable' döner (uyarı ÜRETMEZ).",
+      "trigger": "fill_ratio < 0.70 VE foreground_ratio >= 0.02",
+      "message_tr": "Ürün fotoğrafta çok küçük kalmış. Ürünü kadraja daha çok doldurarak (yakından çekerek veya kırparak) alıcıların detayları görmesini sağlayın.",
+      "hint_tr": "Ürün fotoğrafın en az dörtte üçünü kaplamalı. Fazla boşluğu kırpmanız yeterli.",
+      "false_positive_risk": {
+        "level": "orta-yüksek",
+        "cases": [
+          "İnce uzun ürünler (halat, boru, kablo) — bbox alanı doğal olarak küçüktür",
+          "Şeffaf/beyaz ürün beyaz zeminde — ön plan maskesi eksik çıkar, bbox küçülür",
+          "Gölgesiz kesilmiş (cut-out) PNG'lerde alfa beyaza kompozit edildiği için ürün kaybolabilir"
+        ],
+        "mitigation": "Alfa kanalı VARSA bbox doğrudan alfa maskesinden hesaplanmalı (daha güvenilir), zemin çıkarımına düşülmemeli. Bu dallanma calibrate betiğinde uygulanmıştır."
+      }
+    },
+
+    {
+      "id": "overlay_text",
+      "order": 3,
+      "title_tr": "Metin / filigran / logo bindirmesi",
+      "action": "warn",
+      "can_reject": false,
+      "enabled": true,
+      "code": "content_overlay_text",
+      "retryable": false,
+      "measurement": {
+        "method": "primary_openai_vision_text_detected__fallback_local_ocr",
+        "description": "BİRİNCİL KAYNAK MEVCUT KODDA VAR: tradehub_core/api/moderation.py:100-132 `_openai_vision_check()` zaten `text_detected` alanı döndürüyor ve tradehub_core/api/moderation.py:167 bunu `Image Moderation Log.text_detected` alanına yazıyor. Bu kural YENİ bir OCR yolu kurmaz; var olan alanı okur. Yerel yedek (OpenAI anahtarı yoksa veya ürün görselleri için Vision çağrısı yapılmıyorsa): pytesseract ile OCR, güven skoru filtresi ile.",
+        "metric_primary": "text_detected_len",
+        "metric_fallback": "ocr_text_area_ratio",
+        "direction": "lower_is_better",
+        "implementation": "scripts/calibrate_content_rules.py :: ocr_text_signal()"
+      },
+      "threshold": {
+        "vision_text_detected_min_chars": 3,
+        "ocr_min_confidence": 60,
+        "ocr_text_area_ratio_max": 0.02,
+        "ocr_min_word_chars": 3
+      },
+      "threshold_status": "KALİBRE EDİLMEDİ — başlangıç değeri",
+      "threshold_source": "min_chars=3: 1-2 karakterlik OCR çıktısı neredeyse her zaman gürültüdür (ürün üzerindeki desen/vida). ocr_min_confidence=60 Tesseract'ın kendi conf ölçeğinde (0-100) yaygın kullanılan gürültü kesme noktasıdır. text_area_ratio %2: bu oranın altındaki metin genelde ürünün ÜZERİNDEKİ marka etiketidir (meşru), üstündeki bindirme filigranıdır.",
+      "trigger": "vision text_detected uzunluğu >= 3 VEYA (yerel OCR ile ocr_text_area_ratio >= 0.02)",
+      "message_tr": "Fotoğrafın üzerinde yazı, logo veya filigran görünüyor. Ürün fotoğraflarında bindirilmiş metin ve fiyat etiketi kullanılmamalı.",
+      "hint_tr": "Ürünün kendi üzerindeki marka/etiket sorun değil; sonradan eklenen yazı, çerçeve yazısı ve filigranı kaldırın.",
+      "dependency_status": {
+        "primary": "HAZIR — mevcut kodda var (tradehub_core/api/moderation.py:100-132), ancak yalnız 'Listing Review Image' doctype'ında tetikleniyor (tradehub_core/hooks.py:437-439). ÜRÜN görsellerinde hiç çalışmıyor.",
+        "fallback": "EKSİK — pytesseract ve tesseract-ocr ikili dosyası ne pyproject.toml (dependencies: defusedxml, scikit-learn) ne requirements.txt içinde. Bağımlılık eklenmeden yerel OCR yolu kapalıdır."
+      },
+      "false_positive_risk": {
+        "level": "yüksek",
+        "cases": [
+          "Ürünün kendisi yazılı: kitap kapağı, ambalajlı gıda, etiketli kimyasal bidon, matbaa ürünü — İstoç'ta çok yaygın",
+          "Ürün üzerindeki marka logosu (meşru)",
+          "Teknik çizim / ölçü şeması görselleri (satıcılar bilerek koyar)"
+        ],
+        "mitigation": "Bu, listedeki EN YÜKSEK yanlış pozitif riskli kuraldır. Metnin görselin KENAR bölgesinde mi (filigran/çerçeve yazısı olasılığı yüksek) yoksa ürün bbox'ının İÇİNDE mi (meşru olasılığı yüksek) olduğu ayrımı kalibrasyonda mutlaka ölçülmeli. FP %5'in altına inmezse kural varsayılan olarak devre dışı bırakılmalı."
+      }
+    },
+
+    {
+      "id": "border_frame",
+      "order": 4,
+      "title_tr": "Çerçeve / kenarlık",
+      "action": "warn",
+      "can_reject": false,
+      "enabled": true,
+      "code": "content_has_border",
+      "retryable": false,
+      "measurement": {
+        "method": "uniform_band_edge_scan",
+        "description": "Kenardan içeri doğru 1..max_thickness piksel derinlikte halkalar taranır. Bir 'çerçeve' şu üç koşulun BİRLİKTE sağlanmasıdır: (a) 0..t-1 derinlikteki halkalar kendi içinde düzgün (kanal std < band_std_max) ve birbirine yakın renkte, (b) t derinliğindeki halka renk olarak band renginden band_contrast_min üstünde ayrılıyor, (c) band renginin görselin İÇ bölgesindeki kaplama oranı interior_match_max altında. (c) koşulu şarttır: yoksa düz beyaz zeminli her ürün fotoğrafı 'çerçeveli' sayılırdı.",
+        "metric": "border_thickness_px",
+        "direction": "lower_is_better",
+        "implementation": "scripts/calibrate_content_rules.py :: border_frame()"
+      },
+      "threshold": {
+        "border_thickness_min_px": 2,
+        "max_thickness_ratio": 0.05,
+        "band_std_max": 6,
+        "band_contrast_min": 30,
+        "interior_match_max": 0.50,
+        "perimeter_coverage_min": 0.95
+      },
+      "threshold_status": "KALİBRE EDİLMEDİ — başlangıç değeri",
+      "threshold_source": "max_thickness_ratio=0.05: gerçek dekoratif çerçeveler kısa kenarın %5'inden incedir; bunun üstündekiler zemin sayılır. band_std_max=6 ve band_contrast_min=30 değerleri flat_background kuralındaki 12/255 toleransıyla tutarlı seçildi (band 'düz' sayılmak için toleranstan sıkı, 'ayrı' sayılmak için toleranstan üç kat gevşek olmalı ki gri tonlu geçişler çerçeve sanılmasın). perimeter_coverage %95: bir kenarı eksik olan şey çerçeve değildir.",
+      "trigger": "border_thickness_px >= 2 VE tüm (a)(b)(c) koşulları sağlanıyor",
+      "message_tr": "Fotoğrafa çerçeve/kenarlık eklenmiş görünüyor. Ürün fotoğraflarında çerçeve kullanılmamalı — vitrindeki kırpma ile üst üste binerek kötü görünür.",
+      "hint_tr": "Çerçeveyi kırpın; ürün fotoğrafın kenarına kadar uzanmalı.",
+      "false_positive_risk": {
+        "level": "orta",
+        "cases": [
+          "Ürünün kendisi çerçeve olduğunda (tablo, ayna, pencere profili) — İstoç'ta gerçek bir ihtimal",
+          "Vinyet (kenarları koyulaşan) ışıklandırma",
+          "Ekran görüntüsünden kırpılmış görsellerin kalan kenar şeridi (bu doğru pozitiftir)"
+        ],
+        "mitigation": "Yalnız uyarı. (c) koşulu (iç bölgede band renginin kaplama oranı) ana yanlış-pozitif kalkanıdır; kalibrasyonda bu koşul kapatılıp açılarak katkısı ölçülmeli."
+      }
+    },
+
+    {
+      "id": "blur",
+      "order": 5,
+      "title_tr": "Bulanıklık (uyarı seviyesi)",
+      "action": "warn",
+      "can_reject": false,
+      "enabled": true,
+      "code": "content_blurry",
+      "retryable": false,
+      "measurement": {
+        "method": "laplacian_variance",
+        "description": "Görsel gri tonlamaya çevrilir, uzun kenarı 512 piksele indirilir (ÖLÇEK KRİTİK — varyans çözünürlükle değişir, ön işlem sabitlenmezse eşik anlamsızdır), 4-komşulu 3x3 Laplacian çekirdeği uygulanır ve sonucun varyansı alınır.",
+        "metric": "laplacian_var",
+        "direction": "higher_is_better",
+        "implementation": "scripts/calibrate_content_rules.py :: laplacian_var()"
+      },
+      "threshold": {
+        "laplacian_var_warn_below": 100.0,
+        "analysis_long_edge_px": 512
+      },
+      "threshold_status": "KALİBRE EDİLMEDİ — başlangıç değeri",
+      "threshold_source": "Laplacian varyansı yöntemi Pech-Pacheco ve ark. (2000, ICPR) 'Diatom autofocusing in brightfield microscopy' çalışmasına dayanır. 100 eşiği OpenCV topluluğunda yaygınlaşmış varsayılan başlangıç değeridir ve GÖRSELE ÖZGÜDÜR — evrensel değildir. Bu yüzden kalibrasyon zorunlu.",
+      "trigger": "laplacian_var < 100.0",
+      "message_tr": "Fotoğraf net görünmüyor. Alıcılar bulanık fotoğraflı ürünlere daha az güveniyor — daha net bir kare çekmenizi öneririz.",
+      "hint_tr": "Telefonu sabitleyin, ürüne dokunarak odaklayın ve yeterli ışıkta çekin.",
+      "false_positive_risk": {
+        "level": "orta",
+        "cases": [
+          "Kasıtlı sığ alan derinliği (bokeh) — ürün net, arka plan bulanık; genel varyansı düşürür",
+          "Düz renkli, desensiz ürünler (tek renk kumaş topu, düz metal levha) — net olsa bile kenar enerjisi düşüktür",
+          "Ağır JPEG sıkıştırması detayı silmiş eski görseller"
+        ],
+        "mitigation": "Düz-ürün yanlış pozitifi için ölçüm ÜRÜN BBOX'I içinde yapılmalı ve ayrıca 'kenar yoğunluğu çok düşük' durumu 'ölçülemez' sayılmalı. Bu iyileştirme kalibrasyonla doğrulanmadan uygulanmamalı."
+      }
+    },
+
+    {
+      "id": "extreme_blur",
+      "order": 6,
+      "title_tr": "Aşırı bulanıklık (RED)",
+      "action": "reject",
+      "can_reject": true,
+      "enabled": true,
+      "code": "content_extreme_blur",
+      "retryable": false,
+      "measurement": {
+        "method": "laplacian_variance_with_guards",
+        "description": "blur kuralıyla aynı ölçüm, ama RED için üç koruma koşulu daha aranır. Koruma olmadan red yanlış pozitif riski kabul edilemez.",
+        "metric": "laplacian_var",
+        "direction": "higher_is_better",
+        "implementation": "scripts/calibrate_content_rules.py :: laplacian_var()"
+      },
+      "threshold": {
+        "laplacian_var_reject_below": 20.0,
+        "guard_min_long_edge_px": 800,
+        "guard_min_edge_density": 0.0,
+        "guard_require_second_signal": true,
+        "second_signal": "tenengrad_mean",
+        "tenengrad_mean_reject_below": 4.0
+      },
+      "threshold_status": "KALİBRE EDİLMEDİ — başlangıç değeri",
+      "threshold_source": "20.0, uyarı eşiğinin (100) beşte biridir. Bu seviyedeki bir görsel gözle bakıldığında 'ürün seçilemiyor' sınıfına girer. İkinci sinyal olarak Tenengrad (Sobel gradyan enerjisi ortalaması) istenmesinin sebebi: tek metriğe dayalı RED, tek bir hatalı ölçümle satıcının ürününü yayından düşürür. guard_min_long_edge_px=800: küçük görseller zaten media/gates.py:59 'too_small' kapısının konusudur; RED oraya değil buraya taşınmamalı.",
+      "trigger": "laplacian_var < 20.0 VE tenengrad_mean < 4.0 VE görselin uzun kenarı >= 800 px",
+      "on_reject": {
+        "record_action": "İlgili kayıt 'Hidden' durumuna alınır, dosya SİLİNMEZ",
+        "queue": "moderation",
+        "appealable": true
+      },
+      "message_tr": "Bu fotoğraf ürünün seçilemeyeceği kadar bulanık olduğu için yayınlanamadı. Lütfen daha net bir fotoğraf yükleyin.",
+      "hint_tr": "Fotoğraf çok bulanık olduğu için kabul edilemedi. Yeniden çekip yükleyebilir veya itiraz edebilirsiniz.",
+      "false_positive_risk": {
+        "level": "düşük (korumalarla) / yüksek (korumasız)",
+        "cases": [
+          "Buğulu/mat yüzeyli ürünlerin makro çekimi",
+          "Hareket bulanıklığı olan ama ürünü hâlâ gösteren kareler"
+        ],
+        "mitigation": "RED eşiği kalibrasyonda FP %1'in altına inmeden AÇILMAMALIDIR (uyarı bütçesi %5, red bütçesi ayrı ve daha sıkı olmalı). Kalibre edilene kadar bu kural 'reject' yerine 'manual_review' modunda çalıştırılmalı — bkz. rollout.stage_1."
+      }
+    },
+
+    {
+      "id": "nsfw_content",
+      "order": 7,
+      "title_tr": "NSFW / yasaklı içerik (RED)",
+      "action": "reject",
+      "can_reject": true,
+      "enabled": true,
+      "code": "content_nsfw",
+      "retryable": false,
+      "measurement": {
+        "method": "existing_openai_vision_classifier",
+        "description": "MEVCUT KODDA VAR, YENİDEN TASARLANMADI. Yol: tradehub_core/api/moderation.py:100-132 `_openai_vision_check()` — gpt-4o-mini Vision'a JSON şemalı prompt gönderir, {decision, nsfw_score 0-1, violence_score 0-1, text_detected} döner. API anahtarı Translation Settings.openai_api_key'den okunur (tradehub_core/api/moderation.py:143-148). Anahtar yoksa tradehub_core/api/moderation.py:95-97 `_stub_check_image()` devreye girer ve HER ŞEYE allow der. Sonuç 'Image Moderation Log' doctype'ına yazılır (tradehub_core/api/moderation.py:161-169).",
+        "metric": "nsfw_score, violence_score",
+        "range": [0.0, 1.0],
+        "direction": "lower_is_better"
+      },
+      "threshold": {
+        "nsfw_score_reject_at_or_above": 0.85,
+        "violence_score_reject_at_or_above": 0.85,
+        "manual_review_band": [0.50, 0.85],
+        "stub_mode_behavior": "pass"
+      },
+      "threshold_status": "KALİBRE EDİLMEDİ — başlangıç değeri. AYRICA: mevcut kod bu skorları HİÇ eşiklemiyor.",
+      "threshold_source": "0.85 ve 0.50 değerleri ticari içerik moderasyonu API'lerinin (yüksek hassasiyet / yüksek duyarlılık) tipik iki eşikli kurulumundan alınmış başlangıç değerleridir. Modele özgüdür ve gpt-4o-mini'nin döndürdüğü skorun kalibrasyonu bilinmiyor — bu skorlar bir olasılık değil, dil modelinin ürettiği sayıdır. Bu, gerçek bir sınıflandırıcı skorundan daha az güvenilirdir ve ÜRETİMDE ÖLÇÜLMELİDİR.",
+      "trigger": "nsfw_score >= 0.85 VEYA violence_score >= 0.85",
+      "on_reject": {
+        "record_action": "İlgili kayıt 'Hidden' durumuna alınır (mevcut davranış: tradehub_core/api/moderation.py:172-173)",
+        "queue": "moderation",
+        "appealable": true,
+        "notify_admin": true
+      },
+      "message_tr": "Bu görsel içerik kurallarımıza uymadığı için yayınlanamadı ve incelemeye alındı. Hatalı olduğunu düşünüyorsanız itiraz edebilirsiniz.",
+      "hint_tr": "Görsel moderasyon kuyruğuna alındı. Bir yetkili en kısa sürede inceleyecek.",
+      "existing_gaps": [
+        "KAPSAM: Hook yalnız 'Listing Review Image' doctype'ına bağlı (tradehub_core/hooks.py:437-439). 'Listing Image' (ürün görseli) ve 'Seller Gallery Image' (mağaza vitrini, tradehub_core/api/seller.py:1647 üzerinden yükleniyor) HİÇ moderasyondan geçmiyor.",
+        "SKOR EŞİKLEMESİ YOK: tradehub_core/api/moderation.py:172 kararı yalnız modelin döndürdüğü `decision` STRING'ine bakarak veriyor; nsfw_score/violence_score kaydediliyor ama karara girmiyor (tradehub_core/api/moderation.py:165-166). 'manual_review' kararı Image Moderation Log'a yazılıyor ama HİÇBİR kuyruk tetiklemiyor — kimse bakmıyor.",
+        "SESSİZ AÇIK: API anahtarı yoksa `_stub_check_image()` her görsele allow der (tradehub_core/api/moderation.py:95-97, 156-157). Bu 'fail-open' davranıştır ve hiçbir yerde uyarı üretmez — anahtar düşerse moderasyon sessizce kapanır.",
+        "SENKRON ÇAĞRI: after_insert içinde 30 sn timeout'lu HTTP çağrısı (tradehub_core/api/moderation.py:130). Yükleme isteğini bloklar.",
+        "ARTIK BİLGİ: Image Moderation Log doctype'ı ('review', 'image_url', 'decision', 'nsfw_score', 'violence_score', 'text_detected', 'checked_at') yalnız 'Listing Review' bağlantısı taşıyor; ürün görselleri için genel bir referans alanı yok."
+      ],
+      "false_positive_risk": {
+        "level": "bilinmiyor — ölçülmedi",
+        "cases": [
+          "İç giyim / mayo / tekstil ürünleri (İstoç için birinci derece risk) — mankenli çekimlerde NSFW skoru yükselir",
+          "Kasap/gıda ürünleri (çiğ et) — violence skorunu tetikleyebilir",
+          "Bıçak, kesici alet, av malzemesi — meşru ticari ürünler, violence skorunu tetikler"
+        ],
+        "mitigation": "KATEGORİ MUAFİYETİ ŞART. İç giyim, mayo, kasaplık ürün ve bıçak/hırdavat kategorilerinde 'reject' yerine 'manual_review' uygulanmalı. Muafiyet listesi aşağıda `category_overrides` altında."
+      }
+    },
+
+    {
+      "id": "duplicate_image",
+      "order": 8,
+      "title_tr": "Aynı üründe yinelenen görsel",
+      "action": "warn",
+      "can_reject": false,
+      "enabled": true,
+      "code": "content_duplicate_image",
+      "retryable": false,
+      "scope": "listing",
+      "measurement": {
+        "method": "perceptual_hash_hamming",
+        "description": "Görsel gri tonlamaya çevrilip 32x32'ye indirilir, 2 boyutlu DCT-II uygulanır, sol üst 8x8 katsayı bloğundan DC (0,0) hariç tutularak medyan eşiklemesiyle 64 bitlik pHash üretilir. Aynı Listing altındaki görsel çiftlerinin Hamming mesafesi karşılaştırılır. DCT saf numpy matris çarpımı ile hesaplanır — scipy/opencv/imagehash bağımlılığı YOKTUR.",
+        "metric": "phash_hamming_distance",
+        "range": [0, 64],
+        "direction": "higher_is_better",
+        "implementation": "scripts/calibrate_content_rules.py :: phash() + hamming()"
+      },
+      "threshold": {
+        "hamming_max_for_duplicate": 8,
+        "hash_bits": 64,
+        "dct_input_size": 32,
+        "dct_keep": 8
+      },
+      "threshold_status": "KALİBRE EDİLMEDİ — başlangıç değeri",
+      "threshold_source": "64 bitlik pHash için yaygın pratik: <=5 'neredeyse aynı', <=10 'benzer'. 8 ikisinin ortasında seçildi. Aynı ürünün RENK VARYANTLARI 8'in altına düşebilir — bu bilinen yanlış pozitif kaynağıdır ve kuralın neden yalnız uyarı olduğunun gerekçesidir.",
+      "trigger": "Aynı Listing altındaki iki görselin phash_hamming_distance <= 8",
+      "message_tr": "Bu üründe birbirinin neredeyse aynısı olan görseller var. Farklı açılardan çekilmiş fotoğraflar alıcının kararını kolaylaştırır.",
+      "hint_tr": "Tekrar eden fotoğrafı kaldırıp yerine farklı bir açı, detay veya ölçek fotoğrafı ekleyin.",
+      "false_positive_risk": {
+        "level": "yüksek",
+        "cases": [
+          "Aynı ürünün renk varyantları (aynı poz, farklı renk) — pHash renge büyük ölçüde duyarsızdır, bu tam olarak yakalanır ve YANLIŞ pozitiftir",
+          "Aynı fotoğrafın kırpılmış/ölçeklenmiş hâli (bu doğru pozitiftir)",
+          "Beyaz zeminli, ürünün küçük kaldığı fotoğraflar — hash'in çoğu zemin olur, farklı ürünler bile yakın çıkar"
+        ],
+        "mitigation": "Renk varyantı FP'sini azaltmak için pHash'e ek renk histogramı mesafesi ölçülmeli: pHash yakın AMA renk histogramı uzaksa varyant kabul edilip uyarı ÜRETİLMEMELİ. Bu ikinci sinyal calibrate betiğinde ölçülüyor (color_hist_distance) ama eşiği kalibre edilmedi."
+      }
+    },
+
+    {
+      "id": "min_image_count",
+      "order": 9,
+      "title_tr": "Minimum görsel sayısı",
+      "action": "warn",
+      "can_reject": false,
+      "enabled": true,
+      "code": "content_min_images",
+      "retryable": false,
+      "scope": "listing",
+      "stage": "pre_publish",
+      "measurement": {
+        "method": "count",
+        "description": "Listing üzerindeki görsel sayısı. Sayım tanımı MEVCUT KODLA aynı olmalı: tradehub_core/utils/completeness.py:139-140 `images = doc.listing_images or []; img_count = len(images)` — yani ana görsel (primary_image) bu sayıya DAHİL DEĞİLDİR ve bu politika o tanımı değiştirmez.",
+        "metric": "listing_image_count",
+        "direction": "higher_is_better"
+      },
+      "threshold": {
+        "min_images": 3
+      },
+      "threshold_status": "KALİBRE EDİLMEZ — ürün kararı, ölçüm değil",
+      "threshold_source": "3 sayısı bu politikanın icadı DEĞİL: tradehub_core/utils/completeness.py:231-232'de zaten var — `if len(images) < 3: missing.append(f\"Ek Görseller ({len(images)}/3)\")`. Ayrıca tradehub_core/utils/completeness.py:141-143 puanlamada görsel başına 0.10 (tavan 0.30) ve 5 görselde +0.10 bonus veriyor. Bu kural o eşiği tekrar etmekten başka bir şey yapmaz; amacı eşiği YAYIN ANINDA görünür bir uyarıya çevirmektir.",
+      "trigger": "listing_image_count < 3, yayın (publish) öncesi kontrol",
+      "message_tr": "Bu ürün için {count} görsel var. En az 3 fotoğraf ekleyen ilanlar alıcılar tarafından daha çok tıklanıyor.",
+      "hint_tr": "Ön, arka ve detay olmak üzere en az 3 fotoğraf önerilir.",
+      "message_placeholders": ["count"],
+      "false_positive_risk": {
+        "level": "yok",
+        "cases": ["Tek fotoğrafla anlatılabilen ürünler (ham madde, dökme ürün) için gereksiz görünebilir"],
+        "mitigation": "Yalnız uyarı; yayını engellemez."
+      }
+    }
+  ],
+
+  "category_overrides": {
+    "$comment": "Kategori bazlı gevşetme. Kategori kimlikleri PLACEHOLDER'dır — gerçek Product Category adları üretim veritabanından alınmalı (bkz. docs/standards/icerik-kurallari.md, ÜRETİMDE DOĞRULANMALI §).",
+    "rules": [
+      {
+        "match_category_like": ["iç giyim", "mayo", "çorap", "tekstil"],
+        "override": {"nsfw_content": {"action": "manual_review"}},
+        "reason": "Mankenli tekstil çekimlerinde NSFW skoru meşru şekilde yükselir. Otomatik RED bu kategorilerde kabul edilemez."
+      },
+      {
+        "match_category_like": ["bıçak", "kesici", "hırdavat", "av"],
+        "override": {"nsfw_content": {"action": "manual_review"}},
+        "reason": "Kesici alet görselleri violence skorunu tetikler; ürünler meşrudur."
+      },
+      {
+        "match_category_like": ["gıda", "kasap", "et"],
+        "override": {"nsfw_content": {"action": "manual_review"}},
+        "reason": "Çiğ et görselleri violence skorunu tetikler."
+      },
+      {
+        "match_category_like": ["tablo", "ayna", "çerçeve"],
+        "override": {"border_frame": {"enabled": false}},
+        "reason": "Ürünün kendisi çerçevedir."
+      },
+      {
+        "match_category_like": ["kitap", "kırtasiye", "matbaa", "ambalaj"],
+        "override": {"overlay_text": {"enabled": false}},
+        "reason": "Ürünün kendisi metin taşır."
+      }
+    ]
+  },
+
+  "rollout": {
+    "$comment": "Kalibre edilmemiş eşikle doğrudan RED üretmek satıcı kaybettirir. Aşamalı açılış zorunludur.",
+    "stage_0_shadow": {
+      "duration": "en az 14 gün",
+      "behavior": "Tüm kurallar ÇALIŞIR, sonuç LOGLANIR, kullanıcıya HİÇBİR ŞEY gösterilmez. reject kuralları da yalnız loglar.",
+      "exit_criteria": "Her kural için gerçek tetiklenme oranı ölçülür; el ile örneklenen 200 tetiklenmede FP < %5 (reject kurallarında < %1)."
+    },
+    "stage_1_warn_only": {
+      "behavior": "warn kuralları kullanıcıya gösterilir. extreme_blur ve nsfw_content 'reject' YERİNE 'manual_review' üretir.",
+      "exit_criteria": "Moderasyon kuyruğunda el ile onaylanan/reddedilen kararlar ile otomatik kararın uyum oranı > %95."
+    },
+    "stage_2_enforce": {
+      "behavior": "nsfw_content ve extreme_blur RED üretir. Diğer her şey uyarı olarak kalır — kalıcı olarak.",
+      "rollback_trigger": "Haftalık itiraz (appeal) oranı reddedilen görsellerin %10'unu aşarsa stage_1'e dönülür."
+    }
+  },
+
+  "observability": {
+    "log_target": "Image Moderation Log (mevcut doctype) — ancak yalnız 'review' link alanı var; ürün görselleri için genel bir kaynak referansı (source_doctype + source_name) alanı EKLENMELİ. Bu politika mevcut doctype'ı DEĞİŞTİRMEZ, eksiği not eder.",
+    "required_metrics_per_rule": [
+      "trigger_count",
+      "trigger_rate (tetiklenen / değerlendirilen)",
+      "manual_override_count (moderatör kararı otomatik karardan farklı)",
+      "appeal_count",
+      "appeal_success_rate"
+    ],
+    "false_positive_proxy": "appeal_success_rate — üretimde etiketli korpus olmadığı için yanlış pozitifin tek gerçek ölçüsü budur. Bu oran %5'i aşan kural kalibrasyona geri döner."
+  },
+
+  "not_measured": {
+    "$comment": "Bu oturumda ölçülemeyenlerin açık listesi. Ayrıntı ve çalıştırılacak komutlar: docs/standards/icerik-kurallari.md § ÜRETİMDE DOĞRULANMALI",
+    "items": [
+      "Hiçbir eşik gerçek görselle sınanmadı — görsel korpusu yok, Docker kapalı, üretim veritabanına erişim yok.",
+      "Yanlış pozitif oranı hiçbir kural için bilinmiyor.",
+      "gpt-4o-mini'nin döndürdüğü nsfw_score/violence_score dağılımı bilinmiyor; 0.85 eşiğinin bu dağılımda nereye düştüğü ölçülmedi.",
+      "Üretimdeki Listing görsel sayısı dağılımı bilinmiyor — min_image_count kuralının kaç ilanı uyaracağı hesaplanamadı.",
+      "numpy ve Pillow'un çalışma zamanında var olduğu doğrulanmadı: Pillow kodda yaygın kullanılıyor (tradehub_core/media/engine.py:82 vb.) ama pyproject.toml dependencies listesinde YOK (Frappe ile geldiği varsayılıyor); numpy yalnız scikit-learn üzerinden DOLAYLI geliyor (requirements.txt:3).",
+      "pytesseract/tesseract-ocr kurulu değil — yerel OCR yolu çalıştırılamaz."
+    ]
+  }
+}

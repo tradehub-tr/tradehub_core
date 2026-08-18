@@ -1,0 +1,25 @@
+{
+  "$schema": "./_schema.md",
+  "slot_key": "seller.banner",
+  "doctype_field": "Admin Seller Profile.banner_image",
+  "kind": "image",
+  "is_product_slot": false,
+  "min_long_edge": 1600,
+  "max_long_edge": 2560,
+  "target_long_edge": 1920,
+  "aspect_ratio": "4:1",
+  "aspect_tolerance": 0.05,
+  "fit": "cover",
+  "dpi_policy": {
+    "output_dpi": 72,
+    "strip_input_dpi": true,
+    "pixels_preserved": true
+  },
+  "olcum": {
+    "render_box_css_px": null,
+    "render_box_kaynak": "docs/reports/00-upload-slot-envanteri.md — seller.banner satiri: 'OLCULEMEDI — storefront'ta banner_image alanini okuyan bir bilesen bulunamadi'",
+    "min_long_edge_gerekce": "Panelin ekranda yazdigi tavsiye 1600x400 (DocTypeFormView.vue:448) — zorlanmiyordu, policy onu zorunlu hale getiriyor.",
+    "max_long_edge_gerekce": "tradehub_core/media/presets.py:14 'safe' preset max_dim=2560",
+    "uretimde_dogrulanmali": true
+  }
+}

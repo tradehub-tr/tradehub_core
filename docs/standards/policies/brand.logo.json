@@ -1,0 +1,24 @@
+{
+  "$schema": "./_schema.md",
+  "slot_key": "brand.logo",
+  "doctype_field": "Brand.logo",
+  "kind": "image",
+  "is_product_slot": false,
+  "min_long_edge": 400,
+  "max_long_edge": 1024,
+  "target_long_edge": 512,
+  "aspect_ratio": "free",
+  "aspect_tolerance": null,
+  "fit": "contain",
+  "dpi_policy": {
+    "output_dpi": 72,
+    "strip_input_dpi": true,
+    "pixels_preserved": true
+  },
+  "olcum": {
+    "render_box_css_px": 128,
+    "render_box_kaynak": "docs/reports/00-upload-slot-envanteri.md — brand.logo satiri: 96x96 ('w-24 h-24'), md>=768px'te 128x128 ('md:w-32 md:h-32'); kucuk gosterim 16x16 (brand.ts:138)",
+    "min_long_edge_gerekce": "128 CSS px x DPR2 = 256 px; seller.logo ile ayni taban tutuldu (400) — iki logo slotu farkli taban tasirsa yukleyici hangisinin hangisi oldugunu bilemez.",
+    "max_long_edge_gerekce": "128 CSS px kutu icin 1024 px zaten 4x."
+  }
+}
