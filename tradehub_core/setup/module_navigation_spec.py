@@ -703,6 +703,46 @@ SELLER_MODULES: list[dict] = [
 		"color": "#06b6d4",
 		"order": 5,
 	},
+	# ─── SECTION: Lojistik (13-FE) ───
+	# Satıcı kendi sevkiyatını kendisi paketliyor. Sidebar SATICIDA tamamen
+	# DB-driven (frontend `sellerPanelSections` fail-secure gereği devreye
+	# girmiyor), bu yüzden ekran route olarak var olsa bile registry kaydı
+	# olmadan menüde HİÇ görünmüyor.
+	#
+	# Satıcıya YALNIZ paketleme açılıyor; katalog, taşıyıcı hesapları ve
+	# lojistik ayarları platform ekranı — admin menüsünde kalır.
+	{
+		"key": "seller.logistics",
+		"type": "section",
+		"panel": "seller",
+		"section": "logistics",
+		"label": "Lojistik",
+		"icon": "truck",
+		"color": "#f59e0b",
+		"order": 6,
+	},
+	{
+		"key": "seller.logistics.packing",
+		"parent": "seller.logistics",
+		"type": "group",
+		"panel": "seller",
+		"section": "logistics",
+		"label": "Paketleme",
+		"color": "#f59e0b",
+		"order": 0,
+	},
+	{
+		"key": "seller.logistics.packing.queue",
+		"parent": "seller.logistics.packing",
+		"type": "item",
+		"panel": "seller",
+		"section": "logistics",
+		"label": "Paketleme",
+		"icon": "package",
+		"route": "/lojistik/paketleme",
+		"order": 0,
+	},
+
 	{
 		"key": "seller.helpdesk.main",
 		"parent": "seller.helpdesk",
