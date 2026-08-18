@@ -185,7 +185,18 @@ class TestGorselZinciri(_MediaPipelineIntegrationBase):
 		self.assertEqual(os.path.splitext(result["file_name"])[1], ".webp")
 
 		# (c) diskteki dosya GERÇEK WebP (RIFF/WEBP header)
-		disk_path = os.path.join(get_files_path(is_private=0), base_name)
+		#
+		# Yol `av.current_path` ile çözülüyor, `public/files/` sabit değil:
+		# tarama açıkken yeni dosya, taraması bitene kadar `media_scan_hold`
+		# altında bekletiliyor (TUR-125, kabul kriteri 4). Bu test görsel
+		# zincirini sınıyor — dosyanın HANGİ kökte durduğu bekletmenin konusu ve
+		# kendi testleri var (`TestBekletme`); burada önemli olan içeriğin
+		# gerçekten WebP olması.
+		from tradehub_core.media import av
+
+		disk_path = av.current_path(result["file_url"]) or os.path.join(
+			get_files_path(is_private=0), base_name
+		)
 		self.assertTrue(os.path.isfile(disk_path), f"diskte yok: {disk_path}")
 		with open(disk_path, "rb") as f:
 			header = f.read(12)
@@ -276,8 +287,21 @@ class TestVideoDali(_MediaPipelineIntegrationBase):
 		stem = os.path.splitext(os.path.basename(result["file_url"]))[0]
 		self.assertEqual(len(stem), 32)
 
-		mock_enqueue.assert_called_once()
-		_args, kwargs = mock_enqueue.call_args
+		# Yükleme artık İKİ iş kuyruklıyor: video transcode (TUR-296) ve zararlı
+		# içerik taraması (TUR-125). `frappe.enqueue` her iki modülde de AYNI
+		# modül nesnesi olduğu için tek mock ikisini birden yakalıyor.
+		#
+		# Bu yüzden çağrı SAYISI değil, aranan çağrının kendisi doğrulanıyor:
+		# sayıya bakmak, pipeline'a eklenen her yeni adımda bu testi konusuyla
+		# ilgisiz biçimde kırardı (yaşandı — TUR-125 eklenince `assert_called_once`
+		# düştü, oysa transcode dalında değişen hiçbir şey yoktu).
+		transcode_cagrilari = [
+			c
+			for c in mock_enqueue.call_args_list
+			if c.args and str(c.args[0]).endswith("transcode._run_transcode")
+		]
+		self.assertEqual(len(transcode_cagrilari), 1)
+		kwargs = transcode_cagrilari[0].kwargs
 		self.assertEqual(kwargs.get("queue"), "long")
 		self.assertEqual(kwargs.get("file_url"), result["file_url"])
 		self.assertTrue(kwargs.get("enqueue_after_commit"))

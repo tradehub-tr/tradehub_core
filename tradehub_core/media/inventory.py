@@ -76,6 +76,27 @@ def _video_status_term(f):
 	return Max(ifade.else_(0)).as_("video_status_rank")
 
 
+# Tarama durumu (TUR-125) — video durumuyla AYNI gerekçe: aynı adrese işaret
+# eden kayıtların durumları ayrışabilir ve metin üstünde `Max()` almak alfabetik
+# sıraya düşer (`pending` > `infected`), yani zararlı bir dosya panelde
+# "taranıyor" görünürdü. Açık öncelik: kötü haber kazanır.
+_SCAN_STATUS_RANKS: tuple[tuple[str, int], ...] = (
+	("infected", 4),
+	("failed", 3),
+	("pending", 2),
+	("clean", 1),
+)
+_RANK_TO_SCAN: dict[int, str] = {rank: durum for durum, rank in _SCAN_STATUS_RANKS}
+
+
+def _scan_status_term(f):
+	"""Grup içindeki en "kötü" tarama durumunu seçen toplama ifadesi."""
+	ifade = Case()
+	for durum, rank in _SCAN_STATUS_RANKS:
+		ifade = ifade.when(f.th_media_scan_status == durum, rank)
+	return Max(ifade.else_(0)).as_("scan_status_rank")
+
+
 def _base_query():
 	"""Tekilleştirilmiş public dosya sorgusu — filtre/sayfalama bunun üstüne biner."""
 	f = DocType("File")
@@ -265,6 +286,8 @@ def list_files(
 				# rozetini buradan okur. Grup içinde en kötü durum kazanır;
 				# gerekçe `_video_status_term` yorumunda.
 				_video_status_term(f2),
+				# Tarama durumu (TUR-125) — karantina rozeti bunu okur.
+				_scan_status_term(f2),
 			)
 			.run(as_dict=True)
 		)
@@ -286,6 +309,8 @@ def list_files(
 			Max(f.attached_to_doctype).as_("usage_doctype"),
 			# Video işleme durumu (TUR-296) — üstteki usage-sıralı dalla aynı.
 			_video_status_term(f),
+			# Tarama durumu (TUR-125) — üstteki dalla aynı.
+			_scan_status_term(f),
 		)
 		.orderby(_order_term(f, sort_by), order=frappe.qb.desc if sort_dir == "desc" else frappe.qb.asc)
 		.limit(page_size)
@@ -339,6 +364,10 @@ def _decorate(
 		# Sıra numarası SQL'in iç işi; ön yüz durum metni bekliyor. 0 = bu adreste
 		# video durumu olan hiçbir kayıt yok (video değil ya da hiç işlenmemiş).
 		r["video_status"] = _RANK_TO_STATUS.get(int(r.pop("video_status_rank", 0) or 0), "")
+		# 0 = bu adreste tarama durumu olan hiçbir kayıt yok. Boş string BİLEREK
+		# "temiz" değil: taranmamış dosyayı temiz göstermek bu alanın en tehlikeli
+		# yanlışı olurdu (yamada backfill yapılmamasının gerekçesiyle aynı).
+		r["scan_status"] = _RANK_TO_SCAN.get(int(r.pop("scan_status_rank", 0) or 0), "")
 	# Tarihler standart çıktı biçimine çevriliyor (TUR-124): saat dilimi
 	# işareti olmadan gönderilen tarih, tarayıcıda kullanıcının kendi saati
 	# sanılıyordu — İstanbul dışındaki her kullanıcı saatleri kaymış görüyordu.

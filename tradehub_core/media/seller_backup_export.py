@@ -46,8 +46,9 @@ _STALE_HOURS: int = 2
 _SPACE_MARGIN: float = 1.2
 
 # Hazır paketler ne kadar dursun. İndirildikten sonra sunucuda tutmanın değeri
-# yok; yedeğin kendisi zaten duruyor, paket yalnız taşıma biçimi.
-_KEEP_HOURS: int = 24
+# yok; yedeğin kendisi zaten duruyor, paket yalnız taşıma biçimi. Temizliği
+# `backup.run_scheduled` çağırır — yönetim paketleriyle aynı günlük tur.
+KEEP_HOURS: int = 24
 
 
 def _exports_dir(store: str) -> str:
@@ -386,3 +387,61 @@ def discard(store: str, set_id: str) -> dict:
 	_drop_package(store, set_id)
 	_write_status(store, set_id, state="", file_name=None, bytes=0, finished=frappe.utils.now())
 	return {"set_id": set_id, "state": ""}
+
+
+def cleanup(*, hours: int | None = None) -> dict:
+	"""Tüm mağazaların süresi geçen paketlerini sil — günlük görev çağırır.
+
+	Paket, yedeğin ikinci kopyası; temizlenmezse her mağazanın deposu sessizce
+	iki katına çıkar. Yedeğin KENDİSİNE dokunulmaz — paket yalnız taşıma biçimi.
+
+	`hours=0` "hepsi dolmuş say" demektir; sıfırı "varsayılanı kullan" diye
+	okumak, hepsini silmek isteyen çağrıya sessizce hiçbir şey yapmazdı
+	(`backup_export.cleanup` ile aynı sözleşme).
+	"""
+	sinir = KEEP_HOURS if hours is None else max(0, int(hours))
+	kok = frappe.get_site_path("private", seller_backup.ROOT_DIRNAME)
+	silinen = 0
+	kazanilan = 0
+
+	if not os.path.isdir(kok):
+		return {"removed": 0, "freed_bytes": 0}
+
+	for magaza in os.listdir(kok):
+		exports = os.path.join(kok, magaza, EXPORTS)
+		if not os.path.isdir(exports):
+			continue
+		for ad in os.listdir(exports):
+			if not ad.endswith(".json"):
+				continue
+			try:
+				d = seller_backup._oku(os.path.join(exports, ad))
+			except Exception:
+				continue
+
+			damga = d.get("finished") or d.get("started")
+			try:
+				taze = damga and frappe.utils.time_diff_in_hours(frappe.utils.now(), damga) < sinir
+			except Exception:
+				taze = False
+			if taze:
+				continue
+
+			paket = d.get("file_name")
+			if not paket:
+				continue
+			yol = os.path.join(exports, paket)
+			try:
+				kazanilan += os.path.getsize(yol)
+				os.remove(yol)
+				silinen += 1
+			except OSError:
+				continue
+			# Durum dosyası paket olmadan "hazır" diyemez — kullanıcıyı ölü
+			# bir indirme bağlantısına yollamamak için sıfırlanır.
+			seller_backup._yaz(
+				os.path.join(exports, ad),
+				{**d, "state": "", "file_name": None, "bytes": 0},
+			)
+
+	return {"removed": silinen, "freed_bytes": kazanilan}

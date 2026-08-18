@@ -48,6 +48,10 @@ FIELDS: tuple[str, ...] = (
 	"created",
 	"finished",
 	"started",
+	# Bekletme listesi (TUR-125) taramanın başlama anını gösteriyor; listedeki
+	# diğer adlarla aynı kural — kapsam dışında kalsaydı o sütun İstanbul
+	# dışındaki kullanıcıda kaymış görünürdü.
+	"started_at",
 	"captured",
 	"last_execution",
 )

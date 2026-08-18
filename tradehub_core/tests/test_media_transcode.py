@@ -42,9 +42,26 @@ def _yeni_video_dosyasi(
 	return doc
 
 
+
+def _av_notr(test):
+	"""Bu birim testleri transcode MEKANİĞİNİ sınar; AV kesişimi ayrı kapsamda.
+
+	Konteynerde ClamAV kurulu olduğunda `hold_until_clean` gerçekten aktif ve
+	testin yüklediği dosya insert ANINDA bekletmeye taşınıyor — `_run_transcode`
+	de (doğru davranarak) işi erteliyor, ffmpeg mock'una hiç ulaşılmıyor.
+	Kesişim davranışının kendi testleri var (`test_media_av.TestModulKesisimleri`);
+	burada nötrlenir ki bu dosya tarayıcının kurulu olup olmamasına göre iki
+	farklı sonuç vermesin.
+	"""
+	for hedef in ("in_hold", "in_quarantine"):
+		y = mock.patch(f"tradehub_core.media.av.{hedef}", return_value=False)
+		y.start()
+		test.addCleanup(y.stop)
+
 class TestEnqueueTranscode(FrappeTestCase):
 	def setUp(self):
 		self.doc = _yeni_video_dosyasi("kisa-video-1.mp4")
+		_av_notr(self)
 		self.addCleanup(
 			lambda: frappe.delete_doc("File", self.doc.name, ignore_permissions=True, force=True)
 		)
@@ -67,6 +84,7 @@ class TestEnqueueTranscode(FrappeTestCase):
 class TestRunTranscode(FrappeTestCase):
 	def setUp(self):
 		self.doc = _yeni_video_dosyasi("kisa-video-2.mp4")
+		_av_notr(self)
 		self.addCleanup(
 			lambda: frappe.delete_doc("File", self.doc.name, ignore_permissions=True, force=True)
 		)
@@ -220,6 +238,7 @@ class TestEnqueueTranscodeKosullu(FrappeTestCase):
 
 	def setUp(self):
 		self.doc = _yeni_video_dosyasi("kosullu-video-1.mp4")
+		_av_notr(self)
 		self.addCleanup(
 			lambda: frappe.delete_doc("File", self.doc.name, ignore_permissions=True, force=True)
 		)
