@@ -66,6 +66,22 @@ ACTION_SIGNED_ACCESS: str = "media.signed_access"
 # TUR-126 §4 — süper-admin bir dosyanın erişim seviyesini (public↔private)
 # değiştirdi. `media_admin.set_access_level` / `media/access_level.py` yazar.
 ACTION_LEVEL_CHANGED: str = "media.level_changed"
+# Satıcı kendi medyasının yedeğini aldı (TUR-131). Geri yüklemeden ayrı bir
+# olay: yedek almak veriyi değiştirmez ama disk tüketir ve "ne zaman yedek
+# aldım" sorusunun cevabı denetimden okunabilmeli.
+ACTION_BACKUP: str = "media.backup"
+# Zararlı içerik taraması çalıştı (TUR-125). Temiz sonuç da yazılıyor: "tarandı
+# ve temiz çıktı" ile "hiç taranmadı" denetimde ayırt edilemezse, tarama
+# kapsamının ne kadarını gerçekten kapsadığımız sorusu cevapsız kalır.
+ACTION_SCAN: str = "media.scan"
+# Zararlı bulundu, dosya erişimin dışına taşındı. Yüklemenin reddinden AYRI bir
+# olay: red yükleme anında olur ve dosya hiç var olmaz; karantina kaydedilmiş
+# bir dosyanın sonradan kapatılmasıdır.
+ACTION_QUARANTINE: str = "media.quarantine"
+# Karantinadan çıkarma — insan kararı, yanlış pozitif. Kendi olayı olmalı:
+# "kim, hangi dosyayı, ne zaman zararlı bulgusuna rağmen geri açtı" sorusu
+# güvenlik incelemesinin ilk sorusudur.
+ACTION_QUARANTINE_RELEASE: str = "media.quarantine_release"
 
 MEDIA_ACTIONS: tuple[str, ...] = (
 	ACTION_UPLOAD,
@@ -83,6 +99,10 @@ MEDIA_ACTIONS: tuple[str, ...] = (
 	ACTION_EXPORT,
 	ACTION_SIGNED_ACCESS,
 	ACTION_LEVEL_CHANGED,
+	ACTION_BACKUP,
+	ACTION_SCAN,
+	ACTION_QUARANTINE,
+	ACTION_QUARANTINE_RELEASE,
 )
 
 # Geri dönüşü olmayan ya da güvenlik anlamı taşıyan olaylar HIGH ile işaretlenir;
@@ -98,6 +118,13 @@ _HIGH_SEVERITY_ACTIONS: frozenset[str] = frozenset(
 		ACTION_EXPORT,
 		# Erişim kontrolü kararı: private→public bir dosyayı anonim erişime açar.
 		ACTION_LEVEL_CHANGED,
+		# Zararlı bulgusu ve onun insan eliyle geri alınması — ikisi de güvenlik
+		# incelemesinin doğrudan konusu. `media.scan`'in TEMİZ dalı listede YOK:
+		# her yüklemede bir satır yazılıyor, hepsini HIGH işaretlemek severity
+		# filtresini işe yaramaz hâle getirirdi (başarısız tarama zaten `allowed=
+		# False` ile HIGH'a düşüyor).
+		ACTION_QUARANTINE,
+		ACTION_QUARANTINE_RELEASE,
 	}
 )
 

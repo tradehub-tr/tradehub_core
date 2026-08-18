@@ -24,6 +24,7 @@ import os
 import frappe
 
 from tradehub_core.media import audit, engine, files, inventory, metadata, ownership, transcode, usage
+from tradehub_core.media import seller_backup, seller_backup_export
 from tradehub_core.media import seller_media as islem
 from tradehub_core.media import chunked, upload_policy
 
@@ -458,6 +459,27 @@ def get_dimensions(file_url: str) -> dict:
 	return metadata.ensure_dimensions(file_url, store)
 
 
+@frappe.whitelist(methods=["POST"])
+def retry_video(file_url: str) -> dict:
+	"""Başarısız (dead-letter) video işlemesini yeniden başlat (TUR-296).
+
+	Yalnız kendi dosyası: sahiplik doğrulanmadan kuyruk tetiklenemez —
+	`file_url` tahmin edilebilir olsaydı bile başka mağazanın videosu buradan
+	yeniden işletilemez. Durum kuralı (`failed` dışında ret) `transcode`
+	modülünde; burada tekrar edilmiyor.
+	"""
+	store = _store()
+	ownership.assert_owns(store, file_url)
+	sonuc = transcode.retry_failed(file_url)
+	audit.log_media_event(
+		action=audit.ACTION_OPTIMIZE,
+		file_url=file_url,
+		tenant=store,
+		context={"kind": "video_transcode", "manual_retry": True},
+	)
+	return sonuc
+
+
 @frappe.whitelist()
 def rename_media(file_url: str, new_name: str) -> dict:
 	"""Görünen adı değiştir. Dosyanın YOLU değişmez — değişseydi onu gösteren
@@ -492,3 +514,119 @@ def replace_media(file_url: str, content: str = "", file_name: str = "") -> dict
 		frappe.throw(frappe._("Dosya içeriği okunamadı."))
 
 	return files.replace(file_url, store, icerik, file_name)
+
+
+# --- Yedekleme (TUR-131) ----------------------------------------------------
+#
+# Yönetimdeki `media_admin` yedek uçlarıyla AYNI şeyi yapmazlar: orası platform
+# çapında çalışır (tüm dosyalar, tüm `File` satırları), burası yalnız oturumdaki
+# mağazanın kapsamında. Mağaza dışarıdan parametre olarak ALINMAZ — alınsaydı
+# satıcı başkasının mağaza kodunu yazıp yedeğine erişirdi.
+
+
+@frappe.whitelist(methods=["POST"])
+def create_backup(label: str = "") -> dict:
+	"""Mağazanın medyasının anlık görüntüsünü al."""
+	store = _store()
+	return seller_backup.create(store, label=(label or "").strip()[:60])
+
+
+@frappe.whitelist()
+def list_backups() -> dict:
+	"""Mağazanın yedekleri + disk kullanımı."""
+	store = _store()
+	return {"sets": seller_backup.list_sets(store), "usage": seller_backup.usage(store)}
+
+
+@frappe.whitelist()
+def verify_backup(set_id: str, deep: int = 0) -> dict:
+	"""Yedek geri yüklenebilir mi — hiçbir şeye dokunmadan kontrol."""
+	store = _store()
+	return seller_backup.verify(store, set_id, deep=bool(int(deep or 0)))
+
+
+@frappe.whitelist()
+def plan_backup_restore(set_id: str) -> dict:
+	"""Geri yükleme yapılsa ne olurdu — rapor, uygulama değil."""
+	store = _store()
+	return seller_backup.plan(store, set_id)
+
+
+@frappe.whitelist(methods=["POST"])
+def apply_backup_restore(
+	set_id: str,
+	with_files: int = 1,
+	with_records: int = 1,
+	overwrite: int = 0,
+	only: str | list[str] | None = None,
+) -> dict:
+	"""Geri yüklemeyi uygula.
+
+	`overwrite` VARSAYILAN OLARAK KAPALI: içeriği değişmiş dosyaya dokunulmaz.
+	Açmak ayrı ve bilinçli bir seçim olmalı — dosya optimize edilmiş ya da
+	yenisiyle değiştirilmiş olabilir.
+	"""
+	store = _store()
+	yollar = frappe.parse_json(only) if isinstance(only, str) else (only or [])
+	if yollar and len(yollar) > MAX_BATCH:
+		frappe.throw(frappe._("Tek seferde en çok {0} dosya işlenebilir.").format(MAX_BATCH))
+	return seller_backup.apply(
+		store,
+		set_id,
+		files=bool(int(with_files or 0)),
+		records=bool(int(with_records or 0)),
+		overwrite=bool(int(overwrite or 0)),
+		only=[y for y in yollar if y] or None,
+	)
+
+
+@frappe.whitelist(methods=["POST"])
+def delete_backup(set_id: str) -> dict:
+	"""Bir yedeği sil. Son yedek silinemez (kural `seller_backup`te)."""
+	store = _store()
+	return seller_backup.delete_set(store, set_id)
+
+
+@frappe.whitelist(methods=["POST"])
+def start_backup_export(set_id: str) -> dict:
+	"""Yedeği indirilebilir pakete dönüştürmeyi başlat (arkada çalışır)."""
+	store = _store()
+	return seller_backup_export.start(store, set_id)
+
+
+@frappe.whitelist()
+def backup_export_status(set_id: str) -> dict:
+	"""Paket hazır mı — ekran bunu yokluyor."""
+	store = _store()
+	return seller_backup_export.status(store, set_id)
+
+
+@frappe.whitelist(methods=["POST"])
+def discard_backup_export(set_id: str) -> dict:
+	"""Paketi sunucudan kaldır. Yedeğin kendisine dokunulmaz."""
+	store = _store()
+	return seller_backup_export.discard(store, set_id)
+
+
+@frappe.whitelist()
+def download_backup_export(set_id: str):
+	"""Paketi indir.
+
+	Dosya belleğe ALINMIYOR: yüzlerce MB'lık bir paketi yanıt gövdesine koymak
+	süreci şişirirdi. Frappe'nin özel dosya göndericisi parça parça akıtıyor.
+
+	Yol kurma ve varlık kontrolü `seller_backup_export.package_path` içinde;
+	mağaza oturumdan çözülüyor, istekten DEĞİL.
+	"""
+	from frappe.utils.response import send_private_file
+
+	store = _store()
+	tam = seller_backup_export.package_path(store, set_id)
+	audit.log_media_event(
+		action=audit.ACTION_EXPORT,
+		tenant=store,
+		sensitive=True,
+		context={"set_id": set_id, "downloaded": True},
+	)
+	# Gönderici site'ın private kökünden itibaren göreli yol bekliyor.
+	return send_private_file(os.path.relpath(tam, frappe.get_site_path("private")))

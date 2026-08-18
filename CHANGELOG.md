@@ -1,3 +1,47 @@
+## [v1.13.1-alpha.26] - 2026-08-18 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(media): zararlı içerik taraması ve karantina — pipeline adım 3 (TUR-125) (@Metin Bektemur)
+
+### Duzeltildi
+- fix(media): modüller arası kesişim denetimi — 7 kopukluk (TUR-125 × 296/131/123/138/124) (@Metin Bektemur)
+
+---
+## [v1.13.1-alpha.25] - 2026-08-17 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(media): satıcı medya yedeği — kendi deposu, kendi kapsamı (TUR-131) (@Metin Bektemur)
+
+---
+## [v1.13.1-alpha.23] - 2026-08-17 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(media): backoff, takılı iş süpürücüsü ve kuyruk işleri için ortak sözleşme (TUR-296) (@Metin Bektemur)
+
+### Duzeltildi
+- fix(media): video rozeti en kötü durumu gösteriyor, "hazır" yalanı bitti (TUR-296) (@Metin Bektemur)
+
+---
+## [v1.13.1-alpha.22] - 2026-08-17 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(media): video işlemede retry + dead-letter ve durumun dışa açılması (TUR-296) (@Metin Bektemur)
+  - `th_media_transcode_attempts` (patch v15_9_18): deneme sayacı. Ayrı alanda, çünkü `th_media_video_status` KULLANICIYA gösterilen durumdur.
+  - `MAX_TRANSCODE_ATTEMPTS = 3`. Hak dolmadan durum `processing` KALIR — "başarısız" gösterip iki dakika sonra "hazır"a dönmek güven bozar.
+  - Hak bitince dead-letter: `failed` + denetim kaydına `attempts`. Sistem o dosyaya bir daha kendiliğinden dokunmaz; sonsuz kuyruk döngüsü bilerek yok.
+  - Retry ve dead-letter denetimde AYRI olay ( `video_transcode_retry` / `video_transcode_failed` ) — "3 deneme yapıldı" bilgisi tek kayıttan çıkarılamazdı.
+  - Elle tetikleme: satıcı `seller_media.retry_video` (sahiplik doğrulanır), yönetici `media_admin.retry_transcode` (rol). Durum kuralı tek yerde, `transcode.retry_failed`: yalnız `failed` kabul edilir.
+  - `inventory.list_files` artık `video_status` döndürüyor (iki select dalında da) — panel rozeti buradan besleniyor.
+
+---
 ## [v1.13.1-alpha.20] - 2026-08-14 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.

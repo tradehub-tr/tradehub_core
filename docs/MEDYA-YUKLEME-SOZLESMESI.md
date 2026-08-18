@@ -222,12 +222,13 @@ sayım görünür; kullanıcı beklemek istemezse iptal edebilir.
 | İptal | Satır kaldırılır, gönderim durur, sunucudaki oturum silinir |
 | Bitti | Yeşil onay, liste yenilenir |
 
-> **Açık madde — yükleme sonrası işleme.** Video normalize'i yükleme
+> **Yükleme sonrası işleme (TUR-296 ile kapandı).** Video normalize'i yükleme
 > bittikten SONRA kuyrukta çalışıyor (`th_media_video_status`:
-> `processing` / `ready` / `failed`). Bu durum şu an hiçbir uçtan
-> dönmüyor ve panelde gösterilmiyor; yani işleme başarısız olursa
-> kullanıcı bunu göremiyor. Durumun dışarı verilmesi ve "işleniyor"
-> rozeti TUR-296'ya bağlı.
+> `processing` / `ready` / `failed`). Bu durum artık liste ucundan
+> `video_status` alanıyla dönüyor; panelde "işleniyor" ve "işleme başarısız"
+> rozetleri gösteriliyor, başarısız videoda "Yeniden İşle" düğmesi çıkıyor.
+> Deneme/geri çekilme politikası ve adım sırası ayrı belgede:
+> `MEDYA-ISLEME-PIPELINE.md`.
 
 ---
 

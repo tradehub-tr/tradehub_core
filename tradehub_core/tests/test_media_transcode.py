@@ -42,9 +42,26 @@ def _yeni_video_dosyasi(
 	return doc
 
 
+
+def _av_notr(test):
+	"""Bu birim testleri transcode MEKANİĞİNİ sınar; AV kesişimi ayrı kapsamda.
+
+	Konteynerde ClamAV kurulu olduğunda `hold_until_clean` gerçekten aktif ve
+	testin yüklediği dosya insert ANINDA bekletmeye taşınıyor — `_run_transcode`
+	de (doğru davranarak) işi erteliyor, ffmpeg mock'una hiç ulaşılmıyor.
+	Kesişim davranışının kendi testleri var (`test_media_av.TestModulKesisimleri`);
+	burada nötrlenir ki bu dosya tarayıcının kurulu olup olmamasına göre iki
+	farklı sonuç vermesin.
+	"""
+	for hedef in ("in_hold", "in_quarantine"):
+		y = mock.patch(f"tradehub_core.media.av.{hedef}", return_value=False)
+		y.start()
+		test.addCleanup(y.stop)
+
 class TestEnqueueTranscode(FrappeTestCase):
 	def setUp(self):
 		self.doc = _yeni_video_dosyasi("kisa-video-1.mp4")
+		_av_notr(self)
 		self.addCleanup(
 			lambda: frappe.delete_doc("File", self.doc.name, ignore_permissions=True, force=True)
 		)
@@ -67,6 +84,7 @@ class TestEnqueueTranscode(FrappeTestCase):
 class TestRunTranscode(FrappeTestCase):
 	def setUp(self):
 		self.doc = _yeni_video_dosyasi("kisa-video-2.mp4")
+		_av_notr(self)
 		self.addCleanup(
 			lambda: frappe.delete_doc("File", self.doc.name, ignore_permissions=True, force=True)
 		)
@@ -119,25 +137,45 @@ class TestRunTranscode(FrappeTestCase):
 		optimized_at = frappe.db.get_value("File", self.doc.name, "th_optimized_at")
 		self.assertIsNotNone(optimized_at, "başarılı transcode th_optimized_at yazmalı")
 
-	def test_run_transcode_hata_durumunda_failed_isaretler(self):
-		with mock.patch(
-			"tradehub_core.media.transcode.subprocess.run", side_effect=Exception("ffmpeg patladı")
-		):
-			transcode._run_transcode(self.doc.file_url)
+	def test_run_transcode_ilk_hatada_failed_degil_deneme_planlanir(self):
+		"""TUR-296 davranış değişikliği: tek hata artık dead-letter DEĞİL.
 
-		durum = frappe.db.get_value("File", self.doc.name, "th_media_video_status")
-		self.assertEqual(durum, transcode.VIDEO_STATUS_FAILED)
-
-	def test_run_transcode_hata_durumunda_audit_log_yazar(self):
-		"""Fix round 1, Bulgu 2: hata dalı yalnız `frappe.log_error` çağırıyordu —
-		transcode başarısızlığı medya denetim ekranında (ADL) hiç görünmüyordu.
-		Brief Step 8: "hatada `failed` + audit" — başarı dalıyla aynı desen.
+		Eski beklenti "ilk hatada `failed`" idi; retry geldiğinden beri ilk hata
+		sayaç 1'i yazar, durumu `processing`'te tutar ve yeni bir deneme
+		PLANLAR. Kuyruğa anında konmaz (backoff) — işi süpürücü alır.
+		Dead-letter ve süpürücü kapsamı `test_media_transcode_retry.py`'de.
 		"""
 		with (
 			mock.patch(
 				"tradehub_core.media.transcode.subprocess.run",
 				side_effect=Exception("ffmpeg patladı"),
 			),
+			mock.patch("tradehub_core.media.transcode.frappe.enqueue") as mock_enqueue,
+		):
+			transcode._run_transcode(self.doc.file_url)
+
+		mock_enqueue.assert_not_called()
+		durum = frappe.db.get_value("File", self.doc.name, "th_media_video_status")
+		self.assertNotEqual(durum, transcode.VIDEO_STATUS_FAILED)
+		deneme = frappe.db.get_value("File", self.doc.name, "th_media_transcode_attempts")
+		self.assertEqual(int(deneme or 0), 1)
+		self.assertTrue(
+			frappe.db.get_value("File", self.doc.name, "th_media_transcode_next_at"),
+			"hata sonrası yeni deneme planlanmalı",
+		)
+
+	def test_run_transcode_hata_durumunda_audit_log_yazar(self):
+		"""Fix round 1, Bulgu 2: hata dalı yalnız `frappe.log_error` çağırıyordu —
+		transcode başarısızlığı medya denetim ekranında (ADL) hiç görünmüyordu.
+		TUR-296 sonrası ilk hata `retry` olayı yazar (dead-letter olayı ayrı,
+		`test_media_transcode_retry.py`'de) — desen aynı: allowed=False + dosya.
+		"""
+		with (
+			mock.patch(
+				"tradehub_core.media.transcode.subprocess.run",
+				side_effect=Exception("ffmpeg patladı"),
+			),
+			mock.patch("tradehub_core.media.transcode.frappe.enqueue"),
 			mock.patch("tradehub_core.media.transcode.audit.log_media_event") as mock_audit,
 		):
 			transcode._run_transcode(self.doc.file_url)
@@ -146,9 +184,7 @@ class TestRunTranscode(FrappeTestCase):
 		_args, kwargs = mock_audit.call_args
 		self.assertEqual(kwargs.get("file_url"), self.doc.file_url)
 		self.assertFalse(kwargs.get("allowed"))
-
-		durum = frappe.db.get_value("File", self.doc.name, "th_media_video_status")
-		self.assertEqual(durum, transcode.VIDEO_STATUS_FAILED)
+		self.assertIn("video_transcode_retry", kwargs.get("reason") or "")
 
 	def test_run_transcode_dosya_bulunamazsa_sessizce_cikar(self):
 		# Kuyruğa alındıktan sonra dosya silinmiş olabilir (satıcı bırakmış) —
@@ -221,6 +257,7 @@ class TestEnqueueTranscodeKosullu(FrappeTestCase):
 
 	def setUp(self):
 		self.doc = _yeni_video_dosyasi("kosullu-video-1.mp4")
+		_av_notr(self)
 		self.addCleanup(
 			lambda: frappe.delete_doc("File", self.doc.name, ignore_permissions=True, force=True)
 		)
