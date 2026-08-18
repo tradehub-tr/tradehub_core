@@ -1,0 +1,164 @@
+{
+ "$comment": "T-040 · Normalize master. Politika veya crop değişince YENİ sürüm üretilir; eski sürüm silinmez. autoname=field:version_hash — kaydın adı içeriğinin hash'idir, böylece aynı girdi ikinci kez üretilemez (idempotency, INV-06).",
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-08-18 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 0,
+ "engine": "InnoDB",
+ "field_order": [
+  "asset",
+  "version_hash",
+  "source_hash",
+  "width",
+  "height",
+  "dpi",
+  "colorspace",
+  "policy_snapshot",
+  "crop_intent_snapshot",
+  "engine_version",
+  "created_at",
+  "is_active"
+ ],
+ "fields": [
+  {
+   "fieldname": "asset",
+   "fieldtype": "Link",
+   "label": "Varlık",
+   "options": "Media Asset",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "version_hash",
+   "fieldtype": "Data",
+   "label": "Sürüm Hash",
+   "reqd": 1,
+   "unique": 1,
+   "search_index": 1,
+   "length": 64,
+   "description": "sha256(source_hash + canonical_json(policy_snapshot) + canonical_json(crop_intent) + engine_version) — tradehub_core/media/pipeline/core/dedup.py:version_hash(). Rendition URL'i bu değeri taşır (INV-09): içerik değişmeden URL değişmez, içerik değişince URL zorunlu değişir."
+  },
+  {
+   "fieldname": "source_hash",
+   "fieldtype": "Data",
+   "label": "Kaynak Hash",
+   "length": 64,
+   "read_only": 1,
+   "description": "Türetildiği Media Asset.content_sha256. Ayrı tutulur: version_hash'in girdisidir, ondan geri çıkarılamaz."
+  },
+  {
+   "fieldname": "width",
+   "fieldtype": "Int",
+   "label": "Genişlik"
+  },
+  {
+   "fieldname": "height",
+   "fieldtype": "Int",
+   "label": "Yükseklik"
+  },
+  {
+   "fieldname": "dpi",
+   "fieldtype": "Int",
+   "label": "DPI",
+   "default": "72",
+   "description": "Normalize master DPI'ı. DPI DÜŞÜRMEK PİKSEL DÜŞÜRMEZ (docs/standards/dpi-ve-cozunurluk.md, tests/test_policy_dpi.py)."
+  },
+  {
+   "fieldname": "colorspace",
+   "fieldtype": "Data",
+   "label": "Renk Uzayı",
+   "default": "sRGB",
+   "length": 32
+  },
+  {
+   "fieldname": "policy_snapshot",
+   "fieldtype": "JSON",
+   "label": "Politika Anlık Görüntüsü",
+   "description": "Bu sürümün hangi politikayla üretildiği. Politikanın kendisine LINK değil KOPYA: politika sonradan değişirse geçmiş sürümün üretim koşulu değişmiş görünmemeli."
+  },
+  {
+   "fieldname": "crop_intent_snapshot",
+   "fieldtype": "JSON",
+   "label": "Kırpma Niyeti Anlık Görüntüsü",
+   "description": "version_hash'in üçüncü girdisi. Kaynak dokümanın alan listesinde yok ama version_hash formülünde VAR — hash yeniden hesaplanabilir olmalıysa girdisi de saklanmak zorunda."
+  },
+  {
+   "fieldname": "engine_version",
+   "fieldtype": "Data",
+   "label": "Motor Sürümü",
+   "length": 64,
+   "description": "ÖLÇÜLDÜ (docs/reports/05-kutuphane-benchmark.md): Pillow'da kalındı. Değer biçimi 'pillow-11.3.0' gibi; pyvips'e geçilirse burada görünür ve tüm version_hash'ler zorunlu değişir."
+  },
+  {
+   "fieldname": "created_at",
+   "fieldtype": "Datetime",
+   "label": "Oluşturulma",
+   "read_only": 1
+  },
+  {
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "label": "Yayında",
+   "default": "0",
+   "description": "Media Asset.active_version ile tutarlı tutulur; sorgu kolaylığı için denormalize (öksüz/retention taraması Asset'e join etmeden filtreleyebilsin)."
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "is_submittable": 0,
+ "issingle": 0,
+ "istable": 0,
+ "links": [],
+ "modified": "2026-08-18 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Media Engine",
+ "name": "Media Version",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Media Superadmin",
+   "share": 1,
+   "write": 1,
+   "permlevel": 0
+  },
+  {
+   "create": 0,
+   "delete": 0,
+   "email": 0,
+   "export": 0,
+   "print": 0,
+   "read": 1,
+   "report": 1,
+   "role": "Seller",
+   "share": 0,
+   "write": 0,
+   "permlevel": 0
+  },
+  {
+   "create": 1,
+   "delete": 0,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1,
+   "permlevel": 0
+  }
+ ],
+ "quick_entry": 0,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1,
+ "autoname": "field:version_hash"
+}

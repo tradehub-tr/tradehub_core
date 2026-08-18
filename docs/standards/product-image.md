@@ -7,8 +7,8 @@
 
 | Dosya | Ne |
 |---|---|
-| `media_engine/policy/schema/slot-policy.schema.json` | JSON Schema draft 2020-12 — her slot politikasının biçimi |
-| `media_engine/policy/slots/product-image.json` | Ürün görseli slotunun politikası |
+| `tradehub_core/media/pipeline/policy/schema/slot-policy.schema.json` | JSON Schema draft 2020-12 — her slot politikasının biçimi |
+| `tradehub_core/media/pipeline/policy/slots/product-image.json` | Ürün görseli slotunun politikası |
 | bu belge | Değerlerin gerekçesi + çelişkilerin kaydı + ölçülemeyenlerin listesi |
 
 **Girdi envanterler:** `docs/reports/00-upload-slot-envanteri.md` (41 doctype alanı,
@@ -85,8 +85,8 @@ JSON Schema **draft 2020-12**. Doğrulandı:
 python3 -m venv /tmp/jsv && /tmp/jsv/bin/pip install -q jsonschema
 /tmp/jsv/bin/python - <<'EOF'
 import json, jsonschema
-s = json.load(open('media_engine/policy/schema/slot-policy.schema.json'))
-i = json.load(open('media_engine/policy/slots/product-image.json'))
+s = json.load(open('tradehub_core/media/pipeline/policy/schema/slot-policy.schema.json'))
+i = json.load(open('tradehub_core/media/pipeline/policy/slots/product-image.json'))
 jsonschema.Draft202012Validator.check_schema(s)          # → şema geçerli
 print(len(list(jsonschema.Draft202012Validator(s).iter_errors(i))))   # → 0
 EOF
@@ -926,12 +926,12 @@ ilanlar kaydedilemez hâle gelir.
 | Sayı | Kaynak |
 |---|---|
 | `min_short_edge` 1000, `min_area` 1e6, oranlar, ±%2, 2400, 2000, 72 DPI, 80 MP | T-020 görev tanımı / kaynak tasarım dokümanı |
-| Master tavanı 1920 (garanti-WebP) | `tradehub_core/media/engine.py:177` |
+| Master tavanı 1920 (garanti-WebP) | `tradehub_core/media/pipeline.py:177` |
 | Master tavanı 2000 / 2560 / 1600 (optimize) | `tradehub_core/media/presets.py:14-16`, `engine.py:117` |
-| `SUPPORTED_FORMATS` = JPEG/PNG/WEBP/TIFF | `tradehub_core/media/engine.py:21` |
-| Animasyonlu ret | `tradehub_core/media/engine.py:111-112` |
-| EXIF transpose + ICC koruma | `tradehub_core/media/engine.py:11-13, 114-116` |
-| WebP q=80 | `tradehub_core/media/engine.py:148` |
+| `SUPPORTED_FORMATS` = JPEG/PNG/WEBP/TIFF | `tradehub_core/media/pipeline.py:21` |
+| Animasyonlu ret | `tradehub_core/media/pipeline.py:111-112` |
+| EXIF transpose + ICC koruma | `tradehub_core/media/pipeline.py:11-13, 114-116` |
+| WebP q=80 | `tradehub_core/media/pipeline.py:148` |
 | Görsel bayt tavanı 25 MB | `tradehub_core/media/upload_policy.py:68` |
 | `.heic`/`.avif` "image" sayılıyor | `tradehub_core/media/upload_policy.py:57-60` |
 | 14 hata kodu + `retryable` | `tradehub_core/media/upload_policy.py:104-139` |

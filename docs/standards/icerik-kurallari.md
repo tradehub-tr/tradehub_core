@@ -3,7 +3,7 @@
 **T-025** · Medya Motoru · Rapor tarihi: **2026-08-17**
 Branch: `medya-motoru-faz0-faz2` · Çalışma alanı: `/Users/ahmet/Desktop/istoc-medya-wt`
 
-Politika dosyası: `media_engine/policy/content_rules.json`
+Politika dosyası: `tradehub_core/media/pipeline/policy/content_rules.json`
 Kalibrasyon betiği: `scripts/calibrate_content_rules.py` (**yazıldı, çalıştırılmadı**)
 
 ---
@@ -114,8 +114,8 @@ değildir (`completeness.py:139-140`).
 | Kodlu ret mekanizması | `tradehub_core/media/upload_policy.py:142-162` (`UploadRejected`, `reddet()`) |
 | İçerik imzası / tehlikeli içerik | `tradehub_core/media/upload_policy.py:187-224` (`_DANGEROUS_MARKERS`) |
 | Atlama sebepleri sözlüğü | `tradehub_core/media/gates.py:28-37` (`SKIP_REASONS`) |
-| EXIF döndürme + Pillow ön işleme | `tradehub_core/media/engine.py:102`, `:161` |
-| Animasyon tespiti | `tradehub_core/media/engine.py:60` (`Probe.animated`) |
+| EXIF döndürme + Pillow ön işleme | `tradehub_core/media/pipeline.py:102`, `:161` |
+| Animasyon tespiti | `tradehub_core/media/pipeline.py:60` (`Probe.animated`) |
 | Kalite/boyut varsayılanları | `tradehub_core/media/presets.py:13-16` (balanced: 2000px / q88) |
 
 İçerik kuralları bu sözleşmelerin **aynısını** kullanır: kod + retryable
@@ -511,14 +511,14 @@ python3 /Users/ahmet/Desktop/istoc-medya-wt/scripts/calibrate_content_rules.py \
   --corpus   /veri/korpus \
   --manifest /veri/korpus/manifest.csv \
   --dup-labels /veri/korpus/duplicates.csv \
-  --policy   /Users/ahmet/Desktop/istoc-medya-wt/media_engine/policy/content_rules.json \
+  --policy   /Users/ahmet/Desktop/istoc-medya-wt/tradehub_core/media/pipeline/policy/content_rules.json \
   --out      /veri/korpus/onerilen_esikler_warn.json
 
 # 2) RED kuralları — FP bütçesi %1
 python3 /Users/ahmet/Desktop/istoc-medya-wt/scripts/calibrate_content_rules.py \
   --corpus   /veri/korpus \
   --manifest /veri/korpus/manifest.csv \
-  --policy   /Users/ahmet/Desktop/istoc-medya-wt/media_engine/policy/content_rules.json \
+  --policy   /Users/ahmet/Desktop/istoc-medya-wt/tradehub_core/media/pipeline/policy/content_rules.json \
   --fp-budget 0.01 \
   --out      /veri/korpus/onerilen_esikler_reject.json
 ```
@@ -757,6 +757,6 @@ karşılık `urun_gorseli` ve `vitrin_gorseli` için **sıfır** moderasyon kayd
 
 | Dosya | Satır | Ne |
 |---|---|---|
-| `/Users/ahmet/Desktop/istoc-medya-wt/media_engine/policy/content_rules.json` | — | 9 kural, eşikler, kategori muafiyetleri, aşamalı açılış, `not_measured` listesi |
+| `/Users/ahmet/Desktop/istoc-medya-wt/tradehub_core/media/pipeline/policy/content_rules.json` | — | 9 kural, eşikler, kategori muafiyetleri, aşamalı açılış, `not_measured` listesi |
 | `/Users/ahmet/Desktop/istoc-medya-wt/docs/standards/icerik-kurallari.md` | — | Bu belge |
 | `/Users/ahmet/Desktop/istoc-medya-wt/scripts/calibrate_content_rules.py` | 891 | Eşik kalibrasyonu; `chmod +x` yapıldı, **çalıştırılmadı** |

@@ -1,0 +1,177 @@
+{
+ "$comment": "T-040 · Profil × genişlik × biçim çıktısı. Servis edilen TEK artefakt budur; master (Media Version) kullanıcıya asla verilmez.",
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-08-18 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 0,
+ "engine": "InnoDB",
+ "field_order": [
+  "version",
+  "profile",
+  "width",
+  "height",
+  "format",
+  "rendition_key",
+  "bytes",
+  "quality",
+  "ssim",
+  "file_url",
+  "storage_backend",
+  "generation",
+  "last_access_at",
+  "benefit_gate_passed"
+ ],
+ "fields": [
+  {
+   "fieldname": "version",
+   "fieldtype": "Link",
+   "label": "Sürüm",
+   "options": "Media Version",
+   "reqd": 1,
+   "description": "T-044 §4.3: ayrı tek kolonlu indeks YOK — uk_rendition_quad'ın önekidir, ayrıca kurmak indeksi gereksiz büyütür."
+  },
+  {
+   "fieldname": "profile",
+   "fieldtype": "Link",
+   "label": "Profil",
+   "options": "Media Profile",
+   "reqd": 1,
+   "description": "T-044 §4.3: ayrı tek kolonlu indeks YOK — uk_rendition_quad'ın önekidir, ayrıca kurmak indeksi gereksiz büyütür."
+  },
+  {
+   "fieldname": "width",
+   "fieldtype": "Int",
+   "label": "Genişlik",
+   "reqd": 1
+  },
+  {
+   "fieldname": "height",
+   "fieldtype": "Int",
+   "label": "Yükseklik"
+  },
+  {
+   "fieldname": "format",
+   "fieldtype": "Select",
+   "label": "Biçim",
+   "options": "webp\navif\njpeg\npng\nwebm\nmp4",
+   "reqd": 1
+  },
+  {
+   "fieldname": "rendition_key",
+   "fieldtype": "Data",
+   "label": "Tekillik Anahtarı",
+   "read_only": 1,
+   "length": 180,
+   "description": "(version, profile, width, format) DÖRTLÜSÜNÜN tekilliği. Frappe DocType JSON'u BİLEŞİK unique index ifade edemez; standart çözüm türetilmiş tek alandır. Değer: '<version_hash>|<profile_key>|<width>|<format>', before_save'de üretilir ve elle yazılamaz (read_only). T-044 §4.3'te ÖLÇÜLDÜ: bu alana ayrıca UNIQUE koymak, bileşik uk_rendition_quad ile BİRLİKTE indeksi %62 şişiriyor (2,19M satırda 2.593 MB → 981 MB). Karar: tekilliği VERİTABANI tarafında bileşik ham indeks (uk_rendition_quad) taşır — bkz. _ddl.sql; bu alan okunabilirlik ve Frappe tarafı karşılaştırma içindir, indekssizdir. Kısıt ihlali Frappe'ye IntegrityError olarak döner ve tradehub_core/media/pipeline/core/dedup.py:idempotent_create() onu idempotent davranışa çevirir."
+  },
+  {
+   "fieldname": "bytes",
+   "fieldtype": "Int",
+   "label": "Bayt"
+  },
+  {
+   "fieldname": "quality",
+   "fieldtype": "Int",
+   "label": "Kalite",
+   "description": "Kodlayıcı kalite değeri. Kayıpsız üretimde boş bırakılır (0 değil): 0 geçerli bir kalite değeridir, 'kalite kavramı yok' demek değildir."
+  },
+  {
+   "fieldname": "ssim",
+   "fieldtype": "Float",
+   "label": "SSIM",
+   "precision": "4"
+  },
+  {
+   "fieldname": "file_url",
+   "fieldtype": "Data",
+   "label": "Dosya Adresi",
+   "length": 500,
+   "description": "/files/media/{asset}/{version_hash}/{profile}-{width}.{ext} — tradehub_core/media/pipeline/core/dedup.py:rendition_path(). Cache-Control: public, max-age=31536000, immutable."
+  },
+  {
+   "fieldname": "storage_backend",
+   "fieldtype": "Select",
+   "label": "Depolama",
+   "options": "local\ns3\nmirror",
+   "default": "local"
+  },
+  {
+   "fieldname": "generation",
+   "fieldtype": "Select",
+   "label": "Üretim",
+   "options": "eager\nlazy",
+   "default": "eager"
+  },
+  {
+   "fieldname": "last_access_at",
+   "fieldtype": "Datetime",
+   "label": "Son Erişim",
+   "search_index": 1
+  },
+  {
+   "fieldname": "benefit_gate_passed",
+   "fieldtype": "Check",
+   "label": "Fayda Kapısı",
+   "default": "0",
+   "description": "Türev kaynaktan yeterince küçük mü. Geçmeyen türev üretilir ama servis edilmez — yoksa 'optimizasyon' dosyayı büyütür."
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "is_submittable": 0,
+ "issingle": 0,
+ "istable": 0,
+ "links": [],
+ "modified": "2026-08-18 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Media Engine",
+ "name": "Media Rendition",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Media Superadmin",
+   "share": 1,
+   "write": 1,
+   "permlevel": 0
+  },
+  {
+   "create": 0,
+   "delete": 0,
+   "email": 0,
+   "export": 0,
+   "print": 0,
+   "read": 1,
+   "report": 1,
+   "role": "Seller",
+   "share": 0,
+   "write": 0,
+   "permlevel": 0
+  },
+  {
+   "create": 1,
+   "delete": 0,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1,
+   "permlevel": 0
+  }
+ ],
+ "quick_entry": 0,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1,
+ "autoname": "hash"
+}

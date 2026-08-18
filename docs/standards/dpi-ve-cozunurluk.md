@@ -64,7 +64,7 @@ bağlanmasıdır; ürün hattımızda ikisi **ayrı** kalır:
 
 ## 2. Mevcut kod ne yapıyor — `engine.optimize()`
 
-`tradehub_core/media/engine.py:96-145`. Format **korunur** (JPEG→JPEG,
+`tradehub_core/media/pipeline.py:96-145`. Format **korunur** (JPEG→JPEG,
 PNG→PNG, WEBP→WEBP, TIFF→TIFF); uzantı değişmediği için `file_url` sabit kalır ve
 `Listing.primary_image` gibi referanslar kırılmaz (`engine.py:8-9` **[K]**).
 
@@ -143,7 +143,7 @@ yalan olur.
 
 ## 3. Mevcut kod ne yapıyor — `engine.to_webp()`
 
-`tradehub_core/media/engine.py:148-181`. `optimize()`'dan **ayrı bir giriş**:
+`tradehub_core/media/pipeline.py:148-181`. `optimize()`'dan **ayrı bir giriş**:
 `optimize` formatı korur, `to_webp` **koşulsuz WebP** üretir (TUR-128, sunucu
 garanti-WebP). Safari/iOS/Capacitor'da `canvas.toBlob('image/webp')` yok; istemci
 o ortamlarda JPEG fallback gönderir, sunucu WebP'ye tamamlar (`engine.py:149-159`
@@ -293,7 +293,7 @@ hattının **üç** noktası uzun kenarı **1920**'ye sabitliyor:
 
 | Nokta | Satır | Değer |
 |---|---|---|
-| Sunucu garanti-WebP | `tradehub_core/media/engine.py:177` | `im.thumbnail((1920, 1920))` **[K]** |
+| Sunucu garanti-WebP | `tradehub_core/media/pipeline.py:177` | `im.thumbnail((1920, 1920))` **[K]** |
 | Storefront istemcisi | `tradehubfront/src/lib/media/compress.image.ts:10` | `HEDEF_GENISLIK = 1920` **[K]** |
 | Panel istemcisi | `admin-panel/frontend/src/lib/media/compress.image.js:9` | `HEDEF_GENISLIK = 1920` **[K]** |
 

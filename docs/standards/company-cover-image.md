@@ -1,7 +1,7 @@
 # Standart — `company.cover_image` (Şirket / mağaza kapak görseli)
 
 **Görev:** T-023 · **Tarih:** 2026-08-17 · **Branch:** `medya-motoru-faz0-faz2`
-**Politika dosyası:** `media_engine/policy/slots/company-cover-image.json`
+**Politika dosyası:** `tradehub_core/media/pipeline/policy/slots/company-cover-image.json`
 **Kardeş belge:** `docs/standards/company-cover-video.md` (aynı yüzeyin video tarafı)
 **Durum:** `draft` — politika kod tarafından okunmuyor
 (`tradehub_core/media/upload_policy.py:307-313`).

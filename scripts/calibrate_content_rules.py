@@ -2,7 +2,7 @@
 """T-025 — İçerik uygunluk eşiklerini gerçek görsellerle kalibre eder.
 
 BU BETİK HENÜZ ÇALIŞTIRILMADI. Görsel korpusu yok, Docker kapalı, üretim
-veritabanına erişim yok. `media_engine/policy/content_rules.json` içindeki her
+veritabanına erişim yok. `tradehub_core/media/pipeline/policy/content_rules.json` içindeki her
 eşik "KALİBRE EDİLMEDİ — başlangıç değeri" olarak işaretlidir; bu betik o
 işaretleri kaldırmanın TEK yoludur.
 
@@ -56,7 +56,7 @@ Kullanım
     python3 scripts/calibrate_content_rules.py \
         --corpus /veri/korpus \
         --manifest /veri/korpus/manifest.csv \
-        --policy media_engine/policy/content_rules.json \
+        --policy tradehub_core/media/pipeline/policy/content_rules.json \
         --out /veri/korpus/onerilen_esikler.json
 
 Çıkış kodları: 0 başarılı, 2 kullanım hatası, 3 bağımlılık eksik.
@@ -75,7 +75,7 @@ from dataclasses import dataclass, field
 
 # ── Bağımlılıklar ───────────────────────────────────────────────────────
 #
-# Pillow: kodda yaygın kullanılıyor (tradehub_core/media/engine.py:82) ama
+# Pillow: kodda yaygın kullanılıyor (tradehub_core/media/pipeline.py:82) ama
 # pyproject.toml `dependencies` listesinde YOK — Frappe ile geldiği varsayılıyor.
 # numpy: yalnız scikit-learn üzerinden DOLAYLI geliyor (requirements.txt:3).
 # İkisi de doğrudan bağımlılık olmadığı için varlığı burada AÇIKÇA sınanıyor;
@@ -645,7 +645,7 @@ def main(argv: list[str] | None = None) -> int:
 	ap.add_argument("--dup-labels", help="Yinelenen görsel çift etiketleri CSV")
 	ap.add_argument(
 		"--policy",
-		default="media_engine/policy/content_rules.json",
+		default="tradehub_core/media/pipeline/policy/content_rules.json",
 		help="Mevcut politika JSON'u (karşılaştırma için okunur, YAZILMAZ)",
 	)
 	ap.add_argument("--out", required=True, help="Önerilen eşiklerin yazılacağı JSON")

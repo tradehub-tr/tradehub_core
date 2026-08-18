@@ -1,7 +1,7 @@
 # Standart — `user.avatar` (Kullanıcı profil fotoğrafı)
 
 **Görev:** T-023 · **Tarih:** 2026-08-17 · **Branch:** `medya-motoru-faz0-faz2`
-**Politika dosyası:** `media_engine/policy/slots/user-avatar.json`
+**Politika dosyası:** `tradehub_core/media/pipeline/policy/slots/user-avatar.json`
 **Durum:** `draft` — geometri kuralı kodda yok; **kabul kuralları zaten
 uygulanıyor** (aşağıda).
 

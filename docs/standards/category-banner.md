@@ -1,7 +1,7 @@
 # Standart — `category.banner` (Kategori bandı / kategori vitrin görseli)
 
 **Görev:** T-023 · **Tarih:** 2026-08-17 · **Branch:** `medya-motoru-faz0-faz2`
-**Politika dosyası:** `media_engine/policy/slots/category-banner.json`
+**Politika dosyası:** `tradehub_core/media/pipeline/policy/slots/category-banner.json`
 **Durum:** `draft` + **EKSİK ALAN** — politika kod tarafından okunmuyor
 (`tradehub_core/media/upload_policy.py:307-313`).
 

@@ -1,0 +1,87 @@
+{
+ "$comment": "T-040 · Media Policy'nin içerik kuralı satırı (şema content_rules[] dizisinin karşılığı).",
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-08-18 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "rule_id",
+  "metric",
+  "comparator",
+  "threshold",
+  "severity",
+  "message_key",
+  "measured_on"
+ ],
+ "fields": [
+  {
+   "fieldname": "rule_id",
+   "fieldtype": "Data",
+   "label": "Kural",
+   "reqd": 1,
+   "length": 64,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "metric",
+   "fieldtype": "Data",
+   "label": "Metrik",
+   "length": 64,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "comparator",
+   "fieldtype": "Select",
+   "label": "Karşılaştırıcı",
+   "options": "lt\nlte\ngt\ngte\neq\nneq\nbetween\noutside\npad_to",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "threshold",
+   "fieldtype": "Data",
+   "label": "Eşik",
+   "length": 140,
+   "in_list_view": 1,
+   "description": "Tek sayı ya da JSON dizi (between/outside için). Data tutulur çünkü şema v1.3.0 hem sayı hem dizi kabul ediyor."
+  },
+  {
+   "fieldname": "severity",
+   "fieldtype": "Select",
+   "label": "Ağırlık",
+   "options": "reject\nwarn\ninfo",
+   "default": "warn",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "message_key",
+   "fieldtype": "Data",
+   "label": "Mesaj Anahtarı",
+   "length": 64
+  },
+  {
+   "fieldname": "measured_on",
+   "fieldtype": "Data",
+   "label": "Ölçüm Kaynağı",
+   "length": 140,
+   "description": "Eşiğin hangi korpus üzerinde ölçüldüğü. BOŞ = kalibre edilmedi."
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "is_submittable": 0,
+ "issingle": 0,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-08-18 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Media Engine",
+ "name": "Media Content Rule",
+ "owner": "Administrator",
+ "permissions": [],
+ "quick_entry": 0,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0
+}

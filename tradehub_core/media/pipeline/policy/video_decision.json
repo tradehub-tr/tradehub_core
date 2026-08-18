@@ -1,0 +1,339 @@
+{
+  "$comment": "T-071 — video karar tablosu. KOD DEĞİL VERİ. Yeni bir karar eklemek bu dosyaya kural eklemektir; tradehub_core/media/pipeline/video/decision.py DEĞİŞMEZ.",
+  "schema_version": "1.0.0",
+  "status": "draft",
+  "generated_by": "FAZ 7 / T-071",
+  "measured_on": "2026-08-18, istoc-dev-backend-1, ffmpeg/ffprobe 5.1.9-0+deb12u1",
+
+  "why_this_file": [
+    "Bugün karar tradehub_core/media/transcode.py:154 içinde tek satırlık bir if: genişlik > 1280 VEYA bitrate > 2.500.000. İki eşik koda gömülü; üçüncü bir değişken (fps, pix_fmt, kodek, kap, moov konumu, verimlilik) eklemek kod değişikliği gerektiriyor.",
+    "Karar tablosu buraya taşındı: sıralı kural listesi, İLK EŞLEŞEN KAZANIR. Sıra anlamlıdır — REJECT kuralları en üstte, TRANSCODE ortada, REMUX altta, eşleşme yoksa PASSTHROUGH.",
+    "transcode.py'nin iki eşiği KORUNUYOR (width_over_cap, bitrate_over_cap kuralları). Bu tablo o hattı yeniden yazmaz; kararı okunur ve denetlenebilir kılar."
+  ],
+
+  "actions": {
+    "PASSTHROUGH": {
+      "meaning": "Dosyaya DOKUNULMAZ. Kaynak zaten teslim edilebilir: H.264/yuv420p, mp4 kabı, moov başta, çözünürlük ve bitrate tavan altında, kodlama verimli.",
+      "writes_new_file": false,
+      "today": "transcode.needs_transcode() False dalı — durum doğrudan `ready` yapılıyor (transcode.py:186-191)."
+    },
+    "REMUX": {
+      "meaning": "Akışlar YENİDEN KODLANMAZ (-c copy), yalnız kap/atom düzeni düzeltilir: mp4'e taşı ve moov'u başa al (+faststart).",
+      "writes_new_file": true,
+      "reencodes": false,
+      "today": "YOK. Bugün ya tam transcode var ya hiçbir şey; bir .mov ya da moov'u sonda olan bir .mp4 için tek seçenek VP9'a tam yeniden kodlamaktı — saniyeler süren bir kopyalama işi yerine dakikalar süren bir kodlama."
+    },
+    "TRANSCODE": {
+      "meaning": "Tam yeniden kodlama. Hedef: H.264 High + AAC 128k + faststart (targets.h264_primary).",
+      "writes_new_file": true,
+      "reencodes": true,
+      "gate": "INV-05 fayda kapısı — çıktı kaynaktan en az min_saving_ratio kadar küçük değilse ÇIKTI ATILIR, kaynak korunur."
+    },
+    "REJECT": {
+      "meaning": "Hat bu dosyayı işlemez. Kullanıcıya kodlu hata döner.",
+      "writes_new_file": false,
+      "note": "REJECT yalnız motorun kendi sınırıdır (ölçülemeyen, video akışı olmayan, 4K üstü, 15 dk üstü). Slot düzeyindeki süre/oran/bayt kuralları BURADA DEĞİL PolicyEngine'dedir (tradehub_core/media/pipeline/policy/engine.py) — iki yerde tekrar yazılmaz (NFR-046)."
+    }
+  },
+
+  "operators": ["eq", "ne", "lt", "lte", "gt", "gte", "in", "not_in"],
+
+  "condition_grammar": {
+    "leaf": {"var": "<değişken adı>", "op": "<operatör>", "value": "<sabit>"},
+    "all": "listedeki TÜM koşullar sağlanmalı (VE)",
+    "any": "listedeki EN AZ BİR koşul sağlanmalı (VEYA)",
+    "not": "tek bir koşulu tersine çevirir",
+    "note": "İç içe kullanılabilir. Bilinmeyen değişken ya da operatör YÜKLEME ANINDA hata verir — yazım hatası sessizce 'eşleşmedi'ye dönüşmez."
+  },
+
+  "variables": {
+    "measured": {"type": "bool", "source": "ffprobe çalıştı ve video akışı bulundu mu"},
+    "has_video": {"type": "bool", "source": "ffprobe streams[] içinde codec_type=video var mı"},
+    "width": {"type": "int", "source": "stream.width"},
+    "height": {"type": "int", "source": "stream.height"},
+    "pixels": {"type": "int", "source": "width × height"},
+    "long_edge": {"type": "int", "source": "max(width, height)"},
+    "short_edge": {"type": "int", "source": "min(width, height)"},
+    "duration_s": {"type": "float", "source": "format.duration"},
+    "fps": {"type": "float", "source": "stream.avg_frame_rate (kesir çözülür); 0 ise r_frame_rate"},
+    "video_codec": {"type": "str", "source": "stream.codec_name"},
+    "video_profile": {"type": "str", "source": "stream.profile"},
+    "pix_fmt": {"type": "str", "source": "stream.pix_fmt"},
+    "video_bitrate_bps": {"type": "int", "source": "stream.bit_rate; yoksa format.bit_rate − audio.bit_rate"},
+    "format_bitrate_bps": {"type": "int", "source": "format.bit_rate"},
+    "bpp": {
+      "type": "float",
+      "source": "video_bitrate_bps / (width × height × fps)",
+      "meaning": "Piksel başına bit. Çözünürlükten ve kare hızından BAĞIMSIZ verimlilik ölçüsü — 8 Mbps 4K verimli, 8 Mbps 720p israftır; ham bitrate bu ikisini ayıramaz.",
+      "measured_reference": "FAZ 7 ölçümü (7 fixture): verimli 720p 0,0278 · 1080p 0,0290 · sessiz 720p 0,0362 · dikey 9:16 0,0330 · 540 sn 320×240 0,0765 · kare 352 0,1256 · şişirilmiş 720p 0,2973",
+      "threshold_note": "Eşik 0,08 seçildi: ölçülen verimli örneklerin (0,028-0,036) 2 katının üstünde, şişirilmiş örneğin (0,297) çok altında. TEK BAŞINA yetmez — küçük çözünürlükte bpp doğal olarak yükselir (352×352 örneği 0,1256 ama toplam 389 kbps). Bu yüzden kural mutlak bitrate tabanıyla (1,2 Mbps) VE'lenir."
+    },
+    "container": {"type": "str", "source": "format.format_name (ham)"},
+    "container_family": {"type": "str", "source": "mp4 | webm | matroska | quicktime | other"},
+    "has_audio": {"type": "bool", "source": "streams[] içinde codec_type=audio var mı"},
+    "audio_codec": {"type": "str", "source": "ses akışı codec_name; yoksa boş string"},
+    "audio_bitrate_bps": {"type": "int", "source": "ses akışı bit_rate; yoksa 0"},
+    "audio_channels": {"type": "int", "source": "ses akışı channels; yoksa 0"},
+    "moov_at_end": {
+      "type": "bool",
+      "source": "ISOBMFF üst düzey atom taraması (saf Python, ffprobe gerekmez): mdat, moov'dan ÖNCE geliyorsa true",
+      "meaning": "true → aşamalı indirmede oynatıcı oynatmaya başlamadan önce dosyanın SONUNU indirmek zorunda. mp4 dışı kaplarda anlamsız, false döner."
+    },
+    "size_bytes": {"type": "int", "source": "os.path.getsize"},
+    "rotation": {"type": "int", "source": "stream.side_data_list[].rotation; yoksa 0"},
+    "nb_streams": {"type": "int", "source": "format.nb_streams"}
+  },
+
+  "rules": [
+    {
+      "id": "probe_unavailable",
+      "when": {"var": "measured", "op": "eq", "value": false},
+      "action": "REJECT",
+      "code": "video_probe_failed",
+      "reason": "ffprobe künyeyi okuyamadı — dosya bozuk, kap tanınmıyor ya da ffprobe yok.",
+      "diverges_from_today": "transcode.needs_transcode() bu durumda True döner (güvenli taraf = transcode et). Karar tablosu REDDEDER: künyesi okunamayan dosyanın slot kurallarından (süre, oran, çözünürlük) geçtiği DOĞRULANAMAZ, dolayısıyla kabul edilmesi güvenli taraf değildir. Değişiklik bilinçlidir ve tek satırla geri alınabilir (action: TRANSCODE)."
+    },
+    {
+      "id": "no_video_stream",
+      "when": {"var": "has_video", "op": "eq", "value": false},
+      "action": "REJECT",
+      "code": "video_no_stream",
+      "reason": "Dosyada video akışı yok (yalnız ses ya da yalnız kapak görseli)."
+    },
+    {
+      "id": "resolution_over_max",
+      "when": {"any": [
+        {"var": "width", "op": "gt", "value": 3840},
+        {"var": "height", "op": "gt", "value": 2160}
+      ]},
+      "action": "REJECT",
+      "code": "video_resolution_over_max",
+      "reason": "4K üstü kare. Teslim her hâlükârda 1280 genişliğe iniyor; 4K üstünü kabul etmenin görsel karşılığı yok, kod çözme maliyeti gerçek.",
+      "source": "tradehub_core/media/pipeline/policy/slots/product-video.json video.resolution_max (3840×2160)"
+    },
+    {
+      "id": "duration_over_engine_max",
+      "when": {"var": "duration_s", "op": "gt", "value": 900},
+      "action": "REJECT",
+      "code": "video_duration_over_max",
+      "reason": "15 dakika üstü. Bu MOTOR sınırıdır (tek ffmpeg koşumunun kuyruk zaman aşımına sığması), slot kuralı değil.",
+      "note": "Canlıda ölçülen en uzun video 540 sn (9 dk) — bu kural bugünkü hiçbir dosyayı reddetmez. Slot düzeyindeki süre tavanı (product.video: 33 sn) PolicyEngine'in işidir; orada `warn`, burada `REJECT` olması çelişki değil: motor işleyebiliyorsa işler, slot uygunluğu ayrı bir sorudur."
+    },
+
+    {
+      "id": "codec_not_deliverable",
+      "when": {"var": "video_codec", "op": "not_in", "value": ["h264"]},
+      "action": "TRANSCODE",
+      "code": "video_codec_not_deliverable",
+      "reason": "Hedef kodek H.264. HEVC/AV1/VP8/MPEG-4/ProRes gibi kaynaklar yeniden kodlanır.",
+      "note": "vp9 de bu kurala TAKILIR ve H.264'e döner — bugünkü hattın VP9 çıktısı Safari'de <video> ile oynamıyor (targets.h264_primary.why_h264_not_vp9)."
+    },
+    {
+      "id": "pix_fmt_not_web",
+      "when": {"var": "pix_fmt", "op": "not_in", "value": ["yuv420p", "yuvj420p"]},
+      "action": "TRANSCODE",
+      "code": "video_pix_fmt_not_web",
+      "reason": "10-bit ya da 4:2:2/4:4:4 örnekleme donanım kod çözücülerin büyük kısmında düşer; yuv420p'ye indirilir."
+    },
+    {
+      "id": "width_over_cap",
+      "when": {"var": "width", "op": "gt", "value": 1280},
+      "action": "TRANSCODE",
+      "code": "video_width_over_cap",
+      "reason": "Genişlik teslim tavanının üstünde.",
+      "source": "tradehub_core/media/transcode.py:98 NEEDS_TRANSCODE_MAX_WIDTH = 1280 — KORUNUYOR, sayı değişmedi."
+    },
+    {
+      "id": "bitrate_over_cap",
+      "when": {"var": "video_bitrate_bps", "op": "gt", "value": 2500000},
+      "action": "TRANSCODE",
+      "code": "video_bitrate_over_cap",
+      "reason": "Bitrate teslim tavanının üstünde.",
+      "source": "tradehub_core/media/transcode.py:99 NEEDS_TRANSCODE_MAX_BITRATE = 2_500_000 — KORUNUYOR, sayı değişmedi."
+    },
+    {
+      "id": "fps_over_cap",
+      "when": {"var": "fps", "op": "gt", "value": 30},
+      "action": "TRANSCODE",
+      "code": "video_fps_over_cap",
+      "reason": "50/60 fps aynı kalitede ~%80 fazla bit harcar; B2B içeriğinde (fabrika turu, ürün çevresi tur) görsel kazancı yok. Çıktı 30 fps'e indirilir.",
+      "source": "tradehub_core/media/pipeline/policy/slots/company-cover-video.json video.frame_rate.output_cap = 30",
+      "gap_today": "transcode.py fps'e HİÇ bakmıyor — 60 fps bir video, genişlik ve bitrate eşiklerinin altındaysa bugün dokunulmadan geçiyor."
+    },
+    {
+      "id": "inefficient_encoding",
+      "when": {"all": [
+        {"var": "bpp", "op": "gt", "value": 0.08},
+        {"var": "video_bitrate_bps", "op": "gt", "value": 1200000}
+      ]},
+      "action": "TRANSCODE",
+      "code": "video_inefficient_encoding",
+      "reason": "Piksel başına bit tavanın üstünde VE mutlak bitrate kazanç eşiğinin üstünde — yeniden kodlamanın bayt kazancı gerçek.",
+      "why_two_conditions": "Yalnız bpp'ye bakmak 352×352 / 389 kbps fixture'ını (bpp 0,1256) transcode kuyruğuna sokardı: kazanılacak toplam bayt 294 KB'ın küçük bir kısmı, harcanacak CPU aynı. Mutlak taban bu boşa işi keser.",
+      "gap_today": "transcode.py'de verimlilik ölçüsü YOK. 2,4 Mbps'lik bir 640×360 video (bpp 0,35 — ölçülen şişirilmiş örnekten bile kötü) bugün iki eşiğin de altında kaldığı için dokunulmadan geçiyor."
+    },
+    {
+      "id": "audio_codec_not_deliverable",
+      "when": {"all": [
+        {"var": "has_audio", "op": "eq", "value": true},
+        {"var": "audio_codec", "op": "not_in", "value": ["aac", "mp3"]}
+      ]},
+      "action": "TRANSCODE",
+      "code": "video_audio_codec_not_deliverable",
+      "reason": "mp4 kabında güvenle taşınan ses kodekleri AAC ve MP3. Opus/Vorbis/PCM/AC-3 yeniden kodlanır (AAC 128k).",
+      "note": "Bugünkü hat TERSİNİ yapıyor: ÇIKTIYA libopus yazıyor (transcode.py:359-360) ve `-b:a` vermediği için bitrate ffmpeg varsayılanına bağlı."
+    },
+    {
+      "id": "audio_bitrate_over_cap",
+      "when": {"all": [
+        {"var": "has_audio", "op": "eq", "value": true},
+        {"var": "audio_bitrate_bps", "op": "gt", "value": 192000}
+      ]},
+      "action": "TRANSCODE",
+      "code": "video_audio_bitrate_over_cap",
+      "reason": "192 kbps üstü ses B2B tanıtım videosunda duyulur bir kazanç sağlamaz; 128 kbps'e indirilir."
+    },
+
+    {
+      "id": "container_not_mp4",
+      "when": {"var": "container_family", "op": "ne", "value": "mp4"},
+      "action": "REMUX",
+      "code": "video_container_not_mp4",
+      "reason": "Akışlar teslim edilebilir ama kap değil (mkv/mov/webm). Yeniden kodlama GEREKMEZ — akışlar kopyalanarak mp4'e taşınır.",
+      "cost": "saniyeler (I/O sınırlı), tam transcode ise dakikalar (CPU sınırlı)"
+    },
+    {
+      "id": "moov_at_end",
+      "when": {"var": "moov_at_end", "op": "eq", "value": true},
+      "action": "REMUX",
+      "code": "video_moov_at_end",
+      "reason": "moov atomu dosyanın SONUNDA. Aşamalı indirmede oynatıcı ilk kareyi göstermeden önce tüm dosyayı indirmek zorunda kalır. -movflags +faststart ile atom başa alınır.",
+      "measured": "FAZ 7 ölçümü: 7 fixture'ın 7'sinde de moov ZATEN BAŞTA (atom sırası ftyp, moov, free, mdat) — bu kural fixture korpusunda tetiklenmiyor, sentetik `-movflags` verilmeden üretilmiş bir dosyayla doğrulandı."
+    },
+    {
+      "id": "extra_streams",
+      "when": {"all": [
+        {"var": "has_audio", "op": "eq", "value": true},
+        {"var": "nb_streams", "op": "gt", "value": 2}
+      ]},
+      "action": "REMUX",
+      "code": "video_extra_streams",
+      "reason": "İkiden fazla akış (ikinci ses dili, altyazı, kapak görseli, veri akışı). Teslimde yalnız ilk video + ilk ses taşınır; fazlası indirilen bayta karışır."
+    }
+  ],
+
+  "default": {
+    "action": "PASSTHROUGH",
+    "code": "video_already_deliverable",
+    "reason": "Hiçbir kural eşleşmedi: kaynak H.264/yuv420p, mp4, moov başta, 1280 genişlik ve 2,5 Mbps altında, 30 fps'i aşmıyor, kodlaması verimli. Dokunmak bayt kazandırmaz, kalite kaybettirir."
+  },
+
+  "targets": {
+    "h264_primary": {
+      "id": "video_1280_h264",
+      "role": "primary",
+      "max_width": 1280,
+      "container": "mp4",
+      "video_codec": "libx264",
+      "profile": "high",
+      "level": "4.0",
+      "crf": 23,
+      "preset": "medium",
+      "pix_fmt": "yuv420p",
+      "frame_rate_cap": 30,
+      "keyframe_interval_s": 2,
+      "faststart": true,
+      "audio_codec": "aac",
+      "audio_bitrate_kbps": 128,
+      "audio_channels": 2,
+      "audio_sample_rate": 48000,
+      "why_h264_not_vp9": [
+        "Doküman H.264 istiyor; bugünkü hat VP9/WebM üretiyor (transcode.py:357-360 libvpx-vp9 + libopus). FARK BİLİNÇLİ ve gerekçesi üç maddedir:",
+        "1) UYUMLULUK: VP9/WebM Safari'de <video> ile güvenilir oynamıyor (macOS'ta kısmi, iOS'ta yok). Ürün videosu B2B alıcının telefonunda oynamak zorunda; oynamayan bir video sıfır bayt tasarrufundan kötüdür.",
+        "2) YANLIŞ ETİKET: bugünkü hat WebM baytlarını .mp4 uzantılı ADRESE yazıyor (transcode.py:344 dst_path = src_path + '.transcoding.webm' → :366 os.replace(dst_path, src_path)). nginx Content-Type'ı uzantıdan türettiği için video/mp4 başlığıyla WebM baytı servis ediliyor. H.264/mp4 hedefi bu uyuşmazlığı kaynağında bitirir.",
+        "3) DONANIM: H.264 kod çözme her telefonda donanımda; VP9 orta segment Android'de yazılımda — pil ve ısı maliyeti alıcıda.",
+        "BEDELİ: aynı kalitede H.264, VP9'dan ~%20-30 daha büyük dosya üretir. Bu bedel bilinçli ödeniyor. Gelecekte iki çıktı birden (mp4 birincil + webm ikincil <source>) üretilebilir; bu tabloda targets.webm_fallback olarak yer tutucu var, FAZ 7'de ÜRETİLMİYOR."
+      ]
+    },
+    "webm_fallback": {
+      "id": "video_1280_vp9",
+      "role": "fallback",
+      "implemented": false,
+      "note": "Bugünkü transcode.py çıktısıyla aynı ayarlar (libvpx-vp9, crf 32, libopus). FAZ 7'de ÜRETİLMİYOR — yer tutucu. Üretilirse teslim <video> içinde iki <source> ile yapılır: mp4 önce (Safari onu seçer), webm sonra."
+    },
+    "remux": {
+      "container": "mp4",
+      "args": ["-c", "copy", "-movflags", "+faststart"],
+      "map": ["-map", "0:v:0", "-map", "0:a:0?"]
+    },
+    "benefit_gate": {
+      "id": "INV-05",
+      "min_saving_ratio": 0.1,
+      "meaning": "Çıktı, kaynağın en fazla %90'ı kadar olmalı. Değilse ÇIKTI ATILIR ve kaynak korunur.",
+      "why": "Bugün böyle bir kapı YOK: _run_transcode sonucu koşulsuz yerine yazıyor (transcode.py:366 os.replace). Zaten iyi sıkıştırılmış bir kaynağı yeniden kodlamak dosyayı BÜYÜTEBİLİR ve her hâlükârda kalite kaybettirir; kapı olmadan bu sessizce oluyor.",
+      "source": "tradehub_core/media/presets.py MIN_SAVING_RATIO — görsel yolunda uygulanıyor, video yolunda UYGULANMIYOR (product-video.json video.transcode.size_gate_missing_today)",
+      "exempt_actions": ["REMUX"],
+      "exempt_reason": "REMUX'un amacı bayt kazanmak değil, ilk kareyi hızlandırmak. +faststart dosyayı birkaç KB BÜYÜTEBİLİR ve bu doğru sonuçtur."
+    }
+  },
+
+  "poster": {
+    "window_start_s": 0.5,
+    "window_end_expr": "min(5, duration_s * 0.25)",
+    "thumbnail_frames": 120,
+    "format": "webp",
+    "quality_ladder": [78, 70, 62],
+    "width": 1280,
+    "max_bytes": 122880,
+    "brightness_gate": {"min_luma_pct": 6, "max_luma_pct": 94},
+    "retry_window_expr": "[duration_s * 0.25, duration_s * 0.50]",
+    "max_retries": 1,
+    "on_final_failure": "video_poster_unresolved",
+    "source": "tradehub_core/media/pipeline/policy/slots/company-cover-video.json video.poster (aynen benimsendi — product-video.json selection_rule 'TANIMLANMADI' diyor ve bu şablonu işaret ediyor)"
+  },
+
+  "preview_clip": {
+    "duration_s": 6,
+    "duration_fallback_s": [6, 4, 3],
+    "width": 854,
+    "height": 480,
+    "max_bytes": 1048576,
+    "policy_max_bytes": 409600,
+    "max_bytes_note": "FAZ 7 görev tanımı 1 MB kapısı istiyor; company-cover-video.json daha SIKI bir kapı (400 KB) yazıyor. İkisi de tutuluyor: motor 1 MB'ı zorunlu kapı sayar, 400 KB'ı hedef sayar ve aşıldığında not düşer.",
+    "silent": true,
+    "loop": true,
+    "video_codec": "libx264",
+    "container": "mp4",
+    "crf_ladder": [28, 32, 36],
+    "start_offset": "poster'ın seçildiği zaman damgası"
+  },
+
+  "hls": {
+    "required_if_any": {
+      "duration_s_gt": 60,
+      "max_rendition_bytes_gt": 12582912,
+      "distinct_resolution_tiers_gt": 2
+    },
+    "segment_duration_s": 4,
+    "playlist_type": "vod",
+    "segment_type": "mpegts",
+    "rate_control": "capped_crf",
+    "crf": 23,
+    "rate_control_why": [
+      "İLK KOŞUM SABİT BİTRATE (-b:v) İLE YAPILDI VE MERDİVEN BAYT ŞİŞİRDİ. Ölçüm (ffmpeg 5.1.9, 7 fixture): video_efficient_720p_750k.mp4 kaynağı 1.092.127 B iken 360p basamağı 1.155.673 B çıktı — EN DÜŞÜK basamak kaynaktan %5,8 BÜYÜK. video_square_352.mp4'te 294.350 B kaynak → 585.065 B (%98 büyük), video_long_540s'te 3.986.750 B → 17.833.465 B (4,5 KAT).",
+      "Sebep: -b:v bir HEDEF, tavan değil. Doğal bitrate'i basamağın hedefinin altında olan içerikte libx264 farkı DOLDURUR — kazanılacak bayt yokken bit harcar.",
+      "Düzeltme: capped CRF. -crf kaliteyi sürer, -maxrate/-bufsize tavanı korur. Basamağın bitrate_kbps değeri artık HEDEF değil TAVAN anlamındadır (maxrate_kbps zaten o rolü taşıyordu).",
+      "'cbr' değeri eski davranışı geri getirir; karşılaştırma ölçümü docs'ta."
+    ],
+    "ladder": [
+      {"name": "360p", "width": 640, "height": 360, "bitrate_kbps": 800, "maxrate_kbps": 856, "bufsize_kbps": 1200, "audio_kbps": 96},
+      {"name": "480p", "width": 854, "height": 480, "bitrate_kbps": 1400, "maxrate_kbps": 1498, "bufsize_kbps": 2100, "audio_kbps": 128},
+      {"name": "720p", "width": 1280, "height": 720, "bitrate_kbps": 2800, "maxrate_kbps": 2996, "bufsize_kbps": 4200, "audio_kbps": 128},
+      {"name": "1080p", "width": 1920, "height": 1080, "bitrate_kbps": 5000, "maxrate_kbps": 5350, "bufsize_kbps": 7500, "audio_kbps": 192}
+    ],
+    "no_upscale": true,
+    "no_upscale_reason": "Kaynak yüksekliğinin ÜSTÜNDEKİ basamaklar üretilmez: 720p kaynaktan 1080p basamağı büyütme yapar, bayt harcar, hiçbir şey kazandırmaz.",
+    "current_state": "yok",
+    "current_state_evidence": "tradehubfront/src ve admin-panel/frontend/src içinde 'hls' → 0 eşleşme (company-cover-video.json hls.current_state_evidence)"
+  }
+}

@@ -1,0 +1,2461 @@
+# ÜRETİLMİŞ DOSYA — ELLE DÜZENLEMEYİN.
+# Kaynak: tradehub_core/media/pipeline/api/spec.py :: build_document()
+# Yeniden üret: python3 -c "from tradehub_core.media.pipeline.api import spec; spec.write_yaml()"
+# Sapma testi: tests/test_api_contracts.py
+"openapi": "3.1.0"
+"info":
+  "title": "İstoç Medya Motoru API"
+  "version": "1.0.0"
+  "summary": "Yükleme, kırpma, teslim ve yönetim uçları."
+  "description": "media_engine bir KÜTÜPHANEDİR; bu belge onun uç noktalarının sözleşmesidir. Fonksiyonlar `@frappe.whitelist()` taşımaz, `ApiResponse` döndürür. Frappe'ye bağlama noktası docs/api/README.md §3'te anlatılır. Belgenin tek doğruluk kaynağı tradehub_core/media/pipeline/api/spec.py'dir; bu YAML ondan üretilir."
+  "license":
+    "name": "Proprietary"
+    "identifier": "LicenseRef-Istoc-Proprietary"
+"servers":
+  - "url": "https://istoc.localhost"
+    "description": "Yerel geliştirme (docker compose)."
+"tags":
+  - "name": "upload"
+    "description": "Parçalı yükleme oturumları (T-081)."
+  - "name": "crop"
+    "description": "Kırpma niyeti ve önizleme (T-082)."
+  - "name": "delivery"
+    "description": "Teslim manifesti ve imzalı adres (T-083)."
+  - "name": "admin"
+    "description": "Yönetim — media_admin.py'de KARŞILIĞI OLMAYAN uçlar (T-084)."
+"paths":
+  "/api/media/v1/upload/sessions":
+    "post":
+      "tags":
+        - "upload"
+      "operationId": "createUploadSession"
+      "summary": "Yükleme oturumu aç"
+      "x-python": "tradehub_core.media.pipeline.api.upload.UploadApi.create_session"
+      "description": "Slot, boyut ve (verilmişse) içerik özeti oturum AÇILMADAN denetlenir. İçerik zaten kayıtlıysa oturum açılmaz ve 200 + duplicate=true döner: hiçbir bayt taşınmaz."
+      "x-authorization": "Oturum + mağaza kapsamı zorunlu."
+      "requestBody":
+        "required": true
+        "content":
+          "application/json":
+            "schema":
+              "$ref": "#/components/schemas/UploadSessionRequest"
+      "responses":
+        "200":
+          "description": "İçerik zaten kayıtlı; oturum açılmadı."
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/UploadSession"
+        "201":
+          "description": "Oturum açıldı."
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/UploadSession"
+        "400":
+          "$ref": "#/components/responses/Error"
+        "401":
+          "$ref": "#/components/responses/Error"
+        "403":
+          "$ref": "#/components/responses/Error"
+        "404":
+          "$ref": "#/components/responses/Error"
+        "409":
+          "$ref": "#/components/responses/Error"
+        "412":
+          "$ref": "#/components/responses/Error"
+        "413":
+          "$ref": "#/components/responses/Error"
+        "422":
+          "$ref": "#/components/responses/Error"
+        "429":
+          "$ref": "#/components/responses/Error"
+        "500":
+          "$ref": "#/components/responses/Error"
+        "503":
+          "$ref": "#/components/responses/Error"
+  "/api/media/v1/upload/sessions/{upload_id}":
+    "get":
+      "tags":
+        - "upload"
+      "operationId": "getUploadStatus"
+      "summary": "Oturum durumu"
+      "x-python": "tradehub_core.media.pipeline.api.upload.UploadApi.status"
+      "description": "Eksik parça listesiyle döner; istemci yarıda kalan yüklemeyi sürdürür."
+      "parameters":
+        - "name": "upload_id"
+          "in": "path"
+          "schema":
+            "type": "string"
+          "required": true
+          "description": "Yükleme oturumu kimliği."
+        - "name": "If-None-Match"
+          "in": "header"
+          "schema":
+            "type": "string"
+          "description": "Bilinen ETag; tutarsa 304 döner."
+      "responses":
+        "200":
+          "description": "Durum."
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/UploadStatus"
+          "headers":
+            "ETag":
+              "description": "Gövdenin içerik-adresli etiketi."
+              "schema":
+                "type": "string"
+            "Cache-Control":
+              "description": "Önbellek politikası."
+              "schema":
+                "type": "string"
+        "304":
+          "description": "Gövde değişmedi; içerik gönderilmez."
+        "400":
+          "$ref": "#/components/responses/Error"
+        "401":
+          "$ref": "#/components/responses/Error"
+        "403":
+          "$ref": "#/components/responses/Error"
+        "404":
+          "$ref": "#/components/responses/Error"
+        "409":
+          "$ref": "#/components/responses/Error"
+        "412":
+          "$ref": "#/components/responses/Error"
+        "413":
+          "$ref": "#/components/responses/Error"
+        "422":
+          "$ref": "#/components/responses/Error"
+        "429":
+          "$ref": "#/components/responses/Error"
+        "500":
+          "$ref": "#/components/responses/Error"
+        "503":
+          "$ref": "#/components/responses/Error"
+    "delete":
+      "tags":
+        - "upload"
+      "operationId": "abortUploadSession"
+      "summary": "Oturumu iptal et"
+      "x-python": "tradehub_core.media.pipeline.api.upload.UploadApi.abort"
+      "description": "İDEMPOTENT: bilinmeyen ya da zaten iptal edilmiş oturum da 204 döner. Sonuçlanmış (varlık üretmiş) oturum iptal EDİLEMEZ (409)."
+      "parameters":
+        - "name": "upload_id"
+          "in": "path"
+          "schema":
+            "type": "string"
+          "required": true
+          "description": "Yükleme oturumu kimliği."
+      "responses":
+        "204":
+          "description": "Oturum yok edildi."
+        "400":
+          "$ref": "#/components/responses/Error"
+        "401":
+          "$ref": "#/components/responses/Error"
+        "403":
+          "$ref": "#/components/responses/Error"
+        "404":
+          "$ref": "#/components/responses/Error"
+        "409":
+          "$ref": "#/components/responses/Error"
+        "412":
+          "$ref": "#/components/responses/Error"
+        "413":
+          "$ref": "#/components/responses/Error"
+        "422":
+          "$ref": "#/components/responses/Error"
+        "429":
+          "$ref": "#/components/responses/Error"
+        "500":
+          "$ref": "#/components/responses/Error"
+        "503":
+          "$ref": "#/components/responses/Error"
+  "/api/media/v1/upload/sessions/{upload_id}/chunks/{index}":
+    "put":
+      "tags":
+        - "upload"
+      "operationId": "putUploadChunk"
+      "summary": "Parça yükle"
+      "x-python": "tradehub_core.media.pipeline.api.upload.UploadApi.put_chunk"
+      "description": "Mevcut motorun (tradehub_core/media/chunked.py) sarılmasıdır. Parçalar SIRASIZ gelebilir; aynı parçanın tekrarı zararsızdır."
+      "parameters":
+        - "name": "upload_id"
+          "in": "path"
+          "schema":
+            "type": "string"
+          "required": true
+          "description": "Yükleme oturumu kimliği."
+        - "name": "index"
+          "in": "path"
+          "schema":
+            "type": "integer"
+            "minimum": 0
+          "required": true
+          "description": "Parça sırası."
+      "requestBody":
+        "required": true
+        "content":
+          "application/json":
+            "schema":
+              "type": "string"
+              "format": "binary"
+              "description": "Parçanın ham baytları."
+      "responses":
+        "200":
+          "description": "Parça alındı."
+          "content":
+            "application/json":
+              "schema":
+                "type": "object"
+                "properties":
+                  "upload_id":
+                    "type": "string"
+                  "received":
+                    "type": "integer"
+                  "chunk_count":
+                    "type": "integer"
+                  "complete":
+                    "type": "boolean"
+        "400":
+          "$ref": "#/components/responses/Error"
+        "401":
+          "$ref": "#/components/responses/Error"
+        "403":
+          "$ref": "#/components/responses/Error"
+        "404":
+          "$ref": "#/components/responses/Error"
+        "409":
+          "$ref": "#/components/responses/Error"
+        "412":
+          "$ref": "#/components/responses/Error"
+        "413":
+          "$ref": "#/components/responses/Error"
+        "422":
+          "$ref": "#/components/responses/Error"
+        "429":
+          "$ref": "#/components/responses/Error"
+        "500":
+          "$ref": "#/components/responses/Error"
+        "503":
+          "$ref": "#/components/responses/Error"
+  "/api/media/v1/upload/sessions/{upload_id}/finalize":
+    "post":
+      "tags":
+        - "upload"
+      "operationId": "finalizeUpload"
+      "summary": "Yüklemeyi tamamla"
+      "x-python": "tradehub_core.media.pipeline.api.upload.UploadApi.finalize"
+      "description": "Birleştir → künye → politika → tekilleştirme → kayıt. AYNI İÇERİK HASHİ ile ikinci finalize YENİ VARLIK ÜRETMEZ: 200 + created=false döner (INV-06)."
+      "parameters":
+        - "name": "upload_id"
+          "in": "path"
+          "schema":
+            "type": "string"
+          "required": true
+          "description": "Yükleme oturumu kimliği."
+      "requestBody":
+        "required": true
+        "content":
+          "application/json":
+            "schema":
+              "$ref": "#/components/schemas/FinalizeRequest"
+      "responses":
+        "200":
+          "description": "İçerik zaten vardı; yeni varlık açılmadı."
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/FinalizeResult"
+        "201":
+          "description": "Varlık açıldı."
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/FinalizeResult"
+        "400":
+          "$ref": "#/components/responses/Error"
+        "401":
+          "$ref": "#/components/responses/Error"
+        "403":
+          "$ref": "#/components/responses/Error"
+        "404":
+          "$ref": "#/components/responses/Error"
+        "409":
+          "$ref": "#/components/responses/Error"
+        "412":
+          "$ref": "#/components/responses/Error"
+        "413":
+          "$ref": "#/components/responses/Error"
+        "422":
+          "$ref": "#/components/responses/Error"
+        "429":
+          "$ref": "#/components/responses/Error"
+        "500":
+          "$ref": "#/components/responses/Error"
+        "503":
+          "$ref": "#/components/responses/Error"
+  "/api/media/v1/assets/{asset}/crop-intent":
+    "get":
+      "tags":
+        - "crop"
+      "operationId": "getCropIntent"
+      "summary": "Kırpma niyetini oku"
+      "x-python": "tradehub_core.media.pipeline.api.crop.CropApi.get_intent"
+      "description": "Niyet yazılmamışsa 404 değil, exists=false ile 200 döner: her varlığın örtük bir niyeti vardır."
+      "parameters":
+        - "name": "asset"
+          "in": "path"
+          "schema":
+            "type": "string"
+          "required": true
+          "description": "Medya varlığının adı."
+        - "name": "If-None-Match"
+          "in": "header"
+          "schema":
+            "type": "string"
+          "description": "Bilinen ETag; tutarsa 304 döner."
+      "responses":
+        "200":
+          "description": "Niyet + çözülmüş pencereler."
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/CropIntentResponse"
+          "headers":
+            "ETag":
+              "description": "Gövdenin içerik-adresli etiketi."
+              "schema":
+                "type": "string"
+            "Cache-Control":
+              "description": "Önbellek politikası."
+              "schema":
+                "type": "string"
+        "304":
+          "description": "Gövde değişmedi; içerik gönderilmez."
+        "400":
+          "$ref": "#/components/responses/Error"
+        "401":
+          "$ref": "#/components/responses/Error"
+        "403":
+          "$ref": "#/components/responses/Error"
+        "404":
+          "$ref": "#/components/responses/Error"
+        "409":
+          "$ref": "#/components/responses/Error"
+        "412":
+          "$ref": "#/components/responses/Error"
+        "413":
+          "$ref": "#/components/responses/Error"
+        "422":
+          "$ref": "#/components/responses/Error"
+        "429":
+          "$ref": "#/components/responses/Error"
+        "500":
+          "$ref": "#/components/responses/Error"
+        "503":
+          "$ref": "#/components/responses/Error"
+    "put":
+      "tags":
+        - "crop"
+      "operationId": "saveCropIntent"
+      "summary": "Kırpma niyetini yaz"
+      "x-python": "tradehub_core.media.pipeline.api.crop.CropApi.save_intent"
+      "description": "TÜM koordinatlar 0-1 normalize olmak zorundadır (INV-10); 1'den büyük değer düzeltilmez, REDDEDİLİR."
+      "parameters":
+        - "name": "asset"
+          "in": "path"
+          "schema":
+            "type": "string"
+          "required": true
+          "description": "Medya varlığının adı."
+        - "name": "If-Match"
+          "in": "header"
+          "schema":
+            "type": "string"
+          "description": "İyimser kilit; tutmazsa 412 döner."
+      "requestBody":
+        "required": true
+        "content":
+          "application/json":
+            "schema":
+              "$ref": "#/components/schemas/SaveIntentRequest"
+      "responses":
+        "200":
+          "description": "Yazıldı."
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/CropIntentResponse"
+          "headers":
+            "ETag":
+              "description": "Gövdenin içerik-adresli etiketi."
+              "schema":
+                "type": "string"
+            "Cache-Control":
+              "description": "Önbellek politikası."
+              "schema":
+                "type": "string"
+        "400":
+          "$ref": "#/components/responses/Error"
+        "401":
+          "$ref": "#/components/responses/Error"
+        "403":
+          "$ref": "#/components/responses/Error"
+        "404":
+          "$ref": "#/components/responses/Error"
+        "409":
+          "$ref": "#/components/responses/Error"
+        "412":
+          "$ref": "#/components/responses/Error"
+        "413":
+          "$ref": "#/components/responses/Error"
+        "422":
+          "$ref": "#/components/responses/Error"
+        "429":
+          "$ref": "#/components/responses/Error"
+        "500":
+          "$ref": "#/components/responses/Error"
+        "503":
+          "$ref": "#/components/responses/Error"
+  "/api/media/v1/assets/{asset}/crop-intent/suggest-focal":
+    "post":
+      "tags":
+        - "crop"
+      "operationId": "suggestFocalPoint"
+      "summary": "Odak noktası öner"
+      "x-python": "tradehub_core.media.pipeline.api.crop.CropApi.suggest_focal"
+      "description": "Kenar enerjisinin ağırlık merkezi. Nesne tanıma DEĞİLDİR. Öneri YAZILMAZ; kullanıcı onayına sunulur. Eşik KALİBRE EDİLMEDİ (threshold_calibrated=false)."
+      "parameters":
+        - "name": "asset"
+          "in": "path"
+          "schema":
+            "type": "string"
+          "required": true
+          "description": "Medya varlığının adı."
+      "responses":
+        "200":
+          "description": "Öneri (ölçülemediyse measured=false)."
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/SuggestFocalResponse"
+        "400":
+          "$ref": "#/components/responses/Error"
+        "401":
+          "$ref": "#/components/responses/Error"
+        "403":
+          "$ref": "#/components/responses/Error"
+        "404":
+          "$ref": "#/components/responses/Error"
+        "409":
+          "$ref": "#/components/responses/Error"
+        "412":
+          "$ref": "#/components/responses/Error"
+        "413":
+          "$ref": "#/components/responses/Error"
+        "422":
+          "$ref": "#/components/responses/Error"
+        "429":
+          "$ref": "#/components/responses/Error"
+        "500":
+          "$ref": "#/components/responses/Error"
+        "503":
+          "$ref": "#/components/responses/Error"
+  "/api/media/v1/assets/{asset}/crop-preview":
+    "post":
+      "tags":
+        - "crop"
+      "operationId": "previewCrop"
+      "summary": "Kadrajı önizle"
+      "x-python": "tradehub_core.media.pipeline.api.crop.CropApi.preview"
+      "description": "Kaydedilmemiş niyet gönderilebilir. Görüntü `image/render.py` ile üretilir; ayrı bir ölçekleme yolu yoktur."
+      "parameters":
+        - "name": "asset"
+          "in": "path"
+          "schema":
+            "type": "string"
+          "required": true
+          "description": "Medya varlığının adı."
+      "requestBody":
+        "required": true
+        "content":
+          "application/json":
+            "schema":
+              "$ref": "#/components/schemas/CropPreviewRequest"
+      "responses":
+        "200":
+          "description": "Pencere (+ istenirse görüntü)."
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/CropPreviewResponse"
+        "400":
+          "$ref": "#/components/responses/Error"
+        "401":
+          "$ref": "#/components/responses/Error"
+        "403":
+          "$ref": "#/components/responses/Error"
+        "404":
+          "$ref": "#/components/responses/Error"
+        "409":
+          "$ref": "#/components/responses/Error"
+        "412":
+          "$ref": "#/components/responses/Error"
+        "413":
+          "$ref": "#/components/responses/Error"
+        "422":
+          "$ref": "#/components/responses/Error"
+        "429":
+          "$ref": "#/components/responses/Error"
+        "500":
+          "$ref": "#/components/responses/Error"
+        "503":
+          "$ref": "#/components/responses/Error"
+  "/api/media/v1/delivery/{asset}/manifest":
+    "get":
+      "tags":
+        - "delivery"
+      "operationId": "getDeliveryManifest"
+      "summary": "Teslim manifesti"
+      "x-python": "tradehub_core.media.pipeline.api.delivery.DeliveryApi.manifest"
+      "description": "YALNIZ üretilmiş genişlikler döner. Yayınlanmamış varlık 404'tür (403 DEĞİL: varlığın var olduğu sızmamalı)."
+      "x-authorization": "Public varlıklar için oturum gerekmez; private varlıkta okuma yetkisi aranır."
+      "parameters":
+        - "name": "asset"
+          "in": "path"
+          "schema":
+            "type": "string"
+          "required": true
+          "description": "Medya varlığının adı."
+        - "name": "sizes"
+          "in": "query"
+          "schema":
+            "type": "string"
+          "description": "Çağıranın bildiği `sizes`; verilmezse tablo (bugün boş)."
+        - "name": "is_lcp_candidate"
+          "in": "query"
+          "schema":
+            "type": "boolean"
+          "description": "LCP adayıysa eager+high."
+        - "name": "If-None-Match"
+          "in": "header"
+          "schema":
+            "type": "string"
+          "description": "Bilinen ETag; tutarsa 304 döner."
+      "responses":
+        "200":
+          "description": "Manifest."
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/Manifest"
+          "headers":
+            "ETag":
+              "description": "Gövdenin içerik-adresli etiketi."
+              "schema":
+                "type": "string"
+            "Cache-Control":
+              "description": "Önbellek politikası."
+              "schema":
+                "type": "string"
+        "304":
+          "description": "Gövde değişmedi; içerik gönderilmez."
+        "400":
+          "$ref": "#/components/responses/Error"
+        "401":
+          "$ref": "#/components/responses/Error"
+        "403":
+          "$ref": "#/components/responses/Error"
+        "404":
+          "$ref": "#/components/responses/Error"
+        "409":
+          "$ref": "#/components/responses/Error"
+        "412":
+          "$ref": "#/components/responses/Error"
+        "413":
+          "$ref": "#/components/responses/Error"
+        "422":
+          "$ref": "#/components/responses/Error"
+        "429":
+          "$ref": "#/components/responses/Error"
+        "500":
+          "$ref": "#/components/responses/Error"
+        "503":
+          "$ref": "#/components/responses/Error"
+  "/api/media/v1/delivery/manifests":
+    "post":
+      "tags":
+        - "delivery"
+      "operationId": "getDeliveryManifestBatch"
+      "summary": "Toplu teslim manifesti"
+      "x-python": "tradehub_core.media.pipeline.api.delivery.DeliveryApi.manifest_batch"
+      "description": "Listeleme sayfası için. Kısmi başarı HATA DEĞİLDİR: bulunamayanlar `missing` altında listelenir, sebep verilmez."
+      "parameters":
+        - "name": "If-None-Match"
+          "in": "header"
+          "schema":
+            "type": "string"
+          "description": "Bilinen ETag; tutarsa 304 döner."
+      "requestBody":
+        "required": true
+        "content":
+          "application/json":
+            "schema":
+              "$ref": "#/components/schemas/ManifestBatchRequest"
+      "responses":
+        "200":
+          "description": "Manifestler + eksikler."
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/ManifestBatchResponse"
+          "headers":
+            "ETag":
+              "description": "Gövdenin içerik-adresli etiketi."
+              "schema":
+                "type": "string"
+            "Cache-Control":
+              "description": "Önbellek politikası."
+              "schema":
+                "type": "string"
+        "304":
+          "description": "Gövde değişmedi; içerik gönderilmez."
+        "400":
+          "$ref": "#/components/responses/Error"
+        "401":
+          "$ref": "#/components/responses/Error"
+        "403":
+          "$ref": "#/components/responses/Error"
+        "404":
+          "$ref": "#/components/responses/Error"
+        "409":
+          "$ref": "#/components/responses/Error"
+        "412":
+          "$ref": "#/components/responses/Error"
+        "413":
+          "$ref": "#/components/responses/Error"
+        "422":
+          "$ref": "#/components/responses/Error"
+        "429":
+          "$ref": "#/components/responses/Error"
+        "500":
+          "$ref": "#/components/responses/Error"
+        "503":
+          "$ref": "#/components/responses/Error"
+  "/api/media/v1/delivery/{asset}/signed-url":
+    "post":
+      "tags":
+        - "delivery"
+      "operationId": "createSignedUrl"
+      "summary": "İmzalı, süreli adres"
+      "x-python": "tradehub_core.media.pipeline.api.delivery.DeliveryApi.signed_url"
+      "description": "Yalnız private varlık için. TTL [60, 86400] aralığına kelepçelenir. Yanıt `Cache-Control: private, no-store` taşır: paylaşılan bir önbellek imzayı başka kullanıcıya servis etmemeli."
+      "x-authorization": "Oturum zorunlu; private varlıkta okuma yetkisi aranır."
+      "parameters":
+        - "name": "asset"
+          "in": "path"
+          "schema":
+            "type": "string"
+          "required": true
+          "description": "Medya varlığının adı."
+      "requestBody":
+        "required": true
+        "content":
+          "application/json":
+            "schema":
+              "$ref": "#/components/schemas/SignedUrlRequest"
+      "responses":
+        "200":
+          "description": "İmzalı adres."
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/SignedUrl"
+        "400":
+          "$ref": "#/components/responses/Error"
+        "401":
+          "$ref": "#/components/responses/Error"
+        "403":
+          "$ref": "#/components/responses/Error"
+        "404":
+          "$ref": "#/components/responses/Error"
+        "409":
+          "$ref": "#/components/responses/Error"
+        "412":
+          "$ref": "#/components/responses/Error"
+        "413":
+          "$ref": "#/components/responses/Error"
+        "422":
+          "$ref": "#/components/responses/Error"
+        "429":
+          "$ref": "#/components/responses/Error"
+        "500":
+          "$ref": "#/components/responses/Error"
+        "503":
+          "$ref": "#/components/responses/Error"
+  "/api/media/v1/admin/slot-policies":
+    "get":
+      "tags":
+        - "admin"
+      "operationId": "listSlotPolicies"
+      "summary": "Slot politikalarını listele"
+      "x-python": "tradehub_core.media.pipeline.api.admin.AdminApi.list_slot_policies"
+      "x-authorization": "System Manager | Marketplace Admin."
+      "parameters":
+        - "name": "If-None-Match"
+          "in": "header"
+          "schema":
+            "type": "string"
+          "description": "Bilinen ETag; tutarsa 304 döner."
+      "responses":
+        "200":
+          "description": "Özet liste."
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/SlotPolicyList"
+          "headers":
+            "ETag":
+              "description": "Gövdenin içerik-adresli etiketi."
+              "schema":
+                "type": "string"
+            "Cache-Control":
+              "description": "Önbellek politikası."
+              "schema":
+                "type": "string"
+        "304":
+          "description": "Gövde değişmedi; içerik gönderilmez."
+        "400":
+          "$ref": "#/components/responses/Error"
+        "401":
+          "$ref": "#/components/responses/Error"
+        "403":
+          "$ref": "#/components/responses/Error"
+        "404":
+          "$ref": "#/components/responses/Error"
+        "409":
+          "$ref": "#/components/responses/Error"
+        "412":
+          "$ref": "#/components/responses/Error"
+        "413":
+          "$ref": "#/components/responses/Error"
+        "422":
+          "$ref": "#/components/responses/Error"
+        "429":
+          "$ref": "#/components/responses/Error"
+        "500":
+          "$ref": "#/components/responses/Error"
+        "503":
+          "$ref": "#/components/responses/Error"
+  "/api/media/v1/admin/slot-policies/{slot_key}":
+    "get":
+      "tags":
+        - "admin"
+      "operationId": "getSlotPolicy"
+      "summary": "Slot politikasının tamamı"
+      "x-python": "tradehub_core.media.pipeline.api.admin.AdminApi.get_slot_policy"
+      "description": "`sources` notları dâhil döner: bir eşiğin NEDEN o sayı olduğu ancak orada yazılıdır."
+      "x-authorization": "System Manager | Marketplace Admin."
+      "parameters":
+        - "name": "slot_key"
+          "in": "path"
+          "schema":
+            "type": "string"
+          "required": true
+        - "name": "If-None-Match"
+          "in": "header"
+          "schema":
+            "type": "string"
+          "description": "Bilinen ETag; tutarsa 304 döner."
+      "responses":
+        "200":
+          "description": "Politika."
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/SlotPolicyDetail"
+          "headers":
+            "ETag":
+              "description": "Gövdenin içerik-adresli etiketi."
+              "schema":
+                "type": "string"
+            "Cache-Control":
+              "description": "Önbellek politikası."
+              "schema":
+                "type": "string"
+        "304":
+          "description": "Gövde değişmedi; içerik gönderilmez."
+        "400":
+          "$ref": "#/components/responses/Error"
+        "401":
+          "$ref": "#/components/responses/Error"
+        "403":
+          "$ref": "#/components/responses/Error"
+        "404":
+          "$ref": "#/components/responses/Error"
+        "409":
+          "$ref": "#/components/responses/Error"
+        "412":
+          "$ref": "#/components/responses/Error"
+        "413":
+          "$ref": "#/components/responses/Error"
+        "422":
+          "$ref": "#/components/responses/Error"
+        "429":
+          "$ref": "#/components/responses/Error"
+        "500":
+          "$ref": "#/components/responses/Error"
+        "503":
+          "$ref": "#/components/responses/Error"
+  "/api/media/v1/admin/slot-policies/validate":
+    "post":
+      "tags":
+        - "admin"
+      "operationId": "validateSlotPolicies"
+      "summary": "Politikaların yapısal doğrulaması"
+      "x-python": "tradehub_core.media.pipeline.api.admin.AdminApi.validate_policies"
+      "description": "JSON-Schema doğrulaması YAPILMAZ (`jsonschema` kurulu değil); yanıt bunu schema_validated=false ile söyler."
+      "x-authorization": "System Manager | Marketplace Admin."
+      "responses":
+        "200":
+          "description": "Bulgular."
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/PolicyValidationReport"
+        "400":
+          "$ref": "#/components/responses/Error"
+        "401":
+          "$ref": "#/components/responses/Error"
+        "403":
+          "$ref": "#/components/responses/Error"
+        "404":
+          "$ref": "#/components/responses/Error"
+        "409":
+          "$ref": "#/components/responses/Error"
+        "412":
+          "$ref": "#/components/responses/Error"
+        "413":
+          "$ref": "#/components/responses/Error"
+        "422":
+          "$ref": "#/components/responses/Error"
+        "429":
+          "$ref": "#/components/responses/Error"
+        "500":
+          "$ref": "#/components/responses/Error"
+        "503":
+          "$ref": "#/components/responses/Error"
+  "/api/media/v1/admin/rendition-matrix":
+    "get":
+      "tags":
+        - "admin"
+      "operationId": "getRenditionMatrix"
+      "summary": "Üretim matrisi (profil × biçim)"
+      "x-python": "tradehub_core.media.pipeline.api.admin.AdminApi.rendition_matrix"
+      "description": "Her satır bir encode, bir dosya, bir depo nesnesi demektir — doğrudan maliyet."
+      "x-authorization": "System Manager | Marketplace Admin."
+      "parameters":
+        - "name": "slot_key"
+          "in": "query"
+          "schema":
+            "type": "string"
+          "description": "Boşsa tüm slotlar."
+        - "name": "If-None-Match"
+          "in": "header"
+          "schema":
+            "type": "string"
+          "description": "Bilinen ETag; tutarsa 304 döner."
+      "responses":
+        "200":
+          "description": "Matris."
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/RenditionMatrix"
+          "headers":
+            "ETag":
+              "description": "Gövdenin içerik-adresli etiketi."
+              "schema":
+                "type": "string"
+            "Cache-Control":
+              "description": "Önbellek politikası."
+              "schema":
+                "type": "string"
+        "304":
+          "description": "Gövde değişmedi; içerik gönderilmez."
+        "400":
+          "$ref": "#/components/responses/Error"
+        "401":
+          "$ref": "#/components/responses/Error"
+        "403":
+          "$ref": "#/components/responses/Error"
+        "404":
+          "$ref": "#/components/responses/Error"
+        "409":
+          "$ref": "#/components/responses/Error"
+        "412":
+          "$ref": "#/components/responses/Error"
+        "413":
+          "$ref": "#/components/responses/Error"
+        "422":
+          "$ref": "#/components/responses/Error"
+        "429":
+          "$ref": "#/components/responses/Error"
+        "500":
+          "$ref": "#/components/responses/Error"
+        "503":
+          "$ref": "#/components/responses/Error"
+  "/api/media/v1/admin/policy-evaluations":
+    "post":
+      "tags":
+        - "admin"
+      "operationId": "evaluatePolicy"
+      "summary": "Politika kuru çalıştırma"
+      "x-python": "tradehub_core.media.pipeline.api.admin.AdminApi.evaluate_policy"
+      "description": "Dosya yüklemeden, iş atmadan, bayt yazmadan bir künyenin slottan geçip geçmediğini ölçer."
+      "x-authorization": "System Manager | Marketplace Admin."
+      "requestBody":
+        "required": true
+        "content":
+          "application/json":
+            "schema":
+              "$ref": "#/components/schemas/EvaluateRequest"
+      "responses":
+        "200":
+          "description": "Karar."
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/EvaluateResponse"
+        "400":
+          "$ref": "#/components/responses/Error"
+        "401":
+          "$ref": "#/components/responses/Error"
+        "403":
+          "$ref": "#/components/responses/Error"
+        "404":
+          "$ref": "#/components/responses/Error"
+        "409":
+          "$ref": "#/components/responses/Error"
+        "412":
+          "$ref": "#/components/responses/Error"
+        "413":
+          "$ref": "#/components/responses/Error"
+        "422":
+          "$ref": "#/components/responses/Error"
+        "429":
+          "$ref": "#/components/responses/Error"
+        "500":
+          "$ref": "#/components/responses/Error"
+        "503":
+          "$ref": "#/components/responses/Error"
+  "/api/media/v1/admin/delivery-coverage":
+    "get":
+      "tags":
+        - "admin"
+      "operationId": "getDeliveryCoverage"
+      "summary": "Türev merdiveni kapsamı"
+      "x-python": "tradehub_core.media.pipeline.api.admin.AdminApi.delivery_coverage"
+      "description": "Kaç varlığın merdiveni TAM. Dosyanın diskte olduğu DOĞRULANMAZ — o iş media_admin'in verify/repair uçlarınındır."
+      "x-authorization": "System Manager | Marketplace Admin."
+      "parameters":
+        - "name": "slot_key"
+          "in": "query"
+          "schema":
+            "type": "string"
+        - "name": "limit"
+          "in": "query"
+          "schema":
+            "type": "integer"
+            "minimum": 1
+            "maximum": 5000
+      "responses":
+        "200":
+          "description": "Kapsam."
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/CoverageReport"
+        "400":
+          "$ref": "#/components/responses/Error"
+        "401":
+          "$ref": "#/components/responses/Error"
+        "403":
+          "$ref": "#/components/responses/Error"
+        "404":
+          "$ref": "#/components/responses/Error"
+        "409":
+          "$ref": "#/components/responses/Error"
+        "412":
+          "$ref": "#/components/responses/Error"
+        "413":
+          "$ref": "#/components/responses/Error"
+        "422":
+          "$ref": "#/components/responses/Error"
+        "429":
+          "$ref": "#/components/responses/Error"
+        "500":
+          "$ref": "#/components/responses/Error"
+        "503":
+          "$ref": "#/components/responses/Error"
+  "/api/media/v1/admin/reprocess-plans":
+    "post":
+      "tags":
+        - "admin"
+      "operationId": "planReprocess"
+      "summary": "Yeniden işleme planı"
+      "x-python": "tradehub_core.media.pipeline.api.admin.AdminApi.plan_reprocess"
+      "description": "Planı verir, işi kuyruğa ATMAZ. Kararı image/reprocess.py::decide üretir."
+      "x-authorization": "System Manager | Marketplace Admin."
+      "requestBody":
+        "required": true
+        "content":
+          "application/json":
+            "schema":
+              "$ref": "#/components/schemas/ReprocessPlanRequest"
+      "responses":
+        "200":
+          "description": "Plan."
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/ReprocessPlan"
+        "400":
+          "$ref": "#/components/responses/Error"
+        "401":
+          "$ref": "#/components/responses/Error"
+        "403":
+          "$ref": "#/components/responses/Error"
+        "404":
+          "$ref": "#/components/responses/Error"
+        "409":
+          "$ref": "#/components/responses/Error"
+        "412":
+          "$ref": "#/components/responses/Error"
+        "413":
+          "$ref": "#/components/responses/Error"
+        "422":
+          "$ref": "#/components/responses/Error"
+        "429":
+          "$ref": "#/components/responses/Error"
+        "500":
+          "$ref": "#/components/responses/Error"
+        "503":
+          "$ref": "#/components/responses/Error"
+  "/api/media/v1/admin/job-status":
+    "post":
+      "tags":
+        - "admin"
+      "operationId": "getJobStatus"
+      "summary": "İş anahtarı ve durumu"
+      "x-python": "tradehub_core.media.pipeline.api.admin.AdminApi.job_status"
+      "description": "Anahtarı SUNUCU üretir (core/jobs.py::idempotency_key); istemcinin uydurduğu anahtar kilidi delerdi."
+      "x-authorization": "System Manager | Marketplace Admin."
+      "requestBody":
+        "required": true
+        "content":
+          "application/json":
+            "schema":
+              "$ref": "#/components/schemas/JobStatusRequest"
+      "responses":
+        "200":
+          "description": "Durum."
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/JobStatus"
+        "400":
+          "$ref": "#/components/responses/Error"
+        "401":
+          "$ref": "#/components/responses/Error"
+        "403":
+          "$ref": "#/components/responses/Error"
+        "404":
+          "$ref": "#/components/responses/Error"
+        "409":
+          "$ref": "#/components/responses/Error"
+        "412":
+          "$ref": "#/components/responses/Error"
+        "413":
+          "$ref": "#/components/responses/Error"
+        "422":
+          "$ref": "#/components/responses/Error"
+        "429":
+          "$ref": "#/components/responses/Error"
+        "500":
+          "$ref": "#/components/responses/Error"
+        "503":
+          "$ref": "#/components/responses/Error"
+  "/api/media/v1/admin/storage-plan":
+    "get":
+      "tags":
+        - "admin"
+      "operationId": "getStoragePlan"
+      "summary": "Etkin depolama kipi"
+      "x-python": "tradehub_core.media.pipeline.api.admin.AdminApi.storage_plan"
+      "description": "`degraded=true` istenen kip ile kurulabilen kipin ayrıştığını söyler (ör. S3 istendi, boto3 yok)."
+      "x-authorization": "System Manager | Marketplace Admin."
+      "responses":
+        "200":
+          "description": "Plan."
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/StoragePlan"
+        "400":
+          "$ref": "#/components/responses/Error"
+        "401":
+          "$ref": "#/components/responses/Error"
+        "403":
+          "$ref": "#/components/responses/Error"
+        "404":
+          "$ref": "#/components/responses/Error"
+        "409":
+          "$ref": "#/components/responses/Error"
+        "412":
+          "$ref": "#/components/responses/Error"
+        "413":
+          "$ref": "#/components/responses/Error"
+        "422":
+          "$ref": "#/components/responses/Error"
+        "429":
+          "$ref": "#/components/responses/Error"
+        "500":
+          "$ref": "#/components/responses/Error"
+        "503":
+          "$ref": "#/components/responses/Error"
+"components":
+  "schemas":
+    "Error":
+      "type": "object"
+      "properties":
+        "error_code":
+          "type": "string"
+          "description": "Makine-okunur ret kodu. İstemci karar verirken METNE değil buna bakar (FR-060)."
+        "retryable":
+          "type": "boolean"
+          "description": "Aynı istek yeniden denenmeli mi. Kullanıcının dosyasıyla ilgili hatalar false."
+        "message":
+          "type": "string"
+          "description": "Kullanıcıya gösterilebilir Türkçe metin: NEDEN + NASIL düzeltilir (FR-062)."
+        "details":
+          "type": "object"
+          "properties": {}
+          "description": "Ölçülen/beklenen değerler, slot anahtarı gibi ek bağlam."
+      "required":
+        - "error_code"
+        - "retryable"
+        - "message"
+      "description": "Tüm hataların ortak gövdesi. Kaynak: tradehub_core/media/pipeline/contracts/errors.py::MediaEngineError.to_response()"
+    "Violation":
+      "type": "object"
+      "properties":
+        "code":
+          "type": "string"
+          "description": "Slot önekli ihlal kodu."
+        "rule":
+          "type": "string"
+          "description": "İhlal edilen kuralın adı."
+        "block":
+          "type": "string"
+          "description": "Politikanın hangi bölümü."
+          "enum":
+            - "accept"
+            - "require"
+            - "master"
+            - "quality"
+            - "content_rules"
+            - "video"
+            - "security"
+            - "policy"
+            - "role"
+        "action":
+          "type": "string"
+          "description": "Karar."
+          "enum":
+            - "pass"
+            - "ignore"
+            - "warn"
+            - "auto_fix"
+            - "review"
+            - "manual_review"
+            - "reject"
+        "message":
+          "type": "object"
+          "properties":
+            "tr":
+              "type": "string"
+            "en":
+              "type": "string"
+        "hint":
+          "type": "object"
+          "properties":
+            "tr":
+              "type": "string"
+            "en":
+              "type": "string"
+        "observed":
+          "description": "Ölçülen değer."
+        "expected":
+          "description": "Beklenen değer."
+        "retryable":
+          "type": "boolean"
+        "source":
+          "type": "string"
+          "description": "Kuralın kaynağı (dosya/satır ya da politika alanı)."
+      "required":
+        - "code"
+        - "rule"
+        - "block"
+        - "action"
+    "SkippedRule":
+      "type": "object"
+      "properties":
+        "rule":
+          "type": "string"
+        "block":
+          "type": "string"
+        "reason":
+          "type": "string"
+          "description": "Neden değerlendirilemedi (ör. not_measurable)."
+        "missing_input":
+          "type": "string"
+      "required":
+        - "rule"
+        - "block"
+        - "reason"
+      "description": "Ölçülemediği için ATLANAN kural. Sessizce 'geçti' saymamak için kayda geçer."
+    "Decision":
+      "type": "object"
+      "properties":
+        "allow":
+          "type": "boolean"
+          "description": "Engelleyici ihlal yok mu."
+        "slot":
+          "type": "string"
+        "role":
+          "type": "string"
+        "action":
+          "type": "string"
+          "description": "En yüksek aksiyon."
+        "violations":
+          "type": "array"
+          "items":
+            "$ref": "#/components/schemas/Violation"
+        "normalized_targets":
+          "type": "object"
+          "properties": {}
+          "description": "Kabul edilen dosyanın NEYE dönüştürüleceği."
+        "skipped":
+          "type": "array"
+          "items":
+            "$ref": "#/components/schemas/SkippedRule"
+        "policy_version":
+          "type": "string"
+        "policy_status":
+          "type": "string"
+      "required":
+        - "allow"
+        - "slot"
+        - "action"
+    "UploadSessionRequest":
+      "type": "object"
+      "properties":
+        "slot_key":
+          "type": "string"
+          "description": "Slot anahtarı. ZORUNLU — bugünkü motorun en büyük boşluğu (docs/reports/00-upload-slot-envanteri.md §7-B B1)."
+        "file_name":
+          "type": "string"
+          "description": "Özgün dosya adı."
+        "total_bytes":
+          "type": "integer"
+          "description": "İlan edilen toplam boyut."
+          "minimum": 1
+        "content_sha256":
+          "type": "string"
+          "description": "Bilinen içerik özeti. Verilirse dosya zaten kayıtlıysa HİÇBİR BAYT taşınmaz."
+          "pattern": "^[0-9a-f]{64}$"
+        "idempotency_key":
+          "type": "string"
+          "description": "İstemcinin kendi tekrar anahtarı; sunucu kararını etkilemez, izlemeye yazılır."
+      "required":
+        - "slot_key"
+        - "file_name"
+        - "total_bytes"
+    "UploadSession":
+      "type": "object"
+      "properties":
+        "upload_id":
+          "type": "string"
+          "description": "Oturum kimliği. Yinelenen içerikte BOŞTUR (oturum açılmamıştır)."
+        "slot_key":
+          "type": "string"
+        "file_name":
+          "type": "string"
+        "chunk_bytes":
+          "type": "integer"
+          "description": "Parça boyutu (chunked.py: 2 MB)."
+        "chunk_count":
+          "type": "integer"
+        "total_bytes":
+          "type": "integer"
+        "duplicate":
+          "type": "boolean"
+          "description": "İçerik zaten kayıtlı mı."
+        "asset":
+          "type": "string"
+          "description": "Yinelenen içerikte var olan varlığın adı."
+        "expires_in":
+          "type": "integer"
+          "description": "Oturumun saniye cinsinden ömrü."
+        "ingest_state":
+          "$ref": "#/components/schemas/IngestState"
+        "message":
+          "type": "string"
+      "required":
+        - "upload_id"
+        - "duplicate"
+    "IngestState":
+      "type": "string"
+      "description": "Alım hattı durumu (tradehub_core/media/pipeline/core/state.py). Yaşam döngüsü eksenine DİKTİR."
+      "enum":
+        - "Received"
+        - "Screened"
+        - "Validated"
+        - "Mastered"
+        - "Ready"
+        - "Rejected"
+        - "Quarantined"
+        - "Failed"
+    "UploadStatus":
+      "type": "object"
+      "properties":
+        "upload_id":
+          "type": "string"
+        "slot_key":
+          "type": "string"
+        "file_name":
+          "type": "string"
+        "chunk_bytes":
+          "type": "integer"
+        "chunk_count":
+          "type": "integer"
+        "received":
+          "type": "array"
+          "items":
+            "type": "integer"
+          "description": "Sunucuya ulaşmış parça sıraları."
+        "missing":
+          "type": "array"
+          "items":
+            "type": "integer"
+          "description": "Eksik parça sıraları — istemci yalnız bunları gönderir."
+        "complete":
+          "type": "boolean"
+        "finalized":
+          "type": "boolean"
+        "asset":
+          "type": "string"
+        "ingest_state":
+          "$ref": "#/components/schemas/IngestState"
+      "required":
+        - "upload_id"
+        - "complete"
+        - "finalized"
+    "FinalizeRequest":
+      "type": "object"
+      "properties":
+        "role":
+          "type": "string"
+          "description": "Yükleyenin rolü; politika rol kuralları için."
+        "alt_text":
+          "type": "string"
+          "description": "Erişilebilirlik metni."
+        "extra":
+          "type": "object"
+          "properties": {}
+          "description": "Varlık kaydına eklenecek ek alanlar; çekirdek alanları EZEMEZ."
+    "FinalizeResult":
+      "type": "object"
+      "properties":
+        "asset":
+          "type": "string"
+          "description": "Varlık adı."
+        "created":
+          "type": "boolean"
+          "description": "YENİ varlık açıldı mı. `false` ise bu istek idempotenttir."
+        "duplicate":
+          "type": "boolean"
+        "slot_key":
+          "type": "string"
+        "upload_id":
+          "type": "string"
+        "content_sha256":
+          "type": "string"
+        "file_url":
+          "type": "string"
+        "width":
+          "type": "integer"
+        "height":
+          "type": "integer"
+        "byte_size":
+          "type": "integer"
+        "ingest_state":
+          "$ref": "#/components/schemas/IngestState"
+        "decision":
+          "$ref": "#/components/schemas/Decision"
+        "message":
+          "type": "string"
+      "required":
+        - "asset"
+        - "created"
+        - "duplicate"
+    "CropIntent":
+      "type": "object"
+      "properties":
+        "focal_x":
+          "type":
+            - "number"
+            - "null"
+          "minimum": 0
+          "maximum": 1
+          "description": "Odak X. null = kullanıcı hiç seçmedi (merkez DEĞİL)."
+        "focal_y":
+          "type":
+            - "number"
+            - "null"
+          "minimum": 0
+          "maximum": 1
+          "description": "Odak Y."
+        "safe_x":
+          "type":
+            - "number"
+            - "null"
+          "minimum": 0
+          "maximum": 1
+          "description": "Güvenli alan sol kenarı."
+        "safe_y":
+          "type":
+            - "number"
+            - "null"
+          "minimum": 0
+          "maximum": 1
+          "description": "Güvenli alan üst kenarı."
+        "safe_w":
+          "type":
+            - "number"
+            - "null"
+          "minimum": 0
+          "maximum": 1
+          "description": "Güvenli alan genişliği."
+        "safe_h":
+          "type":
+            - "number"
+            - "null"
+          "minimum": 0
+          "maximum": 1
+          "description": "Güvenli alan yüksekliği."
+        "method":
+          "type": "string"
+          "description": "Kaydedilmiş yöntem etiketi."
+          "enum":
+            - ""
+            - "override"
+            - "safe_focal"
+            - "focal"
+            - "smartcrop"
+            - "center"
+        "confidence":
+          "type":
+            - "number"
+            - "null"
+          "minimum": 0
+          "maximum": 1
+          "description": "Öneri güveni."
+        "approved_by_user":
+          "type": "boolean"
+        "overrides":
+          "type": "array"
+          "items":
+            "$ref": "#/components/schemas/CropOverride"
+        "updated_at":
+          "type":
+            - "number"
+            - "null"
+          "description": "Son yazma zamanı (epoch saniye)."
+      "description": "Media Crop Intent. TÜM koordinatlar 0-1 normalize (INV-10); piksel kabul edilmez."
+    "CropOverride":
+      "type": "object"
+      "properties":
+        "profile":
+          "type": "string"
+          "description": "Profil adı — bu slotta TANIMLI olmalı."
+        "x":
+          "type": "number"
+          "minimum": 0
+          "maximum": 1
+          "description": "Sol kenar."
+        "y":
+          "type": "number"
+          "minimum": 0
+          "maximum": 1
+          "description": "Üst kenar."
+        "w":
+          "type": "number"
+          "minimum": 0
+          "maximum": 1
+          "description": "Genişlik."
+        "h":
+          "type": "number"
+          "minimum": 0
+          "maximum": 1
+          "description": "Yükseklik."
+        "method":
+          "type": "string"
+      "required":
+        - "profile"
+        - "x"
+        - "y"
+        - "w"
+        - "h"
+    "CropWindow":
+      "type": "object"
+      "properties":
+        "x":
+          "type": "number"
+          "minimum": 0
+          "maximum": 1
+          "description": "Sol kenar."
+        "y":
+          "type": "number"
+          "minimum": 0
+          "maximum": 1
+          "description": "Üst kenar."
+        "w":
+          "type": "number"
+          "minimum": 0
+          "maximum": 1
+          "description": "Genişlik."
+        "h":
+          "type": "number"
+          "minimum": 0
+          "maximum": 1
+          "description": "Yükseklik."
+        "method":
+          "type": "string"
+          "description": "Zincirde kazanan seviye."
+        "priority":
+          "type": "integer"
+          "description": "1 = en yüksek öncelik."
+        "profile":
+          "type": "string"
+        "width":
+          "type": "integer"
+          "description": "Profilin hedef genişliği."
+        "fit":
+          "type": "string"
+          "enum":
+            - "contain"
+            - "cover"
+            - "pad"
+        "target_ratio":
+          "type":
+            - "number"
+            - "null"
+          "description": "Hedef oran; null = serbest (contain/pad)."
+        "source_ratio":
+          "type": "number"
+          "description": "Kaynağın piksel oranı."
+        "confidence":
+          "type": "number"
+        "approved_by_user":
+          "type": "boolean"
+        "is_suggestion":
+          "type": "boolean"
+          "description": "UI'da 'öneri' rozeti gösterilmeli mi."
+        "pixels":
+          "type":
+            - "object"
+            - "null"
+          "properties":
+            "left":
+              "type": "integer"
+            "top":
+              "type": "integer"
+            "width":
+              "type": "integer"
+            "height":
+              "type": "integer"
+          "description": "Kaynak ölçüsü bilinmiyorsa null — sayı UYDURULMAZ."
+      "required":
+        - "x"
+        - "y"
+        - "w"
+        - "h"
+        - "method"
+    "CropIntentResponse":
+      "type": "object"
+      "properties":
+        "asset":
+          "type": "string"
+        "slot_key":
+          "type": "string"
+        "exists":
+          "type": "boolean"
+          "description": "Kayıt var mı. false ise örtük (merkez) niyet döner."
+        "intent":
+          "$ref": "#/components/schemas/CropIntent"
+        "source":
+          "type": "object"
+          "properties":
+            "width":
+              "type": "integer"
+            "height":
+              "type": "integer"
+            "source_ratio":
+              "type": "number"
+        "windows":
+          "type": "array"
+          "items":
+            "$ref": "#/components/schemas/CropWindow"
+      "required":
+        - "asset"
+        - "exists"
+        - "intent"
+        - "windows"
+    "SaveIntentRequest":
+      "type": "object"
+      "properties":
+        "focal_x":
+          "type": "number"
+          "minimum": 0
+          "maximum": 1
+          "description": "Odak X. `focal_y` ile BİRLİKTE verilir."
+        "focal_y":
+          "type": "number"
+          "minimum": 0
+          "maximum": 1
+          "description": "Odak Y."
+        "safe_area":
+          "type":
+            - "object"
+            - "null"
+          "properties":
+            "x":
+              "type": "number"
+              "minimum": 0
+              "maximum": 1
+              "description": "."
+            "y":
+              "type": "number"
+              "minimum": 0
+              "maximum": 1
+              "description": "."
+            "w":
+              "type": "number"
+              "minimum": 0
+              "maximum": 1
+              "description": "."
+            "h":
+              "type": "number"
+              "minimum": 0
+              "maximum": 1
+              "description": "."
+          "description": "Boş sözlük güvenli alanı SİLER."
+        "overrides":
+          "type": "array"
+          "items":
+            "$ref": "#/components/schemas/CropOverride"
+        "approved_by_user":
+          "type": "boolean"
+        "confidence":
+          "type": "number"
+          "minimum": 0
+          "maximum": 1
+          "description": "Öneri güveni."
+        "method":
+          "type": "string"
+          "enum":
+            - "override"
+            - "safe_focal"
+            - "focal"
+            - "smartcrop"
+            - "center"
+    "FocalSuggestion":
+      "type": "object"
+      "properties":
+        "focal_x":
+          "type": "number"
+          "minimum": 0
+          "maximum": 1
+          "description": "Önerilen odak X."
+        "focal_y":
+          "type": "number"
+          "minimum": 0
+          "maximum": 1
+          "description": "Önerilen odak Y."
+        "confidence":
+          "type": "number"
+          "minimum": 0
+          "maximum": 1
+          "description": "Kenar enerjisinin yoğunlaşma oranı. Önerinin DOĞRU olduğunu ölçmez."
+        "measured":
+          "type": "boolean"
+          "description": "Gerçekten ölçüldü mü. false ise merkez döner."
+        "reason":
+          "type": "string"
+          "enum":
+            - "measured"
+            - "pillow_unavailable"
+            - "source_unavailable"
+            - "no_edge_energy"
+        "grid":
+          "type": "integer"
+          "description": "Ölçüm ızgarası."
+        "threshold":
+          "type": "number"
+          "description": "Kullanılan güven eşiği."
+        "threshold_calibrated":
+          "type": "boolean"
+          "description": "Eşik kalibre edildi mi. Bugün FALSE (ÖLÇÜLMEDİ)."
+        "above_threshold":
+          "type": "boolean"
+        "method":
+          "type": "string"
+      "required":
+        - "focal_x"
+        - "focal_y"
+        - "confidence"
+        - "measured"
+        - "reason"
+    "SuggestFocalResponse":
+      "type": "object"
+      "properties":
+        "asset":
+          "type": "string"
+        "slot_key":
+          "type": "string"
+        "suggestion":
+          "$ref": "#/components/schemas/FocalSuggestion"
+        "applied":
+          "type": "boolean"
+          "description": "Her zaman false: öneri YAZILMAZ, kullanıcı onayına sunulur."
+        "windows":
+          "type": "array"
+          "items":
+            "$ref": "#/components/schemas/CropWindow"
+      "required":
+        - "asset"
+        - "suggestion"
+        - "applied"
+    "CropPreviewRequest":
+      "type": "object"
+      "properties":
+        "profile":
+          "type": "string"
+          "description": "Önizlenecek profil adı."
+        "intent":
+          "$ref": "#/components/schemas/CropIntent"
+        "include_image":
+          "type": "boolean"
+          "description": "Görüntü de üretilsin mi (data: URI)."
+      "required":
+        - "profile"
+    "CropPreviewResponse":
+      "type": "object"
+      "properties":
+        "asset":
+          "type": "string"
+        "slot_key":
+          "type": "string"
+        "window":
+          "$ref": "#/components/schemas/CropWindow"
+        "image":
+          "type":
+            - "string"
+            - "null"
+          "description": "Üretilemezse null; sebep `image_reason`."
+        "image_reason":
+          "type": "string"
+      "required":
+        - "asset"
+        - "window"
+    "ManifestVariant":
+      "type": "object"
+      "properties":
+        "profile":
+          "type": "string"
+        "url":
+          "type": "string"
+        "width":
+          "type": "integer"
+        "height":
+          "type": "integer"
+        "format":
+          "type": "string"
+        "type":
+          "type": "string"
+          "description": "MIME türü."
+        "available":
+          "type": "boolean"
+          "description": "ÜRETİLMİŞ mi. false olan varyant srcset'e GİRMEZ."
+      "required":
+        - "profile"
+        - "url"
+        - "width"
+        - "format"
+        - "available"
+    "ManifestSource":
+      "type": "object"
+      "properties":
+        "type":
+          "type": "string"
+          "description": "`<source type>` değeri."
+        "srcset":
+          "type": "string"
+          "description": "Görselde `<url> <w>w` listesi; videoda tek URL."
+        "sizes":
+          "type": "string"
+          "description": "Boş olabilir — ÖLÇÜLMEDİ. Yanlış `sizes` yazmaktansa boş bırakılır."
+      "required":
+        - "type"
+        - "srcset"
+    "Manifest":
+      "type": "object"
+      "properties":
+        "asset":
+          "type": "string"
+        "slot_key":
+          "type": "string"
+        "kind":
+          "type": "string"
+          "enum":
+            - "image"
+            - "video"
+        "src":
+          "type": "string"
+          "description": "`<img src>` yedeği — orta basamak."
+        "sizes":
+          "type": "string"
+        "alt":
+          "type": "string"
+        "loading":
+          "type": "string"
+          "enum":
+            - "lazy"
+            - "eager"
+        "decoding":
+          "type": "string"
+          "enum":
+            - "async"
+            - "sync"
+            - "auto"
+        "fetchpriority":
+          "type": "string"
+          "enum":
+            - ""
+            - "high"
+            - "low"
+            - "auto"
+        "width":
+          "type": "integer"
+          "description": "İçsel genişlik; 0 = bilinmiyor (CLS için sabit ölçü kullanın)."
+        "height":
+          "type": "integer"
+          "description": "İçsel yükseklik; 0 = bilinmiyor."
+        "aspect_ratio":
+          "type": "number"
+          "description": "0 = oran bilinmiyor."
+        "sources":
+          "type": "array"
+          "items":
+            "$ref": "#/components/schemas/ManifestSource"
+        "variants":
+          "type": "array"
+          "items":
+            "$ref": "#/components/schemas/ManifestVariant"
+        "poster":
+          "type": "string"
+        "captions":
+          "type": "string"
+        "version_hash":
+          "type": "string"
+        "available_profiles":
+          "type": "array"
+          "items":
+            "type": "string"
+        "missing_profiles":
+          "type": "array"
+          "items":
+            "type": "string"
+        "sizes_source":
+          "type": "string"
+          "enum":
+            - "table"
+            - "caller"
+            - "unmeasured"
+      "required":
+        - "asset"
+        - "slot_key"
+        - "src"
+        - "sources"
+        - "variants"
+    "ManifestBatchRequest":
+      "type": "object"
+      "properties":
+        "assets":
+          "type": "array"
+          "items":
+            "type": "string"
+          "description": "Varlık adları. Tekrarlar tekilleştirilir, sıra korunur."
+        "sizes":
+          "type": "string"
+        "lcp_asset":
+          "type": "string"
+          "description": "Yalnız BİR varlığa `fetchpriority=high` verir."
+      "required":
+        - "assets"
+    "ManifestBatchResponse":
+      "type": "object"
+      "properties":
+        "manifests":
+          "type": "object"
+          "properties": {}
+          "description": "{varlık: Manifest}"
+        "missing":
+          "type": "array"
+          "items":
+            "type": "string"
+          "description": "Bulunamayanlar. SEBEP VERİLMEZ — yok/yayınlanmamış/başkasının ayrımı sızmamalı."
+        "requested":
+          "type": "integer"
+        "returned":
+          "type": "integer"
+        "errors":
+          "type": "object"
+          "properties": {}
+          "description": "{varlık: istisna tipi} — kısmi başarı görünür kalır."
+      "required":
+        - "manifests"
+        - "missing"
+        - "requested"
+        - "returned"
+    "SignedUrlRequest":
+      "type": "object"
+      "properties":
+        "ttl_seconds":
+          "type": "integer"
+          "description": "İstenen ömür. [60, 86400] aralığına KELEPÇELENİR; istenen değil kelepçelenen geçerlidir."
+        "path":
+          "type": "string"
+          "description": "İmzalanacak türev yolu. Verilmezse master imzalanır; yolun varlığa ait olduğu doğrulanır."
+    "SignedUrl":
+      "type": "object"
+      "properties":
+        "url":
+          "type": "string"
+        "asset":
+          "type": "string"
+        "path":
+          "type": "string"
+        "exp":
+          "type": "integer"
+          "description": "Bitiş zamanı (epoch saniye)."
+        "expires_at":
+          "type": "integer"
+        "ttl_seconds":
+          "type": "integer"
+          "description": "Kelepçelenmiş gerçek ömür."
+      "required":
+        - "url"
+        - "exp"
+        - "ttl_seconds"
+    "SlotPolicySummary":
+      "type": "object"
+      "properties":
+        "slot_key":
+          "type": "string"
+        "title":
+          "type": "string"
+        "status":
+          "type": "string"
+          "enum":
+            - "draft"
+            - "active"
+        "schema_version":
+          "type": "string"
+        "roles":
+          "type": "array"
+          "items":
+            "type": "string"
+        "max_bytes":
+          "type": "integer"
+        "max_megapixels_hard":
+          "type":
+            - "number"
+            - "null"
+        "profile_count":
+          "type": "integer"
+        "rendition_count":
+          "type": "integer"
+        "content_rule_count":
+          "type": "integer"
+        "is_video":
+          "type": "boolean"
+        "error_code_prefix":
+          "type": "string"
+        "source":
+          "type": "string"
+          "description": "Politika dosyasının yolu."
+      "required":
+        - "slot_key"
+        - "status"
+        - "profile_count"
+    "SlotPolicyList":
+      "type": "object"
+      "properties":
+        "slots":
+          "type": "array"
+          "items":
+            "$ref": "#/components/schemas/SlotPolicySummary"
+        "count":
+          "type": "integer"
+      "required":
+        - "slots"
+        - "count"
+    "SlotPolicyDetail":
+      "type": "object"
+      "properties":
+        "slot_key":
+          "type": "string"
+        "policy":
+          "type": "object"
+          "properties": {}
+          "description": "Politikanın TAMAMI — `sources` notları dâhil."
+        "source":
+          "type": "string"
+      "required":
+        - "slot_key"
+        - "policy"
+    "PolicyFinding":
+      "type": "object"
+      "properties":
+        "slot_key":
+          "type": "string"
+        "source":
+          "type": "string"
+        "code":
+          "type": "string"
+        "message":
+          "type": "string"
+      "required":
+        - "slot_key"
+        - "code"
+        - "message"
+    "PolicyValidationReport":
+      "type": "object"
+      "properties":
+        "slot_count":
+          "type": "integer"
+        "finding_count":
+          "type": "integer"
+        "findings":
+          "type": "array"
+          "items":
+            "$ref": "#/components/schemas/PolicyFinding"
+        "ok":
+          "type": "boolean"
+        "schema_validated":
+          "type": "boolean"
+          "description": "Bugün FALSE: `jsonschema` paketi kurulu değil (ÖLÇÜLDÜ)."
+        "schema_note":
+          "type": "string"
+      "required":
+        - "slot_count"
+        - "findings"
+        - "ok"
+        - "schema_validated"
+    "RenditionRow":
+      "type": "object"
+      "properties":
+        "profile":
+          "type": "string"
+        "width":
+          "type": "integer"
+        "height":
+          "type": "integer"
+        "format":
+          "type": "string"
+        "fit":
+          "type": "string"
+        "target_ratio":
+          "type": "string"
+        "quality":
+          "type":
+            - "number"
+            - "null"
+          "description": "null = KALİBRE EDİLMEDİ; sayı uydurulmaz."
+        "quality_calibrated":
+          "type": "boolean"
+        "serves":
+          "type": "array"
+          "items":
+            "type": "string"
+          "description": "Bu basamağın hizmet ettiği render noktaları (serbest metin)."
+      "required":
+        - "profile"
+        - "width"
+        - "format"
+    "RenditionMatrix":
+      "type": "object"
+      "properties":
+        "slots":
+          "type": "array"
+          "items":
+            "type": "object"
+            "properties":
+              "slot_key":
+                "type": "string"
+              "profile_count":
+                "type": "integer"
+              "rendition_count":
+                "type": "integer"
+              "renditions":
+                "type": "array"
+                "items":
+                  "$ref": "#/components/schemas/RenditionRow"
+        "total_renditions":
+          "type": "integer"
+      "required":
+        - "slots"
+        - "total_renditions"
+    "EvaluateRequest":
+      "type": "object"
+      "properties":
+        "slot_key":
+          "type": "string"
+        "probe":
+          "type": "object"
+          "properties": {}
+          "description": "core/probe.py::MediaProbe alanları. Tanınmayanlar atılır ve `ignored_fields` ile bildirilir."
+        "role":
+          "type": "string"
+      "required":
+        - "slot_key"
+        - "probe"
+    "EvaluateResponse":
+      "type": "object"
+      "properties":
+        "allow":
+          "type": "boolean"
+        "slot":
+          "type": "string"
+        "action":
+          "type": "string"
+        "violations":
+          "type": "array"
+          "items":
+            "$ref": "#/components/schemas/Violation"
+        "skipped":
+          "type": "array"
+          "items":
+            "$ref": "#/components/schemas/SkippedRule"
+        "normalized_targets":
+          "type": "object"
+          "properties": {}
+        "policy_version":
+          "type": "string"
+        "policy_status":
+          "type": "string"
+        "role":
+          "type": "string"
+        "accepted_fields":
+          "type": "array"
+          "items":
+            "type": "string"
+        "ignored_fields":
+          "type": "array"
+          "items":
+            "type": "string"
+      "required":
+        - "allow"
+        - "slot"
+        - "action"
+        - "accepted_fields"
+        - "ignored_fields"
+    "CoverageReport":
+      "type": "object"
+      "properties":
+        "scanned":
+          "type": "integer"
+        "limit":
+          "type": "integer"
+        "truncated":
+          "type": "boolean"
+          "description": "Tarama tavana çarptıysa true; oran KISMİ örnekten hesaplanmıştır."
+        "total":
+          "type": "integer"
+        "complete":
+          "type": "integer"
+        "complete_ratio":
+          "type": "number"
+        "by_slot":
+          "type": "object"
+          "properties": {}
+          "description": "{slot: {total, complete, partial, empty, expected_profiles, missing_profile_counts}}"
+      "required":
+        - "scanned"
+        - "total"
+        - "complete"
+        - "complete_ratio"
+        - "by_slot"
+    "ReprocessPlanRequest":
+      "type": "object"
+      "properties":
+        "slot_key":
+          "type": "string"
+        "master_sha256":
+          "type": "string"
+        "crop_intent":
+          "$ref": "#/components/schemas/CropIntent"
+        "force":
+          "type": "boolean"
+          "description": "Tüm satırları `render`a çevirir — kararı GÖRMEK için."
+      "required":
+        - "slot_key"
+        - "master_sha256"
+    "ReprocessPlan":
+      "type": "object"
+      "properties":
+        "slot_key":
+          "type": "string"
+        "master_sha256":
+          "type": "string"
+        "force":
+          "type": "boolean"
+        "counts":
+          "type": "object"
+          "properties":
+            "render":
+              "type": "integer"
+            "refresh":
+              "type": "integer"
+            "skip":
+              "type": "integer"
+        "work_units":
+          "type": "integer"
+          "description": "render + refresh — gerçekten yapılacak iş."
+        "plan":
+          "type": "array"
+          "items":
+            "type": "object"
+            "properties":
+              "profile":
+                "type": "string"
+              "format":
+                "type": "string"
+              "width":
+                "type": "integer"
+              "action":
+                "type": "string"
+                "enum":
+                  - "render"
+                  - "refresh"
+                  - "skip"
+              "reason":
+                "type": "string"
+              "key":
+                "type": "string"
+                "description": "Türetme anahtarı — idempotensi defterinin kimliği."
+              "should_render":
+                "type": "boolean"
+      "required":
+        - "slot_key"
+        - "counts"
+        - "plan"
+    "JobStatusRequest":
+      "type": "object"
+      "properties":
+        "kind":
+          "type": "string"
+          "enum":
+            - "media.scan"
+            - "media.evaluate"
+            - "media.master"
+            - "media.derive"
+            - "media.transcode"
+        "target":
+          "type": "string"
+        "content_hash":
+          "type": "string"
+          "description": "Verilirse `target` anahtara GİRMEZ: aynı içerik farklı adla bir kez işlenir."
+        "params":
+          "type": "object"
+          "properties": {}
+      "required":
+        - "kind"
+    "JobStatus":
+      "type": "object"
+      "properties":
+        "key":
+          "type": "string"
+          "description": "İdempotensi anahtarı — sunucu üretir, istemci uydurmaz."
+        "kind":
+          "type": "string"
+        "state":
+          "type": "string"
+          "enum":
+            - ""
+            - "running"
+            - "completed"
+            - "partial"
+            - "error"
+        "max_attempts":
+          "type": "integer"
+        "backoff_seconds":
+          "type": "array"
+          "items":
+            "type": "integer"
+        "stale_after_seconds":
+          "type": "integer"
+        "upstream_available":
+          "type": "boolean"
+          "description": "Üretim sabitleri `tradehub_core.media.jobs`'tan mı okundu."
+      "required":
+        - "key"
+        - "kind"
+    "StoragePlan":
+      "type": "object"
+      "properties":
+        "mode":
+          "type": "string"
+          "description": "Etkin depolama kipi."
+        "requested_mode":
+          "type": "string"
+          "description": "İstenen kip."
+        "degraded":
+          "type": "boolean"
+          "description": "İstenen kip kurulamadı mı (ör. S3 istendi, boto3 yok)."
+        "boto3_available":
+          "type": "boolean"
+        "modes":
+          "type": "array"
+          "items":
+            "type": "string"
+      "required":
+        - "mode"
+        - "degraded"
+  "responses":
+    "Error":
+      "description": "Kodlu ret. İstemci METNE değil `error_code`a bakar (FR-060)."
+      "content":
+        "application/json":
+          "schema":
+            "$ref": "#/components/schemas/Error"
+  "securitySchemes":
+    "frappeToken":
+      "type": "apiKey"
+      "in": "header"
+      "name": "Authorization"
+      "description": "`token <api_key>:<api_secret>` — Frappe API anahtarı."
+    "frappeSession":
+      "type": "apiKey"
+      "in": "cookie"
+      "name": "sid"
+      "description": "Tarayıcı oturum çerezi. CSRF belirteci POST/PUT/DELETE'te zorunludur."
+"security":
+  - "frappeToken": []
+  - "frappeSession": []
+"x-error-codes":
+  - "code": "media_unauthorized"
+    "status": 401
+    "retryable": false
+    "meaning": "Oturum yok."
+  - "code": "media_forbidden"
+    "status": 403
+    "retryable": false
+    "meaning": "Kimlik var, yetki yok."
+  - "code": "media_store_required"
+    "status": 403
+    "retryable": false
+    "meaning": "İşlem bir mağaza kapsamı gerektiriyor."
+  - "code": "media_not_found"
+    "status": 404
+    "retryable": false
+    "meaning": "Kaynak yok, yayınlanmamış ya da başka mağazanın."
+  - "code": "media_session_unknown"
+    "status": 404
+    "retryable": false
+    "meaning": "Yükleme oturumu yok ya da süresi doldu."
+  - "code": "media_slot_missing"
+    "status": 404
+    "retryable": false
+    "meaning": "Varlığın slot bilgisi yok; manifest kurulamaz."
+  - "code": "media_missing_field"
+    "status": 400
+    "retryable": false
+    "meaning": "Zorunlu alan verilmedi."
+  - "code": "media_bad_field"
+    "status": 400
+    "retryable": false
+    "meaning": "Alan biçimi ya da aralığı geçersiz."
+  - "code": "media_field_too_long"
+    "status": 400
+    "retryable": false
+    "meaning": "Alan uzunluk sınırını aşıyor."
+  - "code": "media_hash_mismatch"
+    "status": 400
+    "retryable": false
+    "meaning": "Yüklenen içeriğin özeti bildirilenle uyuşmuyor."
+  - "code": "media_not_private"
+    "status": 400
+    "retryable": false
+    "meaning": "Public medya için imzalı bağlantı istendi."
+  - "code": "media_batch_too_large"
+    "status": 400
+    "retryable": false
+    "meaning": "Toplu istek üst sınırı aşıldı."
+  - "code": "media_already_finalized"
+    "status": 409
+    "retryable": false
+    "meaning": "Tamamlanmış oturum iptal edilemez."
+  - "code": "media_precondition_failed"
+    "status": 412
+    "retryable": false
+    "meaning": "`If-Match` tutmadı; araya başka bir yazma girdi."
+  - "code": "media_too_large"
+    "status": 413
+    "retryable": false
+    "meaning": "İlan edilen boyut slot tavanını aşıyor."
+  - "code": "media_unavailable"
+    "status": 503
+    "retryable": true
+    "meaning": "Bağımlılık yok (imzalama anahtarı, depo, defter)."
+  - "code": "media_no_signing_key"
+    "status": 503
+    "retryable": true
+    "meaning": "İmzalama anahtarı yapılandırılmamış; sahte imza üretilmez."
+  - "code": "media_internal"
+    "status": 500
+    "retryable": true
+    "meaning": "Beklenmeyen hata; ayrıntı DIŞARI SIZDIRILMAZ."
+  - "code": "<slot_prefix>_<reason>"
+    "status": 422
+    "retryable": false
+    "meaning": "Politika ihlali. Önek slotun `on_violation.error_code_prefix` alanından (ör. `product_image_short_edge_too_small`)."
+  - "code": "media_policy_not_found"
+    "status": 404
+    "retryable": false
+    "meaning": "Bilinmeyen slot anahtarı."
+  - "code": "media_no_profile"
+    "status": 404
+    "retryable": false
+    "meaning": "Üretilmiş hiçbir türev yok; manifest kurulamaz."
+"x-contract":
+  "source_of_truth": "tradehub_core/media/pipeline/api/spec.py"
+  "generated_file": "docs/api/openapi.yaml"
+  "regenerate": "python3 -c \"from tradehub_core.media.pipeline.api import spec; spec.write_yaml()\""
+  "drift_test": "tests/test_api_contracts.py"

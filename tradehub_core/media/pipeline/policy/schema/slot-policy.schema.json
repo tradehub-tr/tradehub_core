@@ -1,0 +1,1338 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://istoc.local/tradehub_core/media/pipeline/policy/schema/slot-policy.schema.json",
+  "title": "İstoç Medya Motoru — Slot Politikası Şeması",
+  "description": "Bir medya yükleme slotunun kabul/red kurallarını, master üretim ayarlarını, türev profillerini ve kullanıcıya gösterilecek mesajlarını tanımlar. Bu şema T-020 kapsamında yazıldı; kaynak envanterler: docs/reports/00-upload-slot-envanteri.md (41 doctype alanı, 4 doğrulama katmanı L0-L3) ve docs/reports/03-render-envanteri.md (20 render noktası, CSS kutu × DPR tabloları). Şemanın var oluş sebebi 00-upload-slot-envanteri.md §7-B B1 bulgusudur: sunucu bugün bir yüklemenin HANGİ slota ait olduğunu bilmiyor (upload_policy.check() imzasında slot parametresi yok — tradehub_core/media/upload_policy.py:306-312), bu yüzden slot bazlı hiçbir kural yazılamıyor. Bu şema o eksik kimliğin veri biçimidir. SÜRÜM 1.1.0 (T-022 uyumlandırması): şemaya OPSİYONEL 'video' bloğu ile 'known_conflicts', 'pending_admin_decisions', 'production_verification_required' üst düzey blokları eklendi; 'master.format' enum'una 'webm' ve 'mp4' girdi (docs/standards/README.md §4 E10 kapatıldı). SÜRÜM 1.2.0: şemaya OPSİYONEL 'logo' bloğu eklendi (svg_policy, dark_theme, css_safe_area, render_points, not_render_points, unmeasured) — seller-logo.json ve brand-logo.json'daki logoya özgü üst düzey alanları barındırır; bu iki dosya v1.1.0'a göre üst düzeyde FAZLA alan taşıdığı için şemaya uymuyordu, eklemeler o boşluğu kapatır. Eklemelerin tamamı opsiyonel olduğu için schema_version='1.0.0'/'1.1.0' yazan politikalar geçerliliğini korur. SÜRÜM 1.3.0 (logo sınıfı uyumlandırması): v1.2.0 yalnız ÜST DÜZEY 'logo' bloğunu eklemişti, ama alt bloklar (accept/require/master/quality/profiles/content_rules/on_violation/production_verification_required) hâlâ fotoğraf-ürün sınıfı için yazılmıştı ve additionalProperties:false yüzünden logo sınıfının meşru alanlarını reddediyordu (seller-logo.json ve brand-logo.json'da BİREBİR aynı 39'ar hata). 1.3.0 o alt blokları genişletti: (a) logo sınıfına özgü OPSİYONEL anahtarlar eklendi — accept.{conditional_extensions,rejected_extensions,format_priority,max_bytes_svg,allow_data_uri}, require.{recommended_edge,low_resolution_warn_below,max_edge,aspect_band,alpha_channel,alpha_accepted_pil_modes}, master.{target_ratio,fit,pad_color,allow_crop,allow_upscale,encoding,in_file_safe_area_percent}, quality.{lossless_required,reason}, profiles[].{max_bytes,byte_reference,max_overshoot_note,max_content_height,fixes,conditional}, content_rules[].measured_on, on_violation.retryable_reason; (b) değer tipleri genişletildi — pad_color hex VEYA 'transparent', encoder_quality.* integer VEYA null VEYA 'lossless', quality.metric enum'una 'bit_exact', quality.reencode_floor_saving_ratio null kabul eder, content_rules[].threshold dizi kabul eder, content_rules[].comparator'a 'outside'/'pad_to', content_rules[].message_key null kabul eder, production_verification_required[] öğesi düz metin VEYA {id,what,how} objesi; (c) raster-fotoğraf sınıfına özgü zorunluluklar (accept.max_megapixels_hard, require.{min_area,allowed_ratios,ratio_tolerance}, master.{max_megapixels,dpi_out}) KALDIRILMADI, yalnız SINIF KOŞULLU hâle getirildi — kökteki allOf/if bloğuna bakınız. Bu yüzden '1.0.0'/'1.1.0'/'1.2.0' yazan yedi dosya hiç değişmeden geçerli kalır.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "slot_key",
+    "roles",
+    "accept",
+    "require",
+    "master",
+    "profiles",
+    "on_violation",
+    "messages",
+    "sources"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Politika dosyasının bu şemaya işaret eden bağıl/mutlak yolu."
+    },
+
+    "schema_version": {
+      "enum": ["1.0.0", "1.1.0", "1.2.0", "1.3.0"],
+      "description": "Şema sürümü. Kırıcı değişiklikte major artar; politika dosyaları da güncellenir. 1.1.0 yalnız OPSİYONEL alan ekledi (video, known_conflicts, pending_admin_decisions, production_verification_required + master.format'a webm/mp4). 1.2.0 yalnız OPSİYONEL 'logo' bloğu ekledi (svg_policy, dark_theme, css_safe_area, render_points, not_render_points, unmeasured). 1.3.0 ALT blokları logo sınıfı için genişletti: yeni anahtarların tamamı opsiyonel, genişletilen değer tipleri eskisini kapsıyor ve raster-fotoğraf zorunlulukları kaldırılmadan sınıf koşullu hâle getirildi — bu yüzden '1.0.0', '1.1.0' ve '1.2.0' yazan dosyalar hâlâ geçerlidir ve toplu güncelleme gerektirmez. Yeni yazılan politikalar kendi eklendiği sürümü yazar; sürüm numarası bir YETENEK beyanıdır, doğrulama kapısı değil."
+    },
+
+    "status": {
+      "type": "string",
+      "enum": ["draft", "active", "deprecated"],
+      "default": "draft",
+      "description": "draft = değerlerin bir kısmı henüz ölçülmedi/kalibre edilmedi, üretimde zorlanmaz. active = zorlanır. Bir politika, içindeki her null encoder_quality ve her 'kalibre edilmedi' kaynaklı eşik giderilmeden 'active' olamaz."
+    },
+
+    "slot_key": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$",
+      "minLength": 3,
+      "maxLength": 64,
+      "description": "Kanonik slot anahtarı. Biçim: <alan>.<slot> (ör. product.image, seller.logo). Kaynak: docs/reports/00-upload-slot-envanteri.md §8. Kodda bugün karşılığı YOKTUR — Faz 2'nin üreteceği kayıt defterinin adıdır."
+    },
+
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Slotun insan okur adı (Türkçe)."
+    },
+
+    "description": {
+      "type": "string",
+      "description": "Slotun iş amacı."
+    },
+
+    "roles": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "enum": ["seller", "buyer", "admin", "system"]
+      },
+      "description": "Bu slota yükleme yapabilen aktör sınıfları. 'system' = kullanıcı yüklemesi değil, sistemin kopyaladığı/ürettiği dosya (ör. Cart Item.snapshot_image)."
+    },
+
+    "bound_to": {
+      "type": "array",
+      "description": "Bu politikanın uygulandığı somut depolama alanları. Boş bırakılırsa politika hiçbir yükleme yolunu kapsamaz.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["doctype", "field", "source"],
+        "properties": {
+          "doctype": { "type": "string", "minLength": 1 },
+          "field": { "type": "string", "minLength": 1 },
+          "fieldtype": {
+            "type": "string",
+            "enum": ["Attach", "Attach Image", "Image", "Data", "Long Text", "Small Text"],
+            "description": "Frappe alan tipi. 'Data' / 'Long Text' olanlar Attach taramasıyla BULUNAMAZ — 00-upload-slot-envanteri.md §2 'tip tuzağı' notu."
+          },
+          "source": { "$ref": "#/$defs/provenance" }
+        }
+      }
+    },
+
+    "accept": {
+      "type": "object",
+      "description": "Dosya daha AÇILMADAN uygulanan kabul kapısı. Ucuz kontroller burada; piksel gerektiren kontroller 'require' altında.",
+      "additionalProperties": false,
+      "required": ["mime", "max_bytes"],
+      "$comment": "v1.3.0: 'max_megapixels_hard' bu listeden ÇIKARILDI ama kaldırılmadı — kökteki allOf/if bloğu onu logo bloğu TAŞIMAYAN her politikada geri zorunlu kılar. Gerekçe: decompression-bomb tavanı raster fotoğraf sınıfının kapısıdır; logo slotunda accept.max_bytes (= master'ın sıkıştırılmamış RGBA boyutu, 1 MiB / 576 KiB) aynı korumayı daha dar bir sayıyla zaten veriyor ve vektör/kayıpsız logo için megapiksel anlamsız.",
+      "properties": {
+        "mime": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z]+/[a-z0-9.+-]+$"
+          },
+          "description": "İzin verilen MIME türleri (allowlist). Uzantı DEĞİL içerik imzası (magic byte) esas alınmalıdır — upload_policy.sniff() zaten imza okuyor (tradehub_core/media/upload_policy.py:187-224)."
+        },
+        "extensions": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^\\.[a-z0-9]+$" },
+          "description": "MIME listesinin uzantı karşılığı. Zorunlu değil ama pratikte gerekli: mevcut kapı (upload_policy.check(), :317-320) kararını UZANTI üzerinden veriyor. İki liste ayrışırsa uzantı listesi kazanır ve slot politikası sessizce delinir."
+        },
+        "conditional_extensions": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^\\.[a-z0-9]+$" },
+          "description": "ŞARTA BAĞLI uzantılar (şema v1.3.0): politika bunları tanımlar ama başka bir bayrak açılmadan fiilen reddedilirler. Logo slotunda '.svg' böyledir — logo.svg_policy.enabled=false olduğu sürece iki güvenlik kapısı (utils/security.py _DENIED_EXTENSIONS, upload_policy.py _DANGEROUS_MARKERS) onu keser. 'extensions' ile aynı listede olamaz: biri KABUL, bu liste 'kabul edilecek ama henüz değil' demektir; ikisini karıştırmak kapalı bir kapıyı açık göstermek olur."
+        },
+        "rejected_extensions": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^\\.[a-z0-9]+$" },
+          "description": "AÇIKÇA reddedilen uzantılar (şema v1.3.0). Allowlist zaten bunları dışarıda bırakır; bu liste reddin BİLİNÇLİ olduğunu ve gerekçesinin sources altında yazıldığını belgeler ('unutulmuş' ile 'kasten dışarıda' ayrımı). Kullanıcıya doğru mesajı seçmek için de gerekir: listede olan uzantı 'format_not_supported' metnini alır, olmayan genel red alır."
+        },
+        "format_priority": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Yükleyene önerilecek biçim sırası, en iyiden en kötüye (şema v1.3.0). Bir RET kapısı DEĞİL, bir tavsiye sırası: logo için ['svg','png_with_alpha','webp_lossless']. Öğeler MIME değil biçim-nitelik anahtarıdır ('png_with_alpha' bir MIME türü değil, alfa kanalı taşıyan PNG demektir)."
+        },
+        "max_bytes_svg": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "SVG'ye özgü, max_bytes'tan AYRI ve ondan dar bayt tavanı (şema v1.3.0). Ayrı olmasının nedeni: vektör dosyada bayt = düğüm/path karmaşıklığıdır, raster tavanıyla ölçülemez. Bu değer sanitize ÇIKTISINA uygulanır (girdiye değil): sanitize küçültür, dolayısıyla girdiye uygulamak meşru dosyaları da keserdi."
+        },
+        "max_bytes": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Slot bazlı bayt tavanı. Global tavanı GEVŞETEMEZ: efektif tavan = min(bu değer, upload_policy.MAX_BYTES[kind], Frappe max_file_size). Kaynak: tradehub_core/media/upload_policy.py:67-76 ve :262-265."
+        },
+        "max_megapixels_hard": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Sert piksel tavanı (megapiksel). Decompression-bomb koruması: dosya baytça küçük olup açıldığında GB'larca RAM tüketebilir. Bu kontrol görselin TAMAMI açılmadan, yalnız başlıktan (PIL Image.open + .size, piksel okumadan) yapılmalıdır. Aşılırsa istisnasız RET. Bugün kod tabanında karşılığı YOK (grep 'MAX_IMAGE_PIXELS' → 0 sonuç, tradehub_core/); benzer koruma yalnız feed indirmede var (tradehub_core/bulk_import/feed_security.py:77-84)."
+        },
+        "allow_animated": {
+          "type": "boolean",
+          "default": false,
+          "description": "Animasyonlu görsel (GIF/animasyonlu WebP) kabul edilsin mi. false ise ret. Motor zaten animasyonluyu işleyemiyor (tradehub_core/media/pipeline.py:111-112 → reason='animated'), bu yüzden false dışındaki değer motor değişikliği gerektirir."
+        },
+        "allow_data_uri": {
+          "type": "boolean",
+          "default": false,
+          "description": "Alan değerinin bir data: URI olmasına izin verilsin mi (şema v1.3.0). false = değer bir File kaydına işaret ETMEK ZORUNDA. Bu ayrı bir anahtar olmak zorunda çünkü data: URI kanalı tüm dosya kapılarını atlar: File kaydı açılmadığı için ne utils/security.py uzantı kapısı ne upload_policy.py imza kapısı çalışır, ayrıca medya envanteri (media/usage.py) o değeri hiç görmez."
+        }
+      }
+    },
+
+    "require": {
+      "type": "object",
+      "description": "Görsel açıldıktan sonra uygulanan geometri kapısı. Bu grubun tamamı bugün sistemde YOKTUR (00-upload-slot-envanteri.md §7-B B2 ve §10: '0 slotta piksel boyutu, en-boy oranı veya adet kuralı var').",
+      "additionalProperties": false,
+      "required": ["min_short_edge"],
+      "$comment": "v1.3.0: 'min_area', 'allowed_ratios' ve 'ratio_tolerance' bu listeden ÇIKARILDI ama kaldırılmadı — kökteki allOf/if bloğu onları logo bloğu TAŞIMAYAN her politikada geri zorunlu kılar. Gerekçe: oran kapısı logo sınıfında ayrık bir oran LİSTESİ değil sürekli bir BAND'dır (aspect_band: 0,5 ≤ w/h ≤ 2,0). allowed_ratios+ratio_tolerance ile bir bandı ifade etmek, bandın içindeki her oranı tek tek saymayı gerektirir; 'min over r of |(w/h)-r|/r <= tol' bağıl tolerans tanımı da band uçlarında asimetrik davranır. min_area ise logoda min_short_edge ile birebir gereksiz: master 1:1'e padlendiği için alan = kısa kenarın karesidir.",
+      "properties": {
+        "min_short_edge": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Kısa kenarın izin verilen en küçük piksel değeri. Karşılaştırma >= (eşitlik geçerli)."
+        },
+        "min_area": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "genişlik × yükseklik alt sınırı (piksel). Karşılaştırma >= (eşitlik geçerli). DİKKAT: min_short_edge ile birlikte kare görselde tam sınırda buluşabilir; > kullanılırsa kurallar birbiriyle çelişir."
+        },
+        "max_short_edge": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "İsteğe bağlı üst sınır. Master zaten küçülteceği için genelde gereksiz."
+        },
+        "allowed_ratios": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/ratio" },
+          "description": "İzin verilen en-boy oranları 'G:Y' biçiminde. Oran = genişlik/yükseklik. Boş dizi yazılamaz; 'oran serbest' istenirse allowed_ratios: [\"0:0\"] DEĞİL, ratio_tolerance: 1 kullanılır."
+        },
+        "ratio_tolerance": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Bağıl tolerans. Kabul koşulu: min over r in allowed_ratios of |(w/h) - r| / r <= ratio_tolerance. 0.02 = ±%2. Değerlendirme BAĞIL yapılır; mutlak fark kullanılırsa dar oranlar (3:4) geniş oranlardan daha sıkı denetlenmiş olur."
+        },
+        "min_count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Bu slota bağlı kayıtta gereken en az dosya adedi (galeri slotları için)."
+        },
+        "max_count": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "En çok dosya adedi. Bugün hiçbir galeri slotunda adet kuralı yok — 00-upload-slot-envanteri.md §7-A 'panel.listing_gallery: boyut yok, adet yok'."
+        },
+        "recommended_edge": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Yükleyene ÖNERİLEN kenar (şema v1.3.0). Bir RET eşiği DEĞİL — ret eşiği min_short_edge'dir. İkisi ayrı sayılardır çünkü en büyük türev basamağını (rung) doğuran alt sınır budur: motor yalnız küçültür (engine.py:117 im.thumbnail), dolayısıyla recommended_edge'in altındaki bir master en büyük rung'u ASLA doğuramaz. Panelde gösterilen ölçü tavsiyesi bu sayıyla aynı olmak zorundadır; ayrışırsa üst rung her yüklemede ölü kalır."
+        },
+        "low_resolution_warn_below": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Bu değerin altındaki dosya KABUL edilir ama 'low_resolution' uyarısı alır (şema v1.3.0). min_short_edge (sert ret) ile recommended_edge (sessiz tavsiye) arasındaki üçüncü kademedir; olmadan 256-512 aralığındaki bir logo ya haksız reddedilir ya da sessizce bulanık servis edilir."
+        },
+        "max_edge": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Herhangi bir kenarın izin verilen en büyük piksel değeri (şema v1.3.0). max_short_edge'den farklıdır: o KISA kenarı, bu HERHANGİ bir kenarı bağlar. Niyet, vektörden dışa aktarılmış büyük PNG'yi reddetmemek ama sınırsız da bırakmamaktır."
+        },
+        "aspect_band": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["min_w_over_h", "max_w_over_h"],
+          "description": "SÜREKLİ oran bandı (şema v1.3.0): allowed_ratios+ratio_tolerance ikilisinin ayrık listesi yerine bir aralık. Kabul koşulu: min_w_over_h <= genişlik/yükseklik <= max_w_over_h. Logo sınıfında doğru biçim budur — bir logo '1:1 ± %2' değil, 'kareye yakından 2:1'e kadar herhangi bir şey' olabilir ve master 1:1'e saydam letterbox ile normalize edilir. Bu blok yazıldığında allowed_ratios/ratio_tolerance yazılmaz; ikisi birlikte yazılırsa hangi kapının hüküm verdiği belirsizleşir.",
+          "properties": {
+            "min_w_over_h": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Bandın alt ucu (en dik kabul edilen oran). 0,5 = 1:2."
+            },
+            "max_w_over_h": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Bandın üst ucu (en geniş kabul edilen oran). 2,0 = 2:1. min_w_over_h'den büyük olmalıdır."
+            },
+            "note": { "type": "string" }
+          }
+        },
+        "alpha_channel": {
+          "type": "string",
+          "enum": ["required", "optional", "forbidden"],
+          "description": "Alfa (saydamlık) kanalı politikası (şema v1.3.0). required = alfasız dosya reddedilir; logo slotunda bu bir estetik tercih değil işlevsel zorunluluktur — logolar açık plakalar üzerine basılıyor ve opak dikdörtgen o plakalarda görünür bir kutu bırakıyor. optional = fark etmez. forbidden = alfa düzleştirilir (fotoğraf slotlarında JPEG teslimi için)."
+        },
+        "alpha_accepted_pil_modes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 },
+          "description": "alpha_channel='required' iken 'alfası var' sayılan PIL görüntü modları (şema v1.3.0). Açıkça yazılmak zorundadır çünkü saydamlık PIL'de tek bir moda karşılık gelmez: RGBA ve LA gerçek alfa kanalı taşır, 'P_with_transparency' ise palet tabanlı görselde info['transparency'] anahtarıdır — mode'a bakan naif bir kontrol onu alfasız sanır ve meşru PNG'leri reddeder."
+        }
+      }
+    },
+
+    "master": {
+      "type": "object",
+      "description": "Türevlerin üretileceği tek kaynak (master) dosyanın kuralları. Master KULLANICIYA SERVİS EDİLMEZ; servis edilen yalnız profiles[] çıktılarıdır.",
+      "additionalProperties": false,
+      "required": [
+        "max_long_edge",
+        "min_long_edge",
+        "colorspace",
+        "strip_metadata"
+      ],
+      "$comment": "v1.3.0: 'max_megapixels' ve 'dpi_out' bu listeden ÇIKARILDI ama kaldırılmadı — kökteki allOf/if bloğu onları logo bloğu TAŞIMAYAN her politikada geri zorunlu kılar. Gerekçe: max_megapixels'in invariant'ı (max_long_edge^2/1e6 >= max_megapixels) logoda max_long_edge + 1:1 target_ratio ile zaten tanımlıdır, ayrı sayı ikinci bir doğruluk kaynağı olur. dpi_out ise bir BASKI metadata normalizasyonudur; kayıpsız, saydam, ekran-yalnız bir logo master'ında yazılacak anlamlı bir değeri yoktur ve strip_metadata zaten EXIF/XMP'yi siliyor.",
+      "properties": {
+        "max_long_edge": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Uzun kenar tavanı. Yalnız KÜÇÜLTÜR — upscale asla yapılmaz (mevcut motor davranışı: PIL Image.thumbnail, tradehub_core/media/pipeline.py:117)."
+        },
+        "min_long_edge": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Master için hedeflenen uzun kenar alt sınırı. Kaynak görsel bunun altındaysa BÜYÜTÜLMEZ; master 'under-spec' olarak işaretlenir ve en büyük profiller üretilmez. Bu değer bir RET eşiği değildir; ret eşiği require.min_short_edge'dir."
+        },
+        "max_megapixels": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Master'ın megapiksel tavanı. max_long_edge ve izin verilen en dar oranla tutarlı olmalıdır (invariant: max_long_edge^2 / 1e6 >= max_megapixels)."
+        },
+        "dpi_out": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1200,
+          "description": "Çıktı DPI metadata değeri. Ekran medyasında piksel boyutunu etkilemez; yalnız 300 DPI etiketli baskı dosyalarının yanlışlıkla 'büyük' sayılmasını önlemek ve metadata'yı normalize etmek içindir."
+        },
+        "colorspace": {
+          "type": "string",
+          "enum": ["srgb", "preserve"],
+          "description": "srgb = ICC profili sRGB'ye dönüştürülür (geniş gamut P3 fotoğrafların tarayıcıda soluk/aşırı doygun görünmesini önler). preserve = mevcut davranış: profil çıktıya taşınır, dönüştürülmez (tradehub_core/media/pipeline.py:115,122,126,131,133)."
+        },
+        "format": {
+          "type": "string",
+          "enum": ["webp", "avif", "jpeg", "png", "webm", "mp4", "preserve"],
+          "description": "Master'ın saklama biçimi. 'preserve' mevcut engine.optimize() davranışıdır (JPEG→JPEG, PNG→PNG; engine.py:8-9) ve file_url uzantısını sabit tutar. Master ayrı bir artefakt olarak saklanacaksa (Faz 2) bu kısıt kalkar; o durumda naming.py sözleşmesi güncellenmelidir. 'webm' ve 'mp4' şema v1.1.0'da eklendi: video hattının gerçek master biçimi VP9+Opus/WebM'dir (tradehub_core/media/transcode.py:243-246) ve v1.0.0 enum'u bunu ifade edemiyordu (docs/standards/README.md §4 E10)."
+        },
+        "strip_metadata": {
+          "type": "object",
+          "description": "Hangi metadata bloklarının silineceği. Boolean değil OBJE: ICC bilinçli olarak korunuyor (engine.py:11-13 EXIF/ICC notu), 'hepsini sil' demek renk yönetimini bozar.",
+          "additionalProperties": false,
+          "required": ["exif", "gps", "xmp", "icc"],
+          "properties": {
+            "exif": { "type": "boolean", "description": "EXIF bloğu silinsin mi. Silinmeden önce yön bilgisi piksellere uygulanmalı (ImageOps.exif_transpose — engine.py:116)." },
+            "gps": { "type": "boolean", "description": "GPS koordinatları silinsin mi. KVKK/gizlilik gerekçesiyle true olmalı: satıcının fabrika/ev konumu ürün fotoğrafıyla sızabilir." },
+            "xmp": { "type": "boolean", "description": "XMP/IPTC blokları silinsin mi." },
+            "icc": { "type": "boolean", "description": "ICC renk profili silinsin mi. colorspace='preserve' iken true yapılırsa renkler kayar." }
+          }
+        },
+        "orientation": {
+          "type": "string",
+          "enum": ["apply_exif", "preserve"],
+          "default": "apply_exif",
+          "description": "apply_exif = pikseller fiziksel döndürülür (mevcut davranış, engine.py:116)."
+        },
+        "target_ratio": {
+          "$ref": "#/$defs/ratio",
+          "description": "Master'ın NORMALİZE edileceği oran (şema v1.3.0). profiles[].target_ratio türev başına hedefi söyler; bu alan master'ın kendisinin bir orana çekildiğini söyler. Logo slotunda '1:1'dir ve bu bir kozmetik karar değil bir bağışıklıktır: kare kutuya kare kaynak basıldığında object-cover ile object-contain aynı sonucu verir, yani mevcut koddaki beş object-cover render noktasının kırpma davranışı TEK SATIR kod değiştirmeden ortadan kalkar."
+        },
+        "fit": {
+          "type": "string",
+          "enum": ["contain", "cover", "pad"],
+          "description": "target_ratio'ya nasıl ulaşılacağı (şema v1.3.0). Logo slotunda 'pad' zorunludur: 'cover' kırpar, kırpılan bir logo artık o marka değildir."
+        },
+        "pad_color": {
+          "$ref": "#/$defs/padColor",
+          "description": "master.fit='pad' iken dolgu rengi (şema v1.3.0). Hex VEYA 'transparent'."
+        },
+        "allow_crop": {
+          "type": "boolean",
+          "description": "Master üretiminde kırpmaya izin var mı (şema v1.3.0). Logo slotunda false. fit='pad' ile birlikte yazıldığında gereksiz görünür ama değildir: fit bir VARSAYILAN yol, bu bayrak bir YASAK'tır — og:image gibi ikincil bir üretim yolu (seo/og_image.py:45-49 bugün cover-crop yapıyor) fit alanını hiç okumadan kırpabilir."
+        },
+        "allow_upscale": {
+          "type": "boolean",
+          "default": false,
+          "description": "Kaynak min_long_edge'in altındaysa büyütülsün mü (şema v1.3.0). Mevcut motor davranışı false'tur (engine.py:97 'Yalnız downscale — upscale yok', :117 im.thumbnail). Açıkça yazılması, min_long_edge'in bir HEDEF mi yoksa bir GARANTİ mi olduğu sorusunu kapatır: false iken hedeftir."
+        },
+        "encoding": {
+          "type": "string",
+          "enum": ["lossless", "lossy"],
+          "description": "Master'ın kodlama kipi (şema v1.3.0). format alanından AYRIDIR: 'webp' hem kayıplı hem kayıpsız olabilir ve mevcut kod yolu (media/engine.py:148 to_webp(quality=80) → :180 im.save(...,quality=...)) sessizce KAYIPLI'dır. Logo master'ında 'lossless' zorunludur; kayıplı kodlama düz renk + keskin kenarda halkalanma (ringing) üretir."
+        },
+        "in_file_safe_area_percent": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Master DOSYAYA gömülen güvenli alan (kenar boşluğu) yüzdesi (şema v1.3.0). 0 = boşluk yalnız CSS'te uygulanır, dosyada değil. Bu sayının yazılı olması şart: CSS zaten padding uyguluyorken dosyaya da gömmek çift boşluk üretir ve logoyu küçük kutularda gözle görülür biçimde küçültür. Oran normalizasyonundan (target_ratio + pad) AYRI bir kavramdır — o letterbox saydam pikseldir, bu ise görsel kenar boşluğudur."
+        }
+      }
+    },
+
+    "quality": {
+      "type": "object",
+      "description": "Kalite hedefleri. Bunlar ÖLÇÜM DEĞİL HEDEFTİR; encoder ayarları bu hedeflere göre kalibre edilir.",
+      "additionalProperties": false,
+      "properties": {
+        "metric": {
+          "type": "string",
+          "enum": ["ssim", "ms-ssim", "butteraugli", "dssim", "bit_exact"],
+          "default": "ssim",
+          "description": "Kalite ölçütü. Kod tabanında bugün hiçbir kalite ölçümü YOK (grep 'ssim|butteraugli|dssim' → tradehub_core/ ve docs/ içinde 0 anlamlı sonuç). 'bit_exact' şema v1.3.0'da eklendi: kayıpsız hattın ölçütü bir BENZERLİK skoru değil, ikili bir eşitliktir (çıktı pikselleri girdiyle birebir aynı mı). Bu enum'a girmesi gerekiyordu çünkü perceptual metrikler logoda yanıltıcıdır — SSIM keskin kenardaki halkalanmayı düşük ağırlıklandırır, yani kayıplı bir logo yüksek SSIM alıp gözle bozuk görünebilir. metric='bit_exact' iken target_ssim_per_class yazılmaz (ölçülen şey SSIM değildir) ve lossless_required=true beklenir."
+        },
+        "target_ssim_per_class": {
+          "type": "object",
+          "description": "İçerik sınıfı başına hedef SSIM. Sınıf, master üzerinden otomatik sınıflandırıcı ile atanır; sınıflandırıcı yoksa 'photo' varsayılır.",
+          "minProperties": 1,
+          "additionalProperties": false,
+          "properties": {
+            "photo": { "$ref": "#/$defs/ssim", "description": "Doğal fotoğraf, ürün çekimi." },
+            "graphic": { "$ref": "#/$defs/ssim", "description": "Düz renk alanları, logo, çizim. Banding'e duyarlı." },
+            "text": { "$ref": "#/$defs/ssim", "description": "Üzerinde okunması gereken metin/etiket/ölçü tablosu olan görsel. En yüksek hedef." },
+            "fine_detail": { "$ref": "#/$defs/ssim", "description": "Kumaş dokusu, tel örgü, desen. Yüksek frekanslı içerik; agresif quantization'da bulanır." }
+          }
+        },
+        "reencode_floor_saving_ratio": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Türev, kaynağından en az bu oranda küçülmüyorsa üretilmez. Mevcut Kapı 6 ile aynı fikir: tradehub_core/media/presets.py:25 MIN_SAVING_RATIO = 0.10. null şema v1.3.0'da kabul edildi ve 'kapı UYGULANMAZ' demektir — 'yazılmadı' değil. Ayrım gerekli: kayıpsız bir merdivende her rung zaten farklı bir GENİŞLİKTİR, tasarruf oranı kapısı orada anlamsızdır ve uygulanırsa küçük rung'ları haksız yere üretimsiz bırakır. Alanın hiç yazılmaması ise 'karar verilmedi' anlamına gelir; null bunu 'bilinçle kapatıldı'dan ayırır."
+        },
+        "lossless_required": {
+          "type": "boolean",
+          "description": "Bu slotta türevlerin KAYIPSIZ üretilmesi zorunlu mu (şema v1.3.0). master.encoding='lossless' master dosyayı bağlar, bu bayrak TÜREVLERİ bağlar — ikisi ayrı kararlardır ve bir slot kayıpsız master'dan kayıplı türev üretebilir. true iken profiles[].encoder_quality içinde tamsayı bir kalite değeri tutarsızdır; beklenen değer 'lossless'tır."
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 8,
+          "description": "Bu kalite kararının gerekçesi (şema v1.3.0). metric varsayılandan (ssim) saptığında ya da lossless_required=true olduğunda YAZILMALIDIR: ölçüt seçimi bir maliyet kararıdır (kayıpsız WebP kayıplıdan birkaç kat büyüktür) ve gerekçesiz bırakılırsa sonraki turda 'gereksiz' diye geri alınır."
+        }
+      }
+    },
+
+    "profiles": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Servis edilecek türev boy seti. Her profil, 03-render-envanteri.md'deki somut bir CSS kutusuna dayanmak ZORUNDADIR — 'derived_from' alanı bunu zorunlu kılar. Bugün sistemde türev üretimi YOK: bir yükleme → bir dosya (03-render-envanteri.md §6.3).",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "width", "formats", "fit", "derived_from"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z0-9_]+$",
+            "description": "Dosya adına girecek profil eki (ör. 'w384')."
+          },
+          "width": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Türevin piksel genişliği. master.max_long_edge'i AŞAMAZ (upscale yok)."
+          },
+          "height": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Sabit yükseklik gerekiyorsa. Verilmezse oran korunur."
+          },
+          "formats": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": { "type": "string", "enum": ["avif", "webp", "jpeg", "png"] },
+            "description": "Bu genişlikte üretilecek biçimler. Dizideki SIRA <picture> içindeki <source> sırasıdır: en modern önce."
+          },
+          "encoder_quality": {
+            "type": "object",
+            "description": "Biçim başına encoder kalite değeri. Üç değer sınıfı vardır (şema v1.3.0): TAMSAYI 1-100 = kalibre edilmiş kayıplı kalite. null = HENÜZ KALİBRE EDİLMEDİ; status='active' bir politikada null bulunamaz. 'lossless' = kayıpsız kodlama; bu bir kalite SAYISI değil bir kip seçimidir ve tamsayıyla ifade edilemez — 100 bile kayıpsız demek değildir (WebP'de quality=100 hâlâ kayıplı kodlayıcıyı çalıştırır, kayıpsız için ayrı bir bayrak gerekir). Bu üçlü ayrım şart: 'lossless' yerine 100 yazmak, kayıpsız olduğu sanılan ama halkalanma üreten bir logo hattı doğurur.",
+            "additionalProperties": false,
+            "properties": {
+              "avif": { "$ref": "#/$defs/encoderQuality" },
+              "webp": { "$ref": "#/$defs/encoderQuality" },
+              "jpeg": { "$ref": "#/$defs/encoderQuality" },
+              "png": { "$ref": "#/$defs/encoderQuality" }
+            }
+          },
+          "fit": {
+            "type": "string",
+            "enum": ["contain", "cover", "pad"],
+            "description": "contain = oran korunur, kutu doldurulmaz. cover = kırpılır. pad = hedef orana dolgu ile tamamlanır (ürün kırpılmaz)."
+          },
+          "pad_color": {
+            "$ref": "#/$defs/padColor",
+            "description": "fit='pad' iken dolgu rengi. Hex VEYA 'transparent' (şema v1.3.0)."
+          },
+          "target_ratio": {
+            "$ref": "#/$defs/ratio",
+            "description": "fit='pad' veya 'cover' iken hedef oran."
+          },
+          "serves": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Bu profilin karşıladığı render noktaları (03-render-envanteri.md §2 R-numaraları)."
+          },
+          "derived_from": {
+            "$ref": "#/$defs/provenance",
+            "description": "Bu genişliğin hangi CSS kutusu × DPR hesabından çıktığı. Zorunlu — profil genişlikleri uydurulamaz."
+          },
+          "max_overshoot": {
+            "type": "number",
+            "minimum": 1,
+            "description": "Bu profilin karşıladığı en küçük talebe göre kaç kat fazla piksel indirildiği (width / en_kucuk_talep). 1.0 = israf yok. Ladder'ın maliyetini görünür kılar."
+          },
+          "max_overshoot_note": {
+            "type": "string",
+            "description": "max_overshoot sayısının okunuşu ve varsa daha ucuz alternatifi (şema v1.3.0). Doğrusal oran ile PİKSEL oranı arasındaki farkı yazmak için gerekir: 1,83× doğrusal = 3,35× piksel, yani sayı tek başına maliyeti üçte bir gösterir."
+          },
+          "max_bytes": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Bu türevin bayt tavanı (şema v1.3.0). accept.max_bytes GİRDİ'yi bağlar, bu alan ÇIKTI'yı — ikisi ayrı sayılardır ve türev tavanı olmadan bir merdivenin gerçek ağırlığı hiçbir yerde yazılı olmaz. Bir RET kapısı olmak zorunda değildir: aşılması content_rules[derivative_oversize] ile 'warn' olarak ele alınabilir, çünkü meşru ama karmaşık bir kaynağı türevsiz bırakmak tavanı aşmaktan kötüdür."
+          },
+          "byte_reference": {
+            "type": "string",
+            "minLength": 8,
+            "description": "max_bytes tavanının dayandığı ÖLÇÜLMÜŞ dosya (şema v1.3.0): yol + bayt + ölçüm komutu. sources[] alanının profil-içi karşılığıdır ve aynı kuralı taşır — uydurulmuş bayt tavanı yazılamaz."
+          },
+          "max_content_height": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Sabit yükseklikli bir tuval içinde İÇERİĞİN kaplayabileceği en büyük yükseklik (şema v1.3.0). height tuvali, bu alan tuvalin içindeki güvenli alanı tanımlar. Sosyal kart (og:image) profillerinde gereklidir: platformlar kartı kendi oranlarına göre kırpabildiği için içerik kenarlara dayanmamalıdır."
+          },
+          "fixes": {
+            "type": "string",
+            "minLength": 8,
+            "description": "Bu profilin, bugün üretimde çalışan hangi somut hatayı düzelttiği (şema v1.3.0): dosya:satır + bugünkü yanlış davranış + bu profilin farkı. derived_from profilin NEREDEN geldiğini söyler; bu alan NEYİ ONARDIĞINI. Ayrı olması gerekiyor çünkü bir profil bazen yeni bir kutu için değil, mevcut bir bozukluk için vardır."
+          },
+          "conditional": {
+            "type": "string",
+            "minLength": 8,
+            "description": "Bu profilin HER yüklemede üretilmediği durumların yazılı koşulu (şema v1.3.0). Motor yalnız küçülttüğü için (engine.py:117) require.recommended_edge'in üstündeki rung'lar ancak yeterince büyük master'dan doğar; bu koşul yazılmazsa eksik türev bir HATA sanılır."
+          }
+        }
+      }
+    },
+
+    "content_rules": {
+      "type": "array",
+      "description": "Görselin İÇERİĞİNE bakan kurallar (geometri değil). Her kuralın eşiği bir kaynağa dayanmalıdır; kalibre edilmemişse 'source' bunu açıkça yazar ve action 'warn'dan sert olamaz.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["rule", "threshold", "action", "source"],
+        "properties": {
+          "rule": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "description": "Kural kimliği. Ölçüm fonksiyonunun adıyla birebir aynı olmalı."
+          },
+          "threshold": {
+            "description": "Eşik. Sayı, boolean, metin, kuralın kendi şekli (ör. {\"hamming\": 6}) ya da DİZİ. Dizi şema v1.3.0'da eklendi: comparator='outside'/'inside' iken eşik tek bir sayı değil bir ARALIK'tır ([0.5, 2.0] = oran bandının iki ucu). Aralığı iki ayrı kural olarak yazmak (min ihlali + max ihlali) aynı ihlale iki farklı hata kodu ve iki farklı mesaj üretirdi.",
+            "type": ["number", "boolean", "string", "object", "array"]
+          },
+          "comparator": {
+            "type": "string",
+            "enum": ["lt", "lte", "gt", "gte", "eq", "neq", "outside", "inside", "pad_to"],
+            "default": "gt",
+            "description": "Ölçülen değerin eşikle karşılaştırma yönü. İhlal koşulu: olculen <comparator> threshold. Şema v1.3.0'da üç değer eklendi: 'outside' = ölçülen, threshold dizisinin [alt, üst] aralığının DIŞINDA (aralık kapıları için; tek yönlü lt/gt ile bir band ifade edilemez). 'inside' = aralığın içinde. 'pad_to' = karşılaştırma değil DÖNÜŞÜM hedefi; action='auto_fix' ile birlikte kullanılır ve 'ölçülen threshold'a eşit değilse threshold'a dolgu ile getirilir' demektir. pad_to bir ihlal testi olmadığı için message_key null olabilir — kullanıcıya gösterilecek bir hata yoktur, yapılan iş bildirilir."
+          },
+          "action": { "$ref": "#/$defs/action" },
+          "message_key": {
+            "type": ["string", "null"],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "description": "messages.tr / messages.en içindeki anahtar. Verilirse o anahtar var olmalıdır. null şema v1.3.0'da kabul edildi ve 'bu kuralın kullanıcıya gösterilecek bir HATA metni yok' demektir — alanın hiç yazılmaması ('unutuldu') ile açıkça null ('gerekmiyor') arasındaki farkı korur. action='auto_fix' + comparator='pad_to' olan kurallarda doğru değer null'dır: sistem düzeltmeyi kendisi yapar, red yoktur."
+          },
+          "measured_on": {
+            "type": "string",
+            "minLength": 4,
+            "description": "Eşiğin HANGİ artefakt üzerinde ölçüleceği (şema v1.3.0): 'girdi dosyası', 'sanitize çıktısı', 'master', 'türev' gibi. Yazılmadığında varsayılan girdi dosyasıdır. Ayrı bir alan olmak zorunda çünkü aynı eşik farklı artefaktlarda farklı sonuç verir: SVG düğüm sayısı sanitize ÖNCESİ ile SONRASI arasında düşer, ve girdiye uygulanan bir tavan sanitize'in temizleyeceği dosyaları haksız yere reddeder."
+          },
+          "applies_to": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Kural yalnız belirli rollerde/alanlarda geçerliyse (ör. sadece primary_image)."
+          },
+          "source": { "$ref": "#/$defs/provenance" }
+        }
+      }
+    },
+
+    "on_violation": {
+      "type": "object",
+      "description": "İhlal grubuna göre varsayılan davranış. content_rules[].action bu tabloyu EZER (daha spesifik olan kazanır).",
+      "additionalProperties": false,
+      "required": ["default"],
+      "properties": {
+        "default": { "$ref": "#/$defs/action" },
+        "accept": { "$ref": "#/$defs/action", "description": "accept.* ihlali (MIME, bayt, sert megapiksel)." },
+        "require": { "$ref": "#/$defs/action", "description": "require.* ihlali (boyut, alan, oran)." },
+        "master": { "$ref": "#/$defs/action", "description": "master.* ile uyumsuzluk (ör. min_long_edge altında kalma)." },
+        "quality": { "$ref": "#/$defs/action", "description": "Hedef SSIM tutturulamaması." },
+        "content_rules": { "$ref": "#/$defs/action", "description": "content_rules için varsayılan." },
+        "error_code_prefix": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "description": "Reddin istemciye dönen kod öneki. Mevcut ret sözleşmesiyle aynı biçimde olmalı: upload_policy.py:104-139 (14 kod + retryable bayrağı). İstemci metne değil koda bakar."
+        },
+        "retryable": {
+          "type": "boolean",
+          "default": false,
+          "description": "İstemci aynı dosyayla otomatik yeniden denesin mi. Kullanıcının dosyasıyla ilgili hatalarda false — upload_policy.py:97-100 kuralı."
+        },
+        "retryable_reason": {
+          "type": "string",
+          "minLength": 8,
+          "description": "retryable bayrağının gerekçesi (şema v1.3.0). Yazılması gerekir çünkü bu bayrak istemci davranışını doğrudan belirler ve gerekçesiz bir false, sonraki turda 'kullanıcı dostu olsun' diye true'ya çevrilip sonsuz yeniden deneme döngüsü üretir: aynı dosya aynı sonucu verir."
+        }
+      }
+    },
+
+    "messages": {
+      "type": "object",
+      "description": "Kullanıcıya gösterilecek metinler, kod → metin haritası. Her metin İKİ soruyu yanıtlamak ZORUNDADIR: (1) NEDEN reddedildi, (2) NASIL düzeltilir. Yer tutucular süslü parantezle yazılır: {kisa_kenar}, {gerekli_kisa_kenar}, {oran}, {izinli_oranlar}, {mb}, {max_mb}, {mp}, {max_mp}, {bicim}, {izinli_bicimler}.",
+      "additionalProperties": false,
+      "required": ["tr"],
+      "properties": {
+        "tr": { "$ref": "#/$defs/messageMap" },
+        "en": { "$ref": "#/$defs/messageMap" }
+      }
+    },
+
+    "sources": {
+      "type": "object",
+      "description": "Bu politikadaki HER sayının nereden geldiği. Anahtar = alanın nokta yolu (ör. 'require.min_short_edge'), değer = kaynak. Kural: değeri uydurulmuş tek bir sayı bile bırakılamaz; ölçülmemişse bunu açıkça yazar.",
+      "minProperties": 1,
+      "additionalProperties": { "$ref": "#/$defs/provenance" }
+    },
+
+    "video": {
+      "type": "object",
+      "description": "YALNIZ video slotlarında yazılır (şema v1.1.0). Görsel slotlarında bu blok bulunmaz. Buradaki hiçbir kural bugün ZORLANAMAZ: video için genişlik/yükseklik/süre metadatası hiç yazılmıyor — tradehub_core/media/metadata.py:180-186 → tradehub_core/media/pipeline.py:79-93 yalnız PIL kullanıyor, PIL video açmaz. ffprobe tabanlı bir okuma dalı eklenmeden süre/oran/çözünürlük kapıları kâğıt üzerindedir (00-upload-slot-envanteri.md §7-B, Ç5). 'accept' ve 'require' blokları video slotunda da geçerlidir (bayt tavanı, MIME, kısa kenar, oran); bu blok onların ÜSTÜNE yalnız videoya özgü olanı ekler.",
+      "additionalProperties": false,
+      "required": [
+        "duration_max_s",
+        "resolution_min",
+        "resolution_max",
+        "bitrate_cap_kbps",
+        "audio_policy",
+        "autoplay"
+      ],
+      "properties": {
+        "duration_min_s": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "En kısa kabul edilen süre (saniye). Kaynağı sources içinde yazılır; kodda bugün süre kontrolü YOKTUR."
+        },
+        "duration_max_s": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "En uzun kabul edilen süre (saniye). Bayt tavanı × bitrate tavanı ile tutarlı olmalıdır: duration_max_s × bitrate_cap_kbps / 8 ≈ teslim dosyası tavanı."
+        },
+        "resolution_min": {
+          "$ref": "#/$defs/resolution",
+          "description": "En küçük kabul edilen kare ölçüsü. En büyük render kutusu × DPR hesabına dayanmak zorundadır."
+        },
+        "resolution_max": {
+          "$ref": "#/$defs/resolution",
+          "description": "En büyük kabul edilen kare ölçüsü. Bunun üstü RET; teslim zaten küçültülüyor."
+        },
+        "resolution_recommended": {
+          "$ref": "#/$defs/resolution",
+          "description": "Yükleyene önerilen ölçü. Ret eşiği DEĞİL."
+        },
+        "bitrate_cap_kbps": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Teslim edilen en büyük rendition'ın bitrate tavanı (kbps). Bu değer, aşıldığında transcode kuyruğunu tetikleyen eşikle aynı sayı olmalıdır; iki sayı ayrışırsa aynı dosya giriş kapısına göre iki farklı sonuç alır (tradehub_core/media/transcode.py:61,67 vs admin-panel/frontend/src/lib/media/compress.video.js:29)."
+        },
+        "frame_rate": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Kare hızı politikası.",
+          "properties": {
+            "accepted": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "type": "number", "exclusiveMinimum": 0 },
+              "description": "Olduğu gibi kabul edilen kare hızları."
+            },
+            "downsampled_from": {
+              "type": "array",
+              "items": { "type": "number", "exclusiveMinimum": 0 },
+              "description": "Kabul edilip output_cap'e indirilen kare hızları."
+            },
+            "output_cap": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Çıktı kare hızı tavanı."
+            },
+            "reason": { "type": "string" }
+          }
+        },
+        "audio_policy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["track"],
+          "description": "Ses akışı politikası. Mod başına farklıysa (ör. story sesli, ambient sessiz) burada slotun VARSAYILAN modu yazılır, ayrıntı 'modes' altında durur.",
+          "properties": {
+            "track": {
+              "type": "string",
+              "enum": ["allowed", "required", "stripped", "none"],
+              "description": "allowed = ses taşınabilir. required = ses zorunlu. stripped = ffmpeg -an ile silinir. none = kaynakta ses beklenmiyor."
+            },
+            "codec": { "type": "string", "description": "Ses kodlayıcısı (ör. libopus, aac)." },
+            "bitrate_kbps": {
+              "type": ["integer", "null"],
+              "minimum": 1,
+              "description": "Sabitlenen ses bitrate'i. null = SABİTLENMEDİ; kodlayıcı varsayılanına bağlı kalır ve ffmpeg sürümü değişince sessizce değişir (transcode.py:246'da -b:a yok)."
+            },
+            "channels": { "type": "integer", "minimum": 1, "maximum": 8 },
+            "autoplay_mute_mandatory": {
+              "type": "boolean",
+              "description": "Otomatik oynatma varsa muted zorunlu mu. Mobil tarayıcılar muted+playsinline olmadan oynatmayı reddeder."
+            },
+            "user_can_unmute": { "type": "boolean" },
+            "loudness": {
+              "type": "object",
+              "additionalProperties": false,
+              "description": "Ses yüksekliği normalizasyonu. Standarda atıf yeterli değildir; ölçüm yapılmadıysa 'note' bunu yazar.",
+              "properties": {
+                "standard": { "type": "string" },
+                "integrated_lufs": { "type": "number" },
+                "true_peak_dbtp": { "type": "number" },
+                "filter": { "type": "string" },
+                "note": { "type": "string" }
+              }
+            },
+            "notes": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "autoplay": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["muted", "loop", "playsinline"],
+          "description": "Oynatıcı öznitelikleri sözleşmesi. 'enabled' false olsa da muted/loop/playsinline yazılır: bunlar otomatik oynatma açıldığında geçerli olacak değerlerdir ve prefers-reduced-motion kararının girdisidir.",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": false,
+              "description": "Otomatik oynatma açık mı. false = kullanıcı başlatır (WCAG 2.2 SC 2.2.2 kapsamı dışında)."
+            },
+            "muted": { "type": "boolean" },
+            "loop": { "type": "boolean" },
+            "playsinline": { "type": "boolean" },
+            "preload": {
+              "type": "string",
+              "enum": ["none", "metadata", "auto"],
+              "description": "preload=auto pasif mobil bütçeyi tek başına aşabilir; mobile_data_budget ile tutarlı olmalıdır."
+            },
+            "present_today": { "type": "boolean", "description": "Bugünkü oynatıcıda bu sözleşme uygulanıyor mu." },
+            "note": { "type": "string" }
+          }
+        },
+        "poster": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["selection_rule", "profile"],
+          "description": "Poster (kapak karesi) kuralı. Poster bir GÖRSELDİR: ölçüsü ve biçimi profiles[] içinde bir profille tanımlanır, burada yalnız hangi profil ve hangi kare seçilir yazılır.",
+          "properties": {
+            "selection_rule": {
+              "type": "string",
+              "minLength": 8,
+              "description": "Hangi karenin poster olacağının uygulanabilir tanımı. 'ilk anlamlı kare' gibi ölçülemez bir ifade tek başına yetmez; arama penceresi ve seçim ölçütü yazılır."
+            },
+            "profile": {
+              "type": "string",
+              "pattern": "^[a-z0-9_]+$",
+              "description": "Poster'ın üretileceği profil adı. profiles[].name içinde TANIMLI olmak zorundadır."
+            },
+            "fallback_profile": {
+              "type": "string",
+              "pattern": "^[a-z0-9_]+$",
+              "description": "Poster bayt kapısını geçemezse düşülecek profil adı. profiles[].name içinde tanımlı olmalıdır."
+            },
+            "override_field": {
+              "type": "string",
+              "description": "Yükleyenin elle poster verdiği alan (doctype.field). Verilmişse otomatik seçim çalışmaz."
+            },
+            "implemented_today": { "type": "boolean" },
+            "seller_override": { "type": "object", "description": "Yükleyenin elle verdiği poster'ın bugünkü davranışı ve kanıtı (dosya:satır). override_field yalnız alan ADINI söyler; bu blok o alanın bugün ne yaptığını söyler. Serbest biçimli kayıt." },
+            "auto_generate": { "type": "object", "description": "Otomatik üretim ayrıntısı: arama penceresi, ffmpeg komutu, seçim ölçütü. Serbest biçimli kayıt." },
+            "quality_gate": { "type": "object", "description": "Poster kalite kapısı (parlaklık sınırları, yeniden deneme penceresi, son başarısızlık kodu). Serbest biçimli kayıt." },
+            "output": { "type": "object", "description": "Çıktı ayrıntısı: bayt tavanı, kalite basamakları, küçültme yedeği. Serbest biçimli kayıt." },
+            "legacy_fallback": { "type": "object", "description": "Poster yoksa bugün devreye giren yedek davranış ve kaynağı. Serbest biçimli kayıt." }
+          }
+        },
+        "preview_clip": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["duration_s", "max_bytes", "silent"],
+          "description": "Kart/liste/hover yüzeylerinde oynatılan kısa, sessiz klip. Tam videonun yerine geçmez.",
+          "properties": {
+            "duration_s": { "type": "number", "exclusiveMinimum": 0 },
+            "max_bytes": { "type": "integer", "minimum": 1 },
+            "silent": {
+              "type": "boolean",
+              "description": "true = ses akışı ffmpeg -an ile SİLİNİR. Otomatik oynayan bir klipte tek kabul edilebilir değer true'dur."
+            },
+            "max_bytes_human": { "type": "string" },
+            "max_bytes_derivation": { "type": "string" },
+            "width": { "type": "integer", "minimum": 1 },
+            "height": { "type": "integer", "minimum": 1 },
+            "video_codec": { "type": "string" },
+            "fallback_container": { "type": "string" },
+            "loop": { "type": "boolean" },
+            "loop_reason": { "type": "string" },
+            "start_offset": { "type": "string" },
+            "start_offset_reason": { "type": "string" },
+            "used_in": { "type": "array", "items": { "type": "string" } },
+            "not_used_in": { "type": "array", "items": { "type": "string" } },
+            "reduced_motion": { "type": "string" },
+            "implemented_today": { "type": "boolean" }
+          }
+        },
+        "hls": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["threshold_s", "ladder"],
+          "description": "Uyarlanabilir akış (HLS/LL-HLS) eşiği. Eşik, bu slot tetiklemese bile YAZILIR: gelecek uzun-form slotlar için sayısal kapıdır.",
+          "properties": {
+            "threshold_s": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Bu süreden UZUN video progressive teslim edilemez; HLS zorunlu olur."
+            },
+            "ladder": {
+              "type": "array",
+              "description": "HLS basamakları. Bu slot progressive teslim ediyorsa BOŞ dizi yazılır — 'ladder yok' ile 'ladder yazılmadı' birbirinden ayrılsın.",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["width", "bitrate_kbps"],
+                "properties": {
+                  "name": { "type": "string" },
+                  "width": { "type": "integer", "minimum": 1 },
+                  "height": { "type": "integer", "minimum": 1 },
+                  "bitrate_kbps": { "type": "integer", "minimum": 1 },
+                  "codec": { "type": "string" }
+                }
+              }
+            },
+            "delivery": {
+              "type": "string",
+              "enum": ["progressive", "hls", "ll-hls"],
+              "description": "Bu slotun bugünkü teslim biçimi."
+            },
+            "required_if_any": {
+              "type": "object",
+              "additionalProperties": false,
+              "description": "HLS'i zorunlu kılan sayısal kapılar. Herhangi biri sağlanırsa progressive teslim yasaktır.",
+              "properties": {
+                "duration_s_gt": { "type": "number", "exclusiveMinimum": 0 },
+                "max_rendition_bytes_gt": { "type": "integer", "minimum": 1 },
+                "distinct_resolution_tiers_gt": { "type": "integer", "minimum": 1 }
+              }
+            },
+            "triggers_none": { "type": "boolean", "description": "Bu slot kapıların hiçbirini tetiklemiyor mu." },
+            "reason": { "type": "string" },
+            "threshold_written_for": { "type": "string" },
+            "current_state": { "type": "string" },
+            "current_state_evidence": { "type": "string" },
+            "byte_range_required": {
+              "type": "boolean",
+              "description": "Progressive teslimde seek'in çalışması Accept-Ranges: bytes gerektirir."
+            },
+            "byte_range_reason": { "type": "string" },
+            "byte_range_verify": { "type": "string" }
+          }
+        },
+        "mobile_data_budget": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["first_10s_max_kb"],
+          "description": "Mobil veri bütçesi. Birim KİLOBAYT'tır (1 KB = 1024 bayt); türetme metinleri bit/bayt aritmetiğini açık yazar.",
+          "properties": {
+            "first_10s_max_kb": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Oynatma başladıktan sonraki ilk 10 saniyenin bayt tavanı (KB). = en küçük tier'ın bitrate tavanı × 10 s."
+            },
+            "first_10s_typical_kb": { "type": "integer", "minimum": 1 },
+            "first_10s_derivation": { "type": "string" },
+            "first_10s_typical_derivation": { "type": "string" },
+            "passive_max_kb": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Kullanıcı hiç dokunmadan inen bayt (poster + konteyner metadata'sı). Otomatik oynatma varsa bu değer ilk 10 saniyeyi de içerir."
+            },
+            "passive_max_on_save_data_kb": { "type": "integer", "minimum": 1 },
+            "passive_breakdown": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "poster_kb": { "type": "integer", "minimum": 1 },
+                "container_metadata_kb": { "type": "integer", "minimum": 1 }
+              }
+            },
+            "worst_case_total_kb": { "type": "integer", "minimum": 1 },
+            "why_two_part": { "type": "string" },
+            "why_strict": { "type": "string" },
+            "verify": { "type": "string" }
+          }
+        },
+        "accessibility": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["vtt_required", "reduced_motion_behavior"],
+          "description": "Erişilebilirlik sözleşmesi.",
+          "properties": {
+            "vtt_required": {
+              "type": "string",
+              "enum": ["always", "if_speech", "optional", "not_applicable"],
+              "description": "always = her zaman .vtt zorunlu. if_speech = ses akışı var VE konuşma içeriyorsa zorunlu. optional = teşvik edilir, zorlanmaz. not_applicable = ses akışı tanım gereği yok."
+            },
+            "reduced_motion_behavior": {
+              "type": "string",
+              "minLength": 8,
+              "description": "prefers-reduced-motion: reduce iken oynatma davranışı. 'CSS ile çözülür' YAZILAMAZ: CSS <video> oynatmasını durdurmaz, JS gerekir."
+            },
+            "captions_rules": {
+              "type": "array",
+              "description": "Koşul → altyazı zorunluluğu tablosu.",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["condition", "vtt"],
+                "properties": {
+                  "condition": { "type": "string" },
+                  "vtt": { "type": "string" },
+                  "caption_field": { "type": "string" },
+                  "on_missing": { "type": "string" }
+                }
+              }
+            },
+            "speech_detection": { "type": "object", "description": "Konuşma tespitinin yöntemi ve sınırı. Serbest biçimli kayıt." },
+            "required_new_field": { "type": "object", "description": "Bu kural için açılması gereken doctype alanı. Serbest biçimli kayıt." },
+            "required_upload_policy_change": { "type": "object", "description": "upload_policy.py'de gereken uzantı/kind/bayt değişikliği. Serbest biçimli kayıt." },
+            "player_markup": { "type": "string" },
+            "languages": { "type": "object", "description": "Zorunlu ve opsiyonel altyazı dilleri. Serbest biçimli kayıt." },
+            "effective_date": { "type": "object", "description": "Kuralın yeni ve mevcut yüklemeler için yürürlük tarihi. Serbest biçimli kayıt." },
+            "current_state": { "type": "string" },
+            "current_state_evidence": { "type": "string" },
+            "prefers_reduced_motion": { "type": "object", "description": "Mod başına reduced-motion davranışı ve uygulama notu. Serbest biçimli kayıt." },
+            "other_gaps": {
+              "type": "array",
+              "description": "Bu slotta ölçülen diğer erişilebilirlik boşlukları (kanıt + öneri).",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["gap", "source"],
+                "properties": {
+                  "gap": { "type": "string" },
+                  "source": { "type": "string" },
+                  "fix": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "renditions": {
+          "type": "array",
+          "description": "TESLİM EDİLEN video türevleri. profiles[] bunu ifade EDEMEZ (profiles[].formats enum'u yalnız görsel biçimleri kabul eder), bu yüzden video türevleri burada yaşar; profiles[] video slotunda POSTER/küçük resim görsellerini tanımlar. Ayrım bilinçlidir: profiles[] bir <picture> kaynağı üretir, renditions[] bir <video><source> kaynağı.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "width", "height", "container", "video_codec", "max_bytes"],
+            "properties": {
+              "id": { "type": "string", "pattern": "^[a-z0-9_]+$" },
+              "role": {
+                "type": "string",
+                "enum": ["primary", "fallback", "mobile_primary", "mobile_fallback", "preview"],
+                "description": "Teslim rolü. fallback = birincil konteyner desteklenmiyorsa devreye giren aynı ölçüdeki kopya."
+              },
+              "width": { "type": "integer", "minimum": 1 },
+              "height": { "type": "integer", "minimum": 1 },
+              "container": { "type": "string", "enum": ["webm", "mp4"] },
+              "video_codec": { "type": "string" },
+              "profile": { "type": "string" },
+              "crf": { "type": "integer", "minimum": 0, "maximum": 63 },
+              "maxrate_kbps": { "type": "integer", "minimum": 1 },
+              "bufsize_kbps": { "type": "integer", "minimum": 1 },
+              "target_avg_kbps": { "type": "integer", "minimum": 1 },
+              "audio_codec": { "type": "string" },
+              "audio_profile": { "type": "string" },
+              "audio_bitrate_kbps": { "type": ["integer", "null"], "minimum": 1 },
+              "audio_channels": { "type": "integer", "minimum": 1, "maximum": 8 },
+              "max_bytes": { "type": "integer", "minimum": 1 },
+              "max_bytes_human": { "type": "string" },
+              "max_bytes_derivation": { "type": "string" },
+              "mime": {
+                "type": "string",
+                "description": "Tam MIME + codecs dizesi. <source type=\"...\"> içine birebir bu yazılır; konteyner ile uyuşmazsa tarayıcı kaynağı atlar."
+              },
+              "extra_flags": { "type": "array", "items": { "type": "string" } },
+              "served_when": { "type": "string", "description": "Bu rendition'ın servis edildiği koşul (media query ya da destek koşulu)." },
+              "implemented_today": { "type": "boolean" },
+              "crf_note": { "type": "string" },
+              "note": { "type": "string" }
+            }
+          }
+        },
+        "rendition_policy": {
+          "type": "object",
+          "description": "Rendition setinin GEREKÇESİ: tier kırılımı, nesne sayısı, depolama etkisi, boyut kapısı yeniden denemesi, eklenmeyen tier'ların sayısal kapıları. Serbest biçimli kayıt — bu blok bir zorlama girdisi değil, karar kaydıdır."
+        },
+        "modes": {
+          "type": "object",
+          "minProperties": 1,
+          "description": "Aynı slotun birden çok oynatma kipi varsa (ör. 'story' = kullanıcı başlatır, sesli anlatı; 'ambient' = sessiz, döngülü, otomatik) her kipin kendi süre/ses/loop/kontrol kuralları. Kip başına serbest biçimli kayıt; slotun VARSAYILAN kipi 'default': true taşır.",
+          "additionalProperties": { "type": "object" }
+        },
+        "transcode": {
+          "type": "object",
+          "description": "Bu slota özgü işleme hattı kararları: koşulsuz transcode, anahtar kare aralığı, konteyner bayrakları, yerinde takas yasağı, ses normalizasyonu. Serbest biçimli kayıt; her sayının kaynağı sources içinde durur."
+        },
+        "identity": {
+          "type": "object",
+          "description": "Slot kimliğinin video-özel ayrıntıları: kapak/birincil öğe seçim kuralı, kategori enum'u, terk edilmiş (orphan) alan adları. bound_to'nun YERİNE GEÇMEZ — doctype.field eşlemesi bound_to'da durur, bu blok o eşlemenin nasıl seçildiğini açıklar."
+        },
+        "render_box": {
+          "type": "object",
+          "description": "Videonun çizildiği CSS kutusunun ölçüm kaydı: sınıf zinciri, kırılım başına px, oran, object-fit, küçük resim kutusu. Serbest biçimli kayıt. Tarayıcıda ölçülmediyse 'measurement_method' bunu açıkça yazar."
+        },
+        "safe_area": {
+          "type": "object",
+          "description": "Üstüne binen kontrol/gradient/düğme katmanları ve bunlardan çıkan güvenli alan yüzdeleri. Serbest biçimli kayıt."
+        },
+        "playback_attributes": {
+          "type": "object",
+          "description": "Bugünkü oynatıcının öznitelik envanteri (kanıt: dosya:satır) ve hedeflenen sözleşme. 'autoplay' bloğu karar, bu blok mevcut durumdur."
+        },
+        "validation_codes": {
+          "type": "array",
+          "description": "Bu slotun L3 (slot semantiği) ret kodları. Adlandırma upload_policy.py:98-120 Kod dataclass deseniyle uyumlu olmalıdır: istemci metne değil koda bakar.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["code", "condition"],
+            "properties": {
+              "code": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+              "condition": { "type": "string" },
+              "retryable": { "type": ["boolean", "null"] },
+              "severity": { "type": "string", "enum": ["error", "warning"] },
+              "message_key": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]*$",
+                "description": "messages.tr içindeki karşılığı. Verilirse o anahtar var olmalıdır."
+              },
+              "note": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+
+    "logo": {
+      "type": "object",
+      "description": "YALNIZ logo slotlarında yazılır (şema v1.2.0: seller.logo, brand.logo). Diğer slotlarda bu blok bulunmaz. Bu alanların içeriği bir önceki tur logo denetiminin (16 render noktası ölçümü — seller.logo; 3 render noktası ölçümü — brand.logo; SVG kabul/sanitize kuralı; koyu tema kararı; güvenli alan oranı) taşıyıcısıdır; 'require'/'accept'/'master'/'content_rules' zaten var olan üst düzey blokların YERİNE geçmez, onların ÜSTÜNE yalnız logoya özgü olanı ekler.",
+      "additionalProperties": false,
+      "properties": {
+        "svg_policy": {
+          "type": "object",
+          "description": "SVG'nin logo slotunda ne zaman ve nasıl kabul edileceğinin tam sözleşmesi (bugün enabled=false — iki güvenlik kapısı, tradehub_core/utils/security.py ve tradehub_core/media/upload_policy.py, henüz kapalı). seller.logo ve brand.logo TÜM maddelerde birebir aynı olmak zorundadır (brand-logo.json 'identical_to' ile buna atıf yapar) — sanitize'in iki kod yolu olması güvenlik açığının klasik doğuş yeridir.",
+          "additionalProperties": false,
+          "required": ["enabled"],
+          "properties": {
+            "enabled": { "type": "boolean", "description": "SVG kabulü bugün açık mı. false = .svg yalnız 'conditional_extensions' olarak listelenir ama iki güvenlik kapısı (security.py _DENIED_EXTENSIONS, upload_policy.py _DANGEROUS_MARKERS) kapalı kaldığı için fiilen reddedilir." },
+            "identical_to": { "type": "string", "description": "Bu politikanın svg_policy'sinin başka bir slot dosyasının birebir kopyası olduğunu belirtir (ör. brand-logo.json → seller-logo.json)." },
+            "enable_requires": { "type": "string" },
+            "gate_1": { "type": "string" },
+            "gate_2": { "type": "string" },
+            "gate_3_open": { "type": "string" },
+            "both_gates_must_open_together": { "type": "boolean" },
+            "scope": { "type": "string" },
+            "sanitize_location": { "type": "string" },
+            "stored_content": { "type": "string" },
+            "pipeline_order": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "SVG kabul boru hattının sıralı adımları (numaralı metin)."
+            },
+            "is_dangerous_bypass_note": { "type": "string" },
+            "allowed_elements": { "type": "array", "items": { "type": "string" } },
+            "allowed_attributes": { "type": "array", "items": { "type": "string" } },
+            "stripped_with_reason": {
+              "type": "object",
+              "description": "Sanitize'de silinen eleman/öznitelik grubu → silinme gerekçesi. Anahtarlar serbest metin (ör. 'script, handler').",
+              "additionalProperties": { "type": "string" }
+            },
+            "href_rule": { "type": "string" },
+            "svgz_allowed": { "type": "boolean" },
+            "svgz_reason": { "type": "string" },
+            "viewbox_required": { "type": "boolean" },
+            "viewbox_reason": { "type": "string" },
+            "serving": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "img_src_only": { "type": "boolean" },
+                "dom_inline_forbidden": { "type": "boolean" },
+                "dom_inline_reason": { "type": "string" },
+                "content_type": { "type": "string" },
+                "x_content_type_options": { "type": "string" },
+                "content_security_policy": { "type": "string" },
+                "verification_note": { "type": "string" }
+              }
+            },
+            "bundled_svg_out_of_scope": { "type": "string" }
+          }
+        },
+
+        "dark_theme": {
+          "type": "object",
+          "description": "Logo altına koyu temada da açık bir plaka boyanıp boyanmadığı kararı (ölçülen render noktalarına dayanır).",
+          "additionalProperties": false,
+          "required": ["variant_required", "reason", "rule"],
+          "properties": {
+            "variant_required": { "type": "boolean", "description": "Satıcıdan/markadan ayrı bir koyu-tema logo varyantı istensin mi." },
+            "reason": { "type": "string" },
+            "rule": { "type": "string" },
+            "violating_render": {
+              "description": "Bu kuralı ihlal eden tek render noktası (plakasız, koyu zemine binebilen). Yoksa null.",
+              "type": ["object", "null"],
+              "additionalProperties": false,
+              "properties": {
+                "id": { "type": "string" },
+                "file": { "type": "string" },
+                "problem": { "type": "string" },
+                "status": { "type": "string" }
+              }
+            }
+          }
+        },
+
+        "css_safe_area": {
+          "type": "object",
+          "description": "Master dosyaya EK padding gömülmeyeceği, güvenli alanın CSS tarafında zaten uygulandığı kararı ve bu kararın dayandığı ölçülen kenar-başına yüzdeler.",
+          "additionalProperties": false,
+          "required": ["standard_percent", "scope", "in_file_percent", "reason"],
+          "properties": {
+            "standard_percent": { "type": "number", "minimum": 0, "description": "Ölçülen render noktalarının medyanından türetilen standart güvenli alan yüzdesi." },
+            "scope": { "type": "string" },
+            "in_file_percent": { "type": "number", "minimum": 0, "description": "Master dosyanın kendisine gömülen padding yüzdesi. 0 = padding yalnız CSS'te, dosyada değil." },
+            "measured_existing": { "type": "string", "description": "Mevcut render noktalarında ölçülen kenar-başına padding yüzdelerinin dökümü." },
+            "reason": { "type": "string" },
+            "exception": { "type": "string", "description": "Bu kuralın uygulanmadığı özel durum (ör. oran normalizasyonu paddingi ile karıştırılmaması gereken saydam piksel istisnası)." }
+          }
+        },
+
+        "render_points": {
+          "type": "array",
+          "description": "Bu logo slotunun kullanıldığı her somut render noktasının ölçümü (CSS kutu × padding × fit × plaka × DPR). Kaynak: docs/standards/logo.md.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "where", "file", "outer_box_px", "padding_px", "content_box_px", "fit", "plate", "dpr"],
+            "properties": {
+              "id": { "type": "string", "minLength": 1, "description": "Slot içinde tekil kısa kimlik (ör. 'S1', 'B1b')." },
+              "where": { "type": "string", "minLength": 1 },
+              "file": { "type": "string", "minLength": 1, "description": "dosya:satır atfı." },
+              "outer_box_px": { "type": "number", "exclusiveMinimum": 0 },
+              "padding_px": { "type": "number", "minimum": 0 },
+              "content_box_px": { "type": "number", "exclusiveMinimum": 0 },
+              "fit": { "type": "string", "minLength": 1, "description": "object-fit değeri ya da eşdeğeri (ör. 'contain', 'cover', 'dropzone')." },
+              "plate": { "type": ["string", "null"], "description": "Logonun altına boyanan zemin sınıfı (ör. 'bg-gray-50'). null = plaka yok." },
+              "dpr": {
+                "type": "array",
+                "minItems": 1,
+                "items": { "type": "number", "exclusiveMinimum": 0 },
+                "description": "DPR 1/2/3 için gereken piksel genişlikleri, sırayla."
+              },
+              "note": { "type": "string" }
+            }
+          }
+        },
+
+        "not_render_points": {
+          "type": "array",
+          "description": "Görünüşte logo render eden ama ÖLÇÜLEMEYEN ya da aslında logo göstermeyen yerlerin kaydı (yanlış izlenim veren kod/sınıf adları).",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["file", "why"],
+            "properties": {
+              "file": { "type": "string", "minLength": 1 },
+              "why": { "type": "string", "minLength": 1 }
+            }
+          }
+        },
+
+        "unmeasured": {
+          "type": "array",
+          "description": "Backend'in logo verisini gönderdiği ama storefront'ta bunu tükettiği bir render noktası bulunamayan yerler.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["where", "evidence"],
+            "properties": {
+              "where": { "type": "string", "minLength": 1 },
+              "evidence": { "type": "string", "minLength": 1 },
+              "status": { "type": "string" },
+              "impact": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+
+    "known_conflicts": {
+      "type": "array",
+      "description": "Bu slotta ÖLÇÜLEN, kod tabanında bugün var olan çelişkiler. Politikanın çözdüğü değil, KAYDETTİĞİ sorunlar: 'fixed_here' bunu ayırır. Boş değilse status 'active' olabilir — çelişkinin varlığı politikayı geçersiz kılmaz, ama görünmez kalması kılar.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "summary", "evidence", "fixed_here"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1, "description": "Slot içinde tekil kısa kimlik (ör. 'Ç1'). İnsan belgesindeki numarayla aynı olmalıdır." },
+          "summary": { "type": "string", "minLength": 8 },
+          "evidence": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string" },
+            "description": "dosya:satır ya da docs/... §bölüm. Boş bırakılamaz."
+          },
+          "fixed_here": { "type": "boolean", "description": "Bu politika çelişkiyi çözüyor mu (true) yoksa yalnız kaydediyor mu (false)." },
+          "decision": { "type": "string", "description": "Çözüm kararı yazıldıysa metni." },
+          "details": { "type": "array", "items": { "type": "object" }, "description": "Çelişkinin satır satır dökümü (ör. aynı sınır için bulunan farklı sayılar ve her birinin hükmü). Serbest biçimli." }
+        }
+      }
+    },
+
+    "pending_admin_decisions": {
+      "type": "array",
+      "description": "Politikanın TEK BAŞINA veremeyeceği, ürün/yönetim onayı bekleyen kararlar. Her maddede onay gelene kadar geçerli olan varsayılan YAZILI olmak zorundadır — aksi hâlde karar verilmemiş bir alan sessizce serbest kalır.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "question", "default_until_approved"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1, "description": "Slot içinde tekil kısa kimlik (ör. 'K1')." },
+          "question": { "type": "string", "minLength": 8 },
+          "recommendation": { "type": "string" },
+          "default_until_approved": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Onay gelmeden geçerli olan davranış. 'belirsiz' yazılabilir ama yalnız hangi görevde netleşeceği belirtilirse."
+          },
+          "numeric_gate": { "type": "string", "description": "Kararı otomatik verecek sayısal kapı (varsa)." },
+          "measurement_ref": { "type": "string" }
+        }
+      }
+    },
+
+    "production_verification_required": {
+      "type": "array",
+      "description": "Üretimde ÖLÇÜLMESİ gereken maddeler ve ölçümün tam komutu/yeri. Bu dizi doluyken politikanın sayıları türetilmiş kabul edilir; boşaltılmadan hiçbir eşik 'ölçüldü' diye anılamaz. Öğe İKİ biçimde yazılabilir (şema v1.3.0): (a) düz METİN — kimlik, ne ve nasıl'ı tek cümlede taşıyan serbest kayıt ('D1 — ... Tam betik: docs/... §12-D1'); (b) YAPILI obje {id, what, how}. Metin biçimi, ölçüm betiği ayrı bir standart belgesinde tam hâliyle yazılıyken burada yalnız ona atıf yapılan durum içindir; komutu iki yere kopyalamak iki farklı sürüm doğurur. Yapılı biçim, komut yalnız burada varken zorunludur — 'how' alanı o zaman boş bırakılamaz. Ayrım bilinçlidir: her iki biçimde de ölçümün NEREDE yazılı olduğu kayıtlıdır, değişen yalnız yerin işaret edilme şeklidir.",
+      "items": {
+        "anyOf": [
+          {
+            "type": "string",
+            "minLength": 8,
+            "description": "Serbest metin biçimi. Kimlik öneki (ör. 'D1 — ') ve ölçümün tam betiğine bir atıf (dosya §bölüm) içermelidir; yoksa madde 'ölçülmeli' demekten öteye geçmez."
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "what", "how"],
+            "properties": {
+              "id": { "type": "string", "minLength": 1, "description": "Slot içinde tekil kısa kimlik (ör. 'D1')." },
+              "what": { "type": "string", "minLength": 8 },
+              "how": { "type": "string", "minLength": 4, "description": "Çalıştırılacak komut ya da komutun yazılı olduğu bölüm." },
+              "blocks": { "type": "string", "description": "Bu ölçüm hangi kararı/eşiği bekletiyor." }
+            }
+          }
+        ]
+      }
+    },
+
+    "open_questions": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Bu politikada ÇÖZÜLMEMİŞ, üretim ölçümü bekleyen maddeler. Boş değilse status 'active' olamaz."
+    },
+
+    "notes": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+
+  "allOf": [
+    {
+      "title": "Sınıf koşullu zorunluluklar (şema v1.3.0)",
+      "description": "v1.2.0'a kadar accept.max_megapixels_hard, require.{min_area,allowed_ratios,ratio_tolerance} ve master.{max_megapixels,dpi_out} KOŞULSUZ zorunluydu. Bu beş sayı raster fotoğraf sınıfının kapılarıdır ve logo sınıfında ya anlamsız ya da ikinci bir doğruluk kaynağıdır (gerekçeler ilgili blokların $comment alanlarında tek tek yazılı). İki seçenek vardı: (1) düpedüz opsiyonele çevirmek, (2) sınıfa bağlı koşullu kılmak. (2) SEÇİLDİ: (1) yedi mevcut dosyanın decompression-bomb ve oran kapılarını sessizce isteğe bağlı yapardı — bugün geçerli olan bir dosya, o alan silinince de geçerli kalırdı ve şema o kaybı bir daha yakalayamazdı. Ayrım için YENİ bir üst düzey anahtar (kind/media_class) EKLENMEDİ; çünkü onu eklemek dokunulmaması gereken dokuz politika dosyasının hepsini düzenlemeyi gerektirirdi. Ayırt edici olarak zaten var olan 'logo' bloğunun VARLIĞI kullanılıyor: v1.2.0'da eklenen bu blok tanım gereği yalnız logo slotlarında bulunur (seller-logo.json, brand-logo.json) ve diğer yedi dosyada yoktur. Sonuç: yedi dosya için hiçbir zorunluluk gevşemez, logo sınıfı için beş kapı düşer.",
+      "if": {
+        "not": { "required": ["logo"] }
+      },
+      "then": {
+        "properties": {
+          "accept": {
+            "required": ["max_megapixels_hard"],
+            "$comment": "Logo OLMAYAN her slotta sert megapiksel tavanı zorunludur: decompression-bomb koruması bayt tavanıyla sağlanamaz."
+          },
+          "require": {
+            "required": ["min_area", "allowed_ratios", "ratio_tolerance"],
+            "$comment": "Logo OLMAYAN her slotta oran kapısı ayrık liste + bağıl tolerans biçiminde yazılır; band (aspect_band) biçimi logo sınıfına özgüdür."
+          },
+          "master": {
+            "required": ["max_megapixels", "dpi_out"],
+            "$comment": "Logo OLMAYAN her slotta master megapiksel tavanı ve çıktı DPI normalizasyonu zorunludur."
+          }
+        }
+      }
+    }
+  ],
+
+  "$defs": {
+    "ratio": {
+      "type": "string",
+      "pattern": "^[1-9][0-9]{0,3}:[1-9][0-9]{0,3}$",
+      "description": "En-boy oranı 'genişlik:yükseklik' biçiminde, sadeleştirilmiş (ör. '4:5', '3:4', '1:1')."
+    },
+    "ssim": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 1,
+      "description": "Hedef SSIM (0-1). 1 = birebir aynı."
+    },
+    "padColor": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^#[0-9A-Fa-f]{6}$",
+          "description": "Opak dolgu rengi, 6 haneli hex."
+        },
+        {
+          "const": "transparent",
+          "description": "Saydam dolgu — bir RENK değil, alfa=0 piksel."
+        }
+      ],
+      "description": "Dolgu (letterbox) rengi (şema v1.3.0). 'transparent' hex ile ifade EDİLEMEZ: #FFFFFF beyaz bir piksel yazar, saydamlık ise alfa kanalında yaşar ve hiçbir hex değeri alfa taşımaz. Ayrım işlevseldir — logo 11 farklı plaka rengi üzerine basılıyor (bg-gray-50, bg-gray-100, bg-white, bg-white/10); tek bir opak dolgu rengi bunların en az birinde görünür bir kutu bırakır, saydam dolgu hepsinde doğrudur. Bu yüzden 'transparent' bir kaçamak değil, doğru karardır ve şema onu ifade edebilmelidir."
+    },
+    "encoderQuality": {
+      "anyOf": [
+        { "type": "integer", "minimum": 1, "maximum": 100, "description": "Kalibre edilmiş kayıplı kalite." },
+        { "type": "null", "description": "HENÜZ KALİBRE EDİLMEDİ. status='active' politikada bulunamaz." },
+        { "const": "lossless", "description": "Kayıpsız kodlama kipi. Bir kalite SAYISI değildir." }
+      ],
+      "description": "Encoder kalite değeri (şema v1.3.0): tamsayı 1-100, null ya da 'lossless'. Kipi tamsayıyla ifade etmek mümkün değil — WebP'de quality=100 hâlâ kayıplı kodlayıcıyı çalıştırır, kayıpsız çıktı ayrı bir bayrak (lossless=True) ister. 100 yazıp 'kayıpsız' saymak, logo hattında sessizce halkalanma üretir."
+    },
+    "resolution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["width", "height"],
+      "description": "Piksel cinsinden kare ölçüsü. Yalnız genişlik yazmak yetmez: video slotunda oran kapısı (require.allowed_ratios) yüksekliği de bağlar.",
+      "properties": {
+        "width": { "type": "integer", "minimum": 1 },
+        "height": { "type": "integer", "minimum": 1 },
+        "derivation": { "type": "string", "description": "Bu ölçünün hangi CSS kutusu × DPR hesabından çıktığı." },
+        "note": { "type": "string" }
+      }
+    },
+    "action": {
+      "type": "string",
+      "enum": ["reject", "warn", "review", "auto_fix", "ignore"],
+      "description": "reject = yükleme reddedilir. warn = kabul edilir, kullanıcıya uyarı gösterilir, kayda geçer. review = kabul edilir ama moderasyon kuyruğuna düşer. auto_fix = sistem düzeltir (kırpma/dolgu/döndürme) ve ne yaptığını kullanıcıya söyler. ignore = ölç, sakla, hiçbir şey yapma (ölçüm toplama modu)."
+    },
+    "provenance": {
+      "type": "string",
+      "minLength": 8,
+      "description": "Değerin kaynağı. Kabul edilen biçimler: 'dosya:satır', 'docs/... §bölüm', 'hesap: <formül>' ya da 'ÖLÇÜLMEDİ: <ne yapılmalı>'. Boş ya da 'bilinmiyor' yazılamaz."
+    },
+    "messageMap": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": { "pattern": "^[a-z][a-z0-9_]*$" },
+      "additionalProperties": {
+        "type": "string",
+        "minLength": 20,
+        "description": "Tek cümlelik hata metni yeterli değildir: sebep + çözüm birlikte yazılır."
+      }
+    }
+  }
+}

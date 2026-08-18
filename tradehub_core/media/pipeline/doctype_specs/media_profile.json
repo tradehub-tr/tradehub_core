@@ -1,0 +1,149 @@
+{
+ "$comment": "T-040 · Türev reçetesi — VERİ, kod değil. Yeni profil eklemek kod değişikliği gerektirmez.",
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-08-18 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 0,
+ "engine": "InnoDB",
+ "field_order": [
+  "profile_key",
+  "label",
+  "aspect_ratio",
+  "aspect_ratio_value",
+  "widths",
+  "formats",
+  "fit",
+  "quality_target",
+  "generation",
+  "enabled"
+ ],
+ "fields": [
+  {
+   "fieldname": "profile_key",
+   "fieldtype": "Data",
+   "label": "Profil Anahtarı",
+   "reqd": 1,
+   "unique": 1,
+   "search_index": 1,
+   "length": 64,
+   "description": "Kanonik anahtar (product-main, product-card, hero-wide...). Kaynak: Faz 2 profil matrisi / docs/simulator.html PROFILES."
+  },
+  {
+   "fieldname": "label",
+   "fieldtype": "Data",
+   "label": "Etiket",
+   "length": 100
+  },
+  {
+   "fieldname": "aspect_ratio",
+   "fieldtype": "Data",
+   "label": "En-Boy Oranı",
+   "length": 16,
+   "description": "'G:Y' biçiminde ('1:1', '16:9') ya da BOŞ = serbest (contain/free). Boş bırakmak 'oran yok' demektir; '0:0' yazılmaz."
+  },
+  {
+   "fieldname": "aspect_ratio_value",
+   "fieldtype": "Float",
+   "label": "Oran Değeri",
+   "precision": "6",
+   "read_only": 1,
+   "description": "aspect_ratio'nun sayısal karşılığı (G/Y). Türetilmiş: sorgu ve karşılaştırma metin ayrıştırmadan yapılabilsin. Serbest oranda BOŞ (0 değil — 0 geçerli bir oran değildir ama 0.0 varsayılanı 'serbest' ile karışır)."
+  },
+  {
+   "fieldname": "widths",
+   "fieldtype": "JSON",
+   "label": "Genişlikler",
+   "description": "Üretilecek genişlikler dizisi, artan. srcset basamakları buradan çıkar. ÖLÇÜLDÜ: bugün storefront'ta 31 görselin 0'ında srcset var — bu alan o boşluğun veri karşılığıdır."
+  },
+  {
+   "fieldname": "formats",
+   "fieldtype": "JSON",
+   "label": "Biçimler",
+   "description": "['webp','jpeg'] gibi, tercih sırasına göre."
+  },
+  {
+   "fieldname": "fit",
+   "fieldtype": "Select",
+   "label": "Sığdırma",
+   "options": "cover\ncontain\npad",
+   "default": "cover",
+   "description": "cover = orana kırp (resolve_crop devreye girer). contain/pad = kırpma YOK, oran korunur — bu durumda crop penceresi güvenli alanın kendisidir."
+  },
+  {
+   "fieldname": "quality_target",
+   "fieldtype": "Int",
+   "label": "Kalite Hedefi"
+  },
+  {
+   "fieldname": "generation",
+   "fieldtype": "Select",
+   "label": "Üretim",
+   "options": "eager\nlazy",
+   "default": "eager"
+  },
+  {
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "label": "Etkin",
+   "default": "1"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "is_submittable": 0,
+ "issingle": 0,
+ "istable": 0,
+ "links": [],
+ "modified": "2026-08-18 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Media Engine",
+ "name": "Media Profile",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Media Superadmin",
+   "share": 1,
+   "write": 1,
+   "permlevel": 0
+  },
+  {
+   "create": 0,
+   "delete": 0,
+   "email": 0,
+   "export": 0,
+   "print": 0,
+   "read": 1,
+   "report": 1,
+   "role": "Seller",
+   "share": 0,
+   "write": 0,
+   "permlevel": 0
+  },
+  {
+   "create": 0,
+   "delete": 0,
+   "email": 0,
+   "export": 0,
+   "print": 0,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 0,
+   "write": 0,
+   "permlevel": 0
+  }
+ ],
+ "quick_entry": 0,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1,
+ "autoname": "field:profile_key"
+}

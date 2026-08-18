@@ -1,0 +1,182 @@
+{
+ "$comment": "T-041 · Kırpma niyeti. TÜM koordinatlar 0-1 normalize (INV-10). Kararın nasıl seçildiği tradehub_core/media/pipeline/core/crop.py:resolve_crop() içinde, tek yerde.",
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-08-18 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 0,
+ "engine": "InnoDB",
+ "field_order": [
+  "asset",
+  "focal_x",
+  "focal_y",
+  "safe_x",
+  "safe_y",
+  "safe_w",
+  "safe_h",
+  "method",
+  "algorithm",
+  "algorithm_version",
+  "confidence",
+  "approved_by_user",
+  "previewed_placements",
+  "overrides"
+ ],
+ "fields": [
+  {
+   "fieldname": "asset",
+   "fieldtype": "Link",
+   "label": "Varlık",
+   "options": "Media Asset",
+   "reqd": 1,
+   "unique": 1,
+   "search_index": 1,
+   "description": "1:1 — bir varlığın tek kırpma niyeti vardır. Profil bazlı istisnalar overrides child tablosunda."
+  },
+  {
+   "fieldname": "focal_x",
+   "fieldtype": "Float",
+   "label": "Odak X",
+   "precision": "6",
+   "description": "0-1 normalize koordinat (INV-10). Piksel DEĞİL: kaynak yeniden boyutlandırılsa bile kadraj aynı kalmalı."
+  },
+  {
+   "fieldname": "focal_y",
+   "fieldtype": "Float",
+   "label": "Odak Y",
+   "precision": "6",
+   "description": "0-1 normalize koordinat (INV-10). Piksel DEĞİL: kaynak yeniden boyutlandırılsa bile kadraj aynı kalmalı."
+  },
+  {
+   "fieldname": "safe_x",
+   "fieldtype": "Float",
+   "label": "Güvenli Alan X",
+   "precision": "6",
+   "description": "0-1 normalize koordinat (INV-10). Piksel DEĞİL: kaynak yeniden boyutlandırılsa bile kadraj aynı kalmalı."
+  },
+  {
+   "fieldname": "safe_y",
+   "fieldtype": "Float",
+   "label": "Güvenli Alan Y",
+   "precision": "6",
+   "description": "0-1 normalize koordinat (INV-10). Piksel DEĞİL: kaynak yeniden boyutlandırılsa bile kadraj aynı kalmalı."
+  },
+  {
+   "fieldname": "safe_w",
+   "fieldtype": "Float",
+   "label": "Güvenli Alan Genişlik",
+   "precision": "6",
+   "description": "0-1 normalize koordinat (INV-10). Piksel DEĞİL: kaynak yeniden boyutlandırılsa bile kadraj aynı kalmalı."
+  },
+  {
+   "fieldname": "safe_h",
+   "fieldtype": "Float",
+   "label": "Güvenli Alan Yükseklik",
+   "precision": "6",
+   "description": "0-1 normalize koordinat (INV-10). Piksel DEĞİL: kaynak yeniden boyutlandırılsa bile kadraj aynı kalmalı."
+  },
+  {
+   "fieldname": "method",
+   "fieldtype": "Select",
+   "label": "Yöntem",
+   "options": "manual\nsmartcrop\ncenter",
+   "default": "center",
+   "description": "Niyetin KAYNAĞI. resolve_crop()'un SEÇTİĞİ yöntem bu alan değil, CropWindow.method'tur — ikisi ayrıdır: kullanıcı manual niyet yazmış olsa da o profil için override yoksa zincir başka bir seviyeye düşebilir."
+  },
+  {
+   "fieldname": "algorithm",
+   "fieldtype": "Data",
+   "label": "Algoritma",
+   "length": 64
+  },
+  {
+   "fieldname": "algorithm_version",
+   "fieldtype": "Data",
+   "label": "Algoritma Sürümü",
+   "length": 32
+  },
+  {
+   "fieldname": "confidence",
+   "fieldtype": "Float",
+   "label": "Güven",
+   "precision": "4",
+   "description": "smartcrop önerisinin güveni, 0-1. Eşiğin altındaysa öneri kullanılmaz, merkeze düşülür. EŞİK KALİBRE EDİLMEDİ — tradehub_core/media/pipeline/core/crop.py:SMARTCROP_CONFIDENCE_THRESHOLD."
+  },
+  {
+   "fieldname": "approved_by_user",
+   "fieldtype": "Check",
+   "label": "Kullanıcı Onayladı",
+   "default": "0",
+   "description": "0 iken de öneri KULLANILIR; UI'da 'öneri' rozetiyle gösterilir (T-041 kabul kriteri)."
+  },
+  {
+   "fieldname": "previewed_placements",
+   "fieldtype": "JSON",
+   "label": "Önizlenen Yerleşimler",
+   "description": "Simülatörde kullanıcının gerçekten gördüğü yerleşimler. 'Gördü ve onayladı' iddiasının kanıtı."
+  },
+  {
+   "fieldname": "overrides",
+   "fieldtype": "Table",
+   "label": "Profil İstisnaları",
+   "options": "Media Crop Override"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "is_submittable": 0,
+ "issingle": 0,
+ "istable": 0,
+ "links": [],
+ "modified": "2026-08-18 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Media Engine",
+ "name": "Media Crop Intent",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Media Superadmin",
+   "share": 1,
+   "write": 1,
+   "permlevel": 0
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 0,
+   "export": 0,
+   "print": 0,
+   "read": 1,
+   "report": 1,
+   "role": "Seller",
+   "share": 0,
+   "write": 1,
+   "permlevel": 0
+  },
+  {
+   "create": 1,
+   "delete": 0,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1,
+   "permlevel": 0
+  }
+ ],
+ "quick_entry": 0,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1,
+ "autoname": "field:asset"
+}

@@ -1,7 +1,7 @@
 # Standart — `product.video` (Ürün tanıtım videosu)
 
 **Görev:** T-023 · **Tarih:** 2026-08-17 · **Branch:** `medya-motoru-faz0-faz2`
-**Politika dosyası:** `media_engine/policy/slots/product-video.json`
+**Politika dosyası:** `tradehub_core/media/pipeline/policy/slots/product-video.json`
 **Durum:** `draft` — bu politika bugün kod tarafından okunmuyor
 (`tradehub_core/media/upload_policy.py:307-313` — `check()` imzasında slot parametresi yok).
 
@@ -148,7 +148,7 @@ Standart bunu `warn` olarak kaydeder, ret etmez.
 
 Gerçek video rendition'ı (**1280 genişlik, VP9 video + Opus ses, WebM kabı**,
 `transcode.py:243-246`) `profiles[]` içinde **ifade edilemedi**:
-`media_engine/policy/schema/slot-policy.schema.json` içinde
+`tradehub_core/media/pipeline/policy/schema/slot-policy.schema.json` içinde
 `profiles[].formats` enum'u yalnız `avif|webp|jpeg|png` kabul ediyor, ve
 `master.format` enum'unda `webm` yok. Bu yüzden `master.format` = `"preserve"`
 yazıldı ve `sources.master.format` alanına gerekçesi kaydedildi.

@@ -54,11 +54,11 @@ geçsin diye" düşürülmedi. Kapanan maddeler gerçekten kapandı; kapanmayanl
 | `docs/standards/kota.md` | T-027 | 47.963 |
 | `docs/standards/policies/_schema.md` | T-024 | 2.003 |
 | `docs/standards/policies/*.json` | T-024 | 13 dosya |
-| `media_engine/policy/schema/slot-policy.schema.json` | T-020 | 1 dosya |
-| `media_engine/policy/slots/*.json` | T-020…T-023 | 9 dosya |
-| `media_engine/policy/content_rules.json` | T-025 | 32.977 |
-| `media_engine/policy/retention.schema.json` | T-026 | 31.865 |
-| `media_engine/policy/quota.schema.json` | T-027 | 48.581 |
+| `tradehub_core/media/pipeline/policy/schema/slot-policy.schema.json` | T-020 | 1 dosya |
+| `tradehub_core/media/pipeline/policy/slots/*.json` | T-020…T-023 | 9 dosya |
+| `tradehub_core/media/pipeline/policy/content_rules.json` | T-025 | 32.977 |
+| `tradehub_core/media/pipeline/policy/retention.schema.json` | T-026 | 31.865 |
+| `tradehub_core/media/pipeline/policy/quota.schema.json` | T-027 | 48.581 |
 | `docs/plans/migration.md` | T-028 | 1 dosya |
 | `docs/reports/00-…, 01-…, 02-…, 03-…, 04-…, 06-…` | T-001…T-008 | 7 rapor |
 | `docs/MEDYA-{DEPOLAMA-STANDARDI,ERISIM-MODELI,YUKLEME-SOZLESMESI,TARIH-STANDARDI}.md` | TUR-123/126/130 | Faz 1 |
@@ -74,8 +74,8 @@ geçsin diye" düşürülmedi. Kapanan maddeler gerçekten kapandı; kapanmayanl
 | `docs/reports/05-kutuphane-benchmark.md` | T-007 | Pillow / pyvips / ffmpeg karşılaştırması **koşuldu** (K-11'in bir parçasını kapatır); rev2 gereksinimlerine girdi vermedi |
 | `docs/standards/logo.md` §13 (güncel) | T-021 | K1/K2 **ölçümle çözüldü**; karar tabloları ve tetikler silinmeden korunmuş |
 | `docs/standards/company-cover-video.md` §10 (güncel) | T-022 | §10.0 ölçüm etkisi + **K8 yeni karar** (geçiş penceresi) |
-| `media_engine/policy/slots/{seller,brand}-logo.json` (güncel) | T-021 | JPEG serbest, alfa `optional`, `no_alpha_channel` → `warn` |
-| `media_engine/policy/schema/slot-policy.schema.json` v1.3.0 | T-020 | Logo sınıfı + video biçimleri ifade edilebiliyor → 9/9 uyum |
+| `tradehub_core/media/pipeline/policy/slots/{seller,brand}-logo.json` (güncel) | T-021 | JPEG serbest, alfa `optional`, `no_alpha_channel` → `warn` |
+| `tradehub_core/media/pipeline/policy/schema/slot-policy.schema.json` v1.3.0 | T-020 | Logo sınıfı + video biçimleri ifade edilebiliyor → 9/9 uyum |
 
 ### 0.2 Ölçüm beyanı
 
@@ -163,7 +163,7 @@ docs/standards/company-cover-video.md:272:gösterir. Hiçbiri TBD değildir.
 $ grep -rn TBD docs/standards/ | wc -l
        1
 
-$ grep -rn "TBD" media_engine/policy/ | wc -l
+$ grep -rn "TBD" tradehub_core/media/pipeline/policy/ | wc -l
        0
 ```
 
@@ -192,7 +192,7 @@ $ grep -rniE "placeholder|belirlenecek|karar bekliyor|açık soru" docs/standard
 > ```
 > $ grep -rn TBD docs/standards/ | wc -l                       →  1
 >   (tek geçiş: company-cover-video.md:280 "Hiçbiri TBD değildir." — olumsuzlama)
-> $ grep -rn "TBD" media_engine/policy/ | wc -l                →  0
+> $ grep -rn "TBD" tradehub_core/media/pipeline/policy/ | wc -l                →  0
 > $ grep -rniE "\b(TODO|FIXME|XXX|TBC)\b" docs/standards/ | wc -l  →  0
 > $ grep -rniE "placeholder|belirlenecek|karar bekliyor|açık soru" docs/standards/ | wc -l  →  8
 > ```
@@ -210,7 +210,7 @@ aşağıdaki **programatik olarak sayılmış** kapanmamış maddelerdir:
 | **T3** | **3 politika dosyası şemaya uymuyor.** Şema `additionalProperties: false` (`slot-policy.schema.json:7`). Kök anahtar karşılaştırması: `seller-logo.json` 6 fazla anahtar (`css_safe_area`, `dark_theme`, `not_render_points`, `production_verification_required`, `render_points`, `svg_policy`); `brand-logo.json` 6 fazla anahtar; `company-cover-video.json` 21 fazla + **10 zorunlu alan eksik** (`accept`, `master`, `messages`, `on_violation`, `profiles`, `require`, `roles`, `schema_version`, `slot_key`, `sources`). | Kök anahtar kümesi farkı Python ile hesaplandı; çıktı §7.3'te |
 | **T4** | **`content_rules.json` tamamen kalibre edilmemiş.** `calibration_status: "UNCALIBRATED"`; 9 kuralın 9'unda `threshold_status` = "KALİBRE EDİLMEDİ — başlangıç değeri" (1 kural "KALİBRE EDİLMEZ — ürün kararı"); `not_measured.items` 6 madde. | `grep -c` ve JSON okuması |
 | **T5** | **`encoder_quality` alanlarında `null` var.** Şema kuralı: `status='active'` bir politikada `null` bulunamaz (`slot-policy.schema.json:305`). Politika başına `null` sayısı: `product-image` 5, `company-cover-image` 6, `seller-logo` 5, `brand-logo` 3, `category-banner` 3, `company-cover-video` 2, `product-video` 1, `document-attachment` 0, `user-avatar` 0. | `grep -c ': *null'` |
-| **T6** | **4 ayrı politika kayıt yeri var.** `media_engine/policy/slots/` (9 dosya, 3 farklı biçim) + `docs/standards/policies/` (13 dosya, `_schema.md` biçimi). Hangisinin kanonik olacağı **karara bağlanmadı** (`docs/standards/README.md:133`). | `ls` sayımı |
+| **T6** | **4 ayrı politika kayıt yeri var.** `tradehub_core/media/pipeline/policy/slots/` (9 dosya, 3 farklı biçim) + `docs/standards/policies/` (13 dosya, `_schema.md` biçimi). Hangisinin kanonik olacağı **karara bağlanmadı** (`docs/standards/README.md:133`). | `ls` sayımı |
 | **T7** | **7 platform yöneticisi kararı onaysız.** `logo.md` §13 K1–K6 (6 karar) + `company-cover-video.md` §10 K1–K7 (7 karar). Her birinde öneri ve varsayılan yazılı, onay **yok**. | Belge okuması |
 | **T8** | **Şema v1.0.0 video/belge biçimlerini ifade edemiyor.** `profiles[].formats` enum'u `avif\|webp\|jpeg\|png`; `master.format` enum'unda `webm` yok → gerçek video rendition'ı (`transcode.py:243-246`) politikada yazılamadı. | `slot-policy.schema.json:300`, `:216`; `product-video.md` §5 |
 | **T9** | **Şema doğrulaması bu oturumda YENİDEN KOŞTURULAMADI.** `jsonschema` bu Python kurulumunda yok (`python3 -c "import jsonschema"` → `ModuleNotFoundError`; `pip list \| grep -i jsonschema` → boş). T3'teki bulgu kök-anahtar karşılaştırmasıyla bağımsız olarak doğrulandı; derin (alan içi) doğrulama **yapılmadı**. `docs/standards/README.md` §6 tablosundaki "6/9 uyumlu" sonucu **o oturumun** çıktısıdır, bu oturumda tekrarlanmadı. | §8.0 |
@@ -500,7 +500,7 @@ bu görevin kapsamı dışıdır (§5, K-11).
 | ID | Gereksinim | Kabul testi | Bugün | Kaynak |
 |---|---|---|---|---|
 | **FR-001** | Sistem, her yükleme isteğinde dosyanın hangi slota ait olduğunu **kanonik bir `slot_key` ile** almalı ve doğrulama kararını o slotun politikasına göre vermelidir. | `upload_policy.check()` imzasında `slot_key` parametresi vardır; `slot_key` verilmeden çağrı yapılırsa varsayılan "slotsuz" davranış (bugünkü L0) uygulanır ve bu durum loglanır. Testte: `check(file_name, content, size, media_endpoint, slot_key="product.image")` çağrısı slot politikasındaki `require.min_short_edge` ihlalinde `product_image_short_edge_too_small` kodu döndürür. | **YOK** — imza `file_name`, `content`, `size`, `media_endpoint` alıyor | `upload_policy.py:307-313`; B1 |
-| **FR-002** | Sistem, slot politikalarını **tek bir kayıt defterinden** okumalı ve tüm politika dosyaları **tek bir şemaya** uymalıdır. | `media_engine/policy/slots/*.json` dosyalarının **tamamı** `slot-policy.schema.json` ile doğrulanır ve `jsonschema` hata sayısı **0**'dır. `docs/standards/policies/` ile çakışan ikinci kayıt yeri **kaldırılmış veya kanonik olarak işaretlenmiş**tir. | **YOK** — 4 ayrı kayıt yeri, 3 farklı biçim | T3, T6; `README.md` §5 |
+| **FR-002** | Sistem, slot politikalarını **tek bir kayıt defterinden** okumalı ve tüm politika dosyaları **tek bir şemaya** uymalıdır. | `tradehub_core/media/pipeline/policy/slots/*.json` dosyalarının **tamamı** `slot-policy.schema.json` ile doğrulanır ve `jsonschema` hata sayısı **0**'dır. `docs/standards/policies/` ile çakışan ikinci kayıt yeri **kaldırılmış veya kanonik olarak işaretlenmiş**tir. | **YOK** — 4 ayrı kayıt yeri, 3 farklı biçim | T3, T6; `README.md` §5 |
 | **FR-003** | Sistem, politika şeması doğrulamasını **CI'da** çalıştırmalı ve hata varsa derlemeyi başarısız saymalıdır. | `docs/standards/README.md` §6 betiği CI adımı olarak koşar; çıkış kodu 0 değilse iş başarısızdır. (Betiğin **bilinen kör noktası** şudur ve giderilmelidir: şema hatası olan dosya `continue` ile atlanıyor, D1–D5 o dosyada hiç çalışmıyor.) | **YOK** — betik var, CI bağlantısı yok | `README.md` §6, §6 "kör noktası" notu |
 | **FR-004** | Sistem, bir politikadaki **her sayının kaynağını** `sources` bloğunda taşımayı zorunlu tutmalıdır; boş ya da "bilinmiyor" değeri kabul edilmemelidir. | Şema `$defs.provenance` `minLength: 8` ve kabul edilen 4 biçim (`dosya:satır`, `docs/… §bölüm`, `hesap: <formül>`, `ÖLÇÜLMEDİ: <ne yapılmalı>`). `sources` boş olan politika şema doğrulamasını geçmez. Ölçülen mevcut durum: `product-image` 30, `document-attachment` 26, `company-cover-image` 25, `user-avatar` 25, `product-video` 23, `category-banner` 22, `seller-logo` 20, `brand-logo` 19 kaynak girdisi. | **VAR** (şema düzeyinde zorunlu) | `slot-policy.schema.json:421-426`, `:457-461` |
 | **FR-005** | Sistem, bir politikayı yalnız **`open_questions` boş** VE **hiçbir `encoder_quality` `null` değil** iken `status: "active"` kabul etmelidir; `draft` politika üretimde **zorlanmamalıdır**. | Yükleyici, `status != "active"` politikayı yalnız "ölç ve logla" modunda uygular; hiçbir ret üretmez. `status="active"` + `open_questions` dolu bir politika yüklenirse hata verir. Bugün 9 politikanın **hiçbiri** bu kapıyı geçemez (T1, T2, T5). | **YOK** — kapı tanımlı, uygulayan kod yok | `slot-policy.schema.json:35`; `README.md` §8 madde 6 |
@@ -749,7 +749,7 @@ istekte ayrılır. Disk üzerindeki dosya **9,70 MB**; bayt tavanı (25 MB) bunu
 | ID | Gereksinim | Kabul testi | Bugün | Kaynak |
 |---|---|---|---|---|
 | **FR-143** | Sistem, `accept.max_megapixels_hard` değerini **bayt tavanından değil, çözme anındaki bellek bütçesinden** türetmeli; eşik gerçek kütüphaneyi kesen bir yerde durmalıdır. | Eşik `E` MP için en kötü durum belleği `E × 4 bayt/px` ile hesaplanır ve politikanın `sources` bloğunda **yazılı** olur. **Önerilen değer: 40 MP** (≈160 MB/çözüm). Gerekçe: (a) 40 MP bugün **12 kayıt** (%0,25) reddeder — reddedilen küme insan eliyle incelenebilecek kadar küçüktür; (b) 80 MP **0 kayıt** reddeder, yani hiçbir işlevi yoktur; (c) 20 MP'ye inmek **179 kayıt** (%3,72) reddeder — güvenlik kapısının kalibrasyon kararına dönüşmesi demektir ve o karar FR-149'un konusudur. **Sert ret ile kalite kararı ayrılmalıdır:** `max_megapixels_hard` bir **güvenlik** kapısıdır (ret), `master.max_megapixels` bir **kalite** kapısıdır (küçültme). Bugün ikincisi yok, birincisi işlevsiz. | **YOK** — kod tarafında hiç kontrol yok; **politika değeri de fiilen kapalı** | bu bölüm §3.M.1 ölçümü; `product-image.md` §3.1 |
-| **FR-144** | Sistem, **her** görsel slotunda `accept.max_megapixels_hard` alanının **var olmasını** zorunlu kılmalıdır; alanı olmayan politika `active` yapılamamalıdır. | Ölçüldü: 9 politikanın **7'sinde** alan var (görsel 80 MP, video 8,3 MP), **2'sinde YOK** — `seller-logo.json` ve `brand-logo.json`. Bu iki slotta bugün **hiçbir piksel tavanı yok**; 500 MP'lik bir "logo" kabul yolunda tek bir sayıya bile takılmaz (`accept.max_bytes` 1 MB / 576 KB onu **durdurmaz**: bomba dosyalar tam da küçük bayt–büyük piksel profilindedir). Şema bu alanı **zorunlu** yapmalı. | **HATALI** — alan iki logo politikasında eksik | `media_engine/policy/slots/{seller,brand}-logo.json` `accept` bloğu (2026-08-18 okundu) |
+| **FR-144** | Sistem, **her** görsel slotunda `accept.max_megapixels_hard` alanının **var olmasını** zorunlu kılmalıdır; alanı olmayan politika `active` yapılamamalıdır. | Ölçüldü: 9 politikanın **7'sinde** alan var (görsel 80 MP, video 8,3 MP), **2'sinde YOK** — `seller-logo.json` ve `brand-logo.json`. Bu iki slotta bugün **hiçbir piksel tavanı yok**; 500 MP'lik bir "logo" kabul yolunda tek bir sayıya bile takılmaz (`accept.max_bytes` 1 MB / 576 KB onu **durdurmaz**: bomba dosyalar tam da küçük bayt–büyük piksel profilindedir). Şema bu alanı **zorunlu** yapmalı. | **HATALI** — alan iki logo politikasında eksik | `tradehub_core/media/pipeline/policy/slots/{seller,brand}-logo.json` `accept` bloğu (2026-08-18 okundu) |
 | **FR-145** | Sistem, CMYK ve diğer sRGB dışı renk uzaylarını **kabul yolunda** sRGB'ye çevirmeli; çeviriyi yalnız optimizasyondan geçen dosyalara bırakmamalıdır. | Ölçüldü: kütüphanede **38 CMYK dosya**; bunların **18'i ürün görseli** (`09-…md` §4.1) ve biri **36,16 MP**. Bugün `engine.optimize` çeviriyor, ama yalnız **optimize edilen** dosyayı; optimizasyon kapılarından (`gates.py` Kapı 1 `MIN_FILE_SIZE=200KB`, Kapı 4 `already_small`) dönen CMYK dosya **çevrilmeden servis edilir** ve tarayıcıda yanlış renk verir. Kabul: CMYK bir dosya, optimizasyon kapılarından dönse bile, master üretiminde sRGB'ye çevrilir; çeviri `optimization` yanıt bloğunda raporlanır. | **KISMEN** — `engine.optimize` çeviriyor; kapılardan dönen dosya çevrilmiyor | `08-canli-olcum.md` §1.1, §1.3; `09-…md` §4.1; `engine.py`; `gates.py:55-72` |
 | **FR-146** | Sistem, alfa kanalı taşıyan bir master'ı **alfasız bir biçime düşürmemelidir**. | Ölçüldü: kütüphanede **597 alfalı dosya** (%12,4); `document.attachment` altındaki 56 rasterın **32'si** alfalı; ürün görsellerinde 209 alfalı. Kabul: master formatı seçilirken alfa varlığı kontrol edilir; alfa varsa `jpeg` **seçilemez** (WebP/PNG/AVIF zorunlu). Alfa düşürme yalnız açıkça `pad_color` tanımlı bir slotta (ör. og:image, FR-044) ve **düz beyaz zemine kompozit** ile yapılabilir. | **YOK** — format seçiminde alfa kontrolü yok | `08-canli-olcum.md` §1.1; `09-…md` §4.1, §4.2 |
 | **FR-147** | Sistem **tek bir kaynak-doğru politika setine** dayanmalıdır; iki set aynı anda yürürlükte olamaz. | Ölçüldü — çelişkinin **sayısal** bedeli: aynı `(doctype, field)` çiftine iki farklı taban dayatılıyor. `Listing.primary_image`: `media_engine` kısa kenar ≥ 1000 → **%37,3** uyumsuz; `docs/standards/policies` uzun kenar ≥ 2000 → **%97,3** uyumsuz. `Admin Seller Profile.logo`: `media_engine` üst sınır **4096 px** → 0 dosya takılıyor; `standards` üst sınır **1024 px** → **9/17 dosya** takılıyor. Aynı 17 dosya, iki kural, iki sonuç. Kabul: kanonik set ilan edilir, diğeri ya silinir ya `deprecated: true` + `superseded_by` taşır; ikinci sette kalan **hiçbir** eşik yükleme yolunda okunmaz. | **YOK** — karar verilmedi (T6) | `09-slot-bazinda-istatistik.md` §5, §6; `README.md:288` |
@@ -913,7 +913,7 @@ K-21 (şema v1.0.0)  ──►  FR-002 (şema v1.1)
 | # | Kriter | Durum | Kanıt |
 |---|---|---|---|
 | 1 | 9 slot için insan-okur standart belgesi yazıldı | ✅ | `docs/standards/*.md` 12 dosya + README |
-| 2 | Her slot için makine-okunur politika yazıldı | ✅ | `media_engine/policy/slots/*.json` 9 dosya |
+| 2 | Her slot için makine-okunur politika yazıldı | ✅ | `tradehub_core/media/pipeline/policy/slots/*.json` 9 dosya |
 | 3 | Politika şeması yazıldı ve JSON Schema draft 2020-12 olarak geçerli | ✅ | `slot-policy.schema.json`; `product-image.md` §2 doğrulama koşumu |
 | 4 | Her politikada `sources` bloğu dolu, hiçbir sayı kaynaksız değil | ✅ | Şema `provenance` zorunlu; 19–30 kaynak/politika |
 | 5 | Kota politikası şeması yazıldı | ✅ | `quota.schema.json` (8 zorunlu kök alan) |
@@ -1025,7 +1025,7 @@ Bu SRS aşağıdaki **altı** koşul karşılandığında `v1.0 ONAYLI` olur. Ko
 
 | # | Koşul | Kapatılan madde | Doğrulama |
 |---|---|---|---|
-| **G1** | `media_engine/policy/slots/*.json` dosyalarının **tamamı** `slot-policy.schema.json` ile 0 hatayla doğrulanıyor; `docs/standards/policies/` ile hangisinin kanonik olduğu karara bağlanmış | T3, T6, T9, T10 | `pip install jsonschema` + `README.md` §6 betiği, çıkış kodu **0** |
+| **G1** | `tradehub_core/media/pipeline/policy/slots/*.json` dosyalarının **tamamı** `slot-policy.schema.json` ile 0 hatayla doğrulanıyor; `docs/standards/policies/` ile hangisinin kanonik olduğu karara bağlanmış | T3, T6, T9, T10 | `pip install jsonschema` + `README.md` §6 betiği, çıkış kodu **0** |
 | **G2** | Şema **v1.1**'e çıkmış ve video/belge biçimlerini ifade ediyor (`profiles[].formats` + `master.format` enum'ları + `profiles[].codec`) | T8, K-21 | `product-video.json` `master.format` artık `"preserve"` değil, gerçek rendition yazılı |
 | **G3** | **Açık soruların** her biri ya kapatılmış ya bir change request numarasına bağlanmış | T2 | `sum(len(d["open_questions"]))` = **0** ya da her madde bir CR-ID taşıyor |
 | **G4** | **Platform yöneticisi kararları** (logo K1–K6, kapak videosu K1–K8) onaylanmış ve karar belgeye işlenmiş | T7 | `logo.md` §13 ve `company-cover-video.md` §10 her maddede "ONAY: …" ya da "ÖLÇÜMLE ÇÖZÜLDÜ" satırı taşıyor |
@@ -1037,7 +1037,7 @@ Bu SRS aşağıdaki **altı** koşul karşılandığında `v1.0 ONAYLI` olur. Ko
 
 | Kapı | Durum | Ölçülen kanıt | Eksik olan tam olarak ne |
 |---|---|---|---|
-| **G1** | 🟡 **KISMEN** | Şema doğrulaması **9/9, 0 hata** (T3, T9 kapandı). Ama `README.md` §6 betiği **çıkış kodu 1** veriyor — `KeyError` ile çöküyor (T10) ve kanonik set kararı **yok** (T6) | (a) betiğin `master.max_megapixels` eksiğini `KeyError` yerine hata sayması + iki logo politikasına alanın eklenmesi; (b) `content_rules[animated].message_key` → `format_animated` düzeltmesi (2 dosya); (c) D5 politika↔belge eşleme kontrolünün düzeltilmesi; (d) **`media_engine/policy/slots/` mi `docs/standards/policies/` mi kanonik — bu karar yazılı değil** |
+| **G1** | 🟡 **KISMEN** | Şema doğrulaması **9/9, 0 hata** (T3, T9 kapandı). Ama `README.md` §6 betiği **çıkış kodu 1** veriyor — `KeyError` ile çöküyor (T10) ve kanonik set kararı **yok** (T6) | (a) betiğin `master.max_megapixels` eksiğini `KeyError` yerine hata sayması + iki logo politikasına alanın eklenmesi; (b) `content_rules[animated].message_key` → `format_animated` düzeltmesi (2 dosya); (c) D5 politika↔belge eşleme kontrolünün düzeltilmesi; (d) **`tradehub_core/media/pipeline/policy/slots/` mi `docs/standards/policies/` mi kanonik — bu karar yazılı değil** |
 | **G2** | ✅ **GEÇTİ** | `master.format` enum = `webp/avif/jpeg/png/webm/mp4/preserve`; ayrı video profil enum'u `webm/mp4`; `product-video.json` `master.format = "webm"`, `video.renditions[0]` = `product_1280_webm` / `libvpx-vp9` / CRF 32 / `libopus`; `company-cover-video.json` `cover_720_webm` maxrate 2500 kbps | — |
 | **G3** | ❌ **AÇIK — GERİLEDİ** | `open_questions` toplamı **55** (rev1'de 51). Dağılım: `company-cover-video` **8** (+7 `pending_admin_decisions`), `product-image` 7, `category-banner`/`company-cover-image`/`document-attachment`/`product-video`/`user-avatar` 6'şar, `brand-logo`/`seller-logo` 5'er | **55 maddenin 55'i** — hiçbiri kapatılmadı, hiçbirine CR-ID bağlanmadı. Logo'larda 7→5 düşüş K1/K2'nin çözülmesinden; kapak videosunda 0→8 artış ölçümün yeni sorular doğurmasından |
 | **G4** | 🟡 **2/14** | Logo **K1** (JPEG: ret→uyarı) ve **K2** (oran bandı 1:2…2:1 korundu) **ölçümle çözüldü** ve politikalara işlendi — doğrulandı: `seller-logo.json` `require.alpha_channel="optional"`, `content_rules[no_alpha_channel].action="warn"` | **12 karar açık:** logo K3 (merdiven rung sayısı — türev üretimi olmadan ölçülemez), K4, K5, K6; kapak videosu K1–K8. Kapak videosu **K8 yeni doğdu** (mevcut içerik için geçiş penceresi) — yani açık karar sayısı 13→12'ye yalnız 1 net indi |
@@ -1235,7 +1235,7 @@ birebir eşleştirme yapılmadı** — o liste bu worktree'de yok.
 | **FR-144** | `seller-logo.json`, `brand-logo.json` (**alan YOK**); `slot-policy.schema.json` (`required`) | **rev2 bulgusu** — 2/9 politikada piksel tavanı yok | F2 → F3 | **YOK** → `test_slot_registry.py::test_her_gorsel_slotunda_piksel_tavani_var` |
 | **FR-145** | tüm görsel `slots/*.json` (`master.colorspace: srgb`) | **38 CMYK dosya** (18'i ürün görseli); `gates.py:55-72` bypass | F3 | **YOK** → `test_engine_colorspace.py` |
 | **FR-146** | tüm `slots/*.json` (`master.format` + alfa) | **597 alfalı dosya**; `document.attachment`'ta 32/56 | F3 | `test_engine_webp.py::test_to_webp_seffaf_png_alfa_kanalini_korur` (kısmen) |
-| **FR-147** | `media_engine/policy/slots/` ↔ `docs/standards/policies/` | **T6**; `09-…md` §6 (8 kat eşik farkı) | F2 (karar) → F3 | **YOK** → `test_slot_registry.py::test_tek_kanonik_kayit_yeri` |
+| **FR-147** | `tradehub_core/media/pipeline/policy/slots/` ↔ `docs/standards/policies/` | **T6**; `09-…md` §6 (8 kat eşik farkı) | F2 (karar) → F3 | **YOK** → `test_slot_registry.py::test_tek_kanonik_kayit_yeri` |
 | **FR-148** | `docs/standards/README.md` §6 betiği | **T10**; D3 ×2, D4 ×2, D5 ×2, çıkış kodu 1 | F2 | betiğin kendisi test yerine geçer (çıkış kodu **0** olmalı) |
 | **FR-149** | tüm `slots/*.json` (**yeni blok** `compliance_measured`); `slot-policy.schema.json` | **FR-138**; `09-…md` §3 (9 slotun 8'i > %10 ihlal) | F2 → F3 | **YOK** → `test_slot_registry.py::test_active_politika_uyum_karnesi_tasiyor` |
 | **FR-150** | tüm `slots/*.json` (`accept` — harici URL) | **719 harici referans**; `user.avatar` 6/6, `category.banner` 30/32 | F3 | **YOK** → `test_upload_policy_l3.py::test_harici_url_ihlal_olarak_raporlanir` |

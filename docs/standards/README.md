@@ -6,7 +6,7 @@
 > silinmedi: (1) `company-cover-video.json` slot politikası şemasına taşındı ve
 > şema **v1.1.0**'a çıktı (opsiyonel `video` bloğu; §4 E10'un video yarısı
 > kapandı) — etkilenen satırlar §5 ve §6'da işaretli; (2) iki policy setinin
-> kapsam farkı **§5-B**'de haritalandı (`media_engine/policy/slots/` ve
+> kapsam farkı **§5-B**'de haritalandı (`tradehub_core/media/pipeline/policy/slots/` ve
 > `docs/standards/policies/`).
 >
 > **Güncelleme — 2026-08-17 (şema v1.2.0).** Şemaya opsiyonel bir `logo`
@@ -26,7 +26,7 @@
 > gerektirir.
 
 Bu klasör her medya yükleme slotu için **kabul / geometri / profil / ihlal**
-sözleşmesini tutar. Makine tarafı `media_engine/policy/slots/<slot>.json`,
+sözleşmesini tutar. Makine tarafı `tradehub_core/media/pipeline/policy/slots/<slot>.json`,
 insan tarafı `docs/standards/<slot>.md`.
 
 > **Hiçbiri bugün kod tarafından okunmuyor.** Sebep tek ve yapısal:
@@ -58,7 +58,7 @@ onayı bekler. Docker açıldıktan sonra yapılan canlı ölçüm
 | **K1** JPEG logo: ret mi, uyarı mı? | `logo.md` §13 | JPEG payı **> %10** ⇒ B | **9/18 = %50** | **B** — kabul + uyarı + geçiş penceresi. Öneri A (ret) **düştü** |
 | **K2** Oran bandı 1:2…2:1 mi, 1:4…4:1 mi? | `logo.md` §13 | Band dışı **> %20** ⇒ B | **2/18 = %11** | **A onaylandı** — band **1:2…2:1** aynen kaldı |
 
-İkisi de `media_engine/policy/slots/seller-logo.json` ve `brand-logo.json` içinde
+İkisi de `tradehub_core/media/pipeline/policy/slots/seller-logo.json` ve `brand-logo.json` içinde
 uygulandı (`accept.mime`, `require.alpha_channel`,
 `content_rules[no_alpha_channel].action`, `messages.tr.*`). Şema uyumu **9/9**
 korundu.
@@ -193,7 +193,7 @@ Kural 5 gereği: aşağıdakiler kodda çalışıyor, **yeniden tasarlanmayacak.
 `2026-08-17 11:45` anlık görüntüsü. Bu klasöre birden çok görev (T-020 … T-023)
 paralel yazdığı için liste değişebilir.
 
-### `media_engine/policy/slots/` — 9 dosya
+### `tradehub_core/media/pipeline/policy/slots/` — 9 dosya
 
 | dosya | `slot_key` | `slot-policy.schema.json` **v1.1.0**'a uyum |
 |---|---|---|
@@ -209,7 +209,7 @@ paralel yazdığı için liste değişebilir.
 
 **Bu klasörde şu an 2 ayrı politika biçimi var** (2026-08-17 13:01; önceki
 anlık görüntüde 3'tü). T-023 kendi 5 dosyasını
-`media_engine/policy/schema/slot-policy.schema.json`'a uydurdu (doğrulandı,
+`tradehub_core/media/pipeline/policy/schema/slot-policy.schema.json`'a uydurdu (doğrulandı,
 §6). `company-cover-video.json` sonradan aynı şemaya taşındı: zorunlu üst
 düzey alanlar dolduruldu, videoya özgü içeriğin tamamı yeni `video` bloğuna
 geçti, `bound_to` gerçek alanla (`Seller Gallery Image.video_url`) dolduruldu
@@ -275,7 +275,7 @@ da şemanın v1.1'de o alanları tanımlaması.
 > Regresyon kontrolü: beş alanın her biri `product-image.json`'dan tek tek
 > silindiğinde şema **hâlâ reddediyor**.
 >
-> **Sonuç:** şema geçerli draft 2020-12; `media_engine/policy/slots/*.json`
+> **Sonuç:** şema geçerli draft 2020-12; `tradehub_core/media/pipeline/policy/slots/*.json`
 > **9/9 tam uyum** (önce 7/9). `schema_version` enum'u
 > `["1.0.0","1.1.0","1.2.0","1.3.0"]` — dokunulmayan yedi dosya kendi sürümünü
 > yazmaya devam eder, toplu güncelleme gerekmez. `python3 -m unittest
@@ -283,7 +283,7 @@ da şemanın v1.1'de o alanları tanımlaması.
 
 Ek olarak `docs/standards/policies/` altında **13 dosya** daha var
 (`listing.primary_image.json`, `seller.logo.json`, `seo.og_image.json`, …) —
-`media_engine/policy/slots/` ile **çakışan** dördüncü bir kayıt yeri.
+`tradehub_core/media/pipeline/policy/slots/` ile **çakışan** dördüncü bir kayıt yeri.
 `docs/standards/policies/_schema.md` kendi biçimini tarif ediyor.
 Hangisinin kanonik olacağı bir karar bekliyor.
 
@@ -313,14 +313,14 @@ içi atıflar bozulmasın.*
 İki policy seti var, **çelişmiyorlar — kapsamları farklı.** Aynı alan hakkında
 farklı şeyler söylüyorlar ve `bound_to` üzerinden birbirlerine bağlanıyorlar.
 
-| | `media_engine/policy/slots/*.json` | `docs/standards/policies/*.json` |
+| | `tradehub_core/media/pipeline/policy/slots/*.json` | `docs/standards/policies/*.json` |
 |---|---|---|
 | **Dosya sayısı** | 9 | 13 |
 | **Yazan görev** | T-020 (şema), T-022, T-023 | T-024 |
 | **Cevapladığı soru** | "Bu yükleme kabul edilir mi, kabul edilirse neye dönüşür ve kullanıcıya ne denir?" | "Bu görselin DPI'ı ve uzun kenarı ne olmalı, piksel korunuyor mu?" |
 | **Kapsam** | `accept` (MIME/bayt/megapiksel) · `require` (kısa kenar/alan/oran/adet) · `master` · `profiles[]` · `video{}` (v1.1.0) · `content_rules[]` · `on_violation` · `messages{tr,en}` · `sources` | `min/max/target_long_edge` · `aspect_ratio` + `aspect_tolerance` · `fit` · `dpi_policy{output_dpi, strip_input_dpi, pixels_preserved}` · `olcum{}` |
 | **`slot_key` biçimi** | kavramsal: `product.image`, `seller.logo`, `company.cover_video` | gerçek doctype alanı: `listing.primary_image`, `brand.hero_banner` |
-| **Şema** | `media_engine/policy/schema/slot-policy.schema.json` v1.1.0 — JSON Schema draft 2020-12, `additionalProperties: false` | `docs/standards/policies/_schema.md` — **düzyazı** şema tarifi, makine doğrulaması yok |
+| **Şema** | `tradehub_core/media/pipeline/policy/schema/slot-policy.schema.json` v1.1.0 — JSON Schema draft 2020-12, `additionalProperties: false` | `docs/standards/policies/_schema.md` — **düzyazı** şema tarifi, makine doğrulaması yok |
 | **Test ediliyor mu?** | **Hayır.** Yalnız §6 betiğiyle şema/değişmez doğrulaması yapılıyor (CI'da çalıştırılabilir, bugün çalışmıyor) | **Evet** — `tests/test_policy_dpi.py`, 19 test (1 beklenen başarısızlık). **Bu klasörün test edilen TEK policy setidir** |
 | **Kod okuyor mu?** | Hayır (`upload_policy.check()` imzasında slot yok — B1) | Hayır; testler dosyaları okuyor, üretim kodu okumuyor |
 
@@ -345,7 +345,7 @@ farklı şeyler söylüyorlar ve `bound_to` üzerinden birbirlerine bağlanıyor
 
 | kayıt yeri | dosya adı örneği | anahtar örneği | kural |
 |---|---|---|---|
-| `media_engine/policy/slots/` | `product-image.json` — **TİRE** | `product.image` — **NOKTA** | Dosya adı = `slot_key`'in tire hâli. Şema deseni: `^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$` |
+| `tradehub_core/media/pipeline/policy/slots/` | `product-image.json` — **TİRE** | `product.image` — **NOKTA** | Dosya adı = `slot_key`'in tire hâli. Şema deseni: `^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$` |
 | `docs/standards/policies/` | `listing.primary_image.json` — **NOKTA** | `listing.primary_image` | Dosya adı = `slot_key`'in aynısı. `slot_key`, gerçek alanın küçük harfli hâli: `Listing.primary_image` → `listing.primary_image` |
 | `docs/standards/*.md` | `product-image.md` — **TİRE** | — | Slot policy dosya adıyla birebir aynı olmak zorunda; §6 betiğinin D5 değişmezi bunu kontrol ediyor |
 
@@ -488,7 +488,7 @@ T-020…T-029 ile dolu (T-029 kapanış belgesi), bu yüzden yeni numara gerekiy
 1. **T-030/A — 5 slot politikası** (Tablo A'daki P1-P3 sırasıyla):
    `seller.gallery_image` → `review.image` → `seo.og_image` →
    `seller_product.image` → `shipping_channel.icon`. Her biri için
-   `media_engine/policy/slots/<ad>.json` + `docs/standards/<ad>.md` (§6 D5
+   `tradehub_core/media/pipeline/policy/slots/<ad>.json` + `docs/standards/<ad>.md` (§6 D5
    değişmezi ikisini birlikte istiyor).
 2. **T-030/B — Tablo C'deki 6 gerçek boşluk**: `brand.video`,
    `category.image` (`Product Category.image`), `hero_slide.background`,
@@ -519,7 +519,7 @@ for f in sorted(glob.glob("docs/standards/policies/*.json")):
     dpi[d["doctype_field"]] = os.path.basename(f)
 
 tam = {}
-for f in sorted(glob.glob("media_engine/policy/slots/*.json")):
+for f in sorted(glob.glob("tradehub_core/media/pipeline/policy/slots/*.json")):
     d = json.load(open(f))
     for b in d.get("bound_to") or []:
         alan = f"{b['doctype']}.{re.sub(r' .*', '', b['field'])}"
@@ -563,11 +563,11 @@ try:
 except ImportError:
     sys.exit("jsonschema gerekli: pip install jsonschema")
 
-SCHEMA = "media_engine/policy/schema/slot-policy.schema.json"
+SCHEMA = "tradehub_core/media/pipeline/policy/schema/slot-policy.schema.json"
 sema = json.load(open(SCHEMA))
 dogrulayici = jsonschema.Draft202012Validator(sema)
 
-politikalar = sorted(glob.glob("media_engine/policy/slots/*.json"))
+politikalar = sorted(glob.glob("tradehub_core/media/pipeline/policy/slots/*.json"))
 standartlar = {os.path.basename(p)[:-3] for p in glob.glob("docs/standards/*.md")
                if not p.endswith("README.md")}
 
@@ -733,7 +733,7 @@ Ayrıca tüm slotlar için ortak, envanter raporlarında zaten yazılı olanlar:
 
 ## 8. Bu klasörü genişletirken
 
-1. **Şema ilk.** Yeni politika `media_engine/policy/schema/slot-policy.schema.json`'a
+1. **Şema ilk.** Yeni politika `tradehub_core/media/pipeline/policy/schema/slot-policy.schema.json`'a
    uymalı; §6 betiği CI'da çalıştırılabilir.
 2. **`sources` zorunlu.** Şema `provenance` biçimini dayatıyor: `dosya:satır`,
    `docs/... §bölüm`, `hesap: <formül>` ya da `ÖLÇÜLMEDİ: <ne yapılmalı>`.

@@ -1,0 +1,116 @@
+{
+ "$comment": "T-040 · Depolama/CDN ayarları (Single). Satıcı ve alıcı rollerine OKUMA DAHİL kapalıdır; sır (secret) taşır.",
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-08-18 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 0,
+ "engine": "InnoDB",
+ "field_order": [
+  "backend",
+  "cdn_base_url",
+  "s3_endpoint",
+  "s3_region",
+  "s3_bucket",
+  "s3_access_key",
+  "s3_secret_key",
+  "signed_url_ttl_seconds",
+  "mirror_write_both",
+  "retention_days"
+ ],
+ "fields": [
+  {
+   "fieldname": "backend",
+   "fieldtype": "Select",
+   "label": "Arka Uç",
+   "options": "local\ns3\nmirror",
+   "default": "local",
+   "description": "mirror = hem yerel hem S3'e yaz (geçiş dönemi). Faz 5."
+  },
+  {
+   "fieldname": "cdn_base_url",
+   "fieldtype": "Data",
+   "label": "CDN Kök Adresi",
+   "length": 200,
+   "description": "BOŞ bırakılabilir. Backend kendi adresini CDN kökü sanmamalı — mevcut kodda aynı hata ölçüldü (tradehub_core/media/usage.py:public_urls_for notu: get_url() panelde yanlış adres üretiyordu)."
+  },
+  {
+   "fieldname": "s3_endpoint",
+   "fieldtype": "Data",
+   "label": "S3 Uç Noktası",
+   "length": 200
+  },
+  {
+   "fieldname": "s3_region",
+   "fieldtype": "Data",
+   "label": "S3 Bölgesi",
+   "length": 64
+  },
+  {
+   "fieldname": "s3_bucket",
+   "fieldtype": "Data",
+   "label": "S3 Kovası",
+   "length": 140
+  },
+  {
+   "fieldname": "s3_access_key",
+   "fieldtype": "Data",
+   "label": "S3 Erişim Anahtarı",
+   "length": 140
+  },
+  {
+   "fieldname": "s3_secret_key",
+   "fieldtype": "Password",
+   "label": "S3 Gizli Anahtarı",
+   "description": "Fieldtype Password: Frappe bunu şifreli saklar ve API çıktısında maskeler. Data yazılırsa anahtar düz metin döner."
+  },
+  {
+   "fieldname": "signed_url_ttl_seconds",
+   "fieldtype": "Int",
+   "label": "İmzalı URL Ömrü (sn)",
+   "description": "Özel (private) medya için. Mevcut çift yollu PII koruması (tradehub_core/media/access_level.py) bu değerle uyumlu kalmalı."
+  },
+  {
+   "fieldname": "mirror_write_both",
+   "fieldtype": "Check",
+   "label": "İkisine de Yaz",
+   "default": "0"
+  },
+  {
+   "fieldname": "retention_days",
+   "fieldtype": "Int",
+   "label": "Saklama (gün)",
+   "description": "Mevcut motorun kararıyla uyumlu olmalı: çöp 30 gün, arşiv 30 gün, yedek 14 set (tradehub_core/media/trash.py, archive.py, backup.py)."
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "is_submittable": 0,
+ "issingle": 1,
+ "istable": 0,
+ "links": [],
+ "modified": "2026-08-18 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Media Engine",
+ "name": "Media Storage Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 0,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Media Superadmin",
+   "share": 1,
+   "write": 1,
+   "permlevel": 0
+  }
+ ],
+ "quick_entry": 0,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

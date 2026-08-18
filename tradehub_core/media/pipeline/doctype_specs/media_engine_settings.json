@@ -1,0 +1,113 @@
+{
+ "$comment": "T-040 · Motor ayarları (Single). Satıcı ve alıcı rollerine OKUMA DAHİL kapalıdır — permissions listesinde yalnız Media Superadmin var; Frappe'de listede olmayan rol hiçbir hak almaz.",
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-08-18 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 0,
+ "engine": "InnoDB",
+ "field_order": [
+  "image_backend",
+  "engine_version",
+  "max_megapixels_hard",
+  "smartcrop_confidence_threshold",
+  "phash_distance_threshold",
+  "access_sampling_rate",
+  "orphan_min_age_days",
+  "eager_profiles",
+  "enable_avif"
+ ],
+ "fields": [
+  {
+   "fieldname": "image_backend",
+   "fieldtype": "Select",
+   "label": "Görsel Arka Ucu",
+   "options": "pillow\npyvips",
+   "default": "pillow",
+   "description": "ÖLÇÜLDÜ (docs/reports/05-kutuphane-benchmark.md): pyvips kutudan çıktığı hâliyle 0,94x YAVAŞ, yalnız >20MP'de (dosyaların %3,7'si) kazanıyor ve CMYK'de rengi bozuyor. Varsayılan pillow; alan pyvips'i denemek için var, geçmek için değil."
+  },
+  {
+   "fieldname": "engine_version",
+   "fieldtype": "Data",
+   "label": "Motor Sürümü Etiketi",
+   "length": 64,
+   "read_only": 1,
+   "description": "version_hash girdisi. Elle değiştirilemez — değişirse TÜM türevler yeniden üretilir."
+  },
+  {
+   "fieldname": "max_megapixels_hard",
+   "fieldtype": "Float",
+   "label": "Sert MP Tavanı",
+   "precision": "2",
+   "description": "Decompression-bomb tavanı. ÖLÇÜLDÜ: canlıda 179 dosya >20MP, MAX 72,71 MP; p99 29,21 MP. Değer buradan seçilir, tahminle değil."
+  },
+  {
+   "fieldname": "smartcrop_confidence_threshold",
+   "fieldtype": "Float",
+   "label": "Smartcrop Güven Eşiği",
+   "precision": "4",
+   "description": "KALİBRE EDİLMEDİ. Boş bırakılırsa tradehub_core/media/pipeline/core/crop.py:SMARTCROP_CONFIDENCE_THRESHOLD kullanılır ve o da ölçülmemiş bir taban değerdir."
+  },
+  {
+   "fieldname": "phash_distance_threshold",
+   "fieldtype": "Int",
+   "label": "pHash Mesafe Eşiği",
+   "description": "KALİBRE EDİLMEDİ. Hamming mesafesi; altındaki çiftler 'tekrar görsel' uyarısı üretir."
+  },
+  {
+   "fieldname": "access_sampling_rate",
+   "fieldtype": "Float",
+   "label": "Erişim Örnekleme Oranı",
+   "precision": "4",
+   "description": "last_access_at yazma oranı (0-1). Her istekte yazmak, okuma yolunu yazma yoluna çevirir."
+  },
+  {
+   "fieldname": "orphan_min_age_days",
+   "fieldtype": "Int",
+   "label": "Öksüz Asgari Yaş (gün)",
+   "description": "Bundan genç varlık öksüz raporunda ÇIKMAZ — yeni yüklenmiş ama henüz bir kayda bağlanmamış dosyayı öksüz saymak veri kaybıdır."
+  },
+  {
+   "fieldname": "eager_profiles",
+   "fieldtype": "JSON",
+   "label": "Zorunlu Profiller",
+   "description": "Yayına girmeden üretilmesi gereken profiller (INV-08 zorunlu liste)."
+  },
+  {
+   "fieldname": "enable_avif",
+   "fieldtype": "Check",
+   "label": "AVIF Etkin",
+   "default": "0"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "is_submittable": 0,
+ "issingle": 1,
+ "istable": 0,
+ "links": [],
+ "modified": "2026-08-18 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Media Engine",
+ "name": "Media Engine Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 0,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Media Superadmin",
+   "share": 1,
+   "write": 1,
+   "permlevel": 0
+  }
+ ],
+ "quick_entry": 0,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

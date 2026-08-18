@@ -1,0 +1,1350 @@
+{
+	"fixture": "ok_product_1x1_2400.jpg",
+	"source": {
+		"width": 2400,
+		"height": 2400,
+		"mode": "RGB",
+		"bytes": 1070387
+	},
+	"env": {
+		"pillow": "12.2.0",
+		"python": "3.11.6",
+		"machine": "aarch64",
+		"system": "Linux"
+	},
+	"slot": "product.image",
+	"matrix_forced": {
+		"formats": [
+			"avif",
+			"webp",
+			"jpeg"
+		],
+		"rejected_by_gate": [
+			{
+				"profile": "w1920",
+				"format": "jpeg",
+				"reason": "product.image/w1920: hiçbir biçim üretilemedi (jpeg:no_benefit_vs_source)"
+			}
+		],
+		"count": 20,
+		"bytes": 2983081,
+		"seconds": 15.418,
+		"encodes": 80,
+		"rows": [
+			{
+				"slot": "product.image",
+				"profile": "w96",
+				"format": "avif",
+				"width": 96,
+				"height": 96,
+				"bytes": 4130,
+				"quality": 76,
+				"ssim": 0.981618,
+				"ssim_target": 0.98,
+				"ssim_ok": true,
+				"ssim_backend": "numpy",
+				"ssim_proxy": false,
+				"content_class": "graphic",
+				"encodes": 4,
+				"elapsed_ms": 231.335,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [],
+				"attempts": [
+					{
+						"format": "avif",
+						"quality": 76,
+						"bytes": 4130,
+						"ssim": 0.981618,
+						"encodes": 4,
+						"elapsed_ms": 72.477,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			},
+			{
+				"slot": "product.image",
+				"profile": "w96",
+				"format": "webp",
+				"width": 96,
+				"height": 96,
+				"bytes": 4142,
+				"quality": 85,
+				"ssim": 0.980619,
+				"ssim_target": 0.98,
+				"ssim_ok": true,
+				"ssim_backend": "numpy",
+				"ssim_proxy": false,
+				"content_class": "graphic",
+				"encodes": 4,
+				"elapsed_ms": 83.374,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [],
+				"attempts": [
+					{
+						"format": "webp",
+						"quality": 85,
+						"bytes": 4142,
+						"ssim": 0.980619,
+						"encodes": 4,
+						"elapsed_ms": 9.692,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			},
+			{
+				"slot": "product.image",
+				"profile": "w96",
+				"format": "jpeg",
+				"width": 96,
+				"height": 96,
+				"bytes": 5310,
+				"quality": 92,
+				"ssim": 0.98307,
+				"ssim_target": 0.98,
+				"ssim_ok": true,
+				"ssim_backend": "numpy",
+				"ssim_proxy": false,
+				"content_class": "graphic",
+				"encodes": 4,
+				"elapsed_ms": 71.083,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [],
+				"attempts": [
+					{
+						"format": "jpeg",
+						"quality": 92,
+						"bytes": 5310,
+						"ssim": 0.98307,
+						"encodes": 4,
+						"elapsed_ms": 4.988,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			},
+			{
+				"slot": "product.image",
+				"profile": "w192",
+				"format": "avif",
+				"width": 192,
+				"height": 192,
+				"bytes": 8917,
+				"quality": 70,
+				"ssim": 0.991074,
+				"ssim_target": 0.96,
+				"ssim_ok": true,
+				"ssim_backend": "numpy",
+				"ssim_proxy": false,
+				"content_class": "photo",
+				"encodes": 4,
+				"elapsed_ms": 176.739,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [
+					"quality_floor_reached"
+				],
+				"attempts": [
+					{
+						"format": "avif",
+						"quality": 70,
+						"bytes": 8917,
+						"ssim": 0.991074,
+						"encodes": 4,
+						"elapsed_ms": 106.443,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			},
+			{
+				"slot": "product.image",
+				"profile": "w192",
+				"format": "webp",
+				"width": 192,
+				"height": 192,
+				"bytes": 7144,
+				"quality": 70,
+				"ssim": 0.960388,
+				"ssim_target": 0.96,
+				"ssim_ok": true,
+				"ssim_backend": "numpy",
+				"ssim_proxy": false,
+				"content_class": "photo",
+				"encodes": 4,
+				"elapsed_ms": 96.826,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [
+					"quality_floor_reached"
+				],
+				"attempts": [
+					{
+						"format": "webp",
+						"quality": 70,
+						"bytes": 7144,
+						"ssim": 0.960388,
+						"encodes": 4,
+						"elapsed_ms": 28.879,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			},
+			{
+				"slot": "product.image",
+				"profile": "w192",
+				"format": "jpeg",
+				"width": 192,
+				"height": 192,
+				"bytes": 7544,
+				"quality": 70,
+				"ssim": 0.982675,
+				"ssim_target": 0.96,
+				"ssim_ok": true,
+				"ssim_backend": "numpy",
+				"ssim_proxy": false,
+				"content_class": "photo",
+				"encodes": 4,
+				"elapsed_ms": 81.99,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [
+					"quality_floor_reached"
+				],
+				"attempts": [
+					{
+						"format": "jpeg",
+						"quality": 70,
+						"bytes": 7544,
+						"ssim": 0.982675,
+						"encodes": 4,
+						"elapsed_ms": 14.667,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			},
+			{
+				"slot": "product.image",
+				"profile": "w384",
+				"format": "avif",
+				"width": 384,
+				"height": 384,
+				"bytes": 17138,
+				"quality": 70,
+				"ssim": 0.991406,
+				"ssim_target": 0.96,
+				"ssim_ok": true,
+				"ssim_backend": "numpy",
+				"ssim_proxy": false,
+				"content_class": "photo",
+				"encodes": 4,
+				"elapsed_ms": 277.82,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [
+					"quality_floor_reached"
+				],
+				"attempts": [
+					{
+						"format": "avif",
+						"quality": 70,
+						"bytes": 17138,
+						"ssim": 0.991406,
+						"encodes": 4,
+						"elapsed_ms": 206.002,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			},
+			{
+				"slot": "product.image",
+				"profile": "w384",
+				"format": "webp",
+				"width": 384,
+				"height": 384,
+				"bytes": 15908,
+				"quality": 70,
+				"ssim": 0.966086,
+				"ssim_target": 0.96,
+				"ssim_ok": true,
+				"ssim_backend": "numpy",
+				"ssim_proxy": false,
+				"content_class": "photo",
+				"encodes": 4,
+				"elapsed_ms": 182.094,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [
+					"quality_floor_reached"
+				],
+				"attempts": [
+					{
+						"format": "webp",
+						"quality": 70,
+						"bytes": 15908,
+						"ssim": 0.966086,
+						"encodes": 4,
+						"elapsed_ms": 108.809,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			},
+			{
+				"slot": "product.image",
+				"profile": "w384",
+				"format": "jpeg",
+				"width": 384,
+				"height": 384,
+				"bytes": 20170,
+				"quality": 70,
+				"ssim": 0.987936,
+				"ssim_target": 0.96,
+				"ssim_ok": true,
+				"ssim_backend": "numpy",
+				"ssim_proxy": false,
+				"content_class": "photo",
+				"encodes": 4,
+				"elapsed_ms": 131.55,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [
+					"quality_floor_reached"
+				],
+				"attempts": [
+					{
+						"format": "jpeg",
+						"quality": 70,
+						"bytes": 20170,
+						"ssim": 0.987936,
+						"encodes": 4,
+						"elapsed_ms": 58.615,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			},
+			{
+				"slot": "product.image",
+				"profile": "w640",
+				"format": "avif",
+				"width": 640,
+				"height": 640,
+				"bytes": 30114,
+				"quality": 70,
+				"ssim": 0.982542,
+				"ssim_target": 0.96,
+				"ssim_ok": true,
+				"ssim_backend": "numpy",
+				"ssim_proxy": false,
+				"content_class": "photo",
+				"encodes": 4,
+				"elapsed_ms": 423.089,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [
+					"quality_floor_reached"
+				],
+				"attempts": [
+					{
+						"format": "avif",
+						"quality": 70,
+						"bytes": 30114,
+						"ssim": 0.982542,
+						"encodes": 4,
+						"elapsed_ms": 344.645,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			},
+			{
+				"slot": "product.image",
+				"profile": "w640",
+				"format": "webp",
+				"width": 640,
+				"height": 640,
+				"bytes": 30980,
+				"quality": 70,
+				"ssim": 0.96456,
+				"ssim_target": 0.96,
+				"ssim_ok": true,
+				"ssim_backend": "numpy",
+				"ssim_proxy": false,
+				"content_class": "photo",
+				"encodes": 4,
+				"elapsed_ms": 368.868,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [
+					"quality_floor_reached"
+				],
+				"attempts": [
+					{
+						"format": "webp",
+						"quality": 70,
+						"bytes": 30980,
+						"ssim": 0.96456,
+						"encodes": 4,
+						"elapsed_ms": 289.953,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			},
+			{
+				"slot": "product.image",
+				"profile": "w640",
+				"format": "jpeg",
+				"width": 640,
+				"height": 640,
+				"bytes": 42022,
+				"quality": 70,
+				"ssim": 0.980457,
+				"ssim_target": 0.96,
+				"ssim_ok": true,
+				"ssim_backend": "numpy",
+				"ssim_proxy": false,
+				"content_class": "photo",
+				"encodes": 4,
+				"elapsed_ms": 251.604,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [
+					"quality_floor_reached"
+				],
+				"attempts": [
+					{
+						"format": "jpeg",
+						"quality": 70,
+						"bytes": 42022,
+						"ssim": 0.980457,
+						"encodes": 4,
+						"elapsed_ms": 172.277,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			},
+			{
+				"slot": "product.image",
+				"profile": "w768",
+				"format": "avif",
+				"width": 768,
+				"height": 768,
+				"bytes": 39689,
+				"quality": 70,
+				"ssim": 0.97467,
+				"ssim_target": 0.96,
+				"ssim_ok": true,
+				"ssim_backend": "numpy",
+				"ssim_proxy": false,
+				"content_class": "photo",
+				"encodes": 4,
+				"elapsed_ms": 552.45,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [
+					"quality_floor_reached"
+				],
+				"attempts": [
+					{
+						"format": "avif",
+						"quality": 70,
+						"bytes": 39689,
+						"ssim": 0.97467,
+						"encodes": 4,
+						"elapsed_ms": 469.317,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			},
+			{
+				"slot": "product.image",
+				"profile": "w768",
+				"format": "webp",
+				"width": 768,
+				"height": 768,
+				"bytes": 41924,
+				"quality": 76,
+				"ssim": 0.961786,
+				"ssim_target": 0.96,
+				"ssim_ok": true,
+				"ssim_backend": "numpy",
+				"ssim_proxy": false,
+				"content_class": "photo",
+				"encodes": 4,
+				"elapsed_ms": 493.515,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [],
+				"attempts": [
+					{
+						"format": "webp",
+						"quality": 76,
+						"bytes": 41924,
+						"ssim": 0.961786,
+						"encodes": 4,
+						"elapsed_ms": 408.47,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			},
+			{
+				"slot": "product.image",
+				"profile": "w768",
+				"format": "jpeg",
+				"width": 768,
+				"height": 768,
+				"bytes": 55527,
+				"quality": 70,
+				"ssim": 0.972827,
+				"ssim_target": 0.96,
+				"ssim_ok": true,
+				"ssim_backend": "numpy",
+				"ssim_proxy": false,
+				"content_class": "photo",
+				"encodes": 4,
+				"elapsed_ms": 354.014,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [
+					"quality_floor_reached"
+				],
+				"attempts": [
+					{
+						"format": "jpeg",
+						"quality": 70,
+						"bytes": 55527,
+						"ssim": 0.972827,
+						"encodes": 4,
+						"elapsed_ms": 266.222,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			},
+			{
+				"slot": "product.image",
+				"profile": "w1280",
+				"format": "avif",
+				"width": 1280,
+				"height": 1280,
+				"bytes": 258309,
+				"quality": 82,
+				"ssim": 0.960357,
+				"ssim_target": 0.96,
+				"ssim_ok": true,
+				"ssim_backend": "numpy",
+				"ssim_proxy": false,
+				"content_class": "photo",
+				"encodes": 4,
+				"elapsed_ms": 1191.099,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [],
+				"attempts": [
+					{
+						"format": "avif",
+						"quality": 82,
+						"bytes": 258309,
+						"ssim": 0.960357,
+						"encodes": 4,
+						"elapsed_ms": 1096.78,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			},
+			{
+				"slot": "product.image",
+				"profile": "w1280",
+				"format": "webp",
+				"width": 1280,
+				"height": 1280,
+				"bytes": 352816,
+				"quality": 92,
+				"ssim": 0.968641,
+				"ssim_target": 0.96,
+				"ssim_ok": true,
+				"ssim_backend": "numpy",
+				"ssim_proxy": false,
+				"content_class": "photo",
+				"encodes": 4,
+				"elapsed_ms": 1361.211,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [],
+				"attempts": [
+					{
+						"format": "webp",
+						"quality": 92,
+						"bytes": 352816,
+						"ssim": 0.968641,
+						"encodes": 4,
+						"elapsed_ms": 1263.642,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			},
+			{
+				"slot": "product.image",
+				"profile": "w1280",
+				"format": "jpeg",
+				"width": 1280,
+				"height": 1280,
+				"bytes": 430109,
+				"quality": 94,
+				"ssim": 0.965668,
+				"ssim_target": 0.96,
+				"ssim_ok": true,
+				"ssim_backend": "numpy",
+				"ssim_proxy": false,
+				"content_class": "photo",
+				"encodes": 4,
+				"elapsed_ms": 718.87,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [],
+				"attempts": [
+					{
+						"format": "jpeg",
+						"quality": 94,
+						"bytes": 430109,
+						"ssim": 0.965668,
+						"encodes": 4,
+						"elapsed_ms": 625.843,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			},
+			{
+				"slot": "product.image",
+				"profile": "w1920",
+				"format": "avif",
+				"width": 1920,
+				"height": 1920,
+				"bytes": 722296,
+				"quality": 82,
+				"ssim": 0.962619,
+				"ssim_target": 0.96,
+				"ssim_ok": true,
+				"ssim_backend": "numpy",
+				"ssim_proxy": false,
+				"content_class": "photo",
+				"encodes": 4,
+				"elapsed_ms": 2797.869,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [],
+				"attempts": [
+					{
+						"format": "avif",
+						"quality": 82,
+						"bytes": 722296,
+						"ssim": 0.962619,
+						"encodes": 4,
+						"elapsed_ms": 2689.304,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			},
+			{
+				"slot": "product.image",
+				"profile": "w1920",
+				"format": "webp",
+				"width": 1920,
+				"height": 1920,
+				"bytes": 888892,
+				"quality": 92,
+				"ssim": 0.968184,
+				"ssim_target": 0.96,
+				"ssim_ok": true,
+				"ssim_backend": "numpy",
+				"ssim_proxy": false,
+				"content_class": "photo",
+				"encodes": 4,
+				"elapsed_ms": 3389.992,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [],
+				"attempts": [
+					{
+						"format": "webp",
+						"quality": 92,
+						"bytes": 888892,
+						"ssim": 0.968184,
+						"encodes": 4,
+						"elapsed_ms": 3283.755,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			}
+		],
+		"by_format": {
+			"avif": {
+				"bytes": 1080593,
+				"kb": 1055.3,
+				"seconds": 5.65,
+				"ssim_min": 0.960357,
+				"count": 7
+			},
+			"webp": {
+				"bytes": 1341806,
+				"kb": 1310.4,
+				"seconds": 5.976,
+				"ssim_min": 0.960388,
+				"count": 7
+			},
+			"jpeg": {
+				"bytes": 560682,
+				"kb": 547.5,
+				"seconds": 1.609,
+				"ssim_min": 0.965668,
+				"count": 6
+			}
+		}
+	},
+	"production_chain": {
+		"count": 7,
+		"bytes": 1078174,
+		"seconds": 5.25,
+		"rows": [
+			{
+				"slot": "product.image",
+				"profile": "w96",
+				"format": "webp",
+				"width": 96,
+				"height": 96,
+				"bytes": 3484,
+				"quality": 80,
+				"ssim": 0.967159,
+				"ssim_target": 0.96,
+				"ssim_ok": true,
+				"ssim_backend": "numpy",
+				"ssim_proxy": false,
+				"content_class": "photo",
+				"encodes": 4,
+				"elapsed_ms": 73.896,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [],
+				"attempts": [
+					{
+						"format": "webp",
+						"quality": 80,
+						"bytes": 3484,
+						"ssim": 0.967159,
+						"encodes": 4,
+						"elapsed_ms": 8.801,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			},
+			{
+				"slot": "product.image",
+				"profile": "w192",
+				"format": "webp",
+				"width": 192,
+				"height": 192,
+				"bytes": 7144,
+				"quality": 70,
+				"ssim": 0.960388,
+				"ssim_target": 0.96,
+				"ssim_ok": true,
+				"ssim_backend": "numpy",
+				"ssim_proxy": false,
+				"content_class": "photo",
+				"encodes": 4,
+				"elapsed_ms": 95.581,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [
+					"quality_floor_reached"
+				],
+				"attempts": [
+					{
+						"format": "webp",
+						"quality": 70,
+						"bytes": 7144,
+						"ssim": 0.960388,
+						"encodes": 4,
+						"elapsed_ms": 29.49,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			},
+			{
+				"slot": "product.image",
+				"profile": "w384",
+				"format": "avif",
+				"width": 384,
+				"height": 384,
+				"bytes": 17138,
+				"quality": 70,
+				"ssim": 0.991406,
+				"ssim_target": 0.96,
+				"ssim_ok": true,
+				"ssim_backend": "numpy",
+				"ssim_proxy": false,
+				"content_class": "photo",
+				"encodes": 4,
+				"elapsed_ms": 279.326,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [
+					"quality_floor_reached"
+				],
+				"attempts": [
+					{
+						"format": "avif",
+						"quality": 70,
+						"bytes": 17138,
+						"ssim": 0.991406,
+						"encodes": 4,
+						"elapsed_ms": 209.73,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			},
+			{
+				"slot": "product.image",
+				"profile": "w640",
+				"format": "avif",
+				"width": 640,
+				"height": 640,
+				"bytes": 30114,
+				"quality": 70,
+				"ssim": 0.982542,
+				"ssim_target": 0.96,
+				"ssim_ok": true,
+				"ssim_backend": "numpy",
+				"ssim_proxy": false,
+				"content_class": "photo",
+				"encodes": 4,
+				"elapsed_ms": 396.135,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [
+					"quality_floor_reached"
+				],
+				"attempts": [
+					{
+						"format": "avif",
+						"quality": 70,
+						"bytes": 30114,
+						"ssim": 0.982542,
+						"encodes": 4,
+						"elapsed_ms": 321.235,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			},
+			{
+				"slot": "product.image",
+				"profile": "w768",
+				"format": "avif",
+				"width": 768,
+				"height": 768,
+				"bytes": 39689,
+				"quality": 70,
+				"ssim": 0.97467,
+				"ssim_target": 0.96,
+				"ssim_ok": true,
+				"ssim_backend": "numpy",
+				"ssim_proxy": false,
+				"content_class": "photo",
+				"encodes": 4,
+				"elapsed_ms": 571.338,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [
+					"quality_floor_reached"
+				],
+				"attempts": [
+					{
+						"format": "avif",
+						"quality": 70,
+						"bytes": 39689,
+						"ssim": 0.97467,
+						"encodes": 4,
+						"elapsed_ms": 493.777,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			},
+			{
+				"slot": "product.image",
+				"profile": "w1280",
+				"format": "avif",
+				"width": 1280,
+				"height": 1280,
+				"bytes": 258309,
+				"quality": 82,
+				"ssim": 0.960357,
+				"ssim_target": 0.96,
+				"ssim_ok": true,
+				"ssim_backend": "numpy",
+				"ssim_proxy": false,
+				"content_class": "photo",
+				"encodes": 4,
+				"elapsed_ms": 1080.766,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [],
+				"attempts": [
+					{
+						"format": "avif",
+						"quality": 82,
+						"bytes": 258309,
+						"ssim": 0.960357,
+						"encodes": 4,
+						"elapsed_ms": 992.986,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			},
+			{
+				"slot": "product.image",
+				"profile": "w1920",
+				"format": "avif",
+				"width": 1920,
+				"height": 1920,
+				"bytes": 722296,
+				"quality": 82,
+				"ssim": 0.962619,
+				"ssim_target": 0.96,
+				"ssim_ok": true,
+				"ssim_backend": "numpy",
+				"ssim_proxy": false,
+				"content_class": "photo",
+				"encodes": 4,
+				"elapsed_ms": 2726.488,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [],
+				"attempts": [
+					{
+						"format": "avif",
+						"quality": 82,
+						"bytes": 722296,
+						"ssim": 0.962619,
+						"encodes": 4,
+						"elapsed_ms": 2624.185,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			}
+		]
+	},
+	"today_single_output": {
+		"bytes": 303670,
+		"seconds": 0.413,
+		"count": 1
+	},
+	"report": {
+		"schema_version": "1.0.0",
+		"engine": {
+			"id": "media_engine.image.render",
+			"version": "1.0.0"
+		},
+		"asset": {
+			"bytes": 1070387,
+			"sha256": "eb6a7a54272c2bb007e57fed2c72404332a9027c7f55f58aa5d287d6e8a8f5fd",
+			"readable": true,
+			"format": "JPEG",
+			"mode": "RGB",
+			"width": 2400,
+			"height": 2400,
+			"megapixels": 5.76,
+			"has_alpha": false,
+			"icc_profile": false,
+			"dpi": null,
+			"id": "fixture:ok_product_1x1_2400"
+		},
+		"slot": "product.image",
+		"policy": {
+			"quality": {
+				"metric": "ssim",
+				"target_ssim_per_class": {
+					"photo": 0.96,
+					"graphic": 0.98,
+					"text": 0.99,
+					"fine_detail": 0.975
+				},
+				"reencode_floor_saving_ratio": 0.1
+			},
+			"matrix_defined": 12,
+			"profiles_defined": 7
+		},
+		"renditions": [
+			{
+				"slot": "product.image",
+				"profile": "w96",
+				"format": "webp",
+				"width": 96,
+				"height": 96,
+				"bytes": 3484,
+				"quality": 80,
+				"ssim": 0.967159,
+				"ssim_target": 0.96,
+				"ssim_ok": true,
+				"ssim_backend": "numpy",
+				"ssim_proxy": false,
+				"content_class": "photo",
+				"encodes": 4,
+				"elapsed_ms": 73.896,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [],
+				"attempts": [
+					{
+						"format": "webp",
+						"quality": 80,
+						"bytes": 3484,
+						"ssim": 0.967159,
+						"encodes": 4,
+						"elapsed_ms": 8.801,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			},
+			{
+				"slot": "product.image",
+				"profile": "w192",
+				"format": "webp",
+				"width": 192,
+				"height": 192,
+				"bytes": 7144,
+				"quality": 70,
+				"ssim": 0.960388,
+				"ssim_target": 0.96,
+				"ssim_ok": true,
+				"ssim_backend": "numpy",
+				"ssim_proxy": false,
+				"content_class": "photo",
+				"encodes": 4,
+				"elapsed_ms": 95.581,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [
+					"quality_floor_reached"
+				],
+				"attempts": [
+					{
+						"format": "webp",
+						"quality": 70,
+						"bytes": 7144,
+						"ssim": 0.960388,
+						"encodes": 4,
+						"elapsed_ms": 29.49,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			},
+			{
+				"slot": "product.image",
+				"profile": "w384",
+				"format": "avif",
+				"width": 384,
+				"height": 384,
+				"bytes": 17138,
+				"quality": 70,
+				"ssim": 0.991406,
+				"ssim_target": 0.96,
+				"ssim_ok": true,
+				"ssim_backend": "numpy",
+				"ssim_proxy": false,
+				"content_class": "photo",
+				"encodes": 4,
+				"elapsed_ms": 279.326,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [
+					"quality_floor_reached"
+				],
+				"attempts": [
+					{
+						"format": "avif",
+						"quality": 70,
+						"bytes": 17138,
+						"ssim": 0.991406,
+						"encodes": 4,
+						"elapsed_ms": 209.73,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			},
+			{
+				"slot": "product.image",
+				"profile": "w640",
+				"format": "avif",
+				"width": 640,
+				"height": 640,
+				"bytes": 30114,
+				"quality": 70,
+				"ssim": 0.982542,
+				"ssim_target": 0.96,
+				"ssim_ok": true,
+				"ssim_backend": "numpy",
+				"ssim_proxy": false,
+				"content_class": "photo",
+				"encodes": 4,
+				"elapsed_ms": 396.135,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [
+					"quality_floor_reached"
+				],
+				"attempts": [
+					{
+						"format": "avif",
+						"quality": 70,
+						"bytes": 30114,
+						"ssim": 0.982542,
+						"encodes": 4,
+						"elapsed_ms": 321.235,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			},
+			{
+				"slot": "product.image",
+				"profile": "w768",
+				"format": "avif",
+				"width": 768,
+				"height": 768,
+				"bytes": 39689,
+				"quality": 70,
+				"ssim": 0.97467,
+				"ssim_target": 0.96,
+				"ssim_ok": true,
+				"ssim_backend": "numpy",
+				"ssim_proxy": false,
+				"content_class": "photo",
+				"encodes": 4,
+				"elapsed_ms": 571.338,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [
+					"quality_floor_reached"
+				],
+				"attempts": [
+					{
+						"format": "avif",
+						"quality": 70,
+						"bytes": 39689,
+						"ssim": 0.97467,
+						"encodes": 4,
+						"elapsed_ms": 493.777,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			},
+			{
+				"slot": "product.image",
+				"profile": "w1280",
+				"format": "avif",
+				"width": 1280,
+				"height": 1280,
+				"bytes": 258309,
+				"quality": 82,
+				"ssim": 0.960357,
+				"ssim_target": 0.96,
+				"ssim_ok": true,
+				"ssim_backend": "numpy",
+				"ssim_proxy": false,
+				"content_class": "photo",
+				"encodes": 4,
+				"elapsed_ms": 1080.766,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [],
+				"attempts": [
+					{
+						"format": "avif",
+						"quality": 82,
+						"bytes": 258309,
+						"ssim": 0.960357,
+						"encodes": 4,
+						"elapsed_ms": 992.986,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			},
+			{
+				"slot": "product.image",
+				"profile": "w1920",
+				"format": "avif",
+				"width": 1920,
+				"height": 1920,
+				"bytes": 722296,
+				"quality": 82,
+				"ssim": 0.962619,
+				"ssim_target": 0.96,
+				"ssim_ok": true,
+				"ssim_backend": "numpy",
+				"ssim_proxy": false,
+				"content_class": "photo",
+				"encodes": 4,
+				"elapsed_ms": 2726.488,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [],
+				"attempts": [
+					{
+						"format": "avif",
+						"quality": 82,
+						"bytes": 722296,
+						"ssim": 0.962619,
+						"encodes": 4,
+						"elapsed_ms": 2624.185,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			}
+		],
+		"totals": {
+			"count": 7,
+			"bytes": 1078174,
+			"kb": 1052.9,
+			"encodes": 28,
+			"elapsed_ms": 5223.5,
+			"vs_source_ratio": 1.0073,
+			"largest": "w1920.avif",
+			"smallest": "w96.webp",
+			"passthrough": 0,
+			"under_spec": 0
+		},
+		"quality": {
+			"measured_count": 7,
+			"unmeasured_count": 0,
+			"ssim_min": 0.960357,
+			"ssim_max": 0.991406,
+			"ssim_mean": 0.971306,
+			"below_target": [],
+			"content_class": "photo",
+			"backend": "numpy",
+			"proxy_measured": 0
+		},
+		"findings": [
+			{
+				"severity": "info",
+				"code": "quality_floor",
+				"rendition": "w192.webp",
+				"tr": "w192.webp: kalite tabanına (q=70) dayandı; daha düşük kalite de hedefi tutabilir — arama aralığı genişletilebilir"
+			},
+			{
+				"severity": "info",
+				"code": "quality_floor",
+				"rendition": "w384.avif",
+				"tr": "w384.avif: kalite tabanına (q=70) dayandı; daha düşük kalite de hedefi tutabilir — arama aralığı genişletilebilir"
+			},
+			{
+				"severity": "info",
+				"code": "quality_calibration",
+				"rendition": "w384.avif",
+				"tr": "w384.avif: politikada encoder_quality.avif null (kalibre edilmemiş); ölçülen değer q=70 — politikaya yazılabilir"
+			},
+			{
+				"severity": "info",
+				"code": "quality_floor",
+				"rendition": "w640.avif",
+				"tr": "w640.avif: kalite tabanına (q=70) dayandı; daha düşük kalite de hedefi tutabilir — arama aralığı genişletilebilir"
+			},
+			{
+				"severity": "info",
+				"code": "quality_calibration",
+				"rendition": "w640.avif",
+				"tr": "w640.avif: politikada encoder_quality.avif null (kalibre edilmemiş); ölçülen değer q=70 — politikaya yazılabilir"
+			},
+			{
+				"severity": "info",
+				"code": "quality_floor",
+				"rendition": "w768.avif",
+				"tr": "w768.avif: kalite tabanına (q=70) dayandı; daha düşük kalite de hedefi tutabilir — arama aralığı genişletilebilir"
+			},
+			{
+				"severity": "info",
+				"code": "quality_calibration",
+				"rendition": "w768.avif",
+				"tr": "w768.avif: politikada encoder_quality.avif null (kalibre edilmemiş); ölçülen değer q=70 — politikaya yazılabilir"
+			},
+			{
+				"severity": "info",
+				"code": "quality_calibration",
+				"rendition": "w1280.avif",
+				"tr": "w1280.avif: politikada encoder_quality.avif null (kalibre edilmemiş); ölçülen değer q=82 — politikaya yazılabilir"
+			},
+			{
+				"severity": "info",
+				"code": "quality_calibration",
+				"rendition": "w1920.avif",
+				"tr": "w1920.avif: politikada encoder_quality.avif null (kalibre edilmemiş); ölçülen değer q=82 — politikaya yazılabilir"
+			}
+		],
+		"verdict": "ok",
+		"summary_tr": "Varlık fixture:ok_product_1x1_2400 — JPEG 2400×2400 (5.76 MP), RGB, 1·045.3 KB\nSlot product.image: politikada 7 profil / 12 rendition tanımlı; bu koşuda 7 türev üretildi.\nToplam çıktı 1·052.9 KB (7 dosya), kaynağın 1.01 katı. 28 encode, 5224 ms.\nEn büyük türev: w1920.avif · en küçük: w96.webp.\nSSIM (photo sınıfı): en düşük 0.9604, ortalama 0.9713, en yüksek 0.9914 (7 türevde ölçüldü).\nBulgular (9 info):\n  [info] w192.webp: kalite tabanına (q=70) dayandı; daha düşük kalite de hedefi tutabilir — arama aralığı genişletilebilir\n  [info] w384.avif: kalite tabanına (q=70) dayandı; daha düşük kalite de hedefi tutabilir — arama aralığı genişletilebilir\n  [info] w384.avif: politikada encoder_quality.avif null (kalibre edilmemiş); ölçülen değer q=70 — politikaya yazılabilir\n  [info] w640.avif: kalite tabanına (q=70) dayandı; daha düşük kalite de hedefi tutabilir — arama aralığı genişletilebilir\n  [info] w640.avif: politikada encoder_quality.avif null (kalibre edilmemiş); ölçülen değer q=70 — politikaya yazılabilir\n  [info] w768.avif: kalite tabanına (q=70) dayandı; daha düşük kalite de hedefi tutabilir — arama aralığı genişletilebilir\n  [info] w768.avif: politikada encoder_quality.avif null (kalibre edilmemiş); ölçülen değer q=70 — politikaya yazılabilir\n  [info] w1280.avif: politikada encoder_quality.avif null (kalibre edilmemiş); ölçülen değer q=82 — politikaya yazılabilir\n  [info] w1920.avif: politikada encoder_quality.avif null (kalibre edilmemiş); ölçülen değer q=82 — politikaya yazılabilir\nKarar: OK"
+	}
+}

@@ -1,7 +1,7 @@
 # T-022 — Şirket kapak videosu standardı
 
 **Tarih:** 2026-08-17 · **Branch:** `medya-motoru-faz0-faz2` · **Doküman fazı:** KİLİT görev
-**Makine-okunur eşi:** `media_engine/policy/slots/company-cover-video.json`
+**Makine-okunur eşi:** `tradehub_core/media/pipeline/policy/slots/company-cover-video.json`
 
 Bu belge şirket (mağaza) profilindeki **kapak videosu** slotunu tanımlar. Amaç
 yeniden tasarım değil: bugün kodda çalışan davranışı ölçüp yazmak, eksiği sayıya
@@ -956,7 +956,7 @@ Sıra bağımlılığa göre. Hiçbiri bu görevde yapılmadı.
 | # | İş | Neden gerekli | Dokunulacak yer |
 |---|---|---|---|
 | 1 | `ffprobe` tabanlı video ölçü/süre okuma + `th_media_duration_ms` alanı | Ç5 — §6.1/§6.2 kuralları bugün zorlanamıyor | `media/metadata.py`, yeni patch |
-| 2 | `media_engine/policy/slots/` kayıt defterini okuyan L3 doğrulayıcı | T-001: L3 sistemde hiç yok | `media/upload_policy.py` |
+| 2 | `tradehub_core/media/pipeline/policy/slots/` kayıt defterini okuyan L3 doğrulayıcı | T-001: L3 sistemde hiç yok | `media/upload_policy.py` |
 | 3 | Kapak slotu için çok-rendition transcode (yerinde değiştirme yerine) | Ç1 + §6.5 | `media/transcode.py` (yeni fonksiyon; mevcut `_run_transcode` **korunur**) |
 | 4 | Otomatik poster üretimi (`thumbnail` + parlaklık kapısı) | Ç7 + §6.9 | yeni `media/poster.py` |
 | 5 | 6 s önizleme klibi üretimi | §6.11 | aynı modül |
@@ -980,7 +980,7 @@ Bu belgede atıf yapılan her dosya, tam yolla:
 - `/Users/ahmet/Desktop/istoc-medya-wt/tradehub_core/media/transcode.py`
 - `/Users/ahmet/Desktop/istoc-medya-wt/tradehub_core/media/upload_policy.py`
 - `/Users/ahmet/Desktop/istoc-medya-wt/tradehub_core/media/metadata.py`
-- `/Users/ahmet/Desktop/istoc-medya-wt/tradehub_core/media/engine.py`
+- `/Users/ahmet/Desktop/istoc-medya-wt/tradehub_core/media/pipeline.py`
 - `/Users/ahmet/Desktop/istoc-medya-wt/tradehub_core/media/presets.py`
 - `/Users/ahmet/Desktop/istoc-medya-wt/tradehub_core/media/backup.py`
 - `/Users/ahmet/Desktop/istoc-medya-wt/tradehub_core/api/seller.py`
@@ -1006,4 +1006,4 @@ Bu belgede atıf yapılan her dosya, tam yolla:
 - `/Users/ahmet/Desktop/istoc-medya-wt/docs/reports/00-upload-slot-envanteri.md` (T-001)
 - `/Users/ahmet/Desktop/istoc-medya-wt/docs/reports/03-render-envanteri.md`
 - `/Users/ahmet/Desktop/istoc-medya-wt/docs/reports/06-depolama-maliyet.md`
-- `/Users/ahmet/Desktop/istoc-medya-wt/media_engine/policy/slots/company-cover-video.json`
+- `/Users/ahmet/Desktop/istoc-medya-wt/tradehub_core/media/pipeline/policy/slots/company-cover-video.json`

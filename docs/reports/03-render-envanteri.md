@@ -14,7 +14,7 @@
 2. **Buna karşılık `width`/`height` + `decoding` disiplini büyük ölçüde KURULU.** 135 `<img>` üzerinde `decoding=` var (`grep -rn 'decoding=' src | wc -l` → 135). Ürün kartı ve galeri gibi ana render noktalarında hem `width`/`height` attribute'u hem de `aspect-square` kapsayıcı var — yani CLS'e karşı **iki katmanlı** koruma zaten mevcut.
 3. **`loading="lazy"` seçici ve bilinçli uygulanmış** (67 kullanım), fold-üstü kart ilk görselini bilerek eager bırakan bir opt-in bayrak var: `ListingCardOptions.lazy` — `src/components/shared/ListingCard.ts:17-23`.
 4. **`fetchpriority="high"` yalnızca 1 yerde var** ve o da bir ürün görseli değil, `/sell` sayfasının bundle'lanmış statik hero'su: `src/components/sell/SellPageLayout.ts:113`. **Hiçbir ürün görseline LCP önceliği verilmiyor**, hiçbir sayfada `<link rel="preload" as="image">` yok (`grep -n "preload" index.html` → eşleşme yok).
-5. **Backend bugün tek boy üretiyor.** `tradehub_core/media/engine.py:117` (`im.thumbnail((max_dim, max_dim))`) ve `:177` (`im.thumbnail((1920, 1920))`) — yükleme anında **tek bir master** küçültülüp saklanıyor, türev (derivative) boy üretilmiyor. Yani `srcset` yazılsa bile **bugün gösterecek ikinci bir dosya yok**. Faz 2'nin asıl işi budur.
+5. **Backend bugün tek boy üretiyor.** `tradehub_core/media/pipeline.py:117` (`im.thumbnail((max_dim, max_dim))`) ve `:177` (`im.thumbnail((1920, 1920))`) — yükleme anında **tek bir master** küçültülüp saklanıyor, türev (derivative) boy üretilmiyor. Yani `srcset` yazılsa bile **bugün gösterecek ikinci bir dosya yok**. Faz 2'nin asıl işi budur.
 6. **En kritik piksel talebi mobil ürün detay galerisidir:** kutu = tam viewport genişliği; 430px'lik bir telefonda DPR 3 → **1290 CSS-olmayan piksel** gerekiyor; mevcut master ise en fazla 1920px uzun kenar (`engine.py:177`). Kare olmayan görsellerde bu sınır zorlanıyor.
 
 ---
@@ -373,7 +373,7 @@ Amacı (dosya başındaki yorum): GitHub Pages önizlemesinde `/files/` backend'
 
 ### 6.3 Backend tarafı: neden ikinci bir dosya yok
 
-`tradehub_core/media/engine.py`:
+`tradehub_core/media/pipeline.py`:
 - `:117` → `im.thumbnail((max_dim, max_dim))  # yalnız küçültür`
 - `:177` → `to_webp()` içinde `im.thumbnail((1920, 1920))`
 - `media/presets.py:14-16` → profiller: `safe` = 2560/q90, `balanced` = 2000/q88 (varsayılan), `aggressive` = 1600/q82
@@ -560,7 +560,7 @@ bench --site <site> execute frappe.client.get_list \
 | Lightbox karo 52px | `tradehubfront/src/components/product/ProductImageGallery.ts:339` |
 | Lightbox sahne min(82vh,720px) | `tradehubfront/src/components/product/ProductImageGallery.ts:322` |
 | Swiper 1.4/2.2/3/4/5 | `tradehubfront/src/components/product/RelatedProducts.ts:247-256` |
-| Backend master tavanı 1920 | `tradehub_core/media/engine.py:177` |
+| Backend master tavanı 1920 | `tradehub_core/media/pipeline.py:177` |
 | Profiller 2560/2000/1600 | `tradehub_core/media/presets.py:14-16` |
 | srcset 0, picture 0, sizes 0 | `grep` — §4 tablosundaki komutlar |
 | img 183 / lazy 67 / decoding 135 / fetchpriority 1 | `grep` + `scratchpad/imgaudit.mjs` (regex, 2 yanlış pozitif elle elendi) |

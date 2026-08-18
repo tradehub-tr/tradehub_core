@@ -1,7 +1,7 @@
 # Medya Saklama (Retention) Politikası Standardı
 
 > Görev: **T-026** · Faz: Medya Motoru Faz 0-2 · Branch: `medya-motoru-faz0-faz2`
-> Şema: [`media_engine/policy/retention.schema.json`](../../media_engine/policy/retention.schema.json)
+> Şema: [`tradehub_core/media/pipeline/policy/retention.schema.json`](../../tradehub_core/media/pipeline/policy/retention.schema.json)
 > Yazım tarihi: 2026-08-17
 
 ## 0. Bu belgenin kapsamı ve kapsamı dışındakiler
@@ -752,7 +752,7 @@ taşıyorlar.
 | `tradehub_core/media/audit.py` | grep: 43-68 | Action sabitleri |
 | `tradehub_core/media/schema.py` | 1-90 | Künye tabloları |
 | `tradehub_core/media/transcode.py` | 1-60 | Yerinde yazma davranışı |
-| `tradehub_core/media/engine.py` | grep: 117, 177 | `thumbnail()` çağrıları |
+| `tradehub_core/media/pipeline.py` | grep: 117, 177 | `thumbnail()` çağrıları |
 | `tradehub_core/hooks.py` | 92-219, 225-285 | `scheduler_events`, `doc_events` |
 | `tradehub_core/audit/tasks.py` | grep: 32-34 | Audit sıcak pencereleri |
 | `tradehub_core/audit/__init__.py` | grep: 23 | S3/MinIO niyet notu |

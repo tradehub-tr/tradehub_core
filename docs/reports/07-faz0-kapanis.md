@@ -367,7 +367,7 @@ Rev. 1 bunu **G-1** olarak "henüz uzlaştırılmamış iki granülerlik" diye k
 geçmişti — *"bir çelişki değil"* demişti. **Dalga 3 ölçtü: çelişki.**
 (`09-slot-bazinda-istatistik.md` §6)
 
-| alan | `media_engine/policy/slots` | uyumsuzluk | `docs/standards/policies` | uyumsuzluk |
+| alan | `tradehub_core/media/pipeline/policy/slots` | uyumsuzluk | `docs/standards/policies` | uyumsuzluk |
 |---|---|---:|---|---:|
 | `Listing.primary_image` | kısa kenar ≥ 1000 | **%37,3** | uzun kenar ≥ 2000 | **%97,3** |
 | `Listing Image.image` | kısa kenar ≥ 1000 | %61,6 | uzun kenar ≥ 2000 | **%99,4** |
@@ -384,7 +384,7 @@ bloklayıcı).
 ### Ç-16 — SRS FR-019 ↔ `seller-logo.json`: alfa zorunlu mu opsiyonel mi — **YÜKSEK (yeni)**
 
 `docs/srs/SRS-v1.0.md` **FR-019**: *"logo slotlarında alfa **zorunlu**, alfası
-olmayan **reddedilir**"*. `media_engine/policy/slots/seller-logo.json`:
+olmayan **reddedilir**"*. `tradehub_core/media/pipeline/policy/slots/seller-logo.json`:
 `require.alpha_channel: "optional"`.
 
 **Ölçüm ikincisini haklı çıkardı:**
@@ -402,9 +402,9 @@ olmayan **reddedilir**"*. `media_engine/policy/slots/seller-logo.json`:
 
 ### Ç-17 — `entropy_bits` için iki politika iki farklı aksiyon yazıyor — **ORTA (yeni)**
 
-`media_engine/policy/slots/product-image.json` → `content_rules.entropy_bits`
+`tradehub_core/media/pipeline/policy/slots/product-image.json` → `content_rules.entropy_bits`
 **`action: "reject"`**.
-`media_engine/policy/content_rules.json` → `decision_model.reject_allowed_rules`
+`tradehub_core/media/pipeline/policy/content_rules.json` → `decision_model.reject_allowed_rules`
 yalnız `nsfw_content` ve `extreme_blur`.
 
 Aynı kural için iki farklı aksiyon. Üstelik eşiğin kendisi `UNCALIBRATED`
@@ -577,7 +577,7 @@ Dalga 3'te altı yeni soru çıktı: **AS-27…AS-32**.
 | **AS-26** | Prod nginx sertleştirmesi gerçekten eksik mi? | Faz 1 | ⚠ **YEREL TARAF ÖLÇÜLDÜ.** `istoc-dev-storefront-1`'de `limit_req zone=files_zone` ve `X-Robots-Tag: noindex` **VAR** (03-perf §5.1). Prod hâlâ doğrulanmadı (P-10). ⚠ **Yeni bulgu:** aynı blok `Cache-Control` **üretmiyor** → `/files/` yolunda hiçbir önbellek yönergesi yok (03-perf §5) |
 | **AS-27** *(yeni)* | **Gerçek fotoğraf korpusu repoya alınacak mı?** | Faz 1 | ❌ **AÇIK.** T-006 korpusu tamamen sentetik; `content_rules` eşikleri (`entropy_bits`, `blur_laplacian_variance`, `target_ssim_per_class`) **kalibre edilemiyor**. Canlı `tabFile`'dan örnekleme teknik olarak mümkün ama KVKK/ticari gizlilik kararı gerektiriyor (05-fixture §8, §10) |
 | **AS-28** *(yeni)* | **`libvips`/`pyvips` kurulumu kalıcı hâle getirilecek mi — yoksa T-007 kalıcı olarak "ölçüldü, ertelendi" mi?** | Faz 1 | ⚠ **Benchmark cevabı verdi: pyvips'e GEÇME.** Kurulum bugün konteynerde var [Ö3] ama `--force-recreate`'te silinir (05-kutuphane §1). Karar "kurulum kalıcı olsun mu" değil, **"K-11 ölçüldü diye kapatılsın mı"** |
-| **AS-29** *(yeni)* | **Hangi politika seti kaynak-doğru (source of truth)?** | **Faz 1 — Faz 2'yi bloklar** | ❌ **AÇIK.** `media_engine/policy/slots` (9 slot / 34 alan bağı) ↔ `docs/standards/policies` (13 slot / 13 alan). Aynı alana **8 kat farklı** eşik (Ç-15). T-028 migration'ı bunsuz yazılamaz |
+| **AS-29** *(yeni)* | **Hangi politika seti kaynak-doğru (source of truth)?** | **Faz 1 — Faz 2'yi bloklar** | ❌ **AÇIK.** `tradehub_core/media/pipeline/policy/slots` (9 slot / 34 alan bağı) ↔ `docs/standards/policies` (13 slot / 13 alan). Aynı alana **8 kat farklı** eşik (Ç-15). T-028 migration'ı bunsuz yazılamaz |
 | **AS-30** *(yeni)* | **719 harici URL yerelleştirilecek mi?** | Faz 1 | ❌ **AÇIK.** 668'i ürün görseli (`cdn.dummyjson.com`), 30'u kategori banner'ı, 6'sı avatar (`ui-avatars.com` / gravatar). Medya motorunun bu dosyalar üzerinde **sıfır kontrolü var** (09 §4.4, §8) |
 | **AS-31** *(yeni)* | **`product-video.json`'a süre kuralı eklenecek mi?** | Faz 2 | ❌ **AÇIK.** Canlıdaki **540 sn**'lik video `needs_transcode()`'un iki eşiğinin de altında → **hiç işlenmiyor** (05-fixture §4 B-6). Politikada `accept`'te de `require`'da da **süre alanı yok** |
 | **AS-32** *(yeni)* | **`Order.receipt_url` / `Payment Transaction.receipt_url` dosyaları korumasız — kabul mü ediliyor?** | **Faz 0/1 (güvenlik)** | ❌ **ÖLÇÜLDÜ — 2 korumasız dosya** (08 §6). `attached_to_doctype` boş **ve** `EXCLUDED_MEDIA_FIELDS` haritasında yok → iki koruma yolundan **ikisi de** devre dışı. 4 haritasız KYB alanında bugün açık dosya yok — boşluk **gizil** |
@@ -644,7 +644,7 @@ kalem: **K-23…K-25**.
 | Kayıt defteri | Slot | Alan bağı | Anahtar şeması | Örnek |
 |---|---:|---:|---|---|
 | `docs/standards/policies/*.json` | **13** | 13 | `<alan>.<slot>` | `listing.primary_image`, `seller.logo` |
-| `media_engine/policy/slots/*.json` | **9** | **34** | `<varlık>.<tip>` | `product.image`, `seller-logo` |
+| `tradehub_core/media/pipeline/policy/slots/*.json` | **9** | **34** | `<varlık>.<tip>` | `product.image`, `seller-logo` |
 
 Rev. 1: *"Bu bir çelişki değil, henüz uzlaştırılmamış iki granülerlik."*
 
@@ -672,7 +672,7 @@ bağlı ve iki farklı kural taşıyor (09 §7-B).
 
 ```
 ?? docs/plans/          ?? docs/reports/        ?? docs/srs/
-?? docs/standards/      ?? fixtures/            ?? media_engine/
+?? docs/standards/      ?? fixtures/            ?? tradehub_core/media/pipeline/
 ?? scripts/bench_engine.py            ?? scripts/build_fixture_manifest.py
 ?? scripts/calibrate_content_rules.py ?? scripts/gen_fixtures_images.py
 ?? scripts/gen_fixtures_video.sh      ?? scripts/media_stats.py
@@ -1064,7 +1064,7 @@ raporun okunduğunu ve §9.3'teki kalan kalemlerin karara bağlandığını belg
 
 | # | Kalem | Karar | Tarih | Sorumlu |
 |---|---|---|---|---|
-| **K-23** | AS-29 — hangi politika seti kaynak-doğru? | ☐ `media_engine/policy/slots`  ☐ `docs/standards/policies`  ☐ Birleştirilecek  ☐ Karar verilmedi | ________ | ________ |
+| **K-23** | AS-29 — hangi politika seti kaynak-doğru? | ☐ `tradehub_core/media/pipeline/policy/slots`  ☐ `docs/standards/policies`  ☐ Birleştirilecek  ☐ Karar verilmedi | ________ | ________ |
 | **K-24** | Ç-16 — SRS FR-019 (logo alfa zorunluluğu) | ☐ SRS düzeltilecek (alfa opsiyonel)  ☐ Politika geri alınacak  ☐ Karar verilmedi | ________ | ________ |
 | **K-25** | Ç-18 — kod çözme öncesi megapiksel kapısı + `max_megapixels_hard` eşiği | ☐ Kapı eklenecek, eşik ____ MP  ☐ Ertelendi (risk kabul edildi)  ☐ Karar verilmedi | ________ | ________ |
 
@@ -1156,7 +1156,7 @@ _________________________________________________________________________
 
 - `tradehub_core/media/presets.py`, `engine.py`, `upload_policy.py`, `chunked.py`, `usage.py`
 - `docs/MEDYA-DEPOLAMA-STANDARDI.md`
-- `media_engine/policy/slots/*.json`, `docs/standards/policies/*.json`
+- `tradehub_core/media/pipeline/policy/slots/*.json`, `docs/standards/policies/*.json`
 
 ### İlgili mevcut belgeler
 

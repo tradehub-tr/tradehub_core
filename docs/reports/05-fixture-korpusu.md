@@ -133,7 +133,7 @@ görünür kılar.
 
 ## 4. Korpusun ilk çıktısı: bugünkü motorun ölçülmüş davranışı
 
-Fixture'lar üretilir üretilmez konteynerde **gerçek** `tradehub_core.media.engine`
+Fixture'lar üretilir üretilmez konteynerde **gerçek** `tradehub_core.media.pipeline`
 ve `tradehub_core.media.transcode` kaynak dosyalarına uygulandı. Aşağıdakiler
 tahmin değil, koşum sonucudur (`tests/fixtures/media/live-probe.json`).
 

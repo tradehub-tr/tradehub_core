@@ -13,7 +13,7 @@
 
 **Nasıl ölçüldü**
 
-1. `media_engine/policy/slots/*.json` → `bound_to[]` alanlarından `slot_key → (doctype, field)` haritası çıkarıldı.
+1. `tradehub_core/media/pipeline/policy/slots/*.json` → `bound_to[]` alanlarından `slot_key → (doctype, field)` haritası çıkarıldı.
 2. `docs/standards/policies/*.json` → `doctype_field` alanından ikinci harita çıkarıldı.
 3. Her `(doctype, field)` için konteynerde `SELECT name, <field> FROM tab<DocType>` çalıştırıldı.
 4. `Long Text` alanlarda (`Storefront Layout.sections`, `Listing Variant Item.variant_gallery`) JSON içi URL'ler çıkarıldı.
@@ -34,7 +34,7 @@
 
 **Politika sürümü uyarısı — önemli**
 
-Ölçüm sırasında `media_engine/policy/slots/` dosyaları **eşzamanlı olarak değiştirildi**:
+Ölçüm sırasında `tradehub_core/media/pipeline/policy/slots/` dosyaları **eşzamanlı olarak değiştirildi**:
 
 ```
 seller-logo.json   → 2026-08-18 09:31:22
@@ -48,7 +48,7 @@ Bu iki dosyada JPEG yasağı kaldırıldı (`rejected_extensions`'tan `.jpg`/`.j
 
 ## 1. Slot → alan haritası (çıkarılan)
 
-### 1.A `media_engine/policy/slots/` — 9 slot, 34 alan bağı
+### 1.A `tradehub_core/media/pipeline/policy/slots/` — 9 slot, 34 alan bağı
 
 | slot_key | bağlı `(doctype, field)` |
 |---|---|
@@ -408,5 +408,5 @@ Aynı `(doctype, field)` çiftine iki farklı taban dayatılıyor:
 
 - Ölçüm scriptleri: `/tmp/slotmeasure.py` (konteyner içi), `eval2.py` / `detail.py` / `deep.py` (yerel scratchpad)
 - Ham ölçüm çıktısı: `slotdata.json` — 3.239 eşsiz URL, her biri için `state / w / h / bytes / fmt / mode / alpha / ext`
-- Politika anlık kopyası: 2026-08-18 09:33:12 (`media_engine/policy/` tam kopya)
+- Politika anlık kopyası: 2026-08-18 09:33:12 (`tradehub_core/media/pipeline/policy/` tam kopya)
 - Bu rapordaki **hiçbir sayı tahmin değildir**; her biri yukarıdaki scriptlerin çıktısıdır. Ölçülemeyen her şey §0'da açıkça listelenmiştir.

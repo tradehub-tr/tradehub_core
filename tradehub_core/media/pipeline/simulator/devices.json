@@ -1,0 +1,153 @@
+{
+  "$comment": "T-110 — Önizleme simülatörünün referans cihaz seti. VERİDİR, koda gömülü değildir.",
+  "schema_version": "1.0.0",
+  "generated_for": "Faz 11 / T-110",
+  "measurement_status": "EMULE_DEGERLER_OLCULMEDI",
+  "measurement_note": "Buradaki `css_viewport` ve `dpr` değerleri GERÇEK CİHAZDA ÖLÇÜLMEDİ. Chrome DevTools cihaz listesi, Lighthouse mobil preset'i ve üreticinin yayımladığı teknik özellik sayfalarındaki standart emülasyon değerleridir. Gerçek tarayıcıda `window.innerWidth` bunlardan DAHA KÜÇÜK çıkar: masaüstünde dikey kaydırma çubuğu (~15px) ve mobilde tarayıcı kromu viewport'tan düşer. Simülatör bu farkı UYGULAMAZ — `scrollbar_px` alanı bilgi amaçlıdır, hesaba katılırsa profil seçimi bir basamak aşağı kayabilir. Gerçek ölçüm için docs/ui/faz11-simulator.md §5.",
+  "physical_rule": "physical = round(css * dpr). Panelin gerçek piksel sayısı bundan ±2px sapabilir (tarayıcı DPR'yi yuvarlar); sapan cihazlarda `physical_note` vardır.",
+  "devices": [
+    {
+      "id": "iphone-se-3",
+      "label": "iPhone SE (3. nesil)",
+      "class": "phone",
+      "css_viewport": { "width": 375, "height": 667 },
+      "dpr": 2,
+      "physical": { "width": 750, "height": 1334 },
+      "scrollbar_px": 0,
+      "source": "Apple teknik özellikleri (1334×750 @2x) — Chrome DevTools 'iPhone SE' girdisiyle aynı",
+      "why": "Hâlâ satılan en dar ekran. srcset merdiveninin ALT ucunu zorlar: 2 sütunlu kart ızgarasında kutu 163px'e iner."
+    },
+    {
+      "id": "galaxy-s23",
+      "label": "Samsung Galaxy S23",
+      "class": "phone",
+      "css_viewport": { "width": 360, "height": 780 },
+      "dpr": 3,
+      "physical": { "width": 1080, "height": 2340 },
+      "scrollbar_px": 0,
+      "source": "Chrome DevTools 'Galaxy S8+/S20' sınıfı 360px CSS genişliği; panel 1080×2340",
+      "why": "Android tarafının fiili standardı: 360 CSS px @3x. docs/reports/03-render-envanteri.md'nin tüm tablolarında ilk satır budur."
+    },
+    {
+      "id": "iphone-14",
+      "label": "iPhone 14 / 15 / 16",
+      "class": "phone",
+      "css_viewport": { "width": 390, "height": 844 },
+      "dpr": 3,
+      "physical": { "width": 1170, "height": 2532 },
+      "scrollbar_px": 0,
+      "source": "Apple teknik özellikleri (2532×1170 @3x)",
+      "why": "iOS'un en yaygın gövdesi. Ürün detay mobil ana görselinde 390×3 = 1170 piksel talep eder."
+    },
+    {
+      "id": "moto-g-power",
+      "label": "Moto G Power (Lighthouse mobil varsayılanı)",
+      "class": "phone",
+      "css_viewport": { "width": 412, "height": 823 },
+      "dpr": 1.75,
+      "physical": { "width": 721, "height": 1440 },
+      "scrollbar_px": 0,
+      "source": "Lighthouse `--form-factor=mobile` varsayılan ekran emülasyonu (412×823, DPR 1.75)",
+      "why": "TAM SAYI OLMAYAN DPR. Lighthouse skorunun üretildiği cihaz budur; CWV raporlarıyla karşılaştırma ancak bu satır üzerinden yapılabilir. 1.75 çarpanı merdivende yarım basamağa denk gelen tek yerdir."
+    },
+    {
+      "id": "iphone-15-pro-max",
+      "label": "iPhone 15 / 16 Pro Max",
+      "class": "phone",
+      "css_viewport": { "width": 430, "height": 932 },
+      "dpr": 3,
+      "physical": { "width": 1290, "height": 2796 },
+      "scrollbar_px": 0,
+      "source": "Apple teknik özellikleri (2796×1290 @3x)",
+      "why": "Telefon sınıfının en yüksek piksel talebi: ürün detay mobil ana görselinde 1290 piksel."
+    },
+    {
+      "id": "ipad-mini-6",
+      "label": "iPad mini (6. nesil, dikey)",
+      "class": "tablet",
+      "css_viewport": { "width": 744, "height": 1133 },
+      "dpr": 2,
+      "physical": { "width": 1488, "height": 2266 },
+      "scrollbar_px": 0,
+      "source": "Apple teknik özellikleri (2266×1488 @2x)",
+      "why": "768px kırılımının HEMEN ALTINDA. Bu projede `lg:` = 768px olduğu için 744 ile 768 arası düzen değiştirir; merdivenin kırılım kenarındaki davranışını sınar."
+    },
+    {
+      "id": "ipad-pro-11",
+      "label": "iPad Pro 11\" (dikey)",
+      "class": "tablet",
+      "css_viewport": { "width": 834, "height": 1194 },
+      "dpr": 2,
+      "physical": { "width": 1668, "height": 2388 },
+      "scrollbar_px": 0,
+      "source": "Apple teknik özellikleri (2388×1668 @2x)",
+      "why": "Ürün detay hâlâ MOBİL düzendedir (eşik 1024px) → ana görsel kutusu = 834 CSS px, @2x = 1668 piksel. Sistemin en yüksek tekil talebi bu sınıftan çıkar."
+    },
+    {
+      "id": "ipad-pro-11-landscape",
+      "label": "iPad Pro 11\" (yatay)",
+      "class": "tablet",
+      "css_viewport": { "width": 1194, "height": 834 },
+      "dpr": 2,
+      "physical": { "width": 2388, "height": 1668 },
+      "scrollbar_px": 0,
+      "source": "Aynı cihaz, yatay yönelim",
+      "why": "1024 ile 1280 arasındaki bandın tek temsilcisi: ürün detay MASAÜSTÜ düzenine geçer ama sağ ray hâlâ 300px'tir."
+    },
+    {
+      "id": "surface-pro-9",
+      "label": "Surface Pro 9 (tarayıcı tam ekran)",
+      "class": "laptop",
+      "css_viewport": { "width": 1368, "height": 912 },
+      "dpr": 1.5,
+      "physical": { "width": 2052, "height": 1368 },
+      "scrollbar_px": 15,
+      "source": "Chrome DevTools 'Surface Pro 7' sınıfı 1368×912 @1.5",
+      "why": "Windows'ta %150 ölçek fiili varsayılandır ve TAM SAYI OLMAYAN ikinci DPR'dir. 1.5 çarpanı 1280 ile 1920 basamakları arasına düşer."
+    },
+    {
+      "id": "macbook-air-13",
+      "label": "MacBook Air 13\" (Retina, varsayılan ölçek)",
+      "class": "laptop",
+      "css_viewport": { "width": 1440, "height": 900 },
+      "dpr": 2,
+      "physical": { "width": 2880, "height": 1800 },
+      "scrollbar_px": 15,
+      "source": "Apple 'varsayılan olarak 1440×900 gibi görünür' ölçek ayarı",
+      "why": "En yaygın dizüstü. docs/reports/03-render-envanteri.md'nin 1440 sütununun cihaz karşılığı."
+    },
+    {
+      "id": "macbook-pro-16",
+      "label": "MacBook Pro 16\" (varsayılan ölçek)",
+      "class": "laptop",
+      "css_viewport": { "width": 1728, "height": 1117 },
+      "dpr": 2,
+      "physical": { "width": 3456, "height": 2234 },
+      "scrollbar_px": 15,
+      "source": "Apple 'varsayılan olarak 1728×1117 gibi görünür' ölçek ayarı",
+      "why": "DPR 2 ile en geniş CSS viewport. Kart ızgaralarında @2x talebi burada tavana vurur."
+    },
+    {
+      "id": "desktop-1080p",
+      "label": "Masaüstü 1080p (DPR 1)",
+      "class": "desktop",
+      "css_viewport": { "width": 1920, "height": 1080 },
+      "dpr": 1,
+      "physical": { "width": 1920, "height": 1080 },
+      "scrollbar_px": 15,
+      "source": "Standart 1920×1080 monitör, tarayıcı tam ekran, ölçek %100",
+      "why": "Container'ın 1840px max-width'inin devreye girdiği ilk genişlik. DPR 1 olduğu için @1x basamaklarının doğru seçilip seçilmediğini gösteren tek sınıf."
+    },
+    {
+      "id": "desktop-1440p",
+      "label": "Masaüstü 1440p (DPR 1)",
+      "class": "desktop",
+      "css_viewport": { "width": 2560, "height": 1440 },
+      "dpr": 1,
+      "physical": { "width": 2560, "height": 1440 },
+      "scrollbar_px": 15,
+      "source": "Standart 2560×1440 monitör, tarayıcı tam ekran, ölçek %100",
+      "why": "Container 1840'ta doyduğu için 1920'ye göre kutu genişlikleri DEĞİŞMEZ. Merdivenin üst ucunda fazladan basamak gerekmediğini kanıtlar."
+    }
+  ]
+}

@@ -1,0 +1,325 @@
+{
+	"gorev": "T-140",
+	"aciklama": "C sınıfı eşleme: gereksinim kimliğini metninde YAZMAYAN ama gereksinimi gerçekten sınayan testler. Her girdi 'neden' taşımak ZORUNDA; gerekçesiz eşlemeyi scripts/gen_traceability.py reddeder. Referansların (dosya::Sınıf::fonksiyon) varlığı AST ile doğrulanır — uydurma test adı betiği çıkış kodu 2 ile düşürür.",
+	"kural": "Buraya yalnız DOĞRUDAN bağ yazılır. 'ilgili olabilir' bağ yazılmaz; o gereksinim KAPSANMIYOR kalır. Kısmi kapsama 'neden' alanında açıkça söylenir.",
+	"map": {
+		"FR-002": [
+			{
+				"test": "tests/test_policy_engine.py::PolitikaKaydiTesti::test_dokuz_slot_politikasi_yuklendi",
+				"neden": "Tek kayıt defterinin 9 slot politikasını tek şemadan yüklediğini doğrular; FR-002'nin 'tek kayıt defteri' yarısı budur. İkinci kayıt yerinin (docs/standards/policies/) kaldırılması KAPSANMIYOR."
+			},
+			{
+				"test": "tests/test_contracts.py::PolicyContractTest::test_dokuz_slot_yuklendi",
+				"neden": "Aynı iddiayı sözleşme (Protocol) katmanında sabitler; kayıt defteri arayüzü değişirse burası kırılır."
+			}
+		],
+		"FR-005": [
+			{
+				"test": "tests/test_api_contracts.py::YonetimTesti::test_matris_kalibre_edilmemis_kaliteyi_isaretler",
+				"neden": "encoder_quality null olan profilin işaretlendiğini doğrular — FR-005 kapısının iki koşulundan biri. open_questions koşulu KAPSANMIYOR."
+			}
+		],
+		"FR-018": [
+			{
+				"test": "tests/test_contracts.py::PolicyContractTest::test_geometri_kisa_kenar_ve_adet",
+				"neden": "require.max_count adet sınırının politika değerlendirmesinde uygulandığını sözleşme düzeyinde sabitler."
+			}
+		],
+		"FR-020": [
+			{
+				"test": "tests/test_policy_engine.py::NormalizeHedefTesti::test_logo_masteri_kare_paddir",
+				"neden": "Logo master'ının kırpılmadan 1:1'e pad edildiğini doğrular — FR-020'nin tam iddiası."
+			}
+		],
+		"FR-035": [
+			{
+				"test": "tests/test_render.py::RenderSozlesmesiTesti::test_merdiven_per_format_matrisin_tamami",
+				"neden": "Bir master'dan slot politikasındaki merdivenin TAMAMININ üretildiğini doğrular; eksik basamak testi kırar."
+			},
+			{
+				"test": "tests/test_render_regression.py::TumSlotlarDavranisTesti::test_kismi_merdiven_yok",
+				"neden": "Regresyon kilidi: hiçbir slotta kısmi merdiven üretilmediğini gerçek fixture üzerinde sabitler."
+			}
+		],
+		"FR-037": [
+			{
+				"test": "tests/test_render.py::GeometriTesti::test_pad_hedef_orani_kurar",
+				"neden": "pad profillerinin hedef oranı kurduğunu doğrular (kare kutu profilleri)."
+			},
+			{
+				"test": "tests/test_render.py::GeometriTesti::test_contain_orani_korur_dolgu_yok",
+				"neden": "contain profillerinin oranı koruyup dolgu yapmadığını doğrular (zoom kaynağı profilleri)."
+			}
+		],
+		"FR-038": [
+			{
+				"test": "tests/test_quality_ssim.py::PolitikaHedefiTesti::test_logo_slotlari_kayipsiz_ister",
+				"neden": "Logo slotlarının kalite hedefinin kayıpsız olduğunu politikadan okuyup doğrular."
+			}
+		],
+		"FR-039": [
+			{
+				"test": "tests/test_image_normalize.py::MetadataTest::test_gps_silinir",
+				"neden": "GPS EXIF'inin çıktıdan silindiğini gerçek fixture (exif_gps.jpg) üzerinde doğrular — FR-039'un KVKK gerekçesi."
+			}
+		],
+		"FR-070": [
+			{
+				"test": "tradehub_core/tests/test_media_quota.py::CheckMediaStorageQuotaTests::test_kota_asiminda_upload_reddedilir",
+				"neden": "Satıcı başına toplam depolama kotasının yüklemeyi reddettiğini doğrular."
+			}
+		],
+		"FR-071": [
+			{
+				"test": "tradehub_core/tests/test_media_quota.py::CheckMediaStorageQuotaTests::test_tanimsiz_kota_reddetmez",
+				"neden": "Planda limit tanımsızsa (None) fail-open davranıldığını doğrular — FR-071'in tam iddiası."
+			}
+		],
+		"FR-072": [
+			{
+				"test": "tradehub_core/tests/test_media_pipeline_integration.py::TestKotaReddi::test_dusuk_kotada_upload_reddedilir",
+				"neden": "Kota kapısının yükleme hattında (dosya yazılmadan) reddettiğini uçtan uca doğrular."
+			}
+		],
+		"FR-074": [
+			{
+				"test": "tradehub_core/tests/test_media_quota.py::CheckMediaStorageQuotaTests::test_private_dosya_muaf",
+				"neden": "Kota kapsamının bugünkü davranışını (private muaf) sabitler; FR-074 'bugünkü davranışı varsayılan olarak taşı' diyor."
+			}
+		],
+		"FR-079": [
+			{
+				"test": "tradehub_core/tests/test_media_quota.py::CheckMediaStorageQuotaTests::test_kyb_dosyasi_kotadan_muaf",
+				"neden": "Muafiyetin açık listeden geldiğini (KYB) doğrular."
+			}
+		],
+		"FR-097": [
+			{
+				"test": "tests/test_usage.py::DiskOksuzuTesti::test_genc_dosya_korunur",
+				"neden": "Referansı olmayan ama yeni bir dosyanın silme adayı sayılmadığını doğrular — FR-097'nin bekleme (grace) süresi."
+			},
+			{
+				"test": "tests/test_usage.py::DiskOksuzuTesti::test_esik_gunu_sinirda",
+				"neden": "Grace eşiğinin sınırda nasıl davrandığını sabitler."
+			}
+		],
+		"FR-099": [
+			{
+				"test": "tests/test_retention.py::TestPolitikaDogrulama::test_from_mapping_kismi_ayari_birlestirir",
+				"neden": "Saklama sürelerinin dışarıdan (kısmi eşleme) konfigüre edilebildiğini doğrular."
+			}
+		],
+		"FR-100": [
+			{
+				"test": "tests/test_retention.py::TestLegalHold::test_tutulan_nesne_bloke_edilir",
+				"neden": "legal_hold işaretli nesnenin süpürücü tarafından silinmediğini doğrular."
+			},
+			{
+				"test": "tests/test_retention.py::TestLegalHold::test_tutulan_nesne_islak_kosumda_da_silinmez",
+				"neden": "Kuru koşumda değil, gerçek silme koşumunda da bloke edildiğini doğrular — kritik ayrım."
+			}
+		],
+		"FR-103": [
+			{
+				"test": "tests/test_retention.py::TestKuruKosum::test_varsayilan_politika_hicbir_seyi_silmez",
+				"neden": "Varsayılan politikanın orijinali süresiz sakladığını (hiçbir şey silmediğini) doğrular."
+			}
+		],
+		"FR-105": [
+			{
+				"test": "tests/test_retention.py::TestPolitikaDogrulama::test_bilinmeyen_hedef_reddedilir",
+				"neden": "Uygulanmamış/bilinmeyen depolama hedefi seçilirse politikanın reddedildiğini doğrular."
+			}
+		],
+		"FR-107": [
+			{
+				"test": "tests/test_usage.py::DiskOksuzuTesti::test_kayitsiz_ve_eski_dosya_oksuz",
+				"neden": "Diskte olup kaydı olmayan dosyanın yetim olarak raporlandığını doğrular (disk→DB yönü)."
+			},
+			{
+				"test": "tests/test_usage.py::KayitOksuzuTesti::test_bagi_olmayan_eski_varlik_oksuz",
+				"neden": "Kaydı olup bağı olmayan varlığın raporlandığını doğrular (DB→disk yönü). İki yön birlikte FR-107'nin uzlaştırma iddiasını karşılar."
+			}
+		],
+		"FR-109": [
+			{
+				"test": "tradehub_core/tests/test_media_access_level.py::KybProtectionTests::test_kyb_belgesi_public_yapilamaz",
+				"neden": "PII kapsamındaki doctype'a bağlı dosyanın public yapılmasının reddedildiğini doğrular."
+			},
+			{
+				"test": "tradehub_core/tests/test_media_access_level.py::ReverseReferencePiiTests::test_attached_to_doctype_bos_ama_seller_application_referansli_dosya_public_yapilamaz",
+				"neden": "attached_to boşken ters referansla korumanın da çalıştığını doğrular — SRS'in özellikle işaret ettiği açık."
+			}
+		],
+		"FR-112": [
+			{
+				"test": "tradehub_core/tests/test_media_access.py::GetSignedUrlTests::test_yetkisiz_kullanici_permission_error_ve_imza_uretmez",
+				"neden": "Yetkisiz kullanıcı için imza ÜRETİLMEDİĞİNİ doğrular — FR-112'nin ikinci yarısı."
+			},
+			{
+				"test": "tradehub_core/tests/test_media_access.py::GetSignedUrlTests::test_yetkili_kullanici_icin_imzali_url_doner",
+				"neden": "Yetkili kullanıcı için imzalı süreli URL üretildiğini doğrular."
+			}
+		],
+		"FR-114": [
+			{
+				"test": "tradehub_core/tests/test_media_access.py::DownloadTests::test_gecersiz_imza_reddi_audit_a_yazar",
+				"neden": "Ret dallarının denetime yazıldığını doğrular; aynı sınıfta dört ret dalı için ayrı test var."
+			},
+			{
+				"test": "tradehub_core/tests/test_media_access.py::DownloadTests::test_bad_path_reddi_audit_a_yazar",
+				"neden": "Yol reddi dalının da denetime düştüğünü doğrular."
+			}
+		],
+		"FR-115": [
+			{
+				"test": "tradehub_core/tests/test_media_seller_backup.py::TestIzolasyon::test_baska_magazanin_yedegi_okunamaz",
+				"neden": "Mağaza izolasyonunun yedek yüzeyinde uygulandığını doğrular."
+			},
+			{
+				"test": "tests/test_api_contracts.py::TeslimTesti::test_baska_magaza_taslagi_goremez",
+				"neden": "Teslim ucunda başka mağazanın varlığının görünmediğini doğrular — 'varlığını bile ifşa etme' iddiası."
+			}
+		],
+		"FR-116": [
+			{
+				"test": "tradehub_core/tests/test_media_access_level.py::AuditTests::test_basarili_degisim_media_level_changed_yazar",
+				"neden": "Erişim seviyesi değişiminin denetime yazıldığını doğrular."
+			},
+			{
+				"test": "tradehub_core/tests/test_media_access_level.py::IdempotentTests::test_zaten_hedef_seviyedeyse_no_op",
+				"neden": "Değişimin idempotent (atomiklik yan koşulu) olduğunu doğrular."
+			}
+		],
+		"FR-119": [
+			{
+				"test": "tests/test_policy_engine.py::KuralDavranisiTesti::test_kosullu_svg_kapali_oldugu_icin_reddedilir",
+				"neden": "SVG kabulünün ön koşullar karşılanana dek KAPALI kaldığını doğrular — FR-119'un bugün uygulanabilir tek yarısı. SVG-1…SVG-10 açılış koşulları KAPSANMIYOR."
+			}
+		],
+		"FR-121": [
+			{
+				"test": "tests/test_simulator_srcset.py::SizesUretimi::test_her_bolge_sizes_uretebiliyor",
+				"neden": "Her render bölgesi için sizes üretilebildiğini doğrular; srcset/sizes hesabının kendisi budur. Storefront'a basılması KAPSANMIYOR (frontend)."
+			},
+			{
+				"test": "tests/test_simulator_srcset.py::SizesUretimi::test_srcset_dizgesi_artan_genislikte",
+				"neden": "srcset dizgesinin geçerli biçimde üretildiğini doğrular."
+			}
+		],
+		"NFR-003": [
+			{
+				"test": "tests/test_contracts.py::VideoContractTest::test_transcode_ses_silme_ve_dosya_kapisi",
+				"neden": "Transcode çıktısının dosya kapısına tabi olduğunu sözleşme düzeyinde sabitler."
+			}
+		],
+		"NFR-006": [
+			{
+				"test": "tradehub_core/tests/test_media_transcode.py::TestEnqueueTranscodeKosullu::test_kucuk_video_enqueue_edilmez_ready_isaretlenir",
+				"neden": "Koşullu transcode'un (küçük video kuyruğa hiç girmez) korunduğunu doğrular — NFR-006'nın kuyruk boğulmama gerekçesi."
+			}
+		],
+		"NFR-011": [
+			{
+				"test": "tests/test_render.py::DefterTesti::test_ikinci_kosum_encode_etmez",
+				"neden": "İkinci koşumda yeniden encode edilmediğini doğrular — gereksiz yeniden encode yasağı."
+			},
+			{
+				"test": "tests/test_render.py::DefterTesti::test_merdiven_idempotent",
+				"neden": "Merdiven üretiminin idempotent olduğunu doğrular."
+			}
+		],
+		"NFR-016": [
+			{
+				"test": "tradehub_core/tests/test_media_seller_backup.py::TestKapsam::test_yedekte_baska_magazanin_dosyasi_YOK",
+				"neden": "Bir satıcının çıktısında başka mağazanın dosyasının hiç görünmediğini doğrular."
+			}
+		],
+		"NFR-017": [
+			{
+				"test": "tradehub_core/tests/test_media_av.py::TestAdminAPI::test_karantinadan_cikarma_yikici_yetki_ister",
+				"neden": "Geri alınamaz işlemin en yüksek rol kapısı ardında olduğunu doğrular."
+			}
+		],
+		"NFR-019": [
+			{
+				"test": "tradehub_core/tests/test_media_naming.py::TestHashedName::test_ayni_icerik_ayni_hash_farkli_ad_gizli",
+				"neden": "Yeni yüklemelerde dosya adının içerikten türeyen, tahmin edilemez bir hash olduğunu doğrular."
+			}
+		],
+		"NFR-020": [
+			{
+				"test": "tradehub_core/tests/test_media_access.py::DownloadTests::test_path_traversal_download_da_reddedilir",
+				"neden": "Yol geçişinin indirme ucunda engellendiğini doğrular (birinci katman)."
+			},
+			{
+				"test": "tests/test_storage_adapters.py::TestLocalDiskDavranisi::test_yol_gecisi_reddedilir",
+				"neden": "Depolama adaptörü katmanında da bağımsız olarak engellendiğini doğrular (ikinci katman). NFR-020 tam olarak iki bağımsız katman istiyor."
+			}
+		],
+		"NFR-021": [
+			{
+				"test": "tests/test_storage_adapters.py::TestSignedUrl::test_kurcalanan_imza_reddedilir",
+				"neden": "İmza doğrulamasının kurcalamayı yakaladığını doğrular; imzalama hmac tabanlı standart yolu kullanıyor."
+			},
+			{
+				"test": "tests/test_storage_adapters.py::TestSignedUrl::test_default_signer_anahtarsiz_rastgele_uretmez",
+				"neden": "Anahtarsız durumda sahte imza üretilmediğini doğrular — 'kendi kriptonu yazma' kuralının pratik karşılığı."
+			}
+		],
+		"NFR-034": [
+			{
+				"test": "tradehub_core/tests/test_media_access_level.py::AuditTests::test_gecis_hassas_isaretlenir_ve_ham_url_context_e_yazilmaz",
+				"neden": "Medya olayının tek denetim şemasına, hassas alan sızdırmadan yazıldığını doğrular."
+			}
+		],
+		"NFR-035": [
+			{
+				"test": "tradehub_core/tests/test_media_access_level.py::AuditTests::test_gercek_adl_kaydinda_object_name_maskeli",
+				"neden": "Denetim kaydında hassas değerin maskelendiğini gerçek ADL kaydı üzerinde doğrular."
+			}
+		],
+		"NFR-039": [
+			{
+				"test": "tradehub_core/tests/test_media_transcode_retry.py::TestSupurucu::test_birakilmis_is_basarisizlik_sayilir_ve_yeniden_planlanir",
+				"neden": "Takılı transcode işinin tespit edilip yeniden planlandığını doğrular — video hattı sağlığının izlenebilir olması."
+			}
+		],
+		"NFR-040": [
+			{
+				"test": "tradehub_core/tests/test_media_transcode.py::TestEnqueueTranscodeKosullu::test_zaten_processing_ise_tekrar_enqueue_edilmez",
+				"neden": "Transcode'un idempotent olduğunu (aynı iş iki kez kuyruğa girmez) doğrular."
+			}
+		],
+		"NFR-041": [
+			{
+				"test": "tests/test_video_transcode.py::GercekTranscode::test_yarim_dosya_diskte_kalmaz",
+				"neden": "Gerçek ffmpeg koşumunda yarım dosyanın diskte kalmadığını doğrular (konteynerde koşar, yerelde atlanır)."
+			}
+		],
+		"NFR-044": [
+			{
+				"test": "tradehub_core/tests/test_media_naming.py::TestWriteFileHashedFileDocPath::test_file_doc_gorunen_ad_degismez",
+				"neden": "Hash'li yazımda görünen adın ve dolayısıyla referansların korunduğunu doğrular."
+			}
+		],
+		"NFR-049": [
+			{
+				"test": "tradehub_core/tests/test_media_seller_backup.py::TestDogrulama::test_bozulan_icerik_derin_dogrulamada_yakalanir",
+				"neden": "Yedeğin derin doğrulamayla bozulmayı yakaladığını doğrular — dayanıklılık iddiasının kanıtı."
+			}
+		],
+		"NFR-050": [
+			{
+				"test": "tradehub_core/tests/test_media_pipeline_integration.py::TestHashDedup::test_ayni_icerik_iki_kez_yuklenince_ayni_file_url_uretir",
+				"neden": "Aynı içeriğin tek fiziksel dosyaya düştüğünü uçtan uca doğrular."
+			}
+		],
+		"NFR-051": [
+			{
+				"test": "tests/test_dedup.py::AdlandirmaSozlesmesiTesti::test_ad_ve_shard_bicimi",
+				"neden": "Hash ön ekli shard düzeninin uygulandığını doğrular — dizin başına dosya sayısının ölçeklenebilir kalması."
+			}
+		]
+	}
+}

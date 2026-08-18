@@ -398,7 +398,7 @@ def classify(row: dict, slots: list[str], *, sensitive: bool, probe=None) -> dic
 	O fonksiyon `import frappe` içermeyen saf bir fonksiyondur (gates.py:1).
 	"""
 	from tradehub_core.media import gates, presets, states
-	from tradehub_core.media.engine import SUPPORTED_FORMATS
+	from tradehub_core.media.pipeline import SUPPORTED_FORMATS
 
 	url = row["file_url"]
 	boyut = int(row.get("file_size") or 0)

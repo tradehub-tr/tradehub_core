@@ -107,7 +107,7 @@ piyasada anlamlı payı olan cihaz yok ve her rung'ı 1,78× büyütürdü.
 ## 2. AİLE A — Platform logosu (iStoc kelime markası)
 
 Bu bir upload slotu **değil**: dosya derleme zamanında bundle'lanıyor
-(`public/images/` → `dist/images/`). Bu yüzden `media_engine/policy/slots/` altında
+(`public/images/` → `dist/images/`). Bu yüzden `tradehub_core/media/pipeline/policy/slots/` altında
 JSON'u yok. Kuralı burada yazılı.
 
 **Kaynak dosyalar ve ölçüleri (hepsi `file` + `stat` çıktısı):**
@@ -177,7 +177,7 @@ geçiyor (P7, P7b, P7c, P10) ve **yalnız 1'inde** DPR 3'ü geçiyor (P10, `h-[1
 
 **Slot:** `Admin Seller Profile.logo`, `fieldtype: Attach Image`
 (`docs/reports/00-upload-slot-envanteri.md` Tablo A, satır 1).
-**Politika dosyası:** `media_engine/policy/slots/seller-logo.json`
+**Politika dosyası:** `tradehub_core/media/pipeline/policy/slots/seller-logo.json`
 
 ### 3.1 Render noktası envanteri — 15 nokta
 
@@ -421,7 +421,7 @@ Mevcut davranış (`seo/og_image.py`) üç yerde logoya zarar veriyor:
 
 **Slot:** `Brand.logo`, `fieldtype: Attach Image`
 (`docs/reports/00-upload-slot-envanteri.md` Tablo A).
-**Politika dosyası:** `media_engine/policy/slots/brand-logo.json`
+**Politika dosyası:** `tradehub_core/media/pipeline/policy/slots/brand-logo.json`
 
 ### 4.1 Render noktası envanteri — 3 nokta
 
@@ -687,10 +687,10 @@ ve hiçbiri slot-farkındalıklı değil. Bu tablo Faz 2'nin uygulama listesidir
 ## 8. Politika JSON'ları — sözleşme
 
 **Dosyalar:**
-- `media_engine/policy/slots/seller-logo.json`
-- `media_engine/policy/slots/brand-logo.json`
+- `tradehub_core/media/pipeline/policy/slots/seller-logo.json`
+- `tradehub_core/media/pipeline/policy/slots/brand-logo.json`
 
-`media_engine/` altında bu görevin başında hiçbir dosya yoktu
+`tradehub_core/media/pipeline/` altında bu görevin başında hiçbir dosya yoktu
 (`find media_engine -type f` → boş). Yani bu JSON'ları **okuyan kod henüz yazılmadı**.
 
 **Şema seçimi.** Bu görev sürerken kardeş görevler aynı dizine 7 politika daha yazdı
@@ -758,7 +758,7 @@ Görev tanımı e-posta şablonu, PDF fatura ve mobil uygulamayı sayıyor. Öl�
 ```
 T-021 (bu belge onayı)
    │
-   ├─ 1. Slot kayıt defteri: media_engine/policy/slots/*.json okuyan katman
+   ├─ 1. Slot kayıt defteri: tradehub_core/media/pipeline/policy/slots/*.json okuyan katman
    │       → docs/reports/00-upload-slot-envanteri.md §1 "L3 yok" bulgusunu kapatır
    │
    ├─ 2. Logo doğrulama kodları (§7) → upload_policy.py'ye slot-farkındalık
@@ -1201,7 +1201,7 @@ diyor. `engine.py:117` upscale yapmadığı için 400×400 master 512 rung'unu d
 
 ## 14. Kabul kriterleri — bu standart "uygulanmış" sayılır mı
 
-- [ ] `media_engine/policy/slots/seller-logo.json` ve `brand-logo.json` bir kayıt
+- [ ] `tradehub_core/media/pipeline/policy/slots/seller-logo.json` ve `brand-logo.json` bir kayıt
       defteri tarafından **okunuyor** ve `upload_policy.check()` slot anahtarını alıyor.
 - [ ] §7'deki 12 kodun tümü `upload_policy.py`'de tanımlı ve `ALL_CODES`'ta.
 - [ ] Master, kabul bandındaki her oran için **1:1 saydam letterbox** ile

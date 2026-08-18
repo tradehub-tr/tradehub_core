@@ -1,7 +1,7 @@
 # Medya Kota ve Rate Limiting Standardı
 
 > Görev: **T-027** · Faz: Medya Motoru Faz 0-2 · Branch: `medya-motoru-faz0-faz2`
-> Şema: [`media_engine/policy/quota.schema.json`](../../media_engine/policy/quota.schema.json)
+> Şema: [`tradehub_core/media/pipeline/policy/quota.schema.json`](../../tradehub_core/media/pipeline/policy/quota.schema.json)
 > Kardeş belge: [`retention.md`](./retention.md) (T-026)
 > Yazım tarihi: 2026-08-17
 

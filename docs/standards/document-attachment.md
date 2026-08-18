@@ -1,7 +1,7 @@
 # Standart — `document.attachment` (Belge / sertifika eki)
 
 **Görev:** T-023 · **Tarih:** 2026-08-17 · **Branch:** `medya-motoru-faz0-faz2`
-**Politika dosyası:** `media_engine/policy/slots/document-attachment.json`
+**Politika dosyası:** `tradehub_core/media/pipeline/policy/slots/document-attachment.json`
 **Durum:** `draft` — ama **gövdesi zaten üretimde çalışıyor.**
 
 > **Bu belge yeni bir kural tasarlamıyor.** `tradehub_core/api/v1/kyb.py:411-501`
@@ -156,7 +156,7 @@ uzun kenar: 297 / 25,4 = 11,693 inç
 `require.allowed_ratios` = `["210:297"]` + **`ratio_tolerance: 1`** →
 oran **serbest**. Şemanın kendi talimatı bu: *"oran serbest istenirse
 `allowed_ratios: ["0:0"]` DEĞİL, `ratio_tolerance: 1` kullanılır"*
-(`media_engine/policy/schema/slot-policy.schema.json`). Gerekçe: belge oranı
+(`tradehub_core/media/pipeline/policy/schema/slot-policy.schema.json`). Gerekçe: belge oranı
 belgeye göre değişiyor — A4 dikey/yatay, kimlik kartı (ISO/IEC 7810 ID-1 =
 85,6 × 54 mm), vergi levhası.
 
