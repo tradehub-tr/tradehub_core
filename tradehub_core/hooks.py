@@ -102,8 +102,13 @@ scheduler_events = {
 		# bloğunu çalıştırmadığı için bu tarama olmadan o dosyalar sonsuza
 		# kadar "işleniyor" görünürdü. Periyot `media/jobs.py`
 		# `SWEEP_EVERY_SECONDS` ile TUTARLI olmalı — backoff çözünürlüğü bu.
+		# Aynı periyot, aynı gerekçe: AV tarama süpürücüsü (TUR-125). İki iş de
+		# `media/jobs.py`'deki ortak politikayı kullandığı için periyodu da
+		# paylaşırlar; ayrı periyot vermek backoff çözünürlüğünü iki işte iki
+		# farklı sayıya bağlardı.
 		"*/5 * * * *": [
 			"tradehub_core.media.transcode.sweep_stuck_transcodes",
+			"tradehub_core.media.av.sweep_stuck_scans",
 		],
 	},
 	"hourly": [
@@ -253,10 +258,17 @@ doc_events = {
 		# satıcıya ait public video / Listing'e eklenmiş video için tetiklenir
 		# (chat/KYB/private muaf) ve `enqueue_transcode` kendi içinde koşullu +
 		# idempotent — `upload_media`'nın kendi ardışık çağrısıyla çakışmaz.
+		# Zararlı içerik taraması (TUR-125, pipeline adım 3) EN SONA eklendi ama
+		# kapsamı EN GENİŞ olan kanca: transcode maliyet kararı verdiği için
+		# daraltılmış (satıcı + public + video), tarama güvenlik kararı verdiği
+		# için daraltılmamış — private KYB belgesi de, PDF de taranır. Tarayıcı
+		# kurulu değilse `enqueue_scan` hiç kuyruğa girmez (fail-open, gerekçe
+		# `media/av.py` docstring'inde).
 		"after_insert": [
 			"tradehub_core.media.states.on_file_insert",
 			"tradehub_core.media.audit.on_file_insert",
 			"tradehub_core.media.transcode.maybe_transcode_on_insert",
+			"tradehub_core.media.av.maybe_scan_on_insert",
 		],
 	},
 	# Currency cache invalidation — admin manuel düzenlemesinde düş.

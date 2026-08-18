@@ -15,7 +15,7 @@ import os
 import frappe
 from frappe import _
 
-from tradehub_core.media import archive, audit, inventory, presets, refs, runner, transcode, trash, usage
+from tradehub_core.media import archive, audit, inventory, presets, refs, runner, timefmt, transcode, trash, usage
 
 ALLOWED_ROLES: tuple[str, ...] = ("System Manager", "Marketplace Admin")
 
@@ -748,3 +748,173 @@ def download_media_backup_export(set_id: str):
 	# Gönderici site'ın private kökünden itibaren göreli yol bekliyor.
 	kok = frappe.get_site_path("private")
 	return send_private_file(os.path.relpath(tam, kok))
+
+
+# ── Zararlı içerik taraması ve karantina (TUR-125) ──────────────────────
+
+
+@frappe.whitelist()
+def scan_overview() -> dict:
+	"""Tarama politikasının ve envanterin özeti — panel üst bandı.
+
+	Politikayı da döndürüyor: tarayıcı kurulu değilse panel "0 zararlı bulundu"
+	yerine "tarama kapalı" demeli. İkisini aynı yeşil kutuda göstermek, hiç
+	çalışmayan bir güvenlik özelliğini çalışıyor gibi sunmanın en kolay yolu.
+	"""
+	_guard()
+	from tradehub_core.media import av
+
+	sayimlar = {
+		durum: frappe.db.count("File", {"th_media_scan_status": durum})
+		for durum in av.STORED_SCAN_STATUSES
+	}
+	# Hiç taranmamışlar: alan boş. Yamada bilerek backfill yapılmadı, bu sayı
+	# "geriye dönük tarama ne kadar kaldı" sorusunun cevabı.
+	# `is / not set` — NULL ve boş string'i birlikte kapsar. `["in", ["", None]]`
+	# yazılırsa Frappe `IN ('', NULL)` üretir ve NULL satırları kaçırır; alan
+	# sonradan eklendiği için mevcut kayıtların neredeyse tamamı NULL, yani sayı
+	# 5.150 yerine 30 görünürdü (ölçüldü).
+	sayimlar["unscanned"] = frappe.db.count(
+		"File", {"th_media_scan_status": ["is", "not set"], "is_folder": 0}
+	)
+	return {"policy": av.policy(), "counts": sayimlar}
+
+
+@frappe.whitelist()
+def list_scan_hold(page: int = 1, page_size: int = 50) -> dict:
+	"""Taraması bitmemiş, bu yüzden erişime kapalı bekleyen dosyalar.
+
+	Karantinadan AYRI liste: karantina bir karar ("zararlı"), bekletme bir ara
+	durum ("henüz bilmiyoruz"). İkisini aynı ekranda tek liste hâlinde
+	göstermek, operatörün olağan bir yüklemeyi zararlı sanmasına yol açardı.
+
+	Bu listenin uzun süre dolu kalması bir SORUN işaretidir: ya kuyruk
+	çalışmıyor ya tarayıcı takılmış. Ekran bunu göstermek için var.
+	"""
+	_guard()
+	from tradehub_core.media import av
+
+	page = max(1, int(page or 1))
+	page_size = min(200, max(1, int(page_size or 50)))
+	satirlar = frappe.get_all(
+		"File",
+		filters={"th_media_scan_status": av.SCAN_PENDING},
+		fields=[
+			"name",
+			"file_name",
+			"file_url",
+			"file_size",
+			"creation",
+			"th_media_scan_attempts",
+			"th_media_scan_started_at",
+		],
+		order_by="th_media_scan_started_at asc",
+		limit=page_size,
+		start=(page - 1) * page_size,
+	)
+	for r in satirlar:
+		r["scan_attempts"] = r.pop("th_media_scan_attempts", 0)
+		r["started_at"] = r.pop("th_media_scan_started_at", None)
+		r["in_hold"] = av.in_hold(r["file_url"])
+	# Tarih standardı (TUR-124): saat dilimi işareti olmadan gönderilen damga,
+	# tarayıcıda kullanıcının KENDİ saati sanılıyor — envanter uçlarıyla aynı
+	# kural, güvenlik uçları istisna değil.
+	timefmt.apply_all(satirlar)
+	return {
+		"items": satirlar,
+		"total": frappe.db.count("File", {"th_media_scan_status": av.SCAN_PENDING}),
+		"page": page,
+		"page_size": page_size,
+	}
+
+
+@frappe.whitelist(methods=["POST"])
+def sweep_scans() -> dict:
+	"""Süpürücüyü elle tetikle — takılı kalmış taramaları topla.
+
+	Zamanlanmış görev zaten 5 dakikada bir koşuyor; bu uç, operatörün bir
+	sorunu fark ettiğinde beklemek zorunda kalmaması için var.
+	"""
+	_guard()
+	from tradehub_core.media import av
+
+	return av.sweep_stuck_scans()
+
+
+@frappe.whitelist()
+def list_quarantine(page: int = 1, page_size: int = 50) -> dict:
+	"""Karantinadaki dosyalar — envanter listesinden AYRI uç.
+
+	Envanter sorgusu public dosya ağacını tarıyor; karantinadaki dosya oradan
+	fiziksel olarak çıkmış durumda ve o listede görünmez. Ayrı uç olmasaydı
+	zararlı bulgular panelde hiçbir yerde görünmezdi.
+	"""
+	_guard()
+	from tradehub_core.media import av
+
+	page = max(1, int(page or 1))
+	page_size = min(200, max(1, int(page_size or 50)))
+	satirlar = frappe.get_all(
+		"File",
+		filters={"th_media_scan_status": ["in", [av.SCAN_INFECTED, av.SCAN_FAILED]]},
+		fields=["name", "file_name", "file_url", "file_size", "creation", "th_media_scan_status", "th_media_scan_attempts"],
+		order_by="modified desc",
+		limit=page_size,
+		start=(page - 1) * page_size,
+	)
+	for r in satirlar:
+		r["scan_status"] = r.pop("th_media_scan_status", "")
+		r["scan_attempts"] = r.pop("th_media_scan_attempts", 0)
+		r["in_quarantine"] = av.in_quarantine(r["file_url"])
+	# Tarih standardı (TUR-124) — yukarıdaki bekletme listesiyle aynı gerekçe.
+	timefmt.apply_all(satirlar)
+	toplam = frappe.db.count("File", {"th_media_scan_status": ["in", [av.SCAN_INFECTED, av.SCAN_FAILED]]})
+	return {"items": satirlar, "total": toplam, "page": page, "page_size": page_size}
+
+
+@frappe.whitelist(methods=["POST"])
+def retry_scan(file_url: str) -> dict:
+	"""Taranamamış (`failed`) dosyayı yeniden kuyruğa koy.
+
+	`infected` KABUL EDİLMEZ — zararlı bulgusunu yeniden tarayarak "belki bu
+	sefer temiz çıkar" demek bulgunun anlamını yok eder. Oradan çıkış yalnız
+	`release_quarantine`, yani açık bir insan kararıdır. Kural
+	`av.retry_failed` içinde.
+	"""
+	_guard()
+	from tradehub_core.media import av
+
+	if not file_url:
+		frappe.throw(_("Dosya adresi zorunlu."))
+	return av.retry_failed(file_url)
+
+
+@frappe.whitelist(methods=["POST"])
+def release_quarantine(file_url: str) -> dict:
+	"""Yanlış pozitifi karantinadan çıkar — dosyayı yerine koy.
+
+	`_guard_destructive` (yalnız System Manager): bu uç, sistemin ZARARLI
+	dediği bir dosyayı erişime geri açıyor. Yanlış pozitifler gerçek ve bu
+	yeteneğin olmaması operasyonu kilitler; ama yetkiyi `Marketplace Admin`
+	seviyesine açmak, zararlı bulgusunu tek tıkla iptal edebilecek kişi
+	sayısını gereksiz büyütürdü — arşiv silmeyle aynı gerekçe.
+	"""
+	_guard_destructive()
+	from tradehub_core.media import av
+
+	if not file_url:
+		frappe.throw(_("Dosya adresi zorunlu."))
+	return av.release_from_quarantine(file_url)
+
+
+@frappe.whitelist(methods=["POST"])
+def scan_backfill(limit: int = 500) -> dict:
+	"""Hiç taranmamış mevcut dosyaları parça parça kuyruğa al.
+
+	Yama alanı ekliyor ama mevcut ~4.000 dosyayı taramaya sokmuyor; geriye dönük
+	tarama buradan, yönetici kontrolünde ve parça parça yürür.
+	"""
+	_guard()
+	from tradehub_core.media import av
+
+	return av.backfill_pending(limit=min(2000, max(1, int(limit or 500))))

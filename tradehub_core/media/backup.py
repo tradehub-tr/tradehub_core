@@ -411,10 +411,17 @@ def run_scheduled() -> dict:
 	# aynı deponun yerini yönetiyor ve sıraları önemli (önce yedek, sonra
 	# temizlik).
 	paketler = {}
+	satici_paketler = {}
 	try:
 		from tradehub_core.media import backup_export
 
 		paketler = backup_export.cleanup()
+		# Satıcı paketleri de aynı turda temizlenir (TUR-131 satıcı tarafı) —
+		# ayrı bir zamanlanmış görev, "hangi temizlik nerede" sorusunu her
+		# okuyana yeniden sordururdu.
+		from tradehub_core.media import seller_backup_export
+
+		satici_paketler = seller_backup_export.cleanup()
 	except Exception:
 		# Paket temizliği yedeği düşürmemeli: yedek alındı, asıl iş bitti.
 		frappe.log_error(
@@ -439,6 +446,7 @@ def run_scheduled() -> dict:
 		"snapshot": alinan,
 		"prune": temizlik,
 		"exports": paketler,
+		"seller_exports": satici_paketler,
 		"upload_sessions": oturumlar,
 	}
 

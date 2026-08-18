@@ -38,6 +38,36 @@ import frappe
 
 from tradehub_core.media import backup
 
+
+def _url_of(scope: str, rel: str) -> str:
+	"""Manifest satırının `file_url` karşılığı — tarama kapısı adresle konuşur."""
+	return f"/private/files/{rel}" if scope == "private" else f"/files/{rel}"
+
+
+def _servis_edilebilir(file_url: str) -> bool:
+	"""Dosya erişime açık mı — kararı AV politikası veriyor (TUR-125).
+
+	Tarama sistemi zararlı dosyayı public ağaçtan FİZİKSEL olarak çıkarıyor
+	(`media_quarantine`); adres değişmiyor, dosya yer değiştiriyor. Geri
+	yükleme için o dosya "diskte eksik" görünür ve blob'u geri yazmak
+	karantinayı ETKİSİZ kılar — kayıtlar hâlâ "infected" derken dosya yeniden
+	servis edilir ve kimse fark etmez. Geri yükleme bir güvenlik kararını
+	geçersiz kılamaz (`seller_backup` ile aynı kural).
+
+	Politika okunamazsa fail-open + log: platform kurtarması, tarama
+	altyapısının bir aksaklığı yüzünden durmamalı.
+	"""
+	try:
+		from tradehub_core.media import av
+
+		return av.is_servable(file_url)
+	except Exception:
+		frappe.log_error(
+			title="Media restore: tarama durumu okunamadi",
+			message=frappe.get_traceback(with_context=True),
+		)
+		return True
+
 # Kayıt yeniden kurulurken yazılmayacak alanlar: bunlar Frappe'nin kendi
 # yönettiği ya da yeniden hesaplanması gereken alanlar.
 _SKIP_ON_INSERT: frozenset[str] = frozenset({"modified"})
@@ -147,10 +177,15 @@ def apply(
 	yazilan: list[str] = []
 	uzerine: list[str] = []
 	atlanan_catisma: list[str] = []
+	atlanan_tarama: list[str] = []
 
 	if files:
 		for d in m["files"]:
 			if istenen and d["path"] not in istenen:
+				continue
+			# Karantinadaki / tarama bekleyen dosya geri YAZILMAZ (TUR-125).
+			if not _servis_edilebilir(_url_of(d["scope"], d["path"])):
+				atlanan_tarama.append(d["path"])
 				continue
 			blob = backup._blob_path(d["hash"])
 			if not os.path.isfile(blob):
@@ -238,6 +273,7 @@ def apply(
 			"files_written": len(yazilan),
 			"overwritten": len(uzerine),
 			"conflicts_skipped": len(atlanan_catisma),
+			"skipped_unscanned": len(atlanan_tarama),
 			"records_created": len(kurulan_kayit),
 			"overwrite_allowed": bool(overwrite),
 		},
@@ -250,6 +286,10 @@ def apply(
 		"overwritten_count": len(uzerine),
 		"conflicts_skipped": atlanan_catisma[:50],
 		"conflicts_skipped_count": len(atlanan_catisma),
+		# Karantina / tarama bekleyen: geri yazılmadı. Sessiz atlama, "geri
+		# yükledim ama dosyam gelmedi" durumunu açıklanamaz kılardı.
+		"skipped_unscanned": atlanan_tarama[:50],
+		"skipped_unscanned_count": len(atlanan_tarama),
 		"records_created": len(kurulan_kayit),
 		"applied": True,
 	}

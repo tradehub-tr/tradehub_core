@@ -58,15 +58,27 @@ tartışmaya açık değil; her adım bir öncekinin çıktısına güvenir.
 | Adım | Durum |
 |---|---|
 | 0, 1, 2 | ✅ çalışıyor (`upload_policy`, `chunked`, `naming`) |
-| 3 AV tarama | ❌ **yok** — TUR-125 (bu issue'nun kapsamı değil, sırası burada tanımlı) |
+| 3 AV tarama | ✅ kodlandı — `media/av.py` (TUR-125). **Çalışması ClamAV kurulumuna bağlı**; tarayıcı yoksa politika kendini kapatır |
 | 4 EXIF strip | 🟡 kısmi — `engine.py` yeniden encode ederken düşürüyor, ayrı adım değil (TUR-132) |
 | 5 optimize/convert | ✅ görsel (`runner.run_batch`), ✅ video (`transcode`) |
 | 6 türev | ❌ yok — TUR-297 |
 | 7 yedek | ✅ `backup.py`, `backup_export.py` |
 
-> **Açık madde.** 3 ve 4 hayata geçene kadar sıra kâğıt üstündedir: bugün dosya
-> yüklendiği anda servis edilebilir durumdadır. TUR-125 kapanmadan "AV taraması
-> yapılıyor" denemez.
+> **Açık madde.** Tarama kodu hazır ama **bu imajda ClamAV kurulu değil**;
+> kurulana kadar adım 3 fiilen çalışmaz ve "tarama yapılıyor" denemez. Durum
+> `media_admin.scan_overview` üzerinden panelden okunabilir (`policy.enabled`).
+> Adım 4 hâlâ ayrı bir adım değil (TUR-132).
+
+### 2.3 Taramanın kapatamadığı pencere
+
+Dosya, kaydın açılması ile taramanın bitmesi arasında (saniyeler) servis
+edilebilir durumdadır — kanca kuyruğa atar, nginx bu sırada dosyayı zaten
+sunabilir. Kapatmanın yolu yüklemeyi önce private'a alıp temiz sonuçtan sonra
+public'e taşımaktır; bu `file_url`'i yükleme anında belirsiz hâle getirir ve
+`naming.py`'nin içerik-adresli sözleşmesini kırar.
+
+Kabul kriteri "riskli dosyalar KALICI olarak erişime açılmamalı" diyor: kalıcı
+açıklık karantinayla kapanıyor, geçici pencere bilinçli olarak kabul edildi.
 
 ---
 
@@ -323,8 +335,11 @@ kendisi bir olay hâline getirirdi. 200'ü aşan birikme sonraki turlara yayıl�
 
 ## 8. Açık maddeler
 
-1. **AV tarama adımı yok** (TUR-125, Ahmet). Sıradaki yeri bu belgede tanımlı,
-   uygulaması yok. Kapanmadan "tarama yapılıyor" denemez.
+1. **AV tarama kodlandı, tarayıcı kurulu değil** (TUR-125). `media/av.py` +
+   karantina + retry/dead-letter + panel rozeti hazır ve testli; eksik olan tek
+   şey imajda ClamAV bulunmaması. Kurulum yapılana kadar politika kendini
+   kapatır (fail-open) ve hiçbir dosya taranmaz. Ayrıntı:
+   `docs/MEDYA-AV-TARAMA.md`.
 2. **EXIF temizleme ayrı adım değil** (TUR-132). Bugün yalnız yeniden encode
    yan etkisi olarak oluyor.
 3. **Türev üretimi yok** (TUR-297).
