@@ -1,3 +1,14 @@
+## [v1.13.1-alpha.27] - 2026-08-18 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(lojistik): satıcı sidebar'ına paketleme navigasyonu seed edildi (@aliiball)
+  - Satıcı menüsü tamamen DB-driven; frontend fallback'ine fail-secure biçimde düşmüyor
+  - TH Module Registry'ye üç kayıt (section/group/item), idempotent
+  - Satıcıya yalnız paketleme açılıyor; katalog, taşıyıcı hesapları ve ayarlar admin'de kalıyor
+
+---
 ## [v1.13.1-alpha.26] - 2026-08-18 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
