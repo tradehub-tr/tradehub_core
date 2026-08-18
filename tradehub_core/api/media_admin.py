@@ -15,7 +15,7 @@ import os
 import frappe
 from frappe import _
 
-from tradehub_core.media import archive, audit, inventory, presets, refs, runner, transcode, trash, usage
+from tradehub_core.media import archive, audit, inventory, presets, refs, runner, timefmt, transcode, trash, usage
 
 ALLOWED_ROLES: tuple[str, ...] = ("System Manager", "Marketplace Admin")
 
@@ -816,6 +816,10 @@ def list_scan_hold(page: int = 1, page_size: int = 50) -> dict:
 		r["scan_attempts"] = r.pop("th_media_scan_attempts", 0)
 		r["started_at"] = r.pop("th_media_scan_started_at", None)
 		r["in_hold"] = av.in_hold(r["file_url"])
+	# Tarih standardı (TUR-124): saat dilimi işareti olmadan gönderilen damga,
+	# tarayıcıda kullanıcının KENDİ saati sanılıyor — envanter uçlarıyla aynı
+	# kural, güvenlik uçları istisna değil.
+	timefmt.apply_all(satirlar)
 	return {
 		"items": satirlar,
 		"total": frappe.db.count("File", {"th_media_scan_status": av.SCAN_PENDING}),
@@ -862,6 +866,8 @@ def list_quarantine(page: int = 1, page_size: int = 50) -> dict:
 		r["scan_status"] = r.pop("th_media_scan_status", "")
 		r["scan_attempts"] = r.pop("th_media_scan_attempts", 0)
 		r["in_quarantine"] = av.in_quarantine(r["file_url"])
+	# Tarih standardı (TUR-124) — yukarıdaki bekletme listesiyle aynı gerekçe.
+	timefmt.apply_all(satirlar)
 	toplam = frappe.db.count("File", {"th_media_scan_status": ["in", [av.SCAN_INFECTED, av.SCAN_FAILED]]})
 	return {"items": satirlar, "total": toplam, "page": page, "page_size": page_size}
 

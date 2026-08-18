@@ -107,11 +107,28 @@ def _deneme(name: str) -> int:
 	return int(frappe.db.get_value("File", name, "th_media_transcode_attempts") or 0)
 
 
+
+def _av_notr(test):
+	"""Bu birim testleri transcode MEKANİĞİNİ sınar; AV kesişimi ayrı kapsamda.
+
+	Konteynerde ClamAV kurulu olduğunda `hold_until_clean` gerçekten aktif ve
+	testin yüklediği dosya insert ANINDA bekletmeye taşınıyor — `_run_transcode`
+	de (doğru davranarak) işi erteliyor, ffmpeg mock'una hiç ulaşılmıyor.
+	Kesişim davranışının kendi testleri var (`test_media_av.TestModulKesisimleri`);
+	burada nötrlenir ki bu dosya tarayıcının kurulu olup olmamasına göre iki
+	farklı sonuç vermesin.
+	"""
+	for hedef in ("in_hold", "in_quarantine"):
+		y = mock.patch(f"tradehub_core.media.av.{hedef}", return_value=False)
+		y.start()
+		test.addCleanup(y.stop)
+
 class TestRetrySayaci(FrappeTestCase):
 	"""Unit — başarısız denemeler sayılır, hak bitince dead-letter."""
 
 	def setUp(self):
 		self.doc = _yeni_video_dosyasi("retry-sayac-1.mp4")
+		_av_notr(self)
 		self.addCleanup(
 			lambda: frappe.delete_doc("File", self.doc.name, ignore_permissions=True, force=True)
 		)
@@ -222,6 +239,7 @@ class TestRetryFailedElleTetikleme(FrappeTestCase):
 
 	def setUp(self):
 		self.doc = _yeni_video_dosyasi("retry-elle-1.mp4")
+		_av_notr(self)
 		self.addCleanup(
 			lambda: frappe.delete_doc("File", self.doc.name, ignore_permissions=True, force=True)
 		)
@@ -279,7 +297,14 @@ class TestInventoryVideoStatus(FrappeTestCase):
 	"""Integration + database — durum alanı envanter çıktısına akar."""
 
 	def setUp(self):
-		self.doc = _yeni_video_dosyasi("inv-video-status.mp4")
+		# Dosya ADINDA da tuz var: içerik tuzu adresi benzersiz yapıyor ama ADI
+		# değil. Aynı adla biriken artıklar (testler commit'leyen kod yollarına
+		# giriyor) aramada onlarca satır üretiyor ve aranan dosya sayfaya
+		# sığmıyordu — test AV işiyle birlikte koşulunca düştü, sebebi artık
+		# birikimiydi. Ada tuz koyunca arama yalnız BU koşumun dosyasını buluyor.
+		self.arama = f"inv-video-status-{_KOSUM_TUZU}"
+		self.doc = _yeni_video_dosyasi(f"{self.arama}.mp4")
+		_av_notr(self)
 		self.addCleanup(
 			lambda: frappe.delete_doc("File", self.doc.name, ignore_permissions=True, force=True)
 		)
@@ -288,7 +313,7 @@ class TestInventoryVideoStatus(FrappeTestCase):
 		frappe.db.set_value(
 			"File", self.doc.name, "th_media_video_status", transcode.VIDEO_STATUS_FAILED
 		)
-		sonuc = inventory.list_files(page=1, page_size=10, search="inv-video-status")
+		sonuc = inventory.list_files(page=1, page_size=10, search=self.arama)
 		satirlar = [r for r in sonuc["items"] if r["file_url"] == self.doc.file_url]
 		self.assertEqual(len(satirlar), 1)
 		self.assertEqual(satirlar[0].get("video_status"), transcode.VIDEO_STATUS_FAILED)
@@ -315,6 +340,7 @@ class TestSellerRetryVideoAPI(FrappeTestCase):
 
 	def setUp(self):
 		self.doc = _yeni_video_dosyasi("api-satici-video.mp4")
+		_av_notr(self)
 		self.addCleanup(
 			lambda: frappe.delete_doc("File", self.doc.name, ignore_permissions=True, force=True)
 		)
@@ -372,6 +398,7 @@ class TestAdminRetryTranscodeAPI(FrappeTestCase):
 
 	def setUp(self):
 		self.doc = _yeni_video_dosyasi("api-yonetici-video.mp4")
+		_av_notr(self)
 		self.addCleanup(
 			lambda: frappe.delete_doc("File", self.doc.name, ignore_permissions=True, force=True)
 		)
@@ -418,6 +445,7 @@ class TestSupurucu(FrappeTestCase):
 
 	def setUp(self):
 		self.doc = _yeni_video_dosyasi("supur-video.mp4")
+		_av_notr(self)
 		self.addCleanup(
 			lambda: frappe.delete_doc("File", self.doc.name, ignore_permissions=True, force=True)
 		)
@@ -541,6 +569,7 @@ class TestPaylasilanAdresteKayitHedefleme(FrappeTestCase):
 	"""
 
 	def setUp(self):
+		_av_notr(self)
 		self.birinci = _yeni_video_dosyasi("paylasilan-adres.mp4")
 		# Aynı içerik → AYNI file_url, ayrı kayıt.
 		self.ikinci = _yeni_video_dosyasi(
@@ -624,6 +653,7 @@ class TestVideoDurumToplama(FrappeTestCase):
 	"""
 
 	def setUp(self):
+		_av_notr(self)
 		self.a = _yeni_video_dosyasi("toplama-a.mp4")
 		self.b = _yeni_video_dosyasi("toplama-b.mp4")
 		frappe.db.set_value("File", self.b.name, "file_url", self.a.file_url, update_modified=False)
@@ -688,6 +718,7 @@ class TestUctanUcaVeToparlanma(FrappeTestCase):
 
 	def setUp(self):
 		self.doc = _yeni_video_dosyasi("e2e-video.mp4")
+		_av_notr(self)
 		self.addCleanup(
 			lambda: frappe.delete_doc("File", self.doc.name, ignore_permissions=True, force=True)
 		)

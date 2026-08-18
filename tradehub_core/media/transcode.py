@@ -298,6 +298,47 @@ def _run_transcode(file_url: str, name: str | None = None) -> None:
 	_stamp_started(name)
 	frappe.db.commit()
 
+	# AV kesişimi (TUR-125 × TUR-296). Tarama sistemi dosyayı fiziksel olarak
+	# taşıyabiliyor; transcode bunu bilmezse ffmpeg "dosya yok" diye patlar ve
+	# deneme hakkı BOŞUNA yanar — bekletme + yavaş tarama, sağlıklı bir videoyu
+	# üç turda dead-letter'a düşürüyordu (kanca sırası: transcode kuyruğa girer,
+	# av hemen ardından dosyayı bekletmeye alır).
+	from tradehub_core.media import av
+
+	try:
+		if av.in_quarantine(file_url):
+			# Zararlı bulunmuş dosya bir daha kuyruğa GİRMEZ: retry onu geri
+			# getirmez, `processing`de bırakmak kullanıcıya sonsuz spinner
+			# gösterir. Dead-letter, sebep denetimde.
+			_dead_letter(
+				name,
+				file_url,
+				int(frappe.db.get_value("File", name, "th_media_transcode_attempts") or 0),
+				sebep="Quarantined",
+				detay="dosya karantinada; transcode karantina kalkmadan yapılamaz",
+			)
+			return
+		if av.in_hold(file_url):
+			# Tarama sürüyor — bu bir BAŞARISIZLIK DEĞİL, erken gelmişiz.
+			# Sayaç ARTMAZ; deneme yalnız ertelenir ve işi süpürücü yeniden
+			# kuyruğa koyar. Bekletme sonsuz değil: tarama temiz/failed'da
+			# dosyayı geri koyar, infected'da yukarıdaki dala düşülür.
+			frappe.db.set_value(
+				"File",
+				name,
+				"th_media_transcode_next_at",
+				jobs.next_attempt_at(1),
+				update_modified=False,
+			)
+			frappe.db.commit()
+			return
+	except Exception:
+		# Tarama durumu okunamadı: transcode'u durdurma sebebi değil — dosya
+		# canlı ağaçtaysa normal yol zaten çalışır.
+		frappe.log_error(
+			title="transcode: av durumu okunamadi", message=frappe.get_traceback()
+		)
+
 	doc = frappe.get_doc("File", name)
 	src_path = doc.get_full_path()
 	dst_path = f"{src_path}.transcoding.webm"
@@ -444,6 +485,16 @@ def retry_failed(file_url: str) -> dict:
 			frappe._("Yalnız başarısız videolar yeniden denenebilir (durum: {0}).").format(
 				durum or "-"
 			)
+		)
+
+	# Karantinadaki video yeniden kuyruğa KONMAZ: iş yine "dosya yok" ile düşer
+	# ve düğme çalışıyormuş gibi görünürdü. Kullanıcı önce karantinayı
+	# çözmeli — mesaj bunu açıkça söylüyor (TUR-125).
+	from tradehub_core.media import av
+
+	if av.in_quarantine(file_url):
+		frappe.throw(
+			frappe._("Bu dosya karantinada. Önce güvenlik ekranından çözülmesi gerekiyor.")
 		)
 
 	_stamp_started(name, attempts=0)

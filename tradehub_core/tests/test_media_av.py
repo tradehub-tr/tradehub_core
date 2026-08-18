@@ -995,3 +995,245 @@ class TestUctanUca(FrappeTestCase):
 			av.enqueue_scan(doc.file_url, doc.name)
 			av._run_scan(doc.file_url, doc.name)
 		self.assertEqual(_durum(doc.name), av.SCAN_CLEAN)
+
+class TestModulKesisimleri(FrappeTestCase):
+	"""AV'nin diğer Done işlerle kesişimi — sistem taramasında çıkan kusurlar.
+
+	Her test, iki modülün BİRBİRİNDEN HABERSİZ çalışırken ürettiği gerçek bir
+	kırılmayı kilitler; hiçbiri teorik değil.
+	"""
+
+	def setUp(self):
+		self.doc = _yeni_dosya(f"kesisim-{_KOSUM_TUZU}.mp4")
+		self.addCleanup(lambda: _sil(self.doc.name))
+
+	# ── TUR-296 × TUR-125: transcode, bekletmedeki videonun hakkını yakmasın ──
+
+	def test_bekletmedeki_video_transcode_denemesi_YAKMAZ(self):
+		"""Kanca sırası: transcode kuyruğa girer, av dosyayı bekletmeye alır.
+
+		Worker dosyayı bulamayınca ffmpeg patlıyor ve deneme hakkı boşuna
+		yanıyordu — bekletme + yavaş tarama, sağlıklı videoyu üç turda
+		dead-letter'a düşürüyordu.
+		"""
+		from tradehub_core.media import transcode
+
+		frappe.db.set_value(
+			"File", self.doc.name, "th_media_video_status",
+			transcode.VIDEO_STATUS_PROCESSING, update_modified=False,
+		)
+		frappe.db.commit()
+
+		with (
+			mock.patch("tradehub_core.media.av.in_quarantine", return_value=False),
+			mock.patch("tradehub_core.media.av.in_hold", return_value=True),
+			mock.patch("tradehub_core.media.transcode.subprocess.run") as ffmpeg,
+		):
+			transcode._run_transcode(self.doc.file_url, name=self.doc.name)
+
+		ffmpeg.assert_not_called()
+		deneme = frappe.db.get_value("File", self.doc.name, "th_media_transcode_attempts")
+		self.assertEqual(int(deneme or 0), 0, "bekletme bir başarısızlık değil, sayaç artmamalı")
+		# Erteleme planlandı — süpürücü işi tarama bitince yeniden alacak.
+		self.assertTrue(frappe.db.get_value("File", self.doc.name, "th_media_transcode_next_at"))
+		# Kullanıcı gözünde hâlâ işleniyor.
+		self.assertEqual(
+			frappe.db.get_value("File", self.doc.name, "th_media_video_status"),
+			transcode.VIDEO_STATUS_PROCESSING,
+		)
+
+	def test_karantinadaki_video_transcode_dead_letter_olur(self):
+		# `processing`de bırakmak sonsuz spinner demek; karantina kalkmadan
+		# transcode imkânsız, dead-letter tek dürüst durum.
+		from tradehub_core.media import transcode
+
+		with (
+			mock.patch("tradehub_core.media.av.in_quarantine", return_value=True),
+			mock.patch("tradehub_core.media.transcode.subprocess.run") as ffmpeg,
+		):
+			transcode._run_transcode(self.doc.file_url, name=self.doc.name)
+
+		ffmpeg.assert_not_called()
+		self.assertEqual(
+			frappe.db.get_value("File", self.doc.name, "th_media_video_status"),
+			transcode.VIDEO_STATUS_FAILED,
+		)
+
+	def test_karantinadaki_videonun_elle_retrysi_aciklayici_reddedilir(self):
+		from tradehub_core.media import transcode
+
+		frappe.db.set_value(
+			"File", self.doc.name, "th_media_video_status",
+			transcode.VIDEO_STATUS_FAILED, update_modified=False,
+		)
+		frappe.db.commit()
+		with mock.patch("tradehub_core.media.av.in_quarantine", return_value=True):
+			with self.assertRaises(frappe.ValidationError):
+				transcode.retry_failed(self.doc.file_url)
+
+	# ── TUR-131 × TUR-125: platform geri yüklemesi karantinayı delemez ──
+
+	def test_platform_restore_karantinadaki_dosyayi_geri_yazmaz(self):
+		from tradehub_core.media import restore
+
+		sahte_manifest = {
+			"set_id": "20260101_000000",
+			"files": [
+				{
+					"scope": "public",
+					"path": os.path.basename(self.doc.file_url),
+					"size": 1,
+					"hash": "0" * 64,
+				}
+			],
+		}
+		with (
+			mock.patch("tradehub_core.media.backup.manifest_of", return_value=sahte_manifest),
+			mock.patch("tradehub_core.media.backup.records_of", return_value=[]),
+			mock.patch("tradehub_core.media.av.is_servable", return_value=False),
+			mock.patch("tradehub_core.media.backup._blob_path") as blob,
+		):
+			sonuc = restore.apply("20260101_000000", records=False)
+
+		blob.assert_not_called()
+		self.assertEqual(sonuc["files_written"], 0)
+		self.assertGreaterEqual(sonuc["skipped_unscanned_count"], 1)
+
+	# ── TUR-123 × TUR-125: replace yeni baytları aklatamaz ──
+
+	def test_replace_yeni_icerigi_yeniden_taramaya_sokar(self):
+		from tradehub_core.media import files
+
+		# Eski içerik temiz damgalı olsun — kusur tam buradaydı: yeni baytlar
+		# eski damganın arkasına saklanıyordu.
+		frappe.db.set_value(
+			"File", self.doc.name, "th_media_scan_status", av.SCAN_CLEAN, update_modified=False
+		)
+		frappe.db.commit()
+
+		with (
+			mock.patch("tradehub_core.media.files.ownership.assert_owns"),
+			mock.patch("tradehub_core.media.files.ownership.owners_of", return_value={"M1"}),
+			mock.patch(
+				"tradehub_core.media.av.enqueue_scan",
+				return_value={"status": av.SCAN_PENDING},
+			) as tarama,
+			mock.patch(
+				"tradehub_core.media.av.policy", return_value={"hold_until_clean": False}
+			),
+			mock.patch("tradehub_core.media.upload_policy.check") as kapi,
+		):
+			files.replace(self.doc.file_url, "M1", b"yeni icerik baytlari", "yeni.mp4")
+
+		kapi.assert_called_once()  # yükleme sözleşmesi yeni içeriğe de uygulandı
+		tarama.assert_called_once()  # yeniden tarama kuyruğa girdi
+		self.assertEqual(
+			frappe.db.get_value("File", self.doc.name, "th_media_scan_status") or "",
+			"",
+			"eski 'clean' damgası yeni içeriği aklamamalı",
+		)
+
+	def test_replace_politikaya_takilan_icerigi_YAZMAZ(self):
+		from tradehub_core.media import files
+
+		yol = frappe.get_doc("File", self.doc.name).get_full_path()
+		eski_icerik = open(yol, "rb").read()
+		with (
+			mock.patch("tradehub_core.media.files.ownership.assert_owns"),
+			mock.patch("tradehub_core.media.files.ownership.owners_of", return_value={"M1"}),
+			mock.patch(
+				"tradehub_core.media.upload_policy.check",
+				side_effect=frappe.ValidationError("içerik reddedildi"),
+			),
+		):
+			with self.assertRaises(frappe.ValidationError):
+				files.replace(self.doc.file_url, "M1", b"<html>zararli</html>", "x.mp4")
+
+		self.assertEqual(
+			open(yol, "rb").read(), eski_icerik, "reddedilen içerik diske yazılmamalı"
+		)
+
+	# ── TUR-138 × TUR-131: geri yüklenen kaydın durumu ezilmez ──
+
+	def test_restore_edilen_kaydin_durumu_active_ile_EZILMEZ(self):
+		"""14 Ağustos'tan beri açık kusur: `states.on_file_insert` her insert'te
+		Active yazıyordu; çöpteki dosya yedekten Active dönüp listeye sızıyordu.
+		"""
+		from tradehub_core.media import states
+
+		doc = _insert(
+			{
+				"doctype": "File",
+				"file_name": f"trashed-restore-{_KOSUM_TUZU}.txt",
+				"is_private": 0,
+				"content": f"trashed {_KOSUM_TUZU}".encode(),
+				"th_media_state": states.STATE_TRASHED,
+			}
+		)
+		self.addCleanup(lambda: _sil(doc.name))
+		self.assertEqual(
+			frappe.db.get_value("File", doc.name, "th_media_state"),
+			states.STATE_TRASHED,
+			"kancanın Active yazması, yedekten dönen çöp dosyayı listeye sızdırır",
+		)
+
+	def test_normal_yukleme_hala_active_baslar(self):
+		# Düzeltme regresyonu: durumu boş gelen olağan yükleme Active kalmalı.
+		from tradehub_core.media import states
+
+		doc = _yeni_dosya(f"normal-{_KOSUM_TUZU}.txt")
+		self.addCleanup(lambda: _sil(doc.name))
+		self.assertEqual(
+			frappe.db.get_value("File", doc.name, "th_media_state"), states.STATE_ACTIVE
+		)
+
+
+class TestPaketTemizligi(FrappeTestCase):
+	"""Satıcı paket temizliği — `KEEP_HOURS` ölü sabitti, paketler birikiyordu."""
+
+	def _kur(self, magaza: str, set_id: str, finished: str) -> str:
+		import shutil as _shutil
+
+		from tradehub_core.media import seller_backup
+
+		exports = os.path.join(
+			frappe.get_site_path("private", seller_backup.ROOT_DIRNAME), magaza, "exports"
+		)
+		os.makedirs(exports, exist_ok=True)
+		self.addCleanup(
+			lambda: _shutil.rmtree(os.path.dirname(exports), ignore_errors=True)
+		)
+		paket = os.path.join(exports, f"medya-yedegim-{set_id}-abc.zip")
+		with open(paket, "wb") as fh:
+			fh.write(b"paket")
+		seller_backup._yaz(
+			os.path.join(exports, f"{set_id}.json"),
+			{
+				"set_id": set_id,
+				"state": "hazir",
+				"file_name": os.path.basename(paket),
+				"finished": finished,
+			},
+		)
+		return paket
+
+	def test_suresi_gecen_satici_paketi_silinir(self):
+		from tradehub_core.media import seller_backup, seller_backup_export
+
+		paket = self._kur("TEST-CLEANUP-A", "20260101_000000", "2026-01-01 00:00:00")
+		sonuc = seller_backup_export.cleanup()
+		self.assertGreaterEqual(sonuc["removed"], 1)
+		self.assertFalse(os.path.exists(paket))
+		# Durum dosyası ölü indirme bağlantısı göstermemeli.
+		d = seller_backup._oku(
+			os.path.join(os.path.dirname(paket), "20260101_000000.json")
+		)
+		self.assertEqual(d.get("state"), "")
+
+	def test_taze_paket_silinmez(self):
+		from tradehub_core.media import seller_backup_export
+
+		paket = self._kur("TEST-CLEANUP-B", "20260102_000000", frappe.utils.now())
+		seller_backup_export.cleanup()
+		self.assertTrue(os.path.exists(paket), "süresi dolmamış paket silinmemeli")
+

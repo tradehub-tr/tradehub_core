@@ -33,16 +33,22 @@ MAGAZA_A = "TEST-BACKUP-A"
 MAGAZA_B = "TEST-BACKUP-B"
 
 
-def _dosya(ad: str, *, owner: str) -> "frappe.Document":
-	doc = frappe.get_doc(
-		{
-			"doctype": "File",
-			"file_name": ad,
-			"is_private": 0,
-			"content": f"icerik {_TUZ} {ad}".encode(),
-		}
-	)
-	doc.insert(ignore_permissions=True)
+def _dosya(ad: str, *, owner: str) -> frappe.Document:
+	# Tarama kancası (TUR-125) NÖTRLENİYOR. Makinede ClamAV kuruluysa kanca
+	# dosyayı `media_scan_hold`'a taşıyor — yani `public/files/` altında
+	# kalmıyor. Yedekleme testleri dosyanın canlı ağaçta durduğunu varsayıyor;
+	# nötrlemezsek bu paket makinede tarayıcı olup olmamasına göre farklı
+	# davranır (yaşandı: kurulumdan sonra 19 test düştü).
+	with mock.patch("tradehub_core.media.av.enqueue_scan"):
+		doc = frappe.get_doc(
+			{
+				"doctype": "File",
+				"file_name": ad,
+				"is_private": 0,
+				"content": f"icerik {_TUZ} {ad}".encode(),
+			}
+		)
+		doc.insert(ignore_permissions=True)
 	if owner:
 		frappe.db.set_value("File", doc.name, "owner", owner, update_modified=False)
 	frappe.db.commit()
@@ -441,15 +447,19 @@ class TestPaket(_YedekTemeli):
 		"""
 		# Aynı içerikle ikinci bir kayıt: içerik-adresli adlandırma tek dosyaya
 		# iki kayıt düşürür.
-		ikizi = frappe.get_doc(
-			{
-				"doctype": "File",
-				"file_name": f"ikiz-{_TUZ}.txt",
-				"is_private": 0,
-				"content": f"icerik {_TUZ} yedek-a-{_TUZ}.txt".encode(),
-			}
-		)
-		ikizi.insert(ignore_permissions=True)
+		# `_dosya` ile aynı gerekçe: tarama kancası nötrleniyor, yoksa ikizin
+		# insert'i PAYLAŞILAN fiziksel dosyayı bekletmeye taşır ve künyeden
+		# tamamen düşer.
+		with mock.patch("tradehub_core.media.av.enqueue_scan"):
+			ikizi = frappe.get_doc(
+				{
+					"doctype": "File",
+					"file_name": f"ikiz-{_TUZ}.txt",
+					"is_private": 0,
+					"content": f"icerik {_TUZ} yedek-a-{_TUZ}.txt".encode(),
+				}
+			)
+			ikizi.insert(ignore_permissions=True)
 		frappe.db.set_value("File", ikizi.name, "owner", self.kullanici_a, update_modified=False)
 		frappe.db.commit()
 		self.addCleanup(
@@ -573,6 +583,68 @@ class TestPaylasilanDosyaYazmaSiniri(FrappeTestCase):
 		self.assertFalse(os.path.exists(yol))
 		self.assertEqual(sonuc["files_written"], 0)
 		self.assertGreaterEqual(sonuc.get("skipped_not_owned_count", 0), 1)
+
+
+class TestTaramaKapisi(_YedekTemeli):
+	"""AV taraması ile yedeğin kesişimi (TUR-125 × TUR-131).
+
+	Tarama sistemi, taranmayı bekleyen ya da zararlı bulunan dosyayı public
+	ağaçtan FİZİKSEL olarak çıkarıyor (`media_scan_hold` / `media_quarantine`);
+	`file_url` değişmiyor. İki modül birbirini bilmeden şu iki kusuru üretmişti:
+
+	  1. Yedek, dosyayı diskte bulamayıp SESSİZCE atlıyordu — satıcı eksik bir
+	     yedeği tam sanıyordu.
+	  2. Geri yükleme, karantinadaki dosyanın blob'unu public ağaca geri
+	     yazabiliyordu — karantinayı etkisiz kılan bir güvenlik regresyonu.
+	"""
+
+	def _servis_kapali(self, *urls: str):
+		"""`av.is_servable` yalnız verilen adresler için False dönsün."""
+		kapali = set(urls)
+		return mock.patch(
+			"tradehub_core.media.av.is_servable",
+			side_effect=lambda url: url not in kapali,
+		)
+
+	def test_karantinadaki_dosya_yedege_GIRMEZ_ve_sayilir(self):
+		with self._servis_kapali(self.dosya_a.file_url):
+			sonuc = self._yedek_al(MAGAZA_A)
+
+		m = seller_backup.manifest_of(MAGAZA_A, sonuc["set_id"])
+		self.assertNotIn(self.dosya_a.file_url, {d["file_url"] for d in m["files"]})
+		# Sessiz atlama yok: sayı manifest'te duruyor.
+		self.assertGreaterEqual(sonuc.get("skipped_unscanned", 0), 1)
+
+	def test_yedekten_SONRA_karantinaya_dusen_dosya_geri_yazilmaz(self):
+		"""Asıl güvenlik iddiası: geri yükleme karantinayı geçersiz kılamaz."""
+		s = self._yedek_al(MAGAZA_A)
+		yol = seller_backup._live_path(self.dosya_a.file_url[len("/files/") :])
+		# Tarama sistemi dosyayı public ağaçtan çıkardı.
+		os.remove(yol)
+
+		with self._servis_kapali(self.dosya_a.file_url):
+			sonuc = seller_backup.apply(MAGAZA_A, s["set_id"], records=False)
+
+		self.assertFalse(
+			os.path.exists(yol), "karantinadaki dosya public ağaca geri konmamalı"
+		)
+		self.assertGreaterEqual(sonuc.get("skipped_unscanned_count", 0), 1)
+		self.assertEqual(sonuc["files_written"], 0)
+
+	def test_plan_taranmamis_dosyayi_raporlar(self):
+		s = self._yedek_al(MAGAZA_A)
+		with self._servis_kapali(self.dosya_a.file_url):
+			p = seller_backup.plan(MAGAZA_A, s["set_id"])
+		self.assertGreaterEqual(p.get("unscanned_count", 0), 1)
+
+	def test_tarama_modulu_patlarsa_yedek_durmaz(self):
+		# Politika okunamadığında yedekleme durmamalı: yedek almak bir güvenlik
+		# kararı değil. Geri YAZMA tarafı ayrıca korunuyor.
+		with mock.patch(
+			"tradehub_core.media.av.is_servable", side_effect=Exception("politika okunamadi")
+		):
+			sonuc = self._yedek_al(MAGAZA_A)
+		self.assertGreaterEqual(sonuc["file_count"], 1)
 
 
 if __name__ == "__main__":

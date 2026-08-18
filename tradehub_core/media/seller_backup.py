@@ -159,18 +159,76 @@ def _store_urls(store: str) -> list[str]:
 	return [r[0] for r in q.select(f.file_url).run() if r and r[0]]
 
 
-def _scan(store: str) -> list[dict]:
-	"""Mağazanın dosyalarının künyesi — diskte gerçekten olanlar.
+def _yokluk_sebebi(file_url: str | None) -> str:
+	"""Dosya canlı ağaçta yoksa sebebi — "kayıp" ile "beklemede"yi ayırır.
 
-	Kaydı olup dosyası kaybolmuş adresler ATLANIR: yedeklenecek bir içerik yok.
-	Bu bir kayıp ama yeni bir kayıp değil; `plan` onu `missing_file` olarak
-	zaten gösteriyor.
+	`scan_hold`: taraması sürüyor, bir sonraki yedeğe girer.
+	`quarantine`: zararlı bulundu; yedeğe GİRMEMESİ doğru davranış — geri
+	yükleme zararlıyı sisteme geri getirirdi.
+	`missing`: gerçekten kayıp, ilgilenilmesi gereken tek durum.
+	"""
+	if not file_url:
+		return "missing"
+	try:
+		from tradehub_core.media import av
+
+		if av.in_quarantine(file_url):
+			return "quarantine"
+		if av.in_hold(file_url):
+			return "scan_hold"
+	except Exception:
+		# Tarama modülü bir sebeple yüklenemezse rapor yine üretilmeli.
+		pass
+	return "missing"
+
+
+def _servis_edilebilir(file_url: str) -> bool:
+	"""Dosya erişime açık mı — kararı AV politikası veriyor (TUR-125).
+
+	Tarama sistemi, henüz taranmamış ya da zararlı bulunmuş dosyayı public
+	ağaçtan FİZİKSEL olarak çıkarıyor (`media_scan_hold` / `media_quarantine`);
+	`file_url` değişmiyor, dosya yer değiştiriyor. Karar burada yeniden
+	üretilmiyor — `av.is_servable` zaten bu çağrı için yazılmış (docstring'inde
+	"yedek paketleme" örnek veriliyor).
+
+	Tarama modülü yoksa (eski kurulum) kapı açık: yedekleme, olmayan bir
+	bileşenin yokluğu yüzünden durmamalı.
+	"""
+	try:
+		from tradehub_core.media import av
+	except ImportError:
+		return True
+	try:
+		return av.is_servable(file_url)
+	except Exception:
+		# Politika okunamadı: yedek almak güvenlik kararı değil, bu yüzden
+		# fail-open. Geri YAZMA tarafı ayrıca korunuyor (`apply`).
+		frappe.log_error(
+			title="Satici yedegi: tarama durumu okunamadi",
+			message=frappe.get_traceback(with_context=True),
+		)
+		return True
+
+
+def _scan(store: str) -> tuple[list[dict], list[str]]:
+	"""Mağazanın dosyalarının künyesi — (yedeklenecekler, atlananlar).
+
+	İki ayrı sebeple atlanır ve ikisi de SESSİZ KALMAMALI:
+
+	  * Kaydı olup dosyası kaybolmuş adres — yedeklenecek içerik yok. Yeni bir
+	    kayıp değil; `plan` onu `missing_file` olarak zaten gösteriyor.
+	  * Taranmayı bekleyen ya da karantinadaki dosya — public ağaçta değil.
+	    Sessizce atlamak satıcıya EKSİK bir yedeği tam gibi gösterirdi.
 	"""
 	out: list[dict] = []
+	atlanan: list[str] = []
 	for url in _store_urls(store):
 		if not url.startswith("/files/"):
 			continue
 		rel = url[len("/files/") :]
+		if not _servis_edilebilir(url):
+			atlanan.append(rel)
+			continue
 		try:
 			tam = _live_path(rel)
 			st = os.stat(tam)
@@ -185,7 +243,7 @@ def _scan(store: str) -> list[dict]:
 				"hash": backup.file_hash(tam),
 			}
 		)
-	return out
+	return out, atlanan
 
 
 def _uploaded_urls(store: str) -> set[str]:
@@ -324,7 +382,7 @@ def create(store: str, *, label: str = "") -> dict:
 	set_id = _yeni_set_id(store, label)
 	hedef = _set_path(store, set_id)  # `_yeni_set_id` klasörü zaten açtı
 
-	dosyalar = _scan(store)
+	dosyalar, taranmamis = _scan(store)
 
 	yeni_blob = 0
 	yeni_bayt = 0
@@ -356,6 +414,10 @@ def create(store: str, *, label: str = "") -> dict:
 			"new_blobs": yeni_blob,
 			"new_bytes": yeni_bayt,
 			"record_count": len(kayitlar),
+			# Taranmayı bekleyen / karantinadaki dosyalar yedeğe GİRMEDİ.
+			# Sayı manifest'te duruyor ki "yedeğim tam mı" sorusu sonradan da
+			# cevaplanabilsin.
+			"skipped_unscanned": len(taranmamis),
 		},
 	}
 	_yaz(os.path.join(hedef, "manifest.json"), manifest)
@@ -486,7 +548,19 @@ def plan(store: str, set_id: str) -> dict:
 		except frappe.ValidationError:
 			continue
 		if not os.path.isfile(canli):
-			eksik_dosya.append({"path": d["path"], "file_url": d.get("file_url"), "size": d["size"]})
+			# Dosya canlı ağaçta yok — ama "kayıp" demeden önce NEDEN yok
+			# olduğuna bakılıyor (TUR-125). Tarama bekleyen dosya geçici olarak
+			# `media_scan_hold`'da, zararlı bulunan `media_quarantine`'de durur.
+			# İkisi de kayıp DEĞİL; "N dosya kayıp!" diye alarm vermek raporu
+			# gürültüye boğar ve gerçek kayıpları görünmez yapardı.
+			eksik_dosya.append(
+				{
+					"path": d["path"],
+					"file_url": d.get("file_url"),
+					"size": d["size"],
+					"reason": _yokluk_sebebi(d.get("file_url")),
+				}
+			)
 			continue
 		# Boyut farklıysa imza hesaplamaya gerek yok — kesin farklı.
 		if os.path.getsize(canli) != d["size"] or backup.file_hash(canli) != d["hash"]:
@@ -526,6 +600,12 @@ def plan(store: str, set_id: str) -> dict:
 	yazilamaz = sorted(
 		d["path"] for d in m["files"] if d.get("file_url") not in kendi
 	)
+	# Karantina / tarama bekleyen dosyalar da geri yazılmayacak (TUR-125).
+	taranmamis = sorted(
+		d["path"]
+		for d in m["files"]
+		if d.get("file_url") in kendi and not _servis_edilebilir(d.get("file_url") or "")
+	)
 
 	return {
 		"set_id": set_id,
@@ -544,6 +624,8 @@ def plan(store: str, set_id: str) -> dict:
 		"missing_record_count": len(eksik_kayit),
 		"not_owned": yazilamaz[:200],
 		"not_owned_count": len(yazilamaz),
+		"unscanned": taranmamis[:200],
+		"unscanned_count": len(taranmamis),
 		"applied": False,
 	}
 
@@ -574,6 +656,7 @@ def apply(
 	uzerine: list[str] = []
 	atlanan_catisma: list[str] = []
 	atlanan_sahiplik: list[str] = []
+	atlanan_tarama: list[str] = []
 
 	if files:
 		# Yazma yetkisi yalnız mağazanın YÜKLEDİĞİ dosyalarda. Paylaşılan bir
@@ -586,6 +669,14 @@ def apply(
 				continue
 			if d.get("file_url") not in kendi:
 				atlanan_sahiplik.append(d["path"])
+				continue
+			# Dosya yedek alındıktan SONRA karantinaya düşmüş olabilir. Blob'u
+			# public ağaca geri yazmak, tarama sisteminin fiziksel olarak
+			# çıkardığı bir dosyayı geri koyar ve karantinayı ETKİSİZ kılar —
+			# üstelik kayıtlar hâlâ "karantinada" der, yani kimse fark etmez.
+			# Geri yükleme bir güvenlik kararını geçersiz kılamaz.
+			if not _servis_edilebilir(d.get("file_url") or ""):
+				atlanan_tarama.append(d["path"])
 				continue
 			blob = _blob_path(store, d["hash"])
 			if not os.path.isfile(blob):
@@ -625,6 +716,7 @@ def apply(
 			"overwritten": len(uzerine),
 			"conflicts_skipped": len(atlanan_catisma),
 			"skipped_not_owned": len(atlanan_sahiplik),
+			"skipped_unscanned": len(atlanan_tarama),
 			"records_created": len(kurulan_kayit),
 			"overwrite_allowed": bool(overwrite),
 		},
@@ -642,6 +734,9 @@ def apply(
 		# açıklanamaz kılardı.
 		"skipped_not_owned": atlanan_sahiplik[:50],
 		"skipped_not_owned_count": len(atlanan_sahiplik),
+		# Karantinada / tarama bekleyen: geri yazılmadı.
+		"skipped_unscanned": atlanan_tarama[:50],
+		"skipped_unscanned_count": len(atlanan_tarama),
 		"records_created": len(kurulan_kayit),
 		"applied": True,
 	}

@@ -159,6 +159,14 @@ def on_file_insert(doc, method: str | None = None) -> None:
 	try:
 		if doc.get("is_folder"):
 			return
+		# Durumu ZATEN olan kayıt ezilmez. Normal yüklemede alan hiç dolu
+		# gelmez; dolu gelmesinin tek yolu geri yüklemedir (`media/restore.py`,
+		# `media/seller_backup.py`) ve orada yedekteki durum korunmalıdır.
+		# Bu satır olmadan çöpteki bir dosya yedekten Active dönüyordu — dosya
+		# çöp süresini atlayıp listeye geri sızıyordu (TUR-138 × TUR-131,
+		# dayanıklılık koşumunda yakalandı, 14 Ağustos'tan beri açık kusurdu).
+		if doc.get("th_media_state"):
+			return
 		frappe.db.set_value(
 			"File", doc.name, "th_media_state", STATE_ACTIVE, update_modified=False
 		)
