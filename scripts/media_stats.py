@@ -21,8 +21,8 @@ NASIL ÇALIŞTIRILIR
 Frappe context'i gerekiyor (`frappe.db` bağlı olmalı). Üç yol:
 
   # 1) LOCAL DEV (docker) — önerilen
-  docker cp scripts/media_stats.py istocc-dev-backend-1:/tmp/media_stats.py
-  docker exec -i istocc-dev-backend-1 bench --site tradehub.localhost console <<'EOF'
+  docker cp scripts/media_stats.py istoc-dev-backend-1:/tmp/media_stats.py
+  docker exec -i istoc-dev-backend-1 bench --site istoc.localhost console <<'EOF'
   exec(open('/tmp/media_stats.py').read())
   main()
   EOF

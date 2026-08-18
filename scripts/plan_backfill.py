@@ -29,8 +29,8 @@ yalnız bellekteki baytları okur (engine.py:79-93). `engine.optimize` ÇAĞRILM
 NASIL ÇALIŞTIRILIR
 ═══════════════════════════════════════════════════════════════════════════
   # LOCAL DEV (docker açıkken)
-  docker cp scripts/plan_backfill.py istocc-dev-backend-1:/tmp/plan_backfill.py
-  docker exec -i istocc-dev-backend-1 bench --site tradehub.localhost console <<'EOF'
+  docker cp scripts/plan_backfill.py istoc-dev-backend-1:/tmp/plan_backfill.py
+  docker exec -i istoc-dev-backend-1 bench --site istoc.localhost console <<'EOF'
   exec(open('/tmp/plan_backfill.py').read())
   main()
   EOF

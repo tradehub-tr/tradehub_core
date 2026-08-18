@@ -485,8 +485,8 @@ Hepsi **salt okunur**. Çalıştırılabilir hâli: **`scripts/media_stats.py`**
 
 ```bash
 # LOCAL DEV (docker açıkken)
-docker cp scripts/media_stats.py istocc-dev-backend-1:/tmp/media_stats.py
-docker exec -i istocc-dev-backend-1 bench --site tradehub.localhost console <<'EOF'
+docker cp scripts/media_stats.py istoc-dev-backend-1:/tmp/media_stats.py
+docker exec -i istoc-dev-backend-1 bench --site istoc.localhost console <<'EOF'
 exec(open('/tmp/media_stats.py').read())
 main()
 EOF
@@ -571,8 +571,8 @@ print(inventory._count(search="", state=""))
 (2.858/192) kaynağı büyük olasılıkla budur:
 
 ```bash
-docker exec istocc-dev-backend-1 sh -c '
-  S=$(ls -d /home/frappe/frappe-bench/sites/tradehub.localhost)
+docker exec istoc-dev-backend-1 sh -c '
+  S=$(ls -d /home/frappe/frappe-bench/sites/istoc.localhost)
   echo -n "public/files : "; find $S/public/files  -type f | wc -l
   echo -n "private/files: "; find $S/private/files -type f | wc -l
   echo -n "image_originals: "; find $S/private/image_originals -type f 2>/dev/null | wc -l
@@ -803,19 +803,19 @@ print(orphan_files())
 Kabuk karşılığı (çapraz doğrulama için):
 
 ```bash
-docker exec istocc-dev-backend-1 sh -c '
-  S=/home/frappe/frappe-bench/sites/tradehub.localhost
+docker exec istoc-dev-backend-1 sh -c '
+  S=/home/frappe/frappe-bench/sites/istoc.localhost
   find $S/public/files -type f -printf "/files/%P\n" | sort -u > /tmp/disk.txt
   wc -l /tmp/disk.txt
 '
-docker exec istocc-dev-backend-1 bench --site tradehub.localhost console <<'EOF'
+docker exec istoc-dev-backend-1 bench --site istoc.localhost console <<'EOF'
 import frappe
 u = {r[0] for r in frappe.db.sql("""select distinct file_url from tabFile
   where is_folder=0 and is_private=0 and left(file_url,7)='/files/'""")}
 open('/tmp/db.txt','w').write("\n".join(sorted(u)))
 print(len(u))
 EOF
-docker exec istocc-dev-backend-1 sh -c 'comm -23 /tmp/disk.txt <(sort /tmp/db.txt) | wc -l'
+docker exec istoc-dev-backend-1 sh -c 'comm -23 /tmp/disk.txt <(sort /tmp/db.txt) | wc -l'
 ```
 
 > **Yetim dosya = yedeksiz dosya.** `media/backup.py` `File` kaydı üzerinden
@@ -907,7 +907,7 @@ içerir.
 | D-18 | 16 kaynak tablodaki gerçek referans sayısı | §6 Sorgu 9 | T-6 — "~2.400" tahmini doğru mu |
 | D-19 | `.avif` / `.heic` hacmi (motor işleyemiyor) | §6 Sorgu 10 | Politika kabul ediyor, motor desteklemiyor — sessiz boşluk |
 | D-20 | Frappe `max_file_size` üretimdeki gerçek değeri | `bench --site <site> console` → `from frappe.core.api.file import get_max_file_size; print(get_max_file_size())` | 200 MB video tavanı gerçekleşemiyor (`upload_policy.py:243-252`) |
-| D-21 | MariaDB sürümü (`PERCENTILE_CONT` var mı) | `docker exec istocc-dev-db-1 mysql -e "select version()"` | §6 Sorgu 3'ün hangi varyantının çalışacağı |
+| D-21 | MariaDB sürümü (`PERCENTILE_CONT` var mı) | `docker exec istoc-dev-db-1 mysql -e "select version()"` | §6 Sorgu 3'ün hangi varyantının çalışacağı |
 | D-22 | `GORSEL-OPTIMIZASYON.md` nerede | `git log --all --diff-filter=D --name-only \| grep -i gorsel` | T-9 — 8 dosyanın atıf yaptığı kanıt belgesi kayıp |
 
 ### Doğrulama sırası

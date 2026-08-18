@@ -925,7 +925,7 @@ ve canlı siteye erişim yok.** Her madde tam komutuyla yazılı.
 ```bash
 # dry_run=1 → kapılar + Pillow dönüşümü çalışır, DİSKE HİÇBİR ŞEY YAZILMAZ
 #             (runner.py:61-63, :243-245)
-docker exec -i istocc-dev-backend-1 bench --site tradehub.localhost console <<'EOF'
+docker exec -i istoc-dev-backend-1 bench --site istoc.localhost console <<'EOF'
 import time
 from tradehub_core.media import inventory, runner
 
@@ -956,7 +956,7 @@ EOF
 
 ```bash
 # Arşivde kopyası VAR ama th_optimized_at BOŞ olan dosyalar = ayrışma
-docker exec -i istocc-dev-backend-1 bench --site tradehub.localhost console <<'EOF'
+docker exec -i istoc-dev-backend-1 bench --site istoc.localhost console <<'EOF'
 import frappe
 from tradehub_core.media import archive
 
@@ -982,7 +982,7 @@ kurtarılmalı — **arşiv purge'undan önce**.
 ### D3 — 2400 px kaybı: kaç dosya geri dönülemez (§2.5, R1)
 
 ```bash
-docker exec -i istocc-dev-backend-1 bench --site tradehub.localhost console <<'EOF'
+docker exec -i istoc-dev-backend-1 bench --site istoc.localhost console <<'EOF'
 import frappe
 from tradehub_core.media import archive, inventory
 
@@ -1011,8 +1011,8 @@ yeniden yüklemesi gerekir.
 ### D4 — Disk kapasitesi (§4.5.1, R8)
 
 ```bash
-docker exec istocc-dev-backend-1 sh -c '
-  S=/home/frappe/frappe-bench/sites/tradehub.localhost
+docker exec istoc-dev-backend-1 sh -c '
+  S=/home/frappe/frappe-bench/sites/istoc.localhost
   echo "── boş alan ──";        df -h  $S
   echo "── public/files ──";    du -sb $S/public/files
   echo "── private/files ──";   du -sb $S/private/files
@@ -1034,7 +1034,7 @@ grep -rn "dpi\|DPI\|resolution" /Users/ahmet/Desktop/istoc-medya-wt/tradehub_cor
 # Beklenen: eşleşme yok (bu belge yazılırken yoktu)
 
 # Diskte gerçekten DPI etiketi taşıyan dosya var mı
-docker exec -i istocc-dev-backend-1 bench --site tradehub.localhost console <<'EOF'
+docker exec -i istoc-dev-backend-1 bench --site istoc.localhost console <<'EOF'
 import os, frappe
 from collections import Counter
 from PIL import Image
@@ -1065,7 +1065,7 @@ baskıya giden PDF/TIFF için ayrı görev açılır.
 grep -n "purge_expired\|scheduler_events" /Users/ahmet/Desktop/istoc-medya-wt/tradehub_core/hooks.py
 # Hangi hook hangi sıklıkta çağırıyor, retention_days parametre geçiyor mu
 
-docker exec -i istocc-dev-backend-1 bench --site tradehub.localhost console <<'EOF'
+docker exec -i istoc-dev-backend-1 bench --site istoc.localhost console <<'EOF'
 import frappe
 print(frappe.get_hooks("scheduler_events"))
 EOF
@@ -1078,7 +1078,7 @@ garanti etmek. Yolu yoksa `ARCHIVE_RETENTION_DAYS` geçici olarak yükseltilir
 ### D7 — Kuyruk derinliği: backfill canlı yolu bloklar mı (§5, R3)
 
 ```bash
-docker exec -i istocc-dev-backend-1 bench --site tradehub.localhost console <<'EOF'
+docker exec -i istoc-dev-backend-1 bench --site istoc.localhost console <<'EOF'
 from frappe.utils.background_jobs import get_queue
 for q in ("short", "default", "long"):
     kuyruk = get_queue(q)
@@ -1095,8 +1095,8 @@ enqueue **edilmez** (§5.3).
 ### D8 — Slot × uyum dağılımı: planın ana çıktısı (§2.6)
 
 ```bash
-docker cp scripts/plan_backfill.py istocc-dev-backend-1:/tmp/plan_backfill.py
-docker exec -i istocc-dev-backend-1 bench --site tradehub.localhost console <<'EOF'
+docker cp scripts/plan_backfill.py istoc-dev-backend-1:/tmp/plan_backfill.py
+docker exec -i istoc-dev-backend-1 bench --site istoc.localhost console <<'EOF'
 exec(open('/tmp/plan_backfill.py').read())
 main()
 EOF

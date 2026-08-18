@@ -51,7 +51,7 @@ ls tests/fixtures/media/video  | wc -l      #  7 [Ö3]
 ls tests/fixtures/malicious    | wc -l      # 10 [Ö3]
 git status --short                          # 14 girdi, hepsi ?? [Ö3]
 grep -c "istocc" scripts/media_stats.py docs/reports/02-medya-istatistigi.md
-grep -c "tradehub.localhost" scripts/media_stats.py docs/reports/02-medya-istatistigi.md
+grep -c "istoc.localhost" scripts/media_stats.py docs/reports/02-medya-istatistigi.md
 
 # §7.1 D-1 / D-2 / D-23 — KVKK bloklayıcısı (konteynerde, salt SELECT)
 docker cp /tmp/d1.py istoc-dev-backend-1:/home/frappe/d1.py
@@ -316,17 +316,17 @@ Karar etkisi yok. **Rev. 2:** değişmedi.
 
 | Komutta yazan | Gerçek |
 |---|---|
-| `istocc-dev-backend-1` (çift **c**) | `istoc-dev-backend-1` |
-| `istocc-dev-db-1` | `istoc-dev-db-1` |
-| `tradehub.localhost` | `istoc.localhost` |
+| `istoc-dev-backend-1` (çift **c**) | `istoc-dev-backend-1` |
+| `istoc-dev-db-1` | `istoc-dev-db-1` |
+| `istoc.localhost` | `istoc.localhost` |
 
 **Rev. 2 ölçümü [Ö3] — düzeltme YAPILMADI:**
 
 ```
 grep -c "istocc"             scripts/media_stats.py                → 2
 grep -c "istocc"             docs/reports/02-medya-istatistigi.md  → 7
-grep -c "tradehub.localhost" scripts/media_stats.py                → 1
-grep -c "tradehub.localhost" docs/reports/02-medya-istatistigi.md  → 4
+grep -c "istoc.localhost" scripts/media_stats.py                → 1
+grep -c "istoc.localhost" docs/reports/02-medya-istatistigi.md  → 4
 ```
 
 **K-2 kapanmadı.** Dalga 3'ün ölçümleri bu betikle değil, ayrı yazılmış
@@ -594,7 +594,7 @@ kalem: **K-23…K-25**.
 | # | Yapılacak | **Rev. 2 durumu** | Kanıt |
 |---|---|---|---|
 | **K-1** | AS-01 + AS-02'yi koş | ⚠ **KOŞULDU — YARISI TEMİZ, YARISI BULGU.** D-1 → **0** (temiz). D-2 → **44** (bulgu var). Kalem **kapanmadı**: 44 dosyanın içerik sınıflandırması yapılmadı | [Ö3] §7.1 |
-| **K-2** | `media_stats.py` + `02-medya` komutlarını düzelt, betiği ÇALIŞTIR | ❌ **YAPILMADI.** `istocc` hâlâ 2 + 7 kez, `tradehub.localhost` hâlâ 1 + 4 kez geçiyor [Ö3]. Betik hâlâ çalıştırılmadı. Ölçümler **başka betiklerle** yapıldı — sonuç alındı, borç ödenmedi | [Ö3] `grep -c` |
+| **K-2** | `media_stats.py` + `02-medya` komutlarını düzelt, betiği ÇALIŞTIR | ❌ **YAPILMADI.** `istocc` hâlâ 2 + 7 kez, `istoc.localhost` hâlâ 1 + 4 kez geçiyor [Ö3]. Betik hâlâ çalıştırılmadı. Ölçümler **başka betiklerle** yapıldı — sonuç alındı, borç ödenmedi | [Ö3] `grep -c` |
 | **K-3** | AS-03'ü koş: üretim imajında ffmpeg var mı? | ❌ **YAPILMADI** — üretim erişimi yok | — |
 | **K-4** | 6 raporun "Docker kapalı" gerekçesini düzelt; ölçülebilenleri ölç | ⚠ **KISMEN.** Ölçüm tarafı: 39 kalemin **10'u tam, 8'i kısmen** kapandı (§7.2). Metin tarafı: **hiçbir rapor düzeltilmedi** | §7.2 |
 
@@ -998,7 +998,7 @@ Belgeye dayanan her sayı gözden geçirildi:
 | T-006 golden fixture korpusu | ❌ yok | ✅ **51 fixture, 51/51 doğrulandı** | [Ö3] `ls`; `manifest.json` |
 | T-007 kütüphane benchmark'ı | ❌ yok | ✅ **360 koşum, 0 hata, karar üretildi** | `fixtures/bench.csv` |
 | **K-1 — KVKK (AS-01 + AS-02)** | ❌ koşulmadı | ❌ **koşuldu: D-1 temiz (0), D-2 BULGU (44)** | [Ö3] §7.1 |
-| **K-2 — bozuk komutlar düzeltildi ve betik koşuldu mu?** | ❌ hayır | ❌ **HAYIR** — `istocc` 9 kez, `tradehub.localhost` 5 kez duruyor | [Ö3] `grep -c` |
+| **K-2 — bozuk komutlar düzeltildi ve betik koşuldu mu?** | ❌ hayır | ❌ **HAYIR** — `istocc` 9 kez, `istoc.localhost` 5 kez duruyor | [Ö3] `grep -c` |
 | **K-3 — üretim imajında ffmpeg** | ❌ ölçülmedi | ❌ **ölçülmedi** (üretim erişimi yok) | — |
 | **K-4 — 39 kalem koşuldu mu?** | ❌ 0/39 | ⚠ **10 tam + 8 kısmi / 39** | §7.2 |
 | **K-4 — 6 raporun metni düzeltildi mi?** | ❌ | ❌ **hiçbiri** | [Ö3] |
@@ -1013,7 +1013,7 @@ Belgeye dayanan her sayı gözden geçirildi:
 | # | Kalan iş | Tür | Tahmini büyüklük |
 |---|---|---|---|
 | 1 | **D-2'nin 44 dosyasını sınıflandır**: hangisi gerçekten hassas içerik, hangisi satıcının aynı görseli iki yere yüklemesi. Hassas çıkan varsa erişim seviyesi düzeltilir | karar + elle inceleme | 44 dosya, yarım gün |
-| 2 | **K-2: `istocc` / `tradehub.localhost` düzelt, `media_stats.py`'yi ÇALIŞTIR** | mekanik | 9 + 5 dize, 1 saat |
+| 2 | **K-2: `istocc` / `istoc.localhost` düzelt, `media_stats.py`'yi ÇALIŞTIR** | mekanik | 9 + 5 dize, 1 saat |
 | 3 | **K-3 / P-1 / P-12: üretimde ffmpeg + D-1/D-2 tekrarı** | üretim erişimi | erişim açılınca 1 saat |
 | 4 | **G-2: 12 rapor + korpus + `bench.csv` + betikleri commit et** | mekanik | 1 saat |
 
@@ -1056,7 +1056,7 @@ raporun okunduğunu ve §9.3'teki kalan kalemlerin karara bağlandığını belg
 | # | Bloklayıcı | Ölçülen durum (2026-08-18) | Karar | Tarih | Sorumlu |
 |---|---|---|---|---|---|
 | **K-1** | KVKK: AS-01 + AS-02 | **D-1 = 0 (temiz)** · **D-2 = 44 (BULGU)** [Ö3] | ☐ 44 dosya sınıflandırıldı, hassas yok → kapat  ☐ Hassas bulundu → **erişim düzeltmesi + Faz 1 durur**  ☐ Sınıflandırma yapılmadı | ________ | ________ |
-| **K-2** | `media_stats.py` + `02-medya` komutları | **YAPILMADI** — `istocc` 9, `tradehub.localhost` 5 kez [Ö3] | ☐ Düzeltildi ve koşuldu  ☐ Hayır | ________ | ________ |
+| **K-2** | `media_stats.py` + `02-medya` komutları | **YAPILMADI** — `istocc` 9, `istoc.localhost` 5 kez [Ö3] | ☐ Düzeltildi ve koşuldu  ☐ Hayır | ________ | ________ |
 | **K-3** | Üretim imajında ffmpeg (AS-03) | **ÖLÇÜLMEDİ** (üretim erişimi yok) | ☐ Var  ☐ **Yok** → video hattı riski kabul edildi  ☐ Ölçülmedi | ________ | ________ |
 | **K-4** | "Docker kapalı" gerekçesi + 39 kalem | Ölçüm: **10 tam + 8 kısmi / 39**. Metin düzeltmesi: **0 rapor** [Ö3] | ☐ Tamamı  ☐ Kısmen (**18 / 39**)  ☐ Hayır | ________ | ________ |
 
