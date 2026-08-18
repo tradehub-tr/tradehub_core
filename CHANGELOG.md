@@ -1,3 +1,14 @@
+## [v1.13.1-alpha.26] - 2026-08-18 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(media): zararlı içerik taraması ve karantina — pipeline adım 3 (TUR-125) (@Metin Bektemur)
+
+### Duzeltildi
+- fix(media): modüller arası kesişim denetimi — 7 kopukluk (TUR-125 × 296/131/123/138/124) (@Metin Bektemur)
+
+---
 ## [v1.13.1-alpha.25] - 2026-08-17 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
