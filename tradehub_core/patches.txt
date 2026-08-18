@@ -244,4 +244,6 @@ tradehub_core.patches.v15_9_17_seed_storage_quota
 tradehub_core.patches.v15_fix_entitlement_custom_fields
 tradehub_core.patches.v15_9_18_media_transcode_attempts
 tradehub_core.patches.v15_9_19_media_transcode_schedule
+# --- Ali · 13-FE (lojistik paketleme) ---
+tradehub_core.patches.v15_9_20_seed_logistics_seller_nav
 tradehub_core.patches.v15_9_20_media_scan_fields
