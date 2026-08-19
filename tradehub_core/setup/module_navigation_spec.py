@@ -746,6 +746,17 @@ SELLER_MODULES: list[dict] = [
 		"order": 0,
 	},
 	{
+		"key": "seller.logistics.shipments.create",
+		"parent": "seller.logistics.shipments",
+		"type": "item",
+		"panel": "seller",
+		"section": "logistics",
+		"label": "Manuel Sevkiyat",
+		"icon": "file-plus",
+		"route": "/lojistik/sevkiyatlar/yeni",
+		"order": 1,
+	},
+	{
 		"key": "seller.logistics.packing",
 		"parent": "seller.logistics",
 		"type": "group",
