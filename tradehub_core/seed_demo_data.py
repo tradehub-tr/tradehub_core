@@ -27,6 +27,7 @@ from frappe.utils.password import update_password
 
 from tradehub_core.api.v1.auth import _generate_member_id
 
+
 # F-010: Production guard — demo seed'i FİİLEN çalıştıran elle-tetiklenen giriş
 # noktalarında (execute/cleanup) uygulanır. Guard'ı modül top-level'ında raise ETME:
 # after_migrate hook'u (run_idempotent_seed) bu modülü HER migrate'te import eder;

@@ -709,11 +709,11 @@ SELLER_MODULES: list[dict] = [
 	# girmiyor), bu yüzden ekran route olarak var olsa bile registry kaydı
 	# olmadan menüde HİÇ görünmüyor.
 	#
-	# G0 rol matrisi (2026-08-19): satıcıya sevkiyat listesi + paketleme açık;
-	# katalog, taşıyıcı hesapları ve lojistik ayarları platform ekranı — admin
-	# menüsünde kalır. Menü kaydı YALNIZ ready ekranlara açılır: C1/D1/D2/I1
-	# matriste satıcıya işaretli ama route'ları henüz yok — ekran açıldığında
-	# buraya kaydı eklenir (kaynak: admin-panel logisticsScreens.js manifesti).
+	# G0 rol matrisi (2026-08-19): satıcıya sevkiyat listesi + paketleme +
+	# teslimat açık; katalog, taşıyıcı hesapları ve lojistik ayarları platform
+	# ekranı — admin menüsünde kalır. Menü kaydı YALNIZ ready ekranlara açılır
+	# (kaynak: admin-panel logisticsScreens.js manifesti). I1 hâlâ bekliyor:
+	# matriste satıcıya işaretli ama ekranı 15-FE'de açılacak.
 	{
 		"key": "seller.logistics",
 		"type": "section",
@@ -776,6 +776,58 @@ SELLER_MODULES: list[dict] = [
 		"icon": "package",
 		"route": "/lojistik/paketleme",
 		"order": 0,
+	},
+
+	# ─── 14-FE · Teslimat (Ali) ───
+	# G0 matrisi H0/D1/D2'yi satıcıya işaretledi (sellerVisible) ve ekranlar
+	# 14-FE'de açıldı — kayıt bu yüzden şimdi ekleniyor. Satıcı kendi
+	# teslimatının kanıtını kaydedebiliyor (14-FE karar defteri K-B) ve
+	# kendi aracıyla teslim onun fiziksel işi (K-M).
+	#
+	# Tenant izolasyonu backend'de: menü kaydı yalnız KAPIYI açar, veri
+	# sınırını değiştirmez (14-FE veri sözleşmesi §6.1).
+	{
+		"key": "seller.logistics.delivery",
+		"parent": "seller.logistics",
+		"type": "group",
+		"panel": "seller",
+		"section": "logistics",
+		"label": "Teslimat",
+		"color": "#f59e0b",
+		"order": 2,
+	},
+	{
+		"key": "seller.logistics.delivery.pod",
+		"parent": "seller.logistics.delivery",
+		"type": "item",
+		"panel": "seller",
+		"section": "logistics",
+		"label": "Teslim Kanıtı",
+		"icon": "clipboard-check",
+		"route": "/lojistik/teslim-kaniti",
+		"order": 0,
+	},
+	{
+		"key": "seller.logistics.delivery.seller_delivery",
+		"parent": "seller.logistics.delivery",
+		"type": "item",
+		"panel": "seller",
+		"section": "logistics",
+		"label": "Satıcı Teslimatı",
+		"icon": "car",
+		"route": "/lojistik/satici-teslimati",
+		"order": 1,
+	},
+	{
+		"key": "seller.logistics.delivery.buyer_pickup",
+		"parent": "seller.logistics.delivery",
+		"type": "item",
+		"panel": "seller",
+		"section": "logistics",
+		"label": "Alıcı Teslim Alma",
+		"icon": "package-check",
+		"route": "/lojistik/alici-teslim-alma",
+		"order": 2,
 	},
 
 	{
