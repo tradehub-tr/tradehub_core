@@ -1,3 +1,12 @@
+## [v1.13.1-alpha.30] - 2026-08-19 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Duzeltildi
+- fix(media): canlı ağaca giren her bayt aynı taramadan geçiyor (TUR-125 × 123/131) (@Metin Bektemur)
+- fix(media): yükleme denetimi belgeleri de kaydediyor — uzantı süzgeci kaldırıldı (TUR-140) (@Metin Bektemur)
+
+---
 ## [v1.13.1-alpha.29] - 2026-08-19 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
