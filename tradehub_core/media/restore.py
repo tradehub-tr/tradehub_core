@@ -264,6 +264,23 @@ def apply(
 
 	frappe.db.commit()
 
+	# Geri yazılan baytlar taramaya girer (TUR-125). Kanca yalnız KAYIT açan
+	# yolları görüyor; geri yükleme mevcut kayda yazdığı için tetiklenmiyordu ve
+	# AV'den önce alınmış bir yedek hiç taranmamış içeriği canlı ağaca geri
+	# koyabiliyordu — üstelik felaket kurtarma sırasında, yani en kritik anda.
+	try:
+		from tradehub_core.media import av
+
+		av.rescan_after_write(
+			[_url_of(d["scope"], d["path"]) for d in m["files"] if d["path"] in set(yazilan)],
+			reason="restore",
+		)
+	except Exception:
+		frappe.log_error(
+			title=f"Media restore: yeniden tarama kuyruklanamadi {set_id}",
+			message=frappe.get_traceback(with_context=True),
+		)
+
 	from tradehub_core.media import audit
 
 	audit.log_media_event(
