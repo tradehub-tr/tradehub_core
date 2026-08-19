@@ -252,3 +252,6 @@ tradehub_core.patches.v15_9_20_media_scan_fields
 tradehub_core.patches.v15_9_21_g0_seller_logistics_role_assignment
 tradehub_core.patches.v15_9_21_g0_revoke_seller_cost_capability
 tradehub_core.patches.v15_9_21_g0_seed_seller_shipments_nav
+
+# --- Bora · 16-FE C1 (manuel sevkiyat) ---
+tradehub_core.patches.v15_9_22_seed_seller_manual_shipment_nav
