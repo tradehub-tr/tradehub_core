@@ -168,6 +168,13 @@ ayırt edilemezse, kapsamın ne kadarını gerçekten taradığımız sorusu cev
 kalır. Ama temiz dal HIGH **değil** — her yüklemede bir satır yazılıyor,
 hepsini HIGH işaretlemek severity filtresini işe yaramaz hâle getirirdi.
 
+> **Yükleme kaydıyla hizalama (19 Ağustos).** Bu modül belgeleri de tarıyor ama
+> `audit.on_file_insert` bir dönem yalnız görsel/video kaydediyordu; sonuç, bir
+> PDF için "tarandı" satırı olup "yüklendi" satırı olmaması — yani takip
+> edilemeyen bir iz. Yükleme kaydının uzantı süzgeci kaldırıldı; gerekçe ve
+> ölçüm `MEDYA-ISLEME-PIPELINE.md` §6.1'de. Tarama ile yükleme kaydı artık aynı
+> kapsamda.
+
 ### 2.7 API uçları — `api/media_admin.py`
 
 | Uç | Yetki | İş |

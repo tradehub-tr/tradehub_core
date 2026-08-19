@@ -248,6 +248,10 @@ def _persist(commit: bool = True, **kwargs: Any) -> str | None:
 
 # Yükleme kaydı yalnız medya için tutulur — issue "medya sistemi" diyor ve
 # toplu içe aktarımda PDF/Excel/sistem dosyalarını da yazmak ADL'i şişirir.
+# Denetim KAPSAMI bu listeyle sınırlı DEĞİL (bkz. `on_file_insert`): liste
+# yalnız "bu dosya medya mı" sorusunu cevaplıyor ve iki yerde kullanılıyor —
+# denetim satırındaki `kind` etiketi ve pahalı içerik-ikizi kontrolünün
+# daraltılması. Yeni bir tür eklenmemesi kaydın DÜŞMESİNE yol açmaz.
 MEDIA_EXTENSIONS: frozenset[str] = frozenset(
 	{
 		".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".tif", ".tiff", ".svg", ".avif", ".heic",
@@ -264,26 +268,39 @@ def on_file_insert(doc, method: str | None = None) -> None:
 
 	Best-effort: burada patlamak kullanıcının dosya yüklemesini engellememeli.
 
-	Maskeleme: private dosyalar ve hassas doctype ekleri kimliksiz yazılır.
-	İçerik-ikizi kontrolü YALNIZ public+eksiz dosyalarda yapılır — `content_hash`
-	indeksli değil (ölçüldü: `tabFile` üzerinde yalnız 5 indeks var, content_hash
-	yok), toplu içe aktarımda her ürün görseli için tam tarama yapmak pahalıya
-	gelirdi. Sızan 44 kopyanın tamamı zaten public+eksiz desenindeydi.
+	**Uzantı süzgeci YOK — kasıtlı.** Kanca eskiden yalnız 17 görsel/video
+	uzantısını kaydediyordu; ölçüm sonucu 653 dosya kayıt dışıydı ve içlerinde
+	**13 KYB doğrulama belgesi** vardı. Yani sistemin en hassas kategorisi
+	denetimde hiç görünmüyordu. Üstelik AV taraması (TUR-125) bu belgeleri
+	tarıyor ve `media.scan` olayını yazıyordu: denetim kaydında bir PDF için
+	"tarandı" satırı vardı ama "yüklendi" satırı yoktu — cevaplanamayan bir iz.
+
+	Kapsamı uzantıyla daraltmak, listeye eklenmeyen her yeni türü sessizce
+	kayıt dışı bırakır (`media/av.py`'nin kapsamı daraltmama gerekçesiyle aynı).
+	"Kim ne zaman ne yaptı" sorusu dosya türüne göre değişmez.
+
+	Maskeleme: private dosyalar ve hassas doctype ekleri kimliksiz yazılır —
+	KYB belgesi denetime GİRER ama adresi kayda geçmez.
+
+	İçerik-ikizi kontrolü YALNIZ public+eksiz MEDYA dosyalarında yapılır:
+	`content_hash` indeksli değil (ölçüldü: `tabFile` üzerinde 5 indeks var,
+	content_hash yok) ve her belge yüklemesine tam tablo taraması eklemek pahalı.
+	Kontrolün amacı zaten görsel sızıntısıydı — sızan 44 kopyanın tamamı
+	public+eksiz görsel desenindeydi.
 	"""
 	try:
 		if doc.get("is_folder"):
 			return
 
 		file_name = doc.get("file_name") or ""
-		if not any(file_name.lower().endswith(ext) for ext in MEDIA_EXTENSIONS):
-			return
+		medya_mi = any(file_name.lower().endswith(ext) for ext in MEDIA_EXTENSIONS)
 
 		from tradehub_core.media.presets import EXCLUDED_DOCTYPES
 
 		attached = doc.get("attached_to_doctype")
 		sensitive = bool(doc.get("is_private")) or attached in EXCLUDED_DOCTYPES
 
-		if not sensitive and not attached and doc.get("content_hash"):
+		if medya_mi and not sensitive and not attached and doc.get("content_hash"):
 			from tradehub_core.media.runner import _has_sensitive_twin
 
 			sensitive = _has_sensitive_twin(doc.content_hash)
@@ -300,6 +317,9 @@ def on_file_insert(doc, method: str | None = None) -> None:
 				"is_private": bool(doc.get("is_private")),
 				"attached_to_doctype": attached,
 				"attached_to_name": doc.get("attached_to_name"),
+				# Tür, denetim ekranında süzgeç olarak kullanılabilsin: "yalnız
+				# belge yüklemeleri" sorusu artık cevaplanabilir.
+				"kind": "media" if medya_mi else "document",
 			},
 		)
 	except Exception:
