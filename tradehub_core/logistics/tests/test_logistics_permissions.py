@@ -591,3 +591,42 @@ class TestCarrierAccountTenantIsolationE2E(FrappeTestCase):
 
 		self.assertIn("seller_profile", condition)
 		self.assertIn(code_a, condition)
+
+
+# ---------------------------------------------------------------------------
+# G0 matrisi (C2) — satıcı dar yolu: update_shipment_status
+# ---------------------------------------------------------------------------
+
+
+class TestSellerTransitionNarrowPath(FrappeTestCase):
+	"""api/v1/shipment._seller_can_transition — üç koşulun her biri tek başına
+	yetmemeli; yalnız rol + tenant + alt-küme ÜÇÜ birden True vermeli."""
+
+	def _can(self, doc, user="seller@example.com", to_status="Picked Up"):
+		from tradehub_core.api.v1.shipment import _seller_can_transition
+
+		return _seller_can_transition(doc, user, to_status)
+
+	def test_seller_confirms_pickup_on_own_shipment(self):
+		"""Rol + kendi tenant'ı + izinli geçiş → True (FBM confirm-shipment)."""
+		doc = _shipment(status="Ready for Pickup")
+		with acting_as(["Seller Logistics", "Seller Staff"], seller_profile="SEL-00001"):
+			self.assertTrue(self._can(doc))
+
+	def test_without_role_denied(self):
+		"""Seller Logistics rolü yoksa tenant eşleşse bile False."""
+		doc = _shipment(status="Ready for Pickup")
+		with acting_as(["Seller Staff"], seller_profile="SEL-00001"):
+			self.assertFalse(self._can(doc))
+
+	def test_cross_tenant_denied(self):
+		"""Başka satıcının sevkiyatı — rol olsa da False."""
+		doc = _shipment(status="Ready for Pickup", seller_profile="SEL-99999")
+		with acting_as(["Seller Logistics"], seller_profile="SEL-00001"):
+			self.assertFalse(self._can(doc))
+
+	def test_transition_outside_subset_denied(self):
+		"""Alt küme dışı geçiş (iptal) — rol ve tenant tutsa da False."""
+		doc = _shipment(status="Ready for Pickup")
+		with acting_as(["Seller Logistics"], seller_profile="SEL-00001"):
+			self.assertFalse(self._can(doc, to_status="Cancelled"))

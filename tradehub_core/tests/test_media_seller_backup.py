@@ -97,6 +97,16 @@ class _YedekTemeli(FrappeTestCase):
 				)
 			)
 
+		# Bu sınıflar YEDEK mekaniğini sınıyor. Geri yükleme artık yazdığı baytı
+		# taramaya sokuyor (`av.rescan_after_write`) ve politika bekletme diyorsa
+		# dosyayı canlı ağaçtan ÇIKARIYOR — doğru davranış, ama burada ölçülen
+		# şey o değil ve tarayıcının kurulu olup olmamasına göre iki farklı
+		# sonuç verirdi. Kesişimin kendi testleri `TestTaramaKapisi`'nde ve
+		# `test_media_av.TestYazmaSonrasiTarama`'da.
+		kural = mock.patch("tradehub_core.media.av.rescan_after_write", return_value={})
+		kural.start()
+		self.addCleanup(kural.stop)
+
 	def _yedek_al(self, magaza: str, label: str = ""):
 		# Hız sınırı testlerin konusu değil; ayrı bir testte sınanıyor.
 		with mock.patch.object(seller_backup, "MIN_INTERVAL_SECONDS", 0):

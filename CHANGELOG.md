@@ -1,3 +1,35 @@
+## [v1.13.1-alpha.30] - 2026-08-19 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Duzeltildi
+- fix(media): canlı ağaca giren her bayt aynı taramadan geçiyor (TUR-125 × 123/131) (@Metin Bektemur)
+- fix(media): yükleme denetimi belgeleri de kaydediyor — uzantı süzgeci kaldırıldı (TUR-140) (@Metin Bektemur)
+
+---
+## [v1.13.1-alpha.29] - 2026-08-19 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(lojistik): satıcı menüsüne Manuel Sevkiyat kalemi eklendi (@boraydeger32)
+
+---
+## [v1.13.1-alpha.28] - 2026-08-19 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(lojistik): G0 rol/yetki matrisi uygulandı — satıcı katmanı açıldı (@boraydeger32)
+  - Seller Logistics rolü 4 satıcı Role Profile'ına bağlandı (fixture + patch); Frappe profil değişikliğini kullanıcılara itmediği için patch mevcut kullanıcıları da senkronluyor (lokalde 12 kullanıcı)
+  - K1 maliyet asimetrisi: Seller Full Access'ten view.logistics_cost grant'ı pasife alındı (granted=0, iz kaldı) + TUR-103 seed matrisinden düşürüldü
+  - 4 kataloğa satıcı READ izni: package_type, carrier_service, shipping_channel, vehicle_type — paketleme ekranının paket tipi seçebilmesinin zorunlu tamamlayıcısı
+  - Satıcı dar geçiş yolu: SELLER_ALLOWED_TRANSITIONS (yalnız Alıma Hazır → Alındı) + update_shipment_status'ta rol+tenant+alt-küme üç koşullu kapı; iptal yine yalnız Logistics Manager
+  - get_logistics_permissions.roles'a marketplace_admin eklendi (M3 ayar kapısı FE'de role bağlanacak)
+  - Satıcı sidebar'ına Lojistik → Sevkiyatlar nav kaydı (TH Module Registry seed, 13-FE paketleme deseniyle)
+  - Testler: durum makinesi +3 (satıcı alt kümesi), bench permission +4 (dar yol pozitif/negatif senaryolar)
+
+---
 ## [v1.13.1-alpha.27] - 2026-08-18 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.

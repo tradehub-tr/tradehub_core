@@ -1119,7 +1119,13 @@ class TestModulKesisimleri(FrappeTestCase):
 				return_value={"status": av.SCAN_PENDING},
 			) as tarama,
 			mock.patch(
-				"tradehub_core.media.av.policy", return_value={"hold_until_clean": False}
+				"tradehub_core.media.av.policy",
+				return_value={
+					"enabled": True,
+					"hold_until_clean": False,
+					"fail_closed": False,
+					"scanner": "clamdscan",
+				},
 			),
 			mock.patch("tradehub_core.media.upload_policy.check") as kapi,
 		):
@@ -1127,10 +1133,10 @@ class TestModulKesisimleri(FrappeTestCase):
 
 		kapi.assert_called_once()  # yükleme sözleşmesi yeni içeriğe de uygulandı
 		tarama.assert_called_once()  # yeniden tarama kuyruğa girdi
-		self.assertEqual(
-			frappe.db.get_value("File", self.doc.name, "th_media_scan_status") or "",
-			"",
-			"eski 'clean' damgası yeni içeriği aklamamalı",
+		# Damga sıfırlanıp `pending`e geçmeli — eski `clean` yeni içeriği aklamamalı.
+		self.assertNotEqual(
+			frappe.db.get_value("File", self.doc.name, "th_media_scan_status"),
+			av.SCAN_CLEAN,
 		)
 
 	def test_replace_politikaya_takilan_icerigi_YAZMAZ(self):
@@ -1236,4 +1242,188 @@ class TestPaketTemizligi(FrappeTestCase):
 		paket = self._kur("TEST-CLEANUP-B", "20260102_000000", frappe.utils.now())
 		seller_backup_export.cleanup()
 		self.assertTrue(os.path.exists(paket), "süresi dolmamış paket silinmemeli")
+
+class TestYazmaSonrasiTarama(FrappeTestCase):
+	"""Canlı ağaca giren her bayt aynı kapıdan geçer (TUR-125 × 123/131).
+
+	Kanca `File.after_insert`'e bağlı, yani yalnız KAYIT açan yolları görüyor.
+	Baytı değiştiren üç yol daha var ve hiçbiri yeni kayıt açmıyor: `replace`,
+	platform geri yüklemesi, satıcı geri yüklemesi. Bu yollarda eski damga yeni
+	içeriği AKLIYORDU.
+	"""
+
+	def setUp(self):
+		self.doc = _yeni_dosya(f"yazma-{_KOSUM_TUZU}.txt")
+		self.addCleanup(lambda: _sil(self.doc.name))
+		# Dosya daha önce taranıp TEMİZ çıkmış olsun — kusur tam buradaydı.
+		frappe.db.set_value(
+			"File", self.doc.name, "th_media_scan_status", av.SCAN_CLEAN, update_modified=False
+		)
+		frappe.db.commit()
+
+	def _politika(self, *, enabled=True, hold=False):
+		return mock.patch(
+			"tradehub_core.media.av.policy",
+			return_value={
+				"enabled": enabled,
+				"hold_until_clean": hold,
+				"fail_closed": False,
+				"scanner": "clamdscan",
+			},
+		)
+
+	def test_damga_sifirlanir_ve_yeniden_kuyruga_girer(self):
+		with self._politika(), mock.patch(
+			"tradehub_core.media.av.frappe.enqueue"
+		) as kuyruk:
+			sonuc = av.rescan_after_write([self.doc.file_url], reason="test")
+
+		self.assertEqual(sonuc["queued"], 1)
+		kuyruk.assert_called_once()
+		self.assertEqual(
+			frappe.db.get_value("File", self.doc.name, "th_media_scan_status"),
+			av.SCAN_PENDING,
+			"eski 'clean' damgası yeni baytı aklamamalı",
+		)
+
+	def test_sifirlama_ONCE_olmali_yoksa_kural_etkisiz(self):
+		"""`enqueue_scan` durumu dolu dosyayı atlıyor (idempotency).
+
+		Sıfırlama sonra yapılsaydı bu fonksiyon sessizce hiçbir şey yapmazdı —
+		en tehlikeli hata türü: çalışıyor görünen ama çalışmayan koruma.
+		"""
+		with self._politika(), mock.patch(
+			"tradehub_core.media.av.frappe.enqueue"
+		):
+			av.rescan_after_write([self.doc.file_url], reason="test")
+		# Kuyruğa gerçekten girdiyse durum `pending` olur; atlanmış olsaydı
+		# `clean` kalırdı.
+		self.assertEqual(
+			frappe.db.get_value("File", self.doc.name, "th_media_scan_status"), av.SCAN_PENDING
+		)
+
+	def test_politika_bekletme_diyorsa_dosya_canli_agactan_cikar(self):
+		with self._politika(hold=True), mock.patch(
+			"tradehub_core.media.av.frappe.enqueue"
+		):
+			sonuc = av.rescan_after_write([self.doc.file_url], reason="test")
+		self.assertEqual(sonuc["held"], 1)
+		self.assertTrue(av.in_hold(self.doc.file_url))
+		# Temizlik: dosyayı yerine koy, sonraki testler etkilenmesin.
+		av.release_hold(self.doc.file_url)
+
+	def test_karantinadaki_dosyanin_damgasi_SILINMEZ(self):
+		# Bulguyu silmek, karantinayı geçersiz kılmanın sessiz yolu olurdu.
+		frappe.db.set_value(
+			"File", self.doc.name, "th_media_scan_status", av.SCAN_INFECTED,
+			update_modified=False,
+		)
+		frappe.db.commit()
+		with self._politika(), mock.patch(
+			"tradehub_core.media.av.in_quarantine", return_value=True
+		), mock.patch("tradehub_core.media.av.frappe.enqueue") as kuyruk:
+			sonuc = av.rescan_after_write([self.doc.file_url], reason="test")
+
+		kuyruk.assert_not_called()
+		self.assertEqual(sonuc["queued"], 0)
+		self.assertEqual(
+			frappe.db.get_value("File", self.doc.name, "th_media_scan_status"),
+			av.SCAN_INFECTED,
+		)
+
+	def test_tarayici_kapaliyken_damga_bozulmaz(self):
+		# "Denendi, olmadı" ile "hiç denenmedi" farklı şeyler; kapalıyken
+		# damgayı silmek bu ayrımı yok ederdi.
+		with self._politika(enabled=False):
+			sonuc = av.rescan_after_write([self.doc.file_url], reason="test")
+		self.assertEqual(sonuc.get("skipped"), "disabled")
+		self.assertEqual(
+			frappe.db.get_value("File", self.doc.name, "th_media_scan_status"), av.SCAN_CLEAN
+		)
+
+	def test_bos_liste_ise_hicbir_sey_yapmaz(self):
+		self.assertEqual(av.rescan_after_write([], reason="test")["queued"], 0)
+		self.assertEqual(av.rescan_after_write(None, reason="test")["queued"], 0)
+
+	# ── Üç kapının da kuralı çağırdığı ──
+
+	def test_platform_geri_yuklemesi_kurali_cagirir(self):
+		from tradehub_core.media import restore
+
+		sahte = {
+			"set_id": "20260101_000000",
+			"files": [{"scope": "public", "path": "x.txt", "size": 1, "hash": "0" * 64}],
+		}
+		with (
+			mock.patch("tradehub_core.media.backup.manifest_of", return_value=sahte),
+			mock.patch("tradehub_core.media.backup.records_of", return_value=[]),
+			mock.patch("tradehub_core.media.av.is_servable", return_value=True),
+			mock.patch("tradehub_core.media.backup._blob_path", return_value="/dev/null"),
+			# Blob VAR ama canlı dosya YOK → "eksik dosya" dalı, yani yazma
+			# gerçekleşir. `overwrite` dalına girmeye gerek yok; oradaki
+			# `getsize` gerçek diske bakıyor.
+			mock.patch(
+				"tradehub_core.media.restore.os.path.isfile",
+				side_effect=lambda yol: yol == "/dev/null",
+			),
+			mock.patch("tradehub_core.media.restore.shutil.copy2"),
+			mock.patch("tradehub_core.media.restore.os.replace"),
+			mock.patch("tradehub_core.media.restore.os.makedirs"),
+			mock.patch("tradehub_core.media.av.rescan_after_write") as kural,
+		):
+			restore.apply("20260101_000000", records=False)
+
+		kural.assert_called_once()
+		self.assertEqual(kural.call_args.kwargs.get("reason"), "restore")
+
+	def test_satici_geri_yuklemesi_kurali_cagirir(self):
+		from tradehub_core.media import seller_backup
+
+		sahte = {
+			"set_id": "20260101_000000",
+			"files": [
+				{"path": "y.txt", "file_url": "/files/y.txt", "size": 1, "hash": "0" * 64}
+			],
+		}
+		with (
+			mock.patch(
+				"tradehub_core.media.seller_backup.manifest_of", return_value=sahte
+			),
+			mock.patch(
+				"tradehub_core.media.seller_backup._uploaded_urls",
+				return_value={"/files/y.txt"},
+			),
+			mock.patch(
+				"tradehub_core.media.seller_backup._servis_edilebilir", return_value=True
+			),
+			mock.patch(
+				"tradehub_core.media.seller_backup._blob_path", return_value="/dev/null"
+			),
+			mock.patch(
+				"tradehub_core.media.seller_backup._live_path", return_value="/tmp/y.txt"
+			),
+			mock.patch("tradehub_core.media.seller_backup.os.path.isfile", return_value=False),
+			mock.patch("tradehub_core.media.seller_backup.os.makedirs"),
+			mock.patch("tradehub_core.media.seller_backup.shutil.copy2"),
+			mock.patch("tradehub_core.media.seller_backup.os.replace"),
+			mock.patch("tradehub_core.media.av.rescan_after_write") as kural,
+		):
+			seller_backup.apply("MAGAZA-X", "20260101_000000", records=False)
+
+		kural.assert_called_once()
+		self.assertEqual(kural.call_args.kwargs.get("reason"), "seller_restore")
+
+	def test_replace_kurali_cagirir(self):
+		from tradehub_core.media import files
+
+		with (
+			mock.patch("tradehub_core.media.files.ownership.assert_owns"),
+			mock.patch("tradehub_core.media.files.ownership.owners_of", return_value={"M1"}),
+			mock.patch("tradehub_core.media.upload_policy.check"),
+			mock.patch("tradehub_core.media.av.rescan_after_write") as kural,
+		):
+			files.replace(self.doc.file_url, "M1", b"yeni baytlar", "y.txt")
+
+		kural.assert_called_once()
+		self.assertEqual(kural.call_args.kwargs.get("reason"), "replace")
 

@@ -437,6 +437,80 @@ def enqueue_scan(file_url: str, name: str | None = None) -> dict:
 	return {"file_url": file_url, "status": SCAN_PENDING}
 
 
+def rescan_after_write(file_urls, *, reason: str = "") -> dict:
+	"""Canlı ağaca YENİ bayt yazıldı — o dosyaları yeniden taramaya sok.
+
+	Kanca `File.after_insert`'e bağlı, yani yalnız KAYIT açan yolları görüyor.
+	Oysa baytı değiştiren üç yol daha var ve üçü de yeni kayıt açmıyor:
+
+	    files.replace          satıcı dosyanın içeriğini değiştiriyor
+	    restore.apply          platform yedeğinden geri yazılıyor
+	    seller_backup.apply    satıcı yedeğinden geri yazılıyor
+
+	Bu yollarda eski damga yeni içeriği AKLIYOR: dosya "clean" görünürken
+	diskteki baytlar bambaşka. Damga sıfırlanıp dosya yeniden kuyruğa girmeli —
+	kuralın üç kopyası olmasın diye tek yer burası.
+
+	`enqueue_scan` durumu dolu olan dosyayı atlar (idempotency), bu yüzden ÖNCE
+	sıfırlama şart; sırayı ters çevirmek bu fonksiyonu sessizce etkisiz kılardı.
+
+	Politika bekletme diyorsa dosya tarama bitene kadar canlı ağaçtan çıkarılır —
+	yeni yüklemeyle aynı davranış. Toplu geri yüklemede bu, taranana kadar
+	görsellerin görünmemesi demek; operatör isterse `media_av_hold_until_clean`
+	ile kapatabilir (felaket kurtarmada bilinçli bir tercih olabilir).
+
+	Best-effort: tarama altyapısındaki bir aksaklık, başarıyla yazılmış içeriği
+	geri almayı gerektirmez. Hata loglanır, çağıran akış devam eder.
+	"""
+	adresler = [u for u in (file_urls or []) if u]
+	if not adresler:
+		return {"queued": 0, "held": 0}
+
+	if not policy()["enabled"]:
+		# Tarayıcı yok/kapalı: damgayı sıfırlamanın da anlamı yok. "Denendi,
+		# olmadı" ile "hiç denenmedi" farklı şeyler (bkz. `enqueue_scan`).
+		return {"queued": 0, "held": 0, "skipped": "disabled"}
+
+	beklet = policy()["hold_until_clean"]
+	kuyruga = 0
+	bekletilen = 0
+
+	for url in adresler:
+		try:
+			if in_quarantine(url):
+				# Karantinadaki dosyaya zaten yazılmadı (çağıranlar engelliyor);
+				# damgasını sıfırlamak bulguyu silmek olurdu.
+				continue
+			frappe.db.set_value(
+				"File",
+				{"file_url": url},
+				{
+					"th_media_scan_status": "",
+					"th_media_scan_attempts": 0,
+					"th_media_scan_next_at": None,
+				},
+				update_modified=False,
+			)
+			frappe.db.commit()
+			if enqueue_scan(url).get("status") == SCAN_PENDING:
+				kuyruga += 1
+				if beklet and hold(url):
+					bekletilen += 1
+		except Exception:
+			frappe.log_error(
+				title="media.av rescan_after_write failed",
+				message=f"{url}: {frappe.get_traceback()}",
+			)
+
+	if kuyruga:
+		audit.log_media_event(
+			action=audit.ACTION_SCAN,
+			reason=f"rescan_after_write:{reason}" if reason else "rescan_after_write",
+			context={"files": len(adresler), "queued": kuyruga, "held": bekletilen},
+		)
+	return {"queued": kuyruga, "held": bekletilen}
+
+
 def maybe_scan_on_insert(doc, method: str | None = None) -> None:
 	"""`File.after_insert` kancası — her yeni dosya taramaya girer.
 

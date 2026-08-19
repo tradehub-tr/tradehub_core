@@ -709,8 +709,11 @@ SELLER_MODULES: list[dict] = [
 	# girmiyor), bu yüzden ekran route olarak var olsa bile registry kaydı
 	# olmadan menüde HİÇ görünmüyor.
 	#
-	# Satıcıya YALNIZ paketleme açılıyor; katalog, taşıyıcı hesapları ve
-	# lojistik ayarları platform ekranı — admin menüsünde kalır.
+	# G0 rol matrisi (2026-08-19): satıcıya sevkiyat listesi + paketleme açık;
+	# katalog, taşıyıcı hesapları ve lojistik ayarları platform ekranı — admin
+	# menüsünde kalır. Menü kaydı YALNIZ ready ekranlara açılır: C1/D1/D2/I1
+	# matriste satıcıya işaretli ama route'ları henüz yok — ekran açıldığında
+	# buraya kaydı eklenir (kaynak: admin-panel logisticsScreens.js manifesti).
 	{
 		"key": "seller.logistics",
 		"type": "section",
@@ -722,6 +725,38 @@ SELLER_MODULES: list[dict] = [
 		"order": 6,
 	},
 	{
+		"key": "seller.logistics.shipments",
+		"parent": "seller.logistics",
+		"type": "group",
+		"panel": "seller",
+		"section": "logistics",
+		"label": "Sevkiyatlar",
+		"color": "#f59e0b",
+		"order": 0,
+	},
+	{
+		"key": "seller.logistics.shipments.list",
+		"parent": "seller.logistics.shipments",
+		"type": "item",
+		"panel": "seller",
+		"section": "logistics",
+		"label": "Sevkiyatlar",
+		"icon": "truck",
+		"route": "/lojistik/sevkiyatlar",
+		"order": 0,
+	},
+	{
+		"key": "seller.logistics.shipments.create",
+		"parent": "seller.logistics.shipments",
+		"type": "item",
+		"panel": "seller",
+		"section": "logistics",
+		"label": "Manuel Sevkiyat",
+		"icon": "file-plus",
+		"route": "/lojistik/sevkiyatlar/yeni",
+		"order": 1,
+	},
+	{
 		"key": "seller.logistics.packing",
 		"parent": "seller.logistics",
 		"type": "group",
@@ -729,7 +764,7 @@ SELLER_MODULES: list[dict] = [
 		"section": "logistics",
 		"label": "Paketleme",
 		"color": "#f59e0b",
-		"order": 0,
+		"order": 1,
 	},
 	{
 		"key": "seller.logistics.packing.queue",
