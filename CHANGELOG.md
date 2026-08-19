@@ -1,3 +1,11 @@
+## [v1.13.1-alpha.29] - 2026-08-19 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(lojistik): satıcı menüsüne Manuel Sevkiyat kalemi eklendi (@boraydeger32)
+
+---
 ## [v1.13.1-alpha.28] - 2026-08-19 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
