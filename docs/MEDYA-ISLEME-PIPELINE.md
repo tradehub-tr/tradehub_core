@@ -267,6 +267,44 @@ olaylardır** — "3 deneme yapıldı" bilgisi tek bir kayıttan çıkarılamaz.
 Toplu işlerde denetim **iş başına** yazılır: 2.800 dosyalık bir işte dosya
 başına kayıt ADL'i şişirir ve zinciri okunamaz kılar.
 
+### 6.1 Yükleme kaydının kapsamı: uzantı süzgeci YOK
+
+`audit.on_file_insert` bir dönem yalnız 17 görsel/video uzantısını kaydediyordu.
+Ölçüm (19 Ağustos 2026, 5.724 dosya) neyin kaçtığını gösterdi:
+
+| Denetim dışı kalan | Adet |
+|---|---|
+| `.txt` | 540 |
+| `.csv` | 56 |
+| `.xlsx` | 34 |
+| `.pdf` | 14 |
+| `.zip` | 8 |
+| `.docx` | 1 |
+| **Toplam** | **653** |
+
+Bunların **13'ü KYB doğrulama belgesiydi** — sistemin en hassas kategorisi
+denetimde hiç görünmüyordu. Üstelik AV taraması (TUR-125) o belgeleri tarayıp
+`media.scan` yazdığı için ortaya cevaplanamaz bir iz çıkmıştı: bir PDF için
+"tarandı" satırı var, "yüklendi" satırı yok.
+
+**Kural:** kapsam uzantıyla daraltılmaz. "Kim ne zaman ne yaptı" sorusu dosya
+türüne göre değişmez ve listeye eklenmeyen her yeni tür sessizce kayıt dışı
+kalırdı (`media/av.py`'nin kapsamı daraltmama gerekçesiyle aynı).
+
+`MEDIA_EXTENSIONS` listesi silinmedi ama **rolü değişti**: artık kaydın yazılıp
+yazılmayacağını değil, iki şeyi belirliyor —
+
+1. Denetim satırındaki `kind` etiketi (`media` / `document`), böylece "yalnız
+   belge yüklemeleri" sorgusu yapılabiliyor.
+2. Pahalı içerik-ikizi kontrolünün kapsamı: `content_hash` indeksli değil ve
+   her belge yüklemesine tam tablo taraması eklemek toplu içe aktarımda
+   ölçülebilir maliyet. Kontrolün amacı görsel sızıntısıydı (ölçülen 44
+   kopyanın tamamı public+eksiz görsel desenindeydi), kapsamı da orada kalıyor.
+
+**Maskeleme değişmedi:** private dosyalar ve hassas doctype ekleri kayda GİRER
+ama kimliksiz yazılır. Yani KYB belgesi artık denetimde görünüyor, adresi ise
+hâlâ görünmüyor — istenen tam olarak buydu.
+
 ---
 
 ## 7. Devreye alma ve operasyon
