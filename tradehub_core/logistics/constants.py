@@ -103,6 +103,28 @@ ALLOWED_TRANSITIONS: dict[str, set[str]] = {
 
 
 # ---------------------------------------------------------------------------
+# Satıcı geçiş alt kümesi — G0 rol matrisi (C2 satırı)
+#
+# Satıcı sevkiyat DocPerm'inde write taşımaz; tek istisna FBM/Trendyol'daki
+# "kargoya verildi" onayıdır: kendi tenant'ındaki sevkiyatı Alıma Hazır →
+# Alındı'ya geçirebilir (api/v1/shipment.update_shipment_status dar yolu).
+# Genişletme kararı (örn. SELLER_VEHICLE kanalında teslimat zinciri) D1
+# fazına ait — buraya durum eklemek FE'ye buton açar, bilinçli dar tutuldu.
+# ---------------------------------------------------------------------------
+
+SELLER_ALLOWED_TRANSITIONS: dict[str, set[str]] = {
+	ShipmentStatus.READY_FOR_PICKUP: {
+		ShipmentStatus.PICKED_UP,
+	},
+}
+
+
+def is_seller_transition_allowed(from_status: str, to_status: str) -> bool:
+	"""Satıcının yapabileceği geçiş mi? (ALLOWED_TRANSITIONS'ın alt kümesi.)"""
+	return to_status in SELLER_ALLOWED_TRANSITIONS.get(from_status, set())
+
+
+# ---------------------------------------------------------------------------
 # Durum geçiş kuralı — saf fonksiyon (Dalga B, LOG-049)
 #
 # Bu fonksiyon BİLİNÇLİ olarak frappe'siz tutulmuştur: hem shipment_service

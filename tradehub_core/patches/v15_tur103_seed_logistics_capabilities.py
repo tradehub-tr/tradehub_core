@@ -67,11 +67,14 @@ GRANTS: dict[str, list[str]] = {
 		"view.carrier_secret",
 		"view.tracking",
 	],
+	# G0/K1 (2026-08-19): `view.logistics_cost` düşürüldü — maliyet asimetrisi
+	# kararı; satıcı taşıyıcı maliyetini görmez. Mevcut sitelerde
+	# v15_9_21_g0_revoke_seller_cost_capability grant'ı pasifler; buradan
+	# düşürmek yeni kurulumun hiç vermemesi için.
 	"Seller Full Access": [
 		"shipment.create",
 		"shipment.write",
 		"view.tracking",
-		"view.logistics_cost",
 	],
 }
 

@@ -319,6 +319,10 @@ def get_logistics_permissions() -> dict:
 				"logistics_operator": "Logistics Operator" in roles,
 				"carrier_integration_manager": "Carrier Integration Manager" in roles,
 				"system_manager": "System Manager" in roles,
+				# G0 matrisi: Ayarlar (M3) yazma kapısı backend'de System Manager +
+				# Marketplace Admin (logistics_settings.json). Panel bu kapıyı
+				# capability'yle DEĞİL rolle çizecek — ikisini de bildir.
+				"marketplace_admin": "Marketplace Admin" in roles,
 			},
 			"doctype_permissions": {
 				spec_key: {

@@ -83,6 +83,10 @@
    "read": 1,
    "report": 1,
    "role": "Logistics Operator"
+  },
+  {
+   "read": 1,
+   "role": "Seller Logistics"
   }
  ],
  "search_fields": "channel_name,channel_code",

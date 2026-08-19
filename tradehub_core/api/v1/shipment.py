@@ -254,12 +254,35 @@ def _can_view_operational_fields(user: str, doc: frappe.model.document.Document)
 	return bool(seller_profile and seller_profile == doc.get("seller_profile"))
 
 
+def _seller_can_transition(doc: frappe.model.document.Document, user: str, to_status: str) -> bool:
+	"""Satıcı bu geçişi yapabilir mi? (G0 matrisi C2 — dar yol.)
+
+	Üç koşul birden: Seller Logistics rolü + sevkiyat kullanıcının kendi
+	tenant'ında + geçiş SELLER_ALLOWED_TRANSITIONS alt kümesinde.
+	"""
+	from tradehub_core.logistics.constants import is_seller_transition_allowed
+	from tradehub_core.logistics.permissions import _get_user_seller_profile
+
+	if "Seller Logistics" not in frappe.get_roles(user):
+		return False
+
+	seller_profile: str | None = _get_user_seller_profile(user)
+	if not seller_profile or seller_profile != doc.get("seller_profile"):
+		return False
+
+	return is_seller_transition_allowed(doc.status, to_status)
+
+
 @frappe.whitelist()
 def update_shipment_status(name: str, status: str, note: str | None = None) -> dict:
 	"""Sevkiyat durumunu gecis motoru uzerinden gunceller.
 
 	ALLOWED_TRANSITIONS disindaki gecisler ShipmentStateError ile reddedilir;
 	ayni duruma gecis sessiz no-op'tur (event uretilmez).
+
+	G0 matrisi (C2): write DocPerm'i olmayan satici YALNIZ kendi tenant'indaki
+	sevkiyati SELLER_ALLOWED_TRANSITIONS alt kumesiyle gecirebilir
+	(_seller_can_transition dar yolu); diger her sey PermissionError.
 
 	Args:
 		name: Shipment doc adi.
@@ -269,10 +292,22 @@ def update_shipment_status(name: str, status: str, note: str | None = None) -> d
 	Returns:
 		{"ok": True, "data": {"name", "status", "previous_status"}, "meta": {...}}.
 	"""
-	_require_authenticated_user()
+	user: str = _require_authenticated_user()
 
 	doc = frappe.get_doc("Shipment", name)
-	doc.check_permission("write")
+	try:
+		doc.check_permission("write")
+	except frappe.PermissionError:
+		# G0 dar yolu: satıcı DocPerm write taşımaz ama KENDİ sevkiyatını
+		# "kargoya verildi" işaretleyebilir (SELLER_ALLOWED_TRANSITIONS,
+		# FBM confirm-shipment deseni). Koşullar tutmuyorsa orijinal
+		# PermissionError aynen yükselir.
+		if not _seller_can_transition(doc, user, status):
+			raise
+		# ignore_permissions gerekçesi: dar yol yukarıda üç koşulla (rol +
+		# tenant eşleşmesi + geçiş alt kümesi) doğrulandı; transition_status
+		# içindeki doc.save() aksi hâlde aynı DocPerm duvarına çarpardı.
+		doc.flags.ignore_permissions = True
 	previous_status: str = doc.status
 
 	from tradehub_core.logistics.services.shipment_service import transition_status
