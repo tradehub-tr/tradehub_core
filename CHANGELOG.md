@@ -1,3 +1,21 @@
+## [v1.13.1-alpha.31] - 2026-08-19 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(lojistik): satıcı menüsüne teslimat kalemleri eklendi (@aliiball)
+  - Teslim kanıtı, satıcı teslimatı ve alıcı teslim alma kayıtları
+  - Satıcı sidebar'ı veritabanından besleniyor; kayıt olmadan ekran menüde görünmüyor
+
+### Duzeltildi
+- fix(lojistik): katalog filtresi metin bayrakları kabul ediyor (@aliiball)
+  - is_active için true/false/1/0/yes/no değerleri çözümleniyor
+  - Geçersiz değer sessizce yutulmuyor, gerekçeli hata veriyor
+
+### Degistirildi
+- refactor(lint): kullanılmayan atama ve import'lar temizlendi (@aliiball)
+
+---
 ## [v1.13.1-alpha.30] - 2026-08-19 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
