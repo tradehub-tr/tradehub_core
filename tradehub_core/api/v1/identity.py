@@ -809,7 +809,7 @@ def reset_password(key: str, new_password: str):
 	# Atomic token invalidation + doğrulama: UPDATE yalnızca key eşleşirse çalışır.
 	# Frappe aynı DB connection'ı kullandığı için cursor.rowcount güvenilirdir
 	# (ROW_COUNT() ayrı sorgusu gibi session-arası sorun yok).
-	result = frappe.db.sql(
+	frappe.db.sql(
 		"UPDATE `tabUser` SET `reset_password_key` = NULL"
 		" WHERE `name` = %s AND `reset_password_key` = %s",
 		(user_data.name, key),

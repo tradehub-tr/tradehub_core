@@ -1039,7 +1039,7 @@ def remove_cart_item(cart_item):
 	if not user or user == "Guest":
 		frappe.throw(_("Giriş yapmanız gerekiyor"), frappe.AuthenticationError)
 
-	cart_name = _verify_cart_item_owner(cart_item, user)
+	_verify_cart_item_owner(cart_item, user)
 	frappe.delete_doc("Cart Item", cart_item, ignore_permissions=True)
 	frappe.db.commit()
 
@@ -1346,7 +1346,6 @@ def create_order(
 	for idx, po in enumerate(valid_orders):
 		order_data = po["order_data"]
 		seller_id = order_data.get("seller_id", "")
-		products = order_data.get("products", [])
 		shipping_fee = po["shipping_fee"]
 		# Native listing currency (FAZ 1 / K1) — client'ın display currency'si değil.
 		currency = po["currency"]

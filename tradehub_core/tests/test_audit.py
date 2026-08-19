@@ -152,7 +152,6 @@ if not hasattr(frappe, "utils") or not hasattr(frappe.utils, "now_datetime"):
 
 from tradehub_core.audit import log as audit_log  # noqa: E402
 
-
 # ---------------------------------------------------------------------------
 # log_decision
 # ---------------------------------------------------------------------------

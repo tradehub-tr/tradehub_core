@@ -142,7 +142,7 @@ def log_product_view(listing_name: str, category: str = None):
 		frappe.cache.delete_value(f"tailored:user:{user}")
 	except Exception:
 		# View logging is best-effort — never break the detail page
-		frappe.log_error("log_product_view failed for listing {listing_name!r}".format(listing_name=listing_name), "tailored")
+		frappe.log_error(f"log_product_view failed for listing {listing_name!r}", "tailored")
 		pass
 
 
@@ -227,7 +227,7 @@ def _compute_category_scores(user: str) -> dict:
 			scores.setdefault(cat, 0.0)
 			scores[cat] += TAILORED_ORDER_WEIGHT * (r.cnt or 0)
 	except Exception:
-		frappe.log_error("_compute_category_scores: order history query failed for user {user!r}".format(user=user), "tailored")
+		frappe.log_error(f"_compute_category_scores: order history query failed for user {user!r}", "tailored")
 		pass
 
 	# 2) Search history → category aggregation
@@ -251,7 +251,7 @@ def _compute_category_scores(user: str) -> dict:
 			scores.setdefault(cat, 0.0)
 			scores[cat] += TAILORED_SEARCH_WEIGHT * (r.cnt or 0)
 	except Exception:
-		frappe.log_error("_compute_category_scores: search history query failed for user {user!r}".format(user=user), "tailored")
+		frappe.log_error(f"_compute_category_scores: search history query failed for user {user!r}", "tailored")
 		pass
 
 	# 3) View history (User Product View)
@@ -275,7 +275,7 @@ def _compute_category_scores(user: str) -> dict:
 			scores.setdefault(cat, 0.0)
 			scores[cat] += TAILORED_VIEW_WEIGHT * (r.cnt or 0)
 	except Exception:
-		frappe.log_error("_compute_category_scores: view history query failed for user {user!r}".format(user=user), "tailored")
+		frappe.log_error(f"_compute_category_scores: view history query failed for user {user!r}", "tailored")
 		pass
 
 	# Attach parent info for hybrid decision
@@ -615,7 +615,7 @@ def get_tailored_selections(limit: int = 9):
 	try:
 		frappe.cache.set_value(cache_key, json.dumps(payload), expires_in_sec=cache_ttl)
 	except Exception:
-		frappe.log_error("get_tailored_selections: cache write failed for key {cache_key!r}".format(cache_key=cache_key), "tailored")
+		frappe.log_error(f"get_tailored_selections: cache write failed for key {cache_key!r}", "tailored")
 		pass
 
 	return payload

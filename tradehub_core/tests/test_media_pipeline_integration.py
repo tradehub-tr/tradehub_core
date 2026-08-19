@@ -39,7 +39,8 @@ from frappe.tests.utils import FrappeTestCase
 from frappe.utils import get_files_path, now_datetime
 
 from tradehub_core.api import seller_media
-from tradehub_core.media import engine, files as media_files, naming, transcode
+from tradehub_core.media import engine, naming, transcode
+from tradehub_core.media import files as media_files
 
 
 def _jpeg_bytes(color: tuple[int, int, int] = (200, 30, 30), size: tuple[int, int] = (64, 64)) -> bytes:
