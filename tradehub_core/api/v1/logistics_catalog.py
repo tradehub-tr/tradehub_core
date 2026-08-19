@@ -210,11 +210,30 @@ def _clamp_page_size(page_size: int) -> int:
 	return max(1, min(int(page_size or DEFAULT_PAGE_SIZE), MAX_PAGE_SIZE))
 
 
+def _as_flag(value: Any) -> int:
+	"""0/1 bayrağını HTTP'den gelen her biçimden okur.
+
+	ÖLÇÜLDÜ (2026-08-19): istemci `is_active=true` gönderdiğinde `int("true")`
+	ValueError atıyor ve uç INTERNAL_ERROR dönüyordu — Manuel Sevkiyat ekranı
+	(C1) bu yüzden hiç açılmıyordu. Query string'de her değer METİN olarak
+	geliyor; sözleşme 0/1 diyor ama sınırda savunma yapmak, aynı tuzağa
+	düşecek bir sonraki istemciyi de kurtarıyor.
+	"""
+	if isinstance(value, bool):
+		return int(value)
+	metin = str(value).strip().lower()
+	if metin in ("1", "true", "yes"):
+		return 1
+	if metin in ("0", "false", "no"):
+		return 0
+	frappe.throw(_("Geçersiz is_active değeri: {0}").format(value))
+
+
 def _build_filters(spec: CatalogSpec, is_active: int | None, extra: dict | None) -> dict:
 	"""İstemci filtrelerini sözleşmede tanımlı alanlarla sınırlar."""
 	filters: dict[str, Any] = {}
 	if is_active is not None:
-		filters["is_active"] = int(is_active)
+		filters["is_active"] = _as_flag(is_active)
 
 	for key, value in (extra or {}).items():
 		if key not in spec.extra_filters:
