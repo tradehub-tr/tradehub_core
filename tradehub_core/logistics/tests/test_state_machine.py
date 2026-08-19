@@ -137,5 +137,40 @@ class TestTerminalStatuses(unittest.TestCase):
 		self.assertEqual(TERMINAL_STATUSES, empty_rows)
 
 
+class TestSellerTransitions(unittest.TestCase):
+	"""G0 matrisi (C2): satıcı geçiş alt kümesinin saf kural testleri."""
+
+	def test_seller_subset_of_allowed(self) -> None:
+		"""Satıcı matrisi genel matrisin ALT KÜMESİ olmalı — satıcıya genel
+		motorun reddedeceği bir geçiş açmak iki kuralı çelişkiye düşürür."""
+		for from_status, targets in constants.SELLER_ALLOWED_TRANSITIONS.items():
+			for to_status in targets:
+				self.assertTrue(
+					is_transition_allowed(from_status, to_status),
+					f"Satıcıya açık ama genel matriste yasak: {from_status!r} -> {to_status!r}",
+				)
+
+	def test_seller_can_confirm_pickup(self) -> None:
+		"""FBM 'confirm shipment' karşılığı: Alıma Hazır -> Alındı satıcıya açık."""
+		self.assertTrue(
+			constants.is_seller_transition_allowed(
+				ShipmentStatus.READY_FOR_PICKUP, ShipmentStatus.PICKED_UP
+			)
+		)
+
+	def test_seller_cannot_cancel_or_deliver(self) -> None:
+		"""İptal ve teslim kararları platformda kalmalı (G0: iptal yalnız
+		Logistics Manager; teslim taşıyıcı/operasyon olayı)."""
+		for from_status in ShipmentStatus.ALL:
+			self.assertFalse(
+				constants.is_seller_transition_allowed(from_status, ShipmentStatus.CANCELLED),
+				f"Satıcıya iptal açılmış: {from_status!r}",
+			)
+			self.assertFalse(
+				constants.is_seller_transition_allowed(from_status, ShipmentStatus.DELIVERED),
+				f"Satıcıya teslim açılmış: {from_status!r}",
+			)
+
+
 if __name__ == "__main__":
 	unittest.main()

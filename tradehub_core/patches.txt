@@ -247,3 +247,8 @@ tradehub_core.patches.v15_9_19_media_transcode_schedule
 # --- Ali · 13-FE (lojistik paketleme) ---
 tradehub_core.patches.v15_9_20_seed_logistics_seller_nav
 tradehub_core.patches.v15_9_20_media_scan_fields
+
+# --- Bora · G0 (lojistik rol/yetki matrisi) ---
+tradehub_core.patches.v15_9_21_g0_seller_logistics_role_assignment
+tradehub_core.patches.v15_9_21_g0_revoke_seller_cost_capability
+tradehub_core.patches.v15_9_21_g0_seed_seller_shipments_nav
