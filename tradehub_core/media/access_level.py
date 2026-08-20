@@ -36,10 +36,10 @@ import os
 
 import frappe
 from frappe import _
-from frappe.core.doctype.file.utils import check_path_safety
 from frappe.utils import get_files_path
 
 from tradehub_core.media import audit, presets, refs
+from tradehub_core.media.path_safety import check_path_safety
 
 PUBLIC_PREFIX = "/files/"
 PRIVATE_PREFIX = "/private/files/"

@@ -45,11 +45,11 @@ import time
 
 import frappe
 from frappe import _
-from frappe.core.doctype.file.utils import check_path_safety
 from frappe.utils.response import send_private_file
 from frappe.utils.verified_command import get_signed_params, verify_request
 
 from tradehub_core.media import audit, file_isolation
+from tradehub_core.media.path_safety import check_path_safety
 
 # Yalnız private dosyalar imzalanabilir — public zaten girişsiz açık
 # (docs/MEDYA-ERISIM-MODELI.md §2.1), imza gereksiz + güvenlik riski
