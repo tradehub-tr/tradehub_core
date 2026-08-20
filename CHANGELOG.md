@@ -1,3 +1,11 @@
+## [v1.13.1-alpha.36] - 2026-08-20 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Duzeltildi
+- fix(media): check_path_safety importunu Frappe sürümünden bağımsızlaştır (@TurksabYonetim)
+
+---
 ## [v1.13.1-alpha.35] - 2026-08-20 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
