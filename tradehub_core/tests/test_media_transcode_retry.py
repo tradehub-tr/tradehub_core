@@ -34,7 +34,6 @@ from frappe.utils import add_to_date, now_datetime
 from tradehub_core.api import media_admin, seller_media
 from tradehub_core.media import inventory, jobs, transcode
 
-
 # Koşum başına benzersiz tuz. Dosya adına göre türetmek YETMİYOR: içerik-adresli
 # adlandırma (WP4, `media/naming.py`) aynı baytları aynı `file_url`'e eşliyor ve
 # testler `frappe.db.commit()` çağıran kod yollarına (transcode, süpürücü)

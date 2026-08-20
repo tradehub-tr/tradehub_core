@@ -44,7 +44,7 @@ from frappe.tests.utils import FrappeTestCase
 from frappe.utils import add_to_date, now_datetime
 
 from tradehub_core.api import media_admin
-from tradehub_core.media import av, inventory, jobs
+from tradehub_core.media import av, inventory, jobs, seller_media, trash
 
 # Koşum başına benzersiz tuz — içerik-adresli adlandırma (WP4) aynı baytları
 # aynı `file_url`'e eşliyor ve bu testler `frappe.db.commit()` çağıran yollara
@@ -1119,7 +1119,13 @@ class TestModulKesisimleri(FrappeTestCase):
 				return_value={"status": av.SCAN_PENDING},
 			) as tarama,
 			mock.patch(
-				"tradehub_core.media.av.policy", return_value={"hold_until_clean": False}
+				"tradehub_core.media.av.policy",
+				return_value={
+					"enabled": True,
+					"hold_until_clean": False,
+					"fail_closed": False,
+					"scanner": "clamdscan",
+				},
 			),
 			mock.patch("tradehub_core.media.upload_policy.check") as kapi,
 		):
@@ -1127,10 +1133,10 @@ class TestModulKesisimleri(FrappeTestCase):
 
 		kapi.assert_called_once()  # yükleme sözleşmesi yeni içeriğe de uygulandı
 		tarama.assert_called_once()  # yeniden tarama kuyruğa girdi
-		self.assertEqual(
-			frappe.db.get_value("File", self.doc.name, "th_media_scan_status") or "",
-			"",
-			"eski 'clean' damgası yeni içeriği aklamamalı",
+		# Damga sıfırlanıp `pending`e geçmeli — eski `clean` yeni içeriği aklamamalı.
+		self.assertNotEqual(
+			frappe.db.get_value("File", self.doc.name, "th_media_scan_status"),
+			av.SCAN_CLEAN,
 		)
 
 	def test_replace_politikaya_takilan_icerigi_YAZMAZ(self):
@@ -1237,3 +1243,285 @@ class TestPaketTemizligi(FrappeTestCase):
 		seller_backup_export.cleanup()
 		self.assertTrue(os.path.exists(paket), "süresi dolmamış paket silinmemeli")
 
+class TestYazmaSonrasiTarama(FrappeTestCase):
+	"""Canlı ağaca giren her bayt aynı kapıdan geçer (TUR-125 × 123/131).
+
+	Kanca `File.after_insert`'e bağlı, yani yalnız KAYIT açan yolları görüyor.
+	Baytı değiştiren üç yol daha var ve hiçbiri yeni kayıt açmıyor: `replace`,
+	platform geri yüklemesi, satıcı geri yüklemesi. Bu yollarda eski damga yeni
+	içeriği AKLIYORDU.
+	"""
+
+	def setUp(self):
+		self.doc = _yeni_dosya(f"yazma-{_KOSUM_TUZU}.txt")
+		self.addCleanup(lambda: _sil(self.doc.name))
+		# Dosya daha önce taranıp TEMİZ çıkmış olsun — kusur tam buradaydı.
+		frappe.db.set_value(
+			"File", self.doc.name, "th_media_scan_status", av.SCAN_CLEAN, update_modified=False
+		)
+		frappe.db.commit()
+
+	def _politika(self, *, enabled=True, hold=False):
+		return mock.patch(
+			"tradehub_core.media.av.policy",
+			return_value={
+				"enabled": enabled,
+				"hold_until_clean": hold,
+				"fail_closed": False,
+				"scanner": "clamdscan",
+			},
+		)
+
+	def test_damga_sifirlanir_ve_yeniden_kuyruga_girer(self):
+		with self._politika(), mock.patch(
+			"tradehub_core.media.av.frappe.enqueue"
+		) as kuyruk:
+			sonuc = av.rescan_after_write([self.doc.file_url], reason="test")
+
+		self.assertEqual(sonuc["queued"], 1)
+		kuyruk.assert_called_once()
+		self.assertEqual(
+			frappe.db.get_value("File", self.doc.name, "th_media_scan_status"),
+			av.SCAN_PENDING,
+			"eski 'clean' damgası yeni baytı aklamamalı",
+		)
+
+	def test_sifirlama_ONCE_olmali_yoksa_kural_etkisiz(self):
+		"""`enqueue_scan` durumu dolu dosyayı atlıyor (idempotency).
+
+		Sıfırlama sonra yapılsaydı bu fonksiyon sessizce hiçbir şey yapmazdı —
+		en tehlikeli hata türü: çalışıyor görünen ama çalışmayan koruma.
+		"""
+		with self._politika(), mock.patch(
+			"tradehub_core.media.av.frappe.enqueue"
+		):
+			av.rescan_after_write([self.doc.file_url], reason="test")
+		# Kuyruğa gerçekten girdiyse durum `pending` olur; atlanmış olsaydı
+		# `clean` kalırdı.
+		self.assertEqual(
+			frappe.db.get_value("File", self.doc.name, "th_media_scan_status"), av.SCAN_PENDING
+		)
+
+	def test_politika_bekletme_diyorsa_dosya_canli_agactan_cikar(self):
+		with self._politika(hold=True), mock.patch(
+			"tradehub_core.media.av.frappe.enqueue"
+		):
+			sonuc = av.rescan_after_write([self.doc.file_url], reason="test")
+		self.assertEqual(sonuc["held"], 1)
+		self.assertTrue(av.in_hold(self.doc.file_url))
+		# Temizlik: dosyayı yerine koy, sonraki testler etkilenmesin.
+		av.release_hold(self.doc.file_url)
+
+	def test_karantinadaki_dosyanin_damgasi_SILINMEZ(self):
+		# Bulguyu silmek, karantinayı geçersiz kılmanın sessiz yolu olurdu.
+		frappe.db.set_value(
+			"File", self.doc.name, "th_media_scan_status", av.SCAN_INFECTED,
+			update_modified=False,
+		)
+		frappe.db.commit()
+		with self._politika(), mock.patch(
+			"tradehub_core.media.av.in_quarantine", return_value=True
+		), mock.patch("tradehub_core.media.av.frappe.enqueue") as kuyruk:
+			sonuc = av.rescan_after_write([self.doc.file_url], reason="test")
+
+		kuyruk.assert_not_called()
+		self.assertEqual(sonuc["queued"], 0)
+		self.assertEqual(
+			frappe.db.get_value("File", self.doc.name, "th_media_scan_status"),
+			av.SCAN_INFECTED,
+		)
+
+	def test_tarayici_kapaliyken_damga_bozulmaz(self):
+		# "Denendi, olmadı" ile "hiç denenmedi" farklı şeyler; kapalıyken
+		# damgayı silmek bu ayrımı yok ederdi.
+		with self._politika(enabled=False):
+			sonuc = av.rescan_after_write([self.doc.file_url], reason="test")
+		self.assertEqual(sonuc.get("skipped"), "disabled")
+		self.assertEqual(
+			frappe.db.get_value("File", self.doc.name, "th_media_scan_status"), av.SCAN_CLEAN
+		)
+
+	def test_bos_liste_ise_hicbir_sey_yapmaz(self):
+		self.assertEqual(av.rescan_after_write([], reason="test")["queued"], 0)
+		self.assertEqual(av.rescan_after_write(None, reason="test")["queued"], 0)
+
+	# ── Üç kapının da kuralı çağırdığı ──
+
+	def test_platform_geri_yuklemesi_kurali_cagirir(self):
+		from tradehub_core.media import restore
+
+		sahte = {
+			"set_id": "20260101_000000",
+			"files": [{"scope": "public", "path": "x.txt", "size": 1, "hash": "0" * 64}],
+		}
+		with (
+			mock.patch("tradehub_core.media.backup.manifest_of", return_value=sahte),
+			mock.patch("tradehub_core.media.backup.records_of", return_value=[]),
+			mock.patch("tradehub_core.media.av.is_servable", return_value=True),
+			mock.patch("tradehub_core.media.backup._blob_path", return_value="/dev/null"),
+			# Blob VAR ama canlı dosya YOK → "eksik dosya" dalı, yani yazma
+			# gerçekleşir. `overwrite` dalına girmeye gerek yok; oradaki
+			# `getsize` gerçek diske bakıyor.
+			mock.patch(
+				"tradehub_core.media.restore.os.path.isfile",
+				side_effect=lambda yol: yol == "/dev/null",
+			),
+			mock.patch("tradehub_core.media.restore.shutil.copy2"),
+			mock.patch("tradehub_core.media.restore.os.replace"),
+			mock.patch("tradehub_core.media.restore.os.makedirs"),
+			mock.patch("tradehub_core.media.av.rescan_after_write") as kural,
+		):
+			restore.apply("20260101_000000", records=False)
+
+		kural.assert_called_once()
+		self.assertEqual(kural.call_args.kwargs.get("reason"), "restore")
+
+	def test_satici_geri_yuklemesi_kurali_cagirir(self):
+		from tradehub_core.media import seller_backup
+
+		sahte = {
+			"set_id": "20260101_000000",
+			"files": [
+				{"path": "y.txt", "file_url": "/files/y.txt", "size": 1, "hash": "0" * 64}
+			],
+		}
+		with (
+			mock.patch(
+				"tradehub_core.media.seller_backup.manifest_of", return_value=sahte
+			),
+			mock.patch(
+				"tradehub_core.media.seller_backup._uploaded_urls",
+				return_value={"/files/y.txt"},
+			),
+			mock.patch(
+				"tradehub_core.media.seller_backup._servis_edilebilir", return_value=True
+			),
+			mock.patch(
+				"tradehub_core.media.seller_backup._blob_path", return_value="/dev/null"
+			),
+			mock.patch(
+				"tradehub_core.media.seller_backup._live_path", return_value="/tmp/y.txt"
+			),
+			mock.patch("tradehub_core.media.seller_backup.os.path.isfile", return_value=False),
+			mock.patch("tradehub_core.media.seller_backup.os.makedirs"),
+			mock.patch("tradehub_core.media.seller_backup.shutil.copy2"),
+			mock.patch("tradehub_core.media.seller_backup.os.replace"),
+			mock.patch("tradehub_core.media.av.rescan_after_write") as kural,
+		):
+			seller_backup.apply("MAGAZA-X", "20260101_000000", records=False)
+
+		kural.assert_called_once()
+		self.assertEqual(kural.call_args.kwargs.get("reason"), "seller_restore")
+
+	def test_replace_kurali_cagirir(self):
+		from tradehub_core.media import files
+
+		with (
+			mock.patch("tradehub_core.media.files.ownership.assert_owns"),
+			mock.patch("tradehub_core.media.files.ownership.owners_of", return_value={"M1"}),
+			mock.patch("tradehub_core.media.upload_policy.check"),
+			mock.patch("tradehub_core.media.av.rescan_after_write") as kural,
+		):
+			files.replace(self.doc.file_url, "M1", b"yeni baytlar", "y.txt")
+
+		kural.assert_called_once()
+		self.assertEqual(kural.call_args.kwargs.get("reason"), "replace")
+
+
+
+# ── Ortak sahiplik: yönetici silme kapısı (TUR-298) ─────────────────────
+
+
+class TestOrtakSahiplikSilme(FrappeTestCase):
+	"""İçerik-adresli adlandırmanın silme tarafındaki bedeli.
+
+	Aynı görseli iki satıcı yüklerse diskte TEK dosya, `File` tarafında iki
+	kayıt olur (TUR-130). Satıcı tarafı bunu kapsam ayrımıyla çözüyor:
+	`seller_media.purge` yalnız kendi kayıtlarını siler, kalan sahip varsa
+	dosyaya dokunmaz. Yönetici tarafında bu kontrol YOKTU — bir yöneticinin
+	silmesi, haberi olmayan başka satıcıların görselini de siliyordu
+	(gerçek veriyle canlandırıldı: 4 kayıt → 0, dosya diskten gitti).
+
+	Yönetici için engel DEĞİL onay kapısı kuruldu: platform sahibinin yasal
+	kaldırma ya da zararlı içerik durumunda dosyayı herkesten kaldırabilmesi
+	gerekir; amaç durdurmak değil, kaç mağazayı etkilediğini görmeden
+	tıklamasını önlemek.
+	"""
+
+	def setUp(self):
+		self.doc = _yeni_dosya("ortak-sahiplik.txt")
+		self.addCleanup(lambda: _sil(self.doc.name))
+		self.addCleanup(lambda: _bekletmeyi_temizle(self.doc.file_url))
+
+	def _sahip_sayisi(self, n: int):
+		"""`owners_of` n mağaza döndürsün — gerçek mağaza kurmadan."""
+		return mock.patch(
+			"tradehub_core.media.trash.ownership.owners_of",
+			return_value={f"MAGAZA-{i}" for i in range(n)},
+		)
+
+	def test_tek_sahipte_engel_yok(self):
+		with self._sahip_sayisi(1):
+			# Onay verilmeden geçmeli — sıradan bir silme.
+			self.assertEqual(trash._assert_not_shared(self.doc.file_url, shared_ok=False), 1)
+
+	def test_cok_sahipte_onaysiz_reddedilir(self):
+		with self._sahip_sayisi(4):
+			with self.assertRaises(frappe.ValidationError) as ctx:
+				trash._assert_not_shared(self.doc.file_url, shared_ok=False)
+		# Sayı mesajda GEÇMELİ: "onay gerekiyor" demek yetmez, yönetici kaç
+		# mağazayı etkilediğini görmeden karar veremez.
+		self.assertIn("4", str(ctx.exception))
+
+	def test_onay_verilirse_gecer(self):
+		with self._sahip_sayisi(4):
+			self.assertEqual(trash._assert_not_shared(self.doc.file_url, shared_ok=True), 4)
+
+	def test_red_denetime_yazilir(self):
+		"""Engellenen silme denemesi iz bırakmalı."""
+		with self._sahip_sayisi(3), mock.patch("tradehub_core.media.trash.audit.log_media_event") as d:
+			with self.assertRaises(frappe.ValidationError):
+				trash._assert_not_shared(self.doc.file_url, shared_ok=False)
+		_args, kwargs = d.call_args
+		self.assertFalse(kwargs.get("allowed"))
+		self.assertIn("shared_owners:3", kwargs.get("reason") or "")
+		# Sıradan bir ürün görseli — maskelenmemeli, operatör hangi dosya
+		# olduğunu görebilmeli (`_deny` docstring'indeki `in_use` gerekçesi).
+		self.assertFalse(kwargs.get("sensitive"))
+
+	def test_owner_count_patlarsa_sifir_doner_ama_kapi_acilmaz(self):
+		"""Sahiplik çözülemezse "tek sahip" varsayılmamalı.
+
+		0 dönmek kapıyı açar (0 > 1 değil) — bu bilinçli: sahiplik okunamıyorken
+		yöneticiyi kilitlemek, tek bir sorgu hatasında tüm silme akışını durdurur.
+		Ama 1 dönmek YANLIŞ olurdu: "tek sahip var" diye bilgi uydurmak olur.
+		"""
+		with mock.patch(
+			"tradehub_core.media.trash.ownership.owners_of", side_effect=RuntimeError("db yok")
+		):
+			self.assertEqual(trash.owner_count(self.doc.file_url), 0)
+
+	def test_cop_ve_kalici_silme_AYRI_onay_ister(self):
+		"""İki adım arasında yeni bir mağaza dosyayı kullanmaya başlayabilir.
+
+		Çöpe taşımadaki onay, kalıcı silme için yeterli sayılmamalı — ilk onayda
+		görünmeyen bir sahip ikinci adımda ortaya çıkabilir.
+		"""
+		import inspect
+
+		for fn in (trash.move_to_trash, trash.delete_permanently):
+			self.assertIn(
+				"_assert_not_shared", inspect.getsource(fn), f"{fn.__name__} kapıyı çağırmıyor"
+			)
+
+	def test_satici_yolu_baskasinin_kaydina_dokunmaz(self):
+		"""Regresyon — satıcı tarafındaki mevcut koruma bozulmamalı.
+
+		Bu davranış TUR-298'den önce de doğruydu; yönetici tarafını hizalarken
+		satıcı tarafının kapsam ayrımını bozmadığımızı sabitliyor.
+		"""
+		import inspect
+
+		kaynak = inspect.getsource(seller_media.purge)
+		self.assertIn("_own_records", kaynak, "satıcı yalnız kendi kayıtlarını silmeli")
+		self.assertIn("owners_of", kaynak, "kalan sahip kontrolü kalkmamalı")

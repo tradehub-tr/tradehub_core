@@ -244,6 +244,8 @@ tradehub_core.patches.v15_9_17_seed_storage_quota
 tradehub_core.patches.v15_fix_entitlement_custom_fields
 tradehub_core.patches.v15_9_18_media_transcode_attempts
 tradehub_core.patches.v15_9_19_media_transcode_schedule
+# --- Ali · 13-FE (lojistik paketleme) ---
+tradehub_core.patches.v15_9_20_seed_logistics_seller_nav
 tradehub_core.patches.v15_9_20_media_scan_fields
 tradehub_core.patches.v15_9_22_media_engine_settings
 tradehub_core.patches.v15_9_21_media_pipeline_doctypes
@@ -263,3 +265,14 @@ tradehub_core.patches.v15_9_33_media_metrics_scraper
 tradehub_core.patches.v15_9_34_media_asset_original_sha256
 tradehub_core.patches.v15_9_35_disable_error_traceback
 tradehub_core.patches.v15_9_36_seed_seller_media_explorer_nav
+
+# --- Bora · G0 (lojistik rol/yetki matrisi) ---
+tradehub_core.patches.v15_9_21_g0_seller_logistics_role_assignment
+tradehub_core.patches.v15_9_21_g0_revoke_seller_cost_capability
+tradehub_core.patches.v15_9_21_g0_seed_seller_shipments_nav
+
+# --- Bora · 16-FE C1 (manuel sevkiyat) ---
+tradehub_core.patches.v15_9_22_seed_seller_manual_shipment_nav
+
+# --- Ali · 14-FE (teslim kanıtı + teslimat akışları) ---
+tradehub_core.patches.v15_9_23_seed_seller_delivery_nav

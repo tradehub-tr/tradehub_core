@@ -1065,9 +1065,8 @@ def get_order_shipping_info(order_number: str) -> dict:
 
 def _generate_invoice_html(order, items, seller_name, buyer_name):
 	"""Generate a clean HTML invoice for an order."""
-	from markupsafe import escape
-
 	from frappe.utils import format_date
+	from markupsafe import escape
 
 	order_date = format_date(order.order_date) if order.order_date else ""
 	currency = escape(order.currency or "USD")
@@ -1325,7 +1324,7 @@ def seller_handle_refund(order_number, action):
 	# Atomik status güncelleme — concurrent refund approval race condition'ını önler.
 	# Sadece hâlâ "Pending" durumundaysa güncelle.
 	new_status = "Approved" if action == "approve" else "Rejected"
-	affected = frappe.db.sql(
+	frappe.db.sql(
 		"UPDATE `tabOrder` SET refund_status = %s WHERE name = %s AND refund_status = 'Pending'",
 		(new_status, order_number),
 	)

@@ -714,6 +714,133 @@ SELLER_MODULES: list[dict] = [
 		"color": "#06b6d4",
 		"order": 5,
 	},
+	# ─── SECTION: Lojistik (13-FE) ───
+	# Satıcı kendi sevkiyatını kendisi paketliyor. Sidebar SATICIDA tamamen
+	# DB-driven (frontend `sellerPanelSections` fail-secure gereği devreye
+	# girmiyor), bu yüzden ekran route olarak var olsa bile registry kaydı
+	# olmadan menüde HİÇ görünmüyor.
+	#
+	# G0 rol matrisi (2026-08-19): satıcıya sevkiyat listesi + paketleme +
+	# teslimat açık; katalog, taşıyıcı hesapları ve lojistik ayarları platform
+	# ekranı — admin menüsünde kalır. Menü kaydı YALNIZ ready ekranlara açılır
+	# (kaynak: admin-panel logisticsScreens.js manifesti). I1 hâlâ bekliyor:
+	# matriste satıcıya işaretli ama ekranı 15-FE'de açılacak.
+	{
+		"key": "seller.logistics",
+		"type": "section",
+		"panel": "seller",
+		"section": "logistics",
+		"label": "Lojistik",
+		"icon": "truck",
+		"color": "#f59e0b",
+		"order": 6,
+	},
+	{
+		"key": "seller.logistics.shipments",
+		"parent": "seller.logistics",
+		"type": "group",
+		"panel": "seller",
+		"section": "logistics",
+		"label": "Sevkiyatlar",
+		"color": "#f59e0b",
+		"order": 0,
+	},
+	{
+		"key": "seller.logistics.shipments.list",
+		"parent": "seller.logistics.shipments",
+		"type": "item",
+		"panel": "seller",
+		"section": "logistics",
+		"label": "Sevkiyatlar",
+		"icon": "truck",
+		"route": "/lojistik/sevkiyatlar",
+		"order": 0,
+	},
+	{
+		"key": "seller.logistics.shipments.create",
+		"parent": "seller.logistics.shipments",
+		"type": "item",
+		"panel": "seller",
+		"section": "logistics",
+		"label": "Manuel Sevkiyat",
+		"icon": "file-plus",
+		"route": "/lojistik/sevkiyatlar/yeni",
+		"order": 1,
+	},
+	{
+		"key": "seller.logistics.packing",
+		"parent": "seller.logistics",
+		"type": "group",
+		"panel": "seller",
+		"section": "logistics",
+		"label": "Paketleme",
+		"color": "#f59e0b",
+		"order": 1,
+	},
+	{
+		"key": "seller.logistics.packing.queue",
+		"parent": "seller.logistics.packing",
+		"type": "item",
+		"panel": "seller",
+		"section": "logistics",
+		"label": "Paketleme",
+		"icon": "package",
+		"route": "/lojistik/paketleme",
+		"order": 0,
+	},
+
+	# ─── 14-FE · Teslimat (Ali) ───
+	# G0 matrisi H0/D1/D2'yi satıcıya işaretledi (sellerVisible) ve ekranlar
+	# 14-FE'de açıldı — kayıt bu yüzden şimdi ekleniyor. Satıcı kendi
+	# teslimatının kanıtını kaydedebiliyor (14-FE karar defteri K-B) ve
+	# kendi aracıyla teslim onun fiziksel işi (K-M).
+	#
+	# Tenant izolasyonu backend'de: menü kaydı yalnız KAPIYI açar, veri
+	# sınırını değiştirmez (14-FE veri sözleşmesi §6.1).
+	{
+		"key": "seller.logistics.delivery",
+		"parent": "seller.logistics",
+		"type": "group",
+		"panel": "seller",
+		"section": "logistics",
+		"label": "Teslimat",
+		"color": "#f59e0b",
+		"order": 2,
+	},
+	{
+		"key": "seller.logistics.delivery.pod",
+		"parent": "seller.logistics.delivery",
+		"type": "item",
+		"panel": "seller",
+		"section": "logistics",
+		"label": "Teslim Kanıtı",
+		"icon": "clipboard-check",
+		"route": "/lojistik/teslim-kaniti",
+		"order": 0,
+	},
+	{
+		"key": "seller.logistics.delivery.seller_delivery",
+		"parent": "seller.logistics.delivery",
+		"type": "item",
+		"panel": "seller",
+		"section": "logistics",
+		"label": "Satıcı Teslimatı",
+		"icon": "car",
+		"route": "/lojistik/satici-teslimati",
+		"order": 1,
+	},
+	{
+		"key": "seller.logistics.delivery.buyer_pickup",
+		"parent": "seller.logistics.delivery",
+		"type": "item",
+		"panel": "seller",
+		"section": "logistics",
+		"label": "Alıcı Teslim Alma",
+		"icon": "package-check",
+		"route": "/lojistik/alici-teslim-alma",
+		"order": 2,
+	},
+
 	{
 		"key": "seller.helpdesk.main",
 		"parent": "seller.helpdesk",

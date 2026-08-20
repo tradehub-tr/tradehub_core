@@ -180,7 +180,12 @@ def reveal_carrier_secret(name: str, secret_field: str) -> dict:
 
 
 def _log_secret_access(doc: frappe.Document, secret_field: str) -> None:
-	"""Credential görüntülemeyi denetim kaydına yazar (best-effort)."""
+	"""Credential görüntülemeyi denetim kaydına yazar (FAIL-CLOSED).
+
+	Denetim kaydı yazılamazsa secret DÖNDÜRÜLMEZ (denetim 2026-08-20):
+	credential ifşası iz bırakmadan gerçekleşemez — "best-effort" davranış
+	(hata yut, secret'ı yine dön) izlenemeyen erişim yolu açıyordu.
+	"""
 	try:
 		from tradehub_core.audit import log as audit
 
@@ -196,10 +201,13 @@ def _log_secret_access(doc: frappe.Document, secret_field: str) -> None:
 			severity=audit.SEVERITY_HIGH,
 			context={"field": secret_field},
 		)
-	except Exception:  # noqa: BLE001 — denetim hatası iş akışını bozmaz
+	except Exception:  # noqa: BLE001 — fail-closed: log_error + throw, secret dönmez
 		frappe.log_error(
 			f"Credential erişim kaydı yazılamadı: {doc.name}/{secret_field}",
 			"logistics_admin.reveal_carrier_secret",
+		)
+		frappe.throw(
+			_("Denetim kaydı yazılamadığı için gizli değer görüntülenemedi. Lütfen tekrar deneyin.")
 		)
 
 
@@ -319,6 +327,10 @@ def get_logistics_permissions() -> dict:
 				"logistics_operator": "Logistics Operator" in roles,
 				"carrier_integration_manager": "Carrier Integration Manager" in roles,
 				"system_manager": "System Manager" in roles,
+				# G0 matrisi: Ayarlar (M3) yazma kapısı backend'de System Manager +
+				# Marketplace Admin (logistics_settings.json). Panel bu kapıyı
+				# capability'yle DEĞİL rolle çizecek — ikisini de bildir.
+				"marketplace_admin": "Marketplace Admin" in roles,
 			},
 			"doctype_permissions": {
 				spec_key: {

@@ -225,34 +225,25 @@ def replace(file_url: str, store: str, content: bytes, file_name: str = "") -> d
 		os.remove(yedek)
 
 	# Eski içeriğin damgaları yeni içeriği AKLAMAZ (TUR-125 × TUR-296). Tarama
-	# durumu sıfırlanıp dosya yeniden kuyruğa girer; video durumu da sıfırlanır
-	# ki değiştirilen video "hazır" görünmeye devam etmesin. İkisi de
-	# best-effort: buradaki bir aksaklık, başarıyla yazılmış içeriği geri
-	# almayı gerektirmez.
+	# kuralı `av.rescan_after_write`'ta — üç yazma yolu (replace, platform geri
+	# yükleme, satıcı geri yüklemesi) aynı kuralı paylaşsın diye tek yerde.
+	from tradehub_core.media import av, transcode
+
+	av.rescan_after_write([file_url], reason="replace")
+
+	# Video durumu da sıfırlanır ki değiştirilen video "hazır" görünmeye devam
+	# etmesin. Best-effort: buradaki aksaklık yazılmış içeriği geri almaz.
 	try:
 		frappe.db.set_value(
-			"File",
-			{"file_url": file_url},
-			{
-				"th_media_scan_status": "",
-				"th_media_scan_attempts": 0,
-				"th_media_scan_next_at": None,
-				"th_media_video_status": "",
-			},
+			"File", {"file_url": file_url}, {"th_media_video_status": ""},
 			update_modified=False,
 		)
 		frappe.db.commit()
-
-		from tradehub_core.media import av, transcode
-
-		sonuc = av.enqueue_scan(file_url)
-		if sonuc.get("status") == av.SCAN_PENDING and av.policy()["hold_until_clean"]:
-			av.hold(file_url)
 		if upload_policy.kind_of(file_name or file_url) == upload_policy.KIND_VIDEO:
 			transcode.enqueue_transcode(file_url)
 	except Exception:
 		frappe.log_error(
-			title=f"Media replace: yeniden tarama kuyruklanamadi {file_url}",
+			title=f"Media replace: video yeniden kuyruklanamadi {file_url}",
 			message=frappe.get_traceback(with_context=True),
 		)
 

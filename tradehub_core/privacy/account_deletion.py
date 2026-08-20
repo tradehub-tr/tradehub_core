@@ -13,9 +13,7 @@ kullanıcıları bulup anonimleştirir.
 """
 
 import frappe
-from frappe import _
 from frappe.utils import add_days, now_datetime
-
 
 _DELETED_USER_LABEL = "[Silinmiş Kullanıcı]"
 _ANONYMOUS_LABEL = "[Anonim]"

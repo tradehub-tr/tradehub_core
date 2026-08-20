@@ -1,3 +1,88 @@
+## [v1.13.1-alpha.34] - 2026-08-20 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Duzeltildi
+- fix(lojistik): denetimde bulunan iki güvenlik açığı ve izleme hataları giderildi (@boraydeger32)
+
+---
+## [v1.13.1-alpha.33] - 2026-08-20 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Duzeltildi
+- fix(media): denetim raporunda dosyanın hâlâ var olup olmadığını bildir (@Metin Bektemur)
+
+---
+## [v1.13.1-alpha.32] - 2026-08-20 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(media): dedup stratejisi + yönetici silmede ortak sahiplik kapısı (TUR-298) (@Metin Bektemur)
+
+---
+## [v1.13.1-alpha.31] - 2026-08-19 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(lojistik): satıcı menüsüne teslimat kalemleri eklendi (@aliiball)
+  - Teslim kanıtı, satıcı teslimatı ve alıcı teslim alma kayıtları
+  - Satıcı sidebar'ı veritabanından besleniyor; kayıt olmadan ekran menüde görünmüyor
+
+### Duzeltildi
+- fix(lojistik): katalog filtresi metin bayrakları kabul ediyor (@aliiball)
+  - is_active için true/false/1/0/yes/no değerleri çözümleniyor
+  - Geçersiz değer sessizce yutulmuyor, gerekçeli hata veriyor
+
+### Degistirildi
+- refactor(lint): kullanılmayan atama ve import'lar temizlendi (@aliiball)
+
+---
+## [v1.13.1-alpha.30] - 2026-08-19 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Duzeltildi
+- fix(media): canlı ağaca giren her bayt aynı taramadan geçiyor (TUR-125 × 123/131) (@Metin Bektemur)
+- fix(media): yükleme denetimi belgeleri de kaydediyor — uzantı süzgeci kaldırıldı (TUR-140) (@Metin Bektemur)
+
+---
+## [v1.13.1-alpha.29] - 2026-08-19 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(lojistik): satıcı menüsüne Manuel Sevkiyat kalemi eklendi (@boraydeger32)
+
+---
+## [v1.13.1-alpha.28] - 2026-08-19 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(lojistik): G0 rol/yetki matrisi uygulandı — satıcı katmanı açıldı (@boraydeger32)
+  - Seller Logistics rolü 4 satıcı Role Profile'ına bağlandı (fixture + patch); Frappe profil değişikliğini kullanıcılara itmediği için patch mevcut kullanıcıları da senkronluyor (lokalde 12 kullanıcı)
+  - K1 maliyet asimetrisi: Seller Full Access'ten view.logistics_cost grant'ı pasife alındı (granted=0, iz kaldı) + TUR-103 seed matrisinden düşürüldü
+  - 4 kataloğa satıcı READ izni: package_type, carrier_service, shipping_channel, vehicle_type — paketleme ekranının paket tipi seçebilmesinin zorunlu tamamlayıcısı
+  - Satıcı dar geçiş yolu: SELLER_ALLOWED_TRANSITIONS (yalnız Alıma Hazır → Alındı) + update_shipment_status'ta rol+tenant+alt-küme üç koşullu kapı; iptal yine yalnız Logistics Manager
+  - get_logistics_permissions.roles'a marketplace_admin eklendi (M3 ayar kapısı FE'de role bağlanacak)
+  - Satıcı sidebar'ına Lojistik → Sevkiyatlar nav kaydı (TH Module Registry seed, 13-FE paketleme deseniyle)
+  - Testler: durum makinesi +3 (satıcı alt kümesi), bench permission +4 (dar yol pozitif/negatif senaryolar)
+
+---
+## [v1.13.1-alpha.27] - 2026-08-18 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(lojistik): satıcı sidebar'ına paketleme navigasyonu seed edildi (@aliiball)
+  - Satıcı menüsü tamamen DB-driven; frontend fallback'ine fail-secure biçimde düşmüyor
+  - TH Module Registry'ye üç kayıt (section/group/item), idempotent
+  - Satıcıya yalnız paketleme açılıyor; katalog, taşıyıcı hesapları ve ayarlar admin'de kalıyor
+
+---
 ## [v1.13.1-alpha.26] - 2026-08-18 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.

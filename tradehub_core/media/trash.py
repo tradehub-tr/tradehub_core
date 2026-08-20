@@ -14,6 +14,24 @@ alınabilir kılar — 30 gün içinde fark edilirse tek tıkla geri gelir.
 
 Aynı gerekçe optimizasyon arşivinde de geçerli (`archive.py`); ikisi ayrı
 klasörlerde durur çünkü biri "eski hâli", diğeri "dosyanın kendisi".
+
+Ortak sahiplik (TUR-298)
+------------------------
+İçerik-adresli adlandırma (TUR-130) aynı görseli tek dosyaya indiriyor: iki
+satıcı aynı logoyu yüklerse diskte tek dosya, `File` tarafında iki kayıt olur.
+Bu iyi bir şey — 100 satıcının aynı ikonu diski 100 kat şişirmiyor. Bedeli
+şu: **bu yoldan yapılan silme TÜM sahipleri etkiler.**
+
+Satıcı tarafı bunu zaten kapsam ayrımıyla çözüyor (`seller_media.purge` yalnız
+kendi kayıtlarını siler, kalan sahip varsa dosyaya dokunmaz). Yönetici tarafı
+bunu YAPAMAZ ve yapmamalı: platform sahibinin yasal kaldırma ya da zararlı
+içerik durumunda dosyayı herkesten kaldırabilmesi gerekir.
+
+Bu yüzden burada engel değil **bilinçli onay** var: birden çok mağaza sahipse
+işlem `shared_ok` verilmeden reddedilir. Amaç yöneticiyi durdurmak değil, kaç
+mağazayı etkilediğini görmeden tıklamasını önlemek — `force`tan AYRI bir kapı,
+çünkü farklı bir risk: `force` "kendi sitemdeki görseller kırılacak", bu ise
+"başka satıcıların verisi gidecek".
 """
 
 from __future__ import annotations
@@ -24,7 +42,7 @@ import time
 
 import frappe
 
-from tradehub_core.media import audit, refs, states
+from tradehub_core.media import audit, ownership, refs, states
 from tradehub_core.media.presets import EXCLUDED_DOCTYPES
 
 TRASH_DIRNAME: str = "media_trash"
@@ -70,6 +88,40 @@ def _live_path(file_url: str) -> str:
 	if not target.startswith(root + os.sep):
 		frappe.throw(frappe._("Dosya yolu kök dizinin dışında: {0}").format(file_url))
 	return target
+
+
+def owner_count(file_url: str) -> int:
+	"""Bu dosyaya sahip mağaza sayısı — yükleyen VE kullanan.
+
+	`ownership.owners_of` docstring'i bu senaryoyu zaten tarif ediyor: tek değer
+	döndürseydi ikinci sahip görünmez olur ve silme akışı onun ürününü kırardı.
+	Burada o uyarının yönetici tarafındaki karşılığı kuruluyor.
+	"""
+	try:
+		return len(ownership.owners_of(file_url))
+	except Exception:
+		# Sahiplik çözülemiyorsa işlemi durdurmuyoruz ama "tek sahip" de
+		# demiyoruz: 0 dönmek çağıranın onay kapısını atlamasına yol açardı.
+		frappe.log_error(title="media.trash owner_count failed", message=frappe.get_traceback())
+		return 0
+
+
+def _assert_not_shared(file_url: str, shared_ok: bool) -> int:
+	"""Birden çok mağaza sahipse açık onay iste. Sahip sayısını döndürür.
+
+	Onay verilmişse hiçbir şey yapmaz — yönetici kaç mağazayı etkilediğini
+	görmüş demektir.
+	"""
+	sayi = owner_count(file_url)
+	if sayi > 1 and not shared_ok:
+		_deny(file_url, f"shared_owners:{sayi}", sensitive=False)
+		frappe.throw(
+			frappe._(
+				"Bu dosyayı {0} mağaza kullanıyor. Silinirse hepsinin görseli kaybolur; "
+				"devam etmek için onay gerekiyor."
+			).format(sayi)
+		)
+	return sayi
 
 
 def _assert_trashable(file_url: str, force: bool = False) -> None:
@@ -146,13 +198,19 @@ def in_trash(file_url: str) -> bool:
 	return os.path.isfile(_trash_path(file_url))
 
 
-def move_to_trash(file_url: str, force: bool = False) -> dict:
+def move_to_trash(file_url: str, force: bool = False, shared_ok: bool = False) -> dict:
 	"""Dosyayı çöpe taşı — geri alınabilir.
 
 	`force=True` kullanımdaki dosyaya da izin verir; çağıran tarafın kullanıcıya
 	sonucu (sitede kırılacak görseller) açıkça göstermiş olması gerekir.
+
+	`shared_ok=True` dosyayı birden çok mağazanın kullandığı durumda devam eder
+	(TUR-298). `force`tan AYRI tutuluyor: `force` kendi sitendeki kırılmayı,
+	bu ise BAŞKA satıcıların verisinin gitmesini göze almak demek. Birini
+	onaylamak diğerini onaylamış saymaz.
 	"""
 	_assert_trashable(file_url, force=force)
+	sahip = _assert_not_shared(file_url, shared_ok)
 
 	src = _live_path(file_url)
 	if not os.path.isfile(src):
@@ -182,7 +240,11 @@ def move_to_trash(file_url: str, force: bool = False) -> dict:
 	# `force` ayrıca kaydedilir: kullanımdaki bir dosyanın uyarı onaylanarak
 	# silinmesi ile kullanılmayan bir dosyanın silinmesi denetimde ayrılmalı.
 	audit.log_media_event(
-		action=audit.ACTION_TRASH, file_url=file_url, context={"bytes": size, "forced": bool(force)}
+		action=audit.ACTION_TRASH,
+		file_url=file_url,
+		# `owners`: kaç mağazayı etkilediği (TUR-298). Tek sahipli sıradan bir
+		# silme ile çok sahipli bir silme denetimde ayrılabilmeli.
+		context={"owners": sahip, "bytes": size, "forced": bool(force)},
 	)
 	return {"file_url": file_url, "bytes": size}
 
@@ -218,7 +280,7 @@ def restore(file_url: str) -> dict:
 	return {"file_url": file_url, "bytes": size}
 
 
-def delete_permanently(file_url: str) -> dict:
+def delete_permanently(file_url: str, shared_ok: bool = False) -> dict:
 	"""Çöpteki TEK dosyayı kalıcı sil — dosya + tüm `File` kayıtları.
 
 	Yalnız çöpteki dosyalara uygulanır: canlı bir dosyayı buradan silmek
@@ -228,6 +290,11 @@ def delete_permanently(file_url: str) -> dict:
 	path = _trash_path(file_url)
 	if not os.path.isfile(path):
 		frappe.throw(frappe._("Çöpte bulunamadı: {0}").format(file_url))
+
+	# Kalıcı silme geri alınamaz; sahip sayısı burada TEKRAR sorulur. Çöpe
+	# taşımadaki onay yeterli değil: iki adım arasında yeni bir mağaza dosyayı
+	# kullanmaya başlamış olabilir ve o mağaza ilk onayda görünmüyordu.
+	sahip = _assert_not_shared(file_url, shared_ok)
 
 	size = os.path.getsize(path)
 	records = frappe.get_all("File", filters={"file_url": file_url}, pluck="name")
@@ -247,6 +314,10 @@ def delete_permanently(file_url: str) -> dict:
 		action=audit.ACTION_DELETE,
 		file_url=file_url,
 		context={
+			# Kaç mağazayı etkilediği kayda giriyor (TUR-298). Silme geri
+			# alınamaz; "bu dosya neden gitti, kimi etkiledi" sorusunun tek
+			# cevabı bu satır olacak.
+			"owners": sahip,
 			"bytes": size,
 			"records": records,
 			"refs_cleared": temizlik["total"],

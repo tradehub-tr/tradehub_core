@@ -705,6 +705,21 @@ def apply(
 
 	frappe.db.commit()
 
+	# Geri yazılan baytlar taramaya girer — platform geri yüklemesiyle aynı
+	# gerekçe (`media/restore.py`), aynı kural (`av.rescan_after_write`).
+	try:
+		from tradehub_core.media import av as _av
+
+		_av.rescan_after_write(
+			[d.get("file_url") for d in m["files"] if d["path"] in set(yazilan)],
+			reason="seller_restore",
+		)
+	except Exception:
+		frappe.log_error(
+			title=f"Satici yedegi: yeniden tarama kuyruklanamadi {set_id}",
+			message=frappe.get_traceback(with_context=True),
+		)
+
 	from tradehub_core.media import audit
 
 	audit.log_media_event(
