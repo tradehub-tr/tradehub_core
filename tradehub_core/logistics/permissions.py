@@ -105,6 +105,9 @@ def _doc_field(doc: object, field: str) -> str | None:
 _CROSS_BOUNDARY_REASONS: frozenset[str] = frozenset({
 	"seller_profile_mismatch",
 	"platform_global_account_tenant_denied",
+	# Tenant'lı LM'in BAŞKA tenant'ın sevkiyatını iptal denemesi de sınır
+	# aşımıdır (denetim 2026-08-20): NORMAL yazılıyordu, HIGH olmalı.
+	"cancel_tenant_mismatch",
 })
 
 # Aynı (kullanıcı, eylem, nesne) reddi bu süre içinde tekrar yazılmaz.
@@ -230,6 +233,9 @@ def shipment_query_conditions(user: str | None = None) -> str:
 		)
 
 	# Buyer-scoped: kendi siparişlerine ait sevkiyatlar
+	# NOT (2026-08-20 denetim): buyer read DocPerm'i bilinçli olarak henüz yok —
+	# bu dal storefront takip fazında (12-BE) DocPerm satırıyla birlikte
+	# canlanacak; fail-closed.
 	return f"`tabShipment`.`buyer` = {frappe.db.escape(user)}"
 
 
@@ -344,12 +350,25 @@ def shipment_has_permission(
 
 	# Buyer-scoped: kendi siparişi → yalnız okuma-türü. P1-6f: seller_profile
 	# uyuşmazlığında da bu dala düşülür (satıcı, buyer olduğu sevkiyatı okur).
+	# NOT (2026-08-20 denetim): buyer read DocPerm'i bilinçli olarak henüz yok —
+	# bu dal storefront takip fazında (12-BE) DocPerm satırıyla birlikte
+	# canlanacak; fail-closed.
 	doc_buyer = _doc_field(doc, "buyer")
 	if doc_buyer == user:
 		if ptype and ptype in _WRITE_PTYPES:
 			_log_deny(user, f"shipment.{ptype}", doc, "buyer_read_only", object_doctype="Shipment")
 			return False
 		return True
+
+	# Çapraz-tenant sınıflandırma (denetim 2026-08-20): seller_profile'lı
+	# kullanıcının BAŞKA tenant'ın sevkiyatına erişim denemesi sınır aşımıdır ve
+	# HIGH severity ile loglanır; tenant'sız olağan reddetmeler NORMAL kalır.
+	if seller_profile and doc_seller and doc_seller != seller_profile:
+		_log_deny(
+			user, f"shipment.{ptype or 'read'}", doc,
+			"seller_profile_mismatch", object_doctype="Shipment",
+		)
+		return False
 
 	_log_deny(user, f"shipment.{ptype or 'read'}", doc, "no_access", object_doctype="Shipment")
 	return False
@@ -483,9 +502,21 @@ def shipment_leg_has_permission(
 			return False
 		return True
 
+	# Tur-2 re-audit: mismatch (HIGH) yalnız İKİ taraf da doluyken — Shipment
+	# deseniyle hizalı. Bu noktada seller_profile dolu ve doc_seller !=
+	# seller_profile garanti; doc_seller doluysa sınır aşımıdır.
+	if doc_seller:
+		_log_deny(
+			user, f"shipment_leg.{ptype or 'read'}", doc,
+			"seller_profile_mismatch", object_doctype="Shipment Leg",
+		)
+		return False
+
+	# doc_seller boş: denormalize tenant alanı set edilmemiş (hook atlanmış /
+	# eski kayıt) — saldırı sinyali değil veri bütünlüğü sinyali; NORMAL severity.
 	_log_deny(
 		user, f"shipment_leg.{ptype or 'read'}", doc,
-		"seller_profile_mismatch", object_doctype="Shipment Leg",
+		"missing_tenant_denorm", object_doctype="Shipment Leg",
 	)
 	return False
 
@@ -623,9 +654,21 @@ def shipment_event_has_permission(
 			return False
 		return True
 
+	# Tur-2 re-audit: mismatch (HIGH) yalnız İKİ taraf da doluyken — Shipment
+	# deseniyle hizalı. Bu noktada seller_profile dolu ve doc_seller !=
+	# seller_profile garanti; doc_seller doluysa sınır aşımıdır.
+	if doc_seller:
+		_log_deny(
+			user, f"shipment_event.{ptype or 'read'}", doc,
+			"seller_profile_mismatch", object_doctype="Shipment Event",
+		)
+		return False
+
+	# doc_seller boş: denormalize tenant alanı set edilmemiş (hook atlanmış /
+	# eski kayıt) — saldırı sinyali değil veri bütünlüğü sinyali; NORMAL severity.
 	_log_deny(
 		user, f"shipment_event.{ptype or 'read'}", doc,
-		"seller_profile_mismatch", object_doctype="Shipment Event",
+		"missing_tenant_denorm", object_doctype="Shipment Event",
 	)
 	return False
 

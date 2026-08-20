@@ -16,27 +16,11 @@ from __future__ import annotations
 import frappe
 from frappe import _
 
-# STOREFRONT_VISIBLE_STATUSES: misafire yalnız yayında olan ilanların lojistik
-# verisi gösterilir. Sabit `api/listing.py` ile ortak — kopyalanmıyor.
-from tradehub_core.api.listing import STOREFRONT_VISIBLE_STATUSES
+# Görünürlük kontrolünün TEK KAYNAĞI api/listing.py — legacy uç da aynı
+# fonksiyonu kendi içinde çağırıyor (denetim 2026-08-20); burada kopya yok.
+from tradehub_core.api.listing import _assert_listing_publicly_visible
 from tradehub_core.logistics.api_utils import logistics_endpoint, ok
 from tradehub_core.logistics.exceptions import LogisticsError
-
-
-def _assert_listing_publicly_visible(listing_id: str) -> None:
-	"""İlan misafire görünür durumda değilse erişimi reddeder.
-
-	GÜVENLİK: Bu kontrol olmadan taslak / reddedilmiş / arşivlenmiş bir ilanın
-	kargo yöntemleri ve maliyetleri, ID'yi tahmin eden herkese açık oluyordu —
-	`api/listing.get_shipping_methods` `frappe.get_doc` çağırıp durum kontrolü
-	yapmıyor. Sarmalayıcı ikinci bir kapı açmamalı.
-	"""
-	status = frappe.db.get_value("Listing", listing_id, "status")
-	if status is None:
-		raise frappe.DoesNotExistError(_("İlan bulunamadı."))
-	if status not in STOREFRONT_VISIBLE_STATUSES:
-		# Var olduğunu da sızdırma — "bulunamadı" ile aynı yanıt
-		raise frappe.DoesNotExistError(_("İlan bulunamadı."))
 
 
 @frappe.whitelist(allow_guest=True)

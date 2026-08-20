@@ -30,6 +30,7 @@ import frappe
 
 _CACHE_KEY_PREFIX = "tradehub:cap:user:"
 _MOD_CACHE_KEY_PREFIX = "tradehub:mod:user:"
+# expires_at'lı grant en fazla TTL kadar bayat kalabilir — bilinçli sınır (denetim 2026-08-20)
 _CACHE_TTL = 300  # 5 dakika
 
 

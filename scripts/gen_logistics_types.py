@@ -574,6 +574,13 @@ def render_fixtures(schema: dict[str, Any]) -> dict[str, Any]:
 	"""
 	from tradehub_core.logistics import seed
 
+	# Kanal görünen adlarının TEK KAYNAĞI seed patch'i (P2-2: seed.py yalnız
+	# "code" taşıyor). Patch modülü frappe stub'ıyla import edilebilir —
+	# CHANNEL_DISPLAY_NAMES modül seviyesinde saf bir sözlük.
+	from tradehub_core.patches.v15_log024_seed_shipping_channels_methods import (
+		CHANNEL_DISPLAY_NAMES,
+	)
+
 	# Gerçek seed verisi: `name` DE dahil, çünkü katalog kayıtları kodlarıyla
 	# adlandırılıyor (autoname: field:<kod>). Tasarım incelemesi "PROVIDER-001"
 	# yerine "YK / Yurtiçi Kargo" görmeli.
@@ -624,7 +631,13 @@ def render_fixtures(schema: dict[str, Any]) -> dict[str, Any]:
 			for row in seed.EXCEPTION_CODES
 		],
 		"shipping_channel": [
-			{"name": row["code"], "channel_name": row["name"], "channel_code": row["code"]}
+			# Görünen ad seed.py'de DEĞİL (P2-2 "name" anahtarını kaldırdı) —
+			# tek kaynak seed patch'indeki CHANNEL_DISPLAY_NAMES sözlüğü.
+			{
+				"name": row["code"],
+				"channel_name": CHANNEL_DISPLAY_NAMES[row["code"]],
+				"channel_code": row["code"],
+			}
 			for row in seed.SHIPPING_CHANNELS
 		],
 		# Seed'i olmayan kataloglar için gerçekçi örnekler. Tasarım incelemesi

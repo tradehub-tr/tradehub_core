@@ -180,7 +180,12 @@ def reveal_carrier_secret(name: str, secret_field: str) -> dict:
 
 
 def _log_secret_access(doc: frappe.Document, secret_field: str) -> None:
-	"""Credential görüntülemeyi denetim kaydına yazar (best-effort)."""
+	"""Credential görüntülemeyi denetim kaydına yazar (FAIL-CLOSED).
+
+	Denetim kaydı yazılamazsa secret DÖNDÜRÜLMEZ (denetim 2026-08-20):
+	credential ifşası iz bırakmadan gerçekleşemez — "best-effort" davranış
+	(hata yut, secret'ı yine dön) izlenemeyen erişim yolu açıyordu.
+	"""
 	try:
 		from tradehub_core.audit import log as audit
 
@@ -196,10 +201,13 @@ def _log_secret_access(doc: frappe.Document, secret_field: str) -> None:
 			severity=audit.SEVERITY_HIGH,
 			context={"field": secret_field},
 		)
-	except Exception:  # noqa: BLE001 — denetim hatası iş akışını bozmaz
+	except Exception:  # noqa: BLE001 — fail-closed: log_error + throw, secret dönmez
 		frappe.log_error(
 			f"Credential erişim kaydı yazılamadı: {doc.name}/{secret_field}",
 			"logistics_admin.reveal_carrier_secret",
+		)
+		frappe.throw(
+			_("Denetim kaydı yazılamadığı için gizli değer görüntülenemedi. Lütfen tekrar deneyin.")
 		)
 
 
