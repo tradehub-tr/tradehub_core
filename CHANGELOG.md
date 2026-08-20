@@ -1,3 +1,11 @@
+## [v1.13.1-alpha.33] - 2026-08-20 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Duzeltildi
+- fix(media): denetim raporunda dosyanın hâlâ var olup olmadığını bildir (@Metin Bektemur)
+
+---
 ## [v1.13.1-alpha.32] - 2026-08-20 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
