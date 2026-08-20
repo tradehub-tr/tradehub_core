@@ -11,7 +11,7 @@ Ne ölçülür
    class`) tutan EN DÜŞÜK kalite = `gercek_min_q` (yer gerçeği).
 2. **Monotonluk**: SSIM eğrisi kalitede artan mı? İhlal sayısı ve en büyük geri
    düşüş kaydedilir — ikili aramanın dayanağı budur.
-3. **İkili arama**: `media_engine.quality.search_quality` 4 encode ile ne
+3. **İkili arama**: `tradehub_core.media.pipeline.quality.search_quality` 4 encode ile ne
    buluyor, yer gerçeğinden kaç kalite basamağı sapıyor.
 4. **Bayt kazancı**: bugünkü sabit kaliteye (q80 = `engine.to_webp` varsayılanı,
    q88 = `presets.balanced`) karşı seçilen kalitenin bayt farkı.
@@ -37,7 +37,8 @@ KOK = Path(__file__).resolve().parents[1]
 if str(KOK) not in sys.path:
 	sys.path.insert(0, str(KOK))
 
-from media_engine.quality import (  # noqa: E402
+# 1ec9b5e göçü sonrası gerçek yol (W9 T-032 düzeltmesi, 2026-08-20)
+from tradehub_core.media.pipeline.quality import (  # noqa: E402
 	compute_ssim,
 	guess_content_class,
 	search_quality,
@@ -203,7 +204,7 @@ def arka_uc_uyumu(fixture_dir: Path) -> list[dict]:
 
 def main() -> int:
 	ap = argparse.ArgumentParser()
-	ap.add_argument("--fixtures", default=str(KOK / "tests" / "fixtures"))
+	ap.add_argument("--fixtures", default=str(KOK / "tradehub_core" / "tests" / "fixtures"))
 	ap.add_argument("--out", default="ssim_olcum.json")
 	ap.add_argument("--max-dim", type=int, default=MASTER_MAX_DIM)
 	args = ap.parse_args()

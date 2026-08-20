@@ -21,7 +21,10 @@ from __future__ import annotations
 
 import inspect
 import json
+import shutil
 import sys
+import tempfile
+import typing
 import unittest
 from pathlib import Path
 
@@ -40,6 +43,12 @@ from tradehub_core.media.pipeline.contracts import video as video_c  # noqa: E40
 from tradehub_core.media.pipeline.fakes.delivery import SimpleDeliveryManifest  # noqa: E402
 from tradehub_core.media.pipeline.fakes.image import FakeImageEngine, sentetik_gorsel  # noqa: E402
 from tradehub_core.media.pipeline.fakes.policy import InMemoryPolicyEngine  # noqa: E402
+from tradehub_core.media.pipeline.policy.engine import (  # noqa: E402
+	PolicyEngine as UretimPolicyEngine,
+)
+from tradehub_core.media.pipeline.policy.engine import (  # noqa: E402
+	PolicyRegistry as UretimPolicyRegistry,
+)
 from tradehub_core.media.pipeline.fakes.storage import MAX_TTL_SECONDS, InMemoryStorage  # noqa: E402
 from tradehub_core.media.pipeline.fakes.video import FakeVideoEngine, sentetik_video  # noqa: E402
 
@@ -52,8 +61,49 @@ IMAGE_IMPLS = (("FakeImageEngine", FakeImageEngine),)
 VIDEO_IMPLS = (("FakeVideoEngine", FakeVideoEngine),)
 
 
-def _policy_engine() -> InMemoryPolicyEngine:
+def _fake_policy_engine() -> InMemoryPolicyEngine:
 	return InMemoryPolicyEngine.from_directory(str(POLICY_ROOT))
+
+
+def _uretim_policy_engine() -> UretimPolicyEngine:
+	"""`api/upload.py`, `api/admin.py` ve `simulator/srcset.py` BUNU çağırır."""
+	return UretimPolicyEngine(UretimPolicyRegistry(POLICY_ROOT))
+
+
+#: T-033 — sözleşme artık İKİ uygulama üzerinde koşuyor. Birincisi bellek-içi
+#: referans, ikincisi ÜRETİM motoru. Liste tek elemanlıyken (yalnız sahte)
+#: 69 sözleşme testi üretim kodunun tek satırına bile dokunmuyordu.
+POLICY_IMPLS = (
+	("InMemoryPolicyEngine", _fake_policy_engine),
+	("PolicyEngine", _uretim_policy_engine),
+)
+
+
+def _policy_engine() -> InMemoryPolicyEngine:
+	"""Sözleşmenin GİRDİSİ olarak politika okuyan testler için tek örnek."""
+	return _fake_policy_engine()
+
+
+#: Bilinen ve GEREKÇELİ sapmalar — docs/reports/43-t033-policyengine.md.
+#:
+#: Tablo testin İÇİNDE durur ki sapma CI'da görünsün. "Her uygulama kendi
+#: doğrusunu yapar" demek sözleşmeyi ortadan kaldırırdı; sapmayı adıyla yazmak
+#: onu kapanması gereken bir borç hâline getirir.
+POLICY_SAPMALARI: dict = {
+	# D-1 · uzantı ↔ içerik uyuşmazlığı (`.png` adlı JPEG gibi zararsız hâl)
+	#   fakes/policy.py  → WARN   : FR-009 metni + upload_policy.py:365-369'un
+	#                               ÖLÇÜLMÜŞ davranışı ("reddetmek sahadaki
+	#                               geçerli dosyaları keserdi").
+	#   policy/engine.py → REJECT : `_check_accept` içinde
+	#                               `content_type_mismatch` kuralı
+	#                               `action=ACTION_REJECT` ile SABİT yazılmış;
+	#                               politikanın `on_violation` bloğuna
+	#                               bakmıyor.
+	#   Hangisinin doğru olduğu ÜRÜN kararıdır ve `policy/slots/*.json`
+	#   verisine bağlıdır — bu değişiklik setinin yazma alanı DEĞİL.
+	("InMemoryPolicyEngine", "ext_content_mismatch"): policy_c.ACTION_WARN,
+	("PolicyEngine", "ext_content_mismatch"): policy_c.ACTION_REJECT,
+}
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -62,7 +112,20 @@ def _policy_engine() -> InMemoryPolicyEngine:
 
 
 class ProtocolConformanceTest(unittest.TestCase):
-	"""Her sahte uygulama kendi `Protocol`'ünü karşılıyor mu."""
+	"""Her uygulama kendi `Protocol`'ünü karşılıyor mu."""
+
+	def _ciftler(self) -> tuple:
+		motor = _policy_engine()
+		uretim = _uretim_policy_engine()
+		return (
+			(storage_c.StorageAdapter, InMemoryStorage()),
+			(image_c.ImageEngine, FakeImageEngine()),
+			(video_c.VideoEngine, FakeVideoEngine()),
+			(policy_c.PolicyEngine, motor),
+			(policy_c.PolicyEngine, uretim),
+			(delivery_c.DeliveryManifest, SimpleDeliveryManifest(motor)),
+			(delivery_c.DeliveryManifest, SimpleDeliveryManifest(uretim)),
+		)
 
 	def test_bes_cekirdek_protokol_var(self):
 		adlar = [p.__name__ for p in CORE_PROTOCOLS]
@@ -72,39 +135,61 @@ class ProtocolConformanceTest(unittest.TestCase):
 		)
 
 	def test_uygulamalar_isinstance_gecer(self):
-		motor = _policy_engine()
-		ciftler = (
-			(storage_c.StorageAdapter, InMemoryStorage()),
-			(image_c.ImageEngine, FakeImageEngine()),
-			(video_c.VideoEngine, FakeVideoEngine()),
-			(policy_c.PolicyEngine, motor),
-			(delivery_c.DeliveryManifest, SimpleDeliveryManifest(motor)),
-		)
-		for protokol, uygulama in ciftler:
-			with self.subTest(protokol=protokol.__name__):
+		for protokol, uygulama in self._ciftler():
+			with self.subTest(protokol=protokol.__name__, uygulama=type(uygulama).__name__):
 				self.assertIsInstance(uygulama, protokol)
 
+	def test_uretim_motoru_protokolu_karsiliyor(self):
+		"""T-033 kabul ölçütü — ÖLÇÜM, iddia değil.
+
+		Bu testin yazıldığı gün ölçülen durum: Protokolde 13 metot,
+		`policy/engine.py::PolicyEngine` yüzeyinde `evaluate` +
+		`normalized_targets`, kesişim BOŞ. Aşağıdaki eşitlik o boşluğun
+		kapandığını makine olarak kanıtlar.
+		"""
+		protokol_metotlari = {
+			ad for ad, uye in vars(policy_c.PolicyEngine).items()
+			if callable(uye) and not ad.startswith("_")
+		}
+		self.assertEqual(len(protokol_metotlari), 13)
+		eksik = {ad for ad in protokol_metotlari if not hasattr(UretimPolicyEngine, ad)}
+		self.assertEqual(eksik, set(), f"Üretim sınıfında olmayan sözleşme metotları: {eksik}")
+		self.assertIsInstance(_uretim_policy_engine(), policy_c.PolicyEngine)
+
 	def test_imzalar_birebir_ayni(self):
-		"""`runtime_checkable` yalnız adın varlığına bakar — imzayı BURADA
-		karşılaştırıyoruz, aksi hâlde parametresi değişmiş bir uygulama
-		sessizce "uyumlu" görünürdü."""
-		motor = _policy_engine()
-		ciftler = (
-			(storage_c.StorageAdapter, InMemoryStorage()),
-			(image_c.ImageEngine, FakeImageEngine()),
-			(video_c.VideoEngine, FakeVideoEngine()),
-			(policy_c.PolicyEngine, motor),
-			(delivery_c.DeliveryManifest, SimpleDeliveryManifest(motor)),
-		)
-		for protokol, uygulama in ciftler:
+		"""`runtime_checkable` yalnız adın VARLIĞINA bakar — imza BURADA denetlenir.
+
+		İki ayrı şey ölçülür:
+
+		1. **Parametre listesi** metin olarak birebir aynı mı; aksi hâlde
+		   parametresi değişmiş bir uygulama sessizce "uyumlu" görünürdü.
+		2. **Dönüş tipi ÇÖZÜLDÜĞÜNDE** aynı nesne mi. Metin karşılaştırması
+		   bunu yakalayamaz: `policy/engine.py` kendi `Decision` sınıfını
+		   taşıyor, `-> Decision` yazan bir uygulama sözleşmenin
+		   `Decision`'ını döndürmediği hâlde metinde AYNI görünürdü.
+		"""
+		for protokol, uygulama in self._ciftler():
 			for ad, uye in vars(protokol).items():
 				if ad.startswith("_") or not callable(uye):
 					continue
-				with self.subTest(protokol=protokol.__name__, metot=ad):
-					beklenen = str(inspect.signature(uye))
-					gercek = "(self, " + str(inspect.signature(getattr(uygulama, ad)))[1:]
-					gercek = gercek.replace("(self, )", "(self)")
-					self.assertEqual(_sadelestir(beklenen), _sadelestir(gercek))
+				with self.subTest(
+					protokol=protokol.__name__, uygulama=type(uygulama).__name__, metot=ad
+				):
+					gercek_fn = getattr(type(uygulama), ad)
+					self.assertEqual(
+						_sadelestir(_parametreler(uye)),
+						_sadelestir(_parametreler(gercek_fn)),
+					)
+					self.assertEqual(
+						typing.get_type_hints(uye).get("return"),
+						typing.get_type_hints(gercek_fn).get("return"),
+						"Dönüş tipi sözleşmenin tipi değil.",
+					)
+
+
+def _parametreler(fn) -> str:
+	"""İmzanın YALNIZ parametre kısmı — dönüş tipi ayrıca ve çözülerek ölçülür."""
+	return "(" + ", ".join(str(p) for p in inspect.signature(fn).parameters.values()) + ")"
 
 
 def _sadelestir(imza: str) -> str:
@@ -480,131 +565,270 @@ class VideoContractTest(unittest.TestCase):
 
 
 class PolicyContractTest(unittest.TestCase):
-	def setUp(self) -> None:
-		self.motor = _policy_engine()
+	"""Sözleşme, GERÇEK politika dosyaları üzerinde İKİ uygulamayla koşar.
+
+	`InMemoryPolicyEngine` bellek-içi referans, `PolicyEngine` ÜRETİM motoru
+	(`api/upload.py`, `api/admin.py`, `simulator/srcset.py` bunu çağırır).
+	T-033'e kadar bu sınıf yalnız birinciyi denetliyordu; Protokolün üretimde
+	hiçbir uygulayıcısı yoktu ve testler sahteyi doğruluyordu.
+	"""
+
+	def _motorlar(self) -> list:
+		return [(ad, fabrika()) for ad, fabrika in POLICY_IMPLS]
 
 	def test_dokuz_slot_yuklendi(self):
-		self.assertEqual(len(self.motor.slots()), 9)
-		self.assertIn("product.image", self.motor.slots())
+		for ad, motor in self._motorlar():
+			with self.subTest(uygulama=ad):
+				self.assertEqual(len(motor.slots()), 9)
+				self.assertIn("product.image", motor.slots())
 
 	def test_bilinmeyen_slot_policy_not_found(self):
-		with self.assertRaises(errors_c.PolicyNotFound):
-			self.motor.load("olmayan.slot")
+		for ad, motor in self._motorlar():
+			with self.subTest(uygulama=ad):
+				with self.assertRaises(errors_c.PolicyNotFound):
+					motor.load("olmayan.slot")
 
 	def test_reload_idempotent(self):
-		self.assertEqual(self.motor.reload(), self.motor.reload())
+		for ad, motor in self._motorlar():
+			with self.subTest(uygulama=ad):
+				self.assertEqual(motor.reload(), motor.reload())
+				self.assertEqual(motor.reload(), 9)
+
+	def test_reload_bozuk_dosyada_defteri_bozmaz(self):
+		"""Sözleşme: ya hep ya hiç. Yarım defter, hangi slotun eski hangisinin
+		yeni olduğu bilinmeyen sistemdir."""
+		for ad, fabrika in POLICY_IMPLS:
+			with self.subTest(uygulama=ad):
+				with tempfile.TemporaryDirectory() as gecici:
+					hedef = Path(gecici)
+					for kaynak in POLICY_ROOT.glob("*.json"):
+						shutil.copy(kaynak, hedef / kaynak.name)
+					motor = _motor_koku(ad, hedef)
+					self.assertEqual(motor.reload(), 9)
+					# Ad BİLEREK alfabetik olarak İLK: `sorted(glob)` bozuk dosyayı
+					# ilk okur ve istisna, defter temizlendikten SONRA ama hiçbir
+					# politika okunmadan atılır. "zzz-" adıyla bu test boş çıkardı —
+					# dokuz dosya zaten yüklenmiş olurdu (vacuity ölçüldü).
+					(hedef / "aaa-bozuk.json").write_text("{ bu json değil", encoding="utf-8")
+					with self.assertRaises(Exception):
+						motor.reload()
+					# Defter DEĞİŞMEDİ: dokuz politika hâlâ okunabilir.
+					self.assertEqual(len(motor.slots()), 9)
+					self.assertTrue(motor.load("product.image").accept)
 
 	def test_source_root_raporlanir(self):
 		"""FR-147 — hangi politika seti yürürlükte, sessiz kalınmaz."""
-		self.assertTrue(self.motor.source_root().endswith("slots"))
+		for ad, motor in self._motorlar():
+			with self.subTest(uygulama=ad):
+				self.assertTrue(motor.source_root().endswith("slots"))
 
 	def test_efektif_tavan_kesisimdir(self):
 		"""FR-007/FR-076 — slot global tavanı GEVŞETEMEZ."""
-		limit = self.motor.effective_limits("product.image", plan_max_bytes=5 * 1024 * 1024)
-		self.assertEqual(limit.max_bytes, 5 * 1024 * 1024)
-		limit2 = self.motor.effective_limits("product.image")
-		self.assertEqual(limit2.max_bytes, 26214400)
+		for ad, motor in self._motorlar():
+			with self.subTest(uygulama=ad):
+				limit = motor.effective_limits("product.image", plan_max_bytes=5 * 1024 * 1024)
+				self.assertEqual(limit.max_bytes, 5 * 1024 * 1024)
+				limit2 = motor.effective_limits("product.image")
+				self.assertEqual(limit2.max_bytes, 26214400)
 
 	def test_accept_uzanti_ve_boyut(self):
-		iyi = self.motor.check_accept("product.image", file_name="a.jpg", size_bytes=1024)
-		self.assertTrue(iyi.allowed)
-		kotu = self.motor.check_accept("product.image", file_name="a.gif", size_bytes=1024)
-		self.assertFalse(kotu.allowed)
-		self.assertEqual(kotu.first_code, "product_image_ext_not_allowed")
-		buyuk = self.motor.check_accept("product.image", file_name="a.jpg", size_bytes=99_000_000)
-		self.assertFalse(buyuk.allowed)
+		for ad, motor in self._motorlar():
+			with self.subTest(uygulama=ad):
+				iyi = motor.check_accept("product.image", file_name="a.jpg", size_bytes=1024)
+				self.assertTrue(iyi.allowed)
+				kotu = motor.check_accept("product.image", file_name="a.gif", size_bytes=1024)
+				self.assertFalse(kotu.allowed)
+				self.assertEqual(kotu.first_code, "product_image_ext_not_allowed")
+				buyuk = motor.check_accept(
+					"product.image", file_name="a.jpg", size_bytes=99_000_000
+				)
+				self.assertFalse(buyuk.allowed)
+				self.assertEqual(buyuk.first_code, "product_image_too_large")
 
-	def test_uzanti_icerik_uyusmazligi_uyaridir(self):
-		"""Bugünkü `upload_policy` davranışı korunuyor: ret değil uyarı."""
-		karar = self.motor.check_accept(
-			"product.image", file_name="a.png", size_bytes=1024, sniffed_type="jpeg"
-		)
-		self.assertTrue(karar.allowed)
-		self.assertEqual(karar.action, policy_c.ACTION_WARN)
-		self.assertTrue(karar.warnings)
+	def test_uzanti_icerik_uyusmazligi(self):
+		"""FR-009 — SAPMA VAR: kod aynı, aksiyon farklı (POLICY_SAPMALARI D-1)."""
+		for ad, motor in self._motorlar():
+			with self.subTest(uygulama=ad):
+				karar = motor.check_accept(
+					"product.image", file_name="a.png", size_bytes=1024, sniffed_type="jpeg"
+				)
+				beklenen = POLICY_SAPMALARI[(ad, "ext_content_mismatch")]
+				self.assertEqual(karar.action, beklenen)
+				self.assertEqual(karar.allowed, beklenen != policy_c.ACTION_REJECT)
+				# İki uygulamanın ORTAK yanı: aynı makine kodu üretilir.
+				kodlar = [v.code for v in karar.violations + karar.warnings]
+				self.assertEqual(kodlar, ["product_image_ext_content_mismatch"])
+
+	def test_sapma_tablosu_kapali_kume(self):
+		"""Sapma tablosu yalnız bilinen uygulamaları ve RAPORLANMIŞ anahtarları
+		taşır — yeni bir sapma sessizce eklenemesin."""
+		self.assertEqual({a for a, _ in POLICY_SAPMALARI}, {a for a, _ in POLICY_IMPLS})
+		self.assertEqual({k for _, k in POLICY_SAPMALARI}, {"ext_content_mismatch"})
 
 	def test_geometri_esitlik_gecerlidir(self):
 		"""FR-015 — `>=`, tam sınırdaki dosya kabul edilir."""
 		p = image_c.ImageProbe(fmt="JPEG", width=1000, height=1000)
-		karar = self.motor.check_geometry("product.image", p)
-		self.assertTrue(karar.allowed, karar.violations)
+		for ad, motor in self._motorlar():
+			with self.subTest(uygulama=ad):
+				karar = motor.check_geometry("product.image", p)
+				self.assertTrue(karar.allowed, karar.violations)
 
 	def test_geometri_bagil_oran_toleransi(self):
 		"""FR-016 — 4:5 tam oran geçer, 1000x1400 (0,714) reddedilir."""
-		self.assertTrue(
-			self.motor.check_geometry(
-				"product.image", image_c.ImageProbe(fmt="JPEG", width=1000, height=1250)
-			).allowed
-		)
-		kotu = self.motor.check_geometry(
-			"product.image", image_c.ImageProbe(fmt="JPEG", width=1000, height=1400)
-		)
-		self.assertFalse(kotu.allowed)
-		self.assertEqual(kotu.first_code, "product_image_ratio_not_allowed")
+		for ad, motor in self._motorlar():
+			with self.subTest(uygulama=ad):
+				self.assertTrue(
+					motor.check_geometry(
+						"product.image", image_c.ImageProbe(fmt="JPEG", width=1000, height=1250)
+					).allowed
+				)
+				kotu = motor.check_geometry(
+					"product.image", image_c.ImageProbe(fmt="JPEG", width=1000, height=1400)
+				)
+				self.assertFalse(kotu.allowed)
+				self.assertEqual(kotu.first_code, "product_image_ratio_not_allowed")
 
 	def test_geometri_kisa_kenar_ve_adet(self):
-		kucuk = self.motor.check_geometry(
-			"product.image", image_c.ImageProbe(fmt="JPEG", width=640, height=640)
-		)
-		self.assertFalse(kucuk.allowed)
-		cok = self.motor.check_geometry(
-			"product.image", image_c.ImageProbe(fmt="JPEG", width=1000, height=1000), count=13
-		)
-		self.assertFalse(cok.allowed)
+		for ad, motor in self._motorlar():
+			with self.subTest(uygulama=ad):
+				kucuk = motor.check_geometry(
+					"product.image", image_c.ImageProbe(fmt="JPEG", width=640, height=640)
+				)
+				self.assertFalse(kucuk.allowed)
+				self.assertEqual(kucuk.first_code, "product_image_short_edge_too_small")
+				cok = motor.check_geometry(
+					"product.image",
+					image_c.ImageProbe(fmt="JPEG", width=1000, height=1000),
+					count=13,
+				)
+				self.assertFalse(cok.allowed)
+				self.assertEqual(cok.first_code, "product_image_count_exceeded")
 
 	def test_okunamayan_gorsel_reddedilir(self):
-		karar = self.motor.check_geometry(
-			"product.image", image_c.ImageProbe(fmt="", width=0, height=0, readable=False)
-		)
-		self.assertFalse(karar.allowed)
+		for ad, motor in self._motorlar():
+			with self.subTest(uygulama=ad):
+				karar = motor.check_geometry(
+					"product.image", image_c.ImageProbe(fmt="", width=0, height=0, readable=False)
+				)
+				self.assertFalse(karar.allowed)
+				self.assertEqual(karar.first_code, "product_image_decode_failed")
 
 	def test_belge_slotunda_geometri_uyaridir(self):
 		"""FR-027 — `document.attachment` geometri ihlalinde reddetmez."""
-		karar = self.motor.check_geometry(
-			"document.attachment", image_c.ImageProbe(fmt="PNG", width=200, height=200)
-		)
-		self.assertTrue(karar.allowed)
-		self.assertEqual(karar.action, policy_c.ACTION_WARN)
+		for ad, motor in self._motorlar():
+			with self.subTest(uygulama=ad):
+				karar = motor.check_geometry(
+					"document.attachment", image_c.ImageProbe(fmt="PNG", width=200, height=200)
+				)
+				self.assertTrue(karar.allowed)
+				self.assertEqual(karar.action, policy_c.ACTION_WARN)
 
 	def test_video_olculemezse_manuel_incelemeye_duser(self):
-		karar = self.motor.check_video("company.cover_video", video_c.VideoProbe(measured=False))
-		self.assertEqual(karar.action, policy_c.ACTION_MANUAL_REVIEW)
-		self.assertTrue(karar.allowed)
+		"""NFR-043 + FR-134 — ölçülemeyen video ne reddedilir ne sessizce geçer."""
+		for ad, motor in self._motorlar():
+			with self.subTest(uygulama=ad):
+				karar = motor.check_video("company.cover_video", video_c.VideoProbe(measured=False))
+				self.assertEqual(karar.action, policy_c.ACTION_MANUAL_REVIEW)
+				self.assertTrue(karar.allowed)
 
 	def test_video_sure_kapisi(self):
 		kisa = video_c.VideoProbe(width=1920, height=1080, duration_s=2.0, measured=True)
-		self.assertFalse(self.motor.check_video("company.cover_video", kisa).allowed)
 		iyi = video_c.VideoProbe(
 			width=1920, height=1080, duration_s=30.0, bitrate_bps=1_500_000, measured=True
 		)
-		self.assertTrue(self.motor.check_video("company.cover_video", iyi).allowed)
+		for ad, motor in self._motorlar():
+			with self.subTest(uygulama=ad):
+				red = motor.check_video("company.cover_video", kisa)
+				self.assertFalse(red.allowed)
+				self.assertEqual(red.first_code, "cover_video_duration_out_of_range")
+				self.assertTrue(motor.check_video("company.cover_video", iyi).allowed)
+
+	def test_video_olmayan_slotta_video_kapisi_hata(self):
+		for ad, motor in self._motorlar():
+			with self.subTest(uygulama=ad):
+				with self.assertRaises(errors_c.PolicyError):
+					motor.check_video("product.image", video_c.VideoProbe(measured=True))
 
 	def test_master_spec_upscale_yasagini_tasir(self):
-		for slot in self.motor.slots():
-			with self.subTest(slot=slot):
-				spec = self.motor.master_spec(slot)
-				self.assertFalse(spec.allow_upscale)
-				self.assertGreater(spec.max_long_edge, 0)
+		for ad, motor in self._motorlar():
+			for slot in motor.slots():
+				with self.subTest(uygulama=ad, slot=slot):
+					spec = motor.master_spec(slot)
+					self.assertFalse(spec.allow_upscale)
+					self.assertGreater(spec.max_long_edge, 0)
 
 	def test_rendition_specleri_artan_sirada(self):
-		for slot in self.motor.slots():
-			specler = self.motor.rendition_specs(slot)
-			if not specler:
-				continue
+		for ad, motor in self._motorlar():
+			for slot in motor.slots():
+				specler = motor.rendition_specs(slot)
+				if not specler:
+					continue
+				with self.subTest(uygulama=ad, slot=slot):
+					genislikler = [s.width for s in specler]
+					self.assertEqual(genislikler, sorted(genislikler))
+
+	def test_iki_uygulama_ayni_uretim_parametrelerini_verir(self):
+		"""Sözleşmenin asıl sınavı: aynı JSON, iki bağımsız okuyucu, aynı çıktı.
+
+		Bir uygulamanın diğerine göre kayması (ör. `dpi_out` varsayılanı ya da
+		profil sıralaması) burada görünür; tek uygulamalı bir sözleşme testi
+		bunu ölçemezdi.
+		"""
+		sahte = _fake_policy_engine()
+		uretim = _uretim_policy_engine()
+		self.assertEqual(sahte.slots(), uretim.slots())
+		for slot in sahte.slots():
 			with self.subTest(slot=slot):
-				genislikler = [s.width for s in specler]
-				self.assertEqual(genislikler, sorted(genislikler))
+				self.assertEqual(sahte.master_spec(slot), uretim.master_spec(slot))
+				self.assertEqual(sahte.rendition_specs(slot), uretim.rendition_specs(slot))
+				self.assertEqual(
+					sahte.video_rendition_specs(slot), uretim.video_rendition_specs(slot)
+				)
+				self.assertEqual(
+					sahte.effective_limits(slot), uretim.effective_limits(slot)
+				)
+				self.assertEqual(
+					sahte.quality_threshold(slot, "photo"),
+					uretim.quality_threshold(slot, "photo"),
+				)
 
 	def test_video_olmayan_slotta_video_rendition_bos(self):
-		self.assertEqual(self.motor.video_rendition_specs("product.image"), ())
-		self.assertTrue(self.motor.video_rendition_specs("company.cover_video"))
+		for ad, motor in self._motorlar():
+			with self.subTest(uygulama=ad):
+				self.assertEqual(motor.video_rendition_specs("product.image"), ())
+				self.assertTrue(motor.video_rendition_specs("company.cover_video"))
 
 	def test_dogrulama_d1_d5(self):
 		"""FR-003/FR-148 — tek çıkış kodu; bugün 9 politika `draft`."""
-		karar = self.motor.validate()
-		self.assertEqual(
-			karar.violations, (), f"Değişmez ihlali: {[v.code for v in karar.violations]}"
-		)
+		for ad, motor in self._motorlar():
+			with self.subTest(uygulama=ad):
+				karar = motor.validate()
+				self.assertEqual(
+					karar.violations, (), f"Değişmez ihlali: {[v.code for v in karar.violations]}"
+				)
+
+	def test_dogrulama_bozuk_politikayi_yakalar(self):
+		"""Vacuity kapısı: `validate()` gerçekten bakıyor mu.
+
+		D2 (`min_long_edge <= max_long_edge`) bilerek ihlal edilir; karar
+		RET dönmüyorsa doğrulama boş bir kabuktur.
+		"""
+		for ad, fabrika in POLICY_IMPLS:
+			with self.subTest(uygulama=ad):
+				with tempfile.TemporaryDirectory() as gecici:
+					hedef = Path(gecici)
+					for kaynak in POLICY_ROOT.glob("*.json"):
+						shutil.copy(kaynak, hedef / kaynak.name)
+					yol = hedef / "product-image.json"
+					veri = json.loads(yol.read_text(encoding="utf-8"))
+					veri["master"]["min_long_edge"] = veri["master"]["max_long_edge"] + 1
+					yol.write_text(json.dumps(veri, ensure_ascii=False), encoding="utf-8")
+					motor = _motor_koku(ad, hedef)
+					karar = motor.validate()
+					self.assertFalse(karar.allowed)
+					self.assertIn(
+						"product_image_invariant_d2", [v.code for v in karar.violations]
+					)
 
 	def test_karar_birlesimi_en_yuksek_aksiyonu_alir(self):
 		"""FR-049 — en yüksek aksiyon uygulanır, uyarılar birikir."""
@@ -639,6 +863,13 @@ class PolicyContractTest(unittest.TestCase):
 		self.assertEqual(yanit["error_code"], "product_image_short_edge_too_small")
 		self.assertFalse(yanit["retryable"])
 		self.assertTrue(errors_c.TranscodeFailed("ffmpeg düştü").retryable)
+
+
+def _motor_koku(uygulama_adi: str, kok: Path):
+	"""Verilen kökten okuyan motoru kur — iki uygulamanın kurulumu farklı."""
+	if uygulama_adi == "PolicyEngine":
+		return UretimPolicyEngine(UretimPolicyRegistry(kok))
+	return InMemoryPolicyEngine.from_directory(str(kok))
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -729,68 +960,75 @@ class PipelineIntegrationTest(unittest.TestCase):
 	"""Politika → master → merdiven → depo → manifest.
 
 	Sözleşmelerin ayrı ayrı değil BİRLİKTE tuttuğunu gösterir; SAD §4.1'deki
-	yükleme sıra diyagramının yürütülebilir karşılığıdır.
+	yükleme sıra diyagramının yürütülebilir karşılığıdır. İki politika
+	uygulamasıyla da koşar: uçtan uca akış ÜRETİM motoruyla da yürüyor mu.
 	"""
 
 	def test_urun_gorseli_uctan_uca(self):
-		politika = _policy_engine()
-		gorsel = FakeImageEngine()
-		depo = InMemoryStorage()
-		teslim = SimpleDeliveryManifest(politika)
+		for ad, fabrika in POLICY_IMPLS:
+			with self.subTest(uygulama=ad):
+				politika = fabrika()
+				gorsel = FakeImageEngine()
+				depo = InMemoryStorage()
+				teslim = SimpleDeliveryManifest(politika)
 
-		ham = sentetik_gorsel("JPEG", 4000, 4000, dpi=300)
+				ham = sentetik_gorsel("JPEG", 4000, 4000, dpi=300)
 
-		# L1 — dosya açılmadan
-		self.assertTrue(
-			politika.check_accept(
-				"product.image", file_name="urun.jpg", size_bytes=len(ham)
-			).allowed
-		)
+				# L1 — dosya açılmadan
+				self.assertTrue(
+					politika.check_accept(
+						"product.image", file_name="urun.jpg", size_bytes=len(ham)
+					).allowed
+				)
 
-		# L2 — açıldıktan sonra
-		probe = gorsel.probe(ham, max_megapixels=80)
-		self.assertTrue(politika.check_geometry("product.image", probe).allowed)
+				# L2 — açıldıktan sonra
+				probe = gorsel.probe(ham, max_megapixels=80)
+				self.assertTrue(politika.check_geometry("product.image", probe).allowed)
 
-		# L3 — master
-		master = gorsel.make_master(ham, politika.master_spec("product.image"))
-		self.assertLessEqual(max(master.width, master.height), 2400)
-		yazim = depo.put(master.content, ".webp")
-		self.assertTrue(yazim.created)
-		self.assertFalse(depo.put(master.content, ".webp").created)  # idempotent
+				# L3 — master
+				master = gorsel.make_master(ham, politika.master_spec("product.image"))
+				self.assertLessEqual(max(master.width, master.height), 2400)
+				yazim = depo.put(master.content, ".webp")
+				self.assertTrue(yazim.created)
+				self.assertFalse(depo.put(master.content, ".webp").created)  # idempotent
 
-		# Türev merdiveni
-		specler = politika.rendition_specs("product.image")
-		merdiven = gorsel.make_ladder(master.content, specler)
-		self.assertEqual(len(merdiven), len(specler))
-		for spec in specler:
-			depo.put(merdiven[spec.name].content, f".{spec.format}")
+				# Türev merdiveni
+				specler = politika.rendition_specs("product.image")
+				merdiven = gorsel.make_ladder(master.content, specler)
+				self.assertEqual(len(merdiven), len(specler))
+				for spec in specler:
+					depo.put(merdiven[spec.name].content, f".{spec.format}")
 
-		# Teslim
-		manifest = teslim.build_image(
-			"product.image", yazim.ref, intrinsic=(master.width, master.height), alt="ürün"
-		)
-		self.assertTrue(manifest.srcset)
-		self.assertEqual(manifest.slot_key, "product.image")
+				# Teslim
+				manifest = teslim.build_image(
+					"product.image", yazim.ref, intrinsic=(master.width, master.height), alt="ürün"
+				)
+				self.assertTrue(manifest.srcset)
+				self.assertEqual(manifest.slot_key, "product.image")
 
 	def test_kapak_videosu_uctan_uca(self):
-		politika = _policy_engine()
-		vid = FakeVideoEngine()
-		depo = InMemoryStorage()
+		for ad, fabrika in POLICY_IMPLS:
+			with self.subTest(uygulama=ad):
+				politika = fabrika()
+				vid = FakeVideoEngine()
+				depo = InMemoryStorage()
 
-		ham = sentetik_video(1920, 1080, duration_s=30.0, bitrate_bps=6_000_000)
-		kaynak = video_c.VideoSource(content=ham)
-		probe = vid.probe(kaynak)
-		self.assertTrue(vid.needs_transcode(probe))
-		self.assertTrue(politika.check_video("company.cover_video", probe).allowed)
+				ham = sentetik_video(1920, 1080, duration_s=30.0, bitrate_bps=6_000_000)
+				kaynak = video_c.VideoSource(content=ham)
+				probe = vid.probe(kaynak)
+				self.assertTrue(vid.needs_transcode(probe))
+				self.assertTrue(politika.check_video("company.cover_video", probe).allowed)
 
-		specler = politika.video_rendition_specs("company.cover_video")
-		self.assertTrue(specler)
-		ciktilar = vid.transcode_all(kaynak, specler)
-		for spec in specler:
-			art = ciktilar[spec.id]
-			depo.put(art.content, f".{spec.container}")
-			self.assertTrue(art.fits(spec), f"{spec.id} dosya kapısını aştı")
-		self.assertEqual(len(depo), len({s.id for s in specler}) if len(specler) > 1 else 1)
+				specler = politika.video_rendition_specs("company.cover_video")
+				self.assertTrue(specler)
+				ciktilar = vid.transcode_all(kaynak, specler)
+				for spec in specler:
+					art = ciktilar[spec.id]
+					depo.put(art.content, f".{spec.container}")
+					self.assertTrue(art.fits(spec), f"{spec.id} dosya kapısını aştı")
+				self.assertEqual(
+					len(depo), len({s.id for s in specler}) if len(specler) > 1 else 1
+				)
 
 
 if __name__ == "__main__":  # pragma: no cover

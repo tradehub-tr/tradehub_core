@@ -1458,6 +1458,25 @@
           "minimum": 0
           "maximum": 1
           "description": "Güvenli alan yüksekliği."
+        "zoom":
+          "type":
+            - "number"
+            - "null"
+          "description": "Stüdyo zoom çarpanı, 1-16. null = yazılmamış."
+        "center_x":
+          "type":
+            - "number"
+            - "null"
+          "minimum": 0
+          "maximum": 1
+          "description": "Pan merkezi X. Yalnız zoom ile anlamlı."
+        "center_y":
+          "type":
+            - "number"
+            - "null"
+          "minimum": 0
+          "maximum": 1
+          "description": "Pan merkezi Y. Yalnız zoom ile anlamlı."
         "method":
           "type": "string"
           "description": "Kaydedilmiş yöntem etiketi."
@@ -1665,6 +1684,19 @@
               "maximum": 1
               "description": "."
           "description": "Boş sözlük güvenli alanı SİLER."
+        "zoom":
+          "type": "number"
+          "description": "Stüdyo zoom çarpanı, 1-16. `center_x`/`center_y` ile BİRLİKTE verilir."
+        "center_x":
+          "type": "number"
+          "minimum": 0
+          "maximum": 1
+          "description": "Pan merkezi X."
+        "center_y":
+          "type": "number"
+          "minimum": 0
+          "maximum": 1
+          "description": "Pan merkezi Y."
         "overrides":
           "type": "array"
           "items":

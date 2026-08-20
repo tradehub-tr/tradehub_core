@@ -210,7 +210,15 @@ class S3Storage:
 		from botocore.config import Config as BotoConfig  # noqa: PLC0415
 
 		kwargs: Dict[str, Any] = {
-			"config": BotoConfig(s3={"addressing_style": self._config.addressing_style}),
+			"config": BotoConfig(
+				s3={"addressing_style": self._config.addressing_style},
+				# İmzalı URL sürümü AÇIKÇA sabitlenir. botocore varsayılanı
+				# ortama göre SigV2'ye düşebiliyor; MinIO SigV2'yi kabul eder
+				# ama 2014 sonrası açılan AWS bölgeleri ETMEZ — o durumda özel
+				# dosya teslimi tamamen kırılır. MinIO ile ölçüldü (T-051,
+				# docs/reports/23-t051-s3-adaptor.md B-01): s3v4 çalışıyor.
+				signature_version="s3v4",
+			),
 		}
 		if self._config.region:
 			kwargs["region_name"] = self._config.region
@@ -316,8 +324,18 @@ class S3Storage:
 
 		Bu, ağ kesintisinde "nesne yok" cevabı üretir ve çağıran onu yeniden
 		yazmayı deneyebilir; içerik-adresli olduğu için yeniden yazmak zararsız.
+
+		`_head` "yok" DIŞINDAKİ hataları `StorageError` olarak fırlatır (bunu
+		`stat()` istiyor). Burada onu yutmak ZORUNLU: aksi hâlde bu fonksiyon
+		hem Protocol sözleşmesini hem yukarıdaki kendi vaadini çiğniyordu.
+		Ölçüldü (T-051, B-02): MinIO kapalıyken 8,9 sn sonra fırlatıyordu ve
+		`TieredStorage.url_for()` `cold.exists()` çağırdığı için soğuk katman
+		düştüğünde render kırılıyordu.
 		"""
-		return self._head(ref) is not None
+		try:
+			return self._head(ref) is not None
+		except StorageError:
+			return False
 
 	def stat(self, ref: ObjectRef) -> ObjectStat:
 		kunye = self._head(ref)

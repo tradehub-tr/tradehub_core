@@ -1,0 +1,53 @@
+kalem,deger,birim,kaynak
+olcum_tarihi,2026-08-20,tarih,istoc-dev-backend-1 / istoc.localhost (bench mariadb)
+tabfile_toplam,5084,satir,SELECT COUNT(*) FROM tabFile
+tabfile_toplam_bayt,1637050836,bayt,SUM(file_size)
+tabfile_public,4468,satir,is_private=0
+tabfile_public_bayt,1341188334,bayt,is_private=0
+tabfile_private,616,satir,is_private=1
+tabfile_private_bayt,295862502,bayt,is_private=1
+tabfile_bayt_p50,80104,bayt,PERCENTILE_CONT(0.5) file_size>0
+tabfile_bayt_p90,832915,bayt,PERCENTILE_CONT(0.9) file_size>0
+tabfile_bayt_p99,3462494,bayt,PERCENTILE_CONT(0.99) file_size>0
+tabfile_bayt_max,22065728,bayt,MAX(file_size)
+tabfile_bayt_sifir,6,satir,file_size=0
+ext_jpg,3463,satir,uzanti dagilimi
+ext_jpg_bayt,838112237,bayt,uzanti dagilimi
+ext_png,793,satir,uzanti dagilimi
+ext_png_bayt,509476089,bayt,uzanti dagilimi
+ext_webp,414,satir,uzanti dagilimi
+ext_jpeg,169,satir,uzanti dagilimi
+ext_mp4,79,satir,uzanti dagilimi
+ext_csv,56,satir,uzanti dagilimi
+ext_xlsx,34,satir,uzanti dagilimi
+ext_tif,11,satir,uzanti dagilimi (128672258 bayt)
+ext_pdf,14,satir,uzanti dagilimi (38004536 bayt)
+ext_zip,8,satir,uzanti dagilimi (47909742 bayt)
+attached_bos,3139,satir,attached_to_doctype NULL
+attached_listing,1292,satir,attached_to_doctype=Listing
+attached_kyb,489,satir,attached_to_doctype=KYB Verification
+attached_admin_seller_profile,39,satir,attached_to_doctype
+attached_bulk_import_job,29,satir,attached_to_doctype
+attached_kyc,9,satir,attached_to_doctype
+media_doctype_kurulu,13,adet,"tabDocType LIKE 'Media %' (10->13: +Media Folder, +Media Folder Item, +Media RUM Sample)"
+media_asset,13,satir,tabMedia Asset
+media_asset_product_image,9,satir,slot_key=product.image
+media_asset_product_video,2,satir,slot_key=product.video
+media_asset_library_upload,1,satir,slot_key=library.upload
+media_asset_test_slot,1,satir,slot_key=boyle.bir.slot.yok (test kaydi)
+media_version,11,satir,tabMedia Version (11 farkli asset)
+media_rendition,92,satir,tabMedia Rendition
+media_rendition_bayt,26853813,bayt,SUM(bytes)
+media_rendition_ilk,2026-08-20 07:31:16,zaman,MIN(creation) - tum turevler bugun uretildi
+media_rendition_son,2026-08-20 11:05:38,zaman,MAX(creation)
+rendition_hash_adresli,92,satir,"92/92 file_url = /files/media/{asset}/{64hex version_hash}/... (INV-09 canli)"
+rendition_avif,35,satir,"w384:9 w640:9 w768:8 w1280:8 w1920:1"
+rendition_webp,46,satir,"w96:9 w192:9 w384:9 w640:9 w768:8 w1280:8 w1920:1 poster:2"
+rendition_video,2,satir,"h264/mp4:1 (9622536 B) + hls/m3u8:1 (15205198 B)"
+rendition_ssim_araligi,"0.9722-0.9923",ssim,gorsel turevlerde AVG(ssim) profil bazinda
+media_processing_job,11,satir,tumu status=success
+media_usage,0,satir,tabMedia Usage (istek-ani tarama modeli; bkz. 94 raporu T-043)
+media_rum_sample,23,satir,"LCP 11 + CLS 6 + TTFB 5 + INP 1 (kosum sonrasi sayim; INP q961va8br3 ve ek LCP/CLS/TTFB satirlari bu kosumun tarayici oturumundan)"
+tabfile_eski_hash_kalip,117,satir,"file_url REGEXP ^/files/[0-9a-f]{2}/[0-9a-f]{32}[._] (mp4 50 + txt 36 + webp 30 + png 1)"
+tabfile_eski_hash_orani,2.3,yuzde,117/5084
+turev_tabfile_kaydi,0,satir,ADR-0009 geregi turevler File kaydi acmaz; hash'li adres tabFile'da degil Media Rendition'da yasar

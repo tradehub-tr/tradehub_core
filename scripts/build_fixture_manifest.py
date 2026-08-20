@@ -25,10 +25,12 @@ from PIL import Image
 Image.MAX_IMAGE_PIXELS = None
 
 ROOT = Path(__file__).resolve().parents[1]
-MEDIA = ROOT / "tests" / "fixtures" / "media"
+# 1ec9b5e göçü: testler `tests/` kökünden `tradehub_core/tests/` altına taşındı.
+# Eski `ROOT/tests` yolu ölü kalmıştı (W9 T-032 ölçümü, 2026-08-20) — düzeltildi.
+MEDIA = ROOT / "tradehub_core" / "tests" / "fixtures" / "media"
 IMG = MEDIA / "images"
 VID = MEDIA / "video"
-MAL = ROOT / "tests" / "fixtures" / "malicious"
+MAL = ROOT / "tradehub_core" / "tests" / "fixtures" / "malicious"
 CANLI = MEDIA / "live-probe.json"
 MANIFEST = MEDIA / "manifest.json"
 
@@ -622,6 +624,162 @@ SPEC: dict[str, dict] = {
         kaynak="canlı-veriden-türetilmiş",
         canli="08 §7 — çözünürlük örneği 1920×1080",
     ),
+
+    # ------------- W9 (2026-08-20) — GERÇEK kaynaklar (T-006 eksik türler) ---
+    # Sentetik ÜRETİLMEDİ; tamamı DEV'den bayt-birebir alındı (docker cp).
+    # Köken sha256'ları alım anında konteynerde ölçüldü ve `koken` blokunda.
+    "real_satici_720x720_28s.mp4": dict(
+        cls="video", slot="product.video", action="passthrough", dizin="video",
+        expect=dict(width=720, height=720, has_audio=True, duration_s=28.0,
+                    needs_transcode=False),
+        kural=["needs_transcode", "video_decision default→PASSTHROUGH"],
+        neden="8. video eksiği GERÇEK kaynakla kapandı: LST-04043'ün gerçek "
+              "satıcı videosu (Instagram türü, önceden sıkıştırılmış — 707 "
+              "kbps video). Karar tablosu default→PASSTHROUGH (rapor 81 §2); "
+              "fayda kapısı sondası bu dosyada %11,44 ölçmüştü (rapor 81 "
+              "§3.3). Türkçe+emoji'li orijinal ad köken blokunda.",
+        kaynak="gerçek — DEV canlı satıcı videosu",
+        koken=dict(
+            kaynak_dosya="sites/istoc.localhost/public/files/Evde taze "
+                         "sıkılmış meyve sularının keyfini çıkarın! 🍹 "
+                         "Avcılar Plastik, estetik tasarımlı limon.mp4",
+            baglam="Listing LST-04043 video_url",
+            sha256="eb52e15d596dadca991e39dd4968454aa02a6c4c2a827cf3360084"
+                   "bab3c7c71a",
+            alim="2026-08-20 W9 koşumu, docker cp (bayt-birebir)",
+        ),
+    ),
+    "real_uretim_h264_1280.mp4": dict(
+        cls="video", slot="product.video", action="passthrough", dizin="video",
+        expect=dict(width=1280, height=720, has_audio=False, duration_s=540.0,
+                    needs_transcode=False),
+        kural=["needs_transcode", "INV-09", "idempotency"],
+        neden="İLK gerçek ÜRETİM-ÇIKTISI fixture'ı: boru hattının kanonik "
+              "adresli (INV-09, version_hash'li) h264 türevi — 9mb.mp4'ün "
+              "REMUX (faststart) zincirinden gelen teslim dosyası, moov "
+              "BAŞTA. 'Üretim çıktısı tekrar girdi olursa hat DOKUNMAMALI' "
+              "vakasını taşır (needs_transcode=False ölçüldü).",
+        kaynak="gerçek — boru hattı üretim çıktısı (W6-W8 koşumları)",
+        koken=dict(
+            kaynak_dosya="sites/istoc.localhost/public/files/media/"
+                         "3pjpbple42/f8de21dd87c9c08749bb165c5000064e749e5"
+                         "2f6ea2d7ce4bbe2642e1eb163c7/h264-1280.mp4",
+            baglam="Media Rendition (profile=h264) — kaynak 9mb.mp4 "
+                   "(LST-04419); rapor 81 §3 + rapor 90",
+            sha256="64fa75a46c204baff1e022518e89539287152189b0c14f1bfe8193"
+                   "72b9a0c6a1",
+            alim="2026-08-20 W9 koşumu, docker cp (bayt-birebir)",
+        ),
+    ),
+    "real_uretim_preview_480.mp4": dict(
+        cls="video", slot="product.video", action="passthrough", dizin="video",
+        expect=dict(width=480, height=480, has_audio=False, duration_s=6.0,
+                    needs_transcode=False),
+        kural=["needs_transcode", "preview ≤ 400 KB politika hedefi"],
+        neden="Önizleme klibi türünün İLK gerçek örneği: W8'in ürettiği "
+              "kanonik preview türevi (rapor 90 §1c — 116.775 B ≤ 400 KB "
+              "politika hedefi, CRF merdiveni). Sessiz, 6 sn, poster "
+              "damgasından başlar.",
+        kaynak="gerçek — boru hattı üretim çıktısı (W8 koşumu)",
+        koken=dict(
+            kaynak_dosya="sites/istoc.localhost/public/files/media/"
+                         "59jmq0pkp0/3ebd7218f85347b57ef83ae8e66d860c1da43"
+                         "010f510fdd6b170db682529b12b/preview-480.mp4",
+            baglam="Media Rendition (profile=preview) — kaynak LST-04043 "
+                   "limon videosu; rapor 90 §1",
+            sha256="7d4cf07fee7d3a8dff01b9699105ee2b9aa69237454f2755bbadb0"
+                   "4c164821c8",
+            alim="2026-08-20 W9 koşumu, docker cp (bayt-birebir)",
+        ),
+    ),
+    "video_real_seller_1080p_2997fps.mp4": dict(
+        cls="video", slot="product.video", action="process", dizin="video",
+        expect=dict(width=1920, height=1080, has_audio=True,
+                    needs_transcode=True),
+        kural=["needs_transcode", "NEEDS_TRANSCODE_MAX_WIDTH=1280"],
+        neden="Gerçek satıcı 1080p videosu; korpusun tek KESİRLİ fps'li "
+              "(30000/1001 = NTSC 29,97) dosyası — sentetik korpusta hiç "
+              "yoktu; fps'i tam sayı varsayan süre/kare hesabı burada "
+              "sapar. Genişlik 1920 > 1280 → needs_transcode=True ölçüldü.",
+        kaynak="gerçek — DEV canlı satıcı videosu",
+        koken=dict(
+            kaynak_dosya="sites/istoc.localhost/public/files/10 (1).mp4",
+            baglam="tabFile gerçek video (rapor 81 §2'nin 'bağlı olmayan "
+                   "5.' gerçek videosu)",
+            sha256="1a61c34c1c299eb6cb2ea6b712f529ded6d028dce74ed1f9802d93"
+                   "871425677a",
+            alim="2026-08-20 (dosya fixture dizinine bu koşum sırasında "
+                 "paralel bir elden geldi; köken sha256 ile doğrulandı, "
+                 "künyesi bu koşumda ölçüldü)",
+        ),
+    ),
+    "real_foto_canon_2240x2905.tif": dict(
+        cls="photo", slot="product.image", action="reject",
+        expect=dict(format="TIFF", mode="RGBA", width=2240, height=2905,
+                    has_alpha=True, dpi=(200, 200)),
+        kural=["FR-016", "require.allowed_ratios", "AS-27"],
+        neden="AS-27 eksiği: korpusun İLK gerçek kamera fotoğrafı (Canon "
+              "EOS 5D Mark IV EXIF'i dosyada; korpus bugüne dek tümüyle "
+              "sentetikti). Oran 0,771 → bugünkü product.image bandı "
+              "dışında; konteynerde gerçek motorla ölçüldü: evaluate → "
+              "reject/ratio_not_allowed. Gerçek satıcı fotoğrafının bile "
+              "bantta takılması FR-147/09-slot uyumsuzluk geriliminin "
+              "fixture hâli. content_rules kalibrasyonu (AS-27) için "
+              "gerçek-fotoğraf tohumu — tek dosya kalibrasyon DEĞİLDİR.",
+        kaynak="gerçek — DEV canlı satıcı fotoğrafı",
+        koken=dict(
+            kaynak_dosya="sites/istoc.localhost/public/files/örn.tif",
+            baglam="Canon EOS 5D Mark IV, 200 dpi ürün çekimi (kamera "
+                   "EXIF'li 8 DEV dosyasından public olanı)",
+            sha256="79ed518cd8541166a335f9d21617c291d0aeb3b1c1972840c545ee"
+                   "416f35a46a",
+            alim="2026-08-20 W9 koşumu, docker cp (bayt-birebir)",
+        ),
+    ),
+    "real_adobergb_3780x2717.png": dict(
+        cls="photo", slot="product.image", action="reject",
+        expect=dict(format="PNG", mode="RGBA", width=3780, height=2717,
+                    has_alpha=True, has_icc=True, dpi=(300, 300)),
+        kural=["FR-016", "require.allowed_ratios", "master.colorspace=srgb",
+               "T-061/3"],
+        neden="T-061/3 eksiği: gerçek 'Adobe RGB (1998)' ICC profilli "
+              "üretici görseli (profil tanımı konteynerde ImageCms ile "
+              "okundu; DEV'de 11 AdobeRGB dosya bulundu). ΔE/renk dönüşümü "
+              "ölçümü artık fixture'lı: ICC sRGB'ye dönüştürülmeden "
+              "kırpılırsa renk kayması sessizce üretilir. Oran 1,391 → "
+              "bant dışı; evaluate → reject/ratio_not_allowed (ölçüldü).",
+        kaynak="gerçek — DEV canlı satıcı görseli",
+        koken=dict(
+            kaynak_dosya="sites/istoc.localhost/public/files/IMG_1663-"
+                         "Küçük Boy Düz ve Kapaklı-3.png",
+            baglam="Adobe RGB (1998) ICC'li Photoshop çıktısı ürün görseli",
+            sha256="2f0433954494fefe974e0d142662576c6548af148d3107f8598e4c"
+                   "42c99c1e4a",
+            alim="2026-08-20 W9 koşumu, docker cp (bayt-birebir)",
+        ),
+    ),
+}
+
+# --------------------------------------------------------------------------
+# T-006 eksik tür karnesi (W9, 2026-08-20) — rapor 94 §3'ün 5 eksiği.
+# Ölçüm: DEV'de 4.213 görsel PIL/ICC/EXIF ile, 6 gerçek video (>100 KB)
+# ffprobe ile tarandı (istoc-dev-backend-1). Sentetik üretim YASAKTI.
+# --------------------------------------------------------------------------
+EKSIK_TURLER: dict[str, str] = {
+    "8_video": "TEMİN EDİLDİ: real_satici_720x720_28s.mp4 (+3 gerçek video "
+               "daha; video korpusu 7 → 11)",
+    "4k_60fps_uzun_video": "TEMİN EDİLEMEDİ: DEV'deki 6 gerçek videonun "
+               "tamamı ≤1920×1080 ve ≤30 fps (ffprobe, 2026-08-20); 4K/60fps "
+               "gerçek kaynak yok, sentetik üretim görev kuralı gereği yasak",
+    "hdr_bt2020_video": "TEMİN EDİLEMEDİ: 6/6 gerçek videoda color_primaries "
+               "∈ {bt709, smpte170m/bt470bg, unknown} — BT.2020/HDR kaynak "
+               "DEV'de yok (ffprobe, 2026-08-20)",
+    "adobergb_gorsel": "TEMİN EDİLDİ: real_adobergb_3780x2717.png (DEV "
+               "taramasında 11 AdobeRGB-ICC'li gerçek dosya bulundu)",
+    "gercek_fotograf": "TEMİN EDİLDİ (kısmen): real_foto_canon_2240x2905.tif "
+               "(DEV'de kamera-EXIF'li 8 dosya; 1'i alındı). AS-27'nin "
+               "kalibrasyon şartı için korpus hâlâ ağırlıkla sentetik — "
+               "tek gerçek fotoğraf kalibrasyon değildir",
 }
 
 
@@ -764,6 +922,8 @@ def main() -> int:
         }
         if "canli" in spec:
             kayit["canli_karsilik"] = spec["canli"]
+        if "koken" in spec:
+            kayit["koken"] = spec["koken"]
         if hatalar:
             kayit["hata"] = hatalar
         kayitlar.append(kayit)
@@ -772,6 +932,12 @@ def main() -> int:
     manifest = {
         "gorev": "T-006",
         "tarih": "2026-08-18",
+        "guncelleme": (
+            "2026-08-20 W9: rapor 94 §3'ün 5 eksik türü ölçüldü; 6 GERÇEK "
+            "kaynak eklendi (köken+sha256 kayıtlı), 2 tür DEV'de temin "
+            "edilemedi — bkz. eksik_turler"
+        ),
+        "eksik_turler": EKSIK_TURLER,
         "branch": "medya-motoru-faz0-faz2",
         "aciklama": (
             "Golden fixture korpusu. `expect` BEYAN, `olculen` ÖLÇÜM'dür; "

@@ -14,6 +14,9 @@
   "safe_y",
   "safe_w",
   "safe_h",
+  "zoom",
+  "center_x",
+  "center_y",
   "method",
   "algorithm",
   "algorithm_version",
@@ -76,6 +79,27 @@
    "description": "0-1 normalize koordinat (INV-10). Piksel DEĞİL: kaynak yeniden boyutlandırılsa bile kadraj aynı kalmalı."
   },
   {
+   "fieldname": "zoom",
+   "fieldtype": "Float",
+   "label": "Yakınlaştırma",
+   "precision": "6",
+   "description": "Stüdyonun zoom çarpanı, 1-16 (crop_geometry.ZOOM_MIN/ZOOM_MAX). 0 = yazılmamış (Frappe Float NOT NULL DEFAULT 0; safe_w ile aynı sözleşme). Taban bölge zoom+center'dan core/crop.py:zoom_region_of() ile kurulur; safe_* bu bölgenin türetilmiş yazımıdır."
+  },
+  {
+   "fieldname": "center_x",
+   "fieldtype": "Float",
+   "label": "Pan Merkezi X",
+   "precision": "6",
+   "description": "0-1 normalize koordinat (INV-10). Yalnız zoom >= 1 iken anlamlı; zoom yazılmamışsa okunmaz."
+  },
+  {
+   "fieldname": "center_y",
+   "fieldtype": "Float",
+   "label": "Pan Merkezi Y",
+   "precision": "6",
+   "description": "0-1 normalize koordinat (INV-10). Yalnız zoom >= 1 iken anlamlı; zoom yazılmamışsa okunmaz."
+  },
+  {
    "fieldname": "method",
    "fieldtype": "Select",
    "label": "Yöntem",
@@ -127,7 +151,7 @@
  "issingle": 0,
  "istable": 0,
  "links": [],
- "modified": "2026-08-18 00:00:00.000000",
+ "modified": "2026-08-20 00:00:00.000000",
  "modified_by": "Administrator",
  "module": "Media Engine",
  "name": "Media Crop Intent",

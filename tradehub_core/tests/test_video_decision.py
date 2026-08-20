@@ -13,9 +13,11 @@
    kural hiç tetiklenemiyorsa (üstünde daha genel bir kural varsa) ölüdür ve
    bu test onu yakalar.
 
-3. **Gerçek dosyalarda ne oluyor?** 7 video fixture'ı ffprobe ile ölçülüp
-   tablodan geçirilir. Beklenen aksiyonlar ÖLÇÜLDÜ (ffmpeg 5.1.9-0+deb12u1,
-   istoc-dev-backend-1) ve `OLCULEN_FIXTURE_KARARLARI` içinde yazılı.
+3. **Gerçek dosyalarda ne oluyor?** 11 video fixture'ı ffprobe ile ölçülüp
+   tablodan geçirilir. İlk 7 sentetik (ffmpeg 5.1.9-0+deb12u1); son 4 GERÇEK
+   DEV kaynağı (W9, 2026-08-20, ffmpeg n8.1.2-44) — `real_satici_720x720_28s`,
+   `real_uretim_h264_1280`, `real_uretim_preview_480`, `video_real_seller_1080p_2997fps`.
+   Hepsi istoc-dev-backend-1'de ölçüldü ve `OLCULEN_FIXTURE_KARARLARI` içinde yazılı.
 
 ffprobe GEREKTİREN testler yoksa ATLANIR (yerel makinede ffmpeg kurulu değil;
 konteynerde var). Atlanan test "geçti" sayılmaz — çıktıda `skipped` görünür.
@@ -66,6 +68,7 @@ VIDEO_PKG = ROOT / "tradehub_core" / "media" / "pipeline" / "video"
 #: 2026-08-18. Bu sözlük bir BEKLENTİ değil, bir ÖLÇÜM KAYDIDIR: tablo
 #: değiştiğinde burası da değişmelidir, tersi değil.
 OLCULEN_FIXTURE_KARARLARI = {
+	# --- 7 sentetik fixture (gen_fixtures_video.sh) ---
 	"video_16x9_1080p.mp4": ("TRANSCODE", "width_over_cap"),
 	"video_bloated_720p_8m.mp4": ("TRANSCODE", "bitrate_over_cap"),
 	"video_efficient_720p_750k.mp4": ("PASSTHROUGH", "default"),
@@ -73,6 +76,15 @@ OLCULEN_FIXTURE_KARARLARI = {
 	"video_silent_noaudio_720p.mp4": ("PASSTHROUGH", "default"),
 	"video_square_352.mp4": ("PASSTHROUGH", "default"),
 	"video_vertical_9x16.mp4": ("PASSTHROUGH", "default"),
+	# --- 4 GERÇEK DEV kaynağı (W9, 2026-08-20, ffmpeg n8.1.2-44) — sentetik DEĞİL ---
+	# real_satici: LST-04043 satıcı videosu, önceden sıkıştırılmış (707 kbps) → PASSTHROUGH.
+	"real_satici_720x720_28s.mp4": ("PASSTHROUGH", "default"),
+	# real_uretim_h264: boru hattı üretim çıktısı (9mb.mp4 REMUX türevi) → PASSTHROUGH.
+	"real_uretim_h264_1280.mp4": ("PASSTHROUGH", "default"),
+	# real_uretim_preview: W8 preview türevi (480×480, 6 sn) → PASSTHROUGH.
+	"real_uretim_preview_480.mp4": ("PASSTHROUGH", "default"),
+	# video_real_seller: gerçek satıcı yüklemesi (tabFile fc6e94877e); 1920 > 1280 → genişlik kolu.
+	"video_real_seller_1080p_2997fps.mp4": ("TRANSCODE", "width_over_cap"),
 }
 
 #: Ölçülmüş künye değerleri (aynı koşum). Künye ayrıştırmasının sessizce
@@ -86,6 +98,15 @@ OLCULEN_KUNYELER = {
 		"pix_fmt": "yuv420p", "vbitrate": 767652, "bpp": 0.0278, "audio": True},
 	"video_long_540s_320x240.mp4": {"width": 320, "height": 240, "fps": 10.0, "codec": "h264",
 		"pix_fmt": "yuv420p", "vbitrate": 58728, "bpp": 0.0765, "audio": False},
+	# --- 4 GERÇEK DEV kaynağı (W9, 2026-08-20) ---
+	"real_satici_720x720_28s.mp4": {"width": 720, "height": 720, "fps": 30.0, "codec": "h264",
+		"pix_fmt": "yuv420p", "vbitrate": 707234, "bpp": 0.04548, "audio": True},
+	"real_uretim_h264_1280.mp4": {"width": 1280, "height": 720, "fps": 30.0, "codec": "h264",
+		"pix_fmt": "yuv420p", "vbitrate": 140555, "bpp": 0.00508, "audio": False},
+	"real_uretim_preview_480.mp4": {"width": 480, "height": 480, "fps": 30.0, "codec": "h264",
+		"pix_fmt": "yuv420p", "vbitrate": 151624, "bpp": 0.02194, "audio": False},
+	"video_real_seller_1080p_2997fps.mp4": {"width": 1920, "height": 1080, "fps": 29.97, "codec": "h264",
+		"pix_fmt": "yuv420p", "vbitrate": 1152743, "bpp": 0.01855, "audio": True},
 	"video_silent_noaudio_720p.mp4": {"width": 1280, "height": 720, "fps": 25.0, "codec": "h264",
 		"pix_fmt": "yuv420p", "vbitrate": 834984, "bpp": 0.0362, "audio": False},
 	"video_square_352.mp4": {"width": 352, "height": 352, "fps": 25.0, "codec": "h264",
@@ -522,11 +543,12 @@ class CekirdekSafligi(unittest.TestCase):
 
 @unittest.skipUnless(FFPROBE, "ffprobe yok — konteynerde calistir")
 class GercekFixtureOlcumu(unittest.TestCase):
-	"""7 video fixture'ı GERÇEK ffprobe ile ölçülüp tablodan geçirilir."""
+	"""11 video fixture'ı GERÇEK ffprobe ile ölçülüp tablodan geçirilir
+	(7 sentetik + 4 gerçek DEV kaynağı — W9)."""
 
-	def test_yedi_fixture_var(self):
+	def test_onbir_fixture_var(self):
 		bulunan = sorted(p.name for p in VIDEO_DIR.glob("*.mp4"))
-		self.assertEqual(len(bulunan), 7, f"beklenen 7 video fixture, bulunan: {bulunan}")
+		self.assertEqual(len(bulunan), 11, f"beklenen 11 video fixture, bulunan: {bulunan}")
 		self.assertEqual(set(bulunan), set(OLCULEN_FIXTURE_KARARLARI))
 
 	def test_fixture_kararlari_olculenle_ayni(self):
@@ -556,12 +578,19 @@ class GercekFixtureOlcumu(unittest.TestCase):
 				self.assertAlmostEqual(f.bpp, b["bpp"], places=4)
 				self.assertEqual(f.has_audio, b["audio"])
 
-	def test_yedi_fixturun_yedisinde_de_moov_basta(self):
-		"""ÖLÇÜLDÜ: atom sırası ftyp, moov, free, mdat — `moov_at_end` kuralı
-		bu korpusta tetiklenmiyor (sentetik dosyayla ayrıca doğrulandı)."""
+	#: ÖLÇÜLDÜ (2026-08-20, konteyner): korpustaki TEK moov-sonda dosya, gerçek
+	#: satıcı yüklemesi. 7 sentetik fixture'da atom sırası ftyp, moov, free, mdat.
+	MOOV_SONDA = {"video_real_seller_1080p_2997fps.mp4"}
+
+	def test_moov_konumu_olculenle_ayni(self):
+		"""Sentetik 7'de moov başta; gerçek yüklemede SONDA — `moov_at_end`
+		alanı artık korpustaki gerçek bir dosyayla da temsil ediliyor (karar
+		sırası gereği bu dosyada width_over_cap kuralı önce tetiklenir)."""
 		for yol in sorted(VIDEO_DIR.glob("*.mp4")):
 			with self.subTest(dosya=yol.name):
-				self.assertFalse(P.moov_at_end_of(str(yol)))
+				self.assertEqual(
+					P.moov_at_end_of(str(yol)), yol.name in self.MOOV_SONDA
+				)
 
 	def test_kap_ailesi_mp4_olarak_cozuluyor(self):
 		for yol in sorted(VIDEO_DIR.glob("*.mp4")):

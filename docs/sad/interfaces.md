@@ -2,9 +2,10 @@
 
 **Durum:** DONDURULMUŞ (v1.0) · **Faz:** 3 · **Görev:** T-031
 **Kod:** `tradehub_core/media/pipeline/contracts/` · **Sahte uygulamalar:** `tradehub_core/media/pipeline/fakes/`
-**Testler:** `tests/test_contracts.py` (69 test) · **Altın dosya:**
+**Testler:** `tradehub_core/tests/test_contracts.py` (**75 test** — 69→75, `POLICY_IMPLS`'e üretim
+uygulaması eklendi; 2026-08-20 ölçümü: rapor 88, kaynak rapor 43) · **Altın dosya:**
 `tradehub_core/media/pipeline/contracts/signatures.golden.json`
-**Mimari bağlam:** `docs/sad/SAD-v1.0.md` §3.3, §4.1
+**Mimari bağlam:** `docs/sad/SAD-v1.0.md` §3.3, §4.1 · **Bugünkü tüketiciler:** §8
 
 ---
 
@@ -20,7 +21,7 @@ Bilinçli değişiklik üç adımdır:
 ```bash
 # 1. sözleşmeyi değiştir (contracts/*.py)
 # 2. altın dosyayı yenile
-python3 -m media_engine.contracts.signatures --write
+python3 -m tradehub_core.media.pipeline.contracts.signatures --write
 # 3. bu belgenin sürüm notunu güncelle ve gerekçeyi commit mesajına yaz
 ```
 
@@ -88,6 +89,13 @@ motor ve tüketici uç) aynı anda değişmesini gerektirir.
 ### 2.4 `PolicyEngine` — Slot politikası kayıt defteri ve karar kapıları
 
 Faz 2 çıktısını (`policy/schema` + 9 slot) karara çevirir. L1 `accept`, L2 `require`, L3 `master`, L4 `quality` katmanları.
+
+> **Uygulama durumu (2026-08-20 ölçümü: rapor 77):** üretim sınıfı
+> `policy/engine.py` protokolün **13/13** metodunu karşılıyor (`isinstance` True).
+> Üretim sınıfı ayrıca dondurulmuş yüzeyin DIŞINDA bir `evaluate(slot, probe,
+> role) -> Decision` metodu taşır (`engine.py:572`); bu metot protokole
+> **eklenmedi** — panel tarafındaki TypeScript ikizinin (393/393 parite vektörü)
+> ikizlediği yüzey budur. `evaluate`'i dondurmak ayrı bir sözleşme kararıdır.
 
 | Metot | İmza |
 |---|---|
@@ -226,11 +234,15 @@ yazımla görünmesi böylece imkânsızdır (NFR-046).
 | `SimpleDeliveryManifest` | Referans uygulama — politikadan `srcset` üretir |
 
 **Sözleşme testleri parametrizedir:** her test bir uygulama listesi üzerinde
-döner (`STORAGE_IMPLS`, `IMAGE_IMPLS`, `VIDEO_IMPLS`). Gerçek uygulama
-yazıldığında listeye **tek satır** eklenir ve aynı 69 test onu da denetler.
+döner (`STORAGE_IMPLS`, `IMAGE_IMPLS`, `VIDEO_IMPLS`, `POLICY_IMPLS`). Gerçek
+uygulama yazıldığında listeye **tek satır** eklenir ve aynı testler onu da
+denetler — `PolicyEngine` için bu yapıldı: üretim motoru listeye girdi ve suite
+**69 → 75** teste çıktı (2026-08-20 ölçümü: rapor 88, kaynak rapor 43).
+`ImageEngine` ve `VideoEngine` için üretim uygulaması hâlâ **yalnız sahte** —
+SAD §14.6 / SAD-G2.
 
 ```bash
-python3 -m unittest discover -s tests -v          # 69 test, bağımlılık yok
+python3 -m unittest tradehub_core.tests.test_contracts -v   # 75 test, bağımlılık yok
 ```
 
 ---
@@ -243,3 +255,20 @@ sözleşmedeki `contracts/errors.py` ile **çelişmiyor** ama iki modül birleş
 `contracts/errors` taşıma katmanı (kod + retryable), `core/errors` sunum
 katmanı (tr/en mesaj + ipucu). Karar Faz 3 kapanışında (T-035) verilmeli.
 Bkz. `docs/sad/SAD-v1.0.md` §11 A-2.
+
+---
+
+## 8. Sözleşmenin bugünkü tüketicileri — 2026-08-20 durumu (rapor 88)
+
+Dondurulan Python yüzeyinin üstünde, T-031'den sonra üç gerçek sözleşme
+katmanı daha doğdu. Hiçbiri §2'deki imzaları değiştirmedi; buraya envanter
+olarak kaydedildi:
+
+| Katman | Kaynak doğruluk | Kanıt |
+|---|---|---|
+| **HTTP sözleşmesi** | `docs/api/openapi-http.yaml` — gerçek `@frappe.whitelist()` yüzeyi, **100 uç** (90 → 100; 10 ayrık uç kapatıldı, 79'u canlı HTTP ile ölçülü). Panelde `openapi-typescript` üretimi `types.gen.ts` (5.232 satır, 100 path) + `client.ts` sarmalayıcı + canlıya karşı contract testleri; sha256 vendor zinciri `--check` ile bayatlamaya kapalı | rapor 80 |
+| **PolicyEngine TS ikizi** | `admin-panel/frontend/src/lib/media/policy/` — `evaluate` yüzeyinin tipli ikizi; **393/393 parite vektörü** Python motoru koşturularak üretildi ve birebir tutuyor (mesaj metinleri, ihlal sırası, `skipped` dahil); `vendor.manifest.json` sha256 zinciri kaynak sürüklenmesini testte yakalar | rapor 77 |
+| **Manifest zenginleştirmesi** | `RenderManifest.extra["version"]` — `Media Version` meta bloğu (lqip, dominant_color, colorspace, `policy_snapshot` özeti) `build_image(..., version_meta=...)` kw-only parametresiyle taşınır; `manifest_batch` yanıtı dosya başına `version` anahtarı döndürür. **İmza değişmedi**: `extra: Dict[str, Any]` alanı sözleşmede zaten vardı | rapor 66, 73 |
+
+Bu katmanların bayatlama korumaları (üç ayrı `--check` betiği + parite
+testleri) bu belgenin altın-dosya desenini izler: sözleşme sessizce değişemez.

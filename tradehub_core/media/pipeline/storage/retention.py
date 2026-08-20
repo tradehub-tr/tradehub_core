@@ -816,6 +816,1001 @@ class UpstreamPurge:
 		]
 
 
+# ── Frappe tarafı: çöp toplama (GC) işleri ──────────────────────────────
+#
+# Yukarısı frappe'siz çalışır ve `StorageAdapter` üzerinde gezer. Aşağısı
+# ÜRETİM envanterine bakar: `File`, `Media Asset`, `Media Rendition`. İkisi
+# ayrı tutuldu çünkü üretimdeki adların çoğu içerik-adresli DEĞİL
+# (ölçüm 2026-08-19: `/files/ChatGPT Image 26 Haz 2026 09_34_02.png` gibi
+# shard'sız 4.393 public dosya var) ve `ObjectKey` bunları temsil edemiyor.
+# `RetentionPolicy` / `OriginalRetention` / `DerivativeRetention` karar
+# mantığı burada AYNEN kullanılır; kopyalanmaz.
+
+MEDIA_ASSET: str = "Media Asset"
+MEDIA_RENDITION: str = "Media Rendition"
+
+#: Legal hold'un GERÇEK yeri. `retention.md` §5.2 "legal_hold diye bir şey yok"
+#: diyordu; o gün `File.th_legal_hold` önerilmişti. Bugün ölçüldü
+#: (2026-08-19, istoc.localhost): `File` üzerinde `th_legal_hold` YOK,
+#: `Media Asset` üzerinde `legal_hold` VAR (Check, permlevel 1 — satıcı
+#: yazamaz). Kapı bu yüzden `File`'a değil `Media Asset`'e bakar.
+LEGAL_HOLD_DOCFIELD: str = "legal_hold"
+
+REASON_BLIND_SPOT: str = "usage_blind_spot"
+REASON_MISSING_ON_DISK: str = "missing_on_disk"
+REASON_NOT_A_FILE_URL: str = "not_a_file_url"
+REASON_GATE_UNENFORCEABLE: str = "legal_hold_unenforceable"
+REASON_NO_REGENERATION: str = "regeneration_path_unavailable"
+
+#: `usage.LIVE_SOURCES` KAPSAMAYAN ama diskte dosya adresi TAŞIYAN alanlar.
+#:
+#: Ölçüm (2026-08-19, istoc.localhost, `information_schema` taraması):
+#: '/files/' geçen 42 (tablo, kolon) çifti var; bunların 25'i `usage.py`'nin
+#: üç kaynak listesinin HİÇBİRİNDE yok. En kritiği `tabBrand.logo` — T-029
+#: raporunun işaret ettiği tuzak: marka logoları `usage.verdicts_for` gözünde
+#: "unused" görünür ve saf bir GC onları siler.
+#:
+#: Bu liste `usage.py`'yi DÜZELTMEZ (o dosya bu görevin kapsamı dışı). Yaptığı
+#: tek şey: burada geçen bir adres için kullanım kararı ne olursa olsun
+#: `REASON_BLIND_SPOT` ile KORUMAYA çevirmek. Yanlış yön bilinçli seçildi —
+#: fazla korumak boş disk, eksik korumak kırık site demek.
+BLIND_SPOT_SOURCES: Tuple[Tuple[str, str], ...] = (
+	("tabBrand", "logo"),
+	("tabBrand", "hero_banner"),
+	("tabBrand", "og_image"),
+	("tabBrand", "video_url"),
+	("tabProduct Category", "image"),
+	("tabSeller Category", "image"),
+	("tabAdmin Seller Profile", "banner_image"),
+	("tabSeller Gallery Image", "poster_image"),
+	("tabSeller Gallery Image", "video_url"),
+	("tabSeller Certification", "document"),
+	("tabSeller Verification", "document"),
+	("tabSeller Application", "identity_document"),
+	("tabBuyer Favorite Item", "snapshot_image"),
+	("tabOrder Item", "image"),
+	("tabPayment Transaction", "receipt_url"),
+	("tabStatic Page SEO", "og_image"),
+	("tabVerification Source", "icon"),
+)
+
+#: `usage.py` tarafından "kullanılmıyor" denilse bile ASLA aday olmayacak
+#: doctype'lar — belge saklama yükümlülüğü olanlar. KYC/KYB alanları bu
+#: görevin dokunma yasağı listesinde; buraya YALNIZ okunmak üzere, koruma
+#: yönünde giriyorlar (silinmesinler diye).
+PROTECTED_SOURCES: Tuple[Tuple[str, str], ...] = (
+	("tabKYB Verification", "bank_account_document"),
+	("tabKYB Verification", "faaliyet_belgesi"),
+	("tabKYB Verification", "identity_document"),
+	("tabKYB Verification", "imza_sirkuleri"),
+	("tabKYB Verification", "ticaret_sicil_gazetesi"),
+	("tabKYB Verification", "vergi_levhasi"),
+	("tabKYC Verification", "identity_document"),
+)
+
+#: Aday listesinde rapor edilecek örnek sayısı — `trash.py:329` ve
+#: `RetentionReport` ile AYNI sınır (denetim bağlamı 5 KB).
+SAMPLE_LIMIT: int = 50
+
+
+def _frappe() -> Any:
+	"""`frappe`'yi tembel import et. Modül frappe'siz de import edilebilmeli."""
+	import frappe  # noqa: PLC0415 - bilinçli tembel import
+
+	return frappe
+
+
+def _column_exists(table: str, column: str) -> bool:
+	"""Tabloda kolon var mı. Yoksa/ölçülemezse `False` — sessiz varsayım yok."""
+	try:
+		frappe = _frappe()
+		satirlar = frappe.db.sql(f"desc `{table}`", as_dict=True)
+	except Exception:
+		return False
+	return column in {s.get("Field") or s.get("column_name") for s in satirlar}
+
+
+def _referenced_urls(sources: Iterable[Tuple[str, str]]) -> set:
+	"""Verilen (tablo, kolon) çiftlerinde geçen TÜM dosya adresleri.
+
+	`usage._referenced_urls` ile aynı desen ve aynı gerekçe: alan başına tek
+	`locate` sorgusu, sonra `usage.extract_file_urls` ile ayrıştırma. LIKE
+	değil LOCATE, çünkü LIKE utf8mb4'te 4 baytlık karakterli satırlarda
+	eşleşmiyor (`usage.py` notu).
+
+	Olmayan tablo/kolon sessizce ATLANIR: bu liste ölçümle yazıldı ama şema
+	değişebilir ve eksik bir kaynak yüzünden GC'nin çökmesi, korumanın
+	tamamen kalkmasından daha kötü bir başarısızlık biçimi olurdu.
+	"""
+	from tradehub_core.media.usage import extract_file_urls  # noqa: PLC0415
+
+	frappe = _frappe()
+	bulunan: set = set()
+	for tablo, kolon in sources:
+		try:
+			satirlar = frappe.db.sql(
+				f"select `{kolon}` from `{tablo}` where locate('/files/', `{kolon}`) > 0"
+			)
+		except Exception:
+			continue
+		for (deger,) in satirlar:
+			bulunan |= extract_file_urls(deger)
+	return bulunan
+
+
+def blind_spot_urls() -> set:
+	"""`usage.py`'nin göremediği + korunması zorunlu kaynaklarda geçen adresler."""
+	return _referenced_urls(BLIND_SPOT_SOURCES) | _referenced_urls(PROTECTED_SOURCES)
+
+
+def live_usage_urls() -> Tuple[set, bool]:
+	"""Canlı ya da sipariş kaydında GEÇEN tüm adresler + **ölçüm başarılı mı**.
+
+	Dönüşün ikinci elemanı olmadan bu fonksiyon tehlikeli olurdu: tarama
+	patladığında boş küme dönmek "hiçbir dosya kullanılmıyor" demekle aynı
+	şey ve çağıran onu silme izni sanır. İkinci eleman `False` geldiğinde
+	`_original_candidate` her satırı `keep / usage_unknown` yapar.
+
+	**`usage.verdict_map_all` BİLEREK kullanılmıyor** — ilk gerçekleme onu
+	kullanıyordu ve test canlı envanterde kırmızı verdi (ölçüm 2026-08-19:
+	`tabListing.primary_image` adresi koruma kümesinde ÇIKMADI). Sebep:
+	`verdict_map_all` yalnız kendi ADAY kümesine karar üretiyor ve o küme
+	`is_private=0`, `left(file_url,7)='/files/'` ile daraltılmış, ayrıca
+	hassas doctype'larla aynı `content_hash`'i taşıyanlar da çıkarılmış.
+	Karar haritasında OLMAYAN bir adres "kullanılmıyor" ile aynı sonucu
+	veriyordu — yani tam olarak korunması gereken private dosyalar korumasız
+	kalıyordu.
+
+	Burada kaynak alanların HAM taraması yapılıyor (`_referenced_urls`,
+	alan başına tek `locate` sorgusu): aday kümesi süzgeci yok, `tabFile`
+	kaydı olup olmaması önemli değil, adres bir yerde geçiyorsa korunuyor.
+	Geçmiş kaynakları (`HISTORY_SOURCES`) taranmıyor — `history_only` zaten
+	silinebilir sayılan bir karar, korumaya girmemesi gereken tek grup o.
+	"""
+	from tradehub_core.media.usage import LIVE_SOURCES, ORDER_SOURCES  # noqa: PLC0415
+
+	ciftler = [(t, c) for t, c, _k, _l in LIVE_SOURCES + ORDER_SOURCES]
+	try:
+		return _referenced_urls(ciftler), True
+	except Exception:
+		frappe = _frappe()
+		frappe.log_error(
+			title="retention: live usage scan failed",
+			message=frappe.get_traceback(with_context=True),
+		)
+		return set(), False
+
+
+class MediaAssetLegalHold:
+	"""`Media Asset.legal_hold` alanını okuyan üretim kapısı.
+
+	`FrappeLegalHold` `File.<field>` okur ve o alan üretimde YOK (ölçüldü);
+	bu sınıf gerçek alana bakar. İki yoldan URL'ye çevirir:
+
+	    Media Asset.source_file  → File.file_url      (orijinal)
+	    Media Rendition.asset    → Rendition.file_url (türev)
+
+	Yani bir varlık tutulduğunda ONUN TÜREVLERİ DE tutulur. Ters durum
+	(türev tutulu, orijinal serbest) mümkün değil — hold varlık düzeyinde.
+
+	`enforceable` yalnız doctype + kolon gerçekten varsa `True`. Kapı
+	uygulanamıyorsa çağıran yıkıcı işlemi REDDEDER; "alan yok → kimse tutulu
+	değil" varsaymak legal hold'un tek işini sessizce iptal ederdi.
+	"""
+
+	def __init__(self) -> None:
+		self._enforceable: Optional[bool] = None
+		self._held: Optional[set] = None
+
+	def probe(self) -> bool:
+		if self._enforceable is None:
+			self._enforceable = _column_exists(f"tab{MEDIA_ASSET}", LEGAL_HOLD_DOCFIELD)
+		return bool(self._enforceable)
+
+	@property
+	def enforceable(self) -> bool:
+		return self.probe()
+
+	def held_asset_names(self) -> List[str]:
+		if not self.probe():
+			return []
+		frappe = _frappe()
+		return frappe.get_all(MEDIA_ASSET, filters={LEGAL_HOLD_DOCFIELD: 1}, pluck="name")
+
+	def held_urls(self) -> set:
+		"""Tutulan varlıkların TÜM adresleri — tek toplu yükleme, N+1 yok."""
+		if self._held is not None:
+			return self._held
+		if not self.probe():
+			self._held = set()
+			return self._held
+		self._held = self._load_held_urls()
+		return self._held
+
+	def _load_held_urls(self) -> set:
+		frappe = _frappe()
+		adlar = self.held_asset_names()
+		if not adlar:
+			return set()
+		dosyalar = frappe.get_all(
+			MEDIA_ASSET, filters={"name": ["in", adlar]}, fields=["source_file"], pluck="source_file"
+		)
+		dosyalar = [d for d in dosyalar if d]
+		adresler: set = set()
+		if dosyalar:
+			adresler |= {
+				u
+				for u in frappe.get_all(
+					"File", filters={"name": ["in", dosyalar]}, pluck="file_url"
+				)
+				if u
+			}
+		if frappe.db.exists("DocType", MEDIA_RENDITION):
+			adresler |= {
+				u
+				for u in frappe.get_all(
+					MEDIA_RENDITION, filters={"asset": ["in", adlar]}, pluck="file_url"
+				)
+				if u
+			}
+		return adresler
+
+	def is_held_url(self, url: str) -> bool:
+		return str(url or "").split("?")[0] in self.held_urls()
+
+	def is_held(self, ref: ObjectRef) -> bool:
+		"""`LegalHoldGate` uyumu — `RetentionSweeper` bu imzayı çağırır."""
+		return self.is_held_url(ref.url)
+
+	def invalidate(self) -> None:
+		"""Önbelleği düşür. Test legal_hold'u değiştirdiğinde gerekir."""
+		self._held = None
+		self._enforceable = None
+
+
+# ── Envanter satırı ────────────────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class GcCandidate:
+	"""Tek envanter satırı için karar. `RetentionDecision` ile aynı rol.
+
+	Ayrı sınıf çünkü üretimdeki adresler `ObjectKey` sözleşmesine (shard +
+	32 hex) uymuyor; `RetentionDecision` bir `ObjectRef` istiyor ve onu
+	uyduramayız.
+	"""
+
+	url: str
+	policy: str
+	action: str
+	reason: str
+	age_days: float = 0.0
+	size_bytes: int = 0
+	held: bool = False
+	extra: Dict[str, Any] = field(default_factory=dict)
+
+	@property
+	def destructive(self) -> bool:
+		return self.action in (ACTION_DELETE, ACTION_DEMOTE)
+
+	def to_dict(self) -> Dict[str, Any]:
+		cikti = {
+			"url": self.url,
+			"policy": self.policy,
+			"action": self.action,
+			"reason": self.reason,
+			"age_days": round(self.age_days, 2),
+			"size_bytes": self.size_bytes,
+			"held": self.held,
+		}
+		cikti.update(self.extra)
+		return cikti
+
+
+@dataclass
+class GcSection:
+	"""Bir politikanın (orijinal / türev) bakım özeti.
+
+	`skips` sebep→sayı haritasıdır: "kaç dosya atlandı" yetmez, "NİYE
+	atlandı" bakım raporunun asıl bilgisidir (görev şartı 5).
+	"""
+
+	name: str
+	scanned: int = 0
+	kept: int = 0
+	candidates: int = 0
+	deleted: int = 0
+	demoted: int = 0
+	notified: int = 0
+	blocked: int = 0
+	failed: int = 0
+	bytes_candidate: int = 0
+	bytes_freed: int = 0
+	skips: Dict[str, int] = field(default_factory=dict)
+	samples: List[Dict[str, Any]] = field(default_factory=list)
+
+	def note(self, reason: str) -> None:
+		self.skips[reason] = self.skips.get(reason, 0) + 1
+
+	def to_dict(self) -> Dict[str, Any]:
+		return {
+			"policy": self.name,
+			"scanned": self.scanned,
+			"kept": self.kept,
+			"candidates": self.candidates,
+			"deleted": self.deleted,
+			"demoted": self.demoted,
+			"notified": self.notified,
+			"blocked": self.blocked,
+			"failed": self.failed,
+			"bytes_candidate": self.bytes_candidate,
+			"bytes_freed": self.bytes_freed,
+			"skipped_by_reason": dict(sorted(self.skips.items())),
+			"samples": self.samples[:SAMPLE_LIMIT],
+			"samples_truncated": max(0, len(self.samples) - SAMPLE_LIMIT),
+		}
+
+
+# ── Disk çözümleme ─────────────────────────────────────────────────────
+
+
+def disk_path_for(file_url: str) -> Optional[str]:
+	"""`file_url` → mutlak disk yolu. Adres tanınmıyorsa `None`.
+
+	Yol geçişi burada da reddedilir: `trash._relative` ile AYNI ölçüt
+	(segment bazlı `..`). Düz altdizge araması meşru dosya adlarını da
+	reddediyordu (bkz. `tests/test_media_trash_path.py`), bu yüzden aynı
+	hatayı burada tekrarlamıyoruz.
+	"""
+	temiz = str(file_url or "").split("?")[0]
+	if not temiz:
+		return None
+	frappe = _frappe()
+	if temiz.startswith("/files/"):
+		kok, rel = os.path.join(frappe.get_site_path(), "public", "files"), temiz[len("/files/") :]
+	elif temiz.startswith("/private/files/"):
+		kok, rel = os.path.join(frappe.get_site_path(), "private", "files"), temiz[len("/private/files/") :]
+	else:
+		return None
+	if any(p == ".." for p in rel.split("/")):
+		return None
+	tam = os.path.realpath(os.path.join(kok, rel))
+	return tam if tam.startswith(os.path.realpath(kok) + os.sep) else None
+
+
+def _mtime_or_none(path: Optional[str]) -> Optional[float]:
+	"""Dosyanın mtime'ı; dosya yoksa `None`. ASLA yükselmez.
+
+	Ölçüldü (2026-08-19): 5.008 `File` kaydının 14'ünün diskte karşılığı yok.
+	Bu satırlar GC'yi düşürmemeli; `REASON_MISSING_ON_DISK` ile atlanırlar.
+	"""
+	if not path:
+		return None
+	try:
+		return os.path.getmtime(path)
+	except OSError:
+		return None
+
+
+# ── Orijinal politikası: `File` envanteri ──────────────────────────────
+
+
+def _file_rows(limit: int = 0) -> List[Dict[str, Any]]:
+	"""GC'nin bakacağı `File` satırları — hassas doctype ekleri HARİÇ.
+
+	`presets.EXCLUDED_DOCTYPES` yalnız OKUNUR (o dosya bu görevin kapsamı
+	dışı): KYC/KYB/sipariş belgeleri hiç aday listesine girmesin diye.
+	Sorgu parametreli — tablo/kolon adları sabit, kullanıcı girdisi yok.
+	"""
+	from tradehub_core.media.presets import EXCLUDED_DOCTYPES  # noqa: PLC0415
+
+	frappe = _frappe()
+	yer_tutucu = ", ".join(["%s"] * len(EXCLUDED_DOCTYPES))
+	sinir = f" limit {int(limit)}" if limit else ""
+	return frappe.db.sql(
+		f"""select name, file_url, file_size, attached_to_doctype
+		from `tabFile`
+		where is_folder = 0 and ifnull(file_url, '') <> ''
+		  and ifnull(attached_to_doctype, '') not in ({yer_tutucu})
+		order by name{sinir}""",
+		tuple(EXCLUDED_DOCTYPES),
+		as_dict=True,
+	)
+
+
+def _original_candidate(
+	satir: Mapping[str, Any],
+	policy: RetentionPolicy,
+	held: set,
+	now: float,
+	guard: Optional[set] = None,
+	in_use: Optional[set] = None,
+	usage_known: bool = True,
+) -> GcCandidate:
+	"""Tek `File` satırı için karar. SAF — hiçbir şeye dokunmaz.
+
+	Sıra kritik ve `RetentionSweeper.decide` ile AYNI: legal hold her şeyden
+	önce gelir; yaş ancak kapı açıksa hesaplanır.
+
+	**2026-08-19 eklenen iki kapı (T-043/T-053).** Bu fonksiyon önceden YALNIZ
+	yaşa bakıyordu: `keep_forever=false` yazılan an, kullanımda olup olmadığına
+	bakılmaksızın envanterin tamamı silme adayı oluyordu (ölçüm: agresif
+	politikayla 4.429 aday). Kör nokta koruması yalnız TÜREV tarafında vardı;
+	orijinal tarafta hiç yoktu — yani marka logosu, kategori görseli ve canlı
+	ürün görseli aynı kefedeydi. Sıra:
+
+	    1. legal hold           → blocked
+	    2. `guard` (kör nokta + KVKK kaynakları) → keep / usage_blind_spot
+	    3. kullanım ölçülemedi  → keep / usage_unknown   ← fail-safe
+	    4. `in_use` (canlı ya da sipariş kaydı)  → keep / in_use
+	    5. adres çözülmüyor / diskte yok / yaş + politika
+
+	3. madde bilinçli: kullanım taraması patlarsa "hiçbir şey kullanılmıyor"
+	varsaymak envanteri silmek olurdu.
+	"""
+	url = str(satir.get("file_url") or "")
+	if policy.legal_hold_enabled and url.split("?")[0] in held:
+		return GcCandidate(url, POLICY_ORIGINAL, ACTION_BLOCKED, REASON_LEGAL_HOLD, held=True)
+
+	temiz = url.split("?")[0]
+	if guard and temiz in guard:
+		return GcCandidate(url, POLICY_ORIGINAL, ACTION_KEEP, REASON_BLIND_SPOT)
+	if not usage_known:
+		return GcCandidate(url, POLICY_ORIGINAL, ACTION_KEEP, REASON_USAGE_UNKNOWN)
+	if in_use and temiz in in_use:
+		return GcCandidate(url, POLICY_ORIGINAL, ACTION_KEEP, REASON_IN_USE)
+
+	yol = disk_path_for(url)
+	if yol is None:
+		return GcCandidate(url, POLICY_ORIGINAL, ACTION_KEEP, REASON_NOT_A_FILE_URL)
+	mtime = _mtime_or_none(yol)
+	if mtime is None:
+		# Ölçüldü: 14 `File` kaydının diskte karşılığı yok. Bunları "yaşı
+		# sonsuz" sayıp silmek, zaten olmayan dosyanın `File` kaydını da
+		# götürür ve geri dönüşü olmayan bir referans kaybı olur.
+		return GcCandidate(url, POLICY_ORIGINAL, ACTION_KEEP, REASON_MISSING_ON_DISK)
+
+	yas = max(0.0, (now - mtime) / 86400.0)
+	eylem, sebep = policy.original.decide(yas)
+	boyut = int(satir.get("file_size") or 0) or _size_or_zero(yol)
+	return GcCandidate(url, POLICY_ORIGINAL, eylem, sebep, age_days=yas, size_bytes=boyut)
+
+
+def _size_or_zero(path: str) -> int:
+	try:
+		return os.path.getsize(path)
+	except OSError:
+		return 0
+
+
+def sweep_originals(
+	*,
+	policy: Optional[RetentionPolicy] = None,
+	gate: Optional[MediaAssetLegalHold] = None,
+	dry_run: bool = True,
+	limit: int = 0,
+	now: Optional[float] = None,
+) -> GcSection:
+	"""Orijinal saklama politikasını `File` envanterine uygula.
+
+	Varsayılan politika `keep_forever=True` olduğu için varsayılan sonuç
+	"hepsi korundu"dur — bu bir eksiklik değil, şemadaki bilinçli varsayılan
+	(`retention.md` §6.1). Silme ancak politika açıkça değiştirilirse
+	gündeme gelir ve o zaman da `dry_run=False` şart.
+	"""
+	pol = policy if policy is not None else RetentionPolicy.defaults()
+	kapi = gate if gate is not None else MediaAssetLegalHold()
+	tutulanlar = kapi.held_urls() if pol.legal_hold_enabled else set()
+	an = float(time.time() if now is None else now)
+	bolum = GcSection(POLICY_ORIGINAL)
+	kapi_saglam = (not pol.legal_hold_enabled) or kapi.enforceable
+	koruma = blind_spot_urls()
+	kullanilan, kullanim_olculdu = live_usage_urls()
+
+	for satir in _file_rows(limit):
+		bolum.scanned += 1
+		aday = _original_candidate(
+			satir, pol, tutulanlar, an,
+			guard=koruma, in_use=kullanilan, usage_known=kullanim_olculdu,
+		)
+		_record(bolum, aday, dry_run=dry_run, gate_ok=kapi_saglam, apply=_apply_original)
+	return bolum
+
+
+# ── Türev politikası: `Media Rendition` envanteri ──────────────────────
+
+
+def _rendition_rows(limit: int = 0) -> List[Dict[str, Any]]:
+	"""`Media Rendition` satırları. Doctype/tablo yoksa boş liste.
+
+	Ölçüldü (2026-08-19): tablo BOŞ — bayraklar kapalı, türev üretilmiyor.
+	İş bugün 0 satırla koşar; bu doğru davranıştır, eksiklik değil.
+	"""
+	frappe = _frappe()
+	if not frappe.db.exists("DocType", MEDIA_RENDITION):
+		return []
+	return frappe.get_all(
+		MEDIA_RENDITION,
+		fields=["name", "asset", "profile", "file_url", "bytes", "storage_backend",
+			"generated_at", "last_access_at"],
+		limit_page_length=int(limit) or 0,
+		order_by="name",
+	)
+
+
+def _rendition_age_days(satir: Mapping[str, Any], now: float) -> Optional[float]:
+	"""Türevin "kullanılmama" yaşı — son erişim, yoksa üretim damgası.
+
+	`unused_after_days` son ERİŞİMDEN sayılır (`retention.schema.json`
+	`unused_definition`). `last_access_at` boşsa türev hiç istenmemiş
+	demektir ve saat `generated_at`'ten işler.
+	"""
+	from frappe.utils import get_datetime  # noqa: PLC0415
+
+	damga = satir.get("last_access_at") or satir.get("generated_at")
+	if not damga:
+		return None
+	try:
+		return max(0.0, (now - get_datetime(damga).timestamp()) / 86400.0)
+	except (ValueError, TypeError):
+		return None
+
+
+def _derivative_candidate(
+	satir: Mapping[str, Any],
+	policy: RetentionPolicy,
+	held: set,
+	verdicts: Mapping[str, str],
+	guard: set,
+	now: float,
+	can_regenerate: bool = True,
+) -> GcCandidate:
+	"""Tek `Media Rendition` satırı için karar. SAF."""
+	url = str(satir.get("file_url") or "")
+	ek = {"rendition": satir.get("name"), "asset": satir.get("asset"),
+		"backend": satir.get("storage_backend")}
+	if policy.legal_hold_enabled and url.split("?")[0] in held:
+		return GcCandidate(url, POLICY_DERIVATIVE, ACTION_BLOCKED, REASON_LEGAL_HOLD,
+			held=True, extra=ek)
+	if url in guard:
+		return GcCandidate(url, POLICY_DERIVATIVE, ACTION_KEEP, REASON_BLIND_SPOT, extra=ek)
+
+	yas = _rendition_age_days(satir, now)
+	if yas is None:
+		return GcCandidate(url, POLICY_DERIVATIVE, ACTION_KEEP, REASON_USAGE_UNKNOWN, extra=ek)
+
+	eylem, sebep = policy.derivative.decide(
+		yas, verdicts.get(url, VERDICT_UNKNOWN), str(satir.get("profile") or "")
+	)
+	if eylem == ACTION_DEMOTE:
+		# Soğuk katman bu kurulumda YOK (S3 adaptörü var ama bağlı değil).
+		# `RetentionSweeper` ile aynı düşüş: yaslandırma bildirime iner.
+		eylem, sebep = ACTION_NOTIFY, REASON_NO_COLD_TIER
+	if eylem == ACTION_DELETE and not can_regenerate:
+		# `DerivativeRetention.warnings()` yalnız `regenerate_on_demand=False`
+		# yazılmış olmasını yakalar. Asıl tehlike tersi: bayrak `True` ama
+		# ÜRETİMDE yeniden üretecek yol yok.
+		#
+		# Ölçüm 2026-08-19 (yeniden doğrulandı): `Media Rendition.generation`
+		# alanına YAZAN tek yer `media/pipeline_bridge.py:628` ve orada değer
+		# profilden geliyor (`profil.generation or "eager"`) — yani alan
+		# türev ÜRETİLİRKEN dolduruluyor. OKUYAN, yani "türev yok, şimdi üret"
+		# diyen hiçbir kod yok: `regenerate` / `on_demand` araması boru hattı
+		# ve API katmanında tek bir üretim yolu getirmiyor. Silinen bir türev
+		# bugün geri gelmez. Politikanın verdiği söz tutulamıyorsa silme
+		# bildirime iner.
+		eylem, sebep = ACTION_NOTIFY, REASON_NO_REGENERATION
+	return GcCandidate(url, POLICY_DERIVATIVE, eylem, sebep, age_days=yas,
+		size_bytes=int(satir.get("bytes") or 0), extra=ek)
+
+
+def _derivative_verdicts(urls: List[str]) -> Dict[str, str]:
+	"""`usage.verdicts_for` ile toplu kullanım kararı — KENDİ tespitimiz YOK.
+
+	`deep=True`: `unused` ile `history_only` ayrımı olmadan
+	`DerivativeRetention.decide` hiçbir şeyi silinebilir saymaz
+	(`UNUSED_VERDICTS` bu ikisi). Sığ tarama `not_in_use` döndürür ve o
+	etiket listede olmadığı için her şey `usage_unknown` ile korunurdu —
+	yani sığ tarama sessizce "hiçbir şey yapma"ya dönerdi.
+	"""
+	if not urls:
+		return {}
+	from tradehub_core.media.usage import verdicts_for  # noqa: PLC0415
+
+	try:
+		ham = verdicts_for(urls, deep=True)
+	except Exception:
+		_frappe().log_error(title="retention: usage verdicts failed",
+			message=_frappe().get_traceback(with_context=True))
+		return {}
+	return {u: str(v.get("verdict") or VERDICT_UNKNOWN) for u, v in ham.items()}
+
+
+def sweep_derivatives(
+	*,
+	policy: Optional[RetentionPolicy] = None,
+	gate: Optional[MediaAssetLegalHold] = None,
+	dry_run: bool = True,
+	limit: int = 0,
+	now: Optional[float] = None,
+) -> GcSection:
+	"""Kullanılmayan türevleri temizle. Varsayılan eylem `notify_only`.
+
+	"İstendiğinde yeniden üret" bedava değil: T-028 ölçümü görsel başına
+	**10,45 sn** (SSIM %52, encode %37). Şema bu yüzden varsayılanı silme
+	değil bildirim yapıyor — silinen her türev, ilk isteyen kullanıcıya
+	10 saniyelik bekleme olarak geri döner.
+	"""
+	pol = policy if policy is not None else RetentionPolicy.defaults()
+	kapi = gate if gate is not None else MediaAssetLegalHold()
+	satirlar = _rendition_rows(limit)
+	bolum = GcSection(POLICY_DERIVATIVE)
+	if not satirlar:
+		return bolum
+
+	tutulanlar = kapi.held_urls() if pol.legal_hold_enabled else set()
+	kararlar = _derivative_verdicts([str(s.get("file_url") or "") for s in satirlar if s.get("file_url")])
+	koruma = blind_spot_urls()
+	an = float(time.time() if now is None else now)
+	kapi_saglam = (not pol.legal_hold_enabled) or kapi.enforceable
+	uretilebilir = pol.derivative.regenerate_on_demand and regeneration_available()
+
+	for satir in satirlar:
+		bolum.scanned += 1
+		aday = _derivative_candidate(satir, pol, tutulanlar, kararlar, koruma, an, uretilebilir)
+		_record(bolum, aday, dry_run=dry_run, gate_ok=kapi_saglam, apply=_apply_derivative)
+	return bolum
+
+
+def regeneration_available() -> bool:
+	"""Silinen bir türev gerçekten geri getirilebilir mi.
+
+	`regenerate_on_demand=True` bir SÖZ; bu fonksiyon sözün tutulup
+	tutulamayacağını ölçer. Boru hattı bayrağı kapalıyken hiçbir türev
+	üretilmiyor — o hâlde silinen türev geri gelmez ve "istendiğinde yeniden
+	üret" cümlesi kâğıt üstünde kalır.
+
+	Maliyet tarafı da burada: T-028 ölçümü görsel başına **10,45 sn**
+	(SSIM %52, encode %37). Bayrak açık olsa bile silinen her türev, ilk
+	isteyen kullanıcıya 10 saniyelik bekleme olarak geri döner — bu yüzden
+	şema varsayılanı `notify_only`.
+	"""
+	try:
+		from tradehub_core.media.pipeline_flags import is_enabled  # noqa: PLC0415
+
+		return bool(is_enabled())
+	except Exception:
+		# Ölçemedik → güvenli taraf: yeniden üretilemez say, silme.
+		return False
+
+
+# ── Kayıt + uygulama ───────────────────────────────────────────────────
+
+
+def _record(
+	bolum: GcSection,
+	aday: GcCandidate,
+	*,
+	dry_run: bool,
+	gate_ok: bool,
+	apply: Callable[[GcCandidate], bool],
+) -> None:
+	"""Kararı sayaçlara işle ve (yalnız ıslak koşumda) uygula.
+
+	`RetentionSweeper.sweep` gövdesiyle AYNI sıra ve aynı gerekçe. Kuru
+	koşumda `apply` HİÇ çağrılmaz — "önce sil sonra geri al" diye bir yol
+	yok, tek koruma çağrının hiç yapılmaması.
+	"""
+	if aday.action == ACTION_BLOCKED:
+		bolum.blocked += 1
+		bolum.note(aday.reason)
+		bolum.samples.append(aday.to_dict())
+		return
+	if aday.action == ACTION_KEEP:
+		bolum.kept += 1
+		bolum.note(aday.reason)
+		return
+	if aday.action == ACTION_NOTIFY:
+		bolum.notified += 1
+		bolum.note(aday.reason)
+		bolum.samples.append(aday.to_dict())
+		return
+
+	bolum.candidates += 1
+	bolum.bytes_candidate += aday.size_bytes
+	bolum.samples.append(aday.to_dict())
+	if not gate_ok:
+		# Legal hold açık ama kapı uygulanamıyor → yıkıcı işlem YAPILMAZ.
+		bolum.blocked += 1
+		bolum.note(REASON_GATE_UNENFORCEABLE)
+		return
+	if dry_run:
+		return
+	_apply_and_count(bolum, aday, apply)
+
+
+def _apply_and_count(bolum: GcSection, aday: GcCandidate, apply: Callable[[GcCandidate], bool]) -> None:
+	try:
+		uygulandi = apply(aday)
+	except Exception:
+		_frappe().log_error(title="retention gc apply failed",
+			message=_frappe().get_traceback(with_context=True))
+		bolum.failed += 1
+		return
+	if not uygulandi:
+		bolum.failed += 1
+		return
+	if aday.action == ACTION_DELETE:
+		bolum.deleted += 1
+	else:
+		bolum.demoted += 1
+	bolum.bytes_freed += aday.size_bytes
+
+
+def _apply_original(aday: GcCandidate) -> bool:
+	"""Orijinali ÇÖPE taşı — kalıcı silme DEĞİL.
+
+	Repo'nun silme semantiği iki adımlı (`retention.md` §2.1): çöp + 30 gün
+	bekleme + audit. `trash.move_to_trash` o yolun tamamını çalıştırır
+	(kullanım kapısı, referans zinciri, denetim kaydı). Kalıcı silmeyi
+	zaten `trash.purge_expired` günlük işi yapıyor; burada ikinci bir
+	kalıcı silme yolu açmak, iki farklı silme davranışı demekti.
+	"""
+	from tradehub_core.media import trash  # noqa: PLC0415
+
+	return bool(trash.move_to_trash(aday.url).get("ok", True))
+
+
+def _apply_derivative(aday: GcCandidate) -> bool:
+	"""Türevi sil: önce dosya çöpe, sonra `Media Rendition` kaydı.
+
+	Sıra bilinçli — kayıt önce silinirse dosya öksüz kalır ve onu bulan
+	hiçbir sorgu kalmaz (`retention.md` §5.5 "önce DB sonra disk" penceresi).
+	"""
+	from tradehub_core.media import trash  # noqa: PLC0415
+
+	frappe = _frappe()
+	if aday.url:
+		trash.move_to_trash(aday.url, force=True)
+	ad = aday.extra.get("rendition")
+	if ad:
+		# Sistem işi: scheduler bağlamında kullanıcı yok, permission kontrolü
+		# uygulanamaz (anti-pattern 13'ün "sistem yolları" istisnası).
+		frappe.delete_doc(MEDIA_RENDITION, ad, force=True, ignore_permissions=True)
+	return True
+
+
+# ── Bakım raporu ───────────────────────────────────────────────────────
+
+
+def _tier_snapshot() -> Dict[str, int]:
+	"""Türevlerin katman dağılımı: `local` / `s3` / `mirror` başına sayı."""
+	frappe = _frappe()
+	if not frappe.db.exists("DocType", MEDIA_RENDITION):
+		return {}
+	satirlar = frappe.db.sql(
+		f"select ifnull(storage_backend, 'local') as k, count(*) as n "
+		f"from `tab{MEDIA_RENDITION}` group by k",
+		as_dict=True,
+	)
+	return {str(s["k"]): int(s["n"]) for s in satirlar}
+
+
+def _legal_hold_summary(gate: MediaAssetLegalHold) -> Dict[str, Any]:
+	return {
+		"source": f"{MEDIA_ASSET}.{LEGAL_HOLD_DOCFIELD}",
+		"enforceable": gate.enforceable,
+		"held_assets": len(gate.held_asset_names()),
+		"held_urls": len(gate.held_urls()),
+	}
+
+
+def run_maintenance(
+	*,
+	policy: Optional[RetentionPolicy] = None,
+	dry_run: bool = True,
+	limit: int = 0,
+	now: Optional[float] = None,
+) -> Dict[str, Any]:
+	"""Bakım raporu: dosya sayıları, katman geçişleri, atlananlar + sebepleri.
+
+	`dry_run` VARSAYILAN OLARAK `True`. Islak koşum yalnız çağıran açıkça
+	`dry_run=False` derse olur; zamanlanmış iş bunu kendiliğinden yapmaz
+	(bkz. `run_scheduled_gc`).
+	"""
+	baslangic = time.time()
+	pol = policy if policy is not None else RetentionPolicy.defaults()
+	kapi = MediaAssetLegalHold()
+	oncesi = _tier_snapshot()
+	orijinal = sweep_originals(policy=pol, gate=kapi, dry_run=dry_run, limit=limit, now=now)
+	turev = sweep_derivatives(policy=pol, gate=kapi, dry_run=dry_run, limit=limit, now=now)
+	sonrasi = _tier_snapshot()
+	return {
+		"generated_at": _frappe().utils.now(),
+		"dry_run": dry_run,
+		"policy": pol.to_dict(),
+		"policy_warnings": pol.warnings(),
+		"legal_hold": _legal_hold_summary(kapi),
+		"sections": [orijinal.to_dict(), turev.to_dict()],
+		"tiers": {"before": oncesi, "after": sonrasi,
+			"transitions": _tier_diff(oncesi, sonrasi), "demoted": turev.demoted + orijinal.demoted},
+		"totals": _totals(orijinal, turev),
+		"duration_ms": int((time.time() - baslangic) * 1000),
+	}
+
+
+def _tier_diff(before: Mapping[str, int], after: Mapping[str, int]) -> Dict[str, int]:
+	"""Katman başına net değişim. Boş kümede boş sözlük — sıfır satır yazılmaz."""
+	anahtarlar = set(before) | set(after)
+	fark = {k: int(after.get(k, 0)) - int(before.get(k, 0)) for k in sorted(anahtarlar)}
+	return {k: v for k, v in fark.items() if v}
+
+
+def _totals(*bolumler: GcSection) -> Dict[str, Any]:
+	toplam_atlama: Dict[str, int] = {}
+	for b in bolumler:
+		for sebep, sayi in b.skips.items():
+			toplam_atlama[sebep] = toplam_atlama.get(sebep, 0) + sayi
+	return {
+		"scanned": sum(b.scanned for b in bolumler),
+		"kept": sum(b.kept for b in bolumler),
+		"candidates": sum(b.candidates for b in bolumler),
+		"deleted": sum(b.deleted for b in bolumler),
+		"demoted": sum(b.demoted for b in bolumler),
+		"notified": sum(b.notified for b in bolumler),
+		"blocked": sum(b.blocked for b in bolumler),
+		"failed": sum(b.failed for b in bolumler),
+		"bytes_candidate": sum(b.bytes_candidate for b in bolumler),
+		"bytes_freed": sum(b.bytes_freed for b in bolumler),
+		"skipped_by_reason": dict(sorted(toplam_atlama.items())),
+	}
+
+
+# ── Zamanlanmış giriş noktası ──────────────────────────────────────────
+
+#: Islak koşumu açan site_config anahtarı. YOKSA ya da 0 ise iş KURU koşar.
+#: Anahtar adı bilinçli olarak uzun ve tek amaçlı: yanlışlıkla açılmasın.
+ENFORCE_FLAG: str = "media_retention_gc_enforce"
+
+#: T-053 kriter 1: "orijinaller ve türevler için AYRI zamanlanmış işler,
+#: ayardan sürülen". Ayrı iş demek ayrı ANAHTAR demek — tek bayrakla iki
+#: politikayı birden açmak, "iki politika birbirini etkilemez" (retention.md
+#: §6) kuralını zamanlama düzeyinde bozardı. Bir bayrak diğerini AÇMAZ:
+#: türev silmeyi açmak orijinal silmeyi açmıyor, tersi de öyle.
+ENFORCE_FLAG_ORIGINALS: str = "media_retention_gc_originals_enforce"
+ENFORCE_FLAG_DERIVATIVES: str = "media_retention_gc_derivatives_enforce"
+
+#: Ayrı iş = ayrı kilit. Ortak kilit, iki iş ayrı saatlerde koşsa bile
+#: birinin diğerini "locked" diye atlatmasına yol açardı.
+LOCK_ALL: str = "media_retention_gc_lock"
+LOCK_ORIGINALS: str = "media_retention_gc_originals_lock"
+LOCK_DERIVATIVES: str = "media_retention_gc_derivatives_lock"
+
+#: Kilit ömrü (sn) — `tasks.py:calculate_customer_grades` deseniyle aynı.
+LOCK_TTL: int = 3600
+
+
+def _gc_job(
+	*,
+	lock: str,
+	flag: str,
+	title: str,
+	sweep: Callable[..., GcSection],
+	policy_name: str,
+) -> Dict[str, Any]:
+	"""Tek politikalı zamanlanmış GC işinin ortak gövdesi.
+
+	`run_scheduled_gc` ile aynı üç güvenlik: Redis kilidi, varsayılan kuru
+	koşum, `Error Log`'a rapor. Fark, tek bir `GcSection` üretmesi — bölüm
+	sözlüğü `run_maintenance` çıktısının aynısı biçimde, ama tek politika.
+	"""
+	frappe = _frappe()
+	if frappe.cache().get_value(lock):
+		frappe.log_error(f"{title} zaten çalışıyor", "Scheduler Lock")
+		return {"skipped": "locked", "policy": policy_name}
+
+	frappe.cache().set_value(lock, 1, expires_in_sec=LOCK_TTL)
+	baslangic = time.time()
+	try:
+		pol = RetentionPolicy.defaults()
+		kapi = MediaAssetLegalHold()
+		zorla = bool(frappe.conf.get(flag))
+		bolum = sweep(policy=pol, gate=kapi, dry_run=not zorla)
+	finally:
+		frappe.cache().delete_value(lock)
+
+	rapor = {
+		"generated_at": frappe.utils.now(),
+		"policy_name": policy_name,
+		"dry_run": not zorla,
+		"enforce_flag": flag,
+		"policy": pol.to_dict(),
+		"policy_warnings": pol.warnings(),
+		"legal_hold": _legal_hold_summary(kapi),
+		"sections": [bolum.to_dict()],
+		"totals": _totals(bolum),
+		"duration_ms": int((time.time() - baslangic) * 1000),
+	}
+	frappe.log_error(
+		title=title,
+		message=json.dumps(rapor, ensure_ascii=False, indent=2, default=str)[:100000],
+	)
+	return rapor
+
+
+def run_scheduled_gc_originals() -> Dict[str, Any]:
+	"""**Orijinal** saklama işi — `hooks.py` `scheduler_events` kaydı bekliyor.
+
+	`hooks.py` bu görevin dokunma yasağı listesinde; kaydı Şerit A yapacak.
+	Kayıt satırı (yalnız EKLEME):
+
+	    "tradehub_core.media.pipeline.storage.retention.run_scheduled_gc_originals",
+
+	Islak koşum `site_config.media_retention_gc_originals_enforce = 1`
+	olmadan OLMAZ. Bugün anahtar yok → kuru koşum.
+	"""
+	return _gc_job(
+		lock=LOCK_ORIGINALS,
+		flag=ENFORCE_FLAG_ORIGINALS,
+		title="media.retention_gc.originals",
+		sweep=sweep_originals,
+		policy_name=POLICY_ORIGINAL,
+	)
+
+
+def run_scheduled_gc_derivatives() -> Dict[str, Any]:
+	"""**Türev** saklama işi — `hooks.py` `scheduler_events` kaydı bekliyor.
+
+	Kayıt satırı (yalnız EKLEME):
+
+	    "tradehub_core.media.pipeline.storage.retention.run_scheduled_gc_derivatives",
+
+	Islak koşum `site_config.media_retention_gc_derivatives_enforce = 1`
+	istiyor. Bayrak açılsa bile silme bugün gerçekleşmez:
+	`regeneration_available()` `False` olduğu sürece `delete` kararı
+	`notify_only / regeneration_path_unavailable`'a düşüyor.
+	"""
+	return _gc_job(
+		lock=LOCK_DERIVATIVES,
+		flag=ENFORCE_FLAG_DERIVATIVES,
+		title="media.retention_gc.derivatives",
+		sweep=sweep_derivatives,
+		policy_name=POLICY_DERIVATIVE,
+	)
+
+
+def run_scheduled_gc() -> Dict[str, Any]:
+	"""Günlük bakım işi — `hooks.py` `scheduler_events["daily"]`.
+
+	**Varsayılanı kuru koşumdur ve site_config'te `media_retention_gc_enforce`
+	açıkça 1 yapılmadıkça hiçbir şey silmez.** Gerekçe repo genelindeki
+	fail-safe kuralıyla aynı: yanlış yapılandırılmış tek bir politika alanı
+	(`keep_forever=false` + `local_days=1`) tüm envanteri tek turda çöpe
+	atabilir; varsayılan olarak silen bir zamanlanmış iş bunu gece yarısı,
+	kimse bakmadan yapardı.
+
+	Raporu `Error Log`'a yazar — `media/audit.py` eylem sözlüğü kapalı bir
+	küme ve ona yeni eylem eklemek bu görevin kapsamı dışı.
+	"""
+	frappe = _frappe()
+	if frappe.cache().get_value(LOCK_ALL):
+		frappe.log_error("media retention GC zaten çalışıyor", "Scheduler Lock")
+		return {"skipped": "locked"}
+
+	frappe.cache().set_value(LOCK_ALL, 1, expires_in_sec=LOCK_TTL)
+	try:
+		zorla = bool(frappe.conf.get(ENFORCE_FLAG))
+		rapor = run_maintenance(dry_run=not zorla)
+	finally:
+		frappe.cache().delete_value("media_retention_gc_lock")
+
+	frappe.log_error(
+		title="media.retention_gc",
+		message=json.dumps(rapor, ensure_ascii=False, indent=2, default=str)[:100000],
+	)
+	return rapor
+
+
 __all__ = [
 	"SCHEMA_PATH",
 	"schema_defaults",
@@ -854,4 +1849,34 @@ __all__ = [
 	"PolicyInvalid",
 	"RetentionSweeper",
 	"UpstreamPurge",
+	# T-053 çöp toplama (frappe tarafı)
+	"MEDIA_ASSET",
+	"MEDIA_RENDITION",
+	"LEGAL_HOLD_DOCFIELD",
+	"BLIND_SPOT_SOURCES",
+	"PROTECTED_SOURCES",
+	"ENFORCE_FLAG",
+	"ENFORCE_FLAG_ORIGINALS",
+	"ENFORCE_FLAG_DERIVATIVES",
+	"LOCK_ALL",
+	"LOCK_ORIGINALS",
+	"LOCK_DERIVATIVES",
+	"live_usage_urls",
+	"REASON_BLIND_SPOT",
+	"REASON_MISSING_ON_DISK",
+	"REASON_NOT_A_FILE_URL",
+	"REASON_GATE_UNENFORCEABLE",
+	"REASON_NO_REGENERATION",
+	"regeneration_available",
+	"MediaAssetLegalHold",
+	"GcCandidate",
+	"GcSection",
+	"blind_spot_urls",
+	"disk_path_for",
+	"sweep_originals",
+	"sweep_derivatives",
+	"run_maintenance",
+	"run_scheduled_gc",
+	"run_scheduled_gc_originals",
+	"run_scheduled_gc_derivatives",
 ]

@@ -357,7 +357,8 @@ def komut_preflight(args) -> dict:
 	from PIL import Image, ImageOps
 
 	sys.path.insert(0, str(KOK))
-	from media_engine.quality import compute_ssim
+	# 1ec9b5e göçü sonrası gerçek yol (W9 T-032 düzeltmesi, 2026-08-20)
+	from tradehub_core.media.pipeline.quality import compute_ssim
 
 	def _hazirla(icerik: bytes, max_dim: int):
 		im = Image.open(io.BytesIO(icerik))
@@ -502,7 +503,7 @@ KOMUTLAR = {
 def main() -> int:
 	ap = argparse.ArgumentParser()
 	ap.add_argument("komut", choices=sorted(KOMUTLAR))
-	ap.add_argument("--fixtures", default=str(KOK / "tests" / "fixtures"))
+	ap.add_argument("--fixtures", default=str(KOK / "tradehub_core" / "tests" / "fixtures"))
 	ap.add_argument("--site", default="istoc.localhost")
 	ap.add_argument("--site-root", default=VARSAYILAN_SITE_KOK)
 	ap.add_argument("--kaynak", choices=("fixture", "canli"), default="fixture")

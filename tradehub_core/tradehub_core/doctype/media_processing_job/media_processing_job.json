@@ -1,0 +1,179 @@
+{
+	"$comment": "DALGA A / A1a · Kuyruk işinin kaydı. Kaynak şema: media/pipeline/doctype_specs/media_processing_job.json. MEVCUT media/jobs.py ile ÇAKIŞMAZ: o modül File üzerindeki iş durumunu (running/completed/partial/error) ve backoff politikasını tutar, kayıt tutmaz; burası yeni hattın kayıt defteridir.",
+	"actions": [],
+	"allow_rename": 0,
+	"autoname": "hash",
+	"creation": "2026-08-18 00:00:00.000000",
+	"doctype": "DocType",
+	"editable_grid": 0,
+	"engine": "InnoDB",
+	"field_order": [
+		"asset",
+		"job_type",
+		"queue",
+		"cb_head",
+		"status",
+		"attempt",
+		"idempotency_key",
+		"sb_timing",
+		"started_at",
+		"finished_at",
+		"cb_timing",
+		"duration_ms",
+		"peak_memory_mb",
+		"sb_error",
+		"error_code",
+		"error_trace"
+	],
+	"fields": [
+		{
+			"fieldname": "asset",
+			"fieldtype": "Link",
+			"label": "Varlık",
+			"options": "Media Asset",
+			"reqd": 1,
+			"search_index": 1,
+			"in_list_view": 1
+		},
+		{
+			"fieldname": "job_type",
+			"fieldtype": "Select",
+			"label": "İş Tipi",
+			"options": "normalize\nrendition\ntranscode\nposter\npreview\nai\ngc\nretention\nreport",
+			"reqd": 1,
+			"in_list_view": 1,
+			"in_standard_filter": 1
+		},
+		{
+			"fieldname": "queue",
+			"fieldtype": "Select",
+			"label": "Kuyruk",
+			"options": "media-image-live\nmedia-image-bulk\nmedia-video\nmedia-ai\nmedia-maint",
+			"reqd": 1,
+			"in_standard_filter": 1
+		},
+		{
+			"fieldname": "cb_head",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "status",
+			"fieldtype": "Select",
+			"label": "Durum",
+			"options": "queued\nrunning\nsuccess\nfailed\ndead",
+			"default": "queued",
+			"reqd": 1,
+			"search_index": 1,
+			"in_list_view": 1,
+			"in_standard_filter": 1,
+			"description": "Bu sözlük media/jobs.py'nin sözlüğünden (running/completed/partial/error) AYRIDIR ve onu değiştirmez; eşleme controller docstring'inde."
+		},
+		{
+			"fieldname": "attempt",
+			"fieldtype": "Int",
+			"label": "Deneme",
+			"default": "0",
+			"description": "Mevcut motorun backoff'lu iş yürütücüsüyle (media/jobs.py MAX_ATTEMPTS=3, BACKOFF_SECONDS=(300,900)) aynı kavram. Kuyruk tavanları: media-image-live 3, bulk 2, video 2, ai 1, maint 1."
+		},
+		{
+			"fieldname": "idempotency_key",
+			"fieldtype": "Data",
+			"label": "Idempotency Anahtarı",
+			"unique": 1,
+			"length": 140,
+			"description": "Aynı iş iki kez kuyruğa girerse ikincisi bu UNIQUE kısıta çarpar ve mevcut kayıt döndürülür (INV-06). Türetimi: sha256(asset + job_type + profile + width)."
+		},
+		{
+			"fieldname": "sb_timing",
+			"fieldtype": "Section Break",
+			"label": "Zamanlama"
+		},
+		{
+			"fieldname": "started_at",
+			"fieldtype": "Datetime",
+			"label": "Başlangıç"
+		},
+		{
+			"fieldname": "finished_at",
+			"fieldtype": "Datetime",
+			"label": "Bitiş"
+		},
+		{
+			"fieldname": "cb_timing",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "duration_ms",
+			"fieldtype": "Int",
+			"label": "Süre (ms)"
+		},
+		{
+			"fieldname": "peak_memory_mb",
+			"fieldtype": "Float",
+			"label": "Tepe Bellek (MB)",
+			"precision": "1",
+			"description": "Decompression-bomb ve >20MP dosyaların gerçek maliyeti burada görünür. ÖLÇÜLDÜ: 179 dosya >20MP, MAX 72,71 MP."
+		},
+		{
+			"fieldname": "sb_error",
+			"fieldtype": "Section Break",
+			"label": "Hata"
+		},
+		{
+			"fieldname": "error_code",
+			"fieldtype": "Data",
+			"label": "Hata Kodu",
+			"length": 64
+		},
+		{
+			"fieldname": "error_trace",
+			"fieldtype": "Long Text",
+			"label": "Hata İzi"
+		}
+	],
+	"index_web_pages_for_search": 0,
+	"is_submittable": 0,
+	"issingle": 0,
+	"istable": 0,
+	"links": [],
+	"modified": "2026-08-18 00:00:00.000000",
+	"modified_by": "Administrator",
+	"module": "Tradehub Core",
+	"name": "Media Processing Job",
+	"owner": "Administrator",
+	"permissions": [
+		{
+			"role": "System Manager",
+			"read": 1,
+			"write": 1,
+			"create": 1,
+			"delete": 1,
+			"export": 1,
+			"report": 1,
+			"share": 1
+		},
+		{
+			"role": "Marketplace Admin",
+			"read": 1,
+			"write": 1,
+			"create": 1,
+			"delete": 1,
+			"report": 1
+		},
+		{
+			"role": "Marketplace Seller",
+			"read": 1,
+			"report": 1
+		},
+		{
+			"role": "Seller",
+			"read": 1,
+			"report": 1
+		}
+	],
+	"quick_entry": 0,
+	"sort_field": "modified",
+	"sort_order": "DESC",
+	"states": [],
+	"track_changes": 1
+}

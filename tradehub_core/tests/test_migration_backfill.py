@@ -535,6 +535,90 @@ class SaticiBildirimiTesti(unittest.TestCase):
 		self.assertEqual(hedef.gonderilen, [])
 
 
+class PlatformBildirimSinkTesti(unittest.TestCase):
+	"""Somut sink — `SellerNotice`'i `notify()` çağrısına sarar (rapor 98).
+
+	`notify_fn`/`resolve_user_fn` enjekte edilerek canlı site OLMADAN sınanır:
+	sink'in satıcıya doğru zarfı ürettiği, sahibi çözülemeyen mağazayı atladığı,
+	e-posta seçeneğini ilettiği ve `run(notify=True)` yolundan uçtan uca çalıştığı.
+	"""
+
+	def _kayitli_sink(self, kullanicilar, **kw):
+		cagrilar: List[Dict[str, Any]] = []
+
+		def sahte_notify(**kwargs):
+			# Gerçek `notify` oluşan Platform Notification'ın `name`'ini döndürür.
+			cagrilar.append(kwargs)
+			return f"PN-{len(cagrilar):04d}"
+
+		sink = bf.PlatformNotificationSink(
+			notify_fn=sahte_notify,
+			resolve_user_fn=lambda store: kullanicilar.get(store),
+			**kw,
+		)
+		return sink, cagrilar
+
+	def test_bildirim_saticiya_notify_ile_dusurulur(self):
+		sink, cagrilar = self._kayitli_sink({"SELLER-001": "ali@example.com"})
+		notice = bf.SellerNotice(
+			store="SELLER-001",
+			file_name="a.jpg",
+			slot="listing_main",
+			subclass="B1",
+			message="Çözünürlük yetersiz",
+		)
+
+		sink.notify(notice)
+
+		self.assertEqual(len(cagrilar), 1, "satıcıya tam bir Platform Notification düşmeli")
+		c = cagrilar[0]
+		self.assertEqual(c["recipient_user"], "ali@example.com")
+		self.assertEqual(c["reference_doctype"], "Admin Seller Profile")
+		self.assertEqual(c["reference_name"], "SELLER-001")
+		self.assertEqual(c["message"], "Çözünürlük yetersiz")
+		self.assertIn("a.jpg", c["title"])
+		self.assertEqual(c["type"], bf.NOTICE_TYPE)
+		self.assertFalse(c["send_email"])
+		self.assertEqual(sink.sent, 1)
+		self.assertEqual(sink.skipped, 0)
+
+	def test_sahipsiz_magaza_atlanir_notify_EDILMEZ(self):
+		sink, cagrilar = self._kayitli_sink({})  # hiçbir mağazanın sahibi yok
+		sink.notify(
+			bf.SellerNotice(store="YOK", file_name="x", slot="", subclass="B1", message="m")
+		)
+
+		self.assertEqual(cagrilar, [], "sahibi çözülemeyen mağazaya bildirim gitmez")
+		self.assertEqual(sink.sent, 0)
+		self.assertEqual(sink.skipped, 1, "sessizce düşmez — SAYILIR")
+
+	def test_send_email_secenegi_notify_e_iletilir(self):
+		sink, cagrilar = self._kayitli_sink({"S": "u@e.com"}, send_email=True)
+		sink.notify(bf.SellerNotice(store="S", file_name="f", slot="", subclass="B2", message="m"))
+
+		self.assertTrue(cagrilar[0]["send_email"], "e-posta seçeneği notify'a iletilmeli")
+
+	def test_kucuk_backfill_sink_bagli_her_B_bildirimi_duser(self):
+		"""≤5 dosyalık koşum + sink bağlı → her B bildirimi satıcıya düşer."""
+		sink, cagrilar = self._kayitli_sink({"SELLER-001": "ali@example.com"})
+		orch = orkestrator(SahteRunner(), notifier=sink)
+
+		orch.run(plan_uret(a=5, b=2), dry_run=True, notify=True)
+
+		self.assertEqual(len(cagrilar), 2)
+		self.assertEqual(sink.sent, 2)
+
+	def test_VACUITY_sink_yoksa_bildirim_gitmez(self):
+		"""Somut sink olmadan: bildirim ÜRETİLİR ama kanal kopuk — gitmez."""
+		orch = orkestrator(SahteRunner(), notifier=None)
+
+		rapor = orch.run(plan_uret(a=5, b=2), dry_run=True, notify=True)
+
+		# Bildirimler planda var; ne var ki somut sink bağlı değil — rapor 98'in
+		# ölçtüğü hata tam buydu. Sink bağlanınca yukarıdaki test bunları taşır.
+		self.assertEqual(len(rapor.notices), 2)
+
+
 # ═══════════════════════════════════════════════════════════════════════
 # 6. Kapasite aritmetiği
 # ═══════════════════════════════════════════════════════════════════════

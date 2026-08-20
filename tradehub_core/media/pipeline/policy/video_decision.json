@@ -239,6 +239,18 @@
       "level": "4.0",
       "crf": 23,
       "preset": "medium",
+      "rate_control": "capped_crf",
+      "maxrate_kbps": 2500,
+      "min_maxrate_kbps": 300,
+      "budget_from_benefit_gate": true,
+      "bufsize_multiplier": 2,
+      "rate_control_why": [
+        "İLK KOŞUM SABİT CRF 23 İLE YAPILDI VE TEK DOSYA YOLUNDA HIZ DENETİMİ YOKTU. Gerçek kütüphanede ölçüldü (ffmpeg 5.1.9, 2026-08-19, 7 gerçek dosya): 1920×1080 / 1.152,7 kbps / 58,2 sn kaynak 8.504.902 B iken CRF 23 çıktısı 14.490.432 B — kaynaktan %70,4 BÜYÜK. VP9/WebM 1280×720 / 958,2 kbps kaynak 1.200.300 B iken çıktı 1.432.145 B (%19,3 büyük). İkisi de INV-05 fayda kapısından düştü; yani hat gerçek kütüphanede hiçbir şey üretmiyordu.",
+        "Sebep: CRF bir KALİTE hedefidir, bayt tavanı değil. Kaynak zaten hedef kaliteden DÜŞÜK bir bitrate'te kodlanmışsa (telefonla çekilmiş, bir kez daha sıkıştırılmış içerik) CRF 23 kaynaktan daha çok bit harcar. HLS yolunda bu tuzak zaten görülmüş ve capped-CRF ile çözülmüştü (hls.rate_control_why); tek dosya yolunda düzeltme UYGULANMAMIŞTI.",
+        "Düzeltme: capped CRF, tavanı INV-05'ten TÜRETİLMİŞ. Tavan = kaynak toplam bitrate × (1 − min_saving_ratio) − çıktı ses bitrate'i; mutlak tavan maxrate_kbps, taban min_maxrate_kbps. Kapının izin verdiği EN YÜKSEK kaliteyi verir: daha aşağısı gereksiz kalite kaybı, daha yukarısı kapıdan düşmek. Sabit bir çarpan (ör. kaynağın 0,75 katı) ses payını göremez ve sessiz kaynakta bütçeyi boşa harcar — gerekçe rate_ceiling_kbps docstring'inde.",
+        "min_maxrate_kbps=300 tabanı KASITLI: 200 kbps'lik bir kaynağı 150 kbps tavana sıkıştırmak bloklaşma üretir. Taban yüzünden kapıyı geçemeyen dosya ATILIR ve kaynak korunur — bu doğru sonuçtur, kazanılacak bayt zaten yoktur.",
+        "'crf' değeri eski (tavansız) davranışı geri getirir; karşılaştırma ölçümü docs/reports/39-t072-video-hatti.md §2'de."
+      ],
       "pix_fmt": "yuv420p",
       "frame_rate_cap": 30,
       "keyframe_interval_s": 2,
@@ -273,7 +285,25 @@
       "why": "Bugün böyle bir kapı YOK: _run_transcode sonucu koşulsuz yerine yazıyor (transcode.py:366 os.replace). Zaten iyi sıkıştırılmış bir kaynağı yeniden kodlamak dosyayı BÜYÜTEBİLİR ve her hâlükârda kalite kaybettirir; kapı olmadan bu sessizce oluyor.",
       "source": "tradehub_core/media/presets.py MIN_SAVING_RATIO — görsel yolunda uygulanıyor, video yolunda UYGULANMIYOR (product-video.json video.transcode.size_gate_missing_today)",
       "exempt_actions": ["REMUX"],
-      "exempt_reason": "REMUX'un amacı bayt kazanmak değil, ilk kareyi hızlandırmak. +faststart dosyayı birkaç KB BÜYÜTEBİLİR ve bu doğru sonuçtur."
+      "exempt_reason": "REMUX'un amacı bayt kazanmak değil, ilk kareyi hızlandırmak. +faststart dosyayı birkaç KB BÜYÜTEBİLİR ve bu doğru sonuçtur.",
+      "fallback": {
+        "action": "REMUX",
+        "enabled": true,
+        "deliverable_video_codecs": ["h264"],
+        "deliverable_audio_codecs": ["aac", "mp3", ""],
+        "why": [
+          "ÖLÇÜLMÜŞ KUSUR (B-2): kapıdan düşen TRANSCODE, aynı dosyanın REMUX ihtiyacını da öldürüyordu. Gerçek örnek (2026-08-19): 1280×720 / 140,6 kbps / 540 sn kaynak — moov atomu SONDA. Kural moov_at_end REMUX diyor; ama dosya bir TRANSCODE kuralına da takılsaydı (60 fps, verimsiz kodlama, kap) kapıdan düşen çıktı atılıyor ve moov SONDA KALIYORDU. Geri çekilme yolu yoktu.",
+          "Düzeltme: TRANSCODE fayda kapısından düşerse ve kaynağın kap/moov kusuru DURUYORSA, hat REMUX'a geri çekilir. REMUX kapıdan zaten muaf olduğu için bu ikinci koşum her zaman teslim edilebilir bir dosya bırakır.",
+          "KOŞUL: akışlar zaten teslim edilebilir olmalı. VP9/WebM bir kaynağı -c copy ile mp4'e taşımak, tarayıcıda oynamayan bir dosya üretir — kap düzelir, oynatma bozulur. Bu yüzden geri çekilme yalnız deliverable_video_codecs/deliverable_audio_codecs listesindeki akışlar için yapılır; aksi halde kaynak DOKUNULMADAN korunur."
+        ]
+      }
+    },
+    "quality_gate": {
+      "id": "T-072/3-4",
+      "vmaf_min": 93,
+      "max_duration_delta_s": 0.1,
+      "vmaf_note": "GÜNCELLENDİ (2026-08-20, W7): yeni imajdaki ffmpeg n8.1.2 libvmaf'LI (vmaf_available() → True, ölçüldü). Eşik artık transcode() içindeki kalite kapısında UYGULANIYOR: fayda kapısını geçen çıktı VMAF < vmaf_min ise ATILIR ve kaynak korunur (REMUX'a geri çekilme kuralları aynen geçerli). libvmaf'sız bir imajda kapı UYGULANMAZ ve sonuç notuna 'VMAF OLCULEMEDI' yazılır — sahte VMAF üretilmez. ESKİ NOT (2026-08-19, ffmpeg 5.1.9): imaj libvmaf'sızdı, eşik yalnız kâğıt üstündeydi. İlk gerçek ölçümler: şişirilmiş 720p fixture transcode'u 96,63 (GEÇER), gerçek DEV videosu LST-04043 sondası 89,34 (GEÇMEZ — rapor 81 §3.4); eşik kararı tablo sahibinin, buradan değiştirilmedi.",
+      "duration_note": "Kaynak ile çıktının süresi arasındaki fark. 100 ms üstü fark ses/görüntü senkronunun kaydığının ya da kuyruk karelerin düştüğünün işaretidir. Ölçülür ve kayda geçer; çıktı bu yüzden ATILMAZ — süresi 120 ms sapmış bir dosya, hiç dosya olmamasından iyidir. Karar çağıranındır."
     }
   },
 
@@ -331,8 +361,21 @@
       {"name": "720p", "width": 1280, "height": 720, "bitrate_kbps": 2800, "maxrate_kbps": 2996, "bufsize_kbps": 4200, "audio_kbps": 128},
       {"name": "1080p", "width": 1920, "height": 1080, "bitrate_kbps": 5000, "maxrate_kbps": 5350, "bufsize_kbps": 7500, "audio_kbps": 192}
     ],
+    "startup_budget": {
+      "window_s": 10,
+      "max_bytes": 1280000,
+      "typical_bytes": 896000,
+      "source": "tradehub_core/media/pipeline/policy/slots/company-cover-video.json video.mobile_data_budget.first_10s_max_kb = 1250 KB (= 1.280.000 bayt), first_10s_typical_kb = 875 KB",
+      "meaning": "Oynatıcının ilk 10 saniyeyi göstermek için indirmesi gereken bayt — basamak başına ölçülür. Toplam paket baytı bu soruyu CEVAPLAMAZ: 27 MB'lık bir merdivenin ilk 10 saniyesi 700 KB olabilir.",
+      "how_measured": "Medya playlist'indeki #EXTINF süreleri sırayla toplanır; pencere dolana kadar okunan segmentlerin dosya boyutları toplanır. Pencereyi AŞAN segment de sayılır — oynatıcı segmenti bölemez, tamamını indirir."
+    },
     "no_upscale": true,
     "no_upscale_reason": "Kaynak yüksekliğinin ÜSTÜNDEKİ basamaklar üretilmez: 720p kaynaktan 1080p basamağı büyütme yapar, bayt harcar, hiçbir şey kazandırmaz.",
+    "rung_benefit_gate": {
+      "rule": "Toplam baytı kaynaktan KÜÇÜK olmayan basamak master playlist'te İLAN EDİLMEZ; hiçbir basamak küçük değilse paket ilan edilmez (teslim progresif mp4'te kalır).",
+      "applied_by": "tradehub_core/media/pipeline/video/hls.py::enforce_rung_benefit_gate — üretim yolu (media/pipeline_bridge._run_video_job) çağırır; make_hls tek başına UYGULAMAZ (motor merdivenin tamamını üretir ve ölçer, ilan bir TESLİM kararıdır).",
+      "measured_reason": "Rapor 81 §4 (2026-08-20, gerçek DEV videosu 9mb.mp4, 142 kbps): 720p basamağı 12.095.893 B — 9.622.536 B'lık kaynaktan %26 BÜYÜK; 360p 0,76×, 480p 0,82×. Sabit maxrate tavanları (800/1400/2800k) çok verimli kaynağın bitrate'inin üstünde kaldığında CRF 23 kaynaktan fazla bit harcıyor."
+    },
     "current_state": "yok",
     "current_state_evidence": "tradehubfront/src ve admin-panel/frontend/src içinde 'hls' → 0 eşleşme (company-cover-video.json hls.current_state_evidence)"
   }

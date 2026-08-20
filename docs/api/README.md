@@ -284,14 +284,29 @@ if (m.sizes) el.sizes = m.sizes;   // BOŞ ise yazma — yanlış `sizes` boşta
 
 ### 4.2 Admin panel (Vue 3 + Pinia) — istemci üretimi
 
+**2026-08-20'de YAPILDI — bu bölümün eski önerisi (openapi-generator +
+typescript-fetch) UYGULANMADI.** Gerekçe: `typescript-fetch` kendi HTTP
+istemcisini üretir; panelin CSRF/oturum davranışı `src/utils/api.js`te
+merkezî ve ikinci bir HTTP yığını o davranışı sessizce atlardı. Ayrıca
+kaynak belge `openapi.yaml` DEĞİL `openapi-http.yaml`dır — panel yalnız
+gerçekten çağrılabilen `/api/method/…` yüzeyini tüketir.
+
+Uygulanan (depoda duruyor, vendor deseni — `sync-crop-geometry.mjs` ile aynı):
+
 ```bash
 cd admin-panel/frontend
-npx @openapitools/openapi-generator-cli generate \
-    -i ../../tradehub_core/docs/api/openapi.yaml \
-    -g typescript-fetch \
-    -o src/api/media \
-    --additional-properties=supportsES6=true,withInterfaces=true,typescriptThreePlus=true
+npm run sync:api          # openapi-http.yaml → src/lib/api/types.gen.ts (+ sha256 manifesti)
+npm run sync:api:check    # ayrışma kontrolü (CI)
+npm run contract:api      # canlı konteynere karşı yanıt ŞEKLİ testleri (oturumlu dahil)
 ```
+
+* `src/lib/api/types.gen.ts` — `openapi-typescript@7.13`in ürettiği tipler
+  (yalnız tip, çalışma zamanı kodu YOK); `src/lib/api/api.manifest.json`
+  kaynak/çıktı sha256 zincirini taşır.
+* `src/lib/api/client.ts` — `utils/api.js`i SARAN ince tipli katman: zarf
+  açma + uç adı/GET-POST kararı + tipler. CSRF, 401 yönlendirmesi ve hata
+  ayıklama `utils/api.js`te KALIR.
+* Ayrıntı: `docs/reports/80-w6-openapi-sdk.md`.
 
 ### 4.3 Python istemcisi (entegrasyon testleri, betikler)
 

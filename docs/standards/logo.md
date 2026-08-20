@@ -1020,7 +1020,7 @@ Bu, F3 bulgusunun ciddiyetini belirler.
 |---|---|---|---|---|---|
 | **K1** | JPEG logo: RET mi, uyarıyla kabul mü? | JPEG payı **> %10** ⇒ B | **9/18 = %50** | ✅ **ÖLÇÜMLE ÇÖZÜLDÜ** | **B** — kabul + uyarı + geçiş penceresi. Öneri A (ret) **düştü** |
 | **K2** | Oran bandı 1:2…2:1 mi, 1:4…4:1 mi? | Band dışı **> %20** ⇒ B | **2/18 = %11** | ✅ **ÖLÇÜMLE ÇÖZÜLDÜ** | **A onaylandı** — band **1:2…2:1** aynen kaldı |
-| **K3** | Merdiven 4 rung mu, 5 mi (+384)? | 512 rung'u **40 KiB'e yaklaşırsa** ⇒ B | **ÖLÇÜLEMEDİ** | ⏳ **AÇIK** | Varsayılan **A** (4 rung) yürürlükte |
+| **K3** | Merdiven 4 rung mu, 5 mi (+384)? | 512 rung'u **40 KiB'e yaklaşırsa** ⇒ B | **p50 27.162 B · max 109.172 B · 5/18 tavanı AŞIYOR** | ✅ **ÖLÇÜMLE ÇÖZÜLDÜ** | **B** — 5 rung (+384). Varsayılan A **düştü** |
 | **K4** | PNG yedeği üretilsin mi? | sayısal tetik yok | ölçülmedi | ⏳ **AÇIK** | Varsayılan **A** (yalnız kayıpsız WebP) |
 | **K5** | Panelin 400×400 tavsiyesi ne olacak? | sayısal tetik yok (iş kararı) | ölçülmedi | ⏳ **AÇIK** | Varsayılan **A** (512×512), ayrı görev |
 | **K6** | 256 px sert reddi geriye dönük mü? | sayısal tetik yok (ticari karar) | **kısmen**: kısa kenar < 256 = **1/18 = %5,5** | ⏳ **AÇIK** | Varsayılan **A** (yalnız yeni yüklemeler) |
@@ -1136,9 +1136,39 @@ logolarının **kare (simge) sürümü** istenir — `messages.tr.aspect_out_of_
 metni bunu zaten söylüyor. İki dosya için elle temas, 18 dosyalık kümede
 yönetilebilir bir iştir; geriye dönük zorlama K6'ya bağlıdır (açık).
 
-### K3 — Merdiven: 4 rung mu (64/128/256/512), 5 rung mu (+384)? — ⏳ AÇIK
+### K3 — Merdiven: 4 rung mu (64/128/256/512), 5 rung mu (+384)? — ✅ ÖLÇÜMLE ÇÖZÜLDÜ (2026-08-19)
 
-**DURUM: AÇIK. Ölçülemedi — ve bu turda ölçülemezdi.**
+**DURUM: ÇÖZÜLDÜ. SONUÇ B — 5 rung (+384). Öneri A ölçümle DÜŞTÜ.**
+
+Tetik bu belgede **önceden** yazılıydı: *"D4 ölçümü 512 rung'unun gerçek baytını
+verdiğinde, eğer 40 KiB tavanına yakın çıkıyorsa (yani gerçek logolar
+`icon-512.png`'den ağırsa) B'ye geçilmeli."* Dalga A türev üretimini açtığı için
+ölçüm 2026-08-19'da koşuldu — belgenin kendi öngördüğü koşul gerçekleşti.
+
+**Ölçüm** — `Admin Seller Profile.logo` + `Brand.logo`, 20 referans, **18'i diskte
+üretilebildi**; w512 kayıpsız WebP gerçek baytı:
+
+| Ölçüt | Değer | Referans / tavan |
+|---|---:|---|
+| p50 | 27.162 B | `icon-512.png` = 27.128 B |
+| p90 | 83.522 B | — |
+| max | **109.172 B** | tavan 40.960 B'nin **2,7 katı** |
+| Referanstan ağır | **9/18 (%50)** | tetik: "referanstan ağırsa B" |
+| **Tavanı AŞAN** | **5/18 (%28)** | — |
+| Tavana yakın (>%80) | 2/18 | — |
+
+Tetik iki bağımsız okumadan da sağlanıyor. **B yürürlüğe girdi**;
+`seller-logo.json` ve `brand-logo.json` `profiles[]` dizilerine `w384`
+(`max_bytes` 23.040 = 40.960 × 384²/512²) eklendi, `Media Profile` tohumlayıcısı
+2 yeni kayıt üretti.
+
+> **Kararın çözmediği şey — ayrıca ele alınmalı.** En ağır 4 dosya AI üretimi PNG
+> (Gemini/ChatGPT görselleri): fotoğrafımsı içerik, kayıpsız WebP'de doğal olarak
+> şişiyor. 384 rung'u **aşırı-servisi** 1,83× → 1,37× indirir ama 109 KB'lık bir
+> logoyu küçültmez. Ayrıca `max_bytes` türevlerde **yaptırımsız**: aşıldığında
+> yalnız `NOTE_OVERSIZE` notu düşülüyor, ret ya da yeniden kodlama yok
+> (`media/pipeline/image/render.py:934`). Fotoğrafımsı logolar için kayıplı yedek
+> ya da bir içerik kuralı gerekiyor — bu K3'ün kapsamı dışında, yeni görev.
 
 **Neden açık:** Tetik (aşağıda) *"512 rung'unun **gerçek baytı**"* üzerine kurulu.
 O bayt ancak **türev merdiveni üretildikten sonra** ölçülebilir. Bugün türev **hiç
@@ -1225,3 +1255,21 @@ diyor. `engine.py:117` upscale yapmadığı için 400×400 master 512 rung'unu d
 dosya yok), SVG kabulü (slot kapsamı yok), 512 rung'una güvenen herhangi bir render
 (400×400 tavsiyesi onu doğurmuyor), logo dosyalarının toplu yenilenmesi (5 kopya var,
 F15).
+
+---
+
+## VARSAYILANDA ONAYLANAN KARARLAR — 2026-08-19
+
+Aşağıdaki kararlar platform yöneticisi tarafından **varsayılan seçenekte
+onaylanmıştır**. Her birinde varsayılan, bu belgedeki öneriyle zaten aynıydı ve
+hâlihazırda yürürlükteydi — onay hiçbir davranışı değiştirmez, yalnız kararı
+"açık" olmaktan çıkarır. Yanlış bulunan olursa tek satırlık bir değişiklikle
+çevrilebilir.
+
+| # | Karar | Onaylanan | Not |
+|---|---|---|---|
+| **K4** | PNG yedeği üretilsin mi? | **A — yalnız kayıpsız WebP** | Öneriyle aynı |
+| **K5** | Panelin 400×400 tavsiyesi | **A — 512×512** | Öneriyle aynı; panel metni ayrı görev |
+| **K6** | 256 px sert reddi geriye dönük mü? | **A — yalnız yeni yüklemeler** | Öneriyle aynı. Ölçüm: kısa kenar < 256 = 1/18 (%5,5) |
+
+Bu belgedeki hiçbir seçenek tablosu silinmedi; kararlar istenirse yeniden açılabilir.

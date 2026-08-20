@@ -66,6 +66,21 @@ TAIL_BYTES: int = 64 * 1024
 #: ve tehlikeli işaretçi taraması içindir (`is_dangerous` ilk 512 bayta bakar).
 HEAD_BYTES: int = 64 * 1024
 
+#: `getexif()` çağrısı PİKSEL AÇAN biçimler — T-017'de ÖLÇÜLDÜ.
+#: Pillow 12.2.0'da `PngImagePlugin.getexif()` ilk satırında `self.load()`
+#: çağırıyor (`PngImagePlugin.py:1096`). Yani bu modülün "pikselleri AÇMAZ"
+#: sözü PNG'de tutmuyordu: `bomb_100mp.png` kapıda tam olarak decode ediliyor,
+#: 100 MP bellek ayrılıyordu. Ölçüm (aynı Pillow, 64×64 örnek, `Image.load`
+#: sayacı): JPEG 0 · **PNG 2** · WEBP 0 · TIFF 0 · GIF 0 · BMP 0.
+#: PNG'de EXIF kaybı pratikte bedelsiz: PNG'nin oryantasyon konvansiyonu yok,
+#: `eXIf` chunk'ı nadir ve boru hattının EXIF rotasyonu kamera JPEG'i içindir.
+EXIF_DECODES_PIXELS: frozenset[str] = frozenset({"PNG"})
+
+#: Biçimden bağımsız emniyet: bu ölçünün üstünde EXIF hiç okunmaz. Yukarıdaki
+#: liste Pillow sürümüne bağlı; sürüm değişip başka bir biçim de `load()`
+#: çağırmaya başlarsa bomba yine açılmasın.
+EXIF_MAX_MEGAPIXELS: float = 80.0
+
 #: Bu motorun **okuyabildiği** biçimler. `engine.SUPPORTED_FORMATS` (JPEG/PNG/
 #: WEBP/TIFF) motorun YAZABİLDİKLERİ; kapı daha geniştir çünkü GIF/BMP/AVIF
 #: okunup başka biçime çevrilebilir. Kapıdan geçen her dosyanın master'ı
@@ -290,6 +305,117 @@ def _riff_length_ok(head: bytes, size: int) -> bool | None:
 	return (beyan + 8) <= size
 
 
+# ── Beyan edilen ölçü — Pillow'SUZ ──────────────────────────────────────
+#
+# Rapor 75 bulgu 4 (W4 panel E2E, ÖLÇÜLDÜ): Pillow, kendi `MAX_IMAGE_PIXELS`
+# tavanının 2 katının (≈179 MP) üstünde boyut BEYAN eden başlığı hiç açmıyor
+# (`DecompressionBombError`), ölçü 0 okunuyor ve 80 MP tavanı hiç
+# değerlendirilmiyordu — 30000×30000'lik PNG kapıdan 200 ile geçti. En agresif
+# bomba, denetimden "hata yüzünden" muaftı. Bu yüzden beyan edilen ölçü,
+# Pillow'a hiç sorulmadan ilk baytlardan da okunabilmelidir.
+
+#: `declared_dimensions`'ın ham baytlardan ölçebildiği biçimler. Bu kümedeki
+#: bir biçimin ölçüsü OKUNAMIYORSA dosya bozuktur — kapı fail-closed reddeder.
+DIMENSIONS_PARSEABLE: frozenset[str] = frozenset({"png", "jpeg", "gif", "webp", "bmp"})
+
+#: JPEG SOFn işaretçileri — kare ölçüsünü taşıyan segmentler (ITU-T T.81 B.2.2).
+#: C4 (DHT), C8 (JPG) ve CC (DAC) SOF DEĞİLDİR, bilinçli olarak dışarıda.
+_JPEG_SOF_MARKERS: frozenset[int] = frozenset(
+	{0xC0, 0xC1, 0xC2, 0xC3, 0xC5, 0xC6, 0xC7, 0xC9, 0xCA, 0xCB, 0xCD, 0xCE, 0xCF}
+)
+
+
+def _jpeg_dimensions(head: bytes) -> tuple[int, int] | None:
+	"""JPEG segmentlerini SOFn'a kadar yürü — decode YOK (ITU-T T.81 B).
+
+	SOFn her zaman SOS'tan (FFDA) önce gelir; SOS'a ya da tampon sonuna
+	SOF görmeden ulaşılırsa ölçü OKUNAMAMIŞTIR (`None`).
+	"""
+	i, n = 2, len(head)
+	while i + 4 <= n:
+		if head[i] != 0xFF:
+			return None
+		marker = head[i + 1]
+		if marker == 0xFF:  # doldurma baytı (padding)
+			i += 1
+			continue
+		if marker == 0x01 or 0xD0 <= marker <= 0xD7:  # bağımsız işaretçiler
+			i += 2
+			continue
+		if marker in (0xD9, 0xDA):  # EOI / SOS — SOF artık gelmez
+			return None
+		seg_len = int.from_bytes(head[i + 2 : i + 4], "big")
+		if seg_len < 2:
+			return None
+		if marker in _JPEG_SOF_MARKERS:
+			if i + 9 > n:
+				return None
+			h = int.from_bytes(head[i + 5 : i + 7], "big")
+			w = int.from_bytes(head[i + 7 : i + 9], "big")
+			return (w, h)
+		i += 2 + seg_len
+	return None
+
+
+def _webp_dimensions(head: bytes) -> tuple[int, int] | None:
+	"""WebP kanvas ölçüsü — RIFF içindeki VP8/VP8L/VP8X başlığından."""
+	if len(head) < 30 or not head.startswith(b"RIFF") or head[8:12] != b"WEBP":
+		return None
+	dortlu = head[12:16]
+	if dortlu == b"VP8 ":  # lossy: 3B kare etiketi + 9D 01 2A + 2×14 bit ölçü
+		if head[23:26] != b"\x9d\x01\x2a":
+			return None
+		w = int.from_bytes(head[26:28], "little") & 0x3FFF
+		h = int.from_bytes(head[28:30], "little") & 0x3FFF
+		return (w, h)
+	if dortlu == b"VP8L":  # lossless: imza 0x2F + 2×14 bit (ölçü-1)
+		if head[20] != 0x2F:
+			return None
+		bits = int.from_bytes(head[21:25], "little")
+		return ((bits & 0x3FFF) + 1, ((bits >> 14) & 0x3FFF) + 1)
+	if dortlu == b"VP8X":  # extended: 4B bayrak + 2×24 bit (kanvas-1)
+		w = int.from_bytes(head[24:27], "little") + 1
+		h = int.from_bytes(head[27:30], "little") + 1
+		return (w, h)
+	return None
+
+
+def declared_dimensions(head: bytes, detected: str) -> tuple[int, int] | None:
+	"""Başlığın BEYAN ettiği piksel ölçüsü — Pillow'a hiç sorulmadan.
+
+	`None` = bu biçimde okunamadı / başlık bozuk. Dönen değer bir beyan,
+	doğrulanmış içerik değildir: bomba kararı için tam da beyan gerekir
+	(gövde zaten decode edilmeyecek). 0/negatif değerler OLDUĞU GİBİ döner;
+	fail-closed ret kararı çağırana aittir.
+	"""
+	if detected == "png":
+		# imza(8) + uzunluk(4) + "IHDR"(4) + genişlik(4 BE) + yükseklik(4 BE)
+		if len(head) >= 24 and head[12:16] == b"IHDR":
+			return (int.from_bytes(head[16:20], "big"), int.from_bytes(head[20:24], "big"))
+		return None
+	if detected == "jpeg":
+		return _jpeg_dimensions(head)
+	if detected == "gif":
+		# "GIF87a/89a"(6) + mantıksal ekran genişlik/yükseklik (2×LE uint16)
+		if len(head) >= 10:
+			return (int.from_bytes(head[6:8], "little"), int.from_bytes(head[8:10], "little"))
+		return None
+	if detected == "webp":
+		return _webp_dimensions(head)
+	if detected == "bmp":
+		if len(head) < 22:
+			return None
+		hdr = int.from_bytes(head[14:18], "little")
+		if hdr == 12:  # BITMAPCOREHEADER: 2×LE uint16
+			return (int.from_bytes(head[18:20], "little"), int.from_bytes(head[20:22], "little"))
+		if hdr >= 40 and len(head) >= 26:  # BITMAPINFOHEADER+: 2×LE int32
+			w = int.from_bytes(head[18:22], "little", signed=True)
+			h = int.from_bytes(head[22:26], "little", signed=True)
+			return (w, abs(h))  # negatif yükseklik = top-down BMP, meşru
+		return None
+	return None
+
+
 # ── Başlık açma ─────────────────────────────────────────────────────────
 
 
@@ -334,13 +460,29 @@ def _open_header(src) -> dict:
 						out["dpi"] = (float(dpi[0]), float(dpi[1]))
 					except Exception:
 						pass
-				try:
-					exif = im.getexif()
-					deger = exif.get(0x0112) if exif else None
-					if deger:
-						out["exif_orientation"] = int(deger)
-				except Exception:
-					pass
+				# EXIF okuması bazı biçimlerde pikselleri AÇIYOR (bkz.
+				# `EXIF_DECODES_PIXELS`). Kapının tek işi açmadan karar
+				# vermek olduğu için burada okumak yerine ATLANIYOR ve
+				# atlandığı künyeye yazılıyor — "ölçülmedi", "1" değil.
+				megapiksel = (out["width"] * out["height"]) / 1_000_000.0
+				if out["fmt"] in EXIF_DECODES_PIXELS or megapiksel > EXIF_MAX_MEGAPIXELS:
+					out["exif_skipped"] = True
+				else:
+					try:
+						exif = im.getexif()
+						deger = exif.get(0x0112) if exif else None
+						if deger:
+							out["exif_orientation"] = int(deger)
+					except Exception:
+						pass
+	except Image.DecompressionBombError as exc:
+		# Pillow, beyan edilen ölçü kendi tavanının (MAX_IMAGE_PIXELS×2)
+		# üstündeyse başlığı HİÇ açmaz. Bu bir "okunamadı" değil, "bomba
+		# beyanı" sinyalidir — kapı bunu görmezse en agresif bomba denetimden
+		# kaçar (rapor 75 bulgu 4). Ayrı işaretlenir ki `_guard` fail-closed
+		# reddedebilsin.
+		out["decompression_bomb"] = True
+		out["error"] = f"{type(exc).__name__}: {exc}"
 	except Exception as exc:  # noqa: BLE001 — kapı hiçbir girdide patlamamalı
 		out["error"] = f"{type(exc).__name__}: {exc}"
 	return out
@@ -407,6 +549,15 @@ def probe_header(
 	baslik = _open_header(acilacak)
 	fmt = baslik.get("fmt", "")
 
+	# Pillow başlığı açamadıysa (ör. kendi ~179 MP tavanı) BEYAN edilen ölçü
+	# ham baytlardan okunur — piksel tavanı ölçüsüz kalıp atlanmasın
+	# (rapor 75 bulgu 4: 30000×30000 PNG "boyut 0" diye kuraldan kaçıyordu).
+	if not (baslik.get("width") and baslik.get("height")):
+		beyan = declared_dimensions(head, detected)
+		if beyan is not None:
+			baslik["width"], baslik["height"] = beyan
+			baslik["size_from_raw_header"] = True
+
 	kesik = tail_is_complete(tail, detected)
 	if kesik is None and detected == "webp":
 		riff = _riff_length_ok(head, size)
@@ -435,7 +586,11 @@ def probe_header(
 		appended_payload=appended,
 		extension_matches_content=eslesme,
 		source_kind=kaynak,
-		extra={k: v for k, v in baslik.items() if k in ("error", "pillow_missing")},
+		extra={
+			k: v
+			for k, v in baslik.items()
+			if k in ("error", "pillow_missing", "exif_skipped", "decompression_bomb", "size_from_raw_header")
+		},
 	)
 	return _guard(p, config)
 
@@ -500,6 +655,34 @@ def _guard(p: HeaderProbe, config: GuardConfig) -> HeaderProbe:
 			)
 		)
 
+	# PİKSEL TAVANI — bomba koruması. Başlıktaki (gerekirse ham baytlardan
+	# okunan) BEYAN ölçüsünden hesaplanır; `im.load()` bu noktaya kadar HİÇ
+	# çağrılmadı. Kural `readable`'dan BAĞIMSIZ ve FAIL-CLOSED: Pillow'un
+	# kendi tavanının üstünde boyut beyan eden dosyayı Pillow hiç açmaz;
+	# ölçü ham baytlardan da okunamadıysa `decompression_bomb` işareti tek
+	# başına RET'tir. Aksi hâlde en agresif bomba, "başlık açılamadı"nın
+	# gölgesinde piksel tavanından muaf kalırdı (rapor 75 bulgu 4, ÖLÇÜLDÜ:
+	# 30000×30000 PNG kapıdan 200 ile geçti).
+	if config.max_megapixels:
+		if p.megapixels > config.max_megapixels:
+			retler.append(
+				Rejection(
+					SEBEP_MEGAPIXEL_BOMB,
+					"Görsel çözünürlüğü sınırı aşıyor; açılmadan reddedildi.",
+					observed=round(p.megapixels, 3),
+					expected=config.max_megapixels,
+				)
+			)
+		elif p.extra.get("decompression_bomb") and (p.width <= 0 or p.height <= 0):
+			retler.append(
+				Rejection(
+					SEBEP_MEGAPIXEL_BOMB,
+					"Görsel çözünürlüğü sınırı aşıyor; açılmadan reddedildi.",
+					observed="declared_over_decoder_limit",
+					expected=config.max_megapixels,
+				)
+			)
+
 	if not p.readable:
 		retler.append(
 			Rejection(
@@ -516,18 +699,6 @@ def _guard(p: HeaderProbe, config: GuardConfig) -> HeaderProbe:
 					"Bu görsel biçimi işlenemiyor.",
 					observed=p.fmt,
 					expected=sorted(config.allowed_formats),
-				)
-			)
-
-		# PİKSEL TAVANI — bomba koruması. Başlıktaki ölçüden hesaplanır;
-		# `im.load()` bu noktaya kadar HİÇ çağrılmadı.
-		if config.max_megapixels and p.megapixels > config.max_megapixels:
-			retler.append(
-				Rejection(
-					SEBEP_MEGAPIXEL_BOMB,
-					"Görsel çözünürlüğü sınırı aşıyor; açılmadan reddedildi.",
-					observed=round(p.megapixels, 3),
-					expected=config.max_megapixels,
 				)
 			)
 
@@ -602,6 +773,9 @@ def guard_only(p: HeaderProbe, config: GuardConfig) -> HeaderProbe:
 
 __all__ = [
 	"DEFAULT_GUARD",
+	"DIMENSIONS_PARSEABLE",
+	"EXIF_DECODES_PIXELS",
+	"EXIF_MAX_MEGAPIXELS",
 	"HEAD_BYTES",
 	"READABLE_FORMATS",
 	"SEBEP_APPENDED_PAYLOAD",
@@ -612,6 +786,7 @@ __all__ = [
 	"ImageRejected",
 	"Rejection",
 	"assert_accepted",
+	"declared_dimensions",
 	"guard_only",
 	"probe_header",
 	"sniff",

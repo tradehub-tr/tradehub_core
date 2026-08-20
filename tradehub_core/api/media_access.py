@@ -25,11 +25,22 @@ ile HMAC-SHA512) kullanılır.
 o dosyaya erişir (bilinçli — paylaşım özelliğinin amacı bu). Bu yüzden TTL
 üst sınırla clamp'lenir (varsayılan sınırsız DEĞİL).
 
+T-052 EKİ — imza artık İÇERİĞE de bağlı
+---------------------------------------
+İmzalanan parametrelere `blob` (satırın `content_hash`'i) eklendi. Sebep:
+aynı `file_url` altında birden çok `File` satırı olabiliyor ve satır↔blob
+bağı kopabiliyor (ölçüm 2026-08-19: 5 özel URL'de 2 ayrı `content_hash`).
+`download()` satırı hiç yüklemediği için `media/file_isolation.py`'nin
+`blob_matches_row` daraltması bu yolda çalışmıyordu; artık `_blob_binding_ok`
+ile diskteki içerik imzanın kapsadığıyla karşılaştırılıyor. Detay:
+docs/reports/27-t052-cdn-teslim.md §6.
+
 Detay: docs/MEDYA-ERISIM-MODELI.md §3.
 """
 
 from __future__ import annotations
 
+import hmac
 import time
 
 import frappe
@@ -38,7 +49,7 @@ from frappe.core.doctype.file.utils import check_path_safety
 from frappe.utils.response import send_private_file
 from frappe.utils.verified_command import get_signed_params, verify_request
 
-from tradehub_core.media import audit
+from tradehub_core.media import audit, file_isolation
 
 # Yalnız private dosyalar imzalanabilir — public zaten girişsiz açık
 # (docs/MEDYA-ERISIM-MODELI.md §2.1), imza gereksiz + güvenlik riski
@@ -99,6 +110,61 @@ def _log_denied(reason: str, file_url: str = "") -> None:
 	)
 
 
+def _blob_binding_ok(file_url: str) -> bool:
+	"""İmzanın kapsadığı `blob` diskteki içerikle örtüşüyor mu (T-052 · Ö-2).
+
+	NEDEN VAR
+	---------
+	`download()` guest'e açık ve **hiçbir `File` satırı yüklemiyor** — imzayı
+	doğrulayıp `send_private_file` çağırıyor. Yani `media/file_isolation.py`
+	içindeki iki daraltma da bu yolda ÇALIŞMIYOR:
+
+	  - `TenantIsolatedFile.is_downloadable()` (kiracı kuralı + blob eşleşmesi)
+	    yalnız `find_file_by_url` → `frappe.get_doc("File", ...)` yolunda
+	    çağrılıyor; burada öyle bir çağrı yok.
+	  - `file_has_permission` kancası `has_permission("read")` üzerinden
+	    imzalama anında çalışıyor ama `blob_matches_row`'u ÇAĞIRMIYOR — o
+	    kontrol yalnız `is_downloadable()` içinde.
+
+	Sonuç: satır↔blob bağı kopuk (`file_url` aynı, `content_hash` farklı) bir
+	URL'de oturumla indirme reddedilirken imzalı link aynı bloba erişebiliyordu.
+	Ölçüm (2026-08-19, `istoc.localhost`): 5 özel URL'de 2 ayrı `content_hash`,
+	arkalarında 4–18 satır sahibi.
+
+	POLİTİKA — burada FAIL-CLOSED, `blob_matches_row`'da fail-open
+	-------------------------------------------------------------
+	`file_isolation.blob_matches_row` karar veremediğinde (hash yok, dosya
+	okunamıyor, 64 MB üstü) `True` döner; orada bu güvenlidir çünkü ALTINDA
+	kiracı kuralı zaten çalışmıştır. Burada altta hiçbir şey yok — istek
+	guest, tek yetki kanıtı imza. Bu yüzden karar verilemeyen durumda
+	reddediyoruz. Asimetri bilinçli.
+
+	MASRAF
+	------
+	`_url_is_ambiguous` tek bir COUNT sorgusu ve 5 dk cache'li; URL belirsiz
+	DEĞİLSE (vakaların ~%99'u) md5 hiç hesaplanmaz.
+
+	`file_isolation`'ın alt çizgili yardımcıları çağrılıyor: o modül bu görevde
+	değişime kapalı (T-052 kapsam kuralı), public sarmalayıcı eklenemedi.
+	Devir notu: `url_is_ambiguous` / `blob_hash` orada public'e çıkarılmalı.
+	"""
+	if not file_isolation._url_is_ambiguous(file_url):
+		return True
+
+	claimed = (frappe.form_dict.get("blob") or "").strip()
+	if not claimed:
+		# Bu değişiklikten ÖNCE üretilmiş link (`blob` parametresi yok).
+		# Belirsiz URL'de hangi bloba yetki verildiği bilinemez → reddet.
+		# Etki penceresi MAX_TTL_SECONDS (24 saat) ile sınırlı.
+		return False
+
+	disk = file_isolation._blob_hash(file_url)
+	if not disk:
+		return False
+
+	return hmac.compare_digest(disk, claimed)
+
+
 @frappe.whitelist()
 def get_signed_url(file_url: str, ttl_seconds: int = DEFAULT_TTL_SECONDS) -> dict:
 	"""Çağıranın read yetkisi olan bir private dosya için imzalı süreli link üret.
@@ -130,9 +196,30 @@ def get_signed_url(file_url: str, ttl_seconds: int = DEFAULT_TTL_SECONDS) -> dic
 		)
 		frappe.throw(_("Bu dosyaya erişim yetkiniz yok."), frappe.PermissionError)
 
+	# `has_permission("read")` kiracı kancasından geçer ama
+	# `TenantIsolatedFile.is_downloadable()`'dan GEÇMEZ — `blob_matches_row`
+	# yalnız orada. İmza bir taşıyıcı (bearer) yetkisidir: `download()` satırı
+	# hiç yüklemez, o yüzden reddin YERİ burasıdır (bkz. `_blob_binding_ok`).
+	if not file_isolation.blob_matches_row(file_doc):
+		audit.log_media_event(
+			action=audit.ACTION_ACCESS_DENIED,
+			file_url=file_url,
+			allowed=False,
+			reason="blob_mismatch",
+		)
+		frappe.throw(_("Bu dosyaya erişim yetkiniz yok."), frappe.PermissionError)
+
 	ttl = _clamp_ttl(ttl_seconds)
 	exp = int(time.time()) + ttl
-	signed = get_signed_params({"file": file_url, "exp": exp})
+
+	# `blob` imzanın KAPSAMINA girer (`get_signed_params` tüm parametreleri
+	# imzalar) — böylece `download()` satırı yüklemeden de hangi içeriğe yetki
+	# verildiğini bilir ve diskteki bayt dizisiyle karşılaştırabilir.
+	params: dict[str, object] = {"file": file_url, "exp": exp}
+	content_hash = (file_doc.get("content_hash") or "").strip()
+	if content_hash:
+		params["blob"] = content_hash
+	signed = get_signed_params(params)
 
 	return {
 		"url": "/api/method/tradehub_core.api.media_access.download?" + signed,
@@ -147,7 +234,8 @@ def download():
 
 	Sıra: imza doğrula → path doğrula (defansif) → süre doğrula → path
 	tekrar doğrula (disk'e inmeden hemen önce, ikinci savunma katmanı) →
-	serve et → audit'e yaz. **Her red dalı da denetime yazılır** (`_log_
+	blob bağını doğrula (T-052, `_blob_binding_ok`) → serve et → audit'e yaz.
+	**Her red dalı da denetime yazılır** (`_log_
 	denied`) — guest'e açık bir uçnokta olduğu için aksi hâlde brute-force/
 	probe denemeleri hiç iz bırakmadan geçer.
 	"""
@@ -189,6 +277,13 @@ def download():
 	if not check_path_safety(base_path=private_root, requested_path=target):
 		_log_denied("bad_path", file_url)
 		frappe.throw(_("Geçersiz dosya yolu."), frappe.PermissionError)
+
+	# Son kapı: imzanın kapsadığı içerik ile diskteki içerik aynı mı.
+	# `check_path_safety` "doğru dizinde miyiz" der; bu kontrol "doğru bayt
+	# dizisi mi" der — çok satırlı URL'lerde ikisi farklı sorulardır.
+	if not _blob_binding_ok(file_url):
+		_log_denied("blob_mismatch", file_url)
+		frappe.throw(_("Bağlantı geçersiz."), frappe.PermissionError)
 
 	response = send_private_file(relative)
 

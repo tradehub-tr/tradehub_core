@@ -398,7 +398,10 @@ def classify(row: dict, slots: list[str], *, sensitive: bool, probe=None) -> dic
 	O fonksiyon `import frappe` içermeyen saf bir fonksiyondur (gates.py:1).
 	"""
 	from tradehub_core.media import gates, presets, states
-	from tradehub_core.media.pipeline import SUPPORTED_FORMATS
+	# DÜZELTME (T-028 koşumu): SUPPORTED_FORMATS `media/pipeline` paketinde YOK,
+	# `media/engine.py:21`'de tanımlı (gates.py:16 de oradan alıyor). Eski satır
+	# `from tradehub_core.media.pipeline import SUPPORTED_FORMATS` ImportError veriyordu.
+	from tradehub_core.media.engine import SUPPORTED_FORMATS
 
 	url = row["file_url"]
 	boyut = int(row.get("file_size") or 0)

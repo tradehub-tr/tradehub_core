@@ -4,8 +4,8 @@
   "generated_for": "Faz 11 / T-111",
   "source_report": "docs/reports/03-render-envanteri.md",
   "storefront_root": "/Users/ahmet/Desktop/istoc/tradehubfront/src",
-  "measurement_status": "CSS_OKUNARAK_HESAPLANDI_TARAYICIDA_DOGRULANMADI",
-  "measurement_note": "Kutu genişlikleri storefront kaynağındaki Tailwind sınıflarından ARİTMETİK olarak türetildi. Tarayıcıda `getBoundingClientRect()` ile DOĞRULANMADI. Kaydırma çubuğu (masaüstünde ~15px) hesaba katılmaz. Doğrulama komutu: docs/ui/faz11-simulator.md §5.",
+  "measurement_status": "KISMEN_DOGRULANDI_8_BOLGE_15TEN_GERCEK_TARAYICIDA",
+  "measurement_note": "Kutu genişlikleri storefront kaynağındaki Tailwind sınıflarından ARİTMETİK olarak türetildi. 2026-08-20'de 15 bölgenin 8'i GERÇEK tarayıcıda getBoundingClientRect() ile doğrulandı (T-115 drift ölçümü, 13 cihaz × 85 ölçüm; ölçüm dosyası admin-panel/frontend/src/lib/media/simulator/__tests__/fixtures/drift-measurements.json, rapor docs/reports/59-fe2-drift-testi.md). Ölçüm dört bölgede sapma buldu (en büyüğü 80,68px) ve dördü de bu dosyada düzeltildi; yeniden ölçümde 85 satırın hiçbiri 2px eşiğini aşmıyor. HÂLÂ DOĞRULANMAMIŞ 7 bölge: home/tailored_grid, listing/brand_grid, product_detail/related_slider, product_detail/lightbox_thumb, cart_checkout/sku_row, cart_checkout/product_item, cart_checkout/drawer_thumb — bunların değerleri hâlâ yalnız CSS'ten türetme. Kaydırma çubuğu (masaüstünde ~15px) hesaba katılmaz. Doğrulama komutu: node scripts/drift-measure.mjs --dist <tradehubfront/dist>",
 
   "breakpoints": {
     "$comment": "tradehubfront/src/style.css:256-260 — Tailwind varsayılanları EZİLMİŞ. Bu projede lg=768, xl=1024.",
@@ -54,13 +54,13 @@
           "render_point": "R1 (ListingCard) — components/hero/ProductGrid.ts:184-185",
           "lcp_candidate": true,
           "box": [
-            { "min_vw": 1536, "grid": { "container": "boxed", "cols": 7, "gap": 16 } },
-            { "min_vw": 1024, "grid": { "container": "boxed", "cols": 6, "gap": 16 } },
-            { "min_vw": 768,  "grid": { "container": "boxed", "cols": 4, "gap": 16 } },
-            { "min_vw": 640,  "grid": { "container": "boxed", "cols": 3, "gap": 16 } },
-            { "min_vw": 0,    "grid": { "container": "boxed", "cols": 2, "gap": 16 } }
+            { "min_vw": 1536, "grid": { "container": "boxed", "subtract_px": 14, "cols": 7, "gap": 16 } },
+            { "min_vw": 1024, "grid": { "container": "boxed", "subtract_px": 12, "cols": 6, "gap": 16 } },
+            { "min_vw": 768,  "grid": { "container": "boxed", "subtract_px": 8,  "cols": 4, "gap": 16 } },
+            { "min_vw": 640,  "grid": { "container": "boxed", "subtract_px": 6,  "cols": 3, "gap": 16 } },
+            { "min_vw": 0,    "grid": { "container": "boxed", "subtract_px": 4,  "cols": 2, "gap": 16 } }
           ],
-          "derived_from": "components/hero/ProductGrid.ts:184 grid-cols-2 md:3 lg:4 xl:6 2xl:7; gap style.css:580 --product-grid-gap:16px (ProductGrid.ts:185 inline). Doğrulama: docs/reports/03-render-envanteri.md §3.2 tablosunun 10 satırı da bu kuralla birebir üretilir."
+          "derived_from": "components/hero/ProductGrid.ts:184 grid-cols-2 md:3 lg:4 xl:6 2xl:7; gap style.css:580 --product-grid-gap:16px (ProductGrid.ts:185 inline). DÜZELTME (T-115, docs/reports/59): kutu ızgara SÜTUNU değil, kartın kenarlık İÇİ alanıdır — shared/ListingCard.ts:405 sarmalayıcısı `border border-gray-200` taşıyor. Sütun başına 2px (1px×2) düşülür; `subtract_px` toplam olduğu için her adımda 2×cols. Gerçek tarayıcıda 13/13 cihazda sabit −2,00px ölçüldü."
         },
         {
           "region": "top_deals",
@@ -69,14 +69,16 @@
           "render_point": "R10 — components/hero/TopDeals.ts:58-65, ızgara :236",
           "lcp_candidate": false,
           "box": [
-            { "min_vw": 1000, "grid": { "container": "boxed", "cols": 6, "gap": 16 } },
-            { "min_vw": 850,  "grid": { "container": "boxed", "cols": 5, "gap": 16 } },
-            { "min_vw": 768,  "grid": { "container": "boxed", "cols": 4, "gap": 16 } },
-            { "min_vw": 550,  "grid": { "container": "boxed", "cols": 3, "gap": 12 } },
-            { "min_vw": 480,  "grid": { "container": "boxed", "cols": 2, "gap": 12 } },
-            { "min_vw": 0,    "grid": { "container": "boxed", "cols": 2, "gap": 8 } }
+            { "min_vw": 1920, "grid": { "container": "boxed", "subtract_px": 29.5, "cols": 6, "gap": 16 } },
+            { "min_vw": 1440, "grid": { "container": "boxed", "subtract_px": 25.5, "cols": 6, "gap": 16 } },
+            { "min_vw": 1000, "grid": { "container": "boxed", "subtract_px": 22.5, "cols": 6, "gap": 16 } },
+            { "min_vw": 850,  "grid": { "container": "boxed", "subtract_px": 20.2, "cols": 5, "gap": 16 } },
+            { "min_vw": 768,  "grid": { "container": "boxed", "subtract_px": 19.3, "cols": 4, "gap": 16 } },
+            { "min_vw": 550,  "grid": { "container": "boxed", "subtract_px": 18,   "cols": 3, "gap": 12 } },
+            { "min_vw": 480,  "grid": { "container": "boxed", "subtract_px": 17,   "cols": 2, "gap": 12 } },
+            { "min_vw": 0,    "grid": { "container": "boxed", "subtract_px": 16,   "cols": 2, "gap": 8 } }
           ],
-          "derived_from": "components/hero/TopDeals.ts:236 grid-cols-2 min-[550px]:3 lg:4 min-[850px]:5 min-[1000px]:6 + gap-x-2 sm:gap-x-3 lg:gap-x-4 (8/12/16px). Doğrulama: §3.3."
+          "derived_from": "components/hero/TopDeals.ts:236 grid-cols-2 min-[550px]:3 lg:4 min-[850px]:5 min-[1000px]:6 + gap-x-2 sm:gap-x-3 lg:gap-x-4 (8/12/16px). DÜZELTME (T-115, docs/reports/59): ızgaranın hemen üstündeki sarmalayıcı (TopDeals.ts:212) `padding: var(--space-card-padding)` taşıyor; katalog bunu hiç düşmüyordu. Token style.css:353'te `clamp(0.5rem, 0.4rem + 0.4vw, 1rem)` — yani iki yan toplamı `clamp(16, 12.8 + 0.008×vw, 32)` px. YAKLAŞIKTIR: bu şema adım fonksiyonu tutar, akışkan (clamp) değer tutamaz; adımlar viewport bantlarına göre seçildi. Ölçülen 13 cihazda kalan hata ≤0,42px (eşik 2px). 1920 ve 1440 adımları YALNIZ bu düşüm için var — sütun sayısı 1000'dekiyle aynı."
         },
         {
           "region": "tailored_grid",
@@ -111,9 +113,10 @@
             { "min_vw": 1280, "grid": { "container": "boxed", "subtract_px": 280, "cols": 5, "gap": 16 } },
             { "min_vw": 1024, "grid": { "container": "boxed", "subtract_px": 280, "cols": 3, "gap": 16 } },
             { "min_vw": 768,  "grid": { "container": "boxed", "subtract_px": 264, "cols": 3, "gap": 16 } },
-            { "min_vw": 0,    "grid": { "container": "boxed", "subtract_px": 0,   "cols": 2, "gap": 16 } }
+            { "min_vw": 480,  "grid": { "container": "boxed", "subtract_px": 0,   "cols": 2, "gap": 16 } },
+            { "min_vw": 0,    "grid": { "container": "boxed", "subtract_px": 4,   "cols": 2, "gap": 16 } }
           ],
-          "derived_from": "pages/products.ts:147 container-boxed → :163 flex gap-4 lg:gap-6 → :166 hidden lg:block → components/products/FilterSidebar.ts:557 w-full lg:w-60 xl:w-64 (240/256px) → ProductListingGrid.ts:94 grid-cols-2 lg:3 min-[1280px]:5, gap 16. subtract_px = kenar çubuğu + flex gap (256+24=280 / 240+24=264). Doğrulama: §3.1'in 10 satırı da birebir çıkar.",
+          "derived_from": "pages/products.ts:147 container-boxed → :163 flex gap-4 lg:gap-6 → :166 hidden lg:block → components/products/FilterSidebar.ts:557 w-full lg:w-60 xl:w-64 (240/256px) → ProductListingGrid.ts:94 grid-cols-2 lg:3 min-[1280px]:5, gap 16. subtract_px = kenar çubuğu + flex gap (256+24=280 / 240+24=264). Doğrulama: §3.1'in 10 satırı da birebir çıkar. DÜZELTME (T-115, docs/reports/59): 480px ALTINDA kartın kenarlığı var — shared/ListingCard.ts:513 ızgara kipinde `border border-gray-200` ekliyor, :514 ise `min-[480px]:…:border-0` ile geri alıyor. 5 telefonun (360-430px) hepsinde tam −2,00px ölçüldü, 744px ve üstünde sapma ~0. Bu yüzden 480 adımı AYRILDI ve yalnız alt adıma 2px×2sütun = 4px `subtract_px` kondu. Not: 430 ile 744 arasında ölçülen cihaz YOK; 480 sınırı ölçümden değil CSS'ten geliyor.",
           "anomaly": "Kutu viewport ile MONOTON ARTMIYOR: 640'ta 296px, 768'de 146,7px'e DÜŞER (3 sütun + 240px filtre çubuğu aynı anda açılır). `sizes` bu yüzden tek bir `Xvw` ifadesiyle yazılamaz."
         },
         {
@@ -216,14 +219,13 @@
           "region": "summary_strip",
           "title": "Sepet/ödeme özet şeridi",
           "slot_key": "product.image",
-          "render_point": "R15 — components/cart/page/CartSummary.ts:20-22",
+          "render_point": "R15 — alpine/cart.ts:639 (/sepet gerçek render noktası)",
           "lcp_candidate": false,
           "box": [
             { "min_vw": 480, "px": 64 },
-            { "min_vw": 380, "px": 56 },
-            { "min_vw": 0,   "px": 48 }
+            { "min_vw": 0,   "px": 56 }
           ],
-          "derived_from": "CartSummary.ts:20 — 56×56 taban, <380px'te 48×48, sm(480)+ 64×64. §3.8."
+          "derived_from": "alpine/cart.ts:639 — `w-14 h-14 sm:w-16 sm:h-16`, yani İKİ basamak (56 / 64). DÜZELTME (T-115, docs/reports/59): katalog eskiden components/cart/page/CartSummary.ts:20'ye dayanıyordu ve oradaki `max-[380px]:w-12` (48px) basamağını taşıyordu; ama /sepet sayfası o bileşeni RENDER ETMİYOR. Gerçek tarayıcıda 375px ve 360px'te kutu 56px ölçüldü (katalog 48 diyordu, +8,00px). 380px basamağı kaldırıldı."
         },
         {
           "region": "sku_row",
@@ -268,11 +270,12 @@
           "render_point": "R18 — components/seller/CompanyProfile.ts:806, ızgara :802",
           "lcp_candidate": true,
           "box": [
-            { "min_vw": 1024, "grid": { "container": "seller_shell", "subtract_px": 48, "cols": 4, "gap": 16 } },
-            { "min_vw": 480,  "grid": { "container": "seller_shell", "subtract_px": 32, "cols": 3, "gap": 16 } },
-            { "min_vw": 0,    "grid": { "container": "seller_shell", "subtract_px": 32, "cols": 2, "gap": 16 } }
+            { "min_vw": 1024, "grid": { "container": "seller_shell", "subtract_px": 290, "cols": 4, "gap": 16 } },
+            { "min_vw": 768,  "grid": { "container": "seller_shell", "subtract_px": 274, "cols": 3, "gap": 16 } },
+            { "min_vw": 480,  "grid": { "container": "seller_shell", "subtract_px": 34,  "cols": 3, "gap": 16 } },
+            { "min_vw": 0,    "grid": { "container": "seller_shell", "subtract_px": 34,  "cols": 2, "gap": 16 } }
           ],
-          "derived_from": "pages/seller-shop.ts:120 max-w-[1200px] px-4 lg:px-8 → CompanyProfile.ts:786 kart p-4 xl:p-6 (subtract_px 32/48) → :802 grid-cols-2 sm:3 xl:4 gap-4. Bu bölge §3'te AYRI TABLO OLARAK YOKTU; buradaki değerler aynı yöntemle YENİ hesaplandı."
+          "derived_from": "pages/seller-shop.ts:120 max-w-[1200px] px-4 lg:px-8 → CompanyProfile.ts:786 kart p-4 xl:p-6 → :802 grid-cols-2 sm:3 xl:4 gap-4. DÜZELTME (T-115, docs/reports/59): katalog mağaza sayfasının SOL KENAR ÇUBUĞUNU hiç modellememişti. Gerçek tarayıcı ölçümünden çözülen düşüm zinciri — kenar çubuğu + boşluk = 240px (768px ve üstünde, `lg:flex-row` devreye girince), kartın kenarlığı = 2px (her bantta), kart dolgusu = 32px (p-4) / 48px (xl:p-6). Toplam: 32+2=34 (<768) · 32+2+240=274 (768-1023) · 48+2+240=290 (≥1024). 768 adımı YENİ: kenar çubuğu 480 adımının ortasında devreye giriyordu. Ölçülen 12 cihazın 12'sinde kalan hata ≤0,02px. Not: ölçüm /magaza/<slug> üzerinde yapıldı (CompanyProfile orada render ediliyor)."
         }
       ]
     }

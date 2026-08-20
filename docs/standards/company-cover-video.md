@@ -787,6 +787,66 @@ kotayı şişirmesin") ve yalnız master kotadan sayılsın.
 
 ---
 
+---
+
+## 10.9 ONAYLANAN KARARLAR — 2026-08-19 (platform yöneticisi)
+
+Aşağıdaki üç karar platform yöneticisi tarafından verildi. Varsayılanlar
+yürürlükten kalktı; her birinin uygulama işi ayrı görev olarak açılmalıdır.
+
+| # | Karar | Sonuç | Öneriyle uyum |
+|---|---|---|---|
+| **K2** | `ambient` mod | ✅ **AÇILDI — yalnız doğrulanmış (verified) satıcılara** | Öneriyle **aynı** |
+| **K7** | Rendition'lar medya kotasından sayılsın mı? | ✅ **SAYILSIN** | Öneriden **AYRILDI** ⚠️ |
+| **K8** | Mevcut içerik için geçiş penceresi | ✅ **Yeni yüklemelere hemen; mevcut kapaklara dokunulmaz** | Öneriyle **aynı** |
+
+### K2 — uygulama notu
+Kapı `VerificationBadge` altyapısına bağlanacak
+(`components/seller/VerificationBadge.ts`, `seller.verifications`). Doğrulanmamış
+satıcıda `ambient` istenirse sessizce standart moda düşülür — hata gösterilmez.
+Ölçümün zayıf desteği: 23 videonun **19'unda ses akışı yok**, yani sessiz-döngü
+içerik zaten yaygın.
+
+### K7 — ⚠️ öneriden ayrılan karar ve BEDELİ
+Belgedeki öneri "rendition'lar `File` kaydı açmasın, yalnız master kotadan
+sayılsın" idi. **Karar bunun tersi: rendition'lar da kotadan sayılacak.**
+
+**⚠️ DÜZELTME — 2026-08-19, ölçümle.** Bu bölüm ilk yazıldığında "yaklaşık
+6 kat" diyordu. `docs/reports/18-faz7-kapanis.md` 3 gerçek kapak videosunda
+tarttı ve sayıyı düşürdü:
+
+| Ne | İlk iddia | ÖLÇÜLEN |
+|---|---|---|
+| Nesne sayısı | 6× | **6×** (doğru) |
+| **Bayt** çarpanı | ~6× | **2,85× · 3,13× · 4,56×** |
+| §6.5 "tipik 30 sn ≈ 19 MB" | 19 MB | **4,95–8,80 MB** (tahmin 2–4 kat yüksek) |
+
+Kritik ayrım: kota kapısı **bayt** üzerinden zorluyor (`entitlement/checks.py:272`
+← `media/files.py:267 storage_usage`), **nesne sayısı üzerinden değil**. Yani
+operatif çarpan **~3**, ~6 değil.
+
+Buna karşılık ölçüm yeni bir eksik ortaya çıkardı: **6 nesne modeli HLS'i hiç
+saymıyor.** HLS gereken tek dosya **409 nesne / +27,3 MB** üretti. Kota
+planlaması HLS'i içermek zorunda.
+
+Ayrıca K7 bugün **uygulanmıyor**: video paketi `frappe` import etmiyor ve
+`File` kaydı açmıyor. Karar yürürlüğe girdiğinde bu bağlantı kurulacak.
+
+> **Bağlı görev — bu karar tek başına eksiktir.** Kota değerleri yeniden
+> boyutlandırılmalı ya da rendition'lar için ayrı bir kota kalemi tanımlanmalıdır.
+> Aksi hâlde karar, satıcıların bugünkü kotalarını fiilen 6'ya bölmek anlamına
+> gelir. `docs/standards/kota.md` bu karara göre güncellenmeli.
+
+### K8 — kapsam
+Ölçüm (`docs/reports/08-canli-olcum.md` §7): okunabilen 5 videonun **3'ü**
+çözünürlük eşiğinin (1280×720) altında, biri **540 sn** (60 sn tavanının 9 katı).
+Karar bu içeriğe **dokunmuyor**: kural yalnız yeni yüklemelerde uygulanır, mevcut
+kapaklar olduğu gibi kalır ve hiçbir satıcının vitrini bozulmaz.
+
+Not: bu 23 videonun kaçının gerçekten **kapak videosu** olduğu hâlâ bilinmiyor
+(§11-D1 açık). Karar bu belirsizlikten etkilenmiyor — mevcut içeriğe zaten
+dokunulmuyor — ama envanter ölçümü yine de yapılmalı.
+
 ## 11. ÜRETİMDE DOĞRULANMALI
 
 Aşağıdaki hiçbir şey **bu belgenin yazıldığı oturumda** (2026-08-17) ölçülmedi;
@@ -1007,3 +1067,23 @@ Bu belgede atıf yapılan her dosya, tam yolla:
 - `/Users/ahmet/Desktop/istoc-medya-wt/docs/reports/03-render-envanteri.md`
 - `/Users/ahmet/Desktop/istoc-medya-wt/docs/reports/06-depolama-maliyet.md`
 - `/Users/ahmet/Desktop/istoc-medya-wt/tradehub_core/media/pipeline/policy/slots/company-cover-video.json`
+
+---
+
+## VARSAYILANDA ONAYLANAN KARARLAR — 2026-08-19
+
+Aşağıdaki kararlar platform yöneticisi tarafından **varsayılan seçenekte
+onaylanmıştır**. Her birinde varsayılan, bu belgedeki öneriyle zaten aynıydı ve
+hâlihazırda yürürlükteydi — onay hiçbir davranışı değiştirmez, yalnız kararı
+"açık" olmaktan çıkarır. Yanlış bulunan olursa tek satırlık bir değişiklikle
+çevrilebilir.
+
+| # | Karar | Onaylanan | Not |
+|---|---|---|---|
+| **K1** | 1080p tier eklensin mi? | **Eklenmesin** | Öneriyle aynı. Tetik açık kalıyor: §11-D3 tablet-DPR2 payı > %15 çıkarsa yeniden açılır |
+| **K3** | Kapak videosu zorunlu mu? | **Opsiyonel kalsın** | Öneriyle aynı |
+| **K4** | Altyazı zorunluluğunun yürürlüğü | **Yalnız yeni yüklemeler** | Öneri "mevcuda 90 gün geçiş" idi; **K8 kararı (mevcuda dokunma) bu ayrımı kapattı** — ikisi artık tutarlı |
+| **K5** | Konuşma tespiti otomatik mi, beyan mı? | **Satıcı beyanı + rastgele denetim** | Öneriyle aynı |
+| **K6** | Kategori enum'u genişlesin mi? | **Genişletilmesin (4 kategori sabit)** | Öneriyle aynı. Enum'un tek kaynağı doctype JSON'u olmalı (Ç12) |
+
+Bu belgedeki hiçbir seçenek tablosu silinmedi; kararlar istenirse yeniden açılabilir.

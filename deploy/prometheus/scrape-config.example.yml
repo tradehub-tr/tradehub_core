@@ -1,0 +1,61 @@
+# T-133 · Medya motoru metriklerini AYRI BİR SUNUCUDAN toplama örneği.
+#
+# Bu dosya Prometheus'un `scrape_configs` listesine YAPIŞTIRILMAK içindir;
+# tek başına geçerli bir Prometheus yapılandırması değildir.
+#
+# ÜRETİLDİĞİ YER
+#   Uç:      tradehub_core/api/observability.py::metrics
+#   Gövde:   media/pipeline/observability/exporter.py::metrics_response
+#   Alarm:   deploy/prometheus/media-alerts.yml  (alerts.to_prometheus_rules çıktısı)
+#   Pano:    deploy/grafana/media-engine.json    (alerts.grafana_dashboard_json çıktısı)
+#
+# SIR NEREDE
+#   `site_config.json` → `media_metrics_token` (patch v15_9_32 üretir).
+#   Sırrı okumak:
+#       docker exec istoc-dev-backend-1 \
+#         python3 -c "import json;print(json.load(open('sites/<site>/site_config.json'))['media_metrics_token'])"
+#   Prometheus sunucusunda dosyaya yaz, izni 0600 yap ve `credentials_file`
+#   ile göster. Sırrı YAML'a gömme: yapılandırma dosyaları çoğu kurulumda
+#   sürüm kontrolündedir.
+#
+# TLS — ZORUNLU
+#   Bearer token DÜZ METİNDİR. `scheme: http` ile göndermek, sırrı ağdaki
+#   herkese vermek demektir. Ayrı sunucudan toplanıyorsa `scheme: https`
+#   ZORUNLUDUR. Sertifika özel bir CA'dan ise `tls_config.ca_file` verin;
+#   `insecure_skip_verify: true` ile geçmek, TLS'i kurmamakla aynı kapıya
+#   çıkar (ortadaki adam sırrı okur).
+
+scrape_configs:
+  - job_name: istoc-media-engine
+    metrics_path: /api/method/tradehub_core.api.observability.metrics
+    scheme: https
+    # Scrape aralığı, `write_metrics_shard` zamanlayıcı işinden (5 dk) BAĞIMSIZ
+    # olarak kısa tutulabilir: web sürecinin parçası her istekte (en fazla 15
+    # sn'de bir) tazelenir, worker parçaları 5 dakikada bir. Sayaçlar monoton
+    # arttığı için gecikmiş bir parça YANLIŞ değil, yalnız ESKİdir.
+    scrape_interval: 30s
+    scrape_timeout: 10s
+    authorization:
+      type: Bearer
+      credentials_file: /etc/prometheus/secrets/istoc-media-metrics.token
+    tls_config:
+      # Özel CA kullanılıyorsa açın. `insecure_skip_verify` KULLANMAYIN.
+      # ca_file: /etc/prometheus/secrets/istoc-ca.pem
+      server_name: istoc.cronbi.com
+    static_configs:
+      - targets:
+          - istoc.cronbi.com
+        labels:
+          site: istoc.cronbi.com
+          component: media-engine
+
+# Alarm kurallarını yükleyin (ayrı dosya, aynı dizine kopyalanır):
+#
+# rule_files:
+#   - /etc/prometheus/rules/media-alerts.yml
+#
+# DOĞRULAMA — yüklemeden ÖNCE koşturun:
+#   promtool check rules deploy/prometheus/media-alerts.yml
+#
+# Kuralların tamamının TANIMLI bir metriğe bağlı olduğu ayrıca makineyle
+# denetlenir (`alerts.dogrula()`); ölçüm docs/reports/50-serit-a-kablolama.md'de.

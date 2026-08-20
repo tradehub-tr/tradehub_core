@@ -145,12 +145,38 @@ class VeriButunlugu(unittest.TestCase):
 			with self.subTest(bolge=d.get("region")):
 				self.assertTrue(d.get("reason", "").strip())
 
+	#: T-115 (2026-08-20) drift ölçümünün DOKUNMADIĞI bölgeler. Bunların kutuları
+	#: hâlâ yalnız CSS'ten aritmetik türetme; katalog bunu gizlememeli.
+	DOGRULANMAMIS_BOLGELER = (
+		"home/tailored_grid",
+		"listing/brand_grid",
+		"product_detail/related_slider",
+		"product_detail/lightbox_thumb",
+		"cart_checkout/sku_row",
+		"cart_checkout/product_item",
+		"cart_checkout/drawer_thumb",
+	)
+
 	def test_olcum_durumu_ilan_edilmis(self):
-		"""Emüle/hesaplanmış değerler 'ölçüldü' gibi sunulmamalı."""
+		"""Emüle/hesaplanmış değerler 'ölçüldü' gibi sunulmamalı.
+
+		2026-08-20'de 15 bölgenin 8'i gerçek tarayıcıda doğrulandı, 7'si
+		DOĞRULANMADI. Eski hâlde bu test kataloğun "hiç doğrulanmadı" demesini
+		şart koşuyordu; artık bu YANLIŞ olurdu. Yeni kural iki yönlü: katalog
+		ne tam doğrulanmış numarası yapabilir, ne de doğrulanmamış bölgeleri
+		saklayabilir.
+		"""
 		cihaz_ham = json.loads(DEVICES_PATH.read_text(encoding="utf-8"))
 		yer_ham = json.loads(PLACEMENTS_PATH.read_text(encoding="utf-8"))
 		self.assertIn("OLCULMEDI", cihaz_ham["measurement_status"])
-		self.assertIn("DOGRULANMADI", yer_ham["measurement_status"])
+
+		durum = yer_ham["measurement_status"]
+		not_metni = yer_ham["measurement_note"]
+		self.assertIn("KISMEN_DOGRULANDI", durum, "kısmi doğrulama durumu ilan edilmeli")
+		# Doğrulanmamış her bölge notta ADIYLA geçmeli — sessizce kapsam dışı kalmasın.
+		for bolge in self.DOGRULANMAMIS_BOLGELER:
+			with self.subTest(bolge=bolge):
+				self.assertIn(bolge, not_metni)
 
 
 class RaporDogrulamasi(unittest.TestCase):
@@ -158,11 +184,20 @@ class RaporDogrulamasi(unittest.TestCase):
 
 	# (sayfa, bölge, viewport, rapordaki kutu, rapor bölümü)
 	BEKLENEN = (
-		("home", "hero_showcase_grid", 360, 156.0, "§3.2"),
-		("home", "hero_showcase_grid", 1536, 196.571, "§3.2"),
-		("home", "hero_showcase_grid", 1920, 240.0, "§3.2"),
-		("home", "top_deals", 640, 194.667, "§3.3"),
-		("home", "top_deals", 1920, 282.667, "§3.3"),
+		# ── T-115 DÜZELTMESİ (2026-08-20) ────────────────────────────────
+		# Aşağıdaki beş satır §3.2/§3.3'ün yazdığı sayılar DEĞİL. Rapor 03'ün
+		# tabloları kataloğu üreten AYNI statik yöntemle (Tailwind sınıflarından
+		# aritmetik) çıkarılmıştı; ikisi de aynı iki şeyi kaçırıyordu: kartın
+		# 1px×2 kenarlığı ve TopDeals bölüm dolgusu. Gerçek tarayıcı ölçümü
+		# (13 cihaz, docs/reports/59) farkı gösterdi, katalog düzeltildi.
+		# T-110 kabul ölçütü §3: "sapma varsa uygulama CSS'i kaynak kabul edilir".
+		# Yani burada rapor değil ÖLÇÜM esas alındı; §3.2/§3.3 bu bölgeler için
+		# artık bayat.
+		("home", "hero_showcase_grid", 360, 154.0, "§3.2 → T-115 ölçümü (kart kenarlığı −2px)"),
+		("home", "hero_showcase_grid", 1536, 194.571, "§3.2 → T-115 ölçümü (kart kenarlığı −2px)"),
+		("home", "hero_showcase_grid", 1920, 238.0, "§3.2 → T-115 ölçümü (kart kenarlığı −2px)"),
+		("home", "top_deals", 640, 188.667, "§3.3 → T-115 ölçümü (bölüm dolgusu −6px)"),
+		("home", "top_deals", 1920, 277.75, "§3.3 → T-115 ölçümü (bölüm dolgusu −4,92px)"),
 		("home", "tailored_grid", 1024, 185.6, "§3.4"),
 		("home", "tailored_grid", 1920, 342.4, "§3.4"),
 		("listing", "card_grid", 640, 296.0, "§3.1"),
@@ -352,7 +387,20 @@ class SimulatorTablosu(unittest.TestCase):
 	def test_asiri_servis_tavani_asan_kombinasyonlar_bilinen_kume(self):
 		"""`max_overshoot` (1,85) aşımı — merdivenin ALT ucunda basamak eksik."""
 		asan = sorted(f"{s.device.id}×{s.region.key}" for s in self.sonuc if WARN_OVERSHOOT in s.warnings)
-		self.assertEqual(asan, ["moto-g-power×cart_checkout/summary_strip"])
+		# 2026-08-20'de 1'den 3'e çıktı — bu bir GERİLEME DEĞİL, bir ORTAYA
+		# ÇIKMA: katalog mağaza ürün ızgarasını 260px sanıyordu, gerçek kutu
+		# 199,5px (sol kenar çubuğu düşülmüyordu). Kutu düzeltilince aynı
+		# merdiven basamağı artık fazla iniyor; yani aşırı servis zaten VARDI,
+		# katalog onu göremiyordu. Düzeltilmesi merdivenin alt ucuna basamak
+		# eklemeyi gerektirir — ayrı bir iş.
+		self.assertEqual(
+			asan,
+			[
+				"desktop-1080p×seller_shop/product_grid",
+				"desktop-1440p×seller_shop/product_grid",
+				"moto-g-power×cart_checkout/summary_strip",
+			],
+		)
 
 	def test_determinist(self):
 		tekrar = simulate_matrix(self.devices, self.birincil, self.layout)

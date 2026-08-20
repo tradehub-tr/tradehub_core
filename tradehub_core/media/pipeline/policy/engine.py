@@ -52,21 +52,38 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import string
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from typing import Tuple
+
+from tradehub_core.media.pipeline.contracts import errors as sozlesme_hata
+from tradehub_core.media.pipeline.contracts import policy as sozlesme
+from tradehub_core.media.pipeline.contracts.image import ImageProbe, MasterSpec, RenditionSpec
+
+# `Decision` adı bu modülde ZATEN DOLU (aşağıdaki `evaluate()` çıktısı).
+# Sözleşme kararı ayrı bir addır ve öyle kalmalı: iki tip iki farklı soruya
+# cevap veriyor — `Decision.allow` yüklemeyi durdurur mu, `PolicyDecision`
+# katman bazında ret/uyarı kovalarını taşır.
+from tradehub_core.media.pipeline.contracts.policy import Decision as PolicyDecision
+from tradehub_core.media.pipeline.contracts.policy import EffectiveLimits, SlotPolicy
+from tradehub_core.media.pipeline.contracts.video import VideoProbe, VideoRenditionSpec
 from tradehub_core.media.pipeline.core.errors import (
 	ACTION_AUTO_FIX,
+	ACTION_IGNORE,
+	ACTION_MANUAL_REVIEW,
 	ACTION_PASS,
 	ACTION_REJECT,
+	ACTION_REVIEW,
 	ACTION_WARN,
 	SILENT_ACTIONS,
 	SkippedRule,
 	Violation,
 	highest_action,
 )
-from tradehub_core.media.pipeline.core.probe import KIND_VIDEO, MediaProbe
+from tradehub_core.media.pipeline.core.probe import EXTENSION_KINDS, KIND_VIDEO, MediaProbe
 from tradehub_core.media.pipeline.policy import SLOT_DIR
 
 # ── Mesaj çözümü ────────────────────────────────────────────────────────
@@ -422,20 +439,31 @@ class PolicyRegistry:
 		self.load()
 
 	def load(self) -> "PolicyRegistry":
-		self._by_key.clear()
-		self._source.clear()
+		"""Diskten oku — YA HEP YA HİÇ.
+
+		Önceki sürüm sözlükleri okumadan ÖNCE temizliyordu: dokuzuncu dosya
+		bozuksa istisna dışarı çıkıyor ve kayıt defteri sekiz politikayla
+		yarım kalıyordu. Yarım yüklenmiş bir defter, hangi slotun eski hangisinin
+		yeni olduğu bilinmeyen bir sistemdir. Yeni sözlükler ayrı kurulur ve
+		HEPSİ okunduktan sonra tek atamayla takas edilir; hata hâlinde eski
+		defter olduğu gibi kalır (contracts/policy.py `reload()` sözleşmesi).
+		"""
+		yeni: dict[str, dict] = {}
+		kaynak: dict[str, Path] = {}
 		for path in sorted(self.directory.glob("*.json")):
 			with open(path, encoding="utf-8") as fh:
 				data = json.load(fh)
 			key = data.get("slot_key")
 			if not key:
 				raise ValueError(f"slot_key yok: {path}")
-			if key in self._by_key:
+			if key in yeni:
 				raise ValueError(
-					f"slot_key iki dosyada: {key} ({self._source[key].name} / {path.name})"
+					f"slot_key iki dosyada: {key} ({kaynak[key].name} / {path.name})"
 				)
-			self._by_key[key] = data
-			self._source[key] = path
+			yeni[key] = data
+			kaynak[key] = path
+		self._by_key = yeni
+		self._source = kaynak
 		return self
 
 	def keys(self) -> tuple[str, ...]:
@@ -476,6 +504,9 @@ class PolicyEngine:
 
 	def __init__(self, registry: PolicyRegistry | None = None) -> None:
 		self.registry = registry or PolicyRegistry()
+		#: `contracts.policy.SlotPolicy` önbelleği — sözleşme `load()`'un aynı
+		#: anahtar için aynı nesneyi vermesini istiyor (idempotensi).
+		self._slot_policy_cache: dict[str, sozlesme.SlotPolicy] = {}
 
 	# ── genel yardımcılar ────────────────────────────────────────────
 
@@ -1259,6 +1290,514 @@ class PolicyEngine:
 				"autoplay_mute_mandatory": ses.get("autoplay_mute_mandatory"),
 			}
 		return out
+
+	# ══════════════════════════════════════════════════════════════════
+	# contracts/policy.py `PolicyEngine` Protocol UYGULAMASI  (T-033)
+	# ══════════════════════════════════════════════════════════════════
+	#
+	# NEDEN BURADA: Protokolün 13 metodu ile bu sınıfın yüzeyi arasındaki
+	# kesişim ÖLÇÜLDÜ ve BOŞTU (`isinstance(PolicyEngine(), Proto)` → False).
+	# Protokolün tek uygulayıcısı `fakes/policy.py` olduğu için 69 sözleşme
+	# testi sahteyi doğruluyordu, üretim kodunu değil.
+	#
+	# NASIL: aşağıdaki kapılar KURAL MANTIĞINI YENİDEN YAZMAZ. `check_accept`
+	# / `check_geometry` / `check_video`, `evaluate()`'in çağırdığı AYNI özel
+	# metotları (`_check_accept`, `_check_require`, `_check_video`) çağırır ve
+	# yalnız çıktıyı sözleşme tiplerine çevirir. Sözleşme testi geçtiğinde
+	# geçen şey üretimin kendi kural kodudur — sahtenin değil.
+	#
+	# `evaluate()` ve `normalized_targets()` DEĞİŞMEDİ; bu bölüm eklemedir.
+
+	#: Motorun kural adı → sözleşme sebep sabiti. Tabloda OLMAYAN kural adı
+	#: OLDUĞU GİBİ kullanılır (kimlik eşlemesi). Bu tablo bir KARAR tablosu
+	#: değil, sözlük tablosudur: hangi kuralın tetiklendiğine motor karar
+	#: verir, burada yalnız kodun adı sözleşme sözlüğüne çevrilir.
+	#: İki sözlüğün yan yana durması R-03 olarak raporda kayıtlı.
+	_SEBEP_BY_RULE: dict[str, str] = {
+		"extension_rejected": sozlesme_hata.SEBEP_EXT_NOT_ALLOWED,
+		"extension_conditional_closed": sozlesme_hata.SEBEP_EXT_NOT_ALLOWED,
+		"format_not_supported": sozlesme_hata.SEBEP_EXT_NOT_ALLOWED,
+		"mime_not_supported": sozlesme_hata.SEBEP_MIME_NOT_ALLOWED,
+		"content_type_mismatch": sozlesme_hata.SEBEP_EXT_CONTENT_MISMATCH,
+		"too_large_bytes": sozlesme_hata.SEBEP_TOO_LARGE,
+		"too_many_pixels": sozlesme_hata.SEBEP_MEGAPIXEL_BOMB,
+		"animated": sozlesme_hata.SEBEP_ANIMATED_NOT_ALLOWED,
+		"data_uri_forbidden": sozlesme_hata.SEBEP_DANGEROUS_CONTENT,
+		"executable_content": sozlesme_hata.SEBEP_DANGEROUS_CONTENT,
+		"appended_payload": sozlesme_hata.SEBEP_DANGEROUS_CONTENT,
+		"container_invalid": sozlesme_hata.SEBEP_DANGEROUS_CONTENT,
+		"unreadable": sozlesme_hata.SEBEP_DECODE_FAILED,
+		"truncated": sozlesme_hata.SEBEP_DECODE_FAILED,
+		"low_resolution": sozlesme_hata.SEBEP_SHORT_EDGE_TOO_SMALL,
+		"aspect_out_of_band": sozlesme_hata.SEBEP_RATIO_NOT_ALLOWED,
+		"too_many_items": sozlesme_hata.SEBEP_COUNT_EXCEEDED,
+		"too_few_items": sozlesme_hata.SEBEP_COUNT_EXCEEDED,
+		"duration_too_long": sozlesme_hata.SEBEP_DURATION_OUT_OF_RANGE,
+		"duration_too_short": sozlesme_hata.SEBEP_DURATION_OUT_OF_RANGE,
+		"bitrate_too_high": sozlesme_hata.SEBEP_BITRATE_EXCEEDED,
+		"master_under_spec": sozlesme_hata.SEBEP_UNDER_SPEC,
+	}
+
+	#: Motorun blok adı → sözleşme katmanı. `security` ve `policy` blokları
+	#: sözleşmede ayrı katman değil: ikisi de dosya AÇILMADAN verilen karardır.
+	_LAYER_BY_BLOCK: dict[str, str] = {
+		"accept": sozlesme.LAYER_ACCEPT,
+		"security": sozlesme.LAYER_ACCEPT,
+		"policy": sozlesme.LAYER_ACCEPT,
+		"require": sozlesme.LAYER_REQUIRE,
+		"video": sozlesme.LAYER_REQUIRE,
+		"master": sozlesme.LAYER_MASTER,
+		"quality": sozlesme.LAYER_QUALITY,
+		"content_rules": sozlesme.LAYER_CONTENT,
+	}
+
+	#: Motor aksiyonu → sözleşme aksiyonu. `review` ile `manual_review` aynı
+	#: şeydir (core/errors.py'de gerekçesi yazılı); `ignore` sözleşmede yok ve
+	#: zaten SILENT_ACTIONS ile listeden düşer.
+	_ACTION_MAP: dict[str, str] = {
+		ACTION_PASS: sozlesme.ACTION_PASS,
+		ACTION_IGNORE: sozlesme.ACTION_PASS,
+		ACTION_WARN: sozlesme.ACTION_WARN,
+		ACTION_AUTO_FIX: sozlesme.ACTION_AUTO_FIX,
+		ACTION_REVIEW: sozlesme.ACTION_MANUAL_REVIEW,
+		ACTION_MANUAL_REVIEW: sozlesme.ACTION_MANUAL_REVIEW,
+		ACTION_REJECT: sozlesme.ACTION_REJECT,
+	}
+
+	@staticmethod
+	def _num(deger, varsayilan: float = 0.0) -> float:
+		"""`None`/boş güvenli sayı okuma — politika alanları isteğe bağlı."""
+		if deger is None or deger == "":
+			return varsayilan
+		try:
+			return float(deger)
+		except (TypeError, ValueError):
+			return varsayilan
+
+	def _sozlesme_ihlali(self, policy: dict, v: Violation) -> sozlesme.Violation:
+		"""Motor ihlali → sözleşme ihlali. Yalnız BİÇİM çevirisi."""
+		sebep = self._SEBEP_BY_RULE.get(v.rule, v.rule)
+		prefix = (policy.get("on_violation") or {}).get("error_code_prefix") or "media"
+		return sozlesme.Violation(
+			code=sozlesme_hata.kod_uret(prefix, sebep),
+			layer=self._LAYER_BY_BLOCK.get(v.block, sozlesme.LAYER_ACCEPT),
+			sebep=sebep,
+			action=self._ACTION_MAP.get(v.action, sozlesme.ACTION_REJECT),
+			retryable=bool(v.retryable),
+			message_key=v.rule,
+			measured=v.observed,
+			expected=v.expected,
+			detay={"engine_code": v.code, "block": v.block, "source": v.source},
+		)
+
+	def _sozlesme_karari(
+		self,
+		policy: dict,
+		ihlaller,
+		skipped=(),
+		ek: tuple = (),
+	) -> PolicyDecision:
+		"""İhlal listesini sözleşme kararına çevir.
+
+		Kovalama sözleşmenin tanımına göre: `violations` YALNIZ `reject`
+		aksiyonlu olanlardır (`Decision.allowed = action != reject`), gerisi
+		`warnings`. `evaluate()`'in `allow` alanı `review`/`manual_review`'i de
+		engelleyici sayar — iki tanımın farkı raporda R-01.
+		"""
+		cevrilmis = [
+			self._sozlesme_ihlali(policy, v) for v in ihlaller if v.action not in SILENT_ACTIONS
+		]
+		cevrilmis.extend(ek)
+		retler = tuple(v for v in cevrilmis if v.action == sozlesme.ACTION_REJECT)
+		uyarilar = tuple(v for v in cevrilmis if v.action != sozlesme.ACTION_REJECT)
+		aksiyon = (
+			sozlesme.en_yuksek_aksiyon([v.action for v in cevrilmis])
+			if cevrilmis
+			else sozlesme.ACTION_PASS
+		)
+		return PolicyDecision(
+			slot_key=str(policy.get("slot_key") or ""),
+			action=aksiyon,
+			violations=retler,
+			warnings=uyarilar,
+			# Ölçülemeyen kural sessizce "geçti" sayılmaz; karara iliştirilir.
+			notes=tuple(f"{s.block}.{s.rule}: {s.reason} ({s.missing_input})" for s in skipped),
+		)
+
+	# ── kayıt defteri ─────────────────────────────────────────────────
+
+	def source_root(self) -> str:
+		"""FR-147 — hangi politika seti yürürlükte, sessiz kalınmaz."""
+		return str(self.registry.directory)
+
+	def slots(self) -> Tuple[str, ...]:
+		return self.registry.keys()
+
+	def load(self, slot_key: str) -> SlotPolicy:
+		"""Sözleşme tipli slot politikası. Bilinmeyen slot → `PolicyNotFound`.
+
+		`PolicyRegistry.get()` `KeyError` türevi kendi `PolicyNotFound`'unu
+		atar (uçlar buna dayanıyor, `api/upload.py:206`); sözleşme yüzeyi
+		`contracts.errors.PolicyNotFound` ister. İkisi ayrı hiyerarşi olduğu
+		için çeviri BURADA yapılır — kayıt defterinin davranışı değişmez.
+		"""
+		onbellek = self._slot_policy_cache.get(slot_key)
+		if onbellek is not None:
+			return onbellek
+		try:
+			ham = self.registry.get(slot_key)
+		except PolicyNotFound as exc:
+			raise sozlesme_hata.PolicyNotFound(
+				str(exc), detay={"slot_key": slot_key}
+			) from exc
+		politika = SlotPolicy(
+			slot_key=str(ham.get("slot_key") or slot_key),
+			schema_version=str(ham.get("schema_version") or ""),
+			status=str(ham.get("status") or sozlesme.STATUS_DRAFT),
+			roles=tuple(ham.get("roles") or ()),
+			accept=dict(ham.get("accept") or {}),
+			require=dict(ham.get("require") or {}),
+			master=dict(ham.get("master") or {}),
+			quality=dict(ham.get("quality") or {}),
+			profiles=tuple(ham.get("profiles") or ()),
+			video=dict(ham.get("video") or {}),
+			on_violation=dict(ham.get("on_violation") or {}),
+			messages=dict(ham.get("messages") or {}),
+			bound_to=tuple(ham.get("bound_to") or ()),
+			raw=ham,
+		)
+		self._slot_policy_cache[slot_key] = politika
+		return politika
+
+	def reload(self) -> int:
+		"""Diskten yeniden oku; yüklenen politika sayısını döndür.
+
+		`PolicyRegistry.load()` ya hep ya hiç çalışır: bozuk bir dosya
+		istisnası eski defteri OLDUĞU GİBİ bırakır.
+		"""
+		self.registry.load()
+		self._slot_policy_cache.clear()
+		return len(self.registry)
+
+	def effective_limits(self, slot_key: str, *, plan_max_bytes: int = 0) -> EffectiveLimits:
+		"""Slot × plan kesişimi (FR-007, FR-076) — slot tavanı GEVŞETEMEZ."""
+		p = self.load(slot_key)
+		slot_bytes = int(self._num(p.accept.get("max_bytes")))
+		adaylar = [b for b in (slot_bytes, int(plan_max_bytes or 0)) if b > 0]
+		return EffectiveLimits(
+			max_bytes=min(adaylar) if adaylar else 0,
+			max_megapixels_hard=self._num(p.accept.get("max_megapixels_hard")),
+			max_count=int(self._num(p.require.get("max_count"))),
+			source={"slot": str(slot_bytes or "-"), "plan": str(plan_max_bytes or "-")},
+		)
+
+	# ── kapılar (üretim kural koduna DELEGE eder) ─────────────────────
+
+	def check_accept(
+		self,
+		slot_key: str,
+		*,
+		file_name: str,
+		size_bytes: int,
+		sniffed_type: str = "",
+		declared_mime: str = "",
+	) -> PolicyDecision:
+		"""L1 — dosya AÇILMADAN. `_check_accept` (üretim kodu) çağrılır.
+
+		Sentetik künyede `readable=True`: bu kapı dosyayı AÇMAZ, dolayısıyla
+		okunabilirlik hakkında bir iddiası da yoktur. `readable=False`
+		bırakmak, hiç ölçülmemiş bir şeyi "bozuk" ilan etmek olurdu.
+		"""
+		self.load(slot_key)  # bilinmeyen slot → sözleşme PolicyNotFound
+		policy = self.registry.get(slot_key)
+		uzanti = os.path.splitext(file_name or "")[1].lower()
+		beklenen = EXTENSION_KINDS.get(uzanti)
+		probe = MediaProbe(
+			filename=file_name or "",
+			extension=uzanti,
+			byte_size=int(size_bytes or 0),
+			detected=sniffed_type or "",
+			mime=declared_mime or "",
+			readable=True,
+			extension_matches_content=(
+				None if (not sniffed_type or beklenen is None) else sniffed_type in beklenen
+			),
+		)
+		ihlaller: list[Violation] = []
+		skipped: list[SkippedRule] = []
+		p = self._params(policy, probe, "")
+		self._check_accept(policy, probe, p, ihlaller, skipped)
+		return self._sozlesme_karari(policy, ihlaller, skipped)
+
+	def check_geometry(self, slot_key: str, probe: ImageProbe, *, count: int = 1) -> PolicyDecision:
+		"""L2 — görsel AÇILDIKTAN sonra. `_check_accept` + `_check_require`.
+
+		`_check_accept` de çağrılır çünkü megapiksel tavanı ve `allow_animated`
+		motorda o blokta yaşıyor ve ancak künye okunduktan sonra ölçülebilir.
+		Uzantı/MIME/bayt alanları boş bırakıldığı için o kurallar tetiklenmez.
+		"""
+		self.load(slot_key)
+		policy = self.registry.get(slot_key)
+		m = MediaProbe(
+			kind="image",
+			width=int(probe.width or 0),
+			height=int(probe.height or 0),
+			animated=bool(probe.animated),
+			has_alpha=bool(probe.has_alpha),
+			readable=bool(probe.readable),
+			exif_orientation=probe.exif_orientation,
+			fmt=probe.fmt or "",
+			existing_count=int(count),
+		)
+		ihlaller: list[Violation] = []
+		skipped: list[SkippedRule] = []
+		p = self._params(policy, m, "")
+		self._check_accept(policy, m, p, ihlaller, skipped)
+		self._check_require(policy, m, p, ihlaller, skipped)
+		return self._sozlesme_karari(policy, ihlaller, skipped)
+
+	def check_video(self, slot_key: str, probe: VideoProbe) -> PolicyDecision:
+		"""L2 — video kapısı. `_check_require` + `_check_video`.
+
+		NFR-043 + FR-134: ffprobe ölçemediğinde karar RET değil
+		`manual_review`'dır. Motorun kendisi bunu `SkippedRule` olarak
+		raporlar ama `evaluate()` aksiyonu `pass`'ta bırakır — sözleşme
+		yüzeyi o atlanan ölçümü açık bir `manual_review` uyarısına çevirir.
+		Farkın `evaluate()` tarafındaki karşılığı raporda R-02.
+		"""
+		p_sozlesme = self.load(slot_key)
+		if not p_sozlesme.is_video:
+			raise sozlesme_hata.PolicyError(
+				f"Video olmayan slotta video kapısı: {slot_key}", detay={"slot_key": slot_key}
+			)
+		policy = self.registry.get(slot_key)
+		m = MediaProbe(
+			kind=KIND_VIDEO,
+			width=int(probe.width or 0),
+			height=int(probe.height or 0),
+			readable=bool(probe.measured),
+			duration_s=probe.duration_s if probe.measured else None,
+			bitrate_bps=probe.bitrate_bps if probe.measured else None,
+			frame_rate=probe.frame_rate if probe.measured else None,
+			has_audio=probe.has_audio,
+			video_codec=probe.video_codec or "",
+			audio_codec=probe.audio_codec or "",
+		)
+		ihlaller: list[Violation] = []
+		skipped: list[SkippedRule] = []
+		p = self._params(policy, m, "")
+		self._check_require(policy, m, p, ihlaller, skipped)
+		self._check_video(policy, m, p, ihlaller, skipped)
+		ek: tuple = ()
+		if not probe.measured:
+			prefix = (policy.get("on_violation") or {}).get("error_code_prefix") or "media"
+			ek = (
+				sozlesme.Violation(
+					code=sozlesme_hata.kod_uret(prefix, sozlesme_hata.SEBEP_PROBE_UNAVAILABLE),
+					layer=sozlesme.LAYER_REQUIRE,
+					sebep=sozlesme_hata.SEBEP_PROBE_UNAVAILABLE,
+					action=sozlesme.ACTION_MANUAL_REVIEW,
+					message_key="ffprobe_readable",
+					detay={"slot_key": slot_key},
+				),
+			)
+		return self._sozlesme_karari(policy, ihlaller, skipped, ek=ek)
+
+	# ── üretim parametreleri ──────────────────────────────────────────
+
+	def master_spec(self, slot_key: str) -> MasterSpec:
+		p = self.load(slot_key)
+		if not p.master:
+			raise sozlesme_hata.PolicyError(
+				f"`master` bloğu yok: {slot_key}", detay={"slot_key": slot_key}
+			)
+		m = p.master
+		return MasterSpec(
+			max_long_edge=int(self._num(m.get("max_long_edge"))),
+			format=str(m.get("format") or "webp"),
+			min_long_edge=int(self._num(m.get("min_long_edge"))),
+			max_megapixels=self._num(m.get("max_megapixels")),
+			dpi_out=int(self._num(m.get("dpi_out"), 72)),
+			colorspace=str(m.get("colorspace") or "srgb"),
+			orientation=str(m.get("orientation") or "apply_exif"),
+			fit=str(m.get("fit") or "contain"),
+			target_ratio=str(m.get("target_ratio") or ""),
+			pad_color=str(m.get("pad_color") or ""),
+			allow_crop=bool(m.get("allow_crop")),
+			allow_upscale=bool(m.get("allow_upscale")),
+			strip_metadata=dict(m.get("strip_metadata") or {}),
+		)
+
+	def rendition_specs(self, slot_key: str) -> Tuple[RenditionSpec, ...]:
+		"""Türev merdiveni, genişliğe göre ARTAN sırada (FR-036)."""
+		p = self.load(slot_key)
+		cikti = []
+		for profil in p.profiles:
+			bicimler = [str(f) for f in (profil.get("formats") or ())] or ["webp"]
+			kaliteler = profil.get("encoder_quality") or {}
+			for bicim in bicimler:
+				ad = profil.get("name") or "profil"
+				cikti.append(
+					RenditionSpec(
+						name=ad if len(bicimler) == 1 else f"{ad}.{bicim}",
+						width=int(self._num(profil.get("width"))),
+						format=bicim,
+						quality=int(self._num(kaliteler.get(bicim))),
+						fit=str(profil.get("fit") or "contain"),
+						target_ratio=str(profil.get("target_ratio") or ""),
+						pad_color=str(profil.get("pad_color") or ""),
+						lossless=bool(profil.get("lossless")),
+						derived_from=str(profil.get("derived_from") or ""),
+					)
+				)
+		return tuple(sorted(cikti, key=lambda s: (s.width, s.format)))
+
+	def video_rendition_specs(self, slot_key: str) -> Tuple[VideoRenditionSpec, ...]:
+		p = self.load(slot_key)
+		if not p.is_video:
+			return ()
+		return tuple(
+			VideoRenditionSpec(
+				id=str(r.get("id") or "rendition"),
+				width=int(self._num(r.get("width"))),
+				height=int(self._num(r.get("height"))),
+				container=str(r.get("container") or "webm"),
+				video_codec=str(r.get("video_codec") or "libvpx-vp9"),
+				crf=int(self._num(r.get("crf"), 32)),
+				maxrate_kbps=int(self._num(r.get("maxrate_kbps"))),
+				bufsize_kbps=int(self._num(r.get("bufsize_kbps"))),
+				audio_codec=str(r.get("audio_codec") or "libopus"),
+				audio_bitrate_kbps=int(self._num(r.get("audio_bitrate_kbps"), 96)),
+				audio_channels=int(self._num(r.get("audio_channels"), 2)),
+				max_bytes=int(self._num(r.get("max_bytes"))),
+				role=str(r.get("role") or "primary"),
+			)
+			for r in (p.video.get("renditions") or ())
+		)
+
+	def quality_threshold(self, slot_key: str, content_class: str) -> float:
+		"""Sınıf tanımsızsa 0.0 — ölçülmemiş eşikle reddetmek yerine kapı yok."""
+		p = self.load(slot_key)
+		return self._num((p.quality.get("target_ssim_per_class") or {}).get(content_class))
+
+	# ── kendi kendini doğrulama ───────────────────────────────────────
+
+	def validate(self, slot_key: str = "") -> PolicyDecision:
+		"""D1–D5 değişmezleri (docs/standards/README.md §6).
+
+		Boş `slot_key` tüm kayıt defterini doğrular. FR-148: tek çıkış kodu
+		`Decision.allowed`.
+		"""
+		anahtarlar = (slot_key,) if slot_key else self.slots()
+		ihlaller: list[sozlesme.Violation] = []
+		uyarilar: list[sozlesme.Violation] = []
+		for anahtar in anahtarlar:
+			p = self.load(anahtar)
+			prefix = str(p.on_violation.get("error_code_prefix") or "media")
+			m = p.master
+			mle = self._num(m.get("max_long_edge"))
+			mmp = self._num(m.get("max_megapixels"))
+			mnle = self._num(m.get("min_long_edge"))
+			if mmp and mle and (mle * mle) / 1e6 < mmp:
+				ihlaller.append(
+					sozlesme.Violation(
+						code=sozlesme_hata.kod_uret(prefix, "invariant_d1"),
+						layer=sozlesme.LAYER_MASTER,
+						sebep="invariant_d1",
+						action=sozlesme.ACTION_REJECT,
+						measured=(mle * mle) / 1e6,
+						expected=mmp,
+						detay={"slot_key": anahtar},
+					)
+				)
+			if mnle and mle and mnle > mle:
+				ihlaller.append(
+					sozlesme.Violation(
+						code=sozlesme_hata.kod_uret(prefix, "invariant_d2"),
+						layer=sozlesme.LAYER_MASTER,
+						sebep="invariant_d2",
+						action=sozlesme.ACTION_REJECT,
+						measured=mnle,
+						expected=mle,
+						detay={"slot_key": anahtar},
+					)
+				)
+			uzantilar = {str(e).lower() for e in (p.accept.get("extensions") or ())}
+			mimeler = {str(x).lower() for x in (p.accept.get("mime") or ())}
+			if uzantilar and mimeler and not self._ext_mime_ortusuyor(uzantilar, mimeler):
+				ihlaller.append(
+					sozlesme.Violation(
+						code=sozlesme_hata.kod_uret(prefix, "invariant_d3"),
+						layer=sozlesme.LAYER_ACCEPT,
+						sebep="invariant_d3",
+						action=sozlesme.ACTION_REJECT,
+						measured=sorted(uzantilar),
+						expected=sorted(mimeler),
+						detay={"slot_key": anahtar},
+					)
+				)
+			for profil in p.profiles:
+				if not (profil.get("derived_from") or ""):
+					ihlaller.append(
+						sozlesme.Violation(
+							code=sozlesme_hata.kod_uret(prefix, "invariant_d4"),
+							layer=sozlesme.LAYER_MASTER,
+							sebep="invariant_d4",
+							action=sozlesme.ACTION_REJECT,
+							detay={"slot_key": anahtar, "profile": profil.get("name")},
+						)
+					)
+			acik = p.raw.get("open_questions") or ()
+			bos_kalite = any(
+				q is None
+				for profil in p.profiles
+				for q in (profil.get("encoder_quality") or {}).values()
+			)
+			if p.status == sozlesme.STATUS_ACTIVE and (acik or bos_kalite):
+				ihlaller.append(
+					sozlesme.Violation(
+						code=sozlesme_hata.kod_uret(prefix, "invariant_d5"),
+						layer=sozlesme.LAYER_QUALITY,
+						sebep="invariant_d5",
+						action=sozlesme.ACTION_REJECT,
+						detay={"slot_key": anahtar, "open_questions": len(acik)},
+					)
+				)
+			elif acik:
+				uyarilar.append(
+					sozlesme.Violation(
+						code=sozlesme_hata.kod_uret(prefix, "draft_open_questions"),
+						layer=sozlesme.LAYER_QUALITY,
+						sebep="invariant_d5",
+						action=sozlesme.ACTION_WARN,
+						detay={"slot_key": anahtar, "open_questions": len(acik)},
+					)
+				)
+		return PolicyDecision(
+			slot_key=slot_key or "*",
+			action=(
+				sozlesme.ACTION_REJECT
+				if ihlaller
+				else (sozlesme.ACTION_WARN if uyarilar else sozlesme.ACTION_PASS)
+			),
+			violations=tuple(ihlaller),
+			warnings=tuple(uyarilar),
+		)
+
+	@staticmethod
+	def _ext_mime_ortusuyor(uzantilar: set, mimeler: set) -> bool:
+		"""D3 (FR-008) — `accept.extensions` ile `accept.mime` AYRIŞMAMALI.
+
+		Tam eşleme aranmaz: `.jpg`/`.jpeg` tek MIME'a düşer, `.docx` uzun bir
+		OOXML MIME'ına. Aranan şey en az bir uzantının bir MIME karşılığının
+		listede bulunmasıdır; hiçbiri tutmuyorsa iki liste farklı biçim
+		kümelerini tarif ediyordur ve bu sessiz kalamaz.
+		"""
+		for uzanti in uzantilar:
+			for tur in EXTENSION_KINDS.get(uzanti, frozenset()):
+				if any(tur in m or m.endswith(uzanti.lstrip(".")) for m in mimeler):
+					return True
+		return False
 
 
 #: Modül düzeyinde tek örnek — politika dosyaları süreç ömrü boyunca sabittir.

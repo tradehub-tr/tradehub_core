@@ -85,6 +85,24 @@ SIZES_SOURCE_UNMEASURED: str = "unmeasured"
 
 UrlResolver = Callable[[ObjectRef], str]
 
+#: T-061/062/065 — `build_image(version_meta=…)` ile manifeste giren sürüm
+#: alanları. Süzgeç bilinçli: çağıran DB satırını olduğu gibi geçebilir,
+#: manifeste yalnız sözleşmedeki anahtarlar sızar (`policy_snapshot` gibi
+#: iç alanlar dışarı çıkmaz).
+VERSION_META_KEYS: Tuple[str, ...] = (
+	"width",
+	"height",
+	"dpi",
+	"colorspace",
+	"has_alpha",
+	"classification",
+	"classification_confidence",
+	"format_chain",
+	"lqip",
+	"lqip_data_uri",
+	"dominant_color",
+)
+
 
 def default_url_for(ref: ObjectRef) -> str:
 	"""Varsayılan URL çözücü — `ObjectRef.url`.
@@ -174,12 +192,23 @@ class ManifestBuilder:
 		sizes: str = "",
 		available_profiles: Optional[Sequence[str]] = None,
 		is_lcp_candidate: bool = False,
+		version_meta: Optional[Mapping[str, Any]] = None,
 	) -> RenderManifest:
 		"""Görsel manifesti. Yalnız ÜRETİLMİŞ profiller `srcset`e girer.
 
 		`available_profiles=None` sözleşmenin tanımladığı "hepsi mevcut
 		varsayılır" davranışıdır ve yalnız ölçüm/simülasyon içindir; üretim
 		yolu (`api/delivery.py`) her zaman gerçek listeyi geçer.
+
+		`version_meta` (T-061/062/065): `Media Version` satırının zenginleştirme
+		alanları (`doctype/media_version.py::version_enrichment_for_assets`
+		çıktısı). Verilirse `VERSION_META_KEYS` süzgecinden geçip manifeste
+		`version` olarak girer; `lqip`/`dominant_color` üst düzey anahtar olarak
+		da döner (`RenderManifest.to_dict`) — frontend'in yer tutucusu için
+		`data:image/…` URI'si, o yoksa baskın renk seçilir (`delivery/
+		picture.py::lqip_style` ikisini de kabul eder, ham ThumbHash'i ETMEZ).
+		Bu parametre kw-only ve varsayılanı `None`: `contracts.delivery.
+		DeliveryManifest` protokol imzası DEĞİŞMEDİ (signatures.golden.json).
 		"""
 		profiller = render_mod.load_profiles(slot_key)
 		if not profiller:
@@ -223,6 +252,22 @@ class ManifestBuilder:
 		kaynaklar = self._sources(uretilmis, sizes_str)
 		fallback = self._fallback_url(uretilmis)
 
+		ekstra: Dict[str, Any] = {
+			"sizes_source": SIZES_SOURCE_CALLER
+			if sizes
+			else (SIZES_SOURCE_TABLE if sizes_str else SIZES_SOURCE_UNMEASURED),
+			"available_profiles": sorted({v.profile for v in uretilmis}),
+			"missing_profiles": sorted({v.profile for v in varyantlar if not v.available}),
+		}
+		surum = self._version_meta(version_meta)
+		if surum:
+			ekstra["version"] = surum
+			# Yer tutucu SEÇİMİ burada verilir ki iki frontend iki ayrı kural
+			# yazmasın: hazır data URI > baskın renk. Ham ThumbHash üst düzeye
+			# ÇIKMAZ — `lqip_style` onu reddeder; kanonik hash `version.lqip`te.
+			ekstra["lqip"] = str(surum.get("lqip_data_uri") or surum.get("dominant_color") or "")
+			ekstra["dominant_color"] = str(surum.get("dominant_color") or "")
+
 		return RenderManifest(
 			slot_key=slot_key,
 			fallback_url=fallback,
@@ -235,14 +280,19 @@ class ManifestBuilder:
 			loading=LCP_LOADING if is_lcp_candidate else LOADING_LAZY,
 			decoding=LCP_DECODING if is_lcp_candidate else "async",
 			fetchpriority=LCP_FETCHPRIORITY if is_lcp_candidate else "",
-			extra={
-				"sizes_source": SIZES_SOURCE_CALLER
-				if sizes
-				else (SIZES_SOURCE_TABLE if sizes_str else SIZES_SOURCE_UNMEASURED),
-				"available_profiles": sorted({v.profile for v in uretilmis}),
-				"missing_profiles": sorted({v.profile for v in varyantlar if not v.available}),
-			},
+			extra=ekstra,
 		)
+
+	@staticmethod
+	def _version_meta(version_meta: Optional[Mapping[str, Any]]) -> Dict[str, Any]:
+		"""`version_meta` girdisini sözleşme anahtarlarına indir; boşları at."""
+		if not version_meta:
+			return {}
+		return {
+			k: version_meta[k]
+			for k in VERSION_META_KEYS
+			if version_meta.get(k) not in (None, "", [], ())
+		}
 
 	def _sources(self, variants: Sequence[Variant], sizes: str) -> Tuple[SourceSet, ...]:
 		"""Biçim başına `<source>`. Sıra `FORMAT_ORDER`, genişlik ARTAN."""
@@ -474,6 +524,7 @@ __all__ = [
 	"SIZES_SOURCE_TABLE",
 	"SIZES_SOURCE_CALLER",
 	"SIZES_SOURCE_UNMEASURED",
+	"VERSION_META_KEYS",
 	"UrlResolver",
 	"default_url_for",
 	"VideoRendition",

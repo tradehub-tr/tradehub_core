@@ -613,6 +613,83 @@ PII_UNPROTECTED_FILES: Gauge = REGISTRY.gauge(
 	"pii_unprotected_files", "Haritasiz alanda duran public hassas dosya sayisi"
 )
 
+#: Denetim (ADL) olayı — `media/audit.py` `log_media_event` / `log_media_batch`
+#: her çağrıldığında artar. Sayaç ADL'nin YERİNE geçmez, ONU İZLER: denetim
+#: yazımı sessizce durursa (best-effort olduğu için istisna fırlatmaz) bugün
+#: bunu fark ettirecek hiçbir sinyal yok. `action` ADL'nin kendi eylem adı,
+#: `decision` allow/deny, `severity` normal/high. Aktör, kiracı ve dosya
+#: ETİKET DEĞİLDİR — yüksek kardinalite + PII (bkz. `logging.py` sözleşmesi).
+AUDIT_EVENT_TOTAL: Counter = REGISTRY.counter(
+	"audit_event", "Denetim kaydina yazilan medya olayi", etiketler=("action", "decision", "severity")
+)
+
+#: Video dönüşüm süresi. Görsel kovaları burada işe yaramaz: `transcode.py`
+#: `FFMPEG_TIMEOUT_SECONDS = 1700` ile çalışıyor, yani 60 sn'lik üst kova
+#: neredeyse her işi `+Inf`e atardı ve histogram bilgi taşımazdı.
+VIDEO_DURATION_BUCKETS: Tuple[float, ...] = (
+	1.0, 5.0, 15.0, 30.0, 60.0, 120.0, 300.0, 600.0, 900.0, 1700.0
+)
+
+#: `action` `video/decision.py` aksiyonu (transcode/remux/copy), `outcome`
+#: ∈ {accepted, rejected, error} — "ffmpeg patladı" ile "çıktı fayda kapısını
+#: geçemedi" AYNI ŞEY DEĞİL (`TranscodeResult` docstring'i bunu vurguluyor) ve
+#: tek bir "başarısız" kovasına düşerlerse alarm yanlış yere bakar.
+VIDEO_TRANSCODE_DURATION: Histogram = REGISTRY.histogram(
+	"video_transcode_duration_seconds",
+	"Video donusum suresi (saniye)",
+	etiketler=("action", "outcome"),
+	buckets=VIDEO_DURATION_BUCKETS,
+)
+
+#: Ölçüm noktası sarmalayıcısının KENDİ hatası (`instrument.py`). Sıfırdan
+#: büyük olması "metrikler eksik toplanıyor" demektir; sarmalayıcı hatayı
+#: yutmak zorunda (ölçüm, ölçtüğü işi düşüremez) ama SESSİZ kalmamalı.
+INSTRUMENT_ERRORS_TOTAL: Counter = REGISTRY.counter(
+	"instrumentation_errors", "Olcum noktasinda yutulan hata", etiketler=("point",)
+)
+
+# ── T-123 · gerçek kullanıcı ölçümü (RUM) ───────────────────────────────
+#
+# Birim ayrımı bilinçli: LCP/INP/FCP/TTFB milisaniye, CLS BİRİMSİZ. İkisini
+# tek metrik adı altında toplamak Prometheus'ta anlamsız bir toplam üretir
+# (`sum(rum_p75)` = "2500 ms + 0,1" gibi) ve panelde ölçek tek eksende
+# çizilemez. Bu yüzden iki ayrı ad var.
+
+#: p75 — CWV raporlamasının standart yüzdeliği. `rum.aggregate()` üretir.
+RUM_P75_MS: Gauge = REGISTRY.gauge(
+	"rum_p75_milliseconds",
+	"Gercek kullanici p75 degeri (milisaniye)",
+	etiketler=("metric", "route", "device_class"),
+)
+
+#: CLS birimsizdir — ayrı ad. `route` ve `device_class` etiketleri aynı.
+RUM_CLS_P75: Gauge = REGISTRY.gauge(
+	"rum_cls_p75", "Gercek kullanici CLS p75 degeri (birimsiz)", etiketler=("route", "device_class")
+)
+
+#: Kabul edilen örneklem sayısı. `rating` ∈ {good, needs-improvement, poor}.
+RUM_SAMPLES_TOTAL: Counter = REGISTRY.counter(
+	"rum_samples",
+	"Kabul edilen RUM olcumu sayisi",
+	etiketler=("metric", "route", "device_class", "rating"),
+)
+
+#: Örneklem oranıyla genelleştirilmiş tahmini kullanıcı sayısı. Ham sayı
+#: ile tahmin AYRI tutulur: %1 örneklemde ham sayıyı "toplam" diye sunmak
+#: `rum.aggregate()` docstring'inin açıkça uyardığı hatadır.
+RUM_ESTIMATED_POPULATION: Gauge = REGISTRY.gauge(
+	"rum_estimated_population",
+	"Orneklem oraniyla genellestirilmis tahmini olcum sayisi",
+	etiketler=("metric", "route", "device_class"),
+)
+
+#: Reddedilen gövde — `reason` `RumError` sınıfı (pii_field, unknown_metric…).
+#: Sıfırdan büyük ve ARTIYORSA ya istemci sözleşmeyi bozdu ya biri PII
+#: göndermeye çalışıyor; ikisi de görünmeli.
+RUM_REJECTED_TOTAL: Counter = REGISTRY.counter(
+	"rum_rejected", "Reddedilen RUM govdesi", etiketler=("reason",)
+)
+
 
 def render() -> str:
 	"""Varsayılan kayıt defterinin `/metrics` gövdesi."""
@@ -624,11 +701,13 @@ def content_type() -> str:
 
 
 __all__ = [
+	"AUDIT_EVENT_TOTAL",
 	"AYRILMIS_ETIKETLER",
 	"BYTE_BUCKETS",
 	"BYTES_SAVED_TOTAL",
 	"DURATION_BUCKETS",
 	"IMAGE_PROCESS_DURATION",
+	"INSTRUMENT_ERRORS_TOTAL",
 	"ISOLATION_TOTAL",
 	"JOB_ATTEMPTS",
 	"JOB_TOTAL",
@@ -639,6 +718,11 @@ __all__ = [
 	"PII_UNPROTECTED_FILES",
 	"POLICY_VIOLATION_TOTAL",
 	"REGISTRY",
+	"RUM_CLS_P75",
+	"RUM_ESTIMATED_POPULATION",
+	"RUM_P75_MS",
+	"RUM_REJECTED_TOTAL",
+	"RUM_SAMPLES_TOTAL",
 	"SCAN_TOTAL",
 	"SOURCE_BYTES",
 	"SOURCE_MEGAPIXELS",
@@ -649,6 +733,8 @@ __all__ = [
 	"TYPE_GAUGE",
 	"TYPE_HISTOGRAM",
 	"UPLOAD_TOTAL",
+	"VIDEO_DURATION_BUCKETS",
+	"VIDEO_TRANSCODE_DURATION",
 	"Counter",
 	"Gauge",
 	"Histogram",

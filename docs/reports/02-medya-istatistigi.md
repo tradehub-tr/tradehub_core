@@ -937,3 +937,22 @@ Mevcut hiçbir dosya değiştirilmedi.
 `doc.save`, `doc.insert`, `os.remove`, `shutil.*` **çağrısı içermez**. Tek yazma
 işlemi, `MEDIA_STATS_OUT` ortam değişkeni doluysa JSON raporunu **dosyaya** yazmaktır
 — veritabanına değil.
+
+---
+
+## EK — 2026-08-20 (W8): boru-hattı-SONRASI güncel ölçüm
+
+Bu raporun gövdesi Docker kapalı / DB erişimsizken yazılmıştı ve boru hattı
+öncesini anlatır. 2026-08-20'de canlı dev DB'de yeniden ölçüldü; güncel sayılar:
+
+- **tabFile 5.084** satır / 1.637.050.836 B (public 4.468 · private 616);
+  bayt dağılımı p50 80.104 · p90 832.915 · p99 3.462.494 · max 22.065.728 B.
+- **Boru hattı katmanı (bu raporda hiç yoktu):** Media Asset 13 · Media Version 11 ·
+  **Media Rendition 92** (26.853.813 B; webp 46 + avif 35 + mp4 1 + HLS 1 + poster 2;
+  görsel türevlerde SSIM 0,9722–0,9923 ölçülü) · Media Processing Job 11/11 success.
+  Tüm türevler 2026-08-20 07:31–11:05 arasında üretildi.
+- **Hash'li adres:** türevlerin 92/92'si `/files/media/{asset}/{64-hex version_hash}/…`
+  (INV-09 canlı; ADR-0009 gereği tabFile'da görünmezler).
+
+Makine-okunur çıktı: **`docs/reports/media-stats-2026-08-20.csv`** ·
+Ayrıntı ve yöntem: `docs/reports/94-w8-faz0-5-kapanis.md` §1.

@@ -21,11 +21,22 @@ her akışı sessizce kırardı. Yasak listesi olduğu gibi korunuyor; üstüne 
 sınırı ve tehlikeli içerik kontrolü ekleniyor. İzin listesi yalnız MEDYA
 uçlarında geçerli — orası bizim kapımız, dar tutulabilir.
 
-**Neden her tür uyuşmazlığı reddedilmiyor.** Uzantısı `.png` olup aslında JPEG
-olan dosya zararsızdır ve sahada sık görülür (ölçüm: mevcut 1500 dosyada 0
-uyuşmazlık, ama kural ileriye dönük). Reddedilen şey yalnız TEHLİKELİ
-uyuşmazlık: görsel diye gelen içeriğin HTML/SVG/script olarak açılabilmesi.
-Saldırı budur; gerisi gürültü.
+**Neden her tür uyuşmazlığı reddedilmiyor.** Reddedilen şey yalnız TEHLİKELİ
+uyuşmazlık: uzantısı GÖRSEL diyen bir dosyanın içinden başka bir bilinen tür
+çıkması (`polyglot_pdf_as.jpg`, `polyglot_png_as.jpg`). Ölçüm: 4.584 public +
+1.010 private gerçek dosyada bu sınıftan **0** dosya var, yani kural bugünkü
+hiçbir akışı kesmiyor. Reddedilmeyen iki gürültü sınıfı: sihirli baytı hiç
+tanınmayan dosyalar (`.txt`/`.csv`/`.avif`/`.heic` — 1.492 gerçek dosya) ve
+video kabı uyuşmazlığı (`.mp4` içinde webm — 1 gerçek dosya, tarayıcı
+MediaRecorder çıktısında yaygın).
+
+**T-017 — kapının içerik tarafı (2026-08-19).** Bu modül eskiden içeriğin
+yalnız ilk 512 baytına bakıyordu; ölçüldü, `tests/fixtures/malicious/`
+içindeki 10 dosyanın 8'i geçiyordu. Derin denetim
+`media/pipeline/security/content_gate.py` içinde toplandı ve `check()`
+buradan çağırıyor — piksel bombası, eklenmiş yük, kesiklik, sahte OOXML kabı,
+çalıştırılabilir sihirli bayt ve `data:` URI artık kapıda duruyor.
+Gerekçe ve ölçüm: `docs/reports/38-t017-guvenlik-kapisi.md`.
 
 **Hata kodları.** Her ret bir kodla döner. İstemci koda bakıp karar verir:
 yeniden denenecek mi, kullanıcıya ne denecek. Metne bakarak karar vermek,
@@ -36,6 +47,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
+from functools import lru_cache
 
 import frappe
 from frappe import _
@@ -109,6 +121,13 @@ TOO_LARGE = Kod("upload_too_large", False)
 CONTENT_EMPTY = Kod("upload_content_empty", False)
 CONTENT_UNREADABLE = Kod("upload_content_unreadable", False)
 CONTENT_DANGEROUS = Kod("upload_content_dangerous", False)
+# T-017 — içerik denetiminin ürettiği beş yeni ret. Hepsi kullanıcının
+# dosyasıyla ilgili: aynı dosya aynı cevabı verir, tekrar denenmez.
+CONTENT_APPENDED = Kod("upload_appended_payload", False)
+CONTENT_MISMATCH = Kod("upload_type_mismatch", False)
+CONTENT_BOMB = Kod("upload_image_bomb", False)
+CONTENT_TRUNCATED = Kod("upload_content_truncated", False)
+CONTENT_CONTAINER = Kod("upload_container_invalid", False)
 STORE_REQUIRED = Kod("upload_store_required", False)
 SESSION_UNKNOWN = Kod("upload_session_unknown", False)
 CHUNK_ORDER = Kod("upload_chunk_order", True)
@@ -118,6 +137,11 @@ TOO_MANY_CHUNKS = Kod("upload_too_many_chunks", False)
 # check_media_storage_quota` veriyor. Kod yine burada tanımlı: istemci tek bir
 # ret sözleşmesi görsün diye. Tekrar denenmez; satıcı yer açmadan aynı cevap.
 QUOTA_EXCEEDED = Kod("upload_quota_exceeded", False)
+# W7 (rapor 78 W5-2) — istemci slot BEYAN ETTİ ama beyan hiçbir politikaya
+# denk gelmiyor. Sessizce yok saymak, bozuk (ya da kasıtlı bozulmuş) bir slot
+# adıyla kapının tamamını atlamak demekti; açık ret verilir. Slot HİÇ
+# verilmemişse (genel yükleme) kapı zaten koşmaz — bkz. `check_slot`.
+SLOT_UNKNOWN = Kod("upload_slot_unknown", False)
 
 ALL_CODES: tuple[Kod, ...] = (
 	NAME_REQUIRED,
@@ -128,12 +152,18 @@ ALL_CODES: tuple[Kod, ...] = (
 	CONTENT_EMPTY,
 	CONTENT_UNREADABLE,
 	CONTENT_DANGEROUS,
+	CONTENT_APPENDED,
+	CONTENT_MISMATCH,
+	CONTENT_BOMB,
+	CONTENT_TRUNCATED,
+	CONTENT_CONTAINER,
 	STORE_REQUIRED,
 	SESSION_UNKNOWN,
 	CHUNK_ORDER,
 	CHUNK_MISSING,
 	TOO_MANY_CHUNKS,
 	QUOTA_EXCEEDED,
+	SLOT_UNKNOWN,
 )
 
 RETRYABLE: frozenset[str] = frozenset(k.kod for k in ALL_CODES if k.retryable)
@@ -362,13 +392,70 @@ def check(
 				_("Dosyanın içeriği türüyle uyuşmuyor ve güvenli değil."),
 			)
 
+		# T-017 — DERİN içerik denetimi. `is_dangerous` yalnız dosyanın BAŞINA
+		# bakıyor; ölçüldü: kötücül fixture'ların 8/10'u bu kapıdan geçiyordu
+		# (`docs/reports/38-t017-guvenlik-kapisi.md`). Denetimin kendisi
+		# frappe'siz bir modülde durur; burası yalnız kodu ve i18n metnini bağlar.
+		_derin_denetim(ad, content)
+
 		gercek = sniff(content)
 		if gercek and tur and not _uyumlu(uzanti, gercek):
-			# Zararsız uyuşmazlık: `.png` adlı JPEG gibi. Reddedilmiyor, kayda
-			# geçiyor — reddetmek sahadaki geçerli dosyaları keserdi.
+			# Buraya artık yalnız TEHLİKESİZ uyuşmazlık düşüyor — görsel
+			# uzantılı tehlikeli uyuşmazlığı `_derin_denetim` yukarıda
+			# reddetti. Kalan tek gerçek örnek `.mp4` içinde webm (ölçüm:
+			# 4.584 public dosyada 1 adet); tarayıcı MediaRecorder çıktısında
+			# yaygın ve iki taraf da hareketsiz kap.
 			uyarilar.append(f"uzanti={uzanti} icerik={gercek}")
 
 	return Karar(file_name=ad, kind=tur, bytes=boyut, warnings=uyarilar)
+
+
+# İçerik denetiminin ürettiği kodun `Kod` karşılığı. Denetim modülü frappe'ye
+# bağlı olmadığı için kodu düz dizge döndürür; eşleme burada.
+_DERIN_KODLAR: dict[str, Kod] = {
+	CONTENT_DANGEROUS.kod: CONTENT_DANGEROUS,
+	CONTENT_APPENDED.kod: CONTENT_APPENDED,
+	CONTENT_MISMATCH.kod: CONTENT_MISMATCH,
+	CONTENT_BOMB.kod: CONTENT_BOMB,
+	CONTENT_TRUNCATED.kod: CONTENT_TRUNCATED,
+	CONTENT_CONTAINER.kod: CONTENT_CONTAINER,
+}
+
+def _derin_mesaj(kod: str) -> str:
+	"""Kullanıcıya gösterilecek metin — denetim modülü `_()` çağıramaz (frappe'siz).
+
+	Sözlük fonksiyonun İÇİNDE kuruluyor ki `_()` çıplak dizgeleri sarsın:
+	modül düzeyinde bir sözlükte `_()` çağrılamaz (çeviri henüz yüklenmemiş
+	olur) ve `_(degisken)` yazmak çeviri çıkarıcısının metni bulamaması
+	demektir. Sözlük yalnız RET anında kuruluyor; mutlu yolda hiç çalışmaz.
+	"""
+	return {
+		CONTENT_DANGEROUS.kod: _("Dosyanın içeriği türüyle uyuşmuyor ve güvenli değil."),
+		CONTENT_APPENDED.kod: _("Görselin sonuna görsel olmayan içerik eklenmiş."),
+		CONTENT_MISMATCH.kod: _("Dosyanın uzantısı içeriğiyle uyuşmuyor."),
+		CONTENT_BOMB.kod: _("Görselin çözünürlüğü çok yüksek; işlenemez."),
+		CONTENT_TRUNCATED.kod: _("Dosya eksik yüklenmiş; lütfen tekrar deneyin."),
+		CONTENT_CONTAINER.kod: _("Belge dosyası bozuk ya da iddia ettiği biçimde değil."),
+	}.get(kod, "")
+
+
+def _derin_denetim(ad: str, content: bytes) -> None:
+	"""İçerik denetimi — ilk bulguda reddet.
+
+	Denetim `media/pipeline/security/content_gate.py` içinde; oraya
+	taşınmasının sebebi bench'siz test edilebilirlik (bkz. o modülün başlığı).
+	İçe aktarma fonksiyon içinde: `upload_policy` `File.before_insert`
+	kancasından her kayıtta çağrılıyor ve Pillow'u modül düzeyinde çekmek
+	kanca yolunu gereksiz ağırlaştırırdı.
+	"""
+	from tradehub_core.media.pipeline.security import content_gate
+
+	bulgular = content_gate.inspect(ad, content)
+	if not bulgular:
+		return
+	ilk = bulgular[0]
+	kod = _DERIN_KODLAR.get(ilk.kod, CONTENT_DANGEROUS)
+	reddet(kod, _derin_mesaj(ilk.kod) or ilk.mesaj)
 
 
 _UYUM: dict[str, frozenset[str]] = {
@@ -393,6 +480,104 @@ def _uyumlu(uzanti: str, gercek: str) -> bool:
 	beklenen = _UYUM.get(uzanti)
 	# AVIF/HEIC imzası tabloda yok; bilinmeyen tür uyuşmazlık sayılmaz.
 	return beklenen is None or gercek in beklenen
+
+
+# ── Slot politikası kapısı (W7 — rapor 78 W5-2) ─────────────────────────
+#
+# `check()` yukarıda GENEL kuralı uygular: tür, boyut tavanı, tehlikeli içerik.
+# Slot politikası (min kısa kenar, min alan, oran, slot-özel biçim listesi) ise
+# bugüne kadar yalnız İSTEMCİDE koşuyordu ve istemci kapısı atlatılabilir —
+# ölçüldü: 900×900 PNG `upload_media`dan 200 alıyor (panel E2E S1b, rapor 75
+# Bulgu 1). Buradaki kapı o boşluğu kapatır.
+#
+# KURAL KOPYASI YOKTUR: karar `pipeline/policy/engine.py::evaluate`'ten gelir
+# (393 vektörle TS paritesi kanıtlı — rapor 77). Bu fonksiyon yalnız künyeyi
+# kurar ve engelleyici (`block`) ihlali mevcut ret sözleşmesine (417 +
+# `upload_error` kodu) çevirir; `warn`/`auto_fix` REDDETMEZ.
+
+
+@lru_cache(maxsize=1)
+def _policy_engine():
+	"""Tek PolicyEngine — kayıt defteri (slots/*.json) süreç başına bir kez okunur.
+
+	Politika dosyaları deploy-zamanı sabittir; `pipeline_bridge._slot_bindings`
+	ile aynı önbellek deseni. İçe aktarma fonksiyon içinde: motor yalnız SLOT
+	BEYAN EDEN yüklemelerde gerekiyor, kanca yolunu ağırlaştırmamalı
+	(`_derin_denetim` ile aynı gerekçe).
+	"""
+	from tradehub_core.media.pipeline.policy.engine import PolicyEngine
+
+	return PolicyEngine()
+
+
+def _slot_probe(ad: str, icerik: bytes) -> dict:
+	"""Motorun `evaluate()` girdisi — Pillow'a HİÇ dokunmadan, başlıktan.
+
+	Ölçü W5-C'nin `declared_dimensions()`ından gelir (decode yok; bomba benzeri
+	girdiyi `check()` içindeki içerik kapısı bu satıra gelmeden zaten reddetti).
+	Ölçülemeyen alanlar sözleşme gereği `None`/0 bırakılır ve motor o kuralları
+	`SkippedRule` olarak raporlar — kapı ölçemediği şey üzerinden ne reddeder
+	ne de sessizce "geçti" sayar.
+
+	`readable=True` bilinçli: motorun `unreadable` kuralı tam-probe girdisi için
+	yazıldı; başlık-okuma kapısında okunabilirlik/kesiklik kararı zaten
+	`content_gate`'in (T-017) işi ve orada kendi koduyla reddediliyor. Burada
+	`False` bırakmak, başlığı ayrıştırılamayan ama içerik kapısından geçmiş her
+	biçimi (ör. AVIF/HEIC) slot verildiği anda otomatik reddetmek olurdu.
+
+	BİLİNEN SINIR: EXIF orientation başlıktan OKUNMUYOR (`declared_dimensions`
+	ham ölçüyü verir). Kısa kenar ve alan kuralları rotasyondan bağımsızdır;
+	yalnız ORAN kuralı 90° döndürülmüş JPEG'lerde depolanan ölçüyle değerlendirilir.
+	"""
+	from tradehub_core.media.pipeline.core import probe as karar_probe
+	from tradehub_core.media.pipeline.image.probe import declared_dimensions
+	from tradehub_core.media.pipeline.security.content_gate import HEAD_BYTES
+
+	detected = karar_probe.sniff(icerik)
+	w, h = declared_dimensions(icerik[:HEAD_BYTES], detected) or (0, 0)
+	if w < 0 or h < 0:
+		# Bozuk beyan — "ölçülemedi" say; geometri kuralları SkippedRule olur.
+		w = h = 0
+	uzanti = extension_of(ad)
+	return {
+		"filename": ad,
+		"extension": uzanti,
+		"byte_size": len(icerik),
+		"kind": karar_probe.kind_of(detected, uzanti),
+		"detected": detected,
+		"mime": karar_probe.MIME_BY_KIND.get(detected, ""),
+		"width": int(w),
+		"height": int(h),
+		"readable": True,
+	}
+
+
+def check_slot(slot: str, file_name: str, content: bytes, *, role: str = "") -> None:
+	"""Slot politikasını uygula — slot verilmemişse HİÇBİR ŞEY yapmaz.
+
+	`check()`ten SONRA ve dönüşümden (`engine.to_webp`) ÖNCE, ORİJİNAL içerik
+	üstünde çağrılır. Engelleyici ihlalde ilk ihlalin kodu (`product_image_
+	short_edge_too_small` gibi) mevcut sözleşmeyle döner: `upload_error` +
+	mesaj sonunda `[kod]` + HTTP 417 (`UploadRejected`).
+	"""
+	anahtar = (slot or "").strip().lower()
+	if not anahtar:
+		return
+
+	motor = _policy_engine()
+	if anahtar not in motor.registry:
+		reddet(SLOT_UNKNOWN, _("Bilinmeyen yükleme slotu: {0}").format(anahtar))
+
+	karar = motor.evaluate(anahtar, _slot_probe(file_name, content or b""), role=role)
+	engeller = karar.blocking()
+	if not engeller:
+		return
+
+	ilk = engeller[0]
+	mesaj = (ilk.message or {}).get("tr") or (ilk.message or {}).get("en") or ilk.rule
+	# Motorun kodu politika önekini zaten taşıyor (`error_code_prefix`);
+	# `Kod` sarmalayıcı yalnız mevcut ret biçimini (upload_error + [kod]) kurar.
+	reddet(Kod(ilk.code, False), mesaj)
 
 
 def limits() -> dict:

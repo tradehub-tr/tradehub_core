@@ -90,6 +90,15 @@ class H264Spec:
 	level: str = "4.0"
 	crf: int = 23
 	preset: str = "medium"
+	#: Hız denetimi. `capped_crf` = CRF + `-maxrate`/`-bufsize` tavanı.
+	#: `crf` = tavansız (ölçülen kusurlu davranış; vacuity kontrolü için tutuluyor).
+	rate_control: str = "capped_crf"
+	maxrate_kbps: int = 2500
+	min_maxrate_kbps: int = 300
+	#: Tavan INV-05 fayda kapısından TÜRETİLİR (bkz. `rate_ceiling_kbps`).
+	#: False yapılırsa yalnız mutlak tavan (`maxrate_kbps`) uygulanır.
+	budget_from_benefit_gate: bool = True
+	bufsize_multiplier: float = 2.0
 	pix_fmt: str = "yuv420p"
 	frame_rate_cap: int = 30
 	keyframe_interval_s: float = 2.0
@@ -112,6 +121,13 @@ class H264Spec:
 			level=str(t.get("level", v.level)),
 			crf=int(t.get("crf", v.crf)),
 			preset=str(t.get("preset", v.preset)),
+			rate_control=str(t.get("rate_control", v.rate_control)),
+			maxrate_kbps=int(t.get("maxrate_kbps", v.maxrate_kbps)),
+			min_maxrate_kbps=int(t.get("min_maxrate_kbps", v.min_maxrate_kbps)),
+			budget_from_benefit_gate=bool(
+				t.get("budget_from_benefit_gate", v.budget_from_benefit_gate)
+			),
+			bufsize_multiplier=float(t.get("bufsize_multiplier", v.bufsize_multiplier)),
 			pix_fmt=str(t.get("pix_fmt", v.pix_fmt)),
 			frame_rate_cap=int(t.get("frame_rate_cap", v.frame_rate_cap)),
 			keyframe_interval_s=float(t.get("keyframe_interval_s", v.keyframe_interval_s)),
@@ -147,6 +163,9 @@ class TranscodeResult:
 	cmd: Tuple[str, ...] = ()
 	quality: Dict[str, Any] = field(default_factory=dict)
 	notes: List[str] = field(default_factory=list)
+	#: Bu sonuç bir geri çekilmenin ürünüyse, düşen ilk aksiyonun adı
+	#: (bugün yalnız `TRANSCODE`). Boş string = geri çekilme olmadı.
+	fallback_from: str = ""
 
 	@property
 	def saving_ratio(self) -> float:
@@ -160,6 +179,7 @@ class TranscodeResult:
 			"action": self.action,
 			"accepted": self.accepted,
 			"kept_source": self.kept_source,
+			"fallback_from": self.fallback_from,
 			"src_bytes": self.src_bytes,
 			"out_bytes": self.out_bytes,
 			"saving_ratio": round(self.saving_ratio, 4),
@@ -184,6 +204,79 @@ def _scale_filter(max_width: int) -> str:
 	yuv420p tek sayılı boyut kabul etmez.
 	"""
 	return f"scale='min({max_width},iw)':-2"
+
+
+def rate_ceiling_kbps(
+	spec: H264Spec,
+	facts: Optional[VideoFacts] = None,
+	*,
+	min_saving: Optional[float] = None,
+) -> int:
+	"""Çıktının bitrate TAVANI — **INV-05 fayda kapısından türetilir**.
+
+	**Neden bir tavan gerekiyor.** CRF bir KALİTE hedefidir, bayt tavanı değil.
+	Kaynak zaten hedef kaliteden düşük bir bitrate'te kodlanmışsa CRF 23
+	kaynaktan çok daha fazla bit harcar. Ölçüldü (gerçek kütüphane, 2026-08-19):
+	1.152,7 kbps'lik gerçek bir 1080p dosya CRF 23 ile kaynağın **1,704 katına**
+	çıktı ve fayda kapısından düştü — hat hiçbir şey teslim etmedi.
+
+	**Neden tavan kapıdan TÜRETİLİYOR, sabit bir çarpandan değil.** Kapının
+	istediği tek şey belli: dosya kaynağın en fazla `(1 − min_saving_ratio)`
+	katı olacak. Bu bir BAYT BÜTÇESİDİR ve doğrudan bir bitrate bütçesine
+	çevrilebilir. Sabit bir çarpan (ör. "kaynağın 0,75 katı") aynı işi yapar
+	görünür ama iki yerde yanlıştır:
+
+	  * **Ses payını görmez.** 320 kbps sesli bir kaynakta çıktı sesi 128 kbps'e
+	    inecektir; kazancın 192 kbps'i sesten gelir ve video o kadar daha
+	    rahat nefes alabilir. Sabit çarpan bu payı videodan da kısar —
+	    kazanılmış baytı ikinci kez keser, karşılığında görüntü kalitesi verir.
+	  * **Sessiz kaynakta bütçeyi boşa harcar.** Ses yoksa çıkarılacak bir şey
+	    de yoktur; bütçenin tamamı videonundur.
+
+	Bu yüzden: `tavan = kaynak_toplam_kbps × (1 − min_saving_ratio) − çıktı_ses_kbps`.
+	Kapının izin verdiği en YÜKSEK kalite budur; daha aşağısı gereksiz kalite
+	kaybı, daha yukarısı kapıdan düşmek demektir.
+
+	**Mutlak tavan (`maxrate_kbps`) neden hâlâ var.** 8 Mbps'lik şişirilmiş bir
+	kaynağın kapı bütçesi 7,2 Mbps'tir; 1280 genişlikte bu hâlâ israftır.
+
+	**Taban (`min_maxrate_kbps`) neden var.** 200 kbps'lik bir kaynağı 150 kbps
+	tavana sıkıştırmak bloklaşma üretir. Taban yüzünden kapıyı geçemeyen dosya
+	ATILIR ve kaynak korunur — bu doğru sonuçtur, kazanılacak bayt yoktur.
+
+	Kaynak bitrate'i ölçülemediyse mutlak tavan kullanılır; tahmin edilmez.
+	"""
+	tavan = max(int(spec.maxrate_kbps), 1)
+	if not spec.budget_from_benefit_gate or facts is None:
+		return tavan
+
+	toplam_kbps = int(facts.format_bitrate_bps or 0) // 1000
+	if toplam_kbps <= 0:
+		toplam_kbps = (int(facts.video_bitrate_bps or 0) + int(facts.audio_bitrate_bps or 0)) // 1000
+	if toplam_kbps <= 0:
+		return tavan
+
+	oran = min_saving_ratio() if min_saving is None else float(min_saving)
+	cikti_ses = spec.audio_bitrate_kbps if facts.has_audio else 0
+	butce = int(round(toplam_kbps * (1.0 - oran))) - cikti_ses
+	return max(min(tavan, butce), int(spec.min_maxrate_kbps))
+
+
+def _rate_control_args(spec: H264Spec, facts: Optional[VideoFacts] = None) -> List[str]:
+	"""Hız denetimi argümanları. Varsayılan **capped CRF** (`hls.py` ile aynı desen).
+
+	`rate_control: "crf"` tavansız eski davranışı geri getirir — düzeltmeyi
+	geri alıp KIRMIZI göstermek için tabloda tek satır yeter.
+	"""
+	if spec.rate_control == "crf":
+		return ["-crf", str(spec.crf)]
+	tavan = rate_ceiling_kbps(spec, facts)
+	tampon = max(int(round(tavan * spec.bufsize_multiplier)), tavan)
+	return [
+		"-crf", str(spec.crf),
+		"-maxrate", f"{tavan}k",
+		"-bufsize", f"{tampon}k",
+	]
 
 
 def build_transcode_cmd(
@@ -226,7 +319,12 @@ def build_transcode_cmd(
 		"-profile:v", spec.profile,
 		"-level:v", spec.level,
 		"-preset", spec.preset,
-		"-crf", str(spec.crf),
+	]
+	# Hız denetimi: CRF tek başına bayt TAVANI vermez. Ölçülen kusur ve
+	# gerekçesi `rate_ceiling_kbps` docstring'inde + tablonun
+	# `targets.h264_primary.rate_control_why` bloğunda.
+	cmd += _rate_control_args(spec, facts)
+	cmd += [
 		"-pix_fmt", spec.pix_fmt,
 		"-g", str(gop),
 		"-keyint_min", str(gop),
@@ -321,6 +419,83 @@ def min_saving_ratio(targets: Optional[Mapping[str, Any]] = None) -> float:
 	return float(((t or {}).get("benefit_gate") or {}).get("min_saving_ratio", 0.1))
 
 
+def max_duration_delta_s(targets: Optional[Mapping[str, Any]] = None) -> float:
+	"""Kaynak ↔ çıktı süre farkı tavanı (saniye) — tablodan okunur."""
+	t = targets if targets is not None else default_table().targets
+	return float(((t or {}).get("quality_gate") or {}).get("max_duration_delta_s", 0.1))
+
+
+def vmaf_min(targets: Optional[Mapping[str, Any]] = None) -> float:
+	"""Hedef VMAF eşiği — tablodan okunur, koda gömülmez.
+
+	2026-08-19'a kadar imajdaki ffmpeg libvmaf'sızdı ve eşik yalnız kâğıt
+	üstündeydi. Yeni imaj (ffmpeg n8.1.2) libvmaf'lı — ÖLÇÜLDÜ:
+	`vmaf_available()` True, ilk gerçek ölçüm 89,34 (rapor 81 §3/4). Eşik
+	artık `transcode()` içindeki kalite kapısında UYGULANIYOR (W7): kapının
+	altında kalan çıktı ATILIR ve kaynak korunur. Eşik DEĞERİ tablonundur;
+	buradan değiştirilmez.
+	"""
+	t = targets if targets is not None else default_table().targets
+	return float(((t or {}).get("quality_gate") or {}).get("vmaf_min", 93))
+
+
+def _fallback_kurali(targets: Optional[Mapping[str, Any]] = None) -> Mapping[str, Any]:
+	t = targets if targets is not None else default_table().targets
+	return ((t or {}).get("benefit_gate") or {}).get("fallback") or {}
+
+
+def remux_fallback_applies(
+	facts: Optional[VideoFacts],
+	targets: Optional[Mapping[str, Any]] = None,
+) -> Tuple[bool, str]:
+	"""Kapıdan düşen TRANSCODE'dan sonra REMUX'a geri çekilmeli mi — ve NEDEN.
+
+	İki koşul birlikte aranır:
+
+	1. **Kap/moov kusuru DURUYOR mu.** Kaynak mp4 değilse ya da moov atomu
+	   sondaysa, TRANSCODE atıldığında bu kusur DÜZELMEDEN kalır. Ölçülen kusur
+	   bu (B-2): kapıdan düşen çıktı, aynı dosyanın REMUX ihtiyacını öldürüyordu.
+	2. **Akışlar zaten teslim edilebilir mi.** VP9/Opus bir kaynağı `-c copy`
+	   ile mp4'e taşımak kabı düzeltir ama tarayıcıda oynamayan bir dosya
+	   üretir. Böyle bir kaynakta geri çekilme YAPILMAZ; kaynak dokunulmadan
+	   korunur.
+	"""
+	kural = _fallback_kurali(targets)
+	if not facts or not facts.measured:
+		return (False, "kunye olculemedi")
+	if not kural.get("enabled", True):
+		return (False, "tabloda kapali (benefit_gate.fallback.enabled=false)")
+
+	kusurlar: List[str] = []
+	if facts.container_family != "mp4":
+		kusurlar.append(f"kap mp4 degil ({facts.container_family})")
+	if facts.moov_at_end:
+		kusurlar.append("moov atomu SONDA")
+	if not kusurlar:
+		return (False, "kaynakta kap/moov kusuru yok — REMUX bir sey duzeltmez")
+
+	video_ok = list(kural.get("deliverable_video_codecs") or ["h264"])
+	audio_ok = list(kural.get("deliverable_audio_codecs") or ["aac", "mp3", ""])
+	if facts.video_codec not in video_ok:
+		return (False, f"video kodegi teslim edilebilir degil ({facts.video_codec}) — -c copy oynatmayi bozar")
+	if facts.has_audio and facts.audio_codec not in audio_ok:
+		return (False, f"ses kodegi teslim edilebilir degil ({facts.audio_codec}) — -c copy oynatmayi bozar")
+	return (True, " + ".join(kusurlar))
+
+
+def duration_delta_s(reference: str, distorted: str) -> Optional[float]:
+	"""Kaynak ile çıktının süre farkı (saniye). Ölçülemezse `None`.
+
+	`None` "fark yok" DEĞİLDİR — "ölçemedim" demektir; çağıran ikisini
+	karıştırmamalıdır.
+	"""
+	a = probe_modulu.probe(reference)
+	b = probe_modulu.probe(distorted)
+	if not (a.measured and b.measured) or not a.duration_s or not b.duration_s:
+		return None
+	return abs(a.duration_s - b.duration_s)
+
+
 def transcode(
 	src: str,
 	dst: str,
@@ -329,12 +504,26 @@ def transcode(
 	facts: Optional[VideoFacts] = None,
 	timeout: int = FFMPEG_TIMEOUT_SECONDS,
 	enforce_benefit_gate: bool = True,
+	enforce_quality_gate: Optional[bool] = None,
 	nice: bool = True,
 ) -> TranscodeResult:
 	"""Kaynağı H.264 High + AAC 128k + faststart mp4'e dönüştür.
 
 	Fayda kapısını (INV-05) geçemeyen çıktı SİLİNİR ve hedefe hiçbir şey
 	yazılmaz: `accepted=False`, `kept_source=True`.
+
+	**Kalite kapısı (`vmaf_min`, W7).** Fayda kapısını geçen çıktı, tablodaki
+	`quality_gate.vmaf_min` eşiğiyle DOĞRULANIR: VMAF ölçülebiliyorsa ve
+	eşiğin altındaysa çıktı ATILIR (`accepted=False`, `kept_source=True`).
+	VMAF ölçülemiyorsa (libvmaf'sız ffmpeg) kapı UYGULANMAZ ve bu açıkça
+	nota yazılır — uydurma bir sayıyla ret de kabul de üretilmez.
+
+	`enforce_quality_gate=None` (varsayılan) `enforce_benefit_gate`i izler.
+	Ayrık bir bayrak olması bilinçli: sonda/ölçüm koşumları (kapısız çıktının
+	kendisini incelemek isteyen çağıranlar) `enforce_benefit_gate=False` ile
+	geliyor ve o yolda dosyanın DİSKTE KALMASI sözleşmedir — ölçüldü: sessiz
+	720p fixture'ının kapısız çıktısı VMAF 90,99 < 93, kapı orada da çalışsaydı
+	inceleme çıktısını yok ederdi. Üretim yolu iki kapıyı birden açık tutar.
 	"""
 	spec = spec or H264Spec.from_table()
 	facts = facts or probe_modulu.probe(src)
@@ -370,6 +559,56 @@ def transcode(
 			f"-> cikti atildi, kaynak korundu"
 		)
 		return sonuc
+
+	# ── Kalite kapısı (vmaf_min, T-072/5 — W7'de bağlandı) ─────────────
+	# Fayda kapısından SONRA: zaten atılacak çıktı için VMAF ölçmek (saniyeler
+	# süren ikinci bir kod çözme) boşa iştir. Ölçüm geçici dosya üzerinde —
+	# süre kapısıyla aynı gerekçe.
+	kalite_kapisi = enforce_benefit_gate if enforce_quality_gate is None else enforce_quality_gate
+	if kalite_kapisi:
+		kalite = measure_quality(src, gecici, timeout=timeout)
+		vmaf_esigi = vmaf_min()
+		sonuc.quality["vmaf_min"] = vmaf_esigi
+		if kalite.get("measured") and kalite.get("metric") == "vmaf":
+			puan = float(kalite.get("vmaf") or 0.0)
+			sonuc.quality["vmaf"] = puan
+			if puan < vmaf_esigi:
+				_sessiz_sil(gecici)
+				sonuc.quality["vmaf_gate"] = "DUSTU"
+				sonuc.accepted = False
+				sonuc.kept_source = True
+				sonuc.notes.append(
+					f"kalite kapisi (vmaf_min): VMAF {puan:.2f} < {vmaf_esigi:.0f} "
+					f"-> cikti atildi, kaynak korundu"
+				)
+				return sonuc
+			sonuc.quality["vmaf_gate"] = "GECTI"
+		else:
+			# VMAF yoksa SSIM/PSNR kayda geçer ama kapı UYGULANMAZ: eşik VMAF
+			# cinsinden tanımlı, başka metrikten VMAF'a çeviri uydurmaktır.
+			sonuc.quality["vmaf"] = None
+			sonuc.quality["vmaf_gate"] = "OLCULEMEDI"
+			for anahtar in ("ssim", "psnr", "vmaf_note"):
+				if anahtar in kalite:
+					sonuc.quality[anahtar] = kalite[anahtar]
+			sonuc.notes.append("VMAF OLCULEMEDI -> kalite kapisi uygulanmadi (sayi uydurulmaz)")
+
+	# Süre kapısı ÖLÇÜLÜR ama çıktıyı ATMAZ (tablo `quality_gate.duration_note`):
+	# süresi sapmış bir dosya, hiç dosya olmamasından iyidir. Ölçüm geçici dosya
+	# üzerinde yapılır — taşımadan sonra ölçmek aynı sonucu verir ama başarısız
+	# ölçümde hedefi çoktan değiştirmiş oluruz.
+	fark = duration_delta_s(src, gecici)
+	tavan = max_duration_delta_s()
+	sonuc.quality["duration_delta_s"] = None if fark is None else round(fark, 4)
+	sonuc.quality["max_duration_delta_s"] = tavan
+	if fark is None:
+		sonuc.quality["duration_gate"] = "OLCULEMEDI"
+		sonuc.notes.append("sure farki OLCULEMEDI — kapi uygulanmadi")
+	elif fark > tavan:
+		sonuc.quality["duration_gate"] = "DUSTU"
+		sonuc.notes.append(f"sure farki {fark * 1000:.0f} ms > {tavan * 1000:.0f} ms tavani")
+	else:
+		sonuc.quality["duration_gate"] = "GECTI"
 
 	os.replace(gecici, dst)
 	sonuc.out_path = dst
@@ -451,7 +690,33 @@ def apply_decision(
 		)
 	if decision.action == ACTION_REMUX:
 		return remux(src, dst, timeout=timeout, nice=nice)
-	return transcode(src, dst, facts=facts, timeout=timeout, nice=nice)
+
+	facts = facts or probe_modulu.probe(src)
+	sonuc = transcode(src, dst, facts=facts, timeout=timeout, nice=nice)
+	if sonuc.accepted:
+		return sonuc
+
+	# ── B-2 geri çekilme yolu ───────────────────────────────────────────
+	# Kapıdan düşen TRANSCODE, aynı dosyanın REMUX ihtiyacını ÖLDÜRÜYORDU:
+	# moov sonda kalıyordu ve geri çekilme yolu yoktu. Gerekçe ve koşullar
+	# `remux_fallback_applies` + tablonun `benefit_gate.fallback` bloğunda.
+	uygulanir, gerekce = remux_fallback_applies(facts)
+	if not uygulanir:
+		sonuc.notes.append(f"REMUX'a geri cekilme YAPILMADI: {gerekce}")
+		return sonuc
+
+	dusen_kapi = (
+		"kalite kapisindan (vmaf_min)"
+		if sonuc.quality.get("vmaf_gate") == "DUSTU"
+		else "fayda kapisindan (INV-05)"
+	)
+	geri = remux(src, dst, timeout=timeout, nice=nice)
+	geri.fallback_from = ACTION_TRANSCODE
+	geri.notes = list(sonuc.notes) + [
+		f"TRANSCODE {dusen_kapi} dustu -> REMUX'a geri cekildi ({gerekce})"
+	] + list(geri.notes)
+	geri.quality = dict(sonuc.quality)
+	return geri
 
 
 # ── Kalite ölçümü ───────────────────────────────────────────────────────
@@ -574,6 +839,11 @@ __all__ = [
 	"NICE_PREFIX",
 	"build_transcode_cmd",
 	"build_remux_cmd",
+	"rate_ceiling_kbps",
+	"remux_fallback_applies",
+	"duration_delta_s",
+	"max_duration_delta_s",
+	"vmaf_min",
 	"transcode",
 	"remux",
 	"apply_decision",

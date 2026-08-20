@@ -124,17 +124,25 @@ GEOMETRI_ALTIN = {
 }
 
 #: Politika matrisi — slot başına tanımlı rendition sayısı (profil × biçim).
+#:
+#: 2026-08-19: `brand.logo` ve `seller.logo` 5 → 6 (toplam 48 → 50). Sebep,
+#: logo K3 kararının ÖLÇÜMLE B'ye dönmesi: 18 gerçek logoda w512 rung'unun
+#: baytı ölçüldü (p50 27.162 B ≈ referans 27.128 B, max 109.172 B, **5/18
+#: dosya 40 KiB tavanını AŞIYOR**), tetik ateşledi ve iki politikaya `w384`
+#: rung'u eklendi. Ayrıntı: `docs/standards/logo.md` §13-K3.
+#: Bu kilit çalıştığı için değişiklik yakalandı — matrisin sessizce kaymasını
+#: engellemesi tam olarak amacı.
 MATRIS_ALTIN = {
-	"brand.logo": 5,
+	"brand.logo": 6,
 	"category.banner": 6,
 	"company.cover_image": 10,
 	"company.cover_video": 3,
 	"document.attachment": 1,
 	"product.image": 12,
 	"product.video": 3,
-	"seller.logo": 5,
+	"seller.logo": 6,
 	"user.avatar": 3,
-	"_toplam": 48,
+	"_toplam": 50,
 }
 
 

@@ -493,3 +493,337 @@ def files(
 		else:
 			urls = sorted(_store_urls(data))
 	return _paginate_urls(urls, page, page_size, search)
+
+
+# ---------------------------------------------------------------------------
+# Satıcı gezgini — mağazanın KENDİ ağacı
+#
+# Yönetici ağacından bilerek FARKLI bir ağaç: satıcının tek mağazası var, o
+# yüzden "mağaza" seviyesi anlamsız; buna karşılık "hangi ürüne yükledim"
+# seviyesi asıl aradığı bilgi. Bu yüzden public tarafı üç kademe:
+#
+#     public/<kategori>/<ürün>/<dosyalar>
+#     public/__none__/<kategorisiz ürün>/<dosyalar>
+#     public/__unused__/<dosyalar>        (yüklenmiş, hiçbir ürününde durmuyor)
+#     private/<dosyalar>                  (kendi özel dosyaları)
+#     chat/<dosyalar>                     (kendi sohbet ekleri)
+#
+# YETKİ KONTROLÜ YOK — modülün sözleşmesi bozulmuyor. `store` her zaman
+# çağıran uçta oturumdan türetilir (`api/seller_media._store`); buraya
+# istemciden gelen bir mağaza değeri ASLA geçirilmemeli.
+# ---------------------------------------------------------------------------
+
+_SELLER_SNAPSHOT_TTL = 120
+_SELLER_SNAPSHOT_PREFIX = "tradehub:media_browse:seller:"
+
+# `File.file_url` IN (...) sorgusunu parçalara böl — birkaç bin adresli tek
+# sorgu MariaDB'nin paket sınırına dayanıyor.
+_URL_CHUNK = 500
+
+
+def _seller_listing_rows(store: str) -> list[dict]:
+	"""(file_url, ürün, ürün adı, kategori) — YALNIZ bu mağazanın ürünlerinden.
+
+	Süzgeç sorgunun İÇİNDE: sonradan filtrelenseydi ara sonuç başka mağazanın
+	ürün kimliklerini belleğe alırdı ve bir hata anında sızdırırdı.
+	"""
+	rows: list[dict] = []
+	for table, column, via_parent in _LISTING_IMAGE_SOURCES:
+		listing = frappe.qb.Table("tabListing")
+		if via_parent:
+			f = frappe.qb.Table(table)
+			q = (
+				frappe.qb.from_(f)
+				.join(listing)
+				.on(listing.name == f.parent)
+				.select(
+					f[column].as_("file_url"),
+					listing.name.as_("listing"),
+					listing.title.as_("listing_title"),
+					listing.product_category.as_("category"),
+				)
+				.where(f[column].like("/files/%"))
+				.where(listing.seller_profile == store)
+			)
+		else:
+			q = (
+				frappe.qb.from_(listing)
+				.select(
+					listing[column].as_("file_url"),
+					listing.name.as_("listing"),
+					listing.title.as_("listing_title"),
+					listing.product_category.as_("category"),
+				)
+				.where(listing[column].like("/files/%"))
+				.where(listing.seller_profile == store)
+			)
+		rows.extend(q.run(as_dict=True))
+	return rows
+
+
+def _existing_public_urls(urls: list[str]) -> set[str]:
+	"""Bu adreslerden `File` kaydı OLANLAR.
+
+	Ürün alanında duran ama `File` kaydı olmayan adresler var (dış içe aktarım).
+	Klasör sayacı onları saysaydı, dosya listesi `File`den okuduğu için sayı ile
+	liste tutmazdı — satıcı "12 dosya" yazan klasörde 9 satır görürdü.
+	"""
+	bulunan: set[str] = set()
+	for i in range(0, len(urls), _URL_CHUNK):
+		bulunan.update(
+			r["file_url"]
+			for r in frappe.get_all(
+				"File",
+				filters={"is_private": 0, "file_url": ["in", urls[i : i + _URL_CHUNK]]},
+				fields=["file_url"],
+				limit_page_length=0,
+			)
+		)
+	return bulunan
+
+
+def _seller_owned_public_urls(store: str) -> set[str]:
+	"""Mağazanın kullanıcılarının YÜKLEDİĞİ public adresler."""
+	from tradehub_core.media import ownership
+
+	kullanicilar = list(ownership.users_of(store))
+	if not kullanicilar:
+		return set()
+	return {
+		r["file_url"]
+		for r in frappe.get_all(
+			"File",
+			filters={
+				"is_private": 0,
+				"owner": ["in", kullanicilar],
+				"file_url": ["like", "/files/%"],
+			},
+			fields=["file_url"],
+			limit_page_length=0,
+		)
+	}
+
+
+def seller_public_index(store: str, refresh: bool = False) -> dict:
+	"""Mağazanın public ağacı tek geçişte.
+
+	{"cats": {kategori: {ürün: [url]}}, "labels": {ürün: başlık},
+	 "unused": [url], "total": n}
+
+	Sahiplik kuralı `ownership` ile aynı iki yol: mağazanın ürünlerinde
+	KULLANILAN (kim yüklerse yüklesin) + mağaza kullanıcılarının YÜKLEDİĞİ.
+	İkincisinden ürüne düşmeyenler `__unused__` kovasında toplanır.
+	"""
+	if not store:
+		return {"cats": {}, "labels": {}, "unused": [], "total": 0}
+
+	anahtar = f"{_SELLER_SNAPSHOT_PREFIX}{store}"
+	if not refresh:
+		onbellek = frappe.cache().get_value(anahtar)
+		if onbellek:
+			return onbellek
+
+	satirlar = _seller_listing_rows(store)
+	adaylar = sorted({r["file_url"] for r in satirlar if r.get("file_url")})
+	mevcut = _existing_public_urls(adaylar) if adaylar else set()
+
+	kategoriler: dict[str, dict[str, set]] = defaultdict(lambda: defaultdict(set))
+	etiketler: dict[str, str] = {}
+	kullanilan: set[str] = set()
+	for r in satirlar:
+		url = r.get("file_url")
+		urun = r.get("listing")
+		if not url or not urun or url not in mevcut:
+			continue
+		kategoriler[r.get("category") or NO_CATEGORY][urun].add(url)
+		etiketler[urun] = r.get("listing_title") or urun
+		kullanilan.add(url)
+
+	bagsiz = sorted(_seller_owned_public_urls(store) - kullanilan)
+
+	index = {
+		"cats": {
+			kat: {urun: sorted(urls) for urun, urls in kova.items()}
+			for kat, kova in kategoriler.items()
+		},
+		"labels": etiketler,
+		"unused": bagsiz,
+		"total": len(kullanilan) + len(bagsiz),
+	}
+	frappe.cache().set_value(anahtar, index, expires_in_sec=_SELLER_SNAPSHOT_TTL)
+	return index
+
+
+def clear_seller_cache(store: str | None = None) -> None:
+	"""Satıcı ağacı önbelleğini boşalt — yükleme/silme sonrası ve testlerde."""
+	if store:
+		frappe.cache().delete_value(f"{_SELLER_SNAPSHOT_PREFIX}{store}")
+		return
+	for ad in frappe.db.get_all("Admin Seller Profile", pluck="name"):
+		frappe.cache().delete_value(f"{_SELLER_SNAPSHOT_PREFIX}{ad}")
+
+
+def _seller_private_query(store: str):
+	"""(tablo, sorgu) — mağazanın kendi özel dosyaları.
+
+	Sahiplik burada YALNIZ yükleyen üzerinden kuruluyor. `ownership.used_urls`
+	yalnız ürün/vitrin alanlarını tarar; özel belge (KYB, sözleşme, dekont)
+	hiçbir ürüne bağlanmadığı için o yol bu kapsamda hiçbir şey eklemez, buna
+	karşılık `/private/files/` adresleri de `/files/` alt dizisini içerdiğinden
+	yanlış eşleşme riski taşır. Dar olan yol seçildi.
+
+	Kullanıcısı çözülemeyen mağaza HİÇBİR ŞEY görür: süzgeci atlamak, bir
+	yapılandırma eksiğini tüm platformun özel dosyalarına açılan kapıya
+	çevirirdi.
+	"""
+	from tradehub_core.media import ownership
+
+	kullanicilar = list(ownership.users_of(store)) if store else []
+	f = frappe.qb.DocType("File")
+	q = (
+		frappe.qb.from_(f)
+		.where(f.is_private == 1)
+		.where(f.file_url.like("/private/files/%"))
+		.where(f.owner.isin(kullanicilar or [""]))
+	)
+	return f, q
+
+
+def seller_root(store: str) -> dict:
+	"""Satıcı kökü — yalnız kendi sayıları."""
+	index = seller_public_index(store)
+	f, ozel = _seller_private_query(store)
+	ozel_sayi = ozel.select(Count(f.name)).run()[0][0]
+	# Sohbet ekleri dış serviste (teamslike) durur; sayı yerel künyeden gelir.
+	sohbet_sayi = frappe.db.count("Chat Attachment", {"seller": store}) if store else 0
+	return {
+		"folders": [
+			{"id": "public", "count": index["total"]},
+			{"id": "private", "count": ozel_sayi},
+			{"id": "chat", "count": sohbet_sayi},
+		]
+	}
+
+
+def seller_public_categories(store: str, refresh: bool = False) -> dict:
+	"""Mağazanın kategori klasörleri (+ kategorisiz ve ürüne bağsız kovaları)."""
+	index = seller_public_index(store, refresh=refresh)
+	kategoriler = index["cats"]
+	gercek = [k for k in kategoriler if k != NO_CATEGORY]
+	etiketler = {}
+	if gercek:
+		etiketler = {
+			r.name: r.category_name or r.name
+			for r in frappe.get_all(
+				"Product Category",
+				filters={"name": ["in", gercek]},
+				fields=["name", "category_name"],
+			)
+		}
+
+	def _sayi(kova: dict) -> int:
+		urls: set[str] = set()
+		for liste in kova.values():
+			urls.update(liste)
+		return len(urls)
+
+	folders = [
+		{"id": kat, "label": etiketler.get(kat, kat), "count": _sayi(kategoriler[kat])}
+		for kat in gercek
+	]
+	folders.sort(key=lambda x: (-x["count"], x["label"]))
+	# İki durum bilinçli AYRI: "kategorisiz ürünün görseli" veri-kalitesi
+	# sinyali, "hiçbir üründe durmayan yükleme" temizlik adayı.
+	if kategoriler.get(NO_CATEGORY):
+		folders.append({"id": NO_CATEGORY, "label": "", "count": _sayi(kategoriler[NO_CATEGORY])})
+	if index["unused"]:
+		folders.append({"id": UNUSED, "label": "", "count": len(index["unused"])})
+	return {"folders": folders}
+
+
+def seller_listings(store: str, category: str, refresh: bool = False) -> dict:
+	"""Bir kategorideki ÜRÜN klasörleri — satıcının aradığı seviye bu.
+
+	Kategori bu mağazada yoksa boş liste döner; "yok" ile "yetkisiz" ayrımı
+	yapılmaz, çünkü ayrım başka mağazanın kategorilerini deneme yoluyla
+	keşfetmeye kapı açardı.
+	"""
+	index = seller_public_index(store, refresh=refresh)
+	kova = index["cats"].get(category)
+	if not kova:
+		return {"folders": []}
+	folders = [
+		{"id": urun, "label": index["labels"].get(urun, urun), "count": len(urls)}
+		for urun, urls in kova.items()
+	]
+	folders.sort(key=lambda x: (-x["count"], x["label"]))
+	return {"folders": folders}
+
+
+def seller_public_files(
+	store: str,
+	category: str = "",
+	listing: str = "",
+	page: int = 1,
+	page_size: int = 50,
+	search: str = "",
+) -> dict:
+	"""Mağazanın public dosyaları — kategori/ürün kırılımıyla sayfalı.
+
+	`listing` çağıran uçta zaten doğrulanıyor; burada ayrıca indeks mağazaya
+	göre kurulduğu için başka mağazanın ürün kimliği hiçbir kovada bulunmaz.
+	İki kat koruma bilinçli: biri kaldırılırsa diğeri hâlâ tutar.
+	"""
+	index = seller_public_index(store)
+	page = max(1, int(page or 1))
+	page_size = min(MAX_PAGE_SIZE, max(1, int(page_size or 50)))
+
+	if category == UNUSED:
+		urls = list(index["unused"])
+	else:
+		kova = index["cats"].get(category) or {}
+		if listing:
+			urls = list(kova.get(listing) or [])
+		else:
+			toplu: set[str] = set()
+			for liste in kova.values():
+				toplu.update(liste)
+			urls = sorted(toplu)
+	return _paginate_urls(urls, page, page_size, search)
+
+
+def seller_private_files(
+	store: str, page: int = 1, page_size: int = 50, search: str = ""
+) -> dict:
+	"""Mağazanın kendi özel dosyaları — sayfalı."""
+	page = max(1, int(page or 1))
+	page_size = min(MAX_PAGE_SIZE, max(1, int(page_size or 50)))
+	search = (search or "").strip()
+
+	f, q = _seller_private_query(store)
+	if search:
+		pattern = f"%{search}%"
+		q = q.where((f.file_name.like(pattern)) | (f.file_url.like(pattern)))
+	total = q.select(Count(f.name)).run()[0][0]
+	rows = (
+		q.select(
+			f.name,
+			f.file_name,
+			f.file_url,
+			f.file_size,
+			f.creation,
+			f.is_private,
+			f.attached_to_doctype,
+		)
+		.orderby(f.creation, order=frappe.qb.desc)
+		.limit(page_size)
+		.offset((page - 1) * page_size)
+		.run(as_dict=True)
+	)
+	from tradehub_core.media import access_level
+
+	for r in rows:
+		# Yönetici listesiyle aynı PII kararı — iki liste aynı dosyada farklı
+		# aksiyon göstermesin.
+		r["pii"] = access_level._is_protected_pii(r, r.file_url)
+	return {"items": rows, "total": total}

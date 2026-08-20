@@ -70,9 +70,26 @@ EXCLUDED_DOCTYPES: Final[tuple[str, ...]] = (
 EXCLUDED_MEDIA_FIELDS: Final[dict[str, tuple[str, ...]]] = {
 	"KYC Verification": ("identity_document",),
 	"Seller Application": ("identity_document",),
-	"KYB Verification": ("identity_document", "bank_account_document"),
+	"KYB Verification": (
+		"identity_document",
+		"bank_account_document",
+		# Ticari kimlik belgeleri: imza sirküleri imza örneği, sicil gazetesi
+		# ortak/adres bilgisi, vergi levhası VKN taşır. Hepsi Attach alanı.
+		"imza_sirkuleri",
+		"ticaret_sicil_gazetesi",
+		"faaliyet_belgesi",
+		"vergi_levhasi",
+	),
 	"Seller Certification": ("document",),
 	"Seller Verification": ("document",),
+	# Bu üç doctype `EXCLUDED_DOCTYPES`ta zaten var, yani `attached_to_doctype`
+	# DOLUYSA korunuyorlar. Ters referans yolu (dosya boş `attached_to_*` ile
+	# yüklenmiş) ise açıktı: ölçümde 2 dosya bu yoldan `is_private=0` çıktı.
+	# Toplu içe aktarımda `attached_to_*` boş kalması yaygın (bkz. K-3: ürün
+	# görsellerinin %61'i böyle), o yüzden bu yol kapatılmalı.
+	"Order": ("receipt_url",),
+	"Payment Transaction": ("receipt_url",),
+	"Data Export Request": ("file_url",),
 }
 
 

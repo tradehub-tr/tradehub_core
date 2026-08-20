@@ -1,0 +1,301 @@
+{
+ "_kaynak": {
+  "aciklama": "W6 video koşumu — 2026-08-20, istoc-dev-backend-1, ffmpeg n8.1.2 (libvmaf=1). Bu dosyadaki HER sayı konteynerde GERÇEK DEV dosyalarıyla ölçüldü (docs/reports/81-w6-video-kosum.md). Sentetik hiçbir değer yok.",
+  "ffmpeg": "n8.1.2-44-g7c533d0f86-20260818",
+  "vmaf_available": true
+ },
+ "facts": {
+  "/files/AQPp_3LT54pJFuImtjmPVciBNnrtSV5sX18x1MprOGKtFDyRpoIjRqTJs3Sy1hFGShtcskCSJUs5TKi7V-MrwRAd.mp4": {
+   "listing": "LST-00862",
+   "size_bytes": 1085963,
+   "width": 352,
+   "height": 352,
+   "duration_s": 28.905375,
+   "fps": 25.07,
+   "video_codec": "h264",
+   "video_profile": "Main",
+   "pix_fmt": "yuv420p",
+   "video_bitrate_bps": 197694,
+   "format_bitrate_bps": 300556,
+   "container_family": "mp4",
+   "moov_at_end": false,
+   "has_audio": true,
+   "audio_codec": "aac",
+   "audio_bitrate_bps": 98302,
+   "audio_channels": 2,
+   "nb_streams": 2,
+   "rotation": 0,
+   "measured": true,
+   "has_video": true
+  },
+  "/files/AQOOb74v4bIRUOAQ3zDXz8iOd-VxxPUF8s5zQG0CH1rotH5LEzH01SMTa1ulJLdiaEiGeP2uqQKyIKuwbhCDMKsgR-vRopys.mp4": {
+   "listing": "LST-04035",
+   "size_bytes": 3077433,
+   "width": 720,
+   "height": 1280,
+   "duration_s": 32.99415,
+   "fps": 25.0,
+   "video_codec": "h264",
+   "video_profile": "High",
+   "pix_fmt": "yuv420p",
+   "video_bitrate_bps": 647961,
+   "format_bitrate_bps": 746176,
+   "container_family": "mp4",
+   "moov_at_end": false,
+   "has_audio": true,
+   "audio_codec": "aac",
+   "audio_bitrate_bps": 96634,
+   "audio_channels": 2,
+   "nb_streams": 2,
+   "rotation": 0,
+   "measured": true,
+   "has_video": true
+  },
+  "/files/Evde taze sıkılmış meyve sularının keyfini çıkarın! 🍹 Avcılar Plastik, estetik tasarımlı limon.mp4": {
+   "listing": "LST-04043",
+   "size_bytes": 2809249,
+   "width": 720,
+   "height": 720,
+   "duration_s": 28.001859,
+   "fps": 30.0,
+   "video_codec": "h264",
+   "video_profile": "High",
+   "pix_fmt": "yuv420p",
+   "video_bitrate_bps": 707234,
+   "format_bitrate_bps": 802589,
+   "container_family": "mp4",
+   "moov_at_end": false,
+   "has_audio": true,
+   "audio_codec": "aac",
+   "audio_bitrate_bps": 91952,
+   "audio_channels": 2,
+   "nb_streams": 2,
+   "rotation": 0,
+   "measured": true,
+   "has_video": true
+  },
+  "/files/9mb.mp4": {
+   "listing": "LST-04419",
+   "size_bytes": 9622535,
+   "width": 1280,
+   "height": 720,
+   "duration_s": 540.0,
+   "fps": 30.0,
+   "video_codec": "h264",
+   "video_profile": "High",
+   "pix_fmt": "yuv420p",
+   "video_bitrate_bps": 140555,
+   "format_bitrate_bps": 142556,
+   "container_family": "mp4",
+   "moov_at_end": true,
+   "has_audio": false,
+   "audio_codec": "",
+   "audio_bitrate_bps": 0,
+   "audio_channels": 0,
+   "nb_streams": 1,
+   "rotation": 0,
+   "measured": true,
+   "has_video": true
+  }
+ },
+ "decisions": {
+  "/files/AQPp_3LT54pJFuImtjmPVciBNnrtSV5sX18x1MprOGKtFDyRpoIjRqTJs3Sy1hFGShtcskCSJUs5TKi7V-MrwRAd.mp4": {
+   "action": "PASSTHROUGH",
+   "rule_id": "default",
+   "code": "video_already_deliverable",
+   "hls_required": false
+  },
+  "/files/AQOOb74v4bIRUOAQ3zDXz8iOd-VxxPUF8s5zQG0CH1rotH5LEzH01SMTa1ulJLdiaEiGeP2uqQKyIKuwbhCDMKsgR-vRopys.mp4": {
+   "action": "PASSTHROUGH",
+   "rule_id": "default",
+   "code": "video_already_deliverable",
+   "hls_required": false
+  },
+  "/files/Evde taze sıkılmış meyve sularının keyfini çıkarın! 🍹 Avcılar Plastik, estetik tasarımlı limon.mp4": {
+   "action": "PASSTHROUGH",
+   "rule_id": "default",
+   "code": "video_already_deliverable",
+   "hls_required": false
+  },
+  "/files/9mb.mp4": {
+   "action": "REMUX",
+   "rule_id": "moov_at_end",
+   "code": "video_moov_at_end",
+   "hls_required": true
+  }
+ },
+ "gate_probe": {
+  "url": "/files/Evde taze sıkılmış meyve sularının keyfini çıkarın! 🍹 Avcılar Plastik, estetik tasarımlı limon.mp4",
+  "src_bytes": 2809249,
+  "out_bytes": 2487877,
+  "saving_ratio": 0.1144,
+  "accepted": true,
+  "min_saving_ratio": 0.1,
+  "rate_ceiling_kbps": 594,
+  "src_total_kbps": 802,
+  "duration_gate": {
+   "duration_delta_s": 0.1139,
+   "max_duration_delta_s": 0.1,
+   "duration_gate": "DUSTU"
+  }
+ },
+ "vmaf": {
+  "measured": true,
+  "metric": "vmaf",
+  "vmaf": 89.342709,
+  "vmaf_min_esigi": 93.0,
+  "esigin_altinda": true
+ },
+ "poster": {
+  "LST-04043": {
+   "path": "/home/frappe/frappe-bench/sites/istoc.localhost/public/files/media/video/4cacb5898d/poster.webp",
+   "timestamp_s": 1.233,
+   "size_bytes": 16912,
+   "luma_pct": 54.29,
+   "quality": 78,
+   "window": [
+    0.5,
+    5.0
+   ],
+   "retried": false,
+   "attempts": [
+    {
+     "window": [
+      0.5,
+      5.0
+     ],
+     "timestamp_s": 1.233,
+     "bytes": 16912,
+     "quality": 78,
+     "luma_pct": 54.29,
+     "brightness_gate": "GECTI"
+    }
+   ],
+   "notes": []
+  },
+  "LST-04419": {
+   "path": "/home/frappe/frappe-bench/sites/istoc.localhost/public/files/media/video/93144fcb41/poster.webp",
+   "timestamp_s": 4.0,
+   "size_bytes": 9194,
+   "luma_pct": 49.64,
+   "quality": 78,
+   "window": [
+    0.5,
+    5.0
+   ],
+   "retried": false,
+   "attempts": [
+    {
+     "window": [
+      0.5,
+      5.0
+     ],
+     "timestamp_s": 4.0,
+     "bytes": 9194,
+     "quality": 78,
+     "luma_pct": 49.64,
+     "brightness_gate": "GECTI"
+    }
+   ],
+   "notes": []
+  }
+ },
+ "hls": {
+  "src_bytes": 9622536,
+  "short_edge": 720,
+  "selected_ladder": [
+   "360p",
+   "480p",
+   "720p"
+  ],
+  "variants": [
+   {
+    "name": "360p",
+    "resolution": "640x360",
+    "bitrate_kbps": 800,
+    "playlist": "playlist.m3u8",
+    "segments": 135,
+    "bytes": 7299637,
+    "target_duration_s": 4.0,
+    "startup_bytes": 161841,
+    "startup_segments": 3,
+    "startup_covered_s": 12.0,
+    "startup_gate": "GECTI"
+   },
+   {
+    "name": "480p",
+    "resolution": "854x480",
+    "bitrate_kbps": 1400,
+    "playlist": "playlist.m3u8",
+    "segments": 135,
+    "bytes": 7905561,
+    "target_duration_s": 4.0,
+    "startup_bytes": 173121,
+    "startup_segments": 3,
+    "startup_covered_s": 12.0,
+    "startup_gate": "GECTI"
+   },
+   {
+    "name": "720p",
+    "resolution": "1280x720",
+    "bitrate_kbps": 2800,
+    "playlist": "playlist.m3u8",
+    "segments": 135,
+    "bytes": 12095893,
+    "target_duration_s": 4.0,
+    "startup_bytes": 275581,
+    "startup_segments": 3,
+    "startup_covered_s": 12.0,
+    "startup_gate": "GECTI"
+   }
+  ],
+  "bytes_total": 27301091,
+  "master_entries": [
+   {
+    "RESOLUTION": "640x360",
+    "BANDWIDTH": "140248",
+    "URI": "v360p/playlist.m3u8"
+   },
+   {
+    "RESOLUTION": "854x480",
+    "BANDWIDTH": "171080",
+    "URI": "v480p/playlist.m3u8"
+   },
+   {
+    "RESOLUTION": "1280x720",
+    "BANDWIDTH": "254928",
+    "URI": "v720p/playlist.m3u8"
+   }
+  ]
+ },
+ "remux": {
+  "src_bytes": 9622535,
+  "out_bytes": 9622536,
+  "out_moov_at_end": false,
+  "accepted": true
+ },
+ "preview": {
+  "path": "/home/frappe/frappe-bench/sites/istoc.localhost/public/files/media/video/4cacb5898d/preview.mp4",
+  "start_s": 1.233,
+  "duration_s": 6.0,
+  "size_bytes": 139764,
+  "crf": 28,
+  "within_task_gate": true,
+  "within_policy_gate": true,
+  "attempts": [
+   {
+    "duration_s": 6.0,
+    "crf": 28,
+    "bytes": 139764
+   }
+  ],
+  "notes": []
+ },
+ "produced_paths": {
+  "poster_4043": "files/media/video/4cacb5898d/poster.webp",
+  "preview_4043": "files/media/video/4cacb5898d/preview.mp4",
+  "gate_probe_4043": "files/media/video/4cacb5898d/gate-probe.mp4",
+  "remux_4419": "files/media/video/93144fcb41/h264.mp4",
+  "hls_master_4419": "files/media/video/93144fcb41/hls/master.m3u8"
+ }
+}

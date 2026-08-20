@@ -1,1017 +1,1411 @@
 {
-  "$schema": "../schema/slot-policy.schema.json",
-  "schema_version": "1.1.0",
-  "status": "draft",
-  "slot_key": "company.cover_video",
-  "title": "Şirket kapak videosu",
-  "description": "Mağaza (şirket) sayfasının üst bloğunda oynatılan tanıtım videosu. Ayrı bir 'kapak' alanı YOKTUR: kapak, galeri sıralamasının türevidir — media_groups[0].items[0] ve media_type == 'video' (tradehub_core/api/seller.py:795, :823-824). Bu politika T-022'nin çıktısıdır ve T-022 kendi biçimini kullanıyordu (kök anahtarlar _meta / identity / render_box / modes / upload_constraints / renditions …); şema uyumsuzluğu bu sürümde giderildi: zorunlu üst düzey alanlar dolduruldu, videoya özgü içeriğin tamamı şema v1.1.0'ın 'video' bloğuna TAŞINDI — hiçbir sayı, gerekçe, ölçü ya da karar silinmedi.",
-  "roles": ["seller", "admin"],
-
-  "bound_to": [
-    {
-      "doctype": "Seller Gallery Image",
-      "field": "video_url",
-      "fieldtype": "Attach",
-      "source": "docs/reports/00-upload-slot-envanteri.md §2 satır `seller.gallery_video` — `Seller Gallery Image.video_url` (Attach). KAPAK VİDEOSUNUN GERÇEK ALANI BUDUR; alan doctype'ta tanımlı: tradehub_core/tradehub_core/doctype/seller_gallery_image/seller_gallery_image.json. Kapak ayrımı alan düzeyinde değil sıralama düzeyinde: _build_media_groups sort_order asc + idx asc sıralar, sonra videoyu başa alır (tradehub_core/api/seller.py:795, :823-824). Aynı belgenin §5 tablosu bu slotu 'Şirket profili kapak videosu — ⚠️ KISMEN' diye işaretliyor: storefront'ta bu alan, panelde ise sahipsiz factory_video_url yazılıyor."
-    },
-    {
-      "doctype": "Seller Gallery Image",
-      "field": "poster_image",
-      "fieldtype": "Attach Image",
-      "source": "docs/reports/00-upload-slot-envanteri.md §2 satır `seller.gallery_poster` — kapak videosunun kapak GÖRSELİ. PAYLAŞILAN BAĞ, bilinçli: aynı alan tradehub_core/media/pipeline/policy/slots/company-cover-image.json bound_to'sunda da var. Ayrım: poster'ın kabul kapısı ve geometrisi (bir GÖRSEL olduğu için) company.cover_image politikasına tabidir; poster'ın hangi KAREDEN ve hangi kuralla üretileceği bu politikanın video.poster bloğuna tabidir. LIVE_SOURCES'ta YOK (§7-B B6) → silme taramasında 'kullanılmıyor' görünür."
-    }
+ "$schema": "../schema/slot-policy.schema.json",
+ "schema_version": "1.1.0",
+ "status": "draft",
+ "slot_key": "company.cover_video",
+ "title": "Şirket kapak videosu",
+ "description": "Mağaza (şirket) sayfasının üst bloğunda oynatılan tanıtım videosu. Ayrı bir 'kapak' alanı YOKTUR: kapak, galeri sıralamasının türevidir — media_groups[0].items[0] ve media_type == 'video' (tradehub_core/api/seller.py:795, :823-824). Bu politika T-022'nin çıktısıdır ve T-022 kendi biçimini kullanıyordu (kök anahtarlar _meta / identity / render_box / modes / upload_constraints / renditions …); şema uyumsuzluğu bu sürümde giderildi: zorunlu üst düzey alanlar dolduruldu, videoya özgü içeriğin tamamı şema v1.1.0'ın 'video' bloğuna TAŞINDI — hiçbir sayı, gerekçe, ölçü ya da karar silinmedi.",
+ "roles": [
+  "seller",
+  "admin"
+ ],
+ "bound_to": [
+  {
+   "doctype": "Seller Gallery Image",
+   "field": "video_url",
+   "fieldtype": "Attach",
+   "source": "docs/reports/00-upload-slot-envanteri.md §2 satır `seller.gallery_video` — `Seller Gallery Image.video_url` (Attach). KAPAK VİDEOSUNUN GERÇEK ALANI BUDUR; alan doctype'ta tanımlı: tradehub_core/tradehub_core/doctype/seller_gallery_image/seller_gallery_image.json. Kapak ayrımı alan düzeyinde değil sıralama düzeyinde: _build_media_groups sort_order asc + idx asc sıralar, sonra videoyu başa alır (tradehub_core/api/seller.py:795, :823-824). Aynı belgenin §5 tablosu bu slotu 'Şirket profili kapak videosu — ⚠️ KISMEN' diye işaretliyor: storefront'ta bu alan, panelde ise sahipsiz factory_video_url yazılıyor."
+  },
+  {
+   "doctype": "Seller Gallery Image",
+   "field": "poster_image",
+   "fieldtype": "Attach Image",
+   "source": "docs/reports/00-upload-slot-envanteri.md §2 satır `seller.gallery_poster` — kapak videosunun kapak GÖRSELİ. PAYLAŞILAN BAĞ, bilinçli: aynı alan tradehub_core/media/pipeline/policy/slots/company-cover-image.json bound_to'sunda da var. Ayrım: poster'ın kabul kapısı ve geometrisi (bir GÖRSEL olduğu için) company.cover_image politikasına tabidir; poster'ın hangi KAREDEN ve hangi kuralla üretileceği bu politikanın video.poster bloğuna tabidir. LIVE_SOURCES'ta YOK (§7-B B6) → silme taramasında 'kullanılmıyor' görünür."
+  }
+ ],
+ "accept": {
+  "mime": [
+   "video/mp4",
+   "video/webm",
+   "video/quicktime"
   ],
-
-  "accept": {
-    "mime": ["video/mp4", "video/webm", "video/quicktime"],
-    "extensions": [".mp4", ".webm", ".mov", ".m4v"],
-    "max_bytes": 83886080,
-    "max_megapixels_hard": 8.3,
-    "allow_animated": true
-  },
-
-  "require": {
-    "min_short_edge": 720,
-    "min_area": 921600,
-    "max_short_edge": 2160,
-    "allowed_ratios": ["16:9"],
-    "ratio_tolerance": 0.01,
-    "min_count": 0,
-    "max_count": 1
-  },
-
-  "master": {
-    "max_long_edge": 1280,
-    "min_long_edge": 1280,
-    "max_megapixels": 0.93,
-    "dpi_out": 72,
-    "colorspace": "preserve",
-    "format": "webm",
-    "orientation": "preserve",
-    "strip_metadata": { "exif": true, "gps": true, "xmp": true, "icc": false }
-  },
-
-  "quality": {
-    "metric": "ssim",
-    "reencode_floor_saving_ratio": 0.1
-  },
-
-  "profiles": [
-    {
-      "name": "poster_1280",
-      "width": 1280,
-      "height": 720,
-      "formats": ["webp"],
-      "encoder_quality": { "webp": 78 },
-      "fit": "cover",
-      "target_ratio": "16:9",
-      "serves": [
-        "kapak oynatıcısının poster'ı — 16:9 medya kutusu (StoreHeader.ts:297) ve <video :poster> (StoreHeader.ts:303)",
-        "masaüstünde sabit 500 CSS px kolon (StoreHeader.ts:203 lg:w-[500px])"
-      ],
-      "derived_from": "hesap: masaüstü kutusu 500 CSS px × DPR2 = 1000 cihaz px → üst basamak 1280 (16:9'da 1280×720). En geniş kutu 1023 px viewport'ta 943 CSS px (@2x = 1886) ama 1080p tier K1 kararına kadar EKLENMİYOR (video.rendition_policy.resolution_1080p). Kutu ölçüleri video.render_box.computed_sizes_css_px, kaynak tradehubfront/src/components/seller/StoreHeader.ts:203,297",
-      "max_overshoot": 1.28
-    },
-    {
-      "name": "poster_854",
-      "width": 854,
-      "height": 480,
-      "formats": ["webp"],
-      "encoder_quality": { "webp": 70 },
-      "fit": "cover",
-      "target_ratio": "16:9",
-      "serves": [
-        "mobil/tablet poster (kutu 296-688 CSS px, video.render_box.computed_sizes_css_px)",
-        "poster 120 KB kapısını 1280 genişlikte geçemediğinde küçültme basamağı (video.poster.output.downscale_fallback)"
-      ],
-      "derived_from": "hesap: 480p teslim tier'ının kare ölçüsüyle aynı (854×480 — video.renditions[cover_480_webm]); poster ile ilk kare arasında ölçü farkı olmasın. Mobil en dar kutu 296 CSS px @2x = 592 → 854 bu talebi karşılıyor. Kutu kaynağı StoreHeader.ts:297 (aspect-video), genişlik zinciri StoreHeader.ts:46,128,129",
-      "max_overshoot": 1.44
-    },
-    {
-      "name": "thumb_192",
-      "width": 192,
-      "height": 144,
-      "formats": ["webp"],
-      "encoder_quality": { "webp": 70 },
-      "fit": "cover",
-      "target_ratio": "4:3",
-      "serves": [
-        "küçük resim ızgarası hücresi — repeat(auto-fill, minmax(96px, 1fr)) (StoreHeader.ts:378), hücre oranı 4:3 (StoreHeader.ts:381)"
-      ],
-      "derived_from": "hesap: hücrenin en küçük hâli 96×72 CSS px (minmax 96px + 4:3) → DPR2 = 192×144. DİKKAT: 16:9 poster 4:3 hücreye girerken yatayda %25 kırpılır ((16/9)/(4/3) = 1,3333 → 1 - 1/1,3333 = 0,25) — güvenli alan kısıtı bu yüzden %10 kenar payından değil video.safe_area.thumbnail_safe_width_pct'ten (%75) gelir. Kaynak StoreHeader.ts:378, :381",
-      "max_overshoot": 1.0
-    }
+  "extensions": [
+   ".mp4",
+   ".webm",
+   ".mov",
+   ".m4v"
   ],
-
-  "content_rules": [
-    {
-      "rule": "aspect_ratio_deviation",
-      "threshold": 0.01,
-      "comparator": "gt",
-      "action": "reject",
-      "message_key": "oran_16_9_degil",
-      "source": "hesap: |(w/h) − 16/9| / (16/9) > 0,01. Kutu her kırılımda 16:9 (StoreHeader.ts:297 aspect-video) ve object-cover (StoreHeader.ts:304) sapmayı sessizce merkezden kırpar — yükleyene uyarı gösterilmiyor."
-    },
-    {
-      "rule": "duration_seconds",
-      "threshold": 60,
-      "comparator": "gt",
-      "action": "reject",
-      "message_key": "sure_uzun",
-      "source": "hesap: 60 s × 1,6 Mbps hedef ortalama = 96 Mbit = 12 MB teslim kapısı (video.renditions[cover_720_webm].max_bytes). Kodda süre kontrolü YOK — Ç5."
-    },
-    {
-      "rule": "duration_seconds_floor",
-      "threshold": 6,
-      "comparator": "lt",
-      "action": "reject",
-      "message_key": "sure_kisa",
-      "source": "hesap: önizleme klibi 6 s (video.preview_clip.duration_s); master kendi önizlemesinden kısa olamaz. ambient kipinde taban 3 s'dir (video.modes.ambient.duration_s.min) ama ambient K2 onayına kadar KAPALI."
-    },
-    {
-      "rule": "frame_rate",
-      "threshold": 30,
-      "comparator": "gt",
-      "action": "auto_fix",
-      "message_key": "kare_hizi_dusuruldu",
-      "source": "video.frame_rate.output_cap = 30. Gerekçe: 60 fps aynı kalitede ~%80 fazla bit; fabrika turu / konuşan kafa içeriğinde görsel kazanç yok. Ret değil, sunucu indirir."
-    },
-    {
-      "rule": "bitrate_kbps",
-      "threshold": 2000,
-      "comparator": "gt",
-      "action": "auto_fix",
-      "message_key": "bitrate_isleniyor",
-      "source": "tradehub_core/media/transcode.py:67 sunucu barı 2.500.000 bps, admin-panel/frontend/src/lib/media/compress.video.js:29 istemci barı 2.000.000 bps — Ç4. Karar: dar olan kazanır, iki sayı 2.000 kbps'te birleşir."
-    },
-    {
-      "rule": "rendition_bytes",
-      "threshold": 12582912,
-      "comparator": "gt",
-      "action": "auto_fix",
-      "message_key": "cok_agir",
-      "source": "video.rendition_policy.size_gate_retry — CRF +2 ile en çok 2 deneme, son başarısızlıkta cover_video_too_heavy. Bugün boyut kapısı HİÇ YOK: çıktı ne olursa olsun os.replace ile yazılıyor (tradehub_core/media/transcode.py:252)."
-    },
-    {
-      "rule": "video_stream_present",
-      "threshold": false,
-      "comparator": "eq",
-      "action": "reject",
-      "message_key": "video_akisi_yok",
-      "source": "ffprobe video akışı döndürmedi. Bugün bu kontrol video yolunda hiç çalışmıyor: tradehub_core/media/metadata.py:180-186 → tradehub_core/media/pipeline.py:79-93 yalnız PIL kullanıyor, PIL video açmaz (Ç5)."
-    },
-    {
-      "rule": "ffprobe_readable",
-      "threshold": false,
-      "comparator": "eq",
-      "action": "review",
-      "message_key": "ffprobe_okunamadi",
-      "source": "tradehub_core/media/transcode.py:101-106 — ffprobe patlarsa güvenli tarafa düşülüp True dönüyor (transcode et) ve frappe.log_error yazılıyor. Kapak slotunda transcode zaten koşulsuz, bu yüzden sonuç 'moderasyona düşür'."
-    },
-    {
-      "rule": "poster_mean_luma_out_of_range",
-      "threshold": true,
-      "comparator": "eq",
-      "action": "review",
-      "message_key": "poster_cozulemedi",
-      "source": "video.poster.quality_gate — ortalama parlaklık %6'nın altında ya da %94'ün üstündeyse kare siyah/patlamış sayılır; [duration×0,25, duration×0,50] penceresinde 1 yeniden deneme, sonra cover_video_poster_unresolved."
-    },
-    {
-      "rule": "captions_missing",
-      "threshold": true,
-      "comparator": "eq",
-      "action": "reject",
-      "message_key": "altyazi_gerekli",
-      "source": "video.accessibility.captions_rules 1. satır: story + ses akışı var + konuşma beyan edildi + .vtt yok → cover_video_captions_required. Yürürlük K4, konuşma tespiti K5 kararına bağlı; onay gelmeden yalnız YENİ yüklemelerde uygulanır."
-    },
-    {
-      "rule": "burned_in_logo",
-      "threshold": true,
-      "comparator": "eq",
-      "action": "warn",
-      "message_key": "gomulu_logo",
-      "source": "video.safe_area.burned_in_logo.allowed = false. Gerekçe: arayüz mantıksal yön özellikleriyle RTL'de aynalanıyor (tradehubfront/src/utils/seller/section-registry.ts:185,188), videoya gömülü logo aynalanamaz. Ret değil uyarı."
-    },
-    {
-      "rule": "is_private",
-      "threshold": true,
-      "comparator": "eq",
-      "action": "warn",
-      "message_key": "private_transcode_atlandi",
-      "source": "tradehub_core/media/transcode.py:194 — `if doc.get('is_folder') or doc.get('is_private'): return`. Private yüklenen kapak videosu HİÇ normalize edilmez, poster üretilmez ve kullanıcıya hiçbir şey söylenmez."
-    }
+  "max_bytes": 83886080,
+  "max_megapixels_hard": 8.3,
+  "allow_animated": true
+ },
+ "require": {
+  "min_short_edge": 720,
+  "min_area": 921600,
+  "max_short_edge": 2160,
+  "allowed_ratios": [
+   "16:9"
   ],
-
-  "on_violation": {
-    "default": "reject",
-    "accept": "reject",
-    "require": "reject",
-    "master": "auto_fix",
-    "quality": "warn",
-    "content_rules": "warn",
-    "error_code_prefix": "cover_video",
-    "retryable": false
+  "ratio_tolerance": 0.01,
+  "min_count": 0,
+  "max_count": 1
+ },
+ "master": {
+  "max_long_edge": 1280,
+  "min_long_edge": 1280,
+  "max_megapixels": 0.93,
+  "dpi_out": 72,
+  "colorspace": "preserve",
+  "format": "webm",
+  "orientation": "preserve",
+  "strip_metadata": {
+   "exif": true,
+   "gps": true,
+   "xmp": true,
+   "icc": false
+  }
+ },
+ "quality": {
+  "metric": "ssim",
+  "reencode_floor_saving_ratio": 0.1
+ },
+ "profiles": [
+  {
+   "name": "poster_1280",
+   "width": 1280,
+   "height": 720,
+   "formats": [
+    "webp"
+   ],
+   "encoder_quality": {
+    "webp": 78
+   },
+   "fit": "cover",
+   "target_ratio": "16:9",
+   "serves": [
+    "kapak oynatıcısının poster'ı — 16:9 medya kutusu (StoreHeader.ts:297) ve <video :poster> (StoreHeader.ts:303)",
+    "masaüstünde sabit 500 CSS px kolon (StoreHeader.ts:203 lg:w-[500px])"
+   ],
+   "derived_from": "hesap: masaüstü kutusu 500 CSS px × DPR2 = 1000 cihaz px → üst basamak 1280 (16:9'da 1280×720). En geniş kutu 1023 px viewport'ta 943 CSS px (@2x = 1886) ama 1080p tier K1 kararına kadar EKLENMİYOR (video.rendition_policy.resolution_1080p). Kutu ölçüleri video.render_box.computed_sizes_css_px, kaynak tradehubfront/src/components/seller/StoreHeader.ts:203,297",
+   "max_overshoot": 1.28
   },
-
-  "messages": {
-    "tr": {
-      "bicim_desteklenmiyor": "Bu video biçimi kabul edilmiyor ({bicim}). Kapak videosunu MP4 (H.264) ya da WebM olarak yeniden kaydedip yükleyin ({izinli_bicimler}).",
-      "cok_buyuk": "Video {mb} MB; sınır {max_mb} MB. Süreyi 60 saniyenin altına indirin ya da 1920×1080 çözünürlükte, 10 Mbps'i aşmayan bir dosya olarak yeniden kaydedin.",
-      "cozunurluk_dusuk": "Kapak videosunun çözünürlüğü çok düşük; en az 1280×720 gerekiyor. Daha yüksek çözünürlükte kaydedin, yoksa mağaza sayfasında bulanık görünür.",
-      "cozunurluk_yuksek": "Kapak videosu 3840×2160'tan büyük. Sunucu her hâlükârda 1280×720'ye indiriyor; 1920×1080 kaydedip yüklemek hem daha hızlı hem aynı sonucu verir.",
-      "oran_16_9_degil": "Videonun oranı {oran}; kapak kutusu 16:9. Başka oranlarda görüntü merkezden kırpılır ve kenarlarda içerik kaybolur — 16:9 olarak yeniden kadrajlayıp yükleyin.",
-      "sure_uzun": "Kapak videosu 60 saniyeden uzun. Uzun anlatım kapak için değil; en çarpıcı 60 saniyeyi kesip yükleyin, tam turu galeriye ayrı bir öğe olarak ekleyin.",
-      "sure_kisa": "Kapak videosu 6 saniyeden kısa. Bu süre önizleme klibinden bile kısa; en az 6 saniyelik bir çekim yükleyin.",
-      "kare_hizi_dusuruldu": "Videonun kare hızı 30 fps'e indirildi; yükleme kabul edildi. Görsel kayıp yok, dosya belirgin şekilde küçüldü — bir sonraki yüklemede doğrudan 30 fps kaydedebilirsiniz.",
-      "bitrate_isleniyor": "Videonun bit hızı yüksek olduğu için sunucuda yeniden sıkıştırılıyor. Yükleme kabul edildi; işlem bitince kapak mağaza sayfanızda görünecek.",
-      "cok_agir": "Video sıkıştırıldıktan sonra da boyut sınırının üstünde kaldı. Süreyi kısaltmak ya da hareketli/gürültülü sahneleri azaltmak dosyayı küçültmenin en etkili yoludur.",
-      "video_akisi_yok": "Dosyada video akışı bulunamadı; yalnız ses ya da bozuk bir kayıt olabilir. Videoyu yeniden dışa aktarıp (MP4/H.264) tekrar yükleyin.",
-      "ffprobe_okunamadi": "Videonun teknik bilgileri okunamadı; dosya bozuk olabilir. Yükleme kabul edildi ama güvenli tarafta kalmak için incelemeye alındı ve yeniden sıkıştırılacak.",
-      "poster_cozulemedi": "Videodan uygun bir kapak karesi seçilemedi (ilk saniyeler tamamen siyah ya da tamamen beyaz). Kapak görselini elle yükleyin ya da videoyu daha aydınlık bir kareyle başlatın.",
-      "altyazi_gerekli": "Kapak videosunda konuşma var ama altyazı dosyası (.vtt) yüklenmemiş. Konuşmanın dilinde bir altyazı dosyası ekleyin; sesi kapalı izleyen ve işitme engelli kullanıcılar videoyu ancak böyle anlıyor.",
-      "gomulu_logo": "Videoya gömülü logo/yazı tespit edildi. Arayüz Arapça gibi sağdan sola dillerde aynalandığı için gömülü logo ters tarafta kalır; logonuz kapağın yanında ayrıca gösteriliyor, videodan çıkarmanız önerilir.",
-      "private_transcode_atlandi": "Video gizli (private) olarak kaydedildi; bu yüzden sıkıştırma ve kapak karesi üretimi atlandı. Kapak videosunu herkese açık olarak yükleyin.",
-      "transcode_hatasi": "Video işlenirken bir hata oluştu; hata bizde. Yükleme kaydedildi, işlem otomatik olarak yeniden denenecek — dosyayı yeniden yüklemeniz gerekmiyor."
-    },
-    "en": {
-      "bicim_desteklenmiyor": "This video format is not accepted ({bicim}). Re-export your cover video as MP4 (H.264) or WebM and upload it again ({izinli_bicimler}).",
-      "cok_buyuk": "The video is {mb} MB; the limit is {max_mb} MB. Trim it under 60 seconds or re-export at 1920×1080 with a bitrate below 10 Mbps.",
-      "cozunurluk_dusuk": "The cover video resolution is too low; at least 1280×720 is required. Re-export at a higher resolution, otherwise it will look blurry on your store page.",
-      "cozunurluk_yuksek": "The cover video is larger than 3840×2160. The server downscales everything to 1280×720 anyway; exporting at 1920×1080 uploads faster with the same result.",
-      "oran_16_9_degil": "The video aspect ratio is {oran}; the cover box is 16:9. Other ratios are center-cropped and content near the edges is lost — reframe to 16:9 and upload again.",
-      "sure_uzun": "The cover video is longer than 60 seconds. A cover is not the place for a long narrative; cut the strongest 60 seconds and add the full tour to your gallery as a separate item.",
-      "sure_kisa": "The cover video is shorter than 6 seconds — shorter than the preview clip itself. Upload a shot of at least 6 seconds.",
-      "kare_hizi_dusuruldu": "The frame rate was reduced to 30 fps and the upload was accepted. There is no visible quality loss and the file got noticeably smaller — you can export at 30 fps directly next time.",
-      "bitrate_isleniyor": "The bitrate is high, so the server is re-compressing the video. The upload was accepted; the cover will appear on your store page once processing finishes.",
-      "cok_agir": "Even after compression the video stayed above the size limit. Shortening it, or reducing fast-moving and noisy scenes, is the most effective way to shrink the file.",
-      "video_akisi_yok": "No video stream was found in the file; it may be audio-only or corrupted. Re-export the video (MP4/H.264) and upload it again.",
-      "ffprobe_okunamadi": "The technical details of the video could not be read; the file may be corrupted. The upload was accepted but flagged for review and will be re-compressed to stay on the safe side.",
-      "poster_cozulemedi": "No usable cover frame could be picked from the video (the opening seconds are fully black or fully white). Upload a poster image manually, or start the video on a brighter frame.",
-      "altyazi_gerekli": "The cover video contains speech but no subtitle file (.vtt) was uploaded. Add subtitles in the spoken language; muted viewers and deaf or hard-of-hearing users can only follow the video that way.",
-      "gomulu_logo": "A burned-in logo or text was detected in the video. The interface mirrors for right-to-left languages such as Arabic, so a burned-in logo ends up on the wrong side; your logo is already shown next to the cover, so removing it from the video is recommended.",
-      "private_transcode_atlandi": "The video was stored as private, so compression and cover-frame generation were skipped. Upload the cover video as public.",
-      "transcode_hatasi": "Something went wrong while processing the video, and it is on our side. The upload was saved and will be retried automatically — you do not need to upload the file again."
-    }
+  {
+   "name": "poster_854",
+   "width": 854,
+   "height": 480,
+   "formats": [
+    "webp"
+   ],
+   "encoder_quality": {
+    "webp": 70
+   },
+   "fit": "cover",
+   "target_ratio": "16:9",
+   "serves": [
+    "mobil/tablet poster (kutu 296-688 CSS px, video.render_box.computed_sizes_css_px)",
+    "poster 120 KB kapısını 1280 genişlikte geçemediğinde küçültme basamağı (video.poster.output.downscale_fallback)"
+   ],
+   "derived_from": "hesap: 480p teslim tier'ının kare ölçüsüyle aynı (854×480 — video.renditions[cover_480_webm]); poster ile ilk kare arasında ölçü farkı olmasın. Mobil en dar kutu 296 CSS px @2x = 592 → 854 bu talebi karşılıyor. Kutu kaynağı StoreHeader.ts:297 (aspect-video), genişlik zinciri StoreHeader.ts:46,128,129",
+   "max_overshoot": 1.44
   },
-
-  "video": {
-    "duration_min_s": 6,
-    "duration_max_s": 60,
-    "resolution_min": {
-      "width": 1280,
-      "height": 720,
-      "derivation": "Masaüstü kutusu 500 CSS px × DPR2 = 1000 cihaz px; 1280 ≥ 1000. Kutu: StoreHeader.ts:203 (lg:w-[500px]), :297 (aspect-video)"
+  {
+   "name": "thumb_192",
+   "width": 192,
+   "height": 144,
+   "formats": [
+    "webp"
+   ],
+   "encoder_quality": {
+    "webp": 70
+   },
+   "fit": "cover",
+   "target_ratio": "4:3",
+   "serves": [
+    "küçük resim ızgarası hücresi — repeat(auto-fill, minmax(96px, 1fr)) (StoreHeader.ts:378), hücre oranı 4:3 (StoreHeader.ts:381)"
+   ],
+   "derived_from": "hesap: hücrenin en küçük hâli 96×72 CSS px (minmax 96px + 4:3) → DPR2 = 192×144. DİKKAT: 16:9 poster 4:3 hücreye girerken yatayda %25 kırpılır ((16/9)/(4/3) = 1,3333 → 1 - 1/1,3333 = 0,25) — güvenli alan kısıtı bu yüzden %10 kenar payından değil video.safe_area.thumbnail_safe_width_pct'ten (%75) gelir. Kaynak StoreHeader.ts:378, :381",
+   "max_overshoot": 1.0
+  }
+ ],
+ "content_rules": [
+  {
+   "rule": "aspect_ratio_deviation",
+   "threshold": 0.01,
+   "comparator": "gt",
+   "action": "reject",
+   "message_key": "oran_16_9_degil",
+   "source": "hesap: |(w/h) − 16/9| / (16/9) > 0,01. Kutu her kırılımda 16:9 (StoreHeader.ts:297 aspect-video) ve object-cover (StoreHeader.ts:304) sapmayı sessizce merkezden kırpar — yükleyene uyarı gösterilmiyor."
+  },
+  {
+   "rule": "duration_seconds",
+   "threshold": 60,
+   "comparator": "gt",
+   "action": "reject",
+   "message_key": "sure_uzun",
+   "source": "hesap: 60 s × 1,6 Mbps hedef ortalama = 96 Mbit = 12 MB teslim kapısı (video.renditions[cover_720_webm].max_bytes). Kodda süre kontrolü YOK — Ç5."
+  },
+  {
+   "rule": "duration_seconds_floor",
+   "threshold": 6,
+   "comparator": "lt",
+   "action": "reject",
+   "message_key": "sure_kisa",
+   "source": "hesap: önizleme klibi 6 s (video.preview_clip.duration_s); master kendi önizlemesinden kısa olamaz. ambient kipinde taban 3 s'dir (video.modes.ambient.duration_s.min) ama ambient K2 onayına kadar KAPALI."
+  },
+  {
+   "rule": "frame_rate",
+   "threshold": 30,
+   "comparator": "gt",
+   "action": "auto_fix",
+   "message_key": "kare_hizi_dusuruldu",
+   "source": "video.frame_rate.output_cap = 30. Gerekçe: 60 fps aynı kalitede ~%80 fazla bit; fabrika turu / konuşan kafa içeriğinde görsel kazanç yok. Ret değil, sunucu indirir."
+  },
+  {
+   "rule": "bitrate_kbps",
+   "threshold": 2000,
+   "comparator": "gt",
+   "action": "auto_fix",
+   "message_key": "bitrate_isleniyor",
+   "source": "tradehub_core/media/transcode.py:67 sunucu barı 2.500.000 bps, admin-panel/frontend/src/lib/media/compress.video.js:29 istemci barı 2.000.000 bps — Ç4. Karar: dar olan kazanır, iki sayı 2.000 kbps'te birleşir."
+  },
+  {
+   "rule": "rendition_bytes",
+   "threshold": 12582912,
+   "comparator": "gt",
+   "action": "auto_fix",
+   "message_key": "cok_agir",
+   "source": "video.rendition_policy.size_gate_retry — CRF +2 ile en çok 2 deneme, son başarısızlıkta cover_video_too_heavy. Bugün boyut kapısı HİÇ YOK: çıktı ne olursa olsun os.replace ile yazılıyor (tradehub_core/media/transcode.py:252)."
+  },
+  {
+   "rule": "video_stream_present",
+   "threshold": false,
+   "comparator": "eq",
+   "action": "reject",
+   "message_key": "video_akisi_yok",
+   "source": "ffprobe video akışı döndürmedi. Bugün bu kontrol video yolunda hiç çalışmıyor: tradehub_core/media/metadata.py:180-186 → tradehub_core/media/pipeline.py:79-93 yalnız PIL kullanıyor, PIL video açmaz (Ç5)."
+  },
+  {
+   "rule": "ffprobe_readable",
+   "threshold": false,
+   "comparator": "eq",
+   "action": "review",
+   "message_key": "ffprobe_okunamadi",
+   "source": "tradehub_core/media/transcode.py:101-106 — ffprobe patlarsa güvenli tarafa düşülüp True dönüyor (transcode et) ve frappe.log_error yazılıyor. Kapak slotunda transcode zaten koşulsuz, bu yüzden sonuç 'moderasyona düşür'."
+  },
+  {
+   "rule": "poster_mean_luma_out_of_range",
+   "threshold": true,
+   "comparator": "eq",
+   "action": "review",
+   "message_key": "poster_cozulemedi",
+   "source": "video.poster.quality_gate — ortalama parlaklık %6'nın altında ya da %94'ün üstündeyse kare siyah/patlamış sayılır; [duration×0,25, duration×0,50] penceresinde 1 yeniden deneme, sonra cover_video_poster_unresolved."
+  },
+  {
+   "rule": "captions_missing",
+   "threshold": true,
+   "comparator": "eq",
+   "action": "reject",
+   "message_key": "altyazi_gerekli",
+   "source": "video.accessibility.captions_rules 1. satır: story + ses akışı var + konuşma beyan edildi + .vtt yok → cover_video_captions_required. Yürürlük K4, konuşma tespiti K5 kararına bağlı; onay gelmeden yalnız YENİ yüklemelerde uygulanır."
+  },
+  {
+   "rule": "burned_in_logo",
+   "threshold": true,
+   "comparator": "eq",
+   "action": "warn",
+   "message_key": "gomulu_logo",
+   "source": "video.safe_area.burned_in_logo.allowed = false. Gerekçe: arayüz mantıksal yön özellikleriyle RTL'de aynalanıyor (tradehubfront/src/utils/seller/section-registry.ts:185,188), videoya gömülü logo aynalanamaz. Ret değil uyarı."
+  },
+  {
+   "rule": "is_private",
+   "threshold": true,
+   "comparator": "eq",
+   "action": "warn",
+   "message_key": "private_transcode_atlandi",
+   "source": "tradehub_core/media/transcode.py:194 — `if doc.get('is_folder') or doc.get('is_private'): return`. Private yüklenen kapak videosu HİÇ normalize edilmez, poster üretilmez ve kullanıcıya hiçbir şey söylenmez."
+  }
+ ],
+ "on_violation": {
+  "default": "reject",
+  "accept": "reject",
+  "require": "reject",
+  "master": "auto_fix",
+  "quality": "warn",
+  "content_rules": "warn",
+  "error_code_prefix": "cover_video",
+  "retryable": false
+ },
+ "messages": {
+  "tr": {
+   "bicim_desteklenmiyor": "Bu video biçimi kabul edilmiyor ({bicim}). Kapak videosunu MP4 (H.264) ya da WebM olarak yeniden kaydedip yükleyin ({izinli_bicimler}).",
+   "cok_buyuk": "Video {mb} MB; sınır {max_mb} MB. Süreyi 60 saniyenin altına indirin ya da 1920×1080 çözünürlükte, 10 Mbps'i aşmayan bir dosya olarak yeniden kaydedin.",
+   "cozunurluk_dusuk": "Kapak videosunun çözünürlüğü çok düşük; en az 1280×720 gerekiyor. Daha yüksek çözünürlükte kaydedin, yoksa mağaza sayfasında bulanık görünür.",
+   "cozunurluk_yuksek": "Kapak videosu 3840×2160'tan büyük. Sunucu her hâlükârda 1280×720'ye indiriyor; 1920×1080 kaydedip yüklemek hem daha hızlı hem aynı sonucu verir.",
+   "oran_16_9_degil": "Videonun oranı {oran}; kapak kutusu 16:9. Başka oranlarda görüntü merkezden kırpılır ve kenarlarda içerik kaybolur — 16:9 olarak yeniden kadrajlayıp yükleyin.",
+   "sure_uzun": "Kapak videosu 60 saniyeden uzun. Uzun anlatım kapak için değil; en çarpıcı 60 saniyeyi kesip yükleyin, tam turu galeriye ayrı bir öğe olarak ekleyin.",
+   "sure_kisa": "Kapak videosu 6 saniyeden kısa. Bu süre önizleme klibinden bile kısa; en az 6 saniyelik bir çekim yükleyin.",
+   "kare_hizi_dusuruldu": "Videonun kare hızı 30 fps'e indirildi; yükleme kabul edildi. Görsel kayıp yok, dosya belirgin şekilde küçüldü — bir sonraki yüklemede doğrudan 30 fps kaydedebilirsiniz.",
+   "bitrate_isleniyor": "Videonun bit hızı yüksek olduğu için sunucuda yeniden sıkıştırılıyor. Yükleme kabul edildi; işlem bitince kapak mağaza sayfanızda görünecek.",
+   "cok_agir": "Video sıkıştırıldıktan sonra da boyut sınırının üstünde kaldı. Süreyi kısaltmak ya da hareketli/gürültülü sahneleri azaltmak dosyayı küçültmenin en etkili yoludur.",
+   "video_akisi_yok": "Dosyada video akışı bulunamadı; yalnız ses ya da bozuk bir kayıt olabilir. Videoyu yeniden dışa aktarıp (MP4/H.264) tekrar yükleyin.",
+   "ffprobe_okunamadi": "Videonun teknik bilgileri okunamadı; dosya bozuk olabilir. Yükleme kabul edildi ama güvenli tarafta kalmak için incelemeye alındı ve yeniden sıkıştırılacak.",
+   "poster_cozulemedi": "Videodan uygun bir kapak karesi seçilemedi (ilk saniyeler tamamen siyah ya da tamamen beyaz). Kapak görselini elle yükleyin ya da videoyu daha aydınlık bir kareyle başlatın.",
+   "altyazi_gerekli": "Kapak videosunda konuşma var ama altyazı dosyası (.vtt) yüklenmemiş. Konuşmanın dilinde bir altyazı dosyası ekleyin; sesi kapalı izleyen ve işitme engelli kullanıcılar videoyu ancak böyle anlıyor.",
+   "gomulu_logo": "Videoya gömülü logo/yazı tespit edildi. Arayüz Arapça gibi sağdan sola dillerde aynalandığı için gömülü logo ters tarafta kalır; logonuz kapağın yanında ayrıca gösteriliyor, videodan çıkarmanız önerilir.",
+   "private_transcode_atlandi": "Video gizli (private) olarak kaydedildi; bu yüzden sıkıştırma ve kapak karesi üretimi atlandı. Kapak videosunu herkese açık olarak yükleyin.",
+   "transcode_hatasi": "Video işlenirken bir hata oluştu; hata bizde. Yükleme kaydedildi, işlem otomatik olarak yeniden denenecek — dosyayı yeniden yüklemeniz gerekmiyor."
+  },
+  "en": {
+   "bicim_desteklenmiyor": "This video format is not accepted ({bicim}). Re-export your cover video as MP4 (H.264) or WebM and upload it again ({izinli_bicimler}).",
+   "cok_buyuk": "The video is {mb} MB; the limit is {max_mb} MB. Trim it under 60 seconds or re-export at 1920×1080 with a bitrate below 10 Mbps.",
+   "cozunurluk_dusuk": "The cover video resolution is too low; at least 1280×720 is required. Re-export at a higher resolution, otherwise it will look blurry on your store page.",
+   "cozunurluk_yuksek": "The cover video is larger than 3840×2160. The server downscales everything to 1280×720 anyway; exporting at 1920×1080 uploads faster with the same result.",
+   "oran_16_9_degil": "The video aspect ratio is {oran}; the cover box is 16:9. Other ratios are center-cropped and content near the edges is lost — reframe to 16:9 and upload again.",
+   "sure_uzun": "The cover video is longer than 60 seconds. A cover is not the place for a long narrative; cut the strongest 60 seconds and add the full tour to your gallery as a separate item.",
+   "sure_kisa": "The cover video is shorter than 6 seconds — shorter than the preview clip itself. Upload a shot of at least 6 seconds.",
+   "kare_hizi_dusuruldu": "The frame rate was reduced to 30 fps and the upload was accepted. There is no visible quality loss and the file got noticeably smaller — you can export at 30 fps directly next time.",
+   "bitrate_isleniyor": "The bitrate is high, so the server is re-compressing the video. The upload was accepted; the cover will appear on your store page once processing finishes.",
+   "cok_agir": "Even after compression the video stayed above the size limit. Shortening it, or reducing fast-moving and noisy scenes, is the most effective way to shrink the file.",
+   "video_akisi_yok": "No video stream was found in the file; it may be audio-only or corrupted. Re-export the video (MP4/H.264) and upload it again.",
+   "ffprobe_okunamadi": "The technical details of the video could not be read; the file may be corrupted. The upload was accepted but flagged for review and will be re-compressed to stay on the safe side.",
+   "poster_cozulemedi": "No usable cover frame could be picked from the video (the opening seconds are fully black or fully white). Upload a poster image manually, or start the video on a brighter frame.",
+   "altyazi_gerekli": "The cover video contains speech but no subtitle file (.vtt) was uploaded. Add subtitles in the spoken language; muted viewers and deaf or hard-of-hearing users can only follow the video that way.",
+   "gomulu_logo": "A burned-in logo or text was detected in the video. The interface mirrors for right-to-left languages such as Arabic, so a burned-in logo ends up on the wrong side; your logo is already shown next to the cover, so removing it from the video is recommended.",
+   "private_transcode_atlandi": "The video was stored as private, so compression and cover-frame generation were skipped. Upload the cover video as public.",
+   "transcode_hatasi": "Something went wrong while processing the video, and it is on our side. The upload was saved and will be retried automatically — you do not need to upload the file again."
+  }
+ },
+ "video": {
+  "duration_min_s": 6,
+  "duration_max_s": 60,
+  "resolution_min": {
+   "width": 1280,
+   "height": 720,
+   "derivation": "Masaüstü kutusu 500 CSS px × DPR2 = 1000 cihaz px; 1280 ≥ 1000. Kutu: StoreHeader.ts:203 (lg:w-[500px]), :297 (aspect-video)"
+  },
+  "resolution_max": {
+   "width": 3840,
+   "height": 2160,
+   "note": "4K üstü kabul etmenin görsel karşılığı yok: teslim her hâlükârda 1280 genişliğe iniyor (transcode.py:242)."
+  },
+  "resolution_recommended": {
+   "width": 1920,
+   "height": 1080,
+   "note": "Yükleyene önerilen ölçü. Ret eşiği değil."
+  },
+  "bitrate_cap_kbps": 2000,
+  "frame_rate": {
+   "accepted": [
+    24,
+    25,
+    30
+   ],
+   "downsampled_from": [
+    50,
+    60
+   ],
+   "output_cap": 30,
+   "reason": "60 fps aynı kalitede ~%80 fazla bit; fabrika turu / konuşan kafa içeriğinde görsel kazanç yok."
+  },
+  "audio_policy": {
+   "track": "allowed",
+   "codec": "libopus",
+   "bitrate_kbps": 96,
+   "channels": 2,
+   "autoplay_mute_mandatory": true,
+   "user_can_unmute": true,
+   "loudness": {
+    "standard": "EBU R128",
+    "integrated_lufs": -16,
+    "true_peak_dbtp": -1,
+    "filter": "loudnorm=I=-16:TP=-1:LRA=11",
+    "note": "Standarda atıf — bu oturumda ölçüm YAPILMADI."
+   },
+   "notes": [
+    "story kipinde ses AKTARILIR; ambient kipinde ffmpeg -an ile SİLİNİR (video.modes.ambient.audio_track = stripped).",
+    "muted+playsinline olmadan mobil tarayıcılar oynatmayı reddeder; sesli otomatik oynatma B2B vitrininde saldırgan.",
+    "Kullanıcı sesi açabilir: StoreHeader.ts:255-260, düğme :347-350.",
+    "Ç10 — bugün `-c:a libopus` var ama `-b:a` YOK (transcode.py:246): bitrate kodlayıcı varsayılanına bağlı ve ffmpeg sürümü değişince sessizce değişir. 96 kbps bu yüzden SABİTLENİYOR."
+   ]
+  },
+  "autoplay": {
+   "enabled": false,
+   "muted": true,
+   "loop": false,
+   "playsinline": true,
+   "preload": "metadata",
+   "present_today": false,
+   "note": "Varsayılan kip story: otomatik oynatma YOK, kullanıcı başlatır (StoreHeader.ts:301-309'da autoplay özniteliği yok) — bu yüzden WCAG 2.2 SC 2.2.2 kapsamına girmiyor. muted/playsinline bugün de var (StoreHeader.ts:308), loop yok. ambient kipi açılırsa (K2) enabled=true, muted=true (zorunlu), loop=true, playsinline=true olur. preload='auto' YASAK — pasif mobil bütçeyi tek başına aşar; navigator.connection.saveData === true ya da effectiveType ∈ ['slow-2g','2g'] iken 'none'a düşürülür."
+  },
+  "poster": {
+   "selection_rule": "1) Satıcı poster_image yüklediyse O KAZANIR, otomatik seçim çalışmaz. 2) Yoksa [0,5 s, min(5 s, süre×0,25)] penceresinde ffmpeg 'thumbnail' filtresi (n=120) histogram uzaklığına göre en temsili kareyi seçer — 'ilk anlamlı kare'nin uygulanabilir tanımı budur. 3) Seçilen kare parlaklık kapısından geçmezse [süre×0,25, süre×0,50] penceresinde bir kez yeniden denenir. 4) O da geçmezse cover_video_poster_unresolved.",
+   "profile": "poster_1280",
+   "fallback_profile": "poster_854",
+   "override_field": "Seller Gallery Image.poster_image",
+   "implemented_today": false,
+   "auto_generate": {
+    "implemented_today": false,
+    "search_window_s": {
+     "start": 0.5,
+     "end_expr": "min(5, duration * 0.25)"
     },
-    "resolution_max": {
-      "width": 3840,
-      "height": 2160,
-      "note": "4K üstü kabul etmenin görsel karşılığı yok: teslim her hâlükârda 1280 genişliğe iniyor (transcode.py:242)."
-    },
-    "resolution_recommended": {
-      "width": 1920,
-      "height": 1080,
-      "note": "Yükleyene önerilen ölçü. Ret eşiği değil."
-    },
-    "bitrate_cap_kbps": 2000,
-    "frame_rate": {
-      "accepted": [24, 25, 30],
-      "downsampled_from": [50, 60],
-      "output_cap": 30,
-      "reason": "60 fps aynı kalitede ~%80 fazla bit; fabrika turu / konuşan kafa içeriğinde görsel kazanç yok."
-    },
-    "audio_policy": {
-      "track": "allowed",
-      "codec": "libopus",
-      "bitrate_kbps": 96,
-      "channels": 2,
-      "autoplay_mute_mandatory": true,
-      "user_can_unmute": true,
-      "loudness": {
-        "standard": "EBU R128",
-        "integrated_lufs": -16,
-        "true_peak_dbtp": -1,
-        "filter": "loudnorm=I=-16:TP=-1:LRA=11",
-        "note": "Standarda atıf — bu oturumda ölçüm YAPILMADI."
-      },
-      "notes": [
-        "story kipinde ses AKTARILIR; ambient kipinde ffmpeg -an ile SİLİNİR (video.modes.ambient.audio_track = stripped).",
-        "muted+playsinline olmadan mobil tarayıcılar oynatmayı reddeder; sesli otomatik oynatma B2B vitrininde saldırgan.",
-        "Kullanıcı sesi açabilir: StoreHeader.ts:255-260, düğme :347-350.",
-        "Ç10 — bugün `-c:a libopus` var ama `-b:a` YOK (transcode.py:246): bitrate kodlayıcı varsayılanına bağlı ve ffmpeg sürümü değişince sessizce değişir. 96 kbps bu yüzden SABİTLENİYOR."
-      ]
-    },
-    "autoplay": {
-      "enabled": false,
-      "muted": true,
-      "loop": false,
-      "playsinline": true,
-      "preload": "metadata",
-      "present_today": false,
-      "note": "Varsayılan kip story: otomatik oynatma YOK, kullanıcı başlatır (StoreHeader.ts:301-309'da autoplay özniteliği yok) — bu yüzden WCAG 2.2 SC 2.2.2 kapsamına girmiyor. muted/playsinline bugün de var (StoreHeader.ts:308), loop yok. ambient kipi açılırsa (K2) enabled=true, muted=true (zorunlu), loop=true, playsinline=true olur. preload='auto' YASAK — pasif mobil bütçeyi tek başına aşar; navigator.connection.saveData === true ya da effectiveType ∈ ['slow-2g','2g'] iken 'none'a düşürülür."
-    },
-    "poster": {
-      "selection_rule": "1) Satıcı poster_image yüklediyse O KAZANIR, otomatik seçim çalışmaz. 2) Yoksa [0,5 s, min(5 s, süre×0,25)] penceresinde ffmpeg 'thumbnail' filtresi (n=120) histogram uzaklığına göre en temsili kareyi seçer — 'ilk anlamlı kare'nin uygulanabilir tanımı budur. 3) Seçilen kare parlaklık kapısından geçmezse [süre×0,25, süre×0,50] penceresinde bir kez yeniden denenir. 4) O da geçmezse cover_video_poster_unresolved.",
-      "profile": "poster_1280",
-      "fallback_profile": "poster_854",
-      "override_field": "Seller Gallery Image.poster_image",
-      "implemented_today": false,
-      "auto_generate": {
-        "implemented_today": false,
-        "search_window_s": { "start": 0.5, "end_expr": "min(5, duration * 0.25)" },
-        "window_reason": "Açılış siyahlığını (0-0,5 s) atlar, videonun ilk çeyreğinden çıkmaz.",
-        "command": "ffmpeg -ss 0.5 -t 4.5 -i cover_720.webm -vf \"thumbnail=n=120,scale=1280:-2\" -frames:v 1 -c:v libwebp -quality 78 cover_poster.webp",
-        "selection_basis": "ffmpeg 'thumbnail' filtresi n kare içinden histogram uzaklığına göre en temsili kareyi seçer — 'ilk anlamlı kare'nin uygulanabilir tanımı."
-      },
-      "quality_gate": {
-        "reject_if_mean_luma_pct_below": 6,
-        "reject_if_mean_luma_pct_above": 94,
-        "retry_window_expr": "[duration * 0.25, duration * 0.50]",
-        "max_retries": 1,
-        "on_final_failure": "cover_video_poster_unresolved"
-      },
-      "output": {
-        "format": "webp",
-        "width": 1280,
-        "height": 720,
-        "max_bytes": 122880,
-        "max_bytes_human": "120 KB",
-        "quality_ladder": [78, 70, 62],
-        "downscale_fallback": { "width": 854, "height": 480 },
-        "note": "Pasif mobil bütçenin ana kalemi. Profil karşılıkları: profiles[poster_1280] ve profiles[poster_854]."
-      },
-      "seller_override": {
-        "field": "Seller Gallery Image.poster_image",
-        "wins": true,
-        "today_behavior": ":poster=\"current.poster || ''\" — boşsa poster HİÇ YOK, kutu siyah kalır",
-        "today_source": "StoreHeader.ts:303, :297"
-      },
-      "legacy_fallback": {
-        "technique": "item.src + '#t=0.5' with <video preload=\"metadata\">",
-        "source": "StoreHeader.ts:401-405",
-        "scope_today": "yalnız küçük resim ızgarası — ana oynatıcıda YOK",
-        "verdict": "Kaldırılmaz ama yeterli sayılmaz: tam bir <video> + metadata indirmesi, poster'dan pahalı. Otomatik poster devreye girince tek işlevi migrate edilmemiş satırlar.",
-        "finding_ref": "Ç7"
-      }
-    },
-    "preview_clip": {
-      "duration_s": 6,
-      "max_bytes": 409600,
-      "silent": true,
-      "max_bytes_human": "400 KB",
-      "max_bytes_derivation": "6 s × 500 kbps = 3 Mbit = 375 KB → 400 KB (409.600 bayt)",
-      "implemented_today": false,
-      "start_offset": "poster'ın seçildiği zaman damgası",
-      "start_offset_reason": "Önizleme, kullanıcının poster'da gördüğü kareden başlar → görsel süreklilik.",
-      "width": 854,
-      "height": 480,
-      "video_codec": "libvpx-vp9",
-      "fallback_container": "mp4/libx264",
-      "loop": true,
-      "loop_reason": "Ses yok ve süre kısa → story kipindeki loop yasağının gerekçesi burada geçerli değil.",
-      "used_in": ["mağaza kartı", "arama sonucu", "küçük resim hover"],
-      "not_used_in": ["kapak kutusu (orada tam video var)"],
-      "reduced_motion": "oynatılmaz — poster gösterilir"
-    },
-    "hls": {
-      "threshold_s": 60,
-      "ladder": [],
-      "delivery": "progressive",
-      "required_if_any": {
-        "duration_s_gt": 60,
-        "max_rendition_bytes_gt": 12582912,
-        "distinct_resolution_tiers_gt": 2
-      },
-      "triggers_none": true,
-      "reason": "Süre 60 s ile, rendition 12 MB ile, tier sayısı 2 ile sınırlı — üç koşul da tanım gereği sağlanmıyor. Bu yüzden ladder BOŞ: 'basamak yok' ile 'basamak yazılmadı' karışmasın.",
-      "threshold_written_for": "gelecekteki uzun-form 'şirket tanıtım filmi' slotu — o slot açıldığında HLS/LL-HLS ilk günden zorunlu",
-      "current_state": "yok",
-      "current_state_evidence": "tradehubfront/src ve admin-panel/frontend/src içinde 'hls' / 'HLS' → 0 eşleşme",
-      "byte_range_required": true,
-      "byte_range_reason": "Progressive teslimde seek'in çalışması Accept-Ranges: bytes gerektirir.",
-      "byte_range_verify": "docs/standards/company-cover-video.md §11-D5"
-    },
-    "mobile_data_budget": {
-      "first_10s_max_kb": 1250,
-      "first_10s_typical_kb": 875,
-      "first_10s_derivation": "480p tier tavanı 1,0 Mbps × 10 s = 10 Mbit = 1.250 KB (1.280.000 bayt)",
-      "first_10s_typical_derivation": "hedef ortalama 0,7 Mbps × 10 s = 7 Mbit ≈ 875 KB (896.000 bayt)",
-      "passive_max_kb": 150,
-      "passive_max_on_save_data_kb": 120,
-      "passive_breakdown": { "poster_kb": 120, "container_metadata_kb": 30 },
-      "worst_case_total_kb": 1400,
-      "why_two_part": "Otomatik oynatma yok (StoreHeader.ts:301-309) → ilk 10 s baytı ancak kullanıcı dokunduktan SONRA iner. Pasif maliyet yalnız poster + metadata: 120 KB + 30 KB = 150 KB (153.600 bayt); saveData açıkken 120 KB (122.880 bayt).",
-      "why_strict": "flex-col-reverse (StoreHeader.ts:129) mobilde videoyu katlamanın üstüne koyuyor — LCP adayı konum.",
-      "verify": "docs/standards/company-cover-video.md §11-D9"
-    },
-    "accessibility": {
-      "vtt_required": "if_speech",
-      "reduced_motion_behavior": "story: DEĞİŞMEZ — kullanıcı başlatmalı oynatma kısıtlanmaz (WCAG 2.2 SC 2.2.2 yalnız otomatik hareketi hedefler). ambient: otomatik oynatma İPTAL, poster + oynat düğmesi gösterilir. preview_clip: oynatılmaz, poster gösterilir. UYGULAMA: CSS bunu yapamaz, JS gerekir — window.matchMedia('(prefers-reduced-motion: reduce)').matches oynatma anında okunur, init'te önbelleğe ALINMAZ (kullanıcı OS ayarını sekme açıkken değiştirebilir).",
-      "current_state": "yok",
-      "current_state_evidence": "'<track', 'kind=\"captions\"', '.vtt' → tradehubfront/src + admin-panel/frontend/src içinde 0 eşleşme",
-      "captions_rules": [
-        { "condition": "story + ses akışı var + konuşma içeriyor", "vtt": "ZORUNLU", "on_missing": "cover_video_captions_required" },
-        { "condition": "story + ses akışı var + yalnız müzik/ortam", "vtt": "opsiyonel", "caption_field": "ZORUNLU" },
-        { "condition": "story + ses akışı yok", "vtt": "opsiyonel", "caption_field": "ZORUNLU" },
-        { "condition": "ambient", "vtt": "gereksiz (ses akışı yok)", "caption_field": "ZORUNLU" }
-      ],
-      "speech_detection": {
-        "method": "satıcı beyanı (onay kutusu) + rastgele denetim",
-        "decision_ref": "K5",
-        "note": "ffmpeg silencedetect 'ses var mı' der, 'konuşma mı müzik mi' demez."
-      },
-      "required_new_field": {
-        "doctype": "Seller Gallery Image",
-        "fieldname": "subtitles_vtt",
-        "fieldtype": "Attach",
-        "note": "ALAN HENÜZ YOK — açılması gerekiyor. Bu yüzden bound_to'da yer almıyor: bound_to yalnız BUGÜN var olan depolama alanlarını sayar."
-      },
-      "required_upload_policy_change": {
-        "extension": ".vtt",
-        "current_state": "upload_policy.EXTENSIONS içinde YOK (tradehub_core/media/upload_policy.py:57-65)",
-        "new_kind": "KIND_CAPTION",
-        "max_bytes": 524288,
-        "max_bytes_human": "512 KB"
-      },
-      "player_markup": "<track kind=\"captions\" srclang=\"tr\" label=\"Türkçe\" default>",
-      "languages": {
-        "platform_locales": ["tr", "en", "ru", "ar"],
-        "mandatory": "yalnız videonun konuşma dili",
-        "others": "opsiyonel"
-      },
-      "effective_date": {
-        "new_uploads": "hemen",
-        "existing_covers": "90 gün geçiş",
-        "decision_ref": "K4"
-      },
-      "prefers_reduced_motion": {
-        "existing_css_rule": {
-          "source": "tradehubfront/src/style.css:757-765",
-          "effect": "animation-duration/transition-duration → 0.01ms",
-          "does_not_affect": "<video> oynatması"
-        },
-        "story": "değişmez — kullanıcı başlatmalı oynatma kısıtlanmaz (WCAG 2.2 SC 2.2.2 yalnız otomatik hareketi hedefler)",
-        "ambient": "otomatik oynatma İPTAL; poster + oynat düğmesi gösterilir",
-        "preview_clip": "oynatılmaz; poster gösterilir",
-        "implementation_note": "CSS bunu yapamaz — JS gerekir: window.matchMedia('(prefers-reduced-motion: reduce)').matches. Oynatma anında okunmalı, init'te önbelleğe ALINMAMALI (kullanıcı OS ayarını sekme açıkken değiştirebilir)."
-      },
-      "other_gaps": [
-        { "gap": "Seek çubuğu klavyeyle kullanılamıyor — <div> + @click, role/tabindex yok", "source": "StoreHeader.ts:339", "fix": "role=\"slider\" + aria-valuenow/min/max + @keydown.arrow-left/right" },
-        { "gap": "Oynat/duraklat aria-label sabit 'Oynat'", "source": "StoreHeader.ts:332", "fix": ":aria-label=\"playing ? 'Duraklat' : 'Oynat'\"" },
-        { "gap": "Üç kontrol etiketi i18n dışında ('Oynat', 'Sesi aç/kapat', 'Tam ekran')", "source": "StoreHeader.ts:332,347,352", "fix": "t(...) ile 4 dile alınması — dosyanın geri kalanı zaten t(...) kullanıyor (:19, :58)" },
-        { "gap": "iOS'ta tam ekran çalışmıyor — yalnız v.requestFullscreen kontrol ediliyor", "source": "StoreHeader.ts:274-277", "fix": "webkitEnterFullscreen() dalı" },
-        { "gap": "Poster yoksa boş siyah kutu", "source": "StoreHeader.ts:297,303", "fix": "otomatik poster (video.poster bloğu)" }
-      ]
-    },
-
-    "renditions": [
-      {
-        "id": "cover_720_webm",
-        "role": "primary",
-        "width": 1280,
-        "height": 720,
-        "container": "webm",
-        "video_codec": "libvpx-vp9",
-        "crf": 32,
-        "maxrate_kbps": 2500,
-        "bufsize_kbps": 5000,
-        "target_avg_kbps": 1600,
-        "audio_codec": "libopus",
-        "audio_bitrate_kbps": 96,
-        "audio_channels": 2,
-        "max_bytes": 12582912,
-        "max_bytes_human": "12 MB",
-        "max_bytes_derivation": "60 s × 1,6 Mbps = 96 Mbit = 12 MB",
-        "mime": "video/webm; codecs=vp9,opus",
-        "served_when": "min-width: 1024px",
-        "implemented_today": true,
-        "crf_note": "CRF 32 mevcut hattan korunuyor (transcode.py:245); bu standart üstüne -maxrate/-bufsize ekliyor.",
-        "note": "maxrate 2500 kbps mevcut hattın barıdır (transcode.py:67); video.bitrate_cap_kbps = 2000 ise TETİKLEME eşiğidir (Ç4 kararı). İkisi farklı işler: biri kuyruğa alma barı, biri encoder tavanı."
-      },
-      {
-        "id": "cover_720_mp4",
-        "role": "fallback",
-        "width": 1280,
-        "height": 720,
-        "container": "mp4",
-        "video_codec": "libx264",
-        "profile": "high",
-        "crf": 23,
-        "maxrate_kbps": 2800,
-        "bufsize_kbps": 5600,
-        "target_avg_kbps": 1900,
-        "audio_codec": "aac",
-        "audio_profile": "aac_low",
-        "audio_bitrate_kbps": 96,
-        "audio_channels": 2,
-        "max_bytes": 14680064,
-        "max_bytes_human": "14 MB",
-        "mime": "video/mp4; codecs=avc1.640028,mp4a.40.2",
-        "extra_flags": ["-movflags +faststart"],
-        "served_when": "min-width: 1024px (WebM desteklenmiyorsa)",
-        "implemented_today": false
-      },
-      {
-        "id": "cover_480_webm",
-        "role": "mobile_primary",
-        "width": 854,
-        "height": 480,
-        "container": "webm",
-        "video_codec": "libvpx-vp9",
-        "crf": 34,
-        "maxrate_kbps": 1000,
-        "bufsize_kbps": 2000,
-        "target_avg_kbps": 700,
-        "audio_codec": "libopus",
-        "audio_bitrate_kbps": 64,
-        "audio_channels": 1,
-        "max_bytes": 5242880,
-        "max_bytes_human": "5 MB",
-        "max_bytes_derivation": "60 s × 0,7 Mbps = 42 Mbit ≈ 5,25 MB → 5 MB",
-        "mime": "video/webm; codecs=vp9,opus",
-        "served_when": "max-width: 1023px",
-        "implemented_today": false
-      },
-      {
-        "id": "cover_480_mp4",
-        "role": "mobile_fallback",
-        "width": 854,
-        "height": 480,
-        "container": "mp4",
-        "video_codec": "libx264",
-        "profile": "high",
-        "crf": 25,
-        "maxrate_kbps": 1200,
-        "bufsize_kbps": 2400,
-        "target_avg_kbps": 850,
-        "audio_codec": "aac",
-        "audio_bitrate_kbps": 64,
-        "audio_channels": 1,
-        "max_bytes": 6291456,
-        "max_bytes_human": "6 MB",
-        "mime": "video/mp4; codecs=avc1.640028,mp4a.40.2",
-        "extra_flags": ["-movflags +faststart"],
-        "served_when": "max-width: 1023px (WebM desteklenmiyorsa)",
-        "implemented_today": false
-      }
+    "window_reason": "Açılış siyahlığını (0-0,5 s) atlar, videonun ilk çeyreğinden çıkmaz.",
+    "command": "ffmpeg -ss 0.5 -t 4.5 -i cover_720.webm -vf \"thumbnail=n=120,scale=1280:-2\" -frames:v 1 -c:v libwebp -quality 78 cover_poster.webp",
+    "selection_basis": "ffmpeg 'thumbnail' filtresi n kare içinden histogram uzaklığına göre en temsili kareyi seçer — 'ilk anlamlı kare'nin uygulanabilir tanımı."
+   },
+   "quality_gate": {
+    "reject_if_mean_luma_pct_below": 6,
+    "reject_if_mean_luma_pct_above": 94,
+    "retry_window_expr": "[duration * 0.25, duration * 0.50]",
+    "max_retries": 1,
+    "on_final_failure": "cover_video_poster_unresolved"
+   },
+   "output": {
+    "format": "webp",
+    "width": 1280,
+    "height": 720,
+    "max_bytes": 122880,
+    "max_bytes_human": "120 KB",
+    "quality_ladder": [
+     78,
+     70,
+     62
     ],
-
-    "rendition_policy": {
-      "tier_breakpoint_px": 1024,
-      "tier_breakpoint_reason": "lg breakpoint'iyle aynı — kolon 500px'e o noktada sabitleniyor (StoreHeader.ts:203).",
-      "distinct_resolution_tiers": 2,
-      "object_count_per_cover": 6,
-      "object_count_breakdown": "4 rendition + 1 poster + 1 önizleme klibi",
-      "storage_typical_30s_mb": 19,
-      "storage_worst_60s_mb": 37.5,
-      "storage_note": "Kota etkisi docs/reports/06-depolama-maliyet.md ile çapraz okunmalı. Rendition'ların File kaydı açıp kotayı 6 kat tüketmesi K7 kararına bağlı; öneri: File kaydı AÇMASIN (presets.py:33-35 ARCHIVE_DIRNAME deseni).",
-      "size_gate_retry": { "crf_step": 2, "max_attempts": 2, "on_final_failure": "cover_video_too_heavy" },
-      "size_gate_missing_today": "Bugün çıktı ne olursa olsun os.replace ile yazılıyor (transcode.py:252) — boyut kapısı yok.",
-      "resolution_1080p": {
-        "included": false,
-        "reason": "1023 px viewport'ta kutu 943 CSS px; DPR2'de 1886 cihaz px isteniyor, 1280 ile 1,47x upscale. 1080p bitrate tavanını 2,5 → 4,5 Mbps'e (+%80 bayt) taşır.",
-        "gate_to_add": "Tablet-DPR2 (768-1023 px × DPR≥2) payı > %15 ise eklenir",
-        "measurement_ref": "docs/standards/company-cover-video.md §11-D3",
-        "decision_ref": "K1",
-        "if_added": { "maxrate_kbps": 4500, "max_bytes_human": "22 MB" }
-      }
+    "downscale_fallback": {
+     "width": 854,
+     "height": 480
     },
-
-    "modes": {
-      "story": {
-        "default": true,
-        "implemented_today": true,
-        "duration_s": { "min": 6, "max": 60 },
-        "min_duration_derivation": "Önizleme klibi 6 s; master kendi önizlemesinden kısa olamaz.",
-        "max_duration_derivation": "60 s × 1,6 Mbps hedef ortalama = 96 Mbit = 12 MB (teslim dosya kapısı).",
-        "autoplay": false,
-        "muted_initial": true,
-        "audio_track": "allowed",
-        "loop": false,
-        "controls": "custom",
-        "loop_reason": "Ses taşıyan anlatı döngüye girmemeli; ayrıca @ended='playing = false' (StoreHeader.ts:307) bilinçli bir 'bitti' durumu üretiyor."
-      },
-      "ambient": {
-        "default": false,
-        "implemented_today": false,
-        "requires_admin_approval": "K2",
-        "duration_s": { "min": 3, "max": 8 },
-        "autoplay": true,
-        "muted_required": true,
-        "audio_track": "stripped",
-        "audio_strip_flag": "-an",
-        "loop": true,
-        "controls": "hidden",
-        "playsinline_required": true,
-        "reduced_motion_override": "autoplay iptal; poster + oynat düğmesi",
-        "max_delivered_bytes": 700000,
-        "max_delivered_derivation": "8 s × 0,7 Mbps = 5,6 Mbit = 700 KB"
-      }
-    },
-
-    "transcode": {
-      "unconditional_for_this_slot": true,
-      "unconditional_reason": "needs_transcode() koşullu atlaması kapak slotunda poster üretimini, MP4 yedeğini ve 480p tier'ı da atlar. Kapak mağaza başına 1 dosya, nadiren değişir → kuyruk riski yok (transcode.py:14-16'daki gerekçe burada geçerli değil).",
-      "general_library_thresholds_kept": {
-        "max_width": 1280,
-        "max_bitrate_bps": 2500000,
-        "source": "tradehub_core/media/transcode.py:66-67, :75-76",
-        "note": "Genel kütüphane eşikleri KORUNUYOR. Bu standart onlara dokunmuyor."
-      },
-      "client_server_threshold_conflict": {
-        "client_bps": 2000000,
-        "client_source": "admin-panel/frontend/src/lib/media/compress.video.js:29",
-        "server_bps": 2500000,
-        "server_source": "tradehub_core/media/transcode.py:67",
-        "symptom": "1280x720 @ 2,3 Mbps: panelden geçerse istemci dönüştürür; upload_file/after_insert yolundan geçerse sunucu atlar. Aynı dosya, giriş kapısına göre iki farklı sonuç.",
-        "decision": "İki sayı 2.000.000'da birleşir (dar olan kazanır; sunucu barı 2,5 → 2,0 iner).",
-        "finding_ref": "Ç4"
-      },
-      "in_place_replace": {
-        "allowed_for_this_slot": false,
-        "today_behavior": "dst_path = f'{src_path}.transcoding.webm' (transcode.py:230) ardından os.replace(dst_path, src_path) (transcode.py:252) → .mp4 adresine VP9/WebM baytları yazılıyor.",
-        "consequences": [
-          "nginx Content-Type'ı uzantıdan türetir → WebM baytları video/mp4 olarak servis edilir",
-          "<source type=\"video/mp4\"> yazmak yalan olur; tip uyuşmazlığında tarayıcı kaynağı atlayabilir",
-          "WebM konteynerini desteklemeyen eski Safari'de kapak hiç oynamaz ve yedek yol yok"
-        ],
-        "finding_ref": "Ç1"
-      },
-      "keyframe_interval_s": 2,
-      "keyframe_flag": "-g 60 (30 fps'te)",
-      "keyframe_reason": "El yapımı seek çubuğu (StoreHeader.ts:261-266) rastgele noktaya atlıyor; 2 s'den seyrek anahtar kare seek'i gözle görülür geciktirir. İleride HLS segmentlemesi de 2 s katı ister.",
-      "webm_cues_to_front": {
-        "required": true,
-        "flag": "-cues_to_front 1",
-        "present_today": false,
-        "reason": "Index sonda kalırsa preload=metadata ve seek için tarayıcı dosya sonuna range isteği atar → mobilde ek RTT.",
-        "finding_ref": "Ç11",
-        "verify": "docs/standards/company-cover-video.md §11-D6"
-      },
-      "loudness_normalization": {
-        "standard": "EBU R128",
-        "integrated_lufs": -16,
-        "true_peak_dbtp": -1,
-        "filter": "loudnorm=I=-16:TP=-1:LRA=11",
-        "note": "Standarda atıf — bu oturumda ölçüm YAPILMADI."
-      }
-    },
-
-    "identity": {
-      "canonical_storage": {
-        "doctype": "Seller Gallery Image",
-        "parent_doctype": "Admin Seller Profile",
-        "parent_field": "gallery_images",
-        "source": "tradehub_core/tradehub_core/doctype/seller_gallery_image/seller_gallery_image.json",
-        "discriminator": { "media_type": "video" },
-        "media_url_field": "video_url",
-        "poster_field": "poster_image",
-        "caption_field": "caption",
-        "category_field": "category",
-        "order_field": "sort_order"
-      },
-      "cover_selection_rule": {
-        "rule": "media_groups[0].items[0] ve media_type == 'video'",
-        "explanation": "Ayrı bir 'kapak' alanı yok; kapak sıralamanın türevi. _build_media_groups sort_order asc, idx asc ile sıralar, sonra videoyu başa alır.",
-        "evidence": ["tradehub_core/api/seller.py:795", "tradehub_core/api/seller.py:823-824"]
-      },
-      "categories": {
-        "values": ["overview", "360_view", "production", "quality_control"],
-        "default": "overview",
-        "duplicated_in": [
-          "tradehub_core/tradehub_core/doctype/seller_gallery_image/seller_gallery_image.json (category.options)",
-          "tradehub_core/api/seller.py:760-765 (_MEDIA_CATEGORIES)"
-        ],
-        "finding_ref": "Ç12"
-      },
-      "aliases": [
-        {
-          "field": "factory_video_url",
-          "written_by": "admin-panel/frontend/src/views/seller/StorefrontEdit.vue:1014,1228",
-          "posts_to": "tr_tradehub.api.v1.seller.update_storefront",
-          "status": "orphan",
-          "evidence": "tradehub_core/**/*.py, tradehub_core/**/*.json ve tradehubfront/src/** içinde 'factory_video_url' → 0 eşleşme",
-          "resolution": "Yeni yükleme kabul etmez; mevcut değer Seller Gallery Image (category=overview, media_type=video, sort_order=0) satırına taşınır. Faz 3 göçü.",
-          "finding_ref": "Ç2",
-          "bound_to_note": "BU ALAN HENÜZ YOK — hiçbir doctype'a bağlı değil, bu yüzden bound_to'ya YAZILMADI. docs/reports/00-upload-slot-envanteri.md §5 satırı da bunu 'o alan bu repoda bir doctype'a bağlı değil (§9-M1)' diye kaydediyor."
-        }
-      ]
-    },
-
-    "render_box": {
-      "component": "tradehubfront/src/components/seller/StoreHeader.ts:203-418",
-      "measurement_method": "Tailwind v4 varsayılan ölçeği (1rem=16px) ile KAYNAK KODDAN hesaplandı. Tarayıcıda computed style OKUNMADI — doğrulama komutu docs/standards/company-cover-video.md §11-D7.",
-      "class_chain": [
-        { "layer": "page_container", "classes": "max-w-[1200px] mx-auto px-4 lg:px-8 py-6", "source": "StoreHeader.ts:46" },
-        { "layer": "card_padding", "classes": "px-4 sm:px-6 lg:px-10 py-6 lg:py-8 lg:pb-10", "source": "StoreHeader.ts:128" },
-        { "layer": "row", "classes": "flex flex-col-reverse lg:flex-row gap-6 lg:gap-8", "source": "StoreHeader.ts:129" },
-        { "layer": "video_column", "classes": "w-full lg:w-[500px] shrink-0", "source": "StoreHeader.ts:203" },
-        { "layer": "media_box", "classes": "relative w-full rounded-sm overflow-hidden bg-gray-900 aspect-video", "source": "StoreHeader.ts:297" },
-        { "layer": "video_el", "classes": "w-full h-full object-cover", "source": "StoreHeader.ts:304" }
-      ],
-      "computed_sizes_css_px": [
-        { "viewport": 360, "container": 328, "card_inner": 296, "box_w": 296, "box_h": 166.5, "dpr2_w": 592 },
-        { "viewport": 390, "container": 358, "card_inner": 326, "box_w": 326, "box_h": 183.4, "dpr2_w": 652 },
-        { "viewport": 640, "container": 608, "card_inner": 560, "box_w": 560, "box_h": 315.0, "dpr2_w": 1120 },
-        { "viewport": 768, "container": 736, "card_inner": 688, "box_w": 688, "box_h": 387.0, "dpr2_w": 1376 },
-        { "viewport": 1023, "container": 991, "card_inner": 943, "box_w": 943, "box_h": 530.4, "dpr2_w": 1886, "note": "EN GENİŞ — lg altında kolon tam genişlik" },
-        { "viewport": 1024, "container": 960, "card_inner": 880, "box_w": 500, "box_h": 281.25, "dpr2_w": 1000, "note": "lg:w-[500px] devreye girdi, sabitlendi" },
-        { "viewport": 1440, "container": 1200, "card_inner": 1056, "box_w": 500, "box_h": 281.25, "dpr2_w": 1000 }
-      ],
-      "aspect_ratio_all_breakpoints": "16:9",
-      "mobile_alternate_ratio": null,
-      "object_fit": "cover",
-      "object_fit_risk": "Master 16:9 değilse sessizce merkezden kırpılır; yükleyene uyarı gösterilmez.",
-      "empty_state_background": "#111827 (bg-gray-900, StoreHeader.ts:297)",
-      "mobile_dom_order": {
-        "classes": "flex-col-reverse lg:flex-row",
-        "source": "StoreHeader.ts:129",
-        "effect": "Mobil ve tablette video, istatistik bloğunun ÜSTÜNDE — katlamanın üstünde, LCP adayı."
-      },
-      "thumbnail_box": {
-        "grid": "repeat(auto-fill, minmax(96px, 1fr))",
-        "grid_source": "StoreHeader.ts:378",
-        "cell_aspect": "4:3",
-        "cell_aspect_source": "StoreHeader.ts:381",
-        "min_size_css_px": [96, 72],
-        "horizontal_crop_of_16x9_poster_pct": 25.0,
-        "crop_derivation": "(16/9) / (4/3) = 1,3333 → 1 - 1/1,3333 = 0,25"
-      }
-    },
-
-    "safe_area": {
-      "overlays": [
-        { "name": "controls_bar", "height_px": 40, "derivation": "py-2.5 (10px) x2 + w-5/h-5 ikon (20px)", "source": "StoreHeader.ts:329,333-334" },
-        { "name": "controls_gradient", "spans": "kutunun tamamı", "value": "linear-gradient(to top, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.3) 70%, transparent 100%)", "source": "StoreHeader.ts:330" },
-        { "name": "center_play_button", "size_px": [56, 56], "source": "StoreHeader.ts:321" }
-      ],
-      "overlay_share_of_height_pct": {
-        "viewport_1024_plus": { "bar": 14.2, "play_button": 19.9 },
-        "viewport_768": { "bar": 10.3, "play_button": 14.5 },
-        "viewport_360": { "bar": 24.0, "play_button": 33.6, "note": "en kötü durum — alt %26 kuralının kaynağı" }
-      },
-      "title_safe_insets_pct": { "left": 10, "right": 10, "top": 6, "bottom": 26 },
-      "title_safe_on_1280x720_px": { "width": 1024, "height": 490, "offset_x": 128, "offset_y": 43 },
-      "center_keepout_px": [72, 72],
-      "center_keepout_reason": "56px oynat düğmesi + 8px pay; poster olarak da bu kare gösteriliyor.",
-      "thumbnail_safe_width_pct": 75,
-      "thumbnail_safe_reason": "Küçük resim 4:3 → 16:9 poster %25 yatay kırpılıyor; asıl kısıt bu, %10 kenar payından sıkı.",
-      "burned_in_logo": {
-        "allowed": false,
-        "reason": "Arayüz mantıksal yön özellikleriyle RTL'de aynalanıyor (start-*/end-*/ms-*/pe-*; ör. section-registry.ts:185,188). Videoya gömülü logo aynalanamaz. Mağaza logosu zaten ayrı <img> olarak render ediliyor (CompanyInfo.ts:47, 120px).",
-        "on_violation": "cover_video_burned_logo_warning (uyarı, ret değil)"
-      },
-      "burned_in_subtitles": {
-        "allowed": false,
-        "reason": "Tarayıcı <track> altyazısını alt bölgeye yerleştirir; gömülü altyazı ile üst üste biner."
-      }
-    },
-
-    "playback_attributes": {
-      "playsinline": { "required": true, "present_today": true, "source": "StoreHeader.ts:308, :403" },
-      "muted": { "story_initial": true, "autoplay_requires": true, "present_today": true, "source": "StoreHeader.ts:308, :207" },
-      "autoplay": { "story": false, "ambient": true, "present_today": false, "source": "StoreHeader.ts:301-309 (autoplay özniteliği yok)" },
-      "loop": { "story": false, "ambient": true, "present_today": false },
-      "preload": {
-        "default": "metadata",
-        "present_today": "metadata",
-        "source": "StoreHeader.ts:308",
-        "forbidden": ["auto"],
-        "forbidden_reason": "preload=auto pasif mobil bütçeyi tek başına aşar.",
-        "downgrade_to_none_when": [
-          "navigator.connection.saveData === true",
-          "navigator.connection.effectiveType in ['slow-2g','2g']"
-        ]
-      },
-      "audio_policy": {
-        "autoplay_mute_mandatory": true,
-        "mute_mandatory_reason": "muted+playsinline olmadan mobil tarayıcılar oynatmayı reddeder; sesli otomatik oynatma B2B vitrininde saldırgan.",
-        "user_can_unmute": true,
-        "user_unmute_source": "StoreHeader.ts:255-260, düğme :347-350",
-        "opus_bitrate_pinned": true,
-        "opus_bitrate_pin_reason": "Bugün -c:a libopus, -b:a YOK (transcode.py:246) → kodlayıcı varsayılanına bağlı, ffmpeg sürümü değişince sessizce değişir.",
-        "finding_ref": "Ç10"
-      }
-    },
-
-    "validation_codes": [
-      { "code": "cover_video_aspect_invalid", "condition": "abs(w/h - 16/9) / (16/9) > 0.01", "retryable": false, "severity": "error", "message_key": "oran_16_9_degil" },
-      { "code": "cover_video_resolution_too_low", "condition": "w < 1280 || h < 720", "retryable": false, "severity": "error", "message_key": "cozunurluk_dusuk" },
-      { "code": "cover_video_resolution_too_high", "condition": "w > 3840 || h > 2160", "retryable": false, "severity": "error", "message_key": "cozunurluk_yuksek" },
-      { "code": "cover_video_too_short", "condition": "story: duration < 6s | ambient: duration < 3s", "retryable": false, "severity": "error", "message_key": "sure_kisa" },
-      { "code": "cover_video_too_long", "condition": "story: duration > 60s | ambient: duration > 8s", "retryable": false, "severity": "error", "message_key": "sure_uzun" },
-      { "code": "cover_video_too_large", "condition": "bytes > 83886080", "retryable": false, "severity": "error", "message_key": "cok_buyuk" },
-      { "code": "cover_video_too_heavy", "condition": "encode sonrası tier dosyası 2 CRF denemesinden sonra hâlâ kapı üstünde", "retryable": false, "severity": "error", "message_key": "cok_agir" },
-      { "code": "cover_video_no_video_stream", "condition": "ffprobe video stream döndürmedi", "retryable": false, "severity": "error", "message_key": "video_akisi_yok" },
-      { "code": "cover_video_poster_unresolved", "condition": "otomatik poster iki denemede de parlaklık kapısını geçemedi", "retryable": false, "severity": "error", "message_key": "poster_cozulemedi" },
-      { "code": "cover_video_captions_required", "condition": "ses akışı var + konuşma beyan edildi + .vtt yok", "retryable": false, "severity": "error", "message_key": "altyazi_gerekli" },
-      { "code": "cover_video_transcode_failed", "condition": "ffmpeg hata verdi", "retryable": true, "severity": "error", "message_key": "transcode_hatasi" },
-      { "code": "cover_video_burned_logo_warning", "condition": "gömülü logo tespiti/beyanı", "retryable": null, "severity": "warning", "message_key": "gomulu_logo" }
-    ]
+    "note": "Pasif mobil bütçenin ana kalemi. Profil karşılıkları: profiles[poster_1280] ve profiles[poster_854]."
+   },
+   "seller_override": {
+    "field": "Seller Gallery Image.poster_image",
+    "wins": true,
+    "today_behavior": ":poster=\"current.poster || ''\" — boşsa poster HİÇ YOK, kutu siyah kalır",
+    "today_source": "StoreHeader.ts:303, :297"
+   },
+   "legacy_fallback": {
+    "technique": "item.src + '#t=0.5' with <video preload=\"metadata\">",
+    "source": "StoreHeader.ts:401-405",
+    "scope_today": "yalnız küçük resim ızgarası — ana oynatıcıda YOK",
+    "verdict": "Kaldırılmaz ama yeterli sayılmaz: tam bir <video> + metadata indirmesi, poster'dan pahalı. Otomatik poster devreye girince tek işlevi migrate edilmemiş satırlar.",
+    "finding_ref": "Ç7"
+   }
   },
-
-  "sources": {
-    "slot_key": "docs/reports/00-upload-slot-envanteri.md §8 kanonik anahtar biçimi (<alan>.<slot>) + tradehub_core/media/pipeline/policy/slots/company-cover-image.json 'company.cover_image' ile aynı aile. T-022 taslağı 'seller.cover_video' yazıyordu; kapak GÖRSELİ 'company.*' ailesinde olduğu için ikisi ayrışmasın diye 'company.cover_video' seçildi. Envanterdeki doctype biçimindeki karşılığı `seller.gallery_video`'dur (§2) — fark docs/standards/README.md 'Policy kapsam haritası' bölümünde yazılı.",
-    "roles": "docs/reports/00-upload-slot-envanteri.md §2 satır `seller.gallery_video` rol='satıcı'; ayrıca aynı satır Admin Seller Profile çocuğu olduğu için admin panelinden de yazılabiliyor (admin-panel/frontend/src/views/seller/StorefrontEdit.vue:503-543, 1004-1021 satıcı paneli; DocTypeFormView admin tarafı).",
-    "bound_to": "docs/reports/00-upload-slot-envanteri.md §2 satırları `seller.gallery_video` ve `seller.gallery_poster`; §5 satırı 'Şirket profili kapak videosu'.",
-    "accept.mime": "tradehub_core/media/upload_policy.py:62 (KIND_VIDEO uzantıları) + tradehub_core/media/transcode.py:67 VIDEO_EXTENSIONS. İstemci accept: admin-panel/frontend/src/views/seller/StorefrontEdit.vue:1004-1021",
-    "accept.extensions": "tradehub_core/media/upload_policy.py:62 — .mp4, .webm, .mov, .m4v",
-    "accept.max_bytes": "hesap: 60 s × 10 Mbps (cömert 1080p master tavanı) = 600 Mbit = 75 MB → 80 MB (83.886.080 bayt). Küresel tavan 200 MB (upload_policy.py:69) bunun üstünde, çelişki yok; DocType açıklaması ve panel 10 MB diyor — Ç3.",
-    "accept.max_megapixels_hard": "hesap: 3840×2160 / 1e6 = 8,29 → 8,3. 4K kare üst sınırı; teslim her hâlükârda 1280 genişliğe iniyor (transcode.py:242).",
-    "accept.allow_animated": "Video slotu — hareket slotun kendisidir. engine.py:111-112'deki 'animated' reddi PIL yoluna aittir, video yolu ffmpeg'dir (transcode.py:235-248).",
-    "require.min_short_edge": "hesap: masaüstü kutusu 500 CSS px × DPR2 = 1000 cihaz px genişlik → 16:9'da yükseklik 563; standart basamak 720 (1280×720). Kutu: StoreHeader.ts:203, :297",
-    "require.min_area": "hesap: 1280 × 720 = 921.600 piksel.",
-    "require.max_short_edge": "hesap: 3840×2160 üst sınırının kısa kenarı = 2160 (video.resolution_max).",
-    "require.allowed_ratios": "tradehubfront/src/components/seller/StoreHeader.ts:297 `aspect-video` — kutu HER kırılımda 16:9 (video.render_box.aspect_ratio_all_breakpoints).",
-    "require.ratio_tolerance": "hesap: ±%1 — encoder yuvarlamalarını (1920×1088 = 1,765 vs 1,778 → %0,7 sapma) geçirir, 4:3 veya 1:1'i geçirmez. object-cover kırpması bundan geniş sapmayı sessizce yutuyor (StoreHeader.ts:304).",
-    "require.max_count": "Kapak tek öğedir: media_groups[0].items[0] (api/seller.py:795, :823-824). Galerinin geri kalanı bu politikanın kapsamı DIŞINDA (seller.gallery_image / seller.gallery_video).",
-    "master.max_long_edge": "tradehub_core/media/transcode.py:242 — ffmpeg hedefi scale='min(1280,iw)':-2. Yeni hedef önerilmiyor; 1080p tier K1 onayına bağlı (video.rendition_policy.resolution_1080p).",
-    "master.min_long_edge": "hesap: require.min_short_edge 720 → 16:9'da uzun kenar 1280. Kapak için master hedefi TAM 1280×720; altı 'under-spec'tir ve en büyük profiller üretilmez.",
-    "master.max_megapixels": "hesap: 1280 × 720 / 1e6 = 0,9216 → 0,93. Şema invaryantı sağlanıyor: 1280² / 1e6 = 1,638 ≥ 0,93.",
-    "master.dpi_out": "Video için anlamsız bir alan; şema zorunlu kıldığı için ekran standardı 72 yazıldı. ÖLÇÜLMEDİ: video metadata'sında dpi taşınmıyor.",
-    "master.colorspace": "tradehub_core/media/transcode.py:235-248 — ffmpeg komutunda renk uzayı dönüşümü YOK, kaynak korunuyor.",
-    "master.format": "tradehub_core/media/transcode.py:243-246 — gerçek master biçimi WebM (VP9 video + Opus ses). 'webm' değeri şema v1.1.0'da enum'a eklendi; v1.0.0'da bu ifade edilemiyordu (docs/standards/README.md §4 E10).",
-    "master.orientation": "ffmpeg döndürme metadata'sını taşır; PIL'in ImageOps.exif_transpose davranışı (engine.py:116) video yoluna hiç girmez → 'preserve'. ÖLÇÜLMEDİ: dikey çekilmiş telefon videosunda rotate matrisinin korunduğu üretim dosyasında doğrulanmalı.",
-    "master.strip_metadata": "tradehub_core/media/transcode.py:235-248 — ffmpeg varsayılanı çoğu metadata'yı taşımaz. ÖLÇÜLMEDİ: `ffprobe -show_format` ile üretim dosyalarında GPS/EXIF silinmesi doğrulanmalı (Ç5 nedeniyle bugün hiçbir video metadata'sı okunmuyor).",
-    "quality.reencode_floor_saving_ratio": "tradehub_core/media/presets.py:25 MIN_SAVING_RATIO = 0.10 — görsel yolundaki Kapı 6 ile aynı eşik. NOT: video yolunda bu kapı UYGULANMIYOR (transcode.py:251-252 os.replace); kapak slotunda yerine mutlak bayt kapısı + CRF yeniden denemesi geliyor (video.rendition_policy.size_gate_retry).",
-    "profiles[0].width": "hesap: 500 CSS px × DPR2 = 1000 → üst basamak 1280 (16:9'da 1280×720). Kutu StoreHeader.ts:203, :297",
-    "profiles[1].width": "hesap: 480p teslim tier'ıyla aynı kare (854×480, video.renditions[cover_480_webm]); mobil en dar kutu 296 CSS px @2x = 592 ≤ 854.",
-    "profiles[2].width": "hesap: küçük resim hücresi en az 96×72 CSS px (StoreHeader.ts:378 minmax(96px,1fr), :381 oran 4:3) → DPR2 = 192×144.",
-    "profiles[*].encoder_quality.webp": "video.poster.output.quality_ladder = [78, 70, 62] — 120 KB kapısı tutulana kadar inilecek basamaklar. ÖLÇÜLMEDİ: hangi basamağın 1280×720'de 120 KB'ı tuttuğu gerçek kapak karelerinde ölçülmeli (D1/D2).",
-    "video.duration_min_s": "hesap: önizleme klibi 6 s (video.preview_clip.duration_s); master kendi önizlemesinden kısa olamaz.",
-    "video.duration_max_s": "hesap: 60 s × 1,6 Mbps hedef ortalama = 96 Mbit = 12 MB teslim kapısı.",
-    "video.resolution_min": "hesap: masaüstü kutusu 500 CSS px × DPR2 = 1000 cihaz px; 1280 ≥ 1000.",
-    "video.resolution_max": "hesap: 4K (3840×2160) üst sınırı; üstünü kabul etmenin görsel karşılığı yok (transcode.py:242).",
-    "video.bitrate_cap_kbps": "tradehub_core/media/transcode.py:67 (2.500.000 bps sunucu) ile admin-panel/frontend/src/lib/media/compress.video.js:29 (2.000.000 bps istemci) çelişiyordu — Ç4. Karar: dar olan kazanır → 2.000 kbps.",
-    "video.frame_rate.output_cap": "hesap/gerekçe: 60 fps aynı kalitede ~%80 fazla bit; bu slotun içeriğinde (fabrika turu, konuşan kafa) görsel kazanç yok. ÖLÇÜLMEDİ: gerçek kapakların fps dağılımı D2.",
-    "video.audio_policy.bitrate_kbps": "tradehub_core/media/transcode.py:246 — `-c:a libopus` var, `-b:a` YOK (Ç10). 96 kbps stereo konuşma+müzik için EBU/Opus tavsiye aralığının içinde; SABİTLENİYOR.",
-    "video.audio_policy.loudness": "EBU R128 standardına atıf — bu oturumda ÖLÇÜLMEDİ.",
-    "video.autoplay": "tradehubfront/src/components/seller/StoreHeader.ts:301-309 — autoplay özniteliği YOK, playsinline ve muted VAR (:308). ambient kipinin değerleri K2 onayına bağlı.",
-    "video.poster.selection_rule": "docs/standards/company-cover-video.md §6.9 — 'ilk anlamlı kare'nin uygulanabilir tanımı; ffmpeg thumbnail filtresi histogram uzaklığı.",
-    "video.poster.output.max_bytes": "hesap: pasif mobil bütçe 150 KB = poster 120 KB + konteyner metadata 30 KB (video.mobile_data_budget).",
-    "video.preview_clip.max_bytes": "hesap: 6 s × 500 kbps = 3 Mbit = 375 KB → 400 KB (409.600 bayt).",
-    "video.hls.threshold_s": "hesap: bu slotun süre tavanı 60 s; eşik tam oraya konuldu ki 60 s'yi AŞAN bir slot açıldığında HLS ilk günden zorunlu olsun. Bugün 'hls' → tradehubfront/src + admin-panel/frontend/src içinde 0 eşleşme.",
-    "video.mobile_data_budget.first_10s_max_kb": "hesap: 480p tier tavanı 1,0 Mbps × 10 s = 10 Mbit = 1.250 KB (1.280.000 bayt).",
-    "video.mobile_data_budget.passive_max_kb": "hesap: poster 120 KB (122.880 bayt) + konteyner metadata 30 KB (30.720 bayt) = 150 KB (153.600 bayt). Otomatik oynatma olmadığı için pasif maliyet bundan fazlası değil (StoreHeader.ts:301-309).",
-    "video.accessibility.vtt_required": "docs/standards/company-cover-video.md §8.1 — bugün '<track' / 'kind=\"captions\"' / '.vtt' → 0 eşleşme. Yürürlük K4, konuşma tespiti K5.",
-    "video.accessibility.reduced_motion_behavior": "tradehubfront/src/style.css:757-765 — mevcut kural yalnız animation/transition süresini kısıyor, <video> oynatmasını ETKİLEMİYOR. WCAG 2.2 SC 2.2.2 yalnız otomatik hareketi hedefler.",
-    "video.renditions[*].crf": "tradehub_core/media/transcode.py:245 — mevcut hattın CRF 32 değeri korunuyor; diğer tier'ların CRF'leri ondan TÜRETİLDİ (854 genişlikte 34, x264 karşılıkları 23/25). ÖLÇÜLMEDİ: hedef SSIM'e göre kalibre edilmedi.",
-    "video.renditions[*].max_bytes": "hesap: her tier için süre × hedef ortalama bitrate (her satırın max_bytes_derivation alanında yazılı).",
-    "video.renditions[*].mime": "Konteyner + kodlayıcı çiftinden türetildi. Ç1 nedeniyle bugün .mp4 adresinden WebM baytları servis ediliyor; bu MIME dizeleri ancak Ç1 çözüldükten sonra doğru olur.",
-    "video.transcode.keyframe_interval_s": "tradehubfront/src/components/seller/StoreHeader.ts:261-266 — el yapımı seek çubuğu rastgele noktaya atlıyor; 2 s'den seyrek anahtar kare seek'i gözle görülür geciktirir.",
-    "video.transcode.general_library_thresholds_kept": "tradehub_core/media/transcode.py:66-67, :75-76 — genel kütüphane eşikleri korunuyor.",
-    "video.render_box": "tradehubfront/src/components/seller/StoreHeader.ts:46,128,129,203,297,304,378,381 — Tailwind ölçeğiyle (1rem=16px) KAYNAK KODDAN hesaplandı, tarayıcıda ÖLÇÜLMEDİ (D7).",
-    "video.safe_area": "tradehubfront/src/components/seller/StoreHeader.ts:321,329,330,333-334 katman ölçüleri + video.render_box yükseklikleriyle yüzdeye çevrildi. En kötü durum 360 px viewport: alt %26 kuralının kaynağı.",
-    "on_violation.error_code_prefix": "tradehub_core/media/upload_policy.py:104-139 — 14 kodlu ret sözleşmesi; bu slotun kodları 'cover_video_' önekli (video.validation_codes).",
-    "on_violation.retryable": "tradehub_core/media/upload_policy.py:97-100 — kullanıcının dosyasıyla ilgili hatalar tekrar denenmez. Tek istisna cover_video_transcode_failed (sunucu hatası, retryable=true).",
-    "messages.tr": "docs/standards/company-cover-video.md §6.13 ve §7 karar tablosu; her metin ŞEMA kuralı gereği sebep + çözüm taşıyor.",
-    "messages.en": "TR metinlerinden çevrildi; sayılar ve alan adları birebir korundu. ÖLÇÜLMEDİ: ru/ar yerelleri için karşılık YAZILMADI — platform 4 dil destekliyor (video.accessibility.languages.platform_locales), mesaj haritası bugün 2 dil taşıyor."
+  "preview_clip": {
+   "duration_s": 6,
+   "max_bytes": 409600,
+   "silent": true,
+   "max_bytes_human": "400 KB",
+   "max_bytes_derivation": "6 s × 500 kbps = 3 Mbit = 375 KB → 400 KB (409.600 bayt)",
+   "implemented_today": false,
+   "start_offset": "poster'ın seçildiği zaman damgası",
+   "start_offset_reason": "Önizleme, kullanıcının poster'da gördüğü kareden başlar → görsel süreklilik.",
+   "width": 854,
+   "height": 480,
+   "video_codec": "libvpx-vp9",
+   "fallback_container": "mp4/libx264",
+   "loop": true,
+   "loop_reason": "Ses yok ve süre kısa → story kipindeki loop yasağının gerekçesi burada geçerli değil.",
+   "used_in": [
+    "mağaza kartı",
+    "arama sonucu",
+    "küçük resim hover"
+   ],
+   "not_used_in": [
+    "kapak kutusu (orada tam video var)"
+   ],
+   "reduced_motion": "oynatılmaz — poster gösterilir"
   },
-
-  "known_conflicts": [
+  "hls": {
+   "threshold_s": 60,
+   "ladder": [],
+   "delivery": "progressive",
+   "required_if_any": {
+    "duration_s_gt": 60,
+    "max_rendition_bytes_gt": 12582912,
+    "distinct_resolution_tiers_gt": 2
+   },
+   "triggers_none": true,
+   "reason": "Süre 60 s ile, rendition 12 MB ile, tier sayısı 2 ile sınırlı — üç koşul da tanım gereği sağlanmıyor. Bu yüzden ladder BOŞ: 'basamak yok' ile 'basamak yazılmadı' karışmasın.",
+   "threshold_written_for": "gelecekteki uzun-form 'şirket tanıtım filmi' slotu — o slot açıldığında HLS/LL-HLS ilk günden zorunlu",
+   "current_state": "yok",
+   "current_state_evidence": "tradehubfront/src ve admin-panel/frontend/src içinde 'hls' / 'HLS' → 0 eşleşme",
+   "byte_range_required": true,
+   "byte_range_reason": "Progressive teslimde seek'in çalışması Accept-Ranges: bytes gerektirir.",
+   "byte_range_verify": "docs/standards/company-cover-video.md §11-D5"
+  },
+  "mobile_data_budget": {
+   "first_10s_max_kb": 1250,
+   "first_10s_typical_kb": 875,
+   "first_10s_derivation": "480p tier tavanı 1,0 Mbps × 10 s = 10 Mbit = 1.250 KB (1.280.000 bayt)",
+   "first_10s_typical_derivation": "hedef ortalama 0,7 Mbps × 10 s = 7 Mbit ≈ 875 KB (896.000 bayt)",
+   "passive_max_kb": 150,
+   "passive_max_on_save_data_kb": 120,
+   "passive_breakdown": {
+    "poster_kb": 120,
+    "container_metadata_kb": 30
+   },
+   "worst_case_total_kb": 1400,
+   "why_two_part": "Otomatik oynatma yok (StoreHeader.ts:301-309) → ilk 10 s baytı ancak kullanıcı dokunduktan SONRA iner. Pasif maliyet yalnız poster + metadata: 120 KB + 30 KB = 150 KB (153.600 bayt); saveData açıkken 120 KB (122.880 bayt).",
+   "why_strict": "flex-col-reverse (StoreHeader.ts:129) mobilde videoyu katlamanın üstüne koyuyor — LCP adayı konum.",
+   "verify": "docs/standards/company-cover-video.md §11-D9"
+  },
+  "accessibility": {
+   "vtt_required": "if_speech",
+   "reduced_motion_behavior": "story: DEĞİŞMEZ — kullanıcı başlatmalı oynatma kısıtlanmaz (WCAG 2.2 SC 2.2.2 yalnız otomatik hareketi hedefler). ambient: otomatik oynatma İPTAL, poster + oynat düğmesi gösterilir. preview_clip: oynatılmaz, poster gösterilir. UYGULAMA: CSS bunu yapamaz, JS gerekir — window.matchMedia('(prefers-reduced-motion: reduce)').matches oynatma anında okunur, init'te önbelleğe ALINMAZ (kullanıcı OS ayarını sekme açıkken değiştirebilir).",
+   "current_state": "yok",
+   "current_state_evidence": "'<track', 'kind=\"captions\"', '.vtt' → tradehubfront/src + admin-panel/frontend/src içinde 0 eşleşme",
+   "captions_rules": [
     {
-      "id": "Ç1",
-      "summary": ".mp4 adresine VP9/WebM baytları yazılıyor; MIME yalan",
-      "evidence": ["tradehub_core/media/transcode.py:230", "tradehub_core/media/transcode.py:252"],
-      "fixed_here": false,
-      "decision": "Bu slotta yerinde takas YASAK (video.transcode.in_place_replace.allowed_for_this_slot = false); rendition'lar ayrı adreslerde yaşar ve MIME konteynere göre yazılır."
+     "condition": "story + ses akışı var + konuşma içeriyor",
+     "vtt": "ZORUNLU",
+     "on_missing": "cover_video_captions_required"
     },
     {
-      "id": "Ç2",
-      "summary": "factory_video_url hiçbir yere bağlanmıyor — panel yazıyor, hiçbir doctype tutmuyor",
-      "evidence": [
-        "admin-panel/frontend/src/views/seller/StorefrontEdit.vue:1014,1228",
-        "tr_tradehub.api.v1.seller.update_storefront",
-        "docs/reports/00-upload-slot-envanteri.md §5 ve §9-M1"
-      ],
-      "fixed_here": false,
-      "decision": "Yeni yükleme kabul etmez; mevcut değer Seller Gallery Image (category=overview, media_type=video, sort_order=0) satırına taşınır (Faz 3 göçü). bound_to'ya YAZILMADI — o alan henüz yok."
+     "condition": "story + ses akışı var + yalnız müzik/ortam",
+     "vtt": "opsiyonel",
+     "caption_field": "ZORUNLU"
     },
     {
-      "id": "Ç3",
-      "summary": "Aynı yükleme sınırı için dört ayrı sayı: 200 MB / 100 MB / 10 MB / 10 MB",
-      "evidence": [
-        "tradehub_core/media/upload_policy.py:69",
-        "tradehub_core/tradehub_core/doctype/seller_gallery_image/seller_gallery_image.json (video_url.description)",
-        "admin-panel/frontend/src/views/seller/StorefrontEdit.vue:1007",
-        "admin-panel/frontend/src/lib/media/compress.video.js:24"
-      ],
-      "fixed_here": false,
-      "decision": "Bu slotun tavanı 80 MB (accept.max_bytes = 83.886.080). DocType açıklaması ve panel istemcisi 80 MB'a YÜKSELTİLMELİ.",
-      "details": [
-        { "value_bytes": 209715200, "human": "200 MB", "where": "tradehub_core/media/upload_policy.py:69", "verdict": "küresel tavan — 80 MB bunun altında, çelişki yok" },
-        { "value_bytes": 10485760, "human": "10 MB", "where": "seller_gallery_image.json → video_url.description", "verdict": "GEÇERSİZ — 60 s 1080p master 10 MB'a sığmaz (10 MB / 60 s = 1,33 Mbps)" },
-        { "value_bytes": 10485760, "human": "10 MB", "where": "admin-panel/frontend/src/views/seller/StorefrontEdit.vue:1007", "verdict": "GEÇERSİZ — 80 MB'a yükseltilmeli" },
-        { "value_bytes": 104857600, "human": "100 MB", "where": "admin-panel/frontend/src/lib/media/compress.video.js:24", "verdict": "ret değil, istemci sıkıştırma kapısı — dokunulmuyor" }
-      ]
+     "condition": "story + ses akışı yok",
+     "vtt": "opsiyonel",
+     "caption_field": "ZORUNLU"
     },
     {
-      "id": "Ç4",
-      "summary": "İstemci 2,0 Mbps vs sunucu 2,5 Mbps 'verimli' barı — aynı dosya giriş kapısına göre iki farklı sonuç alıyor",
-      "evidence": ["admin-panel/frontend/src/lib/media/compress.video.js:29", "tradehub_core/media/transcode.py:67"],
-      "fixed_here": false,
-      "decision": "İki sayı 2.000.000'da birleşir (dar olan kazanır); video.bitrate_cap_kbps = 2000."
-    },
-    {
-      "id": "Ç5",
-      "summary": "Video ölçü/süre metadatası hiç yazılmıyor (PIL bağımlılığı) — bu politikadaki hiçbir süre/oran/çözünürlük kuralı bugün ZORLANAMAZ",
-      "evidence": ["tradehub_core/media/metadata.py:180-186", "tradehub_core/media/pipeline.py:79-93"],
-      "fixed_here": false,
-      "decision": "ffprobe tabanlı bir okuma dalı eklenmeden bu slotun L3 katmanı çalışamaz. status='draft' olmasının birincil sebebi budur."
-    },
-    {
-      "id": "Ç6",
-      "summary": "Skeleton 5:3 (h-[300px]) vs gerçek 16:9 (281,25px) → 18,75 px CLS",
-      "evidence": ["tradehubfront/src/components/seller/StoreHeader.ts:39", "tradehubfront/src/components/seller/StoreHeader.ts:297"],
-      "fixed_here": false
-    },
-    {
-      "id": "Ç7",
-      "summary": "Ana oynatıcıda poster yedeği yok; #t=0.5 hilesi yalnız küçük resimde",
-      "evidence": ["tradehubfront/src/components/seller/StoreHeader.ts:303", "tradehubfront/src/components/seller/StoreHeader.ts:402"],
-      "fixed_here": false,
-      "decision": "video.poster otomatik üretimi devreye girince legacy hilenin tek işlevi migrate edilmemiş satırlar olur."
-    },
-    {
-      "id": "Ç8",
-      "summary": "Ana kutu 16:9, küçük resim 4:3 — aynı poster %25 yatay kırpılıyor",
-      "evidence": ["tradehubfront/src/components/seller/StoreHeader.ts:297", "tradehubfront/src/components/seller/StoreHeader.ts:381"],
-      "fixed_here": false,
-      "decision": "Kırpma kabul edildi ve GÜVENLİ ALANA yazıldı: video.safe_area.thumbnail_safe_width_pct = 75. Ayrıca profiles[thumb_192] ayrı bir 4:3 türev üretiyor."
-    },
-    {
-      "id": "Ç9",
-      "summary": "Ürün videosu modalinde sesli autoplay (muted yok) → tarayıcı bloklar",
-      "evidence": ["tradehubfront/src/components/seller/CompanyProfile.ts:1002"],
-      "fixed_here": false,
-      "decision": "Bu slotun kapsamı DIŞINDA (product.video / seller.gallery_video), ama aynı bileşen ailesinde olduğu için kaydedildi."
-    },
-    {
-      "id": "Ç10",
-      "summary": "Opus bitrate sabitlenmemiş (-b:a yok) — ffmpeg sürümü değişince ses kalitesi sessizce değişir",
-      "evidence": ["tradehub_core/media/transcode.py:246"],
-      "fixed_here": false,
-      "decision": "video.audio_policy.bitrate_kbps = 96 ile SABİTLENİYOR."
-    },
-    {
-      "id": "Ç11",
-      "summary": "WebM cue'ları başta değil (-cues_to_front yok) → mobilde ek RTT",
-      "evidence": ["tradehub_core/media/transcode.py:235-248"],
-      "fixed_here": false,
-      "decision": "video.transcode.webm_cues_to_front.required = true."
-    },
-    {
-      "id": "Ç12",
-      "summary": "Kategori enum'u doctype ve _MEDIA_CATEGORIES'te iki kez yazılı",
-      "evidence": [
-        "tradehub_core/tradehub_core/doctype/seller_gallery_image/seller_gallery_image.json (category.options)",
-        "tradehub_core/api/seller.py:760-765"
-      ],
-      "fixed_here": false,
-      "decision": "K6: tek kaynak doctype JSON'u olsun; bu fazda enum genişletilmiyor."
+     "condition": "ambient",
+     "vtt": "gereksiz (ses akışı yok)",
+     "caption_field": "ZORUNLU"
     }
+   ],
+   "speech_detection": {
+    "method": "satıcı beyanı (onay kutusu) + rastgele denetim",
+    "decision_ref": "K5",
+    "note": "ffmpeg silencedetect 'ses var mı' der, 'konuşma mı müzik mi' demez."
+   },
+   "required_new_field": {
+    "doctype": "Seller Gallery Image",
+    "fieldname": "subtitles_vtt",
+    "fieldtype": "Attach",
+    "note": "ALAN HENÜZ YOK — açılması gerekiyor. Bu yüzden bound_to'da yer almıyor: bound_to yalnız BUGÜN var olan depolama alanlarını sayar."
+   },
+   "required_upload_policy_change": {
+    "extension": ".vtt",
+    "current_state": "upload_policy.EXTENSIONS içinde YOK (tradehub_core/media/upload_policy.py:57-65)",
+    "new_kind": "KIND_CAPTION",
+    "max_bytes": 524288,
+    "max_bytes_human": "512 KB"
+   },
+   "player_markup": "<track kind=\"captions\" srclang=\"tr\" label=\"Türkçe\" default>",
+   "languages": {
+    "platform_locales": [
+     "tr",
+     "en",
+     "ru",
+     "ar"
+    ],
+    "mandatory": "yalnız videonun konuşma dili",
+    "others": "opsiyonel"
+   },
+   "effective_date": {
+    "new_uploads": "hemen",
+    "existing_covers": "90 gün geçiş",
+    "decision_ref": "K4"
+   },
+   "prefers_reduced_motion": {
+    "existing_css_rule": {
+     "source": "tradehubfront/src/style.css:757-765",
+     "effect": "animation-duration/transition-duration → 0.01ms",
+     "does_not_affect": "<video> oynatması"
+    },
+    "story": "değişmez — kullanıcı başlatmalı oynatma kısıtlanmaz (WCAG 2.2 SC 2.2.2 yalnız otomatik hareketi hedefler)",
+    "ambient": "otomatik oynatma İPTAL; poster + oynat düğmesi gösterilir",
+    "preview_clip": "oynatılmaz; poster gösterilir",
+    "implementation_note": "CSS bunu yapamaz — JS gerekir: window.matchMedia('(prefers-reduced-motion: reduce)').matches. Oynatma anında okunmalı, init'te önbelleğe ALINMAMALI (kullanıcı OS ayarını sekme açıkken değiştirebilir)."
+   },
+   "other_gaps": [
+    {
+     "gap": "Seek çubuğu klavyeyle kullanılamıyor — <div> + @click, role/tabindex yok",
+     "source": "StoreHeader.ts:339",
+     "fix": "role=\"slider\" + aria-valuenow/min/max + @keydown.arrow-left/right"
+    },
+    {
+     "gap": "Oynat/duraklat aria-label sabit 'Oynat'",
+     "source": "StoreHeader.ts:332",
+     "fix": ":aria-label=\"playing ? 'Duraklat' : 'Oynat'\""
+    },
+    {
+     "gap": "Üç kontrol etiketi i18n dışında ('Oynat', 'Sesi aç/kapat', 'Tam ekran')",
+     "source": "StoreHeader.ts:332,347,352",
+     "fix": "t(...) ile 4 dile alınması — dosyanın geri kalanı zaten t(...) kullanıyor (:19, :58)"
+    },
+    {
+     "gap": "iOS'ta tam ekran çalışmıyor — yalnız v.requestFullscreen kontrol ediliyor",
+     "source": "StoreHeader.ts:274-277",
+     "fix": "webkitEnterFullscreen() dalı"
+    },
+    {
+     "gap": "Poster yoksa boş siyah kutu",
+     "source": "StoreHeader.ts:297,303",
+     "fix": "otomatik poster (video.poster bloğu)"
+    }
+   ]
+  },
+  "renditions": [
+   {
+    "id": "cover_720_webm",
+    "role": "primary",
+    "width": 1280,
+    "height": 720,
+    "container": "webm",
+    "video_codec": "libvpx-vp9",
+    "crf": 32,
+    "maxrate_kbps": 2500,
+    "bufsize_kbps": 5000,
+    "target_avg_kbps": 1600,
+    "audio_codec": "libopus",
+    "audio_bitrate_kbps": 96,
+    "audio_channels": 2,
+    "max_bytes": 12582912,
+    "max_bytes_human": "12 MB",
+    "max_bytes_derivation": "60 s × 1,6 Mbps = 96 Mbit = 12 MB",
+    "mime": "video/webm; codecs=vp9,opus",
+    "served_when": "min-width: 1024px",
+    "implemented_today": true,
+    "crf_note": "CRF 32 mevcut hattan korunuyor (transcode.py:245); bu standart üstüne -maxrate/-bufsize ekliyor.",
+    "note": "maxrate 2500 kbps mevcut hattın barıdır (transcode.py:67); video.bitrate_cap_kbps = 2000 ise TETİKLEME eşiğidir (Ç4 kararı). İkisi farklı işler: biri kuyruğa alma barı, biri encoder tavanı."
+   },
+   {
+    "id": "cover_720_mp4",
+    "role": "fallback",
+    "width": 1280,
+    "height": 720,
+    "container": "mp4",
+    "video_codec": "libx264",
+    "profile": "high",
+    "crf": 23,
+    "maxrate_kbps": 2800,
+    "bufsize_kbps": 5600,
+    "target_avg_kbps": 1900,
+    "audio_codec": "aac",
+    "audio_profile": "aac_low",
+    "audio_bitrate_kbps": 96,
+    "audio_channels": 2,
+    "max_bytes": 14680064,
+    "max_bytes_human": "14 MB",
+    "mime": "video/mp4; codecs=avc1.640028,mp4a.40.2",
+    "extra_flags": [
+     "-movflags +faststart"
+    ],
+    "served_when": "min-width: 1024px (WebM desteklenmiyorsa)",
+    "implemented_today": false
+   },
+   {
+    "id": "cover_480_webm",
+    "role": "mobile_primary",
+    "width": 854,
+    "height": 480,
+    "container": "webm",
+    "video_codec": "libvpx-vp9",
+    "crf": 34,
+    "maxrate_kbps": 1000,
+    "bufsize_kbps": 2000,
+    "target_avg_kbps": 700,
+    "audio_codec": "libopus",
+    "audio_bitrate_kbps": 64,
+    "audio_channels": 1,
+    "max_bytes": 5242880,
+    "max_bytes_human": "5 MB",
+    "max_bytes_derivation": "60 s × 0,7 Mbps = 42 Mbit ≈ 5,25 MB → 5 MB",
+    "mime": "video/webm; codecs=vp9,opus",
+    "served_when": "max-width: 1023px",
+    "implemented_today": false
+   },
+   {
+    "id": "cover_480_mp4",
+    "role": "mobile_fallback",
+    "width": 854,
+    "height": 480,
+    "container": "mp4",
+    "video_codec": "libx264",
+    "profile": "high",
+    "crf": 25,
+    "maxrate_kbps": 1200,
+    "bufsize_kbps": 2400,
+    "target_avg_kbps": 850,
+    "audio_codec": "aac",
+    "audio_bitrate_kbps": 64,
+    "audio_channels": 1,
+    "max_bytes": 6291456,
+    "max_bytes_human": "6 MB",
+    "mime": "video/mp4; codecs=avc1.640028,mp4a.40.2",
+    "extra_flags": [
+     "-movflags +faststart"
+    ],
+    "served_when": "max-width: 1023px (WebM desteklenmiyorsa)",
+    "implemented_today": false
+   }
   ],
-
-  "pending_admin_decisions": [
-    { "id": "K1", "question": "1080p tier eklenecek mi?", "recommendation": "Şimdi eklenmesin", "default_until_approved": "eklenmedi", "numeric_gate": "tablet-DPR2 payı > %15", "measurement_ref": "docs/standards/company-cover-video.md §11-D3" },
-    { "id": "K2", "question": "ambient mod açılsın mı?", "recommendation": "Açılsın, yalnız doğrulanmış satıcılara", "default_until_approved": "kapalı" },
-    { "id": "K3", "question": "Kapak videosu zorunlu mu?", "recommendation": "Opsiyonel kalsın", "default_until_approved": "opsiyonel — require.min_count = 0" },
-    { "id": "K4", "question": "Altyazı zorunluluğunun yürürlük tarihi", "recommendation": "Yeni yüklemeler hemen, mevcutlar 90 gün", "default_until_approved": "yalnız yeni yüklemeler" },
-    { "id": "K5", "question": "Konuşma tespiti otomatik mi, beyan mı?", "recommendation": "Satıcı beyanı + rastgele denetim", "default_until_approved": "satıcı beyanı" },
-    { "id": "K6", "question": "Kategori enum'u genişleyecek mi?", "recommendation": "Bu fazda hayır; tek kaynak doctype JSON'u olsun", "default_until_approved": "4 kategori sabit" },
-    { "id": "K7", "question": "Rendition'lar satıcı medya kotasından sayılsın mı?", "recommendation": "File kaydı açmasın, yalnız master sayılsın (presets.py:33-35 ARCHIVE_DIRNAME deseni)", "default_until_approved": "belirsiz — Faz 3'te netleşmeli" }
-  ],
-
-  "production_verification_required": [
-    { "id": "D1", "what": "Gerçek kapak videosu envanteri (kaç mağaza, kaç poster boş)", "how": "docs/standards/company-cover-video.md §11-D1 SQL", "blocks": "poster otomatik üretiminin öncelik sırası" },
-    { "id": "D2", "what": "Gerçek süre/çözünürlük/bitrate dağılımı", "how": "docs/standards/company-cover-video.md §11-D2 ffprobe döngüsü", "blocks": "video.duration_max_s, video.bitrate_cap_kbps, video.frame_rate eşiklerinin kalibrasyonu" },
-    { "id": "D3", "what": "Viewport × DPR dağılımı (K1 girdisi)", "how": "docs/standards/company-cover-video.md §11-D3 RUM sorgusu — ölçüm kancası bugün YOK", "blocks": "K1 (1080p tier)" },
-    { "id": "D4", "what": "th_media_video_status dağılımı (hat sağlığı)", "how": "docs/standards/company-cover-video.md §11-D4 SQL", "blocks": "koşulsuz transcode kararının maliyeti" },
-    { "id": "D5", "what": "Content-Type + Accept-Ranges + ilk 4 bayt (Ç1 kanıtı)", "how": "docs/standards/company-cover-video.md §11-D5 curl + xxd", "blocks": "Ç1 ve video.hls.byte_range_required" },
-    { "id": "D6", "what": "ffmpeg/ffprobe yetenekleri (vp9, opus, x264, libwebp, cues_to_front, thumbnail, loudnorm)", "how": "docs/standards/company-cover-video.md §11-D6", "blocks": "video.transcode ve video.poster.auto_generate komutlarının çalışabilirliği" },
-    { "id": "D7", "what": "Gerçek kutu ölçüleri — video.render_box.computed_sizes_css_px tarayıcıdan DOĞRULANMADI", "how": "docs/standards/company-cover-video.md §11-D7 DevTools snippet, 7 genişlikte", "blocks": "profiles[].width basamakları" },
-    { "id": "D8", "what": "CLS + LCP elemanı (Ç6'nın büyüklüğü)", "how": "docs/standards/company-cover-video.md §11-D8 lighthouse", "blocks": "Ç6" },
-    { "id": "D9", "what": "Pasif mobil bütçenin gerçek ölçümü (150 KB tavanı)", "how": "docs/standards/company-cover-video.md §11-D9 lighthouse network-requests", "blocks": "video.mobile_data_budget.passive_max_kb ve video.poster.output.max_bytes" }
-  ],
-
-  "open_questions": [
-    "ffmpeg/ffprobe üretim imajında var mı? `docker compose exec backend which ffmpeg ffprobe`. Yoksa transcode.py:101-106 her videoda log_error yazıp True dönüyor ve _run_transcode FileNotFoundError alıyor — yani hiçbir kapak videosu normalize edilmiyor ve poster hiç üretilmiyor (D6).",
-    "Video için ölçü/süre metadatası ne zaman yazılacak? Ç5 çözülmeden bu politikadaki süre/oran/çözünürlük kapılarının hiçbiri zorlanamaz; slot yalnız kâğıt üzerinde geçerlidir.",
-    "Kapak, ayrı bir alan mı olacak yoksa sıralamanın türevi mi kalacak? Bugün türev (api/seller.py:823-824). Satıcı 'bu videoyu kapak yap' diyemiyor; yalnız sort_order ile dolaylı söylüyor.",
-    "factory_video_url göçü hangi görevde yapılacak? Ç2 — panel bir alana yazıyor, hiçbir doctype tutmuyor; veri kaybı mı yaşanıyor yoksa alan hep boş mu kaldı, üretim verisi olmadan bilinmiyor (D1).",
-    "subtitles_vtt alanı ve KIND_CAPTION kind'ı hangi görevde açılacak? Bugün .vtt upload_policy.EXTENSIONS'ta yok (upload_policy.py:57-65) — altyazı yüklenmesi teknik olarak MÜMKÜN DEĞİL, yani altyazı zorunluluğu bugün uygulanamaz bir kural.",
-    "Rendition'lar File kaydı açacak mı (K7)? Karar verilmeden depolama ve kota etkisi (kapak başına 6 nesne, 30 s'de ~19 MB) hesaplanamaz.",
-    "encoder_quality.webp basamakları (78/70/62) hangisinin 120 KB kapısını tuttuğu ÖLÇÜLMEDİ; poster kalite kalibrasyonu D1/D2 verisini bekliyor.",
-    "messages.en dışındaki yereller (ru, ar) yazılmadı — platform 4 dil destekliyor. Mesaj haritası eksik kaldığı sürece o dillerdeki kullanıcı ret sebebini İngilizce görür."
-  ],
-
-  "notes": [
-    "KAYNAK GÖREV: T-022 · tarih 2026-08-17 · branch medya-motoru-faz0-faz2 · insan belgesi docs/standards/company-cover-video.md. Bu dosya o görevin çıktısıdır; T-022 kendi biçimini (kök anahtarlar _meta / identity / render_box / safe_area / modes / upload_constraints / transcode / renditions / rendition_policy / poster / preview_clip / playback_attributes / mobile_data_budget / adaptive_streaming / accessibility / validation_codes / known_conflicts / pending_admin_decisions / production_verification_required / unmeasured_disclaimer) kullanıyordu çünkü yazıldığı anda slot politikası şemasının video karşılığı yoktu.",
-    "ŞEMA UYUMLANDIRMASI: zorunlu üst düzey alanlar (schema_version, slot_key, roles, accept, require, master, profiles, on_violation, messages, sources) dolduruldu ve bound_to eklendi; videoya özgü içerik şema v1.1.0'ın 'video' bloğuna taşındı. Eşleme: _meta → notes/status/slot_key; identity → video.identity + bound_to; render_box → video.render_box; safe_area → video.safe_area; modes → video.modes; upload_constraints → accept/require/video.resolution_*/video.frame_rate (+ Ç3 detayları known_conflicts'e); transcode → video.transcode; renditions → video.renditions; rendition_policy → video.rendition_policy; poster → video.poster + profiles[poster_1280, poster_854]; preview_clip → video.preview_clip; playback_attributes → video.playback_attributes + video.autoplay + video.audio_policy; mobile_data_budget → video.mobile_data_budget (birim bayt → KB, aritmetik derivation metinlerinde korundu); adaptive_streaming → video.hls; accessibility → video.accessibility; validation_codes → video.validation_codes (+ message_key eşlemesi eklendi); known_conflicts / pending_admin_decisions / production_verification_required → üst düzeyde aynı adlarla; unmeasured_disclaimer → bu notlar.",
-    "SLOT ANAHTARI DEĞİŞTİ: T-022 taslağı 'seller.cover_video' yazıyordu, bu sürüm 'company.cover_video' yazıyor — kapak GÖRSELİ zaten 'company.cover_image'. Envanterdeki doctype biçimindeki karşılık `seller.gallery_video`'dur (00-upload-slot-envanteri.md §2). Üç adlandırma ailesinin farkı docs/standards/README.md 'Policy kapsam haritası' bölümünde yazılı.",
-    "BUGÜN ZORLANMIYOR: enforced_today = false. Tek ve yapısal sebep — video için genişlik/yükseklik/süre metadatası hiç yazılmıyor: tradehub_core/media/metadata.py:180-186 → tradehub_core/media/pipeline.py:79-93 yalnız PIL kullanıyor, PIL video açmaz. ffprobe tabanlı bir okuma dalı eklenmeden bu dosyadaki hiçbir boyut/oran/süre kuralı zorlanamaz (Ç5).",
-    "İKİNCİ YAPISAL ENGEL: slot kimliği sunucuya hiç geçmiyor — upload_policy.check() imzasında slot parametresi yok (tradehub_core/media/upload_policy.py:307-313, 00-upload-slot-envanteri.md §7-B B1). Bu politika bugün kod tarafından OKUNMUYOR.",
-    "ÖLÇÜLMEDİ UYARISI: Docker kapalı; üretim veritabanına ve canlı siteye erişim YOK. Bu dosyadaki CSS ölçüleri kaynak koddan Tailwind ölçeğiyle HESAPLANDI, tarayıcıda ölçülmedi. Bitrate/bayt bütçeleri TÜRETİLDİ (her türetmenin aritmetiği yanında yazılı), sahada ölçülmedi. Kodlayıcı eşikleri ve yükleme tavanları dosya:satır ile OKUNDU.",
-    "L3 KATMANI YOK: video.validation_codes adlandırma deseni upload_policy.Kod dataclass'ıyla uyumlu (upload_policy.py:98-120), ama L3 (slot semantiği) katmanı bu kod tabanında BUGÜN HİÇ YOK — T-001 §L3.",
-    "profiles[] ve video.renditions[] AYRI ŞEYLER: profiles[] bu slotta POSTER ve küçük resim GÖRSELLERİNİ tanımlar (<picture> kaynağı); teslim edilen VİDEO türevleri video.renditions[] altındadır (<video><source> kaynağı). Şema v1.0.0 ikincisini ifade edemiyordu — docs/standards/README.md §4 E10 bu sürümde kapandı."
+  "rendition_policy": {
+   "tier_breakpoint_px": 1024,
+   "tier_breakpoint_reason": "lg breakpoint'iyle aynı — kolon 500px'e o noktada sabitleniyor (StoreHeader.ts:203).",
+   "distinct_resolution_tiers": 2,
+   "object_count_per_cover": 6,
+   "object_count_breakdown": "4 rendition + 1 poster + 1 önizleme klibi",
+   "storage_typical_30s_mb": 19,
+   "storage_worst_60s_mb": 37.5,
+   "storage_note": "Kota etkisi docs/reports/06-depolama-maliyet.md ile çapraz okunmalı. Rendition'ların File kaydı açıp kotayı 6 kat tüketmesi K7 kararına bağlı; öneri: File kaydı AÇMASIN (presets.py:33-35 ARCHIVE_DIRNAME deseni).",
+   "size_gate_retry": {
+    "crf_step": 2,
+    "max_attempts": 2,
+    "on_final_failure": "cover_video_too_heavy"
+   },
+   "size_gate_missing_today": "Bugün çıktı ne olursa olsun os.replace ile yazılıyor (transcode.py:252) — boyut kapısı yok.",
+   "resolution_1080p": {
+    "included": false,
+    "reason": "1023 px viewport'ta kutu 943 CSS px; DPR2'de 1886 cihaz px isteniyor, 1280 ile 1,47x upscale. 1080p bitrate tavanını 2,5 → 4,5 Mbps'e (+%80 bayt) taşır.",
+    "gate_to_add": "Tablet-DPR2 (768-1023 px × DPR≥2) payı > %15 ise eklenir",
+    "measurement_ref": "docs/standards/company-cover-video.md §11-D3",
+    "decision_ref": "K1",
+    "if_added": {
+     "maxrate_kbps": 4500,
+     "max_bytes_human": "22 MB"
+    }
+   }
+  },
+  "modes": {
+   "story": {
+    "default": true,
+    "implemented_today": true,
+    "duration_s": {
+     "min": 6,
+     "max": 60
+    },
+    "min_duration_derivation": "Önizleme klibi 6 s; master kendi önizlemesinden kısa olamaz.",
+    "max_duration_derivation": "60 s × 1,6 Mbps hedef ortalama = 96 Mbit = 12 MB (teslim dosya kapısı).",
+    "autoplay": false,
+    "muted_initial": true,
+    "audio_track": "allowed",
+    "loop": false,
+    "controls": "custom",
+    "loop_reason": "Ses taşıyan anlatı döngüye girmemeli; ayrıca @ended='playing = false' (StoreHeader.ts:307) bilinçli bir 'bitti' durumu üretiyor."
+   },
+   "ambient": {
+    "default": false,
+    "implemented_today": false,
+    "requires_admin_approval": "K2 — ONAYLANDI 2026-08-19 (platform yöneticisi): ambient AÇILDI, ama YALNIZ DOĞRULANMIŞ (verified) satıcılara. default=false BU YÜZDEN DEĞİŞMEDİ: kip artık slot düzeyinde değil, SATICI düzeyinde açılıyor. Kapı VerificationBadge altyapısına bağlanacak (tradehubfront components/seller/VerificationBadge.ts, seller.verifications); doğrulanmamış satıcıda ambient istenirse SESSİZCE standart (story) kipe düşülür, hata gösterilmez. implemented_today HÂLÂ false — bağlama işi ayrı görev. docs/standards/company-cover-video.md §10.9-K2",
+    "duration_s": {
+     "min": 3,
+     "max": 8
+    },
+    "autoplay": true,
+    "muted_required": true,
+    "audio_track": "stripped",
+    "audio_strip_flag": "-an",
+    "loop": true,
+    "controls": "hidden",
+    "playsinline_required": true,
+    "reduced_motion_override": "autoplay iptal; poster + oynat düğmesi",
+    "max_delivered_bytes": 700000,
+    "max_delivered_derivation": "8 s × 0,7 Mbps = 5,6 Mbit = 700 KB"
+   }
+  },
+  "transcode": {
+   "unconditional_for_this_slot": true,
+   "unconditional_reason": "needs_transcode() koşullu atlaması kapak slotunda poster üretimini, MP4 yedeğini ve 480p tier'ı da atlar. Kapak mağaza başına 1 dosya, nadiren değişir → kuyruk riski yok (transcode.py:14-16'daki gerekçe burada geçerli değil).",
+   "general_library_thresholds_kept": {
+    "max_width": 1280,
+    "max_bitrate_bps": 2500000,
+    "source": "tradehub_core/media/transcode.py:66-67, :75-76",
+    "note": "Genel kütüphane eşikleri KORUNUYOR. Bu standart onlara dokunmuyor."
+   },
+   "client_server_threshold_conflict": {
+    "client_bps": 2000000,
+    "client_source": "admin-panel/frontend/src/lib/media/compress.video.js:29",
+    "server_bps": 2500000,
+    "server_source": "tradehub_core/media/transcode.py:67",
+    "symptom": "1280x720 @ 2,3 Mbps: panelden geçerse istemci dönüştürür; upload_file/after_insert yolundan geçerse sunucu atlar. Aynı dosya, giriş kapısına göre iki farklı sonuç.",
+    "decision": "İki sayı 2.000.000'da birleşir (dar olan kazanır; sunucu barı 2,5 → 2,0 iner).",
+    "finding_ref": "Ç4"
+   },
+   "in_place_replace": {
+    "allowed_for_this_slot": false,
+    "today_behavior": "dst_path = f'{src_path}.transcoding.webm' (transcode.py:230) ardından os.replace(dst_path, src_path) (transcode.py:252) → .mp4 adresine VP9/WebM baytları yazılıyor.",
+    "consequences": [
+     "nginx Content-Type'ı uzantıdan türetir → WebM baytları video/mp4 olarak servis edilir",
+     "<source type=\"video/mp4\"> yazmak yalan olur; tip uyuşmazlığında tarayıcı kaynağı atlayabilir",
+     "WebM konteynerini desteklemeyen eski Safari'de kapak hiç oynamaz ve yedek yol yok"
+    ],
+    "finding_ref": "Ç1"
+   },
+   "keyframe_interval_s": 2,
+   "keyframe_flag": "-g 60 (30 fps'te)",
+   "keyframe_reason": "El yapımı seek çubuğu (StoreHeader.ts:261-266) rastgele noktaya atlıyor; 2 s'den seyrek anahtar kare seek'i gözle görülür geciktirir. İleride HLS segmentlemesi de 2 s katı ister.",
+   "webm_cues_to_front": {
+    "required": true,
+    "flag": "-cues_to_front 1",
+    "present_today": false,
+    "reason": "Index sonda kalırsa preload=metadata ve seek için tarayıcı dosya sonuna range isteği atar → mobilde ek RTT.",
+    "finding_ref": "Ç11",
+    "verify": "docs/standards/company-cover-video.md §11-D6"
+   },
+   "loudness_normalization": {
+    "standard": "EBU R128",
+    "integrated_lufs": -16,
+    "true_peak_dbtp": -1,
+    "filter": "loudnorm=I=-16:TP=-1:LRA=11",
+    "note": "Standarda atıf — bu oturumda ölçüm YAPILMADI."
+   }
+  },
+  "identity": {
+   "canonical_storage": {
+    "doctype": "Seller Gallery Image",
+    "parent_doctype": "Admin Seller Profile",
+    "parent_field": "gallery_images",
+    "source": "tradehub_core/tradehub_core/doctype/seller_gallery_image/seller_gallery_image.json",
+    "discriminator": {
+     "media_type": "video"
+    },
+    "media_url_field": "video_url",
+    "poster_field": "poster_image",
+    "caption_field": "caption",
+    "category_field": "category",
+    "order_field": "sort_order"
+   },
+   "cover_selection_rule": {
+    "rule": "media_groups[0].items[0] ve media_type == 'video'",
+    "explanation": "Ayrı bir 'kapak' alanı yok; kapak sıralamanın türevi. _build_media_groups sort_order asc, idx asc ile sıralar, sonra videoyu başa alır.",
+    "evidence": [
+     "tradehub_core/api/seller.py:795",
+     "tradehub_core/api/seller.py:823-824"
+    ]
+   },
+   "categories": {
+    "values": [
+     "overview",
+     "360_view",
+     "production",
+     "quality_control"
+    ],
+    "default": "overview",
+    "duplicated_in": [
+     "tradehub_core/tradehub_core/doctype/seller_gallery_image/seller_gallery_image.json (category.options)",
+     "tradehub_core/api/seller.py:760-765 (_MEDIA_CATEGORIES)"
+    ],
+    "finding_ref": "Ç12"
+   },
+   "aliases": [
+    {
+     "field": "factory_video_url",
+     "written_by": "admin-panel/frontend/src/views/seller/StorefrontEdit.vue:1014,1228",
+     "posts_to": "tr_tradehub.api.v1.seller.update_storefront",
+     "status": "orphan",
+     "evidence": "tradehub_core/**/*.py, tradehub_core/**/*.json ve tradehubfront/src/** içinde 'factory_video_url' → 0 eşleşme",
+     "resolution": "Yeni yükleme kabul etmez; mevcut değer Seller Gallery Image (category=overview, media_type=video, sort_order=0) satırına taşınır. Faz 3 göçü.",
+     "finding_ref": "Ç2",
+     "bound_to_note": "BU ALAN HENÜZ YOK — hiçbir doctype'a bağlı değil, bu yüzden bound_to'ya YAZILMADI. docs/reports/00-upload-slot-envanteri.md §5 satırı da bunu 'o alan bu repoda bir doctype'a bağlı değil (§9-M1)' diye kaydediyor."
+    }
+   ]
+  },
+  "render_box": {
+   "component": "tradehubfront/src/components/seller/StoreHeader.ts:203-418",
+   "measurement_method": "Tailwind v4 varsayılan ölçeği (1rem=16px) ile KAYNAK KODDAN hesaplandı. Tarayıcıda computed style OKUNMADI — doğrulama komutu docs/standards/company-cover-video.md §11-D7.",
+   "class_chain": [
+    {
+     "layer": "page_container",
+     "classes": "max-w-[1200px] mx-auto px-4 lg:px-8 py-6",
+     "source": "StoreHeader.ts:46"
+    },
+    {
+     "layer": "card_padding",
+     "classes": "px-4 sm:px-6 lg:px-10 py-6 lg:py-8 lg:pb-10",
+     "source": "StoreHeader.ts:128"
+    },
+    {
+     "layer": "row",
+     "classes": "flex flex-col-reverse lg:flex-row gap-6 lg:gap-8",
+     "source": "StoreHeader.ts:129"
+    },
+    {
+     "layer": "video_column",
+     "classes": "w-full lg:w-[500px] shrink-0",
+     "source": "StoreHeader.ts:203"
+    },
+    {
+     "layer": "media_box",
+     "classes": "relative w-full rounded-sm overflow-hidden bg-gray-900 aspect-video",
+     "source": "StoreHeader.ts:297"
+    },
+    {
+     "layer": "video_el",
+     "classes": "w-full h-full object-cover",
+     "source": "StoreHeader.ts:304"
+    }
+   ],
+   "computed_sizes_css_px": [
+    {
+     "viewport": 360,
+     "container": 328,
+     "card_inner": 296,
+     "box_w": 296,
+     "box_h": 166.5,
+     "dpr2_w": 592
+    },
+    {
+     "viewport": 390,
+     "container": 358,
+     "card_inner": 326,
+     "box_w": 326,
+     "box_h": 183.4,
+     "dpr2_w": 652
+    },
+    {
+     "viewport": 640,
+     "container": 608,
+     "card_inner": 560,
+     "box_w": 560,
+     "box_h": 315.0,
+     "dpr2_w": 1120
+    },
+    {
+     "viewport": 768,
+     "container": 736,
+     "card_inner": 688,
+     "box_w": 688,
+     "box_h": 387.0,
+     "dpr2_w": 1376
+    },
+    {
+     "viewport": 1023,
+     "container": 991,
+     "card_inner": 943,
+     "box_w": 943,
+     "box_h": 530.4,
+     "dpr2_w": 1886,
+     "note": "EN GENİŞ — lg altında kolon tam genişlik"
+    },
+    {
+     "viewport": 1024,
+     "container": 960,
+     "card_inner": 880,
+     "box_w": 500,
+     "box_h": 281.25,
+     "dpr2_w": 1000,
+     "note": "lg:w-[500px] devreye girdi, sabitlendi"
+    },
+    {
+     "viewport": 1440,
+     "container": 1200,
+     "card_inner": 1056,
+     "box_w": 500,
+     "box_h": 281.25,
+     "dpr2_w": 1000
+    }
+   ],
+   "aspect_ratio_all_breakpoints": "16:9",
+   "mobile_alternate_ratio": null,
+   "object_fit": "cover",
+   "object_fit_risk": "Master 16:9 değilse sessizce merkezden kırpılır; yükleyene uyarı gösterilmez.",
+   "empty_state_background": "#111827 (bg-gray-900, StoreHeader.ts:297)",
+   "mobile_dom_order": {
+    "classes": "flex-col-reverse lg:flex-row",
+    "source": "StoreHeader.ts:129",
+    "effect": "Mobil ve tablette video, istatistik bloğunun ÜSTÜNDE — katlamanın üstünde, LCP adayı."
+   },
+   "thumbnail_box": {
+    "grid": "repeat(auto-fill, minmax(96px, 1fr))",
+    "grid_source": "StoreHeader.ts:378",
+    "cell_aspect": "4:3",
+    "cell_aspect_source": "StoreHeader.ts:381",
+    "min_size_css_px": [
+     96,
+     72
+    ],
+    "horizontal_crop_of_16x9_poster_pct": 25.0,
+    "crop_derivation": "(16/9) / (4/3) = 1,3333 → 1 - 1/1,3333 = 0,25"
+   }
+  },
+  "safe_area": {
+   "overlays": [
+    {
+     "name": "controls_bar",
+     "height_px": 40,
+     "derivation": "py-2.5 (10px) x2 + w-5/h-5 ikon (20px)",
+     "source": "StoreHeader.ts:329,333-334"
+    },
+    {
+     "name": "controls_gradient",
+     "spans": "kutunun tamamı",
+     "value": "linear-gradient(to top, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.3) 70%, transparent 100%)",
+     "source": "StoreHeader.ts:330"
+    },
+    {
+     "name": "center_play_button",
+     "size_px": [
+      56,
+      56
+     ],
+     "source": "StoreHeader.ts:321"
+    }
+   ],
+   "overlay_share_of_height_pct": {
+    "viewport_1024_plus": {
+     "bar": 14.2,
+     "play_button": 19.9
+    },
+    "viewport_768": {
+     "bar": 10.3,
+     "play_button": 14.5
+    },
+    "viewport_360": {
+     "bar": 24.0,
+     "play_button": 33.6,
+     "note": "en kötü durum — alt %26 kuralının kaynağı"
+    }
+   },
+   "title_safe_insets_pct": {
+    "left": 10,
+    "right": 10,
+    "top": 6,
+    "bottom": 26
+   },
+   "title_safe_on_1280x720_px": {
+    "width": 1024,
+    "height": 490,
+    "offset_x": 128,
+    "offset_y": 43
+   },
+   "center_keepout_px": [
+    72,
+    72
+   ],
+   "center_keepout_reason": "56px oynat düğmesi + 8px pay; poster olarak da bu kare gösteriliyor.",
+   "thumbnail_safe_width_pct": 75,
+   "thumbnail_safe_reason": "Küçük resim 4:3 → 16:9 poster %25 yatay kırpılıyor; asıl kısıt bu, %10 kenar payından sıkı.",
+   "burned_in_logo": {
+    "allowed": false,
+    "reason": "Arayüz mantıksal yön özellikleriyle RTL'de aynalanıyor (start-*/end-*/ms-*/pe-*; ör. section-registry.ts:185,188). Videoya gömülü logo aynalanamaz. Mağaza logosu zaten ayrı <img> olarak render ediliyor (CompanyInfo.ts:47, 120px).",
+    "on_violation": "cover_video_burned_logo_warning (uyarı, ret değil)"
+   },
+   "burned_in_subtitles": {
+    "allowed": false,
+    "reason": "Tarayıcı <track> altyazısını alt bölgeye yerleştirir; gömülü altyazı ile üst üste biner."
+   }
+  },
+  "playback_attributes": {
+   "playsinline": {
+    "required": true,
+    "present_today": true,
+    "source": "StoreHeader.ts:308, :403"
+   },
+   "muted": {
+    "story_initial": true,
+    "autoplay_requires": true,
+    "present_today": true,
+    "source": "StoreHeader.ts:308, :207"
+   },
+   "autoplay": {
+    "story": false,
+    "ambient": true,
+    "present_today": false,
+    "source": "StoreHeader.ts:301-309 (autoplay özniteliği yok)"
+   },
+   "loop": {
+    "story": false,
+    "ambient": true,
+    "present_today": false
+   },
+   "preload": {
+    "default": "metadata",
+    "present_today": "metadata",
+    "source": "StoreHeader.ts:308",
+    "forbidden": [
+     "auto"
+    ],
+    "forbidden_reason": "preload=auto pasif mobil bütçeyi tek başına aşar.",
+    "downgrade_to_none_when": [
+     "navigator.connection.saveData === true",
+     "navigator.connection.effectiveType in ['slow-2g','2g']"
+    ]
+   },
+   "audio_policy": {
+    "autoplay_mute_mandatory": true,
+    "mute_mandatory_reason": "muted+playsinline olmadan mobil tarayıcılar oynatmayı reddeder; sesli otomatik oynatma B2B vitrininde saldırgan.",
+    "user_can_unmute": true,
+    "user_unmute_source": "StoreHeader.ts:255-260, düğme :347-350",
+    "opus_bitrate_pinned": true,
+    "opus_bitrate_pin_reason": "Bugün -c:a libopus, -b:a YOK (transcode.py:246) → kodlayıcı varsayılanına bağlı, ffmpeg sürümü değişince sessizce değişir.",
+    "finding_ref": "Ç10"
+   }
+  },
+  "validation_codes": [
+   {
+    "code": "cover_video_aspect_invalid",
+    "condition": "abs(w/h - 16/9) / (16/9) > 0.01",
+    "retryable": false,
+    "severity": "error",
+    "message_key": "oran_16_9_degil"
+   },
+   {
+    "code": "cover_video_resolution_too_low",
+    "condition": "w < 1280 || h < 720",
+    "retryable": false,
+    "severity": "error",
+    "message_key": "cozunurluk_dusuk"
+   },
+   {
+    "code": "cover_video_resolution_too_high",
+    "condition": "w > 3840 || h > 2160",
+    "retryable": false,
+    "severity": "error",
+    "message_key": "cozunurluk_yuksek"
+   },
+   {
+    "code": "cover_video_too_short",
+    "condition": "story: duration < 6s | ambient: duration < 3s",
+    "retryable": false,
+    "severity": "error",
+    "message_key": "sure_kisa"
+   },
+   {
+    "code": "cover_video_too_long",
+    "condition": "story: duration > 60s | ambient: duration > 8s",
+    "retryable": false,
+    "severity": "error",
+    "message_key": "sure_uzun"
+   },
+   {
+    "code": "cover_video_too_large",
+    "condition": "bytes > 83886080",
+    "retryable": false,
+    "severity": "error",
+    "message_key": "cok_buyuk"
+   },
+   {
+    "code": "cover_video_too_heavy",
+    "condition": "encode sonrası tier dosyası 2 CRF denemesinden sonra hâlâ kapı üstünde",
+    "retryable": false,
+    "severity": "error",
+    "message_key": "cok_agir"
+   },
+   {
+    "code": "cover_video_no_video_stream",
+    "condition": "ffprobe video stream döndürmedi",
+    "retryable": false,
+    "severity": "error",
+    "message_key": "video_akisi_yok"
+   },
+   {
+    "code": "cover_video_poster_unresolved",
+    "condition": "otomatik poster iki denemede de parlaklık kapısını geçemedi",
+    "retryable": false,
+    "severity": "error",
+    "message_key": "poster_cozulemedi"
+   },
+   {
+    "code": "cover_video_captions_required",
+    "condition": "ses akışı var + konuşma beyan edildi + .vtt yok",
+    "retryable": false,
+    "severity": "error",
+    "message_key": "altyazi_gerekli"
+   },
+   {
+    "code": "cover_video_transcode_failed",
+    "condition": "ffmpeg hata verdi",
+    "retryable": true,
+    "severity": "error",
+    "message_key": "transcode_hatasi"
+   },
+   {
+    "code": "cover_video_burned_logo_warning",
+    "condition": "gömülü logo tespiti/beyanı",
+    "retryable": null,
+    "severity": "warning",
+    "message_key": "gomulu_logo"
+   }
   ]
+ },
+ "sources": {
+  "slot_key": "docs/reports/00-upload-slot-envanteri.md §8 kanonik anahtar biçimi (<alan>.<slot>) + tradehub_core/media/pipeline/policy/slots/company-cover-image.json 'company.cover_image' ile aynı aile. T-022 taslağı 'seller.cover_video' yazıyordu; kapak GÖRSELİ 'company.*' ailesinde olduğu için ikisi ayrışmasın diye 'company.cover_video' seçildi. Envanterdeki doctype biçimindeki karşılığı `seller.gallery_video`'dur (§2) — fark docs/standards/README.md 'Policy kapsam haritası' bölümünde yazılı.",
+  "roles": "docs/reports/00-upload-slot-envanteri.md §2 satır `seller.gallery_video` rol='satıcı'; ayrıca aynı satır Admin Seller Profile çocuğu olduğu için admin panelinden de yazılabiliyor (admin-panel/frontend/src/views/seller/StorefrontEdit.vue:503-543, 1004-1021 satıcı paneli; DocTypeFormView admin tarafı).",
+  "bound_to": "docs/reports/00-upload-slot-envanteri.md §2 satırları `seller.gallery_video` ve `seller.gallery_poster`; §5 satırı 'Şirket profili kapak videosu'.",
+  "accept.mime": "tradehub_core/media/upload_policy.py:62 (KIND_VIDEO uzantıları) + tradehub_core/media/transcode.py:67 VIDEO_EXTENSIONS. İstemci accept: admin-panel/frontend/src/views/seller/StorefrontEdit.vue:1004-1021",
+  "accept.extensions": "tradehub_core/media/upload_policy.py:62 — .mp4, .webm, .mov, .m4v",
+  "accept.max_bytes": "hesap: 60 s × 10 Mbps (cömert 1080p master tavanı) = 600 Mbit = 75 MB → 80 MB (83.886.080 bayt). Küresel tavan 200 MB (upload_policy.py:69) bunun üstünde, çelişki yok; DocType açıklaması ve panel 10 MB diyor — Ç3.",
+  "accept.max_megapixels_hard": "hesap: 3840×2160 / 1e6 = 8,29 → 8,3. 4K kare üst sınırı; teslim her hâlükârda 1280 genişliğe iniyor (transcode.py:242).",
+  "accept.allow_animated": "Video slotu — hareket slotun kendisidir. engine.py:111-112'deki 'animated' reddi PIL yoluna aittir, video yolu ffmpeg'dir (transcode.py:235-248).",
+  "require.min_short_edge": "hesap: masaüstü kutusu 500 CSS px × DPR2 = 1000 cihaz px genişlik → 16:9'da yükseklik 563; standart basamak 720 (1280×720). Kutu: StoreHeader.ts:203, :297",
+  "require.min_area": "hesap: 1280 × 720 = 921.600 piksel.",
+  "require.max_short_edge": "hesap: 3840×2160 üst sınırının kısa kenarı = 2160 (video.resolution_max).",
+  "require.allowed_ratios": "tradehubfront/src/components/seller/StoreHeader.ts:297 `aspect-video` — kutu HER kırılımda 16:9 (video.render_box.aspect_ratio_all_breakpoints).",
+  "require.ratio_tolerance": "hesap: ±%1 — encoder yuvarlamalarını (1920×1088 = 1,765 vs 1,778 → %0,7 sapma) geçirir, 4:3 veya 1:1'i geçirmez. object-cover kırpması bundan geniş sapmayı sessizce yutuyor (StoreHeader.ts:304).",
+  "require.max_count": "Kapak tek öğedir: media_groups[0].items[0] (api/seller.py:795, :823-824). Galerinin geri kalanı bu politikanın kapsamı DIŞINDA (seller.gallery_image / seller.gallery_video).",
+  "master.max_long_edge": "tradehub_core/media/transcode.py:242 — ffmpeg hedefi scale='min(1280,iw)':-2. Yeni hedef önerilmiyor; 1080p tier K1 onayına bağlı (video.rendition_policy.resolution_1080p).",
+  "master.min_long_edge": "hesap: require.min_short_edge 720 → 16:9'da uzun kenar 1280. Kapak için master hedefi TAM 1280×720; altı 'under-spec'tir ve en büyük profiller üretilmez.",
+  "master.max_megapixels": "hesap: 1280 × 720 / 1e6 = 0,9216 → 0,93. Şema invaryantı sağlanıyor: 1280² / 1e6 = 1,638 ≥ 0,93.",
+  "master.dpi_out": "Video için anlamsız bir alan; şema zorunlu kıldığı için ekran standardı 72 yazıldı. ÖLÇÜLMEDİ: video metadata'sında dpi taşınmıyor.",
+  "master.colorspace": "tradehub_core/media/transcode.py:235-248 — ffmpeg komutunda renk uzayı dönüşümü YOK, kaynak korunuyor.",
+  "master.format": "tradehub_core/media/transcode.py:243-246 — gerçek master biçimi WebM (VP9 video + Opus ses). 'webm' değeri şema v1.1.0'da enum'a eklendi; v1.0.0'da bu ifade edilemiyordu (docs/standards/README.md §4 E10).",
+  "master.orientation": "ffmpeg döndürme metadata'sını taşır; PIL'in ImageOps.exif_transpose davranışı (engine.py:116) video yoluna hiç girmez → 'preserve'. ÖLÇÜLMEDİ: dikey çekilmiş telefon videosunda rotate matrisinin korunduğu üretim dosyasında doğrulanmalı.",
+  "master.strip_metadata": "tradehub_core/media/transcode.py:235-248 — ffmpeg varsayılanı çoğu metadata'yı taşımaz. ÖLÇÜLMEDİ: `ffprobe -show_format` ile üretim dosyalarında GPS/EXIF silinmesi doğrulanmalı (Ç5 nedeniyle bugün hiçbir video metadata'sı okunmuyor).",
+  "quality.reencode_floor_saving_ratio": "tradehub_core/media/presets.py:25 MIN_SAVING_RATIO = 0.10 — görsel yolundaki Kapı 6 ile aynı eşik. NOT: video yolunda bu kapı UYGULANMIYOR (transcode.py:251-252 os.replace); kapak slotunda yerine mutlak bayt kapısı + CRF yeniden denemesi geliyor (video.rendition_policy.size_gate_retry).",
+  "profiles[0].width": "hesap: 500 CSS px × DPR2 = 1000 → üst basamak 1280 (16:9'da 1280×720). Kutu StoreHeader.ts:203, :297",
+  "profiles[1].width": "hesap: 480p teslim tier'ıyla aynı kare (854×480, video.renditions[cover_480_webm]); mobil en dar kutu 296 CSS px @2x = 592 ≤ 854.",
+  "profiles[2].width": "hesap: küçük resim hücresi en az 96×72 CSS px (StoreHeader.ts:378 minmax(96px,1fr), :381 oran 4:3) → DPR2 = 192×144.",
+  "profiles[*].encoder_quality.webp": "video.poster.output.quality_ladder = [78, 70, 62] — 120 KB kapısı tutulana kadar inilecek basamaklar. ÖLÇÜLMEDİ: hangi basamağın 1280×720'de 120 KB'ı tuttuğu gerçek kapak karelerinde ölçülmeli (D1/D2).",
+  "video.duration_min_s": "hesap: önizleme klibi 6 s (video.preview_clip.duration_s); master kendi önizlemesinden kısa olamaz.",
+  "video.duration_max_s": "hesap: 60 s × 1,6 Mbps hedef ortalama = 96 Mbit = 12 MB teslim kapısı.",
+  "video.resolution_min": "hesap: masaüstü kutusu 500 CSS px × DPR2 = 1000 cihaz px; 1280 ≥ 1000.",
+  "video.resolution_max": "hesap: 4K (3840×2160) üst sınırı; üstünü kabul etmenin görsel karşılığı yok (transcode.py:242).",
+  "video.bitrate_cap_kbps": "tradehub_core/media/transcode.py:67 (2.500.000 bps sunucu) ile admin-panel/frontend/src/lib/media/compress.video.js:29 (2.000.000 bps istemci) çelişiyordu — Ç4. Karar: dar olan kazanır → 2.000 kbps.",
+  "video.frame_rate.output_cap": "hesap/gerekçe: 60 fps aynı kalitede ~%80 fazla bit; bu slotun içeriğinde (fabrika turu, konuşan kafa) görsel kazanç yok. ÖLÇÜLMEDİ: gerçek kapakların fps dağılımı D2.",
+  "video.audio_policy.bitrate_kbps": "tradehub_core/media/transcode.py:246 — `-c:a libopus` var, `-b:a` YOK (Ç10). 96 kbps stereo konuşma+müzik için EBU/Opus tavsiye aralığının içinde; SABİTLENİYOR.",
+  "video.audio_policy.loudness": "EBU R128 standardına atıf — bu oturumda ÖLÇÜLMEDİ.",
+  "video.autoplay": "tradehubfront/src/components/seller/StoreHeader.ts:301-309 — autoplay özniteliği YOK, playsinline ve muted VAR (:308). ambient kipinin değerleri K2 onayına bağlı.",
+  "video.poster.selection_rule": "docs/standards/company-cover-video.md §6.9 — 'ilk anlamlı kare'nin uygulanabilir tanımı; ffmpeg thumbnail filtresi histogram uzaklığı.",
+  "video.poster.output.max_bytes": "hesap: pasif mobil bütçe 150 KB = poster 120 KB + konteyner metadata 30 KB (video.mobile_data_budget).",
+  "video.preview_clip.max_bytes": "hesap: 6 s × 500 kbps = 3 Mbit = 375 KB → 400 KB (409.600 bayt).",
+  "video.hls.threshold_s": "hesap: bu slotun süre tavanı 60 s; eşik tam oraya konuldu ki 60 s'yi AŞAN bir slot açıldığında HLS ilk günden zorunlu olsun. Bugün 'hls' → tradehubfront/src + admin-panel/frontend/src içinde 0 eşleşme.",
+  "video.mobile_data_budget.first_10s_max_kb": "hesap: 480p tier tavanı 1,0 Mbps × 10 s = 10 Mbit = 1.250 KB (1.280.000 bayt).",
+  "video.mobile_data_budget.passive_max_kb": "hesap: poster 120 KB (122.880 bayt) + konteyner metadata 30 KB (30.720 bayt) = 150 KB (153.600 bayt). Otomatik oynatma olmadığı için pasif maliyet bundan fazlası değil (StoreHeader.ts:301-309).",
+  "video.accessibility.vtt_required": "docs/standards/company-cover-video.md §8.1 — bugün '<track' / 'kind=\"captions\"' / '.vtt' → 0 eşleşme. Yürürlük K4, konuşma tespiti K5.",
+  "video.accessibility.reduced_motion_behavior": "tradehubfront/src/style.css:757-765 — mevcut kural yalnız animation/transition süresini kısıyor, <video> oynatmasını ETKİLEMİYOR. WCAG 2.2 SC 2.2.2 yalnız otomatik hareketi hedefler.",
+  "video.renditions[*].crf": "tradehub_core/media/transcode.py:245 — mevcut hattın CRF 32 değeri korunuyor; diğer tier'ların CRF'leri ondan TÜRETİLDİ (854 genişlikte 34, x264 karşılıkları 23/25). ÖLÇÜLMEDİ: hedef SSIM'e göre kalibre edilmedi.",
+  "video.renditions[*].max_bytes": "hesap: her tier için süre × hedef ortalama bitrate (her satırın max_bytes_derivation alanında yazılı).",
+  "video.renditions[*].mime": "Konteyner + kodlayıcı çiftinden türetildi. Ç1 nedeniyle bugün .mp4 adresinden WebM baytları servis ediliyor; bu MIME dizeleri ancak Ç1 çözüldükten sonra doğru olur.",
+  "video.transcode.keyframe_interval_s": "tradehubfront/src/components/seller/StoreHeader.ts:261-266 — el yapımı seek çubuğu rastgele noktaya atlıyor; 2 s'den seyrek anahtar kare seek'i gözle görülür geciktirir.",
+  "video.transcode.general_library_thresholds_kept": "tradehub_core/media/transcode.py:66-67, :75-76 — genel kütüphane eşikleri korunuyor.",
+  "video.render_box": "tradehubfront/src/components/seller/StoreHeader.ts:46,128,129,203,297,304,378,381 — Tailwind ölçeğiyle (1rem=16px) KAYNAK KODDAN hesaplandı, tarayıcıda ÖLÇÜLMEDİ (D7).",
+  "video.safe_area": "tradehubfront/src/components/seller/StoreHeader.ts:321,329,330,333-334 katman ölçüleri + video.render_box yükseklikleriyle yüzdeye çevrildi. En kötü durum 360 px viewport: alt %26 kuralının kaynağı.",
+  "on_violation.error_code_prefix": "tradehub_core/media/upload_policy.py:104-139 — 14 kodlu ret sözleşmesi; bu slotun kodları 'cover_video_' önekli (video.validation_codes).",
+  "on_violation.retryable": "tradehub_core/media/upload_policy.py:97-100 — kullanıcının dosyasıyla ilgili hatalar tekrar denenmez. Tek istisna cover_video_transcode_failed (sunucu hatası, retryable=true).",
+  "messages.tr": "docs/standards/company-cover-video.md §6.13 ve §7 karar tablosu; her metin ŞEMA kuralı gereği sebep + çözüm taşıyor.",
+  "messages.en": "TR metinlerinden çevrildi; sayılar ve alan adları birebir korundu. ÖLÇÜLMEDİ: ru/ar yerelleri için karşılık YAZILMADI — platform 4 dil destekliyor (video.accessibility.languages.platform_locales), mesaj haritası bugün 2 dil taşıyor."
+ },
+ "known_conflicts": [
+  {
+   "id": "Ç1",
+   "summary": ".mp4 adresine VP9/WebM baytları yazılıyor; MIME yalan",
+   "evidence": [
+    "tradehub_core/media/transcode.py:230",
+    "tradehub_core/media/transcode.py:252"
+   ],
+   "fixed_here": false,
+   "decision": "Bu slotta yerinde takas YASAK (video.transcode.in_place_replace.allowed_for_this_slot = false); rendition'lar ayrı adreslerde yaşar ve MIME konteynere göre yazılır."
+  },
+  {
+   "id": "Ç2",
+   "summary": "factory_video_url hiçbir yere bağlanmıyor — panel yazıyor, hiçbir doctype tutmuyor",
+   "evidence": [
+    "admin-panel/frontend/src/views/seller/StorefrontEdit.vue:1014,1228",
+    "tr_tradehub.api.v1.seller.update_storefront",
+    "docs/reports/00-upload-slot-envanteri.md §5 ve §9-M1"
+   ],
+   "fixed_here": false,
+   "decision": "Yeni yükleme kabul etmez; mevcut değer Seller Gallery Image (category=overview, media_type=video, sort_order=0) satırına taşınır (Faz 3 göçü). bound_to'ya YAZILMADI — o alan henüz yok."
+  },
+  {
+   "id": "Ç3",
+   "summary": "Aynı yükleme sınırı için dört ayrı sayı: 200 MB / 100 MB / 10 MB / 10 MB",
+   "evidence": [
+    "tradehub_core/media/upload_policy.py:69",
+    "tradehub_core/tradehub_core/doctype/seller_gallery_image/seller_gallery_image.json (video_url.description)",
+    "admin-panel/frontend/src/views/seller/StorefrontEdit.vue:1007",
+    "admin-panel/frontend/src/lib/media/compress.video.js:24"
+   ],
+   "fixed_here": false,
+   "decision": "Bu slotun tavanı 80 MB (accept.max_bytes = 83.886.080). DocType açıklaması ve panel istemcisi 80 MB'a YÜKSELTİLMELİ.",
+   "details": [
+    {
+     "value_bytes": 209715200,
+     "human": "200 MB",
+     "where": "tradehub_core/media/upload_policy.py:69",
+     "verdict": "küresel tavan — 80 MB bunun altında, çelişki yok"
+    },
+    {
+     "value_bytes": 10485760,
+     "human": "10 MB",
+     "where": "seller_gallery_image.json → video_url.description",
+     "verdict": "GEÇERSİZ — 60 s 1080p master 10 MB'a sığmaz (10 MB / 60 s = 1,33 Mbps)"
+    },
+    {
+     "value_bytes": 10485760,
+     "human": "10 MB",
+     "where": "admin-panel/frontend/src/views/seller/StorefrontEdit.vue:1007",
+     "verdict": "GEÇERSİZ — 80 MB'a yükseltilmeli"
+    },
+    {
+     "value_bytes": 104857600,
+     "human": "100 MB",
+     "where": "admin-panel/frontend/src/lib/media/compress.video.js:24",
+     "verdict": "ret değil, istemci sıkıştırma kapısı — dokunulmuyor"
+    }
+   ]
+  },
+  {
+   "id": "Ç4",
+   "summary": "İstemci 2,0 Mbps vs sunucu 2,5 Mbps 'verimli' barı — aynı dosya giriş kapısına göre iki farklı sonuç alıyor",
+   "evidence": [
+    "admin-panel/frontend/src/lib/media/compress.video.js:29",
+    "tradehub_core/media/transcode.py:67"
+   ],
+   "fixed_here": false,
+   "decision": "İki sayı 2.000.000'da birleşir (dar olan kazanır); video.bitrate_cap_kbps = 2000."
+  },
+  {
+   "id": "Ç5",
+   "summary": "Video ölçü/süre metadatası hiç yazılmıyor (PIL bağımlılığı) — bu politikadaki hiçbir süre/oran/çözünürlük kuralı bugün ZORLANAMAZ",
+   "evidence": [
+    "tradehub_core/media/metadata.py:180-186",
+    "tradehub_core/media/pipeline.py:79-93"
+   ],
+   "fixed_here": false,
+   "decision": "ffprobe tabanlı bir okuma dalı eklenmeden bu slotun L3 katmanı çalışamaz. status='draft' olmasının birincil sebebi budur."
+  },
+  {
+   "id": "Ç6",
+   "summary": "Skeleton 5:3 (h-[300px]) vs gerçek 16:9 (281,25px) → 18,75 px CLS",
+   "evidence": [
+    "tradehubfront/src/components/seller/StoreHeader.ts:39",
+    "tradehubfront/src/components/seller/StoreHeader.ts:297"
+   ],
+   "fixed_here": false
+  },
+  {
+   "id": "Ç7",
+   "summary": "Ana oynatıcıda poster yedeği yok; #t=0.5 hilesi yalnız küçük resimde",
+   "evidence": [
+    "tradehubfront/src/components/seller/StoreHeader.ts:303",
+    "tradehubfront/src/components/seller/StoreHeader.ts:402"
+   ],
+   "fixed_here": false,
+   "decision": "video.poster otomatik üretimi devreye girince legacy hilenin tek işlevi migrate edilmemiş satırlar olur."
+  },
+  {
+   "id": "Ç8",
+   "summary": "Ana kutu 16:9, küçük resim 4:3 — aynı poster %25 yatay kırpılıyor",
+   "evidence": [
+    "tradehubfront/src/components/seller/StoreHeader.ts:297",
+    "tradehubfront/src/components/seller/StoreHeader.ts:381"
+   ],
+   "fixed_here": false,
+   "decision": "Kırpma kabul edildi ve GÜVENLİ ALANA yazıldı: video.safe_area.thumbnail_safe_width_pct = 75. Ayrıca profiles[thumb_192] ayrı bir 4:3 türev üretiyor."
+  },
+  {
+   "id": "Ç9",
+   "summary": "Ürün videosu modalinde sesli autoplay (muted yok) → tarayıcı bloklar",
+   "evidence": [
+    "tradehubfront/src/components/seller/CompanyProfile.ts:1002"
+   ],
+   "fixed_here": false,
+   "decision": "Bu slotun kapsamı DIŞINDA (product.video / seller.gallery_video), ama aynı bileşen ailesinde olduğu için kaydedildi."
+  },
+  {
+   "id": "Ç10",
+   "summary": "Opus bitrate sabitlenmemiş (-b:a yok) — ffmpeg sürümü değişince ses kalitesi sessizce değişir",
+   "evidence": [
+    "tradehub_core/media/transcode.py:246"
+   ],
+   "fixed_here": false,
+   "decision": "video.audio_policy.bitrate_kbps = 96 ile SABİTLENİYOR."
+  },
+  {
+   "id": "Ç11",
+   "summary": "WebM cue'ları başta değil (-cues_to_front yok) → mobilde ek RTT",
+   "evidence": [
+    "tradehub_core/media/transcode.py:235-248"
+   ],
+   "fixed_here": false,
+   "decision": "video.transcode.webm_cues_to_front.required = true."
+  },
+  {
+   "id": "Ç12",
+   "summary": "Kategori enum'u doctype ve _MEDIA_CATEGORIES'te iki kez yazılı",
+   "evidence": [
+    "tradehub_core/tradehub_core/doctype/seller_gallery_image/seller_gallery_image.json (category.options)",
+    "tradehub_core/api/seller.py:760-765"
+   ],
+   "fixed_here": false,
+   "decision": "K6: tek kaynak doctype JSON'u olsun; bu fazda enum genişletilmiyor."
+  }
+ ],
+ "pending_admin_decisions": [],
+ "production_verification_required": [
+  {
+   "id": "D1",
+   "what": "Gerçek kapak videosu envanteri (kaç mağaza, kaç poster boş)",
+   "how": "docs/standards/company-cover-video.md §11-D1 SQL",
+   "blocks": "poster otomatik üretiminin öncelik sırası"
+  },
+  {
+   "id": "D2",
+   "what": "Gerçek süre/çözünürlük/bitrate dağılımı",
+   "how": "docs/standards/company-cover-video.md §11-D2 ffprobe döngüsü",
+   "blocks": "video.duration_max_s, video.bitrate_cap_kbps, video.frame_rate eşiklerinin kalibrasyonu"
+  },
+  {
+   "id": "D3",
+   "what": "Viewport × DPR dağılımı (K1 girdisi)",
+   "how": "docs/standards/company-cover-video.md §11-D3 RUM sorgusu — ölçüm kancası bugün YOK",
+   "blocks": "K1 (1080p tier)"
+  },
+  {
+   "id": "D4",
+   "what": "th_media_video_status dağılımı (hat sağlığı)",
+   "how": "docs/standards/company-cover-video.md §11-D4 SQL",
+   "blocks": "koşulsuz transcode kararının maliyeti"
+  },
+  {
+   "id": "D5",
+   "what": "Content-Type + Accept-Ranges + ilk 4 bayt (Ç1 kanıtı)",
+   "how": "docs/standards/company-cover-video.md §11-D5 curl + xxd",
+   "blocks": "Ç1 ve video.hls.byte_range_required"
+  },
+  {
+   "id": "D6",
+   "what": "ffmpeg/ffprobe yetenekleri (vp9, opus, x264, libwebp, cues_to_front, thumbnail, loudnorm)",
+   "how": "docs/standards/company-cover-video.md §11-D6",
+   "blocks": "video.transcode ve video.poster.auto_generate komutlarının çalışabilirliği"
+  },
+  {
+   "id": "D7",
+   "what": "Gerçek kutu ölçüleri — video.render_box.computed_sizes_css_px tarayıcıdan DOĞRULANMADI",
+   "how": "docs/standards/company-cover-video.md §11-D7 DevTools snippet, 7 genişlikte",
+   "blocks": "profiles[].width basamakları"
+  },
+  {
+   "id": "D8",
+   "what": "CLS + LCP elemanı (Ç6'nın büyüklüğü)",
+   "how": "docs/standards/company-cover-video.md §11-D8 lighthouse",
+   "blocks": "Ç6"
+  },
+  {
+   "id": "D9",
+   "what": "Pasif mobil bütçenin gerçek ölçümü (150 KB tavanı)",
+   "how": "docs/standards/company-cover-video.md §11-D9 lighthouse network-requests",
+   "blocks": "video.mobile_data_budget.passive_max_kb ve video.poster.output.max_bytes"
+  }
+ ],
+ "open_questions": [
+  "ffmpeg/ffprobe üretim imajında var mı? `docker compose exec backend which ffmpeg ffprobe`. Yoksa transcode.py:101-106 her videoda log_error yazıp True dönüyor ve _run_transcode FileNotFoundError alıyor — yani hiçbir kapak videosu normalize edilmiyor ve poster hiç üretilmiyor (D6).",
+  "Video için ölçü/süre metadatası ne zaman yazılacak? Ç5 çözülmeden bu politikadaki süre/oran/çözünürlük kapılarının hiçbiri zorlanamaz; slot yalnız kâğıt üzerinde geçerlidir.",
+  "Kapak, ayrı bir alan mı olacak yoksa sıralamanın türevi mi kalacak? Bugün türev (api/seller.py:823-824). Satıcı 'bu videoyu kapak yap' diyemiyor; yalnız sort_order ile dolaylı söylüyor.",
+  "factory_video_url göçü hangi görevde yapılacak? Ç2 — panel bir alana yazıyor, hiçbir doctype tutmuyor; veri kaybı mı yaşanıyor yoksa alan hep boş mu kaldı, üretim verisi olmadan bilinmiyor (D1).",
+  "subtitles_vtt alanı ve KIND_CAPTION kind'ı hangi görevde açılacak? Bugün .vtt upload_policy.EXTENSIONS'ta yok (upload_policy.py:57-65) — altyazı yüklenmesi teknik olarak MÜMKÜN DEĞİL, yani altyazı zorunluluğu bugün uygulanamaz bir kural.",
+  "Rendition'lar için KOTA KALEMİ — K7 karara bağlandı (2026-08-19: rendition'lar kotadan SAYILACAK), ama karar tek başına eksik: kapak başına 6 nesne (~19 MB tipik, ~37,5 MB en kötü) bugünkü kota değerlerini fiilen 6'ya böler. Kota değerlerinin yeniden boyutlandırılması ya da ayrı bir rendition kota kalemi AÇIK — docs/standards/kota.md güncellenmeli. docs/standards/company-cover-video.md §10.9-K7",
+  "encoder_quality.webp basamakları (78/70/62) hangisinin 120 KB kapısını tuttuğu ÖLÇÜLMEDİ; poster kalite kalibrasyonu D1/D2 verisini bekliyor.",
+  "messages.en dışındaki yereller (ru, ar) yazılmadı — platform 4 dil destekliyor. Mesaj haritası eksik kaldığı sürece o dillerdeki kullanıcı ret sebebini İngilizce görür."
+ ],
+ "notes": [
+  "KAYNAK GÖREV: T-022 · tarih 2026-08-17 · branch medya-motoru-faz0-faz2 · insan belgesi docs/standards/company-cover-video.md. Bu dosya o görevin çıktısıdır; T-022 kendi biçimini (kök anahtarlar _meta / identity / render_box / safe_area / modes / upload_constraints / transcode / renditions / rendition_policy / poster / preview_clip / playback_attributes / mobile_data_budget / adaptive_streaming / accessibility / validation_codes / known_conflicts / pending_admin_decisions / production_verification_required / unmeasured_disclaimer) kullanıyordu çünkü yazıldığı anda slot politikası şemasının video karşılığı yoktu.",
+  "ŞEMA UYUMLANDIRMASI: zorunlu üst düzey alanlar (schema_version, slot_key, roles, accept, require, master, profiles, on_violation, messages, sources) dolduruldu ve bound_to eklendi; videoya özgü içerik şema v1.1.0'ın 'video' bloğuna taşındı. Eşleme: _meta → notes/status/slot_key; identity → video.identity + bound_to; render_box → video.render_box; safe_area → video.safe_area; modes → video.modes; upload_constraints → accept/require/video.resolution_*/video.frame_rate (+ Ç3 detayları known_conflicts'e); transcode → video.transcode; renditions → video.renditions; rendition_policy → video.rendition_policy; poster → video.poster + profiles[poster_1280, poster_854]; preview_clip → video.preview_clip; playback_attributes → video.playback_attributes + video.autoplay + video.audio_policy; mobile_data_budget → video.mobile_data_budget (birim bayt → KB, aritmetik derivation metinlerinde korundu); adaptive_streaming → video.hls; accessibility → video.accessibility; validation_codes → video.validation_codes (+ message_key eşlemesi eklendi); known_conflicts / pending_admin_decisions / production_verification_required → üst düzeyde aynı adlarla; unmeasured_disclaimer → bu notlar.",
+  "SLOT ANAHTARI DEĞİŞTİ: T-022 taslağı 'seller.cover_video' yazıyordu, bu sürüm 'company.cover_video' yazıyor — kapak GÖRSELİ zaten 'company.cover_image'. Envanterdeki doctype biçimindeki karşılık `seller.gallery_video`'dur (00-upload-slot-envanteri.md §2). Üç adlandırma ailesinin farkı docs/standards/README.md 'Policy kapsam haritası' bölümünde yazılı.",
+  "BUGÜN ZORLANMIYOR: enforced_today = false. Tek ve yapısal sebep — video için genişlik/yükseklik/süre metadatası hiç yazılmıyor: tradehub_core/media/metadata.py:180-186 → tradehub_core/media/pipeline.py:79-93 yalnız PIL kullanıyor, PIL video açmaz. ffprobe tabanlı bir okuma dalı eklenmeden bu dosyadaki hiçbir boyut/oran/süre kuralı zorlanamaz (Ç5).",
+  "İKİNCİ YAPISAL ENGEL: slot kimliği sunucuya hiç geçmiyor — upload_policy.check() imzasında slot parametresi yok (tradehub_core/media/upload_policy.py:307-313, 00-upload-slot-envanteri.md §7-B B1). Bu politika bugün kod tarafından OKUNMUYOR.",
+  "ÖLÇÜLMEDİ UYARISI: Docker kapalı; üretim veritabanına ve canlı siteye erişim YOK. Bu dosyadaki CSS ölçüleri kaynak koddan Tailwind ölçeğiyle HESAPLANDI, tarayıcıda ölçülmedi. Bitrate/bayt bütçeleri TÜRETİLDİ (her türetmenin aritmetiği yanında yazılı), sahada ölçülmedi. Kodlayıcı eşikleri ve yükleme tavanları dosya:satır ile OKUNDU.",
+  "L3 KATMANI YOK: video.validation_codes adlandırma deseni upload_policy.Kod dataclass'ıyla uyumlu (upload_policy.py:98-120), ama L3 (slot semantiği) katmanı bu kod tabanında BUGÜN HİÇ YOK — T-001 §L3.",
+  "profiles[] ve video.renditions[] AYRI ŞEYLER: profiles[] bu slotta POSTER ve küçük resim GÖRSELLERİNİ tanımlar (<picture> kaynağı); teslim edilen VİDEO türevleri video.renditions[] altındadır (<video><source> kaynağı). Şema v1.0.0 ikincisini ifade edemiyordu — docs/standards/README.md §4 E10 bu sürümde kapandı.",
+  "YÖNETİCİ KARARLARI KAPANDI — 2026-08-19. pending_admin_decisions listesi BOŞALTILDI çünkü K1–K8'in sekizi de karara bağlandı (docs/standards/company-cover-video.md §10.9 + 'VARSAYILANDA ONAYLANAN KARARLAR'). Sonuçlar: K1 1080p tier = EKLENMESİN (varsayılanla aynı; sayısal tetik AÇIK KALIYOR — §11-D3 tablet-DPR2 payı > %15 çıkarsa karar yeniden açılır). K2 ambient = AÇILDI, yalnız doğrulanmış satıcılara (öneriyle aynı; bkz. video.modes.ambient.requires_admin_approval). K3 kapak videosu = OPSİYONEL KALSIN (varsayılanla aynı; require.min_count = 0). K4 altyazı yürürlüğü = YALNIZ YENİ YÜKLEMELER (öneri 'mevcuda 90 gün geçiş' idi; K8 kararı mevcuda dokunmadığı için bu ayrım kapandı, ikisi artık tutarlı). K5 konuşma tespiti = SATICI BEYANI + rastgele denetim (varsayılanla aynı). K6 kategori enum'u = GENİŞLETİLMESİN, 4 kategori sabit; enum'un tek kaynağı doctype JSON'u olmalı (Ç12). K7 rendition'lar kotadan sayılsın mı = SAYILSIN — ÖNERİDEN AYRILAN KARAR (bkz. ayrı not). K8 mevcut içerik için geçiş penceresi = YENİ YÜKLEMELERE HEMEN, MEVCUT KAPAKLARA DOKUNULMAZ (seçenek A). K8 bu blokta hiç listelenmemişti (2026-08-18'de doğdu); kaydı buraya düşüyor.",
+  "K7 — ÖNERİDEN AYRILAN KARAR VE ÖLÇÜLEBİLİR BEDELİ (2026-08-19). Bu politikanın önerisi 'rendition'lar File kaydı AÇMASIN, yalnız master kotadan sayılsın' idi (presets.py:33-35 ARCHIVE_DIRNAME deseni). KARAR BUNUN TERSİ: rendition'lar da satıcı medya kotasından SAYILACAK. Bedeli: entitlement.checks.check_media_storage_quota bugün her File kaydını sayıyor ve bu slot kapak başına 6 NESNE üretiyor (tipik ~19 MB, en kötü ~37,5 MB — §6.5); kota değerleri değişmeden kalırsa satıcılar kotalarını yaklaşık 6 KAT hızlı doldurur. BAĞLI GÖREV — bu karar tek başına EKSİKTİR: kota değerleri yeniden boyutlandırılmalı ya da rendition'lar için ayrı bir kota kalemi tanımlanmalı; docs/standards/kota.md bu karara göre güncellenmeli. docs/standards/company-cover-video.md §10.9-K7",
+  "STATUS = DRAFT KALDI (2026-08-19, T-029). K1–K8'in sekizi de kapandı ve encoder_quality null YOK; buna rağmen 'active' YAPILMADI. Engeller ÖLÇÜMDÜR, karar değil: open_questions 8 maddeden 7'si duruyor ve hiçbiri yönetici kararına bağlı değil — ffmpeg/ffprobe imajda var mı (§11-D6, yoksa hiçbir kapak normalize edilmiyor), video ölçü/süre metadatası hiç yazılmıyor (Ç5 — bu politikadaki süre/oran/çözünürlük kapılarının HİÇBİRİ zorlanamaz), kapak ayrı alan mı sıralamanın türevi mi, factory_video_url göçü (Ç2), subtitles_vtt alanı ve KIND_CAPTION (bugün .vtt upload_policy.EXTENSIONS'ta yok → altyazı zorunluluğu uygulanamaz bir kural), poster encoder_quality.webp basamaklarının (78/70/62) kalibrasyonu ÖLÇÜLMEDİ, messages.ru / messages.ar yazılmadı. docs/reports/16-t029-politika-aktivasyonu.md"
+ ]
 }

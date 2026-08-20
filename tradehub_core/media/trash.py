@@ -39,8 +39,19 @@ def _root() -> str:
 
 
 def _relative(file_url: str) -> str:
+	"""`/files/<yol>` → `<yol>`. Path traversal reddedilir.
+
+	Traversal kontrolü **segment bazlı**: `".." in url` düz altdizge araması
+	meşru dosya adlarını da yakalıyordu. Canlı DB'de ölçüldü (2026-08-19):
+	`..` içeren 19 dosyanın **hiçbiri** traversal değil — hepsi ürün
+	açıklamasının dosya adına girmesinden (`MOİ ile derin düzen..jpg`).
+	Bu dosyalar çöpe atılamıyor, geri alınamıyor, arşivlenemiyordu.
+	Segment kontrolü gerçek traversal'ı (`/files/../etc`) aynen reddeder;
+	ayrıca `_trash_path`/`_live_path` `realpath` + kök öneki ile ikinci kez
+	doğruluyor, yani savunma tek katmana bağlı değil.
+	"""
 	url = (file_url or "").split("?")[0]
-	if not url.startswith("/files/") or ".." in url:
+	if not url.startswith("/files/") or ".." in url.split("/"):
 		frappe.throw(frappe._("Geçersiz dosya yolu: {0}").format(file_url))
 	return url[len("/files/") :]
 

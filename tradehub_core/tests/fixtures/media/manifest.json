@@ -1,6 +1,14 @@
 {
  "gorev": "T-006",
  "tarih": "2026-08-18",
+ "guncelleme": "2026-08-20 W9: rapor 94 §3'ün 5 eksik türü ölçüldü; 6 GERÇEK kaynak eklendi (köken+sha256 kayıtlı), 2 tür DEV'de temin edilemedi — bkz. eksik_turler",
+ "eksik_turler": {
+  "8_video": "TEMİN EDİLDİ: real_satici_720x720_28s.mp4 (+3 gerçek video daha; video korpusu 7 → 11)",
+  "4k_60fps_uzun_video": "TEMİN EDİLEMEDİ: DEV'deki 6 gerçek videonun tamamı ≤1920×1080 ve ≤30 fps (ffprobe, 2026-08-20); 4K/60fps gerçek kaynak yok, sentetik üretim görev kuralı gereği yasak",
+  "hdr_bt2020_video": "TEMİN EDİLEMEDİ: 6/6 gerçek videoda color_primaries ∈ {bt709, smpte170m/bt470bg, unknown} — BT.2020/HDR kaynak DEV'de yok (ffprobe, 2026-08-20)",
+  "adobergb_gorsel": "TEMİN EDİLDİ: real_adobergb_3780x2717.png (DEV taramasında 11 AdobeRGB-ICC'li gerçek dosya bulundu)",
+  "gercek_fotograf": "TEMİN EDİLDİ (kısmen): real_foto_canon_2240x2905.tif (DEV'de kamera-EXIF'li 8 dosya; 1'i alındı). AS-27'nin kalibrasyon şartı için korpus hâlâ ağırlıkla sentetik — tek gerçek fotoğraf kalibrasyon değildir"
+ },
  "branch": "medya-motoru-faz0-faz2",
  "aciklama": "Golden fixture korpusu. `expect` BEYAN, `olculen` ÖLÇÜM'dür; `dogrulama` ikisinin karşılaştırmasıdır. `expected_action` ilgili `slot` politikasının BUGÜNKÜ hâline göredir — politika değişirse bu alan da değişmelidir.",
  "olcum_ortami": {
@@ -29,23 +37,23 @@
   "not": "Yerel Pillow 11.3.0 ile konteyner Pillow'u AYNI DEĞİL. Görsel geometri ölçümleri yerelde, engine./ffprobe ölçümleri konteynerde yapıldı; ikisi de manifest'te ayrı bloklarda duruyor."
  },
  "ozet": {
-  "fixture_sayisi": 51,
-  "gecti": 51,
+  "fixture_sayisi": 57,
+  "gecti": 57,
   "kaldi": 0,
-  "toplam_bayt": 63793438,
-  "toplam_mb": 60.84,
+  "toplam_bayt": 90310227,
+  "toplam_mb": 86.13,
   "sinif_dagilimi": {
-   "photo": 17,
+   "photo": 19,
    "transparent": 5,
    "graphic": 10,
    "animation": 2,
-   "video": 7,
+   "video": 11,
    "malicious": 10
   },
   "expected_action_dagilimi": {
-   "process": 26,
-   "passthrough": 5,
-   "reject": 20
+   "process": 27,
+   "passthrough": 8,
+   "reject": 22
   }
  },
  "fixtures": [
@@ -1573,7 +1581,7 @@
    ],
    "olculen": {
     "bytes": 589057,
-    "sha256": "3296b06c6ee6ea23eb98d79aec959149b3f7e616320bf613320eaf07e74c6354",
+    "sha256": "c8ede8d1009c5063e3fb16489924fa73fc901e493df9af85046198d22729fe4e",
     "pil_readable": true,
     "format": "JPEG",
     "mode": "RGB",
@@ -1720,7 +1728,7 @@
     "bytes": 555,
     "sha256": "19be11f18c934558d2c2d71fc2ce836990510a66a046abc11617bcdf26635891",
     "pil_readable": false,
-    "pil_hata": "UnidentifiedImageError: cannot identify image file '/Users/ahmet/Desktop/istoc-medya-wt/tests/fixtures/malicious/script_payload.svg'",
+    "pil_hata": "UnidentifiedImageError: cannot identify image file '/Users/ahmet/Desktop/istoc/tradehub_core/tradehub_core/tests/fixtures/malicious/script_payload.svg'",
     "magic_hex": "3c3f786d6c207665",
     "engine_probe": {
      "fmt": "",
@@ -1752,7 +1760,7 @@
     "bytes": 637,
     "sha256": "d751a18cdfc8104ebfc610920570b3ee36b8efbbea4573485de7843675b7cc42",
     "pil_readable": false,
-    "pil_hata": "UnidentifiedImageError: cannot identify image file '/Users/ahmet/Desktop/istoc-medya-wt/tests/fixtures/malicious/polyglot_pdf_as.jpg'",
+    "pil_hata": "UnidentifiedImageError: cannot identify image file '/Users/ahmet/Desktop/istoc/tradehub_core/tradehub_core/tests/fixtures/malicious/polyglot_pdf_as.jpg'",
     "magic_hex": "255044462d312e34",
     "engine_probe": {
      "fmt": "",
@@ -1836,7 +1844,7 @@
     "bytes": 0,
     "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "pil_readable": false,
-    "pil_hata": "UnidentifiedImageError: cannot identify image file '/Users/ahmet/Desktop/istoc-medya-wt/tests/fixtures/malicious/empty_zero_byte.jpg'",
+    "pil_hata": "UnidentifiedImageError: cannot identify image file '/Users/ahmet/Desktop/istoc/tradehub_core/tradehub_core/tests/fixtures/malicious/empty_zero_byte.jpg'",
     "magic_hex": "",
     "engine_probe": {
      "fmt": "",
@@ -1919,9 +1927,9 @@
    ],
    "olculen": {
     "bytes": 369,
-    "sha256": "57fdfe440f71d549a5034376c578468549e948e34e80b30182147bd46db6b2b7",
+    "sha256": "25728913cfa645954869ce08a09df9afd6313361c58683f285dd12f4d40ec64e",
     "pil_readable": false,
-    "pil_hata": "UnidentifiedImageError: cannot identify image file '/Users/ahmet/Desktop/istoc-medya-wt/tests/fixtures/malicious/fake_docx.docx'",
+    "pil_hata": "UnidentifiedImageError: cannot identify image file '/Users/ahmet/Desktop/istoc/tradehub_core/tradehub_core/tests/fixtures/malicious/fake_docx.docx'",
     "magic_hex": "504b030414000000",
     "engine_probe": {
      "fmt": "",
@@ -1953,7 +1961,7 @@
     "bytes": 359,
     "sha256": "a3f8a7b297ff2f3acddc7faff8a63614e2c2314b02f750ee3465a66e0c6900f0",
     "pil_readable": false,
-    "pil_hata": "UnidentifiedImageError: cannot identify image file '/Users/ahmet/Desktop/istoc-medya-wt/tests/fixtures/malicious/executable_as.png'",
+    "pil_hata": "UnidentifiedImageError: cannot identify image file '/Users/ahmet/Desktop/istoc/tradehub_core/tradehub_core/tests/fixtures/malicious/executable_as.png'",
     "magic_hex": "4d5a900000000000",
     "engine_probe": {
      "fmt": "",
@@ -1984,7 +1992,7 @@
     "bytes": 179,
     "sha256": "8628f55f1ed0af819f5c5d5ab75b42b3647a452b84a7583017b8dd77e23b7f34",
     "pil_readable": false,
-    "pil_hata": "UnidentifiedImageError: cannot identify image file '/Users/ahmet/Desktop/istoc-medya-wt/tests/fixtures/malicious/data_uri_svg.txt'",
+    "pil_hata": "UnidentifiedImageError: cannot identify image file '/Users/ahmet/Desktop/istoc/tradehub_core/tradehub_core/tests/fixtures/malicious/data_uri_svg.txt'",
     "magic_hex": "646174613a696d61",
     "engine_probe": {
      "fmt": "",
@@ -2069,7 +2077,7 @@
    ],
    "olculen": {
     "bytes": 677639,
-    "sha256": "88270784b8099bf55aff4d2c7ae0bf56c7d52b510d01f0d8506180b19ae48b9a",
+    "sha256": "287a2d03913dd6537be03645aef87c250b794ad5a090480c311d2f15f15aaaa5",
     "container": "mov,mp4,m4a,3gp,3g2,mj2",
     "duration_s": 6.0,
     "bitrate_kbps": 904,
@@ -2107,7 +2115,7 @@
    ],
    "olculen": {
     "bytes": 6292244,
-    "sha256": "14ac6082b4f7190de5b63f11bc29504e45c269a7c918e793c43db3335e707137",
+    "sha256": "95d0ddffa037cf40693d1ad632e59aea8a809a777b2f9e28cbb54482adfb74de",
     "container": "mov,mp4,m4a,3gp,3g2,mj2",
     "duration_s": 6.0,
     "bitrate_kbps": 8390,
@@ -2217,7 +2225,7 @@
    ],
    "olculen": {
     "bytes": 3989924,
-    "sha256": "411d54a147aa2fdee9f3165332d6a92975239d0ee7079653946e208b79436226",
+    "sha256": "aa6632ea105ac8f17f1c272134ef68c4883aae85c87c54ed96f2b67e8c594f84",
     "container": "mov,mp4,m4a,3gp,3g2,mj2",
     "duration_s": 540.0,
     "bitrate_kbps": 59,
@@ -2306,6 +2314,281 @@
    },
    "dogrulama": "GEÇTİ",
    "canli_karsilik": "08 §7 — çözünürlük örneği 1920×1080"
+  },
+  {
+   "file": "tradehub_core/tests/fixtures/media/video/real_satici_720x720_28s.mp4",
+   "class": "video",
+   "expected_action": "passthrough",
+   "expect": {
+    "width": 720,
+    "height": 720,
+    "has_audio": true,
+    "duration_s": 28.0,
+    "needs_transcode": false
+   },
+   "neden": "8. video eksiği GERÇEK kaynakla kapandı: LST-04043'ün gerçek satıcı videosu (Instagram türü, önceden sıkıştırılmış — 707 kbps video). Karar tablosu default→PASSTHROUGH (rapor 81 §2); fayda kapısı sondası bu dosyada %11,44 ölçmüştü (rapor 81 §3.3). Türkçe+emoji'li orijinal ad köken blokunda.",
+   "kaynak": "gerçek — DEV canlı satıcı videosu",
+   "slot": "product.video",
+   "kural": [
+    "needs_transcode",
+    "video_decision default→PASSTHROUGH"
+   ],
+   "olculen": {
+    "bytes": 2809249,
+    "sha256": "eb52e15d596dadca991e39dd4968454aa02a6c4c2a827cf3360084bab3c7c71a",
+    "container": "mov,mp4,m4a,3gp,3g2,mj2",
+    "duration_s": 28.0,
+    "bitrate_kbps": 803,
+    "video_codec": "h264",
+    "width": 720,
+    "height": 720,
+    "pix_fmt": "yuv420p",
+    "fps": "30/1",
+    "video_bitrate_kbps": 707,
+    "has_audio": true,
+    "audio_codec": "aac",
+    "needs_transcode": false
+   },
+   "dogrulama": "GEÇTİ",
+   "koken": {
+    "kaynak_dosya": "sites/istoc.localhost/public/files/Evde taze sıkılmış meyve sularının keyfini çıkarın! 🍹 Avcılar Plastik, estetik tasarımlı limon.mp4",
+    "baglam": "Listing LST-04043 video_url",
+    "sha256": "eb52e15d596dadca991e39dd4968454aa02a6c4c2a827cf3360084bab3c7c71a",
+    "alim": "2026-08-20 W9 koşumu, docker cp (bayt-birebir)"
+   }
+  },
+  {
+   "file": "tradehub_core/tests/fixtures/media/video/real_uretim_h264_1280.mp4",
+   "class": "video",
+   "expected_action": "passthrough",
+   "expect": {
+    "width": 1280,
+    "height": 720,
+    "has_audio": false,
+    "duration_s": 540.0,
+    "needs_transcode": false
+   },
+   "neden": "İLK gerçek ÜRETİM-ÇIKTISI fixture'ı: boru hattının kanonik adresli (INV-09, version_hash'li) h264 türevi — 9mb.mp4'ün REMUX (faststart) zincirinden gelen teslim dosyası, moov BAŞTA. 'Üretim çıktısı tekrar girdi olursa hat DOKUNMAMALI' vakasını taşır (needs_transcode=False ölçüldü).",
+   "kaynak": "gerçek — boru hattı üretim çıktısı (W6-W8 koşumları)",
+   "slot": "product.video",
+   "kural": [
+    "needs_transcode",
+    "INV-09",
+    "idempotency"
+   ],
+   "olculen": {
+    "bytes": 9622536,
+    "sha256": "64fa75a46c204baff1e022518e89539287152189b0c14f1bfe819372b9a0c6a1",
+    "container": "mov,mp4,m4a,3gp,3g2,mj2",
+    "duration_s": 540.0,
+    "bitrate_kbps": 143,
+    "video_codec": "h264",
+    "width": 1280,
+    "height": 720,
+    "pix_fmt": "yuv420p",
+    "fps": "30/1",
+    "video_bitrate_kbps": 141,
+    "has_audio": false,
+    "audio_codec": null,
+    "needs_transcode": false
+   },
+   "dogrulama": "GEÇTİ",
+   "koken": {
+    "kaynak_dosya": "sites/istoc.localhost/public/files/media/3pjpbple42/f8de21dd87c9c08749bb165c5000064e749e52f6ea2d7ce4bbe2642e1eb163c7/h264-1280.mp4",
+    "baglam": "Media Rendition (profile=h264) — kaynak 9mb.mp4 (LST-04419); rapor 81 §3 + rapor 90",
+    "sha256": "64fa75a46c204baff1e022518e89539287152189b0c14f1bfe819372b9a0c6a1",
+    "alim": "2026-08-20 W9 koşumu, docker cp (bayt-birebir)"
+   }
+  },
+  {
+   "file": "tradehub_core/tests/fixtures/media/video/real_uretim_preview_480.mp4",
+   "class": "video",
+   "expected_action": "passthrough",
+   "expect": {
+    "width": 480,
+    "height": 480,
+    "has_audio": false,
+    "duration_s": 6.0,
+    "needs_transcode": false
+   },
+   "neden": "Önizleme klibi türünün İLK gerçek örneği: W8'in ürettiği kanonik preview türevi (rapor 90 §1c — 116.775 B ≤ 400 KB politika hedefi, CRF merdiveni). Sessiz, 6 sn, poster damgasından başlar.",
+   "kaynak": "gerçek — boru hattı üretim çıktısı (W8 koşumu)",
+   "slot": "product.video",
+   "kural": [
+    "needs_transcode",
+    "preview ≤ 400 KB politika hedefi"
+   ],
+   "olculen": {
+    "bytes": 116775,
+    "sha256": "7d4cf07fee7d3a8dff01b9699105ee2b9aa69237454f2755bbadb04c164821c8",
+    "container": "mov,mp4,m4a,3gp,3g2,mj2",
+    "duration_s": 6.0,
+    "bitrate_kbps": 156,
+    "video_codec": "h264",
+    "width": 480,
+    "height": 480,
+    "pix_fmt": "yuv420p",
+    "fps": "30/1",
+    "video_bitrate_kbps": 152,
+    "has_audio": false,
+    "audio_codec": null,
+    "needs_transcode": false
+   },
+   "dogrulama": "GEÇTİ",
+   "koken": {
+    "kaynak_dosya": "sites/istoc.localhost/public/files/media/59jmq0pkp0/3ebd7218f85347b57ef83ae8e66d860c1da43010f510fdd6b170db682529b12b/preview-480.mp4",
+    "baglam": "Media Rendition (profile=preview) — kaynak LST-04043 limon videosu; rapor 90 §1",
+    "sha256": "7d4cf07fee7d3a8dff01b9699105ee2b9aa69237454f2755bbadb04c164821c8",
+    "alim": "2026-08-20 W9 koşumu, docker cp (bayt-birebir)"
+   }
+  },
+  {
+   "file": "tradehub_core/tests/fixtures/media/video/video_real_seller_1080p_2997fps.mp4",
+   "class": "video",
+   "expected_action": "process",
+   "expect": {
+    "width": 1920,
+    "height": 1080,
+    "has_audio": true,
+    "needs_transcode": true
+   },
+   "neden": "Gerçek satıcı 1080p videosu; korpusun tek KESİRLİ fps'li (30000/1001 = NTSC 29,97) dosyası — sentetik korpusta hiç yoktu; fps'i tam sayı varsayan süre/kare hesabı burada sapar. Genişlik 1920 > 1280 → needs_transcode=True ölçüldü.",
+   "kaynak": "gerçek — DEV canlı satıcı videosu",
+   "slot": "product.video",
+   "kural": [
+    "needs_transcode",
+    "NEEDS_TRANSCODE_MAX_WIDTH=1280"
+   ],
+   "olculen": {
+    "bytes": 8504902,
+    "sha256": "1a61c34c1c299eb6cb2ea6b712f529ded6d028dce74ed1f9802d93871425677a",
+    "container": "mov,mp4,m4a,3gp,3g2,mj2",
+    "duration_s": 58.2,
+    "bitrate_kbps": 1169,
+    "video_codec": "h264",
+    "width": 1920,
+    "height": 1080,
+    "pix_fmt": "yuv420p",
+    "fps": "30000/1001",
+    "video_bitrate_kbps": 1153,
+    "has_audio": true,
+    "audio_codec": "aac",
+    "needs_transcode": true
+   },
+   "dogrulama": "GEÇTİ",
+   "koken": {
+    "kaynak_dosya": "sites/istoc.localhost/public/files/10 (1).mp4",
+    "baglam": "tabFile gerçek video (rapor 81 §2'nin 'bağlı olmayan 5.' gerçek videosu)",
+    "sha256": "1a61c34c1c299eb6cb2ea6b712f529ded6d028dce74ed1f9802d93871425677a",
+    "alim": "2026-08-20 (dosya fixture dizinine bu koşum sırasında paralel bir elden geldi; köken sha256 ile doğrulandı, künyesi bu koşumda ölçüldü)"
+   }
+  },
+  {
+   "file": "tradehub_core/tests/fixtures/media/images/real_foto_canon_2240x2905.tif",
+   "class": "photo",
+   "expected_action": "reject",
+   "expect": {
+    "format": "TIFF",
+    "mode": "RGBA",
+    "width": 2240,
+    "height": 2905,
+    "has_alpha": true,
+    "dpi": [
+     200,
+     200
+    ]
+   },
+   "neden": "AS-27 eksiği: korpusun İLK gerçek kamera fotoğrafı (Canon EOS 5D Mark IV EXIF'i dosyada; korpus bugüne dek tümüyle sentetikti). Oran 0,771 → bugünkü product.image bandı dışında; konteynerde gerçek motorla ölçüldü: evaluate → reject/ratio_not_allowed. Gerçek satıcı fotoğrafının bile bantta takılması FR-147/09-slot uyumsuzluk geriliminin fixture hâli. content_rules kalibrasyonu (AS-27) için gerçek-fotoğraf tohumu — tek dosya kalibrasyon DEĞİLDİR.",
+   "kaynak": "gerçek — DEV canlı satıcı fotoğrafı",
+   "slot": "product.image",
+   "kural": [
+    "FR-016",
+    "require.allowed_ratios",
+    "AS-27"
+   ],
+   "olculen": {
+    "bytes": 2387524,
+    "sha256": "79ed518cd8541166a335f9d21617c291d0aeb3b1c1972840c545ee416f35a46a",
+    "pil_readable": true,
+    "format": "TIFF",
+    "mode": "RGBA",
+    "width": 2240,
+    "height": 2905,
+    "megapixels": 6.5072,
+    "animated": false,
+    "n_frames": 1,
+    "has_alpha": true,
+    "has_icc": false,
+    "progressive": false,
+    "dpi": [
+     200,
+     200
+    ],
+    "has_gps": false,
+    "magic_hex": "49492a008a082400"
+   },
+   "dogrulama": "GEÇTİ",
+   "koken": {
+    "kaynak_dosya": "sites/istoc.localhost/public/files/örn.tif",
+    "baglam": "Canon EOS 5D Mark IV, 200 dpi ürün çekimi (kamera EXIF'li 8 DEV dosyasından public olanı)",
+    "sha256": "79ed518cd8541166a335f9d21617c291d0aeb3b1c1972840c545ee416f35a46a",
+    "alim": "2026-08-20 W9 koşumu, docker cp (bayt-birebir)"
+   }
+  },
+  {
+   "file": "tradehub_core/tests/fixtures/media/images/real_adobergb_3780x2717.png",
+   "class": "photo",
+   "expected_action": "reject",
+   "expect": {
+    "format": "PNG",
+    "mode": "RGBA",
+    "width": 3780,
+    "height": 2717,
+    "has_alpha": true,
+    "has_icc": true,
+    "dpi": [
+     300,
+     300
+    ]
+   },
+   "neden": "T-061/3 eksiği: gerçek 'Adobe RGB (1998)' ICC profilli üretici görseli (profil tanımı konteynerde ImageCms ile okundu; DEV'de 11 AdobeRGB dosya bulundu). ΔE/renk dönüşümü ölçümü artık fixture'lı: ICC sRGB'ye dönüştürülmeden kırpılırsa renk kayması sessizce üretilir. Oran 1,391 → bant dışı; evaluate → reject/ratio_not_allowed (ölçüldü).",
+   "kaynak": "gerçek — DEV canlı satıcı görseli",
+   "slot": "product.image",
+   "kural": [
+    "FR-016",
+    "require.allowed_ratios",
+    "master.colorspace=srgb",
+    "T-061/3"
+   ],
+   "olculen": {
+    "bytes": 3075803,
+    "sha256": "2f0433954494fefe974e0d142662576c6548af148d3107f8598e4c42c99c1e4a",
+    "pil_readable": true,
+    "format": "PNG",
+    "mode": "RGBA",
+    "width": 3780,
+    "height": 2717,
+    "megapixels": 10.2703,
+    "animated": false,
+    "n_frames": 1,
+    "has_alpha": true,
+    "has_icc": true,
+    "progressive": false,
+    "dpi": [
+     300,
+     300
+    ],
+    "exif_orientation": 1,
+    "has_gps": false,
+    "magic_hex": "89504e470d0a1a0a"
+   },
+   "dogrulama": "GEÇTİ",
+   "koken": {
+    "kaynak_dosya": "sites/istoc.localhost/public/files/IMG_1663-Küçük Boy Düz ve Kapaklı-3.png",
+    "baglam": "Adobe RGB (1998) ICC'li Photoshop çıktısı ürün görseli",
+    "sha256": "2f0433954494fefe974e0d142662576c6548af148d3107f8598e4c42c99c1e4a",
+    "alim": "2026-08-20 W9 koşumu, docker cp (bayt-birebir)"
+   }
   }
  ]
 }

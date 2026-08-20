@@ -24,11 +24,22 @@ def _ensure_logged_in():
 def _get_settings():
 	try:
 		settings = frappe.get_single("Push Notification Settings")
+		private_key = settings.get_password("vapid_private_key", raise_exception=False)
+		if private_key:
+			# T-134 §2 — servis-config sır okuması denetime yazılır (değer YOK).
+			from tradehub_core.audit.secret_access import log_secret_access
+
+			log_secret_access(
+				service="vapid",
+				field="vapid_private_key",
+				object_doctype="Push Notification Settings",
+				object_name="Push Notification Settings",
+			)
 		return {
 			"enabled": bool(settings.enabled),
 			"subject": settings.vapid_subject or "mailto:admin@tradehub.local",
 			"public_key": settings.vapid_public_key,
-			"private_key": settings.get_password("vapid_private_key", raise_exception=False),
+			"private_key": private_key,
 		}
 	except Exception:
 		frappe.log_error("Failed to load Push Notification Settings", "push._get_settings")

@@ -1,0 +1,206 @@
+{
+ "$comment": "T-040 / T-064 · Normalize master'ın sürümü. Kaynak şema: media/pipeline/doctype_specs/media_version.json. SAPMALAR: (1) `module` kaynakta \"Media Engine\"; o modül bu app'te YOK (modules.txt tek satır: Tradehub Core) — sapma kurulu diğer yedi medya DocType'ıyla tutarlı. (2) `is_active` ve `asset` alanları permlevel 1'de. Gerekçe `media_asset.json` sapma 5 ile aynı: 'hangi sürüm yayında' bir MODERASYON kararıdır; satıcı kendi varlığının yayındaki sürümünü formdan değiştirebilseydi, doğrulanmamış bir sürümü yayına almış olurdu. Permlevel 1'de yazma yalnız System Manager + Marketplace Admin'de. (3) `track_changes` kaynakta 1; burada 0 — sürüm kaydı zaten değişmez (adı içeriğinin hash'i), tarihçesi kayıtların KENDİSİDİR.",
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "field:version_hash",
+ "creation": "2026-08-19 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 0,
+ "engine": "InnoDB",
+ "field_order": [
+  "asset",
+  "version_hash",
+  "source_hash",
+  "cb_geometry",
+  "width",
+  "height",
+  "duration_s",
+  "dpi",
+  "colorspace",
+  "has_alpha",
+  "sb_derived",
+  "classification",
+  "classification_confidence",
+  "format_chain",
+  "cb_derived",
+  "lqip",
+  "lqip_data_uri",
+  "dominant_color",
+  "sb_inputs",
+  "policy_snapshot",
+  "crop_intent_snapshot",
+  "engine_version",
+  "cb_lifecycle",
+  "created_at",
+  "is_active"
+ ],
+ "fields": [
+  {
+   "fieldname": "asset",
+   "fieldtype": "Link",
+   "label": "Varlık",
+   "options": "Media Asset",
+   "reqd": 1,
+   "permlevel": 1,
+   "read_only": 1,
+   "search_index": 1,
+   "in_list_view": 1,
+   "description": "Bu sürümün ait olduğu Media Asset. Kiracı izolasyonu bu alan üzerinden asset'in `owner_seller`ına ZİNCİRLENİR (permissions.media_version_*); denormalize satıcı kolonu bilerek eklenmedi — Asset devredildiğinde sessizce eskir."
+  },
+  {
+   "fieldname": "version_hash",
+   "fieldtype": "Data",
+   "label": "Sürüm Hash",
+   "reqd": 1,
+   "unique": 1,
+   "read_only": 1,
+   "search_index": 1,
+   "length": 64,
+   "in_list_view": 1,
+   "description": "sha256(source_hash + canonical_json(policy_snapshot) + canonical_json(crop_intent) + engine_version) — core/dedup.py::version_hash(). Türev adresi bu değeri taşır (INV-09): içerik değişmeden URL değişmez, içerik değişince URL zorunlu değişir. Kaydın ADI da budur (autoname)."
+  },
+  {
+   "fieldname": "source_hash",
+   "fieldtype": "Data",
+   "label": "Kaynak Hash",
+   "length": 64,
+   "read_only": 1,
+   "description": "Türetildiği Media Asset.content_sha256. Ayrı tutulur: version_hash'in girdisidir, ondan geri çıkarılamaz."
+  },
+  {"fieldname": "cb_geometry", "fieldtype": "Column Break"},
+  {"fieldname": "width", "fieldtype": "Int", "label": "Genişlik"},
+  {"fieldname": "height", "fieldtype": "Int", "label": "Yükseklik"},
+  {
+   "fieldname": "duration_s",
+   "fieldtype": "Float",
+   "label": "Süre (sn)",
+   "precision": "3",
+   "description": "W7 · Yalnız VİDEO varlıkları doldurur: teslim edilen birincil dosyanın (h264 türevi ya da passthrough kaynak) ffprobe süresi. Görselde boş kalır. Manifest video bloğu (api/media_manifest.py) buradan okur — genişlik/yükseklik ile aynı gerekçe: teslim künyesi sürüm kaydında durur, her istekte ffprobe koşulmaz."
+  },
+  {
+   "fieldname": "dpi",
+   "fieldtype": "Int",
+   "label": "DPI",
+   "default": "72",
+   "description": "Normalize master DPI'ı. DPI DÜŞÜRMEK PİKSEL DÜŞÜRMEZ (docs/standards/dpi-ve-cozunurluk.md, tests/test_policy_dpi.py)."
+  },
+  {"fieldname": "colorspace", "fieldtype": "Data", "label": "Renk Uzayı", "default": "sRGB", "length": 32},
+  {
+   "fieldname": "has_alpha",
+   "fieldtype": "Check",
+   "label": "Alfa Var",
+   "default": "0",
+   "read_only": 1,
+   "description": "T-061 · Kaynağın alfa kanalı var mı (başlıktan, piksel açılmadan — image/probe.py). Şeffaf ürün/logo sınıfının ve LQIP'in alfa yolunun ön şartı."
+  },
+  {"fieldname": "sb_derived", "fieldtype": "Section Break", "label": "Türetilmiş Künye (T-061/062/065)"},
+  {
+   "fieldname": "classification",
+   "fieldtype": "Select",
+   "label": "Sınıf",
+   "options": "\nphoto\ntransparent\ngraphic\nanimation\ntext",
+   "read_only": 1,
+   "in_standard_filter": 1,
+   "description": "T-062 · image/classify.py sonucu. BOŞ = ölçülemedi (kapı reddi ya da özellik çıkarım hatası) — tahmin yazılmaz. Seçenekler classify.FORMAT_CHAINS anahtarlarıyla birebir."
+  },
+  {
+   "fieldname": "classification_confidence",
+   "fieldtype": "Data",
+   "label": "Sınıf Güveni",
+   "length": 8,
+   "read_only": 1,
+   "description": "exact | high | low — classify.Classification.confidence."
+  },
+  {
+   "fieldname": "format_chain",
+   "fieldtype": "JSON",
+   "label": "Biçim Zinciri",
+   "read_only": 1,
+   "description": "T-062 · Sınıfın biçim zinciri, classify.FormatStep.to_dict() listesi (fmt, lossless, quality_bump, requires). Sıra tercih sırasıdır; karar anının KOPYASI — zincir tablosu sonradan değişirse geçmiş sürümün kararı değişmiş görünmemeli (policy_snapshot ile aynı gerekçe)."
+  },
+  {"fieldname": "cb_derived", "fieldtype": "Column Break"},
+  {
+   "fieldname": "lqip",
+   "fieldtype": "Data",
+   "label": "LQIP (ThumbHash)",
+   "length": 64,
+   "read_only": 1,
+   "description": "T-065 · ThumbHash'in base64'ü — kanonik değer, ham hâli <30 bayt (image/lqip.py, test_image_lqip.py bunu her fixture'da doğrular). Görsel inene kadar gösterilecek ön izlemenin kaynağı."
+  },
+  {
+   "fieldname": "lqip_data_uri",
+   "fieldtype": "Small Text",
+   "label": "LQIP Veri URI'si",
+   "read_only": 1,
+   "description": "T-065 · lqip alanından türetilmiş hazır data:image/png;base64,… — delivery/picture.py::lqip_style ve panel MediaImage.vue'nun beklediği biçim (ikisinin de ThumbHash çözücüsü yok). Yazma anında BİR kez üretilir; kanonik değer lqip'tir, bu alan onun servis biçimidir."
+  },
+  {
+   "fieldname": "dominant_color",
+   "fieldtype": "Data",
+   "label": "Baskın Renk",
+   "length": 16,
+   "read_only": 1,
+   "description": "T-065 · #rrggbb — nicelenmiş histogramda en çok yer kaplayan renk; saydam pikseller SAYILMAZ (kesim logonun baskın rengi arkasındaki boşluk değildir). Ortalama renk DEĞİL: kırmızı-yeşil görselin ortalaması görselde bulunmayan kirli sarıdır."
+  },
+  {"fieldname": "sb_inputs", "fieldtype": "Section Break", "label": "Hash Girdileri"},
+  {
+   "fieldname": "policy_snapshot",
+   "fieldtype": "JSON",
+   "label": "Politika Anlık Görüntüsü",
+   "description": "Bu sürümün hangi politikayla üretildiği. Politikanın kendisine LINK değil KOPYA: politika sonradan değişirse geçmiş sürümün üretim koşulu değişmiş görünmemeli."
+  },
+  {
+   "fieldname": "crop_intent_snapshot",
+   "fieldtype": "JSON",
+   "label": "Kırpma Niyeti Anlık Görüntüsü",
+   "description": "version_hash'in üçüncü girdisi. Kaynak dokümanın alan listesinde yok ama version_hash formülünde VAR — hash yeniden hesaplanabilir olmalıysa girdisi de saklanmak zorunda."
+  },
+  {
+   "fieldname": "engine_version",
+   "fieldtype": "Data",
+   "label": "Motor Sürümü",
+   "length": 64,
+   "description": "ÖLÇÜLDÜ (docs/reports/05-kutuphane-benchmark.md): Pillow'da kalındı. Değer biçimi 'pillow-11.3.0'; pyvips'e geçilirse burada görünür ve tüm version_hash'ler zorunlu değişir."
+  },
+  {"fieldname": "cb_lifecycle", "fieldtype": "Column Break"},
+  {"fieldname": "created_at", "fieldtype": "Datetime", "label": "Oluşturulma", "read_only": 1},
+  {
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "label": "Yayında",
+   "default": "0",
+   "permlevel": 1,
+   "search_index": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "description": "Media Asset.active_version ile tutarlı tutulur; sorgu kolaylığı için DENORMALİZE (öksüz/saklama taraması Asset'e join etmeden filtreleyebilsin). Doğruluğun tek kaynağı active_version'dır; çelişki controller'da REDDEDİLİR, sessizce düzeltilmez."
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "is_submittable": 0,
+ "issingle": 0,
+ "istable": 0,
+ "links": [],
+ "modified": "2026-08-19 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "Media Version",
+ "owner": "Administrator",
+ "permissions": [
+  {"role": "Media Superadmin", "read": 1, "write": 1, "create": 1, "delete": 1, "report": 1, "export": 1, "share": 1},
+  {"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 0, "report": 1, "export": 1, "share": 1},
+  {"role": "Marketplace Admin", "read": 1, "write": 1, "create": 0, "delete": 0, "report": 1},
+  {"role": "Marketplace Seller", "read": 1, "write": 0, "create": 0, "delete": 0, "report": 1},
+  {"role": "Seller", "read": 1, "write": 0, "create": 0, "delete": 0, "report": 1},
+  {"role": "Media Superadmin", "permlevel": 1, "read": 1, "write": 1},
+  {"role": "System Manager", "permlevel": 1, "read": 1, "write": 1},
+  {"role": "Marketplace Admin", "permlevel": 1, "read": 1, "write": 1},
+  {"role": "Marketplace Seller", "permlevel": 1, "read": 1},
+  {"role": "Seller", "permlevel": 1, "read": 1}
+ ],
+ "quick_entry": 0,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0
+}

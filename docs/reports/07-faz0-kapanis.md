@@ -1171,3 +1171,29 @@ alanında yok (AS-07).
 
 `/Users/ahmet/Desktop/istoc-medya-wt/docs/reports/07-faz0-kapanis.md` — bu belge (Rev. 2).
 `tradehub_core/` altında hiçbir dosya değiştirilmedi.
+
+---
+
+## 12. KANIT VE KAPI DURUMU — 2026-08-19 eki (D-1 / T-009)
+
+> **Bu bölüm §10'un ONAY bloğuna dokunmaz.** 29 kutucuk ve 31 boş alan
+> olduğu gibi durmaktadır. Buraya yalnız, Rev. 2'nin (2026-08-18) yazımından
+> **sonra** değişen ölçümler eklenmiştir; amaç imzalayanın önüne güncel sayıyı
+> koymaktır. Tam dosya: **`docs/reports/54-d1-faz0-2-kapanis.md`**.
+
+| Kapı | Rev. 2'nin yazdığı | **2026-08-19 ölçümü [Ö]** | Değişti mi |
+|---|---|---|---|
+| **K-1** | D-2 = **44** (bulgu) | **40** public dosya; `_is_protected_pii=True` → **0/40** ve tüm public küme (4.426) içinde **0/4.426**. Kırılım: KYB 133 · KYC 3 · Seller Application 1 · Seller Verification 1 · eşleşmeyen 1 | ⚠ **daraltıldı, kapanmadı** (44 → 40; kapatılan 4 dosya politikanın koruduğunu iddia ettiklerdi) |
+| **K-2** | ❌ YAPILMADI — `istocc` 2 + 7 | **`istocc` → 0 + 0.** `10-media-stats-kosum-ciktisi.txt` tracked (88 satır, 2.853 dosya). `git log -1 -- scripts/media_stats.py` → **`31f115b` (2026-08-18)** *"fix(medya): K-2 kapatıldı — bozuk bench komutları düzeltildi, media_stats koşuldu"* | ✅ **KAPANDI** — Rev. 2 bu satırda **eskimiştir**. (`istoc.localhost` 1 + 4 kalıntısı kusur değil, sitenin doğru adıdır) |
+| **K-3** | ❌ ölçülmedi | **ÖLÇÜLMEDİ** — üretim erişimi bu oturumda da yoktu | ❌ değişmedi |
+| **K-4** | ⚠ 10 tam + 8 kısmi / 39; 0 rapor düzeltildi | Ölçüm tarafı tekrarlanmadı **[R]**; metin tarafı **[Ö]** hâlâ 0 rapor | ❌ değişmedi |
+| **K-25** | "95 KB'lık dosya 100 MP açtırıyor" | **[Ö]** `bomb_100mp.png` iki yolda da `upload_image_bomb` ile **reddediliyor** (10/10 kötücül fixture RED). Ama **[Ö]** `max_megapixels_hard` 7/9 politikada var ve 5'inde eşik **80 MP** → canlıdaki **0 dosyayı** keser | 🟡 **yarısı kapandı** — kapı VAR, **eşik ÖLÜ** |
+| **G-2** | ❌ 14 girdi untracked | **[Ö]** `docs/reports/` **19 tracked / 34 untracked**; `docs/adr/` **0 / 18 tracked**; toplam **105 untracked** | ❌ **gerilemiş** |
+
+**Faz 0'ın kalan gerçek engeli iki kaleme indi:** **K-1** (40 dosyanın PII
+sınıflandırması — insan kararı) ve **K-3** (üretim erişimi). K-4 §10.1'deki
+"Kısmen (18/39)" kutucuğu kutusuyla kapatılabilir; G-2 tek commit'lik mekanik iştir.
+
+> **Faz 0 bugün hâlâ imzalanamaz** — ama gerekçe dörtten ikiye indi.
+> Kutucuk başına hangi sayının konacağı: `54-d1-faz0-2-kapanis.md` §2.3 ve §9.1.
+> Yeniden üretme komutları: aynı belgenin Ek A'sı.

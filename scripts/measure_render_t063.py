@@ -21,10 +21,11 @@ KOK = Path(__file__).resolve().parents[1]
 if str(KOK) not in sys.path:
 	sys.path.insert(0, str(KOK))
 
-from media_engine.image import render as R  # noqa: E402
-from media_engine.image import report as REP  # noqa: E402
+# 1ec9b5e göçü sonrası gerçek yol (W9 T-032 düzeltmesi, 2026-08-20)
+from tradehub_core.media.pipeline.image import render as R  # noqa: E402
+from tradehub_core.media.pipeline.image import report as REP  # noqa: E402
 
-FIXTURE = KOK / "tests" / "fixtures" / "media" / "images" / "ok_product_1x1_2400.jpg"
+FIXTURE = KOK / "tradehub_core" / "tests" / "fixtures" / "media" / "images" / "ok_product_1x1_2400.jpg"
 SLOT = "product.image"
 BICIMLER = ("avif", "webp", "jpeg")
 

@@ -1,0 +1,83 @@
+{
+ "$comment": "T-041 · Profil bazlı manuel kırpma istisnası — öncelik zincirinin 1. sırası. Kaynak şema: media/pipeline/doctype_specs/media_crop_override.json. SAPMA: `module` kaynakta \"Media Engine\" yazıyor; o modül bu app'te YOK (modules.txt tek satır: Tradehub Core) ve kurulu dört medya DocType'ı da \"Tradehub Core\" kullanıyor — sapma onlarla tutarlı. SAPMA 2 (Şerit A, patch v15_9_31): `profile` kaynakta Link→Media Profile; burada Data. ÖLÇÜLDÜ: Media Profile docname'leri `product.image:w1920` biçiminde, `pipeline/api/crop.py:472` ise `render.load_profiles()`ın verdiği KISA adı (`w1920`) doğruluyor ve yazıyor; ikisini birden karşılayan değer YOKTU, yani `overrides` ile kırpma niyeti hiç kaydedilemiyordu. Link tarafını kısa ada çevirmek imkânsız (docname global tekil olmak zorunda, kısa adlar slotlar arası çakışıyor), api/crop.py'yi docname'e çevirmek ise o modülü slot→docname eşlemesine ve dolayısıyla frappe'ye bağlardı (modül SAF kalmalı). Media Rendition.profile için bugün verilen kararın aynısı uygulandı.",
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-08-18 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "profile",
+  "x",
+  "y",
+  "w",
+  "h",
+  "method"
+ ],
+ "fields": [
+  {
+   "fieldname": "profile",
+   "fieldtype": "Data",
+   "label": "Profil",
+   "reqd": 1,
+   "in_list_view": 1,
+   "length": 64,
+   "description": "Slot politikasındaki profil ADI (`w1920`), Media Profile docname'i (`product.image:w1920`) DEĞİL. `Media Rendition.profile` ile BİREBİR aynı karar ve aynı gerekçe: docname global tekil olmak zorunda (`autoname: field:profile_key`) ama politika adları slotlar arası çakışıyor (`w128` hem brand.logo hem seller.logo politikasında var). Bu satırın hangi slotta olduğu zaten belli — `Media Crop Intent.asset` → `Media Asset.slot_key` — o yüzden kısa ad burada TEK ANLAMLI. Okuyan: core/crop.py::override_for (profil.profile_key ile karşılaştırır). Yazan: pipeline/api/crop.py::_parse_overrides (render.load_profiles'ın verdiği politika adı)."
+  },
+  {
+   "fieldname": "x",
+   "fieldtype": "Float",
+   "label": "X",
+   "precision": "6",
+   "in_list_view": 1,
+   "description": "0-1 normalize koordinat (INV-10). Piksel DEĞİL: kaynak yeniden boyutlandırılsa bile kadraj aynı kalmalı."
+  },
+  {
+   "fieldname": "y",
+   "fieldtype": "Float",
+   "label": "Y",
+   "precision": "6",
+   "in_list_view": 1,
+   "description": "0-1 normalize koordinat (INV-10). Piksel DEĞİL: kaynak yeniden boyutlandırılsa bile kadraj aynı kalmalı."
+  },
+  {
+   "fieldname": "w",
+   "fieldtype": "Float",
+   "label": "Genişlik",
+   "precision": "6",
+   "in_list_view": 1,
+   "description": "0-1 normalize koordinat (INV-10). Piksel DEĞİL: kaynak yeniden boyutlandırılsa bile kadraj aynı kalmalı."
+  },
+  {
+   "fieldname": "h",
+   "fieldtype": "Float",
+   "label": "Yükseklik",
+   "precision": "6",
+   "in_list_view": 1,
+   "description": "0-1 normalize koordinat (INV-10). Piksel DEĞİL: kaynak yeniden boyutlandırılsa bile kadraj aynı kalmalı."
+  },
+  {
+   "fieldname": "method",
+   "fieldtype": "Select",
+   "label": "Yöntem",
+   "options": "manual\nsmartcrop",
+   "default": "manual"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "is_submittable": 0,
+ "issingle": 0,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-08-19 19:20:00.000000",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "Media Crop Override",
+ "owner": "Administrator",
+ "permissions": [],
+ "quick_entry": 0,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0
+}

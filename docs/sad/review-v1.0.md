@@ -317,3 +317,44 @@ yerel      Python 3.9    / Pillow 11.3.0  →  38 + 46 = 84  OK
 konteyner  Python 3.11.6 / Pillow 12.2.0  →  38 + 46 = 84  OK
 regresyon  tests/test_policy_dpi.py (T-024, mevcut)  →  19  OK (1 beklenen hata)
 ```
+
+---
+
+## 8. Kanıt ve kapı durumu — 2026-08-19 gün sonu ölçümü (T-035)
+
+> **Yalnız ölçüm kaydıdır.** Yukarıdaki §1-§7'de tek karakter değiştirilmedi,
+> hiçbir risk kapatılmış ilan edilmedi, imza atılmadı.
+> Komut çıktıları: `docs/reports/55-d2-faz3-5-kapanis.md`.
+
+| # | Risk | Bugün | Kanıt |
+|---|---|:--:|---|
+| **R-01** | İki ayrı karar tipi yan yana | ⚠ **YARI** | Protokol yüzeyi artık `contracts` tipleriyle konuşuyor: `policy.engine.PolicyDecision` **is** `contracts.policy.Decision` (ölçüldü → `True`). Ama üretimde çağrılan `evaluate()` hâlâ `core/errors`'ın `Decision`/`Violation`'ını döndürüyor (`allow, slot, observed, block, message, hint`). **İki tip hâlâ yaşıyor**; R-01'in istediği "tek tipe indirgeme" kararı verilmedi |
+| **R-02** | `review` ↔ `manual_review` | ❓ **ölçülmedi** | Bu oturumda ölçülmedi; ne geçti ne kaldı sayıldı |
+| **R-03** | Slot kimliği hâlâ istemciden gelmiyor | ❌ **AÇIK** | `tradehub_core/media/upload_policy.py:330` imzası: `check(file_name, *, content, size, media_endpoint)` — **`slot_key` yok**. Sunucu tarafı türetme `pipeline_bridge._slot_bindings()` ile yazıldı ama tek kapı imzasına girmedi |
+| **R-04** | 9/9 politika `draft` | ❌ **AÇIK** | `PolicyEngine.validate()` → **0 ihlal, 9 uyarı** (`logo_draft_open_questions` ×2, `upload_draft_open_questions` ×5, `cover_video_…`, `product_image_…`) |
+| **R-06** | İki politika seti yan yana | ❌ **AÇIK** | `policy/slots/` 9 slot ile `docs/standards/policies/` 13 slot; farklı taksonomi + farklı şema |
+| **R-10** | *"Faz 3 sonunda canlıda hiçbir şey değişmedi"* | ✅ **BAYAT** | Canlı `tabDocType`'ta **10** medya DocType'ı; `v15_9_27…v15_9_32` altı yaması `tabPatch Log`'da `skipped=0`; `tabMedia Profile` **36** satır. Cümle artık doğru değil |
+
+**§6 kapanış ölçütü üzerine bir not — kaydedilmesi gereken:** §6'nın son
+paragrafı *"Faz 4'ün ilk işi R-01 ve R-03 olmalı; bu ikisi çözülmeden `api/`,
+`image/`, `storage/`, `delivery/` katmanları yazılamaz"* diyor. **Bu koşul
+fiilen aşıldı:** dört katman da yazıldı ve `api/media_manifest.py` üzerinden
+üretime bağlandı (`allow_guest=True`, iki uç). R-01 bugün yarı, R-03 tam
+açıktır. Bu satır bir suçlama değil, kapanış belgesinin kendi koşuluna
+uyulmadığının kaydıdır ve T-035'in kapanış kararını doğrudan etkiler.
+
+**§2.4 (`interfaces.md`) ile ilgili iki ölçüm:**
+
+1. `interfaces.md` §2.4'ün 13 metotluk `PolicyEngine` tablosu Protokolle
+   **birebir** eşleşiyor ve somut sınıf bugün 13'ünü de uyguluyor — belge doğru,
+   eskiyen taraf koddu ve yetişti.
+2. `interfaces.md` §2.5'in *"`DeliveryManifest`'in mevcut motorda karşılığı
+   YOK"* cümlesi **bayat**: `delivery/manifest.py::ManifestBuilder` sözleşmenin
+   5 metodunu da taşıyor ve üretimde kullanılıyor.
+3. **Yeni:** `ImageEngine` ve `VideoEngine` Protokollerini **yalnız sahte
+   uygulamalar** karşılıyor (`FakeImageEngine`, `FakeVideoEngine`); üretimdeki
+   `image/render.py` ve `video/transcode.py` fonksiyon modülüdür. R-01'in
+   akrabası olan bu boşluk risk kaydında yoktu.
+
+**§7 (`contracts/errors.py` ↔ `core/errors.py`) açık maddesi:** ikisi de duruyor
+(ölçüldü). Birleştirme kararı T-035'e havale edilmişti; **verilmedi**.

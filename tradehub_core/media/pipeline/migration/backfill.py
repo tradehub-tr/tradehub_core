@@ -837,6 +837,86 @@ class FrappeQueueDepth:
 		return int(get_queue(queue).count)
 
 
+#: B alt sınıfı bildiriminin panel başlığı. `_()` ile SARILAMAZ: bu modül
+#: bench/site olmadan import edilebilir kalmalı (KatmanDisiplinTesti) ve `frappe`
+#: modül düzeyinde import edilemez. `B_CLASS_MESSAGES` ile aynı gerekçeyle düz
+#: Türkçe; Platform Notification/e-posta yerelleştirmesi `notify()` katmanının işi.
+NOTICE_TITLE: str = "Medya standardı güncellendi: {0}"
+
+#: Platform Notification `type` alanının izinli değeri (system/listing/…). Medya
+#: standardı bildirimi ürün/sipariş değil, sistemsel bir uyarı.
+NOTICE_TYPE: str = "system"
+
+
+class PlatformNotificationSink:
+	"""`SellerNotice` → Platform Notification (+ opsiyonel e-posta).
+
+	`backfill.run(..., notify=True)` üretilen B sınıfı bildirimlerini bu sink'e
+	verir; sink her birini `utils/notify.py::notify` çağrısına sarar. Böylece
+	backfill bir satıcının medyasını standarda uyarladığında satıcı HABER ALIR
+	(rapor 98: eskiden somut adaptör yoktu, bildirim sessizce düşüyordu).
+
+	`notice.store` Admin Seller Profile'ın adıdır (`media/ownership.py:79` ile
+	AYNI eşleme); sahibi `Admin Seller Profile.user`. Sahibi çözülemeyen bildirim
+	(store boş ya da profilsiz) sessizce düşmez, `skipped` olarak SAYILIR.
+
+	`frappe`/`notify` YALNIZ çağrı anında import edilir (FrappeBatchRunner ile
+	aynı gerekçe: modül düzeyinde frappe bağı yok). Test için `notify_fn` /
+	`resolve_user_fn` enjekte edilebilir — canlı site olmadan doğrulanabilsin.
+	"""
+
+	def __init__(
+		self,
+		*,
+		send_email: bool = False,
+		notification_type: str = NOTICE_TYPE,
+		notify_fn: Optional[Callable[..., Any]] = None,
+		resolve_user_fn: Optional[Callable[[str], Optional[str]]] = None,
+	) -> None:
+		self.send_email = send_email
+		self.type = notification_type
+		self._notify_fn = notify_fn
+		self._resolve_user_fn = resolve_user_fn
+		self.sent: int = 0
+		self.skipped: int = 0
+
+	def _resolve_user(self, store: str) -> Optional[str]:
+		if self._resolve_user_fn is not None:
+			return self._resolve_user_fn(store)
+		if not store:
+			return None
+		import frappe  # noqa: PLC0415 — bilinçli geç import
+
+		return frappe.db.get_value("Admin Seller Profile", store, "user")
+
+	def _deliver(self, **kwargs: Any) -> str:
+		notify_fn = self._notify_fn
+		if notify_fn is None:
+			from tradehub_core.utils.notify import notify as notify_fn  # noqa: PLC0415
+
+		return notify_fn(**kwargs) or ""
+
+	def notify(self, notice: "SellerNotice") -> None:
+		user = self._resolve_user(notice.store)
+		if not user:
+			self.skipped += 1
+			return
+		name = self._deliver(
+			recipient_user=user,
+			recipient_role="seller",
+			type=self.type,
+			title=NOTICE_TITLE.format(notice.file_name or notice.store),
+			message=notice.message,
+			reference_doctype="Admin Seller Profile",
+			reference_name=notice.store,
+			send_email=self.send_email,
+		)
+		if name:
+			self.sent += 1
+		else:
+			self.skipped += 1
+
+
 # ═══════════════════════════════════════════════════════════════════════
 # 10. Kapasite aritmetiği (§4.2, §4.4) — ölçümden TAHMİN üretir
 # ═══════════════════════════════════════════════════════════════════════

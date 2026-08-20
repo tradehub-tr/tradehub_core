@@ -465,6 +465,17 @@ SELLER_MODULES: list[dict] = [
 		"order": 1,
 	},
 	{
+		"key": "seller.store.vitrin.medya_gezgini",
+		"parent": "seller.store.vitrin",
+		"type": "item",
+		"panel": "seller",
+		"section": "store",
+		"label": "Medya Gezgini",
+		"icon": "folder",
+		"route": "/my-media-explorer",
+		"order": 2,
+	},
+	{
 		"key": "seller.store.musteri",
 		"parent": "seller.store",
 		"type": "group",

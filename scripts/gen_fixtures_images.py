@@ -29,8 +29,9 @@ from PIL.TiffImagePlugin import IFDRational
 Image.MAX_IMAGE_PIXELS = None
 
 ROOT = Path(__file__).resolve().parents[1]
-IMG = ROOT / "tests" / "fixtures" / "media" / "images"
-MAL = ROOT / "tests" / "fixtures" / "malicious"
+# 1ec9b5e göçü sonrası gerçek yol (W9 T-032 düzeltmesi, 2026-08-20)
+IMG = ROOT / "tradehub_core" / "tests" / "fixtures" / "media" / "images"
+MAL = ROOT / "tradehub_core" / "tests" / "fixtures" / "malicious"
 
 for d in (IMG, MAL):
     d.mkdir(parents=True, exist_ok=True)

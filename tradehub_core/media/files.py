@@ -20,6 +20,7 @@ Sessizce yapmak yerine açıkça reddedilip yeni dosya yüklemesi öneriliyor �
 from __future__ import annotations
 
 import os
+import re
 import shutil
 
 import frappe
@@ -264,33 +265,180 @@ def replace(file_url: str, store: str, content: bytes, file_name: str = "") -> d
 	return {"file_url": file_url, "bytes": boyut}
 
 
+# ── Orijinal içerik hash'i (W7 — rapor 64 EK-2) ─────────────────────────
+
+#: Slot beyan edilmeden yapılan kütüphane yüklemelerinin `Media Asset.slot_key`
+#: değeri. `slot_key` şemada zorunlu ve boş olamaz; bu değer KASITLI olarak
+#: `pipeline_flags.KNOWN_SLOT_KEYS` DIŞINDA — boru hattı bu varlıkları hiçbir
+#: slot süzgecinde görmez, türev üretimi ve idempotency sorguları etkilenmez.
+LIBRARY_UPLOAD_SLOT: str = "library.upload"
+
+_SHA256_HEX = re.compile(r"^[0-9a-f]{64}$")
+
+
+def record_original_hash(doc, store: str, original_sha256: str, slot: str = "") -> str | None:
+	"""Dönüştürülen yüklemenin ORİJİNAL baytlarının sha256'sını kalıcılaştır.
+
+	Sorun (rapor 64 EK-2): `api/seller_media._kaydet` PNG/JPEG'i `File.insert`ten
+	ÖNCE WebP'ye çeviriyor; istemcinin elindeki dosyanın hash'i hiçbir kayda
+	yazılmıyordu ve tekilleştirme araması (`inventory.find_by_sha256`) bu
+	içerikleri hiçbir katmanda bulamıyordu.
+
+	NEREYE YAZILIYOR — `Media Asset.original_sha256` (custom field, patch
+	`v15_9_34_media_asset_original_sha256`). Gerekçe:
+
+	  * Şartnamenin ham-yükleme künyesi `Media Source`tur ama o DocType bu
+	    app'te BİLİNÇLİ olarak kurulu değil (doctype_specs/_index.json:
+	    "Media Source DocType'ı bu app'te KURULU DEĞİL" — `has_alpha` da aynı
+	    gerekçeyle Media Version'a taşınmıştı). Tek alan için DocType kurmak
+	    o kararı devirmek olurdu.
+	  * `tabFile`'a custom field bilinçli İSTENMEDİ (görev sınırı) — File her
+	    yüklemede açılan genel bir kayıt, medya-özel alanlar zaten şişmiş durumda.
+	  * Kurulu medya DocType'ları içinde (owner_seller, içerik, kaynak File)
+	    üçlüsünü taşıyan TEK kayıt `Media Asset`; kiracı kemeri (`owner_seller`)
+	    ve `source_file` bağı orada hazır, `state="draft"` tam bu "yüklendi ama
+	    işlenmedi" durumu için tanımlı (media_asset.py `_derive_asset_key`
+	    yorumu). `Media Version` işleme ANI kaydıdır ve `asset` zorunludur —
+	    yükleme anında var olamaz.
+
+	Best-effort ÇAĞRILMALI: bu kayıt düşerse yükleme DÜŞMEMELİ (çağıran sarar).
+	Patch koşmamışsa (kolon yok) sessizce atlanır — dedup uyarısı eksik kalır,
+	yükleme kalmaz.
+
+	Dönüş: yazılan/güncellenen `Media Asset` adı, ya da atlandıysa `None`.
+	"""
+	if not frappe.db.has_column("Media Asset", "original_sha256"):
+		return None
+
+	h = (original_sha256 or "").strip().lower()
+	if not _SHA256_HEX.match(h) or not store:
+		return None
+
+	# Saklanan içeriğin kimliği (sha256[:32]) — `Media Asset.content_sha256`
+	# sözleşmesiyle birebir; ad içerik-adresliyse dosya yeniden OKUNMAZ.
+	from tradehub_core.media import pipeline_bridge
+
+	kisa = pipeline_bridge.content_fingerprint(doc)
+	if not kisa:
+		return None
+
+	slot_key = (slot or "").strip().lower() or LIBRARY_UPLOAD_SLOT
+	filtre = {"owner_seller": store, "slot_key": slot_key, "content_sha256": kisa}
+	# Sistem sorgusu: satıcı oturumunun Media Asset okuma izni yok; kiracı
+	# kemeri filtrenin kendisinde (`owner_seller = store`).
+	mevcut = frappe.db.get_value("Media Asset", filtre, "name")
+	if mevcut:
+		frappe.db.set_value("Media Asset", mevcut, "original_sha256", h, update_modified=False)
+		frappe.db.commit()
+		return mevcut
+
+	varlik = frappe.get_doc(
+		{
+			"doctype": "Media Asset",
+			"slot_key": slot_key,
+			"media_type": "image",
+			"state": "draft",
+			"owner_seller": store,
+			"source_file": doc.name,
+			"content_sha256": kisa,
+			"original_sha256": h,
+		}
+	)
+	try:
+		# Sistem kaydı: yükleme akışının yan ürünü; sahiplik yukarıda oturumdan
+		# çözülmüş `store` ile yazılıyor, kullanıcı girdisiyle değil.
+		varlik.insert(ignore_permissions=True)
+	except (frappe.DuplicateEntryError, frappe.UniqueValidationError):
+		# Yarış: `asset_key` unique — kazananın kaydına alan yazılır (INV-06 deseni).
+		mevcut = frappe.db.get_value("Media Asset", filtre, "name")
+		if mevcut:
+			frappe.db.set_value("Media Asset", mevcut, "original_sha256", h, update_modified=False)
+		frappe.db.commit()
+		return mevcut
+	frappe.db.commit()
+	return varlik.name
+
+
 def storage_usage(store: str) -> dict:
-	"""Mağazanın gerçek depolama kullanımı.
+	"""Mağazanın gerçek depolama kullanımı — orijinaller + türevler.
 
 	Sayım tekilleştirilmiş: aynı dosyaya birden çok kayıt düşebiliyor, satır
 	toplamak kullanımı olduğundan büyük gösterirdi (yönetim panelinde ölçüldü:
 	1,06 GB yerine 1,49 GB).
+
+	`bytes` iki kalemin TOPLAMIDIR (ADR-0022, rapor 105-D2):
+	  - **orijinaller** (`original_bytes`): satıcının yüklediği `File` kayıtları
+	    (`is_private=0`, `/files/`), `file_url` bazında tekilleştirilmiş.
+	  - **türevler** (`rendition_bytes`): sistemin ürettiği küçültülmüş kopyalar
+	    (`Media Rendition`). Türev AYRI bir `File` kaydı AÇMAZ (içerik-adresli,
+	    `dedup.rendition_path`) — bu yüzden orijinaller sorgusunda hiç görünmez
+	    ve ölçülene kadar kotaya girmiyordu. Gerçek disk kullanımı ikisinin
+	    toplamıdır; ADR-0022 ile türevler de satıcının kotasına sayılır.
+
+	İki kalem ayrı alanlarda da dönülür ki ekran/rapor dökümü gösterebilsin;
+	`bytes` geriye dönük olarak toplamı taşımayı sürdürür (enforcement ve FE
+	göstergesi aynı alanı okuyor).
 	"""
 	kullanicilar = ownership.users_of(store)
-	if not kullanicilar:
-		return {"bytes": 0, "files": 0, "quota_bytes": None}
+	orijinal_bytes = 0
+	dosya_sayisi = 0
+	if kullanicilar:
+		yer_tutucu = ", ".join(["%s"] * len(kullanicilar))
+		row = frappe.db.sql(
+			f"""select coalesce(sum(boyut), 0), count(*) from (
+				select max(file_size) boyut from tabFile
+				where is_folder=0 and is_private=0 and left(file_url,7)='/files/'
+				  and owner in ({yer_tutucu})
+				group by file_url
+			) x""",  # noqa: S608 — yer tutucular parametreli
+			list(kullanicilar),
+		)[0]
+		orijinal_bytes = int(row[0] or 0)
+		dosya_sayisi = int(row[1] or 0)
 
-	yer_tutucu = ", ".join(["%s"] * len(kullanicilar))
-	row = frappe.db.sql(
-		f"""select coalesce(sum(boyut), 0), count(*) from (
-			select max(file_size) boyut from tabFile
-			where is_folder=0 and is_private=0 and left(file_url,7)='/files/'
-			  and owner in ({yer_tutucu})
-			group by file_url
-		) x""",  # noqa: S608 — yer tutucular parametreli
-		list(kullanicilar),
-	)[0]
+	# Türev baytları store'a (Media Asset.owner_seller) bağlı; File.owner'a
+	# DEĞİL. Bu yüzden `users_of` boş olsa bile (mağazanın hiç kullanıcısı
+	# çözülemese) türevleri ayrıca say — orijinaller sıfır, türevler var olabilir.
+	turev_bytes = rendition_usage(store)
 
 	return {
-		"bytes": int(row[0] or 0),
-		"files": int(row[1] or 0),
+		"bytes": orijinal_bytes + turev_bytes,
+		"original_bytes": orijinal_bytes,
+		"rendition_bytes": turev_bytes,
+		"files": dosya_sayisi,
 		"quota_bytes": _quota(),
 	}
+
+
+def rendition_usage(store: str) -> int:
+	"""Satıcının türev (`Media Rendition`) baytları — TEK toplu sorgu.
+
+	Türevler orijinaller gibi `File` kaydı açmaz; asset zinciriyle mağazaya
+	bağlanır: `Media Rendition.asset` → `Media Asset.owner_seller = store`.
+	`SUM(bytes)` tek `frappe.qb` agregatıyla toplanır — satır başına sorgu (N+1)
+	YOK.
+
+	Kiracı kemeri: YALNIZ bu mağazanın varlıklarının türevleri
+	(`owner_seller == store`). Filtre gevşetilirse başka satıcının türevleri bu
+	satıcının kotasını şişirir — `test_media_quota` tenant senaryosu tam olarak
+	bunu kırmızıya düşürüp doğruluyor.
+	"""
+	if not store:
+		return 0
+
+	from frappe.query_builder import DocType
+	from frappe.query_builder.functions import Coalesce, Sum
+
+	Rendition = DocType("Media Rendition")
+	Asset = DocType("Media Asset")
+	q = (
+		frappe.qb.from_(Rendition)
+		.inner_join(Asset)
+		.on(Rendition.asset == Asset.name)
+		.where(Asset.owner_seller == store)
+		.select(Coalesce(Sum(Rendition.bytes), 0))
+	)
+	return int(q.run()[0][0] or 0)
 
 
 def _quota() -> int | None:

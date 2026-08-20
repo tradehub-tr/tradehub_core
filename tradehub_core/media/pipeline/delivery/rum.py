@@ -145,8 +145,53 @@ SOURCES: Dict[str, str] = {
 }
 
 
+#: Ret sebeplerinin KARARLI kodları. Mesaj metni insan içindir ve
+#: değişebilir; metrik etiketi ise bir API'dir — panel ve alarm kuralı ona
+#: bağlanır. İkisini ayırmadan `reason=<mesaj>` yazmak, mesajı düzelten ilk
+#: commit'te alarmı sessizce boşaltırdı.
+SEBEP_PII_ALAN: str = "pii_field"
+SEBEP_GOVDE: str = "malformed_body"
+SEBEP_METRIK: str = "unknown_metric"
+SEBEP_DEGER: str = "invalid_value"
+SEBEP_CIHAZ: str = "invalid_device_class"
+SEBEP_BAGLANTI: str = "invalid_connection"
+SEBEP_DPR: str = "invalid_dpr"
+SEBEP_ORAN: str = "invalid_sample_rate"
+SEBEP_VIEWPORT: str = "invalid_viewport"
+SEBEP_TOKEN: str = "invalid_session_token"
+SEBEP_BOLGE: str = "invalid_lcp_region"
+SEBEP_PROFIL: str = "invalid_lcp_profile"
+SEBEP_TOPLAMA: str = "aggregation_error"
+
+REJECT_REASONS: Tuple[str, ...] = (
+	SEBEP_PII_ALAN,
+	SEBEP_GOVDE,
+	SEBEP_METRIK,
+	SEBEP_DEGER,
+	SEBEP_CIHAZ,
+	SEBEP_BAGLANTI,
+	SEBEP_DPR,
+	SEBEP_ORAN,
+	SEBEP_VIEWPORT,
+	SEBEP_TOKEN,
+	SEBEP_BOLGE,
+	SEBEP_PROFIL,
+	SEBEP_TOPLAMA,
+)
+
+
 class RumError(ValueError):
-	"""Ölçüm kaydı şemaya uymuyor ya da PII taşıyor."""
+	"""Ölçüm kaydı şemaya uymuyor ya da PII taşıyor.
+
+	`kod` metrik etiketi olarak kullanılan KARARLI sebeptir; `str(hata)`
+	insan için yazılmış açıklamadır. Varsayılan `SEBEP_GOVDE` — kodsuz
+	fırlatılan eski çağrılar da metrikte bir kovaya düşsün, sessizce
+	kaybolmasın.
+	"""
+
+	def __init__(self, mesaj: str, kod: str = SEBEP_GOVDE) -> None:
+		super().__init__(mesaj)
+		self.kod: str = kod
 
 
 # ── Yardımcılar ────────────────────────────────────────────────────────
@@ -156,7 +201,7 @@ def rating(metric: str, value: float) -> str:
 	"""Metriği web.dev eşiklerine göre sınıfla."""
 	ad = (metric or "").upper()
 	if ad not in RATING_THRESHOLDS:
-		raise RumError(f"Bilinmeyen metrik: {metric!r} (beklenen: {list(METRICS)})")
+		raise RumError(f"Bilinmeyen metrik: {metric!r} (beklenen: {list(METRICS)})", SEBEP_METRIK)
 	iyi, orta = RATING_THRESHOLDS[ad]
 	if value <= iyi:
 		return RATING_GOOD
@@ -196,9 +241,9 @@ def viewport_bucket(width: int) -> int:
 	try:
 		w = int(width)
 	except (TypeError, ValueError):
-		raise RumError(f"viewport_width sayı olmalı: {width!r}")
+		raise RumError(f"viewport_width sayı olmalı: {width!r}", SEBEP_VIEWPORT)
 	if w <= 0:
-		raise RumError(f"viewport_width pozitif olmalı: {w}")
+		raise RumError(f"viewport_width pozitif olmalı: {w}", SEBEP_VIEWPORT)
 	uygun = [b for b in VIEWPORT_BUCKETS if b <= w]
 	return max(uygun) if uygun else 0
 
@@ -212,7 +257,7 @@ def token_hash(token: str, *, salt: str = "") -> str:
 	gruplamak, kullanıcıyı yeniden tanımak değil.
 	"""
 	if not _TOKEN.match(token or ""):
-		raise RumError("Oturum tokeni 16-64 hex olmalı (istemci her oturumda üretir)")
+		raise RumError("Oturum tokeni 16-64 hex olmalı (istemci her oturumda üretir)", SEBEP_TOKEN)
 	return hashlib.sha256(f"{salt}:{token}".encode()).hexdigest()[:12]
 
 
@@ -224,13 +269,13 @@ def decide(token: str, rate: float) -> bool:
 	"""
 	oran = float(rate)
 	if not 0.0 <= oran <= 1.0:
-		raise RumError(f"sample_rate 0..1 aralığında olmalı: {rate!r}")
+		raise RumError(f"sample_rate 0..1 aralığında olmalı: {rate!r}", SEBEP_ORAN)
 	if oran == 0.0:
 		return False
 	if oran == 1.0:
 		return True
 	if not _TOKEN.match(token or ""):
-		raise RumError("Oturum tokeni 16-64 hex olmalı")
+		raise RumError("Oturum tokeni 16-64 hex olmalı", SEBEP_TOKEN)
 	# İlk 8 hex → [0,1) — kriptografik değil, dağılım için yeterli.
 	birim = int(hashlib.sha256(token.encode()).hexdigest()[:8], 16) / 0xFFFFFFFF
 	return birim < oran
@@ -295,53 +340,53 @@ def validate(payload: Mapping[str, Any], *, salt: str = "") -> RumSample:
 	        görmeli, yoksa bozuk veri sessizce p75'e karışır.
 	"""
 	if not isinstance(payload, Mapping):
-		raise RumError("Gövde sözlük olmalı")
+		raise RumError("Gövde sözlük olmalı", SEBEP_GOVDE)
 
 	yasak = sorted(set(payload) & set(FORBIDDEN_FIELDS))
 	if yasak:
-		raise RumError(f"PII taşıyan alan(lar) reddedildi: {yasak}")
+		raise RumError(f"PII taşıyan alan(lar) reddedildi: {yasak}", SEBEP_PII_ALAN)
 
 	metrik = str(payload.get("metric", "")).upper()
 	if metrik not in METRICS:
-		raise RumError(f"Bilinmeyen metrik: {payload.get('metric')!r}")
+		raise RumError(f"Bilinmeyen metrik: {payload.get('metric')!r}", SEBEP_METRIK)
 
 	try:
 		deger = float(payload["value"])
 	except (KeyError, TypeError, ValueError):
-		raise RumError("`value` sayı olmalı")
+		raise RumError("`value` sayı olmalı", SEBEP_DEGER)
 	if math.isnan(deger) or math.isinf(deger) or deger < 0:
-		raise RumError(f"`value` geçersiz: {deger!r}")
+		raise RumError(f"`value` geçersiz: {deger!r}", SEBEP_DEGER)
 
 	rota = str(payload.get("route") or payload.get("path") or "")
 	rota = rota if rota in ROUTE_TEMPLATES else route_template(rota)
 
 	cihaz = str(payload.get("device_class", "")).lower()
 	if cihaz not in DEVICE_CLASSES:
-		raise RumError(f"device_class {DEVICE_CLASSES} içinde olmalı: {cihaz!r}")
+		raise RumError(f"device_class {DEVICE_CLASSES} içinde olmalı: {cihaz!r}", SEBEP_CIHAZ)
 
 	baglanti = str(payload.get("connection", "unknown")).lower()
 	if baglanti not in CONNECTION_TYPES:
-		raise RumError(f"connection {CONNECTION_TYPES} içinde olmalı: {baglanti!r}")
+		raise RumError(f"connection {CONNECTION_TYPES} içinde olmalı: {baglanti!r}", SEBEP_BAGLANTI)
 
 	try:
 		dpr = round(float(payload.get("dpr", 1.0)), 2)
 	except (TypeError, ValueError):
-		raise RumError("`dpr` sayı olmalı")
+		raise RumError("`dpr` sayı olmalı", SEBEP_DPR)
 	if not 0.5 <= dpr <= 6.0:
-		raise RumError(f"`dpr` makul aralıkta değil: {dpr}")
+		raise RumError(f"`dpr` makul aralıkta değil: {dpr}", SEBEP_DPR)
 
 	oran = float(payload.get("sample_rate", 1.0))
 	if not 0.0 < oran <= 1.0:
-		raise RumError(f"sample_rate (0,1] aralığında olmalı: {oran!r}")
+		raise RumError(f"sample_rate (0,1] aralığında olmalı: {oran!r}", SEBEP_ORAN)
 
 	kova = viewport_bucket(payload.get("viewport_width", 0))
 
 	bolge = str(payload.get("lcp_region", ""))
 	if bolge and not _REGION.match(bolge):
-		raise RumError(f"lcp_region `sayfa/bölge` biçiminde olmalı: {bolge!r}")
+		raise RumError(f"lcp_region `sayfa/bölge` biçiminde olmalı: {bolge!r}", SEBEP_BOLGE)
 	profil = str(payload.get("lcp_profile", ""))
 	if profil and not _PROFILE.match(profil):
-		raise RumError(f"lcp_profile tanınmadı: {profil!r}")
+		raise RumError(f"lcp_profile tanınmadı: {profil!r}", SEBEP_PROFIL)
 
 	token = str(payload.get("session_token", ""))
 	kovacik = token_hash(token, salt=salt) if token else ""
@@ -379,7 +424,7 @@ def percentile(values: Sequence[float], q: float) -> float:
 		return 0.0
 	sirali = sorted(values)
 	if not 0.0 < q < 1.0:
-		raise RumError(f"q (0,1) aralığında olmalı: {q!r}")
+		raise RumError(f"q (0,1) aralığında olmalı: {q!r}", SEBEP_TOPLAMA)
 	idx = min(len(sirali) - 1, max(0, math.ceil(q * len(sirali)) - 1))
 	return sirali[idx]
 
@@ -421,7 +466,7 @@ def aggregate(
 	"""
 	gecerli = [a for a in group_by if a not in ("value", "rating")]
 	if len(gecerli) != len(group_by):
-		raise RumError("`group_by` ölçüm değerini içeremez")
+		raise RumError("`group_by` ölçüm değerini içeremez", SEBEP_TOPLAMA)
 
 	kovalar: Dict[Tuple[str, ...], List[RumSample]] = {}
 	for s in samples:
@@ -511,8 +556,173 @@ def schema_forbids_pii() -> Tuple[str, ...]:
 	return tuple(sorted(alan for alan in FORBIDDEN_FIELDS if alan not in izinli))
 
 
+# ── Saklama tasarımı — `Media RUM Sample` (KURULMADI) ──────────────────
+#
+# `docs/reports/36-dogrulama-faz12-14.md` ölçtü: `Media RUM Sample` DocType
+# YOK, dolayısıyla saha verisi bugün hiçbir yere yazılamıyor. DocType kurulumu
+# bu görevin kapsamı DIŞINDA (patch + migrate gerektirir). Buraya konan şey
+# kurulum değil, kurulacak şemanın SÖZLEŞMESİ — ve `RumSample.to_dict()` ile
+# aynı alan kümesini taşıdığı testle doğrulanır.
+#
+# Neden burada duruyor: DocType JSON'u ayrı bir dosyada tek başına yazılırsa,
+# `validate()`'in ürettiği alan kümesiyle sessizce ayrışır ve ayrışmayı hiçbir
+# test görmez. Şemayı doğrulayan kodun yanında tutmak o ayrışmayı imkânsız
+# kılar.
+
+#: (alan adı, Frappe fieldtype, seçenek/uzunluk notu, indeks mi)
+DOCTYPE_FIELDS: Tuple[Tuple[str, str, str, bool], ...] = (
+	("metric", "Select", "\n".join(METRICS), True),
+	("value", "Float", "", False),
+	("rating", "Select", "\n".join((RATING_GOOD, RATING_NEEDS_IMPROVEMENT, RATING_POOR)), False),
+	("route", "Select", "\n".join(ROUTE_TEMPLATES), True),
+	("device_class", "Select", "\n".join(DEVICE_CLASSES), True),
+	("viewport_bucket", "Int", "", False),
+	("dpr", "Float", "", False),
+	("connection", "Select", "\n".join(CONNECTION_TYPES), False),
+	("navigation_type", "Data", "maxlength 16", False),
+	("sample_rate", "Float", "", False),
+	("session_bucket", "Data", "maxlength 12 — token ÖZETİ, ham token değil", False),
+	("lcp_region", "Data", "maxlength 64", False),
+	("lcp_profile", "Data", "maxlength 16", False),
+	("lcp_format", "Data", "maxlength 8", False),
+	("engine_version", "Data", "maxlength 32", False),
+)
+
+#: DocType'ın taşıması gereken tasarım kararları. Sayılar gerekçelidir:
+#: `Link`/`Dynamic Link` YOK — kayıt hiçbir kullanıcıya ya da belgeye
+#: bağlanamamalı; bağlanabilseydi "PII yok" iddiası şemayla değil, disiplinle
+#: korunuyor olurdu.
+DOCTYPE_DESIGN: Dict[str, Any] = {
+	"name": "Media RUM Sample",
+	"module": "Tradehub Core",
+	"naming": "hash",
+	"is_submittable": 0,
+	"track_changes": 0,
+	"editable_grid": 0,
+	# Kullanıcıya ait hiçbir alan yok; kayıt kimseye ait değildir. `owner`
+	# alanı Frappe tarafından zorunlu olarak yazılır ve GUEST olur — uç
+	# `ignore_permissions` ile yazacağı için `owner` bilgi taşımaz.
+	"permissions": [{"role": "System Manager", "read": 1, "delete": 1}],
+	"indexes": [f[0] for f in DOCTYPE_FIELDS if f[3]] + ["creation"],
+	# Saklama: ham örneklem 30 gün, sonrası yalnız `Aggregate` özeti. Gerekçe
+	# KVKK m.4/2-d (ölçülü ve sınırlı süre): p75 raporlaması için 30 günlük
+	# pencere yeterli, ham satırı süresiz tutmanın hiçbir analitik karşılığı
+	# yok ve her satır bir cihaz parmak izi parçası taşır.
+	"retention_days": 30,
+	"forbidden_fields": list(FORBIDDEN_FIELDS),
+}
+
+
+def doctype_field_names() -> Tuple[str, ...]:
+	return tuple(f[0] for f in DOCTYPE_FIELDS)
+
+
+def doctype_matches_sample() -> Tuple[str, ...]:
+	"""DocType alanları ile `RumSample.to_dict()` arasındaki FARK.
+
+	Boş dönmesi "şema ile saklama aynı şeyi söylüyor" demektir. Boş
+	dönmemesi, DocType kurulmadan önce düzeltilmesi gereken bir ayrışmadır.
+	"""
+	ornek = RumSample(
+		metric="LCP", value=0.0, route="/", device_class="phone", viewport_bucket=0,
+		dpr=1.0, connection="unknown", sample_rate=1.0, rating=RATING_GOOD,
+	).to_dict()
+	return tuple(sorted(set(ornek) ^ set(doctype_field_names())))
+
+
+# ── Metrik köprüsü — p75'i Prometheus'a taşı ───────────────────────────
+
+
+def _metrikler(registry: Any = None) -> Dict[str, Any]:
+	"""Kullanılacak metrik nesneleri. İçe aktarma GEÇ yapılır.
+
+	`observability.metrics` bağımlılıksızdır, yani modül başında da içe
+	aktarılabilirdi. Yapılmıyor: `delivery/rum.py` bugün gözlemlenebilirlik
+	katmanını TANIMIYOR ve bu köprü onun tek bağı. Geç içe aktarma, bağın
+	yalnız köprü çağrıldığında kurulmasını ve modülün geri kalanının
+	bağımsız kalmasını sağlar.
+	"""
+	from ..observability import metrics as mm
+
+	if registry is None:
+		return {
+			"p75_ms": mm.RUM_P75_MS,
+			"cls": mm.RUM_CLS_P75,
+			"samples": mm.RUM_SAMPLES_TOTAL,
+			"population": mm.RUM_ESTIMATED_POPULATION,
+			"rejected": mm.RUM_REJECTED_TOTAL,
+		}
+	return {
+		"p75_ms": registry.get("media_rum_p75_milliseconds"),
+		"cls": registry.get("media_rum_cls_p75"),
+		"samples": registry.get("media_rum_samples_total"),
+		"population": registry.get("media_rum_estimated_population"),
+		"rejected": registry.get("media_rum_rejected_total"),
+	}
+
+
+#: Köprünün beklediği kova anahtarı. Etiketler metrik tanımında SABİT olduğu
+#: için `group_by` bundan farklıysa etiket kümesi tutmaz ve `MetricError`
+#: fırlardı; hatayı burada, anlaşılır bir mesajla vermek daha iyidir.
+METRIC_GROUP_BY: Tuple[str, ...] = ("route", "device_class")
+
+
+def to_metrics(aggregates: Sequence[Aggregate], *, registry: Any = None) -> int:
+	"""Toplanmış p75'leri metrik kayıt defterine yaz; yazılan seri sayısını döndür.
+
+	`aggregate(samples, group_by=("route", "device_class"))` çıktısı beklenir.
+	Milisaniyelik metrikler ile CLS AYRI metriklere yazılır — birimleri farklı
+	olan iki değeri tek metrik adı altında toplamak, `sum()`u anlamsız ve
+	paneli tek eksende çizilemez yapardı.
+
+	**Sayaç DAVRANIŞI:** `samples` bir sayaçtır ve her çağrıda toplanan kova
+	adedi kadar ARTAR. Yani bu fonksiyon aynı toplamayla iki kez çağrılırsa
+	örnek sayısı iki katına çıkar. Çağıran, her toplama penceresini BİR kez
+	geçirmelidir; gösterge (`p75`, `population`) için bu sorun değildir
+	(üzerine yazılır), sayaç için kritiktir.
+	"""
+	m = _metrikler(registry)
+	yazilan = 0
+	for a in aggregates:
+		if len(a.key) != len(METRIC_GROUP_BY):
+			raise RumError(
+				f"to_metrics {METRIC_GROUP_BY} kovalamasi bekler, gelen: {a.key!r}", SEBEP_TOPLAMA
+			)
+		rota, cihaz = a.key[0], a.key[1]
+		if a.metric in UNITLESS:
+			m["cls"].set(a.p75, route=rota, device_class=cihaz)
+		else:
+			m["p75_ms"].set(a.p75, metric=a.metric, route=rota, device_class=cihaz)
+		m["population"].set(
+			a.estimated_population, metric=a.metric, route=rota, device_class=cihaz
+		)
+		m["samples"].inc(
+			a.count, metric=a.metric, route=rota, device_class=cihaz, rating=a.rating
+		)
+		yazilan += 1
+	return yazilan
+
+
+def record_rejection(hata: BaseException, *, registry: Any = None) -> str:
+	"""Reddedilen gövdeyi sayaca yaz ve kullanılan sebep kodunu döndür.
+
+	`RumError` olmayan bir istisna da sayılır (`malformed_body`): uç noktada
+	beklenmeyen bir hata olduğunda kaydın sessizce düşmesi, "veri hiç gelmedi"
+	ile "veri geldi ama işleyemedik" ayrımını yok ederdi.
+	"""
+	kod = getattr(hata, "kod", None)
+	if kod not in REJECT_REASONS:
+		kod = SEBEP_GOVDE
+	_metrikler(registry)["rejected"].inc(reason=kod)
+	return kod
+
+
 __all__ = [
+	"DOCTYPE_DESIGN",
+	"DOCTYPE_FIELDS",
 	"METRICS",
+	"METRIC_GROUP_BY",
+	"REJECT_REASONS",
 	"UNITLESS",
 	"RATING_THRESHOLDS",
 	"RATING_GOOD",
@@ -540,4 +750,8 @@ __all__ = [
 	"aggregate",
 	"compare_to_lab",
 	"schema_forbids_pii",
+	"doctype_field_names",
+	"doctype_matches_sample",
+	"to_metrics",
+	"record_rejection",
 ]

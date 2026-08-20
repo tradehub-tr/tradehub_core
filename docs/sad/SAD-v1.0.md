@@ -63,7 +63,11 @@ Mimarinin görevi: (1) ve (2)'yi kapatmak, (3)'ü korumak.
 
 ## 2. Mimari kararlar ve kaynak dokümandan sapmalar
 
-### 2.1 S-01 — `media_engine` ayrı bir Frappe app'i DEĞİL, kütüphanedir
+### 2.1 S-01 — medya motoru (kaynak dokümanın adıyla `media_engine`) ayrı bir Frappe app'i DEĞİL, kütüphanedir
+
+> Adlandırma düzeltmesi: repoda `media_engine` diye bir dizin hiç olmadı; kütüphanenin
+> gerçek yolu `tradehub_core/media/pipeline/`dır. Bu belgedeki `media_engine` kalıntıları
+> bu revizyonda gerçek yola çevrildi — SAD-G1'in belge yarısı (2026-08-20 ölçümü: rapor 88).
 
 **Kaynak doküman ne diyor:** Faz 3 görev listesi (T-032) "Frappe app iskeleti
 ve modül yapısı" diyor ve tasarım boyunca `media_engine`'i **ayrı bir Frappe
@@ -87,7 +91,7 @@ tradehub_core/                  ← Frappe app (repo kökü)
 │   ├── contracts/              ← Faz 3 / T-031: 5 Protocol + hata hiyerarşisi
 │   └── fakes/                  ← Faz 3 / T-031: bellek-içi sahte uygulamalar
 ├── docs/                       ← SRS, SAD, standartlar, raporlar
-└── tests/                      ← sözleşme + politika testleri
+└── tradehub_core/tests/        ← sözleşme + politika testleri (repo kökünde ayrı `tests/` YOK — 2026-08-20 ölçümü: rapor 88)
 ```
 
 **Gerekçe — dört madde, üçü ölçülebilir:**
@@ -99,7 +103,7 @@ tradehub_core/                  ← Frappe app (repo kökü)
 | G3 | **Kütüphane olmak test edilebilirliği ARTIRIR.** Bugünkü en değerli mimari kısıt `media/engine.py` ve `media/gates.py` içinde `import frappe` **olmamasıdır** — site kurmadan test edilebiliyorlar. `tradehub_core/media/pipeline/` bu kısıtı tüm pakete genişletir. Kanıt: `tests/test_contracts.py` 69 testi frappe/Pillow/ffmpeg **olmadan** koşuyor. | Bu çalışmada koşuldu (§0.2) |
 | G4 | **Geri dönüş açık.** Kütüphane → app dönüşümü tek yönlü değildir: `tradehub_core/media/pipeline/` bir gün ayrı app olması gerekirse `hooks.py` + `modules.txt` eklenerek app'e terfi eder. Tersi (app'i modüle indirmek) migration gerektirir. | — |
 
-**Sapmanın bedeli (dürüstlük payı):** `media_engine` ayrı app olmadığı için
+**Sapmanın bedeli (dürüstlük payı):** `tradehub_core/media/pipeline/` ayrı app olmadığı için
 başka bir Frappe kurulumuna tek başına kurulamaz; yeniden kullanılabilirlik
 `pip install`'a değil dosya kopyalamaya kalır. Bu bedel bilinçli kabul edildi:
 İstoç dışında bir tüketici **yok** ve olsaydı bile `policy/` + `contracts/`
@@ -110,16 +114,16 @@ kısmı zaten saf veri + saf tip, kopyalanabilir.
 | # | Kaynak doküman | İstoç kararı | Gerekçe |
 |---|---|---|---|
 | **S-02** | pyvips ile yüksek performanslı işleme | **Pillow'da kalınır** | T-007 ölçümü: pyvips kutudan çıktığı hâliyle **0,94× (YAVAŞ)**; yalnız >15 MP'de (korpusun %3,7'si) kazanıyor, CMYK'de **0,37×–0,56×** ile rengi bozarak kaybediyor. `docs/reports/05-kutuphane-benchmark.md` §4.1, §4.3 |
-| **S-03** | Yeni bir medya DocType ailesi | **Yeni DocType açılmaz** | Denetim `Authorization Decision Log`'a yazılır (hash zinciri + 90 gün sıcak saklama zaten var). `tradehub_core/media/audit.py` giriş docstring'i; CLAUDE.md §4 "DocType bloat" kuralı |
+| **S-03** | Yeni bir medya DocType ailesi | ~~**Yeni DocType açılmaz**~~ **KARAR ÇÜRÜDÜ** — bugün repoda **13 medya DocType'ı** var (`media_asset`, `media_version`, `media_rendition`, `media_processing_job`, `media_rum_sample`, `media_crop_intent`, `media_crop_override`, `media_folder`, `media_folder_item`, `media_profile`, `media_usage`, `media_engine_settings`, `media_storage_settings` — `tradehub_core/tradehub_core/doctype/` sayımı, 2026-08-20 ölçümü: rapor 88). Kararın denetim yarısı geçerli kaldı: denetim hâlâ ADL'ye yazılır, terk gerekçesi hiçbir belgede bulunamadı (rapor 30 §3) |
 | **S-04** | Türevler için ayrı `File` kayıtları | **`File` kaydı AÇILMAZ** | Kotayı 6–12 kat şişirir. Mevcut emsal: arşivlenen orijinaller de `File` kaydı açmıyor (`media/presets.py:ARCHIVE_DIRNAME`). Karar `company-cover-video.json` `rendition_policy` içinde de kayıtlı |
-| **S-05** | Nesne deposu (S3 vb.) | **Yerel disk korunur** | `StorageAdapter` sözleşmesi POSIX yolu vaat etmiyor; geçiş sözleşme değiştirmeden yapılabilir. Bugün taşıyacak bir gerekçe ölçülmedi |
+| **S-05** | Nesne deposu (S3 vb.) | **Yerel disk üretimde korunur; S3/MinIO adaptörü YAZILDI, varsayılan kapalı** | ADR-0015: `storage/s3.py` + mirror/tiered yazıldı, üretimde kapalı; gerçek MinIO'ya karşı 91 kabul testi koştu (rapor 23). MinIO kabulü bugün W7-4'te yeniden koşuyor — sonuç için W7-4 raporuna bakın (2026-08-20 ölçümü: rapor 88) |
 | **S-06** | Senkron içerik moderasyonu | **Asenkron** | FR-055; NFR-005 senkron yolda gecikme eklenmemesini istiyor |
 
 ### 2.3 Karar → mimari izlenebilirliği
 
 | Karar | Mimaride nerede görünür |
 |---|---|
-| S-01 kütüphane | §2.1 dizin ağacı · §3.2 C4-2 (media_engine ayrı konteyner DEĞİL, `backend` içinde kutu) |
+| S-01 kütüphane | §2.1 dizin ağacı · §3.2 C4-2 (`tradehub_core/media/pipeline` ayrı konteyner DEĞİL, `backend` içinde kutu) |
 | S-02 Pillow | §4 `ImageEngine` satırı "ölçek sınırı" kolonu · §9.2 |
 | S-03 denetim ADL'de | §3.3 · §4 `AuditSink` satırı |
 | S-04 türevde `File` yok | §9.3 depolama hesabı · §10.2 disk düzeni |
@@ -164,7 +168,7 @@ graph TB
 
 ### 3.2 Seviye 2 — Konteynerler
 
-`media_engine` **ayrı bir konteyner değildir** (S-01): `backend` sürecinin
+`tradehub_core/media/pipeline` **ayrı bir konteyner değildir** (S-01): `backend` sürecinin
 içinde çalışan bir kütüphanedir. Diyagram bunu bilerek gösterir.
 
 ```mermaid
@@ -206,7 +210,7 @@ graph TB
     GW -->|"statik"| DISKV
 ```
 
-### 3.3 Seviye 3 — `media_engine` bileşenleri
+### 3.3 Seviye 3 — `tradehub_core/media/pipeline` bileşenleri
 
 ```mermaid
 graph LR
@@ -263,7 +267,7 @@ Her satır: **sorumluluk · bağımlılık · hata davranışı · ölçek sın�
 
 | Bileşen | Sorumluluk | Bağımlılık | Hata davranışı | Ölçek sınırı |
 |---|---|---|---|---|
-| **PolicyEngine** | Slot politikasını okur, L1/L2 kapı kararını verir, master + türev spec'lerini üretir, politikayı kendi kendine doğrular (D1–D5) | `policy/slots/*.json` · **frappe YOK, DB YOK, ağ YOK** | Bilinmeyen slot → `PolicyNotFound`; bozuk politika → `PolicyError` ve **hiçbir politika değişmez** (ya hep ya hiç) | 9 politika bellekte; `reload()` O(dosya sayısı). Politika sayısı 100'ü aşarsa önbellek stratejisi gözden geçirilir — bugün 9 |
+| **PolicyEngine** | Slot politikasını okur, L1/L2 kapı kararını verir, master + türev spec'lerini üretir, politikayı kendi kendine doğrular (D1–D5). **Somut sınıf protokolün 13/13 metodunu karşılıyor** (`isinstance` True, rapor 43); **TypeScript ikizi** panelde aynı `evaluate` yüzeyini koşuyor — **393/393 parite vektörü birebir** (mesaj metinleri dahil; 2026-08-20 ölçümü: rapor 77) | `policy/slots/*.json` · **frappe YOK, DB YOK, ağ YOK** | Bilinmeyen slot → `PolicyNotFound`; bozuk politika → `PolicyError` ve **hiçbir politika değişmez** (ya hep ya hiç) | 9 politika bellekte; `reload()` O(dosya sayısı). Politika sayısı 100'ü aşarsa önbellek stratejisi gözden geçirilir — bugün 9 |
 | **ImageEngine** | Künye okuma, master üretimi, türev merdiveni, SSIM | Pillow (S-02) | `DecodeError` / `UnsupportedFormat` / `OversizedImage` / `EncodeError`. **Yarım çıktı asla dönmez** | **Bellek**: Pillow tepe RSS ölçüldü — 10 dosyalık ağır korpusta 588 MB (`pillow`), `draft()` ile 367 MB. Tek görsel tavanı `accept.max_megapixels_hard` ile sınırlanır (FR-143) |
 | **VideoEngine** | ffprobe künyesi, rendition, poster, önizleme klibi | ffmpeg/ffprobe (konteynerde VAR) | ffprobe yok → `measured=False` (**hata değil**, NFR-043); ffmpeg düşerse `TranscodeFailed(attempts)` | ffmpeg 1700 sn < kuyruk 1800 sn. Eşzamanlılık `queue-long` worker sayısıyla sınırlı |
 | **StorageAdapter** | İçerik-adresli yazma/okuma/taşıma, imzalı URL | Yerel disk (S-05) | `ObjectNotFound` / `StorageConflict`; `delete` idempotent | 256 shard. Bkz. §9.4 — hesaplanan dizin başına ~134 nesne |
@@ -345,6 +349,18 @@ sonra**; rollback `File` kaydını geri alır ama `os.write`'ı geri almaz →
 **yetim dosya**. Ölçülen: **1.166 yetim disk dosyası**. Yeni akış bu kapıyı
 öne çeker.
 
+> **Üretimdeki gerçek akış — M-09'un belge yarısı (2026-08-20 ölçümü: rapor 88).**
+> Yukarıdaki diyagram hedef akıştır; bugün üretimde türev üretimini tetikleyen yol
+> `File.after_insert` → `pipeline_bridge.maybe_generate_renditions` kancasıdır
+> (`hooks.py:350`), slot `bound_to`'dan sunucuda türetilir. Sürüm kimliği artık
+> kütüphanenin **4 girdili** `dedup.version_hash(source_hash, policy_snapshot,
+> crop_intent, engine_version)`'ından üretiliyor (rapor 57'deki "üretim kendi tek
+> girdili sürümünü kullanıyor" bulgusu **kapandı** — rapor 64); her üretim bir
+> `Media Version` kaydı açar (autoname UNIQUE `version_hash`, INV-06) ve türev
+> dosyaları hash taşıyan adrese yazılır:
+> `/files/media/{asset}/{version_hash}/{profil}-{genişlik}.{uzantı}` (INV-09).
+> Eski adresli türevlere dokunulmadı; iki düzen yan yana yaşıyor (rapor 64 §1).
+
 ### 5.2 Video — asenkron yol
 
 ```mermaid
@@ -390,6 +406,18 @@ sequenceDiagram
 vurduğunda `except` bloğu **hiç çalışmaz**; sayaç artmaz ve dosya sonsuza kadar
 `processing` görünür. Bu yüzden retry kuyruğa **anında konmaz**, süpürücüye
 devredilir — backoff ve sert kill tek mekanizmayla çözülür.
+
+> **Video motorunun bugünkü gerçeği (2026-08-20 ölçümü: rapor 81).** Yukarıdaki
+> diyagram eski `media/transcode.py` VP9/Opus hattını anlatır; yeni motor
+> `media/pipeline/video/` **H.264/MP4 birincil** (ADR-0011) ve DEV'de **ilk gerçek
+> koşumunu yaptı**: 4 gerçek video künyeden geçti (3 PASSTHROUGH, 1 REMUX),
+> fayda kapısı INV-05 ilk kez gerçek çıktıyla tuttu (%11,44 ≥ %10), **VMAF ilk
+> kez gerçekten ölçüldü: 89,34** (imaj artık libvmaf'lı, ffmpeg n8.1.2), poster +
+> önizleme klibi + HLS merdiveni (3 basamak, 405 segment) üretildi ve HTTP 200.
+> **Ama video için boru hattı YOK**: `pipeline_bridge` yalnız görsel işliyor;
+> video kuyruk yolu, DocType kaydı ve manifest temsili bağlanmadı (rapor 81 §8).
+> `vmaf_min=93` eşiği tabloda duruyor ama hiçbir kod uygulamıyor — karar için
+> ADR-0021 (BEKLİYOR).
 
 ### 5.3 Erişim seviyesi değişimi (public ↔ private)
 
@@ -438,6 +466,16 @@ sequenceDiagram
     API-->>SF: to_dict() — HTML DEĞİL, veri
     Note over SF: Alpine kendi şablonuna yazar;<br/>Vue admin panelinde aynı sözlüğü okur
 ```
+
+> **Gerçek teslim yolu — M-10'un belge yarısı (2026-08-20 ölçümü: rapor 88).**
+> Üretimdeki teslim ucu `api/media_manifest.py`'dir ve iki ucu **misafire açıktır**
+> (`allow_guest=True` — `media_manifest.py:181` ve `:223`; herkese açık vitrin
+> teslimi bilinçli). Toplu uç `manifest_batch` dosya bazlı çalışır ve yanıtta
+> `version` anahtarı taşır (lqip/dominant_color/renk uzayı zenginleştirmesi —
+> rapor 66/73). Bu yüzey artık **sözleşme altında**: `docs/api/openapi-http.yaml`
+> **100 uç** (90 → 100, 10 ayrık uç kapatıldı), panelde `openapi-typescript` ile
+> üretilmiş tipler + `client.ts` sarmalayıcı ve canlıya karşı contract testleri
+> var (rapor 80).
 
 ### 5.5 Migration (geriye dönük standartlaştırma)
 
@@ -560,6 +598,13 @@ paylaşır. Yeni katman bu politikayı **yeniden yazmaz**, kullanır.
 **Türev merdiveninin durum alanı yok — bilinçli.** Çıktı içerik-adresli
 olduğu için "üretildi mi" sorusu depoya bakılarak yanıtlanır. Yeni bir
 `th_media_*` alanı açmak, aynı bilgiyi ikinci bir yerde tutmak olurdu (NFR-046).
+
+> **Bu paragraf üretim gerçeğiyle çelişiyor — M-07 (2026-08-20 ölçümü: rapor 88).**
+> Üretimdeki türev merdiveni `Media Processing Job` DocType'ında **tam durum
+> makinesi** tutuyor (`idempotency_key` UNIQUE) ve her üretim `Media Version`
+> kaydı açıyor (rapor 55 ölçümü + rapor 64). "Durum alanı gerekmez" kararı fiilen
+> terk edildi; terk gerekçesi ADR'ye bağlanmadı. Tablodaki satır tarihsel niyeti
+> anlatır, bugünü değil.
 
 ### 7.3 Politika sayıları ve değişmezleri
 
@@ -780,3 +825,148 @@ için shard korunur, dizin dağılımı bozulmaz ve orijinal ile türevi tek
 | 4 | Tek hata noktaları listeli, azaltımları yazılı | §8 (SPOF-1…SPOF-10, öncelikli) |
 
 **Karşılanmayan:** yok. **Eksik ölçüm:** §11 A-7, A-8.
+
+---
+
+## 14. İnceleme sonucu ve revizyon geçmişi
+
+> Bu bölüm T-030'un istediği **bağımsız mimari inceleme** tarafından eklendi.
+> **Onay bloğu doldurulmamıştır**; imza insan kararıdır ve aşağıdaki kapılar
+> kapanmadan atılamaz.
+
+### 14.1 Revizyon geçmişi
+
+| Rev | Tarih | Ne oldu | Durum |
+|---|---|---|---|
+| v1.0-taslak | 2026-08-18 | İlk yazım (T-030) | TASLAK |
+| — | 2026-08-19 | **Bağımsız mimari inceleme** — `docs/reports/21-t030-mimari-inceleme.md` | TASLAK (değişmedi) |
+
+### 14.2 İnceleme kararı
+
+**SAD v1.0 bugün ONAYLANAMAZ.** Gerekçe: belge 2026-08-18'de yazıldı; ertesi gün
+Dalga A medya boru hattını ürüne bağladı (5 DocType, 5. `File.after_insert`
+kancası, misafire açık manifest ucu, bayrak katmanı, `Media Profile`
+projeksiyonu) ve bu hattın hiçbir parçası bu belgede yok. Belgenin anlattığı
+akışlar (§5.1, §5.4, §7.2) ise üretime bağlı değil.
+
+**Bloklayıcı 8 bulgu** (ayrıntı ve `dosya:satır` kanıtları rapor 21'de):
+
+| # | Konu | SAD'da |
+|---|---|---|
+| M-01 | §2.1 dizin ağacı gerçek olmayan bir yol gösteriyor; 6 satırda `media_engine` kalıntısı; `tests/` kökü yok | §2.1 |
+| M-02 | `PolicyEngine` iki uyumsuz şey: `contracts/policy.py` Protocol (13 metot) ile `policy/engine.py` somut sınıf (2 metot). SAD'ın çağırdığı 7 metodun tek uygulaması **sahte** | §3.3 §4.1 §5.1 §5.4 §8 §11 |
+| M-04 | **S-03 çürüdü** — 5 yeni DocType kuruldu | §2.2 §2.3 |
+| M-07 | **§7.2 çürüdü** — türev merdiveni `Media Processing Job`'da tam durum makinesi tutuyor | §7.2 |
+| M-09 | Üretimdeki türev akışı (`File.after_insert` → `pipeline_bridge`) belgede yok; slot `bound_to`'dan sunucuda türetiliyor | §5.1 |
+| M-10 | Gerçek teslim yolu (`api/media_manifest`, **misafire açık**) belgede yok | §5.4 §3.1 §3.2 |
+| M-14 | Taslak (`draft`) politikanın üretim kararına etkisi tanımsız (SRS G6 ↔ §6.2 çelişkisi) | §11 A-3 |
+| M-18 | İçerik-adresli adlandırmanın çok-kiracılı erişim bedeli hiç yazılmamış | §10.1 §8 |
+
+Ayrıca **§13'ün "Karşılanmayan: yok" ifadesi geçersizdir**: kriter 2 (her bileşen
+için tam tablo) karşılanmamıştır — tablo `media/`'nin 33 modülünden 17'sini,
+paketin 16 alt paketinden 6'sını kapsıyor ve Dalga A bileşenlerini
+(`pipeline_bridge.py`, `pipeline_flags.py`, 5 DocType) hiç anmıyor.
+
+### 14.3 Onay kapıları (SAD-G1…SAD-G8)
+
+Bu belgenin kendi geçiş kapısı listesi yoktu (SRS §6.7'nin karşılığı).
+İnceleme sekiz kapı öneriyor; tanımları ve kapatan bulguları
+`docs/reports/21-t030-mimari-inceleme.md` §7'de:
+
+| Kapı | Özet |
+|---|---|
+| SAD-G1 | Adlandırma ve dizin gerçeği düzeltilsin |
+| SAD-G2 | Tek `PolicyEngine`'e inilsin ya da "uygulaması yok" işaretlensin |
+| SAD-G3 | Bugünkü üretim hattı (Dalga A + manifest + bayraklar + projeksiyon) çizilsin |
+| SAD-G4 | S-03 ve S-05 yeniden yazılsın |
+| SAD-G5 | Taslak politika için mimari kural konsun |
+| SAD-G6 | İçerik-adresli adlandırmanın çok-kiracılı bedeli yazılsın |
+| SAD-G7 | İki backfill hattı + video fayda kapısı geri çekilme boşluğu belgeye girsin |
+| SAD-G8 | §9.3 sayıları, A-1/A-4 ifadeleri ve §4 bileşen tablosu tazelensin |
+
+### 14.4 İncelemenin doğruladığı bölümler (revizyonda korunmalı)
+
+Aşağıdaki bölümler kodda birebir doğrulandı ve **değiştirilmemelidir**:
+§4.2'nin 13 satırı · §5.3 PII akışı · §6 üç eksenli durum makinesi ve §6.1 geçiş
+tablosu · §7.3 zaman aşımı merdiveni ve değişmezleri · §10.1 adresleme ·
+§2.2'nin S-02, S-04, S-06 kararları.
+
+**Durum bu revizyonda değişmedi: belge hâlâ TASLAK'tır.**
+
+### 14.5 Kanıt ve kapı durumu — 2026-08-19 gün sonu ölçümü
+
+> Bu alt bölüm **yalnız ölçüm kaydıdır**. Onay bloğu doldurulmamıştır, imza
+> atılmamıştır, §1-§13 gövdesinde tek karakter değiştirilmemiştir.
+> Ayrıntı ve komut çıktıları: `docs/reports/55-d2-faz3-5-kapanis.md`.
+
+**8 bloklayıcının aynı gün ikinci ölçümü:**
+
+| # | Bugün | Kanıt (ölçüldü) |
+|---|:--:|---|
+| M-01 | ❌ **AÇIK** | Gövdede `media_engine` hâlâ 6 satırda (66, 69, 102, 122, 167, 209); repo kökünde öyle bir dizin yok; `tests/` kökü yok (testler `tradehub_core/tests/`, 137 dosya) |
+| M-02 | ✅ **KAPANDI** | Protokol ∩ somut sınıf: ∅ → **13/13**; `isinstance(PolicyEngine(), Proto)` **False → True**; `test_contracts` **69 → 75 OK** (yerel + konteyner); `policy/engine.py` 1817 satır, `NotImplementedError` **0** |
+| M-04 | ❌ **AÇIK — sayı büyüdü** | Canlı `tabDocType`'ta **10** medya DocType'ı (6 → 8 → 10, aynı gün); §2.2 S-03 hâlâ "Yeni DocType açılmaz" diyor |
+| M-07 | ❌ **AÇIK** | §7.2'nin satırı (`:555`) ve NFR-046 gerekçesi (`:560`) değişmedi; `Media Processing Job` kurulu, `idempotency_key` UNIQUE |
+| M-09 | ❌ **AÇIK** | `hooks.py` `after_insert` 5. kancası (`pipeline_bridge.maybe_generate_renditions`) yerinde; §5.1 değişmedi |
+| M-10 | ❌ **AÇIK** | `api/media_manifest.py:154` ve `:196` hâlâ `allow_guest=True`; §5.4 · §3.1 · §3.2 · §8 değişmedi |
+| M-14 | ❌ **AÇIK** | 9/9 politika `draft`; `PolicyEngine.validate()` → **0 ihlal / 9 uyarı**; motor durumu `Decision.policy_status`'ta **raporluyor, kararı değiştirmiyor**; SAD'da kural yok |
+| M-18 | ⚠ **YARI** | **Kod azaltımı geldi:** `tradehub_core/media/file_isolation.py` + `hooks.py:999` (`has_permission`) + `hooks.py:1042` (`override_doctype_class` → `TenantIsolatedFile`). **Belge tarafı boş:** §10.1'de bedel, §8'de risk satırı yok |
+
+**İki şimdiki-zamanlı cümlenin ayrı ölçümü (SAD-G2'nin belge yarısı):**
+
+| Yer | İddia | Bugün |
+|---|---|---|
+| §11 A-3 (`:748`) | *"`validate()` bugün 9 uyarı üretiyor, 0 ihlal"* | ✅ **Artık kelimesi kelimesine doğru ve koşturulabilir** — düzeltme gerekmiyor |
+| §8 SPOF-8 (`:602`) | *"`PolicyEngine.source_root()` raporlanıyor"* | ⚠ **Yarı doğru** — metot var ve çalışıyor, ama `api/`, `media/*.py`, `patches/` içinde **çağıran yok**; hiçbir Frappe yüzeyi raporlamıyor |
+
+**Kapı durumu:**
+
+| Kapı | G1 | G2 | G3 | G4 | G5 | G6 | G7 | G8 |
+|---|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|
+| Durum | ❌ | ⚠ **yarı** | ❌ | ❌ | ❌ | ❌ (azaltım hazır) | ❌ | ❌ |
+
+**Kapıya eklenen yeni madde (rapor 21'de ölçülmemişti):** `ImageEngine` ve
+`VideoEngine` Protokollerini **yalnız sahte uygulamalar** karşılıyor; üretimdeki
+`image/render.py` ve `video/transcode.py` fonksiyon modülüdür ve hiçbir sınıf
+sözleşmeyi uygulamıyor. Bu, M-02'nin iki başka örneğidir; **SAD-G2 bu ikisi için
+de bir karar ister** (üretim sarmalayıcısı ya da belgede "yalnız sözleşme"
+işareti). Ölçüm: `StorageAdapter` 2 üretim + 1 sahte · `PolicyEngine` 1 + 1 ·
+`DeliveryManifest` 1 + 1 · `ImageEngine` **0** + 1 · `VideoEngine` **0** + 1.
+
+> **Karar: SAD v1.0 bugün de ONAYLANAMAZ.** 8 kapının 7'si açık.
+> Buna karşılık açık 6 bloklayıcının **hiçbiri kod değişikliği istemiyor** —
+> altısı da bu belgenin bugünkü hattı anlatmasıyla kapanır.
+
+### 14.6 Doküman eşitlemesi — 2026-08-20 ölçümü (rapor 88)
+
+Bu revizyon, 14.5'te açık kalan bloklayıcıların **belge yarılarını** kapattı;
+her düzeltme gövdede `(2026-08-20 ölçümü: rapor NN)` etiketiyle işaretli.
+Kod tarafına dokunulmadı.
+
+| # | 14.5 durumu | Bugün | Ne yapıldı / kanıt |
+|---|:--:|:--:|---|
+| M-01 | ❌ AÇIK | ✅ **KAPANDI (belge)** | Gövdedeki 6 `media_engine` kalıntısı gerçek yola (`tradehub_core/media/pipeline/`) çevrildi; §2.1 ağacındaki `tests/` kökü `tradehub_core/tests/` oldu |
+| M-02 | ✅ KAPANDI | ✅ **KAPALI + genişledi** | 13/13 protokol uyumu sürüyor (rapor 43); üstüne **TS ikizi** geldi: `evaluate` yüzeyi panelde, **393/393 parite** (rapor 77). `ImageEngine`/`VideoEngine` üretim uygulaması hâlâ 0 — SAD-G2'nin o yarısı AÇIK |
+| M-04 | ❌ AÇIK | ✅ **KAPANDI (belge)** | §2.2 S-03 "karar çürüdü" olarak yeniden yazıldı: repoda **13 medya DocType'ı** sayıldı |
+| M-07 | ❌ AÇIK | ✅ **KAPANDI (belge)** | §7.2'ye `Media Processing Job` + `Media Version` gerçeği not düşüldü |
+| M-09 | ❌ AÇIK | ✅ **KAPANDI (belge)** | §5.1'e üretim akışı (`pipeline_bridge`, 4 girdili `version_hash`, INV-09 hash'li adres — rapor 64) eklendi |
+| M-10 | ❌ AÇIK | ✅ **KAPANDI (belge)** | §5.4'e gerçek teslim yolu (`api/media_manifest`, misafire açık `:181`/`:223`, `manifest_batch` `version` anahtarı, OpenAPI **100 uç** — rapor 80) eklendi |
+| M-14 | ❌ AÇIK | ❌ **AÇIK** | Taslak politikanın üretim kararına etkisi için mimari kural hâlâ yok — kural koymak KARAR işi, bu revizyon ölçüm/belge işiydi |
+| M-18 | ⚠ YARI | ⚠ **YARI** | Kod azaltımı yerinde (`file_isolation.py` + `TenantIsolatedFile`); §10.1 bedel anlatımı hâlâ yazılmadı |
+
+**Bu revizyonda ayrıca kayda geçen ölçümler:**
+
+- **Video motorunun ilk gerçek koşumu** (rapor 81): VMAF **89,34** ölçüldü
+  (eşik 93'ün altında, eşiği uygulayan kod yok) — karar ADR-0021'de BEKLİYOR;
+  HLS basamağında fayda kapısı boşluğu ADR-0019 ile karara bağlandı (W7-1 ekliyor).
+- **RUM zinciri**: `Media RUM Sample` DocType + `api/rum.collect` ucu canlıda
+  (200/429 ölçüldü, rapor 63); uç OpenAPI-HTTP'ye girdi (rapor 80); storefront
+  montajı hazır-ama-kapalı (`web-vitals` bağımlılık onayı bekliyor).
+- **İzin modeli**: `Media Asset.owner_seller` üzerinden kiracı izolasyonu
+  `permissions.py`'de kancalı (`:2627-2789`); `if_owner` DocPerm tuzağı
+  kaldırıldı (`permissions.py:2066`, `patches/v15_3_6_fix_approval_if_owner_trap.py`).
+- **Worker kaynak limitleri**: compose'ta `queue-long/short/scheduler` cgroup
+  tavanları kondu — öncesi 0 limit ölçülmüştü (rapor 82).
+
+**Durum: belge hâlâ TASLAK.** İmza insan kararıdır; SAD-G2 (üretim
+Image/Video uygulaması), SAD-G5 (M-14) ve SAD-G6 (M-18 belge yarısı) açık.

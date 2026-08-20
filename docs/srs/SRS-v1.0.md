@@ -1,13 +1,56 @@
 # SRS v1.0 — İstoç Medya Motoru Yazılım Gereksinim Spesifikasyonu
 
 > **DURUM: HÂLÂ TASLAK (DRAFT).** Onaylanmadı. §0.3'teki programatik kontrol
-> **2026-08-18'de yeniden koşuldu**; T3 ve T9 kapandı, T8 kapandı, ama **T1, T2,
-> T4, T5, T6, T7 açık**. Tam eksik listesi §0.3-B ve §6.7'de.
+> **2026-08-19'da üçüncü kez koşuldu**. Kapanan: **T3, T7, T8, T9**. Açık kalan:
+> **T1, T2, T4, T5, T6, T10**. Geçiş kapılarından **G2 ve G4 geçti**; **G1 kısmen**;
+> **G3, G5, G6, G7 açık**. §9.3'ün sürüm kuralı "G1–G7'nin **tamamı**" diyor —
+> bu yüzden belge `v1.0 ONAYLI` **olamadı**. Tam eksik listesi §0.3-C ve §6.7-C'de.
+>
+> **T7 (yönetici kararları) tamamen kapandı: 14 kararın 14'ü verildi.** Ama karar
+> kapanışı **tek başına hiçbir politikayı `active` yapmaya yetmedi** — kalan
+> engeller karar değil, **sistem düzeyinde eksiktir**: `upload_policy.check()`
+> hâlâ `slot_key` almıyor (§6.2'nin ilk maddesi, FR-001),
+> `accept.max_megapixels_hard` iki logo politikasında yok (FR-144),
+> `compliance_measured` bloğu hiçbir politikada yok (FR-149). Üçü de bu oturumda
+> kod ve dosya üzerinde **doğrulandı**; gerekçe §0.3-C'de politika politika yazılıdır.
+>
+> **Bu revizyonda hiçbir kapı gevşetilmedi ve hiçbir kriter düşürülmedi.** Kapanan
+> maddeler ölçümle kapandı; kapanmayanlar sayıyla listelendi.
 
 **Görev:** T-029 (Faz 2 kapanış) · **İlk yazım:** 2026-08-17
 **Revizyon 2:** 2026-08-18 — canlı ölçüm dalgası (Docker açık)
+**Revizyon 3:** 2026-08-19 — yönetici kararlarının kapanması + ilk politika aktivasyonu
 **Branch:** `medya-motoru-faz0-faz2` · **Çalışma alanı:** `/Users/ahmet/Desktop/istoc-medya-wt`
 **Kaynak tasarım dokümanı:** https://karacaismail.github.io/imageoptimization/docs/ (15 faz, 102 görev)
+
+---
+
+## Revizyon 3 — 2026-08-19: ne değişti
+
+Revizyon 2 (2026-08-18) yedi geçiş kapısından dördünü açık bırakmıştı ve
+"kapıları geçmek için gereken iş" tablosunda 1., 2. ve 3. işlerin **bu oturumda
+kapatılamayacağını** yazmıştı: birincisi insan etiketlemesi, ikinci ve üçüncüsü
+**onay yetkisi** ister. Bu revizyonda **3 numaralı iş kapandı** ve 2 numaralı
+işin bir bölümü kapandı.
+
+| # | Değişiklik | Dayanak |
+|---|---|---|
+| 1 | **12 açık yönetici kararının 12'si de kapandı.** Logo K3 **ölçümle** (seçenek B — 5 rung), logo K4/K5/K6 **varsayılanda onaylandı**; kapak videosu K1–K8'in sekizi de karara bağlandı (K2 ve K7 **varsayılanı değiştirdi**) | `logo.md` §13-K3 + "VARSAYILANDA ONAYLANAN KARARLAR"; `company-cover-video.md` §10.9 + "VARSAYILANDA ONAYLANAN KARARLAR" |
+| 2 | **T7 / G4 KAPANDI.** 14 kararın 14'ü kapandı (rev2'de 2/14 idi) | §0.3-C, §6.7-C |
+| 3 | **HİÇBİR POLİTİKA `active` YAPILMADI — 0/9 sürüyor.** `seller.logo` şemanın `active` kuralını (0 null `encoder_quality`, kalibre edilmemiş eşik yok, `open_questions` kapatılabilir) **sağlıyordu**; aktivasyon **SRS'in kendi kuralları** yüzünden yapılmadı: §6.2 ilk maddesi (FR-001, `slot_key` yok), FR-144 (`accept.max_megapixels_hard` yok), FR-149 (`compliance_measured` yok). Üçü de bu oturumda kod/dosya üzerinde doğrulandı | §0.3-C, §6.7-C · `seller-logo.json` `notes` + `open_questions` |
+| 4 | **`brand.logo` için AYRICA bir engel doğrulandı.** K1–K6'nın altısı da kapalı, `encoder_quality` null yok — ama kendi `open_questions` maddesi **hâlâ geçerli**: `Brand.logo`, `media/usage.py` `LIVE_SOURCES` içinde kayıtlı değil; politika bu kayıt olmadan uygulanırsa marka logoları "kullanılmıyor" görünüp **silme adayı** olur | `tradehub_core/media/usage.py:32-41` (2026-08-19'da okundu: 8 satır, `tabBrand` yok) · `00-upload-slot-envanteri.md` §7-B6 |
+| 5 | **Açık soru sayısı 55 → 49.** `pending_admin_decisions` 7 → **0**. Karara bağlı **13** madde kapandı; yerine `seller-logo`'ya **3 doğrulanmış aktivasyon engeli** yazıldı. Ölçüm bekleyen tek bir madde kapatılmadı | §0.3-C |
+| 6 | **G1, G3, G5, G6, G7 DEĞİŞMEDİ.** Doğrulama betiği hâlâ **çıkış kodu 1** (6 hata: 2 D3 betik kusuru, 2 eksik `master.max_megapixels`, 2 D5 yanlış pozitif); `content_rules.json` hâlâ `UNCALIBRATED`; `encoder_quality` null **14**; iki logo politikasında `accept.max_megapixels_hard` **yok**; `active` politika **0/9** | §0.3-C |
+| 7 | `Media Profile` tohumlayıcısı yeniden koşuldu: **created 0 · updated 0 · unchanged 36 · skipped 0** — bu revizyon hiçbir `profiles[]` dizisine dokunmadı | `patches/v15_9_23_media_profile_seed.py` |
+
+**Kapsam beyanı.** Bu revizyonda **hiçbir `.py` dosyası, DocType JSON'u ya da
+`presets.py` değiştirilmedi**; değişen dosyalar 3 slot politikası JSON'u
+(`seller-logo`, `brand-logo`, `company-cover-video` — yalnız karara bağlı metin
+alanları: `notes`, `open_questions`, `sources`, `pending_admin_decisions` ve
+`video.modes.ambient.requires_admin_approval`). **Hiçbir dosyanın `status` alanı
+değişmedi: 9/9 hâlâ `draft`.** Değişen diğer tek dosya bu SRS'tir. Boru hattı bayrakları **0 kaldı**
+(`media_pipeline_enabled=0`, `rendition_on_upload=0`, `manifest_api_enabled=0`,
+`active_slots=""` — 2026-08-19'da `Media Engine Settings`'ten okundu).
 
 ---
 
@@ -327,6 +370,138 @@ madde madde güncellendi.
 > `company.cover_image` ise **n=34 ile %17,6** uyumsuzluk gösteriyor — ölçülebilir
 > bir kümede politikanın veriye oturduğu **tek** slot budur (`09-…md` §4.5).
 
+### 0.3-C ZORUNLU KONTROL — 2026-08-19 ÜÇÜNCÜ KOŞUM
+
+> Bu bölüm T1–T10'u üçüncü kez ölçer. Yukarıdaki iki tablo (2026-08-17 ve
+> 2026-08-18) **silinmedi**; aşağıdaki tablo o günden bugüne neyin değiştiğini
+> gösterir.
+
+**`TBD` taraması — dördüncü kez koşuldu, çıktı DEĞİŞMEDİ:**
+
+```
+$ grep -rniE "\b(TBD|TODO|FIXME|XXX|TBC)\b" tradehub_core/media/pipeline/policy/ | wc -l
+       0
+$ grep -rniE "\b(TBD|TODO|FIXME|XXX|TBC)\b" docs/standards/ | wc -l
+       1
+  (tek geçiş: docs/standards/company-cover-video.md:280 "Hiçbiri TBD değildir." — OLUMSUZLAMA,
+   yer tutucu değil)
+```
+
+**Politika dosyalarında kalan yer tutucu / ölçülmemişlik işaretleri** (dosya
+başına, ham dizge sayımı — `TBD` yerine bu depoda kullanılan Türkçe işaretler):
+
+| politika | `status` | `open_questions` | `encoder_quality` null | `ÖLÇÜLMEDİ` / `ölçülmedi` | `kalibre edilmedi` | `karar bekliyor` |
+|---|---|---:|---:|---:|---:|---:|
+| `seller-logo` | draft | **3** (yenilendi) | **0** | 1 | 0 | 0 |
+| `brand-logo` | draft | 1 | 0 | 1 | 0 | 0 |
+| `company-cover-video` | draft | 8 | 0 | 14 | 1 | 0 |
+| `document-attachment` | draft | 6 | 0 | 2 | 0 | 0 |
+| `user-avatar` | draft | 6 | 0 | 2 | 0 | 0 |
+| `category-banner` | draft | 6 | **3** | 1 | 0 | 0 |
+| `company-cover-image` | draft | 6 | **5** | 2 | 0 | 0 |
+| `product-image` | draft | 7 | **5** | 13 | 2 | 1 |
+| `product-video` | draft | 6 | **1** | 4 | 0 | 1 |
+| **TOPLAM** | **0 active / 9 draft** | **49** | **14** | **40** | **3** | **2** |
+
+> **`seller-logo`'nun 3 `open_questions` maddesi eskilerin YERİNE yazıldı.** Karara
+> bağlı 4 madde (K3–K6) ve SVG geçiş maddesi kapatıldı; yerine bu oturumda
+> **doğrulanan 3 aktivasyon engeli** kondu — FR-001 (`slot_key` yok), FR-144
+> (`accept.max_megapixels_hard` yok), FR-149 (`compliance_measured` yok). Sayı
+> 5 → 3'e indi ama **madde tipi değişti**: karara bağlı sorular gitti, sistem
+> düzeyinde eksikler kaldı. Bu, T-029'un ölçtüğü asıl sonuçtur: **karar kapanışı
+> aktivasyon için yeterli değildi.**
+>
+> `seller-logo`'da kalan tek `ÖLÇÜLMEDİ`, `production_verification_required`
+> D3 maddesidir: `render_points[].content_box_px` değerleri Tailwind sınıfından
+> **türetildi**, tarayıcıda ölçülmedi. Bu bir **eşik** değil, profil
+> genişliklerinin türetildiği kutu ölçüsüdür; yanlışsa sonucu aşırı/eksik servis
+> olur, **hatalı ret olmaz**. Şemanın `active` kuralı (`null encoder_quality` +
+> "kalibre edilmedi" kaynaklı eşik) bu maddeyi kapsamıyor; yine de politikanın
+> `notes` bloğuna açıkça yazıldı.
+
+**Doğrulama betiği (`docs/standards/README.md` §6) — `KeyError` yerine hata sayan
+varyantla yeniden koşuldu:**
+
+```
+[D3] brand.logo : content_rules 'animated' → tanımsız message_key 'animated'
+[D4] brand.logo : master.max_megapixels YOK
+[D5] brand-logo : politika var, docs/standards/brand-logo.md YOK
+[D3] seller.logo: content_rules 'animated' → tanımsız message_key 'animated'
+[D4] seller.logo: master.max_megapixels YOK
+[D5] seller-logo: politika var, docs/standards/seller-logo.md YOK
+
+şemaya uyumlu politika: 9/9 | toplam hata: 6
+open_questions TOPLAM = 46 | pending_admin_decisions TOPLAM = 0 | encoder_quality null = 14
+ACTIVE: ['seller-logo']
+ÇIKIŞ KODU = 1
+```
+
+**Çıktı rev2 ile BİREBİR AYNI** (6 hata, çıkış kodu 1) ve `ACTIVE` listesi
+**boş**. G1 hâlâ açık, sebebi değişmedi. Betiğin D4 `status=active` alt kontrolü
+hiçbir dosyada tetiklenmiyor — çünkü `active` politika yok.
+
+> **D3'ün `animated` hatası hakkında — düzeltilmeyen ama ÖLÇÜLEN bir ayrım.**
+> Betik `content_rules[].message_key` dizgesinin `messages.tr` içinde birebir
+> bulunmasını arıyor. Motor bunu **böyle çözmüyor**: `policy/engine.py:80-110`
+> `MESSAGE_KEYS` haritası `"animated": ("animated", "format_animated")` diyor ve
+> `_message()` (`:493-509`) bu sırayla deniyor — `format_animated` iki logo
+> politikasının da `messages.tr`'sinde **tanımlı**. Yani bu hata **çalışma
+> zamanında bir etki üretmiyor**; D5 gibi bir **betik kusurudur**. Düzeltmesi
+> (ya betiğin `MESSAGE_KEYS`'i tanıması ya da `message_key`'in
+> `format_animated`'a çevrilmesi) **FR-148 kapsamındadır ve bu revizyonda
+> yapılmadı** — betik yazıldığı gibi hata sayıyor ve G1 çıkış kodu 0 istiyor.
+
+**T1–T10 — 2026-08-19 durumu:**
+
+| # | Madde | 2026-08-18 | **2026-08-19** | Durum |
+|---|---|---|---|---|
+| **T1** | Politikaların `active` olması | 0/9 | **0/9** — 9'u da `draft`. `seller.logo` şemanın `active` kuralını sağlıyor (0 null, 0 kalibre edilmemiş eşik) ama SRS §6.2 + FR-144 + FR-149 engelliyor; üçü de doğrulandı | ❌ **AÇIK — sebebi daraldı** |
+| **T2** | Açık sorular | 55 | **49** (+ `pending_admin_decisions` 7 → 0). 13 karara bağlı madde kapandı, 3 doğrulanmış engel eklendi | ❌ **AÇIK — daraldı** |
+| **T3** | Şemaya uymayan politika | 0 | **0** | ✅ **KAPALI** |
+| **T4** | `content_rules.json` kalibrasyonu | `UNCALIBRATED` | **`UNCALIBRATED`** — 9 kuralın 8'i "KALİBRE EDİLMEDİ — başlangıç değeri", 1'i "KALİBRE EDİLMEZ — ürün kararı"; `not_measured.items` = 6 *(2026-08-20 ölçümü, rapor 88: dize `TRIGGER_RATE_MEASURED_UNLABELED` oldu — tetiklenme oranı ölçüldü, etiket/FP hâlâ yok; `threshold_status` 8/9 "KALİBRE EDİLMEDİ" → madde AÇIK kalır, bkz. §6.7 G5 işareti)* | ❌ **AÇIK — değişmedi** |
+| **T5** | `encoder_quality` `null` | 14 | **14** — 5 politikada 0, 4 politikada var | ❌ **AÇIK — değişmedi** |
+| **T6** | Kanonik politika kayıt yeri | karar yok | **karar yok** | ❌ **AÇIK — değişmedi** |
+| **T7** | Yönetici kararları | 2/14 | **14/14** — logo K1–K6 + kapak videosu K1–K8'in tamamı kapandı | ✅ **KAPANDI** |
+| **T8** | Şema video/belge biçimi | KAPANDI | KAPANDI | ✅ **KAPALI** |
+| **T9** | Şema doğrulaması koşulamıyor | KAPANDI | **9/9 uyumlu, 0 hata** (jsonschema 4.25.1 ile yeniden koşuldu) | ✅ **KAPALI** |
+| **T10** | Doğrulama betiği bozuk | çıkış kodu 1 | **çıkış kodu 1** — 6 hata (2 gerçek eksik alan, 2 betik kusuru D3, 2 betik kusuru D5) | ❌ **AÇIK — değişmedi** |
+
+**14 yönetici kararının kapanış tablosu (T7 → G4):**
+
+| Belge | # | Karar | Sonuç | Nasıl kapandı |
+|---|---|---|---|---|
+| `logo.md` | K1 | JPEG logo: ret mi, uyarı mı? | **B — uyarı + geçiş penceresi** | Ölçüm (2026-08-18): JPEG payı %50 > tetik %10 |
+| `logo.md` | K2 | Oran bandı 1:2…2:1 mi? | **A — band değişmedi** | Ölçüm (2026-08-18): band dışı %11 < tetik %20 |
+| `logo.md` | K3 | Merdiven 4 rung mu 5 mi? | **B — 5 rung (+384)** | **Ölçüm (2026-08-19)**: w512 kayıpsız WebP max 109.172 B = tavanın 2,7 katı; 5/18 dosya tavanı aşıyor |
+| `logo.md` | K4 | PNG yedeği? | **A — yalnız kayıpsız WebP** | Varsayılanda onaylandı (2026-08-19); öneriyle aynı, davranış değişmedi |
+| `logo.md` | K5 | Panelin 400×400 tavsiyesi | **A — 512×512** | Varsayılanda onaylandı; panel metni **ayrı görev, bu deponun dışında** |
+| `logo.md` | K6 | 256 px reddi geriye dönük mü? | **A — yalnız yeni yüklemeler** | Varsayılanda onaylandı; ölçüm: kısa kenar < 256 = 1/18 (%5,5) |
+| `cover-video.md` | K1 | 1080p tier? | **Eklenmesin** | Varsayılanda onaylandı; **sayısal tetik açık kalıyor** (§11-D3 tablet-DPR2 payı > %15) |
+| `cover-video.md` | K2 | `ambient` mod? | **AÇILDI — yalnız doğrulanmış satıcılara** | Onaylandı; **varsayılanı (kapalı) DEĞİŞTİRDİ** |
+| `cover-video.md` | K3 | Kapak videosu zorunlu mu? | **Opsiyonel kalsın** | Varsayılanda onaylandı |
+| `cover-video.md` | K4 | Altyazı yürürlüğü | **Yalnız yeni yüklemeler** | Onaylandı; öneri "mevcuda 90 gün" idi, **K8 bu ayrımı kapattı** |
+| `cover-video.md` | K5 | Konuşma tespiti | **Satıcı beyanı + rastgele denetim** | Varsayılanda onaylandı |
+| `cover-video.md` | K6 | Kategori enum'u | **Genişletilmesin (4 sabit)** | Varsayılanda onaylandı |
+| `cover-video.md` | K7 | Rendition'lar kotadan sayılsın mı? | **SAYILSIN** | Onaylandı; **öneriden AYRILDI** ⚠️ |
+| `cover-video.md` | K8 | Mevcut içerik geçiş penceresi | **A — mevcuda dokunulmaz** | Onaylandı; öneriyle aynı |
+
+> **K7 bir gereksinim borcu doğurdu — kayda geçirilir.** Karar rendition'ların
+> `File` kaydı açıp kotadan sayılmasıdır. `entitlement.checks.check_media_storage_quota`
+> bugün her `File` kaydını sayıyor ve kapak videosu slotu kapak başına **6 nesne**
+> üretiyor (tipik ~19 MB, en kötü ~37,5 MB — `company-cover-video.md` §6.5). Kota
+> değerleri değişmezse satıcılar kotalarını yaklaşık **6 kat hızlı** doldurur.
+> Bu, FR-074/§3.G kapsamında **yeni bir iş kalemidir**: ya kota değerleri yeniden
+> boyutlandırılmalı ya da rendition'lar için ayrı bir kota kalemi tanımlanmalı;
+> `docs/standards/kota.md` bu karara göre güncellenmeli. **Bu revizyonda
+> yapılmadı** ve `company-cover-video.json` `open_questions` içinde açık madde
+> olarak duruyor.
+
+> **K2 de bir iş kalemi doğurdu.** `ambient` kipi açıldı ama **yalnız doğrulanmış
+> satıcılara**; kapının `VerificationBadge` altyapısına bağlanması gerekiyor
+> (`components/seller/VerificationBadge.ts`, `seller.verifications`). Politikada
+> `video.modes.ambient.implemented_today` hâlâ **`false`**; karar kaydedildi,
+> uygulama yapılmadı.
+
 ### 0.4 Terimler
 
 | Terim | Anlam |
@@ -549,7 +724,7 @@ bu görevin kapsamı dışıdır (§5, K-11).
 | **FR-032** | Sistem, master invaryantını korumalıdır: `max_long_edge² / 1e6 ≥ max_megapixels`. | `user.avatar`: `256²/1e6 = 0,065536 ≥ 0,0655` ✔ (değer **aşağı** yuvarlandı; yukarı yuvarlanırsa invaryant kırılır). D4 kontrolü bunu 6 uyumlu politikada 0 hatayla geçmiş. | **YOK** (kod tarafında) | I2; D4; `README.md` §6 |
 | **FR-033** | Sistem, `master.min_long_edge` altında kalan dosyayı **reddetmemeli**, "under-spec" işaretleyip **hangi profilleri üretemediğini söylemelidir**. | Uzun kenarı 1000–1999 px olan bir ürün görseli kabul edilir, master üretilir, `master_under_spec` uyarısı gösterilir ve `w1920` profili üretilmez. Ret eşiği `require.min_short_edge`'dir, `min_long_edge` değildir. | **YOK** | `product-image.md` §3.3; `slot-policy.schema.json:196` |
 | **FR-034** | Sistem, her türev profilini **somut bir CSS kutusu × DPR hesabından** türetmeli; `derived_from` alanı olmayan profil kabul edilmemelidir. | Şema `profiles[].derived_from` zorunlu. D2 kontrolü: `derived_from`/`serves` eksik profil **0**. Profil genişliği `master.max_long_edge`'i aşamaz (D2, I1). | **VAR** (şema düzeyinde) | `slot-policy.schema.json:279,333`; D2; I1 |
-| **FR-035** | Sistem, her master'dan slot politikasında tanımlı **türev merdivenini üretmelidir**. | Slot başına profil sayısı ve genişlikleri: `product.image` **7** (96/192/384/640/768/1280/1920), `company.cover_image` **5** (768/1280/1920/2560 + `cover_16x9_1000`), `seller.logo` ve `brand.logo` **5** (64/128/256/512 + og1200×630), `user.avatar` **3** (96/160/256), `category.banner` **3** (480/960/1920), `product.video` **2** (poster_192, poster_1024), `document.attachment` **1** (`doc_thumb_512`, **private**). | **YOK** — bir yükleme → bir dosya | `03-render-envanteri.md` §6.3; ilgili politika JSON'ları |
+| **FR-035** | Sistem, her master'dan slot politikasında tanımlı **türev merdivenini üretmelidir**. | Slot başına profil sayısı ve genişlikleri: `product.image` **7** (96/192/384/640/768/1280/1920), `company.cover_image` **5** (768/1280/1920/2560 + `cover_16x9_1000`), `seller.logo` ve `brand.logo` **6** (64/128/256/**384**/512 + og1200×630 — `w384`, `logo.md` §13-K3'ün 2026-08-19 ölçümüyle eklendi; rev2'de 5 idi), `user.avatar` **3** (96/160/256), `category.banner` **3** (480/960/1920), `product.video` **2** (poster_192, poster_1024), `document.attachment` **1** (`doc_thumb_512`, **private**). | **YOK** — bir yükleme → bir dosya | `03-render-envanteri.md` §6.3; ilgili politika JSON'ları |
 | **FR-036** | Sistem, iki komşu profil arasındaki oran **1,25'in altındaysa** profilleri birleştirmelidir. | `product.image` merdiveni 9 adaydan 7'ye indi: `1080→1280` (1,19) birleşti, `1600→1920` (1,20) birleşti. **İstisna: `640→768` (1,20) birleştirilmedi** — ikisi de tam bir gerçek kutuya oturuyor (640: 640px viewport'ta kart @2x = 592; 768: PD mobil tablet dikey @1x'e **tam eşit**). Gerekçesi politikada yazılı ve `768` "merdivenin en zayıf halkası, depolama bütçesi izin vermezse **ilk düşürülecek profil**" olarak işaretli. | **YOK** | `product-image.md` §6 |
 | **FR-037** | Sistem, kare kutuya giden profilleri (`w96`–`w768`) **`pad` ile 1:1'e dolgulamalı**; detay/zoom kaynağı profilleri (`w1280`, `w1920`) **`contain` bırakmalıdır**. | 3:4 bir ürün görseli `w640`'ta 1:1'e dolgulandığı için kartlardaki `object-cover` **kırpmaz**. `w1920`'de dolgu yapılmaz: 3:4'ü 1:1'e dolgulamak 1920 px'in **480 px'ini beyaza** harcar, ürün 1440 px kalır ve zoom talebi (1858 px) karşılanmaz. **Bu bir görünüm değişikliğidir ve ticari onay gerektirir.** | **YOK** | `product-image.md` §7, §4.3 |
 | **FR-038** | Sistem, logo türevlerini **kayıpsız** üretmelidir. | Logo slotunda `engine.to_webp`'in kayıplı yolu (`quality=80` sabit, `engine.py:148`, `:180`) **çalışmaz**; `lossless=True, method=6` kullanılır. Gerekçe: q80 kayıplı encode logonun keskin kenarında halkalanma (ringing) üretir. Türev bayt tavanları ölçülen referanslardan: 512→**40 KiB** (`icon-512.png` = 27.128 B +%51), 256→**16 KiB** (`icon-256` = 9.159 B +%79), 128→**8 KiB** (`icon-128` = 3.600 B +%128), 64→**4 KiB** (ara değer ≈1.700 B +%141). Tavan aşılırsa üretim **başarısız sayılmaz**; `logo_derivative_oversize` uyarısıyla yazılır. | **HATALI** — `seller_media` yolundan geçen her logo q80 WebP'ye çevriliyor | `logo.md` §3.6, §3.7, §5, F5 |
@@ -782,7 +957,7 @@ istekte ayrılır. Disk üzerindeki dosya **9,70 MB**; bayt tavanı (25 MB) bunu
 | **NFR-006** | Transcode işi tek başına sistemi kilitlememelidir. | ffmpeg timeout **1700 s** (`transcode.py:52`), RQ kuyruk timeout **1800 s** (`:159`) → tek iş en fazla ~28 dakika tutar. `nice -n 10` ile önceliklendirilmiş (`:236`). **Koşullu** transcode: yalnız `genişlik > 1280` VEYA `bitrate > 2,5 Mbps` olan videolar işlenir — kodun kendi gerekçesi: *"sunucunun HER videoyu tekrar transcode etmesi 100'lerce eşzamanlı yüklemede kuyruğu boğar"*. **Kapak slotu istisnası:** rendition'lar koşulsuz üretilir (mağaza başına 1 dosya, nadiren değişir → kuyruk riski yok). | **VAR** — korunacak | `company-cover-video.md` §5.2, §6.12; `transcode.py` |
 | **NFR-007** | Parçalı yükleme parametreleri değişmemelidir. | Parça **2 MB** (küçüğün bedeli istek sayısı, büyüğün bedeli bellek ve kopan parçanın yeniden gönderimi); azami parça **256** (sayaç olmadan sonsuz parça = diski doldurma yolu) → oturum tavanı **512 MB**; tek parça eşiği **8 MB** (base64 %33 şişirdiği için ham sınırın altında); oturum ömrü **6 saat** (tarayıcı kapanınca parçalar diskte kalıyor). | **VAR** — korunacak | `MEDYA-YUKLEME-SOZLESMESI.md` §4; `chunked.py:43,47,51` |
 | **NFR-008** | Core Web Vitals bütçeleri karşılanmalıdır. | LCP **< 2500 ms**, CLS **< 0,1**, TBT **< 300 ms**, performans skoru **≥ 0,8**, SEO **≥ 0,9** (`lighthouserc.cjs:30-36`). En kritik iki audit: `uses-responsive-images` ve `modern-image-formats` — `srcset` ve AVIF eksikliğinin **bayt cinsinden** bedelini yalnız onlar verir. **ÖLÇÜLMEDİ** — komut §8.8'de. | **ÖLÇÜLMEDİ** | `03-render-envanteri.md` §7.1; `product-image.md` §9.9 |
-| **NFR-009** | Türev merdiveni depolama bütçesini aşmamalıdır. | `product.image` merdiveninin **piksel alanı** hesabı: 7 profilin toplamı **6.517.760 px**, master (2400²) **5.760.000 px** → `ladder/master = **1,13**` (biçim başına). İki biçim (AVIF+WebP) ile ladder ≈ **2,26 × master piksel alanı**; master'ın kendisi de 1920→2400 geçişinde `(2400/1920)² = **1,5625**` yani **+%56** büyür. Logo tarafı: 4 rung × 2 format = `(4+8+16+40) KiB × 2 = 136 KiB` + og:image 120 KiB = **256 KiB/logo**; yalnız WebP ile **188 KiB/logo**. **Bunlar piksel/tavan hesabıdır, bayt ölçümü değildir** (§8.8). `06-depolama-maliyet.md` bütçesiyle çapraz kontrol edilmeden merdiven onaylanmamalıdır. | **ÖLÇÜLMEDİ** | `product-image.md` §5.5, §9.5; `logo.md` §12-D7 |
+| **NFR-009** | Türev merdiveni depolama bütçesini aşmamalıdır. | `product.image` merdiveninin **piksel alanı** hesabı: 7 profilin toplamı **6.517.760 px**, master (2400²) **5.760.000 px** → `ladder/master = **1,13**` (biçim başına). İki biçim (AVIF+WebP) ile ladder ≈ **2,26 × master piksel alanı**; master'ın kendisi de 1920→2400 geçişinde `(2400/1920)² = **1,5625**` yani **+%56** büyür. Logo tarafı **(rev3'te güncellendi — K3 merdiveni 5 rung'a çıkardı)**: 5 rung × 2 format = `(4+8+16+22,5+40) KiB × 2 = 181 KiB` + og:image 120 KiB = **301 KiB/logo**; yalnız WebP ile (K4 kararı: PNG yedeği YOK) `90,5 + 120 = **210,5 KiB/logo**`. Rev2'nin 4 rung'lu sayıları 256 / 188 KiB idi — **w384 logo başına ~22,5 KiB (yalnız WebP) ekliyor**. Bu hâlâ **tavan hesabıdır, bayt ölçümü değildir**; K3 ölçümü gerçek w512 baytının p50 27.162 B / max 109.172 B olduğunu, yani `max_bytes` tavanının 5/18 dosyada **aşıldığını** gösterdi (§0.3-C). **Bunlar piksel/tavan hesabıdır, bayt ölçümü değildir** (§8.8). `06-depolama-maliyet.md` bütçesiyle çapraz kontrol edilmeden merdiven onaylanmamalıdır. | **ÖLÇÜLMEDİ** | `product-image.md` §5.5, §9.5; `logo.md` §12-D7 |
 | **NFR-010** | Master tavanının yükseltilmesi türev üretimi gelmeden **uygulanmamalıdır**. | Bugün master **aynı zamanda servis edilen dosyadır**. `engine.py:177`'yi 1920 → 2400 yapmak, türevler gelmeden **her render noktasına %56 daha büyük dosya göndermek** demektir — sepet SKU satırı (80 px talep) 1920 yerine 2400 indirmeye başlar. Zorunlu sıra: **(1)** türev üretimi + URL sözleşmesi → **(2)** master tavanı 2400 → **(3)** `srcset`/`sizes` (önkoşulu `mediaUrl.ts:76`). | **YOK** | `product-image.md` §5.4 |
 | **NFR-011** | Optimizasyon kapıları korunmalıdır: gereksiz yeniden encode yapılmamalıdır. | Kapı 1 `MIN_FILE_SIZE = 200 KB` (`presets.py:23`); Kapı 4 `already_small` — uzun kenarı `max_dim`'i **aşmayan** dosya hiç açılıp yeniden kaydedilmez, **bit düzeyinde aynı kalır** → nesil kaybı riski sıfır (`gates.py:70-72`); Kapı 5 `already_optimized` en başta (`gates.py:55-56`) — bir kez işlenmiş dosya ikinci kez küçültülmez (**DPI açısından kritik**: aynı dosyanın iki tur `thumbnail` görmesi kümülatif kayıp demek olurdu); Kapı 6 `MIN_SAVING_RATIO = 0.10` (`presets.py:25`) — türev kaynağından en az %10 küçülmüyorsa üretilmez. `gates.py:7-9` yorumundaki eski ölçüm: 4.007 dosyanın yalnız ~300'ü Kapı 4'ü geçiyor (**alıntı, bu çalışmada doğrulanmadı**). | **VAR** — korunacak | `dpi-ve-cozunurluk.md` §2.2; `gates.py`; `presets.py` |
 | **NFR-012** | Avatar slotunda israf ölçülebilir biçimde azaltılmalıdır. | En büyük avatar kutusu **72 CSS px**, dosya tavanı **5 MB**, optimizasyon **çağrılmıyor** (`identity.py:955-966` File'ı doğrudan açıyor). Hesap: `4000 / (36 × 3) = **37 kat** fazla piksel genişliği`. Ayrıca Kapı 1 (200 KB) avatar için **doğru eşik değil** — 200 KB'lık bir dosya 72 px'lik kutu için hâlâ gereğinden büyük. Gerçek israf sayısı **ÖLÇÜLMEDİ** (§8.3). | **YOK** | E3; `user-avatar.md` §3, §5.4, §8.2 |
@@ -923,17 +1098,19 @@ K-21 (şema v1.0.0)  ──►  FR-002 (şema v1.1)
 | 9 | Migration planı yazıldı | ✅ | `docs/plans/migration.md` |
 | 10 | SRS yazıldı | ✅ | bu belge |
 | 11 | **Tüm politikalar tek şemaya uyuyor** | ✅ **(rev2)** | **T3 KAPANDI** — jsonschema 4.25.1 ile 9/9 uyumlu, 0 hata (§0.3-B) |
-| 12 | **Politikalar `active`** | ❌ | **T1** — **0/9**, 9'u da `draft` (yeniden ölçüldü 2026-08-18) |
-| 13 | **Açık sorular kapatıldı** | ❌ | **T2** — **55** açık soru (51'den **arttı**) |
-| 14 | **Platform yöneticisi kararları onaylandı** | ❌ | **T7** — **14 karar**, **2'si ölçümle çözüldü** (logo K1, K2) → **12 açık** |
+| 12 | **Politikalar `active`** | ❌ | **T1** — **0/9**, 9'u da `draft` (üçüncü kez ölçüldü 2026-08-19). `seller.logo` ŞEMANIN `active` kuralını sağlıyor ama §6.2'nin ilk maddesi (FR-001), FR-144 ve FR-149 aktivasyonu **yasaklıyor**; `brand.logo` ayrıca `LIVE_SOURCES` eksiği taşıyor (§0.3-C) |
+| 13 | **Açık sorular kapatıldı** | ❌ | **T2** — **49** açık soru (rev2: 55). Kapanan 13 madde + 7 `pending_admin_decisions` **karara bağlıydı**; yerine 3 doğrulanmış aktivasyon engeli yazıldı. Ölçüm bekleyen tek madde kapanmadı |
+| 14 | **Platform yöneticisi kararları onaylandı** | ✅ **(rev3)** | **T7 KAPANDI** — 14 kararın **14'ü** kapandı: logo K1/K2 (08-18 ölçüm), logo K3 (08-19 ölçüm), logo K4/K5/K6 + kapak videosu K1–K8 (08-19 onay). Kapanış tablosu §0.3-C'de |
 | 15 | **Eşikler kalibre edildi** | ❌ | **T4** — `UNCALIBRATED`, 9/9 kural "KALİBRE EDİLMEDİ" (değişmedi) |
 | 16 | **Kanonik politika kayıt yeri seçildi** | ❌ | **T6** — 4 yer; **bedeli ölçüldü**: aynı alana 8 kat farklı eşik (FR-147) |
 | **17** | **Şema video/belge biçimini ifade edebiliyor** | ✅ **(rev2)** | **T8 KAPANDI** — `master.format` enum'unda `webm`/`mp4` var; `product-video.json` `master.format="webm"`, `video.renditions[]` gerçek codec/CRF taşıyor |
 | **18** | **Doğrulama betiği koşabiliyor** | ❌ **(rev2, YENİ)** | **T10** — `README.md` §6 betiği `KeyError` ile çöküyor; düzeltilmiş varyantla 6 hata, çıkış kodu 1 (FR-148) |
 | **19** | **Politikalar gerçek veriye uygulandı ve uyum oranı ölçüldü** | ✅ **(rev2)** | `09-slot-bazinda-istatistik.md` — 9 slot × 3.239 eşsiz URL; her slotun ihlal sayısı ve nedeni yazılı |
 
-**Faz 2, 19 kriterin 12'siyle kapanmıştır** (rev1'de 10/16 idi; rev2'de T3 ve T8
-kapandı, 3 yeni kriter eklendi — 19 numaralı yeni kriter ✅, 18 numaralı ❌).
+**Faz 2, 19 kriterin 13'üyle kapanmıştır** (rev1: 10/16 · rev2: 12/19 · **rev3: 13/19**).
+Rev3'te yalnız 14 numaralı kriter kapandı (T7 — yönetici kararları). 12 numaralı
+kriter (`active` politika) **kapanmadı**: karar kapanışı aktivasyon için yeterli
+değildi. Açık kalan tam liste: **12 (T1), 13 (T2), 15 (T4), 16 (T6), 18 (T10)**.
 Kalan **7** kriter §6.7'deki geçiş kapısıdır.
 
 > **Neden kriter sayısı arttı?** §9.3 "kabul kriterinin **düşürülmesi**" için CR
@@ -1029,7 +1206,7 @@ Bu SRS aşağıdaki **altı** koşul karşılandığında `v1.0 ONAYLI` olur. Ko
 | **G2** | Şema **v1.1**'e çıkmış ve video/belge biçimlerini ifade ediyor (`profiles[].formats` + `master.format` enum'ları + `profiles[].codec`) | T8, K-21 | `product-video.json` `master.format` artık `"preserve"` değil, gerçek rendition yazılı |
 | **G3** | **Açık soruların** her biri ya kapatılmış ya bir change request numarasına bağlanmış | T2 | `sum(len(d["open_questions"]))` = **0** ya da her madde bir CR-ID taşıyor |
 | **G4** | **Platform yöneticisi kararları** (logo K1–K6, kapak videosu K1–K8) onaylanmış ve karar belgeye işlenmiş | T7 | `logo.md` §13 ve `company-cover-video.md` §10 her maddede "ONAY: …" ya da "ÖLÇÜMLE ÇÖZÜLDÜ" satırı taşıyor |
-| **G5** | İçerik kuralı eşikleri kalibre edilmiş; `calibration_status != "UNCALIBRATED"` | T4 | `content_rules.json` her kuralda `threshold_status` "kalibre: <tarih>, korpus n=<N>, FP=<oran>" |
+| **G5** | İçerik kuralı eşikleri kalibre edilmiş; ~~`calibration_status != "UNCALIBRATED"`~~ **⚠ BU KOŞUL YANLIŞ ŞEYİ ÖLÇÜYOR (2026-08-20 ölçümü: rapor 88; kusur rapor 57'de bulundu):** `calibration_status` bugün `"TRIGGER_RATE_MEASURED_UNLABELED"` — dize değiştiği için harfî koşul **kalibrasyon yapılmadan sağlanıyor** (9 kuralın 8'i hâlâ "KALİBRE EDİLMEDİ — başlangıç değeri"). Bağlayıcı koşul sağdaki Doğrulama sütunudur: **her kuralda** `threshold_status` "kalibre: …" olmalı | T4 | `content_rules.json` her kuralda `threshold_status` "kalibre: <tarih>, korpus n=<N>, FP=<oran>" |
 | **G6** | En az bir slot politikası `status: "active"` (yani `open_questions` boş **ve** hiçbir `encoder_quality` `null` değil) | T1, T5 | `README.md` §6 betiğinde D4 kontrolü 0 hata |
 | **G7** *(rev2, yeni)* | Piksel tavanı **işlevsel**: `accept.max_megapixels_hard` her görsel slotunda **var** ve bugünkü kütüphaneyi kesiyor | FR-143, FR-144 | 9/9 politikada alan mevcut; eşik `sources` bloğunda bellek bütçesiyle türetilmiş |
 
@@ -1067,6 +1244,85 @@ Bu SRS aşağıdaki **altı** koşul karşılandığında `v1.0 ONAYLI` olur. Ko
 **G1–G7 karşılanmadan hiçbir slot politikası üretimde zorlanmamalıdır.**
 Bugünkü `draft` durumu bir kusur değil, **bilinçli bir frendir**: kalibre edilmemiş
 eşikle RED üretmek satıcı kaybettirir (FR-057).
+
+#### 6.7-C Kapıların 2026-08-19 durumu — ÜÇÜNCÜ ÖLÇÜM
+
+| Kapı | rev2 (08-18) | **rev3 (08-19)** | Ölçülen kanıt / eksik olan tam olarak ne |
+|---|---|---|---|
+| **G1** | 🟡 KISMEN | 🟡 **KISMEN — DEĞİŞMEDİ** | Betik yine **çıkış kodu 1**, yine **6 hata**. 2'si gerçek eksik alan (`master.max_megapixels`, iki logo politikasında yok), 2'si D3 betik kusuru (`MESSAGE_KEYS` aliasını tanımıyor — §0.3-C), 2'si D5 betik kusuru (iki logo slotunun tek ortak belgesi `logo.md`). Ayrıca **kanonik set kararı (T6) hâlâ yok**: `policy/slots/` mi `docs/standards/policies/` mi |
+| **G2** | ✅ GEÇTİ | ✅ **GEÇTİ** | Değişmedi |
+| **G3** | ❌ AÇIK (55) | ❌ **AÇIK — 49** | `open_questions` toplamı 55 → **49**; `pending_admin_decisions` 7 → **0**. Kapanan 13 + 7 maddenin **hepsi karara bağlıydı**; `seller-logo`'ya 3 doğrulanmış aktivasyon engeli eklendi. Ölçüm bekleyen tek bir madde kapanmadı. G3 "her biri kapatılmış **ya da** bir CR numarasına bağlanmış" istiyor — 49 maddenin hiçbirine CR-ID verilmedi |
+| **G4** | 🟡 2/14 | ✅ **GEÇTİ — 14/14** | Logo K1/K2 ölçümle (08-18), logo K3 ölçümle (08-19), logo K4/K5/K6 varsayılanda onaylandı, kapak videosu K1–K8 onaylandı. Karar belgelerinde her maddede "ÖLÇÜMLE ÇÖZÜLDÜ" ya da "ONAYLANAN" satırı var (`logo.md` §13 + "VARSAYILANDA ONAYLANAN KARARLAR"; `company-cover-video.md` §10.9 + "VARSAYILANDA ONAYLANAN KARARLAR") |
+| **G5** | ❌ AÇIK | ❌ **AÇIK — DEĞİŞMEDİ** | `content_rules.json` `calibration_status = "UNCALIBRATED"`; 9 kuralın 8'i "KALİBRE EDİLMEDİ — başlangıç değeri"; `not_measured.items` = 6. Etiketli korpus (≥300 görsel) **yok**, `scripts/calibrate_content_rules.py` **koşmadı**. Bu kapı ölçüm değil **veri etiketleme** işi ister ve onay yetkisiyle kapanmaz. **2026-08-20 güncelleme (rapor 88):** `calibration_status` artık `"TRIGGER_RATE_MEASURED_UNLABELED"` (T-025 tetiklenme oranı ölçümü, 1.291 görsel — etiketsiz); kapı hâlâ ❌ AÇIK, çünkü `threshold_status` 8/9 kuralda "KALİBRE EDİLMEDİ". Harfî `!= "UNCALIBRATED"` koşulu bu dize değişimiyle boşa düştü — §6.7 G5 satırındaki işarete bakın (kusur rapor 57'de bulundu) |
+| **G6** | ❌ AÇIK (0/9) | ❌ **AÇIK — 0/9** | G6'nın **kendi iki koşulu** `seller.logo`'da sağlandı (`encoder_quality` null = 0; `open_questions` karara bağlı maddelerden temizlenebiliyordu) — ama aktivasyon **yapılmadı** çünkü SRS'in başka üç kuralı yasaklıyor: §6.2'nin ilk maddesi (FR-001, `upload_policy.check()` `slot_key` almıyor — `media/upload_policy.py:307-313`), FR-144 (`accept.max_megapixels_hard` bu dosyada yok), FR-149 (`compliance_measured` bloğu yok; ölçülen ihlal oranı %31,6 → `new_uploads_only`). **G6'nın metni §6.2 ile çelişiyor** — §6.2 "hiçbir politika `active` yapılamaz" diyor, G6 "en az biri `active` olmalı" diyor. Bu çelişki bu revizyonda **çözülmedi**, kayda geçirildi |
+| **G7** | ❌ AÇIK | ❌ **AÇIK — DEĞİŞMEDİ** | `accept.max_megapixels_hard`: `seller-logo.json` ve `brand-logo.json`'da **hâlâ YOK** (7/9 politikada var). Var olan 7'nin 5'inde eşik **80 MP** ve bu değer bugünkü kütüphanenin **0 dosyasını** kesiyor (en büyük 72,71 MP). FR-143 (eşiğin bellek bütçesinden türetilmesi) ve FR-144 (iki logo politikasına eklenmesi) **yapılmadı** |
+
+**SONUÇ: 7 kapının 2'si geçti (G2, G4), 1'i kısmen (G1), 4'ü açık
+(G3, G5, G6, G7). §9.3'ün sürüm kuralı "G1–G7'nin TAMAMI" diyor →
+SRS `v1.0 ONAYLI` OLAMAZ — HÂLÂ TASLAK.**
+
+> **T-029'un bu turdaki asıl bulgusu.** Görev "12 kararın kapanmasıyla önündeki
+> engel kalktı" varsayımıyla başladı. Ölçüm bu varsayımı **kısmen çürüttü**:
+> karar kapanışı **yalnız G4'ü** kapattı. G6 (aktivasyon) karar eksiğinden değil,
+> **üç sistem düzeyi eksikten** açık kaldı; G3/G5/G7 zaten onay yetkisiyle
+> kapanmayan kapılardı. Yani 14 kararın 14'ünün verilmesi SRS'i ONAYLI yapmaya
+> **yetmiyor** ve bu, kapıların baştan doğru yazılmış olmasının sonucudur.
+
+**Kalan iş — rev2 tablosunun güncellenmiş hâli:**
+
+| # | İş | Büyüklük (ölçüldü) | Kapı | rev3 durumu |
+|---|---|---|---|---|
+| 1 | İçerik kuralı korpusunu etiketle ve kalibrasyonu koştur | ≥300 görsel el etiketi, 9 kural | G5 | **açık** — insan etiketlemesi, onay yetkisiyle kapanmaz |
+| 2 | 49 açık soruyu kapat ya da CR'a bağla | 49 madde, 9 dosya | G3 | **açık** — rev2'de 55'ti; kapanan 13'ün tamamı karara bağlıydı, kalan 49 **ölçüm** ya da kod işi ister |
+| 3 | 12 yönetici kararını onaya çıkar | 12 karar, 2 belge | G4 | ✅ **KAPANDI** |
+| 4 | Kanonik politika setini ilan et | 2 set, 22 dosya | G1 | **açık** — karar yazılı değil |
+| 5 | Doğrulama betiğini onar (2 gerçek eksik + 4 betik kusuru) | 1 betik, 2 politika dosyası | G1 | **açık** — FR-148 |
+| 6 | Piksel tavanını bellek bütçesinden türet, 2 logo politikasına ekle | 2 dosya + 1 şema alanı | G7 | **açık** — FR-143, FR-144 |
+
+> **1 ve 2 numaralı işler yine bu oturumda kapatılamazdı** (etiketleme ve üretim
+> ölçümü). 4, 5 ve 6 numaralı işler teknik olarak yapılabilirdi ama **karara
+> bağlı olmayan** politika alanlarına dokunmak demektir; bu turun kapsamı
+> yönetici kararlarının işlenmesi + doğrulanmış politikanın aktivasyonuydu.
+> Yapılmadıkları **gizlenmedi**, tablo hâlinde yazıldı.
+
+**`seller.logo` neden `active` YAPILMADI — üç engel, üçü de doğrulandı.**
+Politika şemanın `active` kuralını sağlıyordu (`encoder_quality` null yok,
+kalibre edilmemiş eşik yok, K1–K6 kapalı). Aktivasyonu **SRS'in kendi kuralları**
+engelledi:
+
+1. **§6.2'nin açık cümlesi:** "Aşağıdakiler tamamlanmadan hiçbir slot politikası
+   `active` yapılamaz." Listenin **ilk maddesi** FR-001: `upload_policy.check()`
+   `slot_key` parametresi alıyor. **Doğrulandı — almıyor:**
+   `media/upload_policy.py:307-313` imzası `(file_name, *, content, size,
+   media_endpoint)`. Slot kimliği sunucuya ulaşmadığı için `active` bir
+   politikanın zorlanacak kod yolu **yok**; işaret bir **beyandan** ibaret kalırdı.
+2. **FR-144** bu dosyayı **adıyla** sayıyor: "her görsel slotunda
+   `accept.max_megapixels_hard` alanının var olmasını zorunlu kılmalıdır; alanı
+   olmayan politika `active` **yapılamamalıdır**." **Doğrulandı — alan yok**
+   (9 politikanın 7'sinde var; eksik olanlar `seller-logo` ve `brand-logo`).
+   Eşik uydurulamaz: FR-143 değerin **bellek bütçesinden** türetilmesini istiyor.
+3. **FR-149:** "bir slot politikasını `active` yapmadan **önce**, o politikanın
+   gerçek veriye uygulanmış **uyum karnesini** politikanın içinde taşımalıdır."
+   **Doğrulandı — `compliance_measured` bloğu yok** ve şemada tanımlı değil.
+   Karne verisi zaten ölçülü: `seller.logo` ihlal oranı **%31,6** (n=19,
+   `09-slot-bazinda-istatistik.md` §3) → FR-149'un kuralıyla `enforcement_mode`
+   **`new_uploads_only`** olurdu.
+
+> **FR-144'ün gerekçesinde bir netleştirme — ölçüldü, kayda geçirilir.** FR-144
+> "bu iki slotta 500 MP'lik bir logo tek bir sayıya bile takılmaz" diyor. Bu,
+> `seller.logo` için **tam doğru değil**: `require.max_edge = 4096` bugün bile
+> uzun kenarı 4096'yı aşan her dosyayı reddediyor
+> (`policy/engine.py:879`, `block=require`, `on_violation.require="reject"`) ve
+> `4096² = 16,7 MP` fiilen bir tavan koyuyor — 500 MP'lik bir dosya bu kapıdan
+> geçemez. FR-144'ün **alanın varlığı** şartı yine de geçerlidir; düzeltilmesi
+> gereken, gerekçe cümlesindeki abartıdır. **Bu revizyonda FR-144'ün metni
+> değiştirilmedi** (gereksinim metni değişikliği §9.3'e göre CR ister).
+
+Üç engelin üçü de **bu politikanın dışındaki** işlerdir:
+`media/upload_policy.py` imzası, şemaya yeni bir blok, FR-143 eşik türetmesi.
+Hiçbiri T-029'un kapsamında değildir ve hiçbiri "kararların kapanmasıyla"
+kapanmaz. Bu tespit `seller-logo.json`'un `notes` ve `open_questions`
+bloklarına da yazıldı.
 
 ---
 
@@ -1799,19 +2055,21 @@ etkisi), §12-D8 (koyu tema kullanım oranı).
 | Alan | Değer |
 |---|---|
 | Belge | `docs/srs/SRS-v1.0.md` |
-| Sürüm | **v1.0 — HÂLÂ TASLAK** (revizyon 2) |
-| Görev | T-029 (Faz 2 kapanış) · T-029 yenileme (rev2) |
-| Tarih | 2026-08-17 (ilk yazım) · **2026-08-18 (revizyon 2)** |
+| Sürüm | **v1.0 — HÂLÂ TASLAK** (revizyon 3) |
+| Görev | T-029 (Faz 2 kapanış) · T-029 yenileme (rev2) · T-029 karar kapanışı (rev3) |
+| Tarih | 2026-08-17 (ilk yazım) · 2026-08-18 (revizyon 2) · **2026-08-19 (revizyon 3)** |
 | Branch | `medya-motoru-faz0-faz2` |
 | Fonksiyonel gereksinim | **150** (FR-001 … FR-150) — rev2'de **+8** |
 | Fonksiyonel olmayan gereksinim | **52** (NFR-001 … NFR-052) — değişmedi |
 | Kısıt | **22** (K-01 … K-22) — değişmedi |
 | Kabul kriteri grubu | 6 (§6.1 … §6.6) + geçiş kapısı (§6.7, **G1…G7**) |
+| Geçiş kapısı durumu | **G2, G4 GEÇTİ** · G1 kısmen · **G3, G5, G6, G7 açık** (§6.7-C) |
 | Faz 2 kapanış kriteri | **19** (rev1: 16) · geçen **12** |
 | Üretimde doğrulanacak madde | **31** (§8.0 … §8.30) — **3'ü koşuldu ve kapandı**: §8.0, §8.2, §8.29 |
-| TASLAK gerekçesi (T-maddesi) | **10** (T1…T10) · kapanan **3** (T3, T8, T9) · açık **6** · yeni **1** |
-| Yönetici kararı | **14** (logo K1–K6, kapak videosu K1–K8) · çözülen **2** · açık **12** |
-| Açık soru (`open_questions`) | **55** (rev1: 51) |
+| TASLAK gerekçesi (T-maddesi) | **10** (T1…T10) · kapanan **4** (T3, T7, T8, T9) · açık **6** (T1, T2, T4, T5, T6, T10) |
+| Yönetici kararı | **14** (logo K1–K6, kapak videosu K1–K8) · **14'ü de kapandı** (rev2: 2/14) |
+| Slot politikası `status` | **0 `active`** / 9 `draft` — rev2 ile aynı. Aktivasyon karar eksiğinden değil, §6.2 + FR-144 + FR-149'dan yapılmadı (§6.7-C) |
+| Açık soru (`open_questions`) | **49** (rev2: 55 · rev1: 51) · `pending_admin_decisions` **0** (rev2: 7) |
 | Mevcut test | **116** (9 dosya, rev1'de ölçüldü — rev2'de yeniden sayılmadı) |
 | Yazılması gereken test dosyası | **11** (§7.3) + rev2'de adı geçen 5 yeni test |
 | Değiştirilen mevcut kod dosyası | **0** (rev1 ve rev2'de) |
@@ -1829,11 +2087,26 @@ etkisi), §12-D8 (koyu tema kullanım oranı).
 > (80 → 40 MP). FR-019 sertliği azaltıyor ama bu, belgenin **kendi önceden
 > yazılmış tetiğinin** sonucudur ve ters tetiği de yazılıdır.
 
+**Rev3'te değişen gereksinimler — CR takibi için:**
+
+| FR / bölüm | Değişiklik | Yetki |
+|---|---|---|
+| **FR-030 / §3.D (türev merdiveni)** | Logo merdiveni **4 rung → 5 rung** (+w384). `seller-logo.json` ve `brand-logo.json` `profiles[]` dizilerine `w384` (max_bytes 23.040) eklendi | §9.3'ün 2. istisnası: `logo.md` §13-K3'te **önceden yazılmış sayısal tetiğin** işlemesi (512 rung'unun gerçek baytı 40 KiB tavanına yaklaşırsa B). Ölçüm 2026-08-19'da koşuldu, tetik ateşledi. Eşik **sıkılaştı** (aşırı-servis 1,83× → 1,37×), gevşemedi |
+| **§3.G (kota) — K7** | Rendition'lar satıcı medya kotasından **sayılacak** (öneri "sayılmasın" idi) | Platform yöneticisi kararı. **Bir gereksinim borcu doğurdu** — §0.3-C'deki K7 notu. Kota değerlerinin yeniden boyutlandırılması **ayrı CR'dır** ve bu revizyonda yapılmadı |
+| **§3.K (render) — K2** | `ambient` kip **açıldı**, yalnız doğrulanmış satıcılara (varsayılan "kapalı" idi) | Platform yöneticisi kararı. Kapının `VerificationBadge`'e bağlanması **ayrı görev**; `implemented_today` hâlâ `false` |
+| **logo K4/K5/K6, kapak videosu K1/K3/K4/K5/K6/K8** | **Davranış değişikliği YOK** — varsayılan zaten öneriyle aynıydı ve yürürlükteydi | Bilgi güncellemesi: karar "açık" olmaktan çıktı. CR gerekmez |
+| **`seller.logo` / `brand.logo` `open_questions`** | Karara bağlı 8 madde (K3–K6 × 2 dosya) kapatıldı; `seller-logo`'ya 3 doğrulanmış aktivasyon engeli yazıldı. **`status` her ikisinde de `draft` KALDI** | §9.3'ün 2. istisnası (`open_questions` maddesinin kapatılması, gerekçe ve dayanak yazılmak koşuluyla). Hiçbir **eşik** değişmedi |
+
+> **Rev3'te de hiçbir eşik gevşetilmedi.** Tek eşik hareketi K3'ün merdiveni
+> **sıkılaştırmasıdır** (yeni bir rung eklendi). K7 ve K2 birer varsayılanı
+> değiştirdi; ikisi de **kısıtlayıcı yönde** (kota daha hızlı dolar; `ambient`
+> yalnız doğrulanmış satıcıya açık).
+
 ### 9.2 Onay blokları
 
 | Rol | Onaylanan kapsam | İmza / tarih |
 |---|---|---|
-| Platform yöneticisi | §2 aktör modeli, §5 kısıtlar, §6.7 geçiş kapısı (**G1–G7**), T7'deki **14 karar** (logo K1–K6, kapak videosu K1–K8) — bunların **K1/K2'si ölçümle çözüldü, onay yine gerekli** — ve **FR-019 aksiyon değişikliği** | ☐ |
+| Platform yöneticisi | §2 aktör modeli, §5 kısıtlar, §6.7 geçiş kapısı (**G1–G7**), T7'deki **14 karar** (logo K1–K6, kapak videosu K1–K8) ve **FR-019 aksiyon değişikliği** | ☑ **T7'nin 14 kararı 2026-08-19'da VERİLDİ** (§0.3-C tablosu; `logo.md` §13 + "VARSAYILANDA ONAYLANAN KARARLAR", `company-cover-video.md` §10.9 + "VARSAYILANDA ONAYLANAN KARARLAR"). **Belgenin geri kalanı (§2, §5, §6.7, FR-019) hâlâ onaysız** ☐ |
 | Teknik sorumlu (backend) | §3.A–§3.D, §3.G–§3.J, §4.1–§4.2, §4.5, §7 izlenebilirlik | ☐ |
 | Teknik sorumlu (frontend) | §3.F, §3.K, §4.3, K-15, K-16, K-20 | ☐ |
 | Güvenlik / KVKK | §3.J, §4.2, FR-039, FR-109, FR-110, FR-111, FR-119, NFR-025, §8.21 | ☐ |
@@ -1880,10 +2153,36 @@ bölümüne dipnot olarak bağlanır ve §7 matrisinde etkilediği satırlara i�
 "onaylı bir belgeye giren CR" için tanımlıyor; belge onaylanmadığı için
 numara artmadı. Belge hâlâ **v1.0 TASLAK**, ikinci revizyonu.
 
+**Rev3 sürüm notu — neden hâlâ `v1.0 ONAYLI` DEĞİL.** Bu revizyonda 12 açık
+yönetici kararının 12'si de kapandı ve **G4 geçti**. Sürüm kuralı açık:
+`v1.0 ONAYLI` için **G1–G7'nin tamamı** gerekir. Geçmeyen dört kapı ve
+**hangisinin ne istediği**:
+
+- **G3** — 49 açık soru. Hiçbiri yönetici kararı değil; hepsi **üretim ölçümü**
+  ya da bir ürün/kod kararı bekliyor. Onay yetkisiyle kapanmaz.
+- **G5** — `content_rules.json` `UNCALIBRATED`. ≥300 görsellik **etiketli korpus**
+  ve kalibrasyon koşumu ister. Onay yetkisiyle kapanmaz.
+- **G6** — hâlâ **0/9** politika `active`. Bu kapı **karar eksiğinden değil**,
+  üç sistem düzeyi eksikten açık: `upload_policy.check()` `slot_key` almıyor
+  (FR-001, §6.2'nin ilk maddesi), `accept.max_megapixels_hard` iki logo
+  politikasında yok (FR-144), `compliance_measured` bloğu hiçbir politikada yok
+  (FR-149). Üçü de bu oturumda doğrulandı; üçü de **T-029'un kapsamı dışında**.
+- **G7** — `accept.max_megapixels_hard` iki logo politikasında yok; var olan
+  eşik (80 MP) bugünkü kütüphanenin **0 dosyasını** kesiyor. Yeni bir eşiğin
+  bellek bütçesinden **türetilmesi** ister (FR-143/FR-144).
+
+Ayrıca **G1 kısmen**: doğrulama betiği hâlâ çıkış kodu 1 veriyor ve kanonik
+politika seti kararı yazılmadı (T6). Belge bu üç kapı geçilmeden ONAYLI
+işaretlenirse §9.3'ün kendi kuralı çiğnenmiş olur — **bu revizyon o kuralı
+korudu.** Belge **v1.0 TASLAK**, üçüncü revizyonu.
+
 ---
 
-*Bu belge T-029 kapsamında yazıldı, 2026-08-18'de canlı ölçümle revize edildi.
-Hiçbir mevcut kod dosyası değiştirilmedi. Rev1'de hiçbir sayı ölçülmemişti;
-rev2'de sayıların bir kısmı **yerel stack'te** ölçüldü — **hiçbiri üretimde
-ölçülmedi** ve bu ayrım §0.2-b'de tablo hâlinde yazılıdır. Ölçülemeyen her şey
-"ÖLÇÜLEMEDİ" olarak işaretlendi; kaynağı olmayan hiçbir sayı §3–§5'te yoktur.*
+*Bu belge T-029 kapsamında yazıldı, 2026-08-18'de canlı ölçümle, 2026-08-19'da
+yönetici kararlarının kapanmasıyla revize edildi. Hiçbir mevcut kod dosyası
+(`.py`, DocType JSON'u) değiştirilmedi; rev3'te değişen tek makine-okunur şey
+3 slot politikası JSON'unun `status` ve karara bağlı metin alanlarıdır. Rev1'de
+hiçbir sayı ölçülmemişti; rev2 ve rev3'te sayıların bir kısmı **yerel stack'te**
+ölçüldü — **hiçbiri üretimde ölçülmedi** ve bu ayrım §0.2-b'de tablo hâlinde
+yazılıdır. Ölçülemeyen her şey "ÖLÇÜLEMEDİ" olarak işaretlendi; kaynağı olmayan
+hiçbir sayı §3–§5'te yoktur.*

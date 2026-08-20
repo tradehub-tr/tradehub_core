@@ -54,8 +54,9 @@
    "fieldname": "format",
    "fieldtype": "Select",
    "label": "Biçim",
-   "options": "webp\navif\njpeg\npng\nwebm\nmp4",
-   "reqd": 1
+   "options": "webp\navif\njpeg\npng\nwebm\nmp4\nm3u8",
+   "reqd": 1,
+   "description": "W7: 'm3u8' video HLS paketinin master playlist türevi içindir (file_url = /files/media/{asset}/{version_hash}/hls/master.m3u8); bytes kolonu paketin İLAN EDİLEN basamak toplamını taşır."
   },
   {
    "fieldname": "rendition_key",

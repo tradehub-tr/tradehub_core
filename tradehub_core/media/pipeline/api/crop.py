@@ -282,6 +282,9 @@ class CropApi:
 			"safe_y": d.get("safe_y"),
 			"safe_w": d.get("safe_w"),
 			"safe_h": d.get("safe_h"),
+			"zoom": d.get("zoom"),
+			"center_x": d.get("center_x"),
+			"center_y": d.get("center_y"),
 			"method": d.get("method") or "",
 			"confidence": d.get("confidence"),
 			"approved_by_user": bool(d.get("approved_by_user")),
@@ -352,6 +355,9 @@ class CropApi:
 		focal_x: Any = None,
 		focal_y: Any = None,
 		safe_area: Optional[Mapping[str, Any]] = None,
+		zoom: Any = None,
+		center_x: Any = None,
+		center_y: Any = None,
 		overrides: Optional[Sequence[Mapping[str, Any]]] = None,
 		approved_by_user: bool = False,
 		confidence: Any = None,
@@ -364,6 +370,13 @@ class CropApi:
 		kopyası farklı boyutta olduğunda kadraj kayardı — `core/crop.py` modül
 		başlığındaki gerekçe. Bu yüzden 1'den büyük bir değer düzeltilmez,
 		**reddedilir** (400).
+
+		`zoom`/`center_x`/`center_y` stüdyonun taban bölgesini taşır
+		(`crop_geometry.zoom_base` girdileri) ve ÜÇÜ BİRLİKTE verilir; zoom
+		`[ZOOM_MIN, ZOOM_MAX]` dışıysa 400. Verilmezse kayıtlı üçlü KORUNUR —
+		tek istisna: `safe_area` verilip zoom verilmemişse üçlü silinir,
+		çünkü taban bölge yeniden tanımlanmıştır ve eski zoom yeni tabanı
+		gölgelerdi (aşağıda, satır içi gerekçe).
 
 		`If-Match` verilirse iyimser kilit uygulanır: araya başka bir yazma
 		girdiyse 412 döner. Verilmezse son yazan kazanır — bugünkü editörde
@@ -398,6 +411,30 @@ class CropApi:
 
 		if safe_area is not None:
 			yeni.update(self._parse_safe_area(safe_area))
+
+		if zoom is not None or center_x is not None or center_y is not None:
+			# Üçlü BİRLİKTE gelir: yarım yazılmış zoom (merkezi belirsiz bir
+			# taban bölge) okurken sessizce bir alt seviyeye düşer ve
+			# kullanıcı kadraj kaydettiğini sanırken sistem başka pencere
+			# keser — odak çiftiyle aynı gerekçe.
+			if zoom is None or center_x is None or center_y is None:
+				raise env.BadRequest(
+					"`zoom`, `center_x` ve `center_y` birlikte verilmeli.",
+					kod=kod_uret(env.API_PREFIX, "bad_field"),
+					detay={"field": "zoom/center_x/center_y"},
+				)
+			yeni["zoom"] = self._parse_zoom(zoom)
+			yeni["center_x"] = env.require_unit(center_x, "center_x")
+			yeni["center_y"] = env.require_unit(center_y, "center_y")
+		elif safe_area is not None:
+			# Çağıran taban bölgeyi zoom vermeden yeniden tanımladı (eski
+			# istemci). Kayıtta duran zoom o eski tabanın niyetiydi; onu
+			# bırakmak, çözücü zoom'u tercih ettiği için kullanıcının az önce
+			# gönderdiği güvenli alanı sessizce gölgelerdi. Taban yeniden
+			# tanımlanınca zoom üçlüsü SİLİNİR.
+			yeni["zoom"] = None
+			yeni["center_x"] = None
+			yeni["center_y"] = None
 
 		if overrides is not None:
 			yeni["overrides"] = self._parse_overrides(overrides, self._slot_of(kayit))
@@ -434,6 +471,37 @@ class CropApi:
 		# ETag `get_intent` ile AYNI gövde şeklinden hesaplanır ki istemci
 		# yazdıktan sonra aldığı ETag'i doğrudan `If-Match`'e koyabilsin.
 		return env.ok(govde, etag=env.etag_for(govde))
+
+	@staticmethod
+	def _parse_zoom(raw: Any) -> float:
+		"""Zoom çarpanı — `[ZOOM_MIN, ZOOM_MAX]` dışı REDDEDİLİR, kelepçelenmez.
+
+		`crop_geometry.zoom_base` aralık dışını sessizce sıkıştırır; o davranış
+		ETKİLEŞİM içindir (fare tekerleği dönerken hata basılmaz). YAZMA
+		tarafında aynı hoşgörü, kullanıcının göndermediği bir kadrajı
+		"kaydedildi" diye göstermek olurdu — 0-1 sözleşmesiyle aynı kural
+		(`require_unit` ve modül başlığındaki gerekçe).
+		"""
+		try:
+			sayi = float(raw)
+		except (TypeError, ValueError):
+			raise env.BadRequest(
+				"`zoom` bir sayı olmalı.",
+				kod=kod_uret(env.API_PREFIX, "bad_field"),
+				detay={"field": "zoom", "observed": repr(raw)},
+			)
+		if not (crop_core.ZOOM_MIN <= sayi <= crop_core.ZOOM_MAX):
+			raise env.BadRequest(
+				f"`zoom` {crop_core.ZOOM_MIN} ile {crop_core.ZOOM_MAX} arasında olmalı: {sayi}.",
+				kod=kod_uret(env.API_PREFIX, "bad_field"),
+				detay={
+					"field": "zoom",
+					"min": crop_core.ZOOM_MIN,
+					"max": crop_core.ZOOM_MAX,
+					"observed": sayi,
+				},
+			)
+		return sayi
 
 	@staticmethod
 	def _parse_safe_area(raw: Mapping[str, Any]) -> Dict[str, Any]:

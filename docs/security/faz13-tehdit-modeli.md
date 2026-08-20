@@ -346,6 +346,26 @@ media_pii_unprotected_files                            # F-02/F-03: > 0 → sız
 | F-04 | Geçiş muhafızı ≠ durum muhafızı | **AÇIK (yapısal)** | Periyodik denetim işi gerekiyor |
 | F-05 | Ters tarama indekssiz | **AÇIK** | F-01 düzeltmesiyle birlikte çözülmeli |
 
+### 5.1 Pentest ile eklenen tehditler (2026-08-19 — `docs/reports/28-faz13-pentest.md`)
+
+Eski model **medya hattına** odaklıydı; sızma testi **doctype-seviyesi yetki
+yüzeyini** ölçüp aşağıdaki tehditleri modele soktu. Her satır koşulmuş istek +
+dönen gerçek yanıtla kanıtlı (28 §2–§4).
+
+| # | Tehdit | Durum | Kanıt / kök neden |
+|---|---|---|---|
+| **T-1** | `Payment Transaction` çapraz-kiracı okuma (IDOR) | **AÇIK · CANLI · SÖMÜRÜLDÜ** | [H] Yeni satıcı, başka satıcının 3 dekont kaydını (IBAN, alıcı, tutar) `/api/resource` ile okudu. DocPerm `Marketplace Seller read=1 if_owner=0`, `hooks.py`'de izolasyon kancası **YOK**. #4/Ö-2/Ö-3'ün kardeşi |
+| **T-2** | Kendi KYC'sinde `status=Verified` → `can_buy` | **AÇIK · SÖMÜRÜLDÜ** | [X] `Seller`/`Marketplace Seller` rolü, permlevel-1 `if_owner write` ile kendi KYC status'ünü yazdı → `can_buy=1`. Saf `Buyer` yapamaz (L1 satırı yok) |
+| **T-3** | Kendi KYB'sinde `status=Verified` → `Verified Seller` rolü | **AÇIK · SÖMÜRÜLDÜ · ağır** | [X] T-2 ile aynı yapı; sonuç `Verified Seller` rolü = satış kapısı kendi kendine açılıyor |
+| **T-4** | `Compliance Officer` KYC/KYB'yi HİÇ okuyamıyor | **AÇIK (ters yön)** | [Ö] Permlevel-0 read satırı yok → CO belgeyi hiç açamıyor; canlıda 0 CO kullanıcısı. Uyum denetimi boşluğu |
+| **T-5** | `media_access.download` belirsiz-blob (V2) atlıyor | **KOD AÇIĞI · canlı sömürülemedi** | [K] `download` `is_downloadable`/`blob_matches_row` çağırmıyor; [Ö] 5 belirsiz URL denendi, mevcut veride sızıntı üretmedi (koruma tesadüfi) |
+| **T-9** | Hız sınırı: tüm misafirler tek `Guest` kovası | **AÇIK · SÖMÜRÜLDÜ** | [Ö] `_bucket_key` `session.user`'a bağlı; misafir 5 çağrıda kovayı doldurdu, ikinci ziyaretçi kilitli → DoS |
+
+**Bu koşumda kapalı doğrulanan (regresyon geçti):** T-10 çapraz-kiracı dosya
+(`find_file_by_url` → `None`), T5-zinciri dekont dosyası indirme (`File` → `Order`
+read'e devrediyor), Media Asset moderasyon alanları (permlevel-1, satıcı `write=0`),
+SVG 5/5 nötr, path traversal 4/4 reddedildi.
+
 ---
 
 ## 6. Düzeltme önerileri
@@ -535,3 +555,13 @@ içerik, gözlemlenemezlik) ve **üç açığı ölçtü**:
 erişim seviyesi DEĞİŞTİRİLİRKEN soruyor; yüklenirken, kopyalanırken ve
 sonradan bağlanırken sormuyor. §6'daki öneriler bu soruyu üç noktaya daha
 taşır.
+
+**2026-08-19 eki — sızma testi (28 §9).** Pentest, medya-dışı yetki yüzeyinde
+**üç yeni canlı sömürü** buldu (T-1 Payment Transaction IDOR, T-2/T-3 KYC/KYB
+kendini-doğrulama, T-9 misafir hız-sınırı DoS) ve bir ters-yön boşluk (T-4
+Compliance Officer KYC'yi okuyamıyor). T-1/T-2/T-3'ün ortak kökü, F-01…F-05'ten
+farklı bir sınıf: **hassas alan ile kiracı/rol kancasının hizasızlığı** —
+`Payment Transaction`'da kanca hiç yok, KYC/KYB'de `status` alanı sahibin
+permlevel-1 yazma yetkisiyle aynı kovada. Bu yüzden Faz 13 bu koşumla **✅
+kapanamaz**; T-1/T-2/T-3/T-9 düzeltilip regresyon tekrar koşulana dek 🟡 KISMİ
+kalır (28 §9).

@@ -5,7 +5,8 @@ kullanılıyor" demek yetmez, hangi ürünlerde, varyant mı değil mi, o ürün
 yayında mı — bunların görünmesi gerekiyor. Silme kararı da buradan çıkacak.
 
 Kaynak alanlar `information_schema` taramasıyla bulundu (bkz. LIVE_SOURCES):
-görsel URL'i geçen 23 alan var, ama hepsi "kullanım" değil. Üçe ayrılıyorlar:
+ölçüm (2026-08-19, istoc.localhost) '/files/' geçen **42** (tablo, kolon) çifti
+buldu, ama hepsi "kullanım" değil. Üçe ayrılıyorlar:
 
   CANLI      → Listing.primary_image, Listing Image.image, varyant alanları,
                vitrin, satıcı galerisi, logo. Silinirse sitede bir şey kırılır.
@@ -29,6 +30,27 @@ from collections import defaultdict
 import frappe
 
 # (tablo, kolon, tür, etiket) — tür UI'da gruplama ve karar için kullanılır.
+#
+# ÖLÇÜM (2026-08-19, istoc.localhost, `information_schema` + `locate('/files/')`):
+# '/files/' geçen 42 (tablo, kolon) çifti var. Bu liste 2026-08-19 öncesinde
+# 8 alan tutuyordu ve aşağıdaki 9 alan HİÇBİR kaynak listesinde yoktu — yani
+# `verdict_map_all` onları "unused" sayıyordu ve `trash.TRASHABLE_VERDICTS`
+# ("unused", "history_only") o kararı SİLİNEBİLİR okuyordu:
+#
+#     tabBrand.logo                     1 satır   ← T-029 tuzağı, marka logosu
+#     tabBrand.hero_banner              1
+#     tabProduct Category.image         1  (7.694 satırlık tablo)
+#     tabSeller Category.image          1
+#     tabStatic Page SEO.og_image       1
+#     tabVerification Source.icon       1
+#     tabAdmin Seller Profile.banner_image  2
+#     tabSeller Gallery Image.poster_image  1
+#     tabSeller Gallery Image.video_url     1
+#
+# `retention.BLIND_SPOT_SOURCES` bunları GC tarafında koruyordu ama o bir
+# emniyet ağıydı; kararın kendisi hâlâ yanlıştı ve panel/çöp kutusu yolu
+# (trash.py) emniyet ağını hiç görmüyor. Kalıcı çözüm burada: alanlar CANLI
+# kaynak sayılıyor, karar `in_use` oluyor.
 LIVE_SOURCES: tuple[tuple[str, str, str, str], ...] = (
 	("tabListing", "primary_image", "listing_main", "Ana görsel"),
 	("tabListing", "video_url", "listing_video", "Video"),
@@ -37,15 +59,91 @@ LIVE_SOURCES: tuple[tuple[str, str, str, str], ...] = (
 	("tabListing Variant Item", "variant_gallery", "variant_gallery", "Varyant galerisi"),
 	("tabStorefront Layout", "sections", "storefront", "Vitrin düzeni"),
 	("tabSeller Gallery Image", "image", "seller_gallery", "Satıcı galerisi"),
+	("tabSeller Gallery Image", "poster_image", "seller_gallery_poster", "Galeri video posteri"),
+	("tabSeller Gallery Image", "video_url", "seller_gallery_video", "Galeri videosu"),
 	("tabAdmin Seller Profile", "logo", "seller_logo", "Mağaza logosu"),
+	("tabAdmin Seller Profile", "banner_image", "seller_banner", "Mağaza kapak görseli"),
+	("tabBrand", "logo", "brand_logo", "Marka logosu"),
+	("tabBrand", "hero_banner", "brand_hero", "Marka kapak görseli"),
+	("tabProduct Category", "image", "category_image", "Kategori görseli"),
+	("tabSeller Category", "image", "seller_category_image", "Satıcı kategori görseli"),
+	("tabStatic Page SEO", "og_image", "seo_og_image", "Sayfa OG görseli"),
+	("tabVerification Source", "icon", "verification_icon", "Doğrulama kaynağı ikonu"),
 )
 
 # Sipariş anında kopyalanan görseller — canlı kullanım değil ama geçmiş
 # siparişin kaydı. Silme kararında ayrı ağırlık taşır.
+#
+# `order_only` kararı `TRASHABLE_VERDICTS` içinde DEĞİL: bu üç alan da bugüne
+# kadar hiçbir listede yoktu ve `Order Item.image` (1 satır), `Payment
+# Transaction.receipt_url` (3) ile `Buyer Favorite Item.snapshot_image` (22)
+# "unused" görünüyordu. Sipariş/ödeme delili ve alıcının favori listesi canlı
+# ürün kullanımı DEĞİL — ama silinince geçmiş sipariş ekranı ve favori listesi
+# kırılır. Doğru yer bu grup.
 ORDER_SOURCES: tuple[tuple[str, str, str, str], ...] = (
 	("tabCart Item", "snapshot_image", "cart_snapshot", "Sepet anlık görüntüsü"),
 	("tabOrder", "receipt_url", "order_receipt", "Sipariş dekontu"),
+	("tabOrder Item", "image", "order_item_image", "Sipariş kalemi görseli"),
+	("tabPayment Transaction", "receipt_url", "payment_receipt", "Ödeme dekontu"),
+	("tabBuyer Favorite Item", "snapshot_image", "favorite_snapshot", "Favori anlık görüntüsü"),
 )
+
+# KVKK belge alanları (`tabKYB Verification.*` 6 alan, `tabKYC Verification.
+# identity_document`, `tabSeller Application.identity_document`, `tabSeller
+# Certification.document`, `tabSeller Verification.document`) BİLEREK hiçbir
+# gruba eklenmedi. İki gerekçe:
+#
+#   1. `verdict_map_all` aday kümesi zaten `presets.EXCLUDED_DOCTYPES` ile bu
+#      doctype'lara bağlı ekleri dışarıda bırakıyor — karar hiç sorulmuyor.
+#   2. Bu alanları CANLI kaynak yapmak, medya panelinde bir dosyanın "KYB
+#      Verification'da kullanılıyor" diye görünmesi demekti; kimlik belgesinin
+#      varlığını kullanım dökümünde sızdırmak (bkz. docs/reports/24-kyc-izolasyon.md).
+#
+# GC tarafındaki koruma `retention.PROTECTED_SOURCES` ile ayrıca duruyor.
+
+# `parent`/`parenttype`/`idx` kolonu OLAN kaynaklar — child table'lar.
+#
+# Bu ayrım `resolve()` için hayati: ana tablodan `parent` seçmek "Unknown
+# column 'parent'" hatası verir, hata `_match_rows` içinde YUTULUR ve alan
+# sessizce "kullanılmıyor" görünür. Yanlış yön: silme adayı üretir. Eskiden
+# liste ters yazılmıştı ("şu üç tablo ana tablodur"), yani listeye eklenmeyen
+# HER YENİ ana tablo bu tuzağa düşüyordu. Artık varsayılan güvenli tarafta:
+# bilinmeyen tablo ana tablo sayılır, yalnız buradakiler child'dır.
+# `tests/test_media_usage_sources.py` bunu canlı şemaya karşı doğruluyor.
+CHILD_TABLES: frozenset[str] = frozenset(
+	{
+		"tabListing Image",
+		"tabListing Variant Item",
+		"tabSeller Gallery Image",
+		"tabCart Item",
+		"tabOrder Item",
+	}
+)
+
+# Kaynak tablonun kullanıcıya gösterilecek doctype'ı. `resolve()` eskiden
+# varsayılan olarak "Listing" diyordu; listede olmayan bir tablo eklenince
+# marka logosu "Listing" diye raporlanırdı.
+#
+# `tabSeller Gallery Image` bilinçli olarak `Admin Seller Profile`: satırın
+# `parent` alanı zaten mağaza kaydıdır, galeri satırının kendi sayfası yok.
+SOURCE_DOCTYPE: dict[str, str] = {
+	"tabListing": "Listing",
+	"tabListing Image": "Listing",
+	"tabListing Variant Item": "Listing",
+	"tabStorefront Layout": "Storefront Layout",
+	"tabSeller Gallery Image": "Admin Seller Profile",
+	"tabAdmin Seller Profile": "Admin Seller Profile",
+	"tabBrand": "Brand",
+	"tabProduct Category": "Product Category",
+	"tabSeller Category": "Seller Category",
+	"tabStatic Page SEO": "Static Page SEO",
+	"tabVerification Source": "Verification Source",
+	"tabCart Item": "Cart",
+	"tabOrder": "Order",
+	"tabOrder Item": "Order",
+	"tabPayment Transaction": "Payment Transaction",
+	"tabBuyer Favorite Item": "Buyer Favorite Item",
+}
 
 # Yalnız iz bırakan tablolar — kullanım sayılmaz.
 HISTORY_SOURCES: tuple[tuple[str, str, str, str], ...] = (
@@ -101,6 +199,13 @@ STORE_FILTERS: dict[str, str] = {
 	"tabAdmin Seller Profile": "name = %s",
 	"tabCart Item": "seller = %s",
 	"tabOrder": "seller = %s",
+	"tabOrder Item": "parent in (select name from `tabOrder` where seller = %s)",
+	"tabPayment Transaction": "seller = %s",
+	"tabSeller Category": "seller = %s",
+	# `tabBrand`, `tabProduct Category`, `tabStatic Page SEO`,
+	# `tabVerification Source`, `tabBuyer Favorite Item` BİLEREK yok: platforma
+	# (ya da alıcıya) ait kayıtlar, mağaza bağı yok. Satıcı bağlamında hiç
+	# taranmazlar — yukarıdaki "eksik ama sızıntısız" kuralının aynısı.
 }
 
 
@@ -221,6 +326,22 @@ def _urls_in(value: str, wanted: set[str]) -> set[str]:
 	return extract_file_urls(value) & wanted
 
 
+def _extra_columns(table: str) -> str:
+	"""`resolve()` kullanım dökümü için o tablodan seçilecek ek kolonlar.
+
+	Ana tablo → `name`; child table → `parent, idx`. Varyant satırı ayrıca
+	kendi künyesini taşır (hangi varyant, hangi SKU, varsayılan mı).
+
+	Varsayılan `name` tarafında: bilinmeyen bir tablo için `parent` seçmek SQL
+	hatası verir ve o hata `_match_rows` içinde yutulduğu için alan sessizce
+	"kullanılmıyor" görünür. Bilmediğimiz durumda hatanın yönü, korumaya doğru
+	olmalı.
+	"""
+	if table == "tabListing Variant Item":
+		return "parent, idx, attribute_type, attribute_value, variant_sku, is_default"
+	return "parent, idx" if table in CHILD_TABLES else "name"
+
+
 def public_urls_for(pairs: set[tuple[str, str]]) -> dict[tuple[str, str], str]:
 	"""Kayıtların ziyaretçiye görünen sayfa YOLU (host olmadan).
 
@@ -290,9 +411,10 @@ def verdicts_for(urls: list[str], deep: bool = False, store: str | None = None) 
 	(bkz. `ownership` modülü). Başka mağazanın kullanımını saymak satıcıya
 	silemeyeceği bir dosya gösterir ve üstelik o mağazanın varlığını sızdırır.
 
-	İki kademeli, çünkü kaynakların maliyeti taban tabana zıt (50 dosya, ölçüm):
+	İki kademeli, çünkü kaynakların maliyeti taban tabana zıt (50 dosya, ölçüm
+	2026-08-18, o gün CANLI+SİPARİŞ 10 alandı; bugün 22):
 
-	    CANLI + SİPARİŞ  ->  116 ms   (10 alan)
+	    CANLI + SİPARİŞ  ->  116 ms   (10 alan — bugünkü 22 alan için yeniden ölçülmedi)
 	    GEÇMİŞ           -> 3.546 ms  (Version 934, Deleted Document 2.018, Error Log 552)
 
 	`deep=False` (varsayılan): yalnız canlı ve sipariş taranır, karar
@@ -475,14 +597,17 @@ def resolve(file_url: str, store: str | None = None) -> dict:
 
 	# ── Canlı kullanım ────────────────────────────────────────────────
 	for table, column, kind, label in LIVE_SOURCES:
-		extra = "name" if table in ("tabListing", "tabStorefront Layout", "tabAdmin Seller Profile") else "parent, idx"
-		if table == "tabListing Variant Item":
-			extra = "parent, idx, attribute_type, attribute_value, variant_sku, is_default"
+		extra = _extra_columns(table)
 		for row in _match_rows(table, column, [url], extra=extra, store=store):
 			if not _urls_in(row.get("_val"), wanted):
 				continue
 			owner = row.get("name") or row.get("parent")
-			item = {"kind": kind, "field": label, "doctype": "Listing", "name": owner}
+			item = {
+				"kind": kind,
+				"field": label,
+				"doctype": SOURCE_DOCTYPE.get(table, table[3:]),
+				"name": owner,
+			}
 			if kind.startswith("variant"):
 				parts = [p for p in (row.get("attribute_type"), row.get("attribute_value")) if p]
 				item["variant"] = " · ".join(parts) or "—"
@@ -490,12 +615,6 @@ def resolve(file_url: str, store: str | None = None) -> dict:
 				item["is_default"] = bool(row.get("is_default"))
 			if kind == "listing_gallery":
 				item["position"] = row.get("idx")
-			if table == "tabStorefront Layout":
-				item["doctype"] = "Storefront Layout"
-			elif table == "tabAdmin Seller Profile":
-				item["doctype"] = "Admin Seller Profile"
-			elif table == "tabSeller Gallery Image":
-				item["doctype"] = "Admin Seller Profile"
 			if item["doctype"] == "Listing" and owner:
 				listing_names.add(owner)
 			usages.append(item)
@@ -516,7 +635,7 @@ def resolve(file_url: str, store: str | None = None) -> dict:
 	# ── Sipariş kopyaları ─────────────────────────────────────────────
 	orders: list[dict] = []
 	for table, column, kind, label in ORDER_SOURCES:
-		extra = "name" if table == "tabOrder" else "parent"
+		extra = "parent" if table in CHILD_TABLES else "name"
 		for row in _match_rows(table, column, [url], extra=extra, store=store):
 			if _urls_in(row.get("_val"), wanted):
 				orders.append({"kind": kind, "field": label, "name": row.get("name") or row.get("parent")})
@@ -598,7 +717,10 @@ def images_of(doctype: str, name: str) -> dict:
 	elif doctype == "Admin Seller Profile":
 		kaynaklar = [
 			("tabAdmin Seller Profile", "logo", "seller_logo", "Mağaza logosu", "name"),
+			("tabAdmin Seller Profile", "banner_image", "seller_banner", "Mağaza kapak görseli", "name"),
 			("tabSeller Gallery Image", "image", "seller_gallery", "Satıcı galerisi", "parent"),
+			("tabSeller Gallery Image", "poster_image", "seller_gallery_poster", "Galeri video posteri", "parent"),
+			("tabSeller Gallery Image", "video_url", "seller_gallery_video", "Galeri videosu", "parent"),
 		]
 	elif doctype == "Storefront Layout":
 		kaynaklar = [("tabStorefront Layout", "sections", "storefront", "Vitrin düzeni", "name")]
@@ -682,3 +804,159 @@ def storefront_hits(url: str) -> int:
 		except Exception:
 			continue
 	return n
+
+
+# ── Öksüz dosya raporu (T-043'ün ikinci yarısı) ──────────────────────
+#
+# "Öksüz" = hiçbir taranan kaynak alanda geçmeyen ve yüklenmesinin üzerinden
+# N gün geçmiş dosya. Bu bir GÖRÜNÜRLÜK raporudur, silme akışı DEĞİLDİR:
+# rapor 57'de kullanım koruması GC yolunun yarısına bağlı çıktı ve 3.821
+# dosya silinme sınırına geldi. Burada hiçbir şey silinmez; silme mevcut
+# çöp akışından (preview_release → archive → purge) geçer ve oradaki
+# korumalar aynen geçerli kalır.
+
+# Sayfa boyu üst sınırı `inventory.MAX_PAGE_SIZE` ile aynı tutuluyor;
+# import döngüsü olmasın diye değer fonksiyon içinde okunuyor.
+ORPHAN_MAX_DAYS: int = 3650
+
+
+def store_referenced_urls(store: str) -> tuple[set[str], list[str]]:
+	"""Bir mağaza bağlamında "kullanılıyor" sayılan TÜM adresler.
+
+	Kaynak listesi BURADAKİ sabitlerden (`LIVE_SOURCES` + `ORDER_SOURCES`)
+	okunur — ikinci bir liste yazılmaz; liste burada değişince öksüz kararı
+	da kendiliğinden değişir. İki katman:
+
+	  • Mağaza süzgeci OLAN alanlar (ürün, varyant, vitrin, galeri, sipariş)
+	    yalnız BU mağazanın kayıtlarında taranır — başka satıcının verisi ne
+	    okunur ne sayılır (bkz. `STORE_FILTERS` ve `verdicts_for` gerekçesi).
+	  • Süzgeci OLMAYAN alanlar (marka logosu, kategori görseli, SEO OG,
+	    doğrulama ikonu, alıcı favorisi) platforma/alıcıya aittir ve GLOBAL
+	    taranır. Atlansalardı satıcının yüklediği ama platformun kullandığı
+	    bir görsel (örn. marka logosu — T-029 tuzağı) "öksüz" görünürdü;
+	    satıcı bırakır, platformun sahiplik payı olmadığı için dosya diskten
+	    gider, logo kırılırdı. Global tarama kiracı verisi sızdırmaz: sonuç
+	    yalnız "bu adres kullanılıyor" bilgisine (dosyanın listede
+	    GÖRÜNMEMESİNE) dönüşür, kimin kullandığı taşınmaz.
+
+	`HISTORY_SOURCES` bilerek taranmaz: geçmiş izi (sürüm, silinmiş kayıt,
+	yorum) kullanım değildir ve taraması 3,5 sn ölçülmüştü. Bu körlük
+	yanıtta (`store_orphans` → `scan`) açıkça bildirilir; ekran da söyler.
+
+	Maliyet — alan başına TEK sorgu (ölçüm 2026-08-20, istoc.localhost):
+	750 dosyalık mağaza için 9 ms. Karşılaştırma: aday URL listesiyle
+	dosya-başı LIKE üreten `verdicts_for` yolu 2.897 URL'de 373 ms — ve
+	maliyeti dosya sayısıyla büyür; bu yol alan sayısıyla sabittir.
+
+	Dönüş: `(adresler, taranamayan_alanlar)`. Sorgusu HATA veren alan
+	loglanır ve etiketi ikinci listede döner — o alandaki kullanım
+	görünmediği için hatanın yönü "öksüz sanma"ya doğrudur, ekran bu
+	listeyi görmezden gelemez.
+	"""
+	if not store:
+		return set(), []
+
+	found: set[str] = set()
+	failed: list[str] = []
+	for group in (LIVE_SOURCES, ORDER_SOURCES):
+		for table, column, _kind, _label in group:
+			kosul = STORE_FILTERS.get(table)
+			where = f"locate('/files/', `{column}`) > 0" + (f" and {kosul}" if kosul else "")
+			params: tuple = (store,) if kosul else ()
+			try:
+				rows = frappe.db.sql(f"select `{column}` from `{table}` where {where}", params)  # noqa: S608 — tablo/kolon sabit listeden
+			except Exception:
+				frappe.log_error(
+					title=f"Orphan scan failed: {table}.{column}",
+					message=frappe.get_traceback(with_context=True),
+				)
+				failed.append(f"{table[3:]}.{column}")
+				continue
+			for (val,) in rows:
+				found |= extract_file_urls(val)
+	return found, failed
+
+
+def store_orphans(store: str, days_unused: int = 30, start: int = 0, page_length: int = 50) -> dict:
+	"""Mağazanın öksüz dosyaları — sayfalı liste. YALNIZ LİSTELER, SİLMEZ.
+
+	Aday küme satıcı listesiyle AYNI sorgudan gelir (`inventory._base_query`
+	+ `ownership.scope`): hassas doctype eklerini ve içerik-hash emniyet
+	kemerini burada ikinci kez yazmak, iki kümenin sessizce ayrışması
+	demekti. Çöpteki dosyalar dahil edilmez — onlar zaten ayrı akışta.
+
+	Sayfalama bellek içinde dilimlenir: öksüz kararı SQL'de üretilemiyor
+	(kaynak alanlar 10+ tabloya yayılmış metin alanları) ve toplam sayının
+	doğru olması için önce tüm adayların kararı gerekir — `verdict_map_all`
+	ile aynı gerekçe. Mağaza başına aday küme küçük (ölçüm: en büyük mağaza
+	750 URL), tüm satırları çekmek sayfa başına ayrı tarama yapmaktan ucuz.
+	"""
+	from frappe.utils import add_days, cint, get_datetime, now_datetime
+
+	from tradehub_core.media import inventory, ownership, states
+
+	days = cint(days_unused)
+	if days < 0 or days > ORPHAN_MAX_DAYS:
+		frappe.throw(frappe._("Gün eşiği 0 ile {0} arasında olmalı.").format(ORPHAN_MAX_DAYS))
+	start = max(0, cint(start))
+	page_length = min(inventory.MAX_PAGE_SIZE, max(1, cint(page_length) or 50))
+
+	from frappe.query_builder.functions import Coalesce, Max, Min
+
+	f, query = inventory._base_query()
+	query = ownership.scope(query, f, store)
+	# Çöp dışı koşulu `inventory._apply_filters`'ın varsayılan dalıyla aynı
+	# (COALESCE + Min damga gerekçeleri orada).
+	query = query.having(
+		(Coalesce(Max(f.th_media_state), "") != states.STATE_TRASHED)
+		& Min(f.th_trashed_at).isnull()
+	)
+
+	cutoff = add_days(now_datetime(), -days)
+	rows = (
+		query.having(Min(f.creation) <= cutoff)
+		.select(
+			f.file_url,
+			Min(f.file_name).as_("file_name"),
+			Max(f.file_size).as_("file_size"),
+			Min(f.creation).as_("uploaded_at"),
+		)
+		.run(as_dict=True)
+	)
+
+	referenced, failed = store_referenced_urls(store)
+	orphans = [r for r in rows if r["file_url"] not in referenced]
+	# En eski en üstte: temizlik raporunda ilk soru "en uzun süredir boşta
+	# duran ne". Sıralama deterministik olmalı ki sayfalar çakışmasın.
+	orphans.sort(key=lambda r: (str(r["uploaded_at"]), r["file_url"]))
+
+	checked = str(now_datetime())
+	page = orphans[start : start + page_length]
+	items = [
+		{
+			"file_url": r["file_url"],
+			"file_name": r["file_name"] or r["file_url"].rsplit("/", 1)[-1],
+			"file_size": cint(r["file_size"]),
+			"uploaded_at": str(get_datetime(r["uploaded_at"])),
+			"last_checked": checked,
+		}
+		for r in page
+	]
+
+	return {
+		"items": items,
+		"total": len(orphans),
+		"start": start,
+		"page_length": page_length,
+		"days_unused": days,
+		"scanned_at": checked,
+		# Tarama sınırının makine okunur hâli — ekran `scanNote`'unu bununla
+		# kurar: karar sabit listeden geliyor, geçmiş izleri dahil değil,
+		# taranamayan alan varsa adları burada.
+		"scan": {
+			"live_fields": len(LIVE_SOURCES),
+			"order_fields": len(ORDER_SOURCES),
+			"history_scanned": False,
+			"failed_sources": failed,
+		},
+	}

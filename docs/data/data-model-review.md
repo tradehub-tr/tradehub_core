@@ -557,3 +557,63 @@ fonksiyonları frappe'yi kendi içinden import eder. Saf mantık (öksüz karar�
 | Backend | — | §8'deki 8 madde kapanmadan Faz 5'e geçilmemeli |
 | Veri | — | ER + indeks planı kurulabilirliği kanıtlandı (§3); ölçekli EXPLAIN eksik (§4) |
 | Superadmin | — | Öksüz raporunun silme akışı **onaylanmadı**; bugün rapor-yalnız |
+
+---
+
+## 11. Kanıt ve kapı durumu — 2026-08-19 gün sonu ölçümü (T-044)
+
+> **Yalnız ölçüm kaydıdır.** §1-§10 değiştirilmedi; **§10 Onay bloğuna
+> dokunulmadı** ve hiçbir imza atılmadı.
+> Komut çıktıları: `docs/reports/55-d2-faz3-5-kapanis.md` §6.
+
+### 11.1 §8'in sekiz maddesinin bugünkü hâli
+
+| # | Madde | Bugün | Kanıt |
+|---:|---|:--:|---|
+| 1 | 1M asset + 30M rendition sentetik veri | ❌ **AÇIK** | Yeniden üretilemedi (geçici DB düşürülmüş) |
+| 2 | `scripts/seed_synthetic.py` | ❌ **AÇIK** | Ölçüldü: `scripts/` altında yok |
+| 3 | Migration + rollback provası | ❌ **AÇIK — gerekçesi BAYAT** | Maddenin engeli *"DocType'lar Frappe'ye kurulmadı"*tı; bugün **10 medya DocType'ı canlıda** ve `v15_9_27…v15_9_32` altı yaması `tabPatch Log`'da `skipped=0`. `migrate` yönü kanıtlı; **geri alma yönü hâlâ provasız** |
+| 4 | `docs/plans/rollback-doctypes.md` | ❌ **AÇIK — gerekçesi BAYAT** | Ölçüldü: `docs/plans/` altında 6 dosya, bu değil |
+| 5 | İzin kuralları (`permission_query_conditions`, `has_permission`) | ✅ **KAPANDI** | `hooks.py:880-891` (7 DocType) ve `:974-986`; `Media Storage Settings` için ayrıca `has_permission`. `Media Crop Override` **alt tablodur** (`istable=1`) — kapsam dışı, eksiklik değil |
+| 6 | Varsayılan profil/politika yükleme | ✅ **KAPANDI** | `v15_9_23_media_profile_seed` uygulandı; `tabMedia Profile` **36** satır (9 slotun tamamı) |
+| 7 | Pillow sürümü `engine_version`'a | ❓ **ölçülmedi** | — |
+| 8 | Üç eşiğin kalibrasyonu | ❌ **AÇIK** | — |
+
+### 11.2 Kurulu şema ile spesifikasyonun farkı (ölçüldü)
+
+| Alan | `doctype_specs/media_asset.json` | Kurulu `Media Asset` | Durum |
+|---|---|---|---|
+| `active_version` | var | **var** (`varchar(140)`, `active_version_index`) | ✅ **Sapma KAPANDI** — `Media Version` DocType'ı da kuruldu (`v15_9_29` + `v15_9_30`) |
+| `source` / `source_file` | `source` (Link→Media Source) | `source_file` (Link→File) | ⚠ **BEYAN EDİLDİ** — DocType `$comment` sapma 2 |
+| `asset_key` | yok | **var**, UNIQUE | ⚠ **BEYAN EDİLDİ** — `$comment` sapma 4: tekillik `(owner_seller, slot_key, content_sha256)` üçlüsünde |
+
+Ayrışma **sıfırlanmadı ama artık sessiz değil**: her sapma DocType'ın kendi
+`$comment`'inde numaralı ve gerekçelidir. **Kalan karar:** spesifikasyon dosyası
+mı kurulu şemaya çekilecek, yoksa kurulu şema mı hakikat kaynağı ilan edilecek.
+
+### 11.3 Kurulu şemanın indeks envanteri
+
+| Tablo | UNIQUE | İkincil |
+|---|---|---|
+| `tabMedia Asset` | `PRIMARY`, `asset_key` | `slot_key`, `state`, `owner_seller`, `source_file`, `content_sha256`, `perceptual_hash`, `last_access_at`, `modified`, `active_version_index` |
+| `tabMedia Rendition` | `PRIMARY`, `rendition_key` | `asset`, `profile`, `last_access_at`, `modified` |
+| `tabMedia Processing Job` | `PRIMARY`, `idempotency_key` | `asset`, `status`, `modified` |
+| `tabMedia Profile` | `PRIMARY`, `profile_key` | `slot_key`, `modified`, `policy_profile_index` |
+| `tabMedia Crop Intent` | `PRIMARY`, `asset` | `modified`, `asset_index` |
+
+Satır sayıları: `Media Profile` **36**; `Media Asset`, `Media Rendition`,
+`Media Processing Job`, `Media Usage`, `Media Version`, `Media Crop Intent`
+**0** — şema kurulu, hat henüz yazmıyor.
+
+### 11.4 Kurulmayan 5 spesifikasyon
+
+15 spesifikasyonun **10'u kurulu**. Kurulmayanlar: `Media Source` ·
+`Media Policy` · `Media Policy Profile` · `Media Content Rule` ·
+`Media Quality Report`.
+
+### 11.5 Karar
+
+> **T-044 bugün KAPANAMAZ.** İki madde (5, 6) kapandı, iki maddenin (3, 4)
+> **engeli kalktı ama işi yapılmadı**, kaynağın iki ana kriteri — **1M asset
+> ölçeğinde EXPLAIN** ve **rollback provası + `docs/plans/rollback-doctypes.md`** —
+> hâlâ açık. Faz 4'ün kapanışı bu ikisine bağlıdır.

@@ -22,7 +22,7 @@
    "file": "media_version.json",
    "istable": false,
    "issingle": false,
-   "field_count": 12
+   "field_count": 19
   },
   {
    "name": "Media Rendition",
@@ -153,6 +153,12 @@
    "source_doc": "yok",
    "istoc": "eklendi",
    "reason": "source_hash version_hash'in girdisidir ve ondan geri çıkarılamaz; is_active denormalizasyonu retention/öksüz taramasının Asset'e join etmeden filtrelemesini sağlar."
+  },
+  {
+   "field": "Media Version.has_alpha / classification / classification_confidence / format_chain / lqip / lqip_data_uri / dominant_color",
+   "source_doc": "lqip ve dominant_color T-065'te isteniyor; has_alpha kaynak belgede Media Source'ta; classification/format_chain'in saklama yeri belirtilmemiş",
+   "istoc": "hepsi Media Version'a eklendi (T-061/062/065)",
+   "reason": "Media Source DocType'ı bu app'te KURULU DEĞİL; has_alpha'nın tek kalıcı evi sürüm kaydı. Sınıf ve biçim zinciri policy_snapshot ile aynı gerekçeyle sürümün yanında durur: karar anının kopyası. lqip_data_uri kaynak belgede yok — delivery/picture.py::lqip_style ve panel MediaImage.vue hazır data URI bekliyor (ikisinin de ThumbHash çözücüsü yok), kanonik hash lqip alanında."
   },
   {
    "field": "Media Usage.is_open / usage_key",

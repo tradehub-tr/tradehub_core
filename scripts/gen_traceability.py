@@ -35,6 +35,18 @@ KANIT SINIFLARI — bir eşleşmenin nereden geldiği matriste GÖRÜNÜR
        girdinin yanında `neden` alanı zorunludur — gerekçesiz eşleme kabul
        edilmez (şema doğrulaması aşağıda).
 
+    F  FRONTEND testi (T-140 FE ayağı). Dört koşucu taranır ve her satırda
+       koşucu adı GÖRÜNÜR (Python testi mi FE testi mi ayırt edilsin diye):
+         node      admin-panel/frontend/src/**/__tests__/*.test.js  (node --test)
+         vitest    tradehubfront/src/**/*.test.ts                    (vitest)
+         e2e       tradehubfront/tests/e2e/*.spec.ts                 (playwright)
+         panel-e2e admin-panel/frontend/tests/e2e/*.spec.ts          (playwright, W8)
+       Kanıt YALNIZ test adının BAŞINDAKİ `[FR-xxx]` / `[NFR-xxx]`
+       etiketlerinden gelir; ad ortasında geçen serbest metin sayılmaz.
+       `test.skip` / `it.skip` / `fixme` / `todo` KOŞMAYAN testtir ve
+       kapsama SAYILMAZ — atlanan teste etiket yazmak sahte kapsama olurdu.
+       F kanıtı A gibi bağlayıcıdır; kapsam kararına girer.
+
     —  Kanıt yok → **KAPSANMIYOR**. Bu bir başarısızlık değil, ölçümdür:
        gereksinimlerin çoğu henüz uygulanmamış fazlara ait (F3, F3+).
 
@@ -71,6 +83,8 @@ ROOT = Path(__file__).resolve().parents[1]
 SRS = ROOT / "docs" / "srs" / "SRS-v1.0.md"
 MAP_FILE = ROOT / "docs" / "test" / "req-test-map.json"
 MANIFEST = ROOT / "tests" / "fixtures" / "media" / "manifest.json"
+if not MANIFEST.exists():  # GÖÇ UYUMU (1ec9b5e): fixture'lar da paket içine taşındı
+	MANIFEST = ROOT / "tradehub_core" / "tests" / "fixtures" / "media" / "manifest.json"
 OUT = ROOT / "docs" / "test" / "traceability.md"
 
 #: Taranan test kökleri. `tradehub_core/tests/` SALT OKUNUR — yalnız okunur,
@@ -78,6 +92,28 @@ OUT = ROOT / "docs" / "test" / "traceability.md"
 TEST_DIRS = (ROOT / "tests", ROOT / "tradehub_core" / "tests")
 
 REQ_RE = re.compile(r"\b(?:FR|NFR)-\d{3}\b")
+
+#: FE test kökleri — çalışma alanı kökünden (istoc/) çözülür; repo yoksa atlanır.
+ISTOC = ROOT.parent
+FE_SOURCES: tuple[tuple[str, Path, str], ...] = (
+	("node", ISTOC / "admin-panel" / "frontend" / "src", "**/__tests__/*.test.js"),
+	("vitest", ISTOC / "tradehubfront" / "src", "**/*.test.ts"),
+	("e2e", ISTOC / "tradehubfront" / "tests" / "e2e", "*.spec.ts"),
+	# W8: T-141 senaryoları tradehubfront'tan panele TAŞINDI (rapor 86/87) —
+	# panel e2e paketi taranmazsa oradaki etiketler kapsama hiç giremezdi.
+	("panel-e2e", ISTOC / "admin-panel" / "frontend" / "tests" / "e2e", "*.spec.ts"),
+)
+
+#: `test("…")` / `it("…")` bildirimi — değiştiriciler (skip/only/…) yakalanır ki
+#: koşmayan test (skip/fixme/todo) kapsamdan düşürülebilsin. `test.describe(`
+#: eşleşmez: değiştirici listesinde `describe` yok.
+FE_TEST_RE = re.compile(
+	r"\b(?:test|it)((?:\.(?:skip|only|fixme|todo|fails|concurrent|sequential|serial))*)"
+	r"\s*\(\s*([\"'`])((?:\\.|(?!\2).)*)\2",
+)
+#: Etiket yalnız adın BAŞINDA: `[FR-012] …` ya da `[FR-012][NFR-008] …`.
+FE_LABEL_RE = re.compile(r"^\s*((?:\[(?:FR|NFR)-\d{3}\]\s*)+)")
+FE_SKIP_MODS = ("skip", "fixme", "todo")
 
 
 # ── SRS ayrıştırma ──────────────────────────────────────────────────────
@@ -176,7 +212,7 @@ class TestIndex:
 		self.fonksiyonlar: dict[str, list[tuple[str, str, int, int]]] = {}
 		self.kaynak: dict[str, str] = {}
 
-	def tara(self, dirs=TEST_DIRS) -> "TestIndex":
+	def tara(self, dirs=TEST_DIRS) -> TestIndex:
 		for d in dirs:
 			if not d.exists():
 				continue
@@ -229,6 +265,69 @@ class TestIndex:
 			return ""
 		hedef = "::".join(x for x in (sinif, fonk) if x)
 		return f"{dosya} içinde yok: {hedef}"
+
+
+class FeIndex:
+	"""FE test taraması: koşucu → dosya → test adı. Yalnız test ADI okunur, gövde okunmaz.
+
+	AST yok — JS/TS ayrıştırıcı bağımlılığı eklemek yerine bildirim satırı
+	regex ile yakalanır. Bu bilinçli bir sadeleştirme: etiket sözleşmesi
+	"adın başında `[FR-xxx]`" olduğu için adın kendisi yeterli.
+	"""
+
+	def __init__(self) -> None:
+		self.dosya_sayisi: dict[str, int] = {}
+		self.test_sayisi: dict[str, int] = {}
+		self.atlanan = 0  # skip/fixme/todo — koşmayan test, kapsama girmez
+		#: (koşucu, dosya, etiketsiz ad, kimlik listesi)
+		self.etiketli: list[tuple[str, str, str, list[str]]] = []
+
+	def tara(self, sources: tuple[tuple[str, Path, str], ...] = FE_SOURCES) -> FeIndex:
+		for kosucu, kok, desen in sources:
+			self.dosya_sayisi.setdefault(kosucu, 0)
+			self.test_sayisi.setdefault(kosucu, 0)
+			if not kok.exists():
+				continue
+			for p in sorted(kok.glob(desen)):
+				try:
+					src = p.read_text(encoding="utf-8")
+				except OSError:
+					continue
+				rel = str(p.relative_to(ISTOC))
+				self.dosya_sayisi[kosucu] += 1
+				for m in FE_TEST_RE.finditer(src):
+					mods, ad = m.group(1), m.group(3)
+					if any(f".{x}" in mods for x in FE_SKIP_MODS):
+						self.atlanan += 1
+						continue
+					self.test_sayisi[kosucu] += 1
+					em = FE_LABEL_RE.match(ad)
+					if not em:
+						continue
+					kimlikler = REQ_RE.findall(em.group(1))
+					self.etiketli.append((kosucu, rel, ad[em.end() :].strip(), kimlikler))
+		return self
+
+	def toplam_test(self) -> int:
+		return sum(self.test_sayisi.values())
+
+	def toplam_dosya(self) -> int:
+		return sum(self.dosya_sayisi.values())
+
+
+def harvest_f(fe: FeIndex) -> dict[str, set[str]]:
+	"""F sınıfı kanıt: FE test adının başındaki `[FR-xxx]` etiketi.
+
+	Hedef dizgesi koşucuyu açıkça taşır (`node:` / `vitest:` / `e2e:`) —
+	matris satırında Python testi ile FE testi ayırt edilebilir olsun diye.
+	"""
+	out: dict[str, set[str]] = defaultdict(set)
+	for kosucu, rel, ad, kimlikler in fe.etiketli:
+		gosterim = ad if len(ad) <= 72 else ad[:72].rstrip() + "…"
+		hedef = f"{kosucu}: {rel} :: {gosterim}"
+		for rid in kimlikler:
+			out[rid].add(hedef)
+	return out
 
 
 def harvest_a(index: TestIndex) -> dict[str, set[str]]:
@@ -292,6 +391,13 @@ def harvest_c(index: TestIndex, map_file: Path = MAP_FILE) -> tuple[dict[str, se
 				hatalar.append(f"{rid} → {hedef}: 'neden' eksik ya da çok kısa (gerekçesiz eşleme yasak)")
 			parcalar = hedef.split("::")
 			dosya = parcalar[0]
+			# GÖÇ UYUMU (1ec9b5e): medya testleri `tests/` → `tradehub_core/tests/`
+			# taşındı; eşleme dosyası hâlâ eski yolu taşıyor. Eski yol yoksa ve
+			# yenisi varsa referans yeni yola çözülür — matris gerçek yolu yazar.
+			if dosya not in index.fonksiyonlar and f"tradehub_core/{dosya}" in index.fonksiyonlar:
+				dosya = f"tradehub_core/{dosya}"
+				parcalar[0] = dosya
+				hedef = "::".join(parcalar)
 			sinif = parcalar[1] if len(parcalar) > 2 else ("" if len(parcalar) < 2 else "")
 			fonk = parcalar[-1] if len(parcalar) > 1 else ""
 			if len(parcalar) == 2:
@@ -323,7 +429,7 @@ def _hucre(girdiler: list[str], etiket: str) -> str:
 
 
 def _satir(rid: str, req: dict, kanit: dict[str, list[str]]) -> str:
-	baglayici = sorted(kanit.get("A", [])) + sorted(kanit.get("C", []))
+	baglayici = sorted(kanit.get("A", [])) + sorted(kanit.get("C", [])) + sorted(kanit.get("F", []))
 	iz = sorted(kanit.get("B", []))
 	hucre = _hucre(baglayici, "test") if baglayici else "**KAPSANMIYOR**"
 	return (
@@ -333,11 +439,11 @@ def _satir(rid: str, req: dict, kanit: dict[str, list[str]]) -> str:
 
 
 def rapor(reqs: dict[str, dict], kanitlar: dict[str, dict[str, list[str]]],
-          index: TestIndex, hatalar: list[str]) -> str:
+          index: TestIndex, fe: FeIndex, hatalar: list[str]) -> str:
 	fr = [r for r in reqs if r.startswith("FR-")]
 	nfr = [r for r in reqs if r.startswith("NFR-")]
-	# KAPSAM KARARI: yalnız A ve C. B (fixture izi) bilerek sayılmaz — §1.
-	kapsanan = {r for r, k in kanitlar.items() if k.get("A") or k.get("C")}
+	# KAPSAM KARARI: A, C ve F. B (fixture izi) bilerek sayılmaz — §1.
+	kapsanan = {r for r, k in kanitlar.items() if k.get("A") or k.get("C") or k.get("F")}
 	acik = [r for r in sorted(reqs) if r not in kapsanan]
 
 	def yuzde(a: int, b: int) -> str:
@@ -347,6 +453,13 @@ def rapor(reqs: dict[str, dict], kanitlar: dict[str, dict[str, list[str]]],
 	sayim_c = sum(1 for r in reqs if kanitlar.get(r, {}).get("C") and not kanitlar.get(r, {}).get("A"))
 	sayim_b = sum(1 for r in reqs if kanitlar.get(r, {}).get("B"))
 	sadece_b = sum(1 for r in reqs if kanitlar.get(r, {}).get("B") and r not in kapsanan)
+	sayim_f = sum(1 for r in reqs if kanitlar.get(r, {}).get("F"))
+	sadece_f = sum(
+		1 for r in reqs
+		if kanitlar.get(r, {}).get("F")
+		and not (kanitlar.get(r, {}).get("A") or kanitlar.get(r, {}).get("C"))
+	)
+	fe_etiket_sayisi = sum(len(k) for _, _, _, k in fe.etiketli)
 
 	L: list[str] = []
 	L.append("# T-140 — İzlenebilirlik matrisi (SRS → test)")
@@ -362,14 +475,22 @@ def rapor(reqs: dict[str, dict], kanitlar: dict[str, dict[str, list[str]]],
 	L.append("| Ölçüm | Değer |")
 	L.append("|---|---:|")
 	L.append(f"| SRS'te ayrıştırılan gereksinim | **{len(reqs)}** ({len(fr)} FR + {len(nfr)} NFR) |")
-	L.append(f"| En az bir teste bağlı (A ∪ C) | **{len(kapsanan)}** ({yuzde(len(kapsanan), len(reqs))}) |")
+	L.append(f"| En az bir teste bağlı (A ∪ C ∪ F) | **{len(kapsanan)}** ({yuzde(len(kapsanan), len(reqs))}) |")
 	L.append(f"| **KAPSANMIYOR** | **{len(acik)}** ({yuzde(len(acik), len(reqs))}) |")
 	L.append(f"| A kanıtı (test metninde kimlik geçiyor) | {sayim_a} |")
 	L.append(f"| C kanıtı (yalnız elle eşleme, A yok) | {sayim_c} |")
+	L.append(f"| F kanıtı — FE testi olan gereksinim | {sayim_f} |")
+	L.append(f"| …bunlardan YALNIZ FE ile kapsanan (A/C yok) | {sadece_f} |")
 	L.append(f"| B izi olan gereksinim (kapsam SAYILMAZ) | {sayim_b} |")
 	L.append(f"| …bunlardan yalnız B izi olan, yani hâlâ kapsanmayan | {sadece_b} |")
-	L.append(f"| Taranan test dosyası | {len(index.kaynak)} |")
-	L.append(f"| Taranan test fonksiyonu | {index.test_sayisi()} |")
+	L.append(f"| Taranan Python test dosyası | {len(index.kaynak)} |")
+	L.append(f"| Taranan Python test fonksiyonu | {index.test_sayisi()} |")
+	fe_dosya = " · ".join(f"{k} {v}" for k, v in fe.dosya_sayisi.items())
+	fe_test = " · ".join(f"{k} {v}" for k, v in fe.test_sayisi.items())
+	L.append(f"| Taranan FE test dosyası | {fe.toplam_dosya()} ({fe_dosya}) |")
+	L.append(f"| Taranan FE testi (koşan) | {fe.toplam_test()} ({fe_test}) |")
+	L.append(f"| Atlanan FE testi (skip/fixme/todo — kapsam dışı) | {fe.atlanan} |")
+	L.append(f"| FE test adlarındaki `[FR/NFR-xxx]` etiketi | {fe_etiket_sayisi} |")
 	L.append("")
 	L.append("**Kabul kriteri karşılığı (kaynak doküman T-140):** *\"Her FR/NFR en az bir")
 	L.append("teste bağlı; bağsız gereksinim yok.\"* → bugün **SAĞLANMIYOR**; açık")
@@ -388,13 +509,14 @@ def rapor(reqs: dict[str, dict], kanitlar: dict[str, dict[str, list[str]]],
 	L.append("| **A** | Test dosyasının metninde gereksinim kimliği geçiyor; AST ile en yakın test fonksiyonuna atandı | en güçlü |")
 	L.append("| **B** | Test, `manifest.json`'da o gereksinime bağlı bir altın fixture'ı kullanıyor — **kapsam sayılmaz** | iz |")
 	L.append("| **C** | `docs/test/req-test-map.json` içinde gerekçesiyle elle kuruldu; referansın varlığı AST ile doğrulandı | yargı |")
+	L.append("| **F** | FE test adının BAŞINDA `[FR-xxx]` etiketi (node --test / vitest / playwright); koşucu adı satırda görünür, `skip` edilen test sayılmaz | bağlayıcı |")
 	L.append("| — | Kanıt yok → **KAPSANMIYOR** | — |")
 	L.append("")
 	L.append("## 2. Matris")
 	L.append("")
 	L.append("### 2.1 Fonksiyonel gereksinimler (FR)")
 	L.append("")
-	L.append("| FR | Gereksinim (kısaltılmış) | Faz | SRS'teki bugünkü durum | Bağlayıcı test (A/C) | Fixture izi (B — sayılmaz) |")
+	L.append("| FR | Gereksinim (kısaltılmış) | Faz | SRS'teki bugünkü durum | Bağlayıcı test (A/C/F) | Fixture izi (B — sayılmaz) |")
 	L.append("|---|---|---|---|---|---|")
 	for rid in sorted(fr):
 		L.append(_satir(rid, reqs[rid], kanitlar.get(rid, {})))
@@ -431,18 +553,21 @@ def rapor(reqs: dict[str, dict], kanitlar: dict[str, dict[str, list[str]]],
 def build() -> tuple[str, int, list[str]]:
 	reqs = parse_srs()
 	index = TestIndex().tara()
+	fe = FeIndex().tara()
 	a = harvest_a(index)
 	b = harvest_b(index)
 	c, hatalar = harvest_c(index)
+	f = harvest_f(fe)
 	kanitlar: dict[str, dict[str, list[str]]] = {}
 	for rid in reqs:
 		kanitlar[rid] = {
 			"A": sorted(a.get(rid, ())),
 			"B": sorted(b.get(rid, ())),
 			"C": sorted(c.get(rid, ())),
+			"F": sorted(f.get(rid, ())),
 		}
 	acik = sum(1 for r in reqs if not any(kanitlar[r].values()))
-	return rapor(reqs, kanitlar, index, hatalar), acik, hatalar
+	return rapor(reqs, kanitlar, index, fe, hatalar), acik, hatalar
 
 
 def main(argv: list[str] | None = None) -> int:

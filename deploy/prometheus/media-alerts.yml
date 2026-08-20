@@ -1,0 +1,184 @@
+# ÜRETİLMİŞ DOSYA — kaynağı:
+#   tradehub_core/media/pipeline/observability/alerts.py
+# Elle düzenleme, bir sonraki üretimde kaybolur ve metrik adlarıyla
+# birlikte versiyonlanma güvencesini bozar.
+groups:
+  - name: "media-engine"
+    interval: "1m"
+    rules:
+      - alert: "MediaUploadRejectionSpike"
+        expr: "sum(rate(media_upload_total{outcome=\"rejected\"}[15m])) / clamp_min(sum(rate(media_upload_total[15m])), 0.001) > 0.30"
+        for: "10m"
+        labels:
+          component: "media"
+          severity: "warning"
+        annotations:
+          description: "Slot politikası yüklemelerin üçte birinden fazlasını reddediyor. Ya bir politika fazla sıkı ayarlandı ya da bir istemci bozuk dosya gönderiyor. `reason` etiketine göre kırılım al: tek bir kod baskınsa politika, dağınıksa istemci sorunudur."
+          runbook_url: "docs/ops/runbooks/media-upload-rejection.md"
+          summary: "Yükleme reddi oranı %30'u aştı"
+          threshold_source: "operasyonel eşik — reddin normal seviyesi henüz ÖLÇÜLMEDİ, ilk hafta sonrası ayarlanmalı"
+      - alert: "MediaMalwareDetected"
+        expr: "increase(media_scan_total{status=\"infected\"}[10m]) > 0"
+        for: "0m"
+        labels:
+          component: "media"
+          severity: "critical"
+        annotations:
+          description: "AV taraması en az bir dosyayı `infected` işaretledi. Dosya erişimin dışına taşındı (`media/av.py` karantina). Denetim kaydından (`media.quarantine`) yükleyen kiracıyı bul; aynı kiracıdan gelen diğer yüklemeleri gözden geçir."
+          runbook_url: "docs/ops/runbooks/media-malware.md"
+          summary: "Zararlı içerik bulundu ve karantinaya alındı"
+          threshold_source: "sıfır tolerans — tek olay bile incelenir"
+      - alert: "MediaScanFailing"
+        expr: "sum(rate(media_scan_total{status=\"failed\"}[15m])) / clamp_min(sum(rate(media_scan_total[15m])), 0.001) > 0.10"
+        for: "15m"
+        labels:
+          component: "media"
+          severity: "critical"
+        annotations:
+          description: "`failed` bir güvenlik olayıdır: 'tarandı ve temiz' ile 'hiç taranmadı' arasındaki farkı kaybediyoruz. Tarayıcı ikilisi (`scanner_available()`) ve karantina dizininin yazılabilirliği kontrol edilmeli."
+          runbook_url: "docs/ops/runbooks/media-scan-failure.md"
+          summary: "AV taraması başarısız oluyor — dosyalar taranmadan geçiyor olabilir"
+          threshold_source: "operasyonel eşik"
+      - alert: "MediaIsolationFailures"
+        expr: "sum(increase(media_isolation_total{reason!=\"ok\"}[15m])) > 5"
+        for: "10m"
+        labels:
+          component: "media"
+          severity: "warning"
+        annotations:
+          description: "`reason` etiketi sebebi söyler: `isolation_timeout` (60 sn duvar saati aşıldı), `isolation_memory` (1,5 GB adres alanı — dekompresyon bombası şüphesi), `isolation_cpu`. Bomba şüphesinde dosyayı yükleyen kiracıya bak; hepsi timeout ise makine yükünü kontrol et."
+          runbook_url: "docs/ops/runbooks/media-isolation.md"
+          summary: "İzole çalıştırma tekrar tekrar başarısız"
+          threshold_source: "`security/isolation.py` SEBEP_OK = 'ok'; 15 dakikada 5 arıza normal dışı"
+      - alert: "MediaImageProcessingSlow"
+        expr: "histogram_quantile(0.95, sum by (le, op)(rate(media_image_process_duration_seconds_bucket[15m]))) > 5"
+        for: "15m"
+        labels:
+          component: "media"
+          severity: "warning"
+        annotations:
+          description: "Ölçülen dağılımın tamamı ilk dört kovaya düşüyordu (72,71 MP → 1,05 s). p95'in 5 sn'yi aşması ya alışılmadık büyüklükte dosyalar geldiğini ya da makinenin doygun olduğunu gösterir; `media_source_megapixels` histogramıyla birlikte oku."
+          runbook_url: "docs/ops/runbooks/media-slow-processing.md"
+          summary: "Görsel işleme p95 süresi 5 saniyeyi aştı"
+          threshold_source: "`metrics.py` kova gerekçesi — ölçülen en kötü süre 1,05 s, 5 sn ~5 kat pay"
+      - alert: "MediaSvgRejected"
+        expr: "sum(increase(media_svg_sanitize_total{code!=\"ok\"}[1h])) > 0"
+        for: "0m"
+        labels:
+          component: "media"
+          severity: "warning"
+        annotations:
+          description: "`code` etiketine bak: `svg_compressed_forbidden` / `logo_svg_dtd_forbidden` bilinen saldırı desenleridir (billion laughs). SVG yükleme kapıları bugün KAPALI olduğu için bu sayacın artması, kapının açıldığı ya da başka bir yoldan SVG geldiği anlamına gelir."
+          runbook_url: "docs/ops/runbooks/media-svg.md"
+          summary: "SVG sanitize bir dosyayı reddetti ya da içeriğini değiştirdi"
+          threshold_source: "`security/svg.py` KOD_OK = 'ok'; sıfır tolerans"
+      - alert: "MediaOrphanFilesGrowing"
+        expr: "media_orphan_files > 1200"
+        for: "1h"
+        labels:
+          component: "media"
+          severity: "warning"
+        annotations:
+          description: "Canlı ölçümde 1.166 yetim dosya bulundu ve hedef bu sayının DÜŞMESİ. Artıyorsa çöp toplama (`storage/retention.py`) ya çalışmıyor ya da bir silme yolu `File` kaydını bırakıp diski temizlemiyor."
+          runbook_url: "docs/ops/runbooks/media-orphans.md"
+          summary: "Referanssız disk dosyası sayısı ölçülen taban çizgisini aştı"
+          threshold_source: "canlı ölçüm: 1.166 yetim dosya (metrics.py ORPHAN_FILES notu)"
+      - alert: "MediaUnprotectedPiiFiles"
+        expr: "media_pii_unprotected_files > 0"
+        for: "0m"
+        labels:
+          component: "media"
+          severity: "critical"
+        annotations:
+          description: "KVKK olayı. 2026-08-19'da bu sayı 3 ölçüldü (Order / Payment Transaction `receipt_url`) ve dosyalar private'a taşındı; sıfırdan büyük her değer aynı sınıf sızıntının tekrarıdır. `docs/security/kvkk.md` §4 müdahale adımlarını verir."
+          runbook_url: "docs/ops/runbooks/media-pii-exposure.md"
+          summary: "Hassas bir dosya public katmanda duruyor"
+          threshold_source: "`19-d2-hash-ortusme.md` — 4 dosya bulundu, 4'ü kapatıldı; hedef 0"
+      - alert: "MediaPiiFieldCoverageGap"
+        expr: "media_pii_field_coverage{status=\"unmapped\"} > 0"
+        for: "30m"
+        labels:
+          component: "media"
+          severity: "critical"
+        annotations:
+          description: "`presets.EXCLUDED_MEDIA_FIELDS` haritası bir doctype'ın dosya tutan alanını kaçırıyor. Kaçan alan, `set_level()` public'e geçiş korumasının DIŞINDA kalır — 146 kimlik belgesi tam bu boşluktan geçmişti."
+          runbook_url: "docs/ops/runbooks/media-pii-coverage.md"
+          summary: "PII koruma haritasında kapsanmayan alan var"
+          threshold_source: "`presets.py` KVKK bakım notu + T-132 F-03"
+      - alert: "MediaAuditWritesStopped"
+        expr: "sum(rate(media_audit_event_total[1h])) == 0 and sum(rate(media_upload_total[1h])) > 0"
+        for: "1h"
+        labels:
+          component: "media"
+          severity: "critical"
+        annotations:
+          description: "`media/audit.py` best-effort'tur ve yazamadığında istisna FIRLATMAZ. Bu kural o sessizliğin tek panzehiri: trafik varken denetim satırı üretilmiyorsa ADL yazımı kırılmıştır (izin, tablo ya da commit hatası). KVKK m.12 işleme kaydı yükümlülüğü bu sürede karşılanmıyor."
+          runbook_url: "docs/ops/runbooks/media-audit-gap.md"
+          summary: "Yükleme var ama denetim kaydı yazılmıyor"
+          threshold_source: "`media/audit.py` `_persist` best-effort davranışı"
+      - alert: "MediaInstrumentationErrors"
+        expr: "sum(increase(media_instrumentation_errors_total[1h])) > 0"
+        for: "0m"
+        labels:
+          component: "media"
+          severity: "warning"
+        annotations:
+          description: "`observability/instrument.py` kayıt fonksiyonu istisna aldı ve yuttu (ölçüm, ölçtüğü işi düşüremez). Sonuç: ilgili metrik EKSİK sayıyor. Panelde 'sorun yok' görünmesinin en sinsi sebebi budur."
+          runbook_url: "docs/ops/runbooks/media-instrumentation.md"
+          summary: "Ölçüm noktası hata yutuyor — metrikler eksik toplanıyor"
+          threshold_source: "sıfır tolerans — sarmalayıcı hatası her zaman bir kod hatasıdır"
+      - alert: "MediaVideoTranscodeErrors"
+        expr: "sum(rate(media_video_transcode_duration_seconds_count{outcome=\"error\"}[30m])) / clamp_min(sum(rate(media_video_transcode_duration_seconds_count[30m])), 0.001) > 0.20"
+        for: "30m"
+        labels:
+          component: "media"
+          severity: "warning"
+        annotations:
+          description: "`outcome=error` ffmpeg'in düşmesidir; `outcome=rejected` ise çıktının fayda kapısını geçememesidir ve NORMALDİR. Kural yalnız `error` dalına bakar — ikisini karıştıran bir alarm her gereksiz dönüşümde çalardı."
+          runbook_url: "docs/ops/runbooks/media-transcode.md"
+          summary: "Video dönüşümlerinin beşte birinden fazlası hata veriyor"
+          threshold_source: "operasyonel eşik — hata oranı taban çizgisi ÖLÇÜLMEDİ"
+      - alert: "RumLcpRegression"
+        expr: "max(media_rum_p75_milliseconds{metric=\"LCP\"}) > 2500"
+        for: "1h"
+        labels:
+          component: "media"
+          severity: "warning"
+        annotations:
+          description: "Core Web Vitals 'iyi' sınırı 2500 ms. Rota kırılımına bak: lab ölçümünde /urun/:slug 919 ms, /urunler 1062 ms idi — saha değeri lab'ın çok üstündeyse fark cihaz/ağ dağılımından gelir, kod regresyonundan değil. `lcp_profile` etiketi hangi türevin indirildiğini söyler."
+          runbook_url: "docs/ops/runbooks/rum-lcp.md"
+          summary: "Saha LCP p75 'iyi' eşiğini aştı"
+          threshold_source: "DIŞ STANDART — web.dev CWV eşiği; bu projede ÖLÇÜLMEDİ (rum.RATING_THRESHOLDS)"
+      - alert: "RumClsRegression"
+        expr: "max(media_rum_cls_p75) > 0.25"
+        for: "1h"
+        labels:
+          component: "media"
+          severity: "warning"
+        annotations:
+          description: "Lab ölçümünde /urunler zaten 0,51 ile kötü bölgedeydi (eşik 0,25); yani bu alarm ateşlendiğinde şaşırmak yerine bilinen bir borcun sahada da göründüğü doğrulanmış olur. Kaynak: ölçü verilmeyen görsel kutuları."
+          runbook_url: "docs/ops/runbooks/rum-cls.md"
+          summary: "Saha CLS p75 'kötü' bölgesinde"
+          threshold_source: "DIŞ STANDART (CWV) + lab ölçümü: /urunler CLS 0,51 (rum.LAB_BASELINE_CLS)"
+      - alert: "RumInpRegression"
+        expr: "max(media_rum_p75_milliseconds{metric=\"INP\"}) > 200"
+        for: "1h"
+        labels:
+          component: "media"
+          severity: "warning"
+        annotations:
+          description: "INP bu projede HİÇ ölçülemedi (`03-performans-taban-cizgisi.md` §6.3): lab ortamında etkileşim üretilemiyor. Bu yüzden ilk saha verisi aynı zamanda ilk INP ölçümüdür ve alarm eşiği dış standarttır."
+          runbook_url: "docs/ops/runbooks/rum-inp.md"
+          summary: "Saha INP p75 'iyi' eşiğini aştı"
+          threshold_source: "DIŞ STANDART — web.dev CWV eşiği; projede hiç ölçülmedi"
+      - alert: "RumRejectedSpike"
+        expr: "sum(increase(media_rum_rejected_total[15m])) > 10"
+        for: "15m"
+        labels:
+          component: "media"
+          severity: "warning"
+        annotations:
+          description: "`reason` etiketi ayırır: `pii_field` bir istemcinin sözleşmeyi delip kimlik alanı göndermesidir (güvenlik olayı), diğerleri istemci sürümünün şemadan sapmasıdır. İlkinde storefront sürümü derhal incelenmeli."
+          runbook_url: "docs/ops/runbooks/rum-rejected.md"
+          summary: "RUM gövdeleri reddediliyor"
+          threshold_source: "operasyonel eşik — saha trafiği henüz YOK, ilk hafta sonrası ayarlanmalı"

@@ -119,6 +119,10 @@ class HlsSpec:
 	no_upscale: bool = True
 	rate_control: str = "capped_crf"
 	crf: int = 23
+	#: Mobil veri tavanı: oynatıcının ilk `startup_window_s` saniyeyi
+	#: göstermek için indirdiği bayt bu sınırı aşmamalı.
+	startup_window_s: float = 10.0
+	startup_max_bytes: int = 1_280_000
 	duration_s_gt: float = 60.0
 	max_rendition_bytes_gt: int = 12_582_912
 	distinct_resolution_tiers_gt: int = 2
@@ -127,6 +131,7 @@ class HlsSpec:
 	def from_table(cls, blok: Optional[Mapping[str, Any]] = None) -> "HlsSpec":
 		h = dict(blok if blok is not None else default_table().hls)
 		kosul = dict(h.get("required_if_any") or {})
+		butce = dict(h.get("startup_budget") or {})
 		v = cls()
 		merdiven = tuple(HlsRung.from_dict(r) for r in (h.get("ladder") or ()))
 		return cls(
@@ -137,6 +142,8 @@ class HlsSpec:
 			no_upscale=bool(h.get("no_upscale", v.no_upscale)),
 			rate_control=str(h.get("rate_control", v.rate_control)),
 			crf=int(h.get("crf", v.crf)),
+			startup_window_s=float(butce.get("window_s", v.startup_window_s)),
+			startup_max_bytes=int(butce.get("max_bytes", v.startup_max_bytes)),
 			duration_s_gt=float(kosul.get("duration_s_gt", v.duration_s_gt)),
 			max_rendition_bytes_gt=int(kosul.get("max_rendition_bytes_gt", v.max_rendition_bytes_gt)),
 			distinct_resolution_tiers_gt=int(
@@ -174,6 +181,18 @@ class HlsVariantResult:
 	segment_count: int = 0
 	bytes_total: int = 0
 	target_duration_s: float = 0.0
+	#: T-074/3 — mobil veri tavanı. İlk `startup_window_s` saniyeyi göstermek
+	#: için inen bayt; `startup_gate` tavanla karşılaştırmanın sonucu.
+	startup_bytes: int = 0
+	startup_segments: int = 0
+	startup_covered_s: float = 0.0
+	startup_gate: str = "OLCULMEDI"
+	#: W7 — basamak başına fayda kapısı (`enforce_rung_benefit_gate`).
+	#: `UYGULANMADI`: kapı hiç çağrılmadı (make_hls tek başına uygulamaz);
+	#: `GECTI`/`DUSTU`: basamağın toplam baytı kaynakla karşılaştırıldı.
+	#: `published=False` olan basamak master playlist'ten ÇIKARILMIŞTIR.
+	benefit_gate: str = "UYGULANMADI"
+	published: bool = True
 
 	def as_dict(self) -> Dict[str, Any]:
 		return {
@@ -184,6 +203,12 @@ class HlsVariantResult:
 			"segments": self.segment_count,
 			"bytes": self.bytes_total,
 			"target_duration_s": self.target_duration_s,
+			"startup_bytes": self.startup_bytes,
+			"startup_segments": self.startup_segments,
+			"startup_covered_s": self.startup_covered_s,
+			"startup_gate": self.startup_gate,
+			"benefit_gate": self.benefit_gate,
+			"published": self.published,
 		}
 
 
@@ -207,6 +232,15 @@ class HlsResult:
 	def lowest(self) -> Optional[HlsVariantResult]:
 		"""3G'deki alıcının indireceği basamak — HLS'in asıl kazancı burada."""
 		return min(self.variants, key=lambda v: v.bitrate_kbps) if self.variants else None
+
+	@property
+	def published_variants(self) -> List[HlsVariantResult]:
+		"""Master playlist'te GERÇEKTEN ilan edilen basamaklar (W7 kapısı sonrası)."""
+		return [v for v in self.variants if v.published]
+
+	@property
+	def published_bytes(self) -> int:
+		return sum(v.bytes_total for v in self.published_variants)
 
 	def as_dict(self) -> Dict[str, Any]:
 		return {
@@ -499,6 +533,7 @@ def build_hls_cmd(
 # ── Playlist okuma ──────────────────────────────────────────────────────
 
 _TARGETDUR_RE = re.compile(r"#EXT-X-TARGETDURATION:\s*([0-9]+)")
+_EXTINF_RE = re.compile(r"#EXTINF:\s*([0-9.]+)")
 _STREAMINF_RE = re.compile(r"#EXT-X-STREAM-INF:([^\n]*)")
 _ATTR_RE = re.compile(r'([A-Z0-9-]+)=("[^"]*"|[^,]*)')
 
@@ -558,6 +593,68 @@ def playlist_stats(playlist_path: str) -> Tuple[int, int, float]:
 	return (len(segmentler), bayt, hedef)
 
 
+def startup_bytes(playlist_path: str, window_s: float = 10.0) -> Tuple[int, int, float]:
+	"""Oynatıcının ilk `window_s` saniyeyi göstermek için indireceği bayt.
+
+	Döner: `(bayt, segment sayısı, kapsanan süre)`.
+
+	**Neden toplam bayt bu soruyu cevaplamıyor.** 540 saniyelik bir kaynağın
+	360p basamağı toplamda 700 KB olabilir; aynı basamağın ilk 10 saniyesi
+	60 KB'dır. Mobil veri tavanı (T-074/3) toplamı değil AÇILIŞI sorar —
+	kullanıcı videoya dokunduktan sonra ilk 10 saniyede ne iniyor.
+
+	**Pencereyi aşan segment de sayılır.** Oynatıcı bir segmenti yarıda
+	kesip kullanamaz; 4 saniyelik segmentlerle 10 saniyelik pencere üç
+	segment (12 sn) indirmek demektir. Aşağı yuvarlamak baytı olduğundan
+	küçük gösterirdi.
+
+	**Playlist'in kendisi de sayılır.** Oynatıcı önce master'ı, sonra medya
+	playlist'ini indirir; ilk bayt onlardır. Master burada YOK — çağıran
+	basamak başına ölçüyor; master birkaç yüz bayttır ve `make_hls` notunda
+	ayrıca kayıtlıdır.
+	"""
+	dizin = os.path.dirname(playlist_path)
+	try:
+		with open(playlist_path, "r", encoding="utf-8") as f:
+			metin = f.read()
+	except OSError:
+		return (0, 0, 0.0)
+
+	bayt = 0
+	try:
+		bayt += os.path.getsize(playlist_path)
+	except OSError:
+		pass
+
+	sure = 0.0
+	sayi = 0
+	bekleyen: Optional[float] = None
+	for satir in metin.splitlines():
+		s = satir.strip()
+		if not s:
+			continue
+		m = _EXTINF_RE.match(s)
+		if m:
+			try:
+				bekleyen = float(m.group(1))
+			except ValueError:
+				bekleyen = None
+			continue
+		if s.startswith("#"):
+			continue
+		# Segment satırı.
+		try:
+			bayt += os.path.getsize(os.path.join(dizin, s))
+		except OSError:
+			pass
+		sayi += 1
+		sure += bekleyen or 0.0
+		bekleyen = None
+		if sure >= window_s:
+			break
+	return (bayt, sayi, round(sure, 3))
+
+
 # ── Üretim ──────────────────────────────────────────────────────────────
 
 
@@ -609,6 +706,7 @@ def make_hls(
 		playlist = variant_playlist(out_dir, rung)
 		sayi, bayt, hedef = playlist_stats(playlist)
 		g, y = rung_dimensions(rung, facts)
+		acilis, acilis_seg, acilis_sure = startup_bytes(playlist, spec.startup_window_s)
 		varyantlar.append(
 			HlsVariantResult(
 				name=rung.name,
@@ -619,6 +717,14 @@ def make_hls(
 				segment_count=sayi,
 				bytes_total=bayt,
 				target_duration_s=hedef,
+				startup_bytes=acilis,
+				startup_segments=acilis_seg,
+				startup_covered_s=acilis_sure,
+				startup_gate=(
+					"OLCULMEDI"
+					if not acilis_seg
+					else ("GECTI" if acilis <= spec.startup_max_bytes else "DUSTU")
+				),
 			)
 		)
 
@@ -638,6 +744,130 @@ def make_hls(
 		src_bytes=facts.size_bytes,
 		notes=notlar,
 	)
+
+
+def enforce_rung_benefit_gate(
+	result: HlsResult,
+	*,
+	src_bytes: Optional[int] = None,
+	delete_dropped: bool = True,
+) -> HlsResult:
+	"""Basamak başına fayda kapısı (W7): **kaynaktan büyük basamak İLAN EDİLMEZ**.
+
+	ÖLÇÜLMÜŞ GEREKÇE (rapor 81 §4): 9,6 MB'lık gerçek DEV videosunda (142 kbps,
+	çok verimli kaynak) capped-CRF merdiveni 720p basamağını kaynaktan %26 BÜYÜK
+	üretti (9.622.536 → 12.095.893 B). Oynatıcı geniş bantta o basamağı seçer ve
+	alıcı, tek dosyayı indirmekten DAHA FAZLA bayt öder — merdivenin varlık
+	sebebinin tam tersi.
+
+	Kapı `make_hls` İÇİNDE değil AYRI bir adımdır ve üretim yolu
+	(`media/pipeline_bridge.py::_run_video_job`) tarafından çağrılır. Sebep:
+	motorun mevcut sözleşmesi ("merdiveni üret, ölç, karar çağıranın") ve onun
+	üstüne kurulmuş gerçek-koşum testleri merdivenin TAMAMINI görmeye devam
+	etmeli — kapı bir TESLİM kararıdır, üretim kusuru değil.
+
+	Kural: basamağın toplam baytı (playlist + segmentler) kaynaktan KÜÇÜK
+	değilse basamak master playlist'ten çıkarılır ve (varsayılan) dosyaları
+	silinir — ilan edilmeyen segmentleri diskte tutmak öksüz dosya üretmektir.
+	HİÇBİR basamak kaynaktan küçük değilse paketin kendisi ilan edilmez:
+	master silinir, `master_path` boşalır; teslim progresif mp4'te kalır
+	(HLS'in o dosyaya verebileceği hiçbir şey yoktur).
+
+	`src_bytes` verilmezse `result.src_bytes` (make_hls'e giren dosyanın
+	boyutu) kullanılır; o da yoksa kapı UYGULANMAZ ve not düşülür — ölçüsüz
+	karar verilmez.
+	"""
+	kaynak = int(src_bytes if src_bytes is not None else result.src_bytes or 0)
+	if kaynak <= 0:
+		result.notes.append("basamak fayda kapisi UYGULANMADI: kaynak boyutu olculemedi")
+		return result
+
+	dusen: List[HlsVariantResult] = []
+	for v in result.variants:
+		gecti = v.bytes_total < kaynak
+		v.benefit_gate = "GECTI" if gecti else "DUSTU"
+		v.published = gecti
+		if not gecti:
+			dusen.append(v)
+
+	kalan = result.published_variants
+	if not dusen:
+		result.notes.append(
+			f"basamak fayda kapisi: {len(kalan)}/{len(result.variants)} basamak kaynaktan kucuk, master degismedi"
+		)
+		return result
+
+	if not kalan:
+		# Paketin tamamı kaynaktan büyük: HLS bu dosyaya hiçbir şey kazandırmıyor.
+		if delete_dropped:
+			import shutil
+
+			shutil.rmtree(result.out_dir, ignore_errors=True)
+		result.master_path = ""
+		result.notes.append(
+			f"basamak fayda kapisi: {len(dusen)}/{len(result.variants)} basamagin HEPSI kaynaktan buyuk "
+			f"-> HLS paketi ILAN EDILMEZ, teslim progresif mp4'te kalir"
+		)
+		return result
+
+	_rewrite_master(
+		result.master_path,
+		kept_uris={_master_uri(result.out_dir, v.playlist_path) for v in kalan},
+	)
+	for v in dusen:
+		if delete_dropped:
+			import shutil
+
+			shutil.rmtree(os.path.dirname(v.playlist_path), ignore_errors=True)
+	result.notes.append(
+		"basamak fayda kapisi: "
+		+ ", ".join(f"{v.name} {v.bytes_total} B >= kaynak {kaynak} B -> ILAN EDILMEDI" for v in dusen)
+	)
+	return result
+
+
+def _master_uri(out_dir: str, playlist_path: str) -> str:
+	"""Basamağın master playlist'te görünen göreli URI'si (`v360p/playlist.m3u8`)."""
+	return os.path.relpath(playlist_path, out_dir).replace(os.sep, "/")
+
+
+def _rewrite_master(master_path: str, kept_uris: set) -> None:
+	"""Master playlist'i yalnız tutulan basamaklarla yeniden yazar.
+
+	ffmpeg'in ürettiği yapı satır çiftleridir: `#EXT-X-STREAM-INF:...` + URI.
+	Düşen basamağın çifti atlanır; diğer tüm satırlar (başlık, sürüm,
+	independent_segments) olduğu gibi korunur. Atomiklik `os.replace` ile —
+	yarım master, 404 veren basamaktan da kötüdür (hiçbir oynatıcı açamaz).
+	"""
+	with open(master_path, "r", encoding="utf-8") as f:
+		satirlar = f.read().splitlines()
+
+	yeni: List[str] = []
+	atla_uri = False
+	for i, satir in enumerate(satirlar):
+		s = satir.strip()
+		if _STREAMINF_RE.match(s):
+			# Bu STREAM-INF'in URI'si bir SONRAKİ yorum-olmayan satırdır.
+			uri = ""
+			for sonraki in satirlar[i + 1:]:
+				t = sonraki.strip()
+				if t and not t.startswith("#"):
+					uri = t
+					break
+			if uri not in kept_uris:
+				atla_uri = True
+				continue
+			yeni.append(satir)
+			continue
+		if atla_uri and s and not s.startswith("#"):
+			atla_uri = False
+			continue
+		yeni.append(satir)
+
+	gecici = master_path + ".part"
+	with open(gecici, "w", encoding="utf-8") as f:
+		f.write("\n".join(yeni) + "\n")
+	os.replace(gecici, master_path)
 
 
 def ffmpeg_has_hls_muxer() -> bool:
@@ -670,6 +900,8 @@ __all__ = [
 	"build_hls_cmd",
 	"parse_master",
 	"playlist_stats",
+	"startup_bytes",
 	"make_hls",
+	"enforce_rung_benefit_gate",
 	"ffmpeg_has_hls_muxer",
 ]

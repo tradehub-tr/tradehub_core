@@ -1,0 +1,46 @@
+{
+	"actions": [],
+	"creation": "2026-08-18 00:00:00.000000",
+	"doctype": "DocType",
+	"engine": "InnoDB",
+	"issingle": 1,
+	"track_changes": 1,
+	"field_order": [
+		"sb_flags",
+		"media_pipeline_enabled",
+		"rendition_on_upload",
+		"cb_flags",
+		"manifest_api_enabled",
+		"sb_scope",
+		"active_slots",
+		"cb_scope",
+		"max_renditions_per_asset",
+		"sb_notes",
+		"notes"
+	],
+	"fields": [
+		{"fieldname": "sb_flags", "fieldtype": "Section Break", "label": "Özellik Bayrakları"},
+		{"fieldname": "media_pipeline_enabled", "fieldtype": "Check", "label": "Medya Boru Hattı Etkin", "default": "0", "description": "ANA ŞALTER. Kapalıyken yeni medya boru hattı hiçbir yerde devreye girmez; sistem bugünkü davranışını birebir sürdürür. Diğer tüm bayraklar bu şaltere bağlıdır."},
+		{"fieldname": "rendition_on_upload", "fieldtype": "Check", "label": "Yüklemede Rendition Üret", "default": "0", "description": "Yükleme anında türev görseller (rendition) üretilsin mi. Ana şalter kapalıyken etkisizdir."},
+		{"fieldname": "cb_flags", "fieldtype": "Column Break"},
+		{"fieldname": "manifest_api_enabled", "fieldtype": "Check", "label": "Manifest API Etkin", "default": "0", "description": "Storefront'un srcset üretmek için okuduğu manifest ucu açık olsun mu. Ana şalter kapalıyken etkisizdir."},
+		{"fieldname": "sb_scope", "fieldtype": "Section Break", "label": "Kapsam"},
+		{"fieldname": "active_slots", "fieldtype": "Small Text", "label": "Etkin Slotlar", "description": "Boru hattının açık olduğu slot anahtarları; her satıra bir anahtar (virgül de olur). Boş = hiçbir slot açık değil. Tümü için tek başına * yazın. Geçerli anahtarlar: brand.logo, category.banner, company.cover_image, company.cover_video, document.attachment, product.image, product.video, seller.logo, user.avatar"},
+		{"fieldname": "cb_scope", "fieldtype": "Column Break"},
+		{"fieldname": "max_renditions_per_asset", "fieldtype": "Int", "label": "Varlık Başına Maks. Rendition", "default": "40", "description": "Tek bir kaynak görsel için üretilebilecek türev üst sınırı. Kaçak üretime karşı tavan; 1'den küçük olamaz."},
+		{"fieldname": "sb_notes", "fieldtype": "Section Break", "label": "Notlar"},
+		{"fieldname": "notes", "fieldtype": "Small Text", "label": "Notlar", "description": "Bayrak değişikliğinin gerekçesi / kim ne zaman açtı."}
+	],
+	"links": [],
+	"modified": "2026-08-18 00:00:00.000000",
+	"modified_by": "Administrator",
+	"module": "Tradehub Core",
+	"name": "Media Engine Settings",
+	"owner": "Administrator",
+	"permissions": [
+		{"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1, "share": 1, "print": 1, "email": 1}
+	],
+	"sort_field": "modified",
+	"sort_order": "DESC",
+	"states": []
+}

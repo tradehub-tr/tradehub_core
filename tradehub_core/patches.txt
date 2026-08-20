@@ -245,3 +245,21 @@ tradehub_core.patches.v15_fix_entitlement_custom_fields
 tradehub_core.patches.v15_9_18_media_transcode_attempts
 tradehub_core.patches.v15_9_19_media_transcode_schedule
 tradehub_core.patches.v15_9_20_media_scan_fields
+tradehub_core.patches.v15_9_22_media_engine_settings
+tradehub_core.patches.v15_9_21_media_pipeline_doctypes
+tradehub_core.patches.v15_9_23_media_profile_seed
+tradehub_core.patches.v15_9_24_kyc_docperm_tenant_isolation
+tradehub_core.patches.v15_9_25_media_storage_settings
+tradehub_core.patches.v15_9_26_kyc_kyb_status_permlevel
+tradehub_core.patches.v15_9_27_media_crop_intent
+# Şerit A (T-040 · T-043 · T-044 · T-064 · T-133) — medya motoru kablolaması.
+# SIRA ZORUNLU: Media Version, Media Asset.active_version Link hedefidir.
+tradehub_core.patches.v15_9_28_media_usage
+tradehub_core.patches.v15_9_29_media_version
+tradehub_core.patches.v15_9_30_media_asset_active_version
+tradehub_core.patches.v15_9_31_media_crop_override_profile
+tradehub_core.patches.v15_9_32_media_metrics_token
+tradehub_core.patches.v15_9_33_media_metrics_scraper
+tradehub_core.patches.v15_9_34_media_asset_original_sha256
+tradehub_core.patches.v15_9_35_disable_error_traceback
+tradehub_core.patches.v15_9_36_seed_seller_media_explorer_nav

@@ -189,6 +189,279 @@ class UsageStore:
 	def all_links(self) -> List[UsageLink]:
 		return list(self._rows.values())
 
+	@property
+	def is_persistent(self) -> bool:
+		"""Bu depo süreç yeniden başladığında hayatta kalır mı."""
+		return False
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 1b. Kalıcı depo — `Media Usage` DocType'ı
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# T-043 birinci kabul kriteri: "DocType alanına bağlanınca/kopunca **Media
+# Usage kaydı** güncellenir". `UsageStore` bunu yapmıyordu — sözleşmesi
+# doğruydu ama deposu bellek içiydi, süreç yeniden başlayınca bağ tablosu
+# sıfırlanıyordu. Öksüz kararı ("hiç bağlanmamış mı, bağı kaldırılmış mı")
+# tam olarak bu tabloya dayandığı için, süreç ömrü kadar yaşayan bir tablo
+# kriteri karşılamıyor.
+#
+# Ayrım neden bir "backend" arayüzü üzerinden: `Media Usage` DocType'ı BUGÜN
+# KURULU DEĞİL (ölçüldü 2026-08-19: `frappe.db.exists("DocType", "Media
+# Usage")` → None, `tabMedia Usage` tablosu yok) ve kurulumu Şerit A'ya ait.
+# Upsert/kapatma/first_seen mantığını frappe'ye gömmek, DocType gelene kadar
+# hiç ölçülemeyen kod yazmak demekti. Seam sayesinde mantık sözlük tabanlı bir
+# sahte backend'le test edilir; frappe'ye bakan tek şey ince SQL katmanıdır.
+
+
+class UsageBackend:
+	"""Kalıcı depo sözleşmesi. Dört işlem yeter.
+
+	`fetch`/`upsert` `usage_key` üzerinden çalışır — tekillik anahtarı odur
+	(`Media Usage.usage_key`, bkz. doctype_specs/media_usage.json).
+	"""
+
+	def fetch(self, key: str) -> Optional[dict]:
+		raise NotImplementedError
+
+	def upsert(self, row: dict) -> None:
+		raise NotImplementedError
+
+	def rows_for(self, asset: str) -> List[dict]:
+		raise NotImplementedError
+
+	def open_asset_names(self) -> set:
+		raise NotImplementedError
+
+
+def _row_to_link(row: Mapping) -> UsageLink:
+	return UsageLink(
+		asset=str(row.get("asset") or ""),
+		ref_doctype=str(row.get("ref_doctype") or ""),
+		ref_name=str(row.get("ref_name") or ""),
+		ref_field=str(row.get("ref_field") or ""),
+		profile_used=str(row.get("profile_used") or ""),
+		first_seen=row.get("first_seen"),
+		last_seen=row.get("last_seen"),
+		is_open=bool(row.get("is_open")),
+	)
+
+
+class PersistentUsageStore(UsageStore):
+	"""`UsageStore` sözleşmesinin kalıcı gerçeklemesi.
+
+	Davranış BELLEK İÇİ DEPOYLA AYNI olmak zorunda — testler ikisini de aynı
+	senaryolardan geçiriyor:
+
+	  * `open_link` idempotent: aynı bağ ikinci kez bildirilince yeni satır
+	    açılmaz, `last_seen` güncellenir.
+	  * Kapalı bağ yeniden bildirilirse `is_open` 1 olur, **`first_seen`
+	    korunur** — bağın ilk kurulduğu an bir olgudur.
+	  * `close_link` satırı SİLMEZ, `is_open=0` yapar.
+
+	Bellek içi depodan tek farkı: iki ayrı örnek aynı backend'i paylaştığında
+	biri diğerinin yazdığını görür. Süreç yeniden başlaması budur.
+	"""
+
+	def __init__(self, backend: UsageBackend) -> None:
+		super().__init__()
+		self._backend = backend
+
+	@property
+	def is_persistent(self) -> bool:
+		return True
+
+	def open_link(self, link: UsageLink, now: float) -> UsageLink:
+		key = link.key
+		mevcut = self._backend.fetch(key)
+		if mevcut is None:
+			link.first_seen = now if link.first_seen is None else link.first_seen
+			link.last_seen = now
+			link.is_open = True
+			self._backend.upsert(link.as_dict())
+			return link
+
+		satir = dict(mevcut)
+		satir["last_seen"] = now
+		satir["is_open"] = 1
+		# `first_seen` ASLA yeniden yazılmaz: kapalı bağ yeniden açıldığında
+		# ilk bağlanma anı korunur. Bellek içi depodaki kural bire bir aynı.
+		if link.profile_used:
+			satir["profile_used"] = link.profile_used
+		self._backend.upsert(satir)
+		return _row_to_link(satir)
+
+	def close_link(self, asset: str, ref_doctype: str, ref_name: str, ref_field: str,
+				   now: float) -> Optional[UsageLink]:
+		key = usage_key(asset, ref_doctype, ref_name, ref_field)
+		mevcut = self._backend.fetch(key)
+		if mevcut is None:
+			return None
+		satir = dict(mevcut)
+		satir["is_open"] = 0
+		satir["last_seen"] = now
+		self._backend.upsert(satir)
+		return _row_to_link(satir)
+
+	def links_of(self, asset: str, *, open_only: bool = False) -> List[UsageLink]:
+		out = [_row_to_link(r) for r in self._backend.rows_for(asset)]
+		if open_only:
+			out = [r for r in out if r.is_open]
+		return out
+
+	def open_assets(self) -> set:
+		return set(self._backend.open_asset_names())
+
+	def all_links(self) -> List[UsageLink]:
+		raise UsageError(
+			"Kalıcı depoda tüm bağları belleğe çekmek yok: tablo milyon satıra "
+			"çıkabilir (T-044 §4.3 indeks ölçümü 419.676 satır üzerinden yapıldı). "
+			"Varlık başına `links_of()` ya da açık varlıklar için `open_assets()` "
+			"kullanın."
+		)
+
+
+MEDIA_USAGE_DOCTYPE: str = "Media Usage"
+
+
+def usage_doctype_installed() -> bool:
+	"""`Media Usage` DocType'ı kurulu mu. **frappe gerektirir.**
+
+	ÖLÇÜLDÜ 2026-08-19 (istoc.localhost): `False` — DocType kaydı yok,
+	`tabMedia Usage` tablosu yok. Şema `media/pipeline/doctype_specs/
+	media_usage.json` içinde hazır; kurulum Şerit A'da.
+	"""
+	try:
+		import frappe  # noqa: PLC0415
+
+		if not frappe.db.exists("DocType", MEDIA_USAGE_DOCTYPE):
+			return False
+		return bool(frappe.db.sql("show tables like 'tabMedia Usage'"))
+	except Exception:
+		return False
+
+
+class FrappeUsageBackend(UsageBackend):
+	"""`Media Usage` tablosuna yazan backend. **frappe gerektirir.**
+
+	Doğrudan SQL: `frappe.get_doc` yolu bağ başına bir doküman örneği ve bir
+	`validate` turu demek; bu tablo `doc_events` yolunda satır satır
+	güncelleniyor ve 22 görselli bir üründe 22 doküman kurmak okuma yolunu
+	geciktirir. Tablo/kolon adlarının hiçbiri kullanıcı girdisinden gelmiyor.
+
+	**ÖLÇÜLMEDİ:** DocType bugün kurulu olmadığı için bu sınıfın SQL'i canlıda
+	hiç koşmadı. Mantık (`PersistentUsageStore`) sözlük backend'le test edildi;
+	burada test edilmemiş olan SADECE alan adı eşlemesi ve tarih dönüşümüdür.
+	"""
+
+	def _frappe(self):
+		import frappe  # noqa: PLC0415
+
+		return frappe
+
+	def _to_dt(self, value):
+		"""Epoch saniye → Frappe Datetime dizgesi. `None` ise `None`."""
+		if value is None:
+			return None
+		import datetime  # noqa: PLC0415
+
+		return datetime.datetime.fromtimestamp(float(value)).strftime("%Y-%m-%d %H:%M:%S.%f")
+
+	def _from_row(self, row: Mapping) -> dict:
+		"""DB satırını depo sözlüğüne çevir — zaman alanları epoch'a döner."""
+		out = dict(row)
+		for alan in ("first_seen", "last_seen"):
+			deger = out.get(alan)
+			out[alan] = deger.timestamp() if hasattr(deger, "timestamp") else deger
+		return out
+
+	def fetch(self, key: str) -> Optional[dict]:
+		frappe = self._frappe()
+		rows = frappe.db.sql(
+			"""select name, asset, ref_doctype, ref_name, ref_field, usage_key,
+				profile_used, first_seen, last_seen, is_open
+			from `tabMedia Usage` where usage_key = %s limit 1""",
+			(key,),
+			as_dict=True,
+		)
+		return self._from_row(rows[0]) if rows else None
+
+	def upsert(self, row: dict) -> None:
+		frappe = self._frappe()
+		degerler = {
+			"asset": row.get("asset"),
+			"ref_doctype": row.get("ref_doctype"),
+			"ref_name": row.get("ref_name"),
+			"ref_field": row.get("ref_field"),
+			"usage_key": row.get("usage_key"),
+			"profile_used": row.get("profile_used") or None,
+			"first_seen": self._to_dt(row.get("first_seen")),
+			"last_seen": self._to_dt(row.get("last_seen")),
+			"is_open": 1 if row.get("is_open") else 0,
+		}
+		# `usage_key` üzerinde bileşik UNIQUE (uk_usage_quad) var: aynı bağ iki
+		# kez yazılamaz, ikinci yazma UPDATE'e döner. Idempotency buradan gelir.
+		frappe.db.sql(
+			"""insert into `tabMedia Usage`
+				(name, creation, modified, owner, modified_by,
+				 asset, ref_doctype, ref_name, ref_field, usage_key,
+				 profile_used, first_seen, last_seen, is_open)
+			values (%(name)s, now(), now(), 'Administrator', 'Administrator',
+				 %(asset)s, %(ref_doctype)s, %(ref_name)s, %(ref_field)s, %(usage_key)s,
+				 %(profile_used)s, %(first_seen)s, %(last_seen)s, %(is_open)s)
+			on duplicate key update
+				modified = now(),
+				profile_used = values(profile_used),
+				last_seen = values(last_seen),
+				is_open = values(is_open)""",
+			{**degerler, "name": row.get("name") or frappe.generate_hash(length=10)},
+		)
+
+	def rows_for(self, asset: str) -> List[dict]:
+		frappe = self._frappe()
+		rows = frappe.db.sql(
+			"""select name, asset, ref_doctype, ref_name, ref_field, usage_key,
+				profile_used, first_seen, last_seen, is_open
+			from `tabMedia Usage` where asset = %s""",
+			(asset,),
+			as_dict=True,
+		)
+		return [self._from_row(r) for r in rows]
+
+	def open_asset_names(self) -> set:
+		frappe = self._frappe()
+		return {
+			r[0]
+			for r in frappe.db.sql("select distinct asset from `tabMedia Usage` where is_open = 1")
+		}
+
+
+def get_usage_store() -> UsageStore:
+	"""Üretimde kullanılacak depo. DocType varsa KALICI, yoksa bellek içi.
+
+	Sessiz düşüş DEĞİL: `usage_store_status()` hangi deponun seçildiğini ve
+	neden seçildiğini söyler; raporlayan taraf "kalıcı kayıt var" iddiasını
+	bu çıktıya dayandırır, koda değil.
+	"""
+	return PersistentUsageStore(FrappeUsageBackend()) if usage_doctype_installed() else UsageStore()
+
+
+def usage_store_status() -> dict:
+	"""Bağ kaydının bugün kalıcı olup olmadığı — T-043 kriter 1'in kanıtı."""
+	kurulu = usage_doctype_installed()
+	return {
+		"doctype": MEDIA_USAGE_DOCTYPE,
+		"installed": kurulu,
+		"persistent": kurulu,
+		"spec": "tradehub_core/media/pipeline/doctype_specs/media_usage.json",
+		"reason": (
+			""
+			if kurulu
+			else "DocType kurulu değil — bağlar süreç ömrü kadar yaşıyor, "
+			"süreç yeniden başlayınca sıfırlanıyor. Kurulum Şerit A'da."
+		),
+	}
+
 
 def sync_links(store: UsageStore, asset: str, refs: Iterable[Mapping], now: float) -> dict:
 	"""Bir varlığın bağlarını verilen listeye eşitle.

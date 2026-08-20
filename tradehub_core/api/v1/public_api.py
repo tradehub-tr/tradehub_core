@@ -42,6 +42,18 @@ def _verify_client(client_id: str, client_secret: str) -> dict:
 		frappe.throw("Geçersiz client_id", frappe.AuthenticationError)
 	doc = frappe.get_doc("API Application", app.name)
 	expected_secret = doc.get_password("client_secret", raise_exception=False)
+	if expected_secret:
+		# T-134 §2 — API Application client_secret okuması denetime yazılır. Değer
+		# YOK; kimlik = uygulama adı. Yalnız geçerli bir client_id'ye ait sır
+		# okunduğunda yazılır (var olmayan client'ta get_password çağrılmaz).
+		from tradehub_core.audit.secret_access import log_secret_access
+
+		log_secret_access(
+			service="api_application",
+			field="client_secret",
+			object_doctype="API Application",
+			object_name=app.name,
+		)
 	if not expected_secret or expected_secret != client_secret:
 		frappe.throw("Geçersiz client_secret", frappe.AuthenticationError)
 	return {"app_name": app.name, "tier": app.rate_limit_tier, "scopes": [s.scope for s in doc.scopes]}

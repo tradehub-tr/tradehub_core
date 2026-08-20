@@ -1,0 +1,699 @@
+### TUR-126 TOGGLE — diff (f4b5730..36c9299)
+
+36c9299 feat(media): set_access_level — public↔private erişim-seviyesi toggle (TUR-126 §4)
+740974d feat(media/refs): retarget() — dosya URL değişince referansları yeni URL'e taşı
+e6f64da feat(media/audit): media.level_changed olay sabiti (TUR-126 §4 hazırlık)
+
+ tradehub_core/api/media_admin.py               |  16 +-
+ tradehub_core/media/access_level.py            | 159 ++++++++++++
+ tradehub_core/media/audit.py                   |   6 +
+ tradehub_core/media/refs.py                    |  42 ++++
+ tradehub_core/tests/test_media_access_level.py | 326 +++++++++++++++++++++++++
+ 5 files changed, 548 insertions(+), 1 deletion(-)
+
+diff --git a/tradehub_core/api/media_admin.py b/tradehub_core/api/media_admin.py
+index 6ec618c..9405452 100644
+--- a/tradehub_core/api/media_admin.py
++++ b/tradehub_core/api/media_admin.py
+@@ -8,21 +8,21 @@ Yalnız admin: pazaryeri sahibinin sitedeki tüm görselleri tek yerden görmesi
+ optimize etmesi için. Satıcı self-service kapsam dışı (GORSEL-OPTIMIZASYON.md §6).
+ """
+ 
+ from __future__ import annotations
+ 
+ import os
+ 
+ import frappe
+ from frappe import _
+ 
+-from tradehub_core.media import archive, audit, inventory, presets, refs, runner, trash, usage
++from tradehub_core.media import access_level, archive, audit, inventory, presets, refs, runner, trash, usage
+ 
+ ALLOWED_ROLES: tuple[str, ...] = ("System Manager", "Marketplace Admin")
+ 
+ # Geri alınamaz işlemler yalnız en yüksek role açık. Arşiv silindikten sonra
+ # optimize edilmiş görsellerin orijinali sistemde kalmıyor — bu yetkiyi
+ # `Marketplace Admin` seviyesine açmak geri dönüşü olmayan bir riski yayar.
+ DESTRUCTIVE_ROLES: tuple[str, ...] = ("System Manager",)
+ 
+ # Tek seferde kuyruğa alınabilecek azami dosya — kazara "hepsini" tetiklemeye karşı.
+ MAX_BATCH: int = 2000
+@@ -438,20 +438,34 @@ def get_file_references(file_url: str) -> dict:
+ 	"""Bu dosyayı gösteren TÜM satırlar — silmeden önce etki listesi.
+ 
+ 	`get_file_usage` "nerede kullanılıyor" sorusunu ürün diliyle cevaplıyor;
+ 	bu uçnokta ise temizlenecek somut satırları verir (tablo, kolon, kayıt).
+ 	"""
+ 	_guard()
+ 	url = (file_url or "").strip()
+ 	return {"file_url": url, "items": refs.find(url), "preview": refs.clear(url, dry_run=True)}
+ 
+ 
++@frappe.whitelist(methods=["POST"])
++def set_access_level(file_url: str, make_private: int = 0) -> dict:
++	"""Dosyanın erişim seviyesini public↔private çevir (TUR-126 §4).
++
++	Fiziksel taşıma + `File.file_url`/`is_private` güncelleme + tüm referansların
++	(`Listing.primary_image` vb.) yeni URL'e çevrilmesi tek işlemde yapılır —
++	iş `tradehub_core/media/access_level.py`'da. KYB/KYC gibi kapsam dışı
++	doctype'a bağlı dosya ASLA public yapılamaz (PII sızıntısı koruması);
++	zaten hedef seviyedeyse no-op (idempotent).
++	"""
++	_guard()
++	return access_level.set_level((file_url or "").strip(), make_private=bool(int(make_private or 0)))
++
++
+ @frappe.whitelist()
+ def get_record_media(doctype: str, name: str) -> dict:
+ 	"""Ters arama — bir ürünün/mağazanın kullandığı tüm medya (TUR-136).
+ 
+ 	`get_file_usage` "bu dosya nerede kullanılıyor" der; bu uçnokta tersini
+ 	yapar. Her görselin yanında başka yerlerde de kullanılıp kullanılmadığı
+ 	yazar — silme kararının asıl belirleyicisi o.
+ 	"""
+ 	_guard()
+ 	return usage.images_of((doctype or "").strip(), (name or "").strip())
+diff --git a/tradehub_core/media/access_level.py b/tradehub_core/media/access_level.py
+new file mode 100644
+index 0000000..192b7dd
+--- /dev/null
++++ b/tradehub_core/media/access_level.py
+@@ -0,0 +1,159 @@
++"""Medya erişim-seviyesi toggle — public ↔ private (TUR-126 §4).
++
++Bir medyanın erişim seviyesi bugüne kadar yüklemede sabitleniyordu. Süper-admin
++artık yanlış yüklenen bir belgeyi private'a alabilir ya da bir tanıtım
++görselini public yapabilir. Üç parça tek işlemde birleşiyor:
++
++  1. **Fiziksel taşıma** — `private/files/<ab>/` ↔ `public/files/<ab>/`,
++     shard + dosya adı korunur (bkz. `media/naming.py` içerik-hash isimlendirme).
++  2. **`File` güncelleme** — `file_url` prefix'i + `is_private` bayrağı.
++  3. **Referans güncelleme** — `media/refs.py`'ın bulma altyapısı üzerine:
++     dosyayı gösteren tüm satırlar (`Listing.primary_image` vb.) yeni URL'e
++     çevrilir, yoksa kırık görsel kalır.
++
++**KYB/KYC koruması (kritik):** `presets.EXCLUDED_DOCTYPES`'e bağlı bir dosya
++ASLA public yapılamaz — PII sızıntısı koruması, rol seviyesiyle de aşılamaz.
++Private yapmak serbest.
++
++**Atomiklik:** disk taşıması DB yazımlarından ÖNCE yapılır (tek atomik
++`os.replace`), sonra `File` + referans güncellemeleri aynı transaction'da
++yazılır. Sonraki adım (DB yazımı) patlarsa disk taşıması GERİ ALINIR —
++aksi hâlde dosya yeni konumda, `File.file_url` eski konumu gösteriyor olurdu
++(kırık referans). Trash akışının (`trash.py`) tersi sıra: orada disk hatası
++DB'yi etkilemesin diye önce DB yazılıyor; burada disk adımının kendisi geri
++alınabilir tek adım olduğu için önce o yapılıp hata durumunda elle geri
++alınıyor.
++"""
++
++from __future__ import annotations
++
++import os
++
++import frappe
++from frappe import _
++from frappe.core.doctype.file.utils import check_path_safety
++from frappe.utils import get_files_path
++
++from tradehub_core.media import audit, presets, refs
++
++PUBLIC_PREFIX = "/files/"
++PRIVATE_PREFIX = "/private/files/"
++
++
++def _relative(url: str) -> str:
++	"""URL'i prefix'siz, göreli disk yoluna çevirir (`ab/hash.ext`).
++
++	Path traversal ve tanınmayan prefix burada reddedilir — `_disk_path` ikinci
++	bir savunma katmanı olarak `check_path_safety` ile aynı kontrolü tekrar yapar.
++	"""
++	clean = (url or "").split("?")[0]
++	if not clean or ".." in clean:
++		frappe.throw(_("Geçersiz dosya yolu: {0}").format(url))
++	if clean.startswith(PRIVATE_PREFIX):
++		return clean[len(PRIVATE_PREFIX) :]
++	if clean.startswith(PUBLIC_PREFIX):
++		return clean[len(PUBLIC_PREFIX) :]
++	frappe.throw(_("Desteklenmeyen dosya yolu: {0}").format(url))
++
++
++def _disk_path(is_private: bool, relative: str) -> str:
++	root = os.path.realpath(get_files_path(is_private=is_private))
++	target = os.path.realpath(os.path.join(root, relative))
++	if not check_path_safety(base_path=root, requested_path=target):
++		frappe.throw(_("Dosya yolu kök dizinin dışında: {0}").format(relative))
++	return target
++
++
++def set_level(file_url: str, *, make_private: bool) -> dict:
++	"""Bir dosyanın erişim seviyesini değiştir.
++
++	Args:
++	    file_url: `File.file_url` — `/files/...` ya da `/private/files/...`.
++	    make_private: Hedef seviye. `True` → private, `False` → public.
++
++	Returns:
++	    `{"file_url", "changed", "is_private", "refs_updated"}`
++
++	Zaten hedef seviyedeyse hiçbir şeye dokunulmadan `changed=False` döner
++	(idempotent). KYB/KYC vb. kapsam dışı doctype'a bağlı dosya public
++	yapılmak istenirse `frappe.throw` — bu kontrol `force` benzeri hiçbir
++	parametreyle aşılamaz.
++	"""
++	url = (file_url or "").strip()
++	if not url:
++		frappe.throw(_("Dosya URL'i zorunlu."))
++
++	file_doc = frappe.get_doc("File", {"file_url": url})
++
++	if not make_private and file_doc.attached_to_doctype in presets.EXCLUDED_DOCTYPES:
++		audit.log_media_event(
++			action=audit.ACTION_SCOPE_DENIED,
++			file_url=url,
++			allowed=False,
++			reason="excluded_doctype_public",
++			sensitive=True,
++			context={"operation": "set_access_level", "attached_to_doctype": file_doc.attached_to_doctype},
++		)
++		frappe.throw(_("Bu belge herkese açık yapılamaz (KVKK/PII)."))
++
++	currently_private = bool(file_doc.is_private)
++	if currently_private == make_private:
++		return {"file_url": url, "changed": False, "is_private": currently_private, "refs_updated": 0}
++
++	relative = _relative(url)
++	old_path = _disk_path(currently_private, relative)
++	new_path = _disk_path(make_private, relative)
++
++	if not os.path.isfile(old_path):
++		frappe.throw(_("Dosya diskte bulunamadı: {0}").format(url))
++
++	new_prefix = PRIVATE_PREFIX if make_private else PUBLIC_PREFIX
++	new_url = new_prefix + relative
++
++	frappe.create_folder(os.path.dirname(new_path))
++
++	# Disk taşıması tek atomik adım (`os.replace`) — DB yazımlarından önce
++	# yapılır ki bir sonraki adım patlarsa geri alınacak tek şey bu olsun.
++	os.replace(old_path, new_path)
++
++	try:
++		frappe.db.set_value(
++			"File",
++			{"file_url": url},
++			{"file_url": new_url, "is_private": int(make_private)},
++			update_modified=False,
++		)
++		ref_result = refs.retarget(url, new_url)
++	except Exception:
++		frappe.db.rollback()
++		try:
++			os.replace(new_path, old_path)
++		except Exception:
++			frappe.log_error(
++				title=f"Access level disk revert failed for {url}",
++				message=frappe.get_traceback(with_context=True),
++			)
++		frappe.log_error(
++			title=f"Access level change failed for {url}", message=frappe.get_traceback(with_context=True)
++		)
++		raise
++
++	frappe.db.commit()
++
++	audit.log_media_event(
++		action=audit.ACTION_LEVEL_CHANGED,
++		file_url=new_url,
++		context={
++			"old_url": url,
++			"old_private": currently_private,
++			"new_private": make_private,
++			"refs_updated": ref_result["total"],
++		},
++	)
++
++	return {
++		"file_url": new_url,
++		"changed": True,
++		"is_private": make_private,
++		"refs_updated": ref_result["total"],
++	}
+diff --git a/tradehub_core/media/audit.py b/tradehub_core/media/audit.py
+index b44e8c2..4cb32bd 100644
+--- a/tradehub_core/media/audit.py
++++ b/tradehub_core/media/audit.py
+@@ -56,49 +56,55 @@ ACTION_ACCESS_DENIED: str = "media.access_denied"
+ ACTION_RELEASE: str = "media.release"
+ ACTION_RECLAIM: str = "media.reclaim"
+ # Yedek paketi sunucudan dışarı çıkarıldı. Paket TÜM medyayı içeriyor, özel
+ # belgeler dahil — verinin sunucuyu terk ettiği tek nokta bu. Kimin ne zaman
+ # dışarı aktardığı iz bırakmadan gerçekleşmemeli.
+ ACTION_EXPORT: str = "media.export"
+ # TUR-126 — private dosya imzalı süreli link ile (girişsiz) indirildi.
+ # `media_access.download`'ın tek başarı kaydı: kim/ne zaman değil (link
+ # giriş gerektirmiyor), hangi dosyanın hangi imzalı linkle dışarı çıktığı.
+ ACTION_SIGNED_ACCESS: str = "media.signed_access"
++# TUR-126 §4 — süper-admin bir dosyanın erişim seviyesini (public↔private)
++# değiştirdi. `media_admin.set_access_level` / `media/access_level.py` yazar.
++ACTION_LEVEL_CHANGED: str = "media.level_changed"
+ 
+ MEDIA_ACTIONS: tuple[str, ...] = (
+ 	ACTION_UPLOAD,
+ 	ACTION_OPTIMIZE,
+ 	ACTION_RESTORE,
+ 	ACTION_TRASH,
+ 	ACTION_UNTRASH,
+ 	ACTION_DELETE,
+ 	ACTION_PURGE_TRASH,
+ 	ACTION_PURGE_ARCHIVE,
+ 	ACTION_SCOPE_DENIED,
+ 	ACTION_ACCESS_DENIED,
+ 	ACTION_RELEASE,
+ 	ACTION_RECLAIM,
+ 	ACTION_EXPORT,
+ 	ACTION_SIGNED_ACCESS,
++	ACTION_LEVEL_CHANGED,
+ )
+ 
+ # Geri dönüşü olmayan ya da güvenlik anlamı taşıyan olaylar HIGH ile işaretlenir;
+ # operasyonel inceleme bunlara severity ile filtre atabilsin.
+ _HIGH_SEVERITY_ACTIONS: frozenset[str] = frozenset(
+ 	{
+ 		ACTION_DELETE,
+ 		ACTION_PURGE_TRASH,
+ 		ACTION_PURGE_ARCHIVE,
+ 		ACTION_SCOPE_DENIED,
+ 		ACTION_ACCESS_DENIED,
+ 		# Geri alınamaz değil ama güvenlik anlamı taşıyor: veri sunucudan çıktı.
+ 		ACTION_EXPORT,
++		# Erişim kontrolü kararı: private→public bir dosyayı anonim erişime açar.
++		ACTION_LEVEL_CHANGED,
+ 	}
+ )
+ 
+ 
+ def fingerprint(value: str) -> str:
+ 	"""Maskelenmiş dosya için kararlı, geri döndürülemez kimlik.
+ 
+ 	Aynı dosyaya yapılan tekrar denemeler aynı parmak izini üretir; operatör
+ 	"bu dosyaya 5 kez denendi" diyebilir ama dosyayı açamaz.
+ 	"""
+diff --git a/tradehub_core/media/refs.py b/tradehub_core/media/refs.py
+index 9e1f302..72cdbbf 100644
+--- a/tradehub_core/media/refs.py
++++ b/tradehub_core/media/refs.py
+@@ -187,20 +187,62 @@ def clear(file_url: str, *, dry_run: bool = False, store: str | None = None) ->
+ 
+ 	return {
+ 		"file_url": file_url,
+ 		"rows_deleted": silinen_satir,
+ 		"fields_cleared": bosaltilan,
+ 		"skipped": atlanan,
+ 		"total": len(silinen_satir) + len(bosaltilan),
+ 	}
+ 
+ 
++def retarget(old_url: str, new_url: str) -> dict:
++	"""Dosyanın URL'i değiştiğinde (erişim-seviyesi toggle, TUR-126 §4) onu
++	gösteren TAM eşleşen referansları yeni URL'e çevir.
++
++	`clear()` ile aynı disiplin: yalnız TAM eşleşen alanlara dokunulur — gömülü
++	metin (`sections` gibi JSON alanları) atlanır, URL'i içeride kesip
++	yapıştırmak JSON'u bozabilir. Sipariş kaynakları (`READONLY_TABLES`) hiç
++	dokunulmaz — geçmiş siparişin görüntüsü o anki hâli yansıtmalı, taşıma
++	geçmişi değiştirmemeli.
++
++	Satır silinmez (dosya hâlâ var, yalnız yeri değişti); galeri/varyant
++	satırları da tekil alanlar (`Listing.primary_image`) da aynı şekilde
++	kolonu yeni URL'e günceller.
++	"""
++	guncellenen: list[str] = []
++	atlanan: list[str] = []
++
++	for ref in find(old_url):
++		hedef = f"{ref['owner_doctype']}:{ref['owner']}·{ref['column']}"
++		if ref["readonly"]:
++			atlanan.append(f"{hedef} (sipariş geçmişi)")
++			continue
++		if not ref["exact"]:
++			atlanan.append(f"{hedef} (gömülü metin)")
++			continue
++
++		_assert_writable(ref["table"], ref["column"])
++		frappe.db.sql(  # noqa: S608 — tablo/kolon _WRITABLE allow-list'inden
++			f"update `{ref['table']}` set `{ref['column']}`=%s where name=%s",
++			(new_url, ref["row"]),
++		)
++		guncellenen.append(hedef)
++
++	return {
++		"old_url": old_url,
++		"new_url": new_url,
++		"updated": guncellenen,
++		"skipped": atlanan,
++		"total": len(guncellenen),
++	}
++
++
+ def find_dangling(limit: int = 500) -> list[dict]:
+ 	"""Hedefi olmayan referansları tara — geçmişte bozulmuş bağlar.
+ 
+ 	Bu tarama olmadan kırık referanslar yalnız kullanıcı ürüne bakınca fark
+ 	ediliyordu. Ölçüm: `hannibal8height-marble-1664442_1920.jpg` silindikten
+ 	sonra `Listing Image` satırı geride kalmıştı.
+ 	"""
+ 	out: list[dict] = []
+ 	for table, column, _kind, label in LIVE_SOURCES:
+ 		try:
+diff --git a/tradehub_core/tests/test_media_access_level.py b/tradehub_core/tests/test_media_access_level.py
+new file mode 100644
+index 0000000..ead24cd
+--- /dev/null
++++ b/tradehub_core/tests/test_media_access_level.py
+@@ -0,0 +1,326 @@
++"""TUR-126 — medya erişim-seviyesi toggle testleri (public ↔ private).
++
++`tradehub_core/api/media_admin.py:set_access_level` süper-admin'in bir dosyanın
++public/private seviyesini değiştirmesini sağlar (`docs/MEDYA-ERISIM-MODELI.md`
++§4). Kritik güvenlik kuralı: KYB/KYC gibi `presets.EXCLUDED_DOCTYPES`'e bağlı
++belgeler ASLA public yapılamaz (PII sızıntısı koruması) — bu `force` ile de,
++rol seviyesiyle de aşılamaz.
++
++Fiziksel dosya gerçekten taşınır (`private/files/<ab>/` ↔ `public/files/<ab>/`),
++`File.file_url` + `File.is_private` güncellenir, dosyayı kullanan referanslar
++(`Listing.primary_image` vb., `media/refs.py`) yeni URL'e çevrilir — hepsi
++`test_media_pipeline_integration.py` ile aynı desende gerçek DB üzerinde.
++
++`_guard()` `frappe.only_for` kullanıyor; bu fonksiyon `frappe.flags.in_test`
++True iken (bench test runner'ın varsayılanı) rol kontrolünü BAYPAS EDER
++(`frappe/__init__.py:only_for`). Yetkisiz-kullanıcı testi bu yüzden çağrı
++etrafında `frappe.flags.in_test = False` ile geçici olarak gerçek rol
++kontrolünü açar — Frappe çekirdeğinin kendi testlerinde de kullanılan desen
++(`frappe/core/doctype/user/test_user.py`).
++
++    docker exec istoc-dev-backend-1 bench --site istoc.localhost \
++        run-tests --module tradehub_core.tests.test_media_access_level
++"""
++
++from __future__ import annotations
++
++import contextlib
++import os
++from unittest import mock
++
++import frappe
++from frappe.tests.utils import FrappeTestCase
++from frappe.utils import get_files_path
++
++from tradehub_core.api import media_admin
++from tradehub_core.media import access_level, audit
++
++
++@contextlib.contextmanager
++def mock_log_media_event():
++	with mock.patch.object(access_level.audit, "log_media_event") as m:
++		yield m
++
++
++def _write_public_file(name: str, content: bytes) -> str:
++	"""Public bir dosyayı gerçek diske yazar, `/files/<ab>/<name>` döner."""
++	shard = name[:2]
++	base = get_files_path(is_private=0)
++	frappe.create_folder(os.path.join(base, shard))
++	with open(os.path.join(base, shard, name), "wb") as f:
++		f.write(content)
++	return f"/files/{shard}/{name}"
++
++
++def _write_private_file(name: str, content: bytes) -> str:
++	shard = name[:2]
++	base = get_files_path(is_private=1)
++	frappe.create_folder(os.path.join(base, shard))
++	with open(os.path.join(base, shard, name), "wb") as f:
++		f.write(content)
++	return f"/private/files/{shard}/{name}"
++
++
++class MediaAccessLevelTestBase(FrappeTestCase):
++	"""Ortak fixture: gerçek `File` kaydı + gerçek disk dosyası."""
++
++	def _delete_and_commit(self, doctype: str, name: str) -> None:
++		if frappe.db.exists(doctype, name):
++			frappe.delete_doc(doctype, name, ignore_permissions=True, force=True)
++			frappe.db.commit()
++
++	def _remove_path_if_exists(self, path: str) -> None:
++		if os.path.isfile(path):
++			os.remove(path)
++
++	def _cleanup_both_locations(self, name: str) -> None:
++		"""Testler dosyayı taşıyabildiği için hem public hem private konumu
++		siler — hangi konumda kaldığı testin sonucuna bağlı."""
++		shard = name[:2]
++		self.addCleanup(
++			lambda: self._remove_path_if_exists(os.path.join(get_files_path(is_private=0), shard, name))
++		)
++		self.addCleanup(
++			lambda: self._remove_path_if_exists(os.path.join(get_files_path(is_private=1), shard, name))
++		)
++
++	def setUp(self):
++		super().setUp()
++		self._orig_user = frappe.session.user
++		self.addCleanup(lambda: frappe.set_user(self._orig_user))
++		frappe.set_user("Administrator")
++
++	def _make_public_file(self, tag: str, *, attached_to_doctype: str | None = None) -> "frappe._dict":
++		suffix = frappe.generate_hash(length=10)
++		name = f"{suffix}.txt"
++		content = f"erisim-seviyesi-{tag}-{suffix}".encode()
++		url = _write_public_file(name, content)
++		self._cleanup_both_locations(name)
++
++		doc = frappe.get_doc(
++			{
++				"doctype": "File",
++				"file_name": name,
++				"file_url": url,
++				"is_private": 0,
++				"attached_to_doctype": attached_to_doctype,
++				"attached_to_name": "FIXTURE-YOK" if attached_to_doctype else None,
++			}
++		)
++		doc.flags.ignore_mandatory = True
++		doc.insert(ignore_permissions=True)
++		frappe.db.commit()
++		self.addCleanup(lambda: self._delete_and_commit("File", doc.name))
++		return doc
++
++	def _make_private_file(self, tag: str) -> "frappe._dict":
++		suffix = frappe.generate_hash(length=10)
++		name = f"{suffix}.txt"
++		content = f"erisim-seviyesi-{tag}-{suffix}".encode()
++		url = _write_private_file(name, content)
++		self._cleanup_both_locations(name)
++
++		doc = frappe.get_doc(
++			{
++				"doctype": "File",
++				"file_name": name,
++				"file_url": url,
++				"is_private": 1,
++			}
++		)
++		doc.flags.ignore_mandatory = True
++		doc.insert(ignore_permissions=True)
++		frappe.db.commit()
++		self.addCleanup(lambda: self._delete_and_commit("File", doc.name))
++		return doc
++
++	def _make_seller(self, tag: str) -> str:
++		suffix = frappe.generate_hash(length=8)
++		store = frappe.get_doc(
++			{
++				"doctype": "Admin Seller Profile",
++				"seller_name": f"Erisim Seviyesi Satici {tag}",
++				"seller_code": frappe.generate_hash(length=10),
++				"status": "Active",
++			}
++		)
++		store.flags.ignore_mandatory = True
++		store.insert(ignore_permissions=True)
++		frappe.db.commit()
++		self.addCleanup(lambda: self._delete_and_commit("Admin Seller Profile", store.name))
++		return store.name
++
++	def _make_listing(self, seller: str, primary_image: str, tag: str) -> str:
++		listing = frappe.get_doc(
++			{
++				"doctype": "Listing",
++				"listing_code": f"ERISIM-{tag}-{frappe.generate_hash(length=6)}",
++				"title": f"Erisim Seviyesi Test Ürünü {tag}",
++				"seller_profile": seller,
++				"status": "Active",
++				"currency": "TRY",
++				"base_price": 100,
++				"selling_price": 100,
++				"primary_image": primary_image,
++			}
++		)
++		listing.insert(ignore_permissions=True)
++		frappe.db.commit()
++		self.addCleanup(lambda: self._delete_and_commit("Listing", listing.name))
++		return listing.name
++
++
++class PublicToPrivateTests(MediaAccessLevelTestBase):
++	def test_public_dosya_private_yapilinca_disk_url_ve_referans_guncellenir(self):
++		file_doc = self._make_public_file("p2v")
++		seller = self._make_seller("p2v")
++		listing_name = self._make_listing(seller, file_doc.file_url, "p2v")
++
++		old_url = file_doc.file_url
++		old_path = os.path.join(get_files_path(is_private=0), *old_url[len("/files/"):].split("/"))
++
++		result = access_level.set_level(old_url, make_private=True)
++
++		self.assertTrue(result["changed"])
++		self.assertTrue(result["is_private"])
++		new_url = result["file_url"]
++		self.assertTrue(new_url.startswith("/private/files/"))
++		# Shard + dosya adı korunur, yalnız prefix değişir.
++		self.assertEqual(new_url[len("/private/files/"):], old_url[len("/files/"):])
++
++		new_path = os.path.join(get_files_path(is_private=1), *new_url[len("/private/files/"):].split("/"))
++		self.assertFalse(os.path.isfile(old_path), "eski konumda dosya hâlâ duruyor")
++		self.assertTrue(os.path.isfile(new_path), "yeni konumda dosya yok")
++
++		file_doc.reload()
++		self.assertEqual(file_doc.file_url, new_url)
++		self.assertEqual(int(file_doc.is_private), 1)
++
++		self.assertEqual(frappe.db.get_value("Listing", listing_name, "primary_image"), new_url)
++		self.assertGreaterEqual(result["refs_updated"], 1)
++
++
++class PrivateToPublicTests(MediaAccessLevelTestBase):
++	def test_private_dosya_public_yapilinca_disk_url_ve_referans_guncellenir(self):
++		file_doc = self._make_private_file("v2p")
++		seller = self._make_seller("v2p")
++		listing_name = self._make_listing(seller, file_doc.file_url, "v2p")
++
++		old_url = file_doc.file_url
++		old_path = os.path.join(get_files_path(is_private=1), *old_url[len("/private/files/"):].split("/"))
++
++		result = access_level.set_level(old_url, make_private=False)
++
++		self.assertTrue(result["changed"])
++		self.assertFalse(result["is_private"])
++		new_url = result["file_url"]
++		self.assertTrue(new_url.startswith("/files/"))
++		self.assertEqual(new_url[len("/files/"):], old_url[len("/private/files/"):])
++
++		new_path = os.path.join(get_files_path(is_private=0), *new_url[len("/files/"):].split("/"))
++		self.assertFalse(os.path.isfile(old_path))
++		self.assertTrue(os.path.isfile(new_path))
++
++		file_doc.reload()
++		self.assertEqual(file_doc.file_url, new_url)
++		self.assertEqual(int(file_doc.is_private), 0)
++
++		self.assertEqual(frappe.db.get_value("Listing", listing_name, "primary_image"), new_url)
++
++
++class KybProtectionTests(MediaAccessLevelTestBase):
++	def test_kyb_belgesi_public_yapilamaz(self):
++		"""KRİTİK güvenlik testi: KYB Verification'a bağlı dosya asla public
++		yapılamaz — PII sızıntısı koruması, `frappe.throw` beklenir."""
++		file_doc = self._make_public_file("kyb", attached_to_doctype="KYB Verification")
++		# Zaten public — private->public "geçişini" tetiklemek için önce
++		# private yapıyoruz (fiziksel taşıma dahil), sonra tekrar public'e
++		# çevirmeyi deneyip reddedildiğini doğruluyoruz.
++		moved = access_level.set_level(file_doc.file_url, make_private=True)
++
++		with self.assertRaises(frappe.ValidationError):
++			access_level.set_level(moved["file_url"], make_private=False)
++
++		# Reddedilen istek dosyayı private'ta bırakmalı (değişmemeli).
++		file_doc.reload()
++		self.assertEqual(int(file_doc.is_private), 1)
++
++	def test_kyb_belgesi_private_yapilabilir(self):
++		"""Private yapmak serbest — yalnız PUBLIC yapmak yasak."""
++		file_doc = self._make_public_file("kyb-priv", attached_to_doctype="KYB Verification")
++
++		result = access_level.set_level(file_doc.file_url, make_private=True)
++
++		self.assertTrue(result["changed"])
++		self.assertTrue(result["is_private"])
++
++
++class IdempotentTests(MediaAccessLevelTestBase):
++	def test_zaten_hedef_seviyedeyse_no_op(self):
++		file_doc = self._make_public_file("idem")
++
++		result = access_level.set_level(file_doc.file_url, make_private=False)
++
++		self.assertFalse(result["changed"])
++		self.assertEqual(result["file_url"], file_doc.file_url)
++		self.assertFalse(result["is_private"])
++
++		# Disk hâlâ eski konumda — dokunulmamış.
++		path = os.path.join(get_files_path(is_private=0), *file_doc.file_url[len("/files/"):].split("/"))
++		self.assertTrue(os.path.isfile(path))
++
++
++class AuditTests(MediaAccessLevelTestBase):
++	def test_basarili_degisim_media_level_changed_yazar(self):
++		file_doc = self._make_public_file("audit")
++
++		with mock_log_media_event() as m:
++			result = access_level.set_level(file_doc.file_url, make_private=True)
++
++		m.assert_called_once()
++		_, kwargs = m.call_args
++		self.assertEqual(kwargs["action"], audit.ACTION_LEVEL_CHANGED)
++		self.assertEqual(kwargs["file_url"], result["file_url"])
++		self.assertEqual(kwargs["context"]["old_url"], file_doc.file_url)
++		self.assertTrue(kwargs["context"]["new_private"])
++		self.assertFalse(kwargs["context"]["old_private"])
++
++
++class GuardTests(MediaAccessLevelTestBase):
++	"""`_guard()` yalnız System Manager / Marketplace Admin'e izin verir.
++
++	`frappe.only_for`, `frappe.flags.in_test=True` iken (bench test runner
++	varsayılanı) rol kontrolünü baypas ediyor — burada geçici olarak kapatıp
++	gerçek rol denetimini test ediyoruz.
++	"""
++
++	def test_yetkisiz_kullanici_reddedilir(self):
++		suffix = frappe.generate_hash(length=8)
++		email = f"erisim-seviyesi-yetkisiz-{suffix}@test.local"
++		user = frappe.get_doc(
++			{
++				"doctype": "User",
++				"email": email,
++				"first_name": "Yetkisiz",
++				"send_welcome_email": 0,
++				"enabled": 1,
++			}
++		).insert(ignore_permissions=True)
++		frappe.db.commit()
++		self.addCleanup(lambda: self._delete_and_commit("User", user.name))
++
++		frappe.set_user(email)
++		prev = frappe.flags.in_test
++		frappe.flags.in_test = False
++		try:
++			with self.assertRaises(frappe.PermissionError):
++				media_admin.set_access_level(file_url="/files/aa/does-not-matter.jpg", make_private=1)
++		finally:
++			frappe.flags.in_test = prev
++			frappe.set_user("Administrator")
++
++
++if __name__ == "__main__":
++	import unittest
++
++	unittest.main()

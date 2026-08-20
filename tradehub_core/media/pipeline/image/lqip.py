@@ -462,7 +462,46 @@ def encode(
 		return LqipResult(ok=False, reason=f"error:{type(exc).__name__}: {exc}")
 
 
-# ── Çözücü (doğrulama için) ─────────────────────────────────────────────
+# ── Çözücü (doğrulama + veri URI'si için) ───────────────────────────────
+
+
+def thumb_hash_to_data_uri(hash_bytes: bytes) -> str:
+	"""ThumbHash → `data:image/png;base64,…` — teslim katmanının LQIP biçimi.
+
+	Neden burada çözülüyor: `delivery/picture.py::lqip_style` ve panel
+	`MediaImage.vue` LQIP olarak **hazır data URI ya da düz renk** bekliyor;
+	ikisinin de ThumbHash çözücüsü yok. Hash'i istemcide çözecek bir
+	`ui/src/lib/lqip.ts` (şartname T-065 madde 4) bu depoda YAZILMADI — data
+	URI, mevcut tüketicilerin okuyabildiği tek biçim. Kanonik değer yine
+	hash'tir (<30 bayt, `Media Version.lqip`); bu URI ondan türetilir ve
+	yazma anında BİR kez üretilir, istek başına değil.
+
+	PNG stdlib ile kodlanır (zlib + struct): Pillow'a bağımlılık yok, çıktı
+	deterministiktir. 32 piksellik kenar için URI ~0,5-1,5 KB.
+	"""
+	import base64
+	import struct
+	import zlib
+
+	w, h, rgba = thumb_hash_to_rgba(hash_bytes)
+
+	def _chunk(tag: bytes, veri: bytes) -> bytes:
+		return (
+			struct.pack(">I", len(veri))
+			+ tag
+			+ veri
+			+ struct.pack(">I", zlib.crc32(tag + veri) & 0xFFFFFFFF)
+		)
+
+	# Satır başına filtre baytı 0 (None) — çözücüler için en yalın yol.
+	ham = b"".join(b"\x00" + bytes(rgba[y * w * 4 : (y + 1) * w * 4]) for y in range(h))
+	png = (
+		b"\x89PNG\r\n\x1a\n"
+		+ _chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 6, 0, 0, 0))
+		+ _chunk(b"IDAT", zlib.compress(ham, 9))
+		+ _chunk(b"IEND", b"")
+	)
+	return "data:image/png;base64," + base64.b64encode(png).decode("ascii")
 
 
 def thumb_hash_aspect_ratio(hash_bytes: bytes) -> float:

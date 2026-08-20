@@ -168,6 +168,115 @@ class TranscodeKomutu(unittest.TestCase):
 		self.assertIn("-c:a", cmd)
 
 
+class HizDenetimi(unittest.TestCase):
+	"""T-072 — capped CRF. Tek dosya yolunda hız denetimi YOKTU (B-1)."""
+
+	def setUp(self):
+		self.spec = T.H264Spec.from_table()
+
+	def test_tabloda_capped_crf_secili(self):
+		self.assertEqual(self.spec.rate_control, "capped_crf")
+		self.assertTrue(self.spec.budget_from_benefit_gate)
+
+	def test_komutta_maxrate_ve_bufsize_var(self):
+		"""CRF tek başına bayt tavanı vermez — tavan komutta GÖRÜNMELİ."""
+		cmd = T.build_transcode_cmd("g.mp4", "c.mp4", self.spec, kunye())
+		self.assertIn("-maxrate", cmd)
+		self.assertIn("-bufsize", cmd)
+		self.assertIn("-crf", cmd)
+		tavan = cmd[cmd.index("-maxrate") + 1]
+		tampon = cmd[cmd.index("-bufsize") + 1]
+		self.assertTrue(tavan.endswith("k") and tampon.endswith("k"))
+		self.assertEqual(int(tampon[:-1]), int(tavan[:-1]) * 2, "bufsize = 2 x maxrate")
+
+	def test_rate_control_crf_TAVANI_KALDIRIR(self):
+		"""Vacuity anahtarı: tabloda `crf` yazınca düzeltme geri alınır.
+
+		Bu test düzeltmenin gerçekten bir şey yaptığını pinler — tavan
+		kaldırıldığında komutta `-maxrate` KALMAMALI.
+		"""
+		import dataclasses
+
+		tavansiz = dataclasses.replace(self.spec, rate_control="crf")
+		cmd = T.build_transcode_cmd("g.mp4", "c.mp4", tavansiz, kunye())
+		self.assertNotIn("-maxrate", cmd)
+		self.assertNotIn("-bufsize", cmd)
+		self.assertIn("-crf", cmd)
+
+	def test_tavan_FAYDA_KAPISINDAN_turetiliyor(self):
+		"""Tavan = kaynak toplam bitrate × (1 − %10) − çıktı ses bitrate'i.
+
+		Gerçek dosyada ölçüldü (r2, 1920×1080, format bitrate 1.169.219 bps):
+		1.169 × 0,9 − 128 = **924 kbps**.
+		"""
+		f = kunye(format_bitrate_bps=1_169_219, has_audio=True)
+		self.assertEqual(T.rate_ceiling_kbps(self.spec, f), 924)
+
+	def test_sessiz_kaynakta_butcenin_TAMAMI_videoya_gider(self):
+		"""Ses yoksa çıkarılacak ses payı da yok — sabit çarpanın göremediği fark."""
+		sesli = kunye(format_bitrate_bps=1_169_219, has_audio=True)
+		sessiz = kunye(format_bitrate_bps=1_169_219, has_audio=False)
+		self.assertEqual(T.rate_ceiling_kbps(self.spec, sessiz), 1052)
+		self.assertGreater(
+			T.rate_ceiling_kbps(self.spec, sessiz),
+			T.rate_ceiling_kbps(self.spec, sesli),
+		)
+
+	def test_mutlak_tavan_ustte_taban_altta(self):
+		"""8 Mbps kaynak 2.500'e, 200 kbps kaynak 300'e kelepçelenir."""
+		sisik = kunye(format_bitrate_bps=8_000_000, has_audio=True)
+		minik = kunye(format_bitrate_bps=200_000, has_audio=True)
+		self.assertEqual(T.rate_ceiling_kbps(self.spec, sisik), self.spec.maxrate_kbps)
+		self.assertEqual(T.rate_ceiling_kbps(self.spec, minik), self.spec.min_maxrate_kbps)
+
+	def test_bitrate_olculemezse_tavan_TAHMIN_EDILMEZ(self):
+		"""Ölçülemeyen kaynakta mutlak tavana düşülür, uydurma bir sayı üretilmez."""
+		bos = kunye(format_bitrate_bps=0, video_bitrate_bps=0, audio_bitrate_bps=0)
+		self.assertEqual(T.rate_ceiling_kbps(self.spec, bos), self.spec.maxrate_kbps)
+		self.assertEqual(T.rate_ceiling_kbps(self.spec, None), self.spec.maxrate_kbps)
+
+
+class GeriCekilmeKurali(unittest.TestCase):
+	"""B-2 — kapıdan düşen TRANSCODE, REMUX ihtiyacını öldürmemeli."""
+
+	def test_moov_sonda_ise_geri_cekilir(self):
+		uygulanir, gerekce = T.remux_fallback_applies(kunye(moov_at_end=True))
+		self.assertTrue(uygulanir)
+		self.assertIn("moov", gerekce)
+
+	def test_kap_mp4_degilse_geri_cekilir(self):
+		uygulanir, gerekce = T.remux_fallback_applies(
+			kunye(container_family="matroska", video_codec="h264", audio_codec="aac")
+		)
+		self.assertTrue(uygulanir)
+		self.assertIn("kap", gerekce)
+
+	def test_kusur_yoksa_geri_cekilme_YOK(self):
+		"""REMUX bir şey düzeltmeyecekse ikinci bir ffmpeg koşumu israftır."""
+		uygulanir, gerekce = T.remux_fallback_applies(kunye(moov_at_end=False, container_family="mp4"))
+		self.assertFalse(uygulanir)
+		self.assertIn("kusuru yok", gerekce)
+
+	def test_vp9_kaynakta_geri_cekilme_YOK(self):
+		"""`-c copy` ile VP9'u mp4'e taşımak kabı düzeltir, OYNATMAYI BOZAR."""
+		uygulanir, gerekce = T.remux_fallback_applies(
+			kunye(video_codec="vp9", container_family="webm", audio_codec="opus")
+		)
+		self.assertFalse(uygulanir)
+		self.assertIn("vp9", gerekce)
+
+	def test_opus_sesli_kaynakta_geri_cekilme_YOK(self):
+		uygulanir, gerekce = T.remux_fallback_applies(
+			kunye(video_codec="h264", container_family="webm", has_audio=True, audio_codec="opus")
+		)
+		self.assertFalse(uygulanir)
+		self.assertIn("opus", gerekce)
+
+	def test_olculemeyen_kunyede_geri_cekilme_YOK(self):
+		uygulanir, _ = T.remux_fallback_applies(P.VideoFacts(measured=False))
+		self.assertFalse(uygulanir)
+
+
 class RemuxKomutu(unittest.TestCase):
 	def test_yeniden_kodlama_yok(self):
 		cmd = T.build_remux_cmd("g.mkv", "c.mp4")
@@ -516,15 +625,29 @@ class GercekTranscode(unittest.TestCase):
 		self.assertAlmostEqual(f.audio_bitrate_bps, 128_000, delta=8_000)
 
 	def test_FAYDA_KAPISI_verimli_kaynagi_korur(self):
-		"""INV-05'in ASIL değeri. ÖLÇÜLDÜ: kapısız transcode bu dosyayı
-		1.092.127 B'den 2.007.172 B'ye ÇIKARIYOR (%84 BÜYÜME).
+		"""INV-05'in ASIL değeri: verimli bir kaynak kapıdan GEÇEMEZ.
 
-		Bugünkü hat bu çıktıyı KOŞULSUZ yerine yazıyor (transcode.py:366).
+		**Bu testin beklentisi 2026-08-19'da DEĞİŞTİ ve sebebi kayda geçiyor.**
+		Eskiden burada `saving_ratio < 0` iddiası vardı: sabit CRF 23 bu dosyayı
+		1.092.127 B'den 2.007.172 B'ye ÇIKARIYORDU (%84 büyüme). Hız denetimi
+		(capped CRF) eklendikten sonra kapısız çıktı artık BÜYÜMÜYOR — ölçüldü:
+		%4,3 KÜÇÜLÜYOR. Yani düzeltme çalıştı.
+
+		Kapının anlamı değişmedi: %4,3 kazanç %10 eşiğinin ALTINDA, çıktı yine
+		atılır ve kaynak korunur. Test artık "büyüyor mu" değil "kapı eşiğin
+		altındaki kazancı reddediyor mu" diye soruyor — asıl sözleşme buydu.
+
+		Eski davranışın hâlâ kusurlu olduğu `test_tavansiz_CRF_verimli_kaynagi_BUYUTUYOR`
+		ile ayrıca pinlenmiştir (vacuity kontrolü).
 		"""
 		src = str(VIDEO_DIR / VERIMLI)
 		dst = os.path.join(self.d, "c.mp4")
 		r = T.transcode(src, dst, enforce_benefit_gate=False)
-		self.assertLess(r.saving_ratio, 0, "kapisiz transcode bu kaynagi BUYUTUYOR")
+		self.assertLess(
+			r.saving_ratio,
+			T.min_saving_ratio(),
+			"kapisiz cikti bile esigin altinda kalmali — kaynak zaten verimli",
+		)
 
 		dst2 = os.path.join(self.d, "c2.mp4")
 		r2 = T.transcode(src, dst2, enforce_benefit_gate=True)
@@ -571,6 +694,25 @@ class GercekTranscode(unittest.TestCase):
 			self.assertIn("VMAF YOK", k["vmaf_note"])
 			self.assertGreater(k["ssim"], 0.95, "olculen SSIM 0,9956 idi")
 			self.assertGreater(k["psnr"], 35.0, "olculen PSNR 44,5 dB idi")
+
+	def test_SURE_FARKI_olculuyor_ve_100ms_tavaninin_altinda(self):
+		"""T-072/4 — kaynak ↔ çıktı süre farkı ≤ 100 ms.
+
+		Bu kriter bugüne kadar HİÇ ÖLÇÜLMEMİŞTİ (`34-dogrulama-faz4-7.md` §5:
+		"ne test ne kod bulundu"). Ölçüm artık her transcode sonucunda
+		`quality` içinde duruyor.
+		"""
+		dst = os.path.join(self.d, "c.mp4")
+		r = T.transcode(str(VIDEO_DIR / SISIRILMIS), dst)
+		self.assertTrue(r.accepted)
+		self.assertIn("duration_delta_s", r.quality)
+		self.assertIsNotNone(r.quality["duration_delta_s"], "sure farki OLCULEBILMELI")
+		self.assertLessEqual(r.quality["duration_delta_s"], T.max_duration_delta_s())
+		self.assertEqual(r.quality["duration_gate"], "GECTI")
+
+	def test_sure_farki_OLCULEMEZSE_uydurulmuyor(self):
+		"""Ölçülemeyen fark `None` döner — "0 fark" DEĞİL."""
+		self.assertIsNone(T.duration_delta_s(str(VIDEO_DIR / VERIMLI), "/yok/olan/dosya.mp4"))
 
 	def test_yarim_dosya_diskte_kalmaz(self):
 		"""ffmpeg düşerse geçici dosya temizlenir, hedefe hiçbir şey yazılmaz."""
@@ -628,6 +770,61 @@ class GercekRemux(unittest.TestCase):
 		r = T.remux(yol, os.path.join(self.d, "c.mp4"))
 		self.assertTrue(r.accepted)
 		self.assertIn("MUAF", r.notes[0])
+
+	def test_KAPIDAN_DUSEN_TRANSCODE_REMUXa_GERI_CEKILIYOR(self):
+		"""B-2 — ölçülmüş kusurun düzeltmesi, gerçek ffmpeg ile.
+
+		Kusur: kapıdan düşen TRANSCODE, aynı dosyanın REMUX ihtiyacını da
+		öldürüyordu. moov sonda kalıyor, geri çekilme yolu yoktu.
+
+		Senaryo: moov'u sonda olan VERİMLİ bir kaynak. Karar tablosu bu dosyaya
+		`moov_at_end` → REMUX diyor; burada TRANSCODE kararı ZORLANIYOR (dosya
+		bir TRANSCODE kuralına da takılsaydı — 60 fps, verimsiz kodlama —
+		olacak olan bu). Kapı çıktıyı atmalı, hat REMUX'a geri çekilmeli ve
+		moov BAŞA gelmeli.
+		"""
+		yol = self._moov_sonda_uret()
+		f = P.probe(yol)
+		self.assertTrue(f.moov_at_end)
+		dst = os.path.join(self.d, "c.mp4")
+		karar = decide(f)
+		zorlanmis = type(karar)(
+			action=ACTION_TRANSCODE,
+			rule_id="__b2_senaryosu__",
+			code="video_fps_over_cap",
+			reason="TRANSCODE kurali tetiklenmis sayiliyor",
+		)
+		r = T.apply_decision(yol, dst, zorlanmis, facts=f)
+
+		self.assertEqual(r.action, ACTION_REMUX)
+		self.assertEqual(r.fallback_from, ACTION_TRANSCODE)
+		self.assertTrue(r.accepted)
+		self.assertTrue(os.path.exists(dst))
+		self.assertFalse(P.moov_at_end_of(dst), "geri cekilmenin TEK amaci buydu")
+		self.assertEqual(P.probe(dst).video_codec, f.video_codec, "REMUX yeniden kodlamaz")
+		self.assertTrue(any("INV-05" in n for n in r.notes))
+		self.assertTrue(any("geri cekildi" in n for n in r.notes))
+
+	def test_geri_cekilme_KAPALIYKEN_moov_SONDA_KALIR(self):
+		"""Vacuity: geri çekilme kapatılınca eski kusur geri gelir."""
+		yol = self._moov_sonda_uret()
+		f = P.probe(yol)
+		dst = os.path.join(self.d, "c.mp4")
+		karar = decide(f)
+		zorlanmis = type(karar)(
+			action=ACTION_TRANSCODE, rule_id="__b2__", code="x", reason="y"
+		)
+		gercek = T.remux_fallback_applies
+		try:
+			T.remux_fallback_applies = lambda *a, **k: (False, "test icin kapatildi")
+			r = T.apply_decision(yol, dst, zorlanmis, facts=f)
+		finally:
+			T.remux_fallback_applies = gercek
+		self.assertEqual(r.action, ACTION_TRANSCODE)
+		self.assertFalse(r.accepted)
+		self.assertEqual(r.fallback_from, "")
+		self.assertFalse(os.path.exists(dst), "hedefe hicbir sey yazilmaz")
+		self.assertTrue(P.probe(yol).moov_at_end, "kaynagin moov'u SONDA kalir — kusur surer")
 
 	def test_mkv_kabi_REMUX_ile_mp4ye_tasinir(self):
 		"""ÖLÇÜLDÜ: 1.086.351 B → 1.094.083 B, 0,082 sn. Tam transcode olsaydı
@@ -839,6 +1036,45 @@ class GercekHls(unittest.TestCase):
 		self.assertEqual(len(r.variants), 3)
 		for v in r.variants:
 			self.assertGreater(v.bytes_total, 0)
+
+	def test_MOBIL_VERI_TAVANI_ilk_10_saniye_olculuyor(self):
+		"""T-074/3 — ilk 10 saniyede inen bayt, basamak başına.
+
+		Bu kriter bugüne kadar HİÇ ÖLÇÜLMEMİŞTİ (`34-dogrulama-faz4-7.md`:
+		"ne test ne kod var"). En yakın ölçüm TOPLAM baytı sayıyordu — o,
+		mobil veri tavanının sorduğu soru değil.
+
+		Tavan `company-cover-video.json` `video.mobile_data_budget`'tan
+		geliyor: 1.250 KB = 1.280.000 bayt.
+		"""
+		spec = H.HlsSpec.from_table()
+		self.assertEqual(spec.startup_window_s, 10.0)
+		self.assertEqual(spec.startup_max_bytes, 1_280_000)
+
+		r = H.make_hls(str(VIDEO_DIR / UZUN), os.path.join(self.d, "o"))
+		for v in r.variants:
+			with self.subTest(basamak=v.name):
+				self.assertGreater(v.startup_segments, 0, "acilis segmenti sayilmadi")
+				self.assertGreaterEqual(v.startup_covered_s, 10.0, "pencere dolmadan durulmus")
+				self.assertLess(v.startup_bytes, v.bytes_total, "acilis TOPLAM degildir")
+				self.assertEqual(v.startup_gate, "GECTI", f"{v.name}: {v.startup_bytes} B > 1.280.000 B")
+
+	def test_acilis_bayti_TOPLAM_bayttan_farkli(self):
+		"""Ölçünün varlık sebebi: 540 sn'lik bir pakette ikisi aynı şey değil."""
+		r = H.make_hls(str(VIDEO_DIR / UZUN), os.path.join(self.d, "o"))
+		en_dusuk = r.variants[0]
+		self.assertLess(
+			en_dusuk.startup_bytes,
+			en_dusuk.bytes_total * 0.25,
+			"540 sn'lik pakette ilk 10 sn toplamin kucuk bir kismi olmali",
+		)
+
+	def test_pencereyi_ASAN_segment_de_sayiliyor(self):
+		"""Oynatıcı segmenti bölemez: 4 sn'lik segmentlerle 10 sn = 3 segment (12 sn)."""
+		r = H.make_hls(str(VIDEO_DIR / UZUN), os.path.join(self.d, "o"))
+		v = r.variants[0]
+		self.assertGreaterEqual(v.startup_covered_s, 10.0)
+		self.assertLessEqual(v.startup_covered_s, 10.0 + v.target_duration_s)
 
 	def test_uzun_video_HLS_GEREKTIRIYOR(self):
 		"""540 sn > 60 sn eşiği — `required_if_any` süre koşulu tetikleniyor."""

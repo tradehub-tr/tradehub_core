@@ -12,8 +12,16 @@
   "source_hash",
   "width",
   "height",
+  "duration_s",
   "dpi",
   "colorspace",
+  "has_alpha",
+  "classification",
+  "classification_confidence",
+  "format_chain",
+  "lqip",
+  "lqip_data_uri",
+  "dominant_color",
   "policy_snapshot",
   "crop_intent_snapshot",
   "engine_version",
@@ -58,6 +66,13 @@
    "label": "Yükseklik"
   },
   {
+   "fieldname": "duration_s",
+   "fieldtype": "Float",
+   "label": "Süre (sn)",
+   "precision": "3",
+   "description": "W7 · Yalnız VİDEO varlıkları doldurur: teslim edilen birincil dosyanın (h264 türevi ya da passthrough kaynak) ffprobe süresi. Görselde boş kalır. Manifest video bloğu buradan okur."
+  },
+  {
    "fieldname": "dpi",
    "fieldtype": "Int",
    "label": "DPI",
@@ -70,6 +85,60 @@
    "label": "Renk Uzayı",
    "default": "sRGB",
    "length": 32
+  },
+  {
+   "fieldname": "has_alpha",
+   "fieldtype": "Check",
+   "label": "Alfa Var",
+   "default": "0",
+   "read_only": 1,
+   "description": "T-061 · Kaynağın alfa kanalı (başlıktan, piksel açılmadan — image/probe.py)."
+  },
+  {
+   "fieldname": "classification",
+   "fieldtype": "Select",
+   "label": "Sınıf",
+   "options": "\nphoto\ntransparent\ngraphic\nanimation\ntext",
+   "read_only": 1,
+   "description": "T-062 · image/classify.py sonucu. BOŞ = ölçülemedi; tahmin yazılmaz."
+  },
+  {
+   "fieldname": "classification_confidence",
+   "fieldtype": "Data",
+   "label": "Sınıf Güveni",
+   "length": 8,
+   "read_only": 1,
+   "description": "exact | high | low."
+  },
+  {
+   "fieldname": "format_chain",
+   "fieldtype": "JSON",
+   "label": "Biçim Zinciri",
+   "read_only": 1,
+   "description": "T-062 · classify.FormatStep.to_dict() listesi — karar anının kopyası (policy_snapshot ile aynı gerekçe)."
+  },
+  {
+   "fieldname": "lqip",
+   "fieldtype": "Data",
+   "label": "LQIP (ThumbHash)",
+   "length": 64,
+   "read_only": 1,
+   "description": "T-065 · ThumbHash base64 — kanonik değer, ham hâli <30 bayt (image/lqip.py)."
+  },
+  {
+   "fieldname": "lqip_data_uri",
+   "fieldtype": "Small Text",
+   "label": "LQIP Veri URI'si",
+   "read_only": 1,
+   "description": "T-065 · lqip'ten türetilmiş data:image/png;base64,… — delivery/picture.py::lqip_style biçimi."
+  },
+  {
+   "fieldname": "dominant_color",
+   "fieldtype": "Data",
+   "label": "Baskın Renk",
+   "length": 16,
+   "read_only": 1,
+   "description": "T-065 · #rrggbb — saydam pikseller sayılmadan en çok yer kaplayan renk."
   },
   {
    "fieldname": "policy_snapshot",

@@ -301,6 +301,12 @@ def version_hash(
 #: girerse her önizleme tüm türevleri yeniden ürettirir.
 CROP_HASH_FIELDS: Tuple[str, ...] = (
 	"focal_x", "focal_y", "safe_x", "safe_y", "safe_w", "safe_h",
+	# Zoom üçlüsü pencereyi değiştirir (`core/crop.py::zoom_region_of`), yani
+	# pikseli değiştirir — hash'e GİRMELİ. Guard aşağıda: zoom < 1 "yazılmamış"
+	# demektir (Frappe Float NOT NULL DEFAULT 0) ve üçlü o durumda hash'ten
+	# atılır; atılmasaydı ham DocType satırından okuyan bir çağıran, eski
+	# niyetlerin TAMAMININ hash'ini değiştirir ve her türev yeniden üretilirdi.
+	"zoom", "center_x", "center_y",
 	"method", "suggested_x", "suggested_y", "suggested_w", "suggested_h",
 )
 
@@ -328,6 +334,13 @@ def normalize_crop_intent(intent: Any) -> Optional[dict]:
 		if value in (None, ""):
 			continue
 		out[name] = round(float(value), 6) if name != "method" else str(value)
+
+	# Zoom < 1 (0 dahil) yazılmamıştır ve merkez ancak zoom ile anlamlıdır —
+	# CROP_HASH_FIELDS içindeki gerekçe. `ZOOM_MIN=1` (`core/crop.py`).
+	if float(out.get("zoom") or 0.0) < 1.0:
+		out.pop("zoom", None)
+		out.pop("center_x", None)
+		out.pop("center_y", None)
 
 	overrides = _read(intent, "overrides") or _read(intent, "crop_overrides") or []
 	if isinstance(overrides, Mapping):

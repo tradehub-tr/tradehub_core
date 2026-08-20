@@ -184,6 +184,14 @@ class RenderManifest:
 			],
 			"poster": self.poster_url,
 			"captions": self.captions_url,
+			# T-061/062/065 — üretici `version_meta` verdiyse dolar (delivery/
+			# manifest.py). `lqip` yer tutucunun SERVİS biçimidir (`data:image/…`
+			# ya da `#rrggbb` — picture.py::lqip_style sözleşmesi); kanonik
+			# ThumbHash `version.lqip`te durur. Boş kalmaları "üretilmedi"
+			# bilgisinin kendisidir — anahtarlar bu yüzden hep basılır.
+			"lqip": str(self.extra.get("lqip") or ""),
+			"dominant_color": str(self.extra.get("dominant_color") or ""),
+			"version": dict(self.extra.get("version") or {}),
 		}
 
 

@@ -123,6 +123,16 @@ def _get_openai_config() -> tuple[str | None, str]:
 			settings = frappe.get_single("Translation Settings")
 			api_key = settings.get_password("openai_api_key", raise_exception=False)
 			model = settings.openai_model or "gpt-4o-mini"
+			if api_key:
+				# T-134 §2 — servis-config sır okuması denetime yazılır (değer YOK).
+				from tradehub_core.audit.secret_access import log_secret_access
+
+				log_secret_access(
+					service="openai",
+					field="openai_api_key",
+					object_doctype="Translation Settings",
+					object_name="Translation Settings",
+				)
 			return api_key, model
 	except Exception:
 		frappe.log_error("OpenAI config fetch failed in _get_openai_config", "sentiment")

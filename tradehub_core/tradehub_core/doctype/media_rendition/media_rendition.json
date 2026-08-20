@@ -1,0 +1,205 @@
+{
+ "$comment": "DALGA A / A1a · Profil × genişlik × biçim çıktısı. Servis edilen TEK artefakt budur. Kaynak şema: media/pipeline/doctype_specs/media_rendition.json. SAPMALAR: (1) parent Link→Media Version DEĞİL `asset` Link→Media Asset — Media Version bu dalgada kurulmadı. (2) `rendition_key` unique=1 — kaynak şema tekilliği _ddl.sql'deki ham bileşik indekse bırakıyordu; A1a'da ham DDL çalıştırılmıyor, o yüzden tekilliği bu türetilmiş alan taşır (indeks maliyeti bugünkü satır sayısında ihmal edilebilir).",
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "hash",
+ "creation": "2026-08-18 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 0,
+ "engine": "InnoDB",
+ "field_order": [
+  "asset",
+  "profile",
+  "rendition_key",
+  "cb_geometry",
+  "width",
+  "height",
+  "format",
+  "sb_output",
+  "file_url",
+  "storage_backend",
+  "generation",
+  "cb_output",
+  "bytes",
+  "quality",
+  "ssim",
+  "benefit_gate_passed",
+  "sb_time",
+  "generated_at",
+  "last_access_at"
+ ],
+ "fields": [
+  {
+   "fieldname": "asset",
+   "fieldtype": "Link",
+   "label": "Varlık",
+   "options": "Media Asset",
+   "reqd": 1,
+   "search_index": 1,
+   "in_list_view": 1,
+   "description": "Bu türevin ait olduğu Media Asset. İzin izolasyonu bu alan üzerinden asset'in owner_seller'ına zincirlenir."
+  },
+  {
+   "fieldname": "profile",
+   "fieldtype": "Data",
+   "label": "Profil",
+   "reqd": 1,
+   "search_index": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "length": 64,
+   "description": "Slot politikasındaki profil ADI (`w384`), Media Profile docname'i DEĞİL. Docname global tekil olmak zorunda (`autoname: field:profile_key`), ama politika adları slotlar arası çakışıyor (`w128` hem brand.logo hem seller.logo politikasında var) — bu yüzden docname burada tutulamaz. api/media_manifest bu kolonu politika adıyla eşleştirir; docname yazılırsa hiçbir varyant eşleşmez ve manifest sessizce boş döner. Yazan: media/pipeline_bridge._render_one (profil.policy_profile)."
+  },
+  {
+   "fieldname": "rendition_key",
+   "fieldtype": "Data",
+   "label": "Tekillik Anahtarı",
+   "unique": 1,
+   "read_only": 1,
+   "length": 180,
+   "description": "(asset, profile, width, format) DÖRTLÜSÜNÜN tekilliği. Frappe DocType JSON'u bileşik unique index ifade edemez; standart çözüm türetilmiş tek alandır. Değer '<asset>|<profile>|<width>|<format>', before_save'de üretilir, elle yazılamaz. Kısıt ihlali Frappe tarafında UniqueValidationError olarak döner ve media/pipeline/core/dedup.py idempotent davranışa çevirir (INV-06)."
+  },
+  {
+   "fieldname": "cb_geometry",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "width",
+   "fieldtype": "Int",
+   "label": "Genişlik",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "height",
+   "fieldtype": "Int",
+   "label": "Yükseklik"
+  },
+  {
+   "fieldname": "format",
+   "fieldtype": "Select",
+   "label": "Biçim",
+   "options": "webp\navif\njpeg\npng\nwebm\nmp4\nm3u8",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "sb_output",
+   "fieldtype": "Section Break",
+   "label": "Çıktı"
+  },
+  {
+   "fieldname": "file_url",
+   "fieldtype": "Data",
+   "label": "Dosya Adresi",
+   "length": 500,
+   "description": "/files/media/{asset}/{version_hash}/{profile}-{width}.{ext} — media/pipeline/core/dedup.py:rendition_path(). Cache-Control: public, max-age=31536000, immutable."
+  },
+  {
+   "fieldname": "storage_backend",
+   "fieldtype": "Select",
+   "label": "Depolama",
+   "options": "local\ns3\nmirror",
+   "default": "local"
+  },
+  {
+   "fieldname": "generation",
+   "fieldtype": "Select",
+   "label": "Üretim",
+   "options": "eager\nlazy",
+   "default": "eager"
+  },
+  {
+   "fieldname": "cb_output",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "bytes",
+   "fieldtype": "Int",
+   "label": "Bayt"
+  },
+  {
+   "fieldname": "quality",
+   "fieldtype": "Int",
+   "label": "Kalite",
+   "description": "Kodlayıcı kalite değeri. Kayıpsız üretimde BOŞ bırakılır (0 değil): 0 geçerli bir kalite değeridir, 'kalite kavramı yok' demek değildir."
+  },
+  {
+   "fieldname": "ssim",
+   "fieldtype": "Float",
+   "label": "SSIM",
+   "precision": "4"
+  },
+  {
+   "fieldname": "benefit_gate_passed",
+   "fieldtype": "Check",
+   "label": "Fayda Kapısı",
+   "default": "0",
+   "description": "Türev kaynaktan yeterince küçük mü. Geçmeyen türev üretilir ama servis edilmez — yoksa 'optimizasyon' dosyayı büyütür."
+  },
+  {
+   "fieldname": "sb_time",
+   "fieldtype": "Section Break",
+   "label": "Zaman"
+  },
+  {
+   "fieldname": "generated_at",
+   "fieldtype": "Datetime",
+   "label": "Üretim Zamanı",
+   "read_only": 1,
+   "description": "Türevin gerçekten üretildiği an. `creation`dan ayrıdır: lazy üretimde kayıt önce açılır, dosya sonra yazılır."
+  },
+  {
+   "fieldname": "last_access_at",
+   "fieldtype": "Datetime",
+   "label": "Son Erişim",
+   "search_index": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "is_submittable": 0,
+ "issingle": 0,
+ "istable": 0,
+ "links": [],
+ "modified": "2026-08-19 13:30:00.000000",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "Media Rendition",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "export": 1,
+   "report": 1,
+   "share": 1
+  },
+  {
+   "role": "Marketplace Admin",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1
+  },
+  {
+   "role": "Marketplace Seller",
+   "read": 1,
+   "report": 1
+  },
+  {
+   "role": "Seller",
+   "read": 1,
+   "report": 1
+  }
+ ],
+ "quick_entry": 0,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

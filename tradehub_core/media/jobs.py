@@ -101,3 +101,37 @@ def is_stale(started_at, *, stale_after: int = STALE_AFTER_SECONDS) -> bool:
 		return True
 	esik = add_to_date(now_datetime(), seconds=-stale_after)
 	return get_datetime(started_at) < esik
+
+
+# --- metrik köprüsü (K-1) ----------------------------------------------------
+# `media_job_total` / `media_job_attempts` göstergeleri bugüne kadar TANIMLI ama
+# hiç yazılmıyordu; `MediaJobFailureRatio` ve `MediaJobRetryExhaustion` alarmları
+# bu iki seriye bağlı ve seri boş olduğu için ÖLÜYDÜ. Sayaç, işin sonucunu ÇAĞRI
+# yerinde (iş terminal olduğunda) yazar — periyodik bir toplayıcı değil: bir işin
+# "başarısız bittiği" ancak o iş bittiğinde bilinir.
+
+
+def record_terminal(job: str, state: str, *, attempts: int = 1) -> None:
+	"""İş TERMİNAL bir duruma ulaştığında metriğe yaz — best-effort, iş düşmez.
+
+	`instrument.py` sözleşmesiyle aynı ilke: ölçüm, ölçtüğü işi DÜŞÜREMEZ.
+	Metrik içe aktarımı ve yazımı `try/except` içinde; hata sessizce yutulur
+	(sarmalayıcının `INSTRUMENT_ERRORS_TOTAL`i burada devrede değil çünkü bu
+	doğrudan çağrıdır, enstrümantasyon noktası değil).
+
+	Terminal OLMAYAN durum (`running`) yazılmaz: sayaç yalnız SONUÇ sayar.
+	`state` `media_job_total{state=...}` etiketine birebir gider — kanonik
+	değerler `completed` / `partial` / `error`'dır (`TERMINAL_STATES`).
+	`attempts` iş başına deneme sayısıdır; tek seferlik batch işleri için 1'dir,
+	retry'lı işler (transcode/av) gerçek deneme sayısını geçmelidir.
+	"""
+	if state not in TERMINAL_STATES:
+		return
+	try:
+		from tradehub_core.media.pipeline.observability import metrics as mm
+
+		mm.JOB_TOTAL.inc(job=job, state=state)
+		mm.JOB_ATTEMPTS.observe(float(max(1, int(attempts))), job=job)
+	except Exception:
+		# Metrik yazımı arızası işi düşürmemeli; sessiz kalması bilinçli.
+		pass

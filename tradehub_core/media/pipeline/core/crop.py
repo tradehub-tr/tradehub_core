@@ -5,10 +5,13 @@ kırpılacak?** Cevap beş kaynaktan gelebilir ve hangisinin kazandığı tek ye
 test edilebilir biçimde yazılıdır:
 
     1. Profile-specific manual crop override   (kullanıcı o profil için elle çizdi)
-    2. Güvenli alan + odak noktası             (kenar sıkıştırmalı)
+    2. Taban bölge + odak noktası              (kenar sıkıştırmalı; taban bölge
+       zoom+merkezden (`zoom_region_of`) ya da güvenli alandan gelir — zoom
+       yazılmışsa o kazanır, güvenli alan panelde ondan türetiliyor)
     3. Genel odak noktası
     4. Smartcrop önerisi                       (güven >= eşik)
-    5. Merkez kırpım                           (fallback)
+    5. Merkez kırpım                           (fallback; taban bölge varsa
+       onun merkezi)
 
 **INV-10 — tüm koordinatlar 0-1 normalize.** Piksel yok. Sebebi teorik değil:
 aynı görselin master'ı, arşiv kopyası ve satıcının yeniden yüklediği hâli farklı
@@ -83,6 +86,14 @@ METHODS: Tuple[str, ...] = (
 	METHOD_SMARTCROP,
 	METHOD_CENTER,
 )
+
+# Zoom sınırları — `core/crop_geometry.py::ZOOM_MIN/ZOOM_MAX` ile AYNI değerler.
+# Oradan import EDİLMEZ: bu modül parite üreticisi tarafından paket bağlamı
+# olmadan, dosya yolundan yüklenir (`admin-panel/frontend/scripts/
+# gen_crop_pixel_vectors.py::load_crop_core`) ve bir kardeş import o yüklemeyi
+# kırardı. İki sabit ayrışırsa `tests/test_crop_intent_zoom.py` kırmızıya döner.
+ZOOM_MIN: float = 1.0
+ZOOM_MAX: float = 16.0
 
 # Zincirdeki sıra numarası — testler ve loglar "hangi seviye kazandı" sorusunu
 # metin karşılaştırmadan cevaplayabilsin.
@@ -348,6 +359,87 @@ def safe_region_of(intent: Any) -> Optional[Rect]:
 	return rect
 
 
+def zoom_region_of(intent: Any, width: Any = None, height: Any = None) -> Optional[Rect]:
+	"""Zoom + pan merkezinden taban bölgeyi üret; zoom yazılmamışsa None.
+
+	Stüdyo kadrajını `cropWindow(zoomBase(zoom, center), targetAR, focal)` ile
+	kurar (`crop_geometry.ts::zoom_base` — panel vendor'ı). Yük eskiden yalnız
+	odağı taşıdığı için sunucu pencereyi daima tam kadrajdan kuruyor ve
+	kullanıcının yakınlaştırması SESSİZCE atılıyordu (ölçüldü:
+	`cropPixelParity` B sınıfı 120 vakanın 119'unda 7391 px'e kadar sapma).
+	Bu fonksiyon o kaybı kapatır: niyet `zoom`/`center_x`/`center_y`
+	taşıyorsa taban bölge burada, `crop_geometry.py::zoom_base` ile AYNI işlem
+	sırasıyla yeniden kurulur.
+
+	`crop_geometry` buradan import EDİLMEZ (modül başlığındaki saflık sözü +
+	parite üreticisinin dosya-yolundan yüklemesi); matematik piksel uzayında
+	birebir aynı sırayla tekrarlanır ve `tests/test_crop_intent_zoom.py`
+	iki uygulamayı aynı girdilerle karşılaştırır.
+
+	Kurallar:
+	  * `zoom` < 1 → yazılmamış sayılır ve None döner. Frappe `Float` kolonu
+	    `NOT NULL DEFAULT 0` olduğu için "hiç yazılmadı" DB'den 0 olarak döner;
+	    0'ı hata saymak, zoom kullanmayan her kaydı kırardı (safe alanla aynı
+	    gerekçe, bkz. `media_crop_intent.py::_validate_safe_box`).
+	  * `center_x`/`center_y` yoksa None — yarım yazılmış üçlü sessizce bir
+	    alt seviyeye düşer (`override_for` ile aynı okuma-tarafı kuralı).
+	  * `width`/`height` (piksel) verilmişse `MIN_EDGE_PX` tabanı da uygulanır
+	    — `zoom_base` 1 px'in altına inen taban bölgeyi 1 px'e sabitler ve
+	    dejenere kaynakta (3×2 px) bu fark penceresi değiştirir. Ölçü
+	    bilinmiyorsa taban uygulanamaz; normalize kurulum kullanılır.
+	  * Tam kadraja çözülen bölge (zoom=1) None döner — `safe_region_of` ile
+	    aynı kural: "her yeri göster" ile "taban belirtilmemiş" aynı kapıya
+	    çıkar ve ayrı tutmak zincire gereksiz bir seviye eklerdi.
+	"""
+	z = _as_float(_get(intent, "zoom"))
+	if z is None or z < ZOOM_MIN:
+		return None
+	cx = _as_float(_get(intent, "center_x"))
+	cy = _as_float(_get(intent, "center_y"))
+	if cx is None or cy is None:
+		return None
+	z = _clamp(z, ZOOM_MIN, ZOOM_MAX)
+	cx = _clamp(cx, 0.0, 1.0)
+	cy = _clamp(cy, 0.0, 1.0)
+
+	w = _as_float(width)
+	h = _as_float(height)
+	if w is not None and h is not None and w > 0 and h > 0:
+		# Piksel uzayı — `crop_geometry.py::zoom_base` ile birebir aynı sıra.
+		bw = w / z
+		bh = h / z
+		min_w = 1.0 if w > 1.0 else w  # MIN_EDGE_PX
+		min_h = 1.0 if h > 1.0 else h
+		if bw < min_w:
+			bw = min_w
+		if bh < min_h:
+			bh = min_h
+		if bw > w:
+			bw = w
+		if bh > h:
+			bh = h
+		px = cx * w
+		py = cy * h
+		x = _clamp(px - bw / 2.0, 0.0, w - bw)
+		y = _clamp(py - bh / 2.0, 0.0, h - bh)
+		rect = Rect(x / w, y / h, bw / w, bh / h).clamped_to_unit()
+	else:
+		bw = 1.0 / z
+		bh = 1.0 / z
+		x = _clamp(cx - bw / 2.0, 0.0, 1.0 - bw)
+		y = _clamp(cy - bh / 2.0, 0.0, 1.0 - bh)
+		rect = Rect(x, y, bw, bh).clamped_to_unit()
+
+	if (
+		abs(rect.x) < 1e-6
+		and abs(rect.y) < 1e-6
+		and abs(rect.w - 1.0) < 1e-6
+		and abs(rect.h - 1.0) < 1e-6
+	):
+		return None
+	return rect
+
+
 def focal_of(intent: Any) -> Optional[Tuple[float, float]]:
 	"""Odak noktası (0-1). Yazılmamışsa None — merkez (0.5, 0.5) DEĞİL.
 
@@ -551,6 +643,13 @@ def resolve_crop(asset: Any, profile: Any, intent: Any = None,
 	)
 	full = Rect(*FULL_FRAME)
 	safe = safe_region_of(intent)
+	# Zoom + pan merkezi, güvenli alanla AYNI role sahiptir: pencerenin
+	# kurulacağı taban bölge. İkisi birden yazılmışsa zoom kazanır — panel
+	# güvenli alanı zoom tabanından TÜRETİP gönderiyor (`useCropStudio.js::
+	# safeArea`), yani ikisi aynı kadrajın iki yazımıdır ve zoom, 6 basamağa
+	# yuvarlanmış türetilmiş kutu yerine niyetin kendisidir.
+	zoom_region = zoom_region_of(intent, _get(asset, "width"), _get(asset, "height"))
+	base_region = zoom_region if zoom_region is not None else safe
 	focal = focal_of(intent)
 	confidence = _as_float(_get(intent, "confidence"))
 	approved = bool(_get(intent, "approved_by_user"))
@@ -570,12 +669,17 @@ def resolve_crop(asset: Any, profile: Any, intent: Any = None,
 		return _win(_fit_ratio_keeping_center(ovr, target_ratio, src_ratio, full),
 					METHOD_OVERRIDE, 1.0)
 
-	# ── 2. Güvenli alan + odak noktası ─────────────────────────────────
-	if safe is not None and focal is not None:
-		# Odak, güvenli alanın dışında olabilir (kullanıcı ikisini ayrı ayrı
-		# taşımış). Sıkıştır: güvenli alan bir KISIT, odak bir TERCİHTİR.
-		f = (_clamp(focal[0], safe.x, safe.right), _clamp(focal[1], safe.y, safe.bottom))
-		return _win(_cover_window(safe, target_ratio, src_ratio, f), METHOD_SAFE_FOCAL, 1.0)
+	# ── 2. Taban bölge (zoom ya da güvenli alan) + odak noktası ────────
+	if base_region is not None and focal is not None:
+		# Odak, taban bölgenin dışında olabilir (kullanıcı ikisini ayrı ayrı
+		# taşımış). Sıkıştır: taban bölge bir KISIT, odak bir TERCİHTİR.
+		f = (
+			_clamp(focal[0], base_region.x, base_region.right),
+			_clamp(focal[1], base_region.y, base_region.bottom),
+		)
+		return _win(
+			_cover_window(base_region, target_ratio, src_ratio, f), METHOD_SAFE_FOCAL, 1.0
+		)
 
 	# ── 3. Genel odak noktası ──────────────────────────────────────────
 	if focal is not None:
@@ -590,11 +694,11 @@ def resolve_crop(asset: Any, profile: Any, intent: Any = None,
 			confidence,
 		)
 
-	# ── 5. Güvenli alan var ama odak yok: alanın merkezi ───────────────
-	# Ayrı bir seviye değil, 5. seviyenin taban bölgesi değişir. Güvenli alan
-	# yazılmışken tüm kadrajın merkezinden kırpmak, kullanıcının işaretlediği
-	# bölgeyi görmezden gelmek olurdu.
-	base = safe if safe is not None else full
+	# ── 5. Taban bölge var ama odak yok: bölgenin merkezi ──────────────
+	# Ayrı bir seviye değil, 5. seviyenin taban bölgesi değişir. Zoom ya da
+	# güvenli alan yazılmışken tüm kadrajın merkezinden kırpmak, kullanıcının
+	# işaretlediği bölgeyi görmezden gelmek olurdu.
+	base = base_region if base_region is not None else full
 	return _win(_cover_window(base, target_ratio, src_ratio, (base.cx, base.cy)),
 				METHOD_CENTER, 1.0)
 

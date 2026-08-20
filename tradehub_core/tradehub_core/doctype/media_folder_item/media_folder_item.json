@@ -1,0 +1,76 @@
+{
+ "actions": [],
+ "autoname": "hash",
+ "creation": "2026-08-20 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "folder",
+  "file_url",
+  "store"
+ ],
+ "fields": [
+  {
+   "fieldname": "folder",
+   "fieldtype": "Link",
+   "label": "Klasör",
+   "options": "Media Folder",
+   "reqd": 1,
+   "search_index": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "file_url",
+   "fieldtype": "Data",
+   "label": "Dosya Adresi",
+   "length": 500,
+   "reqd": 1,
+   "search_index": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "store",
+   "fieldtype": "Link",
+   "label": "Mağaza",
+   "options": "Admin Seller Profile",
+   "reqd": 1,
+   "read_only": 1,
+   "search_index": 1,
+   "in_list_view": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-08-20 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "Media Folder Item",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "print": 0,
+   "email": 0,
+   "export": 0,
+   "share": 0,
+   "report": 1
+  },
+  {
+   "role": "Marketplace Admin",
+   "read": 1,
+   "print": 0,
+   "email": 0,
+   "export": 0,
+   "share": 0,
+   "report": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0
+}

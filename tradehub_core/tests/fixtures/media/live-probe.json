@@ -545,6 +545,20 @@
    "has_audio": false,
    "audio_codec": null
   },
+  "video_real_seller_1080p_2997fps.mp4": {
+   "bytes": 8504902,
+   "container": "mov,mp4,m4a,3gp,3g2,mj2",
+   "duration_s": 58.2,
+   "bitrate_kbps": 1169,
+   "video_codec": "h264",
+   "width": 1920,
+   "height": 1080,
+   "pix_fmt": "yuv420p",
+   "fps": "30000/1001",
+   "video_bitrate_kbps": 1153,
+   "has_audio": true,
+   "audio_codec": "aac"
+  },
   "video_silent_noaudio_720p.mp4": {
    "bytes": 838179,
    "container": "mov,mp4,m4a,3gp,3g2,mj2",
@@ -586,6 +600,48 @@
    "video_bitrate_kbps": 911,
    "has_audio": true,
    "audio_codec": "aac"
+  },
+  "real_satici_720x720_28s.mp4": {
+   "bytes": 2809249,
+   "container": "mov,mp4,m4a,3gp,3g2,mj2",
+   "duration_s": 28.0,
+   "bitrate_kbps": 803,
+   "video_codec": "h264",
+   "width": 720,
+   "height": 720,
+   "pix_fmt": "yuv420p",
+   "fps": "30/1",
+   "video_bitrate_kbps": 707,
+   "has_audio": true,
+   "audio_codec": "aac"
+  },
+  "real_uretim_h264_1280.mp4": {
+   "bytes": 9622536,
+   "container": "mov,mp4,m4a,3gp,3g2,mj2",
+   "duration_s": 540.0,
+   "bitrate_kbps": 143,
+   "video_codec": "h264",
+   "width": 1280,
+   "height": 720,
+   "pix_fmt": "yuv420p",
+   "fps": "30/1",
+   "video_bitrate_kbps": 141,
+   "has_audio": false,
+   "audio_codec": null
+  },
+  "real_uretim_preview_480.mp4": {
+   "bytes": 116775,
+   "container": "mov,mp4,m4a,3gp,3g2,mj2",
+   "duration_s": 6.0,
+   "bitrate_kbps": 156,
+   "video_codec": "h264",
+   "width": 480,
+   "height": 480,
+   "pix_fmt": "yuv420p",
+   "fps": "30/1",
+   "video_bitrate_kbps": 152,
+   "has_audio": false,
+   "audio_codec": null
   }
  },
  "needs_transcode": {
@@ -593,8 +649,13 @@
   "video_bloated_720p_8m.mp4": true,
   "video_efficient_720p_750k.mp4": false,
   "video_long_540s_320x240.mp4": false,
+  "video_real_seller_1080p_2997fps.mp4": true,
   "video_silent_noaudio_720p.mp4": false,
   "video_square_352.mp4": false,
-  "video_vertical_9x16.mp4": false
- }
+  "video_vertical_9x16.mp4": false,
+  "real_satici_720x720_28s.mp4": false,
+  "real_uretim_h264_1280.mp4": false,
+  "real_uretim_preview_480.mp4": false
+ },
+ "_w9_eki": "2026-08-20: 4 gerçek videonun ffprobe/needs_transcode blokları KONTEYNERDE ölçülüp eklendi (istoc-dev-backend-1, ffmpeg n8.1.2-44; needs_transcode = tradehub_core.media.transcode.needs_transcode canlı çağrısı)"
 }

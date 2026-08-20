@@ -1,0 +1,217 @@
+{
+ "$comment": "T-041/T-082 · Kırpma niyeti. TÜM koordinatlar 0-1 normalize (INV-10). Kararın nasıl seçildiği tradehub_core/media/pipeline/core/crop.py:resolve_crop() içinde, tek yerde. Kaynak şema: media/pipeline/doctype_specs/media_crop_intent.json. SAPMALAR: (1) `module` kaynakta \"Media Engine\"; o modül bu app'te YOK (modules.txt tek satır: Tradehub Core) ve kurulu beş medya DocType'ı da \"Tradehub Core\" kullanıyor. (2) `permissions` listesine kurulu kardeşlerin rol kümesi (Marketplace Admin / Marketplace Seller) eklendi; kaynak yalnız Media Superadmin/Seller/System Manager yazıyordu ve o küme bu kurulumda satıcının kendi ekranını açamazdı. Satıcı rolüne `if_owner` KONMADI — kiracı sınırı yaratıcı kullanıcı değil, `asset.owner_seller`dır ve permissions.py kancasıyla zorlanır (Media Rendition / Media Processing Job ile aynı desen); `if_owner` aynı mağazanın ikinci kullanıcısını yanlışlıkla kilitlerdi.",
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "field:asset",
+ "creation": "2026-08-18 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 0,
+ "engine": "InnoDB",
+ "field_order": [
+  "asset",
+  "focal_x",
+  "focal_y",
+  "safe_x",
+  "safe_y",
+  "safe_w",
+  "safe_h",
+  "zoom",
+  "center_x",
+  "center_y",
+  "method",
+  "algorithm",
+  "algorithm_version",
+  "confidence",
+  "approved_by_user",
+  "previewed_placements",
+  "overrides"
+ ],
+ "fields": [
+  {
+   "fieldname": "asset",
+   "fieldtype": "Link",
+   "label": "Varlık",
+   "options": "Media Asset",
+   "reqd": 1,
+   "unique": 1,
+   "search_index": 1,
+   "description": "1:1 — bir varlığın tek kırpma niyeti vardır. Profil bazlı istisnalar overrides child tablosunda. İzin izolasyonu bu alan üzerinden asset'in owner_seller'ına zincirlenir."
+  },
+  {
+   "fieldname": "focal_x",
+   "fieldtype": "Float",
+   "label": "Odak X",
+   "precision": "6",
+   "description": "0-1 normalize koordinat (INV-10). Piksel DEĞİL: kaynak yeniden boyutlandırılsa bile kadraj aynı kalmalı."
+  },
+  {
+   "fieldname": "focal_y",
+   "fieldtype": "Float",
+   "label": "Odak Y",
+   "precision": "6",
+   "description": "0-1 normalize koordinat (INV-10). Piksel DEĞİL: kaynak yeniden boyutlandırılsa bile kadraj aynı kalmalı."
+  },
+  {
+   "fieldname": "safe_x",
+   "fieldtype": "Float",
+   "label": "Güvenli Alan X",
+   "precision": "6",
+   "description": "0-1 normalize koordinat (INV-10). Piksel DEĞİL: kaynak yeniden boyutlandırılsa bile kadraj aynı kalmalı."
+  },
+  {
+   "fieldname": "safe_y",
+   "fieldtype": "Float",
+   "label": "Güvenli Alan Y",
+   "precision": "6",
+   "description": "0-1 normalize koordinat (INV-10). Piksel DEĞİL: kaynak yeniden boyutlandırılsa bile kadraj aynı kalmalı."
+  },
+  {
+   "fieldname": "safe_w",
+   "fieldtype": "Float",
+   "label": "Güvenli Alan Genişlik",
+   "precision": "6",
+   "description": "0-1 normalize koordinat (INV-10). Piksel DEĞİL: kaynak yeniden boyutlandırılsa bile kadraj aynı kalmalı."
+  },
+  {
+   "fieldname": "safe_h",
+   "fieldtype": "Float",
+   "label": "Güvenli Alan Yükseklik",
+   "precision": "6",
+   "description": "0-1 normalize koordinat (INV-10). Piksel DEĞİL: kaynak yeniden boyutlandırılsa bile kadraj aynı kalmalı."
+  },
+  {
+   "fieldname": "zoom",
+   "fieldtype": "Float",
+   "label": "Yakınlaştırma",
+   "precision": "6",
+   "description": "Stüdyonun zoom çarpanı, 1-16 (crop_geometry.ZOOM_MIN/ZOOM_MAX). 0 = yazılmamış (Frappe Float NOT NULL DEFAULT 0; safe_w ile aynı sözleşme). Taban bölge zoom+center'dan core/crop.py:zoom_region_of() ile kurulur; safe_* bu bölgenin türetilmiş yazımıdır."
+  },
+  {
+   "fieldname": "center_x",
+   "fieldtype": "Float",
+   "label": "Pan Merkezi X",
+   "precision": "6",
+   "description": "0-1 normalize koordinat (INV-10). Yalnız zoom >= 1 iken anlamlı; zoom yazılmamışsa okunmaz."
+  },
+  {
+   "fieldname": "center_y",
+   "fieldtype": "Float",
+   "label": "Pan Merkezi Y",
+   "precision": "6",
+   "description": "0-1 normalize koordinat (INV-10). Yalnız zoom >= 1 iken anlamlı; zoom yazılmamışsa okunmaz."
+  },
+  {
+   "fieldname": "method",
+   "fieldtype": "Select",
+   "label": "Yöntem",
+   "options": "manual\nsmartcrop\ncenter",
+   "default": "center",
+   "description": "Niyetin KAYNAĞI. resolve_crop()'un SEÇTİĞİ yöntem bu alan değil, CropWindow.method'tur — ikisi ayrıdır: kullanıcı manual niyet yazmış olsa da o profil için override yoksa zincir başka bir seviyeye düşebilir."
+  },
+  {
+   "fieldname": "algorithm",
+   "fieldtype": "Data",
+   "label": "Algoritma",
+   "length": 64,
+   "description": "Öneriyi üreten algoritmanın adı (ör. edge_energy). Yöntem vokabülerine KARIŞMAZ: `method` niyetin kaynağını, bu alan o kaynağın hangi kodla üretildiğini söyler."
+  },
+  {
+   "fieldname": "algorithm_version",
+   "fieldtype": "Data",
+   "label": "Algoritma Sürümü",
+   "length": 32,
+   "description": "Öneri algoritmasının sürümü (ör. v1). Eşik yeniden kalibre edildiğinde eski önerileri ayırt etmenin tek yolu."
+  },
+  {
+   "fieldname": "confidence",
+   "fieldtype": "Float",
+   "label": "Güven",
+   "precision": "4",
+   "description": "smartcrop önerisinin güveni, 0-1. Eşiğin altındaysa öneri kullanılmaz, merkeze düşülür. EŞİK KALİBRE EDİLMEDİ — tradehub_core/media/pipeline/core/crop.py:SMARTCROP_CONFIDENCE_THRESHOLD."
+  },
+  {
+   "fieldname": "approved_by_user",
+   "fieldtype": "Check",
+   "label": "Kullanıcı Onayladı",
+   "default": "0",
+   "description": "0 iken de öneri KULLANILIR; UI'da 'öneri' rozetiyle gösterilir (T-041 kabul kriteri)."
+  },
+  {
+   "fieldname": "previewed_placements",
+   "fieldtype": "JSON",
+   "label": "Önizlenen Yerleşimler",
+   "description": "Simülatörde kullanıcının gerçekten gördüğü yerleşimler. 'Gördü ve onayladı' iddiasının kanıtı."
+  },
+  {
+   "fieldname": "overrides",
+   "fieldtype": "Table",
+   "label": "Profil İstisnaları",
+   "options": "Media Crop Override"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "is_submittable": 0,
+ "issingle": 0,
+ "istable": 0,
+ "links": [],
+ "modified": "2026-08-20 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "Media Crop Intent",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Media Superadmin",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Marketplace Admin",
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Marketplace Seller",
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Seller",
+   "write": 1
+  }
+ ],
+ "quick_entry": 0,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}
