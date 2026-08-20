@@ -666,6 +666,13 @@ def report(name: str) -> dict:
 			"order_copies": len(detail.get("orders") or []),
 			"verdict": detail.get("verdict"),
 			"redundant_records": detail.get("redundant_records") or 0,
+			# Dosya HÂLÂ duruyor mu. Kullanım çözümleyicisi her zaman BUGÜNÜ
+			# ölçer; silinmiş bir dosyada doğal olarak "kullanılmıyor" der ve
+			# etiketi "silinmeye aday" olur. Silme olayının kaydında bunu böyle
+			# göstermek çelişki üretiyordu: üstte "kalıcı olarak silindi",
+			# altta "silinmeye aday". Ekran bu bayrakla kararı GEÇMİŞ zamana
+			# çevirip asıl soruyu cevaplıyor: bu silme güvenli miydi?
+			"file_exists": bool(frappe.db.exists("File", {"file_url": url})),
 		}
 	except Exception:
 		# Kullanım çözümleyicisi patlarsa rapor tamamen kaybolmasın.
