@@ -130,12 +130,22 @@ def preview_trash(file_urls: str | list[str] | None = None) -> dict:
 		v = vmap.get(u, "unknown")
 		counts[v] = counts.get(v, 0) + 1
 	live = usage.usage_counts_all()
+
+	# Ortak sahiplik kırılımı (TUR-298). İçerik-adresli adlandırma aynı görseli
+	# tek dosyaya indiriyor; bu yoldan yapılan silme TÜM sahipleri etkiler.
+	# Onay ekranı "kaç ÜRÜNDE kullanılıyor" ile "kaç MAĞAZAYI etkiler" sorusunu
+	# ayrı sormak zorunda — ikincisi başkasının verisi.
+	paylasilan = [{"file_url": u, "owners": n} for u in urls if (n := trash.owner_count(u)) > 1]
 	return {
 		"total": len(urls),
 		"by_verdict": counts,
 		"in_use": counts.get("in_use", 0),
 		# Kullanımdakilerin kaç yerde geçtiği — "5 üründe kullanılıyor" uyarısı için.
 		"live_places": sum(live.get(u, 0) for u in urls if vmap.get(u) == "in_use"),
+		"shared": paylasilan[:50],
+		"shared_count": len(paylasilan),
+		# Etkilenecek azami mağaza sayısı — uyarının tek cümlelik hâli için.
+		"shared_max_owners": max((d["owners"] for d in paylasilan), default=0),
 	}
 
 
@@ -285,7 +295,9 @@ def start_restore(
 
 
 @frappe.whitelist(methods=["POST"])
-def trash_files(file_urls: str | list[str] | None = None, force: int = 0) -> dict:
+def trash_files(
+	file_urls: str | list[str] | None = None, force: int = 0, shared_ok: int = 0
+) -> dict:
 	"""Seçili dosyaları çöp kutusuna taşı — 30 gün sonra kalıcı silinir.
 
 	Varsayılanda kullanımda olan dosya reddedilir. `force=1` bu engeli kaldırır;
@@ -305,7 +317,9 @@ def trash_files(file_urls: str | list[str] | None = None, force: int = 0) -> dic
 	moved, failed, freed = [], [], 0
 	for u in urls:
 		try:
-			r = trash.move_to_trash(u, force=bool(int(force or 0)))
+			r = trash.move_to_trash(
+				u, force=bool(int(force or 0)), shared_ok=bool(int(shared_ok or 0))
+			)
 			moved.append(u)
 			freed += r["bytes"]
 		except Exception as exc:  # noqa: BLE001 — biri patlarsa diğerleri devam etsin
@@ -337,7 +351,7 @@ def restore_from_trash(file_urls: str | list[str] | None = None) -> dict:
 
 
 @frappe.whitelist(methods=["POST"])
-def delete_trashed(file_urls: str | list[str] | None = None) -> dict:
+def delete_trashed(file_urls: str | list[str] | None = None, shared_ok: int = 0) -> dict:
 	"""Çöpteki seçili dosyaları KALICI sil. Yalnız System Manager.
 
 	Yıkıcı ve geri alınamaz; ama iki adımlı akış sayesinde dosya buraya
@@ -352,7 +366,7 @@ def delete_trashed(file_urls: str | list[str] | None = None) -> dict:
 	deleted, freed, records, failed = 0, 0, 0, []
 	for u in urls:
 		try:
-			r = trash.delete_permanently(u)
+			r = trash.delete_permanently(u, shared_ok=bool(int(shared_ok or 0)))
 			deleted += 1
 			freed += r["bytes"]
 			records += r["records"]

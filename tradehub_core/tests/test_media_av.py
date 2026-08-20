@@ -44,7 +44,7 @@ from frappe.tests.utils import FrappeTestCase
 from frappe.utils import add_to_date, now_datetime
 
 from tradehub_core.api import media_admin
-from tradehub_core.media import av, inventory, jobs
+from tradehub_core.media import av, inventory, jobs, seller_media, trash
 
 # Koşum başına benzersiz tuz — içerik-adresli adlandırma (WP4) aynı baytları
 # aynı `file_url`'e eşliyor ve bu testler `frappe.db.commit()` çağıran yollara
@@ -1427,3 +1427,101 @@ class TestYazmaSonrasiTarama(FrappeTestCase):
 		kural.assert_called_once()
 		self.assertEqual(kural.call_args.kwargs.get("reason"), "replace")
 
+
+
+# ── Ortak sahiplik: yönetici silme kapısı (TUR-298) ─────────────────────
+
+
+class TestOrtakSahiplikSilme(FrappeTestCase):
+	"""İçerik-adresli adlandırmanın silme tarafındaki bedeli.
+
+	Aynı görseli iki satıcı yüklerse diskte TEK dosya, `File` tarafında iki
+	kayıt olur (TUR-130). Satıcı tarafı bunu kapsam ayrımıyla çözüyor:
+	`seller_media.purge` yalnız kendi kayıtlarını siler, kalan sahip varsa
+	dosyaya dokunmaz. Yönetici tarafında bu kontrol YOKTU — bir yöneticinin
+	silmesi, haberi olmayan başka satıcıların görselini de siliyordu
+	(gerçek veriyle canlandırıldı: 4 kayıt → 0, dosya diskten gitti).
+
+	Yönetici için engel DEĞİL onay kapısı kuruldu: platform sahibinin yasal
+	kaldırma ya da zararlı içerik durumunda dosyayı herkesten kaldırabilmesi
+	gerekir; amaç durdurmak değil, kaç mağazayı etkilediğini görmeden
+	tıklamasını önlemek.
+	"""
+
+	def setUp(self):
+		self.doc = _yeni_dosya("ortak-sahiplik.txt")
+		self.addCleanup(lambda: _sil(self.doc.name))
+		self.addCleanup(lambda: _bekletmeyi_temizle(self.doc.file_url))
+
+	def _sahip_sayisi(self, n: int):
+		"""`owners_of` n mağaza döndürsün — gerçek mağaza kurmadan."""
+		return mock.patch(
+			"tradehub_core.media.trash.ownership.owners_of",
+			return_value={f"MAGAZA-{i}" for i in range(n)},
+		)
+
+	def test_tek_sahipte_engel_yok(self):
+		with self._sahip_sayisi(1):
+			# Onay verilmeden geçmeli — sıradan bir silme.
+			self.assertEqual(trash._assert_not_shared(self.doc.file_url, shared_ok=False), 1)
+
+	def test_cok_sahipte_onaysiz_reddedilir(self):
+		with self._sahip_sayisi(4):
+			with self.assertRaises(frappe.ValidationError) as ctx:
+				trash._assert_not_shared(self.doc.file_url, shared_ok=False)
+		# Sayı mesajda GEÇMELİ: "onay gerekiyor" demek yetmez, yönetici kaç
+		# mağazayı etkilediğini görmeden karar veremez.
+		self.assertIn("4", str(ctx.exception))
+
+	def test_onay_verilirse_gecer(self):
+		with self._sahip_sayisi(4):
+			self.assertEqual(trash._assert_not_shared(self.doc.file_url, shared_ok=True), 4)
+
+	def test_red_denetime_yazilir(self):
+		"""Engellenen silme denemesi iz bırakmalı."""
+		with self._sahip_sayisi(3), mock.patch("tradehub_core.media.trash.audit.log_media_event") as d:
+			with self.assertRaises(frappe.ValidationError):
+				trash._assert_not_shared(self.doc.file_url, shared_ok=False)
+		_args, kwargs = d.call_args
+		self.assertFalse(kwargs.get("allowed"))
+		self.assertIn("shared_owners:3", kwargs.get("reason") or "")
+		# Sıradan bir ürün görseli — maskelenmemeli, operatör hangi dosya
+		# olduğunu görebilmeli (`_deny` docstring'indeki `in_use` gerekçesi).
+		self.assertFalse(kwargs.get("sensitive"))
+
+	def test_owner_count_patlarsa_sifir_doner_ama_kapi_acilmaz(self):
+		"""Sahiplik çözülemezse "tek sahip" varsayılmamalı.
+
+		0 dönmek kapıyı açar (0 > 1 değil) — bu bilinçli: sahiplik okunamıyorken
+		yöneticiyi kilitlemek, tek bir sorgu hatasında tüm silme akışını durdurur.
+		Ama 1 dönmek YANLIŞ olurdu: "tek sahip var" diye bilgi uydurmak olur.
+		"""
+		with mock.patch(
+			"tradehub_core.media.trash.ownership.owners_of", side_effect=RuntimeError("db yok")
+		):
+			self.assertEqual(trash.owner_count(self.doc.file_url), 0)
+
+	def test_cop_ve_kalici_silme_AYRI_onay_ister(self):
+		"""İki adım arasında yeni bir mağaza dosyayı kullanmaya başlayabilir.
+
+		Çöpe taşımadaki onay, kalıcı silme için yeterli sayılmamalı — ilk onayda
+		görünmeyen bir sahip ikinci adımda ortaya çıkabilir.
+		"""
+		import inspect
+
+		for fn in (trash.move_to_trash, trash.delete_permanently):
+			self.assertIn(
+				"_assert_not_shared", inspect.getsource(fn), f"{fn.__name__} kapıyı çağırmıyor"
+			)
+
+	def test_satici_yolu_baskasinin_kaydina_dokunmaz(self):
+		"""Regresyon — satıcı tarafındaki mevcut koruma bozulmamalı.
+
+		Bu davranış TUR-298'den önce de doğruydu; yönetici tarafını hizalarken
+		satıcı tarafının kapsam ayrımını bozmadığımızı sabitliyor.
+		"""
+		import inspect
+
+		kaynak = inspect.getsource(seller_media.purge)
+		self.assertIn("_own_records", kaynak, "satıcı yalnız kendi kayıtlarını silmeli")
+		self.assertIn("owners_of", kaynak, "kalan sahip kontrolü kalkmamalı")
