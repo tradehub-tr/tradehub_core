@@ -1,3 +1,11 @@
+## [v1.13.1-alpha.32] - 2026-08-20 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(media): dedup stratejisi + yönetici silmede ortak sahiplik kapısı (TUR-298) (@Metin Bektemur)
+
+---
 ## [v1.13.1-alpha.31] - 2026-08-19 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
