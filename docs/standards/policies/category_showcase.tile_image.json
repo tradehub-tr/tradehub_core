@@ -1,0 +1,26 @@
+{
+  "$schema": "./_schema.md",
+  "slot_key": "category_showcase.tile_image",
+  "doctype_field": "Category Showcase Tile.image",
+  "kind": "image",
+  "is_product_slot": false,
+  "min_long_edge": 1200,
+  "max_long_edge": 2000,
+  "target_long_edge": 1600,
+  "aspect_ratio": "free",
+  "aspect_tolerance": null,
+  "fit": "cover",
+  "dpi_policy": {
+    "output_dpi": 72,
+    "strip_input_dpi": true,
+    "pixels_preserved": true
+  },
+  "olcum": {
+    "render_box_css_px": null,
+    "render_box_kaynak": "docs/reports/00-upload-slot-envanteri.md:120 — 'Hucre olcusu col_span/row_span'den geliyor (spanClasses, CategoryShowcase.ts:137) → sabit px yok; 1x1, 2x1 (genis), 2x2 (hero) varyantlari'",
+    "min_long_edge_gerekce": "En buyuk varyant 2x2 (hero). Kesin px olculemedi; alt sinir 1200 px 2x2 hucreyi DPR1'de guvenle doldurur.",
+    "max_long_edge_gerekce": "tradehub_core/media/presets.py:15 'balanced' preset max_dim=2000 — bu slot icin varsayilan tavan yeterli.",
+    "uretimde_dogrulanmali": true,
+    "uyari": "Tek gorsel 3 farkli orana kirpiliyor ve yukleyene hangisi oldugu soylenmiyor (§7-B2). aspect_ratio 'free' birakildi cunku slot tek bir orana sahip DEGIL — bu policy'nin cozdugu sey degil, kaydettigi bir eksik."
+  }
+}

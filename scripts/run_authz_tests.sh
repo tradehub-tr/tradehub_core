@@ -62,6 +62,10 @@ MODULES=(
 	test_payment_pii_security
 	test_mobile_jwt_secret
 	test_organization_hierarchy
+	test_authz_regression
+	test_faz13_guest_surface
+	test_payment_iban_permlevel
+	test_privacy_audit
 )
 
 fail=0

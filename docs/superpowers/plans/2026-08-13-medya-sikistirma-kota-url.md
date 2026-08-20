@@ -190,7 +190,7 @@ git add -A && git commit -m "feat(media): tarayıcıda görsel→WebP, video→W
 **Worktree:** tradehub_core + docker
 
 **Files:**
-- Modify: `tradehub_core/tradehub_core/media/engine.py` — `to_webp(bytes, quality=80)` ekle (mevcut format-koruma yolunu kırmadan)
+- Modify: `tradehub_core/tradehub_core/media/pipeline.py` — `to_webp(bytes, quality=80)` ekle (mevcut format-koruma yolunu kırmadan)
 - Create: `tradehub_core/tradehub_core/media/transcode.py` (Faz 0 stub'ını doldur)
 - Modify: `tradehub_core/tradehub_core/api/seller_media.py` — `upload_media` içinde: görsel WebP değilse `to_webp`, video ise `enqueue_transcode`
 - Modify: `docker/**/Dockerfile` (backend) — `ffmpeg` paketi

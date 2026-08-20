@@ -1,0 +1,162 @@
+{
+ "$comment": "T-040 · Kuyruk işinin kaydı. Kuyruk adları ve zaman aşımları Faz 3 kuyruk tasarımından birebir alındı.",
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-08-18 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 0,
+ "engine": "InnoDB",
+ "field_order": [
+  "asset",
+  "job_type",
+  "queue",
+  "status",
+  "attempt",
+  "started_at",
+  "finished_at",
+  "duration_ms",
+  "peak_memory_mb",
+  "error_code",
+  "error_trace",
+  "idempotency_key"
+ ],
+ "fields": [
+  {
+   "fieldname": "asset",
+   "fieldtype": "Link",
+   "label": "Varlık",
+   "options": "Media Asset",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "job_type",
+   "fieldtype": "Select",
+   "label": "İş Tipi",
+   "reqd": 1,
+   "options": "normalize\nrendition\ntranscode\nposter\npreview\nai\ngc\nretention\nreport"
+  },
+  {
+   "fieldname": "queue",
+   "fieldtype": "Select",
+   "label": "Kuyruk",
+   "options": "media-image-live\nmedia-image-bulk\nmedia-video\nmedia-ai\nmedia-maint",
+   "reqd": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Durum",
+   "options": "queued\nrunning\nsuccess\nfailed\ndead",
+   "default": "queued",
+   "search_index": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "attempt",
+   "fieldtype": "Int",
+   "label": "Deneme",
+   "default": "0",
+   "description": "Mevcut motorun backoff'lu iş yürütücüsüyle (tradehub_core/media/jobs.py) aynı kavram. Kuyruk tavanları: media-image-live 3 deneme, bulk 2, video 2, ai 1, maint 1."
+  },
+  {
+   "fieldname": "started_at",
+   "fieldtype": "Datetime",
+   "label": "Başlangıç"
+  },
+  {
+   "fieldname": "finished_at",
+   "fieldtype": "Datetime",
+   "label": "Bitiş"
+  },
+  {
+   "fieldname": "duration_ms",
+   "fieldtype": "Int",
+   "label": "Süre (ms)"
+  },
+  {
+   "fieldname": "peak_memory_mb",
+   "fieldtype": "Float",
+   "label": "Tepe Bellek (MB)",
+   "precision": "1",
+   "description": "Decompression-bomb ve >20MP dosyaların gerçek maliyeti burada görünür. ÖLÇÜLDÜ: 179 dosya >20MP, MAX 72,71 MP."
+  },
+  {
+   "fieldname": "error_code",
+   "fieldtype": "Data",
+   "label": "Hata Kodu",
+   "length": 64
+  },
+  {
+   "fieldname": "error_trace",
+   "fieldtype": "Long Text",
+   "label": "Hata İzi"
+  },
+  {
+   "fieldname": "idempotency_key",
+   "fieldtype": "Data",
+   "label": "Idempotency Anahtarı",
+   "unique": 1,
+   "search_index": 1,
+   "length": 140,
+   "description": "Aynı iş iki kez kuyruğa girerse ikincisi bu UNIQUE kısıta çarpar ve mevcut kaydı döndürür (INV-06). Türetimi: sha256(asset + job_type + version_hash + profile).\n"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "is_submittable": 0,
+ "issingle": 0,
+ "istable": 0,
+ "links": [],
+ "modified": "2026-08-18 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Media Engine",
+ "name": "Media Processing Job",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Media Superadmin",
+   "share": 1,
+   "write": 1,
+   "permlevel": 0
+  },
+  {
+   "create": 0,
+   "delete": 0,
+   "email": 0,
+   "export": 0,
+   "print": 0,
+   "read": 1,
+   "report": 1,
+   "role": "Seller",
+   "share": 0,
+   "write": 0,
+   "permlevel": 0
+  },
+  {
+   "create": 1,
+   "delete": 0,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1,
+   "permlevel": 0
+  }
+ ],
+ "quick_entry": 0,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1,
+ "autoname": "hash"
+}

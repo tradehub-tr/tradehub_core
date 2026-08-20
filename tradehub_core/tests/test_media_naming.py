@@ -46,9 +46,10 @@ class TestWriteFileHashed(FrappeTestCase):
 
 		expected_name = naming._hashed_name("urun-foto.png", content)
 		self.assertEqual(result["file_name"], expected_name)
-		self.assertEqual(result["file_url"], f"/files/{expected_name}")
+		# Shard: adın ilk 2 hex'i alt dizin (TUR-130).
+		self.assertEqual(result["file_url"], f"/files/{expected_name[:2]}/{expected_name}")
 
-		disk_path = os.path.join(get_files_path(is_private=0), expected_name)
+		disk_path = os.path.join(get_files_path(is_private=0), expected_name[:2], expected_name)
 		self.addCleanup(lambda: os.path.exists(disk_path) and os.remove(disk_path))
 		self.assertTrue(os.path.exists(disk_path))
 		with open(disk_path, "rb") as f:
@@ -64,9 +65,9 @@ class TestWriteFileHashed(FrappeTestCase):
 
 		expected_name = naming._hashed_name("gizli.pdf", content)
 		self.assertEqual(result["file_name"], expected_name)
-		self.assertEqual(result["file_url"], f"/private/files/{expected_name}")
+		self.assertEqual(result["file_url"], f"/private/files/{expected_name[:2]}/{expected_name}")
 
-		disk_path = os.path.join(get_files_path(is_private=1), expected_name)
+		disk_path = os.path.join(get_files_path(is_private=1), expected_name[:2], expected_name)
 		self.addCleanup(lambda: os.path.exists(disk_path) and os.remove(disk_path))
 		self.assertTrue(os.path.exists(disk_path))
 
@@ -80,7 +81,7 @@ class TestWriteFileHashed(FrappeTestCase):
 
 		from frappe.utils import get_files_path
 
-		disk_path = os.path.join(get_files_path(is_private=0), r1["file_name"])
+		disk_path = os.path.join(get_files_path(is_private=0), r1["file_name"][:2], r1["file_name"])
 		self.addCleanup(lambda: os.path.exists(disk_path) and os.remove(disk_path))
 
 
@@ -113,12 +114,12 @@ class TestWriteFileHashedFileDocPath(FrappeTestCase):
 
 		expected_name = naming._hashed_name("urun-doc-yolu.png", content)
 		self.assertEqual(result["file_name"], expected_name)
-		self.assertEqual(result["file_url"], f"/files/{expected_name}")
+		self.assertEqual(result["file_url"], f"/files/{expected_name[:2]}/{expected_name}")
 		# Frappe'nin gerçek `save_file_on_filesystem()`'i de doc'u mutate eder — dönüş
 		# değeri `before_insert` akışında kullanılmıyor, asıl kaynak doc.file_url'dir.
-		self.assertEqual(doc.file_url, f"/files/{expected_name}")
+		self.assertEqual(doc.file_url, f"/files/{expected_name[:2]}/{expected_name}")
 
-		disk_path = os.path.join(get_files_path(is_private=0), expected_name)
+		disk_path = os.path.join(get_files_path(is_private=0), expected_name[:2], expected_name)
 		self.addCleanup(lambda: os.path.exists(disk_path) and os.remove(disk_path))
 		self.assertTrue(os.path.exists(disk_path))
 		with open(disk_path, "rb") as f:
@@ -140,10 +141,10 @@ class TestWriteFileHashedFileDocPath(FrappeTestCase):
 		result = naming.write_file_hashed(doc)
 
 		expected_name = naming._hashed_name("gizli-doc-yolu.pdf", content)
-		self.assertEqual(result["file_url"], f"/private/files/{expected_name}")
-		self.assertEqual(doc.file_url, f"/private/files/{expected_name}")
+		self.assertEqual(result["file_url"], f"/private/files/{expected_name[:2]}/{expected_name}")
+		self.assertEqual(doc.file_url, f"/private/files/{expected_name[:2]}/{expected_name}")
 
-		disk_path = os.path.join(get_files_path(is_private=1), expected_name)
+		disk_path = os.path.join(get_files_path(is_private=1), expected_name[:2], expected_name)
 		self.addCleanup(lambda: os.path.exists(disk_path) and os.remove(disk_path))
 		self.assertTrue(os.path.exists(disk_path))
 
@@ -162,7 +163,9 @@ class TestWriteFileHashedFileDocPath(FrappeTestCase):
 		from frappe.utils import get_files_path
 
 		result = naming.write_file_hashed(doc)
-		disk_path = os.path.join(get_files_path(is_private=0), result["file_name"])
+		disk_path = os.path.join(
+			get_files_path(is_private=0), result["file_name"][:2], result["file_name"]
+		)
 		self.addCleanup(lambda: os.path.exists(disk_path) and os.remove(disk_path))
 
 		self.assertEqual(doc.file_name, "gorunen-ad-degismez.png")

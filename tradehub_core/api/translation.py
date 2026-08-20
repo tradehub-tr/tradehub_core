@@ -48,10 +48,23 @@ def _get_provider() -> tuple[str, str | None, str]:
 			provider = settings.provider or DEFAULT_PROVIDER
 			model = settings.openai_model or DEFAULT_MODEL
 			api_key = None
+			secret_field = None
 			if provider == "openai":
 				api_key = settings.get_password("openai_api_key", raise_exception=False)
+				secret_field = "openai_api_key"
 			elif provider == "deepl":
 				api_key = settings.get_password("deepl_api_key", raise_exception=False)
+				secret_field = "deepl_api_key"
+			if api_key and secret_field:
+				# T-134 §2 — servis-config sır okuması denetime yazılır (değer YOK).
+				from tradehub_core.audit.secret_access import log_secret_access
+
+				log_secret_access(
+					service=provider,
+					field=secret_field,
+					object_doctype="Translation Settings",
+					object_name="Translation Settings",
+				)
 			if provider in ("openai", "deepl") and not api_key:
 				provider = "stub"
 			return provider, api_key, model

@@ -20,6 +20,7 @@ import json
 import frappe
 from frappe import _
 
+from tradehub_core.api.rate_limit import rate_limit
 from tradehub_core.utils import pii_compliance
 
 _WRITE_ROLES = {"System Manager", "Administrator", "Compliance Officer"}
@@ -271,30 +272,108 @@ def get_export_status(request_name: str) -> dict:
 	return {"status": doc.status, "completed_at": str(doc.completed_at) if doc.completed_at else None}
 
 
+# T-134 / KVKK belge erişim izi — kişisel veri arşivinin (m.11 dışa aktarım
+# ZIP'i) indirilmesi denetime yazılır. Desen: media/audit.py ACTION_* sabitleri
+# (`media.signed_access`in KVKK karşılığı). Maskeleme kuralı: token ASLA
+# yazılmaz, IP yalnız parmak izi (fingerprint) olarak girer, kullanıcı
+# e-postası satıra girmez — kimlik `Data Export Request` kaydında.
+ACTION_EXPORT_DOWNLOADED: str = "privacy.export_downloaded"
+
+
+def _audit_export_download(request_name: str, allowed: bool, reason: str = "", zip_bytes: int = 0) -> None:
+	"""Best-effort denetim satırı; red yolunda `frappe.throw` transaction'ı geri
+	alacağı için commit BURADA yapılır (`media/audit._persist` ile aynı gerekçe —
+	orada ölçülmüştü: commit'siz DENY kaydı throw'un rollback'iyle kayboluyordu)."""
+	try:
+		import hashlib
+
+		from tradehub_core.audit.log import (
+			DECISION_ALLOW,
+			DECISION_DENY,
+			LAYER_L3,
+			SEVERITY_HIGH,
+			log_decision,
+		)
+
+		# `media/audit.fingerprint` ile aynı biçim (sha256[:12]) — oradan import
+		# edilmiyor çünkü media/audit modül yükünde frappe.query_builder ister;
+		# bu uç guest yolunda o bağımlılığa gerek yok.
+		raw_ip = getattr(frappe.local, "request_ip", "") or ""
+		context: dict = {"ip_hash": hashlib.sha256(raw_ip.encode("utf-8")).hexdigest()[:12]}
+		if reason:
+			context["reason"] = reason
+		if zip_bytes:
+			context["zip_bytes"] = zip_bytes
+
+		log_decision(
+			action=ACTION_EXPORT_DOWNLOADED,
+			decision=DECISION_ALLOW if allowed else DECISION_DENY,
+			rule_id="kvkk.article11",
+			layer=LAYER_L3,
+			object_doctype="Data Export Request",
+			object_name=request_name,
+			severity=SEVERITY_HIGH,
+			context=context,
+		)
+		frappe.db.commit()
+	except Exception:
+		frappe.log_error(
+			f"Failed to write export download audit for {request_name}",
+			"compliance.download_data_export",
+		)
+
+
+# GÜVENLİK (2026-08-20 denetimi): `request_name` = DEXP-xxxx sıralı/tahmin
+# edilebilir ve uç `allow_guest`. Hız sınırı olmadan token brute-force'a açıktı.
+# IP başına kova (per_user=False; misafir oturumu tek "Guest") — 20 deneme/5 dk
+# meşru indirmeyi (bir kez) etkilemez, otomatik denemeyi kilitler. B-01 sayacı
+# atomik olduğu için (rate_limit.py INCR) bu koruma eşzamanlılıkta da güvenilir.
 @frappe.whitelist(allow_guest=True)
+@rate_limit(max_calls=20, window_seconds=300, per_user=False, scope="kvkk_export_dl")
 def download_data_export(request_name: str, token: str):
 	"""Token doğrulamalı güvenli indirme endpoint'i."""
+	import hmac
 	import os
 
 	doc = frappe.get_doc("Data Export Request", request_name)
 
 	if doc.status != "Ready":
+		_audit_export_download(request_name, allowed=False, reason="not_ready")
 		frappe.throw(_("Bu dosya artık mevcut değil."))
 
-	if doc.download_token != token:
+	# Sabit-zamanlı karşılaştırma: `!=` token uzunluğu/ön eki üzerinden zamanlama
+	# sızdırırdı. `compare_digest` erken çıkmaz.
+	if not hmac.compare_digest(str(doc.download_token or ""), str(token or "")):
+		_audit_export_download(request_name, allowed=False, reason="invalid_token")
 		frappe.throw(_("Geçersiz indirme tokeni."), frappe.AuthenticationError)
 
 	from frappe.utils import now_datetime
 
 	if doc.expires_at and doc.expires_at < now_datetime():
+		_audit_export_download(request_name, allowed=False, reason="expired")
 		frappe.throw(_("İndirme linkinin süresi dolmuş."))
 
-	file_path = frappe.get_site_path("private", "files", os.path.basename(doc.file_url))
+	# Rapor 92 §4 düzeltmesi: `os.path.basename` alt-klasörlü dosya yerleşimini
+	# KIRIYORDU — `File.insert` medya motorunun içerik-adresli yerleşimiyle
+	# dosyayı `/private/files/8f/8f0a...zip` gibi bir alt klasöre taşıyor,
+	# basename `8f/` parçasını düşürünce indirme "Dosya bulunamadı" veriyordu
+	# (canlıda ölçüldü — m.11 indirme akışı bu yüzden hiç çalışmıyordu).
+	# file_url sunucu üretimidir ama yine de realpath ile private/files köküne
+	# sabitlenir (path traversal emniyeti, checklists.md §1).
+	rel = (doc.file_url or "").split("/private/files/", 1)[-1].lstrip("/")
+	base_dir = os.path.realpath(frappe.get_site_path("private", "files"))
+	file_path = os.path.realpath(os.path.join(base_dir, rel))
+	if not file_path.startswith(base_dir + os.sep):
+		_audit_export_download(request_name, allowed=False, reason="path_escape")
+		frappe.throw(_("Dosya bulunamadı."))
 	if not os.path.exists(file_path):
+		_audit_export_download(request_name, allowed=False, reason="file_missing")
 		frappe.throw(_("Dosya bulunamadı."))
 
 	with open(file_path, "rb") as f:
 		content = f.read()
+
+	_audit_export_download(request_name, allowed=True, zip_bytes=len(content))
 
 	frappe.local.response.filename = f"veri-export-{request_name}.zip"
 	frappe.local.response.filecontent = content

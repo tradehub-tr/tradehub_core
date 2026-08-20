@@ -17,6 +17,8 @@ Kapsam: yalnız **public** dosyalar. Private = hassas (KYB/KYC evrakı) ve
 
 from __future__ import annotations
 
+import re
+
 import frappe
 from frappe.query_builder import Case, DocType
 from frappe.query_builder.functions import Coalesce, Count, CustomFunction, Max, Min, Sum
@@ -278,6 +280,7 @@ def list_files(
 				Max(f2.file_size).as_("file_size"),
 				Min(f2.creation).as_("creation"),
 				Max(f2.th_optimized_at).as_("optimized_at"),
+				Max(f2.th_media_video_status).as_("video_status"),
 				Max(f2.th_original_size).as_("original_size"),
 				Count("*").as_("record_count"),
 				Count(NullIf(f2.attached_to_name, "")).distinct().as_("usage_count"),
@@ -303,6 +306,9 @@ def list_files(
 			Max(f.file_size).as_("file_size"),
 			Min(f.creation).as_("creation"),
 			Max(f.th_optimized_at).as_("optimized_at"),
+			# Dedup gruplamasında Max yeterli: durum `file_url` filtresiyle tüm
+			# kayıtlara birden yazılıyor (enqueue_transcode), kopyalar ayrışmaz.
+			Max(f.th_media_video_status).as_("video_status"),
 			Max(f.th_original_size).as_("original_size"),
 			Count("*").as_("record_count"),
 			Count(NullIf(f.attached_to_name, "")).distinct().as_("usage_count"),
@@ -504,3 +510,205 @@ def pending_file_names(
 	if limit:
 		q = q.limit(int(limit))
 	return [r["name"] for r in q.run(as_dict=True)]
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# T-042 — içerik SHA-256'sıyla tekilleştirme araması (yükleme ön kontrolü)
+# ─────────────────────────────────────────────────────────────────────────────
+
+_SHA256_HEX = re.compile(r"^[0-9a-f]{64}$")
+
+#: `/files/` (7) + shard (2) + `/` (1) + sha256[:32] (32) = 42 karakter.
+_HASHED_PREFIX_LEN: int = 42
+
+
+def find_by_sha256(sha256: str, store: str) -> dict | None:
+	"""İçeriğin TAM SHA-256'sıyla mağazanın kütüphanesinde dosya ara.
+
+	Eşleşme İÇERİK-ADRESLİ ADDAN yapılır: yeni yüklemelerin adresi
+	`/files/{sha[:2]}/{sha[:32]}.{uzantı}` (`media/naming.py`, TUR-141/130) ve
+	istemcinin hesapladığı tam hash'ten bu adres birebir türetilebilir.
+
+	NEDEN `content_hash` KOLONUNDAN DEĞİL (ölçüldü, 2026-08-20, canlı dev DB):
+	`tabFile.content_hash` 5.047 kayıtta MD5 taşıyor — örnek `430483d1…` ≠
+	`sha256[:32]`; aynı DB'de `/files/03/039731d0….mp4` adresinin gövdesi ise
+	içeriğin sha256'sının ilk 32 hanesiyle BİREBİR doğrulandı. SHA-256 başka
+	hiçbir kolonda saklanmıyor (`Media Asset.content_sha256` da 32 haneli
+	kısaltmadır ve yalnız pipeline kapsamındaki dosyalarda dolar).
+
+	ÜÇ KATMAN (rapor 75 kusur #2 + rapor 64 EK-2 / W7 sonrası):
+
+	  1. İçerik-adresli dosya adı (`/files/{sha[:2]}/{sha[:32]}.…`) — SAKLANAN
+	     baytları elinde tutan istemciyi yakalar (dönüşmeden saklanan türler).
+	  2. `Media Version.source_hash` → `Media Asset` → kaynak `File` — boru
+	     hattının İŞLEDİĞİ dosyaları, adı içerik-adresli OLMASA bile yakalar
+	     (canlı ölçüm: işlenmiş 9 dosyanın 9'unun adı legacy düzende — katman 1
+	     onları asla bulamazdı).
+	  3. `Media Asset.original_sha256` → kaynak `File` — yükleme anında
+	     DÖNÜŞTÜRÜLEN görsellerde (PNG/JPEG→WebP, `api/seller_media._kaydet`)
+	     istemcinin ORİJİNAL dosyadan hesapladığı sha256. İlk iki katman bu
+	     içeriklerde yapısal olarak kördü: saklanan ad da `source_hash` da
+	     dönüştürülmüş baytların hash'ini taşır (canlıda 3/3 doğrulanmıştı).
+	     Hash'i dönüşümden önce `files.record_original_hash` yazar.
+
+	BİLİNÇLİ SINIRLAR (eksik uyarı kabul, yanlış pozitif edilmez):
+	  * Boru hattının işlemediği ve içerik-adresli adlanmamış eski dosyalar
+	    (ölçüm: 5.047 kaydın 4.961'i) hiçbir katmanda görünmez — backfill ayrı iş.
+	  * Katman 3 yalnız W7 SONRASI yüklemeleri kapsar: daha önce dönüştürülmüş
+	    içeriklerin orijinal baytları sunucuya bir daha hiç gelmedi, hash'leri
+	    geriye dönük üretilemez.
+
+	Kiracı sınırı: katman 1'de `ownership.scope` (envanter listesinin
+	KENDİSİYLE aynı süzgeç), katman 2 ve 3'te `Media Asset.owner_seller = store`
+	SQL'in içinde. Mağaza parametresi çağıranın oturumundan gelmek zorundadır
+	(bkz. `api/seller_media.find_in_my_library`).
+	"""
+	h = (sha256 or "").strip().lower()
+	if not _SHA256_HEX.match(h) or not store:
+		return None
+	return (
+		_find_by_hashed_name(h, store)
+		or _find_by_pipeline_source_hash(h, store)
+		or _find_by_original_hash(h, store)
+	)
+
+
+def _dosya_cevabi(satir: dict) -> dict:
+	return {
+		"file_url": satir["file_url"],
+		"file_name": satir["file_name"] or "",
+		"uploaded_at": str(satir["uploaded_at"] or ""),
+	}
+
+
+def _find_by_hashed_name(h: str, store: str) -> dict | None:
+	"""Katman 1 — içerik-adresli dosya adından eşleşme."""
+	prefix = f"/files/{h[:2]}/{h[:32]}"
+	f, query = _base_query()
+	query = ownership.scope(query, f, store)
+	rows = (
+		query
+		# Çöpteki dosyanın public adresi ölüdür (blob `private/media_trash/`
+		# altına taşınır — `states.py`); "kütüphanenizde var" demek yanlış olur.
+		.where(f.th_trashed_at.isnull())
+		.where(Coalesce(f.th_media_state, "") != states.STATE_TRASHED)
+		# LIKE değil LEFT: utf8mb4'te LIKE, 4 baytlık karakter içeren satırları
+		# sessizce düşürüyor (modül başındaki ölçüm). Uzantısız kenar durum için
+		# tam eşitlik de denenir; nokta şartı 33+ haneli gövdelerin yanlış
+		# pozitifini keser.
+		.where((Left(f.file_url, _HASHED_PREFIX_LEN + 1) == prefix + ".") | (f.file_url == prefix))
+		.select(
+			f.file_url,
+			Max(f.file_name).as_("file_name"),
+			Min(f.creation).as_("uploaded_at"),
+		)
+		.limit(1)
+		.run(as_dict=True)
+	)
+	return _dosya_cevabi(rows[0]) if rows else None
+
+
+def _find_by_pipeline_source_hash(h: str, store: str) -> dict | None:
+	"""Katman 2 — boru hattının sürüm kaydından eşleşme (rapor 75 kusur #2).
+
+	`Media Version.source_hash` kaynak dosyanın TAM 64 haneli sha256'sını taşır
+	(`pipeline_bridge._ensure_version`); dosyanın ADI legacy düzende olsa bile.
+	Zincir: source_hash → Media Version → Media Asset → kaynak File.
+
+	KİRACI KEMERİ SORGUNUN İÇİNDE: `Media Asset.owner_seller = store`. Sonradan
+	süzmek değil — başka satıcının varlığı sonuç kümesine hiç girmez; eşleşme
+	yoksa cevap "yok"tur, varlığı sezdirilmez. Sahipsiz varlıklar
+	(`owner_seller` boş — platform/yönetim yüklemeleri) hiçbir mağazaya dönmez.
+
+	Kaynak dosya ayrıca envanterin HİJYEN kemerlerinden geçer (`_base_query`:
+	public, klasörsüz, KVKK doctype eki değil, HASSAS-İKİZ maskesi) + çöp
+	dışlaması — envanterin gizlediği bir dosyayı bu uç "kütüphanenizde var"
+	diye geri sızdıramaz (canlı örnek: `7m7n6rs4d4`, hassas-ikiz içerik).
+	"""
+	v = DocType("Media Version")
+	a = DocType("Media Asset")
+	# Aynı içerik birden çok slotta işlenmiş olabilir (slot başına ayrı Asset);
+	# hijyen kemerine takılan aday olabileceği için tek satırla yetinilmez.
+	kaynaklar = (
+		frappe.qb.from_(v)
+		.join(a)
+		.on(a.name == v.asset)
+		.select(a.source_file)
+		.where(v.source_hash == h)
+		.where(a.owner_seller == store)
+		.where(a.source_file.isnotnull())
+		.limit(5)
+		.run()
+	)
+	for (source_file,) in kaynaklar:
+		cevap = _kaynak_dosya_cevabi(source_file)
+		if cevap:
+			return cevap
+	return None
+
+
+def _kaynak_dosya_cevabi(source_file: str | None) -> dict | None:
+	"""Kaynak `File` docname'ini HİJYEN kemerlerinden geçirip cevaba çevirir.
+
+	Katman 2 ve 3'ün ORTAK son adımı: `_base_query` (public, klasörsüz, KVKK
+	eki değil, HASSAS-İKİZ maskesi) + çöp dışlaması. Envanterin gizlediği bir
+	dosyayı hiçbir katman "kütüphanenizde var" diye geri sızdıramaz.
+	"""
+	if not source_file:
+		return None
+	url = frappe.db.get_value("File", source_file, "file_url")
+	if not url:
+		return None  # kaynak File silinmiş — türev/varlık kaydı kalmış olabilir
+	f, query = _base_query()
+	rows = (
+		query.where(f.file_url == url)
+		.where(f.th_trashed_at.isnull())
+		.where(Coalesce(f.th_media_state, "") != states.STATE_TRASHED)
+		.select(
+			f.file_url,
+			Max(f.file_name).as_("file_name"),
+			Min(f.creation).as_("uploaded_at"),
+		)
+		.limit(1)
+		.run(as_dict=True)
+	)
+	return _dosya_cevabi(rows[0]) if rows else None
+
+
+def _find_by_original_hash(h: str, store: str) -> dict | None:
+	"""Katman 3 — yükleme anında saklanan ORİJİNAL hash'ten eşleşme (rapor 64
+	EK-2 / W7).
+
+	`Media Asset.original_sha256` yalnız `_kaydet`in DÖNÜŞTÜRDÜĞÜ yüklemelerde
+	dolar (`files.record_original_hash` — kolonun ve kaydın gerekçesi orada).
+	Zincir: original_sha256 → Media Asset → kaynak File.
+
+	KİRACI KEMERİ SORGUNUN İÇİNDE (`owner_seller = store`) — katman 2 ile aynı
+	desen, aynı gerekçe: başka satıcının varlığı sonuç kümesine hiç girmez,
+	eşleşme yoksa cevap "yok"tur, varlığı sezdirilmez. Sahipsiz varlıklar
+	(`owner_seller` boş) hiçbir mağazaya dönmez. Kaynak dosya ayrıca
+	`_kaynak_dosya_cevabi`nin hijyen kemerlerinden geçer.
+
+	Kolon patch'i (`v15_9_34_media_asset_original_sha256`) koşmamışsa katman
+	sessizce yoktur — sorgu bilinmeyen kolonla patlamasın.
+	"""
+	if not frappe.db.has_column("Media Asset", "original_sha256"):
+		return None
+	a = DocType("Media Asset")
+	# Aynı orijinal içerik birden çok slota yüklenmiş olabilir (slot başına
+	# ayrı Asset — katman 2'deki gerekçenin aynısı); hijyen kemerine takılan
+	# aday olabileceği için tek satırla yetinilmez.
+	kaynaklar = (
+		frappe.qb.from_(a)
+		.select(a.source_file)
+		.where(a.original_sha256 == h)
+		.where(a.owner_seller == store)
+		.where(a.source_file.isnotnull())
+		.limit(5)
+		.run()
+	)
+	for (source_file,) in kaynaklar:
+		cevap = _kaynak_dosya_cevabi(source_file)
+		if cevap:
+			return cevap
+	return None

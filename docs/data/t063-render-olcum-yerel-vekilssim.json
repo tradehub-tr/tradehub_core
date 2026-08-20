@@ -1,0 +1,1338 @@
+{
+	"fixture": "ok_product_1x1_2400.jpg",
+	"source": {
+		"width": 2400,
+		"height": 2400,
+		"mode": "RGB",
+		"bytes": 1070387
+	},
+	"env": {
+		"pillow": "11.3.0",
+		"python": "3.9.6",
+		"machine": "arm64",
+		"system": "Darwin"
+	},
+	"slot": "product.image",
+	"matrix_forced": {
+		"formats": [
+			"avif",
+			"webp",
+			"jpeg"
+		],
+		"count": 21,
+		"bytes": 1381326,
+		"seconds": 52.989,
+		"encodes": 84,
+		"rows": [
+			{
+				"slot": "product.image",
+				"profile": "w96",
+				"format": "avif",
+				"width": 96,
+				"height": 96,
+				"bytes": 3830,
+				"quality": 72,
+				"ssim": 0.981006,
+				"ssim_target": 0.98,
+				"ssim_ok": true,
+				"content_class": "graphic",
+				"encodes": 4,
+				"elapsed_ms": 254.799,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [],
+				"attempts": [
+					{
+						"format": "avif",
+						"quality": 72,
+						"bytes": 3830,
+						"ssim": 0.981006,
+						"encodes": 4,
+						"elapsed_ms": 184.24,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			},
+			{
+				"slot": "product.image",
+				"profile": "w96",
+				"format": "webp",
+				"width": 96,
+				"height": 96,
+				"bytes": 4142,
+				"quality": 85,
+				"ssim": 0.980619,
+				"ssim_target": 0.98,
+				"ssim_ok": true,
+				"content_class": "graphic",
+				"encodes": 4,
+				"elapsed_ms": 181.205,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [],
+				"attempts": [
+					{
+						"format": "webp",
+						"quality": 85,
+						"bytes": 4142,
+						"ssim": 0.980619,
+						"encodes": 4,
+						"elapsed_ms": 116.863,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			},
+			{
+				"slot": "product.image",
+				"profile": "w96",
+				"format": "jpeg",
+				"width": 96,
+				"height": 96,
+				"bytes": 5310,
+				"quality": 92,
+				"ssim": 0.98307,
+				"ssim_target": 0.98,
+				"ssim_ok": true,
+				"content_class": "graphic",
+				"encodes": 4,
+				"elapsed_ms": 174.919,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [],
+				"attempts": [
+					{
+						"format": "jpeg",
+						"quality": 92,
+						"bytes": 5310,
+						"ssim": 0.98307,
+						"encodes": 4,
+						"elapsed_ms": 109.86,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			},
+			{
+				"slot": "product.image",
+				"profile": "w192",
+				"format": "avif",
+				"width": 192,
+				"height": 192,
+				"bytes": 8598,
+				"quality": 70,
+				"ssim": 0.989293,
+				"ssim_target": 0.96,
+				"ssim_ok": true,
+				"content_class": "photo",
+				"encodes": 4,
+				"elapsed_ms": 576.53,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [
+					"quality_floor_reached"
+				],
+				"attempts": [
+					{
+						"format": "avif",
+						"quality": 70,
+						"bytes": 8598,
+						"ssim": 0.989293,
+						"encodes": 4,
+						"elapsed_ms": 508.852,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			},
+			{
+				"slot": "product.image",
+				"profile": "w192",
+				"format": "webp",
+				"width": 192,
+				"height": 192,
+				"bytes": 7144,
+				"quality": 70,
+				"ssim": 0.960388,
+				"ssim_target": 0.96,
+				"ssim_ok": true,
+				"content_class": "photo",
+				"encodes": 4,
+				"elapsed_ms": 521.213,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [
+					"quality_floor_reached"
+				],
+				"attempts": [
+					{
+						"format": "webp",
+						"quality": 70,
+						"bytes": 7144,
+						"ssim": 0.960388,
+						"encodes": 4,
+						"elapsed_ms": 453.276,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			},
+			{
+				"slot": "product.image",
+				"profile": "w192",
+				"format": "jpeg",
+				"width": 192,
+				"height": 192,
+				"bytes": 7544,
+				"quality": 70,
+				"ssim": 0.982675,
+				"ssim_target": 0.96,
+				"ssim_ok": true,
+				"content_class": "photo",
+				"encodes": 4,
+				"elapsed_ms": 504.185,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [
+					"quality_floor_reached"
+				],
+				"attempts": [
+					{
+						"format": "jpeg",
+						"quality": 70,
+						"bytes": 7544,
+						"ssim": 0.982675,
+						"encodes": 4,
+						"elapsed_ms": 436.554,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			},
+			{
+				"slot": "product.image",
+				"profile": "w384",
+				"format": "avif",
+				"width": 384,
+				"height": 384,
+				"bytes": 14992,
+				"quality": 70,
+				"ssim": 0.989865,
+				"ssim_target": 0.96,
+				"ssim_ok": true,
+				"content_class": "photo",
+				"encodes": 4,
+				"elapsed_ms": 1957.083,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [
+					"quality_floor_reached"
+				],
+				"attempts": [
+					{
+						"format": "avif",
+						"quality": 70,
+						"bytes": 14992,
+						"ssim": 0.989865,
+						"encodes": 4,
+						"elapsed_ms": 1877.199,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			},
+			{
+				"slot": "product.image",
+				"profile": "w384",
+				"format": "webp",
+				"width": 384,
+				"height": 384,
+				"bytes": 15908,
+				"quality": 70,
+				"ssim": 0.966086,
+				"ssim_target": 0.96,
+				"ssim_ok": true,
+				"content_class": "photo",
+				"encodes": 4,
+				"elapsed_ms": 1917.338,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [
+					"quality_floor_reached"
+				],
+				"attempts": [
+					{
+						"format": "webp",
+						"quality": 70,
+						"bytes": 15908,
+						"ssim": 0.966086,
+						"encodes": 4,
+						"elapsed_ms": 1838.275,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			},
+			{
+				"slot": "product.image",
+				"profile": "w384",
+				"format": "jpeg",
+				"width": 384,
+				"height": 384,
+				"bytes": 20170,
+				"quality": 70,
+				"ssim": 0.987936,
+				"ssim_target": 0.96,
+				"ssim_ok": true,
+				"content_class": "photo",
+				"encodes": 4,
+				"elapsed_ms": 1864.296,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [
+					"quality_floor_reached"
+				],
+				"attempts": [
+					{
+						"format": "jpeg",
+						"quality": 70,
+						"bytes": 20170,
+						"ssim": 0.987936,
+						"encodes": 4,
+						"elapsed_ms": 1784.796,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			},
+			{
+				"slot": "product.image",
+				"profile": "w640",
+				"format": "avif",
+				"width": 640,
+				"height": 640,
+				"bytes": 23331,
+				"quality": 70,
+				"ssim": 0.987522,
+				"ssim_target": 0.96,
+				"ssim_ok": true,
+				"content_class": "photo",
+				"encodes": 4,
+				"elapsed_ms": 3526.902,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [
+					"quality_floor_reached"
+				],
+				"attempts": [
+					{
+						"format": "avif",
+						"quality": 70,
+						"bytes": 23331,
+						"ssim": 0.987522,
+						"encodes": 4,
+						"elapsed_ms": 3439.387,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			},
+			{
+				"slot": "product.image",
+				"profile": "w640",
+				"format": "webp",
+				"width": 640,
+				"height": 640,
+				"bytes": 30980,
+				"quality": 70,
+				"ssim": 0.97402,
+				"ssim_target": 0.96,
+				"ssim_ok": true,
+				"content_class": "photo",
+				"encodes": 4,
+				"elapsed_ms": 3422.269,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [
+					"quality_floor_reached"
+				],
+				"attempts": [
+					{
+						"format": "webp",
+						"quality": 70,
+						"bytes": 30980,
+						"ssim": 0.97402,
+						"encodes": 4,
+						"elapsed_ms": 3337.235,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			},
+			{
+				"slot": "product.image",
+				"profile": "w640",
+				"format": "jpeg",
+				"width": 640,
+				"height": 640,
+				"bytes": 42022,
+				"quality": 70,
+				"ssim": 0.987495,
+				"ssim_target": 0.96,
+				"ssim_ok": true,
+				"content_class": "photo",
+				"encodes": 4,
+				"elapsed_ms": 3394.358,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [
+					"quality_floor_reached"
+				],
+				"attempts": [
+					{
+						"format": "jpeg",
+						"quality": 70,
+						"bytes": 42022,
+						"ssim": 0.987495,
+						"encodes": 4,
+						"elapsed_ms": 3300.109,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			},
+			{
+				"slot": "product.image",
+				"profile": "w768",
+				"format": "avif",
+				"width": 768,
+				"height": 768,
+				"bytes": 28456,
+				"quality": 70,
+				"ssim": 0.988182,
+				"ssim_target": 0.96,
+				"ssim_ok": true,
+				"content_class": "photo",
+				"encodes": 4,
+				"elapsed_ms": 3619.716,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [
+					"quality_floor_reached"
+				],
+				"attempts": [
+					{
+						"format": "avif",
+						"quality": 70,
+						"bytes": 28456,
+						"ssim": 0.988182,
+						"encodes": 4,
+						"elapsed_ms": 3525.501,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			},
+			{
+				"slot": "product.image",
+				"profile": "w768",
+				"format": "webp",
+				"width": 768,
+				"height": 768,
+				"bytes": 38572,
+				"quality": 70,
+				"ssim": 0.977421,
+				"ssim_target": 0.96,
+				"ssim_ok": true,
+				"content_class": "photo",
+				"encodes": 4,
+				"elapsed_ms": 3696.438,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [
+					"quality_floor_reached"
+				],
+				"attempts": [
+					{
+						"format": "webp",
+						"quality": 70,
+						"bytes": 38572,
+						"ssim": 0.977421,
+						"encodes": 4,
+						"elapsed_ms": 3607.362,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			},
+			{
+				"slot": "product.image",
+				"profile": "w768",
+				"format": "jpeg",
+				"width": 768,
+				"height": 768,
+				"bytes": 55527,
+				"quality": 70,
+				"ssim": 0.988903,
+				"ssim_target": 0.96,
+				"ssim_ok": true,
+				"content_class": "photo",
+				"encodes": 4,
+				"elapsed_ms": 3533.873,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [
+					"quality_floor_reached"
+				],
+				"attempts": [
+					{
+						"format": "jpeg",
+						"quality": 70,
+						"bytes": 55527,
+						"ssim": 0.988903,
+						"encodes": 4,
+						"elapsed_ms": 3442.385,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			},
+			{
+				"slot": "product.image",
+				"profile": "w1280",
+				"format": "avif",
+				"width": 1280,
+				"height": 1280,
+				"bytes": 53131,
+				"quality": 70,
+				"ssim": 0.991266,
+				"ssim_target": 0.96,
+				"ssim_ok": true,
+				"content_class": "photo",
+				"encodes": 4,
+				"elapsed_ms": 3873.57,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [
+					"quality_floor_reached"
+				],
+				"attempts": [
+					{
+						"format": "avif",
+						"quality": 70,
+						"bytes": 53131,
+						"ssim": 0.991266,
+						"encodes": 4,
+						"elapsed_ms": 3765.964,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			},
+			{
+				"slot": "product.image",
+				"profile": "w1280",
+				"format": "webp",
+				"width": 1280,
+				"height": 1280,
+				"bytes": 79154,
+				"quality": 70,
+				"ssim": 0.986418,
+				"ssim_target": 0.96,
+				"ssim_ok": true,
+				"content_class": "photo",
+				"encodes": 4,
+				"elapsed_ms": 3956.453,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [
+					"quality_floor_reached"
+				],
+				"attempts": [
+					{
+						"format": "webp",
+						"quality": 70,
+						"bytes": 79154,
+						"ssim": 0.986418,
+						"encodes": 4,
+						"elapsed_ms": 3853.192,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			},
+			{
+				"slot": "product.image",
+				"profile": "w1280",
+				"format": "jpeg",
+				"width": 1280,
+				"height": 1280,
+				"bytes": 131320,
+				"quality": 70,
+				"ssim": 0.993854,
+				"ssim_target": 0.96,
+				"ssim_ok": true,
+				"content_class": "photo",
+				"encodes": 4,
+				"elapsed_ms": 3527.687,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [
+					"quality_floor_reached"
+				],
+				"attempts": [
+					{
+						"format": "jpeg",
+						"quality": 70,
+						"bytes": 131320,
+						"ssim": 0.993854,
+						"encodes": 4,
+						"elapsed_ms": 3420.933,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			},
+			{
+				"slot": "product.image",
+				"profile": "w1920",
+				"format": "avif",
+				"width": 1920,
+				"height": 1920,
+				"bytes": 289860,
+				"quality": 70,
+				"ssim": 0.994981,
+				"ssim_target": 0.96,
+				"ssim_ok": true,
+				"content_class": "photo",
+				"encodes": 4,
+				"elapsed_ms": 4109.009,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [
+					"quality_floor_reached"
+				],
+				"attempts": [
+					{
+						"format": "avif",
+						"quality": 70,
+						"bytes": 289860,
+						"ssim": 0.994981,
+						"encodes": 4,
+						"elapsed_ms": 3988.126,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			},
+			{
+				"slot": "product.image",
+				"profile": "w1920",
+				"format": "webp",
+				"width": 1920,
+				"height": 1920,
+				"bytes": 197314,
+				"quality": 70,
+				"ssim": 0.99179,
+				"ssim_target": 0.96,
+				"ssim_ok": true,
+				"content_class": "photo",
+				"encodes": 4,
+				"elapsed_ms": 4706.038,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [
+					"quality_floor_reached"
+				],
+				"attempts": [
+					{
+						"format": "webp",
+						"quality": 70,
+						"bytes": 197314,
+						"ssim": 0.99179,
+						"encodes": 4,
+						"elapsed_ms": 4582.234,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			},
+			{
+				"slot": "product.image",
+				"profile": "w1920",
+				"format": "jpeg",
+				"width": 1920,
+				"height": 1920,
+				"bytes": 324021,
+				"quality": 70,
+				"ssim": 0.996605,
+				"ssim_target": 0.96,
+				"ssim_ok": true,
+				"content_class": "photo",
+				"encodes": 4,
+				"elapsed_ms": 3670.953,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [
+					"quality_floor_reached"
+				],
+				"attempts": [
+					{
+						"format": "jpeg",
+						"quality": 70,
+						"bytes": 324021,
+						"ssim": 0.996605,
+						"encodes": 4,
+						"elapsed_ms": 3550.864,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			}
+		],
+		"by_format": {
+			"avif": {
+				"bytes": 422198,
+				"kb": 412.3,
+				"seconds": 17.918,
+				"ssim_min": 0.981006,
+				"count": 7
+			},
+			"webp": {
+				"bytes": 373214,
+				"kb": 364.5,
+				"seconds": 18.401,
+				"ssim_min": 0.960388,
+				"count": 7
+			},
+			"jpeg": {
+				"bytes": 585914,
+				"kb": 572.2,
+				"seconds": 16.67,
+				"ssim_min": 0.982675,
+				"count": 7
+			}
+		}
+	},
+	"production_chain": {
+		"count": 7,
+		"bytes": 420398,
+		"seconds": 17.78,
+		"rows": [
+			{
+				"slot": "product.image",
+				"profile": "w96",
+				"format": "webp",
+				"width": 96,
+				"height": 96,
+				"bytes": 3484,
+				"quality": 80,
+				"ssim": 0.967159,
+				"ssim_target": 0.96,
+				"ssim_ok": true,
+				"content_class": "photo",
+				"encodes": 4,
+				"elapsed_ms": 190.47,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [],
+				"attempts": [
+					{
+						"format": "webp",
+						"quality": 80,
+						"bytes": 3484,
+						"ssim": 0.967159,
+						"encodes": 4,
+						"elapsed_ms": 126.89,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			},
+			{
+				"slot": "product.image",
+				"profile": "w192",
+				"format": "webp",
+				"width": 192,
+				"height": 192,
+				"bytes": 7144,
+				"quality": 70,
+				"ssim": 0.960388,
+				"ssim_target": 0.96,
+				"ssim_ok": true,
+				"content_class": "photo",
+				"encodes": 4,
+				"elapsed_ms": 529.637,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [
+					"quality_floor_reached"
+				],
+				"attempts": [
+					{
+						"format": "webp",
+						"quality": 70,
+						"bytes": 7144,
+						"ssim": 0.960388,
+						"encodes": 4,
+						"elapsed_ms": 461.392,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			},
+			{
+				"slot": "product.image",
+				"profile": "w384",
+				"format": "avif",
+				"width": 384,
+				"height": 384,
+				"bytes": 14992,
+				"quality": 70,
+				"ssim": 0.989865,
+				"ssim_target": 0.96,
+				"ssim_ok": true,
+				"content_class": "photo",
+				"encodes": 4,
+				"elapsed_ms": 1988.517,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [
+					"quality_floor_reached"
+				],
+				"attempts": [
+					{
+						"format": "avif",
+						"quality": 70,
+						"bytes": 14992,
+						"ssim": 0.989865,
+						"encodes": 4,
+						"elapsed_ms": 1909.962,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			},
+			{
+				"slot": "product.image",
+				"profile": "w640",
+				"format": "avif",
+				"width": 640,
+				"height": 640,
+				"bytes": 23331,
+				"quality": 70,
+				"ssim": 0.987522,
+				"ssim_target": 0.96,
+				"ssim_ok": true,
+				"content_class": "photo",
+				"encodes": 4,
+				"elapsed_ms": 3505.778,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [
+					"quality_floor_reached"
+				],
+				"attempts": [
+					{
+						"format": "avif",
+						"quality": 70,
+						"bytes": 23331,
+						"ssim": 0.987522,
+						"encodes": 4,
+						"elapsed_ms": 3423.172,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			},
+			{
+				"slot": "product.image",
+				"profile": "w768",
+				"format": "avif",
+				"width": 768,
+				"height": 768,
+				"bytes": 28456,
+				"quality": 70,
+				"ssim": 0.988182,
+				"ssim_target": 0.96,
+				"ssim_ok": true,
+				"content_class": "photo",
+				"encodes": 4,
+				"elapsed_ms": 3560.22,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [
+					"quality_floor_reached"
+				],
+				"attempts": [
+					{
+						"format": "avif",
+						"quality": 70,
+						"bytes": 28456,
+						"ssim": 0.988182,
+						"encodes": 4,
+						"elapsed_ms": 3473.33,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			},
+			{
+				"slot": "product.image",
+				"profile": "w1280",
+				"format": "avif",
+				"width": 1280,
+				"height": 1280,
+				"bytes": 53131,
+				"quality": 70,
+				"ssim": 0.991266,
+				"ssim_target": 0.96,
+				"ssim_ok": true,
+				"content_class": "photo",
+				"encodes": 4,
+				"elapsed_ms": 3702.472,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [
+					"quality_floor_reached"
+				],
+				"attempts": [
+					{
+						"format": "avif",
+						"quality": 70,
+						"bytes": 53131,
+						"ssim": 0.991266,
+						"encodes": 4,
+						"elapsed_ms": 3602.946,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			},
+			{
+				"slot": "product.image",
+				"profile": "w1920",
+				"format": "avif",
+				"width": 1920,
+				"height": 1920,
+				"bytes": 289860,
+				"quality": 70,
+				"ssim": 0.994981,
+				"ssim_target": 0.96,
+				"ssim_ok": true,
+				"content_class": "photo",
+				"encodes": 4,
+				"elapsed_ms": 4276.228,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [
+					"quality_floor_reached"
+				],
+				"attempts": [
+					{
+						"format": "avif",
+						"quality": 70,
+						"bytes": 289860,
+						"ssim": 0.994981,
+						"encodes": 4,
+						"elapsed_ms": 4161.495,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			}
+		]
+	},
+	"today_single_output": {
+		"bytes": 303670,
+		"seconds": 0.382,
+		"count": 1
+	},
+	"report": {
+		"schema_version": "1.0.0",
+		"engine": {
+			"id": "media_engine.image.render",
+			"version": "1.0.0"
+		},
+		"asset": {
+			"bytes": 1070387,
+			"sha256": "eb6a7a54272c2bb007e57fed2c72404332a9027c7f55f58aa5d287d6e8a8f5fd",
+			"readable": true,
+			"format": "JPEG",
+			"mode": "RGB",
+			"width": 2400,
+			"height": 2400,
+			"megapixels": 5.76,
+			"has_alpha": false,
+			"icc_profile": false,
+			"dpi": null,
+			"id": "fixture:ok_product_1x1_2400"
+		},
+		"slot": "product.image",
+		"policy": {
+			"quality": {
+				"metric": "ssim",
+				"target_ssim_per_class": {
+					"photo": 0.96,
+					"graphic": 0.98,
+					"text": 0.99,
+					"fine_detail": 0.975
+				},
+				"reencode_floor_saving_ratio": 0.1
+			},
+			"matrix_defined": 12,
+			"profiles_defined": 7
+		},
+		"renditions": [
+			{
+				"slot": "product.image",
+				"profile": "w96",
+				"format": "webp",
+				"width": 96,
+				"height": 96,
+				"bytes": 3484,
+				"quality": 80,
+				"ssim": 0.967159,
+				"ssim_target": 0.96,
+				"ssim_ok": true,
+				"content_class": "photo",
+				"encodes": 4,
+				"elapsed_ms": 190.47,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [],
+				"attempts": [
+					{
+						"format": "webp",
+						"quality": 80,
+						"bytes": 3484,
+						"ssim": 0.967159,
+						"encodes": 4,
+						"elapsed_ms": 126.89,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			},
+			{
+				"slot": "product.image",
+				"profile": "w192",
+				"format": "webp",
+				"width": 192,
+				"height": 192,
+				"bytes": 7144,
+				"quality": 70,
+				"ssim": 0.960388,
+				"ssim_target": 0.96,
+				"ssim_ok": true,
+				"content_class": "photo",
+				"encodes": 4,
+				"elapsed_ms": 529.637,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [
+					"quality_floor_reached"
+				],
+				"attempts": [
+					{
+						"format": "webp",
+						"quality": 70,
+						"bytes": 7144,
+						"ssim": 0.960388,
+						"encodes": 4,
+						"elapsed_ms": 461.392,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			},
+			{
+				"slot": "product.image",
+				"profile": "w384",
+				"format": "avif",
+				"width": 384,
+				"height": 384,
+				"bytes": 14992,
+				"quality": 70,
+				"ssim": 0.989865,
+				"ssim_target": 0.96,
+				"ssim_ok": true,
+				"content_class": "photo",
+				"encodes": 4,
+				"elapsed_ms": 1988.517,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [
+					"quality_floor_reached"
+				],
+				"attempts": [
+					{
+						"format": "avif",
+						"quality": 70,
+						"bytes": 14992,
+						"ssim": 0.989865,
+						"encodes": 4,
+						"elapsed_ms": 1909.962,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			},
+			{
+				"slot": "product.image",
+				"profile": "w640",
+				"format": "avif",
+				"width": 640,
+				"height": 640,
+				"bytes": 23331,
+				"quality": 70,
+				"ssim": 0.987522,
+				"ssim_target": 0.96,
+				"ssim_ok": true,
+				"content_class": "photo",
+				"encodes": 4,
+				"elapsed_ms": 3505.778,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [
+					"quality_floor_reached"
+				],
+				"attempts": [
+					{
+						"format": "avif",
+						"quality": 70,
+						"bytes": 23331,
+						"ssim": 0.987522,
+						"encodes": 4,
+						"elapsed_ms": 3423.172,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			},
+			{
+				"slot": "product.image",
+				"profile": "w768",
+				"format": "avif",
+				"width": 768,
+				"height": 768,
+				"bytes": 28456,
+				"quality": 70,
+				"ssim": 0.988182,
+				"ssim_target": 0.96,
+				"ssim_ok": true,
+				"content_class": "photo",
+				"encodes": 4,
+				"elapsed_ms": 3560.22,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [
+					"quality_floor_reached"
+				],
+				"attempts": [
+					{
+						"format": "avif",
+						"quality": 70,
+						"bytes": 28456,
+						"ssim": 0.988182,
+						"encodes": 4,
+						"elapsed_ms": 3473.33,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			},
+			{
+				"slot": "product.image",
+				"profile": "w1280",
+				"format": "avif",
+				"width": 1280,
+				"height": 1280,
+				"bytes": 53131,
+				"quality": 70,
+				"ssim": 0.991266,
+				"ssim_target": 0.96,
+				"ssim_ok": true,
+				"content_class": "photo",
+				"encodes": 4,
+				"elapsed_ms": 3702.472,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [
+					"quality_floor_reached"
+				],
+				"attempts": [
+					{
+						"format": "avif",
+						"quality": 70,
+						"bytes": 53131,
+						"ssim": 0.991266,
+						"encodes": 4,
+						"elapsed_ms": 3602.946,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			},
+			{
+				"slot": "product.image",
+				"profile": "w1920",
+				"format": "avif",
+				"width": 1920,
+				"height": 1920,
+				"bytes": 289860,
+				"quality": 70,
+				"ssim": 0.994981,
+				"ssim_target": 0.96,
+				"ssim_ok": true,
+				"content_class": "photo",
+				"encodes": 4,
+				"elapsed_ms": 4276.228,
+				"crop_method": "center",
+				"upscale_blocked": false,
+				"passthrough": false,
+				"notes": [
+					"quality_floor_reached"
+				],
+				"attempts": [
+					{
+						"format": "avif",
+						"quality": 70,
+						"bytes": 289860,
+						"ssim": 0.994981,
+						"encodes": 4,
+						"elapsed_ms": 4161.495,
+						"accepted": true,
+						"reason": ""
+					}
+				]
+			}
+		],
+		"totals": {
+			"count": 7,
+			"bytes": 420398,
+			"kb": 410.5,
+			"encodes": 28,
+			"elapsed_ms": 17753.3,
+			"vs_source_ratio": 0.3928,
+			"largest": "w1920.avif",
+			"smallest": "w96.webp",
+			"passthrough": 0,
+			"under_spec": 0
+		},
+		"quality": {
+			"measured_count": 7,
+			"unmeasured_count": 0,
+			"ssim_min": 0.960388,
+			"ssim_max": 0.994981,
+			"ssim_mean": 0.982766,
+			"below_target": [],
+			"content_class": "photo"
+		},
+		"findings": [
+			{
+				"severity": "info",
+				"code": "quality_floor",
+				"rendition": "w192.webp",
+				"tr": "w192.webp: kalite tabanına (q=70) dayandı; daha düşük kalite de hedefi tutabilir — arama aralığı genişletilebilir"
+			},
+			{
+				"severity": "info",
+				"code": "quality_floor",
+				"rendition": "w384.avif",
+				"tr": "w384.avif: kalite tabanına (q=70) dayandı; daha düşük kalite de hedefi tutabilir — arama aralığı genişletilebilir"
+			},
+			{
+				"severity": "info",
+				"code": "quality_calibration",
+				"rendition": "w384.avif",
+				"tr": "w384.avif: politikada encoder_quality.avif null (kalibre edilmemiş); ölçülen değer q=70 — politikaya yazılabilir"
+			},
+			{
+				"severity": "info",
+				"code": "quality_floor",
+				"rendition": "w640.avif",
+				"tr": "w640.avif: kalite tabanına (q=70) dayandı; daha düşük kalite de hedefi tutabilir — arama aralığı genişletilebilir"
+			},
+			{
+				"severity": "info",
+				"code": "quality_calibration",
+				"rendition": "w640.avif",
+				"tr": "w640.avif: politikada encoder_quality.avif null (kalibre edilmemiş); ölçülen değer q=70 — politikaya yazılabilir"
+			},
+			{
+				"severity": "info",
+				"code": "quality_floor",
+				"rendition": "w768.avif",
+				"tr": "w768.avif: kalite tabanına (q=70) dayandı; daha düşük kalite de hedefi tutabilir — arama aralığı genişletilebilir"
+			},
+			{
+				"severity": "info",
+				"code": "quality_calibration",
+				"rendition": "w768.avif",
+				"tr": "w768.avif: politikada encoder_quality.avif null (kalibre edilmemiş); ölçülen değer q=70 — politikaya yazılabilir"
+			},
+			{
+				"severity": "info",
+				"code": "quality_floor",
+				"rendition": "w1280.avif",
+				"tr": "w1280.avif: kalite tabanına (q=70) dayandı; daha düşük kalite de hedefi tutabilir — arama aralığı genişletilebilir"
+			},
+			{
+				"severity": "info",
+				"code": "quality_calibration",
+				"rendition": "w1280.avif",
+				"tr": "w1280.avif: politikada encoder_quality.avif null (kalibre edilmemiş); ölçülen değer q=70 — politikaya yazılabilir"
+			},
+			{
+				"severity": "info",
+				"code": "quality_floor",
+				"rendition": "w1920.avif",
+				"tr": "w1920.avif: kalite tabanına (q=70) dayandı; daha düşük kalite de hedefi tutabilir — arama aralığı genişletilebilir"
+			},
+			{
+				"severity": "info",
+				"code": "quality_calibration",
+				"rendition": "w1920.avif",
+				"tr": "w1920.avif: politikada encoder_quality.avif null (kalibre edilmemiş); ölçülen değer q=70 — politikaya yazılabilir"
+			}
+		],
+		"verdict": "ok",
+		"summary_tr": "Varlık fixture:ok_product_1x1_2400 — JPEG 2400×2400 (5.76 MP), RGB, 1·045.3 KB\nSlot product.image: politikada 7 profil / 12 rendition tanımlı; bu koşuda 7 türev üretildi.\nToplam çıktı 410.5 KB (7 dosya), kaynağın 0.39 katı. 28 encode, 17753 ms.\nEn büyük türev: w1920.avif · en küçük: w96.webp.\nSSIM (photo sınıfı): en düşük 0.9604, ortalama 0.9828, en yüksek 0.9950 (7 türevde ölçüldü).\nBulgular (11 info):\n  [info] w192.webp: kalite tabanına (q=70) dayandı; daha düşük kalite de hedefi tutabilir — arama aralığı genişletilebilir\n  [info] w384.avif: kalite tabanına (q=70) dayandı; daha düşük kalite de hedefi tutabilir — arama aralığı genişletilebilir\n  [info] w384.avif: politikada encoder_quality.avif null (kalibre edilmemiş); ölçülen değer q=70 — politikaya yazılabilir\n  [info] w640.avif: kalite tabanına (q=70) dayandı; daha düşük kalite de hedefi tutabilir — arama aralığı genişletilebilir\n  [info] w640.avif: politikada encoder_quality.avif null (kalibre edilmemiş); ölçülen değer q=70 — politikaya yazılabilir\n  [info] w768.avif: kalite tabanına (q=70) dayandı; daha düşük kalite de hedefi tutabilir — arama aralığı genişletilebilir\n  [info] w768.avif: politikada encoder_quality.avif null (kalibre edilmemiş); ölçülen değer q=70 — politikaya yazılabilir\n  [info] w1280.avif: kalite tabanına (q=70) dayandı; daha düşük kalite de hedefi tutabilir — arama aralığı genişletilebilir\n  [info] w1280.avif: politikada encoder_quality.avif null (kalibre edilmemiş); ölçülen değer q=70 — politikaya yazılabilir\n  [info] w1920.avif: kalite tabanına (q=70) dayandı; daha düşük kalite de hedefi tutabilir — arama aralığı genişletilebilir\n  [info] w1920.avif: politikada encoder_quality.avif null (kalibre edilmemiş); ölçülen değer q=70 — politikaya yazılabilir\nKarar: OK"
+	}
+}

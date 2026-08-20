@@ -1,0 +1,25 @@
+{
+  "$schema": "./_schema.md",
+  "slot_key": "listing.gallery_image",
+  "doctype_field": "Listing Image.image",
+  "kind": "image",
+  "is_product_slot": true,
+  "min_long_edge": 2000,
+  "max_long_edge": 2560,
+  "target_long_edge": 2000,
+  "aspect_ratio": "1:1",
+  "aspect_tolerance": 0.02,
+  "fit": "contain",
+  "dpi_policy": {
+    "output_dpi": 72,
+    "strip_input_dpi": true,
+    "pixels_preserved": true,
+    "note": "Ana gorselle AYNI galeride render ediliyor; farkli bir cozunurluk tabani iki gorsel arasinda gorunur netlik farki uretirdi."
+  },
+  "olcum": {
+    "render_box_css_px": 512,
+    "render_box_kaynak": "docs/reports/00-upload-slot-envanteri.md:132 — ana 512x512, dikey kucuk resim 70x70, mobil serit 76x76, lightbox 52x52",
+    "min_long_edge_gerekce": "Ayni ProductImageGallery bilesenine giriyor (ProductImageGallery.ts:246-248); primary_image ile ayni taban.",
+    "max_long_edge_gerekce": "tradehub_core/media/presets.py:14 'safe' preset max_dim=2560"
+  }
+}

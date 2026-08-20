@@ -59,6 +59,13 @@ ACTION_RECLAIM: str = "media.reclaim"
 # belgeler dahil — verinin sunucuyu terk ettiği tek nokta bu. Kimin ne zaman
 # dışarı aktardığı iz bırakmadan gerçekleşmemeli.
 ACTION_EXPORT: str = "media.export"
+# TUR-126 — private dosya imzalı süreli link ile (girişsiz) indirildi.
+# `media_access.download`'ın tek başarı kaydı: kim/ne zaman değil (link
+# giriş gerektirmiyor), hangi dosyanın hangi imzalı linkle dışarı çıktığı.
+ACTION_SIGNED_ACCESS: str = "media.signed_access"
+# TUR-126 §4 — süper-admin bir dosyanın erişim seviyesini (public↔private)
+# değiştirdi. `media_admin.set_access_level` / `media/access_level.py` yazar.
+ACTION_LEVEL_CHANGED: str = "media.level_changed"
 # Satıcı kendi medyasının yedeğini aldı (TUR-131). Geri yüklemeden ayrı bir
 # olay: yedek almak veriyi değiştirmez ama disk tüketir ve "ne zaman yedek
 # aldım" sorusunun cevabı denetimden okunabilmeli.
@@ -75,6 +82,22 @@ ACTION_QUARANTINE: str = "media.quarantine"
 # "kim, hangi dosyayı, ne zaman zararlı bulgusuna rağmen geri açtı" sorusu
 # güvenlik incelemesinin ilk sorusudur.
 ACTION_QUARANTINE_RELEASE: str = "media.quarantine_release"
+# Depolama ayarı değişti (backend, S3 sırları, saklama süreleri) — T-051'in
+# `media_storage_settings.py:116` bıraktığı açık kapanış. O görev bu sabiti
+# kendi dosyasında tanımladı ama BURAYA ekleyemedi (dosya kapsamı dışıydı) ve
+# sonucu ölçtü: kayıtlar ADL'ye yazılıyor, panelin medya denetimi ekranı
+# `MEDIA_ACTIONS` ile süzdüğü için GÖRÜNMÜYOR. Canlıda ölçüldü (2026-08-19):
+# `media.storage_settings_changed` 110 satır — hepsi denetim ekranının
+# dışındaydı. Ad, sabitin tanımlandığı yerdeki değerle BİREBİR aynı olmalı;
+# `media_storage_settings.ACTION_STORAGE_SETTINGS`ten import edilmiyor çünkü
+# o modül `frappe.model.document` çeker ve bu dosyanın sabit listesi bir
+# doctype modülüne bağımlı olmamalı.
+ACTION_SETTINGS_CHANGED: str = "media.storage_settings_changed"
+# K2 (2026-08-20): aktif sürüm geçişi/geri alma. Ad, tanımlandığı yerdeki
+# değerle birebir (`media_version.ACTION_VERSION_*`); import edilmiyor çünkü
+# o modül `frappe.model.document` çeker (settings sabitiyle aynı gerekçe).
+ACTION_VERSION_PROMOTE: str = "media.version_promote"
+ACTION_VERSION_ROLLBACK: str = "media.version_rollback"
 
 MEDIA_ACTIONS: tuple[str, ...] = (
 	ACTION_UPLOAD,
@@ -90,10 +113,15 @@ MEDIA_ACTIONS: tuple[str, ...] = (
 	ACTION_RELEASE,
 	ACTION_RECLAIM,
 	ACTION_EXPORT,
+	ACTION_SIGNED_ACCESS,
+	ACTION_LEVEL_CHANGED,
 	ACTION_BACKUP,
 	ACTION_SCAN,
 	ACTION_QUARANTINE,
 	ACTION_QUARANTINE_RELEASE,
+	ACTION_SETTINGS_CHANGED,
+	ACTION_VERSION_PROMOTE,
+	ACTION_VERSION_ROLLBACK,
 )
 
 # Geri dönüşü olmayan ya da güvenlik anlamı taşıyan olaylar HIGH ile işaretlenir;
@@ -107,6 +135,8 @@ _HIGH_SEVERITY_ACTIONS: frozenset[str] = frozenset(
 		ACTION_ACCESS_DENIED,
 		# Geri alınamaz değil ama güvenlik anlamı taşıyor: veri sunucudan çıktı.
 		ACTION_EXPORT,
+		# Erişim kontrolü kararı: private→public bir dosyayı anonim erişime açar.
+		ACTION_LEVEL_CHANGED,
 		# Zararlı bulgusu ve onun insan eliyle geri alınması — ikisi de güvenlik
 		# incelemesinin doğrudan konusu. `media.scan`'in TEMİZ dalı listede YOK:
 		# her yüklemede bir satır yazılıyor, hepsini HIGH işaretlemek severity
@@ -114,6 +144,12 @@ _HIGH_SEVERITY_ACTIONS: frozenset[str] = frozenset(
 		# False` ile HIGH'a düşüyor).
 		ACTION_QUARANTINE,
 		ACTION_QUARANTINE_RELEASE,
+		# `ACTION_SETTINGS_CHANGED` bilinçli olarak LİSTEDE YOK: aynı eylem adını
+		# hem gerçek ayar değişikliği hem de bağlantı testi kullanıyor
+		# (`media_storage_settings.py:428`). Testler sık koşulur; hepsini HIGH
+		# işaretlemek severity filtresini işe yaramaz hâle getirirdi — `media.scan`
+		# için verilen kararın aynısı. Başarısız test ve reddedilen değişiklik
+		# zaten `allowed=False` ile HIGH'a düşüyor.
 	}
 )
 

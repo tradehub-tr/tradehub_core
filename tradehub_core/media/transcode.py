@@ -364,7 +364,15 @@ def _run_transcode(file_url: str, name: str | None = None) -> None:
 	try:
 		subprocess.run(cmd, check=True, capture_output=True, timeout=_FFMPEG_TIMEOUT_SECONDS)
 		os.replace(dst_path, src_path)
-		frappe.db.set_value("File", name, "th_media_video_status", VIDEO_STATUS_READY, update_modified=False)
+		# `th_optimized_at` da damgalanıyor: panel "optimize edildi / bekliyor"
+		# durumunu bu alandan türetiyor (inventory._decorate) — yazılmazsa
+		# başarıyla transcode edilen video sonsuza dek "bekliyor" görünür.
+		frappe.db.set_value(
+			"File",
+			name,
+			{"th_media_video_status": VIDEO_STATUS_READY, "th_optimized_at": frappe.utils.now()},
+			update_modified=False,
+		)
 		frappe.db.commit()
 		audit.log_media_event(
 			action=audit.ACTION_OPTIMIZE, file_url=file_url, context={"kind": "video_transcode"}

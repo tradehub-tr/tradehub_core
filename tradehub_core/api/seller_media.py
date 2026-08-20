@@ -19,12 +19,17 @@ Bu dosyada iş mantığı YOKTUR: yetki, parametre doğrulama, çağırma. Aynı
 from __future__ import annotations
 
 import base64
+import hashlib
 import os
+import re
 
 import frappe
+from frappe.utils import cint
 
+from tradehub_core.api._pagination import normalize_pagination
 from tradehub_core.media import (
 	audit,
+	browse,
 	chunked,
 	engine,
 	files,
@@ -102,9 +107,144 @@ def get_my_media(
 	# Üstveri tek sorguda ekleniyor. Satır başına ayrı çağrı, 200 satırlık bir
 	# sayfada 200 gidiş dönüş demekti.
 	ustveri = metadata.read_many([i["file_url"] for i in sonuc["items"]], store)
+	zengin = _lqip_by_url([i["file_url"] for i in sonuc["items"]], store)
 	for i in sonuc["items"]:
 		i.update(ustveri.get(i["file_url"]) or {})
+		i.update(zengin.get(i["file_url"]) or {})
 	return sonuc
+
+
+def _lqip_by_url(file_urls: list[str], store: str) -> dict[str, dict]:
+	"""T-065 FE beslemesi: adres → `{lqip_data_uri, dominant_color}`. 2 sorgu.
+
+	File↔Asset bağı docname üzerinden ve aynı adreste MÜKERRER File satırları
+	var (rapor 66 §9) — köprü bu yüzden `file_url` join'iyle kurulur; docname
+	eşlemesi panelde yazı-tura görürdü. Kiracı sınırı: yalnız BU MAĞAZANIN
+	varlıkları (`owner_seller = store`) — satır listesi zaten mağaza-scoped
+	ama varlık katmanında ikinci kemer ucuz ve `_owns_listing`'deki ders
+	burada da geçerli.
+	"""
+	adresler = sorted({u for u in (file_urls or []) if u})
+	if not adresler or not store:
+		return {}
+	# frappe.get_all BİLİNÇLİ: girdiler mağazanın kendi liste sayfasından,
+	# çıktı yalnız adres→görsel-özeti; owner_seller süzgeci kiracı kemeri.
+	varliklar = frappe.get_all(
+		"Media Asset",
+		filters={"owner_seller": store, "state": "ready"},
+		or_filters=[],
+		fields=["name", "source_file"],
+	)
+	if not varliklar:
+		return {}
+	dosya_url = {
+		f["name"]: f["file_url"]
+		for f in frappe.get_all(
+			"File",
+			filters={"name": ["in", [v["source_file"] for v in varliklar]]},
+			fields=["name", "file_url"],
+		)
+		if f.get("file_url") in set(adresler)
+	}
+	secili = {v["name"]: dosya_url[v["source_file"]] for v in varliklar if v["source_file"] in dosya_url}
+	if not secili:
+		return {}
+	from tradehub_core.tradehub_core.doctype.media_version.media_version import (
+		version_enrichment_for_assets,
+	)
+
+	zengin = version_enrichment_for_assets(sorted(secili))
+	cikti: dict[str, dict] = {}
+	for varlik_adi, url in secili.items():
+		v = zengin.get(varlik_adi) or {}
+		if url not in cikti and (v.get("lqip_data_uri") or v.get("dominant_color")):
+			cikti[url] = {
+				"lqip_data_uri": v.get("lqip_data_uri") or "",
+				"dominant_color": v.get("dominant_color") or "",
+			}
+	return cikti
+
+
+def _owns_listing(store: str, listing: str) -> bool:
+	"""İlan gerçekten bu mağazanın mı.
+
+	`listing` istemciden geliyor ve klasör yolunun bir parçası. Ağaç zaten
+	mağazaya göre kuruluyor, ama doğrulama BURADA da yapılıyor: tek katmanlı
+	izolasyon, o katmanı bir gün kimse fark etmeden gevşetince sessizce
+	sızıntıya döner. `Payment Transaction` açığı tam olarak böyle oluşmuştu.
+	"""
+	if not store or not listing:
+		return False
+	return frappe.db.get_value("Listing", listing, "seller_profile") == store
+
+
+@frappe.whitelist()
+def browse_my_media(
+	scope: str = "",
+	category: str = "",
+	listing: str = "",
+	page: int = 1,
+	page_size: int = 50,
+	search: str = "",
+) -> dict:
+	"""Satıcının KENDİ medyası — sanal klasör ağacında bir seviye.
+
+	Parametre derinliği seviyeyi belirler:
+
+	    (yok)                              kök klasörler
+	    scope=public                       kategori klasörleri
+	    scope=public&category=X            o kategorideki ürün klasörleri
+	    scope=public&category=X&listing=L  o ürünün dosyaları
+	    scope=public&category=__unused__   hiçbir üründe durmayan yüklemeler
+	    scope=private                      kendi özel dosyaları
+	    scope=chat                         kendi sohbet ekleri
+
+	`store` parametresi YOKTUR ve EKLENMEYECEK. Mağaza her çağrıda oturumdan
+	`_store()` ile türetilir; izolasyonun tek ve mutlak dayanağı bu. İstemciden
+	gelen bir mağaza değeri kabul edilseydi satıcı başkasının mağaza kodunu
+	yazıp bütün kütüphanesini okurdu.
+
+	Bulunamayan kategori/ürün için hata değil BOŞ sonuç dönülür: "yok" ile
+	"senin değil" ayrımı, başka mağazanın kategori ve ürün kimliklerini deneme
+	yoluyla keşfetmeye kapı açardı.
+	"""
+	store = _store()
+	scope = (scope or "").strip()
+	category = (category or "").strip()
+	listing = (listing or "").strip()
+	search = (search or "").strip()
+	page, page_size, _start = normalize_pagination(
+		page, page_size, default_page_size=50, max_page_size=browse.MAX_PAGE_SIZE
+	)
+
+	if not scope:
+		return browse.seller_root(store)
+	if scope == "chat":
+		# Sohbet künyesi zaten mağazaya göre süzülüyor (`Chat Attachment.seller`).
+		return browse.files(
+			scope="chat", store=store, page=page, page_size=page_size, search=search
+		)
+	if scope == "private":
+		return browse.seller_private_files(
+			store, page=page, page_size=page_size, search=search
+		)
+	if scope != "public":
+		frappe.throw(frappe._("Geçersiz kapsam: {0}").format(scope))
+
+	if not category:
+		return browse.seller_public_categories(store)
+	if listing and not _owns_listing(store, listing):
+		return {"items": [], "total": 0}
+	if listing or category == browse.UNUSED:
+		return browse.seller_public_files(
+			store,
+			category=category,
+			listing=listing,
+			page=page,
+			page_size=page_size,
+			search=search,
+		)
+	return browse.seller_listings(store, category)
 
 
 @frappe.whitelist()
@@ -117,6 +257,30 @@ def get_my_usage(file_url: str) -> dict:
 	store = _store()
 	ownership.assert_owns(store, file_url)
 	return usage.resolve(file_url, store=store)
+
+
+@frappe.whitelist()
+def list_orphans(days_unused: int = 30, start: int = 0, page_length: int = 50) -> dict:
+	"""ÖKSÜZ dosyalarım — hiçbir taranan kaynak alanda geçmeyen ve
+	yüklenmesinin üzerinden en az `days_unused` gün geçmiş dosyalar (T-043).
+
+	YALNIZ LİSTELER. Bu uçtan silme yapılamaz ve yapılmayacak: silme mevcut
+	çöp akışının (`preview_release` → `archive_media` → `purge_media`) işi;
+	görünürlük ile silme aynı uca konursa tarama listesindeki bir eksik
+	doğrudan veri kaybına döner (bkz. rapor 57 — GC 3.821 dosyayı silecekti).
+
+	Mağaza parametre DEĞİL, oturumdan çözülür (modül başlığındaki kural).
+	Kullanım kararı `media/usage.py`'deki TEK kaynak listesinden gelir;
+	yanıttaki `scan` alanı taramanın neyi GÖRMEDİĞİNİ de söyler ve ekran
+	bunu göstermek zorundadır.
+	"""
+	store = _store()
+	return usage.store_orphans(
+		store,
+		days_unused=cint(days_unused),
+		start=cint(start),
+		page_length=cint(page_length),
+	)
 
 
 @frappe.whitelist()
@@ -260,12 +424,18 @@ IMAGE_TO_WEBP_EXTENSIONS: frozenset[str] = frozenset(
 
 
 @frappe.whitelist()
-def upload_media(file_name: str = "", content: str = "") -> dict:
+def upload_media(file_name: str = "", content: str = "", slot: str = "") -> dict:
 	"""Satıcı kütüphanesine dosya yükle.
 
 	Frappe'nin genel yükleme ucu yerine bu uç kullanılıyor, çünkü orada bu
 	kütüphanenin tür ve boyut kuralları yok. İçerik base64 gelir; bu kurulumda
 	çok parçalı gönderim oturum katmanında CSRF uyuşmazlığı üretiyor.
+
+	`slot` (W7 — rapor 78 W5-2): yüklemenin hangi slot politikasına tabi olduğu
+	(`product.image` gibi). Verilirse slot kuralları SUNUCUDA uygulanır
+	(`upload_policy.check_slot` → `pipeline/policy/engine.py`); istemcideki ön
+	kontrol aynı politikanın kopyası değil ÖNİZLEMESİDİR ve atlatılabilir.
+	Verilmezse (genel kütüphane yüklemesi) bugünkü davranış korunur.
 	"""
 	store = _store()
 
@@ -279,10 +449,10 @@ def upload_media(file_name: str = "", content: str = "") -> dict:
 			upload_policy.CONTENT_UNREADABLE, frappe._("Dosya içeriği okunamadı.")
 		)
 
-	return _kaydet(file_name, icerik, store, via="seller_library")
+	return _kaydet(file_name, icerik, store, via="seller_library", slot=slot)
 
 
-def _kaydet(file_name: str, icerik: bytes, store: str, *, via: str) -> dict:
+def _kaydet(file_name: str, icerik: bytes, store: str, *, via: str, slot: str = "") -> dict:
 	"""Politikadan geçir, kaydı aç, denetime yaz.
 
 	Tek parça ve parçalı yükleme aynı kuyruğa buradan giriyor. İki ayrı yerde
@@ -292,6 +462,12 @@ def _kaydet(file_name: str, icerik: bytes, store: str, *, via: str) -> dict:
 	"""
 	karar = upload_policy.check(file_name, content=icerik, media_endpoint=True)
 
+	# W7 — slot politikası kapısı (rapor 78 W5-2). Genel denetimden SONRA,
+	# dönüşümden ÖNCE ve ORİJİNAL içerik üstünde: satıcının yüklediği dosya
+	# neyse politika onu ölçer. Slot boşsa hiçbir şey yapmaz (eski davranış).
+	# Bu uca gelen herkes oturumdan mağazaya çözülmüş bir satıcıdır (`_store`).
+	upload_policy.check_slot(slot, karar.file_name, icerik, role="seller")
+
 	video_mi = karar.kind == upload_policy.KIND_VIDEO
 
 	# Sunucu garanti-WebP (TUR-128): Safari/iOS/Capacitor `canvas.toBlob(
@@ -299,14 +475,26 @@ def _kaydet(file_name: str, icerik: bytes, store: str, *, via: str) -> dict:
 	# gönderir. `.webp` uzantısıyla gelen içerik zaten WebP'yse dokunulmaz —
 	# çift sıkıştırma yok. Politika denetimi ORİJİNAL içerik üstünde yapıldı;
 	# dönüşüm ancak ondan sonra.
+	#
+	# W7 (rapor 64 EK-2): dönüşüm istemcinin elindeki baytları YOK EDİYOR —
+	# orijinalin sha256'sı dönüşümden ÖNCE hesaplanır ve kayıt açıldıktan sonra
+	# `files.record_original_hash` ile saklanır; tekilleştirme araması
+	# (`inventory.find_by_sha256` katman 3) aynı dosyanın ikinci yüklemesini
+	# ancak böyle yakalayabilir.
+	orijinal_sha256: str | None = None
 	if upload_policy.extension_of(karar.file_name) in IMAGE_TO_WEBP_EXTENSIONS:
 		try:
-			icerik = engine.to_webp(icerik)
+			donusen = engine.to_webp(icerik)
+			if donusen != icerik:
+				orijinal_sha256 = hashlib.sha256(icerik).hexdigest()
+			icerik = donusen
 			karar.file_name = os.path.splitext(karar.file_name)[0] + ".webp"
 		except Exception as exc:
 			# `to_webp` Pillow'un açamadığı bir biçimle (ör. bazı HEIC varyantları)
 			# karşılaşırsa orijinal içerikle devam edilir — yükleme reddedilmez,
-			# yalnız Safari-fallback tamamlanmamış olur.
+			# yalnız Safari-fallback tamamlanmamış olur. Orijinal baytlar bu
+			# durumda OLDUĞU GİBİ saklandığı için hash kaydına gerek yok:
+			# içerik-adresli ad (katman 1) onları zaten bulur.
 			frappe.log_error(
 				title="upload_media to_webp başarısız", message=f"{karar.file_name}: {exc}"
 			)
@@ -319,6 +507,17 @@ def _kaydet(file_name: str, icerik: bytes, store: str, *, via: str) -> dict:
 	doc.insert(ignore_permissions=True)
 	frappe.db.commit()
 
+	if orijinal_sha256:
+		try:
+			files.record_original_hash(doc, store, orijinal_sha256, slot=slot)
+		except Exception:
+			# Best-effort: hash kaydı düşerse yükleme DÜŞMEZ — dedup uyarısı
+			# eksik kalır, satıcının dosyası kalmaz. Sebep görünür olmalı.
+			frappe.log_error(
+				title="upload_media orijinal hash kaydedilemedi",
+				message=f"{doc.file_url}\n\n{frappe.get_traceback()}",
+			)
+
 	audit.log_media_event(
 		action=audit.ACTION_UPLOAD,
 		file_url=doc.file_url,
@@ -327,6 +526,9 @@ def _kaydet(file_name: str, icerik: bytes, store: str, *, via: str) -> dict:
 			"bytes": len(icerik),
 			"via": via,
 			"kind": karar.kind,
+			# Slot beyanı denetime yazılır: kapının sahada hangi slotlarla
+			# çağrıldığı ancak ölçülerek bilinir (uyarı izleriyle aynı gerekçe).
+			**({"slot": slot} if slot else {}),
 			# Zararsız tür uyuşmazlığı reddedilmiyor ama iz bırakıyor: sahada
 			# ne kadar sık olduğunu ancak ölçerek bilebiliriz.
 			**({"warnings": karar.warnings} if karar.warnings else {}),
@@ -339,7 +541,17 @@ def _kaydet(file_name: str, icerik: bytes, store: str, *, via: str) -> dict:
 		# hemen `processing` yapıp gerçek işi `long` kuyruğa devreder.
 		transcode.enqueue_transcode(doc.file_url)
 
-	return {"file_url": doc.file_url, "file_name": doc.file_name, "bytes": doc.file_size}
+	return {
+		"file_url": doc.file_url,
+		"file_name": doc.file_name,
+		"bytes": doc.file_size,
+		# Panel yükleme anında rozet gösterebilsin diye durum dönüşe ekleniyor.
+		# `enqueue_transcode` durumu doc'a değil DB'ye yazdı — taze okunmalı;
+		# video değilse alan hiç yazılmadı, None döner.
+		"video_status": (
+			frappe.db.get_value("File", doc.name, "th_media_video_status") if video_mi else None
+		),
+	}
 
 
 @frappe.whitelist()
@@ -631,3 +843,229 @@ def download_backup_export(set_id: str):
 	)
 	# Gönderici site'ın private kökünden itibaren göreli yol bekliyor.
 	return send_private_file(os.path.relpath(tam, frappe.get_site_path("private")))
+
+
+# --- Gerçek klasörler (T-094) ------------------------------------------------
+#
+# Buraya kadarki gezgin ağacı SANALDI (kategori/üründen türetilir, `browse`).
+# Aşağısı satıcının KENDİ kurduğu ağaç: `Media Folder` + `Media Folder Item`.
+#
+# İzolasyon deseni dosyanın geri kalanıyla aynı: mağaza HER uçta oturumdan
+# (`_store()`) çözülür, istemciden asla alınmaz; klasör kimliği istemciden
+# gelir ve `_my_folder` ile mağazaya karşı doğrulanır. Başka mağazanın klasörü
+# "yetkin yok" değil "bulunamadı" ile reddedilir — varlığını doğrulamak kimlik
+# uzayını deneme yoluyla keşfe açar (`ownership.assert_owns` ile aynı ilke).
+
+
+def _my_folder(folder: str, store: str) -> dict:
+	"""Klasör bu mağazanın mı — değilse ya da yoksa 'bulunamadı'.
+
+	Klasör uçlarının TAMAMI buradan geçer. Kontrol tek yerde: uçlar arasında
+	ayrışırsa biri diğerinden gevşek kalır (`_toplu` ile aynı gerekçe).
+	"""
+	satir = frappe.db.get_value(
+		"Media Folder", folder, ["name", "folder_name", "parent_folder", "store"], as_dict=True
+	)
+	if not satir or satir.store != store:
+		frappe.throw(frappe._("Klasör bulunamadı."), frappe.DoesNotExistError)
+	return satir
+
+
+@frappe.whitelist()
+def list_folders() -> dict:
+	"""Mağazanın TÜM klasörleri (düz liste, `parent_folder` ile ağaç kurulur)
+	+ klasör başına dosya sayısı.
+
+	Sayılar tek GROUP BY sorgusuyla gelir; klasör başına ayrı COUNT, 50
+	klasörlük bir kütüphanede 50 gidiş dönüş demekti.
+	"""
+	store = _store()
+	klasorler = frappe.get_all(
+		"Media Folder",
+		filters={"store": store},
+		fields=["name", "folder_name", "parent_folder"],
+		order_by="folder_name asc",
+		limit_page_length=0,
+	)
+	sayilar = {
+		s.folder: s.n
+		for s in frappe.get_all(
+			"Media Folder Item",
+			filters={"store": store},
+			fields=["folder", "count(name) as n"],
+			group_by="folder",
+		)
+	}
+	for k in klasorler:
+		k["file_count"] = sayilar.get(k["name"], 0)
+
+	from tradehub_core.tradehub_core.doctype.media_folder.media_folder import MAX_DEPTH
+
+	return {"folders": klasorler, "max_depth": MAX_DEPTH}
+
+
+@frappe.whitelist(methods=["POST"])
+def create_folder(folder_name: str = "", parent_folder: str = "") -> dict:
+	"""Klasör aç. Ad/derinlik/benzersizlik kuralları DocType'ta
+	(`media_folder.py`) — burada tekrar edilmez, ikinci kopya ayrışır."""
+	store = _store()
+	if parent_folder:
+		_my_folder(parent_folder, store)
+	doc = frappe.get_doc(
+		{
+			"doctype": "Media Folder",
+			"folder_name": folder_name,
+			"parent_folder": parent_folder or "",
+			"store": store,
+		}
+	).insert(ignore_permissions=True)
+	return {
+		"name": doc.name,
+		"folder_name": doc.folder_name,
+		"parent_folder": doc.parent_folder or "",
+	}
+
+
+@frappe.whitelist(methods=["POST"])
+def rename_folder(folder: str = "", new_name: str = "") -> dict:
+	"""Klasörün adını değiştir. Kimlik (`name`) değişmez — değişseydi alt
+	klasörlerin ve dosya bağlarının tuttuğu bağlar kırılırdı."""
+	store = _store()
+	_my_folder(folder, store)
+	doc = frappe.get_doc("Media Folder", folder)
+	doc.folder_name = new_name
+	doc.save(ignore_permissions=True)
+	return {"name": doc.name, "folder_name": doc.folder_name}
+
+
+@frappe.whitelist(methods=["POST"])
+def delete_folder(folder: str = "") -> dict:
+	"""Klasörü sil. DOLU klasör reddedilir (alt klasör ya da dosya varsa) —
+	davranışın gerekçesi `media_folder.py:on_trash` docstring'inde."""
+	store = _store()
+	_my_folder(folder, store)
+	# Ret `on_trash`'te; buradan silinen her yol aynı korumadan geçer.
+	frappe.delete_doc("Media Folder", folder, ignore_permissions=True)
+	return {"deleted": folder}
+
+
+@frappe.whitelist(methods=["POST"])
+def move_media(file_urls: str | list[str] | None = None, folder: str = "") -> dict:
+	"""Seçili dosyaları klasöre taşı — `folder` boşsa köke (bağ silinir).
+
+	Bir dosya bir mağazada en çok BİR klasörde durur: eski bağ silinir, yenisi
+	yazılır. Sahibi olunmayan dosya sessizce atlanmaz, `skipped` altında
+	sayılır; hangi dosya olduğu dönülmez (`archive_media` ile aynı gerekçe).
+	"""
+	store = _store()
+	if folder:
+		_my_folder(folder, store)
+	urls = _urls(file_urls)
+
+	tasindi = 0
+	hatali: list[dict] = []
+	atlanan = 0
+	for url in urls:
+		url = (url or "").split("?")[0]
+		if not ownership.owns(store, url):
+			atlanan += 1
+			continue
+		try:
+			for eski in frappe.get_all(
+				"Media Folder Item",
+				filters={"store": store, "file_url": url},
+				pluck="name",
+			):
+				frappe.delete_doc(
+					"Media Folder Item", eski, ignore_permissions=True, force=True
+				)
+			if folder:
+				frappe.get_doc(
+					{
+						"doctype": "Media Folder Item",
+						"folder": folder,
+						"file_url": url,
+						"store": store,
+					}
+				).insert(ignore_permissions=True)
+			tasindi += 1
+		except Exception as e:
+			hatali.append({"file_url": url, "error": str(e)})
+
+	return {"moved": tasindi, "failed": hatali, "skipped": atlanan}
+
+
+@frappe.whitelist()
+def list_folder_media(
+	folder: str = "", page: int = 1, page_size: int = 50, search: str = ""
+) -> dict:
+	"""Bir klasördeki dosyalar — `get_my_media` satırlarıyla aynı biçimde,
+	ekran iki ucu tek kodla çizebilsin diye.
+
+	Aynı adrese ait birden çok `File` satırı olabilir (bkz. `ownership`);
+	`group_by` ile adres başına TEK satır dönülür.
+	"""
+	store = _store()
+	_my_folder(folder, store)
+	page, page_size, start = normalize_pagination(
+		page, page_size, default_page_size=50, max_page_size=200
+	)
+
+	urls = frappe.get_all(
+		"Media Folder Item", filters={"folder": folder, "store": store}, pluck="file_url"
+	)
+	if not urls:
+		return {"items": [], "total": 0}
+
+	filtre: dict = {"file_url": ["in", urls]}
+	if (search or "").strip():
+		filtre["file_name"] = ["like", f"%{search.strip()}%"]
+
+	toplam = len(
+		frappe.get_all("File", filters=filtre, fields=["file_url"], group_by="file_url")
+	)
+	satirlar = frappe.get_all(
+		"File",
+		filters=filtre,
+		fields=["name", "file_url", "file_name", "file_size", "creation"],
+		group_by="file_url",
+		order_by="creation desc",
+		limit_start=start,
+		limit_page_length=page_size,
+	)
+
+	ustveri = metadata.read_many([s["file_url"] for s in satirlar], store)
+	for s in satirlar:
+		s.update(ustveri.get(s["file_url"]) or {})
+	return {"items": satirlar, "total": toplam}
+
+
+@frappe.whitelist()
+def find_in_my_library(sha256: str) -> dict:
+	"""Yükleme ön kontrolü için tekilleştirme araması (T-042).
+
+	İstemci dosyanın SHA-256'sını tarayıcıda hesaplar (WebCrypto) ve yüklemeye
+	başlamadan sorar; eşleşme varsa panel "bu dosya kütüphanenizde" uyarısı
+	gösterir. Bu bir UYARI ucudur, engel değil — yükleme yine yapılabilir.
+
+	Eşleşme ÜÇ katmanda aranır (`inventory.find_by_sha256` — katman ayrıntısı
+	ve bilinçli sınırlar orada): (1) içerik-adresli dosya adı, (2) boru
+	hattının `Media Version.source_hash` kaydı üzerinden kaynak dosya
+	(rapor 75 kusur #2: işlenmiş legacy adlı görseller katman 1'de görünmezdi),
+	(3) yükleme anında dönüştürülen (PNG→WebP) görsellerin ORİJİNAL
+	baytlarının hash'i — `Media Asset.original_sha256` (rapor 64 EK-2 / W7).
+
+	Kiracı sınırı: mağaza OTURUMDAN çözülür (`_store`), parametreyle mağaza
+	ALINMAZ ve sorgu `ownership.scope`'tan geçer — başka satıcının dosyası ne
+	döner ne de varlığı sezdirilir: eşleşme yoksa ve başka mağazada varsa cevap
+	AYNI `{"found": false}`tır (deneme yoluyla envanter keşfine kapı yok).
+
+	Dönen alanlar bilinçli olarak üçle sınırlı: `file_url`, `file_name`,
+	`uploaded_at`. Sahip/kullanım bilgisi bu uca taşınmaz.
+	"""
+	store = _store()
+	h = (sha256 or "").strip().lower()
+	if not re.fullmatch(r"[0-9a-f]{64}", h):
+		frappe.throw(frappe._("64 haneli onaltılık SHA-256 bekleniyor."))
+	eslesen = inventory.find_by_sha256(h, store)
+	return {"found": bool(eslesen), "file": eslesen}

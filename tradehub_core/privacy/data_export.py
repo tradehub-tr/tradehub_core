@@ -11,6 +11,55 @@ import zipfile
 import frappe
 from frappe.utils import add_to_date, get_files_path, now_datetime
 
+# T-134 / KVKK denetim izi — veri sahibi (m.11) akışının eylem sabitleri.
+# Desen mevcut: `media/audit.py` ACTION_* sabitleri + `account_deletion.py`nin
+# `log_decision(action="account.anonymize")` çağrısı. Yeni desen İCAT EDİLMEDİ.
+# Kimlik MASKELEME kuralı: bu satırlara kullanıcı e-postası YAZILMAZ — satır
+# `Data Export Request` kaydına işaret eder, kimlik orada (satır silinirse
+# denetim satırı kimliksiz kalır; bu bilinçli: ADL saklama süresi talep
+# kaydından uzun olabilir ve anonimleştirme sonrası ADL'de PII kalmamalı).
+ACTION_EXPORT_GENERATED: str = "privacy.export_generated"
+ACTION_EXPORT_PURGED: str = "privacy.export_purged"
+
+
+def _collect_user_media(user: str) -> list[dict]:
+	"""Ö-K2 — veri sahibinin KENDİ medyasını KVKK maskesiyle toplar.
+
+	KVKK maskesi = medya envanterinin (`media/inventory.py`) HİJYEN KEMERLERİ,
+	yeniden uygulanmadı, doğrudan `_base_query()` çağrılıyor:
+	  * yalnız public (`is_private=0`) — KYB/KYC evrakı gibi private dosyalar dışarıda,
+	  * klasör değil, KVKK/hassas doctype eki değil (EXCLUDED_DOCTYPES),
+	  * HASSAS-İKİZ maskesi: hassas bir belgeyle AYNI içeriğe (content_hash) sahip
+	    public kopya export'a GİRMEZ.
+	Sahiplik envanter listesiyle BİREBİR aynı süzgeçten (`ownership.scope`): yalnız
+	kullanıcının mağazasının yüklediği/kullandığı dosyalar. Böylece BAŞKASININ
+	göremeyeceği dosya export'a sızmaz — süzgeci gevşetmek (scope'u atlamak ya da
+	ham `File` sorgusu) doğrudan bir veri sızıntısıdır (vacuity testi bunu kanıtlar).
+
+	Mağazası olmayan kullanıcı (alıcı) için boş liste: bu modelde public medyayı
+	mağazalar yükler (`media/ownership.py` ölçümü: 2839/2839 dosya bir mağazaya
+	çözülüyor).
+	"""
+	from frappe.query_builder.functions import Max, Min
+
+	from tradehub_core.media import inventory, ownership
+
+	store = ownership.store_of(user)
+	if not store:
+		return []
+
+	f, query = inventory._base_query()
+	query = ownership.scope(query, f, store)
+	# `_base_query()` `file_url` ile grupluyor; gruplanmayan kolonlar agregatla
+	# seçilir (envanterin `list_files` deseniyle aynı).
+	rows = query.select(
+		f.file_url,
+		Min(f.file_name).as_("file_name"),
+		Max(f.file_size).as_("file_size"),
+		Min(f.creation).as_("uploaded_at"),
+	).run(as_dict=True)
+	return rows
+
 _EXPORTABLE_DOCTYPES = {
 	"User": {
 		"filters_field": "name",
@@ -231,6 +280,26 @@ def generate_user_data_export(request_name: str) -> None:
 					entry["note"] = "Kayıt sayısı limiti aştığından veriler kısmi olabilir."
 				manifest[dt] = entry
 
+			# Ö-K2 — veri sahibinin yüklediği medya. Ayrı bölüm: kaynağı `tabFile`,
+			# `_EXPORTABLE_DOCTYPES` deseni (doctype+filters_field) buna uymuyor.
+			# KVKK maskesi `_collect_user_media` içinde (hassas-ikiz + sahiplik).
+			try:
+				media_rows = _collect_user_media(user)
+			except Exception:
+				frappe.log_error(
+					f"Failed to collect user media during data export for user {user}",
+					"data_export.generate_user_data_export",
+				)
+				media_rows = []
+
+			if media_rows:
+				zf.writestr(
+					"media.json",
+					json.dumps(media_rows, ensure_ascii=False, indent=2, default=str),
+				)
+				zf.writestr("media.csv", _records_to_csv(media_rows))
+				manifest["File"] = {"label": "Yüklenen Medya", "count": len(media_rows)}
+
 			zf.writestr(
 				"manifest.json",
 				json.dumps(
@@ -283,6 +352,32 @@ def generate_user_data_export(request_name: str) -> None:
 			},
 			update_modified=False,
 		)
+
+		# T-134: KVKK m.11 dışa aktarım izi — PII arşivi diskte OLUŞTU (veri
+		# sunucu içinde de olsa tek dosyada toplandı; media.export ile aynı
+		# gerekçeyle HIGH). Token/dosya yolu yazılmaz; boyut ve kapsam yazılır.
+		try:
+			from tradehub_core.audit.log import DECISION_ALLOW, LAYER_L3, SEVERITY_HIGH, log_decision
+
+			log_decision(
+				# ADL.actor Link→User doğrular; "System" diye bir User YOK — canlıda
+				# ölçüldü: actor="System" satırı sessizce düşüyor (rapor 92 §4).
+				# Sistem işleri Frappe'de Administrator oturumuyla koşar.
+				actor="Administrator",
+				action=ACTION_EXPORT_GENERATED,
+				decision=DECISION_ALLOW,
+				rule_id="kvkk.article11",
+				layer=LAYER_L3,
+				object_doctype="Data Export Request",
+				object_name=request_name,
+				severity=SEVERITY_HIGH,
+				context={"doctypes": len(manifest), "zip_bytes": len(zip_bytes)},
+			)
+		except Exception:
+			frappe.log_error(
+				f"Failed to write audit log after export generation {request_name}",
+				"data_export.generate_user_data_export",
+			)
 		frappe.db.commit()
 
 		_send_export_ready_email(user, request_name, token)
@@ -369,5 +464,23 @@ def cleanup_expired_exports() -> None:
 		frappe.db.set_value("Data Export Request", exp.name, "status", "Expired", update_modified=False)
 
 	if expired:
+		# T-134: silme izi — süresi dolan KVKK arşivlerinin imhası TEK satırda
+		# (`log_media_batch` deseni: toplu iş = tek özet kaydı). Talep adları
+		# PII değildir (DER-xxxx); dosya yolları yazılmaz.
+		try:
+			from tradehub_core.audit.log import DECISION_ALLOW, LAYER_L3, log_decision
+
+			log_decision(
+				# actor="System" değil — ADL.actor Link→User (rapor 92 §4).
+				actor="Administrator",
+				action=ACTION_EXPORT_PURGED,
+				decision=DECISION_ALLOW,
+				rule_id="kvkk.article7",
+				layer=LAYER_L3,
+				object_doctype="Data Export Request",
+				context={"purged": len(expired), "requests": [e.name for e in expired]},
+			)
+		except Exception:
+			frappe.log_error("Failed to write audit log for export purge", "data_export.cleanup_expired_exports")
 		frappe.db.commit()
 		frappe.logger().info(f"Cleaned up {len(expired)} expired data exports")

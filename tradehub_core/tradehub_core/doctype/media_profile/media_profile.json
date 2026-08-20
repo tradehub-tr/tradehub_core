@@ -1,0 +1,177 @@
+{
+	"$comment": "DALGA A / A1a · Türev reçetesi — VERİ, kod değil. Kaynak şema: media/pipeline/doctype_specs/media_profile.json. SAPMA: `slot_key` alanı eklendi (kaynakta yok) çünkü Media Policy DocType'ı bu dalgada kurulmuyor; profil ile slot bağı burada tutulur.",
+	"actions": [],
+	"allow_rename": 0,
+	"autoname": "field:profile_key",
+	"creation": "2026-08-18 00:00:00.000000",
+	"doctype": "DocType",
+	"editable_grid": 0,
+	"engine": "InnoDB",
+	"field_order": [
+		"profile_key",
+		"policy_profile",
+		"label",
+		"slot_key",
+		"enabled",
+		"cb_geometry",
+		"aspect_ratio",
+		"aspect_ratio_value",
+		"fit",
+		"sb_output",
+		"widths",
+		"formats",
+		"cb_output",
+		"quality_target",
+		"generation"
+	],
+	"fields": [
+		{
+			"fieldname": "profile_key",
+			"fieldtype": "Data",
+			"label": "Profil Anahtarı",
+			"reqd": 1,
+			"unique": 1,
+			"length": 64,
+			"in_list_view": 1,
+			"description": "Docname (autoname = field:profile_key), biçimi `{slot_key}:{policy_profile}` — ör. `product.image:w384`. GLOBAL tekil olmak zorunda olduğu için slot öneki taşır: politika profil adları slotlar arası çakışıyor (`w64/w128/w256/w512/og1200x630` hem brand.logo hem seller.logo'da var). Kütüphanenin beklediği ham ad `policy_profile` alanındadır."
+		},
+		{
+			"fieldname": "policy_profile",
+			"fieldtype": "Data",
+			"label": "Politika Profil Adı",
+			"reqd": 1,
+			"length": 64,
+			"search_index": 1,
+			"in_list_view": 1,
+			"description": "Slot politikasındaki HAM profil adı (`w96`, `w384`, `og1200x630`) — media/pipeline/policy/slots/*.json `profiles[].name` ile birebir aynı. `Media Rendition.profile` kolonuna bu değer yazılır; manifest kütüphanesi (api/media_manifest.py `available_profiles`) türevleri politika adıyla eşleştirir, docname ile DEĞİL. Slotlar arası tekil DEĞİLDİR: `brand.logo` ve `seller.logo` profillerinin ikisi de `w128` taşıyabilir."
+		},
+		{
+			"fieldname": "label",
+			"fieldtype": "Data",
+			"label": "Etiket",
+			"length": 100
+		},
+		{
+			"fieldname": "slot_key",
+			"fieldtype": "Data",
+			"label": "Slot",
+			"length": 64,
+			"search_index": 1,
+			"in_list_view": 1,
+			"in_standard_filter": 1,
+			"description": "Bu profilin ait olduğu slot (ör. product.image). Link DEĞİL: Media Policy DocType'ı A1a kapsamında kurulmadı; değer media/pipeline/policy/slots/*.json dosyalarındaki `slot_key` ile birebir aynıdır."
+		},
+		{
+			"fieldname": "enabled",
+			"fieldtype": "Check",
+			"label": "Etkin",
+			"default": "1",
+			"in_list_view": 1
+		},
+		{
+			"fieldname": "cb_geometry",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "aspect_ratio",
+			"fieldtype": "Data",
+			"label": "En-Boy Oranı",
+			"length": 16,
+			"description": "'G:Y' biçiminde ('1:1', '16:9') ya da BOŞ = serbest (contain/free). Boş bırakmak 'oran yok' demektir; '0:0' yazılmaz."
+		},
+		{
+			"fieldname": "aspect_ratio_value",
+			"fieldtype": "Float",
+			"label": "Oran Değeri",
+			"precision": "6",
+			"read_only": 1,
+			"description": "aspect_ratio'nun sayısal karşılığı (G/Y), before_save'de türetilir. Serbest oranda BOŞ (0 değil)."
+		},
+		{
+			"fieldname": "fit",
+			"fieldtype": "Select",
+			"label": "Sığdırma",
+			"options": "cover\ncontain\npad",
+			"default": "cover",
+			"description": "cover = orana kırp. contain/pad = kırpma YOK, oran korunur."
+		},
+		{
+			"fieldname": "sb_output",
+			"fieldtype": "Section Break",
+			"label": "Çıktı"
+		},
+		{
+			"fieldname": "widths",
+			"fieldtype": "JSON",
+			"label": "Genişlikler",
+			"description": "Üretilecek genişlikler dizisi, artan. srcset basamakları buradan çıkar. ÖLÇÜLDÜ: bugün storefront'ta 31 görselin 0'ında srcset var — bu alan o boşluğun veri karşılığıdır."
+		},
+		{
+			"fieldname": "formats",
+			"fieldtype": "JSON",
+			"label": "Biçimler",
+			"description": "['webp','jpeg'] gibi, tercih sırasına göre."
+		},
+		{
+			"fieldname": "cb_output",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "quality_target",
+			"fieldtype": "Int",
+			"label": "Kalite Hedefi"
+		},
+		{
+			"fieldname": "generation",
+			"fieldtype": "Select",
+			"label": "Üretim",
+			"options": "eager\nlazy",
+			"default": "eager"
+		}
+	],
+	"index_web_pages_for_search": 0,
+	"is_submittable": 0,
+	"issingle": 0,
+	"istable": 0,
+	"links": [],
+	"modified": "2026-08-19 00:00:00.000000",
+	"modified_by": "Administrator",
+	"module": "Tradehub Core",
+	"name": "Media Profile",
+	"owner": "Administrator",
+	"permissions": [
+		{
+			"role": "System Manager",
+			"read": 1,
+			"write": 1,
+			"create": 1,
+			"delete": 1,
+			"export": 1,
+			"report": 1,
+			"share": 1
+		},
+		{
+			"role": "Marketplace Admin",
+			"read": 1,
+			"write": 1,
+			"create": 1,
+			"report": 1
+		},
+		{
+			"role": "Marketplace Seller",
+			"read": 1,
+			"report": 1
+		},
+		{
+			"role": "Seller",
+			"read": 1,
+			"report": 1
+		}
+	],
+	"quick_entry": 0,
+	"sort_field": "modified",
+	"sort_order": "DESC",
+	"states": [],
+	"title_field": "profile_key",
+	"track_changes": 1
+}

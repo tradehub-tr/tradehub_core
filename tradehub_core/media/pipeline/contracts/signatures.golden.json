@@ -1,0 +1,76 @@
+{
+	"protocols": {
+		"DeliveryManifest": {
+			"build_image": "(self, slot_key: 'str', base: 'ObjectRef', *, intrinsic: 'Tuple[int, int]' = (0, 0), alt: 'str' = '', sizes: 'str' = '', available_profiles: 'Optional[Sequence[str]]' = None, is_lcp_candidate: 'bool' = False) -> 'RenderManifest'",
+			"build_video": "(self, slot_key: 'str', base: 'ObjectRef', *, poster: 'Optional[ObjectRef]' = None, captions_url: 'str' = '', intrinsic: 'Tuple[int, int]' = (0, 0), available_renditions: 'Optional[Sequence[str]]' = None) -> 'RenderManifest'",
+			"overshoot": "(self, slot_key: 'str', css_width_px: 'float', *, dpr: 'float' = 1.0) -> 'float'",
+			"pick": "(self, slot_key: 'str', css_width_px: 'float', *, dpr: 'float' = 1.0) -> 'Variant'",
+			"sizes_attribute": "(self, slot_key: 'str', *, context: 'str' = '') -> 'str'"
+		},
+		"ImageEngine": {
+			"make_ladder": "(self, master: 'bytes', specs: 'Sequence[RenditionSpec]') -> 'Dict[str, EncodedImage]'",
+			"make_master": "(self, content: 'bytes', spec: 'MasterSpec') -> 'EncodedImage'",
+			"make_rendition": "(self, master: 'bytes', spec: 'RenditionSpec') -> 'EncodedImage'",
+			"probe": "(self, content: 'bytes', *, max_megapixels: 'float' = 0.0) -> 'ImageProbe'",
+			"quality_score": "(self, reference: 'bytes', candidate: 'bytes', *, metric: 'str' = 'ssim') -> 'QualityReport'",
+			"supported_formats": "(self) -> 'Tuple[str, ...]'"
+		},
+		"PolicyEngine": {
+			"check_accept": "(self, slot_key: 'str', *, file_name: 'str', size_bytes: 'int', sniffed_type: 'str' = '', declared_mime: 'str' = '') -> 'Decision'",
+			"check_geometry": "(self, slot_key: 'str', probe: 'ImageProbe', *, count: 'int' = 1) -> 'Decision'",
+			"check_video": "(self, slot_key: 'str', probe: 'VideoProbe') -> 'Decision'",
+			"effective_limits": "(self, slot_key: 'str', *, plan_max_bytes: 'int' = 0) -> 'EffectiveLimits'",
+			"load": "(self, slot_key: 'str') -> 'SlotPolicy'",
+			"master_spec": "(self, slot_key: 'str') -> 'MasterSpec'",
+			"quality_threshold": "(self, slot_key: 'str', content_class: 'str') -> 'float'",
+			"reload": "(self) -> 'int'",
+			"rendition_specs": "(self, slot_key: 'str') -> 'Tuple[RenditionSpec, ...]'",
+			"slots": "(self) -> 'Tuple[str, ...]'",
+			"source_root": "(self) -> 'str'",
+			"validate": "(self, slot_key: 'str' = '') -> 'Decision'",
+			"video_rendition_specs": "(self, slot_key: 'str') -> 'Tuple[VideoRenditionSpec, ...]'"
+		},
+		"StorageAdapter": {
+			"delete": "(self, ref: 'ObjectRef') -> 'bool'",
+			"exists": "(self, ref: 'ObjectRef') -> 'bool'",
+			"get": "(self, ref: 'ObjectRef') -> 'bytes'",
+			"iter_keys": "(self, *, scope: 'str' = 'public', prefix: 'str' = '') -> 'Iterator[ObjectKey]'",
+			"move": "(self, source: 'ObjectRef', target_scope: 'str') -> 'ObjectRef'",
+			"put": "(self, content: 'bytes', extension: 'str', *, scope: 'str' = 'public') -> 'PutResult'",
+			"stat": "(self, ref: 'ObjectRef') -> 'ObjectStat'",
+			"url_for": "(self, ref: 'ObjectRef', *, ttl_seconds: 'Optional[int]' = None) -> 'str'"
+		},
+		"VideoEngine": {
+			"make_poster": "(self, source: 'VideoSource', spec: 'PosterSpec') -> 'EncodedImage'",
+			"make_preview_clip": "(self, source: 'VideoSource', spec: 'PreviewClipSpec', *, target_path: 'str' = '') -> 'VideoArtifact'",
+			"needs_transcode": "(self, probe: 'VideoProbe', *, max_width: 'int' = 1280, max_bitrate_bps: 'int' = 2500000) -> 'bool'",
+			"probe": "(self, source: 'VideoSource') -> 'VideoProbe'",
+			"transcode": "(self, source: 'VideoSource', spec: 'VideoRenditionSpec', *, target_path: 'str' = '') -> 'VideoArtifact'",
+			"transcode_all": "(self, source: 'VideoSource', specs: 'Sequence[VideoRenditionSpec]') -> 'Dict[str, VideoArtifact]'"
+		}
+	},
+	"value_types": {
+		"Decision": "(slot_key: 'str', action: 'str' = 'pass', violations: 'Tuple[Violation, ...]' = (), warnings: 'Tuple[Violation, ...]' = (), notes: 'Tuple[str, ...]' = ()) -> None",
+		"EffectiveLimits": "(max_bytes: 'int', max_megapixels_hard: 'float' = 0.0, max_count: 'int' = 0, source: 'Dict[str, str]' = <factory>) -> None",
+		"EncodedImage": "(content: 'bytes', fmt: 'str', width: 'int', height: 'int', quality: 'int' = 0, dpi: 'int' = 72, notes: 'Tuple[str, ...]' = ()) -> None",
+		"ImageProbe": "(fmt: 'str', width: 'int', height: 'int', mode: 'str' = '', animated: 'bool' = False, readable: 'bool' = True, has_alpha: 'bool' = False, icc_profile: 'bool' = False, dpi: 'Optional[Tuple[float, float]]' = None, exif_orientation: 'int' = 1, frame_count: 'int' = 1) -> None",
+		"MasterSpec": "(max_long_edge: 'int', format: 'str', min_long_edge: 'int' = 0, max_megapixels: 'float' = 0.0, dpi_out: 'int' = 72, colorspace: 'str' = 'srgb', orientation: 'str' = 'apply_exif', fit: 'str' = 'contain', target_ratio: 'str' = '', pad_color: 'str' = '', allow_crop: 'bool' = False, allow_upscale: 'bool' = False, quality: 'int' = 0, lossless: 'bool' = False, strip_metadata: 'Dict[str, bool]' = <factory>) -> None",
+		"ObjectKey": "(shard: 'str', name: 'str') -> None",
+		"ObjectRef": "(key: 'ObjectKey', scope: 'str' = 'public') -> None",
+		"ObjectStat": "(size_bytes: 'int', content_hash: 'str', modified_at: 'float' = 0.0, extra: 'Dict[str, Any]' = <factory>) -> None",
+		"PosterSpec": "(width: 'int', height: 'int' = 0, format: 'str' = 'webp', quality: 'int' = 80, window_start_s: 'float' = 0.5, window_end_s: 'float' = 5.0, retry_window_start_s: 'float' = 0.0, retry_window_end_s: 'float' = 0.0, frames: 'int' = 120, min_brightness: 'float' = 0.0) -> None",
+		"PreviewClipSpec": "(duration_s: 'float' = 6.0, width: 'int' = 854, height: 'int' = 480, max_bytes: 'int' = 409600, video_codec: 'str' = 'libvpx-vp9', container: 'str' = 'webm', start_offset_s: 'float' = 0.0, silent: 'bool' = True, loop: 'bool' = True) -> None",
+		"PutResult": "(ref: 'ObjectRef', created: 'bool', stat: 'ObjectStat') -> None",
+		"QualityReport": "(metric: 'str', score: 'float', threshold: 'float', measured: 'bool' = True) -> None",
+		"RenderManifest": "(slot_key: 'str', fallback_url: 'str', variants: 'Tuple[Variant, ...]' = (), sources: 'Tuple[SourceSet, ...]' = (), sizes: 'str' = '', intrinsic_width: 'int' = 0, intrinsic_height: 'int' = 0, alt: 'str' = '', loading: 'str' = 'lazy', decoding: 'str' = 'async', fetchpriority: 'str' = '', poster_url: 'str' = '', captions_url: 'str' = '', extra: 'Dict[str, Any]' = <factory>) -> None",
+		"RenditionSpec": "(name: 'str', width: 'int', format: 'str', quality: 'int' = 0, fit: 'str' = 'contain', target_ratio: 'str' = '', pad_color: 'str' = '', lossless: 'bool' = False, derived_from: 'str' = '') -> None",
+		"SlotPolicy": "(slot_key: 'str', schema_version: 'str', status: 'str' = 'draft', roles: 'Tuple[str, ...]' = (), accept: 'Mapping[str, Any]' = <factory>, require: 'Mapping[str, Any]' = <factory>, master: 'Mapping[str, Any]' = <factory>, quality: 'Mapping[str, Any]' = <factory>, profiles: 'Tuple[Mapping[str, Any], ...]' = (), video: 'Mapping[str, Any]' = <factory>, on_violation: 'Mapping[str, Any]' = <factory>, messages: 'Mapping[str, Any]' = <factory>, bound_to: 'Tuple[Mapping[str, Any], ...]' = (), raw: 'Mapping[str, Any]' = <factory>) -> None",
+		"SourceSet": "(fmt: 'str', srcset: 'str', sizes: 'str' = '') -> None",
+		"Variant": "(profile: 'str', url: 'str', width: 'int', fmt: 'str', height: 'int' = 0, size_bytes: 'int' = 0, available: 'bool' = True) -> None",
+		"VideoArtifact": "(rendition_id: 'str', width: 'int', height: 'int', duration_s: 'float', size_bytes: 'int', container: 'str', content: 'Optional[bytes]' = None, path: 'str' = '', bitrate_bps: 'int' = 0, has_audio: 'bool' = False, notes: 'Tuple[str, ...]' = (), extra: 'Dict[str, str]' = <factory>) -> None",
+		"VideoProbe": "(width: 'int' = 0, height: 'int' = 0, duration_s: 'float' = 0.0, bitrate_bps: 'int' = 0, frame_rate: 'float' = 0.0, container: 'str' = '', video_codec: 'str' = '', audio_codec: 'str' = '', has_audio: 'bool' = False, measured: 'bool' = True) -> None",
+		"VideoRenditionSpec": "(id: 'str', width: 'int', height: 'int', container: 'str', video_codec: 'str', crf: 'int' = 32, maxrate_kbps: 'int' = 0, bufsize_kbps: 'int' = 0, frame_rate_cap: 'int' = 30, audio: 'str' = 'allowed', audio_codec: 'str' = 'libopus', audio_bitrate_kbps: 'int' = 96, audio_channels: 'int' = 2, loudness_filter: 'str' = '', max_bytes: 'int' = 0, role: 'str' = 'primary', keyframe_interval_s: 'float' = 0.0) -> None",
+		"VideoSource": "(content: 'Optional[bytes]' = None, path: 'str' = '') -> None",
+		"Violation": "(code: 'str', layer: 'str', sebep: 'str', action: 'str' = 'reject', retryable: 'bool' = False, message_key: 'str' = '', measured: 'Optional[Any]' = None, expected: 'Optional[Any]' = None, detay: 'Dict[str, Any]' = <factory>) -> None"
+	}
+}

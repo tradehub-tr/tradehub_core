@@ -14,10 +14,13 @@ import os
 
 import frappe
 from frappe import _
+from frappe.query_builder.functions import Count
 
 from tradehub_core.media import (
+	access_level,
 	archive,
 	audit,
+	browse,
 	inventory,
 	presets,
 	refs,
@@ -487,6 +490,136 @@ def get_file_references(file_url: str) -> dict:
 	_guard()
 	url = (file_url or "").strip()
 	return {"file_url": url, "items": refs.find(url), "preview": refs.clear(url, dry_run=True)}
+
+
+@frappe.whitelist(methods=["POST"])
+def set_access_level(file_url: str, make_private: int = 0) -> dict:
+	"""Dosyanın erişim seviyesini public↔private çevir (TUR-126 §4).
+
+	Fiziksel taşıma + `File.file_url`/`is_private` güncelleme + tüm referansların
+	(`Listing.primary_image` vb.) yeni URL'e çevrilmesi tek işlemde yapılır —
+	iş `tradehub_core/media/access_level.py`'da. KYB/KYC gibi kapsam dışı
+	doctype'a bağlı dosya ASLA public yapılamaz (PII sızıntısı koruması);
+	zaten hedef seviyedeyse no-op (idempotent).
+	"""
+	_guard()
+	return access_level.set_level((file_url or "").strip(), make_private=bool(int(make_private or 0)))
+
+
+@frappe.whitelist()
+def get_private_files(page: int = 1, page_size: int = 50, search: str = "") -> dict:
+	"""Özel (private) dosya envanteri — panel "Özel dosyalar" görünümü (TUR-126 §4.2).
+
+	`inventory.list_files` bilinçli olarak public-only (optimize akışı private
+	belge işlemez); özele taşınan bir dosyayı panelden GERİ almak ve imzalı
+	link üretmek için private dosyaların da kimliğiyle listelenmesi gerekir.
+	Denetim akışındaki maskeleme burada geçerli değil: bu uç `_guard()` ile
+	süper-admin'e kapılı ve Desk'in File listesinin zaten gösterdiğinden
+	fazlasını göstermez. PII kapsamındaki dosyalar `pii=True` bayrağıyla döner —
+	bunlar public yapılamaz (backend `set_level` zorlar, UI aksiyonu gizler).
+	"""
+	_guard()
+	page = max(1, int(page or 1))
+	page_size = min(100, max(1, int(page_size or 50)))
+	search = (search or "").strip()
+
+	f = frappe.qb.DocType("File")
+	base = frappe.qb.from_(f).where(f.is_private == 1).where(f.file_url.like("/private/files/%"))
+	if search:
+		pattern = f"%{search}%"
+		base = base.where((f.file_name.like(pattern)) | (f.file_url.like(pattern)))
+
+	total = base.select(Count(f.name)).run()[0][0]
+	rows = (
+		base.select(
+			f.name,
+			f.file_name,
+			f.file_url,
+			f.file_size,
+			f.creation,
+			f.attached_to_doctype,
+			f.attached_to_name,
+		)
+		.orderby(f.creation, order=frappe.qb.desc)
+		.limit(page_size)
+		.offset((page - 1) * page_size)
+		.run(as_dict=True)
+	)
+	for r in rows:
+		# İki yönlü PII kontrolü (attached + ters referans) — access_level ile
+		# aynı kaynak, liste ile toggle farklı karar vermesin.
+		r["pii"] = access_level._is_protected_pii(r, r.file_url)
+	return {"items": rows, "total": total, "page": page, "page_size": page_size}
+
+
+@frappe.whitelist()
+def browse_media(
+	scope: str = "",
+	store: str = "",
+	category: str = "",
+	group: str = "",
+	sub: str = "",
+	doc_field: str = "",
+	page: int = 1,
+	page_size: int = 50,
+	search: str = "",
+) -> dict:
+	"""Medya Gezgini — sanal klasör ağacında bir seviye (TUR-126 devamı).
+
+	Parametre derinliği seviyeyi belirler: hiçbiri yoksa kök (public/private),
+	`scope=public` mağazalar, `+store` kategoriler, `+category` dosyalar;
+	`scope=private` belge türü grupları, `+group` dosyalar — KYB/KYC gibi
+	detaylı gruplarda önce mağaza alt klasörleri (`+sub`), sonra belge-alanı
+	klasörleri (`+doc_field`) gelir. Klasörler sanal — disk yapısına
+	dokunulmaz (bkz. `media/browse.py`).
+	"""
+	_guard()
+	scope = (scope or "").strip()
+	store = (store or "").strip()
+	category = (category or "").strip()
+	group = (group or "").strip()
+	sub = (sub or "").strip()
+	doc_field = (doc_field or "").strip()
+
+	if not scope:
+		return browse.root()
+	if scope == "chat":
+		if not store:
+			return browse.chat_stores()
+		return browse.files(
+			scope="chat", store=store, page=int(page), page_size=int(page_size), search=search
+		)
+	if scope == "private":
+		if not group:
+			return browse.private_groups()
+		if group in browse.DETAILED_PRIVATE_GROUPS:
+			if not sub:
+				return browse.private_group_stores(group)
+			if not doc_field:
+				return browse.private_store_fields(group, sub)
+		return browse.files(
+			scope="private",
+			group=group,
+			sub=sub,
+			doc_field=doc_field,
+			page=int(page),
+			page_size=int(page_size),
+			search=search,
+		)
+	if scope != "public":
+		frappe.throw(_("Geçersiz kapsam: {0}").format(scope))
+	if not store:
+		return browse.public_stores()
+	if not category and store != browse.PLATFORM_STORE:
+		return browse.public_categories(store)
+	return browse.files(
+		scope="public",
+		store=store,
+		category=category,
+		page=int(page),
+		page_size=int(page_size),
+		search=search,
+	)
 
 
 @frappe.whitelist()

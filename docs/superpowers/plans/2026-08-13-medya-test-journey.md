@@ -13,7 +13,7 @@ Dört parça, dört iş paketi:
 | Parça | Ne yapar | Nerede |
 |---|---|---|
 | **A-client (WP1)** | Satıcı görsel/video yüklerken TARAYICIDA WebP/WebM'e çevirip küçültür | `tradehubfront/src/lib/media/compress.*`, `admin-panel/.../lib/media/compress.js`, `uploader.ts`, `useSellerMedia.js` |
-| **A-server (WP2)** | Sunucuda garanti-WebP (Safari JPEG'i tamamlar, alfa korur) + video async ffmpeg transcode | `tradehub_core/media/engine.py` (`to_webp`), `media/transcode.py`, `api/seller_media.py` |
+| **A-server (WP2)** | Sunucuda garanti-WebP (Safari JPEG'i tamamlar, alfa korur) + video async ffmpeg transcode | `tradehub_core/media/pipeline.py` (`to_webp`), `media/transcode.py`, `api/seller_media.py` |
 | **B-kota (WP3)** | Satıcı-başına depolama kotasını gerçekten uygular (aşınca yüklemeyi reddeder) | `entitlement/checks.py`, `media/files.py`, `fixtures/feature_catalog.json`, seed patch |
 | **C-URL (WP4)** | Yeni yüklemeleri içerik-hash'iyle adlandırır (URL'den tahmin edilemez) + nginx noindex/rate-limit | `media/naming.py`, `hooks.py`, `docker/nginx/storefront.local.template` |
 

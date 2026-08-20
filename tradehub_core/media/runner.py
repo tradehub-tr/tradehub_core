@@ -52,6 +52,8 @@ def _mark_job_error(job_key: str, kind: str) -> None:
 	durum["state"] = jobs.STATE_ERROR
 	durum["message"] = frappe._("İşlem tamamlanamadı.")
 	_write_progress(job_key, durum)
+	# İş bir bütün olarak yürüyemedi — terminal `error` metriğe yazılır (K-1).
+	jobs.record_terminal(kind, jobs.STATE_ERROR)
 	frappe.log_error(
 		title=f"Media {kind} job failed: {job_key}",
 		message=frappe.get_traceback(with_context=True),
@@ -139,6 +141,8 @@ def _run_batch(
 
 	state["state"] = jobs.STATE_COMPLETED if not state["errors"] else jobs.STATE_PARTIAL
 	_write_progress(job_key, state)
+	# İş terminal — sonucu metriğe yaz (K-1). Batch tek seferliktir: attempts=1.
+	jobs.record_terminal("optimize", state["state"])
 
 	# İş sonunda TEK özet log — 1000 hatada Error Log şişmesin.
 	frappe.logger("media").info(
@@ -367,6 +371,8 @@ def _restore_batch(file_names: list[str], job_key: str) -> dict:
 
 	state["state"] = jobs.STATE_COMPLETED if not state["errors"] else jobs.STATE_PARTIAL
 	_write_progress(job_key, state)
+	# İş terminal — sonucu metriğe yaz (K-1). Batch tek seferliktir: attempts=1.
+	jobs.record_terminal("restore", state["state"])
 	audit.log_media_batch(
 		action=audit.ACTION_RESTORE,
 		job_key=job_key,

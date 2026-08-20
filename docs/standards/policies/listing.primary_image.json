@@ -1,0 +1,25 @@
+{
+  "$schema": "./_schema.md",
+  "slot_key": "listing.primary_image",
+  "doctype_field": "Listing.primary_image",
+  "kind": "image",
+  "is_product_slot": true,
+  "min_long_edge": 2000,
+  "max_long_edge": 2560,
+  "target_long_edge": 2000,
+  "aspect_ratio": "1:1",
+  "aspect_tolerance": 0.02,
+  "fit": "contain",
+  "dpi_policy": {
+    "output_dpi": 72,
+    "strip_input_dpi": true,
+    "pixels_preserved": true,
+    "note": "DPI metadata'dir. Girdi 300 dpi de olsa 72 dpi de olsa piksel sayisi DEGISMEZ; yalniz max_long_edge tavani uygulanir."
+  },
+  "olcum": {
+    "render_box_css_px": 512,
+    "render_box_kaynak": "docs/reports/00-upload-slot-envanteri.md:131 — 'aspect-square w-full max-w-[512px]'",
+    "min_long_edge_gerekce": "Urun sayfasi zoom/lightbox 1:1 piksel ister; 512 CSS px kutu DPR2'de 1024 px yeter ama zoom icin yetmez. T-024 urun slotu tabani 2000.",
+    "max_long_edge_gerekce": "tradehub_core/media/presets.py:14 'safe' preset max_dim=2560"
+  }
+}

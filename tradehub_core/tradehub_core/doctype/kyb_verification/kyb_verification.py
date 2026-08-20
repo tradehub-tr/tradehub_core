@@ -62,6 +62,7 @@ class KYBVerification(Document):
 					self.set(field, seller_data[field])
 
 	def validate(self):
+		self._guard_status_change()
 		self._validate_company_title()
 		self._validate_tax_id()
 		self._validate_trade_registry()
@@ -69,6 +70,25 @@ class KYBVerification(Document):
 		self._validate_kep_address()
 		self._validate_file_attachments()
 		self._validate_rejection_reason()
+
+	def _guard_status_change(self):
+		"""T3 — `status` yalnız inceleme yetkilisi tarafından değiştirilebilir.
+
+		İzin katmanı (permlevel 4, patch v15_9_26) TEK savunma değil: permlevel
+		kontrolü `flags.ignore_permissions` ile tamamen atlanır
+		(frappe/model/document.py:785) ve bu doctype'ı `ignore_permissions=True`
+		ile kaydeden kod yolları var (`api/v1/kyb.submit_kyb_documents`,
+		`get_kyb_status`, `upload_kyb_document`). Bu kapı `validate()` içinde
+		çalıştığı için o bayrakla ATLANAMAZ.
+
+		Sömürü (ölçüldü, docs/reports/28-faz13-pentest.md §2 T3): satıcı kendi
+		kaydında `status="Verified"` yazınca `_sync_verified_seller_role`
+		kullanıcıya **`Verified Seller`** rolünü veriyor, `can_sell = 1` oluyor —
+		satış kapısı hiçbir belge incelenmeden kendi kendine açılıyordu.
+		"""
+		from tradehub_core.permissions import guard_verification_status_change
+
+		guard_verification_status_change(self)
 
 	def _validate_rejection_reason(self):
 		"""Rejected/Suspended status için rejection_reason + rejection_category

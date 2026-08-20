@@ -1,0 +1,99 @@
+{
+ "actions": [],
+ "autoname": "format:CATT-{#####}",
+ "creation": "2026-08-15 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "conversation_id",
+  "seller",
+  "sender",
+  "column_break_1",
+  "file_name",
+  "file_size",
+  "mime",
+  "section_meta",
+  "caption",
+  "remote_meta"
+ ],
+ "fields": [
+  {
+   "fieldname": "conversation_id",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Conversation ID",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "seller",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Seller",
+   "options": "Admin Seller Profile"
+  },
+  {
+   "fieldname": "sender",
+   "fieldtype": "Link",
+   "label": "Sender",
+   "options": "User"
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "file_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "File Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "file_size",
+   "fieldtype": "Int",
+   "label": "File Size (bytes)"
+  },
+  {
+   "fieldname": "mime",
+   "fieldtype": "Data",
+   "label": "MIME Type"
+  },
+  {
+   "fieldname": "section_meta",
+   "fieldtype": "Section Break",
+   "label": "Remote"
+  },
+  {
+   "fieldname": "caption",
+   "fieldtype": "Small Text",
+   "label": "Caption"
+  },
+  {
+   "description": "Teamslike'ın upload yanıtı olduğu gibi — ileride proxy görüntüleme ucu buradaki adres/id alanlarını kullanacak.",
+   "fieldname": "remote_meta",
+   "fieldtype": "Long Text",
+   "label": "Remote Meta (JSON)"
+  }
+ ],
+ "links": [],
+ "modified": "2026-08-15 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "Chat Attachment",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "read": 1,
+   "role": "System Manager",
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

@@ -67,6 +67,20 @@ def _install_frappe_stub() -> None:
 	frappe.db = SimpleNamespace(count=_count, get_value=_get_value)
 	frappe.has_permission = lambda *a, **k: True
 
+	# Rapor 92 onarımı (önceden kırıktı, benim değişikliğimden bağımsız):
+	# `api/seller.py:5` `from frappe.utils import getdate, nowdate` yapıyor;
+	# stub modül paket olmadığı için import ModuleNotFoundError ile düşüyordu
+	# ve bu gate modülü toplanamıyordu. Asgari `frappe.utils` stub'ı kuruldu.
+	from datetime import date, datetime
+
+	frappe.utils = types.ModuleType("frappe.utils")
+	frappe.utils.getdate = lambda v=None: date(2026, 8, 20)
+	frappe.utils.nowdate = lambda: "2026-08-20"
+	frappe.utils.now_datetime = lambda: datetime(2026, 8, 20, 12, 0, 0)
+	frappe.utils.cint = int
+	frappe.utils.flt = float
+	sys.modules["frappe.utils"] = frappe.utils
+
 
 _install_frappe_stub()
 

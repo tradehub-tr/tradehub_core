@@ -1,0 +1,189 @@
+{
+ "$comment": "T-040 · Bu klasördeki DocType şemalarının kayıt defteri. KARAR: şemalar burada JSON olarak durur, tradehub_core/tradehub_core/doctype/ altına YAZILMAZ — orası çalışan üretim uygulaması. Bu dosyalar Frappe DocType JSON biçimindedir: media_engine bir Frappe app'ine dönüştürüldüğünde olduğu gibi tradehub_core/media/pipeline/tradehub_core/media/pipeline/doctype/<slug>/<slug>.json konumuna taşınabilirler.",
+ "module": "Media Engine",
+ "schema_source": "https://karacaismail.github.io/imageoptimization/docs/41-faz4-veri-modeli.html",
+ "doctypes": [
+  {
+   "name": "Media Asset",
+   "file": "media_asset.json",
+   "istable": false,
+   "issingle": false,
+   "field_count": 13
+  },
+  {
+   "name": "Media Source",
+   "file": "media_source.json",
+   "istable": false,
+   "issingle": false,
+   "field_count": 21
+  },
+  {
+   "name": "Media Version",
+   "file": "media_version.json",
+   "istable": false,
+   "issingle": false,
+   "field_count": 19
+  },
+  {
+   "name": "Media Rendition",
+   "file": "media_rendition.json",
+   "istable": false,
+   "issingle": false,
+   "field_count": 14
+  },
+  {
+   "name": "Media Crop Intent",
+   "file": "media_crop_intent.json",
+   "istable": false,
+   "issingle": false,
+   "field_count": 14
+  },
+  {
+   "name": "Media Crop Override",
+   "file": "media_crop_override.json",
+   "istable": true,
+   "issingle": false,
+   "field_count": 6
+  },
+  {
+   "name": "Media Profile",
+   "file": "media_profile.json",
+   "istable": false,
+   "issingle": false,
+   "field_count": 10
+  },
+  {
+   "name": "Media Policy",
+   "file": "media_policy.json",
+   "istable": false,
+   "issingle": false,
+   "field_count": 15
+  },
+  {
+   "name": "Media Policy Profile",
+   "file": "media_policy_profile.json",
+   "istable": true,
+   "issingle": false,
+   "field_count": 6
+  },
+  {
+   "name": "Media Content Rule",
+   "file": "media_content_rule.json",
+   "istable": true,
+   "issingle": false,
+   "field_count": 7
+  },
+  {
+   "name": "Media Processing Job",
+   "file": "media_processing_job.json",
+   "istable": false,
+   "issingle": false,
+   "field_count": 12
+  },
+  {
+   "name": "Media Usage",
+   "file": "media_usage.json",
+   "istable": false,
+   "issingle": false,
+   "field_count": 9
+  },
+  {
+   "name": "Media Quality Report",
+   "file": "media_quality_report.json",
+   "istable": false,
+   "issingle": false,
+   "field_count": 9
+  },
+  {
+   "name": "Media Engine Settings",
+   "file": "media_engine_settings.json",
+   "istable": false,
+   "issingle": true,
+   "field_count": 9
+  },
+  {
+   "name": "Media Storage Settings",
+   "file": "media_storage_settings.json",
+   "istable": false,
+   "issingle": true,
+   "field_count": 10
+  }
+ ],
+ "composite_unique_keys": {
+  "Media Rendition": {
+   "columns": [
+    "version",
+    "profile",
+    "width",
+    "format"
+   ],
+   "implemented_as": "rendition_key (Data, unique=1, read_only=1)",
+   "derivation": "'{version}|{profile}|{width}|{format}'",
+   "reason": "Frappe DocType JSON bileşik unique index ifade edemez.",
+   "raw_ddl": "alter table `tabMedia Rendition` add unique key `uk_rendition` (`version`,`profile`,`width`,`format`)"
+  },
+  "Media Usage": {
+   "columns": [
+    "asset",
+    "ref_doctype",
+    "ref_name",
+    "ref_field"
+   ],
+   "implemented_as": "usage_key (Data, unique=1, read_only=1)",
+   "derivation": "'{asset}|{ref_doctype}|{ref_name}|{ref_field}'",
+   "reason": "Aynı bağın iki kez kaydedilmesini engeller; upsert idempotent olur.",
+   "raw_ddl": "alter table `tabMedia Usage` add unique key `uk_usage` (`asset`,`ref_doctype`,`ref_name`,`ref_field`)"
+  }
+ },
+ "deviations_from_source_doc": [
+  {
+   "field": "Media Asset.owner_seller",
+   "source_doc": "Link → Supplier/Company",
+   "istoc": "Link → Admin Seller Profile",
+   "reason": "İstoç'ta satıcı varlığı Admin Seller Profile'dır; sahiplik ve mağaza süzgeci bu doctype üzerinden çalışıyor (tradehub_core/media/ownership.py, usage.py STORE_FILTERS)."
+  },
+  {
+   "field": "Media Version.crop_intent_snapshot",
+   "source_doc": "yok",
+   "istoc": "JSON alanı eklendi",
+   "reason": "version_hash formülünün girdilerinden biri crop_intent; hash yeniden hesaplanabilir olacaksa girdisi de saklanmak zorunda."
+  },
+  {
+   "field": "Media Version.source_hash / Media Version.is_active",
+   "source_doc": "yok",
+   "istoc": "eklendi",
+   "reason": "source_hash version_hash'in girdisidir ve ondan geri çıkarılamaz; is_active denormalizasyonu retention/öksüz taramasının Asset'e join etmeden filtrelemesini sağlar."
+  },
+  {
+   "field": "Media Version.has_alpha / classification / classification_confidence / format_chain / lqip / lqip_data_uri / dominant_color",
+   "source_doc": "lqip ve dominant_color T-065'te isteniyor; has_alpha kaynak belgede Media Source'ta; classification/format_chain'in saklama yeri belirtilmemiş",
+   "istoc": "hepsi Media Version'a eklendi (T-061/062/065)",
+   "reason": "Media Source DocType'ı bu app'te KURULU DEĞİL; has_alpha'nın tek kalıcı evi sürüm kaydı. Sınıf ve biçim zinciri policy_snapshot ile aynı gerekçeyle sürümün yanında durur: karar anının kopyası. lqip_data_uri kaynak belgede yok — delivery/picture.py::lqip_style ve panel MediaImage.vue hazır data URI bekliyor (ikisinin de ThumbHash çözücüsü yok), kanonik hash lqip alanında."
+  },
+  {
+   "field": "Media Usage.is_open / usage_key",
+   "source_doc": "yok",
+   "istoc": "eklendi",
+   "reason": "'hiç kullanılmadı' ile 'kullanılıyordu, kaldırıldı' ayrımı öksüz kararının temelidir; usage_key bileşik tekilliği taşır."
+  },
+  {
+   "field": "Media Rendition.rendition_key",
+   "source_doc": "unique index (version, profile, width, format)",
+   "istoc": "türetilmiş tek alan + unique",
+   "reason": "Frappe DocType JSON bileşik unique index ifade edemez."
+  },
+  {
+   "field": "Media Profile.aspect_ratio_value",
+   "source_doc": "yok",
+   "istoc": "eklendi (read_only, türetilmiş)",
+   "reason": "'16:9' metnini her karşılaştırmada ayrıştırmamak için. Serbest oranda BOŞ bırakılır."
+  }
+ ],
+ "uncalibrated": [
+  "Media Engine Settings.smartcrop_confidence_threshold — ÖLÇÜLMEDİ",
+  "Media Engine Settings.phash_distance_threshold — ÖLÇÜLMEDİ",
+  "Media Engine Settings.access_sampling_rate — ÖLÇÜLMEDİ",
+  "Media Engine Settings.max_megapixels_hard — ölçüm VAR (p99=29,21 MP, MAX=72,71 MP) ama karar VERİLMEDİ",
+  "Media Rendition.quality / ssim eşikleri — ÖLÇÜLMEDİ"
+ ]
+}

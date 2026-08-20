@@ -183,3 +183,4 @@ def get_snapshot_history(days: int = 30):
 		limit=int(days),
 	)
 	return {"snapshots": rows, "total": len(rows)}
+

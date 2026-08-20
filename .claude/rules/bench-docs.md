@@ -35,12 +35,12 @@ ruff format --check tradehub_core/
 
 ```bash
 # Bench komutu için docker exec deseni
-docker exec istocc-dev-backend-1 bench --site tradehub.localhost migrate
-docker exec istocc-dev-backend-1 bench --site tradehub.localhost reload-doc tradehub_core doctype listing
-docker exec istocc-dev-backend-1 bench --site tradehub.localhost clear-cache
+docker exec istoc-dev-backend-1 bench --site istoc.localhost migrate
+docker exec istoc-dev-backend-1 bench --site istoc.localhost reload-doc tradehub_core doctype listing
+docker exec istoc-dev-backend-1 bench --site istoc.localhost clear-cache
 
 # DocType JSON değişiklikleri için:
-docker exec istocc-dev-backend-1 bench --site tradehub.localhost migrate
+docker exec istoc-dev-backend-1 bench --site istoc.localhost migrate
 ```
 
 > ⚠ **Local dev'de `/app/console` veya Frappe Desk UI önerme** — bu projede yok. Bench komutları doğrudan `docker exec` ile.
@@ -69,16 +69,16 @@ Production'da Frappe Cloud Press API üzerinden:
 
 ```bash
 # Yeni doctype eklediğin sonra
-docker exec istocc-dev-backend-1 bench --site tradehub.localhost migrate
+docker exec istoc-dev-backend-1 bench --site istoc.localhost migrate
 
 # Permission değişikliklerini yansıt
-docker exec istocc-dev-backend-1 bench --site tradehub.localhost clear-cache
+docker exec istoc-dev-backend-1 bench --site istoc.localhost clear-cache
 
 # Patch ekledikten sonra tek seferlik
-docker exec istocc-dev-backend-1 bench --site tradehub.localhost migrate
+docker exec istoc-dev-backend-1 bench --site istoc.localhost migrate
 
 # Custom app'i yeniden install (development reset)
-docker exec istocc-dev-backend-1 bench --site tradehub.localhost reinstall
+docker exec istoc-dev-backend-1 bench --site istoc.localhost reinstall
 
 # Production worker restart (canlıda)
 bench restart  # Sunucu B'de

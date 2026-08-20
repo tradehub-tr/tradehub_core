@@ -1,0 +1,150 @@
+{
+ "name": "Media RUM Sample",
+ "doctype": "DocType",
+ "module": "Tradehub Core",
+ "naming_rule": "Random",
+ "autoname": "hash",
+ "engine": "InnoDB",
+ "is_submittable": 0,
+ "track_changes": 0,
+ "editable_grid": 0,
+ "in_create": 0,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "description": "T-123 — gerçek kullanıcı ölçümü (RUM) ham örneklemi. Alan kümesi rum.DOCTYPE_FIELDS'ten birebir türetildi (media/pipeline/delivery/rum.py). PII YOK: Link/Dynamic Link alanı yok, kayıt hiçbir kullanıcıya bağlanamaz; session_bucket ham token değil tek yönlü özetin ilk 12 hex'idir. Saklama 30 gün (rum.DOCTYPE_DESIGN.retention_days) — temizlik: tradehub_core.api.rum.purge_expired_samples",
+ "fields": [
+  {
+   "fieldname": "metric",
+   "fieldtype": "Select",
+   "label": "Metric",
+   "options": "LCP\nCLS\nINP\nFCP\nTTFB",
+   "reqd": 1,
+   "search_index": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "value",
+   "fieldtype": "Float",
+   "label": "Value",
+   "precision": "4",
+   "in_list_view": 1,
+   "read_only": 1,
+   "description": "CLS birimsiz (4 hane), diğer metrikler milisaniye (1 hane)"
+  },
+  {
+   "fieldname": "rating",
+   "fieldtype": "Select",
+   "label": "Rating",
+   "options": "good\nneeds-improvement\npoor",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "read_only": 1,
+   "description": "web.dev CWV eşikleri — sunucuda rum.rating() ile hesaplanır, istemciden alınmaz"
+  },
+  {
+   "fieldname": "route",
+   "fieldtype": "Select",
+   "label": "Route",
+   "options": "/\n/urunler\n/urun/:slug\n/magaza/:code\n/kategori/:slug\n/marka/:slug\n/sepet\nother",
+   "reqd": 1,
+   "search_index": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "read_only": 1,
+   "description": "Rota ŞABLONU — ham URL/slug asla saklanmaz (rum.route_template)"
+  },
+  {
+   "fieldname": "device_class",
+   "fieldtype": "Select",
+   "label": "Device Class",
+   "options": "phone\ntablet\ndesktop",
+   "reqd": 1,
+   "search_index": 1,
+   "in_standard_filter": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "viewport_bucket",
+   "fieldtype": "Int",
+   "label": "Viewport Bucket",
+   "read_only": 1,
+   "description": "Kovanın alt sınırı (CSS px) — ham genişlik saklanmaz (parmak izi riski)"
+  },
+  {
+   "fieldname": "dpr",
+   "fieldtype": "Float",
+   "label": "DPR",
+   "precision": "2",
+   "read_only": 1
+  },
+  {
+   "fieldname": "connection",
+   "fieldtype": "Select",
+   "label": "Connection",
+   "options": "slow-2g\n2g\n3g\n4g\nunknown",
+   "read_only": 1
+  },
+  {
+   "fieldname": "navigation_type",
+   "fieldtype": "Data",
+   "label": "Navigation Type",
+   "length": 16,
+   "read_only": 1
+  },
+  {
+   "fieldname": "sample_rate",
+   "fieldtype": "Float",
+   "label": "Sample Rate",
+   "precision": "4",
+   "read_only": 1,
+   "description": "Örneklem oranı — toplama 1/oran ile genelleştirir (estimated_population)"
+  },
+  {
+   "fieldname": "session_bucket",
+   "fieldtype": "Data",
+   "label": "Session Bucket",
+   "length": 12,
+   "read_only": 1,
+   "description": "Tuzlanmış token ÖZETİNİN ilk 12 hex'i — ham token değil, kimlik değil"
+  },
+  {
+   "fieldname": "lcp_region",
+   "fieldtype": "Data",
+   "label": "LCP Region",
+   "length": 64,
+   "read_only": 1,
+   "description": "sayfa/bölge etiketi (data-rum-region) — yalnız metric=LCP"
+  },
+  {
+   "fieldname": "lcp_profile",
+   "fieldtype": "Data",
+   "label": "LCP Profile",
+   "length": 16,
+   "read_only": 1,
+   "description": "İndirilen türev (w1280 / original / unknown) — yalnız metric=LCP"
+  },
+  {
+   "fieldname": "lcp_format",
+   "fieldtype": "Data",
+   "label": "LCP Format",
+   "length": 8,
+   "read_only": 1
+  },
+  {
+   "fieldname": "engine_version",
+   "fieldtype": "Data",
+   "label": "Engine Version",
+   "length": 32,
+   "read_only": 1
+  }
+ ],
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "delete": 1
+  }
+ ]
+}

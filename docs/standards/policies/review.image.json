@@ -1,0 +1,26 @@
+{
+  "$schema": "./_schema.md",
+  "slot_key": "review.image",
+  "doctype_field": "Listing Review Image.image",
+  "kind": "image",
+  "is_product_slot": false,
+  "min_long_edge": 480,
+  "max_long_edge": 1600,
+  "target_long_edge": 1280,
+  "aspect_ratio": "free",
+  "aspect_tolerance": null,
+  "fit": "cover",
+  "dpi_policy": {
+    "output_dpi": 72,
+    "strip_input_dpi": true,
+    "pixels_preserved": true,
+    "note": "Alici telefonundan gelen fotoda EXIF DPI degeri cogu zaman anlamsiz (72/96/300 karisik). Piksel korunur."
+  },
+  "olcum": {
+    "render_box_css_px": null,
+    "render_box_kaynak": "docs/reports/00-upload-slot-envanteri.md:137 — 'OLCULEMEDI'; istemci limiti 5 dosya / 5 MB / jpg,jpeg,png,gif,webp (WriteReviewModal.ts:23-26)",
+    "min_long_edge_gerekce": "Alici uretimi icerik — sert taban zararli, yorum reddedilmesi urun sayfasini zayiflatir. 480 px yalniz 'ekran goruntusu artigi' seviyesini keser.",
+    "max_long_edge_gerekce": "Alici fotosu urun fotosu kalitesinde saklanmasi gerekmiyor; 1600 tavan depolamayi sinirlar.",
+    "uretimde_dogrulanmali": true
+  }
+}

@@ -131,7 +131,10 @@ def _anonymize_record(doctype: str, name: str, field_rules: list[dict]) -> None:
 		from tradehub_core.audit.log import DECISION_ALLOW, LAYER_L3, log_decision
 
 		log_decision(
-			actor="System",
+			# Rapor 92 §4 düzeltmesi: ADL.actor Link→User doğrular; "System" diye
+			# bir User YOK — satır sessizce düşüyordu (account.anonymize ile aynı
+			# ölçülmüş hata). Sistem işleri Administrator koşar.
+			actor="Administrator",
 			action="retention_anonymize",
 			decision=DECISION_ALLOW,
 			rule_id=f"retention:{doctype}",

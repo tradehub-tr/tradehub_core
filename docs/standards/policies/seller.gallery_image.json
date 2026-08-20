@@ -1,0 +1,25 @@
+{
+  "$schema": "./_schema.md",
+  "slot_key": "seller.gallery_image",
+  "doctype_field": "Seller Gallery Image.image",
+  "kind": "image",
+  "is_product_slot": false,
+  "min_long_edge": 600,
+  "max_long_edge": 1600,
+  "target_long_edge": 1200,
+  "aspect_ratio": "1:1",
+  "aspect_tolerance": 0.02,
+  "fit": "cover",
+  "dpi_policy": {
+    "output_dpi": 72,
+    "strip_input_dpi": true,
+    "pixels_preserved": true
+  },
+  "olcum": {
+    "render_box_css_px": 276,
+    "render_box_kaynak": "docs/reports/00-upload-slot-envanteri.md — seller.gallery_image satiri: 'lg'de ~276x276 px; uretici listesi 165x165 (xl: 220x220)'",
+    "min_long_edge_gerekce": "276 CSS px x DPR2 = 552 px → yukari yuvarlama 600.",
+    "max_long_edge_gerekce": "276 CSS px x DPR2 = 552; 1600 zaten 3x fazlasi. Ustu israf.",
+    "not": "1:1 zorunlu cunku object-cover ile merkezden kirpiliyor ve su an uyari verilmiyor (ayni satir)."
+  }
+}

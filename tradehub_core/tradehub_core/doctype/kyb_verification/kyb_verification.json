@@ -34,7 +34,7 @@
 			"in_list_view": 1,
 			"in_standard_filter": 1,
 			"read_only": 1,
-			"permlevel": 1
+			"permlevel": 4
 		},
 		{
 			"fieldname": "cb_account",

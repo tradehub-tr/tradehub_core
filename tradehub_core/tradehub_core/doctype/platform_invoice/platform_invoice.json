@@ -1,0 +1,315 @@
+{
+ "actions": [],
+ "autoname": "naming_series:",
+ "creation": "2024-01-01 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "tab_invoice",
+  "sb_header",
+  "naming_series",
+  "invoice_type",
+  "status",
+  "column_break_1",
+  "order",
+  "buyer",
+  "seller",
+  "sb_date",
+  "posting_date",
+  "due_date",
+  "currency",
+  "tab_items",
+  "sb_items",
+  "items",
+  "tab_billing",
+  "sb_billing",
+  "billing_type",
+  "billing_company_name",
+  "billing_tax_office",
+  "billing_tax_number",
+  "billing_tcn",
+  "billing_e_invoice",
+  "sb_address",
+  "billing_address",
+  "billing_city",
+  "billing_district",
+  "billing_postal_code",
+  "tab_totals",
+  "sb_totals",
+  "subtotal",
+  "total_tax_amount",
+  "shipping_fee",
+  "grand_total",
+  "tab_efatura",
+  "sb_efatura",
+  "e_invoice_id",
+  "e_invoice_uuid",
+  "e_invoice_status"
+ ],
+ "fields": [
+  {
+   "fieldname": "tab_invoice",
+   "fieldtype": "Tab Break",
+   "label": "Fatura"
+  },
+  {
+   "fieldname": "sb_header",
+   "fieldtype": "Section Break",
+   "label": "Fatura Başlığı"
+  },
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Naming Series",
+   "options": "INV-.#####",
+   "default": "INV-.#####"
+  },
+  {
+   "fieldname": "invoice_type",
+   "fieldtype": "Select",
+   "label": "Fatura Tipi",
+   "options": "Satış Faturası\nİade Faturası\nProforma\ne-Fatura\ne-Arşiv",
+   "default": "Satış Faturası"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Durum",
+   "options": "Taslak\nKesildi\nİptal Edildi\nÖdendi\nÖdenmedi",
+   "default": "Taslak",
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "order",
+   "fieldtype": "Link",
+   "label": "İlgili Sipariş",
+   "options": "Order",
+   "search_index": 1
+  },
+  {
+   "fieldname": "buyer",
+   "fieldtype": "Link",
+   "label": "Alıcı",
+   "options": "User",
+   "reqd": 1
+  },
+  {
+   "fieldname": "seller",
+   "fieldtype": "Link",
+   "label": "Satıcı",
+   "options": "Admin Seller Profile"
+  },
+  {
+   "fieldname": "sb_date",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "posting_date",
+   "fieldtype": "Date",
+   "label": "Fatura Tarihi",
+   "default": "Today",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "due_date",
+   "fieldtype": "Date",
+   "label": "Son Ödeme Tarihi"
+  },
+  {
+   "fieldname": "currency",
+   "fieldtype": "Link",
+   "label": "Para Birimi",
+   "options": "Currency",
+   "default": "TRY"
+  },
+  {
+   "fieldname": "tab_items",
+   "fieldtype": "Tab Break",
+   "label": "Kalemler"
+  },
+  {
+   "fieldname": "sb_items",
+   "fieldtype": "Section Break",
+   "label": "Fatura Kalemleri"
+  },
+  {
+   "fieldname": "items",
+   "fieldtype": "Table",
+   "label": "Kalemler",
+   "options": "Platform Invoice Item"
+  },
+  {
+   "fieldname": "tab_billing",
+   "fieldtype": "Tab Break",
+   "label": "Cari / Fatura Adresi"
+  },
+  {
+   "fieldname": "sb_billing",
+   "fieldtype": "Section Break",
+   "label": "Fatura / Cari Bilgileri"
+  },
+  {
+   "fieldname": "billing_type",
+   "fieldtype": "Select",
+   "label": "Fatura Edilecek Tür",
+   "options": "\nBireysel\nŞirket",
+   "default": ""
+  },
+  {
+   "fieldname": "billing_company_name",
+   "fieldtype": "Data",
+   "label": "Şirket Ünvanı",
+   "depends_on": "eval:doc.billing_type=='Şirket'"
+  },
+  {
+   "fieldname": "billing_tax_office",
+   "fieldtype": "Data",
+   "label": "Vergi Dairesi",
+   "depends_on": "eval:doc.billing_type=='Şirket'"
+  },
+  {
+   "fieldname": "billing_tax_number",
+   "fieldtype": "Data",
+   "label": "Vergi Numarası (VKN)",
+   "depends_on": "eval:doc.billing_type=='Şirket'"
+  },
+  {
+   "fieldname": "billing_tcn",
+   "fieldtype": "Data",
+   "label": "T.C. Kimlik No (TCKN)",
+   "depends_on": "eval:doc.billing_type=='Bireysel'"
+  },
+  {
+   "fieldname": "billing_e_invoice",
+   "fieldtype": "Check",
+   "label": "e-Fatura Mükellefi mi?",
+   "default": 0,
+   "depends_on": "eval:doc.billing_type=='Şirket'"
+  },
+  {
+   "fieldname": "sb_address",
+   "fieldtype": "Section Break",
+   "label": "Adres Detayları"
+  },
+  {
+   "fieldname": "billing_address",
+   "fieldtype": "Small Text",
+   "label": "Adres"
+  },
+  {
+   "fieldname": "billing_city",
+   "fieldtype": "Data",
+   "label": "İl"
+  },
+  {
+   "fieldname": "billing_district",
+   "fieldtype": "Data",
+   "label": "İlçe"
+  },
+  {
+   "fieldname": "billing_postal_code",
+   "fieldtype": "Data",
+   "label": "Posta Kodu"
+  },
+  {
+   "fieldname": "tab_totals",
+   "fieldtype": "Tab Break",
+   "label": "Toplamlar"
+  },
+  {
+   "fieldname": "sb_totals",
+   "fieldtype": "Section Break",
+   "label": "Tutar Dağılımı"
+  },
+  {
+   "fieldname": "subtotal",
+   "fieldtype": "Currency",
+   "label": "Ara Toplam (Vergisiz)",
+   "options": "currency"
+  },
+  {
+   "fieldname": "total_tax_amount",
+   "fieldtype": "Currency",
+   "label": "Toplam KDV/Vergi",
+   "options": "currency"
+  },
+  {
+   "fieldname": "shipping_fee",
+   "fieldtype": "Currency",
+   "label": "Kargo Ücreti",
+   "options": "currency"
+  },
+  {
+   "fieldname": "grand_total",
+   "fieldtype": "Currency",
+   "label": "Genel Toplam",
+   "options": "currency",
+   "in_list_view": 1,
+   "bold": 1
+  },
+  {
+   "fieldname": "tab_efatura",
+   "fieldtype": "Tab Break",
+   "label": "e-Fatura Bilgileri"
+  },
+  {
+   "fieldname": "sb_efatura",
+   "fieldtype": "Section Break",
+   "label": "Entegrasyon Detayları"
+  },
+  {
+   "fieldname": "e_invoice_id",
+   "fieldtype": "Data",
+   "label": "GİB Fatura No"
+  },
+  {
+   "fieldname": "e_invoice_uuid",
+   "fieldtype": "Data",
+   "label": "Fatura UUID (ETTN)"
+  },
+  {
+   "fieldname": "e_invoice_status",
+   "fieldtype": "Data",
+   "label": "e-Fatura Durumu (GİB)",
+   "read_only": 1
+  }
+ ],
+ "links": [],
+ "modified": "2024-01-01 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "Platform Invoice",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "role": "All",
+   "if_owner": 1,
+   "write": 0,
+   "delete": 0
+  }
+ ],
+ "sort_field": "posting_date",
+ "sort_order": "DESC",
+ "title_field": "naming_series",
+ "track_changes": 1
+}

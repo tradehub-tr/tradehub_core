@@ -77,11 +77,29 @@ def _validate_file_extension(file_url: str, field_label: str) -> None:
 
 class KYCVerification(Document):
 	def validate(self) -> None:
+		self._guard_status_change()
 		self._validate_required_fields()
 		self._validate_tax_id()
 		self._validate_identity_document()
 		self._validate_rejection_reason()
 		self._sync_email_field()
+
+	def _guard_status_change(self) -> None:
+		"""T2 — `status` yalnız inceleme yetkilisi tarafından değiştirilebilir.
+
+		İzin katmanı (permlevel 4, patch v15_9_26) TEK savunma değil: permlevel
+		kontrolü `flags.ignore_permissions` ile tamamen atlanır
+		(frappe/model/document.py:785) ve bu doctype'ı `ignore_permissions=True`
+		ile kaydeden kod yolları var (`api/v1/kyc.submit_kyc` dahil). Bu kapı
+		`validate()` içinde çalıştığı için o bayrakla ATLANAMAZ.
+
+		Sömürü (ölçüldü, docs/reports/28-faz13-pentest.md §2 T2): satıcı rolü
+		taşıyan kullanıcı kendi kaydında `status="Verified"` yazınca
+		`on_update._sync_kyc_status` `User Profile.can_buy = 1` yapıyordu.
+		"""
+		from tradehub_core.permissions import guard_verification_status_change
+
+		guard_verification_status_change(self)
 
 	def _validate_required_fields(self) -> None:
 		"""Sprint 2.6: Hem Bireysel hem Kurumsal için zorunlu ortak alanlar.

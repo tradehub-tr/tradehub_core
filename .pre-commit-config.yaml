@@ -1,0 +1,68 @@
+# T-032 · pre-commit — commit ANINDA lint, CI'dan önce.
+#
+# `docs/reports/33-dogrulama-faz0-3.md` §5.2: bu dosya YOKTU; T-032'nin
+# kabul kriterlerinden biri buydu.
+#
+# KURULUM (bir kez, geliştirici makinesinde):
+#     pip install pre-commit && pre-commit install
+#
+# ELLE KOŞUM:
+#     pre-commit run --all-files        # tüm depo — bugün KIRMIZI verir, aşağıya bak
+#     pre-commit run                    # yalnız staged dosyalar — kapı bu
+#
+# ⚠️ ÖLÇÜLMÜŞ TABAN (2026-08-19): `ruff check .` → 1401 hata,
+# `ruff format --check .` → 326 dosya. Bu yüzden `--all-files` bugün
+# geçmez ve geçmesi de beklenmiyor. pre-commit varsayılan olarak YALNIZ
+# staged dosyalara bakar; kapı orada kurulu: yeni/dokunulan kod temiz olur,
+# eski kod kimseyi durdurmaz. Aynı gerekçe CI'da da geçerli
+# (.github/workflows/ci.yml, "degisen dosyalar bloklayici").
+#
+# Sürüm pinleri CI ile aynı tutulmalı (ci.yml: RUFF_VERSION / MYPY_VERSION).
+
+default_language_version:
+  python: python3
+
+exclude: |
+  (?x)^(
+      node_modules/|
+      dist/|
+      build/|
+      .*/__pycache__/|
+      tradehub_core/media/pipeline/contracts/signatures\.golden\.json$
+  )
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: ["--maxkb=2048"]
+      - id: check-yaml
+      - id: check-toml
+      # check-json: politika/DocType JSON'ları bozuk commit'lenmesin.
+      - id: check-json
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+        # Frappe tab kullanıyor; sekmeye dokunma, yalnız satır sonu boşluğu.
+        args: ["--markdown-linebreak-ext=md"]
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.3
+    hooks:
+      # Ayarlar pyproject.toml [tool.ruff] içinden okunur — burada
+      # tekrarlanmaz (iki yerde ayar = kayma).
+      - id: ruff-check
+        args: ["--fix", "--exit-non-zero-on-fix"]
+      - id: ruff-format
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.18.2
+    hooks:
+      - id: mypy
+        # Kapı yalnız donmuş arayüz paketinde — pyproject'teki strict
+        # override orada 0 hata veriyor (ölçüldü). Depo geneli bugün 107
+        # hatada; bloklayıcı yapılmadı.
+        files: ^tradehub_core/media/pipeline/contracts/.*\.py$
+        additional_dependencies: []
+        args: ["--config-file=pyproject.toml"]

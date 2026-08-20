@@ -1,0 +1,28 @@
+# T-006 golden fixture korpusu — ikili dosyalar versiyonlanmaz.
+#
+# Gerekçe: 61 MB'lık üretilmiş ikili dosya git geçmişini kalıcı şişirir ve
+# tamamı betiklerden BİREBİR yeniden üretilebiliyor (2026-08-18'de doğrulandı:
+# 34 görsel + 10 kötücül dosya, aynı dosya listesi).
+#
+# Yeniden üretmek için:
+#   python3 scripts/gen_fixtures_images.py      # 34 görsel + 10 kötücül
+#   sh      scripts/gen_fixtures_video.sh       # 7 video (ffmpeg gerekir)
+#   python3 scripts/build_fixture_manifest.py   # manifest.json
+#
+# Versiyonlanan: manifest.json (beklenen sonuçların sözleşmesi) + üretici betikler.
+media/images/
+media/video/
+malicious/
+
+# ── Betikten ÜRETİLEMEYEN 6 gerçek yakalama (~26,5 MB) ─────────────────────
+# Bunlar gerçek çekim (NTSC 29,97 fps video, AdobeRGB PNG, Canon TIFF vb.) —
+# gen_fixtures_* betikleri bunları üretMEZ. BİLİNÇLİ olarak versiyonlanmıyor:
+# git'e koymak her clone/checkout/deploy'a bu yükü bindirirdi (2026-08-20
+# kullanıcı kararı — deploy hızı > kolay checkout).
+#
+# KANIT KAYBI YOK: köken + sha256 + ölçülen değerler manifest.json'da (git'te).
+# Taze checkout'ta bu dosyaları gerektiren testler @skipUnless ile SESSİZCE
+# ATLANIR — bu bir kusur değil, kayıtlı karardır. Dosyalar gerekiyorsa
+# manifest.json'daki köken adreslerinden docker cp ile getirilir.
+#   media/video/real_*.mp4  ·  media/video/video_real_*.mp4
+#   media/images/real_*.png ·  media/images/real_*.tif

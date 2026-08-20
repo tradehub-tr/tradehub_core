@@ -193,10 +193,13 @@ class TestGorselZinciri(_MediaPipelineIntegrationBase):
 		# zincirini sınıyor — dosyanın HANGİ kökte durduğu bekletmenin konusu ve
 		# kendi testleri var (`TestBekletme`); burada önemli olan içeriğin
 		# gerçekten WebP olması.
+		#
+		# Yedek yol hash-prefix shard'lı olmalı (TUR-130): public/files/<ab>/<hash>.webp
+		# — shard'sız yedek, tarama kapalıyken dosyayı bulamazdı.
 		from tradehub_core.media import av
 
 		disk_path = av.current_path(result["file_url"]) or os.path.join(
-			get_files_path(is_private=0), base_name
+			get_files_path(is_private=0), base_name[:2], base_name
 		)
 		self.assertTrue(os.path.isfile(disk_path), f"diskte yok: {disk_path}")
 		with open(disk_path, "rb") as f:
@@ -309,6 +312,34 @@ class TestVideoDali(_MediaPipelineIntegrationBase):
 
 		durum = frappe.db.get_value("File", {"file_url": result["file_url"]}, "th_media_video_status")
 		self.assertEqual(durum, transcode.VIDEO_STATUS_PROCESSING)
+
+	def test_video_status_upload_donusunde_ve_listede_gorunur(self):
+		"""Video durumu uçlardan dönmeli (TUR video-durum düzeltmesi): panel rozeti
+		hem `upload_media` dönüşünden (yükleme anında "işleniyor") hem
+		`get_my_media` listesinden (kütüphane ızgarası) besleniyor."""
+		store, email = self._make_store(quota_mb=100, tag="video-status")
+		self._as_seller(email)
+
+		video_bytes = b"\x00\x00\x00\x18ftypmp42" + os.urandom(256)
+
+		with mock.patch("tradehub_core.media.transcode.frappe.enqueue"):
+			result = seller_media.upload_media(file_name="rozet.mp4", content=_b64(video_bytes))
+		self.addCleanup(lambda: self._cleanup_file(result["file_url"]))
+
+		# (a) upload dönüşü — panel "Video yüklendi" toast'ı yerine duruma bakabilsin
+		self.assertEqual(result.get("video_status"), transcode.VIDEO_STATUS_PROCESSING)
+
+		# (b) liste ucu — kütüphane ızgarasındaki her satırda durum var
+		liste = seller_media.get_my_media()
+		satir = next((i for i in liste["items"] if i["file_url"] == result["file_url"]), None)
+		self.assertIsNotNone(satir, f"yüklenen video listede yok: {result['file_url']}")
+		self.assertEqual(satir.get("video_status"), transcode.VIDEO_STATUS_PROCESSING)
+
+		# (c) video olmayan satırlar patlamıyor — alan boş/None dönebilir, KeyError değil
+		jpeg = _jpeg_bytes(color=(120, 120, 40))
+		r_img = seller_media.upload_media(file_name="gorsel.jpg", content=_b64(jpeg))
+		self.addCleanup(lambda: self._cleanup_file(r_img["file_url"]))
+		self.assertFalse(r_img.get("video_status"))
 
 
 class TestHashDedup(_MediaPipelineIntegrationBase):

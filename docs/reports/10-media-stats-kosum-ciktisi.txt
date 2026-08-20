@@ -1,0 +1,88 @@
+
+[2/6] Private dağılımı…
+[3/6] PII maruziyeti…
+[4/6] Boyut dağılımı (p50/p90/p99)…
+[5/6] Disk probe (MP / CMYK / 0 bayt / uzantı-içerik)…
+  … 200/2853 dosya incelendi
+  … 400/2853 dosya incelendi
+  … 600/2853 dosya incelendi
+  … 800/2853 dosya incelendi
+  … 1000/2853 dosya incelendi
+  … 1200/2853 dosya incelendi
+  … 1400/2853 dosya incelendi
+  … 1600/2853 dosya incelendi
+  … 1800/2853 dosya incelendi
+  … 2000/2853 dosya incelendi
+  … 2200/2853 dosya incelendi
+  … 2400/2853 dosya incelendi
+  … 2600/2853 dosya incelendi
+  … 2800/2853 dosya incelendi
+[6/6] Yetim dosyalar…
+
+════════════════════════════════════════════════════════════════════════
+MEDYA İSTATİSTİĞİ — istoc.localhost — 2026-08-18 11:09:58.706041
+════════════════════════════════════════════════════════════════════════
+
+── MUTABAKAT ─────────────────────────────────────────────
+  rows_all                     4964
+  rows_public                  4350
+  rows_private                 608
+  urls_public                  2853
+  urls_private                 160
+  urls_inventory_scope         2809
+  disk_public                  4016
+  disk_private                 325
+  urls_public_flat             2851
+  urls_public_non_hashed       2848
+  bytes_public_dedup (MB)      861.14
+  bytes_public_raw   (MB)      1313.47
+
+── PRIVATE DAĞILIMI (kayıt / adres) ──────────────────────
+  KYB Verification               489 / 99
+  __owner_only__                  73 / 52
+  Bulk Import Job                 29 / 26
+  KYC Verification                 9 / 7
+  Brand                            4 / 2
+  Seller Application               3 / 3
+  Seller Verification              1 / 1
+  TOPLAM                       608 / 190
+
+── BOYUT DAĞILIMI (MB) ───────────────────────────────────
+  kapsam            n      p50      p90      p99      max   >20MB   0B
+  inventory      2809     0.07     0.76     3.27    17.23       0    0
+  public         2853     0.07     0.76     3.31    17.23       0    0
+  private         160      0.1     1.44    13.52    21.04       1    0
+
+── ÇÖZÜNÜRLÜK KAPSAMI ─ th_media_width dolu: 0/2853 (%0.0)
+
+── ANOMALİLER (disk probe) ───────────────────────────────
+  incelenen dosya: 2850 / aday 2853
+     zero_byte_db               0
+     zero_byte_disk             0
+  !! missing_on_disk            3
+     orphan_on_disk             0
+     over_bytes                 0
+  !! over_megapixels            120
+  !! cmyk                       28
+     ext_content_mismatch       0
+     dangerous_content          0
+     unreadable                 0
+  MP  p50=1.54 p90=6.55 p99=29.21 max=72.71
+  renk modları: {'RGB': 2541, 'RGBA': 225, 'CMYK': 28, 'P': 43, 'L': 6}
+  DB↔disk boyut sapması: 2
+
+── PII MARUZİYETİ ────────────────────────────────────────
+  !! KYC Verification.identity_document       0
+  !! Seller Application.identity_document     0
+  !! KYB Verification.identity_document       0
+  !! KYB Verification.bank_account_document   0
+  !! Seller Certification.document            0
+  !! Seller Verification.document             0
+  !! public/hassas aynı content_hash        44
+
+── YETİM DOSYALAR ────────────────────────────────────────
+  diskte 4016 / DB'de 2853
+  kayıtsız disk dosyası: 1166 (türev görünümlü: 0)
+  dosyasız DB kaydı:     3
+
+════════════════════════════════════════════════════════════════════════

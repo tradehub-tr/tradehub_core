@@ -898,6 +898,21 @@ def get_listings(
 		)
 		results.append(item)
 
+	# W10 (rapor 101 §İş1) — İLK kartın (LCP adayı) görsel manifestini yanıta göm:
+	# vitrin ızgarası soğuk yüklemede ayrı get_manifest_batch turunu LCP adayı
+	# için beklemesin. YALNIZ ilk görünür kart (N=1); kalan kartlar bugünkü toplu
+	# turda manifest alır (vitrin `primeMediaManifests` gömülü kartı `_taze` görüp
+	# atlar). Türev gerçekten varsa gömülür; yoksa alan HİÇ eklenmez ve kart ham
+	# `<img>` yolunda kalır (bugünkü davranış). Tek toplu alt-katman çağrısı → N+1
+	# yok; manifest içerik-adresli, CACHE_TTL (30 sn) içinde bayatlık ucuz.
+	if results:
+		ilk_kart = results[0]
+		manifest_blogu = _kart_gorsel_manifesti(ilk_kart.get("id"))
+		if manifest_blogu and any(
+			(g or {}).get("manifest") for g in (manifest_blogu.get("images") or [])
+		):
+			ilk_kart["manifest"] = manifest_blogu
+
 	result = {
 		"data": results,
 		"total": total,
@@ -977,6 +992,55 @@ def _record_listing_view(listing_name):
 	except Exception:
 		frappe.log_error("log_product_view failed", "listing")
 		pass
+
+
+def _video_manifest_blogu(listing_name: str) -> dict:
+	"""İlanın manifest `video` bloğu — `api.media_manifest` ALT KATMANINDAN.
+
+	W8: `get_listing_detail`in `videoPoster`/`videoHlsSrc`/`videoPreviewSrc`
+	alanlarının tek kaynağı. Manifest mantığı (görünürlük, bayrak, sızıntı
+	kuralları) media_manifest'te kalır; burada yalnız çağrı var. Video alanları
+	detay ucunu ASLA düşürmez: okuma hatasında boş döner ve `videoUrl` bugünkü
+	ham davranışında kalır.
+	"""
+	try:
+		from tradehub_core.api import media_manifest
+
+		return media_manifest.video_bloklari([listing_name]).get(listing_name) or {}
+	except Exception:
+		frappe.log_error("listing detail video manifest okunamadı", "listing")
+		return {}
+
+
+def _kart_gorsel_manifesti(listing_name: str) -> dict:
+	"""İlk kartın (LCP adayı) GÖRSEL manifest gövdesi — `api.media_manifest`
+	ALT KATMANINDAN (görsel slotu).
+
+	W10 (rapor 101 §İş1): `get_listings` yanıtına yalnız İLK kartın görsel
+	manifestini gömerek vitrin ızgarasının ayrı `get_manifest_batch` turunu LCP
+	adayı için eksiltir — kart soğuk yüklemede ham PNG yerine türev (AVIF/WebP)
+	ile boyanır. Manifest mantığının tamamı (görünürlük, bayrak, sızıntı, türev
+	seçimi) media_manifest'te KALIR; burada yalnız tek toplu alt-katman çağrısı
+	var — video yolundaki `_video_manifest_blogu` ile aynı desen, mantık
+	KOPYALANMAZ. Bayrak kapalıyken/okuma hatasında boş döner ve kart bugünkü ham
+	`<img>` davranışında kalır (vitrin manifesti yine ayrı turda çeker). Tek ilan
+	için tek toplu çağrı → N+1 yok.
+	"""
+	if not listing_name:
+		return {}
+	try:
+		from tradehub_core.api import media_manifest
+
+		acik = media_manifest._bayrak_acik()
+		if not acik:
+			return {}
+		govdeler = media_manifest._manifest_batch_icin(
+			[listing_name], media_manifest.DEFAULT_SLOT, acik
+		)
+		return govdeler.get(listing_name) or {}
+	except Exception:
+		frappe.log_error("listing card gorsel manifest okunamadı", "listing")
+		return {}
 
 
 @frappe.whitelist(allow_guest=True)
@@ -1362,6 +1426,8 @@ def get_listing_detail(listing_id, lang="tr"):
 	_short_desc = resolve_content_field(listing, "short_description", lang, _dl) or listing.short_description
 	_selling = resolve_content_field(listing, "selling_point", lang, _dl) or listing.selling_point
 
+	_video_blogu = _video_manifest_blogu(listing.name)
+
 	result = {
 		"id": listing.name,
 		"listingCode": listing.listing_code,
@@ -1441,6 +1507,14 @@ def get_listing_detail(listing_id, lang="tr"):
 		if is_out_of_stock
 		else ((listing.available_qty if listing.available_qty is not None else (listing.stock_qty or 0)) > 0),
 		"videoUrl": listing.video_url,
+		# W8 — medya hattının video türev alanları. Kaynak TEK: manifest alt
+		# katmanı (api/media_manifest.video_bloklari); mantık burada
+		# KOPYALANMAZ. Türev yoksa/bayrak kapalıysa None — vitrin bugünkü ham
+		# videoUrl davranışında kalır (listingService boş alanları eler).
+		"videoPoster": _video_blogu.get("poster") or None,
+		"videoHlsSrc": _video_blogu.get("hlsSrc") or None,
+		"videoPreviewSrc": _video_blogu.get("previewSrc") or None,
+		"videoSrc": _video_blogu.get("src") or None,
 		"status": listing.status or "",
 		"outOfStock": is_out_of_stock,
 		"productCertifications": product_certifications,

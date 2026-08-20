@@ -1,0 +1,286 @@
+{
+  "$schema": "../schema/slot-policy.schema.json",
+  "schema_version": "1.1.0",
+  "status": "draft",
+  "slot_key": "product.video",
+  "title": "Ürün tanıtım videosu",
+  "description": "Bir ilanın ve varyantlarının tanıtım videosu. Sistemde ASENKRON TRANSCODE HATTI ZATEN VAR (tradehub_core/media/transcode.py, 1280px/VP9/Opus) — bu politika o hattı yeniden tasarlamaz, sınırlarını slot sözleşmesine taşır. Görsel slotlarından farklı bir sorunu var: video 16:9, galeri kutusu ise kare (aspect-square), yani video kutuya letterbox oluyor.",
+  "roles": ["seller"],
+
+  "bound_to": [
+    {
+      "doctype": "Listing",
+      "field": "video_url",
+      "fieldtype": "Data",
+      "source": "docs/reports/00-upload-slot-envanteri.md §2 satır `listing.video` — fieldtype Attach DEĞİL Data; panel buraya upload_file çıktısını string yazıyor (admin-panel/frontend/src/views/seller/ListingFormView.vue:4166-4185). media/usage.py:34 LIVE_SOURCES'ta kayıtlı."
+    },
+    {
+      "doctype": "Listing Variant Item",
+      "field": "variant_video_url",
+      "fieldtype": "Data",
+      "source": "docs/reports/00-upload-slot-envanteri.md §2 satır `listing.variant_video` — LIVE_SOURCES'ta YOK (§7-B B6), silme taramasında 'kullanılmıyor' görünür."
+    }
+  ],
+
+  "accept": {
+    "mime": ["video/mp4", "video/webm", "video/quicktime"],
+    "extensions": [".mp4", ".webm", ".mov", ".m4v"],
+    "max_bytes": 10485760,
+    "max_megapixels_hard": 8.3,
+    "allow_animated": true
+  },
+
+  "require": {
+    "min_short_edge": 360,
+    "min_area": 230400,
+    "allowed_ratios": ["16:9"],
+    "ratio_tolerance": 0.06,
+    "max_count": 1
+  },
+
+  "master": {
+    "max_long_edge": 1280,
+    "min_long_edge": 640,
+    "max_megapixels": 0.93,
+    "dpi_out": 72,
+    "colorspace": "preserve",
+    "format": "webm",
+    "orientation": "preserve",
+    "strip_metadata": {"exif": true, "gps": true, "xmp": true, "icc": false}
+  },
+
+  "quality": {
+    "metric": "ssim",
+    "reencode_floor_saving_ratio": 0.1
+  },
+
+  "profiles": [
+    {
+      "name": "poster_192",
+      "width": 192,
+      "formats": ["webp"],
+      "encoder_quality": {"webp": 80},
+      "fit": "cover",
+      "target_ratio": "1:1",
+      "serves": ["galeri video karosu 70×70", "lightbox video karosu 76×76 (<960px'te 68×68)"],
+      "derived_from": "hesap: max(lightbox karosu 76 @2x = 152; galeri karosu 70 @2x = 140) = 152 → üst basamak 192. Kutular: tradehubfront/src/components/product/ProductImageGallery.ts:103 (THUMB_BASE w-[70px]), :111-115 (LIGHTBOX_THUMB_BASE w-[76px], max-[960px] 68px)",
+      "max_overshoot": 1.26
+    },
+    {
+      "name": "poster_1024",
+      "width": 1024,
+      "formats": ["avif", "webp"],
+      "encoder_quality": {"avif": null, "webp": 80},
+      "fit": "contain",
+      "serves": ["masaüstü galeri video slaytının duran kare gösterimi", "mobil MediaViewer video slaytının poster'ı"],
+      "derived_from": "hesap: masaüstü galeri kutusu ≥1536 viewport'ta 502 CSS px @2x = 1004 → üst basamak 1024. Kutu: docs/reports/03-render-envanteri.md §3.5",
+      "max_overshoot": 1.02
+    }
+  ],
+
+  "video": {
+    "duration_max_s": 33,
+    "resolution_min": {
+      "width": 640,
+      "height": 360,
+      "derivation": "hesap: en küçük gerçek görüntüleme kutusu 300 CSS px (1024-1279 masaüstü bandı, docs/reports/03-render-envanteri.md §3.5); DPR2 → 600 genişlik → 16:9'da kısa kenar 338 → standart basamak 360 (640×360)."
+    },
+    "resolution_max": {
+      "width": 3840,
+      "height": 2160,
+      "note": "4K kare üst sınırı. Sunucu her hâlükârda 1280 genişliğe indiriyor (transcode.py:242), bu yüzden üstünü kabul etmenin görsel karşılığı yok."
+    },
+    "resolution_recommended": {
+      "width": 1280,
+      "height": 720,
+      "note": "ffmpeg hedefi zaten bu: scale='min(1280,iw)':-2 (transcode.py:242). Daha büyük yüklemek yalnız yükleme süresini uzatır."
+    },
+    "bitrate_cap_kbps": 2500,
+    "audio_policy": {
+      "track": "allowed",
+      "codec": "libopus",
+      "bitrate_kbps": null,
+      "autoplay_mute_mandatory": true,
+      "user_can_unmute": true,
+      "notes": [
+        "bitrate_kbps = null: SABİTLENMEDİ. transcode.py:246 `-c:a libopus` yazıyor, `-b:a` YOK → kodlayıcı varsayılanına bağlı ve ffmpeg sürümü değişince sessizce değişir. Kapak videosu slotu bunu 96 kbps'te sabitliyor (company-cover-video.json, Ç10); ürün videosunda karar VERİLMEDİ.",
+        "autoplay_mute_mandatory: ürün videosu modalinde bugün MUTED YOK ve autoplay var (tradehubfront/src/components/seller/CompanyProfile.ts:1002) → tarayıcı oynatmayı bloklar. company-cover-video.json known_conflicts Ç9 bunu kaydediyor."
+      ]
+    },
+    "autoplay": {
+      "enabled": false,
+      "muted": true,
+      "loop": false,
+      "playsinline": true,
+      "preload": "metadata",
+      "present_today": false,
+      "note": "Galeri/MediaViewer içinde video kullanıcı dokununca oynar; ProductVideoSection (16:9 kutu) hiçbir sayfada mount edilmiyor (notes[0] ÖLÜ RENDER). CompanyProfile.ts:1002'deki modal autoplay'i muted DEĞİL — Ç9. Bu satırlar hedeflenen sözleşmedir, bugünkü davranış değil."
+    },
+    "poster": {
+      "selection_rule": "TANIMLANMADI: bugün poster hiç üretilmiyor. Bir yükleme → bir dosya (docs/reports/03-render-envanteri.md §6.3) ve <video> etiketlerine poster verilmiyor; galeri video karosunda duran kare tarayıcının ilk karesidir. Kare seçim kuralı ürün videosu için henüz KARAR DEĞİL — company-cover-video.json video.poster.selection_rule (ffmpeg thumbnail, n=120, [0,5 s, min(5 s, süre×0,25)] penceresi) hazır bir şablondur ve aynen benimsenebilir.",
+      "profile": "poster_1024",
+      "fallback_profile": "poster_192",
+      "implemented_today": false
+    },
+    "renditions": [
+      {
+        "id": "product_1280_webm",
+        "role": "primary",
+        "width": 1280,
+        "height": 720,
+        "container": "webm",
+        "video_codec": "libvpx-vp9",
+        "crf": 32,
+        "audio_codec": "libopus",
+        "audio_bitrate_kbps": null,
+        "max_bytes": 10485760,
+        "max_bytes_human": "10 MB",
+        "max_bytes_derivation": "Çıktı için AYRI bayt kapısı YOK: _run_transcode sonucu koşulsuz yerine yazıyor (transcode.py:251-252 os.replace). accept.max_bytes ile aynı sayı yazıldı — ÖLÇÜLMEDİ, çıktının girdiden büyük olmadığı garanti değil.",
+        "mime": "video/webm; codecs=vp9,opus",
+        "served_when": "her viewport — tek tier",
+        "implemented_today": true,
+        "crf_note": "CRF 32 mevcut hattan okundu (transcode.py:245); -maxrate/-bufsize YOK, bu yüzden maxrate_kbps/bufsize_kbps yazılmadı.",
+        "note": "Ç1 UYARISI: bu rendition kaynağın ADRESİNE yazılıyor (transcode.py:230 → :252), yani .mp4 uzantılı bir URL'den WebM baytları servis ediliyor. mime alanı ancak Ç1 çözüldükten sonra doğru olur; bugün nginx Content-Type'ı uzantıdan türetiyor."
+      }
+    ],
+    "transcode": {
+      "unconditional_for_this_slot": false,
+      "conditional_reason": "needs_transcode() eşikleri geçerli: 1280 genişlik ve 2.500.000 bps altındaki dosyalar ATLANIR (tradehub_core/media/transcode.py:61,66-67,116). Kapak videosunun aksine ürün videosu ilan başına 1 + varyant başına 1 adet → kuyruk riski gerçek, koşullu atlama korunuyor.",
+      "in_place_replace": {
+        "allowed_for_this_slot": true,
+        "today_behavior": "dst_path = f'{src_path}.transcoding.webm' (transcode.py:230) ardından os.replace(dst_path, src_path) (transcode.py:252).",
+        "note": "Bu politika mevcut davranışı DEĞİŞTİRMİYOR (Kural 5: çözülmüş hattı yeniden tasarlama). Ama Ç1'in bedeli burada da geçerli: .mp4 adresinden WebM baytı servis ediliyor. Düzeltme kapak slotunda başlıyor (company-cover-video.json video.transcode.in_place_replace)."
+      },
+      "size_gate_missing_today": "Boyut kapısı yok; çıktı ne olursa olsun yazılıyor (transcode.py:251-252). presets.py:25 MIN_SAVING_RATIO video yolunda UYGULANMIYOR."
+    }
+  },
+
+  "content_rules": [
+    {
+      "rule": "frame_width",
+      "threshold": 1280,
+      "comparator": "gt",
+      "action": "auto_fix",
+      "message_key": "genislik_kuculttuk",
+      "source": "tradehub_core/media/transcode.py:242 — ffmpeg -vf scale='min(1280,iw)':-2. Ret değil, sunucu küçültür."
+    },
+    {
+      "rule": "bitrate_bps",
+      "threshold": 2500000,
+      "comparator": "gt",
+      "action": "auto_fix",
+      "message_key": "bitrate_isleniyor",
+      "source": "tradehub_core/media/transcode.py:61 NEEDS_TRANSCODE_MAX_BITRATE = 2_500_000 — eşiği aşan video transcode kuyruğuna girer (transcode.py:116)."
+    },
+    {
+      "rule": "duration_seconds",
+      "threshold": 33,
+      "comparator": "gt",
+      "action": "warn",
+      "message_key": "sure_uzun",
+      "source": "hesap: 10 MB = 10·1024·1024·8 = 83.886.080 bit; 83.886.080 / 2.500.000 bps = 33,5 sn. Yani accept.max_bytes ile transcode.py:61 bitrate eşiği birlikte ~33 saniyelik ZIMNİ bir süre sınırı üretiyor. Kodda açık süre kontrolü YOK."
+    },
+    {
+      "rule": "is_private",
+      "threshold": true,
+      "comparator": "eq",
+      "action": "warn",
+      "message_key": "private_transcode_atlandi",
+      "source": "tradehub_core/media/transcode.py:194 — `if doc.get('is_folder') or doc.get('is_private'): return`. Private yüklenen ürün videosu HİÇ normalize edilmez ve kullanıcıya hiçbir şey söylenmez."
+    },
+    {
+      "rule": "ffprobe_readable",
+      "threshold": false,
+      "comparator": "eq",
+      "action": "review",
+      "message_key": "ffprobe_okunamadi",
+      "source": "tradehub_core/media/transcode.py:101-106 — ffprobe patlarsa güvenli tarafa düşülüp True dönüyor (transcode et) ve frappe.log_error yazılıyor."
+    },
+    {
+      "rule": "owner_is_seller_or_listing_attached",
+      "threshold": false,
+      "comparator": "eq",
+      "action": "warn",
+      "message_key": "kapsam_disi_transcode_yok",
+      "source": "tradehub_core/media/transcode.py:201-204 — ownership.store_of(owner) boş VE attached_to_doctype != 'Listing' ise global transcode ağı dosyayı atlıyor."
+    }
+  ],
+
+  "on_violation": {
+    "default": "reject",
+    "accept": "reject",
+    "require": "warn",
+    "master": "auto_fix",
+    "content_rules": "warn",
+    "error_code_prefix": "upload",
+    "retryable": false
+  },
+
+  "messages": {
+    "tr": {
+      "bicim_desteklenmiyor": "Bu video biçimi kabul edilmiyor ({bicim}). MP4, WebM veya MOV olarak yeniden kaydedip tekrar yükleyin ({izinli_bicimler}).",
+      "cok_buyuk": "Video {mb} MB; sınır {max_mb} MB. Süreyi kısaltın ya da 1280 piksel genişlikte yeniden kaydedip yükleyin.",
+      "cozunurluk_dusuk": "Video genişliği çok düşük; en az 640×360 gerekiyor. Daha yüksek çözünürlükte kaydedip yükleyin, yoksa ürün sayfasında bulanık görünür.",
+      "oran_16_9_degil": "Videonun oranı {oran}; beklenen 16:9. Galeri kutusu kare olduğu için başka oranlarda üstte ve altta geniş siyah bant oluşur.",
+      "genislik_kuculttuk": "Video 1280 piksel genişliğe küçültüldü; yükleme kabul edildi, işlem sunucuda arka planda tamamlanıyor.",
+      "bitrate_isleniyor": "Videonun bit hızı yüksek olduğu için sunucuda yeniden sıkıştırılıyor. Yükleme kabul edildi; hazır olunca ürün sayfasında görünecek.",
+      "sure_uzun": "Video tahminen 33 saniyeden uzun ve 10 MB sınırına dayanıyor. Süreyi kısaltmak dosyayı küçültmenin en etkili yoludur.",
+      "private_transcode_atlandi": "Video gizli (private) olarak kaydedildi; bu yüzden sunucu sıkıştırma adımı atlandı. Ürün videosunu herkese açık olarak yükleyin.",
+      "ffprobe_okunamadi": "Videonun teknik bilgileri okunamadı; dosya bozuk olabilir. Yükleme kabul edildi ama güvenli tarafta kalmak için yeniden sıkıştırılacak.",
+      "kapsam_disi_transcode_yok": "Bu video otomatik sıkıştırma kapsamına girmedi çünkü bir ilana bağlanmamış. Videoyu ürün formundan yükleyin."
+    }
+  },
+
+  "sources": {
+    "accept.mime": "tradehub_core/media/upload_policy.py:63 (KIND_VIDEO uzantıları) + tradehub_core/media/transcode.py:67 VIDEO_EXTENSIONS; istemci accept: admin-panel/frontend/src/views/seller/ListingFormView.vue:1215 (video/*)",
+    "accept.extensions": "tradehub_core/media/transcode.py:67 VIDEO_EXTENSIONS = {.mp4, .webm, .mov, .m4v}",
+    "accept.max_bytes": "admin-panel/frontend/src/views/seller/ListingFormView.vue:4169 — bugün FİİLEN uygulanan en sıkı sınır (10 MB). Sunucu L0 tavanı 200 MB (upload_policy.py:69) ama platform_limit() Frappe max_file_size ile kısıtlıyor (upload_policy.py:239-265). Yeni sayı üretilmedi; mevcut üç değerden (10/25/200) en sıkısı alındı.",
+    "accept.max_megapixels_hard": "hesap: 3840×2160 / 1e6 = 8,29 → 4K kare üst sınırı. Sunucu her hâlükârda 1280 genişliğe indiriyor (transcode.py:242), bu yüzden 4K üstü kabul etmenin hiçbir görsel karşılığı yok.",
+    "accept.allow_animated": "Video slotu — hareket slotun kendisidir. Bu alanın görsel motorundaki karşılığı (engine.py:106 'animated' reddi) video yoluna hiç girmez; video yolu Pillow değil ffmpeg (transcode.py:235-248).",
+    "require.min_short_edge": "hesap: en küçük gerçek görüntüleme kutusu 300 CSS px (1024-1279 masaüstü bandı, docs/reports/03-render-envanteri.md §3.5); DPR2 → 600 genişlik → 16:9'da kısa kenar 338 → standart basamak 360 (640×360).",
+    "require.min_area": "hesap: 640 × 360 = 230.400 piksel.",
+    "require.allowed_ratios": "tradehubfront/src/components/product/ProductVideoSection.ts:79 (padding-top:56.25% = 16:9) + tradehubfront/src/components/seller/StoreHeader.ts:296 (aspect-video) + tradehubfront/src/components/seller/CompanyProfile.ts:997 (aspect-video)",
+    "require.ratio_tolerance": "hesap: ±%6 — 1920×1080 (1,778) ile 1920×1088 (1,765) gibi encoder yuvarlamalarını geçirir, 4:3 (1,333) veya 1:1'i geçirmez.",
+    "require.max_count": "docs/reports/00-upload-slot-envanteri.md §2 — Listing.video_url tek bir Data alanı; varyant başına ayrı 1 adet (Listing Variant Item.variant_video_url).",
+    "master.max_long_edge": "tradehub_core/media/transcode.py:242 — ffmpeg hedefi scale='min(1280,iw)':-2. Yeni bir hedef önerilmiyor, mevcut hedef yazıldı. Eşik tutarlılığı transcode.py:55-60 yorumunda gerekçelendirilmiş.",
+    "master.min_long_edge": "hesap: require.min_short_edge 360 → 16:9'da uzun kenar 640.",
+    "master.max_megapixels": "hesap: 1280 × 720 / 1e6 = 0,9216 → 0,93. Şema invaryantı sağlanıyor: 1280² / 1e6 = 1,64 ≥ 0,93.",
+    "master.dpi_out": "Video için anlamsız bir alan; şema zorunlu kıldığı için ekran standardı 72 yazıldı. ÖLÇÜLMEDİ: video metadata'sında dpi taşınmıyor.",
+    "master.colorspace": "tradehub_core/media/transcode.py:235-248 — ffmpeg komutunda renk uzayı dönüşümü YOK, kaynak korunuyor.",
+    "master.format": "tradehub_core/media/transcode.py:243-246 — gerçek master biçimi WebM (VP9 video + Opus ses). ŞEMA BOŞLUĞU GİDERİLDİ: v1.0.0'da master.format enum'unda 'webm' yoktu ve 'preserve' yazmak zorunda kalınmıştı; şema v1.1.0 enum'a 'webm' ve 'mp4' ekledi, değer gerçeğe çevrildi (docs/standards/README.md §4 E10).",
+    "master.orientation": "ffmpeg döndürme metadata'sını taşır; PIL'in ImageOps.exif_transpose davranışı (engine.py:116) video yoluna hiç girmez → 'apply_exif' yerine 'preserve'. ÖLÇÜLMEDİ: dikey çekilmiş telefon videosunda rotate matrisinin korunduğu üretim dosyasında doğrulanmalı.",
+    "master.strip_metadata": "tradehub_core/media/transcode.py:235-248 — ffmpeg varsayılanı çoğu metadata'yı taşımaz; GPS/EXIF silinmesi ÖLÇÜLMEDİ: `ffprobe -show_format` ile üretim dosyalarında doğrulanmalı.",
+    "quality.reencode_floor_saving_ratio": "tradehub_core/media/presets.py:25 MIN_SAVING_RATIO = 0.10 — görsel yolundaki Kapı 6 ile aynı eşik. NOT: video yolunda bu kapı UYGULANMIYOR; _run_transcode çıktıyı koşulsuz yerine yazıyor (transcode.py:251-252 os.replace).",
+    "profiles[0].width": "hesap: max(76 @2x = 152; 70 @2x = 140) = 152 → 192. Kutular ProductImageGallery.ts:103,111-115",
+    "profiles[1].width": "hesap: 502 CSS px @2x = 1004 → 1024. Kutu docs/reports/03-render-envanteri.md §3.5 (≥1536 viewport satırı)",
+    "profiles.eksik": "ŞEMA BOŞLUĞU GİDERİLDİ: video rendition'ı (1280 genişlik VP9/Opus WebM) profiles[] içinde ifade edilemiyordu — profiles[].formats enum'u yalnız avif/webp/jpeg/png kabul ediyor. Şema v1.1.0 'video.renditions[]' bloğunu ekledi ve rendition oraya YAZILDI. Ayrım korunuyor: profiles[] iki POSTER görselini tanımlar (<picture> kaynağı), video.renditions[] teslim edilen videoyu (<video><source> kaynağı). Rendition'ın kodda yaşadığı yer transcode.py:242-247.",
+    "video.duration_max_s": "hesap: 10 MB = 10·1024·1024·8 = 83.886.080 bit; 83.886.080 / 2.500.000 bps = 33,5 sn → 33 s. Bu ZIMNİ bir sınırdır: accept.max_bytes ile transcode.py:61 bitrate eşiğinin çarpımından doğuyor, kodda açık süre kontrolü YOK (content_rules 'duration_seconds' kuralı bu yüzden 'warn').",
+    "video.resolution_min": "hesap: 300 CSS px × DPR2 = 600 genişlik → 16:9'da kısa kenar 338 → standart basamak 360 (640×360). Kutu docs/reports/03-render-envanteri.md §3.5",
+    "video.resolution_max": "hesap: 3840×2160 / 1e6 = 8,29 MP → accept.max_megapixels_hard ile aynı kaynak. Teslim her hâlükârda 1280 genişliğe iniyor (transcode.py:242).",
+    "video.bitrate_cap_kbps": "tradehub_core/media/transcode.py:61 NEEDS_TRANSCODE_MAX_BITRATE = 2_500_000 → 2.500 kbps. DİKKAT: istemci barı 2.000.000 bps (admin-panel/frontend/src/lib/media/compress.video.js:29) — aynı çelişki (Ç4) burada da var, ama kapak slotunun aksine bu politika mevcut sunucu eşiğini DEĞİŞTİRMİYOR (Kural 5).",
+    "video.audio_policy.bitrate_kbps": "tradehub_core/media/transcode.py:246 — `-c:a libopus` var, `-b:a` YOK. null = SABİTLENMEDİ; ürün videosu için karar verilmedi (kapak slotu 96 kbps'te sabitliyor).",
+    "video.autoplay": "tradehubfront/src/components/product/ProductVideoSection.ts:56-63 (ÖLÜ RENDER, mount edilmiyor) ve tradehubfront/src/components/product/MediaViewer.ts:54; modal autoplay'i tradehubfront/src/components/seller/CompanyProfile.ts:1002 (muted YOK — Ç9). Yazılan değerler hedeflenen sözleşmedir.",
+    "video.poster.selection_rule": "TANIMLANMADI: türev üretimi yok (docs/reports/03-render-envanteri.md §6.3), <video poster> verilmiyor. Kare seçim kuralı ürün videosu için karar bekliyor; şablon company-cover-video.json video.poster.",
+    "video.renditions[0]": "tradehub_core/media/transcode.py:242-247 — scale='min(1280,iw)':-2, libvpx-vp9, CRF 32, libopus. Yeni değer üretilmedi, mevcut hat okundu.",
+    "video.transcode.conditional_reason": "tradehub_core/media/transcode.py:61,66-67,116 — needs_transcode() eşikleri; transcode.py:14-16 yorumu koşullu atlamanın gerekçesini yazıyor.",
+    "on_violation.error_code_prefix": "tradehub_core/media/upload_policy.py:104-139 — 14 kodlu ret sözleşmesi, kodlar 'upload_' önekli.",
+    "on_violation.retryable": "tradehub_core/media/upload_policy.py:97-100 — kullanıcının dosyasıyla ilgili hatalar tekrar denenmez."
+  },
+
+  "open_questions": [
+    "ffmpeg/ffprobe üretim imajında var mı? `docker compose exec backend which ffmpeg ffprobe`. Yoksa transcode.py:101-106 her videoda log_error yazıp True dönüyor ve _run_transcode FileNotFoundError alıyor — yani hiçbir video normalize edilmiyor.",
+    "File.th_media_video_status dağılımı: kaç video processing/ready/failed? `bench --site <site> console` içinde: frappe.db.sql(\"select th_media_video_status, count(*) from tabFile where th_media_video_status is not null group by 1\")",
+    "Gerçek video çözünürlük / bitrate / süre dağılımı: her ürün videosu için `ffprobe -v error -select_streams v:0 -show_entries stream=width,height,bit_rate,duration -of json <dosya>` ve histogram.",
+    "Listing.video_url alanlarının kaçı DOSYA, kaçı YouTube/Vimeo URL'i? İkisi aynı Data alanında yaşıyor (ProductVideoSection.ts:31-49 ikisini de işliyor) ve yalnız dosya olanlar bu politikanın kapsamında.",
+    "ProductVideoSection ölü kod mu, mount edilmesi mi gerekiyor? Karar verilene kadar 16:9 render kutusu yalnız kağıt üzerinde var.",
+    "10 MB sınırı ürünün gerçek ihtiyacını karşılıyor mu? Panelde 10 MB, sunucuda 200 MB ilan ediliyor; hangi sayının doğru olduğu ürün kararı."
+  ],
+
+  "notes": [
+    "ÖLÜ RENDER: `ProductVideoSection()` hiçbir sayfada çağrılmıyor. Doğrulama: grep 'ProductVideoSection' /Users/ahmet/Desktop/istoc/tradehubfront/src → yalnız kendi dosyası, components/product/index.ts:21-24 (barrel) ve `toVideoEmbedHtml` içe aktarımları (alpine/product.ts:25, components/product/MediaViewer.ts:14). Yani 16:9'luk oranlı kutu bugün ekranda YOK; video yalnız KARE galeri kutusunda (ProductImageGallery.ts:248 aspect-square) ve kare MediaViewer kutusunda (MediaViewer.ts:54) gösteriliyor.",
+    "16:9 video / 1:1 kutu ÇELİŞKİSİ: 502×502'lik masaüstü kutusunda 16:9 bir video 502×282 olarak çizilir, üstte ve altta toplam 220 px siyah kalır (MediaViewer.ts:54 `bg-black`, ProductVideoSection.ts:64 `object-contain bg-black`). Bu politika çelişkiyi çözmez, kaydeder.",
+    "ZATEN ÇÖZÜLMÜŞ — yeniden tasarlanmayacak: (1) asenkron transcode hattı, RQ `long` kuyruğu, 1700 sn ffmpeg timeout, `nice -n 10` (transcode.py:50,157-160,236); (2) idempotanlık — aynı dosya iki yoldan tetiklenirse ikinci kez kuyruğa girmez (transcode.py:139-140); (3) durum alanı File.th_media_video_status ve panel okuması (media/inventory.py:239,261); (4) yedek/geri yükleme farkındalığı (media/backup.py:79-84, media/restore.py:198); (5) istemci sıkıştırma mediabunny ile WebM (admin-panel/frontend/src/lib/media/compress.js `prepareVideo`); (6) parçalı yükleme eşiği 8 MB (upload_policy.py:89) — 10 MB'lık video zaten parçalı gider (media/chunked.py).",
+    "SESSİZ FARK: sunucu 200 MB ilan ediyor (upload_policy.py:69), istemci 10 MB kesiyor (ListingFormView.vue:4169), DocType açıklamaları 10 MB diyor, platform_limit() Frappe tavanını 25 MB varsayıyor (upload_policy.py:239-259). Aynı sınır için dört ayrı sayı — docs/reports/00-upload-slot-envanteri.md §7-B B7.",
+    "Bu politika dosyası bugün kod tarafından OKUNMUYOR. Slot kimliği sunucuya geçmiyor: upload_policy.check() imzasında slot parametresi yok (tradehub_core/media/upload_policy.py:307-313, §7-B B1)."
+  ]
+}

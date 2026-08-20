@@ -1,0 +1,184 @@
+{
+ "$comment": "T-040 · Medya varlığının kimliği. name=hash (autoname) çünkü sıralı ad, kütüphane büyüklüğünü ve yükleme hızını dışarıya sızdırır — mevcut motorun içerik-adresli adlandırma kararıyla (tradehub_core/media/naming.py) aynı gerekçe.",
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-08-18 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 0,
+ "engine": "InnoDB",
+ "field_order": [
+  "slot_key",
+  "owner_seller",
+  "media_type",
+  "state",
+  "content_sha256",
+  "perceptual_hash",
+  "active_version",
+  "source",
+  "legal_hold",
+  "published_at",
+  "last_access_at",
+  "rejection_code",
+  "rejection_note"
+ ],
+ "fields": [
+  {
+   "fieldname": "slot_key",
+   "fieldtype": "Link",
+   "label": "Slot",
+   "options": "Media Policy",
+   "reqd": 1,
+   "search_index": 1,
+   "in_list_view": 1,
+   "description": "Bu varlığa uygulanan slot politikası. Link hedefi Media Policy.name = slot_key (ör. product.image)."
+  },
+  {
+   "fieldname": "owner_seller",
+   "fieldtype": "Link",
+   "label": "Sahip Satıcı",
+   "options": "Admin Seller Profile",
+   "search_index": 1,
+   "description": "Sahiplik ve izin sınırı. SAPMA: kaynak doküman 'Supplier/Company' diyor; İstoç'ta satıcı varlığı Admin Seller Profile'dır (tradehub_core/media/ownership.py bu doctype üzerinden çalışır). Alan boş olabilir: sistem üretimi varlıklarda (og_cache, sitemap) satıcı yoktur."
+  },
+  {
+   "fieldname": "media_type",
+   "fieldtype": "Select",
+   "label": "Medya Türü",
+   "options": "image\nvideo\ndocument",
+   "reqd": 1,
+   "default": "image",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "state",
+   "fieldtype": "Select",
+   "label": "Durum",
+   "options": "draft\npending\nvalidating\nprocessing\nreview\nready\nreprocessing\nfailed\nrejected\narchived\ndeleted\naborted",
+   "default": "draft",
+   "reqd": 1,
+   "search_index": 1,
+   "in_list_view": 1,
+   "description": "Faz 3 durum makinesi. Geçiş kuralları tradehub_core/media/pipeline/core/states.py'ye aittir; DocType yalnız değeri saklar. 'ready' atomiktir: zorunlu rendition listesi eksikse bu değere geçilemez (INV-08)."
+  },
+  {
+   "fieldname": "content_sha256",
+   "fieldtype": "Data",
+   "label": "İçerik SHA-256",
+   "unique": 1,
+   "search_index": 1,
+   "length": 64,
+   "description": "Dedup ve idempotency anahtarı (T-042). UNIQUE: aynı içerik ikinci kez yüklenemez; eşzamanlı yüklemede yarış koşulunu veritabanı çözer."
+  },
+  {
+   "fieldname": "perceptual_hash",
+   "fieldtype": "Data",
+   "label": "Algısal Hash",
+   "search_index": 1,
+   "length": 32,
+   "description": "dHash (64 bit, 16 hex hane). Benzer/tekrar görsel tespiti; content_sha256'nın aksine BENZERLİK ölçer, kimlik değil."
+  },
+  {
+   "fieldname": "active_version",
+   "fieldtype": "Link",
+   "label": "Yayındaki Sürüm",
+   "options": "Media Version",
+   "description": "Manifestin gösterdiği master. Politika veya crop değişince yeni Media Version üretilir ve bu alan ona döner; eski sürüm geçmiş için kalır."
+  },
+  {
+   "fieldname": "source",
+   "fieldtype": "Link",
+   "label": "Kaynak Dosya",
+   "options": "Media Source",
+   "read_only": 1,
+   "description": "1:1 ham dosya kaydı. Asla değişmez."
+  },
+  {
+   "fieldname": "legal_hold",
+   "fieldtype": "Check",
+   "label": "Yasal Saklama",
+   "default": "0",
+   "description": "1 ise retention/GC bu varlığa dokunamaz; öksüz raporunda da listelenmez."
+  },
+  {
+   "fieldname": "published_at",
+   "fieldtype": "Datetime",
+   "label": "Yayın Zamanı",
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_access_at",
+   "fieldtype": "Datetime",
+   "label": "Son Erişim",
+   "search_index": 1,
+   "description": "GC ve retention girdisi. Her istekte YAZILMAZ — örneklemeli/tamponlu yazılır (T-043, tradehub_core/media/pipeline/core/usage.py AccessBuffer)."
+  },
+  {
+   "fieldname": "rejection_code",
+   "fieldtype": "Data",
+   "label": "Red Kodu",
+   "description": "state='rejected' için ZORUNLU (uygulama katmanında zorlanır; DocType reqd yapılamaz çünkü diğer durumlarda boştur)."
+  },
+  {
+   "fieldname": "rejection_note",
+   "fieldtype": "Text",
+   "label": "Red Notu"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "is_submittable": 0,
+ "issingle": 0,
+ "istable": 0,
+ "links": [],
+ "modified": "2026-08-18 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Media Engine",
+ "name": "Media Asset",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Media Superadmin",
+   "share": 1,
+   "write": 1,
+   "permlevel": 0
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 0,
+   "export": 0,
+   "print": 0,
+   "read": 1,
+   "report": 1,
+   "role": "Seller",
+   "share": 0,
+   "write": 1,
+   "permlevel": 0
+  },
+  {
+   "create": 1,
+   "delete": 0,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1,
+   "permlevel": 0
+  }
+ ],
+ "quick_entry": 0,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1,
+ "autoname": "hash"
+}

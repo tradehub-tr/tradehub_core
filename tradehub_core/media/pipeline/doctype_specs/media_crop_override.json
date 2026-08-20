@@ -1,0 +1,82 @@
+{
+ "$comment": "T-041 · Profil bazlı manuel kırpma istisnası — öncelik zincirinin 1. sırası.",
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-08-18 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "profile",
+  "x",
+  "y",
+  "w",
+  "h",
+  "method"
+ ],
+ "fields": [
+  {
+   "fieldname": "profile",
+   "fieldtype": "Link",
+   "label": "Profil",
+   "options": "Media Profile",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "x",
+   "fieldtype": "Float",
+   "label": "X",
+   "precision": "6",
+   "in_list_view": 1,
+   "description": "0-1 normalize koordinat (INV-10). Piksel DEĞİL: kaynak yeniden boyutlandırılsa bile kadraj aynı kalmalı."
+  },
+  {
+   "fieldname": "y",
+   "fieldtype": "Float",
+   "label": "Y",
+   "precision": "6",
+   "in_list_view": 1,
+   "description": "0-1 normalize koordinat (INV-10). Piksel DEĞİL: kaynak yeniden boyutlandırılsa bile kadraj aynı kalmalı."
+  },
+  {
+   "fieldname": "w",
+   "fieldtype": "Float",
+   "label": "Genişlik",
+   "precision": "6",
+   "in_list_view": 1,
+   "description": "0-1 normalize koordinat (INV-10). Piksel DEĞİL: kaynak yeniden boyutlandırılsa bile kadraj aynı kalmalı."
+  },
+  {
+   "fieldname": "h",
+   "fieldtype": "Float",
+   "label": "Yükseklik",
+   "precision": "6",
+   "in_list_view": 1,
+   "description": "0-1 normalize koordinat (INV-10). Piksel DEĞİL: kaynak yeniden boyutlandırılsa bile kadraj aynı kalmalı."
+  },
+  {
+   "fieldname": "method",
+   "fieldtype": "Select",
+   "label": "Yöntem",
+   "options": "manual\nsmartcrop",
+   "default": "manual"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "is_submittable": 0,
+ "issingle": 0,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-08-18 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Media Engine",
+ "name": "Media Crop Override",
+ "owner": "Administrator",
+ "permissions": [],
+ "quick_entry": 0,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0
+}

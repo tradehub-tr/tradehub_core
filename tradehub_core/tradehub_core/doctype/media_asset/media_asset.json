@@ -1,0 +1,252 @@
+{
+ "$comment": "DALGA A / A1a · Medya varlığının kimliği. Kaynak şema: media/pipeline/doctype_specs/media_asset.json. SAPMALAR: (1) `slot_key` Link→Media Policy DEĞİL Data — Media Policy bu dalgada kurulmadı. (2) `source` Link→Media Source DEĞİL `source_file` Link→File — mevcut dosya kaydı File'dır ve Media Source bu dalgada kurulmadı. (3) `active_version` alanı KURULDU (Şerit A, patch v15_9_29+v15_9_30) — Media Version DocType'ı da artık kurulu; A1a'daki 'yok' sapması KAPANDI. Alan permlevel 1'dedir (gerekçe sapma 5). (4) `content_sha256` TEK BAŞINA unique DEĞİL; tekillik (owner_seller, slot_key, content_sha256) üçlüsündedir ve türetilmiş `asset_key` alanı taşır — çünkü bir File birden çok Asset'e hizmet edebilir. (5) IZIN MODELI (B-2 duzeltmesi): moderasyon ve kimlik alanlari (`state`, `legal_hold`, `rejection_code`, `rejection_note`, `owner_seller`, `source_file`, `content_sha256`) permlevel 1'dedir. Permlevel 1'de yazma YALNIZ System Manager + Marketplace Admin'dedir; satici rolleri permlevel 1'i yalnizca OKUR (panelde alanlar gorunur ama degistirilemez). Boylece satici kendi varliginin durumunu `ready` yapip moderasyonu atlayamaz, `legal_hold`u kaldiramaz, red kodunu silemez, varligi baska bir saticiya devredemez ve icerik-adresli depolamanin hash'ini bozamaz. Kimlik alanlari (`owner_seller`, `source_file`, `content_sha256`) ayrica `read_only`dir: bunlari hat yazar (ignore_permissions), hicbir rol formdan elle degistirmez. Permlevel 0'da satici rolleri `if_owner=1`'dir — bu, permissions.py'deki `owner_seller` kiracı filtresinin YERINE gecmez, USTUNE biner.",
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "hash",
+ "creation": "2026-08-18 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 0,
+ "engine": "InnoDB",
+ "field_order": [
+  "slot_key",
+  "media_type",
+  "state",
+  "cb_identity",
+  "owner_seller",
+  "source_file",
+  "legal_hold",
+  "sb_hash",
+  "content_sha256",
+  "asset_key",
+  "cb_hash",
+  "perceptual_hash",
+  "sb_lifecycle",
+  "active_version",
+  "published_at",
+  "last_access_at",
+  "cb_lifecycle",
+  "rejection_code",
+  "rejection_note"
+ ],
+ "fields": [
+  {
+   "fieldname": "slot_key",
+   "fieldtype": "Data",
+   "label": "Slot",
+   "reqd": 1,
+   "length": 64,
+   "search_index": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "description": "Bu varlığa uygulanan slot politikasının anahtarı (ör. product.image). Link DEĞİL: Media Policy DocType'ı A1a kapsamında kurulmadı; değer media/pipeline/policy/slots/*.json içindeki `slot_key` ile birebir aynıdır."
+  },
+  {
+   "fieldname": "media_type",
+   "fieldtype": "Select",
+   "label": "Medya Türü",
+   "options": "image\nvideo\ndocument",
+   "default": "image",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "state",
+   "fieldtype": "Select",
+   "permlevel": 1,
+   "label": "Durum",
+   "options": "draft\npending\nvalidating\nprocessing\nreview\nready\nreprocessing\nfailed\nrejected\narchived\ndeleted\naborted",
+   "default": "draft",
+   "reqd": 1,
+   "search_index": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "description": "Faz 3 durum makinesi. Geçiş kuralları media/pipeline/core/state.py'ye aittir; DocType yalnız değeri saklar. MEVCUT media/states.py (Active/Archived/Trashed/Deleted, File üzerinde) BAŞKA bir eksendir ve DEĞİŞMEDİ."
+  },
+  {
+   "fieldname": "cb_identity",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "owner_seller",
+   "fieldtype": "Link",
+   "permlevel": 1,
+   "read_only": 1,
+   "label": "Sahip Satıcı",
+   "options": "Admin Seller Profile",
+   "search_index": 1,
+   "in_standard_filter": 1,
+   "description": "Sahiplik ve izin sınırı (permission_query_conditions bu alanı filtreler). Boş olabilir: sistem üretimi varlıklarda (og_cache, sitemap) satıcı yoktur — bu kayıtları yalnız platform rolleri görür."
+  },
+  {
+   "fieldname": "source_file",
+   "fieldtype": "Link",
+   "permlevel": 1,
+   "read_only": 1,
+   "label": "Kaynak Dosya",
+   "options": "File",
+   "search_index": 1,
+   "description": "Ham dosya kaydı. File ile 1:1 DEĞİL — aynı File birden çok Asset'e hizmet edebilir (aynı dosya farklı slot/satıcı bağlamında). Tersi de geçerli: dedup sonucu bir Asset'in kaynağı başka bir Asset'inkiyle aynı File olabilir."
+  },
+  {
+   "fieldname": "legal_hold",
+   "fieldtype": "Check",
+   "permlevel": 1,
+   "label": "Yasal Saklama",
+   "default": "0",
+   "description": "1 ise retention/GC bu varlığa dokunamaz; öksüz raporunda da listelenmez."
+  },
+  {
+   "fieldname": "sb_hash",
+   "fieldtype": "Section Break",
+   "label": "İçerik Kimliği"
+  },
+  {
+   "fieldname": "content_sha256",
+   "fieldtype": "Data",
+   "permlevel": 1,
+   "read_only": 1,
+   "label": "İçerik SHA-256",
+   "length": 64,
+   "search_index": 1,
+   "description": "Kaynak içeriğin kimliği (media/pipeline/core/dedup.py). TEK BAŞINA unique DEĞİL — tekillik `asset_key` üçlüsündedir."
+  },
+  {
+   "fieldname": "asset_key",
+   "fieldtype": "Data",
+   "label": "Tekillik Anahtarı",
+   "unique": 1,
+   "read_only": 1,
+   "length": 180,
+   "description": "(owner_seller, slot_key, content_sha256) ÜÇLÜSÜNÜN tekilliği. Frappe DocType JSON'u bileşik unique index ifade edemez; standart çözüm türetilmiş tek alandır. Değer '<owner_seller>|<slot_key>|<content_sha256>', before_save'de üretilir, elle yazılamaz. Aynı içeriğin aynı satıcı+slot için ikinci kez kaydı DB tarafından reddedilir (INV-06); yarış koşulunu veritabanı çözer."
+  },
+  {
+   "fieldname": "cb_hash",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "perceptual_hash",
+   "fieldtype": "Data",
+   "label": "Algısal Hash",
+   "length": 32,
+   "search_index": 1,
+   "description": "dHash (64 bit, 16 hex hane). BENZERLİK ölçer, kimlik değil."
+  },
+  {
+   "fieldname": "sb_lifecycle",
+   "fieldtype": "Section Break",
+   "label": "Yaşam Döngüsü"
+  },
+  {
+   "fieldname": "active_version",
+   "fieldtype": "Link",
+   "label": "Yayındaki Sürüm",
+   "options": "Media Version",
+   "permlevel": 1,
+   "read_only": 1,
+   "search_index": 1,
+   "description": "T-064 · Bu varlığın YAYINDAKİ normalize master sürümü. Boş olabilir: sürüm kaydı olmayan varlıklar (bugün hepsi) eski tek-sürüm davranışını sürdürür. Geçiş ATOMİKTİR — `Media Version.is_active` ile BİRLİKTE tek transaction'da yazılır; doğruluğun tek kaynağı bu alandır, `is_active` onun denormalize kopyasıdır. Hattı yazar (ignore_permissions); permlevel 1 + read_only olmasının gerekçesi `state`/`legal_hold` ile aynı: satıcı, doğrulanmamış bir sürümü formdan yayına alamamalı."
+  },
+  {
+   "fieldname": "published_at",
+   "fieldtype": "Datetime",
+   "label": "Yayın Zamanı",
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_access_at",
+   "fieldtype": "Datetime",
+   "label": "Son Erişim",
+   "search_index": 1,
+   "description": "GC ve retention girdisi. Her istekte YAZILMAZ — örneklemeli/tamponlu yazılır (media/pipeline/core/usage.py)."
+  },
+  {
+   "fieldname": "cb_lifecycle",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "rejection_code",
+   "fieldtype": "Data",
+   "permlevel": 1,
+   "label": "Red Kodu",
+   "length": 64,
+   "description": "state='rejected' için ZORUNLU (controller'da zorlanır; DocType reqd yapılamaz çünkü diğer durumlarda boştur)."
+  },
+  {
+   "fieldname": "rejection_note",
+   "fieldtype": "Text",
+   "permlevel": 1,
+   "label": "Red Notu"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "is_submittable": 0,
+ "issingle": 0,
+ "istable": 0,
+ "links": [],
+ "modified": "2026-08-18 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "Media Asset",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "export": 1,
+   "report": 1,
+   "share": 1
+  },
+  {
+   "role": "Marketplace Admin",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1
+  },
+  {
+   "role": "Marketplace Seller",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "report": 1
+  },
+  {
+   "role": "Seller",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "report": 1
+  },
+  {
+   "role": "System Manager",
+   "permlevel": 1,
+   "read": 1,
+   "write": 1
+  },
+  {
+   "role": "Marketplace Admin",
+   "permlevel": 1,
+   "read": 1,
+   "write": 1
+  },
+  {
+   "role": "Marketplace Seller",
+   "permlevel": 1,
+   "read": 1
+  },
+  {
+   "role": "Seller",
+   "permlevel": 1,
+   "read": 1
+  }
+ ],
+ "quick_entry": 0,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

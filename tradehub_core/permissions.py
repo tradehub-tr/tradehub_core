@@ -1206,6 +1206,36 @@ def kyb_verification_has_permission(doc, ptype, user):
 	return user_val == user
 
 
+# ── KYC Verification ─────────────────────────────────────────────────────────
+# KYC Verification.user links to User — KYB Verification ile BİREBİR aynı
+# sahiplik modeli, bu yüzden handler'lar da birebir aynadır (desen icat edilmedi).
+#
+# Ö-3 (2026-08-19) — bu iki fonksiyon `v15_8_3_seller_owner_kyb_kyc_docperm`
+# patch'inin YAZILI VARSAYIMIYDI ama hiç yazılmamıştı. O patch "Seller Owner"
+# rolüne KYB *ve* KYC'de permlevel-0 read+write (if_owner=0) veriyor ve
+# gerekçesinde şunu söylüyor: "Tenant izolasyonu KORUNUR: her iki doctype'ta
+# permission_query_conditions + has_permission hook'u var". KYB için doğru,
+# KYC için DEĞİLDİ — hooks.py'de yalnız KYB kayıtlıydı. Ölçülen sonuç (canlı
+# DB, 2026-08-19): "Seller Owner" rolündeki bir mağaza sahibi BAŞKASININ KYC
+# kaydını `frappe.client.get` ile tam okuyor (phone, address, billing_address,
+# tax_id, identity_document) ve `frappe.client.set_value` ile alanlarını
+# DEĞİŞTİRİYORDU; `frappe.get_list` sistemdeki 26 kaydın tümünü döndürüyordu.
+# `if_owner` bu doctype'ta doğru eksen DEĞİL: 24 kaydın 15'inde owner
+# ("Administrator", seed/onay akışı) ile `user` farklı. Doğru eksen `user`
+# link alanıdır — aşağıdaki iki handler tam olarak onu uygular.
+def kyc_verification_query_conditions(user):
+	if user == "Administrator" or _is_platform_full_access(user):
+		return ""
+	return f"`tabKYC Verification`.`user` = {frappe.db.escape(user)}"
+
+
+def kyc_verification_has_permission(doc, ptype, user):
+	if user == "Administrator" or _is_platform_full_access(user, ptype):
+		return True
+	user_val = getattr(doc, "user", None) if not isinstance(doc, dict) else doc.get("user")
+	return user_val == user
+
+
 # ── Order ─────────────────────────────────────────────────────────────────────
 # Order.seller links to Admin Seller Profile.
 
@@ -2591,3 +2621,408 @@ def seller_verification_has_permission(doc, ptype, user):
 	profile = _get_seller_profile_name(user)
 	seller_val = _doc_field(doc, "seller")
 	return bool(profile and seller_val == profile)
+
+
+# ── Medya Motoru (DALGA A) ────────────────────────────────────────────────────
+# Media Asset sahiplik kolonu taşır (`owner_seller` → Admin Seller Profile).
+# Media Rendition ve Media Processing Job taşımaz: ikisi de Asset'e bağlıdır ve
+# izolasyon Asset üzerinden ZİNCİRLENİR. Denormalize seller kolonu bilinçli
+# olarak eklenmedi — kopyalanan sahiplik alanı, Asset devredildiğinde sessizce
+# eskir ve kiracı sızıntısının en yaygın kaynağı olur.
+#
+# `owner_seller` BOŞ olan Asset'ler sistem üretimidir (og_cache, sitemap);
+# hiçbir satıcı görmez, yalnız platform rolleri görür.
+
+
+def _media_asset_owner_subquery(profile: str) -> str:
+	"""Verilen satıcıya ait Media Asset adlarını döndüren alt sorgu (SQL metni)."""
+	return f"SELECT `name` FROM `tabMedia Asset` WHERE `owner_seller` = {frappe.db.escape(profile)}"
+
+
+def _media_asset_owner_of(asset_name: str) -> str | None:
+	"""Bir Media Asset'in sahip satıcısı. Kayıt yoksa None.
+
+	`get_value` (get_all değil): tek kayıt okuması, kullanıcı listesi değil.
+	İzin katmanının kendisi olduğu için izin kontrolü olmadan okunur.
+	"""
+	if not asset_name:
+		return None
+	return frappe.db.get_value("Media Asset", asset_name, "owner_seller")
+
+
+def media_asset_query_conditions(user):
+	if not user or user == "Guest":
+		return "1=0"
+	if user == "Administrator" or _is_platform_full_access(user):
+		return ""
+	profile = _get_seller_profile_name(user)
+	if not profile:
+		return "1=0"
+	return f"`tabMedia Asset`.`owner_seller` = {frappe.db.escape(profile)}"
+
+
+def media_asset_has_permission(doc, ptype, user):
+	if user == "Administrator" or _is_platform_full_access(user, ptype):
+		return True
+	profile = _get_seller_profile_name(user)
+	if not profile:
+		return False
+	if doc is None:
+		# Doküman yoksa (create öncesi genel yetki sorusu) satıcı olmak yeter.
+		return True
+	return _doc_field(doc, "owner_seller") == profile
+
+
+def media_rendition_query_conditions(user):
+	if not user or user == "Guest":
+		return "1=0"
+	if user == "Administrator" or _is_platform_full_access(user):
+		return ""
+	profile = _get_seller_profile_name(user)
+	if not profile:
+		return "1=0"
+	return f"`tabMedia Rendition`.`asset` IN ({_media_asset_owner_subquery(profile)})"
+
+
+def media_rendition_has_permission(doc, ptype, user):
+	if user == "Administrator" or _is_platform_full_access(user, ptype):
+		return True
+	# Türevleri yalnız hat üretir; satıcı için okuma dışı erişim yok.
+	if ptype in ("write", "create", "delete"):
+		return False
+	if doc is None:
+		return True
+	profile = _get_seller_profile_name(user)
+	if not profile:
+		return False
+	return _media_asset_owner_of(_doc_field(doc, "asset")) == profile
+
+
+def media_processing_job_query_conditions(user):
+	if not user or user == "Guest":
+		return "1=0"
+	if user == "Administrator" or _is_platform_full_access(user):
+		return ""
+	profile = _get_seller_profile_name(user)
+	if not profile:
+		return "1=0"
+	return f"`tabMedia Processing Job`.`asset` IN ({_media_asset_owner_subquery(profile)})"
+
+
+def media_processing_job_has_permission(doc, ptype, user):
+	if user == "Administrator" or _is_platform_full_access(user, ptype):
+		return True
+	# İş kaydını yalnız kuyruk yazar; satıcı kendi işlerini yalnız OKUR.
+	if ptype in ("write", "create", "delete"):
+		return False
+	if doc is None:
+		return True
+	profile = _get_seller_profile_name(user)
+	if not profile:
+		return False
+	return _media_asset_owner_of(_doc_field(doc, "asset")) == profile
+
+
+def media_profile_query_conditions(user):
+	"""Profil kataloğu satıcıya özel DEĞİL; satıcı yalnız ETKİN profilleri görür.
+
+	Kapalı profil, henüz açılmamış bir ürün kararıdır (hangi genişlikler
+	üretilecek) — satıcıya sızması gerekmez.
+	"""
+	if not user or user == "Guest":
+		return "1=0"
+	if user == "Administrator" or _is_platform_full_access(user):
+		return ""
+	return "`tabMedia Profile`.`enabled` = 1"
+
+
+def media_profile_has_permission(doc, ptype, user):
+	if user == "Administrator" or _is_platform_full_access(user, ptype):
+		return True
+	# Profil reçetesi platform kararıdır; satıcı yazamaz.
+	if ptype in ("write", "create", "delete"):
+		return False
+	if doc is None:
+		return True
+	return bool(_doc_field(doc, "enabled"))
+
+
+# ── Kırpma Niyeti (T-041 / T-082) ────────────────────────────────────────
+# `Media Crop Intent` de sahiplik kolonu TAŞIMAZ; izolasyon `asset` üzerinden
+# `Media Asset.owner_seller`a ZİNCİRLENİR — Media Rendition / Media Processing
+# Job ile birebir aynı desen ve aynı gerekçe (denormalize seller kolonu, Asset
+# devredildiğinde sessizce eskir).
+#
+# TEK FARK: satıcı burada YAZAR. Türev ve iş kaydını yalnız hat üretir, ama
+# kırpma niyetini kullanıcının kendisi çizer — `ptype in ("write", "create",
+# "delete")` kapısı bu yüzden BİLEREK konmadı. Kapıyı kopyalamak, kırpma
+# stüdyosunun kaydet düğmesini kalıcı olarak devre dışı bırakırdı.
+
+
+def media_crop_intent_query_conditions(user):
+	if not user or user == "Guest":
+		return "1=0"
+	if user == "Administrator" or _is_platform_full_access(user):
+		return ""
+	profile = _get_seller_profile_name(user)
+	if not profile:
+		return "1=0"
+	return f"`tabMedia Crop Intent`.`asset` IN ({_media_asset_owner_subquery(profile)})"
+
+
+def media_crop_intent_has_permission(doc, ptype, user):
+	if user == "Administrator" or _is_platform_full_access(user, ptype):
+		return True
+	profile = _get_seller_profile_name(user)
+	if not profile:
+		# Satıcı profili olmayan oturum (Guest dahil) hiçbir niyete dokunamaz.
+		return False
+	if doc is None:
+		# Doküman yoksa (create öncesi genel yetki sorusu) satıcı olmak yeter;
+		# gerçek kapı, kaydedilecek `asset`in sahipliğiyle aşağıda kurulur.
+		return True
+	return _media_asset_owner_of(_doc_field(doc, "asset")) == profile
+
+
+# ── Kullanım Bağı ve Sürüm (T-043 / T-064) ───────────────────────────────
+# `Media Usage` ve `Media Version` de sahiplik kolonu TAŞIMAZ; ikisi de
+# `asset` üzerinden `Media Asset.owner_seller`a ZİNCİRLENİR — Media Rendition /
+# Media Processing Job / Media Crop Intent ile birebir aynı desen ve aynı
+# gerekçe (denormalize seller kolonu, Asset devredildiğinde sessizce eskir ve
+# kiracı sızıntısının en yaygın kaynağı olur).
+#
+# İKİSİNDE DE SATICI YAZMAZ. Kullanım bağını hat yazar (`core/usage.py`
+# üzerinden `doc_events` yolunda), sürüm kaydını geçiş protokolü yazar. Satıcı
+# kendi kullanım kaydını silebilseydi, öksüz kararını (`retention.py`) kendi
+# lehine çevirir; kendi sürüm kaydını yazabilseydi doğrulanmamış bir sürümü
+# yayına alırdı. `ptype in ("write", "create", "delete")` kapısı bu yüzden
+# Media Crop Intent'ten FARKLI olarak konuldu — orada kullanıcı gerçekten
+# çiziyordu, burada çizmiyor.
+
+
+def media_usage_query_conditions(user):
+	if not user or user == "Guest":
+		return "1=0"
+	if user == "Administrator" or _is_platform_full_access(user):
+		return ""
+	profile = _get_seller_profile_name(user)
+	if not profile:
+		return "1=0"
+	return f"`tabMedia Usage`.`asset` IN ({_media_asset_owner_subquery(profile)})"
+
+
+def media_usage_has_permission(doc, ptype, user):
+	if user == "Administrator" or _is_platform_full_access(user, ptype):
+		return True
+	# Bağ kaydını yalnız hat yazar; satıcı kendi varlığının bağlarını yalnız OKUR.
+	if ptype in ("write", "create", "delete"):
+		return False
+	if doc is None:
+		return True
+	profile = _get_seller_profile_name(user)
+	if not profile:
+		return False
+	return _media_asset_owner_of(_doc_field(doc, "asset")) == profile
+
+
+def media_version_query_conditions(user):
+	if not user or user == "Guest":
+		return "1=0"
+	if user == "Administrator" or _is_platform_full_access(user):
+		return ""
+	profile = _get_seller_profile_name(user)
+	if not profile:
+		return "1=0"
+	return f"`tabMedia Version`.`asset` IN ({_media_asset_owner_subquery(profile)})"
+
+
+def media_version_has_permission(doc, ptype, user):
+	if user == "Administrator" or _is_platform_full_access(user, ptype):
+		return True
+	# Sürüm geçişi moderasyon kararıdır (bkz. media_version.json sapma 2).
+	if ptype in ("write", "create", "delete"):
+		return False
+	if doc is None:
+		return True
+	profile = _get_seller_profile_name(user)
+	if not profile:
+		return False
+	return _media_asset_owner_of(_doc_field(doc, "asset")) == profile
+
+
+# ── Medya Depolama Ayarları (T-051 şartname) ─────────────────────────────
+# Sır taşıyan tek medya ayarı bu: S3 secret, imgproxy anahtar/tuz. DocType
+# JSON'ındaki `permissions` listesinde yalnız iki rol var (Media Superadmin,
+# System Manager) ve Frappe'de listede olmayan rol hiçbir hak almaz — yani
+# satıcı/alıcı OKUYAMAZ bile. Buradaki kanca İKİNCİ kattır: ileride biri
+# DocPerm satırı eklerse (ya da bir role profile geniş hak dağıtırsa) rol
+# kapısı yine de kapalı kalsın. `_is_platform_full_access` BİLEREK
+# kullanılmadı — Compliance Officer / Platform Finance gibi geniş okuma
+# rollerinin bu ekranda işi yok.
+
+_MEDIA_STORAGE_SETTINGS_ROLES = frozenset({"Media Superadmin", "System Manager"})
+
+
+def media_storage_settings_has_permission(doc, ptype, user):
+	"""Depolama ayarına yalnız medya süper-yöneticisi ve System Manager erişir."""
+	if not user or user == "Guest":
+		return False
+	if user == "Administrator":
+		return True
+	return bool(set(frappe.get_roles(user)) & _MEDIA_STORAGE_SETTINGS_ROLES)
+
+
+# ── Payment Transaction ──────────────────────────────────────────────────────
+# T1 (docs/reports/28-faz13-pentest.md) — bu doctype'ta `permission_query_conditions`
+# de `has_permission` de HİÇ kayıtlı değildi; DocPerm ise `Marketplace Seller`a
+# `read=1, if_owner=0` veriyordu. Sonuç, gerçek HTTP ile kanıtlandı: hiçbir
+# ödeme kaydına sahip olmayan yeni bir satıcı, `/api/resource` üzerinden BAŞKA
+# satıcının dekont kayıtlarını (alıcı kimliği, tutar, satıcı IBAN'ı, dekont
+# yolu) düz JSON olarak okudu. KYB/KYC (Ö-3) ve File (Ö-2) ile aynı desen.
+#
+# Taraf modeli Order ile BİREBİR aynı olduğu için handler'lar `order_*`
+# fonksiyonlarının aynasıdır — desen icat edilmedi:
+#   * `seller`  → Admin Seller Profile adı taşıyan **Data** alanı (Link değil;
+#     `create_payment_transaction` onu `Order.seller`den kopyalar). Meta tabanlı
+#     çözümleyiciler Link olmayan alanda sessizce yanılır, o yüzden alan adı
+#     burada da açıkça yazılıdır (bkz. `media/file_isolation._TENANT_FIELD_BY_DOCTYPE`).
+#   * `buyer`   → User link. Alıcı kendi ödemesini her zaman görür.
+#   * Alıcının organizasyonu → Order'daki emsalin aynısı: onaylayıcı/finans
+#     rolündeki org üyeleri siparişi gördüğü gibi ödemesini de görür.
+#
+# `_abac_deny` BİLEREK çağrılmadı: `Payment Transaction` ne FINANCIAL_DOCTYPES,
+# ne AML_SENSITIVE_DOCTYPES, ne SUBSCRIPTION_GATED_DOCTYPES listesinde — çağrı
+# her koşulda False dönerdi (ölçüldü), yani yalnız maliyet eklerdi.
+
+
+def payment_transaction_query_conditions(user):
+	if not user or user == "Guest":
+		return "1=0"
+	# Platform-full rolleri tüm işlemleri görür (System Manager dahil)
+	if user == "Administrator" or _is_platform_full_access(user):
+		return ""
+
+	# Satıcı tarafı — kendi mağazasının (Admin Seller Profile) işlemleri
+	profile = _get_seller_profile_name(user)
+	# Alıcı tarafı — kendi user'ı veya org'undaki diğer alıcılar
+	orgs = _user_organizations(user)
+
+	clauses: list[str] = []
+	if profile:
+		clauses.append(f"`tabPayment Transaction`.`seller` = {frappe.db.escape(profile)}")
+	# Kullanıcı kendi ödemesini her zaman görür
+	clauses.append(f"`tabPayment Transaction`.`buyer` = {frappe.db.escape(user)}")
+	if orgs:
+		org_list = ", ".join(frappe.db.escape(o) for o in orgs)
+		clauses.append(
+			"`tabPayment Transaction`.`buyer` IN ("
+			"SELECT `name` FROM `tabUser` "
+			f"WHERE `tradehub_parent_organization` IN ({org_list})"
+			")"
+		)
+	return "(" + " OR ".join(clauses) + ")"
+
+
+def payment_transaction_has_permission(doc, ptype, user):
+	if user == "Administrator" or _is_platform_full_access(user, ptype):
+		return True
+	# doc=None → doctype seviyesi kontrol (liste açılışı). Order emsali: burada
+	# False dönmek liste ekranını rol izni olan kullanıcılara da kapatır;
+	# satır filtresi zaten `payment_transaction_query_conditions` ile uygulanır.
+	if doc is None:
+		return True
+
+	seller_val = _doc_field(doc, "seller")
+	buyer_val = _doc_field(doc, "buyer")
+
+	# Satıcı tarafı — kendi mağazasının işlemi
+	profile = _get_seller_profile_name(user)
+	if profile and seller_val and seller_val == profile:
+		return True
+
+	# Alıcı tarafı — kendi ödemesi veya aynı organizasyon
+	if buyer_val and buyer_val == user:
+		return True
+	if buyer_val:
+		buyer_org = frappe.db.get_value("User", buyer_val, "tradehub_parent_organization")
+		if buyer_org and buyer_org in _user_organizations(user):
+			return True
+
+	return False
+
+
+# ── KYC / KYB `status` — sunucu tarafı karar kapısı ──────────────────────────
+# T2/T3 (docs/reports/28-faz13-pentest.md) — `Seller`/`Marketplace Seller`
+# rolündeki kullanıcı KENDİ KYC/KYB kaydında `status = "Verified"` yazabiliyordu
+# (permlevel-1 `if_owner write=1`). Sonuç veri sızıntısı değil, iş kuralının
+# tamamen atlanmasıydı: KYC'de `can_buy=1`, KYB'de kullanıcının kendine
+# `Verified Seller` rolünü vermesi — yani satış kapısını kendine açması.
+#
+# `status`'ün permlevel'i ayrıldı (patch v15_9_26), ama izin katmanı TEK savunma
+# olmamalı: permlevel kontrolü `flags.ignore_permissions` ile tamamen atlanır
+# (frappe/model/document.py:785) ve bu depoda KYC/KYB'yi `ignore_permissions=True`
+# ile kaydeden 5 fonksiyon / 12 çağrı noktası var (ölçüldü: `api/v1/kyc.py`,
+# `api/v1/kyb.py`). Aşağıdaki kapı `validate()` içinde çalışır —
+# `ignore_permissions` onu ATLAYAMAZ.
+
+#: `status`'ü serbestçe değiştirebilen inceleme rolleri.
+VERIFICATION_REVIEWER_ROLES = frozenset(
+	{
+		"System Manager",
+		"Marketplace Admin",
+		"Compliance Officer",
+	}
+)
+
+#: Başvuru sahibinin kendi kaydında yapabileceği geçişler (önceki, yeni).
+#: `None` = yeni kayıt. Bunlar meşru başvuru akışının ta kendisi:
+#:   (None, "Draft")      → `api/v1/kyb.get_kyb_status` otomatik taslak açar
+#:   (None, "Pending")    → `api/v1/kyc.submit_kyc` ilk başvuru (default "Pending")
+#:   ("Draft", "Pending") → `api/v1/kyb.submit_kyb_documents` ilk gerçek başvuru
+#:   ("Rejected", "Pending") → her iki doctype'ta yeniden gönderim
+SELF_SERVICE_VERIFICATION_TRANSITIONS = frozenset(
+	{
+		(None, "Draft"),
+		(None, "Pending"),
+		("Draft", "Pending"),
+		("Rejected", "Pending"),
+	}
+)
+
+
+def is_verification_reviewer(user: str | None = None) -> bool:
+	"""Kullanıcı KYC/KYB `status` alanına karar verebilir mi?"""
+	user = user or frappe.session.user
+	if user == "Administrator":
+		return True
+	return bool(set(frappe.get_roles(user)) & VERIFICATION_REVIEWER_ROLES)
+
+
+def guard_verification_status_change(doc) -> None:
+	"""KYC/KYB `status` değişimini sunucu tarafında kapıla.
+
+	`validate()` içinden çağrılır. İnceleme rolü olmayan bir kullanıcı yalnız
+	`SELF_SERVICE_VERIFICATION_TRANSITIONS` içindeki geçişleri yapabilir;
+	`Verified`/`Under Review`/`Rejected`/`Suspended` yazma denemesi
+	`frappe.PermissionError` ile durur.
+	"""
+	if not doc.has_value_changed("status"):
+		return
+
+	# Kurulum/migrasyon/patch bağlamı — bu yollar zaten Administrator koşar,
+	# ama fixture yükleme gibi kenar durumlar için açıkça geçiliyor.
+	if frappe.flags.in_install or frappe.flags.in_migrate or frappe.flags.in_patch:
+		return
+
+	if is_verification_reviewer():
+		return
+
+	before = doc.get_doc_before_save()
+	previous = before.status if before else None
+	if (previous, doc.status) in SELF_SERVICE_VERIFICATION_TRANSITIONS:
+		return
+
+	frappe.throw(
+		frappe._("Doğrulama durumunu yalnızca inceleme yetkilisi değiştirebilir."),
+		frappe.PermissionError,
+	)

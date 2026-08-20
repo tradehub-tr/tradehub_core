@@ -1,0 +1,80 @@
+{
+ "actions": [],
+ "autoname": "autoincrement",
+ "creation": "2024-01-01 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "listing",
+  "item_name",
+  "variation",
+  "column_break_1",
+  "quantity",
+  "unit_price",
+  "tax_rate",
+  "tax_amount",
+  "total_price"
+ ],
+ "fields": [
+  {
+   "fieldname": "listing",
+   "fieldtype": "Link",
+   "label": "Ürün (Listing)",
+   "options": "Listing"
+  },
+  {
+   "fieldname": "item_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Ürün Adı"
+  },
+  {
+   "fieldname": "variation",
+   "fieldtype": "Small Text",
+   "label": "Varyant Bilgisi"
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "quantity",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Adet/Miktar",
+   "reqd": 1
+  },
+  {
+   "fieldname": "unit_price",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Birim Fiyat"
+  },
+  {
+   "fieldname": "tax_rate",
+   "fieldtype": "Float",
+   "label": "Vergi Oranı (%)"
+  },
+  {
+   "fieldname": "tax_amount",
+   "fieldtype": "Currency",
+   "label": "Vergi Tutarı"
+  },
+  {
+   "fieldname": "total_price",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Toplam Fiyat"
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2024-01-01 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "Platform Invoice Item",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC"
+}

@@ -143,6 +143,16 @@ def check_image_content(doc, method=None):
 		if frappe.db.table_exists("tabSingles"):
 			settings = frappe.get_single("Translation Settings")
 			api_key = settings.get_password("openai_api_key", raise_exception=False)
+			if api_key:
+				# T-134 §2 — servis-config sır okuması denetime yazılır (değer YOK).
+				from tradehub_core.audit.secret_access import log_secret_access
+
+				log_secret_access(
+					service="openai",
+					field="openai_api_key",
+					object_doctype="Translation Settings",
+					object_name="Translation Settings",
+				)
 	except Exception:
 		frappe.log_error("OpenAI API key fetch failed in check_image_content", "moderation")
 		pass
@@ -187,6 +197,16 @@ def admin_check_image(image_url: str):
 	try:
 		settings = frappe.get_single("Translation Settings")
 		api_key = settings.get_password("openai_api_key", raise_exception=False)
+		if api_key:
+			# T-134 §2 — servis-config sır okuması denetime yazılır (değer YOK).
+			from tradehub_core.audit.secret_access import log_secret_access
+
+			log_secret_access(
+				service="openai",
+				field="openai_api_key",
+				object_doctype="Translation Settings",
+				object_name="Translation Settings",
+			)
 	except Exception:
 		frappe.log_error("OpenAI API key fetch failed in admin_check_image", "moderation")
 		pass

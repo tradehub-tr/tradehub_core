@@ -46,6 +46,46 @@ def _empty() -> dict:
 
 
 def _search_products(q: str, limit: int) -> list[dict]:
+	from tradehub_core.api.elasticsearch_integration import get_es_client
+	
+	es = get_es_client()
+	if es and q:
+		try:
+			res = es.search(
+				index="istoc_listing",
+				body={
+					"query": {
+						"multi_match": {
+							"query": q,
+							"fields": ["title^3", "description", "category", "brand"],
+							"fuzziness": "AUTO"
+						}
+					},
+					"size": limit
+				}
+			)
+			hits = res["hits"]["hits"]
+			if hits:
+				# We just get the IDs and fetch actual data from DB, or we can use ES data directly.
+				# Assuming ES has basic info, but for safety we'll fetch from DB using IDs.
+				doc_names = [h["_id"] for h in hits]
+				Listing = DocType("Listing")
+				qb = (
+					frappe.qb.from_(Listing)
+					.select(Listing.name, Listing.title, Listing.primary_image)
+					.where(Listing.name.isin(doc_names))
+					.where(Listing.status.isin(list(STOREFRONT_VISIBLE_STATUSES)))
+					.where(Listing.is_visible == 1)
+				)
+				rows = qb.run(as_dict=True)
+				# Sort rows back to ES relevance order
+				row_map = {r.name: r for r in rows}
+				ordered_rows = [row_map[name] for name in doc_names if name in row_map]
+				return [{"id": r.name, "name": r.title or "", "image": r.primary_image or ""} for r in ordered_rows]
+		except Exception as e:
+			frappe.logger("search").error(f"ES search failed: {e}")
+			
+	# Fallback to MySQL LIKE
 	Listing = DocType("Listing")
 	qb = (
 		frappe.qb.from_(Listing)

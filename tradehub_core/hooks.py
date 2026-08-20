@@ -8,6 +8,15 @@ app_license = "MIT"
 after_install = "tradehub_core.setup.install.after_install"
 after_migrate = [
 	"tradehub_core.setup.install.after_install",
+	# T-133 (Şerit A) — Medya motoru ölçüm noktalarını bağla. Bu satır
+	# yazılana kadar 24 metriğin HİÇBİRİ toplanmıyordu (ölçüldü:
+	# docs/reports/42-t133-gozlemlenebilirlik.md §5.1). `install()`
+	# idempotenttir, istisna FIRLATMAZ ve bağlanamayan noktayı sebebiyle
+	# raporlar — migrate'i düşürmez. Migrate tek başına yetmez (her süreç
+	# kendi modül nesnesini sarar); çalışma anındaki kurulum
+	# `api/observability.py::ensure_instrumented` ile yapılır ve o da
+	# aşağıdaki `after_request` kancasından çağrılır.
+	"tradehub_core.api.observability.install_instrumentation",
 ]
 app_icon = "octicon octicon-organization"
 app_color = "#0066CC"
@@ -18,7 +27,23 @@ app_include_js = "seller_redirect.js"
 
 # SEO: staging/backend ortam yanıtlarına X-Robots-Tag noindex basar.
 # `seo_noindex_guard` site-config bayrağı default=0 — bayrak açılmadan no-op.
+# T-133 (Şerit A) — Prometheus scrape kimliği. ÖLÇÜLDÜ: `frappe.auth.validate_auth`
+# iki parçalı bir `Authorization` başlığı görüp de kullanıcı ATANMAMIŞSA isteği
+# 401 ile keser — yani token taşıyan istek uç fonksiyonuna HİÇ ulaşamıyordu.
+# Frappe'nin bu iş için tuttuğu tek genişleme noktası `auth_hooks`. Kanca
+# sessizdir (eşleşmeyen başlıkta no-op) ve atadığı kullanıcı hiçbir DocPerm
+# satırı olmayan bir Website User'dır; gerekçe `api/observability.py` içinde.
+auth_hooks = ["tradehub_core.api.observability.authenticate_metrics_scrape"]
+
 after_request = ["tradehub_core.seo.noindex_guard.apply_noindex_header"]
+# T-133 (Şerit A) — bu web sürecinin metrik parçasını paylaşılan dizine yaz.
+# ÇOK SÜREÇLİ TOPLAMA ZORUNLU: backend (gunicorn) + queue-short + queue-long +
+# scheduler ayrı ayrı sayıyor; /metrics birinden servis edilse diğerlerinin
+# sayısı GÖRÜNMEZ ve sayı makul göründüğü için kimse sorgulamaz. Kanca mevcut
+# listeye EKLENİR (üzerine yazılmaz) — bu dosyada silme yapılmıyor.
+# Yazım süre kilitlidir (varsayılan 15 sn/süreç), hatayı yutar ve isteği ASLA
+# düşürmez.
+after_request += ["tradehub_core.api.observability.after_request_write_shard"]
 
 fixtures = [
 	{
@@ -109,6 +134,15 @@ scheduler_events = {
 		"*/5 * * * *": [
 			"tradehub_core.media.transcode.sweep_stuck_transcodes",
 			"tradehub_core.media.av.sweep_stuck_scans",
+			# T-133 (Şerit A) — metrik parçası yazımı. `after_request` yalnız WEB
+			# sürecini kapsar; kuyruk süreçlerinde istek yoktur ve oradaki
+			# sayaçlar bu iş olmadan `/metrics`e HİÇ ulaşmaz (ölçüldü: dört süreç
+			# ailesi ayrı sayıyor). İş kendi parçasını yazar, ayrıca short/long
+			# kuyruklarına birer yazma işi daha atar. AYNI `*/5` listesine
+			# eklendi, YENİ bir cron anahtarı açılmadı: aynı sözlükte ikinci kez
+			# `"*/5 * * * *"` tanımlamak öncekini SESSİZCE düşürürdü ve iki medya
+			# süpürücüsü hiç koşmazdı.
+			"tradehub_core.api.observability.write_metrics_shard",
 		],
 	},
 	"hourly": [
@@ -118,6 +152,14 @@ scheduler_events = {
 		# ticket'lar için ilk yanıt + çözüm süresi aşımlarını işaretler ve
 		# atanan ajan(lar)a / team'e bildirim gönderir.
 		"tradehub_core.utils.sla_checker.check_sla_breaches",
+		# T-133 — RUM örnekleri → /metrics serileri. İdempotent: işlenen son
+		# damga tabDefaultValue'da; pencere iki kez işlenmez (rapor 72).
+		"tradehub_core.api.rum.aggregate_samples",
+		# K1 (2026-08-20) — 5 alarm metriğini besleyen tarama (öksüz + PII).
+		# İş sayaçları çağrı-yerinde (runner) artıyor; bu yalnız periyodik
+		# envanter taraması. os.walk ağır gelirse öksüz taraması daily'ye
+		# alınabilir (rapor 99).
+		"tradehub_core.media.pipeline.observability.collectors.run_scan",
 		# Faz 6: Sentiment analysis (analiz edilmemiş Approved review'lar)
 		"tradehub_core.api.sentiment.batch_analyze_pending",
 		# Social Proof: 24 saatten eski view counter'ları sıfırla (rolling window)
@@ -145,11 +187,40 @@ scheduler_events = {
 		"tradehub_core.media.archive.purge_expired",
 		# Çöpe taşınan görsellerin 30 günlük geri alma penceresi dolunca kalıcı silinmesi.
 		"tradehub_core.media.trash.purge_expired",
+		# T-123 — RUM örnekleri 30 gün sonra silinir; tablo telemetri deposu,
+		# arşiv değil. Günlük yazma tavanı (50k) uçta; bu iş yalnız süresi
+		# dolanı temizler (tradehub_core/api/rum.py::purge_expired_samples).
+		"tradehub_core.api.rum.purge_expired_samples",
 		# Medya yedeği: dosyalar + `File` kayıtları (TUR-131). Günlük, çünkü
 		# ölçüm günde ~12 MB değişim gösteriyor — daha sık almanın kazancı yok,
 		# daha seyrek almak bir günden fazla veri riske atıyor. Depolama
 		# içerik-adresli: değişmeyen dosya yeniden yazılmıyor.
 		"tradehub_core.media.backup.run_scheduled",
+		# T-053 — Saklama/çöp toplama bakım işi. VARSAYILAN KURU KOŞUM:
+		# site_config'te `media_retention_gc_enforce` = 1 yapılmadıkça hiçbir
+		# şey silinmez, yalnız rapor üretilir. Orijinal politikası varsayılan
+		# olarak `keep_forever` olduğu için ıslak koşumda bile orijinaller
+		# korunur; iş asıl olarak kullanılmayan TÜREVLERİ raporlar. Sıra
+		# önemli: yedek (`backup.run_scheduled`) bu işten ÖNCE koşar, böylece
+		# aday gösterilen hiçbir dosya yedeksiz kalmaz.
+		"tradehub_core.media.pipeline.storage.retention.run_scheduled_gc",
+		# T-053 kriter 1 (Şerit A) — ORİJİNAL ve TÜREV için AYRI işler. Ayrı
+		# bayrak, ayrı kilit, ayrı rapor: türev silmeyi açmak orijinal silmeyi
+		# AÇMAZ, tersi de öyle ("iki politika birbirini etkilemez",
+		# retention.md §6'nın zamanlama düzeyindeki karşılığı). Ortak kilit
+		# olsaydı iki iş ayrı saatlerde koşsa bile biri diğerini "locked" diye
+		# atlatabilirdi.
+		#
+		# Yukarıdaki birleşik `run_scheduled_gc` BİLEREK kaldırılmadı: bu
+		# dosyada silme yapılmıyor ve üç iş de VARSAYILAN KURU KOŞUM
+		# (`media_retention_gc*_enforce` bayraklarının üçü de 0/None —
+		# ölçüldü). Bedeli günde iki fazladan tarama ve iki fazladan Error
+		# Log raporu; kazancı, üç bayraktan hangisi açılırsa açılsın
+		# davranışın önceden yazılmış olması. Islak koşuma geçilirken
+		# birleşik işin kaydı TEK SATIR silinerek kaldırılmalı
+		# (docs/reports/40-t043-kullanim-gc.md §4.3).
+		"tradehub_core.media.pipeline.storage.retention.run_scheduled_gc_originals",
+		"tradehub_core.media.pipeline.storage.retention.run_scheduled_gc_derivatives",
 		# Saha hakediş kota bonusu — on-approval tetiklemesinin günlük güvenlik ağı.
 		"tradehub_core.tradehub_core.utils.field_commission.process_quota_bonuses",
 		"tradehub_core.services.tcmb.fetch_and_update_rates",
@@ -264,11 +335,24 @@ doc_events = {
 		# için daraltılmamış — private KYB belgesi de, PDF de taranır. Tarayıcı
 		# kurulu değilse `enqueue_scan` hiç kuyruğa girmez (fail-open, gerekçe
 		# `media/av.py` docstring'inde).
+		# Medya Motoru DALGA A (A2) — türev (rendition) üretimi. EN SONA eklendi
+		# ve kasıtlı olarak en sonda duruyor: yeni hat PARALEL çalışır, üstteki
+		# dört kancanın hiçbirinin çıktısına ya da sırasına bağlı değildir; ama
+		# tersi geçerli değil — durum damgası, denetim kaydı, transcode ve
+		# zararlı içerik taraması yeni hattan ÖNCE koşmalı ki bir türev işi
+		# taranmamış/karantinaya girecek bir dosyayı işlemeye başlamasın.
+		# `media_pipeline_enabled` + `rendition_on_upload` bayrakları KAPALIYKEN
+		# (varsayılan) fonksiyon ilk satırında döner: kuyruğa iş girmez, tek satır
+		# yazılmaz, yani bu satırın eklenmesi bugünkü davranışı değiştirmez.
+		# Maliyeti sıfır DEĞİL ama sabit: bayrak okuması `frappe.local_cache` ile
+		# istek kapsamında önbellekli, yani istek başına EN FAZLA bir
+		# `Media Engine Settings` okuması — dosya başına değil.
 		"after_insert": [
 			"tradehub_core.media.states.on_file_insert",
 			"tradehub_core.media.audit.on_file_insert",
 			"tradehub_core.media.transcode.maybe_transcode_on_insert",
 			"tradehub_core.media.av.maybe_scan_on_insert",
+			"tradehub_core.media.pipeline_bridge.maybe_generate_renditions",
 		],
 	},
 	# Currency cache invalidation — admin manuel düzenlemesinde düş.
@@ -753,6 +837,10 @@ permission_query_conditions = {
 	"Seller Category": "tradehub_core.permissions.seller_category_query_conditions",
 	"Seller Gallery Image": "tradehub_core.permissions.seller_gallery_image_query_conditions",
 	"KYB Verification": "tradehub_core.permissions.kyb_verification_query_conditions",
+	# Ö-3 — KYC Verification, KYB ile aynı hassaslık sınıfında ama izolasyon
+	# kancası hiç kaydedilmemişti; v15_8_3 patch'i "Seller Owner"a permlevel-0
+	# read+write (if_owner=0) verirken bu kancanın VAR OLDUĞUNU varsaymıştı.
+	"KYC Verification": "tradehub_core.permissions.kyc_verification_query_conditions",
 	"Order": "tradehub_core.permissions.order_query_conditions",
 	"Seller Inquiry": "tradehub_core.permissions.seller_inquiry_query_conditions",
 	"Certification Type": "tradehub_core.permissions.certification_type_query_conditions",
@@ -806,6 +894,31 @@ permission_query_conditions = {
 	"Shipment Leg": "tradehub_core.logistics.permissions.shipment_leg_query_conditions",
 	# Lojistik Faz 4 — Shipment Event tenant okuma izolasyonu (F1, denormalize seller_profile)
 	"Shipment Event": "tradehub_core.logistics.permissions.shipment_event_query_conditions",
+	# Medya Motoru DALGA A — Media Asset sahiplik kolonu taşır; Rendition ve
+	# Processing Job izolasyonu Asset üzerinden zincirlenir (denormalize seller
+	# kolonu YOK — devirde sessizce eskir ve sızıntı üretir).
+	"Media Asset": "tradehub_core.permissions.media_asset_query_conditions",
+	"Media Rendition": "tradehub_core.permissions.media_rendition_query_conditions",
+	"Media Processing Job": "tradehub_core.permissions.media_processing_job_query_conditions",
+	"Media Profile": "tradehub_core.permissions.media_profile_query_conditions",
+	# T-041/T-082 — Kırpma niyeti de Asset üzerinden zincirlenir; satıcı burada
+	# kendi niyetini YAZAR (türev/iş kaydının aksine salt okunur DEĞİL).
+	"Media Crop Intent": "tradehub_core.permissions.media_crop_intent_query_conditions",
+	# T-043/T-064 (Şerit A) — Kullanım bağı ve sürüm kaydı da Asset üzerinden
+	# zincirlenir. İkisi de satıcı için SALT OKUNURDUR: bağı hat yazar, sürümü
+	# geçiş protokolü yazar (permissions.py'deki blok gerekçesi).
+	"Media Usage": "tradehub_core.permissions.media_usage_query_conditions",
+	"Media Version": "tradehub_core.permissions.media_version_query_conditions",
+	# T-094 — satıcı klasörleri: fonksiyonlar permissions.py'de değil DocType
+	# modülünde (tek sahiplik; gerekçe docs/reports/67 §4).
+	"Media Folder": "tradehub_core.tradehub_core.doctype.media_folder.media_folder.get_permission_query_conditions",
+	"Media Folder Item": "tradehub_core.tradehub_core.doctype.media_folder_item.media_folder_item.get_permission_query_conditions",
+	# T1 (28-faz13-pentest §2) — Payment Transaction'da NE query_conditions NE
+	# has_permission kaydı vardı; `Marketplace Seller` DocPerm satırı
+	# (read=1, if_owner=0) yüzünden hiçbir ödemesi olmayan bir satıcı gerçek
+	# HTTP üzerinden BAŞKA satıcının IBAN/alıcı/tutar/dekont verisini okudu.
+	# Order ile aynı taraf modeli → Order handler'larının aynası.
+	"Payment Transaction": "tradehub_core.permissions.payment_transaction_query_conditions",
 }
 
 has_permission = {
@@ -826,6 +939,7 @@ has_permission = {
 	"Seller Certification": "tradehub_core.permissions.seller_certification_has_permission",
 	"Listing Certification": "tradehub_core.permissions.listing_certification_has_permission",
 	"KYB Verification": "tradehub_core.permissions.kyb_verification_has_permission",
+	"KYC Verification": "tradehub_core.permissions.kyc_verification_has_permission",
 	"Order": "tradehub_core.permissions.order_has_permission",
 	"Seller Inquiry": "tradehub_core.permissions.seller_inquiry_has_permission",
 	"Certification Type": "tradehub_core.permissions.certification_type_has_permission",
@@ -879,6 +993,40 @@ has_permission = {
 	"Shipment Leg": "tradehub_core.logistics.permissions.shipment_leg_has_permission",
 	# Lojistik Faz 4 — Shipment Event tenant okuma izolasyonu (F1, denormalize seller_profile)
 	"Shipment Event": "tradehub_core.logistics.permissions.shipment_event_has_permission",
+	# Medya Motoru DALGA A — satıcı kendi Asset'ini yazabilir; Rendition,
+	# Processing Job ve Profile satıcı için SALT OKUNURDUR (üretim hattın işi).
+	"Media Asset": "tradehub_core.permissions.media_asset_has_permission",
+	"Media Rendition": "tradehub_core.permissions.media_rendition_has_permission",
+	"Media Processing Job": "tradehub_core.permissions.media_processing_job_has_permission",
+	"Media Profile": "tradehub_core.permissions.media_profile_has_permission",
+	# T-041/T-082 — Kırpma stüdyosunun kaydettiği niyet. Satıcı kendi varlığının
+	# niyetini okur VE yazar; başka satıcının varlığına zincir üzerinden kapalıdır.
+	"Media Crop Intent": "tradehub_core.permissions.media_crop_intent_has_permission",
+	# T-043/T-064 (Şerit A) — Kullanım bağı ve sürüm kaydı. Satıcı kendi
+	# varlığınınkini OKUR, yazamaz: kendi kullanım kaydını silebilseydi öksüz
+	# kararını kendi lehine çevirir, kendi sürümünü yazabilseydi doğrulanmamış
+	# bir sürümü yayına alırdı.
+	"Media Usage": "tradehub_core.permissions.media_usage_has_permission",
+	"Media Version": "tradehub_core.permissions.media_version_has_permission",
+	"Media Folder": "tradehub_core.tradehub_core.doctype.media_folder.media_folder.has_permission",
+	"Media Folder Item": "tradehub_core.tradehub_core.doctype.media_folder_item.media_folder_item.has_permission",
+	# T-051 (şartname) — Depolama/CDN ayarı S3 secret + imgproxy anahtarı taşır.
+	# DocPerm listesinde yalnız Media Superadmin + System Manager var; bu kanca
+	# ikinci kat: rol kümesi dışındaki hiç kimse OKUYAMAZ (Single DocType olduğu
+	# için permission_query_conditions burada hiç uygulanmaz — Logistics Settings
+	# emsali, bkz. yukarıdaki not).
+	"Media Storage Settings": "tradehub_core.permissions.media_storage_settings_has_permission",
+	# Ö-2 — aynı `file_url`'i paylaşan File satırları üzerinden kiracı sızıntısı.
+	# Bu kanca YALNIZ desk/ORM yüzeyini (frappe.has_permission) kapatır; indirme
+	# yolu `File.is_downloadable()` çekirdek fonksiyonu doğrudan çağırdığı için
+	# kanca zincirinden geçmez — asıl daraltma aşağıdaki `override_doctype_class`.
+	# Handler asla True dönmez (ters sıralı kanca zincirinde Frappe'nin kendi File
+	# kontrolünü atlatmamak için); yalnız reddeder ya da devreder.
+	"File": "tradehub_core.media.file_isolation.file_has_permission",
+	# T1 (28-faz13-pentest §2) — Payment Transaction per-doc kapısı.
+	# Satıcı yalnız kendi mağazasının, alıcı yalnız kendi (veya org'unun)
+	# ödemesini görür; platform-full roller değişmez.
+	"Payment Transaction": "tradehub_core.permissions.payment_transaction_has_permission",
 }
 
 # ---------------------------------------------------------------------------
@@ -897,3 +1045,18 @@ override_whitelisted_methods = {
 # Yeni yüklemeleri içerik-hash'iyle adlandır (enumeration önleme, TUR-141/130).
 # WP4 — naming.write_file_hashed gerçek implementasyonla dolduruldu, hook aktif.
 write_file = "tradehub_core.media.naming.write_file_hashed"
+
+# ---------------------------------------------------------------------------
+# Ö-2 — File denetleyici sınıfı override'ı
+# ---------------------------------------------------------------------------
+# `find_file_by_url` bir URL'e ait TÜM File satırlarını gezer ve HERHANGİ biri
+# `is_downloadable()` derse dosyayı verir; teslimat ise satırın içeriğini değil
+# URL'i serve eder. Aynı URL'de birden çok kiracının satırı varsa bu, çapraz
+# kiracı okuması demektir (ölçüm: 33 özel URL, 29'u KYB/KYC/Order/Payment eki).
+# `is_downloadable()` çekirdekte modül-seviyesi `has_permission`'ı DOĞRUDAN
+# çağırdığı için hooks `has_permission` zinciri o yolda çalışmaz; tek temiz
+# dikiş yeri denetleyici sınıfın kendisidir. Alt sınıf yalnız DARALTIR
+# (`super().is_downloadable()` önce çağrılır), hiçbir izni genişletmez.
+override_doctype_class = {
+	"File": "tradehub_core.media.file_isolation.TenantIsolatedFile",
+}

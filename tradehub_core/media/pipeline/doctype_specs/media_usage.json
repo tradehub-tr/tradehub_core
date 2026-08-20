@@ -1,0 +1,144 @@
+{
+ "$comment": "T-043 · Öksüz dosya GC'sinin temeli. Mevcut motorun URL tabanlı kullanım taraması (tradehub_core/media/usage.py, 10+ tabloda LOCATE) bu tablonun YERİNE geçmez, onu BESLER: tarama pahalıdır (ölçüldü: derin tarama 3.546 ms/50 dosya), bu tablo sonucun kalıcı hâlidir.",
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-08-18 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 0,
+ "engine": "InnoDB",
+ "field_order": [
+  "asset",
+  "ref_doctype",
+  "ref_name",
+  "ref_field",
+  "usage_key",
+  "profile_used",
+  "first_seen",
+  "last_seen",
+  "is_open"
+ ],
+ "fields": [
+  {
+   "fieldname": "asset",
+   "fieldtype": "Link",
+   "label": "Varlık",
+   "options": "Media Asset",
+   "reqd": 1,
+   "description": "T-044 §4.3: tek kolonlu indeks YOK — ix_asset_open / ix_ref / uk_usage_quad öneki olarak zaten kapsanıyor."
+  },
+  {
+   "fieldname": "ref_doctype",
+   "fieldtype": "Data",
+   "label": "Kullanan DocType",
+   "reqd": 1,
+   "length": 140,
+   "description": "T-044 §4.3: tek kolonlu indeks YOK — ix_asset_open / ix_ref / uk_usage_quad öneki olarak zaten kapsanıyor."
+  },
+  {
+   "fieldname": "ref_name",
+   "fieldtype": "Data",
+   "label": "Kullanan Kayıt",
+   "reqd": 1,
+   "length": 140,
+   "description": "T-044 §4.3: tek kolonlu indeks YOK — ix_asset_open / ix_ref / uk_usage_quad öneki olarak zaten kapsanıyor."
+  },
+  {
+   "fieldname": "ref_field",
+   "fieldtype": "Data",
+   "label": "Kullanan Alan",
+   "reqd": 1,
+   "length": 140
+  },
+  {
+   "fieldname": "usage_key",
+   "fieldtype": "Data",
+   "label": "Tekillik Anahtarı",
+   "read_only": 1,
+   "length": 180,
+   "description": "(asset, ref_doctype, ref_name, ref_field) DÖRTLÜSÜNÜN tekilliği — Frappe bileşik unique index ifade edemediği için türetilmiş alan. Aynı bağ iki kez kaydedilemez; upsert bu anahtara çarparak idempotent olur. T-044 §4.3'te ÖLÇÜLDÜ: bu alana ayrıca UNIQUE koymak, bileşik uk_usage_quad ile BİRLİKTE indeksi %49 şişiriyor (419.676 satırda 571 MB → 290 MB). Karar: tekilliği veritabanı tarafında uk_usage_quad taşır; bu alan okunabilirlik içindir, indekssizdir."
+  },
+  {
+   "fieldname": "profile_used",
+   "fieldtype": "Link",
+   "label": "Kullanılan Profil",
+   "options": "Media Profile",
+   "description": "Manifest servis edilirken GERÇEKTEN istenen profil. Örneklemeli yazılır (T-043); her istekte yazılmaz."
+  },
+  {
+   "fieldname": "first_seen",
+   "fieldtype": "Datetime",
+   "label": "İlk Görülme",
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_seen",
+   "fieldtype": "Datetime",
+   "label": "Son Görülme",
+   "search_index": 1
+  },
+  {
+   "fieldname": "is_open",
+   "fieldtype": "Check",
+   "label": "Açık Bağ",
+   "default": "1",
+   "description": "1 = bağ hâlâ duruyor. Referans kaldırılınca kayıt SİLİNMEZ, 0'a çekilir ve last_seen damgalanır — 'hiç kullanılmadı' ile 'kullanılıyordu, kaldırıldı' ayrımı öksüz kararının temelidir. T-044 §4.3: tek kolonlu indeks YOK — ix_asset_open / ix_ref / uk_usage_quad öneki olarak zaten kapsanıyor."
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "is_submittable": 0,
+ "issingle": 0,
+ "istable": 0,
+ "links": [],
+ "modified": "2026-08-18 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Media Engine",
+ "name": "Media Usage",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Media Superadmin",
+   "share": 1,
+   "write": 1,
+   "permlevel": 0
+  },
+  {
+   "create": 0,
+   "delete": 0,
+   "email": 0,
+   "export": 0,
+   "print": 0,
+   "read": 1,
+   "report": 1,
+   "role": "Seller",
+   "share": 0,
+   "write": 0,
+   "permlevel": 0
+  },
+  {
+   "create": 1,
+   "delete": 0,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1,
+   "permlevel": 0
+  }
+ ],
+ "quick_entry": 0,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1,
+ "autoname": "hash"
+}

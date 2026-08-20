@@ -1,4 +1,30 @@
+# ⚠️ Bu dosya imaj tarifinde KULLANILMIYOR.
+# `docker/backend.Dockerfile` yalnızca `pip install -e apps/tradehub_core`
+# koşuyor — yani gerçekte kurulan şey `pyproject.toml [project].dependencies`.
+# Buraya yazıp pyproject'e yazmazsan paket imaja GİRMEZ (ölçüldü: `elasticsearch`
+# tam bu yüzden yıllardır kurulu değil, aşağıya bak).
+# Yeni runtime bağımlılığı eklerken İKİSİNİ BİRDEN güncelle.
+
 # frappe
 defusedxml>=0.7
 scikit-learn>=1.3
 # openpyxl Frappe ile gelir; explicit dependency yok
+
+# S3/MinIO nesne deposu — tradehub_core/media/pipeline/storage/s3.py.
+# frappe'nin kendi bağımlılığı olarak base imajda 1.34.162 zaten geliyordu;
+# ancak BEYAN EDİLMEMİŞTİ: frappe boto3'ü bırakırsa 91 MinIO testi sessizce
+# düşerdi. Artık pyproject'te de beyanlı (T-050 · T-051 · T-055).
+boto3>=1.34
+
+# Yerel OCR — content_rules.json `overlay_text` kuralının vision'sız yedeği
+# (scripts/calibrate_content_rules.py::ocr_text_signal). Yanında `tesseract-ocr`
+# ikilisi gerekir; o docker/backend.Dockerfile'da apt ile kuruluyor (T-025).
+pytesseract>=0.3.10
+
+# ⚠️ ÖLÇÜLDÜ (2026-08-19): `elasticsearch` imajda KURULU DEĞİL — bu dosya
+# kurulmuyor, pyproject'te de yok. `api/elasticsearch_integration.py` ImportError'ı
+# yutup HAS_ES=False'a düşüyor, yani ES arama yolu sessizce KAPALI.
+# Bilinçli olarak pyproject'e TAŞINMADI: kurmak HAS_ES'i True yapar ve
+# `sync_document_to_es` hook'u her doc update'inde ES'e yazmaya başlar —
+# davranış değişikliği, ayrı bir görevde ele alınmalı.
+elasticsearch>=8.0.0
