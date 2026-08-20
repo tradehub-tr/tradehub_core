@@ -1,3 +1,11 @@
+## [v1.13.1-alpha.34] - 2026-08-20 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Duzeltildi
+- fix(lojistik): denetimde bulunan iki güvenlik açığı ve izleme hataları giderildi (@boraydeger32)
+
+---
 ## [v1.13.1-alpha.33] - 2026-08-20 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
