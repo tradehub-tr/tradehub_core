@@ -247,6 +247,26 @@ def _build_filters(spec: CatalogSpec, is_active: int | None, extra: dict | None)
 	return filters
 
 
+def _safe_order_by(spec: CatalogSpec, order_by: str | None) -> str:
+	"""İstemci sıralamasını allowlist'ler; aykırı değerde varsayılana düşer.
+
+	Ham `order_by` doğrudan SQL'e geçiyordu (denetim 2026-08-20). Yalnız
+	`spec.list_fields` içindeki bir alan adı + opsiyonel asc/desc kabul edilir.
+	Aykırı değer HATA DEĞİL, sessizce `spec.default_sort`'a düşer — sıralama
+	parametresi kritik değil; yanlış yazan istemci yine tutarlı liste alır.
+	"""
+	if not order_by:
+		return spec.default_sort
+	parts = order_by.strip().split()
+	if not parts or len(parts) > 2:
+		return spec.default_sort
+	fieldname = parts[0]
+	direction = parts[1].lower() if len(parts) == 2 else "asc"
+	if fieldname not in spec.list_fields or direction not in ("asc", "desc"):
+		return spec.default_sort
+	return f"{fieldname} {direction}"
+
+
 def _search_or_filters(spec: CatalogSpec, search: str | None) -> list | None:
 	if not search:
 		return None
@@ -282,7 +302,8 @@ def list_catalog(
 		search: Katalogun aranabilir alanlarında geçen metin.
 		is_active: 1/0 filtresi.
 		filters: Katalogun `extra_filters` listesindeki alanlar.
-		order_by: Sıralama; verilmezse katalogun varsayılanı.
+		order_by: Sıralama — yalnız `list_fields` alanı + asc/desc; aykırı
+			değer sessizce katalogun varsayılanına düşer.
 
 	Returns:
 		{"items": [...], "total": int, "page": int, "page_size": int}
@@ -299,7 +320,7 @@ def list_catalog(
 		filters=base_filters,
 		or_filters=or_filters,
 		fields=list(spec.list_fields),
-		order_by=order_by or spec.default_sort,
+		order_by=_safe_order_by(spec, order_by),
 		limit_start=(page - 1) * page_size,
 		limit_page_length=page_size,
 	)

@@ -11,7 +11,7 @@
 Bu süit KODUN DOĞRULUĞUNU değil, **kaynak ile üretilmiş artefaktların
 ayrışmadığını** doğrular:
 
-	* Üretilmiş dosyalar bayat mı? (CI'daki `--check` ile aynı mantık)
+	* Üretilmiş dosyalar bayat mı? (`--check` ile aynı mantık)
 	* Mock fixture'lar sözleşmeye uyuyor mu? — uymazsa Storybook yalan söyler
 	  ve Faz D'de onaylanan ekran Faz E'de kırılır
 	* Şemadaki hata kodları gerçek exception sınıflarıyla eşleşiyor mu?
@@ -19,11 +19,13 @@ ayrışmadığını** doğrular:
 ÇALIŞMA ORTAMI UYARISI:
 	LOCAL dev'de docker yalnız `tradehub_core/tradehub_core` (Python paketi)
 	mount ediyor; `scripts/` ve `docs/` konteynerde GÜNCEL DEĞİL. Bu yüzden bu
-	süit bench içinde çalıştırıldığında ATLANIR ve asıl kapı CI'dır:
-	`.github/workflows/lint.yml` içindeki `gen_logistics_types.py --check`.
+	süit bench içinde çalıştırıldığında ATLANIR.
 
-	Süit bench dışında (repo kökünden, gerçek dosya ağacıyla) çalıştırıldığında
-	tam koşar. Atlanması sessiz bir boşluk değil — CI aynı kontrolü yapıyor.
+	DİKKAT (denetim 2026-08-20): Bu atlamayı yakalayan bir CI kapısı HENÜZ YOK
+	(hiçbir repoda lint.yml benzeri workflow bulunmuyor). Atlanan kontrolün
+	tek güvencesi `python3 scripts/gen_logistics_types.py --check`'in lokalde
+	(repo kökünden) koşulmasıdır. Süit bench dışında, gerçek dosya ağacıyla
+	çalıştırıldığında tam koşar.
 """
 
 from __future__ import annotations
@@ -42,7 +44,7 @@ GENERATOR_PATH = APP_ROOT / "scripts" / "gen_logistics_types.py"
 GENERATOR_AVAILABLE = GENERATOR_PATH.exists()
 SKIP_REASON = (
 	f"Üretici erişilebilir değil ({GENERATOR_PATH}); "
-	"bu kontrol CI'da `gen_logistics_types.py --check` ile yapılıyor"
+	"CI kapısı henüz kurulmadı — `gen_logistics_types.py --check` LOKAL koşulmalı"
 )
 
 

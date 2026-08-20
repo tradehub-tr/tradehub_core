@@ -2118,6 +2118,26 @@ def get_filter_facets(
 	return facet_result
 
 
+def _assert_listing_publicly_visible(listing_id: str) -> None:
+	"""İlan misafire görünür durumda değilse erişimi reddeder.
+
+	GÜVENLİK (denetim 2026-08-20): Bu kontrol olmadan taslak / reddedilmiş /
+	arşivlenmiş bir ilanın kargo yöntemleri ve maliyetleri — ve ilanın varlığı —
+	ID'yi tahmin eden misafire açıktı. Kontrolün TEK KAYNAĞI burasıdır;
+	`api/v1/logistics.py` sarmalayıcısı da bu fonksiyonu import eder (kopya değil).
+
+	Kapı, projenin KANONİK vitrin kolonu `storefront_visible`'dır (Tur-2 re-audit):
+	Listing controller'ı bunu `is_visible AND status in STOREFRONT_VISIBLE_STATUSES`
+	olarak denormalize eder ve tüm vitrin sorguları bu kolonla filtreler. Yalnız
+	status'a bakmak, satıcının GİZLEDİĞİ (is_visible=0) Active ilanı misafire
+	açıyordu ve status-listesi drift riski taşıyordu.
+	"""
+	storefront_visible = frappe.db.get_value("Listing", listing_id, "storefront_visible")
+	if not storefront_visible:
+		# None (ilan yok) ile 0 (gizli) AYNI yanıtı verir — varlık bilgisi sızmaz
+		raise frappe.DoesNotExistError(_("İlan bulunamadı."))
+
+
 @frappe.whitelist(allow_guest=True)
 def get_shipping_methods(listing_id=None, lang: str = "tr"):
 	"""Get available shipping methods, optionally for a specific listing.
@@ -2129,6 +2149,10 @@ def get_shipping_methods(listing_id=None, lang: str = "tr"):
 	business_days = translate_platform_term("iş günü", lang)
 
 	if listing_id:
+		# GÜVENLİK: allow_guest uç — görünmez ilan (taslak/reddedilmiş/arşiv)
+		# v1 sarmalayıcısıyla AYNI şekilde reddedilir (DoesNotExistError).
+		_assert_listing_publicly_visible(listing_id)
+
 		# Get listing-specific shipping methods
 		listing = frappe.get_doc("Listing", listing_id)
 		shipping = []
