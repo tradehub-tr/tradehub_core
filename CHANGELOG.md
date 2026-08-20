@@ -1,3 +1,72 @@
+## [v1.13.1-alpha.35] - 2026-08-20 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(media): hash-prefix shard + depolama standardı (TUR-130) (@TurksabYonetim)
+  - Yeni yüklemeler files/<ab>/<hash>.<ext> olarak shard'lanır (adın ilk 2 hex'i); tek dizinde milyonlarca dosya yerine ~256 dengeli alt dizin.
+  - İki write_file yolu da (doc + legacy) shard dizinini önceden oluşturur (Frappe write_file mkdir yapmıyor).
+  - Türev yeri (orijinal yanında suffix), çakışma (içerik-adresli dedup), eski isim migration'ı (ertelendi) docs/MEDYA-DEPOLAMA-STANDARDI.md'de.
+  - Mevcut file_url'ler kırılmaz; test 9/9 + gerçek upload doğrulandı (/files/c5/...).
+- feat(media/audit): media.signed_access olay sabiti (TUR-126 hazırlık) (@TurksabYonetim)
+- feat(media): private dosyalar için imzalı süreli URL (TUR-126 §3) (@TurksabYonetim)
+  - `get_signed_url(file_url, ttl_seconds)`: çağıranın dosyaya read yetkisi olduğunu (`File.has_permission`) doğrular, yalnız `/private/files/` altındaki dosyalar için `verified_command.get_signed_params` ile imzalı, TTL'i 86400sn'ye clamp'lenmiş bir link üretir. Yetkisiz kullanıcı için imza ÜRETİLMEZ (frappe.PermissionError).
+  - `download()` (`allow_guest=True`): imzayı (`verify_request`) ve süreyi doğrular, path'i tekrar (defansif) doğrular, `send_private_file` ile serve eder, başarılı her indirmeyi `media.signed_access` olarak denetime yazar.
+- feat(media/audit): media.level_changed olay sabiti (TUR-126 §4 hazırlık) (@TurksabYonetim)
+- feat(media/refs): retarget() — dosya URL değişince referansları yeni URL'e taşı (@TurksabYonetim)
+- feat(media): set_access_level — public↔private erişim-seviyesi toggle (TUR-126 §4) (@TurksabYonetim)
+- feat(media): video transcode durumu uçlardan dönüyor (TUR video-durum) (@TurksabYonetim)
+  - inventory.list_files + upload_media yanıtına video_status eklendi
+  - _run_transcode başarıda th_optimized_at damgalıyor — panel 'bekliyor' yalanı düzeldi
+  - TDD: transcode + pipeline entegrasyon testleri genişletildi
+- feat(media): get_private_files — panelin Özel dosyalar envanteri (TUR-126 §4.2) (@TurksabYonetim)
+- feat(media): browse_media — sanal klasör ağacı (Medya Gezgini backend'i) (@TurksabYonetim)
+- feat(media): KYB/KYC klasörleri mağazaya göre alt klasörlenir (gezgin sub seviyesi) (@TurksabYonetim)
+- feat(media): gezginde mağaza altında belge-alanı klasörleri (doc_field seviyesi) (@TurksabYonetim)
+- feat(media): sohbet ekleri künyesi + gezginde "Sohbet ekleri" kökü (@TurksabYonetim)
+- feat(medya): boru hattı dalgaları A-W9 + CI/pre-commit + ADR/kapanış dok (@TurksabYonetim)
+  - Medya motorunu (media/pipeline) gerçek ürün akışına bağlayan köprü (pipeline_bridge), bayrak koruması (pipeline_flags), kırpma/manifest/RUM/gözlemlenebilirlik uçları eklendi — kod vardı ama veriyle bağlı değildi, bu turlar onu üretime kablolladı
+  - CI (ruff/mypy/pytest) ve pre-commit hook'ları eklendi çünkü hiçbir workflow test/lint koşmuyordu
+  - Faz 0-14 kapanış dosyaları, 22 ADR ve çok sayıda ölçüm raporu eklendi — kararların ve durumun kod üzerinden ölçülerek arşivlenmesi için
+  - Güvenlik: KYC/KYB permlevel sıkılaştırma, kiracı izolasyonu (Ö-2/Ö-3), IBAN permlevel, misafir rate-limit kovası, secret-access denetimi düzeltmeleri — pentest bulgularının (T1/T2/T3/T9) kapatılması için
+  - Yeni doctype'lar (Media Asset/Version/Rendition/Folder/CropIntent/RumSample vb.) ve ilgili patch'ler eklendi
+  - Grafana/Prometheus gözlemlenebilirlik varlıkları ve OpenAPI (HTTP) şema üretici script'i eklendi
+
+### Duzeltildi
+- fix(media): download() reddedilen denemeleri de audit'e yazsın + exp-yolu regresyon testi (TUR-126 review round 1) (@TurksabYonetim)
+  - download()'ın malformed/eksik `exp` yolu için test yoktu; davranış doğruydu (throw → PermissionError) ama regresyon koruması yoktu. İki test eklendi: exp="abc" ve exp eksik — ikisi de red + send_private_ file hiç çağrılmıyor.
+  - download() yalnız BAŞARILI indirmeleri denetime yazıyordu; reddedilen denemeler (geçersiz imza, süresi dolmuş, path/traversal, malformed exp) hiç loglanmıyordu — guest'e açık bir uçnokta için brute-force/probe iz bırakmadan geçiyordu. `_log_denied()` eklendi: her red dalı artık `media.access_denied` ile (reason: invalid_signature/bad_path/expired/ malformed_exp), dosya yolu `sensitive=True` ile maskelenmiş olarak kaydediliyor. `log_media_event` zaten best-effort — red akışını bozmaz.
+- fix(media): CRITICAL — ters-referanslı PII belgeleri public yapılabiliyordu (TUR-126 §4 review) (@TurksabYonetim)
+- fix(medya): K-2 kapatıldı — bozuk bench komutları düzeltildi, media_stats koşuldu (@TurksabYonetim)
+  - .claude/rules/bench-docs.md: 8 komut düzeltildi
+  - scripts/media_stats.py, scripts/plan_backfill.py: çağrı desenleri düzeltildi
+  - docs/reports/02, docs/plans/migration.md: komutlar düzeltildi
+  - docs/reports/10-media-stats-kosum-ciktisi.txt: betiğin GERÇEK koşum çıktısı
+  - th_media_width dolu: 0/2853 (%0) — çözünürlük metadata alanı tamamen boş
+  - yetim dosya: diskte 4.016 / DB'de 2.853 → 1.166 kayıtsız dosya (%29)
+  - anomali: 120 dosya >20MP · 28 CMYK · 3 diskte yok
+  - public↔hassas aynı content_hash: 384 eşleşme, gerçek KYB kayıtlarında (KYB-00014/16/18/37). Örtüşen dosyalar logo/banner görünümlü; kimlik belgesi değil — ama mekanizma gerçek, sınıflandırma gerekiyor (D-2)
+
+### Degistirildi
+- refactor(medya): medya motoru paket içine taşındı + Faz 1/3-14 çıktıları (@TurksabYonetim)
+  - contracts/ — 5 Protocol (storage/image/video/policy/delivery) + fakes
+  - core/ — durum makinesi, crop, dedup, usage, probe, jobs
+  - image/ — probe, normalize, classify, render (rendition matrisi), lqip, report
+  - video/ — probe, karar tablosu (JSON), transcode, poster, hls
+  - storage/ — local/s3/mirror/tiered adaptörleri + retention
+  - delivery/ — picture, sizes, signed URL, rum
+  - api/ — upload, crop, delivery, admin, spec (OpenAPI 3.1)
+  - policy/ — PolicyEngine (politikalar veri olarak) + 9 slot politikası
+  - simulator/ — 13 cihaz x 5 sayfa srcset hesabı
+  - security/ — SVG sanitize, süreç izolasyonu · observability/ — metrik, log
+  - doctype_specs/ — 12 DocType şeması (JSON; tradehub_core/doctype'a yazılmadı)
+  - 1376 test: OK (70 skip, 1 bilinçli expectedFailure)
+  - 71 pipeline modülünün tamamı derleniyor
+  - slot policy şema uyumu 9/9
+  - crop geometri TS<->Python paritesi: 592 vektör, 0 uyuşmazlık, sapma 0 px
+  - tradehub_core/ üretim kodu ajanlarca değiştirilmedi (gates.py hasarı giderildi)
+
+---
 ## [v1.13.1-alpha.34] - 2026-08-20 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
