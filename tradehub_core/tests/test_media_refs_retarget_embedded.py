@@ -89,3 +89,33 @@ class TestRetargetEmbedded(FrappeTestCase):
 		self.assertEqual(out["total"], 0)
 		self.assertTrue(any("gömülü" in s for s in out["skipped"]))
 		self.assertIn(self.old, frappe.db.get_value("Storefront Layout", doc.name, "sections"))
+
+
+class TestReplaceEmbeddedText(FrappeTestCase):
+	"""`_replace_embedded`'in düz-metin (JSON olmayan) dalı — saf fonksiyon,
+	DB'ye dokunmaz. Sınır-farkında değiştirme: bir URL yalnızca URL-gövdesi
+	OLMAYAN bir karakterle (tırnak, boşluk, `)`, `>`, dize sonu...) bitiyorsa
+	değiştirilir; `/files/old.jpg.webp` gibi daha uzun bir adın öneki olarak
+	geçiyorsa dokunulmaz."""
+
+	def test_html_ozniteligi_icinde_degistirilir(self):
+		value = '<img src="/files/old.jpg">'
+		out = refs._replace_embedded(value, "/files/old.jpg", "/files/new.jpg")
+		self.assertEqual(out, '<img src="/files/new.jpg">')
+
+	def test_daha_uzun_adin_oneki_olarak_gecen_url_degismez(self):
+		value = "gör: /files/old.jpg.webp ayrıca /files/old.jpg2 ve son olarak /files/old.jpg"
+		out = refs._replace_embedded(value, "/files/old.jpg", "/files/new.jpg")
+		self.assertEqual(out, "gör: /files/old.jpg.webp ayrıca /files/old.jpg2 ve son olarak /files/new.jpg")
+
+	def test_hic_gecmiyorsa_none(self):
+		self.assertIsNone(
+			refs._replace_embedded("burada hiçbir adres yok", "/files/old.jpg", "/files/new.jpg")
+		)
+
+	def test_json_kacisli_yazim_duz_metinde_de_degistirilir(self):
+		old = "/files/rr-ı-abcdef.jpg"
+		kacisli = json.dumps(old, ensure_ascii=True)[1:-1]  # ı kaçışlı yazım
+		value = f"log satırı: gördü {kacisli} orada"
+		out = refs._replace_embedded(value, old, "/files/new.jpg")
+		self.assertEqual(out, "log satırı: gördü /files/new.jpg orada")

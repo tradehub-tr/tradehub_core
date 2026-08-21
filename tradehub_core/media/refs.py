@@ -26,6 +26,7 @@ alanı; ürünü silemeyiz, alanı boşaltırız.
 from __future__ import annotations
 
 import json
+import re
 
 import frappe
 
@@ -207,6 +208,9 @@ def _replace_embedded(value: str, old_url: str, new_url: str) -> str | None:
 		except ValueError:
 			return None
 
+		# Yalnız string DEĞERLER yeniden yazılır; dict KEY'leri hiç
+		# dokunulmadan geçer — key'ler alan adı (örn. "cover_image"),
+		# hiçbir zaman URL değil.
 		def walk(node):
 			if isinstance(node, str):
 				return new_url if node == old_url else node
@@ -220,9 +224,16 @@ def _replace_embedded(value: str, old_url: str, new_url: str) -> str | None:
 		if yeni == data:
 			return None
 		return json.dumps(yeni, ensure_ascii=True)
+	# Sınır-farkında değiştirme: `y` bir URL-gövdesi karakteriyle devam
+	# ediyorsa (örn. `/files/x.jpg` → `/files/x.jpg.webp` ya da
+	# `/files/x.jpg2` içindeki önek) atlanır — yalnız gerçek URL'in bittiği
+	# yerlerde (tırnak, boşluk, `)`, `>`, `?`, `#`, dize sonu) değiştirilir.
 	yeni = value
 	for y in yazimlar:
-		yeni = yeni.replace(y, new_url)
+		# `new_url` yerine `lambda m: new_url` — `re.sub` replacement string'i
+		# `\1`/`\g<...>` gibi geri-referans olarak yorumlar; URL'de kaçış
+		# karakteri OLMASA da bu yorumlamayı devre dışı bırakmak daha güvenli.
+		yeni = re.sub(re.escape(y) + r"(?![A-Za-z0-9._~-])", lambda m: new_url, yeni)
 	return None if yeni == value else yeni
 
 
