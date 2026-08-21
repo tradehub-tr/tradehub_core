@@ -36,18 +36,37 @@ _HASHED_SHARDED = re.compile(r"^/files/[0-9a-f]{2}/[0-9a-f]{32}\.[a-z0-9]+$")
 
 
 def is_legacy_name(file_url: str) -> bool:
-	"""`/files/` altında, `/files/media/` dışında, hash+shard biçiminde OLMAYAN adres."""
+	"""`/files/` altında, `/files/media/` dışında, hash+shard biçiminde OLMAYAN adres.
+
+	Yol-geçişi koruması SEGMENT düzeyinde: `url.split("/")` içindeki bir parça
+	tam olarak `".."` ya da `"."` ise reddedilir. Eskiden `".." in url` alt-dizge
+	kontrolü kullanılıyordu — bu, cümle sonu nokta ile biten gerçek eski dosya
+	adlarını da (`/files/MOİ ile derin düzen..jpg` gibi, dosya adı `derin
+	düzen.` + `.jpg` uzantısı) yanlışlıkla reddediyordu. Segment kontrolü
+	`/files/../etc/passwd` ve `/files/a/../b.jpg` gibi gerçek geçiş denemelerini
+	yine reddeder.
+	"""
 	url = (file_url or "").split("?")[0]
 	if not url.startswith(PUBLIC_PREFIX) or url.startswith(MEDIA_PREFIX):
 		return False
-	if ".." in url or url.endswith("/"):
+	if url.endswith("/"):
+		return False
+	if any(seg in (".", "..") for seg in url.split("/")):
 		return False
 	return not _HASHED_SHARDED.match(url)
 
 
 def _disk_path(file_url: str) -> str:
 	rel = file_url[len(PUBLIC_PREFIX) :]
-	return os.path.join(get_files_path(is_private=0), rel)
+	base = os.path.realpath(get_files_path(is_private=0))
+	path = os.path.realpath(os.path.join(base, rel))
+	# Savunma derinliği: `is_legacy_name` segment kontrolüyle path traversal'ı
+	# zaten eliyor, ama bu fonksiyon başka çağıranlar (`target_url`, rollback
+	# akışı) tarafından da kullanılıyor — gerçek diskteki yol köküne çıktığını
+	# burada da doğrula, tesadüfen filtrelenmemiş bir çağrı sızıntıyı önlesin.
+	if not (path == base or path.startswith(base + os.sep)):
+		frappe.throw(_("Geçersiz dosya yolu: {0}").format(file_url))
+	return path
 
 
 def target_url(file_url: str) -> str:

@@ -64,6 +64,29 @@ class TestLegacyNameAndTarget(FrappeTestCase):
 		self.assertFalse(retro_rename.is_legacy_name(""))
 		# Alt dizinli ama hash'siz eski dosya da eski sayılır (ör. /files/eski/foto.JPG)
 		self.assertTrue(retro_rename.is_legacy_name("/files/eski/foto.JPG"))
+		# Cümle sonu nokta ile biten gerçek eski dosya adı — segment-düzeyi kontrol
+		# alt-dizge kontrolünün (eski `".." in url`) yanlışlıkla reddettiği örnek.
+		self.assertTrue(retro_rename.is_legacy_name("/files/cümle sonu..jpg"))
+		# Gerçek yol-geçişi denemeleri hâlâ reddedilir.
+		self.assertFalse(retro_rename.is_legacy_name("/files/../etc/passwd"))
+		self.assertFalse(retro_rename.is_legacy_name("/files/a/../b.jpg"))
+
+	def test_disk_path_yol_gecisini_reddeder(self):
+		with self.assertRaises(frappe.ValidationError):
+			retro_rename._disk_path("/files/../etc/passwd")
+
+	def test_target_url_nokta_ile_biten_dosya_adi(self):
+		"""Cümle sonu nokta ile biten gerçek dosya — round-trip: taşınabilir aday, target_url hesaplanır."""
+		suffix = frappe.generate_hash(length=8)
+		name = f"rr-nokta-{suffix}..jpg"
+		content = f"nokta-{suffix}".encode()
+		url = _write_flat_public(name, content)
+		self.addCleanup(
+			lambda: os.path.exists(p := os.path.join(get_files_path(is_private=0), name)) and os.remove(p)
+		)
+		self.assertTrue(retro_rename.is_legacy_name(url))
+		h = hashlib.sha256(content).hexdigest()[:32]
+		self.assertEqual(retro_rename.target_url(url), f"/files/{h[:2]}/{h}.jpg")
 
 	def test_target_url_icerik_hashli_ve_shardli(self):
 		suffix = frappe.generate_hash(length=8)

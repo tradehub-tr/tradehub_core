@@ -178,3 +178,60 @@ Ekran görüntüsü: `.superpowers/sdd/2026-08-21-medya-retro-rename/panel-after
 | Gerçek #2 (kalıcı) | 8985c816a995 | 2846 | 2834 | 12 | 0 | 55 s |
 
 **Hata sayısı tüm koşumlarda 0.** Geri al provası tam tur (round-trip) doğrulandı. Son durum: taşınmış (2834 dosya yeni içerik-adresli/şard'lı adında, 12 dosya diskte olmadığı için beklenildiği gibi eski adında kaldı).
+
+## 13. Ek koşu (10a) — `".."` koruması segment düzeyine indirildi
+
+**Tarih:** 2026-08-21 (Task 10a, aynı gün). §11.3'te bilinen boşluk olarak işaretlenen konu: `is_legacy_name()`'in yol-geçişi koruması alt-dizge kontrolü (`".." in url`) kullanıyordu, bu da cümle sonu nokta ile biten gerçek eski dosya adlarını (`/files/MOİ ile derin düzen..jpg` gibi) de reddediyordu.
+
+### Değişiklik
+
+- `tradehub_core/media/retro_rename.py::is_legacy_name` — koruma artık **segment düzeyinde**: `url.split("/")` içindeki bir parça tam olarak `".."` ya da `"."` ise reddedilir. `/files/../etc/passwd` ve `/files/a/../b.jpg` hâlâ reddedilir; `/files/cümle sonu..jpg` artık aday sayılır.
+- `_disk_path(file_url)` — savunma derinliği: `os.path.realpath` ile gerçek disk yolu hesaplanır, `get_files_path(is_private=0)`'ın gerçek kökünün altında değilse `frappe.throw(_("Geçersiz dosya yolu: {0}"))` (`frappe.ValidationError`).
+- Testler (`TestLegacyNameAndTarget`): cümle sonu nokta → `True`; `/files/../etc/passwd`, `/files/a/../b.jpg` → `False`; `_disk_path` traversal URL'de `frappe.ValidationError`; gerçek `rr-nokta-<hash>..jpg` dosyası için `target_url` round-trip.
+
+### Doğrulama SQL (koşu öncesi)
+
+```
+docker exec istoc-dev-backend-1 bench --site istoc.localhost mariadb -e \
+  "select count(distinct file_url) from tabFile where is_private=0 and left(file_url,7)='/files/' and file_url like '%..%'"
+→ 8
+```
+
+### Test koşusu
+
+```
+docker exec istoc-dev-backend-1 bench --site istoc.localhost run-tests --module tradehub_core.tests.test_media_retro_rename
+→ Ran 26 tests in 2.947s — OK
+```
+
+Sync + `docker restart istoc-dev-backend-1 istoc-dev-queue-long-1 istoc-dev-frappe-frontend-1` ile worker/web yeni kodu aldı (`queue-long` içinde `grep` ile segment kontrolü satırı doğrulandı).
+
+### API koşusu
+
+| Adım | Sonuç |
+|---|---|
+| `retro_rename_count` (koşu öncesi) | `total=21` |
+| `retro_rename_plan` kırılımı | `renamable=8`, `disk_missing=13` (12'si önceki koşudan kalan + §11.2'deki `rr-plan-*` test kalıntıları/`ChatGPT Image` dosyaları — bu göçle ilgisiz, önceden var olan boşluk) |
+| `start_retro_rename dry_run=0` | `job_key=55084cc61db4` |
+| Bitiş durumu | `state=completed`, `total=21`, `processed=21`, **`renamed=8`**, `skipped=13` (`disk_missing`), **`errors=0`** |
+
+Brief'in beklediği "8 (+12 disk_missing = 20)" yerine gözlenen `disk_missing=13` — fark, §11.2'de zaten bilinen `TestPlan` test kalıntılarından (`rr-plan-*`, orphan+disk_missing) ve bu görevden bağımsız iki `ChatGPT Image *.png` disk-eksik satırından kaynaklanıyor; göçle ilgisi yok, sayı tutarlı.
+
+### Doğrulama (koşu sonrası)
+
+```
+docker exec istoc-dev-backend-1 bench --site istoc.localhost mariadb -e \
+  "select count(distinct file_url) from tabFile where is_private=0 and left(file_url,7)='/files/' and file_url like '%..%'"
+→ 0
+```
+
+```
+curl -sI "http://istoc.localhost/files/MO%C4%B0%20ile%20derin%20d%C3%BCzen..jpg"
+→ HTTP/1.1 301 MOVED PERMANENTLY
+  Location: /files/03/037eaeb69eb33b25f6d7b88978f308e8.jpg
+
+curl -sI "http://istoc.localhost/files/03/037eaeb69eb33b25f6d7b88978f308e8.jpg"
+→ HTTP/1.1 200 OK
+```
+
+**Sonuç:** 8 kalan dosya taşındı, hata 0, SQL doğrulaması 8 → 0. `is_legacy_name` artık gerçek yol-geçişi girişimlerini reddederken cümle sonu noktalı gerçek dosya adlarını aday sayıyor.
