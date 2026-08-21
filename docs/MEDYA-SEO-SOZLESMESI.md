@@ -10,6 +10,28 @@ TUR-132 (EXIF/mime), TUR-122 (WP assimilasyon) — **dördü de Backlog**.
 
 ---
 
+## 0. Revizyon kaydı — 21 Ağustos 2026
+
+**Üst belge:** "Media & File Management — SEO/Marketing Feature Set" (PM,
+21 Ağu 2026; 8 motorlu medya alt sistemi mimarisi). **Bu üst belge öncelikli**;
+aşağıdaki beş karar onun lehine değiştirildi. Eski gerekçeler silinmedi —
+ne düşünülmüştü, neden döndü, ikisi de okunabilsin diye ~~üstü çizili~~ bırakıldı.
+
+| # | Konu | 19 Ağu kararı | 21 Ağu kararı | Gerekçe |
+|:-:|---|---|---|---|
+| R1 | `caption` | Eklenmeyecek | **Eklenir**, çevrilebilir, kullanım başına ezilebilir | Caption sayfada **görünür** metindir (`<figcaption>`, ImageObject.caption); `description` panel içidir. İkisi aynı iş değil |
+| R2 | AI ile alt üretimi | Kapsam dışı | **AI önerir, insan onaylar.** `alt_source` durumu şimdi açılır, AI servisi sonra bağlanır | Üst belge: "ALT otomatik yayınlanmamalı; ai_generated / human_approved / manually_edited tutulmalı". Kural tabanlı zincir (§5.1) AI gelene kadar tek üretici olarak kalır |
+| R3 | SEO dosya adı / `slug` | Eklenmeyecek | **Metadata alanı** olarak eklenir (`seo_filename`, `slug`); **diskteki hash ad DEĞİŞMEZ** | Üst belge de ayrımı kuruyor: "sabit asset ID ≠ delivery URL, metadata değişti diye dosya URL'si değişmemeli". Güvenlik kararı (TUR-141/130) korunur; alan ileride medya landing/watch page'de kullanılır |
+| R4 | `canonical` | Eklenmeyecek | Alan açılır, **medya sayfası gelene kadar boş** | Üst belge "raw file ≠ indexable landing/watch page" ayrımını istiyor; o sayfa geldiğinde canonical onun adresidir |
+| R5 | EXIF'ten veri | Siliniyor, okunmaz | **Politika:** GPS/cihaz public dosyadan gider, çekim tarihi/kamera/telif **DB'de tutulur** | Üst belge "metadata policy". **Bu TUR-132'nin kapsamıdır**, burada yalnız sınırı çizilir |
+
+Ek olarak üst belgeden gelen **yeni** kapsam (19 Ağu'da hiç yoktu): kullanım
+başına metadata ezme (§4.3), lisans/telif alan seti (§4.4), indexability
+politikası (§6.1), render ipuçları (§6.2), SEO audit + skor (§6.3),
+video SEO (§6.4). Ar-ge sonuçları 1-6 ve ölçümler geçerliliğini koruyor.
+
+---
+
 ## 1. Bulgu: alanlar var, tüketen yok
 
 Medya kayıtlarında SEO alanları **zaten mevcut** (`v15_9_15` yaması):
@@ -109,28 +131,34 @@ değiştiriyor; `File.file_name` (görünen ad) DEĞİŞMİYOR. Yani kaybedilen 
 sinyal URL segmentidir ve onun ağırlığı `alt` + çevresel metin + yapısal veri
 yanında düşüktür.
 
-**Karar:** Dosya adı SEO'su **kovalanmayacak**. Güvenlik kararı korunur.
-Kaybedilen sinyal §4'teki alan setiyle fazlasıyla telafi edilir. Alternatif
-(slug'lu ikinci bir servis rotası: `/i/<slug>-<hash>.jpg`) §8'de değerlendirildi
-ve **reddedildi**.
+**Karar (R3 ile güncellendi):** Diskteki ad ve `file_url` **hash kalır** —
+güvenlik kararı korunur, slug'lu servis rotası reddi (§8) geçerli. Ama dosya
+adı sinyali tamamen terk edilmez: `seo_filename` ve `slug` **metadata alanı**
+olarak tutulur. Bugün iki yerde işe yarar — (a) `Content-Disposition` ile
+indirme adı, (b) denetimde "poor filename" kuralı (`IMG_4821`, `Ekran
+Görüntüsü` → uyarı). Medya landing/watch page açıldığında o sayfanın adresi
+bu slug'dan üretilir; dosyanın kendisi yerinden oynamaz.
 
 ## 4. Alan seti
 
 ### 4.1 Karar tablosu
 
-| Alan | Zorunlu | Üretim | Kaynak / kural |
-|---|:-:|---|---|
-| `alt` | **Evet** (görselde) | **Otomatik**, elle ezilebilir | §5.1 |
-| `title` | Hayır | Otomatik | Görsel adı → `slugify_tr` tersi (tire→boşluk, ilk harf büyük) |
-| `description` | Hayır | **Elle** | Otomatik üretimi değersiz: aynı cümleyi tekrarlayan açıklama SEO'ya katkı vermez, gürültü üretir |
-| `tags` | Hayır | Otomatik öneri + elle | Kategori ağacından (TUR-133 gelince) |
-| `caption` | — | — | **EKLENMEYECEK** — `description` ile aynı işi yapar; iki alan tutmak ikisinin de boş kalmasıyla sonuçlanır (bkz. %0 ölçümü) |
-| `slug` | — | — | **EKLENMEYECEK** — medya kaydının kendi sayfası yok; slug'ı olan varlık `Listing`. Medyaya slug eklemek, hiçbir yerde çözülmeyen bir adres üretirdi |
-| `canonical` | — | — | **EKLENMEYECEK** — aynı gerekçe. Canonical sayfa özelliğidir; görselin canonical'ı onu gösteren sayfadır |
+| Alan | Zorunlu | Üretim | Çok dil | Kaynak / kural |
+|---|:-:|---|:-:|---|
+| `alt` | **Evet** (görselde) | **Otomatik**, elle ezilebilir | ✅ | §5.1; kaynağı `alt_source` ile izlenir |
+| `alt_source` | — | Sistem | — | `rule` / `ai` / `human` / `edited` — **R2**. Eski `_auto` Check yerine; iki durum dört oldu çünkü "AI önerdi, insan onayladı" ile "insan sıfırdan yazdı" denetimde ayrı okunmalı |
+| `title` | Hayır | Otomatik | ✅ | Görsel adı → `slugify_tr` tersi (tire→boşluk, ilk harf büyük) |
+| `caption` | Hayır | Elle; AI önerisi sonra | ✅ | **R1 — eklendi.** Sayfada görünür kısa metin (`<figcaption>`, `ImageObject.caption`, görsel sitemap `image:caption`). ~~Eklenmeyecek — description ile aynı iş~~ |
+| `description` | Hayır | **Elle** | — | Panel içi; dış yüzde basılmaz. Otomatik üretimi değersiz: tekrarlayan açıklama gürültüdür |
+| `tags` | Hayır | Otomatik öneri + elle | — | Kategori ağacından (TUR-133 gelince); kaynağı `manual` / `system` / `ai` ayrı tutulur (üst belge §29) |
+| `seo_filename` | Hayır | Otomatik (`slugify_tr(alt)`) | — | **R3 — metadata.** Disk adı DEĞİŞMEZ (§3). İndirme adı + "poor filename" denetimi |
+| `slug` | Hayır | Otomatik | — | **R3 — metadata.** Medya landing page açılana kadar yalnız saklanır. ~~Eklenmeyecek — sayfası yok~~ |
+| `canonical` | Hayır | — | — | **R4.** Medya sayfası gelene kadar **boş**; o gün o sayfanın adresi. ~~Eklenmeyecek~~ |
 
-**Ar-ge sonucu 4:** Kapsamda geçen `slug` ve `canonical` medya kaydına ait
-değildir. Issue "değerlendirilmelidir" diyor; değerlendirme sonucu **hayır** ve
-gerekçesi yukarıdadır. Bu, kapsamın daraltılması değil, sorunun cevaplanmasıdır.
+**Ar-ge sonucu 4 (güncellendi):** `slug` ve `canonical` bugün hiçbir yerde
+çözülmüyor — 19 Ağu tespiti doğru. Değişen şey kapsam: üst belge medya için
+**kendi sayfasını** (landing/watch page) öngörüyor; alanlar o gün için şimdiden
+açılıyor ki şema ikinci kez değişmesin. Boş alan ucuz, geç gelen kolon pahalı.
 
 ### 4.2 Çok dillilik kararı
 
@@ -145,8 +173,54 @@ Maliyet dürüstçe: 2 alan × 4 dil = 8 kolon. Ama `CONTENT_TRANSLATABLE_FIELDS
 zaten kolon üretimini, senkronu ve okumayı tek yerden yönetiyor; ek karmaşıklık
 sözlüğe iki satır eklemekten ibarettir.
 
+`caption` da çevrilebilir sete katılır (R1) — aynı gerekçe, sayfada basılıyor.
 `description` ve `tags` **tek dil kalır**: ikisi de dış yüzde render edilmiyor
 (§6), yalnız panel içi arama/filtreleme besliyor.
+
+### 4.3 Asset metadata ≠ kullanım metadata'sı (YENİ — üst belge §3)
+
+Aynı görsel üç sayfada üç farklı bağlamda durabilir:
+
+```
+/urun/bmw-x5            → alt: "BMW X5 ön görünüm"
+/blog/bmw-x5-inceleme   → alt: "İnceleme: BMW X5 2026 yüz yenileme"
+/kampanya/bmw-x5        → alt: "Ağustos BMW X5 kampanya görseli"
+```
+
+Tek global `alt` bunu karşılayamaz. Model iki katman:
+
+| Katman | Nerede | Ne tutar |
+|---|---|---|
+| **Asset varsayılanı** | `File.th_media_*` | `alt`, `title`, `caption` (4 dil), `alt_source` |
+| **Kullanım ezmesi** | `Media Usage Override` (yeni child/ilişki kaydı) | `(file_url, doctype, name, field)` anahtarıyla `alt_override`, `title_override`, `caption_override` (4 dil) |
+
+Okuma kuralı: `usage.alt_override || asset.alt`. Yazma kuralı: ezme yalnız o
+kullanım bağlamının sahibi tarafından (ürün sahibi satıcı, blog yazarı);
+asset varsayılanı dosya sahibi tarafından.
+
+Bunun için **yeni tablo gerekir** — CLAUDE.md §4 "DocType bloat" kuralına
+karşı gerekçe: anahtar dörtlü, ilişki çoktan-çoğa, mevcut `File` kaydına
+sığmaz; `usage.py`'nin 16 kaynak çifti zaten bu anahtarı üretiyor, tablo onun
+yazma yüzü olur. **Bu, üst belgenin "unknown unknown" dediği altı maddeden
+biri ve şemayı etkileyen tek SEO kararı — Dilim 1'in ilk işi.**
+
+### 4.4 Lisans ve telif alanları (YENİ — üst belge §3, §7)
+
+Google görsel aramasında **lisans rozeti** ve "Bu görseli lisansla" bağlantısı
+şu beş alanı okur; `ImageObject`'e doğrudan bağlanır:
+
+| Alan | ImageObject | Üretim |
+|---|---|---|
+| `creator` | `creator.name` | Varsayılan: yükleyen mağaza adı |
+| `credit_text` | `creditText` | Varsayılan: mağaza adı |
+| `copyright_notice` | `copyrightNotice` | Varsayılan: `© <yıl> <mağaza>` |
+| `license_url` | `license` | Boş; satıcı/yönetici seçer (pazaryeri şartları sayfası varsayılan adaydır) |
+| `acquire_license_url` | `acquireLicensePage` | Boş; mağaza iletişim sayfası aday |
+
+Ek yaşam döngüsü alanları (üst belge §7 "rights lifecycle"): `usage_rights`
+(serbest metin), `rights_expires_on` (tarih) — süresi dolan görsel
+indexability'de `noindex`'e düşer (§6.1) ve denetimde "expired asset still
+published" kuralına takılır (§6.3). Bu alanlar **tek dil**.
 
 ## 5. Otomatik üretim kuralları
 
@@ -193,13 +267,33 @@ arama motoru bunu yinelenen içerik sayar ve hepsini birden değersizleştirir.
 | An | Davranış |
 |---|---|
 | Yükleme (`upload_media`) | Üretilmez — dosya henüz bir kayda bağlı değil |
-| **Bir kayda eklendiğinde** (`attached_to` dolduğunda) | Üretilir |
-| Bağlı kaydın başlığı değiştiğinde | **Yalnız otomatik üretilmişse** yenilenir |
-| Satıcı elle yazdığında | Bir daha asla otomatik ezilmez |
+| **Bir kayda eklendiğinde** (`attached_to` dolduğunda) | Kural zinciri üretir → `alt_source = rule` |
+| Bağlı kaydın başlığı değiştiğinde | **Yalnız `alt_source ∈ {rule, ai}`** ise yenilenir |
+| Satıcı elle yazdığında | `alt_source = human` (sıfırdan) ya da `edited` (öneriyi düzeltti); bir daha otomatik ezilmez |
 
-Bunun için `th_media_alt_auto` (Check) alanı gerekir: "bu değer üretildi mi,
-yazıldı mı". Bu bayrak olmadan "elle yazılanı ezme" kuralı uygulanamaz —
-ölçülemeyen kural, uygulanmayan kuraldır.
+Bunun için `th_media_alt_source` (Select: `rule / ai / human / edited`) alanı
+gerekir. ~~`th_media_alt_auto` (Check)~~ — R2 ile dört duruma çıktı: "AI
+önerdi, insan onayladı" ile "insan sıfırdan yazdı" denetimde aynı görünmemeli.
+Bu alan olmadan "elle yazılanı ezme" kuralı uygulanamaz — ölçülemeyen kural,
+uygulanmayan kuraldır.
+
+### 5.2a AI önerisi akışı (R2 — şema şimdi, servis sonra)
+
+```
+AI servisi öneri üretir  →  th_media_alt_ai (öneri, AYRI alan, yayınlanmaz)
+                         →  panelde "Öneriyi kabul et / düzenle / reddet"
+   kabul     → alt = öneri,            alt_source = ai
+   düzenle   → alt = düzenlenmiş metin, alt_source = edited
+   reddet    → öneri silinir, kural zinciri devrede kalır
+```
+
+**Öneri asla doğrudan `alt`'a yazılmaz.** Erişilebilirlik alt'ı (ekran okuyucu)
+ile SEO açıklaması aynı şey değil; yanlış AI metni yalan söyler, boş alt
+"dekoratif" der — boş, yanlıştan iyidir (§5.1 ilkesi burada da geçerli).
+
+Hangi AI servisi, hangi maliyet, veri nereye gider — **bu belgenin kararı
+değil**, PM/ops masası. Bu belge yalnız şemayı ve onay akışını sabitler;
+servis takılınca tek yapılacak `th_media_alt_ai` kolonunu doldurmaktır.
 
 ### 5.3 Geriye dönük doldurma
 
@@ -216,13 +310,85 @@ Alan doldurmak tek başına hiçbir şey yapmaz. Tüketim noktaları:
 |---|---|---|
 | `<img alt>` (vitrin) | Ürün adından türetiliyor, medya kaydı okunmuyor. 169 `alt` niteliğinden **32'si boş** | Listing API'si görsel başına `alt` döndürür, vitrin onu basar |
 | `og:image` | Var | `og:image:alt`, `og:image:width/height` eklenir (alanlar zaten var: `th_media_width/height`) |
-| JSON-LD | `"image": ["url"]` düz dizi | `ImageObject` (`url`, `caption`, `width`, `height`) — Google görsel araması bunu okur |
-| Görsel sitemap | Yok | `xmlns:image` namespace'i + sayfa başına `<image:image>` girdileri |
-| `Listing` API çıktısı | Yalnız URL | `{url, alt, width, height}` nesnesi |
+| JSON-LD | `"image": ["url"]` düz dizi | `ImageObject` — `contentUrl`, `url`, `name`, `caption`, `description`, `width`, `height`, `encodingFormat`, `dateCreated`, `datePublished` **+ lisans beşlisi** (`creator`, `creditText`, `copyrightNotice`, `license`, `acquireLicensePage`, §4.4) |
+| Görsel sitemap | Yok | `xmlns:image` namespace'i + sayfa başına `<image:image>` girdileri; **yalnız `indexable` varlıklar** (§6.1) |
+| `Listing` API çıktısı | Yalnız URL | `{url, alt, caption, width, height, license}` nesnesi — kullanım ezmesi uygulanmış (§4.3) |
+| Robots meta | Sayfa düzeyi | Varlık durumuna göre `max-image-preview` (§6.1) |
 
 **Ar-ge sonucu 5:** İşin ağırlık merkezi medya modülünde değil, **`seo/`
 modülünde ve `api/listing.py`'de**. TUR-135 medya işi gibi görünüyor ama
 teslimatının çoğu SEO tarafında.
+
+### 6.1 Indexability politikası (YENİ — üst belge §9)
+
+Varlığın yaşam döngüsü durumu (`th_media_state`, TUR-138) ve erişim seviyesi
+(`is_private`, TUR-126) **tek bir indexability kararına** indirgenir; sitemap,
+robots meta ve structured data bu karardan beslenir:
+
+| Durum | Indexability | Sitemap | ImageObject |
+|---|---|---|---|
+| Active + public + kullanımda | `index` | ✅ | ✅ |
+| Active + public + kullanılmıyor (orphan) | `noindex` | ❌ | — |
+| Private | erişim 404 (TUR-126) | ❌ | ❌ |
+| Archived / Trashed / Deleted | `noindex` | ❌ | ❌ |
+| `rights_expires_on` geçmiş | `noindex` | ❌ | ❌ + denetim uyarısı |
+| Karantina / tarama bekliyor (TUR-125) | fiziksel olarak servis dışı | ❌ | ❌ |
+
+**İlke (üst belge §9):** private varlık `robots.txt` ile "gizlenmez" — gerçek
+yetkilendirme kullanılır. TUR-126'nın 404 kararı tam bu ilkenin uygulaması.
+`noindex` yalnız *erişilebilir ama aranmaması gereken* varlık içindir.
+
+### 6.2 Render ipuçları (YENİ — üst belge §12)
+
+Listing API'si görsel nesnesiyle birlikte **konum bilgisi** verir, vitrin
+markup'ı ona göre kurar:
+
+| Konum | `loading` | `fetchpriority` | `decoding` |
+|---|---|---|---|
+| Ürün sayfası ilk görsel (LCP) | `eager` | `high` | `async` |
+| Galeri 2..n | `lazy` | — | `async` |
+| Liste kartı (ilk 4) | `eager` | — | `async` |
+| Liste kartı (5+) | `lazy` | — | `async` |
+
+`width`/`height` **her zaman** gerçek değer (`th_media_width/height`) — §7.1
+madde 4'teki CLS hatası böyle kapanır. `srcset`/`sizes` ve `<picture>` üretimi
+türev dosyalara bağlı (TUR-127/128/297) — burada sözleşme kurulur, türev
+gelince doldurulur.
+
+### 6.3 SEO denetimi ve skor (YENİ — üst belge §24-25)
+
+Alan göstermek yetmez, **aktif tarama** gerekir. İlk kural seti (hepsi bugünkü
+alanlarla ölçülebilir):
+
+| Kural | Kaynak |
+|---|---|
+| Alt boş / eksik | `th_media_alt` |
+| Alt şüpheli (ham ürün başlığı kopyası, 100+ karakter, `(SADECE OBJELER)` gibi parantez gürültüsü) | §7.1 madde 1 |
+| Alt anahtar kelime yığını (aynı kelime 3+) | metin analizi |
+| Kötü dosya adı (`IMG_`, `Ekran Görüntüsü`, `WhatsApp Image`) | `file_name`; ölçüm: 9 + 271 boşluklu |
+| Boyut yanlış / eksik (`width`/`height` ≠ gerçek) | §7.1 madde 4 |
+| Aşırı çözünürlük (30 MP+ senkron yol) | [[medya-cozunurluk-olcumu]] ölçümü |
+| Format fırsatı (PNG/JPEG, WebP'ye dönmemiş) | `th_optimized_at`; ölçüm 342 PNG |
+| Lisans eksik | §4.4 |
+| Sahipsiz varlık (orphan, hiçbir yerde kullanılmıyor) | `usage.verdict = unused` |
+| Private varlık public'te açıkta | TUR-126 `exposed_sensitive` |
+| Süresi dolmuş ama yayında | `rights_expires_on` |
+| Structured data üretilemiyor (zorunlu alan eksik) | ImageObject kurucusu |
+
+**Skor:** tek sayı yerine alt kırılım — Metadata · Erişilebilirlik · Yapısal
+veri · Performans · Haklar · Yerelleştirme · Teknik sağlık. Her kırılım 0-100,
+toplam ağırlıklı ortalama. Panelde varlık başına ve mağaza başına gösterilir.
+Ağırlıklar bu belgenin kararı değil; ilk sürümde eşit, ölçümle ayarlanır.
+
+### 6.4 Video SEO (YENİ — üst belge §6; ayrı dilim)
+
+WebM transcode altyapısı (TUR-296/297) hazır; üstüne SEO katmanı:
+`VideoObject` (`name`, `description`, `thumbnailUrl`, `uploadDate`, `duration`,
+`contentUrl`, `embedUrl`, `expires`, `regionsAllowed`), **poster üretimi**
+(bugün yok — `ffmpeg` tek kare), video sitemap (`xmlns:video`), transcript/
+WebVTT alanları (AI servisi gelene kadar elle). Watch page ve `SeekToAction`
+medya landing page'e bağlı (R3/R4), o dilimde. Görsel dilimleri bitmeden
+başlanmaz.
 
 ## 7. Somut örnek: bugün canlıdaki bir ürün görseli
 
@@ -335,45 +501,88 @@ sıralamayı buna göre kurmak gerekiyor (§9).
 
 ## 8. Değerlendirilip reddedilenler
 
+**Hâlâ reddedilenler:**
+
 - **Slug'lu servis rotası** (`/i/kirmizi-canta-<hash>.jpg`): dosya adı sinyalini
   geri kazandırırdı. Reddedildi — nginx'in doğrudan servisini Python'a taşır
   (her görsel isteği uygulama sunucusuna düşer), `naming.py` sözleşmesini
-  karmaşıklaştırır ve kazanç düşük.
-- **`caption` ayrı alanı**: `description` ile örtüşüyor.
-- **Medyaya `slug`/`canonical`**: medya kaydının sayfası yok (§4.1).
-- **EXIF'ten otomatik `alt`**: TUR-132 EXIF'i **siliyor**; oradan veri okumak iki
-  işi ters yönde çeker.
-- **Alt metnini yapay zekâyla üretme**: kapsam dışı, maliyet ve doğrulanabilirlik
-  belirsiz. Kural tabanlı üretim (§5.1) ölçülebilir ve açıklanabilir.
+  karmaşıklaştırır ve kazanç düşük. **R3 bunu değiştirmiyor:** slug metadata
+  olarak tutulur, servis adresi hash kalır.
+- **Eski dosyaların yeniden adlandırılması**: 2.166 tahmin-edilebilir ad, ~2.400
+  referans + 301 gerektirir; TUR-128 format dönüşümüyle **tek migration**
+  olarak planlanmalı (MEDYA-DEDUP-STRATEJISI.md §7.2).
+- **"GEO skoru / LLMO anahtar kelimesi" gibi yapay alanlar**: üst belge §16 de
+  aynı şeyi söylüyor — AI arama için yeni metadata icat etme, mevcut varlığı
+  makine-okunur yap (structured data, entity ilişkisi, lisans, dil, tarih).
+
+**21 Ağu'da geri alınanlar** (gerekçe §0 tablosunda):
+
+- ~~**`caption` ayrı alanı**: `description` ile örtüşüyor.~~ → R1, eklendi.
+- ~~**Medyaya `slug`/`canonical`**: medya kaydının sayfası yok.~~ → R3/R4,
+  metadata olarak eklendi; sayfa gelince anlam kazanır.
+- ~~**EXIF'ten otomatik `alt`**: TUR-132 EXIF'i siliyor.~~ → R5, "sil" yerine
+  politika; hangi alanın DB'de kalacağı TUR-132'de kararlaştırılır. Alt üretimi
+  yine kural zincirinden — EXIF'te alt metni olmaz, en fazla çekim tarihi/kamera.
+- ~~**Alt metnini yapay zekâyla üretme**: kapsam dışı.~~ → R2, **öneri + insan
+  onayı** modeliyle kapsama girdi; kural tabanlı zincir varsayılan üretici kalır.
 
 ## 9. Uygulama sırası ve bağımlılıklar
 
 Bağımlılıkların **hepsi beklenmek zorunda değil**:
 
+Üç dilim; sıra **şemayı etkileyen önce, dış yüzey sonra, ölçüm en son** —
+şema bir kez açılır, bir daha dokunulmaz.
+
+**Dilim 1 — Şema** (dış bağımlılık yok)
+
 | Adım | Bağımlı mı | Yapılabilir mi |
 |---|---|---|
-| 1. `alt`/`title` çevrilebilir sete alınması + `_auto` bayrağı | — | **Şimdi** |
-| 2. `alt` üretimi (Listing/kategori/mağaza zinciri) | — | **Şimdi** (kategori dalı TUR-133'te genişler) |
-| 3. Listing API'sinin görsel nesnesi döndürmesi | — | **Şimdi** |
-| 4. `og:image:alt` + `ImageObject` + görsel sitemap | — | **Şimdi** |
-| 5. Vitrinin `alt`'ı medyadan basması | — | **Şimdi** |
-| 6. Geriye dönük doldurma | 1-2 | **Şimdi** |
-| 7. `tags` otomatik önerisi | **TUR-133** | Bekler |
-| 8. Medya aramasında SEO alanları | **TUR-134** | Bekler |
-| 9. WP'den gelen alt metinlerinin taşınması | **TUR-122** | Bekler |
+| 1a. `Media Usage Override` tablosu (§4.3) | — | **Şimdi** — en kritik, ilk iş |
+| 1b. `alt`/`title`/`caption` çevrilebilir sete (§4.2) + `alt_source` + `alt_ai` (§5.2) | — | **Şimdi** |
+| 1c. Lisans/hak alanları (§4.4) + `seo_filename`/`slug`/`canonical` (R3/R4) | — | **Şimdi** |
 
-**Ar-ge sonucu 6:** Dört bağımlılığın yalnız üçü, üç maddeyi bekletiyor.
-Kabul kriterlerinin tamamı (alan seti, zorunlu/opsiyonel ayrımı, üretim
-kuralları, tutarlı yönetim) **bugün** karşılanabilir.
+**Dilim 2 — Dış yüzey**
+
+| Adım | Bağımlı mı | Yapılabilir mi |
+|---|---|---|
+| 2a. `alt` üretimi (Listing/kategori/mağaza zinciri, §5.1) | 1b | **Şimdi** (kategori dalı TUR-133'te genişler) |
+| 2b. Listing API görsel nesnesi — ezme uygulanmış, lisanslı, konum ipuçlu (§6.2) | 1a-c | **Şimdi** |
+| 2c. `ImageObject` (lisans beşlisiyle) + `og:image:*` + görsel sitemap | 1c, 6.1 | **Şimdi** |
+| 2d. Indexability kararı (§6.1) — sitemap/robots buradan | — | **Şimdi** |
+| 2e. Vitrinin `alt`/`width`/`height`/`fetchpriority`'yi medyadan basması | 2b | **Şimdi** |
+| 2f. Geriye dönük doldurma (1.160 ürün görseli, parça parça) | 2a | **Şimdi** |
+
+**Dilim 3 — Denetim ve skor**
+
+| Adım | Bağımlı mı | Yapılabilir mi |
+|---|---|---|
+| 3a. 12 denetim kuralı (§6.3) + panelde varlık/mağaza görünümü | 1-2 | **Şimdi** |
+| 3b. Alt kırılımlı skor | 3a | **Şimdi** |
+
+**Bekleyenler**
+
+| Adım | Bağımlı |
+|---|---|
+| `tags` otomatik önerisi | **TUR-133** |
+| Medya aramasında SEO alanları | **TUR-134** |
+| WP'den gelen alt/caption taşınması | **TUR-122** |
+| `srcset`/`<picture>` gerçek türevlerle | **TUR-127/128/297** |
+| AI öneri servisinin bağlanması | **PM/ops kararı** (§5.2a) |
+| Video SEO (§6.4) | Dilim 1-3 bitince, ayrı dilim |
+| Medya landing/watch page (slug/canonical'ın tüketicisi) | Ayrı issue; üst belge §10 |
+
+**Ar-ge sonucu 6 (güncellendi):** Üç dilimin tamamı dış bağımlılıksız
+yapılabilir; TUR-135'in dört kabul kriteri Dilim 1+2 ile, üst belgenin
+Motor 4'ü (SEO & Discoverability) ~%70 oranında Dilim 1-3 ile karşılanır.
 
 ## 10. Kabul kriterleri karşılığı
 
 | Kriter | Karşılığı |
 |---|---|
-| SEO alan seti net belirlenmiş olmalı | §4.1 — eklenecek, eklenmeyecek ve gerekçeleri |
+| SEO alan seti net belirlenmiş olmalı | §4.1 (alan seti) + §4.3 (kullanım ezmesi) + §4.4 (lisans/hak) — eklenen, ertelenen ve gerekçeleri |
 | Zorunlu ve opsiyonel alanlar ayrılmış olmalı | §4.1 — yalnız `alt` zorunlu, o da görselde |
-| Otomatik üretim kuralları tanımlanmış olmalı | §5 — öncelik zinciri, tetikleme anları, `_auto` bayrağı, geri doldurma |
-| SEO verisi medya kaydıyla tutarlı yönetilebilmeli | §4.2 + §6 — çevrilebilir set deseni, tüketim noktaları |
+| Otomatik üretim kuralları tanımlanmış olmalı | §5 — öncelik zinciri, tetikleme anları, `alt_source` durumu, AI öneri akışı, geri doldurma |
+| SEO verisi medya kaydıyla tutarlı yönetilebilmeli | §4.2 + §6 — çevrilebilir set deseni, indexability, tüketim noktaları, denetim |
 
 ## 11. Açık sorular (karar bekleyen)
 
@@ -387,3 +596,15 @@ kuralları, tutarlı yönetim) **bugün** karşılanabilir.
 3. **Geriye dönük doldurma 1.160 görselin `modified` damgasını değiştirir mi?**
    `update_modified=False` ile hayır; ama `Listing` önbelleklerinin
    geçersizleştirilmesi gerekir mi, ölçülmeli.
+4. **Kullanım ezmesini kim yazabilir?** (§4.3) Öneri: ürün görselinde ürünün
+   sahibi satıcı; asset varsayılanında dosya sahibi. Ortak sahipli dosyada
+   (aynı görsel 5 mağazada) varsayılanı kim değiştirir — TUR-298'in
+   `owner_count` kapısı burada da uygulanmalı mı?
+5. **Lisans varsayılanı ne olsun?** (§4.4) Pazaryeri kullanım şartları sayfası
+   `license` için uygun mu, yoksa boş mu kalsın? Yanlış lisans beyanı hukuki
+   sonuç doğurur — **boş, yanlıştan iyidir** ilkesi burada da geçerli; karar
+   hukuk/PM.
+6. **Skor ağırlıkları** (§6.3) — ilk sürümde eşit; hangi kırılım daha ağır
+   basacak, ölçümle.
+7. **AI servisi** (§5.2a) — hangisi, maliyet, veri gizliliği (ürün görselleri
+   dışarı çıkıyor mu). Şema hazır, karar PM/ops.
