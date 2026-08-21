@@ -187,6 +187,8 @@ scheduler_events = {
 		"tradehub_core.media.archive.purge_expired",
 		# Çöpe taşınan görsellerin 30 günlük geri alma penceresi dolunca kalıcı silinmesi.
 		"tradehub_core.media.trash.purge_expired",
+		# MOGEM-582 — retro-rename 301 köprüsü 90 gün sonra kalkar; eski adres 404.
+		"tradehub_core.media.retro_rename.purge_expired_redirects",
 		# T-123 — RUM örnekleri 30 gün sonra silinir; tablo telemetri deposu,
 		# arşiv değil. Günlük yazma tavanı (50k) uçta; bu iş yalnız süresi
 		# dolanı temizler (tradehub_core/api/rum.py::purge_expired_samples).
@@ -309,6 +311,10 @@ scheduler_events = {
 # below drops the cache as soon as a Listing is written, so storefront stays
 # in sync with the panel.
 # ---------------------------------------------------------------------------
+# MOGEM-582 retro-rename: eski /files/<ad> istekleri için tek-sorgu 301 köprüsü.
+# Yalnız diskte olmayan dosya istekleri buraya düşer (nginx try_files).
+page_renderer = ["tradehub_core.media.redirect_renderer.MediaRedirectRenderer"]
+
 doc_events = {
 	# Tüm File yüklemelerinde XSS/RCE riskli uzantıları reddet (HATA 23).
 	# SVG/HTML/JS/XML gibi browser-execute edebilir formatlar engellenir;

@@ -622,3 +622,14 @@ def _rollback_one(row: frappe._dict) -> bool:
 		)
 		return False
 	return True
+
+
+def purge_expired_redirects() -> int:
+	"""Günlük cron: süresi dolan 301 satırlarını sil (sonrası 404)."""
+	adlar = frappe.get_all("Media URL Redirect", filters={"expires_at": ("<", now_datetime())}, pluck="name")
+	for ad in adlar:
+		frappe.delete_doc("Media URL Redirect", ad, ignore_permissions=True, force=True)
+	if adlar:
+		frappe.db.commit()
+		audit.log_media_batch(action=audit.ACTION_RETRO_RENAME, summary={"purged_redirects": len(adlar)})
+	return len(adlar)
