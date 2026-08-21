@@ -13,8 +13,10 @@ satırlarını ters oynatır). Şablon `media/access_level.py::set_level`.
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import re
+from datetime import datetime
 
 import frappe
 from frappe import _
@@ -200,6 +202,26 @@ def _new_state(total: int, mode: str, dry_run: bool, expires_at=None) -> dict:
 	}
 
 
+def _heartbeat(job_key: str, durum: dict) -> None:
+	"""İlerlemeyi yaz VE tek-iş işaretinin ömrünü tazele.
+
+	`ACTIVE_KEY` `PROGRESS_TTL` ile konuyor; bu tazeleme olmadan 1 saatten uzun
+	süren bir iş kilidini sessizce kaybeder ve panel ikinci bir işi başlatmaya
+	izin verir (retro-rename'in tek-iş varsayımı çöker).
+	"""
+	_write_progress(job_key, durum)
+	frappe.cache.set_value(ACTIVE_KEY, job_key, expires_in_sec=PROGRESS_TTL)
+
+
+def _bump_reason(durum: dict, reason: str) -> None:
+	"""`skip_reasons` gerçekte bir GEREKÇE DÖKÜMÜ: atlananlar, hatalar ve
+	"taşındı ama not düşülmesi gereken" durumlar (`dedup_leftover`) birlikte
+	sayılır. Sayılar `skipped` ile toplanmak zorunda değil — panel bunu
+	"neler oldu" dökümü olarak gösterir."""
+	if reason:
+		durum["skip_reasons"][reason] = durum["skip_reasons"].get(reason, 0) + 1
+
+
 def _skip(reason: str, **extra) -> dict:
 	return {
 		"status": "skipped",
@@ -223,7 +245,7 @@ def _invalidate_url_caches(*urls: str) -> None:
 			frappe.cache.delete_value(f"tradehub:file_url_ambiguous:{url}")
 
 
-def rename_one(url: str, job_key: str, expires_at, *, dry_run: bool = False) -> dict:
+def rename_one(url: str, job_key: str, expires_at: datetime | str | None, *, dry_run: bool = False) -> dict:
 	"""Tek dosya: disk → `File` → referanslar → 301 satırı → commit.
 
 	Sıra `media/access_level.py::set_level` ile aynı gerekçeye dayanır: geri
@@ -312,10 +334,15 @@ def rename_one(url: str, job_key: str, expires_at, *, dry_run: bool = False) -> 
 		}
 
 	try:
-		# Rollback'in "bu satırın kaç `File` kaydı vardı" sorusuna cevabı;
-		# güncellemeden ÖNCE ölçülmeli.
-		file_rows = frappe.db.count("File", {"file_url": url})
-		frappe.db.set_value("File", {"file_url": url}, {"file_url": new_url}, update_modified=False)
+		# Rollback KİMLİK üzerinden geri çevirir: hangi satırların taşındığını
+		# sayı değil AD listesi belirler. Güncellemeden ÖNCE toplanır ve tam
+		# olarak o adlar güncellenir — böylece iki eski ad aynı hedefe gitse
+		# (dedup) ya da hedefte doğal yoldan oluşmuş hash'li bir satır bulunsa
+		# bile geri alma yanlış satıra dokunamaz. Sistem işi: `File` satırları
+		# kullanıcıya değil, taşınan blob'a göre seçilir.
+		adlar = frappe.get_all("File", filters={"file_url": url}, pluck="name")
+		for ad in adlar:
+			frappe.db.set_value("File", ad, "file_url", new_url, update_modified=False)
 		ref_result = refs.retarget(url, new_url)
 		frappe.get_doc(
 			{
@@ -324,7 +351,8 @@ def rename_one(url: str, job_key: str, expires_at, *, dry_run: bool = False) -> 
 				"target_url": new_url,
 				"job_key": job_key,
 				"expires_at": expires_at,
-				"file_rows": file_rows,
+				"file_rows": len(adlar),
+				"file_names": json.dumps(adlar),
 			}
 		).insert(ignore_permissions=True)  # sistem işi; çağıran uç System Manager kapısından geçti
 		_invalidate_url_caches(url, new_url)
@@ -333,11 +361,16 @@ def rename_one(url: str, job_key: str, expires_at, *, dry_run: bool = False) -> 
 		# burada patlar ve dosya eski adına geri döner — sessizce üzerine
 		# yazmak, hangi hedefe yönlendirildiği bilinmeyen bir 301 bırakırdı.
 		frappe.db.rollback()
+		hata_reason = "exception"
 		if not dedup:
 			# Dedup dalında geri alınacak bir disk adımı YOK (yukarıdaki nota bak).
 			try:
 				os.replace(new_path, old_path)
 			except OSError:
+				# Dosya yeni adında, DB eski adı gösteriyor: TEK tutarsızlık
+				# penceresi burası. Gerekçe dökümünde ayrı görünmeli — operatör
+				# "bunu elle onar" listesini buradan çıkarır.
+				hata_reason = "disk_revert_failed"
 				frappe.log_error(
 					title=f"Retro-rename disk revert failed for {url}",
 					message=frappe.get_traceback(with_context=True),
@@ -347,20 +380,24 @@ def rename_one(url: str, job_key: str, expires_at, *, dry_run: bool = False) -> 
 		)
 		return {
 			"status": "error",
-			"reason": "exception",
+			"reason": hata_reason,
 			"target_url": new_url,
 			"refs_updated": 0,
 			"refs_skipped": 0,
 		}
 
 	frappe.db.commit()
+	reason = "dedup" if dedup else ""
 	if dedup:
 		# Artık fazlalık: DB kalıcı olarak hedefi gösteriyor, içerik hedefte
-		# duruyor. Silme patlarsa yalnız bir artık dosya kalır (kayıp yok) —
-		# bu yüzden işin sonucunu etkilemez, sadece loglanır.
+		# duruyor. Silme patlarsa veri KAYBI yok, ama tahmin edilebilir eski
+		# adres servis edilmeye devam eder ve artık hiçbir `File` satırı onu
+		# göstermediği için başka hiçbir ekranda görünmez — işin gerekçe
+		# dökümünde ayrıca sayılmasının sebebi bu.
 		try:
 			os.remove(old_path)
 		except OSError:
+			reason = "dedup_leftover"
 			frappe.log_error(
 				title=f"Retro-rename: dedup artığı silinemedi {url}",
 				message=frappe.get_traceback(with_context=True),
@@ -375,11 +412,12 @@ def rename_one(url: str, job_key: str, expires_at, *, dry_run: bool = False) -> 
 			"refs_updated": ref_result["total"],
 			"refs_skipped": len(ref_result["skipped"]),
 			"dedup": dedup,
+			"leftover": reason == "dedup_leftover",
 		},
 	)
 	return {
 		"status": "renamed",
-		"reason": "dedup" if dedup else "",
+		"reason": reason,
 		"target_url": new_url,
 		"refs_updated": ref_result["total"],
 		"refs_skipped": len(ref_result["skipped"]),
@@ -434,13 +472,17 @@ def _run_job(job_key: str, dry_run: bool, batch_size: int) -> None:
 		durum["processed"] += 1
 		if out["status"] == "renamed":
 			durum["renamed"] += 1
+			# `dedup_leftover` taşınmış SAYILIR ama gerekçe dökümüne de girer.
+			if out["reason"] == "dedup_leftover":
+				_bump_reason(durum, out["reason"])
 		elif out["status"] == "skipped":
 			durum["skipped"] += 1
-			durum["skip_reasons"][out["reason"]] = durum["skip_reasons"].get(out["reason"], 0) + 1
+			_bump_reason(durum, out["reason"])
 		else:
 			durum["errors"] += 1
+			_bump_reason(durum, out["reason"])
 		if durum["processed"] % 25 == 0:
-			_write_progress(job_key, durum)
+			_heartbeat(job_key, durum)
 	else:
 		durum["state"] = "partial" if durum["errors"] else "completed"
 
@@ -454,7 +496,7 @@ def run_rollback(job_key: str, rollback_key: str) -> None:
 	rows = frappe.get_all(
 		"Media URL Redirect",
 		filters={"job_key": job_key},
-		fields=["name", "source_url", "target_url", "file_rows"],
+		fields=["name", "source_url", "target_url", "file_rows", "file_names"],
 		order_by="creation desc",
 	)
 	durum = _new_state(len(rows), "rollback", False)
@@ -466,48 +508,107 @@ def run_rollback(job_key: str, rollback_key: str) -> None:
 			durum["processed"] += 1
 			durum["renamed" if ok else "errors"] += 1
 			if durum["processed"] % 25 == 0:
-				_write_progress(rollback_key, durum)
+				_heartbeat(rollback_key, durum)
 		durum["state"] = "partial" if durum["errors"] else "completed"
+	except Exception:
+		# `_rollback_one` kendi hatalarını yutuyor; buraya düşmek beklenmedik bir
+		# şey demek (DB kopması vb.). İş sessizce "running" kalmamalı — panel
+		# sonsuza kadar dönen bir çubuk gösterirdi.
+		durum["state"] = "error"
+		durum["message"] = _("Geri alma tamamlanamadı.")
+		frappe.log_error(
+			title=f"Retro-rollback job failed: {job_key}", message=frappe.get_traceback(with_context=True)
+		)
 	finally:
 		frappe.cache.delete_value(ACTIVE_KEY)
 	_write_progress(rollback_key, durum)
-	audit.log_media_batch(action=audit.ACTION_RETRO_ROLLBACK, job_key=job_key, summary=dict(durum))
+	audit.log_media_batch(
+		action=audit.ACTION_RETRO_ROLLBACK,
+		job_key=job_key,
+		summary={**durum, "rollback_key": rollback_key},
+	)
 
 
-def _rollback_one(row) -> bool:
+def _rollback_names(row: frappe._dict) -> list[str]:
+	"""Bu satırın taşıdığı `File` adları — kimlik üzerinden, yoksa eski yol.
+
+	`file_names` alanı MOGEM-582 fix round 1'de eklendi. Ondan önce yazılmış
+	(ya da JSON'u bozulmuş) satırlar için eski sayı-tabanlı davranışa düşülür:
+	hedefteki en eski `file_rows` satır. O yol dedup'ta yanlış satıra
+	dokunabiliyor — bu yüzden yalnız yedek plan.
+	"""
+	ham = (row.get("file_names") or "").strip()
+	if ham:
+		try:
+			adlar = json.loads(ham)
+		except ValueError:
+			frappe.log_error(title=f"Retro-rollback: file_names okunamadı {row.name}", message=ham[:1000])
+		else:
+			if isinstance(adlar, list):
+				return [str(a) for a in adlar if a]
+	adlar = frappe.get_all(
+		"File", filters={"file_url": row.target_url}, pluck="name", order_by="creation asc"
+	)
+	return adlar[: int(row.file_rows or 0)]
+
+
+def _rollback_one(row: frappe._dict) -> bool:
 	new_path = _disk_path(row.target_url)
 	old_path = _disk_path(row.source_url)
 	if not os.path.isfile(new_path):
-		frappe.log_error(title=f"Retro-rollback: hedef diskte yok {row.target_url}")
-		return False
-	# Aynı hedefi paylaşan başka yönlendirme satırı varsa (dedup) dosya
-	# KOPYALANIR, taşınmaz: hedef hâlâ diğer eski adın geri dönüş kaynağı.
-	# Sırayla ilerledikçe sayaç düşer, en son satır dosyayı gerçekten taşır.
-	paylasan = frappe.db.count("Media URL Redirect", {"target_url": row.target_url}) > 1
-	frappe.create_folder(os.path.dirname(old_path))
-	if paylasan:
-		with open(new_path, "rb") as src, open(old_path, "wb") as dst:
-			dst.write(src.read())
-	else:
-		os.replace(new_path, old_path)
-	try:
-		# Dedup'ta birden çok eski ad aynı hedefe gitmiş olabilir — yalnız bu
-		# satırın kendi `File` kayıtları kadarı geri çevrilir (`file_rows`).
-		# `file_rows == 0` ise taşımada hiç `File` satırı güncellenmemiştir;
-		# rollback'te de hiçbirine dokunulmaz.
-		adlar = frappe.get_all(
-			"File", filters={"file_url": row.target_url}, pluck="name", order_by="creation asc"
+		frappe.log_error(
+			title=f"Retro-rollback: hedef diskte yok {row.target_url}",
+			message=f"source_url={row.source_url} job satırı={row.name}",
 		)
-		for ad in adlar[: int(row.file_rows or 0)]:
+		return False
+
+	adaylar = _rollback_names(row)
+	try:
+		# Bu satırın gerçekten geri çevireceği adlar: hâlâ hedefi gösterenler.
+		# Arada silinmiş ya da başka bir akışla (erişim seviyesi toggle'ı gibi)
+		# taşınmış satırı eski adrese çevirmek yeni bir kırık referans üretirdi.
+		geri = (
+			frappe.get_all(
+				"File", filters={"file_url": row.target_url, "name": ["in", adaylar]}, pluck="name"
+			)
+			if adaylar
+			else []
+		)
+		# Blob hedefte KALMALI mı? İki sebep: (1) aynı hedefi paylaşan başka bir
+		# yönlendirme satırı var (dedup — sıra ilerledikçe sayaç düşer, son satır
+		# dosyayı gerçekten taşır); (2) geri çevirmediğimiz `File` satırları hâlâ
+		# hedefi gösteriyor (ör. doğal yoldan yüklenmiş hash'li ikiz). İkisinden
+		# biri varsa taşıma değil KOPYA — aksi hâlde o satırlar kırık kalırdı.
+		paylasan = frappe.db.count("Media URL Redirect", {"target_url": row.target_url}) > 1
+		kalan = frappe.db.count("File", {"file_url": row.target_url}) - len(geri)
+		frappe.create_folder(os.path.dirname(old_path))
+		if paylasan or kalan > 0:
+			with open(new_path, "rb") as src, open(old_path, "wb") as dst:
+				dst.write(src.read())
+		else:
+			os.replace(new_path, old_path)
+	except OSError:
+		# Disk aşaması DB'den önce; buraya düşünce hiçbir şey yazılmamış olur.
+		# Yönlendirme satırı DURUR: geri alma tekrar denenebilmeli.
+		frappe.log_error(
+			title=f"Retro-rollback disk stage failed {row.source_url}",
+			message=frappe.get_traceback(with_context=True),
+		)
+		return False
+
+	try:
+		for ad in geri:
 			frappe.db.set_value("File", ad, "file_url", row.source_url, update_modified=False)
 		refs.retarget(row.target_url, row.source_url)
+		# Sistem işi: satırı iş anahtarı üzerinden okuduk, çağıran uç (Task 6)
+		# System Manager kapısından geçiyor; worker bağlamında oturum yok.
 		frappe.delete_doc("Media URL Redirect", row.name, ignore_permissions=True, force=True)
 		_invalidate_url_caches(row.source_url, row.target_url)
 		frappe.db.commit()
 	except Exception:
 		frappe.db.rollback()
 		try:
-			if paylasan:
+			if paylasan or kalan > 0:
 				os.remove(old_path)
 			else:
 				os.replace(old_path, new_path)

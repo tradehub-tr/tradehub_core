@@ -351,6 +351,11 @@ class TestDedupRollback(FrappeTestCase):
 		retro_rename.run_rollback("JOB-DUP", "RB-DUP")
 		rp = retro_rename.read_progress("RB-DUP")
 		self.assertEqual((rp["state"], rp["errors"]), ("completed", 0))
+		# KİMLİK: her `File` satırı KENDİ eski adresine döner — sayı değil, ad
+		# üzerinden (`Media URL Redirect.file_names`). Sayı-tabanlı geri çevirme
+		# ikisini çaprazlayabiliyordu.
+		self.assertEqual(frappe.db.get_value("File", self.files[0], "file_url"), self.url_a)
+		self.assertEqual(frappe.db.get_value("File", self.files[1], "file_url"), self.url_b)
 		self.assertEqual(frappe.db.count("File", {"file_url": self.url_a}), 1)
 		self.assertEqual(frappe.db.count("File", {"file_url": self.url_b}), 1)
 		self.assertEqual(frappe.db.count("File", {"file_url": self.hedef}), 0)
@@ -380,6 +385,23 @@ class TestDedupRollback(FrappeTestCase):
 		self.assertEqual(frappe.db.count("File", {"file_url": self.url_b}), 1)
 		self.assertFalse(frappe.db.exists("Media URL Redirect", {"source_url": self.url_b}))
 
+	def test_dedup_artigi_silinemezse_skip_reasons_a_yazilir(self):
+		"""Commit sonrası `os.remove` patlarsa: taşıma başarılı ama eski ad diskte kalır.
+
+		`File` satırı kalmadığı için bu artık başka hiçbir ekranda görünmez —
+		tahmin edilebilir eski adres servis edilmeye devam eder. Operatör panelde
+		görebilsin diye `skip_reasons` altında sayılır.
+		"""
+		retro_rename.rename_one(self.url_a, "JOB-DUP", add_days(now_datetime(), 90))
+		with mock.patch("os.remove", side_effect=OSError("bum")):
+			with mock.patch.object(retro_rename, "legacy_urls", return_value=[self.url_b]):
+				retro_rename.run_job("JOB-DUP", dry_run=0, batch_size=10)
+		p = retro_rename.read_progress("JOB-DUP")
+		self.assertEqual((p["renamed"], p["errors"]), (1, 0))
+		self.assertEqual(p["skip_reasons"].get("dedup_leftover"), 1)
+		self.assertTrue(os.path.isfile(os.path.join(get_files_path(is_private=0), self.ad_b)))
+		self.assertEqual(frappe.db.count("File", {"file_url": self.hedef}), 2)
+
 
 class TestRenameOneDiskErrors(_RenameBase):
 	def test_disk_okuma_hatasi_isi_dusurmez_dosya_yerinde_kalir(self):
@@ -391,3 +413,96 @@ class TestRenameOneDiskErrors(_RenameBase):
 		self.assertEqual((p["state"], p["processed"], p["errors"]), ("partial", 1, 1))
 		self.assertTrue(os.path.isfile(os.path.join(get_files_path(is_private=0), self.name)))
 		self.assertEqual(frappe.db.count("File", {"file_url": self.url}), 3)
+
+
+class TestRollbackHedeftekiYabanciSatir(FrappeTestCase):
+	"""Hedefte retro-rename DIŞINDA oluşmuş bir `File` satırı varsa blob taşınmaz.
+
+	Senaryo: aynı içerik hem eski düzende (`/files/x.jpg`) hem de doğal yoldan
+	hash'li adla yüklenmiş. Taşıma dedup'a düşer; geri alırken hedefteki ikiz
+	satır hâlâ o adresi gösterdiği için blob hedefte KALMALI, eski ad KOPYA ile
+	geri gelmeli. Aksi hâlde ikiz satır kırık referansa dönerdi.
+	"""
+
+	def setUp(self):
+		super().setUp()
+		frappe.set_user("Administrator")
+		suffix = frappe.generate_hash(length=8)
+		self.content = f"twin-{suffix}".encode()
+		self.ad_a = f"rr-twin-{suffix}.jpg"
+		self.url_a = _write_flat_public(self.ad_a, self.content)
+		self.hedef = _hedef_url(self.content)
+		self.hedef_path = os.path.join(get_files_path(is_private=0), *self.hedef[len("/files/") :].split("/"))
+		frappe.create_folder(os.path.dirname(self.hedef_path))
+		with open(self.hedef_path, "wb") as f:
+			f.write(self.content)
+		self.file_a = _make_file_row(self.ad_a, self.url_a)
+		self.file_ikiz = _make_file_row(os.path.basename(self.hedef), self.hedef)
+		frappe.db.commit()
+		self.addCleanup(self._cleanup)
+
+	def _cleanup(self):
+		frappe.db.rollback()
+		for n in (self.file_a, self.file_ikiz):
+			if frappe.db.exists("File", n):
+				frappe.delete_doc("File", n, force=True, ignore_permissions=True)
+		frappe.db.delete("Media URL Redirect", {"job_key": "JOB-TWIN"})
+		frappe.db.commit()
+		for p in [os.path.join(get_files_path(is_private=0), self.ad_a), self.hedef_path]:
+			if os.path.isfile(p):
+				os.remove(p)
+		frappe.cache.delete_value(retro_rename.ACTIVE_KEY)
+
+	def test_rollback_hedefte_satir_kalirsa_blob_tasinmaz(self):
+		with mock.patch.object(retro_rename, "legacy_urls", return_value=[self.url_a]):
+			retro_rename.run_job("JOB-TWIN", dry_run=0, batch_size=10)
+		self.assertEqual(retro_rename.read_progress("JOB-TWIN")["renamed"], 1)
+		self.assertEqual(frappe.db.count("File", {"file_url": self.hedef}), 2)
+
+		retro_rename.run_rollback("JOB-TWIN", "RB-TWIN")
+		rp = retro_rename.read_progress("RB-TWIN")
+		self.assertEqual((rp["state"], rp["errors"]), ("completed", 0))
+		self.assertTrue(os.path.isfile(self.hedef_path), "ikiz satır hâlâ hedefi gösteriyor")
+		self.assertTrue(os.path.isfile(os.path.join(get_files_path(is_private=0), self.ad_a)))
+		self.assertEqual(frappe.db.get_value("File", self.file_ikiz, "file_url"), self.hedef)
+		self.assertEqual(frappe.db.get_value("File", self.file_a, "file_url"), self.url_a)
+		self.assertEqual(frappe.db.count("File", {"file_url": self.hedef}), 1)
+
+
+class TestRollbackDiskHatasi(_RenameBase):
+	def test_rollback_disk_hatasi_satiri_error_sayar_satir_durur(self):
+		self._expected_target()
+		with mock.patch.object(retro_rename, "legacy_urls", return_value=[self.url]):
+			retro_rename.run_job("JOB-RB-IO", dry_run=0, batch_size=10)
+		with mock.patch("os.replace", side_effect=OSError("bum")):
+			retro_rename.run_rollback("JOB-RB-IO", "RB-IO")
+		rp = retro_rename.read_progress("RB-IO")
+		self.assertEqual((rp["state"], rp["processed"], rp["errors"]), ("partial", 1, 1))
+		# Yönlendirme satırı DURUR: geri alma tekrar denenebilmeli.
+		self.assertTrue(frappe.db.exists("Media URL Redirect", {"source_url": self.url}))
+		self.assertTrue(os.path.isfile(self._new_path))
+		self.assertEqual(frappe.db.count("File", {"file_url": self._expected_target()}), 3)
+
+
+class TestErrorRateStop(_RenameBase):
+	def test_hata_orani_esigi_isi_batch_sinirinda_durdurur(self):
+		base = get_files_path(is_private=0)
+		ekler = []
+		for i in range(2):
+			ad = f"rr-err-{self.suffix}-{i}.jpg"
+			ekler.append(_write_flat_public(ad, f"err-{self.suffix}-{i}".encode()))
+			self.addCleanup(
+				lambda a=ad: os.path.isfile(os.path.join(base, a)) and os.remove(os.path.join(base, a))
+			)
+		urls = [self.url, *ekler]
+		with mock.patch.object(refs, "retarget", side_effect=RuntimeError("boom")):
+			with mock.patch.object(retro_rename, "legacy_urls", return_value=urls):
+				retro_rename.run_job("JOB-RATE", dry_run=0, batch_size=1)
+		p = retro_rename.read_progress("JOB-RATE")
+		self.assertEqual(p["state"], "partial")
+		self.assertTrue(p["message"])
+		self.assertEqual((p["total"], p["processed"], p["errors"]), (3, 1, 1))
+		self.assertLess(p["processed"], p["total"])
+		# İlk dosya geri alındı, kalan ikisine hiç dokunulmadı.
+		for ad in [self.name, f"rr-err-{self.suffix}-0.jpg", f"rr-err-{self.suffix}-1.jpg"]:
+			self.assertTrue(os.path.isfile(os.path.join(base, ad)))
