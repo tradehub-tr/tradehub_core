@@ -99,6 +99,24 @@ def legacy_urls() -> list[str]:
 	return [r[0] for r in rows if is_legacy_name(r[0])]
 
 
+def _clear_404_cache() -> None:
+	"""Frappe'nin negatif 404 önbelleğini boşalt — 301'i gölgelemesin.
+
+	`PathResolver.resolve()` custom renderer'lar (bizim `MediaRedirectRenderer`)
+	ÇALIŞMADAN ÖNCE `frappe.cache.hget("website_404", url)` bakıyor ve dolu ise
+	doğrudan `NotFoundPage` döndürüyor; `NotFoundPage.render()` de her
+	önbelleklenebilir 404'te o girdiyi yazıyor. Lokalde `developer_mode: 1`
+	yüzünden atıl, canlıda aktif.
+
+	Tehlike penceresi: bir eski adres `os.replace` ile commit arasında istenirse
+	404 olarak önbelleğe yazılır ve `Media URL Redirect` satırı sonradan yazılsa
+	bile 301 bir daha ASLA çalışmaz (girdinin kendiliğinden düşmesi yok).
+	Bu yüzden hem ilerleme nabzında hem işin/geri almanın sonunda siliniyor —
+	silme ucuz (tek hash anahtarı), kaçırmak kalıcı kırık görsel.
+	"""
+	frappe.cache.delete_value("website_404")
+
+
 def _ref_counts(url: str) -> tuple[int, int, int]:
 	exact = readonly = embedded = 0
 	for ref in refs.find(url):
@@ -133,6 +151,19 @@ def _inspect(url: str) -> dict:
 	if os.path.isfile(hedef) and _content_sha(hedef) != _content_sha(path):
 		item["collision"] = True
 	return item
+
+
+def count_summary() -> dict:
+	"""Ucuz sayaç: `{"total", "disk_missing", "renamable"}`.
+
+	`plan()`'dan farkı: hash HESAPLANMAZ, referans TARANMAZ — aday başına tek
+	`os.path.isfile`. Kartın açılışında "taşınacak N dosya var" ile "N kayıt
+	diskte olmayan dosyaya işaret ediyor" ayırt edilebilsin diye: ikincisi bu
+	araçla taşınamaz, operatörün bekleyip durması anlamsız.
+	"""
+	urls = legacy_urls()
+	eksik = sum(1 for u in urls if not os.path.isfile(_disk_path(u)))
+	return {"total": len(urls), "disk_missing": eksik, "renamable": len(urls) - eksik}
 
 
 def plan(limit: int | None = None) -> dict:
@@ -224,6 +255,11 @@ def _new_state(total: int, mode: str, dry_run: bool, expires_at=None) -> dict:
 		"renamed": 0,
 		"skipped": 0,
 		"errors": 0,
+		# Dosya sayısı ≠ referans sayısı: tek blob onlarca Listing/CMS alanında
+		# geçebilir. Operatörün "301'e kaç referans muhtaç kaldı" sorusunu ancak
+		# `refs_skipped` cevaplıyor — bu yüzden ilerleme yükünde de taşınıyor.
+		"refs_updated": 0,
+		"refs_skipped": 0,
 		"skip_reasons": {},
 		"expires_at": str(expires_at) if expires_at else None,
 		"message": "",
@@ -239,6 +275,7 @@ def _heartbeat(job_key: str, durum: dict) -> None:
 	"""
 	_write_progress(job_key, durum)
 	frappe.cache.set_value(ACTIVE_KEY, job_key, expires_in_sec=PROGRESS_TTL)
+	_clear_404_cache()
 
 
 def _bump_reason(durum: dict, reason: str) -> None:
@@ -473,6 +510,9 @@ def run_job(job_key: str, dry_run: int = 0, batch_size: int = DEFAULT_BATCH) -> 
 		# Bayrak tüketildi: aynı `job_key` yeniden kuyruğa verilirse (operatör
 		# tekrar denemesi) eski durdurma isteği yeni koşuyu anında öldürmesin.
 		frappe.cache.delete_value(_stop_key(job_key))
+		# Son taşımadan sonra da temizle — hem normal hem hata yolunda: işin son
+		# saniyesinde önbelleğe düşmüş bir 404 girdisi 301'i kalıcı gölgeler.
+		_clear_404_cache()
 
 
 def _run_job(job_key: str, dry_run: bool, batch_size: int) -> None:
@@ -498,6 +538,8 @@ def _run_job(job_key: str, dry_run: bool, batch_size: int) -> None:
 				break
 		out = rename_one(url, job_key, expires_at, dry_run=dry_run)
 		durum["processed"] += 1
+		durum["refs_updated"] += int(out.get("refs_updated") or 0)
+		durum["refs_skipped"] += int(out.get("refs_skipped") or 0)
 		if out["status"] == "renamed":
 			durum["renamed"] += 1
 			# `dedup_leftover` taşınmış SAYILIR ama gerekçe dökümüne de girer.
@@ -532,9 +574,11 @@ def run_rollback(job_key: str, rollback_key: str) -> None:
 	frappe.cache.set_value(ACTIVE_KEY, rollback_key, expires_in_sec=PROGRESS_TTL)
 	try:
 		for row in rows:
-			ok = _rollback_one(row)
+			out = _rollback_one(row)
 			durum["processed"] += 1
-			durum["renamed" if ok else "errors"] += 1
+			durum["renamed" if out["ok"] else "errors"] += 1
+			durum["refs_updated"] += out["refs_updated"]
+			durum["refs_skipped"] += out["refs_skipped"]
 			if durum["processed"] % 25 == 0:
 				_heartbeat(rollback_key, durum)
 		durum["state"] = "partial" if durum["errors"] else "completed"
@@ -549,6 +593,9 @@ def run_rollback(job_key: str, rollback_key: str) -> None:
 		)
 	finally:
 		frappe.cache.delete_value(ACTIVE_KEY)
+		# Geri alma sırasında istenen ESKİ adres (henüz `File` satırı dönmemişken)
+		# 404 olarak önbelleğe düşebilir; girdi kendiliğinden düşmez, elle sil.
+		_clear_404_cache()
 	_write_progress(rollback_key, durum)
 	audit.log_media_batch(
 		action=audit.ACTION_RETRO_ROLLBACK,
@@ -580,7 +627,9 @@ def _rollback_names(row: frappe._dict) -> list[str]:
 	return adlar[: int(row.file_rows or 0)]
 
 
-def _rollback_one(row: frappe._dict) -> bool:
+def _rollback_one(row: frappe._dict) -> dict:
+	"""`{"ok", "refs_updated", "refs_skipped"}` — sayaçlar ilerleme yüküne toplanır."""
+	basarisiz = {"ok": False, "refs_updated": 0, "refs_skipped": 0}
 	new_path = _disk_path(row.target_url)
 	old_path = _disk_path(row.source_url)
 	if not os.path.isfile(new_path):
@@ -588,7 +637,7 @@ def _rollback_one(row: frappe._dict) -> bool:
 			title=f"Retro-rollback: hedef diskte yok {row.target_url}",
 			message=f"source_url={row.source_url} job satırı={row.name}",
 		)
-		return False
+		return basarisiz
 
 	adaylar = _rollback_names(row)
 	try:
@@ -622,12 +671,12 @@ def _rollback_one(row: frappe._dict) -> bool:
 			title=f"Retro-rollback disk stage failed {row.source_url}",
 			message=frappe.get_traceback(with_context=True),
 		)
-		return False
+		return basarisiz
 
 	try:
 		for ad in geri:
 			frappe.db.set_value("File", ad, "file_url", row.source_url, update_modified=False)
-		refs.retarget(row.target_url, row.source_url)
+		ref_result = refs.retarget(row.target_url, row.source_url)
 		# Sistem işi: satırı iş anahtarı üzerinden okuduk, çağıran uç (Task 6)
 		# System Manager kapısından geçiyor; worker bağlamında oturum yok.
 		frappe.delete_doc("Media URL Redirect", row.name, ignore_permissions=True, force=True)
@@ -648,8 +697,12 @@ def _rollback_one(row: frappe._dict) -> bool:
 		frappe.log_error(
 			title=f"Retro-rollback failed {row.source_url}", message=frappe.get_traceback(with_context=True)
 		)
-		return False
-	return True
+		return basarisiz
+	return {
+		"ok": True,
+		"refs_updated": ref_result["total"],
+		"refs_skipped": len(ref_result["skipped"]),
+	}
 
 
 def purge_expired_redirects() -> int:

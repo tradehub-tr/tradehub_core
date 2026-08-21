@@ -235,3 +235,30 @@ curl -sI "http://istoc.localhost/files/03/037eaeb69eb33b25f6d7b88978f308e8.jpg"
 ```
 
 **Sonuç:** 8 kalan dosya taşındı, hata 0, SQL doğrulaması 8 → 0. `is_legacy_name` artık gerçek yol-geçişi girişimlerini reddederken cümle sonu noktalı gerçek dosya adlarını aday sayıyor.
+
+---
+
+## 14. Alpha/prod runbook
+
+Lokal koşu bittiyse alpha/prod'a taşımadan önce (detay:
+`docs/MEDYA-DEPOLAMA-STANDARDI.md` §7.1):
+
+1. `bench --site <site> migrate` — `Media URL Redirect` + `file_names` alanı.
+2. Backend **ve** panel imajını rebuild et; `backend`, `queue-long`,
+   `queue-short`, `scheduler`, `frappe-frontend` restart. Worker restart
+   edilmezse iş ESKİ kodla koşar.
+3. **M-A arşivi:** `media/archive.py` undo-arşivi `file_url` ile adreslenir ve
+   retro-rename onu TAŞIMAZ → koşudan ÖNCE `archive.purge_expired()` koş,
+   `archive.usage_bytes()` 0'a yakın olsun. Aksi hâlde taşınan dosyaların
+   30 günlük "orijinale dön" penceresi kaybolur.
+4. Koşu **ve** geri alma sonrası `bench --site <site> clear-website-cache`
+   (kod `website_404`'ü zaten siliyor — bu ek emniyet).
+5. Edge'de 301'ler ~5 dk önbelleklenir (gateway `$thc_media_cache`) → geri alma
+   sonrası 5 dakikalık pencere normaldir.
+6. Geri alma **durdurulamaz** ve 90 gün sonra (yönlendirme satırları cron ile
+   silinince) **mümkün değildir**.
+7. Worker ölürse `tradehub:retro_rename:active` anahtarı 1 saate kadar kilitli
+   kalır; `frappe.cache.delete_value("tradehub:retro_rename:active")` ile elle
+   açılır.
+8. `tabFile` satırı olmayan düz dosyalar araç kapsamı **dışındadır** — koşu
+   sonrası `scripts/media_stats.py` `reconcile()` + disk taramasıyla teyit et.

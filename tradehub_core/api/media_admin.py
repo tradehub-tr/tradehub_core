@@ -15,6 +15,7 @@ import os
 import frappe
 from frappe import _
 from frappe.query_builder.functions import Count
+from frappe.utils import cint
 
 from tradehub_core.media import (
 	access_level,
@@ -1093,17 +1094,29 @@ def retro_rename_count() -> dict:
 	`retro_rename_plan` tüm adaylar için referans taraması yapıyor (lokalde
 	~20 sn); admin kartının açılışında yalnız sayı gerekiyor, tam plan yalnız
 	"Önizle" tıklamasında istenir.
+
+	`total` bayat satırları da sayar: `tabFile` eski adresi gösteriyor ama blob
+	diskte yok (silinmiş/karantinaya taşınmış). Bunlar bu araçla TAŞINAMAZ, o
+	yüzden `disk_missing`/`renamable` ayrı dönüyor — aksi hâlde kart hiç
+	sıfırlanmayan bir "N dosya bekliyor" rozetinde takılı kalıyordu.
 	"""
 	_guard_destructive()
-	return {"total": len(retro_rename.legacy_urls())}
+	return retro_rename.count_summary()
 
 
 @frappe.whitelist(methods=["GET"])
 def retro_rename_plan(limit: int = 200) -> dict:
-	"""Eski adlı dosyaların salt okunur taşınma planı (System Manager)."""
+	"""Eski adlı dosyaların salt okunur taşınma planı (System Manager).
+
+	`limit` `start_retro_rename`'in `batch_size`'ı gibi KIRPILIR: `cint(limit,
+	200)` sayı olmayan girdiyi sessizce varsayılana çeker, negatifi 0'a, üst
+	sınır `PLAN_ITEM_LIMIT`. Kırpma olmadan `limit="abc"` çıplak `int()` içinde
+	`ValueError` fırlatıp uca 500 döndürüyordu.
+	"""
 	_guard_destructive()
+	kirpik = min(retro_rename.PLAN_ITEM_LIMIT, max(0, cint(limit, 200)))
 	p = retro_rename.plan()
-	p["items"] = p["items"][: max(0, int(limit or 0))]
+	p["items"] = p["items"][:kirpik]
 	return p
 
 

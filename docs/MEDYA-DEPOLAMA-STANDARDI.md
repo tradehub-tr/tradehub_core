@@ -171,13 +171,52 @@ Eski isimlerin migration'ı **uygulandı ve test edildi**. Spec:
 - **Admin API** (System Manager): `media_admin.retro_rename_count /
   retro_rename_plan / start_retro_rename / get_retro_rename_status /
   stop_retro_rename / rollback_retro_rename / retro_rename_history`. Admin panel
-  kartı (Sistem → Medya Optimizasyonu) Görev 8-9'da inşa ediliyor.
+  kartı **yayında**: Sistem → Medya Optimizasyonu → "Eski adlandırma" kartı
+  (önizle / onayla / ilerleme / durdur / geri al). Yalnız System Manager görür.
 - **Lokal ölçüm (2026-08-21):** 2.843 distinct eski public URL / 4.319 `tabFile`
   satırı; tam `plan()` ≈ 20 sn; 303 gömülü referans, 28 sipariş-geçmişi
   (salt-okunur) referansı, 389 orphan.
 
 Bu arada nginx sertleştirmesi (TUR-141: `/files/`'a `X-Robots-Tag: noindex` +
 `limit_req`) eski isimlerin toplu çekilmesini pratikte zorlaştırır.
+
+### 7.1 Koşu öncesi zorunlu adımlar (alpha/prod)
+
+Aşağıdakiler **öneri değil**; atlanırsa ya araç hiç çalışmaz ya da geri
+alınamayan veri kaybı olur.
+
+1. **`bench migrate`** — `Media URL Redirect` doctype'ı ve `file_names` alanı
+   olmadan `run_job` ilk dosyada patlar.
+2. **İmaj rebuild + restart** — backend ve panel imajları kodu içeriyor (bind
+   mount YOK). Rebuild sonrası `backend`, `queue-long`, `queue-short`,
+   `scheduler`, `frappe-frontend` yeniden başlatılmalı; iş `long` kuyruğunda
+   koşuyor, worker restart edilmezse ESKİ kodu çalıştırır.
+3. **M-A arşivi ÖNCE boşaltılmalı.** `media/archive.py` undo-arşivi dosyaları
+   `file_url` ile adresler (`relative_path_for`) ve retro-rename bu arşivi
+   TAŞIMAZ. Taşınan bir dosyanın 30 günlük "orijinale dön" penceresi koşudan
+   sonra sessizce kaybolur. Bu yüzden koşudan ÖNCE `archive.purge_expired()`
+   koşulmalı ve `archive.usage_bytes()` 0'a yakın olmalı; değilse önce bekleyen
+   geri-almalar tamamlanmalı.
+4. **`bench --site <site> clear-website-cache`** — koşudan ve geri almadan
+   SONRA. Kod `_clear_404_cache()` ile `website_404`'ü zaten siliyor (I1); bu
+   ek emniyet, sayfa/route önbelleklerini de temizler.
+5. **Edge önbelleği: geri almadan sonra ~5 dk pencere.** Gateway `/files/`
+   yanıtlarına `$thc_media_cache` ile ~5 dk `Cache-Control` veriyor
+   (`docker/nginx/gateway.conf`), yani 301'ler edge'de tutulur. Geri alma
+   sonrasında eski adres 5 dk daha yeni adrese yönlenebilir — beklenen davranış,
+   panik yok.
+6. **Geri alma DURDURULAMAZ ve süreye tabidir.** `run_rollback`'in durdurma
+   bayrağı yoktur; başlatıldı mı biter. `REDIRECT_TTL_DAYS = 90` dolduğunda
+   günlük cron yönlendirme satırlarını siler — **satırlar silindikten sonra geri
+   alma mümkün değildir**.
+7. **Worker ölürse kilit takılı kalır.** `tradehub:retro_rename:active`
+   anahtarı `PROGRESS_TTL` (1 saat) ile yazılıyor; worker `finally`'ye
+   ulaşmadan ölürse panel 1 saate kadar "zaten çalışan iş var" der. Elle açma:
+   `frappe.cache.delete_value("tradehub:retro_rename:active")`.
+8. **`tabFile` satırı olmayan düz dosyalar kapsam DIŞI.** Araç adayları
+   `tabFile`'dan okur; diskte durup hiçbir `File` satırı göstermeyen dosyalar
+   ne taşınır ne raporlanır. Koşu sonrası `scripts/media_stats.py` `reconcile()`
+   + düz disk taramasıyla teyit et.
 
 ---
 

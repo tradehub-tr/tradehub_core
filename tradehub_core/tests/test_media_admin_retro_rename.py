@@ -44,11 +44,30 @@ class TestRetroRenameEndpoints(FrappeTestCase):
 		self.assertEqual(len(out["items"]), 2)
 
 	def test_count_doner(self):
+		"""Bayat satırlar ayrı: bu üç adres diskte YOK → `renamable=0`.
+
+		Kart eskiden `total`'ı "taşınacak dosya" sanıp hiç sıfırlanmayan bir
+		rozet gösteriyordu; bunlar bu araçla taşınamaz.
+		"""
 		with mock.patch.object(
 			retro_rename, "legacy_urls", return_value=["/files/a.jpg", "/files/b.jpg", "/files/c.jpg"]
 		):
 			out = media_admin.retro_rename_count()
-		self.assertEqual(out, {"total": 3})
+		self.assertEqual(out, {"total": 3, "disk_missing": 3, "renamable": 0})
+
+	def test_plan_limit_sayi_degilse_500_atmaz(self):
+		"""`limit="abc"` çıplak `int()` içinde `ValueError` → 500 veriyordu."""
+		with mock.patch.object(retro_rename, "plan", return_value={"total": 0, "items": []}):
+			out = media_admin.retro_rename_plan(limit="abc")
+		self.assertEqual(out["total"], 0)
+		self.assertLessEqual(len(out["items"]), 200)
+
+	def test_plan_limit_ust_sinira_kirpilir(self):
+		with mock.patch.object(
+			retro_rename, "plan", return_value={"total": 6000, "items": list(range(6000))}
+		):
+			out = media_admin.retro_rename_plan(limit=99999)
+		self.assertEqual(len(out["items"]), retro_rename.PLAN_ITEM_LIMIT)
 
 	def test_start_enqueue_eder_ve_job_key_doner(self):
 		with (

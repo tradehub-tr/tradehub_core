@@ -52,6 +52,31 @@ class TestMediaUrlRedirectDoctype(FrappeTestCase):
 				}
 			).insert(ignore_permissions=True)
 
+	def test_mutlak_hedef_reddedilir(self):
+		"""301 `Location`'a giden adres site-içi olmalı — aksi hâlde açık yönlendirme."""
+		with self.assertRaises(frappe.ValidationError):
+			frappe.get_doc(
+				{
+					"doctype": "Media URL Redirect",
+					"source_url": "/files/test-dt-mutlak.jpg",
+					"target_url": "https://kotu.example/ele-gecir.jpg",
+					"job_key": "TEST-DT",
+					"expires_at": add_days(now_datetime(), 90),
+				}
+			).insert(ignore_permissions=True)
+
+	def test_yol_gecisi_segmenti_reddedilir(self):
+		with self.assertRaises(frappe.ValidationError):
+			frappe.get_doc(
+				{
+					"doctype": "Media URL Redirect",
+					"source_url": "/files/../etc/passwd",
+					"target_url": "/files/ab/" + "a" * 32 + ".jpg",
+					"job_key": "TEST-DT",
+					"expires_at": add_days(now_datetime(), 90),
+				}
+			).insert(ignore_permissions=True)
+
 
 class TestLegacyNameAndTarget(FrappeTestCase):
 	def test_is_legacy_name(self):
@@ -292,17 +317,37 @@ class TestRunJobAndRollback(_RenameBase):
 		p = retro_rename.read_progress("JOB-R")
 		self.assertEqual(p["state"], "completed")
 		self.assertEqual((p["total"], p["processed"], p["renamed"], p["errors"]), (1, 1, 1, 0))
+		# Dosya sayısı ≠ referans sayısı: `_make_listing` `primary_image` alanı
+		# retarget edildi, yani en az 1 referans güncellendi ve yük bunu taşımalı.
+		self.assertGreaterEqual(p["refs_updated"], 1)
+		self.assertEqual(p["refs_skipped"], 0)
 		self.assertEqual(frappe.db.get_value("Listing", self.listing, "primary_image"), hedef)
 		self.assertIsNone(frappe.cache.get_value(retro_rename.ACTIVE_KEY))
 
 		retro_rename.run_rollback("JOB-R", "RB-1")
 		rp = retro_rename.read_progress("RB-1")
 		self.assertEqual(rp["state"], "completed")
+		self.assertGreaterEqual(rp["refs_updated"], 1)
 		self.assertTrue(os.path.isfile(os.path.join(get_files_path(is_private=0), self.name)))
 		self.assertFalse(os.path.isfile(self._new_path))
 		self.assertEqual(frappe.db.count("File", {"file_url": self.url}), 3)
 		self.assertEqual(frappe.db.get_value("Listing", self.listing, "primary_image"), self.url)
 		self.assertFalse(frappe.db.exists("Media URL Redirect", {"source_url": self.url}))
+
+	def test_run_job_website_404_onbellegini_temizler(self):
+		"""`PathResolver.resolve()` custom renderer'lardan ÖNCE `website_404`'e bakıyor.
+
+		Taşıma ile commit arasında istenen eski adres 404 olarak önbelleğe
+		yazılırsa 301 bir daha çalışmaz (girdi kendiliğinden düşmez). İş nabzı ve
+		`finally` bloğu anahtarı silmeli.
+		"""
+		self._expected_target()
+		with (
+			mock.patch.object(frappe.cache, "delete_value") as sil,
+			mock.patch.object(retro_rename, "legacy_urls", return_value=[self.url]),
+		):
+			retro_rename.run_job("JOB-404", dry_run=1, batch_size=10)
+		self.assertIn(mock.call("website_404"), sil.call_args_list)
 
 	def test_dry_run_hicbir_sey_yazmaz(self):
 		self._expected_target()
