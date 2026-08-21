@@ -1111,7 +1111,11 @@ def retro_rename_plan(limit: int = 200) -> dict:
 def start_retro_rename(dry_run: int = 0, batch_size: int = 200) -> dict:
 	"""Retro-rename işini kuyruğa al; aynı anda tek iş."""
 	_guard_destructive()
-	if frappe.cache.get_value(retro_rename.ACTIVE_KEY):
+	# `expires=True`: `ACTIVE_KEY` `expires_in_sec` ile yazılıyor (aşağıda ve
+	# worker'da). Süreç-içi önbellek yalnız `expires_in_sec` YOKKEN tazelenir —
+	# `expires=True` olmadan aynı worker/istek süreci ilk okunan `None`'ı
+	# sonsuza dek önbellekte tutar.
+	if frappe.cache.get_value(retro_rename.ACTIVE_KEY, expires=True):
 		frappe.throw(_("Zaten çalışan bir yeniden adlandırma işi var."))
 	total = len(retro_rename.legacy_urls())
 	if not total:
@@ -1155,7 +1159,8 @@ def stop_retro_rename(job_key: str) -> dict:
 def rollback_retro_rename(job_key: str) -> dict:
 	"""Bir işin yeniden adlandırmalarını geri al (yönlendirme satırları durduğu sürece)."""
 	_guard_destructive()
-	if frappe.cache.get_value(retro_rename.ACTIVE_KEY):
+	# `expires=True` — bkz. `start_retro_rename`.
+	if frappe.cache.get_value(retro_rename.ACTIVE_KEY, expires=True):
 		frappe.throw(_("Zaten çalışan bir iş var; bitmesini bekleyin."))
 	rollback_key = frappe.generate_hash(length=12)
 	# Aynı TOCTOU koruması — bkz. `start_retro_rename`.

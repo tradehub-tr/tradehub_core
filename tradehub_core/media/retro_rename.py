@@ -170,7 +170,11 @@ def _stop_key(job_key: str) -> str:
 
 
 def read_progress(job_key: str) -> dict:
-	return frappe.cache.get_value(progress_key(job_key)) or {"state": "not_found"}
+	# `expires=True`: bu anahtar `expires_in_sec` ile yazılıyor (`_write_progress`).
+	# `RedisWrapper.get_value` süreç-içi önbelleği yalnız `expires_in_sec` YOKKEN
+	# tazeler; `expires=True` olmadan RQ worker'ının TEK `frappe.init()`'lik
+	# ömrü boyunca ilk okunan değer (hatta `None`) sonsuza dek önbellekte kalırdı.
+	return frappe.cache.get_value(progress_key(job_key), expires=True) or {"state": "not_found"}
 
 
 def _write_progress(job_key: str, payload: dict) -> None:
@@ -183,7 +187,12 @@ def request_stop(job_key: str) -> None:
 
 
 def _stop_requested(job_key: str) -> bool:
-	return bool(frappe.cache.get_value(_stop_key(job_key)))
+	# `expires=True` ZORUNLU: bu anahtar `request_stop`'ta `expires_in_sec` ile
+	# yazılıyor. `RedisWrapper.set_value` süreç-içi önbelleği yalnız
+	# `expires_in_sec` YOKKEN tazeler — worker `run_job` boyunca TEK
+	# `frappe.init()` altında yaşadığından, `expires=True` olmadan ilk okunan
+	# `None` sonsuza dek önbellekte kalır ve "Durdur" düğmesi hiç etki etmezdi.
+	return bool(frappe.cache.get_value(_stop_key(job_key), expires=True))
 
 
 def _new_state(total: int, mode: str, dry_run: bool, expires_at=None) -> dict:

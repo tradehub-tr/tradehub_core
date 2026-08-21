@@ -65,19 +65,16 @@ class TestRetroRenameEndpoints(FrappeTestCase):
 	def test_start_gecici_kilit_kurar(self):
 		"""TOCTOU: enqueue mock'landığında bile kilit worker'a bağımlı olmadan Redis'te kalıcı olur.
 
-		`frappe.local.cache` gerçek bir istekte `frappe.init()` başında sıfırlanır
-		(`frappe/__init__.py:254`). `start_retro_rename`'in kendi ön kontrolü
-		(`get_value(ACTIVE_KEY)`) burada anahtarı süreç-içi önbelleğe `None` olarak
-		yazmış oluyor — `RedisWrapper.set_value` bu önbelleği yalnız
-		`expires_in_sec` YOKKEN tazeler (`redis_wrapper.py`), o yüzden aynı test
-		sürecinde okumadan önce elle temizleyip gerçek bir isteği simüle ediyoruz.
+		Endpoint `ACTIVE_KEY`'i `get_value(..., expires=True)` ile okuyor — bu yüzden
+		süreç-içi önbelleğe hiç yazılmıyor ve testin kendi okuması (aşağıda,
+		`expires=True` OLMADAN) da gerçek Redis değerini görür; `frappe.local.cache`
+		elle temizlemeye gerek yok.
 		"""
 		with (
 			mock.patch.object(media_admin.frappe, "enqueue"),
 			mock.patch.object(retro_rename, "legacy_urls", return_value=["/files/a.jpg"]),
 		):
 			out = media_admin.start_retro_rename()
-		frappe.local.cache.clear()
 		self.assertEqual(frappe.cache.get_value(retro_rename.ACTIVE_KEY), out["job_key"])
 
 	def test_start_batch_size_kirpilir(self):
@@ -106,10 +103,9 @@ class TestRetroRenameEndpoints(FrappeTestCase):
 		self.assertEqual(enq.call_args.kwargs["job_key"], "JOB-X")
 
 	def test_rollback_gecici_kilit_kurar(self):
-		"""TOCTOU: bkz. `test_start_gecici_kilit_kurar` — aynı süreç-içi önbellek nüansı."""
+		"""TOCTOU: bkz. `test_start_gecici_kilit_kurar` — aynı `expires=True` gerekçesi."""
 		with mock.patch.object(media_admin.frappe, "enqueue"):
 			out = media_admin.rollback_retro_rename("JOB-X")
-		frappe.local.cache.clear()
 		self.assertEqual(frappe.cache.get_value(retro_rename.ACTIVE_KEY), out["job_key"])
 
 	def test_yetkisiz_reddedilir(self):

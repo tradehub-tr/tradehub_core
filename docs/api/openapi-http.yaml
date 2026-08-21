@@ -5426,7 +5426,7 @@
         - "GET"
       "summary": "Redis'teki ilerleme. Kayıt yoksa `{\"state\": \"not_found\"}`."
       "x-python": "tradehub_core.api.media_admin.get_retro_rename_status"
-      "x-source": "tradehub_core/api/media_admin.py:1140"
+      "x-source": "tradehub_core/api/media_admin.py:1144"
       "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır."
       "x-unmeasured": "ÇAĞRILMADI. `start_retro_rename`/`rollback_retro_rename` ile aynı özellik grubu — ayrı HTTP ölçüm turunda birlikte kapatılacak."
       "parameters":
@@ -5469,7 +5469,7 @@
         - "POST"
       "summary": "Bir sonraki batch sınırında durdur."
       "x-python": "tradehub_core.api.media_admin.stop_retro_rename"
-      "x-source": "tradehub_core/api/media_admin.py:1147"
+      "x-source": "tradehub_core/api/media_admin.py:1151"
       "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır."
       "x-unmeasured": "ÇAĞRILMADI. `start_retro_rename`/`rollback_retro_rename` ile aynı özellik grubu — ayrı HTTP ölçüm turunda birlikte kapatılacak."
       "parameters":
@@ -5512,7 +5512,7 @@
         - "POST"
       "summary": "Bir işin yeniden adlandırmalarını geri al (yönlendirme satırları durduğu sürece)."
       "x-python": "tradehub_core.api.media_admin.rollback_retro_rename"
-      "x-source": "tradehub_core/api/media_admin.py:1155"
+      "x-source": "tradehub_core/api/media_admin.py:1159"
       "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır."
       "x-unmeasured": "ÇAĞRILMADI. Gerçek sitede `Media URL Redirect` satırlarına dayanarak dosyaları eski adına geri taşır; ölçüm için üretilip silinemeyecek kadar büyük bir yan etki olurdu."
       "parameters":
@@ -5555,7 +5555,7 @@
         - "GET"
       "summary": "Geri alınabilir işler: job_key başına satır sayısı ve süre sonu."
       "x-python": "tradehub_core.api.media_admin.retro_rename_history"
-      "x-source": "tradehub_core/api/media_admin.py:1175"
+      "x-source": "tradehub_core/api/media_admin.py:1180"
       "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır."
       "x-unmeasured": "ÇAĞRILMADI. `start_retro_rename`/`rollback_retro_rename` ile aynı özellik grubu — ayrı HTTP ölçüm turunda birlikte kapatılacak."
       "responses":

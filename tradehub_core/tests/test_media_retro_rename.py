@@ -303,6 +303,38 @@ class TestRunJobAndRollback(_RenameBase):
 		self.assertTrue(os.path.isfile(os.path.join(get_files_path(is_private=0), self.name)))
 		self.assertEqual(frappe.db.count("File", {"file_url": self.url}), 3)
 
+	def test_stop_is_ortasinda_istenirse_yine_batch_sinirinda_durur(self):
+		"""`_stop_requested` `expires=True` OLMADAN worker'ın TEK `frappe.init()`'lik
+		ömrü boyunca ilk okuduğu `None`'ı sonsuza dek önbellekte tutardı — yukarıdaki
+		`test_stop_bayragi_batch_sinirinda_durdurur` bayrağı iş BAŞLAMADAN kuruyor,
+		yani bu hatayı yakalayamaz (ilk okuma zaten `1` görüyor). Bu test bayrağı
+		işin ORTASINDA — ilk dosya işlendikten SONRA, worker hâlâ aynı süreçte
+		çalışırken — kuruyor; `expires=True` olmadan ikinci/üçüncü dosya da işlenirdi.
+		"""
+		job_key = "JOB-MID-STOP"
+		self.addCleanup(lambda: frappe.cache.delete_value(retro_rename._stop_key(job_key)))
+		urls = [f"/files/{c}{c}/" + c * 32 + ".jpg" for c in ("a", "b", "c")]
+
+		def fake_rename_one(url, jk, expires_at, *, dry_run=False):
+			if url == urls[0]:
+				retro_rename.request_stop(job_key)
+			return {
+				"status": "renamed",
+				"reason": "",
+				"target_url": "/files/xx/" + "x" * 32 + ".jpg",
+				"refs_updated": 0,
+				"refs_skipped": 0,
+			}
+
+		with (
+			mock.patch.object(retro_rename, "legacy_urls", return_value=urls),
+			mock.patch.object(retro_rename, "rename_one", side_effect=fake_rename_one),
+		):
+			retro_rename.run_job(job_key, dry_run=0, batch_size=1)
+		p = retro_rename.read_progress(job_key)
+		self.assertEqual(p["state"], "stopped")
+		self.assertEqual(p["processed"], 1)
+
 
 class TestDedupRollback(FrappeTestCase):
 	"""Dedup tuzağı: iki eski ad AYNI içeriğe sahip → tek hedef, iki redirect satırı.
