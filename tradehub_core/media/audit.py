@@ -98,6 +98,10 @@ ACTION_SETTINGS_CHANGED: str = "media.storage_settings_changed"
 # o modül `frappe.model.document` çeker (settings sabitiyle aynı gerekçe).
 ACTION_VERSION_PROMOTE: str = "media.version_promote"
 ACTION_VERSION_ROLLBACK: str = "media.version_rollback"
+# MOGEM-582 retro-rename: eski ad → içerik-adresli ad; ikisi de geri dönüşü
+# olan ama kütüphane çapında etkili işler → HIGH.
+ACTION_RETRO_RENAME: str = "media.retro_rename"
+ACTION_RETRO_ROLLBACK: str = "media.retro_rollback"
 
 MEDIA_ACTIONS: tuple[str, ...] = (
 	ACTION_UPLOAD,
@@ -122,6 +126,8 @@ MEDIA_ACTIONS: tuple[str, ...] = (
 	ACTION_SETTINGS_CHANGED,
 	ACTION_VERSION_PROMOTE,
 	ACTION_VERSION_ROLLBACK,
+	ACTION_RETRO_RENAME,
+	ACTION_RETRO_ROLLBACK,
 )
 
 # Geri dönüşü olmayan ya da güvenlik anlamı taşıyan olaylar HIGH ile işaretlenir;
@@ -144,6 +150,11 @@ _HIGH_SEVERITY_ACTIONS: frozenset[str] = frozenset(
 		# False` ile HIGH'a düşüyor).
 		ACTION_QUARANTINE,
 		ACTION_QUARANTINE_RELEASE,
+		# Retro-rename kütüphane çapında dosya adı taşır (disk + `File` + referans
+		# + 301 satırı). Geri alınabilir ama etkisi geniş; operatör severity
+		# filtresiyle "bugün ne taşındı" sorusunu cevaplayabilmeli.
+		ACTION_RETRO_RENAME,
+		ACTION_RETRO_ROLLBACK,
 		# `ACTION_SETTINGS_CHANGED` bilinçli olarak LİSTEDE YOK: aynı eylem adını
 		# hem gerçek ayar değişikliği hem de bağlantı testi kullanıyor
 		# (`media_storage_settings.py:428`). Testler sık koşulur; hepsini HIGH
