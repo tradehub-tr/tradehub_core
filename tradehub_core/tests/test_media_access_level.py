@@ -109,7 +109,11 @@ class MediaAccessLevelTestBase(FrappeTestCase):
 			}
 		)
 		doc.flags.ignore_mandatory = True
-		doc.insert(ignore_permissions=True)
+		# Tarama kancasını NÖTRLE: makinede ClamAV kuruluysa `after_insert`
+		# dosyayı anında `media_scan_hold`'a taşıyor ve test "diskte yok" diyor.
+		# Testin sınadığı şey seviye değişimi, tarama değil (test_media_av deseni).
+		with mock.patch("tradehub_core.media.av.enqueue_scan"):
+			doc.insert(ignore_permissions=True)
 		frappe.db.commit()
 		self.addCleanup(lambda: self._delete_and_commit("File", doc.name))
 		return doc
@@ -130,7 +134,11 @@ class MediaAccessLevelTestBase(FrappeTestCase):
 			}
 		)
 		doc.flags.ignore_mandatory = True
-		doc.insert(ignore_permissions=True)
+		# Tarama kancasını NÖTRLE: makinede ClamAV kuruluysa `after_insert`
+		# dosyayı anında `media_scan_hold`'a taşıyor ve test "diskte yok" diyor.
+		# Testin sınadığı şey seviye değişimi, tarama değil (test_media_av deseni).
+		with mock.patch("tradehub_core.media.av.enqueue_scan"):
+			doc.insert(ignore_permissions=True)
 		frappe.db.commit()
 		self.addCleanup(lambda: self._delete_and_commit("File", doc.name))
 		return doc
@@ -178,7 +186,7 @@ class PublicToPrivateTests(MediaAccessLevelTestBase):
 		listing_name = self._make_listing(seller, file_doc.file_url, "p2v")
 
 		old_url = file_doc.file_url
-		old_path = os.path.join(get_files_path(is_private=0), *old_url[len("/files/"):].split("/"))
+		old_path = os.path.join(get_files_path(is_private=0), *old_url[len("/files/") :].split("/"))
 
 		result = access_level.set_level(old_url, make_private=True)
 
@@ -187,9 +195,9 @@ class PublicToPrivateTests(MediaAccessLevelTestBase):
 		new_url = result["file_url"]
 		self.assertTrue(new_url.startswith("/private/files/"))
 		# Shard + dosya adı korunur, yalnız prefix değişir.
-		self.assertEqual(new_url[len("/private/files/"):], old_url[len("/files/"):])
+		self.assertEqual(new_url[len("/private/files/") :], old_url[len("/files/") :])
 
-		new_path = os.path.join(get_files_path(is_private=1), *new_url[len("/private/files/"):].split("/"))
+		new_path = os.path.join(get_files_path(is_private=1), *new_url[len("/private/files/") :].split("/"))
 		self.assertFalse(os.path.isfile(old_path), "eski konumda dosya hâlâ duruyor")
 		self.assertTrue(os.path.isfile(new_path), "yeni konumda dosya yok")
 
@@ -208,7 +216,7 @@ class PrivateToPublicTests(MediaAccessLevelTestBase):
 		listing_name = self._make_listing(seller, file_doc.file_url, "v2p")
 
 		old_url = file_doc.file_url
-		old_path = os.path.join(get_files_path(is_private=1), *old_url[len("/private/files/"):].split("/"))
+		old_path = os.path.join(get_files_path(is_private=1), *old_url[len("/private/files/") :].split("/"))
 
 		result = access_level.set_level(old_url, make_private=False)
 
@@ -216,9 +224,9 @@ class PrivateToPublicTests(MediaAccessLevelTestBase):
 		self.assertFalse(result["is_private"])
 		new_url = result["file_url"]
 		self.assertTrue(new_url.startswith("/files/"))
-		self.assertEqual(new_url[len("/files/"):], old_url[len("/private/files/"):])
+		self.assertEqual(new_url[len("/files/") :], old_url[len("/private/files/") :])
 
-		new_path = os.path.join(get_files_path(is_private=0), *new_url[len("/files/"):].split("/"))
+		new_path = os.path.join(get_files_path(is_private=0), *new_url[len("/files/") :].split("/"))
 		self.assertFalse(os.path.isfile(old_path))
 		self.assertTrue(os.path.isfile(new_path))
 
@@ -386,7 +394,7 @@ class IdempotentTests(MediaAccessLevelTestBase):
 		self.assertFalse(result["is_private"])
 
 		# Disk hâlâ eski konumda — dokunulmamış.
-		path = os.path.join(get_files_path(is_private=0), *file_doc.file_url[len("/files/"):].split("/"))
+		path = os.path.join(get_files_path(is_private=0), *file_doc.file_url[len("/files/") :].split("/"))
 		self.assertTrue(os.path.isfile(path))
 
 
@@ -509,7 +517,11 @@ class PrivateFilesListTest(MediaAccessLevelTestBase):
 			}
 		)
 		doc.flags.ignore_mandatory = True
-		doc.insert(ignore_permissions=True)
+		# Tarama kancasını NÖTRLE: makinede ClamAV kuruluysa `after_insert`
+		# dosyayı anında `media_scan_hold`'a taşıyor ve test "diskte yok" diyor.
+		# Testin sınadığı şey seviye değişimi, tarama değil (test_media_av deseni).
+		with mock.patch("tradehub_core.media.av.enqueue_scan"):
+			doc.insert(ignore_permissions=True)
 		frappe.db.commit()
 		self.addCleanup(lambda: self._delete_and_commit("File", doc.name))
 

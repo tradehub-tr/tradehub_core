@@ -30,6 +30,7 @@ import base64
 import hashlib
 import io
 import os
+from unittest import mock
 
 import frappe
 from frappe.query_builder import DocType
@@ -103,9 +104,12 @@ class _DedupUcuTesti(FrappeTestCase):
 		"""Dosyayı O KULLANICININ oturumuyla yükler (sahiplik yükleyenden türer)."""
 		frappe.set_user(kullanici)
 		try:
-			doc = frappe.get_doc(
-				{"doctype": "File", "file_name": ad, "is_private": 0, "content": icerik}
-			).insert(ignore_permissions=True)
+			# Tarama kancasını NÖTRLE — ClamAV kurulu makinede dosya anında
+			# bekletmeye taşınıyor, dedup katmanı diskte bulamıyordu.
+			with mock.patch("tradehub_core.media.av.enqueue_scan"):
+				doc = frappe.get_doc(
+					{"doctype": "File", "file_name": ad, "is_private": 0, "content": icerik}
+				).insert(ignore_permissions=True)
 		finally:
 			frappe.set_user("Administrator")
 		frappe.db.commit()
@@ -305,7 +309,9 @@ class TestKatman2SourceHash(_DedupUcuTesti):
 		super().setUp()
 
 		# Boru hattı bayrakları: aç, test sonunda ESKİ değerlere döndür.
-		orijinal = {a: frappe.db.get_single_value(pipeline_flags.SETTINGS_DOCTYPE, a) for a in self._BAYRAKLAR}
+		orijinal = {
+			a: frappe.db.get_single_value(pipeline_flags.SETTINGS_DOCTYPE, a) for a in self._BAYRAKLAR
+		}
 
 		def _bayraklari_geri_al() -> None:
 			for alan, deger in orijinal.items():
@@ -324,10 +330,14 @@ class TestKatman2SourceHash(_DedupUcuTesti):
 		self.sha_orijinal = hashlib.sha256(self.orijinal_png).hexdigest()
 		frappe.set_user(self.b_owner)
 		try:
-			sonuc = uc.upload_media(
-				file_name=f"katman2-{self.suffix}.png",
-				content=base64.b64encode(self.orijinal_png).decode(),
-			)
+			# Tarama kancasını NÖTRLE (yukarıdaki `_dosya_yukle` ile aynı gerekçe):
+			# gerçek uç nokta File açıyor, ClamAV'li makinede dosya bekletmeye
+			# gidiyor ve aşağıdaki disk okuması patlıyordu.
+			with mock.patch("tradehub_core.media.av.enqueue_scan"):
+				sonuc = uc.upload_media(
+					file_name=f"katman2-{self.suffix}.png",
+					content=base64.b64encode(self.orijinal_png).decode(),
+				)
 		finally:
 			frappe.set_user("Administrator")
 		self.stored_url = sonuc["file_url"]
@@ -340,9 +350,7 @@ class TestKatman2SourceHash(_DedupUcuTesti):
 		self.addCleanup(
 			lambda: [
 				self._drop("Media Asset", ad)
-				for ad in frappe.get_all(
-					"Media Asset", filters={"source_file": self.dosya_adi}, pluck="name"
-				)
+				for ad in frappe.get_all("Media Asset", filters={"source_file": self.dosya_adi}, pluck="name")
 			]
 		)
 
@@ -376,9 +384,7 @@ class TestKatman2SourceHash(_DedupUcuTesti):
 			self.tenant_b,
 			"varlık B'ye yazılmadı — kiracı kemeri ölçülemez",
 		)
-		self.surum_kaynak_hash = frappe.db.get_value(
-			"Media Version", {"asset": self.asset}, "source_hash"
-		)
+		self.surum_kaynak_hash = frappe.db.get_value("Media Version", {"asset": self.asset}, "source_hash")
 		self.assertEqual(self.surum_kaynak_hash, self.sha_stored)
 
 		# 3) Katman 1'i KÖRELT: adı legacy düzene çevir (W3-B'nin 9 dosyası

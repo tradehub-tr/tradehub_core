@@ -1501,10 +1501,8 @@
           "items":
             "$ref": "#/components/schemas/CropOverride"
         "updated_at":
-          "type":
-            - "number"
-            - "null"
-          "description": "Son yazma zamanı (epoch saniye)."
+          "type": "string"
+          "description": "Son yazma zamanı — ISO 8601 + saat dilimi kayması (TUR-124); hiç yazılmadıysa boş dize."
       "description": "Media Crop Intent. TÜM koordinatlar 0-1 normalize (INV-10); piksel kabul edilmez."
     "CropOverride":
       "type": "object"
@@ -1997,6 +1995,9 @@
           "type": "integer"
           "description": "Bitiş zamanı (epoch saniye)."
         "expires_at":
+          "type": "string"
+          "description": "Son geçerlilik — ISO 8601 + saat dilimi kayması (TUR-124)."
+        "expires_epoch":
           "type": "integer"
         "ttl_seconds":
           "type": "integer"

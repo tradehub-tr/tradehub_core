@@ -128,6 +128,30 @@ def set_level(file_url: str, *, make_private: bool) -> dict:
 	if currently_private == make_private:
 		return {"file_url": url, "changed": False, "is_private": currently_private, "refs_updated": 0}
 
+	# Tarama akışı dosyayı fiziksel olarak taşıyabiliyor (TUR-125): bekletme
+	# (`media_scan_hold`) ve karantina (`media_quarantine`) canlı ağacın DIŞINDA.
+	# Bu kapı olmadan aşağıdaki `isfile` kontrolü "diskte bulunamadı" diyordu —
+	# dosya var, yalnız başka kökte; mesaj yanıltıcıydı ve iki mekanizma aynı
+	# dosyayı taşımak için yarışırdı (TUR-125 × TUR-296 dersi). Tarama bitip
+	# dosya yerine dönene (ya da karantinadan çıkarılana) kadar seviye değişmez.
+	from tradehub_core.media import av
+
+	if av.in_quarantine(url) or av.in_hold(url):
+		audit.log_media_event(
+			action=audit.ACTION_LEVEL_CHANGED,
+			file_url=url,
+			allowed=False,
+			reason="av_state_blocks_move",
+			sensitive=True,
+			context={"operation": "set_access_level"},
+		)
+		frappe.throw(
+			_(
+				"Dosya karantinada ya da tarama bekliyor; erişim seviyesi güvenlik "
+				"akışı bitmeden değiştirilemez."
+			)
+		)
+
 	relative = _relative(url)
 	old_path = _disk_path(currently_private, relative)
 	new_path = _disk_path(make_private, relative)

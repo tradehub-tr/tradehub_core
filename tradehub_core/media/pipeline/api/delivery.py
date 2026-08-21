@@ -365,7 +365,10 @@ class DeliveryApi:
 		govde = dict(imzali.to_dict())
 		govde["asset"] = ad
 		govde["path"] = imzali.path
-		govde["expires_at"] = imzali.expires_at
+		# TUR-124: gövdede ISO 8601 + kayma. İmza yükü ve URL'deki `exp` epoch
+		# kalır (imzalanan şey o); ham değer `expires_epoch` ile ayrıca verilir.
+		govde["expires_at"] = env.iso_time(imzali.expires_at)
+		govde["expires_epoch"] = imzali.expires_at
 		return env.ok(govde, cache_control=env.CACHE_NEVER)
 
 	@staticmethod

@@ -44,6 +44,7 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Any, Callable, Dict, Iterable, Mapping, Optional, Sequence, Tuple
 
 from tradehub_core.media.pipeline.contracts.errors import (
@@ -241,6 +242,29 @@ class ApiResponse:
 
 	def to_dict(self) -> Dict[str, Any]:
 		return {"status": self.status, "headers": dict(self.headers), "body": self.body}
+
+
+# ── Tarih çıktısı — TUR-124 standardı, saf Python ──────────────────────────
+#
+# `docs/MEDYA-TARIH-STANDARDI.md`: API çıktısındaki her tarih **ISO 8601 +
+# saat dilimi kayması**, saniye çözünürlüğünde (`2026-08-14T09:39:06+03:00`).
+# Bu paket ADR-0004 gereği `frappe` import etmez; `media/timefmt.to_iso`
+# frappe'ye bağlı olduğu için buraya çekilemez. stdlib aynı sonucu verir:
+# `fromtimestamp(...).astimezone()` sürecin saat dilimini (sunucu) kaymayla
+# birlikte yazar — standardın "+03:00" örneği tam olarak budur.
+#
+# İç saklama (SessionNote.created_at, Verdict.expires_at) epoch olarak KALIR:
+# imza yükü ve karşılaştırmalar sayı ister. Dönüşüm yalnız yanıt gövdesinde.
+
+
+def iso_time(epoch: Optional[float]) -> str:
+	"""Epoch saniye → ISO 8601 + kayma; boş/0 → "" (JSON'da tür değiştirmez)."""
+	if not epoch:
+		return ""
+	try:
+		return datetime.fromtimestamp(float(epoch)).astimezone().replace(microsecond=0).isoformat()
+	except (OverflowError, OSError, ValueError):
+		return ""
 
 
 def ok(data: Optional[Mapping[str, Any]] = None, *, status: int = HTTP_OK, **headers: str) -> ApiResponse:
