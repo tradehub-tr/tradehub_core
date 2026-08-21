@@ -1117,6 +1117,13 @@ def start_retro_rename(dry_run: int = 0, batch_size: int = 200) -> dict:
 	if not total:
 		frappe.throw(_("Taşınacak eski adlı dosya yok."))
 	job_key = frappe.generate_hash(length=12)
+	clamped_batch_size = min(2000, max(1, int(batch_size or 200)))
+	# TOCTOU: `run_job` `ACTIVE_KEY`'i yalnız worker başladığında kurar — kontrol
+	# ile kuyruğa alma arasındaki pencerede iki hızlı tık iki iş başlatabilirdi.
+	# Geçici kilidi burada, kuyruğa almadan ÖNCE koyuyoruz; worker `_heartbeat`
+	# ile tazeler, `run_job`'un `finally`'si temizler (kuyruk hiç çalışmazsa
+	# 120 sn'de kendiliğinden düşer).
+	frappe.cache.set_value(retro_rename.ACTIVE_KEY, job_key, expires_in_sec=120)
 	frappe.enqueue(
 		"tradehub_core.media.retro_rename.run_job",
 		queue="long",
@@ -1124,7 +1131,7 @@ def start_retro_rename(dry_run: int = 0, batch_size: int = 200) -> dict:
 		enqueue_after_commit=True,
 		job_key=job_key,
 		dry_run=int(dry_run or 0),
-		batch_size=int(batch_size or 200),
+		batch_size=clamped_batch_size,
 	)
 	return {"job_key": job_key, "total": total, "dry_run": int(dry_run or 0)}
 
@@ -1151,6 +1158,8 @@ def rollback_retro_rename(job_key: str) -> dict:
 	if frappe.cache.get_value(retro_rename.ACTIVE_KEY):
 		frappe.throw(_("Zaten çalışan bir iş var; bitmesini bekleyin."))
 	rollback_key = frappe.generate_hash(length=12)
+	# Aynı TOCTOU koruması — bkz. `start_retro_rename`.
+	frappe.cache.set_value(retro_rename.ACTIVE_KEY, rollback_key, expires_in_sec=120)
 	frappe.enqueue(
 		"tradehub_core.media.retro_rename.run_rollback",
 		queue="long",

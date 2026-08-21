@@ -62,6 +62,35 @@ class TestRetroRenameEndpoints(FrappeTestCase):
 		self.assertEqual(kwargs["queue"], "long")
 		self.assertEqual(kwargs["dry_run"], 1)
 
+	def test_start_gecici_kilit_kurar(self):
+		"""TOCTOU: enqueue mock'landığında bile kilit worker'a bağımlı olmadan Redis'te kalıcı olur.
+
+		`frappe.local.cache` gerçek bir istekte `frappe.init()` başında sıfırlanır
+		(`frappe/__init__.py:254`). `start_retro_rename`'in kendi ön kontrolü
+		(`get_value(ACTIVE_KEY)`) burada anahtarı süreç-içi önbelleğe `None` olarak
+		yazmış oluyor — `RedisWrapper.set_value` bu önbelleği yalnız
+		`expires_in_sec` YOKKEN tazeler (`redis_wrapper.py`), o yüzden aynı test
+		sürecinde okumadan önce elle temizleyip gerçek bir isteği simüle ediyoruz.
+		"""
+		with (
+			mock.patch.object(media_admin.frappe, "enqueue"),
+			mock.patch.object(retro_rename, "legacy_urls", return_value=["/files/a.jpg"]),
+		):
+			out = media_admin.start_retro_rename()
+		frappe.local.cache.clear()
+		self.assertEqual(frappe.cache.get_value(retro_rename.ACTIVE_KEY), out["job_key"])
+
+	def test_start_batch_size_kirpilir(self):
+		with (
+			mock.patch.object(media_admin.frappe, "enqueue") as enq,
+			mock.patch.object(retro_rename, "legacy_urls", return_value=["/files/a.jpg"]),
+		):
+			media_admin.start_retro_rename(batch_size=-5)
+			self.assertEqual(enq.call_args.kwargs["batch_size"], 1)
+			frappe.cache.delete_value(retro_rename.ACTIVE_KEY)
+			media_admin.start_retro_rename(batch_size=99999)
+			self.assertEqual(enq.call_args.kwargs["batch_size"], 2000)
+
 	def test_aktif_is_varken_ikinci_baslatilamaz(self):
 		frappe.cache.set_value(retro_rename.ACTIVE_KEY, "X", expires_in_sec=60)
 		with self.assertRaises(frappe.ValidationError):
@@ -75,6 +104,13 @@ class TestRetroRenameEndpoints(FrappeTestCase):
 			out = media_admin.rollback_retro_rename("JOB-X")
 		self.assertTrue(out["job_key"])
 		self.assertEqual(enq.call_args.kwargs["job_key"], "JOB-X")
+
+	def test_rollback_gecici_kilit_kurar(self):
+		"""TOCTOU: bkz. `test_start_gecici_kilit_kurar` — aynı süreç-içi önbellek nüansı."""
+		with mock.patch.object(media_admin.frappe, "enqueue"):
+			out = media_admin.rollback_retro_rename("JOB-X")
+		frappe.local.cache.clear()
+		self.assertEqual(frappe.cache.get_value(retro_rename.ACTIVE_KEY), out["job_key"])
 
 	def test_yetkisiz_reddedilir(self):
 		frappe.set_user("Guest")
