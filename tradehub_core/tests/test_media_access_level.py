@@ -348,11 +348,12 @@ class ReverseReferencePiiTests(MediaAccessLevelTestBase):
 
 
 class RefsSkippedTests(MediaAccessLevelTestBase):
-	def test_gomulu_referans_atlanir_ve_donuste_gorunur(self):
-		"""Important fix: `retarget`'ın atladığı (JSON gömülü) referanslar API
-		cevabından kaybolmamalı — operatör kırık referans riskinden haberdar
-		olmalı. `Storefront Layout.sections` JSON içine gömülü URL tam eşleşme
-		OLMADIĞI için güncellenmez, atlanmış olarak raporlanmalı."""
+	def test_gomulu_json_referans_da_tasinir(self):
+		"""`refs.retarget` artık iyi biçimli gömülü JSON referanslarını da
+		yapısal olarak günceller (MOGEM-582 Task 3) — bu senaryo eskiden
+		"atlanan (gömülü metin)" olarak raporlanıyordu, artık gerçekten
+		taşınıyor: `Storefront Layout.sections` içindeki `cover_image` yeni
+		URL'i göstermeli ve `refs_updated`'a sayılmalı, `refs_skipped`'e değil."""
 		file_doc = self._make_public_file("refs-skipped")
 		seller = self._make_seller("refs-skipped")
 
@@ -374,6 +375,37 @@ class RefsSkippedTests(MediaAccessLevelTestBase):
 		layout.insert(ignore_permissions=True)
 		frappe.db.commit()
 		self.addCleanup(lambda: self._delete_and_commit("Storefront Layout", layout.name))
+
+		result = access_level.set_level(file_doc.file_url, make_private=True)
+
+		self.assertEqual(result["refs_skipped"], 0)
+		self.assertGreaterEqual(result["refs_updated"], 1)
+		updated_sections = json.loads(frappe.db.get_value("Storefront Layout", layout.name, "sections"))
+		self.assertEqual(updated_sections[0]["settings"]["cover_image"], result["file_url"])
+
+	def test_bozuk_gomulu_json_atlanir_ve_donuste_gorunur(self):
+		"""Parse edilemeyen gömülü JSON hâlâ atlanır ve API cevabında
+		kaybolmaz — operatör kırık referans riskinden haberdar olmalı."""
+		file_doc = self._make_public_file("refs-skipped-bozuk")
+		seller = self._make_seller("refs-skipped-bozuk")
+
+		layout = frappe.get_doc({"doctype": "Storefront Layout", "seller_profile": seller})
+		layout.insert(ignore_permissions=True)
+		frappe.db.commit()
+		self.addCleanup(lambda: self._delete_and_commit("Storefront Layout", layout.name))
+
+		# `sections` MariaDB'de `longtext ... CHECK (json_valid(...))` — bozuk
+		# JSON'u yazabilmek için CHECK constraint'i bu oturumda geçici kapatılır.
+		frappe.db.sql("SET SESSION check_constraint_checks=OFF")
+		frappe.db.set_value(
+			"Storefront Layout",
+			layout.name,
+			"sections",
+			'{"settings": {"cover_image": "' + file_doc.file_url + '"',
+			update_modified=False,
+		)
+		frappe.db.sql("SET SESSION check_constraint_checks=ON")
+		frappe.db.commit()
 
 		result = access_level.set_level(file_doc.file_url, make_private=True)
 
