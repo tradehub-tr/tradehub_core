@@ -330,6 +330,9 @@ export interface ShipmentDetail extends ShipmentListItem {
   cost_paid_by?: string;
   carrier_cost?: number;
   customer_charge?: number;
+  carrier_account?: string;
+  applied_pricing_rule?: string;
+  price_quote_snapshot?: Record<string, unknown> | null;
   currency?: string;
   exception_code?: string;
   delivery_code_required?: number;
@@ -410,14 +413,30 @@ export interface ReturnRequestDetail extends ReturnRequestListItem {
 /** Fiyat Teklifi — kaynak: TUR-121 */
 export interface PriceQuoteListItem {
   quote_id: string;
+  carrier_account?: string;
   carrier: string;
   carrier_service?: string;
-  carrier_cost: number;
-  customer_charge: number;
-  currency: string;
+  account_owner?: string;
+  zone?: string;
   chargeable_weight?: number;
+  carrier_cost?: number;
+  customer_charge: number;
+  margin?: number;
+  surcharge_total?: number;
+  tax_rate?: number;
+  tax_amount?: number;
+  total_with_tax: number;
+  currency: string;
   applied_rule?: string;
+  applied_rule_name?: string;
+  applied_layer?: string;
+  applied_tier_label?: string;
   rule_priority?: number;
+  evaluations?: Record<string, unknown> | null;
+  available?: number;
+  unavailable_reason?: string;
+  estimated_days_min?: number;
+  estimated_days_max?: number;
   valid_until?: string;
   is_snapshot?: number;
   surcharges?: Record<string, unknown> | null;
@@ -544,28 +563,80 @@ export type OperationAlertDetail = OperationAlertListItem;
 export interface PricingRuleListItem {
   name: string;
   rule_name: string;
+  seller_profile?: string;
+  owner_label?: string;
+  layer: string;
+  is_mandatory?: number;
+  carrier_account?: string;
   carrier?: string;
   carrier_service?: string;
   shipping_method?: string;
-  priority: number;
-  is_active?: number;
-  min_desi?: number;
-  max_desi?: number;
-  min_weight_kg?: number;
-  max_weight_kg?: number;
+  zone?: string;
+  zone_label?: string;
   origin_city?: string;
   destination_city?: string;
-  zone?: string;
+  min_weight_kg?: number;
+  max_weight_kg?: number;
   min_order_total?: number;
-  base_cost?: number;
-  base_charge?: number;
-  per_desi_charge?: number;
+  priority: number;
+  is_active?: number;
+  tier_count?: number;
+  min_base_cost?: number;
+  max_base_cost?: number;
+  min_base_charge?: number;
+  max_base_charge?: number;
+  has_negative_margin?: number;
+  surcharge_count?: number;
+  priority_conflict_with?: Record<string, unknown> | null;
+  shadowed_by?: string;
   currency?: string;
+  tax_rate?: number;
   valid_from?: string;
   valid_until?: string;
 }
 
-export type PricingRuleDetail = PricingRuleListItem;
+export interface PricingRuleTiersRow {
+  min_desi: number;
+  max_desi?: number;
+  base_cost?: number;
+  base_charge?: number;
+  per_desi_charge?: number;
+  min_charge?: number;
+}
+
+export interface PricingRuleSurchargesRow {
+  surcharge_type: string;
+  calc_method: string;
+  value: number;
+  applies_to: string;
+}
+
+export interface PricingRuleDetail extends PricingRuleListItem {
+  tiers: unknown;
+  surcharges?: unknown;
+  description?: string;
+  modified?: string;
+  modified_by?: string;
+  tiers: PricingRuleTiersRow[];
+  surcharges: PricingRuleSurchargesRow[];
+}
+
+/** Kargo Bölgesi — kaynak: TUR-121 */
+export interface ShippingZoneListItem {
+  name: string;
+  zone_code: string;
+  zone_name: string;
+  is_active?: number;
+  city_count?: number;
+}
+
+export interface ShippingZoneCitiesRow {
+  city: string;
+}
+
+export interface ShippingZoneDetail extends ShippingZoneListItem {
+  cities: ShippingZoneCitiesRow[];
+}
 
 /** Performans Raporu — kaynak: TUR-118 */
 export interface PerformanceReportListItem {

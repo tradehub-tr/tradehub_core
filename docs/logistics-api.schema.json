@@ -1336,6 +1336,27 @@
 					"note": "Müşteriye YANSITILAN ücret"
 				},
 				{
+					"name": "carrier_account",
+					"type": "Link",
+					"ts": "string",
+					"required": false,
+					"note": "Hangi HESAPLA gönderildi — satıcının kendi anlaşması mı, platformunki mi (20-FE K4)"
+				},
+				{
+					"name": "applied_pricing_rule",
+					"type": "Link",
+					"ts": "string",
+					"required": false,
+					"note": "Ücreti hangi kural üretti — şikayet araştırmasının tek dayanağı"
+				},
+				{
+					"name": "price_quote_snapshot",
+					"type": "JSON",
+					"ts": "Record<string, unknown> | null",
+					"required": false,
+					"note": "Sipariş anındaki teklif DONDURULUR; kural sonradan değişse bile bu sevkiyatın ücreti değişmez"
+				},
+				{
 					"name": "currency",
 					"type": "Link",
 					"ts": "string",
@@ -2117,6 +2138,13 @@
 					"required": true
 				},
 				{
+					"name": "carrier_account",
+					"type": "Link",
+					"ts": "string",
+					"required": false,
+					"note": "Hangi HESABIN tarifesi — platform ve satıcı aynı taşıyıcıyla farklı fiyat alır"
+				},
+				{
 					"name": "carrier",
 					"type": "Link",
 					"ts": "string",
@@ -2129,24 +2157,18 @@
 					"required": false
 				},
 				{
-					"name": "carrier_cost",
-					"type": "Currency",
-					"ts": "number",
-					"required": true,
-					"note": "Taşıyıcı ALIŞ maliyeti"
+					"name": "account_owner",
+					"type": "Data",
+					"ts": "string",
+					"required": false,
+					"note": "Boş = platform hesabı, dolu = satıcı adı (arayüz rozeti)"
 				},
 				{
-					"name": "customer_charge",
-					"type": "Currency",
-					"ts": "number",
-					"required": true,
-					"note": "Müşteriye YANSITILAN ücret — ayrı raporlanır"
-				},
-				{
-					"name": "currency",
+					"name": "zone",
 					"type": "Link",
 					"ts": "string",
-					"required": true
+					"required": false,
+					"note": "Varış bölgesi — Shipping Zone"
 				},
 				{
 					"name": "chargeable_weight",
@@ -2155,11 +2177,85 @@
 					"required": false
 				},
 				{
+					"name": "carrier_cost",
+					"type": "Currency",
+					"ts": "number",
+					"required": false,
+					"note": "Taşıyıcı ALIŞ maliyeti — yetkisi olmayana HİÇ GÖNDERİLMEZ"
+				},
+				{
+					"name": "customer_charge",
+					"type": "Currency",
+					"ts": "number",
+					"required": true,
+					"note": "Müşteriye YANSITILAN ücret, KDV hariç"
+				},
+				{
+					"name": "margin",
+					"type": "Currency",
+					"ts": "number",
+					"required": false,
+					"note": "Sunucu hesaplar — arayüz yuvarlama farkı üretmesin; maliyetle birlikte maskelenir"
+				},
+				{
+					"name": "surcharge_total",
+					"type": "Currency",
+					"ts": "number",
+					"required": false,
+					"note": "Ek ücretlerin toplamı — dökümü `surcharges`'ta"
+				},
+				{
+					"name": "tax_rate",
+					"type": "Percent",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "tax_amount",
+					"type": "Currency",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "total_with_tax",
+					"type": "Currency",
+					"ts": "number",
+					"required": true,
+					"note": "Alıcının ödediği — checkout bu alanı gösterir"
+				},
+				{
+					"name": "currency",
+					"type": "Link",
+					"ts": "string",
+					"required": true
+				},
+				{
 					"name": "applied_rule",
 					"type": "Data",
 					"ts": "string",
 					"required": false,
-					"note": "Hangi kural uygulandı — AÇIKLANABİLİR olmalı"
+					"note": "Kazanan kuralın adı (`name`)"
+				},
+				{
+					"name": "applied_rule_name",
+					"type": "Data",
+					"ts": "string",
+					"required": false,
+					"note": "Kazanan kuralın okunabilir başlığı"
+				},
+				{
+					"name": "applied_layer",
+					"type": "Select",
+					"ts": "string",
+					"required": false,
+					"note": "platform_mandatory | seller | platform — hangi katman kazandı"
+				},
+				{
+					"name": "applied_tier_label",
+					"type": "Data",
+					"ts": "string",
+					"required": false,
+					"note": "Uygulanan desi kademesi, ör. \"30–50 desi\""
 				},
 				{
 					"name": "rule_priority",
@@ -2167,6 +2263,39 @@
 					"ts": "number",
 					"required": false,
 					"note": "Çakışma çözümü deterministik"
+				},
+				{
+					"name": "evaluations",
+					"type": "JSON",
+					"ts": "Record<string, unknown> | null",
+					"required": false,
+					"note": "Değerlendirme İZİ — denenen her kural ve elenme SEBEBİ (§3)"
+				},
+				{
+					"name": "available",
+					"type": "Check",
+					"ts": "number",
+					"required": false,
+					"note": "0 = bu hesapla fiyat üretilemedi; sebebi `unavailable_reason`"
+				},
+				{
+					"name": "unavailable_reason",
+					"type": "Data",
+					"ts": "string",
+					"required": false,
+					"note": "Ör. NO_RULE_MATCHED"
+				},
+				{
+					"name": "estimated_days_min",
+					"type": "Int",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "estimated_days_max",
+					"type": "Int",
+					"ts": "number",
+					"required": false
 				},
 				{
 					"name": "valid_until",
@@ -2187,7 +2316,7 @@
 					"type": "JSON",
 					"ts": "Record<string, unknown> | null",
 					"required": false,
-					"note": "Yakıt farkı, kat teslimatı, sigorta vb."
+					"note": "Yakıt farkı, ücra bölge, sigorta vb. — kalem kalem"
 				}
 			],
 			"detail_fields": [],
@@ -2765,6 +2894,41 @@
 					"required": true
 				},
 				{
+					"name": "seller_profile",
+					"type": "Link",
+					"ts": "string",
+					"required": false,
+					"note": "BOŞ = platform kuralı, DOLU = o satıcının kendi kuralı"
+				},
+				{
+					"name": "owner_label",
+					"type": "Data",
+					"ts": "string",
+					"required": false,
+					"note": "Arayüz rozeti: \"Platform\" ya da satıcı adı"
+				},
+				{
+					"name": "layer",
+					"type": "Select",
+					"ts": "string",
+					"required": true,
+					"note": "platform_mandatory | seller | platform — sunucu türetir, arayüz gruplar"
+				},
+				{
+					"name": "is_mandatory",
+					"type": "Check",
+					"ts": "number",
+					"required": false,
+					"note": "YALNIZ platform kuralında yazılabilir; satıcı kurallarını da ezer"
+				},
+				{
+					"name": "carrier_account",
+					"type": "Link",
+					"ts": "string",
+					"required": false,
+					"note": "Hangi HESABIN tarifesi. Satıcının MNG'si ile platformun MNG'si ayrı fiyat"
+				},
+				{
 					"name": "carrier",
 					"type": "Link",
 					"ts": "string",
@@ -2784,28 +2948,29 @@
 					"required": false
 				},
 				{
-					"name": "priority",
-					"type": "Int",
-					"ts": "number",
-					"required": true,
-					"note": "Küçük sayı önce değerlendirilir — çakışma çözümü"
+					"name": "zone",
+					"type": "Link",
+					"ts": "string",
+					"required": false,
+					"note": "Shipping Zone — serbest metin DEĞİL (K3)"
 				},
 				{
-					"name": "is_active",
-					"type": "Check",
-					"ts": "number",
+					"name": "zone_label",
+					"type": "Data",
+					"ts": "string",
+					"required": false,
+					"note": "Bölgenin okunabilir adı — arayüz ikinci istek atmasın"
+				},
+				{
+					"name": "origin_city",
+					"type": "Data",
+					"ts": "string",
 					"required": false
 				},
 				{
-					"name": "min_desi",
-					"type": "Float",
-					"ts": "number",
-					"required": false
-				},
-				{
-					"name": "max_desi",
-					"type": "Float",
-					"ts": "number",
+					"name": "destination_city",
+					"type": "Data",
+					"ts": "string",
 					"required": false
 				},
 				{
@@ -2821,25 +2986,6 @@
 					"required": false
 				},
 				{
-					"name": "origin_city",
-					"type": "Data",
-					"ts": "string",
-					"required": false
-				},
-				{
-					"name": "destination_city",
-					"type": "Data",
-					"ts": "string",
-					"required": false
-				},
-				{
-					"name": "zone",
-					"type": "Data",
-					"ts": "string",
-					"required": false,
-					"note": "Bölge kodu — bölge bazlı fiyatlandırma"
-				},
-				{
 					"name": "min_order_total",
 					"type": "Currency",
 					"ts": "number",
@@ -2847,31 +2993,92 @@
 					"note": "Ücretsiz kargo eşiği bu alanla kurulur"
 				},
 				{
-					"name": "base_cost",
-					"type": "Currency",
+					"name": "priority",
+					"type": "Int",
 					"ts": "number",
-					"required": false,
-					"note": "Taşıyıcı ALIŞ maliyeti tabanı"
+					"required": true,
+					"note": "Katman İÇİNDE sıra; küçük sayı önce değerlendirilir"
 				},
 				{
-					"name": "base_charge",
-					"type": "Currency",
+					"name": "is_active",
+					"type": "Check",
 					"ts": "number",
-					"required": false,
-					"note": "Müşteriye YANSITILAN taban ücret"
+					"required": false
 				},
 				{
-					"name": "per_desi_charge",
+					"name": "tier_count",
+					"type": "Int",
+					"ts": "number",
+					"required": false,
+					"note": "Kaç desi kademesi var"
+				},
+				{
+					"name": "min_base_cost",
 					"type": "Currency",
 					"ts": "number",
 					"required": false,
-					"note": "Desi başına ek ücret"
+					"note": "Kademelerin en düşük alışı — yetkisi olmayana GÖNDERİLMEZ"
+				},
+				{
+					"name": "max_base_cost",
+					"type": "Currency",
+					"ts": "number",
+					"required": false,
+					"note": "En yüksek alış — aynı maskeleme"
+				},
+				{
+					"name": "min_base_charge",
+					"type": "Currency",
+					"ts": "number",
+					"required": false,
+					"note": "Kademelerin en düşük satışı"
+				},
+				{
+					"name": "max_base_charge",
+					"type": "Currency",
+					"ts": "number",
+					"required": false,
+					"note": "En yüksek satış"
+				},
+				{
+					"name": "has_negative_margin",
+					"type": "Check",
+					"ts": "number",
+					"required": false,
+					"note": "Bir kademede satış < alış — K1'deki \"zararda\" rozeti; maliyetle birlikte maskelenir"
+				},
+				{
+					"name": "surcharge_count",
+					"type": "Int",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "priority_conflict_with",
+					"type": "JSON",
+					"ts": "Record<string, unknown> | null",
+					"required": false,
+					"note": "Aynı katmanda aynı önceliği paylaşan AKTİF kuralların adları"
+				},
+				{
+					"name": "shadowed_by",
+					"type": "Data",
+					"ts": "string",
+					"required": false,
+					"note": "Bu kuralı hiç çalıştırmayan, daha öncelikli ölçütsüz kuralın adı"
 				},
 				{
 					"name": "currency",
 					"type": "Link",
 					"ts": "string",
 					"required": false
+				},
+				{
+					"name": "tax_rate",
+					"type": "Percent",
+					"ts": "number",
+					"required": false,
+					"note": "Fiyatlar KDV HARİÇ tutulur (20-FE Ö2)"
 				},
 				{
 					"name": "valid_from",
@@ -2886,8 +3093,172 @@
 					"required": false
 				}
 			],
+			"detail_fields": [
+				{
+					"name": "tiers",
+					"type": "Table",
+					"ts": "unknown",
+					"required": true,
+					"note": "Desi kademeleri — en az bir satır"
+				},
+				{
+					"name": "surcharges",
+					"type": "Table",
+					"ts": "unknown",
+					"required": false,
+					"note": "Ek ücretler"
+				},
+				{
+					"name": "description",
+					"type": "Small Text",
+					"ts": "string",
+					"required": false,
+					"note": "Kuralın neden var olduğu — altı ay sonra okuyan için"
+				},
+				{
+					"name": "modified",
+					"type": "Datetime",
+					"ts": "string",
+					"required": false
+				},
+				{
+					"name": "modified_by",
+					"type": "Data",
+					"ts": "string",
+					"required": false,
+					"note": "Fiyat paradır: kim değiştirdi izlenir (20-FE Ö3)"
+				}
+			],
+			"child_tables": {
+				"tiers": [
+					{
+						"name": "min_desi",
+						"type": "Float",
+						"ts": "number",
+						"required": true,
+						"note": "Dahil"
+					},
+					{
+						"name": "max_desi",
+						"type": "Float",
+						"ts": "number",
+						"required": false,
+						"note": "HARİÇ — boş ise üst sınır yok"
+					},
+					{
+						"name": "base_cost",
+						"type": "Currency",
+						"ts": "number",
+						"required": false,
+						"note": "Taşıyıcı ALIŞ maliyeti tabanı"
+					},
+					{
+						"name": "base_charge",
+						"type": "Currency",
+						"ts": "number",
+						"required": false,
+						"note": "Müşteriye YANSITILAN taban ücret"
+					},
+					{
+						"name": "per_desi_charge",
+						"type": "Currency",
+						"ts": "number",
+						"required": false,
+						"note": "Kademe alt sınırını AŞAN her desi için ek"
+					},
+					{
+						"name": "min_charge",
+						"type": "Currency",
+						"ts": "number",
+						"required": false,
+						"note": "Asgari ücret — hesap bunun altına düşemez"
+					}
+				],
+				"surcharges": [
+					{
+						"name": "surcharge_type",
+						"type": "Data",
+						"ts": "string",
+						"required": true,
+						"note": "Yakıt farkı, sigorta, ücra bölge, kapıda ödeme…"
+					},
+					{
+						"name": "calc_method",
+						"type": "Select",
+						"ts": "string",
+						"required": true,
+						"note": "fixed | percent"
+					},
+					{
+						"name": "value",
+						"type": "Float",
+						"ts": "number",
+						"required": true,
+						"note": "fixed ise tutar, percent ise oran"
+					},
+					{
+						"name": "applies_to",
+						"type": "Select",
+						"ts": "string",
+						"required": true,
+						"note": "cost | charge | both"
+					}
+				]
+			}
+		},
+		"shipping_zone": {
+			"provisional": true,
+			"label": "Kargo Bölgesi",
+			"source_tasks": [
+				"TUR-121"
+			],
+			"list_fields": [
+				{
+					"name": "name",
+					"type": "Data",
+					"ts": "string",
+					"required": true,
+					"note": "Bölge kodu, ör. TR-DOGU"
+				},
+				{
+					"name": "zone_code",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "zone_name",
+					"type": "Data",
+					"ts": "string",
+					"required": true,
+					"note": "Okunabilir ad, ör. \"Doğu Anadolu\""
+				},
+				{
+					"name": "is_active",
+					"type": "Check",
+					"ts": "number",
+					"required": false
+				},
+				{
+					"name": "city_count",
+					"type": "Int",
+					"ts": "number",
+					"required": false,
+					"note": "Kaç il içeriyor — liste ekranı için türetilmiş"
+				}
+			],
 			"detail_fields": [],
-			"child_tables": {}
+			"child_tables": {
+				"cities": [
+					{
+						"name": "city",
+						"type": "Data",
+						"ts": "string",
+						"required": true,
+						"note": "İl adı — Türkiye il listesiyle birebir"
+					}
+				]
+			}
 		},
 		"performance_report": {
 			"provisional": true,

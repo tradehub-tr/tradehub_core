@@ -50,9 +50,41 @@
 					"has_api_secret": 0,
 					"has_webhook_secret": 0,
 					"has_access_token": 0
+				},
+				{
+					"name": "CACC-MNG-SEL00001",
+					"account_name": "MNG Kargo — Demir Tekstil",
+					"carrier": "MNG",
+					"seller_profile": "SEL-00001",
+					"environment": "production",
+					"is_active": 1,
+					"is_default": 0,
+					"base_url": "https://api.mngkargo.com.tr/v1",
+					"token_expiry": null,
+					"is_platform_account": false,
+					"has_api_key": 1,
+					"has_api_secret": 1,
+					"has_webhook_secret": 0,
+					"has_access_token": 0
+				},
+				{
+					"name": "CACC-PTT-PLATFORM",
+					"account_name": "PTT Kargo — Platform",
+					"carrier": "PTT",
+					"seller_profile": null,
+					"environment": "production",
+					"is_active": 1,
+					"is_default": 0,
+					"base_url": "https://api.ptt.gov.tr/kargo/v1",
+					"token_expiry": null,
+					"is_platform_account": true,
+					"has_api_key": 1,
+					"has_api_secret": 0,
+					"has_webhook_secret": 0,
+					"has_access_token": 0
 				}
 			],
-			"total": 3,
+			"total": 5,
 			"page": 1,
 			"page_size": 50
 		}

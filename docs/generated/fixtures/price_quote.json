@@ -4,58 +4,211 @@
 		"data": {
 			"items": [
 				{
-					"quote_id": "Q-2026-0912-A",
-					"carrier": "YK",
-					"carrier_service": "YK-STD",
-					"carrier_cost": 268.4,
-					"customer_charge": 349.9,
-					"currency": "TRY",
-					"chargeable_weight": 42.0,
-					"applied_rule": "Standart Kargo · 30-50 desi",
-					"rule_priority": 10,
-					"valid_until": "2026-08-13 09:00:00",
-					"is_snapshot": 0,
-					"surcharges": {
-						"yakit_farki": 18.4,
-						"sigorta": 0
-					}
-				},
-				{
-					"quote_id": "Q-2026-0912-B",
+					"quote_id": "Q-2026-0821-ARAS",
+					"carrier_account": "CACC-AK-SEL00001",
 					"carrier": "AK",
 					"carrier_service": "AK-STD",
-					"carrier_cost": 245.0,
-					"customer_charge": 349.9,
-					"currency": "TRY",
+					"account_owner": "Demir Tekstil",
+					"zone": "TR-DOGU",
 					"chargeable_weight": 42.0,
-					"applied_rule": "Standart Kargo · 30-50 desi",
+					"carrier_cost": 262.15,
+					"customer_charge": 360.38,
+					"margin": 98.23,
+					"surcharge_total": 23.58,
+					"tax_rate": 20.0,
+					"tax_amount": 72.08,
+					"total_with_tax": 432.46,
+					"currency": "TRY",
+					"applied_rule": "PR-ALI-ARAS-DOGU",
+					"applied_rule_name": "Doğu Anadolu · Aras anlaşmam",
+					"applied_layer": "seller",
+					"applied_tier_label": "30–50 desi",
 					"rule_priority": 10,
-					"valid_until": "2026-08-13 09:00:00",
+					"available": 1,
+					"unavailable_reason": null,
+					"estimated_days_min": 3,
+					"estimated_days_max": 4,
+					"valid_until": "2026-08-22 09:00:00",
 					"is_snapshot": 0,
-					"surcharges": {
-						"yakit_farki": 15.0,
-						"sigorta": 0
-					}
+					"surcharges": [
+						{
+							"surcharge_type": "Yakıt farkı",
+							"amount": 23.58,
+							"basis": "percent",
+							"value": 7.0
+						}
+					],
+					"evaluations": [
+						{
+							"rule": "PR-FREE-5000",
+							"rule_name": "Ücretsiz kargo · 5.000 ₺ üzeri sipariş",
+							"layer": "platform_mandatory",
+							"owner": null,
+							"matched": 0,
+							"reason_code": "ORDER_TOTAL_BELOW_MIN",
+							"reason": "Sipariş tutarı 4.200,00 ₺ — eşik 5.000,00 ₺"
+						},
+						{
+							"rule": "PR-ALI-SELF-IST",
+							"rule_name": "İstanbul içi · kendi aracım",
+							"layer": "seller",
+							"owner": "SEL-00001",
+							"matched": 0,
+							"reason_code": "ZONE_MISMATCH",
+							"reason": "Varış bölgesi Doğu Anadolu, kural Marmara için yazılmış"
+						},
+						{
+							"rule": "PR-ALI-ARAS-DOGU",
+							"rule_name": "Doğu Anadolu · Aras anlaşmam",
+							"layer": "seller",
+							"owner": "SEL-00001",
+							"matched": 1,
+							"reason_code": null,
+							"reason": "30–50 desi kademesi · Doğu Anadolu · Aras Kargo — UYGULANDI"
+						},
+						{
+							"rule": "PR-ALI-MNG-STD",
+							"rule_name": "Standart · MNG anlaşmam",
+							"layer": "seller",
+							"owner": "SEL-00001",
+							"matched": 0,
+							"reason_code": "HIGHER_PRIORITY_WON",
+							"reason": "Aynı katmanda #10 öncelikli kural önce eşleşti (bu kural #20)"
+						},
+						{
+							"rule": "PR-STD-YK",
+							"rule_name": "Standart Kargo · İç Anadolu",
+							"layer": "platform",
+							"owner": null,
+							"matched": 0,
+							"reason_code": "SELLER_LAYER_MATCHED",
+							"reason": "Satıcı katmanında eşleşme bulundu — platform katmanına inilmedi"
+						},
+						{
+							"rule": "PR-EAST-YK",
+							"rule_name": "Doğu bölgesi ek ücreti",
+							"layer": "platform",
+							"owner": null,
+							"matched": 0,
+							"reason_code": "SELLER_LAYER_MATCHED",
+							"reason": "Satıcı katmanında eşleşme bulundu — platform katmanına inilmedi"
+						},
+						{
+							"rule": "PR-HEAVY",
+							"rule_name": "Ağır yük · 100 kg üzeri",
+							"layer": "platform",
+							"owner": null,
+							"matched": 0,
+							"reason_code": "RULE_INACTIVE",
+							"reason": "Kural pasif"
+						}
+					]
 				},
 				{
-					"quote_id": "Q-2026-0912-C",
-					"carrier": "YK",
-					"carrier_service": "YK-EXP",
-					"carrier_cost": 410.0,
-					"customer_charge": 0.0,
-					"currency": "TRY",
+					"quote_id": "Q-2026-0821-MNG",
+					"carrier_account": "CACC-MNG-SEL00001",
+					"carrier": "MNG",
+					"carrier_service": null,
+					"account_owner": "Demir Tekstil",
+					"zone": "TR-DOGU",
 					"chargeable_weight": 42.0,
-					"applied_rule": "Ücretsiz kargo · 5000 TL üzeri sipariş",
-					"rule_priority": 1,
-					"valid_until": "2026-08-13 09:00:00",
-					"is_snapshot": 1,
-					"surcharges": {
-						"yakit_farki": 24.0,
-						"sigorta": 12.5
-					}
+					"carrier_cost": 291.0,
+					"customer_charge": 399.2,
+					"margin": 108.2,
+					"surcharge_total": 0.0,
+					"tax_rate": 20.0,
+					"tax_amount": 79.84,
+					"total_with_tax": 479.04,
+					"currency": "TRY",
+					"applied_rule": "PR-ALI-MNG-STD",
+					"applied_rule_name": "Standart · MNG anlaşmam",
+					"applied_layer": "seller",
+					"applied_tier_label": "30–50 desi",
+					"rule_priority": 20,
+					"available": 1,
+					"unavailable_reason": null,
+					"estimated_days_min": 2,
+					"estimated_days_max": 2,
+					"valid_until": "2026-08-22 09:00:00",
+					"is_snapshot": 0,
+					"surcharges": [],
+					"evaluations": []
+				},
+				{
+					"quote_id": "Q-2026-0821-YK",
+					"carrier_account": "CACC-YK-PLATFORM",
+					"carrier": "YK",
+					"carrier_service": "YK-STD",
+					"account_owner": null,
+					"zone": "TR-DOGU",
+					"chargeable_weight": 42.0,
+					"carrier_cost": 312.7,
+					"customer_charge": 445.41,
+					"margin": 132.71,
+					"surcharge_total": 60.21,
+					"tax_rate": 20.0,
+					"tax_amount": 89.08,
+					"total_with_tax": 534.49,
+					"currency": "TRY",
+					"applied_rule": "PR-EAST-YK",
+					"applied_rule_name": "Doğu bölgesi ek ücreti",
+					"applied_layer": "platform",
+					"applied_tier_label": "30–50 desi",
+					"rule_priority": 20,
+					"available": 1,
+					"unavailable_reason": null,
+					"estimated_days_min": 2,
+					"estimated_days_max": 3,
+					"valid_until": "2026-08-22 09:00:00",
+					"is_snapshot": 0,
+					"surcharges": [
+						{
+							"surcharge_type": "Ücra bölge",
+							"amount": 35.0,
+							"basis": "fixed",
+							"value": 35.0
+						},
+						{
+							"surcharge_type": "Yakıt farkı",
+							"amount": 25.21,
+							"basis": "percent",
+							"value": 6.0
+						}
+					],
+					"evaluations": []
+				},
+				{
+					"quote_id": "Q-2026-0821-PTT",
+					"carrier_account": "CACC-PTT-PLATFORM",
+					"carrier": "PTT",
+					"carrier_service": null,
+					"account_owner": null,
+					"zone": "TR-DOGU",
+					"chargeable_weight": 42.0,
+					"carrier_cost": null,
+					"customer_charge": 0.0,
+					"margin": null,
+					"surcharge_total": 0.0,
+					"tax_rate": 20.0,
+					"tax_amount": 0.0,
+					"total_with_tax": 0.0,
+					"currency": "TRY",
+					"applied_rule": null,
+					"applied_rule_name": null,
+					"applied_layer": null,
+					"applied_tier_label": null,
+					"rule_priority": null,
+					"available": 0,
+					"unavailable_reason": "NO_RULE_MATCHED",
+					"estimated_days_min": null,
+					"estimated_days_max": null,
+					"valid_until": null,
+					"is_snapshot": 0,
+					"surcharges": [],
+					"evaluations": []
 				}
 			],
-			"total": 3,
+			"total": 4,
 			"page": 1,
 			"page_size": 50
 		}
