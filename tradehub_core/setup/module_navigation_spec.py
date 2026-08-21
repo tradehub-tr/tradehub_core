@@ -788,7 +788,6 @@ SELLER_MODULES: list[dict] = [
 		"route": "/lojistik/paketleme",
 		"order": 0,
 	},
-
 	# ─── 14-FE · Teslimat (Ali) ───
 	# G0 matrisi H0/D1/D2'yi satıcıya işaretledi (sellerVisible) ve ekranlar
 	# 14-FE'de açıldı — kayıt bu yüzden şimdi ekleniyor. Satıcı kendi
@@ -840,7 +839,61 @@ SELLER_MODULES: list[dict] = [
 		"route": "/lojistik/alici-teslim-alma",
 		"order": 2,
 	},
-
+	# ─── 20-FE · Fiyatlandırma (Ali) ───
+	# K1/K2/K3 satıcıya işaretli (manifestte `sellerVisible: true`). Gerekçe
+	# 20-FE karar defteri K1/K2: satıcı KENDİ taşıyıcı anlaşmasını platform
+	# üzerinden kullanabiliyor — kendi kuralını yazması ve kendi yükünü
+	# hesaplatması bu yüzden onun işi, platformun değil.
+	#
+	# Etiketler satıcı diliyle yazılıyor ("Kargo fiyatlarım"), admin
+	# menüsündeki "Tarifeler" ile aynı ekran ama aynı cümle değil: satıcı
+	# kendi listesine bakıyor, platform herkesinkine.
+	#
+	# Maskeleme burada DEĞİL: platformun alış maliyeti backend'de
+	# kırpılıyor (20-FE veri sözleşmesi §7.2). Menü kaydı yalnız kapıyı açar.
+	{
+		"key": "seller.logistics.pricing",
+		"parent": "seller.logistics",
+		"type": "group",
+		"panel": "seller",
+		"section": "logistics",
+		"label": "Fiyatlandırma",
+		"color": "#f59e0b",
+		"order": 3,
+	},
+	{
+		"key": "seller.logistics.pricing.rates",
+		"parent": "seller.logistics.pricing",
+		"type": "item",
+		"panel": "seller",
+		"section": "logistics",
+		"label": "Kargo Fiyatlarım",
+		"icon": "coins",
+		"route": "/lojistik/tarifeler",
+		"order": 0,
+	},
+	{
+		"key": "seller.logistics.pricing.rules",
+		"parent": "seller.logistics.pricing",
+		"type": "item",
+		"panel": "seller",
+		"section": "logistics",
+		"label": "Kargo Kurallarım",
+		"icon": "list-ordered",
+		"route": "/lojistik/fiyat-kurallari",
+		"order": 1,
+	},
+	{
+		"key": "seller.logistics.pricing.simulation",
+		"parent": "seller.logistics.pricing",
+		"type": "item",
+		"panel": "seller",
+		"section": "logistics",
+		"label": "Fiyat Hesapla",
+		"icon": "calculator",
+		"route": "/lojistik/fiyat-simulasyonu",
+		"order": 2,
+	},
 	{
 		"key": "seller.helpdesk.main",
 		"parent": "seller.helpdesk",
