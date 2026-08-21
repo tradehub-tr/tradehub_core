@@ -1,3 +1,19 @@
+## [v1.13.1-alpha.37] - 2026-08-21 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(media): tür uyuşmazlığı kararı slot politikasına taşındı (ADR-0016) (@Metin Bektemur)
+  - `slot-policy.schema.json` → `accept.type_mismatch: "reject" | "warn"`, varsayılan `reject`
+  - `content_gate.inspect(..., reject_type_mismatch=True)` — bayrak yalnız ZARARSIZ uyuşmazlığı gevşetir; markup/aktif içerik her zaman ret
+  - `upload_policy.check(..., slot="")` → `_type_mismatch_mode()`; politika okunamazsa "reject" (güvenlik kapısı belirsizlikte kapalıdır)
+  - `warn` modunda ret yok ama iz var: denetime `type_mismatch_warned`
+  - Slot vermeyen çağıranlar için davranış AYNEN eskisi gibi
+
+### Duzeltildi
+- fix(media): çekirdek ↔ motor kesişimleri — tarih, yasal tutma, AV kapısı, test yalıtımı (@Metin Bektemur)
+
+---
 ## [v1.13.1-alpha.36] - 2026-08-20 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
