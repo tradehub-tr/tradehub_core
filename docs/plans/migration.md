@@ -737,6 +737,10 @@ if sr.get("decode_failed", 0) > st["processed"] * 0.01:
 
 ### 8.1 ⚠️ Erteleme gerekçesi geçersiz: TUR-141 sertleştirmesi üretime ULAŞMADI
 
+> **Not (2026-08-21):** nginx sertleştirmesi kaynak şablonda
+> (`tradehubfront/nginx.conf.template:207,421`); retro-rename uygulandı — bkz.
+> spec (`docs/superpowers/specs/2026-08-21-medya-retro-rename-design.md`).
+
 `MEDYA-DEPOLAMA-STANDARDI.md:159-160` retro-rename'i erteliyor ve şunu yazıyor:
 
 > *"Bu arada nginx sertleştirmesi (TUR-141: `/files/`'a `X-Robots-Tag: noindex` +
@@ -823,6 +827,9 @@ Deleted Document **2.018**, Error Log **552** satır — 50 dosyalık bir tarama
 Yani ya "~2.400" yalnız canlı kaynakları sayıyor **ya da tahmin düşük**.
 
 #### 8.3.2 `refs.retarget` var — ama 7/23 alanı kapsıyor
+
+> **Not (2026-08-21):** `LIVE_SOURCES` artık 17 alan; `retarget` artık
+> JSON/gömülü destekli.
 
 Rename'in ihtiyacı olan primitif **kodda mevcut**: `refs.retarget(old_url, new_url)`
 (`media/refs.py:197-236`). Ama kapsamı:

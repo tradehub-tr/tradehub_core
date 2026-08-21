@@ -18,8 +18,8 @@ ve enumeration önleme (TUR-141) ile birlikte okunur.
 | **Dosya adı** | `<sha256(içerik)[:32]>.<uzantı>` — içerik-adresli, tahmin-edilemez |
 | **Shard** | Hash-prefix: `files/<ab>/<hash>.<ext>` (adın ilk 2 hex'i alt dizin) |
 | **Çakışma** | İçerik-adresli ad → aynı içerik = aynı yol → doğal dedup |
-| **Türev** | Orijinalin YANINDA, ekli suffix: `<hash>_thumb.webp`, `<hash>_720.webm` |
-| **Eski isimler** | Verbatim (`0505.jpg`) korunur; retro-rename ertelendi (§7) |
+| **Türev** | Ayrı kökte, asset+sürüm adresli: `/files/media/{asset}/{version_hash}/{profil}-{genişlik}.{ext}` (`pipeline_bridge._write_rendition_file`); video yerinde üzerine yazılır, suffix yok |
+| **Eski isimler** | Verbatim (`0505.jpg`) idi → retro-rename ile içerik-adresli ada taşınır, 301 köprüsü ile (§7) |
 
 ---
 
@@ -115,20 +115,23 @@ Fiziksel yol adın ilk 2 hex karakterine göre shard'lanır:
 
 ## 5. Türev dosyalar (WebP variant, thumbnail, video rendition)
 
-Türevler **orijinalin yanında, aynı shard dizininde, ekli suffix** ile durur:
+Türevler **ayrı kökte, asset + sürüm hash'i adresli** dururlar — orijinalin
+yanında değil:
 
 ```
-/files/ab/<hash>.jpg           ← orijinal (ya da optimize)
-/files/ab/<hash>_thumb.webp    ← küçük thumbnail
-/files/ab/<hash>_768.webp      ← responsive variant (srcset)
-/files/ab/<hash>_720.webm      ← video rendition
+/files/ab/<hash>.jpg                                    ← orijinal (içerik-adresli, shard)
+/files/media/<asset>/<version_hash>/thumb-320.webp     ← thumbnail
+/files/media/<asset>/<version_hash>/card-768.webp      ← profil × genişlik
+/files/media/<asset>/<version_hash>/hls/master.m3u8    ← video (HLS); tek dosya video yerinde üzerine yazılır
 ```
 
 Gerekçe:
-- **Birlikte taşınır/silinir** — orijinal silinince türevleri aynı dizinde bulmak
-  kolay (`<hash>_*` glob).
-- **İlişki isimden belli** — ayrı dizin + eşleme tablosu gerektirmez.
-- **Aynı shard** — türev, base hash'in ilk 2 hex'ini kullanır → orijinalle colocate.
+- **Türev adresi orijinalin yolundan bağımsız** (asset adı + sürüm hash'i) —
+  orijinal yeniden adlandırılsa (§7) türevler kırılmaz.
+- **Eski shard-yanı türevler** (`/files/xx/<hash>.webp`) hâlâ vardır ve
+  `Media Rendition.file_url` üzerinden okunmaya devam eder — geriye dönük
+  uyumluluk için taşınmadılar.
+- **Üretim:** `pipeline_bridge._write_rendition_file`, `dedup.rendition_path`.
 
 > Türevlerin **üretimi** ve yaşam döngüsü TUR-297 (versioning) / TUR-128
 > (WebP+srcset) işidir. Bu belge yalnız KONUMU tanımlar.
@@ -145,16 +148,33 @@ Gerekçe:
 
 ---
 
-## 7. Ertelenen: eski isimlerin migration'ı
+## 7. Retro-rename (uygulandı)
 
-2.166 tahmin-edilebilir eski isim (`0505.jpg`) şu an korunuyor. Retro-rename:
+Eski isimlerin migration'ı **uygulandı ve test edildi**. Spec:
+`docs/superpowers/specs/2026-08-21-medya-retro-rename-design.md`; plan:
+`docs/superpowers/plans/2026-08-21-medya-retro-rename.md`.
 
-- ~2.400 referans güncellemesi (`tabListing.primary_image` 1241, `tabListing
-  Image.image` 1137, + uzun kuyruk) + 301 redirect haritası gerektirir → **riskli,
-  ayrı iş**.
-- Yeni yüklemeler zaten güvenli (hash) olduğu için aciliyeti düşük.
-- **Gelecek görev:** enumeration açığını tamamen kapatmak istenirse ayrı bir
-  migration görevi açılır (report → referans taraması → rename → redirect → CDN purge).
+- **Araç:** `tradehub_core/media/retro_rename.py`
+  - `plan()` — salt-okunur rapor (referans taraması, gömülü/orphan sayımı).
+  - `run_job` — queue job: dosya başına `os.replace` → tüm `tabFile.file_url`
+    paylaşım satırları güncellenir → `refs.retarget` (artık gömülü JSON/HTML
+    referanslar dahil) → `Media URL Redirect` satırı yazılır (`source_url,
+    target_url, job_key, expires_at, file_rows, file_names`) → commit. Hata
+    halinde rollback + dosya geri taşınır. Batch sınırlarında durdurma bayrağı;
+    `ERROR_RATE_STOP = 0.02`.
+  - `run_rollback(job_key, rollback_key)` — kimlik tabanlı geri alma.
+- **301 köprüsü:** `tradehub_core/media/redirect_renderer.py::MediaRedirectRenderer`
+  — `page_renderer` hook'u üzerinden tek indeksli sorgu. `Website Route Redirect`
+  bilinçli olarak KULLANILMADI (her istekte tüm kuralları regex ile tarar).
+  `REDIRECT_TTL_DAYS = 90` — günlük cron (`retro_rename.purge_expired_redirects`)
+  süresi dolan satırları temizler; 90 gün sonra eski URL 404 döner.
+- **Admin API** (System Manager): `media_admin.retro_rename_count /
+  retro_rename_plan / start_retro_rename / get_retro_rename_status /
+  stop_retro_rename / rollback_retro_rename / retro_rename_history`. Admin panel
+  kartı (Sistem → Medya Optimizasyonu) Görev 8-9'da inşa ediliyor.
+- **Lokal ölçüm (2026-08-21):** 2.843 distinct eski public URL / 4.319 `tabFile`
+  satırı; tam `plan()` ≈ 20 sn; 303 gömülü referans, 28 sipariş-geçmişi
+  (salt-okunur) referansı, 389 orphan.
 
 Bu arada nginx sertleştirmesi (TUR-141: `/files/`'a `X-Robots-Tag: noindex` +
 `limit_req`) eski isimlerin toplu çekilmesini pratikte zorlaştırır.
@@ -168,5 +188,5 @@ Bu arada nginx sertleştirmesi (TUR-141: `/files/`'a `X-Robots-Tag: noindex` +
 | Dosya sayısı | Hash-prefix shard → dizin başına ~N/256; milyonlarda bile hızlı |
 | Dedup | İçerik-adresli → aynı içerik tek fiziksel dosya |
 | Tahmin edilebilirlik | 128-bit hash → enumeration imkânsız |
-| Türev çoğalması | Aynı shard + suffix → yönetilebilir, orijinalle bağlı |
+| Türev çoğalması | Ayrı kök, asset+sürüm adresli → yönetilebilir, orijinalden bağımsız |
 | CDN'e geçiş | Yol yapısı (`/files/<ab>/<hash>`) CDN origin olarak temiz |
