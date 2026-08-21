@@ -209,19 +209,22 @@ class UreticiTesti(unittest.TestCase):
 				self.assertLessEqual(int(satir), len(hedef.read_text(encoding="utf-8").splitlines()))
 
 	def test_uc_sayisi(self):
-		"""100 uç: 6 teslim + 3 kırpma + 41 satıcı + 47 yönetim + 2 depolama + 1 RUM.
+		"""107 uç: 6 teslim + 3 kırpma + 41 satıcı + 54 yönetim + 2 depolama + 1 RUM.
 
 		W6 SDK turu (2026-08-20): `manifest_batch` (dosya bazlı), 6 klasör ucu,
 		`find_in_my_library`, `list_orphans` ve `rum.collect` yüzeye eklendi.
+		MOGEM-582 retro-rename (2026-08-21): `retro_rename_count/plan/history`,
+		`start_retro_rename`, `get_retro_rename_status`, `stop_retro_rename`,
+		`rollback_retro_rename` (7 uç) yönetim uçlarına eklendi.
 		"""
-		self.assertEqual(len(self.uclar), 100)
-		self.assertEqual(self.doc["x-endpoint-count"], 100)
+		self.assertEqual(len(self.uclar), 107)
+		self.assertEqual(self.doc["x-endpoint-count"], 107)
 		etikete_gore: dict[str, int] = {}
 		for uc in self.uclar:
 			etikete_gore[uc["tag"]] = etikete_gore.get(uc["tag"], 0) + 1
 		self.assertEqual(
 			etikete_gore,
-			{"delivery": 6, "crop": 3, "seller": 41, "admin": 47, "storage": 2, "rum": 1},
+			{"delivery": 6, "crop": 3, "seller": 41, "admin": 54, "storage": 2, "rum": 1},
 		)
 
 	def test_her_ucun_olcum_durumu_YAZILI(self):

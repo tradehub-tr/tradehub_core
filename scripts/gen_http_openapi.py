@@ -936,6 +936,45 @@ OLCULMEYEN: dict[str, str] = {
 		"bir yan etki olurdu. Satıcı karşılığı `seller_media.create_backup` "
 		"uçtan uca ölçüldü ve aynı yedek çekirdeğini kullanıyor."
 	),
+	# MOGEM-582 retro-rename (2026-08-21) — henüz canlı HTTP trafiğine açılmadı.
+	# `start_retro_rename`/`rollback_retro_rename` gerçek sitede 5.020 dosyanın
+	# adını/DB kaydını GERÇEKTEN değiştirir (dry_run=1 bile iş kuyruğa girip
+	# Redis ilerleme durumu + `ACTIVE_KEY` kilidini yazar) — ölçüm için üretilip
+	# geri alınamayacak kadar büyük bir yan etki. Okuma-yalnız kardeşleri
+	# (`retro_rename_count/plan/history`, `get_retro_rename_status`,
+	# `stop_retro_rename`) tutarlılık için AYNI gerekçeyle burada — bu 7 uç
+	# birlikte, ayrı bir HTTP ölçüm turunda kapatılacak (`retro_rename.py` unit
+	# testleri Task 2-5'te uçtan uca is-mantığını zaten kanıtlıyor).
+	"tradehub_core.api.media_admin.retro_rename_count": (
+		"ÇAĞRILMADI. `start_retro_rename`/`rollback_retro_rename` ile aynı "
+		"özellik grubu — ayrı HTTP ölçüm turunda birlikte kapatılacak."
+	),
+	"tradehub_core.api.media_admin.retro_rename_plan": (
+		"ÇAĞRILMADI. `start_retro_rename`/`rollback_retro_rename` ile aynı "
+		"özellik grubu — ayrı HTTP ölçüm turunda birlikte kapatılacak."
+	),
+	"tradehub_core.api.media_admin.start_retro_rename": (
+		"ÇAĞRILMADI. Gerçek sitede 5.020 dosyayı geri dönüşü zor biçimde "
+		"yeniden adlandırma işi kuyruğa girer; ölçüm için üretilip silinemeyecek "
+		"kadar büyük bir yan etki olurdu."
+	),
+	"tradehub_core.api.media_admin.get_retro_rename_status": (
+		"ÇAĞRILMADI. `start_retro_rename`/`rollback_retro_rename` ile aynı "
+		"özellik grubu — ayrı HTTP ölçüm turunda birlikte kapatılacak."
+	),
+	"tradehub_core.api.media_admin.stop_retro_rename": (
+		"ÇAĞRILMADI. `start_retro_rename`/`rollback_retro_rename` ile aynı "
+		"özellik grubu — ayrı HTTP ölçüm turunda birlikte kapatılacak."
+	),
+	"tradehub_core.api.media_admin.rollback_retro_rename": (
+		"ÇAĞRILMADI. Gerçek sitede `Media URL Redirect` satırlarına dayanarak "
+		"dosyaları eski adına geri taşır; ölçüm için üretilip silinemeyecek "
+		"kadar büyük bir yan etki olurdu."
+	),
+	"tradehub_core.api.media_admin.retro_rename_history": (
+		"ÇAĞRILMADI. `start_retro_rename`/`rollback_retro_rename` ile aynı "
+		"özellik grubu — ayrı HTTP ölçüm turunda birlikte kapatılacak."
+	),
 }
 
 
