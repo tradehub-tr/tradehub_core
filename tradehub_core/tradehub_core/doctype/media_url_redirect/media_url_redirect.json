@@ -1,0 +1,34 @@
+{
+ "$comment": "MOGEM-582 retro-rename: eski /files/<ad> → yeni /files/<ab>/<hash>.<ext> 301 haritası. Satır süresi dolunca (expires_at) günlük cron siler; o andan sonra eski adres 404. Satırlar job_key ile gruplanır — geri alma bu gruptan okur.",
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "hash",
+ "creation": "2026-08-21 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 0,
+ "engine": "InnoDB",
+ "field_order": ["source_url", "target_url", "cb", "job_key", "expires_at", "file_rows", "hit_count"],
+ "fields": [
+  {"fieldname": "source_url", "fieldtype": "Data", "label": "Eski adres", "reqd": 1, "unique": 1, "search_index": 1, "in_list_view": 1, "length": 500},
+  {"fieldname": "target_url", "fieldtype": "Data", "label": "Yeni adres", "reqd": 1, "in_list_view": 1, "length": 500},
+  {"fieldname": "cb", "fieldtype": "Column Break"},
+  {"fieldname": "job_key", "fieldtype": "Data", "label": "İş anahtarı", "reqd": 1, "search_index": 1, "in_list_view": 1},
+  {"fieldname": "expires_at", "fieldtype": "Datetime", "label": "Süre sonu", "reqd": 1, "search_index": 1, "in_list_view": 1},
+  {"fieldname": "file_rows", "fieldtype": "Int", "label": "File satırı", "default": "0", "read_only": 1, "description": "Bu eski adresi paylaşan tabFile satırı sayısı; dedup (aynı hedefe giden birden çok eski ad) durumunda rollback yalnız bu kadar satırı geri çevirir."},
+  {"fieldname": "hit_count", "fieldtype": "Int", "label": "İsabet", "default": "0", "read_only": 1, "description": "İlk sürümde yazılmaz (her 301'de yazma = yük)."}
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-08-21 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "Media URL Redirect",
+ "owner": "Administrator",
+ "permissions": [
+  {"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1, "export": 1, "report": 1}
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0
+}
