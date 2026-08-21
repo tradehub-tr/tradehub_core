@@ -107,6 +107,7 @@ SINGLE_SHOT_LIMIT: int = 8 * 1024 * 1024
 # Kural basit: kullanıcının dosyasıyla ilgili hatalar tekrar denenmez (aynı
 # dosya aynı sonucu verir), geçici sistem hataları denenir.
 
+
 @dataclass(frozen=True)
 class Kod:
 	kod: str
@@ -340,8 +341,13 @@ def check(
 	content: bytes | None = None,
 	size: int = 0,
 	media_endpoint: bool = False,
+	slot: str = "",
 ) -> Karar:
 	"""Tek doğrulama noktası — her yükleme yolu buradan geçer.
+
+	`slot` (opsiyonel): yükleme slotu biliniyorsa politikadan okunan kurallar
+	(bugün yalnız `accept.type_mismatch`) derin denetime uygulanır. Boşsa
+	varsayılanlar — davranış slot'suz çağıranlar için değişmez.
 
 	`media_endpoint=True` medya uçları içindir: dar izin listesi uygulanır.
 	`False` kanca yolu içindir: yasak listesi + boyut + tehlikeli içerik.
@@ -364,9 +370,7 @@ def check(
 	if media_endpoint and not (tur in MEDIA_KINDS or uzanti in MEDIA_EXTRA_EXTENSIONS):
 		reddet(
 			EXT_NOT_ALLOWED,
-			_("Bu dosya türü kabul edilmiyor: {0}. Görsel, video veya PDF yükleyin.").format(
-				uzanti or "?"
-			),
+			_("Bu dosya türü kabul edilmiyor: {0}. Görsel, video veya PDF yükleyin.").format(uzanti or "?"),
 		)
 
 	boyut = len(content) if content is not None else int(size or 0)
@@ -396,7 +400,7 @@ def check(
 		# bakıyor; ölçüldü: kötücül fixture'ların 8/10'u bu kapıdan geçiyordu
 		# (`docs/reports/38-t017-guvenlik-kapisi.md`). Denetimin kendisi
 		# frappe'siz bir modülde durur; burası yalnız kodu ve i18n metnini bağlar.
-		_derin_denetim(ad, content)
+		_derin_denetim(ad, content, slot=slot)
 
 		gercek = sniff(content)
 		if gercek and tur and not _uyumlu(uzanti, gercek):
@@ -421,6 +425,7 @@ _DERIN_KODLAR: dict[str, Kod] = {
 	CONTENT_CONTAINER.kod: CONTENT_CONTAINER,
 }
 
+
 def _derin_mesaj(kod: str) -> str:
 	"""Kullanıcıya gösterilecek metin — denetim modülü `_()` çağıramaz (frappe'siz).
 
@@ -439,8 +444,27 @@ def _derin_mesaj(kod: str) -> str:
 	}.get(kod, "")
 
 
-def _derin_denetim(ad: str, content: bytes) -> None:
+def _type_mismatch_mode(slot: str) -> str:
+	"""Slot politikasından `accept.type_mismatch` — yoksa/okunamazsa "reject".
+
+	Politika okunamıyorsa gevşek tarafa DÜŞÜLMEZ: belirsizlikte ret, çünkü bu
+	bir güvenlik kapısıdır ve 21 Ağu sözleşmesinin varsayılanı rettir.
+	"""
+	if not slot:
+		return "reject"
+	try:
+		politika = _policy_engine().registry.get(slot) or {}
+		mod = str((politika.get("accept") or {}).get("type_mismatch") or "reject")
+		return mod if mod in ("reject", "warn") else "reject"
+	except Exception:
+		return "reject"
+
+
+def _derin_denetim(ad: str, content: bytes, *, slot: str = "") -> None:
 	"""İçerik denetimi — ilk bulguda reddet.
+
+	`slot` verilirse `accept.type_mismatch` politikası uygulanır (ADR-0016):
+	"warn" modunda zararsız tür uyuşmazlığı reddedilmez, denetime uyarı düşer.
 
 	Denetim `media/pipeline/security/content_gate.py` içinde; oraya
 	taşınmasının sebebi bench'siz test edilebilirlik (bkz. o modülün başlığı).
@@ -450,7 +474,22 @@ def _derin_denetim(ad: str, content: bytes) -> None:
 	"""
 	from tradehub_core.media.pipeline.security import content_gate
 
-	bulgular = content_gate.inspect(ad, content)
+	mod = _type_mismatch_mode(slot)
+	bulgular = content_gate.inspect(ad, content, reject_type_mismatch=(mod != "warn"))
+	if mod == "warn":
+		# Ret yok ama iz var: hangi slot hangi dosyada uyuşmazlığı kabul etti.
+		try:
+			from tradehub_core.media import audit
+
+			sniff = content_gate.inspect(ad, content)  # bayraksız: uyuşmazlık var mıydı
+			if any(b.kod == content_gate.KOD_MISMATCH for b in sniff):
+				audit.log_media_event(
+					action=audit.ACTION_UPLOAD,
+					reason="type_mismatch_warned",
+					context={"file_name": ad, "slot": slot},
+				)
+		except Exception:
+			frappe.log_error(title="media.upload_policy mismatch warn audit", message=frappe.get_traceback())
 	if not bulgular:
 		return
 	ilk = bulgular[0]

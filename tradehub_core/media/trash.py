@@ -152,9 +152,7 @@ def _assert_trashable(file_url: str, force: bool = False) -> None:
 
 	if any(_has_sensitive_twin(r["content_hash"]) for r in rows if r.get("content_hash")):
 		_deny(file_url, "sensitive_content_twin")
-		frappe.throw(
-			frappe._("Bu dosya hassas bir belgenin kopyası, çöpe taşınamaz: {0}").format(file_url)
-		)
+		frappe.throw(frappe._("Bu dosya hassas bir belgenin kopyası, çöpe taşınamaz: {0}").format(file_url))
 
 	from tradehub_core.media import usage
 
@@ -261,9 +259,7 @@ def restore(file_url: str) -> dict:
 		# Optimize edilmiş dosya çöpten Active'e değil Archived'a döner —
 		# orijinali hâlâ arşivde ve geri alınabilir.
 		hedef = states.state_after_untrash(file_url)
-		frappe.db.set_value(
-			"File", {"file_url": file_url}, {"th_trashed_at": None}, update_modified=False
-		)
+		frappe.db.set_value("File", {"file_url": file_url}, {"th_trashed_at": None}, update_modified=False)
 		states.transition(file_url, hedef)
 		os.makedirs(os.path.dirname(dst), exist_ok=True)
 		shutil.move(src, dst)
@@ -347,9 +343,74 @@ def usage_bytes() -> int:
 	return total
 
 
-def purge_expired(
-	retention_days: int = TRASH_RETENTION_DAYS, trigger: str = "scheduled"
-) -> dict:
+def legal_hold_reason(file_url: str) -> str:
+	"""Dosya yasal tutma altındaysa sebebi, değilse boş dize.
+
+	İki kaynak okunur, ikisi de bugün OPSİYONEL — tablo/kolon yoksa sessizce
+	"tutulmuyor" denmez, o kaynak atlanır:
+
+	  1. `Media Asset.legal_hold` (medya motoru, `Media Source.file_url` üzerinden)
+	  2. `File.th_legal_hold` (retention politikasının öngördüğü kolon; henüz yok)
+
+	Neden burada: `purge_expired` diskteki mtime'a bakarak siliyordu ve hiçbir
+	kayıt alanı okumuyordu. Medya motorunun retention zarfı bu yüzden çağrıyı
+	REDDEDİYORDU ("legal hold açıkken tutulan dosyayı silebilir"). Kural zarfta
+	değil süpürücünün kendisinde olmalı: süpürücüyü kim çağırırsa çağırsın
+	tutulan dosya silinmez.
+	"""
+	url = (file_url or "").split("?")[0]
+	if not url:
+		return ""
+	try:
+		# Medya motorunun varlık kaydı dosyaya `source_file` (File Link) ile
+		# bağlı — ölçüldü (21 Ağu): spec JSON'daki `Media Source` DocType'ı DB'de
+		# henüz YOK, gerçek alan `Media Asset.source_file`. İki yol da denenir ki
+		# motor şemasını tamamladığında burası değişmesin.
+		if frappe.db.table_exists("Media Asset") and frappe.db.has_column("Media Asset", "legal_hold"):
+			ma = frappe.qb.DocType("Media Asset")
+			f = frappe.qb.DocType("File")
+			if frappe.db.has_column("Media Asset", "source_file"):
+				tutulan = (
+					frappe.qb.from_(ma)
+					.join(f)
+					.on(f.name == ma.source_file)
+					.select(ma.name)
+					.where(f.file_url == url)
+					.where(ma.legal_hold == 1)
+					.limit(1)
+				).run()
+				if tutulan:
+					return f"media_asset:{tutulan[0][0]}"
+			if frappe.db.table_exists("Media Source"):
+				ms = frappe.qb.DocType("Media Source")
+				tutulan = (
+					frappe.qb.from_(ms)
+					.join(ma)
+					.on(ma.name == ms.asset)
+					.select(ma.name)
+					.where(ms.file_url == url)
+					.where(ma.legal_hold == 1)
+					.limit(1)
+				).run()
+				if tutulan:
+					return f"media_asset:{tutulan[0][0]}"
+		if frappe.db.has_column("File", "th_legal_hold") and frappe.db.exists(
+			"File", {"file_url": url, "th_legal_hold": 1}
+		):
+			return "file:th_legal_hold"
+	except Exception:
+		# Tutma bilgisi okunamıyorsa "tutulmuyor" DENMEZ — silme geri alınamaz,
+		# belirsizlikte dosya yerinde kalır. Hata kaydının kendisi de DB ister;
+		# o da patlarsa sonuç yine "bilinmiyor" olmalı, ikinci bir istisna değil.
+		try:
+			frappe.log_error(title="media.trash legal_hold_reason failed", message=frappe.get_traceback())
+		except Exception:
+			pass
+		return "unknown:lookup_failed"
+	return ""
+
+
+def purge_expired(retention_days: int = TRASH_RETENTION_DAYS, trigger: str = "scheduled") -> dict:
 	"""Süresi dolanları KALICI sil — hem dosya hem `File` kayıtları.
 
 	İki yerden çağrılır ve ikisi farklı işlemdir:
@@ -370,6 +431,7 @@ def purge_expired(
 	# "çöpü boşalt" sonrası kaybolan dosyayı bulmak için media.trash olaylarını
 	# elle karşılaştırmak gerekiyordu (ölçüldü).
 	silinenler: list[str] = []
+	tutulanlar: list[str] = []
 	temizlenen_ref = 0
 
 	for dirpath, _dirs, files in os.walk(root, topdown=False):
@@ -380,6 +442,11 @@ def purge_expired(
 					continue
 				rel = os.path.relpath(path, root)
 				url = "/files/" + rel.replace(os.sep, "/")
+				# Yasal tutma süreyi ezer: süresi dolmuş olsa da dosya ve kaydı
+				# yerinde kalır, raporda ayrı sayılır (bkz. `legal_hold_reason`).
+				if legal_hold_reason(url):
+					tutulanlar.append(url)
+					continue
 				size = os.path.getsize(path)
 				# Referans zinciri: dosya gidince onu gösteren alanlar da
 				# temizlenmeli, yoksa üründe boş görsel yuvası kalıyor.
@@ -392,9 +459,7 @@ def purge_expired(
 				freed += size
 				silinenler.append(url)
 			except Exception:
-				frappe.log_error(
-					title="Trash purge failed", message=frappe.get_traceback(with_context=True)
-				)
+				frappe.log_error(title="Trash purge failed", message=frappe.get_traceback(with_context=True))
 				continue
 
 	frappe.db.commit()
@@ -409,6 +474,7 @@ def purge_expired(
 			"freed_bytes": freed,
 			"records": records,
 			"refs_cleared": temizlenen_ref,
+			"legal_hold_skipped": len(tutulanlar),
 			# İlk 50 dosya; tamamı bağlam alanını şişirirdi (5 KB sınırı var).
 			"files": silinenler[:50],
 			"files_truncated": max(0, len(silinenler) - 50),
@@ -420,4 +486,5 @@ def purge_expired(
 		"records": records,
 		"files": silinenler,
 		"refs_cleared": temizlenen_ref,
+		"legal_hold_skipped": tutulanlar,
 	}

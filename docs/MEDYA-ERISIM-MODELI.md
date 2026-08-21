@@ -126,3 +126,18 @@ private'a almak; bir tanıtım görselini public yapmak).
 | Yetkisiz erişim engelli | ✅ §2.2 (canlı 403 doğrulandı) |
 | Private için güvenli erişim stratejisi | ✅ §2.2 (session) + §3 (imzalı süreli URL) |
 | Erişim seviyesi değişiklikleri denetlenebilir | ✅ §4.2 (media.level_changed audit) |
+
+---
+
+## Ek — 21 Ağu 2026: tarama akışıyla kesişim
+
+`set_access_level` artık taşımadan önce **AV durumunu** sorar
+(`av.in_quarantine` / `av.in_hold`). Gerekçe: tarama akışı (TUR-125) dosyayı
+fiziksel olarak canlı ağacın dışına taşıyabiliyor (`media_scan_hold`,
+`media_quarantine`); bu kontrol olmadan `isfile` "diskte bulunamadı" diyordu —
+dosya vardı, başka kökteydi; mesaj yanıltıcıydı ve iki mekanizma aynı dosyayı
+taşımak için yarışıyordu. Davranış: tarama bitip dosya yerine dönene (ya da
+karantinadan çıkarılana) kadar seviye değişmez; red `media.level_changed`
+olayıyla (`allowed=False`, `reason=av_state_blocks_move`, adres maskeli)
+denetime yazılır. ADR-0023 "kavram başına tek sahip": tarama durumu AV
+modülünündür, erişim modülü onu okur.

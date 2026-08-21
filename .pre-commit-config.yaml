@@ -66,3 +66,14 @@ repos:
         files: ^tradehub_core/media/pipeline/contracts/.*\.py$
         additional_dependencies: []
         args: ["--config-file=pyproject.toml"]
+
+  # Medya sözleşme belgeleri ↔ kod (ADR-0023). Uyarı modu: çıkış kodu 0,
+  # commit'i durdurmaz, ekrana yazar. `--strict` ADR imzalanınca.
+  - repo: local
+    hooks:
+      - id: media-contract-docs
+        name: medya sözleşme belgeleri ↔ kod
+        entry: python3 scripts/check_media_contract_docs.py --staged
+        language: system
+        pass_filenames: false
+        files: ^(tradehub_core/media/|docs/MEDYA-|docs/adr/)

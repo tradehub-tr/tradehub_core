@@ -151,6 +151,12 @@
           "type": "boolean",
           "default": false,
           "description": "Alan değerinin bir data: URI olmasına izin verilsin mi (şema v1.3.0). false = değer bir File kaydına işaret ETMEK ZORUNDA. Bu ayrı bir anahtar olmak zorunda çünkü data: URI kanalı tüm dosya kapılarını atlar: File kaydı açılmadığı için ne utils/security.py uzantı kapısı ne upload_policy.py imza kapısı çalışır, ayrıca medya envanteri (media/usage.py) o değeri hiç görmez."
+        },
+        "type_mismatch": {
+          "type": "string",
+          "enum": ["reject", "warn"],
+          "default": "reject",
+          "description": "Görsel uzantısı altında başka bir bilinen tür (ör. .jpg adlı PNG/PDF) geldiğinde davranış. 'reject' (varsayılan): upload_type_mismatch ile red — 21 Ağu 2026 yükleme sözleşmesi. 'warn': kabul edilir, denetime uyarı yazılır. Tehlikeli uyuşmazlık (markup/aktif içerik) bu anahtardan bağımsız olarak HER ZAMAN reddedilir. Kural kodda sabitken buraya taşındı (ADR-0016 politika veridir): davranış slot başına değişebilsin, kod değişmesin."
         }
       }
     },

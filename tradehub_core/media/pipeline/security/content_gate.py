@@ -229,8 +229,16 @@ def inspect(
 	content: bytes,
 	*,
 	max_megapixels: float = MAX_MEGAPIXELS,
+	reject_type_mismatch: bool = True,
 ) -> tuple[Bulgu, ...]:
 	"""İçeriği denetle — bulgu LİSTESİ döner, istisna ATMAZ.
+
+	`reject_type_mismatch` — görsel uzantısı altında başka bilinen tür
+	(`polyglot_png_as.jpg`) ret mi uyarı mı. Varsayılan RET (21 Ağu
+	sözleşmesi). ADR-0016 "politika veridir": slot politikası
+	`accept.type_mismatch = "warn"` derse çağıran bunu False geçer ve bulgu
+	üretilmez; uyarıyı denetime yazmak çağıranın işi. Tehlikeli uyuşmazlık
+	(markup/aktif içerik) bu bayraktan ETKİLENMEZ — o her zaman rettir.
 
 	Sıra anlamlıdır: kullanıcıya gösterilecek tek gerekçe, en erken ve en
 	anlaşılır olanıdır (FR-062). Önce hiç açmadan verilebilecek retler, en
@@ -269,7 +277,7 @@ def inspect(
 		)
 
 	# 3 — Uzantı görsel diyor, içerik başka bir bilinen tür.
-	if _tehlikeli_uyusmazlik(uzanti, detected):
+	if reject_type_mismatch and _tehlikeli_uyusmazlik(uzanti, detected):
 		bulgular.append(
 			Bulgu(
 				KOD_MISMATCH,

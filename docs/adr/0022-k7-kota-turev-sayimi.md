@@ -26,6 +26,7 @@ büyür (rapor 81'in tek koşumu 411 dosya bıraktı).
 | A | K7'yi uygula: kota sayacını `File`'dan koparıp `Media Version/Rendition` toplamına (bayt bazlı) bağla | Kota kapısının yeniden yazımı; mevcut satıcı kotaları fiilen daralır (~6×) — satıcıya görünür etki, iletişim ister |
 | B | K7'yi revize et: yalnız **master/orijinal** kotadan sayılır, türevler platform maliyeti sayılır | Yönetici kararının geri alınması — imza ister; depolama bütçesi satıcıya yansımaz, kötüye kullanım (çok video) başka kapıyla sınırlanmalı |
 | C | Ara yol: türevler kotaya **katsayıyla** girer (örn. master baytı × sabit çarpan olarak tahakkuk) | Gerçek bayt yerine tahmin — merdiven bayt ölçümü henüz yok (SAD §9.3 "TAHMİN" uyarısı); katsayı kalibrasyonu ister |
+| **D** (öneri, 21 Ağu — ortak çatı) | **İki sayaç, tek toplam:** mevcut `File` bazlı sayaç (TUR-139, `entitlement.checks.check_media_storage_quota`) DOKUNULMADAN kalır; yanına `Media Rendition.bytes` toplamı ikinci sayaç olarak eklenir. Kota kapısı **ikisinin toplamına** bakar; satıcı panelde "orijinal 10 MB + türev 19 MB = 29 / 100 MB" görür | ADR-0009 korunur (türev `File` açmaz), TUR-139 kodu değişmez (ekleme), K7 uygulanır (türev sayılır). Bedel: gerçek bayt `Media Rendition.bytes`'tan gelir — merdiven ölçümü olmadan 0 sayılır, yani bayrak kapalıyken davranış bugünkünün AYNISI. Satıcı kotasının daralması A ile aynı (~6×) — iletişim yine ister, ama iki kalem ayrı görünür olduğu için "neden doldu" sorusu kendi kendini cevaplar |
 
 ## Karar
 

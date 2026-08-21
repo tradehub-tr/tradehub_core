@@ -118,6 +118,25 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
+      # Medya sözleşme belgeleri ↔ kod (ortak çatı, ADR-0023). BLOKLAMAZ:
+      # iki ekip ADR'yi imzalayınca `--strict` eklenir ve bloklayıcı olur.
+      - name: Medya sozlesme belgeleri ↔ kod (BLOKLAMAZ — ADR-0023)
+        if: always()
+        continue-on-error: true
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            range="origin/${{ github.base_ref }}...HEAD"
+          else
+            range="HEAD~1 HEAD"
+          fi
+          {
+            echo "### medya sözleşme kontrolü"
+            echo '```'
+            python3 scripts/check_media_contract_docs.py --range "$range" || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          python3 scripts/check_media_contract_docs.py --range "$range"
+
   # ── 2. Tip denetimi ───────────────────────────────────────────────────
   mypy:
     name: mypy (donmus arayuzler bloklayici)

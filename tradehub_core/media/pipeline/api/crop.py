@@ -289,7 +289,8 @@ class CropApi:
 			"confidence": d.get("confidence"),
 			"approved_by_user": bool(d.get("approved_by_user")),
 			"overrides": [dict(o) for o in (d.get("overrides") or [])],
-			"updated_at": d.get("updated_at"),
+			# TUR-124: yanıtta ISO 8601 + kayma; iç kayıt epoch kalır.
+			"updated_at": env.iso_time(d.get("updated_at")),
 		}
 
 	def _windows(

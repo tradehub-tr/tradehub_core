@@ -144,12 +144,30 @@ O yol artık bizim politikamızdan geçiyor.
 
 ### Tür uyuşmazlığı
 
-Reddedilen yalnız **tehlikeli** uyuşmazlık: görsel diye gelen içeriğin
-HTML/SVG/script olarak açılabilmesi. Saldırı budur.
+Reddedilen uyuşmazlık iki sınıf:
 
-Zararsız uyuşmazlık (adı `.png`, içi JPEG) reddedilmez, denetim kaydına uyarı
-olarak yazılır — reddetmek sahadaki geçerli dosyaları keserdi. (Ölçüm: mevcut
-1500 dosyada 0 uyuşmazlık; kural ileriye dönük.)
+1. **Tehlikeli:** görsel diye gelen içeriğin HTML/SVG/script olarak
+   açılabilmesi. Saldırı budur. (13 Ağu'dan beri.)
+2. **Görsel uzantısı altında başka bir bilinen tür** (`polyglot_png_as.jpg`,
+   `polyglot_pdf_as.jpg`) — **21 Ağu 2026'dan beri reddedilir**
+   (`upload_type_mismatch`, `pipeline/security/content_gate.py`).
+
+**Neden değişti — revizyon kaydı.** 13 Ağu sözleşmesi 2. sınıfı *"zararsız,
+reddedilmez, uyarı"* sayıyordu; gerekçe "sahadaki geçerli dosyayı kesmeyelim"
+idi ve ölçüm (1500 dosyada 0) bunu destekliyordu. 21 Ağu'da medya motoru
+(Ahmet, content_gate) şu gerekçeyle reddetmeye çevirdi: **`Content-Type` bu
+sistemde uzantıdan türetiliyor**; bayt akışı ile ilan edilen tür ayrışırsa
+kararı tarayıcının sniff davranışı devralır ve tarayıcıya göre değişen bir
+davranış güvenlik sınırı sayılamaz. İki gerekçe de geçerli; ikincisi daha
+sıkı ve ölçülen bedeli sıfır (korpus: 4.584 public + 1.010 private dosyada
+**0** bu sınıftan). Sözleşme buna göre güncellendi — eski kural bilinçli
+olarak değiştirildi, unutulmadı.
+
+**Hâlâ reddedilmeyenler:** video kabı uyuşmazlığı (`.mp4` içinde WebM —
+MediaRecorder çıktısında yaygın, iki taraf da hareketsiz kap; korpusta 1
+dosya) ve tanınmayan sihirli bayt (`.avif` / `.heic` / `.txt` / `.csv`) —
+uyarı olarak kalır. Bu iki istisna da `content_gate._tehlikeli_uyusmazlik`
+docstring'inde gerekçesiyle duruyor.
 
 ---
 
@@ -315,8 +333,10 @@ kuralına hizalandı. Son ölçüm: **20.000 girdi, 0 ayrışma**.
 
 Test yazarken iki şey "hata değil" diye işaretlendi ve sebebi kayıtlı:
 
-- **Zararsız tür uyuşmazlığı** (`.png` adlı JPEG) — reddedilmiyor, uyarı olarak
-  denetime yazılıyor. Reddetmek sahadaki geçerli dosyaları keserdi.
+- ~~**Zararsız tür uyuşmazlığı** (`.png` adlı JPEG) — reddedilmiyor~~ —
+  **21 Ağu 2026'da değişti:** görsel uzantısı altında başka bilinen tür artık
+  reddediliyor (§3 "Tür uyuşmazlığı", revizyon kaydı). Listede kalan istisnalar:
+  video kabı uyuşmazlığı ve tanınmayan sihirli bayt — ikisi uyarı.
 - **Ad uzunluğu** — istemci reddetmiyor, sunucu kırpıyor. Kullanıcıyı uzun ad
   yüzünden geri çevirmek gereksiz sürtünme.
 

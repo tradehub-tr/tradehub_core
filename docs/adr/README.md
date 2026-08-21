@@ -55,8 +55,9 @@ verilir.
 | [0020](0020-tus-yerine-mevcut-chunked.md) | Devam edebilir yükleme: tus mu, mevcut `chunked.py` mi | **ÖNERİLDİ · karar BEKLİYOR** | `44-t081-yukleyici.md` §3 · `61e-fe-denetim-faz8-9.md` |
 | [0021](0021-vmaf-esigi.md) | VMAF eşiği (93 ↔ INV-05 çelişkisi; gerçek ölçüm 89,34) | **ÖNERİLDİ · karar BEKLİYOR** | `56-d3-faz6-10-kapanis.md` §4.2–4.4 · `81-w6-video-kosum.md` |
 | [0022](0022-k7-kota-turev-sayimi.md) | K7 kota: türevlerin sayımı ↔ ADR-0009 çelişkisi | **ÖNERİLDİ · karar BEKLİYOR** | `56-d3-faz6-10-kapanis.md` §7.4 · ADR-0009 |
+| [0023](0023-kavram-basina-tek-sahip.md) | Kavram başına tek sahip: çekirdek ↔ motor; sözleşme md aynı PR'da; sözleşmeler test olarak; bayrak öncesi 3 ön koşul | **ÖNERİLDİ · imza bekliyor (Metin + Ahmet)** | 21 Ağu ortak çatı denetimi · `tests/test_media_contracts.py` · `scripts/check_media_contract_docs.py` |
 
-> **ÖNERİLDİ durumundaki ADR'ler (0020–0022) bu dizinin "verilmiş kararlar"
+> **ÖNERİLDİ durumundaki ADR'ler (0020–0023) bu dizinin "verilmiş kararlar"
 > kuralının bilinçli istisnasıdır** (2026-08-20, rapor 88): üçü de iki kez
 > ölçülmüş, karar bekleyen açık kalemlerdir. Karar TASLAK gövdede
 > **uydurulmamıştır** — seçenekler ölçülmüş bedelleriyle taşındı, "Karar"
