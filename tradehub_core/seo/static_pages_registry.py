@@ -471,16 +471,6 @@ STATIC_PAGES = [
 		"sitemap_changefreq": "monthly",
 	},
 	{
-		"path": "/satici/fiyatlandirma",
-		"meta_title": "Satıcı Paketleri ve Komisyonlar | iStoc",
-		"meta_description": "Satıcı üyelik paketlerini, komisyon oranlarını ve fiyatlandırmayı karşılaştırın; işletmenize uygun planla satışa başlayın.",
-		"title": "Satıcı Fiyatlandırması",
-		"html_path": "pages/seller/sell-pricing.html",
-		"indexable_default": True,
-		"sitemap_priority": "0.6",
-		"sitemap_changefreq": "monthly",
-	},
-	{
 		"path": "/satici/dashboard",
 		"title": "Satıcı Paneli",
 		"html_path": "pages/seller/dashboard.html",
