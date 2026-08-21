@@ -23,13 +23,13 @@
 				},
 				{
 					"name": "SELLER_VEHICLE",
-					"channel_name": "Satici Araci",
+					"channel_name": "Satıcı Aracı",
 					"channel_code": "SELLER_VEHICLE",
 					"is_active": 1
 				},
 				{
 					"name": "BUYER_PICKUP",
-					"channel_name": "Alici Teslim Alma",
+					"channel_name": "Alıcı Teslim Alma",
 					"channel_code": "BUYER_PICKUP",
 					"is_active": 1
 				}
