@@ -132,3 +132,14 @@ class TestPlan(FrappeTestCase):
 		retro_rename.plan()
 		self.assertEqual(frappe.db.get_value("File", {"file_url": self.url}, "file_url"), before)
 		self.assertTrue(os.path.isfile(os.path.join(get_files_path(is_private=0), self.name)))
+
+	def test_plan_limit_sifir_bos_items_ama_sayaclar_tam(self):
+		p = retro_rename.plan(limit=0)
+		self.assertEqual(p["items"], [])
+		self.assertGreaterEqual(p["total"], 1)
+		self.assertGreaterEqual(p["orphans"], 1)
+		self.assertTrue(p["truncated"])
+
+	def test_plan_limit_none_cap(self):
+		p = retro_rename.plan()
+		self.assertEqual(len(p["items"]), min(p["total"], retro_rename.PLAN_ITEM_LIMIT))

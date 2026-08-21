@@ -114,10 +114,16 @@ def _inspect(url: str) -> dict:
 
 
 def plan(limit: int | None = None) -> dict:
-	"""Salt okunur rapor. Hiçbir şey yazmaz."""
+	"""Salt okunur rapor. Hiçbir şey yazmaz.
+
+	Sayaçlar (`renamable`, `orphans`, ...) HER ZAMAN tüm aday listesi üzerinden
+	hesaplanır — `limit` yalnız dönen `items` listesinin boyutunu sınırlar.
+	Aksi hâlde `truncated=True` olduğunda sayaçlar eksik raporlanırdı.
+	`limit=0` → boş `items`, ama sayaçlar yine tam.
+	"""
 	urls = legacy_urls()
-	cap = min(limit or PLAN_ITEM_LIMIT, PLAN_ITEM_LIMIT)
-	items = [_inspect(u) for u in urls[:cap]]
+	cap = PLAN_ITEM_LIMIT if limit is None else min(max(0, limit), PLAN_ITEM_LIMIT)
+	all_items = [_inspect(u) for u in urls]
 	out = {
 		"total": len(urls),
 		"truncated": len(urls) > cap,
@@ -129,9 +135,9 @@ def plan(limit: int | None = None) -> dict:
 		"refs_readonly": 0,
 		"refs_embedded": 0,
 		"file_rows": 0,
-		"items": items,
+		"items": all_items[:cap],
 	}
-	for it in items:
+	for it in all_items:
 		out["orphans"] += int(it["orphan"])
 		out["disk_missing"] += int(it["disk_missing"])
 		out["collisions"] += int(it["collision"])
