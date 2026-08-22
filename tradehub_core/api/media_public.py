@@ -16,18 +16,31 @@ from tradehub_core.seo.site_url import storefront_url
 def _asset_file(asset_id: str) -> tuple[dict, dict]:
 	asset = {}
 	if frappe.db.table_exists("Media Asset"):
-		asset = frappe.db.get_value(
-			"Media Asset", {"name": asset_id},
-			["name", "source_file", "media_type", "state"], as_dict=True,
-		) or frappe.db.get_value(
-			"Media Asset", {"asset_key": asset_id},
-			["name", "source_file", "media_type", "state"], as_dict=True,
-		) or {}
+		asset = (
+			frappe.db.get_value(
+				"Media Asset",
+				{"name": asset_id},
+				["name", "source_file", "media_type", "state"],
+				as_dict=True,
+			)
+			or frappe.db.get_value(
+				"Media Asset",
+				{"asset_key": asset_id},
+				["name", "source_file", "media_type", "state"],
+				as_dict=True,
+			)
+			or {}
+		)
 	file_name = asset.get("source_file") or asset_id
-	file_row = frappe.db.get_value(
-		"File", file_name,
-		["name", "file_url", "file_name", "is_private", "file_size"], as_dict=True,
-	) or {}
+	file_row = (
+		frappe.db.get_value(
+			"File",
+			file_name,
+			["name", "file_url", "file_name", "is_private", "file_size"],
+			as_dict=True,
+		)
+		or {}
+	)
 	return asset, file_row
 
 
@@ -35,8 +48,11 @@ def _sources(asset_name: str) -> tuple[list[dict], str]:
 	if not asset_name:
 		return [], ""
 	rows = frappe.get_all(
-		"Media Rendition", filters={"asset": asset_name, "benefit_gate_passed": 1},
-		fields=["format", "width", "file_url"], order_by="width asc", limit_page_length=100,
+		"Media Rendition",
+		filters={"asset": asset_name, "benefit_gate_passed": 1},
+		fields=["format", "width", "file_url"],
+		order_by="width asc",
+		limit_page_length=100,
 	)
 	by_format: dict[str, list[str]] = {}
 	for row in rows:
@@ -44,10 +60,17 @@ def _sources(asset_name: str) -> tuple[list[dict], str]:
 	types = {"avif": "image/avif", "webp": "image/webp", "jpeg": "image/jpeg", "png": "image/png"}
 	out = [
 		{"type": types[fmt], "srcset": ", ".join(by_format[fmt])}
-		for fmt in ("avif", "webp", "jpeg", "png") if by_format.get(fmt)
+		for fmt in ("avif", "webp", "jpeg", "png")
+		if by_format.get(fmt)
 	]
-	fallback = next((items[-1].split(" ", 1)[0] for fmt in ("jpeg", "webp", "png", "avif")
-		if (items := by_format.get(fmt))), "")
+	fallback = next(
+		(
+			items[-1].split(" ", 1)[0]
+			for fmt in ("jpeg", "webp", "png", "avif")
+			if (items := by_format.get(fmt))
+		),
+		"",
+	)
 	return out, fallback
 
 
@@ -65,7 +88,9 @@ def asset_landing(asset_id: str):
 	decision = seo_index.decide(url, check_usage=True)
 	status = int(decision.get("http_status") or 200)
 	if status in (401, 404, 410):
-		response = Response("Not Found" if status == 404 else "Unavailable", status=status, mimetype="text/plain")
+		response = Response(
+			"Not Found" if status == 404 else "Unavailable", status=status, mimetype="text/plain"
+		)
 		response.headers["X-Robots-Tag"] = decision["robots"]
 		return response
 
@@ -79,9 +104,15 @@ def asset_landing(asset_id: str):
 	title = fields.get("title") or fields.get("alt") or file_row.file_name or "Media"
 	description = fields.get("description") or fields.get("caption") or fields.get("alt") or title
 	stable_url = identity.get("stable_url") or f"{site}/media/{asset_id}"
-	image_fields = {**fields, "asset_url": stable_url, "content_url": identity.get("delivery_url") or url,
-		"encoding_format": identity.get("encoding_format", ""), "date_created": identity.get("date_created", "")}
+	image_fields = {
+		**fields,
+		"asset_url": stable_url,
+		"content_url": identity.get("delivery_url") or url,
+		"encoding_format": identity.get("encoding_format", ""),
+		"date_created": identity.get("date_created", ""),
+	}
 	schema = build_image_object(image_fields, site)
+	schema_json = json.dumps(schema, ensure_ascii=False).replace("</", "<\\/")
 
 	source_html = "".join(
 		f'<source type="{escape(s["type"], quote=True)}" srcset="{escape(s["srcset"], quote=True)}" sizes="100vw">'
@@ -96,13 +127,15 @@ def asset_landing(asset_id: str):
 		+ ' decoding="async">'
 	)
 	robots = decision["robots"]
+	caption = fields.get("caption") or ""
+	caption_html = f"<p>{escape(caption)}</p>" if caption else ""
 	html = f'''<!doctype html><html lang="{escape(fields.get("language") or "tr")}"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{escape(title)}</title><meta name="description" content="{escape(description, quote=True)}">
 <meta name="robots" content="{escape(robots, quote=True)}"><link rel="canonical" href="{escape(stable_url, quote=True)}">
-<script type="application/ld+json">{json.dumps(schema, ensure_ascii=False).replace("</", "<\\/")}</script>
+<script type="application/ld+json">{schema_json}</script>
 </head><body><main><h1>{escape(title)}</h1><picture>{source_html}{img}</picture>
-{f'<p>{escape(fields.get("caption"))}</p>' if fields.get("caption") else ''}
+{caption_html}
 </main></body></html>'''
 	response = Response(html, status=200, mimetype="text/html")
 	response.headers["Cache-Control"] = "public, max-age=300"
