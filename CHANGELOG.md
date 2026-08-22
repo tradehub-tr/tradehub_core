@@ -1,3 +1,13 @@
+## [Unreleased]
+
+### Eklendi
+- feat(media): retro-rename — eski adlı public dosyalar içerik-adresli ada taşınır; 90 gün 301; admin panel kartı (MOGEM-582) (@Ahmet Şeker)
+  - Araç `media/retro_rename.py`: `plan()` salt-okunur rapor; `run_job` — dosya taşı + tüm `tabFile` paylaşım satırları + `refs.retarget` (gömülü JSON/HTML dahil) güncellemesi + `Media URL Redirect` kaydı tek işlemde; hata halinde rollback + dosya geri taşınır; `run_rollback` ile kimlik tabanlı geri alma.
+  - 301 köprüsü `redirect_renderer.py::MediaRedirectRenderer` (`page_renderer` hook, tek indeksli sorgu — `Website Route Redirect` bilinçli olarak kullanılmadı); `REDIRECT_TTL_DAYS = 90`, günlük cron ile süresi dolan yönlendirmeler temizlenir.
+  - Admin API (System Manager): plan/start/status/stop/rollback/history uçları; admin panel kartı (Sistem → Medya Optimizasyonu) Görev 8-9'da.
+  - Lokal ölçüm (2026-08-21): 2.843 distinct eski public URL / 4.319 `tabFile` satırı; tam `plan()` ≈ 20 sn.
+
+---
 ## [v1.13.1-alpha.40] - 2026-08-22 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.

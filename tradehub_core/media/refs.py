@@ -25,6 +25,9 @@ alanı; ürünü silemeyiz, alanı boşaltırız.
 
 from __future__ import annotations
 
+import json
+import re
+
 import frappe
 
 from tradehub_core.media import usage
@@ -50,9 +53,7 @@ def _sources() -> tuple[tuple[str, str, str, str], ...]:
 # sabit listeden geliyor, ama `clear()` DELETE/UPDATE çalıştırıyor — dolaylı
 # güvenliğe bel bağlamak yerine izin listesi burada açıkça kontrol ediliyor.
 # Kaynak listesi genişlerse otomatik genişler; dışarıdan gelen bir ad geçemez.
-_WRITABLE: frozenset[tuple[str, str]] = frozenset(
-	(table, column) for table, column, _k, _l in LIVE_SOURCES
-)
+_WRITABLE: frozenset[tuple[str, str]] = frozenset((table, column) for table, column, _k, _l in LIVE_SOURCES)
 
 
 def _assert_writable(table: str, column: str) -> None:
@@ -194,15 +195,58 @@ def clear(file_url: str, *, dry_run: bool = False, store: str | None = None) -> 
 	}
 
 
+def _replace_embedded(value: str, old_url: str, new_url: str) -> str | None:
+	"""Gömülü değerde adresi değiştir. JSON ise yapısal, değilse tam-dize.
+	Değişiklik yoksa ya da JSON bozuksa None."""
+	if not value:
+		return None
+	yazimlar = usage._search_variants(old_url)
+	stripped = value.lstrip()
+	if stripped[:1] in "[{":
+		try:
+			data = json.loads(value)
+		except ValueError:
+			return None
+
+		# Yalnız string DEĞERLER yeniden yazılır; dict KEY'leri hiç
+		# dokunulmadan geçer — key'ler alan adı (örn. "cover_image"),
+		# hiçbir zaman URL değil.
+		def walk(node):
+			if isinstance(node, str):
+				return new_url if node == old_url else node
+			if isinstance(node, list):
+				return [walk(x) for x in node]
+			if isinstance(node, dict):
+				return {k: walk(v) for k, v in node.items()}
+			return node
+
+		yeni = walk(data)
+		if yeni == data:
+			return None
+		return json.dumps(yeni, ensure_ascii=True)
+	# Sınır-farkında değiştirme: `y` bir URL-gövdesi karakteriyle devam
+	# ediyorsa (örn. `/files/x.jpg` → `/files/x.jpg.webp` ya da
+	# `/files/x.jpg2` içindeki önek) atlanır — yalnız gerçek URL'in bittiği
+	# yerlerde (tırnak, boşluk, `)`, `>`, `?`, `#`, dize sonu) değiştirilir.
+	yeni = value
+	for y in yazimlar:
+		# `new_url` yerine `lambda m: new_url` — `re.sub` replacement string'i
+		# `\1`/`\g<...>` gibi geri-referans olarak yorumlar; URL'de kaçış
+		# karakteri OLMASA da bu yorumlamayı devre dışı bırakmak daha güvenli.
+		yeni = re.sub(re.escape(y) + r"(?![A-Za-z0-9._~-])", lambda m: new_url, yeni)
+	return None if yeni == value else yeni
+
+
 def retarget(old_url: str, new_url: str) -> dict:
 	"""Dosyanın URL'i değiştiğinde (erişim-seviyesi toggle, TUR-126 §4) onu
-	gösteren TAM eşleşen referansları yeni URL'e çevir.
+	gösteren referansları yeni URL'e çevir.
 
-	`clear()` ile aynı disiplin: yalnız TAM eşleşen alanlara dokunulur — gömülü
-	metin (`sections` gibi JSON alanları) atlanır, URL'i içeride kesip
-	yapıştırmak JSON'u bozabilir. Sipariş kaynakları (`READONLY_TABLES`) hiç
-	dokunulmaz — geçmiş siparişin görüntüsü o anki hâli yansıtmalı, taşıma
-	geçmişi değiştirmemeli.
+	Tam eşleşen alanlar doğrudan güncellenir. Gömülü referanslar (`sections`
+	gibi JSON alanları, ya da URL'i düz metin içinde taşıyan kolonlar) da artık
+	taşınır: JSON yapısal olarak yürünüp değiştirilir, düz metinde tam-dize
+	(ham ve JSON-kaçışlı yazım) değiştirilir; parse edilemeyen JSON atlanır.
+	Sipariş kaynakları (`READONLY_TABLES`) hiç dokunulmaz — geçmiş siparişin
+	görüntüsü o anki hâli yansıtmalı, taşıma geçmişi değiştirmemeli.
 
 	Satır silinmez (dosya hâlâ var, yalnız yeri değişti); galeri/varyant
 	satırları da tekil alanlar (`Listing.primary_image`) da aynı şekilde
@@ -216,8 +260,19 @@ def retarget(old_url: str, new_url: str) -> dict:
 		if ref["readonly"]:
 			atlanan.append(f"{hedef} (sipariş geçmişi)")
 			continue
+
 		if not ref["exact"]:
-			atlanan.append(f"{hedef} (gömülü metin)")
+			_assert_writable(ref["table"], ref["column"])
+			mevcut = frappe.db.get_value(ref["table"][3:], ref["row"], ref["column"])
+			yeni = _replace_embedded(mevcut or "", old_url, new_url)
+			if yeni is None:
+				atlanan.append(f"{hedef} (gömülü metin)")
+				continue
+			frappe.db.sql(  # noqa: S608 — tablo/kolon _WRITABLE allow-list'inden
+				f"update `{ref['table']}` set `{ref['column']}`=%s where name=%s",
+				(yeni, ref["row"]),
+			)
+			guncellenen.append(hedef)
 			continue
 
 		_assert_writable(ref["table"], ref["column"])

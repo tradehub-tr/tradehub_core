@@ -39,7 +39,7 @@
     "name": "rum"
     "description": "Gerçek kullanıcı ölçümü (RUM) toplama — misafire açık TEK yazma ucu; gövde `text/plain` JSON'dur, sorgu parametresi değil."
 "x-layer-note": "HTTP yüzeyi = bu dosya. Kütüphane sözleşmesi = docs/api/openapi.yaml. İkisini birleştirmeyin: birleştirmek çağrılamayan yollara çağrılabilir görüntüsü verir."
-"x-endpoint-count": 108
+"x-endpoint-count": 115
 "x-guest-endpoints":
   - "tradehub_core.api.media_access.download"
   - "tradehub_core.api.media_manifest.get_manifest"
@@ -156,6 +156,13 @@
   - "tradehub_core.api.seller_media.retry_video"
 "x-unmeasured-endpoints":
   - "tradehub_core.api.media_admin.create_media_backup"
+  - "tradehub_core.api.media_admin.get_retro_rename_status"
+  - "tradehub_core.api.media_admin.retro_rename_count"
+  - "tradehub_core.api.media_admin.retro_rename_history"
+  - "tradehub_core.api.media_admin.retro_rename_plan"
+  - "tradehub_core.api.media_admin.rollback_retro_rename"
+  - "tradehub_core.api.media_admin.start_retro_rename"
+  - "tradehub_core.api.media_admin.stop_retro_rename"
 "x-mismatched-endpoints": []
 "x-endpoints-with-mismatch":
   - "tradehub_core.api.media_crop.save_intent"
@@ -2785,7 +2792,7 @@
         - "POST"
       "summary": "Tekilleştirilmiş public dosya listesi + üst şerit özeti."
       "x-python": "tradehub_core.api.media_admin.get_image_inventory"
-      "x-source": "tradehub_core/api/media_admin.py:84"
+      "x-source": "tradehub_core/api/media_admin.py:86"
       "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır."
       "x-measured": "http"
       "x-measurement": "2026-08-19: misafir → 403; satıcı → 403 (rol kapısı); Administrator, `page_size=2` → 200 `{items:[…]}`."
@@ -2893,7 +2900,7 @@
         - "POST"
       "summary": "Seçimin kullanım kırılımı — onay ekranı uyarıyı buna göre kurar."
       "x-python": "tradehub_core.api.media_admin.preview_trash"
-      "x-source": "tradehub_core/api/media_admin.py:126"
+      "x-source": "tradehub_core/api/media_admin.py:128"
       "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır."
       "x-measured": "http"
       "x-measurement": "2026-08-19, Administrator → 200 `{total, by_verdict, in_use, live_places}`."
@@ -2939,7 +2946,7 @@
         - "POST"
       "summary": "Tek dosyanın tam kullanım dökümü — detay penceresi."
       "x-python": "tradehub_core.api.media_admin.get_file_usage"
-      "x-source": "tradehub_core/api/media_admin.py:156"
+      "x-source": "tradehub_core/api/media_admin.py:158"
       "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır."
       "x-measured": "http"
       "x-measurement": "2026-08-19, Administrator → 200 `{file_url, verdict, usages: [{kind, field, doctype, name, label, status, page_path}], …}`."
@@ -2984,7 +2991,7 @@
         - "POST"
       "summary": "Redis'teki ilerleme. Kayıt yoksa {\"state\": \"not_found\"}."
       "x-python": "tradehub_core.api.media_admin.get_optimization_status"
-      "x-source": "tradehub_core/api/media_admin.py:167"
+      "x-source": "tradehub_core/api/media_admin.py:169"
       "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır."
       "x-measured": "http"
       "x-measurement": "2026-08-19, Administrator: bilinmeyen anahtar → 200 `{state: \"not_found\"}` (hata DEĞİL). Gerçek bir iş anahtarıyla → 200 `{state: \"partial\", preset, dry_run, total, processed, optimized, skipped, errors, original_bytes, new_bytes, skip_reasons, message}`."
@@ -3028,7 +3035,7 @@
         - "POST"
       "summary": "Optimizasyonu kuyruğa al ve takip anahtarı dön."
       "x-python": "tradehub_core.api.media_admin.start_image_optimization"
-      "x-source": "tradehub_core/api/media_admin.py:174"
+      "x-source": "tradehub_core/api/media_admin.py:176"
       "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır."
       "x-measured": "http"
       "x-measurement": "2026-08-19, Administrator, `dry_run=1` ve KASTEN OLMAYAN dosya adı → 200 `{job_key, count, preset: \"balanced\", dry_run: 1}`. İş kuyruğa girdi ve `get_optimization_status` `errors: 1` ile bitti — hiçbir gerçek dosyaya dokunulmadı. Gerçek dosya üzerinde optimizasyon ÖLÇÜLMEDİ."
@@ -3122,7 +3129,7 @@
         - "POST"
       "summary": "Optimize edilmiş TEK görseli arşivdeki orijinaliyle geri al (senkron)."
       "x-python": "tradehub_core.api.media_admin.restore_image"
-      "x-source": "tradehub_core/api/media_admin.py:234"
+      "x-source": "tradehub_core/api/media_admin.py:236"
       "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır."
       "x-measured": "http-partial"
       "x-measurement": "2026-08-19, Administrator, olmayan dosya → **404** `DoesNotExistError` (417 değil). Başarı yolu ÖLÇÜLMEDİ — gerçek bir görseli arşivden geri almak veri değiştirirdi."
@@ -3166,7 +3173,7 @@
         - "POST"
       "summary": "Dead-letter'daki videoyu yönetici eliyle yeniden kuyruğa koy (TUR-296)."
       "x-python": "tradehub_core.api.media_admin.retry_transcode"
-      "x-source": "tradehub_core/api/media_admin.py:243"
+      "x-source": "tradehub_core/api/media_admin.py:245"
       "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır."
       "x-measured": "http-partial"
       "x-measurement": "2026-08-19, Administrator, olmayan dosya → 417 \"Dosya bulunamadı: …\". Başarı yolu ÖLÇÜLMEDİ (dead-letter videosu yok)."
@@ -3210,7 +3217,7 @@
         - "POST"
       "summary": "Toplu geri alma — optimizasyonla aynı kuyruk ve ilerleme mekanizması."
       "x-python": "tradehub_core.api.media_admin.start_restore"
-      "x-source": "tradehub_core/api/media_admin.py:262"
+      "x-source": "tradehub_core/api/media_admin.py:264"
       "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır."
       "x-measured": "http"
       "x-measurement": "2026-08-19, Administrator, kasten olmayan dosya adı → 200 `{job_key, count, mode: \"restore\"}`; iş `errors: 1` ile bitti. Gerçek geri alma ÖLÇÜLMEDİ."
@@ -3276,7 +3283,7 @@
         - "POST"
       "summary": "Seçili dosyaları çöp kutusuna taşı — 30 gün sonra kalıcı silinir."
       "x-python": "tradehub_core.api.media_admin.trash_files"
-      "x-source": "tradehub_core/api/media_admin.py:301"
+      "x-source": "tradehub_core/api/media_admin.py:303"
       "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır."
       "x-measured": "http-partial"
       "x-measurement": "2026-08-19, Administrator, olmayan dosya → 200 `{moved: 0, failed: [{file_url, error}], freed_bytes: 0}` — kısmi hata dizisi ÖLÇÜLDÜ. Gerçek bir dosya çöpe ATILMADI."
@@ -3335,7 +3342,7 @@
         - "POST"
       "summary": "Çöpten geri al."
       "x-python": "tradehub_core.api.media_admin.restore_from_trash"
-      "x-source": "tradehub_core/api/media_admin.py:336"
+      "x-source": "tradehub_core/api/media_admin.py:338"
       "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır."
       "x-measured": "http-partial"
       "x-measurement": "2026-08-19, Administrator, olmayan dosya → 200 `{restored: 0, failed: [{file_url, error}]}`. Gerçek geri alma ÖLÇÜLMEDİ."
@@ -3380,7 +3387,7 @@
         - "POST"
       "summary": "Çöpteki seçili dosyaları KALICI sil. Yalnız System Manager."
       "x-python": "tradehub_core.api.media_admin.delete_trashed"
-      "x-source": "tradehub_core/api/media_admin.py:357"
+      "x-source": "tradehub_core/api/media_admin.py:359"
       "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır."
       "x-measured": "http-partial"
       "x-measurement": "2026-08-19, Administrator, olmayan dosya → 200 `{deleted: 0, freed_bytes: 0, records: 0, failed: [{file_url, error}]}`. Gerçek kalıcı silme ÖLÇÜLMEDİ."
@@ -3432,7 +3439,7 @@
         - "POST"
       "summary": "Çöptekileri KALICI sil. Yalnız System Manager."
       "x-python": "tradehub_core.api.media_admin.purge_trash"
-      "x-source": "tradehub_core/api/media_admin.py:383"
+      "x-source": "tradehub_core/api/media_admin.py:385"
       "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır."
       "x-measured": "http"
       "x-measurement": "2026-08-19, Administrator, `older_than_days=36500` (hiçbir dosya bu kadar eski olamaz → kasıtlı boş küme) → 200 `{deleted: 0, freed_bytes: 0, records: 0}`. Gerçek bir çöp boşaltma ÖLÇÜLMEDİ."
@@ -3476,7 +3483,7 @@
         - "POST"
       "summary": "Arşivdeki orijinalleri sil — kazanılan alanı kalıcı hâle getirir."
       "x-python": "tradehub_core.api.media_admin.purge_archive"
-      "x-source": "tradehub_core/api/media_admin.py:396"
+      "x-source": "tradehub_core/api/media_admin.py:398"
       "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır."
       "x-measured": "http"
       "x-measurement": "2026-08-19, Administrator, `older_than_days=36500` → 200 `{deleted: 0, freed_bytes: 0}`. Gerçek arşiv temizliği ÖLÇÜLMEDİ."
@@ -3521,7 +3528,7 @@
         - "POST"
       "summary": "Filtreye uyan kaç dosya geri alınabilir — onay ekranı için."
       "x-python": "tradehub_core.api.media_admin.get_restorable_count"
-      "x-source": "tradehub_core/api/media_admin.py:417"
+      "x-source": "tradehub_core/api/media_admin.py:419"
       "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır."
       "x-measured": "http"
       "x-measurement": "2026-08-19, Administrator → 200 `{count: 4}`."
@@ -3573,7 +3580,7 @@
         - "POST"
       "summary": "Mevcut filtrelerle kaç dosyanın işleneceği — onay ekranı bunu gösterir."
       "x-python": "tradehub_core.api.media_admin.get_pending_count"
-      "x-source": "tradehub_core/api/media_admin.py:427"
+      "x-source": "tradehub_core/api/media_admin.py:429"
       "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır."
       "x-measured": "http"
       "x-measurement": "2026-08-19, Administrator → 200 `{count: 2841}`."
@@ -3632,7 +3639,7 @@
         - "POST"
       "summary": "Medya denetim kayıtları — \"kim ne zaman ne yaptı\" görünümü (TUR-140)."
       "x-python": "tradehub_core.api.media_admin.get_media_audit"
-      "x-source": "tradehub_core/api/media_admin.py:443"
+      "x-source": "tradehub_core/api/media_admin.py:445"
       "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır."
       "x-measured": "http"
       "x-measurement": "2026-08-19, Administrator, `page_size=2` → 200 `{items: [{name, timestamp, actor, actor_role, tenant, action, decision, severity, object_name, …}], …}`."
@@ -3754,7 +3761,7 @@
         - "POST"
       "summary": "Bu dosyayı gösteren TÜM satırlar — silmeden önce etki listesi."
       "x-python": "tradehub_core.api.media_admin.get_file_references"
-      "x-source": "tradehub_core/api/media_admin.py:484"
+      "x-source": "tradehub_core/api/media_admin.py:486"
       "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır."
       "x-measured": "http"
       "x-measurement": "2026-08-19, Administrator → 200 `{file_url, items: [{table, column, kind, label, row, owner, owner_doctype, exact, readonly, row_owned}], …}` — referanslar TABLO/KOLON düzeyinde veriliyor."
@@ -3798,7 +3805,7 @@
         - "POST"
       "summary": "Dosyanın erişim seviyesini public↔private çevir (TUR-126 §4)."
       "x-python": "tradehub_core.api.media_admin.set_access_level"
-      "x-source": "tradehub_core/api/media_admin.py:496"
+      "x-source": "tradehub_core/api/media_admin.py:498"
       "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır."
       "x-measured": "http-partial"
       "x-measurement": "2026-08-19, Administrator, olmayan dosya → **404** `DoesNotExistError`. Başarı yolu ÖLÇÜLMEDİ — gerçek bir dosyayı public↔private çevirmek vitrini etkilerdi."
@@ -3850,7 +3857,7 @@
         - "POST"
       "summary": "Özel (private) dosya envanteri — panel \"Özel dosyalar\" görünümü (TUR-126 §4.2)."
       "x-python": "tradehub_core.api.media_admin.get_private_files"
-      "x-source": "tradehub_core/api/media_admin.py:510"
+      "x-source": "tradehub_core/api/media_admin.py:512"
       "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır."
       "x-measured": "http"
       "x-measurement": "2026-08-19, Administrator, `page_size=2` → 200 `{items: [{name, file_name, file_url, file_size, creation, attached_to_doctype, attached_to_name, …}], …}`."
@@ -3909,7 +3916,7 @@
         - "POST"
       "summary": "Medya Gezgini — sanal klasör ağacında bir seviye (TUR-126 devamı)."
       "x-python": "tradehub_core.api.media_admin.browse_media"
-      "x-source": "tradehub_core/api/media_admin.py:556"
+      "x-source": "tradehub_core/api/media_admin.py:558"
       "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır."
       "x-measured": "http"
       "x-measurement": "2026-08-19, Administrator, kök seviye → 200 `{folders: [{id, count}]}` (`public`/`private`/`chat`). Satıcı → 403, misafir → 403."
@@ -4010,7 +4017,7 @@
         - "POST"
       "summary": "Ters arama — bir ürünün/mağazanın kullandığı tüm medya (TUR-136)."
       "x-python": "tradehub_core.api.media_admin.get_record_media"
-      "x-source": "tradehub_core/api/media_admin.py:626"
+      "x-source": "tradehub_core/api/media_admin.py:628"
       "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır."
       "x-measured": "http"
       "x-measurement": "2026-08-19, Administrator, `doctype=Listing&name=LST-00560` → 200 `{doctype, name, page_path, slots: [{file_url, kind, field, row, file_name, file_size, …}]}`."
@@ -4062,7 +4069,7 @@
         - "POST"
       "summary": "Hedefi olmayan referanslar — geçmişte bozulmuş bağların raporu."
       "x-python": "tradehub_core.api.media_admin.get_dangling_references"
-      "x-source": "tradehub_core/api/media_admin.py:638"
+      "x-source": "tradehub_core/api/media_admin.py:640"
       "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır."
       "x-measured": "http"
       "x-measurement": "2026-08-19, Administrator → 200 `{items: [], total_rows: 0}` (bu sitede kopuk referans yok)."
@@ -4106,7 +4113,7 @@
         - "POST"
       "summary": "Kırık referansları temizle. Varsayılan kuru çalışma — yıkıcı iş sessizce"
       "x-python": "tradehub_core.api.media_admin.repair_dangling_references"
-      "x-source": "tradehub_core/api/media_admin.py:646"
+      "x-source": "tradehub_core/api/media_admin.py:648"
       "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır."
       "x-measured": "http"
       "x-measurement": "2026-08-19, Administrator, `dry_run=1` (varsayılan) → 200 `{dangling_urls: 0, dry_run: true, details: []}`. `dry_run=0` ÇALIŞTIRILMADI — yıkıcı."
@@ -4151,7 +4158,7 @@
         - "POST"
       "summary": "Filtre rayı sayaçları — hangi olaydan kaç tane, kaç reddedilen istek."
       "x-python": "tradehub_core.api.media_admin.get_media_audit_facets"
-      "x-source": "tradehub_core/api/media_admin.py:654"
+      "x-source": "tradehub_core/api/media_admin.py:656"
       "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır."
       "x-measured": "http"
       "x-measurement": "2026-08-19, Administrator, `days=30` → 200 `{actions: {…sayaçlar…}, …}`; ölçümde `media.access_denied: 323`, `media.optimize: 243` gibi."
@@ -4196,7 +4203,7 @@
         - "POST"
       "summary": "Denetimde geçen kullanıcı/satıcı listesi — filtre açılır kutusu için."
       "x-python": "tradehub_core.api.media_admin.get_media_audit_actors"
-      "x-source": "tradehub_core/api/media_admin.py:661"
+      "x-source": "tradehub_core/api/media_admin.py:663"
       "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır."
       "x-measured": "http"
       "x-measurement": "2026-08-19, Administrator → 200 `{items: [{actor, tenant, n, tenant_name, actor_name, actor_display}]}`."
@@ -4241,7 +4248,7 @@
         - "POST"
       "summary": "Tek denetim kaydının tam raporu — dosya künyesi, kullanım, etki, geçmiş."
       "x-python": "tradehub_core.api.media_admin.get_media_audit_report"
-      "x-source": "tradehub_core/api/media_admin.py:668"
+      "x-source": "tradehub_core/api/media_admin.py:670"
       "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır."
       "x-measured": "http"
       "x-measurement": "2026-08-19, Administrator, gerçek bir `ADL-…` kimliğiyle → 200 `{event: {name, timestamp, actor, action, decision, severity, object_name, context, …}, …}`."
@@ -4286,7 +4293,7 @@
         - "POST"
       "summary": "En çok olay üreten dosyalar."
       "x-python": "tradehub_core.api.media_admin.get_media_audit_targets"
-      "x-source": "tradehub_core/api/media_admin.py:679"
+      "x-source": "tradehub_core/api/media_admin.py:681"
       "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır."
       "x-measured": "http"
       "x-measurement": "2026-08-19, Administrator → 200 `{items: [{object_name, n}]}`."
@@ -4331,7 +4338,7 @@
         - "POST"
       "summary": "Filtreye uyan kayıtları CSV olarak döndür."
       "x-python": "tradehub_core.api.media_admin.export_media_audit"
-      "x-source": "tradehub_core/api/media_admin.py:686"
+      "x-source": "tradehub_core/api/media_admin.py:688"
       "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır."
       "x-measured": "http"
       "x-measurement": "2026-08-19, Administrator → 200 `{csv: \"timestamp,action,decision,severity,actor,tenant,object_name,ip_address,context\\r\\n…\"}` — CSV gövde İÇİNDE dizge olarak döner, `text/csv` dosya indirmesi DEĞİLDİR."
@@ -4432,7 +4439,7 @@
         - "POST"
       "summary": "Alınmış yedekler + deponun kapladığı yer."
       "x-python": "tradehub_core.api.media_admin.list_media_backups"
-      "x-source": "tradehub_core/api/media_admin.py:738"
+      "x-source": "tradehub_core/api/media_admin.py:740"
       "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır."
       "x-measured": "http"
       "x-measurement": "2026-08-19, Administrator → 200 `{sets: [], usage: {bytes: 0, files: 0, sets: 0}, keep: 14}` — bu sitede yönetim yedeği YOK."
@@ -4468,7 +4475,7 @@
         - "POST"
       "summary": "Elle yedek al. Zamanlanmış görev bunu günlük çalıştırıyor."
       "x-python": "tradehub_core.api.media_admin.create_media_backup"
-      "x-source": "tradehub_core/api/media_admin.py:747"
+      "x-source": "tradehub_core/api/media_admin.py:749"
       "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır."
       "x-unmeasured": "ÇAĞRILMADI. Uç bütün sitenin medyasının anlık kopyasını alır (bu sitede 5.020 dosya); ölçüm için üretilip silinemeyecek kadar büyük bir yan etki olurdu. Satıcı karşılığı `seller_media.create_backup` uçtan uca ölçüldü ve aynı yedek çekirdeğini kullanıyor."
       "parameters":
@@ -4512,7 +4519,7 @@
         - "POST"
       "summary": "Yedek geri yüklenebilir mi — dokunmadan kontrol."
       "x-python": "tradehub_core.api.media_admin.verify_media_backup"
-      "x-source": "tradehub_core/api/media_admin.py:756"
+      "x-source": "tradehub_core/api/media_admin.py:758"
       "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır."
       "x-measured": "http-partial"
       "x-measurement": "2026-08-19, Administrator, bilinmeyen `set_id` → 417 \"Geçersiz yedek kimliği\". Başarı gövdesi ÖLÇÜLMEDİ: sitede yönetim yedeği yok ve `create_media_backup` bütün medyayı kopyalardı."
@@ -4564,7 +4571,7 @@
         - "POST"
       "summary": "Geri yüklersem ne olur — HİÇBİR ŞEYE DOKUNMAZ."
       "x-python": "tradehub_core.api.media_admin.plan_media_restore"
-      "x-source": "tradehub_core/api/media_admin.py:769"
+      "x-source": "tradehub_core/api/media_admin.py:771"
       "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır."
       "x-measured": "http-partial"
       "x-measurement": "2026-08-19, Administrator, bilinmeyen `set_id` → 417. Başarı gövdesi ÖLÇÜLMEDİ (yedek yok)."
@@ -4608,7 +4615,7 @@
         - "POST"
       "summary": "Geri yüklemeyi uygula."
       "x-python": "tradehub_core.api.media_admin.apply_media_restore"
-      "x-source": "tradehub_core/api/media_admin.py:781"
+      "x-source": "tradehub_core/api/media_admin.py:783"
       "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır."
       "x-measured": "http-partial"
       "x-measurement": "2026-08-19, Administrator, bilinmeyen `set_id` → 417. Başarı yolu ÖLÇÜLMEDİ — gerçek bir geri yükleme veri değiştirirdi."
@@ -4681,7 +4688,7 @@
         - "POST"
       "summary": "Kaydı olup dosyası kaybolanları en yeni yedekten geri getir."
       "x-python": "tradehub_core.api.media_admin.repair_missing_media"
-      "x-source": "tradehub_core/api/media_admin.py:810"
+      "x-source": "tradehub_core/api/media_admin.py:812"
       "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır."
       "x-measured": "http-partial"
       "x-measurement": "2026-08-19, Administrator → 417 \"Hiç yedek yok.\" Başarı yolu ÖLÇÜLMEDİ."
@@ -4725,7 +4732,7 @@
         - "POST"
       "summary": "Eski yedekleri ve artık kimsenin göstermediği içerikleri temizle."
       "x-python": "tradehub_core.api.media_admin.prune_media_backups"
-      "x-source": "tradehub_core/api/media_admin.py:823"
+      "x-source": "tradehub_core/api/media_admin.py:825"
       "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır."
       "x-measured": "http"
       "x-measurement": "2026-08-19, Administrator, `keep=14` → 200 `{removed_sets: [], remaining_sets: 0, removed_blobs: 0, freed_bytes: 0}` (silinecek yedek yoktu)."
@@ -4769,7 +4776,7 @@
         - "POST"
       "summary": "Tek bir yedeği sil."
       "x-python": "tradehub_core.api.media_admin.delete_media_backup"
-      "x-source": "tradehub_core/api/media_admin.py:832"
+      "x-source": "tradehub_core/api/media_admin.py:834"
       "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır."
       "x-measured": "http-partial"
       "x-measurement": "2026-08-19, Administrator, bilinmeyen `set_id` → 417. Başarı yolu ÖLÇÜLMEDİ."
@@ -4813,7 +4820,7 @@
         - "POST"
       "summary": "Paketlemeyi başlat — hazırlık arkada sürer, bu uç beklemez."
       "x-python": "tradehub_core.api.media_admin.start_media_backup_export"
-      "x-source": "tradehub_core/api/media_admin.py:857"
+      "x-source": "tradehub_core/api/media_admin.py:859"
       "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır."
       "x-measured": "http-partial"
       "x-measurement": "2026-08-19, Administrator, bilinmeyen `set_id` → 417. Başarı yolu ÖLÇÜLMEDİ (yedek yok). Satıcı karşılığı `start_backup_export` uçtan uca ölçüldü ve çalışıyor."
@@ -4858,7 +4865,7 @@
         - "POST"
       "summary": "Paket ne durumda — ekran bunu düzenli aralıkla sorar."
       "x-python": "tradehub_core.api.media_admin.media_backup_export_status"
-      "x-source": "tradehub_core/api/media_admin.py:866"
+      "x-source": "tradehub_core/api/media_admin.py:868"
       "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır."
       "x-measured": "http-partial"
       "x-measurement": "2026-08-19, Administrator, bilinmeyen `set_id` → 417. Başarı gövdesi ÖLÇÜLMEDİ."
@@ -4902,7 +4909,7 @@
         - "POST"
       "summary": "Hazır paketi sunucudan kaldır."
       "x-python": "tradehub_core.api.media_admin.discard_media_backup_export"
-      "x-source": "tradehub_core/api/media_admin.py:875"
+      "x-source": "tradehub_core/api/media_admin.py:877"
       "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır."
       "x-measured": "http-partial"
       "x-measurement": "2026-08-19, Administrator, bilinmeyen `set_id` → 417. Başarı yolu ÖLÇÜLMEDİ."
@@ -4946,7 +4953,7 @@
         - "GET"
       "summary": "Paketi indir."
       "x-python": "tradehub_core.api.media_admin.download_media_backup_export"
-      "x-source": "tradehub_core/api/media_admin.py:884"
+      "x-source": "tradehub_core/api/media_admin.py:886"
       "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır."
       "x-measured": "http-partial"
       "x-measurement": "2026-08-19, Administrator, bilinmeyen `set_id` → 417 (JSON). Başarı yolunda ikili paket dönmesi bekleniyor; ÖLÇÜLMEDİ. Satıcı karşılığı `download_backup_export` `application/zip` ile ölçüldü."
@@ -4991,7 +4998,7 @@
         - "POST"
       "summary": "Tarama politikasının ve envanterin özeti — panel üst bandı."
       "x-python": "tradehub_core.api.media_admin.scan_overview"
-      "x-source": "tradehub_core/api/media_admin.py:915"
+      "x-source": "tradehub_core/api/media_admin.py:917"
       "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır."
       "x-measured": "http"
       "x-measurement": "2026-08-19, Administrator → 200 `{policy: {enabled, fail_closed, hold_until_clean, scanner}, counts: {pending, clean, infected, failed, unscanned}}`; ölçümde tarama KAPALI (`enabled: false`) ve `unscanned: 5020`."
@@ -5028,7 +5035,7 @@
         - "POST"
       "summary": "Taraması bitmemiş, bu yüzden erişime kapalı bekleyen dosyalar."
       "x-python": "tradehub_core.api.media_admin.list_scan_hold"
-      "x-source": "tradehub_core/api/media_admin.py:942"
+      "x-source": "tradehub_core/api/media_admin.py:944"
       "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır."
       "x-measured": "http"
       "x-measurement": "2026-08-19, Administrator → 200 `{items: [], total: 0, page, page_size}`."
@@ -5079,7 +5086,7 @@
         - "POST"
       "summary": "Süpürücüyü elle tetikle — takılı kalmış taramaları topla."
       "x-python": "tradehub_core.api.media_admin.sweep_scans"
-      "x-source": "tradehub_core/api/media_admin.py:990"
+      "x-source": "tradehub_core/api/media_admin.py:992"
       "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır."
       "x-measured": "http"
       "x-measurement": "2026-08-19, Administrator, POST → 200 `{scanned: 0, requeued: 0, abandoned: 0}`. Aynı uç **GET** ile çağrılınca 403 `PermissionError: Not permitted` (yöntem kısıtı ölçüldü)."
@@ -5116,7 +5123,7 @@
         - "POST"
       "summary": "Karantinadaki dosyalar — envanter listesinden AYRI uç."
       "x-python": "tradehub_core.api.media_admin.list_quarantine"
-      "x-source": "tradehub_core/api/media_admin.py:1003"
+      "x-source": "tradehub_core/api/media_admin.py:1005"
       "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır."
       "x-measured": "http"
       "x-measurement": "2026-08-19, Administrator → 200 `{items: [], total: 0, page, page_size}`."
@@ -5167,7 +5174,7 @@
         - "POST"
       "summary": "Taranamamış (`failed`) dosyayı yeniden kuyruğa koy."
       "x-python": "tradehub_core.api.media_admin.retry_scan"
-      "x-source": "tradehub_core/api/media_admin.py:1034"
+      "x-source": "tradehub_core/api/media_admin.py:1036"
       "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır."
       "x-measured": "http-partial"
       "x-measurement": "2026-08-19, Administrator, olmayan dosya → 417 \"Dosya bulunamadı\". Başarı yolu ÖLÇÜLMEDİ (başarısız taraması olan dosya yok)."
@@ -5211,7 +5218,7 @@
         - "POST"
       "summary": "Yanlış pozitifi karantinadan çıkar — dosyayı yerine koy."
       "x-python": "tradehub_core.api.media_admin.release_quarantine"
-      "x-source": "tradehub_core/api/media_admin.py:1051"
+      "x-source": "tradehub_core/api/media_admin.py:1053"
       "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır."
       "x-measured": "http-partial"
       "x-measurement": "2026-08-19, Administrator, olmayan dosya → 417 \"Dosya bulunamadı\". Karantinada dosya olmadığı için başarı yolu ÖLÇÜLMEDİ."
@@ -5255,7 +5262,7 @@
         - "POST"
       "summary": "Hiç taranmamış mevcut dosyaları parça parça kuyruğa al."
       "x-python": "tradehub_core.api.media_admin.scan_backfill"
-      "x-source": "tradehub_core/api/media_admin.py:1069"
+      "x-source": "tradehub_core/api/media_admin.py:1071"
       "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır."
       "x-measured": "http"
       "x-measurement": "2026-08-19, Administrator, `limit=0` → 200 `{queued: 0, skipped: \"disabled\"}` — tarama kapalı olduğu için uç hiçbir şey kuyruğa almadı ve bunu gövdede SÖYLÜYOR."
@@ -5290,6 +5297,298 @@
           "frappeSession": []
         -
           "frappeToken": []
+  "/api/method/tradehub_core.api.media_admin.retro_rename_count":
+    "get":
+      "tags":
+        - "admin"
+      "operationId": "media_admin_retro_rename_count"
+      "x-allowed-methods":
+        - "GET"
+      "summary": "Taşınacak eski adlı dosya sayısı — yalnız sayaç, referans taraması YOK."
+      "x-python": "tradehub_core.api.media_admin.retro_rename_count"
+      "x-source": "tradehub_core/api/media_admin.py:1091"
+      "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır."
+      "x-unmeasured": "ÇAĞRILMADI. `start_retro_rename`/`rollback_retro_rename` ile aynı özellik grubu — ayrı HTTP ölçüm turunda birlikte kapatılacak."
+      "responses":
+        "200":
+          "description": "Başarılı. Gövde Frappe zarfıyla `message` altındadır."
+          "content":
+            "application/json":
+              "schema":
+                "type": "object"
+                "required":
+                  - "message"
+                "properties":
+                  "message":
+                    "description": "Şema belgelenmedi — uç HTTP ile doğrulanmadı ya da ikili gövde döner."
+        "403":
+          "$ref": "#/components/responses/Denied"
+        "417":
+          "$ref": "#/components/responses/Validation"
+        "500":
+          "$ref": "#/components/responses/ServerError"
+      "security":
+        -
+          "frappeSession": []
+        -
+          "frappeToken": []
+  "/api/method/tradehub_core.api.media_admin.retro_rename_plan":
+    "get":
+      "tags":
+        - "admin"
+      "operationId": "media_admin_retro_rename_plan"
+      "x-allowed-methods":
+        - "GET"
+      "summary": "Eski adlı dosyaların salt okunur taşınma planı (System Manager)."
+      "x-python": "tradehub_core.api.media_admin.retro_rename_plan"
+      "x-source": "tradehub_core/api/media_admin.py:1108"
+      "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır."
+      "x-unmeasured": "ÇAĞRILMADI. `start_retro_rename`/`rollback_retro_rename` ile aynı özellik grubu — ayrı HTTP ölçüm turunda birlikte kapatılacak."
+      "parameters":
+        -
+          "name": "limit"
+          "in": "query"
+          "required": false
+          "schema":
+            "type": "integer"
+          "description": "Python tipi `int`, varsayılan `200`"
+      "responses":
+        "200":
+          "description": "Başarılı. Gövde Frappe zarfıyla `message` altındadır."
+          "content":
+            "application/json":
+              "schema":
+                "type": "object"
+                "required":
+                  - "message"
+                "properties":
+                  "message":
+                    "description": "Şema belgelenmedi — uç HTTP ile doğrulanmadı ya da ikili gövde döner."
+        "403":
+          "$ref": "#/components/responses/Denied"
+        "417":
+          "$ref": "#/components/responses/Validation"
+        "500":
+          "$ref": "#/components/responses/ServerError"
+      "security":
+        -
+          "frappeSession": []
+        -
+          "frappeToken": []
+  "/api/method/tradehub_core.api.media_admin.start_retro_rename":
+    "post":
+      "tags":
+        - "admin"
+      "operationId": "media_admin_start_retro_rename"
+      "x-allowed-methods":
+        - "POST"
+      "summary": "Retro-rename işini kuyruğa al; aynı anda tek iş."
+      "x-python": "tradehub_core.api.media_admin.start_retro_rename"
+      "x-source": "tradehub_core/api/media_admin.py:1124"
+      "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır."
+      "x-unmeasured": "ÇAĞRILMADI. Gerçek sitede 5.020 dosyayı geri dönüşü zor biçimde yeniden adlandırma işi kuyruğa girer; ölçüm için üretilip silinemeyecek kadar büyük bir yan etki olurdu."
+      "parameters":
+        -
+          "name": "dry_run"
+          "in": "query"
+          "required": false
+          "schema":
+            "type": "integer"
+          "description": "Python tipi `int`, varsayılan `0`"
+        -
+          "name": "batch_size"
+          "in": "query"
+          "required": false
+          "schema":
+            "type": "integer"
+          "description": "Python tipi `int`, varsayılan `200`"
+      "responses":
+        "200":
+          "description": "Başarılı. Gövde Frappe zarfıyla `message` altındadır."
+          "content":
+            "application/json":
+              "schema":
+                "type": "object"
+                "required":
+                  - "message"
+                "properties":
+                  "message":
+                    "description": "Şema belgelenmedi — uç HTTP ile doğrulanmadı ya da ikili gövde döner."
+        "403":
+          "$ref": "#/components/responses/Denied"
+        "417":
+          "$ref": "#/components/responses/Validation"
+        "500":
+          "$ref": "#/components/responses/ServerError"
+      "security":
+        -
+          "frappeSession": []
+        -
+          "frappeToken": []
+  "/api/method/tradehub_core.api.media_admin.get_retro_rename_status":
+    "get":
+      "tags":
+        - "admin"
+      "operationId": "media_admin_get_retro_rename_status"
+      "x-allowed-methods":
+        - "GET"
+      "summary": "Redis'teki ilerleme. Kayıt yoksa `{\"state\": \"not_found\"}`."
+      "x-python": "tradehub_core.api.media_admin.get_retro_rename_status"
+      "x-source": "tradehub_core/api/media_admin.py:1157"
+      "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır."
+      "x-unmeasured": "ÇAĞRILMADI. `start_retro_rename`/`rollback_retro_rename` ile aynı özellik grubu — ayrı HTTP ölçüm turunda birlikte kapatılacak."
+      "parameters":
+        -
+          "name": "job_key"
+          "in": "query"
+          "required": true
+          "schema":
+            "type": "string"
+          "description": "Python tipi `str`, ZORUNLU"
+      "responses":
+        "200":
+          "description": "Başarılı. Gövde Frappe zarfıyla `message` altındadır."
+          "content":
+            "application/json":
+              "schema":
+                "type": "object"
+                "required":
+                  - "message"
+                "properties":
+                  "message":
+                    "description": "Şema belgelenmedi — uç HTTP ile doğrulanmadı ya da ikili gövde döner."
+        "403":
+          "$ref": "#/components/responses/Denied"
+        "417":
+          "$ref": "#/components/responses/Validation"
+        "500":
+          "$ref": "#/components/responses/ServerError"
+      "security":
+        -
+          "frappeSession": []
+        -
+          "frappeToken": []
+  "/api/method/tradehub_core.api.media_admin.stop_retro_rename":
+    "post":
+      "tags":
+        - "admin"
+      "operationId": "media_admin_stop_retro_rename"
+      "x-allowed-methods":
+        - "POST"
+      "summary": "Bir sonraki batch sınırında durdur."
+      "x-python": "tradehub_core.api.media_admin.stop_retro_rename"
+      "x-source": "tradehub_core/api/media_admin.py:1164"
+      "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır."
+      "x-unmeasured": "ÇAĞRILMADI. `start_retro_rename`/`rollback_retro_rename` ile aynı özellik grubu — ayrı HTTP ölçüm turunda birlikte kapatılacak."
+      "parameters":
+        -
+          "name": "job_key"
+          "in": "query"
+          "required": true
+          "schema":
+            "type": "string"
+          "description": "Python tipi `str`, ZORUNLU"
+      "responses":
+        "200":
+          "description": "Başarılı. Gövde Frappe zarfıyla `message` altındadır."
+          "content":
+            "application/json":
+              "schema":
+                "type": "object"
+                "required":
+                  - "message"
+                "properties":
+                  "message":
+                    "description": "Şema belgelenmedi — uç HTTP ile doğrulanmadı ya da ikili gövde döner."
+        "403":
+          "$ref": "#/components/responses/Denied"
+        "417":
+          "$ref": "#/components/responses/Validation"
+        "500":
+          "$ref": "#/components/responses/ServerError"
+      "security":
+        -
+          "frappeSession": []
+        -
+          "frappeToken": []
+  "/api/method/tradehub_core.api.media_admin.rollback_retro_rename":
+    "post":
+      "tags":
+        - "admin"
+      "operationId": "media_admin_rollback_retro_rename"
+      "x-allowed-methods":
+        - "POST"
+      "summary": "Bir işin yeniden adlandırmalarını geri al (yönlendirme satırları durduğu sürece)."
+      "x-python": "tradehub_core.api.media_admin.rollback_retro_rename"
+      "x-source": "tradehub_core/api/media_admin.py:1172"
+      "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır."
+      "x-unmeasured": "ÇAĞRILMADI. Gerçek sitede `Media URL Redirect` satırlarına dayanarak dosyaları eski adına geri taşır; ölçüm için üretilip silinemeyecek kadar büyük bir yan etki olurdu."
+      "parameters":
+        -
+          "name": "job_key"
+          "in": "query"
+          "required": true
+          "schema":
+            "type": "string"
+          "description": "Python tipi `str`, ZORUNLU"
+      "responses":
+        "200":
+          "description": "Başarılı. Gövde Frappe zarfıyla `message` altındadır."
+          "content":
+            "application/json":
+              "schema":
+                "type": "object"
+                "required":
+                  - "message"
+                "properties":
+                  "message":
+                    "description": "Şema belgelenmedi — uç HTTP ile doğrulanmadı ya da ikili gövde döner."
+        "403":
+          "$ref": "#/components/responses/Denied"
+        "417":
+          "$ref": "#/components/responses/Validation"
+        "500":
+          "$ref": "#/components/responses/ServerError"
+      "security":
+        -
+          "frappeSession": []
+        -
+          "frappeToken": []
+  "/api/method/tradehub_core.api.media_admin.retro_rename_history":
+    "get":
+      "tags":
+        - "admin"
+      "operationId": "media_admin_retro_rename_history"
+      "x-allowed-methods":
+        - "GET"
+      "summary": "Geri alınabilir işler: job_key başına satır sayısı ve süre sonu."
+      "x-python": "tradehub_core.api.media_admin.retro_rename_history"
+      "x-source": "tradehub_core/api/media_admin.py:1193"
+      "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır."
+      "x-unmeasured": "ÇAĞRILMADI. `start_retro_rename`/`rollback_retro_rename` ile aynı özellik grubu — ayrı HTTP ölçüm turunda birlikte kapatılacak."
+      "responses":
+        "200":
+          "description": "Başarılı. Gövde Frappe zarfıyla `message` altındadır."
+          "content":
+            "application/json":
+              "schema":
+                "type": "object"
+                "required":
+                  - "message"
+                "properties":
+                  "message":
+                    "description": "Şema belgelenmedi — uç HTTP ile doğrulanmadı ya da ikili gövde döner."
+        "403":
+          "$ref": "#/components/responses/Denied"
+        "417":
+          "$ref": "#/components/responses/Validation"
+        "500":
+          "$ref": "#/components/responses/ServerError"
+      "security":
+        -
+          "frappeSession": []
+        -
+          "frappeToken": []
   "/api/method/tradehub_core.api.media_admin.get_media_seo":
     "get":
       "tags":
@@ -5300,7 +5599,7 @@
         - "POST"
       "summary": "Bir görselin SEO alanları — kullanım bağlamı verilirse ezme uygulanır."
       "x-python": "tradehub_core.api.media_admin.get_media_seo"
-      "x-source": "tradehub_core/api/media_admin.py:1085"
+      "x-source": "tradehub_core/api/media_admin.py:1212"
       "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır."
       "x-measured": "http"
       "x-measurement": "2026-08-21, gerçek HTTP. Misafir → **403** `PermissionError`. Yönetici, canlı ürün görseli: 200 → `{file_url, alt, title, caption, description, tags, creator, credit_text, copyright_notice, license_url, acquire_license_url, usage_rights, rights_expires_on, seo_filename, slug, canonical, alt_source, width, height, overridden}` (20 anahtar). `alt` çok dilli kolondan çözüldü (`alt_tr` dolu, `lang=tr`), `overridden=false` — kullanım bağlamı verilmediği için ezme katmanı atlandı. Boş alanlar `\"\"` döndü, `null` DEĞİL."
@@ -5372,7 +5671,7 @@
         - "POST"
       "summary": "Varlık varsayılanını yaz. Beyaz liste `media/seo.py`'de — yaşam"
       "x-python": "tradehub_core.api.media_admin.set_media_seo"
-      "x-source": "tradehub_core/api/media_admin.py:1098"
+      "x-source": "tradehub_core/api/media_admin.py:1225"
       "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır."
       "x-measured": "http"
       "x-measurement": "2026-08-21. Yönetici → 200 → `{file_url, records: 2}`; aynı adrese ait İKİ `File` kaydına birden yazdı (içerik-adresli adlandırma yüzünden aynı dosyanın iki kaydı var). Beyaz liste doğrulandı: gövdeye konan `th_media_state` yok sayıldı. Ölçüm değeri sonradan temizlendi."
@@ -5430,7 +5729,7 @@
         - "POST"
       "summary": "Kullanım başına ezme — aynı görsel farklı sayfada farklı alt metni."
       "x-python": "tradehub_core.api.media_admin.set_media_seo_override"
-      "x-source": "tradehub_core/api/media_admin.py:1110"
+      "x-source": "tradehub_core/api/media_admin.py:1237"
       "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır."
       "x-measured": "http"
       "x-measurement": "2026-08-21. Yönetici → 200 → `{name: \"9rjoq5fb2a\"}`; `Media SEO Override` kaydı `(file_url, Listing, OLCUM-1, primary_image)` dörtlüsüyle açıldı. Aynı dörtlüyle ikinci çağrı YENİ kayıt açmaz (tekillik indeksi `uk_seo_override_quad`). Ölçüm kaydı `clear_media_seo_override` ile silindi."
@@ -5502,7 +5801,7 @@
         - "POST"
       "summary": "clear_media_seo_override"
       "x-python": "tradehub_core.api.media_admin.clear_media_seo_override"
-      "x-source": "tradehub_core/api/media_admin.py:1130"
+      "x-source": "tradehub_core/api/media_admin.py:1257"
       "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır."
       "x-measured": "http"
       "x-measurement": "2026-08-21. Yönetici → 200 → `{cleared: true}`. Olmayan ezmede `{cleared: false}` — 404 DEĞİL: silme idempotent."
@@ -5567,7 +5866,7 @@
         - "POST"
       "summary": "Kural zinciriyle alt metni üret. `force` insan metnini EZER — yalnız"
       "x-python": "tradehub_core.api.media_admin.generate_media_alt"
-      "x-source": "tradehub_core/api/media_admin.py:1142"
+      "x-source": "tradehub_core/api/media_admin.py:1269"
       "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır."
       "x-measured": "http"
       "x-measurement": "2026-08-21. Yönetici, alt metni zaten kural motorunca üretilmiş görsel: 200 → `{written: false, alt: \"Dinamik Manuel Doğrayıcı Rondo (15. görsel)\", reason: \"unchanged\"}` — aynı metin yeniden yazılmadı. Sıra numarası okunabilir biçimde (\"(15. görsel)\"), çıplak \"- 15\" DEĞİL. İnsan yazımı metinde `reason=\"source:human\"` döner ve yazma yapılmaz."
@@ -5618,7 +5917,7 @@
         - "POST"
       "summary": "Mevcut katalogu parça parça doldur — `av.backfill_pending` deseni."
       "x-python": "tradehub_core.api.media_admin.backfill_media_alt"
-      "x-source": "tradehub_core/api/media_admin.py:1152"
+      "x-source": "tradehub_core/api/media_admin.py:1279"
       "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır."
       "x-measured": "http"
       "x-measurement": "2026-08-21. Yönetici → 200 → `{scanned: 0, written: 0, skipped: 0, reasons: {}}`; ölçüm sırasında ürün görsellerinin TAMAMI (1.788 dosya) zaten doldurulmuştu, aday kalmadı. Dolu katalogda aynı uç 500'erlik turlarla 1.788 kayıt yazdı (30,9 s)."
@@ -5670,7 +5969,7 @@
         - "POST"
       "summary": "SEO denetimi."
       "x-python": "tradehub_core.api.media_admin.audit_media_seo"
-      "x-source": "tradehub_core/api/media_admin.py:1161"
+      "x-source": "tradehub_core/api/media_admin.py:1288"
       "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır."
       "x-measured": "http"
       "x-measurement": "2026-08-21. Yönetici → 200 → `{files: [...], summary: {...}, score: {...}, total}`; dosya başına `findings` listesi (kod, severity, message, detail) ve alt kırılımlı skor. 150 dosyalık turda en sık bulgular `missing_title/caption/license` (150), `missing_alt` (138). Ürün görselleri doldurulduktan sonra aynı tarama `missing_alt` 0, erişilebilirlik skoru 99 verdi. `scope` (21 Ağu eklendi): varsayılan `catalog` vitrinde görünen ürün görsellerini tarar; `recent` ölçümde ilk 10 satırın 10'unda test videosu döndürüyordu (bu yüzden varsayılan değil), `all` tüm public dosyalar."
@@ -5771,7 +6070,7 @@
         - "POST"
       "summary": "Görsellerin gerçek çözünürlüğünü doldur — CLS düzeltmesinin ön koşulu."
       "x-python": "tradehub_core.api.media_admin.backfill_media_dimensions"
-      "x-source": "tradehub_core/api/media_admin.py:1255"
+      "x-source": "tradehub_core/api/media_admin.py:1382"
       "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır."
       "x-measured": "http"
       "x-measurement": "2026-08-21. Yönetici → 200 → `{scanned: 5, written: 0, unreadable: 0, missing: 5}`; ölçümde kalan adaylar diskte bulunmayan kayıtlardı (`missing`). Aynı uç dolu katalogda 4.776 dosyanın gerçek çözünürlüğünü 2,7 s'de yazdı; denetimdeki `missing_dimensions` bulgusu 150/150'den 8/150'ye düştü, performans skoru 60 → 98."

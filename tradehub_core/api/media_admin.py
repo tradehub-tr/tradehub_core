@@ -15,6 +15,7 @@ import os
 import frappe
 from frappe import _
 from frappe.query_builder.functions import Count
+from frappe.utils import cint
 
 from tradehub_core.media import (
 	access_level,
@@ -24,6 +25,7 @@ from tradehub_core.media import (
 	inventory,
 	presets,
 	refs,
+	retro_rename,
 	runner,
 	timefmt,
 	transcode,
@@ -1076,6 +1078,131 @@ def scan_backfill(limit: int = 500) -> dict:
 	from tradehub_core.media import av
 
 	return av.backfill_pending(limit=min(2000, max(1, int(limit or 500))))
+
+
+# ─── MOGEM-582 retro-rename ────────────────────────────────────────────────
+# Eski adlı (`content_<hash>.<ext>` öncesi) dosyaları yeni adlandırma şemasına
+# taşıyan araç. İş mantığı `tradehub_core/media/retro_rename.py`'de; burada
+# yalnız yetki + kuyruğa alma var (dosya başlığındaki "iş mantığı karışmasın"
+# kuralı).
+
+
+@frappe.whitelist(methods=["GET"])
+def retro_rename_count() -> dict:
+	"""Taşınacak eski adlı dosya sayısı — yalnız sayaç, referans taraması YOK.
+
+	`retro_rename_plan` tüm adaylar için referans taraması yapıyor (lokalde
+	~20 sn); admin kartının açılışında yalnız sayı gerekiyor, tam plan yalnız
+	"Önizle" tıklamasında istenir.
+
+	`total` bayat satırları da sayar: `tabFile` eski adresi gösteriyor ama blob
+	diskte yok (silinmiş/karantinaya taşınmış). Bunlar bu araçla TAŞINAMAZ, o
+	yüzden `disk_missing`/`renamable` ayrı dönüyor — aksi hâlde kart hiç
+	sıfırlanmayan bir "N dosya bekliyor" rozetinde takılı kalıyordu.
+	"""
+	_guard_destructive()
+	return retro_rename.count_summary()
+
+
+@frappe.whitelist(methods=["GET"])
+def retro_rename_plan(limit: int = 200) -> dict:
+	"""Eski adlı dosyaların salt okunur taşınma planı (System Manager).
+
+	`limit` `start_retro_rename`'in `batch_size`'ı gibi KIRPILIR: `cint(limit,
+	200)` sayı olmayan girdiyi sessizce varsayılana çeker, negatifi 0'a, üst
+	sınır `PLAN_ITEM_LIMIT`. Kırpma olmadan `limit="abc"` çıplak `int()` içinde
+	`ValueError` fırlatıp uca 500 döndürüyordu.
+	"""
+	_guard_destructive()
+	kirpik = min(retro_rename.PLAN_ITEM_LIMIT, max(0, cint(limit, 200)))
+	p = retro_rename.plan()
+	p["items"] = p["items"][:kirpik]
+	return p
+
+
+@frappe.whitelist(methods=["POST"])
+def start_retro_rename(dry_run: int = 0, batch_size: int = 200) -> dict:
+	"""Retro-rename işini kuyruğa al; aynı anda tek iş."""
+	_guard_destructive()
+	# `expires=True`: `ACTIVE_KEY` `expires_in_sec` ile yazılıyor (aşağıda ve
+	# worker'da). Süreç-içi önbellek yalnız `expires_in_sec` YOKKEN tazelenir —
+	# `expires=True` olmadan aynı worker/istek süreci ilk okunan `None`'ı
+	# sonsuza dek önbellekte tutar.
+	if frappe.cache.get_value(retro_rename.ACTIVE_KEY, expires=True):
+		frappe.throw(_("Zaten çalışan bir yeniden adlandırma işi var."))
+	total = len(retro_rename.legacy_urls())
+	if not total:
+		frappe.throw(_("Taşınacak eski adlı dosya yok."))
+	job_key = frappe.generate_hash(length=12)
+	clamped_batch_size = min(2000, max(1, int(batch_size or 200)))
+	# TOCTOU: `run_job` `ACTIVE_KEY`'i yalnız worker başladığında kurar — kontrol
+	# ile kuyruğa alma arasındaki pencerede iki hızlı tık iki iş başlatabilirdi.
+	# Geçici kilidi burada, kuyruğa almadan ÖNCE koyuyoruz; worker `_heartbeat`
+	# ile tazeler, `run_job`'un `finally`'si temizler (kuyruk hiç çalışmazsa
+	# 120 sn'de kendiliğinden düşer).
+	frappe.cache.set_value(retro_rename.ACTIVE_KEY, job_key, expires_in_sec=120)
+	frappe.enqueue(
+		"tradehub_core.media.retro_rename.run_job",
+		queue="long",
+		timeout=4 * 3600,
+		enqueue_after_commit=True,
+		job_key=job_key,
+		dry_run=int(dry_run or 0),
+		batch_size=clamped_batch_size,
+	)
+	return {"job_key": job_key, "total": total, "dry_run": int(dry_run or 0)}
+
+
+@frappe.whitelist(methods=["GET"])
+def get_retro_rename_status(job_key: str) -> dict:
+	"""Redis'teki ilerleme. Kayıt yoksa `{"state": "not_found"}`."""
+	_guard_destructive()
+	return retro_rename.read_progress(job_key)
+
+
+@frappe.whitelist(methods=["POST"])
+def stop_retro_rename(job_key: str) -> dict:
+	"""Bir sonraki batch sınırında durdur."""
+	_guard_destructive()
+	retro_rename.request_stop(job_key)
+	return {"ok": True}
+
+
+@frappe.whitelist(methods=["POST"])
+def rollback_retro_rename(job_key: str) -> dict:
+	"""Bir işin yeniden adlandırmalarını geri al (yönlendirme satırları durduğu sürece)."""
+	_guard_destructive()
+	# `expires=True` — bkz. `start_retro_rename`.
+	if frappe.cache.get_value(retro_rename.ACTIVE_KEY, expires=True):
+		frappe.throw(_("Zaten çalışan bir iş var; bitmesini bekleyin."))
+	rollback_key = frappe.generate_hash(length=12)
+	# Aynı TOCTOU koruması — bkz. `start_retro_rename`.
+	frappe.cache.set_value(retro_rename.ACTIVE_KEY, rollback_key, expires_in_sec=120)
+	frappe.enqueue(
+		"tradehub_core.media.retro_rename.run_rollback",
+		queue="long",
+		timeout=4 * 3600,
+		enqueue_after_commit=True,
+		job_key=job_key,
+		rollback_key=rollback_key,
+	)
+	return {"job_key": rollback_key, "source_job_key": job_key}
+
+
+@frappe.whitelist(methods=["GET"])
+def retro_rename_history() -> dict:
+	"""Geri alınabilir işler: job_key başına satır sayısı ve süre sonu."""
+	_guard_destructive()
+	# Tablo/kolon adları sabit (kullanıcı girdisi yok) — f-string yok, ham SQL
+	# `frappe.db.sql` ile güvenli. `frappe.qb` ile `groupby` + `Min` + aggregate
+	# alias üzerinden `orderby` pypika'da kırılgan; bu sorgu için düz SQL tercih
+	# edildi (refactor-targets.md §2 istisnası — sabit tablo/kolon).
+	rows = frappe.db.sql(  # noqa: S608 — sabit tablo/kolon, kullanıcı girdisi yok
+		"""select job_key, count(*) as count, min(expires_at) as expires_at, min(creation) as first_created
+			from `tabMedia URL Redirect` group by job_key order by first_created desc""",
+		as_dict=True,
+	)
+	return {"jobs": rows}
 
 
 # ── SEO alanları, üretim ve denetim (TUR-135) ───────────────────────────
