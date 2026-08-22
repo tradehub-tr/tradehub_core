@@ -1061,16 +1061,19 @@ def _gorsel_kunyeleri(listing, images: list, lang: str) -> list[dict]:
 		from tradehub_core.media import seo as media_seo
 		from tradehub_core.media import seo_render
 
-		ana = listing.primary_image or ""
+		baglamlar = {
+			b["file_url"]: b for b in media_seo.listing_usage_contexts(listing.name, images)
+		}
 		kunyeler = []
 		for i, url in enumerate(images):
-			ref_alan = "primary_image" if url == ana else "image"
-			ref_dt = "Listing" if url == ana else "Listing Image"
+			baglam = baglamlar.get((url or "").split("?")[0]) or {
+				"ref_doctype": "Listing", "ref_name": listing.name, "ref_field": "primary_image"
+			}
 			alanlar = media_seo.fields_for(
 				url,
-				ref_doctype=ref_dt,
-				ref_name=listing.name,
-				ref_field=ref_alan,
+				ref_doctype=baglam["ref_doctype"],
+				ref_name=baglam["ref_name"],
+				ref_field=baglam["ref_field"],
 				lang=lang,
 			)
 			kunyeler.append(seo_render.image_payload(alanlar, index=i, context="gallery"))

@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import re
 from typing import Any
+from urllib.parse import urlsplit
 
 import frappe
 from frappe.utils import getdate, nowdate
@@ -209,6 +210,13 @@ _KURAL_BOYUT: dict[str, str] = {
 	"orphan_asset": "discoverability",
 	"used_but_noindex": "discoverability",
 	"missing_structured_data": "structured_data",
+	"broken_structured_data": "structured_data",
+	"oversized_image": "performance",
+	"missing_responsive_variants": "performance",
+	"broken_url": "technical_health",
+	"duplicate_asset": "technical_health",
+	"visibility_conflict": "technical_health",
+	"missing_association": "discoverability",
 }
 
 DIMENSIONS: tuple[str, ...] = (
@@ -219,6 +227,7 @@ DIMENSIONS: tuple[str, ...] = (
 	"discoverability",
 	"structured_data",
 	"localization",
+	"technical_health",
 )
 
 #: Ceza puanları. `error` iki katı: yanlış yayın, eksik fırsattan ağır.
@@ -257,22 +266,21 @@ def _yerellestirme_puani(alanlar: dict) -> int:
 	"""Kaç dilde alt metni var. Tek dil = 100 DEĞİL: vitrin 4 dilli."""
 	from tradehub_core.seo.i18n import CONTENT_LANGS
 
-	# `fields_for` tek dil çözüyor; ham kolonlara buradan bakılmıyor —
-	# bu yüzden yalnız "varsayılan dilde var mı" ölçülebiliyor. Dil başına
-	# ölçüm Dilim 3'ün ötesinde (panelde dil seçiciyle bakılır).
-	if not (alanlar.get("alt") or "").strip():
-		return 0
-	return round(100 / max(1, len(CONTENT_LANGS))) if len(CONTENT_LANGS) > 1 else 100
+	localized = (alanlar.get("localized") or {}).get("alt") or {}
+	if localized:
+		dolu = sum(1 for lang in CONTENT_LANGS if str(localized.get(lang) or "").strip())
+		return round(100 * dolu / max(1, len(CONTENT_LANGS)))
+	return 100 if (alanlar.get("alt") or "").strip() else 0
 
 
 # ── Toplu denetim ────────────────────────────────────────────────────────
 
 
-#: Tam kapsam denetiminin önbellek süresi. Sayfa değiştirmek 3.267 dosyayı
-#: yeniden denetlemesin diye: ölçüm 2,2 s — sayfa başına ödenirse ekran
-#: kullanılamaz. 60 sn, `usage.py`'nin 600 sn'lik kararından kısa çünkü
-#: operatör burada düzeltme yapıp sonucu HEMEN görmek istiyor.
-SCOPE_CACHE_TTL: int = 60
+#: Tam kapsam denetiminin önbellek süresi. Local katalogda soğuk tarama
+#: 3,8 sn; satır aksiyonları artık tek dosyayı uzlaştırdığı için aynı bedeli
+#: dakikada bir tekrar ödemeye gerek yok. Operatörün açık "Yenile" aksiyonu
+#: `refresh=1` ile bu cache'i zaten atlar.
+SCOPE_CACHE_TTL: int = 3600
 SCOPE_CACHE_KEY: str = "tradehub_media_seo_audit"
 
 
@@ -348,12 +356,57 @@ def audit_batch(file_urls: list[str], *, deep: bool = False) -> dict[str, Any]:
 		return {"files": [], "summary": {}, "score": {}}
 
 	toplu = seo.fields_for_many(temiz)
+	file_fields = ["file_url", "file_name", "file_size", "is_private", "th_media_state"]
+	for optional in ("th_media_visibility", "th_media_robots_override"):
+		if frappe.db.has_column("File", optional):
+			file_fields.append(optional)
 	kayitlar = {
 		r["file_url"]: r
 		for r in frappe.get_all(
-			"File", filters={"file_url": ["in", temiz]}, fields=["file_url", "file_name", "file_size"]
+			"File", filters={"file_url": ["in", temiz]},
+			fields=file_fields,
 		)
 	}
+	url_counts = dict(
+		frappe.db.sql(
+			"select file_url, count(*) from `tabFile` where file_url in %(urls)s group by file_url",
+			{"urls": temiz},
+		)
+	)
+	asset_by_url: dict[str, dict] = {}
+	if frappe.db.table_exists("Media Asset"):
+		for satir in frappe.db.sql(
+			"""select f.file_url, a.name, a.perceptual_hash
+			from `tabMedia Asset` a join `tabFile` f on f.name=a.source_file
+			where f.file_url in %(urls)s""", {"urls": temiz}, as_dict=True,
+		):
+			asset_by_url[satir["file_url"]] = satir
+	rendition_assets: set[str] = set()
+	if asset_by_url and frappe.db.table_exists("Media Rendition"):
+		rendition_assets = {
+			r["asset"] for r in frappe.get_all(
+				"Media Rendition", filters={"asset": ["in", [a["name"] for a in asset_by_url.values()]]},
+				fields=["asset"], group_by="asset", limit_page_length=0,
+			)
+		}
+	associated_urls = {
+		r["primary_image"] for r in frappe.get_all(
+			"Listing", filters={"primary_image": ["in", temiz]}, fields=["primary_image"], limit_page_length=0,
+		) if r.get("primary_image")
+	}
+	associated_urls.update(
+		r["image"] for r in frappe.get_all(
+			"Listing Image", filters={"image": ["in", temiz]}, fields=["image"], limit_page_length=0,
+		) if r.get("image")
+	)
+	for doctype, field in (("Product Category", "image"), ("Seller Category", "image"), ("Brand", "logo")):
+		if not frappe.db.table_exists(doctype) or not frappe.get_meta(doctype).has_field(field):
+			continue
+		associated_urls.update(
+			r[field] for r in frappe.get_all(
+				doctype, filters={field: ["in", temiz]}, fields=[field], limit_page_length=0,
+			) if r.get(field)
+		)
 	adlar = {u: r.get("file_name") or "" for u, r in kayitlar.items()}
 
 	sonuclar = []
@@ -362,6 +415,12 @@ def audit_batch(file_urls: list[str], *, deep: bool = False) -> dict[str, Any]:
 	for url in temiz:
 		alanlar = toplu.get(url) or {"file_url": url}
 		bulgular = audit_fields(alanlar, file_name=adlar.get(url, ""))
+		kayit = kayitlar.get(url) or {}
+		bulgular.extend(_technical_findings(
+			url, alanlar, kayit, url_count=int(url_counts.get(url) or 0),
+			asset=asset_by_url.get(url), rendition_assets=rendition_assets,
+			associated=url in associated_urls,
+		))
 		if url not in kayitlar:
 			# Katalog bu adresi gösteriyor ama dosya kaydı yok: alt/title bulguları
 			# anlamsız, kök sorun kırık görsel. Tek bulgu, en ağır seviye.
@@ -394,3 +453,56 @@ def audit_batch(file_urls: list[str], *, deep: bool = False) -> dict[str, Any]:
 		for boyut, degerler in toplam_skor.items()
 	}
 	return {"files": sonuclar, "summary": ozet, "score": ortalama, "total": len(sonuclar)}
+
+
+def _technical_findings(
+	url: str, alanlar: dict, kayit: dict, *, url_count: int,
+	asset: dict | None, rendition_assets: set[str], associated: bool,
+) -> list[dict]:
+	"""Dosya/teslim/structured-data temelli, toplu sorgularla beslenen kurallar."""
+	out: list[dict] = []
+	parsed = urlsplit(url)
+	if (
+		not url.startswith(("/files/", "/private/files/", "http://", "https://"))
+		or parsed.scheme == "javascript"
+	):
+		out.append(
+			_kural("broken_url", SEVERITY_ERROR, "Dosya adresi teslim edilebilir bir medya URL'si değil", url)
+		)
+	w = int(alanlar.get("width") or 0)
+	h = int(alanlar.get("height") or 0)
+	bytes_ = int(kayit.get("file_size") or 0)
+	if (w * h) > 12_000_000 or bytes_ > 2 * 1024 * 1024:
+		out.append(_kural(
+			"oversized_image", SEVERITY_WARN,
+			"Görsel piksel/bayt bütçesini aşıyor",
+			f"{w}x{h}, {bytes_} bytes",
+		))
+	if asset and asset.get("name") not in rendition_assets:
+		out.append(_kural("missing_responsive_variants", SEVERITY_WARN, "Responsive türev bulunamadı"))
+	if url_count > 1:
+		out.append(
+			_kural(
+				"duplicate_asset", SEVERITY_WARN,
+				"Aynı delivery URL birden fazla File kaydında", str(url_count),
+			)
+		)
+	if not associated:
+		out.append(
+			_kural("missing_association", SEVERITY_WARN, "Asset bir ürün veya kategori bağlamına bağlı değil")
+		)
+	if not any(alanlar.get(k) for k in ("alt", "caption", "title", "width", "license_url")):
+		out.append(
+			_kural("missing_structured_data", SEVERITY_WARN, "Anlamlı ImageObject üretmek için metadata yok")
+		)
+	for key in ("license_url", "acquire_license_url"):
+		value = str(alanlar.get(key) or "")
+		if value and not value.startswith(("/", "http://", "https://")):
+			out.append(_kural("broken_structured_data", SEVERITY_ERROR, f"Geçersiz {key}", value))
+	visibility = str(kayit.get("th_media_visibility") or "")
+	robots = str(kayit.get("th_media_robots_override") or "").lower()
+	if kayit.get("is_private") and url.startswith("/files/"):
+		out.append(_kural("visibility_conflict", SEVERITY_ERROR, "Private asset public URL altında"))
+	if visibility == "Public" and "noindex" in robots:
+		out.append(_kural("visibility_conflict", SEVERITY_ERROR, "Public asset robots override ile noindex"))
+	return out

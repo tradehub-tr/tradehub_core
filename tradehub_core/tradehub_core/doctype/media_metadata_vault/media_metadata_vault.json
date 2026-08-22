@@ -1,0 +1,33 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "field:asset",
+ "creation": "2026-08-22 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": ["asset", "source_file", "metadata_policy", "has_exif", "has_gps", "orientation", "captured_at", "metadata_encrypted", "metadata_sha256"],
+ "fields": [
+  {"fieldname": "asset", "fieldtype": "Link", "options": "Media Asset", "label": "Asset", "reqd": 1, "unique": 1, "in_list_view": 1},
+  {"fieldname": "source_file", "fieldtype": "Link", "options": "File", "label": "Source File", "reqd": 1},
+  {"fieldname": "metadata_policy", "fieldtype": "Data", "label": "Metadata Policy", "reqd": 1, "read_only": 1},
+  {"fieldname": "has_exif", "fieldtype": "Check", "label": "Has EXIF", "read_only": 1},
+  {"fieldname": "has_gps", "fieldtype": "Check", "label": "Has GPS", "read_only": 1},
+  {"fieldname": "orientation", "fieldtype": "Int", "label": "Orientation", "read_only": 1},
+  {"fieldname": "captured_at", "fieldtype": "Datetime", "label": "Capture Date", "read_only": 1},
+  {"fieldname": "metadata_encrypted", "fieldtype": "Password", "label": "Encrypted Source Metadata", "reqd": 1, "read_only": 1},
+  {"fieldname": "metadata_sha256", "fieldtype": "Data", "label": "Metadata SHA-256", "length": 64, "reqd": 1, "read_only": 1}
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-08-22 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "Media Metadata Vault",
+ "owner": "Administrator",
+ "permissions": [
+  {"role": "System Manager", "read": 1, "create": 1, "write": 1, "delete": 1, "report": 1}
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "track_changes": 1
+}

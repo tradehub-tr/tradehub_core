@@ -292,29 +292,22 @@ def _image_entries_for_listing(row: dict, site: str) -> list[dict]:
 		from tradehub_core.media import seo as media_seo
 		from tradehub_core.media import seo_index
 
-		adresler: list[tuple[str, str, str]] = []
-		if row.get("primary_image"):
-			adresler.append((row["primary_image"], "Listing", "primary_image"))
-		for satir in frappe.get_all(
-			"Listing Image",
-			filters={"parent": ad, "parenttype": "Listing"},
-			fields=["image"],
-			order_by="idx asc",
-			limit_page_length=_SITEMAP_IMAGE_LIMIT,
-		):
-			if satir.get("image"):
-				adresler.append((satir["image"], "Listing Image", "image"))
+		adresler = media_seo.listing_usage_contexts(ad)
 
 		girdiler: list[dict] = []
 		gorulen: set[str] = set()
-		for url, ref_dt, ref_alan in adresler[:_SITEMAP_IMAGE_LIMIT]:
+		for baglam in adresler[:_SITEMAP_IMAGE_LIMIT]:
+			url = baglam["file_url"]
 			if url in gorulen:
 				continue
 			gorulen.add(url)
 			if not seo_index.decide(url, check_usage=False)["indexable"]:
 				continue
 			alanlar = media_seo.fields_for(
-				url, ref_doctype=ref_dt, ref_name=ad, ref_field=ref_alan
+				url,
+				ref_doctype=baglam["ref_doctype"],
+				ref_name=baglam["ref_name"],
+				ref_field=baglam["ref_field"],
 			)
 			girdi = {"loc": _mutlak(url, site)}
 			if alanlar.get("caption") or alanlar.get("alt"):
