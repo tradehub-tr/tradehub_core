@@ -276,3 +276,9 @@ tradehub_core.patches.v15_9_22_seed_seller_manual_shipment_nav
 
 # --- Ali · 14-FE (teslim kanıtı + teslimat akışları) ---
 tradehub_core.patches.v15_9_23_seed_seller_delivery_nav
+
+# --- Metin · TUR-135 Dilim 1 (medya SEO şeması) ---
+# SIRA ZORUNLU: alanlar (37) ezme tablosundan (38) önce — `media/seo.py`
+# okuma kapısı ikisini birden bekliyor.
+tradehub_core.patches.v15_9_37_media_seo_fields
+tradehub_core.patches.v15_9_38_media_seo_override

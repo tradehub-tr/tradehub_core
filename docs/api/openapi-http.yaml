@@ -39,7 +39,7 @@
     "name": "rum"
     "description": "Gerçek kullanıcı ölçümü (RUM) toplama — misafire açık TEK yazma ucu; gövde `text/plain` JSON'dur, sorgu parametresi değil."
 "x-layer-note": "HTTP yüzeyi = bu dosya. Kütüphane sözleşmesi = docs/api/openapi.yaml. İkisini birleştirmeyin: birleştirmek çağrılamayan yollara çağrılabilir görüntüsü verir."
-"x-endpoint-count": 100
+"x-endpoint-count": 108
 "x-guest-endpoints":
   - "tradehub_core.api.media_access.download"
   - "tradehub_core.api.media_manifest.get_manifest"
@@ -48,8 +48,13 @@
 "x-measured-endpoints":
   - "tradehub_core.api.media_access.download"
   - "tradehub_core.api.media_access.get_signed_url"
+  - "tradehub_core.api.media_admin.audit_media_seo"
+  - "tradehub_core.api.media_admin.backfill_media_alt"
+  - "tradehub_core.api.media_admin.backfill_media_dimensions"
   - "tradehub_core.api.media_admin.browse_media"
+  - "tradehub_core.api.media_admin.clear_media_seo_override"
   - "tradehub_core.api.media_admin.export_media_audit"
+  - "tradehub_core.api.media_admin.generate_media_alt"
   - "tradehub_core.api.media_admin.get_dangling_references"
   - "tradehub_core.api.media_admin.get_file_references"
   - "tradehub_core.api.media_admin.get_file_usage"
@@ -59,6 +64,7 @@
   - "tradehub_core.api.media_admin.get_media_audit_facets"
   - "tradehub_core.api.media_admin.get_media_audit_report"
   - "tradehub_core.api.media_admin.get_media_audit_targets"
+  - "tradehub_core.api.media_admin.get_media_seo"
   - "tradehub_core.api.media_admin.get_optimization_status"
   - "tradehub_core.api.media_admin.get_pending_count"
   - "tradehub_core.api.media_admin.get_private_files"
@@ -74,6 +80,8 @@
   - "tradehub_core.api.media_admin.repair_dangling_references"
   - "tradehub_core.api.media_admin.scan_backfill"
   - "tradehub_core.api.media_admin.scan_overview"
+  - "tradehub_core.api.media_admin.set_media_seo"
+  - "tradehub_core.api.media_admin.set_media_seo_override"
   - "tradehub_core.api.media_admin.start_image_optimization"
   - "tradehub_core.api.media_admin.start_restore"
   - "tradehub_core.api.media_admin.sweep_scans"
@@ -5251,6 +5259,522 @@
       "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır."
       "x-measured": "http"
       "x-measurement": "2026-08-19, Administrator, `limit=0` → 200 `{queued: 0, skipped: \"disabled\"}` — tarama kapalı olduğu için uç hiçbir şey kuyruğa almadı ve bunu gövdede SÖYLÜYOR."
+      "parameters":
+        -
+          "name": "limit"
+          "in": "query"
+          "required": false
+          "schema":
+            "type": "integer"
+          "description": "Python tipi `int`, varsayılan `500`"
+      "responses":
+        "200":
+          "description": "Başarılı. Gövde Frappe zarfıyla `message` altındadır."
+          "content":
+            "application/json":
+              "schema":
+                "type": "object"
+                "required":
+                  - "message"
+                "properties":
+                  "message":
+                    "description": "Şema belgelenmedi — uç HTTP ile doğrulanmadı ya da ikili gövde döner."
+        "403":
+          "$ref": "#/components/responses/Denied"
+        "417":
+          "$ref": "#/components/responses/Validation"
+        "500":
+          "$ref": "#/components/responses/ServerError"
+      "security":
+        -
+          "frappeSession": []
+        -
+          "frappeToken": []
+  "/api/method/tradehub_core.api.media_admin.get_media_seo":
+    "get":
+      "tags":
+        - "admin"
+      "operationId": "media_admin_get_media_seo"
+      "x-allowed-methods":
+        - "GET"
+        - "POST"
+      "summary": "Bir görselin SEO alanları — kullanım bağlamı verilirse ezme uygulanır."
+      "x-python": "tradehub_core.api.media_admin.get_media_seo"
+      "x-source": "tradehub_core/api/media_admin.py:1085"
+      "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır."
+      "x-measured": "http"
+      "x-measurement": "2026-08-21, gerçek HTTP. Misafir → **403** `PermissionError`. Yönetici, canlı ürün görseli: 200 → `{file_url, alt, title, caption, description, tags, creator, credit_text, copyright_notice, license_url, acquire_license_url, usage_rights, rights_expires_on, seo_filename, slug, canonical, alt_source, width, height, overridden}` (20 anahtar). `alt` çok dilli kolondan çözüldü (`alt_tr` dolu, `lang=tr`), `overridden=false` — kullanım bağlamı verilmediği için ezme katmanı atlandı. Boş alanlar `\"\"` döndü, `null` DEĞİL."
+      "parameters":
+        -
+          "name": "file_url"
+          "in": "query"
+          "required": true
+          "schema":
+            "type": "string"
+          "description": "Python tipi `str`, ZORUNLU"
+        -
+          "name": "ref_doctype"
+          "in": "query"
+          "required": false
+          "schema":
+            "type": "string"
+          "description": "Python tipi `str`, varsayılan `''`"
+        -
+          "name": "ref_name"
+          "in": "query"
+          "required": false
+          "schema":
+            "type": "string"
+          "description": "Python tipi `str`, varsayılan `''`"
+        -
+          "name": "ref_field"
+          "in": "query"
+          "required": false
+          "schema":
+            "type": "string"
+          "description": "Python tipi `str`, varsayılan `''`"
+        -
+          "name": "lang"
+          "in": "query"
+          "required": false
+          "schema":
+            "type": "string"
+          "description": "Python tipi `str`, varsayılan `'tr'`"
+      "responses":
+        "200":
+          "description": "Başarılı. Gövde Frappe zarfıyla `message` altındadır."
+          "content":
+            "application/json":
+              "schema":
+                "type": "object"
+                "required":
+                  - "message"
+                "properties":
+                  "message":
+                    "description": "Şema belgelenmedi — uç HTTP ile doğrulanmadı ya da ikili gövde döner."
+        "403":
+          "$ref": "#/components/responses/Denied"
+        "417":
+          "$ref": "#/components/responses/Validation"
+        "500":
+          "$ref": "#/components/responses/ServerError"
+      "security":
+        -
+          "frappeSession": []
+        -
+          "frappeToken": []
+  "/api/method/tradehub_core.api.media_admin.set_media_seo":
+    "post":
+      "tags":
+        - "admin"
+      "operationId": "media_admin_set_media_seo"
+      "x-allowed-methods":
+        - "POST"
+      "summary": "Varlık varsayılanını yaz. Beyaz liste `media/seo.py`'de — yaşam"
+      "x-python": "tradehub_core.api.media_admin.set_media_seo"
+      "x-source": "tradehub_core/api/media_admin.py:1098"
+      "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır."
+      "x-measured": "http"
+      "x-measurement": "2026-08-21. Yönetici → 200 → `{file_url, records: 2}`; aynı adrese ait İKİ `File` kaydına birden yazdı (içerik-adresli adlandırma yüzünden aynı dosyanın iki kaydı var). Beyaz liste doğrulandı: gövdeye konan `th_media_state` yok sayıldı. Ölçüm değeri sonradan temizlendi."
+      "parameters":
+        -
+          "name": "file_url"
+          "in": "query"
+          "required": true
+          "schema":
+            "type": "string"
+          "description": "Python tipi `str`, ZORUNLU"
+        -
+          "name": "values"
+          "in": "query"
+          "required": true
+          "schema":
+            "type": "string"
+          "description": "Python tipi `str | dict`, ZORUNLU"
+        -
+          "name": "store"
+          "in": "query"
+          "required": false
+          "schema":
+            "type": "string"
+          "description": "Python tipi `str`, varsayılan `''`"
+      "responses":
+        "200":
+          "description": "Başarılı. Gövde Frappe zarfıyla `message` altındadır."
+          "content":
+            "application/json":
+              "schema":
+                "type": "object"
+                "required":
+                  - "message"
+                "properties":
+                  "message":
+                    "description": "Şema belgelenmedi — uç HTTP ile doğrulanmadı ya da ikili gövde döner."
+        "403":
+          "$ref": "#/components/responses/Denied"
+        "417":
+          "$ref": "#/components/responses/Validation"
+        "500":
+          "$ref": "#/components/responses/ServerError"
+      "security":
+        -
+          "frappeSession": []
+        -
+          "frappeToken": []
+  "/api/method/tradehub_core.api.media_admin.set_media_seo_override":
+    "post":
+      "tags":
+        - "admin"
+      "operationId": "media_admin_set_media_seo_override"
+      "x-allowed-methods":
+        - "POST"
+      "summary": "Kullanım başına ezme — aynı görsel farklı sayfada farklı alt metni."
+      "x-python": "tradehub_core.api.media_admin.set_media_seo_override"
+      "x-source": "tradehub_core/api/media_admin.py:1110"
+      "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır."
+      "x-measured": "http"
+      "x-measurement": "2026-08-21. Yönetici → 200 → `{name: \"9rjoq5fb2a\"}`; `Media SEO Override` kaydı `(file_url, Listing, OLCUM-1, primary_image)` dörtlüsüyle açıldı. Aynı dörtlüyle ikinci çağrı YENİ kayıt açmaz (tekillik indeksi `uk_seo_override_quad`). Ölçüm kaydı `clear_media_seo_override` ile silindi."
+      "parameters":
+        -
+          "name": "file_url"
+          "in": "query"
+          "required": true
+          "schema":
+            "type": "string"
+          "description": "Python tipi `str`, ZORUNLU"
+        -
+          "name": "ref_doctype"
+          "in": "query"
+          "required": true
+          "schema":
+            "type": "string"
+          "description": "Python tipi `str`, ZORUNLU"
+        -
+          "name": "ref_name"
+          "in": "query"
+          "required": true
+          "schema":
+            "type": "string"
+          "description": "Python tipi `str`, ZORUNLU"
+        -
+          "name": "ref_field"
+          "in": "query"
+          "required": true
+          "schema":
+            "type": "string"
+          "description": "Python tipi `str`, ZORUNLU"
+        -
+          "name": "values"
+          "in": "query"
+          "required": true
+          "schema":
+            "type": "string"
+          "description": "Python tipi `str | dict`, ZORUNLU"
+      "responses":
+        "200":
+          "description": "Başarılı. Gövde Frappe zarfıyla `message` altındadır."
+          "content":
+            "application/json":
+              "schema":
+                "type": "object"
+                "required":
+                  - "message"
+                "properties":
+                  "message":
+                    "description": "Şema belgelenmedi — uç HTTP ile doğrulanmadı ya da ikili gövde döner."
+        "403":
+          "$ref": "#/components/responses/Denied"
+        "417":
+          "$ref": "#/components/responses/Validation"
+        "500":
+          "$ref": "#/components/responses/ServerError"
+      "security":
+        -
+          "frappeSession": []
+        -
+          "frappeToken": []
+  "/api/method/tradehub_core.api.media_admin.clear_media_seo_override":
+    "post":
+      "tags":
+        - "admin"
+      "operationId": "media_admin_clear_media_seo_override"
+      "x-allowed-methods":
+        - "POST"
+      "summary": "clear_media_seo_override"
+      "x-python": "tradehub_core.api.media_admin.clear_media_seo_override"
+      "x-source": "tradehub_core/api/media_admin.py:1130"
+      "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır."
+      "x-measured": "http"
+      "x-measurement": "2026-08-21. Yönetici → 200 → `{cleared: true}`. Olmayan ezmede `{cleared: false}` — 404 DEĞİL: silme idempotent."
+      "parameters":
+        -
+          "name": "file_url"
+          "in": "query"
+          "required": true
+          "schema":
+            "type": "string"
+          "description": "Python tipi `str`, ZORUNLU"
+        -
+          "name": "ref_doctype"
+          "in": "query"
+          "required": true
+          "schema":
+            "type": "string"
+          "description": "Python tipi `str`, ZORUNLU"
+        -
+          "name": "ref_name"
+          "in": "query"
+          "required": true
+          "schema":
+            "type": "string"
+          "description": "Python tipi `str`, ZORUNLU"
+        -
+          "name": "ref_field"
+          "in": "query"
+          "required": true
+          "schema":
+            "type": "string"
+          "description": "Python tipi `str`, ZORUNLU"
+      "responses":
+        "200":
+          "description": "Başarılı. Gövde Frappe zarfıyla `message` altındadır."
+          "content":
+            "application/json":
+              "schema":
+                "type": "object"
+                "required":
+                  - "message"
+                "properties":
+                  "message":
+                    "description": "Şema belgelenmedi — uç HTTP ile doğrulanmadı ya da ikili gövde döner."
+        "403":
+          "$ref": "#/components/responses/Denied"
+        "417":
+          "$ref": "#/components/responses/Validation"
+        "500":
+          "$ref": "#/components/responses/ServerError"
+      "security":
+        -
+          "frappeSession": []
+        -
+          "frappeToken": []
+  "/api/method/tradehub_core.api.media_admin.generate_media_alt":
+    "post":
+      "tags":
+        - "admin"
+      "operationId": "media_admin_generate_media_alt"
+      "x-allowed-methods":
+        - "POST"
+      "summary": "Kural zinciriyle alt metni üret. `force` insan metnini EZER — yalnız"
+      "x-python": "tradehub_core.api.media_admin.generate_media_alt"
+      "x-source": "tradehub_core/api/media_admin.py:1142"
+      "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır."
+      "x-measured": "http"
+      "x-measurement": "2026-08-21. Yönetici, alt metni zaten kural motorunca üretilmiş görsel: 200 → `{written: false, alt: \"Dinamik Manuel Doğrayıcı Rondo (15. görsel)\", reason: \"unchanged\"}` — aynı metin yeniden yazılmadı. Sıra numarası okunabilir biçimde (\"(15. görsel)\"), çıplak \"- 15\" DEĞİL. İnsan yazımı metinde `reason=\"source:human\"` döner ve yazma yapılmaz."
+      "parameters":
+        -
+          "name": "file_url"
+          "in": "query"
+          "required": true
+          "schema":
+            "type": "string"
+          "description": "Python tipi `str`, ZORUNLU"
+        -
+          "name": "force"
+          "in": "query"
+          "required": false
+          "schema":
+            "type": "integer"
+          "description": "Python tipi `int`, varsayılan `0`"
+      "responses":
+        "200":
+          "description": "Başarılı. Gövde Frappe zarfıyla `message` altındadır."
+          "content":
+            "application/json":
+              "schema":
+                "type": "object"
+                "required":
+                  - "message"
+                "properties":
+                  "message":
+                    "description": "Şema belgelenmedi — uç HTTP ile doğrulanmadı ya da ikili gövde döner."
+        "403":
+          "$ref": "#/components/responses/Denied"
+        "417":
+          "$ref": "#/components/responses/Validation"
+        "500":
+          "$ref": "#/components/responses/ServerError"
+      "security":
+        -
+          "frappeSession": []
+        -
+          "frappeToken": []
+  "/api/method/tradehub_core.api.media_admin.backfill_media_alt":
+    "post":
+      "tags":
+        - "admin"
+      "operationId": "media_admin_backfill_media_alt"
+      "x-allowed-methods":
+        - "POST"
+      "summary": "Mevcut katalogu parça parça doldur — `av.backfill_pending` deseni."
+      "x-python": "tradehub_core.api.media_admin.backfill_media_alt"
+      "x-source": "tradehub_core/api/media_admin.py:1152"
+      "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır."
+      "x-measured": "http"
+      "x-measurement": "2026-08-21. Yönetici → 200 → `{scanned: 0, written: 0, skipped: 0, reasons: {}}`; ölçüm sırasında ürün görsellerinin TAMAMI (1.788 dosya) zaten doldurulmuştu, aday kalmadı. Dolu katalogda aynı uç 500'erlik turlarla 1.788 kayıt yazdı (30,9 s)."
+      "parameters":
+        -
+          "name": "limit"
+          "in": "query"
+          "required": false
+          "schema":
+            "type": "integer"
+          "description": "Python tipi `int`, varsayılan `500`"
+        -
+          "name": "only_listing"
+          "in": "query"
+          "required": false
+          "schema":
+            "type": "integer"
+          "description": "Python tipi `int`, varsayılan `1`"
+      "responses":
+        "200":
+          "description": "Başarılı. Gövde Frappe zarfıyla `message` altındadır."
+          "content":
+            "application/json":
+              "schema":
+                "type": "object"
+                "required":
+                  - "message"
+                "properties":
+                  "message":
+                    "description": "Şema belgelenmedi — uç HTTP ile doğrulanmadı ya da ikili gövde döner."
+        "403":
+          "$ref": "#/components/responses/Denied"
+        "417":
+          "$ref": "#/components/responses/Validation"
+        "500":
+          "$ref": "#/components/responses/ServerError"
+      "security":
+        -
+          "frappeSession": []
+        -
+          "frappeToken": []
+  "/api/method/tradehub_core.api.media_admin.audit_media_seo":
+    "get":
+      "tags":
+        - "admin"
+      "operationId": "media_admin_audit_media_seo"
+      "x-allowed-methods":
+        - "GET"
+        - "POST"
+      "summary": "SEO denetimi."
+      "x-python": "tradehub_core.api.media_admin.audit_media_seo"
+      "x-source": "tradehub_core/api/media_admin.py:1161"
+      "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır."
+      "x-measured": "http"
+      "x-measurement": "2026-08-21. Yönetici → 200 → `{files: [...], summary: {...}, score: {...}, total}`; dosya başına `findings` listesi (kod, severity, message, detail) ve alt kırılımlı skor. 150 dosyalık turda en sık bulgular `missing_title/caption/license` (150), `missing_alt` (138). Ürün görselleri doldurulduktan sonra aynı tarama `missing_alt` 0, erişilebilirlik skoru 99 verdi. `scope` (21 Ağu eklendi): varsayılan `catalog` vitrinde görünen ürün görsellerini tarar; `recent` ölçümde ilk 10 satırın 10'unda test videosu döndürüyordu (bu yüzden varsayılan değil), `all` tüm public dosyalar."
+      "parameters":
+        -
+          "name": "file_urls"
+          "in": "query"
+          "required": false
+          "schema":
+            "type": "string"
+            "description": "JSON dizisi ya da virgüllü liste olarak gönderilir (GET sorgu dizgesi)."
+          "description": "Python tipi `str | list[str] | None`, varsayılan `None`"
+        -
+          "name": "deep"
+          "in": "query"
+          "required": false
+          "schema":
+            "type": "integer"
+          "description": "Python tipi `int`, varsayılan `0`"
+        -
+          "name": "limit"
+          "in": "query"
+          "required": false
+          "schema":
+            "type": "integer"
+          "description": "Python tipi `int`, varsayılan `5000`"
+        -
+          "name": "scope"
+          "in": "query"
+          "required": false
+          "schema":
+            "type": "string"
+          "description": "Python tipi `str`, varsayılan `'catalog'`"
+        -
+          "name": "page"
+          "in": "query"
+          "required": false
+          "schema":
+            "type": "integer"
+          "description": "Python tipi `int`, varsayılan `1`"
+        -
+          "name": "page_size"
+          "in": "query"
+          "required": false
+          "schema":
+            "type": "integer"
+          "description": "Python tipi `int`, varsayılan `50`"
+        -
+          "name": "code"
+          "in": "query"
+          "required": false
+          "schema":
+            "type": "string"
+          "description": "Python tipi `str`, varsayılan `''`"
+        -
+          "name": "q"
+          "in": "query"
+          "required": false
+          "schema":
+            "type": "string"
+          "description": "Python tipi `str`, varsayılan `''`"
+        -
+          "name": "refresh"
+          "in": "query"
+          "required": false
+          "schema":
+            "type": "integer"
+          "description": "Python tipi `int`, varsayılan `0`"
+      "responses":
+        "200":
+          "description": "Başarılı. Gövde Frappe zarfıyla `message` altındadır."
+          "content":
+            "application/json":
+              "schema":
+                "type": "object"
+                "required":
+                  - "message"
+                "properties":
+                  "message":
+                    "description": "Şema belgelenmedi — uç HTTP ile doğrulanmadı ya da ikili gövde döner."
+        "403":
+          "$ref": "#/components/responses/Denied"
+        "417":
+          "$ref": "#/components/responses/Validation"
+        "500":
+          "$ref": "#/components/responses/ServerError"
+      "security":
+        -
+          "frappeSession": []
+        -
+          "frappeToken": []
+  "/api/method/tradehub_core.api.media_admin.backfill_media_dimensions":
+    "post":
+      "tags":
+        - "admin"
+      "operationId": "media_admin_backfill_media_dimensions"
+      "x-allowed-methods":
+        - "POST"
+      "summary": "Görsellerin gerçek çözünürlüğünü doldur — CLS düzeltmesinin ön koşulu."
+      "x-python": "tradehub_core.api.media_admin.backfill_media_dimensions"
+      "x-source": "tradehub_core/api/media_admin.py:1255"
+      "x-authorization": "Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır."
+      "x-measured": "http"
+      "x-measurement": "2026-08-21. Yönetici → 200 → `{scanned: 5, written: 0, unreadable: 0, missing: 5}`; ölçümde kalan adaylar diskte bulunmayan kayıtlardı (`missing`). Aynı uç dolu katalogda 4.776 dosyanın gerçek çözünürlüğünü 2,7 s'de yazdı; denetimdeki `missing_dimensions` bulgusu 150/150'den 8/150'ye düştü, performans skoru 60 → 98."
       "parameters":
         -
           "name": "limit"

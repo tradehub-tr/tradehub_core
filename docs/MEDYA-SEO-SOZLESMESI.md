@@ -362,6 +362,7 @@ alanlarla ölçülebilir):
 
 | Kural | Kaynak |
 |---|---|
+| **Dosya kaydı yok** — katalog `/files/…` gösteriyor ama `File` yok (`missing_file`, hata; diğer bulguları bastırır) | `Listing.primary_image` / `Listing Image.image` ↔ `File.file_url`; ölçüm 22 Ağu: 4 üründe 3 adres, açıklama cümlesi dosya adı yapılmış |
 | Alt boş / eksik | `th_media_alt` |
 | Alt şüpheli (ham ürün başlığı kopyası, 100+ karakter, `(SADECE OBJELER)` gibi parantez gürültüsü) | §7.1 madde 1 |
 | Alt anahtar kelime yığını (aynı kelime 3+) | metin analizi |
@@ -574,6 +575,43 @@ Bağımlılıkların **hepsi beklenmek zorunda değil**:
 **Ar-ge sonucu 6 (güncellendi):** Üç dilimin tamamı dış bağımlılıksız
 yapılabilir; TUR-135'in dört kabul kriteri Dilim 1+2 ile, üst belgenin
 Motor 4'ü (SEO & Discoverability) ~%70 oranında Dilim 1-3 ile karşılanır.
+
+## 9.1 Uygulama durumu — 21 Ağustos 2026
+
+Üç dilim de kodlandı. Aşağıdaki tablo **ne yapıldığını ve neyin ölçüldüğünü**
+gösteriyor; ayrıntı ADR-0023 ve `tests/test_media_seo*.py`'de.
+
+| Dilim | Ne teslim edildi | Ölçüm |
+|---|---|---|
+| **1 — Şema** | `File`'a 25 kolon (`v15_9_37`): caption, `alt_source` (rule/ai/human/edited), `alt_ai`, lisans beşlisi, hak süresi, seo_filename/slug/canonical + alt/title/caption × 4 dil · `Media SEO Override` tablosu (`v15_9_38`, tekillik indeksli) · **tek okuma kapısı** `media/seo.fields_for` | 20 test |
+| **2 — Dış yüzey** | Alt üretim zinciri (`media/seo_generate`) · indexability (`media/seo_index`) · render ipuçları (`media/seo_render`) · `ImageObject` + lisans (`seo/schema_builder`) · görsel site haritası (`seo/sitemap_generator`) · `og:image:alt/width/height` · Listing API `imageMeta` · vitrin gerçek ölçü + alt · geri doldurma | 36 test |
+| **3 — Denetim** | 12 kural + alt kırılımlı skor (`media/seo_audit`) · 8 API ucu | aynı pakette |
+
+**Canlı katalogda ölçülen etki** (yerel, prod'dan restore edilmiş veri):
+
+| | Önce | Sonra |
+|---|---:|---:|
+| Alt metni dolu tekil adres | **0** | **1.988** |
+| Çözünürlüğü bilinen dosya | 0 | 4.776 |
+| `missing_alt` (ürün görselleri, 200 örnek) | 138/150 | **0/199** |
+| `missing_dimensions` | 150/150 | 8/150 |
+| Erişilebilirlik skoru | 63 | **99** |
+| Performans skoru | 60 | **98** |
+| Genel skor | 53 | **81** |
+
+Kalan bulgular `missing_title` / `missing_caption` / `missing_license`: üçü de
+**elle doldurulacak** alanlar (§4.1) — otomatik üretimleri bilinçli olarak
+yapılmadı. Lisans varsayılanı hukuk kararı bekliyor (§11 soru 5).
+
+**Yol boyunca düzeltilen üç kusur** (hiçbiri planda yoktu, ölçümle çıktı):
+
+1. `fields_for` çözünürlük kolonlarını sorguya almıyordu → 4.776 dosyanın
+   ölçüsü dolduktan sonra bile denetim "bilinmiyor" diyordu, vitrin sabit
+   800×800 basmaya devam ederdi. Regresyon testiyle kilitlendi.
+2. `fields_for_many` döngü içinde tekil okuma yapıyordu (N+1): 50 dosya
+   156 ms → tek sorguyla **7 ms**. Site haritası binlerce dosya listeliyor.
+3. Ar-ge belgesi "`th_media_width/height` zaten dolu" diyordu; ölçüm
+   yalanladı (2.853 kaydın hiçbirinde yoktu). `backfill_dimensions` eklendi.
 
 ## 10. Kabul kriterleri karşılığı
 

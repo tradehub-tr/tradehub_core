@@ -144,7 +144,13 @@ def compose_seo_payload(
 		og_image = og_image_resolver(record) or ""
 	if not og_image:
 		og_image = defaults.get("og_image", "")
+	og_image_alt = ""
+	og_image_width = 0
+	og_image_height = 0
 	if og_image:
+		# Alt metni ve boyutlar MUTLAK URL'den ÖNCE okunur: medya kaydı
+		# göreli adresle (`/files/...`) duruyor (TUR-135 §6).
+		og_image_alt, og_image_width, og_image_height = _og_image_media(og_image, lang)
 		og_image = _absolute(og_image, site_url)
 
 	# OG title/desc lang-aware
@@ -163,6 +169,11 @@ def compose_seo_payload(
 		"og_title": og_title_override or meta_title,
 		"og_description": og_desc_override or description,
 		"og_image": og_image,
+		# WhatsApp/LinkedIn önizlemesinde görselin NE olduğu bugüne kadar
+		# okunmuyordu; boyutlar da paylaşım kartının yer ayırmasını sağlıyor.
+		"og_image_alt": og_image_alt,
+		"og_image_width": og_image_width,
+		"og_image_height": og_image_height,
 		"og_url": canonical,
 		"site_name": defaults.get("site_name", ""),
 		"twitter_handle": defaults.get("twitter_handle", ""),
@@ -170,6 +181,31 @@ def compose_seo_payload(
 		"lang": lang,
 		"hreflang_links": hreflang_links,
 	}
+
+
+def _og_image_media(og_image: str, lang: str) -> tuple[str, int, int]:
+	"""Paylaşım görselinin alt metni ve gerçek ölçüleri.
+
+	`media/seo.fields_for` üzerinden okunuyor (ADR-0023 tek kapı). Kullanım
+	bağlamı YOK: og görseli sayfanın tamamını temsil ediyor, tek bir kullanım
+	yerine bağlı değil — bu yüzden varlık varsayılanı doğru katman.
+
+	Hata ya da eksik veri boş döner: paylaşım kartı alt metinsiz de çalışır,
+	ama meta üretimi bir sayfa isteğinin içinde koştuğu için ASLA düşmemeli.
+	"""
+	if not og_image or og_image.startswith(("http://", "https://")):
+		return "", 0, 0
+	try:
+		from tradehub_core.media import seo as media_seo
+
+		alanlar = media_seo.fields_for(og_image, lang=lang)
+		return (
+			alanlar.get("alt") or alanlar.get("caption") or "",
+			int(alanlar.get("width") or 0),
+			int(alanlar.get("height") or 0),
+		)
+	except Exception:
+		return "", 0, 0
 
 
 # Frappe-aware wrappers ------------------------------------------------------
