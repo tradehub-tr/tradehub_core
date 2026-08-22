@@ -35,11 +35,12 @@ def build_image_object(seo_fields: dict, site_url: str) -> dict | str:
 	Saf fonksiyon: `seo_fields` çağıran tarafından `media/seo.fields_for` ile
 	getirilir (bu modül Frappe'ye bağlanmaz).
 	"""
-	url = _absolute_url(seo_fields.get("file_url"), site_url)
-	if not url:
+	content_url = _absolute_url(seo_fields.get("content_url") or seo_fields.get("file_url"), site_url)
+	identity_url = _absolute_url(seo_fields.get("asset_url") or content_url, site_url)
+	if not content_url:
 		return ""
 
-	nesne: dict = {"@type": "ImageObject", "url": url, "contentUrl": url}
+	nesne: dict = {"@type": "ImageObject", "url": identity_url, "contentUrl": content_url}
 	if seo_fields.get("title"):
 		nesne["name"] = seo_fields["title"]
 	# `caption` sayfada görünen metin, `alt` erişilebilirlik metni. Google
@@ -54,6 +55,14 @@ def build_image_object(seo_fields: dict, site_url: str) -> dict | str:
 		nesne["width"] = seo_fields["width"]
 	if seo_fields.get("height"):
 		nesne["height"] = seo_fields["height"]
+	if seo_fields.get("canonical_url"):
+		nesne["mainEntityOfPage"] = _absolute_url(seo_fields["canonical_url"], site_url)
+	for kaynak, hedef in (
+		("encoding_format", "encodingFormat"), ("date_created", "dateCreated"),
+		("date_published", "datePublished"),
+	):
+		if seo_fields.get(kaynak):
+			nesne[hedef] = seo_fields[kaynak]
 
 	for kaynak, hedef in _IMAGE_LICENSE_MAP.items():
 		deger = seo_fields.get(kaynak)
@@ -62,7 +71,11 @@ def build_image_object(seo_fields: dict, site_url: str) -> dict | str:
 		if hedef in ("license", "acquireLicensePage"):
 			nesne[hedef] = _absolute_url(deger, site_url)
 		elif hedef == "creator":
-			nesne[hedef] = {"@type": "Organization", "name": deger}
+			tur = seo_fields.get("creator_type") or ""
+			yaratici = {"name": deger}
+			if tur in ("Person", "Organization"):
+				yaratici["@type"] = tur
+			nesne[hedef] = yaratici
 		else:
 			nesne[hedef] = deger
 
@@ -480,22 +493,12 @@ def _listing_image_objects(listing: dict, site_url: str) -> list:
 
 		ad = listing.get("name") or ""
 		lang = listing.get("content_default_lang") or "tr"
-		kaynaklar: list[tuple[str, str, str]] = []
-		if listing.get("primary_image"):
-			kaynaklar.append((listing["primary_image"], "Listing", "primary_image"))
-		if ad:
-			for satir in frappe.get_all(
-				"Listing Image",
-				filters={"parent": ad, "parenttype": "Listing"},
-				fields=["image"],
-				order_by="idx asc",
-			):
-				if satir.get("image"):
-					kaynaklar.append((satir["image"], "Listing Image", "image"))
+		kaynaklar = media_seo.listing_usage_contexts(ad) if ad else []
 
 		out = []
 		gorulen: set[str] = set()
-		for url, ref_dt, ref_alan in kaynaklar:
+		for baglam in kaynaklar:
+			url = baglam["file_url"]
 			if url in gorulen:
 				continue
 			gorulen.add(url)
@@ -503,11 +506,25 @@ def _listing_image_objects(listing: dict, site_url: str) -> list:
 				continue
 			alanlar = media_seo.fields_for(
 				url,
-				ref_doctype=ref_dt,
-				ref_name=ad if ref_dt == "Listing" else ad,
-				ref_field=ref_alan,
+				ref_doctype=baglam["ref_doctype"],
+				ref_name=baglam["ref_name"],
+				ref_field=baglam["ref_field"],
 				lang=lang,
 			)
+			from tradehub_core.media import seo_urls
+			kimlik = seo_urls.resolve(
+				url, ref_doctype=baglam["ref_doctype"], ref_name=baglam["ref_name"],
+				context_doctype=baglam.get("context_doctype", ""),
+				context_name=baglam.get("context_name", ""), site_url=site_url,
+			)
+			alanlar.update({
+				"asset_url": kimlik.get("stable_url", ""),
+				"content_url": kimlik.get("delivery_url", ""),
+				"encoding_format": kimlik.get("encoding_format", ""),
+				"date_created": kimlik.get("date_created", ""),
+				"date_published": kimlik.get("date_published", ""),
+				"canonical_url": kimlik.get("canonical_url", ""),
+			})
 			nesne = build_image_object(alanlar, site_url)
 			if nesne:
 				out.append(nesne)

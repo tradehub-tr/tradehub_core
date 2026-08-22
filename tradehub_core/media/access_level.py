@@ -169,10 +169,13 @@ def set_level(file_url: str, *, make_private: bool) -> dict:
 	os.replace(old_path, new_path)
 
 	try:
+		degerler = {"file_url": new_url, "is_private": int(make_private)}
+		if frappe.db.has_column("File", "th_media_visibility"):
+			degerler["th_media_visibility"] = "Private" if make_private else "Public"
 		frappe.db.set_value(
 			"File",
 			{"file_url": url},
-			{"file_url": new_url, "is_private": int(make_private)},
+			degerler,
 			update_modified=False,
 		)
 		ref_result = refs.retarget(url, new_url)

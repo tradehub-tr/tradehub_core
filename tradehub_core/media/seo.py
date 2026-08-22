@@ -41,6 +41,7 @@ Hiçbir katmanda değer yoksa boş dize döner. Ekran okuyucu boş `alt`'ı
 from __future__ import annotations
 
 from typing import Any
+from urllib.parse import urlsplit
 
 import frappe
 
@@ -54,6 +55,7 @@ SINGLE: tuple[str, ...] = (
 	"description",
 	"tags",
 	"creator",
+	"creator_type",
 	"credit_text",
 	"copyright_notice",
 	"license_url",
@@ -160,6 +162,29 @@ def _coz(kayit: dict, alan: str, lang: str, onek: str = "") -> str:
 	return resolve_content_field(kucultulmus, alan, lang, DEFAULT_LANG)
 
 
+def _override_value(kayit: dict, alan: str, lang: str) -> tuple[bool, str]:
+	"""Ezmede alan tanımlı mı ve değeri ne.
+
+	Boş dize burada anlamlıdır: editör bu kullanımı dekoratif ilan edip
+	``alt=""`` yazmış olabilir. Genel i18n resolver'ları boşu "eksik" sayar;
+	usage override için bu davranış asset varsayılanını yanlışlıkla geri
+	getirir. ``None`` alanın hiç belirlenmediğini, ``""`` bilinçli boşluğu
+	ifade eder.
+	"""
+	if not kayit:
+		return False, ""
+	istenen = f"{alan}_{lang}"
+	if kayit.get(istenen) is not None:
+		return True, str(kayit.get(istenen) or "")
+	varsayilan = f"{alan}_{DEFAULT_LANG}"
+	if kayit.get(varsayilan) is not None:
+		return True, str(kayit.get(varsayilan) or "")
+	# Eski tek-dil kayıtlarına geriye uyum.
+	if kayit.get(alan) is not None:
+		return True, str(kayit.get(alan) or "")
+	return False, ""
+
+
 def fields_for(
 	file_url: str,
 	*,
@@ -247,8 +272,8 @@ def _birlestir(url: str, varlik: dict, lang: str, ezme: dict | None = None) -> d
 	ezme = ezme or {}
 	sonuc: dict[str, Any] = {"file_url": url}
 	for alan in TRANSLATABLE:
-		deger = _coz(ezme, alan, lang) if ezme else ""
-		if not deger:
+		ezilmis, deger = _override_value(ezme, alan, lang)
+		if not ezilmis:
 			deger = _coz(varlik, alan, lang, onek="th_media_")
 		sonuc[alan] = deger or ""
 	for alan in SINGLE:
@@ -258,7 +283,92 @@ def _birlestir(url: str, varlik: dict, lang: str, ezme: dict | None = None) -> d
 	sonuc["width"] = varlik.get("th_media_width") or 0
 	sonuc["height"] = varlik.get("th_media_height") or 0
 	sonuc["overridden"] = bool(ezme)
+	sonuc["localized"] = {
+		alan: {
+			l: (
+				str(ezme.get(f"{alan}_{l}") or "")
+				if ezme.get(f"{alan}_{l}") is not None
+				else str(varlik.get(f"th_media_{alan}_{l}") or "")
+			)
+			for l in CONTENT_LANGS
+		}
+		for alan in TRANSLATABLE
+	}
 	return sonuc
+
+
+def listing_usage_contexts(listing_name: str, file_urls: list[str] | None = None) -> list[dict[str, str]]:
+	"""Listing görsellerinin kanonik usage kimlikleri.
+
+	Ana görsel doğrudan ``Listing`` kaydına; galeri görseli ise parent adına
+	değil gerçek ``Listing Image.name`` child-row kimliğine bağlanır. API,
+	schema ve sitemap aynı resolver'ı kullanarak kimlik sapmasını önler.
+	"""
+	if not listing_name:
+		return []
+	hedef = {_temiz_url(u) for u in (file_urls or []) if _temiz_url(u)}
+	ana = frappe.db.get_value("Listing", listing_name, "primary_image") or ""
+	sonuc: list[dict[str, str]] = []
+	if ana and (not hedef or ana in hedef):
+		sonuc.append({
+			"file_url": ana,
+			"ref_doctype": "Listing",
+			"ref_name": listing_name,
+			"ref_field": "primary_image",
+			"context_doctype": "Listing",
+			"context_name": listing_name,
+		})
+	for satir in frappe.get_all(
+		"Listing Image",
+		filters={"parent": listing_name, "parenttype": "Listing"},
+		fields=["name", "image", "idx"],
+		order_by="idx asc",
+		limit_page_length=0,
+	):
+		url = _temiz_url(satir.get("image") or "")
+		if not url or (hedef and url not in hedef):
+			continue
+		sonuc.append({
+			"file_url": url,
+			"ref_doctype": "Listing Image",
+			"ref_name": satir["name"],
+			"ref_field": "image",
+			"context_doctype": "Listing",
+			"context_name": listing_name,
+		})
+	return sonuc
+
+
+def usage_overrides_for(file_url: str, *, lang: str = DEFAULT_LANG) -> list[dict[str, Any]]:
+	"""Bir asset'in katalog kullanımları ve her kullanımdaki etkili metadata."""
+	url = _temiz_url(file_url)
+	if not url:
+		return []
+	listing_names = {
+		r["name"] for r in frappe.get_all("Listing", filters={"primary_image": url}, fields=["name"])
+	}
+	listing_names.update(
+		r["parent"] for r in frappe.get_all(
+			"Listing Image", filters={"image": url, "parenttype": "Listing"}, fields=["parent"]
+		)
+	)
+	out: list[dict[str, Any]] = []
+	for listing_name in sorted(listing_names):
+		listing = frappe.db.get_value("Listing", listing_name, ["title", "slug"], as_dict=True) or {}
+		for context in listing_usage_contexts(listing_name, [url]):
+			row = _override_row(url, context["ref_doctype"], context["ref_name"], context["ref_field"])
+			effective = fields_for(
+				url, ref_doctype=context["ref_doctype"], ref_name=context["ref_name"],
+				ref_field=context["ref_field"], lang=lang,
+			)
+			out.append({
+				**context, "label": listing.get("title") or listing_name,
+				"page_path": f"/urun/{listing.get('slug')}" if listing.get("slug") else "",
+				"override_name": row.get("name") or "", "overridden": bool(row),
+				"values": {k: row.get(k) for k in row if k in {f"{a}_{l}" for a in TRANSLATABLE for l in CONTENT_LANGS}},
+				"effective": {k: effective.get(k, "") for k in TRANSLATABLE},
+			})
+	return out
 
 
 # ── Yazma ────────────────────────────────────────────────────────────────
@@ -278,6 +388,7 @@ def set_asset_fields(file_url: str, values: dict[str, Any], *, store: str | None
 	if not url or not values:
 		return 0
 
+	values = _validate_asset_values(values)
 	izinli: dict[str, Any] = {}
 	for anahtar, deger in values.items():
 		if anahtar in SINGLE:
@@ -297,6 +408,35 @@ def set_asset_fields(file_url: str, values: dict[str, Any], *, store: str | None
 		return 0
 	frappe.db.set_value("File", {"name": ["in", adlar]}, izinli, update_modified=False)
 	return len(adlar)
+
+
+def _validate_asset_values(values: dict[str, Any]) -> dict[str, Any]:
+	"""Rights/URL alanlarını DB yazımından önce doğrula."""
+	clean = dict(values or {})
+	for key in ("license_url", "acquire_license_url", "canonical"):
+		value = str(clean.get(key) or "").strip()
+		if value:
+			parsed = urlsplit(value)
+			if value.startswith("/"):
+				pass
+			elif parsed.scheme not in ("http", "https") or not parsed.netloc:
+				frappe.throw(frappe._("Geçersiz URL: {0}").format(key))
+		clean[key] = value
+	creator_type = str(clean.get("creator_type") or "").strip()
+	if creator_type and creator_type not in ("Person", "Organization"):
+		frappe.throw(frappe._("Creator type Person veya Organization olmalıdır."))
+	if "rights_expires_on" in clean:
+		value = clean.get("rights_expires_on")
+		if value:
+			from frappe.utils import getdate
+
+			try:
+				clean["rights_expires_on"] = str(getdate(value))
+			except Exception:
+				frappe.throw(frappe._("Geçersiz hak bitiş tarihi."))
+		else:
+			clean["rights_expires_on"] = None
+	return clean
 
 
 def _hedef_kayitlar(url: str, store: str | None) -> list[str]:

@@ -26,13 +26,15 @@ hiçbiri burada yazılmaz.
 from __future__ import annotations
 
 import frappe
-from frappe.utils import getdate, nowdate
+from frappe.utils import get_datetime, getdate, now_datetime, nowdate
 
 from tradehub_core.media import seo
 
 #: `max-image-preview` — Google'ın görsel önizleme boyutu direktifi.
 PREVIEW_LARGE: str = "max-image-preview:large"
 PREVIEW_NONE: str = "max-image-preview:none"
+VIDEO_PREVIEW_NONE: str = "max-video-preview:0"
+VIDEO_PREVIEW_LARGE: str = "max-video-preview:-1"
 
 #: Ret sebepleri — denetim (§6.3) ve panel aynı sözlüğü kullanır.
 REASON_PRIVATE: str = "private"
@@ -41,6 +43,14 @@ REASON_QUARANTINE: str = "quarantine"
 REASON_EXPIRED: str = "rights_expired"
 REASON_ORPHAN: str = "orphan"
 REASON_MISSING: str = "missing"
+REASON_UNLISTED: str = "unlisted"
+REASON_PROTECTED: str = "protected"
+REASON_TEMPORARY: str = "temporary"
+
+VISIBILITY_PUBLIC = "Public"
+NON_INDEXABLE_VISIBILITIES = frozenset(
+	{"Private", "Unlisted", "Protected", "Temporary", "Expired", "Archived", "Deleted"}
+)
 
 
 def decide(file_url: str, *, check_usage: bool = True) -> dict:
@@ -54,18 +64,38 @@ def decide(file_url: str, *, check_usage: bool = True) -> dict:
 	if not url:
 		return _ret(REASON_MISSING)
 
+	alanlar = ["name", "is_private", "th_media_state"]
+	for aday in ("th_media_visibility", "th_media_expires_at", "th_media_robots_override"):
+		if frappe.db.has_column("File", aday):
+			alanlar.append(aday)
 	kayit = frappe.db.get_value(
 		"File",
 		{"file_url": url},
-		["name", "is_private", "th_media_state"],
+		alanlar,
 		as_dict=True,
 	)
 	if not kayit:
 		return _ret(REASON_MISSING)
 
-	if int(kayit.get("is_private") or 0):
+	visibility = (
+		kayit.get("th_media_visibility")
+		or ("Private" if kayit.get("is_private") else VISIBILITY_PUBLIC)
+	).strip()
+	if int(kayit.get("is_private") or 0) or visibility == "Private":
 		# Erişim zaten kapalı; sitemap'e girmemesi teyit, koruma değil.
-		return _ret(REASON_PRIVATE)
+		return _ret(REASON_PRIVATE, visibility=visibility, access="authenticated")
+	if visibility in NON_INDEXABLE_VISIBILITIES:
+		reason = {
+			"Unlisted": REASON_UNLISTED, "Protected": REASON_PROTECTED,
+			"Temporary": REASON_TEMPORARY, "Expired": REASON_EXPIRED,
+			"Archived": REASON_STATE, "Deleted": REASON_STATE,
+		}.get(visibility, REASON_STATE)
+		return _ret(reason, detay=visibility, visibility=visibility,
+			access="authenticated" if visibility == "Protected" else "public")
+
+	expires_at = kayit.get("th_media_expires_at")
+	if expires_at and get_datetime(expires_at) < now_datetime():
+		return _ret(REASON_EXPIRED, detay=str(expires_at), visibility="Expired")
 
 	durum = (kayit.get("th_media_state") or "Active").strip()
 	if durum and durum != "Active":
@@ -95,12 +125,28 @@ def decide(file_url: str, *, check_usage: bool = True) -> dict:
 			# Google'ı var olmayan bir bağlama gönderir.
 			return _ret(REASON_ORPHAN, detay=karar.get("verdict", ""))
 
-	return {"indexable": True, "reason": "", "robots": f"index, {PREVIEW_LARGE}"}
+	override = (kayit.get("th_media_robots_override") or "").strip()
+	robots = override or f"index, follow, {PREVIEW_LARGE}, {VIDEO_PREVIEW_LARGE}"
+	noindex = "noindex" in {p.strip().lower() for p in robots.split(",")}
+	return {
+		"indexable": not noindex, "reason": "robots_override" if noindex else "",
+		"robots": robots, "visibility": visibility, "access": "public",
+		"http_status": 200, "sitemap": not noindex,
+		"structured_data": not noindex,
+	}
 
 
-def _ret(reason: str, detay: str = "") -> dict:
+def _ret(reason: str, detay: str = "", *, visibility: str = "", access: str = "public") -> dict:
+	status = (
+		404 if reason == REASON_MISSING
+		else 410 if visibility in ("Expired", "Deleted")
+		else 401 if access == "authenticated"
+		else 200
+	)
 	return {
 		"indexable": False,
 		"reason": f"{reason}:{detay}" if detay else reason,
-		"robots": f"noindex, {PREVIEW_NONE}",
+		"robots": f"noindex, follow, nosnippet, {PREVIEW_NONE}, {VIDEO_PREVIEW_NONE}",
+		"visibility": visibility, "access": access, "http_status": status,
+		"sitemap": False, "structured_data": False,
 	}

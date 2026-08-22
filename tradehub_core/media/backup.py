@@ -101,6 +101,7 @@ RECORD_FIELDS: tuple[str, ...] = (
 	"th_media_alt_source",
 	"th_media_alt_ai",
 	"th_media_creator",
+	"th_media_creator_type",
 	"th_media_credit_text",
 	"th_media_copyright_notice",
 	"th_media_license_url",
@@ -110,6 +111,9 @@ RECORD_FIELDS: tuple[str, ...] = (
 	"th_media_seo_filename",
 	"th_media_slug",
 	"th_media_canonical",
+	"th_media_visibility",
+	"th_media_expires_at",
+	"th_media_robots_override",
 	# `{alan}_{dil}` kolonları tek tek yazmak yerine üretiliyor: dil listesi
 	# büyürse (5. dil) burası kendiliğinden büyür, unutulmaz.
 	*(

@@ -1212,13 +1212,20 @@ def retro_rename_history() -> dict:
 def get_media_seo(file_url: str, ref_doctype: str = "", ref_name: str = "", ref_field: str = "", lang: str = "tr") -> dict:
 	"""Bir görselin SEO alanları — kullanım bağlamı verilirse ezme uygulanır."""
 	_guard()
-	from tradehub_core.media import seo
+	from tradehub_core.media import seo, seo_index, seo_urls
 
 	if not file_url:
 		frappe.throw(_("Dosya adresi zorunlu."))
-	return seo.fields_for(
+	result = seo.fields_for(
 		file_url, ref_doctype=ref_doctype, ref_name=ref_name, ref_field=ref_field, lang=lang
 	)
+	result["usages"] = seo.usage_overrides_for(file_url, lang=lang)
+	result["urls"] = seo_urls.resolve(
+		file_url, ref_doctype=ref_doctype, ref_name=ref_name,
+		context_doctype=ref_doctype, context_name=ref_name,
+	)
+	result["indexability"] = seo_index.decide(file_url, check_usage=False)
+	return result
 
 
 @frappe.whitelist(methods=["POST"])
@@ -1263,6 +1270,39 @@ def clear_media_seo_override(file_url: str, ref_doctype: str, ref_name: str, ref
 			file_url, ref_doctype=ref_doctype, ref_name=ref_name, ref_field=ref_field
 		)
 	}
+
+
+@frappe.whitelist(methods=["POST"])
+def set_media_indexability(
+	file_url: str, visibility: str, expires_at: str = "", robots_override: str = ""
+) -> dict:
+	"""Asset visibility/indexability politikasını tek yazma kapısından güncelle."""
+	_guard()
+	allowed = {"Public", "Private", "Unlisted", "Protected", "Temporary", "Expired", "Archived", "Deleted"}
+	if visibility not in allowed:
+		frappe.throw(_("Geçersiz medya görünürlüğü: {0}").format(visibility))
+	if visibility == "Private":
+		frappe.throw(
+			_("Private geçişi fiziksel dosya taşıması gerektirir; erişim seviyesi aracını kullanın.")
+		)
+	robots_override = (robots_override or "").strip()
+	if robots_override:
+		allowed_directives = {
+			"index", "noindex", "follow", "nofollow", "nosnippet",
+			"max-image-preview:none", "max-image-preview:standard", "max-image-preview:large",
+			"max-video-preview:0", "max-video-preview:-1",
+		}
+		parts = {p.strip().lower() for p in robots_override.split(",") if p.strip()}
+		if not parts or not parts <= allowed_directives:
+			frappe.throw(_("Geçersiz robots directive."))
+	values = {"th_media_visibility": visibility}
+	if frappe.db.has_column("File", "th_media_expires_at"):
+		values["th_media_expires_at"] = expires_at or None
+	if frappe.db.has_column("File", "th_media_robots_override"):
+		values["th_media_robots_override"] = robots_override
+	frappe.db.set_value("File", {"file_url": (file_url or "").split("?")[0]}, values, update_modified=False)
+	from tradehub_core.media import seo_index
+	return seo_index.decide(file_url, check_usage=False)
 
 
 @frappe.whitelist(methods=["POST"])
@@ -1385,3 +1425,30 @@ def backfill_media_dimensions(limit: int = 500) -> dict:
 	from tradehub_core.media import seo_generate
 
 	return seo_generate.backfill_dimensions(limit=limit)
+
+
+@frappe.whitelist(methods=["POST"])
+def start_rendition_backfill(limit: int = 100) -> dict:
+	"""Güncel merdiveni olmayan vitrin görsellerini `long` kuyruğa al."""
+	_guard()
+	from tradehub_core.media import pipeline_bridge
+
+	return pipeline_bridge.enqueue_catalog_backfill(limit=int(limit or 100))
+
+
+@frappe.whitelist()
+def get_rendition_backfill_status() -> dict:
+	"""Medya SEO ekranı için katalog/kuyruk ilerlemesi."""
+	_guard()
+	from tradehub_core.media import pipeline_bridge
+
+	return pipeline_bridge.rendition_backfill_status()
+
+
+@frappe.whitelist(methods=["POST"])
+def retry_failed_renditions(limit: int = 50) -> dict:
+	"""Başarısız rendition işlerini kontrollü yeniden dene."""
+	_guard()
+	from tradehub_core.media import pipeline_bridge
+
+	return pipeline_bridge.retry_failed_renditions(limit=int(limit or 50))

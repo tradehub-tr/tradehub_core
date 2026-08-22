@@ -284,3 +284,7 @@ tradehub_core.patches.v15_9_37_media_seo_fields
 tradehub_core.patches.v15_9_38_media_seo_override
 # --- Ali · 20-FE (fiyat kuralları + simülasyon) ---
 tradehub_core.patches.v15_9_37_seed_seller_pricing_nav
+
+# --- Metin · TUR-135 medya SEO indexability + metadata privacy ---
+tradehub_core.patches.v15_9_39_media_seo_indexability
+tradehub_core.patches.v15_9_40_media_metadata_vault

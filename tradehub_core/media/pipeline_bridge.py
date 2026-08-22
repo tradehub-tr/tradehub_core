@@ -470,7 +470,7 @@ def _renditions_exist(surum_hash: str, slot_key: str) -> bool:
 # --- 2) Worker: üretim -------------------------------------------------------
 
 
-def _run_rendition_job(file_url: str) -> None:
+def _run_rendition_job(file_url: str, force: bool = False) -> None:
 	"""Worker tarafı — türev matrisini üretir, diske yazar, kayıtları açar.
 
 	İstisna SIZDIRMAZ. Hata hâlinde `Media Processing Job` `failed` olur,
@@ -495,7 +495,11 @@ def _run_rendition_job(file_url: str) -> None:
 		parmak_izi = content_fingerprint(doc)
 		if not parmak_izi:
 			return
-		if _renditions_exist(parmak_izi, slot_key):
+		# Kontrollü backfill politika değişikliğinde (mesela JPEG fallback
+		# eklendiğinde) mevcut eski merdiveni yeni version_hash ile yeniden
+		# üretmelidir. Upload yolu varsayılan `force=False` ile aynı idempotency
+		# kapısını korur.
+		if not force and _renditions_exist(parmak_izi, slot_key):
 			return
 
 		kaynak = doc.get_content()
@@ -505,6 +509,11 @@ def _run_rendition_job(file_url: str) -> None:
 			return
 
 		asset = _ensure_asset(doc, slot_key, parmak_izi)
+		# Public türevler EXIF/GPS'i politika gereği siler; gerekli kaynak
+		# metadata'sı silinmeden önce şifreli, yetki-sınırlı kasada tutulur.
+		from tradehub_core.media import exif_vault
+
+		exif_vault.retain(asset, kaynak)
 		# T-042: sürüm kimliği KÜTÜPHANEDEN (dedup.version_hash, 4 girdi) gelir
 		# ve türev adresleri onu taşır. Yalnız YENİ üretimler — mevcut türev
 		# kayıtlarının adresine dokunulmaz.
@@ -529,6 +538,173 @@ def _run_rendition_job(file_url: str) -> None:
 			title="media.pipeline_bridge rendition job failed",
 			message=f"{file_url}\n\n{frappe.get_traceback()}",
 		)
+
+
+def enqueue_catalog_backfill(limit: int = 100) -> dict[str, int]:
+	"""Eksik katalog görsellerini kontrollü bir batch olarak `long` kuyruğa at.
+
+	Aynı URL için RQ `job_id` deterministiktir; operatör butona tekrar bassa
+	kuyrukta aynı iş çoğalmaz. `force=True`, eski politika sürümündeki
+	asset'lerin güncel AVIF/WebP/JPEG merdivenine yükselmesini sağlar.
+	"""
+	if not pipeline_flags.is_enabled("rendition_on_upload"):
+		return {"queued": 0, "remaining": 0, "reason": "pipeline_disabled"}
+	if not pipeline_flags.is_slot_enabled("product.image"):
+		return {"queued": 0, "remaining": 0, "reason": "slot_disabled"}
+
+	tavan = max(1, min(500, int(limit or 100)))
+	adaylar = _catalog_backfill_candidates(limit=tavan)
+	secili = adaylar[:tavan]
+	for url in secili:
+		job_hash = hashlib.sha1(url.encode("utf-8")).hexdigest()  # noqa: S324 -- kimlik, kripto değil
+		frappe.enqueue(
+			"tradehub_core.media.pipeline_bridge._run_rendition_job",
+			queue=RQ_QUEUE,
+			timeout=QUEUE_TIMEOUT_SECONDS,
+			enqueue_after_commit=False,
+			job_id=f"media-rendition-backfill::{job_hash}",
+			deduplicate=True,
+			file_url=url,
+			force=True,
+		)
+	durum = rendition_backfill_status()
+	return {
+		"queued": len(secili),
+		"remaining": durum["missing"],
+		"has_more": durum["missing"] > len(secili),
+	}
+
+
+def _catalog_backfill_candidates(limit: int = 101) -> list[str]:
+	"""Güncel JPEG fallback'i olmayan vitrin görselleri (tek toplu sorgu)."""
+	return [
+		r["file_url"]
+		for r in frappe.db.sql(
+			"""
+			SELECT DISTINCT f.file_url
+			FROM `tabFile` f
+			JOIN (
+				SELECT primary_image AS file_url FROM `tabListing`
+				WHERE storefront_visible=1 AND primary_image LIKE '/files/%%'
+				UNION
+				SELECT li.image AS file_url FROM `tabListing Image` li
+				JOIN `tabListing` l ON l.name=li.parent
+				WHERE l.storefront_visible=1 AND li.image LIKE '/files/%%'
+			) catalog ON catalog.file_url=f.file_url
+			WHERE NOT EXISTS (
+				SELECT 1 FROM `tabMedia Asset` a
+				JOIN `tabMedia Rendition` r ON r.asset=a.name
+				WHERE a.source_file=f.name AND a.slot_key='product.image'
+				  AND a.state='ready' AND r.format='jpeg'
+			)
+			ORDER BY f.modified DESC
+			LIMIT %(limit)s
+			""",
+			{"limit": max(1, min(501, int(limit or 101)))},
+			as_dict=True,
+		)
+	]
+
+
+def rendition_backfill_status() -> dict[str, int]:
+	"""Katalog merdiveni ve iş kuyruğunun tek, ucuz operasyonel özeti."""
+	total = int(
+		frappe.db.sql(
+			"""
+			SELECT COUNT(DISTINCT f.name)
+			FROM `tabFile` f
+			JOIN (
+				SELECT primary_image AS file_url FROM `tabListing`
+				 WHERE storefront_visible=1 AND primary_image LIKE '/files/%%'
+				UNION
+				SELECT li.image FROM `tabListing Image` li
+				 JOIN `tabListing` l ON l.name=li.parent
+				 WHERE l.storefront_visible=1 AND li.image LIKE '/files/%%'
+			) catalog ON catalog.file_url=f.file_url
+			"""
+		)[0][0]
+		or 0
+	)
+	missing = int(
+		frappe.db.sql(
+			"""
+			SELECT COUNT(*) FROM (
+				SELECT DISTINCT f.name
+				FROM `tabFile` f
+				JOIN (
+					SELECT primary_image AS file_url FROM `tabListing`
+					 WHERE storefront_visible=1 AND primary_image LIKE '/files/%%'
+					UNION
+					SELECT li.image FROM `tabListing Image` li
+					 JOIN `tabListing` l ON l.name=li.parent
+					 WHERE l.storefront_visible=1 AND li.image LIKE '/files/%%'
+				) catalog ON catalog.file_url=f.file_url
+				WHERE NOT EXISTS (
+					SELECT 1 FROM `tabMedia Asset` a
+					JOIN `tabMedia Rendition` r ON r.asset=a.name
+					WHERE a.source_file=f.name AND a.slot_key='product.image'
+					  AND a.state='ready' AND r.format='jpeg'
+				)
+			) missing_catalog
+			"""
+		)[0][0]
+		or 0
+	)
+	jobs = {
+		str(row[0]): int(row[1])
+		for row in frappe.db.sql(
+			"""SELECT status, COUNT(*) FROM `tabMedia Processing Job`
+			WHERE job_type='rendition' GROUP BY status"""
+		)
+	}
+	try:
+		from frappe.utils.background_jobs import get_queue
+
+		queue_depth = int(get_queue(RQ_QUEUE).count)
+	except Exception:
+		queue_depth = 0
+	return {
+		"total": total,
+		"ready": max(0, total - missing),
+		"missing": missing,
+		"queue_depth": queue_depth,
+		"success": jobs.get("success", 0),
+		"failed": jobs.get("failed", 0),
+		"running": jobs.get("running", 0),
+		"queued_jobs": jobs.get("queued", 0),
+	}
+
+
+def retry_failed_renditions(limit: int = 50) -> dict[str, int]:
+	"""Başarısız görsel işlerinin kaynaklarını kontrollü yeniden kuyruğa al."""
+	tavan = max(1, min(200, int(limit or 50)))
+	urls = frappe.db.sql(
+		"""
+		SELECT DISTINCT f.file_url
+		FROM `tabMedia Processing Job` j
+		JOIN `tabMedia Asset` a ON a.name=j.asset
+		JOIN `tabFile` f ON f.name=a.source_file
+		WHERE j.job_type='rendition' AND j.status='failed'
+		  AND f.file_url IS NOT NULL AND f.file_url != ''
+		ORDER BY j.modified DESC LIMIT %(limit)s
+		""",
+		{"limit": tavan},
+	)
+	queued = 0
+	for (url,) in urls:
+		job_hash = hashlib.sha1(str(url).encode("utf-8")).hexdigest()  # noqa: S324
+		frappe.enqueue(
+			"tradehub_core.media.pipeline_bridge._run_rendition_job",
+			queue=RQ_QUEUE,
+			timeout=QUEUE_TIMEOUT_SECONDS,
+			enqueue_after_commit=False,
+			job_id=f"media-rendition-retry::{job_hash}",
+			deduplicate=True,
+			file_url=url,
+			force=True,
+		)
+		queued += 1
+	return {"queued": queued}
 
 
 def maybe_reprocess_after_crop(asset_name: str) -> None:
