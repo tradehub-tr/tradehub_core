@@ -1,3 +1,36 @@
+## [v1.13.1-alpha.41] - 2026-08-22 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(media): Media URL Redirect DocType (retro-rename 301 haritası) (@ahmeetseker)
+- feat(media): retro_rename plan() — aday tespiti ve salt okunur rapor (@ahmeetseker)
+- feat(media): refs.retarget gömülü JSON/metin referanslarını da taşır (@ahmeetseker)
+- feat(media): retro_rename run_job/rollback — disk+DB+refs+301, durdurma ve hata eşiği (@ahmeetseker)
+  - Durdurma bayrağı `i == 0`'da da kontrol edilir; aksi hâlde batch_size=1 ile ilk dosya her zaman taşınıyordu (test bunu kilitliyor).
+  - Dedup dalında eski kopya commit'ten SONRA silinir. Önce silip DB hatasında hedefi eski ada kopyalamak, kopyalama da patarsa `File` satırlarını diskte olmayan bir adrese bakar hâlde bırakıyordu.
+  - `file_rows` sınırı `max(1, ...)` değil birebir: 0 gerçekten "hiç `File` satırı taşınmadı" demek.
+  - Disk okuma/taşıma hataları dosya başına "error" sayılır, işi düşürmez.
+- feat(media): MediaRedirectRenderer page_renderer hook + 90 gün süre dolumu cron (@ahmeetseker)
+- feat(media): retro-rename admin uçları (plan/start/status/stop/rollback/history/count) + OpenAPI (@ahmeetseker)
+
+### Duzeltildi
+- fix(media): retro_rename plan() — limit=0 ve sayaç eksik raporlama düzeltmesi (@ahmeetseker)
+- fix(media): refs._replace_embedded düz-metin dalında sınır-farkında değiştirme (@ahmeetseker)
+- fix(media): retro-rename geri alma — kimlik tabanlı File dönüşü ve disk güvenliği (@ahmeetseker)
+  - `Media URL Redirect.file_names` (Long Text): taşımada güncellenen tabFile adları JSON olarak saklanır. `rename_one` tam olarak o satırları günceller, `_rollback_one` tam olarak onları geri çevirir. Sayı-tabanlı (`file_rows` + `creation asc`) yol yalnız eski satırlar için yedek plan olarak kaldı — dedup'ta iki eski adın File satırlarını çaprazlıyordu (test kanıtı).
+  - #1 Hedefte geri çevrilmeyen `File` satırı kalıyorsa (doğal yoldan yüklenmiş hash'li ikiz) blob hedefte KALIR, eski ad kopya ile geri gelir; aksi hâlde o satır kırık referansa dönüyordu.
+  - #2 `_rollback_one` disk aşaması artık `except OSError → log + return False`; `run_rollback`'e `run_job` ile aynı `except Exception → state=error` bloğu eklendi. Tek satırın G-Ç hatası tüm geri almayı düşürmüyor.
+  - #3 `_heartbeat`: periyodik ilerleme yazımı `ACTIVE_KEY`in TTL'ini de tazeler (1 saatten uzun işler tek-iş kilidini kaybediyordu).
+  - #4 Commit sonrası dedup artığı silinemezse `reason="dedup_leftover"` — taşındı sayılır ama gerekçe dökümünde görünür (File satırı kalmadığı için başka hiçbir ekranda görünmez).
+  - #5 `ERROR_RATE_STOP` eşiği için test (batch sınırı semantiği korundu).
+  - Küçükler: ters taşıma hatasında `reason="disk_revert_failed"`, `expires_at` ve `row` tip anotasyonları, rollback özetinde `rollback_key`, "hedef diskte yok" log'una `message=`, `delete_doc(ignore_permissions=True)` gerekçesi.
+- fix(media): retro-rename ACTIVE_KEY TOCTOU + batch_size sınırı (@ahmeetseker)
+- fix(media): retro-rename TTL'li cache okumalarında expires=True (@ahmeetseker)
+- fix(media): retro-rename '..' koruması segment düzeyine indirildi; 8 kalan dosya taşındı (@ahmeetseker)
+- fix(media): retro-rename final inceleme — 404 önbelleği, referans sayaçları, count/validate/limit, runbook (@ahmeetseker)
+
+---
 ## [Unreleased]
 
 ### Eklendi
