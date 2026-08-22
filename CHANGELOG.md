@@ -1,3 +1,11 @@
+## [v1.13.1-alpha.42] - 2026-08-22 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(media): complete discoverability delivery lifecycle (@Metin Bektemur)
+
+---
 ## [v1.13.1-alpha.41] - 2026-08-22 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
