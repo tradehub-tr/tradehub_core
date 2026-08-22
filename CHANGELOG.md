@@ -1,3 +1,11 @@
+## [v1.13.1-alpha.40] - 2026-08-22 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(media): add SEO metadata and audit pipeline (@Metin Bektemur)
+
+---
 ## [v1.13.1-alpha.39] - 2026-08-21 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
