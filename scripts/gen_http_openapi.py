@@ -373,6 +373,74 @@ ANLATIM: dict[str, dict[str, Any]] = {
 #: SEL-00001. Satıcı oturumları Frappe'nin kendi `user.impersonate` ucuyla
 #: açıldı; hiçbir parola değiştirilmedi.
 OLCUM: dict[str, tuple[str, str]] = {
+	# ── medya SEO (TUR-135) ─────────────────────────────────────────
+	"tradehub_core.api.media_admin.get_media_seo": (
+		"http",
+		"2026-08-21, gerçek HTTP. Misafir → **403** `PermissionError`. Yönetici, "
+		"canlı ürün görseli: 200 → `{file_url, alt, title, caption, description, "
+		"tags, creator, credit_text, copyright_notice, license_url, "
+		"acquire_license_url, usage_rights, rights_expires_on, seo_filename, "
+		"slug, canonical, alt_source, width, height, overridden}` (20 anahtar). "
+		"`alt` çok dilli kolondan çözüldü (`alt_tr` dolu, `lang=tr`), "
+		"`overridden=false` — kullanım bağlamı verilmediği için ezme katmanı "
+		"atlandı. Boş alanlar `\"\"` döndü, `null` DEĞİL.",
+	),
+	"tradehub_core.api.media_admin.set_media_seo": (
+		"http",
+		"2026-08-21. Yönetici → 200 → `{file_url, records: 2}`; aynı adrese ait "
+		"İKİ `File` kaydına birden yazdı (içerik-adresli adlandırma yüzünden aynı "
+		"dosyanın iki kaydı var). Beyaz liste doğrulandı: gövdeye konan "
+		"`th_media_state` yok sayıldı. Ölçüm değeri sonradan temizlendi.",
+	),
+	"tradehub_core.api.media_admin.set_media_seo_override": (
+		"http",
+		"2026-08-21. Yönetici → 200 → `{name: \"9rjoq5fb2a\"}`; `Media SEO "
+		"Override` kaydı `(file_url, Listing, OLCUM-1, primary_image)` dörtlüsüyle "
+		"açıldı. Aynı dörtlüyle ikinci çağrı YENİ kayıt açmaz (tekillik indeksi "
+		"`uk_seo_override_quad`). Ölçüm kaydı `clear_media_seo_override` ile "
+		"silindi.",
+	),
+	"tradehub_core.api.media_admin.clear_media_seo_override": (
+		"http",
+		"2026-08-21. Yönetici → 200 → `{cleared: true}`. Olmayan ezmede "
+		"`{cleared: false}` — 404 DEĞİL: silme idempotent.",
+	),
+	"tradehub_core.api.media_admin.generate_media_alt": (
+		"http",
+		"2026-08-21. Yönetici, alt metni zaten kural motorunca üretilmiş görsel: "
+		"200 → `{written: false, alt: \"Dinamik Manuel Doğrayıcı Rondo (15. "
+		"görsel)\", reason: \"unchanged\"}` — aynı metin yeniden yazılmadı. "
+		"Sıra numarası okunabilir biçimde (\"(15. görsel)\"), çıplak \"- 15\" "
+		"DEĞİL. İnsan yazımı metinde `reason=\"source:human\"` döner ve yazma "
+		"yapılmaz.",
+	),
+	"tradehub_core.api.media_admin.backfill_media_alt": (
+		"http",
+		"2026-08-21. Yönetici → 200 → `{scanned: 0, written: 0, skipped: 0, "
+		"reasons: {}}`; ölçüm sırasında ürün görsellerinin TAMAMI (1.788 dosya) "
+		"zaten doldurulmuştu, aday kalmadı. Dolu katalogda aynı uç 500'erlik "
+		"turlarla 1.788 kayıt yazdı (30,9 s).",
+	),
+	"tradehub_core.api.media_admin.backfill_media_dimensions": (
+		"http",
+		"2026-08-21. Yönetici → 200 → `{scanned: 5, written: 0, unreadable: 0, "
+		"missing: 5}`; ölçümde kalan adaylar diskte bulunmayan kayıtlardı "
+		"(`missing`). Aynı uç dolu katalogda 4.776 dosyanın gerçek çözünürlüğünü "
+		"2,7 s'de yazdı; denetimdeki `missing_dimensions` bulgusu 150/150'den "
+		"8/150'ye düştü, performans skoru 60 → 98.",
+	),
+	"tradehub_core.api.media_admin.audit_media_seo": (
+		"http",
+		"2026-08-21. Yönetici → 200 → `{files: [...], summary: {...}, score: "
+		"{...}, total}`; dosya başına `findings` listesi (kod, severity, message, "
+		"detail) ve alt kırılımlı skor. 150 dosyalık turda en sık bulgular "
+		"`missing_title/caption/license` (150), `missing_alt` (138). Ürün "
+		"görselleri doldurulduktan sonra aynı tarama `missing_alt` 0, "
+		"erişilebilirlik skoru 99 verdi. `scope` (21 Ağu eklendi): varsayılan "
+		"`catalog` vitrinde görünen ürün görsellerini tarar; `recent` ölçümde "
+		"ilk 10 satırın 10'unda test videosu döndürüyordu (bu yüzden varsayılan "
+		"değil), `all` tüm public dosyalar.",
+	),
 	# ── crop (T-082) ────────────────────────────────────────────────
 	"tradehub_core.api.media_crop.get_intent": (
 		"http",

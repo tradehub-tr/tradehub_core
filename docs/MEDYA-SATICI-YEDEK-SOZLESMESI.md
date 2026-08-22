@@ -110,6 +110,35 @@ verisi ve iç işleyişe ait alanlar taşıyor. Satıcının ihtiyacı "hangi do
 neydi, nerede kullanılıyordu" bilgisi; onu CSV karşılıyor ve bir insan
 okuyabiliyor.
 
+### 5.0 Sistem yedeğinin alan kapsamı — 21 Ağu 2026 genişlemesi
+
+Bu bölüm satıcı paketini değil, `media/backup.py`'nin aldığı **sistem
+yedeğini** ilgilendiriyor; ikisi ayrı (bkz. §1) ama alan listesi ortak
+gerekçeyi paylaşıyor: yedeklenmeyen alan, geri yüklemede kaybolan alandır.
+
+Listeye eklenen 20 alan ve neden:
+
+| Grup | Alanlar | Kaybolursa ne olur |
+|---|---|---|
+| **Tarama** (TUR-125) | `scan_status`, `scan_attempts`, `scan_started_at`, `scan_next_at` | Geri yüklenen dosyalar "hiç taranmamış" görünür ve AV kancası hepsini yeniden kuyruğa alır; daha kötüsü **karantina damgası kaybolur** — zararlı bulunmuş dosya temiz sayılıp yeniden servis edilir |
+| **Dönüştürme** (TUR-296) | `transcode_attempts`, `transcode_started_at`, `transcode_next_at` | "Üç kez denendi, bırakıldı" bilgisi gider; süpürücü baştan dener |
+| **SEO** (TUR-135) | `caption`, `alt_source`, `alt_ai`, lisans beşlisi, `usage_rights`, `rights_expires_on`, `seo_filename`, `slug`, `canonical` + `alt/title/caption` × 4 dil | Alt metinleri, telif ve lisans bilgisi gider — yeniden üretilemeyen insan emeği |
+
+Video durumu (`th_media_video_status`) 13 Ağu'da zaten eklenmişti ve
+yanındaki not aynı tuzağı anlatıyordu ("yedeklenmezse geri yüklenen video
+hiç işlenmemiş görünür ve ffmpeg diskteki dosyayı ezer"). AV işi 17 Ağu'da,
+yedekten SONRA geldiği için tarama alanları listede kalmıştı; 21 Ağu
+denetiminde ölçülerek kapatıldı.
+
+Dil kolonları tek tek yazılmıyor, `("alt","title","caption") × 4 dil`
+üretiliyor: beşinci bir dil eklenirse liste kendiliğinden büyür.
+
+**Hâlâ kapsam dışı (bilinçli):** medya motorunun tabloları — `Media Asset`,
+`Media Version`, `Media Rendition`, `Media Usage`, crop niyet/ezmeleri.
+Bayrak kapalıyken bu tablolar boş; açılmadan ÖNCE kapsama alınmaları
+gerekiyor (ADR-0023 "bayrak öncesi üç ön koşul", madde 2). Motorun S3/ayna
+yedeği DOSYAYI kopyalıyor, KAYDI değil — ikisi birbirini tamamlamalı.
+
 ### 5.1 Künye neden dosya başına
 
 Kayıt başına yazmak yanıltıyordu. İçerik-adresli adlandırma yüzünden aynı

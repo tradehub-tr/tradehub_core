@@ -13,6 +13,10 @@ from tradehub_core.seo.i18n import build_hreflang_links
 MAX_URLS_PER_SITEMAP = 50_000
 SITEMAP_NS = "http://www.sitemaps.org/schemas/sitemap/0.9"
 XHTML_NS = "http://www.w3.org/1999/xhtml"
+#: Görsel site haritası (TUR-135 §6). Namespace yalnız görsel TAŞIYAN
+#: çıktıya eklenir: her urlset'e eklemek, hiç `<image:image>` içermeyen
+#: dosyalara ölü bildirim koymak olurdu.
+IMAGE_NS = "http://www.google.com/schemas/sitemap-image/1.1"
 
 DOCTYPE_CONFIG = {
 	"Listing": {
@@ -71,9 +75,15 @@ def build_urlset_xml(urls: Iterable[dict], include_hreflang: bool = True) -> str
 	`include_hreflang=True` ise her URL'ye xhtml:link hreflang annotation
 	eklenir (Faz 7). URL entry'sinde `hreflang_links` varsa onu kullanır,
 	yoksa otomatik üretilmez (entry zaten TR URL'i olduğu için)."""
+	urls = list(urls)
+	# Görsel namespace'i yalnız gerçekten görsel varsa bildirilir.
+	gorselli = any(u.get("images") for u in urls)
+
 	xmlns = f'xmlns="{SITEMAP_NS}"'
 	if include_hreflang:
 		xmlns += f' xmlns:xhtml="{XHTML_NS}"'
+	if gorselli:
+		xmlns += f' xmlns:image="{IMAGE_NS}"'
 
 	lines = [
 		'<?xml version="1.0" encoding="UTF-8"?>',
@@ -96,6 +106,21 @@ def build_urlset_xml(urls: Iterable[dict], include_hreflang: bool = True) -> str
 			lines.append(f"    <lastmod>{lastmod}</lastmod>")
 		lines.append(f"    <changefreq>{changefreq}</changefreq>")
 		lines.append(f"    <priority>{priority}</priority>")
+		# Görseller (TUR-135 §6): sayfa başına <image:image>. `loc` zorunlu,
+		# `caption` ve `title` opsiyonel — boş etiket yazmak yerine atlanır.
+		for gorsel in u.get("images") or []:
+			img_loc = escape(gorsel.get("loc", ""))
+			if not img_loc:
+				continue
+			lines.append("    <image:image>")
+			lines.append(f"      <image:loc>{img_loc}</image:loc>")
+			if gorsel.get("caption"):
+				lines.append(f"      <image:caption>{escape(gorsel['caption'])}</image:caption>")
+			if gorsel.get("title"):
+				lines.append(f"      <image:title>{escape(gorsel['title'])}</image:title>")
+			if gorsel.get("license"):
+				lines.append(f"      <image:license>{escape(gorsel['license'])}</image:license>")
+			lines.append("    </image:image>")
 		lines.append("  </url>")
 	lines.append("</urlset>")
 	return "\n".join(lines)
@@ -192,6 +217,11 @@ def _iter_records_for(doctype: str):
 	fields = ["name", slug_field, "modified"]
 	if doctype in ("Product Category", "Static Page SEO"):
 		fields.extend(["sitemap_priority", "sitemap_changefreq"])
+	if doctype == "Listing":
+		# Görsel site haritası ana görselden başlıyor (TUR-135 §6); alan
+		# sorguya alınmazsa `_image_entries_for_listing` yalnız galeriyi
+		# görür ve ürünün ASIL görseli haritaya girmez.
+		fields.append("primary_image")
 
 	last_name = ""
 	while True:
@@ -232,7 +262,85 @@ def _entry_for_row(row: dict, cfg: dict, site: str) -> dict:
 	)
 	# Faz 7: hreflang annotations (xhtml:link) — her TR URL'sine tr+en+x-default
 	entry["hreflang_links"] = build_hreflang_links(tr_path, site)
+	# TUR-135 §6: ürün sayfalarına görsel girdileri. Yalnız Listing —
+	# kategori/marka sayfasının tek görseli var ve zaten sayfa taranırken
+	# bulunuyor; ürün sayfasında galeri var ve Google onları ayrıca
+	# keşfedemiyor (ar-ge §6 tablosu).
+	if cfg.get("url_prefix") == "/urun":
+		entry["images"] = _image_entries_for_listing(row, site)
 	return entry
+
+
+def _image_entries_for_listing(row: dict, site: str) -> list[dict]:
+	"""Ürünün indexlenebilir görselleri → `<image:image>` girdileri.
+
+	Alt metni/altyazı `media/seo.fields_for`'dan, indexability kararı
+	`media/seo_index`'ten. Çöpteki, karantinadaki, hakkı dolmuş ya da private
+	görsel site haritasına GİRMEZ — Google'a kaldırılmış kaynak göstermek
+	kırık sonuç üretir.
+
+	Hata halinde boş liste: site haritası üretimi zamanlanmış bir iştir ve
+	medya tarafındaki bir sorun yüzünden TÜM haritanın üretilememesi,
+	görselsiz üretilmesinden çok daha kötüdür.
+	"""
+	import frappe
+
+	ad = row.get("name")
+	if not ad:
+		return []
+	try:
+		from tradehub_core.media import seo as media_seo
+		from tradehub_core.media import seo_index
+
+		adresler: list[tuple[str, str, str]] = []
+		if row.get("primary_image"):
+			adresler.append((row["primary_image"], "Listing", "primary_image"))
+		for satir in frappe.get_all(
+			"Listing Image",
+			filters={"parent": ad, "parenttype": "Listing"},
+			fields=["image"],
+			order_by="idx asc",
+			limit_page_length=_SITEMAP_IMAGE_LIMIT,
+		):
+			if satir.get("image"):
+				adresler.append((satir["image"], "Listing Image", "image"))
+
+		girdiler: list[dict] = []
+		gorulen: set[str] = set()
+		for url, ref_dt, ref_alan in adresler[:_SITEMAP_IMAGE_LIMIT]:
+			if url in gorulen:
+				continue
+			gorulen.add(url)
+			if not seo_index.decide(url, check_usage=False)["indexable"]:
+				continue
+			alanlar = media_seo.fields_for(
+				url, ref_doctype=ref_dt, ref_name=ad, ref_field=ref_alan
+			)
+			girdi = {"loc": _mutlak(url, site)}
+			if alanlar.get("caption") or alanlar.get("alt"):
+				girdi["caption"] = alanlar.get("caption") or alanlar.get("alt")
+			if alanlar.get("title"):
+				girdi["title"] = alanlar["title"]
+			if alanlar.get("license_url"):
+				girdi["license"] = _mutlak(alanlar["license_url"], site)
+			girdiler.append(girdi)
+		return girdiler
+	except Exception:
+		frappe.log_error("sitemap image entries failed", "sitemap_generator")
+		return []
+
+
+#: Sayfa başına en fazla kaç görsel. Google sınırı 1.000; bizde galeriler
+#: küçük, ama bir ürüne 200 görsel eklenirse harita şişmesin.
+_SITEMAP_IMAGE_LIMIT: int = 25
+
+
+def _mutlak(url: str, site: str) -> str:
+	if not url:
+		return ""
+	if url.startswith(("http://", "https://")):
+		return url
+	return f"{site.rstrip('/')}/{url.lstrip('/')}"
 
 
 def build_chunks_for_type(doctype: str):

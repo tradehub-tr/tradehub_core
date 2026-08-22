@@ -209,19 +209,24 @@ class UreticiTesti(unittest.TestCase):
 				self.assertLessEqual(int(satir), len(hedef.read_text(encoding="utf-8").splitlines()))
 
 	def test_uc_sayisi(self):
-		"""100 uç: 6 teslim + 3 kırpma + 41 satıcı + 47 yönetim + 2 depolama + 1 RUM.
+		"""108 uç: 6 teslim + 3 kırpma + 41 satıcı + 55 yönetim + 2 depolama + 1 RUM.
 
 		W6 SDK turu (2026-08-20): `manifest_batch` (dosya bazlı), 6 klasör ucu,
 		`find_in_my_library`, `list_orphans` ve `rum.collect` yüzeye eklendi.
+
+		TUR-135 Dilim 1-3 (2026-08-21): sekiz medya SEO ucu — `get_media_seo`,
+		`set_media_seo`, `set_media_seo_override`, `clear_media_seo_override`,
+		`generate_media_alt`, `backfill_media_alt`, `backfill_media_dimensions`,
+		`audit_media_seo`. Hepsi gerçek HTTP ile ölçüldü (`OLCUM`).
 		"""
-		self.assertEqual(len(self.uclar), 100)
-		self.assertEqual(self.doc["x-endpoint-count"], 100)
+		self.assertEqual(len(self.uclar), 108)
+		self.assertEqual(self.doc["x-endpoint-count"], 108)
 		etikete_gore: dict[str, int] = {}
 		for uc in self.uclar:
 			etikete_gore[uc["tag"]] = etikete_gore.get(uc["tag"], 0) + 1
 		self.assertEqual(
 			etikete_gore,
-			{"delivery": 6, "crop": 3, "seller": 41, "admin": 47, "storage": 2, "rum": 1},
+			{"delivery": 6, "crop": 3, "seller": 41, "admin": 55, "storage": 2, "rum": 1},
 		)
 
 	def test_her_ucun_olcum_durumu_YAZILI(self):

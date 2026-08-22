@@ -81,9 +81,16 @@ def changed_files(rng: str | None, staged: bool) -> list[str]:
 
 
 def commit_messages(rng: str | None, staged: bool) -> str:
-	if staged:
-		return ""  # pre-commit'te mesaj henüz yok
-	return _git("log", "--format=%s%n%b", rng or "HEAD~1..HEAD")
+	"""Kaçış anahtarının aranacağı commit mesajları.
+
+	Çalışma ağacı karşılaştırmasında (`--range HEAD`) HENÜZ commit yoktur —
+	`git log HEAD` tüm geçmişi döndürür ve içinde bir kez geçen `[contract-ok]`
+	kontrolü sonsuza dek susturur. Ölçüldü: betiğin kendi tanıtım commit'i
+	bunu tetikliyordu.
+	"""
+	if staged or not rng or rng.strip() == "HEAD":
+		return ""
+	return _git("log", "--format=%s%n%b", rng)
 
 
 def find_violations(files: list[str]) -> list[tuple[str, tuple[str, ...]]]:

@@ -10,6 +10,77 @@ from urllib.parse import urljoin, urlsplit
 
 SCHEMA_CONTEXT = "https://schema.org"
 
+#: `ImageObject`'e girecek lisans alanları — Google görsel lisans rozetinin
+#: okuduğu set (TUR-135 §4.4). Sözlük anahtarı `media/seo.fields_for` çıktısı,
+#: değeri schema.org adı.
+_IMAGE_LICENSE_MAP: dict[str, str] = {
+	"creator": "creator",
+	"credit_text": "creditText",
+	"copyright_notice": "copyrightNotice",
+	"license_url": "license",
+	"acquire_license_url": "acquireLicensePage",
+}
+
+
+def build_image_object(seo_fields: dict, site_url: str) -> dict | str:
+	"""Tek görsel için `ImageObject` — alan yoksa düz URL'ye düşer.
+
+	NEDEN DÜZ URL'YE DÜŞÜYOR: `ImageObject` üretmek için en az bir anlamlı
+	alan (alt/caption/boyut/lisans) gerekir; hiçbiri yoksa `{"@type":
+	"ImageObject", "url": ...}` düz URL'den daha fazlasını söylemez ama
+	çıktıyı şişirir. Ölçüm (18 Ağu): 3.123 dosyanın 0'ında alt metni var —
+	yani geçiş döneminde çoğu görsel bu daldan geçecek ve JSON-LD bugünkü
+	biçimini koruyacak. Alanlar doldukça çıktı kendiliğinden zenginleşir.
+
+	Saf fonksiyon: `seo_fields` çağıran tarafından `media/seo.fields_for` ile
+	getirilir (bu modül Frappe'ye bağlanmaz).
+	"""
+	url = _absolute_url(seo_fields.get("file_url"), site_url)
+	if not url:
+		return ""
+
+	nesne: dict = {"@type": "ImageObject", "url": url, "contentUrl": url}
+	if seo_fields.get("title"):
+		nesne["name"] = seo_fields["title"]
+	# `caption` sayfada görünen metin, `alt` erişilebilirlik metni. Google
+	# ikisini de okuyor; caption yoksa alt caption olarak verilir — uydurma
+	# değil, aynı görselin tarifi.
+	altyazi = seo_fields.get("caption") or seo_fields.get("alt")
+	if altyazi:
+		nesne["caption"] = altyazi
+	if seo_fields.get("description"):
+		nesne["description"] = seo_fields["description"]
+	if seo_fields.get("width"):
+		nesne["width"] = seo_fields["width"]
+	if seo_fields.get("height"):
+		nesne["height"] = seo_fields["height"]
+
+	for kaynak, hedef in _IMAGE_LICENSE_MAP.items():
+		deger = seo_fields.get(kaynak)
+		if not deger:
+			continue
+		if hedef in ("license", "acquireLicensePage"):
+			nesne[hedef] = _absolute_url(deger, site_url)
+		elif hedef == "creator":
+			nesne[hedef] = {"@type": "Organization", "name": deger}
+		else:
+			nesne[hedef] = deger
+
+	# Yalnız url/contentUrl kaldıysa nesne bir şey söylemiyor demektir.
+	if set(nesne) <= {"@type", "url", "contentUrl"}:
+		return url
+	return nesne
+
+
+def build_image_list(seo_fields_list: list[dict], site_url: str) -> list:
+	"""Sıralı görsel listesi — her biri `ImageObject` ya da düz URL."""
+	out = []
+	for alanlar in seo_fields_list or []:
+		deger = build_image_object(alanlar, site_url)
+		if deger:
+			out.append(deger)
+	return out
+
 
 def _absolute_url(value: str | None, site_url: str) -> str:
 	"""Relative storefront asset/page URL'lerini mutlak URL'ye çevir."""
@@ -65,8 +136,14 @@ def build_product_schema(
 	slug = listing.get("slug", "")
 	url = f"{site_url.rstrip('/')}/urun/{slug}"
 
-	primary_image = listing.get("primary_image")
-	images = [_absolute_url(primary_image, site_url)] if primary_image else []
+	# Görseller: çağıran `media_images` (ImageObject listesi) verdiyse o
+	# kullanılır — alt metni, altyazı, boyut ve lisans oradan gelir (TUR-135
+	# §6). Vermediyse eski davranış: `primary_image`'ın düz URL'si. Geçiş
+	# döneminde ikisi de geçerli; hiçbir çağıran kırılmıyor.
+	images = listing.get("media_images")
+	if not images:
+		primary_image = listing.get("primary_image")
+		images = [_absolute_url(primary_image, site_url)] if primary_image else []
 
 	schema = {
 		"@context": SCHEMA_CONTEXT,
@@ -383,6 +460,66 @@ def _fetch_answered_questions_for(listing_name: str) -> list[dict]:
 		return []
 
 
+def _listing_image_objects(listing: dict, site_url: str) -> list:
+	"""Ürünün görselleri → `ImageObject` listesi (indexlenmeyenler ELENİR).
+
+	Alt metni ve lisans `media/seo.fields_for` üzerinden okunuyor — kullanım
+	bağlamıyla, yani ürün sayfasına yazılmış ezme varsa o (TUR-135 §4.3).
+	Doğrudan `th_media_alt` okunmuyor: metadata evi taşındığı gün burası
+	değişmesin (ADR-0023).
+
+	Çöpteki/karantinadaki/hakkı dolmuş görsel yapısal veriye GİRMEZ
+	(`seo_index.decide`): Google'a var olmayan ya da kaldırılmış bir kaynağı
+	göstermek, kırık zengin sonuç üretir.
+	"""
+	import frappe
+
+	try:
+		from tradehub_core.media import seo as media_seo
+		from tradehub_core.media import seo_index
+
+		ad = listing.get("name") or ""
+		lang = listing.get("content_default_lang") or "tr"
+		kaynaklar: list[tuple[str, str, str]] = []
+		if listing.get("primary_image"):
+			kaynaklar.append((listing["primary_image"], "Listing", "primary_image"))
+		if ad:
+			for satir in frappe.get_all(
+				"Listing Image",
+				filters={"parent": ad, "parenttype": "Listing"},
+				fields=["image"],
+				order_by="idx asc",
+			):
+				if satir.get("image"):
+					kaynaklar.append((satir["image"], "Listing Image", "image"))
+
+		out = []
+		gorulen: set[str] = set()
+		for url, ref_dt, ref_alan in kaynaklar:
+			if url in gorulen:
+				continue
+			gorulen.add(url)
+			if not seo_index.decide(url, check_usage=False)["indexable"]:
+				continue
+			alanlar = media_seo.fields_for(
+				url,
+				ref_doctype=ref_dt,
+				ref_name=ad if ref_dt == "Listing" else ad,
+				ref_field=ref_alan,
+				lang=lang,
+			)
+			nesne = build_image_object(alanlar, site_url)
+			if nesne:
+				out.append(nesne)
+		return out
+	except Exception:
+		# Yapısal veri üretimi bir sayfa isteğinin içinde koşuyor; medya
+		# tarafındaki bir hata ürün sayfasını DÜŞÜRMEMELİ. Eski davranışa
+		# (düz `primary_image`) düşülür.
+		frappe.log_error("listing image objects failed", "schema_builder")
+		return []
+
+
 def _get_listing_extra_context(listing_name: str) -> dict:
 	"""Listing için brand + category + rating + reviews + questions topla."""
 	import frappe
@@ -510,6 +647,7 @@ def compose_for_home(defaults: dict, site_url: str) -> list[dict]:
 
 def compose_for_listing(listing: dict, defaults: dict, site_url: str) -> list[dict]:
 	"""Frappe wrapper: Listing için tüm schema setini üret."""
+	listing = {**listing, "media_images": _listing_image_objects(listing, site_url)}
 	ctx = {"listing": listing}
 	ctx.update(_get_listing_extra_context(listing.get("name", "")))
 	merged_defaults = {**defaults, **_frappe_defaults()}
