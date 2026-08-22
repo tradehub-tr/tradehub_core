@@ -282,3 +282,5 @@ tradehub_core.patches.v15_9_23_seed_seller_delivery_nav
 # okuma kapısı ikisini birden bekliyor.
 tradehub_core.patches.v15_9_37_media_seo_fields
 tradehub_core.patches.v15_9_38_media_seo_override
+# --- Ali · 20-FE (fiyat kuralları + simülasyon) ---
+tradehub_core.patches.v15_9_37_seed_seller_pricing_nav

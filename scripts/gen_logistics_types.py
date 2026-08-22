@@ -55,9 +55,7 @@ DTS_PATH = GENERATED_ROOT / "logistics.d.ts"
 
 #: --sync ile yazılacak kardeş repo hedefleri (repo kökünden göreli)
 #: Tek dosya hedefleri (kaynak, repo kökünden göreli hedef)
-SYNC_TARGETS: tuple[tuple[Path, Path], ...] = (
-	(DTS_PATH, Path("../tradehubfront/src/types/logistics.d.ts")),
-)
+SYNC_TARGETS: tuple[tuple[Path, Path], ...] = ((DTS_PATH, Path("../tradehubfront/src/types/logistics.d.ts")),)
 
 #: Dizin hedefleri — fixture'lar Storybook story'lerini besliyor.
 #: admin-panel saf JS olduğu için TİP üretilmiyor (Faz B kararı); yalnız mock
@@ -78,20 +76,22 @@ SYNC_DIR_TARGETS: tuple[tuple[Path, Path], ...] = (
 #: `carrier_status_mapping` (iç eşleme), `connection_test`, `import_job`,
 #: `operation_alert`, `notification_template` (operasyon araçları),
 #: `service_coverage_area`, `pallet_plan`.
-STOREFRONT_ENTITIES: frozenset[str] = frozenset({
-	"shipment",
-	"proof_of_delivery",
-	"return_request",
-	"shipping_method",
-	"shipping_channel",
-	"logistics_provider",
-	"carrier_service",
-	"carrier_branch",
-	"package_type",
-	"vehicle_type",
-	"shipment_exception_code",
-	"notification_preference",
-})
+STOREFRONT_ENTITIES: frozenset[str] = frozenset(
+	{
+		"shipment",
+		"proof_of_delivery",
+		"return_request",
+		"shipping_method",
+		"shipping_channel",
+		"logistics_provider",
+		"carrier_service",
+		"carrier_branch",
+		"package_type",
+		"vehicle_type",
+		"shipment_exception_code",
+		"notification_preference",
+	}
+)
 
 #: Storefront fixture'ında `null`'lanan alanlar.
 #:
@@ -111,14 +111,16 @@ STOREFRONT_ENTITIES: frozenset[str] = frozenset({
 #:   Burada maskeleseydik fixture gerçekten farklı olur, ekran var olmayan bir
 #:   korumaya göre tasarlanırdı. Açık backend'de kapatılmalı; kapatılınca bu
 #:   listeye `cost` eklenecek.
-STOREFRONT_MASKED_FIELDS: frozenset[str] = frozenset({
-	"shipping_cost",
-	"insurance_cost",
-	"total_cost",
-	"carrier_cost",
-	"fuel_surcharge",
-	"packaging_cost",
-})
+STOREFRONT_MASKED_FIELDS: frozenset[str] = frozenset(
+	{
+		"shipping_cost",
+		"insurance_cost",
+		"total_cost",
+		"carrier_cost",
+		"fuel_surcharge",
+		"packaging_cost",
+	}
+)
 
 BANNER = (
 	"ÜRETİLMİŞ DOSYA — elle düzenlemeyin.\n"
@@ -163,7 +165,7 @@ def _install_frappe_stub() -> None:
 	frappe.PermissionError = type("PermissionError", (Exception,), {})
 	frappe.DoesNotExistError = type("DoesNotExistError", (Exception,), {})
 	frappe.DuplicateEntryError = type("DuplicateEntryError", (Exception,), {})
-	frappe.whitelist = lambda **_kwargs: (lambda func: func)
+	frappe.whitelist = lambda **_kwargs: lambda func: func
 	frappe._ = lambda message: message
 	frappe.throw = lambda *a, **k: (_ for _ in ()).throw(frappe.ValidationError())
 	frappe.Document = object
@@ -320,9 +322,7 @@ def _collect_provisional() -> dict[str, Any]:
 			"source_tasks": entity["source_tasks"],
 			"list_fields": to_schema(entity["list_fields"]),
 			"detail_fields": to_schema(entity["detail_fields"]),
-			"child_tables": {
-				table: to_schema(rows) for table, rows in entity["child_tables"].items()
-			},
+			"child_tables": {table: to_schema(rows) for table, rows in entity["child_tables"].items()},
 		}
 		for key, entity in PROVISIONAL_ENTITIES.items()
 	}
@@ -464,9 +464,7 @@ def render_dts(schema: dict[str, Any]) -> str:
 			child_name = f"{base}{_pascal(table)}Row"
 			out.append(_ts_interface(child_name, child_fields))
 			out.append("")
-			detail_extra.append(
-				{"name": table, "ts": f"{child_name}[]", "required": True}
-			)
+			detail_extra.append({"name": table, "ts": f"{child_name}[]", "required": True})
 
 		if detail_extra:
 			body = _ts_interface(f"{base}Detail", detail_extra).replace(
@@ -515,10 +513,7 @@ def render_dts(schema: dict[str, Any]) -> str:
 	]
 	out.append(_ts_interface("CarrierAccount", account_fields))
 	out.append("")
-	out.append(
-		"/** Gizli alan DEĞERLERİ liste/detay yanıtında dönmez; "
-		"reveal_carrier_secret ile alınır. */"
-	)
+	out.append("/** Gizli alan DEĞERLERİ liste/detay yanıtında dönmez; reveal_carrier_secret ile alınır. */")
 	out.append(
 		"export type CarrierSecretField = "
 		+ " | ".join(json.dumps(s) for s in account["secret_fields"])
@@ -529,9 +524,7 @@ def render_dts(schema: dict[str, Any]) -> str:
 	out.append("// ── Ayarlar ──")
 	out.append(_ts_interface("LogisticsSettings", schema["admin"]["settings"]["fields"]))
 	out.append("")
-	out.append(
-		"export type LogisticsFeatureFlags = Record<FeatureFlag, boolean>;"
-	)
+	out.append("export type LogisticsFeatureFlags = Record<FeatureFlag, boolean>;")
 	out.append("")
 	out.append("// ── Yetki bildirimi ──")
 	out.append("export interface LogisticsPermissions {")
@@ -645,81 +638,135 @@ def render_fixtures(schema: dict[str, Any]) -> dict[str, Any]:
 		# karakter davranışı ancak gerçeğe yakın veriyle değerlendirilebilir.
 		"carrier_branch": [
 			{
-				"name": "YK-34001", "branch_name": "Yurtiçi Kargo İkitelli Şubesi",
-				"branch_code": "34001", "carrier": "YK", "branch_type": "Distribution Point",
-				"city": "İstanbul", "district": "Başakşehir",
+				"name": "YK-34001",
+				"branch_name": "Yurtiçi Kargo İkitelli Şubesi",
+				"branch_code": "34001",
+				"carrier": "YK",
+				"branch_type": "Distribution Point",
+				"city": "İstanbul",
+				"district": "Başakşehir",
 			},
 			{
-				"name": "AK-06010", "branch_name": "Aras Kargo Ostim Aktarma Merkezi",
-				"branch_code": "06010", "carrier": "AK", "branch_type": "Transfer Center",
-				"city": "Ankara", "district": "Yenimahalle",
+				"name": "AK-06010",
+				"branch_name": "Aras Kargo Ostim Aktarma Merkezi",
+				"branch_code": "06010",
+				"carrier": "AK",
+				"branch_type": "Transfer Center",
+				"city": "Ankara",
+				"district": "Yenimahalle",
 			},
 			{
-				"name": "MNG-35004", "branch_name": "MNG Kargo Çiğli Hub",
-				"branch_code": "35004", "carrier": "MNG", "branch_type": "Hub",
-				"city": "İzmir", "district": "Çiğli",
+				"name": "MNG-35004",
+				"branch_name": "MNG Kargo Çiğli Hub",
+				"branch_code": "35004",
+				"carrier": "MNG",
+				"branch_type": "Hub",
+				"city": "İzmir",
+				"district": "Çiğli",
 			},
 		],
 		"carrier_service": [
 			{
-				"name": "YK-STD", "service_name": "Yurtiçi Standart", "service_code": "YK-STD",
-				"carrier": "YK", "service_type": "Standard",
+				"name": "YK-STD",
+				"service_name": "Yurtiçi Standart",
+				"service_code": "YK-STD",
+				"carrier": "YK",
+				"service_type": "Standard",
 			},
 			{
-				"name": "YK-EXP", "service_name": "Yurtiçi Ertesi Gün", "service_code": "YK-EXP",
-				"carrier": "YK", "service_type": "Express",
+				"name": "YK-EXP",
+				"service_name": "Yurtiçi Ertesi Gün",
+				"service_code": "YK-EXP",
+				"carrier": "YK",
+				"service_type": "Express",
 			},
 			{
-				"name": "AK-STD", "service_name": "Aras Standart", "service_code": "AK-STD",
-				"carrier": "AK", "service_type": "Standard",
+				"name": "AK-STD",
+				"service_name": "Aras Standart",
+				"service_code": "AK-STD",
+				"carrier": "AK",
+				"service_type": "Standard",
 			},
 		],
 		"service_coverage_area": [
 			{
-				"name": "YK-YK-STD-İstanbul-Başakşehir", "carrier": "YK",
-				"carrier_service": "YK-STD", "city": "İstanbul", "district": "Başakşehir",
+				"name": "YK-YK-STD-İstanbul-Başakşehir",
+				"carrier": "YK",
+				"carrier_service": "YK-STD",
+				"city": "İstanbul",
+				"district": "Başakşehir",
 			},
 			{
-				"name": "YK-YK-STD-Şanlıurfa-Haliliye", "carrier": "YK",
-				"carrier_service": "YK-STD", "city": "Şanlıurfa", "district": "Haliliye",
+				"name": "YK-YK-STD-Şanlıurfa-Haliliye",
+				"carrier": "YK",
+				"carrier_service": "YK-STD",
+				"city": "Şanlıurfa",
+				"district": "Haliliye",
 			},
 			{
-				"name": "AK-AK-STD-Ankara-Çankaya", "carrier": "AK",
-				"carrier_service": "AK-STD", "city": "Ankara", "district": "Çankaya",
+				"name": "AK-AK-STD-Ankara-Çankaya",
+				"carrier": "AK",
+				"carrier_service": "AK-STD",
+				"city": "Ankara",
+				"district": "Çankaya",
 			},
 		],
 		"carrier_status_mapping": [
 			{
-				"name": "YK-101", "carrier": "YK", "carrier_status_code": "101",
+				"name": "YK-101",
+				"carrier": "YK",
+				"carrier_status_code": "101",
 				"carrier_status_text": "Kargo şubeye teslim edildi",
-				"internal_status": "Picked Up", "exception_code": None,
+				"internal_status": "Picked Up",
+				"exception_code": None,
 			},
 			{
-				"name": "YK-205", "carrier": "YK", "carrier_status_code": "205",
+				"name": "YK-205",
+				"carrier": "YK",
+				"carrier_status_code": "205",
 				"carrier_status_text": "Dağıtıma çıktı",
-				"internal_status": "Out for Delivery", "exception_code": None,
+				"internal_status": "Out for Delivery",
+				"exception_code": None,
 			},
 			{
-				"name": "YK-902", "carrier": "YK", "carrier_status_code": "902",
+				"name": "YK-902",
+				"carrier": "YK",
+				"carrier_status_code": "902",
 				"carrier_status_text": "Alıcı adreste bulunamadı",
-				"internal_status": "Failed", "exception_code": "RECIPIENT_ABSENT",
+				"internal_status": "Failed",
+				"exception_code": "RECIPIENT_ABSENT",
 			},
 		],
 		"shipping_method": [
 			{
-				"name": "Standart Kargo", "method_name": "Standart Kargo",
-				"shipping_type": "Standard", "channel": "CARGO",
-				"min_days": 2, "max_days": 4, "base_cost": 89.90, "currency": "TRY",
+				"name": "Standart Kargo",
+				"method_name": "Standart Kargo",
+				"shipping_type": "Standard",
+				"channel": "CARGO",
+				"min_days": 2,
+				"max_days": 4,
+				"base_cost": 89.90,
+				"currency": "TRY",
 			},
 			{
-				"name": "Hızlı Kargo", "method_name": "Hızlı Kargo",
-				"shipping_type": "Express", "channel": "CARGO",
-				"min_days": 1, "max_days": 2, "base_cost": 149.90, "currency": "TRY",
+				"name": "Hızlı Kargo",
+				"method_name": "Hızlı Kargo",
+				"shipping_type": "Express",
+				"channel": "CARGO",
+				"min_days": 1,
+				"max_days": 2,
+				"base_cost": 149.90,
+				"currency": "TRY",
 			},
 			{
-				"name": "Ambar Teslim", "method_name": "Ambar Teslim",
-				"shipping_type": "Land", "channel": "WAREHOUSE",
-				"min_days": 3, "max_days": 7, "base_cost": 0, "currency": "TRY",
+				"name": "Ambar Teslim",
+				"method_name": "Ambar Teslim",
+				"shipping_type": "Land",
+				"channel": "WAREHOUSE",
+				"min_days": 3,
+				"max_days": 7,
+				"base_cost": 0,
+				"currency": "TRY",
 			},
 		],
 	}
@@ -745,16 +792,31 @@ def render_fixtures(schema: dict[str, Any]) -> dict[str, Any]:
 			items.append(row)
 
 		fixtures[key] = {
-			"default": {"ok": True, "data": {
-				"items": items, "total": len(items), "page": 1, "page_size": 50,
-			}},
-			"empty": {"ok": True, "data": {
-				"items": [], "total": 0, "page": 1, "page_size": 50,
-			}},
-			"error": {"ok": False, "error": {
-				"code": "PERMISSION_DENIED",
-				"message": "Bu kataloğu görüntüleme yetkiniz yok.",
-			}},
+			"default": {
+				"ok": True,
+				"data": {
+					"items": items,
+					"total": len(items),
+					"page": 1,
+					"page_size": 50,
+				},
+			},
+			"empty": {
+				"ok": True,
+				"data": {
+					"items": [],
+					"total": 0,
+					"page": 1,
+					"page_size": 50,
+				},
+			},
+			"error": {
+				"ok": False,
+				"error": {
+					"code": "PERMISSION_DENIED",
+					"message": "Bu kataloğu görüntüleme yetkiniz yok.",
+				},
+			},
 		}
 
 	fixtures.update(_render_provisional_fixtures())
@@ -790,37 +852,83 @@ def _render_carrier_account_fixture(schema: dict[str, Any]) -> dict[str, Any]:
 
 	items = [
 		account(
-			name="CACC-YK-PLATFORM", account_name="Yurtiçi Kargo — Platform",
-			carrier="YK", is_default=1, base_url="https://api.yurticikargo.com/v2",
+			name="CACC-YK-PLATFORM",
+			account_name="Yurtiçi Kargo — Platform",
+			carrier="YK",
+			is_default=1,
+			base_url="https://api.yurticikargo.com/v2",
 			token_expiry="2026-09-01 00:00:00",
 			defined_secrets=("api_key", "api_secret", "webhook_secret"),
 		),
 		account(
-			name="CACC-AK-SEL00001", account_name="Aras Kargo — Demir Tekstil",
-			carrier="AK", seller_profile="SEL-00001",
+			name="CACC-AK-SEL00001",
+			account_name="Aras Kargo — Demir Tekstil",
+			carrier="AK",
+			seller_profile="SEL-00001",
 			base_url="https://api.araskargo.com.tr/v1",
 			defined_secrets=("api_key", "api_secret"),
 		),
 		# Kimlik bilgisi hiç girilmemiş hesap: ekran "bağlantıyı test et"
 		# demeden önce bunu ayırt edebilmeli.
 		account(
-			name="CACC-MNG-SANDBOX", account_name="MNG Kargo — Sandbox",
-			carrier="MNG", environment="sandbox", is_active=0,
-			base_url="https://sandbox.mngkargo.com.tr/v1", defined_secrets=(),
+			name="CACC-MNG-SANDBOX",
+			account_name="MNG Kargo — Sandbox",
+			carrier="MNG",
+			environment="sandbox",
+			is_active=0,
+			base_url="https://sandbox.mngkargo.com.tr/v1",
+			defined_secrets=(),
+		),
+		# ── 20-FE (fiyatlandırma) için eklendi ──
+		#: Satıcının İKİNCİ kendi anlaşması. Tek satıcı hesabıyla "hangi
+		#: taşıyıcıyla göndereyim" ekranı tasarlanamıyordu — seçenek yoksa
+		#: seçim ekranı da yok. `pricing_rule` bu hesaba tarife bağlıyor.
+		account(
+			name="CACC-MNG-SEL00001",
+			account_name="MNG Kargo — Demir Tekstil",
+			carrier="MNG",
+			seller_profile="SEL-00001",
+			base_url="https://api.mngkargo.com.tr/v1",
+			defined_secrets=("api_key", "api_secret"),
+		),
+		#: Tarifesi OLMAYAN platform hesabı. Fiyat simülasyonunun "bu hesapla
+		#: fiyat üretilemedi" satırı ancak böyle bir hesap varken tasarlanabilir;
+		#: hepsi fiyat üretirse o durum hiç görünmez (`NO_RULE_MATCHED`).
+		account(
+			name="CACC-PTT-PLATFORM",
+			account_name="PTT Kargo — Platform",
+			carrier="PTT",
+			base_url="https://api.ptt.gov.tr/kargo/v1",
+			defined_secrets=("api_key",),
 		),
 	]
 
 	return {
-		"default": {"ok": True, "data": {
-			"items": items, "total": len(items), "page": 1, "page_size": 50,
-		}},
-		"empty": {"ok": True, "data": {
-			"items": [], "total": 0, "page": 1, "page_size": 50,
-		}},
-		"error": {"ok": False, "error": {
-			"code": "CAPABILITY_REQUIRED",
-			"message": "Taşıyıcı kimlik bilgilerini yönetme yetkiniz yok.",
-		}},
+		"default": {
+			"ok": True,
+			"data": {
+				"items": items,
+				"total": len(items),
+				"page": 1,
+				"page_size": 50,
+			},
+		},
+		"empty": {
+			"ok": True,
+			"data": {
+				"items": [],
+				"total": 0,
+				"page": 1,
+				"page_size": 50,
+			},
+		},
+		"error": {
+			"ok": False,
+			"error": {
+				"code": "CAPABILITY_REQUIRED",
+				"message": "Taşıyıcı kimlik bilgilerini yönetme yetkiniz yok.",
+			},
+		},
 	}
 
 
@@ -863,16 +971,31 @@ def _render_provisional_fixtures() -> dict[str, Any]:
 	for key, sample in PROVISIONAL_SAMPLES.items():
 		rows = sample["rows"]
 		scenarios: dict[str, Any] = {
-			"default": {"ok": True, "data": {
-				"items": rows, "total": len(rows), "page": 1, "page_size": 50,
-			}},
-			"empty": {"ok": True, "data": {
-				"items": [], "total": 0, "page": 1, "page_size": 50,
-			}},
-			"error": {"ok": False, "error": {
-				"code": "PERMISSION_DENIED",
-				"message": "Bu kaydı görüntüleme yetkiniz yok.",
-			}},
+			"default": {
+				"ok": True,
+				"data": {
+					"items": rows,
+					"total": len(rows),
+					"page": 1,
+					"page_size": 50,
+				},
+			},
+			"empty": {
+				"ok": True,
+				"data": {
+					"items": [],
+					"total": 0,
+					"page": 1,
+					"page_size": 50,
+				},
+			},
+			"error": {
+				"ok": False,
+				"error": {
+					"code": "PERMISSION_DENIED",
+					"message": "Bu kaydı görüntüleme yetkiniz yok.",
+				},
+			},
 		}
 		if sample["detail"]:
 			# Detay, listenin İLK satırıyla birleştirilir — iki ayrı gerçek
@@ -903,9 +1026,20 @@ def _assert_samples_cover_contract(schema: dict[str, Any]) -> None:
 			continue
 
 		merged: dict[str, Any] = {}
+		# Alt tablolar AYRI toplanıyor: `merged.update(row)` bir listeyi
+		# birleştirmez, ÜZERİNE YAZAR. Kümenin son satırındaki `surcharges: []`
+		# önceki satırların dolu tablolarını siliyor ve doğrulama "örnekte yok"
+		# diyordu — oysa alan üç satırda birden tasarlanmıştı (2026-08-21,
+		# 20-FE kademe/ek ücret tabloları eklenirken ölçüldü). Soru "SON satırda
+		# var mı" değil, "örnek kümesinde HERHANGİ bir yerde tasarlanmış mı".
+		child_rows_by_table: dict[str, list[dict[str, Any]]] = {}
 		for row in sample["rows"]:
 			merged.update(row)
+			for table in spec["child_tables"]:
+				child_rows_by_table.setdefault(table, []).extend(row.get(table) or [])
 		merged.update(sample["detail"] or {})
+		for table in spec["child_tables"]:
+			child_rows_by_table.setdefault(table, []).extend((sample["detail"] or {}).get(table) or [])
 
 		declared = [f["name"] for f in (*spec["list_fields"], *spec["detail_fields"])]
 		missing = [name for name in declared if name not in merged]
@@ -913,7 +1047,7 @@ def _assert_samples_cover_contract(schema: dict[str, Any]) -> None:
 			problems.append(f"{key}: örnekte yok → {', '.join(missing)}")
 
 		for table, fields in spec["child_tables"].items():
-			child_rows = merged.get(table) or []
+			child_rows = child_rows_by_table.get(table) or []
 			child_merged: dict[str, Any] = {}
 			for row in child_rows:
 				child_merged.update(row)
@@ -921,10 +1055,47 @@ def _assert_samples_cover_contract(schema: dict[str, Any]) -> None:
 			if child_missing:
 				problems.append(f"{key}.{table}: örnekte yok → {', '.join(child_missing)}")
 
+	problems.extend(_referential_problems())
+
 	if problems:
-		raise SystemExit(
-			"Sözleşme ile örnek veri uyuşmuyor:\n  " + "\n  ".join(problems)
-		)
+		raise SystemExit("Sözleşme ile örnek veri uyuşmuyor:\n  " + "\n  ".join(problems))
+
+
+def _referential_problems() -> list[str]:
+	"""Örnek veri KENDİ İÇİNDE tutarlı mı — var olmayan kayda atıf var mı?
+
+	NEDEN VAR (2026-08-21'de ölçüldü): 20-FE fiyat kuralları yazılırken
+	`carrier_account` alanına `CA-ALI-ARAS` gibi UYDURMA adlar girildi; gerçek
+	hesap örnekleri `CACC-AK-SEL00001` adını taşıyor. Alan doluydu, tipi
+	doğruydu, kapsam denetiminden geçti — ama işaret ettiği kayıt YOKTU.
+	Ekran o kuralı çizerken taşıyıcı adını bulamaz ve sessizce boş gösterirdi.
+
+	Kapsam bilinçli olarak DAR: yalnız örnek verinin kendi içindeki bağlar.
+	Gerçek veritabanı bütünlüğü Frappe'nin Link doğrulamasının işi.
+	"""
+	from tradehub_core.logistics.contract import PROVISIONAL_SAMPLES
+
+	problems: list[str] = []
+	zones = {row["name"] for row in PROVISIONAL_SAMPLES["shipping_zone"]["rows"]}
+	accounts = {
+		row["name"] for row in _render_carrier_account_fixture(build_schema())["default"]["data"]["items"]
+	}
+
+	for rule in PROVISIONAL_SAMPLES["pricing_rule"]["rows"]:
+		if rule.get("zone") and rule["zone"] not in zones:
+			problems.append(f"pricing_rule/{rule['name']}: zone '{rule['zone']}' örnek bölgelerde yok")
+		acc = rule.get("carrier_account")
+		if acc and acc not in accounts:
+			problems.append(f"pricing_rule/{rule['name']}: carrier_account '{acc}' örnek hesaplarda yok")
+
+	for quote in PROVISIONAL_SAMPLES["price_quote"]["rows"]:
+		acc = quote.get("carrier_account")
+		if acc and acc not in accounts:
+			problems.append(f"price_quote/{quote['quote_id']}: carrier_account '{acc}' örnek hesaplarda yok")
+		if quote.get("zone") and quote["zone"] not in zones:
+			problems.append(f"price_quote/{quote['quote_id']}: zone '{quote['zone']}' örnek bölgelerde yok")
+
+	return problems
 
 
 # ---------------------------------------------------------------------------
@@ -940,16 +1111,13 @@ def _render_all() -> dict[Path, str]:
 		DTS_PATH: render_dts(schema) + "\n",
 		# Jenerik katalog ekranı sütun ve filtrelerini BUNDAN türetiyor. Tam
 		# şemayı frontend'e taşımak yerine yalnız ekranın ihtiyacı verilir.
-		FIXTURE_ROOT
-		/ "_catalog-meta.json": (
+		FIXTURE_ROOT / "_catalog-meta.json": (
 			json.dumps(render_catalog_meta(schema), indent="\t", ensure_ascii=False) + "\n"
 		),
 	}
 	fixtures = render_fixtures(schema)
 	for key, payload in fixtures.items():
-		outputs[FIXTURE_ROOT / f"{key}.json"] = (
-			json.dumps(payload, indent="\t", ensure_ascii=False) + "\n"
-		)
+		outputs[FIXTURE_ROOT / f"{key}.json"] = json.dumps(payload, indent="\t", ensure_ascii=False) + "\n"
 
 	# Storefront alt kümesi: filtrelenmiş + maskelenmiş.
 	for key, payload in render_storefront_fixtures(fixtures).items():
@@ -970,7 +1138,8 @@ def main() -> int:
 
 	if args.check:
 		stale = [
-			path for path, content in outputs.items()
+			path
+			for path, content in outputs.items()
 			if not path.exists() or path.read_text(encoding="utf-8") != content
 		]
 		# Kardeş repo kopyaları da kontrol edilir. Yalnız docs/generated'a
@@ -982,13 +1151,9 @@ def main() -> int:
 			for path in stale:
 				# Kardeş repo yolları APP_ROOT'un altında değil — relative_to
 				# patlar. Mutlak yol da okunabilir, kırılgan olmasın.
-				printable = (
-					path.relative_to(APP_ROOT) if path.is_relative_to(APP_ROOT) else path
-				)
+				printable = path.relative_to(APP_ROOT) if path.is_relative_to(APP_ROOT) else path
 				print(f"  {printable}", file=sys.stderr)
-			print(
-				"\nÇöz: python3 scripts/gen_logistics_types.py --sync", file=sys.stderr
-			)
+			print("\nÇöz: python3 scripts/gen_logistics_types.py --sync", file=sys.stderr)
 			return 1
 		print(f"Güncel — {len(outputs)} dosya kontrol edildi.")
 		return 0
@@ -1024,9 +1189,7 @@ def main() -> int:
 					print(f"  temizlendi: {stale}")
 
 			for path in sorted(source_dir.glob("*.json")):
-				(target_dir / path.name).write_text(
-					path.read_text(encoding="utf-8"), encoding="utf-8"
-				)
+				(target_dir / path.name).write_text(path.read_text(encoding="utf-8"), encoding="utf-8")
 			print(f"  senkron: {target_dir} ({len(produced)} fixture)")
 
 	return 0
@@ -1064,9 +1227,7 @@ def _stale_synced_copies(outputs: dict[Path, str]) -> list[Path]:
 			if not target.exists() or target.read_text(encoding="utf-8") != content:
 				stale.append(target)
 		# Kaynakta olmayan artık fixture da bayat sayılır — story ölü veriye bağlanır.
-		stale.extend(
-			path for path in target_dir.glob("*.json") if path.name not in expected
-		)
+		stale.extend(path for path in target_dir.glob("*.json") if path.name not in expected)
 
 	return stale
 
@@ -1097,8 +1258,7 @@ def render_storefront_fixtures(all_fixtures: dict[str, Any]) -> dict[str, Any]:
 	unknown = STOREFRONT_ENTITIES - set(all_fixtures)
 	if unknown:
 		raise SystemExit(
-			"STOREFRONT_ENTITIES sözleşmede olmayan anahtar içeriyor: "
-			+ ", ".join(sorted(unknown))
+			"STOREFRONT_ENTITIES sözleşmede olmayan anahtar içeriyor: " + ", ".join(sorted(unknown))
 		)
 
 	return {

@@ -1,0 +1,184 @@
+{
+	"default": {
+		"ok": true,
+		"data": {
+			"items": [
+				{
+					"name": "TR-MARMARA",
+					"zone_code": "TR-MARMARA",
+					"zone_name": "Marmara",
+					"is_active": 1,
+					"city_count": 11,
+					"cities": [
+						{
+							"city": "İstanbul"
+						},
+						{
+							"city": "Bursa"
+						},
+						{
+							"city": "Kocaeli"
+						},
+						{
+							"city": "Tekirdağ"
+						},
+						{
+							"city": "Balıkesir"
+						},
+						{
+							"city": "Çanakkale"
+						},
+						{
+							"city": "Edirne"
+						},
+						{
+							"city": "Kırklareli"
+						},
+						{
+							"city": "Sakarya"
+						},
+						{
+							"city": "Yalova"
+						},
+						{
+							"city": "Bilecik"
+						}
+					]
+				},
+				{
+					"name": "TR-IC",
+					"zone_code": "TR-IC",
+					"zone_name": "İç Anadolu",
+					"is_active": 1,
+					"city_count": 13,
+					"cities": [
+						{
+							"city": "Ankara"
+						},
+						{
+							"city": "Konya"
+						},
+						{
+							"city": "Kayseri"
+						},
+						{
+							"city": "Sivas"
+						},
+						{
+							"city": "Eskişehir"
+						},
+						{
+							"city": "Kırıkkale"
+						},
+						{
+							"city": "Aksaray"
+						},
+						{
+							"city": "Niğde"
+						},
+						{
+							"city": "Nevşehir"
+						},
+						{
+							"city": "Kırşehir"
+						},
+						{
+							"city": "Yozgat"
+						},
+						{
+							"city": "Çankırı"
+						},
+						{
+							"city": "Karaman"
+						}
+					]
+				},
+				{
+					"name": "TR-DOGU",
+					"zone_code": "TR-DOGU",
+					"zone_name": "Doğu Anadolu",
+					"is_active": 1,
+					"city_count": 14,
+					"cities": [
+						{
+							"city": "Van"
+						},
+						{
+							"city": "Erzurum"
+						},
+						{
+							"city": "Malatya"
+						},
+						{
+							"city": "Elazığ"
+						},
+						{
+							"city": "Ağrı"
+						},
+						{
+							"city": "Kars"
+						},
+						{
+							"city": "Muş"
+						},
+						{
+							"city": "Bitlis"
+						},
+						{
+							"city": "Hakkari"
+						},
+						{
+							"city": "Erzincan"
+						},
+						{
+							"city": "Bingöl"
+						},
+						{
+							"city": "Tunceli"
+						},
+						{
+							"city": "Ardahan"
+						},
+						{
+							"city": "Iğdır"
+						}
+					]
+				},
+				{
+					"name": "TR-ADA",
+					"zone_code": "TR-ADA",
+					"zone_name": "Ada ve uzak yol",
+					"is_active": 0,
+					"city_count": 2,
+					"cities": [
+						{
+							"city": "Gökçeada"
+						},
+						{
+							"city": "Bozcaada"
+						}
+					]
+				}
+			],
+			"total": 4,
+			"page": 1,
+			"page_size": 50
+		}
+	},
+	"empty": {
+		"ok": true,
+		"data": {
+			"items": [],
+			"total": 0,
+			"page": 1,
+			"page_size": 50
+		}
+	},
+	"error": {
+		"ok": false,
+		"error": {
+			"code": "PERMISSION_DENIED",
+			"message": "Bu kaydı görüntüleme yetkiniz yok."
+		}
+	}
+}

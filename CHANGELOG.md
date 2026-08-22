@@ -1,3 +1,36 @@
+## [v1.13.1-alpha.39] - 2026-08-21 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(lojistik): fiyat kuralı ve simülasyon veri sözleşmesi eklendi (@aliiball)
+  - Shipping Price Rule 37 alan + kademe ve ek ücret alt tabloları
+  - Shipping Zone yeni varlık, Price Quote 12'den 28 alana çıkarıldı
+  - Shipment'a carrier_account, applied_pricing_rule, price_quote_snapshot
+  - Üretece atıf bütünlüğü denetimi: kural ve teklif var olmayan taşıyıcı hesabına ya da bölgeye bağlanamıyor
+  - Alt tablo kapsam sayımı düzeltildi: son örnek satır öncekileri eziyordu
+- feat(lojistik): satıcı menüsüne fiyatlandırma navigasyonu eklendi (@aliiball)
+  - TH Module Registry'ye dört kayıt: grup + tarifeler, kurallar, hesapla
+  - Satıcı sidebar'ı DB-driven ve fail-secure; kayıt olmadan ekranlar route olarak var ama menüde hiç görünmüyordu, yani ulaşılamazdı
+  - Patch idempotent, lokalde koşuldu (4 kayıt oluştu)
+
+---
+## [v1.13.1-alpha.37] - 2026-08-21 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(media): tür uyuşmazlığı kararı slot politikasına taşındı (ADR-0016) (@Metin Bektemur)
+  - `slot-policy.schema.json` → `accept.type_mismatch: "reject" | "warn"`, varsayılan `reject`
+  - `content_gate.inspect(..., reject_type_mismatch=True)` — bayrak yalnız ZARARSIZ uyuşmazlığı gevşetir; markup/aktif içerik her zaman ret
+  - `upload_policy.check(..., slot="")` → `_type_mismatch_mode()`; politika okunamazsa "reject" (güvenlik kapısı belirsizlikte kapalıdır)
+  - `warn` modunda ret yok ama iz var: denetime `type_mismatch_warned`
+  - Slot vermeyen çağıranlar için davranış AYNEN eskisi gibi
+
+### Duzeltildi
+- fix(media): çekirdek ↔ motor kesişimleri — tarih, yasal tutma, AV kapısı, test yalıtımı (@Metin Bektemur)
+
+---
 ## [v1.13.1-alpha.36] - 2026-08-20 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
