@@ -400,6 +400,10 @@ doc_events = {
 		"on_update": [
 			"tradehub_core.seo.hooks_seo.invalidate_url_cache",
 			"tradehub_core.seo.hooks_seo.invalidate_sitemap_for",
+			# Ürün başlığı/markası değişince kural üretimli alt metinleri tazele
+			# (TUR-135 §5.2). Elle yazılmış metne DOKUNMAZ; kanca en fazla 12
+			# görsel işler, gerisi geri doldurma işine kalır.
+			"tradehub_core.media.seo_generate.on_reference_change",
 			"tradehub_core.api.listing.invalidate_listing_cache",
 			# Related Products cache: drop rows when the listing goes inactive/invisible.
 			"tradehub_core.recommendations.engine.cleanup_cache_if_deactivated",

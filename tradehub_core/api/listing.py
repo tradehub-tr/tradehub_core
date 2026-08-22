@@ -1043,6 +1043,45 @@ def _kart_gorsel_manifesti(listing_name: str) -> dict:
 		return {}
 
 
+def _gorsel_kunyeleri(listing, images: list, lang: str) -> list[dict]:
+	"""Ürün görsellerinin alt metni, gerçek ölçüleri ve yükleme ipuçları.
+
+	Alt metni `media/seo.fields_for`'dan KULLANIM BAĞLAMIYLA okunuyor: ürün
+	sayfasına yazılmış ezme varsa o basılır (TUR-135 §4.3). Doğrudan
+	`th_media_alt` okunmuyor — metadata evi taşındığı gün burası değişmesin
+	(ADR-0023).
+
+	Bugün alt metinleri çoğunlukla boş (ölçüm: 3.123 dosyada 0); bu durumda
+	künye yine döner ve `alt` boş kalır. Vitrin boş alt görünce ESKİ davranışa
+	(ürün başlığından türetme) düşer — geçiş dönemi böyle yürüyor.
+	"""
+	if not images:
+		return []
+	try:
+		from tradehub_core.media import seo as media_seo
+		from tradehub_core.media import seo_render
+
+		ana = listing.primary_image or ""
+		kunyeler = []
+		for i, url in enumerate(images):
+			ref_alan = "primary_image" if url == ana else "image"
+			ref_dt = "Listing" if url == ana else "Listing Image"
+			alanlar = media_seo.fields_for(
+				url,
+				ref_doctype=ref_dt,
+				ref_name=listing.name,
+				ref_field=ref_alan,
+				lang=lang,
+			)
+			kunyeler.append(seo_render.image_payload(alanlar, index=i, context="gallery"))
+		return kunyeler
+	except Exception:
+		# Ürün detayının kalbinde değiliz: künye üretilemezse görseller yine
+		# `images` üzerinden gösterilir.
+		frappe.log_error("listing image meta failed", "api.listing")
+		return []
+
+
 @frappe.whitelist(allow_guest=True)
 def get_listing_detail(listing_id, lang="tr"):
 	"""Get full listing detail for the product detail page.
@@ -1438,6 +1477,11 @@ def get_listing_detail(listing_id, lang="tr"):
 		"categoryPath": category_path,
 		"productCategoryId": listing.product_category or "",
 		"images": images,
+		# Görsellerin SEO/işaretleme künyesi (TUR-135 §6.2). `images` düz URL
+		# listesi olarak KALIYOR — panel ve vitrin onu okuyor, tipini
+		# değiştirmek ikisini birden kırardı. Yeni alan yanına ekleniyor;
+		# tüketiciler hazır oldukça geçer.
+		"imageMeta": _gorsel_kunyeleri(listing, images, lang),
 		"priceTiers": price_tiers,
 		"moq": listing.min_order_qty or 1,
 		"sellInMoqMultiples": bool(listing.sell_in_moq_multiples),

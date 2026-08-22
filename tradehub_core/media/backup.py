@@ -82,6 +82,41 @@ RECORD_FIELDS: tuple[str, ...] = (
 	# `_records` alan listesini kolon varlığına göre süzdüğü için alanın
 	# bulunmadığı site'larda sorun çıkarmaz.
 	"th_media_video_status",
+	# Tarama ve dönüştürme sayaçları (TUR-125/296). Aynı gerekçe: geri yüklenen
+	# dosya "hiç taranmamış" görünürse AV kancası hepsini yeniden kuyruğa alır
+	# ve — daha önemlisi — KARANTİNA damgası kaybolursa zararlı dosya temiz
+	# sayılıp yeniden servis edilir. Video durumu 13 Ağu'da eklenmişti; AV işi
+	# (17 Ağu) yedekten sonra geldiği için tarama alanları listede kalmıştı.
+	"th_media_scan_status",
+	"th_media_scan_attempts",
+	"th_media_scan_started_at",
+	"th_media_scan_next_at",
+	"th_media_transcode_attempts",
+	"th_media_transcode_started_at",
+	"th_media_transcode_next_at",
+	# SEO alanları (TUR-135 Dilim 1, yama v15_9_37). Yedeklenmezse geri
+	# yüklemede alt metinleri, lisans ve telif bilgisi kaybolur — bunlar
+	# yeniden üretilemeyen insan emeği. Çok dilli kolonlar aşağıda ekleniyor.
+	"th_media_caption",
+	"th_media_alt_source",
+	"th_media_alt_ai",
+	"th_media_creator",
+	"th_media_credit_text",
+	"th_media_copyright_notice",
+	"th_media_license_url",
+	"th_media_acquire_license_url",
+	"th_media_usage_rights",
+	"th_media_rights_expires_on",
+	"th_media_seo_filename",
+	"th_media_slug",
+	"th_media_canonical",
+	# `{alan}_{dil}` kolonları tek tek yazmak yerine üretiliyor: dil listesi
+	# büyürse (5. dil) burası kendiliğinden büyür, unutulmaz.
+	*(
+		f"th_media_{alan}_{lang}"
+		for alan in ("alt", "title", "caption")
+		for lang in ("tr", "en", "ar", "ru")
+	),
 )
 
 # Okuma parçası — 1 GB'lık dosyayı belleğe almadan imzalamak için.

@@ -1203,3 +1203,185 @@ def retro_rename_history() -> dict:
 		as_dict=True,
 	)
 	return {"jobs": rows}
+
+
+# ── SEO alanları, üretim ve denetim (TUR-135) ───────────────────────────
+
+
+@frappe.whitelist()
+def get_media_seo(file_url: str, ref_doctype: str = "", ref_name: str = "", ref_field: str = "", lang: str = "tr") -> dict:
+	"""Bir görselin SEO alanları — kullanım bağlamı verilirse ezme uygulanır."""
+	_guard()
+	from tradehub_core.media import seo
+
+	if not file_url:
+		frappe.throw(_("Dosya adresi zorunlu."))
+	return seo.fields_for(
+		file_url, ref_doctype=ref_doctype, ref_name=ref_name, ref_field=ref_field, lang=lang
+	)
+
+
+@frappe.whitelist(methods=["POST"])
+def set_media_seo(file_url: str, values: str | dict, store: str = "") -> dict:
+	"""Varlık varsayılanını yaz. Beyaz liste `media/seo.py`'de — yaşam
+	döngüsü alanları buradan geçemez."""
+	_guard()
+	from tradehub_core.media import seo
+
+	veri = frappe.parse_json(values) if isinstance(values, str) else (values or {})
+	sayi = seo.set_asset_fields(file_url, veri, store=store or None)
+	return {"file_url": file_url, "records": sayi}
+
+
+@frappe.whitelist(methods=["POST"])
+def set_media_seo_override(
+	file_url: str, ref_doctype: str, ref_name: str, ref_field: str, values: str | dict
+) -> dict:
+	"""Kullanım başına ezme — aynı görsel farklı sayfada farklı alt metni."""
+	_guard()
+	from tradehub_core.media import seo
+
+	veri = frappe.parse_json(values) if isinstance(values, str) else (values or {})
+	ad = seo.set_override(
+		file_url,
+		ref_doctype=ref_doctype,
+		ref_name=ref_name,
+		ref_field=ref_field,
+		values=veri,
+		source=seo.SOURCE_HUMAN,
+	)
+	return {"name": ad}
+
+
+@frappe.whitelist(methods=["POST"])
+def clear_media_seo_override(file_url: str, ref_doctype: str, ref_name: str, ref_field: str) -> dict:
+	_guard()
+	from tradehub_core.media import seo
+
+	return {
+		"cleared": seo.clear_override(
+			file_url, ref_doctype=ref_doctype, ref_name=ref_name, ref_field=ref_field
+		)
+	}
+
+
+@frappe.whitelist(methods=["POST"])
+def generate_media_alt(file_url: str, force: int = 0) -> dict:
+	"""Kural zinciriyle alt metni üret. `force` insan metnini EZER — yalnız
+	bilinçli kullanım için."""
+	_guard()
+	from tradehub_core.media import seo_generate
+
+	return seo_generate.refresh_alt(file_url, force=bool(int(force)))
+
+
+@frappe.whitelist(methods=["POST"])
+def backfill_media_alt(limit: int = 500, only_listing: int = 1) -> dict:
+	"""Mevcut katalogu parça parça doldur — `av.backfill_pending` deseni."""
+	_guard()
+	from tradehub_core.media import seo_generate
+
+	return seo_generate.backfill(limit=limit, only_listing=bool(int(only_listing)))
+
+
+@frappe.whitelist()
+def audit_media_seo(
+	file_urls: str | list[str] | None = None,
+	deep: int = 0,
+	limit: int = 5000,
+	scope: str = "catalog",
+	page: int = 1,
+	page_size: int = 50,
+	code: str = "",
+	q: str = "",
+	refresh: int = 0,
+) -> dict:
+	"""SEO denetimi.
+
+	`scope` — adres verilmediğinde HANGİ dosyaların taranacağı:
+
+	    catalog (varsayılan)  vitrinde kullanılan ürün görselleri (1.983)
+	    recent                en son yüklenenler
+	    all                   tüm public dosyalar (3.267)
+
+	Kapsamın TAMAMI denetlenip özet/skor ondan hesaplanır; `page`/`page_size`
+	yalnız DÖNEN SATIRLARI sınırlar. Özeti sayfadan hesaplamak "138 eksik"
+	yerine "20 eksik" derdi. Tam denetim 60 sn önbellekli (ölçüm: 3.200 dosya
+	2,2 s); `refresh=1` önbelleği atlar.
+
+	`code` bulgu süzgeci, `q` dosya adı/adres araması — ikisi de sunucuda.
+
+	Varsayılan neden "catalog": "en yeni" ile açıldığında ekran, o gün koşan
+	testlerin bıraktığı dosyaları gösteriyordu (ölçüldü 21 Ağu: ilk 10 satırın
+	10'u da test videosuydu). SEO'nun konusu vitrinde görünen katalog; ar-ge
+	belgesi de aynı önceliği koyuyor (§5.3 "öncelik Listing'e bağlı görseller;
+	kalanının SEO değeri yok").
+	"""
+	_guard()
+	from tradehub_core.media import seo_audit
+
+	urls = frappe.parse_json(file_urls) if isinstance(file_urls, str) else file_urls
+	if urls:
+		# Açıkça adres verildiyse sayfalama/önbellek yok: çağıran ne istediğini
+		# biliyor (ör. tek ürünün görselleri).
+		return seo_audit.audit_batch(urls, deep=bool(int(deep)))
+
+	adaylar = _seo_audit_adaylari(scope, limit)
+	sonuc = seo_audit.audit_scope(
+		adaylar,
+		deep=bool(int(deep)),
+		cache_key=f"{scope}:{int(deep)}:{len(adaylar)}",
+		refresh=bool(int(refresh)),
+	)
+	return seo_audit.paginate(sonuc, page=page, page_size=page_size, code=code, query=q)
+
+
+def _seo_audit_adaylari(scope: str, limit: int) -> list[str]:
+	"""Denetlenecek adresler — kapsam kuralına göre."""
+	# Sınır kapsamın kendisinden geliyor (katalog 1.983, tümü 3.267); 200'lük
+	# eski tavan ekranın yalnız küçük bir dilimi göstermesine yol açıyordu.
+	sinir = min(20000, max(1, int(limit or 5000)))
+	if scope == "catalog":
+		# Sorgu ÜRÜN tarafından başlar, dosya tarafından değil. Tersi ölçüldü
+		# (21 Ağu): her `File` satırı için iki EXISTS alt sorgusu — 5.336
+		# dosyada **5,73 s**. Ürün tarafı zaten küçük (~2.000 adres), üstelik
+		# `LIKE '/files/%'` ile dış/boş adresler daha okumadan eleniyor.
+		satirlar = frappe.db.sql(
+			"""
+			SELECT DISTINCT img FROM (
+				SELECT l.primary_image AS img
+				FROM `tabListing` l
+				WHERE l.storefront_visible = 1 AND l.primary_image LIKE '/files/%%'
+				UNION
+				SELECT li.image AS img
+				FROM `tabListing Image` li
+				JOIN `tabListing` l2 ON l2.name = li.parent
+				WHERE l2.storefront_visible = 1 AND li.image LIKE '/files/%%'
+			) k
+			LIMIT %s
+			""",
+			(sinir,),
+		)
+		return [r[0] for r in satirlar]
+
+	sira = "creation desc" if scope == "recent" else "file_name asc"
+	return [
+		r["file_url"]
+		for r in frappe.get_all(
+			"File",
+			filters={"is_folder": 0, "is_private": 0},
+			fields=["file_url"],
+			order_by=sira,
+			limit_page_length=sinir,
+		)
+		if r.get("file_url")
+	]
+
+
+@frappe.whitelist(methods=["POST"])
+def backfill_media_dimensions(limit: int = 500) -> dict:
+	"""Görsellerin gerçek çözünürlüğünü doldur — CLS düzeltmesinin ön koşulu."""
+	_guard()
+	from tradehub_core.media import seo_generate
+
+	return seo_generate.backfill_dimensions(limit=limit)

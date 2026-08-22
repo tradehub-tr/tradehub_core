@@ -1,0 +1,193 @@
+{
+ "$comment": "TUR-135 Dilim 1 — kullanım başına SEO ezmesi. Karar: docs/MEDYA-SEO-SOZLESMESI.md §4.3. Aynı görsel /urun/bmw-x5, /blog/bmw-x5-inceleme ve /kampanya/bmw-x5 sayfalarında farklı alt metni ister; tek global alan bunu karşılayamaz. Varlık varsayılanı File.th_media_* alanlarında, ezme burada; okuma TEK kapıdan (media/seo.py::fields_for).",
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "hash",
+ "creation": "2026-08-21 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "file_url",
+  "ref_doctype",
+  "ref_name",
+  "ref_field",
+  "sec_values",
+  "alt_tr",
+  "alt_en",
+  "alt_ar",
+  "alt_ru",
+  "title_tr",
+  "title_en",
+  "title_ar",
+  "title_ru",
+  "caption_tr",
+  "caption_en",
+  "caption_ar",
+  "caption_ru",
+  "source"
+ ],
+ "fields": [
+  {
+   "fieldname": "file_url",
+   "fieldtype": "Data",
+   "label": "File URL",
+   "reqd": 1,
+   "search_index": 1,
+   "description": "Ezmenin bağlandığı dosya adresi. `Media Asset` DEĞİL: motor varlıkları yalnız slota bağlı yüklemelerde ve şalter açıkken doğuyor (ölçüm 21 Ağu: 3 kayıt / 5.873 dosya); ezme bugün var olan kullanımlara bağlanmalı. `asset` kolonu motor dolunca eklenir, anahtar dörtlüsü aynı kalır."
+  },
+  {
+   "fieldname": "ref_doctype",
+   "fieldtype": "Data",
+   "label": "Ref DocType",
+   "reqd": 1,
+   "description": "Kullanan kaydın doctype'ı. Ad `Media Usage` ile BİREBİR (ADR-0023): iki tablo birleştirilmek istenirse kolon eşlemesi gerekmesin."
+  },
+  {
+   "fieldname": "ref_name",
+   "fieldtype": "Data",
+   "label": "Ref Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "ref_field",
+   "fieldtype": "Data",
+   "label": "Ref Field",
+   "reqd": 1,
+   "description": "Kullanan alan (ör. `primary_image`, `image`). Aynı kayıt aynı dosyayı iki ayrı alanda kullanabilir ve ikisinin alt metni farklı olabilir."
+  },
+  {
+   "fieldname": "sec_values",
+   "fieldtype": "Section Break",
+   "label": "Ezilen değerler"
+  },
+  {
+   "fieldname": "alt_tr",
+   "fieldtype": "Data",
+   "label": "Alt Text (TR)"
+  },
+  {
+   "fieldname": "alt_en",
+   "fieldtype": "Data",
+   "label": "Alt Text (EN)"
+  },
+  {
+   "fieldname": "alt_ar",
+   "fieldtype": "Data",
+   "label": "Alt Text (AR)"
+  },
+  {
+   "fieldname": "alt_ru",
+   "fieldtype": "Data",
+   "label": "Alt Text (RU)"
+  },
+  {
+   "fieldname": "title_tr",
+   "fieldtype": "Data",
+   "label": "Title (TR)"
+  },
+  {
+   "fieldname": "title_en",
+   "fieldtype": "Data",
+   "label": "Title (EN)"
+  },
+  {
+   "fieldname": "title_ar",
+   "fieldtype": "Data",
+   "label": "Title (AR)"
+  },
+  {
+   "fieldname": "title_ru",
+   "fieldtype": "Data",
+   "label": "Title (RU)"
+  },
+  {
+   "fieldname": "caption_tr",
+   "fieldtype": "Small Text",
+   "label": "Caption (TR)"
+  },
+  {
+   "fieldname": "caption_en",
+   "fieldtype": "Small Text",
+   "label": "Caption (EN)"
+  },
+  {
+   "fieldname": "caption_ar",
+   "fieldtype": "Small Text",
+   "label": "Caption (AR)"
+  },
+  {
+   "fieldname": "caption_ru",
+   "fieldtype": "Small Text",
+   "label": "Caption (RU)"
+  },
+  {
+   "fieldname": "source",
+   "fieldtype": "Select",
+   "label": "Source",
+   "options": "\nrule\nai\nhuman\nedited",
+   "description": "Bu ezmeyi kim üretti. Varlık varsayılanındaki `th_media_alt_source` ile aynı sözlük; kural motoru yalnız `rule`/`ai` olanı yeniler."
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "is_submittable": 0,
+ "issingle": 0,
+ "istable": 0,
+ "links": [],
+ "modified": "2026-08-21 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "Media SEO Override",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "share": 1,
+   "print": 1,
+   "email": 1
+  },
+  {
+   "role": "Marketplace Admin",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "share": 1,
+   "print": 1,
+   "email": 1
+  },
+  {
+   "role": "Marketplace Seller",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "share": 1,
+   "print": 1,
+   "email": 1
+  },
+  {
+   "role": "Seller",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "share": 1,
+   "print": 1,
+   "email": 1
+  }
+ ],
+ "quick_entry": 0,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}
