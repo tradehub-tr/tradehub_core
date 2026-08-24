@@ -9,7 +9,7 @@
    değerlendirdiğini gösterir.
 
 2. **Kararlar golden fixture korpusuyla uyuşuyor mu**: `tradehub_core/tests/fixtures/media/
-   manifest.json` içindeki 51 fixture'ın `expected_action` alanı ile motorun
+   manifest.json` içindeki 57 fixture'ın `expected_action` alanı ile motorun
    `allow` kararı karşılaştırılır. `reject` → allow=False, `process`/
    `passthrough` → allow=True.
 
@@ -82,9 +82,7 @@ def load_module_constants(path: Path, names) -> dict:
 		if isinstance(node, (ast.Tuple, ast.List, ast.Set)):
 			return all(guvenli(e) for e in node.elts)
 		if isinstance(node, ast.Dict):
-			return all(guvenli(k) for k in node.keys if k) and all(
-				guvenli(v) for v in node.values
-			)
+			return all(guvenli(k) for k in node.keys if k) and all(guvenli(v) for v in node.values)
 		if isinstance(node, ast.Call):
 			return (
 				isinstance(node.func, ast.Name)
@@ -170,9 +168,7 @@ class PolitikaKaydiTesti(unittest.TestCase):
 		# Docstring'lerde slot adı geçebilir; yalnız KOD satırlarına bakıyoruz.
 		agac = ast.parse(kaynak)
 		metinler = [
-			n.value
-			for n in ast.walk(agac)
-			if isinstance(n, ast.Constant) and isinstance(n.value, str)
+			n.value for n in ast.walk(agac) if isinstance(n, ast.Constant) and isinstance(n.value, str)
 		]
 		docstringler = set()
 		for n in ast.walk(agac):
@@ -215,16 +211,23 @@ class PolitikaKaydiTesti(unittest.TestCase):
 				"on_violation": {"default": "reject", "error_code_prefix": "sticker"},
 				"messages": {"tr": {"short_edge_too_small": "Etiket en az 300 piksel olmalı."}},
 			}
-			(hedef / "test-sticker.json").write_text(
-				json.dumps(yeni, ensure_ascii=False), encoding="utf-8"
-			)
+			(hedef / "test-sticker.json").write_text(json.dumps(yeni, ensure_ascii=False), encoding="utf-8")
 			motor = PolicyEngine(PolicyRegistry(hedef))
 			self.assertEqual(len(motor.registry), 10)
 
 			kucuk = MediaProbe(
-				filename="x.png", extension=".png", byte_size=1000, kind="image",
-				detected="png", mime="image/png", fmt="PNG", width=200, height=200,
-				readable=True, loadable=True, animated=False,
+				filename="x.png",
+				extension=".png",
+				byte_size=1000,
+				kind="image",
+				detected="png",
+				mime="image/png",
+				fmt="PNG",
+				width=200,
+				height=200,
+				readable=True,
+				loadable=True,
+				animated=False,
 				extension_matches_content=True,
 			)
 			karar = motor.evaluate("test.sticker", kucuk, role="seller")
@@ -233,9 +236,18 @@ class PolitikaKaydiTesti(unittest.TestCase):
 			self.assertEqual(karar.violations[0].message["tr"], "Etiket en az 300 piksel olmalı.")
 
 			buyuk = MediaProbe(
-				filename="x.png", extension=".png", byte_size=1000, kind="image",
-				detected="png", mime="image/png", fmt="PNG", width=400, height=400,
-				readable=True, loadable=True, animated=False,
+				filename="x.png",
+				extension=".png",
+				byte_size=1000,
+				kind="image",
+				detected="png",
+				mime="image/png",
+				fmt="PNG",
+				width=400,
+				height=400,
+				readable=True,
+				loadable=True,
+				animated=False,
 				extension_matches_content=True,
 			)
 			self.assertTrue(motor.evaluate("test.sticker", buyuk, role="seller").allow)
@@ -283,7 +295,7 @@ class SinirVakalariTesti(unittest.TestCase):
 
 
 class FixtureKorpusuTesti(unittest.TestCase):
-	"""51 golden fixture ile manifest beyanının karşılaştırılması."""
+	"""57 golden fixture ile manifest beyanının karşılaştırılması."""
 
 	@classmethod
 	def setUpClass(cls):
@@ -317,7 +329,7 @@ class FixtureKorpusuTesti(unittest.TestCase):
 
 	def test_fixture_sayisi_manifestteki_ozetle_ayni(self):
 		self.assertEqual(len(self.manifest["fixtures"]), self.manifest["ozet"]["fixture_sayisi"])
-		self.assertEqual(len(self.manifest["fixtures"]), 51)
+		self.assertEqual(len(self.manifest["fixtures"]), 57)
 
 	def test_reddedilen_her_fixture_engelleyici_ihlal_tasiyor(self):
 		for kayit in self.manifest["fixtures"]:
@@ -366,9 +378,7 @@ class IhlalSozlesmesiTesti(unittest.TestCase):
 		self.assertGreater(gorulen, 20, "korpus hiç ihlal üretmediyse test anlamsız")
 
 	def test_kod_slot_on_ekiyle_baslar(self):
-		karar = self.engine.evaluate(
-			"seller.logo", probe_file(IMAGES / "logo_short200.png"), role="seller"
-		)
+		karar = self.engine.evaluate("seller.logo", probe_file(IMAGES / "logo_short200.png"), role="seller")
 		self.assertFalse(karar.allow)
 		for ihlal in karar.violations:
 			self.assertTrue(ihlal.code.startswith("logo_"), ihlal.code)
@@ -379,9 +389,7 @@ class IhlalSozlesmesiTesti(unittest.TestCase):
 			"product.image", probe_file(IMAGES / "bound_short999.jpg"), role="seller"
 		)
 		ihlal = next(v for v in karar.violations if v.rule == "short_edge_too_small")
-		politika_metni = self.engine.registry.get("product.image")["messages"]["tr"][
-			"short_edge_too_small"
-		]
+		politika_metni = self.engine.registry.get("product.image")["messages"]["tr"]["short_edge_too_small"]
 		self.assertEqual(
 			ihlal.message["tr"],
 			politika_metni.format(kisa_kenar=999, gerekli_kisa_kenar=1000),
@@ -429,7 +437,9 @@ class KuralDavranisiTesti(unittest.TestCase):
 
 	def test_uzanti_icerik_uyusmazligi_reddedilir(self):
 		"""Geçerli PNG ama adı .jpg — 'nasılsa açılıyor' diye geçirilmez."""
-		probe = probe_file(ROOT / "tradehub_core" / "tests" / "fixtures" / "malicious" / "polyglot_png_as.jpg")
+		probe = probe_file(
+			ROOT / "tradehub_core" / "tests" / "fixtures" / "malicious" / "polyglot_png_as.jpg"
+		)
 		self.assertTrue(probe.readable)
 		self.assertFalse(probe.extension_matches_content)
 		karar = self.engine.evaluate("product.image", probe, role="seller")
@@ -437,7 +447,9 @@ class KuralDavranisiTesti(unittest.TestCase):
 
 	def test_gorselin_sonuna_eklenmis_yuk_avatarda_da_yakalanir(self):
 		"""320×320 avatar geometriyi geçer; savunma kuyruk taramasından gelir."""
-		probe = probe_file(ROOT / "tradehub_core" / "tests" / "fixtures" / "malicious" / "jpeg_with_html_tail.jpg")
+		probe = probe_file(
+			ROOT / "tradehub_core" / "tests" / "fixtures" / "malicious" / "jpeg_with_html_tail.jpg"
+		)
 		self.assertTrue(probe.appended_payload)
 		karar = self.engine.evaluate("user.avatar", probe, role="buyer")
 		self.assertFalse(karar.allow)
@@ -449,9 +461,7 @@ class KuralDavranisiTesti(unittest.TestCase):
 		self.assertFalse(karar.allow)
 		self.assertIn("logo_extension_conditional_closed", karar.codes)
 		# Politikada svg_policy.enabled açılırsa bu kural düşer — VERİ kararı.
-		self.assertFalse(
-			self.engine.registry.get("seller.logo")["logo"]["svg_policy"]["enabled"]
-		)
+		self.assertFalse(self.engine.registry.get("seller.logo")["logo"]["svg_policy"]["enabled"])
 
 	def test_rol_disinda_kalan_kullanici_reddedilir(self):
 		probe = probe_file(IMAGES / "ok_product_1x1_2400.jpg")
@@ -463,30 +473,22 @@ class KuralDavranisiTesti(unittest.TestCase):
 	def test_video_oran_ihlali_reddetmez_uyarir(self):
 		"""product.video `on_violation.require = warn` — 9:16 kabul edilir."""
 		manifest = _manifest()
-		kayit = next(
-			k for k in manifest["fixtures"] if k["file"].endswith("video_vertical_9x16.mp4")
-		)
+		kayit = next(k for k in manifest["fixtures"] if k["file"].endswith("video_vertical_9x16.mp4"))
 		probe = probe_video_from_ffprobe(kayit["olculen"], filename="video_vertical_9x16.mp4")
 		karar = self.engine.evaluate("product.video", probe, role="seller")
 		self.assertTrue(karar.allow)
 		self.assertIn("upload_ratio_not_allowed", karar.codes)
-		self.assertEqual(
-			next(v for v in karar.violations if v.rule == "ratio_not_allowed").action, "warn"
-		)
+		self.assertEqual(next(v for v in karar.violations if v.rule == "ratio_not_allowed").action, "warn")
 
 	def test_yuksek_bitrate_reddetmez_auto_fix_isaretler(self):
 		manifest = _manifest()
-		kayit = next(
-			k for k in manifest["fixtures"] if k["file"].endswith("video_bloated_720p_8m.mp4")
-		)
+		kayit = next(k for k in manifest["fixtures"] if k["file"].endswith("video_bloated_720p_8m.mp4"))
 		probe = probe_video_from_ffprobe(kayit["olculen"], filename="video_bloated_720p_8m.mp4")
 		karar = self.engine.evaluate("product.video", probe, role="seller")
 		self.assertTrue(karar.allow)
 		self.assertIn("upload_bitrate_bps", karar.codes)
 		self.assertEqual(karar.action, "auto_fix")
-		self.assertEqual(
-			next(v for v in karar.violations if v.rule == "bitrate_bps").action, "auto_fix"
-		)
+		self.assertEqual(next(v for v in karar.violations if v.rule == "bitrate_bps").action, "auto_fix")
 
 	def test_adet_bilgisi_yoksa_kural_atlanir_uydurulmaz(self):
 		probe = probe_file(IMAGES / "ok_product_1x1_2400.jpg")
@@ -528,9 +530,7 @@ class KuralDavranisiTesti(unittest.TestCase):
 		self.assertIn(ACTION_IGNORE, SILENT_ACTIONS)
 		# Veri gerçekten bu değeri kullanıyor — sabit hayali değil.
 		banner = self.engine.registry.get("category.banner")
-		ignore_kurallari = [
-			r["rule"] for r in banner["content_rules"] if r.get("action") == ACTION_IGNORE
-		]
+		ignore_kurallari = [r["rule"] for r in banner["content_rules"] if r.get("action") == ACTION_IGNORE]
 		self.assertTrue(ignore_kurallari, "category.banner'da ignore aksiyonlu kural bekleniyordu")
 		karar = self.engine.evaluate(
 			"category.banner", probe_file(IMAGES / "ok_banner_2x1.jpg"), role="admin"
@@ -563,18 +563,16 @@ class NormalizeHedefTesti(unittest.TestCase):
 
 	def test_master_upscale_yapmaz(self):
 		probe = probe_file(IMAGES / "bound_short1000.jpg")
-		master = self.engine.evaluate(
-			"product.image", probe, role="seller"
-		).normalized_targets["master"]
+		master = self.engine.evaluate("product.image", probe, role="seller").normalized_targets["master"]
 		self.assertEqual((master["width"], master["height"]), (1000, 1000))
 		self.assertFalse(master["resize_needed"])
 		self.assertFalse(master["allow_upscale"])
 
 	def test_masterdan_buyuk_turev_upscale_isaretlenir(self):
 		probe = probe_file(IMAGES / "bound_short1000.jpg")
-		turevler = self.engine.evaluate(
-			"product.image", probe, role="seller"
-		).normalized_targets["derivatives"]
+		turevler = self.engine.evaluate("product.image", probe, role="seller").normalized_targets[
+			"derivatives"
+		]
 		self.assertTrue(turevler)
 		buyukler = [t for t in turevler if t["upscale"]]
 		self.assertTrue(buyukler, "1000 px masterda 1280/1920 türevleri işaretlenmeli")

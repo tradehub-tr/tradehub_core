@@ -1,0 +1,141 @@
+{
+  "schema_version": 1,
+  "measured_at_start": "2026-08-23T03:17:29.415Z",
+  "measured_at_end": "2026-08-23T03:19:14.400Z",
+  "environment": "local-development",
+  "site": "http://istoc.localhost",
+  "lighthouse_version": "12.6.1",
+  "chrome": "HeadlessChrome/151.0.0.0",
+  "run_policy": "one isolated Lighthouse navigation per route and profile",
+  "profiles": {
+    "mobile": {
+      "form_factor": "mobile",
+      "viewport": "412x915",
+      "device_scale_factor": 2.625,
+      "rtt_ms": 150,
+      "throughput_kbps": 1638.4,
+      "cpu_slowdown": 4
+    },
+    "desktop": {
+      "form_factor": "desktop",
+      "viewport": "1350x940",
+      "device_scale_factor": 1,
+      "rtt_ms": 40,
+      "throughput_kbps": 10240,
+      "cpu_slowdown": 1
+    }
+  },
+  "units": {
+    "performance_score": "0-100",
+    "lcp_ms": "milliseconds",
+    "cls": "unitless",
+    "tbt_ms": "milliseconds",
+    "fcp_ms": "milliseconds",
+    "image_transfer_bytes": "bytes"
+  },
+  "runs": [
+    {
+      "page_type": "home",
+      "route": "/",
+      "profile": "desktop",
+      "performance_score": 96,
+      "lcp_ms": 1381,
+      "cls": 0.0001,
+      "tbt_ms": 0,
+      "fcp_ms": 776,
+      "image_transfer_bytes": 1714886,
+      "image_request_count": 17
+    },
+    {
+      "page_type": "home",
+      "route": "/",
+      "profile": "mobile",
+      "performance_score": 70,
+      "lcp_ms": 5796,
+      "cls": 0.0098,
+      "tbt_ms": 58,
+      "fcp_ms": 3621,
+      "image_transfer_bytes": 1691503,
+      "image_request_count": 16
+    },
+    {
+      "page_type": "listing",
+      "route": "/urunler",
+      "profile": "desktop",
+      "performance_score": 95,
+      "lcp_ms": 1377,
+      "cls": 0.0458,
+      "tbt_ms": 0,
+      "fcp_ms": 921,
+      "image_transfer_bytes": 170091,
+      "image_request_count": 42
+    },
+    {
+      "page_type": "listing",
+      "route": "/urunler",
+      "profile": "mobile",
+      "performance_score": 44,
+      "lcp_ms": 7441,
+      "cls": 0.4978,
+      "tbt_ms": 25,
+      "fcp_ms": 4298,
+      "image_transfer_bytes": 303380,
+      "image_request_count": 42
+    },
+    {
+      "page_type": "product",
+      "route": "/urun/bonny-erzak-saklama-kabi-1-lt",
+      "profile": "desktop",
+      "performance_score": 74,
+      "lcp_ms": 12875,
+      "cls": 0.0002,
+      "tbt_ms": 0,
+      "fcp_ms": 945,
+      "image_transfer_bytes": 14564979,
+      "image_request_count": 19
+    },
+    {
+      "page_type": "product",
+      "route": "/urun/bonny-erzak-saklama-kabi-1-lt",
+      "profile": "mobile",
+      "performance_score": 63,
+      "lcp_ms": 12714,
+      "cls": 0,
+      "tbt_ms": 22,
+      "fcp_ms": 4599,
+      "image_transfer_bytes": 3421177,
+      "image_request_count": 12
+    },
+    {
+      "page_type": "store",
+      "route": "/magaza/SEL-00034",
+      "profile": "desktop",
+      "performance_score": 92,
+      "lcp_ms": 1760,
+      "cls": 0.0662,
+      "tbt_ms": 0,
+      "fcp_ms": 676,
+      "image_transfer_bytes": 1094435,
+      "image_request_count": 13
+    },
+    {
+      "page_type": "store",
+      "route": "/magaza/SEL-00034",
+      "profile": "mobile",
+      "performance_score": 70,
+      "lcp_ms": 5637,
+      "cls": 0.1008,
+      "tbt_ms": 21,
+      "fcp_ms": 3232,
+      "image_transfer_bytes": 1014681,
+      "image_request_count": 9
+    }
+  ],
+  "interpretation": {
+    "baseline_only": true,
+    "worst_lcp": "product/desktop: 12875 ms",
+    "worst_cls": "listing/mobile: 0.4978",
+    "largest_image_transfer": "product/desktop: 14564979 bytes",
+    "inp_note": "INP is a field metric; lab runs record TBT. Existing RUM evidence is documented separately."
+  }
+}

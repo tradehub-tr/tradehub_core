@@ -60,14 +60,14 @@ alır; ikisi de bunu güvenli tarafa düşerek yakalar (worker çökmez).
 
 from __future__ import annotations
 
-import json
 import os
-import subprocess
 
 import frappe
 from frappe.utils import now_datetime
 
 from tradehub_core.media import audit, jobs, ownership
+from tradehub_core.media.pipeline.security import isolation
+from tradehub_core.media.pipeline.video import probe as video_probe
 
 VIDEO_STATUS_PROCESSING: str = "processing"
 VIDEO_STATUS_READY: str = "ready"
@@ -82,6 +82,7 @@ MAX_TRANSCODE_ATTEMPTS: int = jobs.MAX_ATTEMPTS
 # kendi kendine durup hatayı yazamadan süreci sert öldürür ve iş sayaca
 # yazılmadan kaybolur.
 QUEUE_TIMEOUT_SECONDS: int = 1800
+VIDEO_RQ_QUEUE: str = "media-video"
 
 # ffmpeg zaman aşımı — kuyruk timeout'undan biraz kısa tutuluyor ki ffmpeg kendi
 # içinde durup hatayı yazsın, RQ'nun sert kill'i devreye girmesin.
@@ -121,37 +122,31 @@ def needs_transcode(file_path_or_url: str) -> bool:
 	ffprobe'un sistemli biçimde başarısız olması (ör. imajdan kalktı) sessizce
 	geçmesin.
 	"""
-	cmd = [
-		"ffprobe", "-v", "error",
-		"-select_streams", "v:0",
-		"-show_entries", "stream=width,bit_rate:format=bit_rate",
-		"-of", "json",
-		file_path_or_url,
-	]
-	try:
-		sonuc = subprocess.run(
-			cmd, check=True, capture_output=True, timeout=_FFPROBE_TIMEOUT_SECONDS
-		)
-		veri = json.loads(sonuc.stdout)
-		streams = veri.get("streams") or []
-		if not streams:
-			raise ValueError("ffprobe video stream döndürmedi")
-	except Exception as exc:
+	facts = video_probe.probe(file_path_or_url, timeout=_FFPROBE_TIMEOUT_SECONDS)
+	if not facts.measured:
 		frappe.log_error(
 			title="needs_transcode: ffprobe okunamadı",
-			message=f"{file_path_or_url}: {exc}",
+			message=f"{file_path_or_url}: {facts.error}",
 		)
 		return True
 
-	stream = streams[0]
-	genislik = int(stream.get("width") or 0)
-	bitrate_ham = stream.get("bit_rate") or (veri.get("format") or {}).get("bit_rate") or 0
-	try:
-		bitrate = int(bitrate_ham)
-	except (TypeError, ValueError):
-		bitrate = 0
+	bitrate = int(facts.video_bitrate_bps or facts.format_bitrate_bps or 0)
+	return facts.width > NEEDS_TRANSCODE_MAX_WIDTH or bitrate > NEEDS_TRANSCODE_MAX_BITRATE
 
-	return genislik > NEEDS_TRANSCODE_MAX_WIDTH or bitrate > NEEDS_TRANSCODE_MAX_BITRATE
+
+def _owned_by_video_engine(doc) -> bool:
+	"""Yeni Faz 7 hattı dosyayı sahiplendiyse eski VP9 worker'ını sustur."""
+	try:
+		from tradehub_core.media import pipeline_flags
+		from tradehub_core.media.pipeline_bridge import _resolve_video_scope
+
+		if not pipeline_flags.is_enabled("rendition_on_upload"):
+			return False
+		slot = _resolve_video_scope(doc)
+		return bool(slot and pipeline_flags.is_slot_enabled(slot))
+	except Exception:
+		# Yeni hattın kapsamı kanıtlanamadıysa eski güvenlik ağını koru.
+		return False
 
 
 def enqueue_transcode(file_url: str) -> None:
@@ -179,6 +174,8 @@ def enqueue_transcode(file_url: str) -> None:
 		return
 
 	doc = frappe.get_doc("File", name)
+	if _owned_by_video_engine(doc):
+		return
 	# Durum, filtre sözlüğüyle DEĞİL kayıt adıyla yazılıyor: içerik-hash'li
 	# adlandırma (WP4) aynı içeriği aynı `file_url`'e eşliyor, yani tek adrese
 	# birden çok `File` kaydı düşmesi artık olağan. Filtreyle yazmak başka
@@ -196,7 +193,7 @@ def enqueue_transcode(file_url: str) -> None:
 	_stamp_started(name, attempts=0)
 	frappe.enqueue(
 		"tradehub_core.media.transcode._run_transcode",
-		queue="long",
+		queue=VIDEO_RQ_QUEUE,
 		timeout=QUEUE_TIMEOUT_SECONDS,
 		file_url=file_url,
 		name=name,
@@ -254,6 +251,8 @@ def maybe_transcode_on_insert(doc, method: str | None = None) -> None:
 
 		uzanti = os.path.splitext(doc.get("file_name") or "")[1].lower()
 		if uzanti not in VIDEO_EXTENSIONS:
+			return
+		if _owned_by_video_engine(doc):
 			return
 
 		satici_mi = bool(ownership.store_of(doc.get("owner")))
@@ -358,11 +357,20 @@ def _run_transcode(file_url: str, name: str | None = None) -> None:
 		"-b:v", "0",
 		"-crf", "32",
 		"-c:a", "libopus",
+		"-progress", "pipe:1", "-nostats",
 		dst_path,
 	]
 
 	try:
-		subprocess.run(cmd, check=True, capture_output=True, timeout=_FFMPEG_TIMEOUT_SECONDS)
+		kosum = isolation.run_command(
+			cmd,
+			limits=isolation.VIDEO_LIMITS.with_(wall_timeout_s=float(_FFMPEG_TIMEOUT_SECONDS), nice=None),
+		)
+		if not kosum.ok:
+			raise RuntimeError(
+				f"ffmpeg izolasyon hatasi: {kosum.sebep}; "
+				f"{(kosum.stderr or b'').decode('utf-8', 'replace')[-500:]}"
+			)
 		os.replace(dst_path, src_path)
 		# `th_optimized_at` da damgalanıyor: panel "optimize edildi / bekliyor"
 		# durumunu bu alandan türetiyor (inventory._decorate) — yazılmazsa
@@ -509,7 +517,7 @@ def retry_failed(file_url: str) -> dict:
 	frappe.db.set_value("File", name, "th_media_video_status", VIDEO_STATUS_PROCESSING)
 	frappe.enqueue(
 		"tradehub_core.media.transcode._run_transcode",
-		queue="long",
+		queue=VIDEO_RQ_QUEUE,
 		timeout=QUEUE_TIMEOUT_SECONDS,
 		file_url=file_url,
 		name=name,
@@ -560,7 +568,7 @@ def sweep_stuck_transcodes(limit: int = 200) -> dict:
 			frappe.db.commit()
 			frappe.enqueue(
 				"tradehub_core.media.transcode._run_transcode",
-				queue="long",
+				queue=VIDEO_RQ_QUEUE,
 				timeout=QUEUE_TIMEOUT_SECONDS,
 				file_url=k.file_url,
 				name=k.name,

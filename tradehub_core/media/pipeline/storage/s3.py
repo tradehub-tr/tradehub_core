@@ -46,9 +46,11 @@ döner ve `extra["hash_unknown"]=True` işaretlenir — uydurma değer üretilme
 from __future__ import annotations
 
 import importlib.util
+import hashlib
 import os
+import tempfile
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, Iterator, Mapping, Optional
+from typing import Any, Callable, Dict, Iterable, Iterator, Mapping, Optional
 
 from tradehub_core.media.pipeline.contracts.errors import ObjectNotFound, StorageConflict, StorageError
 from tradehub_core.media.pipeline.contracts.storage import (
@@ -61,6 +63,7 @@ from tradehub_core.media.pipeline.contracts.storage import (
 	PutResult,
 	content_hash,
 	key_for,
+	key_for_digest,
 )
 from tradehub_core.media.pipeline.delivery import signed as signed_urls
 
@@ -111,6 +114,9 @@ class S3Config:
 	#: (`docs/MEDYA-DEPOLAMA-STANDARDI.md` §8).
 	public_base_url: str = ""
 	addressing_style: str = "auto"
+	server_side_encryption: str = "none"
+	multipart_threshold_bytes: int = 64 * 1024 * 1024
+	max_concurrency: int = 4
 	extra: Dict[str, Any] = field(default_factory=dict)
 
 	@classmethod
@@ -135,6 +141,12 @@ class S3Config:
 			storage_class=str(_al("storage_class", "STANDARD") or "STANDARD"),
 			public_base_url=str(_al("public_base_url") or "").rstrip("/"),
 			addressing_style=str(_al("addressing_style", "auto") or "auto"),
+			server_side_encryption=str(_al("server_side_encryption", "none") or "none"),
+			multipart_threshold_bytes=max(
+				5 * 1024 * 1024,
+				int(_al("multipart_threshold_mb", 64) or 64) * 1024 * 1024,
+			),
+			max_concurrency=max(1, int(_al("max_concurrency", 4) or 4)),
 		)
 
 	def problems(self) -> list:
@@ -171,6 +183,7 @@ class S3Storage:
 		*,
 		client_factory: Optional[Callable[[], Any]] = None,
 		signer: Optional[signed_urls.UrlSigner] = None,
+		alarm: Optional[Callable[[Dict[str, Any]], None]] = None,
 	) -> None:
 		if not config.enabled:
 			# Görev şartı: s3_enabled=0 iken hiçbir kod S3 varlığını
@@ -191,6 +204,7 @@ class S3Storage:
 		self._config = config
 		self._client_factory = client_factory
 		self._signer = signer
+		self._alarm = alarm
 		self._cached_client: Any = None
 
 	# ── istemci ────────────────────────────────────────────────────────
@@ -218,6 +232,7 @@ class S3Storage:
 				# dosya teslimi tamamen kırılır. MinIO ile ölçüldü (T-051,
 				# docs/reports/23-t051-s3-adaptor.md B-01): s3v4 çalışıyor.
 				signature_version="s3v4",
+				retries={"max_attempts": 5, "mode": "standard"},
 			),
 		}
 		if self._config.region:
@@ -258,9 +273,32 @@ class S3Storage:
 	def _wrap(self, hata: BaseException, ref: ObjectRef, islem: str) -> StorageError:
 		if self._is_missing(hata):
 			return ObjectNotFound("Nesne bulunamadı", detay={"url": ref.url, "op": islem})
-		return StorageError(
+		wrapped = StorageError(
 			"S3 işlemi başarısız", detay={"url": ref.url, "op": islem, "error": str(hata)}
 		)
+		if self._alarm is not None:
+			try:
+				self._alarm(
+					{
+						"type": "s3_error",
+						"operation": islem,
+						"url": ref.url,
+						"error_type": type(hata).__name__,
+					}
+				)
+			except Exception:
+				pass
+		return wrapped
+
+	def _put_extra_args(self, digest: str) -> Dict[str, Any]:
+		args: Dict[str, Any] = {
+			"Metadata": {META_SHA256: digest},
+			"StorageClass": self._config.storage_class,
+		}
+		encryption = str(self._config.server_side_encryption or "none")
+		if encryption in {"AES256", "aws:kms"}:
+			args["ServerSideEncryption"] = encryption
+		return args
 
 	# ── StorageAdapter ─────────────────────────────────────────────────
 
@@ -295,14 +333,88 @@ class S3Storage:
 				Bucket=self._config.bucket,
 				Key=self.object_key(ref),
 				Body=content,
-				Metadata={META_SHA256: ozet},
-				StorageClass=self._config.storage_class,
+				**self._put_extra_args(ozet),
 			)
 		except Exception as hata:
 			raise self._wrap(hata, ref, "put") from hata
 
 		kunye = self._head(ref)
 		if kunye is None:  # pragma: no cover - yazdıktan sonra yok olması
+			raise StorageError("Yazılan nesne okunamadı", detay={"url": ref.url})
+		return PutResult(ref=ref, created=True, stat=self._stat_from_head(kunye))
+
+	def put_stream(
+		self,
+		chunks: Iterable[bytes],
+		extension: str,
+		*,
+		scope: str = SCOPE_PUBLIC,
+	) -> PutResult:
+		"""Akışı diskte geçici spool'a al, hashle ve S3'e streaming yükle.
+
+		İçerik adresi yüklemeden önce bilinmek zorunda olduğu için tek geçişli
+		bir ağ upload'u mümkün değildir. Spool bellekte değil geçici dosyadadır;
+		böylece 2 GB girişte Python tepe belleği parça boyutuna bağlı kalır.
+		"""
+		if scope not in SCOPES:
+			raise ValueError(f"Bilinmeyen kapsam: {scope!r}")
+		digest = hashlib.sha256()
+		total = 0
+		with tempfile.TemporaryFile(prefix="media-s3-stream-") as spool:
+			for raw in chunks:
+				if not isinstance(raw, (bytes, bytearray, memoryview)):
+					raise TypeError("put_stream parçaları bytes-benzeri olmalıdır")
+				part = bytes(raw)
+				if not part:
+					continue
+				digest.update(part)
+				total += len(part)
+				spool.write(part)
+			key = key_for_digest(digest.hexdigest(), extension)
+			ref = ObjectRef(key=key, scope=scope)
+			mevcut = self._head(ref)
+			if mevcut is not None:
+				known = (mevcut.get("Metadata") or {}).get(META_SHA256, "")
+				if known and known != digest.hexdigest():
+					raise StorageConflict("Aynı anahtarda farklı içerik var", detay={"url": ref.url})
+				if not known and int(mevcut.get("ContentLength", -1)) != total:
+					raise StorageConflict("Aynı anahtarda farklı boyutta nesne var", detay={"url": ref.url})
+				return PutResult(ref=ref, created=False, stat=self._stat_from_head(mevcut))
+
+			spool.seek(0)
+			client = self._client()
+			extra = self._put_extra_args(digest.hexdigest())
+			try:
+				if hasattr(client, "upload_fileobj"):
+					from boto3.s3.transfer import TransferConfig  # noqa: PLC0415 - yalnız S3 açıkken
+
+					transfer = TransferConfig(
+						multipart_threshold=self._config.multipart_threshold_bytes,
+						multipart_chunksize=max(5 * 1024 * 1024, self._config.multipart_threshold_bytes),
+						max_concurrency=self._config.max_concurrency,
+						use_threads=self._config.max_concurrency > 1,
+					)
+					client.upload_fileobj(
+						spool,
+						self._config.bucket,
+						self.object_key(ref),
+						ExtraArgs=extra,
+						Config=transfer,
+					)
+				else:
+					# Enjekte edilen küçük test istemcileri transfer manager yüzeyini
+					# sunmayabilir; Body file-like kaldığı için bu yol da streaming'dir.
+					client.put_object(
+						Bucket=self._config.bucket,
+						Key=self.object_key(ref),
+						Body=spool,
+						**extra,
+					)
+			except Exception as hata:
+				raise self._wrap(hata, ref, "put_stream") from hata
+
+		kunye = self._head(ref)
+		if kunye is None:
 			raise StorageError("Yazılan nesne okunamadı", detay={"url": ref.url})
 		return PutResult(ref=ref, created=True, stat=self._stat_from_head(kunye))
 
@@ -318,6 +430,25 @@ class S3Storage:
 			kapat = getattr(govde, "close", None)
 			if callable(kapat):
 				kapat()
+
+	def iter_bytes(self, ref: ObjectRef, *, chunk_size: int = 1024 * 1024) -> Iterator[bytes]:
+		if int(chunk_size) < 1:
+			raise ValueError("chunk_size pozitif olmalıdır")
+		try:
+			yanit = self._client().get_object(Bucket=self._config.bucket, Key=self.object_key(ref))
+		except Exception as hata:
+			raise self._wrap(hata, ref, "get_stream") from hata
+		body = yanit["Body"]
+		try:
+			while True:
+				part = body.read(int(chunk_size))
+				if not part:
+					break
+				yield part
+		finally:
+			close = getattr(body, "close", None)
+			if callable(close):
+				close()
 
 	def exists(self, ref: ObjectRef) -> bool:
 		"""Yan etkisiz. Ağ hatası da `False` döner — sözleşme "hata atmaz" diyor.

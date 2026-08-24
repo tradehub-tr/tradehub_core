@@ -1,4 +1,11 @@
-# Faz 1 — AR-GE ve desen doğrulama (T-010…T-019)
+# Faz 1 — AR-GE ve desen doğrulama (T-010…T-019) · tarihsel birleşik rapor
+
+> **2026-08-23 kanonik güncelleme:** Görev kartları artık yayımlıdır; aşağıdaki
+> “kartlar yayımlanmadı” varsayımı eskidir. Resmî kabul kriterlerine göre üretilen
+> güncel çıktılar `docs/reports/10-algoritma-dogrulama.md` …
+> `18-depolama-arge.md`, `docs/adr/README.md` ve
+> `docs/closure/faz1-kapanis.md` dosyalarıdır. Çelişkide bu yeni dosyalar
+> kazanır. Bu büyük rapor ilk ölçümlerin tarihsel kaydı olarak korunur.
 
 **Tarih:** 2026-08-18 · **Branch:** `ahmet` · **Kapsam:** T-010…T-019 (10 görev)
 **Kod çıktısı:** `tradehub_core/media/pipeline/quality/ssim.py`, `tradehub_core/media/pipeline/quality/__init__.py`

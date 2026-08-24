@@ -49,6 +49,7 @@ verilmediğinde her nesne `unknown` sayılır ve hiçbir türev silinmez. Ölçe
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 import time
 from dataclasses import dataclass, field
@@ -133,6 +134,9 @@ POLICY_DERIVATIVE: str = "derivative"
 #: `then` / `action` alanlarındaki hedeflerin karar karşılığı.
 _TARGET_TO_ACTION: Dict[str, str] = {
 	"delete": ACTION_DELETE,
+	"keep_local": ACTION_KEEP,
+	"move_s3": ACTION_DEMOTE,
+	"move_s3_cold": ACTION_DEMOTE,
 	"s3_cold": ACTION_DEMOTE,
 	"s3_standard": ACTION_DEMOTE,
 	"notify_only": ACTION_NOTIFY,
@@ -828,6 +832,7 @@ class UpstreamPurge:
 
 MEDIA_ASSET: str = "Media Asset"
 MEDIA_RENDITION: str = "Media Rendition"
+MEDIA_MAINTENANCE_REPORT: str = "Media Maintenance Report"
 
 #: Legal hold'un GERÇEK yeri. `retention.md` §5.2 "legal_hold diye bir şey yok"
 #: diyordu; o gün `File.th_legal_hold` önerilmişti. Bugün ölçüldü
@@ -891,6 +896,7 @@ PROTECTED_SOURCES: Tuple[Tuple[str, str], ...] = (
 #: Aday listesinde rapor edilecek örnek sayısı — `trash.py:329` ve
 #: `RetentionReport` ile AYNI sınır (denetim bağlamı 5 KB).
 SAMPLE_LIMIT: int = 50
+REPORT_APPROVAL_DAYS: int = 7
 
 
 def _frappe() -> Any:
@@ -898,6 +904,117 @@ def _frappe() -> Any:
 	import frappe  # noqa: PLC0415 - bilinçli tembel import
 
 	return frappe
+
+
+def configured_policy() -> RetentionPolicy:
+	"""Kurulu Single DocType politikasını oku; ölçülemezse güvenli varsayılana dön.
+
+	Saf adaptör testleri Frappe olmadan bu modülü import edebildiği için ayar
+	okuması tembeldir. Üretimde bozuk/eksik ayar silmeyi açmaz: şema varsayılanı
+	`keep_forever=True` ve türev eylemi `notify_only` olarak fail-closed kalır.
+	"""
+	try:
+		frappe = _frappe()
+		if not frappe.db.exists("DocType", "Media Storage Settings"):
+			return RetentionPolicy.defaults()
+		settings = frappe.get_single("Media Storage Settings")
+		mapping = settings.retention_mapping()
+		policy = RetentionPolicy.from_mapping(mapping)
+		errors = policy.validate()
+		if errors:
+			raise PolicyInvalid("Kurulu saklama politikası geçersiz", detay={"errors": errors})
+		return policy
+	except Exception:
+		try:
+			_frappe().log_error(
+				title="media retention settings fallback",
+				message=_frappe().get_traceback(with_context=True),
+			)
+		except Exception:
+			pass
+		return RetentionPolicy.defaults()
+
+
+def policy_hash(policy: RetentionPolicy) -> str:
+	"""Onayın tam olarak hangi politika anlık görüntüsüne ait olduğunu bağla."""
+	payload = json.dumps(policy.to_dict(), ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+	return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def persist_maintenance_report(
+	report: Mapping[str, Any],
+	*,
+	job_type: str,
+	policy: RetentionPolicy,
+	status: str = "completed",
+	error: str = "",
+) -> str:
+	"""Bakım çıktısını onaylanabilir, değiştirilemez bir DocType kaydına yaz."""
+	frappe = _frappe()
+	if not frappe.db.exists("DocType", MEDIA_MAINTENANCE_REPORT):
+		return ""
+	totals = dict(report.get("totals") or {})
+	dry_run = bool(report.get("dry_run", True))
+	approval_status = (
+		"pending" if dry_run and int(totals.get("candidates") or 0) > 0 else "not_required"
+	)
+	generated_at = frappe.utils.now_datetime()
+	doc = frappe.get_doc(
+		{
+			"doctype": MEDIA_MAINTENANCE_REPORT,
+			"job_type": job_type,
+			"policy_hash": policy_hash(policy),
+			"dry_run": int(dry_run),
+			"status": status,
+			"approval_status": approval_status,
+			"generated_at": generated_at,
+			"expires_at": frappe.utils.add_days(generated_at, REPORT_APPROVAL_DAYS),
+			"scanned": int(totals.get("scanned") or 0),
+			"candidates": int(totals.get("candidates") or 0),
+			"deleted": int(totals.get("deleted") or 0),
+			"demoted": int(totals.get("demoted") or 0),
+			"blocked": int(totals.get("blocked") or 0),
+			"failed": int(totals.get("failed") or 0),
+			"bytes_candidate": int(totals.get("bytes_candidate") or 0),
+			"bytes_freed": int(totals.get("bytes_freed") or 0),
+			"report_json": json.dumps(report, ensure_ascii=False, indent=2, default=str),
+			"error": str(error or "")[:100000],
+		}
+	)
+	doc.insert(ignore_permissions=True)
+	return str(doc.name)
+
+
+def approved_report(job_type: str, policy: RetentionPolicy) -> str:
+	"""Süresi dolmamış ve aynı politika hash'ine bağlı tek kullanımlık onayı bul."""
+	frappe = _frappe()
+	if not frappe.db.exists("DocType", MEDIA_MAINTENANCE_REPORT):
+		return ""
+	rows = frappe.get_all(
+		MEDIA_MAINTENANCE_REPORT,
+		filters={
+			"job_type": job_type,
+			"policy_hash": policy_hash(policy),
+			"dry_run": 1,
+			"status": "completed",
+			"approval_status": "approved",
+			"expires_at": [">=", frappe.utils.now_datetime()],
+		},
+		pluck="name",
+		order_by="approved_at desc",
+		limit_page_length=1,
+	)
+	return str(rows[0]) if rows else ""
+
+
+def consume_approval(report_name: str) -> None:
+	if report_name:
+		_frappe().db.set_value(
+			MEDIA_MAINTENANCE_REPORT,
+			report_name,
+			{"approval_status": "consumed", "consumed_at": _frappe().utils.now_datetime()},
+			update_modified=False,
+		)
 
 
 def _column_exists(table: str, column: str) -> bool:
@@ -1272,6 +1389,10 @@ def _original_candidate(
 
 	yas = max(0.0, (now - mtime) / 86400.0)
 	eylem, sebep = policy.original.decide(yas)
+	if eylem == ACTION_DEMOTE:
+		# Serbest adlı legacy File kayıtları adapter ObjectKey sözleşmesine
+		# çevrilemez. İçerik-adresli nesneler ayrı TieredStorage işiyle taşınır.
+		eylem, sebep = ACTION_NOTIFY, REASON_NO_COLD_TIER
 	boyut = int(satir.get("file_size") or 0) or _size_or_zero(yol)
 	return GcCandidate(url, POLICY_ORIGINAL, eylem, sebep, age_days=yas, size_bytes=boyut)
 
@@ -1298,7 +1419,7 @@ def sweep_originals(
 	(`retention.md` §6.1). Silme ancak politika açıkça değiştirilirse
 	gündeme gelir ve o zaman da `dry_run=False` şart.
 	"""
-	pol = policy if policy is not None else RetentionPolicy.defaults()
+	pol = policy if policy is not None else configured_policy()
 	kapi = gate if gate is not None else MediaAssetLegalHold()
 	tutulanlar = kapi.held_urls() if pol.legal_hold_enabled else set()
 	an = float(time.time() if now is None else now)
@@ -1321,18 +1442,18 @@ def sweep_originals(
 
 
 def _rendition_rows(limit: int = 0) -> List[Dict[str, Any]]:
-	"""`Media Rendition` satırları. Doctype/tablo yoksa boş liste.
-
-	Ölçüldü (2026-08-19): tablo BOŞ — bayraklar kapalı, türev üretilmiyor.
-	İş bugün 0 satırla koşar; bu doğru davranıştır, eksiklik değil.
-	"""
+	"""Soft-delete edilmemiş `Media Rendition` envanterini getir."""
 	frappe = _frappe()
 	if not frappe.db.exists("DocType", MEDIA_RENDITION):
 		return []
 	return frappe.get_all(
 		MEDIA_RENDITION,
-		fields=["name", "asset", "profile", "file_url", "bytes", "storage_backend",
-			"generated_at", "last_access_at"],
+		filters={"state": ["!=", "purged"]},
+		fields=[
+			"name", "asset", "version_hash", "profile", "file_url", "bytes", "storage_backend",
+			"generated_at", "last_access_at", "state", "purged_at", "purge_after",
+			"trash_path", "purge_reason",
+		],
 		limit_page_length=int(limit) or 0,
 		order_by="name",
 	)
@@ -1367,8 +1488,12 @@ def _derivative_candidate(
 ) -> GcCandidate:
 	"""Tek `Media Rendition` satırı için karar. SAF."""
 	url = str(satir.get("file_url") or "")
-	ek = {"rendition": satir.get("name"), "asset": satir.get("asset"),
-		"backend": satir.get("storage_backend")}
+	ek = {
+		"rendition": satir.get("name"),
+		"asset": satir.get("asset"),
+		"backend": satir.get("storage_backend"),
+		"soft_delete_grace_days": policy.trash_retention_days,
+	}
 	if policy.legal_hold_enabled and url.split("?")[0] in held:
 		return GcCandidate(url, POLICY_DERIVATIVE, ACTION_BLOCKED, REASON_LEGAL_HOLD,
 			held=True, extra=ek)
@@ -1404,26 +1529,42 @@ def _derivative_candidate(
 		size_bytes=int(satir.get("bytes") or 0), extra=ek)
 
 
-def _derivative_verdicts(urls: List[str]) -> Dict[str, str]:
-	"""`usage.verdicts_for` ile toplu kullanım kararı — KENDİ tespitimiz YOK.
+def _derivative_verdicts(rows: List[Mapping[str, Any]]) -> Dict[str, str]:
+	"""Rendition kullanımını aktif asset sürümünden toplu ve indeksli çıkar.
 
-	`deep=True`: `unused` ile `history_only` ayrımı olmadan
-	`DerivativeRetention.decide` hiçbir şeyi silinebilir saymaz
-	(`UNUSED_VERDICTS` bu ikisi). Sığ tarama `not_in_use` döndürür ve o
-	etiket listede olmadığı için her şey `usage_unknown` ile korunurdu —
-	yani sığ tarama sessizce "hiçbir şey yapma"ya dönerdi.
+	Rendition URL'leri Listing gibi kaynak tablolarda doğrudan tutulmaz; manifest
+	`Media Asset.active_version` üzerinden dinamik üretir. URL'leri `usage.py`nin
+	genel JSON/tarihçe taramasına vermek bu yüzden hem yanlış negatif üretir hem
+	de yüzlerce `LOCATE(...) OR ...` içeren dakikalar süren sorgular kurar.
 	"""
-	if not urls:
+	if not rows:
 		return {}
-	from tradehub_core.media.usage import verdicts_for  # noqa: PLC0415
-
-	try:
-		ham = verdicts_for(urls, deep=True)
-	except Exception:
-		_frappe().log_error(title="retention: usage verdicts failed",
-			message=_frappe().get_traceback(with_context=True))
-		return {}
-	return {u: str(v.get("verdict") or VERDICT_UNKNOWN) for u, v in ham.items()}
+	frappe = _frappe()
+	asset_names = sorted({str(row.get("asset")) for row in rows if row.get("asset")})
+	assets = {
+		str(row["name"]): row
+		for row in frappe.get_all(
+			MEDIA_ASSET,
+			filters={"name": ["in", asset_names]},
+			fields=["name", "state", "active_version"],
+			limit_page_length=0,
+		)
+	}
+	verdicts: Dict[str, str] = {}
+	for row in rows:
+		url = str(row.get("file_url") or "")
+		if not url:
+			continue
+		asset = assets.get(str(row.get("asset") or ""))
+		if not asset or not asset.get("active_version"):
+			verdicts[url] = VERDICT_UNKNOWN
+		elif str(row.get("version_hash") or "") == str(asset.get("active_version")) and str(
+			asset.get("state") or ""
+		) in {"ready", "reprocessing"}:
+			verdicts[url] = VERDICT_IN_USE
+		else:
+			verdicts[url] = VERDICT_HISTORY_ONLY
+	return verdicts
 
 
 def sweep_derivatives(
@@ -1441,7 +1582,7 @@ def sweep_derivatives(
 	değil bildirim yapıyor — silinen her türev, ilk isteyen kullanıcıya
 	10 saniyelik bekleme olarak geri döner.
 	"""
-	pol = policy if policy is not None else RetentionPolicy.defaults()
+	pol = policy if policy is not None else configured_policy()
 	kapi = gate if gate is not None else MediaAssetLegalHold()
 	satirlar = _rendition_rows(limit)
 	bolum = GcSection(POLICY_DERIVATIVE)
@@ -1449,7 +1590,7 @@ def sweep_derivatives(
 		return bolum
 
 	tutulanlar = kapi.held_urls() if pol.legal_hold_enabled else set()
-	kararlar = _derivative_verdicts([str(s.get("file_url") or "") for s in satirlar if s.get("file_url")])
+	kararlar = _derivative_verdicts(satirlar)
 	koruma = blind_spot_urls()
 	an = float(time.time() if now is None else now)
 	kapi_saglam = (not pol.legal_hold_enabled) or kapi.enforceable
@@ -1466,9 +1607,9 @@ def regeneration_available() -> bool:
 	"""Silinen bir türev gerçekten geri getirilebilir mi.
 
 	`regenerate_on_demand=True` bir SÖZ; bu fonksiyon sözün tutulup
-	tutulamayacağını ölçer. Boru hattı bayrağı kapalıyken hiçbir türev
-	üretilmiyor — o hâlde silinen türev geri gelmez ve "istendiğinde yeniden
-	üret" cümlesi kâğıt üstünde kalır.
+	tutulamayacağını ölçer. Boru hattı açıkken soft-delete grace alanındaki
+	dosya ilk istekte geri alınır; grace sonrası aynı istek normal render
+	yoluyla yeniden üretir. Bayrak kapalıysa silme bildirime düşer.
 
 	Maliyet tarafı da burada: T-028 ölçümü görsel başına **10,45 sn**
 	(SSIM %52, encode %37). Bayrak açık olsa bile silinen her türev, ilk
@@ -1556,28 +1697,141 @@ def _apply_original(aday: GcCandidate) -> bool:
 	zaten `trash.purge_expired` günlük işi yapıyor; burada ikinci bir
 	kalıcı silme yolu açmak, iki farklı silme davranışı demekti.
 	"""
+	if aday.action == ACTION_DEMOTE:
+		# Eski/serbest adlı File URL'leri ObjectKey'e çevrilemez. Bunları S3'e
+		# kopyalamadan yerelden silmek veri kaybı olur; içerik-adresli nesnelerin
+		# güvenli taşıması TieredStorage.sweep tarafından yürütülür.
+		return False
 	from tradehub_core.media import trash  # noqa: PLC0415
 
 	return bool(trash.move_to_trash(aday.url).get("ok", True))
 
 
 def _apply_derivative(aday: GcCandidate) -> bool:
-	"""Türevi sil: önce dosya çöpe, sonra `Media Rendition` kaydı.
+	"""Türevi ortak denetimli çöp kapısından soft-delete et.
 
-	Sıra bilinçli — kayıt önce silinirse dosya öksüz kalır ve onu bulan
-	hiçbir sorgu kalmaz (`retention.md` §5.5 "önce DB sonra disk" penceresi).
+	Kayıt silinmez; aynı `(asset, version, profile, width, format)` satırı lazy
+	istekte yeniden üretilip `ready` durumuna dönebilir. Disk/DB telafisi,
+	path-safety ve INV-11 audit sözleşmesi ``trash.move_to_trash`` içinde tek
+	kapıda tutulur. Kalıcı silme ayrı grace-period işidir.
 	"""
+	if aday.action != ACTION_DELETE:
+		return False
+	ad = str(aday.extra.get("rendition") or "")
+	if not ad:
+		return False
 	from tradehub_core.media import trash  # noqa: PLC0415
 
+	result = trash.move_to_trash(
+		aday.url,
+		rendition=ad,
+		reason=aday.reason,
+		grace_days=max(1, int(aday.extra.get("soft_delete_grace_days") or 30)),
+	)
+	return bool(result.get("ok", True))
+
+
+def _safe_rendition_trash_path(relative_path: str) -> Optional[str]:
+	"""Kayıtlı göreli yolu yalnız rendition çöp kökü içinde çöz."""
 	frappe = _frappe()
-	if aday.url:
-		trash.move_to_trash(aday.url, force=True)
-	ad = aday.extra.get("rendition")
-	if ad:
-		# Sistem işi: scheduler bağlamında kullanıcı yok, permission kontrolü
-		# uygulanamaz (anti-pattern 13'ün "sistem yolları" istisnası).
-		frappe.delete_doc(MEDIA_RENDITION, ad, force=True, ignore_permissions=True)
-	return True
+	site_root = os.path.realpath(frappe.get_site_path())
+	trash_root = os.path.realpath(frappe.get_site_path("private", "media_rendition_trash"))
+	candidate = os.path.realpath(os.path.join(site_root, str(relative_path or "")))
+	if candidate == trash_root or not candidate.startswith(trash_root + os.sep):
+		return None
+	return candidate
+
+
+def purge_soft_deleted_renditions(
+	*, dry_run: bool = True, limit: int = 0, now: Any = None
+) -> Dict[str, Any]:
+	"""Grace penceresi dolan rendition çöplerini kalıcı olarak temizle.
+
+	Soft-delete satırı ve özel çöp dosyası bu işe kadar korunur. Legal hold,
+	soft-delete sonrasında açılmış olsa bile kalıcı silmeyi yeniden bloke eder.
+	"""
+	frappe = _frappe()
+	policy = configured_policy()
+	now_dt = frappe.utils.get_datetime(now) if now is not None else frappe.utils.now_datetime()
+	rows = frappe.get_all(
+		MEDIA_RENDITION,
+		filters={"state": "purged", "purge_after": ["<=", now_dt]},
+		fields=["name", "asset", "file_url", "bytes", "trash_path", "purge_after"],
+		order_by="purge_after asc, name asc",
+		limit_page_length=int(limit) or 0,
+	)
+	totals = {
+		"scanned": 0,
+		"kept": 0,
+		"candidates": 0,
+		"deleted": 0,
+		"demoted": 0,
+		"notified": 0,
+		"blocked": 0,
+		"failed": 0,
+		"bytes_candidate": 0,
+		"bytes_freed": 0,
+		"skipped_by_reason": {},
+	}
+	samples: List[Dict[str, Any]] = []
+	for row in rows:
+		totals["scanned"] += 1
+		if row.get("asset") and frappe.db.get_value(
+			MEDIA_ASSET, row.get("asset"), LEGAL_HOLD_DOCFIELD
+		):
+			totals["blocked"] += 1
+			totals["skipped_by_reason"][REASON_LEGAL_HOLD] = (
+				totals["skipped_by_reason"].get(REASON_LEGAL_HOLD, 0) + 1
+			)
+			continue
+		path = _safe_rendition_trash_path(str(row.get("trash_path") or ""))
+		if path is None:
+			totals["blocked"] += 1
+			totals["skipped_by_reason"]["invalid_trash_path"] = (
+				totals["skipped_by_reason"].get("invalid_trash_path", 0) + 1
+			)
+			continue
+		size = int(row.get("bytes") or 0)
+		totals["candidates"] += 1
+		totals["bytes_candidate"] += size
+		if len(samples) < SAMPLE_LIMIT:
+			samples.append({"rendition": row.get("name"), "file_url": row.get("file_url"), "bytes": size})
+		if dry_run:
+			continue
+		try:
+			if os.path.isfile(path):
+				os.unlink(path)
+			frappe.delete_doc(
+				MEDIA_RENDITION,
+				row.get("name"),
+				force=True,
+				ignore_permissions=True,
+			)
+			from tradehub_core.media import audit as media_audit  # noqa: PLC0415
+
+			media_audit.log_media_event(
+				action=media_audit.ACTION_DELETE,
+				file_url=str(row.get("file_url") or ""),
+				reason="soft_delete_grace_elapsed",
+				commit=False,
+				context={"rendition": row.get("name"), "trash_path": row.get("trash_path")},
+			)
+		except Exception:
+			frappe.log_error(
+				title="media rendition permanent purge failed",
+				message=frappe.get_traceback(with_context=True),
+			)
+			totals["failed"] += 1
+			continue
+		totals["deleted"] += 1
+		totals["bytes_freed"] += size
+	return {
+		"generated_at": frappe.utils.now(),
+		"dry_run": dry_run,
+		"policy": policy.to_dict(),
+		"sections": [{"name": "soft_delete", **totals, "samples": samples}],
+		"totals": totals,
+	}
 
 
 # ── Bakım raporu ───────────────────────────────────────────────────────
@@ -1619,7 +1873,7 @@ def run_maintenance(
 	(bkz. `run_scheduled_gc`).
 	"""
 	baslangic = time.time()
-	pol = policy if policy is not None else RetentionPolicy.defaults()
+	pol = policy if policy is not None else configured_policy()
 	kapi = MediaAssetLegalHold()
 	oncesi = _tier_snapshot()
 	orijinal = sweep_originals(policy=pol, gate=kapi, dry_run=dry_run, limit=limit, now=now)
@@ -1679,12 +1933,14 @@ ENFORCE_FLAG: str = "media_retention_gc_enforce"
 #: türev silmeyi açmak orijinal silmeyi açmıyor, tersi de öyle.
 ENFORCE_FLAG_ORIGINALS: str = "media_retention_gc_originals_enforce"
 ENFORCE_FLAG_DERIVATIVES: str = "media_retention_gc_derivatives_enforce"
+ENFORCE_FLAG_SOFT_DELETE: str = "media_retention_soft_delete_enforce"
 
 #: Ayrı iş = ayrı kilit. Ortak kilit, iki iş ayrı saatlerde koşsa bile
 #: birinin diğerini "locked" diye atlatmasına yol açardı.
 LOCK_ALL: str = "media_retention_gc_lock"
 LOCK_ORIGINALS: str = "media_retention_gc_originals_lock"
 LOCK_DERIVATIVES: str = "media_retention_gc_derivatives_lock"
+LOCK_SOFT_DELETE: str = "media_retention_soft_delete_lock"
 
 #: Kilit ömrü (sn) — `tasks.py:calculate_customer_grades` deseniyle aynı.
 LOCK_TTL: int = 3600
@@ -1697,6 +1953,7 @@ def _gc_job(
 	title: str,
 	sweep: Callable[..., GcSection],
 	policy_name: str,
+	job_type: str,
 ) -> Dict[str, Any]:
 	"""Tek politikalı zamanlanmış GC işinin ortak gövdesi.
 
@@ -1712,18 +1969,23 @@ def _gc_job(
 	frappe.cache().set_value(lock, 1, expires_in_sec=LOCK_TTL)
 	baslangic = time.time()
 	try:
-		pol = RetentionPolicy.defaults()
+		pol = configured_policy()
 		kapi = MediaAssetLegalHold()
-		zorla = bool(frappe.conf.get(flag))
-		bolum = sweep(policy=pol, gate=kapi, dry_run=not zorla)
+		requested_enforce = bool(frappe.conf.get(flag))
+		approval = approved_report(job_type, pol) if requested_enforce else ""
+		enforce = requested_enforce and bool(approval)
+		bolum = sweep(policy=pol, gate=kapi, dry_run=not enforce)
 	finally:
 		frappe.cache().delete_value(lock)
 
 	rapor = {
 		"generated_at": frappe.utils.now(),
 		"policy_name": policy_name,
-		"dry_run": not zorla,
+		"dry_run": not enforce,
 		"enforce_flag": flag,
+		"enforce_requested": requested_enforce,
+		"approval_report": approval,
+		"blocked_by": "approval_required" if requested_enforce and not approval else "",
 		"policy": pol.to_dict(),
 		"policy_warnings": pol.warnings(),
 		"legal_hold": _legal_hold_summary(kapi),
@@ -1731,6 +1993,17 @@ def _gc_job(
 		"totals": _totals(bolum),
 		"duration_ms": int((time.time() - baslangic) * 1000),
 	}
+	try:
+		report_name = persist_maintenance_report(rapor, job_type=job_type, policy=pol)
+		rapor["maintenance_report"] = report_name
+	except Exception:
+		frappe.log_error(
+			title=f"{title}.report",
+			message=frappe.get_traceback(with_context=True),
+		)
+		rapor["maintenance_report"] = ""
+	if enforce:
+		consume_approval(approval)
 	frappe.log_error(
 		title=title,
 		message=json.dumps(rapor, ensure_ascii=False, indent=2, default=str)[:100000],
@@ -1755,6 +2028,7 @@ def run_scheduled_gc_originals() -> Dict[str, Any]:
 		title="media.retention_gc.originals",
 		sweep=sweep_originals,
 		policy_name=POLICY_ORIGINAL,
+		job_type="originals",
 	)
 
 
@@ -1776,7 +2050,48 @@ def run_scheduled_gc_derivatives() -> Dict[str, Any]:
 		title="media.retention_gc.derivatives",
 		sweep=sweep_derivatives,
 		policy_name=POLICY_DERIVATIVE,
+		job_type="derivatives",
 	)
+
+
+def run_scheduled_soft_delete() -> Dict[str, Any]:
+	"""Grace süresi dolmuş rendition çöplerinin ayrı kalıcı silme işi."""
+	frappe = _frappe()
+	if frappe.cache().get_value(LOCK_SOFT_DELETE):
+		return {"skipped": "locked", "policy": "soft_delete"}
+	frappe.cache().set_value(LOCK_SOFT_DELETE, 1, expires_in_sec=LOCK_TTL)
+	try:
+		policy = configured_policy()
+		requested_enforce = bool(frappe.conf.get(ENFORCE_FLAG_SOFT_DELETE))
+		approval = approved_report("soft_delete", policy) if requested_enforce else ""
+		enforce = requested_enforce and bool(approval)
+		report = purge_soft_deleted_renditions(dry_run=not enforce)
+	finally:
+		frappe.cache().delete_value(LOCK_SOFT_DELETE)
+	report.update(
+		{
+			"enforce_requested": requested_enforce,
+			"approval_report": approval,
+			"blocked_by": "approval_required" if requested_enforce and not approval else "",
+		}
+	)
+	try:
+		report["maintenance_report"] = persist_maintenance_report(
+			report, job_type="soft_delete", policy=policy
+		)
+	except Exception:
+		frappe.log_error(
+			title="media.retention_soft_delete.report",
+			message=frappe.get_traceback(with_context=True),
+		)
+		report["maintenance_report"] = ""
+	if enforce:
+		consume_approval(approval)
+	frappe.log_error(
+		title="media.retention_soft_delete",
+		message=json.dumps(report, ensure_ascii=False, indent=2, default=str)[:100000],
+	)
+	return report
 
 
 def run_scheduled_gc() -> Dict[str, Any]:
@@ -1799,10 +2114,31 @@ def run_scheduled_gc() -> Dict[str, Any]:
 
 	frappe.cache().set_value(LOCK_ALL, 1, expires_in_sec=LOCK_TTL)
 	try:
-		zorla = bool(frappe.conf.get(ENFORCE_FLAG))
-		rapor = run_maintenance(dry_run=not zorla)
+		policy = configured_policy()
+		requested_enforce = bool(frappe.conf.get(ENFORCE_FLAG))
+		approval = approved_report("combined", policy) if requested_enforce else ""
+		enforce = requested_enforce and bool(approval)
+		rapor = run_maintenance(policy=policy, dry_run=not enforce)
 	finally:
-		frappe.cache().delete_value("media_retention_gc_lock")
+		frappe.cache().delete_value(LOCK_ALL)
+	raport_context = {
+		"enforce_requested": requested_enforce,
+		"approval_report": approval,
+		"blocked_by": "approval_required" if requested_enforce and not approval else "",
+	}
+	rapor.update(raport_context)
+	try:
+		rapor["maintenance_report"] = persist_maintenance_report(
+			rapor, job_type="combined", policy=policy
+		)
+	except Exception:
+		frappe.log_error(
+			title="media.retention_gc.report",
+			message=frappe.get_traceback(with_context=True),
+		)
+		rapor["maintenance_report"] = ""
+	if enforce:
+		consume_approval(approval)
 
 	frappe.log_error(
 		title="media.retention_gc",

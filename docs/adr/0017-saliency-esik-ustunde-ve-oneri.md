@@ -66,10 +66,16 @@ filigran bu ölçüyü kandırır.
 
 ### Olumsuz / açık
 
-- **Kod yazılmadı.** Karar Faz 1'de verildi, uygulaması Faz 10'a (Crop Studio)
-  devredildi ve Faz 10'un arayüzü **yazılmadı** (`docs/reports/14-nihai-denetim.md`,
-  Faz 10 ⚠ KISMEN). Yani bu ADR bugün yürürlükte bir davranışı değil, bağlayıcı
-  bir tasarım kısıtını kaydediyor.
-- **[?] Doğrulanmadı:** kenar enerjisi merkezi ile insanın seçtiği odak noktası
-  arasındaki uyum **ölçülmedi** (etiketli veri yok). Ölçüm için gereken:
-  100 görselde elle odak işaretlemesi (`11-faz1-arge.md` §11 Ö-6).
+- **Kod artık var.** `core/smartcrop.py` entropi/kenar, düz zemin segmentasyonu
+  ve ONNX U²-Net-P yöntemlerini aynı sözleşmede çalıştırıyor; 50 gerçek ürün
+  görselinde üçü de 50/50 çıktı verdi (`14-smartcrop-karsilastirma.md`).
+- **[?] Doğrulanmadı:** insan etiketi hâlâ **0/50**; bu yüzden ortalama/p90
+  focal hatası ve güven eşiği kalibre edilmedi. `THRESHOLD_CALIBRATED=false`
+  kalır ve öneri üretim kararı gibi sunulmaz.
+
+## Geri dönüş yolu
+
+50 insan etiketli T-014 seti eşik üstünde kabul edilen önerilerde hedef hatayı
+tutturmazsa smartcrop tamamen kapatılır ve merkez/manual focal kullanılır.
+Yöntem/eşik ancak `14-smartcrop-karsilastirma.md` mean/p90 ve zemin kırılımı
+dolu olduğunda değiştirilir.

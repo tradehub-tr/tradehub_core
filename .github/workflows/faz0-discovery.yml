@@ -1,0 +1,39 @@
+name: Faz 0 Discovery Evidence
+
+on:
+  pull_request:
+    paths:
+      - "docs/closure/faz0-kapanis.md"
+      - "docs/data/faz0-*.json"
+      - "docs/reports/0*.md"
+      - "scripts/media_slot_stats.py"
+      - "tradehub_core/tests/fixtures/**"
+      - "tradehub_core/tests/test_faz0_closure.py"
+      - "pytest.ini"
+      - ".github/workflows/faz0-discovery.yml"
+  push:
+    paths:
+      - "docs/closure/faz0-kapanis.md"
+      - "docs/data/faz0-*.json"
+      - "docs/reports/0*.md"
+      - "scripts/media_slot_stats.py"
+      - "tradehub_core/tests/fixtures/**"
+      - "tradehub_core/tests/test_faz0_closure.py"
+      - "pytest.ini"
+      - ".github/workflows/faz0-discovery.yml"
+
+jobs:
+  fixture-evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install test runner
+        run: python -m pip install "pytest>=8,<9"
+      - name: Verify Faz 0 discovery and fixture evidence
+        run: python -m pytest -m fixtures tradehub_core/tests/test_faz0_closure.py -q
+      - name: Compile repeatable measurement scripts
+        run: python -m py_compile scripts/media_stats.py scripts/media_slot_stats.py scripts/bench_engine.py

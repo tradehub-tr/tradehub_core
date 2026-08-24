@@ -67,11 +67,12 @@ from __future__ import annotations
 import hmac
 import os
 import time
-from typing import Any, Dict, Optional
+from typing import Any
 
 import frappe
 from frappe import _
 
+from tradehub_core.media.pipeline.core import queues as media_queues
 from tradehub_core.media.pipeline.observability import exporter, instrument
 from tradehub_core.media.pipeline.observability import metrics as mm
 
@@ -123,7 +124,7 @@ def shard_dir() -> str:
 	return os.path.abspath(frappe.get_site_path("private", SHARD_DIRNAME))
 
 
-def ensure_instrumented() -> Dict[str, Any]:
+def ensure_instrumented() -> dict[str, Any]:
 	"""Ölçüm noktalarını BU SÜREÇTE bağla. Idempotent, istisna fırlatmaz.
 
 	`after_migrate` tek başına yetmez: migrate ayrı bir süreçtir ve
@@ -138,7 +139,7 @@ def ensure_instrumented() -> Dict[str, Any]:
 	return rapor.to_dict()
 
 
-def install_instrumentation() -> Dict[str, Any]:
+def install_instrumentation() -> dict[str, Any]:
 	"""`after_migrate` kancası — kurulumu ÖLÇÜLEBİLİR biçimde raporlar.
 
 	Migrate'i düşürmez: bağlanamayan nokta bir hata değildir (bkz.
@@ -156,7 +157,7 @@ def install_instrumentation() -> Dict[str, Any]:
 	return sonuc
 
 
-def write_shard(force: bool = False) -> Optional[str]:
+def write_shard(force: bool = False) -> str | None:
 	"""Bu sürecin kayıt defterini paylaşılan dizine yaz. Hatayı YUTAR.
 
 	Yutmanın gerekçesi dar: bu fonksiyon istek yolundan ve zamanlayıcıdan
@@ -306,6 +307,7 @@ def metrics() -> None:
 	"""
 	_authorize()
 	ensure_instrumented()
+	collect_queue_metrics()
 	# Kendi parçamızı ZORLA yaz: bu isteği karşılayan süreç, kendi sayaçlarını
 	# gövdeye dahil etmezse `/metrics` kendi ölçümünü eksik döndürürdü.
 	write_shard(force=True)
@@ -322,7 +324,7 @@ def metrics() -> None:
 
 
 @frappe.whitelist(allow_guest=True, methods=["GET"])
-def status() -> Dict[str, Any]:
+def status() -> dict[str, Any]:
 	"""Toplayıcının künyesi — SAYIYLA, tahminle değil.
 
 	Üç soruyu birden cevaplar: kaç süreç parça yazıyor, kaç seri toplanıyor,
@@ -335,6 +337,7 @@ def status() -> Dict[str, Any]:
 	"""
 	yol = _authorize()
 	ensure_instrumented()
+	kuyruklar = collect_queue_metrics()
 	write_shard(force=True)
 	return {
 		"auth": yol,
@@ -344,10 +347,58 @@ def status() -> Dict[str, Any]:
 		"coverage": instrument.metrik_kapsami(),
 		"shard_dir": shard_dir(),
 		"content_type": mm.REGISTRY.content_type(),
+		"media_queues": kuyruklar,
 	}
 
 
-def write_shard_now() -> Optional[str]:
+def collect_queue_metrics() -> list[dict[str, Any]]:
+	"""Read the five canonical queues and publish low-cardinality gauges.
+
+	A transport error is reported as ``available=False``; it is never converted
+	to a fabricated zero because zero means the queue was reached and empty.
+	"""
+	from frappe.utils.background_jobs import get_queue
+
+	statuses = ("queued", "running", "success", "failed", "dead")
+	db_counts: dict[tuple[str, str], int] = {}
+	if frappe.db.table_exists("Media Processing Job"):
+		for queue, job_status, count in frappe.db.sql(
+			"""SELECT queue, status, COUNT(*) FROM `tabMedia Processing Job`
+			WHERE queue IN %(queues)s GROUP BY queue, status""",
+			{"queues": media_queues.QUEUE_NAMES},
+		):
+			db_counts[(str(queue), str(job_status))] = int(count or 0)
+
+	out: list[dict[str, Any]] = []
+	for spec in media_queues.QUEUE_SPECS:
+		row: dict[str, Any] = {
+			"queue": spec.name,
+			"timeout_seconds": spec.timeout_seconds,
+			"max_attempts": spec.max_attempts,
+			"available": False,
+		}
+		try:
+			depth = int(get_queue(spec.name).count)
+			mm.MEDIA_QUEUE_DEPTH.set(depth, queue=spec.name)
+			row.update({"available": True, "depth": depth})
+		except Exception as exc:  # noqa: BLE001 — metrics cannot break the scrape
+			row["error"] = type(exc).__name__
+		for job_status in statuses:
+			count = db_counts.get((spec.name, job_status), 0)
+			mm.MEDIA_QUEUE_JOBS.set(count, queue=spec.name, status=job_status)
+			row[job_status] = count
+		out.append(row)
+	return out
+
+
+@frappe.whitelist(methods=["GET"])
+def media_queue_status() -> list[dict[str, Any]]:
+	"""Authenticated operational JSON view of the same queue metrics."""
+	_authorize()
+	return collect_queue_metrics()
+
+
+def write_shard_now() -> str | None:
 	"""Kuyruğa atılan en küçük iş: bu worker sürecinin parçasını yaz.
 
 	Ayrı bir fonksiyon olmasının sebebi ölçülebilir: `frappe.enqueue` işi
@@ -359,7 +410,7 @@ def write_shard_now() -> Optional[str]:
 	return write_shard(force=True)
 
 
-def write_metrics_shard() -> Dict[str, Any]:
+def write_metrics_shard() -> dict[str, Any]:
 	"""Zamanlayıcı işi — worker süreçlerinin sayaçlarını da dosyaya indirir.
 
 	`after_request` yalnız WEB süreçlerini kapsar. Kuyruk süreçlerinde istek
@@ -377,7 +428,7 @@ def write_metrics_shard() -> Dict[str, Any]:
 	ensure_instrumented()
 	yol = write_shard(force=True)
 	kuyruklar: list = []
-	for kuyruk in ("short", "long"):
+	for kuyruk in ("short", "long", *media_queues.QUEUE_NAMES):
 		try:
 			frappe.enqueue(
 				"tradehub_core.api.observability.write_shard_now",

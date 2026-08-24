@@ -1,0 +1,155 @@
+{
+  "schema_version": "1.0.0",
+  "generated_from": "tradehub_core/media/upload_policy.py::ALL_CODES",
+  "error_envelope": {
+    "field": "upload_error",
+    "fallback_marker": "[<code>]",
+    "note": "Karar metne değil koda bakar; bilinmeyen kod otomatik yeniden denenmez."
+  },
+  "codes": [
+    {
+      "code": "upload_name_required",
+      "retryable": false,
+      "http_status": 417,
+      "i18n_key": "media.upload.err.upload_name_required"
+    },
+    {
+      "code": "upload_name_invalid",
+      "retryable": false,
+      "http_status": 417,
+      "i18n_key": "media.upload.err.upload_name_invalid"
+    },
+    {
+      "code": "upload_ext_denied",
+      "retryable": false,
+      "http_status": 417,
+      "i18n_key": "media.upload.err.upload_ext_denied"
+    },
+    {
+      "code": "upload_ext_not_allowed",
+      "retryable": false,
+      "http_status": 417,
+      "i18n_key": "media.upload.err.upload_ext_not_allowed"
+    },
+    {
+      "code": "upload_too_large",
+      "retryable": false,
+      "http_status": 417,
+      "i18n_key": "media.upload.err.upload_too_large"
+    },
+    {
+      "code": "upload_content_empty",
+      "retryable": false,
+      "http_status": 417,
+      "i18n_key": "media.upload.err.upload_content_empty"
+    },
+    {
+      "code": "upload_content_unreadable",
+      "retryable": false,
+      "http_status": 417,
+      "i18n_key": "media.upload.err.upload_content_unreadable"
+    },
+    {
+      "code": "upload_content_dangerous",
+      "retryable": false,
+      "http_status": 417,
+      "i18n_key": "media.upload.err.upload_content_dangerous"
+    },
+    {
+      "code": "upload_appended_payload",
+      "retryable": false,
+      "http_status": 417,
+      "i18n_key": "media.upload.err.upload_appended_payload"
+    },
+    {
+      "code": "upload_type_mismatch",
+      "retryable": false,
+      "http_status": 417,
+      "i18n_key": "media.upload.err.upload_type_mismatch"
+    },
+    {
+      "code": "upload_image_bomb",
+      "retryable": false,
+      "http_status": 417,
+      "i18n_key": "media.upload.err.upload_image_bomb"
+    },
+    {
+      "code": "upload_content_truncated",
+      "retryable": false,
+      "http_status": 417,
+      "i18n_key": "media.upload.err.upload_content_truncated"
+    },
+    {
+      "code": "upload_container_invalid",
+      "retryable": false,
+      "http_status": 417,
+      "i18n_key": "media.upload.err.upload_container_invalid"
+    },
+    {
+      "code": "upload_store_required",
+      "retryable": false,
+      "http_status": 417,
+      "i18n_key": "media.upload.err.upload_store_required"
+    },
+    {
+      "code": "upload_session_unknown",
+      "retryable": false,
+      "http_status": 417,
+      "i18n_key": "media.upload.err.upload_session_unknown"
+    },
+    {
+      "code": "upload_chunk_order",
+      "retryable": true,
+      "http_status": 417,
+      "i18n_key": "media.upload.err.upload_chunk_order"
+    },
+    {
+      "code": "upload_chunk_missing",
+      "retryable": true,
+      "http_status": 417,
+      "i18n_key": "media.upload.err.upload_chunk_missing"
+    },
+    {
+      "code": "upload_too_many_chunks",
+      "retryable": false,
+      "http_status": 417,
+      "i18n_key": "media.upload.err.upload_too_many_chunks"
+    },
+    {
+      "code": "upload_quota_exceeded",
+      "retryable": false,
+      "http_status": 417,
+      "i18n_key": "media.upload.err.upload_quota_exceeded"
+    },
+    {
+      "code": "upload_slot_unknown",
+      "retryable": false,
+      "http_status": 417,
+      "i18n_key": "media.upload.err.upload_slot_unknown"
+    },
+    {
+      "code": "upload_idempotency_invalid",
+      "retryable": false,
+      "http_status": 417,
+      "i18n_key": "media.upload.err.upload_idempotency_invalid"
+    },
+    {
+      "code": "upload_idempotency_conflict",
+      "retryable": false,
+      "http_status": 417,
+      "i18n_key": "media.upload.err.upload_idempotency_conflict"
+    },
+    {
+      "code": "upload_content_hash_invalid",
+      "retryable": false,
+      "http_status": 417,
+      "i18n_key": "media.upload.err.upload_content_hash_invalid"
+    },
+    {
+      "code": "upload_content_hash_mismatch",
+      "retryable": false,
+      "http_status": 417,
+      "i18n_key": "media.upload.err.upload_content_hash_mismatch"
+    }
+  ]
+}

@@ -1,5 +1,5 @@
 {
- "$comment": "DALGA A / A1a · Profil × genişlik × biçim çıktısı. Servis edilen TEK artefakt budur. Kaynak şema: media/pipeline/doctype_specs/media_rendition.json. SAPMALAR: (1) parent Link→Media Version DEĞİL `asset` Link→Media Asset — Media Version bu dalgada kurulmadı. (2) `rendition_key` unique=1 — kaynak şema tekilliği _ddl.sql'deki ham bileşik indekse bırakıyordu; A1a'da ham DDL çalıştırılmıyor, o yüzden tekilliği bu türetilmiş alan taşır (indeks maliyeti bugünkü satır sayısında ihmal edilebilir).",
+ "$comment": "DALGA A / A1a · Profil × genişlik × biçim çıktısı. Servis edilen TEK artefakt budur. `asset` izin zincirini, nullable `version_hash` ise tarihsel immutable sürümü taşır. `rendition_key` unique=1 ile (asset, version_hash, profile, width, format) tekilliği korunur. Nullable sürüm yalnız migration/legacy satırları içindir; üretim hattı her yeni satırda sürümü zorunlu yazar.",
  "actions": [],
  "allow_rename": 0,
  "autoname": "hash",
@@ -9,6 +9,7 @@
  "engine": "InnoDB",
  "field_order": [
   "asset",
+  "version_hash",
   "profile",
   "rendition_key",
   "cb_geometry",
@@ -17,8 +18,11 @@
   "format",
   "sb_output",
   "file_url",
+  "output_sha256",
+  "engine_signature",
   "storage_backend",
   "generation",
+  "state",
   "cb_output",
   "bytes",
   "quality",
@@ -26,7 +30,11 @@
   "benefit_gate_passed",
   "sb_time",
   "generated_at",
-  "last_access_at"
+  "last_access_at",
+  "purged_at",
+  "purge_after",
+  "trash_path",
+  "purge_reason"
  ],
  "fields": [
   {
@@ -38,6 +46,15 @@
    "search_index": 1,
    "in_list_view": 1,
    "description": "Bu türevin ait olduğu Media Asset. İzin izolasyonu bu alan üzerinden asset'in owner_seller'ına zincirlenir."
+  },
+  {
+   "fieldname": "version_hash",
+   "fieldtype": "Link",
+   "label": "Sürüm",
+   "options": "Media Version",
+   "search_index": 1,
+   "in_list_view": 1,
+   "description": "Türevin ait olduğu immutable Media Version. Migration sırasında legacy satırlar için nullable; yeni üretimlerde zorunlu olarak hedef version_hash yazılır ve manifest yalnız Media Asset.active_version eşleşmesini servis eder."
   },
   {
    "fieldname": "profile",
@@ -56,8 +73,8 @@
    "label": "Tekillik Anahtarı",
    "unique": 1,
    "read_only": 1,
-   "length": 180,
-   "description": "(asset, profile, width, format) DÖRTLÜSÜNÜN tekilliği. Frappe DocType JSON'u bileşik unique index ifade edemez; standart çözüm türetilmiş tek alandır. Değer '<asset>|<profile>|<width>|<format>', before_save'de üretilir, elle yazılamaz. Kısıt ihlali Frappe tarafında UniqueValidationError olarak döner ve media/pipeline/core/dedup.py idempotent davranışa çevirir (INV-06)."
+   "length": 240,
+   "description": "(asset, version_hash, profile, width, format) BEŞLİSİNİN tekilliği. Değer '<asset>|<version_hash>|<profile>|<width>|<format>', before_save'de üretilir. Legacy sürümsüz satırlar `legacy` bileşenini kullanır."
   },
   {
    "fieldname": "cb_geometry",
@@ -97,6 +114,23 @@
    "description": "/files/media/{asset}/{version_hash}/{profile}-{width}.{ext} — media/pipeline/core/dedup.py:rendition_path(). Cache-Control: public, max-age=31536000, immutable."
   },
   {
+   "fieldname": "output_sha256",
+   "fieldtype": "Data",
+   "label": "Çıktı SHA-256",
+   "length": 64,
+   "read_only": 1,
+   "search_index": 1,
+   "description": "Immutable çıktı dosyasının tam 64 haneli SHA-256 kimliği. Tarihsel exact-output idempotency defterinin indeksli arama alanıdır."
+  },
+  {
+   "fieldname": "engine_signature",
+   "fieldtype": "Data",
+   "label": "Motor İmzası",
+   "length": 64,
+   "read_only": 1,
+   "description": "Çıktı hash'ini motor sürümü, Media Version, profil, genişlik ve biçime bağlayan deterministik ledger parmak izi. Kimlik doğrulama MAC'i değildir."
+  },
+  {
    "fieldname": "storage_backend",
    "fieldtype": "Select",
    "label": "Depolama",
@@ -109,6 +143,17 @@
    "label": "Üretim",
    "options": "eager\nlazy",
    "default": "eager"
+  },
+  {
+   "fieldname": "state",
+   "fieldtype": "Select",
+   "label": "Durum",
+   "options": "ready\npurged\nfailed",
+   "default": "ready",
+   "reqd": 1,
+   "search_index": 1,
+   "in_standard_filter": 1,
+   "description": "ready servis edilebilir çıktıyı, purged geri alınabilir soft-delete durumunu, failed ise üretim hatasını gösterir."
   },
   {
    "fieldname": "cb_output",
@@ -155,6 +200,34 @@
    "fieldtype": "Datetime",
    "label": "Son Erişim",
    "search_index": 1
+  },
+  {
+   "fieldname": "purged_at",
+   "fieldtype": "Datetime",
+   "label": "Soft-delete Zamanı",
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "purge_after",
+   "fieldtype": "Datetime",
+   "label": "Kalıcı Silme Sonrası",
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "trash_path",
+   "fieldtype": "Data",
+   "label": "Çöp Yolu",
+   "length": 500,
+   "read_only": 1,
+   "description": "Soft-delete sırasında taşınan, site dizinine göreli ve private çöp yolu."
+  },
+  {
+   "fieldname": "purge_reason",
+   "fieldtype": "Small Text",
+   "label": "Silme Nedeni",
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 0,
@@ -162,7 +235,7 @@
  "issingle": 0,
  "istable": 0,
  "links": [],
- "modified": "2026-08-19 13:30:00.000000",
+ "modified": "2026-08-23 00:00:00.000000",
  "modified_by": "Administrator",
  "module": "Tradehub Core",
  "name": "Media Rendition",

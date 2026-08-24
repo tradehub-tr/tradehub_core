@@ -1,6 +1,13 @@
 # T-021 — LOGO STANDARDI
 
-**Durum:** KİLİT görev. Bu belge onaylanmadan hiçbir logo işi (derivative üretimi,
+> **Güncel karar — 2026-08-23.** `seller-logo.json` ve `brand-logo.json`
+> şemaya uyumludur; ikisi de `standard_status=fixed`, açık soru sayısı 0 ve
+> gerçek uyum ölçümü taşır. JPEG geçişi ve oran bandı canlı ölçümle sabitlenmiş,
+> SVG/metaveri/renk kuralları politika motoruna bağlanmıştır. Aşağıdaki
+> 2026-08-17/18 kilit ve açık karar anlatımı tarihsel karar günlüğüdür;
+> `status=draft` yalnız Faz 3 rollout durumudur.
+
+**Tarihsel durum:** KİLİT görev. Bu belge onaylanmadan hiçbir logo işi (derivative üretimi,
 `srcset` yazımı, SVG kabulü, oran normalizasyonu) başlatılamaz.
 **Tarih:** 2026-08-17 · **Branch:** `medya-motoru-faz0-faz2`
 **Girdi belgeleri:** `docs/reports/00-upload-slot-envanteri.md`, `docs/reports/03-render-envanteri.md`

@@ -39,6 +39,10 @@
           "application/json":
             "schema":
               "$ref": "#/components/schemas/UploadSessionRequest"
+            "example":
+              "slot_key": "example"
+              "file_name": "example"
+              "total_bytes": 1
       "responses":
         "200":
           "description": "İçerik zaten kayıtlı; oturum açılmadı."
@@ -46,12 +50,18 @@
             "application/json":
               "schema":
                 "$ref": "#/components/schemas/UploadSession"
+              "example":
+                "upload_id": "example"
+                "duplicate": false
         "201":
           "description": "Oturum açıldı."
           "content":
             "application/json":
               "schema":
                 "$ref": "#/components/schemas/UploadSession"
+              "example":
+                "upload_id": "example"
+                "duplicate": false
         "400":
           "$ref": "#/components/responses/Error"
         "401":
@@ -87,12 +97,14 @@
           "in": "path"
           "schema":
             "type": "string"
+          "example": "aaaaaaaaaaaaaaaaaaaaaaaa"
           "required": true
           "description": "Yükleme oturumu kimliği."
         - "name": "If-None-Match"
           "in": "header"
           "schema":
             "type": "string"
+          "example": "\"media-etag-example\""
           "description": "Bilinen ETag; tutarsa 304 döner."
       "responses":
         "200":
@@ -101,6 +113,10 @@
             "application/json":
               "schema":
                 "$ref": "#/components/schemas/UploadStatus"
+              "example":
+                "upload_id": "example"
+                "complete": false
+                "finalized": false
           "headers":
             "ETag":
               "description": "Gövdenin içerik-adresli etiketi."
@@ -146,6 +162,7 @@
           "in": "path"
           "schema":
             "type": "string"
+          "example": "aaaaaaaaaaaaaaaaaaaaaaaa"
           "required": true
           "description": "Yükleme oturumu kimliği."
       "responses":
@@ -186,6 +203,7 @@
           "in": "path"
           "schema":
             "type": "string"
+          "example": "aaaaaaaaaaaaaaaaaaaaaaaa"
           "required": true
           "description": "Yükleme oturumu kimliği."
         - "name": "index"
@@ -193,6 +211,7 @@
           "schema":
             "type": "integer"
             "minimum": 0
+          "example": 0
           "required": true
           "description": "Parça sırası."
       "requestBody":
@@ -203,6 +222,7 @@
               "type": "string"
               "format": "binary"
               "description": "Parçanın ham baytları."
+            "example": "example"
       "responses":
         "200":
           "description": "Parça alındı."
@@ -219,6 +239,7 @@
                     "type": "integer"
                   "complete":
                     "type": "boolean"
+              "example": {}
         "400":
           "$ref": "#/components/responses/Error"
         "401":
@@ -254,6 +275,7 @@
           "in": "path"
           "schema":
             "type": "string"
+          "example": "aaaaaaaaaaaaaaaaaaaaaaaa"
           "required": true
           "description": "Yükleme oturumu kimliği."
       "requestBody":
@@ -262,6 +284,7 @@
           "application/json":
             "schema":
               "$ref": "#/components/schemas/FinalizeRequest"
+            "example": {}
       "responses":
         "200":
           "description": "İçerik zaten vardı; yeni varlık açılmadı."
@@ -269,12 +292,20 @@
             "application/json":
               "schema":
                 "$ref": "#/components/schemas/FinalizeResult"
+              "example":
+                "asset": "example"
+                "created": false
+                "duplicate": false
         "201":
           "description": "Varlık açıldı."
           "content":
             "application/json":
               "schema":
                 "$ref": "#/components/schemas/FinalizeResult"
+              "example":
+                "asset": "example"
+                "created": false
+                "duplicate": false
         "400":
           "$ref": "#/components/responses/Error"
         "401":
@@ -310,12 +341,14 @@
           "in": "path"
           "schema":
             "type": "string"
+          "example": "MEDIA-ASSET-EXAMPLE"
           "required": true
           "description": "Medya varlığının adı."
         - "name": "If-None-Match"
           "in": "header"
           "schema":
             "type": "string"
+          "example": "\"media-etag-example\""
           "description": "Bilinen ETag; tutarsa 304 döner."
       "responses":
         "200":
@@ -324,6 +357,16 @@
             "application/json":
               "schema":
                 "$ref": "#/components/schemas/CropIntentResponse"
+              "example":
+                "asset": "example"
+                "exists": false
+                "intent": {}
+                "windows":
+                  - "x": 0.0
+                    "y": 0.0
+                    "w": 0.0
+                    "h": 0.0
+                    "method": "example"
           "headers":
             "ETag":
               "description": "Gövdenin içerik-adresli etiketi."
@@ -369,12 +412,14 @@
           "in": "path"
           "schema":
             "type": "string"
+          "example": "MEDIA-ASSET-EXAMPLE"
           "required": true
           "description": "Medya varlığının adı."
         - "name": "If-Match"
           "in": "header"
           "schema":
             "type": "string"
+          "example": "\"media-etag-example\""
           "description": "İyimser kilit; tutmazsa 412 döner."
       "requestBody":
         "required": true
@@ -382,6 +427,7 @@
           "application/json":
             "schema":
               "$ref": "#/components/schemas/SaveIntentRequest"
+            "example": {}
       "responses":
         "200":
           "description": "Yazıldı."
@@ -389,6 +435,16 @@
             "application/json":
               "schema":
                 "$ref": "#/components/schemas/CropIntentResponse"
+              "example":
+                "asset": "example"
+                "exists": false
+                "intent": {}
+                "windows":
+                  - "x": 0.0
+                    "y": 0.0
+                    "w": 0.0
+                    "h": 0.0
+                    "method": "example"
           "headers":
             "ETag":
               "description": "Gövdenin içerik-adresli etiketi."
@@ -433,6 +489,7 @@
           "in": "path"
           "schema":
             "type": "string"
+          "example": "MEDIA-ASSET-EXAMPLE"
           "required": true
           "description": "Medya varlığının adı."
       "responses":
@@ -442,6 +499,15 @@
             "application/json":
               "schema":
                 "$ref": "#/components/schemas/SuggestFocalResponse"
+              "example":
+                "asset": "example"
+                "suggestion":
+                  "focal_x": 0.0
+                  "focal_y": 0.0
+                  "confidence": 0.0
+                  "measured": false
+                  "reason": "measured"
+                "applied": false
         "400":
           "$ref": "#/components/responses/Error"
         "401":
@@ -477,6 +543,7 @@
           "in": "path"
           "schema":
             "type": "string"
+          "example": "MEDIA-ASSET-EXAMPLE"
           "required": true
           "description": "Medya varlığının adı."
       "requestBody":
@@ -485,6 +552,8 @@
           "application/json":
             "schema":
               "$ref": "#/components/schemas/CropPreviewRequest"
+            "example":
+              "profile": "example"
       "responses":
         "200":
           "description": "Pencere (+ istenirse görüntü)."
@@ -492,6 +561,14 @@
             "application/json":
               "schema":
                 "$ref": "#/components/schemas/CropPreviewResponse"
+              "example":
+                "asset": "example"
+                "window":
+                  "x": 0.0
+                  "y": 0.0
+                  "w": 0.0
+                  "h": 0.0
+                  "method": "example"
         "400":
           "$ref": "#/components/responses/Error"
         "401":
@@ -528,22 +605,26 @@
           "in": "path"
           "schema":
             "type": "string"
+          "example": "MEDIA-ASSET-EXAMPLE"
           "required": true
           "description": "Medya varlığının adı."
         - "name": "sizes"
           "in": "query"
           "schema":
             "type": "string"
+          "example": "example"
           "description": "Çağıranın bildiği `sizes`; verilmezse tablo (bugün boş)."
         - "name": "is_lcp_candidate"
           "in": "query"
           "schema":
             "type": "boolean"
+          "example": false
           "description": "LCP adayıysa eager+high."
         - "name": "If-None-Match"
           "in": "header"
           "schema":
             "type": "string"
+          "example": "\"media-etag-example\""
           "description": "Bilinen ETag; tutarsa 304 döner."
       "responses":
         "200":
@@ -552,6 +633,19 @@
             "application/json":
               "schema":
                 "$ref": "#/components/schemas/Manifest"
+              "example":
+                "asset": "example"
+                "slot_key": "example"
+                "src": "example"
+                "sources":
+                  - "type": "example"
+                    "srcset": "example"
+                "variants":
+                  - "profile": "example"
+                    "url": "example"
+                    "width": 0
+                    "format": "example"
+                    "available": false
           "headers":
             "ETag":
               "description": "Gövdenin içerik-adresli etiketi."
@@ -598,6 +692,7 @@
           "in": "header"
           "schema":
             "type": "string"
+          "example": "\"media-etag-example\""
           "description": "Bilinen ETag; tutarsa 304 döner."
       "requestBody":
         "required": true
@@ -605,6 +700,9 @@
           "application/json":
             "schema":
               "$ref": "#/components/schemas/ManifestBatchRequest"
+            "example":
+              "assets":
+                - "example"
       "responses":
         "200":
           "description": "Manifestler + eksikler."
@@ -612,6 +710,12 @@
             "application/json":
               "schema":
                 "$ref": "#/components/schemas/ManifestBatchResponse"
+              "example":
+                "manifests": {}
+                "missing":
+                  - "example"
+                "requested": 0
+                "returned": 0
           "headers":
             "ETag":
               "description": "Gövdenin içerik-adresli etiketi."
@@ -659,6 +763,7 @@
           "in": "path"
           "schema":
             "type": "string"
+          "example": "MEDIA-ASSET-EXAMPLE"
           "required": true
           "description": "Medya varlığının adı."
       "requestBody":
@@ -667,6 +772,7 @@
           "application/json":
             "schema":
               "$ref": "#/components/schemas/SignedUrlRequest"
+            "example": {}
       "responses":
         "200":
           "description": "İmzalı adres."
@@ -674,6 +780,10 @@
             "application/json":
               "schema":
                 "$ref": "#/components/schemas/SignedUrl"
+              "example":
+                "url": "example"
+                "exp": 0
+                "ttl_seconds": 0
         "400":
           "$ref": "#/components/responses/Error"
         "401":
@@ -703,12 +813,14 @@
       "operationId": "listSlotPolicies"
       "summary": "Slot politikalarını listele"
       "x-python": "tradehub_core.media.pipeline.api.admin.AdminApi.list_slot_policies"
+      "description": "Her kayıt slot kimliği, şema sürümü, durum ve politika kaynağını taşır; ETag eşleşirse 304 döner."
       "x-authorization": "System Manager | Marketplace Admin."
       "parameters":
         - "name": "If-None-Match"
           "in": "header"
           "schema":
             "type": "string"
+          "example": "\"media-etag-example\""
           "description": "Bilinen ETag; tutarsa 304 döner."
       "responses":
         "200":
@@ -717,6 +829,12 @@
             "application/json":
               "schema":
                 "$ref": "#/components/schemas/SlotPolicyList"
+              "example":
+                "slots":
+                  - "slot_key": "example"
+                    "status": "draft"
+                    "profile_count": 0
+                "count": 0
           "headers":
             "ETag":
               "description": "Gövdenin içerik-adresli etiketi."
@@ -764,11 +882,13 @@
           "in": "path"
           "schema":
             "type": "string"
+          "example": "example"
           "required": true
         - "name": "If-None-Match"
           "in": "header"
           "schema":
             "type": "string"
+          "example": "\"media-etag-example\""
           "description": "Bilinen ETag; tutarsa 304 döner."
       "responses":
         "200":
@@ -777,6 +897,9 @@
             "application/json":
               "schema":
                 "$ref": "#/components/schemas/SlotPolicyDetail"
+              "example":
+                "slot_key": "example"
+                "policy": {}
           "headers":
             "ETag":
               "description": "Gövdenin içerik-adresli etiketi."
@@ -826,6 +949,14 @@
             "application/json":
               "schema":
                 "$ref": "#/components/schemas/PolicyValidationReport"
+              "example":
+                "slot_count": 0
+                "findings":
+                  - "slot_key": "example"
+                    "code": "example"
+                    "message": "example"
+                "ok": false
+                "schema_validated": false
         "400":
           "$ref": "#/components/responses/Error"
         "401":
@@ -862,11 +993,13 @@
           "in": "query"
           "schema":
             "type": "string"
+          "example": "example"
           "description": "Boşsa tüm slotlar."
         - "name": "If-None-Match"
           "in": "header"
           "schema":
             "type": "string"
+          "example": "\"media-etag-example\""
           "description": "Bilinen ETag; tutarsa 304 döner."
       "responses":
         "200":
@@ -875,6 +1008,10 @@
             "application/json":
               "schema":
                 "$ref": "#/components/schemas/RenditionMatrix"
+              "example":
+                "slots":
+                  - {}
+                "total_renditions": 0
           "headers":
             "ETag":
               "description": "Gövdenin içerik-adresli etiketi."
@@ -923,6 +1060,9 @@
           "application/json":
             "schema":
               "$ref": "#/components/schemas/EvaluateRequest"
+            "example":
+              "slot_key": "example"
+              "probe": {}
       "responses":
         "200":
           "description": "Karar."
@@ -930,6 +1070,14 @@
             "application/json":
               "schema":
                 "$ref": "#/components/schemas/EvaluateResponse"
+              "example":
+                "allow": false
+                "slot": "example"
+                "action": "example"
+                "accepted_fields":
+                  - "example"
+                "ignored_fields":
+                  - "example"
         "400":
           "$ref": "#/components/responses/Error"
         "401":
@@ -966,12 +1114,14 @@
           "in": "query"
           "schema":
             "type": "string"
+          "example": "example"
         - "name": "limit"
           "in": "query"
           "schema":
             "type": "integer"
             "minimum": 1
             "maximum": 5000
+          "example": 1
       "responses":
         "200":
           "description": "Kapsam."
@@ -979,6 +1129,12 @@
             "application/json":
               "schema":
                 "$ref": "#/components/schemas/CoverageReport"
+              "example":
+                "scanned": 0
+                "total": 0
+                "complete": 0
+                "complete_ratio": 0.0
+                "by_slot": {}
         "400":
           "$ref": "#/components/responses/Error"
         "401":
@@ -1016,6 +1172,9 @@
           "application/json":
             "schema":
               "$ref": "#/components/schemas/ReprocessPlanRequest"
+            "example":
+              "slot_key": "example"
+              "master_sha256": "example"
       "responses":
         "200":
           "description": "Plan."
@@ -1023,6 +1182,11 @@
             "application/json":
               "schema":
                 "$ref": "#/components/schemas/ReprocessPlan"
+              "example":
+                "slot_key": "example"
+                "counts": {}
+                "plan":
+                  - {}
         "400":
           "$ref": "#/components/responses/Error"
         "401":
@@ -1060,6 +1224,8 @@
           "application/json":
             "schema":
               "$ref": "#/components/schemas/JobStatusRequest"
+            "example":
+              "kind": "media.scan"
       "responses":
         "200":
           "description": "Durum."
@@ -1067,6 +1233,9 @@
             "application/json":
               "schema":
                 "$ref": "#/components/schemas/JobStatus"
+              "example":
+                "key": "example"
+                "kind": "example"
         "400":
           "$ref": "#/components/responses/Error"
         "401":
@@ -1105,6 +1274,9 @@
             "application/json":
               "schema":
                 "$ref": "#/components/schemas/StoragePlan"
+              "example":
+                "mode": "example"
+                "degraded": false
         "400":
           "$ref": "#/components/responses/Error"
         "401":
@@ -2388,6 +2560,10 @@
         "application/json":
           "schema":
             "$ref": "#/components/schemas/Error"
+          "example":
+            "error_code": "media_bad_field"
+            "retryable": false
+            "message": "Alan biçimi geçersiz."
   "securitySchemes":
     "frappeToken":
       "type": "apiKey"

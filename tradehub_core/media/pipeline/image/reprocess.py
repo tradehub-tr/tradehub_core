@@ -44,7 +44,7 @@ import json
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Optional, Tuple
+from typing import Any
 
 from tradehub_core.media.pipeline.image import render as render_mod
 from tradehub_core.media.pipeline.image.render import (
@@ -60,7 +60,16 @@ from tradehub_core.media.pipeline.image.render import (
 ACTION_RENDER: str = "render"
 ACTION_SKIP: str = "skip"
 ACTION_REFRESH: str = "refresh"
-ACTIONS: Tuple[str, ...] = (ACTION_RENDER, ACTION_SKIP, ACTION_REFRESH)
+ACTIONS: tuple[str, ...] = (ACTION_RENDER, ACTION_SKIP, ACTION_REFRESH)
+
+REASON_CROP_CHANGED: str = "crop_changed"
+REASON_POLICY_CHANGED: str = "policy_changed"
+REASON_ENGINE_UPGRADED: str = "engine_upgraded"
+REPROCESS_REASONS: tuple[str, ...] = (
+	REASON_CROP_CHANGED,
+	REASON_POLICY_CHANGED,
+	REASON_ENGINE_UPGRADED,
+)
 
 CONFIDENCE_EXACT: str = "exact"
 """Defterde bire bir içerik eşleşmesi — kanıt."""
@@ -72,7 +81,7 @@ CONFIDENCE_NONE: str = "none"
 # %75,5'i JPEG (docs/reports/08-canli-olcum.md) ve bunların ezici çoğunluğu
 # kullanıcı yüklemesidir. JPEG'i "motor çıktısı" saymak, gerçek master'ları
 # yanlışlıkla türev sanmaya yol açar — pahalı bir yanlış pozitif.
-ENGINE_OUTPUT_FORMATS: Tuple[str, ...] = ("WEBP", "AVIF")
+ENGINE_OUTPUT_FORMATS: tuple[str, ...] = ("WEBP", "AVIF")
 
 EXIF_ORIENTATION_TAG: int = 274
 EXIF_GPS_IFD_TAG: int = 34853
@@ -170,7 +179,7 @@ class RenditionRecord:
 	@classmethod
 	def from_result(
 		cls, result: RenditionResult, *, master_sha256: str, crop_sig: str = ""
-	) -> "RenditionRecord":
+	) -> RenditionRecord:
 		return cls(
 			key=derivation_key(
 				master_sha256=master_sha256,
@@ -221,29 +230,37 @@ class RenditionLedger:
 		merdiveni ortasından koparır. Passthrough bir türev değil, kaynağın
 		kendisidir; yeniden encode koruması ona uygulanmaz.
 		"""
+		if record.passthrough or record.sha256 == record.master_sha256:
+			# Passthrough bir türev değil, yalnız değerlendirme sonucudur. Onu
+			# `by_key`e de yazmak aynı profilin bir sonraki format halkasını
+			# "hazır" sanıp atlatır; gerçek bir çıktı yokken idempotency iddiası
+			# kurulamaz.
+			return record
 		self.by_key[record.key] = record
-		if not record.passthrough and record.sha256 != record.master_sha256:
-			self.by_content[record.sha256] = record
+		self.by_content[record.sha256] = record
 		return record
 
-	def get(self, key: str) -> Optional[RenditionRecord]:
+	def get(self, key: str) -> RenditionRecord | None:
 		return self.by_key.get(key)
 
-	def by_sha(self, sha: str) -> Optional[RenditionRecord]:
+	def by_sha(self, sha: str) -> RenditionRecord | None:
 		return self.by_content.get(sha)
 
-	def records(self) -> Tuple[RenditionRecord, ...]:
+	def records(self) -> tuple[RenditionRecord, ...]:
 		return tuple(self.by_key.values())
 
-	def for_master(self, master_sha256: str) -> Tuple[RenditionRecord, ...]:
+	def for_master(self, master_sha256: str) -> tuple[RenditionRecord, ...]:
 		return tuple(r for r in self.by_key.values() if r.master_sha256 == master_sha256)
 
 	# ── kalıcılık ────────────────────────────────────────────────────
 
 	def to_json(self) -> str:
 		return json.dumps(
-			{"engine": ENGINE_ID, "version": ENGINE_VERSION,
-			 "records": [asdict(r) for r in self.by_key.values()]},
+			{
+				"engine": ENGINE_ID,
+				"version": ENGINE_VERSION,
+				"records": [asdict(r) for r in self.by_key.values()],
+			},
 			ensure_ascii=False,
 			indent="\t",
 			sort_keys=True,
@@ -256,7 +273,7 @@ class RenditionLedger:
 		return p
 
 	@classmethod
-	def from_json(cls, text: str) -> "RenditionLedger":
+	def from_json(cls, text: str) -> RenditionLedger:
 		defter = cls()
 		data = json.loads(text) if text.strip() else {}
 		for row in data.get("records") or ():
@@ -264,7 +281,7 @@ class RenditionLedger:
 		return defter
 
 	@classmethod
-	def load(cls, path) -> "RenditionLedger":
+	def load(cls, path) -> RenditionLedger:
 		p = Path(path)
 		if not p.is_file():
 			return cls()
@@ -281,7 +298,7 @@ class OutputVerdict:
 	is_output: bool
 	confidence: str
 	reason: str
-	record: Optional[RenditionRecord] = None
+	record: RenditionRecord | None = None
 
 	@property
 	def proven(self) -> bool:
@@ -338,7 +355,7 @@ def structural_signature(content: bytes) -> dict:
 	return out
 
 
-def is_engine_output(content: bytes, ledger: Optional[RenditionLedger] = None) -> OutputVerdict:
+def is_engine_output(content: bytes, ledger: RenditionLedger | None = None) -> OutputVerdict:
 	"""Bu baytlar motorun kendi çıktısı mı?
 
 	Önce defter (kanıt), sonra yapı (sezgi). Sezgi asla `proven` sayılmaz;
@@ -353,11 +370,7 @@ def is_engine_output(content: bytes, ledger: Optional[RenditionLedger] = None) -
 	imza = structural_signature(content)
 	if not imza["readable"]:
 		return OutputVerdict(False, CONFIDENCE_NONE, "unreadable")
-	if (
-		imza["format"] in ENGINE_OUTPUT_FORMATS
-		and not imza["has_exif"]
-		and imza["width_known"]
-	):
+	if imza["format"] in ENGINE_OUTPUT_FORMATS and not imza["has_exif"] and imza["width_known"]:
 		return OutputVerdict(
 			True,
 			CONFIDENCE_HEURISTIC,
@@ -366,7 +379,7 @@ def is_engine_output(content: bytes, ledger: Optional[RenditionLedger] = None) -
 	return OutputVerdict(False, CONFIDENCE_NONE, "no_match")
 
 
-def assert_not_engine_output(content: bytes, ledger: Optional[RenditionLedger] = None) -> None:
+def assert_not_engine_output(content: bytes, ledger: RenditionLedger | None = None) -> None:
 	"""Kaynak olarak motor çıktısı verilmesini KANITLI durumda engelle.
 
 	Sezgi (heuristic) burada hata vermez: yanlış pozitif, meşru bir kullanıcı
@@ -390,7 +403,7 @@ class ReprocessDecision:
 	action: str
 	reason: str
 	key: str = ""
-	record: Optional[RenditionRecord] = None
+	record: RenditionRecord | None = None
 
 	@property
 	def should_render(self) -> bool:
@@ -429,11 +442,70 @@ def decide(
 		return ReprocessDecision(ACTION_SKIP, "already_rendered", key, kayit)
 
 	for r in ledger.for_master(master_sha256):
-		if r.profile == profile.name and r.format == fmt.lower() and r.crop_sig == sig:
-			return ReprocessDecision(
-				ACTION_REFRESH, f"stale_engine_version:{r.engine_version}", key, r
-			)
+		if r.passthrough:
+			continue
+		if (
+			r.profile == profile.name
+			and r.format == fmt.lower()
+			and r.crop_sig == sig
+			and r.engine_version != ENGINE_VERSION
+		):
+			return ReprocessDecision(ACTION_REFRESH, f"stale_engine_version:{r.engine_version}", key, r)
 	return ReprocessDecision(ACTION_RENDER, "not_rendered", key, None)
+
+
+def _pixel_plan_signature(plan: render_mod.GeometryPlan) -> tuple:
+	"""Encode öncesi piksel sonucunu belirleyen geometri alanları.
+
+	`crop_method` bilerek yoktur: iki farklı niyet seviyesi aynı piksel
+	penceresine çözülüyorsa yeniden encode yalnız künyeyi değiştirecek, baytı
+	değiştirmeyecektir. Seçici reprocess gerçek piksel farkını ölçer.
+	"""
+	return (
+		plan.crop_box,
+		plan.inner_size,
+		plan.canvas_size,
+		plan.paste_at,
+		plan.padded,
+	)
+
+
+def affected_profile_names(
+	source_size: tuple[int, int],
+	profiles: tuple[RenditionProfile, ...],
+	old_intent: Any,
+	new_intent: Any,
+) -> tuple[str, ...]:
+	"""Crop niyeti değişince piksel planı gerçekten değişen profiller.
+
+	`resolve_crop` mantığı kopyalanmaz; iki taraf için de render motorunun
+	`plan_geometry` girişi çağrılır. Böylece simülatör/parite düzeltmeleri bu
+	seçime otomatik yansır. `contain`/`pad` odak değişikliğinden etkilenmez,
+	ama zoom/güvenli-alan taban pencereyi değiştirdiğinde doğru biçimde seçilir.
+	"""
+	etkilenen: list[str] = []
+	for profile in profiles:
+		eski = render_mod.plan_geometry(source_size, profile, old_intent)
+		yeni = render_mod.plan_geometry(source_size, profile, new_intent)
+		if _pixel_plan_signature(eski) != _pixel_plan_signature(yeni):
+			etkilenen.append(profile.name)
+	return tuple(etkilenen)
+
+
+def reprocess_profile_names(
+	reason: str,
+	*,
+	source_size: tuple[int, int],
+	profiles: tuple[RenditionProfile, ...],
+	old_intent: Any = None,
+	new_intent: Any = None,
+) -> tuple[str, ...]:
+	"""Yeniden işleme sebebini üretilecek profil adlarına çevir."""
+	if reason not in REPROCESS_REASONS:
+		raise ReprocessError(f"Bilinmeyen yeniden işleme sebebi: {reason!r}")
+	if reason == REASON_CROP_CHANGED:
+		return affected_profile_names(source_size, profiles, old_intent, new_intent)
+	return tuple(profile.name for profile in profiles)
 
 
 def render_idempotent(
@@ -441,8 +513,8 @@ def render_idempotent(
 	profile: RenditionProfile,
 	crop_intent: Any = None,
 	*,
-	ledger: Optional[RenditionLedger] = None,
-	fmt: Optional[str] = None,
+	ledger: RenditionLedger | None = None,
+	fmt: str | None = None,
 	force: bool = False,
 	guard_source: bool = True,
 	**render_kw,
@@ -478,12 +550,20 @@ def render_idempotent(
 	sonuc = render_mod.render_rendition(source, profile, crop_intent, fmt=fmt, **render_kw)
 	sig = crop_signature(crop_intent)
 	kayit = RenditionRecord.from_result(sonuc, master_sha256=master_sha, crop_sig=sig)
-	ledger.add(kayit)
-	if kayit.key != karar.key:
+	if kayit.passthrough:
+		# Faydasızlık değerlendirmesi de idempotenttir, fakat gerçek bir türev
+		# olmadığı için yalnız çağrının İSTENEN anahtarında tutulur. Sonucun
+		# kaynak biçiminden türeyen anahtarını yazmak format zincirinin sonraki
+		# halkasını ilk koşuda yanlışlıkla atlatırdı.
+		ledger.by_key[karar.key] = kayit
+	else:
+		ledger.add(kayit)
+	if not kayit.passthrough and kayit.key != karar.key:
 		# Zincir tahmin edilenden farklı bir biçimde durdu: tahmin anahtarını da
 		# aynı kayda bağla ki bir sonraki koşu boşuna encode etmesin.
 		ledger.by_key[karar.key] = kayit
-	return sonuc, ReprocessDecision(karar.action, karar.reason, kayit.key, kayit)
+	donen_anahtar = karar.key if kayit.passthrough else kayit.key
+	return sonuc, ReprocessDecision(karar.action, karar.reason, donen_anahtar, kayit)
 
 
 def render_ladder_idempotent(
@@ -491,7 +571,7 @@ def render_ladder_idempotent(
 	slot_key: str,
 	crop_intent: Any = None,
 	*,
-	ledger: Optional[RenditionLedger] = None,
+	ledger: RenditionLedger | None = None,
 	per_format: bool = True,
 	force: bool = False,
 	**render_kw,
@@ -499,14 +579,15 @@ def render_ladder_idempotent(
 	"""Merdivenin tamamını idempotent üret. Dönüş `(results, decisions)`."""
 	if ledger is None:
 		ledger = RenditionLedger()
+	hazir, _icc, _notlar = render_mod.prepare_source(source)
 	sonuclar: list = []
 	kararlar: list = []
 	for p in render_mod.load_profiles(slot_key):
+		if not render_mod.profile_is_eligible(hazir.size, p, crop_intent):
+			continue
 		zincir = p.formats if per_format else (None,)
 		for f in zincir:
-			r, k = render_idempotent(
-				source, p, crop_intent, ledger=ledger, fmt=f, force=force, **render_kw
-			)
+			r, k = render_idempotent(source, p, crop_intent, ledger=ledger, fmt=f, force=force, **render_kw)
 			kararlar.append(k)
 			if r is not None:
 				sonuclar.append(r)
@@ -518,7 +599,7 @@ def generation_loss(
 	profile: RenditionProfile,
 	*,
 	rounds: int = 3,
-	fmt: Optional[str] = None,
+	fmt: str | None = None,
 ) -> list:
 	"""Nesil kaybını ÖLÇ: çıktıyı tekrar tekrar kaynak yaparak SSIM'i izle.
 
@@ -531,14 +612,18 @@ def generation_loss(
 	ilk = render_mod.render_rendition(source, profile, fmt=fmt)
 	referans = ilk.content
 	satirlar = [
-		{"round": 1, "bytes": ilk.size_bytes, "format": ilk.format,
-		 "ssim_vs_original": 1.0, "quality": ilk.quality}
+		{
+			"round": 1,
+			"bytes": ilk.size_bytes,
+			"format": ilk.format,
+			"ssim_vs_original": 1.0,
+			"quality": ilk.quality,
+		}
 	]
 	onceki = ilk.content
 	for i in range(2, rounds + 1):
 		try:
-			tekrar = render_mod.render_rendition(onceki, profile, fmt=ilk.format,
-												 allow_passthrough=False)
+			tekrar = render_mod.render_rendition(onceki, profile, fmt=ilk.format, allow_passthrough=False)
 		except RenderError as exc:
 			satirlar.append({"round": i, "error": str(exc)})
 			break
@@ -561,6 +646,10 @@ __all__ = [
 	"ACTION_RENDER",
 	"ACTION_SKIP",
 	"ACTION_REFRESH",
+	"REASON_CROP_CHANGED",
+	"REASON_POLICY_CHANGED",
+	"REASON_ENGINE_UPGRADED",
+	"REPROCESS_REASONS",
 	"CONFIDENCE_EXACT",
 	"CONFIDENCE_HEURISTIC",
 	"CONFIDENCE_NONE",
@@ -576,6 +665,8 @@ __all__ = [
 	"assert_not_engine_output",
 	"ReprocessDecision",
 	"decide",
+	"affected_profile_names",
+	"reprocess_profile_names",
 	"render_idempotent",
 	"render_ladder_idempotent",
 	"generation_loss",

@@ -53,6 +53,17 @@ BILINCLI_DISARIDA: dict[tuple[str, str], str] = {
 	# üretim 2026-08-20 W3-B koşusunda 88 satır yazınca bu alan taramada
 	# ortaya çıktı — docs/reports/69 §bulgular.)
 	("tabMedia Rendition", "file_url"): "boru hattı ürünü, kullanım değil",
+	# Dışa aktarma paketi medya kütüphanesi kullanımı değildir; kendi süreli
+	# Data Export Request yaşam döngüsü tarafından temizlenir.
+	("tabData Export Request", "file_url"): "süreli sistem dışa aktarma artefaktı",
+	# Policy provenance metni örnek dosya yolları taşıyabilir. Bu, o dosyanın
+	# asset olarak bağlandığı anlamına gelmez.
+	("tabMedia Content Rule", "source"): "politika kaynakçası, medya bağı değil",
+	# Retro-rename yönlendirmeleri süreli teslimat metadata'sıdır. Canlı
+	# referanslar retarget işlemiyle gerçek alanlara taşınır; redirect satırını
+	# kullanım saysaydık süre dolmuş dosyalar öksüzleşemezdi.
+	("tabMedia URL Redirect", "source_url"): "süreli yönlendirme metadata'sı",
+	("tabMedia URL Redirect", "target_url"): "süreli yönlendirme metadata'sı",
 	("tabDocField", "description"): "Frappe meta verisi",
 	("tabAuthorization Decision Log", "context"): "denetim kaydı",
 	("tabAuthorization Decision Log", "object_name"): "denetim kaydı",
@@ -60,6 +71,7 @@ BILINCLI_DISARIDA: dict[tuple[str, str], str] = {
 	("tabDeleted Document", "data"): "HISTORY_SOURCES",
 	("tabComment", "content"): "HISTORY_SOURCES",
 	("tabError Log", "error"): "HISTORY_SOURCES",
+	("tabError Log", "method"): "HISTORY_SOURCES",
 	("tabBulk Import Job Error", "raw_row_json"): "HISTORY_SOURCES",
 	("tabBulk Import Job", "data_file"): "HISTORY_SOURCES",
 }

@@ -1,0 +1,20 @@
+{
+  "schema_version": "1.0.0",
+  "fixture": {
+    "id": "video_4k60_long",
+    "generator": "lavfi:testsrc2+sine",
+    "width": 3840,
+    "height": 2160,
+    "fps": 60,
+    "duration_s": 65,
+    "audio_hz": 48000
+  },
+  "budgets": {
+    "wall_s_max": 240,
+    "cpu_s_max": 480,
+    "peak_rss_bytes_max": 1073741824,
+    "max_concurrent_transcodes": 1,
+    "video_worker_memory_bytes": 1610612736,
+    "video_worker_cpus": 2
+  }
+}

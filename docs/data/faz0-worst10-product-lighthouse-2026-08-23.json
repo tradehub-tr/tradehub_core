@@ -1,0 +1,359 @@
+{
+  "schema_version": 1,
+  "selection": {
+    "measured_catalog_products": 1231,
+    "criterion": "storefront_visible listings ranked by total on-disk bytes of unique local primary/gallery images",
+    "selected": 10,
+    "note": "External image URLs were not ranked by unknown origin bytes."
+  },
+  "run_window": {
+    "start": "2026-08-23T03:43:37.748Z",
+    "end": "2026-08-23T03:47:58.859Z",
+    "lighthouse_version": "12.6.1",
+    "profiles": [
+      "mobile",
+      "desktop"
+    ],
+    "isolated_sequential_runs": 20
+  },
+  "products": [
+    {
+      "listing": "LST-03998",
+      "title": "Bonny Erzak Saklama Kabı 1,8 lt",
+      "catalog_local_image_urls": 15,
+      "catalog_local_image_bytes": 20309523,
+      "runs": [
+        {
+          "profile": "desktop",
+          "fetch_time": "2026-08-23T03:43:51.528Z",
+          "url": "http://istoc.localhost/pages/product-detail.html?id=LST-03998",
+          "performance_score": 75,
+          "lcp_ms": 5917,
+          "cls": 0.0009,
+          "tbt_ms": 0,
+          "fcp_ms": 947,
+          "image_transfer_bytes": 21107888,
+          "image_request_count": 20
+        },
+        {
+          "profile": "mobile",
+          "fetch_time": "2026-08-23T03:43:37.748Z",
+          "url": "http://istoc.localhost/pages/product-detail.html?id=LST-03998",
+          "performance_score": 67,
+          "lcp_ms": 5954,
+          "cls": 0.0104,
+          "tbt_ms": 39,
+          "fcp_ms": 4596,
+          "image_transfer_bytes": 5833673,
+          "image_request_count": 12
+        }
+      ]
+    },
+    {
+      "listing": "LST-04011",
+      "title": "Venüs Desenli Kapaklı Kase 1 lt",
+      "catalog_local_image_urls": 12,
+      "catalog_local_image_bytes": 19930044,
+      "runs": [
+        {
+          "profile": "desktop",
+          "fetch_time": "2026-08-23T03:44:19.123Z",
+          "url": "http://istoc.localhost/pages/product-detail.html?id=LST-04011",
+          "performance_score": 74,
+          "lcp_ms": 8589,
+          "cls": 0.001,
+          "tbt_ms": 0,
+          "fcp_ms": 941,
+          "image_transfer_bytes": 20726616,
+          "image_request_count": 16
+        },
+        {
+          "profile": "mobile",
+          "fetch_time": "2026-08-23T03:44:05.955Z",
+          "url": "http://istoc.localhost/pages/product-detail.html?id=LST-04011",
+          "performance_score": 67,
+          "lcp_ms": 6026,
+          "cls": 0.0104,
+          "tbt_ms": 40,
+          "fcp_ms": 4593,
+          "image_transfer_bytes": 12425,
+          "image_request_count": 14
+        }
+      ]
+    },
+    {
+      "listing": "LST-04000",
+      "title": "Bonny Erzak Saklama Kabı 600 ml",
+      "catalog_local_image_urls": 14,
+      "catalog_local_image_bytes": 18407206,
+      "runs": [
+        {
+          "profile": "desktop",
+          "fetch_time": "2026-08-23T03:44:46.510Z",
+          "url": "http://istoc.localhost/pages/product-detail.html?id=LST-04000",
+          "performance_score": 74,
+          "lcp_ms": 6953,
+          "cls": 0.0009,
+          "tbt_ms": 0,
+          "fcp_ms": 946,
+          "image_transfer_bytes": 19184949,
+          "image_request_count": 18
+        },
+        {
+          "profile": "mobile",
+          "fetch_time": "2026-08-23T03:44:33.382Z",
+          "url": "http://istoc.localhost/pages/product-detail.html?id=LST-04000",
+          "performance_score": 64,
+          "lcp_ms": 11883,
+          "cls": 0.0104,
+          "tbt_ms": 19,
+          "fcp_ms": 4592,
+          "image_transfer_bytes": 3040319,
+          "image_request_count": 12
+        }
+      ]
+    },
+    {
+      "listing": "LST-04002",
+      "title": "Lunar Kapaklı Kase 3lü Set 3 lt 2 lt 1 lt",
+      "catalog_local_image_urls": 12,
+      "catalog_local_image_bytes": 17555117,
+      "runs": [
+        {
+          "profile": "desktop",
+          "fetch_time": "2026-08-23T03:45:14.472Z",
+          "url": "http://istoc.localhost/pages/product-detail.html?id=LST-04002",
+          "performance_score": 74,
+          "lcp_ms": 7351,
+          "cls": 0.0009,
+          "tbt_ms": 0,
+          "fcp_ms": 944,
+          "image_transfer_bytes": 18406283,
+          "image_request_count": 18
+        },
+        {
+          "profile": "mobile",
+          "fetch_time": "2026-08-23T03:45:01.185Z",
+          "url": "http://istoc.localhost/pages/product-detail.html?id=LST-04002",
+          "performance_score": 67,
+          "lcp_ms": 6097,
+          "cls": 0.0104,
+          "tbt_ms": 38,
+          "fcp_ms": 4594,
+          "image_transfer_bytes": 12425,
+          "image_request_count": 16
+        }
+      ]
+    },
+    {
+      "listing": "LST-03999",
+      "title": "Bonny Erzak Saklama Kabı 1 lt",
+      "catalog_local_image_urls": 12,
+      "catalog_local_image_bytes": 13759638,
+      "runs": [
+        {
+          "profile": "desktop",
+          "fetch_time": "2026-08-23T03:45:41.876Z",
+          "url": "http://istoc.localhost/pages/product-detail.html?id=LST-03999",
+          "performance_score": 74,
+          "lcp_ms": 12841,
+          "cls": 0.001,
+          "tbt_ms": 0,
+          "fcp_ms": 949,
+          "image_transfer_bytes": 14544707,
+          "image_request_count": 17
+        },
+        {
+          "profile": "mobile",
+          "fetch_time": "2026-08-23T03:45:28.840Z",
+          "url": "http://istoc.localhost/pages/product-detail.html?id=LST-03999",
+          "performance_score": 65,
+          "lcp_ms": 6766,
+          "cls": 0.0104,
+          "tbt_ms": 20,
+          "fcp_ms": 4592,
+          "image_transfer_bytes": 3418304,
+          "image_request_count": 12
+        }
+      ]
+    },
+    {
+      "listing": "LST-03997",
+      "title": "Aura Süzgeç 2,5 lt",
+      "catalog_local_image_urls": 16,
+      "catalog_local_image_bytes": 13198353,
+      "runs": [
+        {
+          "profile": "desktop",
+          "fetch_time": "2026-08-23T03:46:09.261Z",
+          "url": "http://istoc.localhost/pages/product-detail.html?id=LST-03997",
+          "performance_score": 74,
+          "lcp_ms": 7196,
+          "cls": 0.0009,
+          "tbt_ms": 0,
+          "fcp_ms": 946,
+          "image_transfer_bytes": 13997120,
+          "image_request_count": 20
+        },
+        {
+          "profile": "mobile",
+          "fetch_time": "2026-08-23T03:45:56.176Z",
+          "url": "http://istoc.localhost/pages/product-detail.html?id=LST-03997",
+          "performance_score": 67,
+          "lcp_ms": 6027,
+          "cls": 0.0104,
+          "tbt_ms": 19,
+          "fcp_ms": 4595,
+          "image_transfer_bytes": 1297657,
+          "image_request_count": 12
+        }
+      ]
+    },
+    {
+      "listing": "LST-04007",
+      "title": "Uranüs Desenli Kapaklı Kase 2 lt",
+      "catalog_local_image_urls": 9,
+      "catalog_local_image_bytes": 12292746,
+      "runs": [
+        {
+          "profile": "desktop",
+          "fetch_time": "2026-08-23T03:46:36.866Z",
+          "url": "http://istoc.localhost/pages/product-detail.html?id=LST-04007",
+          "performance_score": 75,
+          "lcp_ms": 5715,
+          "cls": 0.0009,
+          "tbt_ms": 0,
+          "fcp_ms": 945,
+          "image_transfer_bytes": 13087662,
+          "image_request_count": 13
+        },
+        {
+          "profile": "mobile",
+          "fetch_time": "2026-08-23T03:46:23.714Z",
+          "url": "http://istoc.localhost/pages/product-detail.html?id=LST-04007",
+          "performance_score": 67,
+          "lcp_ms": 6024,
+          "cls": 0.0104,
+          "tbt_ms": 42,
+          "fcp_ms": 4592,
+          "image_transfer_bytes": 5420027,
+          "image_request_count": 12
+        }
+      ]
+    },
+    {
+      "listing": "LST-04009",
+      "title": "Lunar Kapaklı Kase 2 lt",
+      "catalog_local_image_urls": 9,
+      "catalog_local_image_bytes": 12213455,
+      "runs": [
+        {
+          "profile": "desktop",
+          "fetch_time": "2026-08-23T03:47:04.389Z",
+          "url": "http://istoc.localhost/pages/product-detail.html?id=LST-04009",
+          "performance_score": 74,
+          "lcp_ms": 8759,
+          "cls": 0.0009,
+          "tbt_ms": 0,
+          "fcp_ms": 956,
+          "image_transfer_bytes": 13008371,
+          "image_request_count": 13
+        },
+        {
+          "profile": "mobile",
+          "fetch_time": "2026-08-23T03:46:50.973Z",
+          "url": "http://istoc.localhost/pages/product-detail.html?id=LST-04009",
+          "performance_score": 64,
+          "lcp_ms": 18480,
+          "cls": 0.0104,
+          "tbt_ms": 42,
+          "fcp_ms": 4594,
+          "image_transfer_bytes": 5221918,
+          "image_request_count": 12
+        }
+      ]
+    },
+    {
+      "listing": "LST-04006",
+      "title": "Lunar Kase 3 lt",
+      "catalog_local_image_urls": 11,
+      "catalog_local_image_bytes": 11177415,
+      "runs": [
+        {
+          "profile": "desktop",
+          "fetch_time": "2026-08-23T03:47:31.508Z",
+          "url": "http://istoc.localhost/pages/product-detail.html?id=LST-04006",
+          "performance_score": 75,
+          "lcp_ms": 5709,
+          "cls": 0.0009,
+          "tbt_ms": 0,
+          "fcp_ms": 944,
+          "image_transfer_bytes": 11973426,
+          "image_request_count": 15
+        },
+        {
+          "profile": "mobile",
+          "fetch_time": "2026-08-23T03:47:18.500Z",
+          "url": "http://istoc.localhost/pages/product-detail.html?id=LST-04006",
+          "performance_score": 67,
+          "lcp_ms": 5804,
+          "cls": 0.0104,
+          "tbt_ms": 18,
+          "fcp_ms": 4592,
+          "image_transfer_bytes": 2181519,
+          "image_request_count": 12
+        }
+      ]
+    },
+    {
+      "listing": "LST-04004",
+      "title": "Satürn Desenli Kase 3 lt",
+      "catalog_local_image_urls": 12,
+      "catalog_local_image_bytes": 10665979,
+      "runs": [
+        {
+          "profile": "desktop",
+          "fetch_time": "2026-08-23T03:47:58.859Z",
+          "url": "http://istoc.localhost/pages/product-detail.html?id=LST-04004",
+          "performance_score": 74,
+          "lcp_ms": 8838,
+          "cls": 0.0009,
+          "tbt_ms": 0,
+          "fcp_ms": 947,
+          "image_transfer_bytes": 11462545,
+          "image_request_count": 16
+        },
+        {
+          "profile": "mobile",
+          "fetch_time": "2026-08-23T03:47:45.706Z",
+          "url": "http://istoc.localhost/pages/product-detail.html?id=LST-04004",
+          "performance_score": 67,
+          "lcp_ms": 6096,
+          "cls": 0.0104,
+          "tbt_ms": 40,
+          "fcp_ms": 4593,
+          "image_transfer_bytes": 12425,
+          "image_request_count": 14
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "worst_lcp_ms": {
+      "listing": "LST-04009",
+      "profile": "mobile",
+      "value": 18480
+    },
+    "worst_cls": {
+      "listing": "LST-03998",
+      "profile": "mobile",
+      "value": 0.0104
+    },
+    "worst_image_transfer_bytes": {
+      "listing": "LST-03998",
+      "profile": "desktop",
+      "value": 21107888
+    },
+    "caveat": "Single-run lab baseline; some mobile routes deferred gallery images, so transfer bytes vary independently of catalog source bytes."
+  }
+}

@@ -10,9 +10,11 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Any, Dict, Mapping, Optional, Tuple
+from collections.abc import Mapping
+from typing import Any
 
 from tradehub_core.media.pipeline.contracts.errors import (
+	SEBEP_ANIMATED_NOT_ALLOWED,
 	SEBEP_AREA_TOO_SMALL,
 	SEBEP_BITRATE_EXCEEDED,
 	SEBEP_COUNT_EXCEEDED,
@@ -26,7 +28,6 @@ from tradehub_core.media.pipeline.contracts.errors import (
 	SEBEP_RATIO_NOT_ALLOWED,
 	SEBEP_SHORT_EDGE_TOO_SMALL,
 	SEBEP_TOO_LARGE,
-	SEBEP_ANIMATED_NOT_ALLOWED,
 	PolicyError,
 	PolicyNotFound,
 	kod_uret,
@@ -66,7 +67,7 @@ def _oran(deger: str) -> float:
 # Uzantı ↔ içerik imzası uyum tablosu — `upload_policy._UYUM` ile AYNI.
 # Tabloda OLMAYAN uzantı (AVIF/HEIC gibi) uyuşmazlık sayılmaz: imzası bilinmeyen
 # bir biçimi "yanlış" ilan etmek sahadaki geçerli dosyaları keserdi.
-_UYUM: Dict[str, Tuple[str, ...]] = {
+_UYUM: dict[str, tuple[str, ...]] = {
 	".jpg": ("jpeg",),
 	".jpeg": ("jpeg",),
 	".png": ("png",),
@@ -96,13 +97,13 @@ def _sayi(deger: Any, varsayilan: float = 0.0) -> float:
 class InMemoryPolicyEngine:
 	"""Politika kayıt defteri — sözlükten ya da dizinden kurulur."""
 
-	def __init__(self, policies: Optional[Mapping[str, Mapping[str, Any]]] = None, *, root: str = "") -> None:
+	def __init__(self, policies: Mapping[str, Mapping[str, Any]] | None = None, *, root: str = "") -> None:
 		self._root = root or "<memory>"
-		self._raw: Dict[str, Mapping[str, Any]] = dict(policies or {})
-		self._cache: Dict[str, SlotPolicy] = {}
+		self._raw: dict[str, Mapping[str, Any]] = dict(policies or {})
+		self._cache: dict[str, SlotPolicy] = {}
 
 	@classmethod
-	def from_directory(cls, root: str = VARSAYILAN_KOK) -> "InMemoryPolicyEngine":
+	def from_directory(cls, root: str = VARSAYILAN_KOK) -> InMemoryPolicyEngine:
 		"""Gerçek politika dosyalarını oku (`tradehub_core/media/pipeline/policy/slots/*.json`)."""
 		motor = cls(root=root)
 		motor.reload()
@@ -113,7 +114,7 @@ class InMemoryPolicyEngine:
 	def source_root(self) -> str:
 		return self._root
 
-	def slots(self) -> Tuple[str, ...]:
+	def slots(self) -> tuple[str, ...]:
 		return tuple(sorted(self._raw))
 
 	def load(self, slot_key: str) -> SlotPolicy:
@@ -148,7 +149,7 @@ class InMemoryPolicyEngine:
 			return len(self._raw)
 		if not os.path.isdir(self._root):
 			raise PolicyError(f"Politika kökü yok: {self._root}")
-		yeni: Dict[str, Mapping[str, Any]] = {}
+		yeni: dict[str, Mapping[str, Any]] = {}
 		for ad in sorted(os.listdir(self._root)):
 			if not ad.endswith(".json") or ad.startswith("_"):
 				continue
@@ -182,7 +183,7 @@ class InMemoryPolicyEngine:
 
 	# ── kapılar ────────────────────────────────────────────────────────
 
-	def _karar(self, p: SlotPolicy, layer: str, ihlaller: Tuple[Violation, ...]) -> Decision:
+	def _karar(self, p: SlotPolicy, layer: str, ihlaller: tuple[Violation, ...]) -> Decision:
 		"""İhlalleri aksiyonlarına göre ret/uyarı kovalarına ayırır (FR-049)."""
 		retler = tuple(v for v in ihlaller if v.action == ACTION_REJECT)
 		uyarilar = tuple(v for v in ihlaller if v.action != ACTION_REJECT)
@@ -232,13 +233,13 @@ class InMemoryPolicyEngine:
 			)
 		beklenen = _UYUM.get(uzanti)
 		if sniffed_type and beklenen is not None and sniffed_type not in beklenen:
-			# Uyuşmazlık RET DEĞİL uyarıdır — bugünkü `upload_policy` davranışı.
+			# Canonical slot policy owns the action; the reference and production
+			# readers must not invent different decisions for the same JSON.
 			ihlaller.append(
-				Violation(
-					code=kod_uret(p.error_prefix, SEBEP_EXT_CONTENT_MISMATCH),
-					layer=LAYER_ACCEPT,
-					sebep=SEBEP_EXT_CONTENT_MISMATCH,
-					action=ACTION_WARN,
+				self._ihlal(
+					p,
+					LAYER_ACCEPT,
+					SEBEP_EXT_CONTENT_MISMATCH,
 					measured=sniffed_type,
 					expected=uzanti,
 				)
@@ -388,7 +389,7 @@ class InMemoryPolicyEngine:
 			strip_metadata=dict(m.get("strip_metadata") or {}),
 		)
 
-	def rendition_specs(self, slot_key: str) -> Tuple[RenditionSpec, ...]:
+	def rendition_specs(self, slot_key: str) -> tuple[RenditionSpec, ...]:
 		p = self.load(slot_key)
 		cikti = []
 		for profil in p.profiles:
@@ -411,7 +412,7 @@ class InMemoryPolicyEngine:
 				)
 		return tuple(sorted(cikti, key=lambda s: (s.width, s.format)))
 
-	def video_rendition_specs(self, slot_key: str) -> Tuple[VideoRenditionSpec, ...]:
+	def video_rendition_specs(self, slot_key: str) -> tuple[VideoRenditionSpec, ...]:
 		p = self.load(slot_key)
 		if not p.is_video:
 			return ()
@@ -454,7 +455,9 @@ class InMemoryPolicyEngine:
 			mle = _sayi(m.get("max_long_edge"))
 			mmp = _sayi(m.get("max_megapixels"))
 			mnle = _sayi(m.get("min_long_edge"))
-			if mmp and mle and (mle * mle) / 1e6 < mmp:
+			# Policy values are published to one decimal place (4096² =
+			# 16.777216 MP -> 16.8 MP). Compare at that declared precision.
+			if mmp and mle and round((mle * mle) / 1e6, 1) < round(mmp, 1):
 				ihlaller.append(
 					Violation(
 						code=kod_uret(p.error_prefix, "invariant_d1"),

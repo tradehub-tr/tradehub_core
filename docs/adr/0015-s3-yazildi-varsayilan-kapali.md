@@ -77,3 +77,10 @@ değil.
   (`docs/reports/21-t030-mimari-inceleme.md` M-05).
 - 3 kusur bilinçli olarak **düzeltilmedi** (rapor adaptörlere dokunmadı).
 - **Doğrulanmadı:** gerçek AWS S3'e karşı hiç koşulmadı; ölçüm MinIO ile yapıldı.
+
+## Geri dönüş yolu
+
+S3/mirror/tiered yalnız sözleşme, hata enjeksiyonu ve geri yükleme provası
+geçince açılır. Hata/latency veya hash doğrulama kapısı bozulursa
+`s3_enabled=0` ve `mode=local` ile anında yerel birincile dönülür; mirror
+kuyruğu durdurulur, yerel kopyalar doğrulanmadan silinmez.

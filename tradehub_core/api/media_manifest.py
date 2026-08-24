@@ -41,17 +41,16 @@ burada uygulanır; kaç türevin bu yüzden elendiği yanıtta `suppressed` olar
 görünür, sessizce yutulmaz (aksi hâlde A2 bu bayrağı yazmayı unutursa özellik
 sessizce ölü kalırdı ve kimse fark etmezdi).
 
-ETag GÖVDEDE, BAŞLIKTA DEĞİL
-----------------------------
+ETag + gerçek koşullu HTTP
+--------------------------
 ETag `envelope.etag_for()` ile içerik-adresli üretilir (kanonik JSON'un
-sha256'sı). Ancak bu kurulumdaki Frappe **v15.116.1**'de `dict` döndüren bir
-whitelist metodunun HTTP başlığı eklemesi için bir kanca YOKTUR:
-`frappe/utils/response.py:as_json()` yalnız `http_status_code` okur, header
-sözlüğüne bakmaz (v16'daki `frappe.local.response_headers` bu sürümde yok).
-Bu yüzden `etag` ve `cache_control` **gövdede** taşınır; çağıran (storefront
-ya da kenar önbellek) bunları HTTP başlığına kendi çevirir. `if_none_match`
-parametresi verilirse eşleşmede gövdesiz `{"not_modified": true}` döner —
-tasarruf HTTP katmanına bağlı kalmadan elde edilir.
+sha256'sı). Normal 200 yanıtında geriye uyum için `etag` ve `cache_control`
+gövdede taşınır. Gerçek `If-None-Match` başlığı eşleştiğinde whitelist metodu
+doğrudan Werkzeug `Response(status=304)` döndürür; Frappe v15 API yönlendiricisi
+Response nesnesini JSON zarfına sarmadan geçirir. Böylece gövde yoktur ve
+`ETag`/`Cache-Control` gerçek HTTP başlıklarıdır. Eski istemcinin
+`if_none_match` sorgu parametresi ise geriye uyum için 200 + kısa gövdeyi
+sürdürür.
 
 KİRACI SINIRI
 -------------
@@ -73,6 +72,7 @@ from typing import Any
 
 import frappe
 from frappe import _
+from werkzeug.wrappers import Response
 
 from tradehub_core.api import media_access
 from tradehub_core.api.rate_limit import rate_limit
@@ -81,9 +81,6 @@ from tradehub_core.media.pipeline.api import delivery as pipeline_delivery
 from tradehub_core.media.pipeline.api import envelope as env
 from tradehub_core.media.pipeline.contracts.delivery import RenderManifest
 from tradehub_core.media.pipeline.contracts.errors import NoProfileAvailable
-from tradehub_core.tradehub_core.doctype.media_version.media_version import (
-	version_enrichment_for_assets,
-)
 from tradehub_core.media.pipeline.contracts.storage import (
 	SCOPE_PRIVATE,
 	SCOPE_PUBLIC,
@@ -92,6 +89,9 @@ from tradehub_core.media.pipeline.contracts.storage import (
 	ObjectRef,
 )
 from tradehub_core.media.pipeline.delivery import manifest as manifest_mod
+from tradehub_core.tradehub_core.doctype.media_version.media_version import (
+	version_enrichment_for_assets,
+)
 
 #: Bayrak adı — `pipeline_flags.FLAG_FIELDS` içindeki alt bayrak.
 FLAG_FIELD: str = "manifest_api_enabled"
@@ -197,7 +197,7 @@ FILE_BATCH_MAX_ENTRY_CHARS: int = 500
 
 
 @frappe.whitelist(allow_guest=True)
-def get_manifest(listing: str, slot: str = DEFAULT_SLOT, if_none_match: str = "") -> dict:
+def get_manifest(listing: str = "", slot: str = DEFAULT_SLOT, if_none_match: str = "") -> dict:
 	"""Tek ilanın teslim manifesti.
 
 	Args:
@@ -244,7 +244,7 @@ def get_manifest(listing: str, slot: str = DEFAULT_SLOT, if_none_match: str = ""
 	window_seconds=BATCH_RATE_LIMIT_WINDOW,
 	scope="media_manifest_batch",
 )
-def get_manifest_batch(listings: str, slot: str = DEFAULT_SLOT, if_none_match: str = "") -> dict:
+def get_manifest_batch(listings: str = "", slot: str = DEFAULT_SLOT, if_none_match: str = "") -> dict:
 	"""Çok ilan, tek istek — listeleme sayfası için.
 
 	Args:
@@ -333,6 +333,12 @@ def get_signed_url(file_url: str, ttl_seconds: int = media_access.DEFAULT_TTL_SE
 		frappe.throw(_("Bu işlem için giriş yapmalısınız."), frappe.PermissionError)
 
 	sonuc = dict(media_access.get_signed_url(file_url, ttl_seconds))
+	# Yetki denetimi ve imza BAŞARILI olduktan sonra aynı kaynağa bağlı, bu
+	# kullanıcının görebildiği varlıkların lazy merdivenini ısıt. Yardımcı kendi
+	# içinde best-effort'tur; imza üretimi bir görüntü encode hatası yüzünden
+	# bozulmaz. Özel kaynaklar bugün public türev hattına girmediği için köprü
+	# onları güvenli biçimde `private_source` durumuyla atlar.
+	_lazy_renditions_for_file_url(file_url)
 	# İmzalı yanıt ASLA paylaşılan önbelleğe girmemeli; aksi hâlde bir
 	# kullanıcının imzası başkasına servis edilir (`envelope.CACHE_NEVER`).
 	sonuc["cache_control"] = env.CACHE_NEVER
@@ -428,12 +434,18 @@ def manifest_batch(file_urls: list | str | None = None) -> dict:
 	# `_varliklari_getir`i zaten aynı sebeple `file_url` join'i kullanıyor.
 	kopru = _mukerrer_dosya_koprusu(list(cozulen.values()))
 	varliklar = _dosya_varliklari(kopru)
-	turevler = _varlik_turevleri([v["name"] for grup in varliklar.values() for v in grup])
+	varlik_adlari = [v["name"] for grup in varliklar.values() for v in grup]
+	aktif_surumler = {
+		v["name"]: str(v.get("active_version") or "") for grup in varliklar.values() for v in grup
+	}
+	# İlk panel okuması gerçek üretim kapısıdır: lazy profil DB/disk cache'inde
+	# yoksa distributed singleflight altında üretilir; aşağıdaki sorgu aynı
+	# istekte yeni satırları görür. İkinci okuma yalnız persistent cache'i okur.
+	_ensure_lazy_renditions(varlik_adlari)
+	turevler = _varlik_turevleri(varlik_adlari, aktif_surumler)
 	# T-061/062/065: panel kalite/detay yüzeyleri sürüm zenginleştirmesini
 	# `manifest.version` anahtarından okur (rapor 73 §3.3). Tek sorgu, N+1 yok.
-	zengin = version_enrichment_for_assets(
-		sorted({v["name"] for grup in varliklar.values() for v in grup})
-	)
+	zengin = version_enrichment_for_assets(sorted({v["name"] for grup in varliklar.values() for v in grup}))
 
 	for adres, dosya in cozulen.items():
 		secili = varliklar.get(_dosya_anahtari(dosya)) or []
@@ -531,7 +543,7 @@ def _dosya_varliklari(kopru: Mapping[str, Sequence[str]]) -> dict[str, list[dict
 	for satir in frappe.get_list(
 		"Media Asset",
 		filters={"source_file": ["in", sorted(anahtar_of)]},
-		fields=["name", "source_file"],
+		fields=["name", "source_file", "active_version"],
 		order_by="creation desc",
 		limit_page_length=0,
 	):
@@ -544,7 +556,10 @@ def _dosya_varliklari(kopru: Mapping[str, Sequence[str]]) -> dict[str, list[dict
 	return cikti
 
 
-def _varlik_turevleri(varlik_adlari: Sequence[str]) -> dict[str, list[dict[str, Any]]]:
+def _varlik_turevleri(
+	varlik_adlari: Sequence[str],
+	aktif_surumler: Mapping[str, str] | None = None,
+) -> dict[str, list[dict[str, Any]]]:
 	"""Varlık → türev satırları. TEK sorgu; kiracı süzgeci `get_list`te.
 
 	`benefit_gate_passed` süzülmez: vitrin manifestinin aksine panel üretim
@@ -553,6 +568,16 @@ def _varlik_turevleri(varlik_adlari: Sequence[str]) -> dict[str, list[dict[str, 
 	"""
 	if not varlik_adlari:
 		return {}
+	if aktif_surumler is None:
+		aktif_surumler = {
+			row["name"]: str(row.get("active_version") or "")
+			for row in frappe.get_list(
+				"Media Asset",
+				filters={"name": ["in", list(varlik_adlari)]},
+				fields=["name", "active_version"],
+				limit_page_length=0,
+			)
+		}
 	cikti: dict[str, list[dict[str, Any]]] = {}
 	for satir in frappe.get_list(
 		"Media Rendition",
@@ -560,6 +585,8 @@ def _varlik_turevleri(varlik_adlari: Sequence[str]) -> dict[str, list[dict[str, 
 		fields=[
 			"name",
 			"asset",
+			"state",
+			"version_hash",
 			"profile",
 			"width",
 			"height",
@@ -573,6 +600,12 @@ def _varlik_turevleri(varlik_adlari: Sequence[str]) -> dict[str, list[dict[str, 
 		order_by="width asc",
 		limit_page_length=0,
 	):
+		if str(satir.get("state") or "ready") != "ready":
+			continue
+		aktif = str(aktif_surumler.get(satir["asset"]) or "")
+		satir_surum = str(satir.get("version_hash") or "")
+		if (aktif and satir_surum != aktif) or (not aktif and satir_surum):
+			continue
 		cikti.setdefault(satir["asset"], []).append(satir)
 	return cikti
 
@@ -634,8 +667,7 @@ class _CiftSuzgecliBuilder(manifest_mod.ManifestBuilder):
 	def build_image(self, slot_key: str, base: ObjectRef, **kwargs: Any) -> RenderManifest:
 		man = super().build_image(slot_key, base, **kwargs)
 		varyantlar = tuple(
-			replace(v, available=(v.profile, v.fmt.lower()) in self.servis_edilir)
-			for v in man.variants
+			replace(v, available=(v.profile, v.fmt.lower()) in self.servis_edilir) for v in man.variants
 		)
 		uretilmis = [v for v in varyantlar if v.available]
 		if not uretilmis:
@@ -657,9 +689,7 @@ def _manifest_icin(ilan: str, slot_key: str, acik: bool) -> dict[str, Any]:
 	return sonuc.get(ilan) or _bos_manifest(ilan, slot_key, acik)
 
 
-def _manifest_batch_icin(
-	ilanlar: Sequence[str], slot_key: str, acik: bool
-) -> dict[str, dict[str, Any]]:
+def _manifest_batch_icin(ilanlar: Sequence[str], slot_key: str, acik: bool) -> dict[str, dict[str, Any]]:
 	"""N ilan → N manifest. Toplam 4 sorgu; ilan sayısından bağımsız.
 
 	`acik` DIŞARIDAN gelir: bayrak uçta, ilk satırda okunmuştur. Kapalıyken
@@ -682,10 +712,30 @@ def _manifest_batch_icin(
 	if acik:
 		tum_url = sorted({g["file_url"] for gs in gorseller.values() for g in gs})
 		varliklar = _varliklari_getir(tum_url, slot_key)
-		# `varliklar` iki katmanlı: {file_url: {owner_seller: varlık}}.
-		turevler = _turevleri_getir(
-			sorted({v["name"] for grup in varliklar.values() for v in grup.values()})
+		# Aynı fiziksel URL başka satıcılarda da varlık taşıyabilir. Guest isteği
+		# yalnız görünür ilanın sahibine seçilen varlığı üretmeli; bütün adayları
+		# çalıştırmak kiracı-dışı bir mutasyon olurdu.
+		secili_varlik_adlari = sorted(
+			{
+				varlik["name"]
+				for ilan in satirlar
+				for gorsel in gorseller.get(ilan["name"]) or ()
+				if (
+					varlik := _varlik_sec(
+						varliklar.get(gorsel["file_url"]) or {},
+						str(ilan.get("seller_profile") or ""),
+					)
+				)
+			}
 		)
+		_ensure_lazy_renditions(secili_varlik_adlari)
+		# `varliklar` iki katmanlı: {file_url: {owner_seller: varlık}}.
+		aktif_surumler = {
+			v["name"]: str(v.get("active_version") or "")
+			for grup in varliklar.values()
+			for v in grup.values()
+		}
+		turevler = _turevleri_getir(secili_varlik_adlari, aktif_surumler)
 
 	# T-061/062/065 (W4-3, rapor 73 §3.3): sürüm zenginleştirmesi (lqip,
 	# dominant renk, dpi/renk uzayı/alpha, sınıflandırma) tek sorguyla — N+1 yok.
@@ -815,8 +865,13 @@ def _video_manifest_batch_icin(
 		adresler = sorted({u for u in (_yerel_url(s.get("video_url")) for s in satirlar) if u})
 		varliklar = _varliklari_getir(adresler, slot_key)
 		varlik_adlari = sorted({v["name"] for grup in varliklar.values() for v in grup.values()})
-		turevler = _turevleri_getir(varlik_adlari)
-		surumler = _video_surumleri(varlik_adlari)
+		aktif_surumler = {
+			v["name"]: str(v.get("active_version") or "")
+			for grup in varliklar.values()
+			for v in grup.values()
+		}
+		turevler = _turevleri_getir(varlik_adlari, aktif_surumler)
+		surumler = _video_surumleri(varlik_adlari, aktif_surumler)
 
 	cikti: dict[str, dict[str, Any]] = {}
 	for satir in satirlar:
@@ -855,7 +910,21 @@ def _tek_video_govdesi(
 	govde["suppressed"] = elenen
 	profile_gore = {str(t.get("profile") or ""): t for t in servis_edilir}
 	birincil = profile_gore.get(VIDEO_PRIMARY_PROFILE)
-	poster = profile_gore.get(VIDEO_POSTER_PROFILE)
+	poster_fallback = profile_gore.get(VIDEO_POSTER_PROFILE)
+	poster_turevleri = [t for t in servis_edilir if str(t.get("profile") or "").startswith("poster_")]
+	# Crop intent yalnız slot poster profillerinde uygulanır; bu yüzden profil
+	# merdiveni varsa ham/base posteri değil en geniş WebP basamağını seç.
+	poster = (
+		max(
+			poster_turevleri,
+			key=lambda t: (
+				int(t.get("width") or 0),
+				1 if str(t.get("format") or "").lower() == "webp" else 0,
+			),
+		)
+		if poster_turevleri
+		else poster_fallback
+	)
 	hls = profile_gore.get(VIDEO_HLS_PROFILE)
 	onizleme = profile_gore.get(VIDEO_PREVIEW_PROFILE)
 	surum = surumler.get(varlik["name"]) or {}
@@ -863,8 +932,16 @@ def _tek_video_govdesi(
 	# Ölçü önceliği: sürüm kaydı (teslim künyesi) → birincil türev → poster.
 	# Poster en sonda: `scale='min(1280,iw)'` oranı korur, yani ölçüsü CLS
 	# için doğru ORANI verir — passthrough'ta elde başka ölçü kaynağı yok.
-	genislik = int(surum.get("width") or 0) or int((birincil or {}).get("width") or 0) or int((poster or {}).get("width") or 0)
-	yukseklik = int(surum.get("height") or 0) or int((birincil or {}).get("height") or 0) or int((poster or {}).get("height") or 0)
+	genislik = (
+		int(surum.get("width") or 0)
+		or int((birincil or {}).get("width") or 0)
+		or int((poster or {}).get("width") or 0)
+	)
+	yukseklik = (
+		int(surum.get("height") or 0)
+		or int((birincil or {}).get("height") or 0)
+		or int((poster or {}).get("height") or 0)
+	)
 
 	govde["video"] = {
 		"asset": varlik["name"],
@@ -874,6 +951,19 @@ def _tek_video_govdesi(
 		"type": VIDEO_MIME,
 		"hlsSrc": (hls or {}).get("file_url") or "",
 		"poster": (poster or {}).get("file_url") or "",
+		"posterSrcset": [
+			{
+				"url": t.get("file_url") or "",
+				"width": int(t.get("width") or 0),
+				"height": int(t.get("height") or 0),
+				"format": str(t.get("format") or ""),
+				"profile": str(t.get("profile") or ""),
+			}
+			for t in sorted(
+				poster_turevleri,
+				key=lambda x: (int(x.get("width") or 0), str(x.get("format") or "")),
+			)
+		],
 		# W8 — hareketli önizleme klibi (3-6 sn, sessiz, ≤1 MB). Üretim
 		# `pipeline_bridge._produce_video_preview`; klip best-effort olduğundan
 		# (kapıdan düşebilir, eski varlıklarda hiç yok) alan boş kalabilir.
@@ -882,6 +972,12 @@ def _tek_video_govdesi(
 		"height": yukseklik,
 		"duration_s": float(surum.get("duration_s") or 0.0),
 		"lqip": str(surum.get("lqip_data_uri") or "") or str(surum.get("dominant_color") or ""),
+		"reducedMotion": {
+			"poster": (poster or {}).get("file_url") or "",
+			"src": "",
+			"hlsSrc": "",
+			"previewSrc": "",
+		},
 	}
 	govde["renditions"] = [
 		{
@@ -901,19 +997,24 @@ def _tek_video_govdesi(
 	return govde
 
 
-def _video_surumleri(varlik_adlari: Sequence[str]) -> dict[str, dict[str, Any]]:
-	"""Varlık → EN YENİ sürüm kaydı (teslim künyesi). TEK sorgu.
+def _video_surumleri(
+	varlik_adlari: Sequence[str], aktif_surumler: Mapping[str, str]
+) -> dict[str, dict[str, Any]]:
+	"""Varlık → yalnız ``active_version`` künyesi. TEK sorgu.
 
-	`is_active` ile SÜZÜLMEZ: aktiflik bir moderasyon kararı ve köprü üretimi
-	`is_active=0` açıyor (görsel yolundaki sapma 2 ile aynı). En yeni sürüm,
-	en son üretimin künyesidir — manifest ölçü/LQIP için onu okur.
+	Yeni crop/reprocess sürümü hazırlanırken daha yeni ``creation`` taşıyabilir;
+	aktiflik filtresiz okuma onu tam promote öncesi görünür kılardı.
 	"""
 	if not varlik_adlari:
+		return {}
+	adlar = [str(aktif_surumler.get(a) or "") for a in varlik_adlari]
+	adlar = [a for a in adlar if a]
+	if not adlar:
 		return {}
 	cikti: dict[str, dict[str, Any]] = {}
 	for satir in frappe.get_all(
 		"Media Version",
-		filters={"asset": ["in", list(varlik_adlari)]},
+		filters={"name": ["in", adlar]},
 		fields=["name", "asset", "width", "height", "duration_s", "lqip_data_uri", "dominant_color"],
 		order_by="creation desc",
 		limit_page_length=0,
@@ -1187,7 +1288,7 @@ def _varliklari_getir(file_urls: Sequence[str], slot_key: str) -> dict[str, dict
 	# uygulanıyor; `get_list` guest bağlamında hiçbir şey döndürmez.
 	satirlar = frappe.db.sql(
 		"""
-		SELECT ma.name, ma.owner_seller, ma.slot_key, ma.state, f.file_url
+		SELECT ma.name, ma.owner_seller, ma.slot_key, ma.state, ma.active_version, f.file_url
 		FROM `tabMedia Asset` ma
 		INNER JOIN `tabFile` f ON f.name = ma.source_file
 		WHERE ma.slot_key = %(slot)s
@@ -1204,10 +1305,23 @@ def _varliklari_getir(file_urls: Sequence[str], slot_key: str) -> dict[str, dict
 	return cikti
 
 
-def _turevleri_getir(varlik_adlari: Sequence[str]) -> dict[str, list[dict[str, Any]]]:
+def _turevleri_getir(
+	varlik_adlari: Sequence[str],
+	aktif_surumler: Mapping[str, str] | None = None,
+) -> dict[str, list[dict[str, Any]]]:
 	"""Varlık → türev listesi. TEK sorgu; genişliğe göre artan."""
 	if not varlik_adlari:
 		return {}
+	if aktif_surumler is None:
+		aktif_surumler = {
+			row["name"]: str(row.get("active_version") or "")
+			for row in frappe.get_all(
+				"Media Asset",
+				filters={"name": ["in", list(varlik_adlari)]},
+				fields=["name", "active_version"],
+				limit_page_length=0,
+			)
+		}
 	cikti: dict[str, list[dict[str, Any]]] = {}
 	for satir in frappe.get_all(
 		"Media Rendition",
@@ -1215,6 +1329,7 @@ def _turevleri_getir(varlik_adlari: Sequence[str]) -> dict[str, list[dict[str, A
 		fields=[
 			"name",
 			"asset",
+			"version_hash",
 			"profile",
 			"width",
 			"height",
@@ -1227,8 +1342,63 @@ def _turevleri_getir(varlik_adlari: Sequence[str]) -> dict[str, list[dict[str, A
 		limit_page_length=0,
 		ignore_permissions=True,
 	):
+		aktif = str(aktif_surumler.get(satir["asset"]) or "")
+		satir_surum = str(satir.get("version_hash") or "")
+		if (aktif and satir_surum != aktif) or (not aktif and satir_surum):
+			continue
 		cikti.setdefault(satir["asset"], []).append(satir)
 	return cikti
+
+
+def _ensure_lazy_renditions(varlik_adlari: Iterable[str]) -> None:
+	"""Yetkilendirilmiş varlıkların lazy türevlerini ilk okumada üret.
+
+	Köprü geç import edilir: manifest modülünün normal (cache-hit / bayrak
+	kapalı) yoluna worker motoru bağımlılıklarını taşımayız. Her varlık bağımsız
+	best-effort'tur; bir bozuk kaynak diğer manifestleri ve ham fallback'i
+	engellemez. Tekilleştirme sıra korur ve aynı dosyanın galeri tekrarlarında
+	köprüye ikinci kez girmez.
+	"""
+	adlar = tuple(dict.fromkeys(str(ad) for ad in varlik_adlari if ad))
+	if not adlar:
+		return
+	from tradehub_core.media import pipeline_bridge
+
+	for asset_name in adlar:
+		try:
+			pipeline_bridge.ensure_lazy_renditions(asset_name)
+		except Exception:
+			frappe.log_error(
+				title="media manifest lazy rendition",
+				message=f"{asset_name}\n\n{frappe.get_traceback()}",
+			)
+
+
+def _lazy_renditions_for_file_url(file_url: str) -> None:
+	"""Yetkisi doğrulanmış private kaynak URL'sini lazy varlıklarına bağla.
+
+	`get_signed_url` bu yardımcıyı yalnız `media_access` read kontrolünden sonra
+	çağırır. Aynı fiziksel URL'nin mükerrer File satırları olabilir; varlık
+	seçimi izin-süzgeçli `_dosya_varliklari` üzerinden yapıldığı için başka
+	satıcının asset kimliği ne üretilir ne de yanıta sızar.
+	"""
+	try:
+		dosyalar = frappe.get_all(
+			"File",
+			filters={"file_url": file_url},
+			fields=["name", "file_url"],
+			limit_page_length=0,
+		)
+		if not dosyalar:
+			return
+		kopru = _mukerrer_dosya_koprusu(dosyalar)
+		varliklar = _dosya_varliklari(kopru)
+		_ensure_lazy_renditions(v["name"] for grup in varliklar.values() for v in grup)
+	except Exception:
+		frappe.log_error(
+			title="media signed url lazy rendition",
+			message=f"{file_url}\n\n{frappe.get_traceback()}",
+		)
 
 
 # ── küçük yardımcılar ───────────────────────────────────────────────────
@@ -1273,8 +1443,8 @@ def _bos_manifest(ilan: str, slot_key: str, acik: bool) -> dict[str, Any]:
 	return govde
 
 
-def _finalize(govde: dict[str, Any], if_none_match: str) -> dict[str, Any]:
-	"""İçerik-adresli ETag ekle; `If-None-Match` tutuyorsa gövdesiz dön."""
+def _finalize(govde: dict[str, Any], if_none_match: str) -> dict[str, Any] | Response:
+	"""İçerik-adresli ETag; gerçek başlıkta 304, eski parametrede kısa 200."""
 	try:
 		etag = env.etag_for(govde)
 	except Exception:
@@ -1285,8 +1455,14 @@ def _finalize(govde: dict[str, Any], if_none_match: str) -> dict[str, Any]:
 		)
 		return dict(govde, etag="", cache_control=CACHE_CONTROL)
 
-	istemci = _temiz(if_none_match, 200) or _istek_etagi()
+	baslik_etagi = _istek_etagi()
+	istemci = baslik_etagi or _temiz(if_none_match, 200)
 	if istemci and env.etag_matches(etag, istemci):
+		if baslik_etagi:
+			return Response(
+				status=304,
+				headers={"ETag": etag, "Cache-Control": CACHE_CONTROL},
+			)
 		return {"not_modified": True, "etag": etag, "cache_control": CACHE_CONTROL}
 
 	return dict(govde, etag=etag, cache_control=CACHE_CONTROL)

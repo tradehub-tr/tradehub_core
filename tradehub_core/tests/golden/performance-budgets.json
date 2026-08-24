@@ -1,0 +1,54 @@
+{
+  "schema_version": "1.0.0",
+  "margin_percent": 30,
+  "source": {
+    "report": "docs/reports/05-kutuphane-benchmark.md",
+    "raw": "docs/reports/bench.csv",
+    "engine": "pillow_draft",
+    "method": "Her sınıf için T-007'deki en yakın en-kötü fixture; eşik = ceil(ölçüm × 1,30)."
+  },
+  "fixture_classes": {
+    "photo": {
+      "proxy": "JPEG RGB 72,7 MP",
+      "normalize_baseline_ms": 914.79,
+      "normalize_budget_ms": 1190,
+      "peak_rss_baseline_mib": 210.95,
+      "peak_rss_budget_mib": 275
+    },
+    "transparent": {
+      "proxy": "PNG RGBA 36,3 MP + ICC",
+      "normalize_baseline_ms": 2198.22,
+      "normalize_budget_ms": 2858,
+      "peak_rss_baseline_mib": 367.43,
+      "peak_rss_budget_mib": 478
+    },
+    "graphic": {
+      "proxy": "TIFF RGB 18,3 MP / 22,1 MB",
+      "normalize_baseline_ms": 887.72,
+      "normalize_budget_ms": 1155,
+      "peak_rss_baseline_mib": 210.95,
+      "peak_rss_budget_mib": 275
+    },
+    "animation": {
+      "not_applicable": "Faz 6 manifestinde animation girdileri process edilmez."
+    },
+    "video": {
+      "not_applicable": "Video normalize/rendition bütçesi Faz 7 kapsamındadır."
+    },
+    "malicious": {
+      "not_applicable": "Kapıda reddedilen girdiye image encode bütçesi uygulanmaz."
+    }
+  },
+  "rendition_batch": {
+    "source": "T-063 kabul kriteri",
+    "master": "2400x2400",
+    "count": 34,
+    "single_core_budget_ms": 12000,
+    "max_encodes_per_rendition": 4,
+    "ci_tier": "nightly"
+  },
+  "pr_regression": {
+    "wall_clock_budget_seconds": 600,
+    "ci_tier": "pr"
+  }
+}

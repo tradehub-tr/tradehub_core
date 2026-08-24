@@ -6,6 +6,8 @@ def after_install():
 	"""Create custom marketplace roles. Idempotent — safe to run on every migrate."""
 	_create_marketplace_roles()
 	_setup_core_permissions()
+	_seed_media_phase4_catalog()
+	_seed_media_phase5_defaults()
 	_seed_email_preference_categories()
 	_seed_supported_currencies()
 	_bootstrap_recommendations()
@@ -19,7 +21,7 @@ def _setup_core_permissions():
 
 
 def _create_marketplace_roles():
-	"""Sprint 2 kapsamı — sadece kod tabanında refere edilen 5 rol yaratılır.
+	"""Kod tabanında doğrudan izin yüzeylerinde kullanılan çekirdek rolleri yarat.
 	14 hiyerarşik rol (Platform/Seller/Buyer Group) Sprint 3 RBAC reformunda
 	tasarlanacak ve o sırada install.py'ye + fixture'a eklenecek."""
 	roles = [
@@ -28,6 +30,7 @@ def _create_marketplace_roles():
 		{"role_name": "Marketplace Admin", "desk_access": 1},
 		{"role_name": "Marketplace Seller", "desk_access": 1},
 		{"role_name": "Marketplace Buyer", "desk_access": 0},
+		{"role_name": "Media Superadmin", "desk_access": 1},
 	]
 	for role_data in roles:
 		if not frappe.db.exists("Role", role_data["role_name"]):
@@ -35,6 +38,41 @@ def _create_marketplace_roles():
 			role.role_name = role_data["role_name"]
 			role.desk_access = role_data["desk_access"]
 			role.insert(ignore_permissions=True)
+
+
+def _seed_media_phase4_catalog():
+	"""Seed profiles/policies on both fresh installs and ordinary migrations.
+
+	Frappe marks historical patches as applied when an app is first installed,
+	so a patch alone only covers upgrades.  The same idempotent projector is
+	therefore invoked from ``after_install``/``after_migrate`` as well.
+	"""
+	required = (
+		"Media Profile",
+		"Media Policy Profile",
+		"Media Content Rule",
+		"Media Policy",
+		"Media Source",
+	)
+	if not all(frappe.db.table_exists(doctype) for doctype in required):
+		return
+	from tradehub_core.patches.v15_9_43_media_phase4_schema import execute
+	from tradehub_core.patches.v15_9_44_media_phase4_indexes import execute as install_indexes
+
+	execute()
+	install_indexes()
+
+
+def _seed_media_phase5_defaults():
+	"""Fresh install'da Faz 5'in fail-closed retention varsayılanlarını ekle."""
+	if not all(
+		frappe.db.table_exists(doctype)
+		for doctype in ("Media Storage Settings", "Media Storage Profile")
+	):
+		return
+	from tradehub_core.patches.v15_9_45_media_phase5_schema import seed_defaults
+
+	seed_defaults()
 
 
 def _seed_email_preference_categories():

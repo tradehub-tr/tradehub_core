@@ -385,7 +385,10 @@ def audit_batch(file_urls: list[str], *, deep: bool = False) -> dict[str, Any]:
 	if asset_by_url and frappe.db.table_exists("Media Rendition"):
 		rendition_assets = {
 			r["asset"] for r in frappe.get_all(
-				"Media Rendition", filters={"asset": ["in", [a["name"] for a in asset_by_url.values()]]},
+				"Media Rendition", filters={
+					"asset": ["in", [a["name"] for a in asset_by_url.values()]],
+					"state": ["!=", "purged"],
+				},
 				fields=["asset"], group_by="asset", limit_page_length=0,
 			)
 		}

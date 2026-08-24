@@ -58,7 +58,8 @@ def build_image_object(seo_fields: dict, site_url: str) -> dict | str:
 	if seo_fields.get("canonical_url"):
 		nesne["mainEntityOfPage"] = _absolute_url(seo_fields["canonical_url"], site_url)
 	for kaynak, hedef in (
-		("encoding_format", "encodingFormat"), ("date_created", "dateCreated"),
+		("encoding_format", "encodingFormat"),
+		("date_created", "dateCreated"),
 		("date_published", "datePublished"),
 	):
 		if seo_fields.get(kaynak):
@@ -81,7 +82,7 @@ def build_image_object(seo_fields: dict, site_url: str) -> dict | str:
 
 	# Yalnız url/contentUrl kaldıysa nesne bir şey söylemiyor demektir.
 	if set(nesne) <= {"@type", "url", "contentUrl"}:
-		return url
+		return content_url
 	return nesne
 
 
@@ -512,19 +513,25 @@ def _listing_image_objects(listing: dict, site_url: str) -> list:
 				lang=lang,
 			)
 			from tradehub_core.media import seo_urls
+
 			kimlik = seo_urls.resolve(
-				url, ref_doctype=baglam["ref_doctype"], ref_name=baglam["ref_name"],
+				url,
+				ref_doctype=baglam["ref_doctype"],
+				ref_name=baglam["ref_name"],
 				context_doctype=baglam.get("context_doctype", ""),
-				context_name=baglam.get("context_name", ""), site_url=site_url,
+				context_name=baglam.get("context_name", ""),
+				site_url=site_url,
 			)
-			alanlar.update({
-				"asset_url": kimlik.get("stable_url", ""),
-				"content_url": kimlik.get("delivery_url", ""),
-				"encoding_format": kimlik.get("encoding_format", ""),
-				"date_created": kimlik.get("date_created", ""),
-				"date_published": kimlik.get("date_published", ""),
-				"canonical_url": kimlik.get("canonical_url", ""),
-			})
+			alanlar.update(
+				{
+					"asset_url": kimlik.get("stable_url", ""),
+					"content_url": kimlik.get("delivery_url", ""),
+					"encoding_format": kimlik.get("encoding_format", ""),
+					"date_created": kimlik.get("date_created", ""),
+					"date_published": kimlik.get("date_published", ""),
+					"canonical_url": kimlik.get("canonical_url", ""),
+				}
+			)
 			nesne = build_image_object(alanlar, site_url)
 			if nesne:
 				out.append(nesne)
@@ -585,9 +592,7 @@ def _get_listing_extra_context(listing_name: str) -> dict:
 			as_dict=True,
 		)
 		category = category or {}
-		ctx["category_name"] = (
-			listing.get("product_category_name") or category.get("category_name") or ""
-		)
+		ctx["category_name"] = listing.get("product_category_name") or category.get("category_name") or ""
 		site_url = storefront_url()
 		category_slug = category.get("url_slug")
 		if category_slug:

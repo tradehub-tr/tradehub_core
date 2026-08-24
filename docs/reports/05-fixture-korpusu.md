@@ -448,3 +448,36 @@ bağlamaktır; manifest bunun için yeterli bilgiyi taşır (`slot`,
 > KVKK ve ticari gizlilik açısından ayrı bir karar gerektirir ve bu görevin
 > yetkisi dışındadır. `content_rules` eşiklerinin kalibrasyonu bu yüzden
 > **açık kalmıştır** (§8 ilk satır).
+
+---
+
+## Güncel korpus eki — 2026-08-23
+
+Yukarıdaki tarihsel açıklar W9 çalışmasında kapandı. Bugünkü manifest ölçümü:
+
+| Sınıf | Adet |
+|---|---:|
+| Görsel (`images/`) | 36 |
+| Video (`video/`) | 11 |
+| Kötücül (`fixtures/malicious/`, ayrı dizin) | 10 |
+| Toplam | **57** |
+| Manifest doğrulaması | **57/57 GEÇTİ** |
+| Toplam boyut | 94.879.477 B (90,48 MiB), 1 GiB sınırının altında |
+
+Korpus artık dört gerçek DEV video, gerçek Canon fotoğraf ve Adobe RGB ICC'li
+gerçek görsel taşır; sentetik sınır vakaları ayrıca korunur. Her kayıt SHA-256,
+ölçülen metadata, kaynak sınıfı ve beklenen motor kararı taşır. Kötücül dosyalar
+normal medya dizininin dışında tutulur ve yalnız test kapısında okunur.
+
+Tek komutlu kapı:
+
+```bash
+python -m pytest -m fixtures tradehub_core/tests/test_faz0_closure.py -q
+```
+
+Pytest bulunmayan Frappe çalışma zamanında aynı test standard library ile de
+koşar: `python -m unittest tradehub_core.tests.test_faz0_closure`.
+
+2026-08-23 doğrulaması: kapanış kapısı unittest **11/11**, gerçek
+`pytest -m fixtures` **11/11**, motor/manifest paritesi `test_policy_engine`
+**38/38** ve kötücül kabul kapısı `test_media_security_gate` **18/18** geçti.

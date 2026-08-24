@@ -2,6 +2,7 @@
   "$schema": "../schema/slot-policy.schema.json",
   "schema_version": "1.0.0",
   "status": "draft",
+  "standard_status": "fixed",
   "slot_key": "company.cover_image",
   "title": "Şirket / mağaza kapak görseli",
   "description": "Mağaza sayfasının üst bandı. Sistemdeki en zor geometri problemi burada: bandın CSS kutusu TAM VIEWPORT genişliğinde ama yüksekliği sabit px olduğu için kutu oranı 2,00:1 (360px telefon) ile 4,80:1 (1920px masaüstü) arasında değişiyor. Tek bir dosya bu iki ucu birlikte karşılayamaz; bu politikanın asıl katkısı güvenli alanı sayıyla tanımlamaktır.",
@@ -67,7 +68,7 @@
       "name": "cover_768",
       "width": 768,
       "formats": ["avif", "webp"],
-      "encoder_quality": {"avif": null, "webp": 80},
+      "encoder_quality": {"avif": 61, "webp": 80},
       "fit": "cover",
       "target_ratio": "24:5",
       "serves": ["mağaza bandı 360-430px telefonlarda @2x", "640px viewport @1x"],
@@ -78,7 +79,7 @@
       "name": "cover_1280",
       "width": 1280,
       "formats": ["avif", "webp"],
-      "encoder_quality": {"avif": null, "webp": 80},
+      "encoder_quality": {"avif": 61, "webp": 80},
       "fit": "cover",
       "target_ratio": "24:5",
       "serves": ["768px tablet @1x", "1024px @1x", "1280px @1x", "640px viewport @2x"],
@@ -89,7 +90,7 @@
       "name": "cover_1920",
       "width": 1920,
       "formats": ["avif", "webp"],
-      "encoder_quality": {"avif": null, "webp": 80},
+      "encoder_quality": {"avif": 61, "webp": 80},
       "fit": "cover",
       "target_ratio": "24:5",
       "serves": ["1440/1536/1920px masaüstü @1x", "768px tablet @2x"],
@@ -100,7 +101,7 @@
       "name": "cover_2560",
       "width": 2560,
       "formats": ["avif", "webp"],
-      "encoder_quality": {"avif": null, "webp": 80},
+      "encoder_quality": {"avif": 61, "webp": 80},
       "fit": "cover",
       "target_ratio": "24:5",
       "serves": ["1280px viewport @2x", "master / arşiv"],
@@ -112,7 +113,7 @@
       "width": 1000,
       "height": 563,
       "formats": ["avif", "webp"],
-      "encoder_quality": {"avif": null, "webp": 80},
+      "encoder_quality": {"avif": 61, "webp": 80},
       "fit": "cover",
       "target_ratio": "16:9",
       "serves": ["StoreHeader ana medya alanı (kapak görseli veya video poster'ı)"],
@@ -188,6 +189,7 @@
   },
 
   "sources": {
+    "profiles[].encoder_quality.avif": "q61; T-013 gerçek Listing örnekleri, hedef SSIM 0.96 ve kayıplı örneklerde q85'e göre ortalama bayt oranı 0.517909 (docs/data/t013-adaptive-vs-q85.json).",
     "accept.mime": "admin-panel/frontend/src/components/upload/ProfileImageDropzone.vue:122 — accept varsayılanı image/jpeg,image/png,image/webp. .gif bilinçli dışarıda: bantta animasyon istenmiyor ve tradehub_core/media/pipeline.py:106 animasyonlu dosyayı hiç işlemiyor.",
     "accept.extensions": "aynı satır (ProfileImageDropzone.vue:122) + tradehub_core/media/upload_policy.py:60-62 (KIND_IMAGE listesi) kesişimi",
     "accept.max_bytes": "admin-panel/frontend/src/components/upload/ProfileImageDropzone.vue:123 maxBytes varsayılanı 5 MB — bugün fiilen uygulanan tek tavan. Diğer yol (admin-panel/frontend/src/views/seller/StorefrontEdit.vue:252-258) HİÇ boyut kontrolü yapmıyor (docs/reports/00-upload-slot-envanteri.md §7-A).",
@@ -215,21 +217,28 @@
     "on_violation.retryable": "tradehub_core/media/upload_policy.py:97-100"
   },
 
-  "open_questions": [
-    "`header_bg_image` alanı GERÇEKTEN VAR MI? tradehubfront/src/pages/seller-shop.ts:118-119 bu alanı okuyor ama `grep -rn header_bg_image /Users/ahmet/Desktop/istoc-medya-wt/tradehub_core/` → 0 SONUÇ. Ya tr_tradehub app'inden geliyor (docs/reports/00-upload-slot-envanteri.md §9-M1) ya da ölü kod. Doğrulama: `docker compose exec backend bench --site istoc.localhost list-apps` ve panelde Mağaza Düzenle → Network sekmesinde `tr_tradehub.api.v1.seller.get_storefront` isteğinin HTTP kodu.",
-    "`Admin Seller Profile.banner_image` storefront'ta HİÇ okunmuyor (grep 'banner_image' tradehubfront/src → 0 sonuç) ve LIVE_SOURCES'ta yok. Alan ölü mü, yoksa okunması mı gerekiyor? Doğrulama: `frappe.db.count('Admin Seller Profile', {'banner_image': ['is','set']})`.",
-    "Mevcut kapak dosyalarının gerçek oran dağılımı ölçülmedi. Doğrulama: docs/reports/00-upload-slot-envanteri.md §9-M5 betiği (PIL ile oran histogramı), `attached_to_field='banner_image'` filtresiyle.",
-    "Panelden yüklenen kapakların kaçı is_private=1? Doğrulama: docs/reports/00-upload-slot-envanteri.md §9-M4 betiği.",
-    "master.colorspace='srgb' bir DEĞİŞİKLİK önerisi; mevcut davranış 'preserve'. Renk kayması riski üretim görselleriyle görsel karşılaştırma yapılmadan 'active' edilmemeli.",
-    "profiles[].encoder_quality.avif değerleri null — AVIF kalibrasyonu yapılmadı. Şema kuralı: null encoder_quality varken status 'active' olamaz."
-  ],
+  "compliance_measured": {
+    "measured_at": "2026-08-18",
+    "dataset": "istoc.localhost şirket kapak görseli slot referansları",
+    "sample_size": 34,
+    "compatible_count": 28,
+    "incompatible_count": 6,
+    "unmeasured_count": 0,
+    "violation_rate": 0.176,
+    "top_violation": "ölçüm anında diskte bulunmayan 3 kayıt",
+    "enforcement_mode": "new_uploads_only",
+    "source": "docs/reports/09-slot-bazinda-istatistik.md §3 ve §4.4"
+  },
+
+  "open_questions": [],
 
   "notes": [
+    "FAZ 2 KARARI (2026-08-23): `header_bg_image` hiçbir kurulu app/DocType'ta yoktur (`bench list-apps`: frappe, erpnext, tradehub_core, crm, telephony, helpdesk); ölü storefront uyumluluk alanıdır ve politika bağı değildir. Kanonik bağlar `bound_to` listesindeki üç gerçek alandır. Admin Seller Profile.banner_image 2 güncel referans taşır; slot ölçümünde 34 eşsiz referansın 33'ü yereldir, oran p50=2,701 (min 1,00, max 4,897). İlgili File kayıtlarında private=0 ölçüldü. sRGB dönüşümü ICC tabanlı ΔE00 regresyonuyla doğrulandı (docs/reports/59-t061-normalize.md). Eski beş soru kapandı.",
     "CANLI RENDER TEK YERDE: tradehubfront/src/utils/seller/section-registry.ts:103 (statik mod) ve :206 (slider modu, kapsayıcı yüksekliği). Sarmalayıcı `renderDynamicSections` (section-registry.ts:795) hiçbir max-width uygulamıyor → bant TAM VIEWPORT genişliğinde. Kutu: 360×180, 640×320, 768×400, 1920×400.",
     "ÖLÜ RENDERLAR (politika kapsamında değil, karışmasın diye kayıt): (1) tradehubfront/src/components/seller/HeroBanner.ts:13 — `xl:h-[500px]`'e kadar çıkan varyant; yalnız components/seller/index.ts:8'de dışa aktarılıyor, hiçbir sayfa çağırmıyor. (2) tradehubfront/src/components/seller/CompanyInfo.ts:37 — `lg:grid-cols-[55%_45%]` içinde 400px yüksekliğinde hero; CompanyInfoComponent hiçbir sayfada kullanılmıyor (yalnız index.ts:12).",
     "ORAN ÇELİŞKİSİ (panel): admin-panel/frontend/src/components/upload/ProfileImageDropzone.vue:135 dikdörtgen önizlemeyi `w-full sm:w-64 h-36` = 256×144 = 16:9 çiziyor, ama aynı bileşenin recommendedSize metni 1600×400 = 4:1 (DocTypeFormView.vue:448). Satıcı 4:1 yüklemesi söylenip 16:9 önizleme görüyor.",
     "ZATEN ÇÖZÜLMÜŞ — yeniden tasarlanmayacak: (1) tek kapı L0 (tradehub_core/hooks.py:227-252 → utils/security.py:96 → upload_policy.py:307); (2) sunucu tarafı garanti-WebP (engine.py:147-181); (3) EXIF yön düzeltmesi + ICC koruma (engine.py:114-116) — telefondan çekilmiş yatay bandın yan yatmaması bu sayede; (4) istemci sıkıştırma (admin-panel/frontend/src/lib/media/compress.js).",
     "İKİ AYRI ORAN, TEK DOSYA: aynı kapak görseli hem 4,8:1'lik banda hem StoreHeader'ın 16:9'luk kutusuna (StoreHeader.ts:296) sokuluyor. Bu yüzden profil listesinde ayrı bir `cover_16x9_1000` var; tek bir orana indirgeme YAPILMADI çünkü ikisi de canlı.",
-    "Bu politika dosyası bugün kod tarafından OKUNMUYOR (upload_policy.check() slot parametresi almıyor — tradehub_core/media/upload_policy.py:307-313)."
+    "Politika `upload_policy.check_slot()` üzerinden çalışma zamanında okunur; `status=draft` yalnız rollout'un henüz zorlayıcı olmadığını söyler."
   ]
 }

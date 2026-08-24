@@ -1,0 +1,114 @@
+{
+  "tasks": ["T-061", "T-062"],
+  "measured_at": "2026-08-22T23:46:30+03:00",
+  "runtime": {
+    "platform": "darwin",
+    "python": "3.12.13",
+    "pillow": "12.2.0",
+    "numpy": "2.4.6"
+  },
+  "t061": {
+    "geometry_dpi": {
+      "input": {"width": 3000, "height": 3000, "dpi": 300},
+      "output": {"width": 2400, "height": 2400, "dpi": [72.0, 72.0]}
+    },
+    "delta_e_2000": {
+      "method": "5x5 deterministic pixel grid; ICC source converted directly to sRGB as reference; both sample sets converted from sRGB to CIE Lab; CIEDE2000",
+      "thresholds": {"mean_max": 0.2, "sample_max": 0.5},
+      "icc_cmyk": {
+        "source_profile": "uCMY / CGATS001Compat-v2-micro.icc / CC0-1.0",
+        "normalized_mean": 0.0,
+        "normalized_max": 0.0,
+        "untransformed_negative_control_mean": 10.903422,
+        "untransformed_negative_control_max": 21.601872
+      },
+      "adobe_rgb_1998": {
+        "source": "tradehub_core/tests/fixtures/media/images/real_adobergb_3780x2717.png",
+        "normalized_mean": 0.0,
+        "normalized_max": 0.0,
+        "untransformed_negative_control_mean": 0.071941,
+        "untransformed_negative_control_max": 1.077561,
+        "alpha_samples_equal": true
+      }
+    },
+    "sequential_memory": {
+      "method": "clean subprocess; 3200x3200 raw RGB TIFF (30 MB); three sequential normalize calls; absolute ru_maxrss",
+      "input_bytes": 30720192,
+      "runs": 3,
+      "output_bytes_each": 51778,
+      "peak_rss_bytes": 132464640,
+      "budget_bytes": 524288000,
+      "elapsed_ms": 888.8,
+	  "path_streamed": true,
+	  "output_spool_max_bytes": 8388608
+	},
+	"decoder_stress_memory": {
+	  "method": "clean subprocess; 8527x8527 (72.72 MP) JPEG; three sequential normalize calls; libjpeg DCT draft before full pixel decode; absolute ru_maxrss",
+	  "source": "tradehub_core/tests/fixtures/media/images/edge_72mp.jpg",
+	  "input_bytes": 1410088,
+	  "runs": 3,
+	  "output_bytes_each": 397674,
+	  "peak_rss_bytes": 170557440,
+	  "budget_bytes": 524288000,
+	  "elapsed_ms": 726.1,
+	  "before_decoder_draft_one_run_peak_rss_bytes": 700825600,
+	  "after_decoder_draft_one_run_peak_rss_bytes": 162906112,
+	  "historical_one_run_runtime": "Darwin / Python 3.9.6 / Pillow 11.3.0",
+	  "decoder_size": {"input": [8527, 8527], "draft": [4264, 4264], "output": [2400, 2400]},
+	  "path_streamed": true,
+	  "jpeg_decoder_draft": true
+	}
+  },
+  "t062": {
+    "corpus": "tradehub_core/tests/fixtures/image_t062/manifest.json",
+    "scope_note": "balanced deterministic synthetic acceptance corpus; retained 46/48 live measurement is separate and not reproducible from repository fixtures",
+    "samples": 100,
+    "correct": 100,
+    "accuracy": 1.0,
+    "minimum_accuracy": 0.95,
+    "per_class": {
+      "photo": {"correct": 20, "samples": 20, "accuracy": 1.0},
+      "graphic": {"correct": 20, "samples": 20, "accuracy": 1.0},
+      "transparent": {"correct": 20, "samples": 20, "accuracy": 1.0},
+      "animation": {"correct": 20, "samples": 20, "accuracy": 1.0},
+      "document": {"correct": 20, "samples": 20, "accuracy": 1.0}
+    },
+	"elapsed_ms": 1991.8,
+	"confusion_matrix": {
+	  "labels": ["photo", "graphic", "transparent", "animation", "document"],
+	  "rows_actual_columns_predicted": [
+		[20, 0, 0, 0, 0],
+		[0, 20, 0, 0, 0],
+		[0, 0, 20, 0, 0],
+		[0, 0, 0, 20, 0],
+		[0, 0, 0, 0, 20]
+	  ]
+	},
+	"photo_chain": [
+	  {"fmt": "AVIF", "lossless": false, "quality_bump": 0, "quality_target": 88, "requires": []},
+	  {"fmt": "WEBP", "lossless": false, "quality_bump": 0, "quality_target": 88, "requires": []},
+	  {"fmt": "JPEG", "lossless": false, "quality_bump": 0, "quality_target": 88, "requires": []}
+	],
+	"graphic_chain": [
+	  {"fmt": "WEBP", "lossless": true, "quality_bump": 0, "quality_target": "lossless", "requires": ["lossless"]},
+	  {"fmt": "PNG", "lossless": true, "quality_bump": 0, "quality_target": "lossless", "requires": []}
+	],
+	"document_chain": [
+	  {"fmt": "WEBP", "lossless": true, "quality_bump": 0, "quality_target": "lossless", "requires": ["lossless"]},
+	  {"fmt": "PNG", "lossless": true, "quality_bump": 0, "quality_target": "lossless", "requires": []}
+	],
+	"low_confidence_contract": {
+	  "class_label": "photo",
+	  "confidence": "low",
+	  "safe_fallback": true,
+	  "chain": ["WEBP lossless", "PNG lossless"]
+	},
+	"animation_route": {
+	  "target_pipeline": "video",
+	  "job_type": "video_from_animation",
+	  "image_chain": [],
+	  "video_targets": [{"fmt": "MP4", "codec": "H264"}, {"fmt": "WEBM", "codec": "VP9"}],
+	  "poster_required": true
+	}
+  }
+}

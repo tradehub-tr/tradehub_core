@@ -1,11 +1,11 @@
 """Video async transcode kuyruğu testleri (TUR-296/297, WP2 + WP5).
 
-`enqueue_transcode` gerçek ffmpeg'i ÇAĞIRMAZ — `subprocess.run` mock'lanır.
+`enqueue_transcode` gerçek ffmpeg'i ÇAĞIRMAZ — izole koşucu mock'lanır.
 Eksenler:
 
   1. `enqueue_transcode`: video zaten küçük/sıkışmışsa (`needs_transcode`
      False) kuyruğa HİÇ girmez, `ready` yazar; büyükse eski davranış
-     (`processing` + `frappe.enqueue(..., queue="long")`). İkinci kez
+     (`processing` + `frappe.enqueue(..., queue="media-video")`). İkinci kez
      çağrılırsa (durum zaten `processing`/`ready`) idempotent — no-op.
   2. `_run_transcode`: ffmpeg komutu doğru argümanlarla kurulur (VP9/Opus,
      `scale='min(1280,iw)'`), başarıda `ready`, hatada `failed` yazar.
@@ -22,14 +22,14 @@ Eksenler:
 
 from __future__ import annotations
 
-import json
-import subprocess
 from unittest import mock
 
 import frappe
 from frappe.tests.utils import FrappeTestCase
 
 from tradehub_core.media import transcode
+from tradehub_core.media.pipeline.security import isolation
+from tradehub_core.media.pipeline.video.probe import VideoFacts
 
 
 def _yeni_video_dosyasi(
@@ -66,13 +66,13 @@ class TestEnqueueTranscode(FrappeTestCase):
 			lambda: frappe.delete_doc("File", self.doc.name, ignore_permissions=True, force=True)
 		)
 
-	def test_enqueue_transcode_processing_isaretler_ve_long_kuyruga_atar(self):
+	def test_enqueue_transcode_processing_isaretler_ve_video_kuyruguna_atar(self):
 		with mock.patch("tradehub_core.media.transcode.frappe.enqueue") as mock_enqueue:
 			transcode.enqueue_transcode(self.doc.file_url)
 
 		mock_enqueue.assert_called_once()
 		_args, kwargs = mock_enqueue.call_args
-		self.assertEqual(kwargs.get("queue"), "long")
+		self.assertEqual(kwargs.get("queue"), "media-video")
 		self.assertEqual(kwargs.get("file_url"), self.doc.file_url)
 		self.assertEqual(kwargs.get("timeout"), 1800)
 		self.assertTrue(kwargs.get("enqueue_after_commit"))
@@ -96,10 +96,10 @@ class TestRunTranscode(FrappeTestCase):
 			dst = cmd[-1]
 			with open(dst, "wb") as f:
 				f.write(b"sahte transcode edilmis veri")
-			return mock.Mock(returncode=0)
+			return isolation.IsolationResult(ok=True)
 
 		with mock.patch(
-			"tradehub_core.media.transcode.subprocess.run", side_effect=_sahte_ffmpeg
+			"tradehub_core.media.transcode.isolation.run_command", side_effect=_sahte_ffmpeg
 		) as mock_run:
 			transcode._run_transcode(self.doc.file_url)
 
@@ -127,10 +127,10 @@ class TestRunTranscode(FrappeTestCase):
 			dst = cmd[-1]
 			with open(dst, "wb") as f:
 				f.write(b"sahte transcode edilmis veri")
-			return mock.Mock(returncode=0)
+			return isolation.IsolationResult(ok=True)
 
 		with mock.patch(
-			"tradehub_core.media.transcode.subprocess.run", side_effect=_sahte_ffmpeg
+			"tradehub_core.media.transcode.isolation.run_command", side_effect=_sahte_ffmpeg
 		):
 			transcode._run_transcode(self.doc.file_url)
 
@@ -147,7 +147,7 @@ class TestRunTranscode(FrappeTestCase):
 		"""
 		with (
 			mock.patch(
-				"tradehub_core.media.transcode.subprocess.run",
+				"tradehub_core.media.transcode.isolation.run_command",
 				side_effect=Exception("ffmpeg patladı"),
 			),
 			mock.patch("tradehub_core.media.transcode.frappe.enqueue") as mock_enqueue,
@@ -172,7 +172,7 @@ class TestRunTranscode(FrappeTestCase):
 		"""
 		with (
 			mock.patch(
-				"tradehub_core.media.transcode.subprocess.run",
+				"tradehub_core.media.transcode.isolation.run_command",
 				side_effect=Exception("ffmpeg patladı"),
 			),
 			mock.patch("tradehub_core.media.transcode.frappe.enqueue"),
@@ -189,7 +189,7 @@ class TestRunTranscode(FrappeTestCase):
 	def test_run_transcode_dosya_bulunamazsa_sessizce_cikar(self):
 		# Kuyruğa alındıktan sonra dosya silinmiş olabilir (satıcı bırakmış) —
 		# worker patlamamalı.
-		with mock.patch("tradehub_core.media.transcode.subprocess.run") as mock_run:
+		with mock.patch("tradehub_core.media.transcode.isolation.run_command") as mock_run:
 			transcode._run_transcode("/files/olmayan-dosya.mp4")
 		mock_run.assert_not_called()
 
@@ -201,53 +201,56 @@ class TestNeedsTranscode(FrappeTestCase):
 	"""
 
 	@staticmethod
-	def _ffprobe_stdout(width: int | None = None, bit_rate: int | None = None) -> bytes:
-		stream: dict = {}
-		if width is not None:
-			stream["width"] = width
-		if bit_rate is not None:
-			stream["bit_rate"] = str(bit_rate)
-		return json.dumps({"streams": [stream]}).encode()
+	def _facts(width: int = 0, bit_rate: int = 0, *, measured: bool = True, error: str = "") -> VideoFacts:
+		return VideoFacts(
+			measured=measured,
+			error=error,
+			has_video=measured,
+			width=width,
+			height=360 if measured else 0,
+			duration_s=10.0 if measured else 0.0,
+			video_bitrate_bps=bit_rate,
+		)
 
 	def test_genislik_esigini_asan_video_true_doner(self):
 		with mock.patch(
-			"tradehub_core.media.transcode.subprocess.run",
-			return_value=mock.Mock(stdout=self._ffprobe_stdout(width=1920, bit_rate=500_000)),
+			"tradehub_core.media.transcode.video_probe.probe",
+			return_value=self._facts(width=1920, bit_rate=500_000),
 		):
 			self.assertTrue(transcode.needs_transcode("/tmp/genis-video.mp4"))
 
 	def test_bitrate_esigini_asan_video_true_doner(self):
 		with mock.patch(
-			"tradehub_core.media.transcode.subprocess.run",
-			return_value=mock.Mock(stdout=self._ffprobe_stdout(width=640, bit_rate=3_000_000)),
+			"tradehub_core.media.transcode.video_probe.probe",
+			return_value=self._facts(width=640, bit_rate=3_000_000),
 		):
 			self.assertTrue(transcode.needs_transcode("/tmp/yuksek-bitrate.mp4"))
 
 	def test_kucuk_ve_dusuk_bitrate_video_false_doner(self):
 		with mock.patch(
-			"tradehub_core.media.transcode.subprocess.run",
-			return_value=mock.Mock(stdout=self._ffprobe_stdout(width=640, bit_rate=800_000)),
+			"tradehub_core.media.transcode.video_probe.probe",
+			return_value=self._facts(width=640, bit_rate=800_000),
 		):
 			self.assertFalse(transcode.needs_transcode("/tmp/kucuk-video.mp4"))
 
 	def test_ffprobe_bulunamazsa_guvenli_taraf_true_doner(self):
 		with mock.patch(
-			"tradehub_core.media.transcode.subprocess.run",
-			side_effect=FileNotFoundError("ffprobe yok"),
+			"tradehub_core.media.transcode.video_probe.probe",
+			return_value=self._facts(measured=False, error="ffprobe yok"),
 		):
 			self.assertTrue(transcode.needs_transcode("/tmp/herhangi.mp4"))
 
 	def test_ffprobe_hata_verirse_guvenli_taraf_true_doner(self):
 		with mock.patch(
-			"tradehub_core.media.transcode.subprocess.run",
-			side_effect=subprocess.CalledProcessError(1, ["ffprobe"]),
+			"tradehub_core.media.transcode.video_probe.probe",
+			return_value=self._facts(measured=False, error="ffprobe hata"),
 		):
 			self.assertTrue(transcode.needs_transcode("/tmp/bozuk-video.mp4"))
 
 	def test_ffprobe_stream_bulamazsa_guvenli_taraf_true_doner(self):
 		with mock.patch(
-			"tradehub_core.media.transcode.subprocess.run",
-			return_value=mock.Mock(stdout=json.dumps({"streams": []}).encode()),
+			"tradehub_core.media.transcode.video_probe.probe",
+			return_value=self._facts(measured=False, error="video akisi yok"),
 		):
 			self.assertTrue(transcode.needs_transcode("/tmp/stream-yok.mp4"))
 
@@ -368,15 +371,29 @@ class TestMaybeTranscodeOnInsert(FrappeTestCase):
 		mock_enqueue_transcode.assert_not_called()
 
 	def test_listing_ekindeki_video_satici_olmasa_bile_enqueue_edilir(self):
+		"""Faz 7 hattı kapsam dışındaysa eski güvenlik ağı korunur."""
 		frappe.db.set_value("File", self.public_video.name, "attached_to_doctype", "Listing")
 		self.public_video.reload()
 		with (
 			mock.patch("tradehub_core.media.transcode.ownership.store_of", return_value=None),
+			mock.patch("tradehub_core.media.transcode._owned_by_video_engine", return_value=False),
 			mock.patch("tradehub_core.media.transcode.enqueue_transcode") as mock_enqueue_transcode,
 		):
 			transcode.maybe_transcode_on_insert(self.public_video)
 
 		mock_enqueue_transcode.assert_called_once_with(self.public_video.file_url)
+
+	def test_faz7_listing_videosunu_sahiplendiyse_eski_worker_cagrilmaz(self):
+		"""Aynı dosyayı VP9 miras worker'ı ile H.264 Faz 7 worker'ı yarıştıramaz."""
+		frappe.db.set_value("File", self.public_video.name, "attached_to_doctype", "Listing")
+		self.public_video.reload()
+		with (
+			mock.patch("tradehub_core.media.transcode._owned_by_video_engine", return_value=True),
+			mock.patch("tradehub_core.media.transcode.enqueue_transcode") as mock_enqueue_transcode,
+		):
+			transcode.maybe_transcode_on_insert(self.public_video)
+
+		mock_enqueue_transcode.assert_not_called()
 
 	def test_video_olmayan_dosya_muaf(self):
 		import io

@@ -815,3 +815,19 @@ curl -s -o /dev/null -w "%{http_code}\n" https://istoc.com/private/files/<biline
 
 İlgili belgeler: `docs/MEDYA-ERISIM-MODELI.md` (TUR-126),
 `docs/reports/01-dosya-akisi.md` (T-002 — dosya akışı, aynı kod tabanı).
+
+---
+
+## Güncel negatif yetki doğrulaması — 2026-08-23
+
+| Süit | Sonuç | Kanıtladığı sınır |
+|---|---:|---|
+| `test_tenant_isolation` | **22/22 OK** | başka satıcı kimliğiyle insert reddi, kendi tenant'ını otomatik bağlama, System Manager/Administrator bypass'ının açık ve sınırlı oluşu, update sırasında tenant değiştirme reddi |
+| `test_media_access` | **17/17 OK** | private dosya sahibine süreli imza; outsider'a `PermissionError` ve imza üretmeme; public URL'ye imza reddi; traversal, süresi geçmiş/bozuk/eksik imza reddi |
+
+Saf tenant testi, üretim Frappe paketini import etmeden çalışabilsin diye stub'a
+`now_datetime` ve `get_traceback` eklendi; yetki üretim kodu değiştirilmedi.
+Superadmin ayar deseni rapordaki gibi `System Manager`/`Administrator` açık
+bypass'ıdır; normal satıcı yolu tenant'ı istek parametresinden değil oturumdan
+çözer. T-005'in zorunlu negatif çapraz-tenant senaryosu artık çalışan testle
+kanıtlıdır.

@@ -92,7 +92,7 @@
    "file": "media_quality_report.json",
    "istable": false,
    "issingle": false,
-   "field_count": 9
+   "field_count": 28
   },
   {
    "name": "Media Engine Settings",

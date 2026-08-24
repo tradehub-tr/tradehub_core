@@ -34,9 +34,11 @@
 			"delete": "(self, ref: 'ObjectRef') -> 'bool'",
 			"exists": "(self, ref: 'ObjectRef') -> 'bool'",
 			"get": "(self, ref: 'ObjectRef') -> 'bytes'",
+			"iter_bytes": "(self, ref: 'ObjectRef', *, chunk_size: 'int' = 1048576) -> 'Iterator[bytes]'",
 			"iter_keys": "(self, *, scope: 'str' = 'public', prefix: 'str' = '') -> 'Iterator[ObjectKey]'",
 			"move": "(self, source: 'ObjectRef', target_scope: 'str') -> 'ObjectRef'",
 			"put": "(self, content: 'bytes', extension: 'str', *, scope: 'str' = 'public') -> 'PutResult'",
+			"put_stream": "(self, chunks: 'Iterable[bytes]', extension: 'str', *, scope: 'str' = 'public') -> 'PutResult'",
 			"stat": "(self, ref: 'ObjectRef') -> 'ObjectStat'",
 			"url_for": "(self, ref: 'ObjectRef', *, ttl_seconds: 'Optional[int]' = None) -> 'str'"
 		},

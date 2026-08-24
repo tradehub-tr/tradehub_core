@@ -15,8 +15,12 @@
 		],
 		"FR-005": [
 			{
-				"test": "tests/test_api_contracts.py::YonetimTesti::test_matris_kalibre_edilmemis_kaliteyi_isaretler",
-				"neden": "encoder_quality null olan profilin işaretlendiğini doğrular — FR-005 kapısının iki koşulundan biri. open_questions koşulu KAPSANMIYOR."
+				"test": "tests/test_faz2_closure.py::Faz2PolitikaKapisiTesti::test_standartlar_sabit_ve_acik_sorusuz",
+				"neden": "Dokuz politikanın standard_status=fixed ve open_questions=[] olduğunu doğrudan doğrular."
+			},
+			{
+				"test": "tests/test_faz2_closure.py::Faz2PolitikaKapisiTesti::test_encoder_quality_null_degil",
+				"neden": "Dokuz politika ağacındaki tüm encoder_quality değerlerini özyinelemeli tarar ve null bulunmadığını doğrular."
 			}
 		],
 		"FR-018": [
@@ -37,8 +41,8 @@
 				"neden": "Bir master'dan slot politikasındaki merdivenin TAMAMININ üretildiğini doğrular; eksik basamak testi kırar."
 			},
 			{
-				"test": "tests/test_render_regression.py::TumSlotlarDavranisTesti::test_kismi_merdiven_yok",
-				"neden": "Regresyon kilidi: hiçbir slotta kısmi merdiven üretilmediğini gerçek fixture üzerinde sabitler."
+				"test": "tests/test_render_regression.py::FixtureYapisiTesti::test_merdiven_basamak_sayisi",
+				"neden": "Gerçek fixture üzerinde üretilen merdiven profil adlarını ve basamak sayısını sabitlenmiş üretim zinciriyle birebir karşılaştırır."
 			}
 		],
 		"FR-037": [

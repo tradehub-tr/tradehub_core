@@ -1,5 +1,12 @@
 # T-022 — Şirket kapak videosu standardı
 
+> **Güncel karar — 2026-08-23.** Makine kaynağı
+> `tradehub_core/media/pipeline/policy/slots/company-cover-video.json` şemaya
+> uyumludur; `standard_status=fixed`, açık soru sayısı 0 ve ffmpeg/ffprobe
+> çalışma ortamı doğrulanmıştır. Aşağıdaki numaralı açık kararlar 2026-08-17/18
+> karar günlüğüdür; çözümleri politika dosyasının `resolution_notes` alanında
+> kayıtlıdır. `status=draft` yalnız Faz 3 rollout durumudur.
+
 **Tarih:** 2026-08-17 · **Branch:** `medya-motoru-faz0-faz2` · **Doküman fazı:** KİLİT görev
 **Makine-okunur eşi:** `tradehub_core/media/pipeline/policy/slots/company-cover-video.json`
 
@@ -277,7 +284,7 @@ tabanlı `ensure_dimensions` dalı gerekiyor (Faz 3 görevi).
 ## 6. STANDART — kararlar ve sayıları
 
 Aşağıdaki her satır bir karardır. "Türetme" sütunu sayının nereden geldiğini
-gösterir. Hiçbiri TBD değildir.
+gösterir. Hiçbiri belirsiz bırakılmamıştır.
 
 ### 6.1 Oran ve çözünürlük
 

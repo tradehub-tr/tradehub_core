@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hmac
 import time
-from typing import Dict, Iterator, Optional, Tuple
+from typing import Dict, Iterable, Iterator, Optional, Tuple
 
 from tradehub_core.media.pipeline.contracts.errors import ObjectNotFound, StorageConflict
 from tradehub_core.media.pipeline.contracts.storage import (
@@ -73,6 +73,24 @@ class InMemoryStorage:
 		if kayit is None:
 			raise ObjectNotFound("Nesne bulunamadı", detay={"url": ref.url})
 		return kayit[0]
+
+	def put_stream(
+		self,
+		chunks: Iterable[bytes],
+		extension: str,
+		*,
+		scope: str = SCOPE_PUBLIC,
+	) -> PutResult:
+		# Test sahte deposu küçük girdiler içindir; üretim adaptörlerinin sabit
+		# bellek garantisi Local/S3 sözleşme testlerinde ayrıca ölçülür.
+		return self.put(b"".join(bytes(chunk) for chunk in chunks), extension, scope=scope)
+
+	def iter_bytes(self, ref: ObjectRef, *, chunk_size: int = 1024 * 1024) -> Iterator[bytes]:
+		if int(chunk_size) < 1:
+			raise ValueError("chunk_size pozitif olmalıdır")
+		content = self.get(ref)
+		for offset in range(0, len(content), int(chunk_size)):
+			yield content[offset : offset + int(chunk_size)]
 
 	def exists(self, ref: ObjectRef) -> bool:
 		return self._addr(ref) in self._objects

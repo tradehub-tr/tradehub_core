@@ -241,6 +241,17 @@ class NumpyParitesiTest(unittest.TestCase):
 					L._numpy_var = ozgun
 				self.assertEqual(hizli, saf, f"{yol.name}: {hizli.hex()} != {saf.hex()}")
 
+	def test_duz_kanalda_makine_gurultusu_kanonik_sifirdir(self):
+		"""Toplama sırası sabit kanalın hash'ini değiştirememeli."""
+		kanal = [1.0] * (32 * 32)
+
+		saf = L._encode_channel(kanal, 7, 7, 32, 32)
+		hizli = L._encode_channel_np(kanal, 7, 7, 32, 32)
+
+		self.assertEqual(saf, hizli)
+		self.assertEqual(saf[2], 0.0)
+		self.assertTrue(all(katsayi == 0.0 for katsayi in saf[1]))
+
 
 class AlfaTest(unittest.TestCase):
 	"""Kesim görsellerde saydamlık hash'e girmeli (BlurHash'in yapamadığı)."""

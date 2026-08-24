@@ -308,6 +308,14 @@ class TestRenameOne(_RenameBase):
 		out = retro_rename.rename_one("/files/ab/" + "c" * 32 + ".jpg", "JOB-N", None)
 		self.assertEqual((out["status"], out["reason"]), ("skipped", "not_legacy"))
 
+	def test_basarili_commit_404_onbellegini_hemen_temizler(self):
+		"""İlk 25 dosya da heartbeat beklemeden 301 olarak görünür olmalı."""
+		self._expected_target()
+		with mock.patch.object(retro_rename, "_clear_404_cache") as clear:
+			out = retro_rename.rename_one(self.url, "JOB-CACHE", add_days(now_datetime(), 90))
+		self.assertEqual(out["status"], "renamed")
+		clear.assert_called_once_with()
+
 
 class TestRunJobAndRollback(_RenameBase):
 	def test_run_job_ilerleme_ve_rollback(self):
@@ -403,6 +411,51 @@ class TestRunJobAndRollback(_RenameBase):
 		self.assertEqual(p["state"], "stopped")
 		self.assertEqual(p["processed"], 1)
 
+	def test_rollback_sonradan_kullanici_degisikligini_ezmez(self):
+		hedef = self._expected_target()
+		with mock.patch.object(retro_rename, "legacy_urls", return_value=[self.url]):
+			retro_rename.run_job("JOB-USER-REF", dry_run=0, batch_size=10)
+		self.assertEqual(frappe.db.get_value("Listing", self.listing, "primary_image"), hedef)
+
+		user_value = "/files/kullanici-sonradan-secti.jpg"
+		frappe.db.set_value("Listing", self.listing, "primary_image", user_value, update_modified=False)
+		frappe.db.commit()
+		retro_rename.run_rollback("JOB-USER-REF", "RB-USER-REF")
+
+		rp = retro_rename.read_progress("RB-USER-REF")
+		self.assertEqual(rp["state"], "completed")
+		self.assertGreaterEqual(rp["refs_skipped"], 1)
+		self.assertEqual(frappe.db.get_value("Listing", self.listing, "primary_image"), user_value)
+
+
+class TestActiveJobLock(FrappeTestCase):
+	def setUp(self):
+		super().setUp()
+		frappe.cache.delete_value(retro_rename.ACTIVE_KEY)
+		self.addCleanup(lambda: frappe.cache.delete_value(retro_rename.ACTIVE_KEY))
+
+	def test_atomik_sahiplik_ve_compare_delete(self):
+		self.assertTrue(retro_rename.claim_active("LOCK-A", ttl=60))
+		self.assertFalse(retro_rename.claim_active("LOCK-B", ttl=60))
+		self.assertEqual(frappe.cache.get_value(retro_rename.ACTIVE_KEY, expires=True), "LOCK-A")
+		self.assertFalse(retro_rename.release_active("LOCK-B"))
+		self.assertEqual(frappe.cache.get_value(retro_rename.ACTIVE_KEY, expires=True), "LOCK-A")
+		self.assertTrue(retro_rename.acquire_or_refresh_active("LOCK-A", ttl=60))
+		self.assertTrue(retro_rename.release_active("LOCK-A"))
+		self.assertIsNone(frappe.cache.get_value(retro_rename.ACTIVE_KEY, expires=True))
+
+	def test_worker_baska_sahibin_kilidini_ezmez(self):
+		self.assertTrue(retro_rename.claim_active("LOCK-OWNER", ttl=60))
+		with (
+			mock.patch.object(retro_rename, "legacy_urls") as legacy,
+			mock.patch.object(retro_rename, "rename_one") as rename,
+		):
+			retro_rename.run_job("LOCK-INTRUDER", dry_run=0, batch_size=1)
+		legacy.assert_not_called()
+		rename.assert_not_called()
+		self.assertEqual(retro_rename.read_progress("LOCK-INTRUDER")["state"], "error")
+		self.assertEqual(frappe.cache.get_value(retro_rename.ACTIVE_KEY, expires=True), "LOCK-OWNER")
+
 
 class TestDedupRollback(FrappeTestCase):
 	"""Dedup tuzağı: iki eski ad AYNI içeriğe sahip → tek hedef, iki redirect satırı.
@@ -421,6 +474,8 @@ class TestDedupRollback(FrappeTestCase):
 		self.url_a = _write_flat_public(self.ad_a, self.content)
 		self.url_b = _write_flat_public(self.ad_b, self.content)
 		self.files = [_make_file_row(self.ad_a, self.url_a), _make_file_row(self.ad_b, self.url_b)]
+		self.listing_a = _make_listing(f"RR DUP A {suffix}", self.url_a)
+		self.listing_b = _make_listing(f"RR DUP B {suffix}", self.url_b)
 		self.hedef = _hedef_url(self.content)
 		self.hedef_path = os.path.join(get_files_path(is_private=0), *self.hedef[len("/files/") :].split("/"))
 		frappe.db.commit()
@@ -431,6 +486,9 @@ class TestDedupRollback(FrappeTestCase):
 		for n in self.files:
 			if frappe.db.exists("File", n):
 				frappe.delete_doc("File", n, force=True, ignore_permissions=True)
+		for n in (self.listing_a, self.listing_b):
+			if frappe.db.exists("Listing", n):
+				frappe.delete_doc("Listing", n, force=True, ignore_permissions=True)
 		frappe.db.delete("Media URL Redirect", {"job_key": "JOB-DUP"})
 		frappe.db.commit()
 		base = get_files_path(is_private=0)
@@ -447,6 +505,8 @@ class TestDedupRollback(FrappeTestCase):
 		self.assertEqual(frappe.db.count("File", {"file_url": self.hedef}), 2)
 		self.assertTrue(os.path.isfile(self.hedef_path))
 		self.assertEqual(frappe.db.count("Media URL Redirect", {"job_key": "JOB-DUP"}), 2)
+		self.assertEqual(frappe.db.get_value("Listing", self.listing_a, "primary_image"), self.hedef)
+		self.assertEqual(frappe.db.get_value("Listing", self.listing_b, "primary_image"), self.hedef)
 
 		retro_rename.run_rollback("JOB-DUP", "RB-DUP")
 		rp = retro_rename.read_progress("RB-DUP")
@@ -459,6 +519,8 @@ class TestDedupRollback(FrappeTestCase):
 		self.assertEqual(frappe.db.count("File", {"file_url": self.url_a}), 1)
 		self.assertEqual(frappe.db.count("File", {"file_url": self.url_b}), 1)
 		self.assertEqual(frappe.db.count("File", {"file_url": self.hedef}), 0)
+		self.assertEqual(frappe.db.get_value("Listing", self.listing_a, "primary_image"), self.url_a)
+		self.assertEqual(frappe.db.get_value("Listing", self.listing_b, "primary_image"), self.url_b)
 		base = get_files_path(is_private=0)
 		self.assertTrue(os.path.isfile(os.path.join(base, self.ad_a)))
 		self.assertTrue(os.path.isfile(os.path.join(base, self.ad_b)))
@@ -538,6 +600,7 @@ class TestRollbackHedeftekiYabanciSatir(FrappeTestCase):
 			f.write(self.content)
 		self.file_a = _make_file_row(self.ad_a, self.url_a)
 		self.file_ikiz = _make_file_row(os.path.basename(self.hedef), self.hedef)
+		self.target_listing = _make_listing(f"RR doğal hedef {suffix}", self.hedef)
 		frappe.db.commit()
 		self.addCleanup(self._cleanup)
 
@@ -546,6 +609,8 @@ class TestRollbackHedeftekiYabanciSatir(FrappeTestCase):
 		for n in (self.file_a, self.file_ikiz):
 			if frappe.db.exists("File", n):
 				frappe.delete_doc("File", n, force=True, ignore_permissions=True)
+		if frappe.db.exists("Listing", self.target_listing):
+			frappe.delete_doc("Listing", self.target_listing, force=True, ignore_permissions=True)
 		frappe.db.delete("Media URL Redirect", {"job_key": "JOB-TWIN"})
 		frappe.db.commit()
 		for p in [os.path.join(get_files_path(is_private=0), self.ad_a), self.hedef_path]:
@@ -567,6 +632,11 @@ class TestRollbackHedeftekiYabanciSatir(FrappeTestCase):
 		self.assertEqual(frappe.db.get_value("File", self.file_ikiz, "file_url"), self.hedef)
 		self.assertEqual(frappe.db.get_value("File", self.file_a, "file_url"), self.url_a)
 		self.assertEqual(frappe.db.count("File", {"file_url": self.hedef}), 1)
+		self.assertEqual(
+			frappe.db.get_value("Listing", self.target_listing, "primary_image"),
+			self.hedef,
+			"retro-rename dışında hedefi kullanan referans geri alınmamalı",
+		)
 
 
 class TestRollbackDiskHatasi(_RenameBase):
@@ -574,7 +644,7 @@ class TestRollbackDiskHatasi(_RenameBase):
 		self._expected_target()
 		with mock.patch.object(retro_rename, "legacy_urls", return_value=[self.url]):
 			retro_rename.run_job("JOB-RB-IO", dry_run=0, batch_size=10)
-		with mock.patch("os.replace", side_effect=OSError("bum")):
+		with mock.patch.object(retro_rename, "_stage_rollback_source", side_effect=OSError("bum")):
 			retro_rename.run_rollback("JOB-RB-IO", "RB-IO")
 		rp = retro_rename.read_progress("RB-IO")
 		self.assertEqual((rp["state"], rp["processed"], rp["errors"]), ("partial", 1, 1))
@@ -582,6 +652,71 @@ class TestRollbackDiskHatasi(_RenameBase):
 		self.assertTrue(frappe.db.exists("Media URL Redirect", {"source_url": self.url}))
 		self.assertTrue(os.path.isfile(self._new_path))
 		self.assertEqual(frappe.db.count("File", {"file_url": self._expected_target()}), 3)
+
+	def test_rollback_eski_yolda_yabanci_dosyayi_ezmez(self):
+		self._expected_target()
+		with mock.patch.object(retro_rename, "legacy_urls", return_value=[self.url]):
+			retro_rename.run_job("JOB-RB-COLLISION", dry_run=0, batch_size=10)
+		old_path = os.path.join(get_files_path(is_private=0), self.name)
+		foreign = b"sonradan-yuklenen-yabanci-dosya"
+		with open(old_path, "wb") as f:
+			f.write(foreign)
+
+		retro_rename.run_rollback("JOB-RB-COLLISION", "RB-COLLISION")
+		rp = retro_rename.read_progress("RB-COLLISION")
+		self.assertEqual((rp["state"], rp["errors"]), ("partial", 1))
+		self.assertEqual(rp["skip_reasons"].get("source_collision"), 1)
+		with open(old_path, "rb") as f:
+			self.assertEqual(f.read(), foreign)
+		self.assertTrue(os.path.isfile(self._new_path))
+		self.assertTrue(frappe.db.exists("Media URL Redirect", {"source_url": self.url}))
+
+	def test_rollback_eski_yolda_ayni_dosya_varsa_idempotent(self):
+		self._expected_target()
+		with mock.patch.object(retro_rename, "legacy_urls", return_value=[self.url]):
+			retro_rename.run_job("JOB-RB-SAME", dry_run=0, batch_size=10)
+		old_path = os.path.join(get_files_path(is_private=0), self.name)
+		with open(old_path, "wb") as f:
+			f.write(self.content)
+
+		retro_rename.run_rollback("JOB-RB-SAME", "RB-SAME")
+		rp = retro_rename.read_progress("RB-SAME")
+		self.assertEqual((rp["state"], rp["errors"]), ("completed", 0))
+		with open(old_path, "rb") as f:
+			self.assertEqual(f.read(), self.content)
+		self.assertFalse(os.path.isfile(self._new_path))
+
+	def test_referans_provenance_olmayan_eski_satir_guvenle_reddedilir(self):
+		hedef = self._expected_target()
+		with mock.patch.object(retro_rename, "legacy_urls", return_value=[self.url]):
+			retro_rename.run_job("JOB-RB-LEGACY-REF", dry_run=0, batch_size=10)
+		row_name = frappe.db.get_value("Media URL Redirect", {"source_url": self.url}, "name")
+		frappe.db.set_value("Media URL Redirect", row_name, "ref_changes", "", update_modified=False)
+		frappe.db.commit()
+
+		retro_rename.run_rollback("JOB-RB-LEGACY-REF", "RB-LEGACY-REF")
+		rp = retro_rename.read_progress("RB-LEGACY-REF")
+		self.assertEqual((rp["state"], rp["errors"]), ("partial", 1))
+		self.assertEqual(rp["skip_reasons"].get("ref_provenance_missing"), 1)
+		self.assertEqual(frappe.db.count("File", {"file_url": hedef}), 3)
+		self.assertTrue(os.path.isfile(self._new_path))
+		self.assertTrue(frappe.db.exists("Media URL Redirect", row_name))
+
+	def test_file_kimligi_olmayan_eski_satir_guvenle_reddedilir(self):
+		hedef = self._expected_target()
+		with mock.patch.object(retro_rename, "legacy_urls", return_value=[self.url]):
+			retro_rename.run_job("JOB-RB-LEGACY-FILE", dry_run=0, batch_size=10)
+		row_name = frappe.db.get_value("Media URL Redirect", {"source_url": self.url}, "name")
+		frappe.db.set_value("Media URL Redirect", row_name, "file_names", "", update_modified=False)
+		frappe.db.commit()
+
+		retro_rename.run_rollback("JOB-RB-LEGACY-FILE", "RB-LEGACY-FILE")
+		rp = retro_rename.read_progress("RB-LEGACY-FILE")
+		self.assertEqual((rp["state"], rp["errors"]), ("partial", 1))
+		self.assertEqual(rp["skip_reasons"].get("file_provenance_missing"), 1)
+		self.assertEqual(frappe.db.count("File", {"file_url": hedef}), 3)
+		self.assertTrue(os.path.isfile(self._new_path))
+		self.assertTrue(frappe.db.exists("Media URL Redirect", row_name))
 
 
 class TestErrorRateStop(_RenameBase):

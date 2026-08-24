@@ -1,8 +1,14 @@
 # Standart — `user.avatar` (Kullanıcı profil fotoğrafı)
 
+> **Güncel karar — 2026-08-23.** Makine kaynağı
+> `tradehub_core/media/pipeline/policy/slots/user-avatar.json` şemaya uyumludur;
+> `standard_status=fixed`, açık soru sayısı 0 ve yeni yükleme standardı
+> sabittir. Mevcut 6 referansın tamamı harici URL olduğundan geriye dönük
+> piksel ölçümü yapılamaz. `status=draft` yalnız Faz 3 rollout durumudur.
+
 **Görev:** T-023 · **Tarih:** 2026-08-17 · **Branch:** `medya-motoru-faz0-faz2`
 **Politika dosyası:** `tradehub_core/media/pipeline/policy/slots/user-avatar.json`
-**Durum:** `draft` — geometri kuralı kodda yok; **kabul kuralları zaten
+**Tarihsel durum:** `draft` — geometri kuralı kodda yoktu; **kabul kuralları zaten
 uygulanıyor** (aşağıda).
 
 > Bu slot iki uçta birden ilginç: kod tabanının **tek gerçek çift doğrulamalı

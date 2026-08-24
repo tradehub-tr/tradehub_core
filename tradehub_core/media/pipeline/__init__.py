@@ -1,9 +1,9 @@
-"""media_engine — İstoç medya motoru kütüphanesi.
+"""İstoç medya motorunun saf çekirdek alt paketi.
 
 **Bu bir Frappe app'i DEĞİLDİR.** Kaynak tasarım dokümanı ayrı bir
 `media_engine` app'i öngörüyor; İstoç'ta medya `tradehub_core` içinde bir
-modüldür ve bu paket onun YANINDA duran bir kütüphanedir. Gerekçe:
-`docs/sad/SAD-v1.0.md` §2.3 (S-01 sapması).
+modüldür ve bu paket `tradehub_core.media` içinde, Frappe kabuğundan ayrılmış
+çekirdektir. Gerekçe: ADR-0003/0004 ve `docs/sad/SAD-v1.0.md` §2.1.
 
 İçerik:
     policy/     Faz 2 çıktısı — slot politikası şeması ve 9 slot dosyası (veri).
@@ -15,7 +15,7 @@ __version__ = "0.1.0"
 
 # ── Faz 3 (T-032) alt paket haritası ────────────────────────────────────
 #
-# `media_engine` iki katmanlıdır ve ikisi farklı soruyu cevaplar:
+# Medya pipeline'ı iki katmanlıdır ve ikisi farklı soruyu cevaplar:
 #
 #     contracts/ + fakes/   arayüz (Protocol) ve sözleşme testleri için sahteler
 #     api/ core/ storage/ delivery/ image/ video/

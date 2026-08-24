@@ -98,7 +98,7 @@
    "fieldname": "classification",
    "fieldtype": "Select",
    "label": "Sınıf",
-   "options": "\nphoto\ntransparent\ngraphic\nanimation\ntext",
+   "options": "\nphoto\ntransparent\ngraphic\nanimation\ndocument",
    "read_only": 1,
    "description": "T-062 · image/classify.py sonucu. BOŞ = ölçülemedi; tahmin yazılmaz."
   },
@@ -115,7 +115,7 @@
    "fieldtype": "JSON",
    "label": "Biçim Zinciri",
    "read_only": 1,
-   "description": "T-062 · classify.FormatStep.to_dict() listesi — karar anının kopyası (policy_snapshot ile aynı gerekçe)."
+   "description": "T-062 · classify.FormatStep.to_dict() listesi (fmt, lossless, quality_bump, quality_target, requires) — karar anının kopyası (policy_snapshot ile aynı gerekçe)."
   },
   {
    "fieldname": "lqip",

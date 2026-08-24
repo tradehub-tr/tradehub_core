@@ -34,6 +34,7 @@ from tradehub_core.tradehub_core.doctype.media_storage_settings import (
 )
 
 DOCTYPE = mss.DOCTYPE
+ENGINE_DOCTYPE = "Media Engine Settings"
 
 #: Testin yazdığı sır. DB'de bu dizenin ham hâliyle görünmesi = başarısızlık.
 PROBE_SECRET = "TH-PROBE-SECRET-6f2b9c41d7e8"
@@ -181,13 +182,33 @@ class MediaStorageSettingsTests(FrappeTestCase):
 		with self.assertRaises(frappe.PermissionError):
 			mss.get_storage_status()
 
-	def test_docperm_listesinde_yalnizca_iki_rol_var(self):
+	def test_docperm_listesinde_yalnizca_media_superadmin_var(self):
 		roller = {
 			p.role for p in frappe.get_meta(DOCTYPE).permissions
 		}
 		self.assertEqual(roller, set(mss.ALLOWED_ROLES))
 		self.assertNotIn("Marketplace Seller", roller)
 		self.assertNotIn("Buyer", roller)
+
+	def test_iki_settings_single_ayni_kesin_rol_kapisini_kullanir(self):
+		"""T-040: System Manager dahil yalnız Media Superadmin dışarıda kalır."""
+		for doctype in (DOCTYPE, ENGINE_DOCTYPE):
+			with self.subTest(doctype=doctype):
+				self.assertEqual(
+					{p.role for p in frappe.get_meta(doctype).permissions},
+					{"Media Superadmin"},
+				)
+
+		superadmin = self._user("settings-super", ("Media Superadmin",))
+		system_manager = self._user("settings-system", ("System Manager",))
+		seller = self._user("settings-seller", ("Marketplace Seller",))
+		for doctype in (DOCTYPE, ENGINE_DOCTYPE):
+			with self.subTest(doctype=doctype, role="Media Superadmin"):
+				self.assertTrue(frappe.has_permission(doctype, "read", user=superadmin))
+			with self.subTest(doctype=doctype, role="System Manager"):
+				self.assertFalse(frappe.has_permission(doctype, "read", user=system_manager))
+			with self.subTest(doctype=doctype, role="Marketplace Seller"):
+				self.assertFalse(frappe.has_permission(doctype, "read", user=seller))
 
 	# -- 3. Sızıntı yok --------------------------------------------------
 

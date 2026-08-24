@@ -1,7 +1,7 @@
 {
   "$comment": "T-071 — video karar tablosu. KOD DEĞİL VERİ. Yeni bir karar eklemek bu dosyaya kural eklemektir; tradehub_core/media/pipeline/video/decision.py DEĞİŞMEZ.",
   "schema_version": "1.0.0",
-  "status": "draft",
+  "status": "active",
   "generated_by": "FAZ 7 / T-071",
   "measured_on": "2026-08-18, istoc-dev-backend-1, ffmpeg/ffprobe 5.1.9-0+deb12u1",
 
@@ -49,16 +49,28 @@
   "variables": {
     "measured": {"type": "bool", "source": "ffprobe çalıştı ve video akışı bulundu mu"},
     "has_video": {"type": "bool", "source": "ffprobe streams[] içinde codec_type=video var mı"},
-    "width": {"type": "int", "source": "stream.width"},
-    "height": {"type": "int", "source": "stream.height"},
+    "coded_width": {"type": "int", "source": "stream.width (rotation öncesi kodlanmış kare)"},
+    "coded_height": {"type": "int", "source": "stream.height (rotation öncesi kodlanmış kare)"},
+    "width": {"type": "int", "source": "rotation uygulanmış etkin genişlik"},
+    "height": {"type": "int", "source": "rotation uygulanmış etkin yükseklik"},
     "pixels": {"type": "int", "source": "width × height"},
     "long_edge": {"type": "int", "source": "max(width, height)"},
     "short_edge": {"type": "int", "source": "min(width, height)"},
     "duration_s": {"type": "float", "source": "format.duration"},
+    "video_start_time_s": {"type": "float", "source": "video stream.start_time"},
+    "video_duration_s": {"type": "float", "source": "video stream.duration; yoksa format.duration"},
     "fps": {"type": "float", "source": "stream.avg_frame_rate (kesir çözülür); 0 ise r_frame_rate"},
     "video_codec": {"type": "str", "source": "stream.codec_name"},
     "video_profile": {"type": "str", "source": "stream.profile"},
+    "video_level": {"type": "int", "source": "stream.level"},
+    "sample_aspect_ratio": {"type": "str", "source": "stream.sample_aspect_ratio"},
+    "display_aspect_ratio": {"type": "str", "source": "stream.display_aspect_ratio; rotation varsa ters çevrilir"},
     "pix_fmt": {"type": "str", "source": "stream.pix_fmt"},
+    "color_transfer": {"type": "str", "source": "stream.color_transfer"},
+    "color_primaries": {"type": "str", "source": "stream.color_primaries"},
+    "color_space": {"type": "str", "source": "stream.color_space"},
+    "is_hdr": {"type": "bool", "source": "PQ (smpte2084) veya HLG (arib-std-b67) transfer etiketi"},
+    "has_bframes": {"type": "bool", "source": "stream.has_b_frames > 0"},
     "video_bitrate_bps": {"type": "int", "source": "stream.bit_rate; yoksa format.bit_rate − audio.bit_rate"},
     "format_bitrate_bps": {"type": "int", "source": "format.bit_rate"},
     "bpp": {
@@ -74,6 +86,8 @@
     "audio_codec": {"type": "str", "source": "ses akışı codec_name; yoksa boş string"},
     "audio_bitrate_bps": {"type": "int", "source": "ses akışı bit_rate; yoksa 0"},
     "audio_channels": {"type": "int", "source": "ses akışı channels; yoksa 0"},
+    "audio_start_time_s": {"type": "float", "source": "audio stream.start_time"},
+    "audio_duration_s": {"type": "float", "source": "audio stream.duration; yoksa format.duration"},
     "moov_at_end": {
       "type": "bool",
       "source": "ISOBMFF üst düzey atom taraması (saf Python, ffprobe gerekmez): mdat, moov'dan ÖNCE geliyorsa true",
@@ -81,7 +95,8 @@
     },
     "size_bytes": {"type": "int", "source": "os.path.getsize"},
     "rotation": {"type": "int", "source": "stream.side_data_list[].rotation; yoksa 0"},
-    "nb_streams": {"type": "int", "source": "format.nb_streams"}
+    "nb_streams": {"type": "int", "source": "format.nb_streams"},
+    "error_count": {"type": "int", "source": "ffprobe -v error stderr satır sayısı; sıfırdan büyükse bozuk/kesik kaynak reddedilir"}
   },
 
   "rules": [
@@ -259,6 +274,14 @@
       "audio_bitrate_kbps": 128,
       "audio_channels": 2,
       "audio_sample_rate": 48000,
+      "encoder_threads": 2,
+      "hdr_to_sdr": {
+        "enabled": true,
+        "filter": "zscale linear → hable tonemap → BT.709/yuv420p",
+        "output_color_primaries": "bt709",
+        "output_color_transfer": "bt709",
+        "output_color_space": "bt709"
+      },
       "why_h264_not_vp9": [
         "Doküman H.264 istiyor; bugünkü hat VP9/WebM üretiyor (transcode.py:357-360 libvpx-vp9 + libopus). FARK BİLİNÇLİ ve gerekçesi üç maddedir:",
         "1) UYUMLULUK: VP9/WebM Safari'de <video> ile güvenilir oynamıyor (macOS'ta kısmi, iOS'ta yok). Ürün videosu B2B alıcının telefonunda oynamak zorunda; oynamayan bir video sıfır bayt tasarrufundan kötüdür.",
@@ -302,8 +325,11 @@
       "id": "T-072/3-4",
       "vmaf_min": 93,
       "max_duration_delta_s": 0.1,
+      "max_av_sync_delta_s": 0.1,
+      "first_frame_luma_min_pct": 1,
+      "first_frame_luma_max_pct": 99,
       "vmaf_note": "GÜNCELLENDİ (2026-08-20, W7): yeni imajdaki ffmpeg n8.1.2 libvmaf'LI (vmaf_available() → True, ölçüldü). Eşik artık transcode() içindeki kalite kapısında UYGULANIYOR: fayda kapısını geçen çıktı VMAF < vmaf_min ise ATILIR ve kaynak korunur (REMUX'a geri çekilme kuralları aynen geçerli). libvmaf'sız bir imajda kapı UYGULANMAZ ve sonuç notuna 'VMAF OLCULEMEDI' yazılır — sahte VMAF üretilmez. ESKİ NOT (2026-08-19, ffmpeg 5.1.9): imaj libvmaf'sızdı, eşik yalnız kâğıt üstündeydi. İlk gerçek ölçümler: şişirilmiş 720p fixture transcode'u 96,63 (GEÇER), gerçek DEV videosu LST-04043 sondası 89,34 (GEÇMEZ — rapor 81 §3.4); eşik kararı tablo sahibinin, buradan değiştirilmedi.",
-      "duration_note": "Kaynak ile çıktının süresi arasındaki fark. 100 ms üstü fark ses/görüntü senkronunun kaydığının ya da kuyruk karelerin düştüğünün işaretidir. Ölçülür ve kayda geçer; çıktı bu yüzden ATILMAZ — süresi 120 ms sapmış bir dosya, hiç dosya olmamasından iyidir. Karar çağıranındır."
+      "duration_note": "Kaynak ile çıktının süresi arasındaki fark. 100 ms üstü fark, A/V ofset değişimi 100 ms üstü veya ilk karenin siyah/beyaz kapıda düşmesi teslim bütünlüğü ihlalidir; çıktı promote edilmeden ATILIR ve kaynak korunur. Ölçülemeyen zorunlu metrik de üretim yolunda kapıyı düşürür."
     }
   },
 
@@ -316,6 +342,7 @@
     "width": 1280,
     "max_bytes": 122880,
     "brightness_gate": {"min_luma_pct": 6, "max_luma_pct": 94},
+    "detail_gate": {"min_edge_density_pct": 1},
     "retry_window_expr": "[duration_s * 0.25, duration_s * 0.50]",
     "max_retries": 1,
     "on_final_failure": "video_poster_unresolved",

@@ -82,19 +82,15 @@ class TestRetroRenameEndpoints(FrappeTestCase):
 		self.assertEqual(kwargs["dry_run"], 1)
 
 	def test_start_gecici_kilit_kurar(self):
-		"""TOCTOU: enqueue mock'landığında bile kilit worker'a bağımlı olmadan Redis'te kalıcı olur.
-
-		Endpoint `ACTIVE_KEY`'i `get_value(..., expires=True)` ile okuyor — bu yüzden
-		süreç-içi önbelleğe hiç yazılmıyor ve testin kendi okuması (aşağıda,
-		`expires=True` OLMADAN) da gerçek Redis değerini görür; `frappe.local.cache`
-		elle temizlemeye gerek yok.
-		"""
+		"""Enqueue mock'landığında bile atomik sahiplik worker'dan önce kurulur."""
 		with (
 			mock.patch.object(media_admin.frappe, "enqueue"),
 			mock.patch.object(retro_rename, "legacy_urls", return_value=["/files/a.jpg"]),
 		):
 			out = media_admin.start_retro_rename()
-		self.assertEqual(frappe.cache.get_value(retro_rename.ACTIVE_KEY), out["job_key"])
+			self.assertEqual(
+				frappe.cache.get_value(retro_rename.ACTIVE_KEY, expires=True), out["job_key"]
+			)
 
 	def test_start_batch_size_kirpilir(self):
 		with (
@@ -112,6 +108,25 @@ class TestRetroRenameEndpoints(FrappeTestCase):
 		with self.assertRaises(frappe.ValidationError):
 			media_admin.start_retro_rename()
 
+	def test_arka_arkaya_iki_start_yalniz_birini_enqueue_eder(self):
+		with (
+			mock.patch.object(media_admin.frappe, "enqueue") as enq,
+			mock.patch.object(retro_rename, "legacy_urls", return_value=["/files/a.jpg"]),
+		):
+			media_admin.start_retro_rename()
+			with self.assertRaises(frappe.ValidationError):
+				media_admin.start_retro_rename()
+		self.assertEqual(enq.call_count, 1)
+
+	def test_enqueue_hatasinda_kilit_yalniz_kendi_sahibi_icin_birakilir(self):
+		with (
+			mock.patch.object(media_admin.frappe, "enqueue", side_effect=RuntimeError("queue down")),
+			mock.patch.object(retro_rename, "legacy_urls", return_value=["/files/a.jpg"]),
+		):
+			with self.assertRaises(RuntimeError):
+				media_admin.start_retro_rename()
+		self.assertIsNone(frappe.cache.get_value(retro_rename.ACTIVE_KEY, expires=True))
+
 	def test_status_bilinmeyen_not_found(self):
 		self.assertEqual(media_admin.get_retro_rename_status("yok")["state"], "not_found")
 
@@ -122,10 +137,12 @@ class TestRetroRenameEndpoints(FrappeTestCase):
 		self.assertEqual(enq.call_args.kwargs["job_key"], "JOB-X")
 
 	def test_rollback_gecici_kilit_kurar(self):
-		"""TOCTOU: bkz. `test_start_gecici_kilit_kurar` — aynı `expires=True` gerekçesi."""
+		"""Rollback de kuyruğa alınmadan atomik sahiplik kurar."""
 		with mock.patch.object(media_admin.frappe, "enqueue"):
 			out = media_admin.rollback_retro_rename("JOB-X")
-		self.assertEqual(frappe.cache.get_value(retro_rename.ACTIVE_KEY), out["job_key"])
+		self.assertEqual(
+			frappe.cache.get_value(retro_rename.ACTIVE_KEY, expires=True), out["job_key"]
+		)
 
 	def test_yetkisiz_reddedilir(self):
 		frappe.set_user("Guest")

@@ -617,3 +617,55 @@ Satır sayıları: `Media Profile` **36**; `Media Asset`, `Media Rendition`,
 > **engeli kalktı ama işi yapılmadı**, kaynağın iki ana kriteri — **1M asset
 > ölçeğinde EXPLAIN** ve **rollback provası + `docs/plans/rollback-doctypes.md`** —
 > hâlâ açık. Faz 4'ün kapanışı bu ikisine bağlıdır.
+
+---
+
+## 12. Yetkili güncelleme — 2026-08-23
+
+Bu bölüm, §8 ve §11'deki tarihsel “açık” hükümlerini yeni ölçümlerle günceller; eski kayıtlar denetim izi olarak korunmuştur.
+
+### 12.1 Şema ve fixture
+
+- Eksik dört şema kuruldu: `Media Source`, `Media Policy`, `Media Policy Profile`, `Media Content Rule`. `Media Quality Report` daha önce kurulmuştu; resmi 15/15 set artık tamdır.
+- Kanonik dokuz slot policy’si migration projection’ıyla 9 policy, 36 profile child ve 72 content rule olarak yüklenir.
+- Temiz kurulumda Frappe’nin tarihsel patch’leri uygulanmış sayması nedeniyle projection ve indeks kurulumu ayrıca idempotent `after_install/after_migrate` yoluna bağlandı.
+- İki Settings Single’ın DocPerm kümesi yalnız `Media Superadmin`dır; System Manager dahil değildir.
+
+### 12.2 Üretim indeksleri
+
+`v15_9_44_media_phase4_indexes` şu bileşik indeksleri kurar ve her migrate’ta varlığını doğrular:
+
+| Tablo | İndeks | Sorgu yolu |
+|---|---|---|
+| Media Asset | `ix_seller_state_modified(owner_seller,state,modified)` | satıcı kütüphanesi |
+| Media Asset | `ix_state_lastaccess(state,last_access_at)` | retention |
+| Media Asset | `ix_state_hold_creation(state,legal_hold,creation)` | öksüz raporu |
+| Media Rendition | `uk_rendition_quad(version_hash,profile,width,format)` UNIQUE | resmi tekillik + lookup |
+| Media Rendition | `ix_rendition_asset_version(asset,version_hash,profile)` | asset detayı |
+| Media Processing Job | `ix_queue_status_modified(queue,status,modified)` | kuyruk durumu |
+| Media Processing Job | `ix_job_asset_status(asset,status)` | asset iş geçmişi |
+
+### 12.3 Tam ölçekli EXPLAIN
+
+`scripts/seed_synthetic.py` ile disposable MariaDB 10.6.27 veritabanında tam **1.000.000 asset + 30.000.000 rendition** üretildi. Ek olarak 1M version, 800K usage ve 1M processing job vardı.
+
+| Aşama | Süre |
+|---|---:|
+| Asset/version/usage/job seed | 11,870 sn |
+| 30M rendition seed | 77,752 sn |
+| İndeks kurma + ANALYZE | 280,726 sn |
+| Yedi EXPLAIN toplama | 2,626 sn |
+
+Yedi kritik yolun tamamı hedef indeksini seçti. En seçici iki kanıt: `rendition_identity` → `const`, `uk_rendition_quad`, 1 satır; dedup lookup → `ref`, `ix_content_sha256`, 1 satır. Öksüz sorgusunun Usage anti-join’i `index_subquery`, `ix_asset_open`, 1 satırdır. Tam makine kaydı `docs/data/faz4-scale-benchmark-2026-08-23.json` dosyasındadır.
+
+### 12.4 Migration ve rollback
+
+Disposable Frappe sitesi 24,897 sn’de kuruldu; temiz migrate 6,167 sn’de geçti. Yedek sonrası dört tablo, bir kolon ve yedi indeks kontrollü kaldırıldı (`0/0/0` doğrulandı); snapshot 6,255 sn’de restore edildi ve `4/1/7` şema ile `9/36/72` katalog sayıları geri geldi. Uygulanabilir plan `docs/plans/rollback-doctypes.md` içindedir.
+
+### 12.5 SHA güvenlik sapması
+
+`content_sha256` global UNIQUE yapılmadı. Canlı sitede 61 hash’li asset içinde üç SHA farklı kiracı/slot bağlamında ikişer kez bulunuyor. Global unique, farklı satıcıların sahipliğini tek Asset’te birleştirerek izolasyon ve varlık yaşam döngüsünü bozar. Üretim tekilliği `asset_key=(owner_seller,slot_key,content_sha256)` ile DB seviyesinde sağlanır; `content_sha256` ayrıca indekslidir. Bu, resmi metinden bilinçli ve ölçülmüş güvenlik sapmasıdır.
+
+### 12.6 Güncel teknik hüküm
+
+T-040…T-044’ün teknik çıktıları tamamdır. Faz 4 çıkış kapısındaki teknik sorumlu onayı/imzası insan kararı olarak açık kalır; bu belge otomatik imza atmaz.

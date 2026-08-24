@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>T-014 Smartcrop İnsan Etiketleme</title>
+    <style>
+      :root { font: 16px/1.45 system-ui, sans-serif; color-scheme: light dark; }
+      body { max-width: 980px; margin: 2rem auto; padding: 0 1rem; }
+      .bar, .controls { display:flex; flex-wrap:wrap; gap:.75rem; align-items:center; margin:1rem 0; }
+      .stage { position:relative; display:inline-block; border:2px solid #64748b; cursor:crosshair; max-width:100%; }
+      .stage img { display:block; max-width:900px; max-height:65vh; width:auto; height:auto; }
+      .point { position:absolute; width:18px; height:18px; margin:-9px; border-radius:50%; border:3px solid white; background:#e11d48; pointer-events:none; box-shadow:0 0 0 2px #111; }
+      button, input, select { font:inherit; padding:.5rem .75rem; }
+      progress { width:240px; }
+      .warn { color:#b45309; font-weight:650; }
+      code { background:#64748b22; padding:.15rem .3rem; }
+    </style>
+  </head>
+  <body>
+    <h1>T-014 Smartcrop insan etiketi</h1>
+    <p>Ürünün doğru odak noktasına tıklayın ve zemin sınıfını seçin. Etiketleyenin adı ve 50/50 kayıt tamamlanmadan dışa aktarma açılmaz.</p>
+    <div class="bar">
+      <label>Etiketleyen <input id="labeler" autocomplete="name" placeholder="Ad Soyad" /></label>
+      <progress id="progress" max="50" value="0"></progress>
+      <strong id="counter">0 / 50</strong>
+    </div>
+    <div id="stage" class="stage"><img id="image" alt="Etiketlenecek ürün" /><span id="point" class="point" hidden></span></div>
+    <div class="controls">
+      <label>Zemin
+        <select id="background">
+          <option value="">Seçin</option>
+          <option value="plain">Beyaz / düz</option>
+          <option value="complex">Karmaşık / yaşam tarzı</option>
+        </select>
+      </label>
+      <button id="previous" type="button">← Önceki</button>
+      <button id="next" type="button">Sonraki →</button>
+      <button id="export" type="button" disabled>ground-truth.json indir</button>
+    </div>
+    <p id="status" class="warn"></p>
+    <script type="module">
+      const manifest = await fetch("./manifest.json", { cache: "no-store" }).then((r) => {
+        if (!r.ok) throw new Error(`manifest HTTP ${r.status}`);
+        return r.json();
+      });
+      const items = manifest.items.slice(0, 50);
+      const key = `t014-labels:${items.map((x) => x.sha256).join(":")}`;
+      const saved = JSON.parse(localStorage.getItem(key) || "{}");
+      let index = 0;
+      const $ = (id) => document.getElementById(id);
+      const image = $("image"), stage = $("stage"), point = $("point"), background = $("background");
+      $("labeler").value = saved.labeler || "";
+      const labels = saved.labels || {};
+
+      function persist() {
+        localStorage.setItem(key, JSON.stringify({ labeler: $("labeler").value, labels }));
+      }
+      function completeCount() {
+        return items.filter((item) => labels[item.id]?.focal_x != null && ["plain", "complex"].includes(labels[item.id]?.background)).length;
+      }
+      function render() {
+        const item = items[index], label = labels[item.id] || {};
+        image.src = `./${item.image}`;
+        background.value = label.background || "";
+        point.hidden = label.focal_x == null;
+        if (!point.hidden) { point.style.left = `${label.focal_x * 100}%`; point.style.top = `${label.focal_y * 100}%`; }
+        const done = completeCount();
+        $("progress").value = done; $("counter").textContent = `${done} / ${items.length}`;
+        $("previous").disabled = index === 0; $("next").disabled = index === items.length - 1;
+        $("export").disabled = done !== items.length || !$("labeler").value.trim();
+        $("status").textContent = `${item.id} · ${item.width}×${item.height} · ${index + 1}. kayıt`;
+      }
+      stage.addEventListener("click", (event) => {
+        const rect = image.getBoundingClientRect();
+        if (!rect.width || !rect.height) return;
+        const item = items[index];
+        labels[item.id] = { ...(labels[item.id] || {}), focal_x: Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width)), focal_y: Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height)) };
+        persist(); render();
+      });
+      background.addEventListener("change", () => { const item = items[index]; labels[item.id] = { ...(labels[item.id] || {}), background: background.value }; persist(); render(); });
+      $("labeler").addEventListener("input", () => { persist(); render(); });
+      $("previous").addEventListener("click", () => { index = Math.max(0, index - 1); render(); });
+      $("next").addEventListener("click", () => { index = Math.min(items.length - 1, index + 1); render(); });
+      $("export").addEventListener("click", () => {
+        const doc = { schema_version: "1.0.0", task: "T-014", label_type: "human_click", labeler: $("labeler").value.trim(), labeled_at: new Date().toISOString(), source_manifest_created_at: manifest.created_at, items: items.map((item) => ({ id: item.id, image: item.image, sha256: item.sha256, focal_x: labels[item.id].focal_x, focal_y: labels[item.id].focal_y, background: labels[item.id].background })) };
+        const url = URL.createObjectURL(new Blob([JSON.stringify(doc, null, 2) + "\n"], { type: "application/json" }));
+        const a = Object.assign(document.createElement("a"), { href: url, download: "ground-truth.json" }); a.click(); URL.revokeObjectURL(url);
+      });
+      render();
+    </script>
+  </body>
+</html>

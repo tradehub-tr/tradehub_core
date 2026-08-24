@@ -1,0 +1,528 @@
+{
+  "schema_version": 1,
+  "measured_at": "2026-08-23T03:31:51.608169+00:00",
+  "site": "istoc.localhost",
+  "privacy": "aggregate-only; no media URL or document name is emitted",
+  "percentile_method": "linear interpolation",
+  "slots": [
+    {
+      "slot_key": "brand.logo",
+      "bindings": {
+        "Brand.logo": 1
+      },
+      "references": {
+        "unique": 1,
+        "local_existing": 1,
+        "external": 0,
+        "missing_on_disk": 0,
+        "unreadable": 0
+      },
+      "media_kinds": {
+        "image": 1
+      },
+      "extensions": {
+        "jpeg": 1
+      },
+      "bytes": {
+        "count": 1,
+        "p50": 12172.0,
+        "p90": 12172.0,
+        "p99": 12172.0,
+        "max": 12172.0
+      },
+      "width_px": {
+        "count": 1,
+        "p50": 600.0,
+        "p90": 600.0,
+        "p99": 600.0,
+        "max": 600.0
+      },
+      "height_px": {
+        "count": 1,
+        "p50": 600.0,
+        "p90": 600.0,
+        "p99": 600.0,
+        "max": 600.0
+      },
+      "short_edge_px": {
+        "count": 1,
+        "p50": 600.0,
+        "p90": 600.0,
+        "p99": 600.0,
+        "max": 600.0
+      },
+      "megapixels": {
+        "count": 1,
+        "p50": 0.36,
+        "p90": 0.36,
+        "p99": 0.36,
+        "max": 0.36
+      }
+    },
+    {
+      "slot_key": "category.banner",
+      "bindings": {
+        "Category Showcase Tile.image": 7,
+        "Brand.hero_banner": 1,
+        "Seller Category.image": 24
+      },
+      "references": {
+        "unique": 32,
+        "local_existing": 2,
+        "external": 30,
+        "missing_on_disk": 0,
+        "unreadable": 0
+      },
+      "media_kinds": {
+        "image": 2
+      },
+      "extensions": {
+        "jpeg": 1,
+        "jpg": 1
+      },
+      "bytes": {
+        "count": 2,
+        "p50": 42666.0,
+        "p90": 67060.0,
+        "p99": 72549.0,
+        "max": 73159.0
+      },
+      "width_px": {
+        "count": 2,
+        "p50": 640.0,
+        "p90": 671.0,
+        "p99": 678.0,
+        "max": 679.0
+      },
+      "height_px": {
+        "count": 2,
+        "p50": 640.0,
+        "p90": 671.0,
+        "p99": 678.0,
+        "max": 679.0
+      },
+      "short_edge_px": {
+        "count": 2,
+        "p50": 640.0,
+        "p90": 671.0,
+        "p99": 678.0,
+        "max": 679.0
+      },
+      "megapixels": {
+        "count": 2,
+        "p50": 0.41,
+        "p90": 0.45,
+        "p99": 0.46,
+        "max": 0.46
+      }
+    },
+    {
+      "slot_key": "company.cover_image",
+      "bindings": {
+        "Admin Seller Profile.banner_image": 2,
+        "Storefront Layout.sections": 31,
+        "Seller Gallery Image.poster_image": 2
+      },
+      "references": {
+        "unique": 34,
+        "local_existing": 33,
+        "external": 1,
+        "missing_on_disk": 0,
+        "unreadable": 0
+      },
+      "media_kinds": {
+        "image": 33
+      },
+      "extensions": {
+        "jpg": 14,
+        "png": 7,
+        "webp": 12
+      },
+      "bytes": {
+        "count": 33,
+        "p50": 167554.0,
+        "p90": 1497474.0,
+        "p99": 1994655.0,
+        "max": 1998582.0
+      },
+      "width_px": {
+        "count": 33,
+        "p50": 1920.0,
+        "p90": 3556.0,
+        "p99": 3556.0,
+        "max": 3556.0
+      },
+      "height_px": {
+        "count": 33,
+        "p50": 701.0,
+        "p90": 1778.0,
+        "p99": 1778.0,
+        "max": 1778.0
+      },
+      "short_edge_px": {
+        "count": 33,
+        "p50": 701.0,
+        "p90": 1778.0,
+        "p99": 1778.0,
+        "max": 1778.0
+      },
+      "megapixels": {
+        "count": 33,
+        "p50": 1.38,
+        "p90": 6.32,
+        "p99": 6.32,
+        "max": 6.32
+      }
+    },
+    {
+      "slot_key": "company.cover_video",
+      "bindings": {
+        "Seller Gallery Image.video_url": 4,
+        "Seller Gallery Image.poster_image": 2
+      },
+      "references": {
+        "unique": 6,
+        "local_existing": 2,
+        "external": 4,
+        "missing_on_disk": 0,
+        "unreadable": 0
+      },
+      "media_kinds": {
+        "image": 1,
+        "video": 1
+      },
+      "extensions": {
+        "mp4": 1,
+        "png": 1
+      },
+      "bytes": {
+        "count": 2,
+        "p50": 4262118.0,
+        "p90": 7656345.0,
+        "p99": 8420046.0,
+        "max": 8504902.0
+      },
+      "width_px": {
+        "count": 2,
+        "p50": 1160.0,
+        "p90": 1768.0,
+        "p99": 1905.0,
+        "max": 1920.0
+      },
+      "height_px": {
+        "count": 2,
+        "p50": 740.0,
+        "p90": 1012.0,
+        "p99": 1073.0,
+        "max": 1080.0
+      },
+      "short_edge_px": {
+        "count": 2,
+        "p50": 740.0,
+        "p90": 1012.0,
+        "p99": 1073.0,
+        "max": 1080.0
+      },
+      "megapixels": {
+        "count": 2,
+        "p50": 1.12,
+        "p90": 1.88,
+        "p99": 2.05,
+        "max": 2.07
+      }
+    },
+    {
+      "slot_key": "document.attachment",
+      "bindings": {
+        "KYB Verification.identity_document": 19,
+        "KYB Verification.imza_sirkuleri": 17,
+        "KYB Verification.ticaret_sicil_gazetesi": 19,
+        "KYB Verification.faaliyet_belgesi": 19,
+        "KYB Verification.vergi_levhasi": 20,
+        "KYB Verification.bank_account_document": 21,
+        "KYC Verification.identity_document": 8,
+        "Seller Application.identity_document": 4,
+        "Seller Certification.document": 1,
+        "Seller Verification.document": 1,
+        "Shipment Document.file": 0,
+        "Data Processing Agreement.document": 0,
+        "Order.receipt_url": 3,
+        "Payment Transaction.receipt_url": 3
+      },
+      "references": {
+        "unique": 61,
+        "local_existing": 58,
+        "external": 1,
+        "missing_on_disk": 2,
+        "unreadable": 0
+      },
+      "media_kinds": {
+        "document_or_unknown": 2,
+        "image": 56
+      },
+      "extensions": {
+        "jpeg": 5,
+        "jpg": 16,
+        "pdf": 2,
+        "png": 35
+      },
+      "bytes": {
+        "count": 58,
+        "p50": 143017.0,
+        "p90": 1434857.0,
+        "p99": 6883028.0,
+        "max": 7554143.0
+      },
+      "width_px": {
+        "count": 56,
+        "p50": 1392.0,
+        "p90": 2032.0,
+        "p99": 5675.0,
+        "max": 7106.0
+      },
+      "height_px": {
+        "count": 56,
+        "p50": 900.0,
+        "p90": 1886.0,
+        "p99": 4041.0,
+        "max": 4160.0
+      },
+      "short_edge_px": {
+        "count": 56,
+        "p50": 784.0,
+        "p90": 1500.0,
+        "p99": 3575.0,
+        "max": 4160.0
+      },
+      "megapixels": {
+        "count": 56,
+        "p50": 1.35,
+        "p90": 3.57,
+        "p99": 14.82,
+        "max": 17.31
+      }
+    },
+    {
+      "slot_key": "product.image",
+      "bindings": {
+        "Listing.primary_image": 1312,
+        "Listing Image.image": 1375,
+        "Listing Variant Item.variant_image": 1082,
+        "Listing Variant Item.variant_gallery": 141
+      },
+      "references": {
+        "unique": 3062,
+        "local_existing": 2394,
+        "external": 668,
+        "missing_on_disk": 0,
+        "unreadable": 0
+      },
+      "media_kinds": {
+        "image": 2394
+      },
+      "extensions": {
+        "jpeg": 32,
+        "jpg": 1812,
+        "png": 277,
+        "webp": 273
+      },
+      "bytes": {
+        "count": 2394,
+        "p50": 74078.0,
+        "p90": 667877.0,
+        "p99": 2531186.0,
+        "max": 4351344.0
+      },
+      "width_px": {
+        "count": 2394,
+        "p50": 1138.0,
+        "p90": 2262.0,
+        "p99": 6248.0,
+        "max": 9000.0
+      },
+      "height_px": {
+        "count": 2394,
+        "p50": 1463.0,
+        "p90": 2435.0,
+        "p99": 6240.0,
+        "max": 8487.0
+      },
+      "short_edge_px": {
+        "count": 2394,
+        "p50": 1138.0,
+        "p90": 2173.0,
+        "p99": 4480.0,
+        "max": 6000.0
+      },
+      "megapixels": {
+        "count": 2394,
+        "p50": 1.71,
+        "p90": 5.08,
+        "p99": 29.21,
+        "max": 54.0
+      }
+    },
+    {
+      "slot_key": "product.video",
+      "bindings": {
+        "Listing.video_url": 5,
+        "Listing Variant Item.variant_video_url": 0
+      },
+      "references": {
+        "unique": 5,
+        "local_existing": 4,
+        "external": 1,
+        "missing_on_disk": 0,
+        "unreadable": 0
+      },
+      "media_kinds": {
+        "video": 4
+      },
+      "extensions": {
+        "mp4": 4
+      },
+      "bytes": {
+        "count": 4,
+        "p50": 2943341.0,
+        "p90": 7659004.0,
+        "p99": 9426182.0,
+        "max": 9622535.0
+      },
+      "width_px": {
+        "count": 4,
+        "p50": 720.0,
+        "p90": 1112.0,
+        "p99": 1263.0,
+        "max": 1280.0
+      },
+      "height_px": {
+        "count": 4,
+        "p50": 720.0,
+        "p90": 1112.0,
+        "p99": 1263.0,
+        "max": 1280.0
+      },
+      "short_edge_px": {
+        "count": 4,
+        "p50": 720.0,
+        "p90": 720.0,
+        "p99": 720.0,
+        "max": 720.0
+      },
+      "megapixels": {
+        "count": 4,
+        "p50": 0.72,
+        "p90": 0.92,
+        "p99": 0.92,
+        "max": 0.92
+      }
+    },
+    {
+      "slot_key": "seller.logo",
+      "bindings": {
+        "Admin Seller Profile.logo": 19,
+        "Storefront Layout.sections": 0
+      },
+      "references": {
+        "unique": 19,
+        "local_existing": 17,
+        "external": 0,
+        "missing_on_disk": 2,
+        "unreadable": 0
+      },
+      "media_kinds": {
+        "image": 17
+      },
+      "extensions": {
+        "jpeg": 1,
+        "jpg": 7,
+        "png": 9
+      },
+      "bytes": {
+        "count": 17,
+        "p50": 101759.0,
+        "p90": 674201.0,
+        "p99": 1310997.0,
+        "max": 1412713.0
+      },
+      "width_px": {
+        "count": 17,
+        "p50": 1046.0,
+        "p90": 1664.0,
+        "p99": 2403.0,
+        "max": 2471.0
+      },
+      "height_px": {
+        "count": 17,
+        "p50": 1024.0,
+        "p90": 1572.0,
+        "p99": 2559.0,
+        "max": 2656.0
+      },
+      "short_edge_px": {
+        "count": 17,
+        "p50": 1024.0,
+        "p90": 1572.0,
+        "p99": 2403.0,
+        "max": 2471.0
+      },
+      "megapixels": {
+        "count": 17,
+        "p50": 1.06,
+        "p90": 2.62,
+        "p99": 6.18,
+        "max": 6.56
+      }
+    },
+    {
+      "slot_key": "user.avatar",
+      "bindings": {
+        "User.user_image": 6
+      },
+      "references": {
+        "unique": 6,
+        "local_existing": 0,
+        "external": 6,
+        "missing_on_disk": 0,
+        "unreadable": 0
+      },
+      "media_kinds": {},
+      "extensions": {},
+      "bytes": {
+        "count": 0,
+        "p50": null,
+        "p90": null,
+        "p99": null,
+        "max": null
+      },
+      "width_px": {
+        "count": 0,
+        "p50": null,
+        "p90": null,
+        "p99": null,
+        "max": null
+      },
+      "height_px": {
+        "count": 0,
+        "p50": null,
+        "p90": null,
+        "p99": null,
+        "max": null
+      },
+      "short_edge_px": {
+        "count": 0,
+        "p50": null,
+        "p90": null,
+        "p99": null,
+        "max": null
+      },
+      "megapixels": {
+        "count": 0,
+        "p50": null,
+        "p90": null,
+        "p99": null,
+        "max": null
+      }
+    }
+  ]
+}

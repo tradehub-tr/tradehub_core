@@ -1124,32 +1124,29 @@ def retro_rename_plan(limit: int = 200) -> dict:
 def start_retro_rename(dry_run: int = 0, batch_size: int = 200) -> dict:
 	"""Retro-rename işini kuyruğa al; aynı anda tek iş."""
 	_guard_destructive()
-	# `expires=True`: `ACTIVE_KEY` `expires_in_sec` ile yazılıyor (aşağıda ve
-	# worker'da). Süreç-içi önbellek yalnız `expires_in_sec` YOKKEN tazelenir —
-	# `expires=True` olmadan aynı worker/istek süreci ilk okunan `None`'ı
-	# sonsuza dek önbellekte tutar.
-	if frappe.cache.get_value(retro_rename.ACTIVE_KEY, expires=True):
-		frappe.throw(_("Zaten çalışan bir yeniden adlandırma işi var."))
 	total = len(retro_rename.legacy_urls())
 	if not total:
 		frappe.throw(_("Taşınacak eski adlı dosya yok."))
 	job_key = frappe.generate_hash(length=12)
 	clamped_batch_size = min(2000, max(1, int(batch_size or 200)))
-	# TOCTOU: `run_job` `ACTIVE_KEY`'i yalnız worker başladığında kurar — kontrol
-	# ile kuyruğa alma arasındaki pencerede iki hızlı tık iki iş başlatabilirdi.
-	# Geçici kilidi burada, kuyruğa almadan ÖNCE koyuyoruz; worker `_heartbeat`
-	# ile tazeler, `run_job`'un `finally`'si temizler (kuyruk hiç çalışmazsa
-	# 120 sn'de kendiliğinden düşer).
-	frappe.cache.set_value(retro_rename.ACTIVE_KEY, job_key, expires_in_sec=120)
-	frappe.enqueue(
-		"tradehub_core.media.retro_rename.run_job",
-		queue="long",
-		timeout=4 * 3600,
-		enqueue_after_commit=True,
-		job_key=job_key,
-		dry_run=int(dry_run or 0),
-		batch_size=clamped_batch_size,
-	)
+	# Atomik SET NX EX: iki eşzamanlı POST'un ikisi de get-then-set penceresinden
+	# geçemez. Kuyruk gecikmesi 120 saniyeyi aşabildiği için kilit worker timeout
+	# bütçesinden uzun başlar; worker yalnız KENDİ sahipliğini tazeler/siler.
+	if not retro_rename.claim_active(job_key):
+		frappe.throw(_("Zaten çalışan bir yeniden adlandırma işi var."))
+	try:
+		frappe.enqueue(
+			"tradehub_core.media.retro_rename.run_job",
+			queue="long",
+			timeout=4 * 3600,
+			enqueue_after_commit=True,
+			job_key=job_key,
+			dry_run=int(dry_run or 0),
+			batch_size=clamped_batch_size,
+		)
+	except Exception:
+		retro_rename.release_active(job_key)
+		raise
 	return {"job_key": job_key, "total": total, "dry_run": int(dry_run or 0)}
 
 
@@ -1172,20 +1169,21 @@ def stop_retro_rename(job_key: str) -> dict:
 def rollback_retro_rename(job_key: str) -> dict:
 	"""Bir işin yeniden adlandırmalarını geri al (yönlendirme satırları durduğu sürece)."""
 	_guard_destructive()
-	# `expires=True` — bkz. `start_retro_rename`.
-	if frappe.cache.get_value(retro_rename.ACTIVE_KEY, expires=True):
-		frappe.throw(_("Zaten çalışan bir iş var; bitmesini bekleyin."))
 	rollback_key = frappe.generate_hash(length=12)
-	# Aynı TOCTOU koruması — bkz. `start_retro_rename`.
-	frappe.cache.set_value(retro_rename.ACTIVE_KEY, rollback_key, expires_in_sec=120)
-	frappe.enqueue(
-		"tradehub_core.media.retro_rename.run_rollback",
-		queue="long",
-		timeout=4 * 3600,
-		enqueue_after_commit=True,
-		job_key=job_key,
-		rollback_key=rollback_key,
-	)
+	if not retro_rename.claim_active(rollback_key):
+		frappe.throw(_("Zaten çalışan bir iş var; bitmesini bekleyin."))
+	try:
+		frappe.enqueue(
+			"tradehub_core.media.retro_rename.run_rollback",
+			queue="long",
+			timeout=4 * 3600,
+			enqueue_after_commit=True,
+			job_key=job_key,
+			rollback_key=rollback_key,
+		)
+	except Exception:
+		retro_rename.release_active(rollback_key)
+		raise
 	return {"job_key": rollback_key, "source_job_key": job_key}
 
 

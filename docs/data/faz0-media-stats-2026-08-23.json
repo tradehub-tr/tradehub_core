@@ -1,0 +1,249 @@
+{
+  "schema_version": 1,
+  "measured_at": "2026-08-23 06:22:53.334995",
+  "site": "istoc.localhost",
+  "scope": "local-development; tabFile plus public/private filesystem; aggregate-only",
+  "reconcile": {
+    "rows_all": 5126,
+    "rows_not_folder": 5120,
+    "rows_public": 4499,
+    "rows_private": 621,
+    "urls_public": 2914,
+    "urls_private": 170,
+    "urls_inventory_scope": 2874,
+    "disk_public": 7557,
+    "disk_private": 2407,
+    "urls_public_flat": 18,
+    "urls_public_non_hashed": 15,
+    "bytes_public_dedup": 771365796,
+    "bytes_public_raw": 1187868460
+  },
+  "size_distribution": {
+    "inventory": {
+      "count": 2874,
+      "sum_bytes": 758465371,
+      "sum_mb": 723.33,
+      "min_bytes": 0,
+      "p50_bytes": 72882,
+      "p90_bytes": 718300,
+      "p99_bytes": 2712892,
+      "max_bytes": 9622535,
+      "p50_mb": 0.07,
+      "p90_mb": 0.69,
+      "p99_mb": 2.59,
+      "max_mb": 9.18,
+      "zero_byte": 14,
+      "under_200kb": 2287,
+      "over_20mb": 0,
+      "over_25mb": 0
+    },
+    "public": {
+      "count": 2914,
+      "sum_bytes": 771365796,
+      "sum_mb": 735.63,
+      "min_bytes": 0,
+      "p50_bytes": 73189,
+      "p90_bytes": 724348,
+      "p99_bytes": 2712254,
+      "max_bytes": 9622535,
+      "p50_mb": 0.07,
+      "p90_mb": 0.69,
+      "p99_mb": 2.59,
+      "max_mb": 9.18,
+      "zero_byte": 14,
+      "under_200kb": 2316,
+      "over_20mb": 0,
+      "over_25mb": 0
+    },
+    "private": {
+      "count": 170,
+      "sum_bytes": 161671439,
+      "sum_mb": 154.18,
+      "min_bytes": 184,
+      "p50_bytes": 99784,
+      "p90_bytes": 1729184,
+      "p99_bytes": 13148466,
+      "max_bytes": 22065728,
+      "p50_mb": 0.1,
+      "p90_mb": 1.65,
+      "p99_mb": 12.54,
+      "max_mb": 21.04,
+      "zero_byte": 0,
+      "under_200kb": 119,
+      "over_20mb": 1,
+      "over_25mb": 0
+    }
+  },
+  "dimension_coverage": {
+    "urls_total": 2914,
+    "urls_with_dimensions": 6,
+    "coverage_pct": 0.2,
+    "over_20mp_in_db_only": 0,
+    "note": "coverage_pct düşükse over_20mp_in_db_only ALT SINIRDIR, gerçek sayı değil. Gerçek sayı için probe_images() çalıştırın."
+  },
+  "duplication": {
+    "urls": 2914,
+    "rows": 4499,
+    "amplification": 1.54,
+    "records_per_url": {
+      "p50": 1.0,
+      "p90": 2.0,
+      "p99": 7.0,
+      "max": 39
+    },
+    "kinds": {
+      "single": 2052,
+      "repeat": 793,
+      "multi_use": 69
+    }
+  },
+  "private_breakdown": {
+    "by_doctype_rows": {
+      "KYB Verification": 489,
+      "__owner_only__": 76,
+      "Bulk Import Job": 29,
+      "KYC Verification": 9,
+      "Data Export Request": 4,
+      "Brand": 4,
+      "Order": 3,
+      "Payment Transaction": 3,
+      "Seller Application": 3,
+      "Seller Verification": 1
+    },
+    "by_doctype_urls": {
+      "KYB Verification": 99,
+      "__owner_only__": 55,
+      "Bulk Import Job": 26,
+      "KYC Verification": 7,
+      "Data Export Request": 4,
+      "Brand": 2,
+      "Order": 3,
+      "Payment Transaction": 3,
+      "Seller Application": 3,
+      "Seller Verification": 1
+    },
+    "total_rows": 621,
+    "total_urls": 203
+  },
+  "extension_mix": {
+    "by_extension": [
+      {
+        "ext": "jpg",
+        "count": 2121,
+        "mb": 473.09,
+        "engine_supported": true
+      },
+      {
+        "ext": "png",
+        "count": 345,
+        "mb": 200.29,
+        "engine_supported": true
+      },
+      {
+        "ext": "webp",
+        "count": 335,
+        "mb": 19.37,
+        "engine_supported": true
+      },
+      {
+        "ext": "jpeg",
+        "count": 51,
+        "mb": 4.98,
+        "engine_supported": true
+      },
+      {
+        "ext": "mp4",
+        "count": 46,
+        "mb": 23.94,
+        "engine_supported": false
+      },
+      {
+        "ext": "txt",
+        "count": 10,
+        "mb": 0.0,
+        "engine_supported": false
+      },
+      {
+        "ext": "tif",
+        "count": 6,
+        "mb": 13.96,
+        "engine_supported": true
+      }
+    ],
+    "engine_supported_extensions": [
+      "jpeg",
+      "jpg",
+      "png",
+      "tif",
+      "tiff",
+      "webp"
+    ]
+  },
+  "probe": {
+    "examined": 2896,
+    "candidates": 2914,
+    "modes": {
+      "RGB": 2540,
+      "RGBA": 224,
+      "CMYK": 28,
+      "P": 43,
+      "L": 6
+    },
+    "formats": {
+      "TIFF": 6,
+      "JPEG": 2158,
+      "PNG": 342,
+      "WEBP": 335
+    },
+    "megapixels": {
+      "count": 2841,
+      "p50": 1.54,
+      "p90": 6.55,
+      "p99": 29.21,
+      "max": 54.0
+    },
+    "db_disk_size_mismatch_count": 10,
+    "anomaly_counts": {
+      "zero_byte_db": 0,
+      "zero_byte_disk": 0,
+      "missing_on_disk": 18,
+      "orphan_on_disk": 0,
+      "over_bytes": 0,
+      "over_megapixels": 111,
+      "cmyk": 28,
+      "ext_content_mismatch": 0,
+      "dangerous_content": 0,
+      "unreadable": 2
+    }
+  },
+  "privacy": {
+    "reverse_ref_public_pii": {
+      "KYC Verification.identity_document": 0,
+      "Seller Application.identity_document": 0,
+      "KYB Verification.identity_document": 0,
+      "KYB Verification.bank_account_document": 0,
+      "KYB Verification.imza_sirkuleri": 0,
+      "KYB Verification.ticaret_sicil_gazetesi": 0,
+      "KYB Verification.faaliyet_belgesi": 0,
+      "KYB Verification.vergi_levhasi": 0,
+      "Seller Certification.document": 0,
+      "Seller Verification.document": 0,
+      "Order.receipt_url": 0,
+      "Payment Transaction.receipt_url": 0,
+      "Data Export Request.file_url": 0
+    },
+    "public_sharing_sensitive_hash": 40,
+    "classification_evidence": "docs/reports/19-d2-hash-ortusme.md"
+  },
+  "filesystem_consistency": {
+    "disk_public": 7557,
+    "db_public_urls": 2914,
+    "unregistered_disk_candidates": 4661,
+    "db_urls_without_disk_file": 18,
+    "caveat": "Content-addressed engine outputs may intentionally lack tabFile rows; candidates require classification before deletion."
+  },
+  "source": {
+    "script": "scripts/media_stats.py",
+    "raw_output": "/tmp/faz0-media-stats.json (not committed because it contains media paths)"
+  }
+}

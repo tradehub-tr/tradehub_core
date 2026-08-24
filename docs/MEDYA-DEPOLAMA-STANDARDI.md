@@ -1,6 +1,6 @@
 # Medya Depolama Yapısı ve İsimlendirme Standardı
 
-**TUR-130** · Faz 1 · 2026-08-14
+**[G-16]-17 / MOGEM-582** · Faz 1 · 2026-08-14 · son doğrulama 2026-08-23
 
 Bu belge medya dosyalarının **nereye** ve **hangi adla** yazıldığını tanımlar:
 depolama hiyerarşisi, dosya adı üretimi, çakışma davranışı, türev dosya yeri ve
@@ -17,7 +17,7 @@ ve enumeration önleme (TUR-141) ile birlikte okunur.
 | **Private medya kökü** | `<site>/private/files/` — Frappe permission katmanından geçer |
 | **Dosya adı** | `<sha256(içerik)[:32]>.<uzantı>` — içerik-adresli, tahmin-edilemez |
 | **Shard** | Hash-prefix: `files/<ab>/<hash>.<ext>` (adın ilk 2 hex'i alt dizin) |
-| **Çakışma** | İçerik-adresli ad → aynı içerik = aynı yol → doğal dedup |
+| **Çakışma** | Aynı içerik + aynı normalize uzantı = aynı yol → doğal dedup; var olan farklı bayt asla ezilmez |
 | **Türev** | Ayrı kökte, asset+sürüm adresli: `/files/media/{asset}/{version_hash}/{profil}-{genişlik}.{ext}` (`pipeline_bridge._write_rendition_file`); video yerinde üzerine yazılır, suffix yok |
 | **Eski isimler** | Verbatim (`0505.jpg`) idi → retro-rename ile içerik-adresli ada taşınır, 301 köprüsü ile (§7) |
 
@@ -78,8 +78,10 @@ Yeni her yükleme:
 ```
 
 - **32 hex** (128-bit) — tahmin edilemez (enumeration önleme).
-- **İçerik-adresli** — aynı içerik her zaman aynı adı üretir → doğal dedup.
+- **İçerik-adresli** — aynı içerik ve aynı normalize uzantı aynı adı üretir → doğal dedup.
 - **Uzantı korunur** — nginx MIME/cache ve `.webp/.mp4` uzantı-bazlı davranış çalışır.
+- **Uzantı izin-listelidir** — yol/URL ayraçları, kontrol/format karakterleri,
+  boş veya `upload_policy.EXTENSIONS` dışı uzantılar URL üretilmeden reddedilir.
 - **Görünen ad (`File.file_name`) değişebilir** — kullanıcı-dostu ad ayrı tutulur;
   yalnız disk adı + `file_url` hash'lidir.
 
@@ -100,7 +102,7 @@ Fiziksel yol adın ilk 2 hex karakterine göre shard'lanır:
 - **İçerik-adresli isimle doğal uyum** — hash'in kendisi shard anahtarı, ekstra
   metadata gerekmez.
 - **Yedek blob'ları zaten böyle** (`media-backups/blobs/<xx>/`) — tutarlı desen.
-- **Dedup korunur** — aynı içerik aynı hash → aynı shard → aynı yol.
+- **Dedup korunur** — aynı içerik + uzantı aynı hash → aynı shard → aynı yol.
 
 ### 4.3 Çakışma davranışı
 
@@ -140,17 +142,19 @@ Gerekçe:
 
 ## 6. Geriye dönük uyumluluk
 
-- **Mevcut `file_url`'ler KIRILMAZ.** Shard + hash yalnız YENİ yüklemelere uygulanır.
-- Mevcut düz `/files/0505.jpg` yolları çalışmaya devam eder (nginx her iki deseni
-  de servis eder: `/files/<ad>` ve `/files/<ab>/<ad>`).
-- Referanslar (`Listing.primary_image` vb.) `file_url`'i denormalize string olarak
-  tutar; yeni yüklemeler zaten sharded URL kaydeder, eski referanslar dokunulmaz.
+- Yeni yüklemeler doğrudan shard + hash yolu alır.
+- Düz `/files/0505.jpg` yolları retro-rename koşulana kadar doğrudan, koşudan
+  sonra 90 günlük 301 köprüsüyle çalışır; hedef `/files/<ab>/<hash>.<ext>` olur.
+- Referanslar (`Listing.primary_image` vb.) denormalize string tuttuğu için araç
+  izin-listeli alanları yeni URL'e çevirir ve geri alma için satır/alan bazlı
+  before/after provenance kaydeder.
 
 ---
 
-## 7. Retro-rename (uygulandı)
+## 7. Retro-rename (kod + lokal kabul tamamlandı)
 
-Eski isimlerin migration'ı **uygulandı ve test edildi**. Spec:
+Araç, lokal veri migration'ı ve geri alma provası **uygulandı ve test edildi**;
+alpha/prod dağıtımı ayrı operasyon kapısıdır (§7.1). Spec:
 `docs/superpowers/specs/2026-08-21-medya-retro-rename-design.md`; plan:
 `docs/superpowers/plans/2026-08-21-medya-retro-rename.md`.
 
@@ -159,10 +163,18 @@ Eski isimlerin migration'ı **uygulandı ve test edildi**. Spec:
   - `run_job` — queue job: dosya başına `os.replace` → tüm `tabFile.file_url`
     paylaşım satırları güncellenir → `refs.retarget` (artık gömülü JSON/HTML
     referanslar dahil) → `Media URL Redirect` satırı yazılır (`source_url,
-    target_url, job_key, expires_at, file_rows, file_names`) → commit. Hata
+    target_url, job_key, expires_at, file_rows, file_names, ref_changes`) → commit. Hata
     halinde rollback + dosya geri taşınır. Batch sınırlarında durdurma bayrağı;
     `ERROR_RATE_STOP = 0.02`.
-  - `run_rollback(job_key, rollback_key)` — kimlik tabanlı geri alma.
+  - `run_rollback(job_key, rollback_key)` — `File` kimlikleri + referans
+    provenance'i üzerinden karşılaştırmalı geri alma. Sonradan değişen referans
+    ve eski URL'de sonradan oluşan farklı dosya **asla ezilmez**; çakışma
+    operatöre bırakılır. `file_names` veya `ref_changes` provenance'i olmayan
+    eski/bozuk redirect satırları tahmin yürütülerek geri alınmaz; güvenli biçimde
+    `file_provenance_missing` / `ref_provenance_missing` sonucu üretir.
+  - Tek-iş kapısı Redis `SET NX EX` ile atomiktir; heartbeat yalnız kendi
+    kilidini uzatır, `finally` yalnız kendi sahipliğini compare-and-delete eder.
+    Her başarılı dosya commit'i kalıcı `website_404` önbelleğini hemen temizler.
 - **301 köprüsü:** `tradehub_core/media/redirect_renderer.py::MediaRedirectRenderer`
   — `page_renderer` hook'u üzerinden tek indeksli sorgu. `Website Route Redirect`
   bilinçli olarak KULLANILMADI (her istekte tüm kuralları regex ile tarar).
@@ -171,11 +183,13 @@ Eski isimlerin migration'ı **uygulandı ve test edildi**. Spec:
 - **Admin API** (System Manager): `media_admin.retro_rename_count /
   retro_rename_plan / start_retro_rename / get_retro_rename_status /
   stop_retro_rename / rollback_retro_rename / retro_rename_history`. Admin panel
-  kartı **yayında**: Sistem → Medya Optimizasyonu → "Eski adlandırma" kartı
+  kartı **uygulandı ve lokal panel build'inde doğrulandı**: Sistem → Medya
+  Optimizasyonu → "Eski adlandırma" kartı
   (önizle / onayla / ilerleme / durdur / geri al). Yalnız System Manager görür.
-- **Lokal ölçüm (2026-08-21):** 2.843 distinct eski public URL / 4.319 `tabFile`
-  satırı; tam `plan()` ≈ 20 sn; 303 gömülü referans, 28 sipariş-geçmişi
-  (salt-okunur) referansı, 389 orphan.
+- **Lokal ölçüm (2026-08-21):** ilk prova 2.846 aday / 4.322 `tabFile`
+  satırı; 2.834 taşındı, 12 disk-eksik atlandı, hata 0; segment-düzeyi yol
+  koruması düzeltmesinden sonra 8 gerçek noktalı ad daha hata 0 ile taşındı.
+  Ayrıntılı ve tarihsel sayaçlar `docs/reports/95-retro-rename-lokal-kosu.md`'dedir.
 
 Bu arada nginx sertleştirmesi (TUR-141: `/files/`'a `X-Robots-Tag: noindex` +
 `limit_req`) eski isimlerin toplu çekilmesini pratikte zorlaştırır.
@@ -185,7 +199,8 @@ Bu arada nginx sertleştirmesi (TUR-141: `/files/`'a `X-Robots-Tag: noindex` +
 Aşağıdakiler **öneri değil**; atlanırsa ya araç hiç çalışmaz ya da geri
 alınamayan veri kaybı olur.
 
-1. **`bench migrate`** — `Media URL Redirect` doctype'ı ve `file_names` alanı
+1. **`bench migrate`** — `Media URL Redirect` doctype'ı, `file_names` ve
+   `ref_changes` alanları
    olmadan `run_job` ilk dosyada patlar.
 2. **İmaj rebuild + restart** — backend ve panel imajları kodu içeriyor (bind
    mount YOK). Rebuild sonrası `backend`, `queue-long`, `queue-short`,
@@ -209,9 +224,11 @@ alınamayan veri kaybı olur.
    bayrağı yoktur; başlatıldı mı biter. `REDIRECT_TTL_DAYS = 90` dolduğunda
    günlük cron yönlendirme satırlarını siler — **satırlar silindikten sonra geri
    alma mümkün değildir**.
-7. **Worker ölürse kilit takılı kalır.** `tradehub:retro_rename:active`
-   anahtarı `PROGRESS_TTL` (1 saat) ile yazılıyor; worker `finally`'ye
-   ulaşmadan ölürse panel 1 saate kadar "zaten çalışan iş var" der. Elle açma:
+7. **Worker ölürse kilit TTL'e kadar kalır.** `tradehub:retro_rename:active`
+   anahtarı `ACTIVE_TTL` (5 saat) ile atomik ve sahiplikli yazılır; heartbeat
+   ömrü uzatır. Worker `finally`'ye ulaşmadan ölürse panel en çok TTL boyunca
+   "zaten çalışan iş var" der. RQ'da gerçekten aktif iş olmadığı doğrulandıktan
+   sonra elle açma:
    `frappe.cache.delete_value("tradehub:retro_rename:active")`.
 8. **`tabFile` satırı olmayan düz dosyalar kapsam DIŞI.** Araç adayları
    `tabFile`'dan okur; diskte durup hiçbir `File` satırı göstermeyen dosyalar
@@ -225,7 +242,7 @@ alınamayan veri kaybı olur.
 | Boyut | Bu standartla davranış |
 |---|---|
 | Dosya sayısı | Hash-prefix shard → dizin başına ~N/256; milyonlarda bile hızlı |
-| Dedup | İçerik-adresli → aynı içerik tek fiziksel dosya |
+| Dedup | İçerik-adresli → aynı içerik + uzantı tek fiziksel dosya |
 | Tahmin edilebilirlik | 128-bit hash → enumeration imkânsız |
 | Türev çoğalması | Ayrı kök, asset+sürüm adresli → yönetilebilir, orijinalden bağımsız |
 | CDN'e geçiş | Yol yapısı (`/files/<ab>/<hash>`) CDN origin olarak temiz |

@@ -70,3 +70,10 @@ K-11 "libvips ekle" olarak değil, **"ölçüldü, ertelendi"** olarak kapatıld
   Megapiksel kapısı gözden geçirilmedi.
 - Kurulum **geçici**: `libvips`/`pyvips` ölçüm için elle kuruldu, `docker/backend.Dockerfile`
   değiştirilmedi (§1). Ölçüm tekrarlanmak istenirse kurulum yeniden yapılmalı.
+
+## Geri dönüş yolu
+
+Peak RSS 500 MB'yi veya normalize p95 süre bütçesini gerçek korpusta aşarsa
+pyvips yeniden ölçülür. Aynı fixture, codec, kalite ve ICC çıktısında renk/SSIM
+paritesi sağlanmadan motor değişmez; başarısız pilotta Pillow yoluna bayrakla
+dönülür.

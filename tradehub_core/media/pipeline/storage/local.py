@@ -54,8 +54,9 @@ from __future__ import annotations
 import hashlib
 import os
 import re
+import shutil
 import tempfile
-from typing import Any, Dict, Iterator, Optional, Tuple
+from typing import Any, Callable, Dict, Iterable, Iterator, Optional, Tuple
 
 from tradehub_core.media.pipeline.contracts.errors import ObjectNotFound, StorageConflict, StorageError
 from tradehub_core.media.pipeline.contracts.storage import (
@@ -68,6 +69,7 @@ from tradehub_core.media.pipeline.contracts.storage import (
 	PutResult,
 	content_hash,
 	key_for,
+	key_for_digest,
 )
 from tradehub_core.media.pipeline.delivery import signed as signed_urls
 
@@ -112,6 +114,9 @@ class LocalDiskStorage:
 		fsync: bool = True,
 		file_mode: int = DEFAULT_FILE_MODE,
 		dir_mode: int = DEFAULT_DIR_MODE,
+		free_space_alarm_bytes: int = 0,
+		max_usage_bytes: int = 0,
+		alarm: Optional[Callable[[Dict[str, Any]], None]] = None,
 	) -> None:
 		self._roots: Dict[str, str] = {
 			SCOPE_PUBLIC: os.path.abspath(public_root),
@@ -121,6 +126,9 @@ class LocalDiskStorage:
 		self._fsync = bool(fsync)
 		self._file_mode = int(file_mode)
 		self._dir_mode = int(dir_mode)
+		self._free_space_alarm_bytes = max(0, int(free_space_alarm_bytes or 0))
+		self._max_usage_bytes = max(0, int(max_usage_bytes or 0))
+		self._alarm = alarm
 		#: `os.fsync` dizin üzerinde desteklenmiyorsa `False`'a düşer ve
 		#: raporlanır. Sessizce atlanmaz.
 		self.fsync_supported: bool = True
@@ -177,6 +185,61 @@ class LocalDiskStorage:
 
 	def _ensure_dir(self, path: str) -> None:
 		os.makedirs(path, mode=self._dir_mode, exist_ok=True)
+
+	def _emit_alarm(self, payload: Dict[str, Any]) -> None:
+		if self._alarm is None:
+			return
+		try:
+			self._alarm(dict(payload))
+		except Exception:
+			# Alarm yolu birincil yazmayı bozamaz. Çağıran callback kendi
+			# telemetri hatasını ayrıca raporlar.
+			return
+
+	def _usage_bytes(self) -> int:
+		if not self._max_usage_bytes:
+			return 0
+		total = 0
+		seen: set[str] = set()
+		for root in self._roots.values():
+			real = os.path.realpath(root)
+			if real in seen or not os.path.isdir(real):
+				continue
+			seen.add(real)
+			for dirpath, _dirs, files in os.walk(real):
+				for name in files:
+					try:
+						total += os.path.getsize(os.path.join(dirpath, name))
+					except OSError:
+						continue
+		return total
+
+	def _capacity_guard(self, scope: str, incoming_bytes: int = 0) -> None:
+		root = self.root(scope)
+		self._ensure_dir(root)
+		usage = shutil.disk_usage(root)
+		if self._free_space_alarm_bytes and usage.free < self._free_space_alarm_bytes:
+			self._emit_alarm(
+				{
+					"type": "local_free_space",
+					"scope": scope,
+					"free_bytes": int(usage.free),
+					"threshold_bytes": self._free_space_alarm_bytes,
+				}
+			)
+		if self._max_usage_bytes:
+			current = self._usage_bytes()
+			if current + max(0, int(incoming_bytes)) > self._max_usage_bytes:
+				raise StorageError(
+					"Yerel medya depolama kotası aşıldı",
+					detay={
+						"reason": "local_max_usage",
+						"usage_bytes": current,
+						"incoming_bytes": max(0, int(incoming_bytes)),
+						"limit_bytes": self._max_usage_bytes,
+					},
+					retryable=False,
+				)
 
 	def _atomic_write(self, path: str, content: bytes) -> None:
 		"""temp + fsync + rename. Yarım dosya bırakmaz (NFR-041)."""
@@ -252,6 +315,8 @@ class LocalDiskStorage:
 				)
 			return PutResult(ref=ref, created=False, stat=self.stat(ref))
 
+		self._capacity_guard(scope, len(content))
+
 		try:
 			self._atomic_write(yol, content)
 		except OSError as hata:
@@ -260,11 +325,91 @@ class LocalDiskStorage:
 			) from hata
 		return PutResult(ref=ref, created=True, stat=self.stat(ref))
 
+	def put_stream(
+		self,
+		chunks: Iterable[bytes],
+		extension: str,
+		*,
+		scope: str = SCOPE_PUBLIC,
+	) -> PutResult:
+		"""Akışı tek ``bytes`` nesnesine toplamadan hashle ve atomik yaz."""
+		if scope not in SCOPES:
+			raise ValueError(f"Bilinmeyen kapsam: {scope!r}")
+		root = self.root(scope)
+		self._ensure_dir(root)
+		self._capacity_guard(scope)
+		base_usage = self._usage_bytes() if self._max_usage_bytes else 0
+		fd, staging = tempfile.mkstemp(dir=root, prefix=TEMP_PREFIX, suffix=TEMP_SUFFIX)
+		digest = hashlib.sha256()
+		total = 0
+		try:
+			with os.fdopen(fd, "wb") as fh:
+				for raw in chunks:
+					if not isinstance(raw, (bytes, bytearray, memoryview)):
+						raise TypeError("put_stream parçaları bytes-benzeri olmalıdır")
+					part = bytes(raw)
+					if not part:
+						continue
+					total += len(part)
+					digest.update(part)
+					fh.write(part)
+				fh.flush()
+				if self._fsync:
+					os.fsync(fh.fileno())
+
+			key = key_for_digest(digest.hexdigest(), extension)
+			ref = ObjectRef(key=key, scope=scope)
+			target = self._path(ref)
+			if os.path.isfile(target):
+				if self._file_sha256(target) != digest.hexdigest():
+					raise StorageConflict(
+						"Aynı anahtarda farklı içerik var",
+						detay={"url": ref.url, "stream_sha256": digest.hexdigest()},
+					)
+				os.unlink(staging)
+				return PutResult(ref=ref, created=False, stat=self.stat(ref))
+			if self._max_usage_bytes and base_usage + total > self._max_usage_bytes:
+				raise StorageError(
+					"Yerel medya depolama kotası akış sırasında aşıldı",
+					detay={"reason": "local_max_usage", "incoming_bytes": total},
+					retryable=False,
+				)
+
+			self._ensure_dir(os.path.dirname(target))
+			os.chmod(staging, self._file_mode)
+			os.replace(staging, target)
+			self._fsync_dir(os.path.dirname(target))
+			return PutResult(ref=ref, created=True, stat=self.stat(ref))
+		except BaseException:
+			try:
+				os.unlink(staging)
+			except OSError:
+				pass
+			raise
+
 	def get(self, ref: ObjectRef) -> bytes:
 		yol = self._path(ref)
 		try:
 			with open(yol, "rb") as fh:
 				return fh.read()
+		except FileNotFoundError:
+			raise ObjectNotFound("Nesne bulunamadı", detay={"url": ref.url}) from None
+		except OSError as hata:
+			raise StorageError(
+				"Nesne okunamadı", detay={"url": ref.url, "errno": hata.errno}
+			) from hata
+
+	def iter_bytes(self, ref: ObjectRef, *, chunk_size: int = CHUNK_SIZE) -> Iterator[bytes]:
+		if int(chunk_size) < 1:
+			raise ValueError("chunk_size pozitif olmalıdır")
+		yol = self._path(ref)
+		try:
+			with open(yol, "rb") as fh:
+				while True:
+					part = fh.read(int(chunk_size))
+					if not part:
+						break
+					yield part
 		except FileNotFoundError:
 			raise ObjectNotFound("Nesne bulunamadı", detay={"url": ref.url}) from None
 		except OSError as hata:

@@ -40,9 +40,11 @@ from __future__ import annotations
 
 import os
 import re
-import subprocess
+import shutil
+import tempfile
+import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from tradehub_core.media.pipeline.contracts.errors import SEBEP_TRANSCODE_FAILED, ProbeUnavailable, TranscodeFailed
 from tradehub_core.media.pipeline.contracts.video import FFMPEG_TIMEOUT_SECONDS
@@ -222,6 +224,10 @@ class HlsResult:
 	wall_s: float = 0.0
 	cmd: Tuple[str, ...] = ()
 	src_bytes: int = 0
+	peak_rss_bytes: int = 0
+	cpu_user_s: float = 0.0
+	cpu_system_s: float = 0.0
+	limits_applied: Tuple[str, ...] = ()
 	notes: List[str] = field(default_factory=list)
 
 	@property
@@ -250,6 +256,10 @@ class HlsResult:
 			"bytes_total": self.bytes_total,
 			"src_bytes": self.src_bytes,
 			"wall_s": round(self.wall_s, 2),
+			"peak_rss_bytes": self.peak_rss_bytes,
+			"cpu_user_s": round(self.cpu_user_s, 3),
+			"cpu_system_s": round(self.cpu_system_s, 3),
+			"limits_applied": list(self.limits_applied),
 			"notes": list(self.notes),
 		}
 
@@ -471,21 +481,37 @@ def build_hls_cmd(
 	sesli = facts.has_audio
 
 	kollar = "".join(f"[v{i}]" for i in range(n))
-	parcalar = [f"[0:v]split={n}{kollar}"] if n > 1 else ["[0:v]null[v0]"]
+	kaynak = "[0:v]"
+	parcalar: List[str] = []
+	if facts.is_hdr:
+		parcalar.append(
+			"[0:v]zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709,"
+			"tonemap=tonemap=hable:desat=0,zscale=t=bt709:m=bt709:r=tv,format=yuv420p[hdr]"
+		)
+		kaynak = "[hdr]"
+	parcalar.append(f"{kaynak}split={n}{kollar}" if n > 1 else f"{kaynak}null[v0]")
 	if n > 1:
 		for i, rung in enumerate(rungs):
 			parcalar.append(f"[v{i}]{_scale_expr(rung, facts)}[vo{i}]")
 	else:
-		parcalar = [f"[0:v]{_scale_expr(rungs[0], facts)}[vo0]"]
+		# Son ``null[v0]`` kolunu ölçek koluna bağla; HDR ön filtresi varsa
+		# zincir korunur, yoksa de gereksiz ikinci decode oluşmaz.
+		parcalar.append(f"[v0]{_scale_expr(rungs[0], facts)}[vo0]")
 	filtre = ";".join(parcalar)
 
 	cmd: List[str] = list(NICE_PREFIX) if nice else []
-	cmd += ["ffmpeg", "-y", "-i", src, "-filter_complex", filtre]
+	cmd += [
+		"ffmpeg", "-y",
+		"-filter_threads", str(h264.encoder_threads),
+		"-filter_complex_threads", str(h264.encoder_threads),
+		"-i", src, "-filter_complex", filtre,
+	]
 
 	for i, rung in enumerate(rungs):
 		cmd += [
 			"-map", f"[vo{i}]",
 			f"-c:v:{i}", h264.video_codec,
+			f"-threads:v:{i}", str(h264.encoder_threads),
 			f"-profile:v:{i}", h264.profile,
 			f"-preset:v:{i}", h264.preset,
 		]
@@ -495,6 +521,12 @@ def build_hls_cmd(
 			f"-keyint_min:v:{i}", str(gop),
 			f"-sc_threshold:v:{i}", "0",
 		]
+		if facts.is_hdr:
+			cmd += [
+				f"-color_primaries:v:{i}", "bt709",
+				f"-color_trc:v:{i}", "bt709",
+				f"-colorspace:v:{i}", "bt709",
+			]
 	cmd += ["-pix_fmt", h264.pix_fmt]
 	if facts.fps and facts.fps > h264.frame_rate_cap:
 		cmd += ["-r", str(h264.frame_rate_cap)]
@@ -525,6 +557,7 @@ def build_hls_cmd(
 		os.path.join(out_dir, VARIANT_DIR_PATTERN, "seg%03d." + ("m4s" if spec.segment_type == "fmp4" else "ts")),
 		"-master_pl_name", MASTER_PLAYLIST_NAME,
 		"-var_stream_map", harita,
+		"-progress", "pipe:1", "-nostats",
 		os.path.join(out_dir, VARIANT_DIR_PATTERN, MEDIA_PLAYLIST_NAME),
 	]
 	return cmd
@@ -667,6 +700,8 @@ def make_hls(
 	facts: Optional[VideoFacts] = None,
 	timeout: int = FFMPEG_TIMEOUT_SECONDS,
 	nice: bool = True,
+	progress_callback: Optional[Callable[[Mapping[str, str]], None]] = None,
+	cancel_check: Optional[Callable[[], bool]] = None,
 ) -> HlsResult:
 	"""Merdiveni üret. Çıktı `out_dir` altında: `master.m3u8` + basamak dizinleri.
 
@@ -674,8 +709,6 @@ def make_hls(
 	ffmpeg koşumu ya hepsini üretir ya hiçbirini. Yarım bir merdiven, master
 	playlist'te ilan edilip 404 veren bir basamak demektir.
 	"""
-	import time
-
 	spec = spec or HlsSpec.from_table()
 	h264 = h264 or H264Spec.from_table()
 	facts = facts or probe_modulu.probe(src)
@@ -688,22 +721,33 @@ def make_hls(
 	if not hizali:
 		notlar.append(f"GOP hizasi UYARISI: {sebep}")
 
-	os.makedirs(out_dir, exist_ok=True)
+	ust = os.path.dirname(os.path.abspath(out_dir)) or os.curdir
+	os.makedirs(ust, exist_ok=True)
+	stage = tempfile.mkdtemp(prefix=f".{os.path.basename(out_dir)}.part-", dir=ust)
 	# ffmpeg `%v` dizinlerini KENDİSİ oluşturmaz; `-hls_segment_filename` bir
 	# alt dizin içeriyorsa dizin önceden var olmalıdır (aksi halde "No such
 	# file or directory" ile düşer — gerçek ffmpeg 5.1 ile doğrulandı).
 	for rung in rungs:
-		os.makedirs(variant_dir(out_dir, rung), exist_ok=True)
+		os.makedirs(variant_dir(stage, rung), exist_ok=True)
 
-	cmd = build_hls_cmd(src, out_dir, rungs, facts, spec=spec, h264=h264, nice=nice)
+	cmd = build_hls_cmd(src, stage, rungs, facts, spec=spec, h264=h264, nice=nice)
 	basla = time.monotonic()
-	run_ffmpeg(cmd, timeout=timeout)
+	try:
+		kosum = run_ffmpeg(
+			cmd,
+			timeout=timeout,
+			progress_callback=progress_callback,
+			cancel_check=cancel_check,
+		)
+	except Exception:
+		shutil.rmtree(stage, ignore_errors=True)
+		raise
 	sure = time.monotonic() - basla
 
-	master = os.path.join(out_dir, MASTER_PLAYLIST_NAME)
+	master = os.path.join(stage, MASTER_PLAYLIST_NAME)
 	varyantlar: List[HlsVariantResult] = []
 	for rung in rungs:
-		playlist = variant_playlist(out_dir, rung)
+		playlist = variant_playlist(stage, rung)
 		sayi, bayt, hedef = playlist_stats(playlist)
 		g, y = rung_dimensions(rung, facts)
 		acilis, acilis_seg, acilis_sure = startup_bytes(playlist, spec.startup_window_s)
@@ -728,12 +772,34 @@ def make_hls(
 			)
 		)
 
-	if not os.path.exists(master):
+	if not os.path.exists(master) or any(not v.segment_count for v in varyantlar):
+		shutil.rmtree(stage, ignore_errors=True)
 		raise TranscodeFailed(
-			"master playlist uretilmedi",
+			"HLS merdiveni eksik uretildi",
 			kod=f"media_{SEBEP_TRANSCODE_FAILED}",
-			detay={"out_dir": out_dir},
+			detay={"out_dir": out_dir, "segments": {v.name: v.segment_count for v in varyantlar}},
 		)
+
+	# Bütün merdiven doğrulandıktan sonra tek promote. Önceki tam paket varsa
+	# yeni paket hazır olana dek yerinde kalır; promote hatasında geri alınır.
+	yedek = f"{out_dir}.previous-{os.getpid()}-{time.monotonic_ns()}"
+	eski_var = os.path.exists(out_dir)
+	try:
+		if eski_var:
+			os.replace(out_dir, yedek)
+		os.replace(stage, out_dir)
+	except Exception:
+		if eski_var and os.path.exists(yedek) and not os.path.exists(out_dir):
+			os.replace(yedek, out_dir)
+		shutil.rmtree(stage, ignore_errors=True)
+		raise
+	finally:
+		if os.path.exists(yedek):
+			shutil.rmtree(yedek, ignore_errors=True)
+
+	master = os.path.join(out_dir, MASTER_PLAYLIST_NAME)
+	for v, rung in zip(varyantlar, rungs):
+		v.playlist_path = variant_playlist(out_dir, rung)
 
 	return HlsResult(
 		master_path=master,
@@ -742,6 +808,10 @@ def make_hls(
 		wall_s=sure,
 		cmd=tuple(cmd),
 		src_bytes=facts.size_bytes,
+		peak_rss_bytes=kosum.peak_rss_bytes,
+		cpu_user_s=kosum.cpu_user_s,
+		cpu_system_s=kosum.cpu_system_s,
+		limits_applied=tuple(kosum.limits_applied),
 		notes=notlar,
 	)
 
@@ -873,10 +943,9 @@ def _rewrite_master(master_path: str, kept_uris: set) -> None:
 def ffmpeg_has_hls_muxer() -> bool:
 	"""ffmpeg `hls` muxer'ıyla derlenmiş mi — testlerin atlama kararı için."""
 	try:
-		cikti = subprocess.run(
-			["ffmpeg", "-hide_banner", "-muxers"], capture_output=True, timeout=30
-		).stdout.decode("utf-8", "replace")
-	except (OSError, subprocess.SubprocessError):
+		sonuc = run_ffmpeg(["ffmpeg", "-hide_banner", "-muxers"], timeout=30)
+		cikti = ((sonuc.stdout or b"") + b"\n" + (sonuc.stderr or b"")).decode("utf-8", "replace")
+	except (ProbeUnavailable, TranscodeFailed):
 		return False
 	return bool(re.search(r"^\s*\S*E\s+hls\s", cikti, re.MULTILINE))
 

@@ -31,7 +31,8 @@ tanımlar. Kırıcı değişiklik major artırır ve yeni bir yol öneki gerekti
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Mapping, Sequence, Tuple
+from collections.abc import Mapping, Sequence
+from typing import Any
 
 from tradehub_core.media.pipeline.api import envelope as env
 
@@ -53,8 +54,8 @@ JSON = "application/json"
 # ── Küçük şema yardımcıları ─────────────────────────────────────────────
 
 
-def _obj(props: Mapping[str, Any], *, required: Sequence[str] = (), desc: str = "") -> Dict[str, Any]:
-	s: Dict[str, Any] = {"type": "object", "properties": dict(props)}
+def _obj(props: Mapping[str, Any], *, required: Sequence[str] = (), desc: str = "") -> dict[str, Any]:
+	s: dict[str, Any] = {"type": "object", "properties": dict(props)}
 	if required:
 		s["required"] = list(required)
 	if desc:
@@ -62,49 +63,49 @@ def _obj(props: Mapping[str, Any], *, required: Sequence[str] = (), desc: str = 
 	return s
 
 
-def _ref(name: str) -> Dict[str, str]:
+def _ref(name: str) -> dict[str, str]:
 	return {"$ref": f"#/components/schemas/{name}"}
 
 
-def _arr(items: Any, *, desc: str = "") -> Dict[str, Any]:
-	s: Dict[str, Any] = {"type": "array", "items": items}
+def _arr(items: Any, *, desc: str = "") -> dict[str, Any]:
+	s: dict[str, Any] = {"type": "array", "items": items}
 	if desc:
 		s["description"] = desc
 	return s
 
 
-def _str(desc: str = "", **kw: Any) -> Dict[str, Any]:
-	s: Dict[str, Any] = {"type": "string"}
-	if desc:
-		s["description"] = desc
-	s.update(kw)
-	return s
-
-
-def _int(desc: str = "", **kw: Any) -> Dict[str, Any]:
-	s: Dict[str, Any] = {"type": "integer"}
+def _str(desc: str = "", **kw: Any) -> dict[str, Any]:
+	s: dict[str, Any] = {"type": "string"}
 	if desc:
 		s["description"] = desc
 	s.update(kw)
 	return s
 
 
-def _num(desc: str = "", **kw: Any) -> Dict[str, Any]:
-	s: Dict[str, Any] = {"type": "number"}
+def _int(desc: str = "", **kw: Any) -> dict[str, Any]:
+	s: dict[str, Any] = {"type": "integer"}
 	if desc:
 		s["description"] = desc
 	s.update(kw)
 	return s
 
 
-def _bool(desc: str = "") -> Dict[str, Any]:
-	s: Dict[str, Any] = {"type": "boolean"}
+def _num(desc: str = "", **kw: Any) -> dict[str, Any]:
+	s: dict[str, Any] = {"type": "number"}
+	if desc:
+		s["description"] = desc
+	s.update(kw)
+	return s
+
+
+def _bool(desc: str = "") -> dict[str, Any]:
+	s: dict[str, Any] = {"type": "boolean"}
 	if desc:
 		s["description"] = desc
 	return s
 
 
-def _nullable(base: Mapping[str, Any], desc: str = "") -> Dict[str, Any]:
+def _nullable(base: Mapping[str, Any], desc: str = "") -> dict[str, Any]:
 	"""OpenAPI 3.1: `type` dizi olabilir. `null` "ölçülmedi/yazılmadı" demektir
 	ve bu ayrım motorun her katmanında anlamlıdır (`core/probe.py`)."""
 	s = dict(base)
@@ -115,7 +116,7 @@ def _nullable(base: Mapping[str, Any], desc: str = "") -> Dict[str, Any]:
 	return s
 
 
-def _unit(desc: str) -> Dict[str, Any]:
+def _unit(desc: str) -> dict[str, Any]:
 	"""0-1 normalize koordinat (INV-10). Piksel KABUL EDİLMEZ."""
 	return {"type": "number", "minimum": 0, "maximum": 1, "description": desc}
 
@@ -125,63 +126,138 @@ def _unit(desc: str) -> Dict[str, Any]:
 # İstemci karar verirken METNE değil KODA bakar (FR-060). Katalog bu yüzden
 # sözleşmenin parçasıdır ve `x-error-codes` altında yayımlanır.
 
-ERROR_CODES: Tuple[Dict[str, Any], ...] = (
-	{"code": "media_unauthorized", "status": 401, "retryable": False,
-	 "meaning": "Oturum yok."},
-	{"code": "media_forbidden", "status": 403, "retryable": False,
-	 "meaning": "Kimlik var, yetki yok."},
-	{"code": "media_store_required", "status": 403, "retryable": False,
-	 "meaning": "İşlem bir mağaza kapsamı gerektiriyor."},
-	{"code": "media_not_found", "status": 404, "retryable": False,
-	 "meaning": "Kaynak yok, yayınlanmamış ya da başka mağazanın."},
-	{"code": "media_session_unknown", "status": 404, "retryable": False,
-	 "meaning": "Yükleme oturumu yok ya da süresi doldu."},
-	{"code": "media_slot_missing", "status": 404, "retryable": False,
-	 "meaning": "Varlığın slot bilgisi yok; manifest kurulamaz."},
-	{"code": "media_missing_field", "status": 400, "retryable": False,
-	 "meaning": "Zorunlu alan verilmedi."},
-	{"code": "media_bad_field", "status": 400, "retryable": False,
-	 "meaning": "Alan biçimi ya da aralığı geçersiz."},
-	{"code": "media_field_too_long", "status": 400, "retryable": False,
-	 "meaning": "Alan uzunluk sınırını aşıyor."},
-	{"code": "media_hash_mismatch", "status": 400, "retryable": False,
-	 "meaning": "Yüklenen içeriğin özeti bildirilenle uyuşmuyor."},
-	{"code": "media_not_private", "status": 400, "retryable": False,
-	 "meaning": "Public medya için imzalı bağlantı istendi."},
-	{"code": "media_batch_too_large", "status": 400, "retryable": False,
-	 "meaning": "Toplu istek üst sınırı aşıldı."},
-	{"code": "media_already_finalized", "status": 409, "retryable": False,
-	 "meaning": "Tamamlanmış oturum iptal edilemez."},
-	{"code": "media_precondition_failed", "status": 412, "retryable": False,
-	 "meaning": "`If-Match` tutmadı; araya başka bir yazma girdi."},
-	{"code": "media_too_large", "status": 413, "retryable": False,
-	 "meaning": "İlan edilen boyut slot tavanını aşıyor."},
-	{"code": "media_unavailable", "status": 503, "retryable": True,
-	 "meaning": "Bağımlılık yok (imzalama anahtarı, depo, defter)."},
-	{"code": "media_no_signing_key", "status": 503, "retryable": True,
-	 "meaning": "İmzalama anahtarı yapılandırılmamış; sahte imza üretilmez."},
-	{"code": "media_internal", "status": 500, "retryable": True,
-	 "meaning": "Beklenmeyen hata; ayrıntı DIŞARI SIZDIRILMAZ."},
-	{"code": "<slot_prefix>_<reason>", "status": 422, "retryable": False,
-	 "meaning": "Politika ihlali. Önek slotun `on_violation.error_code_prefix` "
-				"alanından (ör. `product_image_short_edge_too_small`)."},
-	{"code": "media_policy_not_found", "status": 404, "retryable": False,
-	 "meaning": "Bilinmeyen slot anahtarı."},
-	{"code": "media_no_profile", "status": 404, "retryable": False,
-	 "meaning": "Üretilmiş hiçbir türev yok; manifest kurulamaz."},
+ERROR_CODES: tuple[dict[str, Any], ...] = (
+	{"code": "media_unauthorized", "status": 401, "retryable": False, "meaning": "Oturum yok."},
+	{"code": "media_forbidden", "status": 403, "retryable": False, "meaning": "Kimlik var, yetki yok."},
+	{
+		"code": "media_store_required",
+		"status": 403,
+		"retryable": False,
+		"meaning": "İşlem bir mağaza kapsamı gerektiriyor.",
+	},
+	{
+		"code": "media_not_found",
+		"status": 404,
+		"retryable": False,
+		"meaning": "Kaynak yok, yayınlanmamış ya da başka mağazanın.",
+	},
+	{
+		"code": "media_session_unknown",
+		"status": 404,
+		"retryable": False,
+		"meaning": "Yükleme oturumu yok ya da süresi doldu.",
+	},
+	{
+		"code": "media_slot_missing",
+		"status": 404,
+		"retryable": False,
+		"meaning": "Varlığın slot bilgisi yok; manifest kurulamaz.",
+	},
+	{"code": "media_missing_field", "status": 400, "retryable": False, "meaning": "Zorunlu alan verilmedi."},
+	{
+		"code": "media_bad_field",
+		"status": 400,
+		"retryable": False,
+		"meaning": "Alan biçimi ya da aralığı geçersiz.",
+	},
+	{
+		"code": "media_field_too_long",
+		"status": 400,
+		"retryable": False,
+		"meaning": "Alan uzunluk sınırını aşıyor.",
+	},
+	{
+		"code": "media_hash_mismatch",
+		"status": 400,
+		"retryable": False,
+		"meaning": "Yüklenen içeriğin özeti bildirilenle uyuşmuyor.",
+	},
+	{
+		"code": "media_not_private",
+		"status": 400,
+		"retryable": False,
+		"meaning": "Public medya için imzalı bağlantı istendi.",
+	},
+	{
+		"code": "media_batch_too_large",
+		"status": 400,
+		"retryable": False,
+		"meaning": "Toplu istek üst sınırı aşıldı.",
+	},
+	{
+		"code": "media_already_finalized",
+		"status": 409,
+		"retryable": False,
+		"meaning": "Tamamlanmış oturum iptal edilemez.",
+	},
+	{
+		"code": "media_precondition_failed",
+		"status": 412,
+		"retryable": False,
+		"meaning": "`If-Match` tutmadı; araya başka bir yazma girdi.",
+	},
+	{
+		"code": "media_too_large",
+		"status": 413,
+		"retryable": False,
+		"meaning": "İlan edilen boyut slot tavanını aşıyor.",
+	},
+	{
+		"code": "media_unavailable",
+		"status": 503,
+		"retryable": True,
+		"meaning": "Bağımlılık yok (imzalama anahtarı, depo, defter).",
+	},
+	{
+		"code": "media_no_signing_key",
+		"status": 503,
+		"retryable": True,
+		"meaning": "İmzalama anahtarı yapılandırılmamış; sahte imza üretilmez.",
+	},
+	{
+		"code": "media_internal",
+		"status": 500,
+		"retryable": True,
+		"meaning": "Beklenmeyen hata; ayrıntı DIŞARI SIZDIRILMAZ.",
+	},
+	{
+		"code": "<slot_prefix>_<reason>",
+		"status": 422,
+		"retryable": False,
+		"meaning": "Politika ihlali. Önek slotun `on_violation.error_code_prefix` "
+		"alanından (ör. `product_image_short_edge_too_small`).",
+	},
+	{
+		"code": "media_policy_not_found",
+		"status": 404,
+		"retryable": False,
+		"meaning": "Bilinmeyen slot anahtarı.",
+	},
+	{
+		"code": "media_no_profile",
+		"status": 404,
+		"retryable": False,
+		"meaning": "Üretilmiş hiçbir türev yok; manifest kurulamaz.",
+	},
 )
 
 
 # ── Şemalar ─────────────────────────────────────────────────────────────
 
 
-def _schemas() -> Dict[str, Any]:
+def _schemas() -> dict[str, Any]:
 	return {
 		"Error": _obj(
 			{
-				"error_code": _str("Makine-okunur ret kodu. İstemci karar verirken METNE değil buna bakar (FR-060)."),
-				"retryable": _bool("Aynı istek yeniden denenmeli mi. Kullanıcının dosyasıyla ilgili hatalar false."),
-				"message": _str("Kullanıcıya gösterilebilir Türkçe metin: NEDEN + NASIL düzeltilir (FR-062)."),
+				"error_code": _str(
+					"Makine-okunur ret kodu. İstemci karar verirken METNE değil buna bakar (FR-060)."
+				),
+				"retryable": _bool(
+					"Aynı istek yeniden denenmeli mi. Kullanıcının dosyasıyla ilgili hatalar false."
+				),
+				"message": _str(
+					"Kullanıcıya gösterilebilir Türkçe metin: NEDEN + NASIL düzeltilir (FR-062)."
+				),
 				"details": _obj({}, desc="Ölçülen/beklenen değerler, slot anahtarı gibi ek bağlam."),
 			},
 			required=["error_code", "retryable", "message"],
@@ -191,8 +267,23 @@ def _schemas() -> Dict[str, Any]:
 			{
 				"code": _str("Slot önekli ihlal kodu."),
 				"rule": _str("İhlal edilen kuralın adı."),
-				"block": _str("Politikanın hangi bölümü.", enum=["accept", "require", "master", "quality", "content_rules", "video", "security", "policy", "role"]),
-				"action": _str("Karar.", enum=["pass", "ignore", "warn", "auto_fix", "review", "manual_review", "reject"]),
+				"block": _str(
+					"Politikanın hangi bölümü.",
+					enum=[
+						"accept",
+						"require",
+						"master",
+						"quality",
+						"content_rules",
+						"video",
+						"security",
+						"policy",
+						"role",
+					],
+				),
+				"action": _str(
+					"Karar.", enum=["pass", "ignore", "warn", "auto_fix", "review", "manual_review", "reject"]
+				),
 				"message": _obj({"tr": _str(), "en": _str()}),
 				"hint": _obj({"tr": _str(), "en": _str()}),
 				"observed": {"description": "Ölçülen değer."},
@@ -228,11 +319,18 @@ def _schemas() -> Dict[str, Any]:
 		),
 		"UploadSessionRequest": _obj(
 			{
-				"slot_key": _str("Slot anahtarı. ZORUNLU — bugünkü motorun en büyük boşluğu (docs/reports/00-upload-slot-envanteri.md §7-B B1)."),
+				"slot_key": _str(
+					"Slot anahtarı. ZORUNLU — bugünkü motorun en büyük boşluğu (docs/reports/00-upload-slot-envanteri.md §7-B B1)."
+				),
 				"file_name": _str("Özgün dosya adı."),
 				"total_bytes": _int("İlan edilen toplam boyut.", minimum=1),
-				"content_sha256": _str("Bilinen içerik özeti. Verilirse dosya zaten kayıtlıysa HİÇBİR BAYT taşınmaz.", pattern="^[0-9a-f]{64}$"),
-				"idempotency_key": _str("İstemcinin kendi tekrar anahtarı; sunucu kararını etkilemez, izlemeye yazılır."),
+				"content_sha256": _str(
+					"Bilinen içerik özeti. Verilirse dosya zaten kayıtlıysa HİÇBİR BAYT taşınmaz.",
+					pattern="^[0-9a-f]{64}$",
+				),
+				"idempotency_key": _str(
+					"İstemcinin kendi tekrar anahtarı; sunucu kararını etkilemez, izlemeye yazılır."
+				),
 			},
 			required=["slot_key", "file_name", "total_bytes"],
 		),
@@ -254,7 +352,16 @@ def _schemas() -> Dict[str, Any]:
 		),
 		"IngestState": _str(
 			"Alım hattı durumu (tradehub_core/media/pipeline/core/state.py). Yaşam döngüsü eksenine DİKTİR.",
-			enum=["Received", "Screened", "Validated", "Mastered", "Ready", "Rejected", "Quarantined", "Failed"],
+			enum=[
+				"Received",
+				"Screened",
+				"Validated",
+				"Mastered",
+				"Ready",
+				"Rejected",
+				"Quarantined",
+				"Failed",
+			],
 		),
 		"UploadStatus": _obj(
 			{
@@ -308,11 +415,16 @@ def _schemas() -> Dict[str, Any]:
 				"zoom": _nullable(_num("Stüdyo zoom çarpanı, 1-16. null = yazılmamış.")),
 				"center_x": _nullable(_unit("Pan merkezi X. Yalnız zoom ile anlamlı.")),
 				"center_y": _nullable(_unit("Pan merkezi Y. Yalnız zoom ile anlamlı.")),
-				"method": _str("Kaydedilmiş yöntem etiketi.", enum=["", "override", "safe_focal", "focal", "smartcrop", "center"]),
+				"method": _str(
+					"Kaydedilmiş yöntem etiketi.",
+					enum=["", "override", "safe_focal", "focal", "smartcrop", "center"],
+				),
 				"confidence": _nullable(_unit("Öneri güveni.")),
 				"approved_by_user": _bool(),
 				"overrides": _arr(_ref("CropOverride")),
-				"updated_at": _str("Son yazma zamanı — ISO 8601 + saat dilimi kayması (TUR-124); hiç yazılmadıysa boş dize."),
+				"updated_at": _str(
+					"Son yazma zamanı — ISO 8601 + saat dilimi kayması (TUR-124); hiç yazılmadıysa boş dize."
+				),
 			},
 			desc="Media Crop Intent. TÜM koordinatlar 0-1 normalize (INV-10); piksel kabul edilmez.",
 		),
@@ -343,8 +455,10 @@ def _schemas() -> Dict[str, Any]:
 				"confidence": _num(),
 				"approved_by_user": _bool(),
 				"is_suggestion": _bool("UI'da 'öneri' rozeti gösterilmeli mi."),
-				"pixels": _nullable(_obj({"left": _int(), "top": _int(), "width": _int(), "height": _int()}),
-									"Kaynak ölçüsü bilinmiyorsa null — sayı UYDURULMAZ."),
+				"pixels": _nullable(
+					_obj({"left": _int(), "top": _int(), "width": _int(), "height": _int()}),
+					"Kaynak ölçüsü bilinmiyorsa null — sayı UYDURULMAZ.",
+				),
 			},
 			required=["x", "y", "w", "h", "method"],
 		),
@@ -363,8 +477,10 @@ def _schemas() -> Dict[str, Any]:
 			{
 				"focal_x": _unit("Odak X. `focal_y` ile BİRLİKTE verilir."),
 				"focal_y": _unit("Odak Y."),
-				"safe_area": _nullable(_obj({"x": _unit("."), "y": _unit("."), "w": _unit("."), "h": _unit(".")}),
-									   "Boş sözlük güvenli alanı SİLER."),
+				"safe_area": _nullable(
+					_obj({"x": _unit("."), "y": _unit("."), "w": _unit("."), "h": _unit(".")}),
+					"Boş sözlük güvenli alanı SİLER.",
+				),
 				"zoom": _num("Stüdyo zoom çarpanı, 1-16. `center_x`/`center_y` ile BİRLİKTE verilir."),
 				"center_x": _unit("Pan merkezi X."),
 				"center_y": _unit("Pan merkezi Y."),
@@ -380,7 +496,9 @@ def _schemas() -> Dict[str, Any]:
 				"focal_y": _unit("Önerilen odak Y."),
 				"confidence": _unit("Kenar enerjisinin yoğunlaşma oranı. Önerinin DOĞRU olduğunu ölçmez."),
 				"measured": _bool("Gerçekten ölçüldü mü. false ise merkez döner."),
-				"reason": _str(enum=["measured", "pillow_unavailable", "source_unavailable", "no_edge_energy"]),
+				"reason": _str(
+					enum=["measured", "pillow_unavailable", "source_unavailable", "no_edge_energy"]
+				),
 				"grid": _int("Ölçüm ızgarası."),
 				"threshold": _num("Kullanılan güven eşiği."),
 				"threshold_calibrated": _bool("Eşik kalibre edildi mi. Bugün FALSE (ÖLÇÜLMEDİ)."),
@@ -412,7 +530,9 @@ def _schemas() -> Dict[str, Any]:
 				"asset": _str(),
 				"slot_key": _str(),
 				"window": _ref("CropWindow"),
-				"image": _nullable(_str("data: URI. Üretilemezse null."), "Üretilemezse null; sebep `image_reason`."),
+				"image": _nullable(
+					_str("data: URI. Üretilemezse null."), "Üretilemezse null; sebep `image_reason`."
+				),
 				"image_reason": _str(),
 			},
 			required=["asset", "window"],
@@ -473,7 +593,10 @@ def _schemas() -> Dict[str, Any]:
 		"ManifestBatchResponse": _obj(
 			{
 				"manifests": _obj({}, desc="{varlık: Manifest}"),
-				"missing": _arr(_str(), desc="Bulunamayanlar. SEBEP VERİLMEZ — yok/yayınlanmamış/başkasının ayrımı sızmamalı."),
+				"missing": _arr(
+					_str(),
+					desc="Bulunamayanlar. SEBEP VERİLMEZ — yok/yayınlanmamış/başkasının ayrımı sızmamalı.",
+				),
 				"requested": _int(),
 				"returned": _int(),
 				"errors": _obj({}, desc="{varlık: istisna tipi} — kısmi başarı görünür kalır."),
@@ -482,8 +605,12 @@ def _schemas() -> Dict[str, Any]:
 		),
 		"SignedUrlRequest": _obj(
 			{
-				"ttl_seconds": _int("İstenen ömür. [60, 86400] aralığına KELEPÇELENİR; istenen değil kelepçelenen geçerlidir."),
-				"path": _str("İmzalanacak türev yolu. Verilmezse master imzalanır; yolun varlığa ait olduğu doğrulanır."),
+				"ttl_seconds": _int(
+					"İstenen ömür. [60, 86400] aralığına KELEPÇELENİR; istenen değil kelepçelenen geçerlidir."
+				),
+				"path": _str(
+					"İmzalanacak türev yolu. Verilmezse master imzalanır; yolun varlığa ait olduğu doğrulanır."
+				),
 			},
 		),
 		"SignedUrl": _obj(
@@ -521,7 +648,11 @@ def _schemas() -> Dict[str, Any]:
 			required=["slots", "count"],
 		),
 		"SlotPolicyDetail": _obj(
-			{"slot_key": _str(), "policy": _obj({}, desc="Politikanın TAMAMI — `sources` notları dâhil."), "source": _str()},
+			{
+				"slot_key": _str(),
+				"policy": _obj({}, desc="Politikanın TAMAMI — `sources` notları dâhil."),
+				"source": _str(),
+			},
 			required=["slot_key", "policy"],
 		),
 		"PolicyFinding": _obj(
@@ -555,12 +686,16 @@ def _schemas() -> Dict[str, Any]:
 		),
 		"RenditionMatrix": _obj(
 			{
-				"slots": _arr(_obj({
-					"slot_key": _str(),
-					"profile_count": _int(),
-					"rendition_count": _int(),
-					"renditions": _arr(_ref("RenditionRow")),
-				})),
+				"slots": _arr(
+					_obj(
+						{
+							"slot_key": _str(),
+							"profile_count": _int(),
+							"rendition_count": _int(),
+							"renditions": _arr(_ref("RenditionRow")),
+						}
+					)
+				),
 				"total_renditions": _int(),
 			},
 			required=["slots", "total_renditions"],
@@ -568,7 +703,10 @@ def _schemas() -> Dict[str, Any]:
 		"EvaluateRequest": _obj(
 			{
 				"slot_key": _str(),
-				"probe": _obj({}, desc="core/probe.py::MediaProbe alanları. Tanınmayanlar atılır ve `ignored_fields` ile bildirilir."),
+				"probe": _obj(
+					{},
+					desc="core/probe.py::MediaProbe alanları. Tanınmayanlar atılır ve `ignored_fields` ile bildirilir.",
+				),
 				"role": _str(),
 			},
 			required=["slot_key", "probe"],
@@ -597,7 +735,10 @@ def _schemas() -> Dict[str, Any]:
 				"total": _int(),
 				"complete": _int(),
 				"complete_ratio": _num(),
-				"by_slot": _obj({}, desc="{slot: {total, complete, partial, empty, expected_profiles, missing_profile_counts}}"),
+				"by_slot": _obj(
+					{},
+					desc="{slot: {total, complete, partial, empty, expected_profiles, missing_profile_counts}}",
+				),
 			},
 			required=["scanned", "total", "complete", "complete_ratio", "by_slot"],
 		),
@@ -617,23 +758,31 @@ def _schemas() -> Dict[str, Any]:
 				"force": _bool(),
 				"counts": _obj({"render": _int(), "refresh": _int(), "skip": _int()}),
 				"work_units": _int("render + refresh — gerçekten yapılacak iş."),
-				"plan": _arr(_obj({
-					"profile": _str(),
-					"format": _str(),
-					"width": _int(),
-					"action": _str(enum=["render", "refresh", "skip"]),
-					"reason": _str(),
-					"key": _str("Türetme anahtarı — idempotensi defterinin kimliği."),
-					"should_render": _bool(),
-				})),
+				"plan": _arr(
+					_obj(
+						{
+							"profile": _str(),
+							"format": _str(),
+							"width": _int(),
+							"action": _str(enum=["render", "refresh", "skip"]),
+							"reason": _str(),
+							"key": _str("Türetme anahtarı — idempotensi defterinin kimliği."),
+							"should_render": _bool(),
+						}
+					)
+				),
 			},
 			required=["slot_key", "counts", "plan"],
 		),
 		"JobStatusRequest": _obj(
 			{
-				"kind": _str(enum=["media.scan", "media.evaluate", "media.master", "media.derive", "media.transcode"]),
+				"kind": _str(
+					enum=["media.scan", "media.evaluate", "media.master", "media.derive", "media.transcode"]
+				),
 				"target": _str(),
-				"content_hash": _str("Verilirse `target` anahtara GİRMEZ: aynı içerik farklı adla bir kez işlenir."),
+				"content_hash": _str(
+					"Verilirse `target` anahtara GİRMEZ: aynı içerik farklı adla bir kez işlenir."
+				),
 				"params": _obj({}),
 			},
 			required=["kind"],
@@ -671,6 +820,78 @@ def _schemas() -> Dict[str, Any]:
 
 _ERR = {"$ref": "#/components/responses/Error"}
 
+_PARAM_EXAMPLES: dict[str, Any] = {
+	"asset": "MEDIA-ASSET-EXAMPLE",
+	"upload_id": "a" * 24,
+	"index": 0,
+	"If-None-Match": '"media-etag-example"',
+	"If-Match": '"media-etag-example"',
+}
+
+
+def _example(schema: Any, seen: frozenset[str] = frozenset()) -> Any:
+	"""Şemaya uyan küçük, deterministik istek/yanıt örneği (T-080)."""
+	if not isinstance(schema, Mapping):
+		return None
+	if "example" in schema:
+		return schema["example"]
+	if schema.get("examples"):
+		return schema["examples"][0]
+	if "default" in schema:
+		return schema["default"]
+	if "const" in schema:
+		return schema["const"]
+	if "$ref" in schema:
+		name = str(schema["$ref"]).rsplit("/", 1)[-1]
+		if name in seen:
+			return {}
+		return _example(_schemas().get(name, {}), seen | {name})
+	for key in ("oneOf", "anyOf"):
+		if schema.get(key):
+			return _example(schema[key][0], seen)
+	if schema.get("allOf"):
+		merged: dict[str, Any] = {}
+		for part in schema["allOf"]:
+			value = _example(part, seen)
+			if isinstance(value, dict):
+				merged.update(value)
+		return merged
+	if schema.get("enum"):
+		return schema["enum"][0]
+
+	type_name = schema.get("type")
+	if isinstance(type_name, list):
+		type_name = next((item for item in type_name if item != "null"), "null")
+	if type_name == "object" or "properties" in schema:
+		props = schema.get("properties") or {}
+		return {name: _example(props[name], seen) for name in schema.get("required") or () if name in props}
+	if type_name == "array":
+		if schema.get("maxItems") == 0:
+			return []
+		count = max(1, int(schema.get("minItems") or 0))
+		return [_example(schema.get("items") or {}, seen) for _ in range(count)]
+	if type_name == "boolean":
+		return False
+	if type_name == "integer":
+		value = int(schema.get("minimum") or 0)
+		if "exclusiveMinimum" in schema:
+			value = int(schema["exclusiveMinimum"]) + 1
+		return value
+	if type_name == "number":
+		value = float(schema.get("minimum") or 0.0)
+		if "exclusiveMinimum" in schema:
+			value = float(schema["exclusiveMinimum"]) + 0.1
+		return value
+	if type_name == "null":
+		return None
+	pattern = str(schema.get("pattern") or "")
+	if "{64}" in pattern:
+		return "a" * 64
+	if "{24}" in pattern:
+		return "a" * 24
+	min_length = max(1, int(schema.get("minLength") or 0))
+	return "example" if min_length <= 7 else "x" * min_length
+
 
 def _op(
 	*,
@@ -683,8 +904,8 @@ def _op(
 	body: Mapping[str, Any] | None = None,
 	description: str = "",
 	security_note: str = "",
-) -> Dict[str, Any]:
-	op: Dict[str, Any] = {
+) -> dict[str, Any]:
+	op: dict[str, Any] = {
 		"tags": [tag],
 		"operationId": operation_id,
 		"summary": summary,
@@ -697,8 +918,11 @@ def _op(
 	if parameters:
 		op["parameters"] = list(parameters)
 	if body is not None:
-		op["requestBody"] = {"required": True, "content": {JSON: {"schema": body}}}
-	cevaplar: Dict[str, Any] = {}
+		op["requestBody"] = {
+			"required": True,
+			"content": {JSON: {"schema": body, "example": _example(body)}},
+		}
+	cevaplar: dict[str, Any] = {}
 	for kod, tanim in responses.items():
 		cevaplar[str(kod)] = tanim
 	for kod in ("400", "401", "403", "404", "409", "412", "413", "422", "429", "500", "503"):
@@ -707,8 +931,11 @@ def _op(
 	return op
 
 
-def _json_response(desc: str, schema: Mapping[str, Any], *, etag: bool = False) -> Dict[str, Any]:
-	r: Dict[str, Any] = {"description": desc, "content": {JSON: {"schema": dict(schema)}}}
+def _json_response(desc: str, schema: Mapping[str, Any], *, etag: bool = False) -> dict[str, Any]:
+	r: dict[str, Any] = {
+		"description": desc,
+		"content": {JSON: {"schema": dict(schema), "example": _example(schema)}},
+	}
 	if etag:
 		r["headers"] = {
 			"ETag": {"description": "Gövdenin içerik-adresli etiketi.", "schema": {"type": "string"}},
@@ -717,8 +944,15 @@ def _json_response(desc: str, schema: Mapping[str, Any], *, etag: bool = False) 
 	return r
 
 
-def _param(name: str, where: str, schema: Mapping[str, Any], *, required: bool = False, desc: str = "") -> Dict[str, Any]:
-	p: Dict[str, Any] = {"name": name, "in": where, "schema": dict(schema)}
+def _param(
+	name: str, where: str, schema: Mapping[str, Any], *, required: bool = False, desc: str = ""
+) -> dict[str, Any]:
+	p: dict[str, Any] = {
+		"name": name,
+		"in": where,
+		"schema": dict(schema),
+		"example": _PARAM_EXAMPLES.get(name, _example(schema)),
+	}
 	if required:
 		p["required"] = True
 	if desc:
@@ -734,7 +968,7 @@ _P_IM = _param("If-Match", "header", {"type": "string"}, desc="İyimser kilit; t
 _NOT_MODIFIED = {"description": "Gövde değişmedi; içerik gönderilmez."}
 
 
-def _paths() -> Dict[str, Any]:
+def _paths() -> dict[str, Any]:
 	return {
 		f"{BASE_PATH}/upload/sessions": {
 			"post": _op(
@@ -792,12 +1026,28 @@ def _paths() -> Dict[str, Any]:
 				python="tradehub_core.media.pipeline.api.upload.UploadApi.put_chunk",
 				parameters=[
 					_P_UPLOAD,
-					_param("index", "path", {"type": "integer", "minimum": 0}, required=True, desc="Parça sırası."),
+					_param(
+						"index",
+						"path",
+						{"type": "integer", "minimum": 0},
+						required=True,
+						desc="Parça sırası.",
+					),
 				],
 				body={"type": "string", "format": "binary", "description": "Parçanın ham baytları."},
-				responses={"200": _json_response("Parça alındı.", _obj({
-					"upload_id": _str(), "received": _int(), "chunk_count": _int(), "complete": _bool(),
-				}))},
+				responses={
+					"200": _json_response(
+						"Parça alındı.",
+						_obj(
+							{
+								"upload_id": _str(),
+								"received": _int(),
+								"chunk_count": _int(),
+								"complete": _bool(),
+							}
+						),
+					)
+				},
 			)
 		},
 		f"{BASE_PATH}/upload/sessions/{{upload_id}}/finalize": {
@@ -813,7 +1063,9 @@ def _paths() -> Dict[str, Any]:
 				parameters=[_P_UPLOAD],
 				body=_ref("FinalizeRequest"),
 				responses={
-					"200": _json_response("İçerik zaten vardı; yeni varlık açılmadı.", _ref("FinalizeResult")),
+					"200": _json_response(
+						"İçerik zaten vardı; yeni varlık açılmadı.", _ref("FinalizeResult")
+					),
 					"201": _json_response("Varlık açıldı.", _ref("FinalizeResult")),
 				},
 			)
@@ -827,7 +1079,9 @@ def _paths() -> Dict[str, Any]:
 				python="tradehub_core.media.pipeline.api.crop.CropApi.get_intent",
 				parameters=[_P_ASSET, _P_INM],
 				responses={
-					"200": _json_response("Niyet + çözülmüş pencereler.", _ref("CropIntentResponse"), etag=True),
+					"200": _json_response(
+						"Niyet + çözülmüş pencereler.", _ref("CropIntentResponse"), etag=True
+					),
 					"304": _NOT_MODIFIED,
 				},
 			),
@@ -853,7 +1107,11 @@ def _paths() -> Dict[str, Any]:
 				),
 				python="tradehub_core.media.pipeline.api.crop.CropApi.suggest_focal",
 				parameters=[_P_ASSET],
-				responses={"200": _json_response("Öneri (ölçülemediyse measured=false).", _ref("SuggestFocalResponse"))},
+				responses={
+					"200": _json_response(
+						"Öneri (ölçülemediyse measured=false).", _ref("SuggestFocalResponse")
+					)
+				},
 			)
 		},
 		f"{BASE_PATH}/assets/{{asset}}/crop-preview": {
@@ -865,7 +1123,9 @@ def _paths() -> Dict[str, Any]:
 				python="tradehub_core.media.pipeline.api.crop.CropApi.preview",
 				parameters=[_P_ASSET],
 				body=_ref("CropPreviewRequest"),
-				responses={"200": _json_response("Pencere (+ istenirse görüntü).", _ref("CropPreviewResponse"))},
+				responses={
+					"200": _json_response("Pencere (+ istenirse görüntü).", _ref("CropPreviewResponse"))
+				},
 			)
 		},
 		f"{BASE_PATH}/delivery/{{asset}}/manifest": {
@@ -880,7 +1140,12 @@ def _paths() -> Dict[str, Any]:
 				security_note="Public varlıklar için oturum gerekmez; private varlıkta okuma yetkisi aranır.",
 				parameters=[
 					_P_ASSET,
-					_param("sizes", "query", {"type": "string"}, desc="Çağıranın bildiği `sizes`; verilmezse tablo (bugün boş)."),
+					_param(
+						"sizes",
+						"query",
+						{"type": "string"},
+						desc="Çağıranın bildiği `sizes`; verilmezse tablo (bugün boş).",
+					),
 					_param("is_lcp_candidate", "query", {"type": "boolean"}, desc="LCP adayıysa eager+high."),
 					_P_INM,
 				],
@@ -903,7 +1168,9 @@ def _paths() -> Dict[str, Any]:
 				parameters=[_P_INM],
 				body=_ref("ManifestBatchRequest"),
 				responses={
-					"200": _json_response("Manifestler + eksikler.", _ref("ManifestBatchResponse"), etag=True),
+					"200": _json_response(
+						"Manifestler + eksikler.", _ref("ManifestBatchResponse"), etag=True
+					),
 					"304": _NOT_MODIFIED,
 				},
 			)
@@ -929,6 +1196,7 @@ def _paths() -> Dict[str, Any]:
 				tag="admin",
 				operation_id="listSlotPolicies",
 				summary="Slot politikalarını listele",
+				description="Her kayıt slot kimliği, şema sürümü, durum ve politika kaynağını taşır; ETag eşleşirse 304 döner.",
 				python="tradehub_core.media.pipeline.api.admin.AdminApi.list_slot_policies",
 				security_note="System Manager | Marketplace Admin.",
 				parameters=[_P_INM],
@@ -1053,7 +1321,7 @@ def _paths() -> Dict[str, Any]:
 	}
 
 
-def build_document() -> Dict[str, Any]:
+def build_document() -> dict[str, Any]:
 	"""OpenAPI 3.1 belgesinin tamamı. **Saf fonksiyon** — her çağrı aynı sözlük."""
 	return {
 		"openapi": OPENAPI_VERSION,
@@ -1084,7 +1352,16 @@ def build_document() -> Dict[str, Any]:
 			"responses": {
 				"Error": {
 					"description": "Kodlu ret. İstemci METNE değil `error_code`a bakar (FR-060).",
-					"content": {JSON: {"schema": _ref("Error")}},
+					"content": {
+						JSON: {
+							"schema": _ref("Error"),
+							"example": {
+								"error_code": "media_bad_field",
+								"retryable": False,
+								"message": "Alan biçimi geçersiz.",
+							},
+						}
+					},
 				}
 			},
 			"securitySchemes": {
@@ -1107,7 +1384,7 @@ def build_document() -> Dict[str, Any]:
 		"x-contract": {
 			"source_of_truth": "tradehub_core/media/pipeline/api/spec.py",
 			"generated_file": "docs/api/openapi.yaml",
-			"regenerate": "python3 -c \"from tradehub_core.media.pipeline.api import spec; spec.write_yaml()\"",
+			"regenerate": 'python3 -c "from tradehub_core.media.pipeline.api import spec; spec.write_yaml()"',
 			"drift_test": "tests/test_api_contracts.py",
 		},
 	}
@@ -1154,7 +1431,7 @@ def _scalar(value: Any) -> str:
 	return _quote(str(value))
 
 
-def _emit(value: Mapping[str, Any], indent: int, out: List[str]) -> None:
+def _emit(value: Mapping[str, Any], indent: int, out: list[str]) -> None:
 	pad = " " * indent
 	for key, val in value.items():
 		k = _quote(str(key))
@@ -1174,14 +1451,14 @@ def _emit(value: Mapping[str, Any], indent: int, out: List[str]) -> None:
 			out.append(f"{pad}{k}: {_scalar(val)}")
 
 
-def _emit_list(items: List[Any], indent: int, out: List[str]) -> None:
+def _emit_list(items: list[Any], indent: int, out: list[str]) -> None:
 	pad = " " * indent
 	for item in items:
 		if isinstance(item, Mapping):
 			if not item:
 				out.append(f"{pad}- {{}}")
 				continue
-			gecici: List[str] = []
+			gecici: list[str] = []
 			_emit(item, indent + 2, gecici)
 			out.append(pad + "- " + gecici[0][indent + 2 :])
 			out.extend(gecici[1:])
@@ -1199,10 +1476,10 @@ def _emit_list(items: List[Any], indent: int, out: List[str]) -> None:
 
 def dump_yaml(document: Mapping[str, Any]) -> str:
 	"""Belgeyi YAML'a bas. Deterministik: aynı girdi → aynı baytlar."""
-	out: List[str] = [
+	out: list[str] = [
 		"# ÜRETİLMİŞ DOSYA — ELLE DÜZENLEMEYİN.",
 		"# Kaynak: tradehub_core/media/pipeline/api/spec.py :: build_document()",
-		"# Yeniden üret: python3 -c \"from tradehub_core.media.pipeline.api import spec; spec.write_yaml()\"",
+		'# Yeniden üret: python3 -c "from tradehub_core.media.pipeline.api import spec; spec.write_yaml()"',
 		"# Sapma testi: tests/test_api_contracts.py",
 	]
 	_emit(document, 0, out)
@@ -1229,17 +1506,17 @@ def write_yaml(path=None) -> str:
 # ── Yapısal doğrulama ───────────────────────────────────────────────────
 
 
-def operations(document: Mapping[str, Any] | None = None) -> Tuple[Tuple[str, str, Dict[str, Any]], ...]:
+def operations(document: Mapping[str, Any] | None = None) -> tuple[tuple[str, str, dict[str, Any]], ...]:
 	"""`(yol, yöntem, operasyon)` üçlüleri."""
 	doc = document if document is not None else build_document()
-	cikti: List[Tuple[str, str, Dict[str, Any]]] = []
+	cikti: list[tuple[str, str, dict[str, Any]]] = []
 	for yol, item in (doc.get("paths") or {}).items():
 		for yontem, op in item.items():
 			cikti.append((yol, yontem, op))
 	return tuple(cikti)
 
 
-def validate_document(document: Mapping[str, Any] | None = None) -> List[str]:
+def validate_document(document: Mapping[str, Any] | None = None) -> list[str]:
 	"""OpenAPI 3.1 yapısal kontrolü. Dönüş: bulgu listesi (boşsa temiz).
 
 	Tam bir JSON-Schema doğrulayıcı DEĞİLDİR (`jsonschema` kurulu değil) ama
@@ -1247,7 +1524,7 @@ def validate_document(document: Mapping[str, Any] | None = None) -> List[str]:
 	tekrarlanan `operationId`, yanıtsız operasyon, tanımsız şema.
 	"""
 	doc = document if document is not None else build_document()
-	bulgular: List[str] = []
+	bulgular: list[str] = []
 
 	if str(doc.get("openapi", "")).split(".")[0] != "3":
 		bulgular.append("openapi sürümü 3.x değil")
@@ -1282,7 +1559,7 @@ def validate_document(document: Mapping[str, Any] | None = None) -> List[str]:
 
 	_refleri_tara(doc, "$")
 
-	gorulen: Dict[str, str] = {}
+	gorulen: dict[str, str] = {}
 	for yol, yontem, op in operations(doc):
 		iz = f"{yontem.upper()} {yol}"
 		oid = op.get("operationId")
@@ -1307,10 +1584,17 @@ def validate_document(document: Mapping[str, Any] | None = None) -> List[str]:
 
 	# Hata kodu kataloğundaki her durum, zarfın eşlemesinde de olmalı.
 	bilinen_durumlar = set(env.STATUS_BY_ERROR.values()) | {
-		env.HTTP_BAD_REQUEST, env.HTTP_UNAUTHORIZED, env.HTTP_FORBIDDEN,
-		env.HTTP_NOT_FOUND, env.HTTP_CONFLICT, env.HTTP_PRECONDITION_FAILED,
-		env.HTTP_PAYLOAD_TOO_LARGE, env.HTTP_TOO_MANY_REQUESTS, env.HTTP_UNAVAILABLE,
-		env.HTTP_INTERNAL_ERROR, env.HTTP_UNPROCESSABLE,
+		env.HTTP_BAD_REQUEST,
+		env.HTTP_UNAUTHORIZED,
+		env.HTTP_FORBIDDEN,
+		env.HTTP_NOT_FOUND,
+		env.HTTP_CONFLICT,
+		env.HTTP_PRECONDITION_FAILED,
+		env.HTTP_PAYLOAD_TOO_LARGE,
+		env.HTTP_TOO_MANY_REQUESTS,
+		env.HTTP_UNAVAILABLE,
+		env.HTTP_INTERNAL_ERROR,
+		env.HTTP_UNPROCESSABLE,
 	}
 	for satir in doc.get("x-error-codes") or []:
 		if satir.get("status") not in bilinen_durumlar:

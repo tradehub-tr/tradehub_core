@@ -1,8 +1,15 @@
 # Standart — `product.video` (Ürün tanıtım videosu)
 
+> **Güncel karar — 2026-08-23.** Makine kaynağı
+> `tradehub_core/media/pipeline/policy/slots/product-video.json` şemaya
+> uyumludur; `standard_status=fixed`, açık soru sayısı 0 ve yükleme tavanı
+> 10 MB'tır. `ProductVideoSection` ürün detayına bağlanmıştır. Aşağıdaki
+> 2026-08-17 “okunmuyor” notu tarihsel analizdir; `status=draft` yalnız Faz 3
+> rollout durumudur.
+
 **Görev:** T-023 · **Tarih:** 2026-08-17 · **Branch:** `medya-motoru-faz0-faz2`
 **Politika dosyası:** `tradehub_core/media/pipeline/policy/slots/product-video.json`
-**Durum:** `draft` — bu politika bugün kod tarafından okunmuyor
+**Tarihsel durum:** `draft` — 2026-08-17 anlık görüntüsü
 (`tradehub_core/media/upload_policy.py:307-313` — `check()` imzasında slot parametresi yok).
 
 > **Kural 5 uyarısı:** Bu slotta sistemin **asenkron video transcode hattı zaten

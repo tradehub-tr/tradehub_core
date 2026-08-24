@@ -153,6 +153,7 @@ HISTORY_SOURCES: tuple[tuple[str, str, str, str], ...] = (
 	("tabBulk Import Job Error", "raw_row_json", "import_error", "Toplu yükleme hatası"),
 	("tabBulk Import Job", "data_file", "import_job", "Toplu yükleme dosyası"),
 	("tabError Log", "error", "error_log", "Hata kaydı"),
+	("tabError Log", "method", "error_log_method", "Hata kaydı yöntemi"),
 )
 
 # Karar etiketleri — filtre ve rozet bunları kullanır.

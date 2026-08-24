@@ -88,3 +88,10 @@ ADR-0013 K1).
   görev.
 - **Doğrulanmadı:** ölçüm 18 dosyalık yerel bir küme üzerinde yapıldı; üretim
   dağılımı farklıdır.
+
+## Geri dönüş yolu
+
+Gerçek logo korpusunda PNG aynı görsel kaliteyle WebP'ten küçük çıkar veya
+WebP destek matrisi gerilerse lossless biçim seçimi yeniden ölçülür. 40 KiB
+tavanı 5 basamağın çoğunda aşılıyorsa merdiven/kalite kararı yeniden açılır;
+eski PNG kaynaklar silinmediğinden rollback veri kaybetmez.

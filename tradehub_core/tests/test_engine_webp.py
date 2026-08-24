@@ -30,15 +30,24 @@ class TestToWebp(unittest.TestCase):
 		self.assertEqual(out[8:12], b"WEBP")
 		self.assertLess(len(out), buf.tell())  # küçüldü
 
-	def test_to_webp_boyutu_1920_ile_sinirlar(self):
+	def test_to_webp_boyutu_2400_ile_sinirlar(self):
 		buf = io.BytesIO()
 		Image.new("RGB", (4000, 3000), "blue").save(buf, "JPEG", quality=95)
 
 		out = engine.to_webp(buf.getvalue(), quality=80)
 
 		with Image.open(io.BytesIO(out)) as im:
-			self.assertLessEqual(max(im.size), 1920)
+			self.assertEqual(max(im.size), 2400)
 			self.assertEqual(im.format, "WEBP")
+
+	def test_to_webp_cagiranin_tavanini_kullanir(self):
+		buf = io.BytesIO()
+		Image.new("RGB", (1600, 900), "purple").save(buf, "JPEG", quality=95)
+
+		out = engine.to_webp(buf.getvalue(), quality=80, max_dim=512)
+
+		with Image.open(io.BytesIO(out)) as im:
+			self.assertEqual(max(im.size), 512)
 
 	def test_to_webp_zaten_webp_olan_gorseli_de_kabul_eder(self):
 		src = io.BytesIO()

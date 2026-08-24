@@ -113,3 +113,10 @@ deneyip geçtiğinde durabilseydi bütçe 4'ten ~2'ye inerdi (§4.2).
 Bu ADR'nin kararı (bütçe 4) **yürürlükte kalıyor**, ama maliyet ölçümü karar
 verildiğinde yoktu. Açık iş: **erken çıkış** eklenmesi (maliyeti ~3 kat düşürür)
 ve kalite kapısının bununla ne kaybedeceğinin ölçülmesi. Bu ölçüm **yapılmadı**.
+
+## Geri dönüş yolu
+
+Gerçek ürün korpusunda adaptif yol q85'e göre p95 CPU'yu kabul bütçesinin üstüne
+çıkarır veya hedefi tutan örnek oranı düşerse sabit kaliteye bayrakla dönülür.
+Erken çıkış/codec sınırları ancak `13-kalite-prototip.md` ölçümü aynı kalite
+hedefinde yeniden üretildiğinde değiştirilir.

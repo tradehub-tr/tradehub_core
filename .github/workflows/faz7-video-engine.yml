@@ -1,0 +1,60 @@
+name: Faz 7 Video Engine
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "30 2 * * *"
+  pull_request:
+    paths:
+      - "tradehub_core/media/pipeline/video/**"
+      - "tradehub_core/media/pipeline/security/isolation.py"
+      - "tradehub_core/tests/test_video_*.py"
+      - "tradehub_core/tests/golden/video/**"
+      - ".github/workflows/faz7-video-engine.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Runtime dependencies
+        run: pip install pillow psutil
+      - name: Faz 7 contract suite
+        run: >-
+          python -m unittest
+          tradehub_core.tests.test_video_decision
+          tradehub_core.tests.test_video_transcode
+          tradehub_core.tests.test_video_phase7_closure
+          -q
+
+  long-4k60:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: FFmpeg and metrics dependency
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          pip install pillow psutil
+      - name: Long 4K60 resource regression
+        run: >-
+          python tradehub_core/tests/golden/video/benchmark_4k60.py
+          --assert-budgets
+          --output docs/data/faz7-4k60-benchmark.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: faz7-4k60-benchmark
+          path: docs/data/faz7-4k60-benchmark.json
+          if-no-files-found: error

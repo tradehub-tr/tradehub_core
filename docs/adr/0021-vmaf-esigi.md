@@ -51,3 +51,10 @@ içeriğin çoğunu bloklar (ölçülen bant 75–90). İkisi de kararsız bıra
 `docs/reports/39-t072-video-hatti.md` §4 · `docs/reports/81-w6-video-kosum.md`
 §3 (halka 4), §8.3 · `docs/reports/22-t072-vmaf-av1.md` (93'ün sentetik
 kalibrasyonu) · `media/pipeline/policy/video_decision.json` (`vmaf_min`).
+
+## Geri dönüş yolu
+
+**Karar bekliyor.** Eşik rollout'ta gerçek içeriklerin kabul oranını veya byte
+kazanımını hedef dışına iterse kalite kapısı report-only moda alınır; kaynak
+video yayınlanır. Yeni eşik yalnız aynı codec/çözünürlükte en az üç gerçek video
+ve kalite-eşit ölçümle değerlendirilir.

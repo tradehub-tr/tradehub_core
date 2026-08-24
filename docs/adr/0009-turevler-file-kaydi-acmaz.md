@@ -88,3 +88,10 @@ yok (`docs/reports/26-t053-saklama-gc.md` §6).
 
 **3. Doğrulanmadı:** türevlerin diskte biriktiğini fark edecek bir izleme yok;
 T-124'te elle silindiler.
+
+## Geri dönüş yolu
+
+Kota, yasal saklama veya sahiplik sorguları rendition ledger'ıyla güvenilir
+çözülemezse türevler için ayrı kayıt modeli değerlendirilir; mevcut `File`
+tablosuna toplu satır açılmaz. Ledger migration'ı eksik sayım üretirse kota
+bayrağı kapatılır ve önceki “orijinaller sayılır” davranışına dönülür.

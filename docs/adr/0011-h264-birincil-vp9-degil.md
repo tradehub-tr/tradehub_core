@@ -71,3 +71,10 @@ doğrulama komutunu veriyor).
 - **Doğrulanmadı:** Safari/iOS'ta VP9'un oynamadığı bu depoda **ölçülmedi**;
   gerekçe dış bilgiye dayanıyor. Aynı şekilde H.264'ün her yerde oynadığı da
   gerçek cihazda test edilmedi.
+
+## Geri dönüş yolu
+
+Hedef cihaz matrisinde VP9/AV1 oynatma kapsaması H.264 ile eşitlenir ve
+kalite-eşit ölçüm ≥%20 teslim tasarrufu gösterirse birincil codec yeniden
+değerlendirilir. Pilot başarısızsa JSON'daki birincil satır H.264'e çevrilir;
+kaynak ve MP4 fallback hiçbir zaman silinmez.

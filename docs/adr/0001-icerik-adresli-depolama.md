@@ -108,3 +108,10 @@ Karar **geri alınmıyor** — dedup, numaralandırma koruması ve `immutable`
   alanlarında gerçek imza sirküleri/kimlik taraması bulunuyor ve aynı mekanizma
   orada gerçek PII sızdırır (`docs/reports/19-d2-hash-ortusme.md` §6 Ö-6, "EN
   YÜKSEK"). Aynı sorgular üretimde koşulmadı.
+
+## Geri dönüş yolu
+
+Hash URL şeması geri alınmaz; çok kiracılı okuma izolasyonu veya çakışma testi
+yeniden kırılırsa public/private kapsam anahtara katılır ve eski nesneler salt
+okunur geçiş katmanında tutulur. Geri dönüş tetiği: doğrulanmış bir çapraz
+kiracı okuması ya da 128-bit kesilmiş hash'te tek gerçek çakışma.

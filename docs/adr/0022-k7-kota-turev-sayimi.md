@@ -46,3 +46,10 @@ mertebesine çıkar — geri dönüşü (tahakkuk etmiş kota) o zaman çok daha
 `docs/reports/56-d3-faz6-10-kapanis.md` §7.4 · `docs/adr/0009-turevler-file-kaydi-acmaz.md` ·
 `docs/adr/README.md` "Kararlar arası gerilimler" · `docs/closure/faz2-kapanis.md` §3.9 ·
 `docs/reports/57-durum-anlik-goruntu.md` karar #2 · `docs/reports/81-w6-video-kosum.md` §9 (411 dosya).
+
+## Geri dönüş yolu
+
+**Karar bekliyor.** Türevler kotaya katılırsa ledger sayımı ile fiziksel bayt
+farkı oluştuğunda tahakkuk durdurulur ve eski “yalnız orijinal” hesabına
+dönülür. Katılmazsa depolama maliyeti satıcı başına bütçeyi aşınca karar gerçek
+411+ dosyalık ölçümle yeniden açılır.

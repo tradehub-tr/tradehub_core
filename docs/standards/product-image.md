@@ -1,7 +1,15 @@
 # Ürün Görseli Standardı — T-020
 
+> **Güncel karar — 2026-08-23.** Standardın makine kaynağı
+> `tradehub_core/media/pipeline/policy/slots/product-image.json` dosyasıdır:
+> `standard_status=fixed`, açık soru yoktur, AVIF kalitesi 61'dir ve master
+> aralığı 2000–2400 px'tir. `engine.to_webp()` varsayılanı da 2400 px'e
+> taşınmıştır. Aşağıdaki 2026-08-17 metnindeki 1920 px, AVIF `null`, Docker
+> kapalı ve politika bağlı değil ifadeleri karar geçmişidir; güncel durumu
+> anlatmaz. `status=draft` yalnız Faz 3 rollout durumudur.
+
 **Tarih:** 2026-08-17 · **Branch:** `medya-motoru-faz0-faz2` · **Slot:** `product.image`
-**Durum:** `draft` — bazı değerler ölçülmedi, §9'a bakınız.
+**Tarihsel durum:** `draft` — 2026-08-17 anlık görüntüsü; güncel karar yukarıdadır.
 
 **Bu belgenin ürettiği dosyalar:**
 

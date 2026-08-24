@@ -81,6 +81,7 @@ def _cagir(
 	yontem: str = "GET",
 	cerez: str = "",
 	csrf: str = "",
+	headers: dict[str, str] | None = None,
 ) -> tuple[int, dict]:
 	"""Gerçek HTTP çağrısı. Varsayılan: misafir (oturumsuz) GET.
 
@@ -89,6 +90,7 @@ def _cagir(
 	"""
 	kuyruk = urllib.parse.urlencode(params)
 	basliklar = {"Accept": "application/json"}
+	basliklar.update(headers or {})
 	if CANLI_HOST:
 		basliklar["Host"] = CANLI_HOST
 	if cerez:
@@ -209,7 +211,7 @@ class UreticiTesti(unittest.TestCase):
 				self.assertLessEqual(int(satir), len(hedef.read_text(encoding="utf-8").splitlines()))
 
 	def test_uc_sayisi(self):
-		"""115 uç: 6 teslim + 3 kırpma + 41 satıcı + 62 yönetim + 2 depolama + 1 RUM.
+		"""120 uç: 6 teslim + 3 kırpma + 41 satıcı + 66 yönetim + 3 depolama + 1 RUM.
 
 		W6 SDK turu (2026-08-20): `manifest_batch` (dosya bazlı), 6 klasör ucu,
 		`find_in_my_library`, `list_orphans` ve `rum.collect` yüzeye eklendi.
@@ -221,15 +223,19 @@ class UreticiTesti(unittest.TestCase):
 		`set_media_seo`, `set_media_seo_override`, `clear_media_seo_override`,
 		`generate_media_alt`, `backfill_media_alt`, `backfill_media_dimensions`,
 		`audit_media_seo`. Hepsi gerçek HTTP ile ölçüldü (`OLCUM`).
+
+		Faz 6/12 kapanışı (2026-08-23): indexability yazarı, rendition backfill
+		başlat/durum/retry uçları ve CDN purge yüzeye eklendi. Beşi de yan etkili
+		özellik grupları olduğu için `OLCULMEYEN`de açık gerekçeyle kayıtlıdır.
 		"""
-		self.assertEqual(len(self.uclar), 115)
-		self.assertEqual(self.doc["x-endpoint-count"], 115)
+		self.assertEqual(len(self.uclar), 120)
+		self.assertEqual(self.doc["x-endpoint-count"], 120)
 		etikete_gore: dict[str, int] = {}
 		for uc in self.uclar:
 			etikete_gore[uc["tag"]] = etikete_gore.get(uc["tag"], 0) + 1
 		self.assertEqual(
 			etikete_gore,
-			{"delivery": 6, "crop": 3, "seller": 41, "admin": 62, "storage": 2, "rum": 1},
+			{"delivery": 6, "crop": 3, "seller": 41, "admin": 66, "storage": 3, "rum": 1},
 		)
 
 	def test_her_ucun_olcum_durumu_YAZILI(self):
@@ -293,13 +299,31 @@ class UreticiTesti(unittest.TestCase):
 			op = list(self.doc["paths"][yol].values())[0]
 			self.assertNotEqual(op["security"], [], f"{fn} misafire AÇIK olmamalı")
 
-	def test_save_intent_uyusmazligi_belgede_DURUYOR(self):
-		"""`overrides` yolunun bugün çalışmadığı ölçüldü — gizlenmemeli."""
-		op = list(
-			self.doc["paths"]["/api/method/tradehub_core.api.media_crop.save_intent"].values()
-		)[0]
-		self.assertIn("x-mismatch", op)
-		self.assertIn("LinkValidationError", op["x-mismatch"])
+	def test_upload_idempotency_basligi_ve_manifest_304_belgede(self):
+		for fn in ("upload_begin", "upload_finish"):
+			op = self.doc["paths"][f"/api/method/tradehub_core.api.seller_media.{fn}"]["post"]
+			basliklar = {(p["name"], p["in"]) for p in op.get("parameters", [])}
+			self.assertIn(("Idempotency-Key", "header"), basliklar)
+		manifest = self.doc["paths"]["/api/method/tradehub_core.api.media_manifest.get_manifest"]["get"]
+		self.assertIn("304", manifest["responses"])
+		self.assertIn(
+			("If-None-Match", "header"),
+			{(p["name"], p["in"]) for p in manifest.get("parameters", [])},
+		)
+		for fn, param in (("get_manifest", "listing"), ("get_manifest_batch", "listings")):
+			op = self.doc["paths"][f"/api/method/tradehub_core.api.media_manifest.{fn}"]["get"]
+			belgelenen = {p["name"]: p for p in op["parameters"]}
+			self.assertTrue(belgelenen[param]["required"])
+
+	def test_save_intent_override_uyusmazligi_KAPALI(self):
+		"""Eski Link/Data sözlük ayrılığı tekrar sözleşmeye dönmemeli."""
+		op = list(self.doc["paths"]["/api/method/tradehub_core.api.media_crop.save_intent"].values())[0]
+		self.assertNotIn("x-mismatch", op)
+		self.assertIn("w384", op["x-measurement"])
+		self.assertNotIn(
+			"tradehub_core.api.media_crop.save_intent",
+			self.doc["x-endpoints-with-mismatch"],
+		)
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -393,9 +417,7 @@ class CanliSozlesmeTesti(unittest.TestCase):
 		return list(self.semalar[sema_adi]["required"])
 
 	def test_get_manifest_belgelenen_semayi_tutuyor(self):
-		durum, zarf = _cagir(
-			"tradehub_core.api.media_manifest.get_manifest", {"listing": CANLI_ILAN}
-		)
+		durum, zarf = _cagir("tradehub_core.api.media_manifest.get_manifest", {"listing": CANLI_ILAN})
 		self.assertEqual(durum, 200, zarf)
 		self.assertIn("message", zarf, "Frappe zarfı `message` taşımalı")
 		govde = zarf["message"]
@@ -414,6 +436,7 @@ class CanliSozlesmeTesti(unittest.TestCase):
 				self.assertIn(alan, tur)
 
 	def test_if_none_match_not_modified_gövdesi(self):
+		"""Eski sorgu parametresi geriye uyum için kısa 200 gövdesidir."""
 		_d, ilk = _cagir("tradehub_core.api.media_manifest.get_manifest", {"listing": CANLI_ILAN})
 		etag = ilk["message"]["etag"]
 		durum, ikinci = _cagir(
@@ -426,6 +449,18 @@ class CanliSozlesmeTesti(unittest.TestCase):
 			self.assertIn(alan, govde)
 		self.assertTrue(govde["not_modified"])
 		self.assertEqual(govde["etag"], etag)
+
+	def test_if_none_match_basligi_gercek_304_ve_bos_govde(self):
+		"""T-083 — HTTP validator yolu gövdede 304 TAKLİDİ yapmaz."""
+		_d, ilk = _cagir("tradehub_core.api.media_manifest.get_manifest", {"listing": CANLI_ILAN})
+		etag = ilk["message"]["etag"]
+		durum, govde = _cagir(
+			"tradehub_core.api.media_manifest.get_manifest",
+			{"listing": CANLI_ILAN},
+			headers={"If-None-Match": etag},
+		)
+		self.assertEqual(durum, 304, govde)
+		self.assertEqual(govde.get("_raw"), "")
 
 	def test_batch_belgelenen_semayi_tutuyor(self):
 		durum, zarf = _cagir(
@@ -446,10 +481,8 @@ class CanliSozlesmeTesti(unittest.TestCase):
 			self.assertIn("images", manifest)
 
 	def test_bilinmeyen_ilan_da_200_ve_ayni_sema(self):
-		""""Yok" ile "yayında değil" ayırt EDİLMEZ — ikisi de boş manifest."""
-		durum, zarf = _cagir(
-			"tradehub_core.api.media_manifest.get_manifest", {"listing": "LST-YOK-9999"}
-		)
+		""" "Yok" ile "yayında değil" ayırt EDİLMEZ — ikisi de boş manifest."""
+		durum, zarf = _cagir("tradehub_core.api.media_manifest.get_manifest", {"listing": "LST-YOK-9999"})
 		self.assertEqual(durum, 200)
 		govde = zarf["message"]
 		for alan in self._zorunlu_alanlar("Manifest"):
@@ -493,16 +526,20 @@ class CanliSozlesmeTesti(unittest.TestCase):
 				reddedilmeyen.append(f"{uc['key']} → {durum}")
 		self.assertEqual(reddedilmeyen, [], "Misafire kapalı uçlar 403 vermedi")
 
-	def test_zorunlu_parametre_eksik_500_TypeError(self):
-		"""ÖLÇÜLEN SAPMA: eksik zorunlu parametre 400/417 değil **500** üretir.
+	def test_manifest_zorunlu_parametre_eksigi_5xx_URETMEZ(self):
+		"""T-084 fuzzing kapısı: guest teslim uçlarında eksik girdi 5xx değildir.
 
-		Bu bir kusur beyanıdır, tasarım değil. Uç bir gün 400 vermeye başlarsa
-		bu test düşer ve `x-contract-deviations` güncellenmelidir.
+		OpenAPI bu alanları istemci için zorunlu tutar. Sunucu ise negatif/fuzz
+		isteğini güvenli boş manifestle karşılar; Frappe argüman bağlama katmanının
+		`TypeError` 500'ü vitrinin açık ucuna sızmaz.
 		"""
-		durum, govde = _cagir("tradehub_core.api.media_manifest.get_manifest", {})
-		self.assertEqual(durum, 500, govde)
-		self.assertEqual(govde.get("exc_type"), "TypeError")
-		self.assertIn("missing 1 required positional argument", govde.get("exception", ""))
+		for yol in (
+			"tradehub_core.api.media_manifest.get_manifest",
+			"tradehub_core.api.media_manifest.get_manifest_batch",
+		):
+			durum, govde = _cagir(yol, {})
+			self.assertEqual(durum, 200, f"{yol}: {govde}")
+			self.assertIn("message", govde)
 
 	def test_kirpma_uclari_misafire_KAPALI(self):
 		"""T-082 — üç kırpma ucu da oturumsuz çağrılamaz."""
@@ -597,9 +634,7 @@ class YetkiliCanliTesti(unittest.TestCase):
 
 	def test_bilinmeyen_yedek_kimligi_417(self):
 		"""İş kuralı reddi 400 DEĞİL 417 — belgedeki cümle ölçülerek tutuluyor."""
-		durum, govde = self._oku(
-			"tradehub_core.api.media_admin.plan_media_restore", {"set_id": "YOK-9999"}
-		)
+		durum, govde = self._oku("tradehub_core.api.media_admin.plan_media_restore", {"set_id": "YOK-9999"})
 		self.assertEqual(durum, 417, govde)
 		self.assertEqual(govde.get("exc_type"), "ValidationError")
 

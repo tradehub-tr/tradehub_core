@@ -40,18 +40,42 @@ yalnız disk adı + `file_url` içerik-hash'lidir.
 
 import hashlib
 import os
+import unicodedata
 
 import frappe
 from frappe.model.document import Document
 from frappe.utils import get_files_path
+
+from tradehub_core.media.upload_policy import EXTENSIONS
+
+
+# Bu hook bütün Frappe yüklemelerinde URL ve disk yolunu üretir. Kaynak adını
+# ``basename()`` ile "temizlemek" güvenli değildir: ``../foto.png`` ya da
+# ``foto.png?download=1`` kabul edilmiş olur ve farklı bir kullanıcı girdisi
+# aynı kanonik URL'ye dönüşür. Bu nedenle yol/URL ayraçlı adlar normalleştirilmez,
+# doğrudan reddedilir.
+_FORBIDDEN_NAME_CHARS = frozenset("/\\?#:")
+_ALLOWED_EXTENSIONS = frozenset(EXTENSIONS)
 
 
 def _hashed_name(original: str, content: bytes) -> str:
 	"""İçerik-adresli dosya adı üretir: `<sha256(content)[:32]>.<uzantı>`.
 
 	Aynı içerik → aynı ad (dedup + enumeration önleme); orijinal ad sızmaz.
+
+	Kaynak ad bir dosya adı olmalı; yol/URL kesiti, kontrol karakteri, boş
+	uzantı veya upload sözleşmesinde olmayan uzantı kabul edilmez. Bu yordam
+	URL üreten iki write-file yolunun ortak kapısıdır; geçersiz girdi diske
+	yazılmadan burada durur.
 	"""
+	if not isinstance(original, str) or not original or original != original.strip():
+		raise ValueError("Dosya adı boş veya güvenli değil")
+	if any(unicodedata.category(char).startswith("C") or char in _FORBIDDEN_NAME_CHARS for char in original):
+		raise ValueError("Dosya adı yol, URL veya kontrol karakteri içeremez")
+
 	ext = os.path.splitext(original)[1].lower()
+	if ext not in _ALLOWED_EXTENSIONS:
+		raise ValueError(f"İzin verilmeyen dosya uzantısı: {ext or '<yok>'}")
 	h = hashlib.sha256(content).hexdigest()[:32]
 	return f"{h}{ext}"
 

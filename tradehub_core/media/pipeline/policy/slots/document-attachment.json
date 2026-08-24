@@ -2,6 +2,7 @@
   "$schema": "../schema/slot-policy.schema.json",
   "schema_version": "1.0.0",
   "status": "draft",
+  "standard_status": "fixed",
   "slot_key": "document.attachment",
   "title": "Belge / sertifika eki (KYB, KYC, sertifika, denetim, dekont)",
   "description": "Kimlik ve yetki belgeleri, sertifikalar, denetim raporları, dekontlar. BU SLOT BÜYÜK ÖLÇÜDE UYGULANMIŞ: tradehub_core/api/v1/kyb.py:411-501 kod tabanının en sıkı yükleme kuralını zaten çalıştırıyor (uzantı allowlist + magic-byte + uzantı/içerik eşleşmesi + 10 MB + private + doğru attach hedefi + yetki kapısı + rate limit). Bu politika o kuralı yeniden tasarlamaz; standarda taşır ve aynı kuralı ALMAYAN kardeş slotları (KYC, sertifika, denetim, sevkiyat, DPA, dekont) işaretler. Diğer slotlardan farkı: bu bir GÖSTERİM değil OKUNABİLİRLİK slotudur — piksel gereksinimi render kutusundan değil belge okunabilirliğinden türetilir.",
@@ -140,7 +141,7 @@
       "comparator": "lt",
       "action": "warn",
       "message_key": "cozunurluk_dusuk",
-      "source": "hesap: A4 = 210 × 297 mm. 297 mm = 297/25,4 = 11,693 inç. 200 dpi × 11,693 = 2.338,6 → 2.339 piksel uzun kenar. 200 dpi bir SEÇİMDİR (yazılı belge OCR'ı için yaygın alt eşik), ölçüm değil — open_questions'ta doğrulama komutu var."
+      "source": "hesap: A4 = 210 × 297 mm. 297 mm = 297/25,4 = 11,693 inç. 200 dpi × 11,693 = 2.338,6 → 2.339 piksel uzun kenar. 200 dpi, yeni taramalar için kilitli okunabilirlik standardıdır; mevcut düşük çözünürlüklü belgeler yalnız uyarılır."
     },
     {
       "rule": "optimizer_excluded",
@@ -224,22 +225,29 @@
     "on_violation.retryable": "tradehub_core/media/upload_policy.py:97-100 — kullanıcının dosyasıyla ilgili hatalar tekrar denenmez."
   },
 
-  "open_questions": [
-    "`Shipment Document` ve `Data Processing Agreement` dosyaları optimizasyondan geçmiş mi (dpi kaybı oluşmuş mu)? Doğrulama: `docker compose exec backend bench --site istoc.localhost console` içinde: frappe.db.sql(\"select f.file_url, f.th_optimized_at from tabFile f where f.attached_to_doctype in ('Shipment Document','Data Processing Agreement') and f.th_optimized_at is not null\") — dönen her satır küçültülmüş bir hassas belgedir.",
-    "attached_to_doctype BOŞ hassas belge sayısı hâlâ 146 mı? Doğrulama: frappe.db.sql(\"select count(*) from tabFile where (attached_to_doctype is null or attached_to_doctype='') and is_folder=0\") + presets.py:70-76 haritası üzerinden ters referans taraması.",
-    "Taranmış belgelerin gerçek piksel/dpi dağılımı ne? Doğrulama: docs/reports/00-upload-slot-envanteri.md §9-M5 betiği, attached_to_doctype IN ('KYB Verification','KYC Verification','Seller Certification','Seller Verification') filtresiyle; ayrıca PIL `im.info.get('dpi')`.",
-    "200 dpi eşiği DOĞRU MU? Bu bir seçim, ölçüm değil. Doğrulama: mevcut belgelerden 30 örnek alıp `tesseract <dosya> - --dpi <deger>` ile 150/200/300 dpi'de OCR karakter doğruluğu karşılaştırılmalı.",
-    "KYC ucu neden L1 almıyor? tradehubfront/src/components/kyc/KycLayout.ts:376 Frappe upload_file kullanıyor; kyb.upload_kyb_document ile aynı korumaya (magic-byte + uzantı allowlist) taşınabilir mi? Ürün/güvenlik kararı.",
-    "PDF içeriği taranıyor mu? engine.py PDF'e dokunmuyor ama upload_policy.py:187-224 ilk 512 baytta <html/<svg/<script arıyor. PDF içindeki JavaScript (/JS, /OpenAction) taranMIYOR — güvenlik açısından ölçülmesi gereken ayrı bir konu."
-  ],
+  "compliance_measured": {
+    "measured_at": "2026-08-18",
+    "dataset": "istoc.localhost belge eki slot referansları",
+    "sample_size": 61,
+    "compatible_count": 3,
+    "incompatible_count": 56,
+    "unmeasured_count": 2,
+    "violation_rate": 0.918,
+    "top_violation": "52 raster min_short_edge 1654 px altında",
+    "enforcement_mode": "new_uploads_only",
+    "source": "docs/reports/09-slot-bazinda-istatistik.md §3 ve §4.2"
+  },
+
+  "open_questions": [],
 
   "notes": [
+    "FAZ 2 KARARI (2026-08-23): Shipment Document/Data Processing Agreement üzerinde optimize edilmiş dosya sayısı 0'dır. Bağsız File sayısı 3.240 ölçülmüştür; bunlar hassas belge varsayılmaz ve kullanım çözümleyici bilinmeyen kaydı fail-closed korur. Slot ölçümünde 61 eşsiz belge referansı, 56 raster için kısa kenar p50=800/p90=1500 ve 2 PDF/DOCX ölçülemeyen kayıt vardır. A4@200dpi (1654×2338) yeni taramalarda okunabilirlik standardı olarak kilitlenmiştir; mevcut kayıtlar yalnız uyarılır. Tüm belge uçlarının magic-byte kontrolüne taşınması ve PDF aktif-içerik taraması uygulama/güvenlik işidir, standardı belirsiz kılmaz.",
     "REFERANS UYGULAMA: tradehub_core/api/v1/kyb.py:411-501. Uyguladıkları sırayla: yetki kapısı require_seller_capability('kyb.submit') (:427-429), Guest reddi (:431-433), rate limit 20/300 sn (:412), uzantı allowlist (:438-443), base64 çözme (:448-451), 10 MB tavanı (:453-454), magic-byte tespiti (:23-58 üzerinden :458), uzantı↔içerik eşleşmesi (:460-478), is_private=1, KYB Verification'a attach (:479-501).",
     "DOĞRU ATTACH HEDEFİ KARARI ve gerekçesi kyb.py:479-495 yorumunda yazılı: File User'a attach edilirse Frappe'nin private-file izin kontrolünde satıcı KENDİ belgesine 403 alıyor; KYB Verification'a attach edilince if_owner=1 sayesinde erişebiliyor. Bu, tekrar keşfedilmemesi gereken bir bulgu.",
     "L1 ALMAYAN KARDEŞ SLOTLAR (aynı sıkılıkta korunmuyor): KYC Verification.identity_document, Seller Application.identity_document, Seller Certification.document, Seller Verification.document, Shipment Document.file, Data Processing Agreement.document, Order.receipt_url. Bunların tamamı yalnız L0'a güveniyor: yasak uzantı listesi + boyut tavanı + ilk 512 baytta tehlikeli içerik taraması (tradehub_core/utils/security.py:68,90,96 → tradehub_core/media/upload_policy.py:307).",
     "İSTEMCİ SIKIŞTIRMASININ BİLİNÇLİ KAPATILMASI bu slotun en önemli çözülmüş kararı: tradehubfront/src/components/kyc/KycLayout.ts:381 (`compress: false`) ve tradehubfront/src/alpine/kyb.ts:303-306. Sıkıştırma açılırsa belge okunamaz hâle gelir; hiçbir 'optimizasyon' önerisi bunu geri açmamalı.",
     "BELGE VİTRİNDE HİÇ GÖSTERİLMİYOR: ürün sayfasında sertifika BELGESİ değil yalnız rozet basılıyor (tradehubfront/src/components/product/ProductCertificates.ts:30 — satır 52 px yükseklik, ikon 32×32). Yani belge dosyası hiçbir yüksek trafikli yüzeye inmiyor; doc_thumb_512 profili yalnız yükleme/yönetim ekranları için.",
     "ZATEN ÇÖZÜLMÜŞ — yeniden tasarlanmayacak: (1) kyb.py'nin tüm kural zinciri; (2) tradehub_core/media/presets.py:44-53 EXCLUDED_DOCTYPES (8 doctype) hassas belgeleri optimizasyondan muaf tutuyor; (3) presets.py:70-76 EXCLUDED_MEDIA_FIELDS ters referans haritası ve presets.py:56-69'daki bakım notu; (4) RFQ ekinde doğru bağlama deseni (tradehubfront/src/components/rfq/uploader.ts:30-41 — is_private=1 + doctype=RFQ).",
-    "Bu politika dosyası bugün kod tarafından OKUNMUYOR (tradehub_core/media/upload_policy.py:307-313). Ama kural 5 gereği: kyb.py'deki kısım ZATEN ÇALIŞIYOR — politika onu tekrarlıyor, değiştirmiyor."
+    "Politika `upload_policy.check_slot()` üzerinden çalışma zamanında okunur; kyb.py'deki daha sıkı L1 kapısı aynen korunur."
   ]
 }

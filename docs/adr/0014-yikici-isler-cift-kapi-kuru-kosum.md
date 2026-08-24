@@ -76,3 +76,10 @@ bir şey doğruladığı, kontrolü **kaldırıp kırmızıya düşürerek** gö
   ayrı cevabı var.
 - **Doğrulanmadı:** ıslak koşum üretimde hiç denenmedi; kurtarma provası (T-054)
   yapılmadı.
+
+## Geri dönüş yolu
+
+Silme manifesti, koruma kümesi veya kurtarma provası tek hata verirse ıslak
+bayrak kapanır ve yalnız dry-run raporu üretilir. Çift kapı kullanıcı hatası
+yaratırsa sadeleştirme ancak eşdeğer iki bağımsız güvenlik sinyali ve başarılı
+restore provasıyla değerlendirilir.

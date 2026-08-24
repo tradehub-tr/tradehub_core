@@ -132,17 +132,20 @@ GEOMETRI_ALTIN = {
 #: rung'u eklendi. Ayrıntı: `docs/standards/logo.md` §13-K3.
 #: Bu kilit çalıştığı için değişiklik yakalandı — matrisin sessizce kaymasını
 #: engellemesi tam olarak amacı.
+#: 2026-08-22: `product.image` güncel politika merdiveni 12 → 19 oldu; toplam
+#: rendition matrisi de 50 → 57. Bu değerler politika dosyalarının bugünkü
+#: tekil üretim sözleşmesini kilitler.
 MATRIS_ALTIN = {
 	"brand.logo": 6,
 	"category.banner": 6,
 	"company.cover_image": 10,
 	"company.cover_video": 3,
 	"document.attachment": 1,
-	"product.image": 12,
+	"product.image": 19,
 	"product.video": 3,
 	"seller.logo": 6,
 	"user.avatar": 3,
-	"_toplam": 50,
+	"_toplam": 57,
 }
 
 
@@ -197,17 +200,15 @@ class FixtureYapisiTesti(unittest.TestCase):
 			r = self.isim[ad]
 			self.assertEqual((r.width, r.height), (w, w), f"{ad}: ölçü değişti")
 
-
-
 	def test_ssim_hedefin_altina_dusmez(self):
 		"""Kalite kapısı: her basamak politikadaki hedefi TUTMALI."""
 		for r in self.sonuclar:
 			self.assertGreater(r.ssim_target, 0.0, f"{r.name}: hedef okunamadı")
 			self.assertGreaterEqual(
-				r.ssim, r.ssim_target,
+				r.ssim,
+				r.ssim_target,
 				f"{r.name}: SSIM {r.ssim:.5f} < hedef {r.ssim_target}",
 			)
-
 
 	def test_encode_butcesi_asilmadi(self):
 		for r in self.sonuclar:
@@ -216,7 +217,6 @@ class FixtureYapisiTesti(unittest.TestCase):
 	def test_inv05_hicbir_turev_kaynaktan_buyuk_degil(self):
 		for r in self.sonuclar:
 			self.assertLess(r.size_bytes, len(self.kaynak), f"{r.name} kaynaktan büyük")
-
 
 	def test_hicbir_basamak_passthrough_degil(self):
 		for r in self.sonuclar:
@@ -250,9 +250,6 @@ class FixtureYapisiTesti(unittest.TestCase):
 		p = R.profile_for(SLOT, "w192")
 		self.assertEqual(R.render(self.kaynak, p, None), R.render(self.kaynak, p, None))
 		self.assertEqual(R.render(self.kaynak, p, None), self.isim["w192"].content)
-
-
-
 
 
 @unittest.skipUnless(FIXTURE.is_file(), "fixture yok")
@@ -364,13 +361,11 @@ class MatrisKilidiTesti(unittest.TestCase):
 		self.assertEqual(set(R.slot_keys()), set(MATRIS_ALTIN) - {"_toplam"})
 
 	def test_toplam_tutarli(self):
-		self.assertEqual(
-			MATRIS_ALTIN["_toplam"], sum(v for k, v in MATRIS_ALTIN.items() if k != "_toplam")
-		)
+		self.assertEqual(MATRIS_ALTIN["_toplam"], sum(v for k, v in MATRIS_ALTIN.items() if k != "_toplam"))
 
 	def test_matris_bugunku_tek_ciktidan_buyuk(self):
-		"""Görevin özü: bugün varlık başına 1 çıktı var, politika 12 istiyor."""
-		self.assertEqual(MATRIS_ALTIN["product.image"], 12)
+		"""Görevin özü: bugün varlık başına 1 çıktı var, politika 19 istiyor."""
+		self.assertEqual(MATRIS_ALTIN["product.image"], 19)
 		self.assertGreater(MATRIS_ALTIN["product.image"], 1)
 
 
@@ -399,7 +394,9 @@ class GeometriKilidiTesti(unittest.TestCase):
 					plan = R.plan_geometry(kaynak, p)
 					w, h = plan.canvas_size
 					self.assertAlmostEqual(
-						w / h, p.target_ratio_value, delta=0.02,
+						w / h,
+						p.target_ratio_value,
+						delta=0.02,
 						msg=f"{slot}/{p.name} @ {kaynak}: oran bozuldu ({w}×{h})",
 					)
 
@@ -411,33 +408,30 @@ class GeometriKilidiTesti(unittest.TestCase):
 				plan = R.plan_geometry((3000, 1000), p)
 				_l, _t, cw, ch = plan.crop_box
 				self.assertAlmostEqual(
-					cw / ch, p.target_ratio_value, delta=0.02,
+					cw / ch,
+					p.target_ratio_value,
+					delta=0.02,
 					msg=f"{slot}/{p.name}: kırpma penceresi hedef oranda değil",
 				)
 
 
 class TumSlotlarDavranisTesti(unittest.TestCase):
-	"""Küçük bir kaynakla 9 slotun tamamı — çökme ve büyütme taraması."""
+	"""Küçük kaynakta tanımlı genişlikler manifestten tamamen düşmelidir."""
 
 	@classmethod
 	def setUpClass(cls):
 		cls.kaynak = _kucuk_kaynak()
 
-	def test_her_slot_uretilebilir_ve_buyutmez(self):
+	def test_her_slot_yetersiz_basamaklari_atlar(self):
 		for slot in R.slot_keys():
 			sonuc = R.render_ladder(self.kaynak, slot)
-			self.assertEqual(len(sonuc), len(R.load_profiles(slot)), f"{slot}: eksik basamak")
-			for r in sonuc:
-				self.assertLessEqual(r.width, 48, f"{slot}/{r.profile.name} büyüttü")
-				self.assertLessEqual(
-					r.size_bytes, len(self.kaynak), f"{slot}/{r.profile.name} kaynaktan büyük"
-				)
+			self.assertEqual(sonuc, [], f"{slot}: yetersiz kaynak için sahte basamak üretildi")
 
-	def test_kismi_merdiven_yok(self):
-		"""Bir basamak üretilemezse RenderError yükselir; yarım `srcset` 404 demektir."""
+	def test_omission_hata_degil(self):
+		"""Upscale omission kasıtlıdır; boş merdiven ham kaynak fallback'ine gider."""
 		for slot in R.slot_keys():
 			sonuc = R.render_ladder(self.kaynak, slot)
-			self.assertTrue(all(r.content for r in sonuc), f"{slot}: boş içerik")
+			self.assertFalse(sonuc)
 
 
 if __name__ == "__main__":

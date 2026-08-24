@@ -1,5 +1,11 @@
 # T-009 — Faz 0 Kapanış Raporu
 
+> **TARİHSEL RAPOR / GÜNCEL DURUM DEĞİL.** Bu Rev.2 anlık görüntüsündeki
+> video 7/8, mobil profil yok, CSV yok, pyvips yok ve K-1 sınıflandırılmadı
+> sonuçları daha sonraki çalışmalarla kapanmıştır. Kanonik güncel kapanış:
+> `docs/closure/faz0-kapanis.md` (2026-08-23). Aşağıdaki metin denetim izi
+> olarak korunur.
+
 **Medya motoru çalışması · Faz 0 · Rev. 2 — 2026-08-18**
 **Rev. 1:** 2026-08-17 (Dalga 2, Docker kapalı varsayımıyla yazılmış raporların denetimi)
 Branch: `medya-motoru-faz0-faz2` · Worktree: `/Users/ahmet/Desktop/istoc-medya-wt`

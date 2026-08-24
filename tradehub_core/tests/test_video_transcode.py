@@ -657,20 +657,25 @@ class GercekTranscode(unittest.TestCase):
 		self.assertIn("INV-05", r2.notes[0])
 
 	def test_fayda_kapisi_1080p_kaynakta_da_devreye_giriyor(self):
-		"""ÖLÇÜLDÜ: 1.131.368 B → 1.067.950 B, kazanç yalnız %5,6 → ÇIKTI ATILIR.
+		"""Çıktı bütün kabul kapılarını geçmeden kaynak yerine konmaz.
 
-		BU BİR GERİLİM NOKTASIDIR ve bilinçli olarak kayda geçiriliyor: kapı
-		BAYT ölçer, genişlik tavanı ise TESLİM kısıtıdır. Çıktı atıldığında
-		kaynak 1920 px genişliğinde kalır — yani `width_over_cap` kuralının
-		düzeltmek istediği durum sürer. Bugünkü hatta kapı hiç olmadığı için
-		bu gerilim görünmüyordu; kapıyı eklemek onu görünür kıldı. Kararı
-		(bayt mı öncelikli, teslim kısıtı mı) FAZ 8 teslim katmanı verecek.
+		ffmpeg 5.1 ölçümünde tasarruf %5,6 ile INV-05'e takılıyordu. Statik
+		ffmpeg 8.1 + iki x264 thread ölçümünde tasarruf %14,1'e çıktı; bu kez
+		1280'e küçültmenin VMAF'ı 87,55 olduğu için 93 kalite kapısı reddetti.
+		Sürümden bağımsız sözleşme şudur: fayda veya kalite kapılarından biri
+		düşerse çıktı atomik olarak atılır ve kaynak korunur.
 		"""
 		dst = os.path.join(self.d, "c.mp4")
 		r = T.transcode(str(VIDEO_DIR / BUYUK), dst)
 		self.assertFalse(r.accepted)
+		self.assertTrue(r.kept_source)
+		self.assertFalse(os.path.exists(dst))
 		self.assertGreater(r.saving_ratio, 0.0)
-		self.assertLess(r.saving_ratio, T.min_saving_ratio())
+		if r.saving_ratio < T.min_saving_ratio():
+			self.assertTrue(any("INV-05" in note for note in r.notes))
+		else:
+			self.assertEqual(r.quality.get("vmaf_gate"), "DUSTU")
+			self.assertLess(r.quality["vmaf"], r.quality["vmaf_min"])
 
 	def test_sessiz_kaynak_transcode_edilebiliyor(self):
 		"""`-an` olmasaydı burada "Stream map matches no streams" alırdık."""

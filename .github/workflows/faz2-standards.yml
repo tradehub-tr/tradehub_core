@@ -1,0 +1,94 @@
+name: Faz 2 media standards
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/faz2-standards.yml"
+      - "docs/closure/faz2-kapanis.md"
+      - "docs/plans/migration.md"
+      - "docs/srs/**"
+      - "docs/standards/**"
+      - "docs/test/**"
+      - "scripts/calibrate_content_rules.py"
+      - "scripts/gen_traceability.py"
+      - "scripts/plan_backfill.py"
+      - "tradehub_core/media/engine.py"
+      - "tradehub_core/media/pipeline/policy/**"
+      - "tradehub_core/tests/test_faz2_closure.py"
+      - "tradehub_core/tests/test_policy_dpi.py"
+      - "tradehub_core/tests/test_policy_engine.py"
+      - "tradehub_core/tests/test_retention.py"
+      - "tradehub_core/tests/test_media_quota.py"
+      - "tradehub_core/tests/test_migration_backfill.py"
+  push:
+    paths:
+      - ".github/workflows/faz2-standards.yml"
+      - "docs/closure/faz2-kapanis.md"
+      - "docs/plans/migration.md"
+      - "docs/srs/**"
+      - "docs/standards/**"
+      - "docs/test/**"
+      - "scripts/calibrate_content_rules.py"
+      - "scripts/gen_traceability.py"
+      - "scripts/plan_backfill.py"
+      - "tradehub_core/media/engine.py"
+      - "tradehub_core/media/pipeline/policy/**"
+      - "tradehub_core/tests/test_faz2_closure.py"
+      - "tradehub_core/tests/test_policy_dpi.py"
+      - "tradehub_core/tests/test_policy_engine.py"
+      - "tradehub_core/tests/test_retention.py"
+      - "tradehub_core/tests/test_media_quota.py"
+      - "tradehub_core/tests/test_migration_backfill.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: faz2-standards-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  standards:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install deterministic test dependencies
+        run: >-
+          python -m pip install -q
+          "Pillow==12.2.0"
+          "jsonschema==4.26.0"
+          "numpy==2.4.6"
+          "defusedxml==0.7.1"
+
+      - name: Validate Phase 2 standards and implementations
+        run: |
+          python -m unittest -v \
+            tradehub_core.tests.test_faz2_closure \
+            tradehub_core.tests.test_policy_dpi \
+            tradehub_core.tests.test_policy_engine \
+            tradehub_core.tests.test_retention \
+            tradehub_core.tests.test_media_quota \
+            tradehub_core.tests.test_migration_backfill
+
+      - name: Verify generated traceability
+        run: python scripts/gen_traceability.py --check
+
+      - name: Report human gates without fabricating completion
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          doc = json.loads(Path("tradehub_core/media/pipeline/policy/content_rules.json").read_text())
+          assert doc["calibration_status"] == "TRIGGER_RATE_MEASURED_UNLABELED"
+          print("T-025: insan etiketli yanlış-pozitif kalibrasyonu bekliyor")
+          print("T-029: SRS platform/rol imzaları bekliyor")
+          PY

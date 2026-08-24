@@ -1,0 +1,15 @@
+{
+  "task": "T-062",
+  "version": 1,
+  "generator": "tradehub_core.tests.test_image_classify::_korpus_ornegi",
+  "seed_start": 0,
+  "samples_per_class": 20,
+  "minimum_accuracy": 0.95,
+  "classes": {
+    "photo": {"format": "JPEG", "signal": "continuous-tone deterministic gradient and noise"},
+    "graphic": {"format": "PNG", "signal": "few saturated colors and hard vector-like edges"},
+    "transparent": {"format": "PNG", "signal": "meaningful transparent and translucent alpha"},
+    "animation": {"format": "GIF", "signal": "two distinct frames"},
+    "document": {"format": "PNG", "signal": "bilevel dense text-line raster"}
+  }
+}

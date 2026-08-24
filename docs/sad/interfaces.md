@@ -2,8 +2,9 @@
 
 **Durum:** DONDURULMUŞ (v1.0) · **Faz:** 3 · **Görev:** T-031
 **Kod:** `tradehub_core/media/pipeline/contracts/` · **Sahte uygulamalar:** `tradehub_core/media/pipeline/fakes/`
-**Testler:** `tradehub_core/tests/test_contracts.py` (**75 test** — 69→75, `POLICY_IMPLS`'e üretim
-uygulaması eklendi; 2026-08-20 ölçümü: rapor 88, kaynak rapor 43) · **Altın dosya:**
+**Testler:** `tradehub_core/tests/test_contracts.py` (**75 test**) +
+`test_phase3_production_engines.py` (Pillow gerçek, ffmpeg gerçek/izole mock) ·
+**Son doğrulama:** 2026-08-23 · **Altın dosya:**
 `tradehub_core/media/pipeline/contracts/signatures.golden.json`
 **Mimari bağlam:** `docs/sad/SAD-v1.0.md` §3.3, §4.1 · **Bugünkü tüketiciler:** §8
 
@@ -115,7 +116,9 @@ Faz 2 çıktısını (`policy/schema` + 9 slot) karara çevirir. L1 `accept`, L2
 
 ### 2.5 `DeliveryManifest` — `srcset`/`sizes`/`<picture>` manifestosu
 
-**Mevcut motorda karşılığı YOK.** Ölçülen boşluk: `srcset` 31 görselin 0'ında; ürün sayfası 13,14 MB (hedefin 15 katı). HTML değil **veri** döndürür — iki frontend (Alpine + Vue) aynı sözlüğü okur.
+Üretim karşılığı `delivery/manifest.py` + Frappe manifest adaptörüdür. Ölçülen
+eski boşluğu (`srcset` 31 görselin 0'ında; 13,14 MB ürün sayfası) HTML yerine
+iki frontend'in okuyabildiği **veri manifestosu** ile kapatır.
 
 | Metot | İmza |
 |---|---|
@@ -238,8 +241,10 @@ döner (`STORAGE_IMPLS`, `IMAGE_IMPLS`, `VIDEO_IMPLS`, `POLICY_IMPLS`). Gerçek
 uygulama yazıldığında listeye **tek satır** eklenir ve aynı testler onu da
 denetler — `PolicyEngine` için bu yapıldı: üretim motoru listeye girdi ve suite
 **69 → 75** teste çıktı (2026-08-20 ölçümü: rapor 88, kaynak rapor 43).
-`ImageEngine` ve `VideoEngine` için üretim uygulaması hâlâ **yalnız sahte** —
-SAD §14.6 / SAD-G2.
+`ImageEngine` ve `VideoEngine` üretim uygulamaları sırasıyla
+`image/engine.py::PillowImageEngine` ve
+`video/engine.py::FfmpegVideoEngine`'dir. Contract matrisi fake ve production
+uygulamalarını birlikte denetler.
 
 ```bash
 python3 -m unittest tradehub_core.tests.test_contracts -v   # 75 test, bağımlılık yok
@@ -247,14 +252,12 @@ python3 -m unittest tradehub_core.tests.test_contracts -v   # 75 test, bağıml�
 
 ---
 
-## 7. Bilinen açık madde
+## 7. Hata katmanı kararı
 
-`tradehub_core/media/pipeline/core/errors.py` (Faz 3 ikinci yarısı) kullanıcıya dönük iki dilli
-mesaj + düzeltme ipucu taşıyan **ayrı** bir ihlal nesnesi tanımlıyor. Bu
-sözleşmedeki `contracts/errors.py` ile **çelişmiyor** ama iki modül birleşmeli:
-`contracts/errors` taşıma katmanı (kod + retryable), `core/errors` sunum
-katmanı (tr/en mesaj + ipucu). Karar Faz 3 kapanışında (T-035) verilmeli.
-Bkz. `docs/sad/SAD-v1.0.md` §11 A-2.
+`contracts/errors.py` donmuş taşıma/Protocol hiyerarşisidir (`kod`,
+`retryable`, ayrıntı); `core/errors.py` yerelleştirilmiş politika sunumudur
+(tr/en mesaj + düzeltme ipucu). İki görünüm kasıtlı olarak birleşmez; Frappe
+kabuğunda aynı makine koduna eşlenir. Karar SAD §11 A-2'de kapalıdır.
 
 ---
 

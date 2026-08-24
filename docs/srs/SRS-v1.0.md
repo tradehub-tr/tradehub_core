@@ -1,27 +1,46 @@
 # SRS v1.0 — İstoç Medya Motoru Yazılım Gereksinim Spesifikasyonu
 
-> **DURUM: HÂLÂ TASLAK (DRAFT).** Onaylanmadı. §0.3'teki programatik kontrol
-> **2026-08-19'da üçüncü kez koşuldu**. Kapanan: **T3, T7, T8, T9**. Açık kalan:
-> **T1, T2, T4, T5, T6, T10**. Geçiş kapılarından **G2 ve G4 geçti**; **G1 kısmen**;
-> **G3, G5, G6, G7 açık**. §9.3'ün sürüm kuralı "G1–G7'nin **tamamı**" diyor —
-> bu yüzden belge `v1.0 ONAYLI` **olamadı**. Tam eksik listesi §0.3-C ve §6.7-C'de.
+> **DURUM: TASLAK — yalnız iki insan kapısı açık.** 2026-08-23 Revizyon 4
+> kontrolünde ajan/kod tarafındaki Faz 2 kapıları tamamlandı: kanonik çalışma
+> zamanı seti `pipeline/policy/slots/*.json`; Draft 2020-12 doğrulaması **9/9**;
+> `standard_status=fixed` **9/9**; `compliance_measured` **9/9**; açık soru
+> **0**; null encoder kalitesi **0**; `slot_key` yükleme ve kayıt yoluna bağlı;
+> `docs/standards/` altında bağlayıcı bir TBD yoktur. Eski Revizyon 1–3
+> tabloları aşağıda denetim geçmişi olarak korunur ve güncel durum sayılmaz.
 >
-> **T7 (yönetici kararları) tamamen kapandı: 14 kararın 14'ü verildi.** Ama karar
-> kapanışı **tek başına hiçbir politikayı `active` yapmaya yetmedi** — kalan
-> engeller karar değil, **sistem düzeyinde eksiktir**: `upload_policy.check()`
-> hâlâ `slot_key` almıyor (§6.2'nin ilk maddesi, FR-001),
-> `accept.max_megapixels_hard` iki logo politikasında yok (FR-144),
-> `compliance_measured` bloğu hiçbir politikada yok (FR-149). Üçü de bu oturumda
-> kod ve dosya üzerinde **doğrulandı**; gerekçe §0.3-C'de politika politika yazılıdır.
->
-> **Bu revizyonda hiçbir kapı gevşetilmedi ve hiçbir kriter düşürülmedi.** Kapanan
-> maddeler ölçümle kapandı; kapanmayanlar sayıyla listelendi.
+> Açık kalanlar: **T-025 insan etiketli yanlış-pozitif kalibrasyonu**
+> (`content_rules.json.calibration_status=TRIGGER_RATE_MEASURED_UNLABELED`) ve
+> §9.2’deki gerçek kişi/platform imzaları. Bunlar uydurulmadı. Runtime
+> `status=draft`, Faz 3 rollout durumudur; Faz 2 standardının sabitliğini
+> `standard_status` taşır. Bu ayrım resmi T-029 kriterindeki “standart sabit”
+> ile sonraki fazdaki “üretimde zorla” davranışını birbirine karıştırmaz.
 
 **Görev:** T-029 (Faz 2 kapanış) · **İlk yazım:** 2026-08-17
 **Revizyon 2:** 2026-08-18 — canlı ölçüm dalgası (Docker açık)
 **Revizyon 3:** 2026-08-19 — yönetici kararlarının kapanması + ilk politika aktivasyonu
-**Branch:** `medya-motoru-faz0-faz2` · **Çalışma alanı:** `/Users/ahmet/Desktop/istoc-medya-wt`
+**Revizyon 4:** 2026-08-23 — kanonik set, şema/uyum kapıları ve uygulama kanıtları
+**Çalışma alanı:** `/Users/ahmet/Desktop/istoc`
 **Kaynak tasarım dokümanı:** https://karacaismail.github.io/imageoptimization/docs/ (15 faz, 102 görev)
+
+---
+
+## Revizyon 4 — 2026-08-23: güncel kapı karnesi
+
+| Kapı | Sonuç | Güncel kanıt |
+|---|---|---|
+| Kanonik politika seti | ✅ | `policy.CANONICAL_POLICY_SET`; `docs/standards/policies/*.json` yalnız belge/DPI izdüşümü |
+| Şema ve sabit standart | ✅ | 9/9 Draft 2020-12; 9/9 `standard_status=fixed`; 0 açık soru; 0 null kalite |
+| Gerçek veri uyumu | ✅ | 9/9 `compliance_measured`; `docs/reports/09-slot-bazinda-istatistik.md` ve `docs/data/faz0-slot-stats-2026-08-23.json` |
+| Slot kimliği | ✅ | `upload_policy.check(..., slot=...)`, `check_slot()` ve `api/seller_media.py` kayıt köprüsü |
+| DPI/master çelişkisi | ✅ | garanti-WebP tavanı 2400; ürün minimum master 2000; `test_policy_dpi.py` |
+| İçerik tetik ölçümü | ✅ | 1.291 gerçek Listing görseli; eşikler ve aksiyonlar makine-okunur |
+| İçerik yanlış-pozitif oranı | ⏳ İNSAN | Etiket dosyası yok; oran iddia edilmedi. T-025’in kalan tek kabul kapısı |
+| Platform/rol imzaları | ⏳ İNSAN | §9.2 boş bırakıldı; T-029 ancak gerçek imzayla Done olur |
+
+Bu revizyon geçmiş kapıları “geçsin” diye gevşetmez. Eski `G6=active politika`
+ifadesi Faz 2 ve Faz 3 durumlarını tek alana sıkıştırıyordu; şema bunu iki ayrı
+alanla açıklar: `standard_status` şartname kararı, `status` runtime rollout.
+T-029 için ilk alan; Faz 3 aktivasyonu için ikinci alan kullanılır.
 
 ---
 

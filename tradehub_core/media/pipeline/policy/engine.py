@@ -13,12 +13,13 @@ değerlendirilebiliyor mu.
 
 NEDEN VAR
 ---------
-Bugün sunucu bir yüklemenin hangi slota ait olduğunu BİLMİYOR:
-`tradehub_core/media/upload_policy.py:306-312` `check()` imzasında slot
-parametresi yok (docs/reports/00-upload-slot-envanteri.md §7-B B1). Sonuç
-canlıda ölçüldü: `product.image` yüklemelerinin %48,6'sı, `document.attachment`
-yüklemelerinin %91,8'i slot politikasına uymuyor. Bu modül o eksik kimliğin
-karar karşılığıdır.
+Faz 0'da sunucu bir yüklemenin hangi slota ait olduğunu bilmiyordu. Faz 3
+köprüsüyle bu boşluk kapandı: `upload_policy.check(..., slot=...)` ve
+`check_slot()` kanonik `slots/*.json` setini bu motordan değerlendiriyor;
+`api/seller_media.py` de slotu kayda kadar taşıyor. Canlı taban çizgisinde
+ölçülen yüksek uyumsuzluk oranları (ürün görseli %48,6, belge %91,8) nedeniyle
+eski kayıtlar için politika dosyasındaki `compliance_measured.enforcement_mode`
+uygulanır; ölçüm sonucu sessizce “uyumlu” sayılmaz.
 
 MEVCUT MOTORLA İLİŞKİ (yeniden yazılan hiçbir şey yok)
 ------------------------------------------------------
@@ -45,7 +46,9 @@ yani `warn` ve `auto_fix` yüklemeyi DURDURMAZ.
 analizi ister. `MediaProbe` bu metrikleri taşımıyorsa kural DEĞERLENDİRİLMEZ ve
 `Decision.skipped` içine `not_measurable` olarak yazılır. Sessizce "geçti"
 saymak, kalibre edilmemiş bir eşiğin çalıştığı yanılsamasını üretirdi —
-content_rules.json'ın kendi `calibration_status` alanı da "UNCALIBRATED".
+`content_rules.json` kendi `calibration_status` alanında tetik oranı ile insan
+etiketli yanlış-pozitif kalibrasyonunu açıkça ayırır. İnsan etiketi yoksa bu
+durum `TRIGGER_RATE_MEASURED_UNLABELED` olarak kalır.
 """
 
 from __future__ import annotations
@@ -56,8 +59,6 @@ import os
 import string
 from dataclasses import dataclass, field
 from pathlib import Path
-
-from typing import Tuple
 
 from tradehub_core.media.pipeline.contracts import errors as sozlesme_hata
 from tradehub_core.media.pipeline.contracts import policy as sozlesme
@@ -101,7 +102,7 @@ MESSAGE_KEYS: dict[str, tuple[str, ...]] = {
 	"area_too_small": ("area_too_small",),
 	"ratio_not_allowed": ("ratio_not_allowed", "oran_16_9_degil"),
 	"aspect_out_of_band": ("aspect_out_of_band",),
-	"too_many_pixels": ("too_many_pixels",),
+	"too_many_pixels": ("too_many_pixels", "cozunurluk_yuksek"),
 	"too_large_bytes": ("too_large_bytes", "too_large", "cok_buyuk"),
 	"format_not_supported": ("format_not_supported", "bicim_desteklenmiyor"),
 	"mime_not_supported": ("mime_not_supported", "format_not_supported"),
@@ -120,7 +121,7 @@ MESSAGE_KEYS: dict[str, tuple[str, ...]] = {
 	"too_many_items": ("too_many_items",),
 	"too_few_items": ("too_few_items",),
 	"duration_too_long": ("sure_uzun", "duration_too_long"),
-	"duration_too_short": ("duration_too_short",),
+	"duration_too_short": ("sure_kisa", "duration_too_short"),
 	"bitrate_too_high": ("bitrate_isleniyor", "bitrate_too_high"),
 	"frame_rate_not_allowed": ("frame_rate_not_allowed",),
 	"role_not_allowed": ("role_not_allowed",),
@@ -438,7 +439,7 @@ class PolicyRegistry:
 		self._source: dict[str, Path] = {}
 		self.load()
 
-	def load(self) -> "PolicyRegistry":
+	def load(self) -> PolicyRegistry:
 		"""Diskten oku — YA HEP YA HİÇ.
 
 		Önceki sürüm sözlükleri okumadan ÖNCE temizliyordu: dokuzuncu dosya
@@ -517,6 +518,15 @@ class PolicyEngine:
 
 	@staticmethod
 	def _code(policy: dict, rule: str) -> str:
+		# Video standartları dış API'ye açılacak kodları
+		# ``video.validation_codes`` içinde ilan eder. Kuralın politika mesaj
+		# anahtarıyla eşleşen kod varsa onu kullan; böylece belgede
+		# ``cover_video_too_long`` yazarken çalışma zamanı başka bir
+		# ``cover_video_duration_too_long`` üretmez.
+		aday_anahtarlar = set(MESSAGE_KEYS.get(rule, (rule,)))
+		for kayit in ((policy.get("video") or {}).get("validation_codes") or []):
+			if kayit.get("message_key") in aday_anahtarlar and kayit.get("code"):
+				return str(kayit["code"])
 		prefix = (policy.get("on_violation") or {}).get("error_code_prefix") or "media"
 		return f"{prefix}_{rule}"
 
@@ -794,7 +804,7 @@ class PolicyEngine:
 			out.append(
 				self._violation(
 					policy, rule="content_type_mismatch", block=block, params=p,
-					observed=probe.detected, expected=ext, action=ACTION_REJECT,
+					observed=probe.detected, expected=ext,
 					source="FR-009 magic_byte_matches_extension",
 				)
 			)
@@ -1430,7 +1440,7 @@ class PolicyEngine:
 		"""FR-147 — hangi politika seti yürürlükte, sessiz kalınmaz."""
 		return str(self.registry.directory)
 
-	def slots(self) -> Tuple[str, ...]:
+	def slots(self) -> tuple[str, ...]:
 		return self.registry.keys()
 
 	def load(self, slot_key: str) -> SlotPolicy:
@@ -1628,7 +1638,7 @@ class PolicyEngine:
 			strip_metadata=dict(m.get("strip_metadata") or {}),
 		)
 
-	def rendition_specs(self, slot_key: str) -> Tuple[RenditionSpec, ...]:
+	def rendition_specs(self, slot_key: str) -> tuple[RenditionSpec, ...]:
 		"""Türev merdiveni, genişliğe göre ARTAN sırada (FR-036)."""
 		p = self.load(slot_key)
 		cikti = []
@@ -1652,7 +1662,7 @@ class PolicyEngine:
 				)
 		return tuple(sorted(cikti, key=lambda s: (s.width, s.format)))
 
-	def video_rendition_specs(self, slot_key: str) -> Tuple[VideoRenditionSpec, ...]:
+	def video_rendition_specs(self, slot_key: str) -> tuple[VideoRenditionSpec, ...]:
 		p = self.load(slot_key)
 		if not p.is_video:
 			return ()
@@ -1698,7 +1708,9 @@ class PolicyEngine:
 			mle = self._num(m.get("max_long_edge"))
 			mmp = self._num(m.get("max_megapixels"))
 			mnle = self._num(m.get("min_long_edge"))
-			if mmp and mle and (mle * mle) / 1e6 < mmp:
+			# Slot documents publish MP ceilings to one decimal place. Preserve
+			# that declared precision (4096² = 16.777216 MP -> 16.8 MP).
+			if mmp and mle and round((mle * mle) / 1e6, 1) < round(mmp, 1):
 				ihlaller.append(
 					sozlesme.Violation(
 						code=sozlesme_hata.kod_uret(prefix, "invariant_d1"),

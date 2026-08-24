@@ -28,10 +28,10 @@ okunur. Yeni bir genişlik eklemek bu dosyayı değiştirmez.
 
 GARANTİLER
 ----------
-1. **Upscale YASAK (FR-028).** Hedef genişlik kaynaktan büyükse çıktı
-   büyütülmez; üretilebilen en büyük ölçü döner ve `under_spec` notu düşülür.
-   `fit="pad"` durumunda tuval de aynı oranda küçülür — dolgu kutusu şişip
-   içerik ortada minik kalmaz.
+1. **Upscale YASAK (FR-028).** Hedef genişlik kırpılmış kaynaktan büyükse o
+   basamak merdivende hiç üretilmez. `plan_geometry` tek-türev tanı/önizleme
+   çağrıları için sınırlanmış planı yine döndürebilir; üretim/manifest adayı
+   seçimi `profile_is_eligible` ile kasıtlı omission uygular.
 2. **Lanczos3.** `Image.LANCZOS` Pillow'un a=3 Lanczos çekirdeğidir.
 3. **Premultiplied alpha.** Yeniden örnekleme `RGBa` (çarpılmış alfa) modunda
    yapılır; şeffaf kenarda halo oluşmaz. ÖLÇÜM (bu depoda,
@@ -62,10 +62,11 @@ from __future__ import annotations
 import io
 import json
 import time
-from dataclasses import dataclass, field
-from functools import lru_cache
+from collections.abc import Iterable, Sequence
+from dataclasses import dataclass, replace
+from functools import cache
 from pathlib import Path
-from typing import Any, Iterable, Optional, Sequence, Tuple
+from typing import Any
 
 from tradehub_core.media.pipeline.core import crop as crop_mod
 from tradehub_core.media.pipeline.quality import ssim as ssim_mod
@@ -82,7 +83,7 @@ _POLICY_DIR = Path(__file__).resolve().parents[1] / "policy" / "slots"
 FIT_CONTAIN: str = "contain"
 FIT_COVER: str = "cover"
 FIT_PAD: str = "pad"
-FITS: Tuple[str, ...] = (FIT_CONTAIN, FIT_COVER, FIT_PAD)
+FITS: tuple[str, ...] = (FIT_CONTAIN, FIT_COVER, FIT_PAD)
 
 LOSSLESS: str = "lossless"
 """`encoder_quality` içinde tamsayı yerine gelebilen kip seçimi (şema v1.3.0)."""
@@ -93,7 +94,7 @@ mevcut motorla ayrışmamak için. ÖLÇÜM (bu depo, 640×640 ürün fixture'ı
 method=4 → 37.250 bayt, method=6 → 37.340 bayt. Yani method 6 bu görselde
 KAZANDIRMIYOR; 4'te kalmak için ölçülmüş bir gerekçe var."""
 
-AVIF_SPEED: Optional[int] = None
+AVIF_SPEED: int | None = None
 """AVIF encoder hızı. `None` = Pillow/libavif varsayılanı. ÖLÇÜM (aynı görsel,
 q80): varsayılan → 28.897 bayt / 59 ms, speed=8 → 41.060 bayt / 51 ms. Hız
 kazancı bayta değmiyor, varsayılanda kalınıyor."""
@@ -104,8 +105,8 @@ JPEG_SAVE_KW = {"optimize": True, "progressive": True}
 DEFAULT_MAX_ENCODES: int = 4
 """Görev sözleşmesi: adaptif kalite en fazla 4 encode denemesi."""
 
-ALPHA_MODES: Tuple[str, ...] = ("RGBA", "LA", "PA", "RGBa")
-ALPHA_CAPABLE_FORMATS: Tuple[str, ...] = ("WEBP", "AVIF", "PNG")
+ALPHA_MODES: tuple[str, ...] = ("RGBA", "LA", "PA", "RGBa")
+ALPHA_CAPABLE_FORMATS: tuple[str, ...] = ("WEBP", "AVIF", "PNG")
 """Alfa taşıyabilen çıktı biçimleri. JPEG bu listede YOK: alfalı bir kaynak
 JPEG'e giderken dolgu rengine kompozit edilir ve `alpha_flattened` notu düşülür
 (FR-146 ihlali değil — kompozit bilinçli ve raporda görünür)."""
@@ -163,15 +164,15 @@ class RenditionProfile:
 	slot_key: str
 	name: str
 	width: int
-	formats: Tuple[str, ...]
+	formats: tuple[str, ...]
 	fit: str = FIT_CONTAIN
 	height: int = 0
-	encoder_quality: Tuple[Tuple[str, Any], ...] = ()
+	encoder_quality: tuple[tuple[str, Any], ...] = ()
 	target_ratio: str = ""
 	pad_color: str = ""
 	max_bytes: int = 0
 	derived_from: str = ""
-	serves: Tuple[str, ...] = ()
+	serves: tuple[str, ...] = ()
 
 	def __post_init__(self) -> None:
 		if self.width <= 0:
@@ -201,7 +202,7 @@ class RenditionProfile:
 		return dict(self.encoder_quality)
 
 	@property
-	def target_ratio_value(self) -> Optional[float]:
+	def target_ratio_value(self) -> float | None:
 		"""Hedef oranın sayısal karşılığı; oran yoksa `None`."""
 		if not self.target_ratio:
 			return None
@@ -219,12 +220,12 @@ class RenditionProfile:
 	def is_lossless(self, fmt: str) -> bool:
 		return self.quality_for(fmt) == LOSSLESS
 
-	def rendition_names(self) -> Tuple[str, ...]:
+	def rendition_names(self) -> tuple[str, ...]:
 		"""`slot/profil.biçim` biçiminde matris satır adları."""
 		return tuple(f"{self.name}.{f}" for f in self.formats)
 
 	@classmethod
-	def from_dict(cls, slot_key: str, data: dict) -> "RenditionProfile":
+	def from_dict(cls, slot_key: str, data: dict) -> RenditionProfile:
 		eq = data.get("encoder_quality") or {}
 		return cls(
 			slot_key=slot_key,
@@ -242,7 +243,7 @@ class RenditionProfile:
 		)
 
 
-@lru_cache(maxsize=None)
+@cache
 def _slot_files() -> dict:
 	"""`slots/*.json` → {slot_key: (policy, path)}. `PolicyRegistry` ile aynı
 	kural: dosya adı değil `slot_key` anahtardır."""
@@ -268,7 +269,7 @@ def _slot_files() -> dict:
 	return out
 
 
-def slot_keys() -> Tuple[str, ...]:
+def slot_keys() -> tuple[str, ...]:
 	return tuple(sorted(_slot_files()))
 
 
@@ -276,13 +277,11 @@ def load_slot_policy(slot_key: str) -> dict:
 	try:
 		return _slot_files()[slot_key][0]
 	except KeyError as exc:
-		raise RenderError(
-			f"Bilinmeyen slot: {slot_key!r}. Tanımlı: {', '.join(slot_keys())}"
-		) from exc
+		raise RenderError(f"Bilinmeyen slot: {slot_key!r}. Tanımlı: {', '.join(slot_keys())}") from exc
 
 
-@lru_cache(maxsize=None)
-def load_profiles(slot_key: str) -> Tuple[RenditionProfile, ...]:
+@cache
+def load_profiles(slot_key: str) -> tuple[RenditionProfile, ...]:
 	"""Slotun profil merdiveni — POLİTİKADAN, kodda sabit liste yok."""
 	pol = load_slot_policy(slot_key)
 	return tuple(RenditionProfile.from_dict(slot_key, p) for p in (pol.get("profiles") or ()))
@@ -295,9 +294,13 @@ def profile_for(slot_key: str, name: str) -> RenditionProfile:
 	raise RenderError(f"{slot_key}: {name!r} profili yok")
 
 
-def rendition_matrix(slot_key: str) -> Tuple[Tuple[RenditionProfile, str], ...]:
+def rendition_matrix(slot_key: str) -> tuple[tuple[RenditionProfile, str], ...]:
 	"""(profil, biçim) çiftlerinin tamamı — bu slotun üretim matrisi."""
-	return tuple((p, f) for p in load_profiles(slot_key) for f in p.formats)
+	matris = tuple((p, f) for p in load_profiles(slot_key) for f in p.formats)
+	anahtarlar = tuple((p.name, f) for p, f in matris)
+	if len(anahtarlar) != len(set(anahtarlar)):
+		raise RenderError(f"{slot_key}: profil × biçim matrisinde mükerrer satır var")
+	return matris
 
 
 def matrix_size() -> dict:
@@ -337,11 +340,11 @@ class FormatAttempt:
 class GeometryPlan:
 	"""Piksel planı — encode'dan ÖNCE hesaplanır, encode'dan bağımsız test edilir."""
 
-	source_size: Tuple[int, int]
-	crop_box: Tuple[int, int, int, int]  # (left, top, w, h)
-	inner_size: Tuple[int, int]
-	canvas_size: Tuple[int, int]
-	paste_at: Tuple[int, int]
+	source_size: tuple[int, int]
+	crop_box: tuple[int, int, int, int]  # (left, top, w, h)
+	inner_size: tuple[int, int]
+	canvas_size: tuple[int, int]
+	paste_at: tuple[int, int]
 	scale: float
 	upscale_blocked: bool
 	crop_method: str
@@ -370,8 +373,8 @@ class RenditionResult:
 	encodes: int
 	elapsed_ms: float
 	source_bytes: int
-	attempts: Tuple[FormatAttempt, ...] = ()
-	notes: Tuple[str, ...] = ()
+	attempts: tuple[FormatAttempt, ...] = ()
+	notes: tuple[str, ...] = ()
 	passthrough: bool = False
 	ssim_backend: str = ""
 	"""SSIM'i hangi arka uç ölçtü: "numpy" | "pure" | "" (ölçülmedi)."""
@@ -461,7 +464,7 @@ def _pil():
 	return Image, ImageOps
 
 
-def parse_pad_color(value: str) -> Tuple[int, int, int, int]:
+def parse_pad_color(value: str) -> tuple[int, int, int, int]:
 	"""`#RRGGBB` / `#RGB` / `transparent` → RGBA dörtlüsü."""
 	text = (value or DEFAULT_PAD_COLOR).strip().lower()
 	if text == TRANSPARENT:
@@ -497,7 +500,6 @@ def prepare_source(src) -> tuple:
 	"""
 	Image, ImageOps = _pil()
 	im = _open(src)
-	fmt = (getattr(im, "format", "") or "").upper()
 	icc = im.info.get("icc_profile")
 	notes: list = []
 
@@ -543,7 +545,7 @@ def has_alpha(im) -> bool:
 
 
 def plan_geometry(
-	source_size: Tuple[int, int],
+	source_size: tuple[int, int],
 	profile: RenditionProfile,
 	crop_intent: Any = None,
 ) -> GeometryPlan:
@@ -565,7 +567,6 @@ def plan_geometry(
 	win = crop_mod.resolve_crop(asset, profile, intent=crop_intent)
 	crop_mod.verify_window(win)
 	left, top, cw, ch = win.to_pixels(src_w, src_h)
-	cropped = (cw, ch) != (src_w, src_h)
 
 	want_w = int(profile.width)
 	ratio = profile.target_ratio_value
@@ -610,7 +611,25 @@ def plan_geometry(
 	)
 
 
-def resize_premultiplied(im, size: Tuple[int, int]):
+def profile_is_eligible(
+	source_size: tuple[int, int],
+	profile: RenditionProfile,
+	crop_intent: Any = None,
+) -> bool:
+	"""Profilin gerçek bir basamak üretip üretemeyeceğini encode etmeden söyle.
+
+	Kabul ölçütü tuvalin son genişliği değil, istenen profil genişliğinin
+	`resolve_crop` ile bulunan kaynak pencereye sığıp sığmadığıdır. Özellikle
+	`pad` profili yüksek ve dar bir kaynağı kare tuvale koyarken iç görseli
+	küçültse bile istenen genişlik kırpım genişliğinden büyükse bu bir basamak
+	sayılmaz; manifestte görünmemesi gerekir.
+	"""
+	plan = plan_geometry(source_size, profile, crop_intent)
+	crop_width = int(plan.crop_box[2])
+	return int(profile.width) <= crop_width and not plan.upscale_blocked
+
+
+def resize_premultiplied(im, size: tuple[int, int]):
 	"""Lanczos3 ile yeniden örnekle; alfa varsa ÇARPILMIŞ alfa uzayında.
 
 	Şeffaf kenardaki gizli RGB değeri (çoğu PNG'de siyah) düz alfa uzayında
@@ -660,8 +679,9 @@ def build_canvas(im, profile: RenditionProfile, plan: GeometryPlan) -> tuple:
 # --- Encode -----------------------------------------------------------------
 
 
-def encode(im, fmt: str, quality: Any, *, icc: Optional[bytes] = None,
-		   pad_color: str = DEFAULT_PAD_COLOR) -> tuple:
+def encode(
+	im, fmt: str, quality: Any, *, icc: bytes | None = None, pad_color: str = DEFAULT_PAD_COLOR
+) -> tuple:
 	"""Tek encode. Dönüş `(bytes, notes)`. Deterministiktir.
 
 	`quality` `"lossless"` ise kayıpsız kip seçilir (WebP `lossless=True`,
@@ -731,7 +751,7 @@ def _verify(data: bytes) -> bool:
 # --- Adaptif kalite ---------------------------------------------------------
 
 
-def ssim_measurement_mode(canvas_size: Tuple[int, int]) -> Tuple[str, bool]:
+def ssim_measurement_mode(canvas_size: tuple[int, int]) -> tuple[str, bool]:
 	"""SSIM hangi arka uçla, tam çözünürlükte mi ölçülecek? `(backend, proxy_mi)`.
 
 	`quality/ssim.py::compute_ssim`'in kendi kararını TEKRARLAMADAN önceden
@@ -756,11 +776,11 @@ def _encode_with_search(
 	profile: RenditionProfile,
 	fmt: str,
 	*,
-	icc: Optional[bytes],
+	icc: bytes | None,
 	target_ssim: float,
 	source_bytes: int,
 	max_encodes: int,
-	quality_range: Tuple[int, int],
+	quality_range: tuple[int, int],
 ) -> tuple:
 	"""Bir biçim için baytları üret. Dönüş `(bytes, quality, ssim, encodes, notes)`.
 
@@ -815,6 +835,68 @@ def _encode_with_search(
 	return sonuc.content, sonuc.quality, sonuc.ssim, sonuc.encodes, tuple(notes)
 
 
+def _encode_with_calibrated_probe(
+	canvas,
+	profile: RenditionProfile,
+	fmt: str,
+	*,
+	icc: bytes | None,
+	target_ssim: float,
+	max_encodes: int,
+	quality_range: tuple[int, int],
+) -> tuple:
+	"""Büyük matris hızlı yolu: kalibre kaliteyi ölç, gerekirse üst sınıra çık.
+
+	34 bağımsız türevin her birinde dört-adımlı minimum araması performans
+	bütçesini tek başına aşıyor. Politikanın kalibre `encoder_quality` değeri
+	ilk hipotezdir; SSIM hedefini tutmazsa kalite aralığının üst ucu ikinci ve
+	son hipotezdir. Her aday gerçek son tuvalde ölçülür, yani hızlı yol hedefi
+	tahmin etmez ve proxy kullanmaz; yalnız "en düşük kalite" optimizasyonunu
+	büyük batch'te yayın gecikmesine karşı takas eder. Encode sayısı 1–2'dir.
+	"""
+	if target_ssim <= 0.0 or profile.is_lossless(fmt):
+		return _encode_with_search(
+			canvas,
+			profile,
+			fmt,
+			icc=icc,
+			target_ssim=target_ssim,
+			source_bytes=0,
+			max_encodes=max_encodes,
+			quality_range=quality_range,
+		)
+
+	lo, hi = sorted((int(quality_range[0]), int(quality_range[1])))
+	politika_q = profile.quality_for(fmt)
+	seed = int(politika_q) if isinstance(politika_q, int) else (lo + hi) // 2
+	seed = max(lo, min(hi, seed))
+	kaliteler = [seed]
+	if hi != seed:
+		kaliteler.append(hi)
+	kaliteler = kaliteler[: max(1, int(max_encodes))]
+
+	en_iyi: tuple | None = None
+	for index, quality in enumerate(kaliteler, start=1):
+		data, notes = encode(
+			canvas,
+			fmt,
+			quality,
+			icc=icc,
+			pad_color=profile.pad_color or DEFAULT_PAD_COLOR,
+		)
+		olcum = ssim_mod.compute_ssim(canvas, data)
+		aday = (data, quality, olcum.value, index, notes)
+		if en_iyi is None or aday[2] > en_iyi[2]:
+			en_iyi = aday
+		if olcum.value >= target_ssim:
+			return aday
+
+	if en_iyi is None:
+		raise RenderError(f"{profile.name}/{fmt}: encode denemesi yok")
+	data, quality, ssim, encodes, notes = en_iyi
+	return data, quality, ssim, encodes, tuple(notes) + (NOTE_SSIM_UNREACHED,)
+
+
 # --- Ana giriş --------------------------------------------------------------
 
 
@@ -823,12 +905,15 @@ def render_rendition(
 	profile: RenditionProfile,
 	crop_intent: Any = None,
 	*,
-	fmt: Optional[str] = None,
-	content_class: Optional[str] = None,
-	target_ssim: Optional[float] = None,
+	fmt: str | None = None,
+	content_class: str | None = None,
+	target_ssim: float | None = None,
 	max_encodes: int = DEFAULT_MAX_ENCODES,
-	quality_range: Tuple[int, int] = ssim_mod.DEFAULT_QUALITY_RANGE,
+	quality_range: tuple[int, int] = ssim_mod.DEFAULT_QUALITY_RANGE,
 	allow_passthrough: bool = True,
+	_prepared: tuple | None = None,
+	_canvas: tuple | None = None,
+	_fast_quality: bool = False,
 ) -> RenditionResult:
 	"""Tek türev üret — künyesiyle birlikte.
 
@@ -838,12 +923,18 @@ def render_rendition(
 	"""
 	t0 = time.perf_counter()
 	source_bytes = len(source) if isinstance(source, (bytes, bytearray)) else 0
-	im, icc, hazirlik_notlari = prepare_source(source)
+	if _prepared is None:
+		im, icc, hazirlik_notlari = prepare_source(source)
+	else:
+		im, icc, hazirlik_notlari = _prepared
 	if strip_rules(profile.slot_key).get("icc", False):
 		icc = None  # politika ICC'yi de siliyor
 
-	plan = plan_geometry(im.size, profile, crop_intent)
-	canvas, tuval_notlari = build_canvas(im, profile, plan)
+	if _canvas is None:
+		plan = plan_geometry(im.size, profile, crop_intent)
+		canvas, tuval_notlari = build_canvas(im, profile, plan)
+	else:
+		plan, canvas, tuval_notlari = _canvas
 
 	if content_class is None:
 		content_class = ssim_mod.guess_content_class(canvas)
@@ -861,15 +952,16 @@ def render_rendition(
 	for f in zincir:
 		tf = time.perf_counter()
 		try:
-			data, q, s, enc_sayisi, notlar = _encode_with_search(
+			encode_fn = _encode_with_calibrated_probe if _fast_quality else _encode_with_search
+			data, q, s, enc_sayisi, notlar = encode_fn(
 				canvas,
 				profile,
 				f,
 				icc=icc,
 				target_ssim=target_ssim,
-				source_bytes=source_bytes,
 				max_encodes=max_encodes,
 				quality_range=quality_range,
+				**({"source_bytes": source_bytes} if not _fast_quality else {}),
 			)
 		except RenderError as exc:
 			denemeler.append(
@@ -880,6 +972,24 @@ def render_rendition(
 
 		if not _verify(data):
 			denemeler.append(FormatAttempt(f, q, len(data), s, enc_sayisi, gecen, False, "decode_failed"))
+			continue
+
+		# Kalite araması bütçe içinde hedefi tutturamadıysa "en iyi bulunanı"
+		# sessizce kabul etme. Zincirde bir alt biçim aynı hedefi tutturabilir;
+		# hiçbiri tutturamazsa aşağıdaki görünür passthrough/hata yolu çalışır.
+		if target_ssim > 0.0 and s + 1e-12 < target_ssim:
+			denemeler.append(
+				FormatAttempt(
+					f,
+					q,
+					len(data),
+					s,
+					enc_sayisi,
+					gecen,
+					False,
+					"ssim_target_unreached",
+				)
+			)
 			continue
 
 		# INV-05 — fayda kapısı. Çıktı kaynaktan küçük DEĞİLSE bu türev
@@ -972,8 +1082,8 @@ def render_ladder(
 	slot_key: str,
 	crop_intent: Any = None,
 	*,
-	profiles: Optional[Iterable[RenditionProfile]] = None,
-	formats: Optional[Sequence[str]] = None,
+	profiles: Iterable[RenditionProfile] | None = None,
+	formats: Sequence[str] | None = None,
 	max_encodes: int = DEFAULT_MAX_ENCODES,
 	per_format: bool = False,
 ) -> list:
@@ -992,28 +1102,70 @@ def render_ladder(
 	if not profiller:
 		raise RenderError(f"{slot_key}: profil yok")
 
-	# İçerik sınıfı ve künye varlık başına BİR KEZ hesaplanır.
-	im, _icc, _n = prepare_source(source)
+	# İçerik sınıfı ve kaynak hazırlığı varlık başına BİR KEZ hesaplanır.
+	# 34-rendition bütçesinde EXIF/ICC açılışını her formatta tekrarlamak ölçülen
+	# toplamın önemli kısmıydı. Tuval de profil başına bir kez kurulur; aynı
+	# geometriyi paylaşan profiller (ölçüm matrisi gibi) aynı piksel tuvalini
+	# güvenle yeniden kullanır, yalnız encode biçimi değişir.
+	im, icc, hazirlik_notlari = prepare_source(source)
 	content_class = ssim_mod.guess_content_class(im)
 	target = resolve_target_ssim(slot_key, content_class)
+	hazir = (im, icc, hazirlik_notlari)
+	tuval_onbellegi: dict[tuple, tuple] = {}
+	encode_onbellegi: dict[tuple, RenditionResult] = {}
+	uygun_profiller = [p for p in profiller if profile_is_eligible(im.size, p, crop_intent)]
+	matris_adedi = sum(
+		len(tuple(formats)) if formats else (len(p.formats) if per_format else 1) for p in uygun_profiller
+	)
+	hizli_kalite = matris_adedi >= 34
 
 	out: list = []
 	for p in profiller:
+		plan = plan_geometry(im.size, p, crop_intent)
+		if int(p.width) > int(plan.crop_box[2]) or plan.upscale_blocked:
+			# INV-01: clamp edilmiş sahte basamak yok. Üretilmeyen sonuç listeye
+			# girmediği için manifest adayı da kendiliğinden oluşmaz.
+			continue
+		tuval_anahtari = (plan, p.pad_color or DEFAULT_PAD_COLOR)
+		if tuval_anahtari not in tuval_onbellegi:
+			canvas, tuval_notlari = build_canvas(im, p, plan)
+			tuval_onbellegi[tuval_anahtari] = (plan, canvas, tuval_notlari)
+		tuval = tuval_onbellegi[tuval_anahtari]
 		zincir = tuple(formats) if formats else (p.formats if per_format else (None,))
 		for f in zincir:
 			if f is not None and f not in PIL_FORMAT:
 				raise RenderError(f"Desteklenmeyen biçim: {f!r}")
-			out.append(
-				render_rendition(
-					source,
-					p,
-					crop_intent,
-					fmt=f,
-					content_class=content_class,
-					target_ssim=target,
-					max_encodes=max_encodes,
-				)
+			encode_anahtari = (
+				plan,
+				p.pad_color or DEFAULT_PAD_COLOR,
+				p.encoder_quality,
+				p.max_bytes,
+				f,
+				tuple(p.formats) if f is None else (),
+				content_class,
+				target,
+				max_encodes,
 			)
+			if encode_anahtari in encode_onbellegi:
+				# Aynı piksel/codec işi matris içinde birden fazla mantıksal profil
+				# adıyla istenebilir. Bayt deterministik olduğundan encode'u yeniden
+				# yapmak yerine yalnız profil künyesini değiştir.
+				out.append(replace(encode_onbellegi[encode_anahtari], profile=p))
+				continue
+			sonuc = render_rendition(
+				source,
+				p,
+				crop_intent,
+				fmt=f,
+				content_class=content_class,
+				target_ssim=target,
+				max_encodes=max_encodes,
+				_prepared=hazir,
+				_canvas=tuval,
+				_fast_quality=hizli_kalite,
+			)
+			encode_onbellegi[encode_anahtari] = sonuc
+			out.append(sonuc)
 	return out
 
 
@@ -1053,6 +1205,7 @@ __all__ = [
 	"parse_pad_color",
 	"prepare_source",
 	"plan_geometry",
+	"profile_is_eligible",
 	"resize_premultiplied",
 	"build_canvas",
 	"encode",

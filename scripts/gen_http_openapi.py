@@ -202,9 +202,16 @@ ANLATIM: dict[str, dict[str, Any]] = {
 		"x-measured": "http",
 		"x-measurement": (
 			"2026-08-19, misafir, bayrak KAPALI: LST-00560 → 200, 908 B, "
-			"`enabled=false`, 7 görsel, `fallback=/files/191-ff0258.jpg`, ETag var."
+			"`enabled=false`, 7 görsel, `fallback=/files/191-ff0258.jpg`, ETag var. "
+			"2026-08-23 gerçek HTTP: aynı ETag `If-None-Match` başlığında → **304**, "
+			"0 bayt gövde, `ETag` + `Cache-Control: public, max-age=60, "
+			"must-revalidate` başlıkları."
 		),
 		"schema": "Manifest",
+		# Sunucu eksik parametreyi güvenli boş manifest olarak kabul eder; istemci
+		# sözleşmesinde ilan kimliği yine zorunludur. Bu ayrım Schemathesis'in
+		# eksik-alan denemesinde Frappe TypeError/500 üretmesini engeller.
+		"required_params": ["listing"],
 	},
 	"tradehub_core.api.media_manifest.get_manifest_batch": {
 		"description": (
@@ -216,11 +223,12 @@ ANLATIM: dict[str, dict[str, Any]] = {
 		),
 		"x-measured": "http",
 		"x-measurement": (
-			"2026-08-19, misafir: `[\"LST-00560\",\"LST-YOK-9999\"]` → 200, "
+			'2026-08-19, misafir: `["LST-00560","LST-YOK-9999"]` → 200, '
 			"`requested=2`, `returned=1`, `missing=[]`, `truncated=false`, "
 			"`max_batch=50`. Virgüllü biçim de aynı gövdeyi verdi."
 		),
 		"schema": "ManifestBatch",
+		"required_params": ["listings"],
 	},
 	"tradehub_core.api.media_manifest.get_signed_url": {
 		"description": (
@@ -240,7 +248,7 @@ ANLATIM: dict[str, dict[str, Any]] = {
 			"Süreli imzalı indirme adresi üretir (`frappe.utils.verified_command`, "
 			"site secret + HMAC-SHA512). İmzaya `file`, `exp` ve — satırın "
 			"`content_hash`'i varsa — `blob` girer. Yetkisiz kullanıcı için imza "
-			"ÜRETİLMEZ: `File.has_permission(\"read\")` ve `blob_matches_row` "
+			'ÜRETİLMEZ: `File.has_permission("read")` ve `blob_matches_row` '
 			"kapılarının ikisi de geçilmelidir; her ret denetime yazılır."
 		),
 		"x-measured": "http",
@@ -272,7 +280,7 @@ ANLATIM: dict[str, dict[str, Any]] = {
 			"Satıcının KENDİ medyası, sanal klasör ağacında tek seviye. `store` "
 			"parametresi YOKTUR ve eklenmeyecektir: mağaza her çağrıda oturumdan "
 			"türetilir. Bulunamayan kategori/ilan için hata değil BOŞ sonuç döner — "
-			"\"yok\" ile \"senin değil\" ayrımı başka mağazanın kimliklerini keşfe "
+			'"yok" ile "senin değil" ayrımı başka mağazanın kimliklerini keşfe '
 			"kapı açardı. Dönüş şekli seviyeye göre değişir: kök ve kategori "
 			"seviyeleri `{folders:[…]}`, dosya seviyeleri `{items:[…], total:n}`."
 		),
@@ -284,16 +292,13 @@ ANLATIM: dict[str, dict[str, Any]] = {
 			"`scope=bogus` → 417 `ValidationError`; başka mağazanın ilanı "
 			"(`listing=LST-00560`) → `{items:[],total:0}` (sızıntı yok). "
 			"Misafir → 403, mağazasız oturum (Administrator) → 403 "
-			"\"Bu işlem için bir mağaza hesabı gerekiyor.\""
+			'"Bu işlem için bir mağaza hesabı gerekiyor."'
 		),
 		"schema": "BrowseLevel",
 	},
 	"tradehub_core.api.seller_media.get_my_summary": {
 		"x-measured": "http",
-		"x-measurement": (
-			"2026-08-19, satıcı: 200 → "
-			"`{store, active, trashed, bytes, quota_bytes, tags}`."
-		),
+		"x-measurement": ("2026-08-19, satıcı: 200 → `{store, active, trashed, bytes, quota_bytes, tags}`."),
 		"schema": "SellerSummary",
 	},
 	"tradehub_core.api.seller_media.get_my_media": {
@@ -340,7 +345,7 @@ ANLATIM: dict[str, dict[str, Any]] = {
 		"description": (
 			"RUM (gerçek kullanıcı ölçümü) beacon'ı. GÖVDE SORGU PARAMETRESİ "
 			"DEĞİLDİR: `Content-Type: text/plain;charset=UTF-8` + JSON "
-			"`{\"samples\": [...]}` — `sendBeacon` başlık gönderemediği ve "
+			'`{"samples": [...]}` — `sendBeacon` başlık gönderemediği ve '
 			"`application/json` CORS ön-kontrolü tetiklediği için (rapor 60 "
 			"§5.2). Geçersiz örnek de 200 alır; ret sebebi istemciye "
 			"SIZDIRILMAZ. Oran sınırı aşımı 429. CSRF muafiyeti framework'ün "
@@ -383,7 +388,7 @@ OLCUM: dict[str, tuple[str, str]] = {
 		"slug, canonical, alt_source, width, height, overridden}` (20 anahtar). "
 		"`alt` çok dilli kolondan çözüldü (`alt_tr` dolu, `lang=tr`), "
 		"`overridden=false` — kullanım bağlamı verilmediği için ezme katmanı "
-		"atlandı. Boş alanlar `\"\"` döndü, `null` DEĞİL.",
+		'atlandı. Boş alanlar `""` döndü, `null` DEĞİL.',
 	),
 	"tradehub_core.api.media_admin.set_media_seo": (
 		"http",
@@ -394,7 +399,7 @@ OLCUM: dict[str, tuple[str, str]] = {
 	),
 	"tradehub_core.api.media_admin.set_media_seo_override": (
 		"http",
-		"2026-08-21. Yönetici → 200 → `{name: \"9rjoq5fb2a\"}`; `Media SEO "
+		'2026-08-21. Yönetici → 200 → `{name: "9rjoq5fb2a"}`; `Media SEO '
 		"Override` kaydı `(file_url, Listing, OLCUM-1, primary_image)` dörtlüsüyle "
 		"açıldı. Aynı dörtlüyle ikinci çağrı YENİ kayıt açmaz (tekillik indeksi "
 		"`uk_seo_override_quad`). Ölçüm kaydı `clear_media_seo_override` ile "
@@ -408,10 +413,10 @@ OLCUM: dict[str, tuple[str, str]] = {
 	"tradehub_core.api.media_admin.generate_media_alt": (
 		"http",
 		"2026-08-21. Yönetici, alt metni zaten kural motorunca üretilmiş görsel: "
-		"200 → `{written: false, alt: \"Dinamik Manuel Doğrayıcı Rondo (15. "
-		"görsel)\", reason: \"unchanged\"}` — aynı metin yeniden yazılmadı. "
-		"Sıra numarası okunabilir biçimde (\"(15. görsel)\"), çıplak \"- 15\" "
-		"DEĞİL. İnsan yazımı metinde `reason=\"source:human\"` döner ve yazma "
+		'200 → `{written: false, alt: "Dinamik Manuel Doğrayıcı Rondo (15. '
+		'görsel)", reason: "unchanged"}` — aynı metin yeniden yazılmadı. '
+		'Sıra numarası okunabilir biçimde ("(15. görsel)"), çıplak "- 15" '
+		'DEĞİL. İnsan yazımı metinde `reason="source:human"` döner ve yazma '
 		"yapılmaz.",
 	),
 	"tradehub_core.api.media_admin.backfill_media_alt": (
@@ -450,7 +455,7 @@ OLCUM: dict[str, tuple[str, str]] = {
 		"döndü — 404 DEĞİL. Kayıttan sonra `exists=true` ve `intent.focal_x/"
 		"focal_y/method/confidence/approved_by_user` yazılan değerleri taşıdı. "
 		"`if_none_match` eşleşince gövde `{etag, status: 304}` — HTTP durumu yine "
-		"**200**. Satıcı-2 aynı varlığı istedi → 417 \"Medya varlığı bulunamadı.\" "
+		'**200**. Satıcı-2 aynı varlığı istedi → 417 "Medya varlığı bulunamadı." '
 		"— olmayan varlıkla BİREBİR aynı yanıt (varlığın varlığı sızmıyor). "
 		"Ölçüm varlığı ve niyeti ölçümden sonra silindi.",
 	),
@@ -458,7 +463,7 @@ OLCUM: dict[str, tuple[str, str]] = {
 		"http",
 		"2026-08-19. Misafir → 403. Satıcı → 200 → `{asset, slot_key, suggestion, "
 		"applied: false, windows, status}`; `suggestion` = `{focal_x, focal_y, "
-		"confidence, measured: true, reason: \"measured\", grid: 32, threshold: "
+		'confidence, measured: true, reason: "measured", grid: 32, threshold: '
 		"0.5, threshold_calibrated: false, above_threshold, method}`. Güven eşiğin "
 		"altında kaldığında `above_threshold: false` ile geliyor, hata değil. "
 		"`@rate_limit(30/60s)` kovası ÖLÇÜLDÜ: tek satıcı oturumunda arka arkaya "
@@ -471,29 +476,29 @@ OLCUM: dict[str, tuple[str, str]] = {
 		"`get_intent` ile aynı gövde, `exists=true`. **İdempotent doğrulandı**: "
 		"aynı yük iki kez gönderildi, `Media Crop Intent` satır sayısı 1 kaldı "
 		"(DB'den sayıldı). Ret yolları: `focal_x=1.4` → 417 \"0 ile 1 arasında "
-		"olmalı (INV-10)\"; `method=\"edge_energy_v1\"` → 417 \"İzin verilenler: "
-		"center, manual, smartcrop\"; satıcı-2 → 417 \"Medya varlığı bulunamadı.\" "
-		"**UYUŞMAZLIK: `overrides` yolu bugün ÇALIŞMIYOR** — `x-mismatch`e bakın. "
-		"Ölçüm kaydı silindi.",
+		'olmalı (INV-10)"; `method="edge_energy_v1"` → 417 "İzin verilenler: '
+		'center, manual, smartcrop"; satıcı-2 → 417 "Medya varlığı bulunamadı." '
+		"2026-08-23: `Media Crop Override.profile` alanı `Data`; kısa politika adı "
+		"`w384` ile override yazma/geri okuma gerçek Frappe/DB testinde geçti ve "
+		"child satır BİREBİR `w384` taşıdı. Eski Link→Media Profile uyuşmazlığı "
+		"kapandı. Ölçüm kaydı silindi.",
 	),
 	# ── storage (32-faz8'deki iki UYUŞMAZLIK bugün KAPANDI) ─────────
-	"tradehub_core.tradehub_core.doctype.media_storage_settings.media_storage_settings"
-	".get_storage_status": (
+	"tradehub_core.tradehub_core.doctype.media_storage_settings.media_storage_settings.get_storage_status": (
 		"http",
 		"2026-08-19, Administrator → **200**: `{plan: {mode, requested_mode, "
 		"degraded, downgraded_from, reasons, signer_available, backend}, blockers: "
-		"[…]}`; ölçüldüğünde `mode=\"local\"`, `backend=\"LocalDiskStorage\"`, "
+		'[…]}`; ölçüldüğünde `mode="local"`, `backend="LocalDiskStorage"`, '
 		"`degraded=false`. Satıcı → 403 (rol kapısı). Misafir → 403. "
 		"`docs/reports/32-faz8-api-kapanis.md` §5'teki HTTP 500 `ImportError` "
 		"ARTIK YOK: `Media Storage Settings` DocType satırı veritabanında var "
-		"(`frappe.db.get_value` → \"Media Storage Settings\"). O rapordaki "
+		'(`frappe.db.get_value` → "Media Storage Settings"). O rapordaki '
 		"`x-mismatch` bu ölçümle kapandı.",
 	),
-	"tradehub_core.tradehub_core.doctype.media_storage_settings.media_storage_settings"
-	".test_connection": (
+	"tradehub_core.tradehub_core.doctype.media_storage_settings.media_storage_settings.test_connection": (
 		"http",
 		"2026-08-19, Administrator, `target=cdn` → **200**: `{target, ok: false, "
-		"steps: [{step, ok, ms, detail}], ms}`; `detail=\"adres tanımlı değil\"` "
+		'steps: [{step, ok, ms, detail}], ms}`; `detail="adres tanımlı değil"` '
 		"(CDN yapılandırılmamış — uç doğru davranıyor, `ok=false` ile söylüyor). "
 		"Satıcı → 403. Önceki rapordaki HTTP 500 `ImportError` ARTIK YOK.",
 	),
@@ -527,7 +532,7 @@ OLCUM: dict[str, tuple[str, str]] = {
 	),
 	"tradehub_core.api.seller_media.update_media": (
 		"http",
-		"2026-08-19, satıcı → 200; `patch={\"title\",\"alt\",\"description\"}` "
+		'2026-08-19, satıcı → 200; `patch={"title","alt","description"}` '
 		"gönderildi, yanıt tüm üstveriyi döndü: `{title, alt, description, tags, "
 		"favorite, width, height}`. Ölçüm dosyası sonradan silindi.",
 	),
@@ -562,8 +567,7 @@ OLCUM: dict[str, tuple[str, str]] = {
 	),
 	"tradehub_core.api.seller_media.unarchive_media": (
 		"http",
-		"2026-08-19, satıcı → 200 `{unarchived, failed: [], skipped, details: "
-		"[{file_url, records}]}`.",
+		"2026-08-19, satıcı → 200 `{unarchived, failed: [], skipped, details: [{file_url, records}]}`.",
 	),
 	"tradehub_core.api.seller_media.purge_media": (
 		"http",
@@ -574,19 +578,22 @@ OLCUM: dict[str, tuple[str, str]] = {
 		"döndü — üretilen kayıt kalmadı.",
 	),
 	"tradehub_core.api.seller_media.upload_begin": (
-		"http",
+		"http-partial",
 		"2026-08-19, satıcı → 200 `{upload_id, chunk_bytes: 2097152, chunk_count, "
-		"file_name}`.",
+		"file_name}`. 2026-08-23 T-081 genişlemesi (policy_snapshot, quota_remaining, "
+		"expires_at, content_sha256, Idempotency-Key replay) gerçek Frappe/DB "
+		"entegrasyonunda 6/6 testle doğrulandı; yeni alanların HTTP turu bekliyor.",
 	),
 	"tradehub_core.api.seller_media.upload_chunk": (
 		"http",
-		"2026-08-19, satıcı, `index=0` → 200 `{upload_id, received: 1, "
-		"chunk_count: 1, complete: true}`.",
+		"2026-08-19, satıcı, `index=0` → 200 `{upload_id, received: 1, chunk_count: 1, complete: true}`.",
 	),
 	"tradehub_core.api.seller_media.upload_finish": (
-		"http",
+		"http-partial",
 		"2026-08-19, satıcı → 200 `{file_url, file_name, bytes, video_status}` — "
-		"`upload_media` ile AYNI gövde. Üretilen dosya silindi.",
+		"`upload_media` ile AYNI gövde. 2026-08-23: aynı Idempotency-Key ile ikinci "
+		"finalize ve yeni begin aynı sonucu döndürdü, File sayısı 1 kaldı (gerçek "
+		"Frappe/DB 6/6); yeni başlığın HTTP turu bekliyor.",
 	),
 	"tradehub_core.api.seller_media.upload_abort": (
 		"http",
@@ -602,8 +609,8 @@ OLCUM: dict[str, tuple[str, str]] = {
 	),
 	"tradehub_core.api.seller_media.retry_video": (
 		"http-partial",
-		"2026-08-19, satıcı, GÖRSEL dosya ile → 417 \"Yalnız başarısız videolar "
-		"yeniden denenebilir (durum: -).\" Başarı yolu ÖLÇÜLMEDİ: bu sitede "
+		'2026-08-19, satıcı, GÖRSEL dosya ile → 417 "Yalnız başarısız videolar '
+		'yeniden denenebilir (durum: -)." Başarı yolu ÖLÇÜLMEDİ: bu sitede '
 		"dead-letter durumunda video yok ve bir videoyu bilerek bozmak veri "
 		"bozmak olurdu.",
 	),
@@ -624,8 +631,8 @@ OLCUM: dict[str, tuple[str, str]] = {
 		"http",
 		"2026-08-19, satıcı, `deep=1` → 200 `{set_id, files, records, "
 		"missing_blobs: [], missing_count: 0, corrupt_blobs: [], corrupt_count: 0, "
-		"deep: true, ok: true}`. Bilinmeyen `set_id` → 417 \"Geçersiz yedek "
-		"kimliği\".",
+		'deep: true, ok: true}`. Bilinmeyen `set_id` → 417 "Geçersiz yedek '
+		'kimliği".',
 	),
 	"tradehub_core.api.seller_media.plan_backup_restore": (
 		"http",
@@ -636,7 +643,7 @@ OLCUM: dict[str, tuple[str, str]] = {
 	),
 	"tradehub_core.api.seller_media.apply_backup_restore": (
 		"http-partial",
-		"2026-08-19, satıcı, `only=[\"/files/yok-9999-t080.jpg\"]` (kasten "
+		'2026-08-19, satıcı, `only=["/files/yok-9999-t080.jpg"]` (kasten '
 		"olmayan dosya) → 200 `{set_id, files_written: 0, overwritten: [], "
 		"conflicts_skipped: [], skipped_not_owned: [], skipped_unscanned: [], "
 		"records_created: 0, applied: true}`. Gövde şeması ölçüldü, GERÇEK bir "
@@ -644,28 +651,27 @@ OLCUM: dict[str, tuple[str, str]] = {
 	),
 	"tradehub_core.api.seller_media.delete_backup": (
 		"http-partial",
-		"2026-08-19, satıcı → **417** \"Son yedek silinemez.\" Kural gerçekten "
+		'2026-08-19, satıcı → **417** "Son yedek silinemez." Kural gerçekten '
 		"uygulanıyor; başarı gövdesi ÖLÇÜLMEDİ (silmek için ikinci bir yedek "
 		"üretmek gerekirdi). Ölçüm yedeği API dışından, dosya sisteminden "
 		"kaldırıldı.",
 	),
 	"tradehub_core.api.seller_media.start_backup_export": (
 		"http",
-		"2026-08-19, satıcı → 200 `{set_id, state: \"hazirlaniyor\", started, "
+		'2026-08-19, satıcı → 200 `{set_id, state: "hazirlaniyor", started, '
 		"finished: null, actor, done: 0, total, file_name: null, bytes: 0, "
 		"error: null}`.",
 	),
 	"tradehub_core.api.seller_media.backup_export_status": (
 		"http",
-		"2026-08-19, satıcı, paket hazırken → 200 `{…, state: \"hazir\", finished, "
-		"done: 9, total: 9, file_name: \"medya-yedegim-….zip\", bytes}`. "
-		"`discard` sonrası aynı uç `state: \"\"`, `exists: false`, `stale: false` "
+		'2026-08-19, satıcı, paket hazırken → 200 `{…, state: "hazir", finished, '
+		'done: 9, total: 9, file_name: "medya-yedegim-….zip", bytes}`. '
+		'`discard` sonrası aynı uç `state: ""`, `exists: false`, `stale: false` '
 		"döndü. Bilinmeyen `set_id` → 417.",
 	),
 	"tradehub_core.api.seller_media.discard_backup_export": (
 		"http",
-		"2026-08-19, satıcı → 200 `{set_id, state: \"\"}`; ardından durum ucu "
-		"`exists: false` dedi.",
+		'2026-08-19, satıcı → 200 `{set_id, state: ""}`; ardından durum ucu `exists: false` dedi.',
 	),
 	"tradehub_core.api.seller_media.download_backup_export": (
 		"http",
@@ -704,8 +710,7 @@ OLCUM: dict[str, tuple[str, str]] = {
 	),
 	"tradehub_core.api.media_admin.get_dangling_references": (
 		"http",
-		"2026-08-19, Administrator → 200 `{items: [], total_rows: 0}` (bu sitede "
-		"kopuk referans yok).",
+		"2026-08-19, Administrator → 200 `{items: [], total_rows: 0}` (bu sitede kopuk referans yok).",
 	),
 	"tradehub_core.api.media_admin.repair_dangling_references": (
 		"http",
@@ -715,8 +720,7 @@ OLCUM: dict[str, tuple[str, str]] = {
 	),
 	"tradehub_core.api.media_admin.preview_trash": (
 		"http",
-		"2026-08-19, Administrator → 200 `{total, by_verdict, in_use, "
-		"live_places}`.",
+		"2026-08-19, Administrator → 200 `{total, by_verdict, in_use, live_places}`.",
 	),
 	"tradehub_core.api.media_admin.get_pending_count": (
 		"http",
@@ -729,21 +733,21 @@ OLCUM: dict[str, tuple[str, str]] = {
 	"tradehub_core.api.media_admin.get_optimization_status": (
 		"http",
 		"2026-08-19, Administrator: bilinmeyen anahtar → 200 `{state: "
-		"\"not_found\"}` (hata DEĞİL). Gerçek bir iş anahtarıyla → 200 `{state: "
-		"\"partial\", preset, dry_run, total, processed, optimized, skipped, "
+		'"not_found"}` (hata DEĞİL). Gerçek bir iş anahtarıyla → 200 `{state: '
+		'"partial", preset, dry_run, total, processed, optimized, skipped, '
 		"errors, original_bytes, new_bytes, skip_reasons, message}`.",
 	),
 	"tradehub_core.api.media_admin.start_image_optimization": (
 		"http",
 		"2026-08-19, Administrator, `dry_run=1` ve KASTEN OLMAYAN dosya adı → 200 "
-		"`{job_key, count, preset: \"balanced\", dry_run: 1}`. İş kuyruğa girdi ve "
+		'`{job_key, count, preset: "balanced", dry_run: 1}`. İş kuyruğa girdi ve '
 		"`get_optimization_status` `errors: 1` ile bitti — hiçbir gerçek dosyaya "
 		"dokunulmadı. Gerçek dosya üzerinde optimizasyon ÖLÇÜLMEDİ.",
 	),
 	"tradehub_core.api.media_admin.start_restore": (
 		"http",
 		"2026-08-19, Administrator, kasten olmayan dosya adı → 200 `{job_key, "
-		"count, mode: \"restore\"}`; iş `errors: 1` ile bitti. Gerçek geri alma "
+		'count, mode: "restore"}`; iş `errors: 1` ile bitti. Gerçek geri alma '
 		"ÖLÇÜLMEDİ.",
 	),
 	"tradehub_core.api.media_admin.restore_image": (
@@ -754,7 +758,7 @@ OLCUM: dict[str, tuple[str, str]] = {
 	),
 	"tradehub_core.api.media_admin.retry_transcode": (
 		"http-partial",
-		"2026-08-19, Administrator, olmayan dosya → 417 \"Dosya bulunamadı: …\". "
+		'2026-08-19, Administrator, olmayan dosya → 417 "Dosya bulunamadı: …". '
 		"Başarı yolu ÖLÇÜLMEDİ (dead-letter videosu yok).",
 	),
 	"tradehub_core.api.media_admin.set_access_level": (
@@ -819,8 +823,8 @@ OLCUM: dict[str, tuple[str, str]] = {
 	),
 	"tradehub_core.api.media_admin.export_media_audit": (
 		"http",
-		"2026-08-19, Administrator → 200 `{csv: \"timestamp,action,decision,"
-		"severity,actor,tenant,object_name,ip_address,context\\r\\n…\"}` — CSV "
+		'2026-08-19, Administrator → 200 `{csv: "timestamp,action,decision,'
+		'severity,actor,tenant,object_name,ip_address,context\\r\\n…"}` — CSV '
 		"gövde İÇİNDE dizge olarak döner, `text/csv` dosya indirmesi DEĞİLDİR.",
 	),
 	"tradehub_core.api.media_admin.list_media_backups": (
@@ -830,14 +834,13 @@ OLCUM: dict[str, tuple[str, str]] = {
 	),
 	"tradehub_core.api.media_admin.verify_media_backup": (
 		"http-partial",
-		"2026-08-19, Administrator, bilinmeyen `set_id` → 417 \"Geçersiz yedek "
-		"kimliği\". Başarı gövdesi ÖLÇÜLMEDİ: sitede yönetim yedeği yok ve "
+		'2026-08-19, Administrator, bilinmeyen `set_id` → 417 "Geçersiz yedek '
+		'kimliği". Başarı gövdesi ÖLÇÜLMEDİ: sitede yönetim yedeği yok ve '
 		"`create_media_backup` bütün medyayı kopyalardı.",
 	),
 	"tradehub_core.api.media_admin.plan_media_restore": (
 		"http-partial",
-		"2026-08-19, Administrator, bilinmeyen `set_id` → 417. Başarı gövdesi "
-		"ÖLÇÜLMEDİ (yedek yok).",
+		"2026-08-19, Administrator, bilinmeyen `set_id` → 417. Başarı gövdesi ÖLÇÜLMEDİ (yedek yok).",
 	),
 	"tradehub_core.api.media_admin.apply_media_restore": (
 		"http-partial",
@@ -846,8 +849,7 @@ OLCUM: dict[str, tuple[str, str]] = {
 	),
 	"tradehub_core.api.media_admin.repair_missing_media": (
 		"http-partial",
-		"2026-08-19, Administrator → 417 \"Hiç yedek yok.\" Başarı yolu "
-		"ÖLÇÜLMEDİ.",
+		'2026-08-19, Administrator → 417 "Hiç yedek yok." Başarı yolu ÖLÇÜLMEDİ.',
 	),
 	"tradehub_core.api.media_admin.prune_media_backups": (
 		"http",
@@ -857,8 +859,7 @@ OLCUM: dict[str, tuple[str, str]] = {
 	),
 	"tradehub_core.api.media_admin.delete_media_backup": (
 		"http-partial",
-		"2026-08-19, Administrator, bilinmeyen `set_id` → 417. Başarı yolu "
-		"ÖLÇÜLMEDİ.",
+		"2026-08-19, Administrator, bilinmeyen `set_id` → 417. Başarı yolu ÖLÇÜLMEDİ.",
 	),
 	"tradehub_core.api.media_admin.start_media_backup_export": (
 		"http-partial",
@@ -868,13 +869,11 @@ OLCUM: dict[str, tuple[str, str]] = {
 	),
 	"tradehub_core.api.media_admin.media_backup_export_status": (
 		"http-partial",
-		"2026-08-19, Administrator, bilinmeyen `set_id` → 417. Başarı gövdesi "
-		"ÖLÇÜLMEDİ.",
+		"2026-08-19, Administrator, bilinmeyen `set_id` → 417. Başarı gövdesi ÖLÇÜLMEDİ.",
 	),
 	"tradehub_core.api.media_admin.discard_media_backup_export": (
 		"http-partial",
-		"2026-08-19, Administrator, bilinmeyen `set_id` → 417. Başarı yolu "
-		"ÖLÇÜLMEDİ.",
+		"2026-08-19, Administrator, bilinmeyen `set_id` → 417. Başarı yolu ÖLÇÜLMEDİ.",
 	),
 	"tradehub_core.api.media_admin.download_media_backup_export": (
 		"http-partial",
@@ -905,18 +904,18 @@ OLCUM: dict[str, tuple[str, str]] = {
 	),
 	"tradehub_core.api.media_admin.retry_scan": (
 		"http-partial",
-		"2026-08-19, Administrator, olmayan dosya → 417 \"Dosya bulunamadı\". "
+		'2026-08-19, Administrator, olmayan dosya → 417 "Dosya bulunamadı". '
 		"Başarı yolu ÖLÇÜLMEDİ (başarısız taraması olan dosya yok).",
 	),
 	"tradehub_core.api.media_admin.release_quarantine": (
 		"http-partial",
-		"2026-08-19, Administrator, olmayan dosya → 417 \"Dosya bulunamadı\". "
+		'2026-08-19, Administrator, olmayan dosya → 417 "Dosya bulunamadı". '
 		"Karantinada dosya olmadığı için başarı yolu ÖLÇÜLMEDİ.",
 	),
 	"tradehub_core.api.media_admin.scan_backfill": (
 		"http",
 		"2026-08-19, Administrator, `limit=0` → 200 `{queued: 0, skipped: "
-		"\"disabled\"}` — tarama kapalı olduğu için uç hiçbir şey kuyruğa almadı "
+		'"disabled"}` — tarama kapalı olduğu için uç hiçbir şey kuyruğa almadı '
 		"ve bunu gövdede SÖYLÜYOR.",
 	),
 	# ── W6 SDK turu (2026-08-20) — bu turda eklenen 10 uç ─────────────
@@ -925,7 +924,7 @@ OLCUM: dict[str, tuple[str, str]] = {
 	# (klasör, klasör bağı) ölçümden sonra silindi / köke geri taşındı.
 	"tradehub_core.api.media_manifest.manifest_batch": (
 		"http",
-		"2026-08-20, satıcı, POST `{file_urls: [<kendi dosyası>, \"/files/yok.png\"]}` "
+		'2026-08-20, satıcı, POST `{file_urls: [<kendi dosyası>, "/files/yok.png"]}` '
 		"→ 200 `{manifests: {<adres>: {file, file_url, assets, renditions, "
 		"version} | null}, requested: 2, returned: 1, max_batch: 100}`; olmayan "
 		"adres `null` döndü, hata DEĞİL. `version` alanı türev üretilmemiş "
@@ -936,7 +935,7 @@ OLCUM: dict[str, tuple[str, str]] = {
 	"tradehub_core.api.rum.collect": (
 		"http",
 		"2026-08-20, misafir, POST `Content-Type: text/plain;charset=UTF-8`, "
-		"gövde `{\"samples\": []}` → 200 `{ok: true}`. Gövde JSON parametre "
+		'gövde `{"samples": []}` → 200 `{ok: true}`. Gövde JSON parametre '
 		"DEĞİL, ham istek gövdesidir (`frappe.request.get_data()` ile okunur; "
 		"`sendBeacon` başlık gönderemediği için `text/plain` bilinçli). Geçersiz "
 		"örnek de 200 alır — ret sebebi istemciye SIZDIRILMAZ (şema keşfi "
@@ -950,8 +949,8 @@ OLCUM: dict[str, tuple[str, str]] = {
 	),
 	"tradehub_core.api.seller_media.create_folder": (
 		"http",
-		"2026-08-20, satıcı, POST `{folder_name: \"olcum-w6-sdk\"}` → 200 "
-		"`{name: \"qj5f5qmmtc\", folder_name, parent_folder: \"\"}`. "
+		'2026-08-20, satıcı, POST `{folder_name: "olcum-w6-sdk"}` → 200 '
+		'`{name: "qj5f5qmmtc", folder_name, parent_folder: ""}`. '
 		"Ölçüm klasörü ölçümden sonra silindi.",
 	),
 	"tradehub_core.api.seller_media.rename_folder": (
@@ -963,7 +962,7 @@ OLCUM: dict[str, tuple[str, str]] = {
 	"tradehub_core.api.seller_media.delete_folder": (
 		"http",
 		"2026-08-20, satıcı, boş klasör, POST `{folder}` → 200 "
-		"`{deleted: \"<name>\"}`. Dolu klasör reddi `media_folder.py:on_trash`ta "
+		'`{deleted: "<name>"}`. Dolu klasör reddi `media_folder.py:on_trash`ta '
 		"— bu ölçümde klasör önce boşaltıldı.",
 	),
 	"tradehub_core.api.seller_media.move_media": (
@@ -971,7 +970,7 @@ OLCUM: dict[str, tuple[str, str]] = {
 		"2026-08-20, satıcı, POST `{file_urls: [<kendi>, <olmayan>], folder}` → "
 		"200 `{moved: 1, failed: [], skipped: 1}` — sahip olunmayan/olmayan adres "
 		"SESSİZCE atlanmaz, `skipped` sayacına girer ama HANGİSİ olduğu dönmez. "
-		"`folder: \"\"` ile aynı dosya köke geri taşındı (`moved: 1`).",
+		'`folder: ""` ile aynı dosya köke geri taşındı (`moved: 1`).',
 	),
 	"tradehub_core.api.seller_media.list_folder_media": (
 		"http",
@@ -983,8 +982,8 @@ OLCUM: dict[str, tuple[str, str]] = {
 	"tradehub_core.api.seller_media.find_in_my_library": (
 		"http",
 		"2026-08-20, satıcı, geçerli ama eşleşmeyen 64 hanelik hash → 200 "
-		"`{found: false, file: null}`; geçersiz `sha256=xyz` → 417 \"64 haneli "
-		"onaltılık SHA-256 bekleniyor.\" Eşleşme dönerse `file` yalnız "
+		'`{found: false, file: null}`; geçersiz `sha256=xyz` → 417 "64 haneli '
+		'onaltılık SHA-256 bekleniyor." Eşleşme dönerse `file` yalnız '
 		"`{file_url, file_name, uploaded_at}` taşır (bilinçli üç alan).",
 	),
 	"tradehub_core.api.seller_media.list_orphans": (
@@ -1003,6 +1002,31 @@ OLCULMEYEN: dict[str, str] = {
 		"(bu sitede 5.020 dosya); ölçüm için üretilip silinemeyecek kadar büyük "
 		"bir yan etki olurdu. Satıcı karşılığı `seller_media.create_backup` "
 		"uçtan uca ölçüldü ve aynı yedek çekirdeğini kullanıyor."
+	),
+	"tradehub_core.api.media_admin.set_media_indexability": (
+		"ÇAĞRILMADI. Uç kalıcı SEO görünürlük durumunu değiştirir; salt-okunur "
+		"sözleşme taramasında üretim verisi yazılmadı. Yetki ve davranış kendi "
+		"Frappe testlerinde doğrulanır; HTTP yazma ölçümü geri alınabilir ayrı "
+		"bir fixture oturumunda yapılmalıdır."
+	),
+	"tradehub_core.api.media_admin.start_rendition_backfill": (
+		"ÇAĞRILMADI. Uç gerçek rendition backfill işlerini kuyruğa yazar ve "
+		"medya korpusunu işler; sözleşme ölçümü için büyük yan etki üretmemek "
+		"amacıyla ayrı kontrollü backfill tatbikatına bırakıldı."
+	),
+	"tradehub_core.api.media_admin.get_rendition_backfill_status": (
+		"ÇAĞRILMADI. `start_rendition_backfill` ile aynı özellik grubunun durum "
+		"ucudur; gerçek bir token ancak yan etkili başlangıç koşumuyla oluştuğu "
+		"için ikisi ayrı kontrollü tatbikatta birlikte ölçülecek."
+	),
+	"tradehub_core.api.media_admin.retry_failed_renditions": (
+		"ÇAĞRILMADI. Başarısız rendition işlerini yeniden kuyruğa yazar; canlı "
+		"envanteri değiştiren işlem sözleşme taramasında tetiklenmedi."
+	),
+	"tradehub_core.tradehub_core.doctype.media_storage_settings.media_storage_settings.purge_cdn_cache": (
+		"ÇAĞRILMADI. Yapılandırılmış CDN sağlayıcısında gerçek purge yan etkisi "
+		"üretir; sahte sağlayıcıyla 'ölçüldü' sayılmadı ve dış servis kabul "
+		"tatbikatına bırakıldı."
 	),
 	# MOGEM-582 retro-rename (2026-08-21) — henüz canlı HTTP trafiğine açılmadı.
 	# `start_retro_rename`/`rollback_retro_rename` gerçek sitede 5.020 dosyanın
@@ -1046,29 +1070,9 @@ OLCULMEYEN: dict[str, str] = {
 }
 
 
-#: ÖLÇÜLDÜ ve SÖZLEŞMEYİ KARŞILAMADI. Belgeden gizlenmez.
-UYUSMAZLIK: dict[str, str] = {
-	"tradehub_core.api.media_crop.save_intent": (
-		"2026-08-19, satıcı, gerçek HTTP: `overrides` yolu UÇTAN UCA ÇALIŞMIYOR — "
-		"iki katman `profile` alanı için AYRI sözlük konuşuyor ve ikisini birden "
-		"geçen bir değer YOK.\n"
-		"  • `overrides=[{\"profile\": \"w384\", …}]` → kütüphane doğrulamasını "
-		"geçer, sonra Frappe **417 `LinkValidationError`: \"Satır #1: Profil: w384 "
-		"bulunamadı.\"** — çünkü `Media Crop Override.profile` bir "
-		"`Link → Media Profile`tır ve o DocType'ın kayıtları "
-		"`product.image:w384` biçiminde adlandırılmıştır.\n"
-		"  • `overrides=[{\"profile\": \"product.image:w384\", …}]` → bu kez "
-		"kütüphane reddeder: **417 \"`product.image:w384` bu slotta tanımlı bir "
-		"profil değil.\"** — `pipeline/api/crop.py` slot içi kısa adları "
-		"(`w96…w1920`) bekler; `get_intent().windows[].profile` de bu kısa adı "
-		"döndürür.\n"
-		"Sonuç: `save_intent` `overrides` OLMADAN 200 döner ve idempotenttir; "
-		"`overrides` ile HER ZAMAN 417 döner. `docs/reports/37-media-crop-intent.md` "
-		"§2.2 bu ikiliği çözdüğünü söylüyor — ölçüm çözülmediğini gösteriyor. "
-		"Belge bu ucu 'kısmen çalışır' olarak anlatır; düzeltme bu görevin "
-		"dokunma listesindeki `api/**` ve `media/**` altındadır."
-	),
-}
+#: ÖLÇÜLDÜ ve SÖZLEŞMEYİ KARŞILAMADI. Bugün boş; yeni bir gerçek HTTP
+#: uyuşmazlığı çıkarsa belgeden gizlenmeden bu sözlüğe eklenir.
+UYUSMAZLIK: dict[str, str] = {}
 
 # `OLCUM` kayıtları `ANLATIM`a BURADA birleşir — elle yazılan açıklama ile
 # ölçülen cümle ayrı yerlerde durur ki biri diğerini sessizce ezmesin.
@@ -1096,6 +1100,8 @@ SEMA_BAGI: dict[str, str] = {
 	"tradehub_core.api.seller_media.list_folder_media": "PagedFiles",
 	"tradehub_core.api.seller_media.find_in_my_library": "LibraryMatch",
 	"tradehub_core.api.seller_media.list_orphans": "OrphanList",
+	"tradehub_core.api.seller_media.upload_begin": "UploadSession",
+	"tradehub_core.api.seller_media.upload_finish": "UploadResult",
 }
 for _anahtar, _sema in SEMA_BAGI.items():
 	ANLATIM.setdefault(_anahtar, {}).setdefault("schema", _sema)
@@ -1110,20 +1116,9 @@ for _anahtar, _cumle in OLCULMEYEN.items():
 # ═══════════════════════════════════════════════════════════════════════
 
 SEMALAR: dict[str, Any] = {
-	"FrappeEnvelope": {
-		"type": "object",
-		"description": (
-			"Frappe her `@frappe.whitelist()` dönüşünü `message` altına sarar. "
-			"Bu belgedeki her yanıt şeması `message`in İÇERİĞİDİR."
-		),
-		"required": ["message"],
-		"properties": {"message": {}},
-	},
 	"StorageStatus": {
 		"type": "object",
-		"description": (
-			"`get_storage_status` gövdesi — 2026-08-19'da ÖLÇÜLDÜ. Sır taşımaz."
-		),
+		"description": ("`get_storage_status` gövdesi — 2026-08-19'da ÖLÇÜLDÜ. Sır taşımaz."),
 		"required": ["plan", "blockers"],
 		"properties": {
 			"plan": {
@@ -1192,7 +1187,10 @@ SEMALAR: dict[str, Any] = {
 			},
 			"windows": {"type": "array", "items": {"$ref": "#/components/schemas/CropWindow"}},
 			"etag": {"type": "string", "description": "Tırnaklı. Gövdede taşınır, BAŞLIKTA değil."},
-			"status": {"type": "integer", "description": "Kütüphanenin niyet ettiği durum; HTTP durumu DEĞİL."},
+			"status": {
+				"type": "integer",
+				"description": "Kütüphanenin niyet ettiği durum; HTTP durumu DEĞİL.",
+			},
 		},
 	},
 	"CropIntentBody": {
@@ -1238,7 +1236,10 @@ SEMALAR: dict[str, Any] = {
 			"y": {"type": "number"},
 			"w": {"type": "number"},
 			"h": {"type": "number"},
-			"method": {"type": "string", "examples": ["focal", "center", "override", "safe_focal", "smartcrop"]},
+			"method": {
+				"type": "string",
+				"examples": ["focal", "center", "override", "safe_focal", "smartcrop"],
+			},
 			"priority": {"type": "integer"},
 			"profile": {
 				"type": "string",
@@ -1308,7 +1309,11 @@ SEMALAR: dict[str, Any] = {
 		"required": ["etag", "status"],
 		"properties": {
 			"etag": {"type": "string"},
-			"status": {"type": "integer", "examples": [304], "description": "Gövdedeki sayı; HTTP durumu 200."},
+			"status": {
+				"type": "integer",
+				"examples": [304],
+				"description": "Gövdedeki sayı; HTTP durumu 200.",
+			},
 		},
 	},
 	"FrappeError": {
@@ -1361,8 +1366,15 @@ SEMALAR: dict[str, Any] = {
 		"type": "object",
 		"description": "`get_manifest` gövdesi (`message` içeriği).",
 		"required": [
-			"listing", "slot", "enabled", "fallback", "renditions", "images",
-			"suppressed", "etag", "cache_control",
+			"listing",
+			"slot",
+			"enabled",
+			"fallback",
+			"renditions",
+			"images",
+			"suppressed",
+			"etag",
+			"cache_control",
 		],
 		"properties": {
 			"listing": {"type": "string"},
@@ -1388,9 +1400,9 @@ SEMALAR: dict[str, Any] = {
 	"NotModified": {
 		"type": "object",
 		"description": (
-			"`if_none_match` (ya da `If-None-Match` başlığı) tuttuğunda dönen gövde. "
-			"HTTP durumu YİNE 200'dür — Frappe whitelist katmanı 304 üretmez, "
-			"gövdesizlik `not_modified` bayrağıyla bildirilir."
+			"Geriye uyumlu `if_none_match` SORGU PARAMETRESİ tuttuğunda dönen kısa "
+			"200 gövdesi. Gerçek `If-None-Match` HTTP BAŞLIĞI eşleşirse bu şema değil, "
+			"gövdesiz HTTP 304 döner."
 		),
 		"required": ["not_modified", "etag", "cache_control"],
 		"properties": {
@@ -1402,8 +1414,17 @@ SEMALAR: dict[str, Any] = {
 	"ManifestBatch": {
 		"type": "object",
 		"required": [
-			"slot", "enabled", "manifests", "missing", "requested", "returned",
-			"truncated", "max_batch", "skipped", "etag", "cache_control",
+			"slot",
+			"enabled",
+			"manifests",
+			"missing",
+			"requested",
+			"returned",
+			"truncated",
+			"max_batch",
+			"skipped",
+			"etag",
+			"cache_control",
 		],
 		"properties": {
 			"slot": {"type": "string"},
@@ -1656,6 +1677,99 @@ SEMALAR: dict[str, Any] = {
 			},
 		},
 	},
+	"UploadResult": {
+		"type": "object",
+		"description": (
+			"Parçalı finalize sonucu. Aynı Idempotency-Key replay'inde alanlar "
+			"aynıdır; yalnız `idempotent_replay=true` olur."
+		),
+		"required": [
+			"file_url",
+			"file_name",
+			"bytes",
+			"content_sha256",
+			"deduplicated",
+			"idempotent_replay",
+		],
+		"properties": {
+			"file_url": {"type": "string"},
+			"file_name": {"type": "string"},
+			"bytes": {"type": "integer", "minimum": 0},
+			"video_status": {"type": ["string", "null"]},
+			"content_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+			"idempotency_key": {"type": "string"},
+			"deduplicated": {"type": "boolean"},
+			"idempotent_replay": {"type": "boolean"},
+		},
+	},
+	"UploadPolicySnapshot": {
+		"type": "object",
+		"required": [
+			"slot_key",
+			"schema_version",
+			"status",
+			"accept",
+			"require",
+			"profiles",
+			"policy_sha256",
+		],
+		"properties": {
+			"slot_key": {"type": "string"},
+			"schema_version": {"type": "string"},
+			"status": {"type": "string"},
+			"roles": {"type": "array", "items": {"type": "string"}},
+			"accept": {"type": "object"},
+			"require": {"type": "object"},
+			"profiles": {"type": "array", "items": {"type": "object"}},
+			"policy_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+		},
+	},
+	"UploadSession": {
+		"oneOf": [
+			{
+				"type": "object",
+				"required": [
+					"upload_id",
+					"chunk_bytes",
+					"chunk_count",
+					"total_bytes",
+					"idempotency_key",
+					"policy_snapshot",
+					"expires_at",
+					"quota_remaining",
+					"completed",
+				],
+				"properties": {
+					"upload_id": {"type": "string", "pattern": "^[a-f0-9]{24}$"},
+					"file_name": {"type": "string"},
+					"chunk_bytes": {"type": "integer", "minimum": 1},
+					"chunk_count": {"type": "integer", "minimum": 1},
+					"total_bytes": {"type": "integer", "minimum": 1},
+					"slot": {"type": "string"},
+					"content_sha256": {"type": "string"},
+					"idempotency_key": {"type": "string"},
+					"policy_snapshot": {"$ref": "#/components/schemas/UploadPolicySnapshot"},
+					"expires_at": {"type": "string"},
+					"quota_remaining": {"type": ["integer", "null"], "minimum": 0},
+					"upload_url": {"type": "string"},
+					"completed": {"const": False},
+				},
+			},
+			{
+				"type": "object",
+				"required": ["upload_id", "completed", "idempotency_key", "result"],
+				"properties": {
+					"upload_id": {"const": ""},
+					"completed": {"const": True},
+					"duplicate": {"type": "boolean"},
+					"idempotent_replay": {"type": "boolean"},
+					"idempotency_key": {"type": "string"},
+					"quota_remaining": {"type": ["integer", "null"]},
+					"result": {"$ref": "#/components/schemas/UploadResult"},
+				},
+			},
+		],
+	},
 	"RumAck": {
 		"type": "object",
 		"description": (
@@ -1694,8 +1808,105 @@ def _param_semasi(tip: str) -> dict[str, Any]:
 	return {"type": "string"}
 
 
+PARAM_ORNEKLERI: dict[str, Any] = {
+	"listing": "LST-00560",
+	"listings": '["LST-00560"]',
+	"asset": "MEDIA-ASSET-EXAMPLE",
+	"file": "/private/files/example.jpg",
+	"file_url": "/files/example.jpg",
+	"file_urls": '["/files/example.jpg"]',
+	"upload_id": "a" * 24,
+	"file_name": "example.jpg",
+	"content": "aGVsbG8=",
+	"content_sha256": "a" * 64,
+	"sha256": "a" * 64,
+	"idempotency_key": "media-upload-example-0001",
+	"Idempotency-Key": "media-upload-example-0001",
+	"If-None-Match": '"media-etag-example"',
+	"slot": "product.image",
+	"slot_key": "product.image",
+	"scope": "public",
+	"target": "cdn",
+	"folder_name": "Urunler",
+	"parent_folder": "",
+}
+
+
+def _sema_ornegi(sema: Any, gorulen: frozenset[str] = frozenset()) -> Any:
+	"""Bir şemaya uyan küçük, deterministik örnek üretir (T-080)."""
+	if not isinstance(sema, dict):
+		return None
+	if "example" in sema:
+		return sema["example"]
+	if sema.get("examples"):
+		return sema["examples"][0]
+	if "default" in sema:
+		return sema["default"]
+	if "const" in sema:
+		return sema["const"]
+	if "$ref" in sema:
+		name = str(sema["$ref"]).rsplit("/", 1)[-1]
+		if name in gorulen:
+			return {}
+		return _sema_ornegi(SEMALAR.get(name, {}), gorulen | {name})
+	for key in ("oneOf", "anyOf"):
+		if sema.get(key):
+			return _sema_ornegi(sema[key][0], gorulen)
+	if sema.get("allOf"):
+		merged: dict[str, Any] = {}
+		for part in sema["allOf"]:
+			value = _sema_ornegi(part, gorulen)
+			if isinstance(value, dict):
+				merged.update(value)
+		return merged
+	if sema.get("enum"):
+		return sema["enum"][0]
+
+	type_name = sema.get("type")
+	if isinstance(type_name, list):
+		type_name = next((item for item in type_name if item != "null"), "null")
+	if type_name == "object" or "properties" in sema:
+		properties = sema.get("properties") or {}
+		return {
+			name: _sema_ornegi(properties[name], gorulen)
+			for name in sema.get("required") or ()
+			if name in properties
+		}
+	if type_name == "array":
+		if sema.get("maxItems") == 0:
+			return []
+		count = max(1, int(sema.get("minItems") or 0))
+		return [_sema_ornegi(sema.get("items") or {}, gorulen) for _ in range(count)]
+	if type_name == "boolean":
+		return False
+	if type_name == "integer":
+		value = int(sema.get("minimum") or 0)
+		if "exclusiveMinimum" in sema:
+			value = int(sema["exclusiveMinimum"]) + 1
+		return value
+	if type_name == "number":
+		value = float(sema.get("minimum") or 0.0)
+		if "exclusiveMinimum" in sema:
+			value = float(sema["exclusiveMinimum"]) + 0.1
+		return value
+	if type_name == "null":
+		return None
+	pattern = str(sema.get("pattern") or "")
+	if "{64}" in pattern:
+		return "a" * 64
+	if "{24}" in pattern:
+		return "a" * 24
+	min_length = max(1, int(sema.get("minLength") or 0))
+	return "example" if min_length <= 7 else "x" * min_length
+
+
+def _param_ornegi(name: str, schema: dict[str, Any]) -> Any:
+	return PARAM_ORNEKLERI.get(name, _sema_ornegi(schema))
+
+
 def _operasyon(uc: dict[str, Any]) -> dict[str, Any]:
 	anlatim = ANLATIM.get(uc["key"], {})
+	zorunlu_parametreler = set(anlatim.get("required_params") or ())
 	sema_adi = anlatim.get("schema")
 	basarili: dict[str, Any]
 	if sema_adi:
@@ -1707,15 +1918,53 @@ def _operasyon(uc: dict[str, Any]) -> dict[str, Any]:
 		{
 			"name": p["name"],
 			"in": "query",
-			"required": p["default"] is None,
+			"required": p["default"] is None or p["name"] in zorunlu_parametreler,
 			"schema": _param_semasi(p["type"]),
+			"example": _param_ornegi(p["name"], _param_semasi(p["type"])),
 			"description": (
 				f"Python tipi `{p['type'] or '?'}`"
-				+ (f", varsayılan `{p['default']}`" if p["default"] is not None else ", ZORUNLU")
+				+ (
+					", ZORUNLU (sunucu eksikte güvenli boş sonuç döndürür)"
+					if p["name"] in zorunlu_parametreler and p["default"] is not None
+					else f", varsayılan `{p['default']}`"
+					if p["default"] is not None
+					else ", ZORUNLU"
+				)
 			),
 		}
 		for p in uc["params"]
 	]
+	if uc["key"] in {
+		"tradehub_core.api.seller_media.upload_begin",
+		"tradehub_core.api.seller_media.upload_finish",
+	}:
+		params.append(
+			{
+				"name": "Idempotency-Key",
+				"in": "header",
+				"required": False,
+				"schema": {"type": "string", "minLength": 8, "maxLength": 128},
+				"example": PARAM_ORNEKLERI["Idempotency-Key"],
+				"description": (
+					"Aynı yüklemenin retry kimliği. Gövdedeki `idempotency_key` ile "
+					"birlikte verilirse BİREBİR eşleşmelidir."
+				),
+			}
+		)
+	if uc["key"] in {
+		"tradehub_core.api.media_manifest.get_manifest",
+		"tradehub_core.api.media_manifest.get_manifest_batch",
+	}:
+		params.append(
+			{
+				"name": "If-None-Match",
+				"in": "header",
+				"required": False,
+				"schema": {"type": "string"},
+				"example": PARAM_ORNEKLERI["If-None-Match"],
+				"description": "Bilinen ETag eşleşirse gerçek HTTP 304 ve boş gövde döner.",
+			}
+		)
 
 	op: dict[str, Any] = {
 		"tags": [uc["tag"]],
@@ -1728,6 +1977,11 @@ def _operasyon(uc: dict[str, Any]) -> dict[str, Any]:
 	}
 	if anlatim.get("description"):
 		op["description"] = anlatim["description"]
+	else:
+		# Her whitelist fonksiyonunun docstring ilk satırı envanterde `summary`
+		# olarak vardır. Ayrı uzun anlatım ölçülmemiş uçlarda yoksa boş bırakmak
+		# Spectral uyarısı üretir ve SDK'da anlamsız bir boş açıklama bırakır.
+		op["description"] = uc["summary"]
 	if uc["decorators"]:
 		op["x-decorators"] = list(uc["decorators"])
 	if anlatim.get("x-measured"):
@@ -1762,6 +2016,13 @@ def _operasyon(uc: dict[str, Any]) -> dict[str, Any]:
 		yanitlar["200"]["content"]["application/json"]["schema"]["properties"]["message"] = {
 			"oneOf": [basarili, {"$ref": "#/components/schemas/NotModified"}]
 		}
+		yanitlar["304"] = {
+			"description": "If-None-Match eşleşti; gövde yoktur.",
+			"headers": {
+				"ETag": {"schema": {"type": "string"}},
+				"Cache-Control": {"schema": {"type": "string"}},
+			},
+		}
 	if uc["key"] == "tradehub_core.api.media_crop.get_intent":
 		# ÖLÇÜLDÜ: eşleşen `if_none_match` gövdeyi kısaltıyor, HTTP durumu 200 kalıyor.
 		yanitlar["200"]["content"]["application/json"]["schema"]["properties"]["message"] = {
@@ -1769,6 +2030,13 @@ def _operasyon(uc: dict[str, Any]) -> dict[str, Any]:
 		}
 	if "suggest_focal" in uc["key"]:
 		yanitlar["429"] = {"$ref": "#/components/responses/RateLimited"}
+	if "POST" in uc["methods"]:
+		# Frappe'nin CSRF kapısı iş fonksiyonundan önce 400 üretir. Bu yalnız
+		# POST yüzeyinde mümkündür ve ortak BadRequest bileşenini gerçekten kullanır.
+		yanitlar["400"] = {"$ref": "#/components/responses/BadRequest"}
+	json_response = yanitlar["200"].get("content", {}).get("application/json")
+	if json_response is not None:
+		json_response["example"] = _sema_ornegi(json_response["schema"])
 	op["responses"] = yanitlar
 	op["security"] = [] if uc["allow_guest"] else [{"frappeSession": []}, {"frappeToken": []}]
 	return op
@@ -1857,11 +2125,11 @@ def build_document() -> dict[str, Any]:
 			"değerine döndü."
 		),
 		"x-contract-deviations": [
-			"304 ÜRETİLMEZ. Koşullu istek eşleşse bile HTTP durumu 200'dür; "
-			"'değişmedi' bilgisi GÖVDEDE taşınır. Üstelik İKİ AYRI sözleşme var: "
-			"`media_manifest.get_manifest` `{not_modified: true, etag, "
-			"cache_control}`, `media_crop.get_intent` ise `{etag, status: 304}` "
-			"döner. Tek bir istemci ayrıştırıcısı ikisini de tanımak zorundadır.",
+			"304 yalnız manifestin gerçek `If-None-Match` BAŞLIK yolunda üretilir. "
+			"Geriye uyumlu `if_none_match` sorgu parametresi hâlâ 200 + "
+			"`{not_modified: true, etag, cache_control}`; `media_crop.get_intent` "
+			"ise 200 + `{etag, status: 304}` döner. Eski sorgu yollarını kullanan "
+			"istemci bu iki kısa gövdeyi ayırmalıdır.",
 			"`frappe.ValidationError` HTTP **417** ile döner, 400 ile değil. "
 			"Ölçülen tüm iş kuralı redleri (geçersiz kapsam, geçersiz yedek "
 			"kimliği, 0-1 dışı koordinat, bilinmeyen kırpma yöntemi, 'son yedek "
@@ -1869,10 +2137,12 @@ def build_document() -> dict[str, Any]:
 			"Bu katmanda **400 yalnız CSRF** için görülür: oturum çerezli bir POST "
 			"`X-Frappe-CSRF-Token` başlığı olmadan gelirse 400 `CSRFTokenError`. "
 			"GET isteklerinde CSRF kontrolü YOKTUR.",
-			"**Zorunlu parametre eksikse HTTP 500 `TypeError` döner** — 400/417 "
-			"değil. Ölçüldü: `get_manifest` (misafir) ve zorunlu parametreli 18 "
-			"yönetim ucu (satıcı oturumu) `TypeError: … missing 1 required "
-			"positional argument` ile 500 verdi.",
+			"Frappe zorunlu Python argümanını uç gövdesinden önce bağladığı için çoğu "
+			"eski uçta eksik parametre HTTP 500 `TypeError` olabilir. Manifestin iki "
+			"guest ucu bu sınıftan çıkarıldı: eksik `listing`/`listings` artık güvenli "
+			"boş 200 döndürür; OpenAPI istemci sözleşmesinde alanlar yine zorunludur. "
+			"Kalan uçların bu bilinen Frappe sapması şema-güdümlü pozitif fuzzingde "
+			"zorunlu alanlar üretilerek ayrıştırılır.",
 			"**Argüman bağlama, uç içindeki yetki kapısından ÖNCE çalışır.** "
 			"Oturum açmış ama yetkisiz bir kullanıcı zorunlu parametreyi "
 			"vermezse 403 değil 500 alır; parametreleri verince 403 alır "
@@ -1880,7 +2150,7 @@ def build_document() -> dict[str, Any]:
 			"düşmez: whitelist kapısı argüman bağlamadan önce çalıştığı için "
 			"misafir DAİMA 403 alır — 90 ucun oturum isteyen 87'sinin TAMAMINDA "
 			"ölçüldü; kalan 3'ü zaten misafire açık uçlar.",
-			"`methods=[\"POST\"]` taşıyan bir uç GET ile çağrılınca **403 "
+			'`methods=["POST"]` taşıyan bir uç GET ile çağrılınca **403 '
 			"`PermissionError: Not permitted`** döner — yani yöntem hatası ile "
 			"yetki reddi AYNI durum kodunu paylaşır, yalnız mesaj ayırır.",
 			"Bulunamayan kaynak için tek bir durum kodu YOK: `restore_image` ve "
@@ -1900,7 +2170,7 @@ def build_document() -> dict[str, Any]:
 			"`application/zip` ikili gövde döner.",
 		],
 		"x-frappe-envelope": (
-			"Başarı: {\"message\": <gövde>}. Hata: {\"exception\", \"exc_type\", \"exc\"} "
+			'Başarı: {"message": <gövde>}. Hata: {"exception", "exc_type", "exc"} '
 			"ve HTTP durumu (403 PermissionError, 417 ValidationError, 500 diğer). "
 			"`pipeline/api/envelope.py`nin {error_code, retryable} zarfı BU KATMANDA "
 			"KULLANILMAZ."
@@ -1918,14 +2188,23 @@ def build_document() -> dict[str, Any]:
 			"responses": {
 				"Denied": {
 					"description": (
-						"Yetki reddi (`frappe.PermissionError`). Misafir de, yetkisiz "
-						"oturum da bunu alır."
+						"Yetki reddi (`frappe.PermissionError`). Misafir de, yetkisiz oturum da bunu alır."
 					),
-					"content": {"application/json": {"schema": {"$ref": "#/components/schemas/FrappeError"}}},
+					"content": {
+						"application/json": {
+							"schema": {"$ref": "#/components/schemas/FrappeError"},
+							"example": {"exc_type": "PermissionError", "exception": "Not permitted"},
+						}
+					},
 				},
 				"Validation": {
 					"description": "`frappe.ValidationError` — Frappe bunu 417 ile döner, 400 ile değil.",
-					"content": {"application/json": {"schema": {"$ref": "#/components/schemas/FrappeError"}}},
+					"content": {
+						"application/json": {
+							"schema": {"$ref": "#/components/schemas/FrappeError"},
+							"example": {"exc_type": "ValidationError", "exception": "Invalid input"},
+						}
+					},
 				},
 				"RateLimited": {
 					"description": (
@@ -1933,7 +2212,15 @@ def build_document() -> dict[str, Any]:
 						"`media_crop.suggest_focal` 60 sn'lik pencerede 29 çağrıya izin "
 						"verdi, 30.'yu 429 ile reddetti (`max_calls=30`)."
 					),
-					"content": {"application/json": {"schema": {"$ref": "#/components/schemas/FrappeError"}}},
+					"content": {
+						"application/json": {
+							"schema": {"$ref": "#/components/schemas/FrappeError"},
+							"example": {
+								"exc_type": "TooManyRequestsError",
+								"exception": "Rate limit exceeded",
+							},
+						}
+					},
 				},
 				"BadRequest": {
 					"description": (
@@ -1942,11 +2229,21 @@ def build_document() -> dict[str, Any]:
 						"`CSRFTokenError` ile 400 döner. İş mantığı hatası 400 ÜRETMEZ "
 						"— o 417'dir."
 					),
-					"content": {"application/json": {"schema": {"$ref": "#/components/schemas/FrappeError"}}},
+					"content": {
+						"application/json": {
+							"schema": {"$ref": "#/components/schemas/FrappeError"},
+							"example": {"exc_type": "CSRFTokenError", "exception": "Invalid Request"},
+						}
+					},
 				},
 				"ServerError": {
 					"description": "Beklenmeyen sunucu hatası.",
-					"content": {"application/json": {"schema": {"$ref": "#/components/schemas/FrappeError"}}},
+					"content": {
+						"application/json": {
+							"schema": {"$ref": "#/components/schemas/FrappeError"},
+							"example": {"exc_type": "InternalServerError", "exception": "Unexpected error"},
+						}
+					},
 				},
 			},
 			"schemas": SEMALAR,
@@ -2056,8 +2353,7 @@ def validate() -> list[str]:
 			# "geçti" gibi okunur; bu depoda tam olarak o hata iki kez yapıldı.
 			if not op.get("x-measured") and not op.get("x-unmeasured"):
 				bulgular.append(
-					f"ne ölçüm ne gerekçe: {op['x-python']} — `OLCUM`a ya da "
-					f"`OLCULMEYEN`e kayıt girin"
+					f"ne ölçüm ne gerekçe: {op['x-python']} — `OLCUM`a ya da `OLCULMEYEN`e kayıt girin"
 				)
 	gecerli = {"http", "http-partial", "http-fail"}
 	for anahtar, (duzey, _c) in OLCUM.items():

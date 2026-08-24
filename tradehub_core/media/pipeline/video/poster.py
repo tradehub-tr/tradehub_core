@@ -36,15 +36,15 @@ from __future__ import annotations
 
 import os
 import re
-import subprocess
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Mapping, Optional, Tuple
+from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple
 
-from tradehub_core.media.pipeline.contracts.errors import TranscodeFailed
+from tradehub_core.media.pipeline.contracts.errors import ProbeUnavailable, TranscodeFailed
 from tradehub_core.media.pipeline.contracts.video import FFMPEG_TIMEOUT_SECONDS
 from tradehub_core.media.pipeline.video import probe as probe_modulu
 from tradehub_core.media.pipeline.video.decision import default_table
 from tradehub_core.media.pipeline.video.probe import VideoFacts
+from tradehub_core.media.pipeline.video.transcode import run_ffmpeg
 
 #: Poster çözülemedi hatası — politika dosyasındaki `on_final_failure` ile aynı ad.
 CODE_POSTER_UNRESOLVED: str = "video_poster_unresolved"
@@ -65,12 +65,14 @@ class PosterSpec:
 	max_bytes: int = 122_880
 	min_luma_pct: float = 6.0
 	max_luma_pct: float = 94.0
+	min_edge_density_pct: float = 1.0
 	max_retries: int = 1
 
 	@classmethod
 	def from_table(cls, blok: Optional[Mapping[str, Any]] = None) -> "PosterSpec":
 		p = dict(blok if blok is not None else default_table().poster)
 		kapi = dict(p.get("brightness_gate") or {})
+		detay = dict(p.get("detail_gate") or {})
 		v = cls()
 		return cls(
 			window_start_s=float(p.get("window_start_s", v.window_start_s)),
@@ -81,6 +83,7 @@ class PosterSpec:
 			max_bytes=int(p.get("max_bytes", v.max_bytes)),
 			min_luma_pct=float(kapi.get("min_luma_pct", v.min_luma_pct)),
 			max_luma_pct=float(kapi.get("max_luma_pct", v.max_luma_pct)),
+			min_edge_density_pct=float(detay.get("min_edge_density_pct", v.min_edge_density_pct)),
 			max_retries=int(p.get("max_retries", v.max_retries)),
 		)
 
@@ -122,6 +125,7 @@ class PosterResult:
 	timestamp_s: float
 	size_bytes: int
 	luma_pct: float
+	edge_density_pct: float
 	quality: int
 	window: Tuple[float, float]
 	retried: bool = False
@@ -134,6 +138,7 @@ class PosterResult:
 			"timestamp_s": round(self.timestamp_s, 3),
 			"size_bytes": self.size_bytes,
 			"luma_pct": round(self.luma_pct, 2),
+			"edge_density_pct": round(self.edge_density_pct, 2),
 			"quality": self.quality,
 			"window": [round(self.window[0], 3), round(self.window[1], 3)],
 			"retried": self.retried,
@@ -221,19 +226,49 @@ def mean_luma_pct(image_path: str) -> float:
 		pass
 
 	try:
-		p = subprocess.run(
+		p = run_ffmpeg(
 			["ffmpeg", "-hide_banner", "-i", image_path, "-vf", "signalstats,metadata=mode=print",
 				"-frames:v", "1", "-f", "null", "-"],
-			capture_output=True,
 			timeout=60,
 		)
 		metin = (p.stderr or b"").decode("utf-8", "replace") + (p.stdout or b"").decode("utf-8", "replace")
 		m = _YAVG_RE.search(metin)
 		if m:
 			return float(m.group(1)) / 255.0 * 100.0
-	except (OSError, subprocess.SubprocessError):
+	except (ProbeUnavailable, TranscodeFailed):
 		pass
 	return -1.0
+
+
+def edge_density_pct(image_path: str) -> float:
+	"""Karedeki belirgin kenar oranı; düz/bulanık kareleri elemek için.
+
+	Parlaklık tek başına gri, tamamen ayrıntısız bir kareyi "anlamlı" sayar.
+	FIND_EDGES çıktısının iç bölgesinde 20/255 üstü piksel oranı, içerik
+	bağımsız ve ucuz bir ayrıntı sinyalidir. Ölçülemezse ``-1`` döner.
+	"""
+	try:
+		from PIL import Image, ImageFilter
+
+		with Image.open(image_path) as im:
+			gri = im.convert("L")
+			kenar = gri.filter(ImageFilter.FIND_EDGES)
+			if kenar.width > 2 and kenar.height > 2:
+				kenar = kenar.crop((1, 1, kenar.width - 1, kenar.height - 1))
+			histogram = kenar.histogram()
+			toplam = sum(histogram)
+			if not toplam:
+				return 0.0
+			return sum(histogram[20:]) / toplam * 100.0
+	except Exception:  # noqa: BLE001 — poster yine parlaklık kapısıyla değerlendirilebilir
+		return -1.0
+
+
+def frame_is_meaningful(luma_pct: float, edge_pct: float, spec: PosterSpec) -> bool:
+	"""Parlaklık ve ayrıntı kapılarının bileşkesi."""
+	parlaklik_ok = luma_pct < 0 or spec.min_luma_pct <= luma_pct <= spec.max_luma_pct
+	detay_ok = edge_pct < 0 or edge_pct >= spec.min_edge_density_pct
+	return parlaklik_ok and detay_ok
 
 
 # ── Poster üretimi ──────────────────────────────────────────────────────
@@ -263,6 +298,7 @@ def build_poster_cmd(
 	genislik = width or spec.width
 	return [
 		"ffmpeg", "-y",
+		"-filter_threads", "2",
 		"-ss", f"{bas:.3f}",
 		"-t", f"{sure:.3f}",
 		"-i", src,
@@ -270,6 +306,7 @@ def build_poster_cmd(
 		"-frames:v", "1",
 		"-c:v", "libwebp" if spec.format == "webp" else "mjpeg",
 		"-quality", str(quality),
+		"-progress", "pipe:1", "-nostats",
 		dst,
 	]
 
@@ -291,6 +328,8 @@ def _poster_denemesi(
 	window: Tuple[float, float],
 	spec: PosterSpec,
 	timeout: int,
+	progress_callback: Optional[Callable[[Mapping[str, str]], None]] = None,
+	cancel_check: Optional[Callable[[], bool]] = None,
 ) -> Tuple[float, int, int, str]:
 	"""Tek pencerede poster üret; kalite merdivenini bayt kapısı için tüket.
 
@@ -300,13 +339,19 @@ def _poster_denemesi(
 	for kalite in spec.quality_ladder:
 		cmd = build_poster_cmd(src, dst, window, spec, kalite)
 		try:
-			p = subprocess.run(cmd, capture_output=True, timeout=timeout, check=True)
-		except FileNotFoundError as exc:
+			p = run_ffmpeg(
+				cmd,
+				timeout=timeout,
+				progress_callback=progress_callback,
+				cancel_check=cancel_check,
+			)
+		except ProbeUnavailable as exc:
 			raise TranscodeFailed("ffmpeg bulunamadi", kod=CODE_POSTER_UNRESOLVED) from exc
-		except subprocess.TimeoutExpired as exc:
-			raise TranscodeFailed(f"poster zaman asimi ({timeout} sn)", kod=CODE_POSTER_UNRESOLVED) from exc
-		except subprocess.CalledProcessError as exc:
-			son_hata = (exc.stderr or b"").decode("utf-8", "replace")[-500:]
+		except TranscodeFailed as exc:
+			son_hata = str((exc.detay or {}).get("stderr_tail") or exc.mesaj)[-500:]
+			# Kaynak limiti/iptal aynı komutu başka kaliteyle çalıştırınca düzelmez.
+			if (exc.detay or {}).get("isolation_reason") not in ("isolation_exit", None):
+				raise
 			continue
 		boyut = os.path.getsize(dst) if os.path.exists(dst) else 0
 		damga = _poster_timestamp((p.stderr or b"").decode("utf-8", "replace"), window[0])
@@ -331,6 +376,8 @@ def make_poster(
 	spec: Optional[PosterSpec] = None,
 	facts: Optional[VideoFacts] = None,
 	timeout: int = FFMPEG_TIMEOUT_SECONDS,
+	progress_callback: Optional[Callable[[Mapping[str, str]], None]] = None,
+	cancel_check: Optional[Callable[[], bool]] = None,
 ) -> PosterResult:
 	"""İlk ANLAMLI kareyi seç, kodla, parlaklık kapısından geçir.
 
@@ -350,9 +397,13 @@ def make_poster(
 
 	denemeler: List[Dict[str, Any]] = []
 	for sira, pencere in enumerate(pencereler):
-		damga, boyut, kalite, _ = _poster_denemesi(src, dst, pencere, spec, timeout)
+		damga, boyut, kalite, _ = _poster_denemesi(
+			src, dst, pencere, spec, timeout,
+			progress_callback=progress_callback, cancel_check=cancel_check,
+		)
 		luma = mean_luma_pct(dst)
-		gecti = luma < 0 or (spec.min_luma_pct <= luma <= spec.max_luma_pct)
+		edge = edge_density_pct(dst)
+		gecti = frame_is_meaningful(luma, edge, spec)
 		denemeler.append(
 			{
 				"window": [round(pencere[0], 3), round(pencere[1], 3)],
@@ -360,13 +411,23 @@ def make_poster(
 				"bytes": boyut,
 				"quality": kalite,
 				"luma_pct": round(luma, 2),
-				"brightness_gate": "GECTI" if gecti else "DUSTU",
+				"edge_density_pct": round(edge, 2),
+				"brightness_gate": (
+					"OLCULEMEDI" if luma < 0 else (
+						"GECTI" if spec.min_luma_pct <= luma <= spec.max_luma_pct else "DUSTU"
+					)
+				),
+				"detail_gate": "OLCULEMEDI" if edge < 0 else (
+					"GECTI" if edge >= spec.min_edge_density_pct else "DUSTU"
+				),
 			}
 		)
 		if gecti:
 			notlar: List[str] = []
 			if luma < 0:
 				notlar.append("parlaklik OLCULEMEDI — kapi uygulanmadi")
+			if edge < 0:
+				notlar.append("kenar yogunlugu OLCULEMEDI — detay kapisi uygulanmadi")
 			if boyut > spec.max_bytes:
 				notlar.append(
 					f"bayt kapisi asildi: {boyut} > {spec.max_bytes} (kalite merdiveni tukendi)"
@@ -378,6 +439,7 @@ def make_poster(
 				timestamp_s=damga,
 				size_bytes=boyut,
 				luma_pct=luma,
+				edge_density_pct=edge,
 				quality=kalite,
 				window=pencere,
 				retried=sira > 0,
@@ -431,17 +493,20 @@ def build_preview_cmd(
 	"""Sessiz klip komutu. `-an` ZORUNLU: klip hover'da oynar, ses saldırgan olur."""
 	return [
 		"ffmpeg", "-y",
+		"-filter_threads", "2",
 		"-ss", f"{start_s:.3f}",
 		"-t", f"{duration_s:.3f}",
 		"-i", src,
 		"-an",
 		"-vf", preview_scale_filter(spec, facts),
 		"-c:v", spec.video_codec,
+		"-threads:v", "2",
 		"-profile:v", "high",
 		"-preset", "medium",
 		"-crf", str(crf),
 		"-pix_fmt", "yuv420p",
 		"-movflags", "+faststart",
+		"-progress", "pipe:1", "-nostats",
 		dst,
 	]
 
@@ -454,6 +519,8 @@ def make_preview_clip(
 	spec: Optional[PreviewClipSpec] = None,
 	facts: Optional[VideoFacts] = None,
 	timeout: int = FFMPEG_TIMEOUT_SECONDS,
+	progress_callback: Optional[Callable[[Mapping[str, str]], None]] = None,
+	cancel_check: Optional[Callable[[], bool]] = None,
 ) -> PreviewClipResult:
 	"""3-6 sn sessiz klip üret; bayt kapısını CRF ve süre merdiveniyle tuttur.
 
@@ -485,17 +552,17 @@ def make_preview_clip(
 		for crf in spec.crf_ladder:
 			cmd = build_preview_cmd(src, dst, start_s, gercek_sure, spec, crf, facts)
 			try:
-				subprocess.run(cmd, capture_output=True, timeout=timeout, check=True)
-			except FileNotFoundError as exc:
+				run_ffmpeg(
+					cmd,
+					timeout=timeout,
+					progress_callback=progress_callback,
+					cancel_check=cancel_check,
+				)
+			except ProbeUnavailable as exc:
 				raise TranscodeFailed("ffmpeg bulunamadi") from exc
-			except subprocess.TimeoutExpired as exc:
-				raise TranscodeFailed(f"onizleme klibi zaman asimi ({timeout} sn)") from exc
-			except subprocess.CalledProcessError as exc:
+			except TranscodeFailed as exc:
 				denemeler.append({"duration_s": gercek_sure, "crf": crf, "error": "ffmpeg dustu"})
-				raise TranscodeFailed(
-					"onizleme klibi uretilemedi",
-					detay={"stderr_tail": (exc.stderr or b"").decode("utf-8", "replace")[-500:]},
-				) from exc
+				raise
 			boyut = os.path.getsize(dst) if os.path.exists(dst) else 0
 			denemeler.append({"duration_s": round(gercek_sure, 2), "crf": crf, "bytes": boyut})
 			son = (gercek_sure, crf, boyut)
@@ -542,6 +609,8 @@ __all__ = [
 	"poster_window",
 	"poster_retry_window",
 	"mean_luma_pct",
+	"edge_density_pct",
+	"frame_is_meaningful",
 	"build_poster_cmd",
 	"build_preview_cmd",
 	"preview_scale_filter",

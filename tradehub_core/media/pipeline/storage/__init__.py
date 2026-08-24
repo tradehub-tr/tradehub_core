@@ -71,6 +71,7 @@ IMPLEMENTED: bool = True
 
 MODE_LOCAL: str = "local"
 MODE_S3: str = "s3"
+MODE_S3_PRIMARY: str = "s3_primary"
 MODE_MIRROR: str = "mirror"
 MODE_TIERED: str = "tiered"
 MODES: Tuple[str, ...] = (MODE_LOCAL, MODE_S3, MODE_MIRROR, MODE_TIERED)
@@ -78,6 +79,14 @@ MODES: Tuple[str, ...] = (MODE_LOCAL, MODE_S3, MODE_MIRROR, MODE_TIERED)
 #: S3 gerektiren kipler. Bu kümedeki bir kip S3 kullanılamazken istenirse
 #: `local`'e düşer.
 S3_MODES: Tuple[str, ...] = (MODE_S3, MODE_MIRROR, MODE_TIERED)
+
+
+def normalize_mode(value: Any) -> str:
+	"""Ayar ekranının ``s3_primary`` adını iç sözleşmedeki ``s3``e çevir."""
+	mode = str(value or MODE_LOCAL).strip().lower()
+	if mode == MODE_S3_PRIMARY:
+		return MODE_S3
+	return mode if mode in MODES else MODE_LOCAL
 
 QUEUE_THREAD: str = "thread"
 QUEUE_INLINE: str = "inline"
@@ -102,6 +111,9 @@ class StorageSettings:
 	site_path: str = ""
 	public_root: str = ""
 	private_root: str = ""
+	local_root: str = ""
+	local_free_space_alarm_bytes: int = 0
+	local_max_usage_bytes: int = 0
 	s3: S3Config = field(default_factory=S3Config)
 	tier_age_days: int = DEFAULT_AGE_DAYS
 	signing_secret: str = ""
@@ -115,6 +127,11 @@ class StorageSettings:
 		"""(public_root, private_root). İkisi de çözülemezse `StorageError`."""
 		if self.public_root and self.private_root:
 			return (self.public_root, self.private_root)
+		if self.local_root:
+			return (
+				os.path.join(self.local_root, "public"),
+				os.path.join(self.local_root, "private"),
+			)
 		if self.site_path:
 			return (
 				os.path.join(self.site_path, "public", "files"),
@@ -129,12 +146,19 @@ class StorageSettings:
 	@classmethod
 	def from_mapping(cls, conf: Mapping[str, Any]) -> "StorageSettings":
 		"""`site_config.json` deseni: `media_storage_mode`, `s3_*`, …"""
-		kip = str(conf.get("media_storage_mode", MODE_LOCAL) or MODE_LOCAL).strip().lower()
+		kip = normalize_mode(conf.get("media_storage_mode", MODE_LOCAL))
 		return cls(
-			mode=kip if kip in MODES else MODE_LOCAL,
+			mode=kip,
 			site_path=str(conf.get("media_site_path", "") or ""),
 			public_root=str(conf.get("media_public_root", "") or ""),
 			private_root=str(conf.get("media_private_root", "") or ""),
+			local_root=str(conf.get("media_local_root", "") or ""),
+			local_free_space_alarm_bytes=max(
+				0, int(conf.get("media_local_free_space_alarm_gb", 0) or 0) * 1024**3
+			),
+			local_max_usage_bytes=max(
+				0, int(conf.get("media_local_max_usage_gb", 0) or 0) * 1024**3
+			),
 			s3=S3Config.from_mapping(conf),
 			tier_age_days=int(conf.get("media_tier_age_days", DEFAULT_AGE_DAYS) or DEFAULT_AGE_DAYS),
 			signing_secret=str(conf.get("media_signing_key", "") or ""),
@@ -145,32 +169,66 @@ class StorageSettings:
 
 	@classmethod
 	def from_doctype(cls, doc: Mapping[str, Any], *, site_path: str = "") -> "StorageSettings":
-		"""`Media Storage Settings` (Single) alan adlarından oku.
-
-		Doctype'ta `s3_enabled` diye bir alan YOK: `backend` seçimi zaten o
-		kararı taşıyor. `backend != local` ise S3 açık sayılır — ama
-		`S3Config.problems()` yine de bakılır, yani "açık" demek "kullanılabilir"
-		demek değildir.
-		"""
-		kip = str(doc.get("backend", MODE_LOCAL) or MODE_LOCAL).strip().lower()
-		if kip not in MODES:
-			kip = MODE_LOCAL
+		"""Resmî T-051 alanlarını oku; eski alanlar yalnız geçiş fallback'idir."""
+		kip = normalize_mode(doc.get("storage_mode") or doc.get("backend") or MODE_LOCAL)
+		storage_class = str(doc.get("s3_storage_class") or "STANDARD")
+		storage_class = {
+			"INFREQUENT": "STANDARD_IA",
+			"COLD": "GLACIER_IR",
+			"ARCHIVE": "DEEP_ARCHIVE",
+		}.get(storage_class, storage_class)
 		s3_konf = S3Config(
-			enabled=kip in S3_MODES,
+			enabled=(
+				bool(int(doc.get("s3_enabled", 0) or 0))
+				if "s3_enabled" in doc
+				else kip in S3_MODES
+			),
 			bucket=str(doc.get("s3_bucket", "") or ""),
 			region=str(doc.get("s3_region", "") or ""),
-			endpoint_url=str(doc.get("s3_endpoint", "") or ""),
-			access_key_id=str(doc.get("s3_access_key", "") or ""),
-			secret_access_key=str(doc.get("s3_secret_key", "") or ""),
-			public_base_url=str(doc.get("cdn_base_url", "") or "").rstrip("/"),
+			endpoint_url=str(doc.get("s3_endpoint_url") or doc.get("s3_endpoint") or ""),
+			prefix=str(doc.get("s3_prefix") or "media").strip("/"),
+			access_key_id=str(doc.get("s3_access_key_id") or doc.get("s3_access_key") or ""),
+			secret_access_key=str(
+				doc.get("s3_secret_access_key") or doc.get("s3_secret_key") or ""
+			),
+			storage_class=storage_class,
+			server_side_encryption=str(doc.get("s3_server_side_encryption") or "none"),
+			multipart_threshold_bytes=max(
+				5 * 1024 * 1024,
+				int(doc.get("s3_multipart_threshold_mb", 64) or 64) * 1024 * 1024,
+			),
+			max_concurrency=max(1, int(doc.get("s3_max_concurrency", 4) or 4)),
+			addressing_style="path" if bool(doc.get("s3_path_style")) else "auto",
+			public_base_url=(
+				str(doc.get("cdn_base_url") or "").rstrip("/")
+				if (
+					bool(doc.get("cdn_enabled"))
+					if "cdn_enabled" in doc
+					else bool(doc.get("cdn_base_url"))
+				)
+				else ""
+			),
 		)
 		return cls(
 			mode=kip,
 			site_path=site_path,
+			local_root=str(doc.get("local_root") or ""),
+			local_free_space_alarm_bytes=max(
+				0, int(doc.get("local_free_space_alarm_gb", 50) or 0) * 1024**3
+			),
+			local_max_usage_bytes=max(
+				0, int(doc.get("local_max_usage_gb", 0) or 0) * 1024**3
+			),
 			s3=s3_konf,
-			signed_url_ttl_seconds=int(doc.get("signed_url_ttl_seconds", 0) or 0),
-			# `mirror_write_both` işaretliyse kip ne olursa olsun ayna istenir.
-			mirror_queue=QUEUE_THREAD,
+			tier_age_days=max(
+				1,
+				int(doc.get("original_local_days", DEFAULT_AGE_DAYS) or DEFAULT_AGE_DAYS),
+			),
+			signing_secret=str(doc.get("cdn_signing_key") or ""),
+			signed_url_ttl_seconds=int(
+				doc.get("cdn_signed_ttl_seconds") or doc.get("signed_url_ttl_seconds") or 0
+			),
+			mirror_queue=QUEUE_FRAPPE,
 		)
 
 
@@ -222,17 +280,27 @@ def _build_signer(
 
 
 def _build_local(
-	settings: StorageSettings, signer: Optional[signed_urls.UrlSigner]
+	settings: StorageSettings,
+	signer: Optional[signed_urls.UrlSigner],
+	alarm: Optional[Callable[[Dict[str, Any]], None]] = None,
 ) -> LocalDiskStorage:
+	kwargs = {
+		"signer": signer,
+		"fsync": settings.fsync,
+		"free_space_alarm_bytes": settings.local_free_space_alarm_bytes,
+		"max_usage_bytes": settings.local_max_usage_bytes,
+		"alarm": alarm,
+	}
 	if settings.public_root and settings.private_root:
-		return LocalDiskStorage(
-			settings.public_root, settings.private_root, signer=signer, fsync=settings.fsync
-		)
+		return LocalDiskStorage(settings.public_root, settings.private_root, **kwargs)
+	if settings.local_root:
+		public_root, private_root = settings.roots()
+		return LocalDiskStorage(public_root, private_root, **kwargs)
 	if settings.site_path:
-		return from_site_path(settings.site_path, signer=signer, fsync=settings.fsync)
+		return from_site_path(settings.site_path, **kwargs)
 	# `roots()` anlamlı hatayı zaten üretiyor.
 	public_root, private_root = settings.roots()
-	return LocalDiskStorage(public_root, private_root, signer=signer, fsync=settings.fsync)
+	return LocalDiskStorage(public_root, private_root, **kwargs)
 
 
 def _mirror_queue_factory(settings: StorageSettings) -> Callable[[Any], Any]:
@@ -251,6 +319,7 @@ def build_storage(
 	signer: Optional[signed_urls.UrlSigner] = None,
 	s3_client_factory: Optional[Callable[[], Any]] = None,
 	queue_factory: Optional[Callable[[Any], Any]] = None,
+	alarm: Optional[Callable[[Dict[str, Any]], None]] = None,
 ) -> StoragePlan:
 	"""Ayardan depo kur. S3 kullanılamıyorsa `local`'e DÜŞER ve raporlar.
 
@@ -265,16 +334,14 @@ def build_storage(
 	Returns:
 	    `StoragePlan` — kurulan adaptör + düşüş künyesi.
 	"""
-	istenen = (settings.mode or MODE_LOCAL).strip().lower()
-	if istenen not in MODES:
-		istenen = MODE_LOCAL
+	istenen = normalize_mode(settings.mode)
 
 	imzalayici, imza_sebep = _build_signer(settings, signer)
 	sebepler = list(imza_sebep)
 
 	if istenen == MODE_LOCAL:
 		return StoragePlan(
-			adapter=_build_local(settings, imzalayici),
+			adapter=_build_local(settings, imzalayici, alarm),
 			mode=MODE_LOCAL,
 			requested_mode=MODE_LOCAL,
 			reasons=tuple(sebepler),
@@ -290,7 +357,7 @@ def build_storage(
 	if engeller:
 		sebepler.extend(engeller)
 		return StoragePlan(
-			adapter=_build_local(settings, imzalayici),
+			adapter=_build_local(settings, imzalayici, alarm),
 			mode=MODE_LOCAL,
 			requested_mode=istenen,
 			downgraded_from=istenen,
@@ -298,7 +365,12 @@ def build_storage(
 			signer_available=imzalayici is not None,
 		)
 
-	s3_depo = S3Storage(settings.s3, client_factory=s3_client_factory, signer=imzalayici)
+	s3_depo = S3Storage(
+		settings.s3,
+		client_factory=s3_client_factory,
+		signer=imzalayici,
+		alarm=alarm,
+	)
 
 	if istenen == MODE_S3:
 		return StoragePlan(
@@ -309,13 +381,17 @@ def build_storage(
 			signer_available=imzalayici is not None,
 		)
 
-	yerel = _build_local(settings, imzalayici)
+	yerel = _build_local(settings, imzalayici, alarm)
 
 	if istenen == MODE_MIRROR:
 		fabrika = queue_factory if queue_factory is not None else _mirror_queue_factory(settings)
 		return StoragePlan(
 			adapter=MirrorStorage(
-				yerel, s3_depo, queue_factory=fabrika, read_repair=settings.read_repair
+				yerel,
+				s3_depo,
+				queue_factory=fabrika,
+				read_repair=settings.read_repair,
+				alarm=alarm,
 			),
 			mode=MODE_MIRROR,
 			requested_mode=MODE_MIRROR,
@@ -357,10 +433,12 @@ __all__ = [
 	"IMPLEMENTED",
 	"MODE_LOCAL",
 	"MODE_S3",
+	"MODE_S3_PRIMARY",
 	"MODE_MIRROR",
 	"MODE_TIERED",
 	"MODES",
 	"S3_MODES",
+	"normalize_mode",
 	"QUEUE_THREAD",
 	"QUEUE_INLINE",
 	"QUEUE_FRAPPE",

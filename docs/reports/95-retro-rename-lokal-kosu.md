@@ -243,7 +243,8 @@ curl -sI "http://istoc.localhost/files/03/037eaeb69eb33b25f6d7b88978f308e8.jpg"
 Lokal koşu bittiyse alpha/prod'a taşımadan önce (detay:
 `docs/MEDYA-DEPOLAMA-STANDARDI.md` §7.1):
 
-1. `bench --site <site> migrate` — `Media URL Redirect` + `file_names` alanı.
+1. `bench --site <site> migrate` — `Media URL Redirect` + `file_names` +
+   `ref_changes` alanları.
 2. Backend **ve** panel imajını rebuild et; `backend`, `queue-long`,
    `queue-short`, `scheduler`, `frappe-frontend` restart. Worker restart
    edilmezse iş ESKİ kodla koşar.
@@ -257,8 +258,71 @@ Lokal koşu bittiyse alpha/prod'a taşımadan önce (detay:
    sonrası 5 dakikalık pencere normaldir.
 6. Geri alma **durdurulamaz** ve 90 gün sonra (yönlendirme satırları cron ile
    silinince) **mümkün değildir**.
-7. Worker ölürse `tradehub:retro_rename:active` anahtarı 1 saate kadar kilitli
-   kalır; `frappe.cache.delete_value("tradehub:retro_rename:active")` ile elle
-   açılır.
+7. Worker ölürse `tradehub:retro_rename:active` sahiplikli anahtarı
+   `ACTIVE_TTL` (5 saat) dolana kadar kalabilir. RQ'da gerçekten aktif iş
+   olmadığı doğrulandıktan sonra
+   `frappe.cache.delete_value("tradehub:retro_rename:active")` ile elle açılır.
 8. `tabFile` satırı olmayan düz dosyalar araç kapsamı **dışındadır** — koşu
    sonrası `scripts/media_stats.py` `reconcile()` + disk taramasıyla teyit et.
+
+---
+
+## 15. 2026-08-23 kapanış sertleştirmesi
+
+Önceki lokal koşu başarılıydı; kapanış çapraz incelemesi geri alma ve eşzamanlı
+başlatma çevresinde üretim riski taşıyan boşluklar buldu. Aşağıdaki düzeltmeler
+eklendi:
+
+- **Atomik tek-iş kilidi:** API `get`→`set` yarışından çıkarıldı; Redis
+  `SET NX EX`, sahiplikli heartbeat ve compare-and-delete kullanıyor. Kuyruk
+  gecikmesindeki 120 saniyelik kilit kaybı kaldırıldı.
+- **Kaynak dosya koruması:** rollback eski URL'de sonradan oluşmuş farklı
+  baytları hiçbir koşulda ezmiyor (`source_collision`). Aynı içerik varsa
+  idempotent ilerliyor; yeni kaynak atomik, overwrite-etmeyen hard-link ile
+  hazırlanıyor ve hedef ancak DB commit'inden sonra gerekiyorsa siliniyor.
+- **Referans sahipliği:** her `refs.retarget` yazısı `ref_changes` içinde
+  before/after + tablo/satır/alan olarak saklanıyor. Rollback allow-listeli
+  satırı `FOR UPDATE` ile kilitliyor ve yalnız değer hâlâ kendi `after`
+  değeriyse geri alıyor; sonradan kullanıcı değişikliği ve doğal hedef
+  referansı korunuyor.
+- **Eski kayıt güvenliği:** `file_names` veya `ref_changes` provenance'i eksik
+  eski/bozuk redirect satırlarında global/fuzzy geri alma yapılmıyor; satır
+  güvenli biçimde `file_provenance_missing` / `ref_provenance_missing` olarak
+  reddediliyor.
+- **301 görünürlüğü:** `website_404` her başarılı dosya commit'inden hemen sonra
+  temizleniyor; ilk 24 dosya batch heartbeat'ini beklemiyor.
+- **Ad güvenliği:** dosya adındaki yol/URL ayraçları, Unicode kontrol/format
+  karakterleri, boş ve izin-listesi dışı uzantılar canonical URL üretilmeden
+  reddediliyor.
+- **Admin dayanıklılığı:** stale/out-of-order poll koruması, tek in-flight poll,
+  start/stop/rollback çoklu POST kilidi, görünür hata/loading durumları,
+  progress/live-region ARIA sözleşmesi ve TR/EN/AR/RU metinleri tamamlandı.
+- **Belge tutarlılığı:** tarihsel design spec'teki "M-A arşivini araç taşır"
+  satırı gerçek uygulamayla eşitlendi; araç arşivi taşımaz, alpha/prod öncesi
+  purge/usage kapısı zorunludur.
+
+### Otomatik kanıt
+
+| Katman | Sonuç |
+|---|---:|
+| Backend hedef/regresyon (`refs provenance`, retro-rename, admin uçları, naming, renderer, dedup, storage acceptance) | **144 test: 140 geçti, 4 S3 modu ortam değişkeni olmadığı için açıkça atlandı** |
+| Yeni imajdan yeniden koşulan kritik backend kümesi | **72/72 geçti** |
+| Admin retro card + composable | **29/29 geçti** |
+| Admin API client + error catalog | **7/7 geçti** |
+| `npm run sync:api:check` | **temiz** |
+| `npm run build` | **başarılı, 3.146 modül** |
+| Lokal HTTP smoke | `/api/method/ping` → `pong`; `/panel/media-optimize` → `200` |
+
+`bench --site istoc.localhost migrate` hata vermeden tamamlandı. Kod artık
+geçici `docker cp` durumunda değildir:
+
+- backend imajı `istoc/tradehub-backend:v15` →
+  `sha256:bba2b1988372...` (2026-08-23 22:11 Europe/Istanbul), web/worker/
+  scheduler servisleri bu imajdan yeniden oluşturuldu;
+- panel imajı `istoc/admin-panel:local` → `sha256:74170f89c6f4...`
+  (2026-08-23 22:11 Europe/Istanbul), admin container bu imajdan yeniden
+  oluşturuldu.
+
+Bu bölüm **lokal/code kabulünü** kapatır. Alpha/prod dry-run, gerçek koşu,
+doğrulama ve bakım penceresi bu raporda yapılmış gibi gösterilmez; §14 runbook
+ve MOGEM-619 operasyon alt görevi altında ayrıca kanıtlanmalıdır.

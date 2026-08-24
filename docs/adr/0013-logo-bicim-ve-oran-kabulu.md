@@ -100,3 +100,10 @@ max_w_over_h: 2.0 }` **aynen kaldı**; iki politikada tek bir sayı değişmedi.
 - **ÖLÇÜLEMEDİ — slot bazında ayrıştırma.** K1 ve K2 sonucu `seller.logo` ve
   `brand.logo` için ayrı ayrı değil, birleşik küme üzerinden verildi.
 - **ÖLÇÜLEMEDİ — üretim verisi.** Ölçüm yerel stack'te yapıldı.
+
+## Geri dönüş yolu
+
+Yeni yüklemelerde opak JPEG veya oran dışı logoların yanlış kabul oranı %10'u
+aşarsa kural uyarıdan red'e yeniden değerlendirilir. Değişiklik yalnız yeni
+yüklemelere uygulanır; mevcut logolar toplu dönüştürülmez ve policy sürümü geri
+alınarak önceki davranışa dönülür.
