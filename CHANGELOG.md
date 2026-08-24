@@ -1,3 +1,25 @@
+## [v1.13.1-alpha.44] - 2026-08-24 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(medya): faz 0-8 kapanış kanıtları, üretim koduna bağlanmış politika (@ahmeetseker)
+  - Faz 0-8 kapanış belgelerini "taslak/hazırlık" durumundan gerçek ölçüme dayalı teknik kanıta geçirmek için 8 fazlık GitHub Actions kapı iş akışı, ADR'lere geri dönüş yolu bölümü ve OpenAPI/Postman/hata kataloğu artefaktları eklendi.
+  - Slot politikalarına `standard_status=fixed` alanı ve DPI/kalite/smartcrop prototiplerine karşılık gelen üretim modülleri (adaptive quality, dpi, smartcrop, master) eklendi; her biri kendi kapanış raporuyla kanıtlandı.
+  - Video/görsel motorları için Faz 3 contract adaptörleri (`ImageEngine`, `VideoEngine`), kuyruk topolojisi (`queues.py`), CDN/imgproxy teslim istemcileri ve depolama streaming/retention API'leri tamamlandı.
+  - `Media Source`, `Media Policy`, `Media Content Rule` gibi eksik Faz 4 DocType'ları ve ilgili şema/indeks migration'ları kuruldu.
+  - `pyvips` bağımlılığı eklendi (büyük non-JPEG kaynakların sequential küçültülmesi için) ve retro-rename ile transcode akışları izole süreç çalıştırıcısına taşındı.
+
+### Duzeltildi
+- fix(media): harden malformed EXIF metadata handling (@ahmeetseker)
+- fix(media): enforce slot video upload validation (@ahmeetseker)
+
+### Degistirildi
+- refactor(seo): schema_builder kod okunabilirliğini artır ve image object (@ahmeetseker)
+  - content_url yerine yanlışlıkla döndürülen url değişkeni düzeltildi; artık yalnızca url/contentUrl kaldığında doğru delivery URL dönüyor
+  - Uzun satırlar ve içiçe dict/call ifadeleri Ruff formatlamasına uygun şekilde çok satıra bölündü, mantıkta değişiklik yok
+
+---
 ## [v1.13.1-alpha.43] - 2026-08-22 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
