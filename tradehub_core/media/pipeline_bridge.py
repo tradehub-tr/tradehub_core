@@ -1589,13 +1589,14 @@ def _run_video_crop_reprocess_job(asset: Any, intent: Any) -> None:
 			return
 
 		from tradehub_core.media.pipeline.core import dedup
-		from tradehub_core.media.pipeline.video import decision as video_decision
 		from tradehub_core.media.pipeline.video import probe as video_probe
+		from tradehub_core.media.pipeline.video import validation as video_validation
 
 		facts = video_probe.probe(src_yolu)
-		karar = video_decision.decide(facts)
-		if karar.rejected:
-			raise ValueError(karar.code or "video_rejected")
+		dogrulama = video_validation.validate(asset.slot_key, facts)
+		karar = dogrulama.processing
+		if dogrulama.rejected:
+			raise ValueError(dogrulama.code or "video_rejected")
 		with open(src_yolu, "rb") as f:
 			source_hash = dedup.stream_sha256(f).sha256
 		politika = _video_policy_snapshot(asset.slot_key)
@@ -3565,11 +3566,13 @@ def _run_video_job(
 	hata hâlinde iş kaydı `failed` olur ve fonksiyon sessizce döner.
 	"""
 	job_name: str | None = None
+	source_name: str | None = None
 	try:
 		name = frappe.db.get_value("File", {"file_url": file_url}, "name")
 		if not name:
 			return
 		doc = frappe.get_doc("File", name)
+		source_name = doc.name
 
 		if not pipeline_flags.is_enabled("rendition_on_upload"):
 			return
@@ -3591,11 +3594,12 @@ def _run_video_job(
 		if not os.path.exists(src_yolu):
 			return
 
-		from tradehub_core.media.pipeline.video import decision as video_decision
 		from tradehub_core.media.pipeline.video import probe as video_probe
+		from tradehub_core.media.pipeline.video import validation as video_validation
 
 		facts = video_probe.probe(src_yolu)
-		karar = video_decision.decide(facts)
+		dogrulama = video_validation.validate(slot_key, facts)
+		karar = dogrulama.processing
 
 		asset = _ensure_asset(doc, slot_key, parmak_izi, media_type=_MEDIA_TYPE_VIDEO)
 		job_name = _open_job(
@@ -3606,34 +3610,49 @@ def _run_video_job(
 			queue=JOB_QUEUE_VIDEO,
 			key_prefix=key_prefix or JOB_KEY_VIDEO,
 		)
+		frappe.db.set_value(
+			"File", doc.name, "th_media_video_status", "processing", update_modified=False
+		)
 
-		if karar.rejected:
+		if dogrulama.rejected:
 			# Karar bir HATA değil: motor bu dosyayı işlemiyor (bozuk künye,
-			# 4K üstü, 15 dk üstü…). Varlık `rejected` + kodla kapanır.
+			# 4K üstü, 15 dk üstü…) ya da slotun süre/geometri kapısı
+			# dosyayı kabul etmiyor. Varlık `rejected` + kodla kapanır.
 			frappe.db.set_value(
 				"Media Asset",
 				asset.name,
 				{
 					"state": "rejected",
-					"rejection_code": (karar.code or "video_rejected")[:140],
-					"rejection_note": karar.reason or "",
+					"rejection_code": (dogrulama.code or "video_rejected")[:140],
+					"rejection_note": dogrulama.reason or "",
 				},
 			)
-			_finish_job(job_name, "failed", error_code=karar.code or "video_rejected")
+			frappe.db.set_value(
+				"File", doc.name, "th_media_video_status", "failed", update_modified=False
+			)
+			_finish_job(job_name, "failed", error_code=dogrulama.code or "video_rejected")
 			frappe.db.commit()
 			return
 
 		surum_hash = _produce_video_outputs(src_yolu, facts, karar, asset, slot_key)
 
 		frappe.db.set_value("Media Asset", asset.name, "state", "ready")
+		frappe.db.set_value(
+			"File", doc.name, "th_media_video_status", "ready", update_modified=False
+		)
 		_finish_job(job_name, "success")
 		if surum_hash:
 			_promote_initial_version(asset.name, surum_hash)
 		frappe.db.commit()
 	except Exception as exc:  # noqa: BLE001 — worker hiçbir koşulda kuyruğu patlatmamalı
 		frappe.db.rollback()
+		if source_name:
+			frappe.db.set_value(
+				"File", source_name, "th_media_video_status", "failed", update_modified=False
+			)
 		if job_name:
 			_finish_job(job_name, "failed", error_code=type(exc).__name__)
+		if source_name or job_name:
 			frappe.db.commit()
 		frappe.log_error(
 			title="media.pipeline_bridge video job failed",

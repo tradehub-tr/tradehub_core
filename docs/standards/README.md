@@ -11,6 +11,7 @@ geçmişini korumak için silinmemiştir; bugünkü doğruluk kaynağı şudur:
   `tradehub_core/media/pipeline/policy/schema/slot-policy.schema.json`,
 - insan tarafından okunabilir gerekçeler: `docs/standards/*.md`,
 - MIME/EXIF ve hatalı metadata sözleşmesi: `docs/standards/mime-exif.md`,
+- yükleme öncesi/sonrası doğrulama sınırı: `docs/standards/upload-validation.md`,
 - `docs/standards/policies/*.json`: yalnız DPI/alan ölçüm izdüşümü; ikinci bir
   yürütme motoru veya rakip politika seti değildir.
 

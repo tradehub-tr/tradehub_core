@@ -102,7 +102,7 @@ MESSAGE_KEYS: dict[str, tuple[str, ...]] = {
 	"area_too_small": ("area_too_small",),
 	"ratio_not_allowed": ("ratio_not_allowed", "oran_16_9_degil"),
 	"aspect_out_of_band": ("aspect_out_of_band",),
-	"too_many_pixels": ("too_many_pixels",),
+	"too_many_pixels": ("too_many_pixels", "cozunurluk_yuksek"),
 	"too_large_bytes": ("too_large_bytes", "too_large", "cok_buyuk"),
 	"format_not_supported": ("format_not_supported", "bicim_desteklenmiyor"),
 	"mime_not_supported": ("mime_not_supported", "format_not_supported"),
@@ -121,7 +121,7 @@ MESSAGE_KEYS: dict[str, tuple[str, ...]] = {
 	"too_many_items": ("too_many_items",),
 	"too_few_items": ("too_few_items",),
 	"duration_too_long": ("sure_uzun", "duration_too_long"),
-	"duration_too_short": ("duration_too_short",),
+	"duration_too_short": ("sure_kisa", "duration_too_short"),
 	"bitrate_too_high": ("bitrate_isleniyor", "bitrate_too_high"),
 	"frame_rate_not_allowed": ("frame_rate_not_allowed",),
 	"role_not_allowed": ("role_not_allowed",),
@@ -518,6 +518,15 @@ class PolicyEngine:
 
 	@staticmethod
 	def _code(policy: dict, rule: str) -> str:
+		# Video standartları dış API'ye açılacak kodları
+		# ``video.validation_codes`` içinde ilan eder. Kuralın politika mesaj
+		# anahtarıyla eşleşen kod varsa onu kullan; böylece belgede
+		# ``cover_video_too_long`` yazarken çalışma zamanı başka bir
+		# ``cover_video_duration_too_long`` üretmez.
+		aday_anahtarlar = set(MESSAGE_KEYS.get(rule, (rule,)))
+		for kayit in ((policy.get("video") or {}).get("validation_codes") or []):
+			if kayit.get("message_key") in aday_anahtarlar and kayit.get("code"):
+				return str(kayit["code"])
 		prefix = (policy.get("on_violation") or {}).get("error_code_prefix") or "media"
 		return f"{prefix}_{rule}"
 

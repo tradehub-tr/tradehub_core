@@ -85,6 +85,16 @@ class SellerMediaHistoryTests(SellerBrowseTestBase):
 		"""Aynı File'a bağlı yabancı Asset/olay bile A'nın yanıtına giremez."""
 		own_asset = self._asset(store=self.a.store, file_url=self.a.public_url, tag="own")
 		foreign_asset = self._asset(store=self.b.store, file_url=self.a.public_url, tag="foreign")
+		frappe.db.set_value(
+			"Media Asset",
+			own_asset,
+			{
+				"state": "rejected",
+				"rejection_code": "cover_video_too_long",
+				"rejection_note": "Kapak videosu 60 saniyeden uzun.",
+			},
+		)
+		frappe.db.commit()
 		own_event = self._event(store=self.a.store, file_url=self.a.public_url, tag="own")
 		foreign_event = self._event(store=self.b.store, file_url=self.a.public_url, tag="foreign")
 
@@ -93,6 +103,8 @@ class SellerMediaHistoryTests(SellerBrowseTestBase):
 
 		self.assertEqual(result["file_url"], self.a.public_url)
 		self.assertEqual({row["name"] for row in result["assets"]}, {own_asset})
+		self.assertEqual(result["assets"][0]["rejection_code"], "cover_video_too_long")
+		self.assertIn("60", result["assets"][0]["rejection_note"])
 		self.assertNotIn(foreign_asset, {row["name"] for row in result["assets"]})
 		self.assertEqual({row["asset"] for row in result["versions"]}, {own_asset})
 		self.assertEqual({row["asset"] for row in result["jobs"]}, {own_asset})

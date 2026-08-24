@@ -29,6 +29,7 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+from dataclasses import replace
 from unittest import mock
 
 from tradehub_core.media.pipeline.video import hls as H
@@ -529,6 +530,56 @@ if frappe is not None:
 			)
 			self.assertNotIn("h264", profiller, "PASSTHROUGH yeni dosya YAZMAZ")
 			self.assertIn("poster", profiller)
+
+		def test_kapak_sure_reddi_asset_job_ve_file_durumuna_yazilir(self):
+			"""61 sn kapak, global 15 dk sınırının altında olsa da slotta reddedilir."""
+			doc = self._dosya_ekle(
+				"mogem-569-cover.mp4",
+				_ornek_video_baytlari(etiket=frappe.generate_hash(length=10)),
+			)
+			self._hatti_ac(slotlar="company.cover_video")
+			gercek = P.probe(pipeline_bridge._media_disk_path(doc.file_url))
+			self.assertTrue(gercek.measured, "ön koşul: fixture ffprobe ile okunmalı")
+			uzun = replace(
+				gercek,
+				coded_width=1280,
+				coded_height=720,
+				width=1280,
+				height=720,
+				duration_s=61.0,
+				video_duration_s=61.0,
+			)
+			with mock.patch.object(P, "probe", return_value=uzun):
+				pipeline_bridge._run_video_job(
+					doc.file_url,
+					slot_override="company.cover_video",
+					key_prefix="mogem-569",
+				)
+
+			parmak = pipeline_bridge.content_fingerprint(doc)
+			asset_name = frappe.db.get_value(
+				"Media Asset",
+				{"content_sha256": parmak, "slot_key": "company.cover_video"},
+				"name",
+			)
+			self.assertTrue(asset_name, "reddedilen video için Media Asset açılmadı")
+			self.addCleanup(lambda: self._temizle(asset_name))
+			asset = frappe.get_doc("Media Asset", asset_name)
+			self.assertEqual(asset.state, "rejected")
+			self.assertEqual(asset.rejection_code, "cover_video_too_long")
+			self.assertIn("60", asset.rejection_note)
+			self.assertEqual(
+				frappe.db.get_value("File", doc.name, "th_media_video_status"),
+				"failed",
+			)
+			job = frappe.get_all(
+				"Media Processing Job",
+				filters={"asset": asset_name},
+				fields=["status", "error_code"],
+			)
+			self.assertEqual(len(job), 1)
+			self.assertEqual(job[0].status, "failed")
+			self.assertEqual(job[0].error_code, "cover_video_too_long")
 
 		def test_ikinci_kosum_idempotent(self):
 			doc, asset_name = self._kos(_ornek_video_baytlari(faststart=False, etiket=frappe.generate_hash(length=10)))

@@ -298,7 +298,15 @@ def get_my_media_history(file_url: str) -> dict:
 		frappe.get_all(
 			"Media Asset",
 			filters={"owner_seller": store, "source_file": ["in", file_names]},
-			fields=["name", "media_type", "state", "source_file", "creation"],
+			fields=[
+				"name",
+				"media_type",
+				"state",
+				"source_file",
+				"rejection_code",
+				"rejection_note",
+				"creation",
+			],
 			order_by="creation desc",
 			limit_page_length=0,
 		)
@@ -811,7 +819,7 @@ def _kaydet(
 	demekti — yeni kapı açmanın klasik bedeli. WebP dönüşümü ve video transcode
 	de bu yüzden burada: parçalı yükleme aynı garantileri kendiliğinden alır.
 	"""
-	karar = upload_policy.check(file_name, content=icerik, media_endpoint=True)
+	karar = upload_policy.check(file_name, content=icerik, media_endpoint=True, slot=slot)
 
 	# W7 — slot politikası kapısı (rapor 78 W5-2). Genel denetimden SONRA,
 	# dönüşümden ÖNCE ve ORİJİNAL içerik üstünde: satıcının yüklediği dosya
