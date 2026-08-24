@@ -84,6 +84,25 @@ tradehub_core/                          (repo kökü)
 8. **`except Exception:` gerekçesiz yasak** — en az `frappe.log_error` + spesifik exception.
 9. **i18n:** `frappe.throw(_("..."))` zorunlu, çıplak string yasak.
 10. **Tab indent + line-length 110** (Ruff format).
+11. **Lojistik sözleşme artefaktları ÜRETİLİR — elle düzenleme.**
+    `logistics/contract.py`, `logistics/constants.py`, `logistics/exceptions.py`,
+    `api/v1/logistics_*.py` ve seed patch'leri **tek otorite**. Bunlardan
+    41 dosya üretiliyor: `docs/logistics-api.schema.json`,
+    `docs/generated/logistics.d.ts`, `docs/generated/fixtures/*.json` ve
+    kardeş repolardaki kopyalar (`admin-panel/frontend/src/mocks/logistics`,
+    `tradehubfront/src/{mocks/logistics,types/logistics.d.ts}`).
+
+    Kaynağa dokunduysan **üretimi de çalıştır ve üç repoda da commit'le**:
+    ```bash
+    python3 scripts/gen_logistics_types.py --check   # bayat mı?
+    python3 scripts/gen_logistics_types.py --sync    # kardeş repolara da yaz
+    ```
+    **OTOMATİK KAPI YOK** — ne CI ne pre-commit bunu zorluyor (gerekçe:
+    `docs/lojistik/KALAN-ISLER.md` → "Çözülmüş"). Yakalayan tek şey senin
+    `--check` çalıştırman. Üretilmiş dosyalar formatter'ın dışında tutuluyor
+    (`.prettierignore`); biçimi üreteç belirliyor, Prettier dokunursa iki
+    araç birbirini sonsuza kadar geri alır (ölçüldü 2026-08-24: tek
+    `npm run format` koşusu 19 dosyada 1958+/2058− sahte diff üretti).
 
 ## 5. Path-scoped rules
 
