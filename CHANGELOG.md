@@ -1,3 +1,13 @@
+## [v1.13.1-alpha.45] - 2026-08-24 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Degistirildi
+- refactor(lojistik): sözleşme artefaktı kuralı düzeltildi (@aliiball)
+  - CI --check ile yakalar cümlesi YANLIŞTI: kapı yok, test skip ediliyor
+  - CLAUDE.md §4 madde 11: 41 dosya üretiliyor, kaynağa dokunan --sync çalıştırır
+
+---
 ## [v1.13.1-alpha.44] - 2026-08-24 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
