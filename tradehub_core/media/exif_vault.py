@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+from datetime import datetime
 from typing import Any
 
 import frappe
@@ -14,6 +15,7 @@ GPS_IFD = 0x8825
 ORIENTATION = 0x0112
 DATETIME_ORIGINAL = 0x9003
 MAX_JSON_BYTES = 64 * 1024
+VALID_ORIENTATIONS = frozenset(range(1, 9))
 
 
 def _json_value(value: Any) -> Any:
@@ -26,6 +28,32 @@ def _json_value(value: Any) -> Any:
 	if isinstance(value, (list, tuple)):
 		return [_json_value(v) for v in value]
 	return str(value)
+
+
+def _safe_orientation(value: Any) -> int:
+	"""Return a valid EXIF orientation; malformed source metadata becomes 1."""
+	try:
+		orientation = int(value or 1)
+	except (TypeError, ValueError, OverflowError):
+		return 1
+	return orientation if orientation in VALID_ORIENTATIONS else 1
+
+
+def _safe_captured_at(value: Any) -> str:
+	"""Normalize EXIF DateTimeOriginal for Frappe's Datetime field.
+
+	EXIF uses ``YYYY:MM:DD HH:MM:SS``.  Untrusted cameras and editors may
+	write arbitrary text here; an invalid value must not make vault retention
+	(and therefore the media job) fail.
+	"""
+	raw = str(value or "").strip()
+	if not raw:
+		return ""
+	try:
+		parsed = datetime.strptime(raw, "%Y:%m:%d %H:%M:%S")
+	except (TypeError, ValueError, OverflowError):
+		return ""
+	return parsed.strftime("%Y-%m-%d %H:%M:%S")
 
 
 def extract(source: bytes) -> dict[str, Any]:
@@ -53,8 +81,8 @@ def extract(source: bytes) -> dict[str, Any]:
 			"raw": raw,
 			"has_exif": bool(payload),
 			"has_gps": bool(gps),
-			"orientation": int(exif.get(ORIENTATION, 1) or 1) if exif else 1,
-			"captured_at": str(exif.get(DATETIME_ORIGINAL) or "").replace(":", "-", 2) if exif else "",
+			"orientation": _safe_orientation(exif.get(ORIENTATION, 1)) if exif else 1,
+			"captured_at": _safe_captured_at(exif.get(DATETIME_ORIGINAL)) if exif else "",
 		}
 
 

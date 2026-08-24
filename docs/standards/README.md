@@ -10,6 +10,7 @@ geçmişini korumak için silinmemiştir; bugünkü doğruluk kaynağı şudur:
 - kanonik Draft 2020-12 şeması:
   `tradehub_core/media/pipeline/policy/schema/slot-policy.schema.json`,
 - insan tarafından okunabilir gerekçeler: `docs/standards/*.md`,
+- MIME/EXIF ve hatalı metadata sözleşmesi: `docs/standards/mime-exif.md`,
 - `docs/standards/policies/*.json`: yalnız DPI/alan ölçüm izdüşümü; ikinci bir
   yürütme motoru veya rakip politika seti değildir.
 
