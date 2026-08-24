@@ -283,6 +283,26 @@ class BellekBombasi(unittest.TestCase):
 		"""Aynı dosya aynı sonucu verir; kuyruk hakkı yakılmamalı."""
 		self.assertNotIn(iso.SEBEP_MEMORY, iso.RETRYABLE_SEBEPLER)
 
+	def test_harici_surec_rss_watchdog_ile_kesilir(self):
+		"""ffmpeg gibi mmap-ağır süreçlerde fiziksel RSS tavanı uygulanır."""
+		if not iso.PSUTIL_AVAILABLE:
+			self.skipTest("psutil yok — RSS watchdog uygulanamaz")
+		lim = iso.Limits(
+			wall_timeout_s=10.0,
+			cpu_seconds=None,
+			address_space_bytes=None,
+			resident_memory_bytes=24 * 1024 * 1024,
+		)
+		sonuc = iso.run_command(
+			[sys.executable, "-c", "import time; x=bytearray(96*1024*1024); time.sleep(5)"],
+			limits=lim,
+			poll_interval_s=0.05,
+		)
+		self.assertFalse(sonuc.ok)
+		self.assertEqual(sonuc.sebep, iso.SEBEP_MEMORY)
+		self.assertIn("RSS_WATCHDOG", sonuc.limits_applied)
+		self.assertGreater(sonuc.peak_rss_bytes, lim.resident_memory_bytes)
+
 
 class WorkerHayatta(unittest.TestCase):
 	"""Sözleşmenin kendisi: art arda altı arıza, ebeveyn hâlâ ayakta."""
@@ -308,9 +328,21 @@ class WorkerHayatta(unittest.TestCase):
 		"""Her `fork` için `waitpid` yapılıyor mu — zombi süreç birikmemeli."""
 		for _ in range(5):
 			iso.run_callable(_patla)
-		# Beklenecek çocuk kalmamalı: `waitpid` `ChildProcessError` vermeli.
-		with self.assertRaises(ChildProcessError):
-			os.waitpid(-1, os.WNOHANG)
+		# Docker/PID-namespace altında kısa ömürlü bir yardımcı çocuk hâlâ
+		# KOSUYORSA ``waitpid(..., WNOHANG)`` (0, 0) dönebilir; bu zombi
+		# değildir. En çok bir saniye bitmesini bekle. Pozitif pid dönerse test
+		# onu burada reaped etmiştir ve run_callable zombi bırakmış demektir.
+		son = time.monotonic() + 1.0
+		while True:
+			try:
+				pid, _durum = os.waitpid(-1, os.WNOHANG)
+			except ChildProcessError:
+				break
+			if pid > 0:
+				self.fail(f"zombi cocuk test tarafindan reaped edildi: pid={pid}")
+			if time.monotonic() >= son:
+				self.fail("bir cocuk 1 saniyeden uzun sure bitmedi")
+			time.sleep(0.01)
 
 
 class SonucSozlesmesi(unittest.TestCase):

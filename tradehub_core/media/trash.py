@@ -196,7 +196,120 @@ def in_trash(file_url: str) -> bool:
 	return os.path.isfile(_trash_path(file_url))
 
 
-def move_to_trash(file_url: str, force: bool = False, shared_ok: bool = False) -> dict:
+def _rendition_live_path(file_url: str) -> str:
+	"""Resolve a rendition URL under the site's public/private file roots."""
+	url = (file_url or "").split("?")[0]
+	if url.startswith("/files/"):
+		root = os.path.realpath(frappe.get_site_path("public", "files"))
+		relative = url[len("/files/") :]
+	elif url.startswith("/private/files/"):
+		root = os.path.realpath(frappe.get_site_path("private", "files"))
+		relative = url[len("/private/files/") :]
+	else:
+		frappe.throw(frappe._("Geçersiz rendition yolu: {0}").format(file_url))
+	if ".." in relative.split("/"):
+		frappe.throw(frappe._("Geçersiz rendition yolu: {0}").format(file_url))
+	target = os.path.realpath(os.path.join(root, relative))
+	if not target.startswith(root + os.sep):
+		frappe.throw(frappe._("Rendition yolu kök dizinin dışında: {0}").format(file_url))
+	return target
+
+
+def _move_rendition_to_trash(
+	file_url: str,
+	*,
+	rendition: str,
+	reason: str,
+	grace_days: int,
+) -> dict:
+	"""Soft-delete one ``Media Rendition`` through the audited trash gate.
+
+	Renditions deliberately do not use the regular ``File`` trash rows: their
+	identity and lazy-regeneration ledger live in ``Media Rendition``.  Keeping
+	the branch here still gives originals and derivatives one deletion gateway,
+	one path-safety policy and one audit contract (INV-11).
+	"""
+	row = frappe.db.get_value(
+		"Media Rendition",
+		rendition,
+		["asset", "state", "file_url"],
+		as_dict=True,
+	)
+	if not row or str(row.get("state") or "ready") == "purged":
+		return {"ok": False, "reason": "missing_or_already_purged"}
+	if row.get("asset") and frappe.db.get_value("Media Asset", row.get("asset"), "legal_hold"):
+		return {"ok": False, "reason": "legal_hold"}
+
+	source = _rendition_live_path(str(row.get("file_url") or file_url))
+	if not os.path.isfile(source):
+		return {"ok": False, "reason": "missing_on_disk"}
+
+	site_root = os.path.realpath(frappe.get_site_path())
+	now_dt = frappe.utils.now_datetime()
+	trash_root = os.path.realpath(
+		frappe.get_site_path(
+			"private", "media_rendition_trash", now_dt.strftime("%Y"), now_dt.strftime("%m")
+		)
+	)
+	os.makedirs(trash_root, mode=0o700, exist_ok=True)
+	filename = f"{rendition}--{os.path.basename(source)}"
+	destination = os.path.join(trash_root, filename)
+	if os.path.exists(destination):
+		destination = os.path.join(
+			trash_root,
+			f"{rendition}-{int(time.time() * 1_000_000)}--{os.path.basename(source)}",
+		)
+
+	os.replace(source, destination)
+	relative_trash = os.path.relpath(destination, site_root)
+	grace_days = max(1, int(grace_days or TRASH_RETENTION_DAYS))
+	try:
+		frappe.db.set_value(
+			"Media Rendition",
+			rendition,
+			{
+				"state": "purged",
+				"benefit_gate_passed": 0,
+				"purged_at": now_dt,
+				"purge_after": frappe.utils.add_days(now_dt, grace_days),
+				"trash_path": relative_trash,
+				"purge_reason": reason,
+			},
+			update_modified=False,
+		)
+	except Exception:
+		os.makedirs(os.path.dirname(source), exist_ok=True)
+		os.replace(destination, source)
+		raise
+
+	audit.log_media_event(
+		action=audit.ACTION_TRASH,
+		file_url=file_url,
+		reason=reason,
+		commit=False,
+		context={
+			"rendition": rendition,
+			"grace_days": grace_days,
+			"trash_path": relative_trash,
+		},
+	)
+	return {
+		"ok": True,
+		"file_url": file_url,
+		"bytes": os.path.getsize(destination),
+		"trash_path": relative_trash,
+	}
+
+
+def move_to_trash(
+	file_url: str,
+	force: bool = False,
+	shared_ok: bool = False,
+	*,
+	rendition: str = "",
+	reason: str = "retention",
+	grace_days: int = TRASH_RETENTION_DAYS,
+) -> dict:
 	"""Dosyayı çöpe taşı — geri alınabilir.
 
 	`force=True` kullanımdaki dosyaya da izin verir; çağıran tarafın kullanıcıya
@@ -206,7 +319,18 @@ def move_to_trash(file_url: str, force: bool = False, shared_ok: bool = False) -
 	(TUR-298). `force`tan AYRI tutuluyor: `force` kendi sitendeki kırılmayı,
 	bu ise BAŞKA satıcıların verisinin gitmesini göze almak demek. Birini
 	onaylamak diğerini onaylamış saymaz.
+
+	``rendition`` verildiğinde aynı denetimli kapı, ``File`` kaydı yerine
+	``Media Rendition`` defterini soft-delete durumuna geçirir. Bu dal yalnız
+	arka plan retention işinden çağrılır.
 	"""
+	if rendition:
+		return _move_rendition_to_trash(
+			file_url,
+			rendition=rendition,
+			reason=reason,
+			grace_days=grace_days,
+		)
 	_assert_trashable(file_url, force=force)
 	sahip = _assert_not_shared(file_url, shared_ok)
 

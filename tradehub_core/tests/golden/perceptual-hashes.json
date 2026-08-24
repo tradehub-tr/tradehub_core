@@ -1,0 +1,197 @@
+{
+  "schema_version": "1.1.0",
+  "algorithm": "dHash-64/Pillow-LANCZOS",
+  "max_hamming_distance": 2,
+  "preview_archive": {
+    "file": "perceptual-images.zip",
+    "sha256": "7b0c3e9f6f384a097048b1951c264fb3dfb753c2ecfe0fd0f233bb2ecb157430",
+    "manifest_member": "artifact-manifest.json",
+    "preview_size": [256, 256]
+  },
+  "engine_id": "tradehub_core.media.pipeline.image.render",
+  "engine_version": "1.0.0",
+  "manifest_fixture_count": 57,
+  "generated_fixture_count": 24,
+  "not_applicable": "reject/passthrough girdileri rendition üretmez; video rendition regresyonu Faz 7 paketindedir.",
+  "fixtures": {
+    "dpi_3000x3000_300dpi.tif": [
+      ["w96", "webp", 96, 96, "2ba4b3692cc65a45"],
+      ["w192", "webp", 192, 192, "2ba493692cc65a66"],
+      ["w384", "avif", 384, 384, "2ba493692cc65a46"],
+      ["w640", "avif", 640, 640, "2ba493692cc65a66"],
+      ["w768", "avif", 768, 768, "2ba493692cc65a66"],
+      ["w1280", "avif", 1280, 1280, "2ba493692cc65a66"],
+      ["w1920", "avif", 1920, 1920, "2ba493692cc65a66"]
+    ],
+    "mode_cmyk.jpg": [
+      ["w96", "webp", 96, 96, "698ba6b226462425"],
+      ["w192", "webp", 192, 192, "698ba6b226ce2424"],
+      ["w384", "avif", 384, 384, "69cba6b226ce2424"],
+      ["w640", "avif", 640, 640, "69cba6b226ce2425"],
+      ["w768", "avif", 768, 768, "69cba6b226ce2425"],
+      ["w1280", "avif", 1280, 1280, "69cba6b226ce2425"]
+    ],
+    "mode_rgba_alpha.png": [
+      ["w96", "webp", 96, 96, "0c0e0f4d4d0f0e0c"],
+      ["w192", "webp", 192, 192, "088e0f0f0f0f8e08"],
+      ["w384", "avif", 384, 384, "000e0f0f0f0f0e00"],
+      ["w640", "avif", 640, 640, "000e0f0f0f0f0e00"],
+      ["w768", "avif", 768, 768, "000e0f0f0f0f0e00"]
+    ],
+    "mode_palette_p.png": [
+      ["w96", "webp", 96, 96, "ce2a496cdac6a351"],
+      ["w192", "webp", 192, 192, "ce2a496cdac6a351"],
+      ["w384", "avif", 384, 384, "ce2a496cdac6a351"],
+      ["w640", "avif", 640, 640, "ce2a496cdac6a359"],
+      ["w768", "avif", 768, 768, "ce2a496cdac6a351"]
+    ],
+    "mode_grayscale_l.png": [
+      ["w96", "webp", 96, 96, "2a4d52b61dcac396"],
+      ["w192", "webp", 192, 192, "2a4d52a63dcac296"],
+      ["w384", "avif", 384, 384, "2a4d52a63dcac296"],
+      ["w640", "avif", 640, 640, "2a4d52a63dcac296"],
+      ["w768", "avif", 768, 768, "2a4d52a63dcac296"],
+      ["w1280", "avif", 1280, 1280, "2a4d52a63dcac296"]
+    ],
+    "exif_gps.jpg": [
+      ["w96", "webp", 96, 96, "6becda1dc2127c5a"],
+      ["w192", "webp", 192, 192, "6be8da1dd212705a"],
+      ["w384", "avif", 384, 384, "6be8da19d212785a"],
+      ["w640", "avif", 640, 640, "6be8da19d212785a"],
+      ["w768", "avif", 768, 768, "6be8da19d212785a"],
+      ["w1280", "avif", 1280, 1280, "6be8da19d212785a"]
+    ],
+    "enc_progressive.jpg": [
+      ["w96", "webp", 96, 96, "64a831996e2c2ab6"],
+      ["w192", "webp", 192, 192, "64a831986e2c2aa6"],
+      ["w384", "avif", 384, 384, "64a831996e2c2aa6"],
+      ["w640", "avif", 640, 640, "64a831996e2c2aa6"],
+      ["w768", "avif", 768, 768, "64a831996e2c2ab6"],
+      ["w1280", "avif", 1280, 1280, "64a831996e2c2aa6"]
+    ],
+    "enc_webp_lossy.webp": [
+      ["w96", "webp", 96, 96, "4553186a2b644626"],
+      ["w192", "webp", 192, 192, "4553186a6a454ea6"],
+      ["w384", "avif", 384, 384, "4553186a6a454626"],
+      ["w640", "avif", 640, 640, "4553186a6a454626"],
+      ["w768", "avif", 768, 768, "4553186a6a454626"],
+      ["w1280", "avif", 1280, 1280, "4553186a6a454626"]
+    ],
+    "enc_webp_lossless.webp": [
+      ["w64", "webp", 64, 64, "480e0f0f0f0f0e08"],
+      ["w128", "webp", 1024, 1024, "000e0f0f0f0f0e00"],
+      ["w256", "webp", 1024, 1024, "000e0f0f0f0f0e00"],
+      ["w384", "webp", 1024, 1024, "000e0f0f0f0f0e00"],
+      ["w512", "webp", 1024, 1024, "000e0f0f0f0f0e00"]
+    ],
+    "edge_short4480.jpg": [
+      ["w96", "webp", 96, 96, "889ccce4b4988c98"],
+      ["w192", "webp", 192, 192, "88dcc8e4d298cc98"],
+      ["w384", "avif", 384, 384, "88dcccc4f098cc98"],
+      ["w640", "avif", 640, 640, "88dcc8e4f298cc98"],
+      ["w768", "avif", 768, 768, "88dcccc4f298cc98"],
+      ["w1280", "avif", 1280, 1600, "291c4c46b3392c39"],
+      ["w1920", "avif", 1920, 2400, "291c4c46b3392c39"]
+    ],
+    "edge_72mp.jpg": [
+      ["w96", "webp", 96, 96, "ad2d6bd13cb66d3d"],
+      ["w192", "webp", 192, 192, "ad2d6bd11c964d3d"],
+      ["w384", "avif", 384, 384, "ad2d6bd11c964d3d"],
+      ["w640", "avif", 640, 640, "ad2c6bd11c964d3d"],
+      ["w768", "avif", 768, 768, "ad2d6bd11c964d3d"],
+      ["w1280", "avif", 1280, 1280, "ad2c6bd11c964d3d"],
+      ["w1920", "avif", 1920, 1920, "ad2d6bd11c964d3d"]
+    ],
+    "bound_short1000.jpg": [
+      ["w96", "webp", 96, 96, "2dca6b9688add589"],
+      ["w192", "webp", 192, 192, "2dca639608add58b"],
+      ["w384", "avif", 384, 384, "2dca639688add58b"],
+      ["w640", "avif", 640, 640, "2dca639688add58b"],
+      ["w768", "avif", 768, 768, "2dca639688add58b"]
+    ],
+    "ok_product_1x1_2400.jpg": [
+      ["w96", "webp", 96, 96, "49556ca925450a96"],
+      ["w192", "webp", 192, 192, "89516c8965491a86"],
+      ["w384", "avif", 384, 384, "89516c8925491a86"],
+      ["w640", "avif", 640, 640, "89516c8925491a86"],
+      ["w768", "avif", 768, 768, "89516c8925491a86"],
+      ["w1280", "avif", 1280, 1280, "89516c8925491a86"],
+      ["w1920", "avif", 1920, 1920, "89516c8925491a86"]
+    ],
+    "ok_product_4x5.jpg": [
+      ["w96", "webp", 96, 96, "f894b0d0e4a4e0c4"],
+      ["w192", "webp", 192, 192, "d8d4b0d0e4e4c4c4"],
+      ["w384", "avif", 384, 384, "d8d4b0d0e4e4c0c4"],
+      ["w640", "avif", 640, 640, "d8d4b0d0e4e4c0c4"],
+      ["w768", "avif", 768, 768, "d8d4b0d0e4e4c0c4"],
+      ["w1280", "avif", 1280, 1600, "5b9630d06662c3c7"],
+      ["w1920", "avif", 1920, 2400, "5b9630d06662c3c7"]
+    ],
+    "logo_alpha_512.png": [
+      ["w64", "webp", 64, 64, "080e0f0f0f0f0e08"],
+      ["w128", "webp", 128, 128, "000e0f0f0f0f0e00"],
+      ["w256", "png", 512, 512, "000e0f0f0f0f0e00"],
+      ["w384", "png", 512, 512, "000e0f0f0f0f0e00"],
+      ["w512", "webp", 512, 512, "000e0f0f0f0f0e00"]
+    ],
+    "logo_jpeg_noalpha.jpg": [
+      ["w64", "webp", 64, 64, "8271e8cccce87182"],
+      ["w128", "webp", 128, 128, "8271e8cccce87182"],
+      ["w256", "webp", 256, 256, "8271e8cccce87182"],
+      ["w384", "webp", 384, 384, "8271e8cccce87182"],
+      ["w512", "jpeg", 600, 600, "8271e8cccce87182"]
+    ],
+    "ok_cover_24x5.jpg": [
+      ["cover_768", "avif", 768, 160, "e5da324caa9b56ce"],
+      ["cover_1280", "avif", 1280, 267, "e5da324caa9b76cf"],
+      ["cover_1920", "avif", 1920, 400, "e5da324caa9b76ce"]
+    ],
+    "ok_banner_2x1.jpg": [
+      ["catbanner_480", "avif", 480, 240, "4e4962e33745b864"],
+      ["catbanner_960", "avif", 960, 480, "4e4962e13745b864"],
+      ["catbanner_1920", "avif", 1920, 960, "4e4962e13745b864"]
+    ],
+    "ok_avatar_96.png": [
+      ["avatar_96", "png", 96, 96, "8271e8cccce87182"]
+    ],
+    "content_blank_white.png": [
+      ["w96", "webp", 96, 96, "0000000000000000"],
+      ["w192", "webp", 192, 192, "0000000000000000"],
+      ["w384", "avif", 384, 384, "0000000000000000"],
+      ["w640", "avif", 640, 640, "0000000000000000"],
+      ["w768", "avif", 768, 768, "0000000000000000"]
+    ],
+    "content_border_40pct.png": [
+      ["w96", "webp", 96, 96, "000000b2b2000000"],
+      ["w192", "webp", 192, 192, "000000b2b2000000"],
+      ["w384", "avif", 384, 384, "000000b2b2000000"],
+      ["w640", "avif", 640, 640, "000000b2b2001000"],
+      ["w768", "avif", 768, 768, "000000b2b2001000"],
+      ["w1280", "avif", 1280, 1280, "000000b2b2001000"]
+    ],
+    "content_border_08pct.png": [
+      ["w96", "webp", 96, 96, "d4a2aaaae2b6a292"],
+      ["w192", "webp", 192, 192, "c4a2aaaae6b6a296"],
+      ["w384", "avif", 384, 384, "c4a2aaaae6b6a296"],
+      ["w640", "avif", 640, 640, "d4a2aaaae6b6a296"],
+      ["w768", "avif", 768, 768, "d4a2aaaae6b6a296"],
+      ["w1280", "avif", 1280, 1280, "d4a2aaaae6b6a296"]
+    ],
+    "icc_srgb_embedded.jpg": [
+      ["w96", "webp", 96, 96, "36e49e9cea522d2a"],
+      ["w192", "webp", 192, 192, "36e49e98ea522922"],
+      ["w384", "avif", 384, 384, "36e49e98ea52292a"],
+      ["w640", "avif", 640, 640, "36e49e9cea52292a"],
+      ["w768", "avif", 768, 768, "36e49e9cea52292a"],
+      ["w1280", "avif", 1280, 1280, "36e49e9cea52292a"]
+    ],
+    "fmt_tiff_lzw.tif": [
+      ["w96", "webp", 96, 96, "8c88dbd6c46b6cd6"],
+      ["w192", "webp", 192, 192, "8c88dbd6c46b6c56"],
+      ["w384", "avif", 384, 384, "8c88dbd6c46b6c56"],
+      ["w640", "avif", 640, 640, "8c88dbd6c46b6c56"],
+      ["w768", "avif", 768, 768, "8c88dbd6c46b6c56"],
+      ["w1280", "avif", 1280, 1280, "8c88dbd6c46b6c56"]
+    ]
+  }
+}

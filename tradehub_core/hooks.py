@@ -144,6 +144,12 @@ scheduler_events = {
 			# süpürücüsü hiç koşmazdı.
 			"tradehub_core.api.observability.write_metrics_shard",
 		],
+		# T-066 — her ayın ilk günü kapanmış önceki ayı kalıcı asset kalite
+		# raporlarından toplar. `period_key` unique olduğundan scheduler retry'sı
+		# ve iki worker yarışı aynı ay için ikinci rapor üretemez.
+		"13 2 1 * *": [
+			"tradehub_core.media.pipeline.image.report.run_previous_month_report",
+		],
 	},
 	"hourly": [
 		# Refresh the Complementary tab of Related Products as new orders land.
@@ -181,6 +187,11 @@ scheduler_events = {
 		"tradehub_core.bulk_import.feed_scheduler.process_due_feeds",
 	],
 	"daily": [
+		# T-081 — yarım kalan parçalı yüklemeler (6 saat) ve başarılı
+		# finalize idempotency sonuçları (24 saat). Fonksiyonun var olup hiçbir
+		# scheduler'a bağlı olmaması, kapanan tarayıcıların parçalarını sonsuza
+		# kadar private diskte bırakıyordu.
+		"tradehub_core.media.chunked.cleanup",
 		# Görsel optimizasyonunda saklanan orijinallerin geri alma penceresi dolunca
 		# silinmesi. Nihai depolama kazancı burada gerçekleşir — o güne kadar arşiv
 		# diski geçici olarak şişirir (GORSEL-OPTIMIZASYON.md §6).
@@ -223,6 +234,9 @@ scheduler_events = {
 		# (docs/reports/40-t043-kullanim-gc.md §4.3).
 		"tradehub_core.media.pipeline.storage.retention.run_scheduled_gc_originals",
 		"tradehub_core.media.pipeline.storage.retention.run_scheduled_gc_derivatives",
+		# Rendition soft-delete grace penceresi dolan dosyaların ayrı kalıcı
+		# temizleme işi. Kendi enforce bayrağı yoksa yalnız rapor üretir.
+		"tradehub_core.media.pipeline.storage.retention.run_scheduled_soft_delete",
 		# Saha hakediş kota bonusu — on-approval tetiklemesinin günlük güvenlik ağı.
 		"tradehub_core.tradehub_core.utils.field_commission.process_quota_bonuses",
 		"tradehub_core.services.tcmb.fetch_and_update_rates",
@@ -908,8 +922,10 @@ permission_query_conditions = {
 	# Processing Job izolasyonu Asset üzerinden zincirlenir (denormalize seller
 	# kolonu YOK — devirde sessizce eskir ve sızıntı üretir).
 	"Media Asset": "tradehub_core.permissions.media_asset_query_conditions",
+	"Media Source": "tradehub_core.permissions.media_source_query_conditions",
 	"Media Rendition": "tradehub_core.permissions.media_rendition_query_conditions",
 	"Media Processing Job": "tradehub_core.permissions.media_processing_job_query_conditions",
+	"Media Quality Report": "tradehub_core.permissions.media_quality_report_query_conditions",
 	"Media Profile": "tradehub_core.permissions.media_profile_query_conditions",
 	# T-041/T-082 — Kırpma niyeti de Asset üzerinden zincirlenir; satıcı burada
 	# kendi niyetini YAZAR (türev/iş kaydının aksine salt okunur DEĞİL).
@@ -1006,8 +1022,10 @@ has_permission = {
 	# Medya Motoru DALGA A — satıcı kendi Asset'ini yazabilir; Rendition,
 	# Processing Job ve Profile satıcı için SALT OKUNURDUR (üretim hattın işi).
 	"Media Asset": "tradehub_core.permissions.media_asset_has_permission",
+	"Media Source": "tradehub_core.permissions.media_source_has_permission",
 	"Media Rendition": "tradehub_core.permissions.media_rendition_has_permission",
 	"Media Processing Job": "tradehub_core.permissions.media_processing_job_has_permission",
+	"Media Quality Report": "tradehub_core.permissions.media_quality_report_has_permission",
 	"Media Profile": "tradehub_core.permissions.media_profile_has_permission",
 	# T-041/T-082 — Kırpma stüdyosunun kaydettiği niyet. Satıcı kendi varlığının
 	# niyetini okur VE yazar; başka satıcının varlığına zincir üzerinden kapalıdır.
@@ -1021,10 +1039,11 @@ has_permission = {
 	"Media Folder": "tradehub_core.tradehub_core.doctype.media_folder.media_folder.has_permission",
 	"Media Folder Item": "tradehub_core.tradehub_core.doctype.media_folder_item.media_folder_item.has_permission",
 	# T-051 (şartname) — Depolama/CDN ayarı S3 secret + imgproxy anahtarı taşır.
-	# DocPerm listesinde yalnız Media Superadmin + System Manager var; bu kanca
+	# DocPerm listesinde yalnız Media Superadmin var; bu kanca
 	# ikinci kat: rol kümesi dışındaki hiç kimse OKUYAMAZ (Single DocType olduğu
 	# için permission_query_conditions burada hiç uygulanmaz — Logistics Settings
 	# emsali, bkz. yukarıdaki not).
+	"Media Engine Settings": "tradehub_core.permissions.media_engine_settings_has_permission",
 	"Media Storage Settings": "tradehub_core.permissions.media_storage_settings_has_permission",
 	# Ö-2 — aynı `file_url`'i paylaşan File satırları üzerinden kiracı sızıntısı.
 	# Bu kanca YALNIZ desk/ORM yüzeyini (frappe.has_permission) kapatır; indirme

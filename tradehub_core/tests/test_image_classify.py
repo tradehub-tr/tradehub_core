@@ -1,13 +1,11 @@
 """T-062 — İçerik sınıflandırma testleri: 5 sınıf → biçim zinciri.
 
-DOĞRULUK NEREDE ÖLÇÜLDÜ — ve neden fixture korpusunda ÖLÇÜLEMEZ
----------------------------------------------------------------
-`tradehub_core/tests/fixtures/media/manifest.json` içindeki `class` alanı bir **içerik
-sınıfı değil, fixture ailesi** etiketidir. Fixture'lar sentetik olarak
-üretilmiş rastgele gürültüdür: `ok_product_1x1_2400.jpg` ("photo") ile
-`geom_strip_400x4000.png` ("graphic") piksel istatistiği olarak AYNI şeydir.
-"graphic" etiketi orada "bu fixture geometri kuralını sınar" demektir,
-"bu görsel bir grafiktir" demez.
+DOĞRULUK NEREDE ÖLÇÜLDÜ
+-----------------------
+Genel media manifestindeki `class` alanı içerik sınıfı değil fixture ailesidir;
+bu nedenle doğruluk kapısı ayrı, dengeli ve yeniden üretilebilir bir korpustur:
+20 photo + 20 graphic + 20 transparent + 20 animation + 20 document.
+Her örnek gerçek dosya baytına kodlanır ve `classify()` uçtan uca çağrılır.
 
 Bu yüzden içerik sınıflandırma doğruluğu **canlı korpustan** ölçüldü:
 
@@ -18,18 +16,17 @@ Bu yüzden içerik sınıflandırma doğruluğu **canlı korpustan** ölçüldü
     Kaçanlar : #03 (soluk çizim + damga), #31 (dokulu fonda kelime-marka)
     Süre     : p50 32 ms · p90 41 ms · en kötü 137 ms
 
-DÜRÜST SINIR — bu %95,8 sağlam bir tahmin DEĞİLDİR:
+DÜRÜST SINIR — canlı %95,8 tek başına sağlam bir tahmin DEĞİLDİR:
   * 48 örnekte yalnız **4 pozitif** var. "Hep photo de" diyen boş bir
     sınıflandırıcı bile %91,7 alır; ölçülen üstünlük 2 dosyadan ibarettir.
   * Eşikler bu 4 pozitifin üzerinde kalibre edildi — aynı veride ölçülen
     doğruluk iyimserdir (in-sample).
-  * `text` sınıfı için iki korpusta da **tek örnek yok**: eşikleri
-    ÖLÇÜLMEDİ (`classify.TEXT_OLCULDU is False`).
+  * Canlı örneklem beş sınıfı kapsamıyordu; dengeli korpus bu vacuity'yi
+    kapatır ama sentetiktir, üretim dağılımının yerine geçmez.
 
 Korpus büyüdüğünde `GRAPHIC_*` eşikleri yeniden kalibre edilmelidir.
-Aşağıdaki testler bu yüzden doğruluğu değil, **eşik davranışını** ve
-**sözleşmeyi** sabitler; canlı örneklem repoda olmadığı için yeniden
-koşturulamaz, ölçüm sonucu belge olarak burada durur.
+Aşağıdaki testler doğruluğu, eşik davranışını ve yönlendirme sözleşmesini ayrı
+ayrı sabitler; canlı örneklem repoda olmadığı için sonucu ek kanıt olarak kalır.
 
 Çalıştırma:
 
@@ -38,11 +35,17 @@ koşturulamaz, ölçüm sonucu belge olarak burada durur.
 
 from __future__ import annotations
 
+import io
 import json
+import random
+import subprocess
 import sys
+import tempfile
 import unittest
+from collections import Counter
 from dataclasses import replace
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
@@ -53,13 +56,59 @@ from tradehub_core.media.pipeline.image.probe import GuardConfig  # noqa: E402
 
 IMAGES = ROOT / "tradehub_core" / "tests" / "fixtures" / "media" / "images"
 MANIFEST = ROOT / "tradehub_core" / "tests" / "fixtures" / "media" / "manifest.json"
+CLASSIFY_MANIFEST = ROOT / "tradehub_core" / "tests" / "fixtures" / "image_t062" / "manifest.json"
+MEDIA_VERSION_SCHEMA = (
+	ROOT / "tradehub_core" / "tradehub_core" / "doctype" / "media_version" / "media_version.json"
+)
+MEDIA_VERSION_SPEC = ROOT / "tradehub_core" / "media" / "pipeline" / "doctype_specs" / "media_version.json"
 
 GEVSEK = GuardConfig(max_megapixels=200.0, max_bytes=64 * 1024 * 1024, allow_animated=True)
+
+
+_CLASSIFY_MEMORY_PROBE_CODE = """
+import json
+import resource
+import sys
+from tradehub_core.media.pipeline.image.classify import classify
+from tradehub_core.media.pipeline.image.probe import GuardConfig
+
+result = classify(
+    sys.argv[1],
+    guard=GuardConfig(max_megapixels=200.0, max_bytes=64 * 1024 * 1024, allow_animated=True),
+)
+raw_peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+peak_bytes = int(raw_peak if sys.platform == "darwin" else raw_peak * 1024)
+print(json.dumps({
+    "ok": result.ok,
+    "klass": result.klass,
+    "peak_rss_bytes": peak_bytes,
+}))
+"""
+
+
+def _measure_classify_peak(path: Path) -> dict:
+	"""Sınıflandırmayı temiz alt süreçte ölç; fixture üretiminin RSS'ini dışla."""
+	proc = subprocess.run(
+		[sys.executable, "-c", _CLASSIFY_MEMORY_PROBE_CODE, str(path)],
+		cwd=ROOT,
+		capture_output=True,
+		text=True,
+		timeout=120,
+		check=False,
+	)
+	if proc.returncode:
+		raise AssertionError(proc.stderr or proc.stdout)
+	return json.loads(proc.stdout.strip().splitlines()[-1])
 
 #: Canlı örneklemde ÖLÇÜLEN doğruluk (yukarıdaki blok). Kod bu sayıyı
 #: yeniden üretemez (görseller repoda değil); sabit, ölçümün kaydıdır.
 CANLI_ORNEKLEM_N: int = 48
 CANLI_ORNEKLEM_DOGRU: int = 46
+
+#: Yeniden üretilebilir dengeli korpus: manifestteki 5 sınıf × N örnek.
+_DENGELI_MANIFEST: dict = json.loads(CLASSIFY_MANIFEST.read_text(encoding="utf-8"))
+DENGELI_SINIF_BASINA: int = int(_DENGELI_MANIFEST["samples_per_class"])
+DENGELI_ORNEKLEM_N: int = len(C.SINIFLAR) * DENGELI_SINIF_BASINA
 
 #: Fixture korpusunda manifest etiketiyle AYRILAN dosyalar. Ayrılma bir hata
 #: değil, yukarıda anlatılan etiket anlamı farkıdır — hepsi "graphic"
@@ -75,6 +124,7 @@ BEKLENEN_AYRIM: frozenset[str] = frozenset(
 		"content_blank_white.png",
 		"content_border_40pct.png",
 		"content_border_08pct.png",
+		"real_adobergb_3780x2717.png",
 	}
 )
 
@@ -107,6 +157,67 @@ def _foto() -> C.Features:
 		height=4160,
 		mode="RGB",
 	)
+
+
+def _kodla(im, fmt: str, **kwargs) -> bytes:
+	buf = io.BytesIO()
+	im.save(buf, fmt, **kwargs)
+	im.close()
+	return buf.getvalue()
+
+
+def _korpus_ornegi(sinif: str, seed: int) -> tuple[bytes, str]:
+	"""Arrange: beş sınıftan deterministik, gerçek kodlanmış bir örnek."""
+	from PIL import Image, ImageDraw
+
+	if sinif == C.SINIF_PHOTO:
+		rng = random.Random(seed)
+		im = Image.new("RGB", (192, 144))
+		px = im.load()
+		for y in range(im.height):
+			for x in range(im.width):
+				n = rng.randrange(-12, 13)
+				px[x, y] = ((x * 3 + y + n) % 256, (x + y * 2 - n) % 256, (x * 2 + y * 3 + n) % 256)
+		return _kodla(im, "JPEG", quality=88), f"photo-{seed}.jpg"
+
+	if sinif == C.SINIF_GRAPHIC:
+		renkler = ((12, 42, 180), (245, 190, 8), (230, 30, 70), (30, 200, 150))
+		im = Image.new("RGB", (192, 144), renkler[seed % 4])
+		draw = ImageDraw.Draw(im)
+		draw.rectangle((20 + seed % 9, 18, 172, 52), fill=renkler[(seed + 1) % 4])
+		draw.rectangle((30, 76, 160 - seed % 7, 126), fill=renkler[(seed + 2) % 4])
+		draw.line((0, 70, 191, 70), fill=renkler[(seed + 3) % 4], width=5)
+		return _kodla(im, "PNG"), f"graphic-{seed}.png"
+
+	if sinif == C.SINIF_TRANSPARENT:
+		im = Image.new("RGBA", (192, 144), (0, 0, 0, 0))
+		draw = ImageDraw.Draw(im)
+		draw.ellipse((20 + seed % 10, 15, 170, 130), fill=(30 + seed * 3 % 200, 80, 210, 255))
+		draw.rectangle((60, 45, 132, 100), fill=(250, 210, 20, 160))
+		return _kodla(im, "PNG"), f"transparent-{seed}.png"
+
+	if sinif == C.SINIF_ANIMATION:
+		ilk = Image.new("RGB", (192, 144), (20, 40 + seed % 100, 180))
+		ikinci = Image.new("RGB", (192, 144), (220, 40, 40 + seed % 100))
+		buf = io.BytesIO()
+		ilk.save(buf, "GIF", save_all=True, append_images=[ikinci], duration=80, loop=0)
+		ilk.close()
+		ikinci.close()
+		return buf.getvalue(), f"animation-{seed}.gif"
+
+	if sinif == C.SINIF_DOCUMENT:
+		# 160 px kutu: özellik küçültmesinde gri anti-alias üretmez; gerçek
+		# iki-tonlu belge kenarı ölçülür.
+		im = Image.new("L", (160, 120), 255)
+		draw = ImageDraw.Draw(im)
+		for y in range(5, 115, 5):
+			for x in range(5 + (seed + y) % 4, 155, 22):
+				draw.rectangle((x, y, x + 13 + (x + seed) % 5, y + 1), fill=0)
+		draw.rectangle((3, 3, 4, 116), fill=0)
+		draw.rectangle((155, 3, 156, 116), fill=0)
+		return _kodla(im, "PNG"), f"document-{seed}.png"
+
+	raise AssertionError(f"bilinmeyen sınıf: {sinif}")
 
 
 class SinifSirasiTest(unittest.TestCase):
@@ -144,10 +255,28 @@ class SinifSirasiTest(unittest.TestCase):
 		self.assertEqual(sinif, C.SINIF_PHOTO)
 		self.assertIn("alpha_channel_present_but_opaque", gerekce)
 
-	def test_kanit_yoksa_varsayilan_photo(self):
-		sinif, _, gerekce = C.classify_features(_foto())
+	def test_surekli_ton_kaniti_photo_high(self):
+		sinif, guven, gerekce = C.classify_features(_foto())
 
 		self.assertEqual(sinif, C.SINIF_PHOTO)
+		self.assertEqual(guven, "high")
+		self.assertTrue(any("quantized_colors" in neden for neden in gerekce))
+
+	def test_kanit_yoksa_varsayilan_photo_low(self):
+		belirsiz = C.Features(
+			unique_colors=12,
+			quantized_colors=12,
+			top_color_share=0.2,
+			hard_edge_ratio=0.2,
+			edge_density=0.02,
+			bilevel_ratio=0.1,
+			saturation_mean=20.0,
+			source_format="PNG",
+		)
+		sinif, guven, gerekce = C.classify_features(belirsiz)
+
+		self.assertEqual(sinif, C.SINIF_PHOTO)
+		self.assertEqual(guven, "low")
 		self.assertIn("default_photo", gerekce)
 
 
@@ -183,6 +312,9 @@ class SaydamlikEsigiTest(unittest.TestCase):
 				r = C.classify(yol, guard=GEVSEK)
 				self.assertEqual(r.klass, C.SINIF_ANIMATION)
 				self.assertEqual(r.confidence, "exact")
+				self.assertTrue(r.route_to_video)
+				self.assertEqual(r.job_type, C.JOB_TYPE_VIDEO_FROM_ANIMATION)
+				self.assertEqual(r.chain, ())
 
 
 class GrafikEsigiTest(unittest.TestCase):
@@ -249,13 +381,15 @@ class GrafikEsigiTest(unittest.TestCase):
 		self.assertGreater(C.GRAPHIC_SATURATION_MIN, 103.3)
 
 
-class MetinSinifiTest(unittest.TestCase):
-	"""`text` eşikleri ÖLÇÜLMEDİ — kodun bunu beyan ettiği doğrulanır."""
+class BelgeSinifiTest(unittest.TestCase):
+	"""Kanonik beşinci sınıf `document`; eski `text` yalnız giriş takma adı."""
 
-	def test_olculmedi_bayragi_dogru(self):
-		self.assertFalse(C.TEXT_OLCULDU, "text eşikleri ölçüldüyse bu bayrak ve belge güncellenmeli")
+	def test_document_olculdu_bayragi_dogru(self):
+		self.assertTrue(C.DOCUMENT_OLCULDU)
+		self.assertTrue(C.TEXT_OLCULDU)
+		self.assertEqual(C.SINIF_TEXT, C.SINIF_DOCUMENT)
 
-	def test_metin_profili_text_verir(self):
+	def test_belge_profili_document_verir(self):
 		f = replace(
 			_foto(),
 			bilevel_ratio=0.95,
@@ -266,22 +400,43 @@ class MetinSinifiTest(unittest.TestCase):
 		)
 		sinif, guven, gerekce = C.classify_features(f)
 
-		self.assertEqual(sinif, C.SINIF_TEXT)
-		self.assertEqual(guven, "low")
-		self.assertIn("UNVALIDATED_THRESHOLDS", gerekce)
+		self.assertEqual(sinif, C.SINIF_DOCUMENT)
+		self.assertEqual(guven, "high")
+		self.assertTrue(any("bilevel_ratio" in g for g in gerekce))
 
-	def test_text_sonucu_olculmedi_isaretlenir(self):
-		"""`measured=False` — rapor katmanı bunu 'ölçülmedi' diye göstermeli."""
-		self.assertFalse(
-			C.Classification(klass=C.SINIF_TEXT, measured=C.TEXT_OLCULDU).measured,
+	def test_document_esiklerinin_dort_siniri_da_dahilidir(self):
+		"""AAA sınırları: tam eşik document, tek ölçüt eşiği kaçırınca değil."""
+		tam = replace(
+			_foto(),
+			bilevel_ratio=C.DOCUMENT_BILEVEL_MIN,
+			edge_density=C.DOCUMENT_EDGE_DENSITY_MIN,
+			quantized_colors=C.DOCUMENT_QUANT_COLORS_MAX,
+			saturation_mean=C.DOCUMENT_SATURATION_MAX,
+			lossy_source=False,
 		)
+		self.assertEqual(C.classify_features(tam)[0], C.SINIF_DOCUMENT)
+
+		sinir_disi = (
+			replace(tam, bilevel_ratio=C.DOCUMENT_BILEVEL_MIN - 0.001),
+			replace(tam, edge_density=C.DOCUMENT_EDGE_DENSITY_MIN - 0.001),
+			replace(tam, quantized_colors=C.DOCUMENT_QUANT_COLORS_MAX + 1),
+			replace(tam, saturation_mean=C.DOCUMENT_SATURATION_MAX + 0.1),
+		)
+		for f in sinir_disi:
+			with self.subTest(features=f):
+				self.assertNotEqual(C.classify_features(f)[0], C.SINIF_DOCUMENT)
+
+	def test_eski_text_girdisi_document_zincirine_cozulur(self):
+		caps = {"WEBP": True, "WEBP:lossless": True, "PNG": True}
+		self.assertEqual(C.format_chain("text", caps), C.format_chain(C.SINIF_DOCUMENT, caps))
 
 
 class BicimZinciriTest(unittest.TestCase):
 	def test_her_sinifin_zinciri_var(self):
-		for s in C.SINIFLAR:
+		for s in set(C.SINIFLAR) - {C.SINIF_ANIMATION}:
 			with self.subTest(sinif=s):
 				self.assertTrue(C.FORMAT_CHAINS[s], f"{s} zinciri boş")
+		self.assertEqual(C.FORMAT_CHAINS[C.SINIF_ANIMATION], ())
 
 	def test_zincir_yetenege_gore_suzulur(self):
 		yok = dict.fromkeys(("AVIF", "WEBP", "JPEG", "PNG", "GIF"), False)
@@ -302,23 +457,55 @@ class BicimZinciriTest(unittest.TestCase):
 		"""Keskin kenarda 4:2:0 renk altörneklemesi görünür kaçak bırakır."""
 		self.assertNotIn("JPEG", [a.fmt for a in C.FORMAT_CHAINS[C.SINIF_GRAPHIC]])
 
-	def test_grafik_ve_metin_kalite_yukseltmesi_alir(self):
-		"""Kayıpsıza dallanmak yerine kalite yükseltilir (6,40x ölçümü)."""
-		for s in (C.SINIF_GRAPHIC, C.SINIF_TEXT):
+	def test_webp_lossless_yoksa_grafik_pngye_duser(self):
+		caps = {"WEBP": True, "WEBP:lossless": False, "PNG": True}
+		self.assertEqual([a.fmt for a in C.format_chain(C.SINIF_GRAPHIC, caps)], ["PNG"])
+
+	def test_grafik_ve_document_tamamen_kayipsizdir(self):
+		"""Kabul kriteri: logo/grafik ve belge zincirinde kayıplı adım yok."""
+		for s in (C.SINIF_GRAPHIC, C.SINIF_DOCUMENT):
 			with self.subTest(sinif=s):
-				ilk = C.FORMAT_CHAINS[s][0]
-				self.assertGreater(ilk.quality_bump, 0)
-				self.assertFalse(ilk.lossless, "ilk adım kayıpsız olmamalı")
+				self.assertTrue(all(adim.lossless for adim in C.FORMAT_CHAINS[s]))
+				self.assertEqual([a.fmt for a in C.FORMAT_CHAINS[s]], ["WEBP", "PNG"])
 
 	def test_photo_zinciri_kayipsiz_icermez(self):
 		for adim in C.FORMAT_CHAINS[C.SINIF_PHOTO]:
 			self.assertFalse(adim.lossless, f"{adim.fmt} kayıpsız — fotoğrafta 7,86x pahalı")
+			self.assertEqual(adim.quality_target, 88)
+
+	def test_faz2_zincirleri_ve_kalite_hedefleri(self):
+		"""Photo/alpha/graphic/document Faz 2 tablo sırası ve q88/lossless hedefi."""
+		self.assertEqual([a.fmt for a in C.FORMAT_CHAINS[C.SINIF_PHOTO]], ["AVIF", "WEBP", "JPEG"])
+		self.assertEqual(
+			[a.fmt for a in C.FORMAT_CHAINS[C.SINIF_TRANSPARENT]],
+			["AVIF", "WEBP", "PNG"],
+		)
+		for sinif in (C.SINIF_GRAPHIC, C.SINIF_DOCUMENT):
+			self.assertTrue(
+				all(a.quality_target == "lossless" for a in C.FORMAT_CHAINS[sinif]),
+				sinif,
+			)
+
+	def test_dusuk_guven_kayipsiz_guvenli_zincire_yaklasir(self):
+		"""Kabul sınırı: belirsiz içerik photo/low etiketiyle lossless yayınlanır."""
+		from PIL import Image
+
+		kaynak = _kodla(Image.new("RGB", (96, 96), (128, 128, 128)), "PNG")
+		caps = {"WEBP": True, "WEBP:lossless": True, "PNG": True}
+		r = C.classify(kaynak, filename="ambiguous.png", capabilities=caps)
+
+		self.assertTrue(r.ok, r.error)
+		self.assertEqual((r.klass, r.confidence), (C.SINIF_PHOTO, "low"))
+		self.assertTrue(r.safe_fallback)
+		self.assertEqual([a.fmt for a in r.chain], ["WEBP", "PNG"])
+		self.assertTrue(all(a.lossless for a in r.chain))
 
 	def test_yetenek_sondasi_calisir(self):
 		yet = C.encoder_capabilities()
 		self.assertTrue(yet["PNG"], "PNG kodlanamıyor — ortam bozuk")
 		self.assertTrue(yet["JPEG"])
 		self.assertIn("WEBP:animation", yet)
+		self.assertTrue(yet["WEBP:lossless"])
 
 
 class KapiTest(unittest.TestCase):
@@ -340,6 +527,63 @@ class KapiTest(unittest.TestCase):
 		self.assertIsNone(r.probe)
 
 
+class YonlendirmeKontratiTest(unittest.TestCase):
+	"""Bridge ajanının tüketeceği animasyon → video kontratı."""
+
+	def test_animated_gif_varsayilan_kapida_reddedilmez_videoya_yonlenir(self):
+		kaynak, ad = _korpus_ornegi(C.SINIF_ANIMATION, 7)
+
+		r = C.classify(kaynak, filename=ad)
+
+		self.assertTrue(r.ok, r.error)
+		self.assertEqual(r.klass, C.SINIF_ANIMATION)
+		self.assertEqual(r.target_pipeline, C.PIPELINE_VIDEO)
+		self.assertEqual(r.job_type, "video_from_animation")
+		self.assertTrue(r.route_to_video)
+		self.assertEqual(r.chain, (), "animasyon görsel kodlayıcıya düşmemeli")
+		self.assertEqual(r.video_targets, (("MP4", "H264"), ("WEBM", "VP9")))
+		self.assertTrue(r.poster_required)
+
+	def test_animated_gif_basliktan_yonlenir_piksel_decode_edilmez(self):
+		"""Animation kesin başlık bilgisidir; pahalı özellik çıkarımı çalışmamalı."""
+		kaynak, ad = _korpus_ornegi(C.SINIF_ANIMATION, 11)
+
+		with mock.patch.object(C, "extract_features", side_effect=AssertionError("piksel decode")):
+			r = C.classify(kaynak, filename=ad)
+
+		self.assertTrue(r.ok, r.error)
+		self.assertEqual((r.klass, r.confidence), (C.SINIF_ANIMATION, "exact"))
+		self.assertIsNone(r.features)
+		self.assertEqual((r.target_pipeline, r.job_type), (C.PIPELINE_VIDEO, C.JOB_TYPE_VIDEO_FROM_ANIMATION))
+
+	def test_statik_girdi_image_rendition_olarak_kalir(self):
+		kaynak, ad = _korpus_ornegi(C.SINIF_GRAPHIC, 3)
+		r = C.classify(kaynak, filename=ad)
+
+		self.assertTrue(r.ok, r.error)
+		self.assertEqual((r.target_pipeline, r.job_type), (C.PIPELINE_IMAGE, C.JOB_TYPE_IMAGE_RENDITION))
+		self.assertFalse(r.route_to_video)
+
+
+class BellekButcesiTest(unittest.TestCase):
+	def test_72mp_rgba_siniflandirma_peak_bellek_500mb_altinda(self):
+		"""Tam-frame RGBA/RGB/gri kopyaları yerine bounded tile/thumbnail kullanılır."""
+		with tempfile.TemporaryDirectory(prefix="t062-rgba-memory-") as gecici:
+			kaynak = Path(gecici) / "alpha-72mp.png"
+			uret = (
+				"from PIL import Image; import sys; "
+				"im=Image.new('RGBA',(8527,8527),(10,20,30,128)); "
+				"im.save(sys.argv[1],'PNG',compress_level=9); im.close()"
+			)
+			subprocess.run([sys.executable, "-c", uret, str(kaynak)], check=True, timeout=120)
+
+			olcum = _measure_classify_peak(kaynak)
+
+		self.assertTrue(olcum["ok"], olcum)
+		self.assertEqual(olcum["klass"], C.SINIF_TRANSPARENT)
+		self.assertLess(olcum["peak_rss_bytes"], 500 * 1024 * 1024, olcum)
+
+
 class FixtureAyrimTest(unittest.TestCase):
 	"""Manifest etiketiyle ayrılan dosyalar tam olarak beklenenler mi."""
 
@@ -359,12 +603,13 @@ class FixtureAyrimTest(unittest.TestCase):
 			"fixture ayrımı değişti — sınıflandırıcı ya da manifest güncellenmiş",
 		)
 
-	def test_ayrilanlarin_hepsi_graphic_etiketli(self):
-		"""Ayrımın tek kaynağı etiket anlamı farkı olmalı, başka sınıf kaymamalı."""
+	def test_ayrilanlar_manifest_fixture_aileleridir(self):
+		"""Ayrımlar içerik etiketi değil fixture ailesi olduğundan beklenir."""
 		etiket = {Path(f["file"]).name: f["class"] for f in _fixtures()}
 		for ad in BEKLENEN_AYRIM:
 			with self.subTest(dosya=ad):
-				self.assertEqual(etiket[ad], "graphic")
+				beklenen_aile = "photo" if ad == "real_adobergb_3780x2717.png" else "graphic"
+				self.assertEqual(etiket[ad], beklenen_aile)
 
 	def test_canli_olcum_kaydi(self):
 		"""Ölçümün kaydı — %95,8 hedefi tutmuştu."""
@@ -372,7 +617,46 @@ class FixtureAyrimTest(unittest.TestCase):
 		self.assertGreaterEqual(oran, 0.95)
 
 
+class DengeliDogrulukTest(unittest.TestCase):
+	"""Act/Assert: beş sınıfın dengeli 100 örnekte doğruluğu ≥%95."""
+
+	def test_bes_sinif_dengeli_korpusta_yuzde_95_ustu(self):
+		caps = C.encoder_capabilities()
+		dogru = Counter()
+		toplam = Counter()
+		yanlislar: list[str] = []
+
+		self.assertEqual(set(_DENGELI_MANIFEST["classes"]), set(C.SINIFLAR))
+		minimum = float(_DENGELI_MANIFEST["minimum_accuracy"])
+		for beklenen in C.SINIFLAR:
+			for seed in range(DENGELI_SINIF_BASINA):
+				kaynak, ad = _korpus_ornegi(beklenen, seed)
+				r = C.classify(kaynak, filename=ad, capabilities=caps)
+				toplam[beklenen] += 1
+				if r.ok and r.klass == beklenen:
+					dogru[beklenen] += 1
+				else:
+					yanlislar.append(f"{ad}:{r.klass}:{r.error or ','.join(r.reasons)}")
+
+		genel = sum(dogru.values()) / DENGELI_ORNEKLEM_N
+		self.assertGreaterEqual(genel, minimum, yanlislar)
+		for sinif in C.SINIFLAR:
+			with self.subTest(sinif=sinif):
+				self.assertGreaterEqual(dogru[sinif] / toplam[sinif], minimum, yanlislar)
+
+
 class SozlesmeTest(unittest.TestCase):
+	def test_media_version_schema_bes_kanonik_sinifi_ve_kalite_hedefini_tasir(self):
+		for path in (MEDIA_VERSION_SCHEMA, MEDIA_VERSION_SPEC):
+			with self.subTest(path=path):
+				schema = json.loads(path.read_text(encoding="utf-8"))
+				fields = {field["fieldname"]: field for field in schema["fields"] if "fieldname" in field}
+				self.assertEqual(
+					set(fields["classification"]["options"].splitlines()[1:]),
+					set(C.SINIFLAR),
+				)
+				self.assertIn("quality_target", fields["format_chain"]["description"])
+
 	def test_bozuk_girdi_istisna_atmaz(self):
 		for girdi in (b"", b"\x00\x01", b"garbage"):
 			with self.subTest(girdi=girdi[:6]):
@@ -382,11 +666,18 @@ class SozlesmeTest(unittest.TestCase):
 
 	def test_to_dict_serilestirilebilir(self):
 		r = C.classify(IMAGES / "ok_product_4x5.jpg", guard=GEVSEK)
-		json.dumps(r.to_dict())
-		self.assertIn("chain", r.to_dict())
+		sozluk = r.to_dict()
+		json.dumps(sozluk)
+		self.assertIn("chain", sozluk)
+		self.assertEqual((sozluk["target_pipeline"], sozluk["job_type"]), ("image", "rendition"))
 
 	def test_siniflar_listesi_bes(self):
 		self.assertEqual(len(C.SINIFLAR), 5)
+		self.assertEqual(
+			set(C.SINIFLAR),
+			{"photo", "transparent", "graphic", "animation", "document"},
+		)
+		self.assertNotIn("text", C.SINIFLAR)
 
 	def test_sonuc_hep_bilinen_sinif(self):
 		for f in _fixtures():

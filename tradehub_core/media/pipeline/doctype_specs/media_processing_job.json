@@ -34,7 +34,7 @@
    "fieldtype": "Select",
    "label": "İş Tipi",
    "reqd": 1,
-   "options": "normalize\nrendition\ntranscode\nposter\npreview\nai\ngc\nretention\nreport"
+   "options": "normalize\nrendition\nvideo_from_animation\ntranscode\nposter\npreview\nai\ngc\nretention\nreport"
   },
   {
    "fieldname": "queue",

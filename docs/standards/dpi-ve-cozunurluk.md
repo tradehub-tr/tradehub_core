@@ -1,7 +1,7 @@
 # T-024 — DPI ve piksel normalizasyon standardı
 
 **Tarih:** 2026-08-17 · **Branch:** `medya-motoru-faz0-faz2` · **Görev:** T-024
-**Test karşılığı:** `tests/test_policy_dpi.py` (19 test, 1 bilinçli `expectedFailure`)
+**Test karşılığı:** `tradehub_core/tests/test_policy_dpi.py` (20 test, açık beklenen hata yok)
 **Policy dosyaları:** `docs/standards/policies/*.json` — 13 slot (+ alan sözleşmesi `policies/_schema.md`)
 
 Bu belge yeniden tasarım değildir. `tradehub_core/media/` altında **8.200 satır**
@@ -153,7 +153,7 @@ o ortamlarda JPEG fallback gönderir, sunucu WebP'ye tamamlar (`engine.py:149-15
 1. Image.open → ImageOps.exif_transpose                engine.py:163-164
 2. mode RGB/RGBA değilse: alfa taşıyorsa RGBA, yoksa RGB  engine.py:173-175
    (koşulsuz convert("RGB") şeffaf logoyu opaklaştırıyordu — Fix round 1)
-3. im.thumbnail((1920, 1920))   ← SABİT 1920, preset DEĞİL  engine.py:177   [K]
+3. im.thumbnail((max_dim, max_dim)) ← varsayılan 2400, yalnız küçültür [K]
 4. save(WEBP, quality=quality, method=4)               engine.py:180
 ```
 
@@ -169,13 +169,13 @@ koşulsuz çalışır:
 küçültülmez (`seller_media.py:287-288` yorumu: *"`.webp` uzantısıyla gelen içerik
 zaten WebP'yse dokunulmaz — çift sıkıştırma yok"*).
 
-### 3.1 İstemci tarafı da 1920 taşıyor
+### 3.1 İstemci kaynak tavanı
 
 | Dosya | Sabit | Değer |
 |---|---|---|
-| `tradehubfront/src/lib/media/compress.image.ts:10` | `HEDEF_GENISLIK` | **1920** **[K]** |
+| `tradehubfront/src/lib/media/compress.image.ts` | `HEDEF_GENISLIK` | **2400** **[K]** |
 | `tradehubfront/src/lib/media/compress.image.ts:11` | `HEDEF_MAX_MB` | **0.5** **[K]** |
-| `admin-panel/frontend/src/lib/media/compress.image.js:9` | `HEDEF_GENISLIK` | **1920** **[K]** |
+| `admin-panel/frontend/src/lib/media/compress.image.js` | `HEDEF_GENISLIK` | **2400** **[K]** |
 | `admin-panel/frontend/src/lib/media/compress.image.js:10` | `HEDEF_MAX_MB` | **0.5** **[K]** |
 
 İkisi de `browser-image-compression` ile canvas üzerinden yeniden encode ediyor.
@@ -286,25 +286,22 @@ Her policy'de `dpi_policy` bloğu var ve üçü de değişmez: `output_dpi: 72`,
 `strip_input_dpi: true`, **`pixels_preserved: true`**. Test her policy'de bu üçünü
 zorluyor — hiçbir slot "DPI düşünce piksel de düşer" diyemez.
 
-### A1 — AÇIK: ürün tabanı 2000, hat 1920'de kesiyor
+### A1 — KAPALI: ürün tabanı kaynak hattında korunuyor
 
-**Ölçülmüş çelişki.** Ürün slotları `min_long_edge = 2000` istiyor; yükleme
-hattının **üç** noktası uzun kenarı **1920**'ye sabitliyor:
+Ürün slotları `min_long_edge = 2000` istiyor. Kaynak yükleme hattının üç
+noktası artık politika master tavanı olan **2400 px**'te birleşiyor:
 
 | Nokta | Satır | Değer |
 |---|---|---|
-| Sunucu garanti-WebP | `tradehub_core/media/pipeline.py:177` | `im.thumbnail((1920, 1920))` **[K]** |
-| Storefront istemcisi | `tradehubfront/src/lib/media/compress.image.ts:10` | `HEDEF_GENISLIK = 1920` **[K]** |
-| Panel istemcisi | `admin-panel/frontend/src/lib/media/compress.image.js:9` | `HEDEF_GENISLIK = 1920` **[K]** |
+| Sunucu garanti-WebP | `tradehub_core/media/engine.py::to_webp` | `max_dim=2400` **[K]** |
+| Storefront istemcisi | `tradehubfront/src/lib/media/compress.image.ts` | `HEDEF_GENISLIK = 2400` **[K]** |
+| Panel istemcisi | `admin-panel/frontend/src/lib/media/compress.image.js` | `HEDEF_GENISLIK = 2400` **[K]** |
 
-**[Ö]** `engine.to_webp(3000×3000 @300dpi)` → **1920×1920**. Yani 2000 px tabanı
-**yükleme anında**, dosya diske yazılmadan önce ihlal ediliyor. Batch optimizer
-(`runner.py:229`, `balanced.max_dim = 2000`) bu dosyayı kurtaramaz: `thumbnail`
-büyütmez ve Kapı 4 (`1920 <= 2000`) onu `already_small` sayıp hiç açmaz.
-
-`tests/test_policy_dpi.py::TestUploadYoluTabaniKarsilamiyor` bu açığı
-`@unittest.expectedFailure` ile **testte** de tutuyor. Test yeşile dönerse
-(*unexpected success*) biri tavanı düzeltmiş demektir ve bu madde kapanmalıdır.
+**[Ö, 2026-08-23]** `engine.to_webp(3000×3000 @300dpi)` → **2400×2400**.
+`TestUploadYoluTabani` hem 2000 px tabanını hem 2400 px tavanını normal test
+olarak bağlıyor; `expectedFailure` kaldırıldı. `max_dim` çağıran tarafından
+daraltılabildiği için ürün dışı bir slot 512 px gibi daha küçük bir kaynak
+tavanını aynı fonksiyonda seçebilir.
 
 **Bayt maliyeti [Ö]** (3000×3000 sentetik gürültü, WebP q80, `method=4`):
 
@@ -315,13 +312,10 @@ büyütmez ve Kapı 4 (`1920 <= 2000`) onu `already_small` sayıp hiç açmaz.
 | 2400 | 2400×2400 | 1.781.120 (1,70 MB) | +80,4 % |
 | 2560 | 2560×2560 | 2.315.410 (2,21 MB) | +134,5 % |
 
-**Öneri [T]:** üç noktadaki 1920 → **2000** yapılmalı, 2560 değil. 2000 ürün
-tabanını **tam** karşılar, `balanced` preseti ile aynı sayıdır (yani Kapı 4 ile
-tutarlı kalır) ve maliyeti bu en kötü durum ölçümünde **%6**. 2560'a çıkmak
-maliyeti ikiye katlıyor ve karşılığında hiçbir policy'nin `min` değeri
-karşılanmıyor — tavan zaten `max`. Alternatif: ürün tabanını 1920'ye düşürmek;
-reddedildi çünkü 1920, `presets.py`'deki üç presetin hiçbirine denk gelmiyor ve
-"ürün fotosu ile logo aynı çözünürlükte" demek olurdu.
+**Karar [T]:** 2400 seçildi; bu sayı `product.image.master.max_long_edge` ile
+aynıdır. 2000 yalnız alt sınırı karşılar, 2400 ise master için yeniden kaynaktan
+piksel isteme gereğini ortadan kaldırır. Türev merdiveni istemci kaynak dosyası
+değil, Image Engine tarafından ayrıca üretilir.
 
 ### A2 — AÇIK: `.webp` yükleme hiçbir tavana tabi değil
 
@@ -688,23 +682,25 @@ docker exec istoc-dev-backend-1 bench --site istoc.localhost \
     run-tests --module tradehub_core.tests.test_policy_dpi
 ```
 
-Bu ortamdaki son koşu **[Ö]**: `Ran 19 tests in 7.271s — OK (expected failures=1)`.
-Tek `expectedFailure`, §6-A1'deki 1920 tavanıdır ve bilinçlidir.
+2026-08-23 konteyner koşumu: `Ran 20 tests` ve açık beklenen hata yoktur.
 
 ---
 
 ## 10. Değiştirilmeyenler
 
-T-024 kapsamında **hiçbir mevcut kod dosyası düzenlenmedi.** Yalnız yeni dosya
-yazıldı:
+İlk T-024 araştırmasında yalnız belge/test yazılmıştı. 2026-08-23 kapanışında
+§6-A1 uygulandı; değişen üretim dosyaları:
 
 ```
 docs/standards/dpi-ve-cozunurluk.md         (bu belge)
 docs/standards/policies/_schema.md
 docs/standards/policies/*.json              (13 slot)
-tests/test_policy_dpi.py
+tradehub_core/media/engine.py
+admin-panel/frontend/src/lib/media/compress.image.js
+tradehubfront/src/lib/media/compress.image.ts
+tradehub_core/tests/test_policy_dpi.py
 ```
 
-Önerilen ama **yapılmayan** kod değişiklikleri: §5 (`dpi=(72,72)`),
-§6-A1 (1920 → 2000, üç dosya), §6-A2 (`.webp` tavanı), §6-A3
+Kalan ayrı işler: §5 (`dpi=(72,72)`; WebP biçiminin mutlak DPI taşımadığı notuyla),
+§6-A2 (`.webp` kaynak tavanı), §6-A3
 (`optimization` yanıt bloğu).

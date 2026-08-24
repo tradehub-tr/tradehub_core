@@ -25,6 +25,10 @@ edilebilirlik var. Ortama hypothesis girerse bu sınıf ona taşınmalıdır.
 from __future__ import annotations
 
 import random
+import json
+import re
+import shutil
+import subprocess
 import sys
 import unittest
 from pathlib import Path
@@ -296,6 +300,58 @@ class AltinSimulatorTesti(unittest.TestCase):
 				self.assertAlmostEqual(win.y * H, beklenen["y"], places=6)
 				self.assertAlmostEqual(win.w * W, beklenen["w"], places=6)
 				self.assertAlmostEqual(win.h * H, beklenen["h"], places=6)
+
+	def test_html_simulatorun_javascripti_backend_ile_ayni(self):
+		"""Port değil, gerçek HTML içindeki fonksiyon 200 girdide doğrudan koşar."""
+		node = shutil.which("node")
+		if not node:
+			self.skipTest("Node yok; HTML JavaScript paritesi host/frontend CI'da koşar")
+		html = (ROOT / "docs" / "simulator.html").read_text(encoding="utf-8")
+		match = re.search(
+			r"// T010-CROPWINDOW-BEGIN\s*(.*?)\s*// T010-CROPWINDOW-END",
+			html,
+			flags=re.DOTALL,
+		)
+		self.assertIsNotNone(match, "simulator cropWindow işaretli bloğu bulunamadı")
+
+		rng = random.Random(10010)
+		cases = []
+		for i in range(200):
+			W, H = rng.randint(1, 8000), rng.randint(1, 8000)
+			bw, bh = rng.uniform(0.05, 1.0), rng.uniform(0.05, 1.0)
+			bx, by = rng.uniform(0, 1 - bw), rng.uniform(0, 1 - bh)
+			fx, fy = rng.uniform(bx, bx + bw), rng.uniform(by, by + bh)
+			ar = (None, 1.0, 0.8, 0.75, 16 / 9, 21 / 9)[i % 6]
+			cases.append({
+				"W": W, "H": H,
+				"base": {"x": bx, "y": by, "w": bw, "h": bh},
+				"focal": {"x": fx, "y": fy}, "ar": ar,
+			})
+
+		runner = f"""{match.group(1)}
+const fs = require('fs');
+const cases = JSON.parse(fs.readFileSync(0, 'utf8'));
+process.stdout.write(JSON.stringify(cases.map(c => cropWindow(c.W, c.H, c.base, c.focal, c.ar))));
+"""
+		completed = subprocess.run(
+			[node, "-e", runner],
+			input=json.dumps(cases), text=True, capture_output=True, check=True,
+		)
+		actual = json.loads(completed.stdout)
+		for i, (case, js_window) in enumerate(zip(cases, actual)):
+			win = resolve_crop(
+				asset(case["W"], case["H"]), profile("p", case["ar"]),
+				{
+					"focal_x": case["focal"]["x"], "focal_y": case["focal"]["y"],
+					"safe_x": case["base"]["x"], "safe_y": case["base"]["y"],
+					"safe_w": case["base"]["w"], "safe_h": case["base"]["h"],
+				},
+			)
+			for key, backend in (
+				("x", win.x * case["W"]), ("y", win.y * case["H"]),
+				("w", win.w * case["W"]), ("h", win.h * case["H"]),
+			):
+				self.assertLessEqual(abs(js_window[key] - backend), 0.5, f"case={i} alan={key}")
 
 	def test_tam_kadraj_taban_da_ayni(self):
 		"""Güvenli alan yokken taban tüm kadraj: simülatörün base=(0,0,1,1) hâli."""

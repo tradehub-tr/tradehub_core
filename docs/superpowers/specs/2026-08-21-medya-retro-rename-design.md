@@ -159,7 +159,7 @@ Rollback penceresi: 301 satırları durduğu sürece (`job_key`) `rollback` çal
 | `refs.retarget` bir satırı atladı (embedded/JSON parse hatası) | 301 köprüler; rapor `refs_skipped_detail` |
 | AV/karantina durumu `blocked` | Atla (`quarantined`) |
 | Aynı dosya ikinci kez (`apply` tekrar koşuldu) | `is_legacy_name` false → hiç aday olmaz (idempotent) |
-| M-A arşivi (`archive.relative_path_for`) eski URL'ye bağlı | `apply` sırasında arşiv yolu varsa o da taşınır; yoksa not düşülür (migration.md §8.3.4/5) |
+| M-A arşivi (`archive.relative_path_for`) eski URL'ye bağlı | Araç arşivi taşımaz. Koşudan önce `archive.purge_expired()` çalıştırılır ve `archive.usage_bytes()` 0'a yakın doğrulanır; bekleyen geri-alma varsa migration ertelenir. |
 
 ## 7. Test ve doğrulama
 

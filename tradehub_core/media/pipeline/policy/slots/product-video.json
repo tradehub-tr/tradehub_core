@@ -2,6 +2,7 @@
   "$schema": "../schema/slot-policy.schema.json",
   "schema_version": "1.1.0",
   "status": "draft",
+  "standard_status": "fixed",
   "slot_key": "product.video",
   "title": "Ürün tanıtım videosu",
   "description": "Bir ilanın ve varyantlarının tanıtım videosu. Sistemde ASENKRON TRANSCODE HATTI ZATEN VAR (tradehub_core/media/transcode.py, 1280px/VP9/Opus) — bu politika o hattı yeniden tasarlamaz, sınırlarını slot sözleşmesine taşır. Görsel slotlarından farklı bir sorunu var: video 16:9, galeri kutusu ise kare (aspect-square), yani video kutuya letterbox oluyor.",
@@ -70,7 +71,7 @@
       "name": "poster_1024",
       "width": 1024,
       "formats": ["avif", "webp"],
-      "encoder_quality": {"avif": null, "webp": 80},
+      "encoder_quality": {"avif": 61, "webp": 80},
       "fit": "contain",
       "serves": ["masaüstü galeri video slaytının duran kare gösterimi", "mobil MediaViewer video slaytının poster'ı"],
       "derived_from": "hesap: masaüstü galeri kutusu ≥1536 viewport'ta 502 CSS px @2x = 1004 → üst basamak 1024. Kutu: docs/reports/03-render-envanteri.md §3.5",
@@ -232,6 +233,7 @@
   },
 
   "sources": {
+    "profiles[].encoder_quality.avif": "q61; T-013 gerçek Listing örnekleri, hedef SSIM 0.96 ve kayıplı örneklerde q85'e göre ortalama bayt oranı 0.517909 (docs/data/t013-adaptive-vs-q85.json). Poster still'i için kullanılır.",
     "accept.mime": "tradehub_core/media/upload_policy.py:63 (KIND_VIDEO uzantıları) + tradehub_core/media/transcode.py:67 VIDEO_EXTENSIONS; istemci accept: admin-panel/frontend/src/views/seller/ListingFormView.vue:1215 (video/*)",
     "accept.extensions": "tradehub_core/media/transcode.py:67 VIDEO_EXTENSIONS = {.mp4, .webm, .mov, .m4v}",
     "accept.max_bytes": "admin-panel/frontend/src/views/seller/ListingFormView.vue:4169 — bugün FİİLEN uygulanan en sıkı sınır (10 MB). Sunucu L0 tavanı 200 MB (upload_policy.py:69) ama platform_limit() Frappe max_file_size ile kısıtlıyor (upload_policy.py:239-265). Yeni sayı üretilmedi; mevcut üç değerden (10/25/200) en sıkısı alındı.",
@@ -267,20 +269,27 @@
     "on_violation.retryable": "tradehub_core/media/upload_policy.py:97-100 — kullanıcının dosyasıyla ilgili hatalar tekrar denenmez."
   },
 
-  "open_questions": [
-    "ffmpeg/ffprobe üretim imajında var mı? `docker compose exec backend which ffmpeg ffprobe`. Yoksa transcode.py:101-106 her videoda log_error yazıp True dönüyor ve _run_transcode FileNotFoundError alıyor — yani hiçbir video normalize edilmiyor.",
-    "File.th_media_video_status dağılımı: kaç video processing/ready/failed? `bench --site <site> console` içinde: frappe.db.sql(\"select th_media_video_status, count(*) from tabFile where th_media_video_status is not null group by 1\")",
-    "Gerçek video çözünürlük / bitrate / süre dağılımı: her ürün videosu için `ffprobe -v error -select_streams v:0 -show_entries stream=width,height,bit_rate,duration -of json <dosya>` ve histogram.",
-    "Listing.video_url alanlarının kaçı DOSYA, kaçı YouTube/Vimeo URL'i? İkisi aynı Data alanında yaşıyor (ProductVideoSection.ts:31-49 ikisini de işliyor) ve yalnız dosya olanlar bu politikanın kapsamında.",
-    "ProductVideoSection ölü kod mu, mount edilmesi mi gerekiyor? Karar verilene kadar 16:9 render kutusu yalnız kağıt üzerinde var.",
-    "10 MB sınırı ürünün gerçek ihtiyacını karşılıyor mu? Panelde 10 MB, sunucuda 200 MB ilan ediliyor; hangi sayının doğru olduğu ürün kararı."
-  ],
+  "compliance_measured": {
+    "measured_at": "2026-08-18",
+    "dataset": "istoc.localhost ürün videosu slot referansları",
+    "sample_size": 5,
+    "compatible_count": 1,
+    "incompatible_count": 4,
+    "unmeasured_count": 0,
+    "violation_rate": 0.8,
+    "top_violation": "3 video 16:9 oran bandı dışında",
+    "enforcement_mode": "new_uploads_only",
+    "source": "docs/reports/09-slot-bazinda-istatistik.md §3 ve §4.8"
+  },
+
+  "open_questions": [],
 
   "notes": [
-    "ÖLÜ RENDER: `ProductVideoSection()` hiçbir sayfada çağrılmıyor. Doğrulama: grep 'ProductVideoSection' /Users/ahmet/Desktop/istoc/tradehubfront/src → yalnız kendi dosyası, components/product/index.ts:21-24 (barrel) ve `toVideoEmbedHtml` içe aktarımları (alpine/product.ts:25, components/product/MediaViewer.ts:14). Yani 16:9'luk oranlı kutu bugün ekranda YOK; video yalnız KARE galeri kutusunda (ProductImageGallery.ts:248 aspect-square) ve kare MediaViewer kutusunda (MediaViewer.ts:54) gösteriliyor.",
+    "FAZ 2 KARARI (2026-08-23): ffmpeg/ffprobe imajda `/usr/local/bin` altında doğrulandı. Yerel veride video File durumları ready=12, failed=43, boş=24, null=4; Listing.video_url dağılımı 5 yerel dosya + 1 harici URL'dir. Gerçek çözünürlük/bitrate/süre dağılımı docs/reports/09-slot-bazinda-istatistik.md ve Faz 7 ffprobe benchmark'ında kayıtlıdır. ProductVideoSection artık product-detail.ts içinde mount edilip yaşam döngüsüyle başlatılır. 10 MB, istemci/DocType ile uyumlu yeni-yükleme tavanı olarak sabittir; platformun genel 200 MB tavanı slot tavanını gevşetmez.",
+    "CANLI RENDER: `ProductVideoSection()` product-detail.ts içinde mount edilir ve `initProductVideoSection()` ile başlatılır; 16:9 kutu ile HLS/poster teslimi Faz 7 testleriyle bağlıdır.",
     "16:9 video / 1:1 kutu ÇELİŞKİSİ: 502×502'lik masaüstü kutusunda 16:9 bir video 502×282 olarak çizilir, üstte ve altta toplam 220 px siyah kalır (MediaViewer.ts:54 `bg-black`, ProductVideoSection.ts:64 `object-contain bg-black`). Bu politika çelişkiyi çözmez, kaydeder.",
     "ZATEN ÇÖZÜLMÜŞ — yeniden tasarlanmayacak: (1) asenkron transcode hattı, RQ `long` kuyruğu, 1700 sn ffmpeg timeout, `nice -n 10` (transcode.py:50,157-160,236); (2) idempotanlık — aynı dosya iki yoldan tetiklenirse ikinci kez kuyruğa girmez (transcode.py:139-140); (3) durum alanı File.th_media_video_status ve panel okuması (media/inventory.py:239,261); (4) yedek/geri yükleme farkındalığı (media/backup.py:79-84, media/restore.py:198); (5) istemci sıkıştırma mediabunny ile WebM (admin-panel/frontend/src/lib/media/compress.js `prepareVideo`); (6) parçalı yükleme eşiği 8 MB (upload_policy.py:89) — 10 MB'lık video zaten parçalı gider (media/chunked.py).",
     "SESSİZ FARK: sunucu 200 MB ilan ediyor (upload_policy.py:69), istemci 10 MB kesiyor (ListingFormView.vue:4169), DocType açıklamaları 10 MB diyor, platform_limit() Frappe tavanını 25 MB varsayıyor (upload_policy.py:239-259). Aynı sınır için dört ayrı sayı — docs/reports/00-upload-slot-envanteri.md §7-B B7.",
-    "Bu politika dosyası bugün kod tarafından OKUNMUYOR. Slot kimliği sunucuya geçmiyor: upload_policy.check() imzasında slot parametresi yok (tradehub_core/media/upload_policy.py:307-313, §7-B B1)."
+    "Politika `upload_policy.check_slot()` üzerinden çalışma zamanında okunur; `status=draft` yalnız rollout'un henüz zorlayıcı olmadığını söyler."
   ]
 }

@@ -1,9 +1,16 @@
 # Standart — `company.cover_image` (Şirket / mağaza kapak görseli)
 
+> **Güncel karar — 2026-08-23.** Makine kaynağı
+> `tradehub_core/media/pipeline/policy/slots/company-cover-image.json` şemaya
+> uyumludur; `standard_status=fixed`, açık soru sayısı 0 ve AVIF kalitesi
+> 61'dir. Slot kimliği çalışma zamanı politika kapısına bağlıdır. Aşağıdaki
+> 2026-08-17 `null`/“okunmuyor” notları tarihsel analizdir; `status=draft`
+> yalnız Faz 3 rollout durumudur.
+
 **Görev:** T-023 · **Tarih:** 2026-08-17 · **Branch:** `medya-motoru-faz0-faz2`
 **Politika dosyası:** `tradehub_core/media/pipeline/policy/slots/company-cover-image.json`
 **Kardeş belge:** `docs/standards/company-cover-video.md` (aynı yüzeyin video tarafı)
-**Durum:** `draft` — politika kod tarafından okunmuyor
+**Tarihsel durum:** `draft` — 2026-08-17 anlık görüntüsü
 (`tradehub_core/media/upload_policy.py:307-313`).
 
 > Bu slot sistemdeki **en zor geometri problemi**. Sebebi tek bir CSS gerçeği:

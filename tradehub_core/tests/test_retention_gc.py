@@ -14,7 +14,7 @@ kaldırıldığında aday ÜRETTİĞİ de gösterilir:
   3. Eksik dosya     — diskte karşılığı olmayan `File` kaydı GC'yi düşürmüyor
   4. `Brand.logo`    — artık `usage.LIVE_SOURCES` görüyor (T-043, 2026-08-19);
                        emniyet ağı da yerinde duruyor
-  5. Boş küme        — `Media Rendition` boşken türev işi 0 satırla doğru koşuyor
+  5. Türev envanteri — kuru koşum mevcut `Media Rendition` satırlarını değiştirmiyor
   7. Kullanım kapısı — orijinal süpürücüsü kullanımdaki dosyayı aday görmüyor;
                        kullanım ölçülemezse hiçbir şeyi aday görmüyor
   8. Ayrı işler      — orijinal/türev ayrı bayrak, ayrı kilit, ayrı rapor
@@ -28,8 +28,11 @@ kaldırıldığında aday ÜRETTİĞİ de gösterilir:
 from __future__ import annotations
 
 import os
+import shutil
+import tempfile
 import time
 import unittest
+from unittest import mock
 
 import frappe
 
@@ -63,8 +66,12 @@ class GcTemeli(unittest.TestCase):
 	def setUp(self) -> None:
 		self.olusturulan_dosyalar: list[str] = []
 		self.olusturulan_varliklar: list[str] = []
+		self.olusturulan_turevler: list[str] = []
 
 	def tearDown(self) -> None:
+		for ad in self.olusturulan_turevler:
+			if frappe.db.exists(ret.MEDIA_RENDITION, ad):
+				frappe.delete_doc(ret.MEDIA_RENDITION, ad, force=True, ignore_permissions=True)
 		for ad in self.olusturulan_varliklar:
 			if frappe.db.exists(ret.MEDIA_ASSET, ad):
 				frappe.delete_doc(ret.MEDIA_ASSET, ad, force=True, ignore_permissions=True)
@@ -93,7 +100,7 @@ class GcTemeli(unittest.TestCase):
 	def varlik_yarat(self, dosya_adi: str, legal_hold: int) -> str:
 		doc = frappe.get_doc({
 			"doctype": ret.MEDIA_ASSET,
-			"slot_key": "product-image",
+			"slot_key": "product.image",
 			"media_type": "image",
 			"state": "ready",
 			"source_file": dosya_adi,
@@ -348,14 +355,22 @@ class TestKorNokta(unittest.TestCase):
 # ── 5. Türev işi boş kümede ────────────────────────────────────────────
 
 
-class TestTurevBosKume(unittest.TestCase):
-	def test_rendition_tablosu_bos_ve_is_sifir_satirla_kosuyor(self) -> None:
-		self.assertEqual(frappe.db.count(ret.MEDIA_RENDITION), 0,
-			"tablo artık boş değil — bu testin varsayımı güncellenmeli")
-		bolum = ret.sweep_derivatives(dry_run=True)
-		self.assertEqual(bolum.scanned, 0)
-		self.assertEqual(bolum.candidates, 0)
-		self.assertEqual(bolum.to_dict()["skipped_by_reason"], {})
+class TestTurevEnvanteri(unittest.TestCase):
+	def test_kuru_kosum_mevcut_rendition_envanterini_degistirmiyor(self) -> None:
+		"""Kurulu envanteri tara; satırları ve durum dağılımını aynen koru."""
+		once_sayi = frappe.db.count(ret.MEDIA_RENDITION)
+		once_durum = frappe.db.sql(
+			"select state, count(*) from `tabMedia Rendition` group by state order by state"
+		)
+		bolum = ret.sweep_derivatives(dry_run=True, limit=25)
+		self.assertEqual(bolum.scanned, min(once_sayi, 25))
+		self.assertEqual(frappe.db.count(ret.MEDIA_RENDITION), once_sayi)
+		self.assertEqual(
+			frappe.db.sql(
+				"select state, count(*) from `tabMedia Rendition` group by state order by state"
+			),
+			once_durum,
+		)
 
 	def test_bakim_raporu_iki_bolum_ve_katman_bilgisi_tasiyor(self) -> None:
 		rapor = ret.run_maintenance(dry_run=True, limit=25)
@@ -398,10 +413,251 @@ class TestYenidenUretim(unittest.TestCase):
 		"""Karşı yön: düşüş gerçekten yeniden-üretilebilirlikten geliyor."""
 		self.assertEqual(self._karar(True).action, ret.ACTION_DELETE)
 
-	def test_bugun_uretim_yolu_kapali(self) -> None:
-		"""Ölçüm: bayraklar kapalı — bu sitede türev yeniden üretilemez."""
-		self.assertFalse(ret.regeneration_available(),
-			"boru hattı bayrağı açılmış — türev silme politikası gözden geçirilmeli")
+	def test_bugun_uretim_yolu_acik(self) -> None:
+		"""Kurulu image pipeline, soft-delete sonrası lazy geri üretimi destekliyor."""
+		self.assertTrue(ret.regeneration_available(),
+			"boru hattı kapalıysa türev silme politikası bildirime düşmeli")
+
+	def test_boru_hatti_kapanirsa_uretim_yolu_da_kapaniyor(self) -> None:
+		with mock.patch("tradehub_core.media.pipeline_flags.is_enabled", return_value=False):
+			self.assertFalse(ret.regeneration_available())
+
+
+class TestTurevSoftDelete(GcTemeli):
+	"""Türev silme iki aşamalıdır; grace içinde ilk istek dosyayı geri alır."""
+
+	def test_soft_delete_ve_ilk_istekte_atomik_geri_yukleme(self) -> None:
+		from tradehub_core.media import pipeline_bridge
+
+		dosya = self.dosya_yarat("soft-delete")
+		varlik = self.varlik_yarat(dosya["name"], legal_hold=0)
+		profil = f"t053-{frappe.generate_hash(length=8)}"
+		turev = frappe.get_doc(
+			{
+				"doctype": ret.MEDIA_RENDITION,
+				"asset": varlik,
+				"profile": profil,
+				"width": 96,
+				"height": 96,
+				"format": "webp",
+				"file_url": dosya["file_url"],
+				"state": "ready",
+				"bytes": os.path.getsize(dosya["path"]),
+				"benefit_gate_passed": 1,
+			}
+		).insert(ignore_permissions=True)
+		self.olusturulan_turevler.append(turev.name)
+		aday = ret.GcCandidate(
+			dosya["file_url"],
+			ret.POLICY_DERIVATIVE,
+			ret.ACTION_DELETE,
+			"test_soft_delete",
+			size_bytes=os.path.getsize(dosya["path"]),
+			extra={"rendition": turev.name, "soft_delete_grace_days": 30},
+		)
+
+		self.assertTrue(ret._apply_derivative(aday))
+		silinmis = frappe.db.get_value(
+			ret.MEDIA_RENDITION,
+			turev.name,
+			["state", "trash_path", "purge_after"],
+			as_dict=True,
+		)
+		self.assertEqual(silinmis.state, "purged")
+		self.assertFalse(os.path.exists(dosya["path"]))
+		cop = os.path.join(frappe.get_site_path(), silinmis.trash_path)
+		self.assertTrue(os.path.isfile(cop))
+		self.assertIsNotNone(silinmis.purge_after)
+
+		self.assertTrue(
+			pipeline_bridge._restore_purged_rendition(
+				varlik, "", profil, 96, "webp", dosya["file_url"], dosya["path"]
+			)
+		)
+		geri = frappe.db.get_value(
+			ret.MEDIA_RENDITION,
+			turev.name,
+			["state", "trash_path", "purge_after", "benefit_gate_passed"],
+			as_dict=True,
+		)
+		self.assertEqual(geri.state, "ready")
+		self.assertFalse(geri.trash_path)
+		self.assertIsNone(geri.purge_after)
+		self.assertEqual(geri.benefit_gate_passed, 1)
+		self.assertTrue(os.path.isfile(dosya["path"]))
+
+
+class TestBakimInsanOnayi(unittest.TestCase):
+	"""Islak retention/purge ancak aynı politika hash'li insan onayıyla çalışır."""
+
+	def setUp(self) -> None:
+		self.reports: list[str] = []
+		self.flags = (
+			ret.ENFORCE_FLAG_ORIGINALS,
+			ret.ENFORCE_FLAG_SOFT_DELETE,
+		)
+		self.old_flags = {flag: frappe.conf.get(flag) for flag in self.flags}
+
+	def tearDown(self) -> None:
+		for flag, value in self.old_flags.items():
+			if value is None:
+				frappe.conf.pop(flag, None)
+			else:
+				frappe.conf[flag] = value
+		for name in self.reports:
+			if frappe.db.exists(ret.MEDIA_MAINTENANCE_REPORT, name):
+				frappe.delete_doc(
+					ret.MEDIA_MAINTENANCE_REPORT,
+					name,
+					force=True,
+					ignore_permissions=True,
+				)
+		frappe.db.commit()
+
+	@staticmethod
+	def _policy(label: str) -> ret.RetentionPolicy:
+		return ret.RetentionPolicy.from_mapping(
+			{"policy_version": f"t055-{label}-{frappe.generate_hash(length=12)}"}
+		)
+
+	def _track_result(self, result: dict) -> None:
+		if result.get("maintenance_report"):
+			self.reports.append(result["maintenance_report"])
+
+	def test_onaysiz_original_islak_kosuma_gecmiyor(self) -> None:
+		policy = self._policy("blocked")
+		frappe.conf[ret.ENFORCE_FLAG_ORIGINALS] = 1
+		with mock.patch.object(ret, "configured_policy", return_value=policy):
+			result = ret.run_scheduled_gc_originals()
+		self._track_result(result)
+		self.assertTrue(result["dry_run"])
+		self.assertTrue(result["enforce_requested"])
+		self.assertEqual(result["blocked_by"], "approval_required")
+		self.assertFalse(result["approval_report"])
+
+	def test_onay_islak_kosumu_bir_kez_aciyor_ve_tuketiliyor(self) -> None:
+		from tradehub_core.api import media_retention
+
+		policy = self._policy("approved")
+		dry_report = {
+			"dry_run": True,
+			"totals": {"scanned": 1, "candidates": 1, "bytes_candidate": 10},
+		}
+		approval = ret.persist_maintenance_report(
+			dry_report, job_type="originals", policy=policy
+		)
+		self.reports.append(approval)
+		old_user = frappe.session.user
+		frappe.set_user("Administrator")
+		try:
+			decision = media_retention.approve_maintenance_report(
+				approval, approve=1, reason="T-055 kabul testi"
+			)
+		finally:
+			frappe.set_user(old_user)
+		self.assertEqual(decision["approval_status"], "approved")
+
+		frappe.conf[ret.ENFORCE_FLAG_ORIGINALS] = 1
+		with mock.patch.object(ret, "configured_policy", return_value=policy):
+			result = ret.run_scheduled_gc_originals()
+		self._track_result(result)
+		self.assertFalse(result["dry_run"])
+		self.assertEqual(result["approval_report"], approval)
+		self.assertEqual(
+			frappe.db.get_value(ret.MEDIA_MAINTENANCE_REPORT, approval, "approval_status"),
+			"consumed",
+		)
+
+	def test_kalici_soft_delete_de_onaysiz_islak_kosamiyor(self) -> None:
+		policy = self._policy("soft-delete")
+		frappe.conf[ret.ENFORCE_FLAG_SOFT_DELETE] = 1
+		fake_report = {
+			"dry_run": True,
+			"sections": [],
+			"totals": {"scanned": 0, "candidates": 0},
+		}
+		with (
+			mock.patch.object(ret, "configured_policy", return_value=policy),
+			mock.patch.object(
+				ret, "purge_soft_deleted_renditions", return_value=fake_report
+			) as purge,
+		):
+			result = ret.run_scheduled_soft_delete()
+		self._track_result(result)
+		purge.assert_called_once_with(dry_run=True)
+		self.assertEqual(result["blocked_by"], "approval_required")
+
+
+class TestBackupDrTatbik(unittest.TestCase):
+	"""T-054: türevsiz snapshot, örneklem bütünlüğü ve gerçek restore tatbikatı."""
+
+	def setUp(self) -> None:
+		self.root = tempfile.mkdtemp(prefix="t054-dr-")
+		self.public = os.path.join(self.root, "public")
+		self.private = os.path.join(self.root, "private")
+		self.backups = os.path.join(self.root, "backups")
+		os.makedirs(os.path.join(self.public, "media", "asset", "version"), exist_ok=True)
+		os.makedirs(self.private, exist_ok=True)
+		self.original = os.path.join(self.public, "original.jpg")
+		self.original_bytes = b"t054-original-kurtarilmasi-zorunlu"
+		with open(self.original, "wb") as handle:
+			handle.write(self.original_bytes)
+		with open(
+			os.path.join(self.public, "media", "asset", "version", "w96.webp"), "wb"
+		) as handle:
+			handle.write(b"yeniden-uretilebilir-rendition")
+
+	def tearDown(self) -> None:
+		shutil.rmtree(self.root, ignore_errors=True)
+
+	def test_snapshot_restore_ve_orneklem_butunlugu(self) -> None:
+		from tradehub_core.media import backup, restore
+
+		media_dirs = (("public", self.public), ("private", self.private))
+		with (
+			mock.patch.object(backup, "_root", return_value=self.backups),
+			mock.patch.object(backup, "_media_dirs", return_value=media_dirs),
+			mock.patch.object(backup, "_records", return_value=[]),
+		):
+			snapshot = backup.snapshot(label="t054_dr_test")
+			self.assertEqual(snapshot["file_count"], 1)
+			self.assertEqual(snapshot["excluded_regenerable_derivatives"], 1)
+			manifest = backup.manifest_of(snapshot["set_id"])
+			self.assertEqual([row["path"] for row in manifest["files"]], ["original.jpg"])
+			self.assertEqual(
+				manifest["backup_policy"]["derivatives"], "excluded_regenerable"
+			)
+			self.assertTrue(
+				backup.verify_sample(snapshot["set_id"], sample_size=1, seed="t054")["ok"]
+			)
+
+			os.remove(self.original)
+			started = time.monotonic()
+			with (
+				mock.patch.object(
+					restore,
+					"_target_root",
+					side_effect=lambda scope: self.public if scope == "public" else self.private,
+				),
+				mock.patch.object(restore, "_servis_edilebilir", return_value=True),
+				mock.patch("tradehub_core.media.av.rescan_after_write", return_value=None),
+				mock.patch("tradehub_core.media.audit.log_media_event", return_value=None),
+			):
+				result = restore.apply(
+					snapshot["set_id"], records=False, only=["original.jpg"]
+				)
+			elapsed = time.monotonic() - started
+			self.assertEqual(result["files_written"], 1)
+			self.assertLess(elapsed, 5.0, "tek dosya RTO hedefi 5 dakikanın çok altında olmalı")
+			with open(self.original, "rb") as handle:
+				self.assertEqual(handle.read(), self.original_bytes)
+
+			row = manifest["files"][0]
+			with open(backup._blob_path(row["hash"]), "wb") as handle:
+				handle.write(b"corrupt")
+			corrupt = backup.verify_sample(snapshot["set_id"], sample_size=1, seed="t054")
+			self.assertFalse(corrupt["ok"])
+			self.assertEqual(corrupt["corrupt_blobs"], ["original.jpg"])
 
 
 # ── 7. Orijinal tarafında kullanım kapısı (T-043/T-053, 2026-08-19) ────

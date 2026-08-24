@@ -3,14 +3,15 @@
 
 """Media Rendition — servis edilen tek artefakt.
 
-Bir rendition "şu Asset'in, şu profille, şu genişlikte, şu biçimde üretilmiş
-hali"dir. Tarayıcıya giden `src`/`srcset` değerleri buradan çıkar; master
-dosya kullanıcıya asla verilmez.
+Bir rendition "şu Asset'in, şu immutable sürümünde, şu profille, şu
+genişlikte, şu biçimde üretilmiş hali"dir. Tarayıcıya giden `src`/`srcset`
+değerleri yalnız Asset'in aktif sürümüne ait satırlardan çıkar; master dosya
+kullanıcıya asla verilmez.
 
 Tekillik
 --------
-(asset, profile, width, format) DÖRTLÜSÜ tektir. Frappe DocType JSON'u bileşik
-unique index ifade edemediği için dörtlü `rendition_key` alanına indirgenir ve
+(asset, version_hash, profile, width, format) BEŞLİSİ tektir. Frappe DocType
+JSON'u bileşik unique index ifade edemediği için beşli `rendition_key` alanına indirgenir ve
 UNIQUE kısıt orada durur. İkinci üretim denemesi DB'ye çarpar (UniqueValidationError); çağıran taraf
 bunu idempotent davranışa çevirir (media/pipeline/core/dedup.py, INV-06).
 Kaynak şema (doctype_specs/media_rendition.json) tekilliği ham SQL'deki
@@ -28,6 +29,8 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import now_datetime
 
+from tradehub_core.media.rendition_ledger import rendition_key, version_hash_from_url
+
 
 class MediaRendition(Document):
 	def validate(self) -> None:
@@ -35,8 +38,18 @@ class MediaRendition(Document):
 		if hasattr(super(), "validate"):
 			super().validate()
 		self._validate_geometry()
+		self._validate_state()
+		self._derive_version_hash()
 		self._derive_rendition_key()
 		self._stamp_generated_at()
+
+	def _validate_state(self) -> None:
+		"""Soft-delete durumunu tutarlı ve fail-closed tut."""
+		self.state = self.state or "ready"
+		if self.state not in {"ready", "purged", "failed"}:
+			frappe.throw(_("Geçersiz rendition durumu: {0}").format(self.state))
+		if self.state == "purged" and not self.purged_at:
+			frappe.throw(_("Soft-delete edilmiş rendition için silme zamanı zorunludur."))
 
 	def _validate_geometry(self) -> None:
 		"""Genişlik/yükseklik pozitif olmalı — 0 piksellik türev servis edilemez."""
@@ -47,15 +60,27 @@ class MediaRendition(Document):
 		if self.bytes is not None and self.bytes != 0 and int(self.bytes) < 0:
 			frappe.throw(_("Bayt değeri negatif olamaz."))
 
+	def _derive_version_hash(self) -> None:
+		"""Legacy/manual inserts inherit the URL version or current active version.
+
+		Production workers always pass the target version explicitly.  This
+		fallback keeps old fixtures and pre-migration integrations compatible
+		without ever mapping a versioned URL to a different active version.
+		"""
+		if self.version_hash:
+			return
+		self.version_hash = version_hash_from_url(self.file_url)
+		if not self.version_hash and self.asset:
+			self.version_hash = frappe.db.get_value("Media Asset", self.asset, "active_version")
+
 	def _derive_rendition_key(self) -> None:
-		"""Dörtlüyü tek unique alana indirger (bileşik unique index yerine)."""
-		self.rendition_key = "|".join(
-			(
-				self.asset or "",
-				self.profile or "",
-				str(int(self.width or 0)),
-				self.format or "",
-			)
+		"""Beşliyi tek unique alana indirger (bileşik unique index yerine)."""
+		self.rendition_key = rendition_key(
+			self.asset,
+			self.version_hash,
+			self.profile,
+			self.width,
+			self.format,
 		)
 
 	def _stamp_generated_at(self) -> None:
@@ -71,4 +96,4 @@ class MediaRendition(Document):
 
 	def is_servable(self) -> bool:
 		"""Bu türev tarayıcıya verilebilir mi (dosyası var ve fayda kapısını geçti)?"""
-		return bool(self.file_url) and bool(self.benefit_gate_passed)
+		return self.state == "ready" and bool(self.file_url) and bool(self.benefit_gate_passed)

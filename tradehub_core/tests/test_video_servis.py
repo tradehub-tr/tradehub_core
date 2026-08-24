@@ -380,7 +380,7 @@ if frappe is not None:
 			m.assert_called_once()
 			args, kwargs = m.call_args
 			self.assertEqual(args[0], "tradehub_core.media.pipeline_bridge._run_video_job")
-			self.assertEqual(kwargs.get("queue"), "long")
+			self.assertEqual(kwargs.get("queue"), "media-video")
 			self.assertEqual(kwargs.get("timeout"), 1800)
 			self.assertTrue(kwargs.get("enqueue_after_commit"))
 			self.assertEqual(kwargs.get("file_url"), self.doc.file_url)
@@ -488,6 +488,7 @@ if frappe is not None:
 			}
 			self.assertIn("h264", turevler, "REMUX çıktısı kayda geçmeli")
 			self.assertIn("poster", turevler)
+			self.assertIn("poster_192", turevler, "poster görsel merdiveninden geçmeli")
 			self.assertNotIn("hls", turevler, "2 sn'lik video HLS eşiğinin altında")
 
 			h264 = turevler["h264"]
@@ -632,24 +633,45 @@ if frappe is not None:
 					"lqip": "w7test",
 					"lqip_data_uri": "data:image/png;base64,w7",
 					"dominant_color": "#112233",
-					"is_active": 0,
+					"is_active": 1,
 				}
 			).insert(ignore_permissions=True)
 			self.addCleanup(lambda: _sil("Media Version", surum.name))
+			frappe.db.set_value("Media Asset", asset.name, "active_version", surum.name)
 
 			kok = f"/files/media/{asset.name}/{surum_hash}"
-			turevler = {"poster": f"{kok}/poster-1280.webp", "hls": f"{kok}/hls/master.m3u8"}
+			turevler = {
+				"poster": f"{kok}/poster-1280.webp",
+				"poster_192": f"{kok}/poster_192-192.webp",
+				"poster_1024": f"{kok}/poster_1024-1024.webp",
+				"hls": f"{kok}/hls/master.m3u8",
+			}
 			if h264:
 				turevler["h264"] = f"{kok}/h264-1280.mp4"
-			bicimler = {"poster": "webp", "hls": "m3u8", "h264": "mp4"}
+			bicimler = {
+				"poster": "webp",
+				"poster_192": "webp",
+				"poster_1024": "webp",
+				"hls": "m3u8",
+				"h264": "mp4",
+			}
+			olculer = {
+				"poster": (1280, 720),
+				"poster_192": (192, 192),
+				"poster_1024": (1024, 576),
+				"hls": (1280, 720),
+				"h264": (1280, 720),
+			}
 			for profil, url in turevler.items():
+				genislik, yukseklik = olculer[profil]
 				rend = frappe.get_doc(
 					{
 						"doctype": "Media Rendition",
 						"asset": asset.name,
+						"version_hash": surum.name,
 						"profile": profil,
-						"width": 1280,
-						"height": 720,
+						"width": genislik,
+						"height": yukseklik,
 						"format": bicimler[profil],
 						"file_url": url,
 						"bytes": 1000,
@@ -673,13 +695,19 @@ if frappe is not None:
 			self.assertIsNotNone(video, "video bloğu dönmeli")
 			self.assertEqual(video["src"], fx["turevler"]["h264"])
 			self.assertEqual(video["hlsSrc"], fx["turevler"]["hls"])
-			self.assertEqual(video["poster"], fx["turevler"]["poster"])
+			self.assertEqual(video["poster"], fx["turevler"]["poster_1024"])
+			self.assertEqual(
+				[(p["profile"], p["width"]) for p in video["posterSrcset"]],
+				[("poster_192", 192), ("poster_1024", 1024)],
+			)
+			self.assertEqual(video["reducedMotion"]["poster"], fx["turevler"]["poster_1024"])
+			self.assertEqual(video["reducedMotion"]["src"], "")
 			self.assertEqual((video["width"], video["height"]), (1280, 720))
 			self.assertAlmostEqual(video["duration_s"], 540.021, places=3)
 			self.assertEqual(video["type"], "video/mp4")
 			self.assertEqual(video["lqip"], "data:image/png;base64,w7")
 			self.assertEqual(sonuc["fallback"], fx["turevler"]["h264"])
-			self.assertEqual(len(sonuc["renditions"]), 3)
+			self.assertEqual(len(sonuc["renditions"]), 5)
 
 		def test_passthrough_ta_src_ham_dosyadir(self):
 			self._ayarla(media_pipeline_enabled=1, manifest_api_enabled=1)

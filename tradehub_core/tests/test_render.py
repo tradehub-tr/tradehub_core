@@ -35,8 +35,8 @@ if str(KOK) not in sys.path:
 	sys.path.insert(0, str(KOK))
 
 from tradehub_core.media.pipeline.image import render as R  # noqa: E402
-from tradehub_core.media.pipeline.image import reprocess as RP  # noqa: E402
 from tradehub_core.media.pipeline.image import report as REP  # noqa: E402
+from tradehub_core.media.pipeline.image import reprocess as RP  # noqa: E402
 
 FIXTURE = KOK / "tradehub_core" / "tests" / "fixtures" / "media" / "images"
 SLOT_DIR = KOK / "tradehub_core" / "media" / "pipeline" / "policy" / "slots"
@@ -60,8 +60,7 @@ def gurultu(w: int, h: int, seed: int = 7):
 	"""Sıkıştırılamaz görsel — fayda kapısını tetiklemek için."""
 	Image = _pil()
 	g = _lcg(seed)
-	piksel = [((next(g) >> 15) % 256, (next(g) >> 15) % 256, (next(g) >> 15) % 256)
-			  for _ in range(w * h)]
+	piksel = [((next(g) >> 15) % 256, (next(g) >> 15) % 256, (next(g) >> 15) % 256) for _ in range(w * h)]
 	im = Image.new("RGB", (w, h))
 	im.putdata(piksel)
 	return im
@@ -127,7 +126,9 @@ class MatrisVeriTesti(unittest.TestCase):
 
 	def test_kodda_gomulu_genislik_yok(self):
 		"""Genişlikler koda yazılmış olsaydı bu liste kaynak dosyada geçerdi."""
-		kaynak = (KOK / "tradehub_core" / "media" / "pipeline" / "image" / "render.py").read_text(encoding="utf-8")
+		kaynak = (KOK / "tradehub_core" / "media" / "pipeline" / "image" / "render.py").read_text(
+			encoding="utf-8"
+		)
 		gövde = kaynak.split('"""', 2)[-1]  # modül docstring'i hariç
 		for w in ("96", "192", "384", "640", "768", "1280", "1920"):
 			self.assertNotIn(f"width={w}", gövde)
@@ -176,7 +177,6 @@ class MatrisVeriTesti(unittest.TestCase):
 
 
 class GeometriTesti(unittest.TestCase):
-
 	def test_upscale_yasak_contain(self):
 		"""FR-028: hedef kaynaktan genişse büyütme YAPILMAZ."""
 		plan = R.plan_geometry((200, 200), profil(width=1920, fit="contain"))
@@ -240,7 +240,6 @@ class GeometriTesti(unittest.TestCase):
 
 
 class YenidenOrneklemeTesti(unittest.TestCase):
-
 	def test_lanczos3_kullaniliyor(self):
 		Image = _pil()
 		im = gradyan(64, 64)
@@ -279,7 +278,6 @@ class YenidenOrneklemeTesti(unittest.TestCase):
 
 
 class KaynakHazirligiTesti(unittest.TestCase):
-
 	def test_cmyk_srgbye_cevrilir_ve_icc_dusurulur(self):
 		Image = _pil()
 		veri = kaydet(Image.new("CMYK", (32, 32), (10, 20, 30, 5)), "JPEG")
@@ -316,7 +314,6 @@ class KaynakHazirligiTesti(unittest.TestCase):
 
 
 class EncodeTesti(unittest.TestCase):
-
 	def setUp(self):
 		self.im = gradyan(64, 64)
 
@@ -410,7 +407,6 @@ class FaydaKapisiTesti(unittest.TestCase):
 
 
 class AdaptifKaliteTesti(unittest.TestCase):
-
 	def setUp(self):
 		self.kaynak = kaydet(gradyan(400, 400), "JPEG", quality=95)
 
@@ -460,7 +456,6 @@ class AdaptifKaliteTesti(unittest.TestCase):
 
 
 class RenderSozlesmesiTesti(unittest.TestCase):
-
 	def setUp(self):
 		self.kaynak = kaydet(gradyan(600, 600), "JPEG", quality=95)
 
@@ -483,14 +478,23 @@ class RenderSozlesmesiTesti(unittest.TestCase):
 
 	def test_merdiven_profil_basina_bir_turev(self):
 		sonuc = R.render_ladder(self.kaynak, "product.image")
-		self.assertEqual(len(sonuc), len(R.load_profiles("product.image")))
-		self.assertEqual(
-			[r.profile.name for r in sonuc], [p.name for p in R.load_profiles("product.image")]
-		)
+		beklenen = [p for p in R.load_profiles("product.image") if p.width <= 600]
+		self.assertEqual(len(sonuc), len(beklenen))
+		self.assertEqual([r.profile.name for r in sonuc], [p.name for p in beklenen])
+
+	def test_merdiven_yetersiz_kaynaktan_basamak_uretmez(self):
+		"""INV-01: clamp edilmiş sahte basamak değil, gerçek omission gerekir."""
+		kucuk = kaydet(gradyan(160, 160), "JPEG", quality=95)
+		sonuc = R.render_ladder(kucuk, "product.image")
+		self.assertEqual([r.profile.width for r in sonuc], [96])
+		self.assertTrue(all(not r.upscale_blocked for r in sonuc))
 
 	def test_merdiven_per_format_matrisin_tamami(self):
 		sonuc = R.render_ladder(self.kaynak, "brand.logo", per_format=True)
-		self.assertEqual(len(sonuc), len(R.rendition_matrix("brand.logo")))
+		beklenen = [
+			(p, f) for p, f in R.rendition_matrix("brand.logo") if R.profile_is_eligible((600, 600), p)
+		]
+		self.assertEqual(len(sonuc), len(beklenen))
 
 	def test_merdiven_bicim_zorlanabilir(self):
 		alt = R.load_profiles("product.image")[:3]
@@ -523,12 +527,9 @@ class RenderSozlesmesiTesti(unittest.TestCase):
 
 
 class TuretmeAnahtariTesti(unittest.TestCase):
-
 	def setUp(self):
 		self.p = R.profile_for("product.image", "w96")
-		self.ortak = dict(
-			master_sha256="a" * 64, slot_key="product.image", profile_name="w96", fmt="webp"
-		)
+		self.ortak = dict(master_sha256="a" * 64, slot_key="product.image", profile_name="w96", fmt="webp")
 
 	def test_ayni_girdi_ayni_anahtar(self):
 		self.assertEqual(RP.derivation_key(**self.ortak), RP.derivation_key(**self.ortak))
@@ -551,15 +552,12 @@ class TuretmeAnahtariTesti(unittest.TestCase):
 		)
 
 	def test_kirpma_imzasi_anahtar_sirasindan_bagimsiz(self):
-		self.assertEqual(
-			RP.crop_signature({"x": 1, "y": 2}), RP.crop_signature({"y": 2, "x": 1})
-		)
+		self.assertEqual(RP.crop_signature({"x": 1, "y": 2}), RP.crop_signature({"y": 2, "x": 1}))
 		self.assertEqual(RP.crop_signature(None), "")
 		self.assertNotEqual(RP.crop_signature({"x": 1}), RP.crop_signature({"x": 2}))
 
 
 class DefterTesti(unittest.TestCase):
-
 	def setUp(self):
 		self.kaynak = kaydet(gradyan(400, 400), "JPEG", quality=95)
 		self.p = R.profile_for("product.image", "w96")
@@ -602,9 +600,7 @@ class DefterTesti(unittest.TestCase):
 		RP.render_idempotent(self.kaynak, self.p, ledger=defter)
 		geri = RP.RenditionLedger.from_json(defter.to_json())
 		self.assertEqual(len(geri), len(defter))
-		self.assertEqual(
-			{r.sha256 for r in geri.records()}, {r.sha256 for r in defter.records()}
-		)
+		self.assertEqual({r.sha256 for r in geri.records()}, {r.sha256 for r in defter.records()})
 
 	def test_motor_ciktisi_kaynak_olarak_reddedilir(self):
 		defter = RP.RenditionLedger()
@@ -636,7 +632,10 @@ class DefterTesti(unittest.TestCase):
 		s2, k2 = RP.render_ladder_idempotent(self.kaynak, "brand.logo", ledger=defter)
 		self.assertEqual(s2, [], "ikinci koşuda yeniden üretim oldu")
 		self.assertTrue(all(k.action == RP.ACTION_SKIP for k in k2))
-		self.assertEqual(len(s1), len(R.rendition_matrix("brand.logo")))
+		beklenen = [
+			(p, f) for p, f in R.rendition_matrix("brand.logo") if R.profile_is_eligible((400, 400), p)
+		]
+		self.assertEqual(len(s1), len(beklenen))
 
 	def test_passthrough_masteri_zehirlemez(self):
 		"""KUSUR REGRESYONU: passthrough kaydı master'ı 'motor çıktısı' ilan ediyordu.
@@ -646,7 +645,7 @@ class DefterTesti(unittest.TestCase):
 		profil aynı master'ı verdiğinde `assert_not_engine_output` merdiveni
 		ortasından koparıyordu.
 		"""
-		kucuk = kaydet(gurultu(64, 64, seed=3), "JPEG", quality=12, optimize=True)
+		kucuk = kaydet(gurultu(128, 128, seed=3), "JPEG", quality=12, optimize=True)
 		defter = RP.RenditionLedger()
 		sonuclar, kararlar = RP.render_ladder_idempotent(kucuk, "product.image", ledger=defter)
 		self.assertTrue(any(r.passthrough for r in sonuclar), "passthrough kurulamadı")
@@ -666,37 +665,61 @@ class DefterTesti(unittest.TestCase):
 				self.assertLessEqual(s["ssim_vs_original"], 1.0)
 
 
+class SecmeliYenidenIslemeTesti(unittest.TestCase):
+	"""Crop değişikliği yalnız piksel planı gerçekten değişen profilleri seçer."""
+
+	def setUp(self):
+		self.contain = profil(name="contain", width=400, fit="contain", target_ratio="")
+		self.cover = profil(name="cover", width=400, fit="cover", target_ratio="1:1")
+
+	def test_yalniz_odak_degisiminde_contain_atlanir(self):
+		eski = {"focal_x": 0.1, "focal_y": 0.5}
+		yeni = {"focal_x": 0.9, "focal_y": 0.5}
+		etkilenen = RP.affected_profile_names((1200, 800), (self.contain, self.cover), eski, yeni)
+		self.assertEqual(etkilenen, ("cover",))
+
+	def test_zoom_degisiminde_contain_de_etkilenir(self):
+		eski = {"zoom": 1.0, "center_x": 0.5, "center_y": 0.5}
+		yeni = {"zoom": 2.0, "center_x": 0.5, "center_y": 0.5}
+		etkilenen = RP.affected_profile_names((1200, 800), (self.contain, self.cover), eski, yeni)
+		self.assertIn("contain", etkilenen)
+
+
 # ---------------------------------------------------------------------------
 # 10) T-066 — kalite raporu
 # ---------------------------------------------------------------------------
 
 
 class RaporTesti(unittest.TestCase):
-
 	@classmethod
 	def setUpClass(cls):
 		cls.kaynak = kaydet(gradyan(500, 500), "JPEG", quality=95)
 		# İlk üç profil: süiti hızlı tutar, SSIM yolu (product.image = ssim) çalışır.
 		cls.alt = R.load_profiles("product.image")[:3]
 		cls.sonuclar = R.render_ladder(cls.kaynak, "product.image", profiles=cls.alt)
-		cls.rapor = REP.build_report(
-			cls.kaynak, cls.sonuclar, slot_key="product.image", asset_id="TEST-1"
-		)
+		cls.rapor = REP.build_report(cls.kaynak, cls.sonuclar, slot_key="product.image", asset_id="TEST-1")
 
 	def test_json_lanabilir_ve_semali(self):
 		json.dumps(self.rapor, ensure_ascii=False)
-		for alan in ("schema_version", "engine", "asset", "slot", "policy", "renditions",
-					 "totals", "quality", "findings", "verdict", "summary_tr"):
+		for alan in (
+			"schema_version",
+			"engine",
+			"asset",
+			"slot",
+			"policy",
+			"renditions",
+			"totals",
+			"quality",
+			"findings",
+			"verdict",
+			"summary_tr",
+		):
 			self.assertIn(alan, self.rapor)
 
 	def test_toplamlar_gercek(self):
 		self.assertEqual(self.rapor["totals"]["count"], len(self.sonuclar))
-		self.assertEqual(
-			self.rapor["totals"]["bytes"], sum(r.size_bytes for r in self.sonuclar)
-		)
-		self.assertEqual(
-			self.rapor["policy"]["profiles_defined"], len(R.load_profiles("product.image"))
-		)
+		self.assertEqual(self.rapor["totals"]["bytes"], sum(r.size_bytes for r in self.sonuclar))
+		self.assertEqual(self.rapor["policy"]["profiles_defined"], len(R.load_profiles("product.image")))
 
 	def test_olculmeyen_alan_null_kalir_sifir_degil(self):
 		"""SSIM hedefi olmayan slotta `ssim_min` 0 değil None olmalı."""
@@ -725,14 +748,12 @@ class RaporTesti(unittest.TestCase):
 	def test_karar_bulgu_siddetinden_turer(self):
 		self.assertEqual(REP.verdict({"findings": []}), "ok")
 		self.assertEqual(REP.verdict({"findings": [{"severity": "warn"}]}), "warn")
-		self.assertEqual(
-			REP.verdict({"findings": [{"severity": "warn"}, {"severity": "error"}]}), "fail"
-		)
+		self.assertEqual(REP.verdict({"findings": [{"severity": "warn"}, {"severity": "error"}]}), "fail")
 
 	def test_under_spec_bulgusu_uretilir(self):
-		"""Küçük kaynak → büyütme yok → rapor bunu UYARI olarak söylemeli."""
+		"""Tek-türev tanısı under-spec'i raporlar; üretim merdiveni onu atlar."""
 		kucuk = kaydet(gradyan(48, 48), "PNG")
-		sonuc = R.render_ladder(kucuk, "brand.logo")
+		sonuc = [R.render_rendition(kucuk, R.profile_for("brand.logo", "w64"))]
 		rapor = REP.build_report(kucuk, sonuc, slot_key="brand.logo")
 		kodlar = {f["code"] for f in rapor["findings"]}
 		self.assertTrue(

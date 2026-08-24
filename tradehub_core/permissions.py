@@ -2698,6 +2698,32 @@ def media_rendition_has_permission(doc, ptype, user):
 	return _media_asset_owner_of(_doc_field(doc, "asset")) == profile
 
 
+def media_source_query_conditions(user):
+	"""Source rows inherit tenant ownership from their one-to-one Asset."""
+	if not user or user == "Guest":
+		return "1=0"
+	if user == "Administrator" or _is_platform_full_access(user):
+		return ""
+	profile = _get_seller_profile_name(user)
+	if not profile:
+		return "1=0"
+	return f"`tabMedia Source`.`asset` IN ({_media_asset_owner_subquery(profile)})"
+
+
+def media_source_has_permission(doc, ptype, user):
+	"""A seller may only read the immutable source row of their own Asset."""
+	if user == "Administrator" or _is_platform_full_access(user, ptype):
+		return True
+	if ptype in ("write", "create", "delete"):
+		return False
+	if doc is None:
+		return True
+	profile = _get_seller_profile_name(user)
+	if not profile:
+		return False
+	return _media_asset_owner_of(_doc_field(doc, "asset")) == profile
+
+
 def media_processing_job_query_conditions(user):
 	if not user or user == "Guest":
 		return "1=0"
@@ -2719,6 +2745,48 @@ def media_processing_job_has_permission(doc, ptype, user):
 		return True
 	profile = _get_seller_profile_name(user)
 	if not profile:
+		return False
+	return _media_asset_owner_of(_doc_field(doc, "asset")) == profile
+
+
+def media_quality_report_query_conditions(user):
+	"""Satıcıya yalnız kendi asset raporlarını göster; platform aylığını gizle.
+
+	Raporları worker/Administrator oluşturduğu için DocPerm ``if_owner`` burada
+	doğru sahiplik sinyali değildir. Kiracı sınırı diğer medya türevlerinde
+	olduğu gibi ``Media Asset.owner_seller`` üzerinden zincirlenir.
+	"""
+	if not user or user == "Guest":
+		return "1=0"
+	if user == "Administrator" or _is_platform_full_access(user):
+		return ""
+	profile = _get_seller_profile_name(user)
+	if not profile:
+		return "1=0"
+	assetler = _media_asset_owner_subquery(profile)
+	# report_type alanı eklenmeden önce yazılmış asset raporlarını da güvenli
+	# biçimde göster; asset boş aylık kayıtlar alt sorguya zaten giremez.
+	return (
+		"(`tabMedia Quality Report`.`report_type` = 'asset' "
+		"OR `tabMedia Quality Report`.`report_type` IS NULL "
+		"OR `tabMedia Quality Report`.`report_type` = '') "
+		f"AND `tabMedia Quality Report`.`asset` IN ({assetler})"
+	)
+
+
+def media_quality_report_has_permission(doc, ptype, user):
+	"""Asset raporu satıcıya salt okunur; aylık platform raporu admin-only."""
+	if user == "Administrator" or _is_platform_full_access(user, ptype):
+		return True
+	if ptype in ("write", "create", "delete", "submit", "cancel", "amend"):
+		return False
+	profile = _get_seller_profile_name(user)
+	if not profile:
+		return False
+	if doc is None:
+		return True
+	report_type = (_doc_field(doc, "report_type") or "asset").strip().lower()
+	if report_type != "asset":
 		return False
 	return _media_asset_owner_of(_doc_field(doc, "asset")) == profile
 
@@ -2850,26 +2918,29 @@ def media_version_has_permission(doc, ptype, user):
 	return _media_asset_owner_of(_doc_field(doc, "asset")) == profile
 
 
-# ── Medya Depolama Ayarları (T-051 şartname) ─────────────────────────────
-# Sır taşıyan tek medya ayarı bu: S3 secret, imgproxy anahtar/tuz. DocType
-# JSON'ındaki `permissions` listesinde yalnız iki rol var (Media Superadmin,
-# System Manager) ve Frappe'de listede olmayan rol hiçbir hak almaz — yani
-# satıcı/alıcı OKUYAMAZ bile. Buradaki kanca İKİNCİ kattır: ileride biri
-# DocPerm satırı eklerse (ya da bir role profile geniş hak dağıtırsa) rol
-# kapısı yine de kapalı kalsın. `_is_platform_full_access` BİLEREK
-# kullanılmadı — Compliance Officer / Platform Finance gibi geniş okuma
-# rollerinin bu ekranda işi yok.
+# ── Medya ayarları (T-040/T-051) ─────────────────────────────────────────
+# Her iki Single DocType yalnız Media Superadmin'e açıktır. Administrator'ın
+# Frappe çekirdek bypass'ı korunur; System Manager dahil başka hiçbir geniş
+# platform rolü bu sır/ana-şalter yüzeyine erişemez.
 
-_MEDIA_STORAGE_SETTINGS_ROLES = frozenset({"Media Superadmin", "System Manager"})
+_MEDIA_SETTINGS_ROLES = frozenset({"Media Superadmin"})
 
 
-def media_storage_settings_has_permission(doc, ptype, user):
-	"""Depolama ayarına yalnız medya süper-yöneticisi ve System Manager erişir."""
+def media_settings_has_permission(doc, ptype, user):
+	"""Her iki medya Settings Single'ına yalnız Media Superadmin erişir."""
 	if not user or user == "Guest":
 		return False
 	if user == "Administrator":
 		return True
-	return bool(set(frappe.get_roles(user)) & _MEDIA_STORAGE_SETTINGS_ROLES)
+	return bool(set(frappe.get_roles(user)) & _MEDIA_SETTINGS_ROLES)
+
+
+def media_storage_settings_has_permission(doc, ptype, user):
+	return media_settings_has_permission(doc, ptype, user)
+
+
+def media_engine_settings_has_permission(doc, ptype, user):
+	return media_settings_has_permission(doc, ptype, user)
 
 
 # ── Payment Transaction ──────────────────────────────────────────────────────

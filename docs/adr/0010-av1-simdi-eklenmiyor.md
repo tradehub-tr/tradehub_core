@@ -94,3 +94,10 @@ koşum, min süreden okundu): SVT-AV1 v4.2.0 ile preset 6'da **~1,6×**, preset 
   ikincil `<source>` olur (§5.7).
 - Sıra bağlıdır: önce B-1 (hız denetimi), sonra `width_over_cap` kuralının gözden
   geçirilmesi, sonra B-8 (H.264 ↔ VP9 çelişkisi), **sonra** AV1.
+
+## Geri dönüş yolu
+
+En az üç gerçek 1080p/4K videoda kalite-eşit AV1 ölçümü H.264'e göre ≥%25 bayt
+kazancı, kabul edilen encode süresi ve hedef tarayıcı oynatma paritesi gösterirse
+karar yeniden açılır. AV1 yalnız ikincil `<source>` olarak pilotlanır; hata
+oranında satır karar tablosundan kaldırılır.

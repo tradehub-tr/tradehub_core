@@ -411,3 +411,55 @@ Ayrıca sabitlenen niteliksel durumlar (Faz 12'de değişmiş olması beklenen):
 - Sabit `width`/`height` desenleri (salt okundu):
   `tradehubfront/src/components/seller/CompanyProfile.ts`,
   `.../CompanyInfo.ts`, `.../StoreHeader.ts`
+
+---
+
+## Güncel 4 sayfa × 2 cihaz taban çizgisi — 2026-08-23
+
+Lighthouse 12.6.1 / HeadlessChrome 151 ile her rota ve profil ayrı navigasyon
+olarak koşuldu. Mobil profil 412×915, DPR 2,625, 150 ms RTT, 1.638,4 Kbps ve
+4× CPU yavaşlatma; desktop 1350×940, DPR 1, 40 ms RTT, 10.240 Kbps ve 1× CPU.
+Tam makine-okunur çıktı: `docs/data/faz0-lighthouse-baseline-2026-08-23.json`.
+
+| Sayfa | Profil | Skor | LCP ms | CLS | TBT ms | Görsel transferi | Görsel istek |
+|---|---|---:|---:|---:|---:|---:|---:|
+| Ana sayfa | desktop | 96 | 1.381 | 0,0001 | 0 | 1.714.886 B | 17 |
+| Ana sayfa | mobile | 70 | 5.796 | 0,0098 | 58 | 1.691.503 B | 16 |
+| Ürün listesi | desktop | 95 | 1.377 | 0,0458 | 0 | 170.091 B | 42 |
+| Ürün listesi | mobile | 44 | 7.441 | **0,4978** | 25 | 303.380 B | 42 |
+| Ürün detayı | desktop | 74 | **12.875** | 0,0002 | 0 | **14.564.979 B** | 19 |
+| Ürün detayı | mobile | 63 | **12.714** | 0 | 22 | 3.421.177 B | 12 |
+| Mağaza | desktop | 92 | 1.760 | 0,0662 | 0 | 1.094.435 B | 13 |
+| Mağaza | mobile | 70 | 5.637 | 0,1008 | 21 | 1.014.681 B | 9 |
+
+Bu bir **taban çizgisidir**, hedef geçiş raporu değildir. Öncelik sırası:
+ürün detayındaki 12,9 sn LCP ve 14,6 MB görsel yükü; mobil ürün listesindeki
+0,498 CLS; sonra mobil ana/mağaza LCP. INP alan metriğidir; Lighthouse laboratuvar
+koşusunda TBT kaydedildi, mevcut RUM INP kanıtı ayrı rapordadır.
+
+### Görsel gövdesine göre en ağır 10 ürün — 20 ek koşum
+
+1.231 adet storefront-visible, yerel görsel taşıyan ürün; ana + galeri
+dosyalarının tekilleştirilmiş disk baytına göre sıralandı. İlk 10 ürünün her biri
+mobil ve desktop profilde **ardışık** ölçüldü; eşzamanlı koşumla kaynak paylaşımı
+yaratılmadı. Ayrıntı:
+
+`docs/data/faz0-worst10-product-lighthouse-2026-08-23.json`
+
+| Ürün | Yerel kaynak | Mobil LCP | Desktop LCP | Mobil görsel transferi | Desktop görsel transferi |
+|---|---:|---:|---:|---:|---:|
+| LST-03998 | 15 / 20.309.523 B | 5.954 ms | 5.917 ms | 5.833.673 B | **21.107.888 B** |
+| LST-04011 | 12 / 19.930.044 B | 6.026 ms | 8.589 ms | 12.425 B | 20.726.616 B |
+| LST-04000 | 14 / 18.407.206 B | 11.883 ms | 6.953 ms | 3.040.319 B | 19.184.949 B |
+| LST-04002 | 12 / 17.555.117 B | 6.097 ms | 7.351 ms | 12.425 B | 18.406.283 B |
+| LST-03999 | 12 / 13.759.638 B | 6.766 ms | **12.841 ms** | 3.418.304 B | 14.544.707 B |
+| LST-03997 | 16 / 13.198.353 B | 6.027 ms | 7.196 ms | 1.297.657 B | 13.997.120 B |
+| LST-04007 | 9 / 12.292.746 B | 6.024 ms | 5.715 ms | 5.420.027 B | 13.087.662 B |
+| LST-04009 | 9 / 12.213.455 B | **18.480 ms** | 8.759 ms | 5.221.918 B | 13.008.371 B |
+| LST-04006 | 11 / 11.177.415 B | 5.804 ms | 5.709 ms | 2.181.519 B | 11.973.426 B |
+| LST-04004 | 12 / 10.665.979 B | 6.096 ms | 8.838 ms | 12.425 B | 11.462.545 B |
+
+En kötü LCP mobilde LST-04009: 18.480 ms; en yüksek ölçülen transfer
+desktop LST-03998: 21.107.888 B. Bazı mobil koşumlarda galeri fold-altında
+ertelendiği için yalnız 12.425 B görsel transfer edildi; bu yüzden katalog disk
+baytı seçim ölçütü, Lighthouse transferi ise ayrı sonuç olarak korunmuştur.

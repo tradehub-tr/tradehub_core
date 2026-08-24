@@ -355,36 +355,32 @@ class TestEngineDpiPikselAyrimi(unittest.TestCase):
 			self.assertIsNone(im.info.get("dpi"))
 
 
-class TestUploadYoluTabaniKarsilamiyor(unittest.TestCase):
-	"""BELGELENEN AÇIK — `docs/standards/dpi-ve-cozunurluk.md` §6-A1."""
+class TestUploadYoluTabani(unittest.TestCase):
+	"""Satıcı yükleme yolu ürün master tabanını kaynakta korur."""
 
-	@unittest.expectedFailure
 	def test_satici_upload_yolu_urun_slotu_tabanini_karsilar(self):
-		"""BİLE BİLE BAŞARISIZ. `engine.to_webp` uzun kenarı 1920'ye sabitliyor
-		(`engine.py:177` `im.thumbnail((1920, 1920))`); `api/seller_media.py:292`
-		her satıcı görselini bu yoldan geçiriyor. 1920 < 2000 → ürün policy'sinin
-		`min_long_edge` tabanı YÜKLEME ANINDA ihlal ediliyor.
-
-		İstemci tarafı da aynı tavanı taşıyor:
-		  - tradehubfront/src/lib/media/compress.image.ts:10 → HEDEF_GENISLIK = 1920
-		  - admin-panel/frontend/src/lib/media/compress.image.js:9 → HEDEF_GENISLIK = 1920
-
-		"expectedFailure" bilinçli: test yeşile dönerse (unexpected success)
-		birisi tavanı düzeltmiş demektir ve standardın §6-A1 maddesi kapanmalıdır.
-		"""
+		"""3000 px kaynak 2400 px'e iner; 2000 px politika tabanını aşar."""
 		src = _gurultulu_jpeg(3000, 3000, dpi=300)
 
 		out = engine.to_webp(src, quality=80)
 
 		self.assertGreaterEqual(max(_boyut(out)), URUN_MIN_LONG_EDGE)
 
-	def test_mevcut_tavan_1920_olarak_sabitlendi(self):
-		"""Yukarıdaki açığın ölçülmüş hâli — sayı değişirse burada görülür."""
+	def test_mevcut_tavan_2400_olarak_sabitlendi(self):
+		"""Kaynak koruma tavanı ürün politikasının master tavanıyla aynıdır."""
 		src = _gurultulu_jpeg(3000, 3000, dpi=300)
 
 		out = engine.to_webp(src, quality=80)
 
-		self.assertEqual(max(_boyut(out)), 1920)
+		self.assertEqual(max(_boyut(out)), 2400)
+
+	def test_to_webp_tavani_cagiran_tarafindan_daraltilabilir(self):
+		"""Ürün dışı slotlar daha küçük bir kaynak tavanı seçebilir."""
+		src = _gurultulu_jpeg(3000, 3000, dpi=300)
+
+		out = engine.to_webp(src, quality=80, max_dim=512)
+
+		self.assertEqual(max(_boyut(out)), 512)
 
 
 if __name__ == "__main__":

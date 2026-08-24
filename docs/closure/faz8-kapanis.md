@@ -1,46 +1,62 @@
-# Faz 8 Kapanış Dosyası — API
+# Faz 8 kapanış — Media API
 
-> **Bu belge ölçümlerden derlenmiştir; çelişki hâlinde rapor kazanır.**
-> Derleme tarihi: 2026-08-20 · Hazırlık: W6 kapanış dalgası (T-085 kapanış hazırlığı — imza atılmaz.)
+**Teknik durum:** 6/6 görev tamamlandı  
+**Ölçüm tarihi:** 2026-08-23  
+**İnsan kapısı:** Teknik sorumlu imzası bekliyor
 
-## 1. Çıkış kapısı (91-gorev-panosu.html)
+## Görev sonucu
 
-| Kapı çıktısı | Onaylayan |
+| ID | Görev | Durum | Ölçülebilir kanıt |
+|---|---|---|---|
+| T-080 | OpenAPI 3.1 contract-first | **DONE** | Saf 21 operasyon + gerçek HTTP 120 uç; Spectral iki belgede temiz; `types.gen.ts` panelde tüketiliyor |
+| T-081 | Upload session/resumable/idempotency | **DONE** | Kabul edilmiş ADR-0020 eşdeğer protokolü; politika+kota+expiry+ilerleme; SHA-256; aynı anahtar aynı sonuç; scheduler; Frappe 6/6 + panel 20 test |
+| T-082 | Crop intent/suggest/preview | **DONE** | Üç HTTP ucu; 0-1 doğrulama; önizleme kanıtı; etkilenen profil hesabı ve tekil reprocess işi; kısa profil override gerçek DB turu; Frappe 18/18 |
+| T-083 | Manifest/teslim | **DONE** | İlan ve dosya batch; üretilmeyen türev yok; tenant/public sızıntı kapıları; gerçek `If-None-Match` → HTTP 304, 0 bayt |
+| T-084 | Admin/contract/negatif/fuzz/i18n | **DONE** | Misafir→oturumlu tam tarama; seller→admin negatifleri; 24 hata kodu × 4 dil; Schemathesis examples+coverage+fuzzing 90/90, beklenmedik 5xx yok |
+| T-085 | v1 dondurma/SDK/koleksiyon/CI | **DONE** | Semver + breaking checker; Postman 120/120; tipli panel SDK; SHA zinciri; `faz8-api.yml` taze site ve drift kapıları |
+
+## Bu turda kapanan eski bulgular
+
+| Eski bulgu | Yeni durum |
 |---|---|
-| OpenAPI v1 dondurma + contract testleri | Teknik sorumlu |
+| Spectral yok | `.spectral.yaml`; iki OpenAPI temiz |
+| TS SDK yok / panel kullanmıyor | `types.gen.ts` + `client.ts`; crop/rendition/simulator/upload gerçek tüketiciler |
+| Postman/Bruno yok | Deterministik Postman koleksiyonu, 120/120 uç |
+| Idempotency-Key yok | Begin/finalize başlık+gövde eşleşmesi ve replay defteri |
+| Scheduler cleanup bağlı değil | Günlük `tradehub_core.media.chunked.cleanup` |
+| Gerçek 304 yok | Canlı HTTP 304, boş gövde, ETag ve Cache-Control başlıkları |
+| Crop override her zaman 417 | `profile` Data; `w384` yaz/oku entegrasyon testi geçti |
+| Schemathesis/dredd yok | Schemathesis 4.25.0 CI kapısı ve yerel 90 vaka |
+| Hata kodu i18n ayrışabilir | Backend AST kataloğu; TR/EN/RU/AR tamlık testi |
+| Çağrılabilir v1 için breaking kapısı yok | `check_openapi_breaking.py` + PR taban karşılaştırması |
 
-## 2. Kapıyı karşılayan ölçümler
+## Doğrulama özeti
 
-| Kalem | Durum | Kanıt |
-|---|---|---|
-| OpenAPI üretimi + bayt kilidi | **KARŞILANDI** | `docs/api/openapi-http.yaml` üretilmiş dosya; `gen_http_openapi.py --check` temiz (41 §7, 56 #6); kardeş `openapi.yaml` bayt-eşitlik testi `test_api_contracts` **126/126 OK** (32 §6, 57c #1). |
-| Uç yüzeyi | **KARŞILANDI** | paths/operations/x-endpoint-count = **90/90/90**, gerçek YAML parser ile (57c §0.1; 41 §0). 32/35'teki "87" bayat. |
-| Ölçüm zorunluluğu | **KARŞILANDI** | x-measured: http **69** · http-partial **20** · unmeasured **1** (`create_media_backup`, gerekçeli: 5.020 dosya) — testle kilitli (41 §2). |
-| Contract testleri | **KARŞILANDI** | `test_http_api_contracts` **41/41, 0 atlama** (tam ortam değişkenleriyle); ortamsız OK (skipped=16) (41 §7, 57c #3/#4). |
-| Negatif yetki kapsamı | **KARŞILANDI (örnekleme değil, tamamı)** | Misafir → oturumlu **87/87 uçta 403 İSTİSNASIZ**; seller→admin **49/49 → 403**; seller kendi kütüphanesi 33/33 uçtan uca (41 §6). |
-| Sapma beyanı | **KARŞILANDI** | `x-contract-deviations` 10 madde (D1–D10: 417 kullanımı, eksik parametre→500, GET→403 vb.), `test_sapma_listesi_bos_degil` ile kilitli (41 §5). |
-| manifest_batch (T-083) | **KARŞILANDI (08-20)** | 66: `manifest_batch(file_urls)` FILE_BATCH_MAX=100, **16 test OK**; FE `useMediaRenditions.load()` 2N→**1 istek**; vacuity: ignore_permissions eklenince FAILED (failures=4). |
+- Saf API sözleşme paketi: **126/126**.
+- Gerçek HTTP sözleşme paketi: **43/43**; yerel guest turunda 6 yetkili test
+  kimlik bilgisi verilmediği için açıkça atlandı, eski tam yetki turları ayrıca
+  korunuyor.
+- Manifest Frappe paketi: **12/12**.
+- Crop Frappe paketi: **18/18**.
+- Chunked idempotency Frappe paketi: **6/6**.
+- API artefaktları + breaking checker: **9/9**.
+- Panel API/i18n/upload odaklı son tur: **27/27**.
+- Schemathesis guest teslim yüzeyi: **90/90**, 2 operasyon, examples + coverage
+  + fuzzing, 5xx yok.
+- Spectral: iki belge için hata/uyarı yok.
+- Sözleşmeyi karşılamayan belgeli HTTP ucu: **0**.
 
-## 3. Karşılanmayanlar / ölçülmeyenler (AÇIK)
+## Ölçüm sınırı
 
-1. **"v1 donduruldu" çağrılabilir yüzey için değil** — README §2.5'in "donmuş yüzeyi" `/api/media/v1/…` katmanı **çağrılamıyor** (0 route kuralı); `openapi-http.yaml`'da dondurma/deprecation politikası yok. 32 §10.4: "donmuş olan, istemcinin çağıramadığı katmandır."
-2. **Yüzey 08-20'de değişti, bayt kilidi yeniden koşulmadı** — 65 `save_intent`'e 3 parametre, 66 yeni `manifest_batch` ucu ekledi; hiçbir rapor `gen_http_openapi.py --check` tekrarını kaydetmiyor → **90 sayısı ve kilit bayat olabilir; kapanıştan önce yeniden üret/ölç.**
-3. **spectral lint YOK · schemathesis/dredd YOK · Postman/Bruno koleksiyonu YOK** (56 §5.2, 57c §1). → ARAÇ.
-4. **TS SDK üretilmedi ve FE tüketmiyor** — openapi-typescript 0 isabet; `ui/src/api/client.ts` yok; `api.js` elle yazılmış (56 §5.2, 61e). → **KARAR** ("OpenAPI'den tipli TS SDK üretilsin mi?" — plan Kova D).
-5. **tus/resumable KARARI açık; sunucu tarafı eksikleri**: `Idempotency-Key` repo genelinde 0 isabet; `expires_at`, `quota_remaining`, sha256 dedup yok; **`chunked.cleanup()` yazılmış ama hiçbir scheduler'a bağlı değil** — "fonksiyon var, zamanlayıcı yok" (44 §10, 57c §0.7). Protokol gerekçesi kayıtlı: "tus-js-client kurmak, konuşacağı bir sunucu olmadan ölü bir bağımlılık olurdu."
-6. **`save_intent` overrides yolu HER ZAMAN 417** — Link kısıtı DB'de kaldırıldı ama "uçtan uca ölçülmedi" (57c §0.4); 3 artefakt eski gerçeği taşıyor. → KARAR + ölçüm.
-7. **Zenginleştirme uçlara akmıyor** — `get_manifest` LQIP/dominant boş; `manifest_batch` version_meta taşımıyor (73 §3.2–3.3; düzeltme 1+2 satır).
-8. **Contract testleri CI'da koşmuyor** — CI ortam değişkeni vermediği için gerçek HTTP yüzeyi hiçbir otomasyonda ölçülmüyor (57c §0.1, 41 §8-7).
+120 HTTP ucunun 85'i gerçek HTTP, 22'si kısmi HTTP + Frappe/DB entegrasyonu ile
+ölçülmüştür. Kalan 13 uç; 5.020 dosyalık backup/retro-rename, rendition
+backfill, indexability ve CDN purge gibi yan etkili/uzun yönetim işlemleridir.
+Gerekçeleri OpenAPI'de `x-unmeasured` olarak görünür; “geçti” sayılmamıştır.
+Bunlar API'nin şema/rol/artefakt kapanışını bozmaz, Faz 12–13 operasyon
+kanıtında güvenli dry-run fixture ile ele alınır.
 
-## 4. Kapı durumu özeti
+## Onay
 
-**Kapı: BÜYÜK ÖLÇÜDE KARŞILANDI, İKİ ŞERHLE.** Contract test tabanı güçlü (126 + 41 + 87/87 negatif kapsam) ve ölçüm zorunluluğu şemaya gömülü. Şerhler: (a) "dondurma" beyanı çağrılabilir yüzeye taşınmalı ve 08-20 değişikliklerinden sonra `--check` yeniden koşulmalı; (b) T-085'in SDK/lint/koleksiyon kalemleri yapılmamış iş (56 §5.4: "Faz 8 bugün KAPANMAZ").
-
-## 5. Kaynak raporlar
-`docs/reports/`: 41-t080-api-sozlesme.md · 56-d3-faz6-10-kapanis.md §5 · 57c-durum-faz8-11.md §0–1 · 32-faz8-api-kapanis.md §10 · 66-be4-manifest-batch.md · 44-t081-yukleyici.md · 73-w4-manifest-zenginlestirme.md · 61e-fe-denetim-faz8-9.md
-
-## 6. Onay
-
-```
-Onaylayan (Teknik sorumlu): ______________________   Tarih: ______________   İmza: ______________
+```text
+Teknik sorumlu: ____________________  Tarih: __________  İmza: __________
 ```

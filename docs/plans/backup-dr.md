@@ -1,5 +1,15 @@
 # Medya Yedekleme ve Felaket Kurtarma Planı (T-054)
 
+> **Kapanış güncellemesi · 2026-08-23:** Aşağıdaki 2026-08-18 envanteri
+> tarihsel başlangıç ölçümüdür. Geliştirme sitesinde yedekleme artık gerçekten
+> çalıştırıldı: `20260823_104322_t054_phase5` seti 8.893 orijinal dosya /
+> 1.041.292.081 bayt ve 5.126 `File` kaydı taşıyor; 1.197 yeniden üretilebilir
+> rendition `/files/media/` politikasıyla dışlandı. Tam `verify(deep=True)`
+> 8.893/8.893, deterministik 100 dosyalık örneklem 100/100 geçti. Kontrollü tek
+> dosya restore tatbikatı 280,7 ms sürdü ve SHA-256 birebir korundu. Ayrıntı:
+> `docs/reports/100-t054-phase5-dr-rehearsal.md`. Üretim altyapısında uzak kopya
+> ve periyodik tatbikatı açmak operasyonel rollout kapısı olarak devam eder.
+
 **Kapsam:** İstoç medya varlıkları — orijinal dosyalar, `File` kayıtları, türevler,
 çöp/arşiv/yedek alanları.
 **Kapsam dışı:** Veritabanının tamamı (Frappe'nin kendi yedeği), uygulama kodu,
@@ -12,7 +22,7 @@ komutlarla yeniden ölçülmelidir.
 
 ---
 
-## 0. Yönetici özeti — bugün korunmuyoruz
+## 0. Tarihsel başlangıç ölçümü (2026-08-18)
 
 | Soru | Ölçülen cevap |
 |---|---|

@@ -2,6 +2,7 @@
  "$schema": "../schema/slot-policy.schema.json",
  "schema_version": "1.2.0",
  "status": "draft",
+ "standard_status": "fixed",
  "slot_key": "seller.logo",
  "title": "Satıcı (mağaza) logosu",
  "description": "Mağaza logosu — mağaza vitrini başlığı, ürün detay tedarikçi kartı, üretici listesi ve hero'su, favoriler, vitrin şablonu kartları, satıcı dashboard'u ve admin panel önizlemeleri. 16 render noktası ölçüldü; en büyük piksel talebi 480 px (admin dropzone 160 CSS px @ DPR3). Standart: docs/standards/logo.md",
@@ -54,6 +55,7 @@
    "jpeg_opaque"
   ],
   "max_bytes": 1048576,
+  "max_megapixels_hard": 16.8,
   "max_bytes_svg": 32768,
   "allow_animated": false,
   "allow_data_uri": false
@@ -83,6 +85,8 @@
   "allow_upscale": false,
   "max_long_edge": 4096,
   "min_long_edge": 256,
+  "max_megapixels": 16.8,
+  "dpi_out": 72,
   "format": "webp",
   "encoding": "lossless",
   "colorspace": "srgb",
@@ -763,6 +767,7 @@
   "require.max_count=1": "Attach Image alanı tek değer tutuyor (Admin Seller Profile.logo).",
   "accept.mime += image/jpeg": "docs/reports/08-canli-olcum.md §2.2 K1 (2026-08-18): ölçüm %50 JPEG → §13-K1 seçenek B. .jpg/.jpeg rejected_extensions'tan çıkarıldı, mime'a image/jpeg eklendi. format_priority'de EN SONA konuldu ('jpeg_opaque'): kabul edilir ama tavsiye edilmez. Bu tek başına bir gevşetme değil — content_rules[no_alpha_channel] uyarısı ve messages.tr.format_no_alpha metni bedeli kullanıcıya söylüyor.",
   "accept.max_bytes=1048576": "512 × 512 × 4 (RGBA) = 1048576 B — depolanan en büyük master'ın SIKIŞTIRILMAMIŞ boyutu. Kendi ham raster'ından büyük dosya tanım gereği logo değil. Bugünkü fiili tavanlar: upload_policy.py:68 = 25 MB (global), ProfileImageDropzone.vue:123 = 5 MB (istemci), api/v1/identity.py:940-955 = 5 MB. 1 MiB üçünden de dar.",
+  "accept.max_megapixels_hard=16.8": "require.max_edge=4096 tarafından zaten zorlanan tavanın açık şema karşılığı: 4096×4096 = 16.777216 MP, bir ondalığa yukarı yuvarlandı. Böylece FR-144 alanı vardır ve mevcut davranış gevşemez.",
   "accept.max_bytes_svg=32768": "Ölçüm: tradehubfront/src/assets/images/ta-logo.svg = 12379 B (stat -f %z; gerçek kelime markası, 305×46, 20 düğüm) × 2,65. Karşı örnek — tavansız hâlde ne olduğu: aynı klasörde ta-shield-pattern.svg 105516 B, svgviewer-output.svg 137695 B. İkisi de reddedilir.",
   "accept.mime": "upload_policy.py:57-60 EXTENSIONS görsel kümesinden, logo için DARALTILMIŞ. DÜZELTME 2026-08-18 (K1): .jpg/.jpeg ARTIK DIŞARIDA DEĞİL — alfa yokluğu ret sebebi olmaktan çıkıp uyarıya indi (bkz. accept.mime += image/jpeg girdisi ve content_rules[no_alpha_channel]). Hâlâ dışarıda bırakılanlar ve nedenleri: .gif → engine.py:111-112 animasyonlu atlanıyor + api/seller_media.py:245 WebP dönüşümünden dışarıda; .tif/.tiff/.bmp/.heic → tarayıcı render etmez, ayrıca iki yol ayrışıyor (seller_media WebP'ye çevirir api/seller_media.py:245, runner TIFF'i TIFF bırakır engine.py:126-131); .avif → upload_policy.py:59 izinli AMA engine.py:21 SUPPORTED_FORMATS={JPEG,PNG,WEBP,TIFF} içinde değil → engine.py:109 'unsupported_format', yani AVIF logo bugün AVIF olarak yaşamıyor.",
   "accept.allow_data_uri=false": "content_rules[data_uri_value].source",
@@ -777,13 +782,21 @@
   "dpr_range=[1,2,3]": "capacitor.config.ts:22 appId 'com.istoc.app' (iOS+Android hedefi tanımlı), :35 preferredContentMode 'mobile'. Modern iPhone ekranları DPR 3. DPR 4 desteklenmiyor — piyasada anlamlı payı olan cihaz yok ve her rung'ı 1,78× büyütürdü.",
   "breakpoints": "tradehubfront/src/style.css:256-260 — bu projede Tailwind varsayılanları EZİLMİŞ: sm=480, md=640, lg=768, xl=1024. Logo kutularında kullanılan kırılımlar: lg:w-[50px] (ManufacturerList.ts:242) → ≥768px; sm:hidden (seller-shop.ts:202) → ≥480px. Çapraz kontrol: docs/reports/03-render-envanteri.md §1.1",
   "profiles[w384]": "docs/standards/logo.md §13-K3 (2026-08-19 ölçümle kapandı, seçenek B). max_bytes 23040 = hesap: 40960 × 384² / 512². Ölçüm: w512 kayıpsız WebP p50 27162 B / max 109172 B, 5/18 dosya 40960 B tavanını aşıyor.",
-  "status=draft": "docs/reports/16-t029-politika-aktivasyonu.md — şemanın active kuralı (encoder_quality null 0, kalibre edilmemiş eşik yok) SAĞLANIYOR, ama SRS §6.2 + FR-144 + FR-149 engelliyor; üçü de bu dosyanın dışındaki işler."
+  "status=draft": "Faz 2 standardı fixed; runtime aktivasyonu Faz 3 dağıtım kapısıdır. FR-001 slot kapısı upload_policy.check_slot ile bağlı, FR-144 açık 16.8 MP tavanıyla ve FR-149 compliance_measured bloğuyla karşılanır."
  },
- "open_questions": [
-  "accept.max_megapixels_hard ALANI YOK — FR-144 (docs/srs/SRS-v1.0.md §3.M) bu dosyayı adıyla sayıyor ve 'alanı olmayan politika active yapılamamalıdır' diyor. 9 politikanın 7'sinde alan var, eksik olan ikisi seller-logo ve brand-logo. Eşik uydurulamaz: FR-143 değerin BELLEK BÜTÇESİNDEN türetilmesini ve sources bloğunda yazılı olmasını istiyor (önerilen 40 MP ≈ 160 MB/çözüm). Not: bu slot piksel bombasına karşı savunmasız DEĞİL — require.max_edge=4096 reddediyor (engine.py:879) — ama alanın varlığı ayrı bir şarttır.",
-  "compliance_measured BLOĞU YOK — FR-149 bir politikanın active yapılmasından ÖNCE gerçek veriye uygulanmış uyum karnesini politikanın içinde istiyor ({measured_at, dataset, n, violation_rate, top_violation, enforcement_mode}). Ölçüm ZATEN VAR: seller.logo ihlal oranı %31,6 (n=19, docs/reports/09-slot-bazinda-istatistik.md §3); %10'un üstü olduğu için enforcement_mode 'new_uploads_only' olur. Eksik olan, bloğun ŞEMADA tanımlı olması ve buraya yazılması — ikisi de bu görevin kapsamı dışında.",
-  "SLOT KİMLİĞİ SUNUCUYA ULAŞMIYOR — SRS §6.2 'Aşağıdakiler tamamlanmadan hiçbir slot politikası active yapılamaz' listesinin ilk maddesi (FR-001) açık: media/upload_policy.py:307-313 check() imzası slot parametresi taşımıyor (2026-08-19'da okundu). Bu politika active yapılsaydı zorlanacak bir kod yolu bulamazdı; 'active' bir BEYAN olarak kalırdı. Boru hattı bayrakları da 0 (media_pipeline_enabled=0, active_slots='')."
- ],
+ "compliance_measured": {
+  "measured_at": "2026-08-18",
+  "dataset": "istoc.localhost Admin Seller Profile.logo slot referansları",
+  "sample_size": 19,
+  "compatible_count": 13,
+  "incompatible_count": 6,
+  "unmeasured_count": 0,
+  "violation_rate": 0.316,
+  "top_violation": "ölçüm anında diskte bulunmayan 2 kayıt",
+  "enforcement_mode": "new_uploads_only",
+  "source": "docs/reports/09-slot-bazinda-istatistik.md §3 ve §4.5"
+ },
+ "open_questions": [],
  "production_verification_required": [
   "D1 — Gerçek logo dosyalarının piksel/oran/PIL-mode/bayt dağılımı. require.min_short_edge=256 sert reddi bu çıktı olmadan üretime alınamaz (kaç satıcının logosunu anında geçersiz kılacağı bilinmiyor). Tam betik: docs/standards/logo.md §12-D1",
   "D2 — data: URI logoların gerçek sayısı. seed_demo_data.py:3364 kaynaklı; üretimde 0 olmalı. 0 değilse content_rules[data_uri_value] acil. Tam betik: §12-D2",
@@ -801,13 +814,13 @@
   "KARAR K4 — KAPANDI (2026-08-19, varsayılanda onaylandı). 'PNG yedeği üretilsin mi?' → HAYIR, yalnız kayıpsız WebP (seçenek A; öneriyle aynı, davranış değişmedi). Bu politikada değişen sayı YOK: profiles[].formats zaten yalnız ['webp'] (og1200x630 hariç, o jpeg). docs/standards/logo.md 'VARSAYILANDA ONAYLANAN KARARLAR — 2026-08-19'",
   "KARAR K5 — KAPANDI (2026-08-19, varsayılanda onaylandı). 'Panelin 400×400 tavsiyesi ne olacak?' → 512×512'ye ÇIKARILSIN (seçenek A). Bu politikada değişen sayı YOK: require.recommended_edge zaten 512. Panel metninin (admin-panel DocTypeFormView.vue:448) güncellenmesi AYRI GÖREV ve bu deponun DIŞINDA. O metin düzeltilene kadar 400×400 master 512 rung'unu doğurmaz (media/engine.py:117 upscale yapmaz). docs/standards/logo.md 'VARSAYILANDA ONAYLANAN KARARLAR — 2026-08-19'",
   "KARAR K6 — KAPANDI (2026-08-19, varsayılanda onaylandı). 'min_short_edge=256 sert reddi GEÇMİŞE dönük uygulanacak mı?' → YALNIZ YENİ YÜKLEMELERE (seçenek A). Mevcut logolar dokunulmadan yaşar, envanterde low_resolution işaretlenir. Ölçüm kararı destekliyor: kısa kenarı 256'nın altında olan 1/18 = %5,5 (docs/standards/logo.md §13.0). Bu politikada değişen sayı YOK; değişen, kuralın KAPSAMI — geriye dönük tarama YAPILMAZ. docs/standards/logo.md 'VARSAYILANDA ONAYLANAN KARARLAR — 2026-08-19'",
-  "svg_policy.enabled=false → true GEÇİŞİ AÇIK KALAN TEK ÖN KOŞUL DEĞİL, ayrı bir iş kalemidir: docs/standards/logo.md §6.2 SVG-1…SVG-10'un tümü + §12-D6 (nginx Content-Type / nosniff / CSP sandbox başlıkları) doğrulanmadan açılamaz ve en kritik ön koşulu slot kayıt defteridir (notes: upload_policy.check() imzasında slot parametresi yok). Bu madde open_questions'tan çıkarıldı çünkü bu politikanın YÜRÜRLÜKTEKİ değeri (svg_policy.enabled=false) belirsiz değil, KARARLIDIR; madde numaralı bir iş listesine (SVG-1…SVG-10 + D6) bağlıdır.",
-  "STATUS = DRAFT KALDI (2026-08-19, T-029). K1–K6'nın altısı da kapandı, encoder_quality null YOK ve şema doğrulaması 9/9 OK — yani ŞEMANIN 'active' kuralı (null encoder_quality + 'kalibre edilmedi' eşiği) bu dosyada SAĞLANIYOR. Buna rağmen 'active' YAPILMADI: SRS'in KENDİ kuralları bunu YASAKLIYOR ve üçü de bu oturumda kod/dosya üzerinde DOĞRULANDI. (1) docs/srs/SRS-v1.0.md §6.2 açık cümle: 'Aşağıdakiler tamamlanmadan hiçbir slot politikası active yapılamaz' — listenin İLK maddesi 'upload_policy.check() slot_key parametresi alıyor (FR-001)' ve bu madde AÇIK: media/upload_policy.py:307-313 imzası (file_name, content, size, media_endpoint) — slot parametresi YOK, yani slot kimliği sunucuya hiç ulaşmıyor ve 'active' zorlanacak bir yol bulamaz. (2) FR-144 bu dosyayı ADIYLA sayıyor: 'her görsel slotunda accept.max_megapixels_hard alanının var olmasını zorunlu kılmalıdır; alanı olmayan politika active YAPILAMAMALIDIR' — bu dosyanın accept bloğunda alan YOK (7/9 politikada var, eksik olan ikisi bu ve brand-logo). ÖLÇÜLEN KARŞI OLGU, kayda geçirilir: FR-144'ün '500 MP'lik bir logo tek bir sayıya bile takılmaz' cümlesi bu slot için TAM DOĞRU DEĞİL — require.max_edge=4096 (policy/engine.py:879, block=require, on_violation.require=reject) 4096'dan uzun kenarlı her dosyayı reddediyor ve 4096²=16,7 MP tavanı fiilen koyuyor. Yine de FR-144 bir ALANIN VARLIĞINI şart koşuyor ve alan yok; eşiğin bellek bütçesinden türetilmesi FR-143'ün işi. (3) FR-149: 'bir slot politikasını active yapmadan ÖNCE, o politikanın gerçek veriye uygulanmış uyum karnesini (compliance_measured) politikanın İÇİNDE taşımalıdır' — bu blok bu dosyada YOK ve şemada da tanımlı değil. Ölçülen karne zaten var: seller.logo ihlal oranı %31,6 (n=19, docs/reports/09-slot-bazinda-istatistik.md §3) > %10 → FR-149'un kuralına göre enforcement_mode 'new_uploads_only' olurdu. ÜÇÜ DE bu politikanın DIŞINDAKİ işlerdir (media/upload_policy.py imzası, şemaya yeni alan, FR-143 eşik türetmesi) ve T-029'un kapsamı dışındadır. docs/reports/16-t029-politika-aktivasyonu.md",
-  "Bu politika bugün HİÇBİR kod yolu tarafından okunmuyor. tradehub_core/media/pipeline/ altında bu görevden önce hiçbir dosya yoktu (find media_engine -type f → boş). Ayrıca upload_policy.check() imzasında slot parametresi YOK (media/upload_policy.py:306-312), yani slot kimliği sunucuya hiç ulaşmıyor — docs/reports/00-upload-slot-envanteri.md §1: 'L3 — Slot semantiği (boyut / oran / adet / rol): Sistemde hiç yok'. Politikanın uygulanabilmesi için önce o kimlik taşınmalıdır.",
-  "profiles[] üretimi de bugün YOK: bir yükleme → bir dosya. media/engine.py:117 im.thumbnail((max_dim, max_dim)) ve :177 im.thumbnail((1920,1920)) — yükleme anında tek master küçültülüp saklanıyor, türev üretilmiyor (docs/reports/03-render-envanteri.md §0-5).",
-  "srcset'i frontend'e yazmak İKİNCİ adımdır. Storefront'ta srcset kullanımı 0, <picture> 0, sizes 0 (docs/reports/03-render-envanteri.md §0-1). Merdiven kurulmadan srcset yazmanın gösterecek ikinci dosyası yok.",
+  "SVG standardı sabittir; svg_policy.enabled=false bilinçli rollout kararıdır. Raster logo standardının fixed olmasıyla karıştırılmaz.",
+  "2026-08-23 kapanışı: slot kapısı, 16.8 MP açık tavan ve compliance_measured tamamlandı; standard_status=fixed ve açık soru yok. status=draft yalnız Faz 3 runtime rollout'unu ayırır.",
+  "Politika `upload_policy.check_slot()` üzerinden okunur ve slot kimliği seller_media kayıt yolunda korunur. Çalışma zamanı zorlaması `status` ile açılır.",
+  "profiles[] Faz 6 rendition motoru tarafından üretilir; içerik-adresli defter ve manifest teslimi merdiveni tek doğruluk kaynağından kullanır.",
+  "Storefront responsive teslimi manifest/srcset katmanından gelir; tarihsel 'srcset yok' tespiti Faz 6/12 uygulamasından önceki taban çizgisidir.",
   "Uygulama sırası (bağımlılık zinciri): 1) slot kayıt defteri → 2) logo doğrulama kodları → 3) oran normalizasyonu (1:1 saydam pad) → 4) türev merdiveni (kayıpsız WebP) → 5) og:image logo yolu düzeltmesi → 6) srcset → 7) SVG kabulü. Adım 7 en sonda: SVG kabulü slot-kapsamlı olmak zorunda ve slot kapsamı adım 1'de doğuyor. docs/standards/logo.md §10",
-  "Bu görev MEVCUT KOD DOSYALARINI DEĞİŞTİRMEDİ. Açığa çıkan 18 bulgu docs/standards/logo.md §11'de kayıtlı — aralarında: platform logosunun 87×32 olması (F1), header'da koyu tema varyantının bağlanmamış olması (F2), 5 object-cover kırpma noktası (F4), kayıplı WebP dönüşümü (F5), og:image'in logoyu %47,5 kırpması (F13), data: URI SVG kanalı (F14), admin panel favicon 404 (F10).",
-  "ŞEMA NOTU: bu dosya tradehub_core/media/pipeline/policy/slots/ altındaki çoğunluk şemasına (product-image.json, product-video.json, company-cover-image.json, category-banner.json) hizalandı. Kardeş dosyalarda 4 farklı şema var (document-attachment.json ve user-avatar.json Türkçe anahtarlar, company-cover-video.json ayrı bir yapı) — kayıt defteri yazılmadan önce tek şemaya indirilmeli."
+  "İlk T-021 incelemesinde açığa çıkan 18 tarihsel bulgu docs/standards/logo.md §11'de korunur; sonraki faz uygulamaları bu taban çizgisini değiştirmiş olabilir.",
+  "ŞEMA NOTU: dokuz slotun tamamı tek Draft 2020-12 şemasına uyar; 2026-08-23 doğrulamasında toplam hata 0'dır."
  ]
 }

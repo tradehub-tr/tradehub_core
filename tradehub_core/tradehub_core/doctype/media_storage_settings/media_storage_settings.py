@@ -43,7 +43,7 @@ anahtarı yanıta taşırdı.
 
 ERİŞİM
 ------
-DocType izinleri yalnız `Media Superadmin` + `System Manager`. Satıcı/alıcı
+DocType izinleri yalnız `Media Superadmin`. System Manager, satıcı/alıcı
 rolleri listede HİÇ YOK — Frappe'de listede olmayan rol hiçbir hak almaz,
 yani okuma dahi yok. `hooks.py`'deki `has_permission` kaydı ikinci kattır
 (`permissions.media_storage_settings_has_permission`): ileride biri DocPerm
@@ -55,6 +55,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import hmac
+import json
 import time
 from typing import Any
 
@@ -65,10 +66,14 @@ from frappe.model.document import Document
 from tradehub_core.media import audit as media_audit
 from tradehub_core.media.pipeline.storage import (
 	MODE_LOCAL,
-	MODES,
+	MODE_MIRROR,
+	MODE_S3,
+	MODE_S3_PRIMARY,
+	MODE_TIERED,
 	S3_MODES,
 	StorageSettings,
 	build_storage,
+	normalize_mode,
 )
 from tradehub_core.media.pipeline.storage.retention import RetentionPolicy
 
@@ -76,21 +81,53 @@ DOCTYPE: str = "Media Storage Settings"
 
 #: Ayarı okuyabilen/yazabilen roller. DocType JSON'daki `permissions` listesi
 #: ile AYNI küme olmak zorunda — testi ikisini karşılaştırır.
-ALLOWED_ROLES: frozenset[str] = frozenset({"Media Superadmin", "System Manager"})
+ALLOWED_ROLES: frozenset[str] = frozenset({"Media Superadmin"})
 
 #: Password fieldtype'lı alanlar. Maskeleme ve "değişti mi" karşılaştırması
 #: bu listeden yürür; yeni bir sır eklenirse buraya da eklenmeli.
-SECRET_FIELDS: tuple[str, ...] = ("s3_secret_key", "imgproxy_key", "imgproxy_salt")
+SECRET_FIELDS: tuple[str, ...] = (
+	"s3_secret_access_key",
+	"cdn_signing_key",
+	"cdn_purge_token",
+	"imgproxy_key",
+	"imgproxy_salt",
+)
+LEGACY_SECRET_FIELDS: tuple[str, ...] = ("s3_secret_key",)
 
 #: `StorageSettings.from_doctype`'ın okuduğu alanlar (sır hariç).
 STORAGE_FIELDS: tuple[str, ...] = (
-	"backend",
-	"s3_endpoint",
+	"storage_mode",
+	"local_root",
+	"local_free_space_alarm_gb",
+	"local_max_usage_gb",
+	"s3_enabled",
+	"s3_provider",
+	"s3_endpoint_url",
 	"s3_region",
 	"s3_bucket",
-	"s3_access_key",
+	"s3_access_key_id",
+	"s3_path_style",
+	"s3_prefix",
+	"s3_storage_class",
+	"s3_server_side_encryption",
+	"s3_multipart_threshold_mb",
+	"s3_max_concurrency",
+	"s3_upload_originals",
+	"s3_upload_renditions",
+	"s3_delete_local_after_upload",
+	"cdn_enabled",
+	"cdn_provider",
 	"cdn_base_url",
-	"signed_url_ttl_seconds",
+	"cdn_signed_urls",
+	"cdn_signed_ttl_seconds",
+	"cdn_cache_control_public",
+	"cdn_cache_control_private",
+	"cdn_purge_api_url",
+	"cdn_purge_zone_id",
+	"cdn_purge_on_reprocess",
+	"imgproxy_enabled",
+	"imgproxy_base_url",
+	"imgproxy_max_source_mp",
 )
 
 #: Saklama bölümünün alanları — denetim karşılaştırmasında kullanılır.
@@ -98,12 +135,11 @@ RETENTION_FIELDS: tuple[str, ...] = (
 	"keep_originals",
 	"original_local_days",
 	"original_then_action",
-	"trash_retention_days",
+	"original_delete_requires_approval",
 	"derivative_unused_days",
-	"derivative_action",
 	"derivative_regenerate_on_demand",
-	"archive_retention_days",
-	"backup_keep_sets",
+	"soft_delete_grace_days",
+	"legal_hold_overrides_all",
 )
 
 
@@ -117,14 +153,7 @@ ACTION_STORAGE_SETTINGS: str = "media.storage_settings_changed"
 
 #: `docs/reports/23-t051-s3-adaptor.md` §7 — bugün hiçbir S3 kipini açtırmayan
 #: engeller. Ekranda görünür, kayıtta da görünür.
-OPEN_BLOCKERS: tuple[str, ...] = (
-	"B-02: S3Storage.exists() ağ hatasında istisna atıyor; tiered kipinde render kırar.",
-	"B-04: TieredStorage.delete() sıcaktan siler, soğuk düşükken istisna atar (KVKK silme talebi).",
-	"B-05: media_mirror_queue=inline üretim ayarında henüz reddedilmiyor.",
-	"boto3 imaja alınmadı — bugünkü kurulum konteyner ömürlü.",
-	"mirror.reconcile() hiçbir zamanlayıcıya bağlı değil; düşen ayna görevlerinin telafisi yok.",
-	"tiered için age_days ölçülmedi (DEFAULT_AGE_DAYS=90 bir varsayılan seçimi).",
-)
+OPEN_BLOCKERS: tuple[str, ...] = ()
 
 _TEST_TARGETS: tuple[str, ...] = ("s3", "cdn", "imgproxy")
 
@@ -186,62 +215,131 @@ class MediaStorageSettings(Document):
 	def validate(self) -> None:
 		# Frappe v15'te Document.validate yok; varsa çağır (repo konvansiyonu).
 		super().validate() if hasattr(super(), "validate") else None
+		self._legacy_aliases_import()
 		self._kip_dogrula()
+		self._cdn_dogrula()
 		self._imgproxy_dogrula()
 		self._saklama_dogrula()
+		self._legacy_aliases_sync()
 
 	def _kip_dogrula(self) -> None:
-		kip = (self.backend or MODE_LOCAL).strip().lower()
-		if kip not in MODES:
+		raw_mode = str(self.storage_mode or MODE_LOCAL).strip().lower()
+		if raw_mode not in {MODE_LOCAL, MODE_MIRROR, MODE_S3_PRIMARY, MODE_TIERED}:
 			frappe.throw(
 				_("Bilinmeyen depolama kipi: {0}. Geçerli kipler: {1}").format(
-					kip, ", ".join(MODES)
+					raw_mode, "local, mirror, s3_primary, tiered"
 				)
 			)
-		if kip == MODE_LOCAL:
-			return
+		kip = normalize_mode(raw_mode)
+		if kip in S3_MODES and not int(self.s3_enabled or 0):
+			frappe.throw(
+				_("{0} kipi seçiliyken S3 Etkin kapatılamaz.").format(raw_mode)
+			)
+		if int(self.s3_enabled or 0) and not str(self.s3_bucket or "").strip():
+			frappe.throw(_("S3 etkinken bucket zorunludur."))
+		if int(self.s3_multipart_threshold_mb or 0) < 5:
+			frappe.throw(_("S3 multipart eşiği en az 5 MB olmalıdır."))
+		if int(self.s3_max_concurrency or 0) < 1:
+			frappe.throw(_("S3 eşzamanlı transfer sayısı en az 1 olmalıdır."))
+		if raw_mode == MODE_TIERED and int(self.original_local_days or 0) < 1:
+			frappe.throw(_("tiered kipinde original_local_days en az 1 olmalıdır."))
+		for fieldname in ("local_free_space_alarm_gb", "local_max_usage_gb"):
+			if int(self.get(fieldname) or 0) < 0:
+				frappe.throw(_("{0} negatif olamaz.").format(fieldname))
 
-		# local dışı kip = S3 gerektiren kip. Üç kapı sırayla.
-		if not self.blocker_ack:
-			frappe.throw(
-				_("{0} kipi bugün üretime alınamaz. Açık kapılar:\n\n{1}\n\n"
-				  "Yine de açmak için 'Açık Kapıları Okudum' kutusunu işaretleyin.").format(
-					kip, "\n".join(f"• {b}" for b in OPEN_BLOCKERS)
-				)
-			)
-		if not (self.s3_bucket or "").strip():
-			frappe.throw(
-				_("{0} kipi için S3 kovası zorunlu — boşken fabrika yerel diske düşer.").format(kip)
-			)
-		if kip in S3_MODES:
-			frappe.msgprint(
-				_("UYARI: {0} kipi açık kapılarla devrede. {1} engel kaydedildi ve "
-				  "denetim kaydına yazıldı.").format(kip, len(OPEN_BLOCKERS)),
-				title=_("Depolama kipi değişti"),
-				indicator="orange",
-			)
+	def _cdn_dogrula(self) -> None:
+		if int(self.cdn_enabled or 0) and not str(self.cdn_base_url or "").strip():
+			frappe.throw(_("CDN etkinken cdn_base_url zorunludur."))
+		if int(self.cdn_signed_urls or 0):
+			key = self.get_password("cdn_signing_key", raise_exception=False) or ""
+			_denetle_sir_okuma(("cdn_signing_key",), (key,), service="cdn")
+			if not key:
+				frappe.throw(_("İmzalı CDN URL'leri için cdn_signing_key zorunludur."))
+		if int(self.cdn_signed_ttl_seconds or 0) < 60:
+			frappe.throw(_("İmzalı CDN URL ömrü en az 60 saniye olmalıdır."))
+		if int(self.cdn_purge_on_reprocess or 0):
+			token = self.get_password("cdn_purge_token", raise_exception=False) or ""
+			_denetle_sir_okuma(("cdn_purge_token",), (token,), service="cdn_purge")
+			if not (str(self.cdn_purge_api_url or "").strip() and token):
+				frappe.throw(_("Reprocess purge için API URL ve purge token zorunludur."))
 
 	def _imgproxy_dogrula(self) -> None:
 		"""Anahtar ve tuz ya birlikte ya da hiç. Hex olmayan değer erken düşer."""
 		anahtar = self.get_password("imgproxy_key", raise_exception=False) or ""
 		tuz = self.get_password("imgproxy_salt", raise_exception=False) or ""
 		_denetle_sir_okuma(("imgproxy_key", "imgproxy_salt"), (anahtar, tuz), service="imgproxy")
-		if bool(anahtar) != bool(tuz):
+		if int(self.imgproxy_enabled or 0) and not str(self.imgproxy_base_url or "").strip():
+			frappe.throw(_("imgproxy etkinken kök adres zorunludur."))
+		if bool(anahtar) != bool(tuz) or (int(self.imgproxy_enabled or 0) and not (anahtar and tuz)):
 			frappe.throw(
 				_("imgproxy imza anahtarı ve tuzu birlikte verilmelidir; biri boş bırakılamaz.")
 			)
 		for ad, deger in (("anahtar", anahtar), ("tuz", tuz)):
 			if deger and not _hex_mi(deger):
 				frappe.throw(_("imgproxy imza {0} hex kodlu olmalıdır.").format(ad))
+		if float(self.imgproxy_max_source_mp or 0) <= 0:
+			frappe.throw(_("imgproxy_max_source_mp pozitif olmalıdır."))
 
 	def _saklama_dogrula(self) -> None:
 		"""Politikayı GERÇEKTEN kurarak doğrula — kendi kuralımızı yazmıyoruz."""
 		politika = RetentionPolicy.from_mapping(self.retention_mapping())
+		if not int(self.legal_hold_overrides_all or 0):
+			frappe.throw(_("legal_hold_overrides_all güvenlik güvencesi kapatılamaz."))
+		if int(self.soft_delete_grace_days or 0) < 1:
+			frappe.throw(_("Soft-delete bekleme süresi en az 1 gün olmalıdır."))
 		hatalar = politika.validate()
 		if hatalar:
 			frappe.throw(_("Saklama politikası geçersiz:\n{0}").format("\n".join(hatalar)))
 		for uyari in politika.warnings():
 			frappe.msgprint(uyari, title=_("Saklama uyarısı"), indicator="orange")
+
+	def _legacy_aliases_import(self) -> None:
+		"""Bu kayıtta değiştirilen eski alanı canonical alana bir kez taşı.
+
+		Canonical alan aynı kayıtta değiştirildiyse o kazanır. Böylece eski API
+		istemcileri geçiş boyunca çalışırken yeni panelin seçimi eski alias'ın
+		varsayılan değeriyle ezilmez.
+		"""
+		before = self.get_doc_before_save()
+		if not before:
+			return
+
+		def changed(fieldname: str) -> bool:
+			return _normalize(before.get(fieldname)) != _normalize(self.get(fieldname))
+
+		def canonical_unchanged(fieldname: str) -> bool:
+			return not changed(fieldname)
+
+		if changed("backend") and canonical_unchanged("storage_mode"):
+			legacy_mode = normalize_mode(self.backend)
+			self.storage_mode = MODE_S3_PRIMARY if legacy_mode == MODE_S3 else legacy_mode
+		if changed("blocker_ack") and canonical_unchanged("s3_enabled"):
+			self.s3_enabled = int(self.blocker_ack or 0)
+		for legacy, canonical in (
+			("s3_endpoint", "s3_endpoint_url"),
+			("s3_access_key", "s3_access_key_id"),
+			("signed_url_ttl_seconds", "cdn_signed_ttl_seconds"),
+			("trash_retention_days", "soft_delete_grace_days"),
+		):
+			if changed(legacy) and canonical_unchanged(canonical):
+				self.set(canonical, self.get(legacy))
+		# Eski arşiv süresi ayrıydı; canonical politika tek grace penceresi
+		# kullanıyor. Trash alias aynı kayıtta verildiyse o daha doğrudan niyettir.
+		if (
+			changed("archive_retention_days")
+			and not changed("trash_retention_days")
+			and canonical_unchanged("soft_delete_grace_days")
+		):
+			self.soft_delete_grace_days = self.archive_retention_days
+
+	def _legacy_aliases_sync(self) -> None:
+		"""Eski okuyucular geçiş boyunca aynı etkin değeri görsün."""
+		self.backend = normalize_mode(self.storage_mode)
+		self.s3_endpoint = self.s3_endpoint_url
+		self.s3_access_key = self.s3_access_key_id
+		self.signed_url_ttl_seconds = self.cdn_signed_ttl_seconds
+		self.trash_retention_days = self.soft_delete_grace_days
+		self.derivative_action = "delete"
 
 	# -- denetim ----------------------------------------------------------
 
@@ -260,12 +358,8 @@ class MediaStorageSettings(Document):
 			reason=(self.change_reason or "")[:500],
 			context={
 				"changed": degisenler,
-				"backend": self.backend,
-				"blocker_ack": int(self.blocker_ack or 0),
-				# Kipi açanın hangi engelleri kabul ettiği kayıtta dursun.
-				"acknowledged_blockers": list(OPEN_BLOCKERS)
-				if (self.backend or MODE_LOCAL) != MODE_LOCAL
-				else [],
+				"storage_mode": self.storage_mode,
+				"s3_enabled": int(self.s3_enabled or 0),
 			},
 		)
 
@@ -278,7 +372,7 @@ class MediaStorageSettings(Document):
 		tek gerçek riski.
 		"""
 		onceki = self.get_doc_before_save()
-		izlenen = STORAGE_FIELDS + RETENTION_FIELDS + ("blocker_ack",)
+		izlenen = STORAGE_FIELDS + RETENTION_FIELDS
 		degisenler: dict[str, Any] = {}
 		for alan in izlenen:
 			yeni = self.get(alan)
@@ -300,8 +394,17 @@ class MediaStorageSettings(Document):
 	def storage_mapping(self) -> dict[str, Any]:
 		"""`StorageSettings.from_doctype`'ın beklediği düz sözlük (sır çözülmüş)."""
 		veri: dict[str, Any] = {alan: self.get(alan) for alan in STORAGE_FIELDS}
-		veri["s3_secret_key"] = self.get_password("s3_secret_key", raise_exception=False) or ""
-		_denetle_sir_okuma(("s3_secret_key",), (veri["s3_secret_key"],), service="s3")
+		for alan in ("s3_secret_access_key", "cdn_signing_key"):
+			veri[alan] = self.get_password(alan, raise_exception=False) or ""
+		if not veri["s3_secret_access_key"]:
+			veri["s3_secret_access_key"] = (
+				self.get_password("s3_secret_key", raise_exception=False) or ""
+			)
+		_denetle_sir_okuma(
+			("s3_secret_access_key", "cdn_signing_key"),
+			(veri["s3_secret_access_key"], veri["cdn_signing_key"]),
+			service="storage",
+		)
 		return veri
 
 	def retention_mapping(self) -> dict[str, Any]:
@@ -310,27 +413,31 @@ class MediaStorageSettings(Document):
 			"original_retention": {
 				"keep_forever": bool(self.keep_originals),
 				"local_days": int(self.original_local_days or 0) or None,
-				"then": self.original_then_action or "notify_only",
+				"then": self.original_then_action or "keep_local",
 			},
 			"derivative_retention": {
 				"unused_after_days": int(self.derivative_unused_days or 90),
-				"action": self.derivative_action or "notify_only",
+				"action": "delete",
 				"regenerate_on_demand": bool(self.derivative_regenerate_on_demand),
-				"always_keep_profiles": [],
+				"always_keep_profiles": [
+					str(row.profile)
+					for row in (self.derivative_always_keep_profiles or [])
+					if str(row.profile or "").strip()
+				],
 			},
+			"legal_hold": {"enabled": True, "field": "legal_hold"},
 			"soft_delete": {
-				"trash_retention_days": int(self.trash_retention_days or 30),
-				"archive_retention_days": int(self.archive_retention_days or 30),
+				"trash_retention_days": int(self.soft_delete_grace_days or 30),
+				"archive_retention_days": int(self.soft_delete_grace_days or 30),
 			},
 			"backup": {"keep_sets": int(self.backup_keep_sets or 14)},
 		}
 
 	def secrets(self) -> tuple[str, ...]:
 		"""Maskelemede kullanılacak çözülmüş sır değerleri. Dışarı SIZMAZ."""
-		cozulmus = tuple(
-			(self.get_password(alan, raise_exception=False) or "") for alan in SECRET_FIELDS
-		)
-		_denetle_sir_okuma(SECRET_FIELDS, cozulmus, service="media_storage")
+		fields = SECRET_FIELDS + LEGACY_SECRET_FIELDS
+		cozulmus = tuple((self.get_password(alan, raise_exception=False) or "") for alan in fields)
+		_denetle_sir_okuma(fields, cozulmus, service="media_storage")
 		return cozulmus
 
 
@@ -402,8 +509,10 @@ def get_storage_status() -> dict[str, Any]:
 		kunye = {"error": guvenli}
 	return {
 		"plan": _maskele(kunye, ayar.secrets()),
-		"blockers": list(OPEN_BLOCKERS),
-		"blocker_ack": int(ayar.blocker_ack or 0),
+		"blockers": [],
+		"storage_mode": ayar.storage_mode,
+		"s3_enabled": int(ayar.s3_enabled or 0),
+		"cdn_enabled": int(ayar.cdn_enabled or 0),
 		"retention": RetentionPolicy.from_mapping(ayar.retention_mapping()).to_dict(),
 		"boto3_available": _boto3_var_mi(),
 	}
@@ -413,6 +522,109 @@ def _boto3_var_mi() -> bool:
 	from tradehub_core.media.pipeline.storage.s3 import boto3_available  # noqa: PLC0415
 
 	return boto3_available()
+
+
+def _cdn_purge_client(ayar: "MediaStorageSettings") -> Any:
+	from tradehub_core.media.pipeline.delivery.cdn import CdnPurgeClient, CdnPurgeConfig
+
+	token = ayar.get_password("cdn_purge_token", raise_exception=False) or ""
+	_denetle_sir_okuma(("cdn_purge_token",), (token,), service="cdn_purge")
+	config = CdnPurgeConfig(
+		provider=str(ayar.cdn_provider or "custom").lower(),
+		api_url=str(ayar.cdn_purge_api_url or "").strip(),
+		token=token,
+		zone_id=str(ayar.cdn_purge_zone_id or "").strip(),
+	)
+	return CdnPurgeClient(config)
+
+
+def _url_list(value: Any) -> list[str]:
+	if isinstance(value, str):
+		try:
+			parsed = json.loads(value)
+		except ValueError:
+			parsed = [part.strip() for part in value.split(",")]
+	else:
+		parsed = value
+	if not isinstance(parsed, (list, tuple)):
+		frappe.throw(_("urls JSON dizisi olmalıdır."))
+	clean = [str(url).strip() for url in parsed if str(url).strip()]
+	if len(clean) > 100:
+		frappe.throw(_("Tek purge çağrısında en fazla 100 URL olabilir."))
+	return clean
+
+
+@frappe.whitelist()
+def purge_cdn_cache(urls: Any) -> dict[str, Any]:
+	"""Media Superadmin için gerçek CDN purge turu; token hiçbir yanıta girmez."""
+	_require_superadmin("write")
+	ayar = frappe.get_cached_doc(DOCTYPE)
+	if not int(ayar.cdn_enabled or 0):
+		frappe.throw(_("CDN kapalıyken purge çalıştırılamaz."))
+	clean = _url_list(urls)
+	started = time.monotonic()
+	try:
+		result = _cdn_purge_client(ayar).purge(clean)
+		payload = {
+			"ok": result.ok,
+			"provider": result.provider,
+			"requested": result.requested,
+			"purged": result.purged,
+			"statuses": [batch.status for batch in result.batches],
+			"ms": round((time.monotonic() - started) * 1000, 1),
+		}
+	except Exception as exc:
+		message = _maskele(f"{type(exc).__name__}: {exc}", ayar.secrets())
+		frappe.log_error(title="media.cdn_purge", message=message)
+		payload = {
+			"ok": False,
+			"provider": str(ayar.cdn_provider or "custom"),
+			"requested": len(clean),
+			"purged": 0,
+			"error": message,
+			"ms": round((time.monotonic() - started) * 1000, 1),
+		}
+	media_audit.log_media_event(
+		action=ACTION_STORAGE_SETTINGS,
+		allowed=bool(payload["ok"]),
+		reason="cdn_purge",
+		context={k: payload[k] for k in ("provider", "requested", "purged", "ms")},
+	)
+	return payload
+
+
+def enqueue_reprocess_purge(
+	old_urls: list[str] | tuple[str, ...],
+	new_urls: list[str] | tuple[str, ...],
+) -> dict[str, Any]:
+	"""Yalnız aynı URL overwrite edildiğinde purge kuyruğuna iş bırak.
+
+	İçerik-adresli normal reprocess yeni version_hash ürettiği için eşleşme
+	boş olur ve ağ çağrısı yapılmaz. Bu davranış purge API'sini kullanılabilir
+	tutarken immutable URL stratejisinin gereksiz purge maliyetini önler.
+	"""
+	from tradehub_core.media.pipeline.delivery.cdn import should_purge
+
+	ayar = frappe.get_cached_doc(DOCTYPE)
+	if not (int(ayar.cdn_enabled or 0) and int(ayar.cdn_purge_on_reprocess or 0)):
+		return {"queued": 0, "reason": "disabled"}
+	urls = [old for old, new in zip(old_urls, new_urls) if should_purge(old_url=old, new_url=new)]
+	if not urls:
+		return {"queued": 0, "reason": "immutable_url_changed"}
+	frappe.enqueue(
+		"tradehub_core.tradehub_core.doctype.media_storage_settings.media_storage_settings._run_cdn_purge",
+		queue="short",
+		enqueue_after_commit=True,
+		urls=urls,
+	)
+	return {"queued": len(urls), "reason": "same_url_overwrite"}
+
+
+def _run_cdn_purge(urls: list[str]) -> dict[str, Any]:
+	"""Sistem kuyruğu CDN purge worker'ı; kullanıcı rol kapısı uygulanmaz."""
+	ayar = frappe.get_cached_doc(DOCTYPE)
+	result = _cdn_purge_client(ayar).purge(urls)
+	return {"ok": result.ok, "requested": result.requested, "purged": result.purged}
 
 
 @frappe.whitelist()
@@ -475,9 +687,22 @@ def _s3_testi(ayar: "MediaStorageSettings") -> list[dict[str, Any]]:
 		enabled=True,  # test bilinçli bir tetikleme; kip local olsa da denenebilmeli
 		bucket=str(veri.get("s3_bucket") or ""),
 		region=str(veri.get("s3_region") or ""),
-		endpoint_url=str(veri.get("s3_endpoint") or ""),
-		access_key_id=str(veri.get("s3_access_key") or ""),
-		secret_access_key=str(veri.get("s3_secret_key") or ""),
+		endpoint_url=str(veri.get("s3_endpoint_url") or ""),
+		prefix=str(veri.get("s3_prefix") or "media").strip("/"),
+		access_key_id=str(veri.get("s3_access_key_id") or ""),
+		secret_access_key=str(veri.get("s3_secret_access_key") or ""),
+		storage_class={
+			"INFREQUENT": "STANDARD_IA",
+			"COLD": "GLACIER_IR",
+			"ARCHIVE": "DEEP_ARCHIVE",
+		}.get(str(veri.get("s3_storage_class") or "STANDARD"), str(veri.get("s3_storage_class") or "STANDARD")),
+		server_side_encryption=str(veri.get("s3_server_side_encryption") or "none"),
+		multipart_threshold_bytes=max(
+			5 * 1024 * 1024,
+			int(veri.get("s3_multipart_threshold_mb") or 64) * 1024 * 1024,
+		),
+		max_concurrency=max(1, int(veri.get("s3_max_concurrency") or 4)),
+		addressing_style="path" if int(veri.get("s3_path_style") or 0) else "auto",
 		public_base_url=str(veri.get("cdn_base_url") or "").rstrip("/"),
 	)
 	eksik = [p for p in konf.problems()]

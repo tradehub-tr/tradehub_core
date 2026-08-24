@@ -215,6 +215,34 @@ def owns(store: str, file_url: str) -> bool:
 	return bool(store) and store in owners_of(file_url)
 
 
+def owned_urls(store: str, file_urls: list[str] | tuple[str, ...] | set[str]) -> set[str]:
+	"""Aday URL'lerden mağazaya ait olanları toplu sorguyla döndür.
+
+	``owns`` tek adreslik karar için doğrudur; 500 dosyalık toplu işlemde onu
+	500 kez çağırmak her canlı kullanım kaynağını 500 kez sorgulardı. Bu yardım
+	ayni iki sahiplik kanıtını toplu kurar: mağaza kullanıcılarının yüklediği
+	``File`` kayıtları ve mağazanın canlı kayıtlarda kullandığı URL'ler.
+	"""
+	adaylar = {str(url or "").split("?", 1)[0].strip() for url in file_urls or []}
+	adaylar.discard("")
+	if not store or not adaylar:
+		return set()
+
+	kullanicilar = list(users_of(store))
+	yuklenen: set[str] = set()
+	if kullanicilar:
+		yuklenen = {
+			str(row.get("file_url") or "")
+			for row in frappe.db.get_all(
+				"File",
+				filters={"file_url": ["in", sorted(adaylar)], "owner": ["in", kullanicilar]},
+				fields=["file_url"],
+				limit_page_length=0,
+			)
+		}
+	return (yuklenen | (used_urls(store) & adaylar)) & adaylar
+
+
 def assert_owns(store: str, file_url: str) -> None:
 	"""Sahip değilse reddet.
 

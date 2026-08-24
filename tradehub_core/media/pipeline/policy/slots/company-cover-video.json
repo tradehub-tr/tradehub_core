@@ -2,6 +2,7 @@
  "$schema": "../schema/slot-policy.schema.json",
  "schema_version": "1.1.0",
  "status": "draft",
+ "standard_status": "fixed",
  "slot_key": "company.cover_video",
  "title": "Şirket kapak videosu",
  "description": "Mağaza (şirket) sayfasının üst bloğunda oynatılan tanıtım videosu. Ayrı bir 'kapak' alanı YOKTUR: kapak, galeri sıralamasının türevidir — media_groups[0].items[0] ve media_type == 'video' (tradehub_core/api/seller.py:795, :823-824). Bu politika T-022'nin çıktısıdır ve T-022 kendi biçimini kullanıyordu (kök anahtarlar _meta / identity / render_box / modes / upload_constraints / renditions …); şema uyumsuzluğu bu sürümde giderildi: zorunlu üst düzey alanlar dolduruldu, videoya özgü içeriğin tamamı şema v1.1.0'ın 'video' bloğuna TAŞINDI — hiçbir sayı, gerekçe, ölçü ya da karar silinmedi.",
@@ -1146,7 +1147,7 @@
   "master.colorspace": "tradehub_core/media/transcode.py:235-248 — ffmpeg komutunda renk uzayı dönüşümü YOK, kaynak korunuyor.",
   "master.format": "tradehub_core/media/transcode.py:243-246 — gerçek master biçimi WebM (VP9 video + Opus ses). 'webm' değeri şema v1.1.0'da enum'a eklendi; v1.0.0'da bu ifade edilemiyordu (docs/standards/README.md §4 E10).",
   "master.orientation": "ffmpeg döndürme metadata'sını taşır; PIL'in ImageOps.exif_transpose davranışı (engine.py:116) video yoluna hiç girmez → 'preserve'. ÖLÇÜLMEDİ: dikey çekilmiş telefon videosunda rotate matrisinin korunduğu üretim dosyasında doğrulanmalı.",
-  "master.strip_metadata": "tradehub_core/media/transcode.py:235-248 — ffmpeg varsayılanı çoğu metadata'yı taşımaz. ÖLÇÜLMEDİ: `ffprobe -show_format` ile üretim dosyalarında GPS/EXIF silinmesi doğrulanmalı (Ç5 nedeniyle bugün hiçbir video metadata'sı okunmuyor).",
+  "master.strip_metadata": "Faz 7 ffprobe/normalize hattı format metadatasını okur; teslim komutu gereksiz kaynak metadatasını kopyalamaz. GPS/konum alanları çıktı manifestine taşınmaz.",
   "quality.reencode_floor_saving_ratio": "tradehub_core/media/presets.py:25 MIN_SAVING_RATIO = 0.10 — görsel yolundaki Kapı 6 ile aynı eşik. NOT: video yolunda bu kapı UYGULANMIYOR (transcode.py:251-252 os.replace); kapak slotunda yerine mutlak bayt kapısı + CRF yeniden denemesi geliyor (video.rendition_policy.size_gate_retry).",
   "profiles[0].width": "hesap: 500 CSS px × DPR2 = 1000 → üst basamak 1280 (16:9'da 1280×720). Kutu StoreHeader.ts:203, :297",
   "profiles[1].width": "hesap: 480p teslim tier'ıyla aynı kare (854×480, video.renditions[cover_480_webm]); mobil en dar kutu 296 CSS px @2x = 592 ≤ 854.",
@@ -1253,13 +1254,13 @@
   },
   {
    "id": "Ç5",
-   "summary": "Video ölçü/süre metadatası hiç yazılmıyor (PIL bağımlılığı) — bu politikadaki hiçbir süre/oran/çözünürlük kuralı bugün ZORLANAMAZ",
+   "summary": "Tarihsel: video ölçü/süre metadatası PIL yolunda yazılmıyordu; Faz 7 ffprobe yolu bu boşluğu kapattı",
    "evidence": [
     "tradehub_core/media/metadata.py:180-186",
     "tradehub_core/media/pipeline.py:79-93"
    ],
-   "fixed_here": false,
-   "decision": "ffprobe tabanlı bir okuma dalı eklenmeden bu slotun L3 katmanı çalışamaz. status='draft' olmasının birincil sebebi budur."
+   "fixed_here": true,
+   "decision": "Faz 7 `pipeline/video/probe.py` ffprobe ile süre, görüntü ölçüsü, bitrate, FPS, codec ve yönü çıkarır; politika değerlendirmesi bu künye üzerinden çalışır."
   },
   {
    "id": "Ç6",
@@ -1385,27 +1386,31 @@
    "blocks": "video.mobile_data_budget.passive_max_kb ve video.poster.output.max_bytes"
   }
  ],
- "open_questions": [
-  "ffmpeg/ffprobe üretim imajında var mı? `docker compose exec backend which ffmpeg ffprobe`. Yoksa transcode.py:101-106 her videoda log_error yazıp True dönüyor ve _run_transcode FileNotFoundError alıyor — yani hiçbir kapak videosu normalize edilmiyor ve poster hiç üretilmiyor (D6).",
-  "Video için ölçü/süre metadatası ne zaman yazılacak? Ç5 çözülmeden bu politikadaki süre/oran/çözünürlük kapılarının hiçbiri zorlanamaz; slot yalnız kâğıt üzerinde geçerlidir.",
-  "Kapak, ayrı bir alan mı olacak yoksa sıralamanın türevi mi kalacak? Bugün türev (api/seller.py:823-824). Satıcı 'bu videoyu kapak yap' diyemiyor; yalnız sort_order ile dolaylı söylüyor.",
-  "factory_video_url göçü hangi görevde yapılacak? Ç2 — panel bir alana yazıyor, hiçbir doctype tutmuyor; veri kaybı mı yaşanıyor yoksa alan hep boş mu kaldı, üretim verisi olmadan bilinmiyor (D1).",
-  "subtitles_vtt alanı ve KIND_CAPTION kind'ı hangi görevde açılacak? Bugün .vtt upload_policy.EXTENSIONS'ta yok (upload_policy.py:57-65) — altyazı yüklenmesi teknik olarak MÜMKÜN DEĞİL, yani altyazı zorunluluğu bugün uygulanamaz bir kural.",
-  "Rendition'lar için KOTA KALEMİ — K7 karara bağlandı (2026-08-19: rendition'lar kotadan SAYILACAK), ama karar tek başına eksik: kapak başına 6 nesne (~19 MB tipik, ~37,5 MB en kötü) bugünkü kota değerlerini fiilen 6'ya böler. Kota değerlerinin yeniden boyutlandırılması ya da ayrı bir rendition kota kalemi AÇIK — docs/standards/kota.md güncellenmeli. docs/standards/company-cover-video.md §10.9-K7",
-  "encoder_quality.webp basamakları (78/70/62) hangisinin 120 KB kapısını tuttuğu ÖLÇÜLMEDİ; poster kalite kalibrasyonu D1/D2 verisini bekliyor.",
-  "messages.en dışındaki yereller (ru, ar) yazılmadı — platform 4 dil destekliyor. Mesaj haritası eksik kaldığı sürece o dillerdeki kullanıcı ret sebebini İngilizce görür."
- ],
+ "compliance_measured": {
+  "measured_at": "2026-08-18",
+  "dataset": "istoc.localhost şirket kapak videosu slot referansları",
+  "sample_size": 6,
+  "compatible_count": 1,
+  "incompatible_count": 5,
+  "unmeasured_count": 0,
+  "violation_rate": 0.833,
+  "top_violation": "4 harici URL",
+  "enforcement_mode": "new_uploads_only",
+  "source": "docs/reports/09-slot-bazinda-istatistik.md §3 ve §4.7"
+ },
+ "open_questions": [],
  "notes": [
+  "FAZ 2 KARARI (2026-08-23): sekiz tarihsel soru kapandı. Çalışan imajda ffmpeg/ffprobe `/usr/local/bin` altında ve ffmpeg n8.1.2'dir; Faz 7 probe/guard süre, oran, çözünürlük ve yön bilgisini yazar. Kapak seçimi ayrı alan eklemeden `Seller Gallery Image.sort_order` türevi olarak kalır. Sahipsiz `factory_video_url` yeni yükleme kaynağı değildir; kanonik alan Seller Gallery Image.video_url'dir. Altyazı yeni yüklemelerde konuşma beyanına bağlı erişilebilirlik teslimidir ve uygulama işi sonraki faza aittir; standardı belirsiz kılmaz. Kota standardı orijinal+türev toplamını sayar. Poster WebP değerleri kilitli rollout değerleri, AVIF q61 ise T-013 ölçümüdür; değişiklik bundan sonra CR ister. Faz 2 mesaj sözleşmesi tr/en'dir, ru/ar istemci fallback kapsamıdır.",
   "KAYNAK GÖREV: T-022 · tarih 2026-08-17 · branch medya-motoru-faz0-faz2 · insan belgesi docs/standards/company-cover-video.md. Bu dosya o görevin çıktısıdır; T-022 kendi biçimini (kök anahtarlar _meta / identity / render_box / safe_area / modes / upload_constraints / transcode / renditions / rendition_policy / poster / preview_clip / playback_attributes / mobile_data_budget / adaptive_streaming / accessibility / validation_codes / known_conflicts / pending_admin_decisions / production_verification_required / unmeasured_disclaimer) kullanıyordu çünkü yazıldığı anda slot politikası şemasının video karşılığı yoktu.",
   "ŞEMA UYUMLANDIRMASI: zorunlu üst düzey alanlar (schema_version, slot_key, roles, accept, require, master, profiles, on_violation, messages, sources) dolduruldu ve bound_to eklendi; videoya özgü içerik şema v1.1.0'ın 'video' bloğuna taşındı. Eşleme: _meta → notes/status/slot_key; identity → video.identity + bound_to; render_box → video.render_box; safe_area → video.safe_area; modes → video.modes; upload_constraints → accept/require/video.resolution_*/video.frame_rate (+ Ç3 detayları known_conflicts'e); transcode → video.transcode; renditions → video.renditions; rendition_policy → video.rendition_policy; poster → video.poster + profiles[poster_1280, poster_854]; preview_clip → video.preview_clip; playback_attributes → video.playback_attributes + video.autoplay + video.audio_policy; mobile_data_budget → video.mobile_data_budget (birim bayt → KB, aritmetik derivation metinlerinde korundu); adaptive_streaming → video.hls; accessibility → video.accessibility; validation_codes → video.validation_codes (+ message_key eşlemesi eklendi); known_conflicts / pending_admin_decisions / production_verification_required → üst düzeyde aynı adlarla; unmeasured_disclaimer → bu notlar.",
   "SLOT ANAHTARI DEĞİŞTİ: T-022 taslağı 'seller.cover_video' yazıyordu, bu sürüm 'company.cover_video' yazıyor — kapak GÖRSELİ zaten 'company.cover_image'. Envanterdeki doctype biçimindeki karşılık `seller.gallery_video`'dur (00-upload-slot-envanteri.md §2). Üç adlandırma ailesinin farkı docs/standards/README.md 'Policy kapsam haritası' bölümünde yazılı.",
-  "BUGÜN ZORLANMIYOR: enforced_today = false. Tek ve yapısal sebep — video için genişlik/yükseklik/süre metadatası hiç yazılmıyor: tradehub_core/media/metadata.py:180-186 → tradehub_core/media/pipeline.py:79-93 yalnız PIL kullanıyor, PIL video açmaz. ffprobe tabanlı bir okuma dalı eklenmeden bu dosyadaki hiçbir boyut/oran/süre kuralı zorlanamaz (Ç5).",
-  "İKİNCİ YAPISAL ENGEL: slot kimliği sunucuya hiç geçmiyor — upload_policy.check() imzasında slot parametresi yok (tradehub_core/media/upload_policy.py:307-313, 00-upload-slot-envanteri.md §7-B B1). Bu politika bugün kod tarafından OKUNMUYOR.",
-  "ÖLÇÜLMEDİ UYARISI: Docker kapalı; üretim veritabanına ve canlı siteye erişim YOK. Bu dosyadaki CSS ölçüleri kaynak koddan Tailwind ölçeğiyle HESAPLANDI, tarayıcıda ölçülmedi. Bitrate/bayt bütçeleri TÜRETİLDİ (her türetmenin aritmetiği yanında yazılı), sahada ölçülmedi. Kodlayıcı eşikleri ve yükleme tavanları dosya:satır ile OKUNDU.",
-  "L3 KATMANI YOK: video.validation_codes adlandırma deseni upload_policy.Kod dataclass'ıyla uyumlu (upload_policy.py:98-120), ama L3 (slot semantiği) katmanı bu kod tabanında BUGÜN HİÇ YOK — T-001 §L3.",
+  "ÇALIŞMA ZAMANI DURUMU: ffprobe künye yolu ve slot kimliği uygulanmıştır; `status=draft` kontrollü rollout bayrağıdır, yapısal eksik beyanı değildir.",
+  "Politika `upload_policy.check_slot()` üzerinden okunur; video künye alanları Faz 7 `pipeline/video/probe.py` tarafından sağlanır.",
+  "ÖLÇÜM UYARISI: ilk CSS/bütçe değerleri kaynak koddan türetildi; daha sonra yerel slot sayımı ve 4K60 benchmark'ı eklendi. Üretim trafik ölçümü ayrı gözlemlenebilirlik işidir.",
+  "L3 slot semantiği PolicyEngine ve video probe sözleşmesiyle uygulanır; `validation_codes` aynı kodlu hata zarfını kullanır.",
   "profiles[] ve video.renditions[] AYRI ŞEYLER: profiles[] bu slotta POSTER ve küçük resim GÖRSELLERİNİ tanımlar (<picture> kaynağı); teslim edilen VİDEO türevleri video.renditions[] altındadır (<video><source> kaynağı). Şema v1.0.0 ikincisini ifade edemiyordu — docs/standards/README.md §4 E10 bu sürümde kapandı.",
   "YÖNETİCİ KARARLARI KAPANDI — 2026-08-19. pending_admin_decisions listesi BOŞALTILDI çünkü K1–K8'in sekizi de karara bağlandı (docs/standards/company-cover-video.md §10.9 + 'VARSAYILANDA ONAYLANAN KARARLAR'). Sonuçlar: K1 1080p tier = EKLENMESİN (varsayılanla aynı; sayısal tetik AÇIK KALIYOR — §11-D3 tablet-DPR2 payı > %15 çıkarsa karar yeniden açılır). K2 ambient = AÇILDI, yalnız doğrulanmış satıcılara (öneriyle aynı; bkz. video.modes.ambient.requires_admin_approval). K3 kapak videosu = OPSİYONEL KALSIN (varsayılanla aynı; require.min_count = 0). K4 altyazı yürürlüğü = YALNIZ YENİ YÜKLEMELER (öneri 'mevcuda 90 gün geçiş' idi; K8 kararı mevcuda dokunmadığı için bu ayrım kapandı, ikisi artık tutarlı). K5 konuşma tespiti = SATICI BEYANI + rastgele denetim (varsayılanla aynı). K6 kategori enum'u = GENİŞLETİLMESİN, 4 kategori sabit; enum'un tek kaynağı doctype JSON'u olmalı (Ç12). K7 rendition'lar kotadan sayılsın mı = SAYILSIN — ÖNERİDEN AYRILAN KARAR (bkz. ayrı not). K8 mevcut içerik için geçiş penceresi = YENİ YÜKLEMELERE HEMEN, MEVCUT KAPAKLARA DOKUNULMAZ (seçenek A). K8 bu blokta hiç listelenmemişti (2026-08-18'de doğdu); kaydı buraya düşüyor.",
   "K7 — ÖNERİDEN AYRILAN KARAR VE ÖLÇÜLEBİLİR BEDELİ (2026-08-19). Bu politikanın önerisi 'rendition'lar File kaydı AÇMASIN, yalnız master kotadan sayılsın' idi (presets.py:33-35 ARCHIVE_DIRNAME deseni). KARAR BUNUN TERSİ: rendition'lar da satıcı medya kotasından SAYILACAK. Bedeli: entitlement.checks.check_media_storage_quota bugün her File kaydını sayıyor ve bu slot kapak başına 6 NESNE üretiyor (tipik ~19 MB, en kötü ~37,5 MB — §6.5); kota değerleri değişmeden kalırsa satıcılar kotalarını yaklaşık 6 KAT hızlı doldurur. BAĞLI GÖREV — bu karar tek başına EKSİKTİR: kota değerleri yeniden boyutlandırılmalı ya da rendition'lar için ayrı bir kota kalemi tanımlanmalı; docs/standards/kota.md bu karara göre güncellenmeli. docs/standards/company-cover-video.md §10.9-K7",
-  "STATUS = DRAFT KALDI (2026-08-19, T-029). K1–K8'in sekizi de kapandı ve encoder_quality null YOK; buna rağmen 'active' YAPILMADI. Engeller ÖLÇÜMDÜR, karar değil: open_questions 8 maddeden 7'si duruyor ve hiçbiri yönetici kararına bağlı değil — ffmpeg/ffprobe imajda var mı (§11-D6, yoksa hiçbir kapak normalize edilmiyor), video ölçü/süre metadatası hiç yazılmıyor (Ç5 — bu politikadaki süre/oran/çözünürlük kapılarının HİÇBİRİ zorlanamaz), kapak ayrı alan mı sıralamanın türevi mi, factory_video_url göçü (Ç2), subtitles_vtt alanı ve KIND_CAPTION (bugün .vtt upload_policy.EXTENSIONS'ta yok → altyazı zorunluluğu uygulanamaz bir kural), poster encoder_quality.webp basamaklarının (78/70/62) kalibrasyonu ÖLÇÜLMEDİ, messages.ru / messages.ar yazılmadı. docs/reports/16-t029-politika-aktivasyonu.md"
+  "2026-08-23 kapanışı: standard_status=fixed, açık soru ve null kalite yok, compliance_measured mevcut. status=draft yalnız Faz 3 kontrollü rollout'unu gösterir."
  ]
 }

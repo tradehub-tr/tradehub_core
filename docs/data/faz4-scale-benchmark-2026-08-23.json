@@ -1,0 +1,92 @@
+{
+  "phase": 4,
+  "task": "T-044",
+  "measured_at": "2026-08-23T11:45:00+03:00",
+  "generator": "scripts/seed_synthetic.py",
+  "database": "media_phase4_bench_20260823",
+  "scope": "disposable synthetic database; no Frappe site data",
+  "cleanup": {"database_dropped": true, "drop_seconds": 0.206, "reproducible_from_generator": true},
+  "database_engine": "10.6.27-MariaDB-ubu2204",
+  "exact_counts": {
+    "media_asset": 1000000,
+    "media_version": 1000000,
+    "media_rendition": 30000000,
+    "media_usage": 800000,
+    "media_processing_job": 1000000
+  },
+  "durations_seconds": {
+    "prepare": 0.371,
+    "seed_assets_versions_usage_jobs": 11.87,
+    "seed_renditions": 77.752,
+    "build_indexes_and_analyze": 280.726,
+    "collect_explain": 2.626
+  },
+  "storage": {
+    "media_asset": {"data_bytes": 271581184, "index_bytes": 332169216},
+    "media_version": {"data_bytes": 113246208, "index_bytes": 90144768},
+    "media_rendition": {"data_bytes": 4396679168, "index_bytes": 7043268608},
+    "media_usage": {"data_bytes": 76152832, "index_bytes": 129974272},
+    "media_processing_job": {"data_bytes": 79314944, "index_bytes": 95731712},
+    "total_data_bytes": 4936974336,
+    "total_index_bytes": 7691288576
+  },
+  "explain_summary": {
+    "seller_library": {
+      "access_type": "ref",
+      "key": "ix_seller_state_modified",
+      "used_key_parts": ["owner_seller", "state"],
+      "estimated_rows": 1000,
+      "using_index": true
+    },
+    "asset_renditions": {
+      "access_type": "ref",
+      "key": "uk_rendition_quad",
+      "used_key_parts": ["version_hash"],
+      "estimated_rows": 30
+    },
+    "dedup_lookup": {
+      "access_type": "ref",
+      "key": "ix_content_sha256",
+      "used_key_parts": ["content_sha256"],
+      "estimated_rows": 1,
+      "using_index": true
+    },
+    "orphan_report": {
+      "access_type": "range",
+      "key": "ix_state_hold_creation",
+      "used_key_parts": ["state", "legal_hold", "creation"],
+      "estimated_rows": 481435,
+      "usage_subquery": {"access_type": "index_subquery", "key": "ix_asset_open", "estimated_rows": 1},
+      "using_index": true
+    },
+    "retention_scan": {
+      "access_type": "range",
+      "key": "ix_state_lastaccess",
+      "used_key_parts": ["state", "last_access_at"],
+      "estimated_rows": 481435,
+      "using_index": true
+    },
+    "queue_status": {
+      "access_type": "ref",
+      "key": "ix_queue_status_modified",
+      "used_key_parts": ["queue"],
+      "estimated_rows": 458896,
+      "using_index": true
+    },
+    "rendition_identity": {
+      "access_type": "const",
+      "key": "uk_rendition_quad",
+      "used_key_parts": ["version_hash", "profile", "width", "format"],
+      "estimated_rows": 1,
+      "using_index": true
+    }
+  },
+  "conclusion": "All seven critical paths select their intended index at the required 1M asset / 30M rendition scale.",
+  "reproduce": [
+    "python3 scripts/seed_synthetic.py prepare",
+    "python3 scripts/seed_synthetic.py seed-assets",
+    "python3 scripts/seed_synthetic.py seed-renditions",
+    "python3 scripts/seed_synthetic.py indexes",
+    "python3 scripts/seed_synthetic.py explain"
+  ]
+}

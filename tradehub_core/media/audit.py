@@ -93,6 +93,8 @@ ACTION_QUARANTINE_RELEASE: str = "media.quarantine_release"
 # o modül `frappe.model.document` çeker ve bu dosyanın sabit listesi bir
 # doctype modülüne bağımlı olmamalı.
 ACTION_SETTINGS_CHANGED: str = "media.storage_settings_changed"
+# Retention dry-run raporuna verilen tek kullanımlık insan kararı.
+ACTION_RETENTION_APPROVAL: str = "media.retention_approval"
 # K2 (2026-08-20): aktif sürüm geçişi/geri alma. Ad, tanımlandığı yerdeki
 # değerle birebir (`media_version.ACTION_VERSION_*`); import edilmiyor çünkü
 # o modül `frappe.model.document` çeker (settings sabitiyle aynı gerekçe).
@@ -124,6 +126,7 @@ MEDIA_ACTIONS: tuple[str, ...] = (
 	ACTION_QUARANTINE,
 	ACTION_QUARANTINE_RELEASE,
 	ACTION_SETTINGS_CHANGED,
+	ACTION_RETENTION_APPROVAL,
 	ACTION_VERSION_PROMOTE,
 	ACTION_VERSION_ROLLBACK,
 	ACTION_RETRO_RENAME,

@@ -1,0 +1,67 @@
+name: Faz 1 AR-GE Evidence
+
+on:
+  pull_request:
+    paths:
+      - "docs/adr/**"
+      - "docs/closure/faz1-kapanis.md"
+      - "docs/data/t013-*.json"
+      - "docs/data/t014-*.json"
+      - "docs/reports/1*.md"
+      - "docs/simulator.html"
+      - "prototypes/**"
+      - "scripts/sync_faz1_cropgeo.py"
+      - "tests/vectors/crop-vectors.json"
+      - "tradehub_core/media/pipeline/core/**"
+      - "tradehub_core/media/pipeline/delivery/**"
+      - "tradehub_core/media/pipeline/image/dpi.py"
+      - "tradehub_core/media/pipeline/quality/**"
+      - "tradehub_core/tests/test_faz1_closure.py"
+      - ".github/workflows/faz1-arge.yml"
+  push:
+    paths:
+      - "docs/adr/**"
+      - "docs/closure/faz1-kapanis.md"
+      - "docs/data/t013-*.json"
+      - "docs/data/t014-*.json"
+      - "docs/reports/1*.md"
+      - "docs/simulator.html"
+      - "prototypes/**"
+      - "scripts/sync_faz1_cropgeo.py"
+      - "tests/vectors/crop-vectors.json"
+      - "tradehub_core/media/pipeline/core/**"
+      - "tradehub_core/media/pipeline/delivery/**"
+      - "tradehub_core/media/pipeline/image/dpi.py"
+      - "tradehub_core/media/pipeline/quality/**"
+      - "tradehub_core/tests/test_faz1_closure.py"
+      - ".github/workflows/faz1-arge.yml"
+
+jobs:
+  phase1-evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install prototype test dependencies
+        run: python -m pip install pillow numpy defusedxml pillow-avif-plugin
+      - name: Verify synchronized crop vectors
+        run: python scripts/sync_faz1_cropgeo.py --check
+      - name: Verify Faz 1 artifacts and algorithms
+        run: >-
+          python -m unittest
+          tradehub_core.tests.test_faz1_closure
+          tradehub_core.tests.test_crop
+          tradehub_core.tests.test_crop_geometry
+          tradehub_core.tests.test_dpi_prototype
+          tradehub_core.tests.test_adaptive_quality
+          tradehub_core.tests.test_quality_ssim
+          tradehub_core.tests.test_smartcrop_prototype
+          tradehub_core.tests.test_cdn_delivery
+          tradehub_core.tests.test_imgproxy_delivery
+

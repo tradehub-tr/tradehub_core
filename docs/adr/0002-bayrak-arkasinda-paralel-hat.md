@@ -89,3 +89,10 @@ gerekir.
   aynı anda bakılır. Eski hattın ne zaman kaldırılacağı **karara bağlanmadı**.
 - Bayrak katmanı ve tasarlanmış iki tek-nokta **SAD'da yok**
   (`docs/reports/21-t030-mimari-inceleme.md` M-13, "Yüksek").
+
+## Geri dönüş yolu
+
+Yeni hatta hata/latency bütçesi aşılırsa üç medya bayrağı 0'a çekilir; eski hat
+kod değişmeden hizmet verir. Eski hat ancak dalga başına hata oranı, p95 ve
+manifest paritesi kabul kapılarını geçen bir gözlem penceresinden sonra
+kaldırılır; bu kanıt yoksa paralel çalışma kararı yeniden açılır.

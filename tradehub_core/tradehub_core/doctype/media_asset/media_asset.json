@@ -1,5 +1,5 @@
 {
- "$comment": "DALGA A / A1a · Medya varlığının kimliği. Kaynak şema: media/pipeline/doctype_specs/media_asset.json. SAPMALAR: (1) `slot_key` Link→Media Policy DEĞİL Data — Media Policy bu dalgada kurulmadı. (2) `source` Link→Media Source DEĞİL `source_file` Link→File — mevcut dosya kaydı File'dır ve Media Source bu dalgada kurulmadı. (3) `active_version` alanı KURULDU (Şerit A, patch v15_9_29+v15_9_30) — Media Version DocType'ı da artık kurulu; A1a'daki 'yok' sapması KAPANDI. Alan permlevel 1'dedir (gerekçe sapma 5). (4) `content_sha256` TEK BAŞINA unique DEĞİL; tekillik (owner_seller, slot_key, content_sha256) üçlüsündedir ve türetilmiş `asset_key` alanı taşır — çünkü bir File birden çok Asset'e hizmet edebilir. (5) IZIN MODELI (B-2 duzeltmesi): moderasyon ve kimlik alanlari (`state`, `legal_hold`, `rejection_code`, `rejection_note`, `owner_seller`, `source_file`, `content_sha256`) permlevel 1'dedir. Permlevel 1'de yazma YALNIZ System Manager + Marketplace Admin'dedir; satici rolleri permlevel 1'i yalnizca OKUR (panelde alanlar gorunur ama degistirilemez). Boylece satici kendi varliginin durumunu `ready` yapip moderasyonu atlayamaz, `legal_hold`u kaldiramaz, red kodunu silemez, varligi baska bir saticiya devredemez ve icerik-adresli depolamanin hash'ini bozamaz. Kimlik alanlari (`owner_seller`, `source_file`, `content_sha256`) ayrica `read_only`dir: bunlari hat yazar (ignore_permissions), hicbir rol formdan elle degistirmez. Permlevel 0'da satici rolleri `if_owner=1`'dir — bu, permissions.py'deki `owner_seller` kiracı filtresinin YERINE gecmez, USTUNE biner.",
+ "$comment": "T-040 · Media Policy ve Media Source bağlantıları kuruludur; source_file legacy File entegrasyonu için korunur. Güvenlik sapması: content_sha256 global unique değildir. Canlıda aynı SHA farklı kiracı/slotlarda meşru olarak bulunduğu için DB tekilliği (owner_seller, slot_key, content_sha256) birleşimini taşıyan unique asset_key ile sağlanır; SHA ayrıca indekslidir.",
  "actions": [],
  "allow_rename": 0,
  "autoname": "hash",
@@ -14,6 +14,7 @@
   "cb_identity",
   "owner_seller",
   "source_file",
+  "source",
   "legal_hold",
   "sb_hash",
   "content_sha256",
@@ -31,14 +32,14 @@
  "fields": [
   {
    "fieldname": "slot_key",
-   "fieldtype": "Data",
+   "fieldtype": "Link",
    "label": "Slot",
    "reqd": 1,
-   "length": 64,
+   "options": "Media Policy",
    "search_index": 1,
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "description": "Bu varlığa uygulanan slot politikasının anahtarı (ör. product.image). Link DEĞİL: Media Policy DocType'ı A1a kapsamında kurulmadı; değer media/pipeline/policy/slots/*.json içindeki `slot_key` ile birebir aynıdır."
+   "description": "Bu varlığa uygulanan kanonik slot politikası (ör. product.image)."
   },
   {
    "fieldname": "media_type",
@@ -86,6 +87,15 @@
    "options": "File",
    "search_index": 1,
    "description": "Ham dosya kaydı. File ile 1:1 DEĞİL — aynı File birden çok Asset'e hizmet edebilir (aynı dosya farklı slot/satıcı bağlamında). Tersi de geçerli: dedup sonucu bir Asset'in kaynağı başka bir Asset'inkiyle aynı File olabilir."
+  },
+  {
+   "fieldname": "source",
+   "fieldtype": "Link",
+   "permlevel": 1,
+   "read_only": 1,
+   "label": "Kaynak Künyesi",
+   "options": "Media Source",
+   "description": "T-040 değişmez ham dosya künyesi. Geçiş döneminde legacy source_file ile birlikte bulunabilir."
   },
   {
    "fieldname": "legal_hold",

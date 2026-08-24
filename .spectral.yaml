@@ -1,0 +1,16 @@
+extends:
+  - spectral:oas
+
+# Faz 8 / T-080: iki OpenAPI belgesi aynı kalite kapısından geçer. Kurallar
+# kapatılmadıkça Spectral'ın OAS önerilen kümesi error olarak uygulanır.
+# `info-contact` ürün içi, özel bir API için operasyonel bir sözleşme alanı
+# değildir; sahiplik CODEOWNERS/Linear'dadır, belgeye kişisel adres yazılmaz.
+rules:
+  info-contact: off
+  operation-description: warn
+  operation-tags: error
+  operation-operationId: error
+  operation-operationId-unique: error
+  path-params: error
+  oas3-valid-media-example: error
+  oas3-valid-schema-example: error

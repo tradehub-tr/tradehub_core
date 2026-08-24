@@ -124,7 +124,7 @@ class MediaVersion(Document):
 		hiçbir şey yapılmaz — aynı sürümün yeniden işlenmesi (INV-06) kayıtlı
 		künyeyi yeniden hesaplamaz.
 		"""
-		if (self.lqip or "").strip():
+		if getattr(self.flags, "skip_source_enrichment", False) or (self.lqip or "").strip():
 			return
 		kaynak = self._source_bytes()
 		if not kaynak:

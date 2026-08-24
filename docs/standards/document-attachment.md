@@ -1,8 +1,14 @@
 # Standart — `document.attachment` (Belge / sertifika eki)
 
+> **Güncel karar — 2026-08-23.** Makine kaynağı
+> `tradehub_core/media/pipeline/policy/slots/document-attachment.json` şemaya
+> uyumludur; `standard_status=fixed`, açık soru sayısı 0 ve gerçek uyum ölçümü
+> kayıtlıdır. `status=draft` yalnız Faz 3 rollout durumudur; aşağıdaki durum
+> satırı 2026-08-17 anlık görüntüsüdür.
+
 **Görev:** T-023 · **Tarih:** 2026-08-17 · **Branch:** `medya-motoru-faz0-faz2`
 **Politika dosyası:** `tradehub_core/media/pipeline/policy/slots/document-attachment.json`
-**Durum:** `draft` — ama **gövdesi zaten üretimde çalışıyor.**
+**Tarihsel durum:** `draft` — ama **gövdesi zaten üretimde çalışıyordu.**
 
 > **Bu belge yeni bir kural tasarlamıyor.** `tradehub_core/api/v1/kyb.py:411-501`
 > kod tabanının **en sıkı yükleme kuralını** zaten uyguluyor: uzantı allowlist +

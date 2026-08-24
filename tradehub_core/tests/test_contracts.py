@@ -43,14 +43,16 @@ from tradehub_core.media.pipeline.contracts import video as video_c  # noqa: E40
 from tradehub_core.media.pipeline.fakes.delivery import SimpleDeliveryManifest  # noqa: E402
 from tradehub_core.media.pipeline.fakes.image import FakeImageEngine, sentetik_gorsel  # noqa: E402
 from tradehub_core.media.pipeline.fakes.policy import InMemoryPolicyEngine  # noqa: E402
+from tradehub_core.media.pipeline.fakes.storage import MAX_TTL_SECONDS, InMemoryStorage  # noqa: E402
+from tradehub_core.media.pipeline.fakes.video import FakeVideoEngine, sentetik_video  # noqa: E402
+from tradehub_core.media.pipeline.image.engine import PillowImageEngine  # noqa: E402
 from tradehub_core.media.pipeline.policy.engine import (  # noqa: E402
 	PolicyEngine as UretimPolicyEngine,
 )
 from tradehub_core.media.pipeline.policy.engine import (  # noqa: E402
 	PolicyRegistry as UretimPolicyRegistry,
 )
-from tradehub_core.media.pipeline.fakes.storage import MAX_TTL_SECONDS, InMemoryStorage  # noqa: E402
-from tradehub_core.media.pipeline.fakes.video import FakeVideoEngine, sentetik_video  # noqa: E402
+from tradehub_core.media.pipeline.video.engine import FfmpegVideoEngine  # noqa: E402
 
 POLICY_ROOT = ROOT / "tradehub_core" / "media" / "pipeline" / "policy" / "slots"
 
@@ -84,26 +86,8 @@ def _policy_engine() -> InMemoryPolicyEngine:
 	return _fake_policy_engine()
 
 
-#: Bilinen ve GEREKÇELİ sapmalar — docs/reports/43-t033-policyengine.md.
-#:
-#: Tablo testin İÇİNDE durur ki sapma CI'da görünsün. "Her uygulama kendi
-#: doğrusunu yapar" demek sözleşmeyi ortadan kaldırırdı; sapmayı adıyla yazmak
-#: onu kapanması gereken bir borç hâline getirir.
-POLICY_SAPMALARI: dict = {
-	# D-1 · uzantı ↔ içerik uyuşmazlığı (`.png` adlı JPEG gibi zararsız hâl)
-	#   fakes/policy.py  → WARN   : FR-009 metni + upload_policy.py:365-369'un
-	#                               ÖLÇÜLMÜŞ davranışı ("reddetmek sahadaki
-	#                               geçerli dosyaları keserdi").
-	#   policy/engine.py → REJECT : `_check_accept` içinde
-	#                               `content_type_mismatch` kuralı
-	#                               `action=ACTION_REJECT` ile SABİT yazılmış;
-	#                               politikanın `on_violation` bloğuna
-	#                               bakmıyor.
-	#   Hangisinin doğru olduğu ÜRÜN kararıdır ve `policy/slots/*.json`
-	#   verisine bağlıdır — bu değişiklik setinin yazma alanı DEĞİL.
-	("InMemoryPolicyEngine", "ext_content_mismatch"): policy_c.ACTION_WARN,
-	("PolicyEngine", "ext_content_mismatch"): policy_c.ACTION_REJECT,
-}
+#: T-033 kapanış kapısı: iki okuyucu arasında bilinen karar sapması kalamaz.
+POLICY_SAPMALARI: dict = {}
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -120,7 +104,9 @@ class ProtocolConformanceTest(unittest.TestCase):
 		return (
 			(storage_c.StorageAdapter, InMemoryStorage()),
 			(image_c.ImageEngine, FakeImageEngine()),
+			(image_c.ImageEngine, PillowImageEngine()),
 			(video_c.VideoEngine, FakeVideoEngine()),
+			(video_c.VideoEngine, FfmpegVideoEngine()),
 			(policy_c.PolicyEngine, motor),
 			(policy_c.PolicyEngine, uretim),
 			(delivery_c.DeliveryManifest, SimpleDeliveryManifest(motor)),
@@ -163,10 +149,9 @@ class ProtocolConformanceTest(unittest.TestCase):
 
 		1. **Parametre listesi** metin olarak birebir aynı mı; aksi hâlde
 		   parametresi değişmiş bir uygulama sessizce "uyumlu" görünürdü.
-		2. **Dönüş tipi ÇÖZÜLDÜĞÜNDE** aynı nesne mi. Metin karşılaştırması
-		   bunu yakalayamaz: `policy/engine.py` kendi `Decision` sınıfını
-		   taşıyor, `-> Decision` yazan bir uygulama sözleşmenin
-		   `Decision`'ını döndürmediği hâlde metinde AYNI görünürdü.
+		2. **Dönüş tipi ÇÖZÜLDÜĞÜNDE** semantik olarak aynı mı. Python 3.9+
+		   `tuple[str, ...]` ile eski `typing.Tuple[str, ...]` aynı tiptir;
+		   yazım farkı kabul edilir, gerçek sınıf/parametre farkı edilmez.
 		"""
 		for protokol, uygulama in self._ciftler():
 			for ad, uye in vars(protokol).items():
@@ -180,9 +165,11 @@ class ProtocolConformanceTest(unittest.TestCase):
 						_sadelestir(_parametreler(uye)),
 						_sadelestir(_parametreler(gercek_fn)),
 					)
-					self.assertEqual(
-						typing.get_type_hints(uye).get("return"),
-						typing.get_type_hints(gercek_fn).get("return"),
+					self.assertTrue(
+						_tip_esdeger(
+							typing.get_type_hints(uye).get("return"),
+							typing.get_type_hints(gercek_fn).get("return"),
+						),
 						"Dönüş tipi sözleşmenin tipi değil.",
 					)
 
@@ -195,6 +182,21 @@ def _parametreler(fn) -> str:
 def _sadelestir(imza: str) -> str:
 	"""Tırnak ve boşluk gürültüsünü at — `'str'` ile `str` aynı sayılır."""
 	return imza.replace("'", "").replace('"', "").replace(" ", "")
+
+
+def _tip_esdeger(sol, sag) -> bool:
+	"""PEP 585 yazımı ile ``typing`` yazımını aynı, iç tipleri kesin say."""
+	if sol == sag:
+		return True
+	sol_kok = typing.get_origin(sol)
+	sag_kok = typing.get_origin(sag)
+	if sol_kok != sag_kok:
+		return False
+	sol_args = typing.get_args(sol)
+	sag_args = typing.get_args(sag)
+	return len(sol_args) == len(sag_args) and all(
+		_tip_esdeger(a, b) for a, b in zip(sol_args, sag_args, strict=True)
+	)
 
 
 class SignatureGoldenTest(unittest.TestCase):
@@ -597,7 +599,7 @@ class PolicyContractTest(unittest.TestCase):
 	def test_reload_bozuk_dosyada_defteri_bozmaz(self):
 		"""Sözleşme: ya hep ya hiç. Yarım defter, hangi slotun eski hangisinin
 		yeni olduğu bilinmeyen sistemdir."""
-		for ad, fabrika in POLICY_IMPLS:
+		for ad, _fabrika in POLICY_IMPLS:
 			with self.subTest(uygulama=ad):
 				with tempfile.TemporaryDirectory() as gecici:
 					hedef = Path(gecici)
@@ -646,24 +648,20 @@ class PolicyContractTest(unittest.TestCase):
 				self.assertEqual(buyuk.first_code, "product_image_too_large")
 
 	def test_uzanti_icerik_uyusmazligi(self):
-		"""FR-009 — SAPMA VAR: kod aynı, aksiyon farklı (POLICY_SAPMALARI D-1)."""
+		"""FR-009 — iki okuyucu aynı kanonik politika kararını verir."""
 		for ad, motor in self._motorlar():
 			with self.subTest(uygulama=ad):
 				karar = motor.check_accept(
 					"product.image", file_name="a.png", size_bytes=1024, sniffed_type="jpeg"
 				)
-				beklenen = POLICY_SAPMALARI[(ad, "ext_content_mismatch")]
-				self.assertEqual(karar.action, beklenen)
-				self.assertEqual(karar.allowed, beklenen != policy_c.ACTION_REJECT)
-				# İki uygulamanın ORTAK yanı: aynı makine kodu üretilir.
+				self.assertEqual(karar.action, policy_c.ACTION_REJECT)
+				self.assertFalse(karar.allowed)
 				kodlar = [v.code for v in karar.violations + karar.warnings]
 				self.assertEqual(kodlar, ["product_image_ext_content_mismatch"])
 
 	def test_sapma_tablosu_kapali_kume(self):
-		"""Sapma tablosu yalnız bilinen uygulamaları ve RAPORLANMIŞ anahtarları
-		taşır — yeni bir sapma sessizce eklenemesin."""
-		self.assertEqual({a for a, _ in POLICY_SAPMALARI}, {a for a, _ in POLICY_IMPLS})
-		self.assertEqual({k for _, k in POLICY_SAPMALARI}, {"ext_content_mismatch"})
+		"""Karar motorları arasında kabul edilmiş istisna kalmadı."""
+		self.assertEqual(POLICY_SAPMALARI, {})
 
 	def test_geometri_esitlik_gecerlidir(self):
 		"""FR-015 — `>=`, tam sınırdaki dosya kabul edilir."""
@@ -799,7 +797,7 @@ class PolicyContractTest(unittest.TestCase):
 				self.assertTrue(motor.video_rendition_specs("company.cover_video"))
 
 	def test_dogrulama_d1_d5(self):
-		"""FR-003/FR-148 — tek çıkış kodu; bugün 9 politika `draft`."""
+		"""FR-003/FR-148 — tek çıkış kodu; 9 standardın değişmezleri geçerli."""
 		for ad, motor in self._motorlar():
 			with self.subTest(uygulama=ad):
 				karar = motor.validate()
@@ -813,7 +811,7 @@ class PolicyContractTest(unittest.TestCase):
 		D2 (`min_long_edge <= max_long_edge`) bilerek ihlal edilir; karar
 		RET dönmüyorsa doğrulama boş bir kabuktur.
 		"""
-		for ad, fabrika in POLICY_IMPLS:
+		for ad, _fabrika in POLICY_IMPLS:
 			with self.subTest(uygulama=ad):
 				with tempfile.TemporaryDirectory() as gecici:
 					hedef = Path(gecici)
@@ -904,7 +902,7 @@ class DeliveryContractTest(unittest.TestCase):
 		self.assertTrue(sozluk["sources"])
 
 	def test_uretilmemis_profil_srcsete_girmez(self):
-		m = self.teslim.build_image("product.image", self.base, available_profiles=["w96"])
+		m = self.teslim.build_image("product.image", self.base, available_profiles=["w96.webp"])
 		girdiler = [v for v in m.variants if v.available]
 		self.assertEqual(len(girdiler), 1)
 		for kaynak in m.sources:

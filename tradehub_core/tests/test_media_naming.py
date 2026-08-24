@@ -34,6 +34,41 @@ class TestHashedName(FrappeTestCase):
 		ad = naming._hashed_name("FOTO.JPG", b"veri")
 		self.assertTrue(ad.endswith(".jpg"))
 
+	def test_izinli_medya_uzantilari_normalize_edilir(self):
+		"""Uzantı sözleşmesi upload politikasının izinli medya kümesidir."""
+		for original, expected_extension in (
+			("foto.JPEG", ".jpeg"),
+			("animasyon.GIF", ".gif"),
+			("video.MP4", ".mp4"),
+			("belge.PDF", ".pdf"),
+		):
+			with self.subTest(original=original):
+				self.assertTrue(naming._hashed_name(original, b"veri").endswith(expected_extension))
+
+	def test_url_ve_yol_ayristiricili_adlar_reddedilir(self):
+		"""Hash'li URL, kaynak adın URL/yol parçasını asla kanonikleştirmemeli."""
+		for original in (
+			"foto.png?download=1",
+			"foto.png#preview",
+			"../foto.png",
+			"klasor/foto.png",
+			"klasor\\foto.png",
+			"https://ornek.test/foto.png",
+			"foto\x00.png",
+			"foto\n.png",
+			"foto\x7f.png",
+			"foto\u202e.png",
+		):
+			with self.subTest(original=repr(original)):
+				with self.assertRaises(ValueError):
+					naming._hashed_name(original, b"veri")
+
+	def test_izinli_olmayan_veya_bos_uzanti_reddedilir(self):
+		for original in ("calistir.exe", "cift.png.exe", "uzantisiz", "sonu-nokta."):
+			with self.subTest(original=original):
+				with self.assertRaises(ValueError):
+					naming._hashed_name(original, b"veri")
+
 
 class TestWriteFileHashed(FrappeTestCase):
 	def test_public_dosya_hash_isimli_yazilir_ve_url_doner(self):

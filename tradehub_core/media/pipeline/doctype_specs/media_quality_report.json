@@ -1,134 +1,70 @@
 {
- "$comment": "T-040 · Üretim sonrası kalite/kazanç raporu.",
+ "$comment": "T-066 · Asset ve aylık platform kalite raporu. Kurulu şema: tradehub_core/doctype/media_quality_report.",
  "actions": [],
  "allow_rename": 0,
- "creation": "2026-08-18 00:00:00.000000",
+ "autoname": "format:MQR-{YYYY}-{MM}-{#####}",
+ "creation": "2026-08-22 00:00:00.000000",
  "doctype": "DocType",
  "editable_grid": 0,
  "engine": "InnoDB",
  "field_order": [
-  "asset",
-  "version",
-  "input_bytes",
-  "output_bytes",
-  "saving_ratio",
-  "ssim",
-  "vmaf",
-  "decisions",
-  "warnings"
+  "report_type", "asset", "version", "slot", "engine_version",
+	  "period_key", "period_start", "period_end", "processed_assets", "total_job_count", "failure_count", "failure_rate",
+  "input_bytes", "output_bytes", "saved_bytes", "saving_ratio", "saved_gb",
+  "ssim", "vmaf", "ssim_by_profile", "average_processing_ms", "average_lcp_impact_ms",
+  "decisions", "warnings", "slot_distribution", "worst_assets",
+  "summary_tr", "markdown", "report_json"
  ],
  "fields": [
-  {
-   "fieldname": "asset",
-   "fieldtype": "Link",
-   "label": "Varlık",
-   "options": "Media Asset",
-   "reqd": 1,
-   "search_index": 1
-  },
-  {
-   "fieldname": "version",
-   "fieldtype": "Link",
-   "label": "Sürüm",
-   "options": "Media Version",
-   "search_index": 1
-  },
-  {
-   "fieldname": "input_bytes",
-   "fieldtype": "Int",
-   "label": "Girdi Bayt"
-  },
-  {
-   "fieldname": "output_bytes",
-   "fieldtype": "Int",
-   "label": "Çıktı Bayt"
-  },
-  {
-   "fieldname": "saving_ratio",
-   "fieldtype": "Float",
-   "label": "Tasarruf Oranı",
-   "precision": "4",
-   "description": "1 - output/input. ÖLÇÜLDÜ (hedef bağlamı): ürün detay sayfası bugün 13,14 MB görsel indiriyor, hedef 900 KB — 15 kat."
-  },
-  {
-   "fieldname": "ssim",
-   "fieldtype": "Float",
-   "label": "SSIM",
-   "precision": "4"
-  },
-  {
-   "fieldname": "vmaf",
-   "fieldtype": "Float",
-   "label": "VMAF",
-   "precision": "2"
-  },
-  {
-   "fieldname": "decisions",
-   "fieldtype": "JSON",
-   "label": "Kararlar",
-   "description": "Hangi kural neden uygulandı. Bir kalite raporunun asıl değeri sayı değil GEREKÇEDİR: 'neden bu dosya büyük kaldı' sorusu buradan cevaplanır."
-  },
-  {
-   "fieldname": "warnings",
-   "fieldtype": "JSON",
-   "label": "Uyarılar"
-  }
+  {"fieldname": "report_type", "fieldtype": "Select", "label": "Rapor Türü", "options": "asset\nmonthly", "default": "asset", "reqd": 1, "read_only": 1},
+  {"fieldname": "asset", "fieldtype": "Link", "label": "Varlık", "options": "Media Asset", "read_only": 1, "search_index": 1},
+  {"fieldname": "version", "fieldtype": "Link", "label": "Sürüm", "options": "Media Version", "read_only": 1, "search_index": 1},
+  {"fieldname": "slot", "fieldtype": "Data", "label": "Slot", "read_only": 1, "search_index": 1},
+  {"fieldname": "engine_version", "fieldtype": "Data", "label": "Motor Sürümü", "read_only": 1},
+  {"fieldname": "period_key", "fieldtype": "Data", "label": "Dönem Anahtarı", "read_only": 1, "search_index": 1, "unique": 1},
+  {"fieldname": "period_start", "fieldtype": "Date", "label": "Dönem Başlangıcı", "read_only": 1},
+  {"fieldname": "period_end", "fieldtype": "Date", "label": "Dönem Bitişi", "read_only": 1},
+	  {"fieldname": "processed_assets", "fieldtype": "Int", "label": "İşlenen Asset", "read_only": 1},
+	  {"fieldname": "total_job_count", "fieldtype": "Int", "label": "Terminal Image İşi", "read_only": 1, "description": "Dönemde biten normalize/rendition işlerinin toplamı; hata oranının paydasıdır."},
+	  {"fieldname": "failure_count", "fieldtype": "Int", "label": "Hata Sayısı", "read_only": 1},
+  {"fieldname": "failure_rate", "fieldtype": "Float", "label": "Hata Oranı", "precision": "6", "read_only": 1},
+  {"fieldname": "input_bytes", "fieldtype": "Int", "label": "Orijinal Bayt", "read_only": 1},
+  {"fieldname": "output_bytes", "fieldtype": "Int", "label": "Optimize Bayt", "read_only": 1},
+  {"fieldname": "saved_bytes", "fieldtype": "Int", "label": "Net Tasarruf Bayt", "read_only": 1},
+  {"fieldname": "saving_ratio", "fieldtype": "Float", "label": "Tasarruf Oranı", "precision": "6", "read_only": 1},
+  {"fieldname": "saved_gb", "fieldtype": "Float", "label": "Net Tasarruf GB", "precision": "6", "read_only": 1},
+  {"fieldname": "ssim", "fieldtype": "Float", "label": "Ortalama SSIM", "precision": "6", "read_only": 1},
+  {"fieldname": "vmaf", "fieldtype": "Float", "label": "VMAF", "precision": "2", "read_only": 1},
+  {"fieldname": "ssim_by_profile", "fieldtype": "JSON", "label": "Profil Bazlı SSIM", "read_only": 1},
+  {"fieldname": "average_processing_ms", "fieldtype": "Float", "label": "Ortalama İşleme (ms)", "precision": "3", "read_only": 1},
+  {"fieldname": "average_lcp_impact_ms", "fieldtype": "Float", "label": "Ortalama LCP Etkisi (ms)", "precision": "3", "read_only": 1},
+  {"fieldname": "decisions", "fieldtype": "JSON", "label": "İşleme Kararları", "read_only": 1},
+  {"fieldname": "warnings", "fieldtype": "JSON", "label": "Uyarılar", "read_only": 1},
+  {"fieldname": "slot_distribution", "fieldtype": "JSON", "label": "Slot Dağılımı", "read_only": 1},
+  {"fieldname": "worst_assets", "fieldtype": "JSON", "label": "En Kötü 20 Asset", "read_only": 1},
+  {"fieldname": "summary_tr", "fieldtype": "Small Text", "label": "Türkçe Özet", "read_only": 1},
+  {"fieldname": "markdown", "fieldtype": "Long Text", "label": "Markdown Rapor", "read_only": 1},
+  {"fieldname": "report_json", "fieldtype": "JSON", "label": "Tam Rapor JSON", "read_only": 1}
  ],
  "index_web_pages_for_search": 0,
  "is_submittable": 0,
  "issingle": 0,
  "istable": 0,
  "links": [],
- "modified": "2026-08-18 00:00:00.000000",
+ "modified": "2026-08-22 00:00:00.000000",
  "modified_by": "Administrator",
  "module": "Media Engine",
  "name": "Media Quality Report",
  "owner": "Administrator",
  "permissions": [
-  {
-   "create": 1,
-   "delete": 1,
-   "email": 1,
-   "export": 1,
-   "print": 1,
-   "read": 1,
-   "report": 1,
-   "role": "Media Superadmin",
-   "share": 1,
-   "write": 1,
-   "permlevel": 0
-  },
-  {
-   "create": 0,
-   "delete": 0,
-   "email": 0,
-   "export": 0,
-   "print": 0,
-   "read": 1,
-   "report": 1,
-   "role": "Seller",
-   "share": 0,
-   "write": 0,
-   "permlevel": 0
-  },
-  {
-   "create": 0,
-   "delete": 0,
-   "email": 0,
-   "export": 0,
-   "print": 0,
-   "read": 1,
-   "report": 1,
-   "role": "System Manager",
-   "share": 0,
-   "write": 0,
-   "permlevel": 0
-  }
+  {"role": "Media Superadmin", "read": 1, "write": 1, "create": 1, "delete": 1, "export": 1, "print": 1, "report": 1, "share": 1},
+  {"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1, "export": 1, "print": 1, "report": 1, "share": 1},
+  {"role": "Marketplace Seller", "read": 1, "report": 1},
+  {"role": "Seller", "read": 1, "report": 1}
  ],
  "quick_entry": 0,
- "sort_field": "modified",
+ "sort_field": "creation",
  "sort_order": "DESC",
  "states": [],
- "track_changes": 1,
- "autoname": "hash"
+ "track_changes": 1
 }

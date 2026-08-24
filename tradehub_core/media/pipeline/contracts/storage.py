@@ -34,7 +34,7 @@ import hashlib
 import os
 import posixpath
 from dataclasses import dataclass, field
-from typing import Any, Dict, Iterator, Optional, Protocol, Tuple, runtime_checkable
+from typing import Any, Dict, Iterable, Iterator, Optional, Protocol, Tuple, runtime_checkable
 
 # Depolama kapsamları. `public` web sunucusundan doğrudan servis edilir,
 # `private` yalnız yetki kontrolünden geçen uçtan (NFR-018).
@@ -148,6 +148,23 @@ def key_for(content: bytes, extension: str) -> ObjectKey:
 	return ObjectKey(shard=name[:SHARD_LENGTH], name=name)
 
 
+def key_for_digest(digest: str, extension: str) -> ObjectKey:
+	"""Önceden akışlı hesaplanmış tam SHA-256 özetinden nesne anahtarı üret.
+
+	``put_stream`` içeriği tek bir ``bytes`` nesnesine toplamadan hash'ler.
+	Anahtar üretiminin ``key_for`` ile ayrışmaması için özet doğrulaması ve
+	uzantı normalizasyonu burada, tek yerde tutulur.
+	"""
+	clean = str(digest or "").strip().lower()
+	if len(clean) != 64 or any(ch not in "0123456789abcdef" for ch in clean):
+		raise ValueError("digest tam SHA-256 (64 hex) olmalıdır")
+	ext = (extension or "").lower()
+	if ext and not ext.startswith("."):
+		ext = f".{ext}"
+	name = f"{clean[:HASH_LENGTH]}{ext}"
+	return ObjectKey(shard=name[:SHARD_LENGTH], name=name)
+
+
 def key_from_url(url: str) -> Tuple[ObjectKey, str]:
 	"""`file_url`'i anahtar + kapsama ayrıştır. Yol geçişi burada reddedilir.
 
@@ -191,8 +208,27 @@ class StorageAdapter(Protocol):
 		"""
 		...
 
+	def put_stream(
+		self,
+		chunks: Iterable[bytes],
+		extension: str,
+		*,
+		scope: str = SCOPE_PUBLIC,
+	) -> PutResult:
+		"""Parçalı içeriği sabit bellekle atomik yaz.
+
+		Uygulama parçaları tek bir ``bytes`` nesnesinde birleştiremez. İçerik
+		SHA-256'sı akış sırasında hesaplanır; hata hâlinde geçici nesne/dosya
+		bırakılmaz. ``put`` küçük nesneler için ergonomik kısayoldur.
+		"""
+		...
+
 	def get(self, ref: ObjectRef) -> bytes:
 		"""Nesnenin tamamını oku. Yoksa `ObjectNotFound`."""
+		...
+
+	def iter_bytes(self, ref: ObjectRef, *, chunk_size: int = 1024 * 1024) -> Iterator[bytes]:
+		"""Nesneyi sabit bellekle parça parça oku. Yoksa ``ObjectNotFound``."""
 		...
 
 	def exists(self, ref: ObjectRef) -> bool:
@@ -252,5 +288,6 @@ __all__ = [
 	"StorageAdapter",
 	"content_hash",
 	"key_for",
+	"key_for_digest",
 	"key_from_url",
 ]

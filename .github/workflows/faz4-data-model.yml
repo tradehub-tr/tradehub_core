@@ -1,0 +1,84 @@
+name: Faz 4 Data Model
+
+on:
+  pull_request:
+    paths:
+      - "tradehub_core/media/pipeline/core/*.py"
+      - "tradehub_core/tradehub_core/doctype/media_*/**"
+      - "tradehub_core/patches/v15_9_43_media_phase4_schema.py"
+      - "tradehub_core/patches/v15_9_44_media_phase4_indexes.py"
+      - "tradehub_core/setup/install.py"
+      - "tradehub_core/permissions.py"
+      - "tradehub_core/hooks.py"
+      - "tradehub_core/tests/test_faz4_closure.py"
+      - "scripts/seed_synthetic.py"
+      - "docs/data/**"
+      - "docs/plans/rollback-doctypes.md"
+      - ".github/workflows/faz4-data-model.yml"
+  push:
+    branches: [main]
+    paths:
+      - "tradehub_core/media/pipeline/core/*.py"
+      - "tradehub_core/tradehub_core/doctype/media_*/**"
+      - "tradehub_core/patches/v15_9_43_media_phase4_schema.py"
+      - "tradehub_core/patches/v15_9_44_media_phase4_indexes.py"
+      - "tradehub_core/setup/install.py"
+      - "tradehub_core/permissions.py"
+      - "tradehub_core/hooks.py"
+      - "tradehub_core/tests/test_faz4_closure.py"
+      - "scripts/seed_synthetic.py"
+      - "docs/data/**"
+      - "docs/plans/rollback-doctypes.md"
+      - ".github/workflows/faz4-data-model.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.8.14"
+
+      - name: Phase 4 pure and closure tests
+        run: |
+          timeout 540s uv run --python 3.12 \
+            --with Pillow --with hypothesis --with jsonschema \
+            python -m unittest -v \
+              tradehub_core.tests.test_crop \
+              tradehub_core.tests.test_dedup \
+              tradehub_core.tests.test_usage \
+              tradehub_core.tests.test_media_usage_store \
+              tradehub_core.tests.test_faz4_closure
+
+      - name: Targeted lint
+        run: |
+          uv run --python 3.12 --with ruff ruff check \
+            scripts/seed_synthetic.py \
+            tradehub_core/setup/install.py \
+            tradehub_core/tests/test_faz4_closure.py \
+            tradehub_core/patches/v15_9_43_media_phase4_schema.py \
+            tradehub_core/patches/v15_9_44_media_phase4_indexes.py
+
+      - name: JSON schemas and evidence parse
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          files = list(Path("tradehub_core/tradehub_core/doctype").glob("media_*/*.json"))
+          files.append(Path("docs/data/faz4-scale-benchmark-2026-08-23.json"))
+          for path in files:
+              json.loads(path.read_text(encoding="utf-8"))
+          print(f"validated {len(files)} JSON files")
+          PY
+
+      - name: Full-scale benchmark policy
+        run: |
+          echo "The 1M/30M benchmark is an explicit release rehearsal, not a PR job."
+          echo "Reproduce with scripts/seed_synthetic.py; checked-in evidence is guarded by test_faz4_closure."

@@ -1,0 +1,105 @@
+# G-16 / T-030…T-035 · Mimari, donmuş sözleşme ve kuyruk kapısı.
+name: Faz 3 architecture
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/faz3-architecture.yml"
+      - "deploy/media-workers.compose.yml"
+      - "docs/adr/**"
+      - "docs/closure/faz3-kapanis.md"
+      - "docs/sad/**"
+      - "tradehub_core/media/pipeline/**"
+      - "tradehub_core/media/pipeline_bridge.py"
+      - "tradehub_core/tests/test_contracts.py"
+      - "tradehub_core/tests/test_faz3_closure.py"
+      - "tradehub_core/tests/test_phase3_*.py"
+      - "tradehub_core/tests/test_policy_engine.py"
+      - "tradehub_core/tests/test_state_machine.py"
+  push:
+    paths:
+      - ".github/workflows/faz3-architecture.yml"
+      - "deploy/media-workers.compose.yml"
+      - "docs/adr/**"
+      - "docs/closure/faz3-kapanis.md"
+      - "docs/sad/**"
+      - "tradehub_core/media/pipeline/**"
+      - "tradehub_core/media/pipeline_bridge.py"
+      - "tradehub_core/tests/test_contracts.py"
+      - "tradehub_core/tests/test_faz3_closure.py"
+      - "tradehub_core/tests/test_phase3_*.py"
+      - "tradehub_core/tests/test_policy_engine.py"
+      - "tradehub_core/tests/test_state_machine.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: faz3-architecture-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  architecture-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install deterministic tools and runtime dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends ffmpeg
+          python -m pip install -q \
+            "Pillow==12.2.0" \
+            "jsonschema==4.26.0" \
+            "mypy==1.18.2" \
+            "psutil==7.0.0" \
+            "ruff==0.12.12"
+          ffprobe -version | head -1
+
+      - name: Frozen protocol type and signature gates
+        run: |
+          mypy tradehub_core/media/pipeline/contracts
+          python -m tradehub_core.media.pipeline.contracts.signatures --check
+
+      - name: Phase 3 lint gate
+        run: |
+          # Donmuş v1 imzaları `typing.Dict/Tuple` yazımını da içeriyor;
+          # onları sessiz bir API değişikliğine çevirecek pyupgrade burada kapalı.
+          ruff check --ignore UP006,UP035,UP037,UP045,I001 \
+            tradehub_core/media/pipeline/contracts
+          ruff check \
+            tradehub_core/media/pipeline/core/queues.py \
+            tradehub_core/media/pipeline/fakes/policy.py \
+            tradehub_core/media/pipeline/image/engine.py \
+            tradehub_core/media/pipeline/policy/engine.py \
+            tradehub_core/media/pipeline/video/engine.py \
+            tradehub_core/tests/test_contracts.py \
+            tradehub_core/tests/test_faz3_closure.py \
+            tradehub_core/tests/test_phase3_production_engines.py \
+            tradehub_core/tests/test_phase3_queue_topology.py
+
+      - name: Phase 3 architecture and contract suite
+        run: |
+          started=$(date +%s)
+          python -m unittest -v \
+            tradehub_core.tests.test_faz3_closure \
+            tradehub_core.tests.test_phase3_queue_topology \
+            tradehub_core.tests.test_phase3_production_engines \
+            tradehub_core.tests.test_contracts \
+            tradehub_core.tests.test_policy_engine \
+            tradehub_core.tests.test_state_machine
+          elapsed=$(($(date +%s) - started))
+          echo "Faz 3 suite: ${elapsed} sn / 600 sn" | tee -a "$GITHUB_STEP_SUMMARY"
+          test "$elapsed" -lt 600
+
+      - name: Keep independent approval human-owned
+        run: |
+          grep -Fq "Onaylayan (Bağımsız gözden geçiren): ______________________" docs/closure/faz3-kapanis.md
+          echo "T-035 teknik paket hazır; bağımsız onay ve imza bekliyor." | tee -a "$GITHUB_STEP_SUMMARY"

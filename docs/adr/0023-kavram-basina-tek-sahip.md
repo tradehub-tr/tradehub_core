@@ -110,3 +110,10 @@ görünmez, açılınca veri kaybı (yedek) ya da yanlış sayım (kota) olarak 
 (tür uyuşmazlığı: 0 dosya / 5.594), test koşumları (çekirdek 13 paket yeşil,
 motor `access_level` 15/15 ve `dedup_endpoint` 11/11 — fixture düzeltmesi
 sonrası).
+
+## Geri dönüş yolu
+
+**İmza bekliyor.** Sahiplik değişikliği sözleşme testini veya import yönünü
+kırarsa bayrak açılmaz ve son tek-sahip haritasına dönülür. Bir kavramı iki
+pakette tekrar sahiplenmek ancak bağımsız deployment ihtiyacı ve açık API
+sınırı ölçülürse yeniden değerlendirilir.

@@ -288,3 +288,16 @@ tradehub_core.patches.v15_9_37_seed_seller_pricing_nav
 # --- Metin · TUR-135 medya SEO indexability + metadata privacy ---
 tradehub_core.patches.v15_9_39_media_seo_indexability
 tradehub_core.patches.v15_9_40_media_metadata_vault
+
+# --- Faz 6 G16 · T-066 kalite raporu ---
+tradehub_core.patches.v15_9_41_media_quality_report
+
+# --- Faz 6 G16 · T-063/T-064 version-bound rendition + output ledger ---
+tradehub_core.patches.v15_9_42_media_rendition_version_ledger
+
+# --- Faz 4 G16 · eksik şemalar + kanonik policy projection ---
+tradehub_core.patches.v15_9_43_media_phase4_schema
+tradehub_core.patches.v15_9_44_media_phase4_indexes
+
+# --- Faz 5 G16 · canonical storage/retention + soft-delete evidence ---
+tradehub_core.patches.v15_9_45_media_phase5_schema

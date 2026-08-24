@@ -35,11 +35,11 @@ from __future__ import annotations
 import json
 import os
 import struct
-import subprocess
 from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, Tuple
 
 from tradehub_core.media.pipeline.contracts.video import FFPROBE_TIMEOUT_SECONDS, VideoProbe
+from tradehub_core.media.pipeline.security import isolation
 
 # ── Kap ailesi eşlemesi ─────────────────────────────────────────────────
 #
@@ -77,17 +77,31 @@ class VideoFacts:
 	error: str = ""
 
 	has_video: bool = False
+	#: Kodlanmış kare ölçüsü. ``width/height`` rotation uygulanmış ETKİN ölçüdür.
+	coded_width: int = 0
+	coded_height: int = 0
 	width: int = 0
 	height: int = 0
 	duration_s: float = 0.0
+	video_start_time_s: float = 0.0
+	video_duration_s: float = 0.0
 	fps: float = 0.0
 	video_codec: str = ""
 	video_profile: str = ""
+	video_level: int = 0
+	sample_aspect_ratio: str = ""
+	display_aspect_ratio: str = ""
 	pix_fmt: str = ""
+	color_transfer: str = ""
+	color_primaries: str = ""
+	color_space: str = ""
+	is_hdr: bool = False
+	has_bframes: bool = False
 	video_bitrate_bps: int = 0
 	format_bitrate_bps: int = 0
 	rotation: int = 0
 	nb_frames: int = 0
+	error_count: int = 0
 
 	container: str = ""
 	container_family: str = "other"
@@ -99,6 +113,13 @@ class VideoFacts:
 	audio_bitrate_bps: int = 0
 	audio_channels: int = 0
 	audio_sample_rate: int = 0
+	audio_start_time_s: float = 0.0
+	audio_duration_s: float = 0.0
+
+	#: T-070 kaynak bütçesi/kanıtı. Karar değişkeni değil, koşum künyesidir.
+	probe_duration_ms: int = 0
+	probe_peak_rss_bytes: int = 0
+	probe_limits_applied: Tuple[str, ...] = ()
 
 	raw: Dict[str, Any] = field(default_factory=dict, repr=False, compare=False)
 
@@ -148,16 +169,28 @@ class VideoFacts:
 		return {
 			"measured": self.measured,
 			"has_video": self.has_video,
+			"coded_width": self.coded_width,
+			"coded_height": self.coded_height,
 			"width": self.width,
 			"height": self.height,
 			"pixels": self.pixels,
 			"long_edge": self.long_edge,
 			"short_edge": self.short_edge,
 			"duration_s": self.duration_s,
+			"video_start_time_s": self.video_start_time_s,
+			"video_duration_s": self.video_duration_s,
 			"fps": self.fps,
 			"video_codec": self.video_codec,
 			"video_profile": self.video_profile,
+			"video_level": self.video_level,
+			"sample_aspect_ratio": self.sample_aspect_ratio,
+			"display_aspect_ratio": self.display_aspect_ratio,
 			"pix_fmt": self.pix_fmt,
+			"color_transfer": self.color_transfer,
+			"color_primaries": self.color_primaries,
+			"color_space": self.color_space,
+			"is_hdr": self.is_hdr,
+			"has_bframes": self.has_bframes,
 			"video_bitrate_bps": self.video_bitrate_bps,
 			"format_bitrate_bps": self.format_bitrate_bps,
 			"bpp": self.bpp,
@@ -167,10 +200,13 @@ class VideoFacts:
 			"audio_codec": self.audio_codec,
 			"audio_bitrate_bps": self.audio_bitrate_bps,
 			"audio_channels": self.audio_channels,
+			"audio_start_time_s": self.audio_start_time_s,
+			"audio_duration_s": self.audio_duration_s,
 			"moov_at_end": self.moov_at_end,
 			"size_bytes": self.size_bytes,
 			"rotation": self.rotation,
 			"nb_streams": self.nb_streams,
+			"error_count": self.error_count,
 		}
 
 	def to_contract(self) -> VideoProbe:
@@ -279,6 +315,15 @@ def moov_at_end_of(path: str) -> bool:
 	return False
 
 
+class ProbeExecutionError(RuntimeError):
+	"""İzole ffprobe koşumunun sınıflandırılmış hatası."""
+
+	def __init__(self, reason: str, detail: str = "") -> None:
+		super().__init__(detail or reason)
+		self.reason = reason
+		self.detail = detail
+
+
 def ffprobe_json(path: str, *, timeout: int = FFPROBE_TIMEOUT_SECONDS) -> Dict[str, Any]:
 	"""Tek ffprobe koşumu — akışlar + kap künyesi.
 
@@ -295,8 +340,23 @@ def ffprobe_json(path: str, *, timeout: int = FFPROBE_TIMEOUT_SECONDS) -> Dict[s
 		"-of", "json",
 		path,
 	]
-	sonuc = subprocess.run(cmd, check=True, capture_output=True, timeout=timeout)
-	return json.loads(sonuc.stdout or b"{}")
+	limitler = isolation.PROBE_LIMITS.with_(wall_timeout_s=float(timeout), nice=None)
+	sonuc = isolation.run_command(cmd, limits=limitler)
+	if not sonuc.ok:
+		ayrinti = (sonuc.stderr or b"").decode("utf-8", "replace").strip()[-300:]
+		raise ProbeExecutionError(sonuc.sebep, ayrinti)
+	veri = json.loads(sonuc.stdout or b"{}")
+	# ``-v error`` yalnız gerçek ayrıştırma/decode hatalarını stderr'e yazar.
+	# Karar motoru sayıyı görür; tek bir bozuk paket bile sessizce kaybolmaz.
+	veri["_probe_error_count"] = len(
+		[s for s in (sonuc.stderr or b"").decode("utf-8", "replace").splitlines() if s.strip()]
+	)
+	veri["_probe_runtime"] = {
+		"duration_ms": sonuc.duration_ms,
+		"peak_rss_bytes": sonuc.peak_rss_bytes,
+		"limits_applied": list(sonuc.limits_applied),
+	}
+	return veri
 
 
 def _int(value: Any, default: int = 0) -> int:
@@ -321,8 +381,31 @@ def _rotation_of(stream: Dict[str, Any]) -> int:
 	"""
 	for sd in stream.get("side_data_list") or []:
 		if "rotation" in sd:
-			return _int(sd.get("rotation"))
-	return _int((stream.get("tags") or {}).get("rotate"))
+			return _int(sd.get("rotation")) % 360
+	return _int((stream.get("tags") or {}).get("rotate")) % 360
+
+
+def _invert_ratio(value: str) -> str:
+	"""``16:9`` → ``9:16``; bilinmeyen oranı uydurmadan olduğu gibi bırak."""
+	try:
+		a, b = (int(x) for x in str(value).split(":", 1))
+		if a > 0 and b > 0:
+			return f"{b}:{a}"
+	except (TypeError, ValueError):
+		pass
+	return str(value or "")
+
+
+def _probe_resource_error(reason: str) -> str:
+	harita = {
+		isolation.SEBEP_TIMEOUT: "ffprobe zaman asimi",
+		isolation.SEBEP_MEMORY: "ffprobe bellek limiti asildi",
+		isolation.SEBEP_CPU: "ffprobe CPU limiti asildi",
+		isolation.SEBEP_SPAWN_FAILED: "ffprobe baslatilamadi",
+		isolation.SEBEP_KILLED: "ffprobe izole sureci olduruldu",
+		isolation.SEBEP_CANCELLED: "ffprobe iptal edildi",
+	}
+	return harita.get(reason, "ffprobe hata")
 
 
 def probe(path: str, *, timeout: int = FFPROBE_TIMEOUT_SECONDS) -> VideoFacts:
@@ -338,13 +421,11 @@ def probe(path: str, *, timeout: int = FFPROBE_TIMEOUT_SECONDS) -> VideoFacts:
 
 	try:
 		veri = ffprobe_json(path, timeout=timeout)
-	except FileNotFoundError:
-		return VideoFacts(path=path, size_bytes=size_bytes, error="ffprobe yok")
-	except subprocess.TimeoutExpired:
-		return VideoFacts(path=path, size_bytes=size_bytes, error=f"ffprobe zaman asimi ({timeout} sn)")
-	except subprocess.CalledProcessError as exc:
-		ayrinti = (exc.stderr or b"").decode("utf-8", "replace").strip()[:300]
-		return VideoFacts(path=path, size_bytes=size_bytes, error=f"ffprobe hata: {ayrinti}")
+	except ProbeExecutionError as exc:
+		metin = _probe_resource_error(exc.reason)
+		if exc.detail:
+			metin = f"{metin}: {exc.detail}"
+		return VideoFacts(path=path, size_bytes=size_bytes, error=metin)
 	except (ValueError, json.JSONDecodeError) as exc:
 		return VideoFacts(path=path, size_bytes=size_bytes, error=f"ffprobe ciktisi ayristirilamadi: {exc}")
 
@@ -373,6 +454,7 @@ def probe(path: str, *, timeout: int = FFPROBE_TIMEOUT_SECONDS) -> VideoFacts:
 
 	v = videolar[0]
 	a = sesler[0] if sesler else {}
+	runtime = veri.get("_probe_runtime") or {}
 
 	format_bitrate = _int(fmt.get("bit_rate"))
 	audio_bitrate = _int(a.get("bit_rate"))
@@ -388,23 +470,59 @@ def probe(path: str, *, timeout: int = FFPROBE_TIMEOUT_SECONDS) -> VideoFacts:
 	)
 	format_name = str(fmt.get("format_name") or "")
 	aile = container_family_of(format_name)
+	duration = _float(fmt.get("duration")) or _float(v.get("duration"))
+	error_count = _int(veri.get("_probe_error_count"))
+	rotation = _rotation_of(v)
+	coded_width = _int(v.get("width"))
+	coded_height = _int(v.get("height"))
+	width, height = coded_width, coded_height
+	dar = str(v.get("display_aspect_ratio") or "")
+	if rotation in (90, 270):
+		width, height = coded_height, coded_width
+		dar = _invert_ratio(dar)
+
+	# Kesik dosya kimi kaplarda exit=0 dönebilir; süre ve hata sayacı ikinci
+	# doğrulama katmanıdır. Alanları yine döndürüyoruz ki ret raporu kanıtlı olsun.
+	measured = duration > 0 and error_count == 0
+	error = ""
+	if duration <= 0:
+		error = "video suresi sifir veya olculemedi (bozuk/kesik dosya)"
+	elif error_count:
+		error = f"ffprobe {error_count} ayrıştırma/decode hatasi bildirdi (bozuk/kesik dosya)"
+	transfer = str(v.get("color_transfer") or "").lower()
+	video_duration = _float(v.get("duration")) or duration
+	audio_duration = (_float(a.get("duration")) or duration) if sesler else 0.0
 
 	return VideoFacts(
 		path=path,
 		size_bytes=size_bytes,
-		measured=True,
+		measured=measured,
+		error=error,
 		has_video=True,
-		width=_int(v.get("width")),
-		height=_int(v.get("height")),
-		duration_s=_float(fmt.get("duration")) or _float(v.get("duration")),
+		coded_width=coded_width,
+		coded_height=coded_height,
+		width=width,
+		height=height,
+		duration_s=duration,
+		video_start_time_s=_float(v.get("start_time")),
+		video_duration_s=video_duration,
 		fps=fps,
 		video_codec=str(v.get("codec_name") or ""),
 		video_profile=str(v.get("profile") or ""),
+		video_level=_int(v.get("level")),
+		sample_aspect_ratio=str(v.get("sample_aspect_ratio") or ""),
+		display_aspect_ratio=dar,
 		pix_fmt=str(v.get("pix_fmt") or ""),
+		color_transfer=transfer,
+		color_primaries=str(v.get("color_primaries") or ""),
+		color_space=str(v.get("color_space") or ""),
+		is_hdr=transfer in ("smpte2084", "arib-std-b67"),
+		has_bframes=_int(v.get("has_b_frames")) > 0,
 		video_bitrate_bps=video_bitrate,
 		format_bitrate_bps=format_bitrate,
-		rotation=_rotation_of(v),
+		rotation=rotation,
 		nb_frames=_int(v.get("nb_frames")),
+		error_count=error_count,
 		container=format_name,
 		container_family=aile,
 		nb_streams=_int(fmt.get("nb_streams"), len(streams)),
@@ -414,21 +532,27 @@ def probe(path: str, *, timeout: int = FFPROBE_TIMEOUT_SECONDS) -> VideoFacts:
 		audio_bitrate_bps=audio_bitrate,
 		audio_channels=_int(a.get("channels")),
 		audio_sample_rate=_int(a.get("sample_rate")),
+		audio_start_time_s=_float(a.get("start_time")),
+		audio_duration_s=audio_duration,
+		probe_duration_ms=_int(runtime.get("duration_ms")),
+		probe_peak_rss_bytes=_int(runtime.get("peak_rss_bytes")),
+		probe_limits_applied=tuple(str(x) for x in (runtime.get("limits_applied") or ())),
 		raw=veri,
 	)
 
 
 def ffprobe_available() -> bool:
 	"""ffprobe çalıştırılabiliyor mu — testlerin atlama kararı için."""
-	try:
-		subprocess.run(["ffprobe", "-version"], capture_output=True, timeout=10, check=True)
-		return True
-	except (OSError, subprocess.SubprocessError):
-		return False
+	sonuc = isolation.run_command(
+		["ffprobe", "-version"],
+		limits=isolation.PROBE_LIMITS.with_(wall_timeout_s=10.0, nice=None),
+	)
+	return sonuc.ok
 
 
 __all__ = [
 	"VideoFacts",
+	"ProbeExecutionError",
 	"CONTAINER_FAMILIES",
 	"probe",
 	"ffprobe_json",

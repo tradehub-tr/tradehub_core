@@ -62,6 +62,12 @@ MAX_EDGE: int = 32
 #: Sözleşme sınırı — `encode()` bu sınırı aşarsa hata döner, sessizce geçmez.
 MAX_HASH_BYTES: int = 30
 
+#: Sabit bir kanalda AC katsayıları matematiksel olarak sıfırdır. BLAS ve saf
+#: Python toplama sırası, bu sıfırı yaklaşık 1e-17 düzeyinde farklı
+#: yuvarlayabilir. Gürültüyü ölçekleyip gerçek sinyalmiş gibi hash'e taşımamak
+#: için görünür bir renk farkının çok altındaki değerleri kanonik sıfıra çek.
+_DCT_NOISE_EPSILON: float = 1e-12
+
 
 def _r(x: float) -> int:
 	"""Yarımı YUKARI yuvarla.
@@ -120,7 +126,10 @@ def _encode_channel(channel: list[float], nx: int, ny: int, w: int, h: int):
 					olcek = abs(f)
 			else:
 				dc = f
-	if olcek > 0:
+	if olcek <= _DCT_NOISE_EPSILON:
+		olcek = 0.0
+		ac = [0.0] * len(ac)
+	else:
 		yari = 0.5 / olcek
 		ac = [0.5 + yari * v for v in ac]
 	return dc, ac, olcek
@@ -152,7 +161,10 @@ def _encode_channel_np(channel, nx: int, ny: int, w: int, h: int):
 					olcek = abs(f)
 			else:
 				dc = f
-	if olcek > 0:
+	if olcek <= _DCT_NOISE_EPSILON:
+		olcek = 0.0
+		ac = [0.0] * len(ac)
+	else:
 		yari = 0.5 / olcek
 		ac = [0.5 + yari * v for v in ac]
 	return dc, ac, olcek

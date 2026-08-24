@@ -7,6 +7,7 @@
   "additionalProperties": false,
   "required": [
     "schema_version",
+    "standard_status",
     "slot_key",
     "roles",
     "accept",
@@ -33,6 +34,11 @@
       "enum": ["draft", "active", "deprecated"],
       "default": "draft",
       "description": "draft = değerlerin bir kısmı henüz ölçülmedi/kalibre edilmedi, üretimde zorlanmaz. active = zorlanır. Bir politika, içindeki her null encoder_quality ve her 'kalibre edilmedi' kaynaklı eşik giderilmeden 'active' olamaz."
+    },
+    "standard_status": {
+      "type": "string",
+      "enum": ["fixed", "provisional", "deprecated"],
+      "description": "Faz 2 şartnamesinin karar durumu. `fixed` tüm sayısal değerlerin ve varsayılan davranışın kilitli olduğunu söyler; üretimde zorlanıp zorlanmadığı ayrı `status` alanıdır. Ölçüm/rollout bekleyen sabit politika `standard_status=fixed,status=draft` olabilir."
     },
 
     "slot_key": {
@@ -1242,6 +1248,25 @@
       "description": "Bu politikada ÇÖZÜLMEMİŞ, üretim ölçümü bekleyen maddeler. Boş değilse status 'active' olamaz."
     },
 
+    "compliance_measured": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["measured_at", "dataset", "sample_size", "compatible_count", "incompatible_count", "unmeasured_count", "violation_rate", "top_violation", "enforcement_mode", "source"],
+      "properties": {
+        "measured_at": { "type": "string", "format": "date" },
+        "dataset": { "type": "string", "minLength": 3 },
+        "sample_size": { "type": "integer", "minimum": 0 },
+        "compatible_count": { "type": "integer", "minimum": 0 },
+        "incompatible_count": { "type": "integer", "minimum": 0 },
+        "unmeasured_count": { "type": "integer", "minimum": 0 },
+        "violation_rate": { "type": "number", "minimum": 0, "maximum": 1 },
+        "top_violation": { "type": "string" },
+        "enforcement_mode": { "type": "string", "enum": ["legacy_and_new", "new_uploads_only", "shadow"] },
+        "source": { "type": "string", "minLength": 3 }
+      },
+      "description": "T-020/T-028 uyum karnesi. Sayılar gerçek slot referanslarında ölçülür; ölçülemeyen kayıtlar ayrıca sayılır ve uyumlu kabul edilmez."
+    },
+
     "notes": {
       "type": "array",
       "items": { "type": "string" }
@@ -1270,6 +1295,14 @@
             "$comment": "Logo OLMAYAN her slotta master megapiksel tavanı ve çıktı DPI normalizasyonu zorunludur."
           }
         }
+      }
+    },
+    {
+      "title": "Etkin politika aktivasyon kapısı",
+      "if": { "properties": { "status": { "const": "active" } }, "required": ["status"] },
+      "then": {
+        "required": ["compliance_measured"],
+        "properties": { "open_questions": { "maxItems": 0 } }
       }
     }
   ],

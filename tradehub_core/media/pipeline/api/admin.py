@@ -45,8 +45,11 @@ olurdu. `plan_reprocess` adı bilinçli: planı verir, işi kuyruğa ATMAZ.
 
 from __future__ import annotations
 
+import json
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, ClassVar, Dict, List, Mapping, Optional, Protocol, Sequence, Tuple
+from pathlib import Path
+from typing import Any, ClassVar, Protocol
 
 from tradehub_core.media.pipeline.api import envelope as env
 from tradehub_core.media.pipeline.contracts.errors import PolicyNotFound, kod_uret
@@ -61,13 +64,10 @@ from tradehub_core.media.pipeline.policy import engine as policy_engine
 #: gezerdi.
 COVERAGE_MAX_SCAN: int = 5000
 
-#: Politika dosyalarında ARANAN üst düzey alanlar. Şemanın kendisi
-#: `policy/schema/slot-policy.schema.json`; burası onun **yapısal özeti**dir.
-#: Tam JSON-Schema doğrulaması `jsonschema` paketini ister ve o paket ne
-#: yerelde ne bench ortamında kurulu (ÖLÇÜLDÜ: `import jsonschema` →
-#: ModuleNotFoundError, hem yerel python3 hem `frappe-bench/env`). Bu yüzden
-#: `validate_policies` "şema doğrulandı" DEMEZ; ne doğruladığını sayar.
-REQUIRED_POLICY_KEYS: Tuple[str, ...] = (
+#: Politika dosyalarında şemaya ek olarak ARANAN operasyonel alanlar. Tam
+#: doğrulama `policy/schema/slot-policy.schema.json` ile Draft 2020-12 olarak
+#: yapılır; bu liste yönetim ekranına daha kısa, eyleme dönük bulgu üretir.
+REQUIRED_POLICY_KEYS: tuple[str, ...] = (
 	"slot_key",
 	"schema_version",
 	"status",
@@ -103,7 +103,7 @@ class AdminApi:
 	#: DOKUZU DA OKUMA. Yıkıcı işlemler `tradehub_core/api/media_admin.py`'de
 	#: kalır; ikinci bir yıkıcı yüzey, oradaki `DESTRUCTIVE_ROLES` kapısının
 	#: etrafından dolaşan bir yol açardı.
-	ENDPOINTS: ClassVar[Tuple[str, ...]] = (
+	ENDPOINTS: ClassVar[tuple[str, ...]] = (
 		"list_slot_policies",
 		"get_slot_policy",
 		"validate_policies",
@@ -116,12 +116,12 @@ class AdminApi:
 	)
 
 	policy: Any = None
-	coverage: Optional[CoverageRepository] = None
+	coverage: CoverageRepository | None = None
 	guard: Any = None
-	ledger: Optional[reprocess_mod.RenditionLedger] = None
-	storage_conf: Optional[Mapping[str, Any]] = None
-	on_denied: Optional[env.DenialHook] = None
-	_matrix_cache: Dict[str, Any] = field(default_factory=dict, repr=False)
+	ledger: reprocess_mod.RenditionLedger | None = None
+	storage_conf: Mapping[str, Any] | None = None
+	on_denied: env.DenialHook | None = None
+	_matrix_cache: dict[str, Any] = field(default_factory=dict, repr=False)
 
 	def __post_init__(self) -> None:
 		if self.policy is None:
@@ -156,7 +156,7 @@ class AdminApi:
 		gösteren bir yüzey YOK. Bu uç o boşluğu kapatır.
 		"""
 		self._guard(principal, "media_policy_read")
-		satirlar: List[Dict[str, Any]] = []
+		satirlar: list[dict[str, Any]] = []
 		for anahtar in self.policy.registry.keys():
 			pol = self.policy.registry.get(anahtar)
 			accept = pol.get("accept") or {}
@@ -219,13 +219,14 @@ class AdminApi:
 		    biri eksikse o dilde kullanıcı ham kod görür,
 		  * `on_violation.error_code_prefix` varlığı.
 
-		Ne doğrulanMAZ: JSON-Schema'nın kendisi. `jsonschema` paketi ne yerelde
-		ne bench ortamında kurulu (ÖLÇÜLDÜ). Yanıt bunu `schema_validated:
-		false` ile açıkça söyler — "geçti" demek, doğrulanmamış bir dosyayı
-		doğrulanmış göstermek olurdu.
+		JSON-Schema ayrıca Draft 2020-12 doğrulayıcısıyla çalıştırılır. Paket ya
+		şema okunamazsa `schema_validated=false`; şema çalıştı ve dosya bozuksa
+		`schema_validated=true` kalır ama `schema_validation` bulgusu üretilir.
 		"""
 		self._guard(principal, "media_policy_read")
-		bulgular: List[Dict[str, Any]] = []
+		bulgular: list[dict[str, Any]] = []
+		sema_dogrulandi, sema_notu, sema_bulgulari = self._validate_json_schema()
+		bulgular.extend(sema_bulgulari)
 
 		for anahtar in self.policy.registry.keys():
 			pol = self.policy.registry.get(anahtar)
@@ -253,20 +254,44 @@ class AdminApi:
 			"finding_count": len(bulgular),
 			"findings": bulgular,
 			"ok": not bulgular,
-			"schema_validated": False,
-			"schema_note": (
-				"JSON-Schema doğrulaması YAPILMADI: `jsonschema` paketi kurulu değil. "
-				"Bu yanıt yalnız yapısal kontrolleri kapsar."
-			),
+			"schema_validated": sema_dogrulandi,
+			"schema_note": sema_notu,
 		}
 		return env.ok(govde)
 
+	def _validate_json_schema(self) -> tuple[bool, str, list[dict[str, Any]]]:
+		"""Kayıt defterindeki her politikayı kanonik Draft 2020-12 şemasıyla doğrula."""
+		try:
+			from jsonschema import Draft202012Validator
+		except ImportError:
+			return False, "JSON-Schema doğrulaması YAPILMADI: `jsonschema` paketi kurulu değil.", []
+
+		try:
+			kok = Path(self.policy.source_root()).resolve()
+			sema_yolu = kok.parent / "schema" / "slot-policy.schema.json"
+			sema = json.loads(sema_yolu.read_text(encoding="utf-8"))
+			Draft202012Validator.check_schema(sema)
+			dogrulayici = Draft202012Validator(sema)
+		except Exception as exc:
+			return False, f"JSON-Schema okunamadı: {type(exc).__name__}: {exc}", []
+
+		bulgular: list[dict[str, Any]] = []
+		for slot in self.policy.registry.keys():
+			pol = self.policy.registry.get(slot)
+			kaynak = str(self.policy.registry.source_of(slot))
+			for hata in sorted(dogrulayici.iter_errors(pol), key=lambda e: list(e.absolute_path)):
+				yol = ".".join(str(x) for x in hata.absolute_path) or "$"
+				bulgular.append(
+					self._finding(slot, kaynak, "schema_validation", f"{yol}: {hata.message}")
+				)
+		return True, f"Draft 2020-12 doğrulaması çalıştı: {len(self.policy.registry.keys())} politika.", bulgular
+
 	@staticmethod
-	def _finding(slot: str, source: str, code: str, message: str) -> Dict[str, Any]:
+	def _finding(slot: str, source: str, code: str, message: str) -> dict[str, Any]:
 		return {"slot_key": slot, "source": source, "code": code, "message": message}
 
-	def _check_profiles(self, slot: str, source: str, pol: Mapping[str, Any]) -> List[Dict[str, Any]]:
-		bulgular: List[Dict[str, Any]] = []
+	def _check_profiles(self, slot: str, source: str, pol: Mapping[str, Any]) -> list[dict[str, Any]]:
+		bulgular: list[dict[str, Any]] = []
 		profiller = pol.get("profiles") or []
 		if not profiller:
 			bulgular.append(self._finding(slot, source, "no_profiles", "Hiç türev profili yok"))
@@ -311,11 +336,11 @@ class AdminApi:
 				)
 		return bulgular
 
-	def _check_messages(self, slot: str, source: str, pol: Mapping[str, Any]) -> List[Dict[str, Any]]:
+	def _check_messages(self, slot: str, source: str, pol: Mapping[str, Any]) -> list[dict[str, Any]]:
 		mesajlar = pol.get("messages") or {}
 		tr = set((mesajlar.get("tr") or {}).keys())
 		en = set((mesajlar.get("en") or {}).keys())
-		bulgular: List[Dict[str, Any]] = []
+		bulgular: list[dict[str, Any]] = []
 		for eksik, dil in ((tr - en, "en"), (en - tr, "tr")):
 			if eksik:
 				bulgular.append(
@@ -340,7 +365,7 @@ class AdminApi:
 		anahtarlar = (
 			(env.require_str(slot_key, "slot_key", max_len=64),) if slot_key else render_mod.slot_keys()
 		)
-		slotlar: List[Dict[str, Any]] = []
+		slotlar: list[dict[str, Any]] = []
 		toplam = 0
 		for s in anahtarlar:
 			try:
@@ -440,9 +465,9 @@ class AdminApi:
 		if anahtar:
 			self._policy_of(anahtar)
 
-		beklenen: Dict[str, set] = {}
-		sayaclar: Dict[str, Dict[str, int]] = {}
-		eksik_profil: Dict[str, Dict[str, int]] = {}
+		beklenen: dict[str, set] = {}
+		sayaclar: dict[str, dict[str, int]] = {}
+		eksik_profil: dict[str, dict[str, int]] = {}
 		taranan = 0
 
 		for row in self.coverage.iter_assets(slot_key=anahtar, limit=tavan):
@@ -497,7 +522,7 @@ class AdminApi:
 		*,
 		slot_key: str,
 		master_sha256: str,
-		crop_intent: Optional[Mapping[str, Any]] = None,
+		crop_intent: Mapping[str, Any] | None = None,
 		force: bool = False,
 	) -> env.ApiResponse:
 		"""Bu master için hangi türevler üretilecek — **planı verir, iş atmaz.**
@@ -525,8 +550,8 @@ class AdminApi:
 		except render_mod.RenderError:
 			raise PolicyNotFound(f"Bilinmeyen slot: {anahtar}", detay={"slot_key": anahtar})
 
-		satirlar: List[Dict[str, Any]] = []
-		sayac: Dict[str, int] = {
+		satirlar: list[dict[str, Any]] = []
+		sayac: dict[str, int] = {
 			reprocess_mod.ACTION_RENDER: 0,
 			reprocess_mod.ACTION_REFRESH: 0,
 			reprocess_mod.ACTION_SKIP: 0,
@@ -567,7 +592,7 @@ class AdminApi:
 
 	def job_status(
 		self, principal: env.Principal, *, kind: str, target: str, content_hash: str = "",
-		params: Optional[Mapping[str, Any]] = None,
+		params: Mapping[str, Any] | None = None,
 	) -> env.ApiResponse:
 		"""Bir işin idempotensi anahtarı ve o anahtarın durumu.
 
@@ -596,7 +621,7 @@ class AdminApi:
 		zarf = jobs_mod.JobEnvelope.build(
 			tur, hedef, content_hash=sha, params=dict(params or {})
 		)
-		govde: Dict[str, Any] = {
+		govde: dict[str, Any] = {
 			"key": zarf.key,
 			"kind": zarf.kind,
 			"max_attempts": jobs_mod.MAX_ATTEMPTS,
@@ -645,7 +670,7 @@ class AdminApi:
 class InMemoryCoverageRepository:
 	"""`CoverageRepository` portunun bellek-içi eşi."""
 
-	rows: List[Dict[str, Any]] = field(default_factory=list)
+	rows: list[dict[str, Any]] = field(default_factory=list)
 
 	def iter_assets(self, *, slot_key: str = "", limit: int = 0) -> Sequence[Mapping[str, Any]]:
 		secilen = [r for r in self.rows if not slot_key or r.get("slot_key") == slot_key]

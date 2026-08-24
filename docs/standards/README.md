@@ -1,5 +1,36 @@
 # Slot standartları — özet
 
+## Güncel durum — 2026-08-23
+
+Bu bölüm aşağıdaki tarihli çalışma notlarının önüne geçer. Eski bölümler karar
+geçmişini korumak için silinmemiştir; bugünkü doğruluk kaynağı şudur:
+
+- çalışma zamanı/yükleme politikası:
+  `tradehub_core/media/pipeline/policy/slots/*.json` (**9 slot**),
+- kanonik Draft 2020-12 şeması:
+  `tradehub_core/media/pipeline/policy/schema/slot-policy.schema.json`,
+- insan tarafından okunabilir gerekçeler: `docs/standards/*.md`,
+- `docs/standards/policies/*.json`: yalnız DPI/alan ölçüm izdüşümü; ikinci bir
+  yürütme motoru veya rakip politika seti değildir.
+
+Güncel otomatik doğrulama sonucu: **9/9 politika şemaya uyumlu**, 9/9
+`standard_status=fixed`, 9/9 gerçek uyum ölçümü taşıyor, `encoder_quality`
+içinde **null değer yok**. `status=draft`, standardın belirsiz olduğu anlamına
+gelmez; Faz 3 çalışma-zamanı rollout durumudur. Sabit standardı rollout'tan
+ayırmak için `standard_status` alanı özellikle eklenmiştir.
+
+Tek Faz 2 insan kapısı T-025 yanlış-pozitif kalibrasyonudur:
+`content_rules.json.calibration_status=TRIGGER_RATE_MEASURED_UNLABELED`.
+1.291 gerçek ürün görselinde tetik oranları ölçüldü; fakat insan etiketleri
+olmadan yanlış-pozitif oranı uydurulmadı. Bu nedenle içerik kuralları gölge
+modunda/uyarı düzeyinde kalır; yalnız NSFW ve korumalı aşırı bulanıklık kuralı
+şema gereği sert red adayı olabilir. T-029 platform imza alanı da insan
+onayına kadar boş kalır.
+
+> Aşağıdaki 2026-08-17/18 metni tarihsel karar günlüğüdür. “Kod tarafından
+> okunmuyor”, “6/9 şema uyumlu”, “AVIF null” ve benzeri ifadeler bugünkü
+> durum değildir.
+
 **Yazan görev:** T-023 · **Tarih:** 2026-08-17 11:45 · **Branch:** `medya-motoru-faz0-faz2`
 
 > **Güncelleme — 2026-08-17 13:01.** İki tutarsızlık kapatıldı, hiçbir bölüm

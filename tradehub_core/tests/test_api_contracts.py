@@ -1108,12 +1108,13 @@ class YonetimTesti(unittest.TestCase):
 		yanit = env.call(self.kur().get_slot_policy, YONETICI, "yok.slot")
 		self.assertEqual(yanit.status, 404)
 
-	def test_dogrulama_sema_dogrulanmadi_der(self):
-		"""`jsonschema` kurulu değil — bunu SÖYLEMEK zorunda."""
+	def test_dogrulama_gercek_json_semasini_calistirir(self):
+		"""Kurulu Draft 2020-12 doğrulayıcısı dokuz politikayı gerçekten okur."""
 		r = self.kur().validate_policies(YONETICI)
-		self.assertFalse(r.body["schema_validated"])
+		self.assertTrue(r.body["schema_validated"])
 		self.assertTrue(r.body["schema_note"])
 		self.assertEqual(r.body["slot_count"], 9)
+		self.assertNotIn("schema_validation", {f["code"] for f in r.body["findings"]})
 
 	def test_dogrulama_gercek_bulgu_uretiyor(self):
 		"""Bugünkü politika dosyalarında `en` mesajları eksik — test bunu KİLİTLER.
@@ -1132,12 +1133,13 @@ class YonetimTesti(unittest.TestCase):
 		beklenen = sum(len(render_mod.rendition_matrix(s)) for s in render_mod.slot_keys())
 		self.assertEqual(r.body["total_renditions"], beklenen)
 
-	def test_matris_kalibre_edilmemis_kaliteyi_isaretler(self):
+	def test_matris_olculmus_avif_kalitesini_isaretler(self):
 		r = self.kur().rendition_matrix(YONETICI, slot_key="product.image")
 		satirlar = r.body["slots"][0]["renditions"]
 		avif = [s for s in satirlar if s["format"] == "avif"]
 		self.assertTrue(avif)
-		self.assertFalse(avif[0]["quality_calibrated"], "AVIF kalitesi ÖLÇÜLMEDİ olarak işaretli kalmalı")
+		self.assertTrue(all(s["quality_calibrated"] for s in avif))
+		self.assertEqual({s["quality"] for s in avif}, {61})
 
 	def test_kuru_calistirma_kucuk_gorseli_reddeder(self):
 		r = self.kur().evaluate_policy(

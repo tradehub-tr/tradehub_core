@@ -1,0 +1,88 @@
+{
+  "schema_version": "1.0.0",
+  "source": "docs/01-terimler-ve-kurallar.html",
+  "coverage": "12/12",
+  "invariants": [
+    {
+      "id": "INV-01",
+      "rule": "Görsel asla büyütülmez (no upscale).",
+      "tier": "pr",
+      "primary_test": "tradehub_core/tests/test_image_normalize.py::PikselTavaniTest::test_target_size_asla_buyutmez"
+    },
+    {
+      "id": "INV-02",
+      "rule": "DPI metadata değişikliği piksel boyutunu değiştirmez.",
+      "tier": "pr",
+      "primary_test": "tradehub_core/tests/test_image_normalize.py::DpiTest::test_300dpi_kaynak_72ye_iner_piksel_korunur"
+    },
+    {
+      "id": "INV-03",
+      "rule": "Maksimum kenar ve megapiksel tavanları uygulanır.",
+      "tier": "pr",
+      "primary_test": "tradehub_core/tests/test_image_normalize.py::PikselTavaniTest::test_megapiksel_tavani_uygulanir"
+    },
+    {
+      "id": "INV-04",
+      "rule": "Yayınlanan görsel GPS/EXIF bilgisi taşımaz.",
+      "tier": "pr",
+      "primary_test": "tradehub_core/tests/test_image_normalize.py::MetadataTest::test_gps_silinir"
+    },
+    {
+      "id": "INV-05",
+      "rule": "Video çıktısı aynı çözünürlükteki girdiden büyükse yayınlanmaz.",
+      "tier": "nightly",
+      "primary_test": "tradehub_core/tests/test_video_transcode.py::GercekTranscode::test_FAYDA_KAPISI_verimli_kaynagi_korur",
+      "supporting_tests": [
+        "tradehub_core/tests/test_render.py::FaydaKapisiTesti::test_hicbir_turev_kaynaktan_buyuk_degil"
+      ]
+    },
+    {
+      "id": "INV-06",
+      "rule": "Aynı girdi ve politika yeniden encode edilmez (idempotency).",
+      "tier": "pr",
+      "primary_test": "tradehub_core/tests/test_render.py::DefterTesti::test_ikinci_kosum_encode_etmez"
+    },
+    {
+      "id": "INV-07",
+      "rule": "Alfa kanalı korunur.",
+      "tier": "pr",
+      "primary_test": "tradehub_core/tests/test_image_normalize.py::RenkUzayiTest::test_alfa_dusurulmez"
+    },
+    {
+      "id": "INV-08",
+      "rule": "Bir varlığın tüm rendition'ları atomik yayınlanır veya hiçbiri yayınlanmaz.",
+      "tier": "site",
+      "primary_test": "tradehub_core/tests/test_media_version_promote.py::PromoteTests::test_promote_atomik_hata_da_tam_geri_alinir"
+    },
+    {
+      "id": "INV-09",
+      "rule": "Aynı içerik aynı hash URL'yi, farklı içerik farklı URL'yi verir.",
+      "tier": "pr",
+      "primary_test": "tradehub_core/tests/test_dedup.py::RenditionAdresiTesti::test_ayni_girdi_ayni_url",
+      "supporting_tests": [
+        "tradehub_core/tests/test_dedup.py::RenditionAdresiTesti::test_version_degisince_url_degisir"
+      ]
+    },
+    {
+      "id": "INV-10",
+      "rule": "Normalize crop intent kaynaktan ve ölçekten bağımsızdır.",
+      "tier": "pr",
+      "primary_test": "tradehub_core/tests/test_crop.py::Inv10Testi::test_yari_boyutlu_kaynak_ayni_kadraji_verir"
+    },
+    {
+      "id": "INV-11",
+      "rule": "Orijinal retention izni olmadan silinmez; türev politikasından bağımsızdır.",
+      "tier": "pr",
+      "primary_test": "tradehub_core/tests/test_retention.py::TestPolitikaBagimsizligi::test_turev_silinirken_orijinal_korunur",
+      "supporting_tests": [
+        "tradehub_core/tests/golden/test_invariant_guards.py::RetentionAuditContractAAA::test_retention_delete_routes_through_audited_trash"
+      ]
+    },
+    {
+      "id": "INV-12",
+      "rule": "1000×1000 altı ürün görseli yayınlanamaz.",
+      "tier": "pr",
+      "primary_test": "tradehub_core/tests/test_policy_engine.py::SinirVakalariTesti::test_bound_short999_reddedilir"
+    }
+  ]
+}

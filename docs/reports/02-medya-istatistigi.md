@@ -956,3 +956,52 @@ Bu raporun gövdesi Docker kapalı / DB erişimsizken yazılmıştı ve boru hat
 
 Makine-okunur çıktı: **`docs/reports/media-stats-2026-08-20.csv`** ·
 Ayrıntı ve yöntem: `docs/reports/94-w8-faz0-5-kapanis.md` §1.
+
+---
+
+## Güncel aggregate ve slot ölçümü — 2026-08-23
+
+`scripts/media_stats.py` bütün yerel DEV kümesinde yeniden koştu; ham çıktı
+dosya yolları taşıdığı için repoya alınmadı. Yol içermeyen aggregate çıktı
+`docs/data/faz0-media-stats-2026-08-23.json`, aynı şemadaki dokuz slot ölçümü
+`docs/data/faz0-slot-stats-2026-08-23.json`, uzun biçimli CSV ise
+`tradehub_core/tests/fixtures/media-stats.csv` altındadır.
+
+### Küresel taban
+
+| Ölçüt | Sonuç |
+|---|---:|
+| `tabFile` satırı / public / private | 5.126 / 4.499 / 621 |
+| Eşsiz public / private URL | 2.914 / 170 |
+| Public eşsiz bayt | 771.365.796 B (735,63 MiB) |
+| Public bayt p50 / p90 / p99 / max | 73.189 / 724.348 / 2.712.254 / 9.622.535 B |
+| Private bayt p50 / p90 / p99 / max | 99.784 / 1.729.184 / 13.148.466 / 22.065.728 B |
+| Başlıktan açılan görsel | 2.841 |
+| MP p50 / p90 / p99 / max | 1,54 / 6,55 / 29,21 / 54,00 MP |
+| Anomali | diskte yok 18 · >20 MP 111 · CMYK 28 · okunamayan 2 · DB/disk boyut farkı 10 |
+| Public PII ters referansı | tanımlı 13 hassas alanın tamamında 0 |
+| Hassas hash ile public ortaklık | 40; tamamı `19-d2-hash-ortusme.md` içinde insan tarafından sınıflandırıldı, hassas sızıntı 0 |
+
+Diskte `tabFile` kaydıyla eşleşmeyen 4.661 aday vardır. Bu sayı doğrudan
+“silinmeli yetim” değildir: içerik-adresli motor çıktıları bilerek `tabFile`
+kaydı üretmeyebilir. Sınıflandırma yapılmadan silme kararı verilemez.
+
+### Dokuz aktif slot — kısa kenar / MP / bayt p50-p90-p99
+
+| Slot | eşsiz | yerel | harici | kayıp | kısa kenar px | MP | bayt |
+|---|---:|---:|---:|---:|---|---|---|
+| `brand.logo` | 1 | 1 | 0 | 0 | 600 / 600 / 600 | 0,36 / 0,36 / 0,36 | 12.172 / 12.172 / 12.172 |
+| `category.banner` | 32 | 2 | 30 | 0 | 640 / 671 / 678 | 0,41 / 0,45 / 0,46 | 42.666 / 67.060 / 72.549 |
+| `company.cover_image` | 34 | 33 | 1 | 0 | 701 / 1.778 / 1.778 | 1,38 / 6,32 / 6,32 | 167.554 / 1.497.474 / 1.994.655 |
+| `company.cover_video` | 6 | 2 | 4 | 0 | 740 / 1.012 / 1.073 | 1,12 / 1,88 / 2,05 | 4.262.118 / 7.656.345 / 8.420.046 |
+| `document.attachment` | 61 | 58 | 1 | 2 | 784 / 1.500 / 3.575 | 1,35 / 3,57 / 14,82 | 143.017 / 1.434.857 / 6.883.028 |
+| `product.image` | 3.062 | 2.394 | 668 | 0 | 1.138 / 2.173 / 4.480 | 1,71 / 5,08 / 29,21 | 74.078 / 667.877 / 2.531.186 |
+| `product.video` | 5 | 4 | 1 | 0 | 720 / 720 / 720 | 0,72 / 0,92 / 0,92 | 2.943.341 / 7.659.004 / 9.426.182 |
+| `seller.logo` | 19 | 17 | 0 | 2 | 1.024 / 1.572 / 2.403 | 1,06 / 2,62 / 6,18 | 101.759 / 674.201 / 1.310.997 |
+| `user.avatar` | 6 | 0 | 6 | 0 | — | — | — |
+
+`user.avatar` için çizgi “bilinmiyor” değildir: 6/6 referans dış avatar
+servisindedir, yerel piksel/bayt kümesi bilinçli olarak boştur. Genişlik ve
+yükseklik p50/p90/p99 değerleri de aggregate JSON/CSV'de ayrı kolonlardır.
+Ölçüm `scripts/media_slot_stats.py` ile tekrar üretilebilir ve veritabanına
+yazmaz.

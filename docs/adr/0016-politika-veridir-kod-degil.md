@@ -86,3 +86,10 @@ Kural bütün katmanlarda tekrarlandı:
   nasıl ele alacağı yazılı değil.
 - `PolicyEngine` adı kodda **iki farklı ve uyumsuz şeye** takılı (aynı rapor
   M-02, **BLOKLAYICI**).
+
+## Geri dönüş yolu
+
+Politika şeması/yorumlayıcı paritesi kırılırsa son kabul edilmiş policy sürümü
+yeniden etkinleştirilir; kod içine slot özel if/else eklenmez. Yeni kural türü
+veriyle ifade edilemiyorsa önce schema + iki yorumlayıcı genişletilir; mümkün
+değilse karar ölçümle yeniden açılır.

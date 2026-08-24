@@ -1,8 +1,15 @@
 # Standart — `category.banner` (Kategori bandı / kategori vitrin görseli)
 
+> **Güncel karar — 2026-08-23.** Makine kaynağı
+> `tradehub_core/media/pipeline/policy/slots/category-banner.json` şemaya
+> uyumludur; `standard_status=fixed`, açık soru sayısı 0 ve AVIF kalitesi
+> 61'dir. Gerçek bağ 6 adet 1×1, 1 adet 2×1 ve 1 adet 2×2 vitrin döşemesiyle
+> ölçülmüştür. Aşağıdaki 2026-08-17 `null`/“okunmuyor” notları tarihsel
+> analizdir; `status=draft` yalnız Faz 3 rollout durumudur.
+
 **Görev:** T-023 · **Tarih:** 2026-08-17 · **Branch:** `medya-motoru-faz0-faz2`
 **Politika dosyası:** `tradehub_core/media/pipeline/policy/slots/category-banner.json`
-**Durum:** `draft` + **EKSİK ALAN** — politika kod tarafından okunmuyor
+**Tarihsel durum:** `draft` + eksik alan incelemesi — 2026-08-17 anlık görüntüsü
 (`tradehub_core/media/upload_policy.py:307-313`).
 
 > **Bu slotun en önemli bulgusu bir yokluk:** banner biçimindeki tek render

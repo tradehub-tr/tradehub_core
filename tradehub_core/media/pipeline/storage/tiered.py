@@ -42,7 +42,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, Iterator, List, Optional, Tuple
+from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple
 
 from tradehub_core.media.pipeline.contracts.errors import ObjectNotFound, StorageError
 from tradehub_core.media.pipeline.contracts.storage import (
@@ -165,11 +165,34 @@ class TieredStorage:
 		"""
 		return self._hot.put(content, extension, scope=scope)
 
+	def put_stream(
+		self,
+		chunks: Iterable[bytes],
+		extension: str,
+		*,
+		scope: str = SCOPE_PUBLIC,
+	) -> PutResult:
+		writer = getattr(self._hot, "put_stream", None)
+		if not callable(writer):
+			raise StorageError("Sıcak katman akışlı yazmayı desteklemiyor", retryable=False)
+		return writer(chunks, extension, scope=scope)
+
 	def get(self, ref: ObjectRef) -> bytes:
 		try:
 			return self._hot.get(ref)
 		except ObjectNotFound:
 			return self._cold.get(ref)
+
+	def iter_bytes(self, ref: ObjectRef, *, chunk_size: int = 1024 * 1024) -> Iterator[bytes]:
+		hot_reader = getattr(self._hot, "iter_bytes", None)
+		cold_reader = getattr(self._cold, "iter_bytes", None)
+		if self._hot.exists(ref) and callable(hot_reader):
+			yield from hot_reader(ref, chunk_size=chunk_size)
+			return
+		if callable(cold_reader):
+			yield from cold_reader(ref, chunk_size=chunk_size)
+			return
+		raise ObjectNotFound("Nesne bulunamadı", detay={"url": ref.url})
 
 	def exists(self, ref: ObjectRef) -> bool:
 		return self._hot.exists(ref) or self._cold.exists(ref)

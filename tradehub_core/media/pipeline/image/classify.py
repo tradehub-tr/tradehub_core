@@ -8,32 +8,32 @@ türevlere hangi biçimle kodlanacağını belirler.
 
     animation    çok kareli
     transparent  anlamlı alfa taşıyor (kesim/logo)
-    text         metin/belge baskın (keskin harf kenarları)
+    document     taranmış/metin baskın belge (keskin harf kenarları)
     graphic      düz alanlı sentetik görsel (logo, illüstrasyon)
     photo        sürekli tonlu fotoğraf  ← VARSAYILAN
 
 Sıra ANLAMLIDIR ve yukarıdan aşağıya "kesin ölçülebilirden tahminiye" gider:
 `animation` başlıktan **kesin** okunur, `transparent` alfa kanalından **kesin**
-ölçülür; `graphic`/`text` ise sezgiseldir ve bilerek **yüksek kesinlik / düşük
+ölçülür; `graphic`/`document` ise sezgiseldir ve bilerek **yüksek kesinlik / düşük
 duyarlılık** ayarındadır. Kanıt yetmiyorsa sınıf `photo` olur.
 
-Neden varsayılan `photo` — ÖLÇÜLDÜ
-----------------------------------
+Neden sınıf varsayılanı `photo`, çıktı varsayılanı kayıpsız — ÖLÇÜLDÜ
+---------------------------------------------------------------------
 Yanlış sınıflandırmanın iki yönü aynı maliyette DEĞİL. Canlı korpustan çekilen
 48 görselin 1280px türevi iki kez kodlandı (yerel, Pillow 11.3.0, WebP method=4):
 
     44 fotoğraf:  kayıplı q80  1.752 KB  ·  kayıpsız  13.770 KB  → **7,86x**
      4 grafik:    kayıplı q80     73 KB  ·  kayıpsız     469 KB  → **6,40x**
 
-Yani bir fotoğrafı "grafik" sanıp kayıpsız kodlamak dosyayı 7,86 kat büyütür;
-bir grafiği "fotoğraf" sanıp kayıplı kodlamak ise yalnız düz alanlarda hafif
-halkalanma bırakır. Maliyet asimetrik olduğu için kapı asimetrik kuruldu:
-**`graphic` demek için güçlü kanıt aranır, `photo` demek için kanıt aranmaz.**
+Yani bir fotoğrafı "grafik" sanıp kayıpsız kodlamak dosyayı 7,86 kat büyütür.
+Bu ölçüm sınıf eşiğini yüksek kesinlikte tutar; fakat kabul sözleşmesi düşük
+güvende güvenli yönü açıkça **kayıpsız** seçer. Sonuç olarak sınıf etiketi
+kanıt yoksa `photo/low`, seçilen zincir ise lossless WebP → PNG olur. Sürekli
+ton kanıtı olan `photo/high` normal AVIF → WebP → JPEG zincirini kullanır.
 
-Aynı ölçüm ikinci bir sonuç daha verdi: kayıpsız kodlama bu korpusta grafikler
-için bile 6,4 kat pahalı. Bu yüzden `graphic`/`text` zincirleri kayıpsıza
-DALLANMAZ; aynı kayıplı zincirde **kalite yükseltmesi** (`quality_bump`)
-uygular. Kayıpsız yalnız alfa/animasyon zincirlerinin son çaresidir.
+Kabul sözleşmesi grafik/logo ve raster belgede kenarların kayıpsız kalmasını
+ister. Bu yüzden `graphic`/`document` zinciri yalnız lossless WebP → PNG'dir;
+fotoğrafın 7,86x maliyet riski ayrı `photo` zincirinde tutulur.
 
 Neden bazı ölçütler ölçülmedi — DÜRÜST SINIR
 --------------------------------------------
@@ -45,9 +45,9 @@ doğruluğu ÖLÇÜLEMEZ. Ölçüm bu yüzden canlı korpustan çekilen ve elle 
 48 görsel üzerinde yapıldı; sonuçlar `tests/test_image_classify.py` içinde
 sabitlenmiştir.
 
-`text` sınıfı için ne fixture korpusunda ne canlı örneklemde tek bir örnek
-çıktı: eşikleri literatürdeki bilinen ayraçlardan kuruldu ve **ÖLÇÜLMEDİ**.
-`TEXT_OLCULDU = False` bunu kodda da beyan eder.
+Beş sınıfın her biri, 20'şer deterministik ve dengeli örnekten oluşan yeniden
+üretilebilir AAA korpusunda ölçülür. Canlı 48'lik örneklem ayrıca korunur;
+dengeli korpus sınıf adlarının hiçbirini çoğunluk sınıfıyla geçiştirmez.
 
 `import frappe` YOKTUR.
 """
@@ -55,10 +55,15 @@ sabitlenmiştir.
 from __future__ import annotations
 
 import io
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from tradehub_core.media.pipeline.image.probe import DEFAULT_GUARD, GuardConfig, HeaderProbe, probe_header
+
+#: Sınıflandırma kapısı animasyonu reddetmez: amacı çok-kareli girdiyi decode
+#: edip görsel olarak düzleştirmek değil, başlıktan tanıyıp video hattına
+#: yönlendirmektir. Boyut/tür/kesiklik/güvenlik eşikleri aynen korunur.
+CLASSIFY_GUARD: GuardConfig = replace(DEFAULT_GUARD, allow_animated=True)
 
 # ── Sınıflar ────────────────────────────────────────────────────────────
 
@@ -66,19 +71,34 @@ SINIF_PHOTO: str = "photo"
 SINIF_GRAPHIC: str = "graphic"
 SINIF_TRANSPARENT: str = "transparent"
 SINIF_ANIMATION: str = "animation"
-SINIF_TEXT: str = "text"
+SINIF_DOCUMENT: str = "document"
+#: Kaynak kod uyumluluğu; dışarı verilen değer artık kanonik ``document``.
+SINIF_TEXT: str = SINIF_DOCUMENT
+#: Kalıcı eski kayıtları okuyan çağıranlar için giriş takma adı.
+LEGACY_SINIF_TEXT: str = "text"
 
 SINIFLAR: tuple[str, ...] = (
 	SINIF_PHOTO,
 	SINIF_GRAPHIC,
 	SINIF_TRANSPARENT,
 	SINIF_ANIMATION,
-	SINIF_TEXT,
+	SINIF_DOCUMENT,
 )
 
-#: `text` sınıfının eşikleri hiçbir korpusta doğrulanamadı (örnek yok).
-#: Bu bayrak rapor üreten katmanın "ölçülmedi" demesini sağlar (kural 4).
-TEXT_OLCULDU: bool = False
+#: 5×20 dengeli, deterministik korpus testinde belge sınıfı ölçülür.
+DOCUMENT_OLCULDU: bool = True
+#: Eski ithalat adı kanonik ölçüm bayrağına bağlıdır.
+TEXT_OLCULDU: bool = DOCUMENT_OLCULDU
+
+# ── Hat yönlendirme sözleşmesi ─────────────────────────────────────────
+
+PIPELINE_IMAGE: str = "image"
+PIPELINE_VIDEO: str = "video"
+JOB_TYPE_IMAGE_RENDITION: str = "rendition"
+JOB_TYPE_VIDEO_FROM_ANIMATION: str = "video_from_animation"
+#: Faz 2 animasyon master sözleşmesi; bridge bu iki video türevini ve ayrıca
+#: statik posteri üretir. Görsel encoder zincirine çok-kareli kaynak verilmez.
+ANIMATION_VIDEO_TARGETS: tuple[tuple[str, str], ...] = (("MP4", "H264"), ("WEBM", "VP9"))
 
 # ── Eşikler ─────────────────────────────────────────────────────────────
 #
@@ -113,11 +133,22 @@ GRAPHIC_SATURATION_MIN: float = 150.0
 #: ÖLÇÜLDÜ (C): #13 = 0,481.
 GRAPHIC_TOP_COLOR_MIN: float = 0.30
 
-#: Metin sınıfı eşikleri — **ÖLÇÜLMEDİ**, örnek bulunamadı.
-TEXT_BILEVEL_MIN: float = 0.90
-TEXT_EDGE_DENSITY_MIN: float = 0.12
-TEXT_QUANT_COLORS_MAX: int = 24
-TEXT_SATURATION_MAX: float = 32.0
+#: Raster belge eşikleri — dengeli sentetik korpus + eşik sınır testleri.
+DOCUMENT_BILEVEL_MIN: float = 0.90
+DOCUMENT_EDGE_DENSITY_MIN: float = 0.12
+DOCUMENT_QUANT_COLORS_MAX: int = 24
+DOCUMENT_SATURATION_MAX: float = 32.0
+#: Kaynak uyumluluğu: eski sabit adları aynı eşiklere işaret eder.
+TEXT_BILEVEL_MIN: float = DOCUMENT_BILEVEL_MIN
+TEXT_EDGE_DENSITY_MIN: float = DOCUMENT_EDGE_DENSITY_MIN
+TEXT_QUANT_COLORS_MAX: int = DOCUMENT_QUANT_COLORS_MAX
+TEXT_SATURATION_MAX: float = DOCUMENT_SATURATION_MAX
+
+#: Sürekli ton kanıtı. 5×20 kabul korpusunda photo aralıkları sırasıyla
+#: 18.992–19.047 ve 2.663–2.721; grafik/belge tavanı 6 ve 6'dır. Eşikler iki
+#: kümenin geniş boşluğunda, fixture gürültüsüne toleranslı seçildi.
+PHOTO_UNIQUE_COLORS_MIN: int = 256
+PHOTO_QUANT_COLORS_MIN: int = 64
 
 #: Kayıplı kodlanmış kaynaklarda düz alan kanıtı kodlayıcı gürültüsüyle
 #: SİLİNİR. ÖLÇÜLDÜ (C): JPEG'e gömülü düz lacivert grafik #13'ün yumuşak
@@ -130,6 +161,10 @@ LOSSLESS_SOURCE_FORMATS: frozenset[str] = frozenset({"PNG", "GIF", "BMP", "TIFF"
 #: ortalayarak siler; `BOX` (kutu ortalama) bilerek seçildi — LANCZOS keskinleştirme
 #: yaparak yapay sert kenar üretir ve `hard_edge_ratio`'yu bozar.
 THUMB_BOX: int = 160
+#: Bu tavanın üstünde tam-frame RGBA/RGB/gri kopyaları kurulmaz. Kaynak
+#: raster bir kez açılır; sınıflandırma ölçüleri küçük native karolardan
+#: çıkarılır. 72 MP RGBA kabul sınırında bu ayrım OOM'u önler.
+BOUNDED_SAMPLE_MIN_MEGAPIXELS: float = 20.0
 #: Düzlük/kenar ölçümü küçültülmüş kopyada YAPILMAZ; yeniden örnekleme düz
 #: alan kanıtını yok eder. Native çözünürlükte ızgara karoları kullanılır.
 TILE_GRID: int = 4
@@ -149,22 +184,25 @@ class FormatStep:
 	quality_bump: int = 0
 	#: Bu adımın çalışabilmesi için gereken kodlayıcı yeteneği.
 	requires: tuple[str, ...] = ()
+	#: Faz 2 hedefi. Kayıplı foto/ürün adımlarında q88; kayıpsız adımlarda
+	#: ``"lossless"``. Eski konumsal kurucuları bozmamak için son alandır.
+	quality_target: int | str = 88
 
 	def to_dict(self) -> dict:
 		return {
 			"fmt": self.fmt,
 			"lossless": self.lossless,
 			"quality_bump": self.quality_bump,
+			"quality_target": self.quality_target,
 			"requires": list(self.requires),
 		}
 
 
 #: Sınıf → zincir. Sıra tercih sırasıdır; çağıran ilk **desteklenen** adımı alır.
 #:
-#: Zincirlerin hiçbiri `graphic`/`text` için kayıpsıza dallanmaz — yukarıdaki
-#: 6,40x ölçümü bunu haksız çıkardı. Bunun yerine `quality_bump` uygulanır:
-#: düz alan ve harf kenarlarındaki halkalanma kaliteyi yükselterek çözülür,
-#: dosyayı 6 kat büyüterek değil.
+#: `graphic` ve `document` kabul kriteri gereği yalnız kayıpsız kodlanır.
+#: `animation`ın görsel zinciri bilerek boştur: sınıflandırma sonucu
+#: `video_from_animation` işi olarak video hattına teslim edilir.
 FORMAT_CHAINS: dict[str, tuple[FormatStep, ...]] = {
 	SINIF_PHOTO: (
 		FormatStep("AVIF"),
@@ -172,27 +210,23 @@ FORMAT_CHAINS: dict[str, tuple[FormatStep, ...]] = {
 		FormatStep("JPEG"),
 	),
 	SINIF_GRAPHIC: (
-		FormatStep("AVIF", quality_bump=8),
-		FormatStep("WEBP", quality_bump=8),
-		# JPEG DEĞİL: keskin kenarlarda 4:2:0 renk altörneklemesi görünür
-		# renk kaçağı bırakır. Grafiğin son çaresi kayıpsız PNG'dir.
-		FormatStep("PNG", lossless=True),
+		FormatStep("WEBP", lossless=True, quality_target="lossless", requires=("lossless",)),
+		FormatStep("PNG", lossless=True, quality_target="lossless"),
 	),
 	SINIF_TRANSPARENT: (
 		FormatStep("AVIF", requires=("alpha",)),
 		FormatStep("WEBP", requires=("alpha",)),
-		FormatStep("PNG", lossless=True, requires=("alpha",)),
+		FormatStep("PNG", lossless=True, quality_target="lossless", requires=("alpha",)),
 	),
-	SINIF_ANIMATION: (
-		FormatStep("WEBP", requires=("animation",)),
-		FormatStep("GIF", lossless=True, requires=("animation",)),
-	),
-	SINIF_TEXT: (
-		FormatStep("AVIF", quality_bump=10),
-		FormatStep("WEBP", quality_bump=10),
-		FormatStep("PNG", lossless=True),
+	SINIF_ANIMATION: (),
+	SINIF_DOCUMENT: (
+		FormatStep("WEBP", lossless=True, quality_target="lossless", requires=("lossless",)),
+		FormatStep("PNG", lossless=True, quality_target="lossless"),
 	),
 }
+
+#: Sınıf etiketi ne olursa olsun düşük güvenli kararın yayın zinciri.
+SAFE_LOSSLESS_CHAIN: tuple[FormatStep, ...] = FORMAT_CHAINS[SINIF_GRAPHIC]
 
 
 def encoder_capabilities() -> dict[str, bool]:
@@ -214,6 +248,13 @@ def encoder_capabilities() -> dict[str, bool]:
 	for fmt in ("AVIF", "WEBP", "JPEG", "PNG", "GIF"):
 		yetenek[fmt] = _deneme_kodla(tek, fmt)
 		yetenek[f"{fmt}:alpha"] = _deneme_kodla(alfali, fmt) if yetenek[fmt] else False
+	# Kayıpsızlık yalnız biçim adından varsayılmaz: WebP için gerçek deneme,
+	# PNG/GIF için konteyner özelliği, JPEG için açıkça False.
+	yetenek["WEBP:lossless"] = _deneme_kodla(tek, "WEBP", lossless=True, quality=100)
+	yetenek["PNG:lossless"] = yetenek["PNG"]
+	yetenek["GIF:lossless"] = yetenek["GIF"]
+	yetenek["JPEG:lossless"] = False
+	yetenek["AVIF:lossless"] = False
 	yetenek["WEBP:animation"] = _deneme_kodla(tek, "WEBP", save_all=True, append_images=[tek])
 	yetenek["GIF:animation"] = _deneme_kodla(tek, "GIF", save_all=True, append_images=[tek])
 	yetenek["AVIF:animation"] = _deneme_kodla(tek, "AVIF", save_all=True, append_images=[tek])
@@ -236,7 +277,26 @@ def format_chain(sinif: str, capabilities: dict[str, bool] | None = None) -> tup
 	Yetenek tablosu verilmezse çalışma anında ölçülür. Hiçbir adım
 	desteklenmiyorsa boş demet döner — çağıran orijinali korumalıdır.
 	"""
-	zincir = FORMAT_CHAINS.get(sinif) or FORMAT_CHAINS[SINIF_PHOTO]
+	if sinif == LEGACY_SINIF_TEXT:
+		sinif = SINIF_DOCUMENT
+	# Boş animation zinciri geçerli bir sonuçtur; `or` kullanmak onu yanlışlıkla
+	# photo zincirine düşürürdü.
+	zincir = FORMAT_CHAINS.get(sinif, FORMAT_CHAINS[SINIF_PHOTO])
+	if not zincir:
+		return ()
+	return _supported_chain(zincir, capabilities)
+
+
+def safe_lossless_chain(capabilities: dict[str, bool] | None = None) -> tuple[FormatStep, ...]:
+	"""Düşük güvenli kararın Faz 6 güvenli zinciri: kayıpsız WebP → PNG."""
+	return _supported_chain(SAFE_LOSSLESS_CHAIN, capabilities)
+
+
+def _supported_chain(
+	zincir: tuple[FormatStep, ...],
+	capabilities: dict[str, bool] | None,
+) -> tuple[FormatStep, ...]:
+	"""Bir zinciri çalışma anındaki gerçek encoder yetenekleriyle süz."""
 	yet = capabilities if capabilities is not None else encoder_capabilities()
 	uygun: list[FormatStep] = []
 	for adim in zincir:
@@ -353,6 +413,91 @@ def _gradient_profile(gri) -> tuple[float, float, float]:
 	)
 
 
+def _bounded_native_sample(im, *, alpha: bool):
+	"""Büyük rasterdan tam-frame kopya kurmadan renk ve kenar örneği al.
+
+	`crop()` kaynak decoder'ı bir kez açabilir, fakat dönen karolar küçüktür;
+	RGBA→RGB/L dönüşümleri yalnız bu karolarda yapılır. Böylece 72 MP RGBA için
+	kaynağın yanında ikinci/üçüncü 291 MB raster tamponu oluşmaz.
+	"""
+	from PIL import Image
+
+	# `_tiles()` küçük bir eksen TILE_SIZE'dan darsa tüm görüntüyü döndürür;
+	# bu küçük görseller için doğrudur, fakat 32×2.250.000 gibi 72 MP ince bir
+	# rasterda yeniden tam-frame RGBA/RGB kopyasına yol açardı. Bounded yolda
+	# her iki eksenin karo boyutu ayrı sınırlandırılır.
+	W, H = im.size
+	karo_w = min(TILE_SIZE, W)
+	karo_h = min(TILE_SIZE, H)
+	karolar = []
+	for gy in range(TILE_GRID):
+		for gx in range(TILE_GRID):
+			cx = int((gx + 0.5) * W / TILE_GRID)
+			cy = int((gy + 0.5) * H / TILE_GRID)
+			x = max(0, min(W - karo_w, cx - karo_w // 2))
+			y = max(0, min(H - karo_h, cy - karo_h // 2))
+			karolar.append(im.crop((x, y, x + karo_w, y + karo_h)))
+	hucre = max(1, THUMB_BOX // TILE_GRID)
+	ornek = Image.new("RGB", (hucre * TILE_GRID, hucre * TILE_GRID), (255, 255, 255))
+	duz = yumusak = sert = 0
+	alfa_hist = [0] * 256 if alpha else None
+	try:
+		for i, karo in enumerate(karolar):
+			gri = _to_gray_on_white(karo)
+			try:
+				px = list(gri.getdata())
+				for y in range(gri.height):
+					satir = px[y * gri.width : (y + 1) * gri.width]
+					for x in range(len(satir) - 1):
+						fark = abs(satir[x] - satir[x + 1])
+						if fark == 0:
+							duz += 1
+						elif fark <= 8:
+							yumusak += 1
+						else:
+							sert += 1
+			finally:
+				if gri is not karo:
+					gri.close()
+
+			if alfa_hist is not None:
+				rgba = karo.convert("RGBA")
+				kanal = rgba.getchannel("A")
+				try:
+					for deger, adet in enumerate(kanal.histogram()):
+						alfa_hist[deger] += adet
+				finally:
+					kanal.close()
+					rgba.close()
+
+			rgb = _to_gray_on_white(karo, gri=False)
+			try:
+				rgb.thumbnail((hucre, hucre), Image.Resampling.BOX)
+				x = (i % TILE_GRID) * hucre + (hucre - rgb.width) // 2
+				y = (i // TILE_GRID) * hucre + (hucre - rgb.height) // 2
+				ornek.paste(rgb, (x, y))
+			finally:
+				if rgb is not karo:
+					rgb.close()
+	finally:
+		for karo in karolar:
+			if karo is not im:
+				karo.close()
+
+	sifirsiz = yumusak + sert
+	toplam = duz + sifirsiz
+	gradient = (
+		duz / toplam if toplam else 0.0,
+		yumusak / sifirsiz if sifirsiz else 0.0,
+		sert / sifirsiz if sifirsiz else 0.0,
+	)
+	alfa_oran = 0.0
+	if alfa_hist is not None:
+		t = sum(alfa_hist) or 1
+		alfa_oran = sum(alfa_hist[:250]) / t
+	return ornek, gradient, alfa_oran
+
+
 def extract_features(
 	src: bytes | bytearray | str | Path,
 	*,
@@ -361,16 +506,13 @@ def extract_features(
 	"""Görselden sınıflandırma ölçümlerini çıkar. İstisna ATMAZ.
 
 	Maliyet sınırı: JPEG'de `draft()` ile kodlayıcı zaten küçültülmüş çözer,
-	diğer biçimlerde `thumbnail` uygulanır. Düzlük/kenar ölçümü ise **ayrı**
-	ve native çözünürlükte yapılır (bkz. `_tiles`).
+	diğer küçük biçimlerde `thumbnail` uygulanır. 20 MP üstünde renk, alfa ve
+	kenar ölçümleri native küçük karolardan alınır; tam-frame renk kopyası yoktur.
 	"""
 	from PIL import Image, ImageFilter, ImageStat
 
-	# Görsel İKİ KEZ açılır ve ikisi de kapatılır. İki açılışın sebebi:
-	# düzlük ölçümü native çözünürlük ister, renk ölçümü ise `draft()` ile
-	# küçültülmüş çözüm ister — `draft()` geri alınamaz, aynı nesnede ikisi
-	# birden yapılamaz. Kapatma `with` ile garanti: uzun ömürlü işçi
-	# süreçte kapatılmayan her açılış bir dosya tanıtıcısı sızdırır.
+	bounded_rgb = None
+	bounded_alpha_oran = 0.0
 	with _open(src) as im:
 		kaynak_fmt = (im.format or "").upper()
 		kare = int(getattr(im, "n_frames", 1) or 1)
@@ -379,58 +521,109 @@ def extract_features(
 		alfa_var = mod in ("RGBA", "LA", "PA") or (mod == "P" and "transparency" in im.info)
 		kayipli = _kayipli_mi(kaynak_fmt, im)
 
-		# — düzlük/kenar: NATIVE çözünürlük, yeniden örnekleme YOK —
-		duz, yumusak, sert = _gradient_profile(_to_gray_on_white(im))
+		# Animation başlıktan kesindir. `skip_guard=True` çağrısında da pikselleri
+		# açmadan video yönlendirme kararına yetecek ölçüyü döndür.
+		if kare > 1:
+			return Features(
+				frame_count=kare,
+				has_alpha_channel=alfa_var,
+				source_format=kaynak_fmt or (probe.fmt if probe else ""),
+				lossy_source=kayipli,
+				width=W,
+				height=H,
+				mode=mod,
+			)
+
+		if (W * H) / 1_000_000.0 > BOUNDED_SAMPLE_MIN_MEGAPIXELS:
+			bounded_rgb, (duz, yumusak, sert), bounded_alpha_oran = _bounded_native_sample(
+				im, alpha=alfa_var
+			)
+		else:
+			# — düzlük/kenar: NATIVE çözünürlük, yeniden örnekleme YOK —
+			gri_native = _to_gray_on_white(im)
+			try:
+				duz, yumusak, sert = _gradient_profile(gri_native)
+			finally:
+				if gri_native is not im:
+					gri_native.close()
 
 	# — renk/doygunluk: küçültülmüş kopya —
-	with _open(src) as kucuk:
-		if kaynak_fmt == "JPEG":
-			kucuk.draft("RGB", (THUMB_BOX * 2, THUMB_BOX * 2))
-		alfa_oran = 0.0
-		if alfa_var:
-			kanal = kucuk.convert("RGBA").getchannel("A")
-			kanal.thumbnail((THUMB_BOX, THUMB_BOX), Image.BOX)
-			h = kanal.histogram()
-			t = sum(h) or 1
-			alfa_oran = sum(h[:250]) / t
-		rgb = _to_gray_on_white(kucuk, gri=False)
-		rgb.thumbnail((THUMB_BOX, THUMB_BOX), Image.BOX)
+	if bounded_rgb is not None:
+		rgb = bounded_rgb
+		alfa_oran = bounded_alpha_oran
+	else:
+		with _open(src) as kucuk:
+			if kaynak_fmt == "JPEG":
+				kucuk.draft("RGB", (THUMB_BOX * 2, THUMB_BOX * 2))
+			alfa_oran = 0.0
+			if alfa_var:
+				rgba = kucuk.convert("RGBA")
+				kanal = rgba.getchannel("A")
+				try:
+					kanal.thumbnail((THUMB_BOX, THUMB_BOX), Image.Resampling.BOX)
+					h = kanal.histogram()
+					t = sum(h) or 1
+					alfa_oran = sum(h[:250]) / t
+				finally:
+					kanal.close()
+					rgba.close()
+			rgb = _to_gray_on_white(kucuk, gri=False)
+			rgb.thumbnail((THUMB_BOX, THUMB_BOX), Image.Resampling.BOX)
 
-	n = rgb.width * rgb.height or 1
-	renkler = rgb.getcolors(maxcolors=n + 1) or []
-	benzersiz = len(renkler)
-	en_cok = max((c for c, _ in renkler), default=0) / n
-	nicel = rgb.point(lambda v: (v // 16) * 16)
-	nicel_sayi = len(nicel.getcolors(maxcolors=n + 1) or [])
+	try:
+		n = rgb.width * rgb.height or 1
+		renkler = rgb.getcolors(maxcolors=n + 1) or []
+		benzersiz = len(renkler)
+		en_cok = max((c for c, _ in renkler), default=0) / n
+		nicel = rgb.point(lambda v: (v // 16) * 16)
+		try:
+			nicel_sayi = len(nicel.getcolors(maxcolors=n + 1) or [])
+		finally:
+			nicel.close()
 
-	gri = rgb.convert("L")
-	gh = gri.histogram()
-	gt = sum(gh) or 1
-	bilevel = (sum(gh[:24]) + sum(gh[232:])) / gt
-	kenar = gri.filter(ImageFilter.FIND_EDGES).histogram()
-	kt = sum(kenar) or 1
-	kenar_yogunluk = sum(kenar[64:]) / kt
-	doygunluk = ImageStat.Stat(rgb.convert("HSV").getchannel("S")).mean[0]
+		gri = rgb.convert("L")
+		try:
+			gh = gri.histogram()
+			gt = sum(gh) or 1
+			bilevel = (sum(gh[:24]) + sum(gh[232:])) / gt
+			kenar_im = gri.filter(ImageFilter.FIND_EDGES)
+			try:
+				kenar = kenar_im.histogram()
+			finally:
+				kenar_im.close()
+		finally:
+			gri.close()
+		kt = sum(kenar) or 1
+		kenar_yogunluk = sum(kenar[64:]) / kt
+		hsv = rgb.convert("HSV")
+		saturation = hsv.getchannel("S")
+		try:
+			doygunluk = ImageStat.Stat(saturation).mean[0]
+		finally:
+			saturation.close()
+			hsv.close()
 
-	return Features(
-		frame_count=kare if kare > 0 else 1,
-		has_alpha_channel=alfa_var,
-		alpha_translucent_ratio=alfa_oran,
-		unique_colors=benzersiz,
-		quantized_colors=nicel_sayi,
-		top_color_share=en_cok,
-		flat_ratio=duz,
-		soft_edge_ratio=yumusak,
-		hard_edge_ratio=sert,
-		edge_density=kenar_yogunluk,
-		bilevel_ratio=bilevel,
-		saturation_mean=doygunluk,
-		source_format=kaynak_fmt or (probe.fmt if probe else ""),
-		lossy_source=kayipli,
-		width=W,
-		height=H,
-		mode=mod,
-	)
+		return Features(
+			frame_count=kare if kare > 0 else 1,
+			has_alpha_channel=alfa_var,
+			alpha_translucent_ratio=alfa_oran,
+			unique_colors=benzersiz,
+			quantized_colors=nicel_sayi,
+			top_color_share=en_cok,
+			flat_ratio=duz,
+			soft_edge_ratio=yumusak,
+			hard_edge_ratio=sert,
+			edge_density=kenar_yogunluk,
+			bilevel_ratio=bilevel,
+			saturation_mean=doygunluk,
+			source_format=kaynak_fmt or (probe.fmt if probe else ""),
+			lossy_source=kayipli,
+			width=W,
+			height=H,
+			mode=mod,
+		)
+	finally:
+		rgb.close()
 
 
 def _kayipli_mi(fmt: str, im) -> bool:
@@ -468,15 +661,11 @@ def _open(src):
 	"""Girdiyi Pillow ile aç — `with` ile kapatılabilir tek giriş noktası."""
 	from PIL import Image
 
-	if isinstance(src, (bytes, bytearray)):
+	if isinstance(src, bytes):
+		return Image.open(io.BytesIO(src))
+	if isinstance(src, bytearray):
 		return Image.open(io.BytesIO(bytes(src)))
 	return Image.open(str(src))
-
-
-def _as_bytes(src) -> bytes:
-	if isinstance(src, (bytes, bytearray)):
-		return bytes(src)
-	return Path(src).read_bytes()
 
 
 # ── Karar ───────────────────────────────────────────────────────────────
@@ -494,10 +683,31 @@ class Classification:
 	probe: HeaderProbe | None = None
 	measured: bool = True
 	error: str = ""
+	#: Köprünün işi hangi motora teslim edeceği. Animation için ``video``.
+	target_pipeline: str = PIPELINE_IMAGE
+	#: Köprü/idempotency sözleşmesi. Animation için ``video_from_animation``.
+	job_type: str = JOB_TYPE_IMAGE_RENDITION
 
 	@property
 	def ok(self) -> bool:
 		return not self.error
+
+	@property
+	def route_to_video(self) -> bool:
+		return self.target_pipeline == PIPELINE_VIDEO
+
+	@property
+	def safe_fallback(self) -> bool:
+		"""Düşük güven nedeniyle kayıpsız güvenli zincir seçildi mi."""
+		return self.ok and self.confidence == "low"
+
+	@property
+	def video_targets(self) -> tuple[tuple[str, str], ...]:
+		return ANIMATION_VIDEO_TARGETS if self.route_to_video else ()
+
+	@property
+	def poster_required(self) -> bool:
+		return self.route_to_video
 
 	def to_dict(self) -> dict:
 		return {
@@ -508,7 +718,24 @@ class Classification:
 			"chain": [a.to_dict() for a in self.chain],
 			"measured": self.measured,
 			"error": self.error,
+			"target_pipeline": self.target_pipeline,
+			"job_type": self.job_type,
+			"safe_fallback": self.safe_fallback,
+			"video_targets": [{"fmt": fmt, "codec": codec} for fmt, codec in self.video_targets],
+			"poster_required": self.poster_required,
 		}
+
+
+def routing_for_class(sinif: str) -> tuple[str, str]:
+	"""Köprü sözleşmesi: sınıf → (hedef hat, iş tipi).
+
+	Animasyonun görsel zinciri boş bırakılır ve kaynağın çok-kareli yapısı
+	bozulmadan video hattına teslim edilir. Diğer dört sınıf görsel rendition
+	işidir.
+	"""
+	if sinif == SINIF_ANIMATION:
+		return PIPELINE_VIDEO, JOB_TYPE_VIDEO_FROM_ANIMATION
+	return PIPELINE_IMAGE, JOB_TYPE_IMAGE_RENDITION
 
 
 def classify_features(f: Features) -> tuple[str, str, tuple[str, ...]]:
@@ -534,21 +761,21 @@ def classify_features(f: Features) -> tuple[str, str, tuple[str, ...]]:
 		# Alfa kanalı VAR ama tamamı opak — kesim değil. Sınıf düşmez, not düşülür.
 		gerekce.append("alpha_channel_present_but_opaque")
 
-	# 3 — metin/belge. ÖLÇÜLMEDİ: korpusta örnek yok, eşikler doğrulanmadı.
+	# 3 — raster belge: iki-tonlu ve yoğun yazı/çizgi kenarı.
 	if (
-		f.bilevel_ratio >= TEXT_BILEVEL_MIN
-		and f.edge_density >= TEXT_EDGE_DENSITY_MIN
-		and f.quantized_colors <= TEXT_QUANT_COLORS_MAX
-		and f.saturation_mean <= TEXT_SATURATION_MAX
+		f.bilevel_ratio >= DOCUMENT_BILEVEL_MIN
+		and f.edge_density >= DOCUMENT_EDGE_DENSITY_MIN
+		and f.quantized_colors <= DOCUMENT_QUANT_COLORS_MAX
+		and f.saturation_mean <= DOCUMENT_SATURATION_MAX
 	):
 		return (
-			SINIF_TEXT,
-			"low",
+			SINIF_DOCUMENT,
+			"high",
 			(
 				*gerekce,
-				f"bilevel_ratio={f.bilevel_ratio:.3f}>={TEXT_BILEVEL_MIN}",
-				f"edge_density={f.edge_density:.3f}>={TEXT_EDGE_DENSITY_MIN}",
-				"UNVALIDATED_THRESHOLDS",
+				f"bilevel_ratio={f.bilevel_ratio:.3f}>={DOCUMENT_BILEVEL_MIN}",
+				f"edge_density={f.edge_density:.3f}>={DOCUMENT_EDGE_DENSITY_MIN}",
+				f"quantized_colors={f.quantized_colors}<={DOCUMENT_QUANT_COLORS_MAX}",
 			),
 		)
 
@@ -583,7 +810,20 @@ def classify_features(f: Features) -> tuple[str, str, tuple[str, ...]]:
 			),
 		)
 
-	# 5 — varsayılan. Kanıt yoksa fotoğraf: yanılmanın ucuz yönü budur (7,86x).
+	# 5 — sürekli ton: çok ve nicelenmiş renk, fotoğraf için güçlü kanıt.
+	if f.unique_colors >= PHOTO_UNIQUE_COLORS_MIN and f.quantized_colors >= PHOTO_QUANT_COLORS_MIN:
+		return (
+			SINIF_PHOTO,
+			"high",
+			(
+				*gerekce,
+				f"unique_colors={f.unique_colors}>={PHOTO_UNIQUE_COLORS_MIN}",
+				f"quantized_colors={f.quantized_colors}>={PHOTO_QUANT_COLORS_MIN}",
+			),
+		)
+
+	# 6 — sınıf etiketi varsayılan photo kalır; düşük güvenli çıktı zinciri
+	# aşağıda kayıpsız tarafa çevrilir (Faz 6 güvenli belirsizlik kuralı).
 	return SINIF_PHOTO, "low", (*gerekce, "default_photo")
 
 
@@ -591,7 +831,7 @@ def classify(
 	src: bytes | bytearray | str | Path,
 	*,
 	filename: str = "",
-	guard: GuardConfig = DEFAULT_GUARD,
+	guard: GuardConfig = CLASSIFY_GUARD,
 	skip_guard: bool = False,
 	capabilities: dict[str, bool] | None = None,
 ) -> Classification:
@@ -612,6 +852,17 @@ def classify(
 				measured=False,
 				error=p.codes[0],
 			)
+		if p.animated or p.frame_count > 1:
+			hedef_hat, is_tipi = routing_for_class(SINIF_ANIMATION)
+			return Classification(
+				klass=SINIF_ANIMATION,
+				confidence="exact",
+				reasons=(f"frame_count={p.frame_count}", "header_only_route"),
+				probe=p,
+				measured=True,
+				target_pipeline=hedef_hat,
+				job_type=is_tipi,
+			)
 
 	try:
 		f = extract_features(src, probe=p)
@@ -626,12 +877,16 @@ def classify(
 		)
 
 	sinif, guven, gerekce = classify_features(f)
+	hedef_hat, is_tipi = routing_for_class(sinif)
+	zincir = safe_lossless_chain(capabilities) if guven == "low" else format_chain(sinif, capabilities)
 	return Classification(
 		klass=sinif,
 		confidence=guven,
 		reasons=gerekce,
 		features=f,
-		chain=format_chain(sinif, capabilities),
+		chain=zincir,
 		probe=p,
-		measured=(sinif != SINIF_TEXT or TEXT_OLCULDU),
+		measured=(sinif != SINIF_DOCUMENT or DOCUMENT_OLCULDU),
+		target_pipeline=hedef_hat,
+		job_type=is_tipi,
 	)

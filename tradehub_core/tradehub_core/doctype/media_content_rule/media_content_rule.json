@@ -1,0 +1,24 @@
+{
+ "actions": [],
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": ["rule_id", "metric", "comparator", "threshold", "action", "severity", "message_key", "measured_on", "source"],
+ "fields": [
+  {"fieldname":"rule_id","fieldtype":"Data","label":"Kural","reqd":1,"length":64,"in_list_view":1},
+  {"fieldname":"metric","fieldtype":"Data","label":"Metrik","length":64,"in_list_view":1},
+  {"fieldname":"comparator","fieldtype":"Select","label":"Karşılaştırıcı","options":"lt\nlte\ngt\ngte\neq\nneq\nbetween\noutside\ninside\npad_to","in_list_view":1},
+  {"fieldname":"threshold","fieldtype":"JSON","label":"Eşik","in_list_view":1},
+  {"fieldname":"action","fieldtype":"Select","label":"Aksiyon","options":"pass\nignore\nwarn\nauto_fix\nreview\nmanual_review\nreject","default":"warn","in_list_view":1},
+  {"fieldname":"severity","fieldtype":"Select","label":"Ağırlık","options":"info\nwarn\nreview\nreject","default":"warn"},
+  {"fieldname":"message_key","fieldtype":"Data","label":"Mesaj Anahtarı","length":64},
+  {"fieldname":"measured_on","fieldtype":"Data","label":"Ölçüm Kaynağı","length":140},
+  {"fieldname":"source","fieldtype":"Small Text","label":"Kaynak"}
+ ],
+ "index_web_pages_for_search": 0,
+ "istable": 1,
+ "links": [],
+ "module": "Tradehub Core",
+ "name": "Media Content Rule",
+ "permissions": []
+}

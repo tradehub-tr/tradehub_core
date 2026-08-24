@@ -120,6 +120,14 @@ except Exception:  # pragma: no cover
 	_resource = None  # type: ignore[assignment]
 	RESOURCE_AVAILABLE = False
 
+try:  # psutil Frappe imajında var; yalın test ortamında opsiyoneldir.
+	import psutil as _psutil
+
+	PSUTIL_AVAILABLE: bool = True
+except Exception:  # pragma: no cover - minimal host ortamı
+	_psutil = None  # type: ignore[assignment]
+	PSUTIL_AVAILABLE = False
+
 FORK_AVAILABLE: bool = hasattr(os, "fork")
 
 # ── Sebep kodları ───────────────────────────────────────────────────────
@@ -143,6 +151,7 @@ SEBEP_EXCEPTION: str = "isolation_exception"
 SEBEP_SPAWN_FAILED: str = "isolation_spawn_failed"
 SEBEP_OUTPUT_TOO_LARGE: str = "isolation_output_too_large"
 SEBEP_UNSUPPORTED: str = "isolation_unsupported"
+SEBEP_CANCELLED: str = "isolation_cancelled"
 
 RETRYABLE_SEBEPLER: frozenset = frozenset(
 	{SEBEP_TIMEOUT, SEBEP_KILLED, SEBEP_SPAWN_FAILED}
@@ -185,6 +194,11 @@ class Limits:
 	cpu_seconds: Optional[int] = 45
 	#: RLIMIT_AS (bayt). Dekompresyon bombasının tek gerçek durdurucusu.
 	address_space_bytes: Optional[int] = _mb(1536)
+	#: Süreç ağacının gerçek yerleşik bellek (RSS) tavanı. ``RLIMIT_AS`` sanal
+	#: eşlemeleri de saydığı için statik ffmpeg derlemelerinde gerçek bellekten
+	#: çok önce yanlış pozitif üretebilir; harici video süreçleri bu gözetimle
+	#: fiziksel bellek üzerinden durdurulur. psutil yoksa uygulanamaz.
+	resident_memory_bytes: Optional[int] = None
 	#: RLIMIT_FSIZE (bayt). Diski dolduran çıktıya karşı.
 	file_size_bytes: Optional[int] = _mb(512)
 	#: RLIMIT_NOFILE. fd sızdıran ikiliye karşı.
@@ -246,9 +260,17 @@ PROBE_LIMITS: Limits = Limits(
 #: paralel çekirdek kullanımı da böylece kendiliğinden sınırlanır.
 VIDEO_LIMITS: Limits = Limits(
 	wall_timeout_s=float(FFMPEG_TIMEOUT_SECONDS),
-	cpu_seconds=FFMPEG_TIMEOUT_SECONDS,
-	address_space_bytes=_mb(3072),
-	file_size_bytes=_mb(2048),
+	# RQ tavanından önce çocuk kendini durdursun; ebeveynin sonucu kaydetmesi
+	# için 50 saniye pay kalır.
+	cpu_seconds=max(1, FFMPEG_TIMEOUT_SECONDS - 50),
+	# Statik ffmpeg 8.x, 720p H.264 koşumunda yalnız ~415 MiB RSS kullanırken
+	# 1,5 GiB'den fazla SANAL alan eşliyor. 1,25 GiB RLIMIT_AS bu yüzden çalışan
+	# kodlayıcıyı yanlışlıkla kesiyordu. Fiziksel tavan aşağıdaki RSS watchdog
+	# ile 1,25 GiB; ayrık worker ayrıca 1,5 GiB cgroup altında. RLIMIT_AS yalnız
+	# runaway sanal eşlemeye karşı geniş ikinci emniyet kemeri olarak kalır.
+	address_space_bytes=_mb(4096),
+	resident_memory_bytes=_mb(1280),
+	file_size_bytes=_mb(512),
 	max_output_bytes=_mb(4),
 )
 
@@ -288,6 +310,11 @@ class IsolationResult:
 	limits_applied: List[str] = field(default_factory=list)
 	#: Sınır uygulanamadıysa ya da çıktı kırpıldıysa buraya yazılır.
 	uyarilar: List[str] = field(default_factory=list)
+	#: Alt süreç ağacının örneklenmiş tepe RSS'i. psutil yoksa/iş çok kısaysa 0.
+	peak_rss_bytes: int = 0
+	#: Alt süreç ağacının son görülen kullanıcı/sistem CPU zamanı.
+	cpu_user_s: float = 0.0
+	cpu_system_s: float = 0.0
 
 	@property
 	def retryable(self) -> bool:
@@ -297,6 +324,10 @@ class IsolationResult:
 	@property
 	def timed_out(self) -> bool:
 		return self.sebep == SEBEP_TIMEOUT
+
+	@property
+	def cancelled(self) -> bool:
+		return self.sebep == SEBEP_CANCELLED
 
 	def to_dict(self) -> Dict[str, Any]:
 		"""Log/metrik için düz sözlük — ham çıktı DEĞİL, yalnız uzunluğu.
@@ -316,6 +347,9 @@ class IsolationResult:
 			"retryable": self.retryable,
 			"limits_applied": list(self.limits_applied),
 			"warnings": list(self.uyarilar),
+			"peak_rss_bytes": self.peak_rss_bytes,
+			"cpu_user_s": round(self.cpu_user_s, 4),
+			"cpu_system_s": round(self.cpu_system_s, 4),
 		}
 
 
@@ -414,8 +448,46 @@ def limit_preexec(limits: Limits) -> Callable[[], None]:
 # ── Harici süreç ────────────────────────────────────────────────────────
 
 
+def _torun_pidleri(pid: int) -> List[int]:
+	"""Sinyal öncesi bilinen torun pid'leri; psutil yoksa boş liste."""
+	if not PSUTIL_AVAILABLE:
+		return []
+	try:
+		return [int(p.pid) for p in _psutil.Process(pid).children(recursive=True)]
+	except Exception:
+		return []
+
+
+def _evlat_edinilenleri_topla(pidler: Sequence[int]) -> None:
+	"""Subreaper/PID namespace altında bize kalan bilinen torunları reap et.
+
+	Normal Linux'ta öksüz torunu PID 1 toplar ve ``waitpid`` ChildProcessError
+	döner. Bazı container giriş süreçlerinde çağıran süreç subreaper olur;
+	o zaman öldürülen torun bize evlat edinilir ve açıkça toplanmazsa zombi
+	kalır. Yalnız sinyal öncesi gördüğümüz pid'lere dokunulur; worker'ın başka
+	bir çocuğunu yanlışlıkla reap etmek için ``waitpid(-1)`` kullanılmaz.
+	"""
+	bekleyen = set(int(p) for p in pidler if int(p) > 0)
+	son = time.monotonic() + 0.5
+	while bekleyen and time.monotonic() < son:
+		for cocuk in tuple(bekleyen):
+			try:
+				bitti, _ = os.waitpid(cocuk, os.WNOHANG)
+			except ChildProcessError:
+				bekleyen.discard(cocuk)
+				continue
+			except Exception:
+				bekleyen.discard(cocuk)
+				continue
+			if bitti == cocuk:
+				bekleyen.discard(cocuk)
+		if bekleyen:
+			time.sleep(0.01)
+
+
 def _oldur(pid: int, *, grup: bool = True) -> None:
-	"""SIGTERM → bekle → SIGKILL. Zaten ölmüşse sessizce geçer."""
+	"""SIGTERM → bekle → SIGKILL; bilinen torun zombilerini de topla."""
+	torunlar = _torun_pidleri(pid) if grup else []
 	for sig, bekle in ((signal.SIGTERM, TERM_GRACE_SECONDS), (signal.SIGKILL, 0.0)):
 		try:
 			if grup:
@@ -423,16 +495,20 @@ def _oldur(pid: int, *, grup: bool = True) -> None:
 			else:
 				os.kill(pid, sig)
 		except Exception:
+			_evlat_edinilenleri_topla(torunlar)
 			return
 		if bekle <= 0:
+			_evlat_edinilenleri_topla(torunlar)
 			return
 		son = time.monotonic() + bekle
 		while time.monotonic() < son:
 			try:
 				bitti, _ = os.waitpid(pid, os.WNOHANG)
 			except Exception:
+				_evlat_edinilenleri_topla(torunlar)
 				return
 			if bitti == pid:
+				_evlat_edinilenleri_topla(torunlar)
 				return
 			time.sleep(0.05)
 
@@ -456,6 +532,70 @@ def _sinifla(exit_code: Optional[int], signal_no: Optional[int], zaman_asimi: bo
 	return SEBEP_OK
 
 
+def _process_tree_usage(pid: int) -> Tuple[int, float, float]:
+	"""Süreç + yaşayan çocuklarının ``(RSS, user CPU, system CPU)`` ölçüsü.
+
+	Ölçüm best-effort'tur: süreç iki örnek arasında bitebilir veya psutil yalın
+	test ortamında kurulu olmayabilir. Kaynak *limiti* rlimit tarafından yine
+	uygulanır; burada toplanan değer yalnız T-075 rapor/benchmark künyesidir.
+	"""
+	if not PSUTIL_AVAILABLE:
+		return (0, 0.0, 0.0)
+	try:
+		kok = _psutil.Process(pid)
+		surecler = [kok, *kok.children(recursive=True)]
+	except Exception:
+		return (0, 0.0, 0.0)
+	rss = 0
+	user = 0.0
+	system = 0.0
+	for surec in surecler:
+		try:
+			rss += int(surec.memory_info().rss)
+			cpu = surec.cpu_times()
+			user += float(cpu.user)
+			system += float(cpu.system)
+		except Exception:
+			continue
+	return (rss, user, system)
+
+
+def _emit_progress(
+	data: bytes,
+	*,
+	offset: int,
+	state: Dict[str, str],
+	callback: Optional[Callable[[Mapping[str, str]], None]],
+) -> int:
+	"""ffmpeg ``-progress pipe:1`` satırlarını artımlı bildir.
+
+	``subprocess.TimeoutExpired.output`` o ana kadarki çıktının TAMAMINI taşır;
+	``offset`` aynı satırı her poll'da ikinci kez bildirmemeyi sağlar. Yarım
+	satır bir sonraki örneğe bırakılır. Callback hatası medya işini düşürmez.
+	"""
+	if callback is None or offset >= len(data):
+		return offset
+	son_yeni_satir = data.rfind(b"\n", offset)
+	if son_yeni_satir < offset:
+		return offset
+	parca = data[offset : son_yeni_satir + 1]
+	for ham in parca.splitlines():
+		if b"=" not in ham:
+			continue
+		anahtar, deger = ham.split(b"=", 1)
+		ad = anahtar.decode("utf-8", "replace").strip()
+		if not ad:
+			continue
+		state[ad] = deger.decode("utf-8", "replace").strip()
+		if ad == "progress":
+			try:
+				callback(dict(state))
+			except Exception:
+				pass
+			state.clear()
+	return son_yeni_satir + 1
+
+
 def run_command(
 	argv: Sequence[str],
 	*,
@@ -464,6 +604,9 @@ def run_command(
 	env: Optional[Mapping[str, str]] = None,
 	cwd: Optional[str] = None,
 	use_preexec: bool = True,
+	progress_callback: Optional[Callable[[Mapping[str, str]], None]] = None,
+	cancel_check: Optional[Callable[[], bool]] = None,
+	poll_interval_s: float = 0.25,
 ) -> IsolationResult:
 	"""Harici ikiliyi rlimit + süreç grubu izolasyonunda çalıştır.
 
@@ -477,6 +620,8 @@ def run_command(
 	"""
 	baslangic = time.monotonic()
 	uyarilar: List[str] = []
+	if limits.resident_memory_bytes is not None and not PSUTIL_AVAILABLE:
+		uyarilar.append("rss_watchdog_psutil_yok")
 	if not argv:
 		return IsolationResult(
 			ok=False, sebep=SEBEP_SPAWN_FAILED, uyarilar=["bos_komut"], duration_ms=0
@@ -510,15 +655,77 @@ def run_command(
 		)
 
 	zaman_asimi = False
+	iptal = False
+	bellek_asimi = False
+	out = b""
+	err = b""
+	girdi = stdin_data
+	son_tarih = baslangic + max(float(limits.wall_timeout_s), 0.001)
+	progress_offset = 0
+	progress_state: Dict[str, str] = {}
+	peak_rss = 0
+	cpu_user = 0.0
+	cpu_system = 0.0
 	try:
-		out, err = surec.communicate(input=stdin_data, timeout=limits.wall_timeout_s)
-	except subprocess.TimeoutExpired:
-		zaman_asimi = True
-		_oldur(surec.pid, grup=True)
-		try:
-			out, err = surec.communicate(timeout=TERM_GRACE_SECONDS + 2)
-		except Exception:
-			out, err = b"", b""
+		while True:
+			kalan = son_tarih - time.monotonic()
+			if kalan <= 0:
+				zaman_asimi = True
+				_oldur(surec.pid, grup=True)
+				break
+			try:
+				out, err = surec.communicate(
+					input=girdi,
+					timeout=min(max(float(poll_interval_s), 0.05), kalan),
+				)
+				girdi = None
+				rss, user, system = _process_tree_usage(surec.pid)
+				peak_rss = max(peak_rss, rss)
+				cpu_user = max(cpu_user, user)
+				cpu_system = max(cpu_system, system)
+				progress_offset = _emit_progress(
+					out or b"",
+					offset=progress_offset,
+					state=progress_state,
+					callback=progress_callback,
+				)
+				break
+			except subprocess.TimeoutExpired as exc:
+				# communicate() yeniden çağrılabilir; input yalnız ilk çağrıda verilir.
+				girdi = None
+				ara_out = exc.output or b""
+				progress_offset = _emit_progress(
+					ara_out,
+					offset=progress_offset,
+					state=progress_state,
+					callback=progress_callback,
+				)
+				rss, user, system = _process_tree_usage(surec.pid)
+				peak_rss = max(peak_rss, rss)
+				cpu_user = max(cpu_user, user)
+				cpu_system = max(cpu_system, system)
+				if (
+					limits.resident_memory_bytes is not None
+					and PSUTIL_AVAILABLE
+					and rss > int(limits.resident_memory_bytes)
+				):
+					bellek_asimi = True
+					_oldur(surec.pid, grup=True)
+					break
+				if cancel_check is not None:
+					try:
+						iptal = bool(cancel_check())
+					except Exception:
+						uyarilar.append("cancel_check_hatasi")
+						iptal = False
+					if iptal:
+						_oldur(surec.pid, grup=True)
+						break
+		if zaman_asimi or iptal or bellek_asimi:
+			try:
+				out, err = surec.communicate(timeout=TERM_GRACE_SECONDS + 2)
+			except Exception:
+				out, err = out or b"", err or b""
 	except Exception as exc:
 		_oldur(surec.pid, grup=True)
 		return IsolationResult(
@@ -527,6 +734,9 @@ def run_command(
 			duration_ms=int((time.monotonic() - baslangic) * 1000),
 			exception={"type": type(exc).__name__, "message": str(exc)[:300]},
 			uyarilar=uyarilar,
+			peak_rss_bytes=peak_rss,
+			cpu_user_s=cpu_user,
+			cpu_system_s=cpu_system,
 		)
 
 	out = out or b""
@@ -541,7 +751,11 @@ def run_command(
 	rc = surec.returncode
 	sinyal = -rc if (rc is not None and rc < 0) else None
 	kod = rc if (rc is not None and rc >= 0) else None
-	sebep = _sinifla(kod, sinyal, zaman_asimi)
+	sebep = (
+		SEBEP_MEMORY
+		if bellek_asimi
+		else (SEBEP_CANCELLED if iptal else _sinifla(kod, sinyal, zaman_asimi))
+	)
 
 	# ffmpeg/Pillow bellek sınırına çarptığında sinyal DEĞİL, hata metniyle
 	# çıkar. Metinden sınıflandırmak kırılgan olurdu ama `SEBEP_EXIT`'i
@@ -558,14 +772,21 @@ def run_command(
 		duration_ms=int((time.monotonic() - baslangic) * 1000),
 		stdout=out,
 		stderr=err,
-		limits_applied=(_rlimit_adlari(limits) if pre is not None else []),
+		limits_applied=(
+			(_rlimit_adlari(limits) if pre is not None else [])
+			+ (["RSS_WATCHDOG"] if limits.resident_memory_bytes is not None and PSUTIL_AVAILABLE else [])
+		),
 		uyarilar=uyarilar,
+		peak_rss_bytes=peak_rss,
+		cpu_user_s=cpu_user,
+		cpu_system_s=cpu_system,
 	)
 
 
 _BELLEK_IMLERI: Tuple[bytes, ...] = (
 	b"cannot allocate memory",
 	b"out of memory",
+	b"malloc of size",
 	b"memoryerror",
 	b"std::bad_alloc",
 	b"virtual memory exhausted",
@@ -878,10 +1099,12 @@ __all__ = [
 	"IMAGE_LIMITS",
 	"PROBE_LIMITS",
 	"PROFILLER",
+	"PSUTIL_AVAILABLE",
 	"RESOURCE_AVAILABLE",
 	"RETRYABLE_SEBEPLER",
 	"SCAN_LIMITS",
 	"SEBEP_CPU",
+	"SEBEP_CANCELLED",
 	"SEBEP_EXCEPTION",
 	"SEBEP_EXIT",
 	"SEBEP_KILLED",

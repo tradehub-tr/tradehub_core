@@ -36,8 +36,10 @@ from tradehub_core.media import (
 	inventory,
 	metadata,
 	ownership,
+	pipeline_bridge,
 	seller_backup,
 	seller_backup_export,
+	timefmt,
 	transcode,
 	upload_policy,
 	usage,
@@ -46,6 +48,7 @@ from tradehub_core.media import seller_media as islem
 
 # Tek istekte işlenebilecek azami dosya — kazara "hepsini" tetiklemeye karşı.
 MAX_BATCH: int = 200
+MAX_REPROCESS_BATCH: int = 500
 
 
 def _store() -> str:
@@ -259,6 +262,302 @@ def get_my_usage(file_url: str) -> dict:
 	return usage.resolve(file_url, store=store)
 
 
+_HISTORY_LIMIT: int = 50
+
+
+def _safe_audit_history(rows: list[dict]) -> list[dict]:
+	"""Denetim satırını satıcının görebileceği küçük sözleşmeye indir.
+
+	Authorization Decision Log satırında IP, ham bağlam ve aktör e-postası da
+	bulunur. Bunlar platform içi ayrıntılardır; dosyanın sahibine işlem
+	zamanını/sonucunu göstermek için gerekli değildir. Geçmiş ekranı tam olay
+	dizisini gösterir, fakat bu hassas alanları taşımaz.
+	"""
+	izinli = ("name", "timestamp", "action", "decision", "severity", "actor_name")
+	return [{alan: satir.get(alan) for alan in izinli if satir.get(alan) not in (None, "")} for satir in rows]
+
+
+@frappe.whitelist(methods=["GET"])
+def get_my_media_history(file_url: str) -> dict:
+	"""Bir dosyanın sürüm, işleme ve denetim geçmişi — yalnız sahibi için.
+
+	Sahiplik önce ``File`` adresinde, sonra ``Media Asset.owner_seller``
+	üzerinden ikinci kez zorlanır. Aynı URL'ye bağlı birden fazla ``File`` ve
+	asset olabilir; hiçbir sorgu yalnız URL'ye güvenerek kiracı sınırını aşmaz.
+	İşlerin ``error_trace`` alanı ve denetimin IP/ham bağlamı özellikle dışarı
+	verilmez.
+	"""
+	store = _store()
+	url = str(file_url or "").split("?", 1)[0].strip()
+	if not url:
+		frappe.throw(frappe._("Dosya adresi zorunlu."))
+	ownership.assert_owns(store, url)
+
+	file_names = frappe.get_all("File", filters={"file_url": url}, pluck="name")
+	assets = (
+		frappe.get_all(
+			"Media Asset",
+			filters={"owner_seller": store, "source_file": ["in", file_names]},
+			fields=["name", "media_type", "state", "source_file", "creation"],
+			order_by="creation desc",
+			limit_page_length=0,
+		)
+		if file_names
+		else []
+	)
+	asset_names = [row["name"] for row in assets]
+
+	versions: list[dict] = []
+	jobs: list[dict] = []
+	version_total = 0
+	job_total = 0
+	if asset_names:
+		asset_filter = {"asset": ["in", asset_names]}
+		version_total = frappe.db.count("Media Version", asset_filter)
+		job_total = frappe.db.count("Media Processing Job", asset_filter)
+		versions = frappe.get_all(
+			"Media Version",
+			filters=asset_filter,
+			fields=[
+				"name",
+				"asset",
+				"version_hash",
+				"is_active",
+				"width",
+				"height",
+				"dpi",
+				"colorspace",
+				"classification",
+				"engine_version",
+				"created_at",
+				"creation",
+			],
+			order_by="creation desc",
+			limit_page_length=_HISTORY_LIMIT,
+		)
+		jobs = frappe.get_all(
+			"Media Processing Job",
+			filters=asset_filter,
+			fields=[
+				"name",
+				"asset",
+				"job_type",
+				"queue",
+				"status",
+				"attempt",
+				"started_at",
+				"finished_at",
+				"duration_ms",
+				"error_code",
+				"creation",
+			],
+			order_by="creation desc",
+			limit_page_length=_HISTORY_LIMIT,
+		)
+
+	audit_result = audit.list_events(
+		file_url=url,
+		tenant=store,
+		page=1,
+		page_size=_HISTORY_LIMIT,
+		sort_by="timestamp",
+		sort_dir="desc",
+	)
+	timefmt.apply_all(assets)
+	timefmt.apply_all(versions)
+	timefmt.apply_all(jobs)
+	return {
+		"file_url": url,
+		"assets": assets,
+		"versions": versions,
+		"jobs": jobs,
+		"audit": _safe_audit_history(audit_result.get("items") or []),
+		"totals": {
+			"assets": len(assets),
+			"versions": version_total,
+			"jobs": job_total,
+			"audit": int(audit_result.get("total") or 0),
+		},
+		"truncated": {
+			"versions": version_total > _HISTORY_LIMIT,
+			"jobs": job_total > _HISTORY_LIMIT,
+			"audit": int(audit_result.get("total") or 0) > _HISTORY_LIMIT,
+		},
+	}
+
+
+def _reprocess_urls(file_urls: str | list[str] | None) -> list[str]:
+	"""Toplu yeniden işleme girdisi — sıralı, tekil ve en çok 500 URL."""
+	try:
+		raw = frappe.parse_json(file_urls) if isinstance(file_urls, str) else (file_urls or [])
+	except Exception:
+		frappe.throw(frappe._("Dosya listesi okunamadı."))
+	if not isinstance(raw, list):
+		frappe.throw(frappe._("Dosya listesi bir dizi olmalıdır."))
+	urls = list(
+		dict.fromkeys(str(url or "").split("?", 1)[0].strip() for url in raw if str(url or "").strip())
+	)
+	if len(urls) > MAX_REPROCESS_BATCH:
+		frappe.throw(
+			frappe._("Tek seferde en çok {0} medya yeniden işlenebilir.").format(
+				MAX_REPROCESS_BATCH
+			)
+		)
+	return urls
+
+
+def _seller_reprocess_meta_key(token: str) -> str:
+	return f"media:seller-reprocess:{token}:meta"
+
+
+def _save_seller_reprocess_meta(token: str, meta: dict) -> None:
+	frappe.cache().set_value(
+		_seller_reprocess_meta_key(token),
+		frappe.as_json(meta),
+		expires_in_sec=pipeline_bridge.BULK_STATUS_SECONDS,
+	)
+
+
+def _read_seller_reprocess_meta(token: str, store: str) -> dict:
+	raw = frappe.cache().get_value(_seller_reprocess_meta_key(str(token)), expires=True)
+	if isinstance(raw, bytes):
+		raw = raw.decode("utf-8", "replace")
+	try:
+		meta = frappe.parse_json(raw) if raw else {}
+	except Exception:
+		meta = {}
+	# Token rastgele olsa da tek başına yetki değildir. Yanlış mağaza ile
+	# bilinmeyen token aynı "yok" cevabına iner; işin varlığı sızmaz.
+	if not isinstance(meta, dict) or meta.get("store") != store:
+		frappe.throw(frappe._("Yeniden işleme işi bulunamadı."), frappe.DoesNotExistError)
+	return meta
+
+
+def _seller_reprocess_response(token: str, meta: dict) -> dict:
+	status = pipeline_bridge.policy_reprocess_status(token)
+	asset_to_url = meta.get("asset_to_url") or {}
+	preflight = list(meta.get("preflight_failures") or [])
+	worker_failures: list[dict] = []
+	for row in status.get("failures") or []:
+		url = asset_to_url.get(str(row.get("asset") or ""))
+		if url:
+			worker_failures.append(
+				{
+					"file_url": url,
+					"error_code": "processing_failed",
+					"error": frappe._("Yeniden işleme başarısız."),
+				}
+			)
+
+	queued_total = int(status.get("total") or 0)
+	processed = int(status.get("processed") or 0)
+	worker_failed = int(status.get("failed") or 0)
+	return {
+		"token": token,
+		"status": status.get("status") or "unknown",
+		"requested": int(meta.get("requested") or 0),
+		"queued": queued_total,
+		"total": queued_total + len(preflight),
+		"processed": processed + len(preflight),
+		"succeeded": max(0, processed - worker_failed),
+		"failed": worker_failed + len(preflight),
+		"failures": preflight + worker_failures,
+		"skipped": int(meta.get("skipped") or 0),
+		"cancelled": bool(status.get("cancelled")),
+	}
+
+
+@frappe.whitelist(methods=["POST"])
+def start_media_reprocess(file_urls: str | list[str] | None = None) -> dict:
+	"""En çok 500 satıcı varlığını ayrı düşük-öncelikli işlere dağıt.
+
+	URL'ler önce toplu sahiplik süzgecinden, sonra ``Media Asset.owner_seller``
+	kemerinden geçer. Bir dosyanın başka mağazaya ait asset'i aynı kaynağı
+	kullansa bile bu koşuma giremez.
+	"""
+	store = _store()
+	urls = _reprocess_urls(file_urls)
+	owned = ownership.owned_urls(store, urls)
+	skipped = len(urls) - len(owned)
+
+	files = (
+		frappe.get_all(
+			"File",
+			filters={"file_url": ["in", sorted(owned)]},
+			fields=["name", "file_url"],
+			limit_page_length=0,
+		)
+		if owned
+		else []
+	)
+	file_to_url = {str(row["name"]): str(row["file_url"]) for row in files}
+	assets = (
+		frappe.get_all(
+			"Media Asset",
+			filters={
+				"owner_seller": store,
+				"media_type": "image",
+				"source_file": ["in", sorted(file_to_url)],
+			},
+			fields=["name", "source_file"],
+			limit_page_length=0,
+		)
+		if file_to_url
+		else []
+	)
+	asset_names = list(dict.fromkeys(str(row["name"]) for row in assets))
+	if len(asset_names) > MAX_REPROCESS_BATCH:
+		frappe.throw(
+			frappe._("Seçim {0} varlıktan fazlasına bağlanıyor; seçimi daraltın.").format(
+				MAX_REPROCESS_BATCH
+			)
+		)
+	asset_to_url = {
+		str(row["name"]): file_to_url.get(str(row.get("source_file") or ""), "")
+		for row in assets
+	}
+	mapped_urls = {url for url in asset_to_url.values() if url}
+	preflight_failures = [
+		{
+			"file_url": url,
+			"error_code": "image_asset_missing",
+			"error": frappe._("İşlenebilir görsel varlığı bulunamadı."),
+		}
+		for url in sorted(owned - mapped_urls)
+	]
+
+	queued = pipeline_bridge.enqueue_policy_reprocess(
+		asset_names,
+		limit=MAX_REPROCESS_BATCH,
+		rate_per_minute=60,
+	)
+	token = str(queued["token"])
+	meta = {
+		"store": store,
+		"requested": len(urls),
+		"skipped": skipped,
+		"preflight_failures": preflight_failures,
+		"asset_to_url": asset_to_url,
+	}
+	_save_seller_reprocess_meta(token, meta)
+	return _seller_reprocess_response(token, meta)
+
+
+@frappe.whitelist(methods=["GET"])
+def get_media_reprocess_status(token: str) -> dict:
+	store = _store()
+	meta = _read_seller_reprocess_meta(token, store)
+	return _seller_reprocess_response(str(token), meta)
+
+
+@frappe.whitelist(methods=["POST"])
+def cancel_media_reprocess(token: str) -> dict:
+	store = _store()
+	meta = _read_seller_reprocess_meta(token, store)
+	pipeline_bridge.cancel_policy_reprocess(str(token))
+	return _seller_reprocess_response(str(token), meta)
+
+
 @frappe.whitelist()
 def list_orphans(days_unused: int = 30, start: int = 0, page_length: int = 50) -> dict:
 	"""ÖKSÜZ dosyalarım — hiçbir taranan kaynak alanda geçmeyen ve
@@ -424,7 +723,12 @@ IMAGE_TO_WEBP_EXTENSIONS: frozenset[str] = frozenset(
 
 
 @frappe.whitelist()
-def upload_media(file_name: str = "", content: str = "", slot: str = "") -> dict:
+def upload_media(
+	file_name: str = "",
+	content: str = "",
+	slot: str = "",
+	client_report: str | dict | None = None,
+) -> dict:
 	"""Satıcı kütüphanesine dosya yükle.
 
 	Frappe'nin genel yükleme ucu yerine bu uç kullanılıyor, çünkü orada bu
@@ -449,10 +753,57 @@ def upload_media(file_name: str = "", content: str = "", slot: str = "") -> dict
 			upload_policy.CONTENT_UNREADABLE, frappe._("Dosya içeriği okunamadı.")
 		)
 
-	return _kaydet(file_name, icerik, store, via="seller_library", slot=slot)
+	return _kaydet(
+		file_name,
+		icerik,
+		store,
+		via="seller_library",
+		slot=slot,
+		client_report=client_report,
+	)
 
 
-def _kaydet(file_name: str, icerik: bytes, store: str, *, via: str, slot: str = "") -> dict:
+def _client_telemetry(raw: str | dict | None) -> dict:
+	"""İstemci ölçümünü yalnız telemetriye uygun küçük bir kümeye indir.
+
+	Bu veri politika kararına HİÇ GİRMEZ. Boyut/tür/geometri sunucuda yeniden
+	ölçülür; istemci raporuna güvenmek kapıyı bir JSON alanıyla atlatmak olurdu.
+	"""
+	try:
+		veri = frappe.parse_json(raw) if isinstance(raw, str) else (raw or {})
+	except Exception:
+		return {}
+	if not isinstance(veri, dict):
+		return {}
+	izinli = {
+		"width",
+		"height",
+		"duration_s",
+		"mime",
+		"device_class",
+		"connection",
+		"compression",
+		"client_sha256",
+	}
+	cikti: dict = {}
+	for anahtar in izinli:
+		deger = veri.get(anahtar)
+		if isinstance(deger, (int, float, bool)):
+			cikti[anahtar] = deger
+		elif isinstance(deger, str):
+			cikti[anahtar] = deger[:160]
+	return cikti
+
+
+def _kaydet(
+	file_name: str,
+	icerik: bytes,
+	store: str,
+	*,
+	via: str,
+	slot: str = "",
+	client_report: str | dict | None = None,
+) -> dict:
 	"""Politikadan geçir, kaydı aç, denetime yaz.
 
 	Tek parça ve parçalı yükleme aynı kuyruğa buradan giriyor. İki ayrı yerde
@@ -518,6 +869,7 @@ def _kaydet(file_name: str, icerik: bytes, store: str, *, via: str, slot: str = 
 				message=f"{doc.file_url}\n\n{frappe.get_traceback()}",
 			)
 
+	telemetri = _client_telemetry(client_report)
 	audit.log_media_event(
 		action=audit.ACTION_UPLOAD,
 		file_url=doc.file_url,
@@ -532,6 +884,9 @@ def _kaydet(file_name: str, icerik: bytes, store: str, *, via: str, slot: str = 
 			# Zararsız tür uyuşmazlığı reddedilmiyor ama iz bırakıyor: sahada
 			# ne kadar sık olduğunu ancak ölçerek bilebiliriz.
 			**({"warnings": karar.warnings} if karar.warnings else {}),
+			# İstemcinin raporu yalnız gözlem içindir; yukarıdaki iki sunucu kapısının
+			# hiçbirine girmedi. Alan adı bunu denetimde de açık tutar.
+			**({"client_telemetry_untrusted": telemetri} if telemetri else {}),
 		},
 	)
 
@@ -566,15 +921,120 @@ def upload_limits() -> dict:
 	return upload_policy.limits()
 
 
+def _request_idempotency_key(body_value: str = "") -> str:
+	"""HTTP ``Idempotency-Key`` ile gövde yedeğini tek değere indir.
+
+	Frappe form argümanlarını gövdeden bağladığı için eski taşıma katmanları
+	anahtarı ``idempotency_key`` alanında gönderebilir. Yeni istemci gerçek HTTP
+	başlığını da yollar. İkisi farklıysa sessizce birini seçmek retry zincirini
+	iki ayrı kimliğe böler; açık makine koduyla reddedilir.
+	"""
+	try:
+		baslik = str(frappe.get_request_header("Idempotency-Key") or "").strip()
+	except Exception:
+		baslik = ""
+	govde = str(body_value or "").strip()
+	if baslik and govde and baslik != govde:
+		upload_policy.reddet(
+			upload_policy.IDEMPOTENCY_CONFLICT,
+			frappe._("Başlık ve gövdedeki Idempotency-Key değerleri eşleşmiyor."),
+		)
+	return chunked.normalize_idempotency_key(baslik or govde)
+
+
+def _existing_upload_result(mevcut: dict, content_sha256: str, *, deduplicated: bool) -> dict:
+	"""Envanter eşleşmesini normal upload yanıt şekline getir."""
+	url = str((mevcut or {}).get("file_url") or "")
+	satir = (
+		frappe.db.get_value(
+			"File",
+			{"file_url": url},
+			["file_name", "file_size", "th_media_video_status"],
+			as_dict=True,
+		)
+		if url
+		else None
+	)
+	return {
+		"file_url": url,
+		"file_name": str((satir or {}).get("file_name") or (mevcut or {}).get("file_name") or ""),
+		"bytes": int((satir or {}).get("file_size") or 0),
+		"video_status": (satir or {}).get("th_media_video_status"),
+		"content_sha256": content_sha256,
+		"deduplicated": bool(deduplicated),
+		"idempotent_replay": False,
+	}
+
+
 @frappe.whitelist(methods=["POST"])
-def upload_begin(file_name: str = "", total_bytes: int = 0) -> dict:
+def upload_begin(
+	file_name: str = "",
+	total_bytes: int = 0,
+	slot: str = "",
+	content_sha256: str = "",
+	idempotency_key: str = "",
+) -> dict:
 	"""Parçalı yükleme oturumu aç.
 
 	Büyük dosya tek istekte gönderilemiyor: base64 içeriği %33 şişiriyor ve
 	tamamı iki tarafın belleğinde duruyor. Ad ve boyut daha ilk adımda
 	denetleniyor — 150 parçayı alıp sonunda "çok büyük" demek boşa iş olurdu.
 	"""
-	return chunked.begin(file_name, int(total_bytes or 0), _store())
+	store = _store()
+	tekrar_anahtari = _request_idempotency_key(idempotency_key)
+	ilan_hash = chunked.normalize_content_sha256(content_sha256)
+
+	# Sunucu önceki finalize'ı bitirdi ama HTTP yanıtı yolda kaybolduysa aynı
+	# anahtarla yeni bir oturum açılmaz; önceki TAM yanıt geri verilir.
+	if tekrar_anahtari:
+		onceki = chunked.finalized_result(tekrar_anahtari, store)
+		if onceki:
+			return {
+				"upload_id": "",
+				"completed": True,
+				"idempotent_replay": True,
+				"idempotency_key": tekrar_anahtari,
+				"result": dict(onceki, idempotent_replay=True),
+			}
+
+	boyut = int(total_bytes or 0)
+	kota = files.storage_usage(store)
+	limit = kota.get("quota_bytes")
+	kalan = None if limit is None else max(0, int(limit) - int(kota.get("bytes") or 0))
+	if kalan is not None and boyut > kalan:
+		upload_policy.reddet(
+			upload_policy.QUOTA_EXCEEDED,
+			frappe._("Depolama kotanızda bu yükleme için yeterli alan yok."),
+		)
+
+	# İstemci hash gönderdiyse K1: aynı mağazada içerik zaten varsa tek bayt
+	# kabul edilmez. Finalize aynı kontrolü GERÇEK baytların hashiyle yineler.
+	if ilan_hash:
+		mevcut = inventory.find_by_sha256(ilan_hash, store)
+		if mevcut:
+			sonuc = _existing_upload_result(mevcut, ilan_hash, deduplicated=True)
+			if tekrar_anahtari:
+				chunked.save_finalized_result(tekrar_anahtari, store, sonuc)
+			return {
+				"upload_id": "",
+				"completed": True,
+				"duplicate": True,
+				"idempotent_replay": False,
+				"idempotency_key": tekrar_anahtari,
+				"quota_remaining": kalan,
+				"result": sonuc,
+			}
+
+	sonuc = chunked.begin(
+		file_name,
+		boyut,
+		store,
+		slot=slot,
+		content_sha256=ilan_hash,
+		idempotency_key=tekrar_anahtari,
+	)
+	sonuc["quota_remaining"] = kalan
+	return sonuc
 
 
 @frappe.whitelist(methods=["POST"])
@@ -592,21 +1052,87 @@ def upload_chunk(upload_id: str = "", index: int = 0, content: str = "") -> dict
 
 
 @frappe.whitelist(methods=["POST"])
-def upload_finish(upload_id: str = "") -> dict:
+def upload_finish(
+	upload_id: str = "",
+	idempotency_key: str = "",
+	client_report: str | dict | None = None,
+) -> dict:
 	"""Parçaları birleştir ve dosyayı kaydet.
 
 	Politika birleşimden SONRA uygulanıyor: ilk parça geçerli bir görsel
 	başlığı taşıyıp devamı bambaşka bir içerik olabilirdi.
 	"""
 	store = _store()
-	icerik = chunked.finish(upload_id, store)
+	verilen_anahtar = _request_idempotency_key(idempotency_key)
+	if verilen_anahtar:
+		onceki = chunked.finalized_result(verilen_anahtar, store)
+		if onceki:
+			return dict(onceki, idempotent_replay=True)
+
 	meta = chunked.meta_of(upload_id, store)
-	try:
-		return _kaydet(meta["file_name"], icerik, store, via="seller_library_chunked")
-	finally:
-		# Kayıt açılsa da açılmasa da parçalar gitmeli; başarısız bir yüklemenin
-		# artıkları diskte birikirse depo sessizce şişer.
-		chunked.cleanup_session(upload_id)
+	oturum_anahtari = str(meta.get("idempotency_key") or "")
+	if verilen_anahtar and oturum_anahtari and verilen_anahtar != oturum_anahtari:
+		upload_policy.reddet(
+			upload_policy.IDEMPOTENCY_CONFLICT,
+			frappe._("Idempotency-Key bu yükleme oturumuyla eşleşmiyor."),
+		)
+	tekrar_anahtari = verilen_anahtar or oturum_anahtari
+	if tekrar_anahtari:
+		onceki = chunked.finalized_result(tekrar_anahtari, store)
+		if onceki:
+			return dict(onceki, idempotent_replay=True)
+
+	icerik = chunked.finish(upload_id, store)
+	gercek_hash = hashlib.sha256(icerik).hexdigest()
+	ilan_hash = str(meta.get("content_sha256") or "")
+	if ilan_hash and ilan_hash != gercek_hash:
+		upload_policy.reddet(
+			upload_policy.CONTENT_HASH_MISMATCH,
+			frappe._("Yüklenen içerik ilan edilen SHA-256 ile eşleşmiyor."),
+		)
+
+	# Aynı içerikli iki eşzamanlı finalize da tek kayıt üretmeli. Redis kilidi
+	# mağaza + gerçek içerik hashi üstündedir; kilit içinde hem idempotency sonucu
+	# hem envanter yeniden okunur (TOCTOU kapısı).
+	kilit_adi = f"media:upload-finalize:{hashlib.sha256(store.encode()).hexdigest()[:16]}:{gercek_hash}"
+	kilit = frappe.cache().lock(kilit_adi, timeout=300, blocking_timeout=60)
+	with kilit:
+		if tekrar_anahtari:
+			onceki = chunked.finalized_result(tekrar_anahtari, store)
+			if onceki:
+				chunked.cleanup_session(upload_id)
+				return dict(onceki, idempotent_replay=True)
+
+		mevcut = inventory.find_by_sha256(gercek_hash, store)
+		if mevcut:
+			sonuc = _existing_upload_result(mevcut, gercek_hash, deduplicated=True)
+		else:
+			sonuc = _kaydet(
+				meta["file_name"],
+				icerik,
+				store,
+				via="seller_library_chunked",
+				slot=str(meta.get("slot") or ""),
+				client_report=client_report,
+			)
+			sonuc.update(
+				{
+					"content_sha256": gercek_hash,
+					"deduplicated": False,
+					"idempotent_replay": False,
+				}
+			)
+		if tekrar_anahtari:
+			sonuc["idempotency_key"] = tekrar_anahtari
+			chunked.save_finalized_result(
+				tekrar_anahtari, store, sonuc, upload_id=upload_id
+			)
+
+	# Yalnız kalıcı sonuç yazıldıktan sonra parçaları kaldır. Geçici DB/depo
+	# hatasında oturumu anında silmek resumable sözleşmesini kırardı; günlük
+	# scheduler altı saat sonra kalanları temizler.
+	chunked.cleanup_session(upload_id)
+	return sonuc
 
 
 @frappe.whitelist(methods=["POST"])

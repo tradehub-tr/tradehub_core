@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>istoc Media Engine · Crop Simulator</title>
+  <style>
+    :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+    body { max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
+    fieldset { display: grid; grid-template-columns: repeat(5, minmax(100px, 1fr)); gap: .75rem; }
+    label { display: grid; gap: .25rem; font-size: .85rem; }
+    input, select, button { padding: .55rem; }
+    canvas { width: 100%; margin-top: 1rem; border: 1px solid #64748b; background: #e2e8f0; }
+    pre { padding: 1rem; overflow: auto; background: color-mix(in srgb, CanvasText 8%, Canvas); }
+    .note { color: #64748b; }
+  </style>
+</head>
+<body>
+  <h1>Kırpma geometrisi simülatörü</h1>
+  <p class="note">T-010 / INV-10: taban bölge ve odak 0–1 normalize; sonuç piksel
+    uzayında gösterilir. Bu sayfa ile backend paritesi otomatik test edilir.</p>
+
+  <fieldset>
+    <legend>Kaynak ve hedef</legend>
+    <label>Genişlik <input id="natW" type="number" min="1" value="2400"></label>
+    <label>Yükseklik <input id="natH" type="number" min="1" value="1600"></label>
+    <label>Hedef oran
+      <select id="targetAR">
+        <option value="1">1:1</option><option value="0.8">4:5</option>
+        <option value="1.7777777777777777">16:9</option>
+        <option value="2.3333333333333335">21:9</option><option value="">Serbest</option>
+      </select>
+    </label>
+    <label>Odak X <input id="focalX" type="number" min="0" max="1" step=".01" value=".7"></label>
+    <label>Odak Y <input id="focalY" type="number" min="0" max="1" step=".01" value=".35"></label>
+    <label>Taban X <input id="baseX" type="number" min="0" max="1" step=".01" value="0"></label>
+    <label>Taban Y <input id="baseY" type="number" min="0" max="1" step=".01" value="0"></label>
+    <label>Taban W <input id="baseW" type="number" min="0" max="1" step=".01" value="1"></label>
+    <label>Taban H <input id="baseH" type="number" min="0" max="1" step=".01" value="1"></label>
+    <button id="run" type="button">Hesapla</button>
+  </fieldset>
+
+  <canvas id="preview" width="900" height="500"></canvas>
+  <pre id="result"></pre>
+
+  <script>
+// T010-CROPWINDOW-BEGIN
+function clamp(value, low, high) {
+  return Math.min(Math.max(value, low), high);
+}
+
+function cropWindow(natW, natH, base, focal, targetAR) {
+  const W = natW, H = natH;
+  const bx = base.x * W, by = base.y * H, bw = base.w * W, bh = base.h * H;
+  if (!targetAR) return { x: bx, y: by, w: bw, h: bh };
+  let w, h;
+  if (bw / bh > targetAR) { h = bh; w = h * targetAR; }
+  else { w = bw; h = w / targetAR; }
+  let x = focal.x * W - w / 2;
+  let y = focal.y * H - h / 2;
+  x = clamp(x, bx, bx + bw - w);
+  y = clamp(y, by, by + bh - h);
+  return { x, y, w, h };
+}
+// T010-CROPWINDOW-END
+
+function value(id) { return Number(document.getElementById(id).value); }
+function render() {
+  const W = value("natW"), H = value("natH");
+  const base = { x: value("baseX"), y: value("baseY"), w: value("baseW"), h: value("baseH") };
+  const focal = { x: value("focalX"), y: value("focalY") };
+  const rawAR = document.getElementById("targetAR").value;
+  const window = cropWindow(W, H, base, focal, rawAR ? Number(rawAR) : null);
+  document.getElementById("result").textContent = JSON.stringify({ source: { W, H }, base, focal, window }, null, 2);
+
+  const canvas = document.getElementById("preview"), context = canvas.getContext("2d");
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  const scale = Math.min(canvas.width / W, canvas.height / H), ox = (canvas.width - W * scale) / 2, oy = (canvas.height - H * scale) / 2;
+  context.fillStyle = "#cbd5e1"; context.fillRect(ox, oy, W * scale, H * scale);
+  context.strokeStyle = "#2563eb"; context.lineWidth = 3;
+  context.strokeRect(ox + window.x * scale, oy + window.y * scale, window.w * scale, window.h * scale);
+  context.fillStyle = "#dc2626";
+  context.beginPath(); context.arc(ox + focal.x * W * scale, oy + focal.y * H * scale, 6, 0, Math.PI * 2); context.fill();
+}
+document.getElementById("run").addEventListener("click", render);
+render();
+  </script>
+</body>
+</html>

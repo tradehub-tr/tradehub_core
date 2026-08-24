@@ -1,4 +1,4 @@
-"""T-055 — Faz 5 kapanış: depolama kabul testleri (İSKELET + Local kipi CANLI).
+"""T-055 — Faz 5 kapanış: depolama kabul testleri.
 
 Şartname: docs/42-faz5-depolama-s3-cdn.html · T-055 — "Faz 5 kabul testlerini
 yaz ve koştur: tests/acceptance/test_storage_acceptance.py". Senaryolar dört
@@ -260,12 +260,45 @@ class TestKabul3GracefulDegradation(_LocalKurulum):
 		self.assertEqual(plan.adapter.get(sonuc.ref), b"t055-degraded")
 
 
+class TestKabul4CdnToggle(_LocalKurulum):
+	"""CDN aç/kapat yalnız teslim origin'ini değiştirir; varlık kimliği aynıdır."""
+
+	def test_ayni_varlik_origin_ve_cdn_uzerinden_teslim_ediliyor(self) -> None:
+		from tradehub_core.media.pipeline.storage.s3 import S3Config, S3Storage
+
+		ref = self.store.put(b"t055-cdn-ayni-varlik", ".jpg").ref
+		client_calls: list[bool] = []
+
+		def istemci_kurulmamali():
+			client_calls.append(True)
+			raise AssertionError("public URL üretimi S3 istemcisi kurmamalı")
+
+		ortak = dict(
+			enabled=True,
+			bucket="t055",
+			access_key_id="not-used",
+			secret_access_key="not-used",
+		)
+		origin = S3Storage(S3Config(**ortak), client_factory=istemci_kurulmamali)
+		cdn = S3Storage(
+			S3Config(**ortak, public_base_url="https://cdn.example.test"),
+			client_factory=istemci_kurulmamali,
+		)
+
+		self.assertEqual(origin.url_for(ref), ref.url)
+		self.assertEqual(cdn.url_for(ref), f"https://cdn.example.test{ref.url}")
+		self.assertEqual(len(self.store), 1)
+		self.assertEqual(self.store.get(ref), b"t055-cdn-ayni-varlik")
+		self.assertEqual(client_calls, [], "CDN toggle nesne deposuna gereksiz ağ çağrısı yaptı")
+
+
 class TestKabul6RetentionKuruKosum(_LocalKurulum):
 	"""Senaryo 6: "Saklama kuru çalıştırması: hiçbir dosya silinmiyor, rapor doğru".
 
-	`RetentionSweeper` varsayılanı dry-run'dır; bu test varsayılan politikayla
-	süpürmenin (a) hiçbir nesneyi silmediğini, (b) raporun dry_run=True ve
-	nesne sayımıyla tutarlı olduğunu ölçer.
+		`RetentionSweeper` varsayılanı dry-run'dır; bu saf adaptör testi varsayılan politikayla
+		süpürmenin (a) hiçbir nesneyi silmediğini, (b) raporun dry_run=True ve
+		nesne sayımıyla tutarlı olduğunu ölçer. İnsan onay kapısı gerçek
+		Frappe sitesi üzerinde `test_retention_gc.py` tarafından kanıtlanır.
 	"""
 
 	def test_kuru_kosum_hicbir_sey_silmez(self) -> None:
@@ -320,7 +353,7 @@ class TestKabulS3Kipleri(unittest.TestCase):
 			private_root=os.path.join(self._tmp, kip, "prv"),
 			signing_secret=SECRET.decode("utf-8"),
 			s3=S3Config(**s3_alanlar),
-			tier_age_days=0,
+			tier_age_days=14,
 		)
 
 	def _uctan_uca(self, kip: str) -> None:
@@ -340,26 +373,42 @@ class TestKabulS3Kipleri(unittest.TestCase):
 		self._uctan_uca(MODE_MIRROR)
 
 	def test_tiered_uctan_uca_ve_goc(self) -> None:
-		"""Senaryo 5: tiered'da yaşlanan nesne soğuğa göçer, okuma S3'ten çalışır."""
+		"""Senaryo 5: saati kaydırarak 14 gün eşiğini beklemeden doğrula."""
 		plan = build_storage(self._ayar(MODE_TIERED))
 		self.assertEqual(plan.mode, MODE_TIERED, f"tiered kurulamadı: {plan.reasons}")
 		icerik = b"t055-tiered-goc"
 		sonuc = plan.adapter.put(icerik, ".jpg")
-		# tier_age_days=0 → nesne hemen göç adayı
-		plan.adapter.demote(sonuc.ref, dry_run=False)
+		mtime = plan.adapter.stat(sonuc.ref).modified_at
+		henuz_degil = plan.adapter.sweep(
+			dry_run=True, now=mtime + 14 * 86400 - 1
+		)
+		self.assertEqual(henuz_degil.eligible, 0)
+		self.assertEqual(plan.adapter.location(sonuc.ref), "hot")
+		goc = plan.adapter.sweep(dry_run=False, now=mtime + 14 * 86400 + 1)
+		self.assertEqual(goc.eligible, 1)
+		self.assertEqual(goc.demoted, 1)
+		self.assertEqual(plan.adapter.location(sonuc.ref), "cold")
 		self.assertEqual(
 			plan.adapter.get(sonuc.ref), icerik, "Sıcakta olmayan nesne soğuktan (S3) okunmalı"
 		)
 
 	def test_s3_yanlis_kimlik_yerel_calisir(self) -> None:
 		"""Senaryo 3 (canlı yarısı): mirror + bozuk kimlik → yerel yazma BAŞARILI,
-		S3 kopyası başarısız; kullanıcıya hata sızmaz."""
+		S3 kopyası başarısız; alarm üretilir ve kullanıcıya hata sızmaz."""
+		from tradehub_core.media.pipeline.storage.mirror import InlineMirrorQueue
+
+		alarmlar: list[dict] = []
 		plan = build_storage(
-			self._ayar(MODE_MIRROR, access_key_id="bozuk", secret_access_key="bozuk")
+			self._ayar(MODE_MIRROR, access_key_id="bozuk", secret_access_key="bozuk"),
+			queue_factory=lambda worker: InlineMirrorQueue(worker),
+			alarm=alarmlar.append,
 		)
 		icerik = b"t055-bozuk-kimlik"
 		sonuc = plan.adapter.put(icerik, ".jpg")  # yerel taraf senkron → başarılı olmalı
 		self.assertEqual(plan.adapter.get(sonuc.ref), icerik, "Yerel kopya her koşulda okunmalı")
+		self.assertGreater(plan.adapter.counters()["failed"], 0)
+		self.assertTrue(plan.adapter.failed_tasks())
+		self.assertTrue(alarmlar, "S3 kimlik hatası alarm üretmedi")
 
 
 if __name__ == "__main__":

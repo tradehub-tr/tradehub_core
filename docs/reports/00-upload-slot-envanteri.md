@@ -549,3 +549,21 @@ slota ait olduğunu bilmiyor. Slot kimliği olmadan B2, B3, B5, B6 ve B8'in hiç
 `components/layout/IconRail.vue`, `components/common/RichTextEditor.vue`,
 `composables/useSellerMedia.js`, `lib/media/compress.js`, `utils/uploadPolicy.js`,
 `stores/auth.js`
+
+---
+
+## Güncel envanter eki — 2026-08-23
+
+Backend DocType JSON'ları yeniden tarandı: `Attach`, `Attach Image` veya
+`Image` tipindeki **41/41 alan**, bu raporun Tablo A'sında adıyla bulunuyor.
+Faz 9 sonrasında değişen iki panel yüzeyi ayrıca aşağıdadır; ilk rapordaki
+sayılara sessizce eklenmemiştir.
+
+| kanonik yüzey | kaynak | rol / amaç | güncel kabul ve gönderim zinciri | render / kutu davranışı | bulgu |
+|---|---|---|---|---|---|
+| `panel.media_library_slot_uploader` | `views/seller/MediaLibraryView.vue:751-778,824-825,1477-1478` → `components/media/upload/MediaUploader.vue` → `UploadDropzone.vue:41` | satıcı; Medya Kütüphanesinde seçilmiş slota çoklu yükleme | Rolün slotları `slotsForRole("seller")`; varsayılan `product.image`; dosya seçme, bırakma, klasör ve yapıştırma aynı kuyruğa; slot ön kontrolü + sunucu kapısı; yükleyici ağır olduğu için modal açılınca lazy import | Modal 46rem; bırakma alanı responsive, klavye ile çalışır; ilerleme ve dosya bazlı ret nedeni gösterilir | `MediaUploader.vue` içindeki “rota ve menü bağı YOK” yorumu artık eskidir; bileşen Medya Kütüphanesine bağlıdır. |
+| `admin.seller_verification_document` | `views/admin/SellerVerificationQueueView.vue:400-404,694-718` → `utils/api.js:387-407` → `seller_certifications.upload_seller_cert_document` | yönetici; satıcı doğrulama kaydına PDF/JPG/PNG ekleme | UI `accept=.pdf,image/jpeg,image/png`; ortak belge ucu 10 MiB tavan, uzantı allowlist'i, sıfır-bayt reddi ve private saklama uygular; ardından `attach_verification_document` kayda bağlar | Gizli tekli file input; doğrulama kuyruğundaki “belge yükle” eylemi açar | Uç `_require_seller_profile` kullandığı için salt yönetici hesabıyla tarayıcı doğrulaması Faz 1 entegrasyon turuna atanmıştır. Envanter boşluğu kapandı; olası rol uyumsuzluğu görünürdür. |
+
+`MediaPickerModal.vue` ve `MediaDetailPanel.vue` ilk envanterde zaten vardı;
+yeniden “yeni slot” sayılmadı. `UploadDropzone.vue` bağımsız iş slotu değil,
+ortak yükleyicinin dört giriş yolunu birleştiren alt bileşendir.

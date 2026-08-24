@@ -1,0 +1,7 @@
+{
+  "format_version": 1,
+  "schemathesis_version": "4.25.0",
+  "schema_location": "docs/api/openapi-http.yaml",
+  "base_url": "http://istoc.localhost",
+  "created_at": "2026-08-23T08:36:38.219665+00:00"
+}

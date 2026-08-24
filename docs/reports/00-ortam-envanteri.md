@@ -772,3 +772,34 @@ Bu belgenin dayandığı dosyalar, tam yolla:
 - `istoc-dev-frappe-frontend-1:/etc/nginx/conf.d/frappe.conf`
 
 **Yazılan tek dosya:** bu belge.
+
+---
+
+## Güncel doğrulama eki — 2026-08-23
+
+İlk keşif anındaki “Docker kapalı” anlatımı artık tarihsel kayıttır. Aşağıdaki
+tablo aynı yerel geliştirme ortamında yeniden, çalışan konteynerlerden
+ölçülmüştür. Bu ekte “bilinmiyor” değer yoktur; bulunmayan araçlar açıkça
+**kurulu değil** diye yazılmıştır.
+
+| Katman | Güncel ölçüm |
+|---|---|
+| OS / mimari | Debian 12 · `aarch64` |
+| Python | 3.11.6 |
+| Frappe / ERPNext | 15.116.1 / 15.118.3 |
+| Uygulamalar | crm 1.56.4 · helpdesk 1.22.1 · telephony 0.0.1 · tradehub_core 1.13.1a42 |
+| Pillow / codec | Pillow 12.2.0 · JPEG, WebP ve AVIF desteği açık |
+| libvips | pyvips 2.2.3 · libvips 8.14.1; `vips` CLI kurulu değil |
+| FFmpeg | n8.1.2-44-g7c533d0f86 · `libvmaf` filtresi var |
+| ImageMagick | kurulu değil |
+| Node.js (backend imajı) | kurulu değil; frontend imajları kendi Node çalışma zamanını taşır |
+| MariaDB / Redis | MariaDB 10.6.27 · Redis cache/queue 7.4.10 |
+| Çalışan servis | 15 servis; backend, iki genel worker, `queue-media-image-bulk`, scheduler, storefront, panel, gateway, MinIO ve veri servisleri dahil |
+| Yapılandırılmış ama çalışmayan servis | `queue-media-video`: compose'da 2 CPU / 1,5 GiB / `media-video` kuyruğu ile tanımlı, bu ölçüm anında deploy edilmemiş |
+| Çalışan image-bulk worker | 1 CPU / 2 GiB |
+| Gateway limiti | `client_max_body_size 50m` · `proxy_read_timeout 300s` |
+| Git anlık görüntüsü | backend `ahmet@96439df` · storefront `ahmet@2e65346` · admin `ahmet@3ce0edc` |
+
+Sonuç: T-000 ortam ve limit zinciri yeniden üretilebilir biçimde envanterlidir.
+Canlı/production erişimi bu yerel ortam envanterinin parçası değildir; Faz 14
+rollout kontrolünde ayrıca ele alınır.

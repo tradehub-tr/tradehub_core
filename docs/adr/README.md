@@ -18,10 +18,13 @@ yazar.
    budur: karar önce sayısal bir **tetikle** yazılır, sonra ölçüm tetiği
    çalıştırır ve gerekiyorsa öneriyi devirir. Elenen seçenek tabloları silinmez.
 5. **Sonuçlar bölümü olumsuzu da yazar.** Bedelini yazmayan bir ADR eksiktir.
+6. **Geri dönüş yolu zorunludur.** Tetik, uygulanacak rollback ve reddedilen
+   seçeneğin hangi ölçümle yeniden açılacağı açıkça yazılır.
 
 ## Biçim
 
-`Bağlam · Seçenekler · Karar · Gerekçe · Sonuçlar (olumlu VE olumsuz) · Durum · Tarih`
+`Bağlam · Seçenekler · Ölçüm verisi/Gerekçe · Karar · Sonuçlar (olumlu VE
+olumsuz) · Geri dönüş yolu · Durum · Tarih`
 
 Dosya adı: `NNNN-kebab-baslik.md`. Numara bir kez verilir, değişmez. Bir karar
 geçersizleşirse ADR **silinmez**; durumu güncellenir ve yerine geçen ADR'ye atıf
@@ -49,19 +52,43 @@ verilir.
 | [0014](0014-yikici-isler-cift-kapi-kuru-kosum.md) | Yıkıcı işler varsayılan kuru koşum + iki bağımsız kapı | Kabul · ölçüldü | `hooks.py:154,160` · `docs/reports/26-t053-saklama-gc.md` §0 |
 | [0015](0015-s3-yazildi-varsayilan-kapali.md) | S3/mirror/tiered yazıldı, varsayılan kapalı, düşüş raporlanır | Kabul · üretimde kapalı | `storage/s3.py:11-18` · `23-t051-s3-adaptor.md` · `25-t051-depolama-ayarlari.md` |
 | [0016](0016-politika-veridir-kod-degil.md) | Slot politikası VERİdir, kod değil | Kabul · testle doğrulanıyor | `policy/engine.py` başlığı · `image/render.py` başlığı · `21-t030-mimari-inceleme.md` M-11/M-12/M-14 |
-| [0017](0017-saliency-esik-ustunde-ve-oneri.md) | Saliency eşik üstünde ve yalnız öneri | Kabul · **kodu Faz 10'a devredildi** | `11-faz1-arge.md` §T-014 (n=400 canlı) |
+| [0017](0017-saliency-esik-ustunde-ve-oneri.md) | Saliency eşik üstünde ve yalnız öneri | Kabul · üç yöntem çalışıyor, insan kalibrasyonu açık | `14-smartcrop-karsilastirma.md` (50/50, insan etiketi 0) |
 | [0018](0018-hls-js-istemci-oynatici.md) | HLS oynatma için `hls.js` eklenir (MSE fallback) | **Kabul (2026-08-20)** · uygulama W7'de (rapor 85) | `81-w6-video-kosum.md` §7 · `MediaVideo.vue:27-31` |
 | [0019](0019-hls-basamaginda-fayda-kapisi.md) | HLS basamaklarına fayda/bütçe kapısı | **Kabul (2026-08-20)** · uygulama W7-1'de | `81-w6-video-kosum.md` §4 · `56-d3-faz6-10-kapanis.md` §4.5 |
 | [0020](0020-tus-yerine-mevcut-chunked.md) | Devam edebilir yükleme: tus mu, mevcut `chunked.py` mi | **ÖNERİLDİ · karar BEKLİYOR** | `44-t081-yukleyici.md` §3 · `61e-fe-denetim-faz8-9.md` |
 | [0021](0021-vmaf-esigi.md) | VMAF eşiği (93 ↔ INV-05 çelişkisi; gerçek ölçüm 89,34) | **ÖNERİLDİ · karar BEKLİYOR** | `56-d3-faz6-10-kapanis.md` §4.2–4.4 · `81-w6-video-kosum.md` |
 | [0022](0022-k7-kota-turev-sayimi.md) | K7 kota: türevlerin sayımı ↔ ADR-0009 çelişkisi | **ÖNERİLDİ · karar BEKLİYOR** | `56-d3-faz6-10-kapanis.md` §7.4 · ADR-0009 |
 | [0023](0023-kavram-basina-tek-sahip.md) | Kavram başına tek sahip: çekirdek ↔ motor; sözleşme md aynı PR'da; sözleşmeler test olarak; bayrak öncesi 3 ön koşul | **ÖNERİLDİ · imza bekliyor (Metin + Ahmet)** | 21 Ağu ortak çatı denetimi · `tests/test_media_contracts.py` · `scripts/check_media_contract_docs.py` |
+| [0024](0024-istemci-medya-kutuphane-seti.md) | Native probe + browser-image-compression + MediaBunny; bütçe aşımında server fallback | Kabul · gerçek cihaz kalibrasyonu açık | `15-client-butce.md` · 7/7 + 10/10 test |
+| [0025](0025-cdn-icerik-adresli-teslim.md) | Hash URL immutable; purge yalnız aynı-URL overwrite'ta | Kabul | `18-depolama-arge.md` · `27-t052-cdn-teslim.md` |
+| [0026](0026-video-karar-tablosu-json.md) | Video codec kararları sürümlü JSON verisidir | Kabul | `16-video-karar.md` · Faz 7 467/467 |
+| [0027](0027-dpi-piksel-politikasi.md) | DPI metadata; pixel cap bağımsız; upscale yok | Kabul | `12-dpi-prototip.md` · 5/5 format |
+| [0028](0028-medya-islem-izolasyonu.md) | İş başına child process + RLIMIT_AS + timeout | Kabul | `17-guvenlik-arge.md` · 10/10 malicious, 36/36 izolasyon |
 
 > **ÖNERİLDİ durumundaki ADR'ler (0020–0023) bu dizinin "verilmiş kararlar"
 > kuralının bilinçli istisnasıdır** (2026-08-20, rapor 88): üçü de iki kez
 > ölçülmüş, karar bekleyen açık kalemlerdir. Karar TASLAK gövdede
 > **uydurulmamıştır** — seçenekler ölçülmüş bedelleriyle taşındı, "Karar"
 > bölümleri BEKLİYOR der. Karar verildiğinde durum satırı güncellenir.
+
+## T-019 zorunlu konu kapsaması
+
+| Zorunlu tema | ADR | Durum |
+|---|---|---|
+| Image engine | 0008 | Kabul |
+| Video engine | 0011 | Kabul |
+| İstemci kütüphane seti | 0024 | Kabul; cihaz kalibrasyonu açık |
+| Birincil depolama / opsiyonel S3 | 0001, 0015 | Kabul; local varsayılan |
+| CDN | 0025 | Kabul |
+| Smartcrop | 0017 | Öneri-only kabul; insan etiketi açık |
+| Uyarlanabilir kalite | 0006 | Kabul |
+| Video karar tablosu biçimi | 0026 | Kabul |
+| DPI/piksel politikası | 0027 | Kabul |
+| Güvenlik izolasyonu | 0028 | Kabul |
+
+28/28 ADR'de ayrı `Geri dönüş yolu` bölümü vardır. Teknik ADR setinin açık
+kalemleri belge eksikliği değildir: T-014 için 50 insan etiketi, T-015 için
+fiziksel cihaz laboratuvarı ve 0020–0023 için insan kararı/imzasıdır.
 
 ---
 

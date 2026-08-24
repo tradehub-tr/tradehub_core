@@ -2,6 +2,7 @@
  "$schema": "../schema/slot-policy.schema.json",
  "schema_version": "1.2.0",
  "status": "draft",
+ "standard_status": "fixed",
  "slot_key": "brand.logo",
  "title": "Marka logosu",
  "description": "Marka sayfası logosu — marka hero'su ve ürün filtre kenar çubuğu marka satırı. 3 render noktası ölçüldü; en büyük piksel talebi 312 px (marka hero 104 CSS px @ DPR3). seller.logo ile TÜM kurallar aynı; tek fark master alt sınırı (384 vs 512) ve raster bayt tavanı (576 vs 1024 KiB). Standart: docs/standards/logo.md",
@@ -47,6 +48,7 @@
    "jpeg_opaque"
   ],
   "max_bytes": 589824,
+  "max_megapixels_hard": 16.8,
   "max_bytes_svg": 32768,
   "allow_animated": false,
   "allow_data_uri": false
@@ -76,6 +78,8 @@
   "allow_upscale": false,
   "max_long_edge": 4096,
   "min_long_edge": 256,
+  "max_megapixels": 16.8,
+  "dpi_out": 72,
   "format": "webp",
   "encoding": "lossless",
   "colorspace": "srgb",
@@ -518,6 +522,7 @@
   "require.alpha_channel=optional": "docs/reports/08-canli-olcum.md §2.1 (2026-08-18): birleşik kümede 9/18 = %50 JPEG → docs/standards/logo.md §13-K1 tetiği (%10) aşıldı; değer 'required'dan 'optional'a indirildi, yaptırım content_rules[no_alpha_channel].action='warn' oldu. 'optional' 'fark etmez' demek DEĞİL: alfasızlık ölçülür, uyarı gösterilir, envantere yazılır. Görsel gerekçe: content_rules[no_alpha_channel].source. Motor bu üç modu ZATEN doğru ayırt ediyor: engine.py:169-176; tests/test_engine_webp.py:54 alfanın korunduğunu doğruluyor.",
   "accept.mime += image/jpeg": "docs/reports/08-canli-olcum.md §2.2 K1 (2026-08-18): ölçüm %50 JPEG → §13-K1 seçenek B. .jpg/.jpeg rejected_extensions'tan çıkarıldı, mime'a image/jpeg eklendi, format_priority'de EN SONA ('jpeg_opaque') konuldu — kabul edilir ama tavsiye edilmez. seller-logo.json ile birebir aynı değişiklik: iki logo slotu tek kod yolu paylaşır (notes[1]).",
   "accept.max_bytes=589824": "384 × 384 × 4 (RGBA) = 589824 B — depolanan en büyük master'ın SIKIŞTIRILMAMIŞ boyutu. seller.logo'daki aynı kural (1048576 = 512×512×4) 384 master'a uyarlanmış. Kendi ham raster'ından büyük dosya tanım gereği logo değil.",
+  "accept.max_megapixels_hard=16.8": "require.max_edge=4096 tarafından zaten zorlanan tavanın açık şema karşılığı: 4096×4096 = 16.777216 MP, bir ondalığa yukarı yuvarlandı. seller.logo ile aynı güvenlik kapısıdır.",
   "accept.max_bytes_svg=32768": "Ölçüm: ta-logo.svg = 12379 B (gerçek kelime markası, 20 düğüm) × 2,65. Karşı örnek: ta-shield-pattern.svg 105516 B, svgviewer-output.svg 137695 B — ikisi de reddedilir.",
   "accept.mime": "seller.logo ile aynı daraltma. DÜZELTME 2026-08-18 (K1): .jpg/.jpeg ARTIK DIŞARIDA DEĞİL — alfa yokluğu uyarıya indi (bkz. accept.mime += image/jpeg girdisi). Hâlâ dışarıda bırakılanlar: .gif (engine.py:111-112 animasyonlu atlanıyor); .tif/.tiff/.bmp/.heic (tarayıcı render etmez, iki yol ayrışıyor: api/seller_media.py:245 WebP'ye çevirir, engine.py:126-131 TIFF'i TIFF bırakır); .avif (upload_policy.py:59 izinli AMA engine.py:21 SUPPORTED_FORMATS içinde değil → engine.py:109 'unsupported_format').",
   "accept.allow_data_uri=false": "content_rules[data_uri_value].source",
@@ -532,11 +537,21 @@
   "dpr_range=[1,2,3]": "capacitor.config.ts:22 appId 'com.istoc.app', :35 preferredContentMode 'mobile'. DPR 4 desteklenmiyor.",
   "breakpoints": "tradehubfront/src/style.css:256-260 — bu projede Tailwind varsayılanları EZİLMİŞ: sm=480, md=640, lg=768, xl=1024. B1b'nin md: kırılımı 768 DEĞİL 640. Çapraz kontrol: docs/reports/03-render-envanteri.md §1.1",
   "profiles[w384]": "docs/standards/logo.md §13-K3 (2026-08-19 ölçümle kapandı, seçenek B). max_bytes 23040 = hesap: 40960 × 384² / 512². Markada bu rung B1b @3x (312) talebini 1,23× payla karşılar (512 rung'unda 1,64×).",
-  "status=draft": "docs/reports/16-t029-politika-aktivasyonu.md — K1–K6 kapandı ama open_questions boş değil: tradehub_core/media/usage.py:32-41 LIVE_SOURCES'ta tabBrand.logo yok."
+  "status=draft": "Faz 2 standardı fixed; runtime aktivasyonu Faz 3 dağıtım kapısıdır. Brand.logo artık media/usage.py LIVE_SOURCES içinde canlı kaynak olarak korunur; FR-144 ve FR-149 alanları tamamdır."
  },
- "open_questions": [
-  "Brand.logo LIVE_SOURCES'ta KAYITLI DEĞİL — 2026-08-19'da YENİDEN DOĞRULANDI, hâlâ eksik (tradehub_core/media/usage.py:32-41, 8 satır, tabBrand yok). Bu politika 'active' YAPILAMAZ: kayıt eklenmeden uygulanırsa marka logoları 'kullanılmıyor' görünüp silme adayı olur (docs/reports/00-upload-slot-envanteri.md §7-B6). Çözümü media/usage.py değişikliğidir, bu politikanın değil."
- ],
+ "compliance_measured": {
+  "measured_at": "2026-08-18",
+  "dataset": "istoc.localhost Brand.logo slot referansları",
+  "sample_size": 1,
+  "compatible_count": 1,
+  "incompatible_count": 0,
+  "unmeasured_count": 0,
+  "violation_rate": 0.0,
+  "top_violation": "",
+  "enforcement_mode": "legacy_and_new",
+  "source": "docs/reports/09-slot-bazinda-istatistik.md §3"
+ },
+ "open_questions": [],
  "production_verification_required": [
   "D1 — Gerçek marka logosu dosyalarının piksel/oran/PIL-mode/bayt dağılımı. require.min_short_edge=256 sert reddi bu çıktı olmadan üretime alınamaz. Tam betik: docs/standards/logo.md §12-D1 (döngüde ('Brand','logo') zaten var).",
   "D2 — Brand.logo alanında data: URI sayısı. seed_demo_data.py:4209 kaynaklı; üretimde 0 olmalı. Tam betik: §12-D2",
@@ -554,12 +569,12 @@
   "KARAR K4 — KAPANDI (2026-08-19, varsayılanda onaylandı). 'PNG yedeği üretilsin mi?' → HAYIR, yalnız kayıpsız WebP (seçenek A). Bu politikada değişen sayı YOK. docs/standards/logo.md 'VARSAYILANDA ONAYLANAN KARARLAR — 2026-08-19'",
   "KARAR K5 — KAPANDI (2026-08-19, varsayılanda onaylandı). 'Panelin ölçü tavsiyesi' → 512×512 (seçenek A). MARKA TARAFINDA UYGULANAMAZ DURUMDA: Brand.logo alanı için panelde HİÇBİR ölçü tavsiyesi metni yok (seller.logo'da en az '400×400' var — DocTypeFormView.vue:448). Kararın marka karşılığı 'recommended_edge=384 bir yere yazılsın' işidir ve hangi ekrana yazılacağı (generic Attach dalı mı, Brand'e özel dropzone mu) hâlâ AÇIK — ayrı görev, admin-panel deposunda. docs/standards/logo.md 'VARSAYILANDA ONAYLANAN KARARLAR — 2026-08-19'",
   "KARAR K6 — KAPANDI (2026-08-19, varsayılanda onaylandı). 'min_short_edge=256 sert reddi GEÇMİŞE dönük uygulanacak mı?' → YALNIZ YENİ YÜKLEMELERE (seçenek A). Ölçüm: kısa kenarı 256'nın altında olan 1/18 = %5,5. Markada risk satıcıdan düşük: alanı yalnız admin yazıyor. Bu politikada değişen sayı YOK. docs/standards/logo.md 'VARSAYILANDA ONAYLANAN KARARLAR — 2026-08-19'",
-  "STATUS = DRAFT KALDI (2026-08-19, T-029). K1–K6'nın altısı da kapandı ve encoder_quality null YOK; buna rağmen bu politika 'active' YAPILMADI. TEK ENGEL, bu dosyanın kendi open_questions maddesidir ve DOĞRULANDI: Brand.logo hâlâ media/usage.py LIVE_SOURCES içinde KAYITLI DEĞİL (2026-08-19'da okundu: LIVE_SOURCES 8 satır — tabListing ×2, tabListing Image, tabListing Variant Item ×2, tabStorefront Layout, tabSeller Gallery Image, tabAdmin Seller Profile.logo; tabBrand YOK). Politika bu kaydı kendi ön koşulu olarak yazmış: kayıt eklenmeden politika uygulanırsa marka logoları 'kullanılmıyor' görünüp SİLME ADAYI olur (docs/reports/00-upload-slot-envanteri.md §7-B6). Kaydın eklenmesi media/usage.py değişikliğidir — T-029'un kapsamı DIŞINDA. docs/reports/16-t029-politika-aktivasyonu.md",
-  "Bu politika bugün HİÇBİR kod yolu tarafından okunmuyor. tradehub_core/media/pipeline/ altında bu görevden önce hiçbir dosya yoktu. upload_policy.check() imzasında slot parametresi YOK (media/upload_policy.py:306-312) — docs/reports/00-upload-slot-envanteri.md §1: 'L3 — Slot semantiği: Sistemde hiç yok'.",
+  "2026-08-23 kapanışı: Brand.logo media/usage.py LIVE_SOURCES içinde; standard_status=fixed, compliance_measured mevcut ve açık soru yok. status=draft yalnız Faz 3 runtime rollout'unu ayırır.",
+  "Politika `upload_policy.check_slot()` üzerinden okunur; Brand.logo kullanım kaynağı GC haritasında kayıtlıdır ve çalışma zamanı zorlaması `status` ile açılır.",
   "brand.logo, seller.logo'nun DAR bir kopyasıdır: aynı motor yolu, aynı merdiven, aynı formatlar, aynı oran bandı, aynı SVG politikası. Tek farklar: recommended_edge (384 vs 512), accept.max_bytes (576 vs 1024 KiB), roller (yalnız admin), ve dark_theme.violating_render (markada yok). İki ayrı standart tutmanın bakım maliyeti ölçülen fark karşılığında haklı değil.",
-  "Marka logosunun satıcıdan ÖNEMLİ bir avantajı: alanı yalnız admin yazıyor. Yani ihlal oranı düşük ve düzeltme kontrollü. Dezavantajı: panelde HİÇBİR ölçü tavsiyesi yok — satıcıda en az '400×400' metni var (DocTypeFormView.vue:448), markada o bile yok (open_questions[4]).",
+  "Marka logosunun satıcıdan önemli farkı alanı yalnız adminin yazmasıdır. Panel tavsiye metni uygulama UX borcudur; makine standardı `require.recommended_edge=384` ile sabittir.",
   "Marka hero BANNER'ı (Brand.hero_banner) bu slotun DIŞINDA: brand.ts:145-148 CSS background-image ile basılıyor, <img> değil → loading/decoding/srcset uygulanamıyor (docs/reports/00-upload-slot-envanteri.md §7-B4). Ayrı bir slot politikası gerekiyor.",
-  "Uygulama sırası: 1) slot kayıt defteri → 2) logo doğrulama kodları → 3) oran normalizasyonu → 4) türev merdiveni → 5) og:image düzeltmesi → 6) srcset → 7) SVG kabulü. docs/standards/logo.md §10",
-  "ŞEMA NOTU: bu dosya tradehub_core/media/pipeline/policy/slots/ altındaki çoğunluk şemasına (product-image.json, product-video.json, company-cover-image.json, category-banner.json) hizalandı. Kardeş dosyalarda 4 farklı şema var — kayıt defteri yazılmadan önce tek şemaya indirilmeli."
+  "Uygulama bağımlılıkları slot kayıt defteri, doğrulama, normalizasyon, rendition ve teslim sırasını izler; SVG kabulü güvenli servis başlıkları doğrulanana kadar kapalıdır. docs/standards/logo.md §10",
+  "ŞEMA NOTU: dokuz slotun tamamı tek Draft 2020-12 şemasına uyar; 2026-08-23 doğrulamasında toplam hata 0'dır."
  ]
 }

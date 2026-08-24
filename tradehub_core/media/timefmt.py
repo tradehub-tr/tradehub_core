@@ -52,6 +52,8 @@ FIELDS: tuple[str, ...] = (
 	# diğer adlarla aynı kural — kapsam dışında kalsaydı o sütun İstanbul
 	# dışındaki kullanıcıda kaymış görünürdü.
 	"started_at",
+	"finished_at",
+	"created_at",
 	"captured",
 	"last_execution",
 )

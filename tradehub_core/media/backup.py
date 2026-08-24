@@ -37,6 +37,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import random
 import re
 import shutil
 from datetime import datetime
@@ -126,6 +127,12 @@ RECORD_FIELDS: tuple[str, ...] = (
 # Okuma parçası — 1 GB'lık dosyayı belleğe almadan imzalamak için.
 _CHUNK = 1024 * 1024
 
+# Image/video rendition'lar orijinalden yeniden üretilebilen önbellektir.
+# Güncel pipeline bunları `/files/media/{asset}/{version}/...` altına yazar.
+# Eski `__<profile>` adlandırması da geçiş envanteri için korunur.
+DERIVATIVE_PUBLIC_PREFIX = "media/"
+_LEGACY_DERIVATIVE_RE = re.compile(r"__[a-z0-9][a-z0-9_-]*\.(?:avif|webp|jpe?g|png|webm|mp4)$", re.I)
+
 
 def _root() -> str:
 	return frappe.get_site_path("private", ROOT_DIRNAME)
@@ -184,15 +191,32 @@ def file_hash(yol: str) -> str:
 	return h.hexdigest()
 
 
-def _scan() -> list[dict]:
-	"""Diskteki tüm medya dosyalarının künyesi."""
+def _is_regenerable_derivative(scope: str, relative_path: str) -> bool:
+	"""Yedekten dışlanacak, orijinalden yeniden üretilebilir çıktı mı."""
+	normalized = str(relative_path or "").replace(os.sep, "/").lstrip("/")
+	return bool(
+		scope == "public"
+		and (
+			normalized.startswith(DERIVATIVE_PUBLIC_PREFIX)
+			or _LEGACY_DERIVATIVE_RE.search(os.path.basename(normalized))
+		)
+	)
+
+
+def _scan(*, with_stats: bool = False):
+	"""Diskteki orijinal medya künyeleri; yeniden üretilebilir türevler hariç."""
 	out: list[dict] = []
+	excluded_derivatives = 0
 	for etiket, kok in _media_dirs():
 		if not os.path.isdir(kok):
 			continue
 		for dizin, _alt, dosyalar in os.walk(kok):
 			for ad in dosyalar:
 				tam = os.path.join(dizin, ad)
+				relative = os.path.relpath(tam, kok)
+				if _is_regenerable_derivative(etiket, relative):
+					excluded_derivatives += 1
+					continue
 				try:
 					st = os.stat(tam)
 				except OSError:
@@ -202,13 +226,14 @@ def _scan() -> list[dict]:
 				out.append(
 					{
 						"scope": etiket,
-						"path": os.path.relpath(tam, kok),
+						"path": relative,
 						"size": st.st_size,
 						"mtime": int(st.st_mtime),
 						"hash": file_hash(tam),
 					}
 				)
-	return out
+	stats = {"excluded_regenerable_derivatives": excluded_derivatives}
+	return (out, stats) if with_stats else out
 
 
 def _records() -> list[dict]:
@@ -242,7 +267,7 @@ def snapshot(*, label: str = "") -> dict:
 	if os.path.exists(hedef):
 		frappe.throw(frappe._("Bu adla bir yedek zaten var: {0}").format(set_id))
 
-	dosyalar = _scan()
+	dosyalar, exclusion_stats = _scan(with_stats=True)
 
 	yeni_blob = 0
 	yeni_bayt = 0
@@ -269,6 +294,12 @@ def snapshot(*, label: str = "") -> dict:
 		"finished": frappe.utils.now(),
 		"site": frappe.local.site,
 		"label": label,
+		"backup_policy": {
+			"derivatives": "excluded_regenerable",
+			"derivative_public_prefix": f"/files/{DERIVATIVE_PUBLIC_PREFIX}",
+			"originals": "included",
+			"private_files": "included",
+		},
 		"files": dosyalar,
 		"stats": {
 			"file_count": len(dosyalar),
@@ -276,6 +307,7 @@ def snapshot(*, label: str = "") -> dict:
 			"new_blobs": yeni_blob,
 			"new_bytes": yeni_bayt,
 			"record_count": len(kayitlar),
+			**exclusion_stats,
 		},
 	}
 	_yaz(os.path.join(hedef, "manifest.json"), manifest)
@@ -390,6 +422,36 @@ def verify(set_id: str, *, deep: bool = False) -> dict:
 		"corrupt_count": len(bozuk),
 		"deep": deep,
 		"ok": not eksik and not bozuk,
+	}
+
+
+def verify_sample(set_id: str, *, sample_size: int = 100, seed: str = "") -> dict:
+	"""Orijinal blob'lardan tekrarlanabilir rastgele bir örneklemi derin doğrula.
+
+	`seed` verilmezse set kimliği kullanılır; aynı yedek için aynı örneklem
+	seçilir ve olay incelemesinde sonuç yeniden üretilebilir. Manifest zaten
+	türevleri dışladığı için bu kontrol yalnız kurtarılması gereken veriyi ölçer.
+	"""
+	m = manifest_of(set_id)
+	files = list(m.get("files") or [])
+	size = max(0, min(int(sample_size or 0), len(files)))
+	selected = random.Random(seed or set_id).sample(files, size) if size else []
+	missing: list[str] = []
+	corrupt: list[str] = []
+	for row in selected:
+		blob = _blob_path(row["hash"])
+		if not os.path.isfile(blob):
+			missing.append(row["path"])
+		elif file_hash(blob) != row["hash"]:
+			corrupt.append(row["path"])
+	return {
+		"set_id": set_id,
+		"population": len(files),
+		"sampled": len(selected),
+		"sample_paths": [row["path"] for row in selected],
+		"missing_blobs": missing,
+		"corrupt_blobs": corrupt,
+		"ok": not missing and not corrupt,
 	}
 
 

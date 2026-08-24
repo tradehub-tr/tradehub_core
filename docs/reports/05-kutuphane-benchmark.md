@@ -589,3 +589,22 @@ docker cp istoc-dev-backend-1:/home/frappe/bench/bench.csv fixtures/bench.csv
 Sütunlar: `engine, rel, note, out_fmt, quality, long_edge, repeat, ok, inner_s,
 outer_s, peak_rss_kb, rss_over_import_kb, out_bytes, out_w, out_h, src_fmt,
 src_mode, src_w, src_h, src_mp, src_bytes, src_icc, src_exif_orient, err`
+
+---
+
+## Tekrarlanabilirlik eki — 2026-08-23
+
+- Ham veri yolu gerçekte `docs/reports/bench.csv`: 360 koşum, 0 hata.
+- `scripts/bench_engine.py` sabit korpus/motor/tekrar matrisiyle yeniden
+  üretilebilir; ölçülen kazanan sayısal olarak Pillow + `draft()` yaklaşımıdır.
+- Güncel backend imajı pyvips 2.2.3 / libvips 8.14.1 ve Pillow 12.2.0 taşır;
+  böylece iki Python motoru yeniden ölçmek için geçici paket kurulumu gerekmez.
+- FFmpeg n8.1.2 ve libvmaf güncel imajda vardır.
+- `python -m py_compile scripts/bench_engine.py` Faz 0 CI işinde bloklayıcıdır;
+  pahalı 360-koşum benchmark'ı her PR'da değil, motor/codec değişikliğinde
+  kontrollü olarak çalıştırılır.
+
+30 MB kaynak benzetiminde karar ölçülüdür: tam decode bellek büyümesi
+Pillow'da yüzlerce MiB'ye çıkabilir; `draft()` 72,7 MP örnekte tepe RSS'i
+588 MiB'den 172 MiB'ye indirmiştir. Bu yüzden “kütüphane var mı” değil,
+decode stratejisi ve worker bellek bütçesi seçim kriteridir.

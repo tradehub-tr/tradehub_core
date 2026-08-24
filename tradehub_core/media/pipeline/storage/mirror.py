@@ -47,7 +47,7 @@ import threading
 import time
 from dataclasses import dataclass, field
 from queue import Empty, Full, Queue
-from typing import Any, Callable, Dict, Iterator, List, Optional, Protocol
+from typing import Any, Callable, Dict, Iterable, Iterator, List, Optional, Protocol
 
 from tradehub_core.media.pipeline.contracts.errors import MediaEngineError, ObjectNotFound, StorageError
 from tradehub_core.media.pipeline.contracts.storage import (
@@ -256,10 +256,17 @@ class FrappeEnqueueMirrorQueue:
 class MirrorWorker:
 	"""Ayna görevlerini ikincil depoda yürütür ve sonuçları sayar."""
 
-	def __init__(self, primary: StorageAdapter, secondary: StorageAdapter) -> None:
+	def __init__(
+		self,
+		primary: StorageAdapter,
+		secondary: StorageAdapter,
+		*,
+		alarm: Optional[Callable[[Dict[str, Any]], None]] = None,
+	) -> None:
 		self._primary = primary
 		self._secondary = secondary
 		self._lock = threading.Lock()
+		self._alarm = alarm
 		self.counters: Dict[str, int] = {TASK_OK: 0, TASK_FAILED: 0, TASK_DROPPED: 0}
 		self.failures: List[Dict[str, Any]] = []
 
@@ -273,6 +280,11 @@ class MirrorWorker:
 				# Son 500 hata yeter; sınırsız liste bellek sızıntısıdır.
 				self.failures.append(kayit)
 				del self.failures[:-500]
+				if self._alarm is not None:
+					try:
+						self._alarm(dict(kayit))
+					except Exception:
+						pass
 
 	def execute(self, task: MirrorTask) -> bool:
 		"""Tek görevi yürüt. `True` = tamam, `False` = yeniden denenebilir."""
@@ -297,12 +309,32 @@ class MirrorWorker:
 			return False
 		except MediaEngineError as hata:
 			self.record(task, TASK_FAILED, f"{type(hata).__name__}:{hata.kod}")
-			return bool(getattr(hata, "retryable", False))
+			# Queue gövdesinde False = yeniden dene. Önceki ifade tersiydi ve
+			# tam da geçici S3 hatalarını ilk denemeden sonra bırakıyordu.
+			return not bool(getattr(hata, "retryable", False))
 		except Exception as hata:  # ağ/istemci hatası — yeniden denenebilir
 			self.record(task, TASK_FAILED, f"{type(hata).__name__}")
 			return False
 
 	def _mirror_put(self, task: MirrorTask) -> bool:
+		stream_reader = getattr(self._primary, "iter_bytes", None)
+		stream_writer = getattr(self._secondary, "put_stream", None)
+		if callable(stream_reader) and callable(stream_writer):
+			try:
+				if self._secondary.exists(task.ref):
+					self.record(task, TASK_OK)
+					return True
+				stream_writer(
+					stream_reader(task.ref),
+					task.ref.key.extension,
+					scope=task.ref.scope,
+				)
+			except ObjectNotFound:
+				self.record(task, TASK_DROPPED, "primary_missing")
+				return True
+			self.record(task, TASK_OK)
+			return True
+
 		try:
 			icerik = self._primary.get(task.ref)
 		except ObjectNotFound:
@@ -344,10 +376,11 @@ class MirrorStorage:
 		*,
 		queue_factory: Optional[Callable[["MirrorWorker"], MirrorQueue]] = None,
 		read_repair: bool = True,
+		alarm: Optional[Callable[[Dict[str, Any]], None]] = None,
 	) -> None:
 		self._primary = primary
 		self._secondary = secondary
-		self.worker = MirrorWorker(primary, secondary)
+		self.worker = MirrorWorker(primary, secondary, alarm=alarm)
 		fabrika = queue_factory if queue_factory is not None else ThreadMirrorQueue
 		self._queue: MirrorQueue = fabrika(self.worker)
 		self._read_repair = bool(read_repair)
@@ -356,6 +389,20 @@ class MirrorStorage:
 
 	def put(self, content: bytes, extension: str, *, scope: str = SCOPE_PUBLIC) -> PutResult:
 		sonuc = self._primary.put(content, extension, scope=scope)
+		self._queue.submit(MirrorTask(op=OP_PUT, ref=sonuc.ref))
+		return sonuc
+
+	def put_stream(
+		self,
+		chunks: Iterable[bytes],
+		extension: str,
+		*,
+		scope: str = SCOPE_PUBLIC,
+	) -> PutResult:
+		writer = getattr(self._primary, "put_stream", None)
+		if not callable(writer):
+			raise StorageError("Birincil depo akışlı yazmayı desteklemiyor", retryable=False)
+		sonuc = writer(chunks, extension, scope=scope)
 		self._queue.submit(MirrorTask(op=OP_PUT, ref=sonuc.ref))
 		return sonuc
 
@@ -372,6 +419,17 @@ class MirrorStorage:
 					# çağıranın istediği baytlar elimizde.
 					pass
 			return icerik
+
+	def iter_bytes(self, ref: ObjectRef, *, chunk_size: int = 1024 * 1024) -> Iterator[bytes]:
+		primary_reader = getattr(self._primary, "iter_bytes", None)
+		secondary_reader = getattr(self._secondary, "iter_bytes", None)
+		if self._primary.exists(ref) and callable(primary_reader):
+			yield from primary_reader(ref, chunk_size=chunk_size)
+			return
+		if callable(secondary_reader):
+			yield from secondary_reader(ref, chunk_size=chunk_size)
+			return
+		raise ObjectNotFound("Nesne bulunamadı", detay={"url": ref.url})
 
 	def exists(self, ref: ObjectRef) -> bool:
 		return self._primary.exists(ref) or self._secondary.exists(ref)

@@ -62,8 +62,9 @@ import math
 import re
 import threading
 import time
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
+from typing import Any
 
 TYPE_COUNTER: str = "counter"
 TYPE_GAUGE: str = "gauge"
@@ -96,8 +97,8 @@ def _ad_dogrula(ad: str) -> str:
 	return ad
 
 
-def _etiket_adlari_dogrula(adlar: Sequence[str]) -> Tuple[str, ...]:
-	temiz: List[str] = []
+def _etiket_adlari_dogrula(adlar: Sequence[str]) -> tuple[str, ...]:
+	temiz: list[str] = []
 	for a in adlar:
 		if not _ETIKET_DESENI.match(a or ""):
 			raise MetricError(f"gecersiz etiket adi: {a!r}")
@@ -111,9 +112,7 @@ def _etiket_adlari_dogrula(adlar: Sequence[str]) -> Tuple[str, ...]:
 
 def _kacir(deger: str) -> str:
 	"""Etiket DEĞERİ kaçırma — 0.0.4 kuralı: `\\`, `\"`, yeni satır."""
-	return (
-		str(deger).replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
-	)
+	return str(deger).replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
 
 
 def _help_kacir(metin: str) -> str:
@@ -141,7 +140,7 @@ class _Seri:
 
 	deger: float = 0.0
 	#: Histogram için: kova sayaçları (kümülatif DEĞİL, ham) + toplam + adet
-	kovalar: List[float] = field(default_factory=list)
+	kovalar: list[float] = field(default_factory=list)
 	toplam: float = 0.0
 	adet: float = 0.0
 
@@ -164,28 +163,26 @@ class Metric:
 		*,
 		etiketler: Sequence[str] = (),
 		namespace: str = NAMESPACE,
-		kilit: Optional[threading.Lock] = None,
+		kilit: threading.Lock | None = None,
 	) -> None:
 		tam = f"{namespace}_{ad}" if namespace else ad
 		self.ad: str = _ad_dogrula(tam)
 		self.aciklama: str = aciklama or ad
-		self.etiketler: Tuple[str, ...] = _etiket_adlari_dogrula(etiketler)
-		self._seriler: Dict[Tuple[str, ...], _Seri] = {}
+		self.etiketler: tuple[str, ...] = _etiket_adlari_dogrula(etiketler)
+		self._seriler: dict[tuple[str, ...], _Seri] = {}
 		self._kilit: threading.Lock = kilit or threading.Lock()
 
 	# ── etiket çözümü ──
-	def _anahtar(self, etiket_degerleri: Mapping[str, Any]) -> Tuple[str, ...]:
+	def _anahtar(self, etiket_degerleri: Mapping[str, Any]) -> tuple[str, ...]:
 		verilen = set(etiket_degerleri)
 		beklenen = set(self.etiketler)
 		if verilen != beklenen:
 			eksik = sorted(beklenen - verilen)
 			fazla = sorted(verilen - beklenen)
-			raise MetricError(
-				f"{self.ad}: etiket kumesi uyusmuyor (eksik={eksik}, fazla={fazla})"
-			)
+			raise MetricError(f"{self.ad}: etiket kumesi uyusmuyor (eksik={eksik}, fazla={fazla})")
 		return tuple(str(etiket_degerleri[a]) for a in self.etiketler)
 
-	def _seri(self, anahtar: Tuple[str, ...]) -> _Seri:
+	def _seri(self, anahtar: tuple[str, ...]) -> _Seri:
 		seri = self._seriler.get(anahtar)
 		if seri is None:
 			seri = self._yeni_seri()
@@ -205,7 +202,7 @@ class Metric:
 			return len(self._seriler)
 
 	# ── render ──
-	def _etiket_metni(self, anahtar: Tuple[str, ...], ek: Sequence[Tuple[str, str]] = ()) -> str:
+	def _etiket_metni(self, anahtar: tuple[str, ...], ek: Sequence[tuple[str, str]] = ()) -> str:
 		# `zip` yerine indeks: etiket adı ile değer sayısı `_anahtar()` tarafından
 		# zaten eşitlenmiş durumda; `zip(strict=)` ise Python 3.10+ gerektiriyor
 		# ve bu paket 3.9 ile de test ediliyor.
@@ -213,7 +210,7 @@ class Metric:
 		parcalar += [f'{ad}="{_kacir(deg)}"' for ad, deg in ek]
 		return "{" + ",".join(parcalar) + "}" if parcalar else ""
 
-	def satirlar(self) -> List[str]:  # pragma: no cover - alt sınıflar uygular
+	def satirlar(self) -> list[str]:  # pragma: no cover - alt sınıflar uygular
 		raise NotImplementedError
 
 	def render(self) -> str:
@@ -226,16 +223,14 @@ class Metric:
 		]
 		return "\n".join(bas + govde)
 
-	def to_json(self) -> Dict[str, Any]:  # pragma: no cover - alt sınıflar genişletir
+	def to_json(self) -> dict[str, Any]:  # pragma: no cover - alt sınıflar genişletir
 		with self._kilit:
 			return {
 				"name": self.ad,
 				"type": self.tur,
 				"help": self.aciklama,
 				"labels": list(self.etiketler),
-				"series": {
-					"\u001f".join(k): {"value": s.deger} for k, s in self._seriler.items()
-				},
+				"series": {"\u001f".join(k): {"value": s.deger} for k, s in self._seriler.items()},
 			}
 
 
@@ -263,7 +258,7 @@ class Counter(Metric):
 			seri = self._seriler.get(anahtar)
 			return seri.deger if seri else 0.0
 
-	def satirlar(self) -> List[str]:
+	def satirlar(self) -> list[str]:
 		with self._kilit:
 			ogeler = sorted(self._seriler.items())
 		return [f"{self.ad}{self._etiket_metni(k)} {_sayi(s.deger)}" for k, s in ogeler]
@@ -293,16 +288,16 @@ class Gauge(Metric):
 			seri = self._seriler.get(anahtar)
 			return seri.deger if seri else 0.0
 
-	def satirlar(self) -> List[str]:
+	def satirlar(self) -> list[str]:
 		with self._kilit:
 			ogeler = sorted(self._seriler.items())
 		return [f"{self.ad}{self._etiket_metni(k)} {_sayi(s.deger)}" for k, s in ogeler]
 
 
 #: Süre kovaları — gerekçe modül başlığındaki ölçüm tablosunda.
-DURATION_BUCKETS: Tuple[float, ...] = (0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0, 60.0)
+DURATION_BUCKETS: tuple[float, ...] = (0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0, 60.0)
 #: Bayt kovaları — 25 MB üst kova `upload_policy.MAX_BYTES[image]` ile aynı.
-BYTE_BUCKETS: Tuple[float, ...] = (
+BYTE_BUCKETS: tuple[float, ...] = (
 	64 * 1024.0,
 	256 * 1024.0,
 	1024 * 1024.0,
@@ -311,7 +306,7 @@ BYTE_BUCKETS: Tuple[float, ...] = (
 	25 * 1024 * 1024.0,
 )
 #: Megapiksel kovaları — 20 MP kovası "179 dosya > 20 MP" anomalisinin göstergesi.
-MEGAPIXEL_BUCKETS: Tuple[float, ...] = (1.0, 2.0, 5.0, 10.0, 20.0, 30.0, 50.0, 80.0)
+MEGAPIXEL_BUCKETS: tuple[float, ...] = (1.0, 2.0, 5.0, 10.0, 20.0, 30.0, 50.0, 80.0)
 
 
 class Histogram(Metric):
@@ -334,7 +329,7 @@ class Histogram(Metric):
 			raise MetricError(f"{self.ad}: kovalar artan sirada olmali: {buckets!r}")
 		if len(set(sinirlar)) != len(sinirlar):
 			raise MetricError(f"{self.ad}: tekrar eden kova siniri: {buckets!r}")
-		self.buckets: Tuple[float, ...] = tuple(sinirlar) + (float("inf"),)
+		self.buckets: tuple[float, ...] = tuple(sinirlar) + (float("inf"),)
 
 	def _yeni_seri(self) -> _Seri:
 		return _Seri(kovalar=[0.0] * len(self.buckets))
@@ -351,11 +346,11 @@ class Histogram(Metric):
 					seri.kovalar[i] += 1.0
 					break
 
-	def zamanla(self, **etiketler: Any) -> "_Zamanlayici":
+	def zamanla(self, **etiketler: Any) -> _Zamanlayici:
 		"""`with hist.zamanla(op="optimize"): ...` — süreyi otomatik yazar."""
 		return _Zamanlayici(self, etiketler)
 
-	def ozet(self, **etiketler: Any) -> Dict[str, float]:
+	def ozet(self, **etiketler: Any) -> dict[str, float]:
 		anahtar = self._anahtar(etiketler)
 		with self._kilit:
 			seri = self._seriler.get(anahtar)
@@ -363,10 +358,10 @@ class Histogram(Metric):
 				return {"count": 0.0, "sum": 0.0}
 			return {"count": seri.adet, "sum": seri.toplam}
 
-	def satirlar(self) -> List[str]:
+	def satirlar(self) -> list[str]:
 		with self._kilit:
 			ogeler = sorted(self._seriler.items())
-			cikti: List[str] = []
+			cikti: list[str] = []
 			for anahtar, seri in ogeler:
 				kumulatif = 0.0
 				for i, sinir in enumerate(self.buckets):
@@ -379,7 +374,7 @@ class Histogram(Metric):
 				cikti.append(f"{self.ad}_count{temel} {_sayi(seri.adet)}")
 		return cikti
 
-	def to_json(self) -> Dict[str, Any]:
+	def to_json(self) -> dict[str, Any]:
 		with self._kilit:
 			return {
 				"name": self.ad,
@@ -406,7 +401,7 @@ class _Zamanlayici:
 		self._etiketler = dict(etiketler)
 		self._t0 = 0.0
 
-	def __enter__(self) -> "_Zamanlayici":
+	def __enter__(self) -> _Zamanlayici:
 		self._t0 = time.perf_counter()
 		return self
 
@@ -422,7 +417,7 @@ class Registry:
 
 	def __init__(self, namespace: str = NAMESPACE) -> None:
 		self.namespace: str = namespace
-		self._metrikler: Dict[str, Metric] = {}
+		self._metrikler: dict[str, Metric] = {}
 		self._kilit = threading.Lock()
 
 	def _kaydet(self, metrik: Metric) -> Metric:
@@ -450,11 +445,11 @@ class Registry:
 			Histogram(ad, aciklama, etiketler=etiketler, buckets=buckets, namespace=self.namespace)
 		)
 
-	def get(self, ad: str) -> Optional[Metric]:
+	def get(self, ad: str) -> Metric | None:
 		with self._kilit:
 			return self._metrikler.get(ad)
 
-	def metrikler(self) -> List[Metric]:
+	def metrikler(self) -> list[Metric]:
 		with self._kilit:
 			return [self._metrikler[a] for a in sorted(self._metrikler)]
 
@@ -485,7 +480,7 @@ class Registry:
 			m.temizle()
 
 
-def merge_json(dokumler: Iterable[str]) -> Dict[str, Any]:
+def merge_json(dokumler: Iterable[str]) -> dict[str, Any]:
 	"""Birden çok sürecin `dump_json()` çıktısını TOPLAR.
 
 	Sayaç ve histogram TOPLANIR (süreçler arası toplam anlamlıdır); gösterge
@@ -493,7 +488,7 @@ def merge_json(dokumler: Iterable[str]) -> Dict[str, Any]:
 	çağırana bırakılır: "kuyruk derinliği" toplanır, "disk doluluk oranı"
 	toplanmaz.
 	"""
-	sonuc: Dict[str, Any] = {}
+	sonuc: dict[str, Any] = {}
 	for ham in dokumler:
 		try:
 			veri = json.loads(ham)
@@ -503,9 +498,7 @@ def merge_json(dokumler: Iterable[str]) -> Dict[str, Any]:
 			ad = m.get("name")
 			if not ad:
 				continue
-			hedef = sonuc.setdefault(
-				ad, {"type": m.get("type"), "help": m.get("help"), "series": {}}
-			)
+			hedef = sonuc.setdefault(ad, {"type": m.get("type"), "help": m.get("help"), "series": {}})
 			for anahtar, seri in (m.get("series") or {}).items():
 				h = hedef["series"].setdefault(anahtar, {})
 				if m.get("type") == TYPE_HISTOGRAM:
@@ -561,14 +554,43 @@ BYTES_SAVED_TOTAL: Counter = REGISTRY.counter(
 	"bytes_saved", "Optimizasyonla kazanilan bayt", etiketler=("preset", "outcome")
 )
 
-#: Kuyruk işi sonucu. `state` `tradehub_core/media/jobs.py` sözlüğünden.
-JOB_TOTAL: Counter = REGISTRY.counter(
-	"job", "Kuyruk isi sonucu", etiketler=("job", "state")
+#: T-066 kalite raporu üretilen varlık. Varlık kimliği etiket DEĞİLDİR:
+#: kardinaliteyi patlatır ve rapor DocType'ındaki ayrıntıyı Prometheus'a taşır.
+MEDIA_PROCESSED_TOTAL: Counter = REGISTRY.counter(
+	"processed", "Kalite raporu uretilen medya varligi", etiketler=("slot", "outcome")
 )
+
+#: T-066 iş süresi. `job=image_render`; `outcome` rapor kararı ya da `failed`.
+MEDIA_JOB_DURATION_SECONDS: Histogram = REGISTRY.histogram(
+	"job_duration_seconds",
+	"Medya isleme isi suresi (saniye)",
+	etiketler=("job", "outcome"),
+	buckets=DURATION_BUCKETS,
+)
+
+#: T-066 rapor üretilemeden biten işler. `reason` düşük kardinaliteli makine kodudur.
+MEDIA_JOB_FAILURES_TOTAL: Counter = REGISTRY.counter(
+	"job_failures", "Basarisiz medya isleme isi", etiketler=("job", "reason")
+)
+
+#: Kuyruk işi sonucu. `state` `tradehub_core/media/jobs.py` sözlüğünden.
+JOB_TOTAL: Counter = REGISTRY.counter("job", "Kuyruk isi sonucu", etiketler=("job", "state"))
 
 #: Deneme sayısı dağılımı — backoff politikasının işe yarayıp yaramadığı.
 JOB_ATTEMPTS: Histogram = REGISTRY.histogram(
 	"job_attempts", "Is basina deneme sayisi", etiketler=("job",), buckets=(1.0, 2.0, 3.0)
+)
+
+#: T-034 — beş ayrık RQ kuyruğunun anlık derinliği. ``queue`` etiketi
+#: ``core/queues.py::QUEUE_NAMES`` kapalı kümesidir; kullanıcı/veri etiketi yok.
+MEDIA_QUEUE_DEPTH: Gauge = REGISTRY.gauge(
+	"queue_depth", "Bekleyen medya RQ isi", etiketler=("queue",)
+)
+
+#: Media Processing Job kayıt defterindeki durumlar. RQ derinliği yalnız
+#: bekleyeni görür; çalışan/başarısız/dead işler bu ayrı seride tutulur.
+MEDIA_QUEUE_JOBS: Gauge = REGISTRY.gauge(
+	"queue_jobs", "Duruma gore medya is kaydi", etiketler=("queue", "status")
 )
 
 #: İzolasyon sonucu — `security/isolation.py` `SEBEP_*` değerleri.
@@ -577,9 +599,7 @@ ISOLATION_TOTAL: Counter = REGISTRY.counter(
 )
 
 #: AV tarama sonucu — `media/av.py` durumları (clean/infected/failed).
-SCAN_TOTAL: Counter = REGISTRY.counter(
-	"scan", "Zararli icerik taramasi sonucu", etiketler=("status",)
-)
+SCAN_TOTAL: Counter = REGISTRY.counter("scan", "Zararli icerik taramasi sonucu", etiketler=("status",))
 
 #: SVG sanitize sonucu — `security/svg.py` `KOD_*` değerleri.
 SVG_SANITIZE_TOTAL: Counter = REGISTRY.counter(
@@ -592,9 +612,7 @@ POLICY_VIOLATION_TOTAL: Counter = REGISTRY.counter(
 )
 
 #: Depolama kullanımı — envanter işinin yazdığı anlık değerler.
-STORAGE_BYTES: Gauge = REGISTRY.gauge(
-	"storage_bytes", "Depolanan bayt", etiketler=("tier", "access")
-)
+STORAGE_BYTES: Gauge = REGISTRY.gauge("storage_bytes", "Depolanan bayt", etiketler=("tier", "access"))
 STORAGE_OBJECTS: Gauge = REGISTRY.gauge(
 	"storage_objects", "Depolanan nesne sayisi", etiketler=("tier", "access")
 )
@@ -626,9 +644,7 @@ AUDIT_EVENT_TOTAL: Counter = REGISTRY.counter(
 #: Video dönüşüm süresi. Görsel kovaları burada işe yaramaz: `transcode.py`
 #: `FFMPEG_TIMEOUT_SECONDS = 1700` ile çalışıyor, yani 60 sn'lik üst kova
 #: neredeyse her işi `+Inf`e atardı ve histogram bilgi taşımazdı.
-VIDEO_DURATION_BUCKETS: Tuple[float, ...] = (
-	1.0, 5.0, 15.0, 30.0, 60.0, 120.0, 300.0, 600.0, 900.0, 1700.0
-)
+VIDEO_DURATION_BUCKETS: tuple[float, ...] = (1.0, 5.0, 15.0, 30.0, 60.0, 120.0, 300.0, 600.0, 900.0, 1700.0)
 
 #: `action` `video/decision.py` aksiyonu (transcode/remux/copy), `outcome`
 #: ∈ {accepted, rejected, error} — "ffmpeg patladı" ile "çıktı fayda kapısını
@@ -711,6 +727,11 @@ __all__ = [
 	"ISOLATION_TOTAL",
 	"JOB_ATTEMPTS",
 	"JOB_TOTAL",
+	"MEDIA_JOB_DURATION_SECONDS",
+	"MEDIA_JOB_FAILURES_TOTAL",
+	"MEDIA_PROCESSED_TOTAL",
+	"MEDIA_QUEUE_DEPTH",
+	"MEDIA_QUEUE_JOBS",
 	"MEGAPIXEL_BUCKETS",
 	"NAMESPACE",
 	"ORPHAN_FILES",

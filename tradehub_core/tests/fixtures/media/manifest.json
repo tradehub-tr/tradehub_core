@@ -40,8 +40,8 @@
   "fixture_sayisi": 57,
   "gecti": 57,
   "kaldi": 0,
-  "toplam_bayt": 90310227,
-  "toplam_mb": 86.13,
+  "toplam_bayt": 94879477,
+  "toplam_mb": 90.48,
   "sinif_dagilimi": {
    "photo": 19,
    "transparent": 5,
@@ -2068,7 +2068,7 @@
     "has_audio": true,
     "needs_transcode": false
    },
-   "neden": "Verimli taban: 1280×720, ölçülen 797 kbps (canlı p50 746 kbps'e yakın), 16:9 tam. ÖLÇÜLDÜ: gerçek transcode.needs_transcode() False döndü → sunucu DOKUNMAZ. Şişirilmiş eşleniğiyle (aynı kaynak içerik, aynı süre) yalnız bitrate'te ayrışır.",
+   "neden": "Verimli taban: 1280×720, ölçülen 768 kbps video (canlı p50 746 kbps'e yakın), 16:9 tam. ÖLÇÜLDÜ: karar tablosu PASSTHROUGH döndü → sunucu DOKUNMAZ. Şişirilmiş eşleniğiyle (aynı kaynak içerik, aynı süre) yalnız bitrate'te ayrışır.",
    "kaynak": "canlı-veriden-türetilmiş",
    "slot": "product.video",
    "kural": [
@@ -2076,19 +2076,20 @@
     "NEEDS_TRANSCODE_MAX_BITRATE"
    ],
    "olculen": {
-    "bytes": 677639,
+    "bytes": 1092127,
     "sha256": "287a2d03913dd6537be03645aef87c250b794ad5a090480c311d2f15f15aaaa5",
     "container": "mov,mp4,m4a,3gp,3g2,mj2",
-    "duration_s": 6.0,
-    "bitrate_kbps": 904,
+    "duration_s": 10.0,
+    "bitrate_kbps": 874,
     "video_codec": "h264",
     "width": 1280,
     "height": 720,
     "pix_fmt": "yuv420p",
     "fps": "30/1",
-    "video_bitrate_kbps": 797,
+    "video_bitrate_kbps": 768,
     "has_audio": true,
     "audio_codec": "aac",
+    "audio_bitrate_kbps": 96,
     "needs_transcode": false
    },
    "dogrulama": "GEÇTİ",
@@ -2114,19 +2115,20 @@
     "accept.max_bytes"
    ],
    "olculen": {
-    "bytes": 6292244,
+    "bytes": 10450180,
     "sha256": "95d0ddffa037cf40693d1ad632e59aea8a809a777b2f9e28cbb54482adfb74de",
     "container": "mov,mp4,m4a,3gp,3g2,mj2",
-    "duration_s": 6.0,
-    "bitrate_kbps": 8390,
+    "duration_s": 10.0,
+    "bitrate_kbps": 8360,
     "video_codec": "h264",
     "width": 1280,
     "height": 720,
     "pix_fmt": "yuv420p",
     "fps": "30/1",
-    "video_bitrate_kbps": 8249,
+    "video_bitrate_kbps": 8221,
     "has_audio": true,
     "audio_codec": "aac",
+    "audio_bitrate_kbps": 130,
     "needs_transcode": true
    },
    "dogrulama": "GEÇTİ"
@@ -2162,6 +2164,7 @@
     "video_bitrate_kbps": 835,
     "has_audio": false,
     "audio_codec": null,
+    "audio_bitrate_kbps": 0,
     "needs_transcode": false
    },
    "dogrulama": "GEÇTİ",
@@ -2199,6 +2202,7 @@
     "video_bitrate_kbps": 911,
     "has_audio": true,
     "audio_codec": "aac",
+    "audio_bitrate_kbps": 96,
     "needs_transcode": false
    },
    "dogrulama": "GEÇTİ",
@@ -2224,7 +2228,7 @@
     "SÜRE KURALI YOK"
    ],
    "olculen": {
-    "bytes": 3989924,
+    "bytes": 3986750,
     "sha256": "aa6632ea105ac8f17f1c272134ef68c4883aae85c87c54ed96f2b67e8c594f84",
     "container": "mov,mp4,m4a,3gp,3g2,mj2",
     "duration_s": 540.0,
@@ -2237,6 +2241,7 @@
     "video_bitrate_kbps": 59,
     "has_audio": false,
     "audio_codec": null,
+    "audio_bitrate_kbps": 0,
     "needs_transcode": false
    },
    "dogrulama": "GEÇTİ",
@@ -2273,6 +2278,7 @@
     "video_bitrate_kbps": 389,
     "has_audio": false,
     "audio_codec": null,
+    "audio_bitrate_kbps": 0,
     "needs_transcode": false
    },
    "dogrulama": "GEÇTİ",
@@ -2310,6 +2316,7 @@
     "video_bitrate_kbps": 1505,
     "has_audio": false,
     "audio_codec": null,
+    "audio_bitrate_kbps": 0,
     "needs_transcode": true
    },
    "dogrulama": "GEÇTİ",
@@ -2323,7 +2330,7 @@
     "width": 720,
     "height": 720,
     "has_audio": true,
-    "duration_s": 28.0,
+    "duration_s": 28.002,
     "needs_transcode": false
    },
    "neden": "8. video eksiği GERÇEK kaynakla kapandı: LST-04043'ün gerçek satıcı videosu (Instagram türü, önceden sıkıştırılmış — 707 kbps video). Karar tablosu default→PASSTHROUGH (rapor 81 §2); fayda kapısı sondası bu dosyada %11,44 ölçmüştü (rapor 81 §3.3). Türkçe+emoji'li orijinal ad köken blokunda.",
@@ -2347,6 +2354,7 @@
     "video_bitrate_kbps": 707,
     "has_audio": true,
     "audio_codec": "aac",
+    "audio_bitrate_kbps": 92,
     "needs_transcode": false
    },
    "dogrulama": "GEÇTİ",
@@ -2390,6 +2398,7 @@
     "video_bitrate_kbps": 141,
     "has_audio": false,
     "audio_codec": null,
+    "audio_bitrate_kbps": 0,
     "needs_transcode": false
    },
    "dogrulama": "GEÇTİ",
@@ -2432,6 +2441,7 @@
     "video_bitrate_kbps": 152,
     "has_audio": false,
     "audio_codec": null,
+    "audio_bitrate_kbps": 0,
     "needs_transcode": false
    },
    "dogrulama": "GEÇTİ",
@@ -2463,7 +2473,7 @@
     "bytes": 8504902,
     "sha256": "1a61c34c1c299eb6cb2ea6b712f529ded6d028dce74ed1f9802d93871425677a",
     "container": "mov,mp4,m4a,3gp,3g2,mj2",
-    "duration_s": 58.2,
+    "duration_s": 58.191,
     "bitrate_kbps": 1169,
     "video_codec": "h264",
     "width": 1920,
@@ -2473,6 +2483,7 @@
     "video_bitrate_kbps": 1153,
     "has_audio": true,
     "audio_codec": "aac",
+    "audio_bitrate_kbps": 8,
     "needs_transcode": true
    },
    "dogrulama": "GEÇTİ",

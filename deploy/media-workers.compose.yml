@@ -1,0 +1,64 @@
+# Phase 3 deploy projection. Use as an override alongside the workspace base:
+#   docker compose -f ../docker/docker-compose.yml -f deploy/media-workers.compose.yml config
+# Queue names/timeouts mirror media/pipeline/core/queues.py and are CI-checked.
+
+name: istoc-dev
+
+x-media-worker-defaults: &media-worker-defaults
+  image: ${TRADEHUB_BACKEND_IMAGE:-istoc/tradehub-backend:v15}
+  volumes:
+    - sites:/home/frappe/frappe-bench/sites
+    - logs:/home/frappe/frappe-bench/logs
+  restart: unless-stopped
+
+x-media-worker-contract:
+  media-image-live: {timeout: 60, background_workers: 1}
+  media-image-bulk: {timeout: 1800, background_workers: 1}
+  media-video: {timeout: 1800, background_workers: 1}
+  media-ai: {timeout: 120, background_workers: 1}
+  media-maint: {timeout: 1800, background_workers: 1}
+
+services:
+  queue-media-image-live:
+    <<: *media-worker-defaults
+    command: ["bench", "worker", "--queue", "media-image-live"]
+    mem_limit: 1g
+    memswap_limit: 1g
+    cpus: 1
+    pids_limit: 128
+
+  queue-media-image-bulk:
+    <<: *media-worker-defaults
+    command: ["env/bin/python", "-m", "tradehub_core.media.bulk_worker"]
+    mem_limit: 2g
+    memswap_limit: 2g
+    cpus: 1
+    pids_limit: 192
+
+  queue-media-video:
+    <<: *media-worker-defaults
+    command: ["bench", "worker", "--queue", "media-video"]
+    mem_limit: 1536m
+    memswap_limit: 1536m
+    cpus: 2
+    pids_limit: 256
+
+  queue-media-ai:
+    <<: *media-worker-defaults
+    command: ["bench", "worker", "--queue", "media-ai"]
+    mem_limit: 1g
+    memswap_limit: 1g
+    cpus: 1
+    pids_limit: 128
+
+  queue-media-maint:
+    <<: *media-worker-defaults
+    command: ["bench", "worker", "--queue", "media-maint"]
+    mem_limit: 768m
+    memswap_limit: 768m
+    cpus: 0.5
+    pids_limit: 96
+
+volumes:
+  sites:
+  logs:

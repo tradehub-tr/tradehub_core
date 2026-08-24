@@ -1,0 +1,178 @@
+# G-16 / T-080…T-085 — üretilmiş sözleşme, sürüm ve gerçek HTTP fuzz kapısı.
+name: Faz 8 Media API
+
+on:
+  pull_request:
+    paths:
+      - "tradehub_core/api/media_*.py"
+      - "tradehub_core/api/seller_media.py"
+      - "tradehub_core/api/rum.py"
+      - "tradehub_core/media/chunked.py"
+      - "tradehub_core/media/upload_policy.py"
+      - "tradehub_core/media/pipeline/api/**"
+      - "docs/api/**"
+      - "scripts/gen_http_openapi.py"
+      - "scripts/gen_media_api_collection.py"
+      - "scripts/gen_media_error_catalog.py"
+      - "scripts/check_openapi_breaking.py"
+      - "tradehub_core/tests/test_*api*.py"
+      - ".spectral.yaml"
+      - ".github/workflows/faz8-api.yml"
+  schedule:
+    - cron: "43 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: faz8-api-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contract-artifacts:
+    name: OpenAPI + Spectral + artefakt sapması
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Doğrulama bağımlılıkları
+        run: python -m pip install -q "PyYAML==6.0.2" "jsonschema==4.25.1"
+
+      - name: İki OpenAPI ve üretilmiş artefaktlar güncel
+        run: |
+          python scripts/gen_http_openapi.py --check
+          python scripts/gen_media_api_collection.py --check
+          python scripts/gen_media_error_catalog.py --check
+          python -m unittest -q \
+            tradehub_core.tests.test_api_contracts \
+            tradehub_core.tests.test_http_api_contracts \
+            tradehub_core.tests.test_media_api_artifacts \
+            tradehub_core.tests.test_openapi_breaking
+
+      - name: Spectral — iki sözleşme
+        run: >-
+          npx --yes @stoplight/spectral-cli@6.16.3 lint
+          --ruleset .spectral.yaml
+          docs/api/openapi.yaml docs/api/openapi-http.yaml
+
+      - name: Aynı v1 içinde kırıcı değişiklik yok
+        if: github.event_name == 'pull_request'
+        run: |
+          git show "origin/${{ github.base_ref }}:docs/api/openapi-http.yaml" > /tmp/openapi-http.base.yaml
+          python scripts/check_openapi_breaking.py /tmp/openapi-http.base.yaml docs/api/openapi-http.yaml
+
+  live-frappe:
+    name: Frappe entegrasyonu + Schemathesis 5xx fuzz
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    container:
+      image: frappe/erpnext:v15.104.2@sha256:1939fc4ad566343aebdc9d8504f9ac280f8e689f1ae07d8e82226fdb694c5878
+    services:
+      mariadb:
+        image: mariadb:10.6.28@sha256:92e50059ea0a5965a33ef751970eab37d421b91ebbd01ac909039cffe159e574
+        env:
+          MARIADB_ROOT_PASSWORD: admin
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=30
+      redis-cache:
+        image: redis:7.2.15-alpine@sha256:05a97a479bc73de66f087dc05b569010772880f778cc8671fa6b8aadee32e5c6
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=20
+      redis-queue:
+        image: redis:7.2.15-alpine@sha256:05a97a479bc73de66f087dc05b569010772880f778cc8671fa6b8aadee32e5c6
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Taze site ve Faz 8 Frappe testleri
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /home/frappe/frappe-bench
+          ln -s "$GITHUB_WORKSPACE" apps/tradehub_core
+          LC_ALL=C ls -1 apps | LC_ALL=C sort > sites/apps.txt
+
+          env/bin/python -m pip install --disable-pip-version-check -q "flit_core==3.12.0"
+          env/bin/python -m pip install --disable-pip-version-check -q --no-build-isolation --no-deps -e "$GITHUB_WORKSPACE"
+          env/bin/python -m pip install --disable-pip-version-check -q --no-deps \
+            "defusedxml==0.7.1" "jsonschema==4.25.1"
+
+          bench set-config -g db_host mariadb
+          bench set-config -gp db_port 3306
+          bench set-config -g redis_cache redis://redis-cache:6379
+          bench set-config -g redis_queue redis://redis-queue:6379
+          bench set-config -g redis_socketio redis://redis-queue:6379
+          bench new-site faz8.test \
+            --mariadb-user-host-login-scope=% \
+            --admin-password admin \
+            --db-root-password admin \
+            --install-app erpnext \
+            --install-app tradehub_core \
+            --set-default
+          bench --site faz8.test set-config allow_tests true
+
+          bench --site faz8.test run-tests --failfast \
+            --module tradehub_core.tests.test_chunked_upload_idempotency
+          bench --site faz8.test run-tests --failfast \
+            --module tradehub_core.tests.test_media_manifest_api
+          bench --site faz8.test run-tests --failfast \
+            --module tradehub_core.tests.test_media_crop_intent
+
+      - name: Gerçek guest teslim uçlarında Schemathesis
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /home/frappe/frappe-bench
+          bench serve --port 8000 > /tmp/faz8-bench.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          ready=0
+          for _ in $(seq 1 40); do
+            if curl -fsS -H 'Host: faz8.test' \
+              'http://127.0.0.1:8000/api/method/ping' >/dev/null; then
+              ready=1
+              break
+            fi
+            sleep 2
+          done
+          if [ "$ready" != 1 ]; then
+            tail -100 /tmp/faz8-bench.log
+            exit 1
+          fi
+
+          python3 -m venv /tmp/faz8-schemathesis
+          /tmp/faz8-schemathesis/bin/pip install -q "schemathesis==4.25.0"
+          /tmp/faz8-schemathesis/bin/schemathesis run \
+            "$GITHUB_WORKSPACE/docs/api/openapi-http.yaml" \
+            --url http://127.0.0.1:8000 \
+            --header 'Host:faz8.test' \
+            --include-operation-id media_manifest_get_manifest \
+            --include-operation-id media_manifest_get_manifest_batch \
+            --phases examples,coverage,fuzzing \
+            --checks not_a_server_error \
+            --max-examples 30 \
+            --generation-deterministic \
+            --workers 1 \
+            --no-color

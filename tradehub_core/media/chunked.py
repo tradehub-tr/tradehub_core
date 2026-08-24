@@ -27,15 +27,19 @@ oturumuna parça eklenemez; kapsam kontrolü her adımda tekrarlanıyor.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import re
 import shutil
+import time
 
 import frappe
 
 from tradehub_core.media import upload_policy
 
 ROOT_DIRNAME = "media-uploads"
+FINALIZED_DIRNAME = "media-upload-results"
 
 # Parça boyutu: 2 MB. Küçük tutmanın bedeli istek sayısı, büyük tutmanın bedeli
 # bellek ve yeniden deneme maliyeti — kopan bir yükleme bütün parçayı tekrar
@@ -50,13 +54,108 @@ MAX_CHUNKS: int = 256
 # diskte kalıyor; temizleyen olmazsa depo sessizce şişer.
 SESSION_TTL_HOURS: int = 6
 
+# Başarılı finalize sonucu, istemci yanıtı alamasa bile yeniden okunabilmeli.
+# Oturum parçalarından ayrı kökte tutulur: oturum temizliği sonucu da silseydi
+# idempotency tam ihtiyaç duyulduğu anda (sunucu yazdı, yanıt kayboldu) ölürdü.
+FINALIZED_TTL_HOURS: int = 24
+MAX_IDEMPOTENCY_KEY: int = 128
+
 _ID_RE = re.compile(r"^[a-f0-9]{24}$")
+_IDEMPOTENCY_RE = re.compile(r"^[A-Za-z0-9._:-]{8,128}$")
+_SHA256_RE = re.compile(r"^[a-f0-9]{64}$")
 
 
 def _root() -> str:
 	yol = frappe.get_site_path("private", ROOT_DIRNAME)
 	os.makedirs(yol, exist_ok=True)
 	return yol
+
+
+def _finalized_root() -> str:
+	yol = frappe.get_site_path("private", FINALIZED_DIRNAME)
+	os.makedirs(yol, exist_ok=True)
+	return yol
+
+
+def normalize_idempotency_key(value: str = "", *, generate: bool = False) -> str:
+	"""HTTP/body tekrar anahtarı — güvenli, kısa ve deterministik.
+
+	Anahtar dosya adına doğrudan GİRMEZ; yine de kontrol karakteri, boşluk ve
+	sınırsız uzunluk log/header enjeksiyonu ve bellek tüketimi olurdu. Eski
+	istemciler için boş değer kabul edilir; ``generate=True`` sunucu anahtarı
+	üretir ve yanıtta geri verir.
+	"""
+	key = str(value or "").strip()
+	if not key and generate:
+		key = frappe.generate_hash(length=32)
+	if key and not _IDEMPOTENCY_RE.fullmatch(key):
+		upload_policy.reddet(
+			upload_policy.IDEMPOTENCY_INVALID,
+			frappe._("Idempotency-Key 8-128 güvenli karakterden oluşmalıdır."),
+		)
+	return key
+
+
+def normalize_content_sha256(value: str = "") -> str:
+	hash_hex = str(value or "").strip().lower()
+	if hash_hex and not _SHA256_RE.fullmatch(hash_hex):
+		upload_policy.reddet(
+			upload_policy.CONTENT_HASH_INVALID,
+			frappe._("content_sha256 64 haneli onaltılık SHA-256 olmalıdır."),
+		)
+	return hash_hex
+
+
+def _finalized_path(store: str, idempotency_key: str) -> str:
+	key = normalize_idempotency_key(idempotency_key)
+	if not store or not key:
+		return ""
+	digest = hashlib.sha256(f"{store}\0{key}".encode()).hexdigest()
+	return os.path.join(_finalized_root(), f"{digest}.json")
+
+
+def finalized_result(idempotency_key: str, store: str) -> dict | None:
+	"""Aynı mağaza + anahtarın son başarılı yanıtı; başka kiracı göremez."""
+	yol = _finalized_path(store, idempotency_key)
+	if not yol or not os.path.isfile(yol):
+		return None
+	try:
+		if time.time() - os.path.getmtime(yol) > FINALIZED_TTL_HOURS * 3600:
+			os.unlink(yol)
+			return None
+		with open(yol, encoding="utf-8") as fh:
+			kayit = json.load(fh)
+		beklenen_scope = hashlib.sha256(store.encode("utf-8")).hexdigest()
+		if kayit.get("scope_sha256") != beklenen_scope:
+			return None
+		sonuc = kayit.get("result")
+		return dict(sonuc) if isinstance(sonuc, dict) else None
+	except (OSError, ValueError, TypeError):
+		return None
+
+
+def save_finalized_result(
+	idempotency_key: str,
+	store: str,
+	result: dict,
+	*,
+	upload_id: str = "",
+) -> None:
+	"""Başarılı yanıtı atomik yaz; kısmi JSON hiçbir okuyucuya görünmez."""
+	yol = _finalized_path(store, idempotency_key)
+	if not yol:
+		return
+	kayit = {
+		"scope_sha256": hashlib.sha256(store.encode("utf-8")).hexdigest(),
+		"key_sha256": hashlib.sha256(idempotency_key.encode("utf-8")).hexdigest(),
+		"upload_id": upload_id,
+		"created": frappe.utils.now(),
+		"result": dict(result),
+	}
+	gecici = f"{yol}.{os.getpid()}.partial"
+	with open(gecici, "w", encoding="utf-8") as fh:
+		json.dump(kayit, fh, ensure_ascii=False, sort_keys=True)
+	os.replace(gecici, yol)
 
 
 def _session_dir(upload_id: str) -> str:
@@ -67,15 +166,11 @@ def _session_dir(upload_id: str) -> str:
 	önce kalıp, sonra çözülmüş yolun kökün altında kaldığının doğrulanması.
 	"""
 	if not _ID_RE.match(upload_id or ""):
-		upload_policy.reddet(
-			upload_policy.SESSION_UNKNOWN, frappe._("Geçersiz yükleme kimliği.")
-		)
+		upload_policy.reddet(upload_policy.SESSION_UNKNOWN, frappe._("Geçersiz yükleme kimliği."))
 	kok = os.path.realpath(_root())
 	tam = os.path.realpath(os.path.join(kok, upload_id))
 	if tam != kok and not tam.startswith(kok + os.sep):
-		upload_policy.reddet(
-			upload_policy.SESSION_UNKNOWN, frappe._("Geçersiz yükleme kimliği.")
-		)
+		upload_policy.reddet(upload_policy.SESSION_UNKNOWN, frappe._("Geçersiz yükleme kimliği."))
 	return tam
 
 
@@ -112,7 +207,15 @@ def _write_meta(upload_id: str, meta: dict) -> None:
 	os.replace(gecici, yol)
 
 
-def begin(file_name: str, total_bytes: int, store: str) -> dict:
+def begin(
+	file_name: str,
+	total_bytes: int,
+	store: str,
+	*,
+	slot: str = "",
+	content_sha256: str = "",
+	idempotency_key: str = "",
+) -> dict:
 	"""Oturum aç — adı ve boyutu ŞİMDİDEN denetle.
 
 	Boyut daha ilk adımda kontrol ediliyor: 300 MB'lık bir dosyanın 150 parçasını
@@ -126,20 +229,36 @@ def begin(file_name: str, total_bytes: int, store: str) -> dict:
 
 	toplam = int(total_bytes or 0)
 	karar = upload_policy.check(file_name, size=toplam, media_endpoint=True)
+	slot_key = (slot or "").strip().lower()
+	politika = upload_policy.policy_snapshot(slot_key)
+	ilan_hash = normalize_content_sha256(content_sha256)
+	tekrar_anahtari = normalize_idempotency_key(idempotency_key, generate=True)
+
+	# Slot tavanı genel tür tavanından dar olabilir (ör. product.video 10 MB,
+	# genel video 200 MB). Bunu ilk adımda kesmek, sonunda reddedilecek onlarca
+	# parçayı diske kabul etmemek demektir. Finalde gerçek içerik kapısı yine
+	# çalışır; bu yalnız erken ve ucuz kapıdır.
+	slot_tavani = (politika.get("accept") or {}).get("max_bytes")
+	if isinstance(slot_tavani, (int, float)) and slot_tavani > 0 and toplam > int(slot_tavani):
+		upload_policy.reddet(
+			upload_policy.TOO_LARGE,
+			frappe._("Dosya bu slot için çok büyük: üst sınır {0} MB.").format(
+				int(slot_tavani) // (1024 * 1024)
+			),
+		)
 
 	if toplam <= 0:
 		upload_policy.reddet(upload_policy.CONTENT_EMPTY, frappe._("Dosya içeriği boş."))
 
 	parca_sayisi = (toplam + CHUNK_BYTES - 1) // CHUNK_BYTES
 	if parca_sayisi > MAX_CHUNKS:
-		upload_policy.reddet(
-			upload_policy.TOO_MANY_CHUNKS, frappe._("Dosya çok fazla parçaya bölünüyor.")
-		)
+		upload_policy.reddet(upload_policy.TOO_MANY_CHUNKS, frappe._("Dosya çok fazla parçaya bölünüyor."))
 
 	upload_id = frappe.generate_hash(length=24)
 	dizin = _session_dir(upload_id)
 	os.makedirs(dizin, exist_ok=True)
 
+	olusturuldu = frappe.utils.now_datetime()
 	meta = {
 		"upload_id": upload_id,
 		"file_name": karar.file_name,
@@ -150,7 +269,12 @@ def begin(file_name: str, total_bytes: int, store: str) -> dict:
 		"received": [],
 		"store": store,
 		"user": frappe.session.user,
-		"created": frappe.utils.now(),
+		"slot": slot_key,
+		"content_sha256": ilan_hash,
+		"idempotency_key": tekrar_anahtari,
+		"policy_snapshot": politika,
+		"created": str(olusturuldu),
+		"expires_at": str(frappe.utils.add_to_date(olusturuldu, hours=SESSION_TTL_HOURS)),
 	}
 	_write_meta(upload_id, meta)
 
@@ -159,6 +283,14 @@ def begin(file_name: str, total_bytes: int, store: str) -> dict:
 		"chunk_bytes": CHUNK_BYTES,
 		"chunk_count": parca_sayisi,
 		"file_name": karar.file_name,
+		"total_bytes": toplam,
+		"slot": slot_key,
+		"content_sha256": ilan_hash,
+		"idempotency_key": tekrar_anahtari,
+		"policy_snapshot": politika,
+		"expires_at": meta["expires_at"],
+		"upload_url": "tradehub_core.api.seller_media.upload_chunk",
+		"completed": False,
 	}
 
 
@@ -246,6 +378,17 @@ def meta_of(upload_id: str, store: str) -> dict:
 		"chunk_bytes": meta["chunk_bytes"],
 		"received": sorted(meta.get("received") or []),
 		"created": meta.get("created"),
+		"expires_at": meta.get("expires_at"),
+		"total_bytes": int(meta.get("total_bytes") or 0),
+		"slot": str(meta.get("slot") or ""),
+		"content_sha256": str(meta.get("content_sha256") or ""),
+		"idempotency_key": str(meta.get("idempotency_key") or ""),
+		"policy_snapshot": dict(meta.get("policy_snapshot") or {}),
+		"received_count": len(meta.get("received") or []),
+		"percent": round(
+			100 * len(meta.get("received") or []) / max(1, int(meta.get("chunk_count") or 1)),
+			2,
+		),
 	}
 
 
@@ -290,4 +433,31 @@ def cleanup(*, hours: int | None = None) -> dict:
 		shutil.rmtree(dizin, ignore_errors=True)
 		silinen += 1
 
-	return {"removed_sessions": silinen, "freed_bytes": kazanilan}
+	sonuclar = cleanup_finalized()
+	return {
+		"removed_sessions": silinen,
+		"freed_bytes": kazanilan + sonuclar["freed_bytes"],
+		"removed_finalized_results": sonuclar["removed_finalized_results"],
+	}
+
+
+def cleanup_finalized(*, hours: int | None = None) -> dict:
+	"""24 saati geçen idempotency yanıtlarını temizle."""
+	sinir = FINALIZED_TTL_HOURS if hours is None else max(0, int(hours))
+	kok = _finalized_root()
+	silinen = 0
+	kazanilan = 0
+	simdi = time.time()
+	for ad in os.listdir(kok):
+		if not re.fullmatch(r"[a-f0-9]{64}\.json", ad):
+			continue
+		yol = os.path.join(kok, ad)
+		try:
+			if simdi - os.path.getmtime(yol) < sinir * 3600:
+				continue
+			kazanilan += os.path.getsize(yol)
+			os.unlink(yol)
+			silinen += 1
+		except OSError:
+			continue
+	return {"removed_finalized_results": silinen, "freed_bytes": kazanilan}

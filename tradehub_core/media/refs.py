@@ -237,6 +237,68 @@ def _replace_embedded(value: str, old_url: str, new_url: str) -> str | None:
 	return None if yeni == value else yeni
 
 
+def _ref_target(ref: dict) -> str:
+	return f"{ref['owner_doctype']}:{ref['owner']}·{ref['column']}"
+
+
+def _retarget_change(ref: dict, before: str, after: str) -> dict[str, str]:
+	"""Geri alma için JSON'a yazılabilecek, açık izin-listeli değişiklik kaydı."""
+	return {
+		"doctype": ref["table"][3:],
+		"table": ref["table"],
+		"row": ref["row"],
+		"field": ref["column"],
+		"column": ref["column"],
+		"before": before,
+		"after": after,
+	}
+
+
+def _validated_retarget_change(change: object) -> tuple[str, str, str, str, str]:
+	"""Dışarıdan okunmuş provenance kaydını SQL'e girmeden önce doğrula.
+
+	`ref_changes` Long Text'te tutulduğu için bu veri yeniden oynatılabilir ya da
+	elle değiştirilebilir. Tablo ve kolon hiçbir zaman bu kayda güvenilerek kabul
+	edilmez; yalnız `LIVE_SOURCES` içindeki ikililer geri alınabilir.
+	"""
+	if not isinstance(change, dict):
+		frappe.throw(frappe._("Geçersiz referans değişikliği kaydı."))
+
+	table = change.get("table")
+	doctype = change.get("doctype")
+	row = change.get("row")
+	field = change.get("field")
+	column = change.get("column")
+	before = change.get("before")
+	after = change.get("after")
+	if not all(isinstance(value, str) for value in (table, doctype, row, field, column, before, after)):
+		frappe.throw(frappe._("Geçersiz referans değişikliği alanı."))
+	if not table.startswith("tab") or doctype != table[3:] or field != column:
+		frappe.throw(frappe._("Geçersiz referans hedefi."))
+
+	_assert_writable(table, column)
+	return table, row, column, before, after
+
+
+_MISSING_ROW = object()
+
+
+def _locked_value(table: str, row: str, column: str):
+	"""Satırı transaction sonuna kadar kilitleyip alanın tam değerini döndür.
+
+	Salt ``get_value`` ardından ``update`` bir compare-and-swap değildir: arada
+	kullanıcı yazısı gelip yine ezilebilir. ``FOR UPDATE`` aynı satırdaki yazıyı
+	seri hâle getirir; değer beklediğimiz değilse çağıran güvenle atlar.
+	"""
+	_assert_writable(table, column)
+	rows = frappe.db.sql(  # noqa: S608 — tablo/kolon _WRITABLE allow-list'inden
+		f"select `{column}` from `{table}` where name=%s for update",
+		(row,),
+		as_list=True,
+	)
+	return rows[0][0] if rows else _MISSING_ROW
+
+
 def retarget(old_url: str, new_url: str) -> dict:
 	"""Dosyanın URL'i değiştiğinde (erişim-seviyesi toggle, TUR-126 §4) onu
 	gösteren referansları yeni URL'e çevir.
@@ -254,17 +316,21 @@ def retarget(old_url: str, new_url: str) -> dict:
 	"""
 	guncellenen: list[str] = []
 	atlanan: list[str] = []
+	changes: list[dict[str, str]] = []
 
 	for ref in find(old_url):
-		hedef = f"{ref['owner_doctype']}:{ref['owner']}·{ref['column']}"
+		hedef = _ref_target(ref)
 		if ref["readonly"]:
 			atlanan.append(f"{hedef} (sipariş geçmişi)")
 			continue
 
+		mevcut = _locked_value(ref["table"], ref["row"], ref["column"])
+		if mevcut is _MISSING_ROW:
+			atlanan.append(f"{hedef} (satır bulunamadı)")
+			continue
+		mevcut = mevcut or ""
 		if not ref["exact"]:
-			_assert_writable(ref["table"], ref["column"])
-			mevcut = frappe.db.get_value(ref["table"][3:], ref["row"], ref["column"])
-			yeni = _replace_embedded(mevcut or "", old_url, new_url)
+			yeni = _replace_embedded(mevcut, old_url, new_url)
 			if yeni is None:
 				atlanan.append(f"{hedef} (gömülü metin)")
 				continue
@@ -273,22 +339,61 @@ def retarget(old_url: str, new_url: str) -> dict:
 				(yeni, ref["row"]),
 			)
 			guncellenen.append(hedef)
+			changes.append(_retarget_change(ref, mevcut, yeni))
 			continue
 
-		_assert_writable(ref["table"], ref["column"])
+		# `find()` ile UPDATE arasındaki kullanıcı değişikliğini ezme. Normal
+		# akışta `mevcut == old_url`; farklıysa bu referans artık bu taşımanın
+		# sahibi değildir ve provenance kaydı da üretilemez.
+		if mevcut != old_url:
+			atlanan.append(f"{hedef} (sonradan değişti)")
+			continue
 		frappe.db.sql(  # noqa: S608 — tablo/kolon _WRITABLE allow-list'inden
 			f"update `{ref['table']}` set `{ref['column']}`=%s where name=%s",
 			(new_url, ref["row"]),
 		)
 		guncellenen.append(hedef)
+		changes.append(_retarget_change(ref, mevcut, new_url))
 
 	return {
 		"old_url": old_url,
 		"new_url": new_url,
 		"updated": guncellenen,
 		"skipped": atlanan,
+		"changes": changes,
 		"total": len(guncellenen),
 	}
+
+
+def restore_retarget_changes(changes: object) -> dict:
+	"""`retarget()` provenance'ını karşılaştırmalı olarak geri al.
+
+	Yalnız satır hâlâ bizim yazdığımız `after` değerini taşıyorsa `before`
+	değerine dönülür. Kullanıcı ya da başka bir iş bu arada alanı değiştirmişse
+	atlanır; geri alma, yeni veriyi asla ezmez.
+	"""
+	if not isinstance(changes, list):
+		frappe.throw(frappe._("Referans değişiklikleri bir JSON listesi olmalı."))
+
+	geri_alinan: list[str] = []
+	atlanan: list[str] = []
+	for change in changes:
+		table, row, column, before, after = _validated_retarget_change(change)
+		mevcut = _locked_value(table, row, column)
+		hedef = f"{table[3:]}:{row}·{column}"
+		if mevcut is _MISSING_ROW:
+			atlanan.append(f"{hedef} (satır bulunamadı)")
+			continue
+		if mevcut != after:
+			atlanan.append(f"{hedef} (sonradan değişti)")
+			continue
+		frappe.db.sql(  # noqa: S608 — tablo/kolon _WRITABLE allow-list'inden
+			f"update `{table}` set `{column}`=%s where name=%s",
+			(before, row),
+		)
+		geri_alinan.append(hedef)
+
+	return {"restored": geri_alinan, "skipped": atlanan, "total": len(geri_alinan)}
 
 
 def find_dangling(limit: int = 500) -> list[dict]:

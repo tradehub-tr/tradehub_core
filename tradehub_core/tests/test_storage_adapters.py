@@ -97,12 +97,22 @@ class FakeS3Client:
 		}
 
 	# — istemci yüzeyi —
-	def put_object(self, *, Bucket: str, Key: str, Body: bytes, Metadata: Dict[str, str], StorageClass: str = "STANDARD") -> Dict[str, Any]:
+	def put_object(
+		self,
+		*,
+		Bucket: str,
+		Key: str,
+		Body: Any,
+		Metadata: Dict[str, str],
+		StorageClass: str = "STANDARD",
+		**_kwargs: Any,
+	) -> Dict[str, Any]:
 		self.calls.append(f"put:{Key}")
+		content = Body.read() if hasattr(Body, "read") else bytes(Body)
 		self.objects[Key] = {
-			"Body": Body,
+			"Body": content,
 			"Metadata": dict(Metadata),
-			"ContentLength": len(Body),
+			"ContentLength": len(content),
 			"LastModified": time.time(),
 			"ETag": '"{}"'.format(Metadata.get("sha256", "")[:32]),
 			"StorageClass": StorageClass,

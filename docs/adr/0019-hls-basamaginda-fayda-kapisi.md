@@ -55,3 +55,10 @@ Bu bilinçli: kaynağın kendisi zaten o sınıfların işini görüyor.
 
 `docs/reports/81-w6-video-kosum.md` §4 · `docs/reports/56-d3-faz6-10-kapanis.md`
 §4.5 · `media/pipeline/video/hls.py` (`_rate_control_args`) · ADR-0007.
+
+## Geri dönüş yolu
+
+Kapı nedeniyle desteklenen bağlantı sınıfında oynatılabilir tek basamak dahi
+kalmıyorsa ilgili rung bütçesi yeniden ölçülür; büyük basamak yayınlanmaz.
+Politika değişikliği hata üretirse eski JSON sürümü etkinleştirilir ve kaynak
+MP4 fallback korunur.

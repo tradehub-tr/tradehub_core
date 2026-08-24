@@ -93,3 +93,9 @@ yapıldı** (`video_decision.json` `hls.rate_control: capped_crf`), tek dosya yo
 `NOTE_OVERSIZE` notu düşülüyor, ret ya da yeniden kodlama yok
 (`render.py:934`). Yani fayda kapısı (göreli) çalışıyor ama bayt tavanı (mutlak)
 çalışmıyor; ikisi karıştırılmamalı. Bkz. ADR-0012.
+
+## Geri dönüş yolu
+
+INV-05 kapatılmaz. Kalite/VMAF eşiğini geçen zorunlu uyumluluk çıktısı kaynaktan
+büyükse istisna yalnız karar tablosunda açıkça işaretlenir ve orijinal de
+korunur. Böyle bir fixture yoksa kapıyı gevşeten değişiklik geri çevrilir.

@@ -127,13 +127,19 @@ def temiz_kunye(**degisiklikler) -> dict:
 	"""
 	temel = {
 		"measured": True, "has_video": True,
+		"coded_width": 1280, "coded_height": 720,
 		"width": 1280, "height": 720, "pixels": 921600, "long_edge": 1280, "short_edge": 720,
-		"duration_s": 10.0, "fps": 30.0,
-		"video_codec": "h264", "video_profile": "High", "pix_fmt": "yuv420p",
+		"duration_s": 10.0, "video_start_time_s": 0.0, "video_duration_s": 10.0, "fps": 30.0,
+		"video_codec": "h264", "video_profile": "High", "video_level": 40,
+		"sample_aspect_ratio": "1:1", "display_aspect_ratio": "16:9", "pix_fmt": "yuv420p",
+		"color_transfer": "bt709", "color_primaries": "bt709", "color_space": "bt709",
+		"is_hdr": False, "has_bframes": True,
 		"video_bitrate_bps": 767652, "format_bitrate_bps": 873701, "bpp": 0.0278,
 		"container": "mov,mp4,m4a,3gp,3g2,mj2", "container_family": "mp4",
 		"has_audio": True, "audio_codec": "aac", "audio_bitrate_bps": 96286, "audio_channels": 2,
+		"audio_start_time_s": 0.0, "audio_duration_s": 10.0,
 		"moov_at_end": False, "size_bytes": 1092127, "rotation": 0, "nb_streams": 2,
+		"error_count": 0,
 	}
 	temel.update(degisiklikler)
 	return temel

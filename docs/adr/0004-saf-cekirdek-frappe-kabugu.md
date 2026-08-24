@@ -1,7 +1,7 @@
 # ADR-0004 — Saf çekirdek / Frappe kabuğu ayrımı: `api/` dışında modül düzeyinde `import frappe` yok
 
 **Durum:** Kabul edildi · yürürlükte · testle kilitli
-**Tarih:** Faz 3 (T-032) · doğrulama 2026-08-19
+**Tarih:** Faz 3 (T-032) · son doğrulama 2026-08-23
 **İlgili:** ADR-0003 (kütüphane olma kararının korunan yarısı)
 
 ---
@@ -13,7 +13,7 @@ ADR-0003 medya motorunu ayrı app değil kütüphane yapmaya karar verdi. Ama
 frappe` yapan bir modül site, bench ve veritabanı olmadan çalışmaz, dolayısıyla
 tek başına test edilemez.
 
-Bu kütüphanede test edilebilirliğin bedeli somut: sözleşme testleri (69),
+Bu kütüphanede test edilebilirliğin bedeli somut: sözleşme testleri (75),
 politika motoru testleri (38), kırpma geometrisi (37), SSIM (21), izolasyon (36),
 SVG (52) — hepsi bench olmadan koşabilmeli.
 
@@ -59,24 +59,25 @@ motoru `File.after_insert` kancasına bağlayan **tek** noktadır.
   `image/lqip.py:47`, `image/probe.py:34`, `security/svg.py:62`,
   `security/__init__.py:13`, `observability/metrics.py:55`,
   `observability/logging.py:40`.
-- Frappe'siz koşum kanıtlandı: 69 sözleşme testi 0,052 sn'de, site yok
-  (`docs/reports/21-t030-mimari-inceleme.md` M-01).
+- Frappe'siz koşum kanıtlandı: 75 sözleşme + 47 durum/iskelet testi site
+  olmadan geçiyor; donmuş contract paketi mypy'da 0 hata.
 - Kırpma geometrisinin TypeScript ikizi (`core/crop_geometry.ts`) ancak saf
   çekirdek sayesinde birebir eşlenebildi: **584 vektörde en büyük sapma 0,0 px**
   (ölçüldü).
 
-### Olumsuz
+### Korunan sınırlar
 
-- **Sahte (fake) uygulamalar yanlış güven verebiliyor.** `fakes/` ile koşan 69
-  sözleşme testi `PolicyEngine` Protokolünü doğruluyor, ama somut sınıf
-  Protokolün **13 metodunun 13'ünü de** karşılamıyor (ölçüldü,
-  `DALGA-A-DEVIR.md` "en değerli tek bulgu"). Saf çekirdek testi ucuzlattı, ama
-  **testin neyi kanıtladığını** ucuzlatmadı.
-  Aynı desen iki yerde daha çıktı: sahte S3 istemcisi presign taklidinde
-  `X-Amz-Expires`'ı kendisi uyduruyordu ve 137 test SigV2 hatasını kaçırdı;
-  7 video fixture'ının hepsi sentetik (`testsrc2`) ve **iki kez ters yönde**
-  yanılttı.
-- Aynı ad iki farklı şeye takılabildi: kodda **iki** `PolicyEngine` var ve SAD
-  tek taneden söz ediyor (`docs/reports/21-t030-mimari-inceleme.md` M-02,
-  **BLOKLAYICI**).
-- Politikayı okuyan tek kapı yok — **üç okuyucu** var (aynı rapor M-11).
+- Fake uygulamalar tek başına yeterli kanıt sayılmaz. Contract matrisi fake ile
+  birlikte gerçek PolicyEngine, `PillowImageEngine` ve `FfmpegVideoEngine`
+  imza/davranışını doğrular; CI'da gerçek ffmpeg smoke testi çalışır.
+- Kanonik çalışma-zamanı politika kaynağı yalnız `policy/slots/*.json`'dır;
+  `docs/standards/policies` belge/ölçüm izdüşümüdür.
+- Frappe gerektiren işlerde tembel import veya kabuk adaptörü bakım maliyeti
+  getirir; bu maliyet saflık testinin bilinçli karşılığıdır.
+
+## Geri dönüş yolu
+
+Saf çekirdek API'si bir zorunlu Frappe işlemini dependency injection ile ifade
+edemez ve bunun bakım maliyeti ölçülürse yalnız ilgili adapter kabuğa alınır;
+çekirdeğe doğrudan `import frappe` eklenmez. `test_state_machine` ve import
+tarama kapısı kırılırsa değişiklik geri çevrilir.

@@ -780,3 +780,25 @@ for r in (200, 500, 1000, 2000):                  # r = SENARYO parametresi, olc
 | S3'e geçelim mi? | **Hayır, 12 ay ertele.** Tetikleyiciler tanımlı. | §7.1, §7.3 |
 | Asıl acil sorun ne? | **Yedek job'u 48× yüklenecek.** Türevler yedekten dışlanmalı. | §6 |
 | Neyi ölçmeden karar veremeyiz? | **`r`, `E_gb`, `N_get`, gerçek bpp.** | §4.6, §8 |
+
+---
+
+## Güncel depolama eki — 2026-08-23
+
+İlk raporun “nesne deposu yok” cümlesi keşif anına aittir. Compose'da artık
+MinIO servisi vardır ve çalışmaktadır; `/data` kullanımı yalnız 132 KiB olduğu
+için medya gövdesi hâlâ yerel `sites` volume'ündedir.
+
+| Güncel yerel ölçüm | Değer |
+|---|---:|
+| Public dosya dizini | 904 MiB (`du`) |
+| Private dosya dizini | 188 MiB (`du`) |
+| `tabFile` eşsiz public URL baytı | 735,63 MiB |
+| `tabFile` eşsiz private URL baytı | 154,18 MiB |
+| Volume kapasite / kullanım | 341 GiB / 91 GiB (%27) |
+| MinIO veri dizini | 132 KiB; medya taşınmamış |
+
+Raporun formülü, üç 12-ay büyüme senaryosu ve eager/lazy karşılaştırması
+geçerlidir. Güncel sayılar başlangıç değişkenlerini yeniler; formülün kararını
+değiştirmez: zoom/modal lazy kalmalı, türevler yedek kapsamından ayrılmalı ve
+nesne deposuna geçiş gerçek `r`, egress ve istek ölçümüyle tetiklenmelidir.

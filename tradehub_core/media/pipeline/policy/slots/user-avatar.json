@@ -2,6 +2,7 @@
   "$schema": "../schema/slot-policy.schema.json",
   "schema_version": "1.0.0",
   "status": "draft",
+  "standard_status": "fixed",
   "slot_key": "user.avatar",
   "title": "Kullanıcı profil fotoğrafı",
   "description": "Alıcı/satıcı/yönetici profil fotoğrafı. Kod tabanındaki TEK gerçek çift doğrulamalı görsel slotu: uzantı allowlist'i ve 5 MB tavanı hem sunucuda (tradehub_core/api/v1/identity.py:939-953) hem iki ayrı istemcide aynı sayıyla yazılı. Buna karşılık en büyük gerçek kutu 72 CSS px — yani sistemdeki en küçük piksel talebi ve potansiyel olarak en büyük israf oranı burada.",
@@ -180,20 +181,27 @@
     "on_violation.retryable": "tradehub_core/media/upload_policy.py:97-100"
   },
 
-  "open_questions": [
-    "User.user_image dolu kaç kayıt var ve dosyaların medyan/p95 BAYT ve PİKSEL boyutu ne? Doğrulama: `frappe.db.count('User', {'user_image': ['is','set']})` + docs/reports/00-upload-slot-envanteri.md §9-M5 betiği (PIL ile boyut okuma), `attached_to_doctype='User'` filtresiyle.",
-    "Kaç avatar 256 pikselden büyük? Bu sayı, bu slottaki israfın doğrudan ölçüsü — 72 px'lik bir kutuya inen her fazladan piksel boşa giden bant.",
-    "Kaç avatar animasyonlu GIF? Doğrulama: `attached_to_doctype='User'` dosyalarında PIL ile `is_animated` sayımı.",
-    "Avatar dosyalarında GPS EXIF bloğu var mı? Doğrulama: `exiftool -gpslatitude -gpslongitude` ya da PIL `_getexif()` ile üretim dosyalarında tarama. KVKK açısından ölçülmesi gereken bir sayı.",
-    "profiles[].encoder_quality.webp = 82 kalibre EDİLMEDİ; 96 px'lik bir avatarda 82 ile 88 arasındaki SSIM farkı ölçülmeli.",
-    "master.colorspace='srgb' bir DEĞİŞİKLİK önerisi (mevcut 'preserve'); üretim görselleriyle karşılaştırılmadan 'active' edilmemeli."
-  ],
+  "compliance_measured": {
+    "measured_at": "2026-08-18",
+    "dataset": "istoc.localhost kullanıcı avatarı slot referansları",
+    "sample_size": 6,
+    "compatible_count": 0,
+    "incompatible_count": 6,
+    "unmeasured_count": 0,
+    "violation_rate": 1.0,
+    "top_violation": "6 harici avatar URL'si",
+    "enforcement_mode": "new_uploads_only",
+    "source": "docs/reports/09-slot-bazinda-istatistik.md §3 ve §4.6"
+  },
+
+  "open_questions": [],
 
   "notes": [
+    "FAZ 2 KARARI (2026-08-23): 63 kullanıcının 6'sında user_image doludur ve altısı da harici URL olduğundan yerel piksel/GIF/GPS dağılımı ölçülemez; bu açık soru değil, `new_uploads_only` enforcement gerekçesidir. 96/160/256 merdiveni gerçek CSS×DPR kutularından, WebP q82 mevcut aggressive preset'ten türetilip sabitlenmiştir. sRGB ve zorunlu GPS temizliği Faz 6 normalizer regresyonlarıyla doğrulanmıştır; daha sonraki kalite değişikliği CR gerektirir.",
     "EN BÜYÜK ÖLÇÜLEBİLİR İSRAF BURADA: tradehub_core/api/v1/identity.py:955-966 File kaydını doğrudan açıyor, engine.optimize()/to_webp() çağrılmıyor. Ayrıca media/gates.py:57 Kapı 1 (presets.py:23 MIN_FILE_SIZE = 200 KB) 200 KB altını zaten atlıyor. Yani 5 MB'lık 4000×3000 bir fotoğraf, 36 px'lik bir sohbet avatarına 5 MB olarak indirilebiliyor. Oran: 4000 / (36 × 3) = 37 kat fazla piksel genişliği.",
     "ZATEN ÇÖZÜLMÜŞ — yeniden tasarlanmayacak: (1) uzantı allowlist + 5 MB SUNUCUDA (identity.py:939-953) — kod tabanında yalnız 3 uçta L1 var, bu onlardan biri; (2) aynı sınır iki istemcide de yazılı ve SAYILAR UYUŞUYOR (settings.ts:76-84, auth.js:201-206); (3) rate limit 10/300 sn (identity.py:921); (4) yükleme sonrası cache-buster `?t=Date.now()` (tradehubfront/src/alpine/settings.ts:126) — avatar değişince tarayıcı eski dosyayı göstermiyor; ileride CDN eklenirse bu sorun ZATEN çözülmüş demektir; (5) File kaydı User'a attach ediliyor (identity.py:962-964) → media/usage.py silme kararında sahipsiz görünmüyor; (6) yükleme ilerleme çubuğu KYC/KYB/SlotDropzone ile aynı UX değerlerinde (settings.ts:89-95 yorumu).",
     "ATTRIBUTE TUTARSIZLIĞI: tradehubfront/src/components/settings/SettingsLayout.ts:99 `width=\"64\" height=\"64\"` yazıyor ama kutu `size-[72px]` (:98). Tarayıcı 64×64 rezerve edip 72×72 boyar. CLS riski yok (kap sabit px) ama attribute yanlış.",
     "AVATAR GÖRSELİ KULLANMAYAN YÜZEY: ürün yorumlarında avatar dosyası hiç inmiyor, baş harf + üretilmiş renk kullanılıyor (tradehubfront/src/components/product/ProductReviews.ts:315). Yani avatar trafiği yorum listelerinde SIFIR.",
-    "Bu politika dosyası bugün kod tarafından OKUNMUYOR (tradehub_core/media/upload_policy.py:307-313)."
+    "Politika `upload_policy.check_slot()` üzerinden çalışma zamanında okunur; avatar ucunun motor köprüsü sonraki uygulama fazının kapsamıdır."
   ]
 }

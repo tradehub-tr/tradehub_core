@@ -1,0 +1,1 @@
+"""Media Quality Report DocType."""

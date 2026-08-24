@@ -45,6 +45,8 @@ yeniden denenecek mi, kullanıcıya ne denecek. Metne bakarak karar vermek,
 
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 from dataclasses import dataclass, field
 from functools import lru_cache
@@ -143,6 +145,13 @@ QUOTA_EXCEEDED = Kod("upload_quota_exceeded", False)
 # adıyla kapının tamamını atlamak demekti; açık ret verilir. Slot HİÇ
 # verilmemişse (genel yükleme) kapı zaten koşmaz — bkz. `check_slot`.
 SLOT_UNKNOWN = Kod("upload_slot_unknown", False)
+# Faz 8 / T-081 — yeniden deneme anahtarı ve istemcinin ilan ettiği içerik
+# özeti makine-okunur biçimde reddedilir. İkisi de aynı istekle tekrar
+# denendiğinde düzelmeyecek istemci girdileridir; otomatik retry yapılmaz.
+IDEMPOTENCY_INVALID = Kod("upload_idempotency_invalid", False)
+IDEMPOTENCY_CONFLICT = Kod("upload_idempotency_conflict", False)
+CONTENT_HASH_INVALID = Kod("upload_content_hash_invalid", False)
+CONTENT_HASH_MISMATCH = Kod("upload_content_hash_mismatch", False)
 
 ALL_CODES: tuple[Kod, ...] = (
 	NAME_REQUIRED,
@@ -165,6 +174,10 @@ ALL_CODES: tuple[Kod, ...] = (
 	TOO_MANY_CHUNKS,
 	QUOTA_EXCEEDED,
 	SLOT_UNKNOWN,
+	IDEMPOTENCY_INVALID,
+	IDEMPOTENCY_CONFLICT,
+	CONTENT_HASH_INVALID,
+	CONTENT_HASH_MISMATCH,
 )
 
 RETRYABLE: frozenset[str] = frozenset(k.kod for k in ALL_CODES if k.retryable)
@@ -617,6 +630,59 @@ def check_slot(slot: str, file_name: str, content: bytes, *, role: str = "") -> 
 	# Motorun kodu politika önekini zaten taşıyor (`error_code_prefix`);
 	# `Kod` sarmalayıcı yalnız mevcut ret biçimini (upload_error + [kod]) kurar.
 	reddet(Kod(ilk.code, False), mesaj)
+
+
+def policy_snapshot(slot: str = "") -> dict:
+	"""Yükleme oturumuna sabitlenecek, sır içermeyen politika özeti.
+
+	T-081 oturum açılışında yalnız bir ``slot_key`` dönmekle yetinmez: istemci
+	hangi kurala göre kabul edildiğini ve oturum sürerken deploy edilen yeni bir
+	politikanın bu yüklemeyi sessizce değiştirmediğini görebilmelidir. Tam ham
+	dosya (``source`` açıklamaları, açık sorular vb.) taşınmaz; kabul/require
+	katmanları, profil kimlikleri ve bunların kanonik SHA-256 sürümü sabitlenir.
+
+	Slot boşsa genel medya kapısının özeti döner. Bu, serbest kütüphane
+	yüklemesini yapay bir slota bağlamadan yine de denetlenebilir kılar.
+	"""
+	anahtar = (slot or "").strip().lower()
+	if not anahtar:
+		govde = {
+			"slot_key": "",
+			"schema_version": "general-v1",
+			"status": "active",
+			"accept": {
+				"extensions": sorted(
+					e for e, tur in EXTENSIONS.items() if tur in MEDIA_KINDS or e in MEDIA_EXTRA_EXTENSIONS
+				),
+				"max_bytes": {tur: effective_max(tur) for tur in MAX_BYTES},
+			},
+			"require": {},
+			"profiles": [],
+		}
+	else:
+		motor = _policy_engine()
+		if anahtar not in motor.registry:
+			reddet(SLOT_UNKNOWN, _("Bilinmeyen yükleme slotu: {0}").format(anahtar))
+		ham = motor.registry.get(anahtar) or {}
+		govde = {
+			"slot_key": anahtar,
+			"schema_version": str(ham.get("schema_version") or ""),
+			"status": str(ham.get("status") or ""),
+			"roles": list(ham.get("roles") or ()),
+			"accept": dict(ham.get("accept") or {}),
+			"require": dict(ham.get("require") or {}),
+			"profiles": [
+				{
+					"name": str(p.get("name") or ""),
+					"width": int(p.get("width") or 0),
+					"formats": list(p.get("formats") or ()),
+				}
+				for p in (ham.get("profiles") or ())
+			],
+		}
+	kanonik = json.dumps(govde, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+	govde["policy_sha256"] = hashlib.sha256(kanonik.encode("utf-8")).hexdigest()
+	return govde
 
 
 def limits() -> dict:

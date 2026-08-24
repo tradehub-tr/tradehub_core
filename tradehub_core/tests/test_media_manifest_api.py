@@ -14,6 +14,7 @@ HATA FIRLATMAZ, boş bir manifest + bugünkü ham `file_url` döner. Dalga A'nı
 from __future__ import annotations
 
 import unittest
+from unittest import mock
 
 import frappe
 
@@ -40,9 +41,7 @@ class TestMediaManifestApi(unittest.TestCase):
 	def setUp(self) -> None:
 		if not self.ilan:
 			self.skipTest("Yerel /files/ görseli olan Active ilan yok — fixture kurulamaz.")
-		self._orijinal = {
-			alan: frappe.db.get_single_value(FLAG_DOCTYPE, alan) for alan in KORUNAN_BAYRAKLAR
-		}
+		self._orijinal = {alan: frappe.db.get_single_value(FLAG_DOCTYPE, alan) for alan in KORUNAN_BAYRAKLAR}
 		self._temizlenecek: list[tuple[str, str]] = []
 		pipeline_flags.clear_cache()
 
@@ -145,9 +144,7 @@ class TestMediaManifestApi(unittest.TestCase):
 			# yani aşağıdaki boş gövde süzgecin eseri, kırık fixture'ın değil.
 			gorunur = media_manifest.get_manifest(self.ilan["name"])
 			frappe.set_user(onceki_kullanici)
-			frappe.db.set_value(
-				"Listing", self.ilan["name"], "storefront_visible", 0, update_modified=False
-			)
+			frappe.db.set_value("Listing", self.ilan["name"], "storefront_visible", 0, update_modified=False)
 			frappe.set_user("Guest")
 			gizli = media_manifest.get_manifest(self.ilan["name"])
 		finally:
@@ -182,6 +179,16 @@ class TestMediaManifestApi(unittest.TestCase):
 		ucuncu = media_manifest.get_manifest(self.ilan["name"], if_none_match=birinci["etag"])
 		self.assertTrue(ucuncu["not_modified"])
 		self.assertNotIn("renditions", ucuncu)
+
+		# Gerçek HTTP başlığı ayrı sözleşmedir: Frappe API router'ı Werkzeug
+		# Response'u zarf açmadan geçirir; durum 304, gövde boş, validator
+		# başlıklardadır. Sorgu parametresinin 200 yolu geriye uyum için yukarıda.
+		with mock.patch.object(media_manifest, "_istek_etagi", return_value=birinci["etag"]):
+			gercek_http = media_manifest.get_manifest(self.ilan["name"])
+		self.assertEqual(gercek_http.status_code, 304)
+		self.assertEqual(gercek_http.get_data(), b"")
+		self.assertEqual(gercek_http.headers["ETag"], birinci["etag"])
+		self.assertEqual(gercek_http.headers["Cache-Control"], media_manifest.CACHE_CONTROL)
 
 	# --- batch ----------------------------------------------------------
 
@@ -243,6 +250,27 @@ class TestMediaManifestApi(unittest.TestCase):
 		"""Public dosya için imza istemek reddedilir (mevcut `media_access` kuralı)."""
 		with self.assertRaises(frappe.ValidationError):
 			media_manifest.get_signed_url("/files/herhangi.jpg")
+
+	def test_signed_url_yetki_sonrasi_lazy_okuma_kapisini_tetikler(self) -> None:
+		"""İmza yalnız yetki geçtikten sonra lazy singleflight köprüsüne girer."""
+		onceki = frappe.session.user
+		try:
+			frappe.set_user("Administrator")
+			with (
+				mock.patch.object(
+					media_manifest.media_access,
+					"get_signed_url",
+					return_value={"url": "/signed", "exp": 1, "ttl_seconds": 60},
+				),
+				mock.patch.object(media_manifest, "_lazy_renditions_for_file_url") as lazy,
+			):
+				sonuc = media_manifest.get_signed_url("/private/files/lazy.jpg")
+		finally:
+			frappe.set_user(onceki)
+
+		lazy.assert_called_once_with("/private/files/lazy.jpg")
+		self.assertEqual(sonuc["url"], "/signed")
+		self.assertEqual(sonuc["cache_control"], "private, no-store")
 
 	# --- yardımcılar ----------------------------------------------------
 

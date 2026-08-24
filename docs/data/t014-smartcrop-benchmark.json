@@ -1,0 +1,3066 @@
+{
+  "schema_version": "1.0.0",
+  "task": "T-014",
+  "measured_at": "2026-08-23T04:21:31.309384+00:00",
+  "images": 50,
+  "human_labels": 0,
+  "threshold_calibrated": false,
+  "memory_metric": "estimated live numpy/Pillow buffers; not process RSS",
+  "model": {
+    "path": ".smartcrop-work/u2netp.onnx",
+    "bytes": 4574861,
+    "available": true,
+    "error": ""
+  },
+  "methods": {
+    "entropy_edge": {
+      "attempted": 50,
+      "successful": 50,
+      "runtime_ms_mean": 22.8559,
+      "runtime_ms_p90": 36.6302,
+      "working_set_estimate_mb_max": 2.25,
+      "model_mb": 0.0,
+      "normalized_error_mean": null,
+      "normalized_error_p90": null,
+      "plain_background_error_mean": null,
+      "complex_background_error_mean": null
+    },
+    "background_segmentation": {
+      "attempted": 50,
+      "successful": 50,
+      "runtime_ms_mean": 16.7017,
+      "runtime_ms_p90": 31.5158,
+      "working_set_estimate_mb_max": 2.1631,
+      "model_mb": 0.0,
+      "normalized_error_mean": null,
+      "normalized_error_p90": null,
+      "plain_background_error_mean": null,
+      "complex_background_error_mean": null
+    },
+    "onnx_u2netp": {
+      "attempted": 50,
+      "successful": 50,
+      "runtime_ms_mean": 168.8292,
+      "runtime_ms_p90": 217.872,
+      "working_set_estimate_mb_max": 3.125,
+      "model_mb": 4.3629,
+      "normalized_error_mean": null,
+      "normalized_error_p90": null,
+      "plain_background_error_mean": null,
+      "complex_background_error_mean": null
+    }
+  },
+  "calibration": {
+    "entropy_edge": null,
+    "background_segmentation": null,
+    "onnx_u2netp": null
+  },
+  "rows": {
+    "entropy_edge": [
+      {
+        "id": "SC0001",
+        "ok": true,
+        "method": "entropy_edge",
+        "focal_x": 0.50285384,
+        "focal_y": 0.56024139,
+        "confidence": 0.35763184,
+        "bbox": [
+          0.16513761,
+          0.02734375,
+          0.66513761,
+          0.97265625
+        ],
+        "runtime_ms": 26.3965,
+        "working_set_estimate_bytes": 2009088,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0002",
+        "ok": true,
+        "method": "entropy_edge",
+        "focal_x": 0.52405735,
+        "focal_y": 0.61620545,
+        "confidence": 0.38865368,
+        "bbox": [
+          0.0,
+          0.0,
+          1.0,
+          1.0
+        ],
+        "runtime_ms": 8.0182,
+        "working_set_estimate_bytes": 1124352,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0003",
+        "ok": true,
+        "method": "entropy_edge",
+        "focal_x": 0.54472138,
+        "focal_y": 0.52419956,
+        "confidence": 0.78298187,
+        "bbox": [
+          0.01171875,
+          0.21484375,
+          0.9453125,
+          0.66015625
+        ],
+        "runtime_ms": 15.7124,
+        "working_set_estimate_bytes": 2359296,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0004",
+        "ok": true,
+        "method": "entropy_edge",
+        "focal_x": 0.49004322,
+        "focal_y": 0.55187345,
+        "confidence": 0.13331151,
+        "bbox": [
+          0.0,
+          0.140625,
+          1.0,
+          0.859375
+        ],
+        "runtime_ms": 14.9442,
+        "working_set_estimate_bytes": 1815552,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0005",
+        "ok": true,
+        "method": "entropy_edge",
+        "focal_x": 0.50175618,
+        "focal_y": 0.49531006,
+        "confidence": 0.31075859,
+        "bbox": [
+          0.0,
+          0.0,
+          1.0,
+          0.875
+        ],
+        "runtime_ms": 27.8416,
+        "working_set_estimate_bytes": 1769472,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0006",
+        "ok": true,
+        "method": "entropy_edge",
+        "focal_x": 0.52968471,
+        "focal_y": 0.51843392,
+        "confidence": 0.42458566,
+        "bbox": [
+          0.15131579,
+          0.05072464,
+          0.76315789,
+          0.83333333
+        ],
+        "runtime_ms": 3.669,
+        "working_set_estimate_bytes": 755136,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0007",
+        "ok": true,
+        "method": "entropy_edge",
+        "focal_x": 0.51111891,
+        "focal_y": 0.5201745,
+        "confidence": 0.48181287,
+        "bbox": [
+          0.14453125,
+          0.1484375,
+          0.68359375,
+          0.80859375
+        ],
+        "runtime_ms": 29.1646,
+        "working_set_estimate_bytes": 2359296,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0008",
+        "ok": true,
+        "method": "entropy_edge",
+        "focal_x": 0.50253586,
+        "focal_y": 0.56914154,
+        "confidence": 0.55615044,
+        "bbox": [
+          0.1328125,
+          0.17460317,
+          0.72265625,
+          0.69444444
+        ],
+        "runtime_ms": 15.6248,
+        "working_set_estimate_bytes": 2322432,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0009",
+        "ok": true,
+        "method": "entropy_edge",
+        "focal_x": 0.51513977,
+        "focal_y": 0.56152592,
+        "confidence": 0.5788788,
+        "bbox": [
+          0.13671875,
+          0.18614719,
+          0.69921875,
+          0.73160173
+        ],
+        "runtime_ms": 14.4423,
+        "working_set_estimate_bytes": 2128896,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0010",
+        "ok": true,
+        "method": "entropy_edge",
+        "focal_x": 0.53313704,
+        "focal_y": 0.52078214,
+        "confidence": 0.63562107,
+        "bbox": [
+          0.15625,
+          0.18103448,
+          0.66015625,
+          0.70689655
+        ],
+        "runtime_ms": 15.3619,
+        "working_set_estimate_bytes": 2138112,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0011",
+        "ok": true,
+        "method": "entropy_edge",
+        "focal_x": 0.5276926,
+        "focal_y": 0.48859487,
+        "confidence": 0.39993469,
+        "bbox": [
+          0.01171875,
+          0.07843137,
+          0.890625,
+          0.92156863
+        ],
+        "runtime_ms": 13.2786,
+        "working_set_estimate_bytes": 1880064,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0012",
+        "ok": true,
+        "method": "entropy_edge",
+        "focal_x": 0.56558059,
+        "focal_y": 0.45096206,
+        "confidence": 0.52962836,
+        "bbox": [
+          0.1328125,
+          0.06818182,
+          0.79296875,
+          0.77727273
+        ],
+        "runtime_ms": 13.9029,
+        "working_set_estimate_bytes": 2027520,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0013",
+        "ok": true,
+        "method": "entropy_edge",
+        "focal_x": 0.5292384,
+        "focal_y": 0.49305139,
+        "confidence": 0.45953123,
+        "bbox": [
+          0.109375,
+          0.07042254,
+          0.8203125,
+          0.83098592
+        ],
+        "runtime_ms": 13.8834,
+        "working_set_estimate_bytes": 1963008,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0014",
+        "ok": true,
+        "method": "entropy_edge",
+        "focal_x": 0.54400038,
+        "focal_y": 0.49521416,
+        "confidence": 0.45761625,
+        "bbox": [
+          0.01171875,
+          0.08163265,
+          0.8828125,
+          0.91836735
+        ],
+        "runtime_ms": 14.7492,
+        "working_set_estimate_bytes": 1806336,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0015",
+        "ok": true,
+        "method": "entropy_edge",
+        "focal_x": 0.5199053,
+        "focal_y": 0.45776548,
+        "confidence": 0.62065832,
+        "bbox": [
+          0.125,
+          0.0776699,
+          0.8125,
+          0.7815534
+        ],
+        "runtime_ms": 14.5823,
+        "working_set_estimate_bytes": 1898496,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0016",
+        "ok": true,
+        "method": "entropy_edge",
+        "focal_x": 0.51520613,
+        "focal_y": 0.48365215,
+        "confidence": 0.45099807,
+        "bbox": [
+          0.00390625,
+          0.01734104,
+          0.93359375,
+          0.98265896
+        ],
+        "runtime_ms": 12.831,
+        "working_set_estimate_bytes": 1594368,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0017",
+        "ok": true,
+        "method": "entropy_edge",
+        "focal_x": 0.50383875,
+        "focal_y": 0.43707327,
+        "confidence": 0.6642046,
+        "bbox": [
+          0.12109375,
+          0.01104972,
+          0.8359375,
+          0.85635359
+        ],
+        "runtime_ms": 11.484,
+        "working_set_estimate_bytes": 1668096,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0018",
+        "ok": true,
+        "method": "entropy_edge",
+        "focal_x": 0.46740094,
+        "focal_y": 0.47783581,
+        "confidence": 0.60656857,
+        "bbox": [
+          0.078125,
+          0.00518135,
+          0.859375,
+          0.87046632
+        ],
+        "runtime_ms": 13.2897,
+        "working_set_estimate_bytes": 1778688,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0019",
+        "ok": true,
+        "method": "entropy_edge",
+        "focal_x": 0.49798616,
+        "focal_y": 0.52656241,
+        "confidence": 0.57085546,
+        "bbox": [
+          0.12890625,
+          0.17672414,
+          0.6796875,
+          0.82327586
+        ],
+        "runtime_ms": 14.2718,
+        "working_set_estimate_bytes": 2138112,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0020",
+        "ok": true,
+        "method": "entropy_edge",
+        "focal_x": 0.49365679,
+        "focal_y": 0.54584418,
+        "confidence": 0.54213715,
+        "bbox": [
+          0.12890625,
+          0.16734694,
+          0.69921875,
+          0.70612245
+        ],
+        "runtime_ms": 15.358,
+        "working_set_estimate_bytes": 2257920,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0021",
+        "ok": true,
+        "method": "entropy_edge",
+        "focal_x": 0.52612864,
+        "focal_y": 0.47354442,
+        "confidence": 0.40454523,
+        "bbox": [
+          0.0625,
+          0.08,
+          0.85546875,
+          0.92
+        ],
+        "runtime_ms": 13.0262,
+        "working_set_estimate_bytes": 1843200,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0022",
+        "ok": true,
+        "method": "entropy_edge",
+        "focal_x": 0.5225135,
+        "focal_y": 0.4498901,
+        "confidence": 0.46594969,
+        "bbox": [
+          0.13671875,
+          0.0855615,
+          0.80078125,
+          0.78074866
+        ],
+        "runtime_ms": 12.1893,
+        "working_set_estimate_bytes": 1723392,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0023",
+        "ok": true,
+        "method": "entropy_edge",
+        "focal_x": 0.48554753,
+        "focal_y": 0.47186262,
+        "confidence": 0.41793275,
+        "bbox": [
+          0.109375,
+          0.08333333,
+          0.8125,
+          0.76960784
+        ],
+        "runtime_ms": 14.66,
+        "working_set_estimate_bytes": 1880064,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0024",
+        "ok": true,
+        "method": "entropy_edge",
+        "focal_x": 0.50226612,
+        "focal_y": 0.44871662,
+        "confidence": 0.60851081,
+        "bbox": [
+          0.125,
+          0.07804878,
+          0.8125,
+          0.77560976
+        ],
+        "runtime_ms": 14.136,
+        "working_set_estimate_bytes": 1889280,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0025",
+        "ok": true,
+        "method": "entropy_edge",
+        "focal_x": 0.47258957,
+        "focal_y": 0.48901707,
+        "confidence": 0.5296909,
+        "bbox": [
+          0.08203125,
+          0.07692308,
+          0.81640625,
+          0.78280543
+        ],
+        "runtime_ms": 15.1045,
+        "working_set_estimate_bytes": 2036736,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0026",
+        "ok": true,
+        "method": "entropy_edge",
+        "focal_x": 0.51711951,
+        "focal_y": 0.48384822,
+        "confidence": 0.47577715,
+        "bbox": [
+          0.02734375,
+          0.01156069,
+          0.92578125,
+          0.98843931
+        ],
+        "runtime_ms": 12.0773,
+        "working_set_estimate_bytes": 1594368,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0027",
+        "ok": true,
+        "method": "entropy_edge",
+        "focal_x": 0.48644645,
+        "focal_y": 0.44546409,
+        "confidence": 0.65154322,
+        "bbox": [
+          0.1015625,
+          0.00543478,
+          0.85546875,
+          0.86413043
+        ],
+        "runtime_ms": 11.8242,
+        "working_set_estimate_bytes": 1695744,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0028",
+        "ok": true,
+        "method": "entropy_edge",
+        "focal_x": 0.45554423,
+        "focal_y": 0.48126981,
+        "confidence": 0.59265653,
+        "bbox": [
+          0.0625,
+          0.00520833,
+          0.89453125,
+          0.86979167
+        ],
+        "runtime_ms": 15.35,
+        "working_set_estimate_bytes": 1769472,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0029",
+        "ok": true,
+        "method": "entropy_edge",
+        "focal_x": 0.49834162,
+        "focal_y": 0.46794183,
+        "confidence": 0.46841518,
+        "bbox": [
+          0.125,
+          0.08376963,
+          0.80859375,
+          0.83246073
+        ],
+        "runtime_ms": 12.7885,
+        "working_set_estimate_bytes": 1760256,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0030",
+        "ok": true,
+        "method": "entropy_edge",
+        "focal_x": 0.51209908,
+        "focal_y": 0.59896337,
+        "confidence": 0.55811787,
+        "bbox": [
+          0.14864865,
+          0.08092486,
+          0.73648649,
+          0.86127168
+        ],
+        "runtime_ms": 4.2445,
+        "working_set_estimate_bytes": 921744,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0031",
+        "ok": true,
+        "method": "entropy_edge",
+        "focal_x": 0.49042809,
+        "focal_y": 0.49793799,
+        "confidence": 0.17105512,
+        "bbox": [
+          0.0,
+          0.0,
+          1.0,
+          1.0
+        ],
+        "runtime_ms": 15.0345,
+        "working_set_estimate_bytes": 1843200,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0032",
+        "ok": true,
+        "method": "entropy_edge",
+        "focal_x": 0.51681859,
+        "focal_y": 0.4970349,
+        "confidence": 0.16368735,
+        "bbox": [
+          0.0,
+          0.0,
+          1.0,
+          1.0
+        ],
+        "runtime_ms": 12.5421,
+        "working_set_estimate_bytes": 1465344,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0033",
+        "ok": true,
+        "method": "entropy_edge",
+        "focal_x": 0.50078487,
+        "focal_y": 0.49623101,
+        "confidence": 0.48441108,
+        "bbox": [
+          0.15697674,
+          0.0859375,
+          0.69186047,
+          0.85546875
+        ],
+        "runtime_ms": 49.2935,
+        "working_set_estimate_bytes": 1585152,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0034",
+        "ok": true,
+        "method": "entropy_edge",
+        "focal_x": 0.51607668,
+        "focal_y": 0.50778586,
+        "confidence": 0.50460267,
+        "bbox": [
+          0.12676056,
+          0.12890625,
+          0.78403756,
+          0.76953125
+        ],
+        "runtime_ms": 36.0419,
+        "working_set_estimate_bytes": 1963008,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0035",
+        "ok": true,
+        "method": "entropy_edge",
+        "focal_x": 0.50533046,
+        "focal_y": 0.49504475,
+        "confidence": 0.60075402,
+        "bbox": [
+          0.2629108,
+          0.0234375,
+          0.50704225,
+          0.94921875
+        ],
+        "runtime_ms": 34.5968,
+        "working_set_estimate_bytes": 1963008,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0036",
+        "ok": true,
+        "method": "entropy_edge",
+        "focal_x": 0.50934652,
+        "focal_y": 0.46617789,
+        "confidence": 0.71818606,
+        "bbox": [
+          0.20703125,
+          0.109375,
+          0.66015625,
+          0.7265625
+        ],
+        "runtime_ms": 35.3822,
+        "working_set_estimate_bytes": 2359296,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0037",
+        "ok": true,
+        "method": "entropy_edge",
+        "focal_x": 0.47488612,
+        "focal_y": 0.43983865,
+        "confidence": 0.76914891,
+        "bbox": [
+          0.05859375,
+          0.16071429,
+          0.8984375,
+          0.64285714
+        ],
+        "runtime_ms": 64.2197,
+        "working_set_estimate_bytes": 2064384,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0038",
+        "ok": true,
+        "method": "entropy_edge",
+        "focal_x": 0.51432938,
+        "focal_y": 0.50862547,
+        "confidence": 0.22940409,
+        "bbox": [
+          0.0,
+          0.0,
+          0.9921875,
+          0.97265625
+        ],
+        "runtime_ms": 30.5437,
+        "working_set_estimate_bytes": 2359296,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0039",
+        "ok": true,
+        "method": "entropy_edge",
+        "focal_x": 0.48849211,
+        "focal_y": 0.52556935,
+        "confidence": 0.60816503,
+        "bbox": [
+          0.05263158,
+          0.22265625,
+          0.88888889,
+          0.65234375
+        ],
+        "runtime_ms": 110.9172,
+        "working_set_estimate_bytes": 1575936,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0040",
+        "ok": true,
+        "method": "entropy_edge",
+        "focal_x": 0.48798809,
+        "focal_y": 0.49926001,
+        "confidence": 0.58078249,
+        "bbox": [
+          0.1953125,
+          0.0390625,
+          0.67578125,
+          0.9375
+        ],
+        "runtime_ms": 35.9296,
+        "working_set_estimate_bytes": 2359296,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0041",
+        "ok": true,
+        "method": "entropy_edge",
+        "focal_x": 0.50773469,
+        "focal_y": 0.43954639,
+        "confidence": 0.59760571,
+        "bbox": [
+          0.09375,
+          0.10546875,
+          0.81640625,
+          0.8125
+        ],
+        "runtime_ms": 20.2132,
+        "working_set_estimate_bytes": 2359296,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0042",
+        "ok": true,
+        "method": "entropy_edge",
+        "focal_x": 0.50546567,
+        "focal_y": 0.48217532,
+        "confidence": 0.63810102,
+        "bbox": [
+          0.12109375,
+          0.1171875,
+          0.7578125,
+          0.80859375
+        ],
+        "runtime_ms": 35.744,
+        "working_set_estimate_bytes": 2359296,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0043",
+        "ok": true,
+        "method": "entropy_edge",
+        "focal_x": 0.47133626,
+        "focal_y": 0.41604347,
+        "confidence": 0.54993518,
+        "bbox": [
+          0.05078125,
+          0.0703125,
+          0.89453125,
+          0.8671875
+        ],
+        "runtime_ms": 36.6302,
+        "working_set_estimate_bytes": 2359296,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0044",
+        "ok": true,
+        "method": "entropy_edge",
+        "focal_x": 0.49446712,
+        "focal_y": 0.47427439,
+        "confidence": 0.38674839,
+        "bbox": [
+          0.03515625,
+          0.09765625,
+          0.94140625,
+          0.859375
+        ],
+        "runtime_ms": 39.1684,
+        "working_set_estimate_bytes": 2359296,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0045",
+        "ok": true,
+        "method": "entropy_edge",
+        "focal_x": 0.49409954,
+        "focal_y": 0.49983468,
+        "confidence": 0.43273218,
+        "bbox": [
+          0.11328125,
+          0.046875,
+          0.77734375,
+          0.921875
+        ],
+        "runtime_ms": 67.3575,
+        "working_set_estimate_bytes": 2359296,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0046",
+        "ok": true,
+        "method": "entropy_edge",
+        "focal_x": 0.55007647,
+        "focal_y": 0.535507,
+        "confidence": 1.0,
+        "bbox": [
+          0.1171875,
+          0.3515625,
+          0.76171875,
+          0.421875
+        ],
+        "runtime_ms": 17.0512,
+        "working_set_estimate_bytes": 2359296,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0047",
+        "ok": true,
+        "method": "entropy_edge",
+        "focal_x": 0.50334938,
+        "focal_y": 0.68302671,
+        "confidence": 1.0,
+        "bbox": [
+          0.3828125,
+          0.05078125,
+          0.2890625,
+          0.91796875
+        ],
+        "runtime_ms": 19.5098,
+        "working_set_estimate_bytes": 2359296,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0048",
+        "ok": true,
+        "method": "entropy_edge",
+        "focal_x": 0.52245712,
+        "focal_y": 0.4499613,
+        "confidence": 0.4658819,
+        "bbox": [
+          0.13671875,
+          0.0855615,
+          0.80078125,
+          0.78074866
+        ],
+        "runtime_ms": 12.7949,
+        "working_set_estimate_bytes": 1723392,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0049",
+        "ok": true,
+        "method": "entropy_edge",
+        "focal_x": 0.46560588,
+        "focal_y": 0.60637578,
+        "confidence": 0.6938587,
+        "bbox": [
+          0.10245902,
+          0.05078125,
+          0.79918033,
+          0.87109375
+        ],
+        "runtime_ms": 16.8373,
+        "working_set_estimate_bytes": 2248704,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0050",
+        "ok": true,
+        "method": "entropy_edge",
+        "focal_x": 0.51754608,
+        "focal_y": 0.54504371,
+        "confidence": 0.98258448,
+        "bbox": [
+          0.0625,
+          0.19140625,
+          0.875,
+          0.62109375
+        ],
+        "runtime_ms": 18.7789,
+        "working_set_estimate_bytes": 2359296,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      }
+    ],
+    "background_segmentation": [
+      {
+        "id": "SC0001",
+        "ok": true,
+        "method": "background_segmentation",
+        "focal_x": 0.51491041,
+        "focal_y": 0.52477042,
+        "confidence": 0.56815902,
+        "bbox": [
+          0.16544118,
+          0.034375,
+          0.65808824,
+          0.925
+        ],
+        "runtime_ms": 12.6145,
+        "working_set_estimate_bytes": 1929088,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0002",
+        "ok": true,
+        "method": "background_segmentation",
+        "focal_x": 0.52785543,
+        "focal_y": 0.57883209,
+        "confidence": 0.37841988,
+        "bbox": [
+          0.0,
+          0.00657895,
+          0.99375,
+          0.98026316
+        ],
+        "runtime_ms": 4.5042,
+        "working_set_estimate_bytes": 1081408,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0003",
+        "ok": true,
+        "method": "background_segmentation",
+        "focal_x": 0.59951389,
+        "focal_y": 0.47028177,
+        "confidence": 0.89489245,
+        "bbox": [
+          0.0125,
+          0.21875,
+          0.94375,
+          0.65625
+        ],
+        "runtime_ms": 8.0201,
+        "working_set_estimate_bytes": 2268160,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0004",
+        "ok": true,
+        "method": "background_segmentation",
+        "focal_x": 0.40774648,
+        "focal_y": 0.32420358,
+        "confidence": 1.0,
+        "bbox": [
+          0.00404858,
+          0.28125,
+          0.6194332,
+          0.115625
+        ],
+        "runtime_ms": 8.8579,
+        "working_set_estimate_bytes": 1752488,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0005",
+        "ok": true,
+        "method": "background_segmentation",
+        "focal_x": 0.5,
+        "focal_y": 0.5,
+        "confidence": 0.0,
+        "bbox": [
+          0.0,
+          0.0,
+          1.0,
+          1.0
+        ],
+        "runtime_ms": 16.7746,
+        "working_set_estimate_bytes": 1703040,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "no_signal",
+        "error": null
+      },
+      {
+        "id": "SC0006",
+        "ok": true,
+        "method": "background_segmentation",
+        "focal_x": 0.53111317,
+        "focal_y": 0.55823843,
+        "confidence": 0.65761169,
+        "bbox": [
+          0.15131579,
+          0.05072464,
+          0.75657895,
+          0.82608696
+        ],
+        "runtime_ms": 0.8971,
+        "working_set_estimate_bytes": 468432,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0007",
+        "ok": true,
+        "method": "background_segmentation",
+        "focal_x": 0.41540171,
+        "focal_y": 0.63742687,
+        "confidence": 0.98339661,
+        "bbox": [
+          0.146875,
+          0.15,
+          0.675,
+          0.803125
+        ],
+        "runtime_ms": 27.6708,
+        "working_set_estimate_bytes": 2268160,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0008",
+        "ok": true,
+        "method": "background_segmentation",
+        "focal_x": 0.51654461,
+        "focal_y": 0.56703863,
+        "confidence": 0.99773661,
+        "bbox": [
+          0.134375,
+          0.18095238,
+          0.709375,
+          0.68253968
+        ],
+        "runtime_ms": 11.3115,
+        "working_set_estimate_bytes": 2232840,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0009",
+        "ok": true,
+        "method": "background_segmentation",
+        "focal_x": 0.53476176,
+        "focal_y": 0.55777229,
+        "confidence": 0.99927839,
+        "bbox": [
+          0.146875,
+          0.19031142,
+          0.6625,
+          0.6816609
+        ],
+        "runtime_ms": 10.3286,
+        "working_set_estimate_bytes": 2049176,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0010",
+        "ok": true,
+        "method": "background_segmentation",
+        "focal_x": 0.55384091,
+        "focal_y": 0.52377313,
+        "confidence": 1.0,
+        "bbox": [
+          0.21875,
+          0.18685121,
+          0.59375,
+          0.67128028
+        ],
+        "runtime_ms": 10.3112,
+        "working_set_estimate_bytes": 2049176,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0011",
+        "ok": true,
+        "method": "background_segmentation",
+        "focal_x": 0.45312088,
+        "focal_y": 0.58362377,
+        "confidence": 0.94205046,
+        "bbox": [
+          0.015625,
+          0.08984375,
+          0.88125,
+          0.90625
+        ],
+        "runtime_ms": 9.3705,
+        "working_set_estimate_bytes": 1816064,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0012",
+        "ok": true,
+        "method": "background_segmentation",
+        "focal_x": 0.56646018,
+        "focal_y": 0.42519475,
+        "confidence": 0.9803884,
+        "bbox": [
+          0.1375,
+          0.07272727,
+          0.778125,
+          0.76727273
+        ],
+        "runtime_ms": 9.9036,
+        "working_set_estimate_bytes": 1950280,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0013",
+        "ok": true,
+        "method": "background_segmentation",
+        "focal_x": 0.53654547,
+        "focal_y": 0.45276732,
+        "confidence": 0.9584864,
+        "bbox": [
+          0.1125,
+          0.07865169,
+          0.80625,
+          0.78277154
+        ],
+        "runtime_ms": 9.6753,
+        "working_set_estimate_bytes": 1893768,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0014",
+        "ok": true,
+        "method": "background_segmentation",
+        "focal_x": 0.48179274,
+        "focal_y": 0.59845985,
+        "confidence": 0.99262865,
+        "bbox": [
+          0.01875,
+          0.09387755,
+          0.86875,
+          0.90204082
+        ],
+        "runtime_ms": 8.071,
+        "working_set_estimate_bytes": 1738360,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0015",
+        "ok": true,
+        "method": "background_segmentation",
+        "focal_x": 0.52540194,
+        "focal_y": 0.43869023,
+        "confidence": 0.99999992,
+        "bbox": [
+          0.134375,
+          0.07782101,
+          0.765625,
+          0.77821012
+        ],
+        "runtime_ms": 8.7972,
+        "working_set_estimate_bytes": 1823128,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0016",
+        "ok": true,
+        "method": "background_segmentation",
+        "focal_x": 0.41922307,
+        "focal_y": 0.56890548,
+        "confidence": 1.0,
+        "bbox": [
+          0.00625,
+          0.07407407,
+          0.9125,
+          0.9212963
+        ],
+        "runtime_ms": 7.3514,
+        "working_set_estimate_bytes": 1533504,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0017",
+        "ok": true,
+        "method": "background_segmentation",
+        "focal_x": 0.50737625,
+        "focal_y": 0.43120605,
+        "confidence": 0.99999992,
+        "bbox": [
+          0.23125,
+          0.06167401,
+          0.696875,
+          0.79735683
+        ],
+        "runtime_ms": 7.9376,
+        "working_set_estimate_bytes": 1611208,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0018",
+        "ok": true,
+        "method": "background_segmentation",
+        "focal_x": 0.47071668,
+        "focal_y": 0.46218838,
+        "confidence": 0.99999992,
+        "bbox": [
+          0.08125,
+          0.06224066,
+          0.84375,
+          0.80497925
+        ],
+        "runtime_ms": 9.1372,
+        "working_set_estimate_bytes": 1710104,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0019",
+        "ok": true,
+        "method": "background_segmentation",
+        "focal_x": 0.41297013,
+        "focal_y": 0.63800848,
+        "confidence": 1.0,
+        "bbox": [
+          0.196875,
+          0.17586207,
+          0.578125,
+          0.82068966
+        ],
+        "runtime_ms": 10.2566,
+        "working_set_estimate_bytes": 2056240,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0020",
+        "ok": true,
+        "method": "background_segmentation",
+        "focal_x": 0.47932648,
+        "focal_y": 0.53391951,
+        "confidence": 0.9968307,
+        "bbox": [
+          0.159375,
+          0.16612378,
+          0.665625,
+          0.70032573
+        ],
+        "runtime_ms": 10.9501,
+        "working_set_estimate_bytes": 2176328,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0021",
+        "ok": true,
+        "method": "background_segmentation",
+        "focal_x": 0.45757208,
+        "focal_y": 0.56151618,
+        "confidence": 0.94431329,
+        "bbox": [
+          0.065625,
+          0.092,
+          0.85625,
+          0.904
+        ],
+        "runtime_ms": 9.216,
+        "working_set_estimate_bytes": 1773680,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0022",
+        "ok": true,
+        "method": "background_segmentation",
+        "focal_x": 0.58142761,
+        "focal_y": 0.37398273,
+        "confidence": 0.96594715,
+        "bbox": [
+          0.13125,
+          0.08583691,
+          0.796875,
+          0.77253219
+        ],
+        "runtime_ms": 8.9975,
+        "working_set_estimate_bytes": 1653592,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0023",
+        "ok": true,
+        "method": "background_segmentation",
+        "focal_x": 0.48999186,
+        "focal_y": 0.42584102,
+        "confidence": 0.96031419,
+        "bbox": [
+          0.109375,
+          0.08235294,
+          0.815625,
+          0.76470588
+        ],
+        "runtime_ms": 8.6296,
+        "working_set_estimate_bytes": 1809000,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0024",
+        "ok": true,
+        "method": "background_segmentation",
+        "focal_x": 0.51074296,
+        "focal_y": 0.42050405,
+        "confidence": 1.0,
+        "bbox": [
+          0.128125,
+          0.07782101,
+          0.80625,
+          0.77821012
+        ],
+        "runtime_ms": 8.6451,
+        "working_set_estimate_bytes": 1823128,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0025",
+        "ok": true,
+        "method": "background_segmentation",
+        "focal_x": 0.47839626,
+        "focal_y": 0.44993438,
+        "confidence": 0.99408229,
+        "bbox": [
+          0.084375,
+          0.07608696,
+          0.846875,
+          0.78623188
+        ],
+        "runtime_ms": 8.3615,
+        "working_set_estimate_bytes": 1957344,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0026",
+        "ok": true,
+        "method": "background_segmentation",
+        "focal_x": 0.43952587,
+        "focal_y": 0.56079822,
+        "confidence": 1.0,
+        "bbox": [
+          0.03125,
+          0.07373272,
+          0.896875,
+          0.92626728
+        ],
+        "runtime_ms": 7.7477,
+        "working_set_estimate_bytes": 1540568,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0027",
+        "ok": true,
+        "method": "background_segmentation",
+        "focal_x": 0.48754935,
+        "focal_y": 0.43665508,
+        "confidence": 1.0,
+        "bbox": [
+          0.10625,
+          0.06521739,
+          0.828125,
+          0.8
+        ],
+        "runtime_ms": 8.1067,
+        "working_set_estimate_bytes": 1632400,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0028",
+        "ok": true,
+        "method": "background_segmentation",
+        "focal_x": 0.45282205,
+        "focal_y": 0.46684562,
+        "confidence": 0.99999992,
+        "bbox": [
+          0.071875,
+          0.0625,
+          0.853125,
+          0.80833333
+        ],
+        "runtime_ms": 8.7455,
+        "working_set_estimate_bytes": 1703040,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0029",
+        "ok": true,
+        "method": "background_segmentation",
+        "focal_x": 0.51131257,
+        "focal_y": 0.42656017,
+        "confidence": 0.98096673,
+        "bbox": [
+          0.128125,
+          0.09205021,
+          0.79375,
+          0.77405858
+        ],
+        "runtime_ms": 9.1013,
+        "working_set_estimate_bytes": 1695976,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0030",
+        "ok": true,
+        "method": "background_segmentation",
+        "focal_x": 0.50759188,
+        "focal_y": 0.65823382,
+        "confidence": 0.72804157,
+        "bbox": [
+          0.15540541,
+          0.08092486,
+          0.72297297,
+          0.85549133
+        ],
+        "runtime_ms": 0.9537,
+        "working_set_estimate_bytes": 570992,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0031",
+        "ok": true,
+        "method": "background_segmentation",
+        "focal_x": 0.5,
+        "focal_y": 0.5,
+        "confidence": 0.0,
+        "bbox": [
+          0.0,
+          0.0,
+          1.0,
+          1.0
+        ],
+        "runtime_ms": 8.5369,
+        "working_set_estimate_bytes": 1773680,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "no_signal",
+        "error": null
+      },
+      {
+        "id": "SC0032",
+        "ok": true,
+        "method": "background_segmentation",
+        "focal_x": 0.5,
+        "focal_y": 0.5,
+        "confidence": 0.0,
+        "bbox": [
+          0.0,
+          0.0,
+          1.0,
+          1.0
+        ],
+        "runtime_ms": 9.1084,
+        "working_set_estimate_bytes": 1413416,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "no_signal",
+        "error": null
+      },
+      {
+        "id": "SC0033",
+        "ok": true,
+        "method": "background_segmentation",
+        "focal_x": 0.4952944,
+        "focal_y": 0.51811531,
+        "confidence": 0.64217631,
+        "bbox": [
+          0.15348837,
+          0.084375,
+          0.69302326,
+          0.853125
+        ],
+        "runtime_ms": 36.4372,
+        "working_set_estimate_bytes": 1526440,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0034",
+        "ok": true,
+        "method": "background_segmentation",
+        "focal_x": 0.51450496,
+        "focal_y": 0.54531197,
+        "confidence": 0.77860443,
+        "bbox": [
+          0.12734082,
+          0.13125,
+          0.77902622,
+          0.7625
+        ],
+        "runtime_ms": 31.5158,
+        "working_set_estimate_bytes": 1893768,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0035",
+        "ok": true,
+        "method": "background_segmentation",
+        "focal_x": 0.51492042,
+        "focal_y": 0.53477518,
+        "confidence": 0.92074482,
+        "bbox": [
+          0.26217228,
+          0.025,
+          0.50187266,
+          0.94375
+        ],
+        "runtime_ms": 30.0773,
+        "working_set_estimate_bytes": 1893768,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0036",
+        "ok": true,
+        "method": "background_segmentation",
+        "focal_x": 0.51132084,
+        "focal_y": 0.43394235,
+        "confidence": 0.90884646,
+        "bbox": [
+          0.29375,
+          0.115625,
+          0.565625,
+          0.715625
+        ],
+        "runtime_ms": 29.6535,
+        "working_set_estimate_bytes": 2268160,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0037",
+        "ok": true,
+        "method": "background_segmentation",
+        "focal_x": 0.47903431,
+        "focal_y": 0.440598,
+        "confidence": 0.9332575,
+        "bbox": [
+          0.059375,
+          0.17142857,
+          0.89375,
+          0.625
+        ],
+        "runtime_ms": 60.03,
+        "working_set_estimate_bytes": 1985600,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0038",
+        "ok": true,
+        "method": "background_segmentation",
+        "focal_x": 0.42477457,
+        "focal_y": 0.4652388,
+        "confidence": 1.0,
+        "bbox": [
+          0.36875,
+          0.178125,
+          0.109375,
+          0.65
+        ],
+        "runtime_ms": 23.0228,
+        "working_set_estimate_bytes": 2268160,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0039",
+        "ok": true,
+        "method": "background_segmentation",
+        "focal_x": 0.47214527,
+        "focal_y": 0.54083031,
+        "confidence": 0.72795033,
+        "bbox": [
+          0.05164319,
+          0.221875,
+          0.88262911,
+          0.65
+        ],
+        "runtime_ms": 68.4665,
+        "working_set_estimate_bytes": 1512312,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0040",
+        "ok": true,
+        "method": "background_segmentation",
+        "focal_x": 0.47319466,
+        "focal_y": 0.46702286,
+        "confidence": 0.73275304,
+        "bbox": [
+          0.196875,
+          0.040625,
+          0.671875,
+          0.93125
+        ],
+        "runtime_ms": 30.6623,
+        "working_set_estimate_bytes": 2268160,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0041",
+        "ok": true,
+        "method": "background_segmentation",
+        "focal_x": 0.52076146,
+        "focal_y": 0.42076533,
+        "confidence": 0.73760025,
+        "bbox": [
+          0.096875,
+          0.10625,
+          0.80625,
+          0.80625
+        ],
+        "runtime_ms": 13.8637,
+        "working_set_estimate_bytes": 2268160,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0042",
+        "ok": true,
+        "method": "background_segmentation",
+        "focal_x": 0.49941844,
+        "focal_y": 0.48038312,
+        "confidence": 0.74117557,
+        "bbox": [
+          0.121875,
+          0.115625,
+          0.75625,
+          0.80625
+        ],
+        "runtime_ms": 30.397,
+        "working_set_estimate_bytes": 2268160,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0043",
+        "ok": true,
+        "method": "background_segmentation",
+        "focal_x": 0.43579773,
+        "focal_y": 0.42702718,
+        "confidence": 0.70099028,
+        "bbox": [
+          0.05,
+          0.071875,
+          0.896875,
+          0.859375
+        ],
+        "runtime_ms": 30.7616,
+        "working_set_estimate_bytes": 2268160,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0044",
+        "ok": true,
+        "method": "background_segmentation",
+        "focal_x": 0.49301164,
+        "focal_y": 0.49143058,
+        "confidence": 0.47553523,
+        "bbox": [
+          0.034375,
+          0.1,
+          0.9375,
+          0.853125
+        ],
+        "runtime_ms": 33.0754,
+        "working_set_estimate_bytes": 2268160,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0045",
+        "ok": true,
+        "method": "background_segmentation",
+        "focal_x": 0.49748194,
+        "focal_y": 0.49930255,
+        "confidence": 0.49982691,
+        "bbox": [
+          0.1125,
+          0.046875,
+          0.775,
+          0.915625
+        ],
+        "runtime_ms": 60.5613,
+        "working_set_estimate_bytes": 2268160,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0046",
+        "ok": true,
+        "method": "background_segmentation",
+        "focal_x": 0.55652468,
+        "focal_y": 0.53184878,
+        "confidence": 1.0,
+        "bbox": [
+          0.115625,
+          0.35,
+          0.765625,
+          0.421875
+        ],
+        "runtime_ms": 10.1282,
+        "working_set_estimate_bytes": 2268160,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0047",
+        "ok": true,
+        "method": "background_segmentation",
+        "focal_x": 0.51026716,
+        "focal_y": 0.78455819,
+        "confidence": 1.0,
+        "bbox": [
+          0.384375,
+          0.05,
+          0.28125,
+          0.915625
+        ],
+        "runtime_ms": 12.4044,
+        "working_set_estimate_bytes": 2268160,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0048",
+        "ok": true,
+        "method": "background_segmentation",
+        "focal_x": 0.58141348,
+        "focal_y": 0.37401468,
+        "confidence": 0.96592402,
+        "bbox": [
+          0.13125,
+          0.08583691,
+          0.796875,
+          0.77253219
+        ],
+        "runtime_ms": 8.9084,
+        "working_set_estimate_bytes": 1653592,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0049",
+        "ok": true,
+        "method": "background_segmentation",
+        "focal_x": 0.42039339,
+        "focal_y": 0.67068922,
+        "confidence": 0.99894079,
+        "bbox": [
+          0.10491803,
+          0.05,
+          0.76065574,
+          0.8625
+        ],
+        "runtime_ms": 11.8052,
+        "working_set_estimate_bytes": 2162200,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0050",
+        "ok": true,
+        "method": "background_segmentation",
+        "focal_x": 0.52921568,
+        "focal_y": 0.55464472,
+        "confidence": 0.99999992,
+        "bbox": [
+          0.071875,
+          0.19375,
+          0.859375,
+          0.6125
+        ],
+        "runtime_ms": 14.422,
+        "working_set_estimate_bytes": 2268160,
+        "model_bytes": 0,
+        "available": true,
+        "reason": "",
+        "error": null
+      }
+    ],
+    "onnx_u2netp": [
+      {
+        "id": "SC0001",
+        "ok": true,
+        "method": "onnx_u2netp",
+        "focal_x": 0.51157225,
+        "focal_y": 0.6051615,
+        "confidence": 0.45115256,
+        "bbox": [
+          0.165625,
+          0.240625,
+          0.659375,
+          0.715625
+        ],
+        "runtime_ms": 149.6459,
+        "working_set_estimate_bytes": 3276800,
+        "model_bytes": 4574861,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0002",
+        "ok": true,
+        "method": "onnx_u2netp",
+        "focal_x": 0.5400689,
+        "focal_y": 0.62030118,
+        "confidence": 0.21666372,
+        "bbox": [
+          0.0,
+          0.00625,
+          1.0,
+          0.975
+        ],
+        "runtime_ms": 145.9869,
+        "working_set_estimate_bytes": 3276800,
+        "model_bytes": 4574861,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0003",
+        "ok": true,
+        "method": "onnx_u2netp",
+        "focal_x": 0.59841979,
+        "focal_y": 0.47296464,
+        "confidence": 0.8545421,
+        "bbox": [
+          0.009375,
+          0.215625,
+          0.95,
+          0.659375
+        ],
+        "runtime_ms": 142.3185,
+        "working_set_estimate_bytes": 3276800,
+        "model_bytes": 4574861,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0004",
+        "ok": true,
+        "method": "onnx_u2netp",
+        "focal_x": 0.40999736,
+        "focal_y": 0.47909728,
+        "confidence": 0.71966386,
+        "bbox": [
+          0.03125,
+          0.140625,
+          0.915625,
+          0.678125
+        ],
+        "runtime_ms": 157.9765,
+        "working_set_estimate_bytes": 3276800,
+        "model_bytes": 4574861,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0005",
+        "ok": true,
+        "method": "onnx_u2netp",
+        "focal_x": 0.52891058,
+        "focal_y": 0.51371272,
+        "confidence": 0.79991849,
+        "bbox": [
+          0.009375,
+          0.1125,
+          0.784375,
+          0.753125
+        ],
+        "runtime_ms": 176.0486,
+        "working_set_estimate_bytes": 3276800,
+        "model_bytes": 4574861,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0006",
+        "ok": true,
+        "method": "onnx_u2netp",
+        "focal_x": 0.52387754,
+        "focal_y": 0.53044074,
+        "confidence": 0.40261467,
+        "bbox": [
+          0.146875,
+          0.046875,
+          0.7625,
+          0.83125
+        ],
+        "runtime_ms": 138.136,
+        "working_set_estimate_bytes": 3276800,
+        "model_bytes": 4574861,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0007",
+        "ok": true,
+        "method": "onnx_u2netp",
+        "focal_x": 0.50540484,
+        "focal_y": 0.48699988,
+        "confidence": 0.37699914,
+        "bbox": [
+          0.053125,
+          0.053125,
+          0.875,
+          0.9
+        ],
+        "runtime_ms": 159.0646,
+        "working_set_estimate_bytes": 3276800,
+        "model_bytes": 4574861,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0008",
+        "ok": true,
+        "method": "onnx_u2netp",
+        "focal_x": 0.48929548,
+        "focal_y": 0.52579398,
+        "confidence": 0.3840963,
+        "bbox": [
+          0.0875,
+          0.084375,
+          0.834375,
+          0.84375
+        ],
+        "runtime_ms": 150.7081,
+        "working_set_estimate_bytes": 3276800,
+        "model_bytes": 4574861,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0009",
+        "ok": true,
+        "method": "onnx_u2netp",
+        "focal_x": 0.49313326,
+        "focal_y": 0.52972072,
+        "confidence": 0.38969747,
+        "bbox": [
+          0.08125,
+          0.0875,
+          0.84375,
+          0.8625
+        ],
+        "runtime_ms": 152.1586,
+        "working_set_estimate_bytes": 3276800,
+        "model_bytes": 4574861,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0010",
+        "ok": true,
+        "method": "onnx_u2netp",
+        "focal_x": 0.51579232,
+        "focal_y": 0.4956068,
+        "confidence": 0.45746541,
+        "bbox": [
+          0.103125,
+          0.0875,
+          0.821875,
+          0.8
+        ],
+        "runtime_ms": 149.7983,
+        "working_set_estimate_bytes": 3276800,
+        "model_bytes": 4574861,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0011",
+        "ok": true,
+        "method": "onnx_u2netp",
+        "focal_x": 0.52084498,
+        "focal_y": 0.50053976,
+        "confidence": 0.27660569,
+        "bbox": [
+          0.0125,
+          0.0,
+          0.9875,
+          1.0
+        ],
+        "runtime_ms": 148.3625,
+        "working_set_estimate_bytes": 3276800,
+        "model_bytes": 4574861,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0012",
+        "ok": true,
+        "method": "onnx_u2netp",
+        "focal_x": 0.55858848,
+        "focal_y": 0.44914957,
+        "confidence": 0.32743963,
+        "bbox": [
+          0.1125,
+          0.0,
+          0.88125,
+          0.871875
+        ],
+        "runtime_ms": 149.2149,
+        "working_set_estimate_bytes": 3276800,
+        "model_bytes": 4574861,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0013",
+        "ok": true,
+        "method": "onnx_u2netp",
+        "focal_x": 0.49658641,
+        "focal_y": 0.49352154,
+        "confidence": 0.3452518,
+        "bbox": [
+          0.084375,
+          0.00625,
+          0.909375,
+          0.940625
+        ],
+        "runtime_ms": 152.2072,
+        "working_set_estimate_bytes": 3276800,
+        "model_bytes": 4574861,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0014",
+        "ok": true,
+        "method": "onnx_u2netp",
+        "focal_x": 0.51941117,
+        "focal_y": 0.5313014,
+        "confidence": 0.40550057,
+        "bbox": [
+          0.0125,
+          0.084375,
+          0.965625,
+          0.915625
+        ],
+        "runtime_ms": 146.3064,
+        "working_set_estimate_bytes": 3276800,
+        "model_bytes": 4574861,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0015",
+        "ok": true,
+        "method": "onnx_u2netp",
+        "focal_x": 0.50421873,
+        "focal_y": 0.45983418,
+        "confidence": 0.47726258,
+        "bbox": [
+          0.09375,
+          0.00625,
+          0.90625,
+          0.878125
+        ],
+        "runtime_ms": 147.6106,
+        "working_set_estimate_bytes": 3276800,
+        "model_bytes": 4574861,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0016",
+        "ok": true,
+        "method": "onnx_u2netp",
+        "focal_x": 0.51173464,
+        "focal_y": 0.49758187,
+        "confidence": 0.41613738,
+        "bbox": [
+          0.003125,
+          0.003125,
+          0.996875,
+          0.996875
+        ],
+        "runtime_ms": 145.8891,
+        "working_set_estimate_bytes": 3276800,
+        "model_bytes": 4574861,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0017",
+        "ok": true,
+        "method": "onnx_u2netp",
+        "focal_x": 0.47005029,
+        "focal_y": 0.45857905,
+        "confidence": 0.6503067,
+        "bbox": [
+          0.078125,
+          0.0,
+          0.921875,
+          0.890625
+        ],
+        "runtime_ms": 147.5607,
+        "working_set_estimate_bytes": 3276800,
+        "model_bytes": 4574861,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0018",
+        "ok": true,
+        "method": "onnx_u2netp",
+        "focal_x": 0.48143513,
+        "focal_y": 0.48435499,
+        "confidence": 0.81352297,
+        "bbox": [
+          0.065625,
+          0.0,
+          0.934375,
+          0.93125
+        ],
+        "runtime_ms": 151.3121,
+        "working_set_estimate_bytes": 3276800,
+        "model_bytes": 4574861,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0019",
+        "ok": true,
+        "method": "onnx_u2netp",
+        "focal_x": 0.52133062,
+        "focal_y": 0.5196793,
+        "confidence": 0.50436266,
+        "bbox": [
+          0.128125,
+          0.084375,
+          0.803125,
+          0.915625
+        ],
+        "runtime_ms": 150.4637,
+        "working_set_estimate_bytes": 3276800,
+        "model_bytes": 4574861,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0020",
+        "ok": true,
+        "method": "onnx_u2netp",
+        "focal_x": 0.50104268,
+        "focal_y": 0.52583044,
+        "confidence": 0.40522408,
+        "bbox": [
+          0.1125,
+          0.08125,
+          0.81875,
+          0.85
+        ],
+        "runtime_ms": 150.6756,
+        "working_set_estimate_bytes": 3276800,
+        "model_bytes": 4574861,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0021",
+        "ok": true,
+        "method": "onnx_u2netp",
+        "focal_x": 0.50609351,
+        "focal_y": 0.48175207,
+        "confidence": 0.35356426,
+        "bbox": [
+          0.053125,
+          0.009375,
+          0.925,
+          0.990625
+        ],
+        "runtime_ms": 148.3204,
+        "working_set_estimate_bytes": 3276800,
+        "model_bytes": 4574861,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0022",
+        "ok": true,
+        "method": "onnx_u2netp",
+        "focal_x": 0.48279587,
+        "focal_y": 0.46662497,
+        "confidence": 0.33840807,
+        "bbox": [
+          0.075,
+          0.009375,
+          0.9125,
+          0.934375
+        ],
+        "runtime_ms": 148.0323,
+        "working_set_estimate_bytes": 3276800,
+        "model_bytes": 4574861,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0023",
+        "ok": true,
+        "method": "onnx_u2netp",
+        "focal_x": 0.48056208,
+        "focal_y": 0.46258466,
+        "confidence": 0.37098678,
+        "bbox": [
+          0.08125,
+          0.025,
+          0.89375,
+          0.89375
+        ],
+        "runtime_ms": 146.7577,
+        "working_set_estimate_bytes": 3276800,
+        "model_bytes": 4574861,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0024",
+        "ok": true,
+        "method": "onnx_u2netp",
+        "focal_x": 0.50546783,
+        "focal_y": 0.45845471,
+        "confidence": 0.45966085,
+        "bbox": [
+          0.090625,
+          0.0,
+          0.909375,
+          0.8875
+        ],
+        "runtime_ms": 147.8153,
+        "working_set_estimate_bytes": 3276800,
+        "model_bytes": 4574861,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0025",
+        "ok": true,
+        "method": "onnx_u2netp",
+        "focal_x": 0.48189721,
+        "focal_y": 0.4886388,
+        "confidence": 0.37534746,
+        "bbox": [
+          0.078125,
+          0.0,
+          0.921875,
+          0.928125
+        ],
+        "runtime_ms": 146.5333,
+        "working_set_estimate_bytes": 3276800,
+        "model_bytes": 4574861,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0026",
+        "ok": true,
+        "method": "onnx_u2netp",
+        "focal_x": 0.53786195,
+        "focal_y": 0.49385038,
+        "confidence": 0.4552029,
+        "bbox": [
+          0.028125,
+          0.0,
+          0.971875,
+          1.0
+        ],
+        "runtime_ms": 146.5609,
+        "working_set_estimate_bytes": 3276800,
+        "model_bytes": 4574861,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0027",
+        "ok": true,
+        "method": "onnx_u2netp",
+        "focal_x": 0.47272319,
+        "focal_y": 0.46392926,
+        "confidence": 0.60859505,
+        "bbox": [
+          0.078125,
+          0.0,
+          0.921875,
+          0.890625
+        ],
+        "runtime_ms": 148.4306,
+        "working_set_estimate_bytes": 3276800,
+        "model_bytes": 4574861,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0028",
+        "ok": true,
+        "method": "onnx_u2netp",
+        "focal_x": 0.44973674,
+        "focal_y": 0.48922539,
+        "confidence": 0.55381838,
+        "bbox": [
+          0.0625,
+          0.0,
+          0.9375,
+          0.93125
+        ],
+        "runtime_ms": 147.39,
+        "working_set_estimate_bytes": 3276800,
+        "model_bytes": 4574861,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0029",
+        "ok": true,
+        "method": "onnx_u2netp",
+        "focal_x": 0.47626902,
+        "focal_y": 0.47903148,
+        "confidence": 0.38070289,
+        "bbox": [
+          0.071875,
+          0.0125,
+          0.921875,
+          0.934375
+        ],
+        "runtime_ms": 148.3527,
+        "working_set_estimate_bytes": 3276800,
+        "model_bytes": 4574861,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0030",
+        "ok": true,
+        "method": "onnx_u2netp",
+        "focal_x": 0.50589297,
+        "focal_y": 0.62964245,
+        "confidence": 0.58372951,
+        "bbox": [
+          0.15,
+          0.078125,
+          0.728125,
+          0.859375
+        ],
+        "runtime_ms": 138.3176,
+        "working_set_estimate_bytes": 3276800,
+        "model_bytes": 4574861,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0031",
+        "ok": true,
+        "method": "onnx_u2netp",
+        "focal_x": 0.51511311,
+        "focal_y": 0.37504863,
+        "confidence": 0.99843995,
+        "bbox": [
+          0.1125,
+          0.09375,
+          0.59375,
+          0.553125
+        ],
+        "runtime_ms": 149.2601,
+        "working_set_estimate_bytes": 3276800,
+        "model_bytes": 4574861,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0032",
+        "ok": true,
+        "method": "onnx_u2netp",
+        "focal_x": 0.44733194,
+        "focal_y": 0.49861609,
+        "confidence": 0.59622121,
+        "bbox": [
+          0.10625,
+          0.0,
+          0.65625,
+          0.965625
+        ],
+        "runtime_ms": 151.7788,
+        "working_set_estimate_bytes": 3276800,
+        "model_bytes": 4574861,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0033",
+        "ok": true,
+        "method": "onnx_u2netp",
+        "focal_x": 0.50777229,
+        "focal_y": 0.49469642,
+        "confidence": 0.48033174,
+        "bbox": [
+          0.15625,
+          0.084375,
+          0.690625,
+          0.85625
+        ],
+        "runtime_ms": 227.7193,
+        "working_set_estimate_bytes": 3276800,
+        "model_bytes": 4574861,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0034",
+        "ok": true,
+        "method": "onnx_u2netp",
+        "focal_x": 0.50872404,
+        "focal_y": 0.51412846,
+        "confidence": 0.65937336,
+        "bbox": [
+          0.125,
+          0.128125,
+          0.78125,
+          0.76875
+        ],
+        "runtime_ms": 211.8281,
+        "working_set_estimate_bytes": 3276800,
+        "model_bytes": 4574861,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0035",
+        "ok": true,
+        "method": "onnx_u2netp",
+        "focal_x": 0.50929663,
+        "focal_y": 0.51820823,
+        "confidence": 0.88282077,
+        "bbox": [
+          0.2625,
+          0.021875,
+          0.50625,
+          0.946875
+        ],
+        "runtime_ms": 211.3754,
+        "working_set_estimate_bytes": 3276800,
+        "model_bytes": 4574861,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0036",
+        "ok": true,
+        "method": "onnx_u2netp",
+        "focal_x": 0.51310324,
+        "focal_y": 0.45585089,
+        "confidence": 0.88904993,
+        "bbox": [
+          0.20625,
+          0.109375,
+          0.65625,
+          0.7375
+        ],
+        "runtime_ms": 214.9522,
+        "working_set_estimate_bytes": 3276800,
+        "model_bytes": 4574861,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0037",
+        "ok": true,
+        "method": "onnx_u2netp",
+        "focal_x": 0.46503158,
+        "focal_y": 0.41158919,
+        "confidence": 0.87707814,
+        "bbox": [
+          0.05625,
+          0.15625,
+          0.896875,
+          0.640625
+        ],
+        "runtime_ms": 250.8502,
+        "working_set_estimate_bytes": 3276800,
+        "model_bytes": 4574861,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0038",
+        "ok": true,
+        "method": "onnx_u2netp",
+        "focal_x": 0.51706146,
+        "focal_y": 0.49996203,
+        "confidence": 0.9865969,
+        "bbox": [
+          0.271875,
+          0.121875,
+          0.421875,
+          0.778125
+        ],
+        "runtime_ms": 169.6627,
+        "working_set_estimate_bytes": 3276800,
+        "model_bytes": 4574861,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0039",
+        "ok": true,
+        "method": "onnx_u2netp",
+        "focal_x": 0.47931965,
+        "focal_y": 0.5307181,
+        "confidence": 0.55216018,
+        "bbox": [
+          0.05,
+          0.221875,
+          0.8875,
+          0.653125
+        ],
+        "runtime_ms": 348.626,
+        "working_set_estimate_bytes": 3276800,
+        "model_bytes": 4574861,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0040",
+        "ok": true,
+        "method": "onnx_u2netp",
+        "focal_x": 0.49038768,
+        "focal_y": 0.5016159,
+        "confidence": 0.56146526,
+        "bbox": [
+          0.196875,
+          0.040625,
+          0.671875,
+          0.93125
+        ],
+        "runtime_ms": 216.7679,
+        "working_set_estimate_bytes": 3276800,
+        "model_bytes": 4574861,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0041",
+        "ok": true,
+        "method": "onnx_u2netp",
+        "focal_x": 0.50449389,
+        "focal_y": 0.40088803,
+        "confidence": 0.61568864,
+        "bbox": [
+          0.09375,
+          0.103125,
+          0.8125,
+          0.809375
+        ],
+        "runtime_ms": 160.8512,
+        "working_set_estimate_bytes": 3276800,
+        "model_bytes": 4574861,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0042",
+        "ok": true,
+        "method": "onnx_u2netp",
+        "focal_x": 0.50307859,
+        "focal_y": 0.46929572,
+        "confidence": 0.59944709,
+        "bbox": [
+          0.121875,
+          0.115625,
+          0.75625,
+          0.80625
+        ],
+        "runtime_ms": 217.872,
+        "working_set_estimate_bytes": 3276800,
+        "model_bytes": 4574861,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0043",
+        "ok": true,
+        "method": "onnx_u2netp",
+        "focal_x": 0.45084281,
+        "focal_y": 0.3937657,
+        "confidence": 0.53407113,
+        "bbox": [
+          0.05,
+          0.06875,
+          0.9,
+          0.8625
+        ],
+        "runtime_ms": 216.139,
+        "working_set_estimate_bytes": 3276800,
+        "model_bytes": 4574861,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0044",
+        "ok": true,
+        "method": "onnx_u2netp",
+        "focal_x": 0.50240676,
+        "focal_y": 0.47867172,
+        "confidence": 0.32027884,
+        "bbox": [
+          0.034375,
+          0.096875,
+          0.9375,
+          0.85625
+        ],
+        "runtime_ms": 218.9451,
+        "working_set_estimate_bytes": 3276800,
+        "model_bytes": 4574861,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0045",
+        "ok": true,
+        "method": "onnx_u2netp",
+        "focal_x": 0.49206174,
+        "focal_y": 0.48644438,
+        "confidence": 0.44108001,
+        "bbox": [
+          0.1125,
+          0.04375,
+          0.775,
+          0.91875
+        ],
+        "runtime_ms": 244.355,
+        "working_set_estimate_bytes": 3276800,
+        "model_bytes": 4574861,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0046",
+        "ok": true,
+        "method": "onnx_u2netp",
+        "focal_x": 0.56823236,
+        "focal_y": 0.54033385,
+        "confidence": 0.99922474,
+        "bbox": [
+          0.115625,
+          0.35,
+          0.765625,
+          0.421875
+        ],
+        "runtime_ms": 151.7614,
+        "working_set_estimate_bytes": 3276800,
+        "model_bytes": 4574861,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0047",
+        "ok": true,
+        "method": "onnx_u2netp",
+        "focal_x": 0.51436409,
+        "focal_y": 0.78706956,
+        "confidence": 0.99831621,
+        "bbox": [
+          0.384375,
+          0.05,
+          0.284375,
+          0.91875
+        ],
+        "runtime_ms": 145.997,
+        "working_set_estimate_bytes": 3276800,
+        "model_bytes": 4574861,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0048",
+        "ok": true,
+        "method": "onnx_u2netp",
+        "focal_x": 0.48278643,
+        "focal_y": 0.4666299,
+        "confidence": 0.33830651,
+        "bbox": [
+          0.075,
+          0.009375,
+          0.9125,
+          0.934375
+        ],
+        "runtime_ms": 147.9807,
+        "working_set_estimate_bytes": 3276800,
+        "model_bytes": 4574861,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0049",
+        "ok": true,
+        "method": "onnx_u2netp",
+        "focal_x": 0.51824774,
+        "focal_y": 0.56182622,
+        "confidence": 0.88023829,
+        "bbox": [
+          0.103125,
+          0.046875,
+          0.803125,
+          0.846875
+        ],
+        "runtime_ms": 151.1518,
+        "working_set_estimate_bytes": 3276800,
+        "model_bytes": 4574861,
+        "available": true,
+        "reason": "",
+        "error": null
+      },
+      {
+        "id": "SC0050",
+        "ok": true,
+        "method": "onnx_u2netp",
+        "focal_x": 0.52259353,
+        "focal_y": 0.55155663,
+        "confidence": 0.99977382,
+        "bbox": [
+          0.0625,
+          0.190625,
+          0.875,
+          0.615625
+        ],
+        "runtime_ms": 155.6316,
+        "working_set_estimate_bytes": 3276800,
+        "model_bytes": 4574861,
+        "available": true,
+        "reason": "",
+        "error": null
+      }
+    ]
+  }
+}

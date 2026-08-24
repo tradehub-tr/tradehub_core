@@ -2,6 +2,7 @@
   "$schema": "../schema/slot-policy.schema.json",
   "schema_version": "1.0.0",
   "status": "draft",
+  "standard_status": "fixed",
   "slot_key": "category.banner",
   "title": "Kategori bandı / kategori vitrin görseli",
   "description": "Kategori tanıtım görseli. DİKKAT: 'kategori banner' bu kod tabanında ÜÇ AYRI KAVRAM olarak dağılmış ve banner biçimindeki tek render ÖLÜ koddur. Bugün canlı olan tek kategori medyası ana sayfanın bento döşemesidir (Category Showcase Tile.image) ve o da banner değil, değişken oranlı bir hücre: aynı dosya 3 span'a (1x1, 2x1, 2x2) ve 8 viewport'a kırpılıyor, kutu oranı 0,82:1 ile 4,68:1 arasında geziniyor. Bu politika kuralı bento gerçeğine göre yazar, hayali bandın üzerine değil.",
@@ -66,7 +67,7 @@
       "name": "catbanner_480",
       "width": 480,
       "formats": ["avif", "webp"],
-      "encoder_quality": {"avif": null, "webp": 80},
+      "encoder_quality": {"avif": 61, "webp": 80},
       "fit": "cover",
       "target_ratio": "2:1",
       "serves": ["bento 1x1 döşemesi 360-430px telefonlarda @2x", "bento 1x1 döşemesi 640px viewport @1x"],
@@ -77,7 +78,7 @@
       "name": "catbanner_960",
       "width": 960,
       "formats": ["avif", "webp"],
-      "encoder_quality": {"avif": null, "webp": 80},
+      "encoder_quality": {"avif": 61, "webp": 80},
       "fit": "cover",
       "target_ratio": "2:1",
       "serves": ["bento 2x1 döşemesi 360-640px @1x-@1.5x", "bento 1x1 döşemesi 1920px viewport @2x", "bento 2x2 döşemesi 1024px viewport @2x"],
@@ -88,7 +89,7 @@
       "name": "catbanner_1920",
       "width": 1920,
       "formats": ["avif", "webp"],
-      "encoder_quality": {"avif": null, "webp": 80},
+      "encoder_quality": {"avif": 61, "webp": 80},
       "fit": "cover",
       "target_ratio": "2:1",
       "serves": ["bento 2x1 döşemesi 1920px viewport @2x", "master / arşiv"],
@@ -164,6 +165,7 @@
   },
 
   "sources": {
+    "profiles[].encoder_quality.avif": "q61; T-013 gerçek Listing örnekleri, hedef SSIM 0.96 ve kayıplı örneklerde q85'e göre ortalama bayt oranı 0.517909 (docs/data/t013-adaptive-vs-q85.json).",
     "accept.mime": "Standart daraltma: panelde bugün `accept=\"image/*\"` var (admin-panel/frontend/src/views/products/CategoryManagementView.vue:924-928) — bu listeden çok geniş ve zaten doğrulama değil (docs/MEDYA-YUKLEME-SOZLESMESI.md §1). Liste tradehub_core/media/upload_policy.py:60-62 KIND_IMAGE kümesinden ekranda kullanılan 3 biçime indirildi.",
     "accept.extensions": "tradehub_core/media/upload_policy.py:60-62 (KIND_IMAGE) ∩ yukarıdaki MIME listesi",
     "accept.max_bytes": "Kod tabanında görsel slotlarında fiilen uygulanan tavan: admin-panel/frontend/src/components/upload/ProfileImageDropzone.vue:123 (5 MB), tradehub_core/api/v1/identity.py:952 (5 MB), tradehubfront/src/components/product/WriteReviewModal.ts:23-26 (5 MB). Kategori görselinde bugün HİÇ kontrol yok (CategoryManagementView.vue:924-928; docs/reports/00-upload-slot-envanteri.md §7-A) — 5 MB mevcut desene uyum, yeni sayı değil.",
@@ -188,20 +190,27 @@
     "on_violation.retryable": "tradehub_core/media/upload_policy.py:97-100"
   },
 
-  "open_questions": [
-    "KATEGORİ BANDI İÇİN BACKEND ALANI YOK. tradehubfront/src/components/seller/CategoryProductListing.ts:88-90 `category.bannerImage` okuyor; bu isim yalnız tradehubfront/src/types/seller/types.ts:119 (tip) ve src/data/seller/mockData.ts:286,411 (mock veri) içinde geçiyor. Bileşen HİÇBİR SAYFADA çağrılmıyor (grep 'CategoryProductListing' → yalnız components/seller/index.ts:11). Ürün kararı gerekiyor: alan yaratılacak mı, bileşen silinecek mi?",
-    "`Product Category` doctype'ında banner alanı yok — doğrulandı: product_category.json fields listesinde dosya tutan tek alan `image` (Attach Image), o da daire ikon olarak render ediliyor (tradehubfront/src/components/categories/CategoryGrid.ts:14-18, 68/96/112/128 px rounded-full). Bu AYRI bir slot (`category.icon`) ve ayrı standart gerektirir.",
-    "Category Showcase Tile kaç kayıt ve hangi span dağılımıyla? Doğrulama: `frappe.db.sql(\"select col_span, row_span, count(*) from \\`tabCategory Showcase Tile\\` group by 1,2\")`. Span dağılımı bilinmeden profil basamaklarının israfı ölçülemez.",
-    "Yüklenmiş kategori görsellerinin gerçek oran dağılımı ölçülmedi. Doğrulama: docs/reports/00-upload-slot-envanteri.md §9-M5 betiği, `attached_to_doctype='Category Showcase Tile'` filtresiyle.",
-    "`Seller Category.image` gerçekten kullanılıyor mu? docs/reports/00-upload-slot-envanteri.md §9-M3 betiği bu alanı da sayıyor.",
-    "profiles[].encoder_quality.avif değerleri null — kalibrasyon yapılmadı; şema kuralı gereği status 'active' olamaz."
-  ],
+  "compliance_measured": {
+    "measured_at": "2026-08-18",
+    "dataset": "istoc.localhost kategori banner slot referansları",
+    "sample_size": 32,
+    "compatible_count": 0,
+    "incompatible_count": 32,
+    "unmeasured_count": 0,
+    "violation_rate": 1.0,
+    "top_violation": "30 harici URL",
+    "enforcement_mode": "new_uploads_only",
+    "source": "docs/reports/09-slot-bazinda-istatistik.md §3 ve §4.3"
+  },
+
+  "open_questions": [],
 
   "notes": [
+    "FAZ 2 KARARI (2026-08-23): yeni, hayalet bir `category.bannerImage` alanı yaratılmayacak. Bu slot yalnız varlığı doğrulanmış üç bağı (`Category Showcase Tile.image`, `Brand.hero_banner`, `Seller Category.image`) kapsar; `Product Category.image` daire ikonudur ve bu slotun dışında kalır. Yerel ölçümde 8 Category Showcase Tile kaydı vardır: 1×1=6, 2×1=1, 2×2=1. Slot istatistiği 32 eşsiz referans (30 harici, 2 yerel kare) ve Seller Category.image için 24 referans ölçtü. Eski beş soru bu kanıt ve kapsam kararıyla kapandı; kaynaklar docs/data/faz0-slot-stats-2026-08-23.json ve docs/reports/09-slot-bazinda-istatistik.md §4.3.",
     "ÜÇ AYRI KAVRAM (docs/reports/00-upload-slot-envanteri.md §5 'Kategori banner' satırı): (a) `Product Category.image` = daire ikon, banner değil; (b) `Category Showcase Tile.image` = bento döşeme, CANLI; (c) `Brand.hero_banner` = marka bandı, CSS background. Ek olarak (d) `CategoryProductListing.bannerImage` = banner biçimli ama ölü ve backend'siz.",
     "ÖLÇÜLEN BENTO KUTULARI (columns=4, container-boxed formülü + CategoryShowcase.ts:245): 360px viewport → 1x1 160×85 / 2x1 328×85 / 2x2 328×178. 430px → 195×85 / 398×85 / 398×178. 640px → 296×145 / 608×145 / 608×306. 768px → 172×210 / 360×210 / 360×436. 1024px → 236×210 / 488×210 / 488×436. 1280px → 300×210 / 616×210 / 616×436. 1536px → 356×210 / 728×210 / 728×436. 1920px → 432×210 / 880×210 / 880×436. Kırılımlar bu projede sm=480, md=640, lg=768, xl=1024 (tradehubfront/src/style.css:256-260) — Tailwind varsayılanı DEĞİL.",
     "768px'te 1x1 döşeme DİKEY oluyor (172×210), 430px'te aynı döşeme YATAY (195×85). Yani tek bir dosya hem portre hem manzara kutuya sokuluyor. Bu, oranın niçin zorlanamayıp güvenli alanla yönetildiğinin gerekçesi.",
     "ZATEN ÇÖZÜLMÜŞ — yeniden tasarlanmayacak: (1) gradient scrim ile etiket okunabilirliği (CategoryShowcase.ts:154); (2) görsel yoksa tonal gri + koyu metin fallback'i (CategoryShowcase.ts:157-158); (3) CLS koruması — width/height attr 400×400 + sabit auto-rows yüksekliği (docs/reports/03-render-envanteri.md §5, R12 'risk YOK'); (4) 2xl'de sütun sayısı yalnız tam bölünme varsa artıyor, aksi hâlde boş hücre bırakmıyor (CategoryShowcase.ts:229-232).",
-    "Bu politika dosyası bugün kod tarafından OKUNMUYOR (tradehub_core/media/upload_policy.py:307-313)."
+    "Politika `upload_policy.check_slot()` üzerinden çalışma zamanında okunur; `status=draft` yalnız rollout'un henüz zorlayıcı olmadığını söyler."
   ]
 }

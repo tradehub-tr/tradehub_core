@@ -14,6 +14,7 @@ node_modules/
 .DS_Store
 .ruff_cache/
 .worktrees/
+.smartcrop-work/
 
 # Geçici scratch / debug helper'ları — commit edilmemeli.
 # Tek seferlik audit/data inspection için yazılır, kaynak ağacında kalmaz.

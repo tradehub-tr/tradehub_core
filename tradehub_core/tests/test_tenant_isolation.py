@@ -26,6 +26,7 @@ from __future__ import annotations
 import sys
 import types
 import unittest
+from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -115,11 +116,13 @@ def _install_frappe_stub() -> None:
 
 	frappe._ = _
 	frappe.log_error = lambda *a, **kw: None
+	frappe.get_traceback = lambda: "stub traceback"
 
 	# Utils
 	frappe.utils = types.ModuleType("frappe.utils")
 	frappe.utils.cint = int
 	frappe.utils.flt = float
+	frappe.utils.now_datetime = datetime.now
 	sys.modules["frappe.utils"] = frappe.utils
 
 	sys.modules["frappe"] = frappe

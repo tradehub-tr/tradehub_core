@@ -1,52 +1,66 @@
-# Faz 3 Kapanış Dosyası — Mimari
+# Faz 3 Kapanış Dosyası — Sistem Mimarisi
 
-> **Bu belge ölçümlerden derlenmiştir; çelişki hâlinde rapor kazanır.**
-> Derleme tarihi: 2026-08-20 · Hazırlık: W6 kapanış dalgası (T-035 hazırlığı — imza atılmaz.)
+> Son teknik doğrulama: 2026-08-23. Bu dosya teknik kanıt ile insan onayını
+> ayırır; boş imza otomatik olarak doldurulmaz.
 
-## 1. Çıkış kapısı (91-gorev-panosu.html)
+## Görev durumu
 
-| Kapı çıktısı | Onaylayan |
+| ID | Görev | Durum | Kanıt / kalan kapı |
+|---|---|:--:|---|
+| T-030 | SAD v1.0 | ✅ Teknik tamam | C4, veri/akış/durum diyagramları; bileşen sorumluluk/bağımlılık/hata/ölçek tablosu; ADR izlenebilirliği; SPOF azaltımları (`docs/sad/SAD-v1.0.md`) |
+| T-031 | Beş arayüzü dondur | ✅ | 5 `typing.Protocol`, değer tipleri ve hata hiyerarşisi; `signatures.golden.json`; fake + production contract matrisi; `--check` ve mypy kapısı |
+| T-032 | Paket/CI/Docker iskeleti | ✅ | App içi saf alt paket kararı ADR-0003; ADR-0004 import sınırı; `.github/workflows/faz3-architecture.yml`; beş worker'lı Compose projeksiyonu |
+| T-033 | PolicyEngine | ✅ | 9 kanonik JSON politika; schema/atomik reload; Python fake/production karar paritesi; TypeScript ikizi 393/393 |
+| T-034 | Durum, işler ve kuyruklar | ✅ | Geçersiz geçiş testleri; idempotency/retry/backoff/dead-letter; `Media Processing Job`; beş ayrık kuyruk ve `media_queue_depth/jobs` metrikleri |
+| T-035 | Bağımsız mimari inceleme | ◐ İnsan kapısı | Teknik bulgular kapatıldı ve paket hazır. Bağımsız gözden geçiren adı/tarih/imzası hâlâ boş |
+
+## Ölçülen teknik kapılar
+
+| Kapı | Sonuç |
 |---|---|
-| SAD v1.0 + dondurulmuş arayüzler | Bağımsız gözden geçiren |
+| Phase 3 tam kapanış suite | **184 test: OK; 1 skip** (hostta ffmpeg/ffprobe yok; bunun 8'i kapanış koruması) |
+| Gerçek ffmpeg smoke | Güncel kaynak read-only mount + backend imajındaki ffmpeg/ffprobe: **1/1 OK, 0,108 sn** |
+| Donmuş imza | `python -m ...contracts.signatures --check` → **OK** |
+| Tip denetimi | mypy `media/pipeline/contracts` → **0 hata / 8 dosya** |
+| Lint | Değişen Faz 3 Python dosyaları → **ruff 0 hata** |
+| PolicyEngine | 75 contract + 38 policy testi; kabul edilmiş karar sapması **0** |
+| Durum/idempotency | 47 test → **OK** |
+| Kuyruk topolojisi | 5/5 kuyruk; DocType/köprü/deploy/workspace projeksiyonları → **OK** |
+| Compose | base ve base+`deploy/media-workers.compose.yml` → `docker compose config --quiet` **OK** |
+| CI süre bütçesi | Workflow `timeout-minutes: 10` + suite duvar saati `<600 sn` kapısı; gerçek GitHub koşumu ilk push/PR'da ölçülecek |
 
-## 2. Kapıyı karşılayan ölçümler
+Tam kapanış suite komutu:
 
-| Kalem | Durum | Kanıt |
-|---|---|---|
-| SAD belgesi | **KARŞILANDI (artefakt)** | `docs/sad/SAD-v1.0.md` **893 satır, 11 mermaid** (C4, akış, durum makinesi, kuyruk, SPOF, izlenebilirlik) — 57a [Ö 22:41:28]; bugün doğrulandı. |
-| 5 çekirdek arayüz dondurulmuş | **KARŞILANDI** | `signatures.golden.json` protocols = [DeliveryManifest, ImageEngine, PolicyEngine, StorageAdapter, VideoEngine] (5/5) + value_types; `docs/sad/interfaces.md` 245 satır, "DONDURULMUŞ (v1.0)" (57a [Ö 22:41:30]). |
-| Contract testleri GREEN | **KARŞILANDI** | `test_contracts` **75 OK** (69→75, POLICY_IMPLS iki uygulama; 43 §2.4); golden commit'li (1ec9b5e). |
-| PolicyEngine protokol uyumu (M-02) | **KARŞILANDI — kapandı** | 43 §2.4: kesişim 13/13, eksik [], isinstance True; 57a [Ö 22:36:15] bağımsız doğruladı. TS ikizi: **77-w4-ts-policy-engine.md — 393/393 parite (mesaj metinleri dahil)** → T-033 TAM. |
-| Risk kaydı | **KARŞILANDI** | `docs/sad/review-v1.0.md` (360 satır): donan kararlar + risk kaydı; PolicyEngine 51/51 golden fixture'ta manifest ile aynı karar. |
-
-## 3. Karşılanmayanlar / ölçülmeyenler (AÇIK)
-
-1. **Bağımsız gözden geçiren ONAY VERMEDİ** — 21-t030-mimari-inceleme.md §0/§9: "**SAD v1.0 bugün ONAYLANAMAZ**", 8 bloklayıcı (M-01, M-02✓kapandı, M-04, M-07, M-09, M-10, M-14, M-18); "Bu inceleme imza atmadı." SAD'ın kendi §14'ü (daha yeni): "8 kapının 7'si açık."
-2. **Bileşen kapsamı eksik** — media/ 33 modülün 17'si, pipeline 16 alt paketin 6'sı SAD'da; `pipeline_bridge`, `pipeline_flags`, 5 DocType yok (21 §8 kriter 2).
-3. **SAD'da 0 ADR referansı** — 57a [Ö 22:41:42]: `ADR-00xx` deseni **0 isabet** (bugün doğrulandı: 0).
-4. **SAD'da 6 satır hâlâ `media_engine` diyor** — dizin yok (M-01; 33 §5.1 doğruladı).
-5. **CI arayüz koruması YOK** — 5 workflow'da `run-tests|pytest|ruff|mypy` 0 isabet; `.pre-commit-config.yaml` yok; "Sözleşme testi elle koşulmadıkça kimseyi durdurmuyor" (57a [Ö 22:35:32]). Not: 57b §1.8 — 22:56'da `ci.yml` doğdu (11.210 B, blocking ruff/mypy/tests) ama **commit'lenmemiş ve GitHub'da hiç koşmadı**.
-6. **ImageEngine/VideoEngine protokollerini yalnız sahte uygulamalar karşılıyor** (SAD §14 ölçümü: üretim 0 + sahte 1'er).
-7. **SPOF listesi kısmi** — 10 SPOF geçerli; 2 yeni tek-nokta listede yok; SPOF-8 azaltımının çağıranı yok (21 §8 kriter 4).
-8. 43 §3 — kapatılmayan 4 tutarsızlık: D-1 (uzantı↔içerik iki katmanda iki karar), R-01 (`allowed` iki anlam), R-02 (ölçülemeyen video `evaluate()`'te sessizce geçiyor), R-03 (iki hata kodu sözlüğü).
-
-## 4. Kapı durumu özeti
-
-**Kapı: KISMEN KARŞILANDI.** "Dondurulmuş arayüzler" yarısı ölçümle sağlam (5 protokol + 75 contract testi + TS ikizi 393/393). "SAD v1.0" yarısı belge olarak var ama bağımsız incelemenin hükmü "ONAYLANAMAZ" (7/8 kapı açık). İmza öncesi asgari iş: M-01 metin düzeltmesi, kapsam genişletme (M-03), ADR referansları, CI koruması (ci.yml'nin commit'lenmesi).
-
-## 5. Kaynak raporlar
-`docs/reports/`: 21-t030-mimari-inceleme.md · 43-t033-policyengine.md · 57a-durum-faz0-3.md §5 · 77-w4-ts-policy-engine.md · 33-dogrulama-faz0-3.md §5 · 61b-fe-denetim-faz2-3.md · `docs/sad/SAD-v1.0.md` §13–14 · `docs/sad/interfaces.md` · `docs/sad/review-v1.0.md`
-
-Doküman eşitlemesi yapıldı: 2026-08-20, rapor 88 (SAD M-01/M-04/M-07/M-09/M-10 belge yarıları kapandı — SAD §14.6; interfaces.md 75 test + §8 tüketici envanteri).
-
-## Ek ölçüm — 2026-08-20 (W8, rapor 94)
-
-- **T-033'ün TS yarısı bugün de yeşil doğrulandı:** `parity:policy` **22/22** (393 vektör + hash zinciri + sahiplik korumaları) bu koşumda koşuldu; vendor manifest'inin 16 sha256'sı bağımsız yeniden hesaplandı ve canlı `tradehub_core` kaynaklarıyla **uyuşuyor** (rapor 94 §6).
-- **Kırpma TS ikizi:** `cropGeometryParity` bugün **17/17** — §3'ün Node-20 kaynaklı "sessiz atlama" endişesinin etkisi, esbuild vendor + host koşumu kapılarıyla fiilen kalktı.
-- Bağımsız gözden geçiren onayı, SAD kapsam/ADR-referans eksikleri ve CI'ın GitHub'da fiilî koşumu bu ölçümün kapsamı dışında — durumları değişmedi.
-
-## 6. Onay
-
+```bash
+python -m unittest -v \
+  tradehub_core.tests.test_faz3_closure \
+  tradehub_core.tests.test_phase3_queue_topology \
+  tradehub_core.tests.test_phase3_production_engines \
+  tradehub_core.tests.test_contracts \
+  tradehub_core.tests.test_policy_engine \
+  tradehub_core.tests.test_state_machine
 ```
+
+## Mimari karar özeti
+
+- Ayrı `media_engine` Frappe app'i yerine
+  `tradehub_core.media.pipeline` app içi saf alt paket seçildi (ADR-0003).
+- `api/`/köprü dışında modül düzeyinde Frappe bağımlılığı yoktur (ADR-0004).
+- Çalışma-zamanı politikasının tek kaynağı `policy/slots/*.json`; standart
+  klasöründeki dosyalar belge/ölçüm izdüşümüdür.
+- Genel `long` kuyruğuna fallback yoktur: `media-image-live`,
+  `media-image-bulk`, `media-video`, `media-ai`, `media-maint` ayrıdır.
+- Teknik CI dosyası depodadır; GitHub'da fiilî yeşil koşum yapılmış gibi iddia
+  edilmez.
+
+## Kapanış hükmü
+
+T-030…T-034 teknik olarak tamamdır. Faz 3'ün otomasyonla kapatılamayan tek
+maddesi T-035 bağımsız insan onayıdır. Dolayısıyla görev panosunda T-030…T-034
+**Done**, T-035 ise **In Review / human gate** olmalıdır.
+
+## Onay
+
+```text
 Onaylayan (Bağımsız gözden geçiren): ______________________   Tarih: ______________   İmza: ______________
 ```

@@ -1,55 +1,52 @@
-# ADR-0020 (TASLAK) — Devam edebilir yükleme: tus protokolü mü, mevcut `chunked.py` sözleşmesi mi
+# ADR-0020 — tus yerine mevcut devam edebilir parçalı yükleme
 
-**Durum:** ÖNERİLDİ · **Karar: BEKLİYOR** (platform yöneticisi — rapor 57 karar listesi "Faz 8 TS SDK/tus")
-**Tarih:** 2026-08-20 · **Yazan:** W7 doküman eşitlemesi (rapor 88)
+**Durum:** KABUL EDİLDİ  
+**Karar tarihi:** 2026-08-20  
+**Teknik kapanış:** 2026-08-23
 
 ## Bağlam
 
-Pano T-081/T-091 "kesilen yüklemeler **tus protokolüyle** son bayttan devam
-eder" ve "Uppy + tus yükleyici" diyor. Ölçülen gerçek (rapor 44 §3, rapor 61e):
-
-- **Sunucuda tus YOK** — hiçbir uçta tus başlığı, `PATCH .../uploads/...` yolu
-  ya da `Idempotency-Key` parametresi geçmiyor (grep ile ölçüldü, rapor 44).
-- Sunucuda **çalışan bir parçalı yükleme sözleşmesi VAR**: `media/chunked.py`
-  (`baslat/parca/bitir`; parçalar diske akar, politika **birleşimden sonra**
-  bütüne uygulanır, oturumlar mağazaya bağlı — dosya docstring'i).
-- İstemcide `session.js` `localStorage` tabanlı devam edebilirliği bu
-  sözleşmeye karşı kurdu; `tus-js-client`/Uppy **bilinçli kurulmadı**
-  ("konuşacağı bir uç yok" — rapor 44 §3, `session.js:6-7` başlık notu).
-- **`Idempotency-Key` iki tarafta da yok** — istemci yalnız `finish`'i tek
-  sefere kilitliyor (rapor 61e).
-
-## Seçenekler
-
-| # | Seçenek | Ölçülen/bilinen bedel |
-|---|---|---|
-| A | Sunucuya gerçek tus protokolü ekle (`tus-js-client` 4.3.1 + Uppy) | Yeni protokol yüzeyi + upload tek kapı kuralıyla (NFR-015) hizalama işi; mevcut `chunked.py` + `session.js` çifti ya atılır ya ikilenir. Kazanım: standart protokol, hazır istemci ekosistemi |
-| B | Mevcut `chunked.py` sözleşmesini resmîleştir: pano metnindeki "tus" ifadesi "devam edebilir parçalı yükleme" olarak revize edilir; eksik `Idempotency-Key` sunucu+istemciye eklenir | Kazanım: çalışan, testli, kiracı-bağlı mevcut kod korunur. Bedel: kaynak dokümandan **bilinçli sapma** — imza ister |
-| C | Hibrit: dış SDK tüketicileri için tus, panel için mevcut sözleşme | İki devam-edebilirlik yolu = iki doğruluk kaynağı; bakım maliyeti iki kat |
+Pano T-081/T-091 kesilen yüklemenin kaldığı yerden devamını istiyordu ve
+uygulama örneği olarak tus/Uppy adını veriyordu. Kod tabanında ise mağazaya
+bağlı, çalışan bir `upload_begin/chunk/status/finish/abort` protokolü zaten
+vardı. İkinci bir tus yüzeyi eklemek iki oturum, iki retry modeli ve iki
+doğruluk kaynağı oluşturacaktı.
 
 ## Karar
 
-**BEKLİYOR.** Bu ADR karar vermez; seçenekleri ölçülmüş durumlarıyla kayda
-geçirir. Karar verilirken: (a) hangi seçenek seçilirse seçilsin
-`Idempotency-Key` eksiği ayrıca kapatılmalı (rapor 44/61e'de iki kez ölçüldü);
-(b) pano kabul kriteri metni seçilen yola göre revize edilmeli — bugün kriter
-harfiyen "tus" dediği için B/C seçimi görev karnesinde sonsuza dek KISMİ
-görünür.
+Mevcut `media/chunked.py` protokolü resmîleştirildi; tus/Uppy eklenmedi.
+Kabul ölçütü ürün davranışıdır: kesintiden sonra parça durumundan devam,
+sunucu tarafı tam-dosya doğrulaması, idempotent finalize, kota/politika
+snapshot'ı ve süresi dolan oturum temizliği.
 
-## Gerekçe (kararın neden şimdi gerektiği)
+Bu karar kullanıcı tarafından 2026-08-20 karar günlüğünde açıkça verildi:
+“Mevcut resumable kalıyor; tus'un kullanıcı getirisi düşük, maliyeti yüksek.”
 
-T-081/T-091 karneleri bu belirsizlik yüzünden KISMİ'de asılı (rapor 61e);
-plan belgesi de kalemi "KARAR" olarak işaretledi
-(`docs/plans/frontend-kalan-45-plani.md:123`).
+## Uygulanan güvenlik ve bütünlük
+
+- Oturum anahtarı tenant kapsamlı ve tahmin edilemezdir.
+- Parçalar tenant + upload kimliği altında atomik yazılır.
+- `upload_status` alınan parça sayısını ve yüzdesini döndürür.
+- `Idempotency-Key` başlık ve gövdede desteklenir; çelişirse ret verir.
+- Aynı anahtarla ikinci finalize aynı sonucu döndürür, ikinci `File` açmaz.
+- SHA-256 ilanı biçim ve birleşim sonrası içerikle doğrulanır.
+- Aynı tenant + aynı hash eşzamanlı finalize kilidiyle tekilleştirilir.
+- Slot politika snapshot'ı ve SHA-256'sı sunucudan gelir; istemci raporu
+  yalnız telemetridir ve politikayı gevşetmez.
+- Kota begin öncesinde ve kalıcı yazma sırasında sunucuda uygulanır.
+- Yarım oturum ve sonuç replay kaydı 24 saat sonra scheduler ile temizlenir.
 
 ## Sonuçlar
 
-Karar verilmeden: istemci `session.js` yoluna yatırım yapmaya devam ediyor;
-tus'a sonradan dönüş, biriken istemci kodunun değişmesi demek — bekleme
-maliyeti zamanla artıyor.
+Panel `localStorage` ile yalnız oturum kimliği/parça planını tutar; sunucu
+durumunu kaynak kabul eder. Yeni harici tüketiciler bu sözleşmeyi OpenAPI ve
+tipli istemciden kullanır. tus'a geçiş ancak birlikte çalışabilirlik ihtiyacı
+ölçülür ve bu protokolün bakım maliyetini aşarsa yeni ADR ile açılır.
 
 ## Kanıt
 
-`docs/reports/44-t081-yukleyici.md` §3 · `docs/reports/61e-fe-denetim-faz8-9.md`
-T-081/T-091 satırları · `tradehub_core/media/chunked.py` docstring ·
-`admin-panel/frontend/src/lib/media/upload/session.js:1-51`.
+- `tradehub_core/tests/test_chunked_upload_idempotency.py`: 6 Frappe/DB test
+- `admin-panel/frontend/src/lib/media/upload/__tests__/session.test.js`: 20 test
+- `admin-panel/frontend/src/lib/api/__tests__/client.test.js`: başlık taşıma testi
+- `tradehub_core/hooks.py`: günlük `chunked.cleanup`
+- `docs/api/openapi-http.yaml`: oturum şemaları ve `Idempotency-Key` başlığı

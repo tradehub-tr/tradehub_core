@@ -98,7 +98,7 @@
    "fieldname": "classification",
    "fieldtype": "Select",
    "label": "Sınıf",
-   "options": "\nphoto\ntransparent\ngraphic\nanimation\ntext",
+   "options": "\nphoto\ntransparent\ngraphic\nanimation\ndocument",
    "read_only": 1,
    "in_standard_filter": 1,
    "description": "T-062 · image/classify.py sonucu. BOŞ = ölçülemedi (kapı reddi ya da özellik çıkarım hatası) — tahmin yazılmaz. Seçenekler classify.FORMAT_CHAINS anahtarlarıyla birebir."
@@ -116,7 +116,7 @@
    "fieldtype": "JSON",
    "label": "Biçim Zinciri",
    "read_only": 1,
-   "description": "T-062 · Sınıfın biçim zinciri, classify.FormatStep.to_dict() listesi (fmt, lossless, quality_bump, requires). Sıra tercih sırasıdır; karar anının KOPYASI — zincir tablosu sonradan değişirse geçmiş sürümün kararı değişmiş görünmemeli (policy_snapshot ile aynı gerekçe)."
+   "description": "T-062 · Sınıfın biçim zinciri, classify.FormatStep.to_dict() listesi (fmt, lossless, quality_bump, quality_target, requires). Sıra tercih sırasıdır; karar anının KOPYASI — zincir tablosu sonradan değişirse geçmiş sürümün kararı değişmiş görünmemeli (policy_snapshot ile aynı gerekçe)."
   },
   {"fieldname": "cb_derived", "fieldtype": "Column Break"},
   {

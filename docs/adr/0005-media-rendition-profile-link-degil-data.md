@@ -91,3 +91,10 @@ policy_profile        = "w384"                          politikadaki ham ad
   izolasyon `Media Asset` üzerinden alt sorguyla zincirleniyor. Bu bilinçli
   (devirde eskiyen kopya alan yaratılmadı) ama her sorguya bir join ekliyor
   (`docs/reports/15-dalga-a-dogrulama.md` §5).
+
+## Geri dönüş yolu
+
+Profiller global, kalıcı ve foreign-key bütünlüğü gerektiren kayıtlara dönüşürse
+`Data` → `Link` migration'ı yeniden değerlendirilir. Önce mevcut anahtarlar
+profil docname'lerine eşlenir; eşlenemeyen tek satır varsa migration durur ve
+Data şeması korunur.

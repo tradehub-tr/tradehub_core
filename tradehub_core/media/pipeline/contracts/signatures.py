@@ -18,7 +18,7 @@ from __future__ import annotations
 import inspect
 import json
 import os
-from typing import Any, Dict
+from typing import Any
 
 from tradehub_core.media.pipeline.contracts import CORE_PROTOCOLS, delivery, image, policy, storage, video
 
@@ -53,9 +53,9 @@ VALUE_TYPES = (
 )
 
 
-def _protokol_imzalari(protokol: Any) -> Dict[str, str]:
+def _protokol_imzalari(protokol: Any) -> dict[str, str]:
 	"""Bir `Protocol`'ün genel metot imzaları — alfabetik, kararlı."""
-	cikti: Dict[str, str] = {}
+	cikti: dict[str, str] = {}
 	for ad, uye in sorted(vars(protokol).items()):
 		if ad.startswith("_") or not callable(uye):
 			continue
@@ -63,7 +63,7 @@ def _protokol_imzalari(protokol: Any) -> Dict[str, str]:
 	return cikti
 
 
-def topla() -> Dict[str, Any]:
+def topla() -> dict[str, Any]:
 	"""Tüm sözleşme imzalarını tek sözlükte topla."""
 	return {
 		"protocols": {p.__name__: _protokol_imzalari(p) for p in CORE_PROTOCOLS},
@@ -71,7 +71,7 @@ def topla() -> Dict[str, Any]:
 	}
 
 
-def oku_golden() -> Dict[str, Any]:
+def oku_golden() -> dict[str, Any]:
 	with open(GOLDEN_PATH, encoding="utf-8") as f:
 		return json.load(f)
 
@@ -84,10 +84,20 @@ def yaz_golden() -> str:
 	return GOLDEN_PATH
 
 
+def golden_guncel_mi() -> bool:
+	"""Return whether the committed interface snapshot matches live Protocols."""
+	return oku_golden() == topla()
+
+
 if __name__ == "__main__":  # pragma: no cover
 	import sys
 
 	if "--write" in sys.argv:
 		print(f"yazildi: {yaz_golden()}")
+	elif "--check" in sys.argv:
+		if not golden_guncel_mi():
+			print("HATA: donmuş sözleşme imzaları golden dosyasından saptı.", file=sys.stderr)
+			raise SystemExit(1)
+		print("OK: donmuş sözleşme imzaları golden dosyasıyla aynı.")
 	else:
 		print(json.dumps(topla(), ensure_ascii=False, indent="\t", sort_keys=True))

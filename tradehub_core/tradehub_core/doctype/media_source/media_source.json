@@ -1,0 +1,53 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "field:asset",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "asset", "file_url", "storage_backend", "bytes", "mime_real", "mime_claimed",
+  "width", "height", "megapixels", "dpi_x", "dpi_y", "colorspace", "has_alpha",
+  "frames", "duration", "video_codec", "audio_codec", "bitrate", "exif_stripped",
+  "uploaded_by", "client_report"
+ ],
+ "fields": [
+  {"fieldname":"asset","fieldtype":"Link","label":"Varlık","options":"Media Asset","reqd":1,"unique":1,"search_index":1,"read_only":1},
+  {"fieldname":"file_url","fieldtype":"Data","label":"Dosya Adresi","reqd":1,"length":500,"read_only":1},
+  {"fieldname":"storage_backend","fieldtype":"Select","label":"Depolama","options":"local\ns3\nmirror","default":"local","read_only":1},
+  {"fieldname":"bytes","fieldtype":"Int","label":"Bayt","read_only":1},
+  {"fieldname":"mime_real","fieldtype":"Data","label":"Gerçek MIME","length":100,"read_only":1},
+  {"fieldname":"mime_claimed","fieldtype":"Data","label":"Beyan Edilen MIME","length":100,"read_only":1},
+  {"fieldname":"width","fieldtype":"Int","label":"Genişlik","read_only":1},
+  {"fieldname":"height","fieldtype":"Int","label":"Yükseklik","read_only":1},
+  {"fieldname":"megapixels","fieldtype":"Float","label":"Megapiksel","precision":"3","read_only":1},
+  {"fieldname":"dpi_x","fieldtype":"Int","label":"DPI X","read_only":1},
+  {"fieldname":"dpi_y","fieldtype":"Int","label":"DPI Y","read_only":1},
+  {"fieldname":"colorspace","fieldtype":"Data","label":"Renk Uzayı","length":32,"read_only":1},
+  {"fieldname":"has_alpha","fieldtype":"Check","label":"Alfa Kanalı","default":"0","read_only":1},
+  {"fieldname":"frames","fieldtype":"Int","label":"Kare Sayısı","read_only":1},
+  {"fieldname":"duration","fieldtype":"Float","label":"Süre (sn)","precision":"3","read_only":1},
+  {"fieldname":"video_codec","fieldtype":"Data","label":"Video Kodeği","length":32,"read_only":1},
+  {"fieldname":"audio_codec","fieldtype":"Data","label":"Ses Kodeği","length":32,"read_only":1},
+  {"fieldname":"bitrate","fieldtype":"Int","label":"Bit Hızı","read_only":1},
+  {"fieldname":"exif_stripped","fieldtype":"Check","label":"EXIF Temizlendi","default":"0","read_only":1},
+  {"fieldname":"uploaded_by","fieldtype":"Link","label":"Yükleyen","options":"User","read_only":1},
+  {"fieldname":"client_report","fieldtype":"JSON","label":"İstemci Raporu","read_only":1}
+ ],
+ "index_web_pages_for_search": 0,
+ "is_submittable": 0,
+ "issingle": 0,
+ "istable": 0,
+ "links": [],
+ "module": "Tradehub Core",
+ "name": "Media Source",
+ "permissions": [
+  {"role":"Media Superadmin","read":1,"write":0,"create":1,"delete":0,"report":1,"export":1},
+  {"role":"System Manager","read":1,"write":0,"create":1,"delete":0,"report":1,"export":1},
+  {"role":"Marketplace Admin","read":1,"write":0,"create":0,"delete":0,"report":1},
+  {"role":"Marketplace Seller","read":1,"write":0,"create":0,"delete":0,"report":1},
+  {"role":"Seller","read":1,"write":0,"create":0,"delete":0,"report":1}
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "track_changes": 0
+}

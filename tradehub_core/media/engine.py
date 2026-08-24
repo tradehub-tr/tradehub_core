@@ -145,7 +145,7 @@ def optimize(content: bytes, max_dim: int, quality: int) -> OptimizeResult:
 		return OptimizeResult(ok=False, reason=f"error:{type(exc).__name__}")
 
 
-def to_webp(data: bytes, quality: int = 80) -> bytes:
+def to_webp(data: bytes, quality: int = 80, max_dim: int = 2400) -> bytes:
 	"""Görseli KOŞULSUZ WebP'ye çevirir — sunucu tarafı garanti-WebP (TUR-128).
 
 	`optimize()`'dan FARKLI, AYRI bir giriş: `optimize` formatı korur (JPEG
@@ -174,7 +174,9 @@ def to_webp(data: bytes, quality: int = 80) -> bytes:
 		alfali_mi = im.mode == "LA" or (im.mode == "P" and "transparency" in im.info)
 		im = im.convert("RGBA" if alfali_mi else "RGB")
 
-	im.thumbnail((1920, 1920))
+	if max_dim < 1:
+		raise ValueError("max_dim pozitif olmalı")
+	im.thumbnail((max_dim, max_dim))
 
 	buf = io.BytesIO()
 	im.save(buf, "WEBP", quality=quality, method=4)

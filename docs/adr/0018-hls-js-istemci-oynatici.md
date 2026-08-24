@@ -55,3 +55,10 @@ rapor henüz numaralanıyordu; 2026-08-20 W7 dalgası).
 **Uygulamanın ilk ölçülen izi (2026-08-20, bu ADR yazılırken):**
 `admin-panel/frontend/package.json:42` → `"hls.js": "^1.7.1"` — bağımlılık
 W7 ajanınca eklendi; davranış ölçümleri rapor 85'te.
+
+## Geri dönüş yolu
+
+Hedef tarayıcıların tamamı HLS'i native oynatır veya hls.js hata/JS bütçesi
+kabul sınırını aşarsa kütüphane kaldırılır ve native MP4/HLS yolu kalır.
+HLS manifesti bulunamadığında bile MP4 fallback korunduğu için rollback tek
+bağımlılık ve component dalının geri alınmasıdır.

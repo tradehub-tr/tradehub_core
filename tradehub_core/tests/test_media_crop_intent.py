@@ -286,9 +286,27 @@ class MediaCropIntentTests(FrappeTestCase):
 		self.assertEqual(ilk, 1)
 		self.assertEqual(ikinci, 1, "ikinci kayıt açıldı — idempotency kırık")
 		frappe.set_user("Administrator")
-		self.assertAlmostEqual(
-			float(frappe.db.get_value(INTENT, self.asset, "focal_x")), 0.4, places=6
+		self.assertAlmostEqual(float(frappe.db.get_value(INTENT, self.asset, "focal_x")), 0.4, places=6)
+
+	def test_profile_override_short_name_round_trips(self):
+		"""T-082: politika kısa adı child tabloda Link hatasına düşmeden yaşar."""
+		frappe.set_user(self.owner)
+		cevap = media_crop.save_intent(
+			asset=self.asset,
+			focal_x=0.5,
+			focal_y=0.5,
+			method="manual",
+			overrides=[{"profile": "w384", "x": 0.1, "y": 0.2, "w": 0.6, "h": 0.5}],
 		)
+		self.assertEqual(cevap["status"], 200)
+		self.assertEqual(cevap["intent"]["overrides"][0]["profile"], "w384")
+
+		frappe.set_user("Administrator")
+		meta = frappe.get_meta("Media Crop Override").get_field("profile")
+		self.assertEqual(meta.fieldtype, "Data", "profil yeniden Link olmuş")
+		doc = frappe.get_doc(INTENT, self.asset)
+		self.assertEqual(len(doc.overrides), 1)
+		self.assertEqual(doc.overrides[0].profile, "w384")
 
 	def test_out_of_range_rejected_not_clamped(self):
 		"""1'den büyük koordinat REDDEDİLİR; kayıt oluşmaz."""
@@ -305,9 +323,7 @@ class MediaCropIntentTests(FrappeTestCase):
 		"""Şema vokabüleri dışındaki yöntem reddedilir (`edge_energy_v1` dahil)."""
 		frappe.set_user(self.owner)
 		with self.assertRaises(frappe.ValidationError):
-			media_crop.save_intent(
-				asset=self.asset, focal_x=0.5, focal_y=0.5, method="edge_energy_v1"
-			)
+			media_crop.save_intent(asset=self.asset, focal_x=0.5, focal_y=0.5, method="edge_energy_v1")
 
 	def test_controller_rejects_half_written_focal(self):
 		"""Denetim katmanı atlansa bile yarım odak DocType'ta durur."""

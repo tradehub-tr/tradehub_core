@@ -47,10 +47,9 @@ from __future__ import annotations
 import os
 import re
 import shutil
-import subprocess
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from tradehub_core.media.pipeline.contracts.errors import (
 	SEBEP_TRANSCODE_FAILED,
@@ -58,6 +57,7 @@ from tradehub_core.media.pipeline.contracts.errors import (
 	TranscodeFailed,
 )
 from tradehub_core.media.pipeline.contracts.video import FFMPEG_TIMEOUT_SECONDS
+from tradehub_core.media.pipeline.security import isolation
 from tradehub_core.media.pipeline.video import probe as probe_modulu
 from tradehub_core.media.pipeline.video.decision import (
 	ACTION_PASSTHROUGH,
@@ -107,6 +107,9 @@ class H264Spec:
 	audio_bitrate_kbps: int = 128
 	audio_channels: int = 2
 	audio_sample_rate: int = 48000
+	#: Ayrık video worker'ı 2 CPU ile sınırlı; daha çok x264 thread'i sanal
+	#: bellek ve scheduler maliyeti üretir, gerçek throughput kazandırmaz.
+	encoder_threads: int = 2
 
 	@classmethod
 	def from_targets(cls, targets: Mapping[str, Any]) -> "H264Spec":
@@ -136,6 +139,7 @@ class H264Spec:
 			audio_bitrate_kbps=int(t.get("audio_bitrate_kbps", v.audio_bitrate_kbps)),
 			audio_channels=int(t.get("audio_channels", v.audio_channels)),
 			audio_sample_rate=int(t.get("audio_sample_rate", v.audio_sample_rate)),
+			encoder_threads=max(1, int(t.get("encoder_threads", v.encoder_threads))),
 		)
 
 	@classmethod
@@ -163,6 +167,10 @@ class TranscodeResult:
 	cmd: Tuple[str, ...] = ()
 	quality: Dict[str, Any] = field(default_factory=dict)
 	notes: List[str] = field(default_factory=list)
+	peak_rss_bytes: int = 0
+	cpu_user_s: float = 0.0
+	cpu_system_s: float = 0.0
+	limits_applied: Tuple[str, ...] = ()
 	#: Bu sonuç bir geri çekilmenin ürünüyse, düşen ilk aksiyonun adı
 	#: (bugün yalnız `TRANSCODE`). Boş string = geri çekilme olmadı.
 	fallback_from: str = ""
@@ -184,6 +192,10 @@ class TranscodeResult:
 			"out_bytes": self.out_bytes,
 			"saving_ratio": round(self.saving_ratio, 4),
 			"wall_s": round(self.wall_s, 2),
+			"peak_rss_bytes": self.peak_rss_bytes,
+			"cpu_user_s": round(self.cpu_user_s, 3),
+			"cpu_system_s": round(self.cpu_system_s, 3),
+			"limits_applied": list(self.limits_applied),
 			"quality": dict(self.quality),
 			"notes": list(self.notes),
 		}
@@ -204,6 +216,31 @@ def _scale_filter(max_width: int) -> str:
 	yuv420p tek sayılı boyut kabul etmez.
 	"""
 	return f"scale='min({max_width},iw)':-2"
+
+
+def _video_filters(spec: H264Spec, facts: Optional[VideoFacts]) -> List[str]:
+	"""Teslim filtre zinciri; HDR kaynakları SDR/BT.709'a tonemap eder.
+
+	PQ/HLG etiketi taşıyan 10-bit görüntüyü yalnız ``yuv420p``'ye çevirmek
+	parlaklıkları kırpar ve renkleri soldurur. Lineer ışıkta tonemap yapıp
+	çıktıyı açık BT.709 etiketleriyle teslim etmek, bu sessiz bozulmayı önler.
+	"""
+	filtreler: List[str] = []
+	if facts and facts.is_hdr:
+		filtreler.extend(
+			[
+				"zscale=t=linear:npl=100",
+				"format=gbrpf32le",
+				"zscale=p=bt709",
+				"tonemap=tonemap=hable:desat=0",
+				"zscale=t=bt709:m=bt709:r=tv",
+				"format=yuv420p",
+			]
+		)
+	filtreler.append(_scale_filter(spec.max_width))
+	if facts and facts.fps > spec.frame_rate_cap:
+		filtreler.append(f"fps={spec.frame_rate_cap}")
+	return filtreler
 
 
 def rate_ceiling_kbps(
@@ -300,14 +337,17 @@ def build_transcode_cmd(
 	kaynak_fps = facts.fps if facts and facts.fps else float(spec.frame_rate_cap)
 	hedef_fps = min(kaynak_fps, float(spec.frame_rate_cap)) or float(spec.frame_rate_cap)
 
-	filtreler = [_scale_filter(spec.max_width)]
-	if kaynak_fps > spec.frame_rate_cap:
-		filtreler.append(f"fps={spec.frame_rate_cap}")
+	filtreler = _video_filters(spec, facts)
 
 	gop = max(int(round(hedef_fps * spec.keyframe_interval_s)), 1)
 
 	cmd: List[str] = list(NICE_PREFIX) if nice else []
-	cmd += ["ffmpeg", "-y", "-i", src]
+	cmd += [
+		"ffmpeg", "-y",
+		"-filter_threads", str(spec.encoder_threads),
+		"-filter_complex_threads", str(spec.encoder_threads),
+		"-i", src,
+	]
 	# İlk video + (varsa) ilk ses. `0:a:0?` sondaki soru işareti "yoksa sorun
 	# değil" demek; fazladan akışlar (ikinci dil, altyazı, veri) düşürülür.
 	cmd += ["-map", "0:v:0"]
@@ -316,6 +356,7 @@ def build_transcode_cmd(
 	cmd += ["-vf", ",".join(filtreler)]
 	cmd += [
 		"-c:v", spec.video_codec,
+		"-threads:v", str(spec.encoder_threads),
 		"-profile:v", spec.profile,
 		"-level:v", spec.level,
 		"-preset", spec.preset,
@@ -334,6 +375,12 @@ def build_transcode_cmd(
 		# kılar.
 		"-sc_threshold", "0",
 	]
+	if facts and facts.is_hdr:
+		cmd += [
+			"-color_primaries", "bt709",
+			"-color_trc", "bt709",
+			"-colorspace", "bt709",
+		]
 	if facts is None or facts.has_audio:
 		cmd += [
 			"-c:a", spec.audio_codec,
@@ -348,6 +395,7 @@ def build_transcode_cmd(
 		cmd += ["-an"]
 	if spec.faststart:
 		cmd += ["-movflags", "+faststart"]
+	cmd += ["-progress", "pipe:1", "-nostats"]
 	cmd += [dst]
 	return cmd
 
@@ -364,6 +412,7 @@ def build_remux_cmd(src: str, dst: str, *, nice: bool = True) -> List[str]:
 		"-map", "0:v:0", "-map", "0:a:0?",
 		"-c", "copy",
 		"-movflags", "+faststart",
+		"-progress", "pipe:1", "-nostats",
 		dst,
 	]
 	return cmd
@@ -372,30 +421,56 @@ def build_remux_cmd(src: str, dst: str, *, nice: bool = True) -> List[str]:
 # ── Koşum ───────────────────────────────────────────────────────────────
 
 
-def _run(cmd: Sequence[str], *, timeout: int) -> subprocess.CompletedProcess:
-	"""ffmpeg'i çalıştır; `subprocess` istisnalarını sözleşme hatalarına çevir.
+def _run(
+	cmd: Sequence[str],
+	*,
+	timeout: int,
+	progress_callback: Optional[Callable[[Mapping[str, str]], None]] = None,
+	cancel_check: Optional[Callable[[], bool]] = None,
+) -> isolation.IsolationResult:
+	"""ffmpeg'i rlimit altında çalıştır ve sözleşme hatalarına çevir.
 
 	Sözleşme (contracts/video.py) `subprocess` hatalarının SIZMASINI ihlal
 	sayıyor: ffmpeg'in imajdan kalkması worker'ı çökertmemeli, kodlu bir hata
 	olarak görünmelidir.
 	"""
-	try:
-		return subprocess.run(list(cmd), check=True, capture_output=True, timeout=timeout)
-	except FileNotFoundError as exc:
-		raise ProbeUnavailable("ffmpeg bulunamadi", detay={"cmd": cmd[0] if cmd else ""}) from exc
-	except subprocess.TimeoutExpired as exc:
-		raise TranscodeFailed(
-			f"ffmpeg zaman asimi ({timeout} sn)",
-			kod=f"media_{SEBEP_TRANSCODE_FAILED}",
-			detay={"timeout_s": timeout},
-		) from exc
-	except subprocess.CalledProcessError as exc:
-		ayrinti = (exc.stderr or b"").decode("utf-8", "replace").strip()
-		raise TranscodeFailed(
-			"ffmpeg basarisiz oldu",
-			kod=f"media_{SEBEP_TRANSCODE_FAILED}",
-			detay={"returncode": exc.returncode, "stderr_tail": ayrinti[-800:]},
-		) from exc
+	limitler = isolation.VIDEO_LIMITS.with_(wall_timeout_s=float(timeout), nice=None)
+	sonuc = isolation.run_command(
+		list(cmd),
+		limits=limitler,
+		progress_callback=progress_callback,
+		cancel_check=cancel_check,
+	)
+	if sonuc.ok:
+		return sonuc
+	if sonuc.sebep == isolation.SEBEP_SPAWN_FAILED:
+		raise ProbeUnavailable(
+			"ffmpeg bulunamadi veya baslatilamadi",
+			detay={"isolation_reason": sonuc.sebep, "exception": sonuc.exception or {}},
+		)
+	ayrinti = (sonuc.stderr or b"").decode("utf-8", "replace").strip()
+	mesajlar = {
+		isolation.SEBEP_TIMEOUT: f"ffmpeg zaman asimi ({timeout} sn)",
+		isolation.SEBEP_MEMORY: "ffmpeg bellek limiti asildi",
+		isolation.SEBEP_CPU: "ffmpeg CPU limiti asildi",
+		isolation.SEBEP_CANCELLED: "ffmpeg isi iptal edildi",
+		isolation.SEBEP_KILLED: "ffmpeg izole sureci olduruldu",
+	}
+	throw = TranscodeFailed(
+		mesajlar.get(sonuc.sebep, "ffmpeg basarisiz oldu"),
+		kod=f"media_{SEBEP_TRANSCODE_FAILED}",
+		retryable=sonuc.sebep in isolation.RETRYABLE_SEBEPLER,
+		detay={
+			"isolation_reason": sonuc.sebep,
+			"returncode": sonuc.exit_code,
+			"signal": sonuc.signal_no,
+			"stderr_tail": ayrinti[-800:],
+			"duration_ms": sonuc.duration_ms,
+			"peak_rss_bytes": sonuc.peak_rss_bytes,
+			"cpu_s": round(sonuc.cpu_user_s + sonuc.cpu_system_s, 3),
+		},
+	)
+	raise throw
 
 
 #: `_run`'in genel adı. `hls.py` de ffmpeg'i aynı hata sözleşmesiyle
@@ -423,6 +498,19 @@ def max_duration_delta_s(targets: Optional[Mapping[str, Any]] = None) -> float:
 	"""Kaynak ↔ çıktı süre farkı tavanı (saniye) — tablodan okunur."""
 	t = targets if targets is not None else default_table().targets
 	return float(((t or {}).get("quality_gate") or {}).get("max_duration_delta_s", 0.1))
+
+
+def max_av_sync_delta_s(targets: Optional[Mapping[str, Any]] = None) -> float:
+	"""Kaynak ↔ çıktı A/V ofset değişimi tavanı — tablodan okunur."""
+	t = targets if targets is not None else default_table().targets
+	return float(((t or {}).get("quality_gate") or {}).get("max_av_sync_delta_s", 0.1))
+
+
+def first_frame_luma_range(targets: Optional[Mapping[str, Any]] = None) -> Tuple[float, float]:
+	"""Teslimin ilk karesi için siyah/beyaz luma sınırları — tablodan."""
+	t = targets if targets is not None else default_table().targets
+	k = (t or {}).get("quality_gate") or {}
+	return (float(k.get("first_frame_luma_min_pct", 1.0)), float(k.get("first_frame_luma_max_pct", 99.0)))
 
 
 def vmaf_min(targets: Optional[Mapping[str, Any]] = None) -> float:
@@ -496,6 +584,132 @@ def duration_delta_s(reference: str, distorted: str) -> Optional[float]:
 	return abs(a.duration_s - b.duration_s)
 
 
+def av_sync_from_facts(reference: VideoFacts, distorted: VideoFacts) -> Dict[str, Any]:
+	"""Kaynak/çıktı A/V başlangıç ve bitiş ofsetlerindeki değişimi ölç.
+
+	Mutlak ses başlangıcına bakmak tek başına yeterli değildir; kaynakta ses
+	zaten videodan 20 ms sonra başlıyor olabilir. Teslim kapısının koruması
+	gereken, bu ofsetin transcode sırasında ne kadar *değiştiğidir*.
+	"""
+	if not (reference.measured and distorted.measured):
+		return {"measured": False, "reason": "kaynak veya cikti kunyesi olculemedi"}
+	if not reference.has_audio:
+		return {"measured": False, "not_applicable": True, "reason": "kaynak sessiz"}
+	if not distorted.has_audio:
+		return {"measured": True, "audio_missing": True, "start_delta_s": None, "end_delta_s": None,
+			"max_delta_s": float("inf")}
+
+	ref_start = reference.audio_start_time_s - reference.video_start_time_s
+	out_start = distorted.audio_start_time_s - distorted.video_start_time_s
+	ref_end = (
+		reference.audio_start_time_s + reference.audio_duration_s
+		- reference.video_start_time_s - reference.video_duration_s
+	)
+	out_end = (
+		distorted.audio_start_time_s + distorted.audio_duration_s
+		- distorted.video_start_time_s - distorted.video_duration_s
+	)
+	start_delta = abs(out_start - ref_start)
+	end_delta = abs(out_end - ref_end)
+	return {
+		"measured": True,
+		"reference_start_offset_s": round(ref_start, 6),
+		"output_start_offset_s": round(out_start, 6),
+		"reference_end_offset_s": round(ref_end, 6),
+		"output_end_offset_s": round(out_end, 6),
+		"start_delta_s": round(start_delta, 6),
+		"end_delta_s": round(end_delta, 6),
+		"max_delta_s": round(max(start_delta, end_delta), 6),
+	}
+
+
+def av_sync_delta_s(reference: str, distorted: str) -> Optional[float]:
+	"""İki dosyanın en kötü A/V ofset değişimi; ölçülemezse ``None``."""
+	olcum = av_sync_from_facts(probe_modulu.probe(reference), probe_modulu.probe(distorted))
+	if olcum.get("not_applicable"):
+		return 0.0
+	if not olcum.get("measured"):
+		return None
+	try:
+		return float(olcum["max_delta_s"])
+	except (KeyError, TypeError, ValueError):
+		return None
+
+
+_YAVG_RE = re.compile(r"YAVG[=:]([0-9.]+)")
+
+
+def first_frame_luma_pct(path: str, *, timeout: int = 60) -> Optional[float]:
+	"""İlk teslim karesinin lumasını ölç; siyah/beyaz açılışı yakalar."""
+	cmd = [
+		"ffmpeg", "-hide_banner", "-i", path,
+		"-vf", "signalstats,metadata=mode=print",
+		"-frames:v", "1", "-f", "null", "-",
+	]
+	try:
+		sonuc = run_ffmpeg(cmd, timeout=min(int(timeout), 60))
+	except (ProbeUnavailable, TranscodeFailed):
+		return None
+	metin = ((sonuc.stderr or b"") + b"\n" + (sonuc.stdout or b"")).decode("utf-8", "replace")
+	m = _YAVG_RE.search(metin)
+	if not m:
+		return None
+	try:
+		return float(m.group(1)) / 255.0 * 100.0
+	except ValueError:
+		return None
+
+
+def validate_delivery_metrics(
+	*,
+	duration_delta: Optional[float],
+	av_sync_delta: Optional[float],
+	first_frame_luma: Optional[float],
+	has_audio: bool,
+	max_duration_delta: Optional[float] = None,
+	max_av_sync_delta: Optional[float] = None,
+	min_first_frame_luma: Optional[float] = None,
+	max_first_frame_luma: Optional[float] = None,
+	require_measured: bool = True,
+) -> Tuple[bool, Dict[str, Any]]:
+	"""Süre, A/V senkronu ve ilk kareyi tek atomik teslim kapısında değerlendir."""
+	duration_limit = max_duration_delta_s() if max_duration_delta is None else float(max_duration_delta)
+	av_limit = max_av_sync_delta_s() if max_av_sync_delta is None else float(max_av_sync_delta)
+	luma_min, luma_max = first_frame_luma_range()
+	if min_first_frame_luma is not None:
+		luma_min = float(min_first_frame_luma)
+	if max_first_frame_luma is not None:
+		luma_max = float(max_first_frame_luma)
+	report: Dict[str, Any] = {
+		"duration_delta_s": duration_delta,
+		"max_duration_delta_s": duration_limit,
+		"av_sync_delta_s": av_sync_delta,
+		"max_av_sync_delta_s": av_limit,
+		"first_frame_luma_pct": first_frame_luma,
+		"first_frame_luma_range_pct": [luma_min, luma_max],
+	}
+
+	def kapi(value: Optional[float], predicate: Callable[[float], bool]) -> str:
+		if value is None:
+			return "OLCULEMEDI"
+		return "GECTI" if predicate(float(value)) else "DUSTU"
+
+	report["duration_gate"] = kapi(duration_delta, lambda x: x <= duration_limit)
+	report["av_sync_gate"] = (
+		"UYGULANMAZ" if not has_audio else kapi(av_sync_delta, lambda x: x <= av_limit)
+	)
+	report["first_frame_gate"] = kapi(
+		first_frame_luma, lambda x: luma_min <= x <= luma_max
+	)
+	basarisiz = any(v == "DUSTU" for v in (
+		report["duration_gate"], report["av_sync_gate"], report["first_frame_gate"]
+	))
+	olculemeyen = any(v == "OLCULEMEDI" for v in (
+		report["duration_gate"], report["av_sync_gate"], report["first_frame_gate"]
+	))
+	return (not basarisiz and not (require_measured and olculemeyen), report)
+
+
 def transcode(
 	src: str,
 	dst: str,
@@ -505,7 +719,10 @@ def transcode(
 	timeout: int = FFMPEG_TIMEOUT_SECONDS,
 	enforce_benefit_gate: bool = True,
 	enforce_quality_gate: Optional[bool] = None,
+	enforce_delivery_gate: Optional[bool] = None,
 	nice: bool = True,
+	progress_callback: Optional[Callable[[Mapping[str, str]], None]] = None,
+	cancel_check: Optional[Callable[[], bool]] = None,
 ) -> TranscodeResult:
 	"""Kaynağı H.264 High + AAC 128k + faststart mp4'e dönüştür.
 
@@ -534,7 +751,12 @@ def transcode(
 	cmd = build_transcode_cmd(src, gecici, spec, facts, nice=nice)
 	basla = time.monotonic()
 	try:
-		_run(cmd, timeout=timeout)
+		kosum = _run(
+			cmd,
+			timeout=timeout,
+			progress_callback=progress_callback,
+			cancel_check=cancel_check,
+		)
 	except Exception:
 		_sessiz_sil(gecici)
 		raise
@@ -547,6 +769,10 @@ def transcode(
 		out_bytes=_boyut(gecici),
 		wall_s=sure,
 		cmd=tuple(cmd),
+		peak_rss_bytes=kosum.peak_rss_bytes,
+		cpu_user_s=kosum.cpu_user_s,
+		cpu_system_s=kosum.cpu_system_s,
+		limits_applied=tuple(kosum.limits_applied),
 	)
 
 	esik = min_saving_ratio()
@@ -593,22 +819,38 @@ def transcode(
 					sonuc.quality[anahtar] = kalite[anahtar]
 			sonuc.notes.append("VMAF OLCULEMEDI -> kalite kapisi uygulanmadi (sayi uydurulmaz)")
 
-	# Süre kapısı ÖLÇÜLÜR ama çıktıyı ATMAZ (tablo `quality_gate.duration_note`):
-	# süresi sapmış bir dosya, hiç dosya olmamasından iyidir. Ölçüm geçici dosya
-	# üzerinde yapılır — taşımadan sonra ölçmek aynı sonucu verir ama başarısız
-	# ölçümde hedefi çoktan değiştirmiş oluruz.
-	fark = duration_delta_s(src, gecici)
-	tavan = max_duration_delta_s()
-	sonuc.quality["duration_delta_s"] = None if fark is None else round(fark, 4)
-	sonuc.quality["max_duration_delta_s"] = tavan
-	if fark is None:
-		sonuc.quality["duration_gate"] = "OLCULEMEDI"
-		sonuc.notes.append("sure farki OLCULEMEDI — kapi uygulanmadi")
-	elif fark > tavan:
-		sonuc.quality["duration_gate"] = "DUSTU"
-		sonuc.notes.append(f"sure farki {fark * 1000:.0f} ms > {tavan * 1000:.0f} ms tavani")
-	else:
-		sonuc.quality["duration_gate"] = "GECTI"
+	# ── Teslim bütünlüğü: süre + A/V sync + ilk kare ────────────────────
+	# Üç ölçüm aynı geçici çıktı üstünde ve promote ÖNCESİNDE yapılır. Biri
+	# düşerse yarım/bozuk teslim yayınlanmaz; kaynak atomik olarak korunur.
+	cikti_facts = probe_modulu.probe(gecici)
+	fark = (
+		abs(facts.duration_s - cikti_facts.duration_s)
+		if facts.measured and cikti_facts.measured and facts.duration_s and cikti_facts.duration_s
+		else None
+	)
+	sync = av_sync_from_facts(facts, cikti_facts)
+	sync_delta = (
+		0.0 if sync.get("not_applicable") else (
+			float(sync["max_delta_s"]) if sync.get("measured") and sync.get("max_delta_s") is not None else None
+		)
+	)
+	luma = first_frame_luma_pct(gecici, timeout=timeout)
+	teslim_ok, teslim = validate_delivery_metrics(
+		duration_delta=fark,
+		av_sync_delta=sync_delta,
+		first_frame_luma=luma,
+		has_audio=facts.has_audio,
+	)
+	teslim["av_sync"] = sync
+	sonuc.quality.update(teslim)
+	teslim_kapisi = enforce_benefit_gate if enforce_delivery_gate is None else enforce_delivery_gate
+	if teslim_kapisi and not teslim_ok:
+		_sessiz_sil(gecici)
+		sonuc.accepted = False
+		sonuc.kept_source = True
+		dusenler = [k for k in ("duration_gate", "av_sync_gate", "first_frame_gate") if teslim.get(k) != "GECTI" and teslim.get(k) != "UYGULANMAZ"]
+		sonuc.notes.append(f"teslim butunlugu kapisi dustu: {', '.join(dusenler)} -> cikti atildi, kaynak korundu")
+		return sonuc
 
 	os.replace(gecici, dst)
 	sonuc.out_path = dst
@@ -622,6 +864,8 @@ def remux(
 	*,
 	timeout: int = FFMPEG_TIMEOUT_SECONDS,
 	nice: bool = True,
+	progress_callback: Optional[Callable[[Mapping[str, str]], None]] = None,
+	cancel_check: Optional[Callable[[], bool]] = None,
 ) -> TranscodeResult:
 	"""Akışları kopyalayarak mp4'e taşı ve moov'u başa al.
 
@@ -633,7 +877,12 @@ def remux(
 	cmd = build_remux_cmd(src, gecici, nice=nice)
 	basla = time.monotonic()
 	try:
-		_run(cmd, timeout=timeout)
+		kosum = _run(
+			cmd,
+			timeout=timeout,
+			progress_callback=progress_callback,
+			cancel_check=cancel_check,
+		)
 	except Exception:
 		_sessiz_sil(gecici)
 		raise
@@ -647,6 +896,10 @@ def remux(
 		wall_s=sure,
 		cmd=tuple(cmd),
 		notes=["fayda kapisindan MUAF (benefit_gate.exempt_actions)"],
+		peak_rss_bytes=kosum.peak_rss_bytes,
+		cpu_user_s=kosum.cpu_user_s,
+		cpu_system_s=kosum.cpu_system_s,
+		limits_applied=tuple(kosum.limits_applied),
 	)
 	os.replace(gecici, dst)
 	sonuc.out_path = dst
@@ -662,6 +915,8 @@ def apply_decision(
 	facts: Optional[VideoFacts] = None,
 	timeout: int = FFMPEG_TIMEOUT_SECONDS,
 	nice: bool = True,
+	progress_callback: Optional[Callable[[Mapping[str, str]], None]] = None,
+	cancel_check: Optional[Callable[[], bool]] = None,
 ) -> TranscodeResult:
 	"""Karar tablosunun verdiği aksiyonu uygula.
 
@@ -689,10 +944,16 @@ def apply_decision(
 			notes=[f"{decision.code}: {decision.reason}"],
 		)
 	if decision.action == ACTION_REMUX:
-		return remux(src, dst, timeout=timeout, nice=nice)
+		return remux(
+			src, dst, timeout=timeout, nice=nice,
+			progress_callback=progress_callback, cancel_check=cancel_check,
+		)
 
 	facts = facts or probe_modulu.probe(src)
-	sonuc = transcode(src, dst, facts=facts, timeout=timeout, nice=nice)
+	sonuc = transcode(
+		src, dst, facts=facts, timeout=timeout, nice=nice,
+		progress_callback=progress_callback, cancel_check=cancel_check,
+	)
 	if sonuc.accepted:
 		return sonuc
 
@@ -710,7 +971,10 @@ def apply_decision(
 		if sonuc.quality.get("vmaf_gate") == "DUSTU"
 		else "fayda kapisindan (INV-05)"
 	)
-	geri = remux(src, dst, timeout=timeout, nice=nice)
+	geri = remux(
+		src, dst, timeout=timeout, nice=nice,
+		progress_callback=progress_callback, cancel_check=cancel_check,
+	)
 	geri.fallback_from = ACTION_TRANSCODE
 	geri.notes = list(sonuc.notes) + [
 		f"TRANSCODE {dusen_kapi} dustu -> REMUX'a geri cekildi ({gerekce})"
@@ -729,12 +993,13 @@ def vmaf_available() -> bool:
 	altındaki tabloda; ölçüm yapılamıyorsa `measure_quality` "VMAF YOK" der ve
 	uydurma bir sayı üretmez.
 	"""
-	try:
-		cikti = subprocess.run(
-			["ffmpeg", "-hide_banner", "-filters"], capture_output=True, timeout=30
-		).stdout.decode("utf-8", "replace")
-	except (OSError, subprocess.SubprocessError):
+	sonuc = isolation.run_command(
+		["ffmpeg", "-hide_banner", "-filters"],
+		limits=isolation.VIDEO_LIMITS.with_(wall_timeout_s=30.0, cpu_seconds=25, nice=None),
+	)
+	if not sonuc.ok:
 		return False
+	cikti = ((sonuc.stdout or b"") + b"\n" + (sonuc.stderr or b"")).decode("utf-8", "replace")
 	return " libvmaf " in cikti
 
 
@@ -765,20 +1030,31 @@ def measure_quality(
 		return {"measured": False, "reason": f"referans kunyesi okunamadi: {ref.error}"}
 
 	if vmaf_available():
+		# libvmaf son puanı zaten ffmpeg stderr'ine yazar. ``log_path=-`` bazı
+		# sürümlerde stdout anlamına gelmeyip çalışma dizininde gerçekten ``-``
+		# adlı 200 KiB civarı JSON dosyası oluşturur; kalite ölçümü kalıcı/geçici
+		# yan ürün bırakmamalıdır.
 		filtre = (
 			f"[1:v]scale={ref.width}:{ref.height}:flags=bicubic[dist];"
-			f"[dist][0:v]libvmaf=log_fmt=json:log_path=-"
+			f"[dist][0:v]libvmaf"
 		)
 		cmd = ["ffmpeg", "-hide_banner", "-i", reference, "-i", distorted,
 			"-filter_complex", filtre, "-f", "null", "-"]
-		try:
-			p = subprocess.run(cmd, capture_output=True, timeout=timeout)
-			metin = (p.stderr or b"").decode("utf-8", "replace")
+		sonuc = isolation.run_command(
+			cmd,
+			limits=isolation.VIDEO_LIMITS.with_(wall_timeout_s=float(timeout), nice=None),
+		)
+		if sonuc.ok:
+			metin = ((sonuc.stderr or b"") + b"\n" + (sonuc.stdout or b"")).decode("utf-8", "replace")
 			m = re.search(r"VMAF score:\s*([0-9.]+)", metin)
 			if m:
-				return {"measured": True, "metric": "vmaf", "vmaf": float(m.group(1))}
-		except (OSError, subprocess.SubprocessError):
-			pass
+				return {
+					"measured": True,
+					"metric": "vmaf",
+					"vmaf": float(m.group(1)),
+					"peak_rss_bytes": sonuc.peak_rss_bytes,
+					"cpu_s": round(sonuc.cpu_user_s + sonuc.cpu_system_s, 3),
+				}
 
 	# ssim ve psnr filtreleri aynı girdiyi iki kez tüketemez; bu yüzden iki
 	# ayrı koşum yapılır. İkisi de saniyeler sürer (kod çözme sınırlı).
@@ -794,15 +1070,18 @@ def measure_quality(
 			f"[1:v]scale={ref.width}:{ref.height}:flags=bicubic[dist];[dist][0:v]{ifade}",
 			"-f", "null", "-",
 		]
-		try:
-			p = subprocess.run(cmd, capture_output=True, timeout=timeout)
-			metin = (p.stderr or b"").decode("utf-8", "replace")
-			m = desen.search(metin)
-			if m:
-				sonuc[ad] = float(m.group(1)) if m.group(1) not in ("inf",) else float("inf")
-				sonuc["measured"] = True
-		except (OSError, subprocess.SubprocessError) as exc:
-			sonuc[f"{ad}_error"] = str(exc)
+		kosum = isolation.run_command(
+			cmd,
+			limits=isolation.VIDEO_LIMITS.with_(wall_timeout_s=float(timeout), nice=None),
+		)
+		if not kosum.ok:
+			sonuc[f"{ad}_error"] = kosum.sebep
+			continue
+		metin = ((kosum.stderr or b"") + b"\n" + (kosum.stdout or b"")).decode("utf-8", "replace")
+		m = desen.search(metin)
+		if m:
+			sonuc[ad] = float(m.group(1)) if m.group(1) not in ("inf",) else float("inf")
+			sonuc["measured"] = True
 	return sonuc
 
 
@@ -842,7 +1121,13 @@ __all__ = [
 	"rate_ceiling_kbps",
 	"remux_fallback_applies",
 	"duration_delta_s",
+	"av_sync_from_facts",
+	"av_sync_delta_s",
+	"first_frame_luma_pct",
+	"validate_delivery_metrics",
 	"max_duration_delta_s",
+	"max_av_sync_delta_s",
+	"first_frame_luma_range",
 	"vmaf_min",
 	"transcode",
 	"remux",

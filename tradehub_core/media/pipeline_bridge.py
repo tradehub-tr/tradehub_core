@@ -39,7 +39,7 @@ dosya sessizce kapsam dışıdır.
 --------
     File.after_insert
       └─ maybe_generate_renditions   (istek thread'i — yalnız karar verir)
-           └─ frappe.enqueue(queue="long", enqueue_after_commit=True)
+           └─ frappe.enqueue(queue="media-image-live", enqueue_after_commit=True)
                 └─ _run_rendition_job   (worker)
                      ├─ Media Asset  (bul / oluştur)
                      ├─ Media Version  (bul / oluştur — dedup.version_hash, T-042)
@@ -83,8 +83,16 @@ alanındadır; kayıtları `patches/v15_9_23_media_profile_seed.py` tohumlar.
 from __future__ import annotations
 
 import hashlib
+import hmac
+import io
+import json
 import os
 import re
+import shutil
+import time
+from collections.abc import Iterable
+from dataclasses import dataclass, field
+from datetime import timedelta
 from functools import lru_cache
 from typing import Any
 
@@ -92,26 +100,91 @@ import frappe
 from frappe.utils import get_files_path, now_datetime
 
 from tradehub_core.media import audit, ownership, pipeline_flags, presets, upload_policy
+from tradehub_core.media.pipeline.core import queues as media_queues
+from tradehub_core.media.rendition_ledger import (
+	content_sha256,
+	engine_signature,
+	file_sha256,
+	rendition_key,
+)
 
-#: Gerçek RQ kuyruğu. Bu kurulumda `default/short/long` var; `media-image-*`
-#: kuyrukları Faz 3 tasarımında tanımlı ama HENÜZ AÇILMADI. İş kaydındaki
-#: `queue` alanı (JOB_QUEUE) tasarım adını, bu sabit taşıyıcı kuyruğu tutar.
-RQ_QUEUE: str = "long"
+#: Kullanıcının beklediği görsel işi genel sipariş kuyruğundan ayrıdır.
+RQ_QUEUE: str = media_queues.IMAGE_LIVE.name
 
-#: `transcode.QUEUE_TIMEOUT_SECONDS` ile aynı değer — aynı worker, aynı tavan.
-QUEUE_TIMEOUT_SECONDS: int = 1800
+#: CPU-yoğun video/animasyon işleri görsel ve iş süreçlerini aç bırakmasın.
+#: Docker'da bu kuyruğu yalnız tek, kaynak sınırlı worker tüketir (T-075).
+RQ_QUEUE_VIDEO: str = media_queues.VIDEO.name
+
+#: Politika backfill'i canlı işleri sıkıştıramaz. Docker topolojisindeki ayrı,
+#: tek concurrency'li worker yalnız bu gerçek RQ kuyruğunu dinler.
+RQ_QUEUE_BULK: str = media_queues.IMAGE_BULK.name
+
+#: Kuyruk başına süre tavanları tek topolojiden gelir.
+QUEUE_TIMEOUT_SECONDS: int = media_queues.VIDEO.timeout_seconds
+QUEUE_TIMEOUT_LIVE_SECONDS: int = media_queues.IMAGE_LIVE.timeout_seconds
+QUEUE_TIMEOUT_BULK_SECONDS: int = media_queues.IMAGE_BULK.timeout_seconds
 
 #: `Media Processing Job.queue` seçeneği (yükleme anında tetiklenen, kullanıcı
 #: bekleyen üretim → "live"). Deneme tavanı bu kuyrukta 3.
-JOB_QUEUE: str = "media-image-live"
+JOB_QUEUE: str = media_queues.IMAGE_LIVE.name
 
 JOB_TYPE: str = "rendition"
+JOB_QUEUE_BULK: str = RQ_QUEUE_BULK
+
+GEN_READY: str = "ready"
+GEN_OMITTED: str = "omitted"
+GEN_FAILED: str = "failed"
+
+LAZY_LOCK_TIMEOUT_SECONDS: int = 120
+LAZY_LOCK_WAIT_SECONDS: int = 30
+ENGINE_OUTPUT_CACHE_SECONDS: int = 7 * 24 * 60 * 60
+BULK_STATUS_SECONDS: int = 24 * 60 * 60
+
+ANIMATION_JOB_TYPE: str = "video_from_animation"
+
+
+@dataclass
+class GenerationOutcome:
+	"""Tek sürüm üretiminin tamlık künyesi.
+
+	`omitted`, upscale/fayda kapısı nedeniyle kasıtlı olarak manifestten düşen
+	basamaklardır ve eksiklik sayılmaz. `failed` sıfır değilken active_version
+	asla değişmez; başarılı satırlar aynı transaction geri alınabilir.
+	"""
+
+	required: int = 0
+	ready: int = 0
+	omitted: int = 0
+	failed: int = 0
+	details: list[str] = field(default_factory=list)
+	entries: dict[str, str] = field(default_factory=dict)
+	results: list[Any] = field(default_factory=list)
+
+	@property
+	def complete(self) -> bool:
+		return self.failed == 0 and self.required == self.ready + self.omitted
+
+	@property
+	def written(self) -> int:
+		return self.ready
+
+	def add(self, status: str, detail: str = "") -> None:
+		self.required += 1
+		if status == GEN_READY:
+			self.ready += 1
+		elif status == GEN_OMITTED:
+			self.omitted += 1
+		else:
+			self.failed += 1
+		if detail:
+			self.details.append(detail)
+			self.entries[detail] = status
+
 
 # ── W7: video hattı sabitleri ────────────────────────────────────────────
-#: Video işi de aynı gerçek RQ kuyruğuna (`long`) girer; `Media Processing
-#: Job.queue` alanına ise Faz 3 tasarım adı yazılır (görseldeki JOB_QUEUE
-#: deseniyle birebir aynı ayrım).
-JOB_QUEUE_VIDEO: str = "media-video"
+#: Ledger ve gerçek RQ kuyruğu aynı adı taşır; operasyon ekranı başka bir ad
+#: gösterip işin gerçekte ``long`` kuyruğunda koşması engellenir.
+JOB_QUEUE_VIDEO: str = RQ_QUEUE_VIDEO
 
 #: `Media Processing Job.job_type` seçeneklerinden (normalize|rendition|
 #: transcode|poster|preview|ai|gc|retention|report) videonun ana işi.
@@ -127,6 +200,7 @@ _MEDIA_TYPE_VIDEO: str = "video"
 #: sözleşme adları burada sabitlenir ve `api/media_manifest.py` aynı adlarla
 #: okur. `dedup.rendition_path` bu adları yol parçası olarak taşır.
 VIDEO_PRIMARY_PROFILE: str = "h264"
+VIDEO_WEBM_PROFILE: str = "vp9"
 VIDEO_POSTER_PROFILE: str = "poster"
 VIDEO_HLS_PROFILE: str = "hls"
 VIDEO_PREVIEW_PROFILE: str = "preview"
@@ -197,7 +271,7 @@ def maybe_generate_renditions(doc: Any, method: str | None = None) -> None:
 		frappe.enqueue(
 			"tradehub_core.media.pipeline_bridge._run_rendition_job",
 			queue=RQ_QUEUE,
-			timeout=QUEUE_TIMEOUT_SECONDS,
+			timeout=QUEUE_TIMEOUT_LIVE_SECONDS,
 			enqueue_after_commit=True,
 			file_url=doc.get("file_url"),
 		)
@@ -444,6 +518,252 @@ def content_fingerprint(doc: Any) -> str | None:
 version_hash = content_fingerprint
 
 
+def _contract_value(value: Any, *names: str) -> Any:
+	"""Classifier sözleşmesini object/dict sürümleri arasında uyumlu oku."""
+	for name in names:
+		if isinstance(value, dict) and name in value:
+			return value.get(name)
+		if hasattr(value, name):
+			return getattr(value, name)
+	return None
+
+
+def _animation_route(content: bytes, decision: Any = None) -> dict[str, str] | None:
+	"""Animasyonu T-062 video-route sözleşmesine çevir; eski classifier'a uyumlu.
+
+	Yeni sözleşmede `target_pipeline/job_type`, ara sürümde `route_to_video`,
+	eski sürümde yalnız `klass=animation` bulunabilir. Hiçbiri yoksa Pillow'un
+	frame sayısı kesin geri dönüş kapısıdır.
+	"""
+	try:
+		from tradehub_core.media.pipeline.image import classify as classify_mod
+
+		karar = decision or classify_mod.classify(content)
+		hedef = str(_contract_value(karar, "target_pipeline", "pipeline") or "")
+		is_tipi = str(_contract_value(karar, "job_type") or "")
+		sinif = str(_contract_value(karar, "klass", "class_name", "classification") or "")
+		video_mu = bool(_contract_value(karar, "route_to_video"))
+		if hedef == "video" or video_mu or sinif == "animation":
+			return {"job_type": is_tipi or ANIMATION_JOB_TYPE, "class": sinif or "animation"}
+	except Exception:
+		pass
+
+	try:
+		from PIL import Image
+
+		with Image.open(io.BytesIO(content)) as im:
+			if bool(getattr(im, "is_animated", False)) or int(getattr(im, "n_frames", 1)) > 1:
+				return {"job_type": ANIMATION_JOB_TYPE, "class": "animation"}
+	except Exception:
+		pass
+	return None
+
+
+def _prepare_image_master(
+	content: bytes,
+	slot_key: str,
+	*,
+	classification: Any = None,
+	filename: str = "",
+) -> Any:
+	"""T-061/T-062 production köprüsü: kaynak → sınıflandırılmış Version master.
+
+	Slot politikası geometri/metadata tavanlarını; ``image.master`` ise Faz 2
+	format karar tablosunu uygular. Dönen master, sürüm künyesi, crop hesabı,
+	lazy kontrolü, rendition encode'u ve kalite raporunun ORTAK girdisidir.
+	"""
+	from tradehub_core.media.pipeline.image import master as master_mod
+	from tradehub_core.media.pipeline.image import render
+
+	return master_mod.make_master(
+		content,
+		render.load_slot_policy(slot_key),
+		filename=filename,
+		classification=classification,
+	)
+
+
+def _animated_video_slot(image_slot: str) -> str | None:
+	"""Görsel slotunun animasyon teslim kardeşini politika ağacından bul."""
+	from tradehub_core.media.pipeline.image import render
+
+	adaylar: list[str] = []
+	if image_slot.endswith(".image"):
+		adaylar.append(f"{image_slot[:-6]}.video")
+	if image_slot.endswith("_image"):
+		adaylar.append(f"{image_slot[:-6]}_video")
+	if image_slot == "company.cover_image":
+		adaylar.append("company.cover_video")
+	for aday in dict.fromkeys(adaylar):
+		try:
+			if render.load_slot_policy(aday).get("video"):
+				return aday
+		except Exception:
+			continue
+	return None
+
+
+def _engine_output_match(content: bytes) -> dict[str, Any] | None:
+	"""Persistent ledger ile exact engine output'u tanı (heuristic yok).
+
+	Ana yol indeksli ``output_sha256`` sorgusudur ve tarihsel sürüm satırlarını
+	de kapsar. Redis yalnız docname hızlandırmasıdır; kanıt daima DB'deki hash +
+	engine_signature çiftidir. Legacy satırların disk fallback'i bir kez
+	doğrulanınca aynı persistent deftere yükseltilir.
+	"""
+	sha = content_sha256(content)
+	cache_key = f"media:engine-output:{sha}"
+	try:
+		cached_name = frappe.cache().get_value(cache_key, expires=True)
+		if isinstance(cached_name, bytes):
+			cached_name = cached_name.decode("utf-8", "replace")
+		if cached_name:
+			cached = frappe.db.get_value(
+				"Media Rendition",
+				str(cached_name),
+				[
+					"name",
+					"asset",
+					"version_hash",
+					"profile",
+					"width",
+					"format",
+					"file_url",
+					"output_sha256",
+					"engine_signature",
+				],
+				as_dict=True,
+			)
+			if cached and cached.output_sha256 == sha and _engine_ledger_valid(dict(cached), sha):
+				return {**dict(cached), "sha256": sha, "cached": True}
+	except Exception:
+		pass
+
+	ledger_rows = frappe.get_all(
+		"Media Rendition",
+		filters={"output_sha256": sha},
+		fields=[
+			"name",
+			"asset",
+			"version_hash",
+			"profile",
+			"width",
+			"format",
+			"file_url",
+			"output_sha256",
+			"engine_signature",
+		],
+		limit_page_length=0,
+	)
+	for row in ledger_rows:
+		if not _engine_ledger_valid(dict(row), sha):
+			continue
+		try:
+			frappe.cache().set_value(cache_key, row["name"], expires_in_sec=ENGINE_OUTPUT_CACHE_SECONDS)
+		except Exception:
+			pass
+		return {**dict(row), "sha256": sha, "cached": False}
+
+	for row in frappe.get_all(
+		"Media Rendition",
+		filters={"bytes": len(content)},
+		fields=[
+			"name",
+			"asset",
+			"version_hash",
+			"profile",
+			"width",
+			"format",
+			"file_url",
+			"output_sha256",
+			"engine_signature",
+		],
+		# Aynı bayt boyunda 100'den fazla türev olabilir. Varsayılan/sabit bir
+		# sayfa sınırı hedefi defterin dışında bırakıp aynı motor çıktısını tekrar
+		# encode ettirirdi; idempotency kanıtı için bütün adaylar tam hash'lenir.
+		limit_page_length=0,
+	):
+		yol = _media_disk_path(row.get("file_url") or "")
+		if not yol or not os.path.isfile(yol):
+			continue
+		if file_sha256(yol) != sha:
+			continue
+		engine_version = frappe.db.get_value("Media Version", row.get("version_hash"), "engine_version")
+		signature = engine_signature(
+			engine_version=str(engine_version or "legacy"),
+			version_hash=str(row.get("version_hash") or ""),
+			profile=str(row.get("profile") or ""),
+			width=int(row.get("width") or 0),
+			fmt=str(row.get("format") or ""),
+			output_sha256=sha,
+		)
+		frappe.db.set_value(
+			"Media Rendition",
+			row["name"],
+			{"output_sha256": sha, "engine_signature": signature},
+			update_modified=False,
+		)
+		try:
+			frappe.cache().set_value(cache_key, row["name"], expires_in_sec=ENGINE_OUTPUT_CACHE_SECONDS)
+		except Exception:
+			pass
+		return {
+			**dict(row),
+			"sha256": sha,
+			"output_sha256": sha,
+			"engine_signature": signature,
+			"cached": False,
+		}
+	return None
+
+
+def _engine_ledger_valid(row: dict[str, Any], output_hash: str) -> bool:
+	"""Recompute the deterministic signature; a merely non-empty field is not proof."""
+	signature = str(row.get("engine_signature") or "")
+	if len(signature) != 64 or str(row.get("output_sha256") or "") != output_hash:
+		return False
+	engine_version = frappe.db.get_value("Media Version", row.get("version_hash"), "engine_version")
+	expected = engine_signature(
+		engine_version=str(engine_version or "legacy"),
+		version_hash=str(row.get("version_hash") or ""),
+		profile=str(row.get("profile") or ""),
+		width=int(row.get("width") or 0),
+		fmt=str(row.get("format") or ""),
+		output_sha256=output_hash,
+	)
+	return hmac.compare_digest(signature, expected)
+
+
+def _reevaluate_engine_output_policy(match: dict[str, Any], slot_key: str) -> bool:
+	"""Re-evaluate current policy without creating an Asset or encoding bytes.
+
+	The report job is the durable audit record: success means the historical
+	output coordinate still belongs to the current slot policy; a mismatch is
+	recorded explicitly, but neither case feeds lossy output back to an encoder.
+	"""
+	sha = str(match.get("output_sha256") or match.get("sha256") or "")
+	job_name = _open_job(
+		str(match["asset"]),
+		sha,
+		slot_key,
+		job_type="report",
+		queue=JOB_QUEUE,
+		key_prefix="engine-output-policy",
+	)
+	profile = str(match.get("profile") or "")
+	width = int(match.get("width") or 0)
+	fmt = str(match.get("format") or "").lower()
+	compatible = any(
+		str(candidate.policy_profile or "") == profile
+		and width in {int(value) for value in candidate.get_widths()}
+		and fmt in {str(value).lower() for value in candidate.get_formats()}
+		for candidate in _profiles_for_slot(slot_key)
+	)
+	_finish_job(job_name, "success" if compatible else "failed", None if compatible else "policy_mismatch")
+	frappe.db.commit()
+	return compatible
+
+
 def _renditions_exist(surum_hash: str, slot_key: str) -> bool:
 	"""Bu içerik + slot için üretilmiş bir türev zaten var mı?"""
 	# Sistem işi: kanca oturum yetkisinden bağımsız çalışır ve satıcı
@@ -477,6 +797,7 @@ def _run_rendition_job(file_url: str, force: bool = False) -> None:
 	`frappe.log_error` yazılır ve fonksiyon sessizce döner.
 	"""
 	job_name: str | None = None
+	baslangic = time.perf_counter()
 	try:
 		name = frappe.db.get_value("File", {"file_url": file_url}, "name")
 		if not name:
@@ -508,29 +829,104 @@ def _run_rendition_job(file_url: str, force: bool = False) -> None:
 		if not kaynak:
 			return
 
+		from tradehub_core.media.pipeline.image import classify as classify_mod
+
+		siniflandirma = classify_mod.classify(kaynak, filename=str(doc.file_name or ""))
+		# T-062 sözleşmesi geç gelmiş olsa da köprü alan adlarına sıkı bağlı
+		# değildir: object/dict + klass/route/job_type biçimlerini kabul eder,
+		# son çare olarak Pillow frame sayısını ölçer. Animasyon hiçbir zaman
+		# görsel render'a girip ilk kareye düzleştirilmez.
+		animasyon = _animation_route(kaynak, siniflandirma)
+		if animasyon:
+			video_slot = _animated_video_slot(slot_key)
+			if video_slot:
+				frappe.enqueue(
+					"tradehub_core.media.pipeline_bridge._run_animation_job",
+					queue=RQ_QUEUE_VIDEO,
+					timeout=media_queues.VIDEO.timeout_seconds,
+					enqueue_after_commit=True,
+					job_id=(
+						f"media-animation::{hashlib.sha1(f'{file_url}|{video_slot}'.encode()).hexdigest()}"
+					),
+					deduplicate=True,
+					file_url=file_url,
+					slot_override=video_slot,
+				)
+			return
+
+		# T-064 / INV-06: tam bayt daha önce Media Rendition olarak yazıldıysa
+		# bu bir master değildir. Politika kaydı hâlâ değerlendirilir ama kayıplı
+		# encode asla ikinci kez uygulanmaz.
+		if match := _engine_output_match(kaynak):
+			_reevaluate_engine_output_policy(match, slot_key)
+			return
+
 		asset = _ensure_asset(doc, slot_key, parmak_izi)
 		# Public türevler EXIF/GPS'i politika gereği siler; gerekli kaynak
 		# metadata'sı silinmeden önce şifreli, yetki-sınırlı kasada tutulur.
 		from tradehub_core.media import exif_vault
 
 		exif_vault.retain(asset, kaynak)
+		job_name = _open_job(asset.name, parmak_izi, slot_key)
+		prepared = _prepare_image_master(
+			kaynak,
+			slot_key,
+			classification=siniflandirma,
+			filename=str(doc.file_name or ""),
+		)
+		if not prepared.ok:
+			aktif = frappe.db.get_value("Media Asset", asset.name, "active_version")
+			frappe.db.set_value("Media Asset", asset.name, "state", "ready" if aktif else "failed")
+			reason = str(prepared.reason or "normalize_failed")
+			_record_generation_failure(reason, time.perf_counter() - baslangic)
+			_finish_job(job_name, "failed", error_code=reason)
+			frappe.db.commit()
+			return
+		master_bytes = prepared.content
 		# T-042: sürüm kimliği KÜTÜPHANEDEN (dedup.version_hash, 4 girdi) gelir
 		# ve türev adresleri onu taşır. Yalnız YENİ üretimler — mevcut türev
 		# kayıtlarının adresine dokunulmaz.
-		surum = _ensure_version(asset, slot_key, kaynak)
-		job_name = _open_job(asset.name, parmak_izi, slot_key)
+		surum = _ensure_version(asset, slot_key, kaynak, prepared=prepared)
 
-		uretilen = _generate(kaynak, asset, slot_key, surum.version_hash)
+		frappe.db.savepoint("image_rendition_generation")
+		sonuc = _generate(
+			master_bytes,
+			asset,
+			slot_key,
+			surum.version_hash,
+			generation="eager",
+			classification=prepared.classification,
+		)
 
-		frappe.db.set_value("Media Asset", asset.name, "state", "ready" if uretilen else "failed")
-		if uretilen:
+		if sonuc.complete:
+			frappe.db.set_value("Media Asset", asset.name, "state", "ready")
+			_record_generation_report(
+				kaynak,
+				asset,
+				surum.version_hash,
+				sonuc,
+				trigger="upload",
+				rendering_source=master_bytes,
+				normalized=prepared.normalized,
+				classification=prepared.classification,
+			)
 			_finish_job(job_name, "success")
 			_promote_initial_version(asset.name, surum.version_hash)
 		else:
-			_finish_job(job_name, "failed", error_code="no_rendition")
+			# Okuyucu transaction boyunca eski satırları görür. Başarısız yeni
+			# matrisin tek bir satırı bile commit edilmez; eski aktif sürüm kalır.
+			frappe.db.rollback(save_point="image_rendition_generation")
+			aktif = frappe.db.get_value("Media Asset", asset.name, "active_version")
+			frappe.db.set_value("Media Asset", asset.name, "state", "ready" if aktif else "failed")
+			_record_generation_failure(
+				"incomplete_rendition_matrix",
+				time.perf_counter() - baslangic,
+			)
+			_finish_job(job_name, "failed", error_code="incomplete_rendition_matrix")
 		frappe.db.commit()
 	except Exception as exc:  # noqa: BLE001 — worker hiçbir koşulda kuyruğu patlatmamalı
 		frappe.db.rollback()
+		_record_generation_failure(type(exc).__name__, time.perf_counter() - baslangic)
 		if job_name:
 			_finish_job(job_name, "failed", error_code=type(exc).__name__)
 			frappe.db.commit()
@@ -559,8 +955,8 @@ def enqueue_catalog_backfill(limit: int = 100) -> dict[str, int]:
 		job_hash = hashlib.sha1(url.encode("utf-8")).hexdigest()  # noqa: S324 -- kimlik, kripto değil
 		frappe.enqueue(
 			"tradehub_core.media.pipeline_bridge._run_rendition_job",
-			queue=RQ_QUEUE,
-			timeout=QUEUE_TIMEOUT_SECONDS,
+			queue=RQ_QUEUE_BULK,
+			timeout=QUEUE_TIMEOUT_BULK_SECONDS,
 			enqueue_after_commit=False,
 			job_id=f"media-rendition-backfill::{job_hash}",
 			deduplicate=True,
@@ -695,8 +1091,8 @@ def retry_failed_renditions(limit: int = 50) -> dict[str, int]:
 		job_hash = hashlib.sha1(str(url).encode("utf-8")).hexdigest()  # noqa: S324
 		frappe.enqueue(
 			"tradehub_core.media.pipeline_bridge._run_rendition_job",
-			queue=RQ_QUEUE,
-			timeout=QUEUE_TIMEOUT_SECONDS,
+			queue=RQ_QUEUE_BULK,
+			timeout=QUEUE_TIMEOUT_BULK_SECONDS,
 			enqueue_after_commit=False,
 			job_id=f"media-rendition-retry::{job_hash}",
 			deduplicate=True,
@@ -705,6 +1101,314 @@ def retry_failed_renditions(limit: int = 50) -> dict[str, int]:
 		)
 		queued += 1
 	return {"queued": queued}
+
+
+def _bulk_status_key(token: str) -> str:
+	return f"media:policy-reprocess:{token}:status"
+
+
+def _bulk_cancel_key(token: str) -> str:
+	return f"media:policy-reprocess:{token}:cancel"
+
+
+def _set_bulk_status(token: str, **values: Any) -> dict[str, Any]:
+	durum = policy_reprocess_status(token)
+	durum.update(values)
+	frappe.cache().set_value(
+		_bulk_status_key(token),
+		json.dumps(durum, sort_keys=True),
+		expires_in_sec=BULK_STATUS_SECONDS,
+	)
+	return durum
+
+
+def policy_reprocess_status(token: str) -> dict[str, Any]:
+	ham = frappe.cache().get_value(_bulk_status_key(str(token)), expires=True)
+	if not ham:
+		return {"token": str(token), "status": "unknown", "processed": 0, "failed": 0}
+	if isinstance(ham, bytes):
+		ham = ham.decode("utf-8", "replace")
+	try:
+		return json.loads(ham) if isinstance(ham, str) else dict(ham)
+	except Exception:
+		return {"token": str(token), "status": "unknown", "processed": 0, "failed": 0}
+
+
+def enqueue_policy_reprocess(
+	asset_names: Iterable[str] | None = None,
+	*,
+	limit: int = 500,
+	rate_per_minute: int = 30,
+) -> dict[str, Any]:
+	"""Her asset'i ayrı düşük-öncelikli işe, hız planıyla kuyruğa al.
+
+	Tek bir long worker içinde ``sleep`` edilmez. İlk asset hemen, sonrakiler
+	``60/rate`` aralıklarıyla RQ scheduled registry'ye yazılır; ayrı
+	``media-image-bulk`` worker'ı canlı kullanıcı işlerini tüketmez.
+	"""
+	if asset_names is None:
+		adlar = frappe.get_all(
+			"Media Asset",
+			filters={"media_type": "image", "state": "ready"},
+			order_by="modified asc",
+			limit_page_length=max(1, min(5000, int(limit or 500))),
+			pluck="name",
+		)
+	else:
+		adlar = list(dict.fromkeys(str(name) for name in asset_names if name))
+		adlar = adlar[: max(1, min(5000, int(limit or 500)))]
+	token = frappe.generate_hash(length=24)
+	_set_bulk_status(
+		token,
+		status="queued" if adlar else "completed",
+		total=len(adlar),
+		processed=0,
+		failed=0,
+		cancelled=False,
+	)
+	rate = max(1, min(600, int(rate_per_minute or 30)))
+	for index, asset_name in enumerate(adlar):
+		_enqueue_scheduled_policy_item(
+			token,
+			asset_name,
+			index=index,
+			delay_seconds=index * (60.0 / rate),
+		)
+	return {"token": token, "queued": len(adlar), "queue": JOB_QUEUE_BULK}
+
+
+def cancel_policy_reprocess(token: str) -> dict[str, Any]:
+	"""Koşan asset tamamlanınca ve planlı işler başlamadan önce iptal et."""
+	frappe.cache().set_value(_bulk_cancel_key(str(token)), "1", expires_in_sec=BULK_STATUS_SECONDS)
+	return _set_bulk_status(str(token), status="cancelling", cancelled=True)
+
+
+def _enqueue_scheduled_policy_item(
+	token: str,
+	asset_name: str,
+	*,
+	index: int,
+	delay_seconds: float,
+) -> Any:
+	"""One asset → one RQ job; delayed jobs retain Frappe site/user context."""
+	method = "tradehub_core.media.pipeline_bridge._run_policy_reprocess_item"
+	job_id = f"media-policy-reprocess::{token}::{index}"
+	if delay_seconds <= 0:
+		return frappe.enqueue(
+			method,
+			queue=RQ_QUEUE_BULK,
+			timeout=QUEUE_TIMEOUT_BULK_SECONDS,
+			enqueue_after_commit=False,
+			job_id=job_id,
+			deduplicate=True,
+			token=token,
+			asset_name=asset_name,
+		)
+
+	# frappe.enqueue has no enqueue_at/enqueue_in parameter. Build the same
+	# execute_job envelope it uses, then place that envelope in RQ's scheduled
+	# registry. The dedicated bulk worker promotes due jobs without occupying a
+	# Python worker process while waiting.
+	from frappe.utils.background_jobs import (  # noqa: PLC0415
+		RQ_JOB_FAILURE_TTL,
+		RQ_RESULTS_TTL,
+		create_job_id,
+		execute_job,
+		get_queue,
+	)
+
+	queue_args = {
+		"site": frappe.local.site,
+		"user": getattr(frappe.session, "user", None),
+		"method": method,
+		"event": None,
+		"job_name": method,
+		"is_async": True,
+		"kwargs": {"token": token, "asset_name": asset_name},
+	}
+	return get_queue(RQ_QUEUE_BULK).enqueue_in(
+		timedelta(seconds=float(delay_seconds)),
+		execute_job,
+		kwargs=queue_args,
+		timeout=QUEUE_TIMEOUT_BULK_SECONDS,
+		failure_ttl=frappe.conf.get("rq_job_failure_ttl") or RQ_JOB_FAILURE_TTL,
+		result_ttl=frappe.conf.get("rq_results_ttl") or RQ_RESULTS_TTL,
+		job_id=create_job_id(job_id),
+	)
+
+
+def _run_policy_reprocess_batch(
+	token: str,
+	asset_names: Iterable[str],
+	rate_per_minute: int = 30,
+) -> None:
+	"""Legacy queued batch'i bloklamadan atomik işlere dağıtan dispatcher.
+
+	Eski sürümden kuyrukta kalmış batch payload'ları güvenle devam etsin diye
+	public isim korunur; yeni enqueue yolu doğrudan item'ları planlar.
+	"""
+	adlar = list(dict.fromkeys(str(name) for name in asset_names if name))
+	rate = max(1, min(600, int(rate_per_minute or 30)))
+	_set_bulk_status(token, status="queued", total=len(adlar))
+	for index, asset_name in enumerate(adlar):
+		_enqueue_scheduled_policy_item(
+			token,
+			asset_name,
+			index=index,
+			delay_seconds=index * (60.0 / rate),
+		)
+
+
+def _run_policy_reprocess_item(token: str, asset_name: str) -> None:
+	"""Run exactly one asset, with cancel checks on both sides of the work."""
+	if frappe.cache().get_value(_bulk_cancel_key(token), expires=True):
+		_set_bulk_status(token, status="cancelled", cancelled=True)
+		return
+	_set_bulk_status(token, status="running")
+	baslangic = time.perf_counter()
+	failed = False
+	error_code = ""
+	try:
+		failed = not _run_policy_reprocess_asset(asset_name)
+		if failed:
+			error_code = "reprocess_failed"
+	except Exception as exc:
+		frappe.db.rollback()
+		_record_generation_failure(type(exc).__name__, time.perf_counter() - baslangic)
+		failed = True
+		error_code = type(exc).__name__
+		frappe.log_error(
+			title="media.pipeline_bridge policy reprocess failed",
+			message=f"{asset_name}\n\n{frappe.get_traceback()}",
+		)
+	_update_bulk_after_item(
+		token,
+		failed=failed,
+		asset_name=asset_name if failed else "",
+		error_code=error_code,
+	)
+
+
+def _update_bulk_after_item(
+	token: str,
+	*,
+	failed: bool,
+	asset_name: str = "",
+	error_code: str = "",
+) -> dict[str, Any]:
+	"""Atomically increment shared counters for independently scheduled jobs."""
+	lock = frappe.cache().lock(
+		f"media:policy-reprocess:{token}:status-lock",
+		timeout=30,
+		blocking_timeout=10,
+	)
+	with lock:
+		status = policy_reprocess_status(token)
+		processed = int(status.get("processed") or 0) + 1
+		failed_count = int(status.get("failed") or 0) + int(failed)
+		failures = list(status.get("failures") or [])
+		if failed and asset_name:
+			failures.append({"asset": asset_name, "error_code": error_code or "reprocess_failed"})
+		cancelled = bool(frappe.cache().get_value(_bulk_cancel_key(token), expires=True))
+		final = processed >= int(status.get("total") or 0)
+		return _set_bulk_status(
+			token,
+			processed=processed,
+			failed=failed_count,
+			failures=failures,
+			cancelled=cancelled,
+			status="cancelled" if cancelled else "completed" if final else "running",
+		)
+
+
+def _run_policy_reprocess_asset(asset_name: str) -> bool:
+	"""Tek asset'in politika sürümünü tam üret, sonra atomik promote et."""
+	baslangic = time.perf_counter()
+	if not frappe.db.exists("Media Asset", asset_name):
+		return False
+	asset = frappe.get_doc("Media Asset", asset_name)
+	if asset.media_type != "image" or not asset.source_file:
+		return False
+	if not frappe.db.exists("File", asset.source_file):
+		return False
+	source_doc = frappe.get_doc("File", asset.source_file)
+	kaynak = source_doc.get_content()
+	if isinstance(kaynak, str):
+		kaynak = kaynak.encode()
+	if not kaynak:
+		return False
+	intent = (
+		frappe.get_doc("Media Crop Intent", asset.name)
+		if frappe.db.exists("Media Crop Intent", asset.name)
+		else _version_crop_intent(asset.active_version)
+		if asset.active_version
+		else None
+	)
+	prepared = _prepare_image_master(
+		kaynak,
+		asset.slot_key,
+		filename=str(source_doc.file_name or ""),
+	)
+	if not prepared.ok:
+		reason = str(prepared.reason or "normalize_failed")
+		job_name = _open_job(
+			asset.name,
+			content_sha256(kaynak),
+			asset.slot_key,
+			queue=JOB_QUEUE_BULK,
+			key_prefix="policy-reprocess",
+		)
+		_record_generation_failure(reason, time.perf_counter() - baslangic)
+		_finish_job(job_name, "failed", error_code=reason)
+		frappe.db.commit()
+		return False
+	master_bytes = prepared.content
+	surum = _ensure_version(asset, asset.slot_key, kaynak, crop_intent=intent, prepared=prepared)
+	job_name = _open_job(
+		asset.name,
+		surum.version_hash,
+		asset.slot_key,
+		queue=JOB_QUEUE_BULK,
+		key_prefix="policy-reprocess",
+	)
+	frappe.db.savepoint("image_policy_reprocess")
+	# Eski lazy satırlar tarihsel sürüm defterinin parçasıdır; silinmez. Yeni
+	# version_hash altında satır bulunmadığı için ilk manifest isteği yalnız yeni
+	# sürümün lazy basamaklarını üretir.
+	sonuc = _generate(
+		master_bytes,
+		asset,
+		asset.slot_key,
+		surum.version_hash,
+		crop_intent=intent,
+		generation="eager",
+		classification=prepared.classification,
+	)
+	if not sonuc.complete:
+		frappe.db.rollback(save_point="image_policy_reprocess")
+		_record_generation_failure(
+			"incomplete_policy_matrix",
+			time.perf_counter() - baslangic,
+		)
+		_finish_job(job_name, "failed", error_code="incomplete_rendition_matrix")
+		frappe.db.commit()
+		return False
+	frappe.db.set_value("Media Asset", asset.name, "state", "ready")
+	_record_generation_report(
+		kaynak,
+		asset,
+		surum.version_hash,
+		sonuc,
+		crop_intent=intent,
+		trigger="policy_reprocess",
+		rendering_source=master_bytes,
+		normalized=prepared.normalized,
+		classification=prepared.classification,
+	)
+	_finish_job(job_name, "success")
+	_promote_complete_version(asset.name, surum.version_hash)
+	frappe.db.commit()
+	return True
 
 
 def maybe_reprocess_after_crop(asset_name: str) -> None:
@@ -716,13 +1420,18 @@ def maybe_reprocess_after_crop(asset_name: str) -> None:
 	"""
 	if not pipeline_flags.is_enabled("rendition_on_upload"):
 		return
-	slot_key = frappe.db.get_value("Media Asset", asset_name, "slot_key")
+	varlik = frappe.db.get_value("Media Asset", asset_name, ["slot_key", "media_type"], as_dict=True)
+	slot_key = varlik.get("slot_key") if varlik else None
 	if not slot_key or not pipeline_flags.is_slot_enabled(str(slot_key)):
 		return
 	frappe.enqueue(
 		"tradehub_core.media.pipeline_bridge._run_crop_reprocess_job",
-		queue=RQ_QUEUE,
-		timeout=QUEUE_TIMEOUT_SECONDS,
+		queue=RQ_QUEUE_VIDEO if str(varlik.get("media_type") or "") == _MEDIA_TYPE_VIDEO else RQ_QUEUE,
+		timeout=(
+			media_queues.VIDEO.timeout_seconds
+			if str(varlik.get("media_type") or "") == _MEDIA_TYPE_VIDEO
+			else media_queues.IMAGE_LIVE.timeout_seconds
+		),
 		enqueue_after_commit=True,
 		# Uygula'ya art arda basılırsa kuyrukta TEK iş kalsın (deduplicate
 		# yalnız henüz koşmamış işe bakar; koşan işten sonra gelen kayıt
@@ -746,6 +1455,7 @@ def _run_crop_reprocess_job(asset_name: str) -> None:
 	İstisna SIZDIRMAZ (worker sözleşmesi `_run_rendition_job` ile aynı).
 	"""
 	job_name: str | None = None
+	baslangic = time.perf_counter()
 	try:
 		if not frappe.db.exists("Media Asset", asset_name):
 			return
@@ -760,30 +1470,98 @@ def _run_crop_reprocess_job(asset_name: str) -> None:
 		if not frappe.db.exists("Media Crop Intent", asset_name):
 			return
 		intent = frappe.get_doc("Media Crop Intent", asset_name)
+		if asset.media_type == _MEDIA_TYPE_VIDEO:
+			_run_video_crop_reprocess_job(asset, intent)
+			return
 
 		if not asset.source_file or not frappe.db.exists("File", asset.source_file):
 			return
-		kaynak = frappe.get_doc("File", asset.source_file).get_content()
+		source_doc = frappe.get_doc("File", asset.source_file)
+		kaynak = source_doc.get_content()
 		if isinstance(kaynak, str):
 			kaynak = kaynak.encode()
 		if not kaynak:
 			return
 
-		surum = _ensure_version(asset, slot_key, kaynak, crop_intent=intent)
-		job_name = _open_job(asset.name, surum.version_hash, slot_key, key_prefix="crop-reprocess")
-
-		uretilen = _generate(kaynak, asset, slot_key, surum.version_hash, crop_intent=intent)
-
-		if uretilen:
-			frappe.db.set_value("Media Asset", asset.name, "state", "ready")
-			_finish_job(job_name, "success")
+		prepared = _prepare_image_master(
+			kaynak,
+			slot_key,
+			filename=str(source_doc.file_name or ""),
+		)
+		if not prepared.ok:
+			reason = str(prepared.reason or "normalize_failed")
+			job_name = _open_job(
+				asset.name,
+				content_sha256(kaynak),
+				slot_key,
+				key_prefix="crop-reprocess",
+			)
+			_record_generation_failure(reason, time.perf_counter() - baslangic)
+			_finish_job(job_name, "failed", error_code=reason)
+			frappe.db.commit()
+			return
+		master_bytes = prepared.content
+		active_engine = (
+			frappe.db.get_value("Media Version", asset.active_version, "engine_version")
+			if asset.active_version
+			else None
+		)
+		if active_engine and str(active_engine) != _engine_version():
+			# Eski motorun pikselleri yeni normalize master sürümüne taşınamaz;
+			# crop niyeti yalnız bazı profilleri değiştirse bile tüm eager matris
+			# yeniden üretilmelidir.
+			etkilenen = tuple(
+				dict.fromkeys(str(profile.policy_profile) for profile in _profiles_for_slot(slot_key))
+			)
 		else:
-			# Yeni türev yazılamadı; ESKİ kadrajlı türevler yerinde duruyor —
-			# varlık durumu düşürülmez, yalnız iş kaydı sebeple kapanır.
-			_finish_job(job_name, "failed", error_code="no_rendition")
+			etkilenen = _affected_crop_profiles(master_bytes, asset, slot_key, intent)
+		surum = _ensure_version(asset, slot_key, kaynak, crop_intent=intent, prepared=prepared)
+		job_name = _open_job(asset.name, surum.version_hash, slot_key, key_prefix="crop-reprocess")
+		frappe.db.savepoint("image_crop_reprocess")
+		devredildi = _carry_forward_renditions(
+			asset.name,
+			surum.version_hash,
+			excluded_profiles=etkilenen,
+		)
+		sonuc = _generate(
+			master_bytes,
+			asset,
+			slot_key,
+			surum.version_hash,
+			crop_intent=intent,
+			generation="eager",
+			profile_names=etkilenen,
+			classification=prepared.classification,
+		)
+
+		if sonuc.complete and devredildi:
+			frappe.db.set_value("Media Asset", asset.name, "state", "ready")
+			_record_generation_report(
+				kaynak,
+				asset,
+				surum.version_hash,
+				sonuc,
+				crop_intent=intent,
+				trigger="crop_reprocess",
+				rendering_source=master_bytes,
+				normalized=prepared.normalized,
+				classification=prepared.classification,
+			)
+			_finish_job(job_name, "success")
+			_promote_complete_version(asset.name, surum.version_hash)
+		else:
+			frappe.db.rollback(save_point="image_crop_reprocess")
+			# Yeni türev yazılamadı; ESKİ kadrajlı satırlar/aktif sürüm transaction
+			# rollback'iyle bütünüyle yerinde kalır.
+			_record_generation_failure(
+				"incomplete_crop_matrix",
+				time.perf_counter() - baslangic,
+			)
+			_finish_job(job_name, "failed", error_code="incomplete_rendition_matrix")
 		frappe.db.commit()
 	except Exception as exc:  # noqa: BLE001 — worker hiçbir koşulda kuyruğu patlatmamalı
 		frappe.db.rollback()
+		_record_generation_failure(type(exc).__name__, time.perf_counter() - baslangic)
 		if job_name:
 			_finish_job(job_name, "failed", error_code=type(exc).__name__)
 			frappe.db.commit()
@@ -791,6 +1569,371 @@ def _run_crop_reprocess_job(asset_name: str) -> None:
 			title="media.pipeline_bridge crop reprocess failed",
 			message=f"{asset_name}\n\n{frappe.get_traceback()}",
 		)
+
+
+def _run_video_crop_reprocess_job(asset: Any, intent: Any) -> None:
+	"""Video poster merdivenini kayıtlı crop intent ile yeni sürüme geçir.
+
+	Video bytes ve HLS de aynı içerik-adresli sürüm köküne yeniden hazırlanır;
+	poster profilleri görsel motorundan crop intent ile geçer. Tüm satırlar
+	hazır olmadan ``active_version`` değişmez.
+	"""
+	job_name: str | None = None
+	savepoint_open = False
+	try:
+		if not asset.source_file or not frappe.db.exists("File", asset.source_file):
+			return
+		source_doc = frappe.get_doc("File", asset.source_file)
+		src_yolu = _media_disk_path(str(source_doc.file_url or ""))
+		if not os.path.isfile(src_yolu):
+			return
+
+		from tradehub_core.media.pipeline.core import dedup
+		from tradehub_core.media.pipeline.video import decision as video_decision
+		from tradehub_core.media.pipeline.video import probe as video_probe
+
+		facts = video_probe.probe(src_yolu)
+		karar = video_decision.decide(facts)
+		if karar.rejected:
+			raise ValueError(karar.code or "video_rejected")
+		with open(src_yolu, "rb") as f:
+			source_hash = dedup.stream_sha256(f).sha256
+		politika = _video_policy_snapshot(asset.slot_key)
+		surum_hash = dedup.version_hash(
+			source_hash,
+			politika,
+			intent,
+			_video_engine_version(),
+		)
+		if str(asset.active_version or "") == surum_hash and _video_poster_matrix_exists(
+			asset.name,
+			surum_hash,
+			asset.slot_key,
+		):
+			return
+
+		job_name = _open_job(
+			asset.name,
+			surum_hash,
+			asset.slot_key,
+			job_type="poster",
+			queue=JOB_QUEUE_VIDEO,
+			key_prefix="video-crop-reprocess",
+		)
+		frappe.db.savepoint("video_crop_reprocess")
+		savepoint_open = True
+		uretildi = _produce_video_outputs(
+			src_yolu,
+			facts,
+			karar,
+			asset,
+			asset.slot_key,
+			crop_intent=intent,
+		)
+		if not _video_poster_matrix_exists(asset.name, uretildi, asset.slot_key):
+			raise ValueError("video_poster_crop_matrix_incomplete")
+		frappe.db.set_value("Media Asset", asset.name, "state", "ready")
+		_finish_job(job_name, "success")
+		_promote_complete_version(asset.name, uretildi)
+		frappe.db.commit()
+	except Exception as exc:
+		if savepoint_open:
+			frappe.db.rollback(save_point="video_crop_reprocess")
+		else:
+			frappe.db.rollback()
+		if job_name:
+			_finish_job(job_name, "failed", error_code=type(exc).__name__)
+			frappe.db.commit()
+		raise
+
+
+def _video_poster_matrix_exists(asset_name: str, version_hash: str, slot_key: str) -> bool:
+	"""Crop niyetinin gerçekten en az bir teslim posterine uygulandığını kanıtla.
+
+	Ham ``poster`` karesi crop niyetinden geçmez; yalnız görsel merdivenindeki
+	politika profilleri geçer. Bu nedenle salt ham poster satırı yeni sürümü
+	promote etmek için yeterli değildir. No-upscale nedeniyle büyük basamaklar
+	omit edilebildiğinden bütün profiller yerine en az bir teslim basamağı aranır.
+	"""
+	if not frappe.db.exists(
+		"Media Rendition",
+		{"asset": asset_name, "version_hash": version_hash, "profile": VIDEO_POSTER_PROFILE},
+	):
+		return False
+	poster_profiles = tuple(
+		dict.fromkeys(str(profile.policy_profile) for profile in _profiles_for_slot(slot_key))
+	)
+	if not poster_profiles:
+		return False
+	return bool(
+		frappe.get_all(
+			"Media Rendition",
+			filters={
+				"asset": asset_name,
+				"version_hash": version_hash,
+				"profile": ["in", poster_profiles],
+			},
+			pluck="name",
+			limit=1,
+		)
+	)
+
+
+def _version_crop_intent(version_hash: str) -> Any:
+	ham = frappe.db.get_value("Media Version", version_hash, "crop_intent_snapshot")
+	if not ham:
+		return None
+	try:
+		return frappe.parse_json(ham)
+	except Exception:
+		return json.loads(ham)
+
+
+def _format_plan(profil: Any, classification: Any = None) -> tuple[tuple[str, Any], ...]:
+	"""Profil biçimlerini T-062 sınıf zinciri ve kalite kipiyle birleştir.
+
+	Profil hangi genişliklerde hangi modern formatların sunulacağını belirler;
+	sınıflandırıcı ise bunların kayıplı/kayıpsız kodlanacağını ve güvenli geri
+	dönüş sırasını belirler. Zincirle profil kesişmiyorsa (ör. ortamda yalnız PNG
+	kodlayıcı kaldıysa) sınıflandırıcının ilk güvenli adımı kullanılır.
+	"""
+	if classification is None:
+		return tuple(
+			(
+				str(fmt).lower(),
+				int(profil.quality_target) if profil.quality_target not in (None, "") else None,
+			)
+			for fmt in profil.get_formats()
+		)
+	chain = tuple(getattr(classification, "chain", ()) or ())
+	if not chain:
+		return ()
+	configured = {str(fmt).lower() for fmt in profil.get_formats()}
+	selected = [step for step in chain if str(step.fmt).lower() in configured]
+	if not selected:
+		selected = [chain[0]]
+	return tuple((str(step.fmt).lower(), step.quality_target) for step in selected)
+
+
+def _missing_lazy_profiles(
+	asset: Any,
+	version_hash: str,
+	kaynak: bytes,
+	requested_profiles: Iterable[str] | None = None,
+	*,
+	classification: Any = None,
+) -> tuple[str, ...]:
+	"""DB/disk pozitif cache + omission marker üzerinden eksik lazy profiller."""
+	from tradehub_core.media.pipeline.image import render
+
+	istenen = None if requested_profiles is None else {str(p) for p in requested_profiles}
+	profiller = [
+		p
+		for p in _profiles_for_slot(asset.slot_key)
+		if str(p.generation or "eager") == "lazy" and (istenen is None or str(p.policy_profile) in istenen)
+	]
+	if not profiller:
+		return ()
+	hazir, _icc, _notlar = render.prepare_source(kaynak)
+	intent = _version_crop_intent(version_hash)
+	mevcut: set[tuple[str, int, str]] = set()
+	for row in frappe.get_all(
+		"Media Rendition",
+		filters={"asset": asset.name, "version_hash": version_hash, "generation": "lazy"},
+		fields=["profile", "width", "format", "file_url"],
+		limit_page_length=0,
+	):
+		url = row.get("file_url") or ""
+		if os.path.isfile(_media_disk_path(url)):
+			mevcut.add(
+				(str(row.get("profile") or ""), int(row.get("width") or 0), str(row.get("format") or ""))
+			)
+
+	eksik: list[str] = []
+	for profil in profiller:
+		for genislik in profil.get_widths():
+			for bicim, quality_target in _format_plan(profil, classification):
+				anahtar = (str(profil.policy_profile), int(genislik), str(bicim))
+				spec = render.RenditionProfile(
+					slot_key=asset.slot_key,
+					name=str(profil.policy_profile),
+					width=int(genislik),
+					formats=(str(bicim),),
+					fit=profil.fit or render.FIT_CONTAIN,
+					target_ratio=profil.aspect_ratio or "",
+					encoder_quality=(
+						((str(bicim), quality_target),) if quality_target is not None else ()
+					),
+				)
+				if not render.profile_is_eligible(hazir.size, spec, intent):
+					continue
+				if anahtar in mevcut or _rendition_was_omitted(
+					asset.name,
+					version_hash,
+					anahtar[0],
+					anahtar[1],
+					anahtar[2],
+				):
+					continue
+				eksik.append(str(profil.policy_profile))
+	return tuple(dict.fromkeys(eksik))
+
+
+def ensure_lazy_renditions(
+	asset_name: str,
+	requested_profiles: Iterable[str] | None = None,
+	*,
+	blocking_timeout: int = LAZY_LOCK_WAIT_SECONDS,
+) -> dict[str, Any]:
+	"""İlk teslim isteğinde lazy türevleri senkron, persistent ve singleflight üret.
+
+	Manifest katmanı bu fonksiyonu varlığı okumadan hemen önce çağırabilir.
+	İlk çağıran Redis distributed lock altında üretir; takipçiler kilidi bekler,
+	sonra DB/disk cache'i yeniden okuyup encode etmeden döner.
+	"""
+	if not frappe.db.exists("Media Asset", asset_name):
+		return {"status": "missing_asset", "generated": 0}
+	asset = frappe.get_doc("Media Asset", asset_name)
+	if not pipeline_flags.is_enabled("rendition_on_upload") or not pipeline_flags.is_slot_enabled(
+		str(asset.slot_key or "")
+	):
+		return {"status": "disabled", "generated": 0}
+	if asset.media_type != _MEDIA_TYPE_IMAGE or asset.state != "ready":
+		return {"status": "not_ready", "generated": 0}
+	version_hash = asset.active_version or frappe.db.get_value(
+		"Media Version", {"asset": asset.name, "is_active": 1}, "name"
+	)
+	if not version_hash or not asset.source_file or not frappe.db.exists("File", asset.source_file):
+		return {"status": "not_ready", "generated": 0}
+	source_doc = frappe.get_doc("File", asset.source_file)
+	# Görsel köprüsü bugün public türev köküne yazar. Özel kaynağı bu yola
+	# sokmak, signed-url isteği sırasında içeriği public'e kopyalamak olurdu.
+	if int(source_doc.is_private or 0):
+		return {"status": "private_source", "generated": 0}
+	kaynak = source_doc.get_content()
+	if isinstance(kaynak, str):
+		kaynak = kaynak.encode()
+	if not kaynak:
+		return {"status": "missing_source", "generated": 0}
+	version_engine = frappe.db.get_value("Media Version", version_hash, "engine_version")
+	if isinstance(version_engine, str) and version_engine and version_engine != _engine_version():
+		# Eski motor sürümünün immutable version_hash kökü altına yeni motor
+		# pikseli yazılamaz. Politika reprocess yeni sürümü kurmalıdır.
+		return {"status": "stale_version", "generated": 0, "version": version_hash}
+	prepared = _prepare_image_master(
+		kaynak,
+		asset.slot_key,
+		filename=str(source_doc.file_name or ""),
+	)
+	if not prepared.ok:
+		reason = str(prepared.reason or "normalize_failed")
+		_record_generation_failure(reason, 0.0)
+		return {
+			"status": "failed",
+			"generated": 0,
+			"version": version_hash,
+			"reason": reason,
+		}
+	master_bytes = prepared.content
+
+	eksik = _missing_lazy_profiles(
+		asset,
+		version_hash,
+		master_bytes,
+		requested_profiles,
+		classification=prepared.classification,
+	)
+	if not eksik:
+		return {"status": "cached", "generated": 0, "version": version_hash}
+
+	try:
+		lock = frappe.cache.lock(
+			f"media:lazy:{asset.name}:{version_hash}",
+			timeout=LAZY_LOCK_TIMEOUT_SECONDS,
+			blocking=True,
+			blocking_timeout=max(0, int(blocking_timeout)),
+		)
+		if not lock.acquire():
+			return {"status": "pending", "generated": 0, "version": version_hash}
+	except Exception:
+		frappe.log_error(
+			title="media.pipeline_bridge lazy lock failed",
+			message=f"{asset.name} / {version_hash}\n\n{frappe.get_traceback()}",
+		)
+		return {"status": "lock_unavailable", "generated": 0, "version": version_hash}
+
+	try:
+		eksik = _missing_lazy_profiles(
+			asset,
+			version_hash,
+			master_bytes,
+			requested_profiles,
+			classification=prepared.classification,
+		)
+		if not eksik:
+			return {"status": "cached", "generated": 0, "version": version_hash}
+		frappe.db.savepoint("image_lazy_generation")
+		baslangic = time.perf_counter()
+		intent = _version_crop_intent(version_hash)
+		try:
+			sonuc = _generate(
+				master_bytes,
+				asset,
+				asset.slot_key,
+				version_hash,
+				crop_intent=intent,
+				generation="lazy",
+				profile_names=eksik,
+				classification=prepared.classification,
+			)
+		except Exception as exc:
+			frappe.db.rollback(save_point="image_lazy_generation")
+			_record_generation_failure(type(exc).__name__, time.perf_counter() - baslangic)
+			frappe.log_error(
+				title="media.pipeline_bridge lazy generation failed",
+				message=f"{asset.name} / {version_hash}\n\n{frappe.get_traceback()}",
+			)
+			return {
+				"status": "failed",
+				"generated": 0,
+				"version": version_hash,
+				"failures": 1,
+			}
+		if not sonuc.complete:
+			frappe.db.rollback(save_point="image_lazy_generation")
+			_record_generation_failure(
+				"incomplete_lazy_matrix",
+				time.perf_counter() - baslangic,
+			)
+			return {
+				"status": "failed",
+				"generated": 0,
+				"version": version_hash,
+				"failures": sonuc.failed,
+			}
+		_record_generation_report(
+			kaynak,
+			asset,
+			version_hash,
+			sonuc,
+			crop_intent=intent,
+			trigger="lazy_first_request",
+			rendering_source=master_bytes,
+			normalized=prepared.normalized,
+			classification=prepared.classification,
+		)
+		frappe.db.commit()
+		return {
+			"status": "generated",
+			"generated": sonuc.ready,
+			"omitted": sonuc.omitted,
+			"version": version_hash,
+		}
+	finally:
+		try:
+			lock.release()
+		except Exception:
+			pass
 
 
 def _ensure_asset(doc: Any, slot_key: str, surum_hash: str, media_type: str = _MEDIA_TYPE_IMAGE) -> Any:
@@ -825,18 +1968,69 @@ def _ensure_asset(doc: Any, slot_key: str, surum_hash: str, media_type: str = _M
 
 
 def _engine_version() -> str:
-	"""`Media Version.engine_version` girdisi — 'pillow-11.3.0' biçiminde.
+	"""Normalize master + rendition motorunun sürüm kimliği.
 
-	Motor değişirse (pyvips'e geçiş) bu değer, dolayısıyla TÜM version_hash'ler
-	ve türev adresleri zorunlu değişir (INV-09). Ölçülen karar: Pillow'da
-	kalındı (`docs/reports/05-kutuphane-benchmark.md`).
+	Sınıflandırma/normalize sözleşmesi de türev pikselini değiştirdiği için
+	yalnız Pillow sürümünü taşımak yeterli değildir. Master motoru değişince bu
+	değer, dolayısıyla TÜM version_hash'ler ve türev adresleri zorunlu değişir
+	(INV-09).
 	"""
 	import PIL  # noqa: PLC0415 — Pillow yalnız worker yolunda gerekiyor
 
-	return f"pillow-{PIL.__version__}"
+	from tradehub_core.media.pipeline.image import master as master_mod
+
+	return f"pillow-{PIL.__version__}+master-{master_mod.MASTER_ENGINE_VERSION}"
 
 
-def _ensure_version(asset: Any, slot_key: str, kaynak: bytes, crop_intent: Any = None) -> Any:
+def _prepared_version_fields(prepared: Any) -> dict[str, Any]:
+	"""Normalize master'ın gerçek künyesini ``Media Version`` alanlarına çevir.
+
+	LQIP/baskın renk master baytından çıkarılır. Alanlar insert payload'ında
+	hazır olduğu için controller kaynak dosyayı yeniden zenginleştirmez; böylece
+	Version künyesi ile rendition girdisi aynı normalize master'ı anlatır.
+	"""
+	if not prepared or not prepared.ok or not prepared.normalized:
+		return {}
+	normalized = prepared.normalized
+	classification = prepared.classification
+	fields: dict[str, Any] = {
+		"width": int(normalized.width or 0),
+		"height": int(normalized.height or 0),
+		"dpi": int(round(float(normalized.dpi[0]))) if normalized.dpi else 0,
+		"colorspace": str(normalized.colorspace or "sRGB")[:32],
+		"has_alpha": 1 if normalized.has_alpha else 0,
+		"classification": str(classification.klass or ""),
+		"classification_confidence": str(classification.confidence or "")[:8],
+		"format_chain": frappe.as_json([step.to_dict() for step in classification.chain]),
+	}
+	try:
+		from tradehub_core.media.pipeline.image import enrich as enrich_mod
+
+		enrichment = enrich_mod.enrich(prepared.content)
+		if enrichment.ok:
+			fields.update(
+				{
+					"lqip": enrichment.lqip,
+					"lqip_data_uri": enrichment.lqip_data_uri,
+					"dominant_color": enrichment.dominant_color,
+				}
+			)
+	except Exception:
+		frappe.log_error(
+			title="media.pipeline_bridge normalized master enrichment failed",
+			message=frappe.get_traceback(),
+		)
+	return fields
+
+
+def _ensure_version(
+	asset: Any,
+	slot_key: str,
+	kaynak: bytes,
+	crop_intent: Any = None,
+	*,
+	prepared: Any = None,
+) -> Any:
 	"""Bu üretimin `Media Version` kaydını bulur ya da açar (T-042).
 
 	Hash HESAPLANMAZ, kütüphaneye DEVREDİLİR: `dedup.version_hash(source_hash,
@@ -863,6 +2057,7 @@ def _ensure_version(asset: Any, slot_key: str, kaynak: bytes, crop_intent: Any =
 	politika = render.load_slot_policy(slot_key)
 	motor = _engine_version()
 	surum_hash = dedup.version_hash(source_hash, politika, crop_intent, motor)
+	version_fields = _prepared_version_fields(prepared)
 
 	def _bul(anahtar: str) -> Any:
 		ad = frappe.db.get_value("Media Version", {"version_hash": anahtar}, "name")
@@ -886,8 +2081,14 @@ def _ensure_version(asset: Any, slot_key: str, kaynak: bytes, crop_intent: Any =
 				# `is_active` 0 kalır: "hangi sürüm yayında" bir MODERASYON
 				# kararıdır (bkz. media_version.json sapma 2), üretim değil.
 				"is_active": 0,
+				**version_fields,
 			}
 		)
+		if prepared is not None:
+			# Enrichment zaten normalize master'dan hesaplandı. Nadir bir LQIP
+			# hatasında controller'ın orijinal kaynağı okuyup sınıf/master
+			# künyesini farklı bayttan doldurmasına izin verme.
+			doc.flags.skip_source_enrichment = True
 		# Sistem işi: worker oturumsuz; `asset` permlevel-1 alanı ancak böyle yazılır.
 		doc.insert(ignore_permissions=True)
 		return doc
@@ -895,7 +2096,7 @@ def _ensure_version(asset: Any, slot_key: str, kaynak: bytes, crop_intent: Any =
 	def _catisma(exc: BaseException) -> bool:
 		# Aynı ad (autoname=field:version_hash) → DuplicateEntryError;
 		# unique kolon ihlali → UniqueValidationError. İkisi de aynı yarış.
-		return isinstance(exc, (frappe.DuplicateEntryError, frappe.UniqueValidationError))
+		return isinstance(exc, frappe.DuplicateEntryError | frappe.UniqueValidationError)
 
 	kayit, _yeni = dedup.idempotent_create(surum_hash, _olustur, _bul, _catisma)
 	return kayit
@@ -921,6 +2122,18 @@ def _promote_initial_version(asset_name: str, version_hash: str) -> None:
 	"""
 	if frappe.db.get_value("Media Asset", asset_name, "active_version"):
 		return
+	from tradehub_core.tradehub_core.doctype.media_version.media_version import promote_version
+
+	promote_version(asset_name, version_hash, commit=False)
+
+
+def _promote_complete_version(asset_name: str, version_hash: str) -> None:
+	"""Tam üretilmiş yeniden-işleme sürümünü, eskisi varken de atomik geçir.
+
+	Çağıran tüm zorunlu çıktıların dosyalarını yazmış ve rendition satırlarını
+	ayni transaction içinde hazırlamış olmalıdır. `promote_version` üç aktiflik
+	yazısını commit etmez; satır geçişiyle tek committe görünür olur.
+	"""
 	from tradehub_core.tradehub_core.doctype.media_version.media_version import promote_version
 
 	promote_version(asset_name, version_hash, commit=False)
@@ -980,6 +2193,14 @@ def _finish_job(job_name: str, status: str, error_code: str | None = None) -> No
 			# Controller: başarısız iş hata kodu olmadan kapatılamaz.
 			job.error_code = error_code[:140]
 		job.save(ignore_permissions=True)
+		# T-092: olay yalnız bir GEÇERSİZLEŞTİRME sinyalidir; asset/dosya/store
+		# kimliği yayınlanmaz. İstemci sinyal gelince kendi yetki-süzgeçli liste
+		# ucunu yeniden okur. `after_commit` yarım transaction durumunu göstermez.
+		frappe.publish_realtime(
+			"media_processing_status",
+			{"doctype": "Media Processing Job", "status": status},
+			after_commit=True,
+		)
 	except Exception:
 		frappe.log_error(
 			title="media.pipeline_bridge iş kaydı kapatılamadı",
@@ -987,10 +2208,200 @@ def _finish_job(job_name: str, status: str, error_code: str | None = None) -> No
 		)
 
 
+def _report_results_for_version(
+	kaynak: bytes,
+	asset: Any,
+	version_hash: str,
+	crop_intent: Any,
+	new_results: Iterable[Any],
+) -> list[Any]:
+	"""Yayınlanacak sürümün TÜM çıktılarını kalite raporu sonuçlarına çevir.
+
+	Yeni encode sonuçları tam künyeleriyle korunur. Crop carry-forward, disk
+	cache-hit ve lazy genişletme yollarında encode edilmeyen mevcut dosyalar ise
+	DB'deki ölçülmüş kalite/bayt değerleriyle temsil edilir; böylece raporun
+	`output_bytes` alanı yalnız bu koşuda encode edilenleri değil sürümün bütün
+	rendition toplamını taşır.
+	"""
+	from tradehub_core.media.pipeline.image import render
+
+	yeni = {(r.profile.name, int(r.width), str(r.format).lower()): r for r in new_results}
+	profiller = _profile_specs(render, asset, _profiles_for_slot(asset.slot_key))
+	spec_gore = {(p.name, int(p.width)): p for p in profiller}
+	hazir = render.prepare_source(kaynak)[0]
+	sinif = next((str(r.content_class) for r in yeni.values() if r.content_class), "")
+	if not sinif:
+		sinif = str(frappe.db.get_value("Media Version", version_hash, "classification") or "")
+	if not sinif:
+		try:
+			from tradehub_core.media.pipeline.quality import ssim as ssim_mod
+
+			sinif = ssim_mod.guess_content_class(hazir)
+		except Exception:
+			sinif = "photo"
+	try:
+		hedef = render.resolve_target_ssim(asset.slot_key, sinif)
+	except Exception:
+		hedef = 0.0
+
+	satirlar = frappe.get_all(
+		"Media Rendition",
+		filters={"asset": asset.name, "version_hash": version_hash},
+		fields=["profile", "width", "height", "format", "file_url", "quality", "ssim"],
+		order_by="width asc, format asc",
+		limit_page_length=0,
+	)
+	cikti: list[Any] = []
+	for row in satirlar:
+		url = str(row.get("file_url") or "")
+		anahtar = (
+			str(row.get("profile") or ""),
+			int(row.get("width") or 0),
+			str(row.get("format") or "").lower(),
+		)
+		if anahtar in yeni:
+			cikti.append(yeni[anahtar])
+			continue
+		try:
+			with open(_media_disk_path(url), "rb") as handle:
+				content = handle.read()
+		except OSError:
+			continue
+		spec = spec_gore.get(anahtar[:2]) or render.RenditionProfile(
+			slot_key=asset.slot_key,
+			name=anahtar[0],
+			width=anahtar[1],
+			formats=(anahtar[2],),
+		)
+		try:
+			geometri = render.plan_geometry(hazir.size, spec, crop_intent)
+		except Exception:
+			boyut = (int(row.get("width") or 0), int(row.get("height") or 0))
+			geometri = render.GeometryPlan(
+				source_size=(int(hazir.width), int(hazir.height)),
+				crop_box=(0, 0, int(hazir.width), int(hazir.height)),
+				inner_size=boyut,
+				canvas_size=boyut,
+				paste_at=(0, 0),
+				scale=1.0,
+				upscale_blocked=False,
+				crop_method="persistent",
+				padded=False,
+			)
+		quality = row.get("quality")
+		cikti.append(
+			render.RenditionResult(
+				slot_key=asset.slot_key,
+				profile=spec,
+				format=anahtar[2],
+				content=content,
+				width=anahtar[1],
+				height=int(row.get("height") or 0),
+				quality=int(quality) if quality not in (None, "") else None,
+				ssim=float(row.get("ssim") or 0.0),
+				ssim_target=float(hedef or 0.0),
+				content_class=sinif,
+				geometry=geometri,
+				encodes=0,
+				elapsed_ms=0.0,
+				source_bytes=len(kaynak),
+				notes=("persistent_rendition",),
+				ssim_backend="stored",
+			)
+		)
+	return cikti
+
+
+def _record_generation_report(
+	kaynak: bytes,
+	asset: Any,
+	version_hash: str,
+	sonuc: GenerationOutcome,
+	*,
+	crop_intent: Any = None,
+	trigger: str = "upload",
+	rendering_source: bytes | None = None,
+	normalized: Any = None,
+	classification: Any = None,
+) -> None:
+	"""Başarılı üretimi kalıcı kalite raporu + Prometheus'a best-effort bağla."""
+	try:
+		from tradehub_core.media.pipeline.image import report
+
+		render_source = rendering_source or kaynak
+		raporda = _report_results_for_version(
+			render_source,
+			asset,
+			version_hash,
+			crop_intent,
+			sonuc.results,
+		)
+		rapor = report.build_report(
+			kaynak,
+			raporda,
+			slot_key=asset.slot_key,
+			asset_id=asset.name,
+			version_id=version_hash,
+			extra={
+				"trigger": trigger,
+				"normalized": normalized,
+				"classification": (
+					classification.to_dict()
+					if classification is not None and hasattr(classification, "to_dict")
+					else classification
+				),
+				"generation": {
+					"required": sonuc.required,
+					"ready": sonuc.ready,
+					"omitted": sonuc.omitted,
+					"entries": dict(sonuc.entries),
+				},
+			},
+		)
+		if _quality_report_table_ready():
+			report.persist_report(rapor)
+		report.record_report_metrics(rapor)
+	except Exception:
+		# Telemetri ana üretimin başarı/atomiklik kararını değiştiremez. Hata
+		# görünürdür ama türev transaction'ı yürümeye devam eder.
+		frappe.log_error(
+			title="media.pipeline_bridge quality report failed",
+			message=f"{asset.name} / {version_hash}\n\n{frappe.get_traceback()}",
+		)
+
+
+def _quality_report_table_ready() -> bool:
+	"""Patch/migrate tamamlanmamış düğümde ana üretimi rapor tablosuna bağlama."""
+	return bool(
+		frappe.db.exists("DocType", "Media Quality Report") and frappe.db.table_exists("Media Quality Report")
+	)
+
+
+def _record_generation_failure(reason: str, duration_s: float) -> None:
+	"""Rapor üretilemeyen işin düşük kardinaliteli hata metriğini best-effort yaz."""
+	try:
+		from tradehub_core.media.pipeline.image import report
+
+		report.record_job_failure(reason=reason, duration_s=max(0.0, duration_s))
+	except Exception:
+		frappe.log_error(
+			title="media.pipeline_bridge quality failure metric failed",
+			message=f"{reason}\n\n{frappe.get_traceback()}",
+		)
+
+
 def _generate(
-	kaynak: bytes, asset: Any, slot_key: str, surum_hash: str, crop_intent: Any = None
-) -> int:
-	"""Profil matrisini üretir; yazılan türev sayısını döner.
+	kaynak: bytes,
+	asset: Any,
+	slot_key: str,
+	surum_hash: str,
+	crop_intent: Any = None,
+	*,
+	generation: str | None = None,
+	profile_names: Iterable[str] | None = None,
+	classification: Any = None,
+) -> GenerationOutcome:
+	"""Profil matrisini üretir ve atomik yayın için tamlık künyesi döner.
 
 	`surum_hash`: `Media Version.version_hash` (64 hex) — türev adresleri bunu
 	taşır (INV-09). İçerik `_run_rendition_job`'da BİR kez okunur ve buraya
@@ -998,29 +2409,44 @@ def _generate(
 	"""
 	from tradehub_core.media.pipeline.image import render
 
-	profiller = _profiles_for_slot(slot_key)
+	tum_profiller = _profiles_for_slot(slot_key)
+	profiller = [p for p in tum_profiller if generation is None or str(p.generation or "eager") == generation]
+	if profile_names is not None:
+		adlar = {str(name) for name in profile_names}
+		profiller = [p for p in profiller if str(p.policy_profile) in adlar]
+	sonuc = GenerationOutcome()
 	if not profiller:
 		# Kayıtları `patches/v15_9_23_media_profile_seed.py` politika
 		# dosyalarından tohumluyor. Burası boşsa ya patch koşmamıştır ya da
 		# operatör slotun tüm profillerini kapatmıştır — ikisi de sessiz
 		# kalmamalı, çünkü dışarıdan "hat çalışıyor ama türev yok" görünür.
-		frappe.log_error(
-			title="media.pipeline_bridge profil yok",
-			message=f"{slot_key} için etkin Media Profile kaydı bulunamadı.",
-		)
-		return 0
+		if not tum_profiller and profile_names is None:
+			frappe.log_error(
+				title="media.pipeline_bridge profil yok",
+				message=f"{slot_key} için etkin Media Profile kaydı bulunamadı.",
+			)
+			sonuc.add(GEN_FAILED, "no_enabled_profile")
+		return sonuc
 
 	tavan = pipeline_flags.max_renditions_per_asset()
-	yazilan = 0
-	# D-1: motor BÜYÜTME yapmaz — kaynaktan geniş her basamak kaynağın kendi
-	# genişliğine kırpılır. 1080 px'lik bir kaynakta `w1280` ve `w1920`
-	# basamaklarının ikisi de 1080 px AVIF üretir ve `rendition_key` profil
-	# adını taşıdığı için iki AYRI kayıt açılır (doğrulanmış kanıt:
-	# `994prleaac|w1280|1080|avif` ve `…|w1920|1080|avif`, `file_url` birebir
-	# aynı). Fayda kapısı (`sonuc.passthrough`) bunların yalnız bir kısmını
-	# eliyor. Ölçüt üretilen türevin GERÇEK (genişlik, biçim) ikilisidir:
-	# aynı ikili için ikinci kayıt açılmaz.
-	uretilenler: set[tuple[int, str]] = set()
+	uretilenler: set[tuple[str, int, str]] = set()
+	format_plans = {profil.name: _format_plan(profil, classification) for profil in profiller}
+	if profiller and not any(format_plans.values()):
+		sonuc.add(GEN_FAILED, "no_supported_format_chain")
+		return sonuc
+	matris_boyutu = sum(len(profil.get_widths()) * len(format_plans[profil.name]) for profil in profiller)
+	hizli_kalite = matris_boyutu >= 34
+
+	# Kaynak bir kez hazırlanır: eligibility, disk atlama ve bütün formatların
+	# render çağrısı aynı EXIF/crop uzayını paylaşır.
+	try:
+		hazir, icc, hazirlik_notlari = render.prepare_source(kaynak)
+		kaynak_boyut: tuple[int, int] = (int(hazir.width), int(hazir.height))
+	except Exception:
+		sonuc.add(GEN_FAILED, "source_prepare_failed")
+		return sonuc
+	hazirlanmis = (hazir, icc, hazirlik_notlari)
+	tuval_onbellegi: dict[tuple, tuple] = {}
 
 	# T-064/W8 — mevcut-türev atlama ön koşulu. Türev adresleri deterministik
 	# (INV-09: aynı version_hash → aynı adres → aynı bayt); sürüm dizini diskte
@@ -1032,25 +2458,19 @@ def _generate(
 	# dosyaları dururken ikinci koşum 48 encode yapıyordu — W6-B'nin videoda
 	# bulduğu "yol-determinizmi var ama her koşum yeniden kodluyor" açığının
 	# görüntü karşılığı. Bu kontrol o 48'i 0'a indirir.
-	kaynak_boyut: tuple[int, int] | None = None
 	surum_kok = os.path.join(get_files_path(is_private=0), "media", asset.name, surum_hash)
-	if os.path.isdir(surum_kok):
-		try:
-			hazir, _icc, _notlar = render.prepare_source(kaynak)
-			kaynak_boyut = (int(hazir.width), int(hazir.height))
-		except Exception:
-			# Atlama kontrolü best-effort: boyut çözülemezse üretim yolu
-			# değişmeden koşar (yeniden encode pahalı ama DOĞRU sonuç verir).
-			kaynak_boyut = None
+	disk_kontrolu = os.path.isdir(surum_kok)
 
 	for profil in profiller:
 		for genislik in profil.get_widths():
-			for bicim in profil.get_formats():
-				if yazilan >= tavan:
+			for bicim, quality_target in format_plans[profil.name]:
+				if sonuc.required >= tavan:
 					# Tavan bir güvenlik freni: bozuk bir profil kaydı tek
-					# görselden yüzlerce dosya üretmesin.
-					return yazilan
-				if _render_one(
+					# görselden yüzlerce dosya üretmesin. Ancak bu eksik matris
+					# yayına alınamaz; sessiz kısmi başarı değildir.
+					sonuc.add(GEN_FAILED, "rendition_limit")
+					continue
+				durum = _render_one(
 					render,
 					kaynak,
 					asset,
@@ -1059,11 +2479,28 @@ def _generate(
 					genislik,
 					bicim,
 					uretilenler,
-					kaynak_boyut,
+					kaynak_boyut if disk_kontrolu else None,
 					crop_intent,
-				):
-					yazilan += 1
-	return yazilan
+					prepared=hazirlanmis,
+					canvas_cache=tuval_onbellegi,
+					result_sink=sonuc.results,
+					fast_quality=hizli_kalite,
+					quality_target=quality_target,
+					content_class=(
+						str(getattr(classification, "klass", "") or "") if classification is not None else None
+					),
+				)
+				detay = f"{profil.policy_profile}/{genislik}/{bicim}"
+				sonuc.add(durum, detay)
+				if durum == GEN_OMITTED:
+					_mark_rendition_omitted(
+						asset.name,
+						surum_hash,
+						str(profil.policy_profile),
+						int(genislik),
+						str(bicim),
+					)
+	return sonuc
 
 
 def _profiles_for_slot(slot_key: str) -> list[Any]:
@@ -1085,6 +2522,201 @@ def _profiles_for_slot(slot_key: str) -> list[Any]:
 	return profiller
 
 
+def _profile_specs(render: Any, asset: Any, profiles: Iterable[Any]) -> tuple[Any, ...]:
+	"""DB Media Profile kayıtlarını saf render profil geometrisine çevir."""
+	sonuc: list[Any] = []
+	for profil in profiles:
+		for genislik in profil.get_widths():
+			kaliteler = tuple(
+				(bicim, int(profil.quality_target)) for bicim in profil.get_formats() if profil.quality_target
+			)
+			sonuc.append(
+				render.RenditionProfile(
+					slot_key=asset.slot_key,
+					name=str(profil.policy_profile),
+					width=int(genislik),
+					formats=tuple(profil.get_formats()),
+					fit=profil.fit or render.FIT_CONTAIN,
+					target_ratio=profil.aspect_ratio or "",
+					encoder_quality=kaliteler,
+				)
+			)
+	return tuple(sonuc)
+
+
+def _affected_crop_profiles(
+	kaynak: bytes,
+	asset: Any,
+	slot_key: str,
+	new_intent: Any,
+) -> tuple[str, ...]:
+	"""Aktif sürümden yeni niyete pikseli değişen politika profil adları."""
+	from tradehub_core.media.pipeline.image import render, reprocess
+
+	profiller = _profiles_for_slot(slot_key)
+	aktif = frappe.db.get_value("Media Asset", asset.name, "active_version")
+	if not aktif:
+		return tuple(dict.fromkeys(str(p.policy_profile) for p in profiller))
+	eski_ham = frappe.db.get_value("Media Version", aktif, "crop_intent_snapshot")
+	try:
+		eski = frappe.parse_json(eski_ham) if eski_ham else None
+	except Exception:
+		eski = json.loads(eski_ham) if eski_ham else None
+	hazir, _icc, _notlar = render.prepare_source(kaynak)
+	return tuple(
+		dict.fromkeys(
+			reprocess.affected_profile_names(
+				(int(hazir.width), int(hazir.height)),
+				_profile_specs(render, asset, profiller),
+				eski,
+				new_intent,
+			)
+		)
+	)
+
+
+def _carry_forward_renditions(
+	asset_name: str,
+	version_hash: str,
+	*,
+	excluded_profiles: Iterable[str] = (),
+) -> bool:
+	"""Değişmeyen türevleri encode etmeden yeni immutable sürüm köküne taşı.
+
+	Kaynak dosya/satır silinmez; hard-link mümkün değilse kopya alınır ve hedef
+	sürüm için YENİ satır açılır. Eşzamanlı okuyucu promote commit'ine kadar eski
+	active_version satırlarını, sonra yalnız yeni sürüm satırlarını görür.
+	"""
+	from tradehub_core.media.pipeline.core import dedup
+	from tradehub_core.media.pipeline.image import render
+
+	haric = {str(name) for name in excluded_profiles}
+	aktif = str(frappe.db.get_value("Media Asset", asset_name, "active_version") or "")
+	if not aktif:
+		return True
+	rows = frappe.get_all(
+		"Media Rendition",
+		filters={"asset": asset_name, "version_hash": aktif, "state": ["!=", "purged"]},
+		fields=[
+			"name",
+			"profile",
+			"width",
+			"height",
+			"format",
+			"file_url",
+			"bytes",
+			"quality",
+			"ssim",
+			"generation",
+			"benefit_gate_passed",
+			"output_sha256",
+		],
+		limit_page_length=0,
+	)
+	try:
+		for row in rows:
+			if str(row.get("profile") or "") in haric:
+				continue
+			kaynak_url = row.get("file_url") or ""
+			kaynak_yol = _media_disk_path(kaynak_url)
+			if not kaynak_yol or not os.path.isfile(kaynak_yol):
+				return False
+			uzanti = render.EXTENSION.get(
+				str(row.get("format") or "").lower(),
+				f".{str(row.get('format') or '').lower()}",
+			).lstrip(".")
+			yeni_url = dedup.rendition_path(
+				asset_name,
+				version_hash,
+				str(row.get("profile") or ""),
+				int(row.get("width") or 0),
+				uzanti,
+			)
+			yeni_yol = _media_disk_path(yeni_url)
+			if os.path.abspath(kaynak_yol) != os.path.abspath(yeni_yol):
+				os.makedirs(os.path.dirname(yeni_yol), exist_ok=True)
+				if not os.path.isfile(yeni_yol):
+					gecici = f"{yeni_yol}.tmp-{os.getpid()}-{frappe.generate_hash(length=8)}"
+					try:
+						os.link(kaynak_yol, gecici)
+					except OSError:
+						shutil.copy2(kaynak_yol, gecici)
+					os.replace(gecici, yeni_yol)
+			output_hash = str(row.get("output_sha256") or "") or file_sha256(yeni_yol)
+			ledger = _rendition_ledger_fields(
+				version_hash,
+				str(row.get("profile") or ""),
+				int(row.get("width") or 0),
+				str(row.get("format") or ""),
+				output_hash=output_hash,
+			)
+			anahtar = rendition_key(
+				asset_name,
+				version_hash,
+				str(row.get("profile") or ""),
+				int(row.get("width") or 0),
+				str(row.get("format") or ""),
+			)
+			if frappe.db.exists("Media Rendition", {"rendition_key": anahtar}):
+				continue
+			frappe.get_doc(
+				{
+					"doctype": "Media Rendition",
+					"asset": asset_name,
+					**ledger,
+					"profile": row.get("profile"),
+					"width": int(row.get("width") or 0),
+					"height": int(row.get("height") or 0),
+					"format": row.get("format"),
+					"file_url": yeni_url,
+					"storage_backend": "local",
+					"generation": row.get("generation") or "eager",
+					"bytes": int(row.get("bytes") or 0),
+					"quality": int(row.get("quality") or 0),
+					"ssim": float(row.get("ssim") or 0.0),
+					"benefit_gate_passed": int(row.get("benefit_gate_passed") or 0),
+				}
+			).insert(ignore_permissions=True)
+	except Exception:
+		frappe.log_error(
+			title="media.pipeline_bridge rendition carry-forward failed",
+			message=f"{asset_name} / {version_hash}\n\n{frappe.get_traceback()}",
+		)
+		return False
+	return True
+
+
+def _rendition_ledger_fields(
+	version_hash: str,
+	profile: str,
+	width: int,
+	fmt: str,
+	*,
+	content: bytes | None = None,
+	output_hash: str | None = None,
+	engine_version: str | None = None,
+) -> dict[str, str]:
+	"""Build the persistent exact-output ledger columns for one rendition."""
+	if not output_hash and content is None:
+		raise ValueError("rendition ledger requires exact content or output_hash")
+	sha = str(output_hash or "") or content_sha256(content or b"")
+	motor = (
+		engine_version or frappe.db.get_value("Media Version", version_hash, "engine_version") or "unknown"
+	)
+	return {
+		"version_hash": version_hash,
+		"output_sha256": sha,
+		"engine_signature": engine_signature(
+			engine_version=str(motor),
+			version_hash=version_hash,
+			profile=profile,
+			width=width,
+			fmt=fmt,
+			output_sha256=sha,
+		),
+	}
+
+
 def _render_one(
 	render: Any,
 	kaynak: bytes,
@@ -1093,11 +2725,18 @@ def _render_one(
 	profil: Any,
 	genislik: int,
 	bicim: str,
-	uretilenler: set[tuple[int, str]],
+	uretilenler: set[tuple[str, int, str]],
 	kaynak_boyut: tuple[int, int] | None = None,
 	crop_intent: Any = None,
-) -> bool:
-	"""Tek (genişlik × biçim) türevini üretip kaydeder. Yazıldıysa True.
+	*,
+	prepared: tuple | None = None,
+	canvas_cache: dict[tuple, tuple] | None = None,
+	result_sink: list[Any] | None = None,
+	fast_quality: bool = False,
+	quality_target: Any = None,
+	content_class: str | None = None,
+) -> str:
+	"""Tek matris satırını üret; `ready|omitted|failed` döndür.
 
 	`render.render()` yerine `render.render_rendition()` çağrılıyor: ikisi aynı
 	modülün aynı yolu, ama `render()` yalnız BAYT döndürüyor ve fayda kapısı
@@ -1105,8 +2744,8 @@ def _render_one(
 	olmadan bu iki durum ayırt edilemez ve kaynağın kopyası `.webp` adıyla
 	diske yazılırdı. `render_rendition` aynı üretimi künyesiyle döner.
 
-	`uretilenler` bu Asset için ŞU ANA KADAR yazılmış (genişlik, biçim)
-	ikililerini taşır; D-1 mükerrer kapısı buradan sorulur.
+	`uretilenler` bu Asset için ŞU ANA KADAR yazılmış tekil
+	(profil, genişlik, biçim) satırlarını taşır.
 
 	`kaynak_boyut` (T-064/W8): kaynağın HAZIRLANMIŞ boyutu — verilirse ve bu
 	türev diskte zaten duruyorsa encode ATLANIR (aşağıda `_skip_from_disk`).
@@ -1117,38 +2756,69 @@ def _render_one(
 			# Künye adı POLİTİKA profil adından türer, docname'den değil:
 			# `crop.resolve_crop` kırpma geçersiz kılmalarını `profile_key`
 			# ile eşleştiriyor ve orada da politika adı bekleniyor.
-			name=f"{profil.policy_profile}_w{genislik}",
+			name=str(profil.policy_profile),
 			width=int(genislik),
 			formats=(bicim,),
 			fit=profil.fit or render.FIT_CONTAIN,
 			target_ratio=profil.aspect_ratio or "",
-			encoder_quality=((bicim, int(profil.quality_target)),) if profil.quality_target else (),
+			encoder_quality=(
+				((bicim, quality_target),)
+				if quality_target is not None
+				else ((bicim, int(profil.quality_target)),)
+				if profil.quality_target
+				else ()
+			),
 		)
 	except Exception:
 		frappe.log_error(
 			title="media.pipeline_bridge türev üretilemedi",
 			message=f"{asset.name} / {profil.name} / w{genislik} / {bicim}\n\n{frappe.get_traceback()}",
 		)
-		return False
+		return GEN_FAILED
+
+	hazir = prepared[0] if prepared is not None else render.prepare_source(kaynak)[0]
+	try:
+		plan = render.plan_geometry(hazir.size, profile_spec, crop_intent)
+	except Exception:
+		return GEN_FAILED
+	if int(profile_spec.width) > int(plan.crop_box[2]) or plan.upscale_blocked:
+		# INV-01: clamp ederek aynı genişlikte ikinci bir sahte basamak üretme.
+		return GEN_OMITTED
+
+	matris_anahtari = (
+		str(profil.policy_profile or ""),
+		int(genislik),
+		str(bicim).lower(),
+	)
+	if matris_anahtari in uretilenler:
+		return GEN_OMITTED
+	if _rendition_was_omitted(
+		asset.name,
+		surum_hash,
+		matris_anahtari[0],
+		matris_anahtari[1],
+		matris_anahtari[2],
+	):
+		return GEN_OMITTED
 
 	# T-064/W8 — mevcut-türev atlama: version_hash aynı + dosya diskte +
 	# bayt tutuyor → encode ATLA. Best-effort: kontrolün kendisi patlarsa
 	# üretim yolu değişmeden koşar (yanlış atlama yok, yalnız kaçan atlama var).
 	if kaynak_boyut:
 		try:
-			atlama = _skip_from_disk(render, asset, surum_hash, profil, bicim, profile_spec, kaynak_boyut)
+			atlama = _skip_from_disk(
+				render,
+				asset,
+				surum_hash,
+				profil,
+				bicim,
+				profile_spec,
+				kaynak_boyut,
+				crop_intent,
+			)
 		except Exception:
 			atlama = None
 		if atlama is not None:
-			olcu = (atlama["width"], bicim)
-			if olcu in uretilenler:
-				# D-1 ÖN-kapısı: planlanan (genişlik, biçim) bu koşuda zaten
-				# üretildi/atlandı. Planlanan genişlik = gerçek genişlik (aynı
-				# `plan_geometry`), yani encode SONRASI D-1 kapısının vereceği
-				# kararın aynısı encode'suz verilir. ÖLÇÜLDÜ: bu satır olmadan
-				# mükerrer basamaklar (w1280/w1920 → 1200px) yeniden kodlanıyordu
-				# (senaryo B'de 8 artık encode).
-				return False
 			if atlama["found"]:
 				if not atlama["row_exists"]:
 					# Disk gerçeklerinden kayıt tazele. `quality`/`ssim` diskteki
@@ -1158,6 +2828,13 @@ def _render_one(
 						{
 							"doctype": "Media Rendition",
 							"asset": asset.name,
+							**_rendition_ledger_fields(
+								surum_hash,
+								str(profil.policy_profile or ""),
+								int(atlama["width"]),
+								bicim,
+								output_hash=str(atlama["output_sha256"]),
+							),
 							"profile": profil.policy_profile,
 							"width": atlama["width"],
 							"height": atlama["height"],
@@ -1165,51 +2842,68 @@ def _render_one(
 							"file_url": atlama["file_url"],
 							"storage_backend": "local",
 							"generation": profil.generation or "eager",
+							"state": "ready",
 							"bytes": atlama["bytes"],
 							"quality": 0,
 							"ssim": 0.0,
 							"benefit_gate_passed": 1,
 						}
 					).insert(ignore_permissions=True)
-				uretilenler.add(olcu)
-				return True
+				uretilenler.add(matris_anahtari)
+				return GEN_READY
 			# atlama["found"] değil: diskte yok — normal üretim yoluna düş.
 
 	try:
 		# Kırpma niyeti: yükleme yolunda None (politikanın varsayılan
 		# penceresi), kırpma-yeniden-üretim yolunda kayıtlı niyet —
 		# `crop.resolve_crop` zinciri (elle pencere > odak > öneri > merkez).
-		sonuc = render.render_rendition(kaynak, profile_spec, crop_intent)
+		if canvas_cache is None:
+			canvas_cache = {}
+		tuval_anahtari = (plan, profile_spec.pad_color or render.DEFAULT_PAD_COLOR)
+		if tuval_anahtari not in canvas_cache:
+			canvas, tuval_notlari = render.build_canvas(hazir, profile_spec, plan)
+			canvas_cache[tuval_anahtari] = (plan, canvas, tuval_notlari)
+		sonuc = render.render_rendition(
+			kaynak,
+			profile_spec,
+			crop_intent,
+			content_class=content_class,
+			_prepared=prepared,
+			_canvas=canvas_cache[tuval_anahtari],
+			_fast_quality=fast_quality,
+		)
 	except Exception:
 		frappe.log_error(
 			title="media.pipeline_bridge türev üretilemedi",
 			message=f"{asset.name} / {profil.name} / w{genislik} / {bicim}\n\n{frappe.get_traceback()}",
 		)
-		return False
+		return GEN_FAILED
 
 	if sonuc.passthrough:
 		# Fayda kapısı düştü: çıktı kaynaktan küçük değil. Kaynağın kopyasını
 		# türev diye saklamak iki kat yer kaplar, sayfayı hızlandırmaz.
-		return False
-
-	olcu = (int(sonuc.width or 0), (sonuc.format or "").lower())
-	if olcu in uretilenler:
-		# D-1: kaynaktan geniş bir basamak, daha küçük bir basamakla BİREBİR
-		# aynı çıktıyı üretti. İkinci kayıt aynı dosyayı ikinci kez gösterir,
-		# srcset'e iki özdeş basamak yazar ve envanteri şişirir.
-		return False
+		return GEN_OMITTED
+	if result_sink is not None:
+		result_sink.append(sonuc)
 
 	file_url = _write_rendition_file(
 		asset.name, surum_hash, profil.policy_profile, int(sonuc.width or 0), sonuc.format, sonuc.content
 	)
-	# W9+ upsert: (asset, profil, genişlik, biçim) dörtlüsü UNIQUE
-	# (`rendition_key`). Kırpma-yeniden-üretiminde satır zaten vardır — yeni
-	# sürümün dosyası MEVCUT satırın adresine yazılır, ikinci satır açılmaz.
-	# Vitrin srcset'i bu satırlardan çıktığı için adres güncellemesi teslimatı
-	# yeni kadraja çevirir; eski sürümün dosyaları diskte kalır (geri dönüş
-	# ucuz, moderasyon sürüm kaydından izlenebilir).
-	anahtar = "|".join(
-		(asset.name, profil.policy_profile or "", str(int(sonuc.width or 0)), sonuc.format or "")
+	ledger = _rendition_ledger_fields(
+		surum_hash,
+		str(profil.policy_profile or ""),
+		int(sonuc.width or 0),
+		str(sonuc.format or ""),
+		content=sonuc.content,
+	)
+	# Aynı sürüm koordinatı idempotent upsert edilir; farklı sürüm yeni tarihsel
+	# row açar. Böylece crop/policy geçişi eski ledger kanıtını yok etmez.
+	anahtar = rendition_key(
+		asset.name,
+		surum_hash,
+		str(profil.policy_profile or ""),
+		int(sonuc.width or 0),
+		str(sonuc.format or ""),
 	)
 	mevcut_ad = frappe.db.get_value("Media Rendition", {"rendition_key": anahtar}, "name")
 	if mevcut_ad:
@@ -1217,6 +2911,7 @@ def _render_one(
 			"Media Rendition",
 			mevcut_ad,
 			{
+				**ledger,
 				"height": sonuc.height,
 				"file_url": file_url,
 				"bytes": sonuc.size_bytes,
@@ -1224,14 +2919,20 @@ def _render_one(
 				"ssim": sonuc.ssim or 0.0,
 				"benefit_gate_passed": 1,
 				"generated_at": now_datetime(),
+				"state": "ready",
+				"purged_at": None,
+				"purge_after": None,
+				"trash_path": None,
+				"purge_reason": None,
 			},
 		)
-		uretilenler.add(olcu)
-		return True
+		uretilenler.add(matris_anahtari)
+		return GEN_READY
 	frappe.get_doc(
 		{
 			"doctype": "Media Rendition",
 			"asset": asset.name,
+			**ledger,
 			# K-2: buraya POLİTİKA profil adı (`w384`) yazılır, `Media Profile`
 			# docname'i (`product.image:w384`) DEĞİL. `api/media_manifest.py`
 			# bu kolonu `available_profiles` olarak kütüphaneye veriyor ve
@@ -1247,14 +2948,15 @@ def _render_one(
 			"file_url": file_url,
 			"storage_backend": "local",
 			"generation": profil.generation or "eager",
+			"state": "ready",
 			"bytes": sonuc.size_bytes,
 			"quality": sonuc.quality if isinstance(sonuc.quality, int) else 0,
 			"ssim": sonuc.ssim or 0.0,
 			"benefit_gate_passed": 1,
 		}
 	).insert(ignore_permissions=True)
-	uretilenler.add(olcu)
-	return True
+	uretilenler.add(matris_anahtari)
+	return GEN_READY
 
 
 def _skip_from_disk(
@@ -1265,6 +2967,7 @@ def _skip_from_disk(
 	bicim: str,
 	profile_spec: Any,
 	kaynak_boyut: tuple[int, int],
+	crop_intent: Any = None,
 ) -> dict[str, Any] | None:
 	"""Bu türevin PLANLANAN künyesi + diskte hazır olup olmadığı; plan kurulamazsa `None`.
 
@@ -1289,7 +2992,7 @@ def _skip_from_disk(
 	"""
 	from tradehub_core.media.pipeline.core import dedup
 
-	plan = render.plan_geometry(kaynak_boyut, profile_spec, None)
+	plan = render.plan_geometry(kaynak_boyut, profile_spec, crop_intent)
 	genislik_gercek, yukseklik = plan.canvas_size
 	uzanti = render.EXTENSION.get(bicim, f".{bicim}").lstrip(".")
 	url = dedup.rendition_path(asset.name, surum_hash, profil.policy_profile, int(genislik_gercek), uzanti)
@@ -1304,6 +3007,16 @@ def _skip_from_disk(
 
 	yol = _media_disk_path(url)
 	if not os.path.isfile(yol):
+		_restore_purged_rendition(
+			asset.name,
+			surum_hash,
+			str(profil.policy_profile or ""),
+			int(genislik_gercek),
+			bicim,
+			url,
+			yol,
+		)
+	if not os.path.isfile(yol):
 		return kunye
 	boyut = os.path.getsize(yol)
 	if boyut <= 0:
@@ -1312,8 +3025,13 @@ def _skip_from_disk(
 	# Sistem işi: worker oturumsuz; türev kayıtları satıcı verisi değil.
 	kayit = frappe.get_all(
 		"Media Rendition",
-		filters={"asset": asset.name, "file_url": url},
-		fields=["name", "bytes"],
+		filters={
+			"asset": asset.name,
+			"version_hash": surum_hash,
+			"file_url": url,
+			"state": ["!=", "purged"],
+		},
+		fields=["name", "bytes", "output_sha256", "engine_signature"],
 		limit=1,
 	)
 	if kayit:
@@ -1325,8 +3043,123 @@ def _skip_from_disk(
 		if not render._verify(veri):
 			return kunye  # diskte duran şey açılmıyor — yeniden üret
 
-	kunye.update({"bytes": int(boyut), "row_exists": bool(kayit), "found": True})
+	output_hash = str(kayit[0].get("output_sha256") or "") if kayit else ""
+	if not output_hash:
+		output_hash = file_sha256(yol)
+	if kayit and (not kayit[0].get("output_sha256") or not kayit[0].get("engine_signature")):
+		frappe.db.set_value(
+			"Media Rendition",
+			kayit[0]["name"],
+			_rendition_ledger_fields(
+				surum_hash,
+				str(profil.policy_profile or ""),
+				int(genislik_gercek),
+				bicim,
+				output_hash=output_hash,
+			),
+			update_modified=False,
+		)
+	kunye.update(
+		{
+			"bytes": int(boyut),
+			"output_sha256": output_hash,
+			"row_exists": bool(kayit),
+			"found": True,
+		}
+	)
 	return kunye
+
+
+def _restore_purged_rendition(
+	asset_name: str,
+	version_hash: str,
+	profile: str,
+	width: int,
+	fmt: str,
+	file_url: str,
+	target_path: str,
+) -> bool:
+	"""Grace penceresindeki soft-delete çıktısını ilk istekte atomik geri al."""
+	key = rendition_key(asset_name, version_hash, profile, width, fmt)
+	row = frappe.db.get_value(
+		"Media Rendition",
+		{"rendition_key": key, "state": "purged"},
+		["name", "trash_path"],
+		as_dict=True,
+	)
+	if not row or not row.get("trash_path"):
+		return False
+	site_root = os.path.realpath(frappe.get_site_path())
+	trash_root = os.path.realpath(frappe.get_site_path("private", "media_rendition_trash"))
+	trash_path = os.path.realpath(os.path.join(site_root, str(row.get("trash_path"))))
+	if not trash_path.startswith(trash_root + os.sep) or not os.path.isfile(trash_path):
+		return False
+	os.makedirs(os.path.dirname(target_path), exist_ok=True)
+	os.replace(trash_path, target_path)
+	try:
+		frappe.db.set_value(
+			"Media Rendition",
+			row.get("name"),
+			{
+				"state": "ready",
+				"benefit_gate_passed": 1,
+				"purged_at": None,
+				"purge_after": None,
+				"trash_path": None,
+				"purge_reason": None,
+				"last_access_at": now_datetime(),
+			},
+			update_modified=False,
+		)
+	except Exception:
+		os.replace(target_path, trash_path)
+		raise
+	return True
+
+
+def _omission_marker_path(
+	asset_name: str,
+	version_hash: str,
+	profile: str,
+	width: int,
+	fmt: str,
+) -> str:
+	anahtar = f"{profile}|{int(width)}|{fmt.lower()}"
+	ozet = hashlib.sha256(anahtar.encode("utf-8")).hexdigest()
+	return os.path.join(
+		get_files_path(is_private=0),
+		"media",
+		asset_name,
+		version_hash,
+		".omitted",
+		f"{ozet}.json",
+	)
+
+
+def _mark_rendition_omitted(
+	asset_name: str,
+	version_hash: str,
+	profile: str,
+	width: int,
+	fmt: str,
+) -> None:
+	"""Negatif cache: kasıtlı omission ilk istekte tekrar encode edilmesin."""
+	yol = _omission_marker_path(asset_name, version_hash, profile, width, fmt)
+	os.makedirs(os.path.dirname(yol), exist_ok=True)
+	gecici = f"{yol}.tmp-{os.getpid()}-{frappe.generate_hash(length=8)}"
+	with open(gecici, "w", encoding="utf-8") as handle:
+		json.dump({"profile": profile, "width": int(width), "format": fmt.lower()}, handle)
+	os.replace(gecici, yol)
+
+
+def _rendition_was_omitted(
+	asset_name: str,
+	version_hash: str,
+	profile: str,
+	width: int,
+	fmt: str,
+) -> bool:
+	return os.path.isfile(_omission_marker_path(asset_name, version_hash, profile, width, fmt))
 
 
 def _write_rendition_file(
@@ -1366,8 +3199,19 @@ def _write_rendition_file(
 	# `media/{asset}/{version_hash}/...` alt dizinidir.
 	yol = os.path.join(get_files_path(is_private=0), url.removeprefix("/files/"))
 	os.makedirs(os.path.dirname(yol), exist_ok=True)
-	with open(yol, "wb") as f:
-		f.write(content)
+	# Okuyucu final URL'yi ya eski TAM içerikle ya yeni TAM içerikle görmeli;
+	# kısmen yazılmış bir rendition asla görünür olmamalı. Temp dosya aynı
+	# dizindedir, dolayısıyla `os.replace` aynı filesystem üzerinde atomiktir.
+	gecici = f"{yol}.tmp-{os.getpid()}-{frappe.generate_hash(length=8)}"
+	try:
+		with open(gecici, "wb") as f:
+			f.write(content)
+		os.replace(gecici, yol)
+	finally:
+		try:
+			os.unlink(gecici)
+		except FileNotFoundError:
+			pass
 	return url
 
 
@@ -1411,8 +3255,8 @@ def _maybe_enqueue_video(doc: Any) -> None:
 
 	frappe.enqueue(
 		"tradehub_core.media.pipeline_bridge._run_video_job",
-		queue=RQ_QUEUE,
-		timeout=QUEUE_TIMEOUT_SECONDS,
+		queue=RQ_QUEUE_VIDEO,
+		timeout=media_queues.VIDEO.timeout_seconds,
 		enqueue_after_commit=True,
 		file_url=doc.get("file_url"),
 	)
@@ -1565,7 +3409,156 @@ def _video_policy_snapshot(slot_key: str) -> dict[str, Any]:
 	return {"slot_policy": render.load_slot_policy(slot_key), "video_decision": dict(default_table().raw)}
 
 
-def _run_video_job(file_url: str) -> None:
+def _animation_engine_version() -> str:
+	"""GIF video dönüşüm kodu + ffmpeg imajının tek sürüm kimliği."""
+	from tradehub_core.media.pipeline.video import animation
+
+	return f"{_video_engine_version()}+animation-{animation.ANIMATION_ENGINE_VERSION}"
+
+
+def _animation_policy_snapshot(slot_key: str, spec: Any) -> dict[str, Any]:
+	"""Animasyon çıktısının bütün piksel/bayt parametrelerini hash girdisine al."""
+	from dataclasses import asdict
+
+	from tradehub_core.media.pipeline.image import render
+
+	return {"slot_policy": render.load_slot_policy(slot_key), "animation": asdict(spec)}
+
+
+def _run_animation_job(file_url: str, *, slot_override: str) -> None:
+	"""Animated GIF'i gerçek MP4/H.264 + WebM/VP9 + PNG postere yayınla.
+
+	Normal video karar tablosundaki boyut-fayda kapısı burada kullanılmaz: küçük
+	GIF'in video çıktısı daha büyük olsa bile animasyonu kaybetmeden teslim edilir.
+	Üç dosya doğrulanmadan hiçbir rendition satırı açılmaz.
+	"""
+	job_name: str | None = None
+	staged: list[str] = []
+	try:
+		name = frappe.db.get_value("File", {"file_url": file_url}, "name")
+		if not name:
+			return
+		doc = frappe.get_doc("File", name)
+		if not pipeline_flags.is_enabled("rendition_on_upload"):
+			return
+		parmak_izi = content_fingerprint(doc)
+		if not parmak_izi or _renditions_exist(parmak_izi, slot_override):
+			return
+		src_yolu = _media_disk_path(str(doc.file_url or ""))
+		if not os.path.isfile(src_yolu):
+			return
+		kaynak = doc.get_content()
+		if isinstance(kaynak, str):
+			kaynak = kaynak.encode()
+		if not kaynak:
+			return
+
+		from tradehub_core.media.pipeline.core import dedup
+		from tradehub_core.media.pipeline.video import animation
+		from tradehub_core.media.pipeline.video import probe as video_probe
+
+		spec = animation.AnimationSpec()
+		politika = _animation_policy_snapshot(slot_override, spec)
+		motor = _animation_engine_version()
+		source_hash = dedup.stream_sha256(io.BytesIO(kaynak)).sha256
+		surum_hash = dedup.version_hash(source_hash, politika, None, motor)
+		asset = _ensure_asset(doc, slot_override, parmak_izi, media_type=_MEDIA_TYPE_VIDEO)
+		job_name = _open_job(
+			asset.name,
+			surum_hash,
+			slot_override,
+			job_type=ANIMATION_JOB_TYPE,
+			queue=JOB_QUEUE_VIDEO,
+			key_prefix=ANIMATION_JOB_TYPE,
+		)
+
+		version_root = os.path.dirname(
+			_media_disk_path(
+				dedup.rendition_path(asset.name, surum_hash, VIDEO_PRIMARY_PROFILE, 2, "mp4")
+			)
+		)
+		os.makedirs(version_root, exist_ok=True)
+		stage_id = frappe.generate_hash(length=10)
+		staged = [
+			os.path.join(version_root, f".animation-{stage_id}.part.mp4"),
+			os.path.join(version_root, f".animation-{stage_id}.part.webm"),
+			os.path.join(version_root, f".animation-{stage_id}.part.png"),
+		]
+		converted = animation.convert(src_yolu, *staged, spec=spec)
+		if not converted.ok:
+			frappe.db.set_value("Media Asset", asset.name, "state", "failed")
+			_finish_job(job_name, "failed", error_code=converted.reason or "animation_conversion_failed")
+			frappe.db.commit()
+			return
+
+		profiles = (VIDEO_PRIMARY_PROFILE, VIDEO_WEBM_PROFILE, VIDEO_POSTER_PROFILE)
+		final_paths: dict[str, str] = {}
+		for output, profile in zip(converted.outputs, profiles, strict=True):
+			fmt = str(output.container).lower()
+			url = dedup.rendition_path(asset.name, surum_hash, profile, int(output.width), fmt)
+			dst = _media_disk_path(url)
+			os.makedirs(os.path.dirname(dst), exist_ok=True)
+			os.replace(output.path, dst)
+			final_paths[profile] = dst
+			_insert_video_rendition(
+				asset.name,
+				surum_hash=surum_hash,
+				profil=profile,
+				genislik=int(output.width),
+				yukseklik=int(output.height),
+				bicim=fmt,
+				file_url=url,
+				bayt=int(output.size_bytes),
+				quality=(spec.h264_crf if profile == VIDEO_PRIMARY_PROFILE else spec.vp9_crf)
+				if profile != VIDEO_POSTER_PROFILE
+				else 0,
+				engine_version=motor,
+			)
+
+		facts = video_probe.probe(final_paths[VIDEO_PRIMARY_PROFILE])
+		if not facts.measured:
+			raise ValueError("animation_primary_probe_failed")
+		_ensure_video_version(
+			asset,
+			surum_hash,
+			source_hash,
+			politika,
+			facts,
+			final_paths.get(VIDEO_POSTER_PROFILE),
+			engine_version=motor,
+			classification="animation",
+			classification_confidence="exact",
+			# Classifier sözleşmesinde animation'ın GÖRSEL zinciri bilerek
+			# boştur; gerçek video hedefleri rendition satırlarında taşınır.
+			format_chain=[],
+		)
+		frappe.db.set_value("Media Asset", asset.name, "state", "ready")
+		_finish_job(job_name, "success")
+		_promote_initial_version(asset.name, surum_hash)
+		frappe.db.commit()
+	except Exception as exc:  # noqa: BLE001 — worker sözleşmesi: istisna sızdırma
+		frappe.db.rollback()
+		if job_name:
+			_finish_job(job_name, "failed", error_code=type(exc).__name__)
+			frappe.db.commit()
+		frappe.log_error(
+			title="media.pipeline_bridge animation job failed",
+			message=f"{file_url}\n\n{frappe.get_traceback()}",
+		)
+	finally:
+		for path in staged:
+			try:
+				os.unlink(path)
+			except FileNotFoundError:
+				pass
+
+
+def _run_video_job(
+	file_url: str,
+	*,
+	slot_override: str | None = None,
+	key_prefix: str | None = None,
+) -> None:
 	"""Worker tarafı (W7) — kararı uygular, türevleri üretir, kayıtları açar.
 
 	Görseldeki `_run_rendition_job` ile aynı sözleşme: istisna SIZDIRMAZ,
@@ -1580,8 +3573,13 @@ def _run_video_job(file_url: str) -> None:
 
 		if not pipeline_flags.is_enabled("rendition_on_upload"):
 			return
-		slot_key = _resolve_video_scope(doc)
-		if not slot_key or not pipeline_flags.is_slot_enabled(slot_key):
+		slot_key = slot_override or _resolve_video_scope(doc)
+		if not slot_key:
+			return
+		# Animasyon görsel slotunun kapılarından geçip buraya gelir; hedef video
+		# slotunun ayrıca açık olmasını istemek aynı dosyayı iki bayrakla
+		# koşullandırırdı. Normal video yüklemesi kendi slot bayrağını korur.
+		if slot_override is None and not pipeline_flags.is_slot_enabled(slot_key):
 			return
 		parmak_izi = content_fingerprint(doc)
 		if not parmak_izi:
@@ -1606,7 +3604,7 @@ def _run_video_job(file_url: str) -> None:
 			slot_key,
 			job_type=JOB_TYPE_VIDEO,
 			queue=JOB_QUEUE_VIDEO,
-			key_prefix=JOB_KEY_VIDEO,
+			key_prefix=key_prefix or JOB_KEY_VIDEO,
 		)
 
 		if karar.rejected:
@@ -1644,7 +3642,13 @@ def _run_video_job(file_url: str) -> None:
 
 
 def _produce_video_outputs(
-	src_yolu: str, facts: Any, karar: Any, asset: Any, slot_key: str
+	src_yolu: str,
+	facts: Any,
+	karar: Any,
+	asset: Any,
+	slot_key: str,
+	*,
+	crop_intent: Any = None,
 ) -> str:
 	"""Karar → birincil dosya → poster → HLS → Media Version. Sıra anlamlı.
 
@@ -1662,14 +3666,29 @@ def _produce_video_outputs(
 	with open(src_yolu, "rb") as f:
 		source_hash = dedup.stream_sha256(f).sha256
 	politika = _video_policy_snapshot(slot_key)
-	surum_hash = dedup.version_hash(source_hash, politika, None, _video_engine_version())
+	surum_hash = dedup.version_hash(source_hash, politika, crop_intent, _video_engine_version())
 
 	teslim_yolu, teslim_facts = _produce_video_primary(src_yolu, facts, karar, asset.name, surum_hash)
-	poster_yolu = _produce_video_poster(teslim_yolu, teslim_facts, asset.name, surum_hash)
+	poster_yolu = _produce_video_poster(
+		teslim_yolu,
+		teslim_facts,
+		asset.name,
+		surum_hash,
+		slot_key=slot_key,
+		crop_intent=crop_intent,
+	)
 	_produce_video_preview(teslim_yolu, teslim_facts, asset.name, surum_hash)
 	_produce_video_hls(teslim_yolu, teslim_facts, asset.name, surum_hash)
 
-	_ensure_video_version(asset, surum_hash, source_hash, politika, teslim_facts, poster_yolu)
+	_ensure_video_version(
+		asset,
+		surum_hash,
+		source_hash,
+		politika,
+		teslim_facts,
+		poster_yolu,
+		crop_intent=crop_intent,
+	)
 	return surum_hash
 
 
@@ -1722,6 +3741,7 @@ def _produce_video_primary(
 	kunye = cikti_facts if cikti_facts.measured else facts
 	_insert_video_rendition(
 		asset_name,
+		surum_hash=surum_hash,
 		profil=VIDEO_PRIMARY_PROFILE,
 		genislik=genislik,
 		yukseklik=int(kunye.height or 0),
@@ -1734,7 +3754,13 @@ def _produce_video_primary(
 
 
 def _produce_video_poster(
-	teslim_yolu: str, teslim_facts: Any, asset_name: str, surum_hash: str
+	teslim_yolu: str,
+	teslim_facts: Any,
+	asset_name: str,
+	surum_hash: str,
+	*,
+	slot_key: str,
+	crop_intent: Any = None,
 ) -> str | None:
 	"""Posteri üretir, GERÇEK ölçüsüyle adlandırır ve kaydeder.
 
@@ -1747,9 +3773,9 @@ def _produce_video_poster(
 
 	try:
 		# Geçici ad sürüm dizininde: `os.replace` aynı dosya sisteminde kalsın.
-		dizin = os.path.dirname(_media_disk_path(
-			dedup.rendition_path(asset_name, surum_hash, VIDEO_POSTER_PROFILE, 2, "webp")
-		))
+		dizin = os.path.dirname(
+			_media_disk_path(dedup.rendition_path(asset_name, surum_hash, VIDEO_POSTER_PROFILE, 2, "webp"))
+		)
 		os.makedirs(dizin, exist_ok=True)
 		gecici = os.path.join(dizin, ".poster.part.webp")
 		r = video_poster.make_poster(teslim_yolu, gecici, facts=teslim_facts)
@@ -1763,6 +3789,7 @@ def _produce_video_poster(
 
 		_insert_video_rendition(
 			asset_name,
+			surum_hash=surum_hash,
 			profil=VIDEO_POSTER_PROFILE,
 			genislik=int(g),
 			yukseklik=int(y),
@@ -1771,13 +3798,58 @@ def _produce_video_poster(
 			bayt=r.size_bytes,
 			quality=int(r.quality or 0),
 		)
-		return _media_disk_path(url)
+		poster_yolu = _media_disk_path(url)
 	except Exception:
 		frappe.log_error(
 			title="media.pipeline_bridge video poster üretilemedi",
 			message=f"{asset_name} / {teslim_yolu}\n\n{frappe.get_traceback()}",
 		)
 		return None
+
+	# Slotun ``profiles[]`` matrisi video değil POSTER görselidir. Aynı kareyi
+	# görsel motorundan geçirerek crop intent, cover/contain geometrisi, AVIF
+	# zinciri ve küçük thumbnail basamakları tek kanonik yoldan uygulanır.
+	try:
+		from tradehub_core.media.pipeline.image import render
+
+		with open(poster_yolu, "rb") as f:
+			poster_baytlari = f.read()
+		sonuclar = render.render_ladder(
+			poster_baytlari,
+			slot_key,
+			crop_intent,
+			per_format=True,
+		)
+		for sonuc in sonuclar:
+			if sonuc.passthrough or not sonuc.content:
+				continue
+			file_url = _write_rendition_file(
+				asset_name,
+				surum_hash,
+				sonuc.profile.name,
+				int(sonuc.width),
+				sonuc.format,
+				sonuc.content,
+			)
+			_insert_video_rendition(
+				asset_name,
+				surum_hash=surum_hash,
+				profil=sonuc.profile.name,
+				genislik=int(sonuc.width),
+				yukseklik=int(sonuc.height),
+				bicim=sonuc.format,
+				file_url=file_url,
+				bayt=sonuc.size_bytes,
+				quality=int(sonuc.quality) if isinstance(sonuc.quality, int) else 0,
+			)
+	except Exception:
+		# Ana poster hazırdır; profil merdiveni zenginleştirmesinin hatası videoyu
+		# ve güvenli fallback posteri düşürmez, fakat sessiz de kalmaz.
+		frappe.log_error(
+			title="media.pipeline_bridge video poster merdiveni üretilemedi",
+			message=f"{asset_name} / {slot_key}\n\n{frappe.get_traceback()}",
+		)
+	return poster_yolu
 
 
 def _produce_video_preview(
@@ -1806,9 +3878,11 @@ def _produce_video_preview(
 		# (posterle aynı gerekçe). Gerçek ad, ÇIKTININ ölçülen genişliğiyle
 		# açılır — klip ölçeği yönelime duyarlı (`preview_scale_filter`),
 		# spec.width dikey kaynakta yalan söylerdi.
-		dizin = os.path.dirname(_media_disk_path(
-			dedup.rendition_path(asset_name, surum_hash, VIDEO_PREVIEW_PROFILE, 2, spec.container)
-		))
+		dizin = os.path.dirname(
+			_media_disk_path(
+				dedup.rendition_path(asset_name, surum_hash, VIDEO_PREVIEW_PROFILE, 2, spec.container)
+			)
+		)
 		os.makedirs(dizin, exist_ok=True)
 		gecici = os.path.join(dizin, f".preview.part.{spec.container}")
 		r = video_poster.make_preview_clip(teslim_yolu, gecici, spec=spec, facts=teslim_facts)
@@ -1823,13 +3897,12 @@ def _produce_video_preview(
 
 		kunye = video_probe.probe(gecici)
 		genislik = max(int(kunye.width or 0) if kunye.measured else int(spec.width), 2)
-		url = dedup.rendition_path(
-			asset_name, surum_hash, VIDEO_PREVIEW_PROFILE, genislik, spec.container
-		)
+		url = dedup.rendition_path(asset_name, surum_hash, VIDEO_PREVIEW_PROFILE, genislik, spec.container)
 		os.replace(gecici, _media_disk_path(url))
 
 		_insert_video_rendition(
 			asset_name,
+			surum_hash=surum_hash,
 			profil=VIDEO_PREVIEW_PROFILE,
 			genislik=genislik,
 			yukseklik=int(kunye.height or 0) if kunye.measured else 0,
@@ -1847,9 +3920,7 @@ def _produce_video_preview(
 		return None
 
 
-def _produce_video_hls(
-	teslim_yolu: str, teslim_facts: Any, asset_name: str, surum_hash: str
-) -> str | None:
+def _produce_video_hls(teslim_yolu: str, teslim_facts: Any, asset_name: str, surum_hash: str) -> str | None:
 	"""Gerekliyse HLS paketini üretir, BASAMAK KAPISINI uygular ve kaydeder.
 
 	`enforce_rung_benefit_gate` (W7): kaynaktan büyük basamak master
@@ -1887,6 +3958,7 @@ def _produce_video_hls(
 	master_url = f"{dizin_url}/{video_hls.MASTER_PLAYLIST_NAME}"
 	_insert_video_rendition(
 		asset_name,
+		surum_hash=surum_hash,
 		profil=VIDEO_HLS_PROFILE,
 		genislik=int(tepe.width or 2),
 		yukseklik=int(tepe.height or 0),
@@ -1900,6 +3972,7 @@ def _produce_video_hls(
 def _insert_video_rendition(
 	asset_name: str,
 	*,
+	surum_hash: str,
 	profil: str,
 	genislik: int,
 	yukseklik: int,
@@ -1907,14 +3980,30 @@ def _insert_video_rendition(
 	file_url: str,
 	bayt: int,
 	quality: int = 0,
+	engine_version: str | None = None,
 ) -> None:
 	"""Video türev satırı. `benefit_gate_passed=1`: kapıdan düşen türev diske
 	hiç yazılmadığı için satırı da yoktur (görselden fark — orada düşen türev
 	kayda geçer; videoda düşen çıktı `os.replace` öncesi silinir)."""
-	frappe.get_doc(
+	anahtar = rendition_key(asset_name, surum_hash, profil, genislik, bicim)
+	if frappe.db.exists("Media Rendition", {"rendition_key": anahtar}):
+		return
+	yol = _media_disk_path(file_url)
+	if not yol or not os.path.isfile(yol):
+		raise FileNotFoundError(f"video rendition ledger file missing: {file_url}")
+	output_hash = file_sha256(yol)
+	doc = frappe.get_doc(
 		{
 			"doctype": "Media Rendition",
 			"asset": asset_name,
+			**_rendition_ledger_fields(
+				surum_hash,
+				profil,
+				genislik,
+				bicim,
+				output_hash=output_hash,
+				engine_version=engine_version or _video_engine_version(),
+			),
 			"profile": profil,
 			"width": genislik,
 			"height": yukseklik,
@@ -1927,7 +4016,12 @@ def _insert_video_rendition(
 			"ssim": 0.0,
 			"benefit_gate_passed": 1,
 		}
-	).insert(ignore_permissions=True)
+	)
+	# Video output rows are prepared before Media Version so poster enrichment
+	# can be included in that version. The whole transaction rolls back on
+	# version failure; ignore only this transient Link ordering, not validation.
+	doc.flags.ignore_links = True
+	doc.insert(ignore_permissions=True)
 
 
 def _poster_enrichment(poster_yolu: str | None) -> dict[str, Any]:
@@ -1966,6 +4060,12 @@ def _ensure_video_version(
 	politika: dict[str, Any],
 	teslim_facts: Any,
 	poster_yolu: str | None,
+	*,
+	engine_version: str | None = None,
+	classification: str = "",
+	classification_confidence: str = "",
+	format_chain: list[dict[str, Any]] | None = None,
+	crop_intent: Any = None,
 ) -> Any:
 	"""Videonun `Media Version` kaydı (T-042'nin video karşılığı).
 
@@ -1974,6 +4074,7 @@ def _ensure_video_version(
 	okur); `lqip` poster baytlarından dolar.
 	"""
 	from tradehub_core.media.pipeline.core import dedup
+	motor = engine_version or _video_engine_version()
 
 	def _bul(anahtar: str) -> Any:
 		ad = frappe.db.get_value("Media Version", {"version_hash": anahtar}, "name")
@@ -1987,13 +4088,20 @@ def _ensure_video_version(
 				"version_hash": surum_hash,
 				"source_hash": source_hash,
 				"policy_snapshot": frappe.as_json(politika),
-				"crop_intent_snapshot": None,
-				"engine_version": _video_engine_version(),
+				"crop_intent_snapshot": (
+					frappe.as_json(dedup.normalize_crop_intent(crop_intent))
+					if crop_intent is not None
+					else None
+				),
+				"engine_version": motor,
 				"created_at": now_datetime(),
 				"is_active": 0,
 				"width": int(teslim_facts.width or 0),
 				"height": int(teslim_facts.height or 0),
 				"duration_s": round(float(teslim_facts.duration_s or 0.0), 3),
+				"classification": classification or None,
+				"classification_confidence": classification_confidence or None,
+				"format_chain": frappe.as_json(format_chain) if format_chain is not None else None,
 				**_poster_enrichment(poster_yolu),
 			}
 		)
@@ -2001,7 +4109,7 @@ def _ensure_video_version(
 		return doc
 
 	def _catisma(exc: BaseException) -> bool:
-		return isinstance(exc, (frappe.DuplicateEntryError, frappe.UniqueValidationError))
+		return isinstance(exc, frappe.DuplicateEntryError | frappe.UniqueValidationError)
 
 	kayit, _yeni = dedup.idempotent_create(surum_hash, _olustur, _bul, _catisma)
 	return kayit
