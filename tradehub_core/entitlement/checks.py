@@ -22,7 +22,7 @@ from tradehub_core.entitlement.core import (
 	get_active_subscription,
 	get_quota_limits,
 )
-from tradehub_core.media import files, upload_policy
+from tradehub_core.media import files, quota_model, upload_policy
 from tradehub_core.media.presets import EXCLUDED_DOCTYPES
 from tradehub_core.utils.tenant import get_current_seller_profile
 
@@ -259,17 +259,16 @@ def check_media_storage_quota(doc, method=None) -> None:
 		return
 
 	limit_mb = get_quota_limits(store).get("quota.max_storage_mb")
-	if limit_mb is None:
+	quota_mode, limit_bytes = quota_model.resolve_limit_mb(limit_mb)
+	if quota_mode == quota_model.MODE_UNCONFIGURED:
 		return  # plan'da tanımsız — seed patch atlandıysa bile yükleme reddedilmez
-	limit_mb = int(limit_mb)
-	if limit_mb == -1:
+	if quota_mode == quota_model.MODE_UNLIMITED:
 		return  # sınırsız
 
 	incoming_bytes = int(doc.get("file_size") or len(doc.get("content") or b"") or 0)
 	current_bytes = files.storage_usage(store)["bytes"]
-	limit_bytes = limit_mb * 1024 * 1024
 
-	if current_bytes + incoming_bytes > limit_bytes:
+	if quota_model.would_exceed(current_bytes, incoming_bytes, limit_bytes):
 		# Ret, medya yükleme sözleşmesinden (TUR-123) geçiyor: mesajın sonuna
 		# `[upload_quota_exceeded]` markörü konur ve istemci hata METNİNE değil
 		# KODA bakarak karar verir. Düz `frappe.throw` bu kapıyı sözleşmenin
@@ -277,5 +276,7 @@ def check_media_storage_quota(doc, method=None) -> None:
 		# sunucu metni gidiyordu.
 		upload_policy.reddet(
 			upload_policy.QUOTA_EXCEEDED,
-			_("Depolama kotanız doldu ({0} MB). Yükleme yapılamadı.").format(limit_mb),
+			_("Depolama kotanız doldu ({0} MB). Yükleme yapılamadı.").format(
+				int(limit_mb)
+			),
 		)

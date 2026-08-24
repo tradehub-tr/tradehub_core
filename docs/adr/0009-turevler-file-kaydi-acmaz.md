@@ -1,6 +1,6 @@
 # ADR-0009 — Türevler için `File` kaydı açılmaz
 
-**Durum:** Kabul edildi · yürürlükte · **kota kararıyla (K7) çelişiyor**
+**Durum:** Kabul edildi · yürürlükte · **K7 bağlantısı ADR-0022 ile çözüldü**
 **Tarih:** karar `docs/sad/SAD-v1.0.md` (S-04) · doğrulama 2026-08-19
 **İlgili:** ADR-0001, ADR-0002, ADR-0014
 
@@ -24,7 +24,7 @@ Türev merdiveni bir kaynaktan onlarca dosya üretiyor (T-124 ölçümü: 7 gör
 | Seçenek | Sonuç |
 |---|---|
 | A — Her türev bir `File` kaydı açsın | Envanter, izin ve GC mekanizmaları türevleri "bedava" görür. Bedeli: kota şişer, `after_insert` özyinelenir, `File` tablosu ~10 kat büyür. |
-| **B (SEÇİLEN)** — Türev diske yazılır, `File` kaydı açılmaz; muhasebesi `Media Rendition` satırında tutulur | Kota ve özyineleme çözülür. Bedeli: türevler `File` tabanlı hiçbir mekanizmanın (kota, envanter, GC, izin) görüş alanında değil. |
+| **B (SEÇİLEN)** — Türev diske yazılır, `File` kaydı açılmaz; muhasebesi `Media Rendition` satırında tutulur | Özyineleme ve File tablosu büyümesi çözülür. Kota ADR-0022 uyarınca ledger baytını ayrı sayaçtan toplar. |
 | C — Ayrı bir hafif `File` alt tipi | Frappe'de böyle bir kavram yok; `File`'a alan eklemek bütün mekanizmaları etkiler. |
 
 ## Karar
@@ -54,18 +54,20 @@ Türev dosyası diske ADR-0001'in içerik-adresli adlandırmasıyla yazılır; k
 
 ### Olumlu
 
-- Kota şişmedi, kanca özyinelenmedi.
+- `File` tablosu şişmedi, kanca özyinelenmedi; kota gerçek türev baytını
+  ledger'dan ayrıca sayıyor (ADR-0022).
 - T-124 geri alma testinde 84 türev dosyası silindiğinde `File` sayısı **5014
   (değişmedi)** — iki muhasebenin ayrık olduğu ölçüldü (`DALGA-A-DEVIR.md`).
 
-### Olumsuz — ve yürürlükteki başka bir kararla çelişiyor
+### K7 kota bağlantısı — ADR-0022 ile çözüldü
 
-**1. Kota kararı (K7) bu kararla bugün uygulanamaz.**
+**1. Kota kararı (K7) artık uygulanıyor.**
 `docs/standards/company-cover-video.md` §10.9'da platform yöneticisi **K7'yi
 "rendition'lar kotadan SAYILSIN"** diye karara bağladı — belgedeki önerinin
-**tersi**. Ama kota kapısı `File` üzerinden bayt sayıyor
-(`entitlement/checks.py:272` ← `media/files.py:267 storage_usage`) ve türevlerin
-`File` kaydı yok. Karar yürürlüğe girdiğinde bu bağlantı ayrıca kurulmalı.
+**tersi**. ADR-0022 seçenek D bu bağı kurdu: `storage_usage(store)` public
+orijinal baytlarına `Media Rendition.bytes → Media Asset.owner_seller`
+toplamını ekliyor. Türev hâlâ `File` açmıyor; kota iki sayaçtan tek bayt toplamı
+üretiyor.
 
 K7'nin ölçülmüş çarpanı (`docs/reports/18-faz7-kapanis.md`, 3 gerçek kapak videosu):
 
@@ -75,9 +77,9 @@ K7'nin ölçülmüş çarpanı (`docs/reports/18-faz7-kapanis.md`, 3 gerçek kap
 | **Bayt** çarpanı | ~6× | **2,85× · 3,13× · 4,56×** → operatif ~**3** |
 | "tipik 30 sn ≈ 19 MB" | 19 MB | **4,95–8,80 MB** |
 
-Ayrıca **6 nesne modeli HLS'i hiç saymıyor**: HLS gereken tek dosya **409 nesne /
-+27,3 MB** üretti. `docs/standards/kota.md` bu karara göre güncellenmeli — bu iş
-**yapılmadı**.
+HLS fiziksel segment adediyle tahmin edilmez; `Media Rendition.bytes` HLS
+paketinin ilan edilen toplamını taşır. Kota nesne sayısını değil bu gerçek
+ledger baytını kullanır. Güncel sözleşme `tenant-media-quota.md` içindedir.
 
 **2. Türevler `File` tabanlı GC ve envanterin dışında.** Saklama/GC işleri
 (`media/pipeline/storage/retention.py`) ve `usage.py` referans zinciri `File`

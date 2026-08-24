@@ -684,22 +684,41 @@ def _toplu(file_urls, fn, sayac_adi: str) -> dict:
 
 @frappe.whitelist()
 def get_my_summary() -> dict:
-	"""Üst şerit — dosya adedi, gerçek depolama kullanımı, bırakılan adedi.
+	"""Tenant medya/kota özeti — kullanım, limit, uyarı ve gözlem metrikleri.
 
 	`quota_bytes` yapılandırılmamışsa `null` döner ve ekran sınır göstermez.
 	Uydurma bir sınır göstermek, satıcıya var olmayan bir kısıt olduğunu
-	düşündürürdü (gerçek kota modeli TUR-139).
+	düşündürürdü (gerçek kota modeli TUR-139). Geriye dönük ``bytes`` ve
+	``quota_bytes`` korunur; orijinal/türev dökümü, kalan, yüzde, durum ve aylık
+	iş hacmi aynı tenant-süzgeçli yanıtta eklenir.
 	"""
 	store = _store()
 	aktif = inventory.list_files(page=1, page_size=1, store=store)
 	cop = inventory.list_files(page=1, page_size=1, state="trashed", store=store)
-	depolama = files.storage_usage(store)
+	depolama = files.storage_usage(store, include_activity=True)
 	return {
 		"store": store,
 		"active": aktif["total"],
 		"trashed": cop["total"],
 		"bytes": depolama["bytes"],
+		"original_bytes": depolama["original_bytes"],
+		"rendition_bytes": depolama["rendition_bytes"],
+		"original_files": depolama["files"],
+		"renditions": depolama["renditions"],
 		"quota_bytes": depolama["quota_bytes"],
+		"quota_mode": depolama["quota_mode"],
+		"quota_state": depolama["quota_state"],
+		"remaining_bytes": depolama["remaining_bytes"],
+		"usage_percent": depolama["usage_percent"],
+		"warning_threshold_percent": depolama["warning_threshold_percent"],
+		"is_warning": depolama["is_warning"],
+		"is_exhausted": depolama["is_exhausted"],
+		"is_exceeded": depolama["is_exceeded"],
+		"overage_bytes": depolama["overage_bytes"],
+		"scope": depolama["scope"],
+		"processing_period_start": depolama["processing_period_start"],
+		"processing_jobs_month": depolama["processing_jobs_month"],
+		"processing_duration_ms_month": depolama["processing_duration_ms_month"],
 		"tags": metadata.all_tags(store),
 	}
 
@@ -858,6 +877,12 @@ def _kaydet(
 				title="upload_media to_webp başarısız", message=f"{karar.file_name}: {exc}"
 			)
 
+	# MOGEM-573 — asıl kayıt/diske yazma ÖNCESİ tenant kota kapısı. Dönüşebilen
+	# görselde kaynak değil gerçekten saklanacak WebP baytı sayılır. Genel
+	# ``File.before_insert`` hook'u medya dışındaki yollar ve eşzamanlı değişim
+	# için ikinci savunma hattı olarak yerinde kalır.
+	files.enforce_storage_quota(store, len(icerik))
+
 	doc = frappe.get_doc(
 		{"doctype": "File", "file_name": karar.file_name, "is_private": 0, "content": icerik}
 	)
@@ -1006,14 +1031,8 @@ def upload_begin(
 			}
 
 	boyut = int(total_bytes or 0)
-	kota = files.storage_usage(store)
-	limit = kota.get("quota_bytes")
-	kalan = None if limit is None else max(0, int(limit) - int(kota.get("bytes") or 0))
-	if kalan is not None and boyut > kalan:
-		upload_policy.reddet(
-			upload_policy.QUOTA_EXCEEDED,
-			frappe._("Depolama kotanızda bu yükleme için yeterli alan yok."),
-		)
+	kota = files.enforce_storage_quota(store, boyut)
+	kalan = kota.get("remaining_bytes")
 
 	# İstemci hash gönderdiyse K1: aynı mağazada içerik zaten varsa tek bayt
 	# kabul edilmez. Finalize aynı kontrolü GERÇEK baytların hashiyle yineler.

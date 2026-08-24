@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://istoc.local/tradehub_core/media/pipeline/policy/quota.schema.json",
   "title": "Medya Kota ve Rate Limiting Politikası",
-  "description": "İstoç medya motoru kota + rate limiting şeması. Görev T-027. Belge: docs/standards/kota.md. 'x-current-implementation' alanları o kuralı BUGÜN kimin uyguladığını dosya:satır olarak taşır; 'YOK' yazan yerler uygulanmamış demektir. 'x-defect' alanları mevcut uygulamada doğrulanmış kusurları işaretler.",
+  "description": "İstoç medya motoru kota + rate limiting şeması. Görev T-027 / MOGEM-573. Güncel runtime sözleşmesi: docs/standards/tenant-media-quota.md; tarihsel denetim: docs/standards/kota.md. 'x-current-implementation' alanları o kuralı kimin uyguladığını taşır; 'YOK' yazan yerler uygulanmamış demektir.",
   "type": "object",
   "additionalProperties": false,
   "required": ["policy_version", "storage", "uploads", "jobs", "video", "file", "enforcement", "rate_limit"],
@@ -22,7 +22,7 @@
     "storage": {
       "type": "object",
       "additionalProperties": false,
-      "description": "Toplam depolama kotası. Bu, BUGÜN UYGULANAN tek medya kotası.",
+      "description": "Toplam depolama kotası. Uygulanan sert kota public orijinal baytları + Media Rendition baytlarının tenant bazlı toplamıdır.",
       "required": ["total_gb"],
       "properties": {
         "total_gb": {
@@ -63,10 +63,10 @@
             },
             "measurement": {
               "type": "string",
-              "enum": ["public_dedup_by_url", "all_files_sum", "disk_du"],
-              "default": "public_dedup_by_url",
-              "description": "Kullanımın nasıl ölçüldüğü. public_dedup_by_url: yalnız public dosyalar, file_url bazında tekilleştirilmiş.",
-              "x-current-implementation": "media/files.py:237-245 ham SQL. Filtreler: is_folder=0, is_private=0, left(file_url,7)='/files/'. Tekilleştirme: group by file_url + max(file_size). files.py:228-230 tekilleştirmenin ölçüldüğünü söylüyor (yönetim panelinde 1,06 GB yerine 1,49 GB) — bu iki sayı O YORUMDAN ALINTI, bu görevde ölçülmedi. Sahiplik: ownership.users_of(store) (files.py:232)."
+              "enum": ["public_dedup_by_url", "public_dedup_by_url_plus_renditions", "all_files_sum", "disk_du"],
+              "default": "public_dedup_by_url_plus_renditions",
+              "description": "Kullanımın nasıl ölçüldüğü. Public orijinaller file_url bazında tekilleştirilir; türevler Media Rendition.bytes üzerinden Media Asset.owner_seller ile tenant'a bağlanır.",
+              "x-current-implementation": "media/files.py:storage_usage + rendition_stats. Orijinaller is_folder=0, is_private=0, /files/ ve owner in users_of(store) koşullarıyla file_url bazında tekilleştirilir. Türevler Media Rendition → Media Asset.owner_seller join'iyle SUM(bytes) ve COUNT olarak ölçülür."
             },
             "reject_code": {
               "type": "string",
@@ -380,6 +380,12 @@
           "description": "false = private yükleme SINIRSIZ. Bir satıcı is_private=1 ile istediği kadar dosya yükleyebilir; ne sayaçta görünür ne reddedilir.",
           "x-defect": "Bu tutarlı bir eksiklik, çelişki değil: storage_usage private dosyaları saymıyor (files.py:240), o yüzden kota kapısı da reddetmiyor (checks.py:254-255). Gerekçe checks.py:226-228'de: 'ÖLÇÜLMEYEN bir metrikle private yüklemeyi reddetmek tutarsız olurdu.' Ama kapsamı niyetinden geniş: muafiyet 'KYB belgesi yükleyen satıcı reddedilmesin' için konulmuş olsa da private yol genel upload_file yolundan da erişilebilir. Hacim ölçümü: kota.md §10.3."
         },
+        "count_renditions": {
+          "type": "boolean",
+          "default": true,
+          "description": "Türevler File kaydı açmaz ama gerçek depolama tüketir; Media Rendition.bytes üzerinden kotaya katılır.",
+          "x-current-implementation": "media/files.py:rendition_stats — Media Rendition.asset → Media Asset.owner_seller tenant join'i; bytes ve mantıksal rendition sayısı tek agregatta."
+        },
         "count_trashed": {
           "type": "boolean",
           "default": false,
@@ -689,15 +695,23 @@
         "expose_usage_to_seller": {
           "type": "boolean",
           "default": true,
-          "x-current-implementation": "media/files.py:225 storage_usage() 'bytes', 'files', 'quota_bytes' dönüyor; quota_bytes _quota() üzerinden (files.py:254). api/seller_media.py:203 get_my_summary ucu panele veriyor. NOT: files._quota() sınırsız (-1) veya tanımsız durumda None dönüyor (files.py:260-262), yani panelde sınır GÖSTERİLMİYOR — checks.py ile aynı semantik."
+          "x-current-implementation": "media/files.py:storage_usage; api/seller_media.py:get_my_summary. Yanıt toplam/orijinal/türev baytları, dosya ve rendition adetleri, kalan, yüzde, durum, scope ve takvim ayı iş hacmini taşır."
         },
         "warn_threshold_percent": {
           "type": "integer",
           "minimum": 1,
           "maximum": 99,
           "default": 80,
-          "description": "Kotanın bu yüzdesine ulaşınca satıcı uyarılmalı. Bugün uyarı YOK: satıcı ancak yükleme reddedilince öğreniyor (checks.py:278-281).",
-          "x-current-implementation": "YOK"
+          "description": "Kotanın bu yüzdesine ulaşınca satıcı uyarılır; yüzde 100'de yeni pozitif yükleme engellenir.",
+          "x-current-implementation": "media/quota_model.py:WARNING_THRESHOLD_PERCENT + summarize; seller_media.get_my_summary; admin-panel MediaFilterRail.vue."
+        },
+        "reported_dimensions": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string" },
+          "default": ["storage_bytes", "original_file_count", "rendition_count", "monthly_processing_jobs", "monthly_processing_duration_ms"],
+          "description": "Yalnız storage_bytes sert kotadır. Diğer boyutlar ticari limit uydurmadan gözlem/raporlama için tutulur.",
+          "x-current-implementation": "media/files.py:storage_usage(include_activity=True) ve monthly_processing_usage."
         },
         "audit_quota_rejections": {
           "type": "boolean",

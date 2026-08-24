@@ -1,5 +1,10 @@
 # Medya Kota ve Rate Limiting Standardı
 
+> **Güncel runtime sözleşmesi (MOGEM-573, 2026-08-24):**
+> [`tenant-media-quota.md`](./tenant-media-quota.md). Aşağıdaki T-027 metni
+> tarihsel denetim ve rate-limit araştırmasıdır; “kod değiştirilmedi”,
+> “rendition sayılmıyor”, “uyarı/rapor yok” ifadeleri artık güncel değildir.
+
 > Görev: **T-027** · Faz: Medya Motoru Faz 0-2 · Branch: `medya-motoru-faz0-faz2`
 > Şema: [`tradehub_core/media/pipeline/policy/quota.schema.json`](../../tradehub_core/media/pipeline/policy/quota.schema.json)
 > Kardeş belge: [`retention.md`](./retention.md) (T-026)

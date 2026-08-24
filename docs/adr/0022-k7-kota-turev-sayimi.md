@@ -1,7 +1,7 @@
-# ADR-0022 (TASLAK) — K7: türevler kotadan sayılsın kararı, ADR-0009 ile çelişiyor
+# ADR-0022 — K7: türevler File açmadan tenant kotasına sayılır
 
-**Durum:** ÖNERİLDİ · **Karar: BEKLİYOR** (platform yöneticisi + standart sahibi — `kota.md` güncellemesi T-022'ye bağlı)
-**Tarih:** 2026-08-20 · **Yazan:** W7 doküman eşitlemesi (rapor 88)
+**Durum:** KABUL · **Seçenek D** · **Yürürlük:** 2026-08-24 (MOGEM-573)
+**Tarih:** 2026-08-20 · **Güncelleme:** 2026-08-24
 
 ## Bağlam
 
@@ -30,26 +30,37 @@ büyür (rapor 81'in tek koşumu 411 dosya bıraktı).
 
 ## Karar
 
-**BEKLİYOR.** Hangi seçenek seçilirse seçilsin: (1) ADR-0009 ya korunur
-(A'da sayaç `File`'sız kurulur) ya durumu güncellenir; (2) `kota.md` HLS'in
-nesne sayısını da kapsayacak şekilde güncellenir (rapor 56 kalan-iş listesi
-#14); (3) karar `company-cover-video.md` §10.9 karar bloğuna işlenir.
+**D kabul edildi: iki sayaç, tek bayt toplamı.** Public orijinaller `File`
+kayıtlarından `file_url` bazında tekilleştirilerek; türevler ise
+`Media Rendition.bytes → Media Asset.owner_seller` zincirinden tenant bazında
+ölçülür. Sert depolama kapısı bu ikisinin toplamına bakar. Türev için `File`
+kaydı açılmaz; ADR-0009 korunur.
+
+Dosya adedi ve rendition adedi raporlanır ama kota hesabının birimi değildir.
+HLS tek mantıksal rendition satırında segment toplam baytını taşıdığı için
+nesne sayısına göre tahmini çarpan kullanılmaz.
 
 ## Sonuçlar
 
-Karar gecikirse: kota bugün türevleri **saymıyor** (K7'nin tersi fiilen
-yürürlükte) ve video hattı üretime bağlandığı gün fark satıcı başına GB
-mertebesine çıkar — geri dönüşü (tahakkuk etmiş kota) o zaman çok daha zor.
+- `media.files.storage_usage(store)["bytes"] = original_bytes + rendition_bytes`.
+- Plan limiti `quota.max_storage_mb`; free 500 MB, starter 2.000 MB,
+  pro/premium 5.000 MB, enterprise sınırsız varsayılanıyla yönetilir.
+- Satıcı özeti iki kalemi ayrı gösterir; yüzde 80 uyarı, yüzde 100 yeni yükleme
+  engelidir.
+- Bayrak kapalıyken veya türev üretilmemişken rendition toplamı sıfırdır;
+  önceki yalnız-orijinal davranış kendiliğinden korunur.
 
 ## Kanıt
 
+`tradehub_core/media/files.py` (`storage_usage`, `rendition_stats`) ·
+`tradehub_core/tests/test_media_quota_renditions.py` ·
+`docs/reports/105-d2-kota-turev.md` ·
 `docs/reports/56-d3-faz6-10-kapanis.md` §7.4 · `docs/adr/0009-turevler-file-kaydi-acmaz.md` ·
 `docs/adr/README.md` "Kararlar arası gerilimler" · `docs/closure/faz2-kapanis.md` §3.9 ·
 `docs/reports/57-durum-anlik-goruntu.md` karar #2 · `docs/reports/81-w6-video-kosum.md` §9 (411 dosya).
 
 ## Geri dönüş yolu
 
-**Karar bekliyor.** Türevler kotaya katılırsa ledger sayımı ile fiziksel bayt
-farkı oluştuğunda tahakkuk durdurulur ve eski “yalnız orijinal” hesabına
-dönülür. Katılmazsa depolama maliyeti satıcı başına bütçeyi aşınca karar gerçek
-411+ dosyalık ölçümle yeniden açılır.
+Ledger sayımı ile fiziksel depolama arasında kalıcı fark ölçülürse
+`rendition_bytes` toplamı kota kapısından çıkarılarak eski yalnız-orijinal
+hesabına dönülebilir; bunun için `File` üretmek veya veri migration'ı gerekmez.

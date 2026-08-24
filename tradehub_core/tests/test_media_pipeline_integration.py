@@ -213,23 +213,30 @@ class TestGorselZinciri(_MediaPipelineIntegrationBase):
 
 
 class TestKotaReddi(_MediaPipelineIntegrationBase):
-	"""Senaryo 2 — kota reddi: planda quota.max_storage_mb=0 → before_insert
-	kota kapısı devrede, upload frappe.ValidationError ile reddedilir."""
+	"""Senaryo 2 — kota reddi: yazma ön-kapısı + before_insert güvenlik ağı."""
 
 	def test_dusuk_kotada_upload_reddedilir(self):
 		store, email = self._make_store(quota_mb=0, tag="quota-deny")
 		self._as_seller(email)
 
-		jpeg = _jpeg_bytes(color=(10, 10, 200))
-		# Reddedilen yüklemenin diskte bıraktığı olası artığı (write_file hook
-		# quota kontrolünden ÖNCE çalışıyor — bkz. test_media_quota.py docstring'i)
-		# temizlemek için beklenen hash'li adı önceden hesaplıyoruz.
+		# Her koşuda farklı içerik üret: içerik-adresli dosya adı sabit olursa
+		# önceki yarıda kalmış bir testin disk artığı bu koşuyu yalancı kırmızıya
+		# çevirebilir.
+		rgb = os.urandom(3)
+		jpeg = _jpeg_bytes(color=(rgb[0], rgb[1], rgb[2]))
+		# MOGEM-573 öncesinde kota yalnız File.before_insert'teydi; Frappe'nin
+		# kendi File akışı baytı daha önce yazabildiği için ret disk artığı
+		# bırakabiliyordu. Artık seller_media kapısı File oluşturulmadan önce
+		# çalışır. Beklenen iki olası yolu ölçüp ikisinin de oluşmadığını kanıtla.
 		beklenen_webp = engine.to_webp(jpeg)
 		beklenen_ad = naming._hashed_name("x.webp", beklenen_webp)
-		self.addCleanup(
-			lambda: os.path.exists(os.path.join(get_files_path(is_private=0), beklenen_ad))
-			and os.remove(os.path.join(get_files_path(is_private=0), beklenen_ad))
+		olasi_yollar = (
+			os.path.join(get_files_path(is_private=0), beklenen_ad),
+			os.path.join(get_files_path(is_private=0), beklenen_ad[:2], beklenen_ad),
 		)
+		for yol in olasi_yollar:
+			self.assertFalse(os.path.exists(yol), f"test başlamadan dosya vardı: {yol}")
+			self.addCleanup(lambda p=yol: os.path.exists(p) and os.remove(p))
 
 		with self.assertRaises(frappe.ValidationError) as ctx:
 			seller_media.upload_media(file_name="reddedilecek.jpg", content=_b64(jpeg))
@@ -237,6 +244,7 @@ class TestKotaReddi(_MediaPipelineIntegrationBase):
 
 		# Reddedilen upload DB'ye File kaydı BIRAKMADI.
 		self.assertFalse(frappe.db.exists("File", {"file_url": ["like", f"%{beklenen_ad}"]}))
+		self.assertFalse(any(os.path.exists(yol) for yol in olasi_yollar))
 
 
 class TestKotaMuafiyeti(_MediaPipelineIntegrationBase):
@@ -306,7 +314,7 @@ class TestVideoDali(_MediaPipelineIntegrationBase):
 		]
 		self.assertEqual(len(transcode_cagrilari), 1)
 		kwargs = transcode_cagrilari[0].kwargs
-		self.assertEqual(kwargs.get("queue"), "long")
+		self.assertEqual(kwargs.get("queue"), transcode.VIDEO_RQ_QUEUE)
 		self.assertEqual(kwargs.get("file_url"), result["file_url"])
 		self.assertTrue(kwargs.get("enqueue_after_commit"))
 

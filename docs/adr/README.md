@@ -44,7 +44,7 @@ verilir.
 | [0006](0006-adaptif-kalite-dongusu.md) | Hedef SSIM'e ikili arama, encode bütçesi 4, aralık (70,95) | Kabul · **maliyeti yeniden açılmalı** | `quality/ssim.py:62,78` · `11-faz1-arge.md` §T-013 · `17-t028-backfill-plani.md` §4.3 |
 | [0007](0007-fayda-kapisi-inv-05.md) | Fayda kapısı (INV-05): kaynaktan büyük türev yazılmaz | Kabul · **video hattını kilitliyor** | `image/render.py:42,885-907` · `video_decision.json:30` |
 | [0008](0008-pillow-pyvips-yerine.md) | Pillow'da kal, pyvips reddedildi (+ `draft()`) | Kabul · **`draft()` uygulanmadı** | `docs/reports/05-kutuphane-benchmark.md` (360 koşum) |
-| [0009](0009-turevler-file-kaydi-acmaz.md) | Türevler için `File` kaydı açılmaz | Kabul · **K7 kota kararıyla çelişiyor** | `media/pipeline_bridge.py:16-19` · `21-t030-mimari-inceleme.md` M-06 |
+| [0009](0009-turevler-file-kaydi-acmaz.md) | Türevler için `File` kaydı açılmaz | Kabul · K7 bağlantısı ADR-0022 ile çözüldü | `media/pipeline_bridge.py` · `media/files.py` |
 | [0010](0010-av1-simdi-eklenmiyor.md) | AV1 şimdi eklenmiyor | Kabul · **sayısal tetikle yeniden açılır** | `docs/reports/22-t072-vmaf-av1.md` §5.4–5.6 |
 | [0011](0011-h264-birincil-vp9-degil.md) | Video birincili H.264/MP4, VP9 değil | Kabul · **üretim hattı henüz uymuyor** | `policy/video_decision.json:250-256` |
 | [0012](0012-logo-kayipsiz-webp-merdiveni.md) | Logo: kayıpsız WebP, 40 KiB tavanı, merdiven 4 → 5 basamak | Kabul · **`max_bytes` yaptırımsız** | `docs/standards/logo.md` §13 K3/K4 · `image/render.py:934` |
@@ -57,7 +57,7 @@ verilir.
 | [0019](0019-hls-basamaginda-fayda-kapisi.md) | HLS basamaklarına fayda/bütçe kapısı | **Kabul (2026-08-20)** · uygulama W7-1'de | `81-w6-video-kosum.md` §4 · `56-d3-faz6-10-kapanis.md` §4.5 |
 | [0020](0020-tus-yerine-mevcut-chunked.md) | Devam edebilir yükleme: tus mu, mevcut `chunked.py` mi | **ÖNERİLDİ · karar BEKLİYOR** | `44-t081-yukleyici.md` §3 · `61e-fe-denetim-faz8-9.md` |
 | [0021](0021-vmaf-esigi.md) | VMAF eşiği (93 ↔ INV-05 çelişkisi; gerçek ölçüm 89,34) | **ÖNERİLDİ · karar BEKLİYOR** | `56-d3-faz6-10-kapanis.md` §4.2–4.4 · `81-w6-video-kosum.md` |
-| [0022](0022-k7-kota-turev-sayimi.md) | K7 kota: türevlerin sayımı ↔ ADR-0009 çelişkisi | **ÖNERİLDİ · karar BEKLİYOR** | `56-d3-faz6-10-kapanis.md` §7.4 · ADR-0009 |
+| [0022](0022-k7-kota-turev-sayimi.md) | K7 kota: türevler File açmadan tenant kotasına sayılır | Kabul · seçenek D, MOGEM-573 | `media/files.py` · `105-d2-kota-turev.md` · ADR-0009 |
 | [0023](0023-kavram-basina-tek-sahip.md) | Kavram başına tek sahip: çekirdek ↔ motor; sözleşme md aynı PR'da; sözleşmeler test olarak; bayrak öncesi 3 ön koşul | **ÖNERİLDİ · imza bekliyor (Metin + Ahmet)** | 21 Ağu ortak çatı denetimi · `tests/test_media_contracts.py` · `scripts/check_media_contract_docs.py` |
 | [0024](0024-istemci-medya-kutuphane-seti.md) | Native probe + browser-image-compression + MediaBunny; bütçe aşımında server fallback | Kabul · gerçek cihaz kalibrasyonu açık | `15-client-butce.md` · 7/7 + 10/10 test |
 | [0025](0025-cdn-icerik-adresli-teslim.md) | Hash URL immutable; purge yalnız aynı-URL overwrite'ta | Kabul | `18-depolama-arge.md` · `27-t052-cdn-teslim.md` |
@@ -65,7 +65,7 @@ verilir.
 | [0027](0027-dpi-piksel-politikasi.md) | DPI metadata; pixel cap bağımsız; upscale yok | Kabul | `12-dpi-prototip.md` · 5/5 format |
 | [0028](0028-medya-islem-izolasyonu.md) | İş başına child process + RLIMIT_AS + timeout | Kabul | `17-guvenlik-arge.md` · 10/10 malicious, 36/36 izolasyon |
 
-> **ÖNERİLDİ durumundaki ADR'ler (0020–0023) bu dizinin "verilmiş kararlar"
+> **ÖNERİLDİ durumundaki ADR'ler (0020, 0021 ve 0023) bu dizinin "verilmiş kararlar"
 > kuralının bilinçli istisnasıdır** (2026-08-20, rapor 88): üçü de iki kez
 > ölçülmüş, karar bekleyen açık kalemlerdir. Karar TASLAK gövdede
 > **uydurulmamıştır** — seçenekler ölçülmüş bedelleriyle taşındı, "Karar"
@@ -88,7 +88,7 @@ verilir.
 
 28/28 ADR'de ayrı `Geri dönüş yolu` bölümü vardır. Teknik ADR setinin açık
 kalemleri belge eksikliği değildir: T-014 için 50 insan etiketi, T-015 için
-fiziksel cihaz laboratuvarı ve 0020–0023 için insan kararı/imzasıdır.
+fiziksel cihaz laboratuvarı ve 0020, 0021 ile 0023 için insan kararı/imzasıdır.
 
 ---
 
@@ -100,9 +100,9 @@ birbirine bağlı:
 - **0001 ↔ güvenlik.** İçerik-adresleme dedup'u bedava getirdi; aynı mekanizma
   çok kiracılı bir okuma sızıntısı doğurdu (33 çok sahipli özel URL, 29'u
   hassas). Karar geri alınmıyor, düzeltmesi ayrı görev.
-- **0009 ↔ K7 kota kararı.** Türevler `File` kaydı açmıyor; ama yönetici
-  "rendition'lar kotadan sayılsın" dedi ve kota kapısı `File` üzerinden sayıyor.
-  Bağlantı kurulmadı. **Çelişki artık ADR-0022'de karar bekliyor** (2026-08-20).
+- **0009 ↔ K7 kota kararı (çözüldü).** Türevler `File` kaydı açmıyor;
+  `Media Rendition.bytes → Media Asset.owner_seller` ikinci sayacıyla tenant
+  kotasına katılıyor. **ADR-0022 seçenek D kabul edildi** (2026-08-24).
 - **0007 ↔ 0010/0011.** Fayda kapısı doğru çalışıyor ve bu yüzden video hattı
   bugün **hiç çıktı vermiyor**. Kapı gevşetilmedi; kök neden (hız denetimi)
   düzeltilmedi. **Güncelleme (2026-08-20, rapor 81):** kapı ilk kez gerçek

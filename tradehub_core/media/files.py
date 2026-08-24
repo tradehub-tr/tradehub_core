@@ -25,7 +25,7 @@ import shutil
 
 import frappe
 
-from tradehub_core.media import audit, ownership, trash
+from tradehub_core.media import audit, ownership, quota_model, trash
 from tradehub_core.utils.tenant import get_current_seller_profile
 
 # `File.file_name` sütununun sınırı. Ad kırpması bu değere UZANTI DAHİL
@@ -350,7 +350,7 @@ def record_original_hash(doc, store: str, original_sha256: str, slot: str = "") 
 	return varlik.name
 
 
-def storage_usage(store: str) -> dict:
+def storage_usage(store: str, *, include_activity: bool = False) -> dict:
 	"""Mağazanın gerçek depolama kullanımı — orijinaller + türevler.
 
 	Sayım tekilleştirilmiş: aynı dosyaya birden çok kayıt düşebiliyor, satır
@@ -368,7 +368,11 @@ def storage_usage(store: str) -> dict:
 
 	İki kalem ayrı alanlarda da dönülür ki ekran/rapor dökümü gösterebilsin;
 	`bytes` geriye dönük olarak toplamı taşımayı sürdürür (enforcement ve FE
-	göstergesi aynı alanı okuyor).
+	göstergesi aynı alanı okuyor). Kota durumu da burada üretilir: plan limiti
+	mağaza argümanından çözülür; yüzde 80 uyarı, yüzde 100 tükenme sınırıdır.
+
+	``include_activity`` yalnız satıcı özet/rapor ucunda açılır. Her File
+	yüklemesindeki kota kapısı aylık iş hacmi sorgusunu gereksiz yere çalıştırmaz.
 	"""
 	kullanicilar = ownership.users_of(store)
 	orijinal_bytes = 0
@@ -390,15 +394,48 @@ def storage_usage(store: str) -> dict:
 	# Türev baytları store'a (Media Asset.owner_seller) bağlı; File.owner'a
 	# DEĞİL. Bu yüzden `users_of` boş olsa bile (mağazanın hiç kullanıcısı
 	# çözülemese) türevleri ayrıca say — orijinaller sıfır, türevler var olabilir.
-	turev_bytes = rendition_usage(store)
+	turev = rendition_stats(store)
+	toplam = orijinal_bytes + turev["bytes"]
+	kota_modu, kota_bayt = _quota_config(store)
 
-	return {
-		"bytes": orijinal_bytes + turev_bytes,
+	sonuc = {
+		"bytes": toplam,
 		"original_bytes": orijinal_bytes,
-		"rendition_bytes": turev_bytes,
+		"rendition_bytes": turev["bytes"],
 		"files": dosya_sayisi,
-		"quota_bytes": _quota(),
+		"renditions": turev["count"],
+		"quota_bytes": kota_bayt,
+		**quota_model.summarize(toplam, kota_bayt, kota_modu),
+		"scope": {
+			"public_originals": True,
+			"private_originals": False,
+			"renditions": True,
+		},
 	}
+	if include_activity:
+		sonuc.update(monthly_processing_usage(store))
+	return sonuc
+
+
+def rendition_stats(store: str) -> dict[str, int]:
+	"""Tenant'ın türev bayt ve mantıksal rendition adedi — tek agregat."""
+	if not store:
+		return {"bytes": 0, "count": 0}
+
+	from frappe.query_builder import DocType
+	from frappe.query_builder.functions import Coalesce, Count, Sum
+
+	Rendition = DocType("Media Rendition")
+	Asset = DocType("Media Asset")
+	q = (
+		frappe.qb.from_(Rendition)
+		.inner_join(Asset)
+		.on(Rendition.asset == Asset.name)
+		.where(Asset.owner_seller == store)
+		.select(Coalesce(Sum(Rendition.bytes), 0), Count(Rendition.name))
+	)
+	row = q.run()[0]
+	return {"bytes": int(row[0] or 0), "count": int(row[1] or 0)}
 
 
 def rendition_usage(store: str) -> int:
@@ -414,25 +451,83 @@ def rendition_usage(store: str) -> int:
 	satıcının kotasını şişirir — `test_media_quota` tenant senaryosu tam olarak
 	bunu kırmızıya düşürüp doğruluyor.
 	"""
-	if not store:
-		return 0
+	return rendition_stats(store)["bytes"]
 
+
+def monthly_processing_usage(store: str) -> dict:
+	"""Bu takvim ayındaki tenant medya işi adedi ve toplam çalışma süresi.
+
+	Bu metrik raporlamadır; ticari plan değerleri kararlaştırılmadığı için kota
+	kapısına girmez. İş → Asset → ``owner_seller`` zinciri kiracı izolasyonunu
+	DB sorgusunun içinde uygular.
+	"""
 	from frappe.query_builder import DocType
-	from frappe.query_builder.functions import Coalesce, Sum
+	from frappe.query_builder.functions import Coalesce, Count, Sum
+	from frappe.utils import get_first_day, nowdate
 
-	Rendition = DocType("Media Rendition")
+	period_start = str(get_first_day(nowdate()))
+	if not store:
+		return {
+			"processing_period_start": period_start,
+			"processing_jobs_month": 0,
+			"processing_duration_ms_month": 0,
+		}
+
+	Job = DocType("Media Processing Job")
 	Asset = DocType("Media Asset")
 	q = (
-		frappe.qb.from_(Rendition)
+		frappe.qb.from_(Job)
 		.inner_join(Asset)
-		.on(Rendition.asset == Asset.name)
-		.where(Asset.owner_seller == store)
-		.select(Coalesce(Sum(Rendition.bytes), 0))
+		.on(Job.asset == Asset.name)
+		.where((Asset.owner_seller == store) & (Job.creation >= period_start))
+		.select(Count(Job.name), Coalesce(Sum(Job.duration_ms), 0))
 	)
-	return int(q.run()[0][0] or 0)
+	row = q.run()[0]
+	return {
+		"processing_period_start": period_start,
+		"processing_jobs_month": int(row[0] or 0),
+		"processing_duration_ms_month": int(row[1] or 0),
+	}
 
 
-def _quota() -> int | None:
+def enforce_storage_quota(store: str, incoming_bytes: int) -> dict:
+	"""Yazma öncesi kota kapısı; güncel kullanım özetini de döndürür.
+
+	``File.before_insert`` güvenlik ağı olarak kalır. Satıcı medya uçları bu
+	fonksiyonu ``File.insert``ten önce çağırarak kotası yetersiz dosyayı diske
+	yazmadan reddeder.
+	"""
+	usage = storage_usage(store)
+	if quota_model.would_exceed(
+		usage["bytes"], incoming_bytes, usage.get("quota_bytes")
+	):
+		from tradehub_core.media import upload_policy
+
+		kalan_mb = round(int(usage.get("remaining_bytes") or 0) / quota_model.MIB, 1)
+		gerekli_mb = round(max(0, int(incoming_bytes or 0)) / quota_model.MIB, 1)
+		upload_policy.reddet(
+			upload_policy.QUOTA_EXCEEDED,
+			frappe._(
+				"Depolama kotanızda bu yükleme için yeterli alan yok. "
+				"Kalan: {0} MB, gerekli: {1} MB."
+			).format(kalan_mb, gerekli_mb),
+		)
+	return usage
+
+
+def _quota_config(store: str = "") -> tuple[str, int | None]:
+	"""Mağazanın plan değerini saf kota modelinin mod/bayt çiftine çevir."""
+	from tradehub_core.entitlement.core import get_quota_limits
+
+	tenant = (store or get_current_seller_profile() or "").strip()
+	if not tenant:
+		return quota_model.MODE_UNCONFIGURED, None
+	return quota_model.resolve_limit_mb(
+		get_quota_limits(tenant).get("quota.max_storage_mb")
+	)
+
+
+def _quota(store: str = "") -> int | None:
 	"""Oturumdaki mağazanın entitlement kotası (bayt) — tanımsızsa None.
 
 	TUR-139/WP3 öncesi burada tek bir global `Marketplace Settings.
@@ -445,17 +540,10 @@ def _quota() -> int | None:
 	NOT (metin'e): bu fonksiyon `media/files.py`'nin parçası ama artık
 	`entitlement` paketine bağımlı — WP3 enforcement'ının (checks.py) kaynağı
 	burasıyla aynı `get_quota_limits` çağrısı.
+
+	``store`` verildiğinde limit o tenant için çözülür; önceki uygulama argümanı
+	yok sayıp oturum mağazasını okuyordu. Admin raporu veya sistem işi başka bir
+	tenant'ı ölçerken kullanım ile limitin farklı mağazalardan gelmesi böylece
+	engellenir.
 	"""
-	from tradehub_core.entitlement.core import get_quota_limits
-
-	store = get_current_seller_profile()
-	if not store:
-		return None
-
-	limit_mb = get_quota_limits(store).get("quota.max_storage_mb")
-	if limit_mb is None:
-		return None
-	limit_mb = int(limit_mb)
-	if limit_mb == -1:
-		return None
-	return limit_mb * 1024 * 1024
+	return _quota_config(store)[1]
