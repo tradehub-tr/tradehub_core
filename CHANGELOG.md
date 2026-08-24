@@ -1,3 +1,13 @@
+## [v1.13.1-alpha.43] - 2026-08-22 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Degistirildi
+- refactor(media-public): kod formatlamasını netleştir ve caption HTML'ini (@ahmeetseker)
+  - Uzun tek satırlık `frappe.db.get_value` zincirleri ve dict/comprehension ifadeleri okunabilirlik için çok satıra bölündü, mantıkta değişiklik yok
+  - `schema_json` ve `caption_html` f-string içine gömülmek yerine önceden değişkene atandı, ana HTML template'i sadeleşti
+
+---
 ## [v1.13.1-alpha.42] - 2026-08-22 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
