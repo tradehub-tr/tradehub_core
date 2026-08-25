@@ -169,13 +169,17 @@ class TestKotaTurevBaytlari(FrappeTestCase):
 			mock.patch.object(seller_media, "_store", return_value=store_a),
 			mock.patch.object(
 				seller_media.inventory,
-				"list_files",
-				side_effect=[{"total": 3}, {"total": 1}],
+				"library_facets",
+				side_effect=[
+					{"counts": {"all": 3}, "formats": [], "tags": []},
+					{"counts": {"all": 1}, "formats": [], "tags": []},
+				],
 			),
-			mock.patch.object(seller_media.metadata, "all_tags", return_value=[]),
 		):
 			ozet = seller_media.get_my_summary()
 		self.assertEqual(ozet["store"], store_a)
+		self.assertEqual(ozet["active"], 3)
+		self.assertEqual(ozet["trashed"], 1)
 		self.assertEqual(ozet["processing_jobs_month"], 2)
 		self.assertEqual(ozet["renditions"], 0)
 		self.assertIn("quota_state", ozet)

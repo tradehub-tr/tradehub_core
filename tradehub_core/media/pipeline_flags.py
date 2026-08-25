@@ -33,6 +33,8 @@ Bu modül saf yardımcıdır: DocType yazmaz, iş yapmaz, exception sızdırmaz.
 
 from __future__ import annotations
 
+import hashlib
+
 import frappe
 from frappe.utils import cint
 
@@ -72,6 +74,7 @@ KNOWN_SLOT_KEYS: frozenset[str] = frozenset(
 SLOT_WILDCARD = "*"
 
 DEFAULT_MAX_RENDITIONS = 40
+DEFAULT_ROLLOUT_PERCENT = 100
 
 _CACHE_NAMESPACE = "tradehub_media_pipeline_flags"
 
@@ -125,6 +128,62 @@ def max_renditions_per_asset(varsayilan: int = DEFAULT_MAX_RENDITIONS) -> int:
 	ham = _tekil_deger("max_renditions_per_asset")
 	deger = cint(ham)
 	return deger if deger > 0 else varsayilan
+
+
+def rollout_percent(varsayilan: int = DEFAULT_ROLLOUT_PERCENT) -> int:
+	"""Aşamalı açılış yüzdesi (0–100); alan yoksa geriye uyum için `%100`.
+
+	Ana şalter zaten varsayılan kapalıdır. Yeni rollout alanının henüz migrate
+	edilmediği bir sitede, operatör ana şalteri daha önce bilinçli açmışsa hattı
+	sessizce `%0`a düşürmek beklenmeyen bir kesinti olurdu. Bu yüzden yalnız
+	alanın yokluğu `%100`, açıkça kaydedilmiş `0` ise gerçek canary kipidir.
+	"""
+	ham = _tekil_deger("rollout_percent")
+	if ham is None or str(ham).strip() == "":
+		return max(0, min(100, int(varsayilan)))
+	return max(0, min(100, cint(ham)))
+
+
+def parse_store_keys(ham: object) -> frozenset[str]:
+	"""Satır/virgül ayrımlı canary mağaza adlarını kararlı biçimde normalize et."""
+	if not ham:
+		return frozenset()
+	metin = str(ham).replace(",", "\n")
+	return frozenset(parca.strip().casefold() for parca in metin.split("\n") if parca.strip())
+
+
+def rollout_bucket(store_id: object) -> int:
+	"""Mağazayı kararlı `0..99` kovasına yerleştir.
+
+	Python'ın yerleşik `hash()` sonucu süreçler arasında değişir; rollout için
+	kullanılamaz. SHA-256'nın ilk 64 biti tüm web/worker süreçlerinde ve yeniden
+	başlatmalarda aynıdır. Yüzde büyüdükçe eski mağazalar kümeden çıkmaz.
+	"""
+	anahtar = str(store_id or "").strip().casefold()
+	if not anahtar:
+		return 100
+	ozet = hashlib.sha256(anahtar.encode("utf-8")).digest()
+	return int.from_bytes(ozet[:8], "big") % 100
+
+
+def is_store_enabled(store_id: object) -> bool:
+	"""Mağaza bu rollout aşamasında mı; ana şalter kapalıysa daima `False`.
+
+	`rollout_stores` canary listesi yüzdeden önce gelir. Yüzde `%100` iken
+	mağazası çözülemeyen sistem/platform medyası da geriye uyumlu olarak açıktır;
+	kısmi rollout'ta kimliği çözülemeyen kayıtlar fail-closed dışarıda kalır.
+	"""
+	if not is_enabled():
+		return False
+	anahtar = str(store_id or "").strip().casefold()
+	if anahtar and anahtar in parse_store_keys(_tekil_deger("rollout_stores")):
+		return True
+	yuzde = rollout_percent()
+	if yuzde >= 100:
+		return True
+	if yuzde <= 0 or not anahtar:
+		return False
+	return rollout_bucket(anahtar) < yuzde
 
 
 def clear_cache() -> None:

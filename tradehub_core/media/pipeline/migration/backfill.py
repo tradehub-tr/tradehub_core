@@ -58,26 +58,38 @@ KOŞUM (kuru)
 
 from __future__ import annotations
 
+import hashlib
+import json
 import math
 import time
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Protocol, Sequence, Tuple
+from typing import Any, Protocol
+
+from tradehub_core.media.pipeline.core.queues import IMAGE_BULK, IMAGE_LIVE
 
 # ── Sabitler: KAYNAK docs/plans/migration.md ────────────────────────────
 
-#: §4.2 — 3600 s'lik iş timeout'unda dosya başına 18 s bütçe bırakır.
+#: Kanonik ``media-image-bulk`` kuyruğunun 1800 s timeout'unda dosya başına
+#: 9 s bütçe bırakır. Her batch ayrı RQ işidir; sonraki batch yalnız önceki
+#: doğrulandıktan sonra kuyruğa girer.
 DEFAULT_BATCH_SIZE: int = 200
+
+#: Plan dosyasının üretici ile çalıştırıcı arasındaki sürümlü sözleşmesi.
+PLAN_SCHEMA_VERSION: int = 1
 
 #: §7.1 — `errors / processed`. `skipped` HATA DEĞİLDİR (runner.py:76-79).
 DEFAULT_ERROR_RATE_MAX: float = 0.02
 
 #: §7.3 — ikincil eşikler. Aşılırsa sebep hata değil, ORTAM bozukluğudur.
 DEFAULT_SKIP_REASON_MAX: float = 0.01
-WATCHED_SKIP_REASONS: Tuple[str, ...] = ("file_missing", "decode_failed")
+WATCHED_SKIP_REASONS: tuple[str, ...] = ("file_missing", "decode_failed")
 
-#: §5.2 — canlı yollar `long` kuyruğunda; backfill AYRI kuyruğa alınır.
-DEFAULT_QUEUE: str = "media_backfill"
-DEFAULT_LIVE_QUEUE: str = "long"
+#: §5.2 — canlı medya ile toplu medya ayrı kanonik kuyruklardadır.
+#: Sabitler burada metin olarak tekrarlanmaz; deployment closure testinin
+#: doğruladığı tek kaynak ``pipeline.core.queues``'dur.
+DEFAULT_QUEUE: str = IMAGE_BULK.name
+DEFAULT_LIVE_QUEUE: str = IMAGE_LIVE.name
 
 #: §5.3 — canlı kuyrukta bekleyen iş varsa backfill batch'i enqueue EDİLMEZ.
 DEFAULT_LIVE_DEPTH_MAX: int = 0
@@ -144,7 +156,7 @@ class QueueDepthProbe(Protocol):
 class NotificationSink(Protocol):
 	"""Satıcı bildirimi hedefi (panel bildirimi / e-posta kuyruğu)."""
 
-	def notify(self, notice: "SellerNotice") -> None: ...
+	def notify(self, notice: SellerNotice) -> None: ...
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -157,7 +169,7 @@ class Batch:
 	"""Tek bir kuyruk işi. `index` 1'den başlar (operatör runbook'u okunabilsin)."""
 
 	index: int
-	file_names: Tuple[str, ...]
+	file_names: tuple[str, ...]
 
 	@property
 	def size(self) -> int:
@@ -177,46 +189,124 @@ class BackfillPlan:
 	`slot_of` = dosya → slot eşlemesi (pano kırılımı için; eksik olabilir).
 	"""
 
-	a_class: Tuple[str, ...] = ()
-	b_class: Tuple[Mapping[str, Any], ...] = ()
+	a_class: tuple[str, ...] = ()
+	b_class: tuple[Mapping[str, Any], ...] = ()
 	slot_of: Mapping[str, str] = field(default_factory=dict)
 	source: str = ""
+	records: tuple[Mapping[str, Any], ...] = ()
+	unsupported_a: tuple[Mapping[str, Any], ...] = ()
+	unknown_count: int = 0
+	schema_version: int = PLAN_SCHEMA_VERSION
+	digest: str = ""
 
 	@classmethod
-	def from_plan_json(cls, data: Mapping[str, Any]) -> "BackfillPlan":
-		"""`plan_backfill.py`'nin JSON çıktısını oku. Eksik alan HATA verir."""
+	def from_plan_json(cls, data: Mapping[str, Any]) -> BackfillPlan:
+		"""`plan_backfill.py` çıktısını doğrula ve kanonik kimlikleri oku.
+
+		Sözleşmenin ilk sürümündeki temsilci alanı ``file_name``'dir. Geçişte
+		üretilmiş eski planlar için ``rep_name`` ve ``name`` de okunur; ancak A/B
+		sınıfında kimliği olmayan satır sessizce kaybolmaz, planı geçersiz kılar.
+		"""
 		if not isinstance(data, Mapping):
 			raise BackfillError("plan JSON'u sözlük değil")
+		surum = int(data.get("plan_schema_version") or data.get("schema_version") or 0)
+		if surum != PLAN_SCHEMA_VERSION:
+			raise BackfillError(f"desteklenmeyen plan şeması: {surum}; beklenen={PLAN_SCHEMA_VERSION}")
+		beklenen_ozet = str(data.get("plan_digest") or "").strip().lower()
+		gercek_ozet = plan_digest(data)
+		if not beklenen_ozet or beklenen_ozet != gercek_ozet:
+			raise BackfillError("plan SHA-256 özeti eksik veya içerikle uyuşmuyor")
 		kayitlar = data.get("kayitlar") or data.get("records") or []
-		a: List[str] = []
-		b: List[Mapping[str, Any]] = []
-		slot: Dict[str, str] = {}
-		for satir in kayitlar:
-			ad = str(satir.get("file_name") or satir.get("name") or "").strip()
+		if not isinstance(kayitlar, list):
+			raise BackfillError("plan records alanı dizi olmalıdır")
+		a: list[str] = []
+		b: list[Mapping[str, Any]] = []
+		unsupported_a: list[Mapping[str, Any]] = []
+		slot: dict[str, str] = {}
+		normalized: list[Mapping[str, Any]] = []
+		bilinmeyen = 0
+		for sira, satir in enumerate(kayitlar, start=1):
+			if not isinstance(satir, Mapping):
+				raise BackfillError(f"records[{sira}] sözlük olmalıdır")
+			sinif = str(satir.get("sinif") or satir.get("class") or "").upper()
+			ad = str(satir.get("file_name") or satir.get("rep_name") or satir.get("name") or "").strip()
+			is_unknown = "BILINMIYOR" in sinif or "BİLİNMİYOR" in sinif or sinif == "UNKNOWN"
+			if (sinif.startswith("A") or sinif.startswith("B") or is_unknown) and not ad:
+				raise BackfillError(f"records[{sira}] {sinif} sınıfında ama file_name yok")
 			if not ad:
 				continue
-			sinif = str(satir.get("sinif") or satir.get("class") or "").upper()
+			n = dict(satir)
+			n["file_name"] = ad
+			n.pop("rep_name", None)
+			normalized.append(n)
 			slotlar = satir.get("slots") or []
 			if slotlar:
 				slot[ad] = str(slotlar[0])
-			if sinif.startswith("A"):
+			if is_unknown:
+				bilinmeyen += 1
+			elif sinif in ("A_KAPI_DISI", "A'", "A_PRIME"):
+				unsupported_a.append(n)
+			elif sinif in ("A", "A_OTOMATIK", "A_AUTOMATIC"):
 				a.append(ad)
 			elif sinif.startswith("B"):
-				b.append(dict(satir))
+				b.append(n)
+			elif sinif not in ("C", "C_YOK_SAYILIR", "UYUMLU", "OK"):
+				raise BackfillError(f"records[{sira}] bilinmeyen class: {sinif!r}")
+		if len(a) != len(set(a)):
+			raise BackfillError("A sınıfında yinelenen file_name var")
 		return cls(
 			a_class=tuple(a),
 			b_class=tuple(b),
 			slot_of=slot,
 			source=str(data.get("kaynak") or data.get("source") or ""),
+			records=tuple(normalized),
+			unsupported_a=tuple(unsupported_a),
+			unknown_count=bilinmeyen,
+			schema_version=surum,
+			digest=gercek_ozet,
 		)
 
-	def batches(self, size: int = DEFAULT_BATCH_SIZE) -> Tuple[Batch, ...]:
+	def batches(self, size: int = DEFAULT_BATCH_SIZE) -> tuple[Batch, ...]:
 		if size <= 0:
 			raise BackfillError(f"batch boyutu pozitif olmalı: {size}")
-		out: List[Batch] = []
+		out: list[Batch] = []
 		for i in range(0, len(self.a_class), size):
 			out.append(Batch(index=len(out) + 1, file_names=tuple(self.a_class[i : i + size])))
 		return tuple(out)
+
+
+def _digest_payload(data: Mapping[str, Any]) -> dict[str, Any]:
+	"""İmza alanlarını dışarıda bırakan semantik plan yükü."""
+	payload = dict(data)
+	payload.pop("plan_digest", None)
+	payload.pop("plan_id", None)
+	return payload
+
+
+def plan_digest(data: Mapping[str, Any]) -> str:
+	"""Planın kararlı SHA-256 özeti (anahtar sırası ve boşluklardan bağımsız)."""
+	try:
+		raw = json.dumps(
+			_digest_payload(data),
+			ensure_ascii=False,
+			sort_keys=True,
+			separators=(",", ":"),
+			default=str,
+		).encode("utf-8")
+	except (TypeError, ValueError) as exc:
+		raise BackfillError(f"plan JSON olarak imzalanamıyor: {exc}") from exc
+	return hashlib.sha256(raw).hexdigest()
+
+
+def stamp_plan(data: Mapping[str, Any]) -> dict[str, Any]:
+	"""Planı sürümle, özetle ve kısa insan-okur kimliği ekle."""
+	out = dict(data)
+	out["plan_schema_version"] = PLAN_SCHEMA_VERSION
+	out.pop("schema_version", None)
+	digest = plan_digest(out)
+	out["plan_digest"] = digest
+	out["plan_id"] = f"media-v{PLAN_SCHEMA_VERSION}-{digest[:16]}"
+	return out
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -230,7 +320,7 @@ class StopPolicy:
 
 	error_rate_max: float = DEFAULT_ERROR_RATE_MAX
 	skip_reason_max: float = DEFAULT_SKIP_REASON_MAX
-	watched_skip_reasons: Tuple[str, ...] = WATCHED_SKIP_REASONS
+	watched_skip_reasons: tuple[str, ...] = WATCHED_SKIP_REASONS
 	#: `state="not_found"` (TTL doldu) durdurma sebebidir. Kapatılabilir ama
 	#: kapatmak "hata oranını ölçemedim ama devam ediyorum" demektir.
 	halt_on_progress_lost: bool = True
@@ -275,7 +365,7 @@ class StopDecision:
 	measured: Mapping[str, Any] = field(default_factory=dict)
 	already_processed: int = 0
 
-	def to_dict(self) -> Dict[str, Any]:
+	def to_dict(self) -> dict[str, Any]:
 		return {
 			"halt": self.halt,
 			"code": self.code,
@@ -292,7 +382,7 @@ def error_rate(progress: Mapping[str, Any]) -> float:
 	return (hatali / islenen) if islenen > 0 else 0.0
 
 
-def evaluate_stop(progress: Mapping[str, Any], policy: Optional[StopPolicy] = None) -> StopDecision:
+def evaluate_stop(progress: Mapping[str, Any], policy: StopPolicy | None = None) -> StopDecision:
 	"""Tek bir işin ilerleme kaydına bakıp durup durmayacağına karar ver.
 
 	SIRA ANLAMLIDIR ve §7.3'ten alınmıştır:
@@ -310,8 +400,7 @@ def evaluate_stop(progress: Mapping[str, Any], policy: Optional[StopPolicy] = No
 				halt=True,
 				code=STOP_PROGRESS_LOST,
 				reason=(
-					"İlerleme kaydı yok (TTL doldu). Hata oranı ÖLÇÜLEMEDİ; "
-					"§7.3 gereği 'geçti' sayılmaz."
+					"İlerleme kaydı yok (TTL doldu). Hata oranı ÖLÇÜLEMEDİ; §7.3 gereği 'geçti' sayılmaz."
 				),
 				measured={"state": durum},
 			)
@@ -373,11 +462,11 @@ class LiveTrafficGuard:
 	işaretlenir — "ölçemedim" ile "temiz" karıştırılmaz.
 	"""
 
-	def __init__(self, probe: Optional[QueueDepthProbe], queue: str, max_depth: int) -> None:
+	def __init__(self, probe: QueueDepthProbe | None, queue: str, max_depth: int) -> None:
 		self._probe = probe
 		self._queue = queue
 		self._max = max_depth
-		self.checks: List[Dict[str, Any]] = []
+		self.checks: list[dict[str, Any]] = []
 
 	@property
 	def measurable(self) -> bool:
@@ -391,14 +480,10 @@ class LiveTrafficGuard:
 		try:
 			derinlik = int(self._probe.depth(self._queue))
 		except Exception as hata:  # noqa: BLE001 — ölçüm patlarsa DURAKLA, devam etme
-			self.checks.append(
-				{"queue": self._queue, "depth": None, "clear": False, "error": repr(hata)}
-			)
+			self.checks.append({"queue": self._queue, "depth": None, "clear": False, "error": repr(hata)})
 			return False
 		acik = derinlik <= self._max
-		self.checks.append(
-			{"queue": self._queue, "depth": derinlik, "clear": acik, "measured": True}
-		)
+		self.checks.append({"queue": self._queue, "depth": derinlik, "clear": acik, "measured": True})
 		return acik
 
 
@@ -422,8 +507,8 @@ class AtomicSwitch:
 	"""
 
 	def __init__(self) -> None:
-		self._live: Dict[str, Tuple[str, ...]] = {}
-		self._staged: Dict[str, Tuple[str, ...]] = {}
+		self._live: dict[str, tuple[str, ...]] = {}
+		self._staged: dict[str, tuple[str, ...]] = {}
 		self.commits: int = 0
 		self.rollbacks: int = 0
 
@@ -437,10 +522,10 @@ class AtomicSwitch:
 			raise BackfillError(f"{asset}: boş türev kümesi rafa konamaz (kısmi merdiven = 404)")
 		self._staged[asset] = yeni
 
-	def staged(self, asset: str) -> Tuple[str, ...]:
+	def staged(self, asset: str) -> tuple[str, ...]:
 		return self._staged.get(asset, ())
 
-	def active(self, asset: str) -> Tuple[str, ...]:
+	def active(self, asset: str) -> tuple[str, ...]:
 		"""Okuma tarafının gördüğü küme. Her zaman TAM."""
 		return self._live.get(asset, ())
 
@@ -448,7 +533,7 @@ class AtomicSwitch:
 		"""Beklenen basamak sayısı hazırlandı mı — commit ön koşulu."""
 		return len(self._staged.get(asset, ())) == expected
 
-	def commit(self, asset: str, *, expected: Optional[int] = None) -> Tuple[str, ...]:
+	def commit(self, asset: str, *, expected: int | None = None) -> tuple[str, ...]:
 		yeni = self._staged.get(asset)
 		if not yeni:
 			raise BackfillError(f"{asset}: rafta küme yok, commit edilemez")
@@ -457,7 +542,7 @@ class AtomicSwitch:
 				f"{asset}: rafta {len(yeni)} türev var, {expected} bekleniyordu — "
 				"eksik merdiven yayına alınmaz"
 			)
-		self._live[asset] = yeni          # ← tek atama: geçiş anı
+		self._live[asset] = yeni  # ← tek atama: geçiş anı
 		del self._staged[asset]
 		self.commits += 1
 		return yeni
@@ -473,7 +558,7 @@ class AtomicSwitch:
 # ═══════════════════════════════════════════════════════════════════════
 
 #: `migration.md` §6.2 — B alt sınıfı → satıcıya gösterilen sebep.
-B_CLASS_MESSAGES: Dict[str, str] = {
+B_CLASS_MESSAGES: dict[str, str] = {
 	"B1": "Çözünürlük yetersiz — büyütme görüntüyü bozar",
 	"B2": "Görsel daha önce küçültüldü, orijinali artık yok",
 	"B3": "Kare olmayan görsel kenarlardan kırpılıyor",
@@ -495,7 +580,7 @@ class SellerNotice:
 	message: str
 	deadline_days: int = DEFAULT_NOTICE_DAYS
 
-	def to_dict(self) -> Dict[str, Any]:
+	def to_dict(self) -> dict[str, Any]:
 		return {
 			"store": self.store,
 			"file_name": self.file_name,
@@ -508,14 +593,14 @@ class SellerNotice:
 
 def build_notices(
 	plan: BackfillPlan, *, deadline_days: int = DEFAULT_NOTICE_DAYS
-) -> Tuple[SellerNotice, ...]:
+) -> tuple[SellerNotice, ...]:
 	"""B sınıfı dosyalardan satıcı bildirimleri üret.
 
 	A sınıfı için bildirim YAPILMAZ (§6.1): dosya sunucuda düzelir, `file_url`
 	değişmez, satıcının yapacağı bir şey yoktur. Sahibi çözülemeyen dosya
 	bildirilmez ama SAYILIR — sessizce düşmesin diye `store=""` ile döner.
 	"""
-	out: List[SellerNotice] = []
+	out: list[SellerNotice] = []
 	for satir in plan.b_class:
 		ad = str(satir.get("file_name") or satir.get("name") or "")
 		alt = str(satir.get("alt_sinif") or satir.get("subclass") or "").upper()
@@ -546,7 +631,7 @@ class BatchOutcome:
 	seconds: float
 	enqueued: bool = True
 
-	def to_dict(self) -> Dict[str, Any]:
+	def to_dict(self) -> dict[str, Any]:
 		return {
 			"batch": self.batch.index,
 			"size": self.batch.size,
@@ -565,11 +650,11 @@ class BackfillReport:
 	state: str = RUN_PENDING
 	planned_files: int = 0
 	planned_batches: int = 0
-	outcomes: List[BatchOutcome] = field(default_factory=list)
-	stop: Optional[StopDecision] = None
-	notices: Tuple[SellerNotice, ...] = ()
+	outcomes: list[BatchOutcome] = field(default_factory=list)
+	stop: StopDecision | None = None
+	notices: tuple[SellerNotice, ...] = ()
 	dry_run: bool = True
-	live_checks: List[Dict[str, Any]] = field(default_factory=list)
+	live_checks: list[dict[str, Any]] = field(default_factory=list)
 	started_at: float = 0.0
 	finished_at: float = 0.0
 
@@ -600,12 +685,12 @@ class BackfillReport:
 		return sum(1 for o in self.outcomes if o.enqueued)
 
 	@property
-	def avg_seconds_per_file(self) -> Optional[float]:
+	def avg_seconds_per_file(self) -> float | None:
 		"""ÖLÇÜLMEDİYSE `None` döner — sıfır DEĞİL."""
 		sure = sum(o.seconds for o in self.outcomes if o.enqueued)
 		return (sure / self.processed) if (self.processed and sure > 0) else None
 
-	def eta_seconds(self) -> Optional[float]:
+	def eta_seconds(self) -> float | None:
 		"""Kalan süre tahmini. Ölçüm yoksa `None`."""
 		hiz = self.avg_seconds_per_file
 		if hiz is None:
@@ -613,9 +698,9 @@ class BackfillReport:
 		kalan = max(self.planned_files - self.processed, 0)
 		return kalan * hiz
 
-	def per_slot(self, plan: BackfillPlan) -> Dict[str, int]:
+	def per_slot(self, plan: BackfillPlan) -> dict[str, int]:
 		"""Pano kırılımı: işlenen dosyaların slot dağılımı."""
-		sayac: Dict[str, int] = {}
+		sayac: dict[str, int] = {}
 		for o in self.outcomes:
 			if not o.enqueued:
 				continue
@@ -624,7 +709,7 @@ class BackfillReport:
 				sayac[anahtar] = sayac.get(anahtar, 0) + 1
 		return sayac
 
-	def to_dict(self) -> Dict[str, Any]:
+	def to_dict(self) -> dict[str, Any]:
 		return {
 			"state": self.state,
 			"dry_run": self.dry_run,
@@ -658,20 +743,18 @@ class BackfillOrchestrator:
 		self,
 		runner: BatchRunner,
 		*,
-		config: Optional[BackfillConfig] = None,
-		queue_probe: Optional[QueueDepthProbe] = None,
-		notifier: Optional[NotificationSink] = None,
-		clock: Optional[Callable[[], float]] = None,
-		sleep: Optional[Callable[[float], None]] = None,
+		config: BackfillConfig | None = None,
+		queue_probe: QueueDepthProbe | None = None,
+		notifier: NotificationSink | None = None,
+		clock: Callable[[], float] | None = None,
+		sleep: Callable[[float], None] | None = None,
 	) -> None:
 		self.runner = runner
 		self.config = config or BackfillConfig()
 		self.notifier = notifier
 		self._clock = clock or time.time
 		self._sleep = sleep or time.sleep
-		self.guard = LiveTrafficGuard(
-			queue_probe, self.config.live_queue, self.config.live_depth_max
-		)
+		self.guard = LiveTrafficGuard(queue_probe, self.config.live_queue, self.config.live_depth_max)
 
 	# ── tek batch ──────────────────────────────────────────────────────
 
@@ -713,7 +796,7 @@ class BackfillOrchestrator:
 		plan: BackfillPlan,
 		*,
 		dry_run: bool = True,
-		max_batches: Optional[int] = None,
+		max_batches: int | None = None,
 		notify: bool = False,
 	) -> BackfillReport:
 		"""Planı batch batch koştur.
@@ -774,7 +857,7 @@ class BackfillOrchestrator:
 
 	# ── pano ───────────────────────────────────────────────────────────
 
-	def dashboard(self, rapor: BackfillReport, plan: BackfillPlan) -> Dict[str, Any]:
+	def dashboard(self, rapor: BackfillReport, plan: BackfillPlan) -> dict[str, Any]:
 		"""T-143 kabul kriterinin panosu: ilerleme, hata oranı, tahmini bitiş."""
 		gorunum = rapor.to_dict()
 		gorunum["per_slot"] = rapor.per_slot(plan)
@@ -803,7 +886,7 @@ class FrappeBatchRunner:
 	doğrulanmalıdır.
 	"""
 
-	def __init__(self, preset: str = "balanced", enqueue_fn: Optional[Callable[..., Any]] = None) -> None:
+	def __init__(self, preset: str = "balanced", enqueue_fn: Callable[..., Any] | None = None) -> None:
 		self.preset = preset
 		self._enqueue_fn = enqueue_fn
 
@@ -870,8 +953,8 @@ class PlatformNotificationSink:
 		*,
 		send_email: bool = False,
 		notification_type: str = NOTICE_TYPE,
-		notify_fn: Optional[Callable[..., Any]] = None,
-		resolve_user_fn: Optional[Callable[[str], Optional[str]]] = None,
+		notify_fn: Callable[..., Any] | None = None,
+		resolve_user_fn: Callable[[str], str | None] | None = None,
 	) -> None:
 		self.send_email = send_email
 		self.type = notification_type
@@ -880,7 +963,7 @@ class PlatformNotificationSink:
 		self.sent: int = 0
 		self.skipped: int = 0
 
-	def _resolve_user(self, store: str) -> Optional[str]:
+	def _resolve_user(self, store: str) -> str | None:
 		if self._resolve_user_fn is not None:
 			return self._resolve_user_fn(store)
 		if not store:
@@ -896,7 +979,7 @@ class PlatformNotificationSink:
 
 		return notify_fn(**kwargs) or ""
 
-	def notify(self, notice: "SellerNotice") -> None:
+	def notify(self, notice: SellerNotice) -> None:
 		user = self._resolve_user(notice.store)
 		if not user:
 			self.skipped += 1
@@ -922,8 +1005,13 @@ class PlatformNotificationSink:
 # ═══════════════════════════════════════════════════════════════════════
 
 
-def safe_batch_size(seconds_per_file: float, *, job_timeout: int = PROGRESS_TTL_SECONDS,
-                    safety: float = 3.0, cap: int = 2000) -> int:
+def safe_batch_size(
+	seconds_per_file: float,
+	*,
+	job_timeout: int = IMAGE_BULK.timeout_seconds,
+	safety: float = 3.0,
+	cap: int = 2000,
+) -> int:
 	"""§10-D1'in formülü: `job_timeout / (dosya_başına_sn × güvenlik)`.
 
 	`safety=3` kuru koşumun `t_arşiv_yaz` ve `t_disk_yaz`'ı ÖLÇMEMESİNDEN

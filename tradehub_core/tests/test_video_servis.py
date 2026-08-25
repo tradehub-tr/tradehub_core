@@ -293,6 +293,8 @@ if frappe is not None:
 		"rendition_on_upload",
 		"manifest_api_enabled",
 		"active_slots",
+		"rollout_percent",
+		"rollout_stores",
 	)
 	VIDEO_SLOT = "product.video"
 
@@ -320,7 +322,13 @@ if frappe is not None:
 			pipeline_flags.clear_cache()
 
 		def _hatti_ac(self, slotlar: str = VIDEO_SLOT) -> None:
-			self._ayarla(media_pipeline_enabled=1, rendition_on_upload=1, active_slots=slotlar)
+			self._ayarla(
+				media_pipeline_enabled=1,
+				rendition_on_upload=1,
+				active_slots=slotlar,
+				rollout_percent=100,
+				rollout_stores="",
+			)
 
 		def _dosya_ekle(self, file_name: str, icerik: bytes, **alanlar: object):
 			doc = frappe.get_doc(

@@ -23,6 +23,7 @@ from tradehub_core.media import (
 	audit,
 	browse,
 	inventory,
+	migration_runtime,
 	presets,
 	refs,
 	retro_rename,
@@ -275,9 +276,7 @@ def start_restore(
 	_guard()
 
 	if scope == "optimized":
-		names = inventory.optimized_file_names(
-			search=(search or "").strip(), min_bytes=int(min_bytes or 0)
-		)
+		names = inventory.optimized_file_names(search=(search or "").strip(), min_bytes=int(min_bytes or 0))
 	else:
 		names = frappe.parse_json(file_names) if isinstance(file_names, str) else (file_names or [])
 		names = [n for n in names if n]
@@ -300,9 +299,7 @@ def start_restore(
 
 
 @frappe.whitelist(methods=["POST"])
-def trash_files(
-	file_urls: str | list[str] | None = None, force: int = 0, shared_ok: int = 0
-) -> dict:
+def trash_files(file_urls: str | list[str] | None = None, force: int = 0, shared_ok: int = 0) -> dict:
 	"""Seçili dosyaları çöp kutusuna taşı — 30 gün sonra kalıcı silinir.
 
 	Varsayılanda kullanımda olan dosya reddedilir. `force=1` bu engeli kaldırır;
@@ -322,9 +319,7 @@ def trash_files(
 	moved, failed, freed = [], [], 0
 	for u in urls:
 		try:
-			r = trash.move_to_trash(
-				u, force=bool(int(force or 0)), shared_ok=bool(int(shared_ok or 0))
-			)
+			r = trash.move_to_trash(u, force=bool(int(force or 0)), shared_ok=bool(int(shared_ok or 0)))
 			moved.append(u)
 			freed += r["bytes"]
 		except Exception as exc:  # noqa: BLE001 — biri patlarsa diğerleri devam etsin
@@ -407,7 +402,11 @@ def purge_archive(older_than_days: int = -1) -> dict:
 	Yalnız `System Manager` — `Marketplace Admin` bu yetkiye sahip değil.
 	"""
 	_guard_destructive()
-	days = presets.ARCHIVE_RETENTION_DAYS if older_than_days is None or int(older_than_days) < 0 else int(older_than_days)
+	days = (
+		presets.ARCHIVE_RETENTION_DAYS
+		if older_than_days is None or int(older_than_days) < 0
+		else int(older_than_days)
+	)
 	result = archive.purge_expired(retention_days=days, trigger="manual")
 	frappe.logger("media").info(
 		f"archive purge: days={days} deleted={result['deleted']} freed={result['freed_bytes']}"
@@ -419,9 +418,7 @@ def purge_archive(older_than_days: int = -1) -> dict:
 def get_restorable_count(search: str = "", min_bytes: int = 0) -> dict:
 	"""Filtreye uyan kaç dosya geri alınabilir — onay ekranı için."""
 	_guard()
-	names = inventory.optimized_file_names(
-		search=(search or "").strip(), min_bytes=int(min_bytes or 0)
-	)
+	names = inventory.optimized_file_names(search=(search or "").strip(), min_bytes=int(min_bytes or 0))
 	return {"count": len(names)}
 
 
@@ -439,6 +436,75 @@ def get_pending_count(search: str = "", only_optimizable: int = 0, min_bytes: in
 		min_bytes=int(min_bytes or 0),
 	)
 	return {"count": len(names)}
+
+
+# ─── MOGEM-570 sürümlü medya migration akışı ─────────────────────────────
+
+
+def _migration_plan(value: str | dict | None) -> dict:
+	plan = frappe.parse_json(value) if isinstance(value, str) else value
+	if not isinstance(plan, dict):
+		frappe.throw(_("plan_json bir JSON nesnesi olmalıdır."))
+	return plan
+
+
+@frappe.whitelist(methods=["POST"])
+def preflight_media_migration(plan_json: str | dict | None = None, batch_size: int = 200) -> dict:
+	"""İmzalı planı yazmadan; kapsam, disk ve kuyruklar dahil doğrula."""
+	_guard_destructive()
+	return migration_runtime.preflight(_migration_plan(plan_json), batch_size=batch_size)
+
+
+@frappe.whitelist(methods=["POST"])
+def start_media_migration(
+	plan_json: str | dict | None = None,
+	dry_run: int = 1,
+	batch_size: int = 200,
+	preset: str = presets.DEFAULT_PRESET,
+	approved_dry_run: str = "",
+	notify_sellers: int = 0,
+) -> dict:
+	"""İlk batch'i başlat; varsayılan dry-run, wet-run aynı özetli onay ister."""
+	_guard_destructive()
+	return migration_runtime.start(
+		_migration_plan(plan_json),
+		dry_run=bool(cint(dry_run, 1)),
+		batch_size=batch_size,
+		preset=(preset or presets.DEFAULT_PRESET).strip(),
+		approved_dry_run=(approved_dry_run or "").strip(),
+		notify_sellers=bool(cint(notify_sellers)),
+	)
+
+
+@frappe.whitelist(methods=["GET"])
+def get_media_migration_status(run_key: str, include_plan: int = 0) -> dict:
+	_guard_destructive()
+	return migration_runtime.status((run_key or "").strip(), include_plan=bool(cint(include_plan)))
+
+
+@frappe.whitelist(methods=["POST"])
+def stop_media_migration(run_key: str) -> dict:
+	"""Çalışan batch'i yarıda kesmeden bir sonraki checkpoint'te durdur."""
+	_guard_destructive()
+	return migration_runtime.request_stop((run_key or "").strip())
+
+
+@frappe.whitelist(methods=["POST"])
+def resume_media_migration(run_key: str, acknowledge_stop: int = 0) -> dict:
+	_guard_destructive()
+	return migration_runtime.resume((run_key or "").strip(), acknowledge_stop=bool(cint(acknowledge_stop)))
+
+
+@frappe.whitelist(methods=["POST"])
+def validate_media_migration(run_key: str) -> dict:
+	_guard_destructive()
+	return migration_runtime.validate_run((run_key or "").strip())
+
+
+@frappe.whitelist(methods=["POST"])
+def rollback_media_migration(run_key: str) -> dict:
+	_guard_destructive()
+	return migration_runtime.start_rollback((run_key or "").strip())
 
 
 @frappe.whitelist()
@@ -718,7 +784,17 @@ def export_media_audit(
 	import io
 
 	buf = io.StringIO()
-	cols = ["timestamp", "action", "decision", "severity", "actor", "tenant", "object_name", "ip_address", "context"]
+	cols = [
+		"timestamp",
+		"action",
+		"decision",
+		"severity",
+		"actor",
+		"tenant",
+		"object_name",
+		"ip_address",
+		"context",
+	]
 	writer = csv.DictWriter(buf, fieldnames=cols, extrasaction="ignore")
 	writer.writeheader()
 	for r in rows:
@@ -925,8 +1001,7 @@ def scan_overview() -> dict:
 	from tradehub_core.media import av
 
 	sayimlar = {
-		durum: frappe.db.count("File", {"th_media_scan_status": durum})
-		for durum in av.STORED_SCAN_STATUSES
+		durum: frappe.db.count("File", {"th_media_scan_status": durum}) for durum in av.STORED_SCAN_STATUSES
 	}
 	# Hiç taranmamışlar: alan boş. Yamada bilerek backfill yapılmadı, bu sayı
 	# "geriye dönük tarama ne kadar kaldı" sorusunun cevabı.
@@ -1017,7 +1092,15 @@ def list_quarantine(page: int = 1, page_size: int = 50) -> dict:
 	satirlar = frappe.get_all(
 		"File",
 		filters={"th_media_scan_status": ["in", [av.SCAN_INFECTED, av.SCAN_FAILED]]},
-		fields=["name", "file_name", "file_url", "file_size", "creation", "th_media_scan_status", "th_media_scan_attempts"],
+		fields=[
+			"name",
+			"file_name",
+			"file_url",
+			"file_size",
+			"creation",
+			"th_media_scan_status",
+			"th_media_scan_attempts",
+		],
 		order_by="modified desc",
 		limit=page_size,
 		start=(page - 1) * page_size,
@@ -1207,7 +1290,9 @@ def retro_rename_history() -> dict:
 
 
 @frappe.whitelist()
-def get_media_seo(file_url: str, ref_doctype: str = "", ref_name: str = "", ref_field: str = "", lang: str = "tr") -> dict:
+def get_media_seo(
+	file_url: str, ref_doctype: str = "", ref_name: str = "", ref_field: str = "", lang: str = "tr"
+) -> dict:
 	"""Bir görselin SEO alanları — kullanım bağlamı verilirse ezme uygulanır."""
 	_guard()
 	from tradehub_core.media import seo, seo_index, seo_urls
@@ -1219,8 +1304,11 @@ def get_media_seo(file_url: str, ref_doctype: str = "", ref_name: str = "", ref_
 	)
 	result["usages"] = seo.usage_overrides_for(file_url, lang=lang)
 	result["urls"] = seo_urls.resolve(
-		file_url, ref_doctype=ref_doctype, ref_name=ref_name,
-		context_doctype=ref_doctype, context_name=ref_name,
+		file_url,
+		ref_doctype=ref_doctype,
+		ref_name=ref_name,
+		context_doctype=ref_doctype,
+		context_name=ref_name,
 	)
 	result["indexability"] = seo_index.decide(file_url, check_usage=False)
 	return result
@@ -1286,9 +1374,16 @@ def set_media_indexability(
 	robots_override = (robots_override or "").strip()
 	if robots_override:
 		allowed_directives = {
-			"index", "noindex", "follow", "nofollow", "nosnippet",
-			"max-image-preview:none", "max-image-preview:standard", "max-image-preview:large",
-			"max-video-preview:0", "max-video-preview:-1",
+			"index",
+			"noindex",
+			"follow",
+			"nofollow",
+			"nosnippet",
+			"max-image-preview:none",
+			"max-image-preview:standard",
+			"max-image-preview:large",
+			"max-video-preview:0",
+			"max-video-preview:-1",
 		}
 		parts = {p.strip().lower() for p in robots_override.split(",") if p.strip()}
 		if not parts or not parts <= allowed_directives:
@@ -1300,6 +1395,7 @@ def set_media_indexability(
 		values["th_media_robots_override"] = robots_override
 	frappe.db.set_value("File", {"file_url": (file_url or "").split("?")[0]}, values, update_modified=False)
 	from tradehub_core.media import seo_index
+
 	return seo_index.decide(file_url, check_usage=False)
 
 

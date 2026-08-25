@@ -43,6 +43,7 @@ import sys
 import tempfile
 import textwrap
 import unittest
+import uuid
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -53,7 +54,6 @@ from tradehub_core.media.pipeline.contracts.storage import (  # noqa: E402
 	HASH_LENGTH,
 	SCOPE_PRIVATE,
 	SCOPE_PUBLIC,
-	ObjectRef,
 	content_hash,
 )
 from tradehub_core.media.pipeline.delivery.signed import HmacUrlSigner  # noqa: E402
@@ -329,6 +329,7 @@ class TestKabulS3Kipleri(unittest.TestCase):
 		if not boto3_available():
 			self.skipTest("boto3 kurulu değil — S3 kipleri koşulamaz")
 		self._tmp = tempfile.mkdtemp(prefix="t055-s3-")
+		self._s3_prefix = f"t055-kabul/{uuid.uuid4().hex}"
 		import shutil
 
 		self.addCleanup(lambda: shutil.rmtree(self._tmp, ignore_errors=True))
@@ -343,7 +344,7 @@ class TestKabulS3Kipleri(unittest.TestCase):
 			access_key_id=os.environ["MEDIA_ENGINE_S3_ACCESS_KEY_ID"],
 			secret_access_key=os.environ["MEDIA_ENGINE_S3_SECRET_ACCESS_KEY"],
 			region=os.environ.get("MEDIA_ENGINE_S3_REGION", "us-east-1"),
-			prefix=f"t055-kabul/{kip}",
+			prefix=f"{self._s3_prefix}/{kip}",
 			addressing_style=os.environ.get("MEDIA_ENGINE_S3_ADDRESSING_STYLE", "path"),
 		)
 		s3_alanlar.update(s3_degisiklik)
@@ -378,19 +379,22 @@ class TestKabulS3Kipleri(unittest.TestCase):
 		self.assertEqual(plan.mode, MODE_TIERED, f"tiered kurulamadı: {plan.reasons}")
 		icerik = b"t055-tiered-goc"
 		sonuc = plan.adapter.put(icerik, ".jpg")
-		mtime = plan.adapter.stat(sonuc.ref).modified_at
-		henuz_degil = plan.adapter.sweep(
-			dry_run=True, now=mtime + 14 * 86400 - 1
-		)
-		self.assertEqual(henuz_degil.eligible, 0)
-		self.assertEqual(plan.adapter.location(sonuc.ref), "hot")
-		goc = plan.adapter.sweep(dry_run=False, now=mtime + 14 * 86400 + 1)
-		self.assertEqual(goc.eligible, 1)
-		self.assertEqual(goc.demoted, 1)
-		self.assertEqual(plan.adapter.location(sonuc.ref), "cold")
-		self.assertEqual(
-			plan.adapter.get(sonuc.ref), icerik, "Sıcakta olmayan nesne soğuktan (S3) okunmalı"
-		)
+		try:
+			mtime = plan.adapter.stat(sonuc.ref).modified_at
+			henuz_degil = plan.adapter.sweep(
+				dry_run=True, now=mtime + 14 * 86400 - 1
+			)
+			self.assertEqual(henuz_degil.eligible, 0)
+			self.assertEqual(plan.adapter.location(sonuc.ref), "hot")
+			goc = plan.adapter.sweep(dry_run=False, now=mtime + 14 * 86400 + 1)
+			self.assertEqual(goc.eligible, 1)
+			self.assertEqual(goc.demoted, 1)
+			self.assertEqual(plan.adapter.location(sonuc.ref), "cold")
+			self.assertEqual(
+				plan.adapter.get(sonuc.ref), icerik, "Sıcakta olmayan nesne soğuktan (S3) okunmalı"
+			)
+		finally:
+			plan.adapter.delete(sonuc.ref)
 
 	def test_s3_yanlis_kimlik_yerel_calisir(self) -> None:
 		"""Senaryo 3 (canlı yarısı): mirror + bozuk kimlik → yerel yazma BAŞARILI,

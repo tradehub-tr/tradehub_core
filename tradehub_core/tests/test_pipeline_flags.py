@@ -26,6 +26,8 @@ KORUNAN_ALANLAR = (
 	"manifest_api_enabled",
 	"active_slots",
 	"max_renditions_per_asset",
+	"rollout_percent",
+	"rollout_stores",
 	"notes",
 )
 
@@ -155,6 +157,46 @@ class TestPipelineFlags(unittest.TestCase):
 		self._ayarla(max_renditions_per_asset=12)
 
 		self.assertEqual(pipeline_flags.max_renditions_per_asset(), 12)
+
+	# --- deterministik rollout -----------------------------------------
+
+	def test_rollout_sifirda_yalniz_canary_magaza_acik(self):
+		self._ayarla(
+			media_pipeline_enabled=1,
+			rollout_percent=0,
+			rollout_stores="SELLER-CANARY, seller-second",
+		)
+
+		self.assertTrue(pipeline_flags.is_store_enabled("seller-canary"))
+		self.assertTrue(pipeline_flags.is_store_enabled("SELLER-SECOND"))
+		self.assertFalse(pipeline_flags.is_store_enabled("SELLER-OUT"))
+		self.assertFalse(pipeline_flags.is_store_enabled(""))
+
+	def test_rollout_kumesi_10dan_50ye_100e_monoton_buyur(self):
+		self._ayarla(media_pipeline_enabled=1, rollout_stores="")
+		magazalar = [f"SELLER-{i:04d}" for i in range(500)]
+		kumeler: dict[int, set[str]] = {}
+		for yuzde in (10, 50, 100):
+			self._ayarla(rollout_percent=yuzde)
+			kumeler[yuzde] = {s for s in magazalar if pipeline_flags.is_store_enabled(s)}
+
+		self.assertTrue(kumeler[10])
+		self.assertLess(kumeler[10], kumeler[50])
+		self.assertLess(kumeler[50], kumeler[100])
+		self.assertEqual(kumeler[100], set(magazalar))
+
+	def test_rollout_kovasi_surecler_arasi_sabit_sha256_degeridir(self):
+		self.assertEqual(pipeline_flags.rollout_bucket("SELLER-001"), 52)
+		self.assertEqual(pipeline_flags.rollout_bucket(" seller-001 "), 52)
+
+	def test_ana_salter_rollout_canarysini_da_keser(self):
+		self._ayarla(
+			media_pipeline_enabled=0,
+			rollout_percent=100,
+			rollout_stores="SELLER-CANARY",
+		)
+
+		self.assertFalse(pipeline_flags.is_store_enabled("SELLER-CANARY"))
 
 	# --- önbellek -------------------------------------------------------
 

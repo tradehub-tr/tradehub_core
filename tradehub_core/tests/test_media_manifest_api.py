@@ -22,7 +22,13 @@ from tradehub_core.api import media_manifest
 from tradehub_core.media import pipeline_flags
 
 FLAG_DOCTYPE = pipeline_flags.SETTINGS_DOCTYPE
-KORUNAN_BAYRAKLAR = ("media_pipeline_enabled", "manifest_api_enabled", "active_slots")
+KORUNAN_BAYRAKLAR = (
+	"media_pipeline_enabled",
+	"manifest_api_enabled",
+	"active_slots",
+	"rollout_percent",
+	"rollout_stores",
+)
 
 #: Fixture'lar gerçek slot politikasının profil merdiveninden seçildi
 #: (`policy/slots/product-image.json`). Politikada olmayan bir profil adı
@@ -43,6 +49,8 @@ class TestMediaManifestApi(unittest.TestCase):
 			self.skipTest("Yerel /files/ görseli olan Active ilan yok — fixture kurulamaz.")
 		self._orijinal = {alan: frappe.db.get_single_value(FLAG_DOCTYPE, alan) for alan in KORUNAN_BAYRAKLAR}
 		self._temizlenecek: list[tuple[str, str]] = []
+		frappe.db.set_single_value(FLAG_DOCTYPE, "rollout_percent", 100)
+		frappe.db.set_single_value(FLAG_DOCTYPE, "rollout_stores", "")
 		pipeline_flags.clear_cache()
 
 	def tearDown(self) -> None:
@@ -115,6 +123,28 @@ class TestMediaManifestApi(unittest.TestCase):
 		for url in beklenen["servis_edilir"]:
 			self.assertIn(url, tum_srcset)
 		self.assertNotIn(beklenen["elenen"], tum_srcset)
+
+	def test_rollout_sifirda_ham_fallback_canaryde_rendition_doner(self) -> None:
+		"""Aynı ilan rollout dışında ham kalır, canary listesinde türeve geçer."""
+		self._bayrak(
+			media_pipeline_enabled=1,
+			manifest_api_enabled=1,
+			rollout_percent=0,
+			rollout_stores="",
+		)
+		self._fixture_kur()
+
+		disari = media_manifest.get_manifest(self.ilan["name"])
+
+		self.assertFalse(disari["enabled"])
+		self.assertEqual(disari["renditions"], [])
+		self.assertEqual(disari["fallback"], self.ilan["primary_image"])
+
+		self._bayrak(rollout_stores=self.ilan["seller_profile"])
+		canary = media_manifest.get_manifest(self.ilan["name"])
+
+		self.assertTrue(canary["enabled"])
+		self.assertTrue(canary["renditions"])
 
 	def test_gorunmez_ilan_bos_manifest_doner(self) -> None:
 		"""Yayınlanmamış/olmayan ilan 404 DEĞİL boş manifest — sızıntı olmasın."""

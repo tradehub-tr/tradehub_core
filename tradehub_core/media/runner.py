@@ -82,6 +82,7 @@ def run_batch(
 	preset: str = presets.DEFAULT_PRESET,
 	job_key: str = "",
 	dry_run: int = 0,
+	collect_files: int = 0,
 ) -> dict:
 	"""Verilen `File` kayıtlarını sırayla işler. Worker girişi.
 
@@ -93,7 +94,7 @@ def run_batch(
 	kuyruk kaydında da görünsün diye yeniden fırlatılır.
 	"""
 	try:
-		return _run_batch(file_names, preset, job_key, dry_run)
+		return _run_batch(file_names, preset, job_key, dry_run, collect_files)
 	except Exception:
 		_mark_job_error(job_key, "optimize")
 		raise
@@ -104,9 +105,14 @@ def _run_batch(
 	preset: str,
 	job_key: str,
 	dry_run: int,
+	collect_files: int = 0,
 ) -> dict:
 	cfg = presets.resolve(preset)
 	state = _new_state(len(file_names), preset, dry_run)
+	if collect_files:
+		# Normal panel işleri büyük listeleri Redis'e kopyalamaz. Migration
+		# runtime'ı exact rollback/checkpoint için bunu açıkça ister.
+		state.update({"optimized_files": [], "skipped_files": [], "error_files": []})
 	_write_progress(job_key, state)
 
 	for index, name in enumerate(file_names, start=1):
@@ -117,13 +123,19 @@ def _run_batch(
 			state["new_bytes"] += outcome.get("new_bytes", 0)
 			if outcome["status"] == "optimized":
 				state["optimized"] += 1
+				if collect_files:
+					state["optimized_files"].append(name)
 			else:
 				state["skipped"] += 1
+				if collect_files:
+					state["skipped_files"].append(name)
 				reason = outcome.get("reason") or "unknown"
 				state["skip_reasons"][reason] = state["skip_reasons"].get(reason, 0) + 1
 		except Exception:
 			state["processed"] += 1
 			state["errors"] += 1
+			if collect_files:
+				state["error_files"].append(name)
 			# Frappe imzası log_error(title, message) — ters verirsek traceback
 			# kaybolur, Error Log'da yalnız başlık kalır ve hata teşhis edilemez.
 			frappe.log_error(
@@ -269,13 +281,21 @@ def _process_one(file_name: str, cfg: dict, dry_run: bool) -> dict:
 		min_file_size=presets.MIN_FILE_SIZE,
 	)
 	if not gate.passed:
-		return {"status": "skipped", "reason": gate.reason, "original_bytes": original_size,
-		        "new_bytes": original_size}
+		return {
+			"status": "skipped",
+			"reason": gate.reason,
+			"original_bytes": original_size,
+			"new_bytes": original_size,
+		}
 
 	result = engine.optimize(content, max_dim=cfg["max_dim"], quality=cfg["quality"])
 	if not result.ok:
-		return {"status": "skipped", "reason": result.reason, "original_bytes": original_size,
-		        "new_bytes": original_size}
+		return {
+			"status": "skipped",
+			"reason": result.reason,
+			"original_bytes": original_size,
+			"new_bytes": original_size,
+		}
 
 	after = gates.check_after(
 		original_size=original_size,
@@ -283,12 +303,15 @@ def _process_one(file_name: str, cfg: dict, dry_run: bool) -> dict:
 		min_saving_ratio=presets.MIN_SAVING_RATIO,
 	)
 	if not after.passed:
-		return {"status": "skipped", "reason": after.reason, "original_bytes": original_size,
-		        "new_bytes": original_size}
+		return {
+			"status": "skipped",
+			"reason": after.reason,
+			"original_bytes": original_size,
+			"new_bytes": original_size,
+		}
 
 	if dry_run:
-		return {"status": "optimized", "original_bytes": original_size,
-		        "new_bytes": len(result.content)}
+		return {"status": "optimized", "original_bytes": original_size, "new_bytes": len(result.content)}
 
 	# Sıra kritik: önce arşiv, sonra yazma. Arşiv başarısızsa dosyaya dokunulmaz.
 	archive.store(doc.file_url, content)
@@ -336,7 +359,7 @@ def _update_metadata(file_url: str, *, new_size: int, original_size: int) -> Non
 	states.transition(file_url, states.STATE_ARCHIVED)
 
 
-def restore_batch(file_names: list[str], job_key: str = "") -> dict:
+def restore_batch(file_names: list[str], job_key: str = "", collect_files: int = 0) -> dict:
 	"""Birden fazla dosyayı arşivdeki orijinaline döndür — worker girişi.
 
 	Optimizasyonla aynı ilerleme mekanizmasını kullanır; ekran aynı çubuğu gösterir.
@@ -344,15 +367,17 @@ def restore_batch(file_names: list[str], job_key: str = "") -> dict:
 	durum `error` yazılır (TUR-296 ortak sözleşme).
 	"""
 	try:
-		return _restore_batch(file_names, job_key)
+		return _restore_batch(file_names, job_key, collect_files)
 	except Exception:
 		_mark_job_error(job_key, "restore")
 		raise
 
 
-def _restore_batch(file_names: list[str], job_key: str) -> dict:
+def _restore_batch(file_names: list[str], job_key: str, collect_files: int = 0) -> dict:
 	state = _new_state(len(file_names), "restore", False)
 	state["mode"] = "restore"
+	if collect_files:
+		state.update({"restored_files": [], "error_files": []})
 	_write_progress(job_key, state)
 
 	for index, name in enumerate(file_names, start=1):
@@ -361,9 +386,13 @@ def _restore_batch(file_names: list[str], job_key: str) -> dict:
 			state["processed"] += 1
 			state["optimized"] += 1  # ekranda "geri alınan" sayacı
 			state["new_bytes"] += result.get("size", 0)
+			if collect_files:
+				state["restored_files"].append(name)
 		except Exception:
 			state["processed"] += 1
 			state["errors"] += 1
+			if collect_files:
+				state["error_files"].append(name)
 			frappe.log_error(f"Restore failed for {name}", "media.runner.restore_batch")
 
 		if index % presets.COMMIT_EVERY == 0:

@@ -3,7 +3,13 @@
 > **Bu belge ölçümlerden derlenmiştir; çelişki hâlinde rapor kazanır.**
 > Derleme: 2026-08-20, W6 kapanış dalgası. Adımların tamamı DEV'de **gerçekten koşulmuş** komut ve bulgulardan (raporlar 69, 17, 42, 63, 70, 71, 72, 73, 76) derlendi.
 >
-> ⚠️ **TATBİKAT YAPILMADI.** Bu runbook üretimde hiç prova edilmedi; geri dönüş süresi ölçülmedi (faz14-golive.md: "DEVREYE ALMA YAPILMADI. GERİ DÖNÜŞ PROVASI KOŞULMADI"). Go-live öncesi tatbikat **İNSAN işidir** ve bu belgeyle koşulup süreleri buraya işlenmelidir.
+> ⚠️ **ÜRETİM TATBİKATI YAPILMADI.** 2026-08-24'te belirlenimci canary ve
+> `%10 → %50 → %100` seçimi koda bağlandı, yerel site migrate edildi ve geçiş
+> testleri yeşil koştu. Yerel hard-kill kontrol düzlemi **1,947 ms** ölçüldü ve
+> ayarlar geri yüklendi (`docs/reports/101-mogem617-rollout-rehearsal.md`). Bu
+> teknik prova üretim go-live'ı değildir; canlı metrik
+> penceresi, nöbetçi teyidi ve ölçülmüş üretim geri dönüş süresi hâlâ insan/DevOps
+> kapısıdır.
 
 ---
 
@@ -20,13 +26,19 @@
 
 ---
 
-## 1. Bayrak açma sırası (W3-B'nin ölçtüğü DÖRT bayrak)
+## 1. Canary ve bayrak açma sırası
 
 DocType: **Media Engine Settings** (Single). Rapor 69 §1'in ana düzeltmesi: **"görev iki bayrak diyordu, İKİ BAYRAK YETMİYOR"** — `media_pipeline_enabled=1` + `manifest_api_enabled=1` ile `rendition_on_upload` ve slot kapıları kapalı kalır, "tek satır veri akmıyor".
 
-Sıra (69'da ölçülen; her adımdan sonra doğrula):
+Önce kapsamı fail-closed canary'ye daralt, sonra dört çalışma bayrağını aç.
+Her adımdan sonra doğrula:
 
 ```bash
+# 0. Canary kapsamı — master açılmadan ÖNCE
+docker exec istoc-dev-backend-1 bench --site <site> execute frappe.db.set_single_value \
+  --args '["Media Engine Settings","rollout_percent",0]'
+docker exec istoc-dev-backend-1 bench --site <site> execute frappe.db.set_single_value \
+  --args '["Media Engine Settings","rollout_stores","<seller-profile-name>"]'
 # 1. Ana şalter
 docker exec istoc-dev-backend-1 bench --site <site> execute frappe.db.set_single_value \
   --args '["Media Engine Settings","media_pipeline_enabled",1]'
@@ -38,10 +50,17 @@ docker exec istoc-dev-backend-1 bench --site <site> execute frappe.db.set_single
 ... set_single_value '["Media Engine Settings","active_slots","product.image"]'
 ```
 
-- Varsayılanlar **0/0/0/boş** (fail-safe kapalı; okuma hatası asla açmaz — pipeline_flags.py).
+- Çalışma bayraklarının varsayılanı **0/0/0/boş**; ana şalter kapalıyken rollout
+  ayarı ne olursa olsun hat kapalıdır. Yeni `rollout_percent` alanının migrate
+  varsayılanı geriye uyum için `%100` olduğundan canary değeri **master'dan önce**
+  yazılır.
 - `max_renditions_per_asset` = 40, dokunma.
 - Diğer 8 slot bilinçli kapalı başlar; genişletme ayrı karar.
-- **Yüzde-bazlı rollout kodda YOK** (`rollout_percent` 0 sonuç, 57d §4.1) — elindeki granülarite aç/kapa + slot listesi.
+- `rollout_stores` satır/virgül ayrımlı canary listesidir ve yüzdeden önce gelir.
+  Yüzde seçimi SHA-256 tabanlı kararlı `0..99` kovasıdır; `%10 ⊂ %50 ⊂ %100`,
+  süreç/restart değişiminden etkilenmez. Kısmi rollout'ta sahibi çözülemeyen medya
+  fail-closed dışarıda kalır; dışarıdaki mağazaya manifest ham dosya fallback'i
+  verir ve yeni türev yazmaz.
 - **Sıra önemli notu (17 §4.5):** türev TOHUMLAMA (mevcut dosyalar) `rendition_on_upload` **açılmadan**, doğrudan `render_ladder` çağıran toplu işle koşulmalı — "bayrak açmak canlı yükleme yolunu da değiştirir". Yani: önce tohumlama (adım 3'ten önce), sonra bayrak 3.
 
 Doğrulama (69 §2'nin DEV'de ölçtüğü sonuç şekli): testi bir yüklemeyle yap; `Media Asset/Version/Rendition/Processing Job` satırları artmalı (DEV'de 9/9/88/9, 9/9 success, kuyruk `media-image-live`), `File` sayısı ARTMAMALI (hat File kaydı açmaz, tasarım gereği), türevler diskte `files/media/{asset}/{version_hash}/` altında bayt-bayt doğrulanabilir olmalı.
@@ -109,8 +128,16 @@ Operatör adımları (17'den, script çalıştırmaz — sen çalıştırırsın
 Ana şalter `media_pipeline_enabled=0` **her şeyi keser** (alt bayraklar ve slotlar kayıtlı değerleri ne olursa olsun False döner — pipeline_flags kural 2). Kapılar kuyruk işinin İÇİNDE yeniden sorulur → uçuştaki işler de durur (69 §5.4). Yeniden açılış idempotent: `_run_rendition_job` ikinci koşumda 88→88 (0 yeni satır/dosya).
 
 ```bash
+# Kontrollü daraltma: yüzde grubunu çıkar, yalnız canary listesi kalsın.
+bench --site <site> execute frappe.db.set_single_value --args '["Media Engine Settings","rollout_percent",0]'
+
+# Sert geri dönüş: canary dahil tüm yeni medya hattını kes.
 bench --site <site> execute frappe.db.set_single_value --args '["Media Engine Settings","media_pipeline_enabled",0]'
 ```
+
+Önce `%0` daraltması kullanılır; veri kaybı, yanlış görsel servisi veya belirsiz
+sahiplikte beklemeden ana şalter kapatılır. Ayar güncellemesi request önbelleğini
+temizler; uzun ömürlü worker işi de işin içinde kapıyı yeniden sorar.
 
 ### 5.2 Bayrak kapatmanın GERİ ALMADIĞI kalıcı izler (69 §9 ölçümü)
 - Üretilmiş `Media Asset/Version/Rendition/Job` satırları ve diskteki `files/media/**` türev dosyaları (DEV'de 9+9+88+9, ~2,0 MB) — silinmez; purge ayrı ve onaylı iş.
@@ -161,10 +188,12 @@ Gerçek scheduler koşumu henüz gözlenmedi (72 §7) — go-live sonrası ilk s
 2. Prometheus/Grafana kur, `promtool check rules`, 16 runbook dosyası (İNSAN/DevOps).
 3. `bench migrate` (tek başına, kilit; §3) + kolon doğrulaması.
 4. Backfill ön koşulları + türev tohumlama (bayraksız, §4) — arşiv purge DURDUR.
-5. Bayrakları sırayla aç (§1): master → manifest → rendition_on_upload → `active_slots="product.image"`.
-6. İlk saat: /metrics serileri + `aggregate_samples` + kuyruk derinliği + `media_upload_total{outcome="rejected"}` izle.
-7. Sorun → §5.1 ana şalter kapat (tek kutucuk, sistem bugünkü davranışa döner); kalıcı izleri §5.2'ye göre yönet.
-8. Kademeli genişletme: diğer 8 slot ayrı kararlarla.
+5. Canary kapsamını yaz (§1): `rollout_percent=0` + `rollout_stores=<canary>`.
+6. Bayrakları sırayla aç (§1): master → manifest → rendition_on_upload → `active_slots="product.image"`.
+7. İlk saat: /metrics serileri + `aggregate_samples` + kuyruk derinliği + `media_upload_total{outcome="rejected"}` izle.
+8. Kapılar yeşilse sırasıyla `%10 → %50 → %100`; her aşamada §6 metriklerini ve §1 kapsamını doğrula.
+9. Sorun → önce `%0`a daralt; kritik durumda §5.1 ana şalteri kapat. Kalıcı izleri §5.2'ye göre yönet.
+10. Diğer 8 slotu ayrı kararlarla genişlet.
 
 > **Tatbikat kaydı (boş — İNSAN dolduracak):**
 > Tatbikat tarihi: ______ · Geri dönüş süresi (ölçülen): ______ · Tatbikatı koşan: ______ · Notlar: ______

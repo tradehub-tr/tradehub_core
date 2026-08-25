@@ -12,10 +12,12 @@
 > **yoktur**. Aşağıdaki her sayı ya bir **eşik** (karar için önceden yazılmış),
 > ya bir **hesap** (formülü yanında), ya da **ÖLÇÜLMEDİ** etiketlidir.
 
-**Ve daha sert bir gerçek:** Pilot bugün **tam olarak koşulamaz**. Görevlerin
-yarısının arayüzü yazılmadı. §1 hangi görevin bugün koşulabildiğini, hangisinin
-koşulamadığını tek tek sayar. "Pilot yapıldı" demek için eksik arayüzlerin
-tamamlanması gerekir; plan o güne hazır olsun diye şimdi yazıldı.
+**2026-08-24 teknik güncellemesi:** Crop Studio, cihaz önizleme/simülatör,
+slot-aware uploader ve küçük-görsel ret yönlendirmesi artık arayüzde vardır ve
+otomatik test paketindedir. Pilot teknik olarak koşulabilir. Buna rağmen gerçek
+≥10 satıcı, açık rıza, moderatör kayıtları ve ≥%90 anlama ölçümü olmadan T-142
+tamamlanmış sayılmaz. Aşağıdaki eski “arayüz yok” tespitlerini bu güncelleme
+geçersiz kılar.
 
 ### 0.1 Kabul kriterleri karşılığı
 
@@ -28,28 +30,30 @@ tamamlanması gerekir; plan o güne hazır olsun diye şimdi yazıldı.
 
 ---
 
-## 1. ÖN KOŞULLAR — pilot bugün neden tam koşulamaz
+## 1. ÖN KOŞULLAR — teknik akış hazır, saha koşumu açık
 
 Kaynak dokümanın T-142 görev listesi altı görev istiyor. Her birinin bugün
 karşılığı olup olmadığı **kod okunarak** belirlendi:
 
 | # | Görev (kaynak dokümandan) | Bugün koşulabilir mi | Dayanak |
 |---|---|---|---|
-| (a) | 5 ürün görseli yükle | ⚠ **KISMEN** | Yükleme akışı üretimde çalışıyor (`tradehub_core/api/seller_media.py`), ama **slot kimliği yok** (FR-001 açık) → politika kararı slot bazlı değil, L0 seviyesinde |
-| (b) | Kırpma ve odak ayarla | ❌ **HAYIR** | Crop Studio arayüzü **yazılmadı**; `docs/ui/faz10-crop-studio.md` belge seviyesinde. Sunucu tarafı (`tradehub_core/media/pipeline/core/crop_geometry.py`, `api/crop.py`) hazır ama ekran yok |
-| (c) | Önizlemeleri incele ve onayla | ❌ **HAYIR** | Simülatör arayüzü yazılmadı (`docs/ui/faz11-simulator.md`). `tradehub_core/media/pipeline/simulator/srcset.py` 65 kombinasyonu hesaplıyor ama satıcıya gösteren ekran yok |
+| (a) | 5 ürün görseli yükle | ✅ **EVET** | Slot-aware `MediaUploader` + `seller_media` akışı bağlı; preflight ve sunucu kararı aynı sebep kodlarını kullanıyor. |
+| (b) | Kırpma ve odak ayarla | ✅ **EVET** | `CropStudioModal` Medya Kütüphanesi ve ürün formuna bağlı; crop intent, odak ve onay akışı testli. |
+| (c) | Önizlemeleri incele ve onayla | ✅ **EVET** | `/media-simulator`, cihaz önizlemeleri ve Crop Studio preview şeridi mevcut. |
 | (d) | Logo yükle | ✅ **EVET** | Mevcut panel akışı çalışıyor |
 | (e) | Company video yükle | ✅ **EVET** | Mevcut transcode hattı çalışıyor (`tradehub_core/media/transcode.py`) |
-| (f) | Bilerek küçük görsel yükle, hata mesajını oku, düzelt | ⚠ **KISMEN** | Ret üretiliyor ama **slot bazlı geometri kuralı üretimde uygulanmıyor** (FR-015 açık). Bugün 999 px'lik görsel üretimde **reddedilmez**; `media_engine` motoru reddeder. Yani (f) görevi bugün gerçek panelde **tetiklenemez** |
+| (f) | Bilerek küçük görsel yükle, hata mesajını oku, düzelt | ✅ **EVET** | `short_edge_too_small` / `area_too_small` preflight kodları görünür Türkçe açıklama ve düzeltme yönlendirmesi üretir; sunucu kapısı ayrıca uygular. |
 
-### 1.1 Pilotun iki dalgaya bölünmesi — zorunlu, tercih değil
+### 1.1 Pilotun iki dalgası — karşılaştırma tasarımı
 
-Yukarıdaki tablo yüzünden pilot tek seferde yapılamaz:
+Teknik eksik nedeniyle bölme zorunluluğu kalktı. Önce/sonra karşılaştırması
+isteniyorsa iki dalga korunabilir; yalnız nihai kabul için altı görev aynı pilotta
+koşulabilir:
 
 | Dalga | Kapsam | Ön koşulu | Ne öğrenir |
 |---|---|---|---|
 | **UAT-1** | (a) sınırlı + (d) + (e) | **Bugün koşulabilir** | Bugünkü yükleme akışının taban çizgisi: süre, terk oranı, karışıklık noktaları. Yeni motorla karşılaştırma için **ÖNCE/SONRA** ölçümünün "önce"si |
-| **UAT-2** | (a) tam + (b) + (c) + (f) | Faz 9/10/11 arayüzleri + FR-001 (slot kimliği) + FR-015 (geometri kapısı) | Kabul kriterinin kendisi: anlama oranı, kırpma/önizleme akışı |
+| **UAT-2** | (a) tam + (b) + (c) + (f) | Teknik akış hazır; gerçek katılımcı/onam/takvim gerekir | Kabul kriterinin kendisi: anlama oranı, kırpma/önizleme akışı |
 
 > **UAT-1 atlanmamalı.** "Sonra"nın anlamlı olması için "önce" ölçümü gerekir;
 > `docs/reports/03-performans-taban-cizgisi.md` yalnız teknik taban çizgisini
@@ -156,18 +160,34 @@ Tek sayısal kapı **G6'nın anlama oranıdır** (§6) ve o kaynak dokümanda ya
 
 | Alan | Kaynak | Not |
 |---|---|---|
-| Görev başlangıç/bitiş damgası | Moderatör + telemetri | İkisi ayrışırsa telemetri esas alınır |
+| Görev başlangıç/bitiş damgası | Moderatör formu | Saat dilimli ISO-8601; analiz aracı negatif/eksik süreyi reddeder |
 | Yardım isteme | Moderatör notu | |
-| Terk (görevden vazgeçme) | Moderatör + telemetri | |
+| Terk (görevden vazgeçme) | Moderatör formu | `completed=0`; bitiş yine kaydedilir |
 | Ret kodu ve mesajı | Sunucu yanıtı (`code` alanı) | `tradehub_core/media/pipeline/core/errors.py` kod kataloğu |
 | Anlama cevabı | §6 protokolü | Sözlü, kayıttan çözümlenir |
 
+Kanonik boş şablonlar `docs/templates/media-uat-results.csv` ve
+`docs/templates/media-uat-findings.csv`; oturum akışı
+`docs/templates/media-uat-oturum-formu.md` içindedir. Çevrimdışı analiz:
+
+```bash
+python3 scripts/summarize_media_uat.py media-uat-results.csv media-uat-findings.csv --check-gate
+```
+
+Araç şemayı, takma katılımcı kodunu, açık rıza işaretini, saat dilimli süreleri,
+kanıt bağlantılarını ve bulgu sahip/tarihlerini doğrular; görev bazında tamamlama,
+medyan süre, yardım/karışıklık sayısı, tam-anlama oranı ve Wilson %95 aralığını
+üretir.
+
 ---
 
-## 5. Telemetri — hangi olay, nereden
+## 5. Ürün telemetrisi — opsiyonel ve mahremiyet onayına bağlı
 
 Panelde bugün ürün analitiği var; **medya akışı için olay yok** (kod
-taramasıyla doğrulanmalı — §9-D1). Pilot için gereken minimum olay seti:
+taramasıyla doğrulanmalı — §9-D1). T-142'nin ölçümleri §4'teki anonim,
+moderatörlü form + sunucu/DB kanıtıyla alınabildiği için bu eksik pilotu teknik
+olarak bloke etmez. Gelecekte mahremiyet/retention onayı verilirse önerilen olay
+seti şudur:
 
 | Olay | Ne zaman | Taşıdığı alanlar |
 |---|---|---|
@@ -178,10 +198,10 @@ taramasıyla doğrulanmalı — §9-D1). Pilot için gereken minimum olay seti:
 | `preview_viewed` | Cihaz sekmesi değiştiğinde | `asset`, `device_class` |
 | `step_abandoned` | Ekran terk edildiğinde | `step`, `seconds_on_step` |
 
-> **Bu olaylar YAZILMADI.** Pilot öncesi eklenmesi gereken iş kalemidir;
-> eklenmezse §4.1'deki süre ve terk ölçümleri **yalnız moderatör notuna**
-> dayanır ve güvenilirliği düşer. Bu, plan tarafından kabul edilen bir risktir
-> (§7 R-3).
+> **Bu olaylar YAZILMADI.** Açık ürün davranışı takibi, kullanıcı rızası,
+> saklama süresi ve erişim modeli belirlenmeden eklenmez. Pilot, saat dilimli
+> moderatör kaydı ve tamamlanan her görev için zorunlu `evidence_ref` ile koşar;
+> ikinci gözlemci/oturum kaydı kullanılacaksa ayrıca açık rıza alınır.
 
 ---
 
@@ -282,7 +302,8 @@ UAT "bitti" denmesi için hepsi gereklidir:
 - [ ] Anlama oranı ölçüldü, **güven aralığıyla birlikte** raporlandı (§6.2)
 - [ ] Hiçbir katılımcı anlama testinde 0 puan almadı (§6.2 madde 2)
 - [ ] Kritik bulguların tamamı kapandı; her birinin kanıtı var
-- [ ] Telemetri olayları çalıştı; süre ölçümü yalnız moderatör notuna dayanmıyor
+- [ ] Bütün oturum satırlarında saat dilimli süre + kanıt var ve
+      `summarize_media_uat.py --check-gate` sıfırla döndü
 
 **Bugün bu listedeki hiçbir kutu işaretlenemez** — pilot koşulmadı.
 
@@ -296,7 +317,7 @@ UAT "bitti" denmesi için hepsi gereklidir:
 grep -rn "media_upload\|crop_saved\|preview_viewed" \
   /Users/ahmet/Desktop/istoc/admin-panel/frontend/src \
   /Users/ahmet/Desktop/istoc/tradehubfront/src | wc -l
-# Beklenen (bu plan yazılırken): 0 → §5'teki olaylar YAZILACAK
+# Beklenen bugün: 0. Ürün takibi ancak §5 mahremiyet/retention kararıyla eklenir.
 ```
 
 ### D2 — Satıcı × ürün × medya dağılımı (§2.1 örneklem çerçevesi)
@@ -321,8 +342,8 @@ kriterin kendisi (≥10 satıcı) düşürülmez.
 ### D3 — G6 üretimde tetiklenebiliyor mu
 
 ```bash
-# 999 px kısa kenarlı bir görsel üretimde REDDEDİLİYOR mu?
-# Beklenen (bu plan yazılırken): HAYIR — slot bazlı geometri kapısı yok (FR-015).
+# 999 px kısa kenarlı bir görsel product.image slotunda REDDEDİLİYOR mu?
+# Beklenen: short_edge_too_small veya area_too_small kodlu ret.
 docker exec -i istoc-dev-backend-1 bench --site istoc.localhost console <<'EOF'
 from tradehub_core.media import upload_policy
 import inspect
@@ -330,7 +351,9 @@ print(inspect.signature(upload_policy.check))
 EOF
 ```
 
-İmzada `slot_key` yoksa **UAT-2 başlatılamaz**; G6 görevi anlamsızdır.
+İmzada `slot` parametresi bulunmalı; ayrıca pilot öncesi gerçek panelden küçük
+fixture yüklenerek görünen mesaj ve ardından geçerli dosyayla düzeltme yolu
+doğrulanmalıdır. Otomatik ret, kullanıcının mesajı anladığına kanıt değildir.
 
 ---
 
@@ -339,7 +362,10 @@ EOF
 - Kaynak tasarım dokümanı: `docs/72-faz14-test-kabul.html` → T-142
 - `docs/reports/08-canli-olcum.md` — 4.958 dosya, sahiplik %100
 - `docs/reports/03-performans-taban-cizgisi.md` — teknik taban çizgisi
+- `docs/templates/media-uat-oturum-formu.md`, `media-uat-results.csv`,
+  `media-uat-findings.csv` ve `scripts/summarize_media_uat.py` — anonim saha
+  kaydı, sözleşme doğrulaması ve kabul hesabı
 - `docs/ui/faz9-media-library.md`, `faz10-crop-studio.md`, `faz11-simulator.md`
-  — pilotun ön koşulu olan arayüz planları
+  — uygulanmış arayüzlerin tasarım/kabul kaynakları
 - `docs/srs/SRS-v1.0.md` FR-001, FR-015, FR-062, FR-063 — G6'nın bağlı olduğu
   gereksinimler

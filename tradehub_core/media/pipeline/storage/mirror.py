@@ -43,6 +43,7 @@ edilir — sessiz kayıp yok.
 
 from __future__ import annotations
 
+import hashlib
 import threading
 import time
 from dataclasses import dataclass, field
@@ -240,7 +241,22 @@ class FrappeEnqueueMirrorQueue:
 		try:
 			import frappe  # noqa: PLC0415 - bilinçli tembel import
 
-			frappe.enqueue(self._method, queue=self._queue, **task.to_dict())
+			# Aynı içerik bir istekte birden çok File satırına bağlanabilir.
+			# URL+operasyon+hedef aynıysa ikinci RQ işi yalnız S3 maliyetidir;
+			# içerik-adresli anahtar zaten idempotent. Frappe job_id'si site adıyla
+			# ayrıca namespace edilir, bu kısa özet yalnız site içindeki tekrarı
+			# bastırır.
+			kimlik = hashlib.sha256(
+				f"{task.op}\x1f{task.ref.url}\x1f{task.target_scope}".encode()
+			).hexdigest()[:32]
+			frappe.enqueue(
+				self._method,
+				queue=self._queue,
+				enqueue_after_commit=True,
+				job_id=f"media-mirror::{kimlik}",
+				deduplicate=True,
+				**task.to_dict(),
+			)
 			return True
 		except Exception:
 			# Kuyruk hatası birincili DÜŞÜRMEZ (modül dokümanı, son bölüm).
@@ -324,11 +340,20 @@ class MirrorWorker:
 				if self._secondary.exists(task.ref):
 					self.record(task, TASK_OK)
 					return True
-				stream_writer(
+				sonuc = stream_writer(
 					stream_reader(task.ref),
 					task.ref.key.extension,
 					scope=task.ref.scope,
 				)
+				# Birincildeki baytlar URL'in içerik hash'iyle uyuşmuyorsa S3
+				# adaptörü farklı bir anahtar üretir. Bunu "başarılı" saymak,
+				# beklenen URL'in S3'te olmadığını gizlerdi.
+				if sonuc.ref != task.ref:
+					raise StorageError(
+						"Birincil nesnenin içeriği adresiyle uyuşmuyor",
+						detay={"expected": task.ref.url, "actual": sonuc.ref.url},
+						retryable=False,
+					)
 			except ObjectNotFound:
 				self.record(task, TASK_DROPPED, "primary_missing")
 				return True
@@ -345,7 +370,13 @@ class MirrorWorker:
 			self.record(task, TASK_OK)
 			return True
 		uzanti = task.ref.key.extension
-		self._secondary.put(icerik, uzanti, scope=task.ref.scope)
+		sonuc = self._secondary.put(icerik, uzanti, scope=task.ref.scope)
+		if sonuc.ref != task.ref:
+			raise StorageError(
+				"Birincil nesnenin içeriği adresiyle uyuşmuyor",
+				detay={"expected": task.ref.url, "actual": sonuc.ref.url},
+				retryable=False,
+			)
 		self.record(task, TASK_OK)
 		return True
 
@@ -472,6 +503,17 @@ class MirrorStorage:
 
 	def failed_tasks(self) -> List[Dict[str, Any]]:
 		return list(self.worker.failures)
+
+	def replication_status(self, ref: ObjectRef) -> Dict[str, Any]:
+		"""Tek nesnenin birincil/ikincil varlığını içerik sızdırmadan ölç."""
+		primary = bool(self._primary.exists(ref))
+		secondary = bool(self._secondary.exists(ref))
+		return {
+			"url": ref.url,
+			"primary": primary,
+			"secondary": secondary,
+			"replicated": primary and secondary,
+		}
 
 	def reconcile(self, *, scope: str = SCOPE_PUBLIC, limit: int = 0) -> Dict[str, Any]:
 		"""Birincilde olup ikincilde olmayanı yeniden kuyruğa al.

@@ -45,6 +45,8 @@ KORUNAN_ALANLAR = (
 	"rendition_on_upload",
 	"active_slots",
 	"max_renditions_per_asset",
+	"rollout_percent",
+	"rollout_stores",
 )
 
 SLOT = "product.image"
@@ -143,7 +145,13 @@ class _BayrakliTest(FrappeTestCase):
 		pipeline_flags.clear_cache()
 
 	def _hatti_ac(self) -> None:
-		self._ayarla(media_pipeline_enabled=1, rendition_on_upload=1, active_slots=SLOT)
+		self._ayarla(
+			media_pipeline_enabled=1,
+			rendition_on_upload=1,
+			active_slots=SLOT,
+			rollout_percent=100,
+			rollout_stores="",
+		)
 
 
 class TestBayrakKapisi(_BayrakliTest):
@@ -194,6 +202,28 @@ class TestBayrakKapisi(_BayrakliTest):
 		self.assertEqual(kwargs.get("timeout"), 60)
 		self.assertTrue(kwargs.get("enqueue_after_commit"))
 		self.assertEqual(kwargs.get("file_url"), self.doc.file_url)
+
+	def test_rollout_sifirda_disaridaki_magaza_kuyruga_girmez_canary_girer(self):
+		self._ayarla(
+			media_pipeline_enabled=1,
+			rendition_on_upload=1,
+			active_slots=SLOT,
+			rollout_percent=0,
+			rollout_stores="SELLER-CANARY",
+		)
+		with (
+			mock.patch.object(pipeline_bridge.ownership, "store_of", return_value="SELLER-OUT"),
+			mock.patch("tradehub_core.media.pipeline_bridge.frappe.enqueue") as enqueue,
+		):
+			pipeline_bridge.maybe_generate_renditions(self.doc)
+		enqueue.assert_not_called()
+
+		with (
+			mock.patch.object(pipeline_bridge.ownership, "store_of", return_value="SELLER-CANARY"),
+			mock.patch("tradehub_core.media.pipeline_bridge.frappe.enqueue") as enqueue,
+		):
+			pipeline_bridge.maybe_generate_renditions(self.doc)
+		enqueue.assert_called_once()
 
 
 class TestKapsam(_BayrakliTest):

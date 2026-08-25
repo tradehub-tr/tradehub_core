@@ -301,3 +301,6 @@ tradehub_core.patches.v15_9_44_media_phase4_indexes
 
 # --- Faz 5 G16 · canonical storage/retention + soft-delete evidence ---
 tradehub_core.patches.v15_9_45_media_phase5_schema
+tradehub_core.patches.v15_9_46_media_categories
+tradehub_core.patches.v15_9_47_media_migration_runtime
+tradehub_core.patches.v15_9_48_media_rollout_controls

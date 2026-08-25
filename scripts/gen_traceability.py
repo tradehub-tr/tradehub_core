@@ -4,7 +4,8 @@
 Ne yapar
 --------
 `docs/srs/SRS-v1.0.md` içindeki **202 gereksinimin tamamını** (150 FR + 52 NFR)
-ayrıştırır, her birini bu depodaki **gerçek test fonksiyonlarına** bağlar ve
+ve normatif **INV-01…INV-12** haritasını ayrıştırır, her birini bu depodaki
+**gerçek test fonksiyonlarına** bağlar ve
 `docs/test/traceability.md` dosyasını üretir. Bağlanamayan gereksinimi
 gizlemez — ayrı bir bölümde tek tek listeler.
 
@@ -47,6 +48,9 @@ KANIT SINIFLARI — bir eşleşmenin nereden geldiği matriste GÖRÜNÜR
        kapsama SAYILMAZ — atlanan teste etiket yazmak sahte kapsama olurdu.
        F kanıtı A gibi bağlayıcıdır; kapsam kararına girer.
 
+    I  Normatif invariant haritası (`tests/golden/invariants.json`). Birincil
+       ve destek testlerinin sembolleri Python AST indeksiyle doğrulanır.
+
     —  Kanıt yok → **KAPSANMIYOR**. Bu bir başarısızlık değil, ölçümdür:
        gereksinimlerin çoğu henüz uygulanmamış fazlara ait (F3, F3+).
 
@@ -82,6 +86,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SRS = ROOT / "docs" / "srs" / "SRS-v1.0.md"
 MAP_FILE = ROOT / "docs" / "test" / "req-test-map.json"
+INVARIANT_MAP = ROOT / "tradehub_core" / "tests" / "golden" / "invariants.json"
 MANIFEST = ROOT / "tests" / "fixtures" / "media" / "manifest.json"
 if not MANIFEST.exists():  # GÖÇ UYUMU (1ec9b5e): fixture'lar da paket içine taşındı
 	MANIFEST = ROOT / "tradehub_core" / "tests" / "fixtures" / "media" / "manifest.json"
@@ -91,7 +96,7 @@ OUT = ROOT / "docs" / "test" / "traceability.md"
 #: hiçbir dosyası değiştirilmez (mutlak kural 1).
 TEST_DIRS = (ROOT / "tests", ROOT / "tradehub_core" / "tests")
 
-REQ_RE = re.compile(r"\b(?:FR|NFR)-\d{3}\b")
+REQ_RE = re.compile(r"\b(?:(?:FR|NFR)-\d{3}|INV-\d{2})\b")
 
 #: FE test kökleri — çalışma alanı kökünden (istoc/) çözülür; repo yoksa atlanır.
 ISTOC = ROOT.parent
@@ -201,6 +206,32 @@ def parse_srs(path: Path = SRS) -> dict[str, dict]:
 	return reqs
 
 
+def parse_invariants(path: Path = INVARIANT_MAP) -> dict[str, dict]:
+	"""Normatif INV-01…INV-12 listesini makine haritasından ayrıştır."""
+	if not path.exists():
+		raise SystemExit(f"invariant haritası bulunamadı: {path}")
+	veri = json.loads(path.read_text(encoding="utf-8"))
+	out: dict[str, dict] = {}
+	for kayit in veri.get("invariants", []):
+		rid = str(kayit.get("id", "")).strip()
+		if not re.fullmatch(r"INV-\d{2}", rid):
+			raise SystemExit(f"geçersiz invariant kimliği: {rid!r}")
+		if rid in out:
+			raise SystemExit(f"tekrar eden invariant kimliği: {rid}")
+		out[rid] = {
+			"id": rid,
+			"metin": _kisalt(str(kayit.get("rule", ""))),
+			"durum": "Normatif",
+			"faz": "F6/F14",
+		}
+	beklenen = {f"INV-{i:02d}" for i in range(1, 13)}
+	if set(out) != beklenen:
+		eksik = sorted(beklenen - set(out))
+		fazla = sorted(set(out) - beklenen)
+		raise SystemExit(f"invariant haritası 12/12 değil; eksik={eksik}, fazla={fazla}")
+	return out
+
+
 # ── Test tarama ─────────────────────────────────────────────────────────
 
 
@@ -216,7 +247,9 @@ class TestIndex:
 		for d in dirs:
 			if not d.exists():
 				continue
-			for p in sorted(d.glob("test_*.py")):
+			# Golden/property sözleşmeleri ``tests/golden/`` altında tutulur;
+			# yalnız kök dizini taramak INV-11 gibi canlı testleri görünmez yapardı.
+			for p in sorted(d.rglob("test_*.py")):
 				rel = str(p.relative_to(ROOT))
 				try:
 					src = p.read_text(encoding="utf-8")
@@ -370,6 +403,23 @@ def harvest_b(index: TestIndex, manifest: Path = MANIFEST) -> dict[str, set[str]
 	return out
 
 
+def _resolve_test_reference(index: TestIndex, hedef: str) -> tuple[str, str]:
+	"""Bir ``dosya::Sınıf::test`` referansını çöz ve AST ile doğrula."""
+	parcalar = hedef.split("::")
+	dosya = parcalar[0]
+	# GÖÇ UYUMU (1ec9b5e): medya testleri `tests/` → `tradehub_core/tests/`
+	# taşındı; eski yol yoksa ve yenisi varsa referans yeni yola çözülür.
+	if dosya not in index.fonksiyonlar and f"tradehub_core/{dosya}" in index.fonksiyonlar:
+		dosya = f"tradehub_core/{dosya}"
+		parcalar[0] = dosya
+		hedef = "::".join(parcalar)
+	sinif = parcalar[1] if len(parcalar) > 2 else ""
+	fonk = parcalar[-1] if len(parcalar) > 1 else ""
+	if len(parcalar) == 2:
+		sinif, fonk = ("", parcalar[1]) if parcalar[1].startswith("test") else (parcalar[1], "")
+	return hedef, index.var_mi(dosya, sinif, fonk)
+
+
 def harvest_c(index: TestIndex, map_file: Path = MAP_FILE) -> tuple[dict[str, set[str]], list[str]]:
 	"""C sınıfı kanıt: elle kurulmuş eşleme + referans doğrulaması."""
 	if not map_file.exists():
@@ -389,20 +439,30 @@ def harvest_c(index: TestIndex, map_file: Path = MAP_FILE) -> tuple[dict[str, se
 				continue
 			if len(neden) < 10:
 				hatalar.append(f"{rid} → {hedef}: 'neden' eksik ya da çok kısa (gerekçesiz eşleme yasak)")
-			parcalar = hedef.split("::")
-			dosya = parcalar[0]
-			# GÖÇ UYUMU (1ec9b5e): medya testleri `tests/` → `tradehub_core/tests/`
-			# taşındı; eşleme dosyası hâlâ eski yolu taşıyor. Eski yol yoksa ve
-			# yenisi varsa referans yeni yola çözülür — matris gerçek yolu yazar.
-			if dosya not in index.fonksiyonlar and f"tradehub_core/{dosya}" in index.fonksiyonlar:
-				dosya = f"tradehub_core/{dosya}"
-				parcalar[0] = dosya
-				hedef = "::".join(parcalar)
-			sinif = parcalar[1] if len(parcalar) > 2 else ("" if len(parcalar) < 2 else "")
-			fonk = parcalar[-1] if len(parcalar) > 1 else ""
-			if len(parcalar) == 2:
-				sinif, fonk = ("", parcalar[1]) if parcalar[1].startswith("test") else (parcalar[1], "")
-			hata = index.var_mi(dosya, sinif, fonk)
+			hedef, hata = _resolve_test_reference(index, hedef)
+			if hata:
+				hatalar.append(f"{rid} → {hata}")
+				continue
+			out[rid].add(hedef)
+	return out, hatalar
+
+
+def harvest_i(index: TestIndex, path: Path = INVARIANT_MAP) -> tuple[dict[str, set[str]], list[str]]:
+	"""I sınıfı kanıt: normatif invariant haritasındaki canlı test sembolleri."""
+	if not path.exists():
+		return {}, [f"invariant haritası yok: {path}"]
+	veri = json.loads(path.read_text(encoding="utf-8"))
+	out: dict[str, set[str]] = defaultdict(set)
+	hatalar: list[str] = []
+	for kayit in veri.get("invariants", []):
+		rid = str(kayit.get("id", "")).strip()
+		hedefler = [kayit.get("primary_test"), *kayit.get("supporting_tests", [])]
+		for ham_hedef in hedefler:
+			hedef = str(ham_hedef or "").strip()
+			if not hedef:
+				hatalar.append(f"{rid}: boş invariant test referansı")
+				continue
+			hedef, hata = _resolve_test_reference(index, hedef)
 			if hata:
 				hatalar.append(f"{rid} → {hata}")
 				continue
@@ -417,6 +477,11 @@ def harvest_c(index: TestIndex, map_file: Path = MAP_FILE) -> tuple[dict[str, se
 #: matris tabloyu okunamaz hâle getiren 25 satırlık hücreler üretmesin.
 MAX_HUCRE = 4
 
+# B yalnız zayıf fixture izidir; kapsam kararına bilerek girmez. Bu sabit hem
+# rapor hem CLI çıkış kodu tarafından kullanılır ki iki hesap yeniden
+# birbirinden sapmasın.
+BAGLAYICI_KANITLAR = ("A", "C", "F", "I")
+
 
 def _hucre(girdiler: list[str], etiket: str) -> str:
 	if not girdiler:
@@ -429,7 +494,11 @@ def _hucre(girdiler: list[str], etiket: str) -> str:
 
 
 def _satir(rid: str, req: dict, kanit: dict[str, list[str]]) -> str:
-	baglayici = sorted(kanit.get("A", [])) + sorted(kanit.get("C", [])) + sorted(kanit.get("F", []))
+	baglayici = sorted({
+		hedef
+		for sinif in BAGLAYICI_KANITLAR
+		for hedef in kanit.get(sinif, [])
+	})
 	iz = sorted(kanit.get("B", []))
 	hucre = _hucre(baglayici, "test") if baglayici else "**KAPSANMIYOR**"
 	return (
@@ -438,13 +507,28 @@ def _satir(rid: str, req: dict, kanit: dict[str, list[str]]) -> str:
 	)
 
 
+def _covered_ids(reqs: dict[str, dict], kanitlar: dict[str, dict[str, list[str]]]) -> set[str]:
+	"""Bağlayıcı test kanıtı olan kimlikleri tek, ortak kuralla hesapla."""
+	return {
+		rid
+		for rid in reqs
+		if any(kanitlar.get(rid, {}).get(sinif) for sinif in BAGLAYICI_KANITLAR)
+	}
+
+
 def rapor(reqs: dict[str, dict], kanitlar: dict[str, dict[str, list[str]]],
           index: TestIndex, fe: FeIndex, hatalar: list[str]) -> str:
 	fr = [r for r in reqs if r.startswith("FR-")]
 	nfr = [r for r in reqs if r.startswith("NFR-")]
-	# KAPSAM KARARI: A, C ve F. B (fixture izi) bilerek sayılmaz — §1.
-	kapsanan = {r for r, k in kanitlar.items() if k.get("A") or k.get("C") or k.get("F")}
+	inv = [r for r in reqs if r.startswith("INV-")]
+	# KAPSAM KARARI: A, C, F ve I. B (fixture izi) bilerek sayılmaz — §1.
+	kapsanan = _covered_ids(reqs, kanitlar)
 	acik = [r for r in sorted(reqs) if r not in kapsanan]
+	srs = fr + nfr
+	srs_kapsanan = [r for r in srs if r in kapsanan]
+	srs_acik = [r for r in srs if r not in kapsanan]
+	inv_kapsanan = [r for r in inv if r in kapsanan]
+	inv_acik = [r for r in inv if r not in kapsanan]
 
 	def yuzde(a: int, b: int) -> str:
 		return f"%{100.0 * a / b:.1f}" if b else "—"
@@ -454,6 +538,7 @@ def rapor(reqs: dict[str, dict], kanitlar: dict[str, dict[str, list[str]]],
 	sayim_b = sum(1 for r in reqs if kanitlar.get(r, {}).get("B"))
 	sadece_b = sum(1 for r in reqs if kanitlar.get(r, {}).get("B") and r not in kapsanan)
 	sayim_f = sum(1 for r in reqs if kanitlar.get(r, {}).get("F"))
+	sayim_i = sum(1 for r in reqs if kanitlar.get(r, {}).get("I"))
 	sadece_f = sum(
 		1 for r in reqs
 		if kanitlar.get(r, {}).get("F")
@@ -474,13 +559,16 @@ def rapor(reqs: dict[str, dict], kanitlar: dict[str, dict[str, list[str]]],
 	L.append("")
 	L.append("| Ölçüm | Değer |")
 	L.append("|---|---:|")
-	L.append(f"| SRS'te ayrıştırılan gereksinim | **{len(reqs)}** ({len(fr)} FR + {len(nfr)} NFR) |")
-	L.append(f"| En az bir teste bağlı (A ∪ C ∪ F) | **{len(kapsanan)}** ({yuzde(len(kapsanan), len(reqs))}) |")
+	L.append(f"| SRS'te ayrıştırılan gereksinim | **{len(srs)}** ({len(fr)} FR + {len(nfr)} NFR) |")
+	L.append(f"| Normatif invariant | **{len(inv)}** (INV-01…INV-12) |")
+	L.append(f"| Toplam izlenebilir öğe | **{len(reqs)}** |")
+	L.append(f"| En az bir teste bağlı (A ∪ C ∪ F ∪ I) | **{len(kapsanan)}** ({yuzde(len(kapsanan), len(reqs))}) |")
 	L.append(f"| **KAPSANMIYOR** | **{len(acik)}** ({yuzde(len(acik), len(reqs))}) |")
 	L.append(f"| A kanıtı (test metninde kimlik geçiyor) | {sayim_a} |")
 	L.append(f"| C kanıtı (yalnız elle eşleme, A yok) | {sayim_c} |")
 	L.append(f"| F kanıtı — FE testi olan gereksinim | {sayim_f} |")
 	L.append(f"| …bunlardan YALNIZ FE ile kapsanan (A/C yok) | {sadece_f} |")
+	L.append(f"| I kanıtı — doğrulanmış invariant testi | {sayim_i}/{len(inv)} |")
 	L.append(f"| B izi olan gereksinim (kapsam SAYILMAZ) | {sayim_b} |")
 	L.append(f"| …bunlardan yalnız B izi olan, yani hâlâ kapsanmayan | {sadece_b} |")
 	L.append(f"| Taranan Python test dosyası | {len(index.kaynak)} |")
@@ -492,9 +580,17 @@ def rapor(reqs: dict[str, dict], kanitlar: dict[str, dict[str, list[str]]],
 	L.append(f"| Atlanan FE testi (skip/fixme/todo — kapsam dışı) | {fe.atlanan} |")
 	L.append(f"| FE test adlarındaki `[FR/NFR-xxx]` etiketi | {fe_etiket_sayisi} |")
 	L.append("")
-	L.append("**Kabul kriteri karşılığı (kaynak doküman T-140):** *\"Her FR/NFR en az bir")
-	L.append("teste bağlı; bağsız gereksinim yok.\"* → bugün **SAĞLANMIYOR**; açık")
-	L.append(f"gereksinim sayısı **{len(acik)}**. Liste §3'te tam olarak yazılı.")
+	L.append("**Kabul kriteri karşılığı (kaynak doküman T-140):**")
+	L.append("")
+	L.append(
+		f"- Her FR/NFR en az bir teste bağlı: **{len(srs_kapsanan)}/{len(srs)}**; "
+		f"açık **{len(srs_acik)}** → **{'SAĞLANDI' if not srs_acik else 'SAĞLANMIYOR'}**."
+	)
+	L.append(
+		f"- INV-01…INV-12 property/golden teste bağlı: **{len(inv_kapsanan)}/{len(inv)}**; "
+		f"açık **{len(inv_acik)}** → **{'SAĞLANDI' if not inv_acik else 'SAĞLANMIYOR'}**."
+	)
+	L.append("- Açık öğelerin tam listesi §3'tedir.")
 	L.append("")
 	if hatalar:
 		L.append("## 0.1 ⚠ Eşleme doğrulama hataları")
@@ -510,22 +606,30 @@ def rapor(reqs: dict[str, dict], kanitlar: dict[str, dict[str, list[str]]],
 	L.append("| **B** | Test, `manifest.json`'da o gereksinime bağlı bir altın fixture'ı kullanıyor — **kapsam sayılmaz** | iz |")
 	L.append("| **C** | `docs/test/req-test-map.json` içinde gerekçesiyle elle kuruldu; referansın varlığı AST ile doğrulandı | yargı |")
 	L.append("| **F** | FE test adının BAŞINDA `[FR-xxx]` etiketi (node --test / vitest / playwright); koşucu adı satırda görünür, `skip` edilen test sayılmaz | bağlayıcı |")
+	L.append("| **I** | `tests/golden/invariants.json` içindeki birincil/destek test sembolü; Python AST indeksiyle varlığı doğrulandı | bağlayıcı |")
 	L.append("| — | Kanıt yok → **KAPSANMIYOR** | — |")
 	L.append("")
 	L.append("## 2. Matris")
 	L.append("")
 	L.append("### 2.1 Fonksiyonel gereksinimler (FR)")
 	L.append("")
-	L.append("| FR | Gereksinim (kısaltılmış) | Faz | SRS'teki bugünkü durum | Bağlayıcı test (A/C/F) | Fixture izi (B — sayılmaz) |")
+	L.append("| FR | Gereksinim (kısaltılmış) | Faz | SRS'teki bugünkü durum | Bağlayıcı test (A/C/F/I) | Fixture izi (B — sayılmaz) |")
 	L.append("|---|---|---|---|---|---|")
 	for rid in sorted(fr):
 		L.append(_satir(rid, reqs[rid], kanitlar.get(rid, {})))
 	L.append("")
 	L.append("### 2.2 Fonksiyonel olmayan gereksinimler (NFR)")
 	L.append("")
-	L.append("| NFR | Gereksinim (kısaltılmış) | Faz | SRS'teki bugünkü durum | Test |")
-	L.append("|---|---|---|---|---|")
+	L.append("| NFR | Gereksinim (kısaltılmış) | Faz | SRS'teki bugünkü durum | Bağlayıcı test (A/C/F/I) | Fixture izi (B — sayılmaz) |")
+	L.append("|---|---|---|---|---|---|")
 	for rid in sorted(nfr):
+		L.append(_satir(rid, reqs[rid], kanitlar.get(rid, {})))
+	L.append("")
+	L.append("### 2.3 Normatif invariant'lar (INV)")
+	L.append("")
+	L.append("| INV | Kural | Faz | Durum | Doğrulanmış test (I) | Fixture izi (B — sayılmaz) |")
+	L.append("|---|---|---|---|---|---|")
+	for rid in sorted(inv):
 		L.append(_satir(rid, reqs[rid], kanitlar.get(rid, {})))
 	L.append("")
 	L.append("## 3. KAPSANMAYAN gereksinimler — tam liste")
@@ -552,12 +656,15 @@ def rapor(reqs: dict[str, dict], kanitlar: dict[str, dict[str, list[str]]],
 
 def build() -> tuple[str, int, list[str]]:
 	reqs = parse_srs()
+	reqs.update(parse_invariants())
 	index = TestIndex().tara()
 	fe = FeIndex().tara()
 	a = harvest_a(index)
 	b = harvest_b(index)
-	c, hatalar = harvest_c(index)
+	c, c_hatalar = harvest_c(index)
 	f = harvest_f(fe)
+	i, i_hatalar = harvest_i(index)
+	hatalar = c_hatalar + i_hatalar
 	kanitlar: dict[str, dict[str, list[str]]] = {}
 	for rid in reqs:
 		kanitlar[rid] = {
@@ -565,8 +672,9 @@ def build() -> tuple[str, int, list[str]]:
 			"B": sorted(b.get(rid, ())),
 			"C": sorted(c.get(rid, ())),
 			"F": sorted(f.get(rid, ())),
+			"I": sorted(i.get(rid, ())),
 		}
-	acik = sum(1 for r in reqs if not any(kanitlar[r].values()))
+	acik = len(reqs) - len(_covered_ids(reqs, kanitlar))
 	return rapor(reqs, kanitlar, index, fe, hatalar), acik, hatalar
 
 

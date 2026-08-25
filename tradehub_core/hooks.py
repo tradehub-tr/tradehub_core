@@ -237,6 +237,10 @@ scheduler_events = {
 		# Rendition soft-delete grace penceresi dolan dosyaların ayrı kalıcı
 		# temizleme işi. Kendi enforce bayrağı yoksa yalnız rapor üretir.
 		"tradehub_core.media.pipeline.storage.retention.run_scheduled_soft_delete",
+		# Asenkron ayna işi Redis/S3 kesintisinde düşerse birincil dosya
+		# korunur. Bu tarama yerelde olup S3'te olmayanı tekrar kuyruğa alır;
+		# mirror kapalıyken S3 istemcisi dahi kurmaz.
+		"tradehub_core.media.mirror_runtime.reconcile_scheduled",
 		# Saha hakediş kota bonusu — on-approval tetiklemesinin günlük güvenlik ağı.
 		"tradehub_core.tradehub_core.utils.field_commission.process_quota_bonuses",
 		"tradehub_core.services.tcmb.fetch_and_update_rates",
@@ -373,7 +377,14 @@ doc_events = {
 			"tradehub_core.media.transcode.maybe_transcode_on_insert",
 			"tradehub_core.media.av.maybe_scan_on_insert",
 			"tradehub_core.media.pipeline_bridge.maybe_generate_renditions",
+			# T-051/T-141 S11: Frappe'nin gerçek File yazma yolunu depolama
+			# adaptörüne bağla. Local kipte sabit bir ayar kontrolüyle no-op;
+			# mirror kipte commit-sonrası long kuyruğa yalnız ObjectRef gider.
+			"tradehub_core.media.mirror_runtime.maybe_mirror_on_insert",
 		],
+		# Yerel File silme yolu StorageAdapter.delete'i kullanmaz. Mirror açıksa
+		# ikincil nesneyi de ancak commit'ten sonra sil; rollback S3'e yansımasın.
+		"on_trash": "tradehub_core.media.mirror_runtime.maybe_mirror_on_trash",
 	},
 	# Currency cache invalidation — admin manuel düzenlemesinde düş.
 	# (tcmb_fx daily job db.set_value kullandığı için ayrıca explicit invalidate eder.)
@@ -939,6 +950,9 @@ permission_query_conditions = {
 	# modülünde (tek sahiplik; gerekçe docs/reports/67 §4).
 	"Media Folder": "tradehub_core.tradehub_core.doctype.media_folder.media_folder.get_permission_query_conditions",
 	"Media Folder Item": "tradehub_core.tradehub_core.doctype.media_folder_item.media_folder_item.get_permission_query_conditions",
+	# MOGEM-579 — tenant kategori kataloğu ve dosya↔kategori N:M bağı.
+	"Media Category": "tradehub_core.tradehub_core.doctype.media_category.media_category.get_permission_query_conditions",
+	"Media Category Assignment": "tradehub_core.tradehub_core.doctype.media_category_assignment.media_category_assignment.get_permission_query_conditions",
 	# T1 (28-faz13-pentest §2) — Payment Transaction'da NE query_conditions NE
 	# has_permission kaydı vardı; `Marketplace Seller` DocPerm satırı
 	# (read=1, if_owner=0) yüzünden hiçbir ödemesi olmayan bir satıcı gerçek
@@ -1038,6 +1052,8 @@ has_permission = {
 	"Media Version": "tradehub_core.permissions.media_version_has_permission",
 	"Media Folder": "tradehub_core.tradehub_core.doctype.media_folder.media_folder.has_permission",
 	"Media Folder Item": "tradehub_core.tradehub_core.doctype.media_folder_item.media_folder_item.has_permission",
+	"Media Category": "tradehub_core.tradehub_core.doctype.media_category.media_category.has_permission",
+	"Media Category Assignment": "tradehub_core.tradehub_core.doctype.media_category_assignment.media_category_assignment.has_permission",
 	# T-051 (şartname) — Depolama/CDN ayarı S3 secret + imgproxy anahtarı taşır.
 	# DocPerm listesinde yalnız Media Superadmin var; bu kanca
 	# ikinci kat: rol kümesi dışındaki hiç kimse OKUYAMAZ (Single DocType olduğu

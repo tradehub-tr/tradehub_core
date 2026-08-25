@@ -1,5 +1,11 @@
 # Nihai Kabul Dosyası — **TASLAK** (T-145 hazırlığı)
 
+> **2026-08-24 güncellemesi:** Aşağıdaki 2026-08-20 karne ve borç envanteri
+> tarihsel kayıttır. Güncel, yeniden koşturulmuş MOGEM-617 kapanış sonucu
+> `docs/closure/mogem-617-kapanis.md` içindedir. T-141 teknik kapısı geçti;
+> T-140, gerçek satıcı UAT'ı, üretim backfill/canary ve nihai imzalar açık
+> olduğundan bu belge hâlâ taslaktır ve imzaya sunulmaz.
+
 > ⚠️ **TASLAK.** Bu belge imzaya sunulmaz; 13-faz14-kabul.md'nin (2026-08-18) güncel ölçümlerle yeniden derlenmiş hâlidir ve nihai kabulün insan kalemlerini tek listede toplar.
 > **Bu belge ölçümlerden derlenmiştir; çelişki hâlinde rapor kazanır.**
 > Derleme tarihi: 2026-08-20 · W6 kapanış dalgası.

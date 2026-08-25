@@ -44,6 +44,7 @@ from tradehub_core.media import (
 	upload_policy,
 	usage,
 )
+from tradehub_core.media import categories as category_service
 from tradehub_core.media import seller_media as islem
 
 # Tek istekte işlenebilecek azami dosya — kazara "hepsini" tetiklemeye karşı.
@@ -89,11 +90,31 @@ def get_my_media(
 	sort_by: str = "date",
 	sort_dir: str = "desc",
 	usage_state: str = "",
+	name_search: str = "",
+	kinds: str | list[str] | None = None,
+	formats: str | list[str] | None = None,
+	mime_types: str | list[str] | None = None,
+	orientations: str | list[str] | None = None,
+	size_buckets: str | list[str] | None = None,
+	date_from: str = "",
+	date_to: str = "",
+	min_bytes: int | str | None = None,
+	max_bytes: int | str | None = None,
+	tags: str | list[str] | None = None,
+	categories: str | list[str] | None = None,
+	flags: str | list[str] | None = None,
+	owners: str | list[str] | None = None,
+	usage_min: int | str | None = None,
+	usage_max: int | str | None = None,
 ) -> dict:
 	"""Satıcının kendi dosyaları — sayfalı liste.
 
 	`state`: "" (aktif) | "trashed" (bıraktıkları) | "optimized" | "pending"
-	`usage_state`: kendi kapsamındaki kullanım kararı
+	`usage_state`: kendi kapsamındaki kullanım kararı.
+
+	Tarih, boyut, MIME/format, yön ve etiket filtreleri SQL sorgusuna
+	sayfalamadan ÖNCE uygulanır. Dizi parametreleri JSON dizi veya virgüllü metin
+	olabilir; mağaza parametresi hâlâ istemciden alınmaz, oturumdan çözülür.
 	"""
 	store = _store()
 	sonuc = inventory.list_files(
@@ -104,15 +125,35 @@ def get_my_media(
 		sort_by=sort_by,
 		sort_dir=sort_dir,
 		usage_state=usage_state,
+		name_search=name_search,
+		kinds=kinds,
+		formats=formats,
+		mime_types=mime_types,
+		orientations=orientations,
+		size_buckets=size_buckets,
+		date_from=date_from,
+		date_to=date_to,
+		min_bytes=min_bytes,
+		max_bytes=max_bytes,
+		tags=tags,
+		categories=categories,
+		flags=flags,
+		owners=owners,
+		usage_min=usage_min,
+		usage_max=usage_max,
 		store=store,
 	)
 
 	# Üstveri tek sorguda ekleniyor. Satır başına ayrı çağrı, 200 satırlık bir
 	# sayfada 200 gidiş dönüş demekti.
 	ustveri = metadata.read_many([i["file_url"] for i in sonuc["items"]], store)
+	kategoriler = category_service.assignments_for_urls(
+		[i["file_url"] for i in sonuc["items"]], store
+	)
 	zengin = _lqip_by_url([i["file_url"] for i in sonuc["items"]], store)
 	for i in sonuc["items"]:
 		i.update(ustveri.get(i["file_url"]) or {})
+		i["categories"] = kategoriler.get(i["file_url"], [])
 		i.update(zengin.get(i["file_url"]) or {})
 	return sonuc
 
@@ -693,13 +734,15 @@ def get_my_summary() -> dict:
 	iş hacmi aynı tenant-süzgeçli yanıtta eklenir.
 	"""
 	store = _store()
-	aktif = inventory.list_files(page=1, page_size=1, store=store)
-	cop = inventory.list_files(page=1, page_size=1, state="trashed", store=store)
 	depolama = files.storage_usage(store, include_activity=True)
+	facets = {
+		"active": inventory.library_facets(store),
+		"trashed": inventory.library_facets(store, state="trashed"),
+	}
 	return {
 		"store": store,
-		"active": aktif["total"],
-		"trashed": cop["total"],
+		"active": facets["active"]["counts"]["all"],
+		"trashed": facets["trashed"]["counts"]["all"],
 		"bytes": depolama["bytes"],
 		"original_bytes": depolama["original_bytes"],
 		"rendition_bytes": depolama["rendition_bytes"],
@@ -719,7 +762,10 @@ def get_my_summary() -> dict:
 		"processing_period_start": depolama["processing_period_start"],
 		"processing_jobs_month": depolama["processing_jobs_month"],
 		"processing_duration_ms_month": depolama["processing_duration_ms_month"],
-		"tags": metadata.all_tags(store),
+		# `tags` eski istemciler için düz liste olarak korunur; yeni panel adetli
+		# katalogları `facets` altından okur.
+		"tags": sorted({row["tag"] for group in facets.values() for row in group["tags"]}),
+		"facets": facets,
 	}
 
 
@@ -1588,9 +1634,149 @@ def list_folder_media(
 	)
 
 	ustveri = metadata.read_many([s["file_url"] for s in satirlar], store)
+	kategoriler = category_service.assignments_for_urls(
+		[s["file_url"] for s in satirlar], store
+	)
 	for s in satirlar:
 		s.update(ustveri.get(s["file_url"]) or {})
+		s["categories"] = kategoriler.get(s["file_url"], [])
 	return {"items": satirlar, "total": toplam}
+
+
+# --- Kategorizasyon modeli (MOGEM-579) -------------------------------------
+#
+# Frappe'nin HTTP yüzeyi RPC biçiminde olsa da sözleşme kaynak odaklıdır:
+# liste/oluştur/güncelle/sil kategori kataloğunu, set/add ise dosya↔kategori
+# alt kaynağını yönetir. Tüm uçlar mağazayı oturumdan çözer; payload içinde
+# tenant alanı yoktur.
+
+
+def _my_category(category: str, store: str) -> dict:
+	row = frappe.db.get_value(
+		"Media Category",
+		category,
+		["name", "category_name", "parent_category", "category_type", "store", "is_active"],
+		as_dict=True,
+	)
+	if not row or row.store != store:
+		frappe.throw(frappe._("Kategori bulunamadı."), frappe.DoesNotExistError)
+	return row
+
+
+@frappe.whitelist()
+def list_media_categories(include_inactive: int = 0) -> dict:
+	"""Mağazanın kategori kataloğu ve atanmış medya sayaçları."""
+	return {
+		"categories": category_service.list_categories(
+			_store(), include_inactive=bool(cint(include_inactive))
+		)
+	}
+
+
+@frappe.whitelist(methods=["POST"])
+def create_media_category(
+	category_name: str = "",
+	category_type: str = "custom",
+	parent_category: str = "",
+	description: str = "",
+	color: str = "",
+) -> dict:
+	"""Tenant kataloğunda kategori oluştur."""
+	store = _store()
+	if parent_category:
+		_my_category(parent_category, store)
+	doc = frappe.get_doc(
+		{
+			"doctype": "Media Category",
+			"category_name": category_name,
+			"category_type": category_type,
+			"parent_category": parent_category or "",
+			"description": description,
+			"color": color,
+			"store": store,
+		}
+	).insert(ignore_permissions=True)
+	row = next(
+		item
+		for item in category_service.list_categories(store, include_inactive=True)
+		if item["name"] == doc.name
+	)
+	return {"category": row}
+
+
+@frappe.whitelist(methods=["POST"])
+def update_media_category(category: str = "", patch: str | dict | None = None) -> dict:
+	"""Kategori tanımını beyaz listedeki alanlarla kısmi güncelle."""
+	store = _store()
+	_my_category(category, store)
+	values = frappe.parse_json(patch) if isinstance(patch, str) else (patch or {})
+	if not isinstance(values, dict):
+		frappe.throw(frappe._("Kategori güncellemesi nesne olmalıdır."))
+	allowed = {
+		"category_name",
+		"category_type",
+		"parent_category",
+		"description",
+		"color",
+		"is_active",
+	}
+	doc = frappe.get_doc("Media Category", category)
+	for key, value in values.items():
+		if key not in allowed:
+			continue
+		if key == "is_active":
+			value = 1 if cint(value) else 0
+		setattr(doc, key, value)
+	doc.save(ignore_permissions=True)
+	row = next(
+		item
+		for item in category_service.list_categories(store, include_inactive=True)
+		if item["name"] == doc.name
+	)
+	return {"category": row}
+
+
+@frappe.whitelist(methods=["POST"])
+def delete_media_category(category: str = "") -> dict:
+	"""Boş kategoriyi sil; altı/ataması varsa model katmanı reddeder."""
+	store = _store()
+	_my_category(category, store)
+	frappe.delete_doc("Media Category", category, ignore_permissions=True)
+	return {"deleted": category}
+
+
+@frappe.whitelist(methods=["POST"])
+def set_media_categories(file_url: str = "", category_ids: str | list[str] | None = None) -> dict:
+	"""Bir medyanın kullanıcı tarafından seçilmiş kategori kümesini değiştir."""
+	return category_service.set_for_file(file_url, category_ids, _store())
+
+
+@frappe.whitelist(methods=["POST"])
+def add_media_categories(
+	file_urls: str | list[str] | None = None,
+	category_ids: str | list[str] | None = None,
+) -> dict:
+	"""Birden çok medyaya kategori ekle; mevcut diğer kategorileri korur."""
+	return category_service.add_to_many(_urls(file_urls), category_ids, _store())
+
+
+@frappe.whitelist()
+def suggest_media_categories(file_url: str = "", source: str = "") -> dict:
+	"""Açıklanabilir önerileri yazmadan döndür."""
+	return {
+		"file_url": file_url,
+		"suggestions": category_service.suggest(file_url, _store(), source=source),
+	}
+
+
+@frappe.whitelist(methods=["POST"])
+def apply_media_category_suggestions(
+	file_url: str = "", source: str = "", threshold: float | str = 0.7
+) -> dict:
+	"""Eşiği geçen önerileri ``suggestion`` kaynaklı atama olarak uygula."""
+	return category_service.apply_suggestions(
+		file_url, _store(), source=source, threshold=threshold
+	)
 
 
 @frappe.whitelist()

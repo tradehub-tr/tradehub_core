@@ -91,8 +91,8 @@ import frappe
 # yoksa o slot "hedefi yok" olarak raporlanır (sessizce uyumlu SAYILMAZ).
 SLOT_TARGETS: dict[str, dict] = {
 	"listing_main": {
-		"min_source_width": 2400,   # product-zoom (06 §1.2)
-		"aspect": 1.0,              # 1:1 — ProductImageGallery aspect-square
+		"min_source_width": 2400,  # product-zoom (06 §1.2)
+		"aspect": 1.0,  # 1:1 — ProductImageGallery aspect-square
 		"note": "PD ana 512px, lightbox 636px, zoom profili 2400px ister",
 	},
 	"listing_gallery": {
@@ -101,7 +101,7 @@ SLOT_TARGETS: dict[str, dict] = {
 		"note": "aynı galeri bileşeni",
 	},
 	"variant_main": {
-		"min_source_width": 640,    # product-card; gerçek kutu ÖLÇÜLEMEDİ
+		"min_source_width": 640,  # product-card; gerçek kutu ÖLÇÜLEMEDİ
 		"aspect": 1.0,
 		"note": "render kutusu ölçülemedi (00-upload-slot-envanteri Tablo A) — alt sınır",
 	},
@@ -116,21 +116,36 @@ SLOT_TARGETS: dict[str, dict] = {
 		"note": "276x276 lg kutu, object-cover → kare değilse KIRPILIR, uyarı yok",
 	},
 	"seller_logo": {
-		"min_source_width": 256,    # logo-square (06 §1.2)
-		"aspect": None,             # object-contain → serbest
+		"min_source_width": 256,  # logo-square (06 §1.2)
+		"aspect": None,  # object-contain → serbest
 		"note": "120px kutu, object-contain",
 	},
+	# Aşağıdaki canlı slotların ürün galerisi gibi kabul edilmiş bir piksel/oran
+	# sözleşmesi henüz yok. ``0`` onları sessizce C/no_target yapmaz; yalnız
+	# mevcut motorun genel piksel tavanını aşan dosyaları güvenli A adayı yapar.
+	"seller_gallery_poster": {"min_source_width": 0, "aspect": None, "note": "genel görsel kapısı"},
+	"seller_banner": {"min_source_width": 0, "aspect": None, "note": "genel görsel kapısı"},
+	"brand_logo": {"min_source_width": 0, "aspect": None, "note": "genel görsel kapısı"},
+	"brand_hero": {"min_source_width": 0, "aspect": None, "note": "genel görsel kapısı"},
+	"category_image": {"min_source_width": 0, "aspect": None, "note": "genel görsel kapısı"},
+	"seller_category_image": {"min_source_width": 0, "aspect": None, "note": "genel görsel kapısı"},
+	"seo_og_image": {"min_source_width": 0, "aspect": None, "note": "genel görsel kapısı"},
+	"verification_icon": {"min_source_width": 0, "aspect": None, "note": "genel görsel kapısı"},
 	"storefront": {
-		"min_source_width": 1920,   # company-cover
-		"aspect": None,             # ÇÖZÜLEMEZ — 6,7:1 … 3:1 arası değişken
+		"min_source_width": 1920,  # company-cover
+		"aspect": None,  # ÇÖZÜLEMEZ — 6,7:1 … 3:1 arası değişken
 		"unresolvable_aspect": True,
 		"note": "slayt 180/220/320/400px yükseklikte → tek görselle karşılanamaz (§7-B2)",
 	},
 	# Video slotları: piksel ölçütü uygulanmaz (transcode ayrı iş, media/transcode.py)
 	"listing_video": {"min_source_width": None, "aspect": None, "note": "video — kapsam dışı"},
+	"seller_gallery_video": {"min_source_width": None, "aspect": None, "note": "video — kapsam dışı"},
 	# Sipariş kopyaları: C sınıfı, hedef yok
 	"cart_snapshot": {"min_source_width": None, "aspect": None, "note": "sistem kopyası — dokunulmaz"},
 	"order_receipt": {"min_source_width": None, "aspect": None, "note": "dekont — EXCLUDED"},
+	"order_item_image": {"min_source_width": None, "aspect": None, "note": "sipariş kanıtı — dokunulmaz"},
+	"payment_receipt": {"min_source_width": None, "aspect": None, "note": "dekont — EXCLUDED"},
+	"favorite_snapshot": {"min_source_width": None, "aspect": None, "note": "alıcı kopyası — dokunulmaz"},
 }
 
 # En-boy oranı toleransı. Kod tabanında oran kuralı HİÇ YOK — tek yazılı yer
@@ -138,33 +153,47 @@ SLOT_TARGETS: dict[str, dict] = {
 # envanteri §7-B2). Bu değer ÖNERİDİR.
 ASPECT_TOLERANCE: float = 0.05
 
-# Batch boyutu. Gerekçe aritmetik: api/media_admin.py:211 timeout=3600 s →
-# dosya başına bütçe 3600/N. N=2000 (MAX_BATCH, media_admin.py:40) → 1,8 s/dosya
-# ki 20 MP bir TIFF için gerçekçi değil. N=200 → 18 s/dosya.
+# Batch boyutu. Kanonik bulk iş timeout'u 1800 saniyedir. N=2000 için dosya
+# başına 0,9 saniye gerçekçi değildir; N=200 ise 9 saniye bütçe bırakır.
 # N aynı zamanda DURDURMA KRİTERİNİN ÇÖZÜNÜRLÜĞÜDÜR: run_batch batch ortasında
 # abort ETMEZ (runner.py:68-93), dolayısıyla en kötü durumda N dosya işlenir.
 BATCH_SIZE: int = 200
 
-# Disk probe'unda alt boyut sınırı. Kapı 1 zaten 200 KB altını atıyor
-# (media/presets.py:22 MIN_FILE_SIZE) — altını okumak boşa I/O.
-PROBE_MIN_BYTES: int = 200 * 1024
+# Üretim planı tam ölçümlüdür. Önceki 200 KB alt sınırı küçük dosyaları
+# ``BILINMIYOR`` bırakıyor ve bu planla güvenli wet-run yapılamıyordu. Hızlı,
+# eksik keşif isteyen operatör ``probe_min_bytes`` parametresini açıkça verir;
+# varsayılan çalıştırılabilir plan ise her adayı probe eder.
+PROBE_MIN_BYTES: int = 0
 
 # Sınıflar — docs/plans/migration.md §3
-CLASS_A = "A_otomatik"          # mevcut run_batch ile düzelir
-CLASS_A_PRIME = "A_kapi_disi"   # düzeltilebilir ama MEVCUT KODLA DEĞİL
-CLASS_B = "B_satici_yukler"     # piksel üretilemez → satıcı eylemi
-CLASS_C = "C_yok_sayilir"       # kapsam dışı
+CLASS_A = "A_otomatik"  # mevcut run_batch ile düzelir
+CLASS_A_PRIME = "A_kapi_disi"  # düzeltilebilir ama MEVCUT KODLA DEĞİL
+CLASS_B = "B_satici_yukler"  # piksel üretilemez → satıcı eylemi
+CLASS_C = "C_yok_sayilir"  # kapsam dışı
 CLASS_OK = "UYUMLU"
 
 REASONS: tuple[str, ...] = (
 	# C
-	"excluded_doctype", "sensitive_reverse_ref", "sensitive_content_twin",
-	"trashed", "too_small", "unsupported_format", "animated", "no_target",
+	"excluded_doctype",
+	"sensitive_reverse_ref",
+	"sensitive_content_twin",
+	"trashed",
+	"too_small",
+	"unsupported_format",
+	"animated",
+	"no_target",
 	# B
-	"resolution_below_target", "ceiling_loss_2400", "aspect_mismatch",
-	"unresolvable_aspect", "unreadable", "zero_bytes", "file_missing",
+	"resolution_below_target",
+	"ceiling_loss_2400",
+	"aspect_mismatch",
+	"unresolvable_aspect",
+	"unreadable",
+	"zero_bytes",
+	"file_missing",
 	# A
-	"over_pixel_ceiling", "cmyk_outside_gate", "ext_content_mismatch",
+	"over_pixel_ceiling",
+	"cmyk_outside_gate",
+	"ext_content_mismatch",
 )
 
 
@@ -237,7 +266,7 @@ def candidates() -> list[dict]:
 	  max(coalesce(f.th_media_state,''))   as th_media_state,
 	  max(coalesce(f.th_media_width,0))    as th_media_width,
 	  max(coalesce(f.th_media_height,0))   as th_media_height,
-	  min(f.name)                          as rep_name,
+	  min(f.name)                          as file_name,
 	  max(coalesce(f.content_hash,''))     as content_hash
 	from tabFile f
 	where f.is_folder = 0
@@ -264,7 +293,8 @@ def dimension_coverage() -> dict:
 	MP ölçümü ZORUNLU olarak diske iner.
 	"""
 	ph, params = _excluded_placeholders()
-	row = frappe.db.sql(f"""
+	row = frappe.db.sql(
+		f"""
 	  select count(*) as adres,
 	         sum(case when w > 0 then 1 else 0 end) as dolu
 	  from (
@@ -275,7 +305,10 @@ def dimension_coverage() -> dict:
 	            select x.file_url from tabFile x
 	            where x.attached_to_doctype in ({ph}) and x.file_url is not null)
 	    group by f.file_url) a
-	""", params, as_dict=True)[0]
+	""",
+		params,
+		as_dict=True,
+	)[0]
 	adres = int(row["adres"] or 0)
 	dolu = int(row["dolu"] or 0)
 	return {
@@ -335,12 +368,10 @@ def sensitive_reverse_refs(urls: list[str]) -> set[str]:
 	(media/presets.py:56-64). `attached_to_doctype` kontrolü TEK BAŞINA bu 146
 	PII belgesini yakalamıyor.
 
-	⚠️ BU HARİTA EKSİK. `presets.py:70-76` KYB'nin yalnız 2 alanını sayıyor
-	(`identity_document`, `bank_account_document`); `imza_sirkuleri`,
-	`ticaret_sicil_gazetesi`, `faaliyet_belgesi`, `vergi_levhasi` YOK
-	(00-upload-slot-envanteri.md §7-B5). Bu script eksik haritayı OLDUĞU GİBİ
-	kullanır ve eksiği rapora yazar — haritayı burada elle tamamlamak, tek
-	doğruluk kaynağını ikiye ayırırdı.
+	Harita `presets.EXCLUDED_MEDIA_FIELDS` tek doğruluk kaynağından okunur;
+	KYC/KYB belgeleri, sipariş dekontları ve dışa aktarım dosyaları bu ters
+	referans kontrolüne dahildir. Yeni hassas alanlar burada kopyalanmaz,
+	merkezî haritaya eklenir.
 	"""
 	from tradehub_core.media.presets import EXCLUDED_MEDIA_FIELDS
 
@@ -382,7 +413,7 @@ def _target_for(slots: list[str]) -> dict | None:
 	bulanık gösterir. En yüksek `min_source_width` bağlayıcıdır.
 	"""
 	hedefler = [SLOT_TARGETS[s] for s in slots if s in SLOT_TARGETS]
-	hedefler = [h for h in hedefler if h.get("min_source_width")]
+	hedefler = [h for h in hedefler if h.get("min_source_width") is not None]
 	if not hedefler:
 		return None
 	return max(hedefler, key=lambda h: h["min_source_width"])
@@ -398,6 +429,7 @@ def classify(row: dict, slots: list[str], *, sensitive: bool, probe=None) -> dic
 	O fonksiyon `import frappe` içermeyen saf bir fonksiyondur (gates.py:1).
 	"""
 	from tradehub_core.media import gates, presets, states
+
 	# DÜZELTME (T-028 koşumu): SUPPORTED_FORMATS `media/pipeline` paketinde YOK,
 	# `media/engine.py:21`'de tanımlı (gates.py:16 de oradan alıyor). Eski satır
 	# `from tradehub_core.media.pipeline import SUPPORTED_FORMATS` ImportError veriyordu.
@@ -410,9 +442,16 @@ def classify(row: dict, slots: list[str], *, sensitive: bool, probe=None) -> dic
 	tavan = _max_dim_ceiling()
 
 	def sonuc(sinif: str, sebep: str, **ek) -> dict:
-		return {"file_url": url, "rep_name": row.get("rep_name"), "file_size": boyut,
-		        "slots": slots, "class": sinif, "reason": sebep,
-		        "th_optimized_at": damga or None, **ek}
+		return {
+			"file_url": url,
+			"file_name": row.get("file_name"),
+			"file_size": boyut,
+			"slots": slots,
+			"class": sinif,
+			"reason": sebep,
+			"th_optimized_at": damga or None,
+			**ek,
+		}
 
 	# ── C: kapsam dışı ────────────────────────────────────────────────
 	if sensitive:
@@ -420,9 +459,9 @@ def classify(row: dict, slots: list[str], *, sensitive: bool, probe=None) -> dic
 	if durum == states.STATE_TRASHED:
 		return sonuc(CLASS_C, "trashed")
 	if not slots:
-		# Hiçbir kayıtlı alanda geçmiyor. DİKKAT: bu "kullanılmıyor" DEMEK
-		# DEĞİL — usage.py 23 alanın yalnız 16'sını tanıyor (usage.py:8 vs
-		# :31-60). Eksik olanlar 00-upload-slot-envanteri.md §7-B6'da listeli.
+		# Hiçbir merkezî LIVE/ORDER kaynağında geçmiyor. Kaynak envanteri
+		# usage.py'de tutulur; yeni alanlar önce oraya, sonra hedef tablosuna
+		# eklenmeden otomatik dönüşüme alınmaz.
 		return sonuc(CLASS_C, "no_target", target=None)
 
 	hedef = _target_for(slots)
@@ -448,8 +487,7 @@ def classify(row: dict, slots: list[str], *, sensitive: bool, probe=None) -> dic
 	)
 
 	if probe.fmt not in SUPPORTED_FORMATS:
-		return sonuc(CLASS_C, "unsupported_format", fmt=probe.fmt,
-		             target=hedef["min_source_width"])
+		return sonuc(CLASS_C, "unsupported_format", fmt=probe.fmt, target=hedef["min_source_width"])
 	if probe.animated:
 		return sonuc(CLASS_C, "animated", target=hedef["min_source_width"])
 
@@ -467,48 +505,77 @@ def classify(row: dict, slots: list[str], *, sensitive: bool, probe=None) -> dic
 		except Exception:
 			arsivde = False
 		if not arsivde:
-			return sonuc(CLASS_B, "ceiling_loss_2400", width=probe.width,
-			             height=probe.height, target=gerekli, archived=False)
+			return sonuc(
+				CLASS_B,
+				"ceiling_loss_2400",
+				width=probe.width,
+				height=probe.height,
+				target=gerekli,
+				archived=False,
+			)
 		# Arşivde duruyor → kurtarılabilir; A' olarak işaretlenir (restore + yeni tavan)
-		return sonuc(CLASS_A_PRIME, "ceiling_loss_2400", width=probe.width,
-		             height=probe.height, target=gerekli, archived=True)
+		return sonuc(
+			CLASS_A_PRIME,
+			"ceiling_loss_2400",
+			width=probe.width,
+			height=probe.height,
+			target=gerekli,
+			archived=True,
+		)
 
 	# ── B1: yetersiz çözünürlük (upscale YOK — engine.py:117) ──────────
 	if genislik < gerekli:
-		return sonuc(CLASS_B, "resolution_below_target", width=probe.width,
-		             height=probe.height, target=gerekli)
+		return sonuc(
+			CLASS_B, "resolution_below_target", width=probe.width, height=probe.height, target=gerekli
+		)
 
 	# ── B4 / B3: oran ─────────────────────────────────────────────────
 	if hedef.get("unresolvable_aspect"):
-		return sonuc(CLASS_B, "unresolvable_aspect", width=probe.width,
-		             height=probe.height, target=gerekli)
+		return sonuc(CLASS_B, "unresolvable_aspect", width=probe.width, height=probe.height, target=gerekli)
 	if hedef.get("aspect") and probe.height:
 		oran = probe.width / probe.height
 		sapma = abs(oran - hedef["aspect"]) / hedef["aspect"]
 		if sapma > ASPECT_TOLERANCE:
-			return sonuc(CLASS_B, "aspect_mismatch", width=probe.width,
-			             height=probe.height, aspect=round(oran, 3),
-			             target_aspect=hedef["aspect"], target=gerekli)
+			return sonuc(
+				CLASS_B,
+				"aspect_mismatch",
+				width=probe.width,
+				height=probe.height,
+				aspect=round(oran, 3),
+				target_aspect=hedef["aspect"],
+				target=gerekli,
+			)
 
 	# ── A: Kapı 4'ü geçen = piksel tavanı aşan ────────────────────────
 	if kapi.passed:
-		return sonuc(CLASS_A, "over_pixel_ceiling", width=probe.width,
-		             height=probe.height, target=gerekli, ceiling=tavan)
+		return sonuc(
+			CLASS_A,
+			"over_pixel_ceiling",
+			width=probe.width,
+			height=probe.height,
+			target=gerekli,
+			ceiling=tavan,
+		)
 
 	# ── A': düzeltilebilir ama MEVCUT KODLA DEĞİL ─────────────────────
 	# CMYK: engine.py:121 `convert("RGB")` YALNIZ 6 kapıyı da geçen dosyada
 	# çalışıyor. Kapı 4'e takılan CMYK bir JPEG tarayıcıya CMYK olarak gider.
 	# `Probe`'da `mode` alanı YOK (engine.py:53-66) → mode ayrıca okunuyor.
 	if (probe_mode := getattr(probe, "_mode", None)) in ("CMYK", "YCCK"):
-		return sonuc(CLASS_A_PRIME, "cmyk_outside_gate", mode=probe_mode,
-		             width=probe.width, height=probe.height, target=gerekli,
-		             gate_reason=kapi.reason)
+		return sonuc(
+			CLASS_A_PRIME,
+			"cmyk_outside_gate",
+			mode=probe_mode,
+			width=probe.width,
+			height=probe.height,
+			target=gerekli,
+			gate_reason=kapi.reason,
+		)
 
 	if kapi.reason == "too_small":
 		return sonuc(CLASS_C, "too_small", width=probe.width, height=probe.height)
 
-	return sonuc(CLASS_OK, kapi.reason or "compliant", width=probe.width,
-	             height=probe.height, target=gerekli)
+	return sonuc(CLASS_OK, kapi.reason or "compliant", width=probe.width, height=probe.height, target=gerekli)
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -594,8 +661,7 @@ def _probe_file(file_url: str, *, sniff_content: bool = True) -> tuple[object | 
 # ─────────────────────────────────────────────────────────────────────────
 
 
-def slot_compliance(rows: list[dict], slots: dict[str, list[str]],
-                    sensitive: set[str], probes: dict) -> dict:
+def slot_compliance(rows: list[dict], slots: dict[str, list[str]], sensitive: set[str], probes: dict) -> dict:
 	"""Slot × sınıf dağılımı — migration.md §2 çıktısı."""
 	dagilim: dict[str, Counter] = defaultdict(Counter)
 	sebepler: Counter = Counter()
@@ -607,7 +673,7 @@ def slot_compliance(rows: list[dict], slots: dict[str, list[str]],
 		k = classify(row, s, sensitive=(url in sensitive), probe=probes.get(url))
 		kayitlar.append(k)
 		sebepler[k["reason"]] += 1
-		for slot in (s or ["(slotsuz)"]):
+		for slot in s or ["(slotsuz)"]:
 			dagilim[slot][k["class"]] += 1
 
 	return {
@@ -663,20 +729,23 @@ def batch_plan(kayitlar: list[dict], n: int = BATCH_SIZE) -> dict:
 	)
 	batches = []
 	for i in range(0, len(a), n):
-		dilim = a[i:i + n]
-		batches.append({
-			"batch": i // n + 1,
-			"count": len(dilim),
-			"bytes": sum(int(x.get("file_size") or 0) for x in dilim),
-			"file_names": [x["rep_name"] for x in dilim if x.get("rep_name")],
-		})
+		dilim = a[i : i + n]
+		batches.append(
+			{
+				"batch": i // n + 1,
+				"count": len(dilim),
+				"bytes": sum(int(x.get("file_size") or 0) for x in dilim),
+				"file_names": [x["file_name"] for x in dilim if x.get("file_name")],
+			}
+		)
 	return {
 		"batch_size": n,
 		"batch_count": len(batches),
 		"total_files": len(a),
-		"per_file_time_budget_sec": round(3600 / n, 2),
-		"timeout_sec": 3600,
-		"kaynak": "timeout api/media_admin.py:211; MAX_BATCH=2000 api/media_admin.py:40",
+		"per_file_time_budget_sec": round(1800 / n, 2),
+		"timeout_sec": 1800,
+		"queue": "media-image-bulk",
+		"kaynak": "pipeline/core/queues.py IMAGE_BULK; her batch ayrı RQ işi",
 		"batches": batches,
 	}
 
@@ -688,16 +757,23 @@ def seller_notice(kayitlar: list[dict]) -> dict:
 	ölçüm: 2.839/2.839 (%100) dosyanın yükleyeni bir mağazaya çözülebiliyor
 	(ownership.py:6).
 
-	⚠️ Bu liste `LIVE_SOURCES` genişletilmeden YAYINA ALINMAZ: 23 alanın yalnız
-	16'sı tanınıyor (usage.py:8 vs :31-60), tanınmayan alanda geçen dosya
-	"slotsuz" görünüp C sınıfına düşer ve satıcıya HİÇ bildirilmez
-	(migration.md §2.3, R4).
+	Çözülen mağaza, B alt sınıfı ve ilk slot kayıtların içine de yazılır. Böylece
+	runtime aynı imzalı plandan idempotent platform bildirimleri üretebilir.
 	"""
 	from tradehub_core.media import ownership
 
 	b = [k for k in kayitlar if k["class"] == CLASS_B]
 	per_store: dict[str, Counter] = defaultdict(Counter)
 	cozulemeyen = 0
+	alt_sinif = {
+		"resolution_below_target": "B1",
+		"ceiling_loss_2400": "B2",
+		"aspect_mismatch": "B3",
+		"unresolvable_aspect": "B4",
+		"unreadable": "B5",
+		"file_missing": "B5",
+		"zero_bytes": "B6",
+	}
 
 	sahipler = _owner_map([k["file_url"] for k in b])
 	for k in b:
@@ -709,6 +785,9 @@ def seller_notice(kayitlar: list[dict]) -> dict:
 				magaza = None
 			if magaza:
 				break
+		k["store"] = magaza or ""
+		k["subclass"] = alt_sinif.get(k["reason"], "")
+		k["slot"] = str((k.get("slots") or [""])[0])
 		if not magaza:
 			cozulemeyen += 1
 			continue
@@ -718,9 +797,8 @@ def seller_notice(kayitlar: list[dict]) -> dict:
 		"b_sinifi_dosya": len(b),
 		"etkilenen_magaza": len(per_store),
 		"magaza_cozulemeyen": cozulemeyen,
-		"per_store": {m: dict(c) for m, c in sorted(
-			per_store.items(), key=lambda kv: -sum(kv[1].values()))},
-		"onkosul": "LIVE_SOURCES 23 alanı kapsamadan yayına alınmaz (migration.md §9.1 Ö5)",
+		"per_store": {m: dict(c) for m, c in sorted(per_store.items(), key=lambda kv: -sum(kv[1].values()))},
+		"onkosul": "runtime preflight: unknown=0, kapsam/disk/kuyruk kontrolleri ve aynı plan özeti zorunlu",
 	}
 
 
@@ -730,11 +808,12 @@ def _owner_map(urls: list[str]) -> dict[str, tuple[str, ...]]:
 		return {}
 	out: dict[str, list[str]] = defaultdict(list)
 	for i in range(0, len(urls), 400):
-		dilim = urls[i:i + 400]
+		dilim = urls[i : i + 400]
 		ph = ", ".join(["%s"] * len(dilim))
 		rows = frappe.db.sql(
 			f"select file_url, owner from tabFile where file_url in ({ph})",
-			tuple(dilim), as_dict=True,
+			tuple(dilim),
+			as_dict=True,
 		)
 		for r in rows:
 			if r["owner"] not in out[r["file_url"]]:
@@ -777,21 +856,19 @@ def stop_criterion_runbook(plan: dict) -> str:
   if sr.get("decode_failed", 0) > st["processed"] * 0.01:
       raise SystemExit("DUR: decode_failed > %1 → Pillow / dosya bozulması")
 
-  ── TTL TUZAĞI ────────────────────────────────────────────────────────
-  İlerleme kaydı Redis'te ve TTL 3600 s (presets.py:28 PROGRESS_TTL).
-  Okuma iş bitiminden 1 saat içinde yapılmalı. `state == "not_found"`
-  (runner.py:29) bir "GEÇTİ" sonucu DEĞİLDİR — hata oranı BİLİNMİYOR
-  demektir ve o durumda da DURULUR.
+  ── İLERLEME DAYANIKLILIĞI ────────────────────────────────────────────
+  Runner ilerlemesi Redis'te TTL ile tutulur; runtime her batch sonucunu ve
+  değişen dosya kimliklerini kalıcı Media Migration Batch checkpoint'ine
+  yazar. `state == "not_found"` bir "GEÇTİ" sonucu değildir ve koşumu durdurur.
 
   ── KUYRUK ÖN KONTROLÜ (migration.md §5.3) ────────────────────────────
-  Backfill ve CANLI video transcode AYNI kuyrukta: ikisi de queue="long"
-  (api/media_admin.py:210 ve media/transcode.py:157). `long` kuyruğunu
-  dinleyen TEK worker var (docker-compose.yml:170-175).
-  → Enqueue öncesi `long` kuyruğunda bekleyen iş 0 olmalı (§10-D7).
+  Backfill kanonik `media-image-bulk`, kullanıcı trafiği
+  `media-image-live` kuyruğundadır. Her yeni batch öncesi canlı kuyruğun
+  derinliği ölçülür; sıfır değilse zincir duraklar (§10-D7).
 
   ── BATCH BOYUTU = DURDURMA ÇÖZÜNÜRLÜĞÜ ───────────────────────────────
   batch_size = {n}  →  eşik aşılsa bile en kötü durumda {n} dosya işlenmiş olur.
-  dosya başına zaman bütçesi = 3600 / {n} = {round(3600 / n, 2)} s
+  dosya başına zaman bütçesi = 1800 / {n} = {round(1800 / n, 2)} s
 """
 
 
@@ -799,45 +876,32 @@ def enqueue_commands(plan: dict) -> str:
 	"""Backfill'i BAŞLATAN komutlar — METİN. Bu script onları ÇALIŞTIRMAZ."""
 	return """
 ╔══════════════════════════════════════════════════════════════════════════╗
-║  BACKFILL BAŞLATMA — BU SCRIPT ÇALIŞTIRMAZ, OPERATÖR ELLE ÇALIŞTIRIR    ║
+║  MOGEM-570 KOŞUMU — BU SCRIPT YALNIZ İMZALI PLAN ÜRETİR                 ║
 ╚══════════════════════════════════════════════════════════════════════════╝
 
-  ÖN KOŞULLAR (migration.md §9.1) — hepsi tamamlanmadan BAŞLAMAZ:
-    Ö1  media_stats.py pii_exposure()      → 144+2 PII belgesi public'te mi
-    Ö2  EXCLUDED_MEDIA_FIELDS 4 eksik KYB alanı tamamlandı mı (§7-B5)
-    Ö3  media_stats.py reconcile()         → küme büyüklüğü
-    Ö4  TÜREV PROFİL KARARI + gerekirse presets.py tavanı  ← R1, GERİ DÖNÜLEMEZ
-    Ö6  disk boş alan tazelendi mi (§10-D4)
+  1) JSON'u oku ve preflight çalıştır:
+     import json
+     from tradehub_core.media import migration_runtime
+     plan = json.load(open("/tmp/media-plan-v1.json"))
+     check = migration_runtime.preflight(plan)
+     assert check["ok"], check["errors"]
 
-  1) KURU KOŞU — diske hiçbir şey yazılmaz (runner.py:61-63, :243-245)
-     from tradehub_core.api import media_admin
-     r = media_admin.start_image_optimization(
-             file_names=BATCH["file_names"], scope="selected",
-             preset="balanced", dry_run=1)
+  2) KURU KOŞUM (varsayılan):
+     dry = migration_runtime.start(plan, dry_run=True, batch_size=200)
+     migration_runtime.status(dry["run_key"])
 
-  2) İLERLEME
-     from tradehub_core.media import runner
-     runner.read_progress(r["job_key"])
+  3) Durum `validated` olduktan sonra AYNI SHA-256 planla gerçek koşum:
+     wet = migration_runtime.start(
+         plan, dry_run=False, batch_size=200,
+         approved_dry_run=dry["run_key"])
 
-  3) GERÇEK KOŞU — dry_run=0
-     media_admin.start_image_optimization(
-             file_names=BATCH["file_names"], scope="selected",
-             preset="balanced", dry_run=0)
+  4) Checkpoint'te durdur / devam / exact rollback:
+     migration_runtime.request_stop(wet["run_key"])
+     migration_runtime.resume(wet["run_key"])
+     migration_runtime.start_rollback(wet["run_key"])
 
-     ⚠️ scope="pending" KULLANMAYIN: api/media_admin.py:197-202 o yolda
-        MAX_BATCH'i BİLEREK uygulamıyor → tüm küme TEK 3600 s'lik işe girer.
-
-  4) GERİ ALMA (30 gün içinde — presets.py:38)
-     media_admin.start_restore(scope="selected", file_names=[...])
-     media_admin.start_restore(scope="optimized")     # filtreye uyan hepsi
-     media_admin.restore_image(file_name)             # tek dosya, senkron
-
-     ⚠️ th_optimized_at BOŞ olan dosya GERİ ALINAMAZ (runner.py:336-337) —
-        timeout kesilmesinde oluşur (migration.md §4.2). Kontrol: §10-D2.
-
-  5) ARŞİV PURGE'U DURDUR — backfill + 30 günlük doğrulama penceresi boyunca
-     archive.purge_expired() çalışmamalı (archive.py:113-153). Hangi hook
-     çağırıyor: §10-D6.
+  Archive purge hold ve son bütünlük smoke'u runtime tarafından otomatik
+  uygulanır. Tam runbook: docs/runbooks/media-migration.md
 """
 
 
@@ -892,9 +956,8 @@ def main(
 		slots = slot_map([r["file_url"] for r in rows], deep=deep_slots)
 		rapor["slot_hit_count"] = len(slots)
 		rapor["slot_coverage_note"] = (
-			"usage.py 16 (tablo,kolon) çifti tanıyor; information_schema taraması "
-			"23 alan buldu (usage.py:8) → 7 alan KAPSAM DIŞI, eksik olanlar "
-			"00-upload-slot-envanteri.md §7-B6'da listeli"
+			"Slot eşlemesi media/usage.py LIVE_SOURCES + ORDER_SOURCES tek "
+			"doğruluk kaynağından okunur; üretim öncesi sıfır bilinmeyen kayıt zorunludur."
 		)
 
 		if verbose:
@@ -902,8 +965,8 @@ def main(
 		sensitive = sensitive_reverse_refs([r["file_url"] for r in rows])
 		rapor["sensitive_hit_count"] = len(sensitive)
 		rapor["sensitive_map_gap"] = (
-			"presets.py:70-76 KYB'nin yalnız 2 alanını sayıyor; imza_sirkuleri, "
-			"ticaret_sicil_gazetesi, faaliyet_belgesi, vergi_levhasi YOK (§7-B5) → R5"
+			"EXCLUDED_MEDIA_FIELDS güncel KYB/KYC alanlarını kapsar; preflight ayrıca "
+			"private, excluded doctype ve hassas içerik ikizini yeniden doğrular."
 		)
 
 	if probe_disk and rows:
@@ -941,6 +1004,11 @@ def main(
 			print(stop_criterion_runbook(plan))
 			print(enqueue_commands(plan))
 
+	# Dosyaya yazılan şey tam, sürümlü ve içerik özeti doğrulanabilir bir
+	# çalıştırma sözleşmesidir. Dry-run ile wet-run aynı ``plan_digest``i taşır.
+	from tradehub_core.media.pipeline.migration.backfill import stamp_plan
+
+	rapor = stamp_plan(rapor)
 	hedef = os.environ.get("BACKFILL_PLAN_OUT")
 	if hedef:
 		with open(hedef, "w", encoding="utf-8") as fh:
@@ -961,13 +1029,17 @@ def _print_summary(r: dict) -> None:
 	print(f"Piksel tavanı (kod)   : {r['config']['pixel_ceiling']} px  ← {r['config']['ceiling_source']}")
 
 	dc = r.get("dimension_coverage") or {}
-	print(f"\nÇözünürlük kapsamı    : {dc.get('dolu')}/{dc.get('adres')} "
-	      f"(%{(dc.get('oran') or 0)*100:.1f}) → {dc.get('karar')}")
+	print(
+		f"\nÇözünürlük kapsamı    : {dc.get('dolu')}/{dc.get('adres')} "
+		f"(%{(dc.get('oran') or 0) * 100:.1f}) → {dc.get('karar')}"
+	)
 
 	pr = r.get("probe") or {}
 	if pr:
-		print(f"Probe edilen          : {pr.get('probed')}  "
-		      f"(min bayt altı atlanan: {pr.get('skipped_below_min_bytes')})")
+		print(
+			f"Probe edilen          : {pr.get('probed')}  "
+			f"(min bayt altı atlanan: {pr.get('skipped_below_min_bytes')})"
+		)
 		for k, v in (pr.get("statuses") or {}).items():
 			print(f"    {k:22s} {v}")
 
@@ -997,8 +1069,10 @@ def _print_summary(r: dict) -> None:
 	print(f"    batch boyutu        : {bp.get('batch_size')}")
 	print(f"    batch sayısı        : {bp.get('batch_count')}")
 	print(f"    toplam dosya        : {bp.get('total_files')}")
-	print(f"    dosya/zaman bütçesi : {bp.get('per_file_time_budget_sec')} s "
-	      f"(timeout {bp.get('timeout_sec')} s)")
+	print(
+		f"    dosya/zaman bütçesi : {bp.get('per_file_time_budget_sec')} s "
+		f"(timeout {bp.get('timeout_sec')} s)"
+	)
 
 	sn = r.get("seller_notice") or {}
 	print("\n── SATICI BİLDİRİMİ (B sınıfı) ──────────────────────────────────")

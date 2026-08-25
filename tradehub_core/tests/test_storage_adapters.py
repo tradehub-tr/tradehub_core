@@ -55,7 +55,12 @@ from tradehub_core.media.pipeline.storage import (  # noqa: E402
 	build_storage,
 )
 from tradehub_core.media.pipeline.storage.local import TEMP_PREFIX, LocalDiskStorage  # noqa: E402
-from tradehub_core.media.pipeline.storage.mirror import MirrorStorage, inline_mirror  # noqa: E402
+from tradehub_core.media.pipeline.storage.mirror import (  # noqa: E402
+	OP_PUT,
+	MirrorStorage,
+	MirrorTask,
+	inline_mirror,
+)
 from tradehub_core.media.pipeline.storage.s3 import S3Config, S3ObjectMissing, S3Storage  # noqa: E402
 from tradehub_core.media.pipeline.storage.tiered import TieredStorage  # noqa: E402
 
@@ -687,6 +692,17 @@ class TestMirrorDavranisi(unittest.TestCase):
 		self.assertEqual(rapor["missing"], 1)
 		self.assertEqual(rapor["queued"], 1)
 		self.assertTrue(self.h.secondary.exists(ref), "inline kuyruk hemen telafi eder")
+
+	def test_birincil_bayti_url_hashiyle_uyusmuyorsa_basarili_sayilmaz(self) -> None:
+		ref = self.storage.put(b"dogru-icerik", ".jpg").ref
+		self.h.secondary.delete(ref)
+		self.h.corrupt(ref, b"adresle-uyusmayan-icerik")
+
+		self.storage.worker.execute(MirrorTask(op=OP_PUT, ref=ref))
+
+		self.assertFalse(self.h.secondary.exists(ref), "beklenen URL S3'te yok kalmalı")
+		self.assertGreaterEqual(self.storage.counters()["failed"], 1)
+		self.assertIn("StorageError", self.storage.failed_tasks()[-1]["reason"])
 
 
 class TestTieredDavranisi(unittest.TestCase):

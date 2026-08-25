@@ -1,5 +1,14 @@
 # T-028 — Mevcut medyanın standartlaştırma (migration) planı
 
+> **Uygulama durumu (2026-08-24):** MOGEM-570 runtime'ı tamamlandı. Sürümlü
+> plan, kalıcı Run/Batch checkpoint'leri, `media-image-bulk` zinciri,
+> dry-run→wet-run özet onayı, stop/resume, bütünlük doğrulaması, rollback ve
+> archive purge hold için güncel işletim kaynağı
+> [`docs/runbooks/media-migration.md`](../runbooks/media-migration.md)'dir.
+> Aşağıdaki metin 2026-08-17 tarihli tasarım/ölçüm geçmişidir; `media_backfill`,
+> `long` kuyruğu ve "orkestratör yazılmadı" ifadeleri güncel runtime sözleşmesi
+> değildir.
+
 **Faz 2 · 2026-08-17 · Çalıştırılabilir hâli: `scripts/plan_backfill.py` (yazıldı, ÇALIŞTIRILMADI)**
 
 ---
