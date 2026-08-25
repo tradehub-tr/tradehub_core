@@ -30,8 +30,24 @@ Python kaynak (OTORİTE)
   tradehubfront/src/types/logistics.d.ts  ← senkron kopya
 ```
 
-**Kural:** üretilmiş dosyaları elle düzenleme. CI `--check` ile bayat kopyayı
-yakalar. Sözleşmeyi değiştirmek = Python kaynağını değiştirip yeniden üretmek.
+**Kural:** üretilmiş dosyaları elle düzenleme. Sözleşmeyi değiştirmek =
+Python kaynağını değiştirip yeniden üretmek.
+
+> ⚠ **CI BU KURALI ZORLAMIYOR.** Burada bir zamanlar "CI `--check` ile bayat
+> kopyayı yakalar" yazıyordu; doğru değildi ve 2026-08-24'te düzeltildi.
+> Kapı bir test olarak yazılmış (`logistics/tests/test_logistics_contract.py`)
+> ama koşmuyor: docker `scripts/` klasörünü mount etmediği için testin kendisi
+> skip ediyor, testleri koşan workflow'lar da `f6af1c8` / `f412b4d` ile
+> kaldırılmış.
+>
+> Yani bayat kopyayı yakalayan **tek şey senin `--check` çalıştırman**:
+> ```
+> python3 scripts/gen_logistics_types.py --check   # bayat mı?
+> python3 scripts/gen_logistics_types.py --sync    # kardeş repolara da yaz
+> ```
+> Var olmayan bir korumaya güvenmek, hiç koruma olmamasından kötüdür — bu not
+> o yüzden burada duruyor. Otomatik kapı kurma kararı ve gerekçesi:
+> `docs/lojistik/KALAN-ISLER.md` → "Çözülmüş — tekrar açılmasın diye".
 
 ---
 
