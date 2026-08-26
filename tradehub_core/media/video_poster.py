@@ -166,6 +166,9 @@ def generate(file_url: str) -> str | None:
 			{"th_media_poster_url": poster.file_url, "th_media_duration": sure},
 			update_modified=False,
 		)
+		from tradehub_core.media import watch_slug
+
+		watch_slug.ensure_slug(file_url)  # hata watch_slug içinde yutulur — sayfa kimliği videoyu düşürmez
 		return poster.file_url
 	except Exception:
 		frappe.log_error(title="video_poster.generate", message=frappe.get_traceback())
