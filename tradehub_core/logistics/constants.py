@@ -13,6 +13,7 @@ from __future__ import annotations
 # Shipment Status
 # ---------------------------------------------------------------------------
 
+
 class ShipmentStatus:
 	"""Sevkiyat durum string'leri."""
 
@@ -133,6 +134,7 @@ def is_seller_transition_allowed(from_status: str, to_status: str) -> bool:
 # standalone çalıştırabilir.
 # ---------------------------------------------------------------------------
 
+
 def is_transition_allowed(from_status: str, to_status: str) -> bool:
 	"""from_status → to_status geçişi ALLOWED_TRANSITIONS matrisine göre geçerli mi?
 
@@ -158,6 +160,7 @@ def is_transition_allowed(from_status: str, to_status: str) -> bool:
 # Shipment Type
 # ---------------------------------------------------------------------------
 
+
 class ShipmentType:
 	"""Sevkiyat tipleri."""
 
@@ -177,6 +180,7 @@ class ShipmentType:
 # ---------------------------------------------------------------------------
 # Leg Type
 # ---------------------------------------------------------------------------
+
 
 class LegType:
 	"""Sevkiyat bacak tipleri."""
@@ -200,6 +204,7 @@ class LegType:
 # Leg Status
 # ---------------------------------------------------------------------------
 
+
 class LegStatus:
 	"""Sevkiyat bacak durumları."""
 
@@ -221,6 +226,7 @@ class LegStatus:
 # ---------------------------------------------------------------------------
 # Cost Paid By
 # ---------------------------------------------------------------------------
+
 
 class CostPaidBy:
 	"""Kargo ücretini ödeyen taraf."""
@@ -267,3 +273,71 @@ CACHE_PREFIX: str = "tc:logistics:"
 SHIPMENT_NAMING_SERIES: str = "SHP-.YYYY.-.#####"
 
 API_VERSION: str = "v1"
+
+
+# ---------------------------------------------------------------------------
+# Entegrasyon logu — Select sozlesmesi (09-BE A)
+# ---------------------------------------------------------------------------
+
+# TEK DOGRULUK KAYNAGI. Ayni liste daha once DORT yerde ayri ayri yaziliydi:
+# adapters/http_client.py, integration/log.py, contract.py ve
+# carrier_integration_log.json. Dordunun birbirinden sapmasi sessiz veri kaybi
+# uretir: adapter'in gecerli saydigi bir deger DocType'ta Select disi kalir ve
+# kayit sozlesme ihlali olarak yazilir. Python tarafi buradan import eder;
+# DocType JSON'u (Frappe sema dosyasi oldugu icin import edemez) test ile
+# bu kumeye baglanir: tests/test_integration_log.py::TestContractSingleSource.
+INTEGRATION_LOG_OPERATIONS: frozenset[str] = frozenset(
+	{
+		"create_shipment",
+		"cancel",
+		"label",
+		"quote",
+		"track",
+		"webhook",
+	}
+)
+
+INTEGRATION_LOG_DIRECTIONS: frozenset[str] = frozenset({"outbound", "inbound"})
+
+# DocType Select `options` alani SIRALI bir metindir; testin karsilastirabilmesi
+# ve JSON'un elle guncellenebilmesi icin kanonik sira burada tutulur.
+INTEGRATION_LOG_OPERATION_ORDER: tuple[str, ...] = (
+	"create_shipment",
+	"cancel",
+	"label",
+	"quote",
+	"track",
+	"webhook",
+)
+
+INTEGRATION_LOG_DIRECTION_ORDER: tuple[str, ...] = ("outbound", "inbound")
+
+
+# ---------------------------------------------------------------------------
+# Kimlik bilgisi alanlari — deger-tabanli redaksiyonun TEK KAYNAGI
+# ---------------------------------------------------------------------------
+
+# `Carrier Account` uzerinde DEGERI sir olan alanlar. Uc tuketicisi var ve
+# ucu de BURADAN import eder:
+#   * `logistics/integration/secrets.py::collect_secret_values` — log katmaninin
+#     deger-tabanli redaksiyonu icin plaintext toplar
+#   * `logistics/adapters/http_client.py` — o toplayiciyi cagirir
+#   * `api/v1/logistics_admin.py::SECRET_FIELDS` — degeri yanita KONMAYAN alanlar
+#
+# ONCEKI DURUM: liste iki yerde AYRI ICERIKLE yaziliydi (transport'ta yedi ad,
+# API katmaninda dort) ve transport'taki yorum "ayni kume ... ikisi birlikte
+# degismeli" diyerek YANLIS bilgi veriyordu. Fazladan uc ad (`refresh_token`,
+# `password`, `secret`) DocType'ta hic yok — spekulatifti.
+#
+# KATMAN GEREKCESI YOK: `api/v1/logistics_admin.py` zaten
+# `tradehub_core.logistics.api_utils`'ten import ediyor; api -> logistics
+# yonu KURULU. Kume, `Carrier Account` meta'sindaki `fieldtype == "Password"`
+# alanlariyla BIREBIR ayni olmak zorunda — sozlesme testi bunu kilitler
+# (tests/test_carrier_account.py::TestCredentialSecretFieldsContract). DocType'a
+# yeni bir sir alani eklendiginde redaksiyon sessizce kor kalmasin.
+CREDENTIAL_SECRET_FIELDS: tuple[str, ...] = (
+	"api_key",
+	"api_secret",
+	"webhook_secret",
+	"access_token",
+)

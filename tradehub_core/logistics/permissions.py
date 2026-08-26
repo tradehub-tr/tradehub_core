@@ -922,3 +922,118 @@ def logistics_settings_has_permission(
 			return True
 
 	return False
+
+
+# ---------------------------------------------------------------------------
+# Carrier Integration Log — platform operasyon verisi (09-BE A paketi)
+#
+# KURAL: bu log satıcıya HİÇ açılmaz. Gövdeler maskeli olsa bile satır başına
+# hangi taşıyıcıya hangi işlemin gittiği, hangi hesabın hangi hata kodunu
+# aldığı platform içi bilgidir; satıcının kendi sevkiyatı üzerinden bile
+# görmesi rakip taşıyıcı anlaşmalarına dair sinyal verir ("satıcıya bu uç hiç
+# açılmaz" kuralının veri katmanındaki karşılığı).
+#
+# Bu yüzden kapı ROL DEĞİL, TENANT temellidir: seller_profile'ı OLAN kullanıcı
+# hangi rolü taşırsa taşısın reddedilir (System Manager / Administrator muaf —
+# permissions.py başındaki P1-1 invariant'ının aynısı). Rol kümesi ikinci
+# kapıdır: platform tarafında da yalnız operasyon zinciri görür.
+# ---------------------------------------------------------------------------
+
+#: Log'u OKUYABİLEN platform rolleri. DocType JSON'undaki DocPerm satırlarıyla
+#: TUTARLI olmalı — Frappe'de has_permission izin VEREMEZ, yalnız kısıtlar.
+_INTEGRATION_LOG_READ_ROLES: frozenset[str] = frozenset({
+	"System Manager",
+	"Logistics Manager",
+	"Logistics Operator",
+	"Carrier Integration Manager",
+})
+
+#: Yazma-türü ptype'lar yalnız System Manager'a (ve Administrator'a) açık.
+#: Kayıtları yazan tek yol `logistics/integration/log.py` (ignore_permissions);
+#: buradaki izin yalnız saklama politikası dışı manuel temizlik içindir.
+_INTEGRATION_LOG_ADMIN_ROLES: frozenset[str] = frozenset({"System Manager"})
+
+
+def carrier_integration_log_query_conditions(user: str | None = None) -> str:
+	"""Carrier Integration Log listesi için SQL koşulu döndürür.
+
+	Args:
+		user: Kullanıcı e-posta adresi. None ise mevcut oturum kullanıcısı.
+
+	Returns:
+		SQL WHERE koşul string'i. Erişimi olmayan kullanıcıya `1=0`.
+	"""
+	user = user or frappe.session.user
+	if not user or user == "Guest":
+		return "1=0"
+
+	if user == "Administrator":
+		return ""
+
+	roles = set(frappe.get_roles(user))
+	if "System Manager" in roles:
+		return ""
+
+	# Tenant kapısı: satıcı tarafındaki hiçbir kullanıcı bu logu göremez.
+	# Rol kontrolünden ÖNCE gelir — tenant'lı bir Logistics Operator da satıcı
+	# tarafıdır ve platform trafiğini görmemelidir.
+	if _get_user_seller_profile(user):
+		return "1=0"
+
+	if roles & _INTEGRATION_LOG_READ_ROLES:
+		return ""
+
+	return "1=0"
+
+
+def carrier_integration_log_has_permission(
+	doc: object | None = None,
+	ptype: str | None = None,
+	user: str | None = None,
+) -> bool:
+	"""Tek bir Carrier Integration Log kaydı için yetki kontrolü.
+
+	Args:
+		doc: Carrier Integration Log dokümanı (doctype seviyesinde None).
+		ptype: İzin tipi (read, write, create, delete...).
+		user: Kullanıcı e-posta adresi. None ise mevcut oturum kullanıcısı.
+
+	Returns:
+		Erişim izni varsa True.
+	"""
+	user = user or frappe.session.user
+	if not user or user == "Guest":
+		return False
+
+	if user == "Administrator":
+		return True
+
+	roles = set(frappe.get_roles(user))
+	if "System Manager" in roles:
+		return True
+
+	# Satıcı tarafı: her ptype için kapalı.
+	if _get_user_seller_profile(user):
+		_log_deny(
+			user, f"carrier_integration_log.{ptype or 'read'}", doc,
+			"seller_tenant_denied", object_doctype="Carrier Integration Log",
+		)
+		return False
+
+	# Yazma-türü ptype'lar platform operasyon rollerine de kapalı: kayıt
+	# append-only, silme saklama işinin (veya System Manager'ın) işi.
+	if ptype and ptype in _WRITE_PTYPES and not (roles & _INTEGRATION_LOG_ADMIN_ROLES):
+		_log_deny(
+			user, f"carrier_integration_log.{ptype}", doc,
+			"append_only_read_only_role", object_doctype="Carrier Integration Log",
+		)
+		return False
+
+	if roles & _INTEGRATION_LOG_READ_ROLES:
+		return True
+
+	_log_deny(
+		user, f"carrier_integration_log.{ptype or 'read'}", doc,
+		"no_role", object_doctype="Carrier Integration Log",
+	)
+	return False

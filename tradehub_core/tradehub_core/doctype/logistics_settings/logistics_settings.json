@@ -12,6 +12,7 @@
 		"column_break_1",
 		"tracking_poll_interval_minutes",
 		"sla_breach_notify_hours",
+		"integration_log_retention_days",
 		"tab_ozellik_bayraklari",
 		"section_feature_flags",
 		"feature_flags",
@@ -67,6 +68,13 @@
 			"fieldname": "sla_breach_notify_hours",
 			"fieldtype": "Int",
 			"label": "SLA \u0130hlal Bildirim S\u00fcresi (saat)"
+		},
+		{
+			"default": "90",
+			"description": "Carrier Integration Log kayıtları bu süreden sonra günlük bakım işiyle silinir. 0 = saklama uygulanmaz (kayıtlar süresiz kalır).",
+			"fieldname": "integration_log_retention_days",
+			"fieldtype": "Int",
+			"label": "Entegrasyon Logu Saklama (gün)"
 		},
 		{
 			"fieldname": "tab_ozellik_bayraklari",

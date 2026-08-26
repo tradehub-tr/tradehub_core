@@ -20,6 +20,25 @@ dependencies = [
     # yerine gerçek şemayla doğrulanması (media/pipeline/api/admin.py
     # `validate_policies`) ve contract testleri. T-029 · T-084.
     "jsonschema>=4.21",
+    # Giden HTTP — lojistik taşıyıcı istemcisi (logistics/adapters/http_client.py).
+    # frappe'nin transitif bağımlılığı olarak zaten kuruluydu ama BEYANSIZDI;
+    # boto3'te yaşanan emsalin aynısı (frappe bırakırsa modül import'ta düşer).
+    #
+    # ⚠️ TABAN 2.32 / urllib3 2 — İKİ GÜVENLİK KONTROLÜ BU YÜZEYE BAĞLI:
+    #   * `GuardedHTTPAdapter` IP pinlemesi `HTTPAdapter.
+    #     build_connection_pool_key_attributes` iç yüzeyini override ediyor
+    #     (requests 2.32'de tanıtıldı). Yüzey kaybolursa pinleme SESSİZCE
+    #     devre dışı kalır ve DNS rebinding/IDNA farkı yeniden açılır.
+    #   * `_iter_body` slow-loris süre bütçesi `raw.read1(n, decode_content=)`
+    #     imzasına bağlı (urllib3 2.x). Yoksa `iter_content`'a düşülür ve
+    #     bütçe parça granülaritesine iner.
+    # İkisinin de varlığı `test_carrier_http_client` smoke testiyle sabitlendi;
+    # taban sürüm o testin sessizce yeşil kalmasını engeller.
+    "requests>=2.32",
+    "urllib3>=2",
+    # Devre kesici durumu ham redis API'siyle tutuluyor (atomik INCR + pipeline):
+    # logistics/resilience/circuit_breaker.py. Aynı gerekçe — beyanlı olmalı.
+    "redis>=5",
 ]
 
 [build-system]

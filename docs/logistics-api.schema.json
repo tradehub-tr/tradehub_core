@@ -2483,14 +2483,14 @@
 					"type": "Code",
 					"ts": "unknown",
 					"required": false,
-					"note": "MASKELİ — credential'lar backend'de değiştirilir"
+					"note": "MASKELİ. Zarf: {_truncated?, _contract_violation?, headers?, body} — anahtarlar bu sırada, gövde SONDA. Zarf her zaman geçerli JSON'dur; kırpma olduğunda yalnız body içeriği yarımdır. headers/_contract_violation yoksa ve kırpma yoksa zarf HİÇ kurulmaz, alan doğrudan gövdedir."
 				},
 				{
 					"name": "response_body",
 					"type": "Code",
 					"ts": "unknown",
 					"required": false,
-					"note": "MASKELİ"
+					"note": "MASKELİ. Kırpmada {_truncated, body} zarfına geçer"
 				},
 				{
 					"name": "is_retriable",
@@ -2503,7 +2503,8 @@
 					"name": "created_at",
 					"type": "Datetime",
 					"ts": "string",
-					"required": true
+					"required": true,
+					"note": "`Carrier Integration Log.creation`'a EŞLENİR; ayrı sütun YOK — uç `creation AS created_at` döndürmeli. Gerekçe: ikinci bir zaman damgası kayıt kuyrukta beklerse sapar ve saklama işi hangi sütunu tarayacağını bilemez."
 				}
 			],
 			"detail_fields": [],

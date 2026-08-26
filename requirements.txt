@@ -23,6 +23,21 @@ boto3>=1.34
 # ikilisi gerekir; o docker/backend.Dockerfile'da apt ile kuruluyor (T-025).
 pytesseract>=0.3.10
 
+# Giden HTTP + devre kesici durumu — lojistik taşıyıcı istemcisi
+# (logistics/adapters/http_client.py, logistics/resilience/circuit_breaker.py).
+# İkisi de frappe üzerinden transitif olarak zaten geliyordu ama BEYANSIZDI:
+# frappe birini bırakırsa lojistik modülü import anında düşer. pyproject'te de
+# beyanlı (TUR-110 · 09-BE denetimi).
+#
+# ⚠️ TABAN 2.32 / urllib3 2: `GuardedHTTPAdapter` IP pinlemesi
+# `build_connection_pool_key_attributes` iç yüzeyine, `_iter_body` slow-loris
+# bütçesi `raw.read1(n, decode_content=)` imzasına bağlı. İkisi de bir sürüm
+# yükseltmesinde uyarısız kaybolabilir; `test_carrier_http_client` smoke testi
+# varlıklarını doğruluyor. Gerekçenin tamamı pyproject.toml'da.
+requests>=2.32
+urllib3>=2
+redis>=5
+
 # ⚠️ ÖLÇÜLDÜ (2026-08-19): `elasticsearch` imajda KURULU DEĞİL — bu dosya
 # kurulmuyor, pyproject'te de yok. `api/elasticsearch_integration.py` ImportError'ı
 # yutup HAS_ES=False'a düşüyor, yani ES arama yolu sessizce KAPALI.
