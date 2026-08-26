@@ -625,6 +625,11 @@ def _listing_video_objects(listing: dict, site_url: str) -> list:
 	`build_video_object` sözleşmesiyle HİÇ girmez (Google geçersiz yapısal veri
 	istemiyor). Yerel dosya (`/files/...`) `contentUrl`, harici oynatıcı (YouTube/
 	Vimeo) `embedUrl` olarak basılır.
+
+	İndexlenemeyen (noindex/private/karantina/hakkı dolmuş) video HİÇ girmez
+	(`seo_index.decide`, `check_usage=False`) — görsel kardeşi
+	`_listing_image_objects` ve site haritası kardeşi `_video_entries_for_listing`
+	ile AYNI kapı (spec §5 şartı, final inceleme).
 	"""
 	import frappe
 
@@ -633,6 +638,10 @@ def _listing_video_objects(listing: dict, site_url: str) -> list:
 		return []
 	try:
 		from tradehub_core.media import seo as media_seo
+		from tradehub_core.media import seo_index
+
+		if not seo_index.decide(video_url, check_usage=False)["indexable"]:
+			return []
 
 		listing_name = listing.get("name") or ""
 		lang = listing.get("content_default_lang") or "tr"

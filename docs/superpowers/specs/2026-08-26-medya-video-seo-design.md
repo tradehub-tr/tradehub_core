@@ -144,3 +144,26 @@ derecelendirmesi (tüketicisi yok). Medya landing page dilimi geldiğinde
 4. Listing API `videoMeta` + vitrin poster/track
 5. Panel video bölümü + `.vtt` yükleme + poster yeniden üretme ucu
 6. Denetim kuralları + önce/sonra ölçüm
+
+## 12. Amendment — 2026-08-26 final inceleme
+
+Final inceleme sırasında netleşen kapsam sınırı — belge §2 K5'i tamamlıyor,
+geri almıyor:
+
+- **K5 embed `VideoObject` üretimi bu dilimde FİİLEN kapsam dışı.** K5 kararı
+  `embedUrl`'i (YouTube/Vimeo) `VideoObject`'e desteklenen bir alan olarak
+  tanımlıyor, ama üretim zinciri (§4 poster akışı) yalnız yerel dosyaya
+  (`/files/...`) ffmpeg çalıştırıyor — gömülü oynatıcının ne bir `File`
+  kaydı ne posteri var. Sonuç: `build_video_object` embed video için
+  `poster_url` boş bulur ve sözleşmesi gereği `None` döner
+  (`schema_builder.py` — "Poster'ı olmayan video JSON-LD'ye GİRMEZ").
+  Dolayısıyla embed promo videolar bugün `VideoObject` JSON-LD'sine hiç
+  girmiyor; bu bir bug değil, K5'in üretim tarafında henüz karşılanmamış
+  bir yarısı.
+- **Poster türetmesi ayrı bir takip görevi.** Gömülü oynatıcılar için poster
+  üçüncü taraf API'den türetilebilir (ör. YouTube `https://img.youtube.com/
+  vi/{id}/hqdefault.jpg`, Vimeo oEmbed `thumbnail_url`), ama bu ffmpeg akışıyla
+  paylaşılamaz — ayrı bir entegrasyon, ayrı hata yüzeyi (video kaldırılmış,
+  private, API kotası). Bu dilimin kapsamına sokulmadı; ölçüm raporunda
+  `LST-00202` bulgusu (docs/reports/106-video-seo-olcum.md §3.1) aynı
+  gerekçeyle işaretlendi.

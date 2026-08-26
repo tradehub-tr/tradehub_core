@@ -63,7 +63,7 @@ kayıtlarına ait.
 
 | İlan | `video_url` | Durum |
 |---|---|---|
-| `LST-00202` | `https://a.co/d/0dNxWPV4` (dış URL) | Beklenen — `schema_builder._listing_video_objects` yalnız `/files/` ile başlayan yerel videoyu işler; dış URL'ye poster üretimi kapsam dışı (spec kararı, hata değil) |
+| `LST-00202` | `https://a.co/d/0dNxWPV4` (dış URL) | Beklenen — `schema_builder._listing_video_objects` yalnız `/files/` ile başlayan yerel videoyu işler; dış URL'ye poster üretimi kapsam dışı (spec kararı, hata değil). **Final inceleme notu:** bu, spec §12 amendment'ının aynı gerekçesi — K5 embed `VideoObject`'i bu dilimde fiilen kapsam dışı, çünkü embed'in `File` kaydı/posteri yok (`build_video_object` posteri boş bulup `None` döner); poster türetmesi (ör. YouTube thumbnail API) ayrı takip görevi |
 | `LST-00002` | `/files/task6-manifest-video.mp4` | `tabFile`'da bu `file_url` ile eşleşen kayıt **yok** — muhtemelen erken bir manifest/test fixture'ı, gerçek dosya hiç yüklenmemiş. Bu dalın kapsamında değil; not olarak bırakıldı, düzeltme yapılmadı |
 
 Kalan 108 postersiz video de aynı nedenle (yerel dosya yok) bekliyor; prod'da

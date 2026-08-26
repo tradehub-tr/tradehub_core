@@ -487,6 +487,85 @@ class TestListingVideoObjectJsonLd(FrappeTestCase):
 		self.assertNotIn("video", product)
 
 
+class TestListingVideoObjectIndexKapisi(FrappeTestCase):
+	"""Final inceleme (2026-08-26) — JSON-LD `VideoObject` üretimi de görsel
+	kardeşi `_listing_image_objects` ve site haritası kardeşi
+	`_video_entries_for_listing` ile AYNI `seo_index.decide` kapısından
+	geçmeli (spec §5 şartı). Öncesinde `_listing_video_objects` bu kapıyı hiç
+	sormuyordu — noindex/private video'lu ilan yine de JSON-LD'ye giriyordu."""
+
+	def test_private_video_hem_jsonld_hem_sitemapten_dusuyor(self):
+		from tradehub_core.seo.schema_builder import _listing_video_objects
+		from tradehub_core.seo.sitemap_generator import _video_entries_for_listing
+
+		ilan = _gorunur_ilan()
+		if not ilan:
+			self.skipTest("Vitrinde görünen ilan yok — fixture kurulamaz.")
+
+		doc = frappe.get_doc(
+			{
+				"doctype": "File",
+				"file_name": "final-inceleme-private-video.webm",
+				"is_private": 1,
+				"content": b"final-inceleme-private-video-icerigi",
+			}
+		)
+		doc.insert(ignore_permissions=True)
+		self.addCleanup(doc.delete, ignore_permissions=True)
+		# Poster + süre BİLEREK dolduruldu: aşağıdaki iki fonksiyon da normalde
+		# bu alanlar yeterliyken nesne/girdi üretir — boş dönüş SADECE
+		# indexability kapısından (is_private=1 → REASON_PRIVATE) kaynaklanmalı.
+		frappe.db.set_value(
+			"File",
+			doc.name,
+			{"th_media_poster_url": "/files/final-inceleme-poster.jpg", "th_media_duration": 20},
+			update_modified=False,
+		)
+
+		listing = frappe.get_doc("Listing", ilan["name"]).as_dict()
+		listing["video_url"] = doc.file_url
+		self.assertEqual(_listing_video_objects(listing, "https://istoc.localhost"), [])
+
+		girdiler = _video_entries_for_listing(
+			{"name": ilan["name"], "video_url": doc.file_url, "title": "Ürün"}, "https://s"
+		)
+		self.assertEqual(girdiler, [])
+
+
+class TestValidateAssetValuesVeriSilmeDuzeltmesi(FrappeTestCase):
+	"""Final inceleme (2026-08-26) — `_validate_asset_values` girdide olmayan
+	`license_url`/`acquire_license_url`/`canonical` alanlarını boş dizeyle
+	`clean`'e EKLEMEMELİ. Öncesinde her `set_asset_fields` çağrısı (ör. yalnız
+	`transcript` yazan `upload_video_captions`) bu üç alanı sessizce sıfırlıyordu."""
+
+	def test_yalniz_transcript_yazilinca_license_url_korunur(self):
+		doc = frappe.get_doc(
+			{
+				"doctype": "File",
+				"file_name": "final-inceleme-license-koru.webm",
+				"is_private": 0,
+				"content": b"final-inceleme-license-koru-icerigi",
+			}
+		)
+		doc.insert(ignore_permissions=True)
+		self.addCleanup(doc.delete, ignore_permissions=True)
+
+		seo.set_asset_fields(doc.file_url, {"license_url": "https://example.com/lisans"})
+		self.assertEqual(
+			frappe.db.get_value("File", doc.name, "th_media_license_url"),
+			"https://example.com/lisans",
+		)
+
+		seo.set_asset_fields(doc.file_url, {"transcript": "x"})
+
+		self.assertEqual(
+			frappe.db.get_value("File", doc.name, "th_media_license_url"),
+			"https://example.com/lisans",
+			"transcript-only yazım license_url'ü sıfırlamamalı",
+		)
+		self.assertEqual(frappe.db.get_value("File", doc.name, "th_media_transcript"), "x")
+
+
 class TestVideoAuditVeUclar(FrappeTestCase):
 	"""Görev 7 — video denetim kuralları + poster yeniden üretme/VTT yükleme uçları."""
 

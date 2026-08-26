@@ -3,6 +3,7 @@
 import subprocess
 import tempfile
 from pathlib import Path
+from unittest import mock
 
 import frappe
 from frappe.tests.utils import FrappeTestCase
@@ -141,8 +142,17 @@ class TestVideoPoster(FrappeTestCase):
 			self.assertEqual(frappe.db.get_value("File", ilk.name, "th_media_poster_url"), url)
 			self.assertEqual(frappe.db.get_value("File", ikinci.name, "th_media_poster_url"), url)
 
-			# Her iki kayıt da dolu olduğu için backfill artık hiçbirini seçmez.
-			self.assertEqual(video_poster.backfill_pending(limit=10), 0)
+			# Her iki kayıt da dolu olduğu için aday sorgusuna hiç girmez. Bu
+			# ortam prod'dan restore edilmiş gerçek veri taşıyor (106-video-seo-
+			# olcum.md — 100+ posteri hâlâ boş video satırı), o yüzden mutlak
+			# `backfill_pending(...) == 0` KIRILGAN: WHERE filtresi bu iki
+			# kardeşi zaten hiç seçmeyeceği için doğrulama "aday-seçimi
+			# düzeyinde" yapılır — spesifik `file_url` enqueue edilenler
+			# arasında YOK (final inceleme, madde 3).
+			with mock.patch("frappe.enqueue") as sahte_kuyruk:
+				video_poster.backfill_pending(limit=10)
+			enqueue_edilen_urller = {c.kwargs.get("file_url") for c in sahte_kuyruk.call_args_list}
+			self.assertNotIn(ilk.file_url, enqueue_edilen_urller)
 
 	def test_bozuk_dosya_none_doner_ve_yayini_dusurmez(self):
 		doc = frappe.get_doc(
@@ -158,17 +168,55 @@ class TestVideoPoster(FrappeTestCase):
 
 
 class TestVideoPosterBackfill(FrappeTestCase):
+	def _bf_dosyasi(self, file_name: str, **ekstra) -> "frappe.model.document.Document":
+		doc = frappe.get_doc(
+			{"doctype": "File", "file_name": file_name, "is_private": 0, "content": b"bf-test-icerigi"}
+		).insert(ignore_permissions=True)
+		self.addCleanup(doc.delete, ignore_permissions=True)
+		if ekstra:
+			frappe.db.set_value("File", doc.name, ekstra, update_modified=False)
+		return doc
+
 	def test_backfill_yalniz_postersiz_videolari_alir(self):
-		with tempfile.TemporaryDirectory() as tmp:
-			v = Path(tmp) / "bf.mp4"
-			_yap_video(v)
-			with open(v, "rb") as f:
-				doc = frappe.get_doc(
-					{"doctype": "File", "file_name": "bf.mp4", "is_private": 0, "content": f.read()}
-				).insert(ignore_permissions=True)
-			self.addCleanup(doc.delete, ignore_permissions=True)
-			islenen = video_poster.backfill_pending(limit=10)
-			self.assertGreaterEqual(islenen, 1)
-			self.assertTrue(frappe.db.get_value("File", doc.name, "th_media_poster_url"))
-			# İkinci tur: aynı dosya tekrar işlenmez
-			self.assertEqual(video_poster.backfill_pending(limit=10), 0)
+		"""Final inceleme: `backfill_pending` artık SENKRON `generate` çağırmaz,
+		aday videoyu `frappe.enqueue` ile kuyruğa atar (scheduler'ı ffmpeg
+		timeout riskine sokmama — spec §4). Dönüş değeri kuyruğa atılan aday
+		sayısı; senkron üretim etkisi test edilemez, `frappe.enqueue` yakalanır.
+
+		Ortamda (prod restore) zaten postersiz başka video satırları var, o
+		yüzden dönen toplam sayı KESİN `1` olmayabilir (`>= 1` yeterli) —
+		asıl doğrulanan, TAZE eklenen adayın `ORDER BY creation DESC` sayesinde
+		sonuç kümesine girip doğru kuyruk/parametrelerle enqueue edilmesi.
+		"""
+		doc = self._bf_dosyasi("bf.mp4")
+		with mock.patch("frappe.enqueue") as sahte_kuyruk:
+			kuyruga_konan = video_poster.backfill_pending(limit=10)
+		self.assertGreaterEqual(kuyruga_konan, 1)
+		bizim_cagri = next(
+			(c for c in sahte_kuyruk.call_args_list if c.kwargs.get("file_url") == doc.file_url),
+			None,
+		)
+		self.assertIsNotNone(bizim_cagri, "taze eklenen aday enqueue edilenler arasında değil")
+		self.assertEqual(bizim_cagri.args, ("tradehub_core.media.video_poster.generate",))
+		self.assertEqual(bizim_cagri.kwargs.get("queue"), "media-maint")
+		self.assertEqual(bizim_cagri.kwargs.get("timeout"), 300)
+		self.assertTrue(bizim_cagri.kwargs.get("enqueue_after_commit"))
+		# Poster'sız/duration'sız çağrı gerçekten kuyruğa atıldığı için dosya
+		# henüz posterlenmedi (senkron etki yok).
+		self.assertFalse(frappe.db.get_value("File", doc.name, "th_media_poster_url"))
+
+	def test_backfill_posterli_adayi_atlamak_enqueue_etmez(self):
+		"""İdempotens: poster'ı ya da duration'ı zaten dolu olan kayıt aday
+		sorgusuna hiç girmez — `frappe.enqueue` o kayıt için ÇAĞRILMAZ. Global
+		çağrı sayısı ortamdaki başka gerçek adaylardan etkilenebileceği için
+		(prod restore verisi) bu test yalnız KENDİ `file_url`'inin enqueue
+		edilmediğini doğrular."""
+		doc = self._bf_dosyasi(
+			"bf-posterli.mp4",
+			th_media_poster_url="/files/bf-posterli-poster.jpg",
+			th_media_duration=12,
+		)
+		with mock.patch("frappe.enqueue") as sahte_kuyruk:
+			video_poster.backfill_pending(limit=10)
+		enqueue_edilen_urller = {c.kwargs.get("file_url") for c in sahte_kuyruk.call_args_list}
+		self.assertNotIn(doc.file_url, enqueue_edilen_urller)

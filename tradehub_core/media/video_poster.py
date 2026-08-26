@@ -177,10 +177,15 @@ VIDEO_UZANTILAR: tuple[str, ...] = (".mp4", ".webm", ".mov", ".m4v", ".mkv")
 
 
 def backfill_pending(limit: int = 50) -> int:
-	"""Postersiz videoları parça parça doldur — av.backfill_pending deseni.
+	"""Postersiz videoları parça parça KUYRUĞA AT — av.backfill_pending deseni.
 
-	`media-maint` kuyruğunda günlük koşar (hooks.py). Turda ≤ `limit` video:
-	video başına ffmpeg maliyeti görselden büyük, kuyruk boğulmasın (spec §4).
+	`media-maint` kuyruğunda günlük koşar (hooks.py). Turda ≤ `limit` aday
+	`frappe.enqueue` ile kuyruğa atılır — `generate` artık scheduler thread'inde
+	SENKRON koşmaz: video başına ffmpeg maliyeti görselden büyük, senkron
+	çağrı scheduler'ı timeout riskine sokuyordu (spec §4 "av.backfill_pending
+	deseni", emsal `media/av.py::backfill_pending`/`enqueue_scan`, final
+	inceleme). Dönüş değeri KUYRUĞA ATILAN ADAY sayısıdır — üretimin başarılı
+	olup olmadığı ayrı bir soru, onu worker içindeki `generate` çözer.
 	"""
 	kosul = " OR ".join(f"file_url LIKE '%%{u}'" for u in VIDEO_UZANTILAR)
 	satirlar = frappe.db.sql(
@@ -192,13 +197,14 @@ def backfill_pending(limit: int = 50) -> int:
 		{"limit": limit},
 		as_dict=True,
 	)  # sabit uzantı listesi — kullanıcı girdisi değil, f-string güvenli
-	islenen = 0
+	kuyruga_konan = 0
 	for satir in satirlar:
-		if generate(satir.file_url):
-			islenen += 1
-		else:
-			# Poster üretilemedi ama duration yazıldıysa tekrar seçilmez;
-			# bozuk dosyada ikisi de boş kalır — sonraki turda yine denenir,
-			# limit sayesinde kuyruk boğulmaz.
-			pass
-	return islenen
+		frappe.enqueue(
+			"tradehub_core.media.video_poster.generate",
+			queue="media-maint",
+			timeout=300,
+			file_url=satir.file_url,
+			enqueue_after_commit=True,
+		)
+		kuyruga_konan += 1
+	return kuyruga_konan

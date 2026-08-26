@@ -422,6 +422,13 @@ def _validate_asset_values(values: dict[str, Any]) -> dict[str, Any]:
 	"""Rights/URL alanlarını DB yazımından önce doğrula."""
 	clean = dict(values or {})
 	for key in ("license_url", "acquire_license_url", "canonical"):
+		if key not in clean:
+			# Anahtar girdide hiç yoksa BURADA EKLEME: `set_asset_fields` sonradan
+			# bunu `SINGLE` alanı sanıp boş dizeyle DB'ye yazıyordu — çağıran
+			# yalnız `transcript` gönderse bile `license_url`/`acquire_license_url`/
+			# `canonical` her seferinde sıfırlanıyordu (final inceleme veri-silme
+			# bug'ı). `rights_expires_on` dalı zaten aynı deseni uyguluyor.
+			continue
 		value = str(clean.get(key) or "").strip()
 		if value:
 			parsed = urlsplit(value)
