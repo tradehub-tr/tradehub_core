@@ -1,3 +1,17 @@
+## [v1.13.1-alpha.48] - 2026-08-26 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(lojistik): kargo firması entegrasyon altyapısı — ilk dilim (@boraydeger32)
+  - Her istek ve yanıt için denetlenebilir kayıt. "Gönderi neden oluşmadı, firma ne cevap verdi" sorusu artık panelden yanıtlanabilir.
+  - Kimlik bilgileri (parola, API anahtarı, oturum jetonu) kayıtlara asla düşmez. Buna karşılık takip numarası, şube, durum ve hata kodu gibi teşhis için gereken bilgiler korunur.
+  - Firma yanıt vermediğinde sistem kendini korur: arızalı firmaya üst üste istek gönderilmez, arıza geçince otomatik toparlanır.
+  - Yan etkili işlemler (gönderi açma, iptal) zaman aşımında körlemesine tekrarlanmaz — ikinci bir gönderi ve ikinci bir fatura oluşmaz.
+  - Sistemin yalnızca dış adreslere çıkmasını sağlayan güvenlik kapısı.
+  - Kayıtlar yaşlandıkça otomatik temizlenir.
+
+---
 ## [v1.13.1-alpha.47] - 2026-08-26 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
