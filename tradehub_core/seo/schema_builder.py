@@ -72,11 +72,12 @@ def build_image_object(seo_fields: dict, site_url: str) -> dict | str:
 		if hedef in ("license", "acquireLicensePage"):
 			nesne[hedef] = _absolute_url(deger, site_url)
 		elif hedef == "creator":
-			tur = seo_fields.get("creator_type") or ""
-			yaratici = {"name": deger}
-			if tur in ("Person", "Organization"):
-				yaratici["@type"] = tur
-			nesne[hedef] = yaratici
+			# Google lisans rozeti `creator`'ı düz string değil `{"@type": ...}`
+			# nesnesi bekler. `creator_type` boşsa varsayılan "Organization" —
+			# çoğu içerik mağaza/kurum tarafından üretiliyor (File.th_media_creator_type
+			# Select alanı Person/Organization, boş bırakılabilir).
+			tur = seo_fields.get("creator_type") or "Organization"
+			nesne[hedef] = {"@type": tur, "name": deger}
 		else:
 			nesne[hedef] = deger
 
