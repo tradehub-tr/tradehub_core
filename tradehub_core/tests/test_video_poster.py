@@ -111,6 +111,39 @@ class TestVideoPoster(FrappeTestCase):
 			ikinci = video_poster.generate(doc.file_url)
 			self.assertEqual(ilk, ikinci)  # yeniden üretmez, mevcut URL döner
 
+	def test_ayni_file_url_birden_cok_kayitta_hepsine_yazilir(self):
+		"""İçerik-hash adlandırma (WP4) aynı fiziksel dosyayı birden çok `File`
+		kaydına eşleyebiliyor (media/inventory.py:124 — 39 kayda kadar).
+		`generate` yalnız "ilk bulunan" kayda değil, aynı `file_url`'i taşıyan
+		TÜM kayıtlara yazmalı — aksi halde eksik kayıt `backfill_pending`
+		tarafından sonsuza dek yeniden seçilir (düzeltme turu 1, Important).
+		"""
+		with tempfile.TemporaryDirectory() as tmp:
+			v = Path(tmp) / "coklu.mp4"
+			_yap_video(v)
+			ilk = self._file_kaydi(v)
+			ikinci = frappe.get_doc(
+				{
+					"doctype": "File",
+					"file_name": "coklu-kopya.mp4",
+					"is_private": 0,
+					"file_url": ilk.file_url,
+				}
+			).insert(ignore_permissions=True)
+			self.addCleanup(ikinci.delete, ignore_permissions=True)
+			# Kurulum varsayımı: content vermeden file_url ile insert, ikinci
+			# kaydı BİRİNCİYLE AYNI adrese işaret ettiriyor (gerçek dünyadaki
+			# içerik-hash çakışmasını taklit ediyor).
+			self.assertEqual(ikinci.file_url, ilk.file_url)
+
+			url = video_poster.generate(ilk.file_url)
+			self.assertTrue(url)
+			self.assertEqual(frappe.db.get_value("File", ilk.name, "th_media_poster_url"), url)
+			self.assertEqual(frappe.db.get_value("File", ikinci.name, "th_media_poster_url"), url)
+
+			# Her iki kayıt da dolu olduğu için backfill artık hiçbirini seçmez.
+			self.assertEqual(video_poster.backfill_pending(limit=10), 0)
+
 	def test_bozuk_dosya_none_doner_ve_yayini_dusurmez(self):
 		doc = frappe.get_doc(
 			{

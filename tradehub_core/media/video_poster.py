@@ -104,12 +104,36 @@ def _luma_ok(jpeg: bytes) -> bool:
 
 
 def generate(file_url: str) -> str | None:
-	name = frappe.db.get_value("File", {"file_url": file_url}, "name")
-	if not name:
+	"""`file_url`'e karşılık gelen TÜM `File` kayıtlarına poster/duration yazar.
+
+	İçerik-hash adlandırma (WP4) aynı fiziksel dosyayı birden çok `File`
+	kaydına eşleyebiliyor (media/inventory.py:124 — aynı adrese 39 kayda kadar;
+	transcode.py:281-296 docstring'i aynı bug'ın transcode tarafındaki
+	geçmişini anlatıyor). "İlk bulunan" kayda yazıp diğerlerini boş bırakmak
+	iki sorun açıyordu: (a) poster/duration eksik kayıtlarda hiç görünmüyordu,
+	(b) `backfill_pending` o eksik kayıtları HER gün yeniden seçip kotayı
+	sonsuza dek tüketiyordu. Bu yüzden her yol (idempotent dönüş, üretim,
+	başarısızlık) tüm kardeş kayıtlara birden yazar.
+	"""
+	adlar = frappe.get_all("File", filters={"file_url": file_url}, pluck="name")
+	if not adlar:
 		return None
-	mevcut = frappe.db.get_value("File", name, "th_media_poster_url")
+
+	kayitlar = frappe.get_all(
+		"File", filters={"name": ["in", adlar]}, fields=["name", "th_media_poster_url"]
+	)
+	mevcut = next((k.th_media_poster_url for k in kayitlar if k.th_media_poster_url), None)
 	if mevcut:
+		eksik = [k.name for k in kayitlar if not k.th_media_poster_url]
+		if eksik:
+			# Bir kardeş kayıtta zaten üretilmiş — diğerlerine de yaz (backfill
+			# açlığını burada da kapatır: boş kalan kayıt bir daha seçilmez).
+			frappe.db.set_value(
+				"File", {"name": ["in", eksik]}, "th_media_poster_url", mevcut, update_modified=False
+			)
 		return mevcut  # idempotent — yeniden üretim regenerate ucundan (Task 7)
+
+	name = adlar[0]
 	try:
 		doc = frappe.get_doc("File", name)
 		path = doc.get_full_path()
@@ -120,7 +144,9 @@ def generate(file_url: str) -> str | None:
 		if jpeg is None or not _luma_ok(jpeg):
 			jpeg = _kare(path, sure * 0.25, sure * 0.25)
 		if jpeg is None or not _luma_ok(jpeg):
-			frappe.db.set_value("File", name, "th_media_duration", sure, update_modified=False)
+			frappe.db.set_value(
+				"File", {"name": ["in", adlar]}, "th_media_duration", sure, update_modified=False
+			)
 			return None
 		# Yeniden sıkıştırma: kalite sabitle (q:v 3 kaba; hedef ~82)
 		img = Image.open(io.BytesIO(jpeg)).convert("RGB")
@@ -136,7 +162,7 @@ def generate(file_url: str) -> str | None:
 		).insert(ignore_permissions=True)  # sistem üretimi — kullanıcı akışı değil
 		frappe.db.set_value(
 			"File",
-			name,
+			{"name": ["in", adlar]},
 			{"th_media_poster_url": poster.file_url, "th_media_duration": sure},
 			update_modified=False,
 		)
