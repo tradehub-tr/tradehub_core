@@ -84,8 +84,10 @@ class TestVideoObject(FrappeTestCase):
 			"rights_expires_on": "",
 		}
 		obj = build_video_object(
-			alanlar, "https://istoc.localhost",
-			content_url="/files/video.webm", upload_date="2026-08-01 10:00:00",
+			alanlar,
+			"https://istoc.localhost",
+			content_url="/files/video.webm",
+			upload_date="2026-08-01 10:00:00",
 		)
 		self.assertEqual(obj["@type"], "VideoObject")
 		self.assertEqual(obj["name"], "Ürün tanıtımı")
@@ -102,7 +104,8 @@ class TestVideoObject(FrappeTestCase):
 		self.assertIsNone(
 			build_video_object(
 				{"title": "x", "poster_url": "", "duration": 5},
-				"https://istoc.localhost", content_url="/files/v.mp4",
+				"https://istoc.localhost",
+				content_url="/files/v.mp4",
 			)
 		)
 
@@ -111,8 +114,98 @@ class TestVideoObject(FrappeTestCase):
 
 		obj = build_video_object(
 			{"title": "Promo", "poster_url": "/files/p.jpg", "duration": 0},
-			"https://istoc.localhost", embed_url="https://www.youtube.com/embed/abc",
+			"https://istoc.localhost",
+			embed_url="https://www.youtube.com/embed/abc",
 		)
 		self.assertEqual(obj["embedUrl"], "https://www.youtube.com/embed/abc")
 		self.assertNotIn("contentUrl", obj)
 		self.assertNotIn("duration", obj)  # 0 süre basılmaz
+
+
+class TestVideoSitemap(FrappeTestCase):
+	def test_urlset_video_girdisi(self):
+		from tradehub_core.seo.sitemap_generator import build_urlset_xml
+
+		xml = build_urlset_xml(
+			[
+				{
+					"loc": "https://s/urun/x",
+					"lastmod": "2026-08-26",
+					"videos": [
+						{
+							"thumbnail_loc": "https://s/files/p.jpg",
+							"title": "Tanıtım",
+							"description": "Kısa",
+							"content_loc": "https://s/files/v.webm",
+							"duration": 65,
+							"publication_date": "2026-08-01",
+						}
+					],
+				}
+			]
+		)
+		self.assertIn('xmlns:video="http://www.google.com/schemas/sitemap-video/1.1"', xml)
+		self.assertIn("<video:video>", xml)
+		self.assertIn("<video:thumbnail_loc>https://s/files/p.jpg</video:thumbnail_loc>", xml)
+		self.assertIn("<video:duration>65</video:duration>", xml)
+
+	def test_videosuz_urlset_namespace_almaz(self):
+		from tradehub_core.seo.sitemap_generator import build_urlset_xml
+
+		xml = build_urlset_xml([{"loc": "https://s/", "lastmod": "2026-08-26"}])
+		self.assertNotIn("xmlns:video", xml)
+
+
+class TestVideoEntriesForListing(FrappeTestCase):
+	"""`_video_entries_for_listing` — `_image_entries_for_listing`'in kardeşi."""
+
+	def _video_dosyasi(self, file_name: str, **ekstra) -> "frappe.Document":
+		doc = frappe.get_doc(
+			{
+				"doctype": "File",
+				"file_name": file_name,
+				"is_private": 0,
+				"content": b"video-sitemap-test-icerigi",
+			}
+		)
+		doc.insert(ignore_permissions=True)
+		self.addCleanup(doc.delete, ignore_permissions=True)
+		if ekstra:
+			frappe.db.set_value("File", doc.name, ekstra, update_modified=False)
+		return doc
+
+	def test_postersiz_video_haritaya_girmez(self):
+		from tradehub_core.seo.sitemap_generator import _video_entries_for_listing
+
+		doc = self._video_dosyasi("sitemap-postersiz.mp4", th_media_duration=42)
+		girdiler = _video_entries_for_listing(
+			{"name": "TEST-LISTING", "video_url": doc.file_url, "title": "Ürün"},
+			"https://s",
+		)
+		self.assertEqual(girdiler, [])
+
+	def test_posterli_video_girdisi_uretir(self):
+		from tradehub_core.seo.sitemap_generator import _video_entries_for_listing
+
+		doc = self._video_dosyasi(
+			"sitemap-posterli.mp4",
+			th_media_duration=65,
+			th_media_poster_url="/files/sitemap-poster.jpg",
+		)
+		girdiler = _video_entries_for_listing(
+			{"name": "TEST-LISTING", "video_url": doc.file_url, "title": "Ürün Videosu"},
+			"https://s",
+		)
+		self.assertEqual(len(girdiler), 1)
+		video = girdiler[0]
+		self.assertEqual(video["thumbnail_loc"], "https://s/files/sitemap-poster.jpg")
+		self.assertEqual(video["content_loc"], f"https://s{doc.file_url}")
+		self.assertEqual(video["title"], "Ürün Videosu")
+		self.assertEqual(video["duration"], 65)
+
+	def test_videosuz_ilan_bos_liste_doner(self):
+		from tradehub_core.seo.sitemap_generator import _video_entries_for_listing
+
+		self.assertEqual(
+			_video_entries_for_listing({"name": "TEST-LISTING", "video_url": ""}, "https://s"), []
+		)
