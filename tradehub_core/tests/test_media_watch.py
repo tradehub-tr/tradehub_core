@@ -271,12 +271,10 @@ class TestGetWatchPage(FrappeTestCase):
 			th_media_captions_url="/files/watch-cap.vtt",
 			th_media_duration=42.5,
 			th_media_creator="İstoç",
-			th_media_creator_type="Organization",
 			th_media_credit_text="İstoç Medya",
 			th_media_copyright_notice="© İstoç",
 			th_media_license_url="https://example.com/lisans",
 			th_media_acquire_license_url="https://example.com/lisans-al",
-			th_media_usage_rights="ticari kullanım serbest",
 		)
 		self._slug_ver(doc, "watch-tam-alanli-slug")
 		self._ilan_video_baglar(ilan["name"], doc.file_url, storefront_visible=1)
@@ -297,13 +295,16 @@ class TestGetWatchPage(FrappeTestCase):
 		self.assertTrue(data["sources"][0]["type"])
 
 		license_ = data["license"]
+		self.assertEqual(
+			set(license_.keys()),
+			{"creator", "creditText", "copyrightNotice", "licenseUrl", "acquireLicensePageUrl"},
+			"license sözleşmesi TAM 5 anahtar taşımalı — spec fazlasını istemiyor",
+		)
 		self.assertEqual(license_["creator"], "İstoç")
-		self.assertEqual(license_["creatorType"], "Organization")
 		self.assertEqual(license_["creditText"], "İstoç Medya")
 		self.assertEqual(license_["copyrightNotice"], "© İstoç")
 		self.assertEqual(license_["licenseUrl"], "https://example.com/lisans")
-		self.assertEqual(license_["acquireLicenseUrl"], "https://example.com/lisans-al")
-		self.assertEqual(license_["usageRights"], "ticari kullanım serbest")
+		self.assertEqual(license_["acquireLicensePageUrl"], "https://example.com/lisans-al")
 
 		self.assertEqual(len(data["listings"]), 1)
 		self.assertEqual(data["listings"][0]["slug"], frappe.db.get_value("Listing", ilan["name"], "slug"))
@@ -364,6 +365,58 @@ class TestGetWatchPage(FrappeTestCase):
 		with self.assertRaises(frappe.DoesNotExistError):
 			media_public.get_watch_page("watch-private-slug")
 
+	def test_sources_poster_webp_sizmaz(self):
+		"""Düzeltme turu 1, bulgu 4 — `_sources`'ın poster (webp) girdisi `sources`'a
+		SIZMAMALI, yalnız video MIME'ları geçmeli. Gerçek `Media Rendition` fixture'ı
+		ağır (Media Version + birden çok rendition satırı); `_sources`'ı monkeypatch'leyip
+		yalnız `_video_sources`'ın filtre davranışını birim düzeyinde doğruluyoruz —
+		`_sources`'ın kendisi zaten görsel format haritasıyla (avif/webp/jpeg/png)
+		çalıştığı için gerçek video render'ında da `webp` (poster) HER ZAMAN bu yoldan
+		geçer, `mp4`/`m3u8` asla `_sources`'ın type haritasına girmez (bilinçli sınır,
+		rapor: `task-2-report.md`)."""
+		from unittest import mock
+
+		from tradehub_core.api import media_public
+
+		ilan = _gorunur_ilan()
+		if not ilan:
+			self.skipTest("Vitrinde görünen ilan yok — fixture kurulamaz.")
+
+		doc = self._video_dosyasi(
+			"watch-source-filtre.webm",
+			th_media_title="Kaynak Filtresi",
+			th_media_poster_url="/files/watch-source-poster.jpg",
+		)
+		self._slug_ver(doc, "watch-source-filtre-slug")
+		self._ilan_video_baglar(ilan["name"], doc.file_url, storefront_visible=1)
+
+		asset = frappe.get_doc(
+			{
+				"doctype": "Media Asset",
+				"slot_key": "product.video",
+				"media_type": "video",
+				"state": "ready",
+				"source_file": doc.name,
+				"content_sha256": frappe.generate_hash(length=32),
+			}
+		).insert(ignore_permissions=True)
+		self.addCleanup(asset.delete, ignore_permissions=True)
+
+		sahte_items = [
+			{"type": "image/webp", "srcset": "/files/watch-source-poster-1280.webp 1280w"},
+			{"type": "video/mp4", "srcset": "/files/watch-source-video-1280.mp4 1280w"},
+		]
+		with mock.patch.object(
+			media_public, "_sources", return_value=(sahte_items, "/files/watch-source-poster-1280.webp")
+		):
+			data = media_public.get_watch_page("watch-source-filtre-slug")
+
+		tipler = {s["type"] for s in data["sources"]}
+		self.assertNotIn("image/webp", tipler, "poster profilinin webp rendition'ı sources'a sızmamalı")
+		self.assertEqual(
+			data["sources"], [{"src": "/files/watch-source-video-1280.mp4", "type": "video/mp4"}]
+		)
+
 
 class TestWatchIndexable(FrappeTestCase):
 	"""`watch_indexable` — W3 üçlüsü doğrudan test edilir (Task 3'ün resolver'ı bunu kullanacak)."""
@@ -406,3 +459,34 @@ class TestWatchIndexable(FrappeTestCase):
 
 		doc = self._video_dosyasi("wi-baglanmamis.webm", th_media_poster_url="/files/wi-poster2.jpg")
 		self.assertFalse(media_public.watch_indexable(doc.file_url))
+
+	def test_disaridan_verilen_fields_ve_listings_tekrar_hesaplanmaz(self):
+		"""Düzeltme turu 1, bulgu 3 — `_watch_data` çağırırken önceden hesaplanmış
+		`fields`/`listings` geçirilirse `watch_indexable` bu ikisini YENİDEN
+		sorgulamaz. `seo.fields_for` yine de `seo_index.decide()`'ın kendi
+		`rights_expires_on` kontrolü için çağrılır (buna dokunmuyoruz — TEK karar
+		noktasının kapsamı `watch_indexable`'ın KENDİ mantığı, `decide()`'ın içi
+		değil); mock `{}` döndürecek şekilde zararsız bırakılıp asıl iddia şuna
+		daralıyor: dış poster kontrolü verilen `fields` dict'inden okunuyor, mock'un
+		boş dönüşünden ETKİLENMİYOR. `_storefront_listings` ise hiç çağrılmamalı —
+		`listings` verildiği için o dal hiç girilmiyor."""
+		from unittest import mock
+
+		from tradehub_core.api import media_public
+
+		doc = self._video_dosyasi("wi-parametre.webm")
+
+		with (
+			mock.patch.object(media_public.seo, "fields_for", return_value={}),
+			mock.patch.object(media_public, "_storefront_listings") as sahte_listings,
+		):
+			sonuc = media_public.watch_indexable(
+				doc.file_url,
+				fields={"poster_url": "/files/wi-poster3.jpg"},
+				listings=[{"slug": "x", "title": "y", "primary_image": "/files/z.jpg"}],
+			)
+
+		sahte_listings.assert_not_called()
+		self.assertTrue(
+			sonuc, "verilen `fields`/`listings` kullanılmalı, mock'un boş dönüşü sonucu etkilememeli"
+		)

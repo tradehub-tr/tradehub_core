@@ -8,7 +8,7 @@ from html import escape
 import frappe
 from werkzeug.wrappers import Response
 
-from tradehub_core.media import seo, seo_index, seo_urls, usage, watch_slug
+from tradehub_core.media import seo, seo_index, seo_urls, watch_slug
 from tradehub_core.seo.schema_builder import build_image_object
 from tradehub_core.seo.site_url import storefront_url
 
@@ -150,33 +150,39 @@ def asset_landing(asset_id: str):
 
 
 def _storefront_listings(file_url: str) -> list[dict]:
-	"""Videonun bağlı olduğu, vitrinde görünen ilanlar — TEK sorgu (N+1 yasak).
+	"""Videonun bağlı olduğu, vitrinde görünen ilanlar — TEK indeksli sorgu.
 
-	`usage.resolve` bağ dökümünü verir (kaç kaynakta, hangi ilanlarda); burada
-	yalnız `Listing` bağları alınıp `storefront_visible` filtresiyle tek
-	`get_all` çağrısında zenginleştirilir. Filtre boş küme için hiç sorgu
-	açmaz — `resolve()` her çağrısı LIKE taraması yapan pahalı bir işlem.
+	Watch page videolarının TEK canlı kaynağı `Listing.video_url` — sitemap'in
+	`_video_entries_for_listing`'i ve JSON-LD'nin `_listing_video_objects`'i de
+	yalnız bu alanı okuyor, üçüncü bir kaynak tanımı burada icat edilmiyor.
+
+	`usage.resolve` BİLEREK kullanılmıyor (görev denetimi bulgusu 1 —
+	Critical): guest-erişilebilir bu uçta 22 tabloyu tarayan, history
+	kaynaklarına kadar uzanabilen pahalı bir kullanım dökümü açmak DoS
+	yüzeyi olurdu — her istek `/medya/v/<slug>` için LIKE taramalı 20+ sorgu
+	demekti. `video_url` alanı zaten eşitlik filtresiyle tek sorguda çözülüyor.
 	"""
-	dokum = usage.resolve(file_url)
-	adlar = sorted({
-		u["name"] for u in dokum.get("usages", []) if u.get("doctype") == "Listing" and u.get("name")
-	})
-	if not adlar:
-		return []
 	return frappe.get_all(
 		"Listing",
-		filters={"name": ["in", adlar], "storefront_visible": 1},
+		filters={"video_url": file_url, "storefront_visible": 1},
 		fields=["name", "slug", "title", "primary_image"],
 	)
 
 
-def watch_indexable(file_url: str) -> bool:
-	"""İzleme sayfası indexlenebilir mi — W3 üçlüsü (spec: SEO kararı + poster + vitrin bağı).
+def watch_indexable(file_url: str, *, fields: dict | None = None, listings: list | None = None) -> bool:
+	"""İzleme sayfası indexlenebilir mi — W3 üçlüsü, TEK karar noktası.
 
-	Üçü de sağlanmazsa video SİLİNMEZ, yalnız arama motoruna kapatılır
-	(`get_watch_page`'in `robots: noindex` dalıyla aynı ilke — `seo_index`
-	docstring'i: "private robots ile gizlenmez", burada tersi de geçerli:
-	geçici olarak aranmaz olmak dosyayı silmez).
+	SEO kararı + poster + vitrin bağı üçü de sağlanmazsa video SİLİNMEZ,
+	yalnız arama motoruna kapatılır (`get_watch_page`'in `robots: noindex`
+	dalıyla aynı ilke — `seo_index` docstring'i: "private robots ile
+	gizlenmez", burada tersi de geçerli: geçici olarak aranmaz olmak
+	dosyayı silmez).
+
+	`fields`/`listings` verilirse burada YENİDEN hesaplanmaz — `_watch_data`
+	sayfa verisini kurarken zaten hesapladığı bu ikisini geçirip aynı sorguyu
+	iki kez açmamak için kullanır. Dışarıdan bağımsız çağrı (`fields=None`)
+	geriye uyumlu: ikisi de burada hesaplanır. W3 mantığı yalnız bu
+	fonksiyonda yaşar — `_watch_data` bunu tekrar İMPLEMENTE ETMEZ.
 	"""
 	url = (file_url or "").split("?")[0].strip()
 	if not url:
@@ -184,19 +190,33 @@ def watch_indexable(file_url: str) -> bool:
 	decision = seo_index.decide(url, check_usage=False)
 	if not decision.get("indexable"):
 		return False
-	fields = seo.fields_for(url)
+	if fields is None:
+		fields = seo.fields_for(url)
 	if not fields.get("poster_url"):
 		return False
-	return bool(_storefront_listings(url))
+	if listings is None:
+		listings = _storefront_listings(url)
+	return bool(listings)
+
+
+#: `<video>` etiketine girebilecek MIME'lar — `_sources`'ın döndürdüğü
+#: `image/*` girdiler (poster'ın `pipeline_bridge.VIDEO_POSTER_PROFILE`
+#: render'ı webp/png formatında saklanıyor) buradan GEÇEMEZ. Poster URL'i
+#: zaten ayrı `posterUrl` alanında taşınıyor; `<source>` listesine bir
+#: thumbnail sızması oynatılamaz bir "video" gösterirdi (görev denetimi
+#: bulgusu 4).
+_VIDEO_SOURCE_MIMES: frozenset[str] = frozenset({"video/mp4", "video/webm", "application/x-mpegURL"})
 
 
 def _video_sources(file_row: dict, url: str, mime: str) -> list[dict[str, str]]:
 	"""Video kaynak listesi — asset'i varsa `_sources` (mevcut desen), yoksa ham adres.
 
-	`_sources` görsel format haritasıyla (avif/webp/jpeg/png) çalışıyor; bir
-	video asset'inin bugün eşleşen render'ı yoksa (henüz video rendition
-	üretilmiyor) boş döner ve ham dosya adresine düşülür — motoru olmayan
-	bir kaynak listesindense TEK gerçek adres göstermek yeğdir.
+	`_sources`'ın döndürdüğü türler `_VIDEO_SOURCE_MIMES` ile süzülüyor: aksi
+	hâlde asset'in poster render'ı (`image/webp`) `<source type="image/webp">`
+	olarak sızabilirdi. Süzgeçten hiçbir şey geçmezse (bugün video render'ı
+	`_sources`'ın bildiği format haritasına henüz girmiyor) ham dosya
+	adresine düşülür — motoru olmayan bir kaynak listesindense TEK gerçek
+	adres göstermek yeğdir.
 	"""
 	asset_name = ""
 	if frappe.db.table_exists("Media Asset"):
@@ -205,6 +225,8 @@ def _video_sources(file_row: dict, url: str, mime: str) -> list[dict[str, str]]:
 		items, _fallback = _sources(asset_name)
 		kaynaklar = []
 		for item in items:
+			if item.get("type") not in _VIDEO_SOURCE_MIMES:
+				continue
 			ilk = (item.get("srcset") or "").split(",")[0].strip()
 			src = ilk.split(" ")[0] if ilk else ""
 			if src:
@@ -242,7 +264,9 @@ def _watch_data(slug: str) -> dict:
 	fields = seo.fields_for(url)
 	decision = seo_index.decide(url, check_usage=False)
 	listings = _storefront_listings(url)
-	indexable = bool(decision.get("indexable")) and bool(fields.get("poster_url")) and bool(listings)
+	# W3 kararı TEK yerde: `watch_indexable`. `fields`/`listings` burada zaten
+	# hesaplandığı için geçiriliyor — fonksiyon içeride tekrar sorgulamaz.
+	indexable = watch_indexable(url, fields=fields, listings=listings)
 
 	site = storefront_url()
 	identity = seo_urls.identity_for(url, site_url=site)
@@ -260,15 +284,14 @@ def _watch_data(slug: str) -> dict:
 		"captionsUrl": fields.get("captions_url") or "",
 		"durationSec": fields.get("duration") or 0,
 		"uploadDate": identity.get("date_created") or "",
+		# Sözleşme TAM 5 anahtar (spec) — `creatorType`/`usageRights`/`rightsExpiresOn`
+		# BİLEREK yok, `fields_for` içinde kalıyor ama dış yüzeye taşınmıyor.
 		"license": {
 			"creator": fields.get("creator") or "",
-			"creatorType": fields.get("creator_type") or "",
 			"creditText": fields.get("credit_text") or "",
 			"copyrightNotice": fields.get("copyright_notice") or "",
 			"licenseUrl": fields.get("license_url") or "",
-			"acquireLicenseUrl": fields.get("acquire_license_url") or "",
-			"usageRights": fields.get("usage_rights") or "",
-			"rightsExpiresOn": fields.get("rights_expires_on") or "",
+			"acquireLicensePageUrl": fields.get("acquire_license_url") or "",
 		},
 		"listings": [
 			{
