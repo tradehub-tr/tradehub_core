@@ -1,9 +1,26 @@
 """Video SEO şeması ve okuma kapısı — Dilim 4 (spec 2026-08-26)."""
 
+from unittest import mock
+
 import frappe
 from frappe.tests.utils import FrappeTestCase
 
 from tradehub_core.media import seo
+
+
+def _gorunur_ilan() -> dict | None:
+	"""Vitrinde görünen ilk ilan — Görev 6 testlerinin ortak fixture bulucusu
+	(`test_video_servis.py::_gorunur_ilan` ile aynı desen: seed demo veriyi
+	kullanır, sıfırdan Listing kurmak yerine)."""
+	satirlar = frappe.db.sql(
+		"""
+		SELECT l.name FROM `tabListing` l
+		WHERE l.storefront_visible = 1 AND l.status = 'Active'
+		ORDER BY l.name ASC LIMIT 1
+		""",
+		as_dict=True,
+	)
+	return satirlar[0] if satirlar else None
 
 
 class TestVideoSeoSchema(FrappeTestCase):
@@ -268,3 +285,203 @@ class TestVideoAlanlarToplu(FrappeTestCase):
 			self.assertEqual(
 				entry["videos"][0]["thumbnail_loc"], f"https://s/files/sitemap-toplu-poster-{i}.jpg"
 			)
+
+
+class TestListingVideoMeta(FrappeTestCase):
+	"""Görev 6 — `_gorsel_kunyeleri` galerideki video dosyaları için poster/süre/altyazı basar."""
+
+	def test_gorsel_kunyesi_video_anahtarlari(self):
+		from tradehub_core.api.listing import _gorsel_kunyeleri
+
+		ilan_satir = _gorunur_ilan()
+		if not ilan_satir:
+			self.skipTest("Vitrinde görünen ilan yok — fixture kurulamaz.")
+		listing = frappe.get_doc("Listing", ilan_satir["name"])
+
+		doc = frappe.get_doc(
+			{
+				"doctype": "File",
+				"file_name": "task6-imagemeta-video.webm",
+				"is_private": 0,
+				"content": b"task6-imagemeta-video-icerigi",
+			}
+		)
+		doc.insert(ignore_permissions=True)
+		self.addCleanup(doc.delete, ignore_permissions=True)
+		frappe.db.set_value(
+			"File",
+			doc.name,
+			{"th_media_poster_url": "/files/task6-p.jpg", "th_media_duration": 30},
+			update_modified=False,
+		)
+
+		kunyeler = _gorsel_kunyeleri(listing, [doc.file_url], "tr")
+		self.assertEqual(kunyeler[0]["poster"], "/files/task6-p.jpg")
+		self.assertEqual(kunyeler[0]["durationSec"], 30)
+
+	def test_gorsel_dosyasinda_video_anahtarlari_yok(self):
+		"""Normal görsel satırında `poster`/`durationSec` HİÇ eklenmez — video
+		dosyasına özgü anahtarlar tüm görsellere sızmasın."""
+		from tradehub_core.api.listing import _gorsel_kunyeleri
+
+		ilan_satir = _gorunur_ilan()
+		if not ilan_satir:
+			self.skipTest("Vitrinde görünen ilan yok — fixture kurulamaz.")
+		listing = frappe.get_doc("Listing", ilan_satir["name"])
+
+		doc = frappe.get_doc(
+			{
+				"doctype": "File",
+				"file_name": "task6-imagemeta-image.txt",
+				"is_private": 0,
+				"content": b"task6-imagemeta-image-icerigi",
+			}
+		)
+		doc.insert(ignore_permissions=True)
+		self.addCleanup(doc.delete, ignore_permissions=True)
+
+		kunyeler = _gorsel_kunyeleri(listing, [doc.file_url], "tr")
+		self.assertNotIn("poster", kunyeler[0])
+		self.assertNotIn("durationSec", kunyeler[0])
+		self.assertNotIn("captionsUrl", kunyeler[0])
+
+
+class TestListingDetailVideoPosterFallback(FrappeTestCase):
+	"""Görev 6 — `videoPoster` manifest boşken canlı yol üretimine
+	(`th_media_poster_url`) düşer; `videoDurationSec`/`videoCaptionsUrl` yeni alanlar."""
+
+	def test_manifest_bosken_th_media_poster_url_kullanilir(self):
+		from tradehub_core.api import listing as listing_api
+
+		ilan = _gorunur_ilan()
+		if not ilan:
+			self.skipTest("Vitrinde görünen ilan yok — fixture kurulamaz.")
+
+		doc = frappe.get_doc(
+			{
+				"doctype": "File",
+				"file_name": "task6-detay-poster.webm",
+				"is_private": 0,
+				"content": b"task6-detay-poster-video-icerigi",
+			}
+		)
+		doc.insert(ignore_permissions=True)
+		self.addCleanup(doc.delete, ignore_permissions=True)
+		frappe.db.set_value(
+			"File",
+			doc.name,
+			{
+				"th_media_poster_url": "/files/task6-detay-poster.jpg",
+				"th_media_duration": 30,
+				"th_media_captions_url": "/files/task6-detay.vtt",
+			},
+			update_modified=False,
+		)
+
+		eski_video_url = frappe.db.get_value("Listing", ilan["name"], "video_url")
+		frappe.db.set_value("Listing", ilan["name"], "video_url", doc.file_url, update_modified=False)
+		self.addCleanup(
+			lambda: frappe.db.set_value(
+				"Listing", ilan["name"], "video_url", eski_video_url, update_modified=False
+			)
+		)
+		frappe.cache.delete_value(f"{listing_api._LISTING_DETAIL_CACHE_PREFIX}{ilan['name']}:tr")
+
+		# Manifest (bayraklı motor) boş dönsün — fallback yalnız canlı yoldan gelsin.
+		with mock.patch.object(listing_api, "_video_manifest_blogu", return_value={}):
+			data = listing_api.get_listing_detail(ilan["name"])["data"]
+
+		self.assertEqual(data["videoPoster"], "/files/task6-detay-poster.jpg")
+		self.assertEqual(data["videoDurationSec"], 30)
+		self.assertEqual(data["videoCaptionsUrl"], "/files/task6-detay.vtt")
+
+	def test_manifest_posteri_canli_yoldan_once_gelir(self):
+		"""Manifest doluysa (bayraklı motor) canlı yol üretimi hiç devreye girmez."""
+		from tradehub_core.api import listing as listing_api
+
+		ilan = _gorunur_ilan()
+		if not ilan:
+			self.skipTest("Vitrinde görünen ilan yok — fixture kurulamaz.")
+
+		eski_video_url = frappe.db.get_value("Listing", ilan["name"], "video_url")
+		frappe.db.set_value(
+			"Listing", ilan["name"], "video_url", "/files/task6-manifest-video.mp4", update_modified=False
+		)
+		self.addCleanup(
+			lambda: frappe.db.set_value(
+				"Listing", ilan["name"], "video_url", eski_video_url, update_modified=False
+			)
+		)
+		frappe.cache.delete_value(f"{listing_api._LISTING_DETAIL_CACHE_PREFIX}{ilan['name']}:tr")
+
+		with mock.patch.object(
+			listing_api, "_video_manifest_blogu", return_value={"poster": "/files/manifest-poster.jpg"}
+		):
+			data = listing_api.get_listing_detail(ilan["name"])["data"]
+
+		self.assertEqual(data["videoPoster"], "/files/manifest-poster.jpg")
+
+
+class TestListingVideoObjectJsonLd(FrappeTestCase):
+	"""Görev 6 — JSON-LD `Product` yanında video varsa `VideoObject`
+	(`schema_builder.compose_for_listing` → `build_product_schema(media_videos=...)`)."""
+
+	def test_video_url_varsa_product_schema_video_tasir(self):
+		from tradehub_core.seo.schema_builder import compose_for_listing
+
+		ilan = _gorunur_ilan()
+		if not ilan:
+			self.skipTest("Vitrinde görünen ilan yok — fixture kurulamaz.")
+
+		doc = frappe.get_doc(
+			{
+				"doctype": "File",
+				"file_name": "task6-jsonld-video.webm",
+				"is_private": 0,
+				"content": b"task6-jsonld-video-icerigi",
+			}
+		)
+		doc.insert(ignore_permissions=True)
+		self.addCleanup(doc.delete, ignore_permissions=True)
+		frappe.db.set_value(
+			"File",
+			doc.name,
+			{"th_media_poster_url": "/files/task6-poster.jpg", "th_media_duration": 42},
+			update_modified=False,
+		)
+
+		eski_video_url = frappe.db.get_value("Listing", ilan["name"], "video_url")
+		frappe.db.set_value("Listing", ilan["name"], "video_url", doc.file_url, update_modified=False)
+		self.addCleanup(
+			lambda: frappe.db.set_value(
+				"Listing", ilan["name"], "video_url", eski_video_url, update_modified=False
+			)
+		)
+
+		listing = frappe.get_doc("Listing", ilan["name"]).as_dict()
+		schemas = compose_for_listing(listing, {}, "https://istoc.localhost")
+		product = next(s for s in schemas if s["@type"] == "Product")
+		self.assertIn("video", product)
+		self.assertEqual(
+			product["video"][0]["thumbnailUrl"], "https://istoc.localhost/files/task6-poster.jpg"
+		)
+
+	def test_videosuz_ilan_product_schema_video_tasimaz(self):
+		from tradehub_core.seo.schema_builder import compose_for_listing
+
+		ilan = _gorunur_ilan()
+		if not ilan:
+			self.skipTest("Vitrinde görünen ilan yok — fixture kurulamaz.")
+
+		eski_video_url = frappe.db.get_value("Listing", ilan["name"], "video_url")
+		frappe.db.set_value("Listing", ilan["name"], "video_url", "", update_modified=False)
+		self.addCleanup(
+			lambda: frappe.db.set_value(
+				"Listing", ilan["name"], "video_url", eski_video_url, update_modified=False
+			)
+		)
+
+		listing = frappe.get_doc("Listing", ilan["name"]).as_dict()
+		schemas = compose_for_listing(listing, {}, "https://istoc.localhost")
+		product = next(s for s in schemas if s["@type"] == "Product")
+		self.assertNotIn("video", product)

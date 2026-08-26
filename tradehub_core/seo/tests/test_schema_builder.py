@@ -193,6 +193,31 @@ class TestProductSchema(unittest.TestCase):
 		)
 		self.assertEqual(schema["offers"]["availability"], "https://schema.org/OutOfStock")
 
+	def test_media_videos_verilirse_video_alani_eklenir(self):
+		"""Görev 6 — `media_videos` çağıran tarafından üretilmiş `VideoObject` listesi."""
+		video = {"@type": "VideoObject", "name": "Tanıtım", "thumbnailUrl": "https://istoc.com/files/p.jpg"}
+		schema = build_product_schema(
+			listing=self._listing(),
+			site_url="https://istoc.com",
+			brand=None,
+			category_name=None,
+			aggregate_rating=None,
+			reviews=None,
+			media_videos=[video],
+		)
+		self.assertEqual(schema["video"], [video])
+
+	def test_media_videos_verilmezse_video_alani_yok(self):
+		schema = build_product_schema(
+			listing=self._listing(),
+			site_url="https://istoc.com",
+			brand=None,
+			category_name=None,
+			aggregate_rating=None,
+			reviews=None,
+		)
+		self.assertNotIn("video", schema)
+
 
 class TestBreadcrumbSchema(unittest.TestCase):
 	def test_three_items_positions(self):

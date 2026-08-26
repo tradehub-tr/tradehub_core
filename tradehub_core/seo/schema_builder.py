@@ -209,6 +209,7 @@ def build_product_schema(
 	reviews: list[dict] | None,
 	currency: str = "TRY",
 	lang: str = "tr",
+	media_videos: list | None = None,
 ) -> dict:
 	"""Product schema üret. Pure: I/O yok."""
 	slug = listing.get("slug", "")
@@ -262,6 +263,11 @@ def build_product_schema(
 
 	if reviews:
 		schema["review"] = reviews
+
+	# Video (Görev 6): çağıran (compose_for_listing) `VideoObject` listesini
+	# önceden üretip verir — burası pure kalır, DB/Frappe'ye dokunmaz.
+	if media_videos:
+		schema["video"] = media_videos
 
 	return schema
 
@@ -412,6 +418,7 @@ def _pure_compose_for_listing(*, ctx: dict, defaults: dict, site_url: str) -> li
 			category_name=ctx.get("category_name"),
 			aggregate_rating=ctx.get("aggregate_rating"),
 			reviews=ctx.get("reviews"),
+			media_videos=listing.get("media_videos"),
 		)
 	)
 
@@ -608,6 +615,52 @@ def _listing_image_objects(listing: dict, site_url: str) -> list:
 		return []
 
 
+def _listing_video_objects(listing: dict, site_url: str) -> list:
+	"""İlanın tanıtım videosu (`Listing.video_url`) → `VideoObject` listesi (0/1 eleman).
+
+	Kapsam site haritası kardeşiyle (`sitemap_generator._video_entries_for_listing`)
+	AYNI: yalnız tek video alanı işlenir, galerideki video dosyaları burada
+	tekrar İŞLENMEZ — onlar `imageMeta` (Görev 6, `api.listing._gorsel_kunyeleri`)
+	üzerinden zaten poster/süre/altyazı taşıyor. Poster'ı ya da adı olmayan video
+	`build_video_object` sözleşmesiyle HİÇ girmez (Google geçersiz yapısal veri
+	istemiyor). Yerel dosya (`/files/...`) `contentUrl`, harici oynatıcı (YouTube/
+	Vimeo) `embedUrl` olarak basılır.
+	"""
+	import frappe
+
+	video_url = str(listing.get("video_url") or "").split("?")[0].strip()
+	if not video_url:
+		return []
+	try:
+		from tradehub_core.media import seo as media_seo
+
+		listing_name = listing.get("name") or ""
+		lang = listing.get("content_default_lang") or "tr"
+		alanlar = media_seo.fields_for(
+			video_url,
+			ref_doctype="Listing",
+			ref_name=listing_name,
+			ref_field="video_url",
+			lang=lang,
+		)
+		if not alanlar.get("title"):
+			alanlar = {**alanlar, "title": listing.get("title") or ""}
+		yerel = video_url.startswith("/files/")
+		nesne = build_video_object(
+			alanlar,
+			site_url,
+			content_url=video_url if yerel else "",
+			embed_url="" if yerel else video_url,
+			upload_date=str(listing.get("creation") or ""),
+		)
+		return [nesne] if nesne else []
+	except Exception:
+		# Şema üretimi sayfa isteği içinde koşuyor: video tarafındaki bir hata
+		# ürün sayfasını DÜŞÜRMEMELİ — image kardeşiyle aynı gerekçe.
+		frappe.log_error("listing video objects failed", "schema_builder")
+		return []
+
+
 def _get_listing_extra_context(listing_name: str) -> dict:
 	"""Listing için brand + category + rating + reviews + questions topla."""
 	import frappe
@@ -733,7 +786,11 @@ def compose_for_home(defaults: dict, site_url: str) -> list[dict]:
 
 def compose_for_listing(listing: dict, defaults: dict, site_url: str) -> list[dict]:
 	"""Frappe wrapper: Listing için tüm schema setini üret."""
-	listing = {**listing, "media_images": _listing_image_objects(listing, site_url)}
+	listing = {
+		**listing,
+		"media_images": _listing_image_objects(listing, site_url),
+		"media_videos": _listing_video_objects(listing, site_url),
+	}
 	ctx = {"listing": listing}
 	ctx.update(_get_listing_extra_context(listing.get("name", "")))
 	merged_defaults = {**defaults, **_frappe_defaults()}
