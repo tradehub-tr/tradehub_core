@@ -86,6 +86,70 @@ def build_image_object(seo_fields: dict, site_url: str) -> dict | str:
 	return nesne
 
 
+def _iso8601_sure(saniye: float) -> str:
+	"""65.0 → "PT1M5S"; 0 → "" (basılmaz)."""
+	toplam = int(saniye or 0)
+	if toplam <= 0:
+		return ""
+	dk, sn = divmod(toplam, 60)
+	sa, dk = divmod(dk, 60)
+	parca = "PT"
+	if sa:
+		parca += f"{sa}H"
+	if dk:
+		parca += f"{dk}M"
+	if sn or parca == "PT":
+		parca += f"{sn}S"
+	return parca
+
+
+def build_video_object(
+	seo_fields: dict,
+	site_url: str,
+	*,
+	content_url: str = "",
+	embed_url: str = "",
+	upload_date: str = "",
+) -> dict | None:
+	"""Tek video için `VideoObject` — poster yoksa None.
+
+	Google `thumbnailUrl` + `name` + `uploadDate`'i zorunlu sayar; geçersiz
+	yapısal veri hiç üretmemekten kötüdür (spec netleştirmesi). Poster'ı
+	olmayan video JSON-LD'ye ve video sitemap'e GİRMEZ, denetim uyarır.
+
+	URL mutlaklaştırması dosyadaki `_absolute_url` ile paylaşılır — `embedUrl`
+	istisna: gömülü oynatıcı linki (ör. YouTube embed) zaten mutlak gelir,
+	site_url'e göre yeniden yazılmaz.
+	"""
+	poster = str(seo_fields.get("poster_url") or "").strip()
+	if not poster or not (content_url or embed_url):
+		return None
+
+	ad = str(seo_fields.get("title") or seo_fields.get("alt") or "").strip()
+	if not ad:
+		return None
+	obj: dict = {"@type": "VideoObject", "name": ad, "thumbnailUrl": _absolute_url(poster, site_url)}
+	aciklama = str(seo_fields.get("caption") or seo_fields.get("description") or "").strip()
+	if aciklama:
+		obj["description"] = aciklama
+	if content_url:
+		obj["contentUrl"] = _absolute_url(content_url, site_url)
+	if embed_url:
+		obj["embedUrl"] = embed_url
+	sure = _iso8601_sure(float(seo_fields.get("duration") or 0))
+	if sure:
+		obj["duration"] = sure
+	if upload_date:
+		obj["uploadDate"] = str(upload_date)[:10]
+	transcript = str(seo_fields.get("transcript") or "").strip()
+	if transcript:
+		obj["transcript"] = transcript
+	biter = str(seo_fields.get("rights_expires_on") or "").strip()
+	if biter:
+		obj["expires"] = biter
+	return obj
+
+
 def build_image_list(seo_fields_list: list[dict], site_url: str) -> list:
 	"""Sıralı görsel listesi — her biri `ImageObject` ya da düz URL."""
 	out = []

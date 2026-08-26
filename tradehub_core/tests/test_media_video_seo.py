@@ -67,3 +67,52 @@ class TestVideoSeoSchema(FrappeTestCase):
 		self.assertFalse(frappe.db.get_value("File", doc.name, "th_media_duration"))
 		self.assertFalse(frappe.db.get_value("File", doc.name, "th_media_poster_url"))
 		self.assertEqual(frappe.db.get_value("File", doc.name, "th_media_transcript"), "t1")
+
+
+class TestVideoObject(FrappeTestCase):
+	def test_tam_alanli_video_object(self):
+		from tradehub_core.seo.schema_builder import build_video_object
+
+		alanlar = {
+			"title": "Ürün tanıtımı",
+			"alt": "",
+			"caption": "Kısa tanıtım",
+			"description": "",
+			"poster_url": "/files/poster.jpg",
+			"duration": 65.0,
+			"transcript": "merhaba dünya",
+			"rights_expires_on": "",
+		}
+		obj = build_video_object(
+			alanlar, "https://istoc.localhost",
+			content_url="/files/video.webm", upload_date="2026-08-01 10:00:00",
+		)
+		self.assertEqual(obj["@type"], "VideoObject")
+		self.assertEqual(obj["name"], "Ürün tanıtımı")
+		self.assertEqual(obj["thumbnailUrl"], "https://istoc.localhost/files/poster.jpg")
+		self.assertEqual(obj["contentUrl"], "https://istoc.localhost/files/video.webm")
+		self.assertEqual(obj["duration"], "PT1M5S")
+		self.assertEqual(obj["transcript"], "merhaba dünya")
+		self.assertEqual(obj["uploadDate"], "2026-08-01")
+		self.assertNotIn("embedUrl", obj)
+
+	def test_postersiz_video_none(self):
+		from tradehub_core.seo.schema_builder import build_video_object
+
+		self.assertIsNone(
+			build_video_object(
+				{"title": "x", "poster_url": "", "duration": 5},
+				"https://istoc.localhost", content_url="/files/v.mp4",
+			)
+		)
+
+	def test_embed_video(self):
+		from tradehub_core.seo.schema_builder import build_video_object
+
+		obj = build_video_object(
+			{"title": "Promo", "poster_url": "/files/p.jpg", "duration": 0},
+			"https://istoc.localhost", embed_url="https://www.youtube.com/embed/abc",
+		)
+		self.assertEqual(obj["embedUrl"], "https://www.youtube.com/embed/abc")
+		self.assertNotIn("contentUrl", obj)
+		self.assertNotIn("duration", obj)  # 0 süre basılmaz
