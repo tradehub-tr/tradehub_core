@@ -75,7 +75,11 @@ EXTENSIONS: dict[str, str] = {
 	},
 	**{e: KIND_VIDEO for e in (".mp4", ".webm", ".mov", ".m4v")},
 	**{e: KIND_DOCUMENT for e in (".pdf", ".doc", ".docx", ".xls", ".xlsx")},
-	**{e: KIND_OTHER for e in (".txt", ".csv", ".zip")},
+	# `.vtt`: video altyazısı (Görev 7, `media_admin.upload_video_captions`) —
+	# `media/naming.py::_hashed_name` içerik-adresli adlandırma bu sözlükten
+	# beyaz liste okuyor; eklenmezse VTT yüklemesi hash adlandırma kapısında
+	# "İzin verilmeyen dosya uzantısı" ile reddedilir.
+	**{e: KIND_OTHER for e in (".txt", ".csv", ".zip", ".vtt")},
 }
 
 MAX_BYTES: dict[str, int] = {

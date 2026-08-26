@@ -485,3 +485,82 @@ class TestListingVideoObjectJsonLd(FrappeTestCase):
 		schemas = compose_for_listing(listing, {}, "https://istoc.localhost")
 		product = next(s for s in schemas if s["@type"] == "Product")
 		self.assertNotIn("video", product)
+
+
+class TestVideoAuditVeUclar(FrappeTestCase):
+	"""Görev 7 — video denetim kuralları + poster yeniden üretme/VTT yükleme uçları."""
+
+	def test_video_denetim_kurallari(self):
+		from tradehub_core.media.seo_audit import audit_fields
+
+		bulgular = audit_fields(
+			{"alt": "x", "title": "x", "poster_url": "", "transcript": "", "duration": 0},
+			file_name="tanitim.webm",
+		)
+		kodlar = {b["code"] for b in bulgular}
+		self.assertIn("missing_poster", kodlar)
+		self.assertIn("missing_transcript", kodlar)
+		self.assertIn("missing_duration", kodlar)
+
+	def test_gorselde_video_kurali_calismaz(self):
+		from tradehub_core.media.seo_audit import audit_fields
+
+		bulgular = audit_fields({"alt": "x"}, file_name="foto.jpg")
+		kodlar = {b["code"] for b in bulgular}
+		self.assertNotIn("missing_poster", kodlar)
+
+	def test_vtt_yukleme_dogrulama(self):
+		from tradehub_core.api.media_admin import upload_video_captions
+
+		frappe.set_user("Administrator")
+		# `file_url` set edilmeden `content` verilir — Frappe diskten okumaya
+		# çalışmaz (bu dosyanın başındaki `test_fields_for_video_alanlarini_dondurur`
+		# ile aynı desen); asıl adres `doc.file_url`'den okunur, elle uydurulmaz.
+		doc = frappe.get_doc(
+			{"doctype": "File", "file_name": "v-cap.webm", "is_private": 0, "content": b"vtt-test-video"}
+		).insert(ignore_permissions=True)
+		self.addCleanup(doc.delete, ignore_permissions=True)
+		with self.assertRaises(frappe.ValidationError):
+			upload_video_captions(doc.file_url, "bu vtt degil")
+		sonuc = upload_video_captions(doc.file_url, "WEBVTT\n\n00:00.000 --> 00:02.000\nMerhaba")
+		self.assertTrue(sonuc["captions_url"].endswith(".vtt"))
+
+	def test_regenerate_video_poster_tum_kardes_kayitlari_temizler(self):
+		"""Aynı `file_url`'e sahip iki `File` kaydından biri poster taşırken
+		regenerate ikisini de boşaltmalı — yoksa `generate` idempotent dalı
+		posteri kardeş kayıttan geri kopyalar ve yeniden üretim hiç koşmaz."""
+		from tradehub_core.api.media_admin import regenerate_video_poster
+
+		frappe.set_user("Administrator")
+		icerik = b"paylasilan-video-icerigi"
+		birinci = frappe.get_doc(
+			{"doctype": "File", "file_name": "paylasilan-video.webm", "is_private": 0, "content": icerik}
+		).insert(ignore_permissions=True)
+		self.addCleanup(birinci.delete, ignore_permissions=True)
+		ortak_url = birinci.file_url
+		# İkinci kayıt AYNI içeriği taşıyor — Frappe'nin content-hash tekilleştirmesi
+		# (`file.py::save_file`) bunu otomatik olarak aynı `file_url`'e bağlar; iki
+		# `File` satırı, tek fiziksel dosya (video_poster.generate docstring'i).
+		ikinci = frappe.get_doc(
+			{"doctype": "File", "file_name": "paylasilan-video-2.webm", "is_private": 0, "content": icerik}
+		).insert(ignore_permissions=True)
+		self.addCleanup(ikinci.delete, ignore_permissions=True)
+		self.assertEqual(ikinci.file_url, ortak_url)
+
+		frappe.db.set_value(
+			"File", birinci.name, "th_media_poster_url", "/files/eski-poster.jpg", update_modified=False
+		)
+
+		with mock.patch("frappe.enqueue") as sahte_kuyruk:
+			sonuc = regenerate_video_poster(ortak_url)
+
+		self.assertTrue(sonuc["queued"])
+		sahte_kuyruk.assert_called_once()
+		self.assertEqual(
+			frappe.db.get_value("File", birinci.name, "th_media_poster_url"),
+			"",
+		)
+		self.assertEqual(
+			frappe.db.get_value("File", ikinci.name, "th_media_poster_url"),
+			"",
+		)
