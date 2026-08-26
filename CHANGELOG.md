@@ -1,3 +1,11 @@
+## [v1.13.1-alpha.47] - 2026-08-26 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(media): unify bulk operation contract (MOGEM-575) (@Metin Bektemur)
+
+---
 ## [v1.13.1-alpha.46] - 2026-08-26 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
