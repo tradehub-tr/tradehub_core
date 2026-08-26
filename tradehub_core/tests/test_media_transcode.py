@@ -265,7 +265,7 @@ class TestEnqueueTranscodeKosullu(FrappeTestCase):
 			lambda: frappe.delete_doc("File", self.doc.name, ignore_permissions=True, force=True)
 		)
 
-	def test_kucuk_video_enqueue_edilmez_ready_isaretlenir(self):
+	def test_kucuk_video_transcode_edilmez_poster_enqueue_edilir(self):
 		with (
 			mock.patch(
 				"tradehub_core.media.transcode.needs_transcode", return_value=False

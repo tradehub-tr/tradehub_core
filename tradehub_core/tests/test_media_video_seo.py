@@ -126,6 +126,19 @@ class TestVideoObject(FrappeTestCase):
 			)
 		)
 
+	def test_posteri_dolu_ama_url_siz_video_none(self):
+		"""Poster var ama ne `content_url` ne `embed_url` verilmişse `VideoObject`
+		yine üretilmez — Google'a oynatılamayan bir video işaret ettirmemek için
+		`content_url or embed_url` şartı poster'dan BAĞIMSIZ ayrıca uygulanır."""
+		from tradehub_core.seo.schema_builder import build_video_object
+
+		self.assertIsNone(
+			build_video_object(
+				{"title": "x", "poster_url": "/files/p.jpg", "duration": 5},
+				"https://istoc.localhost",
+			)
+		)
+
 	def test_embed_video(self):
 		from tradehub_core.seo.schema_builder import build_video_object
 
@@ -252,8 +265,6 @@ class TestVideoAlanlarToplu(FrappeTestCase):
 		return doc
 
 	def test_parca_basina_tek_fields_for_many_cagrisi(self):
-		from unittest import mock
-
 		from tradehub_core.media import seo as media_seo
 		from tradehub_core.seo import sitemap_generator as sg
 

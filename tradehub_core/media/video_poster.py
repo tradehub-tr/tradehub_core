@@ -172,7 +172,10 @@ def generate(file_url: str) -> str | None:
 		return None
 
 
-#: Yalnız video uzantıları — upload_policy._SIGNATURES ile uyumlu küme.
+#: Postersiz video adayı ararken `file_url` üzerinde eşlenen dosya uzantıları
+#: (`LIKE '%%.uzanti'`) — magic-byte imza kümesi DEĞİL, düz uzantı listesi.
+#: `upload_policy._SIGNATURES` yükleme zamanı içerik doğrulaması yapar; burası
+#: yalnız zaten kabul edilmiş dosyalar arasında backfill adayı seçer.
 VIDEO_UZANTILAR: tuple[str, ...] = (".mp4", ".webm", ".mov", ".m4v", ".mkv")
 
 
