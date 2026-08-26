@@ -70,10 +70,43 @@ def _kardes_kayitlar(adlar: list[str]) -> list[frappe._dict]:
 
 def _essiz_slug(taban: str, kendi_adlar: list[str], hash6: str) -> str:
 	"""Aday slug başka bir `File`'da (kendi kardeşleri hariç) kullanılıyorsa
-	içerik hash'i ekler."""
+	içerik hash'i ekler. Bu, TOCTOU penceresini KAPATMAZ — yazımdan sonra
+	`_ayikla_yaris` ile ikinci kez doğrulanır (fix turu 1, düzeltme 3)."""
 	if not frappe.db.exists("File", {"th_media_slug": taban, "name": ["not in", kendi_adlar]}):
 		return taban
 	return f"{taban}-{hash6}"
+
+
+def _ayikla_yaris(url: str, adlar: list[str], slug: str) -> str:
+	"""Yazım-SONRASI doğrulama — `_essiz_slug`'ın exists-check'i ile asıl
+	`db.set_value` arasındaki pencerede eşzamanlı bir başka çağrı AYNI slug'ı
+	üretmiş olabilir (TOCTOU). DB'de unique constraint KONULAMAZ: kardeş
+	kayıtlar (aynı `file_url`) aynı slug'ı BİLEREK paylaşıyor, o yüzden
+	constraint gerçek çakışma ile meşru paylaşımı ayıramaz.
+
+	Slug yazıldıktan sonra aynı slug'ı taşıyan kayıtların `file_url`'leri
+	toplanır; kendi grubumuzdan (bu çağrının `url`'i / `adlar`'ı) FARKLI bir
+	`file_url` bulunursa yarış olmuştur — yalnız KENDİ grubumuz içerik
+	hash'iyle ayrışır (deterministik: aynı içerik hep aynı hash'i üretir),
+	diğer grup dokunulmadan kalır. En fazla 2 tur: ilk yazım + bu ayrışma."""
+	digerleri = frappe.get_all(
+		"File",
+		filters={"th_media_slug": slug, "name": ["not in", adlar]},
+		fields=["file_url"],
+		limit_page_length=1,
+	)
+	if not digerleri or digerleri[0].file_url == url:
+		return slug
+
+	yeni_slug = f"{slug}-{_hash6(adlar[0])}"
+	canonical = watch_url(yeni_slug)
+	frappe.db.set_value(
+		"File",
+		{"name": ["in", adlar]},
+		{"th_media_slug": yeni_slug, "th_media_canonical": canonical},
+		update_modified=False,
+	)
+	return yeni_slug
 
 
 def _ensure_slug(url: str) -> str:
@@ -94,7 +127,7 @@ def _ensure_slug(url: str) -> str:
 				{"th_media_slug": mevcut, "th_media_canonical": watch_url(mevcut)},
 				update_modified=False,
 			)
-		return mevcut
+		return _ayikla_yaris(url, adlar, mevcut)
 
 	alanlar = seo.fields_for(url)
 	govde = Path(kayitlar[0].file_name).stem if kayitlar[0].file_name else ""
@@ -110,7 +143,7 @@ def _ensure_slug(url: str) -> str:
 		{"th_media_slug": aday, "th_media_canonical": canonical},
 		update_modified=False,
 	)
-	return aday
+	return _ayikla_yaris(url, adlar, aday)
 
 
 def ensure_slug(file_url: str) -> str:
@@ -137,10 +170,18 @@ def change_slug(file_url: str, yeni: str) -> str:
 	Eski slug yoksa (ilk atama) köprü açılmaz — bağlanacak eski adres yok.
 	Bu fonksiyon admin akışından çağrılır (`ensure_slug`'ın aksine) hatalar
 	yutulmaz; çağıran uç kapıdan geçmiş yetkili bir işlem yapıyor.
+
+	`yeni` slugify edildiğinde boş kalırsa (yalnız noktalama/emoji vb.) HAM
+	değere düşülmez — `frappe.throw` ile reddedilir (fix turu 1, düzeltme 1):
+	aksi hâlde `th_media_slug`'a `/medya/v/` deseninin dışına çıkan bir değer
+	yazılabilirdi (`Media URL Redirect._dogrula_adres`'in kabul ettiği ama
+	slug alanının asla taşımaması gereken bir desen).
 	"""
 	url = _temiz(file_url)
-	yeni_slug = slugify_tr(yeni) or (yeni or "").strip()
-	if not _yerel_mi(url) or not yeni_slug:
+	yeni_slug = slugify_tr(yeni)
+	if not yeni_slug:
+		frappe.throw(frappe._("Geçersiz slug: yalnız harf/rakam/tire."))
+	if not _yerel_mi(url):
 		return ""
 	adlar = frappe.get_all("File", filters={"file_url": url}, pluck="name")
 	if not adlar:
@@ -159,10 +200,25 @@ def change_slug(file_url: str, yeni: str) -> str:
 		update_modified=False,
 	)
 	if eski:
+		eski_url = watch_url(eski)
+		# Zincir çökertme (fix turu 1, düzeltme 2a): A→eski iken şimdi eski→yeni
+		# yazılıyor — A'yı da doğrudan yeni'ye çevir, aksi hâlde her `change_slug`
+		# zinciri bir hop uzatır (A→eski→yeni takibi renderer'da yok, tek atlamalı
+		# `MediaRedirectRenderer` A'da B'yi görüp durur).
+		frappe.db.set_value(
+			"Media URL Redirect", {"target_url": eski_url}, "target_url", canonical, update_modified=False
+		)
+		# Gölge/döngü temizliği (fix turu 1, düzeltme 2b): canlı hale gelen adres
+		# (`canonical`) önceden bir yönlendirmenin KAYNAĞIYSA sil — slug ileride
+		# `eski`'ye geri dönerse (A→B→A) B satırı hâlâ dururken A'nın hem canlı
+		# hem "birine yönlendiren" olması bir döngü/gölge adres yaratırdı.
+		golge_adlar = frappe.get_all("Media URL Redirect", filters={"source_url": canonical}, pluck="name")
+		for ad in golge_adlar:
+			frappe.delete_doc("Media URL Redirect", ad, ignore_permissions=True, force=True)
 		frappe.get_doc(
 			{
 				"doctype": "Media URL Redirect",
-				"source_url": watch_url(eski),
+				"source_url": eski_url,
 				"target_url": canonical,
 				"job_key": REDIRECT_JOB_KEY,
 				"expires_at": add_days(now_datetime(), REDIRECT_TTL_DAYS),

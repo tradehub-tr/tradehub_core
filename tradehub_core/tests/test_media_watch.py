@@ -105,3 +105,91 @@ class TestWatchSlug(FrappeTestCase):
 			self.assertTrue(slug)
 			self.assertEqual(frappe.db.get_value("File", ilk.name, "th_media_slug"), slug)
 			self.assertEqual(frappe.db.get_value("File", ikinci.name, "th_media_slug"), slug)
+
+	# ── Düzeltme turu 1 (denetim bulguları 1-3) ─────────────────────────────
+
+	def test_change_slug_gecersiz_deger_reddedilir(self):
+		"""Düzeltme 1: `slugify_tr` boş dönerse ham değere düşülmez — throw."""
+		with tempfile.TemporaryDirectory() as tmp:
+			v = Path(tmp) / "gecersiz.mp4"
+			_yap_video(v)
+			doc = self._video_dosyasi(v, title="Geçerli Başlık")
+			eski_slug = watch_slug.ensure_slug(doc.file_url)
+			self.assertTrue(eski_slug)
+
+			self.assertRaises(frappe.ValidationError, watch_slug.change_slug, doc.file_url, "!!!")
+			self.assertEqual(frappe.db.get_value("File", doc.name, "th_media_slug"), eski_slug)
+
+	def test_change_slug_zincir_cokertir(self):
+		"""Düzeltme 2a: A→B iken B→C yazılırsa A'nın hedefi de C'ye çevrilir."""
+		with tempfile.TemporaryDirectory() as tmp:
+			v = Path(tmp) / "zincir.mp4"
+			_yap_video(v)
+			doc = self._video_dosyasi(v, title="Zincir Videosu")
+			a = watch_slug.ensure_slug(doc.file_url)
+			b = watch_slug.change_slug(doc.file_url, "b-slug")
+			c = watch_slug.change_slug(doc.file_url, "c-slug")
+			self.assertEqual(b, "b-slug")
+			self.assertEqual(c, "c-slug")
+
+			a_hedefi = frappe.db.get_value(
+				"Media URL Redirect", {"source_url": watch_slug.watch_url(a)}, "target_url"
+			)
+			self.assertEqual(a_hedefi, watch_slug.watch_url("c-slug"))
+			b_hedefi = frappe.db.get_value(
+				"Media URL Redirect", {"source_url": watch_slug.watch_url("b-slug")}, "target_url"
+			)
+			self.assertEqual(b_hedefi, watch_slug.watch_url("c-slug"))
+			self.addCleanup(
+				lambda: frappe.db.delete(
+					"Media URL Redirect",
+					{"source_url": ("in", [watch_slug.watch_url(a), watch_slug.watch_url("b-slug")])},
+				)
+			)
+
+	def test_change_slug_geri_donuste_dongu_olusmaz(self):
+		"""Düzeltme 2b: A→B sonra tekrar A'ya dönülürse source=A satırı silinir,
+		source=B→target=A satırı kalır — döngü oluşmaz."""
+		with tempfile.TemporaryDirectory() as tmp:
+			v = Path(tmp) / "geridonus.mp4"
+			_yap_video(v)
+			doc = self._video_dosyasi(v, title="Geri Dönüş Videosu")
+			a = watch_slug.ensure_slug(doc.file_url)
+			watch_slug.change_slug(doc.file_url, "gecici-slug")
+			geri = watch_slug.change_slug(doc.file_url, a)
+			self.assertEqual(geri, a)
+
+			self.assertFalse(frappe.db.exists("Media URL Redirect", {"source_url": watch_slug.watch_url(a)}))
+			gecici_hedefi = frappe.db.get_value(
+				"Media URL Redirect", {"source_url": watch_slug.watch_url("gecici-slug")}, "target_url"
+			)
+			self.assertEqual(gecici_hedefi, watch_slug.watch_url(a))
+			self.addCleanup(
+				lambda: frappe.db.delete(
+					"Media URL Redirect", {"source_url": watch_slug.watch_url("gecici-slug")}
+				)
+			)
+
+	def test_ensure_slug_yaris_sonrasi_ayrisir(self):
+		"""Düzeltme 3: TOCTOU — iki farklı içerikli dosyaya elle AYNI slug
+		basılmış olsun (yarışı simüle eder); `ensure_slug` ikinciye çağrılınca
+		yalnız o hash ekli slug'a ayrışır, ilk kayda dokunulmaz."""
+		with tempfile.TemporaryDirectory() as tmp:
+			v1 = Path(tmp) / "yaris1.mp4"
+			v2 = Path(tmp) / "yaris2.mp4"
+			_yap_video(v1, sure=3)
+			_yap_video(v2, sure=6)
+			doc1 = self._video_dosyasi(v1, title="Yarış Videosu Bir")
+			doc2 = self._video_dosyasi(v2, title="Yarış Videosu İki")
+			frappe.db.set_value("File", doc1.name, "th_media_slug", "cakisan-slug", update_modified=False)
+			frappe.db.set_value("File", doc2.name, "th_media_slug", "cakisan-slug", update_modified=False)
+
+			sonuc = watch_slug.ensure_slug(doc2.file_url)
+			self.assertNotEqual(sonuc, "cakisan-slug")
+			self.assertTrue(sonuc.startswith("cakisan-slug-"), sonuc)
+			self.assertEqual(frappe.db.get_value("File", doc2.name, "th_media_slug"), sonuc)
+			self.assertEqual(
+				frappe.db.get_value("File", doc2.name, "th_media_canonical"), watch_slug.watch_url(sonuc)
+			)
+			# İlk kayda dokunulmadı — yarışta kaybeden taraf değişmez.
+			self.assertEqual(frappe.db.get_value("File", doc1.name, "th_media_slug"), "cakisan-slug")
