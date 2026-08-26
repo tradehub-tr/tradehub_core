@@ -209,3 +209,62 @@ class TestVideoEntriesForListing(FrappeTestCase):
 		self.assertEqual(
 			_video_entries_for_listing({"name": "TEST-LISTING", "video_url": ""}, "https://s"), []
 		)
+
+
+class TestVideoAlanlarToplu(FrappeTestCase):
+	"""Düzeltme turu 1 — N+1 giderildi: parça başına TEK `fields_for_many` çağrısı.
+
+	`_video_entries_for_listing` doğrudan çağrıldığında (map verilmeden) kendi
+	sorgusunu açar; site haritası üretim akışı (`_entries_for_rows` →
+	`_preload_video_alanlar`) parçadaki TÜM video URL'lerini tek seferde çeker.
+	"""
+
+	def _video_dosyasi(self, file_name: str, **ekstra) -> "frappe.Document":
+		doc = frappe.get_doc(
+			{
+				"doctype": "File",
+				"file_name": file_name,
+				"is_private": 0,
+				"content": f"video-toplu-test-{file_name}".encode(),
+			}
+		)
+		doc.insert(ignore_permissions=True)
+		self.addCleanup(doc.delete, ignore_permissions=True)
+		if ekstra:
+			frappe.db.set_value("File", doc.name, ekstra, update_modified=False)
+		return doc
+
+	def test_parca_basina_tek_fields_for_many_cagrisi(self):
+		from unittest import mock
+
+		from tradehub_core.media import seo as media_seo
+		from tradehub_core.seo import sitemap_generator as sg
+
+		belgeler = [
+			self._video_dosyasi(
+				f"sitemap-toplu-{i}.mp4",
+				th_media_duration=10 + i,
+				th_media_poster_url=f"/files/sitemap-toplu-poster-{i}.jpg",
+			)
+			for i in range(3)
+		]
+		rows = [
+			{
+				"name": f"TOPLU-LISTING-{i}",
+				"slug": f"toplu-{i}",
+				"modified": "2026-08-26",
+				"video_url": doc.file_url,
+				"title": f"Ürün {i}",
+			}
+			for i, doc in enumerate(belgeler)
+		]
+
+		with mock.patch.object(media_seo, "fields_for_many", wraps=media_seo.fields_for_many) as sayac:
+			girdiler = sg._entries_for_rows(rows, sg.DOCTYPE_CONFIG["Listing"], "https://s")
+
+		self.assertEqual(sayac.call_count, 1, "video alanları parça başına TEK sorguyla çekilmeli")
+		for i, entry in enumerate(girdiler):
+			self.assertEqual(len(entry["videos"]), 1, f"satır {i} video girdisi üretmeli")
+			self.assertEqual(
+				entry["videos"][0]["thumbnail_loc"], f"https://s/files/sitemap-toplu-poster-{i}.jpg"
+			)
