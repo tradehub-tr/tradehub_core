@@ -122,3 +122,20 @@ class TestVideoPoster(FrappeTestCase):
 		).insert(ignore_permissions=True)
 		self.addCleanup(doc.delete, ignore_permissions=True)
 		self.assertIsNone(video_poster.generate(doc.file_url))
+
+
+class TestVideoPosterBackfill(FrappeTestCase):
+	def test_backfill_yalniz_postersiz_videolari_alir(self):
+		with tempfile.TemporaryDirectory() as tmp:
+			v = Path(tmp) / "bf.mp4"
+			_yap_video(v)
+			with open(v, "rb") as f:
+				doc = frappe.get_doc(
+					{"doctype": "File", "file_name": "bf.mp4", "is_private": 0, "content": f.read()}
+				).insert(ignore_permissions=True)
+			self.addCleanup(doc.delete, ignore_permissions=True)
+			islenen = video_poster.backfill_pending(limit=10)
+			self.assertGreaterEqual(islenen, 1)
+			self.assertTrue(frappe.db.get_value("File", doc.name, "th_media_poster_url"))
+			# İkinci tur: aynı dosya tekrar işlenmez
+			self.assertEqual(video_poster.backfill_pending(limit=10), 0)

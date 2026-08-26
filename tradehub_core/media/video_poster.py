@@ -144,3 +144,35 @@ def generate(file_url: str) -> str | None:
 	except Exception:
 		frappe.log_error(title="video_poster.generate", message=frappe.get_traceback())
 		return None
+
+
+#: Yalnız video uzantıları — upload_policy._SIGNATURES ile uyumlu küme.
+VIDEO_UZANTILAR: tuple[str, ...] = (".mp4", ".webm", ".mov", ".m4v", ".mkv")
+
+
+def backfill_pending(limit: int = 50) -> int:
+	"""Postersiz videoları parça parça doldur — av.backfill_pending deseni.
+
+	`media-maint` kuyruğunda günlük koşar (hooks.py). Turda ≤ `limit` video:
+	video başına ffmpeg maliyeti görselden büyük, kuyruk boğulmasın (spec §4).
+	"""
+	kosul = " OR ".join(f"file_url LIKE '%%{u}'" for u in VIDEO_UZANTILAR)
+	satirlar = frappe.db.sql(
+		f"""SELECT name, file_url FROM `tabFile`
+		WHERE is_private = 0 AND ({kosul})
+		AND IFNULL(th_media_poster_url, '') = ''
+		AND IFNULL(th_media_duration, 0) = 0
+		ORDER BY creation DESC LIMIT %(limit)s""",
+		{"limit": limit},
+		as_dict=True,
+	)  # sabit uzantı listesi — kullanıcı girdisi değil, f-string güvenli
+	islenen = 0
+	for satir in satirlar:
+		if generate(satir.file_url):
+			islenen += 1
+		else:
+			# Poster üretilemedi ama duration yazıldıysa tekrar seçilmez;
+			# bozuk dosyada ikisi de boş kalır — sonraki turda yine denenir,
+			# limit sayesinde kuyruk boğulmaz.
+			pass
+	return islenen
