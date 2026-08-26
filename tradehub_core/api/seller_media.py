@@ -74,10 +74,24 @@ def _store() -> str:
 
 
 def _urls(file_urls: str | list[str] | None) -> list[str]:
-	liste = frappe.parse_json(file_urls) if isinstance(file_urls, str) else (file_urls or [])
+	try:
+		ham = frappe.parse_json(file_urls) if isinstance(file_urls, str) else (file_urls or [])
+	except Exception:
+		frappe.throw(frappe._("Dosya listesi okunamadı."))
+	if not isinstance(ham, (list, tuple)):
+		frappe.throw(frappe._("Dosya listesi bir dizi olmalıdır."))
+	# Selection payloads may contain the same URL twice or a cache-busting query.
+	# A bulk mutation must touch each physical media address at most once.
+	liste = list(
+		dict.fromkeys(
+			str(url or "").split("?", 1)[0].strip()
+			for url in ham
+			if str(url or "").strip()
+		)
+	)
 	if len(liste) > MAX_BATCH:
 		frappe.throw(frappe._("Tek seferde en çok {0} dosya işlenebilir.").format(MAX_BATCH))
-	return [u for u in liste if u]
+	return liste
 
 
 @frappe.whitelist()
@@ -631,13 +645,13 @@ def archive_media(file_urls: str | list[str] | None = None) -> dict:
 	hangi dosya olduğu dönülmez — sahibi olmadığı bir adresin varlığını
 	doğrulamak keşif kapısı açar.
 	"""
-	return _toplu(file_urls, islem.archive, "archived")
+	return _toplu(file_urls, islem.archive, "archived", operation="archive")
 
 
 @frappe.whitelist()
 def unarchive_media(file_urls: str | list[str] | None = None) -> dict:
 	"""Arşivden çıkar — dosya aktif listeye döner."""
-	return _toplu(file_urls, islem.unarchive, "unarchived")
+	return _toplu(file_urls, islem.unarchive, "unarchived", operation="unarchive")
 
 
 @frappe.whitelist()
@@ -649,37 +663,54 @@ def purge_media(file_urls: str | list[str] | None = None) -> dict:
 
 	Yalnız arşivdeki dosyaya uygulanır; arka taraf değilse reddeder.
 	"""
-	return _toplu(file_urls, islem.purge, "purged")
+	return _toplu(file_urls, islem.purge, "purged", operation="purge")
 
 
-def _toplu(file_urls, fn, sayac_adi: str) -> dict:
+def _toplu(file_urls, fn, sayac_adi: str, *, operation: str = "", store: str = "") -> dict:
 	"""Toplu işlem iskeleti — üç uç da aynı yetki ve hata davranışını paylaşır.
 
 	Tek yerde durması önemli: sahiplik kontrolü ya da hata yutma davranışı
 	uçlar arasında ayrışırsa biri diğerinden gevşek kalır.
 	"""
-	store = _store()
+	store = store or _store()
 	urls = _urls(file_urls)
 
 	basarili: list[dict] = []
 	hatali: list[dict] = []
-	atlanan = 0
+	# One ownership query/set resolution for the whole batch. Calling `owns`
+	# once per URL turns a 200-item operation into hundreds of DB round trips.
+	sahip_olunan = ownership.owned_urls(store, urls)
+	atlanan = len(urls) - len(sahip_olunan)
 
 	for url in urls:
-		if not ownership.owns(store, url):
-			atlanan += 1
+		if url not in sahip_olunan:
 			continue
 		try:
 			basarili.append(fn(url, store))
 		except Exception as e:
 			hatali.append({"file_url": url, "error": str(e)})
 
-	return {
+	sonuc = {
+		"operation": operation or sayac_adi,
+		"requested": len(urls),
+		"succeeded": len(basarili),
 		sayac_adi: len(basarili),
 		"failed": hatali,
 		"skipped": atlanan,
 		"details": basarili,
 	}
+	audit.log_media_batch(
+		action=audit.ACTION_BULK,
+		summary={
+			"operation": sonuc["operation"],
+			"requested": sonuc["requested"],
+			"succeeded": sonuc["succeeded"],
+			"errors": len(hatali),
+			"skipped": atlanan,
+			"tenant": store,
+		},
+	)
+	return sonuc
 
 
 @frappe.whitelist()
@@ -1186,16 +1217,16 @@ def add_tag(file_urls: str | list[str] | None = None, tag: str = "") -> dict:
 	if not temiz:
 		frappe.throw(frappe._("Etiket boş olamaz."))
 
-	n = 0
-	for url in _urls(file_urls):
-		if not ownership.owns(store, url):
-			continue
+	def ekle(url: str, _store: str) -> dict:
 		mevcut = metadata.read(url, store).get("tags", [])
 		if temiz in mevcut:
-			continue
+			return {"file_url": url, "changed": False}
 		metadata.write(url, store, {"tags": [*mevcut, temiz]})
-		n += 1
-	return {"tagged": n}
+		return {"file_url": url, "changed": True}
+
+	sonuc = _toplu(file_urls, ekle, "processed", operation="tag", store=store)
+	sonuc["tagged"] = sum(1 for row in sonuc["details"] if row.get("changed"))
+	return sonuc
 
 
 @frappe.whitelist()
@@ -1494,39 +1525,26 @@ def move_media(file_urls: str | list[str] | None = None, folder: str = "") -> di
 	store = _store()
 	if folder:
 		_my_folder(folder, store)
-	urls = _urls(file_urls)
-
-	tasindi = 0
-	hatali: list[dict] = []
-	atlanan = 0
-	for url in urls:
+	def tasi(url: str, _store: str) -> dict:
 		url = (url or "").split("?")[0]
-		if not ownership.owns(store, url):
-			atlanan += 1
-			continue
-		try:
-			for eski in frappe.get_all(
-				"Media Folder Item",
-				filters={"store": store, "file_url": url},
-				pluck="name",
-			):
-				frappe.delete_doc(
-					"Media Folder Item", eski, ignore_permissions=True, force=True
-				)
-			if folder:
-				frappe.get_doc(
-					{
-						"doctype": "Media Folder Item",
-						"folder": folder,
-						"file_url": url,
-						"store": store,
-					}
-				).insert(ignore_permissions=True)
-			tasindi += 1
-		except Exception as e:
-			hatali.append({"file_url": url, "error": str(e)})
+		for eski in frappe.get_all(
+			"Media Folder Item",
+			filters={"store": store, "file_url": url},
+			pluck="name",
+		):
+			frappe.delete_doc("Media Folder Item", eski, ignore_permissions=True, force=True)
+		if folder:
+			frappe.get_doc(
+				{
+					"doctype": "Media Folder Item",
+					"folder": folder,
+					"file_url": url,
+					"store": store,
+				}
+			).insert(ignore_permissions=True)
+		return {"file_url": url, "folder": folder}
 
-	return {"moved": tasindi, "failed": hatali, "skipped": atlanan}
+	return _toplu(file_urls, tasi, "moved", operation="move", store=store)
 
 
 @frappe.whitelist()

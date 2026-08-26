@@ -104,6 +104,10 @@ ACTION_VERSION_ROLLBACK: str = "media.version_rollback"
 # olan ama kütüphane çapında etkili işler → HIGH.
 ACTION_RETRO_RENAME: str = "media.retro_rename"
 ACTION_RETRO_ROLLBACK: str = "media.retro_rollback"
+# MOGEM-575: seller media bulk operations share one batch-level audit event.
+# File URLs are deliberately omitted; per-item failures may contain sensitive
+# paths and the batch summary is sufficient for operational traceability.
+ACTION_BULK: str = "media.bulk"
 
 MEDIA_ACTIONS: tuple[str, ...] = (
 	ACTION_UPLOAD,
@@ -131,6 +135,7 @@ MEDIA_ACTIONS: tuple[str, ...] = (
 	ACTION_VERSION_ROLLBACK,
 	ACTION_RETRO_RENAME,
 	ACTION_RETRO_ROLLBACK,
+	ACTION_BULK,
 )
 
 # Geri dönüşü olmayan ya da güvenlik anlamı taşıyan olaylar HIGH ile işaretlenir;
