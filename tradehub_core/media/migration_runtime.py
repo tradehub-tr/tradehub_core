@@ -179,6 +179,23 @@ def _expected_urls(plan: BackfillPlan) -> dict[str, str]:
 	return out
 
 
+def _workers_from_registry(connection: Any, wanted: Sequence[str] | set[str]) -> list[str]:
+	"""Worker adlarını RQ'nun kuyruk-üyelik set'inden (`rq:workers:<kuyruk>`) oku."""
+	adlar: list[str] = []
+	for kuyruk in wanted:
+		try:
+			uyeler = connection.smembers(f"rq:workers:{kuyruk}")
+		except Exception:
+			# Redis erişim hatası preflight'ı düşürmesin — asıl sağlık kontrolü
+			# kuyruk derinliği okumasında zaten patlar; burada yalnız loglanır.
+			frappe.log_error(title="migration_runtime._workers_from_registry", message=frappe.get_traceback())
+			continue
+		for uye in uyeler or ():
+			ad = uye.decode() if isinstance(uye, bytes) else str(uye)
+			adlar.append(ad.rsplit(":", 1)[-1])
+	return adlar
+
+
 def _queue_health() -> dict[str, Any]:
 	"""Redis erişimi, kuyruk derinlikleri ve bulk worker görünürlüğü."""
 	from frappe.utils.background_jobs import get_queue, get_queue_list, get_redis_conn
@@ -200,6 +217,13 @@ def _queue_health() -> dict[str, Any]:
 		names = {q.decode() if isinstance(q, bytes) else str(q) for q in queue_names}
 		if names & wanted:
 			matching.append(str(worker.name))
+	if not matching:
+		# Bu ortamın RQ sürümünde worker hash'i `queues` alanını taşımıyor ve
+		# `Worker.queue_names()` boş dönüyor (ölçüm 2026-08-26: 8 worker, hepsi
+		# boş) — yukarıdaki kesişim çalışan worker'ı "yok" sanıp preflight'ı
+		# yanlış negatifle düşürüyordu. Kuyruğa üyelik set'i (`rq:workers:<k>`)
+		# her RQ sürümünde worker kaydında tutulur; ikinci kaynak oradan okunur.
+		matching = _workers_from_registry(connection, wanted)
 	return {
 		"bulk_queue": IMAGE_BULK.name,
 		"bulk_depth": int(bulk.count),

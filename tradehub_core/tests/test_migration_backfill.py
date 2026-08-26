@@ -712,5 +712,35 @@ class KatmanDisiplinTesti(unittest.TestCase):
 		self.assertTrue(media_engine.IMPLEMENTED["migration"])
 
 
+class WorkerKayitTesti(unittest.TestCase):
+	"""`_workers_from_registry` — RQ kuyruk-üyelik set'inden worker okuma.
+
+	Neden var: bu ortamın RQ sürümünde `Worker.queue_names()` boş dönüyor ve
+	preflight çalışan worker'ı "yok" sanıyordu (yanlış negatif, 2026-08-26).
+	"""
+
+	class _SahteBaglanti:
+		def __init__(self, uyeler):
+			self._uyeler = uyeler
+
+		def smembers(self, anahtar):
+			return self._uyeler.get(anahtar, set())
+
+	def test_kayitli_worker_bulunur(self):
+		from tradehub_core.media.migration_runtime import _workers_from_registry
+
+		baglanti = self._SahteBaglanti(
+			{"rq:workers:bench:media-image-bulk": {b"rq:worker:3da18e1dc876"}}
+		)
+		adlar = _workers_from_registry(baglanti, ["bench:media-image-bulk"])
+		self.assertEqual(adlar, ["3da18e1dc876"])
+
+	def test_bos_kayitta_bos_liste(self):
+		from tradehub_core.media.migration_runtime import _workers_from_registry
+
+		baglanti = self._SahteBaglanti({})
+		self.assertEqual(_workers_from_registry(baglanti, ["bench:media-image-bulk"]), [])
+
+
 if __name__ == "__main__":
 	unittest.main(verbosity=2)
