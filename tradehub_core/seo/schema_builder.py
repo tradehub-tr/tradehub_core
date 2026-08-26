@@ -86,6 +86,70 @@ def build_image_object(seo_fields: dict, site_url: str) -> dict | str:
 	return nesne
 
 
+def _iso8601_sure(saniye: float) -> str:
+	"""65.0 → "PT1M5S"; 0 → "" (basılmaz)."""
+	toplam = int(saniye or 0)
+	if toplam <= 0:
+		return ""
+	dk, sn = divmod(toplam, 60)
+	sa, dk = divmod(dk, 60)
+	parca = "PT"
+	if sa:
+		parca += f"{sa}H"
+	if dk:
+		parca += f"{dk}M"
+	if sn or parca == "PT":
+		parca += f"{sn}S"
+	return parca
+
+
+def build_video_object(
+	seo_fields: dict,
+	site_url: str,
+	*,
+	content_url: str = "",
+	embed_url: str = "",
+	upload_date: str = "",
+) -> dict | None:
+	"""Tek video için `VideoObject` — poster yoksa None.
+
+	Google `thumbnailUrl` + `name` + `uploadDate`'i zorunlu sayar; geçersiz
+	yapısal veri hiç üretmemekten kötüdür (spec netleştirmesi). Poster'ı
+	olmayan video JSON-LD'ye ve video sitemap'e GİRMEZ, denetim uyarır.
+
+	URL mutlaklaştırması dosyadaki `_absolute_url` ile paylaşılır — `embedUrl`
+	istisna: gömülü oynatıcı linki (ör. YouTube embed) zaten mutlak gelir,
+	site_url'e göre yeniden yazılmaz.
+	"""
+	poster = str(seo_fields.get("poster_url") or "").strip()
+	if not poster or not (content_url or embed_url):
+		return None
+
+	ad = str(seo_fields.get("title") or seo_fields.get("alt") or "").strip()
+	if not ad:
+		return None
+	obj: dict = {"@type": "VideoObject", "name": ad, "thumbnailUrl": _absolute_url(poster, site_url)}
+	aciklama = str(seo_fields.get("caption") or seo_fields.get("description") or "").strip()
+	if aciklama:
+		obj["description"] = aciklama
+	if content_url:
+		obj["contentUrl"] = _absolute_url(content_url, site_url)
+	if embed_url:
+		obj["embedUrl"] = embed_url
+	sure = _iso8601_sure(float(seo_fields.get("duration") or 0))
+	if sure:
+		obj["duration"] = sure
+	if upload_date:
+		obj["uploadDate"] = str(upload_date)[:10]
+	transcript = str(seo_fields.get("transcript") or "").strip()
+	if transcript:
+		obj["transcript"] = transcript
+	biter = str(seo_fields.get("rights_expires_on") or "").strip()
+	if biter:
+		obj["expires"] = biter
+	return obj
+
+
 def build_image_list(seo_fields_list: list[dict], site_url: str) -> list:
 	"""Sıralı görsel listesi — her biri `ImageObject` ya da düz URL."""
 	out = []
@@ -145,6 +209,7 @@ def build_product_schema(
 	reviews: list[dict] | None,
 	currency: str = "TRY",
 	lang: str = "tr",
+	media_videos: list | None = None,
 ) -> dict:
 	"""Product schema üret. Pure: I/O yok."""
 	slug = listing.get("slug", "")
@@ -198,6 +263,11 @@ def build_product_schema(
 
 	if reviews:
 		schema["review"] = reviews
+
+	# Video (Görev 6): çağıran (compose_for_listing) `VideoObject` listesini
+	# önceden üretip verir — burası pure kalır, DB/Frappe'ye dokunmaz.
+	if media_videos:
+		schema["video"] = media_videos
 
 	return schema
 
@@ -348,6 +418,7 @@ def _pure_compose_for_listing(*, ctx: dict, defaults: dict, site_url: str) -> li
 			category_name=ctx.get("category_name"),
 			aggregate_rating=ctx.get("aggregate_rating"),
 			reviews=ctx.get("reviews"),
+			media_videos=listing.get("media_videos"),
 		)
 	)
 
@@ -544,6 +615,61 @@ def _listing_image_objects(listing: dict, site_url: str) -> list:
 		return []
 
 
+def _listing_video_objects(listing: dict, site_url: str) -> list:
+	"""İlanın tanıtım videosu (`Listing.video_url`) → `VideoObject` listesi (0/1 eleman).
+
+	Kapsam site haritası kardeşiyle (`sitemap_generator._video_entries_for_listing`)
+	AYNI: yalnız tek video alanı işlenir, galerideki video dosyaları burada
+	tekrar İŞLENMEZ — onlar `imageMeta` (Görev 6, `api.listing._gorsel_kunyeleri`)
+	üzerinden zaten poster/süre/altyazı taşıyor. Poster'ı ya da adı olmayan video
+	`build_video_object` sözleşmesiyle HİÇ girmez (Google geçersiz yapısal veri
+	istemiyor). Yerel dosya (`/files/...`) `contentUrl`, harici oynatıcı (YouTube/
+	Vimeo) `embedUrl` olarak basılır.
+
+	İndexlenemeyen (noindex/private/karantina/hakkı dolmuş) video HİÇ girmez
+	(`seo_index.decide`, `check_usage=False`) — görsel kardeşi
+	`_listing_image_objects` ve site haritası kardeşi `_video_entries_for_listing`
+	ile AYNI kapı (spec §5 şartı, final inceleme).
+	"""
+	import frappe
+
+	video_url = str(listing.get("video_url") or "").split("?")[0].strip()
+	if not video_url:
+		return []
+	try:
+		from tradehub_core.media import seo as media_seo
+		from tradehub_core.media import seo_index
+
+		if not seo_index.decide(video_url, check_usage=False)["indexable"]:
+			return []
+
+		listing_name = listing.get("name") or ""
+		lang = listing.get("content_default_lang") or "tr"
+		alanlar = media_seo.fields_for(
+			video_url,
+			ref_doctype="Listing",
+			ref_name=listing_name,
+			ref_field="video_url",
+			lang=lang,
+		)
+		if not alanlar.get("title"):
+			alanlar = {**alanlar, "title": listing.get("title") or ""}
+		yerel = video_url.startswith("/files/")
+		nesne = build_video_object(
+			alanlar,
+			site_url,
+			content_url=video_url if yerel else "",
+			embed_url="" if yerel else video_url,
+			upload_date=str(listing.get("creation") or ""),
+		)
+		return [nesne] if nesne else []
+	except Exception:
+		# Şema üretimi sayfa isteği içinde koşuyor: video tarafındaki bir hata
+		# ürün sayfasını DÜŞÜRMEMELİ — image kardeşiyle aynı gerekçe.
+		frappe.log_error("listing video objects failed", "schema_builder")
+		return []
+
+
 def _get_listing_extra_context(listing_name: str) -> dict:
 	"""Listing için brand + category + rating + reviews + questions topla."""
 	import frappe
@@ -669,7 +795,11 @@ def compose_for_home(defaults: dict, site_url: str) -> list[dict]:
 
 def compose_for_listing(listing: dict, defaults: dict, site_url: str) -> list[dict]:
 	"""Frappe wrapper: Listing için tüm schema setini üret."""
-	listing = {**listing, "media_images": _listing_image_objects(listing, site_url)}
+	listing = {
+		**listing,
+		"media_images": _listing_image_objects(listing, site_url),
+		"media_videos": _listing_video_objects(listing, site_url),
+	}
 	ctx = {"listing": listing}
 	ctx.update(_get_listing_extra_context(listing.get("name", "")))
 	merged_defaults = {**defaults, **_frappe_defaults()}

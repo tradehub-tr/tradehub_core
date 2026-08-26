@@ -1546,3 +1546,60 @@ def retry_failed_renditions(limit: int = 50) -> dict:
 	from tradehub_core.media import pipeline_bridge
 
 	return pipeline_bridge.retry_failed_renditions(limit=int(limit or 50))
+
+
+@frappe.whitelist(methods=["POST"])
+def regenerate_video_poster(file_url: str) -> dict:
+	"""Posteri sil ve yeniden üretim işini kuyruğa at (yalnız System Manager)."""
+	_guard_destructive()
+	from tradehub_core.media import video_poster
+
+	adlar = frappe.get_all("File", filters={"file_url": file_url}, pluck="name")
+	if not adlar:
+		frappe.throw(_("Dosya bulunamadı."))
+	# `video_poster.generate` idempotent: bir kardeş kayıtta poster varsa onu
+	# diğerlerine kopyalayıp döner (0827db2). Yeniden üretim tetiklemek için
+	# TÜM kardeş kayıtları aynı anda boşaltmak gerekiyor — tek kaydı temizlemek
+	# generate'in kopyalama dalını tetikler ve eski poster geri yazılır.
+	frappe.db.set_value("File", {"name": ["in", adlar]}, "th_media_poster_url", "", update_modified=False)
+	frappe.enqueue(
+		"tradehub_core.media.video_poster.generate",
+		queue="media-maint",
+		timeout=300,
+		file_url=file_url,
+		enqueue_after_commit=True,
+	)
+	return {"queued": True}
+
+
+@frappe.whitelist(methods=["POST"])
+def upload_video_captions(file_url: str, vtt_content: str) -> dict:
+	"""WebVTT altyazı içeriğini `File` olarak kaydet ve videoya bağla."""
+	_guard()
+	from tradehub_core.media import seo, upload_policy
+
+	icerik = (vtt_content or "").strip()
+	icerik = icerik.lstrip("﻿")  # BOM toleransı — geçerli WebVTT bazen BOM'lu gelir
+	if not icerik.startswith("WEBVTT"):
+		frappe.throw(_("Geçersiz WebVTT: dosya WEBVTT ile başlamalı."))
+	if upload_policy.contains_dangerous(icerik):
+		# `startswith("WEBVTT")` yalnız öneke bakar — gövdenin ortasına gömülü
+		# `<script>` vb. bundan sızar (derin denetim yalnız IMAGE_KINDS'ta
+		# çalışıyor, VTT metin gövdesini taramıyor). Aynı işaret kümesi burada
+		# tüm metin üzerinde yeniden kullanılıyor (Görev 7 düzeltme turu 1).
+		frappe.throw(_("Altyazı içeriğinde izin verilmeyen işaretleme var."))
+	if len(icerik.encode()) > 1024 * 1024:
+		frappe.throw(_("Altyazı 1 MB sınırını aşıyor."))
+	name = frappe.db.get_value("File", {"file_url": file_url}, "name")
+	if not name:
+		frappe.throw(_("Dosya bulunamadı."))
+	vtt = frappe.get_doc(
+		{
+			"doctype": "File",
+			"file_name": f"captions-{name}.vtt",
+			"is_private": 0,
+			"content": icerik.encode(),
+		}
+	).insert(ignore_permissions=True)  # sistem yazımı; yetki üstte _guard()
+	seo.set_asset_fields(file_url, {"captions_url": vtt.file_url})
+	return {"captions_url": vtt.file_url}

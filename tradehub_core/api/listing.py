@@ -1043,8 +1043,18 @@ def _kart_gorsel_manifesti(listing_name: str) -> dict:
 		return {}
 
 
+def _video_mu(url: str) -> bool:
+	"""URL bir video uzantısıyla mı bitiyor — künye satırına video anahtarları
+	(poster/durationSec/captionsUrl) eklenmeli mi kararı bunun üzerinden verilir.
+	`media/video_poster.VIDEO_UZANTILAR` TEK kaynak; liste burada kopyalanmaz."""
+	from tradehub_core.media.video_poster import VIDEO_UZANTILAR
+
+	return (url or "").lower().split("?")[0].endswith(VIDEO_UZANTILAR)
+
+
 def _gorsel_kunyeleri(listing, images: list, lang: str) -> list[dict]:
-	"""Ürün görsellerinin alt metni, gerçek ölçüleri ve yükleme ipuçları.
+	"""Ürün görsellerinin (ve galerideki video dosyalarının) alt metni, gerçek
+	ölçüleri ve yükleme ipuçları.
 
 	Alt metni `media/seo.fields_for`'dan KULLANIM BAĞLAMIYLA okunuyor: ürün
 	sayfasına yazılmış ezme varsa o basılır (TUR-135 §4.3). Doğrudan
@@ -1054,6 +1064,10 @@ def _gorsel_kunyeleri(listing, images: list, lang: str) -> list[dict]:
 	Bugün alt metinleri çoğunlukla boş (ölçüm: 3.123 dosyada 0); bu durumda
 	künye yine döner ve `alt` boş kalır. Vitrin boş alt görünce ESKİ davranışa
 	(ürün başlığından türetme) düşer — geçiş dönemi böyle yürüyor.
+
+	Görev 6: galeride bir video dosyası varsa (uzantı `_video_mu`) satıra
+	`poster`/`durationSec`/`captionsUrl` de eklenir — aynı toplu `fields_for`
+	çağrısından (görsel başına yeni sorgu YOK, N+1 açılmaz).
 	"""
 	if not images:
 		return []
@@ -1076,7 +1090,12 @@ def _gorsel_kunyeleri(listing, images: list, lang: str) -> list[dict]:
 				ref_field=baglam["ref_field"],
 				lang=lang,
 			)
-			kunyeler.append(seo_render.image_payload(alanlar, index=i, context="gallery"))
+			satir = seo_render.image_payload(alanlar, index=i, context="gallery")
+			if _video_mu(url):
+				satir["poster"] = alanlar.get("poster_url") or ""
+				satir["durationSec"] = alanlar.get("duration") or 0
+				satir["captionsUrl"] = alanlar.get("captions_url") or ""
+			kunyeler.append(satir)
 		return kunyeler
 	except Exception:
 		# Ürün detayının kalbinde değiliz: künye üretilemezse görseller yine
@@ -1470,6 +1489,30 @@ def get_listing_detail(listing_id, lang="tr"):
 
 	_video_blogu = _video_manifest_blogu(listing.name)
 
+	# Görev 6 — poster fallback (Dilim 4): manifest (bayraklı motor) > canlı yol
+	# üretimi. Yerel dosya (`/files/...`) ise `media/seo.fields_for` ile TEK
+	# çağrıda okunur (galeri değil, tek alan — toplu sorguya gerek yok).
+	# Bayrak kapalıyken de vitrin kapak görsün diye manifest'e bağlı DEĞİL.
+	_video_yerel = bool(listing.video_url and str(listing.video_url).startswith("/files/"))
+	try:
+		from tradehub_core.media import seo as media_seo
+
+		_video_seo_alanlari = (
+			media_seo.fields_for(
+				listing.video_url,
+				ref_doctype="Listing",
+				ref_name=listing.name,
+				ref_field="video_url",
+				lang=lang,
+			)
+			if _video_yerel
+			else {}
+		)
+	except Exception:
+		# Video alanları detay ucunu ASLA düşürmez — `_video_manifest_blogu` ile aynı sözleşme.
+		frappe.log_error("listing video seo fields okunamadı", "listing")
+		_video_seo_alanlari = {}
+
 	result = {
 		"id": listing.name,
 		"listingCode": listing.listing_code,
@@ -1558,10 +1601,17 @@ def get_listing_detail(listing_id, lang="tr"):
 		# katmanı (api/media_manifest.video_bloklari); mantık burada
 		# KOPYALANMAZ. Türev yoksa/bayrak kapalıysa None — vitrin bugünkü ham
 		# videoUrl davranışında kalır (listingService boş alanları eler).
-		"videoPoster": _video_blogu.get("poster") or None,
+		# Görev 6: manifest boşsa (bayrak kapalı ya da türev yok) canlı yol
+		# üretimine (`th_media_poster_url`) düşer — vitrin kapak GÖRMEYE devam
+		# eder; ikisi de boşsa None (eski davranışla birebir).
+		"videoPoster": _video_blogu.get("poster")
+		or (_video_seo_alanlari.get("poster_url") if _video_yerel else "")
+		or None,
 		"videoHlsSrc": _video_blogu.get("hlsSrc") or None,
 		"videoPreviewSrc": _video_blogu.get("previewSrc") or None,
 		"videoSrc": _video_blogu.get("src") or None,
+		"videoDurationSec": _video_seo_alanlari.get("duration") or 0,
+		"videoCaptionsUrl": _video_seo_alanlari.get("captions_url") or "",
 		"status": listing.status or "",
 		"outOfStock": is_out_of_stock,
 		"productCertifications": product_certifications,

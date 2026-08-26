@@ -35,6 +35,7 @@ import frappe
 from frappe.utils import getdate, nowdate
 
 from tradehub_core.media import seo
+from tradehub_core.media.video_poster import VIDEO_UZANTILAR
 
 SEVERITY_ERROR: str = "error"
 SEVERITY_WARN: str = "warn"
@@ -54,6 +55,11 @@ _BAD_NAME = re.compile(
 
 def _kural(kod: str, severity: str, mesaj: str, detay: str = "") -> dict:
 	return {"code": kod, "severity": severity, "message": mesaj, "detail": detay}
+
+
+def _video_mu(file_name: str) -> bool:
+	"""Dosya adı video uzantılarından biriyle mi bitiyor — `video_poster` ile aynı küme."""
+	return file_name.lower().endswith(VIDEO_UZANTILAR)
 
 
 def audit_fields(alanlar: dict, *, file_name: str = "") -> list[dict]:
@@ -124,6 +130,14 @@ def audit_fields(alanlar: dict, *, file_name: str = "") -> list[dict]:
 		bulgular.append(
 			_kural("expired_rights", SEVERITY_ERROR, "Kullanım hakkı dolmuş ama yayında", str(bitis))
 		)
+
+	if file_name and _video_mu(file_name):
+		if not (alanlar.get("poster_url") or "").strip():
+			bulgular.append(_kural("missing_poster", SEVERITY_WARN, "Video posteri yok"))
+		if not (alanlar.get("transcript") or "").strip():
+			bulgular.append(_kural("missing_transcript", SEVERITY_WARN, "Transcript yok"))
+		if not alanlar.get("duration"):
+			bulgular.append(_kural("missing_duration", SEVERITY_WARN, "Video süresi bilinmiyor"))
 
 	return bulgular
 
@@ -217,6 +231,9 @@ _KURAL_BOYUT: dict[str, str] = {
 	"duplicate_asset": "technical_health",
 	"visibility_conflict": "technical_health",
 	"missing_association": "discoverability",
+	"missing_poster": "performance",
+	"missing_transcript": "accessibility",
+	"missing_duration": "structured_data",
 }
 
 DIMENSIONS: tuple[str, ...] = (

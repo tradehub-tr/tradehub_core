@@ -17,6 +17,9 @@ XHTML_NS = "http://www.w3.org/1999/xhtml"
 #: çıktıya eklenir: her urlset'e eklemek, hiç `<image:image>` içermeyen
 #: dosyalara ölü bildirim koymak olurdu.
 IMAGE_NS = "http://www.google.com/schemas/sitemap-image/1.1"
+#: Video site haritası (Task 5). Aynı gerekçe: namespace yalnız video
+#: TAŞIYAN çıktıya eklenir.
+VIDEO_NS = "http://www.google.com/schemas/sitemap-video/1.1"
 
 DOCTYPE_CONFIG = {
 	"Listing": {
@@ -78,12 +81,15 @@ def build_urlset_xml(urls: Iterable[dict], include_hreflang: bool = True) -> str
 	urls = list(urls)
 	# Görsel namespace'i yalnız gerçekten görsel varsa bildirilir.
 	gorselli = any(u.get("images") for u in urls)
+	videolu = any(u.get("videos") for u in urls)
 
 	xmlns = f'xmlns="{SITEMAP_NS}"'
 	if include_hreflang:
 		xmlns += f' xmlns:xhtml="{XHTML_NS}"'
 	if gorselli:
 		xmlns += f' xmlns:image="{IMAGE_NS}"'
+	if videolu:
+		xmlns += f' xmlns:video="{VIDEO_NS}"'
 
 	lines = [
 		'<?xml version="1.0" encoding="UTF-8"?>',
@@ -121,6 +127,31 @@ def build_urlset_xml(urls: Iterable[dict], include_hreflang: bool = True) -> str
 			if gorsel.get("license"):
 				lines.append(f"      <image:license>{escape(gorsel['license'])}</image:license>")
 			lines.append("    </image:image>")
+		# Videolar (Task 5): sayfa başına <video:video>. `thumbnail_loc` ve
+		# `title` zorunlu — üretici (`_video_entries_for_listing`) posteri
+		# olmayan videoyu zaten eleyip buraya göndermiyor.
+		for video in u.get("videos") or []:
+			lines.append("    <video:video>")
+			lines.append(f"      <video:thumbnail_loc>{escape(video['thumbnail_loc'])}</video:thumbnail_loc>")
+			lines.append(f"      <video:title>{escape(video['title'])}</video:title>")
+			lines.append(
+				f"      <video:description>{escape(video.get('description') or video['title'])}</video:description>"
+			)
+			if video.get("content_loc"):
+				lines.append(f"      <video:content_loc>{escape(video['content_loc'])}</video:content_loc>")
+			if video.get("player_loc"):
+				lines.append(f"      <video:player_loc>{escape(video['player_loc'])}</video:player_loc>")
+			if video.get("duration"):
+				lines.append(f"      <video:duration>{int(video['duration'])}</video:duration>")
+			if video.get("publication_date"):
+				lines.append(
+					f"      <video:publication_date>{escape(video['publication_date'])}</video:publication_date>"
+				)
+			if video.get("expiration_date"):
+				lines.append(
+					f"      <video:expiration_date>{escape(video['expiration_date'])}</video:expiration_date>"
+				)
+			lines.append("    </video:video>")
 		lines.append("  </url>")
 	lines.append("</urlset>")
 	return "\n".join(lines)
@@ -222,6 +253,10 @@ def _iter_records_for(doctype: str):
 		# sorguya alınmazsa `_image_entries_for_listing` yalnız galeriyi
 		# görür ve ürünün ASIL görseli haritaya girmez.
 		fields.append("primary_image")
+		# Task 5: video kaynağı + başlık fallback'i — batch sorguya alınmazsa
+		# `_video_entries_for_listing` her ilan için ayrı bir DB call açardı
+		# (anti-patterns.md §6, N+1).
+		fields.extend(["video_url", "title"])
 
 	last_name = ""
 	while True:
@@ -245,7 +280,7 @@ def _iter_records_for(doctype: str):
 			return
 
 
-def _entry_for_row(row: dict, cfg: dict, site: str) -> dict:
+def _entry_for_row(row: dict, cfg: dict, site: str, video_alanlar_map: dict[str, dict] | None = None) -> dict:
 	slug = row.get(cfg["slug_field"])
 	# Static Page SEO: page_path zaten / ile başlıyor (örn. "/kvkk")
 	# Diğerleri: prefix + "/" + slug (örn. "/urun" + "/" + "iphone")
@@ -268,6 +303,11 @@ def _entry_for_row(row: dict, cfg: dict, site: str) -> dict:
 	# keşfedemiyor (ar-ge §6 tablosu).
 	if cfg.get("url_prefix") == "/urun":
 		entry["images"] = _image_entries_for_listing(row, site)
+		# Task 5: ürün videosu — `_image_entries_for_listing` ile aynı yerde
+		# bağlanır (yalnız Listing sayfaları video taşır). `video_alanlar_map`
+		# parça başına TEK `fields_for_many` çağrısıyla önceden dolduruluyor
+		# (`_preload_video_alanlar`) — düzeltme turu 1, N+1 giderildi.
+		entry["videos"] = _video_entries_for_listing(row, site, video_alanlar_map)
 	return entry
 
 
@@ -328,6 +368,114 @@ def _image_entries_for_listing(row: dict, site: str) -> list[dict]:
 _SITEMAP_IMAGE_LIMIT: int = 25
 
 
+def _video_entries_for_listing(
+	row: dict, site: str, alanlar_map: dict[str, dict] | None = None
+) -> list[dict]:
+	"""Ürünün indexlenebilir videosu → `<video:video>` girdisi.
+
+	`_image_entries_for_listing`'in birebir kardeşi: alanlar `media/seo.
+	fields_for_many`'dan, indexability kararı `media/seo_index.decide`'dan.
+	Kaynak `Listing.video_url` — Listing Image galerisi yalnız görsel taşır
+	(`Attach Image`, `media/usage.py` LIVE_SOURCES'ta tek video kaynağı
+	`tabListing.video_url`).
+
+	`alanlar_map` (düzeltme turu 1 — N+1 bulgusu): site haritası üretim
+	akışı `_preload_video_alanlar` ile parça başına TEK `fields_for_many`
+	çağrısı yapıp sonucu buraya besler; N ilan için N ayrı sorgu yerine
+	tek toplu sorgu (`media/seo.py:224-241` docstring'i — 50 dosya döngüde
+	156 ms, tek sorguda 7 ms). `alanlar_map=None` yalnız doğrudan/tekil
+	çağıran testler için geriye uyumlu tekil-sorgu yoludur; üretim akışı
+	her zaman dolu bir map geçer.
+
+	Poster'ı OLMAYAN video sitemap'e GİRMEZ: Google video sitemap şartı
+	`thumbnail_loc`'u zorunlu kılıyor (spec Global Constraints). Poster ayrı
+	bir arka plan işiyle (`media/video_poster.generate`) üretiliyor; henüz
+	üretilmemişse video boş/kırık thumbnail ile gönderilmek yerine geçici
+	olarak sitemap dışında kalır.
+
+	Hata halinde boş liste: image kardeşiyle aynı gerekçe — medya tarafındaki
+	bir arıza TÜM site haritasının üretilememesine yol açmasın.
+	"""
+	import frappe
+
+	ad = row.get("name")
+	video_url = str(row.get("video_url") or "").split("?")[0].strip()
+	if not ad or not video_url:
+		return []
+	try:
+		from tradehub_core.media import seo as media_seo
+		from tradehub_core.media import seo_index
+		from tradehub_core.media.video_poster import VIDEO_UZANTILAR
+
+		if not video_url.lower().endswith(VIDEO_UZANTILAR):
+			return []
+		if not seo_index.decide(video_url, check_usage=False)["indexable"]:
+			return []
+
+		if alanlar_map is not None:
+			alanlar = alanlar_map.get(video_url, {})
+		else:
+			alanlar = next(iter(media_seo.fields_for_many([video_url]).values()), {})
+		poster_url = alanlar.get("poster_url")
+		if not poster_url:
+			return []
+
+		baslik = alanlar.get("title") or row.get("title") or video_url.rsplit("/", 1)[-1]
+		video: dict = {
+			"thumbnail_loc": _mutlak(poster_url, site),
+			"title": baslik,
+			"content_loc": _mutlak(video_url, site),
+			"duration": alanlar.get("duration") or 0,
+		}
+		if alanlar.get("description") or alanlar.get("caption"):
+			video["description"] = alanlar.get("description") or alanlar.get("caption")
+		if alanlar.get("rights_expires_on"):
+			video["expiration_date"] = alanlar["rights_expires_on"]
+		return [video]
+	except Exception:
+		frappe.log_error("sitemap video entries failed", "sitemap_generator")
+		return []
+
+
+def _preload_video_alanlar(rows: list[dict], cfg: dict) -> dict[str, dict]:
+	"""Bir sitemap parçasındaki TÜM ilan videolarının alanlarını TEK sorguyla çeker.
+
+	Düzeltme turu 1 (N+1 bulgusu): `_video_entries_for_listing` parça
+	içindeki her satır için ayrı `fields_for_many([video_url])` çağırıyordu —
+	fonksiyonun var oluş gerekçesinin tersi (`media/seo.py:224-241`: toplu
+	okuma sitemap için var, döngüde çağırmak N+1 üretir). Yalnız Listing
+	sayfaları video taşıdığı için diğer doctype'larda no-op.
+	"""
+	if cfg.get("url_prefix") != "/urun":
+		return {}
+	try:
+		from tradehub_core.media import seo as media_seo
+		from tradehub_core.media.video_poster import VIDEO_UZANTILAR
+	except Exception:
+		return {}
+
+	video_urls: list[str] = []
+	for row in rows:
+		url = str(row.get("video_url") or "").split("?")[0].strip()
+		if url and url.lower().endswith(VIDEO_UZANTILAR):
+			video_urls.append(url)
+	if not video_urls:
+		return {}
+	try:
+		return media_seo.fields_for_many(video_urls)
+	except Exception:
+		import frappe
+
+		frappe.log_error("sitemap video fields preload failed", "sitemap_generator")
+		return {}
+
+
+def _entries_for_rows(rows: list[dict], cfg: dict, site: str) -> list[dict]:
+	"""Ham satır listesini `<url>` girdilerine çevirir — video alanları önceden yüklenir."""
+	video_alanlar_map = _preload_video_alanlar(rows, cfg)
+	return [_entry_for_row(row, cfg, site, video_alanlar_map) for row in rows]
+
+
 def _mutlak(url: str, site: str) -> str:
 	if not url:
 		return ""
@@ -347,18 +495,21 @@ def build_chunks_for_type(doctype: str):
 	cfg = DOCTYPE_CONFIG[doctype]
 	site = _site_url()
 
-	batch: list[dict] = []
+	# Ham satırlar biriktirilir (entry'ye hemen çevrilmez): video alanları
+	# parça başına TEK `fields_for_many` çağrısıyla önceden yüklenmeli —
+	# satır satır çevirseydik N+1'e geri dönerdik (düzeltme turu 1).
+	raw_batch: list[dict] = []
 	yielded = False
 	for row in _iter_records_for(doctype):
-		batch.append(_entry_for_row(row, cfg, site))
-		if len(batch) >= MAX_URLS_PER_SITEMAP:
-			yield build_urlset_xml(batch)
+		raw_batch.append(row)
+		if len(raw_batch) >= MAX_URLS_PER_SITEMAP:
+			yield build_urlset_xml(_entries_for_rows(raw_batch, cfg, site))
 			yielded = True
-			batch = []
+			raw_batch = []
 	# Son parça; hiç kayıt yoksa geçerli boş urlset (tam-50k katında fazladan
 	# boş parça üretme)
-	if batch or not yielded:
-		yield build_urlset_xml(batch)
+	if raw_batch or not yielded:
+		yield build_urlset_xml(_entries_for_rows(raw_batch, cfg, site))
 
 
 def build_for_type(doctype: str) -> str:

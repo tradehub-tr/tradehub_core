@@ -75,7 +75,11 @@ EXTENSIONS: dict[str, str] = {
 	},
 	**{e: KIND_VIDEO for e in (".mp4", ".webm", ".mov", ".m4v")},
 	**{e: KIND_DOCUMENT for e in (".pdf", ".doc", ".docx", ".xls", ".xlsx")},
-	**{e: KIND_OTHER for e in (".txt", ".csv", ".zip")},
+	# `.vtt`: video altyazısı (Görev 7, `media_admin.upload_video_captions`) —
+	# `media/naming.py::_hashed_name` içerik-adresli adlandırma bu sözlükten
+	# beyaz liste okuyor; eklenmezse VTT yüklemesi hash adlandırma kapısında
+	# "İzin verilmeyen dosya uzantısı" ile reddedilir.
+	**{e: KIND_OTHER for e in (".txt", ".csv", ".zip", ".vtt")},
 }
 
 MAX_BYTES: dict[str, int] = {
@@ -266,6 +270,22 @@ def is_dangerous(icerik: bytes) -> bool:
 	# Baştaki boşluklar ve BOM atlanıyor (`\xef\xbb\xbf` = UTF-8 BOM).
 	bas = icerik[:512].lstrip(b" \t\r\n\xef\xbb\xbf").lower()
 	return any(bas.startswith(m) for m in _DANGEROUS_MARKERS)
+
+
+def contains_dangerous(text: str) -> bool:
+	"""Metnin HERHANGİ bir yerinde tehlikeli işaretleme var mı (case-insensitive).
+
+	`is_dangerous` yalnız dosyanın BAŞINA bakar — upload triyajının işi "uzantısı
+	görsel/belge diyen dosyanın içi aslında çalıştırılabilir mi" sorusu. Burada
+	soru farklı: "WEBVTT" gibi zararsız bir önekle başlayan METİN gövdesinin
+	ORTASINA `<script>` gömülmüş mü (Görev 7 düzeltme turu 1 —
+	`media_admin.upload_video_captions`). Aynı işaret kümesi yeniden kullanılır,
+	yalnız arama tüm metinde yapılır.
+	"""
+	if not text:
+		return False
+	dusuk = text.lower()
+	return any(m.decode("ascii", errors="ignore") in dusuk for m in _DANGEROUS_MARKERS)
 
 
 # ── Ad ve uzantı ────────────────────────────────────────────────────────

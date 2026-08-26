@@ -209,6 +209,9 @@ scheduler_events = {
 		# daha seyrek almak bir günden fazla veri riske atıyor. Depolama
 		# içerik-adresli: değişmeyen dosya yeniden yazılmıyor.
 		"tradehub_core.media.backup.run_scheduled",
+		# Dilim 4 — postersiz videoları parça parça doldur (≤50/tur, `generate`
+		# idempotent: aynı dosya iki kez işlenmez).
+		"tradehub_core.media.video_poster.backfill_pending",
 		# T-053 — Saklama/çöp toplama bakım işi. VARSAYILAN KURU KOŞUM:
 		# site_config'te `media_retention_gc_enforce` = 1 yapılmadıkça hiçbir
 		# şey silinmez, yalnız rapor üretilir. Orijinal politikası varsayılan
