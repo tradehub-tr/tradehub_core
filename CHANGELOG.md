@@ -1,3 +1,11 @@
+## [v1.13.1-alpha.46] - 2026-08-26 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Duzeltildi
+- fix(lojistik): yetkisiz kalmış üç eski uç kaldırıldı (@boraydeger32)
+
+---
 ## [v1.13.1-alpha.45] - 2026-08-24 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
