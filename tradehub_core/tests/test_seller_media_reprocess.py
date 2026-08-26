@@ -172,3 +172,87 @@ class PolicyFailureLedgerTests(unittest.TestCase):
 			error_code="reprocess_failed",
 		)
 
+
+class SellerMediaBulkContractTests(unittest.TestCase):
+	def test_secim_tekrarlari_ve_cache_query_tek_fiziksel_adrese_iner(self):
+		self.assertEqual(
+			seller_media._urls(
+				[
+					" /files/a.webp?v=1 ",
+					"/files/a.webp?v=2",
+					"",
+					None,
+					"/files/b.webp",
+				]
+			),
+			["/files/a.webp", "/files/b.webp"],
+		)
+
+	def test_ortak_sozlesme_kismi_hata_yetki_ve_audit_ozetini_tasir(self):
+		urls = ["/files/ok.webp", "/files/fail.webp", "/files/foreign.webp"]
+
+		def operation(url: str, store: str) -> dict:
+			self.assertEqual(store, "STORE-A")
+			if url.endswith("fail.webp"):
+				raise ValueError("locked")
+			return {"file_url": url}
+
+		with (
+			mock.patch.object(seller_media, "_store", return_value="STORE-A"),
+			mock.patch.object(
+				seller_media.ownership,
+				"owned_urls",
+				return_value={"/files/ok.webp", "/files/fail.webp"},
+			) as owned,
+			mock.patch.object(seller_media.audit, "log_media_batch") as audit_log,
+		):
+			result = seller_media._toplu(urls, operation, "updated", operation="metadata")
+
+		owned.assert_called_once_with("STORE-A", urls)
+		self.assertEqual(result["requested"], 3)
+		self.assertEqual(result["succeeded"], 1)
+		self.assertEqual(result["updated"], 1)
+		self.assertEqual(result["skipped"], 1)
+		self.assertEqual(result["failed"], [{"file_url": "/files/fail.webp", "error": "locked"}])
+		self.assertNotIn("foreign.webp", str(result))
+		audit_log.assert_called_once()
+		self.assertEqual(audit_log.call_args.kwargs["action"], seller_media.audit.ACTION_BULK)
+		self.assertEqual(
+			audit_log.call_args.kwargs["summary"],
+			{
+				"operation": "metadata",
+				"requested": 3,
+				"succeeded": 1,
+				"errors": 1,
+				"skipped": 1,
+				"tenant": "STORE-A",
+			},
+		)
+
+	def test_toplu_etiket_idempotent_ve_kismi_hata_sozlesmesine_uyar(self):
+		with (
+			mock.patch.object(seller_media, "_store", return_value="STORE-A"),
+			mock.patch.object(
+				seller_media.ownership,
+				"owned_urls",
+				return_value={"/files/new.webp", "/files/existing.webp"},
+			),
+			mock.patch.object(seller_media.metadata, "read") as read,
+			mock.patch.object(seller_media.metadata, "write") as write,
+			mock.patch.object(seller_media.audit, "log_media_batch"),
+		):
+			read.side_effect = lambda url, _store: {
+				"tags": ["kampanya"] if url.endswith("existing.webp") else []
+			}
+			result = seller_media.add_tag(
+				["/files/new.webp", "/files/existing.webp", "/files/foreign.webp"],
+				"kampanya",
+			)
+
+		self.assertEqual(result["operation"], "tag")
+		self.assertEqual(result["processed"], 2)
+		self.assertEqual(result["tagged"], 1)
+		self.assertEqual(result["skipped"], 1)
+		write.assert_called_once_with(
+			"/files/new.webp", "STORE-A", {"tags": ["kampanya"]}
+		)
