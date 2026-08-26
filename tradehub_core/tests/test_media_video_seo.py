@@ -525,6 +525,36 @@ class TestVideoAuditVeUclar(FrappeTestCase):
 		sonuc = upload_video_captions(doc.file_url, "WEBVTT\n\n00:00.000 --> 00:02.000\nMerhaba")
 		self.assertTrue(sonuc["captions_url"].endswith(".vtt"))
 
+	def test_vtt_govdesinde_script_reddedilir(self):
+		"""Düzeltme turu 1: `startswith("WEBVTT")` tek başına yetmiyor — gövdenin
+		ortasına gömülü `<script>` de reddedilmeli (derin denetim yalnız
+		IMAGE_KINDS'ta gövde tarıyor, VTT bundan sızıyordu)."""
+		from tradehub_core.api.media_admin import upload_video_captions
+
+		frappe.set_user("Administrator")
+		doc = frappe.get_doc(
+			{"doctype": "File", "file_name": "v-cap-xss.webm", "is_private": 0, "content": b"vtt-xss-video"}
+		).insert(ignore_permissions=True)
+		self.addCleanup(doc.delete, ignore_permissions=True)
+		zararli = "WEBVTT\n\n00:00.000 --> 00:02.000\n<script>alert(1)</script>"
+		with self.assertRaises(frappe.ValidationError):
+			upload_video_captions(doc.file_url, zararli)
+
+	def test_vtt_bom_toleransli_kabul_edilir(self):
+		"""Düzeltme turu 1: U+FEFF (UTF-8 BOM) ile başlayan geçerli WebVTT
+		`str.strip()` tarafından temizlenmiyor — `lstrip('﻿')` ile ayrıca
+		soyulmalı, yoksa geçerli dosya yanlışlıkla reddediliyordu."""
+		from tradehub_core.api.media_admin import upload_video_captions
+
+		frappe.set_user("Administrator")
+		doc = frappe.get_doc(
+			{"doctype": "File", "file_name": "v-cap-bom.webm", "is_private": 0, "content": b"vtt-bom-video"}
+		).insert(ignore_permissions=True)
+		self.addCleanup(doc.delete, ignore_permissions=True)
+		bomlu = "﻿WEBVTT\n\n00:00.000 --> 00:02.000\nMerhaba"
+		sonuc = upload_video_captions(doc.file_url, bomlu)
+		self.assertTrue(sonuc["captions_url"].endswith(".vtt"))
+
 	def test_regenerate_video_poster_tum_kardes_kayitlari_temizler(self):
 		"""Aynı `file_url`'e sahip iki `File` kaydından biri poster taşırken
 		regenerate ikisini de boşaltmalı — yoksa `generate` idempotent dalı

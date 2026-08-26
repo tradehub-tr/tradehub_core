@@ -1576,11 +1576,18 @@ def regenerate_video_poster(file_url: str) -> dict:
 def upload_video_captions(file_url: str, vtt_content: str) -> dict:
 	"""WebVTT altyazı içeriğini `File` olarak kaydet ve videoya bağla."""
 	_guard()
-	from tradehub_core.media import seo
+	from tradehub_core.media import seo, upload_policy
 
 	icerik = (vtt_content or "").strip()
+	icerik = icerik.lstrip("﻿")  # BOM toleransı — geçerli WebVTT bazen BOM'lu gelir
 	if not icerik.startswith("WEBVTT"):
 		frappe.throw(_("Geçersiz WebVTT: dosya WEBVTT ile başlamalı."))
+	if upload_policy.contains_dangerous(icerik):
+		# `startswith("WEBVTT")` yalnız öneke bakar — gövdenin ortasına gömülü
+		# `<script>` vb. bundan sızar (derin denetim yalnız IMAGE_KINDS'ta
+		# çalışıyor, VTT metin gövdesini taramıyor). Aynı işaret kümesi burada
+		# tüm metin üzerinde yeniden kullanılıyor (Görev 7 düzeltme turu 1).
+		frappe.throw(_("Altyazı içeriğinde izin verilmeyen işaretleme var."))
 	if len(icerik.encode()) > 1024 * 1024:
 		frappe.throw(_("Altyazı 1 MB sınırını aşıyor."))
 	name = frappe.db.get_value("File", {"file_url": file_url}, "name")

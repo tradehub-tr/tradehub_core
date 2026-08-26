@@ -272,6 +272,22 @@ def is_dangerous(icerik: bytes) -> bool:
 	return any(bas.startswith(m) for m in _DANGEROUS_MARKERS)
 
 
+def contains_dangerous(text: str) -> bool:
+	"""Metnin HERHANGİ bir yerinde tehlikeli işaretleme var mı (case-insensitive).
+
+	`is_dangerous` yalnız dosyanın BAŞINA bakar — upload triyajının işi "uzantısı
+	görsel/belge diyen dosyanın içi aslında çalıştırılabilir mi" sorusu. Burada
+	soru farklı: "WEBVTT" gibi zararsız bir önekle başlayan METİN gövdesinin
+	ORTASINA `<script>` gömülmüş mü (Görev 7 düzeltme turu 1 —
+	`media_admin.upload_video_captions`). Aynı işaret kümesi yeniden kullanılır,
+	yalnız arama tüm metinde yapılır.
+	"""
+	if not text:
+		return False
+	dusuk = text.lower()
+	return any(m.decode("ascii", errors="ignore") in dusuk for m in _DANGEROUS_MARKERS)
+
+
 # ── Ad ve uzantı ────────────────────────────────────────────────────────
 
 
