@@ -978,7 +978,12 @@ def enqueue_catalog_backfill(limit: int = 100) -> dict[str, int]:
 
 
 def _catalog_backfill_candidates(limit: int = 101) -> list[str]:
-	"""Güncel JPEG fallback'i olmayan vitrin görselleri (tek toplu sorgu).
+	"""Hazır merdiveni (ready asset + en az bir türev) olmayan vitrin görselleri.
+
+	JPEG şartı BİLEREK yok: fallback formatı sınıfa göre değişir — grafik/
+	şeffaf sınıfı lossless WEBP+PNG zinciri alır, JPEG plana hiç girmez
+	(ölçüm 2026-08-26: 232 ready asset JPEG'siz; jpeg-şartlı sorgu bunları
+	sonsuza dek aday sayıp backfill'i platoya oturttu).
 
 	NOT EXISTS eşlemesi iki koldan: `source_file` VE içerik hash'i
 	(`content_sha256` = hash-adlı dosyanın gövde adı). Yalnız `source_file`
@@ -1007,7 +1012,7 @@ def _catalog_backfill_candidates(limit: int = 101) -> list[str]:
 				WHERE (a.source_file=f.name
 				       OR a.content_sha256=SUBSTRING_INDEX(SUBSTRING_INDEX(f.file_url,'/',-1),'.',1))
 				  AND a.slot_key='product.image'
-				  AND a.state='ready' AND r.format='jpeg'
+				  AND a.state='ready'
 			)
 			ORDER BY f.modified DESC
 			LIMIT %(limit)s
@@ -1057,7 +1062,7 @@ def rendition_backfill_status() -> dict[str, int]:
 					WHERE (a.source_file=f.name
 					       OR a.content_sha256=SUBSTRING_INDEX(SUBSTRING_INDEX(f.file_url,'/',-1),'.',1))
 					  AND a.slot_key='product.image'
-					  AND a.state='ready' AND r.format='jpeg'
+					  AND a.state='ready'
 				)
 			) missing_catalog
 			"""
