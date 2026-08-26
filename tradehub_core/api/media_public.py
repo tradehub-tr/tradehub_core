@@ -8,9 +8,15 @@ from html import escape
 import frappe
 from werkzeug.wrappers import Response
 
-from tradehub_core.media import seo, seo_index, seo_urls
+from tradehub_core.media import seo, seo_index, seo_urls, usage, watch_slug
 from tradehub_core.seo.schema_builder import build_image_object
 from tradehub_core.seo.site_url import storefront_url
+
+#: İzleme sayfası indexlenemezken basılan sabit `robots` direktifi —
+#: `seo_index._ret`'in noindex biçimiyle AYNI (tek yerde iki farklı string olmasın).
+_WATCH_NOINDEX_ROBOTS = (
+	f"noindex, follow, nosnippet, {seo_index.PREVIEW_NONE}, {seo_index.VIDEO_PREVIEW_NONE}"
+)
 
 
 def _asset_file(asset_id: str) -> tuple[dict, dict]:
@@ -141,3 +147,147 @@ def asset_landing(asset_id: str):
 	response.headers["Cache-Control"] = "public, max-age=300"
 	response.headers["X-Robots-Tag"] = robots
 	return response
+
+
+def _storefront_listings(file_url: str) -> list[dict]:
+	"""Videonun bağlı olduğu, vitrinde görünen ilanlar — TEK sorgu (N+1 yasak).
+
+	`usage.resolve` bağ dökümünü verir (kaç kaynakta, hangi ilanlarda); burada
+	yalnız `Listing` bağları alınıp `storefront_visible` filtresiyle tek
+	`get_all` çağrısında zenginleştirilir. Filtre boş küme için hiç sorgu
+	açmaz — `resolve()` her çağrısı LIKE taraması yapan pahalı bir işlem.
+	"""
+	dokum = usage.resolve(file_url)
+	adlar = sorted({
+		u["name"] for u in dokum.get("usages", []) if u.get("doctype") == "Listing" and u.get("name")
+	})
+	if not adlar:
+		return []
+	return frappe.get_all(
+		"Listing",
+		filters={"name": ["in", adlar], "storefront_visible": 1},
+		fields=["name", "slug", "title", "primary_image"],
+	)
+
+
+def watch_indexable(file_url: str) -> bool:
+	"""İzleme sayfası indexlenebilir mi — W3 üçlüsü (spec: SEO kararı + poster + vitrin bağı).
+
+	Üçü de sağlanmazsa video SİLİNMEZ, yalnız arama motoruna kapatılır
+	(`get_watch_page`'in `robots: noindex` dalıyla aynı ilke — `seo_index`
+	docstring'i: "private robots ile gizlenmez", burada tersi de geçerli:
+	geçici olarak aranmaz olmak dosyayı silmez).
+	"""
+	url = (file_url or "").split("?")[0].strip()
+	if not url:
+		return False
+	decision = seo_index.decide(url, check_usage=False)
+	if not decision.get("indexable"):
+		return False
+	fields = seo.fields_for(url)
+	if not fields.get("poster_url"):
+		return False
+	return bool(_storefront_listings(url))
+
+
+def _video_sources(file_row: dict, url: str, mime: str) -> list[dict[str, str]]:
+	"""Video kaynak listesi — asset'i varsa `_sources` (mevcut desen), yoksa ham adres.
+
+	`_sources` görsel format haritasıyla (avif/webp/jpeg/png) çalışıyor; bir
+	video asset'inin bugün eşleşen render'ı yoksa (henüz video rendition
+	üretilmiyor) boş döner ve ham dosya adresine düşülür — motoru olmayan
+	bir kaynak listesindense TEK gerçek adres göstermek yeğdir.
+	"""
+	asset_name = ""
+	if frappe.db.table_exists("Media Asset"):
+		asset_name = frappe.db.get_value("Media Asset", {"source_file": file_row.get("name")}, "name") or ""
+	if asset_name:
+		items, _fallback = _sources(asset_name)
+		kaynaklar = []
+		for item in items:
+			ilk = (item.get("srcset") or "").split(",")[0].strip()
+			src = ilk.split(" ")[0] if ilk else ""
+			if src:
+				kaynaklar.append({"src": src, "type": item["type"]})
+		if kaynaklar:
+			return kaynaklar
+	return [{"src": url, "type": mime}]
+
+
+def _watch_data(slug: str) -> dict:
+	"""`/medya/v/<slug>` sayfa verisini HTTP'siz kurar — Task 3 resolver'ı bunu doğrudan çağırır.
+
+	Slug'a ait kardeş `File` kayıtlarından İLK PUBLIC olanı çözülür (kardeşler
+	aynı adrese işaret edebiliyor, `watch_slug` deseni). Bulunamayan ya da
+	yalnız private kardeşleri olan slug `frappe.DoesNotExistError` fırlatır
+	(HTTP 404) — private asset "sayfa yok" gibi davranır, `noindex` ile değil
+	gerçek erişim reddiyle korunur (`seo_index` ilkesiyle aynı).
+	"""
+	slug = (slug or "").strip()
+	kayitlar = (
+		frappe.get_all(
+			"File",
+			filters={"th_media_slug": slug},
+			fields=["name", "file_url", "file_name", "is_private"],
+			order_by="creation asc",
+		)
+		if slug
+		else []
+	)
+	file_row = next((k for k in kayitlar if not k.get("is_private") and k.get("file_url")), None)
+	if not file_row:
+		frappe.throw(frappe._("Video bulunamadı."), exc=frappe.DoesNotExistError)
+
+	url = file_row["file_url"]
+	fields = seo.fields_for(url)
+	decision = seo_index.decide(url, check_usage=False)
+	listings = _storefront_listings(url)
+	indexable = bool(decision.get("indexable")) and bool(fields.get("poster_url")) and bool(listings)
+
+	site = storefront_url()
+	identity = seo_urls.identity_for(url, site_url=site)
+	mime = identity.get("encoding_format") or ""
+	sources = _video_sources(file_row, url, mime)
+	canonical = f"{site}{watch_slug.watch_url(slug)}"
+
+	return {
+		"title": fields.get("title") or fields.get("alt") or file_row.get("file_name") or "",
+		"caption": fields.get("caption") or "",
+		"description": fields.get("description") or "",
+		"transcript": fields.get("transcript") or "",
+		"posterUrl": fields.get("poster_url") or "",
+		"sources": sources,
+		"captionsUrl": fields.get("captions_url") or "",
+		"durationSec": fields.get("duration") or 0,
+		"uploadDate": identity.get("date_created") or "",
+		"license": {
+			"creator": fields.get("creator") or "",
+			"creatorType": fields.get("creator_type") or "",
+			"creditText": fields.get("credit_text") or "",
+			"copyrightNotice": fields.get("copyright_notice") or "",
+			"licenseUrl": fields.get("license_url") or "",
+			"acquireLicenseUrl": fields.get("acquire_license_url") or "",
+			"usageRights": fields.get("usage_rights") or "",
+			"rightsExpiresOn": fields.get("rights_expires_on") or "",
+		},
+		"listings": [
+			{
+				"slug": listing.get("slug") or "",
+				"title": listing.get("title") or "",
+				"image": listing.get("primary_image") or "",
+			}
+			for listing in listings
+		],
+		"indexable": indexable,
+		"canonical": canonical,
+		"robots": decision["robots"] if indexable else _WATCH_NOINDEX_ROBOTS,
+	}
+
+
+@frappe.whitelist(allow_guest=True)
+def get_watch_page(slug: str) -> dict:
+	"""`/medya/v/<slug>` için sayfa verisi — whitelist zarfı, mantık `_watch_data`'da.
+
+	Bilinmeyen/private slug `frappe.DoesNotExistError` fırlatır (HTTP 404).
+	"""
+	return _watch_data(slug)

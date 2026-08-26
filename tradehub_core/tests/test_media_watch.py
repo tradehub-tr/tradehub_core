@@ -10,6 +10,20 @@ from tradehub_core.media import watch_slug
 from tradehub_core.tests.test_video_poster import _yap_video
 
 
+def _gorunur_ilan() -> dict | None:
+	"""Vitrinde görünen ilk ilan — `test_media_video_seo.py::_gorunur_ilan` ile
+	aynı desen: seed demo veriyi kullanır, sıfırdan Listing kurmak yerine."""
+	satirlar = frappe.db.sql(
+		"""
+		SELECT l.name FROM `tabListing` l
+		WHERE l.storefront_visible = 1 AND l.status = 'Active'
+		ORDER BY l.name ASC LIMIT 1
+		""",
+		as_dict=True,
+	)
+	return satirlar[0] if satirlar else None
+
+
 class TestWatchSlug(FrappeTestCase):
 	def _video_dosyasi(
 		self, yol: Path, *, title: str = "", file_url: str | None = None
@@ -193,3 +207,202 @@ class TestWatchSlug(FrappeTestCase):
 			)
 			# İlk kayda dokunulmadı — yarışta kaybeden taraf değişmez.
 			self.assertEqual(frappe.db.get_value("File", doc1.name, "th_media_slug"), "cakisan-slug")
+
+
+class TestGetWatchPage(FrappeTestCase):
+	"""Task 2 — `get_watch_page` sözleşmesi + `watch_indexable` W3 üçlüsü."""
+
+	def _video_dosyasi(self, file_name: str, *, is_private: int = 0, **ekstra) -> "frappe.model.document.Document":
+		doc = frappe.get_doc(
+			{
+				"doctype": "File",
+				"file_name": file_name,
+				"is_private": is_private,
+				"content": f"watch-page-test-{file_name}".encode(),
+			}
+		).insert(ignore_permissions=True)
+		self.addCleanup(doc.delete, ignore_permissions=True)
+		if ekstra:
+			frappe.db.set_value("File", doc.name, ekstra, update_modified=False)
+		return doc
+
+	def _slug_ver(self, doc, slug: str) -> None:
+		frappe.db.set_value(
+			"File",
+			doc.name,
+			{"th_media_slug": slug, "th_media_canonical": watch_slug.watch_url(slug)},
+			update_modified=False,
+		)
+
+	def _ilan_video_baglar(self, ilan_adi: str, file_url: str, *, storefront_visible: int = 1):
+		eski_video_url = frappe.db.get_value("Listing", ilan_adi, "video_url")
+		eski_gorunurluk = frappe.db.get_value("Listing", ilan_adi, "storefront_visible")
+		frappe.db.set_value(
+			"Listing",
+			ilan_adi,
+			{"video_url": file_url, "storefront_visible": storefront_visible},
+			update_modified=False,
+		)
+
+		def _geri_al():
+			frappe.db.set_value(
+				"Listing",
+				ilan_adi,
+				{"video_url": eski_video_url, "storefront_visible": eski_gorunurluk},
+				update_modified=False,
+			)
+
+		self.addCleanup(_geri_al)
+
+	def test_tam_alanli_video_sozlesme_anahtarlari_eksiksiz(self):
+		from tradehub_core.api import media_public
+
+		ilan = _gorunur_ilan()
+		if not ilan:
+			self.skipTest("Vitrinde görünen ilan yok — fixture kurulamaz.")
+
+		doc = self._video_dosyasi(
+			"watch-tam-alanli.webm",
+			th_media_title="Tam Alanlı Video",
+			th_media_caption="Kısa altyazı",
+			th_media_description="Uzun açıklama",
+			th_media_transcript="merhaba dünya",
+			th_media_poster_url="/files/watch-poster.jpg",
+			th_media_captions_url="/files/watch-cap.vtt",
+			th_media_duration=42.5,
+			th_media_creator="İstoç",
+			th_media_creator_type="Organization",
+			th_media_credit_text="İstoç Medya",
+			th_media_copyright_notice="© İstoç",
+			th_media_license_url="https://example.com/lisans",
+			th_media_acquire_license_url="https://example.com/lisans-al",
+			th_media_usage_rights="ticari kullanım serbest",
+		)
+		self._slug_ver(doc, "watch-tam-alanli-slug")
+		self._ilan_video_baglar(ilan["name"], doc.file_url, storefront_visible=1)
+
+		data = media_public.get_watch_page("watch-tam-alanli-slug")
+
+		self.assertEqual(data["title"], "Tam Alanlı Video")
+		self.assertEqual(data["caption"], "Kısa altyazı")
+		self.assertEqual(data["description"], "Uzun açıklama")
+		self.assertEqual(data["transcript"], "merhaba dünya")
+		self.assertEqual(data["posterUrl"], "/files/watch-poster.jpg")
+		self.assertEqual(data["captionsUrl"], "/files/watch-cap.vtt")
+		self.assertEqual(data["durationSec"], 42.5)
+		self.assertTrue(data["uploadDate"])
+
+		self.assertEqual(len(data["sources"]), 1)
+		self.assertEqual(data["sources"][0]["src"], doc.file_url)
+		self.assertTrue(data["sources"][0]["type"])
+
+		license_ = data["license"]
+		self.assertEqual(license_["creator"], "İstoç")
+		self.assertEqual(license_["creatorType"], "Organization")
+		self.assertEqual(license_["creditText"], "İstoç Medya")
+		self.assertEqual(license_["copyrightNotice"], "© İstoç")
+		self.assertEqual(license_["licenseUrl"], "https://example.com/lisans")
+		self.assertEqual(license_["acquireLicenseUrl"], "https://example.com/lisans-al")
+		self.assertEqual(license_["usageRights"], "ticari kullanım serbest")
+
+		self.assertEqual(len(data["listings"]), 1)
+		self.assertEqual(data["listings"][0]["slug"], frappe.db.get_value("Listing", ilan["name"], "slug"))
+
+		self.assertTrue(data["indexable"])
+		self.assertIn("/medya/v/watch-tam-alanli-slug", data["canonical"])
+		self.assertNotIn("noindex", data["robots"])
+
+	def test_storefront_visible_sifir_indexable_false_ve_noindex(self):
+		from tradehub_core.api import media_public
+
+		ilan = _gorunur_ilan()
+		if not ilan:
+			self.skipTest("Vitrinde görünen ilan yok — fixture kurulamaz.")
+
+		doc = self._video_dosyasi(
+			"watch-gizli-ilan.webm",
+			th_media_title="Gizli İlan Videosu",
+			th_media_poster_url="/files/watch-gizli-poster.jpg",
+		)
+		self._slug_ver(doc, "watch-gizli-ilan-slug")
+		self._ilan_video_baglar(ilan["name"], doc.file_url, storefront_visible=0)
+
+		data = media_public.get_watch_page("watch-gizli-ilan-slug")
+
+		self.assertFalse(data["indexable"])
+		self.assertIn("noindex", data["robots"])
+		self.assertEqual(data["listings"], [])
+
+	def test_postersiz_video_indexable_false(self):
+		from tradehub_core.api import media_public
+
+		ilan = _gorunur_ilan()
+		if not ilan:
+			self.skipTest("Vitrinde görünen ilan yok — fixture kurulamaz.")
+
+		doc = self._video_dosyasi("watch-postersiz.webm", th_media_title="Postersiz Video")
+		self._slug_ver(doc, "watch-postersiz-slug")
+		self._ilan_video_baglar(ilan["name"], doc.file_url, storefront_visible=1)
+
+		data = media_public.get_watch_page("watch-postersiz-slug")
+
+		self.assertFalse(data["indexable"])
+		self.assertIn("noindex", data["robots"])
+
+	def test_bilinmeyen_slug_docs_not_exist(self):
+		from tradehub_core.api import media_public
+
+		with self.assertRaises(frappe.DoesNotExistError):
+			media_public.get_watch_page("hic-boyle-bir-slug-yok")
+
+	def test_private_dosya_docs_not_exist(self):
+		from tradehub_core.api import media_public
+
+		doc = self._video_dosyasi("watch-private.webm", is_private=1, th_media_poster_url="/files/x.jpg")
+		self._slug_ver(doc, "watch-private-slug")
+
+		with self.assertRaises(frappe.DoesNotExistError):
+			media_public.get_watch_page("watch-private-slug")
+
+
+class TestWatchIndexable(FrappeTestCase):
+	"""`watch_indexable` — W3 üçlüsü doğrudan test edilir (Task 3'ün resolver'ı bunu kullanacak)."""
+
+	def _video_dosyasi(self, file_name: str, **ekstra) -> "frappe.model.document.Document":
+		doc = frappe.get_doc(
+			{"doctype": "File", "file_name": file_name, "is_private": 0, "content": f"wi-{file_name}".encode()}
+		).insert(ignore_permissions=True)
+		self.addCleanup(doc.delete, ignore_permissions=True)
+		if ekstra:
+			frappe.db.set_value("File", doc.name, ekstra, update_modified=False)
+		return doc
+
+	def test_uc_kosul_da_saglaninca_true(self):
+		from tradehub_core.api import media_public
+
+		ilan = _gorunur_ilan()
+		if not ilan:
+			self.skipTest("Vitrinde görünen ilan yok — fixture kurulamaz.")
+
+		doc = self._video_dosyasi("wi-tam.webm", th_media_poster_url="/files/wi-poster.jpg")
+		eski_video_url = frappe.db.get_value("Listing", ilan["name"], "video_url")
+		eski_gorunurluk = frappe.db.get_value("Listing", ilan["name"], "storefront_visible")
+		frappe.db.set_value(
+			"Listing", ilan["name"], {"video_url": doc.file_url, "storefront_visible": 1}, update_modified=False
+		)
+		self.addCleanup(
+			lambda: frappe.db.set_value(
+				"Listing",
+				ilan["name"],
+				{"video_url": eski_video_url, "storefront_visible": eski_gorunurluk},
+				update_modified=False,
+			)
+		)
+
+		self.assertTrue(media_public.watch_indexable(doc.file_url))
+
+	def test_ilana_baglanmamis_video_false(self):
+		from tradehub_core.api import media_public
+
+		doc = self._video_dosyasi("wi-baglanmamis.webm", th_media_poster_url="/files/wi-poster2.jpg")
+		self.assertFalse(media_public.watch_indexable(doc.file_url))
