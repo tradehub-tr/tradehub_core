@@ -69,6 +69,51 @@ class TestLogisticsModuleImport(unittest.TestCase):
 			MockCarrierAdapter,
 		)
 
+	def test_masking_importable(self) -> None:
+		"""Maskeleme saf modulu Frappe olmadan da import edilebilmeli."""
+		from tradehub_core.logistics.integration.masking import (  # noqa: F401
+			MASK,
+			build_secret_variants,
+			is_sensitive_key,
+			mask_headers,
+			mask_payload,
+			redact_text,
+		)
+
+	def test_integration_log_importable(self) -> None:
+		"""Log yazicisi ve tip sozlesmesi import edilebilmeli."""
+		from tradehub_core.logistics.integration.log import (  # noqa: F401
+			MASKED_LOG_FIELDS,
+			IntegrationLogWriter,
+			write_integration_log,
+		)
+
+	def test_secret_collection_importable(self) -> None:
+		"""Sir toplayicisi paylasilan modulden gelmeli — kopya dogmasin."""
+		from tradehub_core.logistics.constants import CREDENTIAL_SECRET_FIELDS  # noqa: F401
+		from tradehub_core.logistics.integration.secrets import (  # noqa: F401
+			collect_secret_values,
+			is_password_placeholder,
+		)
+
+	def test_integration_log_retention_importable(self) -> None:
+		"""Saklama job'i import edilebilmeli."""
+		from tradehub_core.logistics.jobs.integration_log_retention import (  # noqa: F401
+			purge_expired_integration_logs,
+			run_scheduled,
+		)
+
+	def test_integration_log_choices_are_single_sourced(self) -> None:
+		"""Select kumeleri constants'tan gelmeli — dort ayri kopya kalmadi."""
+		from tradehub_core.logistics.constants import (
+			INTEGRATION_LOG_DIRECTIONS,
+			INTEGRATION_LOG_OPERATIONS,
+		)
+		from tradehub_core.logistics.integration.log import VALID_DIRECTIONS, VALID_OPERATIONS
+
+		self.assertIs(VALID_OPERATIONS, INTEGRATION_LOG_OPERATIONS)
+		self.assertIs(VALID_DIRECTIONS, INTEGRATION_LOG_DIRECTIONS)
+
 
 if __name__ == "__main__":
 	unittest.main()

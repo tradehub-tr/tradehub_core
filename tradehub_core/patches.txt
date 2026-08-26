@@ -301,3 +301,7 @@ tradehub_core.patches.v15_9_44_media_phase4_indexes
 
 # --- Faz 5 G16 · canonical storage/retention + soft-delete evidence ---
 tradehub_core.patches.v15_9_45_media_phase5_schema
+
+# --- Bora · 09-BE A (kargo entegrasyon logu altyapısı) ---
+# Carrier Integration Log bileşik index'leri + Logistics Settings saklama alanı.
+tradehub_core.patches.v15_log043_carrier_integration_log
