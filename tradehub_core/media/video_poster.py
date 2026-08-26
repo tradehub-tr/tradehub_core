@@ -48,7 +48,18 @@ def probe_duration(path: str) -> float:
 		)
 		return float(out.stdout.strip() or 0)
 	except Exception:
+		frappe.log_error(title="video_poster.probe_duration", message=frappe.get_traceback())
 		return 0.0
+
+
+# Uzun kenar (yönelime duyarlı) bütçesi: yatay/kare kaynakta genişlik, dikey
+# kaynakta yükseklik dalına girer — `iw`/`ih` ffmpeg tarafından KAYNAK karenin
+# gerçek boyutlarıyla değerlendirilir (Python tarafında ayrıca probe gerekmez).
+# Emsal: media/pipeline/video/poster.py:460-481 `preview_scale_filter` (kısa
+# kenar bütçesi) — aynı yönelim sorununu aynı if(gte(iw,ih),...) desenle çözer.
+_OLCEK_FILTRESI = (
+	f"scale=w='if(gte(iw,ih),min({UZUN_KENAR},iw),-2)':h='if(gte(iw,ih),-2,min({UZUN_KENAR},ih))'"
+)
 
 
 def _kare(path: str, baslangic: float, pencere: float) -> bytes | None:
@@ -67,7 +78,7 @@ def _kare(path: str, baslangic: float, pencere: float) -> bytes | None:
 				"-i",
 				path,
 				"-vf",
-				f"thumbnail=n=120,scale='min({UZUN_KENAR},iw)':-2",
+				f"thumbnail=n=120,{_OLCEK_FILTRESI}",
 				"-frames:v",
 				"1",
 				"-q:v",
@@ -81,6 +92,7 @@ def _kare(path: str, baslangic: float, pencere: float) -> bytes | None:
 		data = Path(hedef).read_bytes()
 		return data or None
 	except Exception:
+		frappe.log_error(title="video_poster._kare", message=frappe.get_traceback())
 		return None
 	finally:
 		Path(hedef).unlink(missing_ok=True)

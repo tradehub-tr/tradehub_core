@@ -6,6 +6,7 @@ from pathlib import Path
 
 import frappe
 from frappe.tests.utils import FrappeTestCase
+from PIL import Image
 
 from tradehub_core.media import video_poster
 
@@ -65,6 +66,41 @@ class TestVideoPoster(FrappeTestCase):
 			doc = self._file_kaydi(v)
 			url = video_poster.generate(doc.file_url)
 			self.assertTrue(url)  # luma kapısı siyah kareyi elemeli, retry penceresi tutmalı
+
+	def test_dikey_videoda_uzun_kenar_sinirlanir(self):
+		"""Dikey kaynakta (1080×1920) uzun kenar YÜKSEKLİKTİR — eski
+		`scale='min(1280,iw)':-2` filtresi yalnız genişliği (kısa kenarı)
+		sınırlıyordu, yükseklik sınırsız kalıyordu (Important-1, denetim
+		bulgusu). Yönelime duyarlı filtreyle poster yüksekliği ≤1280 olmalı
+		ve kaynağın en-boy oranı korunmalı.
+		"""
+		with tempfile.TemporaryDirectory() as tmp:
+			v = Path(tmp) / "dikey.mp4"
+			cmd = [
+				"ffmpeg",
+				"-y",
+				"-f",
+				"lavfi",
+				"-i",
+				"testsrc=s=1080x1920:d=3",
+				"-r",
+				"5",
+				str(v),
+			]
+			subprocess.run(cmd, check=True, capture_output=True)
+			doc = self._file_kaydi(v)
+			url = video_poster.generate(doc.file_url)
+			self.assertTrue(url)
+			poster_name = frappe.db.get_value("File", {"file_url": url}, "name")
+			poster_doc = frappe.get_doc("File", poster_name)
+			self.addCleanup(poster_doc.delete, ignore_permissions=True)
+			with Image.open(poster_doc.get_full_path()) as img:
+				genislik, yukseklik = img.size
+			self.assertLessEqual(yukseklik, 1280)  # uzun kenar (yükseklik) bütçelendi
+			self.assertLess(genislik, yukseklik)  # dikey oran korundu
+			# Kaynak oranı (1080/1920) korunmalı — eski hatalı filtrede genişlik
+			# sınırlanmadığı için oran bozulmuyordu ama yükseklik 1920'de kalıyordu.
+			self.assertAlmostEqual(genislik / yukseklik, 1080 / 1920, delta=0.02)
 
 	def test_idempotent(self):
 		with tempfile.TemporaryDirectory() as tmp:
