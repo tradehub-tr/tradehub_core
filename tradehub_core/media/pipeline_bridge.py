@@ -978,7 +978,15 @@ def enqueue_catalog_backfill(limit: int = 100) -> dict[str, int]:
 
 
 def _catalog_backfill_candidates(limit: int = 101) -> list[str]:
-	"""Güncel JPEG fallback'i olmayan vitrin görselleri (tek toplu sorgu)."""
+	"""Güncel JPEG fallback'i olmayan vitrin görselleri (tek toplu sorgu).
+
+	NOT EXISTS eşlemesi iki koldan: `source_file` VE içerik hash'i
+	(`content_sha256` = hash-adlı dosyanın gövde adı). Yalnız `source_file`
+	ile eşlemek, aynı içeriğin başka bir `File` satırından açılmış asset'ini
+	görmüyor ve adres sonsuza dek aday kalıyordu (ölçüm 2026-08-26: backfill
+	2.748 adayda platoya oturdu; teslimat tarafı `_mukerrer_dosya_koprusu`
+	ile zaten içerikten eşliyor — burada da aynı kimlik kullanılmalı).
+	"""
 	return [
 		r["file_url"]
 		for r in frappe.db.sql(
@@ -996,7 +1004,9 @@ def _catalog_backfill_candidates(limit: int = 101) -> list[str]:
 			WHERE NOT EXISTS (
 				SELECT 1 FROM `tabMedia Asset` a
 				JOIN `tabMedia Rendition` r ON r.asset=a.name
-				WHERE a.source_file=f.name AND a.slot_key='product.image'
+				WHERE (a.source_file=f.name
+				       OR a.content_sha256=SUBSTRING_INDEX(SUBSTRING_INDEX(f.file_url,'/',-1),'.',1))
+				  AND a.slot_key='product.image'
 				  AND a.state='ready' AND r.format='jpeg'
 			)
 			ORDER BY f.modified DESC
@@ -1044,7 +1054,9 @@ def rendition_backfill_status() -> dict[str, int]:
 				WHERE NOT EXISTS (
 					SELECT 1 FROM `tabMedia Asset` a
 					JOIN `tabMedia Rendition` r ON r.asset=a.name
-					WHERE a.source_file=f.name AND a.slot_key='product.image'
+					WHERE (a.source_file=f.name
+					       OR a.content_sha256=SUBSTRING_INDEX(SUBSTRING_INDEX(f.file_url,'/',-1),'.',1))
+					  AND a.slot_key='product.image'
 					  AND a.state='ready' AND r.format='jpeg'
 				)
 			) missing_catalog
