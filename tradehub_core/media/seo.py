@@ -66,6 +66,8 @@ SINGLE: tuple[str, ...] = (
 	"slug",
 	"canonical",
 	"alt_source",
+	"transcript",
+	"captions_url",
 )
 
 OVERRIDE_DOCTYPE: str = "Media SEO Override"
@@ -98,6 +100,10 @@ def _asset_columns() -> list[str]:
 	# döner ve vitrin sabit 800×800 basmaya devam eder. Ölçüldü: denetim
 	# 4.776 dosyanın ölçüsü DOLDUKTAN sonra bile "eksik" diyordu.
 	adaylar.extend(("th_media_width", "th_media_height"))
+	# Video sistem alanları da width/height gibi: SEO metni değil, dosyanın
+	# fiziksel gerçeği. SINGLE'a koymamak bilinçli — set_asset_fields'tan
+	# yazılamazlar (poster'ı/süreyi yalnız üretim hattı yazar).
+	adaylar.extend(("th_media_duration", "th_media_poster_url"))
 	return [k for k in adaylar if frappe.db.has_column("File", k)]
 
 
@@ -282,6 +288,8 @@ def _birlestir(url: str, varlik: dict, lang: str, ezme: dict | None = None) -> d
 		sonuc["alt_source"] = ezme["source"]
 	sonuc["width"] = varlik.get("th_media_width") or 0
 	sonuc["height"] = varlik.get("th_media_height") or 0
+	sonuc["duration"] = varlik.get("th_media_duration") or 0
+	sonuc["poster_url"] = varlik.get("th_media_poster_url") or ""
 	sonuc["overridden"] = bool(ezme)
 	sonuc["localized"] = {
 		alan: {

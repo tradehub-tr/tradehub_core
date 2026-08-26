@@ -304,3 +304,6 @@ tradehub_core.patches.v15_9_45_media_phase5_schema
 tradehub_core.patches.v15_9_46_media_categories
 tradehub_core.patches.v15_9_47_media_migration_runtime
 tradehub_core.patches.v15_9_48_media_rollout_controls
+
+# --- Dilim 4 · video SEO: poster + süre + transcript/altyazı ---
+tradehub_core.patches.v15_9_49_media_video_seo
