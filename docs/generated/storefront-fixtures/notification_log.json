@@ -1,0 +1,73 @@
+{
+	"default": {
+		"ok": true,
+		"data": {
+			"items": [
+				{
+					"name": "NTF-2026-00311",
+					"template": "NT-SHIPPED-BUYER-EMAIL",
+					"event": "shipment_shipped",
+					"channel": "email",
+					"recipient_role": "buyer",
+					"recipient": "alici@ornek.com",
+					"title": "Siparişiniz yola çıktı",
+					"body": "SHP-2026-00042 numaralı sevkiyat Yurtiçi Kargo'ya teslim edildi.",
+					"shipment": "SHP-2026-00042",
+					"sent_at": "2026-08-10 09:10:00",
+					"read_at": null,
+					"status": "sent",
+					"failure_reason": null
+				},
+				{
+					"name": "NTF-2026-00298",
+					"template": "NT-OUTFORDELIVERY-BUYER-SMS",
+					"event": "shipment_out_for_delivery",
+					"channel": "sms",
+					"recipient_role": "buyer",
+					"recipient": "alici@ornek.com",
+					"title": "Kurye dağıtıma çıktı",
+					"body": "Gönderiniz bugün teslim edilecek.",
+					"shipment": "SHP-2026-00042",
+					"sent_at": "2026-08-12 07:40:00",
+					"read_at": null,
+					"status": "sent",
+					"failure_reason": null
+				},
+				{
+					"name": "NTF-2026-00255",
+					"template": "NT-DELIVERED-BUYER-INAPP",
+					"event": "shipment_delivered",
+					"channel": "in_app",
+					"recipient_role": "buyer",
+					"recipient": "alici@ornek.com",
+					"title": "Sevkiyat teslim edildi",
+					"body": "SHP-2026-00041 teslim alındı. Teslim özetini görüntüleyebilirsiniz.",
+					"shipment": "SHP-2026-00041",
+					"sent_at": "2026-08-08 14:35:00",
+					"read_at": "2026-08-08 15:02:00",
+					"status": "sent",
+					"failure_reason": null
+				}
+			],
+			"total": 3,
+			"page": 1,
+			"page_size": 50
+		}
+	},
+	"empty": {
+		"ok": true,
+		"data": {
+			"items": [],
+			"total": 0,
+			"page": 1,
+			"page_size": 50
+		}
+	},
+	"error": {
+		"ok": false,
+		"error": {
+			"code": "PERMISSION_DENIED",
+			"message": "Bu kaydı görüntüleme yetkiniz yok."
+		}
+	}
+}

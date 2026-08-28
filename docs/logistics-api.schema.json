@@ -2795,6 +2795,106 @@
 			"detail_fields": [],
 			"child_tables": {}
 		},
+		"notification_log": {
+			"provisional": true,
+			"label": "Bildirim Kaydı",
+			"source_tasks": [
+				"TUR-113"
+			],
+			"list_fields": [
+				{
+					"name": "name",
+					"type": "Data",
+					"ts": "string",
+					"required": true,
+					"note": "NTF-YYYY-#####"
+				},
+				{
+					"name": "template",
+					"type": "Link",
+					"ts": "string",
+					"required": true,
+					"note": "Hangi şablondan üretildi"
+				},
+				{
+					"name": "event",
+					"type": "Select",
+					"ts": "string",
+					"required": true,
+					"note": "Şablondan miras"
+				},
+				{
+					"name": "channel",
+					"type": "Select",
+					"ts": "string",
+					"required": true,
+					"note": "email | in_app | sms"
+				},
+				{
+					"name": "recipient_role",
+					"type": "Select",
+					"ts": "string",
+					"required": true,
+					"note": "buyer | seller | operations — rol süzgecinin dayanağı"
+				},
+				{
+					"name": "recipient",
+					"type": "Link",
+					"ts": "string",
+					"required": true,
+					"note": "Kime gitti — tenant izolasyonunun dayanağı, yanıtta DÖNMEZ"
+				},
+				{
+					"name": "title",
+					"type": "Data",
+					"ts": "string",
+					"required": true
+				},
+				{
+					"name": "body",
+					"type": "Small Text",
+					"ts": "string",
+					"required": false
+				},
+				{
+					"name": "shipment",
+					"type": "Link",
+					"ts": "string",
+					"required": false,
+					"note": "Varsa takip sayfasına bağlantı"
+				},
+				{
+					"name": "sent_at",
+					"type": "Datetime",
+					"ts": "string",
+					"required": true,
+					"note": "Gönderim zamanı — kuyruğa girme değil"
+				},
+				{
+					"name": "read_at",
+					"type": "Datetime",
+					"ts": "string",
+					"required": false,
+					"note": "null = okunmadı"
+				},
+				{
+					"name": "status",
+					"type": "Select",
+					"ts": "string",
+					"required": true,
+					"note": "queued | sent | failed — yalnız 'sent' alıcıya döner"
+				},
+				{
+					"name": "failure_reason",
+					"type": "Data",
+					"ts": "string",
+					"required": false,
+					"note": "status = failed ise dolu"
+				}
+			],
+			"detail_fields": [],
+			"child_tables": {}
+		},
 		"operation_alert": {
 			"provisional": true,
 			"label": "Operasyon Alarmı",

@@ -32,9 +32,29 @@
 					"body": "<p>{{shipment}} teslim edildi.</p>",
 					"is_active": 0,
 					"is_mandatory": 0
+				},
+				{
+					"name": "NT-OUTFORDELIVERY-BUYER-SMS",
+					"event": "shipment_out_for_delivery",
+					"channel": "sms",
+					"recipient_role": "buyer",
+					"subject": null,
+					"body": "<p>{{shipment}} bugün teslim edilecek.</p>",
+					"is_active": 1,
+					"is_mandatory": 0
+				},
+				{
+					"name": "NT-DELIVERED-BUYER-INAPP",
+					"event": "shipment_delivered",
+					"channel": "in_app",
+					"recipient_role": "buyer",
+					"subject": null,
+					"body": "<p>{{shipment}} teslim alındı.</p>",
+					"is_active": 1,
+					"is_mandatory": 0
 				}
 			],
-			"total": 3,
+			"total": 5,
 			"page": 1,
 			"page_size": 50
 		}
