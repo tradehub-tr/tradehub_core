@@ -1,3 +1,15 @@
+## [v1.13.1-alpha.50] - 2026-08-28 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(lojistik): bildirim kaydı varlığı sözleşmeye eklendi (@aliiball)
+  - notification_log: 13 alan, gönderilmiş bildirimin olay tarafı (notification_template tanım tarafı olarak kalıyor)
+  - STOREFRONT_ENTITIES beyaz listesine bilinçli satır: storefront yalnız kendisine gönderilmiş kayıtları görür, şablon kataloğunu değil
+  - SAMPLE_NOTIFICATION_TEMPLATES'e iki alıcı şablonu, tercihlerine iki alıcı kaydı — örnek kayıtlar var olmayan şablona bağlanamazdı ve rol süzgecinden sonra alıcı ekranında tek satır kalıyordu
+  - Sözleşme: docs/lojistik/12-FE-VERI-SOZLESMESI.md §1.2
+
+---
 ## [v1.13.1-alpha.49] - 2026-08-28 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
