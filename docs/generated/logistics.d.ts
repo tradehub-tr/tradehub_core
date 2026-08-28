@@ -542,6 +542,25 @@ export interface NotificationPreferenceListItem {
 
 export type NotificationPreferenceDetail = NotificationPreferenceListItem;
 
+/** Bildirim Kaydı — kaynak: TUR-113 */
+export interface NotificationLogListItem {
+  name: string;
+  template: string;
+  event: string;
+  channel: string;
+  recipient_role: string;
+  recipient: string;
+  title: string;
+  body?: string;
+  shipment?: string;
+  sent_at: string;
+  read_at?: string;
+  status: string;
+  failure_reason?: string;
+}
+
+export type NotificationLogDetail = NotificationLogListItem;
+
 /** Operasyon Alarmı — kaynak: TUR-113 */
 export interface OperationAlertListItem {
   name: string;

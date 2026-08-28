@@ -632,6 +632,36 @@ NOTIFICATION_PREFERENCE_FIELDS = [
 	_f("locked_reason", "Data", False, "Neden kapatılamadığı kullanıcıya açıklanır"),
 ]
 
+#: Gönderilmiş bildirim kaydı (TUR-113) — **12-FE tarafından eklendi, 2026-08-28.**
+#:
+#: NEDEN VAR: alıcının bildirim akışı (S6) dayanacak bir varlık bulamıyordu;
+#: veri `tradehubfront/src/services/logisticsMock.ts` içinde ELLE yazılıydı ve
+#: modül bunu kendi yorumunda itiraf ediyordu. Elle yazılan mock, gerçek uç
+#: geldiğinde baştan yazılacak iş demekti.
+#:
+#: `notification_template` TANIM tarafı, bu ise OLAY tarafı: şablondan üretilen
+#: her tekil gönderim burada bir satır. Alan adları şablonla hizalı tutuldu ki
+#: `event` / `channel` / `recipient_role` iki varlıkta aynı anlamı taşısın.
+#:
+#: Sözleşme: `docs/lojistik/12-FE-VERI-SOZLESMESI.md` §1.2 · uçlar §2.3, §2.4.
+NOTIFICATION_LOG_FIELDS = [
+	_f("name", "Data", True, "NTF-YYYY-#####"),
+	_f("template", "Link", True, "Hangi şablondan üretildi"),
+	_f("event", "Select", True, "Şablondan miras"),
+	_f("channel", "Select", True, "email | in_app | sms"),
+	_f("recipient_role", "Select", True, "buyer | seller | operations — rol süzgecinin dayanağı"),
+	_f("recipient", "Link", True, "Kime gitti — tenant izolasyonunun dayanağı, yanıtta DÖNMEZ"),
+	_f("title", "Data", True),
+	_f("body", "Small Text", False),
+	_f("shipment", "Link", False, "Varsa takip sayfasına bağlantı"),
+	_f("sent_at", "Datetime", True, "Gönderim zamanı — kuyruğa girme değil"),
+	#: `read` yerine `read_at`: iki alan tutmak ikinci doğruluk kaynağı olurdu ve
+	#: "ne zaman okundu" bilgisi zaten gerekiyor. Ekran okunmuşluğu bundan türetir.
+	_f("read_at", "Datetime", False, "null = okunmadı"),
+	_f("status", "Select", True, "queued | sent | failed — yalnız 'sent' alıcıya döner"),
+	_f("failure_reason", "Data", False, "status = failed ise dolu"),
+]
+
 OPERATION_ALERT_FIELDS = [
 	_f("name", "Data", True),
 	_f("alert_type", "Select", True, "sla_breach | integration_failure | exception_spike | stuck_shipment"),
@@ -733,6 +763,13 @@ PROVISIONAL_ENTITIES: dict[str, dict[str, Any]] = {
 		"label": "Bildirim Tercihi",
 		"source_tasks": ["TUR-113"],
 		"list_fields": NOTIFICATION_PREFERENCE_FIELDS,
+		"detail_fields": [],
+		"child_tables": {},
+	},
+	"notification_log": {
+		"label": "Bildirim Kaydı",
+		"source_tasks": ["TUR-113"],
+		"list_fields": NOTIFICATION_LOG_FIELDS,
 		"detail_fields": [],
 		"child_tables": {},
 	},
@@ -1605,6 +1642,30 @@ SAMPLE_NOTIFICATION_TEMPLATES: list[dict[str, Any]] = [
 		"is_active": 0,
 		"is_mandatory": 0,
 	},
+	#: Alıcıya ait iki şablon — 12-FE (2026-08-28) ekledi.
+	#: `notification_log` örnekleri var olmayan bir şablona bağlanamazdı ve
+	#: alıcı akışı tek satırdan ibaret kalırdı; listedeki tek buyer şablonu
+	#: `NT-SHIPPED-BUYER-EMAIL`'di.
+	{
+		"name": "NT-OUTFORDELIVERY-BUYER-SMS",
+		"event": "shipment_out_for_delivery",
+		"channel": "sms",
+		"recipient_role": "buyer",
+		"subject": None,
+		"body": "<p>{{shipment}} bugün teslim edilecek.</p>",
+		"is_active": 1,
+		"is_mandatory": 0,
+	},
+	{
+		"name": "NT-DELIVERED-BUYER-INAPP",
+		"event": "shipment_delivered",
+		"channel": "in_app",
+		"recipient_role": "buyer",
+		"subject": None,
+		"body": "<p>{{shipment}} teslim alındı.</p>",
+		"is_active": 1,
+		"is_mandatory": 0,
+	},
 ]
 
 SAMPLE_NOTIFICATION_PREFERENCES: list[dict[str, Any]] = [
@@ -1634,6 +1695,83 @@ SAMPLE_NOTIFICATION_PREFERENCES: list[dict[str, Any]] = [
 		"enabled": 0,
 		"is_mandatory": 0,
 		"locked_reason": None,
+	},
+	#: Alıcının diğer iki tercihi — 12-FE (2026-08-28).
+	#: Her buyer şablonunun bir tercihi olmalı; aksi hâlde rol süzgecinden
+	#: (12-FE sözleşmesi §6.1) sonra alıcı ekranında tek satır kalıyordu ve
+	#: "hangi bildirimleri almak istersiniz" ekranı tek seçenek gösteriyordu.
+	{
+		"template": "NT-OUTFORDELIVERY-BUYER-SMS",
+		"event": "shipment_out_for_delivery",
+		"channel": "sms",
+		"recipient_role": "buyer",
+		"enabled": 1,
+		"is_mandatory": 0,
+		"locked_reason": None,
+	},
+	{
+		"template": "NT-DELIVERED-BUYER-INAPP",
+		"event": "shipment_delivered",
+		"channel": "in_app",
+		"recipient_role": "buyer",
+		"enabled": 0,
+		"is_mandatory": 0,
+		"locked_reason": None,
+	},
+]
+
+#: Gönderilmiş bildirim örnekleri (12-FE, 2026-08-28).
+#:
+#: TUTARLILIK: her satırın `template`'i SAMPLE_NOTIFICATION_TEMPLATES'te var,
+#: `event`/`channel`/`recipient_role` şablonundan miras, `shipment` alanları
+#: SAMPLE_SHIPMENTS'teki gerçek kayıtlara işaret ediyor — SHP-2026-00042 yolda,
+#: SHP-2026-00041 teslim edilmiş. Akış zamana göre tutarlı: yola çıktı (10 Ağu)
+#: → dağıtıma çıktı (12 Ağu); teslim bildirimi daha eski sevkiyata ait.
+SAMPLE_NOTIFICATION_LOGS: list[dict[str, Any]] = [
+	{
+		"name": "NTF-2026-00311",
+		"template": "NT-SHIPPED-BUYER-EMAIL",
+		"event": "shipment_shipped",
+		"channel": "email",
+		"recipient_role": "buyer",
+		"recipient": "alici@ornek.com",
+		"title": "Siparişiniz yola çıktı",
+		"body": "SHP-2026-00042 numaralı sevkiyat Yurtiçi Kargo'ya teslim edildi.",
+		"shipment": "SHP-2026-00042",
+		"sent_at": "2026-08-10 09:10:00",
+		"read_at": None,
+		"status": "sent",
+		"failure_reason": None,
+	},
+	{
+		"name": "NTF-2026-00298",
+		"template": "NT-OUTFORDELIVERY-BUYER-SMS",
+		"event": "shipment_out_for_delivery",
+		"channel": "sms",
+		"recipient_role": "buyer",
+		"recipient": "alici@ornek.com",
+		"title": "Kurye dağıtıma çıktı",
+		"body": "Gönderiniz bugün teslim edilecek.",
+		"shipment": "SHP-2026-00042",
+		"sent_at": "2026-08-12 07:40:00",
+		"read_at": None,
+		"status": "sent",
+		"failure_reason": None,
+	},
+	{
+		"name": "NTF-2026-00255",
+		"template": "NT-DELIVERED-BUYER-INAPP",
+		"event": "shipment_delivered",
+		"channel": "in_app",
+		"recipient_role": "buyer",
+		"recipient": "alici@ornek.com",
+		"title": "Sevkiyat teslim edildi",
+		"body": "SHP-2026-00041 teslim alındı. Teslim özetini görüntüleyebilirsiniz.",
+		"shipment": "SHP-2026-00041",
+		"sent_at": "2026-08-08 14:35:00",
+		"read_at": "2026-08-08 15:02:00",
+		"status": "sent",
+		"failure_reason": None,
 	},
 ]
 
@@ -2354,6 +2492,7 @@ PROVISIONAL_SAMPLES: dict[str, dict[str, Any]] = {
 	"import_job": {"rows": SAMPLE_IMPORT_JOBS, "detail": {}},
 	"notification_template": {"rows": SAMPLE_NOTIFICATION_TEMPLATES, "detail": {}},
 	"notification_preference": {"rows": SAMPLE_NOTIFICATION_PREFERENCES, "detail": {}},
+	"notification_log": {"rows": SAMPLE_NOTIFICATION_LOGS, "detail": {}},
 	"operation_alert": {"rows": SAMPLE_OPERATION_ALERTS, "detail": {}},
 	"pricing_rule": {"rows": SAMPLE_PRICING_RULES, "detail": {}},
 	"shipping_zone": {"rows": SAMPLE_SHIPPING_ZONES, "detail": {}},

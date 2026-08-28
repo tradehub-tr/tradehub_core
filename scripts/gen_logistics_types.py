@@ -90,6 +90,11 @@ STOREFRONT_ENTITIES: frozenset[str] = frozenset(
 		"vehicle_type",
 		"shipment_exception_code",
 		"notification_preference",
+		# Alıcının bildirim akışı (S6, 12-FE) bu varlıktan besleniyor. Tanım
+		# tarafı olan `notification_template` bilinçli olarak DIŞARIDA kalıyor
+		# (operasyon aracı); storefront yalnız kendisine gönderilmiş kayıtları
+		# görür, şablon kataloğunu değil.
+		"notification_log",
 	}
 )
 
