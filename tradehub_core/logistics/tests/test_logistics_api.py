@@ -270,3 +270,290 @@ class TestPermissionsEndpoint(FrappeTestCase):
 		data = admin.get_logistics_permissions()["data"]
 		self.assertIn("module_enabled", data)
 		self.assertIsInstance(data["module_enabled"], bool)
+
+
+# ---------------------------------------------------------------------------
+# Kimlik bilgisi denetimi (denetim 2026-08-28) — BULGU 1/2/4/5/7
+#
+# Her sınıf ölçülmüş bir açığı kilitler; gerekçeler ilgili docstring'lerde.
+# ---------------------------------------------------------------------------
+
+
+def _allowed_http_methods(fn) -> list[str] | None:
+	"""Frappe'nin bu whitelist fonksiyonu için kabul ettiği HTTP metotları.
+
+	`@frappe.whitelist()` metot listesini fonksiyonun ÜZERİNDE değil, global bir
+	sözlükte tutuyor (`frappe.allowed_http_methods_for_whitelisted_func`);
+	`fn.methods` diye bir öznitelik YOK — ona bakan bir test her zaman `None`
+	görür ve sessizce hiçbir şey doğrulamaz.
+	"""
+	return frappe.allowed_http_methods_for_whitelisted_func.get(fn)
+
+
+class TestWriteEndpointsArePostOnly(FrappeTestCase):
+	"""Yazan/sır döndüren uçlar GET kabul ETMEMELİ.
+
+	NEDEN: Frappe GET isteğinin sonunda transaction'ı ROLLBACK eder —
+	`frappe.app.UNSAFE_HTTP_METHODS` yalnız POST/PUT/DELETE/PATCH içerir, GET
+	YOK. ÖLÇÜLDÜ (2026-08-28): dört uç da `['GET','POST','PUT','DELETE']` ile
+	kayıtlıydı; `GET .../reveal_carrier_secret` düz metin sırrı döndürüyor ve
+	denetim satırını geri alıyordu (izsiz ifşa), üç yazma ucu ise `ok: true`
+	dönüp yazmayı sessizce geri alıyordu.
+	"""
+
+	WRITE_ENDPOINTS = (
+		"reveal_carrier_secret",
+		"save_carrier_account",
+		"update_logistics_settings",
+		"set_feature_flag",
+	)
+
+	def test_write_endpoints_reject_get(self):
+		for fname in self.WRITE_ENDPOINTS:
+			with self.subTest(endpoint=fname):
+				methods = _allowed_http_methods(getattr(admin, fname))
+				self.assertIsNotNone(methods, f"{fname} whitelist kaydı bulunamadı")
+				self.assertEqual(methods, ["POST"], f"{fname} yalnız POST kabul etmeli")
+
+	def test_read_only_endpoints_remain_get_capable(self):
+		"""Salt-okunur uçlar KIRILMAMALI — panel onları GET ile çağırıyor."""
+		for fname in ("list_carrier_accounts", "get_carrier_account", "get_logistics_settings"):
+			with self.subTest(endpoint=fname):
+				self.assertIn("GET", _allowed_http_methods(getattr(admin, fname)) or [])
+
+
+class TestCredentialAuditIsFailClosed(FrappeTestCase):
+	"""Denetim satırı yazılamıyorsa sır ne DÖNER ne de YAZILIR.
+
+	ÖLÇÜLDÜ (2026-08-28): `audit.log_decision` best-effort — istisnayı KENDİSİ
+	yutup `None` dönüyor. `reveal_carrier_secret`'ın try/except'i bu yüzden hiç
+	tetiklenmiyordu ve ADL insert'i kırıkken uç
+	`{'ok': True, ... 'value': 'REALSECRETKEY123456'}` döndü, ADL sayacı artmadı.
+	Düzeltme dönüş değerini kontrol ediyor.
+	"""
+
+	SECRET = "fail-closed-anahtar-77"
+
+	def setUp(self):
+		self.carrier = frappe.db.get_value("Logistics Provider", {"is_active": 1}, "name")
+		self.account = admin.save_carrier_account(
+			values={
+				"account_name": "Fail-closed denetim testi",
+				"carrier": self.carrier,
+				"environment": "Sandbox",
+				"is_active": 0,
+				"api_key": self.SECRET,
+			}
+		)["data"]["name"]
+		# COMMIT ŞART: fail-closed yollar `logistics_endpoint._fail` üzerinden
+		# `frappe.db.rollback()` çağırıyor — commit edilmemiş bir fixture o
+		# noktada kaybolur ve test kendi kurulumunu yiyerek hata verir.
+		frappe.db.commit()
+
+	def tearDown(self):
+		frappe.db.delete("Carrier Account", {"name": self.account})
+		frappe.db.commit()
+
+	def test_reveal_denied_when_audit_row_cannot_be_written(self):
+		import json
+
+		with (
+			mock.patch("tradehub_core.audit.log.log_decision", return_value=None),
+			mock.patch("frappe.log_error"),
+		):
+			result = admin.reveal_carrier_secret(self.account, "api_key")
+
+		self.assertFalse(result["ok"], "Denetim yazılamadıysa sır DÖNMEMELİ")
+		self.assertNotIn(self.SECRET, json.dumps(result, default=str))
+
+	def test_secret_write_rolled_back_when_audit_row_cannot_be_written(self):
+		"""Yazma da fail-closed: denetim satırı yoksa yeni sır kalıcı olmaz."""
+		with (
+			mock.patch("tradehub_core.audit.log.log_decision", return_value=None),
+			mock.patch("frappe.log_error"),
+		):
+			result = admin.save_carrier_account(
+				name=self.account, values={"api_key": "izsiz-yazilmamali"}
+			)
+		self.assertFalse(result["ok"])
+
+		# `logistics_endpoint._fail` rollback ettiği için eski sır yerinde
+		doc = frappe.get_doc("Carrier Account", self.account)
+		self.assertEqual(doc.get_password("api_key", raise_exception=False), self.SECRET)
+
+
+class TestSecretWriteGate(FrappeTestCase):
+	"""Gizli alan YAZMAK okumak kadar korunuyor mu — capability + denetim.
+
+	ÖLÇÜLDÜ (2026-08-28): `save_carrier_account` `@logistics_endpoint()` idi —
+	capability kapısı YOK, ADL satırı YOK. `carrier_credential.manage`
+	capability'si ilan ediliyordu ama hiçbir yerde zorlanmıyordu.
+	"""
+
+	SECRET = "yazma-kapisi-anahtari-11"
+
+	def setUp(self):
+		self.carrier = frappe.db.get_value("Logistics Provider", {"is_active": 1}, "name")
+		self.account = admin.save_carrier_account(
+			values={
+				"account_name": "Yazma kapısı testi",
+				"carrier": self.carrier,
+				"environment": "Sandbox",
+				"is_active": 0,
+				"api_key": self.SECRET,
+			}
+		)["data"]["name"]
+		# COMMIT ŞART: fail-closed yollar `logistics_endpoint._fail` üzerinden
+		# `frappe.db.rollback()` çağırıyor — commit edilmemiş bir fixture o
+		# noktada kaybolur ve test kendi kurulumunu yiyerek hata verir.
+		frappe.db.commit()
+
+	def tearDown(self):
+		frappe.db.delete("Carrier Account", {"name": self.account})
+		frappe.db.commit()
+
+	def test_secret_write_requires_capability(self):
+		with mock.patch(
+			"tradehub_core.utils.permission_resolver.has_capability", return_value=False
+		):
+			result = admin.save_carrier_account(
+				name=self.account, values={"api_key": "yetkisiz-yeni-sir"}
+			)
+		self.assertFalse(result["ok"])
+		self.assertEqual(result["error"]["code"], "CAPABILITY_REQUIRED")
+
+	def test_non_secret_write_does_not_require_capability(self):
+		"""Secret'a dokunmayan kayıt eski davranışta kalmalı — panel akışı kırılmasın."""
+		with mock.patch(
+			"tradehub_core.utils.permission_resolver.has_capability", return_value=False
+		):
+			result = admin.save_carrier_account(
+				name=self.account, values={"account_name": "Yalnız ad değişti"}
+			)
+		self.assertTrue(result["ok"], result)
+
+	def test_secret_write_records_high_severity_audit_row(self):
+		with mock.patch("tradehub_core.audit.log.log_decision") as log_decision:
+			admin.save_carrier_account(name=self.account, values={"api_key": "yeni-sir-99"})
+
+		log_decision.assert_called_once()
+		_, kwargs = log_decision.call_args
+		self.assertEqual(kwargs["action"], "carrier_account.write_secret")
+		self.assertEqual(kwargs["severity"], "HIGH")
+		self.assertEqual(kwargs["context"], {"fields": ["api_key"]})
+
+	def test_audit_row_carries_field_name_not_value(self):
+		"""ADL `context` maskesiz saklanıyor — sır oraya ASLA yazılmamalı."""
+		import json
+
+		with mock.patch("tradehub_core.audit.log.log_decision") as log_decision:
+			admin.save_carrier_account(name=self.account, values={"api_key": "gizli-deger-abc"})
+
+		_, kwargs = log_decision.call_args
+		self.assertNotIn("gizli-deger-abc", json.dumps(kwargs, default=str))
+
+
+class TestMaskedSecretIsNotWrittenBack(FrappeTestCase):
+	"""Panelin gösterdiği maske geri geldiğinde gerçek sır KORUNMALI.
+
+	ÖLÇÜLDÜ (2026-08-28): `values={'api_key': '•'*8}` sonrası `get_password()`
+	`'••••••••'` döndü — gerçek sır yok oldu. `'*'*8` yalnız Frappe'nin kendi
+	`is_dummy_password` (tamamı-yıldız) koruması sayesinde kurtuluyordu; `'…'`
+	de sızıyordu.
+	"""
+
+	SECRET = "maske-testi-anahtari-33"
+
+	def setUp(self):
+		self.carrier = frappe.db.get_value("Logistics Provider", {"is_active": 1}, "name")
+		self.account = admin.save_carrier_account(
+			values={
+				"account_name": "Maske geri yazma testi",
+				"carrier": self.carrier,
+				"environment": "Sandbox",
+				"is_active": 0,
+				"api_key": self.SECRET,
+			}
+		)["data"]["name"]
+		# COMMIT ŞART: fail-closed yollar `logistics_endpoint._fail` üzerinden
+		# `frappe.db.rollback()` çağırıyor — commit edilmemiş bir fixture o
+		# noktada kaybolur ve test kendi kurulumunu yiyerek hata verir.
+		frappe.db.commit()
+
+	def tearDown(self):
+		frappe.db.delete("Carrier Account", {"name": self.account})
+		frappe.db.commit()
+
+	def _stored_secret(self) -> str | None:
+		return frappe.get_doc("Carrier Account", self.account).get_password(
+			"api_key", raise_exception=False
+		)
+
+	def test_mask_characters_are_treated_as_no_op(self):
+		for mask in ("•" * 8, "*" * 8, "●●●●", "···", "…", "-" * 6, "*•●"):
+			with self.subTest(mask=mask):
+				result = admin.save_carrier_account(name=self.account, values={"api_key": mask})
+				self.assertTrue(result["ok"], result)
+				self.assertEqual(self._stored_secret(), self.SECRET)
+
+	def test_real_value_still_overwrites(self):
+		"""Maske koruması gerçek bir güncellemeyi engellememeli."""
+		admin.save_carrier_account(name=self.account, values={"api_key": "gercek-yeni-anahtar"})
+		self.assertEqual(self._stored_secret(), "gercek-yeni-anahtar")
+
+	def test_masked_write_needs_no_capability(self):
+		"""No-op olduğu için capability de sorulmamalı."""
+		with mock.patch(
+			"tradehub_core.utils.permission_resolver.has_capability", return_value=False
+		):
+			result = admin.save_carrier_account(name=self.account, values={"api_key": "•••••"})
+		self.assertTrue(result["ok"], result)
+
+
+class TestIntegrationLogRetentionFloor(FrappeTestCase):
+	"""Saklama süresine alt sınır — denetim izi ertesi gün imha edilemesin.
+
+	ÖLÇÜLDÜ (2026-08-28): `validate` yalnız desi bölenini doğruluyordu;
+	`integration_log_retention_days` `1` ve `-5` olarak KABUL edildi ve DB'ye
+	yazıldı.
+	"""
+
+	def tearDown(self):
+		frappe.db.rollback()
+		frappe.clear_document_cache("Logistics Settings", "Logistics Settings")
+
+	def _save(self, value) -> None:
+		doc = frappe.get_doc("Logistics Settings")
+		doc.integration_log_retention_days = value
+		doc.save(ignore_permissions=True)
+
+	def test_below_floor_rejected(self):
+		from tradehub_core.logistics.constants import MIN_INTEGRATION_LOG_RETENTION_DAYS
+
+		for value in (1, MIN_INTEGRATION_LOG_RETENTION_DAYS - 1):
+			with self.subTest(value=value), self.assertRaises(frappe.ValidationError):
+				self._save(value)
+
+	def test_negative_rejected(self):
+		"""Negatif "kapalı" anlamına gelmemeli — onu `0` ifade ediyor."""
+		with self.assertRaises(frappe.ValidationError):
+			self._save(-5)
+
+	def test_zero_means_retention_disabled_and_is_allowed(self):
+		self._save(0)
+		self.assertEqual(
+			frappe.db.get_single_value("Logistics Settings", "integration_log_retention_days"), 0
+		)
+
+	def test_floor_and_above_allowed(self):
+		from tradehub_core.logistics.constants import MIN_INTEGRATION_LOG_RETENTION_DAYS
+
+		for value in (MIN_INTEGRATION_LOG_RETENTION_DAYS, 90, 365):
+			with self.subTest(value=value):
+				self._save(value)
+				self.assertEqual(
+					frappe.db.get_single_value(
+						"Logistics Settings", "integration_log_retention_days"
+					),
+					value,
+				)

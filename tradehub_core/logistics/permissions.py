@@ -933,10 +933,13 @@ def logistics_settings_has_permission(
 # görmesi rakip taşıyıcı anlaşmalarına dair sinyal verir ("satıcıya bu uç hiç
 # açılmaz" kuralının veri katmanındaki karşılığı).
 #
-# Bu yüzden kapı ROL DEĞİL, TENANT temellidir: seller_profile'ı OLAN kullanıcı
-# hangi rolü taşırsa taşısın reddedilir (System Manager / Administrator muaf —
-# permissions.py başındaki P1-1 invariant'ının aynısı). Rol kümesi ikinci
-# kapıdır: platform tarafında da yalnız operasyon zinciri görür.
+# Bu yüzden kapı ÖNCE satıcı-tarafı testidir: seller_profile'ı OLAN **ya da**
+# satıcı rolü taşıyan kullanıcı hangi platform rolünü taşırsa taşısın reddedilir
+# (System Manager / Administrator muaf — permissions.py başındaki P1-1
+# invariant'ının aynısı). İki kanıtın OR'lanması FAIL-OPEN düzeltmesidir
+# (2026-08-28): tek başına tenant'a bakmak, resolver `None` döndüğünde kapıyı
+# açık bırakıyordu. Platform rol kümesi ikinci kapıdır: platform tarafında da
+# yalnız operasyon zinciri görür.
 # ---------------------------------------------------------------------------
 
 #: Log'u OKUYABİLEN platform rolleri. DocType JSON'undaki DocPerm satırlarıyla
@@ -952,6 +955,46 @@ _INTEGRATION_LOG_READ_ROLES: frozenset[str] = frozenset({
 #: Kayıtları yazan tek yol `logistics/integration/log.py` (ignore_permissions);
 #: buradaki izin yalnız saklama politikası dışı manuel temizlik içindir.
 _INTEGRATION_LOG_ADMIN_ROLES: frozenset[str] = frozenset({"System Manager"})
+
+#: Taşıyıcısı ne olursa olsun kullanıcıyı SATICI TARAFI sayan roller.
+#:
+#: Kapı eskiden yalnız `_get_user_seller_profile(user)` ile kuruluyordu ve
+#: FAIL-OPEN'dı: resolver `None` dönerse (tenant alanı boş, profil silinmiş,
+#: resolver patlamış) kullanıcı platform rol kontrolüne düşüyordu. ÖLÇÜLDÜ
+#: (2026-08-28): `Seller` + `Logistics Operator` rollü, `tradehub_tenant=None`
+#: bir kullanıcı için `query_conditions` `''` (KISITSIZ) dönüyordu — satıcıya
+#: hiç açılmaması gereken platform trafiği tamamen görünüyordu.
+#:
+#: Kodun kendi niyeti zaten "tenant'lı bir Logistics Operator da satıcı
+#: tarafıdır" diyordu; niyet doğru, uygulama resolver'a bağlıydı. Artık kapı
+#: ROL ile de kuruluyor: bu rollerden birini taşıyan kullanıcı tenant
+#: çözülemese de satıcı tarafıdır.
+#:
+#: Platform rolleri (Logistics Manager / Logistics Operator / Carrier
+#: Integration Manager) bu kümede YOK — satıcı rolü OLMADAN taşındıklarında
+#: erişim korunur.
+_SELLER_SIDE_ROLES: frozenset[str] = frozenset({
+	"Seller",
+	"Marketplace Seller",
+	"Verified Seller",
+	"Seller Owner",
+	"Seller Staff",
+	"Seller Logistics",
+	"Seller Full Access",
+})
+
+
+def _is_seller_side(user: str, roles: set[str]) -> bool:
+	"""Kullanıcı satıcı tarafında mı — tenant VEYA rol kanıtı yeterli.
+
+	İki kanıt OR'lanıyor çünkü ikisi de tek başına eksik: rol taşımayan ama
+	tenant'a bağlı bir kullanıcı da (ör. yalnız `Logistics Operator` rollü
+	satıcı personeli) satıcı tarafıdır; tenant'ı çözülemeyen ama `Seller` rolü
+	taşıyan kullanıcı da öyle.
+	"""
+	if roles & _SELLER_SIDE_ROLES:
+		return True
+	return bool(_get_user_seller_profile(user))
 
 
 def carrier_integration_log_query_conditions(user: str | None = None) -> str:
@@ -974,10 +1017,11 @@ def carrier_integration_log_query_conditions(user: str | None = None) -> str:
 	if "System Manager" in roles:
 		return ""
 
-	# Tenant kapısı: satıcı tarafındaki hiçbir kullanıcı bu logu göremez.
-	# Rol kontrolünden ÖNCE gelir — tenant'lı bir Logistics Operator da satıcı
-	# tarafıdır ve platform trafiğini görmemelidir.
-	if _get_user_seller_profile(user):
+	# Satıcı kapısı: satıcı tarafındaki hiçbir kullanıcı bu logu göremez.
+	# Platform rol kontrolünden ÖNCE gelir — tenant'lı bir Logistics Operator da
+	# satıcı tarafıdır ve platform trafiğini görmemelidir. Tenant resolver'ı
+	# `None` dönse bile satıcı ROLÜ kapıyı kapatır (bkz. `_SELLER_SIDE_ROLES`).
+	if _is_seller_side(user, roles):
 		return "1=0"
 
 	if roles & _INTEGRATION_LOG_READ_ROLES:
@@ -1012,8 +1056,9 @@ def carrier_integration_log_has_permission(
 	if "System Manager" in roles:
 		return True
 
-	# Satıcı tarafı: her ptype için kapalı.
-	if _get_user_seller_profile(user):
+	# Satıcı tarafı: her ptype için kapalı. Tenant çözülemese de satıcı ROLÜ
+	# tek başına yeter — query_conditions ile aynı kapı (fail-closed).
+	if _is_seller_side(user, roles):
 		_log_deny(
 			user, f"carrier_integration_log.{ptype or 'read'}", doc,
 			"seller_tenant_denied", object_doctype="Carrier Integration Log",

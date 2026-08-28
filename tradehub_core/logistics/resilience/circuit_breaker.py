@@ -30,6 +30,26 @@ Sessiz fail-open ölçülmüş bir tuzaktı — yakalanan hata kümesi `Attribut
 içerdiği sürece try bloğundaki bir YAZIM HATASI devre kesiciyi kalıcı ve
 görünmez şekilde devre dışı bırakıyordu; bu yüzden programlama hataları
 (`AttributeError`, `TypeError`) artık YUTULMUYOR.
+
+## ANAHTAR KAPSAMI = (normalize edilmiş kod, ortam)
+
+İki ölçülmüş arıza anahtarı buradan geçiyordu:
+
+1. **Yazım farkı devreyi bölüyordu.** `registry.py` `carrier_code`'u
+   `.strip().lower()` ile normalize ediyor, bu modül ise HAM dizeyi
+   kullanıyordu. Ölçüldü: `ARAS` → `...circuit:ARAS-5d6f8c3b533da979:failures`,
+   `aras` → `...circuit:aras-91c067132b137529:failures`. İki yazım AYNI
+   adapter'a çözülüyor ama AYRI sayaç tutuyor; eşik hiç dolmuyor ve çöken
+   taşıyıcıya karşı devre AÇILMIYORDU. Normalizasyon artık TEK OTORİTEDEN
+   (`registry.normalize_carrier_code`) geliyor ve digest de NORMALİZE edilmiş
+   dizeden alınıyor.
+2. **Sandbox arızası production'ı kesiyordu.** Ölçüldü: sandbox istemcisinde 2
+   hata → production istemcisi `CIRCUIT_OPEN`. Anahtar artık `carrier_code` +
+   `environment` çiftinden türüyor; iki segment de KENDİ sha256 kuyruğunu taşır,
+   böylece ayırıcı karışması (`a` + `b:c` vs `a:b` + `c`) mümkün değildir.
+
+Kayıplı önek + digest çakışma koruması KORUNUR: `a:b` ile `a_b` hâlâ AYRI
+anahtar alır (bkz. `_key_segment`).
 """
 
 from __future__ import annotations
@@ -41,6 +61,12 @@ import re
 import frappe
 from redis.exceptions import RedisError
 
+# TEK YÖNLÜ BAĞIMLILIK — `registry` bu modülü İMPORT ETMEZ (döngü yok; ölçüldü:
+# `registry` yalnız `adapters.base` + `exceptions` çeker, `adapters/__init__.py`
+# boştur). Kodu burada yeniden normalize etmek yerine oradan almanın gerekçesi
+# ölçülmüş: iki katman ayrı normalizasyon uyguladığında `ARAS` ile `aras` AYRI
+# devre sayacı tutuyor, arıza sayacı bölünüyor ve devre HİÇ açılmıyordu.
+from tradehub_core.logistics.adapters.registry import normalize_carrier_code
 from tradehub_core.logistics.constants import CACHE_PREFIX
 from tradehub_core.logistics.resilience.fault_report import report_throttled
 from tradehub_core.logistics.resilience.outcome import Outcome
@@ -70,7 +96,7 @@ _MAX_KEY_CODE_LEN: int = 32
 _KEY_DIGEST_LEN: int = 16
 
 
-def _report_fault(scope: str, exc: BaseException) -> None:
+def _report_fault(scope: str, exc: BaseException, *, circuit: str = "-") -> None:
 	"""Yutulan cache arızasını KISILMIŞ biçimde raporlar.
 
 	İlk görülüşte `frappe.log_error` (traceback'li kalıcı kayıt), sonraki
@@ -81,10 +107,18 @@ def _report_fault(scope: str, exc: BaseException) -> None:
 	Kısma mantığı `resilience/fault_report.py`'de PAYLAŞILIYOR — kardeş yol
 	(`http_client._report_log_failure`) aynı deseni devralmamıştı ve kalıcı bir
 	log arızasında istek başına `Error Log` satırı üretiyordu.
+
+	KISMA KAPSAMI DEVRE BAŞINADIR (`circuit`). Eskiden kapsam yalnız sabit metot
+	adıydı (`'state'`, `'record_failure'`); TÜM taşıyıcılar ve TÜM ortamlar tek
+	kısma kovasını paylaşıyordu, yani bir taşıyıcının arızası diğerlerinin
+	raporunu 60 sn boyunca SUSTURUYORDU. `fault_report.report_throttled`
+	docstring'i kapsamı zaten `carrier_code + ":" + operation` olarak
+	örnekliyordu; kardeş yol (`http_client._report_log_failure`) buna uyuyordu,
+	bu yol uymuyordu.
 	"""
 	report_throttled(
-		scope,
-		f"Devre kesici cache arızası ({scope}): {type(exc).__name__}: {exc}",
+		f"circuit:{circuit}:{scope}",
+		f"Devre kesici cache arızası (circuit={circuit} {scope}): {type(exc).__name__}: {exc}",
 		"logistics.circuit_breaker",
 	)
 
@@ -102,6 +136,11 @@ class CarrierCircuitBreaker:
 		carrier_code: Devrenin kapsamı — her taşıyıcı/servis bağımsız. Bu değer
 			bir REGISTRY kodudur (`aras`, `yurtici`), `Logistics Provider`
 			docname'i DEĞİL; anahtar uzayı log'unkiyle aynı olmak zorunda değil.
+			`registry.normalize_carrier_code` ile normalize edilir: `ARAS`,
+			`aras` ve `' aras '` AYNI devredir.
+		environment: Devrenin İKİNCİ kapsam ekseni (`production` | `sandbox` |
+			`test`). Ölçüldü: eksikken sandbox'ta 2 hata production çağrılarını
+			`CIRCUIT_OPEN` ile kesiyordu. Kod ile aynı kurala göre normalize edilir.
 		failure_threshold: Devreyi açan ardışık hata sayısı.
 		cooldown_sec: Devrenin açık kalma süresi.
 		failure_window_sec: Hata sayacının yaşam süresi. Saatler arayla gelen
@@ -115,13 +154,18 @@ class CarrierCircuitBreaker:
 		self,
 		carrier_code: str,
 		*,
+		environment: str = "production",
 		failure_threshold: int = 5,
 		cooldown_sec: int = 60,
 		failure_window_sec: int = 300,
 		enabled: bool = True,
 	) -> None:
-		self.carrier_code: str = carrier_code
+		self.carrier_code: str = normalize_carrier_code(carrier_code)
+		self.environment: str = normalize_carrier_code(environment) or "production"
 		self._key_code: str = _sanitize_key_code(carrier_code)
+		self._key_env: str = _key_segment(self.environment)
+		#: Kısma kapsamının okunabilir kimliği — bkz. `_report_fault`.
+		self._fault_scope: str = f"{self.carrier_code}@{self.environment}"
 		self.failure_threshold: int = max(1, int(failure_threshold))
 		self.cooldown_sec: int = max(1, int(cooldown_sec))
 		self.failure_window_sec: int = max(self.cooldown_sec, int(failure_window_sec))
@@ -145,7 +189,7 @@ class CarrierCircuitBreaker:
 				return CircuitState.OPEN
 			failures = self._read_failures(client)
 		except _CACHE_FAULTS as exc:
-			_report_fault("state", exc)
+			_report_fault("state", exc, circuit=self._fault_scope)
 			return CircuitState.CLOSED
 		return CircuitState.HALF_OPEN if failures >= self.failure_threshold else CircuitState.CLOSED
 
@@ -160,7 +204,7 @@ class CarrierCircuitBreaker:
 		try:
 			return bool(frappe.cache.set(self._key("probe"), b"1", ex=self.cooldown_sec, nx=True))
 		except _CACHE_FAULTS as exc:
-			_report_fault("acquire_probe", exc)
+			_report_fault("acquire_probe", exc, circuit=self._fault_scope)
 			return True
 
 	def claim_open_notice(self) -> bool:
@@ -179,7 +223,7 @@ class CarrierCircuitBreaker:
 		try:
 			return bool(frappe.cache.set(self._key("notice"), b"1", ex=self.cooldown_sec, nx=True))
 		except _CACHE_FAULTS as exc:
-			_report_fault("claim_open_notice", exc)
+			_report_fault("claim_open_notice", exc, circuit=self._fault_scope)
 			return True
 
 	def release_open_notice(self) -> None:
@@ -196,7 +240,7 @@ class CarrierCircuitBreaker:
 			frappe.cache.delete(self._key("notice"))
 		except _CACHE_FAULTS as exc:
 			# TTL ile zaten düşer; en kötü ihtimalle bu cooldown'da satır yok.
-			_report_fault("release_open_notice", exc)
+			_report_fault("release_open_notice", exc, circuit=self._fault_scope)
 
 	# -------------------------------------------------------------------
 	# Kayıt
@@ -209,7 +253,7 @@ class CarrierCircuitBreaker:
 		elif outcome is Outcome.UNAVAILABLE:
 			self.record_failure(is_probe=is_probe)
 		else:
-			self.record_neutral()
+			self.record_neutral(is_probe=is_probe)
 
 	def record_success(self) -> None:
 		"""Servis ayakta — sayaç ve devre sıfırlanır."""
@@ -217,13 +261,48 @@ class CarrierCircuitBreaker:
 			return
 		self.reset()
 
-	def record_neutral(self) -> None:
+	def record_neutral(self, *, is_probe: bool = False) -> None:
 		"""Sonuç devre açısından ANLAMSIZ — sayaç ne artar ne sıfırlanır.
 
-		Kalıcı 4xx buraya düşer. Bilinçli bir NO-OP: metodun varlığı çağıran
-		tarafta "bu durumu unuttum" ihtimalini ortadan kaldırır.
+		Kalıcı 4xx, kapı reddi ve yapılandırma hatası buraya düşer.
+
+		SAYAÇ AÇISINDAN hâlâ mutlak no-op — ama PROBE ANAHTARI açısından DEĞİL.
+		Ölçüldü: yarı-açık probe HTTP 400 alınca anahtar geri verilmiyor, devre
+		HALF_OPEN'da kilitleniyor ve sonraki SAĞLIKLI çağrı `CIRCUIT_OPEN`
+		yiyordu (`acquire_probe()` → False). Kilit `probe` anahtarının TTL'i
+		(= cooldown) dolana kadar sürüyordu.
+
+		NEDEN "ANAHTARI İADE", "DEVREYİ KAPAT" DEĞİL (ölçülmüş gerekçe): NEUTRAL
+		kümesi yalnız 4xx değil; `CONFIG_ERROR` (geçersiz timeout/URL) ve
+		`URL_BLOCKED` (SSRF kapısı reddi) de NEUTRAL üretir ve bu iki dalda istek
+		TAŞIYICIYA HİÇ ULAŞMAZ. Devreyi kapatmak, taşıyıcıya dair SIFIR kanıtla
+		`failures` sayacını sıfırlar; çöken bir taşıyıcının önündeki devre, kendi
+		`base_url`'ümüzdeki bir yazım hatasıyla açılabilir hâle gelirdi. Anahtarı
+		iade etmek durumu probe ÖNCESİNE geri döndürür: devre HALF_OPEN kalır,
+		sayaç eşikte durur, sıradaki çağrı YENİ bir probe alır ve taşıyıcı
+		hakkındaki kararı gerçek bir kanıt verir.
 		"""
-		return
+		if not self.enabled or not is_probe:
+			return
+		self.release_probe()
+
+	def release_probe(self) -> None:
+		"""Alınan yarı-açık deneme hakkını geri verir — kanıt üretilemediyse.
+
+		Çağrıldığı yerler: NEUTRAL sonuç (bkz. `record_neutral`) ve transport'a
+		hiç ulaşmadan biten çağrılar (kapı reddi, `classify=` çöküşü). Devre
+		DURUMU değişmez; yalnız `probe` anahtarı silinir.
+
+		Cache arızasında sessiz kalmıyoruz ama akış da durmuyor: anahtar TTL ile
+		zaten cooldown sonunda düşer, en kötü ihtimalle bu cooldown'da başka
+		probe verilmez (fail-open değil, fail-safe — mevcut davranışın aynısı).
+		"""
+		if not self.enabled:
+			return
+		try:
+			frappe.cache.delete(self._key("probe"))
+		except _CACHE_FAULTS as exc:
+			_report_fault("release_probe", exc, circuit=self._fault_scope)
 
 	def record_failure(self, *, is_probe: bool = False) -> None:
 		"""Servis erişilemedi — sayacı artırır, eşikte devreyi açar.
@@ -245,7 +324,9 @@ class CarrierCircuitBreaker:
 			if failures >= self.failure_threshold:
 				client.set(self._key("open"), b"1", ex=self.cooldown_sec)
 		except _CACHE_FAULTS as exc:
-			_report_fault("record_failure", exc)  # Fail-open: koruma yok ama akış sürüyor.
+			_report_fault(
+				"record_failure", exc, circuit=self._fault_scope
+			)  # Fail-open: koruma yok ama akış sürüyor.
 
 	def reset(self) -> None:
 		"""Devre durumunu tamamen siler (admin "bağlantıyı test et" akışı, testler)."""
@@ -257,14 +338,19 @@ class CarrierCircuitBreaker:
 			)
 		except _CACHE_FAULTS as exc:
 			# Silinemeyen anahtar TTL ile zaten düşer — ama sessiz kalmıyoruz.
-			_report_fault("reset", exc)
+			_report_fault("reset", exc, circuit=self._fault_scope)
 
 	# -------------------------------------------------------------------
 	# İç yardımcılar
 	# -------------------------------------------------------------------
 
 	def _key(self, suffix: str) -> bytes | str:
-		return frappe.cache.make_key(f"{CIRCUIT_KEY_PREFIX}{self._key_code}:{suffix}")
+		"""Anahtar = ön ek + NORMALİZE kod segmenti + ORTAM segmenti + son ek.
+
+		İki segment de kendi sha256 kuyruğunu taşır (bkz. `_key_segment`), yani
+		ayırıcı karışması (`a` + `b:c` ile `a:b` + `c`) aynı anahtarı üretemez.
+		"""
+		return frappe.cache.make_key(f"{CIRCUIT_KEY_PREFIX}{self._key_code}:{self._key_env}:{suffix}")
 
 	def _incr_failures(self, client: object) -> int:
 		"""Sayacı ATOMİK olarak artırır; TTL yalnız anahtar YENİYKEN kurulur.
@@ -298,8 +384,8 @@ class CarrierCircuitBreaker:
 		)
 
 
-def _sanitize_key_code(carrier_code: str) -> str:
-	"""Anahtar bileşenini güvenli karakter kümesine indirger — KAYIPSIZ.
+def _key_segment(value: str) -> str:
+	"""Bir anahtar segmentini güvenli karakter kümesine indirger — KAYIPSIZ.
 
 	Eski hâli yalnız `sub()` + kırpma yapıyordu ve KAYIPLIYDI: `a:b`, `a_b`,
 	`a b`, `a.b`, `a/b`, `a*b` HEPSİ `a_b` oluyordu. Kanıtlandı — `a:b`'ye 2
@@ -307,13 +393,31 @@ def _sanitize_key_code(carrier_code: str) -> str:
 	BAŞKA bir taşıyıcının gönderilerini durduruyordu. 64 karakteri aşan iki
 	farklı kod da aynı anahtara düşüyordu.
 
-	Çözüm: okunabilir (ama kayıplı) öneke, HAM kodun sha256 özetinden bir kuyruk
+	Çözüm: okunabilir (ama kayıplı) öneke, segmentin sha256 özetinden bir kuyruk
 	eklenir. Önek operatör içindir; ayrıştırıcı olan kuyruktur.
 	"""
-	raw = str(carrier_code or "")
-	cleaned = _UNSAFE_KEY_CHARS.sub("_", raw.strip())[:_MAX_KEY_CODE_LEN] or "_"
+	raw = str(value or "")
+	cleaned = _UNSAFE_KEY_CHARS.sub("_", raw)[:_MAX_KEY_CODE_LEN] or "_"
 	digest = hashlib.sha256(raw.encode("utf-8")).hexdigest()[:_KEY_DIGEST_LEN]
 	return f"{cleaned}-{digest}"
+
+
+def _sanitize_key_code(carrier_code: str) -> str:
+	"""Taşıyıcı kodunu anahtar segmentine çevirir — ÖNCE NORMALİZE EDER.
+
+	DIGEST HAM DİZEDEN DEĞİL, NORMALİZE EDİLMİŞ DİZEDEN alınır. Ölçüldü: eskiden
+	`strip()` yalnızca okunabilir öneke uygulanıyor, sha256 ise HAM dizeyi
+	özetliyordu; `'ARAS'`, `'aras'` ve `' aras '` üç AYRI devre anahtarı
+	üretiyordu (`ARAS-5d6f8c3b533da979`, `aras-91c067132b137529`,
+	`aras-904d2d4d1225168e`). Üçü de `registry.get_adapter` tarafından AYNI
+	adapter'a çözülüyordu, yani arıza sayacı üçe bölünüyor ve eşik hiç
+	dolmuyordu.
+
+	Çakışma koruması KORUNUR: normalizasyon yalnız `strip().lower()` yapar,
+	`a:b` ile `a_b` normalize edildikten sonra da FARKLI dizelerdir ve farklı
+	digest üretirler.
+	"""
+	return _key_segment(normalize_carrier_code(carrier_code))
 
 
 def _coerce_counter(raw: object) -> int:

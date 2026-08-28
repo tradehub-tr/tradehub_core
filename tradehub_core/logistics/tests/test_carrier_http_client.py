@@ -108,13 +108,21 @@ def _log_failure_reports(log_error: Any) -> int:
 
 
 class _Recorder:
-	"""Log çağrılarını listeye yazan yazıcı — döngü içinde lambda bağlamak yerine."""
+	"""Log çağrılarını listeye yazan SÖZLEŞMEYE UYAN yazıcı.
+
+	DÖNÜŞ DEĞERİ ÖNEMLİDİR: `IntegrationLogWriter` sözleşmesi "oluşan log
+	kaydının adı; yazılamadıysa `None`" diyor ve `CarrierHttpClient._log` artık
+	o kanalı OKUYOR. `None` dönen bir sahte yazıcı "satır yazılamadı" demektir;
+	testlerdeki eski `lambda **kw: records.append(kw)` yazıcıları (append `None`
+	döner) bu yüzden sözleşmeyi ihlal ediyordu.
+	"""
 
 	def __init__(self, sink: list[dict[str, Any]]) -> None:
 		self._sink = sink
 
-	def __call__(self, **kwargs: Any) -> None:
+	def __call__(self, **kwargs: Any) -> str:
 		self._sink.append(kwargs)
+		return f"CIL-{len(self._sink):05d}"
 
 
 class _PlaceholderDoc:
@@ -167,6 +175,42 @@ class _NoSleep(unittest.TestCase):
 # ---------------------------------------------------------------------------
 # Yeniden deneme politikası
 # ---------------------------------------------------------------------------
+
+
+class TestCircuitDefaults(unittest.TestCase):
+	"""Devre kesici SABİTLERİ TESTSİZDİ — mutasyon (5→1, 60→0, 300→1) 0 test düşürüyordu.
+
+	Bu üç değer koruma katmanının kalibrasyonudur: eşik düşerse tek bir geçici
+	5xx canlı trafiği keser, cooldown 0'a düşerse devre hiç beklemeden yeniden
+	denemeye açılır, pencere daralırsa "ardışık hata" şartı anlamını yitirir.
+	Değerler BİLEREK sabitlenmiştir; değiştiren kişi bu testi de değiştirmek
+	zorunda kalsın diye kilitlendi.
+	"""
+
+	def test_declared_defaults_are_the_calibrated_values(self) -> None:
+		self.assertEqual(hc.CIRCUIT_FAILURE_THRESHOLD, 5)
+		self.assertEqual(hc.CIRCUIT_COOLDOWN_SEC, 60)
+		self.assertEqual(hc.CIRCUIT_FAILURE_WINDOW_SEC, 300)
+		self.assertGreaterEqual(
+			hc.CIRCUIT_FAILURE_WINDOW_SEC,
+			hc.CIRCUIT_COOLDOWN_SEC,
+			"Hata penceresi cooldown'dan kısa — sayaç devre kapanmadan sıfırlanır",
+		)
+
+	def test_client_actually_wires_the_defaults_into_the_breaker(self) -> None:
+		"""Sabitler doğru ama bağlanmıyorsa hiçbir şey ifade etmezler."""
+		breaker = CarrierHttpClient("wiring-test").breaker
+
+		self.assertEqual(breaker.failure_threshold, hc.CIRCUIT_FAILURE_THRESHOLD)
+		self.assertEqual(breaker.cooldown_sec, hc.CIRCUIT_COOLDOWN_SEC)
+		self.assertEqual(breaker.failure_window_sec, hc.CIRCUIT_FAILURE_WINDOW_SEC)
+
+	def test_default_timeout_is_finite_on_both_axes(self) -> None:
+		"""Timeout'suz istek bir RQ işçisini SÜRESİZ kilitler."""
+		connect, read = hc.DEFAULT_TIMEOUT
+		self.assertEqual((connect, read), (5.0, 30.0))
+		self.assertTrue(0 < connect < read, "Bağlantı payı okuma payından büyük ya da sıfır")
+		self.assertEqual(CarrierHttpClient("timeout-test").timeout, hc.DEFAULT_TIMEOUT)
 
 
 class TestRetryPolicyBehaviour(_NoSleep):
@@ -282,6 +326,45 @@ class TestRetryPolicyBehaviour(_NoSleep):
 
 		self.assertEqual(session.call_count, 2, "Çağrı bazlı politika devreye girmedi")
 
+	def test_backoff_is_exponential_from_the_declared_base(self) -> None:
+		"""TAM JITTER TABANI TESTSİZDİ: `backoff_base_sec` mutasyonu 0 test düşürüyordu.
+
+		Sözleşme (AWS "Exponential Backoff and Jitter"): bekleme
+		`[0, min(cap, base * 2**(n-1))]` aralığından seçilir. Taban ya da üs
+		kayarsa çöken bir firmaya giden yeniden deneme temposu sessizce değişir.
+		"""
+		policy = RetryPolicy(backoff_base_sec=0.5, backoff_cap_sec=8.0)
+		for attempt_no, ceiling in ((1, 0.5), (2, 1.0), (3, 2.0), (4, 4.0), (5, 8.0)):
+			samples = [policy.delay_before_retry(attempt_no, None) for _ in range(200)]
+			self.assertTrue(
+				all(0.0 <= value <= ceiling for value in samples),
+				f"{attempt_no}. deneme {ceiling} tavanının dışına çıktı: "
+				f"[{min(samples):.3f}, {max(samples):.3f}]",
+			)
+			# Üs gerçekten uygulanıyor mu: 200 örnekte bir öncekinin tavanını aşan
+			# en az bir değer olmalı (aksi halde tavan hiç büyümemiş demektir).
+			if attempt_no > 1:
+				self.assertGreater(max(samples), ceiling / 2, "Üstel büyüme uygulanmıyor")
+
+	def test_backoff_is_capped(self) -> None:
+		policy = RetryPolicy(backoff_base_sec=0.5, backoff_cap_sec=2.0)
+		samples = [policy.delay_before_retry(10, None) for _ in range(100)]
+		self.assertLessEqual(max(samples), 2.0, "Tavan uygulanmıyor — işçi uzun süre uyur")
+
+	def test_backoff_carries_real_jitter(self) -> None:
+		"""JITTER TESTSİZDİ: sabit bekleme, eşzamanlı işçileri firmaya AYNI ANDA gönderir."""
+		policy = RetryPolicy(backoff_base_sec=0.5)
+		samples = {policy.delay_before_retry(3, None) for _ in range(200)}
+
+		self.assertGreater(len(samples), 50, f"Bekleme jitter taşımıyor ({len(samples)} farklı değer)")
+		self.assertLess(min(samples), 0.5, "Alt uç 0'a yaklaşmıyor — tam jitter değil")
+
+	def test_retry_after_beats_the_backoff_curve(self) -> None:
+		"""Firma "N sn sonra gel" derse eğri DEĞİL, başlık uygulanır."""
+		policy = RetryPolicy(backoff_base_sec=0.5, retry_after_cap_sec=60.0)
+		self.assertEqual(policy.delay_before_retry(1, 12.0), 12.0)
+		self.assertIsNone(policy.delay_before_retry(1, 61.0))
+
 	def test_default_policy_leaves_503_retriable_and_409_permanent(self) -> None:
 		"""Varsayılan politika bugünkü davranışı birebir korur."""
 		policy = RetryPolicy()
@@ -319,6 +402,117 @@ class TestOutcomeClassification(_NoSleep):
 		self.assertEqual(session.call_count, 2, "Gövde hatası yeniden denenmedi")
 		self.assertEqual(ctx.exception.carrier_error_code, "CARRIER_REJECTED")
 		self.assertEqual(ctx.exception.carrier_status, 200)
+
+	def test_classify_exception_becomes_a_logistics_error(self) -> None:
+		"""ÖLÇÜLDÜ: `classify=` fırlatınca istisna KORUMASIZ dışarı çıkıyordu.
+
+		`KeyError` `LogisticsError` hiyerarşisinde olmadığı için `logistics_endpoint`
+		zarfına takılmıyor ve API 500 dönüyordu. Modülün her yerde uyguladığı
+		politika (`_prepare_body`, `_validate_operation`, `_validated_timeout`)
+		hiyerarşiye çevirmek.
+		"""
+
+		def boom(_response: CarrierResponse) -> Outcome:
+			raise KeyError("adapter sınıflandırıcısı çöktü")
+
+		session = FakeSession([FakeResponse(200, b'{"x":1}')])
+		client = _client(session)
+
+		with self.assertRaises(LogisticsError) as ctx:
+			client.request("GET", "https://kargo.test/x", operation="track", classify=boom)
+
+		self.assertNotIsInstance(ctx.exception, CarrierAPIError, "Adapter hatası taşıyıcıya yazıldı")
+		self.assertIsInstance(ctx.exception.__cause__, KeyError, "Kök neden zinciri koptu")
+
+	def test_classify_exception_still_writes_a_log_row(self) -> None:
+		"""Satır YAZILMALI: taşıyıcı yanıt VERDİ, çöken bizim sınıflandırıcımız."""
+
+		def boom(_response: CarrierResponse) -> Outcome:
+			raise ValueError("bozuk zarf")
+
+		records: list[dict[str, Any]] = []
+		session = FakeSession([FakeResponse(503, b"down")])
+		client = _client(session, provider=SEEDED_PROVIDER, logger=_Recorder(records))
+
+		with self.assertRaises(LogisticsError):
+			client.request("GET", "https://kargo.test/x", operation="track", classify=boom)
+
+		self.assertEqual(len(records), 1, "Sınıflandırıcı çökünce log satırı KAYBOLDU")
+		row = records[0]
+		self.assertEqual(row["error_code"], "CLASSIFY_ERROR")
+		self.assertEqual(row["http_status"], 503, "Taşıyıcının durumu satırda yok")
+		self.assertFalse(row["succeeded"])
+		self.assertFalse(row["is_retriable"])
+
+	def test_classify_exception_does_not_touch_the_circuit_breaker(self) -> None:
+		"""Adapter hatası taşıyıcı hakkında hiçbir şey KANITLAMAZ."""
+
+		def boom(_response: CarrierResponse) -> Outcome:
+			raise RuntimeError("çöktü")
+
+		session = FakeSession([FakeResponse(200, b"ok")])
+		client = _client(session, circuit_breaker=True, carrier_code=f"CLS-{uuid.uuid4().hex[:8]}")
+		client.reset_circuit()
+		self.addCleanup(client.reset_circuit)
+
+		with mock.patch.object(client.breaker, "record") as record:
+			for _index in range(5):
+				with self.assertRaises(LogisticsError):
+					client.request("GET", "https://kargo.test/x", operation="track", classify=boom)
+
+		self.assertFalse(record.called, "Adapter hatası devre kesiciye kanıt olarak işlendi")
+
+	def test_classify_exception_returns_the_half_open_probe(self) -> None:
+		"""Kendi kodumuzdaki bir hata devreyi HALF_OPEN'da kilitlememeli."""
+
+		def boom(_response: CarrierResponse) -> Outcome:
+			raise RuntimeError("çöktü")
+
+		carrier = f"CLSP-{uuid.uuid4().hex[:8]}"
+		self.addCleanup(CarrierHttpClient(carrier).reset_circuit)
+		down = FakeSession([FakeResponse(503, b"down")])
+		first = CarrierHttpClient(
+			carrier,
+			session=down,
+			circuit_breaker=True,
+			failure_threshold=1,
+			cooldown_sec=60,
+			allow_private_hosts=True,
+		)
+		first.reset_circuit()
+		with self.assertRaises(CarrierAPIError):
+			first.request("POST", "https://kargo.test/x", operation="create_shipment")
+		frappe.cache.delete(first.breaker._key("open"), first.breaker._key("probe"))  # noqa: SLF001
+
+		crashing = FakeSession([FakeResponse(200, b"ok")])
+		probe_client = CarrierHttpClient(
+			carrier,
+			session=crashing,
+			circuit_breaker=True,
+			failure_threshold=1,
+			cooldown_sec=60,
+			allow_private_hosts=True,
+		)
+		with self.assertRaises(LogisticsError):
+			probe_client.request("GET", "https://kargo.test/x", operation="track", classify=boom)
+
+		self.assertTrue(probe_client.breaker.acquire_probe(), "Adapter hatası probe anahtarını yaktı")
+
+	def test_a_logistics_error_from_classify_is_not_rewrapped(self) -> None:
+		"""Sözleşmeye uygun istisna ikinci kez sarmalanırsa nedeni gizlenir."""
+
+		def strict(_response: CarrierResponse) -> Outcome:
+			raise LogisticsError("adapter sözleşme ihlali")
+
+		records: list[dict[str, Any]] = []
+		session = FakeSession([FakeResponse(200, b"ok")])
+		client = _client(session, provider=SEEDED_PROVIDER, logger=_Recorder(records))
+
+		with self.assertRaises(LogisticsError) as ctx:
+			client.request("GET", "https://kargo.test/x", operation="track", classify=strict)
+
+		self.assertIn("adapter sözleşme ihlali", str(ctx.exception))
+		self.assertEqual(len(records), 1, "Satır yazılmadı")
 
 	def test_custom_classify_can_accept_a_4xx_as_healthy(self) -> None:
 		"""404 = "takip kaydı yok" diyen adapter gövdeyi normal yoldan alır."""
@@ -528,7 +722,7 @@ class TestTransportNeutrality(unittest.TestCase):
 		"""Son çare dalı: log YAZILIR, devre kesici KAYDEDER, LogisticsError döner."""
 		records: list[dict[str, Any]] = []
 		session = FakeSession([ValueError("Invalid timeout value")])
-		client = _client(session, provider=SEEDED_PROVIDER, logger=lambda **kw: records.append(kw))
+		client = _client(session, provider=SEEDED_PROVIDER, logger=_Recorder(records))
 
 		with self.assertRaises(CarrierAPIError) as ctx:
 			client.request("GET", "https://kargo.test/x", operation="track")
@@ -581,7 +775,7 @@ class TestResponseSizeCap(_NoSleep):
 			FakeSession([response]),
 			max_response_bytes=2048,
 			provider=SEEDED_PROVIDER,
-			logger=lambda **kw: records.append(kw),
+			logger=_Recorder(records),
 		)
 
 		with self.assertRaises(CarrierAPIError):
@@ -1061,7 +1255,7 @@ class TestUrlGuardDoesNotLeakNetworkTopology(_NoSleep):
 				session,
 				allow_private_hosts=False,
 				provider=SEEDED_PROVIDER,
-				logger=lambda **kw: rows.append(kw),
+				logger=_Recorder(rows),
 			)
 			client._guard = UrlGuard(resolver=resolver)  # noqa: SLF001
 			with self.assertRaises(CarrierAPIError):
@@ -1796,7 +1990,7 @@ class TestErrorContract(_NoSleep):
 			[requests.exceptions.ConnectionError("https://kargo.test:8123/x?api_key=GIZLI reddedildi")]
 		)
 		records: list[dict[str, Any]] = []
-		client = _client(session, provider=SEEDED_PROVIDER, logger=lambda **kw: records.append(kw))
+		client = _client(session, provider=SEEDED_PROVIDER, logger=_Recorder(records))
 
 		with self.assertRaises(CarrierAPIError) as ctx:
 			client.request("GET", "https://kargo.test/x", operation="track")
@@ -1917,7 +2111,7 @@ class TestLoggerInjection(_NoSleep):
 			session,
 			carrier_code="aras",
 			provider=SEEDED_PROVIDER,
-			logger=lambda **kw: records.append(kw),
+			logger=_Recorder(records),
 		)
 
 		client.request(
@@ -1961,7 +2155,7 @@ class TestLoggerInjection(_NoSleep):
 			session,
 			carrier_code="aras",
 			provider=SEEDED_PROVIDER,
-			logger=lambda **kw: records.append(kw),
+			logger=_Recorder(records),
 		)
 
 		client.request("GET", "https://kargo.test/x", operation="track")
@@ -1973,7 +2167,7 @@ class TestLoggerInjection(_NoSleep):
 		"""provider yoksa her satır LinkValidationError'da düşerdi — hiç yazmıyoruz."""
 		records: list[dict[str, Any]] = []
 		session = FakeSession([FakeResponse(200, b"ok")])
-		client = _client(session, carrier_code="aras", logger=lambda **kw: records.append(kw))
+		client = _client(session, carrier_code="aras", logger=_Recorder(records))
 
 		client.request("GET", "https://kargo.test/x", operation="track")
 
@@ -1995,7 +2189,7 @@ class TestLoggerInjection(_NoSleep):
 			provider=SEEDED_PROVIDER,
 			credential_doc={"api_key": "SUPERSECRET_APIKEY_9988", "base_url": "https://kargo.test"},
 			extra_secret_values=["OTURUM_JETONU_777"],
-			logger=lambda **kw: records.append(kw),
+			logger=_Recorder(records),
 		)
 
 		client.request("GET", "https://kargo.test/x", operation="track")
@@ -2022,7 +2216,7 @@ class TestLoggerInjection(_NoSleep):
 			provider=SEEDED_PROVIDER,
 			credential_doc=_PlaceholderDoc(),
 			extra_secret_values=["OTURUM_JETONU_777"],
-			logger=lambda **kw: records.append(kw),
+			logger=_Recorder(records),
 		)
 
 		client.request("GET", "https://kargo.test/x", operation="track")
@@ -2035,9 +2229,7 @@ class TestLoggerInjection(_NoSleep):
 		"""Her deneme ayrı satır — retry görünürlüğü kaybolmasın."""
 		records: list[dict[str, Any]] = []
 		session = FakeSession([FakeResponse(500, b"hata")])
-		client = _client(
-			session, max_attempts=3, provider=SEEDED_PROVIDER, logger=lambda **kw: records.append(kw)
-		)
+		client = _client(session, max_attempts=3, provider=SEEDED_PROVIDER, logger=_Recorder(records))
 
 		with self.assertRaises(CarrierAPIError):
 			client.request("GET", "https://kargo.test/x", operation="track", idempotent=True)
@@ -2074,7 +2266,7 @@ class TestLoggerInjection(_NoSleep):
 		session = FakeSession(
 			[FakeResponse(200, b"%PDF-1.4\x00\x01binary", {"Content-Type": "application/pdf"})]
 		)
-		client = _client(session, provider=SEEDED_PROVIDER, logger=lambda **kw: records.append(kw))
+		client = _client(session, provider=SEEDED_PROVIDER, logger=_Recorder(records))
 
 		client.request("GET", "https://kargo.test/label", operation="label", idempotent=True)
 
@@ -2286,7 +2478,7 @@ class TestCircuitBreakerBridge(_NoSleep):
 			session,
 			failure_threshold=1,
 			provider=SEEDED_PROVIDER,
-			logger=lambda **kw: records.append(kw),
+			logger=_Recorder(records),
 		)
 		client.reset_circuit()
 
@@ -2299,6 +2491,137 @@ class TestCircuitBreakerBridge(_NoSleep):
 
 		rejected = [r for r in records if r["error_code"] == "CIRCUIT_OPEN"]
 		self.assertEqual(len(rejected), 1, f"Cooldown boyunca {len(rejected)} ret satırı yazıldı")
+
+	# -- BULGU 3: yarı-açık probe kilidi ---------------------------------
+
+	def _drive_to_half_open(self, **kwargs: Any) -> None:
+		"""Devreyi HALF_OPEN'a getirir (1 hata + cooldown'u simüle et)."""
+		session = FakeSession([FakeResponse(503, b"down")])
+		client = self._make(session, failure_threshold=1, **kwargs)
+		client.reset_circuit()
+		with self.assertRaises(CarrierAPIError):
+			client.request("POST", "https://kargo.test/x", operation="create_shipment")
+		self._expire_cooldown(client)
+
+	def test_a_4xx_probe_does_not_lock_the_circuit(self) -> None:
+		"""ÖLÇÜLDÜ: probe 400 alınca devre HALF_OPEN'da kilitleniyordu.
+
+		4xx taşıyıcının AYAKTA olduğunun kanıtıdır; sonraki SAĞLIKLI çağrının
+		`CIRCUIT_OPEN` yemesi için hiçbir sebep yok. Kilit `failures` penceresi
+		(300 sn) ya da `probe` TTL'i dolana kadar sürüyordu.
+		"""
+		self._drive_to_half_open()
+
+		rejecting = FakeSession([FakeResponse(400, b"gecersiz")])
+		probe_client = self._make(rejecting, failure_threshold=1)
+		with self.assertRaises(CarrierAPIError) as ctx:
+			probe_client.request("POST", "https://kargo.test/x", operation="create_shipment")
+		self.assertEqual(ctx.exception.carrier_error_code, "HTTP_400", "Probe isteği hiç gitmedi")
+
+		healthy = FakeSession([FakeResponse(200, b"ok")])
+		next_client = self._make(healthy, failure_threshold=1)
+		self.assertEqual(
+			next_client.request("GET", "https://kargo.test/x", operation="track").status_code,
+			200,
+			"Sağlıklı çağrı CIRCUIT_OPEN yedi — devre 4xx probe ile kilitlendi",
+		)
+		self.assertEqual(healthy.call_count, 1)
+
+	def test_a_blocked_url_probe_does_not_lock_the_circuit(self) -> None:
+		"""AYNI SINIF: `_enter_circuit` probe'u URL kapısından ÖNCE alıyor.
+
+		Kapı reddi devre kesiciye HİÇ işlenmez ama probe anahtarı harcanıyordu:
+		tek bir hatalı `base_url` cooldown boyunca sağlıklı taşıyıcıyı kesiyordu.
+		"""
+		self._drive_to_half_open()
+
+		blocked = FakeSession([FakeResponse(200, b"ok")])
+		probe_client = self._make(blocked, failure_threshold=1, allow_private_hosts=False)
+		with self.assertRaises(CarrierAPIError) as ctx:
+			# DARALTILAN kapı reddi (`URL_HOST_BLOCKED`): devre kesiciye HİÇ
+			# işlenmeyen tek dal, yani probe iadesinin ayrı bir kolu var.
+			probe_client.request("GET", "https://10.0.0.1/x", operation="track")
+		self.assertEqual(ctx.exception.carrier_error_code, hc.URL_BLOCKED_LOG_CODE)
+		self.assertEqual(blocked.call_count, 0, "Kapı reddi transporta ulaştı")
+
+		healthy = FakeSession([FakeResponse(200, b"ok")])
+		next_client = self._make(healthy, failure_threshold=1)
+		self.assertEqual(
+			next_client.request("GET", "https://kargo.test/x", operation="track").status_code,
+			200,
+			"Kapı reddi probe'u yaktı — sağlıklı çağrı kesildi",
+		)
+
+	def test_a_failing_probe_still_reopens_the_circuit(self) -> None:
+		"""Karşı kilit: gerçek arıza (503) probe'u HÂLÂ yakıp cooldown'u başlatmalı."""
+		self._drive_to_half_open()
+
+		down = FakeSession([FakeResponse(503, b"down")])
+		probe_client = self._make(down, failure_threshold=1)
+		with self.assertRaises(CarrierAPIError):
+			probe_client.request("POST", "https://kargo.test/x", operation="create_shipment")
+
+		healthy = FakeSession([FakeResponse(200, b"ok")])
+		with self.assertRaises(CarrierAPIError) as ctx:
+			self._make(healthy, failure_threshold=1).request("GET", "https://kargo.test/x", operation="track")
+		self.assertEqual(ctx.exception.carrier_error_code, "CIRCUIT_OPEN")
+		self.assertEqual(healthy.call_count, 0)
+
+	# -- BULGU 5: ortam izolasyonu ---------------------------------------
+
+	def test_sandbox_failures_do_not_open_the_production_circuit(self) -> None:
+		"""ÖLÇÜLDÜ: sandbox'ta 2 hata → production istemcisi `CIRCUIT_OPEN` alıyordu."""
+		sandbox_session = FakeSession([FakeResponse(503, b"down")])
+		sandbox = self._make(sandbox_session, failure_threshold=2, environment="sandbox")
+		sandbox.reset_circuit()
+
+		for _i in range(2):
+			with self.assertRaises(CarrierAPIError):
+				sandbox.request("POST", "https://kargo.test/x", operation="create_shipment")
+
+		with self.assertRaises(CarrierAPIError) as ctx:
+			sandbox.request("POST", "https://kargo.test/x", operation="create_shipment")
+		self.assertEqual(ctx.exception.carrier_error_code, "CIRCUIT_OPEN", "Sandbox devresi açılmadı")
+
+		production_session = FakeSession([FakeResponse(200, b"ok")])
+		production = self._make(production_session, failure_threshold=2, environment="production")
+		self.assertEqual(
+			production.request("GET", "https://kargo.test/x", operation="track").status_code,
+			200,
+			"Sandbox arızası CANLI gönderiyi kesti",
+		)
+
+	# -- BULGU 2: yazım farkı --------------------------------------------
+
+	def test_case_variants_share_one_circuit_end_to_end(self) -> None:
+		"""`ARAS` ve `aras` AYNI adapter'a çözülür — devre sayacı da tek olmalı."""
+		upper_session = FakeSession([FakeResponse(503, b"down")])
+		upper = CarrierHttpClient(
+			self.carrier.upper(),
+			session=upper_session,
+			circuit_breaker=True,
+			failure_threshold=2,
+			cooldown_sec=60,
+			allow_private_hosts=True,
+		)
+		upper.reset_circuit()
+		with self.assertRaises(CarrierAPIError):
+			upper.request("POST", "https://kargo.test/x", operation="create_shipment")
+
+		lower_session = FakeSession([FakeResponse(503, b"down")])
+		lower = self._make(lower_session, failure_threshold=2)
+		with self.assertRaises(CarrierAPIError):
+			lower.request("POST", "https://kargo.test/x", operation="create_shipment")
+
+		blocked = FakeSession([FakeResponse(200, b"ok")])
+		with self.assertRaises(CarrierAPIError) as ctx:
+			self._make(blocked, failure_threshold=2).request("GET", "https://kargo.test/x", operation="track")
+		self.assertEqual(ctx.exception.carrier_error_code, "CIRCUIT_OPEN", "Arıza sayacı bölündü")
+
+	def test_client_normalises_the_carrier_code(self) -> None:
+		client = CarrierHttpClient("  ArAs  ", circuit_breaker=False)
+		self.assertEqual(client.carrier_code, "aras")
+		self.assertEqual(client.breaker.carrier_code, "aras")
 
 	def test_notice_is_not_wasted_when_logging_is_impossible(self) -> None:
 		"""logger/provider yokken anahtar harcanıyordu — kimse yazamıyor, hak da yanıyordu."""
@@ -2314,7 +2637,42 @@ class TestCircuitBreakerBridge(_NoSleep):
 		self.assertTrue(client.breaker.claim_open_notice(), "Notice anahtarı boşuna harcandı")
 
 	def test_failed_notice_log_returns_the_claim(self) -> None:
-		"""Kazananın logu düşerse cooldown boyunca HİÇ satır kalmıyordu."""
+		"""Kazananın logu düşerse cooldown boyunca HİÇ satır kalmıyordu.
+
+		YAZICI SÖZLEŞMEYE UYAR: `write_integration_log` **asla fırlatmaz**,
+		başarısızlığı YALNIZ `None` dönüşüyle bildirir (bkz. `IntegrationLogWriter`
+		docstring'i). Bu test eskiden `RuntimeError` fırlatan bir yazıcı
+		kullanıyordu — yani sözleşmeyi İHLAL EDEN bir yazıcıya özgü davranışı
+		kilitliyordu ve üretimdeki tek gerçek başarısızlık kanalını (dönüş değeri)
+		hiç sınamıyordu. Ölçüldü: `_log` o kanalı okumadığı için `written` daima
+		True dönüyor, `release_open_notice()` dalı ERİŞİLEMEZ kalıyordu.
+
+		İstisna dalı KORUNUR — `test_failed_notice_log_returns_the_claim_on_exception`.
+		"""
+		calls: list[int] = []
+
+		def failing_logger(**_kwargs: Any) -> str | None:
+			calls.append(1)
+			return None  # Sözleşme: yazılamadı.
+
+		session = FakeSession([FakeResponse(503, b"down")])
+		client = self._make(session, failure_threshold=1, provider=SEEDED_PROVIDER, logger=failing_logger)
+		client.reset_circuit()
+
+		with self.assertRaises(CarrierAPIError):
+			client.request("POST", "https://kargo.test/x", operation="create_shipment")
+		with self.assertRaises(CarrierAPIError):
+			client.request("POST", "https://kargo.test/x", operation="create_shipment")
+
+		self.assertTrue(calls, "Yazıcı hiç çağrılmadı — test yanlış şeyi ölçüyor")
+		self.assertTrue(client.breaker.claim_open_notice(), "Yazamayan kazanan anahtarı geri vermedi")
+
+	def test_failed_notice_log_returns_the_claim_on_exception(self) -> None:
+		"""SÖZLEŞME DIŞI (fırlatan) yazıcı da anahtarı geri verdirmeli.
+
+		`write_integration_log` fırlatmayacağını taahhüt ediyor ama enjeksiyon
+		noktası herhangi bir callable kabul ediyor; savunma dalı korunuyor.
+		"""
 
 		def exploding_logger(**_kwargs: Any) -> None:
 			raise RuntimeError("log DocType'i yok")
@@ -2329,6 +2687,53 @@ class TestCircuitBreakerBridge(_NoSleep):
 			client.request("POST", "https://kargo.test/x", operation="create_shipment")
 
 		self.assertTrue(client.breaker.claim_open_notice(), "Yazamayan kazanan anahtarı geri vermedi")
+
+	def test_successful_notice_log_keeps_the_claim(self) -> None:
+		"""Karşı kilit: yazıcı BAŞARILI olduğunda anahtar geri VERİLMEMELİ.
+
+		`_log` her zaman False dönseydi (dönüş değeri okunurken kutuplar
+		ters çevrilirse) cooldown başına tek satır garantisi çökerdi.
+		"""
+		records: list[dict[str, Any]] = []
+		session = FakeSession([FakeResponse(503, b"down")])
+		client = self._make(session, failure_threshold=1, provider=SEEDED_PROVIDER, logger=_Recorder(records))
+		client.reset_circuit()
+
+		with self.assertRaises(CarrierAPIError):
+			client.request("POST", "https://kargo.test/x", operation="create_shipment")
+		with self.assertRaises(CarrierAPIError):
+			client.request("POST", "https://kargo.test/x", operation="create_shipment")
+
+		self.assertFalse(client.breaker.claim_open_notice(), "Yazan kazanan anahtarı boşuna geri verdi")
+
+	def test_log_returns_false_when_the_writer_reports_failure(self) -> None:
+		"""BİRİM KİLİDİ: `_log`, yazıcının `None` dönüşünü OKUMALI.
+
+		Mutasyon `return written is not None` → `return True` bu testi düşürür;
+		eski kodda hiçbir test düşmüyordu.
+		"""
+		call = hc._Call(
+			method="GET",
+			url="https://kargo.test/x",
+			operation="track",
+			headers={},
+			payload=None,
+			params=None,
+			timeout=(1.0, 1.0),
+			policy=RetryPolicy(),
+			classify=None,
+			request_body=None,
+		)
+		written: list[dict[str, Any]] = []
+		client = CarrierHttpClient(
+			self.carrier, provider=SEEDED_PROVIDER, circuit_breaker=False, logger=lambda **_kw: None
+		)
+		self.assertFalse(client._log(call, succeeded=True), "None dönüşü 'yazıldı' sayıldı")  # noqa: SLF001
+
+		client_ok = CarrierHttpClient(
+			self.carrier, provider=SEEDED_PROVIDER, circuit_breaker=False, logger=_Recorder(written)
+		)
+		self.assertTrue(client_ok._log(call, succeeded=True), "Docname dönüşü 'yazılamadı' sayıldı")  # noqa: SLF001
 
 
 # ---------------------------------------------------------------------------

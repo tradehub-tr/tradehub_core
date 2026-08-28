@@ -21,6 +21,17 @@ GİZLİ BİLGİ SÖZLEŞMESİ:
 	gövdesinde, tarayıcı geçmişinde ve ara sunucu loglarında dolaşır. Panel
 	"••••• (tanımlı)" gösterip üzerine yazmayı teklif eder; okumaya ihtiyaç
 	duyduğunda bilinçli bir eylemle ister.
+
+	Gizli bilgiyi DEĞİŞTİRMEK de aynı ağırlıkta: `carrier_credential.manage`
+	capability'si + HIGH severity denetim kaydı (`carrier_account.write_secret`).
+
+YAZAN UÇLAR YALNIZ POST:
+	Frappe `@frappe.whitelist()` varsayılanı GET'i de kabul eder, ama GET
+	isteğinin sonunda transaction'ı ROLLBACK eder (`frappe.app.UNSAFE_HTTP_METHODS`
+	yalnız POST/PUT/DELETE/PATCH içerir). Ölçüldü (2026-08-28): üç yazma ucu
+	GET'te `ok: true` dönüp yazmayı sessizce geri alıyor, `reveal_carrier_secret`
+	ise sırrı döndürüp DENETİM SATIRINI geri alıyordu. Dördü de `methods=["POST"]`
+	ile kilitlendi.
 """
 
 from __future__ import annotations
@@ -32,6 +43,7 @@ from frappe import _
 
 from tradehub_core.logistics.api_utils import logistics_endpoint, ok
 from tradehub_core.logistics.constants import CREDENTIAL_SECRET_FIELDS
+from tradehub_core.logistics.exceptions import CapabilityRequiredError
 
 #: Değerleri asla liste/detay yanıtına konmayan alanlar.
 #:
@@ -53,6 +65,22 @@ CARRIER_ACCOUNT_FIELDS: tuple[str, ...] = (
 	"base_url",
 	"token_expiry",
 )
+
+#: Panel "değeri gizli" göstermek için kullandığı maske karakterleri.
+#:
+#: ÖLÇÜLDÜ (denetim 2026-08-28): panel `•••••` gösteriyor; kullanıcı alana
+#: dokunmadan formu kaydettiğinde bu metin geri gönderiliyordu ve
+#: `save_carrier_account` yalnız `None`/`""` değerini "dokunma" saydığı için
+#: gerçek sır `'••••••••'` ile EZİLİYORDU (`get_password()` sonrası ölçüldü).
+#: `'*'*8` bu tuzağa düşmüyordu — ama yalnız Frappe'nin kendi
+#: `is_dummy_password` (tamamı-yıldız) koruması sayesinde; yani koruma tek bir
+#: maske karakterine bağlıydı. `'…'` de aynı şekilde sızıyordu.
+#:
+#: `logistics/integration/secrets.py::is_password_placeholder` BİLEREK
+#: genişletilmedi: orası Frappe'nin `Password` sütununa yazdığı yer tutucuyu
+#: (tamamı yıldız) tanımak içindir ve `collect_secret_values`'ın sözleşmesi
+#: buna dayanır. Buradaki soru farklı: "panelin gösterdiği maske geri mi geldi".
+_MASK_CHARACTERS: frozenset[str] = frozenset("*•●·…-")
 
 #: Panelin gösterdiği ayar alanları
 SETTINGS_FIELDS: tuple[str, ...] = (
@@ -135,14 +163,44 @@ def get_carrier_account(name: str) -> dict:
 	return ok(_serialize_account(doc))
 
 
-@frappe.whitelist()
+def _is_secret_noop(value: Any) -> bool:
+	"""Gizli alana gelen bu değer "dokunma" anlamına mı geliyor?
+
+	İki durum "dokunma"dır:
+
+		* boş değer (`None` / `""`) — panel formu alanı hiç doldurmamıştır
+		* YALNIZ maske karakterlerinden oluşan metin — panelin gösterdiği
+		  `•••••` kullanıcı dokunmadan geri gönderilmiştir
+
+	İkincisi olmadan gerçek sır maskeyle EZİLİYORDU (bkz. `_MASK_CHARACTERS`).
+	`str` olmayan değerler (ör. sayı) maske olamaz; yazma olarak geçer.
+	"""
+	if value in (None, ""):
+		return True
+	return isinstance(value, str) and set(value) <= _MASK_CHARACTERS
+
+
+@frappe.whitelist(methods=["POST"])
 @logistics_endpoint()
 def save_carrier_account(name: str | None = None, values: dict | None = None) -> dict:
 	"""Taşıyıcı hesabı oluşturur veya günceller.
 
-	Gizli alanlar YAZILABİLİR ama okunamaz. Boş string gönderilen gizli alan
-	"değiştirme" olarak yorumlanır — panel formu her kaydettiğinde mevcut
-	secret'ı silmesin diye.
+	YALNIZ POST: `@frappe.whitelist()` varsayılanı GET'i de kabul ediyordu ve
+	Frappe GET isteğinin sonunda ROLLBACK yapıyor (`frappe.app.UNSAFE_HTTP_METHODS`
+	içinde GET YOK) — uç `ok: true` dönüyor ama yazma geri alınıyordu; sessiz
+	no-op (ölçüldü 2026-08-28). Panel zaten POST kullanıyor
+	(`admin-panel/frontend/src/api/logistics.js::logisticsPost`).
+
+	Gizli alanlar YAZILABİLİR ama okunamaz. Boş ya da maskeden ibaret gönderilen
+	gizli alan "değiştirme" olarak yorumlanır — panel formu her kaydettiğinde
+	mevcut secret'ı silmesin/ezmesin diye (bkz. `_is_secret_noop`).
+
+	GİZLİ ALAN YAZIMI AYRI KAPIDIR: en az bir secret gerçekten değişiyorsa
+	`carrier_credential.manage` capability'si ŞART ve işlem HIGH severity bir
+	`Authorization Decision Log` satırı bırakır. Öncesinde okuma (`reveal`) hem
+	capability hem denetim kaydı istiyordu, YAZMA ise ikisini de istemiyordu —
+	sırrı değiştirmek okumaktan daha az izlenebilirdi. Secret'a dokunmayan
+	normal kayıtlar eski davranışta kalır (capability sorulmaz).
 	"""
 	values = values or {}
 	writable = {*CARRIER_ACCOUNT_FIELDS, *SECRET_FIELDS} - {"name"}
@@ -154,17 +212,42 @@ def save_carrier_account(name: str | None = None, values: dict | None = None) ->
 
 	doc = frappe.get_doc("Carrier Account", name) if name else frappe.new_doc("Carrier Account")
 
+	written_secrets: list[str] = []
 	for fieldname, value in values.items():
-		# Boş gizli alan = "dokunma"; aksi halde her form kaydı secret'ı silerdi
-		if fieldname in SECRET_FIELDS and value in (None, ""):
+		if fieldname in SECRET_FIELDS and _is_secret_noop(value):
 			continue
+		if fieldname in SECRET_FIELDS:
+			written_secrets.append(fieldname)
 		doc.set(fieldname, value)
 
+	if written_secrets:
+		_assert_credential_manage()
+
 	doc.save() if name else doc.insert()
+
+	if written_secrets:
+		# Kayıttan SONRA yazılıyor: yeni hesapta `doc.name` insert'ten önce yok.
+		# Denetim satırı yazılamazsa `frappe.throw` → `logistics_endpoint._fail`
+		# → `frappe.db.rollback()`; yani secret yazımı da geri alınır (fail-closed).
+		_log_secret_write(doc, sorted(written_secrets))
+
 	return ok(_serialize_account(doc))
 
 
-@frappe.whitelist()
+def _assert_credential_manage() -> None:
+	"""Gizli alan yazımı için `carrier_credential.manage` capability'sini şart koşar.
+
+	ÖLÇÜLDÜ (2026-08-28): capability `LOGISTICS_CAPABILITIES`'te İLAN ediliyordu
+	ama hiçbir yerde ZORLANMIYORDU — yalnız seed patch'lerinde geçiyordu.
+	"""
+	from tradehub_core.utils.permission_resolver import has_capability
+
+	capability = "carrier_credential.manage"
+	if not has_capability(frappe.session.user, capability):
+		raise CapabilityRequiredError(_("Bu işlem için gerekli yetkiniz yok: {0}").format(capability))
+
+
+@frappe.whitelist(methods=["POST"])
 @logistics_endpoint(capability="view.carrier_secret")
 def reveal_carrier_secret(name: str, secret_field: str) -> dict:
 	"""Tek bir gizli alanın değerini döndürür — capability + denetim kaydıyla.
@@ -172,6 +255,12 @@ def reveal_carrier_secret(name: str, secret_field: str) -> dict:
 	Bu endpoint bilinçli olarak dar: tek kayıt, tek alan. Toplu okuma yolu yok.
 	Her çağrı `Authorization Decision Log`'a ALLOW olarak yazılır; kimin hangi
 	credential'ı ne zaman gördüğü izlenebilir olmalı.
+
+	YALNIZ POST: `@frappe.whitelist()` varsayılanı GET'e de açıktı ve Frappe GET
+	isteğinin sonunda ROLLBACK yapıyor (`frappe.app.UNSAFE_HTTP_METHODS` içinde
+	GET YOK). Yani `GET .../reveal_carrier_secret?name=X&secret_field=api_key`
+	düz metin sırrı döndürüyor, denetim satırı ise geri alınıyordu — İZSİZ
+	kimlik bilgisi ifşası (ölçüldü 2026-08-28). Panel zaten POST kullanıyor.
 	"""
 	if secret_field not in SECRET_FIELDS:
 		frappe.throw(_("Görüntülenebilir bir gizli alan değil: {0}").format(secret_field))
@@ -185,19 +274,28 @@ def reveal_carrier_secret(name: str, secret_field: str) -> dict:
 	return ok({"name": doc.name, "field": secret_field, "value": value})
 
 
-def _log_secret_access(doc: frappe.Document, secret_field: str) -> None:
-	"""Credential görüntülemeyi denetim kaydına yazar (FAIL-CLOSED).
+def _write_credential_audit_row(
+	doc: frappe.Document,
+	action: str,
+	context: dict[str, Any],
+) -> str | None:
+	"""Credential denetim satırını yazar; ADL adını, yazılamadıysa `None` döndürür.
 
-	Denetim kaydı yazılamazsa secret DÖNDÜRÜLMEZ (denetim 2026-08-20):
-	credential ifşası iz bırakmadan gerçekleşemez — "best-effort" davranış
-	(hata yut, secret'ı yine dön) izlenemeyen erişim yolu açıyordu.
+	`audit.log_decision` BEST-EFFORT'tür: istisnayı KENDİSİ yutup `None` döner
+	(bkz. `audit/log.py`). Bu yüzden onu try/except'e almak hiçbir şey yakalamaz
+	— karar DÖNÜŞ DEĞERİNE bakılarak verilmek zorunda. `log.py` paylaşılan bir
+	modül olduğu için düzeltme burada, ÇAĞIRAN tarafında yapılıyor.
+
+	try/except yine de duruyor: `log_decision`'ın import'u ya da imzası
+	patlarsa (istisna `log_decision`'ın kendi gövdesine hiç girmez) yine
+	`None`'a düşmeliyiz.
 	"""
 	try:
 		from tradehub_core.audit import log as audit
 
-		audit.log_decision(
+		return audit.log_decision(
 			actor=frappe.session.user,
-			action="carrier_account.reveal_secret",
+			action=action,
 			decision=audit.DECISION_ALLOW,
 			layer=audit.LAYER_L2,
 			object_doctype="Carrier Account",
@@ -205,16 +303,49 @@ def _log_secret_access(doc: frappe.Document, secret_field: str) -> None:
 			tenant=doc.seller_profile,
 			rule_id="logistics.carrier_secret_access",
 			severity=audit.SEVERITY_HIGH,
-			context={"field": secret_field},
+			context=context,
 		)
-	except Exception:  # noqa: BLE001 — fail-closed: log_error + throw, secret dönmez
-		frappe.log_error(
-			f"Credential erişim kaydı yazılamadı: {doc.name}/{secret_field}",
-			"logistics_admin.reveal_carrier_secret",
-		)
-		frappe.throw(
-			_("Denetim kaydı yazılamadığı için gizli değer görüntülenemedi. Lütfen tekrar deneyin.")
-		)
+	except Exception:  # noqa: BLE001 — fail-closed: çağıran throw eder
+		return None
+
+
+def _log_secret_access(doc: frappe.Document, secret_field: str) -> None:
+	"""Credential görüntülemeyi denetim kaydına yazar (FAIL-CLOSED).
+
+	Denetim kaydı yazılamazsa secret DÖNDÜRÜLMEZ (denetim 2026-08-20):
+	credential ifşası iz bırakmadan gerçekleşemez — "best-effort" davranış
+	(hata yut, secret'ı yine dön) izlenemeyen erişim yolu açıyordu.
+
+	ÖLÇÜLDÜ (2026-08-28) — vaat uygulanmıyordu: `log_decision` istisnayı kendisi
+	yutup `None` döndüğü için buradaki try/except HİÇ tetiklenmiyordu; ADL
+	insert'i kırıkken uç `{'ok': True, ... 'value': 'REALSECRETKEY123456'}`
+	döndü ve ADL sayacı artmadı. Artık dönüş değeri kontrol ediliyor.
+	"""
+	if _write_credential_audit_row(doc, "carrier_account.reveal_secret", {"field": secret_field}):
+		return
+
+	frappe.log_error(
+		f"Credential erişim kaydı yazılamadı: {doc.name}/{secret_field}",
+		"logistics_admin.reveal_carrier_secret",
+	)
+	frappe.throw(_("Denetim kaydı yazılamadığı için gizli değer görüntülenemedi. Lütfen tekrar deneyin."))
+
+
+def _log_secret_write(doc: frappe.Document, secret_fields: list[str]) -> None:
+	"""Credential DEĞİŞTİRMEYİ denetim kaydına yazar (FAIL-CLOSED).
+
+	Okumanın simetriği. Yalnız ALAN ADLARI yazılır — değer ASLA denetim
+	satırına konmaz; ADL `context` alanı maskesizdir ve sırrı oraya taşımak
+	ifşa yüzeyini büyütürdü.
+	"""
+	if _write_credential_audit_row(doc, "carrier_account.write_secret", {"fields": secret_fields}):
+		return
+
+	frappe.log_error(
+		f"Credential yazma kaydı yazılamadı: {doc.name}/{','.join(secret_fields)}",
+		"logistics_admin.save_carrier_account",
+	)
+	frappe.throw(_("Denetim kaydı yazılamadığı için gizli değer kaydedilemedi. Lütfen tekrar deneyin."))
 
 
 # ---------------------------------------------------------------------------
@@ -245,10 +376,14 @@ def get_logistics_settings() -> dict:
 	)
 
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 @logistics_endpoint()
 def update_logistics_settings(values: dict) -> dict:
-	"""Ayar alanlarını günceller (feature flag'ler ayrı endpoint'ten)."""
+	"""Ayar alanlarını günceller (feature flag'ler ayrı endpoint'ten).
+
+	YALNIZ POST: GET isteğinin sonunda Frappe ROLLBACK yaptığı için uç GET'te
+	`ok: true` dönüp yazmayı sessizce geri alıyordu (ölçüldü 2026-08-28).
+	"""
 	unknown = set(values or {}) - set(SETTINGS_FIELDS)
 	if unknown:
 		frappe.throw(
@@ -262,10 +397,14 @@ def update_logistics_settings(values: dict) -> dict:
 	return ok({fieldname: doc.get(fieldname) for fieldname in SETTINGS_FIELDS})
 
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 @logistics_endpoint()
 def set_feature_flag(flag: str, enabled: int) -> dict:
 	"""Tek bir feature flag'i açar/kapatır.
+
+	YALNIZ POST: GET isteğinin sonunda Frappe ROLLBACK yaptığı için uç GET'te
+	`ok: true` dönüp bayrak değişikliğini sessizce geri alıyordu (ölçüldü
+	2026-08-28).
 
 	Ayrı endpoint olmasının nedeni: bayraklar tek bir JSON alanında duruyor;
 	tüm sözlüğü gönderip yazmak eşzamanlı iki yöneticinin birbirinin değişikliğini

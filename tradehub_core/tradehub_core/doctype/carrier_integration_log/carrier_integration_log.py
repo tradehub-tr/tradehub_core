@@ -17,11 +17,22 @@ KARAR — `created_at` alanı AÇILMADI:
 	üreteç bu varlık için DocType'a bakmıyor — bir sapma raporlanmıyor. Varlık
 	provisional'dan çıkarılırken bu eşleme `contract.py`'ye yazılmalı.
 
-APPEND-ONLY:
+APPEND-ONLY — ve artık DELETE-ONLY-BY-RETENTION:
 	Hiçbir role `create`/`write` DocPerm'i verilmedi ve DocType `in_create`
 	işaretli — kayıt yalnız `logistics/integration/log.py` üzerinden
 	(`ignore_permissions=True`) oluşur. `validate` bunu bir kez daha kapatır ki
 	`frappe.get_doc(...).save()` çağıran yeni bir kod yolu sessizce geçmesin.
+
+	`delete` DocPerm'i de KALDIRILDI (denetim 2026-08-28). Öncesinde docstring
+	"append-only" diyordu ama System Manager satırında `"delete": 1` duruyordu;
+	ÖLÇÜLDÜ: gerçek bir System Manager kullanıcısıyla `frappe.client.delete`
+	denetim izinden bir satırı SİLDİ ve arkasında hiçbir `Authorization Decision
+	Log` kaydı kalmadı — iddia ile gerçek çelişiyordu.
+
+	Saklama işi (`logistics/jobs/integration_log_retention.py`) bundan
+	ETKİLENMEZ: temizliği `frappe.db.delete` ile, DocPerm katmanına hiç
+	uğramadan yapar. Silmenin tek meşru yolu artık saklama politikasıdır ve
+	politikanın alt sınırı `Logistics Settings.validate` ile korunur.
 """
 
 from __future__ import annotations

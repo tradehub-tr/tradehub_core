@@ -312,6 +312,22 @@ INTEGRATION_LOG_OPERATION_ORDER: tuple[str, ...] = (
 
 INTEGRATION_LOG_DIRECTION_ORDER: tuple[str, ...] = ("outbound", "inbound")
 
+# Entegrasyon logu saklama suresinin ALT SINIRI (gun). `0` "saklama kapali"
+# demektir ve o anlam korunur; `0` disindaki her deger bu sinirin altina
+# inemez.
+#
+# OLCULDU (denetim 2026-08-28): `Logistics Settings.validate` yalnizca desi
+# bolenini dogruluyordu; Marketplace Admin `integration_log_retention_days`
+# alanini `1` (hatta `-5`) yapabiliyordu ve deger DB'ye yaziliyordu. `1` gun
+# demek, ertesi gunku saklama kosumunun denetim/entegrasyon izini imha etmesi
+# demek — silme yolunun DocPerm'i kapatildigi icin (bkz.
+# `carrier_integration_log.py` docstring) geriye kalan TEK silme yolu budur ve
+# bir alt sinira baglanmak zorunda.
+#
+# 30 gun: bir olayin fark edilip incelenmesi icin en az bir aylik pencere
+# birakir; ust sinir YOK (saklamayi uzatmak guvenli tarafta).
+MIN_INTEGRATION_LOG_RETENTION_DAYS: int = 30
+
 
 # ---------------------------------------------------------------------------
 # Kimlik bilgisi alanlari — deger-tabanli redaksiyonun TEK KAYNAGI

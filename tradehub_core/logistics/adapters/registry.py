@@ -1,7 +1,20 @@
 # Copyright (c) 2026, TradeHub Team and contributors
 # For license information, please see license.txt
 
-"""Carrier adapter registry — yeni tasiyici ekleme plug-and-play."""
+"""Carrier adapter registry — yeni tasiyici ekleme plug-and-play.
+
+TASIYICI KODU NORMALIZASYONU BURADA TEK OTORITEDIR (`normalize_carrier_code`).
+Kural bu modulde `.strip().lower()` olarak dogdu ama YALNIZ burada uygulaniyordu;
+dayaniklilik katmani ham dizeyi kullaniyordu. Olculdu (konteyner):
+
+	'ARAS' -> tc:logistics:circuit:ARAS-5d6f8c3b533da979:failures
+	'aras' -> tc:logistics:circuit:aras-91c067132b137529:failures   (AYRI devre)
+
+Iki yazim AYNI adapter'a cozuluyor ama AYRI devre sayaci tutuyordu: ariza sayaci
+bolunuyor, esik dolmuyor ve coken tasiyiciya karsi devre HIC acilmiyordu. Bu
+yuzden kural artik tek bir public fonksiyonda; `resilience/circuit_breaker.py`
+ve `adapters/http_client.py` onu cagirir.
+"""
 
 from __future__ import annotations
 
@@ -12,7 +25,29 @@ from frappe import _
 from tradehub_core.logistics.adapters.base import BaseCarrierAdapter
 from tradehub_core.logistics.exceptions import CarrierNotFoundError
 
+__all__ = [
+	"get_adapter",
+	"is_carrier_registered",
+	"list_registered_carriers",
+	"normalize_carrier_code",
+	"register_carrier",
+]
+
 _CARRIER_REGISTRY: dict[str, type[BaseCarrierAdapter]] = {}
+
+
+def normalize_carrier_code(carrier_code: str | None) -> str:
+	"""Tasiyici kodunu KANONIK bicimine indirger — TEK OTORITE.
+
+	Bosluklar kirpilir ve kod kucuk harfe cevrilir. Fonksiyon TOTAL'dir: bos ya
+	da `None` girdi bos dize dondurur, ASLA firlatmaz. Cagiranlarin bos kod
+	dogrulamasi kendi hata mesajlarina aittir (`register_carrier`).
+
+	Ayni kural devre kesici anahtarinda da uygulanir; kopyalanmis bir
+	normalizasyon iki katmani sessizce ayirir (olculmus ariza — modul
+	docstring'i).
+	"""
+	return str(carrier_code or "").strip().lower()
 
 
 def register_carrier(
@@ -35,7 +70,7 @@ def register_carrier(
 	if not isinstance(carrier_code, str) or not carrier_code.strip():
 		raise ValueError(_("carrier_code bos olamaz."))
 
-	carrier_code = carrier_code.strip().lower()
+	carrier_code = normalize_carrier_code(carrier_code)
 
 	if not (isinstance(adapter_class, type) and issubclass(adapter_class, BaseCarrierAdapter)):
 		raise TypeError(
@@ -75,7 +110,7 @@ def get_adapter(
 	Raises:
 		CarrierNotFoundError: carrier_code kayitli degilse (HTTP 404).
 	"""
-	carrier_code = carrier_code.strip().lower()
+	carrier_code = normalize_carrier_code(carrier_code)
 
 	if carrier_code not in _CARRIER_REGISTRY:
 		raise CarrierNotFoundError(
@@ -97,14 +132,14 @@ def list_registered_carriers() -> list[dict[str, Any]]:
 	"""
 	result: list[dict[str, Any]] = []
 	for code, adapter_class in sorted(_CARRIER_REGISTRY.items()):
-		result.append({
-			"carrier_code": code,
-			"name": getattr(adapter_class, "name", code),
-			"display_name": getattr(adapter_class, "display_name", code),
-			"capabilities": [
-				cap.value for cap in getattr(adapter_class, "capabilities", set())
-			],
-		})
+		result.append(
+			{
+				"carrier_code": code,
+				"name": getattr(adapter_class, "name", code),
+				"display_name": getattr(adapter_class, "display_name", code),
+				"capabilities": [cap.value for cap in getattr(adapter_class, "capabilities", set())],
+			}
+		)
 	return result
 
 
@@ -117,4 +152,4 @@ def is_carrier_registered(carrier_code: str) -> bool:
 	Returns:
 		True ise kayitli, False ise degil.
 	"""
-	return carrier_code.strip().lower() in _CARRIER_REGISTRY
+	return normalize_carrier_code(carrier_code) in _CARRIER_REGISTRY
