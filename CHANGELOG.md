@@ -1,3 +1,22 @@
+## [v1.13.1-alpha.51] - 2026-08-28 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Duzeltildi
+- fix(lojistik): kargo entegrasyonunda güvenlik ve kayıt düzeltmeleri (@boraydeger32)
+  - Taşıyıcı şifrelerini gösteren ve değiştiren işlemler artık yalnız güvenli yöntemle çağrılabiliyor. Önceden bu bilgiler, kimin görüntülediği kayda geçmeden okunabiliyordu.
+  - Görüntüleme ve değiştirme, denetim kaydı yazılamazsa artık hiç gerçekleşmiyor; iz bırakmayan erişim mümkün değil.
+  - Şifre değiştirmek artık ayrı bir yetki istiyor ve kaydediliyor; daha önce yalnız görüntüleme izleniyordu.
+  - Panelde maskeli görünen bir şifre yeniden kaydedildiğinde gerçek değeri siliyordu; artık korunuyor.
+  - Satıcı tarafındaki bir kullanıcı, hesabı eksik tanımlıysa platformun tüm entegrasyon kayıtlarını görebiliyordu.
+  - Entegrasyon kayıtları panelden silinemiyor (silme yalnız otomatik temizliğin işi) ve saklama süresi 30 günün altına indirilemiyor.
+  - Kayıt yazılamadığında sistem bunu başarı sayıyor, arıza anında hiç kayıt kalmamasına yol açıyordu.
+  - Aynı kargo firması, adı farklı yazıldığında iki ayrı arıza sayacı tutuyordu; bu yüzden çöken bir firmaya karşı koruma hiç devreye girmiyordu. Tek sayaçta birleştirildi.
+  - Test ortamındaki bir arıza canlı ortamın korumasını kapatıyordu.
+  - Firma yeniden yanıt vermeye başladığında koruma açılamıyordu.
+  - Arıza sürerken uyarılar susuyor, seyrek arızada ise gereksiz tekrarlıyordu.
+
+---
 ## [v1.13.1-alpha.50] - 2026-08-28 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
