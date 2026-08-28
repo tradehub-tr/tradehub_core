@@ -44,6 +44,7 @@ from typing import Any
 from urllib.parse import urlsplit
 
 import frappe
+from frappe.utils import cint
 
 from tradehub_core.seo.i18n import CONTENT_LANGS, DEFAULT_LANG, resolve_content_field
 
@@ -85,11 +86,15 @@ def _temiz_url(file_url: str) -> str:
 	return (file_url or "").split("?")[0].strip()
 
 
-def _asset_columns() -> list[str]:
+def _asset_columns(*, include_text: bool = False) -> list[str]:
 	"""Okunacak `File` kolonları — kolon yoksa sorguya girmez.
 
 	Yama koşmamış bir site'ta (ör. test ortamı, eski kurulum) sorgu patlamasın:
 	`th_media_caption` ve dil kolonları `v15_9_37` ile geliyor.
+
+	`include_text=True` yalnız tekil okuma (`fields_for`) çağırır: `th_media_extracted_text`
+	Long Text — toplu yolda (`fields_for_many`, `audit_batch`, sitemap ön-yükleme) 100+
+	satırda N×64KB taşır. `page_count` (Int) küçük olduğu için ayrım gerekmiyor, her zaman gelir.
 	"""
 	adaylar = [f"th_media_{alan}" for alan in SINGLE]
 	for alan in TRANSLATABLE:
@@ -104,6 +109,13 @@ def _asset_columns() -> list[str]:
 	# fiziksel gerçeği. SINGLE'a koymamak bilinçli — set_asset_fields'tan
 	# yazılamazlar (poster'ı/süreyi yalnız üretim hattı yazar).
 	adaylar.extend(("th_media_duration", "th_media_poster_url"))
+	# Doküman (PDF vb.) sistem alanları — sayfa sayısı ve çıkarılan metin aynı
+	# desen: SEO metni değil, üretim hattının çıkardığı fiziksel/otomatik
+	# gerçek. SINGLE'a koymamak bilinçli — set_asset_fields'tan yazılamazlar
+	# (yalnız üretim hattı/patch yazar). `page_count` küçük (Int) — toplu yolda kalır.
+	adaylar.append("th_media_page_count")
+	if include_text:
+		adaylar.append("th_media_extracted_text")
 	return [k for k in adaylar if frappe.db.has_column("File", k)]
 
 
@@ -126,7 +138,7 @@ def _override_row(file_url: str, ref_doctype: str, ref_name: str, ref_field: str
 	return satir or {}
 
 
-def _asset_row(file_url: str, store: str | None = None) -> dict:
+def _asset_row(file_url: str, store: str | None = None, *, include_text: bool = False) -> dict:
 	"""Varlık varsayılanı — aynı adrese ait `File` kayıtlarından biri.
 
 	Aynı içerik birden çok mağazaya ait olabiliyor (içerik-adresli adlandırma;
@@ -134,8 +146,11 @@ def _asset_row(file_url: str, store: str | None = None) -> dict:
 	kaydın okunacağı önemli: `store` verilirse o mağazanın kaydı tercih edilir,
 	yoksa DOLU alt metni olan ilk kayıt — boş bir ikiz yüzünden dolu metin
 	kaybolmasın diye.
+
+	`include_text` — bkz. `_asset_columns` docstring: tekil okuma (`fields_for`)
+	`th_media_extracted_text`'i ister, toplu yol istemez.
 	"""
-	kolonlar = _asset_columns()
+	kolonlar = _asset_columns(include_text=include_text)
 	if not kolonlar:
 		return {}
 	satirlar = frappe.get_all(
@@ -214,7 +229,7 @@ def fields_for(
 	if not url:
 		return {}
 
-	varlik = _asset_row(url, store=store)
+	varlik = _asset_row(url, store=store, include_text=True)
 	ezme = _override_row(url, ref_doctype, ref_name, ref_field)
 	# Birleştirme `_birlestir`'de: toplu okuma da aynı yolu kullanıyor, iki
 	# yerde iki farklı katman sırası doğmasın.
@@ -290,6 +305,13 @@ def _birlestir(url: str, varlik: dict, lang: str, ezme: dict | None = None) -> d
 	sonuc["height"] = varlik.get("th_media_height") or 0
 	sonuc["duration"] = varlik.get("th_media_duration") or 0
 	sonuc["poster_url"] = varlik.get("th_media_poster_url") or ""
+	# `doc_meta.apply` başarısız çıkarımda -1 yazıyor (anti-açlık damgası,
+	# `backfill_docs` aynı okunamayan dosyayı yeniden seçmesin diye — İÇ
+	# sözleşme). Dışarıya (`fields_for`/`fields_for_many` tüketicileri: panel,
+	# JSON-LD) negatif sayfa sayısı ASLA sızmamalı — `max(0, ...)` nöbetçiyi
+	# burada, tek yerde durduruyor.
+	sonuc["page_count"] = max(0, cint(varlik.get("th_media_page_count")))
+	sonuc["extracted_text"] = varlik.get("th_media_extracted_text") or ""
 	sonuc["overridden"] = bool(ezme)
 	sonuc["localized"] = {
 		alan: {

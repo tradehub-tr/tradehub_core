@@ -387,6 +387,12 @@ doc_events = {
 			# adaptörüne bağla. Local kipte sabit bir ayar kontrolüyle no-op;
 			# mirror kipte commit-sonrası long kuyruğa yalnız ObjectRef gider.
 			"tradehub_core.media.mirror_runtime.maybe_mirror_on_insert",
+			# Dosya Yöneticisi SEO (Task 2) — PDF/Office doküman çıkarımı.
+			# EN SONA eklendi: bu bir SEO zenginleştirmesi, yukarıdaki güvenlik/
+			# depolama kancalarının hiçbirinin çıktısına bağlı değil. Yalnız
+			# public + `doc_meta.DOC_UZANTILAR` uzantılı dosyada `media-maint`
+			# kuyruğuna iş atar; diğer her dosyada ilk satırda döner.
+			"tradehub_core.media.doc_meta.maybe_extract_on_insert",
 		],
 		# Yerel File silme yolu StorageAdapter.delete'i kullanmaz. Mirror açıksa
 		# ikincil nesneyi de ancak commit'ten sonra sil; rollback S3'e yansımasın.

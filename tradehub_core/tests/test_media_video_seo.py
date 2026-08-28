@@ -23,6 +23,19 @@ def _gorunur_ilan() -> dict | None:
 	return satirlar[0] if satirlar else None
 
 
+def _iki_gorunur_ilan() -> list[dict]:
+	"""Vitrinde görünen İLK İKİ ilan — dedup testi için (aynı `video_url`'i iki
+	ilanın paylaşması senaryosu tek ilanla kurulamaz)."""
+	return frappe.db.sql(
+		"""
+		SELECT l.name FROM `tabListing` l
+		WHERE l.storefront_visible = 1 AND l.status = 'Active'
+		ORDER BY l.name ASC LIMIT 2
+		""",
+		as_dict=True,
+	)
+
+
 class TestVideoSeoSchema(FrappeTestCase):
 	def test_video_kolonlari_var(self):
 		for kolon in (
@@ -150,6 +163,41 @@ class TestVideoObject(FrappeTestCase):
 		self.assertEqual(obj["embedUrl"], "https://www.youtube.com/embed/abc")
 		self.assertNotIn("contentUrl", obj)
 		self.assertNotIn("duration", obj)  # 0 süre basılmaz
+
+	def test_seek_to_action_url_template_doluysa_potential_action_eklenir(self):
+		"""Task 3 — koordinatör ruling: `seek_to_action_url_template` verilirse
+		`potentialAction` şu ŞEKİLDE eklenir (spec brief §2, birebir)."""
+		from tradehub_core.seo.schema_builder import build_video_object
+
+		obj = build_video_object(
+			{"title": "Video", "poster_url": "/files/p.jpg"},
+			"https://istoc.localhost",
+			content_url="/files/v.mp4",
+			seek_to_action_url_template="https://istoc.localhost/medya/v/ornek?t={seek_to_second_number}",
+		)
+		self.assertEqual(
+			obj["potentialAction"],
+			{
+				"@type": "SeekToAction",
+				"target": {
+					"@type": "EntryPoint",
+					"urlTemplate": "https://istoc.localhost/medya/v/ornek?t={seek_to_second_number}",
+				},
+				"startOffset-input": "required name=seek_to_second_number",
+			},
+		)
+
+	def test_seek_to_action_url_template_bosken_anahtar_yok(self):
+		"""Geriye uyumlu — kwarg verilmezse `potentialAction` hiç girmez, mevcut
+		çağıranlar (ör. `compose_for_listing`) kırılmasın."""
+		from tradehub_core.seo.schema_builder import build_video_object
+
+		obj = build_video_object(
+			{"title": "Video", "poster_url": "/files/p.jpg"},
+			"https://istoc.localhost",
+			content_url="/files/v.mp4",
+		)
+		self.assertNotIn("potentialAction", obj)
 
 
 class TestVideoSitemap(FrappeTestCase):
@@ -684,3 +732,212 @@ class TestVideoAuditVeUclar(FrappeTestCase):
 			frappe.db.get_value("File", ikinci.name, "th_media_poster_url"),
 			"",
 		)
+
+
+class TestSitemapWatchEntries(FrappeTestCase):
+	"""Görev 5 — sitemap'e watch page'lerin (`/medya/v/<slug>`) KENDİ `<url>` girdileri.
+
+	`_watch_entries_for_rows` (`_entries_for_rows`'un parçası), `watch_indexable`
+	(W3 — SEO kararı + poster + görünür ilan, `api/media_public.py`) True VE
+	`fields.slug` dolu olan her ilan videosu için EK bir girdi üretir; gövdesi
+	`_video_entries_for_listing`'in ürettiği aynı `<video:video>` sözlüğü."""
+
+	def _video_dosyasi(self, file_name: str, **ekstra) -> "frappe.Document":
+		doc = frappe.get_doc(
+			{
+				"doctype": "File",
+				"file_name": file_name,
+				"is_private": 0,
+				"content": f"watch-sitemap-test-{file_name}".encode(),
+			}
+		)
+		doc.insert(ignore_permissions=True)
+		self.addCleanup(doc.delete, ignore_permissions=True)
+		if ekstra:
+			frappe.db.set_value("File", doc.name, ekstra, update_modified=False)
+		return doc
+
+	def test_indexable_slugli_video_watch_girdisi_uretir(self):
+		from tradehub_core.seo import sitemap_generator as sg
+
+		ilan = _gorunur_ilan()
+		if not ilan:
+			self.skipTest("Vitrinde görünen ilan yok — fixture kurulamaz.")
+
+		doc = self._video_dosyasi(
+			"watch-sitemap-indexable.mp4",
+			th_media_duration=10,
+			th_media_poster_url="/files/watch-sitemap-poster.jpg",
+			th_media_slug="watch-sitemap-indexable-slug",
+		)
+		eski_video_url = frappe.db.get_value("Listing", ilan["name"], "video_url")
+		frappe.db.set_value("Listing", ilan["name"], "video_url", doc.file_url, update_modified=False)
+		self.addCleanup(
+			lambda: frappe.db.set_value(
+				"Listing", ilan["name"], "video_url", eski_video_url, update_modified=False
+			)
+		)
+
+		row = {
+			"name": ilan["name"],
+			"slug": "ilgisiz-urun-slug",
+			"modified": "2020-01-01",
+			"video_url": doc.file_url,
+			"title": "Ürün",
+		}
+		girdiler = sg._entries_for_rows([row], sg.DOCTYPE_CONFIG["Listing"], "https://s")
+
+		watch_girdileri = [
+			g for g in girdiler if g["loc"] == "https://s/medya/v/watch-sitemap-indexable-slug"
+		]
+		self.assertEqual(len(watch_girdileri), 1)
+		self.assertTrue(watch_girdileri[0]["videos"])
+		self.assertEqual(
+			watch_girdileri[0]["videos"][0]["thumbnail_loc"],
+			"https://s/files/watch-sitemap-poster.jpg",
+		)
+
+	def test_gorunmez_ilan_watch_girdisi_uretmez(self):
+		"""İlan noindex/görünmez (storefront_visible=0) → watch W3'ün "görünür
+		ilan" bacağı düşer, girdi hiç üretilmez."""
+		from tradehub_core.seo import sitemap_generator as sg
+
+		ilan = _gorunur_ilan()
+		if not ilan:
+			self.skipTest("Vitrinde görünen ilan yok — fixture kurulamaz.")
+
+		doc = self._video_dosyasi(
+			"watch-sitemap-noindex.mp4",
+			th_media_duration=10,
+			th_media_poster_url="/files/watch-sitemap-noindex-poster.jpg",
+			th_media_slug="watch-sitemap-noindex-slug",
+		)
+		eski_video_url = frappe.db.get_value("Listing", ilan["name"], "video_url")
+		eski_gorunurluk = frappe.db.get_value("Listing", ilan["name"], "storefront_visible")
+		frappe.db.set_value(
+			"Listing",
+			ilan["name"],
+			{"video_url": doc.file_url, "storefront_visible": 0},
+			update_modified=False,
+		)
+		self.addCleanup(
+			lambda: frappe.db.set_value(
+				"Listing",
+				ilan["name"],
+				{"video_url": eski_video_url, "storefront_visible": eski_gorunurluk},
+				update_modified=False,
+			)
+		)
+
+		row = {
+			"name": ilan["name"],
+			"slug": "ilgisiz-urun-slug-2",
+			"modified": "2020-01-01",
+			"video_url": doc.file_url,
+			"title": "Ürün",
+		}
+		girdiler = sg._entries_for_rows([row], sg.DOCTYPE_CONFIG["Listing"], "https://s")
+
+		watch_girdileri = [g for g in girdiler if g["loc"].startswith("https://s/medya/v/")]
+		self.assertEqual(watch_girdileri, [])
+
+	def test_slug_bosken_watch_girdisi_uretmez(self):
+		"""Poster + görünür ilan tamam ama `th_media_slug` boş → girdi üretilmez
+		(brief koşulu: `fields.slug` dolu şartı AYRIca aranır)."""
+		from tradehub_core.seo import sitemap_generator as sg
+
+		ilan = _gorunur_ilan()
+		if not ilan:
+			self.skipTest("Vitrinde görünen ilan yok — fixture kurulamaz.")
+
+		doc = self._video_dosyasi(
+			"watch-sitemap-slugsuz.mp4",
+			th_media_duration=10,
+			th_media_poster_url="/files/watch-sitemap-slugsuz-poster.jpg",
+			# th_media_slug BİLEREK yok.
+		)
+		eski_video_url = frappe.db.get_value("Listing", ilan["name"], "video_url")
+		frappe.db.set_value("Listing", ilan["name"], "video_url", doc.file_url, update_modified=False)
+		self.addCleanup(
+			lambda: frappe.db.set_value(
+				"Listing", ilan["name"], "video_url", eski_video_url, update_modified=False
+			)
+		)
+
+		row = {
+			"name": ilan["name"],
+			"slug": "ilgisiz-urun-slug-3",
+			"modified": "2020-01-01",
+			"video_url": doc.file_url,
+			"title": "Ürün",
+		}
+		girdiler = sg._entries_for_rows([row], sg.DOCTYPE_CONFIG["Listing"], "https://s")
+
+		watch_girdileri = [g for g in girdiler if g["loc"].startswith("https://s/medya/v/")]
+		self.assertEqual(watch_girdileri, [])
+
+
+class TestSitemapWatchEntriesDedup(FrappeTestCase):
+	"""Düzeltme turu 1 — Critical: aynı `video_url` birden çok görünür ilanda
+	kullanılırsa `/medya/v/<slug>` girdisi TEK kez üretilmeli (ilk satır kazanır)."""
+
+	def _video_dosyasi(self, file_name: str, **ekstra) -> "frappe.Document":
+		doc = frappe.get_doc(
+			{
+				"doctype": "File",
+				"file_name": file_name,
+				"is_private": 0,
+				"content": f"watch-sitemap-dedup-test-{file_name}".encode(),
+			}
+		)
+		doc.insert(ignore_permissions=True)
+		self.addCleanup(doc.delete, ignore_permissions=True)
+		if ekstra:
+			frappe.db.set_value("File", doc.name, ekstra, update_modified=False)
+		return doc
+
+	def test_paylasilan_video_url_tek_watch_girdisi_uretir(self):
+		from tradehub_core.seo import sitemap_generator as sg
+
+		ilanlar = _iki_gorunur_ilan()
+		if len(ilanlar) < 2:
+			self.skipTest("Vitrinde görünen en az 2 ilan yok — dedup fixture'ı kurulamaz.")
+		ilan_a, ilan_b = ilanlar[0]["name"], ilanlar[1]["name"]
+
+		doc = self._video_dosyasi(
+			"watch-sitemap-dedup.mp4",
+			th_media_duration=10,
+			th_media_poster_url="/files/watch-sitemap-dedup-poster.jpg",
+			th_media_slug="watch-sitemap-dedup-slug",
+		)
+		eski_a = frappe.db.get_value("Listing", ilan_a, "video_url")
+		eski_b = frappe.db.get_value("Listing", ilan_b, "video_url")
+		frappe.db.set_value("Listing", ilan_a, "video_url", doc.file_url, update_modified=False)
+		frappe.db.set_value("Listing", ilan_b, "video_url", doc.file_url, update_modified=False)
+		self.addCleanup(
+			lambda: frappe.db.set_value("Listing", ilan_a, "video_url", eski_a, update_modified=False)
+		)
+		self.addCleanup(
+			lambda: frappe.db.set_value("Listing", ilan_b, "video_url", eski_b, update_modified=False)
+		)
+
+		rows = [
+			{
+				"name": ilan_a,
+				"slug": "ilgisiz-urun-slug-a",
+				"modified": "2020-01-01",
+				"video_url": doc.file_url,
+				"title": "Ürün A",
+			},
+			{
+				"name": ilan_b,
+				"slug": "ilgisiz-urun-slug-b",
+				"modified": "2020-01-01",
+				"video_url": doc.file_url,
+				"title": "Ürün B",
+			},
+		]
+		girdiler = sg._entries_for_rows(rows, sg.DOCTYPE_CONFIG["Listing"], "https://s")
+
+		watch_girdileri = [g for g in girdiler if g["loc"] == "https://s/medya/v/watch-sitemap-dedup-slug"]
+		self.assertEqual(len(watch_girdileri), 1, "aynı video_url İKİ kez watch girdisi üretmemeli")

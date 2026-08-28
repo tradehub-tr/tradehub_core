@@ -307,3 +307,13 @@ tradehub_core.patches.v15_9_48_media_rollout_controls
 
 # --- Dilim 4 · video SEO: poster + süre + transcript/altyazı ---
 tradehub_core.patches.v15_9_49_media_video_seo
+
+# --- Final inceleme · watch page guest yolu indexleri (th_media_slug + video_url) ---
+tradehub_core.patches.v15_9_50_watch_slug_indexes
+
+# --- Gece sonrası takip · v15_9_50'nin in_migrate tuzağı eski kardeşlerde
+# (th_media_state, th_media_scan_status) düzeltiliyor — bkz. v15_9_51 docstring ---
+tradehub_core.patches.v15_9_51_media_index_property_setters
+
+# --- Dosya Yöneticisi SEO Task 1 · Listing Document child + File sayfa sayısı/çıkarılan metin ---
+tradehub_core.patches.v15_9_52_file_doc_fields

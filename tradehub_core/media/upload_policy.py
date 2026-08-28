@@ -74,7 +74,13 @@ EXTENSIONS: dict[str, str] = {
 		for e in (".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".tif", ".tiff", ".avif", ".heic")
 	},
 	**{e: KIND_VIDEO for e in (".mp4", ".webm", ".mov", ".m4v")},
-	**{e: KIND_DOCUMENT for e in (".pdf", ".doc", ".docx", ".xls", ".xlsx")},
+	**{e: KIND_DOCUMENT for e in (".pdf", ".doc", ".docx", ".xls", ".xlsx", ".pptx")},
+	# `.pptx`: Task 5 koordinatör kararı — `doc_meta.py` (Task 2) çıkarımı
+	# `.pptx`'i zaten destekliyordu ama bu haritada yoktu, bu yüzden
+	# `naming.py::_ALLOWED_EXTENSIONS` (bu haritadan besleniyor) hiçbir
+	# `.pptx` yüklemesine hiç izin vermiyordu — ölü kod. Sihirli baytı `.docx`/
+	# `.xlsx` gibi zip (`PK\x03\x04`); `_UYUM`'da o ikisinin de girdisi
+	# olmadığı için (aşağıya bakınız) `.pptx`'e de eklenmedi.
 	# `.vtt`: video altyazısı (Görev 7, `media_admin.upload_video_captions`) —
 	# `media/naming.py::_hashed_name` içerik-adresli adlandırma bu sözlükten
 	# beyaz liste okuyor; eklenmezse VTT yüklemesi hash adlandırma kapısında

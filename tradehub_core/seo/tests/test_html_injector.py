@@ -75,6 +75,42 @@ class TestRenderSeoHead(unittest.TestCase):
 		self.assertNotIn('property="og:image"', out)
 		self.assertNotIn('name="twitter:image"', out)
 
+	def test_includes_og_video_meta_when_set(self):
+		out = render_seo_head(_seo(og_video="https://istoc.com/files/video.mp4"))
+		self.assertIn('property="og:video" content="https://istoc.com/files/video.mp4"', out)
+
+	def test_omits_og_video_when_absent(self):
+		"""`og_video` anahtarı hiç verilmemiş sözlüklerde (mevcut sayfalar) blok basılmaz."""
+		out = render_seo_head(_seo())
+		self.assertNotIn('property="og:video"', out)
+
+	def test_includes_og_video_type_when_video_and_type_set(self):
+		out = render_seo_head(_seo(og_video="https://istoc.com/files/video.mp4", og_video_type="video/mp4"))
+		self.assertIn('property="og:video:type" content="video/mp4"', out)
+
+	def test_omits_og_video_type_when_type_missing(self):
+		out = render_seo_head(_seo(og_video="https://istoc.com/files/video.mp4", og_video_type=""))
+		self.assertNotIn('property="og:video:type"', out)
+
+	def test_omits_og_video_type_when_video_itself_missing(self):
+		"""`og_video` boşken `og_video_type` doluysa bile blok basılmaz (video'suz type anlamsız)."""
+		out = render_seo_head(_seo(og_video="", og_video_type="video/mp4"))
+		self.assertNotIn('property="og:video:type"', out)
+
+	def test_includes_og_video_secure_url_when_set(self):
+		out = render_seo_head(
+			_seo(
+				og_video="https://istoc.com/files/video.mp4",
+				og_video_secure_url="https://istoc.com/files/video.mp4",
+			)
+		)
+		self.assertIn('property="og:video:secure_url" content="https://istoc.com/files/video.mp4"', out)
+
+	def test_omits_og_video_secure_url_when_absent(self):
+		"""Site https olmayınca (`_watch_video_seo`'nun kararı) blok basılmaz."""
+		out = render_seo_head(_seo(og_video="https://istoc.com/files/video.mp4", og_video_secure_url=""))
+		self.assertNotIn('property="og:video:secure_url"', out)
+
 	def test_twitter_card_summary_large_image(self):
 		out = render_seo_head(_seo())
 		self.assertIn('name="twitter:card" content="summary_large_image"', out)

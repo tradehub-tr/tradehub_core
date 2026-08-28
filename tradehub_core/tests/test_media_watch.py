@@ -1,5 +1,6 @@
 """Medya izleme sayfası — slug/canonical üretimi + 301 köprüsü (Task 1, TDD)."""
 
+import re
 import tempfile
 from pathlib import Path
 
@@ -490,3 +491,460 @@ class TestWatchIndexable(FrappeTestCase):
 		self.assertTrue(
 			sonuc, "verilen `fields`/`listings` kullanılmalı, mock'un boş dönüşü sonucu etkilememeli"
 		)
+
+
+class TestRenderMediaWatch(FrappeTestCase):
+	"""Task 3 — `page_resolver.render_media_watch` resolver dalı + 301 köprüsü."""
+
+	def _video_dosyasi(self, file_name: str, **ekstra) -> "frappe.model.document.Document":
+		doc = frappe.get_doc(
+			{
+				"doctype": "File",
+				"file_name": file_name,
+				"is_private": 0,
+				"content": f"rmw-{file_name}".encode(),
+			}
+		).insert(ignore_permissions=True)
+		self.addCleanup(doc.delete, ignore_permissions=True)
+		if ekstra:
+			frappe.db.set_value("File", doc.name, ekstra, update_modified=False)
+		return doc
+
+	def _slug_ver(self, doc, slug: str) -> None:
+		frappe.db.set_value(
+			"File",
+			doc.name,
+			{"th_media_slug": slug, "th_media_canonical": watch_slug.watch_url(slug)},
+			update_modified=False,
+		)
+
+	def _ilan_video_baglar(self, ilan_adi: str, file_url: str, *, storefront_visible: int = 1):
+		eski_video_url = frappe.db.get_value("Listing", ilan_adi, "video_url")
+		eski_gorunurluk = frappe.db.get_value("Listing", ilan_adi, "storefront_visible")
+		frappe.db.set_value(
+			"Listing",
+			ilan_adi,
+			{"video_url": file_url, "storefront_visible": storefront_visible},
+			update_modified=False,
+		)
+
+		def _geri_al():
+			frappe.db.set_value(
+				"Listing",
+				ilan_adi,
+				{"video_url": eski_video_url, "storefront_visible": eski_gorunurluk},
+				update_modified=False,
+			)
+
+		self.addCleanup(_geri_al)
+
+	@staticmethod
+	def _robots_content(html: str) -> str:
+		match = re.search(r'name="robots" content="([^"]*)"', html)
+		return match.group(1) if match else ""
+
+	def test_indexable_video_canonical_ve_videoobject_iceriyor(self):
+		from tradehub_core.seo import page_resolver
+
+		ilan = _gorunur_ilan()
+		if not ilan:
+			self.skipTest("Vitrinde görünen ilan yok — fixture kurulamaz.")
+
+		doc = self._video_dosyasi(
+			"rmw-indexable.webm",
+			th_media_title="Resolver İndexlenebilir Video",
+			th_media_poster_url="/files/rmw-poster.jpg",
+			th_media_duration=30,
+		)
+		self._slug_ver(doc, "rmw-indexable-slug")
+		self._ilan_video_baglar(ilan["name"], doc.file_url, storefront_visible=1)
+
+		response = page_resolver.render_media_watch("rmw-indexable-slug")
+		self.assertEqual(response.status_code, 200)
+		html = response.get_data(as_text=True)
+		self.assertIn('rel="canonical"', html)
+		self.assertIn("/medya/v/rmw-indexable-slug", html)
+		self.assertIn('"@type": "VideoObject"', html)
+		self.assertIn('"@type": "SeekToAction"', html)
+		self.assertNotIn("noindex", self._robots_content(html))
+
+	def test_postersiz_video_noindex_ve_jsonld_atlanir(self):
+		from tradehub_core.seo import page_resolver
+
+		ilan = _gorunur_ilan()
+		if not ilan:
+			self.skipTest("Vitrinde görünen ilan yok — fixture kurulamaz.")
+
+		doc = self._video_dosyasi("rmw-postersiz.webm", th_media_title="Postersiz Resolver Video")
+		self._slug_ver(doc, "rmw-postersiz-slug")
+		self._ilan_video_baglar(ilan["name"], doc.file_url, storefront_visible=1)
+
+		response = page_resolver.render_media_watch("rmw-postersiz-slug")
+		self.assertEqual(response.status_code, 200)
+		html = response.get_data(as_text=True)
+		self.assertIn("noindex", self._robots_content(html))
+		self.assertNotIn('"@type": "VideoObject"', html)
+
+	def test_gizli_ilan_videosu_robots_noindex(self):
+		"""Vitrinde görünmeyen (storefront_visible=0) ilana bağlı video W3'ten
+		düşer → `noindex`; poster olduğu için sayfa yine de tam render olur."""
+		from tradehub_core.seo import page_resolver
+
+		ilan = _gorunur_ilan()
+		if not ilan:
+			self.skipTest("Vitrinde görünen ilan yok — fixture kurulamaz.")
+
+		doc = self._video_dosyasi(
+			"rmw-gizli.webm",
+			th_media_title="Gizli Resolver Video",
+			th_media_poster_url="/files/rmw-gizli-poster.jpg",
+		)
+		self._slug_ver(doc, "rmw-gizli-slug")
+		self._ilan_video_baglar(ilan["name"], doc.file_url, storefront_visible=0)
+
+		response = page_resolver.render_media_watch("rmw-gizli-slug")
+		self.assertEqual(response.status_code, 200)
+		html = response.get_data(as_text=True)
+		self.assertIn("noindex", self._robots_content(html))
+
+	def test_bilinmeyen_slug_404(self):
+		from tradehub_core.seo import page_resolver
+
+		response = page_resolver.render_media_watch("hic-boyle-bir-slug-yok-resolver")
+		self.assertEqual(response.status_code, 404)
+
+	def test_eski_slug_301_ile_yeni_adrese_yonlendirir(self):
+		"""Koordinatör ruling (Task 1 devri) — `change_slug` ile eski slug
+		bilinmez hale gelince `Media URL Redirect`'te satır varsa 301 döner."""
+		from tradehub_core.seo import page_resolver
+
+		doc = self._video_dosyasi("rmw-redirect.webm", th_media_title="Resolver Redirect Video")
+		eski_slug = watch_slug.ensure_slug(doc.file_url)
+		self.assertTrue(eski_slug)
+		yeni_slug = watch_slug.change_slug(doc.file_url, "resolver-redirect-yeni")
+		self.assertEqual(yeni_slug, "resolver-redirect-yeni")
+		self.addCleanup(
+			lambda: frappe.db.delete("Media URL Redirect", {"source_url": watch_slug.watch_url(eski_slug)})
+		)
+
+		response = page_resolver.render_media_watch(eski_slug)
+		self.assertEqual(response.status_code, 301)
+		self.assertIn(f"/medya/v/{yeni_slug}", response.headers["Location"])
+
+	def test_guvensiz_redirect_hedefi_404e_duser_location_yok(self):
+		"""Görev denetimi düzeltme turu 1 — `Media URL Redirect.validate` bypass
+		edilip (`frappe.db.set_value`, `watch_slug.change_slug:209`'un yaptığı
+		gibi) `target_url`'e host'lu bir adres yazılmış olsun; resolver bunu
+		yine de 301'e ÇEVİRMEMELİ — ikinci savunma katmanı (`_is_safe_redirect_target`)
+		404'e düşürür, `Location` header hiç oluşmaz."""
+		from tradehub_core.seo import page_resolver
+
+		doc = self._video_dosyasi("rmw-guvensiz-hedef.webm", th_media_title="Güvensiz Hedef Video")
+		eski_slug = watch_slug.ensure_slug(doc.file_url)
+		self.assertTrue(eski_slug)
+		yeni_slug = watch_slug.change_slug(doc.file_url, "guvensiz-hedef-yeni")
+		self.assertEqual(yeni_slug, "guvensiz-hedef-yeni")
+
+		redirect_adi = frappe.db.get_value(
+			"Media URL Redirect", {"source_url": watch_slug.watch_url(eski_slug)}, "name"
+		)
+		self.assertTrue(redirect_adi)
+		# `validate()`'i BAYPAS ederek (controller'ın normalde reddedeceği) host'lu
+		# bir hedef yaz — güvenlik testinin amacı bu bypass yolunu simüle etmek.
+		frappe.db.set_value(
+			"Media URL Redirect", redirect_adi, "target_url", "https://evil.example", update_modified=False
+		)
+		self.addCleanup(lambda: frappe.db.delete("Media URL Redirect", {"name": redirect_adi}))
+
+		response = page_resolver.render_media_watch(eski_slug)
+		self.assertEqual(response.status_code, 404)
+		self.assertNotIn("Location", response.headers)
+
+
+class TestListingDetailVideoWatchUrl(FrappeTestCase):
+	"""Task 4 (2026-08-26 medya-watch-page) — `get_listing_detail`'in
+	`videoWatchUrl` alanı. `_video_seo_alanlari` (`media/seo.fields_for`) TEK
+	kapıdan zaten okunuyor — burada YENİDEN çağrılmıyor, yalnız `slug` alanı
+	kullanılıyor (`listing.py` yorumuyla aynı ilke)."""
+
+	def _video_dosyasi(self, file_name: str, *, slug: str = "") -> "frappe.model.document.Document":
+		doc = frappe.get_doc(
+			{
+				"doctype": "File",
+				"file_name": file_name,
+				"is_private": 0,
+				"content": f"watch-url-test-{file_name}".encode(),
+			}
+		).insert(ignore_permissions=True)
+		self.addCleanup(doc.delete, ignore_permissions=True)
+		if slug:
+			frappe.db.set_value(
+				"File", doc.name, {"th_media_slug": slug, "th_media_canonical": watch_slug.watch_url(slug)},
+				update_modified=False,
+			)
+		return doc
+
+	def _video_url_ver(self, ilan_adi: str, video_url: str) -> None:
+		eski = frappe.db.get_value("Listing", ilan_adi, "video_url")
+
+		def _geri_al():
+			frappe.db.set_value("Listing", ilan_adi, "video_url", eski, update_modified=False)
+
+		frappe.db.set_value("Listing", ilan_adi, "video_url", video_url, update_modified=False)
+		self.addCleanup(_geri_al)
+
+	def _cache_temizle(self, ilan_adi: str) -> None:
+		from tradehub_core.api import listing as listing_api
+
+		frappe.cache.delete_value(f"{listing_api._LISTING_DETAIL_CACHE_PREFIX}{ilan_adi}:tr")
+
+	def test_yerel_video_ve_slug_varsa_videowatchurl_eklenir(self):
+		from tradehub_core.api import listing as listing_api
+
+		ilan = _gorunur_ilan()
+		if not ilan:
+			self.skipTest("Vitrinde görünen ilan yok — fixture kurulamaz.")
+
+		doc = self._video_dosyasi("watch-url-tam.webm", slug="watch-url-tam-slug")
+		self._video_url_ver(ilan["name"], doc.file_url)
+		self._cache_temizle(ilan["name"])
+
+		data = listing_api.get_listing_detail(ilan["name"])["data"]
+
+		self.assertEqual(data["videoWatchUrl"], "/medya/v/watch-url-tam-slug")
+
+	def test_slug_yoksa_videowatchurl_alani_hic_basilmaz(self):
+		"""Yerel video ama slug'ı henüz üretilmemiş — alan KEY olarak bile
+		yok (`None`/boş dize DEĞİL): frontend'in `raw.videoWatchUrl` kontrolü
+		`undefined`'a düşsün, yanlış/boş bir link asla basılmasın."""
+		from tradehub_core.api import listing as listing_api
+
+		ilan = _gorunur_ilan()
+		if not ilan:
+			self.skipTest("Vitrinde görünen ilan yok — fixture kurulamaz.")
+
+		doc = self._video_dosyasi("watch-url-slugsuz.webm")
+		self._video_url_ver(ilan["name"], doc.file_url)
+		self._cache_temizle(ilan["name"])
+
+		data = listing_api.get_listing_detail(ilan["name"])["data"]
+
+		self.assertNotIn("videoWatchUrl", data)
+
+	def test_disaridan_video_url_videowatchurl_alani_hic_basilmaz(self):
+		"""Video yerel değilse (`https://youtu.be/...`) `_video_yerel` False
+		olur — slug hesabı hiç yapılmaz, alan basılmaz."""
+		from tradehub_core.api import listing as listing_api
+
+		ilan = _gorunur_ilan()
+		if not ilan:
+			self.skipTest("Vitrinde görünen ilan yok — fixture kurulamaz.")
+
+		self._video_url_ver(ilan["name"], "https://youtu.be/dQw4w9WgXcQ")
+		self._cache_temizle(ilan["name"])
+
+		data = listing_api.get_listing_detail(ilan["name"])["data"]
+
+		self.assertNotIn("videoWatchUrl", data)
+
+
+class TestMissingWatchSlugAudit(FrappeTestCase):
+	"""Task 6 (2026-08-26 medya-watch-page) — `seo_audit.missing_watch_slug`:
+	YALNIZ video + `watch_indexable(...)` True + slug boş → WARN.
+
+	Kural bilerek `_baglamsal_bulgular`'a EKLENMEDİ — o fonksiyon hem
+	`audit_file` hem `audit_batch`'in `deep=True` dalında çağrılıyor;
+	`watch_indexable` üç sorgu açıyor (indexability + poster + vitrin bağı),
+	toplu denetimde N dosya için N kez tetiklemek pahalı olurdu. Bu yüzden
+	yalnız `audit_file`'ın tekil yolunda çalışır — son test bunu doğrudan
+	doğruluyor (`audit_batch`'te GÖRÜNMEMELİ)."""
+
+	def _video_dosyasi(self, file_name: str, **ekstra) -> "frappe.model.document.Document":
+		doc = frappe.get_doc(
+			{
+				"doctype": "File",
+				"file_name": file_name,
+				"is_private": 0,
+				"content": f"mws-{file_name}".encode(),
+			}
+		).insert(ignore_permissions=True)
+		self.addCleanup(doc.delete, ignore_permissions=True)
+		if ekstra:
+			frappe.db.set_value("File", doc.name, ekstra, update_modified=False)
+		return doc
+
+	def _ilan_video_baglar(self, ilan_adi: str, file_url: str, *, storefront_visible: int = 1):
+		eski_video_url = frappe.db.get_value("Listing", ilan_adi, "video_url")
+		eski_gorunurluk = frappe.db.get_value("Listing", ilan_adi, "storefront_visible")
+		frappe.db.set_value(
+			"Listing",
+			ilan_adi,
+			{"video_url": file_url, "storefront_visible": storefront_visible},
+			update_modified=False,
+		)
+
+		def _geri_al():
+			frappe.db.set_value(
+				"Listing",
+				ilan_adi,
+				{"video_url": eski_video_url, "storefront_visible": eski_gorunurluk},
+				update_modified=False,
+			)
+
+		self.addCleanup(_geri_al)
+
+	def test_indexable_video_slugsuz_warn_uretir(self):
+		from tradehub_core.media import seo_audit
+
+		ilan = _gorunur_ilan()
+		if not ilan:
+			self.skipTest("Vitrinde görünen ilan yok — fixture kurulamaz.")
+
+		doc = self._video_dosyasi("mws-slugsuz.webm", th_media_poster_url="/files/mws-poster.jpg")
+		self._ilan_video_baglar(ilan["name"], doc.file_url, storefront_visible=1)
+
+		sonuc = seo_audit.audit_file(doc.file_url, deep=True)
+		kodlar = {b["code"] for b in sonuc["findings"]}
+		self.assertIn("missing_watch_slug", kodlar)
+		bulgu = next(b for b in sonuc["findings"] if b["code"] == "missing_watch_slug")
+		self.assertEqual(bulgu["severity"], seo_audit.SEVERITY_WARN)
+		self.assertEqual(seo_audit._KURAL_BOYUT["missing_watch_slug"], "discoverability")
+
+	def test_slug_varsa_uyari_uretilmez(self):
+		from tradehub_core.media import seo_audit, watch_slug
+
+		ilan = _gorunur_ilan()
+		if not ilan:
+			self.skipTest("Vitrinde görünen ilan yok — fixture kurulamaz.")
+
+		doc = self._video_dosyasi("mws-slugli.webm", th_media_poster_url="/files/mws-poster2.jpg")
+		frappe.db.set_value(
+			"File",
+			doc.name,
+			{
+				"th_media_slug": "mws-slugli-slug",
+				"th_media_canonical": watch_slug.watch_url("mws-slugli-slug"),
+			},
+			update_modified=False,
+		)
+		self._ilan_video_baglar(ilan["name"], doc.file_url, storefront_visible=1)
+
+		sonuc = seo_audit.audit_file(doc.file_url, deep=True)
+		kodlar = {b["code"] for b in sonuc["findings"]}
+		self.assertNotIn("missing_watch_slug", kodlar)
+
+	def test_watch_indexable_false_ise_uyari_uretilmez(self):
+		"""Postersiz, ilana bağlı olmayan video → `watch_indexable` False →
+		yanlış alarm YOK (slug'ın olmaması bu durumda beklenen, hata değil)."""
+		from tradehub_core.media import seo_audit
+
+		doc = self._video_dosyasi("mws-postersiz.webm")
+
+		sonuc = seo_audit.audit_file(doc.file_url, deep=True)
+		kodlar = {b["code"] for b in sonuc["findings"]}
+		self.assertNotIn("missing_watch_slug", kodlar)
+
+	def test_gorselde_kural_calismaz(self):
+		from tradehub_core.media import seo_audit
+
+		fikstur = Path(__file__).parent / "fixtures" / "media" / "images" / "ok_product_1x1_2400.jpg"
+		if not fikstur.is_file():
+			self.skipTest(f"fikstür yok: {fikstur}")
+		# Gerçek JPEG içeriği zorunlu — `File.before_insert` EXIF ayıklama için
+		# `PIL.Image.open` çağırıyor, uydurma bayt dizisi `UnidentifiedImageError`
+		# fırlatır (görsel olmayan `.webm` içerikte bu adım atlanıyor).
+		doc = frappe.get_doc(
+			{
+				"doctype": "File",
+				"file_name": "mws-gorsel.jpg",
+				"is_private": 0,
+				"content": fikstur.read_bytes(),
+			}
+		).insert(ignore_permissions=True)
+		self.addCleanup(doc.delete, ignore_permissions=True)
+
+		sonuc = seo_audit.audit_file(doc.file_url, deep=True)
+		kodlar = {b["code"] for b in sonuc["findings"]}
+		self.assertNotIn("missing_watch_slug", kodlar)
+
+	def test_deep_false_ise_kural_hic_calismaz(self):
+		from tradehub_core.media import seo_audit
+
+		ilan = _gorunur_ilan()
+		if not ilan:
+			self.skipTest("Vitrinde görünen ilan yok — fixture kurulamaz.")
+
+		doc = self._video_dosyasi("mws-sig.webm", th_media_poster_url="/files/mws-poster4.jpg")
+		self._ilan_video_baglar(ilan["name"], doc.file_url, storefront_visible=1)
+
+		sonuc = seo_audit.audit_file(doc.file_url, deep=False)
+		kodlar = {b["code"] for b in sonuc["findings"]}
+		self.assertNotIn("missing_watch_slug", kodlar)
+
+	def test_toplu_denetimde_calismaz(self):
+		"""`audit_batch(deep=True)` — N+1 maliyetinden kaçınmak için kural
+		BİLEREK burada yok (bkz. sınıf docstring'i + `seo_audit.audit_file`
+		yorumu)."""
+		from tradehub_core.media import seo_audit
+
+		ilan = _gorunur_ilan()
+		if not ilan:
+			self.skipTest("Vitrinde görünen ilan yok — fixture kurulamaz.")
+
+		doc = self._video_dosyasi("mws-toplu.webm", th_media_poster_url="/files/mws-poster3.jpg")
+		self._ilan_video_baglar(ilan["name"], doc.file_url, storefront_visible=1)
+
+		sonuc = seo_audit.audit_batch([doc.file_url], deep=True)
+		kodlar = {b["code"] for b in sonuc["files"][0]["findings"]}
+		self.assertNotIn("missing_watch_slug", kodlar)
+
+
+class TestChangeWatchSlugEndpoint(FrappeTestCase):
+	"""Task 6 — `media_admin.change_watch_slug` ince ucu.
+
+	İş mantığı `watch_slug.change_slug`'da zaten kapsamlı test edilmiş
+	(`TestWatchSlug` yukarıda); burada yalnız zarfın (yetki + parametre
+	doğrulama + dönüş şekli) doğru davrandığı doğrulanıyor."""
+
+	def setUp(self):
+		frappe.set_user("Administrator")
+
+	def tearDown(self):
+		frappe.set_user("Administrator")
+
+	def test_gecerli_slug_degistirir_ve_watchurl_doner(self):
+		from tradehub_core.api.media_admin import change_watch_slug
+		from tradehub_core.media import watch_slug
+
+		doc = frappe.get_doc(
+			{"doctype": "File", "file_name": "cws-tam.mp4", "is_private": 0, "content": b"cws-tam-video"}
+		).insert(ignore_permissions=True)
+		self.addCleanup(doc.delete, ignore_permissions=True)
+		watch_slug.ensure_slug(doc.file_url)
+
+		sonuc = change_watch_slug(doc.file_url, "cws-yeni-slug")
+		self.assertEqual(sonuc["slug"], "cws-yeni-slug")
+		self.assertEqual(sonuc["watchUrl"], "/medya/v/cws-yeni-slug")
+		self.assertEqual(frappe.db.get_value("File", doc.name, "th_media_slug"), "cws-yeni-slug")
+
+	def test_gecersiz_slug_reddedilir(self):
+		from tradehub_core.api.media_admin import change_watch_slug
+
+		doc = frappe.get_doc(
+			{
+				"doctype": "File",
+				"file_name": "cws-gecersiz.mp4",
+				"is_private": 0,
+				"content": b"cws-gecersiz-video",
+			}
+		).insert(ignore_permissions=True)
+		self.addCleanup(doc.delete, ignore_permissions=True)
+
+		with self.assertRaises(frappe.ValidationError):
+			change_watch_slug(doc.file_url, "!!!")
+
+	def test_dosya_adresi_zorunlu(self):
+		from tradehub_core.api.media_admin import change_watch_slug
+
+		with self.assertRaises(frappe.ValidationError):
+			change_watch_slug("", "bir-slug")

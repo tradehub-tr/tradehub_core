@@ -470,10 +470,223 @@ def _preload_video_alanlar(rows: list[dict], cfg: dict) -> dict[str, dict]:
 		return {}
 
 
+def _preload_watch_listings(video_urls: list[str]) -> dict[str, list]:
+	"""Watch girdisinin W3 kararı için video_url→görünür-ilan haritası TEK sorguda.
+
+	`media_public._storefront_listings` aynı sorguyu TEK video için açıyor
+	(`api/media_public.py` — dokunulmuyor, yalnız tüketiliyor); site haritası
+	üretimi parça başına N video için o sorguyu döngüde çağırırsa N+1 doğar
+	(`_preload_video_alanlar` ile aynı gerekçe). `IN` filtresiyle TEK sorgu.
+	"""
+	if not video_urls:
+		return {}
+	import frappe
+
+	satirlar = frappe.get_all(
+		"Listing",
+		filters={"video_url": ["in", video_urls], "storefront_visible": 1},
+		fields=["name", "video_url"],
+	)
+	harita: dict[str, list] = {}
+	for satir in satirlar:
+		harita.setdefault(satir["video_url"], []).append(satir)
+	return harita
+
+
+def _preload_file_modified(video_urls: list[str]) -> dict[str, str]:
+	"""Watch girdisinin `lastmod`'u için video_url→File.modified haritası TEK sorguda.
+
+	Watch sayfası ürün sayfası DEĞİL, bir `File`'ın izdüşümü — `lastmod` ilan
+	satırının `modified`'ından değil videonun kendi `File.modified`'ından
+	gelir (brief). Aynı `file_url`'i paylaşan kardeş `File` kayıtlarından EN
+	SON değişeni kullanılır (`order_by=modified desc` + ilk-görülen kazanır,
+	`watch_slug` kardeş-kayıt deseniyle aynı fikir).
+	"""
+	if not video_urls:
+		return {}
+	import frappe
+
+	satirlar = frappe.get_all(
+		"File",
+		filters={"file_url": ["in", video_urls]},
+		fields=["file_url", "modified"],
+		order_by="modified desc",
+	)
+	harita: dict[str, str] = {}
+	for satir in satirlar:
+		harita.setdefault(satir["file_url"], str(satir.get("modified") or ""))
+	return harita
+
+
+def _watch_entries_for_rows(
+	rows: list[dict],
+	product_entries: list[dict],
+	cfg: dict,
+	alanlar_map: dict[str, dict],
+	site: str,
+) -> list[dict]:
+	"""Watch page (`/medya/v/<slug>`) `<url>` girdileri — yalnız Listing sitemap'i.
+
+	Task 5: `watch_indexable` (W3 — SEO kararı + poster + görünür ilan, TEK
+	karar noktası `api/media_public.py`) True VE `fields.slug` dolu olan her
+	ilan videosu için ürün girdisine EK bir `<url>` girdisi. `<video:video>`
+	gövdesi `product_entries`'teki ürün girdisinden AYNEN alınır —
+	`_video_entries_for_listing`'i (ve içindeki `seo_index.decide`'ı) burada
+	ikinci kez çağırmamak için (`_entry_for_row` zaten üretti).
+
+	İki toplu ön-yükleme (`_preload_watch_listings`, `_preload_file_modified`)
+	parça başına TEK kez açılır — `watch_indexable`'a `fields`/`listings`
+	GEÇİRİLİR, burada yeniden hesaplanmaz (Task 1-2 arayüzü).
+
+	Düzeltme turu 1 (görev denetimi — Critical): aynı `video_url` birden çok
+	görünür ilanda kullanılabiliyor (`Listing.video_url` paylaşımlı) — o zaman
+	`slug` de (alanlar_map video_url'e bağlı) AYNI, dolayısıyla AYNI
+	`/medya/v/<slug>` loc'u tekrar tekrar üretilirdi. `video_gorulen` seti
+	video_url'i İLK GÖRÜLDÜĞÜNDE (satır sırasına göre) işaretler — sonraki
+	kardeş satırlar tekrar denenmez (girdi üretilmiş olsun ya da olmasın,
+	sonuç video_url'e bağlı olduğu için deterministik aynı çıkardı zaten).
+	"""
+	if cfg.get("url_prefix") != "/urun" or not alanlar_map:
+		return []
+
+	from tradehub_core.api.media_public import watch_indexable
+	from tradehub_core.media.watch_slug import watch_url
+
+	video_urls = list(alanlar_map.keys())
+	listings_map = _preload_watch_listings(video_urls)
+	modified_map = _preload_file_modified(video_urls)
+
+	entries: list[dict] = []
+	video_gorulen: set[str] = set()
+	for row, product_entry in zip(rows, product_entries, strict=True):
+		video_url = str(row.get("video_url") or "").split("?")[0].strip()
+		if not video_url or video_url in video_gorulen:
+			continue
+		video_gorulen.add(video_url)
+		videos = product_entry.get("videos") or []
+		if not videos:
+			continue
+		alanlar = alanlar_map.get(video_url)
+		slug = (alanlar or {}).get("slug") or ""
+		if not slug:
+			continue
+		if not watch_indexable(video_url, fields=alanlar, listings=listings_map.get(video_url, [])):
+			continue
+		entry = urlentry(
+			loc=f"{site}{watch_url(slug)}",
+			lastmod=(modified_map.get(video_url) or "")[:10],
+		)
+		entry["videos"] = videos
+		entries.append(entry)
+	return entries
+
+
+def _preload_doc_listings(file_urls: list[str]) -> dict[str, list]:
+	"""Dokümanın bağlı olduğu, vitrinde görünen ilanlar → `_preload_watch_listings`'in
+	doküman kardeşi (Task 3).
+
+	`Listing.video_url` tekil alanın aksine doküman bağlantısı `Listing.documents`
+	(child `Listing Document`, Task 1) çoka-çok — `_preload_watch_listings`'in
+	TEK `IN` sorgusu yetmez, İKİ toplu adım gerekir: önce dosyalara işaret eden
+	child satırlar (`file` → `parent`, TEK `IN` sorgu), sonra o parent'lardan
+	yalnız vitrinde görünenler (yine TEK `IN` sorgu). N+1 yok.
+	"""
+	if not file_urls:
+		return {}
+	import frappe
+
+	child_rows = frappe.get_all(
+		"Listing Document",
+		filters={"file": ["in", file_urls]},
+		fields=["file", "parent"],
+	)
+	if not child_rows:
+		return {}
+	parent_names = list({r["parent"] for r in child_rows})
+	visible = set(
+		frappe.get_all(
+			"Listing",
+			filters={"name": ["in", parent_names], "storefront_visible": 1},
+			pluck="name",
+		)
+	)
+	harita: dict[str, list] = {}
+	for r in child_rows:
+		if r["parent"] in visible:
+			harita.setdefault(r["file"], []).append({"name": r["parent"]})
+	return harita
+
+
+def _doc_entries_for_rows(rows: list[dict], cfg: dict, site: str) -> list[dict]:
+	"""Ürüne ekli dokümanların (`Listing.documents`) KENDİ `<url>` girdileri (Task 3).
+
+	`_watch_entries_for_rows`'un doküman kardeşi — ama doküman için ayrı bir
+	"izleme sayfası" YOK: `loc` doğrudan mutlak ham dosya adresi, gövde
+	video/görsel anahtarı TAŞIMAZ (brief §Interfaces — yalnız `loc`/`lastmod`).
+	`lastmod` `_preload_file_modified`'ın (video kardeşiyle PAYLAŞILAN, genel
+	`File.modified` haritalayıcısı) aynısıyla gelir.
+
+	Aynı dosya birden çok ürüne ekliyse (paylaşımlı katalog PDF'i gibi) TEK
+	girdi üretilir — dedup `file_url` bazlı, `_watch_entries_for_rows`'un
+	`video_gorulen` setiyle AYNI ilke (ilk görülen kazanır, sonuç deterministik
+	aynı olduğu için hangi satırın kazandığı önemsiz).
+	"""
+	if cfg.get("url_prefix") != "/urun":
+		return []
+	import frappe
+
+	from tradehub_core.api.media_public import doc_indexable
+
+	names = [row.get("name") for row in rows if row.get("name")]
+	if not names:
+		return []
+	child_rows = frappe.get_all(
+		"Listing Document",
+		filters={"parent": ["in", names]},
+		fields=["file"],
+	)
+	if not child_rows:
+		return []
+
+	dosya_urls = [
+		u for u in dict.fromkeys(str(r.get("file") or "").split("?")[0].strip() for r in child_rows) if u
+	]
+	if not dosya_urls:
+		return []
+
+	listings_map = _preload_doc_listings(dosya_urls)
+	modified_map = _preload_file_modified(dosya_urls)
+
+	entries: list[dict] = []
+	gorulen: set[str] = set()
+	for url in dosya_urls:
+		if url in gorulen:
+			continue
+		gorulen.add(url)
+		if not doc_indexable(url, listings=listings_map.get(url, [])):
+			continue
+		entries.append(urlentry(loc=_mutlak(url, site), lastmod=(modified_map.get(url) or "")[:10]))
+	return entries
+
+
 def _entries_for_rows(rows: list[dict], cfg: dict, site: str) -> list[dict]:
-	"""Ham satır listesini `<url>` girdilerine çevirir — video alanları önceden yüklenir."""
+	"""Ham satır listesini `<url>` girdilerine çevirir — video alanları önceden yüklenir.
+
+	Task 5: ürün girdilerinin yanına, videosu watch page'de indexlenebilen her
+	ilan için AYRI bir watch `<url>` girdisi eklenir (`_watch_entries_for_rows`)
+	— aynı önceden yüklenmiş video alanlarını kullanır, ikinci bir N+1 turu
+	açmaz.
+
+	Task 3: aynı akıştan, ürüne ekli indexlenebilir her dokümanın da KENDİ
+	`<url>` girdisi eklenir (`_doc_entries_for_rows`) — watch girdileriyle
+	AYNI entry-sayımlı chunk mekanizmasına katılır (`build_chunks_for_type`
+	entry SAYISINA göre flush ediyor, ham satır sayısına değil).
+	"""
 	video_alanlar_map = _preload_video_alanlar(rows, cfg)
-	return [_entry_for_row(row, cfg, site, video_alanlar_map) for row in rows]
+	entries = [_entry_for_row(row, cfg, site, video_alanlar_map) for row in rows]
+	entries.extend(_watch_entries_for_rows(rows, entries, cfg, video_alanlar_map, site))
+	entries.extend(_doc_entries_for_rows(rows, cfg, site))
+	return entries
 
 
 def _mutlak(url: str, site: str) -> str:
@@ -491,25 +704,46 @@ def build_chunks_for_type(doctype: str):
 	50k üzeri her kayıt sessizce sitemap dışı kalıyordu. Artık her 50k'lık
 	parça ayrı XML olarak üretilir; disk cache'e parça parça yazılır (bellekte
 	tek parça tutulur).
+
+	Düzeltme turu 1 (görev denetimi — Important, Task 5): flush kararı ham
+	satır sayısına DEĞİL üretilen `<url>` entry sayısına bağlı — bir satır
+	artık BİRDEN FAZLA entry üretebiliyor (ürün + watch page). Ham satırlar
+	yine `MAX_URLS_PER_SITEMAP`'lik alt-partiler hâlinde `_entries_for_rows`'a
+	verilir (toplu ön-yüklemeler — `_preload_video_alanlar` vb. — alt-parti
+	başına korunur, N+1'e dönülmez); üretilen entry'ler `entries_buffer`'da
+	birikir ve `MAX_URLS_PER_SITEMAP`'e ulaştıkça dilimlenip yield edilir.
+	Bir satırın ürün+watch girdilerinin AYNI parçada kalması ZORUNLU değil —
+	protokol açısından sorun yok, taşan entry sonraki parçaya devreder.
 	"""
 	cfg = DOCTYPE_CONFIG[doctype]
 	site = _site_url()
 
-	# Ham satırlar biriktirilir (entry'ye hemen çevrilmez): video alanları
-	# parça başına TEK `fields_for_many` çağrısıyla önceden yüklenmeli —
-	# satır satır çevirseydik N+1'e geri dönerdik (düzeltme turu 1).
 	raw_batch: list[dict] = []
+	entries_buffer: list[dict] = []
 	yielded = False
+
+	def _flush_ready_chunks():
+		nonlocal entries_buffer, yielded
+		while len(entries_buffer) >= MAX_URLS_PER_SITEMAP:
+			parca = entries_buffer[:MAX_URLS_PER_SITEMAP]
+			entries_buffer = entries_buffer[MAX_URLS_PER_SITEMAP:]
+			yielded = True
+			yield build_urlset_xml(parca)
+
 	for row in _iter_records_for(doctype):
 		raw_batch.append(row)
 		if len(raw_batch) >= MAX_URLS_PER_SITEMAP:
-			yield build_urlset_xml(_entries_for_rows(raw_batch, cfg, site))
-			yielded = True
+			entries_buffer.extend(_entries_for_rows(raw_batch, cfg, site))
 			raw_batch = []
+			yield from _flush_ready_chunks()
+	if raw_batch:
+		entries_buffer.extend(_entries_for_rows(raw_batch, cfg, site))
+		raw_batch = []
+		yield from _flush_ready_chunks()
 	# Son parça; hiç kayıt yoksa geçerli boş urlset (tam-50k katında fazladan
 	# boş parça üretme)
-	if raw_batch or not yielded:
-		yield build_urlset_xml(_entries_for_rows(raw_batch, cfg, site))
+	if entries_buffer or not yielded:
+		yield build_urlset_xml(entries_buffer)
 
 
 def build_for_type(doctype: str) -> str:

@@ -61,6 +61,7 @@
   "media_section",
   "primary_image",
   "listing_images",
+  "documents",
   "video_url",
   "specs_tab",
   "specifications_section",
@@ -506,6 +507,12 @@
    "fieldtype": "Table",
    "label": "Additional Images",
    "options": "Listing Image"
+  },
+  {
+   "fieldname": "documents",
+   "fieldtype": "Table",
+   "label": "Documents",
+   "options": "Listing Document"
   },
   {
    "fieldname": "video_url",

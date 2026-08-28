@@ -1418,6 +1418,21 @@ def backfill_media_alt(limit: int = 500, only_listing: int = 1) -> dict:
 	return seo_generate.backfill(limit=limit, only_listing=bool(int(only_listing)))
 
 
+@frappe.whitelist(methods=["POST"])
+def backfill_media_localization(limit: int = 500) -> dict:
+	"""Katalogu en/ar/ru dillerinde parça parça doldur (Dilim 8 — Bulk
+	Localization). `backfill_media_alt` (tr) emsali: senkron, limit'li (L3).
+
+	Kaynak çevirisi (`Listing.title_{lang}`) olmayan dosya/dilde
+	`no_translation` sebebiyle sessizce atlanır (L1: kopyalama yasak); insan
+	(`human`/`edited`) damgalı dosyanın hiçbir dil kolonuna dokunulmaz (L6).
+	"""
+	_guard()
+	from tradehub_core.media import seo_generate
+
+	return seo_generate.backfill_localization(limit=limit)
+
+
 @frappe.whitelist()
 def audit_media_seo(
 	file_urls: str | list[str] | None = None,
@@ -1457,21 +1472,52 @@ def audit_media_seo(
 	urls = frappe.parse_json(file_urls) if isinstance(file_urls, str) else file_urls
 	if urls:
 		# Açıkça adres verildiyse sayfalama/önbellek yok: çağıran ne istediğini
-		# biliyor (ör. tek ürünün görselleri).
-		return seo_audit.audit_batch(urls, deep=bool(int(deep)))
+		# biliyor (ör. tek ürünün görselleri). `primary_urls` yine de kurulur —
+		# yoksa aynı primary görsel scope görünümünde lcp_candidate_unoptimized
+		# taşırken tek-dosya denetiminde bulgu sessizce kaybolur (final review).
+		temiz = [(u or "").split("?")[0] for u in urls if u]
+		return seo_audit.audit_batch(urls, deep=bool(int(deep)), primary_urls=_primary_urls_for(temiz))
 
-	adaylar = _seo_audit_adaylari(scope, limit)
+	adaylar, primary_urls = _seo_audit_adaylari(scope, limit)
 	sonuc = seo_audit.audit_scope(
 		adaylar,
 		deep=bool(int(deep)),
 		cache_key=f"{scope}:{int(deep)}:{len(adaylar)}",
 		refresh=bool(int(refresh)),
+		primary_urls=primary_urls,
 	)
 	return seo_audit.paginate(sonuc, page=page, page_size=page_size, code=code, query=q)
 
 
-def _seo_audit_adaylari(scope: str, limit: int) -> list[str]:
-	"""Denetlenecek adresler — kapsam kuralına göre."""
+def _primary_urls_for(urls: list[str]) -> set[str]:
+	"""`urls` içindeki adreslerden hangileri bir `Listing.primary_image`
+	(storefront_visible=1) — CWV tasarımı C5, `lcp_candidate_unoptimized` bu
+	kümeyi kullanır. TEK `get_all` sorgusuyla kurulur (N+1 yasak); hem scope
+	taramasında (`_seo_audit_adaylari`) hem açık `file_urls` denetiminde
+	(`audit_media_seo`) aynı yardımcı kullanılır — kopyalama yok."""
+	if not urls:
+		return set()
+	return {
+		r["primary_image"]
+		for r in frappe.get_all(
+			"Listing",
+			filters={"primary_image": ["in", urls], "storefront_visible": 1},
+			fields=["primary_image"],
+			limit_page_length=0,
+		)
+		if r.get("primary_image")
+	}
+
+
+def _seo_audit_adaylari(scope: str, limit: int) -> tuple[list[str], set[str]]:
+	"""Denetlenecek adresler — kapsam kuralına göre. `(urls, primary_urls)` döner.
+
+	`primary_urls` — CWV tasarımı C5: `urls` içindeki adreslerden hangileri
+	bir `Listing.primary_image` (storefront_visible=1) — `lcp_candidate_
+	unoptimized` bu kümeyi kullanır. Her üç scope'ta da TEK ek `get_all`
+	sorgusuyla kurulur (N+1 yasak); `urls` zaten kapsam sınırıyla küçük
+	(≤20.000).
+	"""
 	# Sınır kapsamın kendisinden geliyor (katalog 1.983, tümü 3.267); 200'lük
 	# eski tavan ekranın yalnız küçük bir dilimi göstermesine yol açıyordu.
 	sinir = min(20000, max(1, int(limit or 5000)))
@@ -1496,20 +1542,28 @@ def _seo_audit_adaylari(scope: str, limit: int) -> list[str]:
 			""",
 			(sinir,),
 		)
-		return [r[0] for r in satirlar]
+		urls = [r[0] for r in satirlar]
+	else:
+		sira = "creation desc" if scope == "recent" else "file_name asc"
+		urls = [
+			r["file_url"]
+			for r in frappe.get_all(
+				"File",
+				filters={"is_folder": 0, "is_private": 0},
+				fields=["file_url"],
+				order_by=sira,
+				limit_page_length=sinir,
+			)
+			if r.get("file_url")
+		]
 
-	sira = "creation desc" if scope == "recent" else "file_name asc"
-	return [
-		r["file_url"]
-		for r in frappe.get_all(
-			"File",
-			filters={"is_folder": 0, "is_private": 0},
-			fields=["file_url"],
-			order_by=sira,
-			limit_page_length=sinir,
-		)
-		if r.get("file_url")
-	]
+	if not urls:
+		return urls, set()
+	# Katalog scope'ta bu sorgu, yukarıdaki UNION'un ilk bacağıyla örtüşen bir
+	# doğrulamayı tekrar eder ama primary/galeri ayrımını TEK ek sorguyla
+	# (recent/all ile aynı desen) kurmak, UNION'u iki ayrı SQL'e bölmekten
+	# daha basit ve N+1 riski taşımıyor (tasarım C5).
+	return urls, _primary_urls_for(urls)
 
 
 @frappe.whitelist(methods=["POST"])
@@ -1603,3 +1657,21 @@ def upload_video_captions(file_url: str, vtt_content: str) -> dict:
 	).insert(ignore_permissions=True)  # sistem yazımı; yetki üstte _guard()
 	seo.set_asset_fields(file_url, {"captions_url": vtt.file_url})
 	return {"captions_url": vtt.file_url}
+
+
+@frappe.whitelist(methods=["POST"])
+def change_watch_slug(file_url: str, slug: str) -> dict:
+	"""İzleme sayfası (`/medya/v/<slug>`) slug'ını panelden bilinçli değiştir.
+
+	İş mantığı `watch_slug.change_slug`'da: geçersiz slug `frappe.throw` ile
+	reddedilir, eski adres 301 ile yeniye köprülenir, zincir çökertme + döngü
+	temizliği oradadır — burada TEKRARLANMAZ, yalnız yetki + zarf var (dosya
+	başlığındaki "iş mantığı karışmasın" kuralı).
+	"""
+	_guard()
+	from tradehub_core.media import watch_slug
+
+	if not file_url:
+		frappe.throw(_("Dosya adresi zorunlu."))
+	yeni_slug = watch_slug.change_slug(file_url, slug)
+	return {"slug": yeni_slug, "watchUrl": watch_slug.watch_url(yeni_slug)}

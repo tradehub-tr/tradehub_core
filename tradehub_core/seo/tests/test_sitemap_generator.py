@@ -248,6 +248,41 @@ class TestChunkStreaming(unittest.TestCase):
 		self.assertEqual(len(chunks), 1)
 		self.assertIn("<urlset", chunks[0])
 
+	def test_uretilen_entry_sayisi_ham_satirdan_fazlaysa_parca_sinirini_asmaz(self):
+		"""Düzeltme turu 1 (görev denetimi — Important, Task 5): watch girdileri
+		eklenince bir satır BİRDEN FAZLA `<url>` üretebiliyor (ürün + watch).
+		Flush kararı artık ÜRETİLEN entry sayısına bağlı — `_entries_for_rows`
+		burada mock'lanıp her satırın 2 entry ürettiği simüle ediliyor, DB'ye
+		dokunmadan (gerçek watch girdisi üretimi `test_media_video_seo.py`'de
+		ayrıca doğrulanıyor)."""
+		from unittest.mock import patch
+
+		from tradehub_core.seo import sitemap_generator as sg
+
+		rows = [{"name": f"L{i}"} for i in range(5)]
+
+		def sahte_entries_for_rows(raw_rows, cfg, site):
+			entries = []
+			for row in raw_rows:
+				entries.append({"loc": f"{site}/urun/{row['name']}"})
+				entries.append({"loc": f"{site}/medya/v/{row['name']}"})
+			return entries
+
+		with (
+			patch.object(sg, "MAX_URLS_PER_SITEMAP", 3),
+			patch.object(sg, "_iter_records_for", return_value=iter(rows)),
+			patch.object(sg, "_site_url", return_value="https://istoc.com"),
+			patch.object(sg, "_entries_for_rows", side_effect=sahte_entries_for_rows),
+		):
+			chunks = list(sg.build_chunks_for_type("Listing"))
+
+		toplam_url = 0
+		for xml in chunks:
+			sayisi = xml.count("<url>")
+			self.assertLessEqual(sayisi, 3, "hiçbir parça MAX_URLS_PER_SITEMAP'i aşmamalı")
+			toplam_url += sayisi
+		self.assertEqual(toplam_url, 10, "5 satır x 2 entry = 10 toplam, kayıp/fazlalık olmamalı")
+
 
 if __name__ == "__main__":
 	unittest.main()

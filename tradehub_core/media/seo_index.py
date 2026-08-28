@@ -28,7 +28,8 @@ from __future__ import annotations
 import frappe
 from frappe.utils import get_datetime, getdate, now_datetime, nowdate
 
-from tradehub_core.media import seo
+from tradehub_core.media import seo, states
+from tradehub_core.media.av import SCAN_INFECTED
 
 #: `max-image-preview` — Google'ın görsel önizleme boyutu direktifi.
 PREVIEW_LARGE: str = "max-image-preview:large"
@@ -51,6 +52,18 @@ VISIBILITY_PUBLIC = "Public"
 NON_INDEXABLE_VISIBILITIES = frozenset(
 	{"Private", "Unlisted", "Protected", "Temporary", "Expired", "Archived", "Deleted"}
 )
+
+#: Yaşam-döngüsü/güvenlik durumları — bu durumdaki dosyanın METADATA'sı bile
+#: guest yüzeylere sızmamalı (çöpteki/kalıcı silinmiş dosya artık erişilebilir
+#: değil). `decide()`'ın SEO-index kararından (noindex nedenleri dahil, daha
+#: katı — ör. Unlisted/Protected sadece aranmama tercihi, erişim kaybı değil)
+#: AYRI ve daha dar bir küme. `api.listing._listing_belgeleri` (guest
+#: `documents` alanı) bunu kullanır, `decide()`'ın TAMAMINI çağırmaz.
+BLOCKED_LIFECYCLE_STATES: frozenset[str] = frozenset({states.STATE_TRASHED, states.STATE_DELETED})
+
+#: AV taramasının "zararlı" kararı — karantinadaki dosya nginx'in servis ettiği
+#: kökün dışına taşınmıştır (`media/av.py`), metadata'sı da sızmamalı.
+BLOCKED_SCAN_STATUSES: frozenset[str] = frozenset({SCAN_INFECTED})
 
 
 def decide(file_url: str, *, check_usage: bool = True) -> dict:

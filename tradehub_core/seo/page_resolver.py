@@ -6,6 +6,7 @@ Whitelist endpoint'leri (Nginx tarafından çağrılır):
   - render_category(slug)  → /kategori/<slug>
   - render_brand(slug)     → /marka/<slug>
   - render_seller(slug)    → /magaza/<slug>
+  - render_media_watch(slug) → /medya/v/<slug> (bilinmeyen eski slug → 301)
 
 Storefront HTML template'leri Frappe container'ında volume mount ile
 erişilebilir: `site_config.storefront_dist_path` ile path konfigüre edilir
@@ -14,8 +15,12 @@ HTML üretilir — yine de meta tag'ler tam dolu olur.
 """
 
 import os
+from typing import TYPE_CHECKING
 
 from tradehub_core.seo import meta_builder, seo_html_injector
+
+if TYPE_CHECKING:
+	from werkzeug.wrappers import Response
 
 DEFAULT_STOREFRONT_DIST = "/storefront"
 
@@ -187,6 +192,163 @@ def render_seller(slug: str, lang: str = "tr") -> str:
 	return _render_for("Admin Seller Profile", slug, meta_builder.build_for_seller, lang=lang)
 
 
+# Medya izleme sayfası ---------------------------------------------------
+
+
+def _absolute_media_url(url: str, site_url: str) -> str:
+	"""Göreli medya adresini (`/files/...`) mutlak URL'e çevirir.
+
+	`schema_builder._absolute_url`/`meta_builder._absolute` ile aynı fikir —
+	her modül kendi private mutlaklaştırıcısını taşır (repo deseni), burada
+	yalnız `og:image`/`og:video` için kullanılıyor."""
+	if not url:
+		return ""
+	if url.startswith(("http://", "https://")):
+		return url
+	return f"{site_url.rstrip('/')}/{url.lstrip('/')}"
+
+
+def _watch_video_seo(data: dict, slug: str, site_url: str) -> dict:
+	"""`media_public._watch_data` çıktısından `seo_head.html` payload'ı üretir.
+
+	Poster HER ZAMAN `og:image`'e girer (indexlenemeyen video da sayfaya
+	girer — yalnız aranmaz). JSON-LD `build_video_object`'in KENDİ kapısına
+	bırakılır: poster ya da oynatılabilir kaynak (`content_url`/`embed_url`)
+	yoksa fonksiyon `None` döner, burada tekrar aynı koşul İMPLEMENTE
+	EDİLMEZ (Task 3 brief: "poster yoksa JSON-LD atlanır, sayfa yine döner").
+	"""
+	from tradehub_core.seo.schema_builder import SCHEMA_CONTEXT, build_video_object
+
+	title = data.get("title") or ""
+	description = data.get("description") or data.get("caption") or ""
+	poster = data.get("posterUrl") or ""
+	sources = data.get("sources") or []
+	content_url = sources[0].get("src", "") if sources else ""
+	content_type = sources[0].get("type", "") if sources else ""
+
+	json_ld: list[dict] = []
+	video_obj = build_video_object(
+		{
+			"title": title,
+			"caption": data.get("caption") or "",
+			"description": description,
+			"poster_url": poster,
+			"duration": data.get("durationSec") or 0,
+			"transcript": data.get("transcript") or "",
+		},
+		site_url,
+		content_url=content_url,
+		upload_date=data.get("uploadDate") or "",
+		seek_to_action_url_template=f"{site_url.rstrip('/')}/medya/v/{slug}?t={{seek_to_second_number}}",
+	)
+	if video_obj:
+		json_ld.append({"@context": SCHEMA_CONTEXT, **video_obj})
+
+	canonical = data.get("canonical") or ""
+	og_video = _absolute_media_url(content_url, site_url)
+	# og:video:secure_url yalnız SİTE https ise eklenir (Facebook/LinkedIn kartı
+	# https sayfada http kaynak kabul etmiyor) — video'nun kendi URL'i zaten
+	# `og_video` ile aynı mutlak adres, ikinci bir dönüşüm YOK.
+	og_video_secure_url = og_video if og_video and site_url.startswith("https://") else ""
+	return {
+		"title": title,
+		"description": description,
+		"canonical": canonical,
+		"robots": data.get("robots") or "noindex,follow",
+		"og_type": "video.other",
+		"og_title": title,
+		"og_description": description,
+		"og_image": _absolute_media_url(poster, site_url),
+		"og_video": og_video,
+		"og_video_type": content_type if og_video else "",
+		"og_video_secure_url": og_video_secure_url,
+		"og_url": canonical,
+		"site_name": "",
+		"twitter_handle": "",
+		"json_ld": json_ld,
+		"hreflang_links": [],
+	}
+
+
+def _find_media_redirect_target(source_path: str) -> str | None:
+	"""Bilinmeyen `/medya/v/<slug>` için canlı `Media URL Redirect` hedefi.
+
+	Süresi dolmuş satırlar döndürülmez — `media/redirect_renderer.py`'deki
+	`expires_at` kontrolüyle AYNI kural (cron sonunda gerçek 404'e düşer)."""
+	import frappe
+	from frappe.utils import now_datetime
+
+	return frappe.db.get_value(
+		"Media URL Redirect",
+		{"source_url": source_path, "expires_at": (">", now_datetime())},
+		"target_url",
+	)
+
+
+#: 301 hedefi olarak kabul edilen TEK path ailesi. `Media URL Redirect.validate`
+#: (`media_url_redirect.py`) normalde `target_url`'in host taşımadığını
+#: doğruluyor, ama `watch_slug.change_slug` gibi sistem yazımları
+#: `frappe.db.set_value` ile controller `validate()`'i BAYPAS EDER — ORM
+#: invariant'ına TEK BAŞINA güvenilmez (görev denetimi bulgusu, düzeltme turu
+#: 1). Burası ikinci, bağımsız savunma katmanı: DB'den ne gelirse gelsin,
+#: bu iki prefix dışına Location header YAZILMAZ.
+_SAFE_REDIRECT_TARGET_PREFIXES: tuple[str, ...] = ("/files/", "/medya/v/")
+
+
+def _is_safe_redirect_target(target_url: str) -> bool:
+	"""`target_url` bilinen güvenli path ailelerinden biri mi."""
+	return target_url.startswith(_SAFE_REDIRECT_TARGET_PREFIXES)
+
+
+def _redirect_response(target_url: str, site_url: str):
+	"""Eski `/medya/v/<slug>` adresi için 301 Werkzeug Response.
+
+	`media/redirect_renderer.py::MediaRedirectRenderer` sayfa-render zinciri
+	(`RedirectPage`) üzerinden 301 üretiyor; bu fonksiyon whitelist uçundan
+	doğrudan Response döndüğü için aynı 301 fikrini Werkzeug ile taşır."""
+	from werkzeug.wrappers import Response
+
+	if not target_url.startswith(("http://", "https://")):
+		target_url = f"{site_url.rstrip('/')}{target_url}"
+	response = Response(status=301)
+	response.headers["Location"] = target_url
+	response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+	return response
+
+
+def render_media_watch(slug: str, lang: str = "tr") -> "Response":
+	"""GET /medya/v/<slug> → izleme sayfası HTML + VideoObject/SeekToAction JSON-LD.
+
+	Akış: `media_public._watch_data(slug)` (HTTP zarfı yok) → bulunamazsa
+	(`frappe.DoesNotExistError`) bilinen eski slug mı diye `Media URL
+	Redirect`'e bak (koordinatör ruling, Task 1 devri — `change_slug` 301
+	köprüsü burada tüketilir) → orada da yoksa 404. Bulunan hedef
+	`_is_safe_redirect_target` ile İKİNCİ KEZ doğrulanır (DB satırına elle/
+	bypass yazılmış host'lu bir adres asla `Location`'a yansımaz).
+
+	`lang` şu an kullanılmıyor (izleme sayfası tek dilli) ama diğer
+	`render_*` fonksiyonlarıyla aynı imzayı taşır — Nginx/route katmanı
+	hepsine aynı çağrı biçimiyle gidiyor."""
+	import frappe
+
+	from tradehub_core.api import media_public
+	from tradehub_core.seo.site_url import storefront_url
+
+	slug = (slug or "").strip()
+	site_url = storefront_url()
+	try:
+		data = media_public._watch_data(slug)
+	except frappe.DoesNotExistError:
+		target = _find_media_redirect_target(f"/medya/v/{slug}")
+		if target and _is_safe_redirect_target(target):
+			return _redirect_response(target, site_url)
+		return _render_404_response()
+
+	seo = _watch_video_seo(data, slug, site_url)
+	html = _build_response_html(seo, "pages/media-watch.html")
+	return _html_response(html, status_code=200, cdn_cache_seconds=300)
+
+
 def _resolve_static_page(path: str, lang: str = "tr") -> dict | None:
 	"""STATIC_PAGES_REGISTRY'den entry döner; yoksa None. Faz 4c."""
 	from tradehub_core.seo.static_pages_registry import find_entry
@@ -256,6 +418,7 @@ def _register_whitelists():
 	globals()["render_category"] = frappe.whitelist(allow_guest=True)(render_category)
 	globals()["render_brand"] = frappe.whitelist(allow_guest=True)(render_brand)
 	globals()["render_seller"] = frappe.whitelist(allow_guest=True)(render_seller)
+	globals()["render_media_watch"] = frappe.whitelist(allow_guest=True)(render_media_watch)
 	globals()["render_static_page"] = frappe.whitelist(allow_guest=True)(render_static_page)
 	globals()["get_static_page_meta"] = frappe.whitelist(allow_guest=True)(get_static_page_meta)
 

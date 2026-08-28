@@ -1027,7 +1027,11 @@ class TestModulKesisimleri(FrappeTestCase):
 		with (
 			mock.patch("tradehub_core.media.av.in_quarantine", return_value=False),
 			mock.patch("tradehub_core.media.av.in_hold", return_value=True),
-			mock.patch("tradehub_core.media.transcode.subprocess.run") as ffmpeg,
+			# `_run_transcode` artık çıplak `subprocess.run` DEĞİL, `isolation.
+			# run_command`'ı çağırıyor (`media/transcode.py` `nice -n 10`/ffmpeg
+			# çağrısı `pipeline/security/isolation.py`'a taşındı) — mock bayat
+			# `.subprocess.run` yolunu değil GÜNCEL çağrı noktasını sabitliyor.
+			mock.patch("tradehub_core.media.transcode.isolation.run_command") as ffmpeg,
 		):
 			transcode._run_transcode(self.doc.file_url, name=self.doc.name)
 
@@ -1049,7 +1053,9 @@ class TestModulKesisimleri(FrappeTestCase):
 
 		with (
 			mock.patch("tradehub_core.media.av.in_quarantine", return_value=True),
-			mock.patch("tradehub_core.media.transcode.subprocess.run") as ffmpeg,
+			# Bkz. yukarıdaki test — `.subprocess.run` bayat, güncel çağrı
+			# noktası `isolation.run_command`.
+			mock.patch("tradehub_core.media.transcode.isolation.run_command") as ffmpeg,
 		):
 			transcode._run_transcode(self.doc.file_url, name=self.doc.name)
 

@@ -6,6 +6,7 @@ Pure fonksiyonlar Frappe runtime'a bağımlı değildir. Composer'lar
 """
 
 import html
+import mimetypes
 from urllib.parse import urljoin, urlsplit
 
 SCHEMA_CONTEXT = "https://schema.org"
@@ -65,21 +66,10 @@ def build_image_object(seo_fields: dict, site_url: str) -> dict | str:
 		if seo_fields.get(kaynak):
 			nesne[hedef] = seo_fields[kaynak]
 
-	for kaynak, hedef in _IMAGE_LICENSE_MAP.items():
-		deger = seo_fields.get(kaynak)
-		if not deger:
-			continue
-		if hedef in ("license", "acquireLicensePage"):
-			nesne[hedef] = _absolute_url(deger, site_url)
-		elif hedef == "creator":
-			# Google lisans rozeti `creator`'ı düz string değil `{"@type": ...}`
-			# nesnesi bekler. `creator_type` boşsa varsayılan "Organization" —
-			# çoğu içerik mağaza/kurum tarafından üretiliyor (File.th_media_creator_type
-			# Select alanı Person/Organization, boş bırakılabilir).
-			tur = seo_fields.get("creator_type") or "Organization"
-			nesne[hedef] = {"@type": tur, "name": deger}
-		else:
-			nesne[hedef] = deger
+	# Lisans beşlisi — `_license_props` ile PAYLAŞILAN tek uygulama (düzeltme
+	# turu 1: bu satır-içi döngü `build_digital_document`'ta AYNEN kopyalanmıştı,
+	# denetim mükerrerliği reddetti; ikisi de artık `_license_props`'u çağırıyor).
+	nesne.update(_license_props(seo_fields, site_url))
 
 	# Yalnız url/contentUrl kaldıysa nesne bir şey söylemiyor demektir.
 	if set(nesne) <= {"@type", "url", "contentUrl"}:
@@ -111,6 +101,7 @@ def build_video_object(
 	content_url: str = "",
 	embed_url: str = "",
 	upload_date: str = "",
+	seek_to_action_url_template: str = "",
 ) -> dict | None:
 	"""Tek video için `VideoObject` — poster yoksa None.
 
@@ -121,6 +112,13 @@ def build_video_object(
 	URL mutlaklaştırması dosyadaki `_absolute_url` ile paylaşılır — `embedUrl`
 	istisna: gömülü oynatıcı linki (ör. YouTube embed) zaten mutlak gelir,
 	site_url'e göre yeniden yazılmaz.
+
+	`seek_to_action_url_template` doluysa Google'ın video derin bağlantı
+	desteği (`SeekToAction`) eklenir — izleme sayfasının `?t=<saniye>` sorgu
+	parametresini okuyup videoyu o saniyeden başlatabildiği tarayıcılar için
+	arama sonucunda saniye-bazlı bağlantılar oluşturur. Boşsa anahtar hiç
+	girmez — geriye uyumlu (Task 3 koordinatör ruling'i, mevcut çağıranlar
+	kırılmasın diye kwarg opsiyonel).
 	"""
 	poster = str(seo_fields.get("poster_url") or "").strip()
 	if not poster or not (content_url or embed_url):
@@ -148,6 +146,12 @@ def build_video_object(
 	biter = str(seo_fields.get("rights_expires_on") or "").strip()
 	if biter:
 		obj["expires"] = biter
+	if seek_to_action_url_template:
+		obj["potentialAction"] = {
+			"@type": "SeekToAction",
+			"target": {"@type": "EntryPoint", "urlTemplate": seek_to_action_url_template},
+			"startOffset-input": "required name=seek_to_second_number",
+		}
 	return obj
 
 
@@ -170,6 +174,101 @@ def _absolute_url(value: str | None, site_url: str) -> str:
 	parts = urlsplit(site_url)
 	origin = f"{parts.scheme}://{parts.netloc}/"
 	return urljoin(origin, str(value).lstrip("/"))
+
+
+def _license_props(seo_fields: dict, site_url: str) -> dict:
+	"""CreativeWork lisans alanları — `_IMAGE_LICENSE_MAP` sözleşmesinin TEK
+	uygulaması (`ImageObject`/`DigitalDocument` ikisi de schema.org
+	`CreativeWork`'ten türer, lisans alanları ortak).
+
+	Düzeltme turu 1 — denetim: `build_image_object` + `build_digital_document`
+	AYNI 5-alanlı döngüyü birebir kopyalamıştı (mükerrerlik reddedildi); ikisi
+	de artık bu tek fonksiyonu çağırıyor, çıktı ÖNCEKİYLE birebir aynı
+	(`test_schema_builder`/`test_media_seo_pipeline` regresyonu kanıtlıyor).
+
+	`creator` düz string değil `{"@type": ...}` nesnesi olarak basılır —
+	Google görsel/doküman lisans rozeti bunu bekliyor. `creator_type` boşsa
+	varsayılan "Organization" — çoğu içerik mağaza/kurum tarafından üretiliyor
+	(`File.th_media_creator_type` Select alanı Person/Organization, boş
+	bırakılabilir).
+	"""
+	out: dict = {}
+	for kaynak, hedef in _IMAGE_LICENSE_MAP.items():
+		deger = seo_fields.get(kaynak)
+		if not deger:
+			continue
+		if hedef in ("license", "acquireLicensePage"):
+			out[hedef] = _absolute_url(deger, site_url)
+		elif hedef == "creator":
+			tur = seo_fields.get("creator_type") or "Organization"
+			out[hedef] = {"@type": tur, "name": deger}
+		else:
+			out[hedef] = deger
+	return out
+
+
+def build_digital_document(
+	seo_fields: dict,
+	site_url: str,
+	*,
+	content_url: str,
+	uzanti: str = "",
+) -> dict | None:
+	"""Tek doküman (PDF/Office) için `DigitalDocument` — adı yoksa None.
+
+	`build_video_object` ile AYNI ilke: geçersiz/anlamsız yapısal veri hiç
+	üretilmez (Google geçersiz yapısal veri istemiyor). `name` `seo_fields
+	["title"]` doluysa ondan — `doc_meta.apply` çıkarımı PDF `/Title`
+	metadata'sını zaten `title`'a yazıyor (Task 2); boşsa `content_url`'in
+	dosya adı gövdesinden (uzantısız). İkisi de boşsa (adres tamamen anlamsız
+	kaldığında) → None.
+
+	`url`/`contentUrl` AYNI mutlak adres — `ImageObject`'in stable/delivery
+	ayrımı burada yok; spec alan listesi TAM: name/url/contentUrl/
+	encodingFormat/dateCreated + lisans beşlisi.
+
+	`encodingFormat` `uzanti` (ör. ".pdf") verilmişse ondan, yoksa
+	`content_url`'in kendisinden `mimetypes` ile çözülür — `mimetypes.
+	guess_type` çıplak bir uzantıyı (".pdf") gizli-dosya sanıp uzantısız
+	döndürdüğü için (`os.path.splitext(".pdf") == (".pdf", "")`) sahte bir
+	dosya adına ekleniyor.
+
+	Düzeltme turu 1 — denetim: parametre BİLEREK `doc_type` DEĞİL `uzanti`
+	adını taşıyor — `Listing Document.doc_type` (Task 1) bir KATEGORİ Select
+	alanı ("Katalog/Sertifika/Kılavuz/Teknik Föy/Diğer"), burasıysa bir dosya
+	UZANTISI (".pdf" vb.); aynı ad ikisini karıştırma riski taşıyordu.
+
+	Saf fonksiyon: `seo_fields` çağıran tarafından `media/seo.fields_for` +
+	kimlik bilgisiyle (`date_created` vb.) önceden zenginleştirilip verilir —
+	`build_image_object`/`build_video_object` ile AYNI desen, bu modül
+	Frappe'ye bağlanmaz.
+	"""
+	url = _absolute_url(content_url, site_url)
+	if not url:
+		return None
+
+	ad = str(seo_fields.get("title") or "").strip()
+	if not ad:
+		temiz_yol = str(content_url or "").split("?")[0].strip()
+		dosya_adi = temiz_yol.rsplit("/", 1)[-1]
+		ad = dosya_adi.rsplit(".", 1)[0] if "." in dosya_adi else dosya_adi
+	ad = ad.strip()
+	if not ad:
+		return None
+
+	nesne: dict = {"@type": "DigitalDocument", "name": ad, "url": url, "contentUrl": url}
+
+	mime_kaynagi = f"belge{uzanti}" if uzanti else str(content_url or "")
+	mime = mimetypes.guess_type(mime_kaynagi)[0]
+	if mime:
+		nesne["encodingFormat"] = mime
+
+	if seo_fields.get("date_created"):
+		nesne["dateCreated"] = seo_fields["date_created"]
+
+	nesne.update(_license_props(seo_fields, site_url))
+
+	return nesne
 
 
 def _effective_listing_price(listing: dict) -> float | str:
@@ -211,6 +310,7 @@ def build_product_schema(
 	currency: str = "TRY",
 	lang: str = "tr",
 	media_videos: list | None = None,
+	media_documents: list | None = None,
 ) -> dict:
 	"""Product schema üret. Pure: I/O yok."""
 	slug = listing.get("slug", "")
@@ -269,6 +369,12 @@ def build_product_schema(
 	# önceden üretip verir — burası pure kalır, DB/Frappe'ye dokunmaz.
 	if media_videos:
 		schema["video"] = media_videos
+
+	# Doküman (Task 3): `media_videos`'un YANINA — çağıran (Task 4:
+	# `api/listing.py`) `Listing.documents` child'ından `build_digital_document`
+	# ile ürettiği listeyi burada geçirir; boşsa anahtar hiç girmez.
+	if media_documents:
+		schema["subjectOf"] = media_documents
 
 	return schema
 
@@ -420,6 +526,7 @@ def _pure_compose_for_listing(*, ctx: dict, defaults: dict, site_url: str) -> li
 			aggregate_rating=ctx.get("aggregate_rating"),
 			reviews=ctx.get("reviews"),
 			media_videos=listing.get("media_videos"),
+			media_documents=listing.get("media_documents"),
 		)
 	)
 
@@ -671,6 +778,78 @@ def _listing_video_objects(listing: dict, site_url: str) -> list:
 		return []
 
 
+def _listing_document_objects(listing: dict, site_url: str) -> list:
+	"""İlanın PDF/Office dokümanları (`Listing.documents` child `Listing
+	Document`, Task 1) → `DigitalDocument` listesi (Task 4).
+
+	`_listing_video_objects`/`_listing_image_objects` ile AYNI kapı:
+	indexlenemeyen (private/karantina/hakkı dolmuş) dosya JSON-LD'ye HİÇ
+	girmez (`seo_index.decide`, `check_usage=False`) — Google'a var olmayan/
+	kaldırılmış bir kaynağı işaret ettirmemek için.
+
+	Görsel kardeşiyle AYNI desen (per-item `fields_for`; ≤~5 doküman
+	beklenir) — galeri/site haritası ölçeğindeki N+1 endişesi burada
+	geçerli değil.
+
+	Aynı `file_url`'e sahip birden çok child satırı varsa yalnız İLKİ
+	`subjectOf`'a girer — `api/listing.py::_listing_belgeleri` (Task 4) ile
+	AYNI dedup gerekçesi.
+	"""
+	import frappe
+
+	satirlar = listing.get("documents") or []
+	if not satirlar:
+		return []
+	try:
+		from tradehub_core.media import doc_meta, seo_index, upload_policy
+		from tradehub_core.media import seo as media_seo
+
+		lang = listing.get("content_default_lang") or "tr"
+		out: list = []
+		gorulen: set[str] = set()
+		for satir in satirlar:
+			url = str(satir.get("file") or "").split("?")[0].strip()
+			if not url or url in gorulen:
+				continue
+			# Sitemap'in `doc_indexable` tanımıyla birlik: `Listing Document.file`
+			# serbest bir `Attach` alanı — gerçek bir PDF/Office olmayan (ör.
+			# `.zip`) dosya sitemap'e girmiyorsa JSON-LD'ye de girmemeli.
+			if upload_policy.extension_of(url) not in doc_meta.DOC_UZANTILAR:
+				continue
+			if not seo_index.decide(url, check_usage=False)["indexable"]:
+				continue
+			gorulen.add(url)
+			alanlar = media_seo.fields_for(
+				url,
+				ref_doctype="Listing Document",
+				ref_name=satir.get("name") or "",
+				ref_field="file",
+				lang=lang,
+			)
+			# Admin'in child satırına girdiği başlık dosyanın SEO başlığından
+			# (PDF `/Title` metadata çıkarımı, Task 2) ÖNCE gelir —
+			# `api/listing.py::_listing_belgeleri` (Task 4) ile AYNI öncelik
+			# sırası; ikisi de boşsa `build_digital_document` dosya adı
+			# gövdesine düşer (kendi sözleşmesi).
+			baslik = satir.get("title") or alanlar.get("title") or ""
+			seo_fields = {**alanlar, "title": baslik}
+			nesne = build_digital_document(
+				seo_fields,
+				site_url,
+				content_url=url,
+				uzanti=upload_policy.extension_of(url),
+			)
+			if nesne:
+				out.append(nesne)
+		return out
+	except Exception:
+		# Görsel/video kardeşleriyle AYNI gerekçe: yapısal veri üretimi bir
+		# sayfa isteği içinde koşuyor, doküman tarafındaki bir hata ürün
+		# sayfasını DÜŞÜRMEMELİ.
+		frappe.log_error("listing document objects failed", "schema_builder")
+		return []
+
+
 def _get_listing_extra_context(listing_name: str) -> dict:
 	"""Listing için brand + category + rating + reviews + questions topla."""
 	import frappe
@@ -800,6 +979,7 @@ def compose_for_listing(listing: dict, defaults: dict, site_url: str) -> list[di
 		**listing,
 		"media_images": _listing_image_objects(listing, site_url),
 		"media_videos": _listing_video_objects(listing, site_url),
+		"media_documents": _listing_document_objects(listing, site_url),
 	}
 	ctx = {"listing": listing}
 	ctx.update(_get_listing_extra_context(listing.get("name", "")))

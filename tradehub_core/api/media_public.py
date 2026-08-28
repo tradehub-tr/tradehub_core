@@ -8,7 +8,8 @@ from html import escape
 import frappe
 from werkzeug.wrappers import Response
 
-from tradehub_core.media import seo, seo_index, seo_urls, watch_slug
+from tradehub_core.media import seo, seo_index, seo_urls, upload_policy, watch_slug
+from tradehub_core.media.doc_meta import DOC_UZANTILAR
 from tradehub_core.seo.schema_builder import build_image_object
 from tradehub_core.seo.site_url import storefront_url
 
@@ -196,6 +197,61 @@ def watch_indexable(file_url: str, *, fields: dict | None = None, listings: list
 		return False
 	if listings is None:
 		listings = _storefront_listings(url)
+	return bool(listings)
+
+
+def _document_listings(file_url: str) -> list[dict]:
+	"""Dokümanın bağlı olduğu, vitrinde görünen ilanlar — `_storefront_listings`
+	(video) kardeşi, TASK 3.
+
+	`Listing.video_url` tekil alanın aksine doküman bağlantısı `Listing.documents`
+	(child `Listing Document`, Task 1) çoka-çok — TEK sorgu yetmez, İKİ toplu
+	adım gerekir: önce dosyaya işaret eden child satırlar (`file` → `parent`),
+	sonra o parent'lardan yalnız vitrinde görünenler. Site haritasının toplu
+	ön-yüklemesi (`sitemap_generator._preload_doc_listings`) AYNI iki adımı
+	çoklu dosya için `IN` filtresiyle açar — burada tek dosya için sabit kalır.
+	"""
+	child_rows = frappe.get_all("Listing Document", filters={"file": file_url}, fields=["parent"])
+	if not child_rows:
+		return []
+	parent_names = list({row["parent"] for row in child_rows})
+	return frappe.get_all(
+		"Listing",
+		filters={"name": ["in", parent_names], "storefront_visible": 1},
+		fields=["name", "slug", "title"],
+	)
+
+
+def doc_indexable(file_url: str, *, fields: dict | None = None, listings: list | None = None) -> bool:
+	"""Doküman (PDF/Office) indexlenebilir mi — `watch_indexable`'ın doküman ikizi.
+
+	Üç koşul (`watch_indexable`'ın W3 iskeletiyle AYNI şekil, ikinci bacak
+	farklı):
+	  1. `seo_index.decide` — SEO kararı (private/karantina/hakkı dolmuş dahil,
+	     "+private → False" burada karşılanır).
+	  2. Uzantı `DOC_UZANTILAR` içinde mi — video'nun "poster var mı" kontrolüyle
+	     aynı rol: dosyanın GERÇEKTEN bir doküman formatı olduğunu doğrular
+	     (`Listing Document.file` serbest bir `Attach` alanı — herhangi bir
+	     dosya ekli olabilir, doküman sitemap/JSON-LD'ye yalnız gerçek
+	     PDF/Office biçimleri girmeli).
+	  3. En az bir vitrinde görünen ilana bağlı mı (`Listing.documents` child'ı).
+
+	`fields`/`listings` verilirse burada YENİDEN hesaplanmaz — `watch_indexable`
+	ile aynı imza sözleşmesi (sitemap toplu ön-yüklemesi ikisini de önceden
+	hesaplayıp geçirir). `fields` bu üç koşulda bugün TÜKETİLMİYOR — imza
+	yalnız simetri için tutuluyor, gelecekte alan-bazlı bir kural eklenirse
+	tek yerden geçilebilsin diye.
+	"""
+	url = (file_url or "").split("?")[0].strip()
+	if not url:
+		return False
+	decision = seo_index.decide(url, check_usage=False)
+	if not decision.get("indexable"):
+		return False
+	if upload_policy.extension_of(url) not in DOC_UZANTILAR:
+		return False
+	if listings is None:
+		listings = _document_listings(url)
 	return bool(listings)
 
 
