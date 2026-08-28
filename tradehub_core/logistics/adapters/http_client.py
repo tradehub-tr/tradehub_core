@@ -108,6 +108,7 @@ import frappe
 import requests
 from frappe import _
 
+from tradehub_core.logistics.adapters.registry import normalize_carrier_code
 from tradehub_core.logistics.adapters.url_guard import UrlGuard, UrlNotAllowedError
 from tradehub_core.logistics.constants import CREDENTIAL_SECRET_FIELDS, INTEGRATION_LOG_OPERATIONS
 from tradehub_core.logistics.exceptions import CarrierAPIError, CarrierTimeoutError, LogisticsError
@@ -554,7 +555,11 @@ class CarrierHttpClient:
 		max_redirects: int = DEFAULT_MAX_REDIRECTS,
 		pool_size: int = DEFAULT_POOL_SIZE,
 	) -> None:
-		self.carrier_code: str = carrier_code
+		# NORMALİZASYON TEK OTORİTEDEN (`registry.normalize_carrier_code`). Ölçüldü:
+		# istemci ham dizeyi taşıdığı için `ARAS` ile `aras` AYRI devre sayacı
+		# tutuyor, arıza sayacı bölünüyor ve devre HİÇ açılmıyordu — oysa iki
+		# yazım `get_adapter` tarafından AYNI adapter'a çözülüyor.
+		self.carrier_code: str = normalize_carrier_code(carrier_code) or str(carrier_code or "")
 		self.provider: str | None = provider
 		self.credential_doc: dict[str, Any] | None = credential_doc
 		# `None` = "sır VAR ama plaintext'i okunamadı" (bkz. `integration/secrets.py`).
@@ -577,8 +582,12 @@ class CarrierHttpClient:
 			policy = replace(policy, max_attempts=max_attempts)
 		self.retry_policy: RetryPolicy = policy
 
+		# DEVRE KAPSAMI = (kod, ORTAM). Ölçüldü: ortam anahtarda yokken sandbox
+		# istemcisinde 2 hata production istemcisini `CIRCUIT_OPEN` ile
+		# kesiyordu — sandbox arızası canlı gönderiyi durduruyordu.
 		self.breaker: CarrierCircuitBreaker = CarrierCircuitBreaker(
-			carrier_code,
+			self.carrier_code,
+			environment=self.environment,
 			failure_threshold=failure_threshold,
 			cooldown_sec=cooldown_sec,
 			failure_window_sec=failure_window_sec,
@@ -695,6 +704,59 @@ class CarrierHttpClient:
 		is_probe = self._enter_circuit(call)
 		started_all = time.monotonic()
 		budget = policy.attempt_budget(idempotent=idempotent)
+		try:
+			last, last_real, made = self._run_attempts(call, budget, is_probe)
+		except LogisticsError:
+			# ÇAĞIRAN/YAPILANDIRMA KAYNAKLI HATA (bugün tek örneği: `classify=`
+			# callback'inin çöküşü). Taşıyıcı hakkında hiçbir şey KANITLAMAZ:
+			# devre sayacına işlenmez — ama yarı-açık deneme hakkını da YAKMAMALI.
+			# Yakarsa devre, bizim kendi kodumuzdaki bir hata yüzünden cooldown
+			# boyunca HALF_OPEN'da kilitlenir (aynı sınıf arıza, bkz.
+			# `record_neutral` docstring'i).
+			if is_probe:
+				self.breaker.release_probe()
+			raise
+		if isinstance(last, CarrierResponse):
+			return last
+
+		if last_real is not None:
+			self.breaker.record(last_real.outcome, is_probe=is_probe)
+		elif last is None:
+			self.breaker.record(Outcome.UNAVAILABLE, is_probe=is_probe)
+		elif is_probe:
+			# ÜÇÜNCÜ KATMAN'IN EKSİK YARISI. Daraltılan kapı reddi devre kesiciye
+			# HİÇ işlenmez (aşağıdaki gerekçe) — ama probe anahtarı `_enter_circuit`
+			# tarafından kapıdan ÖNCE alınmıştı ve geri verilmiyordu: bir kez
+			# `base_url` hatalı yazıldığında devre cooldown boyunca HALF_OPEN'da
+			# kilitleniyor, sağlıklı taşıyıcıya giden çağrılar `CIRCUIT_OPEN`
+			# yiyordu (ölçüldü). İki kapı dalı da aynı davranır — oracle eşitliği
+			# bozulmaz.
+			self.breaker.release_probe()
+		# ÜÇÜNCÜ KATMAN: daraltılan kapı reddi devre kesiciye HİÇ işlenmez. NEUTRAL
+		# zaten no-op; bu satır niyeti çağrı yerinde görünür kılar, böylece kapı
+		# reddinin devre DURUMUNU değiştirmesi bir daha kazara mümkün olmaz.
+		# `last_real` kapı reddinin KENDİSİNİ asla içermez (`collapsed_guard`
+		# denemeler ona atanmaz), ama ondan ÖNCEKİ gerçek arızayı içerir ve o
+		# arıza her iki kapı dalında da AYNI olduğu için oracle eşitliği bozulmaz.
+		elapsed_ms = int((time.monotonic() - started_all) * 1000)
+		# `attempts` GERÇEKTEN yapılan deneme sayısı — bütçe değil; 400 tek denemede
+		# biter ve telemetri bunu 3 gibi göstermemeli.
+		raise self._build_error(last, operation=operation, attempts=made, elapsed_ms=elapsed_ms)
+
+	def _run_attempts(
+		self, call: _Call, budget: int, is_probe: bool
+	) -> tuple[_Attempt | CarrierResponse | None, _Attempt | None, int]:
+		"""Deneme döngüsü. Başarıda `CarrierResponse`, aksi halde son denemeler.
+
+		AYRI METOT ÇÜNKÜ `request()` bu döngüden SIZAN `LogisticsError`'ı yakalayıp
+		probe anahtarını iade etmek zorunda; aynı `try` bloğu döngüden SONRAKİ
+		`_build_error` çağrısını da kapsasaydı normal hata yolu (CarrierAPIError
+		bir `LogisticsError` alt sınıfıdır) yanlışlıkla o dala düşerdi.
+
+		Döner: (son deneme ya da başarı yanıtı, kapı reddi OLMAYAN son deneme,
+		gerçekten yapılan deneme sayısı).
+		"""
+		policy = call.policy
 		last: _Attempt | None = None
 		#: Kapı reddi OLMAYAN son deneme — devre kesiciye İŞLENECEK olan kanıt.
 		#:
@@ -718,7 +780,7 @@ class CarrierHttpClient:
 				# Devre sayacı DENEME başına değil, İSTEK başına işlenir: tek bir
 				# çağrının 3 denemesi tek bir kanıttır, üç ayrı kanıt değil.
 				self.breaker.record(Outcome.HEALTHY, is_probe=is_probe)
-				return replace(last.response, attempts=attempt_no)  # type: ignore[arg-type]
+				return replace(last.response, attempts=attempt_no), last_real, made  # type: ignore[arg-type]
 
 			if last.collapsed_guard:
 				# İKİNCİ KATMAN. Kapı reddinde `Outcome` zaten NEUTRAL (retriable
@@ -734,20 +796,7 @@ class CarrierHttpClient:
 				break  # Firma "çok sonra gel" diyor — işçiyi burada tutmuyoruz.
 			_sleep(delay)
 
-		if last_real is not None:
-			self.breaker.record(last_real.outcome, is_probe=is_probe)
-		elif last is None:
-			self.breaker.record(Outcome.UNAVAILABLE, is_probe=is_probe)
-		# ÜÇÜNCÜ KATMAN: daraltılan kapı reddi devre kesiciye HİÇ işlenmez. NEUTRAL
-		# zaten no-op; bu satır niyeti çağrı yerinde görünür kılar, böylece kapı
-		# reddinin devre DURUMUNU değiştirmesi bir daha kazara mümkün olmaz.
-		# `last_real` kapı reddinin KENDİSİNİ asla içermez (`collapsed_guard`
-		# denemeler ona atanmaz), ama ondan ÖNCEKİ gerçek arızayı içerir ve o
-		# arıza her iki kapı dalında da AYNI olduğu için oracle eşitliği bozulmaz.
-		elapsed_ms = int((time.monotonic() - started_all) * 1000)
-		# `attempts` GERÇEKTEN yapılan deneme sayısı — bütçe değil; 400 tek denemede
-		# biter ve telemetri bunu 3 gibi göstermemeli.
-		raise self._build_error(last, operation=operation, attempts=made, elapsed_ms=elapsed_ms)
+		return last, last_real, made
 
 	# -------------------------------------------------------------------
 	# Tek deneme
@@ -841,7 +890,30 @@ class CarrierHttpClient:
 
 		elapsed_ms = int((time.monotonic() - started) * 1000)
 		if captured is not None:
-			result = self._classify(call, *captured, elapsed_ms=elapsed_ms)
+			try:
+				result = self._classify(call, *captured, elapsed_ms=elapsed_ms)
+			except LogisticsError:
+				# Zaten sözleşmeye uygun; ikinci kez sarmalamak nedeni gizler.
+				self._log_classify_failure(call, captured[0], attempt_no, elapsed_ms)
+				raise
+			except Exception as exc:
+				# ÇAĞIRANIN `classify=` CALLBACK'İ FIRLATTI. Eskiden istisna
+				# olduğu gibi dışarı çıkıyordu ve DÖRT şey birden kayboluyordu
+				# (ölçüldü): log satırı YAZILMIYOR, devre kesiciye kayıt
+				# düşmüyor, yarı-açık probe tükeniyor ve `LogisticsError`
+				# hiyerarşisi dışında kaldığı için API zarfı 500 dönüyordu.
+				#
+				# Modülün her yerde uyguladığı politika (`_prepare_body`,
+				# `_validate_operation`, `_validated_timeout` emsali):
+				# hiyerarşiye çevir. `classify` ADAPTER kodudur, taşıyıcı arızası
+				# değil — bu yüzden 502 değil `LogisticsError` (417) ve devre
+				# kesiciye kanıt olarak İŞLENMEZ.
+				self._log_classify_failure(call, captured[0], attempt_no, elapsed_ms)
+				raise LogisticsError(
+					_("Taşıyıcı yanıt sınıflandırıcısı hata verdi ({0}): {1}").format(
+						call.operation, type(exc).__name__
+					)
+				) from exc
 
 		if result.collapsed_guard:
 			# İÇ AĞ ORACLE'I — DARALTMA KOMŞU SÜTUNA KAÇMIŞTI (2. turdan beri açık).
@@ -903,6 +975,29 @@ class CarrierHttpClient:
 			is_retriable=call.policy.is_retriable(result.outcome),
 		)
 		return result
+
+	def _log_classify_failure(self, call: _Call, raw: Any, attempt_no: int, elapsed_ms: int) -> None:
+		"""`classify=` çöküşünü entegrasyon loguna yazar.
+
+		SATIR YAZILMAK ZORUNDA: taşıyıcı yanıt VERDİ (durum kodu elimizde), çöken
+		bizim sınıflandırıcımız. Satır olmadan operatörün elinde yalnız bir 500
+		kalıyor ve taşıyıcının ne döndüğü hiçbir yerde görünmüyordu. Gövde
+		yazılmaz — sınıflandırma yapılamadığı için güvenilir bir `body_text`
+		yoktur ve ham gövdeyi bu yoldan geçirmek maskeleme sözleşmesini atlatırdı.
+		"""
+		self._log(
+			call,
+			succeeded=False,
+			http_status=_status_or_none(raw),
+			duration_ms=elapsed_ms,
+			attempt=attempt_no,
+			error_code="CLASSIFY_ERROR",
+			error_message=_("Taşıyıcı yanıt sınıflandırıcısı hata verdi."),
+			request_body=call.request_body,
+			response_body=None,
+			request_headers=call.headers,
+			is_retriable=False,
+		)
 
 	def _send(self, call: _Call) -> tuple[Any, bytes, bool]:
 		"""İsteği gönderir, yönlendirmeleri ELLE takip eder, gövdeyi tavanla okur.
@@ -1234,7 +1329,7 @@ class CarrierHttpClient:
 	# -------------------------------------------------------------------
 
 	def _log(self, call: _Call, **kwargs: Any) -> bool:
-		"""Enjekte edilen log yazıcısını çağırır. Döner: satır YAZILDI mı.
+		"""Enjekte edilen log yazıcısını çağırır. Döner: satır GERÇEKTEN YAZILDI mı.
 
 		`carrier` alanına `provider` (Logistics Provider docname) gider,
 		`carrier_code` DEĞİL — bkz. modül docstring'i "iki ayrı kimlik uzayı".
@@ -1243,6 +1338,11 @@ class CarrierHttpClient:
 		aracı, gönderi oluşturmanın önkoşulu değil. Ama SESSİZ de olmamalı:
 		`claim_open_notice` kazananının logu düşerse cooldown boyunca hiçbir
 		satır kalmıyordu, bu yüzden başarı bilgisi çağırana DÖNER.
+
+		İKİ BAŞARISIZLIK KANALI VAR ve ikisi de okunur: (a) istisna — SÖZLEŞME
+		DIŞI ama savunma olarak duruyor, (b) `None` dönüşü — `IntegrationLogWriter`
+		sözleşmesinin TEK meşru başarısızlık bildirimi. (b) okunmadığı sürece bu
+		metot koşulsuz True dönüyordu (ölçüldü).
 		"""
 		if self._logger is None or not self.provider:
 			return False
@@ -1257,7 +1357,7 @@ class CarrierHttpClient:
 			# bile redakte edilir ve nöbetçiyi SUSTURMAZ.
 			kwargs["extra_secret_values"] = self._extra_secret_values
 		try:
-			self._logger(
+			written = self._logger(
 				carrier=self.provider,
 				direction="outbound",
 				operation=call.operation,
@@ -1271,7 +1371,21 @@ class CarrierHttpClient:
 			# edilmiyordu.
 			_report_log_failure(self.carrier_code, call.operation, exc)
 			return False
-		return True
+		# YAZICININ ASIL BAŞARISIZLIK KANALI DÖNÜŞ DEĞERİDİR. `write_integration_log`
+		# sözleşme gereği ASLA FIRLATMAZ (bkz. `IntegrationLogWriter` docstring'i:
+		# "Dönüş: oluşan log kaydının adı; yazılamadıysa `None`. **Asla
+		# fırlatmaz.**") — yani yukarıdaki `except` gerçek yazıcıda HİÇ tetiklenmez
+		# ve dönüş atıldığı sürece bu metot koşulsuz True dönüyordu (ölçüldü:
+		# sözleşmeye uyan, `None` dönen bir yazıcıyla `_log` → True). Sonuç:
+		# `_enter_circuit`'in "kazanan yazamadıysa anahtarı geri ver" dalı
+		# ERİŞİLEMEZDİ; devre-açık bildirimi düşen bir cooldown boyunca DocType'ta
+		# HİÇ satır kalmıyor ve kimse yeniden deneyemiyordu.
+		#
+		# BURADA AYRICA RAPOR YAZILMAZ: `write_integration_log` kendi arızasını
+		# zaten `safe_log_error` ile kalıcı olarak kaydediyor; ikinci bir kayıt
+		# aynı olayı çift sayardı. Kısılmış raporlama yalnız SÖZLEŞME İHLALİ olan
+		# (fırlatan) yazıcılar için yukarıdaki dalda kalır.
+		return written is not None
 
 	# -------------------------------------------------------------------
 	# Oturum yönetimi
@@ -1346,6 +1460,14 @@ def _warn(message: str, *, level: str = "warning") -> None:
 		getattr(frappe.logger("logistics"), level)(message)
 	except Exception:  # noqa: BLE001 — uyarı yolu ana akışı düşüremez
 		pass
+
+
+def _status_or_none(raw: Any) -> int | None:
+	"""Ham yanıtın durum kodu; okunamıyorsa None (log yolu düşmemeli)."""
+	try:
+		return int(raw.status_code)
+	except (AttributeError, TypeError, ValueError):
+		return None
 
 
 def _close_quietly(raw: Any) -> None:

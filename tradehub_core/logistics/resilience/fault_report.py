@@ -50,6 +50,22 @@ def report_throttled(scope: str, message: str, title: str) -> None:
 	İlk görülüşte kalıcı `Error Log` satırı, sonraki tekrarlarda
 	`FAULT_WARN_WINDOW_SEC`'te bir `logistics` logger'ına uyarı.
 
+	PENCERE "SON RAPOR"DAN ÖLÇÜLÜR, "SON OLAY"DAN DEĞİL. Zaman damgası eskiden
+	HER çağrıda tazeleniyordu; sonuç, docstring'in vaadinin TERSİYDİ (ölçüldü,
+	konteyner):
+
+		200 sn kesintisiz arıza, sn'de 1 (Redis çökmüş) → TOPLAM 1 rapor
+		90 sn arayla 5 seyrek arıza                     → TOPLAM 5 rapor
+
+	Yani arıza SÜRDÜĞÜ sürece sessiz, SEYREK olunca gürültülüydü. Kesintisiz bir
+	Redis çöküşünde ilk saniyeden sonra hiçbir yere hiçbir şey yazılmıyordu.
+	Damga artık YALNIZ rapor yazıldığında güncellenir; kardeş yüklem
+	`should_report` pencereyi zaten böyle kuruyordu.
+
+	Damga yazma DENEMESİNDEN ÖNCE konur: `frappe.log_error` kalıcı olarak
+	patlıyorsa (DB yazma katmanı çökmüş) her çağrı yeniden denemeye girip
+	fırtına üretirdi — bu fonksiyonun engellemek için var olduğu şeyin ta kendisi.
+
 	Args:
 		scope: Kısma anahtarı — aynı arıza sınıfını temsil etmeli
 			(ör. `carrier_code + ":" + operation`). Çok dar bir kapsam
@@ -59,11 +75,13 @@ def report_throttled(scope: str, message: str, title: str) -> None:
 	"""
 	now = time.monotonic()
 	previous = _LAST_WARNING.get(scope)
+	if previous is not None and now - previous < FAULT_WARN_WINDOW_SEC:
+		return
 	_LAST_WARNING[scope] = now
 	try:
 		if previous is None:
 			frappe.log_error(message, title)
-		elif now - previous >= FAULT_WARN_WINDOW_SEC:
+		else:
 			frappe.logger("logistics").warning(message)
 	except Exception:  # noqa: BLE001 — raporlama yolu çağrıyı düşüremez
 		# Frappe bağlamı yok ya da `Error Log` yazılamıyor: bu fonksiyon zaten

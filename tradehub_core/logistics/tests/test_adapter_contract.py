@@ -24,7 +24,9 @@ from tradehub_core.logistics.adapters.carriers.mock_carrier import MockCarrierAd
 from tradehub_core.logistics.adapters.registry import (
 	_CARRIER_REGISTRY,
 	get_adapter,
+	is_carrier_registered,
 	list_registered_carriers,
+	normalize_carrier_code,
 	register_carrier,
 )
 from tradehub_core.logistics.exceptions import (
@@ -173,6 +175,58 @@ class TestAdapterRegistry(unittest.TestCase):
 		register_carrier("mock_carrier", MockCarrierAdapter)
 		with self.assertRaises(ValueError):
 			register_carrier("mock_carrier", _OtherAdapter)
+
+
+class TestCarrierCodeNormalisation(unittest.TestCase):
+	"""`normalize_carrier_code` TEK OTORİTEDİR — dayaniklilik katmani da onu cagirir.
+
+	Kural bu modulde `.strip().lower()` olarak yaziliydi ama sadece BURADA
+	uygulaniyordu. Olculdu: `ARAS` ile `aras` ayni adapter'a cozuluyor ama AYRI
+	devre kesici sayaci tutuyordu; ariza sayaci bolunuyor, esik dolmuyor ve
+	coken tasiyiciya karsi devre HIC acilmiyordu.
+	"""
+
+	def setUp(self) -> None:
+		self._original_registry: dict = dict(_CARRIER_REGISTRY)
+		_CARRIER_REGISTRY.clear()
+
+	def tearDown(self) -> None:
+		_CARRIER_REGISTRY.clear()
+		_CARRIER_REGISTRY.update(self._original_registry)
+
+	def test_normalisation_rule(self) -> None:
+		self.assertEqual(normalize_carrier_code("  ArAs  "), "aras")
+		self.assertEqual(normalize_carrier_code("YURTICI"), "yurtici")
+		self.assertEqual(normalize_carrier_code("aras"), "aras")
+
+	def test_normalisation_is_total_and_never_raises(self) -> None:
+		"""Devre kesici bunu HER anahtar uretiminde cagiriyor; firlatirsa fail-open coker."""
+		self.assertEqual(normalize_carrier_code(None), "")
+		self.assertEqual(normalize_carrier_code(""), "")
+		self.assertEqual(normalize_carrier_code("   "), "")
+
+	def test_normalisation_is_idempotent(self) -> None:
+		for code in ("ARAS", " Yurtici ", "MnG-KaRgO", ""):
+			self.assertEqual(
+				normalize_carrier_code(normalize_carrier_code(code)),
+				normalize_carrier_code(code),
+			)
+
+	def test_register_and_lookup_agree_on_the_normalised_key(self) -> None:
+		register_carrier("  MoCk_CaRrIeR  ", MockCarrierAdapter)
+
+		self.assertIn("mock_carrier", _CARRIER_REGISTRY)
+		self.assertIsInstance(get_adapter("MOCK_CARRIER"), MockCarrierAdapter)
+		self.assertIsInstance(get_adapter(" mock_carrier "), MockCarrierAdapter)
+		self.assertTrue(is_carrier_registered("Mock_Carrier"))
+		self.assertTrue(is_carrier_registered("  MOCK_CARRIER "))
+
+	def test_case_variant_is_an_idempotent_reregistration_not_a_conflict(self) -> None:
+		"""Farkli yazimla ayni sinif ikinci kez kaydedilirse hata DEGIL, no-op."""
+		register_carrier("mock_carrier", MockCarrierAdapter)
+		register_carrier("MOCK_CARRIER", MockCarrierAdapter)  # hata YOK
+
+		self.assertEqual(len(_CARRIER_REGISTRY), 1)
 
 
 class TestCapabilityErrors(unittest.TestCase):

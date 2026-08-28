@@ -630,3 +630,112 @@ class TestSellerTransitionNarrowPath(FrappeTestCase):
 		doc = _shipment(status="Ready for Pickup")
 		with acting_as(["Seller Logistics"], seller_profile="SEL-00001"):
 			self.assertFalse(self._can(doc, to_status="Cancelled"))
+
+
+# ---------------------------------------------------------------------------
+# Carrier Integration Log — satıcı kapısı FAIL-CLOSED (denetim 2026-08-28)
+# ---------------------------------------------------------------------------
+
+
+class TestIntegrationLogSellerGateIsFailClosed(FrappeTestCase):
+	"""Tenant resolver `None` dönse bile satıcı platform logunu GÖREMEZ.
+
+	ÖLÇÜLDÜ (2026-08-28): kapı yalnız `_get_user_seller_profile(user)` ile
+	kuruluydu ve FAIL-OPEN'dı — `Seller` + `Logistics Operator` rollü,
+	`tradehub_tenant=None` bir kullanıcı için `query_conditions` `''`
+	(KISITSIZ) dönüyordu ve `has_permission(None, "read")` `True` idi.
+	Kodun kendi yorumu "tenant'lı bir Logistics Operator da satıcı tarafıdır"
+	diyordu; niyet doğruydu, uygulama resolver'a bağlıydı.
+
+	Düzeltme kapıyı ROL ile de kuruyor (`_SELLER_SIDE_ROLES`). Platform
+	rollerinin (satıcı rolü OLMADAN) erişimi KORUNUR — aşağıdaki pozitif
+	testler bunu kilitler.
+	"""
+
+	USER = "cil-failopen@example.com"
+
+	def _gate(self, roles: list[str], seller_profile: str | None):
+		from tradehub_core.logistics.permissions import (
+			carrier_integration_log_has_permission,
+			carrier_integration_log_query_conditions,
+		)
+
+		with acting_as(roles, seller_profile=seller_profile):
+			return (
+				carrier_integration_log_query_conditions(self.USER),
+				carrier_integration_log_has_permission(None, "read", self.USER),
+			)
+
+	def test_seller_role_without_tenant_is_blocked(self):
+		"""ASIL BULGU: tenant çözülemeyen satıcı rolü artık kapıyı açmıyor."""
+		condition, allowed = self._gate(["Seller", "Logistics Operator"], None)
+		self.assertEqual(condition, "1=0")
+		self.assertFalse(allowed)
+
+	def test_every_seller_side_role_is_blocked_without_tenant(self):
+		from tradehub_core.logistics.permissions import _SELLER_SIDE_ROLES
+
+		for role in sorted(_SELLER_SIDE_ROLES):
+			with self.subTest(role=role):
+				# Platform okuma rolüyle BİRLİKTE bile reddedilmeli
+				condition, allowed = self._gate([role, "Logistics Manager"], None)
+				self.assertEqual(condition, "1=0")
+				self.assertFalse(allowed)
+
+	def test_platform_roles_without_seller_role_keep_access(self):
+		"""KIRILMAMASI GEREKEN: platform operasyon zinciri erişimini korur."""
+		for role in ("Logistics Manager", "Logistics Operator", "Carrier Integration Manager"):
+			with self.subTest(role=role):
+				condition, allowed = self._gate([role], None)
+				self.assertEqual(condition, "")
+				self.assertTrue(allowed)
+
+	def test_tenant_still_closes_the_gate_without_seller_role(self):
+		"""Rol kanıtı eklendi diye tenant kanıtı DÜŞMEDİ — ikisi OR'lanıyor."""
+		condition, allowed = self._gate(["Logistics Operator"], "SEL-00001")
+		self.assertEqual(condition, "1=0")
+		self.assertFalse(allowed)
+
+	def test_system_manager_with_seller_role_is_still_exempt(self):
+		"""System Manager kapıdan ÖNCE dönüyor — platform yönetimi kilitlenmesin."""
+		condition, allowed = self._gate(["System Manager", "Seller"], None)
+		self.assertEqual(condition, "")
+		self.assertTrue(allowed)
+
+
+class TestIntegrationLogIsNotDeletableByDocPerm(FrappeTestCase):
+	"""Denetim izi DocPerm üzerinden SİLİNEMEZ.
+
+	ÖLÇÜLDÜ (2026-08-28): `carrier_integration_log.json` System Manager
+	satırında `"delete": 1` duruyordu; gerçek bir System Manager kullanıcısıyla
+	`frappe.client.delete` bir satırı SİLDİ ve arkasında hiçbir `Authorization
+	Decision Log` kaydı kalmadı — controller docstring'i ise "append-only"
+	diyordu.
+
+	Saklama işi bundan etkilenmez: `frappe.db.delete` ile, DocPerm katmanına hiç
+	uğramadan çalışır.
+	"""
+
+	DOCTYPE = "Carrier Integration Log"
+
+	def test_no_role_has_delete_permission(self):
+		rows = frappe.get_all(
+			"DocPerm",
+			filters={"parent": self.DOCTYPE},
+			fields=["role", "delete", "write", "create"],
+		)
+		self.assertTrue(rows, "DocPerm satırı yok — DocType migrate edilmemiş olabilir")
+		for row in rows:
+			with self.subTest(role=row["role"]):
+				self.assertEqual(row["delete"], 0, "Denetim izi silinebilir olmamalı")
+				self.assertEqual(row["write"], 0, "Append-only: write DocPerm'i olmamalı")
+				self.assertEqual(row["create"], 0, "Kayıt yalnız yazıcı yolundan oluşur")
+
+	def test_retention_job_still_bypasses_docperm(self):
+		"""Silmenin tek meşru yolu `frappe.db.delete` — DocPerm'e hiç bakmaz."""
+		import inspect
+
+		from tradehub_core.logistics.jobs import integration_log_retention as job
+
+		source = inspect.getsource(job)
+		self.assertIn("frappe.db.delete", source)
