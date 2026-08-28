@@ -1,0 +1,214 @@
+{
+	"actions": [],
+	"allow_copy": 0,
+	"allow_import": 0,
+	"allow_rename": 0,
+	"autoname": "hash",
+	"creation": "2026-08-26 10:00:00.000000",
+	"doctype": "DocType",
+	"editable_grid": 0,
+	"engine": "InnoDB",
+	"field_order": [
+		"section_cagri",
+		"carrier",
+		"carrier_account",
+		"shipment",
+		"column_break_cagri",
+		"operation",
+		"direction",
+		"succeeded",
+		"section_sonuc",
+		"http_status",
+		"duration_ms",
+		"attempt",
+		"column_break_sonuc",
+		"error_code",
+		"is_retriable",
+		"error_message",
+		"section_govde",
+		"request_body",
+		"response_body"
+	],
+	"fields": [
+		{
+			"fieldname": "section_cagri",
+			"fieldtype": "Section Break",
+			"label": "Çağrı"
+		},
+		{
+			"fieldname": "carrier",
+			"fieldtype": "Link",
+			"in_list_view": 1,
+			"in_standard_filter": 1,
+			"label": "Taşıyıcı",
+			"options": "Logistics Provider",
+			"read_only": 1,
+			"reqd": 1,
+			"search_index": 1
+		},
+		{
+			"fieldname": "carrier_account",
+			"fieldtype": "Link",
+			"label": "Taşıyıcı Hesabı",
+			"options": "Carrier Account",
+			"read_only": 1
+		},
+		{
+			"description": "İlgili sevkiyat — varsa",
+			"fieldname": "shipment",
+			"fieldtype": "Link",
+			"in_standard_filter": 1,
+			"label": "Sevkiyat",
+			"options": "Shipment",
+			"read_only": 1,
+			"search_index": 1
+		},
+		{
+			"fieldname": "column_break_cagri",
+			"fieldtype": "Column Break"
+		},
+		{
+			"fieldname": "operation",
+			"fieldtype": "Select",
+			"in_list_view": 1,
+			"in_standard_filter": 1,
+			"label": "İşlem",
+			"options": "create_shipment\ncancel\nlabel\nquote\ntrack\nwebhook",
+			"read_only": 1,
+			"reqd": 1
+		},
+		{
+			"fieldname": "direction",
+			"fieldtype": "Select",
+			"in_list_view": 1,
+			"in_standard_filter": 1,
+			"label": "Yön",
+			"options": "outbound\ninbound",
+			"read_only": 1,
+			"reqd": 1
+		},
+		{
+			"default": "0",
+			"description": "Frappe'de Check alanına reqd verilemez (0 geçersiz sayılırdı); sözleşmedeki zorunluluk default 0 + read_only ile karşılanır.",
+			"fieldname": "succeeded",
+			"fieldtype": "Check",
+			"in_list_view": 1,
+			"in_standard_filter": 1,
+			"label": "Başarılı",
+			"read_only": 1,
+			"search_index": 1
+		},
+		{
+			"fieldname": "section_sonuc",
+			"fieldtype": "Section Break",
+			"label": "Sonuç"
+		},
+		{
+			"fieldname": "http_status",
+			"fieldtype": "Int",
+			"in_list_view": 1,
+			"label": "HTTP Durumu",
+			"read_only": 1
+		},
+		{
+			"fieldname": "duration_ms",
+			"fieldtype": "Int",
+			"label": "Süre (ms)",
+			"read_only": 1
+		},
+		{
+			"description": "Kaçıncı deneme (yeniden çalıştırma sayacı)",
+			"fieldname": "attempt",
+			"fieldtype": "Int",
+			"label": "Deneme",
+			"read_only": 1
+		},
+		{
+			"fieldname": "column_break_sonuc",
+			"fieldtype": "Column Break"
+		},
+		{
+			"description": "Sözleşme dışı operation/direction geldiğinde CONTRACT_VIOLATION yazılır — ihlal bu alandan filtrelenebilir.",
+			"fieldname": "error_code",
+			"fieldtype": "Data",
+			"in_standard_filter": 1,
+			"label": "Hata Kodu",
+			"read_only": 1
+		},
+		{
+			"default": "0",
+			"description": "Yeniden çalıştırma anlamlı mı",
+			"fieldname": "is_retriable",
+			"fieldtype": "Check",
+			"label": "Yeniden Denenebilir",
+			"read_only": 1
+		},
+		{
+			"description": "MASKELİ — istisna metni tam URL'i query string'iyle taşıyabilir; credential'lar backend'de değiştirilir.",
+			"fieldname": "error_message",
+			"fieldtype": "Small Text",
+			"label": "Hata Mesajı",
+			"read_only": 1
+		},
+		{
+			"fieldname": "section_govde",
+			"fieldtype": "Section Break",
+			"label": "Gövdeler (maskeli)"
+		},
+		{
+			"description": "MASKELİ. Zarf: {\"_truncated\"?, \"_contract_violation\"?, \"headers\"?, \"body\"} — anahtarlar bu sırada, gövde SONDA. Zarf her zaman geçerli JSON'dur; kırpma olduğunda yalnız \"body\" içeriği yarımdır.",
+			"fieldname": "request_body",
+			"fieldtype": "Code",
+			"label": "İstek Gövdesi",
+			"read_only": 1
+		},
+		{
+			"description": "MASKELİ. Kırpma olduğunda {\"_truncated\": {...}, \"body\": \"...\"} zarfına geçer; dış JSON her zaman ayrıştırılabilir.",
+			"fieldname": "response_body",
+			"fieldtype": "Code",
+			"label": "Yanıt Gövdesi",
+			"read_only": 1
+		}
+	],
+	"in_create": 1,
+	"index_web_pages_for_search": 0,
+	"is_submittable": 0,
+	"links": [],
+	"modified": "2026-08-26 10:00:00.000000",
+	"modified_by": "Administrator",
+	"module": "Tradehub Core",
+	"name": "Carrier Integration Log",
+	"owner": "Administrator",
+	"permissions": [
+		{
+			"delete": 1,
+			"email": 1,
+			"export": 1,
+			"print": 1,
+			"read": 1,
+			"report": 1,
+			"role": "System Manager",
+			"share": 1
+		},
+		{
+			"read": 1,
+			"report": 1,
+			"role": "Logistics Manager"
+		},
+		{
+			"read": 1,
+			"report": 1,
+			"role": "Logistics Operator"
+		},
+		{
+			"read": 1,
+			"report": 1,
+			"role": "Carrier Integration Manager"
+		}
+	],
+	"quick_entry": 0,
+	"search_fields": "carrier,operation,error_code,shipment",
+	"sort_field": "creation",
+	"sort_order": "DESC",
+	"track_changes": 0
+}

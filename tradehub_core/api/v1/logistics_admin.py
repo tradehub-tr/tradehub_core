@@ -31,9 +31,15 @@ import frappe
 from frappe import _
 
 from tradehub_core.logistics.api_utils import logistics_endpoint, ok
+from tradehub_core.logistics.constants import CREDENTIAL_SECRET_FIELDS
 
-#: Değerleri asla liste/detay yanıtına konmayan alanlar
-SECRET_FIELDS: tuple[str, ...] = ("api_key", "api_secret", "webhook_secret", "access_token")
+#: Değerleri asla liste/detay yanıtına konmayan alanlar.
+#:
+#: TEK OTORİTE `logistics/constants.py::CREDENTIAL_SECRET_FIELDS` — aynı küme
+#: transport katmanının değer-tabanlı redaksiyonunu da besliyor. Eskiden iki
+#: yerde AYRI İÇERİKLE yazılıydı (burada dört, `http_client`'ta yedi ad) ve
+#: oradaki yorum "aynı küme" diyordu. Bu ad geriye dönük bir takma addır.
+SECRET_FIELDS: tuple[str, ...] = CREDENTIAL_SECRET_FIELDS
 
 #: Carrier Account sözleşmesi — gizli alanlar hariç
 CARRIER_ACCOUNT_FIELDS: tuple[str, ...] = (

@@ -522,9 +522,12 @@ CONNECTION_TEST_FIELDS = [
 
 #: Entegrasyon logu (TUR-110).
 #:
-#: MASKELEME SÖZLEŞMESİ: `request_body` ve `response_body` panele **maskelenmiş**
-#: gelir. `Authorization`, `X-Api-Key` gibi başlıklar ve gövdedeki
-#: `api_key`/`api_secret`/`token`/`password` anahtarları backend'de değiştirilir.
+#: MASKELEME SÖZLEŞMESİ: `request_body`, `response_body` ve `error_message`
+#: panele **maskelenmiş** gelir (bkz. `masked_fields`). İki katman çalışır:
+#: (1) çağrıda kullanılan sır DEĞERLERİ birebir redakte edilir — biçimden
+#: bağımsız, SOAP/base64/querystring dahil; (2) anahtar denylist'i
+#: `Authorization`/`X-Api-Key` başlıklarını ve `api_key`/`sifre`/`token`/
+#: `musteri_kodu` gibi TR+EN alan adlarını değiştirir.
 #: Maskeleme İSTEMCİDE yapılamaz: ham gövde yanıtta dolaşırsa tarayıcı
 #: geçmişinde ve ara sunucu loglarında kalır (aynı gerekçe `logistics_admin.py`
 #: gizli alan sözleşmesinde de yazılı).
@@ -541,10 +544,25 @@ INTEGRATION_LOG_FIELDS = [
 	_f("attempt", "Int", False, "Kaçıncı deneme (yeniden çalıştırma sayacı)"),
 	_f("error_code", "Data", False),
 	_f("error_message", "Small Text", False),
-	_f("request_body", "Code", False, "MASKELİ — credential'lar backend'de değiştirilir"),
-	_f("response_body", "Code", False, "MASKELİ"),
+	_f(
+		"request_body",
+		"Code",
+		False,
+		"MASKELİ. Zarf: {_truncated?, _contract_violation?, headers?, body} — anahtarlar bu "
+		"sırada, gövde SONDA. Zarf her zaman geçerli JSON'dur; kırpma olduğunda yalnız body "
+		"içeriği yarımdır. headers/_contract_violation yoksa ve kırpma yoksa zarf HİÇ "
+		"kurulmaz, alan doğrudan gövdedir.",
+	),
+	_f("response_body", "Code", False, "MASKELİ. Kırpmada {_truncated, body} zarfına geçer"),
 	_f("is_retriable", "Check", False, "Yeniden çalıştırma anlamlı mı"),
-	_f("created_at", "Datetime", True),
+	_f(
+		"created_at",
+		"Datetime",
+		True,
+		"`Carrier Integration Log.creation`'a EŞLENİR; ayrı sütun YOK — uç `creation AS "
+		"created_at` döndürmeli. Gerekçe: ikinci bir zaman damgası kayıt kuyrukta beklerse "
+		"sapar ve saklama işi hangi sütunu tarayacağını bilemez.",
+	),
 ]
 
 # ---------------------------------------------------------------------------
@@ -680,7 +698,15 @@ PROVISIONAL_ENTITIES: dict[str, dict[str, Any]] = {
 		"list_fields": INTEGRATION_LOG_FIELDS,
 		"detail_fields": [],
 		"child_tables": {},
-		"masked_fields": ["request_body", "response_body"],
+		# TEK KAYNAK: logistics/integration/log.py::CONTROLLER_MASKED_FIELDS.
+		# `error_message` buraya SONRADAN eklendi: oraya istisna metni
+		# (`requests` bağlantı hatası) geliyor ve o metin tam URL'i query
+		# string'iyle taşıyor — maskelenmediğinde credential ham düşüyordu.
+		# `error_code` de SONRADAN eklendi (üç tur devredilen sapma): hem yazıcı
+		# hem DocType controller'ı onu FİİLEN maskeliyor (`AUTH_FAILED sifre=...`
+		# biçimi adapter'lardan geliyor), sözleşme ise bildirmiyordu — panel
+		# eksik bilgiyle çalışıyordu.
+		"masked_fields": ["request_body", "response_body", "error_message", "error_code"],
 	},
 	"pallet_plan": {
 		"label": "Palet Planı",

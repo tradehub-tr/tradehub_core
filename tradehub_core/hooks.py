@@ -301,6 +301,16 @@ scheduler_events = {
 		"tradehub_core.audit.tasks.cleanup_expired_data_exports",
 		# KVKK Madde 7 — hesap silme sonrası 30 gün geçen PII anonimleştirme
 		"tradehub_core.privacy.account_deletion.anonymize_pending_deletions",
+		# --- Bora · lojistik ---
+		# 09-BE A — Carrier Integration Log saklama politikası (varsayılan 90 gün,
+		# `Logistics Settings.integration_log_retention_days` ile ayarlanır).
+		# BAYRAK ARKASINDA DEĞİL: `logistics_enabled` kapalıyken de koşar. Bayrak
+		# yeni trafiği durdurur, saklama yükümlülüğünü kaldırmaz — modül
+		# kapatıldığında temizlik de dursaydı süresi dolmuş kayıtlar sonsuza
+		# kadar kalırdı (audit/media retention işleriyle aynı gerekçe).
+		# Bu, scheduler_events'teki İLK lojistik kaydıdır; mevcut liste
+		# değiştirilmedi, yalnız sona eklendi.
+		"tradehub_core.logistics.jobs.integration_log_retention.run_scheduled",
 	],
 	"weekly_long": [
 		# A2 — ReBAC enforce-hazırlık raporu (RBAC vs ReBAC, doctype-başına verdict).
@@ -941,6 +951,9 @@ permission_query_conditions = {
 	"Shipment Leg": "tradehub_core.logistics.permissions.shipment_leg_query_conditions",
 	# Lojistik Faz 4 — Shipment Event tenant okuma izolasyonu (F1, denormalize seller_profile)
 	"Shipment Event": "tradehub_core.logistics.permissions.shipment_event_query_conditions",
+	# 09-BE A — Carrier Integration Log PLATFORM operasyon verisidir; satıcıya
+	# hiç açılmaz (seller_profile'ı olan kullanıcıya `1=0`).
+	"Carrier Integration Log": "tradehub_core.logistics.permissions.carrier_integration_log_query_conditions",
 	# Medya Motoru DALGA A — Media Asset sahiplik kolonu taşır; Rendition ve
 	# Processing Job izolasyonu Asset üzerinden zincirlenir (denormalize seller
 	# kolonu YOK — devirde sessizce eskir ve sızıntı üretir).
@@ -1045,6 +1058,9 @@ has_permission = {
 	"Shipment Leg": "tradehub_core.logistics.permissions.shipment_leg_has_permission",
 	# Lojistik Faz 4 — Shipment Event tenant okuma izolasyonu (F1, denormalize seller_profile)
 	"Shipment Event": "tradehub_core.logistics.permissions.shipment_event_has_permission",
+	# 09-BE A — Carrier Integration Log per-doc kapısı: satıcı tarafı tümüyle
+	# kapalı, platform operasyon rolleri salt-okunur (append-only kayıt).
+	"Carrier Integration Log": "tradehub_core.logistics.permissions.carrier_integration_log_has_permission",
 	# Medya Motoru DALGA A — satıcı kendi Asset'ini yazabilir; Rendition,
 	# Processing Job ve Profile satıcı için SALT OKUNURDUR (üretim hattın işi).
 	"Media Asset": "tradehub_core.permissions.media_asset_has_permission",

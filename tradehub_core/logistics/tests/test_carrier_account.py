@@ -24,6 +24,8 @@ import unittest.mock as mock
 import frappe
 from frappe.tests.utils import FrappeTestCase
 
+from tradehub_core.logistics.constants import CREDENTIAL_SECRET_FIELDS
+
 
 class _CarrierAccountBase(FrappeTestCase):
 	SELLER_CODE = "CATEST-SELLER"
@@ -205,3 +207,29 @@ class TestPlatformAccountVisibility(_CarrierAccountBase):
 			self.assertTrue(
 				carrier_account_has_permission(doc, "read", "platform-cim@example.com")
 			)
+
+
+class TestCredentialSecretFieldsContract(FrappeTestCase):
+	"""`CREDENTIAL_SECRET_FIELDS` ile DocType şeması SÜRÜKLENMEMELİ.
+
+	Küme üç yeri birden besliyor: değer-tabanlı redaksiyonun girdisi
+	(`integration/secrets.py`), transport (`adapters/http_client.py`) ve API
+	yanıtından çıkarılan alanlar (`api/v1/logistics_admin.py::SECRET_FIELDS`).
+	Eskiden iki yerde AYRI İÇERİKLE yazılıydı (yedi ad / dört ad) ve yorum
+	"aynı küme" diyordu.
+
+	DocType'a yeni bir `Password` alanı eklendiğinde bu test kırılır — aksi
+	hâlde redaksiyon o alana SESSİZCE kör kalırdı.
+	"""
+
+	def test_constant_matches_the_password_fields_of_the_doctype(self):
+		meta = frappe.get_meta("Carrier Account")
+		password_fields = {field.fieldname for field in meta.fields if field.fieldtype == "Password"}
+
+		self.assertEqual(password_fields, set(CREDENTIAL_SECRET_FIELDS))
+
+	def test_api_layer_reuses_the_same_constant(self):
+		"""`SECRET_FIELDS` artık bir kopya değil, takma ad."""
+		from tradehub_core.api.v1.logistics_admin import SECRET_FIELDS
+
+		self.assertIs(SECRET_FIELDS, CREDENTIAL_SECRET_FIELDS)
