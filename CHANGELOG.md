@@ -1,3 +1,54 @@
+## [v1.13.1-alpha.49] - 2026-08-28 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(media): complete tenant quota reporting (@ahmeetseker)
+- feat(media): kalıcı migration/rollout runtime ve kategorizasyon ekle (@ahmeetseker)
+  - MOGEM-570: sürümlü/imzalı plan, kalıcı Run/Batch checkpoint, dry→wet onay kapısı, stop/resume ve exact rollback ile üretim-güvenli backfill runtime'ı eklendi; gerçek JPEG üzerinde uçtan uca doğrulandı.
+  - MOGEM-617/T-144: mağaza bazlı deterministik SHA-256 canary/yüzde rollout (%0→%10→%50→%100) pipeline_flags ve pipeline_bridge'e bağlandı; kısmi rollout'ta sahibi çözülemeyen medya fail-closed kalıyor.
+  - File yazma/silme yollarını asenkron S3 aynasına bağlayan mirror_runtime eklendi; kuyruk hatası birincil işlemi asla düşürmüyor.
+  - MOGEM-579: mağaza bazlı medya kategori kataloğu ve N:M dosya-kategori ataması (manuel/öneri kaynaklı) eklendi.
+  - Satıcı medya kütüphanesine SQL öncesi tarih/boyut/format/yön/etiket filtreleri ve facet sayaçları eklendi.
+  - T-140 izlenebilirlik üretici INV-01…INV-12 normatif invariant'larını da kapsayacak şekilde genişletildi; gerçek kapsam oranı raporlanır oldu.
+  - Kapanış belgeleri (MOGEM-617 denetimi, migration/go-live runbook'ları, UAT şablonları) 2026-08-24 ölçümleriyle güncellendi; hangi kapıların hâlâ insan/üretim onayı beklediği açıkça işaretlendi.
+- feat(media): video SEO şeması — poster/süre/transcript/altyazı alanları (Dilim 4) (@ahmeetseker)
+- feat(media): video poster üretimi — ilk anlamlı kare (canlı yol) (@ahmeetseker)
+- feat(media): poster üretimi transcode akışına ve günlük geri doldurmaya bağlandı (@ahmeetseker)
+- feat(seo): VideoObject builder — poster zorunlu, embed/dosya ayrımı (@ahmeetseker)
+- feat(seo): video sitemap — xmlns:video + ilan video girdileri (@ahmeetseker)
+- feat(listing): videoPoster fallback, imageMeta video anahtarları, JSON-LD VideoObject (@ahmeetseker)
+- feat(media): video denetim kuralları + poster yeniden üretme ve VTT yükleme uçları (@ahmeetseker)
+  - seo_audit.audit_fields: missing_poster/missing_transcript/missing_duration (yalnız video dosyalarında, WARN) + _KURAL_BOYUT haritasına skor kırılımı.
+  - media_admin: regenerate_video_poster (System Manager, tüm kardeş File kayıtlarının posterini temizler + media-maint kuyruğuna atar) ve upload_video_captions (WEBVTT doğrulamalı, ≤1MB, File + captions_url).
+  - upload_policy.EXTENSIONS'a .vtt eklendi (ayrı düzeltme): media/naming.py içerik-adresli adlandırma bu listeden beyaz liste okuyor, yoksa VTT yüklemesi "izin verilmeyen uzantı" ile reddediliyordu.
+- feat(media): watch page slug/canonical üretimi + 301 köprüsü (@ahmeetseker)
+- feat(media): watch page verisi ucu + indexability kararı (@ahmeetseker)
+- feat(medya): dosya yöneticisi SEO + CWV denetimi + bulk localization dil (@ahmeetseker)
+  - Dosya Yöneticisi SEO (Dilim 6): `Listing Document` child doctype, PDF/Office metadata+metin çıkarımı (`doc_meta.py`, zip-bomb ve entity-genişletme korumalı), DigitalDocument JSON-LD, sitemap/denetim entegrasyonu — katalogda PDF/Office içerik ekleyebilme altyapısı için (envanter bugün 0, kullanıcı kararına bağlı büyüyecek)
+  - CWV/Render Performans Denetimi (Dilim 7): 5 yeni kural (missing_modern_format, incomplete_rendition_ladder, unserved_renditions, aspect_ratio_mismatch, lcp_candidate_unoptimized) + panel etiketleri — gerçek katalıkta LCP adaylarının optimize olup olmadığını ölçülebilir kılmak için
+  - Bulk Localization (Dilim 8): kural-tabanlı, kopyalamasız çok-dilli alt metni backfill'i (`backfill_media_localization`) + panel düğmesi — kaynak çeviri geldikçe otomatik dolacak, sahte/kopya çeviri üretmeyen bir mekanizma
+  - Watch page final inceleme düzeltmeleri: guest sıcak yol index'leri (v15_9_50), güvensiz 301 redirect hedefine karşı ikinci savunma katmanı, sitemap entry-sayımlı chunk flush düzeltmesi — canlıda ölçülen index-drop ve DoS risklerini kapatmak için
+  - 5 ölçüm raporu (107-111): rendition backfill, watch page, file manager SEO, CWV denetimi ve bulk localization için katalogda gerçek sorgu tabanlı envanter — dürüst 0/kısmi sonuçlar dahil, tahmini rakam yok
+- feat(medya): dosya yöneticisi SEO, CWV denetimi ve bulk localization dil (@ahmeetseker)
+  - Dilim 5-8 (watch page, file manager SEO, CWV denetimi, bulk localization) plan ve tasarım belgeleri eklendi; ortak dosyaların dilimler arası paylaşıldığı ve tek commit stratejisinin gerekçesi COMMIT-INCELEME belgesinde kayıt altına alındı
+  - `th_media_state`/`th_media_scan_status` index'lerinin `in_migrate` bayrağı yüzünden property setter'sız kalıp bir sonraki migrate'te sessizce düşme riskine karşı v15_9_51 patch'i eklendi — canlı ortamda `th_media_state` index'inin zaten düşmüş olduğu ölçüldü
+
+### Duzeltildi
+- fix(media): poster scale yönelime duyarlı + sessiz except loglandı (@ahmeetseker)
+- fix(media): poster üretimi aynı adresli tüm File kayıtlarına yazar (@ahmeetseker)
+- fix(seo): video sitemap alanları parti başına tek sorguyla (@ahmeetseker)
+- fix(media): VTT gövde taraması + BOM toleransı (@ahmeetseker)
+- fix(media): final inceleme — JSON-LD indexability kapısı, validator veri silme, backfill enqueue deseni (@ahmeetseker)
+- fix(media): migration preflight worker tespiti — RQ kuyruk-üyelik set'i fallback'i (@ahmeetseker)
+- fix(media): katalog backfill adayları içerik hash'iyle de eşlenir (@ahmeetseker)
+- fix(seo): ImageObject creator alanı @type nesnesi olarak üretilir (@ahmeetseker)
+- fix(test): transcode retry testleri isolation.run_command'a patch'lenir (@ahmeetseker)
+- fix(media): watch slug doğrulama, zincir çökertme ve yarış ayrışması (@ahmeetseker)
+- fix(media): watch verisi — tek-sorgu listings, sözleşme anahtarları, tek karar noktası, kaynak filtresi (@ahmeetseker)
+- fix(media): katalog backfill aday sorgusu sınıf-farkında — JPEG şartı kaldırıldı (@ahmeetseker)
+
+---
 ## [v1.13.1-alpha.48] - 2026-08-26 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
