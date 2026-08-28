@@ -15,6 +15,10 @@
 		"active_slots",
 		"cb_scope",
 		"max_renditions_per_asset",
+		"sb_rollout",
+		"rollout_percent",
+		"cb_rollout",
+		"rollout_stores",
 		"sb_notes",
 		"notes"
 	],
@@ -28,6 +32,10 @@
 		{"fieldname": "active_slots", "fieldtype": "Small Text", "label": "Etkin Slotlar", "description": "Boru hattının açık olduğu slot anahtarları; her satıra bir anahtar (virgül de olur). Boş = hiçbir slot açık değil. Tümü için tek başına * yazın. Geçerli anahtarlar: brand.logo, category.banner, company.cover_image, company.cover_video, document.attachment, product.image, product.video, seller.logo, user.avatar"},
 		{"fieldname": "cb_scope", "fieldtype": "Column Break"},
 		{"fieldname": "max_renditions_per_asset", "fieldtype": "Int", "label": "Varlık Başına Maks. Rendition", "default": "40", "description": "Tek bir kaynak görsel için üretilebilecek türev üst sınırı. Kaçak üretime karşı tavan; 1'den küçük olamaz."},
+		{"fieldname": "sb_rollout", "fieldtype": "Section Break", "label": "Aşamalı Açılış"},
+		{"fieldname": "rollout_percent", "fieldtype": "Int", "label": "Rollout Yüzdesi", "default": "100", "description": "0 = yalnız canary mağazaları, 10/50/100 = deterministik mağaza kovaları. Aynı mağaza her zaman aynı kovada kalır."},
+		{"fieldname": "cb_rollout", "fieldtype": "Column Break"},
+		{"fieldname": "rollout_stores", "fieldtype": "Small Text", "label": "Canary Mağazaları", "description": "Yüzdeden bağımsız olarak boru hattına alınacak mağaza adları; her satıra bir mağaza (virgül de kabul edilir)."},
 		{"fieldname": "sb_notes", "fieldtype": "Section Break", "label": "Notlar"},
 		{"fieldname": "notes", "fieldtype": "Small Text", "label": "Notlar", "description": "Bayrak değişikliğinin gerekçesi / kim ne zaman açtı."}
 	],

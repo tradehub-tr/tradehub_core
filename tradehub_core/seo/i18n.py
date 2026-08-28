@@ -117,6 +117,22 @@ PLATFORM_TERMS: dict[str, dict[str, str]] = {
 	"Rulo": {"en": "Roll", "ar": "لفة", "ru": "Рулон"},
 	"Top": {"en": "Bolt", "ar": "طاقة", "ru": "Рулон"},
 	"Set": {"en": "Set", "ar": "طقم", "ru": "Комплект"},
+	# Medya alt metni sabit ekleri (Dilim 8 — Bulk Localization, L8). Kategori
+	# adı/mağaza-marka adı SERBEST/özel isim içeriktir (buradan çevrilmez);
+	# yalnız bu sabit ek çevrilir — `media/seo_generate.py` kural zinciri.
+	"kategorisi": {"en": "category", "ar": "فئة", "ru": "категория"},
+	"mağaza logosu": {"en": "store logo", "ar": "شعار المتجر", "ru": "логотип магазина"},
+	"mağaza kapak görseli": {
+		"en": "store cover image",
+		"ar": "صورة غلاف المتجر",
+		"ru": "обложка магазина",
+	},
+	"marka logosu": {"en": "brand logo", "ar": "شعار العلامة التجارية", "ru": "логотип бренда"},
+	"marka kapak görseli": {
+		"en": "brand cover image",
+		"ar": "صورة غلاف العلامة التجارية",
+		"ru": "обложка бренда",
+	},
 }
 
 
@@ -147,6 +163,23 @@ def translate_platform_term(term: str, lang: str) -> str:
 	if lang == DEFAULT_LANG:
 		return term
 	return PLATFORM_TERMS.get(term, {}).get(lang, term)
+
+
+def format_image_ordinal(n: int, lang: str) -> str:
+	"""Görsel sıra eki — dile göre kalıp değişir (ekran okuyucu okunuşu ayrı).
+
+	tr: "(2. görsel)" · en: "(image 2)" · ar: "(الصورة 2)" · ru: "(изображение 2)".
+	`PLATFORM_TERMS` düz sözlüğüne sığmıyor (rakam gövdeye giriyor) — bu yüzden
+	ayrı küçük saf yardımcı. `media/seo_generate.py` sıra numarası eklerken kullanır.
+	"""
+	lang = normalize_lang(lang)
+	if lang == "en":
+		return f"(image {n})"
+	if lang == "ar":
+		return f"(الصورة {n})"
+	if lang == "ru":
+		return f"(изображение {n})"
+	return f"({n}. görsel)"
 
 
 def content_lang_field(field: str, lang: str) -> str:

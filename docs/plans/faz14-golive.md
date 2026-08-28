@@ -7,11 +7,10 @@
 
 ## 0. Durum beyanı
 
-> **DEVREYE ALMA YAPILMADI. GERİ DÖNÜŞ PROVASI KOŞULMADI.**
-> Bu belge planı ve runbook'ları yazar. Kaynak doküman "geri dönüş prova
-> edilmiş ve **süresi ölçülmüş**" istiyor; **o süre ÖLÇÜLMEDİ** (§5.4). Ölçüm
-> yapılmadan bu kriter **KANIT YOK** durumundadır ve §7 kontrol listesinde
-> işaretlenmemiştir.
+> **ÜRETİM DEVREYE ALMASI YAPILMADI; ÜRETİM GERİ DÖNÜŞ SÜRESİ ÖLÇÜLMEDİ.**
+> 2026-08-24 güncellemesiyle canary ve `%10 → %50 → %100` dağıtım mekanizması
+> yazıldı, yerel site migrate edildi ve entegrasyon testleri geçti. Bu sonuç,
+> canlı metrik penceresi ve nöbetçi eşliğindeki üretim tatbikatının yerine geçmez.
 
 **Bu belgedeki sayıların kaynağı üç türdür ve her birinin yanında yazılıdır:**
 `dosya:satır` (kodda ölçülmüş sabit) · `hesap:` (aritmetik, formülü yanında) ·
@@ -20,16 +19,16 @@
 ### 0.1 Bu planın kapsadığı "devreye alma" nedir
 
 Devreye alınan şey **`media_engine` katmanının yükleme ve teslim yolunda
-etkinleşmesidir**. Bugün bu katman `tradehub_core/media/`'nin YANINDA duruyor
-ve üretim yolunda **çağrılmıyor** (`tradehub_core/media/pipeline/` altındaki hiçbir modül
-`tradehub_core/hooks.py`'den referanslanmıyor — §8-D1 ile doğrulanacak).
-Dolayısıyla go-live tek bir anahtar değil, **üç bağımsız anahtardır**:
+etkinleşmesidir**. Katman artık `File` kancaları, görüntü/video worker'ları,
+lazy rendition ve manifest teslim yollarına bağlıdır. Go-live üç davranış ve
+tek mağaza-kapsam kapısından oluşur:
 
 | Anahtar | Ne değişir | Geri dönüşü |
 |---|---|---|
 | **A · Kabul kapısı** | Yükleme kararı slot politikasından verilir (FR-001/FR-015) | Bayrağı kapat; eski `upload_policy.check()` yolu zaten duruyor |
 | **B · Türev üretimi** | Master + merdiven üretilir, `srcset` basılır | Bayrağı kapat; eski tek çıktı yolu duruyor. Üretilmiş türevler **kalır**, zarar vermez |
 | **C · Backfill** | Geriye dönük standartlaştırma koşar | `runner.restore_batch` (30 gün penceresi) |
+| **D · Rollout kapsamı** | Canary listesi veya kararlı yüzde kovasındaki mağazalar yeni yolu alır | Önce `rollout_percent=0`; kritik durumda ana şalter `0` |
 
 **Sıra zorunludur: A → B → C.** Gerekçe: B'nin ürettiği türevlerin doğru
 geometride olması A'nın (slot kimliği) çalışmasına bağlıdır; C ise B'nin
@@ -38,32 +37,34 @@ ile 2400 px hedefi arasındaki **geri dönülemez** çelişki).
 
 ---
 
-## 1. Özellik bayrağı — bugün YOK, yazılması gerekiyor
+## 1. Özellik bayrağı — uygulandı ve test edildi
 
-Aşamalı açılış bir bayrak mekanizması gerektirir. Kod tabanında medya için
-böyle bir bayrak **bulunamadı**; doğrulama komutu §8-D2'de.
-
-**Önerilen taşıyıcı:** `Marketplace Settings` doctype'ı (tekil ayar kaydı;
-`tradehub_core/tests/test_marketplace_settings.py` ile test edilen mevcut
-desen). Yeni alanlar:
+Aşamalı açılışın tek kaynağı `Media Engine Settings` Single DocType'ıdır.
+`pipeline_flags.py` bütün çağrı noktalarında master + mağaza kapsamını birlikte
+sorar; ayar okunamazsa fail-closed davranır.
 
 | Alan | Tip | Anlamı |
 |---|---|---|
-| `media_engine_gate_enabled` | Check | Anahtar A |
-| `media_engine_renditions_enabled` | Check | Anahtar B |
-| `media_engine_rollout_percent` | Int (0–100) | Aşama yüzdesi |
-| `media_engine_rollout_stores` | Small Text | Canary mağaza listesi (virgülle) |
+| `media_pipeline_enabled` | Check | Bütün yeni yolu kesen ana şalter |
+| `manifest_api_enabled` | Check | Yeni manifest teslim yolu |
+| `rendition_on_upload` | Check | Yüklemede türev üretimi |
+| `active_slots` | Small Text | Açık medya slotları |
+| `rollout_percent` | Int (0–100) | Kararlı mağaza yüzdesi |
+| `rollout_stores` | Small Text | Canary mağaza listesi (satır/virgül) |
 
 **Yüzdenin belirlenimci olması şart:** rastgele seçim, aynı satıcının bir
 istekte yeni bir istekte eski yola düşmesine yol açar ve hata ayıklanamaz hâle
 gelir. Kural:
 
 ```
-dahil = (crc32(store_id) % 100) < rollout_percent   ya da   store_id ∈ rollout_stores
+dahil = (sha256(store_id).ilk_64_bit % 100) < rollout_percent
+        ya da normalize(store_id) ∈ rollout_stores
 ```
 
 Aynı mağaza her zaman aynı tarafta kalır; yüzde artınca **yalnız yeni mağaza
-eklenir**, hiçbir mağaza geri çıkmaz.
+eklenir**, hiçbir mağaza geri çıkmaz. Bu davranış `%0` canary, `%10`, `%50`,
+`%100`, master-kill, manifest ham fallback'i ve worker enqueue kapıları için
+Frappe entegrasyon testleriyle doğrulandı.
 
 ---
 
@@ -92,8 +93,8 @@ gevşetilmez.
 | Metrik | Nereden okunur | Taban çizgisi |
 |---|---|---|
 | Yükleme hata oranı | `runner.read_progress` + API 5xx oranı | **ÖLÇÜLMEDİ** — §8-D3 |
-| Ret oranı (politika reddi) | Ret kodlarının sayımı (`tradehub_core/media/pipeline/core/errors.py` kodları) | **ÖLÇÜLMEDİ** — bugün slot bazlı ret yok |
-| p50/p95 yükleme süresi | Telemetri (`media_upload_succeeded.seconds`) | **ÖLÇÜLMEDİ** — olay yazılmadı (`faz14-uat.md` §5) |
+| Ret oranı (politika reddi) | Ret kodlarının sayımı (`tradehub_core/media/pipeline/core/errors.py` kodları) | Slot bazlı ret bağlı; üretim taban çizgisi **ÖLÇÜLMEDİ** |
+| p50/p95 yükleme süresi | Moderatör UAT zamanları; onaylanırsa ürün telemetrisi | **ÖLÇÜLMEDİ** — UAT oturumu koşulmadı (`faz14-uat.md` §4–5) |
 | Kuyruk derinliği (`long`) | `frappe.utils.background_jobs.get_queue("long").count` | **ÖLÇÜLMEDİ** — §8-D4 |
 | LCP (ürün detay) | Lighthouse CI (`lighthouserc.cjs:30-36` bütçeleri) | LCP < 2500 ms bütçesi tanımlı; saha ölçümü **ÖLÇÜLMEDİ** |
 | Disk boş alan | `df` | **382 GB** (`media/backup.py:11`, ölçüm **2026-08-13**, tazelenmeli) |
@@ -111,15 +112,14 @@ gevşetilmez.
 ### 3.1 Anahtar A ve B — bayrak kapatma
 
 ```
-1. Marketplace Settings → media_engine_gate_enabled = 0
-                        → media_engine_renditions_enabled = 0
-2. bench --site <site> clear-cache
-3. Doğrula: yeni bir yükleme eski yoldan geçiyor mu (log satırı / ret kodu biçimi)
+1. Media Engine Settings → rollout_percent = 0        # yalnız canary kalsın
+2. Kritik durumda        → media_pipeline_enabled = 0 # canary dahil sert kes
+3. Doğrula: dışarıdaki mağaza ham manifest alıyor ve yeni iş enqueue edilmiyor
 ```
 
-**Beklenen süre: 2–5 dakika** — `hesap:` ayar kaydını değiştirme (≈30 sn) +
-`clear-cache` (≈30 sn, `bench-docs.md` deseni) + doğrulama yüklemesi (≈2 dk).
-**ÖLÇÜLMEDİ** (§5.4 provası koşulmadı).
+**Üretim beklenen süresi: 2–5 dakika; ÖLÇÜLMEDİ.** Ayar controller'ı request
+önbelleğini güncellemede temizler. Yine de süre ancak canlı alarm → karar →
+ayar → doğrulama zinciri kronometreyle koşulduğunda kabul kanıtıdır.
 
 Geri dönüşün **kalıcı etkisi yoktur**: A ve B yeni dosya adresi üretmez,
 `file_url` değiştirmez (`archive.py:5-6`, `engine.py:8-9` garantisi). Üretilmiş
@@ -157,10 +157,14 @@ alınamaz**; elle kurtarılır. Tespit sorgusu `docs/plans/migration.md` §10-D2
 **Kural:** şüphede kalındığında **geri dönülür**. Geri dönüşün maliyeti
 5 dakikadır; yanlış görsel servis etmenin maliyeti satıcı güvenidir.
 
-### 3.4 Prova — ÖLÇÜLMEDİ
+### 3.4 Prova — yerel kontrol düzlemi 1,947 ms, üretim ÖLÇÜLMEDİ
 
 Kaynak doküman geri dönüşün **prova edilmesini ve süresinin ölçülmesini**
-istiyor. Prova koşulmadı. Koşulması gereken prova:
+istiyor. 2026-08-24 yerel Frappe provasında `%0 → %10 → %50 → %100`, monoton
+kapsam ve master-kill koştu; DB commit + cache-clear + karar **1,947 ms** ölçüldü
+ve başlangıç ayarları geri yüklendi. Kanıt:
+`docs/reports/101-mogem617-rollout-rehearsal.md`. Bu yalnız yerel kontrol
+düzlemidir; gerçek üretim alarm/karar süresi ölçülmedi. Üretimde koşulması gereken prova:
 
 ```
 1. Yerel stack'te bayrakları aç, 5 dosya yükle (A + B aktif).
@@ -471,14 +475,15 @@ dosya sunucuda düzelir, `file_url` değişmez, satıcının yapacağı bir şey
 
 ## 7. Devreye alma kontrol listesi
 
-Hepsi işaretlenmeden **canary başlamaz**. Bugün işaretlenebilen: **yok**.
+Hepsi işaretlenmeden **üretim canary'si başlamaz**. Kod kapısı günceldir;
+operasyon ve insan kapıları açıktır.
 
 **Ön koşullar**
 
-- [ ] Özellik bayrağı mekanizması yazıldı ve belirlenimci yüzde kuralı test edildi (§1)
+- [x] Özellik bayrağı mekanizması yazıldı ve belirlenimci yüzde kuralı test edildi (§1)
 - [ ] §2.2'deki **yedi metriğin taban çizgisi ölçüldü** (bugün 6'sı yok)
 - [ ] Alarm eşikleri kuruldu (§4) — Faz 13 çıktısı
-- [ ] Medya telemetri olayları yazıldı (`faz14-uat.md` §5)
+- [x] Anonim UAT kayıt/özetleme aracı hazır (`faz14-uat.md` §4); ürün telemetrisi mahremiyet onayı olmadan zorunlu değil
 
 **Faz çıkış kriterleri**
 
@@ -489,7 +494,7 @@ Hepsi işaretlenmeden **canary başlamaz**. Bugün işaretlenebilen: **yok**.
 **Operasyon**
 
 - [ ] Geri dönüş provası **koşuldu ve süresi ölçüldü** (§3.4) — bugün ÖLÇÜLMEDİ
-- [ ] Yedek/DR provası yapıldı (`docs/plans/backup-dr.md`)
+- [x] Yerel DR provası yapıldı (`docs/reports/100-t054-phase5-dr-rehearsal.md`); üretim uzak-kopya/periyodik prova ayrıca açık
 - [ ] 8 runbook'un tamamı en az bir kez **okundu ve komutları doğrulandı**
 - [ ] Nöbet planı yayında, eskalasyon iletişim bilgileri güncel
 - [ ] Backfill sırasında arşiv purge'ünün durdurulacağı doğrulandı (§3.2)
@@ -503,19 +508,19 @@ Hepsi işaretlenmeden **canary başlamaz**. Bugün işaretlenebilen: **yok**.
 
 ## 8. ÜRETİMDE DOĞRULANMALI
 
-### D1 — `media_engine` üretim yolunda çağrılıyor mu
+### D1 — `media_engine` çalışma yoluna bağlı mı
 
 ```bash
-grep -rn "media_engine" /Users/ahmet/Desktop/istoc/tradehub_core/tradehub_core/ | wc -l
-# Bu plan yazılırken beklenen: 0 (katman üretim yoluna BAĞLI DEĞİL)
+rg -n "pipeline_bridge|media_manifest" tradehub_core/hooks.py tradehub_core/api tradehub_core/media
+# Beklenen: File kancaları, worker'lar, lazy üretim ve manifest çağrı noktaları.
 ```
 
-### D2 — Medya için özellik bayrağı var mı
+### D2 — Mağaza rollout kapıları bağlı mı
 
 ```bash
-grep -rniE "media.*(flag|enabled|rollout)" \
-  /Users/ahmet/Desktop/istoc/tradehub_core/tradehub_core/ | head -20
-# Beklenen: yükleme/teslim yolunu kapatıp açan bir bayrak YOK
+rg -n "is_store_enabled" tradehub_core/media/pipeline_bridge.py \
+  tradehub_core/api/media_manifest.py
+# Beklenen: upload/worker/lazy/video ve image/video manifest kapıları.
 ```
 
 ### D3 — Yükleme hata oranı taban çizgisi

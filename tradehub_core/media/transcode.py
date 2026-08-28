@@ -185,6 +185,16 @@ def enqueue_transcode(file_url: str) -> None:
 			"File", name, "th_media_video_status", VIDEO_STATUS_READY,
 			update_modified=False,
 		)
+		# Transcode edilmeyen video da poster'a ihtiyaç duyar (Dilim 4, Task 3):
+		# worker'da çalışsın, istek thread'ini bloklamasın; dosya henüz commit
+		# edilmemiş olabileceğinden `enqueue_after_commit=True`.
+		frappe.enqueue(
+			"tradehub_core.media.video_poster.generate",
+			queue="media-maint",
+			timeout=300,
+			file_url=file_url,
+			enqueue_after_commit=True,
+		)
 		return
 
 	frappe.db.set_value("File", name, "th_media_video_status", VIDEO_STATUS_PROCESSING)
@@ -392,6 +402,16 @@ def _run_transcode(file_url: str, name: str | None = None) -> None:
 		except OSError:
 			pass
 		_on_transcode_failure(name, file_url, exc)
+		return
+
+	# Poster üretimi (Dilim 4, Task 3): try/except'in DIŞINDA — `generate`
+	# teorik olarak beklenmedik bir hata fırlatsaydı bile retry/dead-letter
+	# sayacına karışmasın; transcode zaten başarıyla bitti. `generate` kendi
+	# içinde hatayı yutar, burada da worker zaten arka planda olduğundan
+	# doğrudan çağrılır (kuyruğa tekrar konmaz).
+	from tradehub_core.media import video_poster
+
+	video_poster.generate(file_url)
 
 
 def _on_transcode_failure(name: str, file_url: str, exc: Exception) -> None:

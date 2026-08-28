@@ -719,6 +719,7 @@ def _manifest_batch_icin(ilanlar: Sequence[str], slot_key: str, acik: bool) -> d
 			{
 				varlik["name"]
 				for ilan in satirlar
+				if pipeline_flags.is_store_enabled(ilan.get("seller_profile"))
 				for gorsel in gorseller.get(ilan["name"]) or ()
 				if (
 					varlik := _varlik_sec(
@@ -750,8 +751,9 @@ def _manifest_batch_icin(ilanlar: Sequence[str], slot_key: str, acik: bool) -> d
 	cikti: dict[str, dict[str, Any]] = {}
 	for satir in satirlar:
 		ad = satir["name"]
+		ilan_acik = acik and pipeline_flags.is_store_enabled(satir.get("seller_profile"))
 		cikti[ad] = _tek_ilan_govdesi(
-			satir, gorseller.get(ad) or [], slot_key, varliklar, turevler, acik, zengin
+			satir, gorseller.get(ad) or [], slot_key, varliklar, turevler, ilan_acik, zengin
 		)
 	return cikti
 
@@ -862,7 +864,14 @@ def _video_manifest_batch_icin(
 	turevler: dict[str, list[dict[str, Any]]] = {}
 	surumler: dict[str, dict[str, Any]] = {}
 	if acik:
-		adresler = sorted({u for u in (_yerel_url(s.get("video_url")) for s in satirlar) if u})
+		adresler = sorted(
+			{
+				u
+				for s in satirlar
+				if pipeline_flags.is_store_enabled(s.get("seller_profile"))
+				if (u := _yerel_url(s.get("video_url")))
+			}
+		)
 		varliklar = _varliklari_getir(adresler, slot_key)
 		varlik_adlari = sorted({v["name"] for grup in varliklar.values() for v in grup.values()})
 		aktif_surumler = {
@@ -875,7 +884,10 @@ def _video_manifest_batch_icin(
 
 	cikti: dict[str, dict[str, Any]] = {}
 	for satir in satirlar:
-		cikti[satir["name"]] = _tek_video_govdesi(satir, slot_key, varliklar, turevler, surumler, acik)
+		ilan_acik = acik and pipeline_flags.is_store_enabled(satir.get("seller_profile"))
+		cikti[satir["name"]] = _tek_video_govdesi(
+			satir, slot_key, varliklar, turevler, surumler, ilan_acik
+		)
 	return cikti
 
 

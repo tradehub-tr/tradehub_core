@@ -19,9 +19,12 @@ YALNIZ commit eden akışlar için geçerli).
 
 from __future__ import annotations
 
+from unittest import mock
+
 import frappe
 from frappe.tests.utils import FrappeTestCase
 
+from tradehub_core.api import seller_media
 from tradehub_core.media import files
 
 
@@ -59,7 +62,10 @@ class TestKotaTurevBaytlari(FrappeTestCase):
 		asset = frappe.get_doc(
 			{
 				"doctype": "Media Asset",
-				"slot_key": f"test.slot.{frappe.generate_hash(length=6)}",
+				# Link alanına uydurma anahtar yazmak, Frappe bağlantı
+				# doğrulamasını test etmek olurdu. Kota hesabı slot türünden
+				# bağımsızdır; çekirdek fixture'daki gerçek politika yeterlidir.
+				"slot_key": "product.image",
 				"media_type": "image",
 				"state": "ready",
 				"owner_seller": store,
@@ -79,6 +85,19 @@ class TestKotaTurevBaytlari(FrappeTestCase):
 			}
 		).insert(ignore_permissions=True, ignore_mandatory=True)
 
+	def _make_job(self, asset: str, duration_ms: int) -> None:
+		frappe.get_doc(
+			{
+				"doctype": "Media Processing Job",
+				"asset": asset,
+				"job_type": "rendition",
+				"queue": "media-image-live",
+				"status": "success",
+				"idempotency_key": f"quota-job-{frappe.generate_hash(length=20)}",
+				"duration_ms": duration_ms,
+			}
+		).insert(ignore_permissions=True, ignore_mandatory=True)
+
 	# --- Senaryolar --------------------------------------------------------
 
 	def test_kota_turev_baytlarini_icerir(self):
@@ -92,10 +111,16 @@ class TestKotaTurevBaytlari(FrappeTestCase):
 
 		usage = files.storage_usage(store)
 		self.assertEqual(usage["rendition_bytes"], 3500)
+		self.assertEqual(usage["renditions"], 2)
 		# Toplam kalemi = orijinaller + türevler (ADR-0022 sözleşmesi).
 		self.assertEqual(usage["bytes"], usage["original_bytes"] + 3500)
 		# Türev satır sayısı `files` (orijinal sayacı) alanını ŞİŞİRMEZ.
 		self.assertEqual(usage["files"], 0)
+		self.assertEqual(usage["quota_mode"], "unconfigured")
+		self.assertEqual(
+			usage["scope"],
+			{"public_originals": True, "private_originals": False, "renditions": True},
+		)
 
 	def test_turevi_olmayan_satici_degismez(self):
 		"""Hiç türevi olmayan satıcıda `bytes == original_bytes`; ekleme fark yaratmaz."""
@@ -122,3 +147,40 @@ class TestKotaTurevBaytlari(FrappeTestCase):
 
 		# Kontrol (fixture gerçekten yazıldı mı): B kendi türevini görür.
 		self.assertEqual(files.rendition_usage(store_b), 9999)
+
+	def test_aylik_is_hacmi_tenant_bazinda_raporlanir(self):
+		"""İş adedi/süresi gözlem metriğidir; başka tenant sonucu şişiremez."""
+		store_a = self._make_store("JA")
+		store_b = self._make_store("JB")
+		asset_a = self._make_asset(store_a)
+		asset_b = self._make_asset(store_b)
+		self._make_job(asset_a, 120)
+		self._make_job(asset_a, 380)
+		self._make_job(asset_b, 9999)
+
+		usage = files.storage_usage(store_a, include_activity=True)
+		self.assertEqual(usage["processing_jobs_month"], 2)
+		self.assertEqual(usage["processing_duration_ms_month"], 500)
+		self.assertRegex(usage["processing_period_start"], r"^\d{4}-\d{2}-01$")
+
+		# Whitelist özeti eski bytes/quota alanlarını korurken ayrıntılı tenant
+		# kota sözleşmesini de dışarı açar; mağaza gövdeden alınmaz.
+		with (
+			mock.patch.object(seller_media, "_store", return_value=store_a),
+			mock.patch.object(
+				seller_media.inventory,
+				"library_facets",
+				side_effect=[
+					{"counts": {"all": 3}, "formats": [], "tags": []},
+					{"counts": {"all": 1}, "formats": [], "tags": []},
+				],
+			),
+		):
+			ozet = seller_media.get_my_summary()
+		self.assertEqual(ozet["store"], store_a)
+		self.assertEqual(ozet["active"], 3)
+		self.assertEqual(ozet["trashed"], 1)
+		self.assertEqual(ozet["processing_jobs_month"], 2)
+		self.assertEqual(ozet["renditions"], 0)
+		self.assertIn("quota_state", ozet)
+		self.assertEqual(ozet["scope"]["private_originals"], False)

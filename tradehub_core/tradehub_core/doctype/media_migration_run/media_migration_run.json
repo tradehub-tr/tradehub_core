@@ -1,0 +1,372 @@
+{
+ "actions": [],
+ "autoname": "field:run_key",
+ "creation": "2026-08-24 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "run_key",
+  "status",
+  "dry_run",
+  "approved_dry_run",
+  "requested_by",
+  "column_break_identity",
+  "plan_schema_version",
+  "plan_digest",
+  "preset",
+  "notify_sellers",
+  "notifications_sent",
+  "notifications_skipped",
+  "notifications_at",
+  "section_break_progress",
+  "batch_size",
+  "total_files",
+  "total_batches",
+  "next_batch_index",
+  "rollback_batch_index",
+  "column_break_counts",
+  "processed",
+  "optimized",
+  "skipped",
+  "errors",
+  "original_bytes",
+  "new_bytes",
+  "section_break_timing",
+  "started_at",
+  "finished_at",
+  "validated_at",
+  "last_heartbeat",
+  "column_break_hold",
+  "rollback_deadline",
+  "archive_hold_until",
+  "section_break_stop",
+  "stop_code",
+  "stop_reason",
+  "section_break_payload",
+  "preflight_json",
+  "validation_json",
+  "report_json",
+  "plan_json",
+  "section_break_batches",
+  "batches"
+ ],
+ "fields": [
+  {
+   "fieldname": "run_key",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Koşum Anahtarı",
+   "length": 64,
+   "read_only": 1,
+   "reqd": 1,
+   "search_index": 1,
+   "unique": 1
+  },
+  {
+   "default": "planned",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Durum",
+   "options": "planned\nqueued\nrunning\npaused\nhalted\nstopping\nstopped\ncompleted\nvalidating\nvalidated\nvalidation_failed\nrolling_back\nrolled_back\nrollback_failed\nfailed",
+   "read_only": 1,
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "dry_run",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Kuru Koşum",
+   "read_only": 1
+  },
+  {
+   "fieldname": "approved_dry_run",
+   "fieldtype": "Link",
+   "label": "Onaylanan Kuru Koşum",
+   "options": "Media Migration Run",
+   "read_only": 1
+  },
+  {
+   "fieldname": "requested_by",
+   "fieldtype": "Link",
+   "label": "Başlatan",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_identity",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "plan_schema_version",
+   "fieldtype": "Int",
+   "label": "Plan Şema Sürümü",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "plan_digest",
+   "fieldtype": "Data",
+   "in_standard_filter": 1,
+   "label": "Plan SHA-256",
+   "length": 64,
+   "read_only": 1,
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "default": "balanced",
+   "fieldname": "preset",
+   "fieldtype": "Data",
+   "label": "Preset",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "notify_sellers",
+   "fieldtype": "Check",
+   "label": "Satıcıları Bildir",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "notifications_sent",
+   "fieldtype": "Int",
+   "label": "Gönderilen Bildirim",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "notifications_skipped",
+   "fieldtype": "Int",
+   "label": "Atlanan Bildirim",
+   "read_only": 1
+  },
+  {
+   "fieldname": "notifications_at",
+   "fieldtype": "Datetime",
+   "label": "Bildirim Zamanı",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_progress",
+   "fieldtype": "Section Break",
+   "label": "İlerleme"
+  },
+  {
+   "default": "200",
+   "fieldname": "batch_size",
+   "fieldtype": "Int",
+   "label": "Batch Boyutu",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "total_files",
+   "fieldtype": "Int",
+   "label": "Toplam Dosya",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "total_batches",
+   "fieldtype": "Int",
+   "label": "Toplam Batch",
+   "read_only": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "next_batch_index",
+   "fieldtype": "Int",
+   "label": "Sıradaki Batch",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "rollback_batch_index",
+   "fieldtype": "Int",
+   "label": "Rollback Batch",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_counts",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "processed",
+   "fieldtype": "Int",
+   "label": "İşlenen",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "optimized",
+   "fieldtype": "Int",
+   "label": "Optimize Edilen",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "skipped",
+   "fieldtype": "Int",
+   "label": "Atlanan",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "errors",
+   "fieldtype": "Int",
+   "label": "Hata",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "original_bytes",
+   "fieldtype": "Int",
+   "label": "Orijinal Bayt",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "new_bytes",
+   "fieldtype": "Int",
+   "label": "Yeni Bayt",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_timing",
+   "fieldtype": "Section Break",
+   "label": "Zamanlama"
+  },
+  {
+   "fieldname": "started_at",
+   "fieldtype": "Datetime",
+   "label": "Başlangıç",
+   "read_only": 1
+  },
+  {
+   "fieldname": "finished_at",
+   "fieldtype": "Datetime",
+   "label": "Bitiş",
+   "read_only": 1
+  },
+  {
+   "fieldname": "validated_at",
+   "fieldtype": "Datetime",
+   "label": "Doğrulama Zamanı",
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_heartbeat",
+   "fieldtype": "Datetime",
+   "label": "Son Nabız",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_hold",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "rollback_deadline",
+   "fieldtype": "Datetime",
+   "label": "Rollback Son Tarihi",
+   "read_only": 1
+  },
+  {
+   "fieldname": "archive_hold_until",
+   "fieldtype": "Datetime",
+   "label": "Arşiv Koruması",
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "section_break_stop",
+   "fieldtype": "Section Break",
+   "label": "Durdurma"
+  },
+  {
+   "fieldname": "stop_code",
+   "fieldtype": "Data",
+   "label": "Durdurma Kodu",
+   "read_only": 1
+  },
+  {
+   "fieldname": "stop_reason",
+   "fieldtype": "Small Text",
+   "label": "Durdurma Nedeni",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_payload",
+   "fieldtype": "Section Break",
+   "label": "Raporlar"
+  },
+  {
+   "fieldname": "preflight_json",
+   "fieldtype": "Code",
+   "label": "Preflight JSON",
+   "options": "JSON",
+   "read_only": 1
+  },
+  {
+   "fieldname": "validation_json",
+   "fieldtype": "Code",
+   "label": "Doğrulama JSON",
+   "options": "JSON",
+   "read_only": 1
+  },
+  {
+   "fieldname": "report_json",
+   "fieldtype": "Code",
+   "label": "Koşum Raporu JSON",
+   "options": "JSON",
+   "read_only": 1
+  },
+  {
+   "fieldname": "plan_json",
+   "fieldtype": "Code",
+   "label": "Plan JSON",
+   "options": "JSON",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_break_batches",
+   "fieldtype": "Section Break",
+   "label": "Batch Kayıtları"
+  },
+  {
+   "fieldname": "batches",
+   "fieldtype": "Table",
+   "label": "Batch Kayıtları",
+   "options": "Media Migration Batch",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-08-24 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "Media Migration Run",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "export": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager"
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

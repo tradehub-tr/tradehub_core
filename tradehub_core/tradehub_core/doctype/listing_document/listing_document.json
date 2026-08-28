@@ -1,0 +1,51 @@
+{
+ "actions": [],
+ "creation": "2026-08-27 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "file",
+  "title",
+  "doc_type",
+  "language"
+ ],
+ "fields": [
+  {
+   "fieldname": "file",
+   "fieldtype": "Attach",
+   "in_list_view": 1,
+   "label": "File",
+   "reqd": 1
+  },
+  {
+   "fieldname": "title",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Title"
+  },
+  {
+   "fieldname": "doc_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Document Type",
+   "options": "Katalog\nSertifika\nKılavuz\nTeknik Föy\nDiğer"
+  },
+  {
+   "default": "tr",
+   "fieldname": "language",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Language",
+   "options": "tr\nen\nar\nru\ndiğer"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-08-27 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "Listing Document",
+ "owner": "Administrator",
+ "permissions": []
+}

@@ -265,7 +265,7 @@ class TestEnqueueTranscodeKosullu(FrappeTestCase):
 			lambda: frappe.delete_doc("File", self.doc.name, ignore_permissions=True, force=True)
 		)
 
-	def test_kucuk_video_enqueue_edilmez_ready_isaretlenir(self):
+	def test_kucuk_video_transcode_edilmez_poster_enqueue_edilir(self):
 		with (
 			mock.patch(
 				"tradehub_core.media.transcode.needs_transcode", return_value=False
@@ -275,7 +275,16 @@ class TestEnqueueTranscodeKosullu(FrappeTestCase):
 			transcode.enqueue_transcode(self.doc.file_url)
 
 		mock_needs.assert_called_once()
-		mock_enqueue.assert_not_called()
+		# Transcode kuyruğuna GİRMEZ ama poster üretimi `media-maint`'e
+		# enqueue edilir (Dilim 4, Task 3) — küçük/sıkışmış video da posteri
+		# hak eder.
+		mock_enqueue.assert_called_once_with(
+			"tradehub_core.media.video_poster.generate",
+			queue="media-maint",
+			timeout=300,
+			file_url=self.doc.file_url,
+			enqueue_after_commit=True,
+		)
 		durum = frappe.db.get_value("File", self.doc.name, "th_media_video_status")
 		self.assertEqual(durum, transcode.VIDEO_STATUS_READY)
 

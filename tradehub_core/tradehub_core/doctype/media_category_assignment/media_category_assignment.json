@@ -1,0 +1,122 @@
+{
+ "actions": [],
+ "autoname": "hash",
+ "creation": "2026-08-24 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "category",
+  "file_url",
+  "file_url_hash",
+  "store",
+  "assignment_source",
+  "confidence",
+  "evidence",
+  "assigned_by"
+ ],
+ "fields": [
+  {
+   "fieldname": "category",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Kategori",
+   "options": "Media Category",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "file_url",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Dosya Adresi",
+   "length": 500,
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "file_url_hash",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Dosya Adresi Özeti",
+   "length": 64,
+   "read_only": 1,
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "store",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Mağaza",
+   "options": "Admin Seller Profile",
+   "read_only": 1,
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "default": "manual",
+   "fieldname": "assignment_source",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Atama Kaynağı",
+   "options": "manual\nsuggestion\nrule\nai\nsystem",
+   "reqd": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "confidence",
+   "fieldtype": "Float",
+   "label": "Güven",
+   "precision": "4",
+   "reqd": 1
+  },
+  {
+   "fieldname": "evidence",
+   "fieldtype": "Small Text",
+   "label": "Dayanak"
+  },
+  {
+   "fieldname": "assigned_by",
+   "fieldtype": "Link",
+   "label": "Atayan",
+   "options": "User",
+   "read_only": 1,
+   "search_index": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-08-24 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "Media Category Assignment",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 0,
+   "export": 0,
+   "print": 0,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 0,
+   "write": 1
+  },
+  {
+   "email": 0,
+   "export": 0,
+   "print": 0,
+   "read": 1,
+   "report": 1,
+   "role": "Marketplace Admin",
+   "share": 0
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

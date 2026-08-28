@@ -8,9 +8,16 @@ from html import escape
 import frappe
 from werkzeug.wrappers import Response
 
-from tradehub_core.media import seo, seo_index, seo_urls
+from tradehub_core.media import seo, seo_index, seo_urls, upload_policy, watch_slug
+from tradehub_core.media.doc_meta import DOC_UZANTILAR
 from tradehub_core.seo.schema_builder import build_image_object
 from tradehub_core.seo.site_url import storefront_url
+
+#: İzleme sayfası indexlenemezken basılan sabit `robots` direktifi —
+#: `seo_index._ret`'in noindex biçimiyle AYNI (tek yerde iki farklı string olmasın).
+_WATCH_NOINDEX_ROBOTS = (
+	f"noindex, follow, nosnippet, {seo_index.PREVIEW_NONE}, {seo_index.VIDEO_PREVIEW_NONE}"
+)
 
 
 def _asset_file(asset_id: str) -> tuple[dict, dict]:
@@ -141,3 +148,225 @@ def asset_landing(asset_id: str):
 	response.headers["Cache-Control"] = "public, max-age=300"
 	response.headers["X-Robots-Tag"] = robots
 	return response
+
+
+def _storefront_listings(file_url: str) -> list[dict]:
+	"""Videonun bağlı olduğu, vitrinde görünen ilanlar — TEK indeksli sorgu.
+
+	Watch page videolarının TEK canlı kaynağı `Listing.video_url` — sitemap'in
+	`_video_entries_for_listing`'i ve JSON-LD'nin `_listing_video_objects`'i de
+	yalnız bu alanı okuyor, üçüncü bir kaynak tanımı burada icat edilmiyor.
+
+	`usage.resolve` BİLEREK kullanılmıyor (görev denetimi bulgusu 1 —
+	Critical): guest-erişilebilir bu uçta 22 tabloyu tarayan, history
+	kaynaklarına kadar uzanabilen pahalı bir kullanım dökümü açmak DoS
+	yüzeyi olurdu — her istek `/medya/v/<slug>` için LIKE taramalı 20+ sorgu
+	demekti. `video_url` alanı zaten eşitlik filtresiyle tek sorguda çözülüyor.
+	"""
+	return frappe.get_all(
+		"Listing",
+		filters={"video_url": file_url, "storefront_visible": 1},
+		fields=["name", "slug", "title", "primary_image"],
+	)
+
+
+def watch_indexable(file_url: str, *, fields: dict | None = None, listings: list | None = None) -> bool:
+	"""İzleme sayfası indexlenebilir mi — W3 üçlüsü, TEK karar noktası.
+
+	SEO kararı + poster + vitrin bağı üçü de sağlanmazsa video SİLİNMEZ,
+	yalnız arama motoruna kapatılır (`get_watch_page`'in `robots: noindex`
+	dalıyla aynı ilke — `seo_index` docstring'i: "private robots ile
+	gizlenmez", burada tersi de geçerli: geçici olarak aranmaz olmak
+	dosyayı silmez).
+
+	`fields`/`listings` verilirse burada YENİDEN hesaplanmaz — `_watch_data`
+	sayfa verisini kurarken zaten hesapladığı bu ikisini geçirip aynı sorguyu
+	iki kez açmamak için kullanır. Dışarıdan bağımsız çağrı (`fields=None`)
+	geriye uyumlu: ikisi de burada hesaplanır. W3 mantığı yalnız bu
+	fonksiyonda yaşar — `_watch_data` bunu tekrar İMPLEMENTE ETMEZ.
+	"""
+	url = (file_url or "").split("?")[0].strip()
+	if not url:
+		return False
+	decision = seo_index.decide(url, check_usage=False)
+	if not decision.get("indexable"):
+		return False
+	if fields is None:
+		fields = seo.fields_for(url)
+	if not fields.get("poster_url"):
+		return False
+	if listings is None:
+		listings = _storefront_listings(url)
+	return bool(listings)
+
+
+def _document_listings(file_url: str) -> list[dict]:
+	"""Dokümanın bağlı olduğu, vitrinde görünen ilanlar — `_storefront_listings`
+	(video) kardeşi, TASK 3.
+
+	`Listing.video_url` tekil alanın aksine doküman bağlantısı `Listing.documents`
+	(child `Listing Document`, Task 1) çoka-çok — TEK sorgu yetmez, İKİ toplu
+	adım gerekir: önce dosyaya işaret eden child satırlar (`file` → `parent`),
+	sonra o parent'lardan yalnız vitrinde görünenler. Site haritasının toplu
+	ön-yüklemesi (`sitemap_generator._preload_doc_listings`) AYNI iki adımı
+	çoklu dosya için `IN` filtresiyle açar — burada tek dosya için sabit kalır.
+	"""
+	child_rows = frappe.get_all("Listing Document", filters={"file": file_url}, fields=["parent"])
+	if not child_rows:
+		return []
+	parent_names = list({row["parent"] for row in child_rows})
+	return frappe.get_all(
+		"Listing",
+		filters={"name": ["in", parent_names], "storefront_visible": 1},
+		fields=["name", "slug", "title"],
+	)
+
+
+def doc_indexable(file_url: str, *, fields: dict | None = None, listings: list | None = None) -> bool:
+	"""Doküman (PDF/Office) indexlenebilir mi — `watch_indexable`'ın doküman ikizi.
+
+	Üç koşul (`watch_indexable`'ın W3 iskeletiyle AYNI şekil, ikinci bacak
+	farklı):
+	  1. `seo_index.decide` — SEO kararı (private/karantina/hakkı dolmuş dahil,
+	     "+private → False" burada karşılanır).
+	  2. Uzantı `DOC_UZANTILAR` içinde mi — video'nun "poster var mı" kontrolüyle
+	     aynı rol: dosyanın GERÇEKTEN bir doküman formatı olduğunu doğrular
+	     (`Listing Document.file` serbest bir `Attach` alanı — herhangi bir
+	     dosya ekli olabilir, doküman sitemap/JSON-LD'ye yalnız gerçek
+	     PDF/Office biçimleri girmeli).
+	  3. En az bir vitrinde görünen ilana bağlı mı (`Listing.documents` child'ı).
+
+	`fields`/`listings` verilirse burada YENİDEN hesaplanmaz — `watch_indexable`
+	ile aynı imza sözleşmesi (sitemap toplu ön-yüklemesi ikisini de önceden
+	hesaplayıp geçirir). `fields` bu üç koşulda bugün TÜKETİLMİYOR — imza
+	yalnız simetri için tutuluyor, gelecekte alan-bazlı bir kural eklenirse
+	tek yerden geçilebilsin diye.
+	"""
+	url = (file_url or "").split("?")[0].strip()
+	if not url:
+		return False
+	decision = seo_index.decide(url, check_usage=False)
+	if not decision.get("indexable"):
+		return False
+	if upload_policy.extension_of(url) not in DOC_UZANTILAR:
+		return False
+	if listings is None:
+		listings = _document_listings(url)
+	return bool(listings)
+
+
+#: `<video>` etiketine girebilecek MIME'lar — `_sources`'ın döndürdüğü
+#: `image/*` girdiler (poster'ın `pipeline_bridge.VIDEO_POSTER_PROFILE`
+#: render'ı webp/png formatında saklanıyor) buradan GEÇEMEZ. Poster URL'i
+#: zaten ayrı `posterUrl` alanında taşınıyor; `<source>` listesine bir
+#: thumbnail sızması oynatılamaz bir "video" gösterirdi (görev denetimi
+#: bulgusu 4).
+_VIDEO_SOURCE_MIMES: frozenset[str] = frozenset({"video/mp4", "video/webm", "application/x-mpegURL"})
+
+
+def _video_sources(file_row: dict, url: str, mime: str) -> list[dict[str, str]]:
+	"""Video kaynak listesi — asset'i varsa `_sources` (mevcut desen), yoksa ham adres.
+
+	`_sources`'ın döndürdüğü türler `_VIDEO_SOURCE_MIMES` ile süzülüyor: aksi
+	hâlde asset'in poster render'ı (`image/webp`) `<source type="image/webp">`
+	olarak sızabilirdi. Süzgeçten hiçbir şey geçmezse (bugün video render'ı
+	`_sources`'ın bildiği format haritasına henüz girmiyor) ham dosya
+	adresine düşülür — motoru olmayan bir kaynak listesindense TEK gerçek
+	adres göstermek yeğdir.
+	"""
+	asset_name = ""
+	if frappe.db.table_exists("Media Asset"):
+		asset_name = frappe.db.get_value("Media Asset", {"source_file": file_row.get("name")}, "name") or ""
+	if asset_name:
+		items, _fallback = _sources(asset_name)
+		kaynaklar = []
+		for item in items:
+			if item.get("type") not in _VIDEO_SOURCE_MIMES:
+				continue
+			ilk = (item.get("srcset") or "").split(",")[0].strip()
+			src = ilk.split(" ")[0] if ilk else ""
+			if src:
+				kaynaklar.append({"src": src, "type": item["type"]})
+		if kaynaklar:
+			return kaynaklar
+	return [{"src": url, "type": mime}]
+
+
+def _watch_data(slug: str) -> dict:
+	"""`/medya/v/<slug>` sayfa verisini HTTP'siz kurar — Task 3 resolver'ı bunu doğrudan çağırır.
+
+	Slug'a ait kardeş `File` kayıtlarından İLK PUBLIC olanı çözülür (kardeşler
+	aynı adrese işaret edebiliyor, `watch_slug` deseni). Bulunamayan ya da
+	yalnız private kardeşleri olan slug `frappe.DoesNotExistError` fırlatır
+	(HTTP 404) — private asset "sayfa yok" gibi davranır, `noindex` ile değil
+	gerçek erişim reddiyle korunur (`seo_index` ilkesiyle aynı).
+	"""
+	slug = (slug or "").strip()
+	kayitlar = (
+		frappe.get_all(
+			"File",
+			filters={"th_media_slug": slug},
+			fields=["name", "file_url", "file_name", "is_private"],
+			order_by="creation asc",
+		)
+		if slug
+		else []
+	)
+	file_row = next((k for k in kayitlar if not k.get("is_private") and k.get("file_url")), None)
+	if not file_row:
+		frappe.throw(frappe._("Video bulunamadı."), exc=frappe.DoesNotExistError)
+
+	url = file_row["file_url"]
+	fields = seo.fields_for(url)
+	decision = seo_index.decide(url, check_usage=False)
+	listings = _storefront_listings(url)
+	# W3 kararı TEK yerde: `watch_indexable`. `fields`/`listings` burada zaten
+	# hesaplandığı için geçiriliyor — fonksiyon içeride tekrar sorgulamaz.
+	indexable = watch_indexable(url, fields=fields, listings=listings)
+
+	site = storefront_url()
+	identity = seo_urls.identity_for(url, site_url=site)
+	mime = identity.get("encoding_format") or ""
+	sources = _video_sources(file_row, url, mime)
+	canonical = f"{site}{watch_slug.watch_url(slug)}"
+
+	return {
+		"title": fields.get("title") or fields.get("alt") or file_row.get("file_name") or "",
+		"caption": fields.get("caption") or "",
+		"description": fields.get("description") or "",
+		"transcript": fields.get("transcript") or "",
+		"posterUrl": fields.get("poster_url") or "",
+		"sources": sources,
+		"captionsUrl": fields.get("captions_url") or "",
+		"durationSec": fields.get("duration") or 0,
+		"uploadDate": identity.get("date_created") or "",
+		# Sözleşme TAM 5 anahtar (spec) — `creatorType`/`usageRights`/`rightsExpiresOn`
+		# BİLEREK yok, `fields_for` içinde kalıyor ama dış yüzeye taşınmıyor.
+		"license": {
+			"creator": fields.get("creator") or "",
+			"creditText": fields.get("credit_text") or "",
+			"copyrightNotice": fields.get("copyright_notice") or "",
+			"licenseUrl": fields.get("license_url") or "",
+			"acquireLicensePageUrl": fields.get("acquire_license_url") or "",
+		},
+		"listings": [
+			{
+				"slug": listing.get("slug") or "",
+				"title": listing.get("title") or "",
+				"image": listing.get("primary_image") or "",
+			}
+			for listing in listings
+		],
+		"indexable": indexable,
+		"canonical": canonical,
+		"robots": decision["robots"] if indexable else _WATCH_NOINDEX_ROBOTS,
+	}
+
+
+@frappe.whitelist(allow_guest=True)
+def get_watch_page(slug: str) -> dict:
+	"""`/medya/v/<slug>` için sayfa verisi — whitelist zarfı, mantık `_watch_data`'da.
+
+	Bilinmeyen/private slug `frappe.DoesNotExistError` fırlatır (HTTP 404).
+	"""
+	return _watch_data(slug)

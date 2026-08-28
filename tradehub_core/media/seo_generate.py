@@ -40,57 +40,169 @@ from __future__ import annotations
 import frappe
 
 from tradehub_core.media import seo
-from tradehub_core.seo.i18n import CONTENT_LANGS, DEFAULT_LANG
+from tradehub_core.seo.i18n import (
+	CONTENT_LANGS,
+	DEFAULT_LANG,
+	format_image_ordinal,
+	normalize_lang,
+	translate_platform_term,
+)
 
 #: Kaç görselden sonra sıra numarası eklenir. İlk görsel eksiz kalır: tek
 #: görselli üründe "(1. görsel)" demek hiçbir şey ifade etmiyor.
 _SIRA_ESIGI: int = 1
 
 
-def _listing_baglami(url: str) -> tuple[str, int] | None:
-	"""Bu adres bir ürüne bağlıysa (başlık + marka, kaçıncı görsel).
+def _listing_kolonlari(lang: str) -> list[str]:
+	kolonlar = ["name", "title", "brand"]
+	if lang != DEFAULT_LANG:
+		kolonlar.append(f"title_{lang}")
+	return kolonlar
+
+
+def _listing_baglami(url: str, lang: str) -> tuple[str, int] | None:
+	"""Bu adres bir ürüne bağlıysa (metin, kaçıncı görsel).
 
 	Ana görsel her zaman 1. sıradır; galeri satırları `idx` sırasına göre
 	numaralanır. İki kaynak ayrı sorgulanıyor çünkü galeri child table.
-	"""
-	ana = frappe.db.get_value("Listing", {"primary_image": url}, ["name", "title", "brand"], as_dict=True)
-	if ana:
-		return _listing_metni(ana), 1
 
-	satir = frappe.db.get_value("Listing Image", {"image": url}, ["parent", "idx"], as_dict=True)
+	Dönen `metin` boş olabilir (L1: hedef dilde gerçek çeviri yoksa) — bu
+	"bağlam yok" ile karıştırılmaz. `None` yalnız dosya HİÇBİR Listing'e
+	(ana görsel ya da galeri) bağlı değilse döner.
+
+	AYNI DOSYA BİRDEN ÇOK LISTING'E BAĞLIYSA: GÖRÜNÜR (`storefront_visible=1`)
+	olan ÖNCELİKLE ve deterministik sırayla (`modified desc`) seçilir —
+	denetim (`seo_audit._missing_localized_alt_bulgusu`) da yalnız görünür
+	Listing'i sayıyor; bu fonksiyon rastgele görünmez bir taslağı seçseydi
+	panelden kapatılamayan bir bulgu doğardı (görünür ilanda çeviri var, ama
+	`refresh_alt` görünmez taslağı okuyup `no_translation` dönerdi). Hiç
+	görünür yoksa mevcut davranışa (herhangi biri, yine deterministik)
+	düşülür — alt üretimi görünmez ilanlar için de çalışmaya DEVAM eder (tr
+	backfill'i bugüne kadar hepsini kapsıyordu, kapsam DARALTILMADI).
+	"""
+	kolonlar = _listing_kolonlari(lang)
+	ana = _oncelikli_listing({"primary_image": url}, kolonlar)
+	if ana:
+		return _listing_metni(ana, lang), 1
+
+	satir = _oncelikli_listing_image(url)
 	if not satir:
 		return None
-	listing = frappe.db.get_value("Listing", satir["parent"], ["name", "title", "brand"], as_dict=True)
+	listing = frappe.db.get_value("Listing", satir["parent"], kolonlar, as_dict=True)
 	if not listing:
 		return None
 	# Ana görsel 1 sayıldığı için galeri 2'den başlar.
-	return _listing_metni(listing), int(satir.get("idx") or 1) + 1
+	return _listing_metni(listing, lang), int(satir.get("idx") or 1) + 1
 
 
-def _listing_metni(listing: dict) -> str:
-	baslik = (listing.get("title") or "").strip()
+def _oncelikli_listing(filtre: dict, kolonlar: list[str]) -> dict | None:
+	"""`filtre`ye uyan Listing'lerden GÖRÜNÜR olanı, yoksa herhangi birini seç.
+
+	`order_by="modified desc"` her iki sorguda da deterministik sıra sağlar —
+	`frappe.db.get_value`'nin varsayılan sırası (`KEEP_DEFAULT_ORDERING`) iki
+	koşum arasında hangi satırı döndüreceğini garanti etmez.
+	"""
+	gorunur_filtre = dict(filtre, storefront_visible=1)
+	gorunur = frappe.db.get_value("Listing", gorunur_filtre, kolonlar, as_dict=True, order_by="modified desc")
+	if gorunur:
+		return gorunur
+	return frappe.db.get_value("Listing", filtre, kolonlar, as_dict=True, order_by="modified desc")
+
+
+def _oncelikli_listing_image(url: str) -> dict | None:
+	"""Bu adrese sahip `Listing Image` satırı — ebeveyni GÖRÜNÜR olan
+	öncelikli, yoksa herhangi biri (gerekçe: `_oncelikli_listing`).
+
+	Galeri child table olduğu için `Listing`'e JOIN gerekiyor — `frappe.db.
+	get_value` bunu tek çağrıda yapamıyor, parametreli `frappe.db.sql` ile
+	(bu dosyanın geri kalanıyla aynı desen, ör. `_backfill_adaylari`).
+	"""
+	gorunur = frappe.db.sql(
+		"""
+		SELECT li.parent AS parent, li.idx AS idx
+		FROM `tabListing Image` li
+		INNER JOIN `tabListing` l ON l.name = li.parent
+		WHERE li.image = %s AND l.storefront_visible = 1
+		ORDER BY l.modified DESC
+		LIMIT 1
+		""",
+		(url,),
+		as_dict=True,
+	)
+	if gorunur:
+		return gorunur[0]
+	return frappe.db.get_value("Listing Image", {"image": url}, ["parent", "idx"], as_dict=True)
+
+
+def _listing_metni(listing: dict, lang: str) -> str:
+	"""Listing başlığı + marka.
+
+	L1 TUZAĞI: fallback'li `resolve_content_field` KULLANILMAZ — "o dilde
+	gerçek çeviri var mı" sorusu `title_{lang}` kolonunu DOĞRUDAN okuyarak
+	sorulur (fallback TR'ye düşüp "çeviri var" yalanı söylerdi). tr çağrısı
+	mevcut yolu (`title` base kolonu) birebir korur.
+	"""
+	lang = normalize_lang(lang)
+	if lang == DEFAULT_LANG:
+		baslik = (listing.get("title") or "").strip()
+	else:
+		baslik = (listing.get(f"title_{lang}") or "").strip()
 	if not baslik:
 		return ""
 	marka = ""
 	if listing.get("brand"):
+		# Marka adı özel isim — çevrilmez, olduğu gibi kalır.
 		marka = (frappe.db.get_value("Brand", listing["brand"], "brand_name") or "").strip()
 	return f"{baslik} — {marka}" if marka else baslik
 
 
-def _kategori_metni(url: str) -> str:
+def _kategori_metni(url: str, lang: str) -> tuple[bool, str]:
+	"""Kategori bağlamı: (bağlam bulundu mu, üretilen metin).
+
+	Kategori adı SERBEST içerik (özel isim değil) — hedef dilde gerçek
+	çevirisi yoksa (`category_name_{lang}` boş ya da doctype'ta hiç yok,
+	örn. `Seller Category`) metin BOŞ döner; "bağlam bulundu" yine True
+	kalır — `no_translation` ayrımı `refresh_alt`'ta buradan gelir.
+	"""
 	for doctype, alan, sonek in (
 		("Product Category", "category_name", "kategorisi"),
 		("Seller Category", "category_name", "kategorisi"),
 	):
 		if not frappe.db.table_exists(doctype):
 			continue
-		ad = frappe.db.get_value(doctype, {"image": url}, alan)
-		if ad:
-			return f"{ad} {sonek}"
-	return ""
+		lang_alan = f"{alan}_{lang}"
+		var_kolon = lang != DEFAULT_LANG and frappe.db.has_column(doctype, lang_alan)
+		kolonlar = [alan, lang_alan] if var_kolon else [alan]
+		kayit = frappe.db.get_value(doctype, {"image": url}, kolonlar, as_dict=True)
+		if kayit is None:
+			continue
+		if lang == DEFAULT_LANG:
+			ad = (kayit.get(alan) or "").strip()
+		elif var_kolon:
+			ad = (kayit.get(lang_alan) or "").strip()
+		else:
+			# Doctype'ta bu dil için sufix kolon HİÇ yok (örn. `Seller Category`
+			# yalnız `category_name` taşır) — TR adını okuyup çevrili sabit ekle
+			# birleştirmek L1 ihlali olurdu ("çeviri var" yalanı). no_translation.
+			return True, ""
+		if not ad:
+			return True, ""
+		return True, f"{ad} {translate_platform_term(sonek, lang)}"
+	return False, ""
 
 
-def _magaza_metni(url: str) -> str:
+def _magaza_metni(url: str, lang: str) -> tuple[bool, str]:
+	"""Mağaza/marka bağlamı: (bağlam bulundu mu, üretilen metin).
+
+	Mağaza/marka adı ÖZEL İSİM — çevrilmez, olduğu gibi kalır; yalnız sabit
+	ek (`translate_platform_term`) dile göre değişir. Bu yüzden bu dal
+	`no_translation` ÜRETMEZ: ad zaten kaynağıyla aynı, tüm dillerde üretim
+	mümkün (tasarım L1/L8 — kopyalama değil, özel isim + çevrili sabit ek).
+
+	Kayıt eşleşse bile ad boşsa (veri eksikliği — çeviri sorunu değil)
+	zincir orijinal davranışla AYNI şekilde bir sonraki adaya devam eder;
+	yalnız gerçekten bir ad bulunca "bağlam bulundu" sayılır.
+	"""
 	# Mağaza adı `seller_name`; `company_name` yedek (bazı kayıtlarda ticari
 	# unvan dolu, mağaza adı boş). Alan adı ölçülerek doğrulandı — "store_name"
 	# diye bir kolon YOK.
@@ -98,18 +210,47 @@ def _magaza_metni(url: str) -> str:
 		kayit = frappe.db.get_value(
 			"Admin Seller Profile", {alan: url}, ["seller_name", "company_name"], as_dict=True
 		)
-		ad = (kayit or {}).get("seller_name") or (kayit or {}).get("company_name")
+		ad = ((kayit or {}).get("seller_name") or (kayit or {}).get("company_name") or "").strip()
 		if ad:
-			return f"{ad} {sonek}"
+			return True, f"{ad} {translate_platform_term(sonek, lang)}"
 	for alan, sonek in (("logo", "marka logosu"), ("hero_banner", "marka kapak görseli")):
-		ad = frappe.db.get_value("Brand", {alan: url}, "brand_name")
+		ad = (frappe.db.get_value("Brand", {alan: url}, "brand_name") or "").strip()
 		if ad:
-			return f"{ad} {sonek}"
-	return ""
+			return True, f"{ad} {translate_platform_term(sonek, lang)}"
+	return False, ""
 
 
-def generate_alt(file_url: str) -> str:
+def _alt_detay(url: str, lang: str) -> tuple[str, bool]:
+	"""Kural zincirini çalıştır — (üretilen metin, bağlam bulundu mu).
+
+	Bağlam bulunduysa (Listing/kategori/mağaza eşleşti) ama metin boşsa
+	(L1: o dilde gerçek çeviri yok) `refresh_alt` bunu `no_translation`
+	sebebiyle ayırt eder; bağlam da yoksa `no_context`.
+	"""
+	baglam = _listing_baglami(url, lang)
+	if baglam:
+		metin, sira = baglam
+		if metin:
+			return (metin if sira <= _SIRA_ESIGI else f"{metin} {format_image_ordinal(sira, lang)}"), True
+		return "", True
+
+	bulundu, kategori = _kategori_metni(url, lang)
+	if bulundu:
+		return kategori, True
+
+	bulundu, magaza = _magaza_metni(url, lang)
+	if bulundu:
+		return magaza, True
+
+	return "", False
+
+
+def generate_alt(file_url: str, lang: str = DEFAULT_LANG) -> str:
 	"""Kural zincirini çalıştır — üretilen metin ya da boş dize.
+
+	`lang` için kaynak alanın (Listing başlığı, kategori adı) o dilde
+	GERÇEK çevirisi yoksa "" döner — kopyalama YASAK (L1); mağaza/marka
+	dalı özel isim taşıdığı için istisna (bkz. `_magaza_metni`).
 
 	Saf okuma: hiçbir şey yazmaz. Yazma `refresh_alt`'ın işi; ayrım
 	test edilebilirlik içindir (zincir bench olmadan da denenebilsin).
@@ -117,22 +258,17 @@ def generate_alt(file_url: str) -> str:
 	url = (file_url or "").split("?")[0]
 	if not url:
 		return ""
-
-	baglam = _listing_baglami(url)
-	if baglam:
-		metin, sira = baglam
-		if metin:
-			return metin if sira <= _SIRA_ESIGI else f"{metin} ({sira}. görsel)"
-
-	kategori = _kategori_metni(url)
-	if kategori:
-		return kategori
-
-	return _magaza_metni(url)
+	lang = normalize_lang(lang)
+	metin, _ = _alt_detay(url, lang)
+	return metin
 
 
-def refresh_alt(file_url: str, *, force: bool = False) -> dict:
+def refresh_alt(file_url: str, *, lang: str = DEFAULT_LANG, force: bool = False) -> dict:
 	"""Üretilen metni varlık varsayılanına yaz — insan yazdıysa DOKUNMA.
+
+	`lang` hedef kolonu seçer (`alt_{lang}`); `lang="tr"` (varsayılan)
+	mevcut davranışı birebir korur. Kaynağın o dilde GERÇEK çevirisi yoksa
+	`no_translation` sebebiyle atlanır (L1: kopyalama yasak).
 
 	`force` yalnız yönetici aracı içindir (ör. "bu ürünün tüm alt metinlerini
 	yeniden üret"); insan metnini ezmek bilinçli bir karar olmalı, kazara
@@ -144,23 +280,31 @@ def refresh_alt(file_url: str, *, force: bool = False) -> dict:
 	url = (file_url or "").split("?")[0]
 	if not url:
 		return {"written": False, "alt": "", "reason": "no_url"}
+	lang = normalize_lang(lang)
 
-	mevcut = seo.fields_for(url)
+	mevcut = seo.fields_for(url, lang=lang)
+	# `alt_source` damgası dil-körü (L6): hangi dil hedeflenirse hedeflensin
+	# aynı kapıdan geçer, insan/edited damgalı dosyanın hiçbir dil kolonuna
+	# dokunulmaz.
 	kaynak = mevcut.get("alt_source") or ""
 	if not force and kaynak not in seo.REFRESHABLE:
 		return {"written": False, "alt": mevcut.get("alt", ""), "reason": f"source:{kaynak}"}
 
-	uretilen = generate_alt(url)
+	uretilen, baglam_bulundu = _alt_detay(url, lang)
 	if not uretilen:
-		# Boş bırakmak bir karardır, hata değil (§5.1 adım 5).
-		return {"written": False, "alt": "", "reason": "no_context"}
+		# Bağlam bulunduysa (Listing/kategori/mağaza) ama o dilde gerçek
+		# çeviri yoksa `no_translation`; bağlam da yoksa `no_context` — ikisi
+		# de bir karardır, hata değil (§5.1 adım 5 + L1).
+		sebep = "no_translation" if baglam_bulundu else "no_context"
+		return {"written": False, "alt": "", "reason": sebep}
 	if uretilen == mevcut.get("alt"):
 		return {"written": False, "alt": uretilen, "reason": "unchanged"}
 
-	# Yalnız varsayılan dile yazılır (§11 soru 2): çeviri `Listing.title`
-	# çevirisi geldiğinde türetilir; Türkçe metni İngilizce kolona yazmak
-	# "çeviri var" yalanı söylerdi.
-	yazilan = seo.set_asset_fields(url, {f"alt_{DEFAULT_LANG}": uretilen, "alt_source": seo.SOURCE_RULE})
+	# `alt_{lang}` yalnız o dilin GERÇEK kaynağından türetilir (Listing.title_{lang},
+	# kategori adı vb.) — Türkçe metni başka dilin kolonuna kopyalamak "çeviri
+	# var" yalanı söylerdi (L1). Kaynak o dilde boşsa yukarıdaki `if not uretilen`
+	# dalı zaten `no_translation` ile atlar; buraya yalnız gerçek çeviri ulaşır.
+	yazilan = seo.set_asset_fields(url, {f"alt_{lang}": uretilen, "alt_source": seo.SOURCE_RULE})
 	if not yazilan:
 		# Ürün bu adresi gösteriyor ama `File` kaydı yok (bozuk içe aktarma:
 		# açıklama cümlesi dosya adı yapılmış, 4 üründe görüldü). Metin üretildi
@@ -205,7 +349,7 @@ def backfill(limit: int = 500, *, only_listing: bool = True) -> dict:
 	tekrar çağırır (panel düğmesi ya da zamanlanmış iş).
 	"""
 	limit = max(1, min(2000, int(limit or 500)))
-	adaylar = _backfill_adaylari(limit, only_listing)
+	adaylar = _backfill_adaylari(limit, only_listing=only_listing)
 
 	yazilan = atlanan = 0
 	sebepler: dict[str, int] = {}
@@ -225,26 +369,43 @@ def backfill(limit: int = 500, *, only_listing: bool = True) -> dict:
 	}
 
 
-def _backfill_adaylari(limit: int, only_listing: bool) -> list[str]:
-	"""Alt metni BOŞ olan dosya adresleri.
+def _backfill_adaylari(limit: int, lang: str = DEFAULT_LANG, only_listing: bool = True) -> list[str]:
+	"""`alt_{lang}` BOŞ olan Listing'e bağlı dosya adresleri.
 
 	"Boş mu" sorusu `is not set` ile soruluyor: yamayla sonradan eklenen
 	kolonlarda mevcut kayıtların TAMAMI NULL olur ve `in ("", None)` filtresi
 	NULL satırları hiç yakalamaz — bu tuzak `av.backfill_pending`'de ölçülmüştü
 	(5.120 NULL / 30 boş string).
+
+	`lang=tr` (varsayılan) mevcut davranışı BİREBİR korur: hem `alt_tr` hem
+	eski taban `alt` kolonu boş olmalı (taban kolon sufix'e taşınmamış eski
+	kayıtları da yakalar). Diğer dillerde taban kolon TR'ye özgü olduğundan
+	yalnız `alt_{lang}` boşluğuna bakılır.
+
+	Kaynak çevirisi (`Listing.title_{lang}`) var mı ön-filtresi BİLİNÇLİ
+	EKLENMEDİ: `refresh_alt` zaten bunu `no_translation` sebebiyle atlıyor
+	(L1). Burada tekrar sorgulamak (JOIN ya da ikinci DB turu) aday listesini
+	yalnız "denenecek" kümeye indirger, SONUCU değiştirmez — backfill zaten
+	idempotent, çevirisiz adaylar her koşumda yine `no_translation` ile
+	atlanır ve sayaç dürüstçe raporlar. Basitlik, ikinci sorgu maliyetine değmedi.
 	"""
-	kolon = f"th_media_alt_{DEFAULT_LANG}"
+	lang = normalize_lang(lang)
+	kolon = f"th_media_alt_{lang}"
 	if not frappe.db.has_column("File", kolon):
 		return []
+	# Yalnız `tr` taban kolonu da kontrol eder — diğer diller `th_media_alt`
+	# (tarihsel TR-only alan) ile hiç ilişkilendirilmez.
+	taban_var = lang == DEFAULT_LANG
 
 	if only_listing:
+		taban_kosulu = "AND IFNULL(f.th_media_alt, '') = ''" if taban_var else ""
 		satirlar = frappe.db.sql(
 			f"""
 			SELECT DISTINCT f.file_url
 			FROM `tabFile` f
 			WHERE f.is_folder = 0
 			  AND IFNULL(f.`{kolon}`, '') = ''
-			  AND IFNULL(f.th_media_alt, '') = ''
+			  {taban_kosulu}
 			  AND (
 			      EXISTS (SELECT 1 FROM `tabListing` l WHERE l.primary_image = f.file_url)
 			   OR EXISTS (SELECT 1 FROM `tabListing Image` li WHERE li.image = f.file_url)
@@ -254,18 +415,89 @@ def _backfill_adaylari(limit: int, only_listing: bool) -> list[str]:
 			(limit,),
 		)
 	else:
+		taban_kosulu = "AND IFNULL(th_media_alt, '') = ''" if taban_var else ""
 		satirlar = frappe.db.sql(
 			f"""
 			SELECT DISTINCT file_url FROM `tabFile`
 			WHERE is_folder = 0
 			  AND IFNULL(`{kolon}`, '') = ''
-			  AND IFNULL(th_media_alt, '') = ''
+			  {taban_kosulu}
 			  AND file_url IS NOT NULL AND file_url != ''
 			LIMIT %s
 			""",
 			(limit,),
 		)
 	return [r[0] for r in satirlar]
+
+
+def backfill_localization(limit: int = 500, langs: tuple[str, ...] = ("en", "ar", "ru")) -> dict:
+	"""Katalogu `langs` içindeki HER dil için parça parça doldur.
+
+	Dil başına aday sorgusu (`_backfill_adaylari(lang=...)`) + `refresh_alt
+	(lang=...)` döngüsü — `backfill` (tr-only) ile AYNI desen, dil ekseninde
+	tekrarlanmış hâli. Senkron + limit'li (L3): kuyruk yok, metin işi.
+
+	İdempotent: bir dil için üretilebilecek her şey yazılınca o dilin aday
+	sorgusu bir daha boş döner — ikinci koşum o dilde 0 yazar.
+
+	`by_lang` — dil başına doğruluk: "en 40 yazıldı, ar 3 yazıldı" tek toplam
+	sayıdan daha dürüst bir sinyal (rapor 111, kabul kriteri 6).
+
+	`limit` her dil için ayrı uygulanır, TOPLAM tavan değildir.
+
+	BİLİNMEYEN DİL KORUMASI: `normalize_lang` tanımadığı bir kodu (`"de"` gibi)
+	sessizce `DEFAULT_LANG`'a (tr) çevirir — bu döngüde korunmasız bırakılsaydı
+	çağıran "de" istemiş sanırken koşum ikinci kez tr'yi tekrarlar, `by_lang`
+	yalancı bir "de yazıldı" raporlardı. Bilinmeyenler burada AYRILIR: hiç
+	sorgu/yazma yapılmaz, `unknown_lang` sebebiyle izlenir.
+	"""
+	limit = max(1, min(2000, int(limit or 500)))
+	toplam_taranan = toplam_yazilan = toplam_atlanan = 0
+	sebepler: dict[str, int] = {}
+	by_lang: dict[str, dict] = {}
+
+	for ham_lang in langs or ():
+		if ham_lang not in CONTENT_LANGS:
+			by_lang[ham_lang] = {
+				"scanned": 0,
+				"written": 0,
+				"skipped": 0,
+				"reasons": {"unknown_lang": 1},
+			}
+			sebepler["unknown_lang"] = sebepler.get("unknown_lang", 0) + 1
+			continue
+		lang = normalize_lang(ham_lang)
+		adaylar = _backfill_adaylari(limit, lang=lang, only_listing=True)
+
+		yazilan = atlanan = 0
+		lang_sebepler: dict[str, int] = {}
+		for url in adaylar:
+			sonuc = refresh_alt(url, lang=lang)
+			if sonuc["written"]:
+				yazilan += 1
+			else:
+				atlanan += 1
+				lang_sebepler[sonuc["reason"]] = lang_sebepler.get(sonuc["reason"], 0) + 1
+				sebepler[sonuc["reason"]] = sebepler.get(sonuc["reason"], 0) + 1
+
+		by_lang[lang] = {
+			"scanned": len(adaylar),
+			"written": yazilan,
+			"skipped": atlanan,
+			"reasons": lang_sebepler,
+		}
+		toplam_taranan += len(adaylar)
+		toplam_yazilan += yazilan
+		toplam_atlanan += atlanan
+
+	frappe.db.commit()
+	return {
+		"scanned": toplam_taranan,
+		"written": toplam_yazilan,
+		"skipped": toplam_atlanan,
+		"reasons": sebepler,
+		"by_lang": by_lang,
+	}
 
 
 # ── Çözünürlük geri doldurma ─────────────────────────────────────────────

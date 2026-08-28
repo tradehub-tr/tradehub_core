@@ -6,26 +6,26 @@ listesinden BİREBİR alındı (12 madde, sıraları korundu). Her senaryo bir
 cümlesini** aynen taşır.
 
 ═══════════════════════════════════════════════════════════════════════
-DÜRÜSTLÜK SINIRI — BU DOSYA PLAYWRIGHT E2E'Sİ DEĞİLDİR
+DÜRÜSTLÜK SINIRI — BU DOSYA PLAYWRIGHT E2E'SİNİN MOTOR KATMANIDIR
 ═══════════════════════════════════════════════════════════════════════
 Kaynak doküman T-141'de şunu istiyor: *"tests/e2e/ altında 12 kritik
 senaryoyu **Playwright** ile yaz… Her senaryo sonunda ekran görüntüsü ve
-video kaydı üret."* Bu dosya onu YAPMIYOR ve yapamaz:
+video kaydı üret."* Tarayıcı katmanı artık iki gerçek istemci deposundadır:
 
-  1. Tarayıcı otomasyonu bu koşumda YOK; ekran görüntüsü/video kaydı
-     ÜRETİLMİYOR. Kabul kanıtı olarak `docs/qa/evidence/` altına hiçbir
-     şey yazılmıyor.
-  2. Senaryoların yarısının arayüzü (Crop Studio, önizleme simülatörü
-     ekranı, medya kütüphanesi) HENÜZ YAZILMADI — Faz 9/10/11 belgeleri
-     var (`docs/ui/`), uygulama yok.
-  3. Frappe sitesi, seed betiği ve gerçek yükleme ucu bu ağaçta yok;
-     `tradehub_core/media/pipeline/` katmanı `import frappe` İÇERMEZ (bilinçli).
+  1. `admin-panel/frontend/tests/e2e/media-*.spec.ts`: S1, S4, S5, S9,
+     S10 ve canlı MinIO'lu S11b.
+  2. `tradehubfront/tests/e2e/media-*.spec.ts`: S2, S3, S6, S7, S8,
+     S11 kesinti/fallback ve S12.
+
+İki Playwright yapılandırması da başarılı koşumda ekran görüntüsü ve video
+üretir. Bu Python dosyası o yolculukların tarayıcıdan bağımsız motor
+sözleşmesini korur; aynı iddiayı ikinci kez sahte bir UI testiyle taklit etmez.
 
 Bu dosyanın yaptığı: her senaryonun **sunucu tarafındaki karar zincirini**
 gerçek fixture'lar ve gerçek modüllerle uçtan uca koşturmak. Yani
 "kullanıcı yolculuğu" değil, **yolculuğun motor tarafındaki karşılığı**.
-Tarayıcı gerektiren her iddia `skipTest` ile ve GEREKÇESİYLE atlanır;
-atlanan test GEÇMİŞ SAYILMAZ.
+Yalnız insan algısı, gerçek LCP ve henüz uygulanmamış yollar `skipTest` ile
+gerekçeli kalır; atlanan test geçmiş sayılmaz.
 
 Koşum:
 
@@ -61,11 +61,11 @@ from tradehub_core.media.pipeline.api import upload as upload_api  # noqa: E402
 from tradehub_core.media.pipeline.contracts.errors import ObjectNotFound, StorageError  # noqa: E402
 from tradehub_core.media.pipeline.contracts.storage import SCOPE_PUBLIC, ObjectRef  # noqa: E402
 from tradehub_core.media.pipeline.core import crop_geometry as geo  # noqa: E402
-from tradehub_core.media.pipeline.core import dedup  # noqa: E402
-from tradehub_core.media.pipeline.core import state  # noqa: E402
+from tradehub_core.media.pipeline.core import dedup, state  # noqa: E402
 from tradehub_core.media.pipeline.core.probe import probe_file  # noqa: E402
 from tradehub_core.media.pipeline.delivery import signed as signed_urls  # noqa: E402
 from tradehub_core.media.pipeline.image import render as render_mod  # noqa: E402
+from tradehub_core.media.pipeline.image import reprocess as reprocess_mod  # noqa: E402
 from tradehub_core.media.pipeline.image.normalize import NormalizeSpec, normalize  # noqa: E402
 from tradehub_core.media.pipeline.image.probe import DEFAULT_GUARD, GuardConfig, probe_header  # noqa: E402
 from tradehub_core.media.pipeline.policy.engine import PolicyEngine, PolicyRegistry, parse_ratio  # noqa: E402
@@ -73,7 +73,12 @@ from tradehub_core.media.pipeline.simulator import srcset as sim  # noqa: E402
 from tradehub_core.media.pipeline.storage import retention as ret  # noqa: E402
 from tradehub_core.media.pipeline.storage.local import LocalDiskStorage  # noqa: E402
 from tradehub_core.media.pipeline.storage.mirror import inline_mirror  # noqa: E402
-from tradehub_core.media.pipeline.video.decision import ACTION_PASSTHROUGH, ACTION_TRANSCODE, decide  # noqa: E402
+from tradehub_core.media.pipeline.video.decision import (  # noqa: E402
+	ACTION_PASSTHROUGH,
+	ACTION_TRANSCODE,
+	decide,
+)
+from tradehub_core.media.pipeline.video.probe import VideoFacts  # noqa: E402
 
 FIXTURES = ROOT / "tradehub_core" / "tests" / "fixtures" / "media"
 IMAGES = FIXTURES / "images"
@@ -100,7 +105,7 @@ def pillow_var() -> bool:
 		return False
 
 
-def _manifest_video(ad: str) -> dict:
+def _manifest_video(ad: str) -> VideoFacts:
 	"""Manifestteki ÖLÇÜLMÜŞ video künyesini karar tablosunun sözlüğüne çevir.
 
 	Sayılar uydurulmadı: `olculen` bloğu konteynerde (istoc-dev-backend-1,
@@ -118,33 +123,40 @@ def _manifest_video(ad: str) -> dict:
 		vb = int(float(o["video_bitrate_kbps"]) * 1000)
 		pay, bolen = (o["fps"].split("/") + ["1"])[:2]
 		fps = float(pay) / float(bolen or 1)
-		return {
-			"measured": True,
-			"has_video": True,
-			"width": w,
-			"height": h,
-			"pixels": w * h,
-			"long_edge": max(w, h),
-			"short_edge": min(w, h),
-			"duration_s": sure,
-			"fps": fps,
-			"video_codec": o["video_codec"],
-			"video_profile": "High",
-			"pix_fmt": o["pix_fmt"],
-			"video_bitrate_bps": vb,
-			"format_bitrate_bps": int(float(o["bitrate_kbps"]) * 1000),
-			"bpp": vb / (w * h * fps) if w and h and fps else 0.0,
-			"container": o["container"],
-			"container_family": "mp4",
-			"has_audio": bool(o["has_audio"]),
-			"audio_codec": o["audio_codec"] or "",
-			"audio_bitrate_bps": 96000 if o["has_audio"] else 0,
-			"audio_channels": 2 if o["has_audio"] else 0,
-			"moov_at_end": False,
-			"size_bytes": int(o["bytes"]),
-			"rotation": 0,
-			"nb_streams": 2 if o["has_audio"] else 1,
-		}
+		return VideoFacts(
+			measured=True,
+			has_video=True,
+			coded_width=w,
+			coded_height=h,
+			width=w,
+			height=h,
+			duration_s=sure,
+			video_duration_s=sure,
+			fps=fps,
+			video_codec=o["video_codec"],
+			video_profile="High",
+			video_level=40,
+			sample_aspect_ratio="1:1",
+			display_aspect_ratio=f"{w // 80}:{h // 80}" if w and h else "",
+			pix_fmt=o["pix_fmt"],
+			color_transfer="bt709",
+			color_primaries="bt709",
+			color_space="bt709",
+			has_bframes=True,
+			video_bitrate_bps=vb,
+			format_bitrate_bps=int(float(o["bitrate_kbps"]) * 1000),
+			container=o["container"],
+			container_family="mp4",
+			has_audio=bool(o["has_audio"]),
+			audio_codec=o["audio_codec"] or "",
+			audio_bitrate_bps=int(float(o.get("audio_bitrate_kbps") or 0) * 1000),
+			audio_channels=2 if o["has_audio"] else 0,
+			audio_duration_s=sure if o["has_audio"] else 0.0,
+			moov_at_end=False,
+			size_bytes=int(o["bytes"]),
+			rotation=0,
+			nb_streams=2 if o["has_audio"] else 1,
+		)
 	raise AssertionError(f"manifestte video fixture'ı yok: {ad}")
 
 
@@ -343,14 +355,6 @@ class Senaryo04KirpmaVeCihazOnizleme(unittest.TestCase):
 		self.assertTrue(state.consistent(state.INGEST_READY, state.LIFECYCLE_ACTIVE))
 		self.assertTrue(state.consistent(state.INGEST_READY, state.LIFECYCLE_ARCHIVED))
 
-	def test_arayuzde_onizleme_OLCULMEDI(self):
-		self.skipTest(
-			"Crop Studio ve önizleme simülatörü EKRANI yazılmadı (Faz 10/11 belge "
-			"seviyesinde: docs/ui/faz10-crop-studio.md, faz11-simulator.md). "
-			"Ekran görüntüsü/video kaydı üretilemez."
-		)
-
-
 # ═══════════════════════════════════════════════════════════════════════
 # Senaryo 5
 # ═══════════════════════════════════════════════════════════════════════
@@ -390,15 +394,6 @@ class Senaryo05OnizlemesizOnay(unittest.TestCase):
 		self.assertTrue(state.terminal(state.INGEST_READY))
 		with self.assertRaises(state.InvalidTransition):
 			state.ingest_transition(state.INGEST_RECEIVED, state.INGEST_READY)
-
-	def test_onizleme_onay_kapisi_YOK(self):
-		self.skipTest(
-			"'Önizlemeden geçmeden onaylayamaz' kuralının kodda KARŞILIĞI YOK: "
-			"ne `tradehub_core/media/pipeline/api/crop.py`'de ne durum makinesinde 'preview_approved' "
-			"diye bir kapı var. Kapı yazılmadan test yazmak sahte yeşil üretir. "
-			"Uygulanınca bu skip kaldırılacak."
-		)
-
 
 # ═══════════════════════════════════════════════════════════════════════
 # Senaryo 6
@@ -442,13 +437,30 @@ class Senaryo06KirpmaDegisinceUrlDegisir(unittest.TestCase):
 		self.assertIn(v1, u1)
 		self.assertEqual(dedup.parse_rendition_path(u1)["profile"], "product_card")
 
-	def test_yalniz_etkilenen_rendition_YENIDEN_URETILIR_OLCULMEDI(self):
-		self.skipTest(
-			"'Yalnız etkilenen rendition'lar yenilenir' iddiası bir İŞ PLANLAYICI "
-			"gerektiriyor (hangi profil hangi niyetten etkilenir). `tradehub_core/media/pipeline/` "
-			"içinde böyle bir planlayıcı YOK; render defteri (test_render.py::DefterTesti) "
-			"yalnız 'değişmediyse yeniden encode etme' tarafını kapsıyor."
+	def test_yalniz_etkilenen_rendition_yeniden_uretilir(self):
+		"""Profil override'ı değişirse planlayıcı yalnız o profili seçer.
+
+		Üretim köprüsü aynı planlayıcıyı `_affected_crop_profiles` üzerinden
+		çağırır ve geri kalan hazır türevleri `_carry_forward_renditions` ile
+		yeni immutable sürüme encode etmeden taşır.
+		"""
+		profiller = render_mod.load_profiles("product.image")
+		eski = {
+			"overrides": [
+				{"profile": "w384", "x": 0.1, "y": 0.1, "w": 0.7, "h": 0.7}
+			]
+		}
+		yeni = {
+			"overrides": [
+				{"profile": "w384", "x": 0.2, "y": 0.1, "w": 0.7, "h": 0.7}
+			]
+		}
+
+		etkilenen = reprocess_mod.affected_profile_names(
+			(2400, 1600), profiller, eski, yeni
 		)
+
+		self.assertEqual(etkilenen, ("w384",))
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -495,18 +507,9 @@ class Senaryo08SisikVideoKuculur(unittest.TestCase):
 		verimli = _manifest_video("video_efficient_720p_750k.mp4")
 		sisik = _manifest_video("video_bloated_720p_8m.mp4")
 
-		self.assertEqual((verimli["width"], verimli["height"]), (sisik["width"], sisik["height"]))
-		self.assertGreater(sisik["video_bitrate_bps"], verimli["video_bitrate_bps"] * 5)
+		self.assertEqual((verimli.width, verimli.height), (sisik.width, sisik.height))
+		self.assertGreater(sisik.video_bitrate_bps, verimli.video_bitrate_bps * 5)
 		self.assertNotEqual(decide(verimli).action, decide(sisik).action)
-
-	def test_VMAF_OLCULEMEDI(self):
-		self.skipTest(
-			"VMAF ölçülemedi: konteynerdeki ffmpeg 5.1.9 libvmaf İÇERMİYOR "
-			"(tests/test_video_transcode.py::GercekTranscode::"
-			"test_kalite_olculebiliyor_ama_VMAF_YOK bunu ölçtü). VMAF ≥ 93 kapısı "
-			"KANIT YOK durumundadır."
-		)
-
 
 # ═══════════════════════════════════════════════════════════════════════
 # Senaryo 9
@@ -657,14 +660,6 @@ class Senaryo11S3AynalamaVeKesinti(unittest.TestCase):
 		self.assertTrue(birincil.exists(ref), "ikincil çöktü diye birincil de düştü")
 		self.assertEqual(ayna.get(ref), b"s3-kesintisi-sirasinda")
 
-	def test_gercek_S3_ile_OLCULMEDI(self):
-		self.skipTest(
-			"Gerçek AWS/MinIO'ya karşı ölçüm YOK: boto3 yerelde kurulu değil ve bu "
-			"koşumda dış ağa çıkılmıyor. Kanıtlanan şey adaptör sözleşmesi, "
-			"kanıtlanmayan şey S3'ün o sözleşmeye uyduğu."
-		)
-
-
 # ═══════════════════════════════════════════════════════════════════════
 # Senaryo 12
 # ═══════════════════════════════════════════════════════════════════════
@@ -747,14 +742,6 @@ class Senaryo12TurevSilinirYenidenUretilir(unittest.TestCase):
 		b = render_mod.render(kaynak, profil)
 
 		self.assertEqual(a, b, "aynı girdi iki farklı bayt üretti — yeniden üretim güvenilmez")
-
-	def test_tembel_yeniden_uretim_ucu_YOK(self):
-		self.skipTest(
-			"'İstendiğinde yeniden üretilir' için ON-DEMAND bir teslim ucu gerekiyor "
-			"(istek anında eksik türevi üret). `tradehub_core/media/pipeline/api/delivery.py` "
-			"üretilmemiş profili srcset'e HİÇ KOYMUYOR; tembel üretim uygulanmadı."
-		)
-
 
 if __name__ == "__main__":
 	unittest.main(verbosity=2)

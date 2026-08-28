@@ -1,5 +1,13 @@
 # Faz 14 Kapanış Dosyası — Test ve Kabul — **TASLAK**
 
+> **2026-08-24 güncellemesi:** Bu dosyanın 2026-08-20 ölçümleri tarihsel
+> durumdur. Güncel MOGEM-617 denetimi için
+> `docs/closure/mogem-617-kapanis.md` esas alınır. Bugün T-141'in 12 kritik
+> senaryosu otomatik ve kanıtlıdır; gerçek MinIO ile depolama kabulü ve kontrollü
+> migration/rollback provası geçmiştir. Nihai kapı yine açık: T-140'ta 202
+> FR/NFR'nin 115'i kapsanmıyor; gerçek satıcı UAT'ı, üretim backfill/canary ve
+> yetkili imzaları koşulmadı.
+
 > ⚠️ **TASLAK — Faz 14 hâlâ hareketli.** Bu fazın çıktısı (nihai kabul + go-live) tanımı gereği diğer tüm fazların kapanmasına bağlıdır ve bugün 9 faz imzasız, UAT/pilot koşulmadı, go-live yapılmadı. Bu dosya imzaya SUNULMAZ.
 > **Bu belge ölçümlerden derlenmiştir; çelişki hâlinde rapor kazanır.**
 > Derleme tarihi: 2026-08-20 · Hazırlık: W6 kapanış dalgası (T-140…T-145 durumu). Nihai kabul TASLAĞI ayrı dosyada: `docs/closure/nihai-kabul-taslak.md`.

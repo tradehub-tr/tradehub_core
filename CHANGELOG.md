@@ -114,6 +114,7 @@ Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
 ## [Unreleased]
 
 ### Eklendi
+- feat(media): Medya video SEO: poster üretimi, VideoObject, video sitemap, transcript/altyazı alanları (Dilim 4) (@ahmeetseker)
 - feat(media): retro-rename — eski adlı public dosyalar içerik-adresli ada taşınır; 90 gün 301; admin panel kartı (MOGEM-582) (@Ahmet Şeker)
   - Araç `media/retro_rename.py`: `plan()` salt-okunur rapor; `run_job` — dosya taşı + tüm `tabFile` paylaşım satırları + `refs.retarget` (gömülü JSON/HTML dahil) güncellemesi + `Media URL Redirect` kaydı tek işlemde; hata halinde rollback + dosya geri taşınır; `run_rollback` ile kimlik tabanlı geri alma.
   - 301 köprüsü `redirect_renderer.py::MediaRedirectRenderer` (`page_renderer` hook, tek indeksli sorgu — `Website Route Redirect` bilinçli olarak kullanılmadı); `REDIRECT_TTL_DAYS = 90`, günlük cron ile süresi dolan yönlendirmeler temizlenir.

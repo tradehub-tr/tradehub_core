@@ -23,6 +23,7 @@ class MediaEngineSettings(Document):
 		super().validate() if hasattr(super(), "validate") else None
 		self._slot_anahtarlarini_dogrula()
 		self._rendition_tavanini_dogrula()
+		self._rollout_dogrula()
 
 	def on_update(self) -> None:
 		# Kaydeden kullanıcı aynı istekte eski değeri görmesin.
@@ -48,3 +49,10 @@ class MediaEngineSettings(Document):
 		"""0 / negatif tavan, kaçak üretime karşı korumayı sessizce kaldırırdı."""
 		if int(self.max_renditions_per_asset or 0) < 1:
 			frappe.throw(_("Varlık başına maksimum rendition sayısı 1'den küçük olamaz."))
+
+	def _rollout_dogrula(self) -> None:
+		"""Rollout yüzdesi yalnız kapalı aralıkta; canary listesi boş satırsız olsun."""
+		yuzde = int(self.rollout_percent if self.rollout_percent is not None else 100)
+		if yuzde < 0 or yuzde > 100:
+			frappe.throw(_("Medya rollout yüzdesi 0 ile 100 arasında olmalıdır."))
+		self.rollout_stores = "\n".join(sorted(pipeline_flags.parse_store_keys(self.rollout_stores)))

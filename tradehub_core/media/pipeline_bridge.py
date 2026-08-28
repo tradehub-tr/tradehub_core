@@ -245,8 +245,12 @@ def maybe_generate_renditions(doc: Any, method: str | None = None) -> None:
 		# KAPI 1 — bayrak. Dalga A'nın tüm güvencesi bu satıra yaslanıyor.
 		if not pipeline_flags.is_enabled("rendition_on_upload"):
 			return
+		# KAPI 2 — deterministik mağaza rollout'u. Canary/%10/%50 aşamasında
+		# aynı mağaza bütün web/worker süreçlerinde aynı tarafta kalır.
+		if not pipeline_flags.is_store_enabled(ownership.store_of(doc.get("owner"))):
+			return
 
-		# KAPI 2 — kapsam.
+		# KAPI 3 — kapsam.
 		slot_key = _resolve_scope(doc)
 		if not slot_key:
 			# Görsel kapsamına girmeyen dosya VİDEO kapsamında olabilir (W7).
@@ -254,7 +258,7 @@ def maybe_generate_renditions(doc: Any, method: str | None = None) -> None:
 			_maybe_enqueue_video(doc)
 			return
 
-		# KAPI 3 — slot bazlı açma/kapama (`active_slots` boşken hiçbiri açık değil).
+		# KAPI 4 — slot bazlı açma/kapama (`active_slots` boşken hiçbiri açık değil).
 		if not pipeline_flags.is_slot_enabled(slot_key):
 			return
 
@@ -808,6 +812,8 @@ def _run_rendition_job(file_url: str, force: bool = False) -> None:
 		# Bayrak kuyrukta beklerken kapatılmış olabilir — worker da sorar.
 		if not pipeline_flags.is_enabled("rendition_on_upload"):
 			return
+		if not pipeline_flags.is_store_enabled(ownership.store_of(doc.get("owner"))):
+			return
 
 		slot_key = _resolve_scope(doc)
 		if not slot_key or not pipeline_flags.is_slot_enabled(slot_key):
@@ -972,7 +978,20 @@ def enqueue_catalog_backfill(limit: int = 100) -> dict[str, int]:
 
 
 def _catalog_backfill_candidates(limit: int = 101) -> list[str]:
-	"""Güncel JPEG fallback'i olmayan vitrin görselleri (tek toplu sorgu)."""
+	"""Hazır merdiveni (ready asset + en az bir türev) olmayan vitrin görselleri.
+
+	JPEG şartı BİLEREK yok: fallback formatı sınıfa göre değişir — grafik/
+	şeffaf sınıfı lossless WEBP+PNG zinciri alır, JPEG plana hiç girmez
+	(ölçüm 2026-08-26: 232 ready asset JPEG'siz; jpeg-şartlı sorgu bunları
+	sonsuza dek aday sayıp backfill'i platoya oturttu).
+
+	NOT EXISTS eşlemesi iki koldan: `source_file` VE içerik hash'i
+	(`content_sha256` = hash-adlı dosyanın gövde adı). Yalnız `source_file`
+	ile eşlemek, aynı içeriğin başka bir `File` satırından açılmış asset'ini
+	görmüyor ve adres sonsuza dek aday kalıyordu (ölçüm 2026-08-26: backfill
+	2.748 adayda platoya oturdu; teslimat tarafı `_mukerrer_dosya_koprusu`
+	ile zaten içerikten eşliyor — burada da aynı kimlik kullanılmalı).
+	"""
 	return [
 		r["file_url"]
 		for r in frappe.db.sql(
@@ -990,8 +1009,10 @@ def _catalog_backfill_candidates(limit: int = 101) -> list[str]:
 			WHERE NOT EXISTS (
 				SELECT 1 FROM `tabMedia Asset` a
 				JOIN `tabMedia Rendition` r ON r.asset=a.name
-				WHERE a.source_file=f.name AND a.slot_key='product.image'
-				  AND a.state='ready' AND r.format='jpeg'
+				WHERE (a.source_file=f.name
+				       OR a.content_sha256=SUBSTRING_INDEX(SUBSTRING_INDEX(f.file_url,'/',-1),'.',1))
+				  AND a.slot_key='product.image'
+				  AND a.state='ready'
 			)
 			ORDER BY f.modified DESC
 			LIMIT %(limit)s
@@ -1038,8 +1059,10 @@ def rendition_backfill_status() -> dict[str, int]:
 				WHERE NOT EXISTS (
 					SELECT 1 FROM `tabMedia Asset` a
 					JOIN `tabMedia Rendition` r ON r.asset=a.name
-					WHERE a.source_file=f.name AND a.slot_key='product.image'
-					  AND a.state='ready' AND r.format='jpeg'
+					WHERE (a.source_file=f.name
+					       OR a.content_sha256=SUBSTRING_INDEX(SUBSTRING_INDEX(f.file_url,'/',-1),'.',1))
+					  AND a.slot_key='product.image'
+					  AND a.state='ready'
 				)
 			) missing_catalog
 			"""
@@ -1799,6 +1822,8 @@ def ensure_lazy_renditions(
 		str(asset.slot_key or "")
 	):
 		return {"status": "disabled", "generated": 0}
+	if not pipeline_flags.is_store_enabled(asset.owner_seller):
+		return {"status": "rollout_disabled", "generated": 0}
 	if asset.media_type != _MEDIA_TYPE_IMAGE or asset.state != "ready":
 		return {"status": "not_ready", "generated": 0}
 	version_hash = asset.active_version or frappe.db.get_value(
@@ -3442,6 +3467,8 @@ def _run_animation_job(file_url: str, *, slot_override: str) -> None:
 		doc = frappe.get_doc("File", name)
 		if not pipeline_flags.is_enabled("rendition_on_upload"):
 			return
+		if not pipeline_flags.is_store_enabled(ownership.store_of(doc.get("owner"))):
+			return
 		parmak_izi = content_fingerprint(doc)
 		if not parmak_izi or _renditions_exist(parmak_izi, slot_override):
 			return
@@ -3575,6 +3602,8 @@ def _run_video_job(
 		source_name = doc.name
 
 		if not pipeline_flags.is_enabled("rendition_on_upload"):
+			return
+		if not pipeline_flags.is_store_enabled(ownership.store_of(doc.get("owner"))):
 			return
 		slot_key = slot_override or _resolve_video_scope(doc)
 		if not slot_key:

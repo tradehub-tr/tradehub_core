@@ -1043,8 +1043,18 @@ def _kart_gorsel_manifesti(listing_name: str) -> dict:
 		return {}
 
 
+def _video_mu(url: str) -> bool:
+	"""URL bir video uzantısıyla mı bitiyor — künye satırına video anahtarları
+	(poster/durationSec/captionsUrl) eklenmeli mi kararı bunun üzerinden verilir.
+	`media/video_poster.VIDEO_UZANTILAR` TEK kaynak; liste burada kopyalanmaz."""
+	from tradehub_core.media.video_poster import VIDEO_UZANTILAR
+
+	return (url or "").lower().split("?")[0].endswith(VIDEO_UZANTILAR)
+
+
 def _gorsel_kunyeleri(listing, images: list, lang: str) -> list[dict]:
-	"""Ürün görsellerinin alt metni, gerçek ölçüleri ve yükleme ipuçları.
+	"""Ürün görsellerinin (ve galerideki video dosyalarının) alt metni, gerçek
+	ölçüleri ve yükleme ipuçları.
 
 	Alt metni `media/seo.fields_for`'dan KULLANIM BAĞLAMIYLA okunuyor: ürün
 	sayfasına yazılmış ezme varsa o basılır (TUR-135 §4.3). Doğrudan
@@ -1054,6 +1064,10 @@ def _gorsel_kunyeleri(listing, images: list, lang: str) -> list[dict]:
 	Bugün alt metinleri çoğunlukla boş (ölçüm: 3.123 dosyada 0); bu durumda
 	künye yine döner ve `alt` boş kalır. Vitrin boş alt görünce ESKİ davranışa
 	(ürün başlığından türetme) düşer — geçiş dönemi böyle yürüyor.
+
+	Görev 6: galeride bir video dosyası varsa (uzantı `_video_mu`) satıra
+	`poster`/`durationSec`/`captionsUrl` de eklenir — aynı toplu `fields_for`
+	çağrısından (görsel başına yeni sorgu YOK, N+1 açılmaz).
 	"""
 	if not images:
 		return []
@@ -1076,13 +1090,130 @@ def _gorsel_kunyeleri(listing, images: list, lang: str) -> list[dict]:
 				ref_field=baglam["ref_field"],
 				lang=lang,
 			)
-			kunyeler.append(seo_render.image_payload(alanlar, index=i, context="gallery"))
+			satir = seo_render.image_payload(alanlar, index=i, context="gallery")
+			if _video_mu(url):
+				satir["poster"] = alanlar.get("poster_url") or ""
+				satir["durationSec"] = alanlar.get("duration") or 0
+				satir["captionsUrl"] = alanlar.get("captions_url") or ""
+			kunyeler.append(satir)
 		return kunyeler
 	except Exception:
 		# Ürün detayının kalbinde değiliz: künye üretilemezse görseller yine
 		# `images` üzerinden gösterilir.
 		frappe.log_error("listing image meta failed", "api.listing")
 		return []
+
+
+def _listing_belgeleri(listing) -> list[dict]:
+	"""`Listing.documents` (Task 1 child `Listing Document`) → API `documents`
+	alanı: `[{url, title, docType, language, sizeBytes}]`.
+
+	`sizeBytes`/`is_private` TEK toplu `File` sorgusuyla çözülür (N+1 yok —
+	anti-patterns.md §6); aynı `file_url`'i paylaşan kardeş `File` kayıtlarında
+	(content-hash tekilleştirmesi) ilk değer yeter, ikisi de aynı fiziksel
+	dosyayı gösterir.
+
+	Private dosya HİÇ çıktıya girmez — spec §10.7 "private dokümanlar hiçbir
+	yüzeye sızmaz". `.doc/.xls` gibi uzantı kapısı BİLEREK yok: F6 gereği bu
+	uzantılar (private olmadıkları sürece) burada görünmeye devam eder;
+	`seo_index.decide`/`DOC_UZANTILAR` yalnız JSON-LD tarafının (Task 4) kapısı.
+
+	Aynı gerekçeyle karantinadaki (`th_media_scan_status` ∈
+	`seo_index.BLOCKED_SCAN_STATUSES`), çöpe atılmış/kalıcı silinmiş
+	(`th_media_state` ∈ `seo_index.BLOCKED_LIFECYCLE_STATES` — silinmişte
+	`File` kaydı da yok olduğu için toplu sorguda hiç dönmez, o satır da
+	elenir) ve hakkı dolmuş (`th_media_expires_at` geçmişte) dosyalar da hiç
+	çıktıya girmez: bunlar erişilemez hâle gelmiş, private ile aynı sınıf.
+	`seo_index.decide`'ın TAMAMI BİLEREK ÇAĞRILMAZ — decide() ayrıca kullanım
+	(orphan)/robots-override gibi salt SEO-indexability nedenleriyle de
+	noindex döner; dosya orada hâlâ erişilebilir, sadece aranmaması isteniyor,
+	bu fonksiyonun ilgi alanı değil.
+
+	Aynı `file_url`'e sahip birden çok child satırı varsa yalnız İLKİ çıktıya
+	girer (basit dedup — admin'in aynı dosyayı yanlışlıkla iki kez eklemesi).
+
+	Başlık önceliği: admin'in child satırına girdiği `title` → dosyanın SEO
+	başlığı (`media/seo.fields_for`, PDF `/Title` metadata çıkarımı dahil,
+	Task 2) → adres gövdesi (uzantısız dosya adı) — JSON-LD tarafındaki
+	`schema_builder._listing_document_objects` (Task 4) ile AYNI sıra.
+
+	`doc_type` BİLEREK `docType` API alanına taşınır, JSON-LD'ye HİÇ geçmez
+	(`Listing Document.doc_type` bir kategori Select'i — "Katalog/Sertifika/
+	...", `build_digital_document`'in `uzanti` parametresiyle karıştırılmaz).
+	"""
+	satirlar = listing.documents or []
+	if not satirlar:
+		return []
+
+	urls: list[str] = []
+	for row in satirlar:
+		url = str(row.file or "").split("?")[0].strip()
+		if url and url not in urls:
+			urls.append(url)
+
+	from tradehub_core.media import seo_index
+
+	dosya_alanlari = ["file_url", "file_size", "is_private", "th_media_state", "th_media_scan_status"]
+	if frappe.db.has_column("File", "th_media_expires_at"):
+		dosya_alanlari.append("th_media_expires_at")
+
+	dosya_bilgisi: dict[str, dict] = {}
+	if urls:
+		for satir in frappe.get_all(
+			"File", filters={"file_url": ["in", urls]}, fields=dosya_alanlari, as_list=True
+		):
+			veri = dict(zip(dosya_alanlari, satir, strict=True))
+			# Kardeş `File` kayıtlarında (content-hash tekilleştirmesi) ilk değer
+			# yeter — üstteki docstring'in `is_private` için zaten kabul ettiği
+			# varsayım (aynı fiziksel dosya) burada da geçerli.
+			if veri["file_url"] not in dosya_bilgisi:
+				dosya_bilgisi[veri["file_url"]] = veri
+
+	from frappe.utils import get_datetime, now_datetime
+
+	from tradehub_core.media import seo as media_seo
+
+	docs: list[dict] = []
+	gorulen: set[str] = set()
+	for row in satirlar:
+		url = str(row.file or "").split("?")[0].strip()
+		if not url or url in gorulen:
+			continue
+		bilgi = dosya_bilgisi.get(url)
+		if bilgi is None:
+			# `File` kaydı yok → kalıcı silinmiş (states.py: Deleted durumu
+			# diskte/DB'de saklanmaz). Metadata'sı da sızmamalı.
+			continue
+		if bilgi.get("is_private"):
+			continue
+		if (bilgi.get("th_media_state") or "") in seo_index.BLOCKED_LIFECYCLE_STATES:
+			continue
+		if (bilgi.get("th_media_scan_status") or "") in seo_index.BLOCKED_SCAN_STATUSES:
+			continue
+		beklenen_bitis = bilgi.get("th_media_expires_at")
+		if beklenen_bitis and get_datetime(beklenen_bitis) < now_datetime():
+			continue
+		gorulen.add(url)
+		baslik = row.title or ""
+		if not baslik:
+			try:
+				baslik = media_seo.fields_for(url).get("title") or ""
+			except Exception:
+				frappe.log_error("listing document title seo fallback okunamadı", "listing")
+				baslik = ""
+		if not baslik:
+			dosya_adi = url.rsplit("/", 1)[-1]
+			baslik = dosya_adi.rsplit(".", 1)[0] if "." in dosya_adi else dosya_adi
+		docs.append(
+			{
+				"url": url,
+				"title": baslik,
+				"docType": row.doc_type or "",
+				"language": row.language or "",
+				"sizeBytes": int(bilgi.get("file_size") or 0),
+			}
+		)
+	return docs
 
 
 @frappe.whitelist(allow_guest=True)
@@ -1470,6 +1601,40 @@ def get_listing_detail(listing_id, lang="tr"):
 
 	_video_blogu = _video_manifest_blogu(listing.name)
 
+	# Görev 6 — poster fallback (Dilim 4): manifest (bayraklı motor) > canlı yol
+	# üretimi. Yerel dosya (`/files/...`) ise `media/seo.fields_for` ile TEK
+	# çağrıda okunur (galeri değil, tek alan — toplu sorguya gerek yok).
+	# Bayrak kapalıyken de vitrin kapak görsün diye manifest'e bağlı DEĞİL.
+	_video_yerel = bool(listing.video_url and str(listing.video_url).startswith("/files/"))
+	try:
+		from tradehub_core.media import seo as media_seo
+
+		_video_seo_alanlari = (
+			media_seo.fields_for(
+				listing.video_url,
+				ref_doctype="Listing",
+				ref_name=listing.name,
+				ref_field="video_url",
+				lang=lang,
+			)
+			if _video_yerel
+			else {}
+		)
+	except Exception:
+		# Video alanları detay ucunu ASLA düşürmez — `_video_manifest_blogu` ile aynı sözleşme.
+		frappe.log_error("listing video seo fields okunamadı", "listing")
+		_video_seo_alanlari = {}
+
+	# Task 4 (2026-08-27 file-manager-seo) — `Listing.documents` (Task 1 child
+	# `Listing Document`) API alanı. `_video_seo_alanlari` ile AYNI gerekçe:
+	# doküman metadata'sı okunamazsa ürün detayı yine dönmeli, alan sadece
+	# eksik kalsın.
+	try:
+		_belgeler = _listing_belgeleri(listing)
+	except Exception:
+		frappe.log_error("listing documents seo alanları okunamadı", "listing")
+		_belgeler = []
+
 	result = {
 		"id": listing.name,
 		"listingCode": listing.listing_code,
@@ -1558,14 +1723,36 @@ def get_listing_detail(listing_id, lang="tr"):
 		# katmanı (api/media_manifest.video_bloklari); mantık burada
 		# KOPYALANMAZ. Türev yoksa/bayrak kapalıysa None — vitrin bugünkü ham
 		# videoUrl davranışında kalır (listingService boş alanları eler).
-		"videoPoster": _video_blogu.get("poster") or None,
+		# Görev 6: manifest boşsa (bayrak kapalı ya da türev yok) canlı yol
+		# üretimine (`th_media_poster_url`) düşer — vitrin kapak GÖRMEYE devam
+		# eder; ikisi de boşsa None (eski davranışla birebir).
+		"videoPoster": _video_blogu.get("poster")
+		or (_video_seo_alanlari.get("poster_url") if _video_yerel else "")
+		or None,
 		"videoHlsSrc": _video_blogu.get("hlsSrc") or None,
 		"videoPreviewSrc": _video_blogu.get("previewSrc") or None,
 		"videoSrc": _video_blogu.get("src") or None,
+		"videoDurationSec": _video_seo_alanlari.get("duration") or 0,
+		"videoCaptionsUrl": _video_seo_alanlari.get("captions_url") or "",
 		"status": listing.status or "",
 		"outOfStock": is_out_of_stock,
 		"productCertifications": product_certifications,
 	}
+
+	# Task 4 (2026-08-26 medya-watch-page) — promo videonun `/medya/v/<slug>`
+	# izleme sayfası linki. `_video_seo_alanlari` zaten yukarıda TEK kapıdan
+	# (`media/seo.fields_for`) okundu; burada YENİDEN çağrılmıyor, yalnız
+	# `slug` alanı kullanılıyor. Yalnız yerel video (`/files/...`) VE slug'ı
+	# doluysa eklenir — aksi hâlde alan HİÇ basılmaz (boş/yanlış link
+	# basmaktansa alanın kendisi eksik kalsın; frontend `raw.videoWatchUrl`
+	# yoksa `undefined`'a düşer, `listingService` zaten bu deseni izliyor).
+	if _video_yerel and _video_seo_alanlari.get("slug"):
+		result["videoWatchUrl"] = f"/medya/v/{_video_seo_alanlari['slug']}"
+
+	# Task 4 — liste boşsa alan HİÇ basılmaz (`videoWatchUrl` deseniyle AYNI
+	# ilke: boş/yanlış alan basmaktansa alanın kendisi eksik kalsın).
+	if _belgeler:
+		result["documents"] = _belgeler
 
 	response = {"data": result}
 	frappe.cache.set_value(cache_key, response, expires_in_sec=_LISTING_DETAIL_CACHE_TTL)

@@ -195,6 +195,7 @@ class TestWhitelistRegistration(unittest.TestCase):
 				"render_category",
 				"render_brand",
 				"render_seller",
+				"render_media_watch",
 				"render_static_page",
 				"get_static_page_meta",
 			)
@@ -206,9 +207,123 @@ class TestWhitelistRegistration(unittest.TestCase):
 				(original_functions["get_static_page_meta"], {"allow_guest": True}),
 				registered,
 			)
+			self.assertIn(
+				(original_functions["render_media_watch"], {"allow_guest": True}),
+				registered,
+			)
 		finally:
 			for name, fn in original_functions.items():
 				setattr(page_resolver, name, fn)
+
+
+class TestAbsoluteMediaUrl(unittest.TestCase):
+	def test_relative_path_prefixed_with_site(self):
+		self.assertEqual(
+			page_resolver._absolute_media_url("/files/a.jpg", "https://istoc.com"),
+			"https://istoc.com/files/a.jpg",
+		)
+
+	def test_absolute_url_unchanged(self):
+		self.assertEqual(
+			page_resolver._absolute_media_url("https://cdn.example.com/a.jpg", "https://istoc.com"),
+			"https://cdn.example.com/a.jpg",
+		)
+
+	def test_empty_returns_empty(self):
+		self.assertEqual(page_resolver._absolute_media_url("", "https://istoc.com"), "")
+
+
+class TestWatchVideoSeo(unittest.TestCase):
+	"""`_watch_video_seo` pure — Frappe gerektirmez (`build_video_object` da pure)."""
+
+	def _data(self, **overrides):
+		base = {
+			"title": "Video Başlık",
+			"caption": "Altyazı",
+			"description": "Açıklama",
+			"posterUrl": "/files/poster.jpg",
+			"sources": [{"src": "/files/video.mp4", "type": "video/mp4"}],
+			"durationSec": 42,
+			"uploadDate": "2026-08-01",
+			"transcript": "merhaba",
+			"canonical": "https://istoc.com/medya/v/ornek",
+			"robots": "index,follow",
+			"indexable": True,
+		}
+		base.update(overrides)
+		return base
+
+	def test_indexable_seo_has_canonical_and_video_object(self):
+		seo = page_resolver._watch_video_seo(self._data(), "ornek", "https://istoc.com")
+		self.assertEqual(seo["canonical"], "https://istoc.com/medya/v/ornek")
+		self.assertEqual(seo["robots"], "index,follow")
+		self.assertEqual(len(seo["json_ld"]), 1)
+		video = seo["json_ld"][0]
+		self.assertEqual(video["@type"], "VideoObject")
+		self.assertEqual(video["@context"], "https://schema.org")
+		self.assertEqual(
+			video["potentialAction"]["target"]["urlTemplate"],
+			"https://istoc.com/medya/v/ornek?t={seek_to_second_number}",
+		)
+		self.assertEqual(video["potentialAction"]["startOffset-input"], "required name=seek_to_second_number")
+
+	def test_og_video_and_og_image_absolute(self):
+		seo = page_resolver._watch_video_seo(self._data(), "ornek", "https://istoc.com")
+		self.assertEqual(seo["og_image"], "https://istoc.com/files/poster.jpg")
+		self.assertEqual(seo["og_video"], "https://istoc.com/files/video.mp4")
+
+	def test_postersiz_video_json_ld_atlanir(self):
+		data = self._data(posterUrl="", robots="noindex,follow,nosnippet", indexable=False)
+		seo = page_resolver._watch_video_seo(data, "ornek", "https://istoc.com")
+		self.assertEqual(seo["json_ld"], [])
+		self.assertIn("noindex", seo["robots"])
+		self.assertEqual(seo["canonical"], "https://istoc.com/medya/v/ornek", "canonical noindex'te de kalır")
+
+	def test_og_video_type_ilk_source_tipinden_gelir(self):
+		seo = page_resolver._watch_video_seo(self._data(), "ornek", "https://istoc.com")
+		self.assertEqual(seo["og_video_type"], "video/mp4")
+
+	def test_og_video_type_kaynak_yoksa_bos(self):
+		data = self._data(sources=[])
+		seo = page_resolver._watch_video_seo(data, "ornek", "https://istoc.com")
+		self.assertEqual(seo["og_video"], "")
+		self.assertEqual(seo["og_video_type"], "")
+
+	def test_og_video_secure_url_https_sitede_eklenir(self):
+		seo = page_resolver._watch_video_seo(self._data(), "ornek", "https://istoc.com")
+		self.assertEqual(seo["og_video_secure_url"], "https://istoc.com/files/video.mp4")
+
+	def test_og_video_secure_url_http_sitede_eklenmez(self):
+		seo = page_resolver._watch_video_seo(self._data(), "ornek", "http://istoc.local")
+		self.assertEqual(seo["og_video_secure_url"], "")
+
+	def test_og_video_secure_url_width_height_yok(self):
+		"""Ruling: width/height ATLANIR — videoda alan yok."""
+		seo = page_resolver._watch_video_seo(self._data(), "ornek", "https://istoc.com")
+		self.assertNotIn("og_video_width", seo)
+		self.assertNotIn("og_video_height", seo)
+
+
+class TestIsSafeRedirectTarget(unittest.TestCase):
+	"""Görev denetimi düzeltme turu 1 — 301 hedefinde ikinci savunma katmanı."""
+
+	def test_files_prefix_kabul_edilir(self):
+		self.assertTrue(page_resolver._is_safe_redirect_target("/files/video.mp4"))
+
+	def test_medya_v_prefix_kabul_edilir(self):
+		self.assertTrue(page_resolver._is_safe_redirect_target("/medya/v/yeni-slug"))
+
+	def test_harici_host_reddedilir(self):
+		self.assertFalse(page_resolver._is_safe_redirect_target("https://evil.example"))
+
+	def test_protokolsuz_harici_host_reddedilir(self):
+		self.assertFalse(page_resolver._is_safe_redirect_target("//evil.example"))
+
+	def test_alakasiz_path_reddedilir(self):
+		self.assertFalse(page_resolver._is_safe_redirect_target("/urun/baska-bir-yer"))
+
+	def test_bos_deger_reddedilir(self):
+		self.assertFalse(page_resolver._is_safe_redirect_target(""))
 
 
 if __name__ == "__main__":

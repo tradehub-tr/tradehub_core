@@ -13,9 +13,11 @@ Kapsam — istenen test eksenlerine göre:
   E2E           : upload → processing → 3 hata → failed → elle retry → ready
   Error/recovery: ffmpeg yokluğu, geçici dosya temizliği, kuyruktayken silinen dosya
 
-`subprocess.run` ve `frappe.enqueue` HER ZAMAN mock'lanır: gerçek ffmpeg
-çağrılmaz, gerçek RQ kuyruğuna iş atılmaz (dev konteynerdeki worker'lar test
-dosyasını gerçekten işlemeye kalkardı).
+`isolation.run_command` (ffmpeg'i çağıran gerçek katman — `media/transcode.py`
+`subprocess`'i DOĞRUDAN kullanmıyor, `pipeline/security/isolation.py`'nin
+rlimit'li koşucusuna sarılı) ve `frappe.enqueue` HER ZAMAN mock'lanır: gerçek
+ffmpeg çağrılmaz, gerçek RQ kuyruğuna iş atılmaz (dev konteynerdeki worker'lar
+test dosyasını gerçekten işlemeye kalkardı).
 
     docker exec -w /home/frappe/frappe-bench istoc-backend bench \
         --site tradehub.localhost run-tests \
@@ -33,6 +35,7 @@ from frappe.utils import add_to_date, now_datetime
 
 from tradehub_core.api import media_admin, seller_media
 from tradehub_core.media import inventory, jobs, transcode
+from tradehub_core.media.pipeline.security import isolation
 
 # Koşum başına benzersiz tuz. Dosya adına göre türetmek YETMİYOR: içerik-adresli
 # adlandırma (WP4, `media/naming.py`) aynı baytları aynı `file_url`'e eşliyor ve
@@ -135,7 +138,7 @@ class TestRetrySayaci(FrappeTestCase):
 	def _basarisiz_calistir(self):
 		with (
 			mock.patch(
-				"tradehub_core.media.transcode.subprocess.run",
+				"tradehub_core.media.transcode.isolation.run_command",
 				side_effect=Exception("ffmpeg patladı"),
 			),
 			mock.patch("tradehub_core.media.transcode.frappe.enqueue") as mock_enqueue,
@@ -193,7 +196,7 @@ class TestRetrySayaci(FrappeTestCase):
 		)
 		with (
 			mock.patch(
-				"tradehub_core.media.transcode.subprocess.run",
+				"tradehub_core.media.transcode.isolation.run_command",
 				side_effect=Exception("ffmpeg patladı"),
 			),
 			mock.patch("tradehub_core.media.transcode.frappe.enqueue"),
@@ -224,10 +227,10 @@ class TestRetrySayaci(FrappeTestCase):
 			dst = cmd[-1]
 			with open(dst, "wb") as f:
 				f.write(b"sahte transcode edilmis veri")
-			return mock.Mock(returncode=0)
+			return isolation.IsolationResult(ok=True)
 
 		with mock.patch(
-			"tradehub_core.media.transcode.subprocess.run", side_effect=_sahte_ffmpeg
+			"tradehub_core.media.transcode.isolation.run_command", side_effect=_sahte_ffmpeg
 		):
 			transcode._run_transcode(self.doc.file_url)
 		self.assertEqual(_durum(self.doc.name), transcode.VIDEO_STATUS_READY)
@@ -597,7 +600,7 @@ class TestPaylasilanAdresteKayitHedefleme(FrappeTestCase):
 
 		with (
 			mock.patch(
-				"tradehub_core.media.transcode.subprocess.run",
+				"tradehub_core.media.transcode.isolation.run_command",
 				side_effect=Exception("ffmpeg patladı"),
 			),
 			mock.patch("tradehub_core.media.transcode.frappe.enqueue"),
@@ -612,7 +615,7 @@ class TestPaylasilanAdresteKayitHedefleme(FrappeTestCase):
 		# silinmiş olabilir. Worker patlamamalı.
 		with (
 			mock.patch(
-				"tradehub_core.media.transcode.subprocess.run",
+				"tradehub_core.media.transcode.isolation.run_command",
 				side_effect=Exception("ffmpeg patladı"),
 			),
 			mock.patch("tradehub_core.media.transcode.frappe.enqueue"),
@@ -724,7 +727,7 @@ class TestUctanUcaVeToparlanma(FrappeTestCase):
 
 	def _hata_turu(self, exc):
 		with (
-			mock.patch("tradehub_core.media.transcode.subprocess.run", side_effect=exc),
+			mock.patch("tradehub_core.media.transcode.isolation.run_command", side_effect=exc),
 			mock.patch("tradehub_core.media.transcode.frappe.enqueue"),
 		):
 			transcode._run_transcode(self.doc.file_url)
@@ -773,10 +776,10 @@ class TestUctanUcaVeToparlanma(FrappeTestCase):
 			dst = cmd[-1]
 			with open(dst, "wb") as f:
 				f.write(b"sahte transcode edilmis veri")
-			return mock.Mock(returncode=0)
+			return isolation.IsolationResult(ok=True)
 
 		with mock.patch(
-			"tradehub_core.media.transcode.subprocess.run", side_effect=_sahte_ffmpeg
+			"tradehub_core.media.transcode.isolation.run_command", side_effect=_sahte_ffmpeg
 		):
 			transcode._run_transcode(self.doc.file_url)
 		self.assertEqual(_durum(self.doc.name), transcode.VIDEO_STATUS_READY)
@@ -784,7 +787,7 @@ class TestUctanUcaVeToparlanma(FrappeTestCase):
 	def test_kuyruktayken_silinen_dosya_worker_i_dusurmez(self):
 		# Recovery: iş kuyruğa girdikten sonra satıcı dosyayı bırakabilir.
 		frappe.delete_doc("File", self.doc.name, ignore_permissions=True, force=True)
-		with mock.patch("tradehub_core.media.transcode.subprocess.run") as mock_run:
+		with mock.patch("tradehub_core.media.transcode.isolation.run_command") as mock_run:
 			transcode._run_transcode(self.doc.file_url)  # patlamamalı
 		mock_run.assert_not_called()
 

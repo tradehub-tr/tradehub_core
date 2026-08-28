@@ -3,7 +3,7 @@
 Sınanan beş şey (kaynak doküman T-143 kabul kriterleriyle birebir):
 
 1. **Parti parti, düşük öncelikli kuyrukta.** Batch boyutu plana uyuyor,
-   enqueue çağrısı `media_backfill` kuyruğuna gidiyor, canlı kuyrukla aynı
+   enqueue çağrısı `media-image-bulk` kuyruğuna gidiyor, canlı kuyrukla aynı
    kuyruk seçilirse yapılandırma REDDEDİLİYOR.
 2. **Canlı trafik koruması.** Canlı kuyruk derinliği eşiği aşarsa batch
    ENQUEUE EDİLMİYOR; normale dönünce devam ediyor.
@@ -32,15 +32,15 @@ from __future__ import annotations
 import sys
 import threading
 import unittest
+from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Sequence
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
 	sys.path.insert(0, str(ROOT))
 
 from tradehub_core.media.pipeline.migration import backfill as bf  # noqa: E402
-
 
 # ── Sahteler ────────────────────────────────────────────────────────────
 
@@ -54,11 +54,11 @@ class SahteRunner:
 	"""
 
 	def __init__(self, sonuclar: Sequence[Mapping[str, Any]] | None = None) -> None:
-		self.sonuclar: List[Mapping[str, Any]] = list(sonuclar or [])
-		self.cagrilar: List[Dict[str, Any]] = []
-		self._ilerleme: Dict[str, Mapping[str, Any]] = {}
+		self.sonuclar: list[Mapping[str, Any]] = list(sonuclar or [])
+		self.cagrilar: list[dict[str, Any]] = []
+		self._ilerleme: dict[str, Mapping[str, Any]] = {}
 
-	def _varsayilan(self, adet: int) -> Dict[str, Any]:
+	def _varsayilan(self, adet: int) -> dict[str, Any]:
 		return {
 			"state": bf.JOB_COMPLETED,
 			"processed": adet,
@@ -101,7 +101,7 @@ class SahteKuyruk:
 
 class SahteBildirim:
 	def __init__(self) -> None:
-		self.gonderilen: List[bf.SellerNotice] = []
+		self.gonderilen: list[bf.SellerNotice] = []
 
 	def notify(self, notice: bf.SellerNotice) -> None:
 		self.gonderilen.append(notice)
@@ -111,8 +111,7 @@ def plan_uret(a: int = 450, b: int = 0) -> bf.BackfillPlan:
 	return bf.BackfillPlan(
 		a_class=tuple(f"FILE-A-{i:04d}" for i in range(a)),
 		b_class=tuple(
-			{"file_name": f"FILE-B-{i:04d}", "alt_sinif": "B1", "store": "SELLER-001"}
-			for i in range(b)
+			{"file_name": f"FILE-B-{i:04d}", "alt_sinif": "B1", "store": "SELLER-001"} for i in range(b)
 		),
 		slot_of={f"FILE-A-{i:04d}": "listing_main" for i in range(a)},
 	)
@@ -154,24 +153,55 @@ class PlanTesti(unittest.TestCase):
 			plan_uret(10).batches(0)
 
 	def test_plan_json_a_ve_b_sinifini_ayirir(self):
-		veri = {
-			"kaynak": "plan_backfill.py",
-			"kayitlar": [
-				{"file_name": "a1", "sinif": "A", "slots": ["listing_main"]},
-				{"file_name": "a2", "sinif": "A'"},
-				{"file_name": "b1", "sinif": "B1"},
-				{"file_name": "", "sinif": "A"},
-			],
-		}
+		veri = bf.stamp_plan(
+			{
+				"kaynak": "plan_backfill.py",
+				"kayitlar": [
+					{"file_name": "a1", "sinif": "A", "slots": ["listing_main"]},
+					{"file_name": "a2", "sinif": "A'"},
+					{"file_name": "b1", "sinif": "B1"},
+					{"file_name": "c1", "sinif": "C"},
+				],
+			}
+		)
 		plan = bf.BackfillPlan.from_plan_json(veri)
 
-		self.assertEqual(plan.a_class, ("a1", "a2"))
+		self.assertEqual(plan.a_class, ("a1",))
+		self.assertEqual(tuple(row["file_name"] for row in plan.unsupported_a), ("a2",))
 		self.assertEqual(len(plan.b_class), 1)
 		self.assertEqual(plan.slot_of["a1"], "listing_main")
+
+	def test_bilinmiyor_B_sinifi_gibi_calistirilmaz(self):
+		veri = bf.stamp_plan(
+			{"records": [{"file_name": "probe-edilmedi", "class": "BILINMIYOR", "file_url": "/files/x.jpg"}]}
+		)
+		plan = bf.BackfillPlan.from_plan_json(veri)
+
+		self.assertEqual(plan.unknown_count, 1)
+		self.assertEqual(plan.b_class, ())
 
 	def test_bozuk_plan_hata_verir(self):
 		with self.assertRaises(bf.BackfillError):
 			bf.BackfillPlan.from_plan_json([])  # type: ignore[arg-type]
+
+	def test_planlayicinin_eski_rep_name_alani_gecis_icin_okunur(self):
+		veri = bf.stamp_plan(
+			{"records": [{"rep_name": "FILE-1", "class": "A_otomatik", "file_url": "/files/a.jpg"}]}
+		)
+		plan = bf.BackfillPlan.from_plan_json(veri)
+		self.assertEqual(plan.a_class, ("FILE-1",))
+		self.assertEqual(plan.records[0]["file_name"], "FILE-1")
+
+	def test_plan_ozeti_degisen_icerigi_reddeder(self):
+		veri = bf.stamp_plan({"records": [{"file_name": "FILE-1", "class": "A", "file_url": "/files/a.jpg"}]})
+		veri["records"][0]["file_url"] = "/files/degisti.jpg"
+		with self.assertRaises(bf.BackfillError):
+			bf.BackfillPlan.from_plan_json(veri)
+
+	def test_a_b_sinifinda_kimlik_eksigi_sessizce_atlanmaz(self):
+		veri = bf.stamp_plan({"records": [{"class": "A_otomatik", "file_url": "/files/a.jpg"}]})
+		with self.assertRaises(bf.BackfillError):
+			bf.BackfillPlan.from_plan_json(veri)
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -181,17 +211,17 @@ class PlanTesti(unittest.TestCase):
 
 class KuyrukDisiplinTesti(unittest.TestCase):
 	def test_backfill_ayri_kuyruga_gider(self):
-		"""§5.2 — canlı yollar `long`'da; backfill `media_backfill`'de."""
+		"""§5.2 — canlı ve bulk medya kanonik ayrı kuyruklardadır."""
 		runner = SahteRunner()
 		orkestrator(runner).run(plan_uret(10), dry_run=True)
 
-		self.assertEqual(runner.cagrilar[0]["queue"], "media_backfill")
+		self.assertEqual(runner.cagrilar[0]["queue"], "media-image-bulk")
 		self.assertNotEqual(runner.cagrilar[0]["queue"], bf.DEFAULT_LIVE_QUEUE)
 
 	def test_canli_kuyrukla_ayni_kuyruk_REDDEDILIR(self):
 		"""Aynı kuyrukta öncelik ayrımı YOKTUR — yapılandırma kabul edilmez."""
 		with self.assertRaises(bf.BackfillError):
-			bf.BackfillConfig(queue="long", live_queue="long")
+			bf.BackfillConfig(queue="media-image-live", live_queue="media-image-live")
 
 	def test_canli_kuyruk_doluyken_enqueue_edilmez(self):
 		"""§5.3 — derinlik > eşik iken batch kuyruğa KONMAZ."""
@@ -419,7 +449,7 @@ class AtomikGecisTesti(unittest.TestCase):
 
 	def test_es_zamanli_okuma_YARIM_kume_gormez(self):
 		"""Geçiş sırasında 404 oluşmadığının testi: her okuma TAM bir küme."""
-		okumalar: List[tuple] = []
+		okumalar: list[tuple] = []
 		dur = threading.Event()
 
 		def okuyucu():
@@ -544,7 +574,7 @@ class PlatformBildirimSinkTesti(unittest.TestCase):
 	"""
 
 	def _kayitli_sink(self, kullanicilar, **kw):
-		cagrilar: List[Dict[str, Any]] = []
+		cagrilar: list[dict[str, Any]] = []
 
 		def sahte_notify(**kwargs):
 			# Gerçek `notify` oluşan Platform Notification'ın `name`'ini döndürür.
@@ -584,9 +614,7 @@ class PlatformBildirimSinkTesti(unittest.TestCase):
 
 	def test_sahipsiz_magaza_atlanir_notify_EDILMEZ(self):
 		sink, cagrilar = self._kayitli_sink({})  # hiçbir mağazanın sahibi yok
-		sink.notify(
-			bf.SellerNotice(store="YOK", file_name="x", slot="", subclass="B1", message="m")
-		)
+		sink.notify(bf.SellerNotice(store="YOK", file_name="x", slot="", subclass="B1", message="m"))
 
 		self.assertEqual(cagrilar, [], "sahibi çözülemeyen mağazaya bildirim gitmez")
 		self.assertEqual(sink.sent, 0)
@@ -626,8 +654,8 @@ class PlatformBildirimSinkTesti(unittest.TestCase):
 
 class KapasiteTesti(unittest.TestCase):
 	def test_guvenli_batch_boyutu_formulu(self):
-		"""3600 / (6 s × 3) = 200 — planın önerdiği N ile aynı sayı."""
-		self.assertEqual(bf.safe_batch_size(6.0), 200)
+		"""1800 / (6 s × 3) = 100 — bulk worker timeout'u kullanılır."""
+		self.assertEqual(bf.safe_batch_size(6.0), 100)
 
 	def test_yavas_dosyada_batch_kuculur(self):
 		self.assertLess(bf.safe_batch_size(60.0), bf.safe_batch_size(6.0))
@@ -659,7 +687,11 @@ class KatmanDisiplinTesti(unittest.TestCase):
 		"""Paket bench/site olmadan import edilebilir kalmalı."""
 		import ast
 
-		agac = ast.parse((ROOT / "tradehub_core" / "media" / "pipeline" / "migration" / "backfill.py").read_text(encoding="utf-8"))
+		agac = ast.parse(
+			(ROOT / "tradehub_core" / "media" / "pipeline" / "migration" / "backfill.py").read_text(
+				encoding="utf-8"
+			)
+		)
 		suclu = []
 		for node in agac.body:
 			if isinstance(node, ast.Import) and any(a.name.split(".")[0] == "frappe" for a in node.names):
@@ -675,10 +707,39 @@ class KatmanDisiplinTesti(unittest.TestCase):
 
 	def test_paket_kendini_uygulandi_ilan_ediyor(self):
 		import tradehub_core.media.pipeline as media_engine
-		import tradehub_core.media.pipeline.migration
 
 		self.assertTrue(media_engine.migration.IMPLEMENTED)
 		self.assertTrue(media_engine.IMPLEMENTED["migration"])
+
+
+class WorkerKayitTesti(unittest.TestCase):
+	"""`_workers_from_registry` — RQ kuyruk-üyelik set'inden worker okuma.
+
+	Neden var: bu ortamın RQ sürümünde `Worker.queue_names()` boş dönüyor ve
+	preflight çalışan worker'ı "yok" sanıyordu (yanlış negatif, 2026-08-26).
+	"""
+
+	class _SahteBaglanti:
+		def __init__(self, uyeler):
+			self._uyeler = uyeler
+
+		def smembers(self, anahtar):
+			return self._uyeler.get(anahtar, set())
+
+	def test_kayitli_worker_bulunur(self):
+		from tradehub_core.media.migration_runtime import _workers_from_registry
+
+		baglanti = self._SahteBaglanti(
+			{"rq:workers:bench:media-image-bulk": {b"rq:worker:3da18e1dc876"}}
+		)
+		adlar = _workers_from_registry(baglanti, ["bench:media-image-bulk"])
+		self.assertEqual(adlar, ["3da18e1dc876"])
+
+	def test_bos_kayitta_bos_liste(self):
+		from tradehub_core.media.migration_runtime import _workers_from_registry
+
+		baglanti = self._SahteBaglanti({})
+		self.assertEqual(_workers_from_registry(baglanti, ["bench:media-image-bulk"]), [])
 
 
 if __name__ == "__main__":

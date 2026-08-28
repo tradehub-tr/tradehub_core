@@ -33,10 +33,11 @@ def relative_path_for(file_url: str) -> str:
 	`/files/a/b.jpg`         → `public/a/b.jpg`
 	`/private/files/a/b.jpg` → `private/a/b.jpg`
 
-	Path traversal koruması: `..` içeren veya beklenen önekle başlamayan URL reddedilir.
+	Path traversal koruması: ``.``/``..`` yol segmentleri veya beklenmeyen önek
+	reddedilir. Dosya adındaki meşru iki nokta (``foto..jpg``) engellenmez.
 	"""
 	url = (file_url or "").split("?")[0]
-	if not url or ".." in url:
+	if not url or any(segment in (".", "..") for segment in url.split("/")):
 		frappe.throw(frappe._("Geçersiz dosya yolu: {0}").format(file_url))
 
 	if url.startswith("/private/files/"):
@@ -110,16 +111,32 @@ def usage_bytes() -> int:
 	return total
 
 
-def purge_expired(
-	retention_days: int = ARCHIVE_RETENTION_DAYS, trigger: str = "scheduled"
-) -> dict:
+def purge_expired(retention_days: int = ARCHIVE_RETENTION_DAYS, trigger: str = "scheduled") -> dict:
 	"""Süresi dolan arşiv dosyalarını sil. Günlük scheduler job'ı çağırır.
 
 	Geri alma penceresi kapandıktan sonra nihai depolama kazancı burada gerçekleşir.
 	"""
+	# Wet migration'ın exact rollback penceresi açıkken günlük scheduler ya da
+	# manuel yönetici çağrısı orijinalleri silemez. Kontrol DB'deki kalıcı run
+	# kaydına dayanır; worker/cache restart'ında kaybolmaz.
+	from tradehub_core.media.migration_runtime import archive_purge_hold
+
+	hold = archive_purge_hold()
+	if hold["held"]:
+		frappe.logger("media").warning(
+			f"archive purge held by media migration: runs={hold['run_keys']} until={hold['until']}"
+		)
+		return {
+			"deleted": 0,
+			"freed_bytes": 0,
+			"held": True,
+			"hold_run_keys": hold["run_keys"],
+			"hold_until": hold["until"],
+		}
+
 	root = _archive_root()
 	if not os.path.isdir(root):
-		return {"deleted": 0, "freed_bytes": 0}
+		return {"deleted": 0, "freed_bytes": 0, "held": False}
 
 	cutoff = time.time() - retention_days * 86400
 	deleted = 0
@@ -150,7 +167,7 @@ def purge_expired(
 			"freed_bytes": freed,
 		},
 	)
-	return {"deleted": deleted, "freed_bytes": freed}
+	return {"deleted": deleted, "freed_bytes": freed, "held": False}
 
 
 def _prune_empty_dirs(root: str) -> None:

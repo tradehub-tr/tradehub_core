@@ -3,6 +3,12 @@ from frappe import _
 from frappe.model.document import Document
 
 PUBLIC_PREFIX = "/files/"
+#: Medya izleme sayfası adresleri (`media/watch_slug.py::watch_url`) da bu
+#: doctype'ı kullanır (`change_slug` 301 köprüsü) — dosya blob'u değil ama
+#: aynı open-redirect/yol-geçişi riskini taşıyan site-içi bir adres, o yüzden
+#: aynı doğrulama zincirinden geçer.
+WATCH_PREFIX = "/medya/v/"
+ALLOWED_PREFIXES = (PUBLIC_PREFIX, WATCH_PREFIX)
 
 
 class MediaURLRedirect(Document):
@@ -22,7 +28,7 @@ class MediaURLRedirect(Document):
 
 	@staticmethod
 	def _dogrula_adres(url: str | None) -> None:
-		"""Yalnız site-içi public medya adresi: `/files/` altı, `..` segmenti yok.
+		"""Yalnız site-içi public adres: `/files/` ya da `/medya/v/` altı, `..` segmenti yok.
 
 		`https://kotu.example/x` gibi mutlak bir hedef `redirect_renderer`
 		tarafından olduğu gibi `Location`'a yazılırdı — açık yönlendirme.
@@ -32,7 +38,7 @@ class MediaURLRedirect(Document):
 		"""
 		temiz = (url or "").split("?")[0]
 		gecerli = (
-			temiz.startswith(PUBLIC_PREFIX)
+			temiz.startswith(ALLOWED_PREFIXES)
 			and not temiz.endswith("/")
 			and not any(seg in (".", "..") for seg in temiz.split("/"))
 		)
