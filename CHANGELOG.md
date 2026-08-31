@@ -1,3 +1,26 @@
+## [v1.13.1-alpha.52] - 2026-08-31 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Duzeltildi
+- fix(media): denetim düzeltme turu — 33 bulgu + kapsamlı test paketi (KD) (@Metin Bektemur)
+  - probe kapısı: eklenmiş yük tam içerikte aranıyor (F-01), ilk EOI/IEND (F-02), .jpg MIME yedeği (F-03), video künyesi konteynerden (F-04), max_bytes:0 (F-05)
+  - normalize: min_long_edge MP tavanını aşamaz (F-06), resize notu (F-07)
+  - path_safety: karşılaştırılamayan yol fail-closed, 500 yok (F-08)
+  - policy engine: get() derin kopya döndürür (F-09)
+  - chunked: ilan edilen content_sha256 finish'te doğrulanıyor (F-12)
+  - seo_audit: bozuk alan türü/tarih denetimi çökertmez (F-18a/b), genel ad desenleri (F-19), tekil denetim topluya delege (F-21), boş kapsam şekli (F-22)
+  - seo: protokolsüz //url site içi sayılmaz (F-20)
+  - schema: motor tabloları yedek künyesinde, taşınmayan kayıt raporlanır (F-25)
+  - trash: AV bekletme/karantina için doğru mesaj; karantina→çöp yolu kapalı (F-26)
+  - av: release_hold türev üretimini yeniden tetikler (F-27); scan_path asılı daemon'da clamscan'e düşer, sağlık yalnız tanı (F-28); File silinince bekletme kopyası temizlenir + sweep_orphaned_holds (F-31)
+  - files: library.upload sentineli LinkValidationError'a takılmaz — 3. katman tekilleştirme yeniden çalışıyor (F-29)
+  - pipeline_bridge: File.on_trash kaskadı (türevler çöp kapısından, legal hold korunur), _renditions_exist purged'i saymaz, _open_job asılı iş satırını onarır, sweep_orphaned_assets (F-33a/b/c)
+  - tests/kapsamli/: 15 modüllü bağımsız denetim paketi (~700 test, 278K kombinatoryal değerlendirme), tests/av_notr.py ortak AV nötrleyici
+  - AV'ye kör 6 repo modülü nötrleyiciye bağlandı; kararsız fixture'lar koşuma özgü içerik üretiyor (F-17, F-32)
+  - Postman koleksiyonu yeniden üretildi (120→143 uç)
+
+---
 ## [v1.13.1-alpha.51] - 2026-08-28 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
