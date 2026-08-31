@@ -50,8 +50,39 @@ _ALT_MIN: int = 5
 _STUFF_REPEAT: int = 3
 #: Kötü dosya adı kalıpları (ölçüm: 9 "Ekran", 271 boşluklu ad).
 _BAD_NAME = re.compile(
-	r"(img[_-]?\d+|ekran\s*g[oö]r[uü]nt[uü]s[uü]|whatsapp|dsc[_-]?\d+|untitled|adsız)", re.I
+	r"("
+	r"img[_-]?\d+"
+	r"|ekran\s*g[oö]r[uü]nt[uü]s[uü]"
+	r"|whatsapp"
+	r"|dsc[_-]?\d+"
+	r"|untitled"
+	r"|adsız"
+	# F-19: sahada en yaygın jenerik adlar desende yoktu — `photo.jpg`,
+	# `image.png`, `20260101_120000.jpg`, `1.jpg`, `final_v2.jpg`.
+	# SEO açısından `IMG_1234` kadar bilgisizler.
+	r"|^(photo|image|görsel|gorsel|resim|foto|picture|pic|file|dosya)[_\-\s]*\d*$"
+	r"|^\d{6,}([_\-]\d+)?$"          # 20260101_120000 gibi tarih/zaman damgası
+	r"|^\d{1,3}$"                       # 1, 42, 007
+	r"|^(final|son|yeni|new|copy|kopya|adsiz)([_\-\s]*v?\d*)$"
+	r")",
+	re.I,
 )
+
+
+def _metin(deger: object) -> str:
+	"""Alan değerini güvenle metne çevir.
+
+	F-18a: `audit_fields` "saf fonksiyon" diye belgelenmişti ama girdi türünü
+	doğrulamıyordu; `alt` bir sayıysa `(deger or "").strip()` `AttributeError`
+	atıyordu. Alan değerleri DB'den ve API'den geliyor — tek bozuk satır
+	toplu denetim ekranının tamamını düşürebilirdi. Denetim bir RAPORLAMA
+	işidir: bozuk veriyi bulgu olarak bildirir, istisna atmaz.
+	"""
+	if deger is None:
+		return ""
+	if isinstance(deger, str):
+		return deger.strip()
+	return str(deger).strip()
 
 
 def _kural(kod: str, severity: str, mesaj: str, detay: str = "") -> dict:
@@ -70,8 +101,8 @@ def audit_fields(alanlar: dict, *, file_name: str = "") -> list[dict]:
 	yalnız `fields_for` çıktısıyla karar verilebilenler.
 	"""
 	bulgular: list[dict] = []
-	alt = (alanlar.get("alt") or "").strip()
-	baslik = (alanlar.get("title") or "").strip()
+	alt = _metin(alanlar.get("alt"))
+	baslik = _metin(alanlar.get("title"))
 
 	if not alt:
 		bulgular.append(_kural("missing_alt", SEVERITY_ERROR, "Alt metni yok"))
@@ -106,7 +137,7 @@ def audit_fields(alanlar: dict, *, file_name: str = "") -> list[dict]:
 
 	if not baslik:
 		bulgular.append(_kural("missing_title", SEVERITY_WARN, "Başlık yok"))
-	if not (alanlar.get("caption") or "").strip():
+	if not _metin(alanlar.get("caption")):
 		bulgular.append(_kural("missing_caption", SEVERITY_WARN, "Altyazı yok"))
 
 	if file_name and _BAD_NAME.search(file_name):
@@ -127,15 +158,33 @@ def audit_fields(alanlar: dict, *, file_name: str = "") -> list[dict]:
 		bulgular.append(_kural("missing_license", SEVERITY_WARN, "Lisans/telif bilgisi yok"))
 
 	bitis = alanlar.get("rights_expires_on")
-	if bitis and getdate(bitis) < getdate(nowdate()):
-		bulgular.append(
-			_kural("expired_rights", SEVERITY_ERROR, "Kullanım hakkı dolmuş ama yayında", str(bitis))
-		)
+	if bitis:
+		# F-18b: geçersiz tarih `getdate` içinde `ValidationError` atıyordu.
+		# Yazma ucu tarihi doğruluyor ama alan başka bir yoldan (migration,
+		# doğrudan SQL, eski kayıt) bozuk kalmışsa okuma tarafı korumasızdı.
+		try:
+			dolmus = getdate(bitis) < getdate(nowdate())
+		except Exception:
+			bulgular.append(
+				_kural(
+					"invalid_rights_date",
+					SEVERITY_WARN,
+					"Hak bitiş tarihi okunamıyor",
+					str(bitis)[:64],
+				)
+			)
+		else:
+			if dolmus:
+				bulgular.append(
+					_kural(
+						"expired_rights", SEVERITY_ERROR, "Kullanım hakkı dolmuş ama yayında", str(bitis)
+					)
+				)
 
 	if file_name and _video_mu(file_name):
-		if not (alanlar.get("poster_url") or "").strip():
+		if not _metin(alanlar.get("poster_url")):
 			bulgular.append(_kural("missing_poster", SEVERITY_WARN, "Video posteri yok"))
-		if not (alanlar.get("transcript") or "").strip():
+		if not _metin(alanlar.get("transcript")):
 			bulgular.append(_kural("missing_transcript", SEVERITY_WARN, "Transcript yok"))
 		if not alanlar.get("duration"):
 			bulgular.append(_kural("missing_duration", SEVERITY_WARN, "Video süresi bilinmiyor"))
@@ -155,11 +204,32 @@ def audit_file(file_url: str, *, deep: bool = True) -> dict:
 
 	alanlar = seo.fields_for(url)
 	ad = frappe.db.get_value("File", {"file_url": url}, "file_name")
-	bulgular = audit_fields(alanlar, file_name=ad or "")
-	if ad is None:
-		bulgular = [
-			_kural("missing_file", SEVERITY_ERROR, "Dosya kaydı yok — ürün kırık görsele işaret ediyor")
-		]
+
+	# F-21: tekil ve toplu yol AYNI dosya için FARKLI bulgu üretiyordu —
+	# `audit_batch` satır bağlamıyla (türev defteri, ilişki, tekrar eden URL)
+	# `missing_association` ve `missing_structured_data` gibi kuralları
+	# çalıştırıyor, `audit_file` ise yalnız `audit_fields`'i çağırıyordu.
+	# Sonuç: panelde liste 7 bulgu gösterirken satıra tıklayınca 5'e düşüyor
+	# ve skor değişiyordu. MOGEM-620 sözleşmesi "API yanıtı ile paneldeki
+	# davranış birbiriyle uyumlu çalışmalıdır" diyor.
+	#
+	# Parite YAPISAL olarak kuruluyor: tekil denetim toplu yolu tek adres için
+	# çalıştırır, üstüne yalnız tekil-özel kuralları ekler. İki uygulama
+	# tutmak, zamanla yeniden ayrışan iki liste demekti.
+	toplu = audit_batch([url], deep=False)
+	satir = next((r for r in (toplu.get("files") or []) if r.get("file_url") == url), None)
+	if satir is not None:
+		bulgular = list(satir.get("findings") or [])
+		ad = satir.get("file_name") or ad
+	else:
+		bulgular = audit_fields(alanlar, file_name=ad or "")
+		if ad is None:
+			bulgular = [
+				_kural(
+					"missing_file", SEVERITY_ERROR,
+					"Dosya kaydı yok — ürün kırık görsele işaret ediyor",
+				)
+			]
 	ad = ad or ""
 
 	if deep:
@@ -178,6 +248,19 @@ def audit_file(file_url: str, *, deep: bool = True) -> dict:
 		# `_document_listings` iki toplu sorgu açıyor (child satır + parent
 		# Listing), N dosya için toplu tarafta tekrarlamak pahalı olurdu.
 		bulgular.extend(_doc_bulgulari(url, alanlar))
+
+	# Toplu satır ile tekil ekler arasında aynı kural iki kez düşebilir
+	# (ör. `_baglamsal_bulgular` bir kuralı zaten üretmişse). Aynı (kod, detay)
+	# çifti tekilleştirilir; sıralama korunur.
+	gorulen: set[tuple[str, str]] = set()
+	tekil: list[dict] = []
+	for b in bulgular:
+		anahtar = (b.get("code", ""), b.get("detail", ""))
+		if anahtar in gorulen:
+			continue
+		gorulen.add(anahtar)
+		tekil.append(b)
+	bulgular = tekil
 
 	return {
 		"file_url": url,
@@ -328,6 +411,7 @@ def _baglamsal_bulgular(url: str) -> list[dict]:
 #: Kural → hangi alt skoru düşürür. Tek sayı yerine kırılım gösteriliyor:
 #: "82/100" hangi tarafın zayıf olduğunu söylemiyor (§6.3).
 _KURAL_BOYUT: dict[str, str] = {
+	"invalid_rights_date": "rights",
 	"missing_file": "accessibility",
 	"missing_alt": "accessibility",
 	"suspicious_alt": "accessibility",
@@ -520,7 +604,10 @@ def audit_batch(
 	primary = frozenset(primary_urls or ())
 	temiz = [u for u in {(u or "").split("?")[0] for u in file_urls or []} if u]
 	if not temiz:
-		return {"files": [], "summary": {}, "score": {}}
+		# F-22: dolu kapsam `total` döndürürken boş kapsam döndürmüyordu —
+		# yanıt şekli girdiye göre değişiyordu ve sözleşmeyi okuyan çağıran
+		# `KeyError` alıyordu.
+		return {"files": [], "summary": {}, "score": {}, "total": 0}
 
 	toplu = seo.fields_for_many(temiz)
 	file_fields = ["file_url", "file_name", "file_size", "is_private", "th_media_state"]

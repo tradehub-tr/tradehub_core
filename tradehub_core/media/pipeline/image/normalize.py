@@ -286,7 +286,25 @@ def target_size(width: int, height: int, spec: NormalizeSpec) -> tuple[int, int]
 
 	uzun = max(width, height)
 	if spec.min_long_edge and uzun >= spec.min_long_edge:
-		olcek = max(olcek, spec.min_long_edge / uzun)
+		alt_olcek = spec.min_long_edge / uzun
+		# F-06: alt sınır ölçeği geri yükseltiyordu ama MP tavanı YENİDEN
+		# KONTROL EDİLMİYORDU; sonuç kendi politikasının tavanını aşabiliyordu
+		# (ölçüldü: category-banner 5:4 → 2,95 MP / tavan 2,00;
+		#  company-cover-image 2:1 → 1,84 MP / tavan 1,64 — o slotta izinli
+		#  EN DAR oran bile aşıyordu, yani tavan fiilen uygulanamıyordu).
+		#
+		# Çakışmada MP tavanı KAZANIR: alt sınır bir kalite tercihi, MP tavanı
+		# bellek ve encode maliyetinin sert sınırı. Slot politikasındaki
+		# sayılara dokunulmuyor (Faz 2: "sayılar sabittir, değiştirmek isteyen
+		# değişiklik talebi açar") — burada yalnız kodun kendi sözleşmesini
+		# uygulaması sağlanıyor.
+		if spec.max_megapixels:
+			tavan = spec.max_megapixels * 1_000_000.0
+			alan = float(width * height)
+			if alan > 0:
+				mp_olcek = (tavan / alan) ** 0.5
+				alt_olcek = min(alt_olcek, mp_olcek)
+		olcek = max(olcek, alt_olcek)
 
 	if olcek >= 1.0:
 		return (width, height)  # upscale YOK: kaynak zaten tavanın altında
@@ -975,7 +993,14 @@ def normalize(
 			im = _replace_image(im, yeni)
 			notlar.append(f"resize:{hedef[0]}x{hedef[1]}")
 		elif bounded is None:
-			notlar.append("resize:none")
+			# F-07: JPEG decoder draft hedefi zaten ürettiğinde buraya
+			# düşülüyor ve "resize:none" yazılıyordu — oysa `resized` True.
+			# Not ile bayrak çelişiyordu; telemetri "hiç küçültme olmadı"
+			# diye sayıyordu. Küçültme GERÇEKTEN olduysa doğru not yazılır.
+			if kucultuldu:
+				notlar.append(f"resize:{im.width}x{im.height}")
+			else:
+				notlar.append("resize:none")
 
 		# 6 — çıktı biçimi ve metadata
 		cikis_fmt = spec.target_format or kaynak_fmt

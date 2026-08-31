@@ -12,6 +12,11 @@ from tradehub_core.api import media_admin
 from tradehub_core.media import migration_runtime as runtime
 from tradehub_core.media.pipeline.migration.backfill import stamp_plan
 
+# Tarama kancası bu modülde nötrleniyor: `hold_until_clean` açıkken dosya
+# insert anında public ağaçtan çıkarılıyor ve diskten okuyan testler
+# `FileNotFoundError` alıyor. Gerekçe `tests/av_notr.py` başlığında.
+from tradehub_core.tests.av_notr import setUpModule, tearDownModule  # noqa: F401
+
 
 class MediaMigrationRuntimeTests(FrappeTestCase):
 	def setUp(self):

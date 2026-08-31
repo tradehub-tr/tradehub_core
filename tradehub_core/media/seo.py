@@ -454,7 +454,15 @@ def _validate_asset_values(values: dict[str, Any]) -> dict[str, Any]:
 		value = str(clean.get(key) or "").strip()
 		if value:
 			parsed = urlsplit(value)
-			if value.startswith("/"):
+			if value.startswith("//"):
+				# F-20: protokolsüz (scheme-relative) URL de "/" ile başladığı
+				# için "site içi yol" dalına düşüyor ve doğrulamadan geçiyordu.
+				# Tarayıcı `//kotu.site/x` adresini sayfanın protokolüyle DIŞ
+				# alan adına çözer; bu değer JSON-LD ile yayına çıkıyor.
+				frappe.throw(
+					frappe._("Geçersiz URL: {0} — protokolsüz adres kabul edilmiyor").format(key)
+				)
+			elif value.startswith("/"):
 				pass
 			elif parsed.scheme not in ("http", "https") or not parsed.netloc:
 				frappe.throw(frappe._("Geçersiz URL: {0}").format(key))

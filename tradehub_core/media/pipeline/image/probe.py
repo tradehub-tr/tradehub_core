@@ -118,9 +118,14 @@ class GuardConfig:
 	@classmethod
 	def from_accept(cls, accept: dict, **kwargs) -> GuardConfig:
 		"""Slot politikasının `accept` bloğundan kapı kurar."""
+		# F-05: `or` kullanmak 0'ı falsy sayıp varsayılana düşürüyordu; slot
+		# politikası "sınır yok" demek için 0 yazamıyordu. Anahtarın YOKLUĞU
+		# ile 0 DEĞERİ ayrı sorulardır.
+		mp = accept.get("max_megapixels_hard")
+		mb = accept.get("max_bytes")
 		return cls(
-			max_megapixels=float(accept.get("max_megapixels_hard") or cls.max_megapixels),
-			max_bytes=int(accept.get("max_bytes") or cls.max_bytes),
+			max_megapixels=float(cls.max_megapixels if mp is None else mp),
+			max_bytes=int(cls.max_bytes if mb is None else mb),
 			allow_animated=bool(accept.get("allow_animated", False)),
 			**kwargs,
 		)
@@ -174,7 +179,7 @@ class HeaderProbe:
 	readable: bool = False
 	truncated: bool | None = None
 	leading_marker: bool = False
-	appended_payload: bool = False
+	appended_payload: bool | None = False
 	extension_matches_content: bool | None = None
 	rejections: tuple[Rejection, ...] = ()
 	warnings: tuple[str, ...] = ()
@@ -491,6 +496,41 @@ def _open_header(src) -> dict:
 # ── Kapı ────────────────────────────────────────────────────────────────
 
 
+#: Yol girdisinde tam tarama için üst sınır. Bunun altındaki dosya tümüyle
+#: okunur (F-01 penceresi kapansın diye); üstünde kalan dosyada yapısal bitiş
+#: işaretçisi pencerelerde bulunamazsa sonuç `None` = ÖLÇÜLEMEDİ olur —
+#: `False` demek "temiz" demekti ve yanlıştı.
+FULL_SCAN_MAX_BYTES: int = 16 * 1024 * 1024
+
+#: Yapısal bitiş işaretçisi olan biçimler; kuyruk yalnız bunlarda anlamlı.
+_TAIL_BOUNDED: frozenset[str] = frozenset({"jpeg", "png"})
+
+
+def _eklenmis_yuk(
+	tam: bytes | None, head: bytes, tail: bytes, detected: str, size: int
+) -> bool | None:
+	"""Dosyanın yapısal sonundan sonra çalıştırılabilir içerik var mı.
+
+	`None` = ölçülemedi. Eskiden yalnız son 64 KB taranıyordu ve işaretçi o
+	pencereye düşmezse `False` dönüyordu; 64 KB'tan büyük dolgu koyan bir
+	saldırgan tespiti atlatıyordu (F-01).
+	"""
+	if tam is not None:
+		return core_probe._has_appended_payload(tam, detected)
+
+	if detected not in _TAIL_BOUNDED:
+		# Kuyruk sınırı ucuzca bilinemeyen biçimlerde davranış değişmedi.
+		return core_probe._has_appended_payload(tail, detected)
+
+	if size <= FULL_SCAN_MAX_BYTES:
+		return None  # çağıran tam içeriği vermediyse ölçüm yapılmadı
+
+	isaret = b"\xff\xd9" if detected == "jpeg" else b"IEND"
+	if isaret in tail or isaret in head:
+		return core_probe._has_appended_payload(tail, detected)
+	return None
+
+
 def probe_header(
 	src: bytes | bytearray | str | Path,
 	*,
@@ -507,10 +547,16 @@ def probe_header(
 	çağıran `assert_accepted()` kullanır.
 	"""
 	yol: Path | None = None
+	tam_icerik: bytes | None = None
 	if isinstance(src, (bytes, bytearray)):
 		content = bytes(src)
 		head = content[:HEAD_BYTES]
 		tail = content[-TAIL_BYTES:] if len(content) > TAIL_BYTES else content
+		# F-01: eklenmiş yük taraması yalnız son 64 KB'da yapılıyordu; yapısal
+		# bitiş işaretçisi (EOI/IEND) o pencerenin dışına çıkınca tespit
+		# sessizce False dönüyordu. Bayt girdisi ZATEN bellekte — tam içerik
+		# üzerinde taramanın ek maliyeti yok.
+		tam_icerik = content
 		size = len(content)
 		kaynak = "bytes"
 		acilacak: object = io.BytesIO(content)
@@ -524,6 +570,13 @@ def probe_header(
 				source_kind="path",
 			)
 		head, tail, size = _read_edges(yol)
+		if size <= FULL_SCAN_MAX_BYTES:
+			# F-01: 16 MB altındaki dosyada tam tarama ucuz; pencere kaçışı
+			# kapansın. Üstündekiler için `_eklenmis_yuk` "ölçülemedi" der.
+			try:
+				tam_icerik = yol.read_bytes()
+			except OSError:
+				tam_icerik = None
 		kaynak = "path"
 		acilacak = str(yol)
 		ad = filename or yol.name
@@ -543,7 +596,7 @@ def probe_header(
 
 	# Güvenlik sezgileri — `core.probe` ile AYNI uygulama, tekrar yazılmadı.
 	leading = core_probe._has_leading_marker(head)
-	appended = core_probe._has_appended_payload(tail, detected)
+	appended = _eklenmis_yuk(tam_icerik, head, tail, detected, size)
 	eslesme = core_probe._extension_matches(uzanti, detected)
 
 	baslik = _open_header(acilacak)
@@ -654,6 +707,9 @@ def _guard(p: HeaderProbe, config: GuardConfig) -> HeaderProbe:
 				observed="tail_markup",
 			)
 		)
+	elif p.appended_payload is None:
+		# Ölçülemedi ≠ temiz. Sessizce geçmek yerine kayda geçer.
+		uyarilar.append(f"eklenmis_yuk_olculmedi:{p.detected or 'bilinmiyor'}")
 
 	# PİKSEL TAVANI — bomba koruması. Başlıktaki (gerekirse ham baytlardan
 	# okunan) BEYAN ölçüsünden hesaplanır; `im.load()` bu noktaya kadar HİÇ

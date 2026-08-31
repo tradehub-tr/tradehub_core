@@ -10,6 +10,9 @@ from frappe.tests.utils import FrappeTestCase
 from tradehub_core.media import watch_slug
 from tradehub_core.tests.test_video_poster import _yap_video
 
+# Tarama kancası bu modülde nötrleniyor — gerekçe `tests/av_notr.py` başlığında.
+from tradehub_core.tests.av_notr import setUpModule, tearDownModule  # noqa: F401
+
 
 def _gorunur_ilan() -> dict | None:
 	"""Vitrinde görünen ilk ilan — `test_media_video_seo.py::_gorunur_ilan` ile

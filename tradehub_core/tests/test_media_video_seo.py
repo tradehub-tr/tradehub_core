@@ -7,6 +7,9 @@ from frappe.tests.utils import FrappeTestCase
 
 from tradehub_core.media import seo
 
+# Tarama kancası bu modülde nötrleniyor — gerekçe `tests/av_notr.py` başlığında.
+from tradehub_core.tests.av_notr import setUpModule, tearDownModule  # noqa: F401
+
 
 def _gorunur_ilan() -> dict | None:
 	"""Vitrinde görünen ilk ilan — Görev 6 testlerinin ortak fixture bulucusu

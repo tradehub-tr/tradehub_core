@@ -286,6 +286,158 @@ def maybe_generate_renditions(doc: Any, method: str | None = None) -> None:
 		)
 
 
+#: F-33 — kaynak `File` silinince temizlenen bağımlı motor tabloları.
+#: Sıra önemli: alt satırlar önce, `Media Asset` en son.
+_ASSET_DEPENDENTS: tuple[tuple[str, str], ...] = (
+	("Media Usage", "asset"),
+	("Media Crop Intent", "asset"),
+	("Media Metadata Vault", "asset"),
+	("Media Version", "asset"),
+	# F-33c — iş defteri. Unutulursa yalnız artık kalmıyor: `_open_job` işi
+	# `içerik_hash:slot` anahtarıyla YENİDEN KULLANIYOR; asılı `asset` bağı
+	# taşıyan eski satır, aynı içeriğin yeni yüklemesini `LinkValidationError`
+	# ile düşürüyor ve yeni dosya sessizce türevsiz kalıyor. Ölçüldü:
+	# canlı DB'de 44/185 iş satırı silinmiş varlığa bağlı.
+	("Media Processing Job", "asset"),
+)
+
+
+def cleanup_on_file_trash(doc: Any, method: str | None = None) -> None:
+	"""`File.on_trash` — silinen orijinalin motor kayıtlarını ve türevlerini kaldır.
+
+	Ölçüldü (2026-08-29): `trash.purge_expired` File'ı kalıcı siliyor ama
+	HİÇBİR kod `Media Asset` / `Media Version` / `Media Rendition` satırlarını
+	ve türev DOSYALARINI silmiyordu. Her silinen ürün görseli 1 varlık +
+	~16 türev dosyası bırakıyordu; test ortamında 36 yetim varlık birikti.
+
+	İki zarar:
+	  1. Depolama — türev dosyaları hiçbir GC'nin kapsamında değil.
+	  2. **Yanlış idempotency.** `_renditions_exist` yetim varlığı görüp aynı
+	     içeriğin yeni yüklemesine "zaten üretildi" diyor (F-33a ile birlikte
+	     kapatıldı).
+
+	Türevler SİLİNMİYOR, çöp kapısından geçiriliyor (`trash.move_to_trash(...,
+	rendition=)`): denetimli, legal hold'a saygılı, `purge_after` dolana kadar
+	geri alınabilir. Kalıcı silmeyi bakım işi (`retention.purge_soft_deleted_
+	renditions`) yapar — o iş legal hold'u SON KEZ kontrol eder. Varlık ve
+	alt satırları ise kalıcı siliniyor: orijinal gitti, mezar taşı tutmanın
+	tüketicisi yok ve tutulan satır `_renditions_exist`i yanıltıyor.
+
+	Legal hold'daki varlığa DOKUNULMAZ; yalnız denetime yazılır. Hold bir
+	saklama kararıdır ve File'ın silinmesi o kararı düşürmez — tersine, hold
+	altında bir File'ın silinebilmiş olması denetimde görünmesi gereken şeydir.
+
+	Best-effort: burada patlamak File silme işlemini engellememeli.
+	"""
+	try:
+		ad = getattr(doc, "name", None)
+		if not ad or not frappe.db.exists("DocType", "Media Asset"):
+			return
+		varliklar = frappe.get_all(
+			"Media Asset",
+			filters={"source_file": ad},
+			fields=["name", "legal_hold", "slot_key"],
+		)
+		if not varliklar:
+			return
+		from tradehub_core.media import trash as trash_mod
+
+		file_url = getattr(doc, "file_url", "") or ""
+		for v in varliklar:
+			if v.get("legal_hold"):
+				audit.log_media_event(
+					action=audit.ACTION_TRASH,
+					file_url=file_url,
+					allowed=False,
+					reason="legal_hold_asset_orphaned_by_file_delete",
+					context={"asset": v["name"], "slot_key": v.get("slot_key")},
+				)
+				continue
+			for r in frappe.get_all(
+				"Media Rendition",
+				filters={"asset": v["name"], "state": ["!=", "purged"]},
+				fields=["name", "file_url"],
+			):
+				try:
+					trash_mod.move_to_trash(
+						r["file_url"], rendition=r["name"], reason="source_file_deleted"
+					)
+				except Exception:
+					frappe.log_error(
+						title="media.pipeline_bridge türev çöpe taşınamadı",
+						message=f"{r['name']}: {frappe.get_traceback()}",
+					)
+			for dt, alan in _ASSET_DEPENDENTS:
+				if not frappe.db.exists("DocType", dt):
+					continue
+				for satir in frappe.get_all(dt, filters={alan: v["name"]}, pluck="name"):
+					frappe.delete_doc(dt, satir, ignore_permissions=True, force=True, delete_permanently=True)
+			# `Media Rendition.asset` bağı bilerek askıda kalıyor: purge işi
+			# satırı `trash_path` üzerinden bulur, `asset`e yalnız legal hold
+			# için bakar ve kayıt yoksa "tutulu değil" der.
+			frappe.delete_doc(
+				"Media Asset", v["name"], ignore_permissions=True, force=True, delete_permanently=True
+			)
+			audit.log_media_event(
+				action=audit.ACTION_TRASH,
+				file_url=file_url,
+				reason="engine_records_cascaded_on_file_delete",
+				context={"asset": v["name"], "slot_key": v.get("slot_key")},
+			)
+	except Exception:
+		frappe.log_error(
+			title="media.pipeline_bridge cleanup_on_file_trash failed",
+			message=frappe.get_traceback(),
+		)
+
+
+@frappe.whitelist()
+def sweep_orphaned_assets(dry_run: bool = True, limit: int = 5000) -> dict:
+	"""Kaynak `File`'ı artık olmayan varlıkları raporla / temizle — F-33'ün ikizi.
+
+	`cleanup_on_file_trash` kancası BUNDAN SONRAKİ birikimi önlüyor; bu
+	süpürücü kanca yokken oluşmuş yığın içindir (ölçüldü 2026-08-29: 36 yetim
+	varlık, 27'si `ready` durumda türevleriyle birlikte). Aynı temizlik
+	yolundan geçer — türevler çöp kapısına, satırlar kalıcı — ve legal hold'a
+	aynı şekilde saygı duyar.
+
+	**Yetim** = `source_file` dolu ama o adda `File` yok. `source_file` boş
+	sistem varlıkları (bayrak/politika üretimi) yetim SAYILMAZ; onlara
+	dokunulmaz.
+
+	`dry_run=True` (varsayılan) hiçbir şey silmez.
+	"""
+	dry_run = bool(dry_run) if not isinstance(dry_run, str) else dry_run.lower() not in ("0", "false")
+	frappe.only_for("System Manager")
+	yetimler = frappe.db.sql(
+		"""select a.name, a.source_file, a.slot_key, a.state, a.legal_hold
+		   from `tabMedia Asset` a
+		   where ifnull(a.source_file, '') != ''
+		     and not exists (select 1 from `tabFile` f where f.name = a.source_file)
+		   order by a.creation asc
+		   limit %s""",
+		(int(limit),),
+		as_dict=True,
+	)
+	tutulan = [y for y in yetimler if y.get("legal_hold")]
+	aday = [y for y in yetimler if not y.get("legal_hold")]
+	silinen = 0
+	if not dry_run:
+		for y in aday:
+			cleanup_on_file_trash(frappe._dict(name=y["source_file"], file_url=""))
+			silinen += 1
+		frappe.db.commit()
+	return {
+		"orphans": len(yetimler),
+		"held": len(tutulan),
+		"deleted": silinen,
+		"dry_run": dry_run,
+		"samples": [
+			{"asset": y["name"], "slot_key": y["slot_key"], "state": y["state"]} for y in yetimler[:10]
+		],
+	}
+
+
 def _resolve_scope(doc: Any) -> str | None:
 	"""Dosya yeni hattın kapsamında mı; kapsamdaysa `slot_key`, değilse `None`.
 
@@ -781,10 +933,15 @@ def _renditions_exist(surum_hash: str, slot_key: str) -> bool:
 	)
 	if not assetler:
 		return False
+	# F-33a — çöpe taşınmış (`state=purged`) türev "var" DEĞİLDİR. Süzgeç
+	# yokken, silinmiş bir görselin aynısı yeniden yüklendiğinde bu kapı eski
+	# purged satırları görüp "zaten üretildi" diyor ve yeni yükleme SESSİZCE
+	# türevsiz kalıyordu — F-31 ile aynı sınıf: bir artık, taze bir dosyanın
+	# kaderini belirliyor.
 	return bool(
 		frappe.get_all(
 			"Media Rendition",
-			filters={"asset": ["in", assetler]},
+			filters={"asset": ["in", assetler], "state": ["!=", "purged"]},
 			limit=1,
 			pluck="name",
 		)
@@ -2184,6 +2341,11 @@ def _open_job(
 	mevcut = frappe.db.get_value("Media Processing Job", {"idempotency_key": anahtar}, "name")
 	if mevcut:
 		job = frappe.get_doc("Media Processing Job", mevcut)
+		# F-33c — kaydın varlığı silinmişse (kanca yokken oluşmuş yığın) bağı
+		# yeni varlığa çevir; aksi hâlde `save` bağ doğrulamasında düşer ve
+		# aynı içerik bir daha hiç işlenemez.
+		if job.asset != asset_name and not frappe.db.exists("Media Asset", job.asset):
+			job.asset = asset_name
 		# Tavan aşılırsa controller `validate` içinde reddeder; sayaç tavanda durur.
 		job.attempt = min(int(job.attempt or 0) + 1, job.max_attempts())
 		job.status = "running"

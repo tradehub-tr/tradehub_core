@@ -83,7 +83,7 @@
                 "tradehub_core.api.media_admin.apply_media_restore"
               ]
             },
-            "description": "Geri yüklemeyi uygula.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:783",
+            "description": "Geri yüklemeyi uygula.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:859",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"set_id\": \"{{set_id}}\",\n  \"files\": 1,\n  \"records\": 1,\n  \"overwrite\": 1,\n  \"only\": \"{{only}}\"\n}",
@@ -182,7 +182,7 @@
                 }
               ]
             },
-            "description": "SEO denetimi.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:1328"
+            "description": "SEO denetimi.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:1437"
           },
           "event": [
             {
@@ -230,7 +230,7 @@
                 "tradehub_core.api.media_admin.backfill_media_alt"
               ]
             },
-            "description": "Mevcut katalogu parça parça doldur — `av.backfill_pending` deseni.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:1319",
+            "description": "Mevcut katalogu parça parça doldur — `av.backfill_pending` deseni.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:1413",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"limit\": 1,\n  \"only_listing\": 1\n}",
@@ -287,7 +287,64 @@
                 "tradehub_core.api.media_admin.backfill_media_dimensions"
               ]
             },
-            "description": "Görsellerin gerçek çözünürlüğünü doldur — CLS düzeltmesinin ön koşulu.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:1422",
+            "description": "Görsellerin gerçek çözünürlüğünü doldur — CLS düzeltmesinin ön koşulu.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:1570",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"limit\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('5xx yok', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST · media_admin_backfill_media_localization",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "token {{apiKey}}:{{apiSecret}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/method/tradehub_core.api.media_admin.backfill_media_localization",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "method",
+                "tradehub_core.api.media_admin.backfill_media_localization"
+              ]
+            },
+            "description": "Katalogu en/ar/ru dillerinde parça parça doldur (Dilim 8 — Bulk\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:1422",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"limit\": 1\n}",
@@ -386,7 +443,64 @@
                 }
               ]
             },
-            "description": "Medya Gezgini — sanal klasör ağacında bir seviye (TUR-126 devamı).\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:558"
+            "description": "Medya Gezgini — sanal klasör ağacında bir seviye (TUR-126 devamı).\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:624"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('5xx yok', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST · media_admin_change_watch_slug",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "token {{apiKey}}:{{apiSecret}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/method/tradehub_core.api.media_admin.change_watch_slug",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "method",
+                "tradehub_core.api.media_admin.change_watch_slug"
+              ]
+            },
+            "description": "İzleme sayfası (`/medya/v/<slug>`) slug'ını panelden bilinçli değiştir.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:1663",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"file_url\": \"{{fileUrl}}\",\n  \"slug\": \"{{slug}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
           },
           "event": [
             {
@@ -434,7 +548,7 @@
                 "tradehub_core.api.media_admin.clear_media_seo_override"
               ]
             },
-            "description": "clear_media_seo_override\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:1264",
+            "description": "clear_media_seo_override\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:1350",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"file_url\": \"{{fileUrl}}\",\n  \"ref_doctype\": \"{{ref_doctype}}\",\n  \"ref_name\": \"{{ref_name}}\",\n  \"ref_field\": \"{{ref_field}}\"\n}",
@@ -491,7 +605,7 @@
                 "tradehub_core.api.media_admin.create_media_backup"
               ]
             },
-            "description": "Elle yedek al. Zamanlanmış görev bunu günlük çalıştırıyor.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:749",
+            "description": "Elle yedek al. Zamanlanmış görev bunu günlük çalıştırıyor.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:825",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"label\": \"{{label}}\"\n}",
@@ -548,7 +662,7 @@
                 "tradehub_core.api.media_admin.delete_media_backup"
               ]
             },
-            "description": "Tek bir yedeği sil.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:834",
+            "description": "Tek bir yedeği sil.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:910",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"set_id\": \"{{set_id}}\"\n}",
@@ -605,7 +719,7 @@
                 "tradehub_core.api.media_admin.delete_trashed"
               ]
             },
-            "description": "Çöpteki seçili dosyaları KALICI sil. Yalnız System Manager.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:359",
+            "description": "Çöpteki seçili dosyaları KALICI sil. Yalnız System Manager.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:354",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"file_urls\": \"[\\\"{{fileUrl}}\\\"]\",\n  \"shared_ok\": 1\n}",
@@ -662,7 +776,7 @@
                 "tradehub_core.api.media_admin.discard_media_backup_export"
               ]
             },
-            "description": "Hazır paketi sunucudan kaldır.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:877",
+            "description": "Hazır paketi sunucudan kaldır.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:953",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"set_id\": \"{{set_id}}\"\n}",
@@ -721,7 +835,7 @@
                 }
               ]
             },
-            "description": "Paketi indir.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:886"
+            "description": "Paketi indir.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:962"
           },
           "event": [
             {
@@ -811,7 +925,7 @@
                 }
               ]
             },
-            "description": "Filtreye uyan kayıtları CSV olarak döndür.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:688"
+            "description": "Filtreye uyan kayıtları CSV olarak döndür.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:754"
           },
           "event": [
             {
@@ -859,7 +973,7 @@
                 "tradehub_core.api.media_admin.generate_media_alt"
               ]
             },
-            "description": "Kural zinciriyle alt metni üret. `force` insan metnini EZER — yalnız\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:1309",
+            "description": "Kural zinciriyle alt metni üret. `force` insan metnini EZER — yalnız\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:1403",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"file_url\": \"{{fileUrl}}\",\n  \"force\": 1\n}",
@@ -918,7 +1032,7 @@
                 }
               ]
             },
-            "description": "Hedefi olmayan referanslar — geçmişte bozulmuş bağların raporu.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:640"
+            "description": "Hedefi olmayan referanslar — geçmişte bozulmuş bağların raporu.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:706"
           },
           "event": [
             {
@@ -968,7 +1082,7 @@
                 }
               ]
             },
-            "description": "Bu dosyayı gösteren TÜM satırlar — silmeden önce etki listesi.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:486"
+            "description": "Bu dosyayı gösteren TÜM satırlar — silmeden önce etki listesi.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:552"
           },
           "event": [
             {
@@ -1018,7 +1132,7 @@
                 }
               ]
             },
-            "description": "Tek dosyanın tam kullanım dökümü — detay penceresi.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:158"
+            "description": "Tek dosyanın tam kullanım dökümü — detay penceresi.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:159"
           },
           "event": [
             {
@@ -1113,7 +1227,7 @@
                 }
               ]
             },
-            "description": "Tekilleştirilmiş public dosya listesi + üst şerit özeti.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:86"
+            "description": "Tekilleştirilmiş public dosya listesi + üst şerit özeti.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:87"
           },
           "event": [
             {
@@ -1218,7 +1332,7 @@
                 }
               ]
             },
-            "description": "Medya denetim kayıtları — \"kim ne zaman ne yaptı\" görünümü (TUR-140).\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:445"
+            "description": "Medya denetim kayıtları — \"kim ne zaman ne yaptı\" görünümü (TUR-140).\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:511"
           },
           "event": [
             {
@@ -1268,7 +1382,7 @@
                 }
               ]
             },
-            "description": "Denetimde geçen kullanıcı/satıcı listesi — filtre açılır kutusu için.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:663"
+            "description": "Denetimde geçen kullanıcı/satıcı listesi — filtre açılır kutusu için.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:729"
           },
           "event": [
             {
@@ -1318,7 +1432,7 @@
                 }
               ]
             },
-            "description": "Filtre rayı sayaçları — hangi olaydan kaç tane, kaç reddedilen istek.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:656"
+            "description": "Filtre rayı sayaçları — hangi olaydan kaç tane, kaç reddedilen istek.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:722"
           },
           "event": [
             {
@@ -1368,7 +1482,7 @@
                 }
               ]
             },
-            "description": "Tek denetim kaydının tam raporu — dosya künyesi, kullanım, etki, geçmiş.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:670"
+            "description": "Tek denetim kaydının tam raporu — dosya künyesi, kullanım, etki, geçmiş.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:736"
           },
           "event": [
             {
@@ -1418,7 +1532,62 @@
                 }
               ]
             },
-            "description": "En çok olay üreten dosyalar.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:681"
+            "description": "En çok olay üreten dosyalar.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:747"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('5xx yok', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET · media_admin_get_media_migration_status",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "token {{apiKey}}:{{apiSecret}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/method/tradehub_core.api.media_admin.get_media_migration_status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "method",
+                "tradehub_core.api.media_admin.get_media_migration_status"
+              ],
+              "query": [
+                {
+                  "key": "run_key",
+                  "value": "{{run_key}}",
+                  "disabled": false
+                },
+                {
+                  "key": "include_plan",
+                  "value": "1",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "get_media_migration_status\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:480"
           },
           "event": [
             {
@@ -1488,7 +1657,7 @@
                 }
               ]
             },
-            "description": "Bir görselin SEO alanları — kullanım bağlamı verilirse ezme uygulanır.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:1212"
+            "description": "Bir görselin SEO alanları — kullanım bağlamı verilirse ezme uygulanır.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:1293"
           },
           "event": [
             {
@@ -1538,7 +1707,7 @@
                 }
               ]
             },
-            "description": "Redis'teki ilerleme. Kayıt yoksa {\"state\": \"not_found\"}.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:169"
+            "description": "Redis'teki ilerleme. Kayıt yoksa {\"state\": \"not_found\"}.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:170"
           },
           "event": [
             {
@@ -1598,7 +1767,7 @@
                 }
               ]
             },
-            "description": "Mevcut filtrelerle kaç dosyanın işleneceği — onay ekranı bunu gösterir.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:429"
+            "description": "Mevcut filtrelerle kaç dosyanın işleneceği — onay ekranı bunu gösterir.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:426"
           },
           "event": [
             {
@@ -1658,7 +1827,7 @@
                 }
               ]
             },
-            "description": "Özel (private) dosya envanteri — panel \"Özel dosyalar\" görünümü (TUR-126 §4.2).\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:512"
+            "description": "Özel (private) dosya envanteri — panel \"Özel dosyalar\" görünümü (TUR-126 §4.2).\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:578"
           },
           "event": [
             {
@@ -1713,7 +1882,7 @@
                 }
               ]
             },
-            "description": "Ters arama — bir ürünün/mağazanın kullandığı tüm medya (TUR-136).\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:628"
+            "description": "Ters arama — bir ürünün/mağazanın kullandığı tüm medya (TUR-136).\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:694"
           },
           "event": [
             {
@@ -1756,7 +1925,7 @@
                 "tradehub_core.api.media_admin.get_rendition_backfill_status"
               ]
             },
-            "description": "Medya SEO ekranı için katalog/kuyruk ilerlemesi.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:1440"
+            "description": "Medya SEO ekranı için katalog/kuyruk ilerlemesi.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:1588"
           },
           "event": [
             {
@@ -1811,7 +1980,7 @@
                 }
               ]
             },
-            "description": "Filtreye uyan kaç dosya geri alınabilir — onay ekranı için.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:419"
+            "description": "Filtreye uyan kaç dosya geri alınabilir — onay ekranı için.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:418"
           },
           "event": [
             {
@@ -1861,7 +2030,7 @@
                 }
               ]
             },
-            "description": "Redis'teki ilerleme. Kayıt yoksa `{\"state\": \"not_found\"}`.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:1157"
+            "description": "Redis'teki ilerleme. Kayıt yoksa `{\"state\": \"not_found\"}`.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:1237"
           },
           "event": [
             {
@@ -1904,7 +2073,7 @@
                 "tradehub_core.api.media_admin.list_media_backups"
               ]
             },
-            "description": "Alınmış yedekler + deponun kapladığı yer.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:740"
+            "description": "Alınmış yedekler + deponun kapladığı yer.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:816"
           },
           "event": [
             {
@@ -1959,7 +2128,7 @@
                 }
               ]
             },
-            "description": "Karantinadaki dosyalar — envanter listesinden AYRI uç.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:1005"
+            "description": "Karantinadaki dosyalar — envanter listesinden AYRI uç.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:1080"
           },
           "event": [
             {
@@ -2014,7 +2183,7 @@
                 }
               ]
             },
-            "description": "Taraması bitmemiş, bu yüzden erişime kapalı bekleyen dosyalar.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:944"
+            "description": "Taraması bitmemiş, bu yüzden erişime kapalı bekleyen dosyalar.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:1019"
           },
           "event": [
             {
@@ -2064,7 +2233,7 @@
                 }
               ]
             },
-            "description": "Paket ne durumda — ekran bunu düzenli aralıkla sorar.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:868"
+            "description": "Paket ne durumda — ekran bunu düzenli aralıkla sorar.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:944"
           },
           "event": [
             {
@@ -2114,7 +2283,64 @@
                 }
               ]
             },
-            "description": "Geri yüklersem ne olur — HİÇBİR ŞEYE DOKUNMAZ.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:771"
+            "description": "Geri yüklersem ne olur — HİÇBİR ŞEYE DOKUNMAZ.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:847"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('5xx yok', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST · media_admin_preflight_media_migration",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "token {{apiKey}}:{{apiSecret}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/method/tradehub_core.api.media_admin.preflight_media_migration",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "method",
+                "tradehub_core.api.media_admin.preflight_media_migration"
+              ]
+            },
+            "description": "İmzalı planı yazmadan; kapsam, disk ve kuyruklar dahil doğrula.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:452",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"plan_json\": \"{{plan_json}}\",\n  \"batch_size\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
           },
           "event": [
             {
@@ -2164,7 +2390,7 @@
                 }
               ]
             },
-            "description": "Seçimin kullanım kırılımı — onay ekranı uyarıyı buna göre kurar.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:128"
+            "description": "Seçimin kullanım kırılımı — onay ekranı uyarıyı buna göre kurar.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:129"
           },
           "event": [
             {
@@ -2212,7 +2438,7 @@
                 "tradehub_core.api.media_admin.prune_media_backups"
               ]
             },
-            "description": "Eski yedekleri ve artık kimsenin göstermediği içerikleri temizle.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:825",
+            "description": "Eski yedekleri ve artık kimsenin göstermediği içerikleri temizle.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:901",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"keep\": 1\n}",
@@ -2269,7 +2495,7 @@
                 "tradehub_core.api.media_admin.purge_archive"
               ]
             },
-            "description": "Arşivdeki orijinalleri sil — kazanılan alanı kalıcı hâle getirir.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:398",
+            "description": "Arşivdeki orijinalleri sil — kazanılan alanı kalıcı hâle getirir.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:393",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"older_than_days\": 1\n}",
@@ -2326,10 +2552,67 @@
                 "tradehub_core.api.media_admin.purge_trash"
               ]
             },
-            "description": "Çöptekileri KALICI sil. Yalnız System Manager.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:385",
+            "description": "Çöptekileri KALICI sil. Yalnız System Manager.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:380",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"older_than_days\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('5xx yok', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST · media_admin_regenerate_video_poster",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "token {{apiKey}}:{{apiSecret}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/method/tradehub_core.api.media_admin.regenerate_video_poster",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "method",
+                "tradehub_core.api.media_admin.regenerate_video_poster"
+              ]
+            },
+            "description": "Posteri sil ve yeniden üretim işini kuyruğa at (yalnız System Manager).\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:1606",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"file_url\": \"{{fileUrl}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2383,7 +2666,7 @@
                 "tradehub_core.api.media_admin.release_quarantine"
               ]
             },
-            "description": "Yanlış pozitifi karantinadan çıkar — dosyayı yerine koy.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:1053",
+            "description": "Yanlış pozitifi karantinadan çıkar — dosyayı yerine koy.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:1136",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"file_url\": \"{{fileUrl}}\"\n}",
@@ -2440,7 +2723,7 @@
                 "tradehub_core.api.media_admin.repair_dangling_references"
               ]
             },
-            "description": "Kırık referansları temizle. Varsayılan kuru çalışma — yıkıcı iş sessizce\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:648",
+            "description": "Kırık referansları temizle. Varsayılan kuru çalışma — yıkıcı iş sessizce\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:714",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"dry_run\": 1\n}",
@@ -2497,7 +2780,7 @@
                 "tradehub_core.api.media_admin.repair_missing_media"
               ]
             },
-            "description": "Kaydı olup dosyası kaybolanları en yeni yedekten geri getir.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:812",
+            "description": "Kaydı olup dosyası kaybolanları en yeni yedekten geri getir.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:888",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"set_id\": \"{{set_id}}\"\n}",
@@ -2554,7 +2837,7 @@
                 "tradehub_core.api.media_admin.restore_from_trash"
               ]
             },
-            "description": "Çöpten geri al.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:338",
+            "description": "Çöpten geri al.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:333",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"file_urls\": \"[\\\"{{fileUrl}}\\\"]\"\n}",
@@ -2611,10 +2894,67 @@
                 "tradehub_core.api.media_admin.restore_image"
               ]
             },
-            "description": "Optimize edilmiş TEK görseli arşivdeki orijinaliyle geri al (senkron).\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:236",
+            "description": "Optimize edilmiş TEK görseli arşivdeki orijinaliyle geri al (senkron).\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:237",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"file_name\": \"example.jpg\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('5xx yok', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST · media_admin_resume_media_migration",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "token {{apiKey}}:{{apiSecret}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/method/tradehub_core.api.media_admin.resume_media_migration",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "method",
+                "tradehub_core.api.media_admin.resume_media_migration"
+              ]
+            },
+            "description": "resume_media_migration\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:493",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"run_key\": \"{{run_key}}\",\n  \"acknowledge_stop\": 1\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2663,7 +3003,7 @@
                 "tradehub_core.api.media_admin.retro_rename_count"
               ]
             },
-            "description": "Taşınacak eski adlı dosya sayısı — yalnız sayaç, referans taraması YOK.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:1091"
+            "description": "Taşınacak eski adlı dosya sayısı — yalnız sayaç, referans taraması YOK.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:1174"
           },
           "event": [
             {
@@ -2706,7 +3046,7 @@
                 "tradehub_core.api.media_admin.retro_rename_history"
               ]
             },
-            "description": "Geri alınabilir işler: job_key başına satır sayısı ve süre sonu.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:1193"
+            "description": "Geri alınabilir işler: job_key başına satır sayısı ve süre sonu.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:1274"
           },
           "event": [
             {
@@ -2756,7 +3096,7 @@
                 }
               ]
             },
-            "description": "Eski adlı dosyaların salt okunur taşınma planı (System Manager).\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:1108"
+            "description": "Eski adlı dosyaların salt okunur taşınma planı (System Manager).\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:1191"
           },
           "event": [
             {
@@ -2804,7 +3144,7 @@
                 "tradehub_core.api.media_admin.retry_failed_renditions"
               ]
             },
-            "description": "Başarısız rendition işlerini kontrollü yeniden dene.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:1449",
+            "description": "Başarısız rendition işlerini kontrollü yeniden dene.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:1597",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"limit\": 1\n}",
@@ -2861,7 +3201,7 @@
                 "tradehub_core.api.media_admin.retry_scan"
               ]
             },
-            "description": "Taranamamış (`failed`) dosyayı yeniden kuyruğa koy.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:1036",
+            "description": "Taranamamış (`failed`) dosyayı yeniden kuyruğa koy.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:1119",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"file_url\": \"{{fileUrl}}\"\n}",
@@ -2918,10 +3258,67 @@
                 "tradehub_core.api.media_admin.retry_transcode"
               ]
             },
-            "description": "Dead-letter'daki videoyu yönetici eliyle yeniden kuyruğa koy (TUR-296).\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:245",
+            "description": "Dead-letter'daki videoyu yönetici eliyle yeniden kuyruğa koy (TUR-296).\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:246",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"file_url\": \"{{fileUrl}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('5xx yok', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST · media_admin_rollback_media_migration",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "token {{apiKey}}:{{apiSecret}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/method/tradehub_core.api.media_admin.rollback_media_migration",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "method",
+                "tradehub_core.api.media_admin.rollback_media_migration"
+              ]
+            },
+            "description": "rollback_media_migration\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:505",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"run_key\": \"{{run_key}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2975,7 +3372,7 @@
                 "tradehub_core.api.media_admin.rollback_retro_rename"
               ]
             },
-            "description": "Bir işin yeniden adlandırmalarını geri al (yönlendirme satırları durduğu sürece).\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:1172",
+            "description": "Bir işin yeniden adlandırmalarını geri al (yönlendirme satırları durduğu sürece).\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:1252",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"job_key\": \"{{job_key}}\"\n}",
@@ -3032,7 +3429,7 @@
                 "tradehub_core.api.media_admin.scan_backfill"
               ]
             },
-            "description": "Hiç taranmamış mevcut dosyaları parça parça kuyruğa al.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:1071",
+            "description": "Hiç taranmamış mevcut dosyaları parça parça kuyruğa al.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:1154",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"limit\": 1\n}",
@@ -3084,7 +3481,7 @@
                 "tradehub_core.api.media_admin.scan_overview"
               ]
             },
-            "description": "Tarama politikasının ve envanterin özeti — panel üst bandı.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:917"
+            "description": "Tarama politikasının ve envanterin özeti — panel üst bandı.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:993"
           },
           "event": [
             {
@@ -3132,7 +3529,7 @@
                 "tradehub_core.api.media_admin.set_access_level"
               ]
             },
-            "description": "Dosyanın erişim seviyesini public↔private çevir (TUR-126 §4).\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:498",
+            "description": "Dosyanın erişim seviyesini public↔private çevir (TUR-126 §4).\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:564",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"file_url\": \"{{fileUrl}}\",\n  \"make_private\": 1\n}",
@@ -3189,7 +3586,7 @@
                 "tradehub_core.api.media_admin.set_media_indexability"
               ]
             },
-            "description": "Asset visibility/indexability politikasını tek yazma kapısından güncelle.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:1276",
+            "description": "Asset visibility/indexability politikasını tek yazma kapısından güncelle.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:1362",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"file_url\": \"{{fileUrl}}\",\n  \"visibility\": \"{{visibility}}\",\n  \"expires_at\": \"{{expires_at}}\",\n  \"robots_override\": \"{{robots_override}}\"\n}",
@@ -3246,7 +3643,7 @@
                 "tradehub_core.api.media_admin.set_media_seo"
               ]
             },
-            "description": "Varlık varsayılanını yaz. Beyaz liste `media/seo.py`'de — yaşam\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:1232",
+            "description": "Varlık varsayılanını yaz. Beyaz liste `media/seo.py`'de — yaşam\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:1318",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"file_url\": \"{{fileUrl}}\",\n  \"values\": \"{{values}}\",\n  \"store\": \"{{store}}\"\n}",
@@ -3303,7 +3700,7 @@
                 "tradehub_core.api.media_admin.set_media_seo_override"
               ]
             },
-            "description": "Kullanım başına ezme — aynı görsel farklı sayfada farklı alt metni.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:1244",
+            "description": "Kullanım başına ezme — aynı görsel farklı sayfada farklı alt metni.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:1330",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"file_url\": \"{{fileUrl}}\",\n  \"ref_doctype\": \"{{ref_doctype}}\",\n  \"ref_name\": \"{{ref_name}}\",\n  \"ref_field\": \"{{ref_field}}\",\n  \"values\": \"{{values}}\"\n}",
@@ -3360,7 +3757,7 @@
                 "tradehub_core.api.media_admin.start_image_optimization"
               ]
             },
-            "description": "Optimizasyonu kuyruğa al ve takip anahtarı dön.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:176",
+            "description": "Optimizasyonu kuyruğa al ve takip anahtarı dön.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:177",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"file_names\": \"{{file_names}}\",\n  \"preset\": \"{{preset}}\",\n  \"scope\": \"{{scope}}\",\n  \"limit\": 1,\n  \"dry_run\": 1,\n  \"search\": \"{{search}}\",\n  \"only_optimizable\": 1,\n  \"min_bytes\": 1\n}",
@@ -3417,10 +3814,67 @@
                 "tradehub_core.api.media_admin.start_media_backup_export"
               ]
             },
-            "description": "Paketlemeyi başlat — hazırlık arkada sürer, bu uç beklemez.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:859",
+            "description": "Paketlemeyi başlat — hazırlık arkada sürer, bu uç beklemez.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:935",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"set_id\": \"{{set_id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('5xx yok', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST · media_admin_start_media_migration",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "token {{apiKey}}:{{apiSecret}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/method/tradehub_core.api.media_admin.start_media_migration",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "method",
+                "tradehub_core.api.media_admin.start_media_migration"
+              ]
+            },
+            "description": "İlk batch'i başlat; varsayılan dry-run, wet-run aynı özetli onay ister.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:459",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"plan_json\": \"{{plan_json}}\",\n  \"dry_run\": 1,\n  \"batch_size\": 1,\n  \"preset\": \"{{preset}}\",\n  \"approved_dry_run\": \"{{approved_dry_run}}\",\n  \"notify_sellers\": 1\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -3474,7 +3928,7 @@
                 "tradehub_core.api.media_admin.start_rendition_backfill"
               ]
             },
-            "description": "Güncel merdiveni olmayan vitrin görsellerini `long` kuyruğa al.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:1431",
+            "description": "Güncel merdiveni olmayan vitrin görsellerini `long` kuyruğa al.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:1579",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"limit\": 1\n}",
@@ -3531,7 +3985,7 @@
                 "tradehub_core.api.media_admin.start_restore"
               ]
             },
-            "description": "Toplu geri alma — optimizasyonla aynı kuyruk ve ilerleme mekanizması.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:264",
+            "description": "Toplu geri alma — optimizasyonla aynı kuyruk ve ilerleme mekanizması.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:265",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"file_names\": \"{{file_names}}\",\n  \"scope\": \"{{scope}}\",\n  \"search\": \"{{search}}\",\n  \"min_bytes\": 1\n}",
@@ -3588,10 +4042,67 @@
                 "tradehub_core.api.media_admin.start_retro_rename"
               ]
             },
-            "description": "Retro-rename işini kuyruğa al; aynı anda tek iş.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:1124",
+            "description": "Retro-rename işini kuyruğa al; aynı anda tek iş.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:1207",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"dry_run\": 1,\n  \"batch_size\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('5xx yok', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST · media_admin_stop_media_migration",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "token {{apiKey}}:{{apiSecret}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/method/tradehub_core.api.media_admin.stop_media_migration",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "method",
+                "tradehub_core.api.media_admin.stop_media_migration"
+              ]
+            },
+            "description": "Çalışan batch'i yarıda kesmeden bir sonraki checkpoint'te durdur.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:486",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"run_key\": \"{{run_key}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -3645,7 +4156,7 @@
                 "tradehub_core.api.media_admin.stop_retro_rename"
               ]
             },
-            "description": "Bir sonraki batch sınırında durdur.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:1164",
+            "description": "Bir sonraki batch sınırında durdur.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:1244",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"job_key\": \"{{job_key}}\"\n}",
@@ -3702,7 +4213,7 @@
                 "tradehub_core.api.media_admin.sweep_scans"
               ]
             },
-            "description": "Süpürücüyü elle tetikle — takılı kalmış taramaları topla.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:992",
+            "description": "Süpürücüyü elle tetikle — takılı kalmış taramaları topla.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:1067",
             "body": {
               "mode": "raw",
               "raw": "{}",
@@ -3759,10 +4270,124 @@
                 "tradehub_core.api.media_admin.trash_files"
               ]
             },
-            "description": "Seçili dosyaları çöp kutusuna taşı — 30 gün sonra kalıcı silinir.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:303",
+            "description": "Seçili dosyaları çöp kutusuna taşı — 30 gün sonra kalıcı silinir.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:302",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"file_urls\": \"[\\\"{{fileUrl}}\\\"]\",\n  \"force\": 1,\n  \"shared_ok\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('5xx yok', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST · media_admin_upload_video_captions",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "token {{apiKey}}:{{apiSecret}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/method/tradehub_core.api.media_admin.upload_video_captions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "method",
+                "tradehub_core.api.media_admin.upload_video_captions"
+              ]
+            },
+            "description": "WebVTT altyazı içeriğini `File` olarak kaydet ve videoya bağla.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:1630",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"file_url\": \"{{fileUrl}}\",\n  \"vtt_content\": \"{{vtt_content}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('5xx yok', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST · media_admin_validate_media_migration",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "token {{apiKey}}:{{apiSecret}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/method/tradehub_core.api.media_admin.validate_media_migration",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "method",
+                "tradehub_core.api.media_admin.validate_media_migration"
+              ]
+            },
+            "description": "validate_media_migration\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager (yıkıcı işlem). Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:499",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"run_key\": \"{{run_key}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -3823,7 +4448,7 @@
                 }
               ]
             },
-            "description": "Yedek geri yüklenebilir mi — dokunmadan kontrol.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:758"
+            "description": "Yedek geri yüklenebilir mi — dokunmadan kontrol.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Rol: System Manager veya Marketplace Admin. Ret denetime yazılır.\nKaynak: tradehub_core/api/media_admin.py:834"
           },
           "event": [
             {
@@ -4455,6 +5080,63 @@
       "name": "seller",
       "item": [
         {
+          "name": "POST · seller_media_add_media_categories",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "token {{apiKey}}:{{apiSecret}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/method/tradehub_core.api.seller_media.add_media_categories",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "method",
+                "tradehub_core.api.seller_media.add_media_categories"
+              ]
+            },
+            "description": "Birden çok medyaya kategori ekle; mevcut diğer kategorileri korur.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:1773",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"file_urls\": \"[\\\"{{fileUrl}}\\\"]\",\n  \"category_ids\": \"{{category_ids}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('5xx yok', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "GET · seller_media_add_tag",
           "request": {
             "method": "GET",
@@ -4493,7 +5175,7 @@
                 }
               ]
             },
-            "description": "Seçili dosyalara etiket ekle.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:875"
+            "description": "Seçili dosyalara etiket ekle.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:1278"
           },
           "event": [
             {
@@ -4541,10 +5223,67 @@
                 "tradehub_core.api.seller_media.apply_backup_restore"
               ]
             },
-            "description": "Geri yüklemeyi uygula.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:996",
+            "description": "Geri yüklemeyi uygula.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:1399",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"set_id\": \"{{set_id}}\",\n  \"with_files\": 1,\n  \"with_records\": 1,\n  \"overwrite\": 1,\n  \"only\": \"{{only}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('5xx yok', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST · seller_media_apply_media_category_suggestions",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "token {{apiKey}}:{{apiSecret}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/method/tradehub_core.api.seller_media.apply_media_category_suggestions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "method",
+                "tradehub_core.api.seller_media.apply_media_category_suggestions"
+              ]
+            },
+            "description": "Eşiği geçen önerileri ``suggestion`` kaynaklı atama olarak uygula.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:1791",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"file_url\": \"{{fileUrl}}\",\n  \"source\": \"{{source}}\",\n  \"threshold\": \"{{threshold}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -4600,7 +5339,7 @@
                 }
               ]
             },
-            "description": "Seçili dosyaları ARŞİVLE — geri alınabilir.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır.\nKaynak: tradehub_core/api/seller_media.py:313"
+            "description": "Seçili dosyaları ARŞİVLE — geri alınabilir.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır.\nKaynak: tradehub_core/api/seller_media.py:675"
           },
           "event": [
             {
@@ -4650,7 +5389,7 @@
                 }
               ]
             },
-            "description": "Paket hazır mı — ekran bunu yokluyor.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:1038"
+            "description": "Paket hazır mı — ekran bunu yokluyor.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:1441"
           },
           "event": [
             {
@@ -4725,7 +5464,64 @@
                 }
               ]
             },
-            "description": "Satıcının KENDİ medyası, sanal klasör ağacında tek seviye. `store` parametresi YOKTUR ve eklenmeyecektir: mağaza her çağrıda oturumdan türetilir. Bulunamayan kategori/ilan için hata değil BOŞ sonuç döner — \"yok\" ile \"senin değil\" ayrımı başka mağazanın kimliklerini keşfe kapı açardı. Dönüş şekli seviyeye göre değişir: kök ve kategori seviyeleri `{folders:[…]}`, dosya seviyeleri `{items:[…], total:n}`.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`). İlan sahipliği ayrıca doğrulanır (ikinci katman).\nKaynak: tradehub_core/api/seller_media.py:182"
+            "description": "Satıcının KENDİ medyası, sanal klasör ağacında tek seviye. `store` parametresi YOKTUR ve eklenmeyecektir: mağaza her çağrıda oturumdan türetilir. Bulunamayan kategori/ilan için hata değil BOŞ sonuç döner — \"yok\" ile \"senin değil\" ayrımı başka mağazanın kimliklerini keşfe kapı açardı. Dönüş şekli seviyeye göre değişir: kök ve kategori seviyeleri `{folders:[…]}`, dosya seviyeleri `{items:[…], total:n}`.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`). İlan sahipliği ayrıca doğrulanır (ikinci katman).\nKaynak: tradehub_core/api/seller_media.py:240"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('5xx yok', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST · seller_media_cancel_media_reprocess",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "token {{apiKey}}:{{apiSecret}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/method/tradehub_core.api.seller_media.cancel_media_reprocess",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "method",
+                "tradehub_core.api.seller_media.cancel_media_reprocess"
+              ]
+            },
+            "description": "cancel_media_reprocess\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:617",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{token}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
           },
           "event": [
             {
@@ -4773,7 +5569,7 @@
                 "tradehub_core.api.seller_media.create_backup"
               ]
             },
-            "description": "Mağazanın medyasının anlık görüntüsünü al.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:968",
+            "description": "Mağazanın medyasının anlık görüntüsünü al.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:1371",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"label\": \"{{label}}\"\n}",
@@ -4830,10 +5626,67 @@
                 "tradehub_core.api.seller_media.create_folder"
               ]
             },
-            "description": "Klasör aç. Ad/derinlik/benzersizlik kuralları DocType'ta\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:1135",
+            "description": "Klasör aç. Ad/derinlik/benzersizlik kuralları DocType'ta\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:1538",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"folder_name\": \"{{folder_name}}\",\n  \"parent_folder\": \"{{parent_folder}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('5xx yok', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST · seller_media_create_media_category",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "token {{apiKey}}:{{apiSecret}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/method/tradehub_core.api.seller_media.create_media_category",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "method",
+                "tradehub_core.api.seller_media.create_media_category"
+              ]
+            },
+            "description": "Tenant kataloğunda kategori oluştur.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:1695",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"category_name\": \"{{category_name}}\",\n  \"category_type\": \"{{category_type}}\",\n  \"parent_category\": \"{{parent_category}}\",\n  \"description\": \"{{description}}\",\n  \"color\": \"{{color}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -4887,7 +5740,7 @@
                 "tradehub_core.api.seller_media.delete_backup"
               ]
             },
-            "description": "Bir yedeği sil. Son yedek silinemez (kural `seller_backup`te).\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:1024",
+            "description": "Bir yedeği sil. Son yedek silinemez (kural `seller_backup`te).\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:1427",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"set_id\": \"{{set_id}}\"\n}",
@@ -4944,10 +5797,67 @@
                 "tradehub_core.api.seller_media.delete_folder"
               ]
             },
-            "description": "Klasörü sil. DOLU klasör reddedilir (alt klasör ya da dosya varsa) —\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:1169",
+            "description": "Klasörü sil. DOLU klasör reddedilir (alt klasör ya da dosya varsa) —\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:1572",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"folder\": \"{{folder}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('5xx yok', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST · seller_media_delete_media_category",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "token {{apiKey}}:{{apiSecret}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/method/tradehub_core.api.seller_media.delete_media_category",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "method",
+                "tradehub_core.api.seller_media.delete_media_category"
+              ]
+            },
+            "description": "Boş kategoriyi sil; altı/ataması varsa model katmanı reddeder.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:1758",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"category\": \"{{category}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -5001,7 +5911,7 @@
                 "tradehub_core.api.seller_media.discard_backup_export"
               ]
             },
-            "description": "Paketi sunucudan kaldır. Yedeğin kendisine dokunulmaz.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:1045",
+            "description": "Paketi sunucudan kaldır. Yedeğin kendisine dokunulmaz.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:1448",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"set_id\": \"{{set_id}}\"\n}",
@@ -5060,7 +5970,7 @@
                 }
               ]
             },
-            "description": "Paketi indir.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:1052"
+            "description": "Paketi indir.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:1455"
           },
           "event": [
             {
@@ -5110,7 +6020,7 @@
                 }
               ]
             },
-            "description": "Dosyanın gerçek bir kopyasını üret.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:931"
+            "description": "Dosyanın gerçek bir kopyasını üret.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:1334"
           },
           "event": [
             {
@@ -5160,7 +6070,7 @@
                 }
               ]
             },
-            "description": "Yükleme ön kontrolü için tekilleştirme araması (T-042).\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:1271"
+            "description": "Yükleme ön kontrolü için tekilleştirme araması (T-042).\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:1801"
           },
           "event": [
             {
@@ -5210,7 +6120,57 @@
                 }
               ]
             },
-            "description": "Gerçek çözünürlük — ilk soruluşta diskten okunup saklanır.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`). Dosyanın çağıranın mağazasına ait olduğu doğrulanır.\nKaynak: tradehub_core/api/seller_media.py:895"
+            "description": "Gerçek çözünürlük — ilk soruluşta diskten okunup saklanır.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`). Dosyanın çağıranın mağazasına ait olduğu doğrulanır.\nKaynak: tradehub_core/api/seller_media.py:1298"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('5xx yok', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET · seller_media_get_media_reprocess_status",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "token {{apiKey}}:{{apiSecret}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/method/tradehub_core.api.seller_media.get_media_reprocess_status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "method",
+                "tradehub_core.api.seller_media.get_media_reprocess_status"
+              ],
+              "query": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "disabled": false
+                }
+              ]
+            },
+            "description": "get_media_reprocess_status\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:610"
           },
           "event": [
             {
@@ -5287,10 +6247,140 @@
                   "key": "usage_state",
                   "value": "{{usage_state}}",
                   "disabled": true
+                },
+                {
+                  "key": "name_search",
+                  "value": "{{name_search}}",
+                  "disabled": true
+                },
+                {
+                  "key": "kinds",
+                  "value": "{{kinds}}",
+                  "disabled": true
+                },
+                {
+                  "key": "formats",
+                  "value": "{{formats}}",
+                  "disabled": true
+                },
+                {
+                  "key": "mime_types",
+                  "value": "{{mime_types}}",
+                  "disabled": true
+                },
+                {
+                  "key": "orientations",
+                  "value": "{{orientations}}",
+                  "disabled": true
+                },
+                {
+                  "key": "size_buckets",
+                  "value": "{{size_buckets}}",
+                  "disabled": true
+                },
+                {
+                  "key": "date_from",
+                  "value": "{{date_from}}",
+                  "disabled": true
+                },
+                {
+                  "key": "date_to",
+                  "value": "{{date_to}}",
+                  "disabled": true
+                },
+                {
+                  "key": "min_bytes",
+                  "value": "{{min_bytes}}",
+                  "disabled": true
+                },
+                {
+                  "key": "max_bytes",
+                  "value": "{{max_bytes}}",
+                  "disabled": true
+                },
+                {
+                  "key": "tags",
+                  "value": "{{tags}}",
+                  "disabled": true
+                },
+                {
+                  "key": "categories",
+                  "value": "{{categories}}",
+                  "disabled": true
+                },
+                {
+                  "key": "flags",
+                  "value": "{{flags}}",
+                  "disabled": true
+                },
+                {
+                  "key": "owners",
+                  "value": "{{owners}}",
+                  "disabled": true
+                },
+                {
+                  "key": "usage_min",
+                  "value": "{{usage_min}}",
+                  "disabled": true
+                },
+                {
+                  "key": "usage_max",
+                  "value": "{{usage_max}}",
+                  "disabled": true
                 }
               ]
             },
-            "description": "Satıcının kendi dosyaları — sayfalı liste.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:81"
+            "description": "Satıcının kendi dosyaları — sayfalı liste.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:99"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('5xx yok', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET · seller_media_get_my_media_history",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "token {{apiKey}}:{{apiSecret}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/method/tradehub_core.api.seller_media.get_my_media_history",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "method",
+                "tradehub_core.api.seller_media.get_my_media_history"
+              ],
+              "query": [
+                {
+                  "key": "file_url",
+                  "value": "{{fileUrl}}",
+                  "disabled": false
+                }
+              ]
+            },
+            "description": "Bir dosyanın sürüm, işleme ve denetim geçmişi — yalnız sahibi için.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`). Dosyanın çağıranın mağazasına ait olduğu doğrulanır.\nKaynak: tradehub_core/api/seller_media.py:336"
           },
           "event": [
             {
@@ -5333,7 +6423,7 @@
                 "tradehub_core.api.seller_media.get_my_summary"
               ]
             },
-            "description": "Üst şerit — dosya adedi, gerçek depolama kullanımı, bırakılan adedi.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:379"
+            "description": "Tenant medya/kota özeti — kullanım, limit, uyarı ve gözlem metrikleri.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:758"
           },
           "event": [
             {
@@ -5383,7 +6473,7 @@
                 }
               ]
             },
-            "description": "Bu dosyayı KENDİ hangi ürünlerimde kullanıyorum.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`). Dosyanın çağıranın mağazasına ait olduğu doğrulanır.\nKaynak: tradehub_core/api/seller_media.py:251"
+            "description": "Bu dosyayı KENDİ hangi ürünlerimde kullanıyorum.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`). Dosyanın çağıranın mağazasına ait olduğu doğrulanır.\nKaynak: tradehub_core/api/seller_media.py:309"
           },
           "event": [
             {
@@ -5426,7 +6516,7 @@
                 "tradehub_core.api.seller_media.list_backups"
               ]
             },
-            "description": "Mağazanın yedekleri + disk kullanımı.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:975"
+            "description": "Mağazanın yedekleri + disk kullanımı.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:1378"
           },
           "event": [
             {
@@ -5491,7 +6581,7 @@
                 }
               ]
             },
-            "description": "Bir klasördeki dosyalar — `get_my_media` satırlarıyla aynı biçimde,\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:1226"
+            "description": "Bir klasördeki dosyalar — `get_my_media` satırlarıyla aynı biçimde,\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:1616"
           },
           "event": [
             {
@@ -5534,7 +6624,57 @@
                 "tradehub_core.api.seller_media.list_folders"
               ]
             },
-            "description": "Mağazanın TÜM klasörleri (düz liste, `parent_folder` ile ağaç kurulur)\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:1102"
+            "description": "Mağazanın TÜM klasörleri (düz liste, `parent_folder` ile ağaç kurulur)\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:1505"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('5xx yok', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET · seller_media_list_media_categories",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "token {{apiKey}}:{{apiSecret}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/method/tradehub_core.api.seller_media.list_media_categories",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "method",
+                "tradehub_core.api.seller_media.list_media_categories"
+              ],
+              "query": [
+                {
+                  "key": "include_inactive",
+                  "value": "1",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Mağazanın kategori kataloğu ve atanmış medya sayaçları.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:1685"
           },
           "event": [
             {
@@ -5594,7 +6734,7 @@
                 }
               ]
             },
-            "description": "ÖKSÜZ dosyalarım — hiçbir taranan kaynak alanda geçmeyen ve\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:263"
+            "description": "ÖKSÜZ dosyalarım — hiçbir taranan kaynak alanda geçmeyen ve\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:625"
           },
           "event": [
             {
@@ -5642,7 +6782,7 @@
                 "tradehub_core.api.seller_media.move_media"
               ]
             },
-            "description": "Seçili dosyaları klasöre taşı — `folder` boşsa köke (bağ silinir).\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:1180",
+            "description": "Seçili dosyaları klasöre taşı — `folder` boşsa köke (bağ silinir).\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:1583",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"file_urls\": \"[\\\"{{fileUrl}}\\\"]\",\n  \"folder\": \"{{folder}}\"\n}",
@@ -5701,7 +6841,7 @@
                 }
               ]
             },
-            "description": "Geri yükleme yapılsa ne olurdu — rapor, uygulama değil.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:989"
+            "description": "Geri yükleme yapılsa ne olurdu — rapor, uygulama değil.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:1392"
           },
           "event": [
             {
@@ -5751,7 +6891,7 @@
                 }
               ]
             },
-            "description": "Bırakmadan önce özet — onay ekranı uyarıyı buna göre kurar.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:287"
+            "description": "Bırakmadan önce özet — onay ekranı uyarıyı buna göre kurar.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:649"
           },
           "event": [
             {
@@ -5801,7 +6941,7 @@
                 }
               ]
             },
-            "description": "KALICI SİL — geri alınamaz.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır.\nKaynak: tradehub_core/api/seller_media.py:337"
+            "description": "KALICI SİL — geri alınamaz.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır.\nKaynak: tradehub_core/api/seller_media.py:699"
           },
           "event": [
             {
@@ -5849,7 +6989,7 @@
                 "tradehub_core.api.seller_media.rename_folder"
               ]
             },
-            "description": "Klasörün adını değiştir. Kimlik (`name`) değişmez — değişseydi alt\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:1157",
+            "description": "Klasörün adını değiştir. Kimlik (`name`) değişmez — değişseydi alt\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:1560",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"folder\": \"{{folder}}\",\n  \"new_name\": \"{{new_name}}\"\n}",
@@ -5913,7 +7053,7 @@
                 }
               ]
             },
-            "description": "Görünen adı değiştir. Dosyanın YOLU değişmez — değişseydi onu gösteren\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:924"
+            "description": "Görünen adı değiştir. Dosyanın YOLU değişmez — değişseydi onu gösteren\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:1327"
           },
           "event": [
             {
@@ -5973,7 +7113,7 @@
                 }
               ]
             },
-            "description": "Dosyanın içeriğini değiştir — yolu ve tüm bağları korunur.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:937"
+            "description": "Dosyanın içeriğini değiştir — yolu ve tüm bağları korunur.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:1340"
           },
           "event": [
             {
@@ -6021,10 +7161,67 @@
                 "tradehub_core.api.seller_media.retry_video"
               ]
             },
-            "description": "Başarısız (dead-letter) video işlemesini yeniden başlat (TUR-296).\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`). Dosyanın çağıranın mağazasına ait olduğu doğrulanır.\nKaynak: tradehub_core/api/seller_media.py:903",
+            "description": "Başarısız (dead-letter) video işlemesini yeniden başlat (TUR-296).\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`). Dosyanın çağıranın mağazasına ait olduğu doğrulanır.\nKaynak: tradehub_core/api/seller_media.py:1306",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"file_url\": \"{{fileUrl}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('5xx yok', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST · seller_media_set_media_categories",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "token {{apiKey}}:{{apiSecret}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/method/tradehub_core.api.seller_media.set_media_categories",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "method",
+                "tradehub_core.api.seller_media.set_media_categories"
+              ]
+            },
+            "description": "Bir medyanın kullanıcı tarafından seçilmiş kategori kümesini değiştir.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:1767",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"file_url\": \"{{fileUrl}}\",\n  \"category_ids\": \"{{category_ids}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -6078,7 +7275,7 @@
                 "tradehub_core.api.seller_media.start_backup_export"
               ]
             },
-            "description": "Yedeği indirilebilir pakete dönüştürmeyi başlat (arkada çalışır).\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:1031",
+            "description": "Yedeği indirilebilir pakete dönüştürmeyi başlat (arkada çalışır).\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:1434",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"set_id\": \"{{set_id}}\"\n}",
@@ -6088,6 +7285,118 @@
                 }
               }
             }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('5xx yok', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST · seller_media_start_media_reprocess",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "token {{apiKey}}:{{apiSecret}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/method/tradehub_core.api.seller_media.start_media_reprocess",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "method",
+                "tradehub_core.api.seller_media.start_media_reprocess"
+              ]
+            },
+            "description": "En çok 500 satıcı varlığını ayrı düşük-öncelikli işlere dağıt.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:534",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"file_urls\": \"[\\\"{{fileUrl}}\\\"]\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('5xx yok', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET · seller_media_suggest_media_categories",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "token {{apiKey}}:{{apiSecret}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/method/tradehub_core.api.seller_media.suggest_media_categories",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "method",
+                "tradehub_core.api.seller_media.suggest_media_categories"
+              ],
+              "query": [
+                {
+                  "key": "file_url",
+                  "value": "{{fileUrl}}",
+                  "disabled": true
+                },
+                {
+                  "key": "source",
+                  "value": "{{source}}",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Açıklanabilir önerileri yazmadan döndür.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:1782"
           },
           "event": [
             {
@@ -6137,7 +7446,7 @@
                 }
               ]
             },
-            "description": "Favoriyi ters çevir. Favori mağaza bazında — paylaşılan dosyada\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:866"
+            "description": "Favoriyi ters çevir. Favori mağaza bazında — paylaşılan dosyada\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:1269"
           },
           "event": [
             {
@@ -6187,7 +7496,7 @@
                 }
               ]
             },
-            "description": "Arşivden çıkar — dosya aktif listeye döner.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır.\nKaynak: tradehub_core/api/seller_media.py:331"
+            "description": "Arşivden çıkar — dosya aktif listeye döner.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır.\nKaynak: tradehub_core/api/seller_media.py:693"
           },
           "event": [
             {
@@ -6242,7 +7551,64 @@
                 }
               ]
             },
-            "description": "Başlık, alternatif metin, açıklama, etiket, favori güncelle.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:854"
+            "description": "Başlık, alternatif metin, açıklama, etiket, favori güncelle.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:1257"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('5xx yok', function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST · seller_media_update_media_category",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "token {{apiKey}}:{{apiSecret}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/method/tradehub_core.api.seller_media.update_media_category",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "method",
+                "tradehub_core.api.seller_media.update_media_category"
+              ]
+            },
+            "description": "Kategori tanımını beyaz listedeki alanlarla kısmi güncelle.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:1726",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"category\": \"{{category}}\",\n  \"patch\": \"{{patch}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
           },
           "event": [
             {
@@ -6290,7 +7656,7 @@
                 "tradehub_core.api.seller_media.upload_abort"
               ]
             },
-            "description": "Yarıda bırakılan yüklemeyi temizle — iptal gerçekten iptal olsun.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:840",
+            "description": "Yarıda bırakılan yüklemeyi temizle — iptal gerçekten iptal olsun.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:1243",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"upload_id\": \"{{uploadId}}\"\n}",
@@ -6352,7 +7718,7 @@
                 "tradehub_core.api.seller_media.upload_begin"
               ]
             },
-            "description": "Parçalı yükleme oturumu aç.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:671",
+            "description": "Parçalı yükleme oturumu aç.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:1080",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"file_name\": \"example.jpg\",\n  \"total_bytes\": 1,\n  \"slot\": \"product.image\",\n  \"content_sha256\": \"{{contentSha256}}\",\n  \"idempotency_key\": \"{{$guid}}\"\n}",
@@ -6409,7 +7775,7 @@
                 "tradehub_core.api.seller_media.upload_chunk"
               ]
             },
-            "description": "Tek parçayı gönder. Parçalar sırasız gelebilir.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:742",
+            "description": "Tek parçayı gönder. Parçalar sırasız gelebilir.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:1145",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"upload_id\": \"{{uploadId}}\",\n  \"index\": 1,\n  \"content\": \"{{base64Content}}\"\n}",
@@ -6471,7 +7837,7 @@
                 "tradehub_core.api.seller_media.upload_finish"
               ]
             },
-            "description": "Parçaları birleştir ve dosyayı kaydet.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:756",
+            "description": "Parçaları birleştir ve dosyayı kaydet.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:1159",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"upload_id\": \"{{uploadId}}\",\n  \"idempotency_key\": \"{{$guid}}\",\n  \"client_report\": \"{{client_report}}\"\n}",
@@ -6523,7 +7889,7 @@
                 "tradehub_core.api.seller_media.upload_limits"
               ]
             },
-            "description": "Sunucunun uyguladığı sınırlar — istemci aynısını uygulasın diye.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:614"
+            "description": "Sunucunun uyguladığı sınırlar — istemci aynısını uygulasın diye.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:1023"
           },
           "event": [
             {
@@ -6588,7 +7954,7 @@
                 }
               ]
             },
-            "description": "Satıcı kütüphanesine dosya yükle.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:427"
+            "description": "Satıcı kütüphanesine dosya yükle.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:830"
           },
           "event": [
             {
@@ -6638,7 +8004,7 @@
                 }
               ]
             },
-            "description": "Oturumun durumu — kopan yükleme kaldığı yerden sürebilsin.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:848"
+            "description": "Oturumun durumu — kopan yükleme kaldığı yerden sürebilsin.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:1251"
           },
           "event": [
             {
@@ -6693,7 +8059,7 @@
                 }
               ]
             },
-            "description": "Yedek geri yüklenebilir mi — hiçbir şeye dokunmadan kontrol.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:982"
+            "description": "Yedek geri yüklenebilir mi — hiçbir şeye dokunmadan kontrol.\n\nYetki: Oturum zorunlu (`allow_guest` YOK) — misafir 403 alır. Oturumdan mağaza çözülür; mağazasız oturum reddedilir (`PermissionError`).\nKaynak: tradehub_core/api/seller_media.py:1385"
           },
           "event": [
             {
@@ -6860,5 +8226,5 @@
       ]
     }
   ],
-  "x-endpoint-count": 120
+  "x-endpoint-count": 143
 }

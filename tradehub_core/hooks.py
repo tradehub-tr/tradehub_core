@@ -406,7 +406,21 @@ doc_events = {
 		],
 		# Yerel File silme yolu StorageAdapter.delete'i kullanmaz. Mirror açıksa
 		# ikincil nesneyi de ancak commit'ten sonra sil; rollback S3'e yansımasın.
-		"on_trash": "tradehub_core.media.mirror_runtime.maybe_mirror_on_trash",
+		#
+		# İkinci kanca: tarama BEKLETME kopyası. Frappe canlı dosyayı siler ama
+		# `media_scan_hold` altındaki kopyadan haberi yok ve o kopya sonsuza
+		# kadar kalıyordu (ölçüldü 2026-08-29: 509 artık dosya). Adlandırma
+		# içerik-adresli olduğu için artık yalnız yer kaplamıyor, aynı içeriğin
+		# YENİ bir yüklemesini de `seo_index.decide` gözünde "karantinada"
+		# gösteriyordu. Karantina kopyasına dokunulmaz — gerekçe
+		# `av.cleanup_on_file_trash` docstring'inde.
+		"on_trash": [
+			"tradehub_core.media.mirror_runtime.maybe_mirror_on_trash",
+			"tradehub_core.media.av.cleanup_on_file_trash",
+			# F-33 — motor kayıtları ve türevler. En sonda: yukarıdakiler
+			# dosyanın kendisiyle ilgili, bu ise ondan TÜRETİLENLERLE.
+			"tradehub_core.media.pipeline_bridge.cleanup_on_file_trash",
+		],
 	},
 	# Currency cache invalidation — admin manuel düzenlemesinde düş.
 	# (tcmb_fx daily job db.set_value kullandığı için ayrıca explicit invalidate eder.)

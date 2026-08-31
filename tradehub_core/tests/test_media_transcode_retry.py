@@ -656,19 +656,35 @@ class TestVideoDurumToplama(FrappeTestCase):
 
 	def setUp(self):
 		_av_notr(self)
-		self.a = _yeni_video_dosyasi("toplama-a.mp4")
-		self.b = _yeni_video_dosyasi("toplama-b.mp4")
+		# Ad KOŞUMA ÖZGÜ. Eskiden sabitti (`toplama-a.mp4`) ve arama terimi de
+		# sabit `"toplama-"` idi; her koşum iki kayıt bırakınca liste büyüdü,
+		# 82 kayda ulaştı ve `page_size=20` hedefi sayfadan düşürmeye başladı —
+		# test ölçtüğü davranıştan bağımsız olarak kırmızı yandı (ölçüldü
+		# 2026-08-29: `list_files` 41 URL görüyor, 20 satır dönüyor).
+		self.onek = f"toplama-{_KOSUM_TUZU}-"
+		self.a = _yeni_video_dosyasi(f"{self.onek}a.mp4")
+		self.b = _yeni_video_dosyasi(f"{self.onek}b.mp4")
 		frappe.db.set_value("File", self.b.name, "file_url", self.a.file_url, update_modified=False)
 		frappe.db.commit()
 		for ad in (self.a.name, self.b.name):
-			self.addCleanup(
-				lambda ad=ad: frappe.delete_doc(
-					"File", ad, ignore_permissions=True, force=True
-				)
-			)
+			self.addCleanup(lambda ad=ad: self._sil(ad))
+
+	@staticmethod
+	def _sil(ad: str) -> None:
+		"""Sil VE commit et.
+
+		`setUp` insert'i commit ediyor; temizlikteki DELETE commit edilmezse
+		`FrappeTestCase` rollback'i onu geri alıyor ve kayıt kalıcı oluyor —
+		yukarıdaki 82 kalıntının kaynağı buydu ("siler gibi yapan" temizlik).
+		"""
+		try:
+			frappe.delete_doc("File", ad, ignore_permissions=True, force=True)
+			frappe.db.commit()
+		except Exception:
+			frappe.db.rollback()
 
 	def _durum_satiri(self) -> str | None:
-		sonuc = inventory.list_files(page=1, page_size=20, search="toplama-")
+		sonuc = inventory.list_files(page=1, page_size=20, search=self.onek)
 		for r in sonuc["items"]:
 			if r["file_url"] == self.a.file_url:
 				return r.get("video_status")

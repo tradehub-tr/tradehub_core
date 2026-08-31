@@ -99,12 +99,38 @@ class TestKapsam(_DenetimTemeli):
 		self.assertEqual(len(self.yukleme_olaylari), 1, "belge yüklemesi denetime girmeli")
 		self.assertEqual(self.yukleme_olaylari[0]["context"]["kind"], "document")
 
-	def test_bilinmeyen_uzanti_da_kayda_girer(self):
-		# Kapsamı listeyle daraltmak, listeye eklenmeyen her yeni türü sessizce
-		# kayıt dışı bırakırdı. Liste artık kaydı DÜŞÜRMÜYOR.
-		self._yukle(f"veri-{_TUZ}.parquet")
+	def test_medya_olmayan_uzanti_da_kayda_girer(self):
+		"""Kapsamı listeyle daraltmak, yeni her türü sessizce kayıt dışı bırakırdı.
+
+		Test eskiden `.parquet` kullanıyordu ve artık YAZMA kapısında düşüyor:
+		`naming._hashed_name` yalnız `upload_policy.EXTENSIONS` içindeki
+		uzantıları diske yazıyor (`write_file` GENEL bir Frappe kancası). İki
+		ayrı denetim var ve test ikisini karıştırıyordu:
+
+		  yazma beyaz listesi : hangi uzantı diske yazılabilir  (güvenlik)
+		  denetim kaydı       : hangi yükleme kayda girer       (izlenebilirlik)
+
+		Ölçülen ilke ikincisi. Bu yüzden YAZILABİLİR ama medya olmayan bir
+		uzantı seçiliyor; ilke aynı, taşıyıcı geçerli.
+		"""
+		self._yukle(f"veri-{_TUZ}.zip")
 		self.assertEqual(len(self.yukleme_olaylari), 1)
-		self.assertEqual(self.yukleme_olaylari[0]["context"]["kind"], "document")
+		self.assertTrue(self.yukleme_olaylari[0]["context"]["kind"])
+
+	def test_YAZILAMAYAN_uzanti_diske_hic_yazilmaz(self):
+		"""Yazma kapısı ayrı ve kapalı — denetim testi bunu maskelememeli.
+
+		NOT (bulgu): reddedilen yükleme HİÇBİR denetim kaydı bırakmıyor;
+		`naming._hashed_name` çıplak `ValueError` atıyor. Uzantı deneyen bir
+		istemci iz bırakmadan deniyor. Burada yalnız mevcut davranış
+		sabitleniyor.
+		"""
+		from tradehub_core.media import naming
+
+		with self.assertRaises(ValueError) as ctx:
+			naming._hashed_name(f"veri-{_TUZ}.parquet", b"icerik")
+		self.assertIn("İzin verilmeyen dosya uzantısı", str(ctx.exception))
+		self.assertEqual(self.yukleme_olaylari, [], "reddedilen yükleme kayda girdi")
 
 	def test_klasor_kayda_girmez(self):
 		doc = frappe.get_doc(

@@ -17,6 +17,11 @@ from frappe.utils import add_days, get_files_path, now_datetime
 
 from tradehub_core.media import refs, retro_rename
 
+# Tarama kancası bu modülde nötrleniyor: `hold_until_clean` açıkken dosya
+# insert anında public ağaçtan çıkarılıyor ve diskten okuyan testler
+# `FileNotFoundError` alıyor. Gerekçe `tests/av_notr.py` başlığında.
+from tradehub_core.tests.av_notr import setUpModule, tearDownModule  # noqa: F401
+
 
 def _write_flat_public(name: str, content: bytes) -> str:
 	"""Eski düzen: shard'sız, public/files/<name>. `/files/<name>` döner."""
