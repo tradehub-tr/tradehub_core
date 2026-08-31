@@ -473,13 +473,28 @@ class PolicyRegistry:
 	def source_of(self, slot: str) -> Path:
 		return self._source[slot]
 
-	def get(self, slot: str) -> dict:
+	def _raw(self, slot: str) -> dict:
+		"""İç okuma — kopyalamaz. YALNIZ değiştirmeyeceğini bilen çağıran.
+
+		`evaluate()` karar başına bir kez politika okuyor ve hiçbir alanı
+		yazmıyor; her kararda derin kopya çıkarmak sıcak yolu iki katına
+		çıkarırdı (ölçüldü: karar 43 µs).
+		"""
 		try:
 			return self._by_key[slot]
 		except KeyError as exc:
 			raise PolicyNotFound(
 				f"Bilinmeyen slot: {slot!r}. Tanımlı slotlar: {', '.join(self.keys())}"
 			) from exc
+
+	def get(self, slot: str) -> dict:
+		# F-09: doğrudan `self._by_key[slot]` dönülüyordu; çağıranın sözlükte
+		# yaptığı her değişiklik SÜREÇ BOYUNCA kalıcı oluyordu (bir testin
+		# `accept.max_bytes = 1` yazması sonraki tüm kararları bozardı).
+		# Dışa açık okuma derin kopya döner; sıcak yol `_raw()` kullanır.
+		import copy
+
+		return copy.deepcopy(self._raw(slot))
 
 	def __contains__(self, slot: object) -> bool:
 		return slot in self._by_key
@@ -589,7 +604,7 @@ class PolicyEngine:
 			bilinen = MediaProbe.__dataclass_fields__
 			probe = MediaProbe(**{k: v for k, v in probe.items() if k in bilinen})
 
-		policy = self.registry.get(slot)
+		policy = self.registry._raw(slot)
 		violations: list[Violation] = []
 		skipped: list[SkippedRule] = []
 		p = self._params(policy, probe, role)

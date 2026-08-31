@@ -301,6 +301,52 @@ def _move_rendition_to_trash(
 	}
 
 
+def _yoklugu_bildir(file_url: str) -> None:
+	"""Dosya canlı ağaçta yok — F-26: SEBEBİNİ söyle, hepsine "kayıp" deme.
+
+	Tarama sistemi dosyayı public ağaçtan FİZİKSEL olarak çıkarıyor: beklemede
+	`media_scan_hold`'a, zararlı bulunduğunda `media_quarantine`'e taşınıyor.
+	`file_url` değişmediği için `_live_path` her iki durumda da boş dönüyordu ve
+	operatör "Dosya diskte bulunamadı" mesajını okuyup kaydın bozulduğunu
+	sanıyordu. Aynı ayrımı `seller_backup._yokluk_sebebi` zaten yapıyor; iki
+	akış aynı gerçeği farklı anlatmamalı.
+
+	**Karantinadaki dosya çöpe TAŞINMIYOR.** Çöp geri alınabilir bir yer ve
+	`restore_from_trash` yeniden tarama yapmıyor — taşımaya izin vermek
+	"karantina → çöp → geri yükle" zinciriyle zararlıyı public ağaca döndüren
+	bir yol açardı. Karantinadan çıkarma kararı taramanın kendi kapısından
+	(`av.release_from_quarantine`) geçmeli.
+	"""
+	try:
+		from tradehub_core.media import av
+	except Exception:
+		# Tarama modülü yüklenemezse eski davranış korunur; hata mesajı
+		# yanıltıcı olsa da akış durmamalı.
+		frappe.throw(frappe._("Dosya diskte bulunamadı: {0}").format(file_url))
+		return
+
+	if av.in_quarantine(file_url):
+		# `in_use` ile aynı gerekçe: sıradan bir medya dosyası, operatör hangi
+		# dosyayı silmeye çalıştığını görebilmeli.
+		_deny(file_url, "quarantine", sensitive=False)
+		frappe.throw(
+			frappe._(
+				"Bu dosya virüs taramasında zararlı bulunup karantinaya alındı ve zaten "
+				"erişime kapalı. Çöpe taşınamaz; karantinadan çıkarma kararı tarama "
+				"ekranından verilir: {0}"
+			).format(file_url)
+		)
+	if av.in_hold(file_url):
+		_deny(file_url, "scan_hold", sensitive=False)
+		frappe.throw(
+			frappe._(
+				"Bu dosyanın virüs taraması sürüyor ve dosya geçici olarak erişime "
+				"kapalı. Tarama bitince tekrar deneyin: {0}"
+			).format(file_url)
+		)
+	frappe.throw(frappe._("Dosya diskte bulunamadı: {0}").format(file_url))
+
+
 def move_to_trash(
 	file_url: str,
 	force: bool = False,
@@ -336,7 +382,7 @@ def move_to_trash(
 
 	src = _live_path(file_url)
 	if not os.path.isfile(src):
-		frappe.throw(frappe._("Dosya diskte bulunamadı: {0}").format(file_url))
+		_yoklugu_bildir(file_url)
 
 	dst = _trash_path(file_url)
 	size = os.path.getsize(src)

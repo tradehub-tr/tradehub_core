@@ -40,6 +40,11 @@ from tradehub_core.tradehub_core.doctype.media_version.media_version import (
 	version_enrichment_for_assets,
 )
 
+# Tarama kancası bu modülde nötrleniyor: `hold_until_clean` açıkken dosya
+# insert anında public ağaçtan çıkarılıyor ve LQIP/zenginleştirme üretim yolu
+# dosyayı bulamıyor. Gerekçe `tests/av_notr.py` başlığında.
+from tradehub_core.tests.av_notr import setUpModule, tearDownModule  # noqa: F401
+
 #: `lqip.py` sözleşme sınırı — ham hash bu sınırı aşamaz.
 MAX_HASH_BYTES = lqip_mod.MAX_HASH_BYTES
 

@@ -301,11 +301,15 @@ def _has_appended_payload(content: bytes, detected: str) -> bool:
 		return False
 	tail = b""
 	if detected == "jpeg":
-		idx = content.rfind(b"\xff\xd9")
+		# F-02: `rfind` SON işaretçiyi buluyordu; saldırgan
+		# `...EOI <script> EOI` yazınca kuyruk boş kalıyor ve tespit kaçıyordu.
+		# Yapısal son İLK geçerli EOI'dir; ondan sonrası kuyruktur.
+		idx = content.find(b"\xff\xd9")
 		if idx >= 0:
 			tail = content[idx + 2 :]
 	elif detected == "png":
-		idx = content.rfind(b"IEND")
+		# Aynı gerekçe: IEND dosyanın yapısal sonudur, ilkini al.
+		idx = content.find(b"IEND")
 		if idx >= 0:
 			tail = content[idx + 8 :]
 	else:
@@ -380,6 +384,23 @@ def _image_details(content: bytes) -> dict:
 	return out
 
 
+#: Uzantı → tür eşlemesi. `MIME_BY_KIND` anahtarları TÜR adıdır (`jpeg`),
+#: uzantı adı değil; `.jpg` doğrudan aranınca yedek sessizce boş dönüyordu
+#: (F-03: `.jpeg` MIME alıyor, `.jpg` almıyordu). Uzantı önce türe çevrilir.
+_EXTENSION_TO_KIND: dict[str, str] = {
+	ext: sorted(kinds)[0] for ext, kinds in EXTENSION_KINDS.items() if kinds
+}
+
+
+def _mime_from_extension(extension: str) -> str:
+	"""Tür sezilemediğinde uzantıdan MIME — bilinmiyorsa boş dizge."""
+	ext = (extension or "").lower()
+	if not ext.startswith("."):
+		ext = f".{ext}" if ext else ""
+	tur = _EXTENSION_TO_KIND.get(ext, "")
+	return MIME_BY_KIND.get(tur, "")
+
+
 def probe_bytes(content: bytes, filename: str = "", **context) -> MediaProbe:
 	"""Bayt dizisinden künye. `context` ile bağlam alanları geçilir.
 
@@ -399,9 +420,7 @@ def probe_bytes(content: bytes, filename: str = "", **context) -> MediaProbe:
 		"sha256": hashlib.sha256(content).hexdigest(),
 		"kind": kind,
 		"detected": detected,
-		"mime": MIME_BY_KIND.get(detected, "") or MIME_BY_KIND.get(
-			(extension or "").lstrip("."), ""
-		),
+		"mime": MIME_BY_KIND.get(detected, "") or _mime_from_extension(extension),
 		"extension_matches_content": _extension_matches(extension, detected),
 		"leading_marker": _has_leading_marker(content),
 		"appended_payload": _has_appended_payload(content, detected),
@@ -456,14 +475,28 @@ def probe_video_from_ffprobe(data: dict, filename: str = "", **context) -> Media
 		fps = float(fps)
 
 	bitrate_kbps = data.get("bitrate_kbps")
+	uzanti = os.path.splitext(filename)[1].lower() if filename else ""
+	# F-04: tür ve MIME SABİT "mp4" yazılıyordu; WebM kaynakta künye kendi
+	# içinde çelişiyor, `extension_matches_content` de sabit True olduğu için
+	# çelişki görünmüyordu. Kap adı ffprobe çıktısında varsa ondan, yoksa
+	# uzantıdan türetilir; hiçbiri yoksa ölçülemedi (boş) bırakılır.
+	kap = str(data.get("container") or data.get("format_name") or "").lower()
+	if "webm" in kap or "matroska" in kap:
+		tur = "webm"
+	elif "mov" in kap or "quicktime" in kap:
+		tur = "mov"
+	elif "mp4" in kap or "isom" in kap:
+		tur = "mp4"
+	else:
+		tur = _EXTENSION_TO_KIND.get(uzanti, "")
 	base = {
 		"filename": filename,
-		"extension": os.path.splitext(filename)[1].lower() if filename else "",
+		"extension": uzanti,
 		"byte_size": int(data.get("bytes") or 0),
 		"sha256": data.get("sha256", ""),
 		"kind": KIND_VIDEO,
-		"detected": "mp4",
-		"mime": "video/mp4",
+		"detected": tur,
+		"mime": MIME_BY_KIND.get(tur, ""),
 		"width": int(data.get("width") or 0),
 		"height": int(data.get("height") or 0),
 		"readable": bool(data.get("width")),
@@ -475,7 +508,11 @@ def probe_video_from_ffprobe(data: dict, filename: str = "", **context) -> Media
 		"audio_codec": data.get("audio_codec") or "",
 		"video_codec": data.get("video_codec") or "",
 		"animated": True,
-		"extension_matches_content": True,
+		# Sabit True yazmak, uzantı ile gerçek kabın ayrıştığı durumu
+		# görünmez kılıyordu (F-04). Ölçülemiyorsa `None` = "bakılmadı".
+		"extension_matches_content": (
+			_extension_matches(uzanti, tur) if tur else None
+		),
 		"leading_marker": False,
 		"appended_payload": False,
 	}

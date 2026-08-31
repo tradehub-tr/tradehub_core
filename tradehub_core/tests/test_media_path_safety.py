@@ -54,8 +54,30 @@ class TestPathSafetyCompat(FrappeTestCase):
 		super().tearDownClass()
 
 	def test_uses_frappe_impl_when_available(self):
-		if hasattr(frappe_file_utils, "check_path_safety"):
-			self.assertIs(path_safety.check_path_safety, frappe_file_utils.check_path_safety)
+		"""Upstream varsa KARAR ondan gelmeli.
+
+		Eskiden kimlik karşılaştırılıyordu (`assertIs`). Artık modül
+		upstream'i bir sarmalayıcının içinden çağırıyor (F-08: `commonpath`
+		mutlak ile göreceyi karşılaştıramayıp `ValueError` atıyor ve ne
+		upstream ne yerel kopya bunu yakalıyordu; sarmalayıcı fail-closed
+		davranıyor). Sözleşme "aynı nesne" değil, "kararı upstream veriyor".
+		"""
+		if not hasattr(frappe_file_utils, "check_path_safety"):
+			self.skipTest("upstream check_path_safety yok")
+		self.assertIs(path_safety._upstream_check, frappe_file_utils.check_path_safety)
+		with mock.patch.object(path_safety, "_upstream_check", return_value=False) as sahte:
+			self.assertFalse(path_safety.check_path_safety(base_path="/a", requested_path="/a/b"))
+		sahte.assert_called_once()
+
+	def test_karsilastirilamayan_yol_ISTISNA_ATMAZ(self):
+		"""F-08 — `commonpath` mutlak ile göreceyi kabul etmez, `ValueError` atar.
+
+		Kullanıcı girdisiyle beslenen bir kapıda yükselen istisna "güvenli
+		değil" cevabı yerine 500 üretiyordu. Cevap artık fail-closed: False.
+		"""
+		with mock.patch("frappe.log_error") as log_error:
+			self.assertFalse(path_safety.check_path_safety(base_path="/mutlak", requested_path="goreceli"))
+		log_error.assert_called()
 
 	def test_fallback_accepts_path_inside_base(self):
 		mod = _reload_without_frappe_impl()

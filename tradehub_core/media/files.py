@@ -335,10 +335,32 @@ def record_original_hash(doc, store: str, original_sha256: str, slot: str = "") 
 			"original_sha256": h,
 		}
 	)
+	# `library.upload` bir POLİTİKA DEĞİL, sentinel — rapor 86 bunu açıkça
+	# söylüyor: "slot'suz yüklemede slot_key='library.upload' (KASITLI
+	# KNOWN_SLOT_KEYS dışında — boru hattı süzgeçleri görmez)". Ama
+	# `Media Asset.slot_key` alanı `Link → Media Policy` ve `reqd=1`; tabloda
+	# yalnız 9 gerçek slot var.
+	#
+	# Sonuç ölçüldü (2026-08-28): slotsuz HER kütüphane yüklemesinde bu insert
+	# `LinkValidationError: Could not find Slot: library.upload` atıyor, çağıran
+	# best-effort sardığı için istisna yutuluyor ve 3. katman tekilleştirme
+	# (orijinal hash) SESSİZCE hiç çalışmıyor. Canlıda `original_sha256` yalnız
+	# 21/136 varlıkta dolu; dolu olanlar slot bağı olan yüklemeler.
+	#
+	# Yol eskiden çalışıyordu (rapor 107: 20-22 Ağustos tarihli 7 adet
+	# `library.upload` varlığı) — kısıt sonradan kondu ve belgelenmiş niyeti
+	# kırdı.
+	#
+	# 10. bir `Media Policy` kaydı AÇILMIYOR: MOGEM-617 Faz 2 slot kümesini ve
+	# sayılarını dondurdu, kayıt açmak o kararı değiştirmek olurdu — ve sentinel
+	# zaten "politikası yok" demek. Bunun yerine yalnız sentinel dalında bağ
+	# doğrulaması atlanıyor. Kaybedilen bir şey yok: `source_file` elimizdeki
+	# `File` kaydının adı, `owner_seller` yukarıda oturumdan çözüldü.
+	sentinel = slot_key == LIBRARY_UPLOAD_SLOT
 	try:
 		# Sistem kaydı: yükleme akışının yan ürünü; sahiplik yukarıda oturumdan
 		# çözülmüş `store` ile yazılıyor, kullanıcı girdisiyle değil.
-		varlik.insert(ignore_permissions=True)
+		varlik.insert(ignore_permissions=True, ignore_links=sentinel)
 	except (frappe.DuplicateEntryError, frappe.UniqueValidationError):
 		# Yarış: `asset_key` unique — kazananın kaydına alan yazılır (INV-06 deseni).
 		mevcut = frappe.db.get_value("Media Asset", filtre, "name")

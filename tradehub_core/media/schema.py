@@ -31,6 +31,33 @@ from tradehub_core.media import usage
 # Bunlarda TÜM sütunlar önemli, çünkü yedek bu tablolara satır yazıyor.
 FULL_TABLES: tuple[str, ...] = ("tabFile", "tabAuthorization Decision Log")
 
+# F-25: Medya motorunun kendi tabloları. Yedek bunlara satır YAZMIYOR — türetilmiş
+# durum (varlık kaydı, üretilen boyutlar, kırpma niyeti, SEO ezmesi, kullanım
+# eşlemesi) yalnız `File` ve dosyalardan yeniden üretilebilir sayılıyor.
+#
+# Buna rağmen künyeye giriyorlar, çünkü künyenin iddiası "medyanın veritabanındaki
+# ayak izi". Motor tabloları o ayak izinin bugün en büyük parçası ve künye onları
+# hiç görmüyordu: motorun kurulu OLMADIĞI bir veritabanına geri yükleme yapılırsa
+# `File` satırları dönüyor, ama üzerlerine bağlı hiçbir motor kaydı dönmüyor ve
+# karşılaştırma "yapı uyumlu" diyordu. Sessiz olan buydu.
+#
+# `FULL_TABLES`'a KOYULMUYORLAR: oradaki sözleşme "yedek bu tablolara satır yazar"
+# ve bir sütunun kaybı doğrudan veri kaybıdır. Burada kayıp zaten peşinen kabul
+# edilmiş; rapor edilen şey kapsam, risk değil.
+DERIVED_TABLES: tuple[str, ...] = (
+	"tabMedia Asset",
+	"tabMedia Rendition",
+	"tabMedia Metadata Vault",
+	"tabMedia Crop Intent",
+	"tabMedia Crop Override",
+	"tabMedia SEO Override",
+	"tabMedia Usage",
+	"tabMedia Version",
+	"tabMedia Category Assignment",
+	"tabMedia Folder Item",
+	"tabMedia Processing Job",
+)
+
 # Medya yamaları — hedef veritabanında çalışmışlar mı. Çalışmadıysa `th_media_*`
 # sütunları hiç yoktur ve geri yükleme o alanları yazamaz.
 PATCH_MARKERS: tuple[str, ...] = ("media",)
@@ -88,12 +115,44 @@ def _media_patches() -> list[str]:
 	)
 
 
+def _row_count(table: str) -> int | None:
+	"""Tablodaki satır sayısı — tablo yoksa `None` (0 ile karıştırılmamalı).
+
+	"Motor tablosu yok" ile "motor tablosu boş" farklı iki dünya: birincisinde
+	geri yükleme hedefinde motor hiç kurulu değil, ikincisinde kurulu ama veri
+	yok. Künye ikisini ayırt edemezse rapor da edemez.
+	"""
+	# Tablo adı sorgu METNİNE giriyor — parametre olamaz. Repo kuralı #11 gereği
+	# adın dışarıdan gelemeyeceği burada kanıtlanıyor, "zaten sabitten geliyor"
+	# varsayımına bırakılmıyor: bir gün çağıran değişirse kapı burada kapanır.
+	if table not in DERIVED_TABLES:
+		raise ValueError(f"Bilinmeyen tablo: {table!r}")
+	try:
+		satir = frappe.db.sql(f"select count(*) from `{table}`")  # noqa: S608
+	except Exception:
+		return None
+	return int(satir[0][0]) if satir else None
+
+
 def capture() -> dict:
 	"""Bugünkü medya yapısının künyesi."""
 	tablolar: dict[str, dict] = {}
 	for t in FULL_TABLES:
 		sutunlar = _columns(t)
 		tablolar[t] = {"exists": bool(sutunlar), "columns": sutunlar}
+
+	# Türetilmiş tablolar: sütunları künyeye giriyor (yapı kayması görünsün) ve
+	# ek olarak yedek ANINDAKİ satır sayısı da saklanıyor. Bu sayı geri yükleme
+	# planında "bu kadar kayıt bu yedekte YOK" cümlesine dönüşüyor; yoksa kapsam
+	# dışı kalanın büyüklüğü hiçbir yerde görünmüyordu.
+	turetilmis: dict[str, dict] = {}
+	for t in DERIVED_TABLES:
+		sutunlar = _columns(t)
+		turetilmis[t] = {
+			"exists": bool(sutunlar),
+			"columns": sutunlar,
+			"rows": _row_count(t) if sutunlar else None,
+		}
 
 	# Adres tutan tablolarda YALNIZ ilgili sütun künyeye giriyor. Tamamını almak
 	# künyeyi ürün şemasının kopyasına çevirirdi; buradaki soru "medya bağı
@@ -122,6 +181,7 @@ def capture() -> dict:
 		"app_version": surum,
 		"frappe_version": frappe.__version__,
 		"tables": tablolar,
+		"derived_tables": turetilmis,
 		"media_links": baglar,
 		"patches": _media_patches(),
 	}
@@ -190,6 +250,25 @@ def compare(kaydedilen: dict | None) -> dict:
 		if not bugun or not bugun.get("exists"):
 			kopan_bag.append(f"{b['table']}.{b['column']}")
 
+	# Türetilmiş tablolar ayrı hesaplanıyor ve `ok` bayrağını DÜŞÜRMÜYOR: yedek
+	# zaten bu satırları taşımıyor, dolayısıyla hedefte yokluğu "geri yükleme
+	# başarısız olur" demek değil. Ama sessiz de kalmamalı — plan bunu ayrı bir
+	# başlıkta söylüyor.
+	simdiki_turetilmis = simdi.get("derived_tables") or {}
+	kurulu_degil: list[str] = []
+	yapisi_kaymis: list[str] = []
+	tasinmayan = 0
+	for tablo, kayit in (kaydedilen.get("derived_tables") or {}).items():
+		tasinmayan += kayit.get("rows") or 0
+		bugun = simdiki_turetilmis.get(tablo) or {}
+		if kayit.get("exists") and not bugun.get("exists"):
+			kurulu_degil.append(tablo)
+			continue
+		eski_s = kayit.get("columns") or {}
+		bugun_s = bugun.get("columns") or {}
+		if eski_s and bugun_s and set(eski_s) - set(bugun_s):
+			yapisi_kaymis.append(tablo)
+
 	eski_yamalar = set(kaydedilen.get("patches") or [])
 	yeni_yamalar = set(simdi.get("patches") or [])
 	eksik_yama = sorted(eski_yamalar - yeni_yamalar)
@@ -210,7 +289,40 @@ def compare(kaydedilen: dict | None) -> dict:
 		# Yalnız bilgi
 		"new_columns": sorted(yeni_sutun),
 		"type_changed": tip_degisen,
+		# Kapsam dışı — yedek taşımıyor, `ok` bayrağını etkilemez
+		"derived_known": bool(kaydedilen.get("derived_tables")),
+		"derived_absent": sorted(kurulu_degil),
+		"derived_drifted": sorted(yapisi_kaymis),
+		"derived_rows_not_carried": tasinmayan,
 	}
+
+
+def _turetilmis_satirlari(fark: dict) -> list[str]:
+	"""Motor tablolarının kapsam dışı kaldığını AÇIKÇA söyleyen satırlar.
+
+	Operatör "yapı uyumlu" cümlesini okuyup her şeyin döneceğini sanıyordu.
+	Dönmeyen şeyin adı ve büyüklüğü aynı ekranda yazmalı.
+	"""
+	if not fark.get("derived_known"):
+		return ["Bilgi: bu yedek motor tablolarının künyesini taşımıyor (künye eklenmeden önce alınmış)."]
+
+	satirlar = []
+	sayi = fark.get("derived_rows_not_carried") or 0
+	if sayi:
+		satirlar.append(
+			f"Kapsam dışı: yedek anında motor tablolarında {sayi} kayıt vardı; "
+			"yedek bunları TAŞIMIYOR, dosyalardan yeniden üretilmeleri gerekir."
+		)
+	if fark.get("derived_absent"):
+		satirlar.append(
+			"Hedefte medya motoru kurulu değil — şu tablolar yok: "
+			+ ", ".join(fark["derived_absent"])
+		)
+	if fark.get("derived_drifted"):
+		satirlar.append(
+			"Motor tablolarının yapısı kaymış: " + ", ".join(fark["derived_drifted"])
+		)
+	return satirlar
 
 
 def summary_lines(fark: dict) -> list[str]:
@@ -229,6 +341,7 @@ def summary_lines(fark: dict) -> list[str]:
 				f"Bilgi: yedekten sonra {len(fark['new_columns'])} yeni sütun eklenmiş, "
 				"bunlar boş gelecek."
 			)
+		satirlar.extend(_turetilmis_satirlari(fark))
 		return satirlar
 
 	satirlar.append("DİKKAT — yapı örtüşmüyor:")
@@ -244,4 +357,5 @@ def summary_lines(fark: dict) -> list[str]:
 			if len(liste) > 12:
 				satirlar.append(f"    … ve {len(liste) - 12} tane daha")
 	satirlar.append("  Bu alanlar geri yüklenemez; önce veritabanını güncelleyin.")
+	satirlar.extend(_turetilmis_satirlari(fark))
 	return satirlar

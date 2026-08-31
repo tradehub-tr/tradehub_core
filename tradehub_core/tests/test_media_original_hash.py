@@ -33,6 +33,11 @@ from frappe.query_builder import DocType
 
 from tradehub_core.api import seller_media as uc
 from tradehub_core.media import files, inventory
+
+# Tarama kancası bu modülde nötrleniyor: `hold_until_clean` açıkken dosya
+# insert anında public ağaçtan çıkarılıyor ve diskten okuyan testler
+# `FileNotFoundError` alıyor. Gerekçe `tests/av_notr.py` başlığında.
+from tradehub_core.tests.av_notr import setUpModule, tearDownModule  # noqa: F401
 from tradehub_core.tests.test_media_dedup_endpoint import _DedupUcuTesti
 
 

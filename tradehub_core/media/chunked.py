@@ -354,6 +354,19 @@ def finish(upload_id: str, store: str) -> bytes:
 
 	icerik = bytes(parcalar)
 
+	# F-12: `content_sha256` alınıyor, saklanıyor ve yanıtta geri veriliyordu
+	# ama BİRLEŞEN İÇERİKLE hiç karşılaştırılmıyordu — API bir bütünlük
+	# sözleşmesi ilan edip uygulamıyordu. İlan edilmişse doğrulanır; hiç
+	# gönderilmemişse (eski istemci) kural DEĞERLENDİRİLMEZ.
+	ilan = str(meta.get("content_sha256") or "")
+	if ilan:
+		gercek = hashlib.sha256(icerik).hexdigest()
+		if gercek != ilan:
+			upload_policy.reddet(
+				upload_policy.CONTENT_HASH_MISMATCH,
+				frappe._("Yüklenen içerik ilan edilen özetle eşleşmiyor; lütfen tekrar deneyin."),
+			)
+
 	# POLİTİKA BİRLEŞİMDEN SONRA. Parça parça bakmak aldatıcı olurdu: ilk parça
 	# geçerli bir görsel başlığı taşıyıp devamı script olabilirdi.
 	upload_policy.check(meta["file_name"], content=icerik, media_endpoint=True)

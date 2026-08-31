@@ -49,12 +49,18 @@ class ApiArtifactTest(unittest.TestCase):
 		self._assert_examples(collection._http_document())
 		self._assert_examples(pure_spec.build_document())
 
-	def test_postman_koleksiyonu_120_ucun_tamamini_tasir(self):
+	def test_postman_koleksiyonu_TUM_uclarin_tamamini_tasir(self):
+		"""Sayı 120'den 143'e çıktı — koleksiyon diskte bayat kalmıştı.
+
+		`x-endpoint-count` üreteçten geliyor ve zaten tutuyordu; sabit sayı
+		güncellenmediği için kapı, uç eklendiğini "hata" diye raporluyordu.
+		Sayıyı sabitlemek yine de doğru: 143'ün 0'a düşmesi de sessiz kalmamalı.
+		"""
 		doc = collection.build_collection()
 		items = [item for group in doc["item"] for item in group["item"]]
 		self.assertEqual(len(items), doc["x-endpoint-count"])
-		self.assertEqual(len(items), 120)
-		self.assertEqual(len({item["name"] for item in items}), 120)
+		self.assertEqual(len(items), 143)
+		self.assertEqual(len({item["name"] for item in items}), 143)
 
 	def test_postman_koleksiyonu_diskte_guncel(self):
 		expected = json.dumps(collection.build_collection(), ensure_ascii=False, indent=2) + "\n"

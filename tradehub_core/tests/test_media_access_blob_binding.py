@@ -44,6 +44,11 @@ from werkzeug.wrappers import Response
 from tradehub_core.api import media_access
 from tradehub_core.media import file_isolation
 
+# Tarama kancası bu modülde nötrleniyor: `hold_until_clean` açıkken dosya
+# insert anında public ağaçtan çıkarılıyor ve diskten okuyan testler
+# `FileNotFoundError` alıyor. Gerekçe `tests/av_notr.py` başlığında.
+from tradehub_core.tests.av_notr import setUpModule, tearDownModule  # noqa: F401
+
 
 def _now() -> int:
 	return int(time.time())

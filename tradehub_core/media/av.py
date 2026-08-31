@@ -84,6 +84,7 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import time
 
 import frappe
 from frappe.utils import now_datetime
@@ -125,6 +126,21 @@ MAX_SCAN_ATTEMPTS: int = jobs.MAX_ATTEMPTS
 QUEUE_TIMEOUT_SECONDS: int = 300
 _SCAN_TIMEOUT_SECONDS: int = 120
 
+# Sağlık yoklaması (F-28). Kısa: yoklamanın kendisi dosya yüklemeyi bekletmemeli.
+_HEALTH_PROBE_TIMEOUT_SECONDS: int = 5
+_HEALTH_TTL_SECONDS: int = 60
+_HEALTH_CACHE_KEY: str = "media_av_scanner_health"
+
+# Süreç içi memo — Redis katmanının ÜSTÜNDE, onun yerine değil.
+#
+# İki sebep: (1) `policy()` her `File` insert'inde ve her tarama adımında
+# çağrılıyor, her seferinde Redis'e gitmek gereksiz; (2) Redis katmanı tek
+# başına güvenilir değil — test koşusunda yazılan değerin aynı test içinde geri
+# okunamadığı ölçüldü (2026-08-28) ve Redis hiç erişilemezse yoklama her
+# çağrıda tekrarlanır, yani asılı daemon senaryosunda 5 sn'lik gecikme her
+# yüklemeye binerdi. Memo süreç ömrüyle sınırlı ve aynı TTL'e tabi.
+_health_memo: dict[str, float | dict] = {}
+
 # Tercih sırası: `clamdscan` arka plandaki daemon'a bağlanır (imza veritabanını
 # bir kez yükler, taşımalı çağrı milisaniyeler sürer). `clamscan` her çağrıda
 # ~200 MB imzayı baştan okur — yedek yol olarak duruyor, tercih değil.
@@ -144,7 +160,12 @@ _EXIT_INFECTED: int = 1
 
 
 def scanner_command() -> tuple[str, ...] | None:
-	"""Kullanılabilir tarayıcı komutu — hiçbiri kurulu değilse None."""
+	"""Kurulu tarayıcı komutu — YALNIZ dosya varlığına bakar, çalıştığına değil.
+
+	Sağlık sorusunun cevabı `healthy_scanner_command()`'ta. İkisi ayrı tutuluyor
+	çünkü "kurulu mu" bilgisi tanı ekranlarında da lazım ve orada bir alt süreç
+	açmanın anlamı yok.
+	"""
 	for isim, bayraklar in _SCANNER_CANDIDATES:
 		yol = shutil.which(isim)
 		if yol:
@@ -152,7 +173,104 @@ def scanner_command() -> tuple[str, ...] | None:
 	return None
 
 
+def _saglik_yoklamasi(yol: str) -> tuple[bool, str]:
+	"""Tarayıcı GERÇEKTEN cevap veriyor mu — `--version` ile yoklanır.
+
+	`clamdscan` bir istemci; asıl iş `clamd` daemon'ında. Daemon ölüyse ya da
+	asılıysa binary yerinde durur. Ölçüldü (2026-08-28, container içinde):
+	daemon SIGSTOP ile dondurulduğunda `clamdscan --version` hata vermiyor,
+	**donuyor** (`timeout` ile rc=124). Yani hızlı hata beklentisi yanlış;
+	yoklamanın kendi zaman aşımı olmak zorunda.
+	"""
+	try:
+		sonuc = subprocess.run(
+			[yol, "--version"],
+			capture_output=True,
+			timeout=_HEALTH_PROBE_TIMEOUT_SECONDS,
+			check=False,
+		)
+	except subprocess.TimeoutExpired:
+		return False, f"{_HEALTH_PROBE_TIMEOUT_SECONDS} sn içinde yanıt vermedi (daemon asılı olabilir)"
+	except Exception as exc:  # noqa: BLE001 - yoklama hiçbir sebeple akışı kesmemeli
+		return False, f"{type(exc).__name__}: {exc}"[:160]
+	if sonuc.returncode != 0:
+		detay = (sonuc.stderr or sonuc.stdout or b"").decode("utf-8", "replace").strip()
+		return False, detay[:160] or f"çıkış kodu {sonuc.returncode}"
+	return True, (sonuc.stdout or b"").decode("utf-8", "replace").strip()[:160]
+
+
+def scanner_health(*, refresh: bool = False) -> dict:
+	"""Hangi tarayıcı ÇALIŞIYOR — F-28.
+
+	**TANI amaçlıdır — karar yolunda ÇAĞRILMAZ.** `policy()` ve
+	`scanner_available()` bilinçli olarak buraya bağlı değil: sağlığı politikaya
+	bağlamak, daemon bir an düştüğünde `hold_until_clean`i de kapatıp o aralıkta
+	yüklenen dosyaları taranmadan public ağaca çıkarıyordu. Tarama anındaki
+	kurtarma `scan_path` → `_yedek_komut` yolunda.
+
+	Buranın işi operatöre "binary duruyor ama daemon cevap vermiyor" farkını
+	göstermek. `shutil.which` bu farkı göremiyordu.
+
+	Sonuç önbelleğe alınıyor; bedeli, daemon geri geldiğinde en fazla
+	`_HEALTH_TTL_SECONDS` kadar bayat bilgi.
+	"""
+	if not refresh:
+		anlik = _health_memo.get("at")
+		deger = _health_memo.get("value")
+		if isinstance(anlik, float) and isinstance(deger, dict):
+			if time.monotonic() - anlik < _HEALTH_TTL_SECONDS:
+				return deger
+		try:
+			onbellek = frappe.cache.get_value(_HEALTH_CACHE_KEY)
+		except Exception:
+			onbellek = None
+		if isinstance(onbellek, dict):
+			_health_memo.update({"at": time.monotonic(), "value": onbellek})
+			return onbellek
+
+	adaylar: list[dict] = []
+	secilen: tuple[str, ...] | None = None
+	for isim, bayraklar in _SCANNER_CANDIDATES:
+		yol = shutil.which(isim)
+		if not yol:
+			adaylar.append({"name": isim, "installed": False, "healthy": False, "detail": "kurulu değil"})
+			continue
+		saglikli, detay = _saglik_yoklamasi(yol)
+		adaylar.append({"name": isim, "installed": True, "healthy": saglikli, "detail": detay})
+		if saglikli and secilen is None:
+			secilen = (yol, *bayraklar)
+
+	durum = {
+		"ok": secilen is not None,
+		"command": list(secilen) if secilen else [],
+		"scanner": secilen[0] if secilen else "",
+		"candidates": adaylar,
+		"checked_at": frappe.utils.now(),
+	}
+	_health_memo.update({"at": time.monotonic(), "value": durum})
+	try:
+		frappe.cache.set_value(_HEALTH_CACHE_KEY, durum, expires_in_sec=_HEALTH_TTL_SECONDS)
+	except Exception:
+		# Redis yazılamazsa süreç içi memo devrede kalır; doğruluk bozulmaz,
+		# yalnız başka süreçler kendi yoklamasını yapar.
+		pass
+	return durum
+
+
+def healthy_scanner_command() -> tuple[str, ...] | None:
+	"""Çalıştığı doğrulanmış tarayıcı komutu — yoksa None."""
+	durum = scanner_health()
+	return tuple(durum["command"]) if durum.get("ok") else None
+
+
 def scanner_available() -> bool:
+	"""Tarayıcı KURULU mu.
+
+	Bilinçli olarak sağlık yoklaması YAPMAZ: `policy()` buradan besleniyor ve
+	sağlığa bağlanması daemon düştüğü anda bekletmeyi de kapatıp dosyaları
+	taranmadan yayına çıkarıyordu. Daemon'ın gerçekten cevap verip vermediği
+	`scan_path` içinde, tarama anında ele alınıyor.
+	"""
 	return scanner_command() is not None
 
 
@@ -178,6 +296,12 @@ def policy() -> dict:
 		beklet = etkin
 	else:
 		beklet = bool(int(bekletme))
+	# DAEMON SAĞLIĞI BURAYA BAĞLANMAZ (F-28 ilk denemesinin geri alınan hatası).
+	# `enabled`i sağlığa bağlamak şunu üretiyordu: clamd bir an düşünce
+	# `hold_until_clean` de kapanıyor ve o aralıkta yüklenen dosyalar
+	# TARANMADAN public ağaca çıkıyordu. Yani düzeltme, düzelttiğinden daha
+	# kötü bir fail-open açıyordu. Kurulum = niyet; daemon'ın anlık durumu
+	# işletme meselesidir ve `scan_path` içinde ele alınır.
 	return {
 		"enabled": etkin,
 		"fail_closed": bool(int(conf.get("media_av_fail_closed", 0) or 0)),
@@ -312,13 +436,53 @@ def hold(file_url: str) -> bool:
 		return False
 
 
+def _turev_uretimini_tetikle(file_url: str) -> None:
+	"""F-27: Beklemeden dönen dosya için türev üretimini YENİDEN kuyruğa al.
+
+	Yükleme anında iki şey aynı anda oluyor: `File.after_insert` türev işini
+	kuyruğa alıyor, tarama kancası da dosyayı public ağaçtan bekletmeye
+	çekiyor. İş worker'da çalıştığında dosya artık orada değil; hiçbir türev
+	üretilmiyor ve iş hatasız biterek yeniden denenmiyor. Tarama temiz çıkıp
+	dosya geri konduğunda ise kimse üretimi tekrar tetiklemiyordu.
+
+	Sonuç ölçüldü: bekletmeye giren dosyalar 0 Media Asset ile kalıyor, elle
+	tetiklenen aynı dosya 1 üretiyor. Yani tarama açıkken hattın kendisi
+	sessizce devre dışı kalıyordu.
+
+	Burası tek doğru yer: dosyanın canlı ağaca DÖNDÜĞÜ an. `maybe_generate_
+	renditions` yeniden çağrılıyor, kendi kapıları (bayrak, rollout, kapsam,
+	slot, idempotency) olduğu gibi işliyor — burada hiçbir karar kopyalanmıyor.
+	`_renditions_exist` zaten üretilmişse iş açılmasını engelliyor, o yüzden
+	tekrar çağrı güvenli.
+
+	Best-effort: burada patlamak taramanın sonucunu yazmayı engellememeli.
+	"""
+	try:
+		from tradehub_core.media import pipeline_bridge
+
+		ad = frappe.db.get_value("File", {"file_url": file_url}, "name")
+		if not ad:
+			return
+		pipeline_bridge.maybe_generate_renditions(frappe.get_doc("File", ad))
+	except Exception:
+		frappe.log_error(
+			title="media.av türev üretimi tetiklenemedi",
+			message=f"{file_url}: {frappe.get_traceback()}",
+		)
+
+
 def release_hold(file_url: str) -> bool:
-	"""Bekletmedeki dosyayı canlı ağaca geri koy — tarama temiz çıktı."""
+	"""Bekletmedeki dosyayı canlı ağaca geri koy — tarama temiz çıktı.
+
+	Dosya geri konduktan sonra türev üretimi yeniden tetikleniyor (F-27);
+	gerekçe `_turev_uretimini_tetikle` docstring'inde.
+	"""
 	try:
 		src = _hold_path(file_url)
 		if not os.path.exists(src):
 			return False
 		_tasi(src, _live_path(file_url))
+		_turev_uretimini_tetikle(file_url)
 		return True
 	except Exception:
 		frappe.log_error(
@@ -326,6 +490,142 @@ def release_hold(file_url: str) -> bool:
 			message=f"{file_url}: {frappe.get_traceback()}",
 		)
 		return False
+
+
+def _hold_url(yol: str) -> str:
+	"""Bekletme yolundan `file_url`'i geri üret — `_hold_path`'in tersi."""
+	koke_gore = os.path.relpath(yol, _hold_root())
+	if koke_gore.startswith("private" + os.sep):
+		return "/private/files/" + koke_gore[len("private") + 1 :].replace(os.sep, "/")
+	return "/files/" + koke_gore.replace(os.sep, "/")
+
+
+@frappe.whitelist()
+def sweep_orphaned_holds(dry_run: bool = True, limit: int = 5000) -> dict:
+	"""Sahipsiz bekletme kopyalarını raporla / temizle — `cleanup_on_file_trash`'in ikizi.
+
+	Kanca BUNDAN SONRAKİ birikimi önlüyor; bu süpürücü kanca yokken oluşmuş
+	YIĞINI temizler. İkisi ayrı: mevcut kurulumlarda kanca tek başına hiçbir
+	şeyi düzeltmez.
+
+	**Sahipsiz** = bekletme altında dosya var, ama o adrese ait `File` kaydı
+	YOK. Taraması süren gerçek dosyalar (kaydı duran) ASLA silinmez — ölçüt
+	dosyanın yaşı ya da tarama durumu değil, kaydının varlığıdır; bu, yarışa
+	kapalı tek ölçüt.
+
+	Neden önemli olduğu `cleanup_on_file_trash` docstring'inde: adlandırma
+	içerik-adresli olduğu için sahipsiz bir artık, aynı içeriğin YENİ ve temiz
+	bir yüklemesini `seo_index.decide` gözünde "karantinada" gösteriyor.
+
+	`dry_run=True` (varsayılan) hiçbir şey silmez — yalnız sayar ve örnekler.
+	"""
+	dry_run = bool(dry_run) if not isinstance(dry_run, str) else dry_run.lower() not in ("0", "false")
+	frappe.only_for("System Manager")
+
+	kok = _hold_root()
+	toplam = 0
+	sahipsiz: list[str] = []
+	bayt = 0
+	if not os.path.isdir(kok):
+		return {"scanned": 0, "orphans": 0, "deleted": 0, "bytes": 0, "samples": [], "dry_run": dry_run}
+
+	for dizin, _alt, dosyalar in os.walk(kok):
+		for ad in dosyalar:
+			if toplam >= limit:
+				break
+			yol = os.path.join(dizin, ad)
+			toplam += 1
+			try:
+				url = _hold_url(yol)
+			except Exception:
+				continue
+			if frappe.db.exists("File", {"file_url": url}):
+				continue
+			sahipsiz.append(yol)
+			try:
+				bayt += os.path.getsize(yol)
+			except OSError:
+				pass
+
+	silinen = 0
+	if not dry_run:
+		for yol in sahipsiz:
+			try:
+				os.remove(yol)
+				silinen += 1
+				try:
+					os.rmdir(os.path.dirname(yol))
+				except OSError:
+					pass
+			except OSError:
+				continue
+		audit.log_media_event(
+			action=audit.ACTION_SCAN,
+			file_url="",
+			reason="orphaned_holds_swept",
+			context={"deleted": silinen, "bytes": bayt},
+		)
+
+	return {
+		"scanned": toplam,
+		"orphans": len(sahipsiz),
+		"deleted": silinen,
+		"bytes": bayt,
+		"samples": [_hold_url(y) for y in sahipsiz[:10]],
+		"dry_run": dry_run,
+	}
+
+
+def cleanup_on_file_trash(doc, method: str | None = None) -> None:
+	"""`File.on_trash` — silinen dosyanın BEKLETME kopyasını da kaldır.
+
+	Bekletme (`media_scan_hold`) geçici bir bekleme odası: dosyayı tarama
+	bitene kadar public ağaçtan uzak tutar. `File` kaydı silindiğinde Frappe
+	canlı dosyayı siler ama bu kopyadan haberi yoktur ve kopya SONSUZA KADAR
+	kalır.
+
+	İki somut zarar ölçüldü (2026-08-29):
+
+	  1. Depolama sızıntısı — `media_scan_hold` altında 509 artık dosya.
+	  2. **Yanlış karantina kararı.** Adlandırma içerik-adresli
+	     (`sha256[:32].uzantı`); aynı içerik ileride yeniden yüklenirse ADRESİ
+	     de aynı olur. `seo_index.decide` bekletme/karantina kontrolünü DOSYA
+	     SİSTEMİNDEN yapıyor (`av.in_hold(url)`), dolayısıyla eski artık
+	     yüzünden yepyeni ve temiz bir dosya `reason="quarantine"` alıp
+	     site haritasından ve yapısal veriden düşüyor.
+
+	KARANTİNA KOPYASI SİLİNMEZ. O bir bekleme odası değil, bulgu kaydı: zararlı
+	içeriğin kanıtı ve saklama kararı güvenlik tarafınındır. Yalnız denetime
+	yazılır ki sahipsiz kalan kopya izlenebilsin.
+
+	Best-effort: burada patlamak silme işlemini ASLA engellememeli.
+	"""
+	try:
+		file_url = getattr(doc, "file_url", "") or ""
+		if not file_url:
+			return
+		if in_quarantine(file_url):
+			audit.log_media_event(
+				action=audit.ACTION_SCAN,
+				file_url=file_url,
+				reason="quarantine_orphaned_by_file_delete",
+				context={"note": "File kaydı silindi, karantina kopyası korundu"},
+			)
+			return
+		yol = _hold_path(file_url)
+		if not os.path.exists(yol):
+			return
+		os.remove(yol)
+		# Boş kalan shard dizinini topla; 256 boş dizin bırakmanın anlamı yok.
+		try:
+			os.rmdir(os.path.dirname(yol))
+		except OSError:
+			pass
+	except Exception:
+		frappe.log_error(
+			title="media.av bekletme kopyası silinemedi",
+			message=f"{getattr(doc, 'file_url', '?')}: {frappe.get_traceback()}",
+		)
 
 
 def in_quarantine(file_url: str) -> bool:
@@ -554,6 +854,30 @@ def scan_path(path: str) -> tuple[str, str]:
 	if not cmd:
 		raise FileNotFoundError("AV tarayıcısı kurulu değil (clamdscan/clamscan)")
 
+	try:
+		return _tara(cmd, path)
+	except (subprocess.TimeoutExpired, RuntimeError) as ilk_hata:
+		# F-28 — `clamdscan` bir istemci, iş `clamd` daemon'ında. Daemon ölü ya
+		# da asılıysa binary yerinde durduğu için seçim değişmiyordu ve HER
+		# tarama aynı duvara çarpıyordu: 120 sn zaman aşımı, ardından yeniden
+		# deneme ve dead-letter. Ölçüldü (container, 2026-08-28): daemon SIGSTOP
+		# ile dondurulduğunda `clamdscan` hata VERMİYOR, donuyor.
+		#
+		# Ön yoklama YAPILMIYOR — her taramaya alt süreç maliyeti eklerdi ve
+		# sağlıklı yolda hiçbir şey kazandırmazdı. Yedek yalnız gerçekten
+		# başarısız olunca devreye giriyor.
+		yedek = _yedek_komut(cmd)
+		if not yedek:
+			raise
+		frappe.log_error(
+			title="media.av tarayıcı yedeğe düştü",
+			message=f"{cmd[0]} başarısız ({type(ilk_hata).__name__}); {yedek[0]} deneniyor",
+		)
+		return _tara(yedek, path)
+
+
+def _tara(cmd: tuple[str, ...], path: str) -> tuple[str, str]:
+	"""Tek tarayıcı çağrısı — sonucu sözleşmeye çevirir."""
 	sonuc = subprocess.run(
 		[*cmd, path], capture_output=True, timeout=_SCAN_TIMEOUT_SECONDS, check=False
 	)
@@ -565,6 +889,24 @@ def scan_path(path: str) -> tuple[str, str]:
 	# "neden taranamadı" sorusu cevaplanabilsin.
 	ciktilar = (sonuc.stderr or sonuc.stdout or b"").decode("utf-8", "replace").strip()
 	raise RuntimeError(f"tarayıcı hata kodu {sonuc.returncode}: {ciktilar[:300]}")
+
+
+def _yedek_komut(kullanilan: tuple[str, ...]) -> tuple[str, ...] | None:
+	"""Tercih sırasında, kullanılandan SONRAKİ ilk kurulu aday.
+
+	`clamdscan` daemon'a bağımlı; `clamscan` tek başına çalışır. Sıra bu yüzden
+	anlamlı: yedek her zaman daha bağımsız olan taraf.
+	"""
+	kullanilan_ad = os.path.basename(kullanilan[0])
+	gecildi = False
+	for isim, bayraklar in _SCANNER_CANDIDATES:
+		if not gecildi:
+			gecildi = isim == kullanilan_ad
+			continue
+		yol = shutil.which(isim)
+		if yol:
+			return (yol, *bayraklar)
+	return None
 
 
 def _signature_name(stdout: bytes) -> str:
