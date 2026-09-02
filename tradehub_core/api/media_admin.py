@@ -28,6 +28,7 @@ from tradehub_core.media import (
 	refs,
 	retro_rename,
 	runner,
+	thumbs,
 	timefmt,
 	transcode,
 	trash,
@@ -620,6 +621,22 @@ def get_private_files(page: int = 1, page_size: int = 50, search: str = "") -> d
 	return {"items": rows, "total": total, "page": page, "page_size": page_size}
 
 
+def _browse_thumbs(result: dict) -> dict:
+	"""Gezginin dosya sayfasına hazır türev küçük resimlerini ekler.
+
+	Özel ve sohbet dosyalarına dokunulmaz: türev yolları public ağaçta yaşar,
+	özel belgenin görselini public URL üzerinden sızdırmak yasak.
+	"""
+	items = result.get("items") or []
+	urls = [r.get("file_url") for r in items if not r.get("is_private") and not r.get("chat")]
+	tmap = thumbs.thumbs_for(urls) if urls else {}
+	for r in items:
+		turev = tmap.get(r.get("file_url")) or {}
+		r["thumb_url"] = turev.get("thumb", "")
+		r["preview_url"] = turev.get("preview", "")
+	return result
+
+
 @frappe.whitelist()
 def browse_media(
 	scope: str = "",
@@ -654,8 +671,10 @@ def browse_media(
 	if scope == "chat":
 		if not store:
 			return browse.chat_stores()
-		return browse.files(
-			scope="chat", store=store, page=int(page), page_size=int(page_size), search=search
+		return _browse_thumbs(
+			browse.files(
+				scope="chat", store=store, page=int(page), page_size=int(page_size), search=search
+			)
 		)
 	if scope == "private":
 		if not group:
@@ -665,14 +684,16 @@ def browse_media(
 				return browse.private_group_stores(group)
 			if not doc_field:
 				return browse.private_store_fields(group, sub)
-		return browse.files(
-			scope="private",
-			group=group,
-			sub=sub,
-			doc_field=doc_field,
-			page=int(page),
-			page_size=int(page_size),
-			search=search,
+		return _browse_thumbs(
+			browse.files(
+				scope="private",
+				group=group,
+				sub=sub,
+				doc_field=doc_field,
+				page=int(page),
+				page_size=int(page_size),
+				search=search,
+			)
 		)
 	if scope != "public":
 		frappe.throw(_("Geçersiz kapsam: {0}").format(scope))
@@ -680,13 +701,15 @@ def browse_media(
 		return browse.public_stores()
 	if not category and store != browse.PLATFORM_STORE:
 		return browse.public_categories(store)
-	return browse.files(
-		scope="public",
-		store=store,
-		category=category,
-		page=int(page),
-		page_size=int(page_size),
-		search=search,
+	return _browse_thumbs(
+		browse.files(
+			scope="public",
+			store=store,
+			category=category,
+			page=int(page),
+			page_size=int(page_size),
+			search=search,
+		)
 	)
 
 
@@ -1433,6 +1456,20 @@ def backfill_media_localization(limit: int = 500) -> dict:
 	return seo_generate.backfill_localization(limit=limit)
 
 
+def _seo_thumbs(result: dict) -> dict:
+	"""SEO denetim sayfasının satırlarına türev küçük resmini ekler.
+
+	Medya listeleriyle aynı kaynak (`media/thumbs.py`): türevi olmayan satır
+	haritada yoktur, ön yüz orijinale ya da uzantı karosuna düşer.
+	"""
+	items = result.get("files") or []
+	urls = [r.get("file_url") for r in items]
+	tmap = thumbs.thumbs_for(urls) if urls else {}
+	for r in items:
+		r["thumb_url"] = (tmap.get(r.get("file_url")) or {}).get("thumb", "")
+	return result
+
+
 @frappe.whitelist()
 def audit_media_seo(
 	file_urls: str | list[str] | None = None,
@@ -1476,7 +1513,9 @@ def audit_media_seo(
 		# yoksa aynı primary görsel scope görünümünde lcp_candidate_unoptimized
 		# taşırken tek-dosya denetiminde bulgu sessizce kaybolur (final review).
 		temiz = [(u or "").split("?")[0] for u in urls if u]
-		return seo_audit.audit_batch(urls, deep=bool(int(deep)), primary_urls=_primary_urls_for(temiz))
+		return _seo_thumbs(
+			seo_audit.audit_batch(urls, deep=bool(int(deep)), primary_urls=_primary_urls_for(temiz))
+		)
 
 	adaylar, primary_urls = _seo_audit_adaylari(scope, limit)
 	sonuc = seo_audit.audit_scope(
@@ -1486,7 +1525,7 @@ def audit_media_seo(
 		refresh=bool(int(refresh)),
 		primary_urls=primary_urls,
 	)
-	return seo_audit.paginate(sonuc, page=page, page_size=page_size, code=code, query=q)
+	return _seo_thumbs(seo_audit.paginate(sonuc, page=page, page_size=page_size, code=code, query=q))
 
 
 def _primary_urls_for(urls: list[str]) -> set[str]:
