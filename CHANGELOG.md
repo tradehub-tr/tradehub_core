@@ -1,3 +1,14 @@
+## [v1.13.1-alpha.53] - 2026-09-02 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Duzeltildi
+- fix(media): listelerde hazır küçük resimleri kullan (@ahmeetseker)
+  - Medya gezgini ve SEO denetim satırlarına thumb/preview URL'leri eklendi
+  - Orijinal büyük dosyalar yerine hazır Media Rendition türevleri kullanılarak liste yükü azaltıldı
+  - Özel ve sohbet dosyalarında public türev URL sızıntısı engellendi
+
+---
 ## [v1.13.1-alpha.52] - 2026-08-31 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
