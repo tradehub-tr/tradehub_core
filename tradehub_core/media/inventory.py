@@ -775,6 +775,8 @@ def list_files(
 				Max(f2.th_optimized_at).as_("optimized_at"),
 				Max(f2.th_media_video_status).as_("video_status"),
 				Max(f2.th_original_size).as_("original_size"),
+				Max(f2.th_media_width).as_("width"),
+				Max(f2.th_media_height).as_("height"),
 				Count("*").as_("record_count"),
 				Count(NullIf(f2.attached_to_name, "")).distinct().as_("usage_count"),
 				Max(f2.attached_to_doctype).as_("usage_doctype"),
@@ -803,6 +805,8 @@ def list_files(
 			# kayıtlara birden yazılıyor (enqueue_transcode), kopyalar ayrışmaz.
 			Max(f.th_media_video_status).as_("video_status"),
 			Max(f.th_original_size).as_("original_size"),
+			Max(f.th_media_width).as_("width"),
+			Max(f.th_media_height).as_("height"),
 			Count("*").as_("record_count"),
 			Count(NullIf(f.attached_to_name, "")).distinct().as_("usage_count"),
 			Max(f.attached_to_doctype).as_("usage_doctype"),
@@ -842,6 +846,7 @@ def _decorate(
 	kullandığı için "kullanılıyor" yazardı — hem satıcı için yanlış bilgi,
 	hem o mağazanın varlığının sızması.
 	"""
+	from tradehub_core.media import thumbs as thumbs_mod
 	from tradehub_core.media import usage as usage_mod
 
 	if store:
@@ -854,7 +859,13 @@ def _decorate(
 	else:
 		vmap = usage_mod.verdict_map_all(deep=True)
 		counts = counts if counts is not None else usage_mod.usage_counts_all()
+	# Küçük resimler hazır türevlerden: orijinal 1.4 MB yerine 2-6 KB'lık
+	# webp. Türevi olmayan dosya haritada yoktur, ön yüz orijinale düşer.
+	tmap = thumbs_mod.thumbs_for([r["file_url"] for r in rows])
 	for r in rows:
+		turev = tmap.get(r["file_url"]) or {}
+		r["thumb_url"] = turev.get("thumb", "")
+		r["preview_url"] = turev.get("preview", "")
 		# MIME ayrı DB kolonu değil; yükleme politikasında doğrulanan görünen
 		# addan standart değer türetilir. Filtre de aynı uzantı sözlüğünü kullanır.
 		r["mime_type"] = (
