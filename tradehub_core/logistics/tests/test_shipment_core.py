@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import unittest
+import unittest.mock as mock
 
 import frappe
 from frappe.tests.utils import FrappeTestCase
@@ -464,8 +465,14 @@ class TestShipmentCore(FrappeTestCase):
 		self.assertEqual(updated["data"]["status"], ShipmentStatus.PENDING)
 
 		# Gecis matrisi API yolunda da gecerli: Pending → Picked Up reddedilir.
-		with self.assertRaises(ShipmentStateError):
-			shipment_api.update_shipment_status(name, ShipmentStatus.PICKED_UP)
+		# @logistics_endpoint (E2E bulgu A) hatayi zarfa cevirir; _fail icindeki
+		# frappe.db.rollback commit edilmemis PAYLASILAN fixture'lari (order
+		# kalan miktari) ucurup kardes testleri kirmasin diye mock'lanir —
+		# rollback davranisinin kendisi test_logistics_api_utils'te kilitli.
+		with mock.patch("frappe.db.rollback"):
+			rejected = shipment_api.update_shipment_status(name, ShipmentStatus.PICKED_UP)
+		self.assertFalse(rejected["ok"])
+		self.assertEqual(rejected["error"]["code"], ShipmentStateError.code)
 
 		self.assertEqual(frappe.db.get_value("Shipment", name, "status"), ShipmentStatus.PENDING)
 
@@ -481,6 +488,42 @@ class TestShipmentCore(FrappeTestCase):
 		self.assertEqual(frappe.db.count("Shipment", {"idempotency_key": key}), 1)
 		# Ikinci cagri yeni kalem sevk etmedi — kalan miktar degismedi.
 		self.assertEqual(get_remaining_qty(self.order_item), _ORDER_QTY - 3)
+
+	def test_api_missing_shipment_returns_not_found_envelope(self) -> None:
+		"""E2E bulgu A: olmayan sevkiyat ham DoesNotExistError DEGIL, NOT_FOUND zarfi doner.
+
+		Panel dallanmasi error.code uzerinden yapilir (logisticsEnvelope.js);
+		zarfsiz ham hata panelde INTERNAL_ERROR + Ingilizce mesaj gosteriyordu.
+		"""
+		missing: str = f"SHP-YOK-{frappe.generate_hash(length=8)}"
+
+		calls = (
+			lambda: shipment_api.get_shipment_detail(missing),
+			lambda: shipment_api.update_shipment_status(missing, ShipmentStatus.PENDING),
+			lambda: shipment_api.cancel_shipment(missing),
+		)
+		for call in calls:
+			frappe.local.response.pop("http_status_code", None)
+			# _fail icindeki rollback commit edilmemis class fixture'larini
+			# ucurmasin (order/seller kayitlari) — mock'lanir.
+			with mock.patch("frappe.db.rollback"):
+				result = call()
+			self.assertFalse(result["ok"])
+			self.assertEqual(result["error"]["code"], "NOT_FOUND")
+			self.assertEqual(frappe.local.response.get("http_status_code"), 404)
+			# i18n: get_doc'un Ingilizce ham mesaji degil, Turkce mesaj doner.
+			self.assertIn(missing, result["error"]["message"])
+
+	def test_api_create_missing_order_returns_not_found_envelope(self) -> None:
+		"""E2E bulgu A: create_shipment'ta olmayan Order da NOT_FOUND zarfina esler."""
+		frappe.local.response.pop("http_status_code", None)
+
+		with mock.patch("frappe.db.rollback"):
+			result = shipment_api.create_shipment(order=f"ORD-YOK-{frappe.generate_hash(length=8)}")
+
+		self.assertFalse(result["ok"])
+		self.assertEqual(result["error"]["code"], "NOT_FOUND")
+		self.assertEqual(frappe.local.response.get("http_status_code"), 404)
 
 	# -------------------------------------------------------------------
 	# 6. P1 duzeltme paketi (guvenlik/butunluk)

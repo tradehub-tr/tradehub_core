@@ -5,8 +5,11 @@
 
 Standart yanit formati (docs/LOGISTICS-ARCHITECTURE.md P bolumu):
   {"ok": True, "data": ..., "meta": {"api_version": "v1"}}
-Hatalar frappe.throw ile firlatilir — framework HTTP yanitini
-exception sinifinin http_status_code'una gore sarar.
+Hatalar @logistics_endpoint sozlesme zarfina girer (E2E denetimi 2026-09,
+bulgu A): onceki surum ham frappe.throw yaniti donduruyordu ve panel
+error.code uzerinden dallanamadigi icin INTERNAL_ERROR gosteriyordu.
+Zarf sekli (logistics/api_utils.py — FE karsiligi logisticsEnvelope.js):
+  {"ok": False, "error": {"code": "NOT_FOUND", "message": "..."}} + HTTP 404 vb.
 
 Yetki katmanlari:
   - @frappe.whitelist() (guest YOK) + _require_authenticated_user guard'i
@@ -22,6 +25,7 @@ import frappe
 from frappe import _
 from frappe.utils import cint
 
+from tradehub_core.logistics.api_utils import logistics_endpoint
 from tradehub_core.logistics.constants import API_VERSION, ShipmentStatus
 
 _LIST_FIELDS: tuple[str, ...] = (
@@ -65,7 +69,19 @@ def _meta(**extra: object) -> dict:
 	return meta
 
 
+def _get_shipment_or_404(name: str) -> frappe.model.document.Document:
+	"""Sevkiyati getirir; kayit yoksa i18n mesajli DoesNotExistError firlatir.
+
+	frappe.get_doc'un ham (Ingilizce) mesaji yerine Turkce mesaj uretilir;
+	@logistics_endpoint DoesNotExistError'i NOT_FOUND zarfina esler (bulgu A).
+	"""
+	if not frappe.db.exists("Shipment", name):
+		frappe.throw(_("Sevkiyat bulunamadı: {0}").format(name), frappe.DoesNotExistError)
+	return frappe.get_doc("Shipment", name)
+
+
 @frappe.whitelist()
+@logistics_endpoint()
 def create_shipment(
 	order: str,
 	items: str | None = None,
@@ -90,6 +106,11 @@ def create_shipment(
 	# P1-6a: bos string idempotency key None'a normalize edilir — '' unique
 	# kolona yazilmasin (split_engine de ayrica normalize eder; cift katman).
 	idempotency_key = idempotency_key or None
+
+	# Olmayan Order ham DoesNotExistError yerine i18n mesajla NOT_FOUND
+	# zarfina esleniyor (get_doc'un Ingilizce mesaji panele sizmasin).
+	if not frappe.db.exists("Order", order):
+		frappe.throw(_("Sipariş bulunamadı: {0}").format(order), frappe.DoesNotExistError)
 
 	# Yetki: kullanici siparisi okuyabiliyor olmali. Order'in DocPerm modeli
 	# (System Manager full + "All" if_owner=1) hicbir role doctype-seviyesi
@@ -139,6 +160,7 @@ def create_shipment(
 
 
 @frappe.whitelist()
+@logistics_endpoint()
 def list_shipments(
 	status: str | None = None,
 	order: str | None = None,
@@ -200,6 +222,7 @@ def list_shipments(
 
 
 @frappe.whitelist()
+@logistics_endpoint()
 def get_shipment_detail(name: str) -> dict:
 	"""Sevkiyat detayini child tablolar dahil dondurur.
 
@@ -216,7 +239,7 @@ def get_shipment_detail(name: str) -> dict:
 	"""
 	user: str = _require_authenticated_user()
 
-	doc = frappe.get_doc("Shipment", name)
+	doc = _get_shipment_or_404(name)
 	doc.check_permission("read")
 
 	from tradehub_core.logistics.permissions import mask_shipment_cost_fields
@@ -274,6 +297,7 @@ def _seller_can_transition(doc: frappe.model.document.Document, user: str, to_st
 
 
 @frappe.whitelist()
+@logistics_endpoint()
 def update_shipment_status(name: str, status: str, note: str | None = None) -> dict:
 	"""Sevkiyat durumunu gecis motoru uzerinden gunceller.
 
@@ -294,7 +318,7 @@ def update_shipment_status(name: str, status: str, note: str | None = None) -> d
 	"""
 	user: str = _require_authenticated_user()
 
-	doc = frappe.get_doc("Shipment", name)
+	doc = _get_shipment_or_404(name)
 	try:
 		doc.check_permission("write")
 	except frappe.PermissionError:
@@ -322,6 +346,7 @@ def update_shipment_status(name: str, status: str, note: str | None = None) -> d
 
 
 @frappe.whitelist()
+@logistics_endpoint()
 def cancel_shipment(name: str, reason: str | None = None) -> dict:
 	"""Sevkiyati iptal eder (yalniz cancel yetkili roller — J.2 matrisi).
 
@@ -344,7 +369,7 @@ def cancel_shipment(name: str, reason: str | None = None) -> dict:
 	"""
 	user: str = _require_authenticated_user()
 
-	doc = frappe.get_doc("Shipment", name)
+	doc = _get_shipment_or_404(name)
 	try:
 		doc.check_permission("cancel")
 	except frappe.PermissionError:
