@@ -1,3 +1,11 @@
+## [v1.13.1-alpha.54] - 2026-09-03 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Duzeltildi
+- fix(lojistik): sevkiyat servisi hataları artık standart biçimde dönüyor (@boraydeger32)
+
+---
 ## [v1.13.1-alpha.53] - 2026-09-02 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
