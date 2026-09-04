@@ -1,3 +1,11 @@
+## [v1.13.1-alpha.56] - 2026-09-04 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Duzeltildi
+- fix(lojistik): güvenlik denetimi — kayıt izleri, bilgi sızıntısı ve iz bastırma kapatıldı (@boraydeger32)
+
+---
 ## [v1.13.1-alpha.54] - 2026-09-03 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
