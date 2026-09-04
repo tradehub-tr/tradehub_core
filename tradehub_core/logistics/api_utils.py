@@ -87,10 +87,65 @@ def _fail(code: str, message: str, status: int, details: dict | None = None) -> 
 	`frappe.db.rollback()` ZORUNLU: exception'ı yutup normal dönüş yaptığımız
 	için Frappe'nin otomatik rollback'i devreye girmez ve yarım kalmış bir yazma
 	commit edilirdi.
+
+	Sıra sözleşmesi (denetim 2026-09-04, madde 2): rollback'ten SONRA,
+	transaksiyonla birlikte silinen bekleyen DENY audit satırları yeniden
+	yazılır — deny → PermissionError → zarf rollback zincirinde ADL insert'i
+	aynı transaksiyonda kalıyordu ve iz bırakmadan siliniyordu.
+
+	Mesaj kanalı temizliği (doğrulama turu 2026-09-04, Major 1): zarf istisnayı
+	yutsa da `doc.check_permission` zinciri mesajı `frappe.local.message_log` +
+	`frappe.flags.error_message`'a çoktan yazmış oluyor ve frappe/utils/
+	response.py::_make_logs (v15.116) bunları gövdeye `_server_messages` /
+	`_error_message` olarak ekliyordu — 404 anti-enumeration'ı gövdeden deliyordu
+	("... does not have access to this document: Shipment - SHP-..."). Çağıran
+	`message` argümanını `_extract_message` ile BU FONKSİYON ÇAĞRILMADAN önce
+	çıkarır (argüman değerlendirme sırası); temizlik burada yapıldığı için meşru
+	mesaj çıkarımı bozulmaz. Temizlik TÜM zarf hata yanıtlarını kapsar — 500
+	dahil (msgprint sızıntısı da kapanır).
 	"""
 	frappe.db.rollback()
+	_flush_pending_audit_writes()
+	_scrub_leaked_message_channels()
 	frappe.local.response["http_status_code"] = status
 	return error(code, message, details)
+
+
+def _scrub_leaked_message_channels() -> None:
+	"""Zarf dışına sızacak Frappe mesaj kanallarını boşaltır.
+
+	frappe/utils/response.py::_make_logs gövdeye üç kanaldan ekleme yapar:
+	`message_log` → `_server_messages`, `flags.error_message` → `_error_message`
+	(ikisi de KOŞULSUZ) ve `error_log` → `exc` (yalnız developer_mode +
+	allow_error_traceback iken). İlk ikisi burada temizlenir; `error_log`
+	bilinçli bırakıldı — prod'da zaten gövdeye girmez, dev'de traceback'i
+	silmek hata ayıklamayı köreltir.
+	"""
+	frappe.clear_messages()
+	frappe.local.flags.error_message = None
+
+
+def _mark_commit_required() -> None:
+	"""Rollback SONRASI yazılan log satırlarını request-sonu commit'ine bağlar.
+
+	GET yolunda frappe/app.py `sync_database` (v15.116) transaksiyonu rollback
+	ile kapatır — yalnız UNSAFE metodlar veya `flags.commit` commit alır. Bayrak
+	set edilmezse rollback sonrası yazılan Error Log / ADL satırları da uçardı.
+	Bu noktada transaksiyonda YALNIZ log satırları var: iş verisi az önce
+	rollback edildi, commit yarım yazma sızdıramaz.
+	"""
+	frappe.local.flags.commit = True
+
+
+def _flush_pending_audit_writes() -> None:
+	"""Rollback'in sildiği bekleyen DENY audit satırlarını yeniden yazar (best-effort)."""
+	try:
+		from tradehub_core.logistics.permissions import flush_pending_deny_audits
+
+		if flush_pending_deny_audits():
+			_mark_commit_required()
+	except Exception:  # noqa: BLE001 — audit flush hatası hata yanıtını bozmaz
+		frappe.log_error(frappe.get_traceback(), "logistics.api_utils.audit_flush")
 
 
 def logistics_endpoint(
@@ -122,42 +177,59 @@ def logistics_endpoint(
 	def decorator(fn: Callable) -> Callable:
 		@functools.wraps(fn)
 		def wrapper(*args, **kwargs) -> dict:
+			# Zarf bağlam bayrağı (doğrulama turu 2026-09-04, Major 2):
+			# permissions._log_deny dedup anahtarını YALNIZ bu bayrak set'liyken
+			# yazar — zarf yolu, _fail → flush_pending_deny_audits ile ADL
+			# satırının kalıcılığını garanti eden tek bağlamdır. finally ile
+			# sıfırlanır ki aynı request'in zarf-dışı devamı bayrağı miras alıp
+			# dedup penceresini zehirlemesin.
+			frappe.local.tc_logistics_envelope = True
 			try:
-				if flag:
-					_assert_feature_enabled(flag)
-				if roles:
-					frappe.only_for(roles)
-				if capability:
-					_assert_capability(capability)
+				try:
+					if flag:
+						_assert_feature_enabled(flag)
+					if roles:
+						frappe.only_for(roles)
+					if capability:
+						_assert_capability(capability)
 
-				result = fn(*args, **kwargs)
-				# İş fonksiyonu zaten zarflamışsa iki kez sarma
-				if isinstance(result, dict) and "ok" in result:
-					return result
-				return ok(result)
+					result = fn(*args, **kwargs)
+					# İş fonksiyonu zaten zarflamışsa iki kez sarma
+					if isinstance(result, dict) and "ok" in result:
+						return result
+					return ok(result)
 
-			except LogisticsError as exc:
-				return _fail(
-					code=getattr(exc, "code", "LOGISTICS_ERROR"),
-					message=_extract_message(exc),
-					status=getattr(exc, "http_status_code", 417),
-				)
+				except LogisticsError as exc:
+					return _fail(
+						code=getattr(exc, "code", "LOGISTICS_ERROR"),
+						message=_extract_message(exc),
+						status=getattr(exc, "http_status_code", 417),
+					)
 
-			except Exception as exc:  # noqa: BLE001 — sözleşme sınırı: her hata zarfa girer
-				mapped = _resolve_frappe_error(exc)
-				if mapped:
-					code, status = mapped
-					return _fail(code=code, message=_extract_message(exc), status=status)
+				except Exception as exc:  # noqa: BLE001 — sözleşme sınırı: her hata zarfa girer
+					mapped = _resolve_frappe_error(exc)
+					if mapped:
+						code, status = mapped
+						return _fail(code=code, message=_extract_message(exc), status=status)
 
-				# Beklenmeyen hata: ayrıntıyı istemciye SIZDIRMA, log'a yaz
-				frappe.log_error(
-					frappe.get_traceback(), f"logistics_endpoint.{fn.__name__}"
-				)
-				return _fail(
-					code=_INTERNAL_ERROR_CODE,
-					message=_("Beklenmeyen bir hata oluştu. Kayıt altına alındı."),
-					status=500,
-				)
+					# Beklenmeyen hata: ayrıntıyı istemciye SIZDIRMA, log'a yaz.
+					# Sıra sözleşmesi (denetim 2026-09-04, madde 1): ÖNCE _fail →
+					# rollback, SONRA frappe.log_error — eski sıra log satırını
+					# rollback'ten önce aynı transaksiyonda yazdığı için rollback
+					# izi de siliyordu ("kayıt altına alındı" deniyordu ama iz
+					# yoktu). Frappe'nin kendi handle_exception akışı da log'u
+					# rollback sonrasına koyar.
+					traceback: str = frappe.get_traceback()
+					response = _fail(
+						code=_INTERNAL_ERROR_CODE,
+						message=_("Beklenmeyen bir hata oluştu. Kayıt altına alındı."),
+						status=500,
+					)
+					frappe.log_error(traceback, f"logistics_endpoint.{fn.__name__}")
+					_mark_commit_required()
+					return response
+			finally:
+				frappe.local.tc_logistics_envelope = False
 
 		return wrapper
 

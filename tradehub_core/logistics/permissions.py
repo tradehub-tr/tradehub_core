@@ -27,6 +27,8 @@ rol kapsamı P3 kararına bağlı; bu guard karar ne olursa olsun geçerli invar
 
 from __future__ import annotations
 
+from typing import Any
+
 import frappe
 
 from tradehub_core.logistics.constants import CACHE_PREFIX
@@ -154,29 +156,97 @@ def _log_deny(
 		# yazar ve sonraki okumalar Redis'e hiç gitmez — dedup sessizce çalışmaz.
 		if frappe.cache.get_value(dedup_key, expires=True):
 			return
-		frappe.cache.set_value(dedup_key, 1, expires_in_sec=_DENY_DEDUP_TTL_SECONDS)
 
-		audit.log_decision(
-			actor=user,
-			action=action,
-			decision=audit.DECISION_DENY,
-			layer=audit.LAYER_L2,
-			object_doctype=object_doctype,
-			object_name=object_name,
-			tenant=_doc_field(doc, "seller_profile"),
-			rule_id=f"logistics.{action}",
-			severity=(
+		payload: dict[str, Any] = {
+			"actor": user,
+			"action": action,
+			"decision": audit.DECISION_DENY,
+			"layer": audit.LAYER_L2,
+			"object_doctype": object_doctype,
+			"object_name": object_name,
+			"tenant": _doc_field(doc, "seller_profile"),
+			"rule_id": f"logistics.{action}",
+			"severity": (
 				audit.SEVERITY_HIGH
 				if reason in _CROSS_BOUNDARY_REASONS
 				else audit.SEVERITY_NORMAL
 			),
-			context={"reason": reason} if reason else None,
-		)
+			"context": {"reason": reason} if reason else None,
+		}
+
+		# log_decision best-effort'tur: hatada exception DEĞİL None döner.
+		# Dedup anahtarı insert BAŞARISINA şartlanır (denetim 2026-09-04,
+		# madde 2a): anahtar insert'ten ÖNCE yazıldığında insert patlarsa
+		# 60 sn boyunca tekrar denemeleri de susuyordu — kayıp satır + kayıp
+		# retry.
+		if audit.log_decision(**payload) is None:
+			return
+
+		# Dedup anahtarı + flush kaydı YALNIZ zarf bağlamında yazılır
+		# (doğrulama turu 2026-09-04, Major 2). Zarf yolu — deny →
+		# PermissionError → api_utils._fail → rollback →
+		# flush_pending_deny_audits — satırın KALICILIĞINI garanti eden tek
+		# bağlamdır. Zarf DIŞI yollarda (Desk /api/resource) ise deny →
+		# PermissionError zinciri Frappe'nin handle_exception rollback'inde
+		# biter ve bu insert PERSIST ETMEZ (GET yolunda sync_database zaten
+		# yalnız flags.commit ile commit'ler); eski kod yine de dedup anahtarı
+		# yazdığı için kayıp satır sonraki 60 sn'nin ZARFLI deny'larını da
+		# bastırıyor ve her tekrar pencereyi tazeleyip denetim izini süresiz
+		# susturabiliyordu. Zarf dışında insert best-effort kalır: kaybolsa da
+		# zarf yolunu zehirlemez.
+		if not getattr(frappe.local, "tc_logistics_envelope", False):
+			return
+		frappe.cache.set_value(dedup_key, 1, expires_in_sec=_DENY_DEDUP_TTL_SECONDS)
+
+		# API zarf yolunda deny → PermissionError → api_utils._fail →
+		# frappe.db.rollback() bu insert'i transaksiyonla birlikte siler.
+		# Payload bekleyen listeye kaydedilir ki _fail rollback SONRASI
+		# flush_pending_deny_audits ile satırı yeniden yazabilsin (madde 2b).
+		_register_pending_deny(payload, dedup_key)
 	except Exception:  # noqa: BLE001 — audit hatası business flow'u bozmaz
 		frappe.log_error(
 			f"Audit log yazılamadı: {action} deny for {user}",
 			"logistics.permissions",
 		)
+
+
+def _register_pending_deny(payload: dict[str, Any], dedup_key: str) -> None:
+	"""DENY payload'ını rollback sonrası yeniden yazım için frappe.local'a kaydeder."""
+	pending: list[dict[str, Any]] | None = getattr(frappe.local, "tc_pending_deny_audits", None)
+	if pending is None:
+		pending = []
+		frappe.local.tc_pending_deny_audits = pending
+	pending.append({"payload": payload, "dedup_key": dedup_key})
+
+
+def flush_pending_deny_audits() -> int:
+	"""Zarf rollback'inin sildiği bekleyen DENY audit satırlarını yeniden yazar.
+
+	`api_utils._fail` rollback'ten HEMEN SONRA çağırır — deny → PermissionError
+	→ zarf rollback zincirinde ilk ADL insert'i transaksiyonla silinir; bu
+	fonksiyon satırları yeni (temiz) transaksiyonda yeniden üretir. Yeniden
+	yazım da patlarsa dedup anahtarı açılır ki 60 sn'lik pencere kayıp satırı
+	sessizce susturmasın (madde 2a ile aynı ilke).
+
+	Returns:
+		Başarıyla yeniden yazılan satır sayısı — çağıran >0 ise
+		`frappe.local.flags.commit` set eder (GET yolunda request-sonu
+		rollback'ine karşı; bkz. api_utils._mark_commit_required).
+	"""
+	pending: list[dict[str, Any]] | None = getattr(frappe.local, "tc_pending_deny_audits", None)
+	if not pending:
+		return 0
+	frappe.local.tc_pending_deny_audits = []
+
+	from tradehub_core.audit import log as audit
+
+	written: int = 0
+	for entry in pending:
+		if audit.log_decision(**entry["payload"]) is None:
+			frappe.cache.delete_value(entry["dedup_key"])
+		else:
+			written += 1
+	return written
 
 
 # ---------------------------------------------------------------------------

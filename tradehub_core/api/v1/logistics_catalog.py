@@ -342,13 +342,25 @@ def list_catalog(
 	)
 
 
+def _get_catalog_doc_or_404(spec: CatalogSpec, name: str) -> frappe.model.document.Document:
+	"""Katalog kaydını getirir; kayıt yoksa i18n mesajlı DoesNotExistError fırlatır.
+
+	frappe.get_doc'un ham (İngilizce) mesajı yerine Türkçe mesaj üretilir;
+	@logistics_endpoint DoesNotExistError'ı NOT_FOUND zarfına eşler — sevkiyat
+	API'sindeki desenle (3a070a6) hizalı (denetim 2026-09-04, madde 4).
+	"""
+	if not frappe.db.exists(spec.doctype, name):
+		frappe.throw(_("Katalog kaydı bulunamadı: {0}").format(name), frappe.DoesNotExistError)
+	return frappe.get_doc(spec.doctype, name)
+
+
 @frappe.whitelist()
 @logistics_endpoint()
 def get_catalog_item(catalog: str, name: str) -> dict:
 	"""Tek bir katalog kaydının tam detayını döndürür (child tablolar dahil)."""
 	spec = _spec(catalog)
 
-	doc = frappe.get_doc(spec.doctype, name)
+	doc = _get_catalog_doc_or_404(spec, name)
 	doc.check_permission("read")
 
 	payload: dict[str, Any] = {"name": doc.name}
@@ -386,7 +398,7 @@ def create_catalog_item(catalog: str, values: dict) -> dict:
 def update_catalog_item(catalog: str, name: str, values: dict) -> dict:
 	"""Var olan katalog kaydını günceller."""
 	spec = _spec(catalog)
-	doc = frappe.get_doc(spec.doctype, name)
+	doc = _get_catalog_doc_or_404(spec, name)
 	_apply_values(spec, doc, values)
 	doc.save()  # DocPerm kontrolü + validate zinciri
 	return ok({"name": doc.name})
@@ -401,7 +413,7 @@ def set_catalog_item_active(catalog: str, name: str, is_active: int) -> dict:
 	referans alınabiliyor ve silmek bağlantıyı kırar.
 	"""
 	spec = _spec(catalog)
-	doc = frappe.get_doc(spec.doctype, name)
+	doc = _get_catalog_doc_or_404(spec, name)
 	if not doc.meta.has_field("is_active"):
 		frappe.throw(_("{0} kataloğunda aktiflik bayrağı yok").format(spec.doctype))
 	doc.is_active = int(is_active)

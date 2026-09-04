@@ -525,6 +525,55 @@ class TestShipmentCore(FrappeTestCase):
 		self.assertEqual(result["error"]["code"], "NOT_FOUND")
 		self.assertEqual(frappe.local.response.get("http_status_code"), 404)
 
+	def test_api_foreign_shipment_returns_not_found_envelope(self) -> None:
+		"""Anti-enumeration (denetim 2026-09-04, madde 3): yabanci kayit 403 DEGIL 404.
+
+		Kayit VAR ama okuma yetkisi YOKSA PERMISSION_DENIED donmek kaydin
+		varligini dogrulardi — yetkisiz kullanici kayit-yok ile AYNI NOT_FOUND
+		zarfini alir. (FE g0-security.spec.ts IDOR testi de 404 beklentisine
+		guncellenmeli — FE reposu bu isin sahasi disinda.)
+		"""
+		shipment = self._draft()  # seller1 tenant'inin sevkiyati
+		self.addCleanup(frappe.set_user, "Administrator")
+		self.addCleanup(frappe.local.flags.pop, "commit", None)
+		frappe.set_user(self.seller2_user)
+
+		calls = (
+			lambda: shipment_api.get_shipment_detail(shipment.name),
+			lambda: shipment_api.update_shipment_status(shipment.name, ShipmentStatus.PENDING),
+			lambda: shipment_api.cancel_shipment(shipment.name),
+		)
+		for call in calls:
+			frappe.local.response.pop("http_status_code", None)
+			with mock.patch("frappe.db.rollback"):
+				result = call()
+			self.assertFalse(result["ok"])
+			self.assertEqual(result["error"]["code"], "NOT_FOUND")
+			self.assertEqual(frappe.local.response.get("http_status_code"), 404)
+			# Kayit-yok ile ayni mesaj sablonu — varlik bilgisi sizmiyor
+			self.assertIn(shipment.name, result["error"]["message"])
+
+		# Kayit gercekte degismedi (yetkisiz gecis/iptal islenmedi)
+		self.assertEqual(
+			frappe.db.get_value("Shipment", shipment.name, "status"), ShipmentStatus.DRAFT
+		)
+
+	def test_api_create_shipment_foreign_order_returns_not_found(self) -> None:
+		"""Madde 3: baska tenant'in VAR OLAN Order'i da NOT_FOUND doner (403 degil)."""
+		self.addCleanup(frappe.set_user, "Administrator")
+		self.addCleanup(frappe.local.flags.pop, "commit", None)
+		frappe.set_user(self.seller2_user)
+		frappe.local.response.pop("http_status_code", None)
+
+		with mock.patch("frappe.db.rollback"):
+			result = shipment_api.create_shipment(order=self.order.name)
+
+		self.assertFalse(result["ok"])
+		self.assertEqual(result["error"]["code"], "NOT_FOUND")
+		self.assertEqual(frappe.local.response.get("http_status_code"), 404)
+		# Olmayan Order ile ayni mesaj sablonu
+		self.assertIn(self.order.name, result["error"]["message"])
+
 	# -------------------------------------------------------------------
 	# 6. P1 duzeltme paketi (guvenlik/butunluk)
 	# -------------------------------------------------------------------
