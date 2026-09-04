@@ -86,6 +86,25 @@ class TestCatalogDetailContract(FrappeTestCase):
 		data = catalog.get_catalog_item("package_type", "BOX")["data"]
 		json.dumps(data)  # hata fırlatmamalı
 
+	def test_missing_catalog_item_returns_not_found_envelope(self):
+		"""Denetim 2026-09-04 madde 4: olmayan kayıt ham İngilizce DoesNotExistError
+		DEĞİL, sevkiyat deseniyle (3a070a6) hizalı i18n NOT_FOUND zarfı döner."""
+		missing = f"YOK-{frappe.generate_hash(length=8)}"
+		calls = (
+			lambda: catalog.get_catalog_item("logistics_provider", missing),
+			lambda: catalog.update_catalog_item("logistics_provider", missing, {}),
+			lambda: catalog.set_catalog_item_active("logistics_provider", missing, 0),
+		)
+		for call in calls:
+			frappe.local.response.pop("http_status_code", None)
+			with mock.patch("frappe.db.rollback"):
+				result = call()
+			self.assertFalse(result["ok"])
+			self.assertEqual(result["error"]["code"], "NOT_FOUND")
+			self.assertEqual(frappe.local.response.get("http_status_code"), 404)
+			self.assertIn(missing, result["error"]["message"])
+			self.assertIn("bulunamadı", result["error"]["message"])
+
 
 class TestCatalogWriteContract(FrappeTestCase):
 	def tearDown(self):

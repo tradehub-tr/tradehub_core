@@ -54,6 +54,7 @@ from tradehub_core.logistics.constants import CACHE_PREFIX
 from tradehub_core.logistics.permissions import (
 	carrier_account_has_permission,
 	carrier_account_query_conditions,
+	flush_pending_deny_audits,
 	mask_carrier_account_fields,
 	mask_shipment_cost_fields,
 	shipment_has_permission,
@@ -402,8 +403,13 @@ class TestAuditLogDeny(FrappeTestCase):
 	"""
 
 	def setUp(self):
-		# Dedup guard testler arası sızmasın
+		# Dedup guard + bekleyen flush listesi testler arası sızmasın
 		frappe.cache.delete_keys(f"{CACHE_PREFIX}deny:")
+		frappe.local.tc_pending_deny_audits = []
+		# Dedup + flush kaydı zarf bağlamına şartlandı (doğrulama 2026-09-04,
+		# Major 2) — bu sınıfın dedup testleri zarf yolunu simüle eder.
+		frappe.local.tc_logistics_envelope = True
+		self.addCleanup(setattr, frappe.local, "tc_logistics_envelope", False)
 
 	def test_cross_tenant_deny_logs_decision_as_high(self):
 		"""POZİTİF: çapraz tenant denemesi HIGH severity ile kaydedilir."""
@@ -463,6 +469,142 @@ class TestAuditLogDeny(FrappeTestCase):
 				shipment_has_permission(_shipment(name="SHP-002"), "read", "op@example.com")
 
 		self.assertEqual(log_decision.call_count, 2)
+
+	def test_dedup_key_conditioned_on_insert_success(self):
+		"""Madde 2a (denetim 2026-09-04): insert BAŞARISIZSA dedup anahtarı yazılmaz.
+
+		log_decision best-effort'tur (hatada None döner); eski kod anahtarı
+		insert'ten ÖNCE yazdığı için başarısız yazımın 60 sn'lik tekrar
+		denemeleri de susturuluyordu — kayıp satır + kayıp retry.
+		"""
+		doc = _shipment(seller_profile="SEL-00001")
+		with mock.patch(
+			"tradehub_core.audit.log.log_decision", return_value=None
+		) as log_decision:
+			with acting_as(["Logistics Operator"], seller_profile="SEL-00002"):
+				shipment_has_permission(doc, "read", "operator@example.com")
+				shipment_has_permission(doc, "read", "operator@example.com")
+
+		self.assertEqual(
+			log_decision.call_count, 2,
+			"Başarısız insert dedup anahtarı yazmamalı — ikinci deneme tekrar yazmalı",
+		)
+
+	def test_deny_is_registered_for_post_rollback_flush(self):
+		"""Madde 2b: başarılı DENY yazımı bekleyen flush listesine de kaydedilir."""
+		doc = _shipment(seller_profile="SEL-00001")
+		with mock.patch("tradehub_core.audit.log.log_decision", return_value="ADL-1"):
+			with acting_as(["Logistics Operator"], seller_profile="SEL-00002"):
+				shipment_has_permission(doc, "read", "operator@example.com")
+
+		pending = getattr(frappe.local, "tc_pending_deny_audits", [])
+		self.assertEqual(len(pending), 1)
+		self.assertEqual(pending[0]["payload"]["decision"], "DENY")
+		self.assertEqual(pending[0]["payload"]["object_name"], "SHP-001")
+
+	def test_flush_rewrites_pending_rows_and_clears_list(self):
+		"""api_utils._fail'in rollback SONRASI çağırdığı flush satırı geri yazar."""
+		doc = _shipment(seller_profile="SEL-00001")
+		with mock.patch("tradehub_core.audit.log.log_decision", return_value="ADL-1"):
+			with acting_as(["Logistics Operator"], seller_profile="SEL-00002"):
+				shipment_has_permission(doc, "read", "operator@example.com")
+
+		with mock.patch(
+			"tradehub_core.audit.log.log_decision", return_value="ADL-2"
+		) as log_decision:
+			written = flush_pending_deny_audits()
+
+		self.assertEqual(written, 1)
+		log_decision.assert_called_once()
+		self.assertEqual(log_decision.call_args.kwargs.get("decision"), "DENY")
+		self.assertEqual(getattr(frappe.local, "tc_pending_deny_audits", None), [])
+		self.assertEqual(
+			flush_pending_deny_audits(), 0, "İkinci flush yazacak satır bulmamalı"
+		)
+
+	def test_non_envelope_deny_writes_no_dedup_key_and_no_pending(self):
+		"""Doğrulama 2026-09-04 Major 2: zarf DIŞI deny dedup anahtarı YAZMAZ.
+
+		Desk /api/resource yolunda deny insert'i persist etmez (GET+exception →
+		handle_exception rollback'i, flags.commit yok); eski kod yine de dedup
+		anahtarı yazdığı için kayıp satır 60 sn'lik zarflı deny'ları da
+		bastırıyordu. Artık zarf dışında ne anahtar ne flush kaydı yazılır —
+		insert best-effort kalır, tekrarları da bastırılmaz.
+		"""
+		frappe.local.tc_logistics_envelope = False
+		doc = _shipment(seller_profile="SEL-00001")
+		with mock.patch(
+			"tradehub_core.audit.log.log_decision", return_value="ADL-1"
+		) as log_decision:
+			with acting_as(["Logistics Operator"], seller_profile="SEL-00002"):
+				shipment_has_permission(doc, "read", "operator@example.com")
+				shipment_has_permission(doc, "read", "operator@example.com")
+
+		self.assertEqual(
+			log_decision.call_count, 2,
+			"Zarf dışında dedup anahtarı yazılmamalı — ikinci deneme de insert denemeli",
+		)
+		self.assertEqual(
+			getattr(frappe.local, "tc_pending_deny_audits", None), [],
+			"Zarf dışında flush kaydı da tutulmamalı — flush'ı çağıran yol yok",
+		)
+
+	def test_non_envelope_deny_does_not_poison_envelope_dedup(self):
+		"""Zarf-dışı deny'ın hemen ardından gelen ZARFLI deny ADL'ye yazılır.
+
+		Zehirlenme senaryosunun kendisi: Desk deny anahtarı yazsaydı sonraki
+		60 sn'nin zarflı deny'ları bastırılır, pencere her tekrar ile tazelenip
+		denetim izi süresiz susardı.
+		"""
+		doc = _shipment(seller_profile="SEL-00001")
+
+		frappe.local.tc_logistics_envelope = False
+		with mock.patch("tradehub_core.audit.log.log_decision", return_value="ADL-1"):
+			with acting_as(["Logistics Operator"], seller_profile="SEL-00002"):
+				shipment_has_permission(doc, "read", "operator@example.com")
+
+		frappe.local.tc_logistics_envelope = True
+		with mock.patch(
+			"tradehub_core.audit.log.log_decision", return_value="ADL-2"
+		) as log_decision:
+			with acting_as(["Logistics Operator"], seller_profile="SEL-00002"):
+				shipment_has_permission(doc, "read", "operator@example.com")
+
+		log_decision.assert_called_once()
+		self.assertEqual(
+			len(getattr(frappe.local, "tc_pending_deny_audits", [])), 1,
+			"Zarflı deny flush listesine kaydedilmeli — _fail rollback sonrası geri yazar",
+		)
+
+	def test_envelope_deny_still_writes_dedup_key(self):
+		"""Zarf İÇİ deny dedup anahtarını yazmaya devam eder (pozitif kontrol)."""
+		doc = _shipment(seller_profile="SEL-00001")
+		with mock.patch(
+			"tradehub_core.audit.log.log_decision", return_value="ADL-1"
+		) as log_decision:
+			with acting_as(["Logistics Operator"], seller_profile="SEL-00002"):
+				shipment_has_permission(doc, "read", "operator@example.com")
+				shipment_has_permission(doc, "read", "operator@example.com")
+
+		log_decision.assert_called_once()
+
+	def test_flush_failure_reopens_dedup_key(self):
+		"""Flush'ta da yazılamayan satır dedup penceresini açar — sonraki deneme loglanır."""
+		doc = _shipment(seller_profile="SEL-00001")
+		with mock.patch("tradehub_core.audit.log.log_decision", return_value="ADL-1"):
+			with acting_as(["Logistics Operator"], seller_profile="SEL-00002"):
+				shipment_has_permission(doc, "read", "operator@example.com")
+
+		with mock.patch("tradehub_core.audit.log.log_decision", return_value=None):
+			self.assertEqual(flush_pending_deny_audits(), 0)
+
+		# Dedup anahtarı silindi → aynı deny yeniden yazılabilir olmalı
+		with mock.patch(
+			"tradehub_core.audit.log.log_decision", return_value="ADL-3"
+		) as log_decision:
+			with acting_as(["Logistics Operator"], seller_profile="SEL-00002"):
+				shipment_has_permission(doc, "read", "operator@example.com")
+		log_decision.assert_called_once()
 
 
 # ---------------------------------------------------------------------------

@@ -70,14 +70,28 @@ def _meta(**extra: object) -> dict:
 
 
 def _get_shipment_or_404(name: str) -> frappe.model.document.Document:
-	"""Sevkiyati getirir; kayit yoksa i18n mesajli DoesNotExistError firlatir.
+	"""Sevkiyati getirir; kayit yoksa VEYA okuma yetkisi yoksa DoesNotExistError.
 
 	frappe.get_doc'un ham (Ingilizce) mesaji yerine Turkce mesaj uretilir;
 	@logistics_endpoint DoesNotExistError'i NOT_FOUND zarfina esler (bulgu A).
+
+	Anti-enumeration (denetim 2026-09-04, madde 3): kayit VAR ama okuma yetkisi
+	YOKSA 403 donmek kaydin varligini dogrulardi — yetkisiz kullanici kayit-yok
+	ile AYNI NOT_FOUND(404) yanitini alir (ayni mesajla). PERMISSION_DENIED
+	yalniz "kayda okumasi var ama ISLEME yetkisi yok" durumlarina kalir
+	(o durumda varlik bilgisi zaten mesru olarak biliniyor).
 	"""
+	not_found_msg: str = _("Sevkiyat bulunamadı: {0}").format(name)
 	if not frappe.db.exists("Shipment", name):
-		frappe.throw(_("Sevkiyat bulunamadı: {0}").format(name), frappe.DoesNotExistError)
-	return frappe.get_doc("Shipment", name)
+		frappe.throw(not_found_msg, frappe.DoesNotExistError)
+	doc = frappe.get_doc("Shipment", name)
+	try:
+		doc.check_permission("read")
+	except frappe.PermissionError:
+		# DENY audit satiri check_permission → shipment_has_permission →
+		# _log_deny zincirinde zaten yazildi; istemciye varlik sizdirilmez.
+		frappe.throw(not_found_msg, frappe.DoesNotExistError)
+	return doc
 
 
 @frappe.whitelist()
@@ -109,8 +123,11 @@ def create_shipment(
 
 	# Olmayan Order ham DoesNotExistError yerine i18n mesajla NOT_FOUND
 	# zarfina esleniyor (get_doc'un Ingilizce mesaji panele sizmasin).
+	# Anti-enumeration (denetim 2026-09-04, madde 3): asagida yetki reddi de
+	# AYNI mesajla NOT_FOUND doner — 403, Order adinin varligini dogrulardi.
+	order_not_found_msg: str = _("Sipariş bulunamadı: {0}").format(order)
 	if not frappe.db.exists("Order", order):
-		frappe.throw(_("Sipariş bulunamadı: {0}").format(order), frappe.DoesNotExistError)
+		frappe.throw(order_not_found_msg, frappe.DoesNotExistError)
 
 	# Yetki: kullanici siparisi okuyabiliyor olmali. Order'in DocPerm modeli
 	# (System Manager full + "All" if_owner=1) hicbir role doctype-seviyesi
@@ -126,7 +143,9 @@ def create_shipment(
 	from tradehub_core.permissions import order_has_permission
 
 	if not order_has_permission(order_doc, "read", user):
-		frappe.throw(_("Bu siparişe erişim yetkiniz yok."), frappe.PermissionError)
+		# Anti-enumeration: kayit-yok ile yetki-yok ayirt edilemez olmali —
+		# PermissionError(403) yerine ayni mesajla NOT_FOUND(404).
+		frappe.throw(order_not_found_msg, frappe.DoesNotExistError)
 
 	parsed_items: list[dict] | None = frappe.parse_json(items) if items else None
 	if parsed_items is not None and not isinstance(parsed_items, list):
@@ -239,8 +258,9 @@ def get_shipment_detail(name: str) -> dict:
 	"""
 	user: str = _require_authenticated_user()
 
+	# Okuma yetkisi _get_shipment_or_404 icinde kontrol edilir — yetkisiz
+	# erisim varlik sizdirmayan NOT_FOUND(404) alir (madde 3).
 	doc = _get_shipment_or_404(name)
-	doc.check_permission("read")
 
 	from tradehub_core.logistics.permissions import mask_shipment_cost_fields
 

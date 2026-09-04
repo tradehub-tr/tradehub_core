@@ -163,6 +163,234 @@ class TestDecoratorErrorMapping(FrappeTestCase):
 		rollback.assert_called_once()
 
 
+class TestRollbackLogOrdering(FrappeTestCase):
+	"""Denetim 2026-09-04 madde 1-2: rollback → log sıra sözleşmesi.
+
+	Eski sıra `frappe.log_error`'u rollback'ten ÖNCE aynı transaksiyonda
+	çağırıyordu; rollback log satırını da siliyor, kullanıcıya "kayıt altına
+	alındı" denip iz bırakılmıyordu.
+	"""
+
+	def setUp(self):
+		frappe.local.response.pop("http_status_code", None)
+		frappe.local.flags.commit = False
+		frappe.local.tc_pending_deny_audits = []
+		self.addCleanup(frappe.local.flags.pop, "commit", None)
+
+	def test_unexpected_error_logs_after_rollback(self):
+		"""Error Log yazımı rollback'ten SONRA gelir — satır transaksiyonla silinmez."""
+
+		@logistics_endpoint()
+		def fn():
+			raise RuntimeError("patladı")
+
+		manager = mock.Mock()
+		with (
+			mock.patch("frappe.db.rollback", manager.rollback),
+			mock.patch("frappe.log_error", manager.log_error),
+		):
+			result = fn()
+
+		self.assertEqual(result["error"]["code"], "INTERNAL_ERROR")
+		names = [c[0] for c in manager.mock_calls]
+		self.assertIn("rollback", names)
+		self.assertIn("log_error", names)
+		self.assertLess(
+			names.index("rollback"),
+			names.index("log_error"),
+			"log_error rollback'ten ÖNCE çağrılırsa satır rollback ile silinir",
+		)
+
+	def test_unexpected_error_requests_commit_for_log_row(self):
+		"""GET yolunda request-sonu sync_database rollback'i log satırını silmesin."""
+
+		@logistics_endpoint()
+		def fn():
+			raise RuntimeError("patladı")
+
+		with mock.patch("frappe.db.rollback"), mock.patch("frappe.log_error"):
+			fn()
+
+		self.assertTrue(frappe.local.flags.commit)
+
+	def test_fail_flushes_pending_deny_audits_after_rollback(self):
+		"""Madde 2b: zarf rollback'i bekleyen DENY satırlarını flush ile geri yazar."""
+
+		@logistics_endpoint()
+		def fn():
+			raise frappe.PermissionError("yetkisiz")
+
+		manager = mock.Mock()
+		manager.flush.return_value = 1
+		with (
+			mock.patch("frappe.db.rollback", manager.rollback),
+			mock.patch(
+				"tradehub_core.logistics.permissions.flush_pending_deny_audits",
+				manager.flush,
+			),
+		):
+			result = fn()
+
+		self.assertEqual(result["error"]["code"], "PERMISSION_DENIED")
+		names = [c[0] for c in manager.mock_calls]
+		self.assertLess(
+			names.index("rollback"),
+			names.index("flush"),
+			"Flush rollback'ten SONRA çalışmalı — yoksa yazılan satır da silinir",
+		)
+		self.assertTrue(
+			frappe.local.flags.commit, "Flush edilen satır request-sonu commit'ine bağlanmalı"
+		)
+
+	def test_fail_without_pending_audit_does_not_force_commit(self):
+		"""Bekleyen audit satırı yoksa flags.commit gereksiz yere set edilmez."""
+
+		@logistics_endpoint()
+		def fn():
+			raise ShipmentStateError("hata")
+
+		with mock.patch("frappe.db.rollback"):
+			fn()
+
+		self.assertFalse(frappe.local.flags.commit)
+
+
+class TestErrorBodyLeakScrubbing(FrappeTestCase):
+	"""Doğrulama turu 2026-09-04 Major 1: zarf hata yanıtı mesaj kanallarını sızdırmaz.
+
+	`doc.check_permission` deny mesajını `frappe.local.message_log` +
+	`frappe.flags.error_message`'a yazar; zarf istisnayı yutsa da
+	frappe/utils/response.py bu kanalları gövdeye `_server_messages` /
+	`_error_message` olarak ekler — 404 anti-enumeration gövdeden deliniyordu
+	("... does not have access to this document: Shipment - SHP-..."). `_fail`
+	artık HER zarf hata yanıtında iki kanalı da temizler.
+	"""
+
+	def setUp(self):
+		frappe.local.response.pop("http_status_code", None)
+		frappe.clear_messages()
+		frappe.local.flags.error_message = None
+
+	def _leak(self) -> None:
+		"""check_permission'ın bıraktığı kalıntıyı birebir simüle eder."""
+		frappe.local.message_log.append(
+			{"message": "User does not have access to this document: Shipment - SHP-GIZLI"}
+		)
+		frappe.local.flags.error_message = "No permission for Shipment SHP-GIZLI"
+
+	def test_permission_error_scrubs_message_log_and_error_flag(self):
+		"""404/403 zarfı dönerken message_log ve flags.error_message BOŞALMALI."""
+
+		@logistics_endpoint()
+		def fn():
+			self._leak()
+			raise frappe.PermissionError("yetkisiz")
+
+		result = fn()
+
+		self.assertEqual(result["error"]["code"], "PERMISSION_DENIED")
+		self.assertFalse(
+			frappe.local.message_log,
+			"message_log temizlenmezse response.py gövdeye _server_messages ekler",
+		)
+		self.assertFalse(
+			frappe.local.flags.error_message,
+			"flags.error_message temizlenmezse gövdeye _error_message eklenir",
+		)
+
+	def test_does_not_exist_scrubs_channels(self):
+		"""Anti-enumeration'ın asıl yolu: 404 zarfı da temiz kanal bırakmalı."""
+
+		@logistics_endpoint()
+		def fn():
+			self._leak()
+			raise frappe.DoesNotExistError("Shipment SHP-GIZLI not found")
+
+		result = fn()
+
+		self.assertEqual(result["error"]["code"], "NOT_FOUND")
+		self.assertFalse(frappe.local.message_log)
+		self.assertFalse(frappe.local.flags.error_message)
+
+	def test_logistics_error_scrubs_channels(self):
+		@logistics_endpoint()
+		def fn():
+			self._leak()
+			raise ShipmentStateError("Geçersiz geçiş")
+
+		fn()
+		self.assertFalse(frappe.local.message_log)
+		self.assertFalse(frappe.local.flags.error_message)
+
+	def test_internal_error_scrubs_msgprint_leak(self):
+		"""500 yolu da kapsanır — beklenmeyen hata öncesi msgprint kalıntısı sızmaz."""
+
+		@logistics_endpoint()
+		def fn():
+			frappe.local.message_log.append({"message": "iç detay: hunter2"})
+			raise RuntimeError("patladı")
+
+		with mock.patch("frappe.log_error"):
+			result = fn()
+
+		self.assertEqual(result["error"]["code"], "INTERNAL_ERROR")
+		self.assertFalse(frappe.local.message_log)
+
+	def test_extract_message_fallback_reads_before_scrub(self):
+		"""str(exc) boşken mesaj message_log'dan alınır — temizlik SONRA yapılır.
+
+		Temizlik erken yapılsaydı meşru mesaj çıkarımı bozulur, kullanıcı
+		"İşlem tamamlanamadı." jenerik mesajına düşerdi.
+		"""
+
+		@logistics_endpoint()
+		def fn():
+			frappe.local.message_log.append({"message": "Gerçek doğrulama mesajı"})
+			raise frappe.ValidationError()  # str(exc) == ""
+
+		result = fn()
+
+		self.assertEqual(result["error"]["message"], "Gerçek doğrulama mesajı")
+		self.assertFalse(frappe.local.message_log, "Mesaj alındıktan sonra kanal boşalmalı")
+
+
+class TestEnvelopeContextFlag(FrappeTestCase):
+	"""Doğrulama turu 2026-09-04 Major 2: zarf bağlam bayrağı.
+
+	permissions._log_deny dedup anahtarını yalnız bu bayrak set'liyken yazar;
+	bayrağın iş mantığı SÜRESİNCE açık, request'in zarf-dışı devamında kapalı
+	olması sözleşmedir.
+	"""
+
+	def setUp(self):
+		frappe.local.response.pop("http_status_code", None)
+		frappe.local.tc_logistics_envelope = False
+
+	def test_flag_set_during_business_logic(self):
+		seen: list[bool] = []
+
+		@logistics_endpoint()
+		def fn():
+			seen.append(bool(getattr(frappe.local, "tc_logistics_envelope", False)))
+			return None
+
+		self.assertFalse(getattr(frappe.local, "tc_logistics_envelope", False))
+		fn()
+		self.assertEqual(seen, [True], "İş mantığı zarf bayrağı AÇIKKEN koşmalı")
+		self.assertFalse(
+			getattr(frappe.local, "tc_logistics_envelope", False),
+			"Bayrak zarf dönüşünde kapanmalı — request'in devamı dedup'ı zehirlememeli",
+		)
+
+	def test_flag_cleared_after_error_path(self):
+		@logistics_endpoint()
+		def fn():
+			raise frappe.PermissionError("yetkisiz")
+
+		fn()
+		self.assertFalse(getattr(frappe.local, "tc_logistics_envelope", False))
+
+
 class TestFeatureFlagGate(FrappeTestCase):
 	"""Kapalı özellik iş mantığını HİÇ çalıştırmamalı."""
 
