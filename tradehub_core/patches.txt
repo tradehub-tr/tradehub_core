@@ -321,3 +321,6 @@ tradehub_core.patches.v15_9_52_file_doc_fields
 # --- Bora · 09-BE A (kargo entegrasyon logu altyapısı) ---
 # Carrier Integration Log bileşik index'leri + Logistics Settings saklama alanı.
 tradehub_core.patches.v15_log043_carrier_integration_log
+
+# --- Demo/mock veri temizliği · canlıya geçişte bir kez ---
+tradehub_core.patches.v15_9_53_purge_demo_data

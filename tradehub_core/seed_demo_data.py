@@ -1192,7 +1192,8 @@ DEMO_KYB_DOC_FIELDS = (
 
 # Demo satıcı olarak kullanılan GERÇEK ekip e-postaları (demo-seller-%@istoc.demo
 # desenine uymaz). cleanup() bunların demo artefaktlarını temizler AMA User hesabını
-# ASLA silmez (gerçek login korunur).
+# Adlı demo satıcılar. cleanup() bunları da KOMPLE siler (mağaza + ilan + login);
+# silinemezse (bağlı sipariş vb.) User devre dışı bırakılır. Eskiden login korunuyordu.
 NAMED_DEMO_SELLER_EMAILS = [
 	"ahmet.seker@turksab.com",
 	"ali.bal@turksab.com",
@@ -5356,13 +5357,24 @@ def cleanup(silent=False):
 		frappe.delete_doc("Admin Seller Profile", sp, force=True, ignore_permissions=True)
 	_p(f"  ✓ {len(demo_sellers)} Admin Seller Profile silindi")
 
-	# Korunan gerçek e-posta hesaplarının (NAMED_DEMO_SELLER_EMAILS) User kaydındaki
-	# tradehub_tenant link'i, az önce silinen DEMO-* profiline işaret ediyor olabilir.
-	# User'ı silmiyoruz (gerçek login) ama dangling link kalırsa _ensure_user save'i
-	# LinkValidationError ile patlar — bu yüzden link'i temizle (re-seed yeniden bağlar).
-	for _named_email in NAMED_DEMO_SELLER_EMAILS:
-		if frappe.db.exists("User", _named_email):
-			frappe.db.set_value("User", _named_email, "tradehub_tenant", None, update_modified=False)
+	# Adlı demo satıcılar (NAMED_DEMO_SELLER_EMAILS): mağaza + ilanlar + login KOMPLE
+	# silinir. (Ürün gerçek veriyle yayına alınırken bu hesaplar da kalksın istendi;
+	# eskiden login korunuyordu.) Sıra: ilan → yorum → kategori → Admin Seller Profile.
+	named_sps = frappe.get_all(
+		"Admin Seller Profile",
+		filters={"user": ["in", NAMED_DEMO_SELLER_EMAILS]},
+		pluck="name",
+	)
+	for _sp in named_sps:
+		for _l in frappe.get_all("Listing", filters={"seller_profile": _sp}, pluck="name"):
+			frappe.delete_doc("Listing", _l, force=True, ignore_permissions=True)
+		for _rv in frappe.get_all("Seller Review", filters={"seller": _sp}, pluck="name"):
+			frappe.delete_doc("Seller Review", _rv, force=True, ignore_permissions=True)
+		for _sc in frappe.get_all("Seller Category", filters={"seller": _sp}, pluck="name"):
+			frappe.delete_doc("Seller Category", _sc, force=True, ignore_permissions=True)
+		frappe.delete_doc("Admin Seller Profile", _sp, force=True, ignore_permissions=True)
+	_p(f"  ✓ {len(named_sps)} adlı demo mağaza (Admin Seller Profile) silindi")
+	frappe.db.commit()
 
 	# 5a. Seller Application (KYB + Seller Profile referans kayıtları için ilk silinir)
 	demo_apps = frappe.get_all(
@@ -5487,10 +5499,19 @@ def cleanup(silent=False):
 	# 9. Demo Users (satıcı + alıcı) — iki ayrı sorgu (v15 or_filters uyumu)
 	sellers_u = frappe.get_all("User", filters={"email": ["like", "demo-seller-%@istoc.demo"]}, pluck="name")
 	buyers_u = frappe.get_all("User", filters={"email": ["like", "demo-buyer-%@istoc.demo"]}, pluck="name")
-	demo_users = list(set(sellers_u + buyers_u))
+	named_u = frappe.get_all("User", filters={"name": ["in", NAMED_DEMO_SELLER_EMAILS]}, pluck="name")
+	demo_users = list(set(sellers_u + buyers_u + named_u))
+	removed_users = 0
 	for u in demo_users:
-		frappe.delete_doc("User", u, force=True, ignore_permissions=True)
-	_p(f"  ✓ {len(demo_users)} Demo User silindi")
+		try:
+			frappe.delete_doc("User", u, force=True, ignore_permissions=True)
+			removed_users += 1
+		except Exception:
+			# Sipariş/sepet gibi bağlı kayıtlar login'i tutuyorsa silme; devre dışı bırak.
+			frappe.db.set_value("User", u, {"enabled": 0}, update_modified=False)
+			frappe.logger("seed_demo_data").info(f"  ! {u} silinemedi (bağlı kayıt), devre dışı bırakıldı")
+	_p(f"  ✓ {removed_users} Demo/adlı User silindi")
+	frappe.db.commit()
 
 	# 10. Demo Certification Types (seed'in kataloğundakiler). Listing/Seller Cert
 	# child'ları zaten yukarıdaki Listing/Seller silindiğinde temizlendi.

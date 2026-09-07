@@ -2,6 +2,8 @@
 
 import re
 
+from tradehub_core.utils.seo_content import check_title, check_description
+
 SKU_VALID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9\-_.]{0,49}$")
 
 
@@ -46,11 +48,13 @@ def validate_stock(qty) -> tuple[bool, str | None]:
 
 
 def validate_title(title) -> tuple[bool, str | None]:
-	if title is None or not str(title).strip():
-		return False, "Ürün adı boş olamaz"
-	if len(str(title).strip()) > 250:
-		return False, "Ürün adı 250 karakteri aşamaz"
-	return True, None
+	# SEO kuralları (min uzunluk + emoji yasağı) ortak modülde; tekil kayıtla aynı.
+	return check_title(title)
+
+
+def validate_description(description) -> tuple[bool, str | None]:
+	# SEO açıklama kuralı (min uzunluk + emoji yasağı) — ortak modül.
+	return check_description(description)
 
 
 # Import için zorunlu, fallback'i olmayan canonical alanlar → kullanıcıya gösterilen etiket.
@@ -111,5 +115,11 @@ def validate_row(row: dict, mapping: dict) -> list[dict]:
 		ok, msg = validate_title(row[title_col])
 		if not ok:
 			errors.append({"field": "title", "message": msg})
+
+	desc_col = mapping.get("description")
+	if desc_col and desc_col in row:
+		ok, msg = validate_description(row[desc_col])
+		if not ok:
+			errors.append({"field": "description", "message": msg})
 
 	return errors
