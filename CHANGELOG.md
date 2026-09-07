@@ -1,3 +1,15 @@
+## [v1.13.1-alpha.60] - 2026-09-07 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Duzeltildi
+- fix(lojistik): maliyet maskesi API yanıtında etkisizdi (@aliiball)
+  - as_dict() Check/Int/Float alanlarda None'ı 0'a çeviriyor; doc üzerindeki maske yanıta yansımıyordu, maskelenen maliyet null yerine 0 dönüyordu
+  - Veri sızıntısı YOK (ölçüldü: DB 157.75 iken satıcı 0.0, admin 157.75) ama "gizlendi" ile "ücretsiz" ayırt edilemiyordu
+  - mask_shipment_cost_dict eklendi, alan listesi tek kaynağa indirildi
+  - Üç regresyon testi: sıfıra dönmüş alan, yetkili yol, olmayan alan
+
+---
 ## [v1.13.1-alpha.59] - 2026-09-07 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
