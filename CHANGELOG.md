@@ -1,3 +1,26 @@
+## [v1.13.1-alpha.58] - 2026-09-07 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(lojistik): uç sözleşmesi ve backend başlangıç belgesi eklendi (@aliiball)
+  - PROVISIONAL_ENDPOINTS: 6 modül, 38 uç — imza, dönen yük, hata kodları, sunucuda tekrarlanacak güvenlik kapıları, roller
+  - Uç imzaları git'siz kök klasördeki FE sözleşmelerinde yaşıyordu; backend'i yazacak kişi açamıyordu
+  - docs/generated/LOGISTICS-ENDPOINTS.md üretilmeye başlandı — --check ile bayatlama denetimi altında
+  - FE sözleşmelerinin tanımlayıp otoriteye işlenmemiş 29 alan hizalandı: POD 8→21, koli 12→20, kalem 8→10, sevkiyat +3, örnek verileriyle
+  - _assert_endpoints_valid: bir uç varlık sözleşmesinde olmayan alan döndüremez
+  - pending_fields: bilinçli açık kalemler için bayatlamayan muafiyet
+  - STOREFRONT_OMITTED_FIELDS: maskeleme (null) ile çıkarma (alan yok) ayrıldı; 12-FE §2.5 ikincisini istiyor
+
+### Degistirildi
+- refactor(lojistik): sözleşme belgesi uç kataloğuyla güncellendi (@aliiball)
+  - §3.4 eklendi: api.v1.shipment canlıydı ama belgede tek satırı yoktu
+  - §3.5 üretilen uç belgesine bağlandı; ad listesi tekrarı kaldırıldı
+  - §6.1 eklendi: modül seçimi bir güvenlik kararıdır
+  - §12 kapsam listesi düzeltildi — beş maddenin dördü artık doğru değildi
+  - CLAUDE.md §4.11: üretilen dosya sayısı 41 → 44
+
+---
 ## [v1.13.1-alpha.57] - 2026-09-07 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
