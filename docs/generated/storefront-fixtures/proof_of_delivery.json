@@ -4,17 +4,47 @@
 		"data": {
 			"items": [
 				{
+					"shipment": "SHP-2026-00041",
 					"delivered_at": "2026-08-08 14:32:00",
-					"received_by": "Mehmet Yıldız (Depo Sorumlusu)",
+					"received_by": "Mehmet Yıldız",
+					"received_by_title": "Depo Sorumlusu",
 					"delivery_code_used": 1,
+					"delivered_package_count": 3,
+					"total_package_count": 3,
+					"delivered_pallet_count": 0,
+					"returned_pallet_count": 0,
+					"has_discrepancy": 0,
+					"exception_code": null,
+					"discrepancy_note": null,
 					"signature_url": "/files/pod/imza-41.png",
 					"photo_url": "/files/pod/foto-41.jpg",
 					"document_url": null,
+					"delivery_point": null,
 					"location_source": "carrier_api",
 					"location_recorded_at": "2026-08-08 14:32:00"
+				},
+				{
+					"shipment": "SHP-2026-00042",
+					"delivered_at": "2026-08-10 11:05:00",
+					"received_by": "Ayşe Kaya",
+					"received_by_title": "Satın Alma",
+					"delivery_code_used": 0,
+					"delivered_package_count": 2,
+					"total_package_count": 3,
+					"delivered_pallet_count": 1,
+					"returned_pallet_count": 1,
+					"has_discrepancy": 1,
+					"exception_code": "EXC-DAMAGED-PACKAGE",
+					"discrepancy_note": "Üçüncü kolinin köşesi ezilmiş, tutanak tutuldu.",
+					"signature_url": "/files/pod/imza-42.png",
+					"photo_url": "/files/pod/foto-42.jpg",
+					"document_url": "/files/pod/tutanak-42.pdf",
+					"delivery_point": "CB-IST-IKITELLI",
+					"location_source": "device_gps",
+					"location_recorded_at": "2026-08-10 11:07:40"
 				}
 			],
-			"total": 1,
+			"total": 2,
 			"page": 1,
 			"page_size": 50
 		}

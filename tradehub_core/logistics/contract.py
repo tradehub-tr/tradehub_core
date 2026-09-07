@@ -133,6 +133,11 @@ SHIPMENT_DETAIL_FIELDS = [
 	_f("delivery_code_attempts", "Int", False, "Yanlış kod denemesi sayısı"),
 	_f("pickup_location", "Data", False, "Alıcı teslim alma noktası (TUR-108)"),
 	_f("payment_status", "Select", False, "unpaid | paid | waived — ödeme şartlı teslimde kapı"),
+	# 13-FE / 14-FE ekranlarının okuduğu, panel mock'unun ürettiği ama
+	# sözleşmede karşılığı olmayan üç alan — MOCK-SÖZ hizalaması (2026-09-07).
+	_f("packing_completed_at", "Datetime", False, "Paketleme tamamlandı damgası (13-FE)"),
+	_f("pickup_person", "Data", False, "Teslim alacak kişi — alıcı teslim alma akışı (14-FE D2)"),
+	_f("proof_of_delivery", "Link", False, "POD kaydı — belgeler sekmesi buna bağlanır (14-FE)"),
 ]
 
 #: Adres snapshot'ları (TUR-105) — DocType'ta JSON alan DEĞİL, child tablo.
@@ -163,6 +168,9 @@ SHIPMENT_ITEM_FIELDS = [
 	_f("uom", "Data", False, "Birim"),
 	_f("weight_kg", "Float", False),
 	_f("returned_qty", "Float", False, "İade edilen (TUR-116)"),
+	# 13-FE §1 (MOCK-SÖZ hizalaması 2026-09-07): paketleme ekranının çekirdeği.
+	_f("packed_qty", "Float", False, "Kolilere atanan toplam — `contents` toplamı, read-only"),
+	_f("scan_code", "Data", False, "Tarama eşleşmesi (13-FE §4.1); null olabilir"),
 ]
 
 SHIPMENT_PACKAGE_FIELDS = [
@@ -178,6 +186,22 @@ SHIPMENT_PACKAGE_FIELDS = [
 	_f("barcode_url", "Data", False, "Barkod görseli"),
 	_f("label_url", "Data", False, "Etiket PDF'i"),
 	_f("label_printed_at", "Datetime", False, "Yeniden üretim geçmişi için"),
+	# 13-FE §1'in tarif ettiği etiket yaşam döngüsü — MOCK-SÖZ hizalaması
+	# (2026-09-07). Ekranlar bu alanlar üzerine kuruluydu, sözleşmede yoktu.
+	#
+	# ⚠ AD KATMANI: 13-FE DocType alanlarını `label_file` / `barcode_image`
+	# (Attach) diye anıyor; buradaki `label_url` / `barcode_url` ise API
+	# YANITINDAKİ adlar ve mock/ekranlar onları kullanıyor (13-FE §2.2 yükü:
+	# `label: { url, barcode_url, ... }`). İkisi ayrı katman — DocType'ı yazan
+	# 13-BE alanı `label_file` açıp yanıtta `label_url` olarak sunar.
+	_f("contents", "Table", True, "Kalem↔koli bağı — [{shipment_item, qty}] (13-FE görev çekirdeği)"),
+	_f("chargeable_kg", "Float", False, "Türetilir: max(weight_kg, desi)"),
+	_f("label_status", "Select", False, "None / Generated / Printed / Voided / Stale"),
+	_f("label_format", "Data", False, "a4_single / a4_quad / thermal_100x150 / zpl"),
+	_f("label_generated_at", "Datetime", False),
+	_f("label_print_count", "Int", False, "Yeniden basım sayacı"),
+	_f("carrier_tracking", "Data", False, "Koli bazlı takip (taşıyıcı destekliyorsa)"),
+	_f("content_hash", "Data", False, "Etiket üretimindeki koli imzası; değişirse label_status → Stale"),
 ]
 
 SHIPMENT_LEG_FIELDS = [
@@ -213,15 +237,36 @@ SHIPMENT_EVENT_FIELDS = [
 # Teslim kanıtı — TUR-115
 # ---------------------------------------------------------------------------
 
+#: 14-FE sözleşmesi §1'in tarif ettiği alanlar 2026-09-07'de (MOCK-SÖZ,
+#: MOGEM-560) buraya işlendi. Sekiz alan vardı, on bir eksikti: ekranlar ve
+#: mock Ağustos'tan beri sözleşmede karşılığı olmayan alanlar üzerinde
+#: çalışıyordu. Alanlar YENİ TASARLANMADI — 14-FE'de zaten "yeni" diye
+#: tanımlıydılar, yalnız makine-okunur otoriteye geçirilmemişlerdi.
+#:
+#: `waybill_number` bilinçli olarak YOK (14-FE K-I): `Shipment` ve
+#: `Shipment Leg`'de zaten var, POD yanıtı mevcut değeri TAŞIR, kopyalamaz.
 PROOF_OF_DELIVERY_FIELDS = [
+	_f("shipment", "Link", True, "Bir sevkiyatın TEK POD'u olur — unique (14-FE)"),
 	_f("delivered_at", "Datetime", True),
 	_f("received_by", "Data", True, "Teslim alan kişi"),
+	_f("received_by_title", "Data", True, "B2B ayrımı: depo sorumlusu / satın alma / şoför / imza yetkilisi"),
 	_f("delivery_code_used", "Check", False, "Tek kullanımlık kod doğrulandı mı"),
+	_f("delivered_package_count", "Int", True, "Kısmi teslim"),
+	_f("total_package_count", "Int", True, "Kıyas tabanı"),
+	_f("delivered_pallet_count", "Int", False, "Palet takası (K-L)"),
+	_f("returned_pallet_count", "Int", False, "Palet takası (K-L)"),
+	_f("has_discrepancy", "Check", True, "Tutarsızlık bayrağı"),
+	_f("exception_code", "Link", False, "has_discrepancy=1 ise ZORUNLU (14-FE §5.1)"),
+	_f("discrepancy_note", "Small Text", False, "has_discrepancy=1 ise zorunlu"),
 	_f("signature_url", "Data", False, "Yetki kontrollü"),
 	_f("photo_url", "Data", False, "Yetki kontrollü"),
 	_f("document_url", "Data", False),
+	_f("delivery_point", "Link", False, "Carrier Branch — ayrı ekran yok, kart olarak gösterilir (K-C)"),
 	_f("location_source", "Select", False, "Konum kaynağı görünür olmalı"),
-	_f("location_recorded_at", "Datetime", False),
+	_f("location_recorded_at", "Datetime", False, "delivered_at'ten AYRI — ihtilafta fark anlamlı"),
+	_f("source", "Select", True, "operator/seller/carrier — SUNUCU belirler, istemci beyanına güvenilmez"),
+	_f("recorded_by", "Data", True, "Kaydı yapan (kullanıcı ya da 'MNG Kargo (webhook)')"),
+	_f("recorded_at", "Datetime", True, "Kayıt anı — delivered_at'ten farklı olabilir"),
 ]
 
 # ---------------------------------------------------------------------------
@@ -973,6 +1018,9 @@ SAMPLE_SHIPMENT_DETAIL: dict[str, Any] = {
 	# sipariş anındaki teklif. Şikayet araştırmasında tek dayanak bu üçü.
 	"carrier_account": "CACC-YK-PLATFORM",
 	"applied_pricing_rule": "PR-STD-YK",
+	"packing_completed_at": "2026-08-10 08:20:00",
+	"pickup_person": None,
+	"proof_of_delivery": "POD-2026-00041",
 	"price_quote_snapshot": {
 		"quote_id": "Q-2026-0912-A",
 		"quoted_at": "2026-08-12 09:00:00",
@@ -1015,6 +1063,10 @@ SAMPLE_SHIPMENT_DETAIL: dict[str, Any] = {
 			"uom": "Top",
 			"weight_kg": 2.4,
 			"returned_qty": 0,
+			# Kısmen paketlenmiş: 12 sevk edildi, 10'u koliye girdi → ekranın
+			# "partial" kovası ancak böyle bir örnekle tasarlanabilir (13-FE).
+			"packed_qty": 10,
+			"scan_code": "8690012340011",
 		},
 		{
 			"item": "LST-00133",
@@ -1025,6 +1077,10 @@ SAMPLE_SHIPMENT_DETAIL: dict[str, Any] = {
 			"uom": "Top",
 			"weight_kg": 1.1,
 			"returned_qty": 0,
+			"packed_qty": 10,
+			# `scan_code` null OLABİLİR (13-FE §4.1) — tarama eşleşmesi olmayan
+			# kalem ekranda elle sayılır; o dal da tasarlanabilmeli.
+			"scan_code": None,
 		},
 	],
 	"packages": [
@@ -1041,6 +1097,14 @@ SAMPLE_SHIPMENT_DETAIL: dict[str, Any] = {
 			"barcode_url": "/files/barkod/PKG-42-001.png",
 			"label_url": "/files/etiket/PKG-42-001.pdf",
 			"label_printed_at": "2026-08-10 08:12:00",
+			"contents": [{"shipment_item": "a1b2c3", "qty": 1400}],
+			"chargeable_kg": 32.0,
+			"label_status": "Printed",
+			"label_format": "thermal_100x150",
+			"label_generated_at": "2026-08-10 08:10:22",
+			"label_print_count": 2,
+			"carrier_tracking": "1234567890",
+			"content_hash": "sha256:4f21ac",
 		},
 		{
 			"package_code": "PKG-42-002",
@@ -1055,6 +1119,16 @@ SAMPLE_SHIPMENT_DETAIL: dict[str, Any] = {
 			"barcode_url": "/files/barkod/PKG-42-002.png",
 			"label_url": "/files/etiket/PKG-42-002.pdf",
 			"label_printed_at": "2026-08-10 08:12:00",
+			"contents": [{"shipment_item": "a1b2c3", "qty": 600}],
+			"chargeable_kg": 32.0,
+			# İçerik etiketten SONRA değişti → Stale. Ekranın "yeniden üret"
+			# dalı ancak böyle bir örnekle tasarlanabilir (13-FE LABEL_STALE).
+			"label_status": "Stale",
+			"label_format": "thermal_100x150",
+			"label_generated_at": "2026-08-10 08:10:22",
+			"label_print_count": 1,
+			"carrier_tracking": None,
+			"content_hash": "sha256:91be07",
 		},
 		{
 			"package_code": "PKG-42-003",
@@ -1069,6 +1143,14 @@ SAMPLE_SHIPMENT_DETAIL: dict[str, Any] = {
 			"barcode_url": "/files/barkod/PKG-42-003.png",
 			"label_url": None,
 			"label_printed_at": None,
+			"contents": [{"shipment_item": "d4e5f6", "qty": 40}],
+			"chargeable_kg": 60.0,
+			"label_status": None,
+			"label_format": None,
+			"label_generated_at": None,
+			"label_print_count": 0,
+			"carrier_tracking": None,
+			"content_hash": None,
 		},
 	],
 	"legs": [
@@ -1160,14 +1242,53 @@ SAMPLE_SHIPMENT_DETAIL: dict[str, Any] = {
 
 SAMPLE_PROOF_OF_DELIVERY: list[dict[str, Any]] = [
 	{
+		"shipment": "SHP-2026-00041",
 		"delivered_at": "2026-08-08 14:32:00",
-		"received_by": "Mehmet Yıldız (Depo Sorumlusu)",
+		"received_by": "Mehmet Yıldız",
+		"received_by_title": "Depo Sorumlusu",
 		"delivery_code_used": 1,
+		"delivered_package_count": 3,
+		"total_package_count": 3,
+		"delivered_pallet_count": 0,
+		"returned_pallet_count": 0,
+		"has_discrepancy": 0,
+		"exception_code": None,
+		"discrepancy_note": None,
 		"signature_url": "/files/pod/imza-41.png",
 		"photo_url": "/files/pod/foto-41.jpg",
 		"document_url": None,
+		"delivery_point": None,
 		"location_source": "carrier_api",
 		"location_recorded_at": "2026-08-08 14:32:00",
+		"source": "carrier",
+		"recorded_by": "Aras Kargo (webhook)",
+		"recorded_at": "2026-08-08 14:35:12",
+	},
+	# Kısmi teslim + tutarsızlık: `has_discrepancy=1` ise `exception_code`
+	# ZORUNLU (14-FE §5.1). Ekranın tutarsızlık dalını tasarlayabilmesi için
+	# örnek kümesinde EN AZ BİR tutarsız kayıt bulunmalı.
+	{
+		"shipment": "SHP-2026-00042",
+		"delivered_at": "2026-08-10 11:05:00",
+		"received_by": "Ayşe Kaya",
+		"received_by_title": "Satın Alma",
+		"delivery_code_used": 0,
+		"delivered_package_count": 2,
+		"total_package_count": 3,
+		"delivered_pallet_count": 1,
+		"returned_pallet_count": 1,
+		"has_discrepancy": 1,
+		"exception_code": "EXC-DAMAGED-PACKAGE",
+		"discrepancy_note": "Üçüncü kolinin köşesi ezilmiş, tutanak tutuldu.",
+		"signature_url": "/files/pod/imza-42.png",
+		"photo_url": "/files/pod/foto-42.jpg",
+		"document_url": "/files/pod/tutanak-42.pdf",
+		"delivery_point": "CB-IST-IKITELLI",
+		"location_source": "device_gps",
+		"location_recorded_at": "2026-08-10 11:07:40",
+		"source": "operator",
+		"recorded_by": "operasyon@istoc.com",
+		"recorded_at": "2026-08-10 11:12:03",
 	},
 ]
 
@@ -2498,4 +2619,858 @@ PROVISIONAL_SAMPLES: dict[str, dict[str, Any]] = {
 	"shipping_zone": {"rows": SAMPLE_SHIPPING_ZONES, "detail": {}},
 	"performance_report": {"rows": SAMPLE_PERFORMANCE_REPORT, "detail": {}},
 	"cost_report": {"rows": SAMPLE_COST_REPORT, "detail": {}},
+}
+
+
+# ---------------------------------------------------------------------------
+# Uç sözleşmesi — GEÇİCİ (provisional)
+# ---------------------------------------------------------------------------
+#
+# NE İŞE YARAR:
+#	Yukarıdaki `PROVISIONAL_ENTITIES` bir ucun NE DÖNDÜĞÜNÜ tanımlıyor; bu
+#	bölüm KİMİN, NEYİ, HANGİ PARAMETREYLE çağırdığını tanımlıyor. İkisi ayrı
+#	sorular: "sevkiyat hangi alanları taşır" ile "sevkiyatı kim iptal
+#	edebilir" aynı yerden cevaplanamaz.
+#
+# NEDEN EKLENDİ (MOCK-SÖZ, MOGEM-560 · 2026-09-07):
+#	Uç imzaları altı FE veri sözleşmesinde yaşıyordu (3018 satır, 36 uç) ve o
+#	belgeler **git'siz kök klasörde**. Backend'i yazacak kişi onları açamıyor;
+#	`GOREV-TAMAMLAMA-SOZLESMESI.md` §7 bunu zaten yazıyordu. MOCK-SÖZ'ün
+#	"BE fazındaki tüm canlıya bağlamaların tek referansı" olma iddiası, referans
+#	erişilemez yerde durdukça karşılanamazdı.
+#
+# KAPSAM:
+#	Yalnız **yazılmamış** uçlar. Canlı uçlar (`api/v1/shipment.py`,
+#	`logistics.py`, `logistics_catalog.py`, `logistics_admin.py`) Python'da
+#	kendi imzalarını taşıyor; onları burada tekrarlamak iki doğruluk kaynağı
+#	yaratırdı. Bir uç yazıldığı gün buradan düşer.
+
+#: Uç parametresi. `type` değerleri Frappe fieldtype adları DEĞİL — burası
+#: HTTP sınırı, DocType alanı değil. Sade tipler: str, int, bool, list, dict.
+def _p(name: str, ptype: str, required: bool = False, note: str = "") -> dict[str, Any]:
+	return {"name": name, "type": ptype, "required": required, "note": note}
+
+
+#: Uç tanımı.
+#:
+#: `returns` üç biçimden biri:
+#:   {"entity": "<varlık>", "shape": "list"}    → {items,total,page,page_size}
+#:   {"entity": "<varlık>", "shape": "item"}    → tek kayıt (tüm alanlar)
+#:   {"entity": "<varlık>", "shape": "fields",  → kaydın SEÇİLİ alanları
+#:    "fields": [...]}
+#:   {"shape": "custom", "fields": [...]}       → varlığa oturmayan özel yük
+#:
+#: `entity` verildiğinde üreteç dönen alanların o varlığın sözleşmesinde
+#: gerçekten bulunduğunu doğrular — uydurulmuş alan burada yakalanır.
+def _ep(
+	name: str,
+	*,
+	params: tuple[dict[str, Any], ...] = (),
+	returns: dict[str, Any],
+	errors: tuple[str, ...] = (),
+	guards: tuple[str, ...] = (),
+	pending_fields: dict[str, str] | None = None,
+	note: str = "",
+) -> dict[str, Any]:
+	"""`pending_fields`: varlık sözleşmesinde HENÜZ olmayan, bilinçli açık kalem.
+
+	FE sözleşmesi alanı tarif ediyor ama `PROVISIONAL_ENTITIES` içinde karşılığı
+	yok — çünkü kararı ilgili BE görevinin. Muafiyet BAYATLAMAZ: alan sözleşmeye
+	eklendiği gün üreteç "muafiyet artık gereksiz" diyerek durur. Değer, kimin
+	kararı olduğunu söyler.
+	"""
+	return {
+		"name": name,
+		"params": list(params),
+		"returns": returns,
+		"errors": list(errors),
+		"guards": list(guards),
+		"pending_fields": dict(pending_fields or {}),
+		"note": note,
+	}
+
+
+PROVISIONAL_ENDPOINTS: dict[str, dict[str, Any]] = {
+	"pickup": {
+		"module": "api.v1.pickup",
+		"label": "Alıcı teslim alma (randevu + teslim kodu)",
+		"owner": "07-BE",
+		"source_doc": "07-FE-VERI-SOZLESMESI.md",
+		"endpoints": [
+			_ep(
+				"list_appointment_slots",
+				params=(
+					_p("shipment", "str", True),
+					_p("date", "str", True, "YYYY-MM-DD"),
+				),
+				returns={
+					"shape": "custom",
+					"fields": ["date", "slots[].value", "slots[].label", "slots[].available"],
+				},
+				errors=("NOT_FOUND", "PERMISSION_DENIED", "FEATURE_DISABLED"),
+				guards=(
+					"Kapasiteyi SUNUCU bilir; FE listeyi üretmez.",
+					"`label` sunucudan gelir — depo çalışma saatleri işletmeye göre değişir.",
+				),
+				note="Boş `slots` ya da hepsi `available:false` → ekran S3-3 (form çizilmez).",
+			),
+			_ep(
+				"request_appointment",
+				params=(
+					_p("shipment", "str", True),
+					_p("date", "str", True, "YYYY-MM-DD"),
+					_p("slot", "str", True, "ör. 09-12"),
+				),
+				returns={
+					"entity": "shipment",
+					"shape": "fields",
+					"fields": ["appointment_at", "appointment_window"],
+				},
+				errors=("VALIDATION_ERROR", "CONFLICT", "NOT_FOUND", "PERMISSION_DENIED"),
+				guards=(
+					"Geçmiş tarih SUNUCUDA reddedilir → VALIDATION_ERROR. FE'deki iki kat "
+					"kontrol (input min + Alpine) deneyimdir, güvenlik değildir.",
+				),
+				note=(
+					"Aynı uç hem oluşturur hem değiştirir (S3-1 = S3-2). Ayrı "
+					"`update_appointment` ucu ekranda ikinci bir kod yolu demek olurdu."
+				),
+			),
+			_ep(
+				"confirm_delivery",
+				params=(
+					_p("shipment", "str", True),
+					_p("code", "str", False, "yalnız delivery_code_required=1 iken"),
+				),
+				returns={
+					"entity": "shipment",
+					"shape": "fields",
+					"fields": ["delivery_code_status", "delivery_code_attempts", "status"],
+				},
+				errors=("DELIVERY_CODE_EXPIRED", "PERMISSION_DENIED", "NOT_FOUND"),
+				guards=(
+					"Kodun DEĞERİ hiçbir yanıtta dönmez (K-F).",
+					"Ödeme kontrolü SUNUCUDA tekrarlanır → PERMISSION_DENIED. FE formu "
+					"hiç çizmiyor (S4-6) ama bu kapı değil kolaylıktır.",
+				),
+				note=(
+					"Yanlış kod HATA DEĞİL: uç `ok:true` + `delivery_code_status:\"failed\"` "
+					"+ artmış sayaç döner; ekran formu açık tutar (S4-3). Süre dolumu ise "
+					"`ok:false` + DELIVERY_CODE_EXPIRED (S4-5)."
+				),
+			),
+			_ep(
+				"resend_delivery_code",
+				params=(_p("shipment", "str", True),),
+				returns={
+					"entity": "shipment",
+					"shape": "fields",
+					"fields": ["delivery_code_expires_at", "delivery_code_status"],
+				},
+				errors=("PERMISSION_DENIED", "NOT_FOUND", "FEATURE_DISABLED"),
+				pending_fields={
+					"delivery_code_expires_at": (
+						"07-BE (MOGEM-540) — 07-FE §1: 'Bugün süre kavramı sözleşmede yok'. "
+						"Alan gelmezse FE bu ucu hiç çağırmaz, buton çizilmez."
+					)
+				},
+				guards=("Deneme hakkını SIFIRLAMAZ (S4-5) — süre dolumu alıcının hatası değil, "
+					"ama kod tahmin denemesi de sıfırlanmamalı.",),
+				note=(
+					"Yeni kodu mevcut kanaldan iletir (SMS/e-posta — 12-BE'nin işi). "
+					"`delivery_code_expires_at` sözleşmede yoksa FE bu ucu HİÇ çağırmaz, "
+					"buton çizilmez (§1.2)."
+				),
+			),
+		],
+	},
+	"packaging": {
+		"module": "api.v1.packaging",
+		"label": "Paketleme, koli, etiket ve palet",
+		"owner": "13-BE (palet kısmı 19-BE)",
+		"source_doc": "13-FE-VERI-SOZLESMESI.md",
+		"endpoints": [
+			_ep(
+				"get_packing_queue",
+				params=(
+					_p("bucket", "str", False, "unpacked|partial|awaiting_label|ready"),
+					_p("seller", "str", False),
+					_p("carrier", "str", False),
+					_p("date_from", "str", False),
+					_p("date_to", "str", False),
+					_p("page", "int", False, "varsayılan 1"),
+					_p("page_size", "int", False, "varsayılan 50"),
+				),
+				returns={
+					"shape": "custom",
+					"fields": [
+						"items[].shipment", "items[].order", "items[].buyer_name",
+						"items[].seller_name", "items[].item_count", "items[].package_count",
+						"items[].waiting_hours", "items[].carrier", "items[].bucket",
+						"items[].status", "total", "page", "page_size",
+						"buckets.unpacked", "buckets.partial", "buckets.awaiting_label",
+						"buckets.ready",
+					],
+				},
+				errors=("PERMISSION_DENIED", "FEATURE_DISABLED"),
+				guards=(
+					"Kova tanımları SUNUCUDA hesaplanır, FE tekrarlamaz: unpacked=packages "
+					"boş · partial=packed_qty<qty olan kalem var · awaiting_label=tüm "
+					"kalemler paketli ama label_status=None koli var · ready=tümü etiketli.",
+				),
+				note=(
+					"`buckets` AYNI ÇAĞRIDAN gelmeli. Ayrı istek sayaçları listeden kaydırır: "
+					"kullanıcı 'Paketlenmedi 2' görür, tıklar, 3 kayıt gelir. "
+					"`waiting_hours` ham saat — 24sa sarı / 72sa kırmızı eşiği SUNUM kararı."
+				),
+			),
+			_ep(
+				"get_shipment_packing",
+				params=(_p("shipment", "str", True),),
+				returns={
+					"shape": "custom",
+					"fields": [
+						"shipment", "order", "buyer_name", "status", "modified", "is_locked",
+						"desi_divisor",
+						"items[].row_id", "items[].order_item", "items[].listing",
+						"items[].item_name", "items[].variation", "items[].qty",
+						"items[].packed_qty", "items[].uom", "items[].scan_code",
+						"packages[].row_id", "packages[].package_code", "packages[].sequence",
+						"packages[].package_type", "packages[].length_cm",
+						"packages[].width_cm", "packages[].height_cm",
+						"packages[].weight_kg", "packages[].qty", "packages[].desi",
+						"packages[].chargeable_kg", "packages[].barcode",
+						"packages[].contents[].shipment_item", "packages[].contents[].qty",
+						"packages[].label.status", "packages[].label.url",
+						"packages[].label.barcode_url", "packages[].label.format",
+						"packages[].label.generated_at", "packages[].label.printed_at",
+						"packages[].label.print_count", "packages[].label.carrier_tracking",
+						"totals.package_count", "totals.total_weight", "totals.total_desi",
+						"totals.chargeable_weight",
+						"package_types[].name", "package_types[].package_name",
+						"package_types[].length_cm", "package_types[].width_cm",
+						"package_types[].height_cm", "package_types[].max_weight_kg",
+						"package_types[].max_desi", "package_types[].is_default",
+					],
+				},
+				errors=("NOT_FOUND", "PERMISSION_DENIED"),
+				guards=("`is_locked` terminal durumu bildirir → ekran salt-okunur.",),
+				note=(
+					"P2 ve P3'ün ORTAK yükü. `package_types` yükle birlikte gelir, ayrı "
+					"katalog çağrısı yapılmaz: koli formu preset ölçüleri anında dolsun "
+					"(ikinci istek her koli açılışını yavaşlatırdı). Aynısı `get_pallet_plan` "
+					"içindeki `pallet_types` için geçerli. `modified` optimistik kilit damgası."
+				),
+			),
+			_ep(
+				"save_shipment_packages",
+				params=(
+					_p("shipment", "str", True),
+					_p("packages", "list", True),
+					_p("modified", "str", True, "optimistik kilit damgası"),
+				),
+				returns={"shape": "custom", "fields": ["packages[]", "totals", "modified"]},
+				errors=("CONFLICT", "VALIDATION_FAILED", "SHIPMENT_LOCKED", "PERMISSION_DENIED"),
+				guards=(
+					"Sunucu doğrulaması FE'dekinin TEKRARI ama otorite burasıdır: boş koli "
+					"yok (contents dolu) · weight_kg>0 · kalem başına atanan toplam <= qty · "
+					"aynı kalem bir kolide bir kez → VALIDATION_FAILED; terminal durum → "
+					"SHIPMENT_LOCKED.",
+				),
+				note=(
+					"Yan etkiler: Shipment.total_weight/total_desi/chargeable_weight "
+					"güncellenir; `content_hash` değişen kolilerin `label_status` → Stale."
+				),
+			),
+			_ep(
+				"complete_packing",
+				params=(_p("shipment", "str", True), _p("modified", "str", True)),
+				returns={"entity": "shipment", "shape": "fields", "fields": ["status", "modified"]},
+				errors=("VALIDATION_FAILED", "CONFLICT", "SHIPMENT_LOCKED"),
+			),
+			_ep(
+				"mark_shipment_ready",
+				params=(_p("shipment", "str", True),),
+				returns={"entity": "shipment", "shape": "fields", "fields": ["status"]},
+				errors=("VALIDATION_FAILED", "SHIPMENT_LOCKED", "PERMISSION_DENIED"),
+				note="Başarıda status → Ready for Pickup; sevkiyat paketleme kuyruğundan düşer.",
+			),
+			_ep(
+				"generate_shipment_labels",
+				params=(
+					_p("shipment", "str", True),
+					_p("package_codes", "list", True),
+					_p("format", "str", False, "varsayılan thermal_100x150"),
+				),
+				returns={
+					"shape": "custom",
+					"fields": [
+						"labels[].package_code", "labels[].url", "labels[].barcode_url",
+						"labels[].format", "labels[].generated_at", "batch_url",
+					],
+				},
+				errors=("CARRIER_ERROR", "VALIDATION_FAILED", "SHIPMENT_LOCKED", "NOT_FOUND"),
+				guards=("Taşıyıcı hatasında `details.carrier_message` ÇEVRİLMİŞ gelir.",),
+			),
+			_ep(
+				"reprint_shipment_labels",
+				params=(
+					_p("shipment", "str", True),
+					_p("package_codes", "list", True),
+					_p("reason", "str", True, "ilk basımda null gelebilir"),
+					_p("reason_note", "str", False),
+				),
+				returns={
+					"shape": "custom",
+					"fields": [
+						"labels[].package_code", "labels[].url", "labels[].format",
+						"labels[].print_count", "labels[].printed_at",
+					],
+				},
+				errors=("LABEL_STALE", "NOT_FOUND", "PERMISSION_DENIED"),
+				note=(
+					"D2 kararı: ilk basımda gerekçe SORULMAZ, 2. basımdan itibaren zorunlu. "
+					"Bu bir SUNUM kararıdır — sunucu her zaman `reason` kabul eder."
+				),
+			),
+			_ep(
+				"void_shipment_label",
+				params=(
+					_p("shipment", "str", True),
+					_p("package_code", "str", True),
+					_p("reason", "str", True),
+				),
+				returns={"shape": "custom", "fields": ["package_code", "label"]},
+				errors=("NOT_FOUND", "SHIPMENT_LOCKED", "PERMISSION_DENIED"),
+			),
+			_ep(
+				"get_packing_slip",
+				params=(_p("shipment", "str", True), _p("package_codes", "list", False)),
+				returns={"shape": "custom", "fields": ["url", "format"]},
+				errors=("NOT_FOUND", "PERMISSION_DENIED"),
+			),
+			_ep(
+				"get_pallet_plan",
+				params=(_p("shipment", "str", True),),
+				# `pallet_types` yükün parçası olduğu için şekil `custom`:
+				# `entity` + `item` deseydik katalog listesi sözleşmenin dışında
+				# kalır, panel mock'u onu üretirken denetim "uydurma alan" derdi.
+				# Aynı desen `get_shipment_packing`in `package_types[]`inde.
+				returns={
+					"shape": "custom",
+					"fields": [
+						"pallets[].name", "pallets[].shipment", "pallets[].pallet_code",
+						"pallets[].pallet_type", "pallets[].layer_count",
+						"pallets[].max_layers", "pallets[].package_count",
+						"pallets[].loaded_weight_kg", "pallets[].max_weight_kg",
+						"pallets[].loaded_desi", "pallets[].is_overloaded",
+						"pallet_types[].name", "pallet_types[].max_layers",
+						"pallet_types[].max_weight_kg", "pallet_types[].is_default",
+						"modified",
+					],
+				},
+				errors=("NOT_FOUND", "PERMISSION_DENIED", "FEATURE_DISABLED"),
+				note=(
+					"`pallet_types` yükle birlikte gelir — ayrı katalog çağrısı palet "
+					"formunu yavaşlatırdı (bkz. get_shipment_packing gerekçesi)."
+				),
+			),
+			_ep(
+				"save_pallet_plan",
+				params=(
+					_p("shipment", "str", True),
+					_p("pallets", "list", True),
+					_p("modified", "str", True),
+				),
+				returns={
+					"shape": "custom",
+					"fields": [
+						"pallets[].name", "pallets[].pallet_code", "pallets[].pallet_type",
+						"pallets[].layer_count", "pallets[].package_count",
+						"pallets[].loaded_weight_kg", "pallets[].loaded_desi",
+						"pallets[].is_overloaded", "modified",
+					],
+				},
+				errors=("CONFLICT", "VALIDATION_FAILED", "SHIPMENT_LOCKED"),
+				note="Sahibi 19-BE (palet/desi) — paketleme ekranından çağrılır.",
+			),
+		],
+	},
+	"pod": {
+		"module": "api.v1.pod",
+		"label": "Teslim kanıtı, teslimat akışları ve devir",
+		"owner": "14-BE",
+		"source_doc": "14-FE-VERI-SOZLESMESI.md",
+		"endpoints": [
+			_ep(
+				"get_pod_queue",
+				params=(
+					_p("bucket", "str", False),
+					_p("q", "str", False, "serbest arama"),
+					_p("carrier", "str", False),
+					_p("seller", "str", False),
+					_p("page", "int", False),
+					_p("page_size", "int", False),
+				),
+				returns={
+					"shape": "custom",
+					# ⚠ Dizi adı `rows`, `items` DEĞİL — 14-FE §2.1 ve ekran
+					# (`PodQueueView.vue`: `queue.rows`) ikisi de `rows` diyor.
+					# Diğer listeler `items` kullanıyor; bu uç bilinçli olarak
+					# ayrışıyor ve sözleşmeye `items` yazmak, BE'nin ekranın
+					# okumadığı bir anahtar döndürmesine yol açardı (kuyruk boş
+					# görünürdü). MOCK-SÖZ kırma turunda yakalandı.
+					"fields": [
+						"rows[].shipment", "rows[].order", "rows[].buyer_name",
+						"rows[].seller_name", "rows[].carrier", "rows[].status",
+						"rows[].package_count", "rows[].pallet_count",
+						"rows[].waybill_number", "rows[].delivery_point",
+						"rows[].actual_delivery", "rows[].hours_since",
+						"rows[].alarm", "rows[].bucket",
+						# Ekran kısmi teslim göstergesini bu ikisinden çiziyor
+						# (`PodQueueView.vue`, 6 kullanım) ve panel mock'u üretiyor;
+						# 14-FE §2.1 örneğinde yoklardı. Sözleşmeye alınmasaydı uç
+						# yazıldığı gün gösterge boşalırdı — K5 tatbikatı yakaladı.
+						"rows[].delivered_package_count", "rows[].total_package_count",
+						# Yanıtta `page`/`page_size` YOK — 14-FE §2.1 yükü yalnız
+						# `total` döndürüyor, mock da ekran da öyle çalışıyor.
+						# Diğer listelerin `{items,total,page,page_size}` deseni
+						# buraya körü körüne kopyalanmıştı; K5 tatbikatı yakaladı.
+						"total",
+						"buckets[].key", "buckets[].label", "buckets[].count",
+						"buckets[].hint",
+					],
+				},
+				errors=("PERMISSION_DENIED", "CAPABILITY_REQUIRED"),
+				guards=(
+					"Satıcı çağırırsa liste kendi `seller_profile`'ıyla SÜZÜLÜR (§6.1).",
+					"Bekleme süresi (DWELL_WARN_HOURS=24) SUNUCUDA hesaplanır — istemcinin "
+					"saati güvenilmez.",
+				),
+				note="Kovalar AYRI istekle gelmez (13-FE'de ölçülen sayaç kayması gerekçesi).",
+			),
+			_ep(
+				"get_proof_of_delivery",
+				params=(_p("shipment", "str", True),),
+				returns={"entity": "proof_of_delivery", "shape": "item"},
+				errors=("NOT_FOUND", "CAPABILITY_REQUIRED"),
+				guards=(
+					"Medya yetkisi (`view.pod_media`) yoksa `signature_url`, `photo_url`, "
+					"`document_url` yanıttan HİÇ ÇIKARILIR — null gönderilmez, maskelenmez. "
+					"Ekran o alanları çizmez, kırık görsel göstermez (S10-3).",
+				),
+				note=(
+					"POD yoksa 404 DEĞİL, `proof_of_delivery: null` döner — bu hata değil "
+					"eksik veridir (S10-2). ⚠ `view.pod_media` capability'si bugün kodda YOK "
+					"(`permissions.py` yalnız view.logistics_cost + view.carrier_secret "
+					"tanımlıyor) — 14-BE'nin borcu."
+				),
+			),
+			_ep(
+				"record_proof_of_delivery",
+				params=(
+					_p("shipment", "str", True),
+					_p("delivered_at", "str", True),
+					_p("received_by", "str", True),
+					_p("received_by_title", "str", True),
+					_p("delivered_package_count", "int", True),
+					_p("total_package_count", "int", True),
+					_p("delivered_pallet_count", "int", False),
+					_p("returned_pallet_count", "int", False),
+					_p("has_discrepancy", "bool", False),
+					_p("exception_code", "str", False),
+					_p("discrepancy_note", "str", False),
+					_p("signature_file", "str", False),
+					_p("photo_file", "str", False),
+					_p("document_file", "str", False),
+					_p("location_source", "str", False),
+					_p("location_recorded_at", "str", False),
+					_p("delivery_point", "str", False),
+					_p("modified", "str", False),
+				),
+				returns={"entity": "proof_of_delivery", "shape": "item"},
+				errors=("CONFLICT", "POD_ALREADY_RECORDED", "INVALID_STATUS", "VALIDATION_ERROR"),
+				guards=(
+					"`source` damgasını SUNUCU belirler (Logistics Manager→operator, "
+					"satıcı→seller, webhook→carrier). İstemci GÖNDEREMEZ.",
+					"Kısmi teslimde (`delivered_package_count < total_package_count`) "
+					"`has_discrepancy=1` ZORUNLU; o da `exception_code` zorunlu kılar (§5.1).",
+					"Sevkiyat `Delivered` değilse INVALID_STATUS.",
+				),
+				note="Yanıt kaydedilen POD + `created: true`. POD varsa üstüne YAZILMAZ → amend.",
+			),
+			_ep(
+				"amend_proof_of_delivery",
+				params=(
+					_p("shipment", "str", True),
+					_p("reason", "str", True, "boş olamaz"),
+					_p("modified", "str", True),
+				),
+				returns={"entity": "proof_of_delivery", "shape": "item"},
+				errors=("VALIDATION_ERROR", "CONFLICT", "CAPABILITY_REQUIRED", "NOT_FOUND"),
+				guards=(
+					"`pod.amend` yetkisi gerekir — SATICIDA YOK (§6.1).",
+					"Kayıt SİLİNMEZ; denetim izine yeni sürüm yazılır.",
+				),
+				note=(
+					"`reason` dışındaki alanlar `record_proof_of_delivery` ile aynı. "
+					"Kullanım vakası: satıcı beyanını operasyon düzeltir (K-B)."
+				),
+			),
+			_ep(
+				"list_delivery_flows",
+				params=(
+					_p("flow_type", "str", True),
+					_p("q", "str", False),
+					_p("status", "str", False),
+				),
+				returns={
+					"shape": "custom",
+					"fields": [
+						"items[].shipment", "items[].order", "items[].buyer_name",
+						"items[].seller_name", "items[].status", "items[].shipment_type",
+						"items[].package_count", "items[].appointment_at",
+						"items[].appointment_window", "items[].driver_name",
+						"items[].driver_phone", "items[].vehicle_plate",
+						"items[].delivery_code_required", "items[].delivery_code_status",
+						"items[].delivery_code_attempts",
+						"items[].payment_required_before_delivery", "items[].payment_status",
+						"total",
+					],
+				},
+				errors=("PERMISSION_DENIED", "VALIDATION_ERROR"),
+				note="D1 / D2 ekranlarının ortak kaynağı.",
+			),
+			_ep(
+				"hand_over_shipment",
+				params=(
+					_p("shipment", "str", True),
+					_p("delivery_code", "str", False),
+					_p("received_by", "str", True),
+					_p("received_by_title", "str", True),
+					_p("modified", "str", True),
+				),
+				returns={"entity": "shipment", "shape": "fields", "fields": ["status"]},
+				errors=("PAYMENT_REQUIRED", "DELIVERY_CODE_NOT_VERIFIED", "CONFLICT", "NOT_FOUND"),
+				guards=(
+					"Ödeme kapısı: `payment_required_before_delivery=1` ve "
+					"`payment_status=\"unpaid\"` → PAYMENT_REQUIRED.",
+					"Kod kapısı: `delivery_code_required=1` ve status != verified → "
+					"DELIVERY_CODE_NOT_VERIFIED. 3 başarısız denemede kod KİLİTLENİR.",
+				),
+				note=(
+					"Başarıda sevkiyat Delivered olur ve POD kaydı tetiklenir — teslim "
+					"aksiyonu POD'u doğurur, iki iş ayrılamaz (K-F)."
+				),
+			),
+		],
+	},
+	"returns": {
+		"module": "api.v1.returns",
+		"label": "İade talebi yaşam döngüsü",
+		"owner": "15-BE",
+		"source_doc": "15-FE-VERI-SOZLESMESI.md",
+		"endpoints": [
+			_ep(
+				"get_return_eligibility",
+				params=(_p("shipment", "str", True),),
+				returns={
+					"shape": "custom",
+					"fields": [
+						"shipment", "window_open", "window_days", "days_left",
+						"returnable_items[].item", "returnable_items[].item_name",
+						"returnable_items[].delivered_qty",
+						"returnable_items[].already_returned_qty",
+						"returnable_items[].uom",
+						"reasons[].value", "reasons[].label_key",
+					],
+				},
+				errors=("NOT_FOUND", "PERMISSION_DENIED"),
+				guards=(
+					"`delivered_qty` TESLİM edilendir, sevk edilen değil (§1.4) — kısmi "
+					"teslimatta yalnız eline geçen kalem listelenir.",
+					"`reasons` yalnız `is_active` kayıtları taşır, `reason_code asc` sırada.",
+					"`label_key` döner, `label` DEĞİL: etiket dört dilde FE'de. Sunucu kendi "
+					"dilinde metin gönderirse Rusça arayüzde Türkçe görünür.",
+				),
+				note=(
+					"İade formunun VE sipariş kartındaki düğmenin tek kaynağı; üç soruyu "
+					"birden cevaplar (pencere açık mı, ne iade edilebilir, hangi nedenler). "
+					"`window_open: 0` → ekran formu hiç çizmez, kapalı kutusunu gösterir "
+					"(M-B-2); `returnable_items: []` → 'zaten iade edildi' (M-B-3). İkisi de "
+					"HATA DEĞİL, normal yanıt — bu yüzden NOTHING_RETURNABLE burada YOK. "
+					"Sipariş listesi bu ucu N kez ÇAĞIRMAZ (toplu gösterge gerekir, §2.2)."
+				),
+			),
+			_ep(
+				"list_return_requests",
+				params=(
+					_p("status", "str", False),
+					_p("page", "int", False, "varsayılan 1"),
+					_p("page_size", "int", False, "varsayılan 50"),
+				),
+				returns={"entity": "return_request", "shape": "list"},
+				errors=("PERMISSION_DENIED", "FEATURE_DISABLED"),
+				guards=(
+					"Rol süzgeci SUNUCUDA (§6.1): alıcı yalnız kendi taleplerini, satıcı "
+					"kendi sevkiyatlarınınkini görür.",
+					"Yalnız RETURN_REQUEST_LIST_FIELDS döner — `refund_amount` ve diğer "
+					"DETAIL alanları liste satırında YOK.",
+				),
+			),
+			_ep(
+				"get_return_request",
+				params=(_p("name", "str", True),),
+				returns={"entity": "return_request", "shape": "item"},
+				errors=("NOT_FOUND", "PERMISSION_DENIED"),
+				guards=("Rol süzgeci sunucuda (§6.1).",),
+			),
+			_ep(
+				"create_return_request",
+				params=(
+					_p("shipment", "str", True),
+					_p("reason", "str", True, "return_reason kataloğundan"),
+					_p("note", "str", False),
+					_p("items", "list", True, "[{item, qty}]"),
+					_p("idempotency_key", "str", False),
+				),
+				returns={"entity": "return_request", "shape": "item"},
+				errors=(
+					"QTY_EXCEEDS_DELIVERED", "RETURN_WINDOW_CLOSED", "NOTHING_RETURNABLE",
+					"IDEMPOTENCY_CONFLICT", "VALIDATION_ERROR",
+				),
+				guards=(
+					"`qty > delivered_qty - already_returned_qty` → QTY_EXCEEDS_DELIVERED.",
+					"Pencere kapalıysa RETURN_WINDOW_CLOSED — FE formu zaten çizmiyor ama "
+					"kapı sunucudadır.",
+				),
+				note="Rol: ALICI.",
+			),
+			_ep(
+				"decide_return_request",
+				params=(
+					_p("name", "str", True),
+					_p("decision", "str", True, "approved|rejected"),
+					_p("decision_note", "str", False, "redde ZORUNLU, >=10 karakter"),
+					_p("create_return_shipment", "bool", False),
+				),
+				returns={"entity": "return_request", "shape": "item"},
+				errors=("DECISION_NOTE_REQUIRED", "RETURN_ALREADY_DECIDED", "RETURN_CLOSED", "PERMISSION_DENIED"),
+				guards=(
+					"Redde `decision_note` ZORUNLU (en az 10 karakter) → "
+					"DECISION_NOTE_REQUIRED. Gerekçesiz red, alıcıya sebebini söylemeden "
+					"hayır demektir.",
+					"Satıcı KAPANIŞ/para iadesi TETİKLEYEMEZ (§6.3).",
+				),
+				note=(
+					"RETURN_ALREADY_DECIDED ile RETURN_CLOSED AYRI kodlardır — ekran farklı "
+					"kutu çiziyor (M-E-3). Rol: satıcı / admin."
+				),
+			),
+			_ep(
+				"save_return_inspection",
+				params=(_p("name", "str", True), _p("items", "list", True, "[{item, received_qty, accepted_qty}]")),
+				returns={"entity": "return_request", "shape": "item"},
+				errors=("ACCEPTED_EXCEEDS_RECEIVED", "RETURN_CLOSED", "PERMISSION_DENIED", "VALIDATION_ERROR"),
+				guards=("`accepted_qty > received_qty` → ACCEPTED_EXCEEDS_RECEIVED.",),
+				note="Rol: platform operasyon / admin.",
+			),
+			_ep(
+				"close_return_request",
+				params=(_p("name", "str", True), _p("trigger_refund", "bool", False)),
+				returns={"entity": "return_request", "shape": "item"},
+				errors=("RETURN_NOT_CLOSABLE", "RETURN_CLOSED", "PERMISSION_DENIED"),
+				guards=(
+					"Üç ön koşul SUNUCUDA ayrı ayrı doğrulanır; eksikse RETURN_NOT_CLOSABLE "
+					"ve HANGİ koşulun eksik olduğu bildirilir.",
+					"Kapanınca kayıt DEĞİŞTİRİLEMEZ (TUR-116): sonraki her yazma → RETURN_CLOSED.",
+				),
+				note=(
+					"Uygulama sırasında EN SONA (§9): geri alınamaz ve escrow'a dokunur. "
+					"Rol: platform yöneticisi."
+				),
+			),
+		],
+	},
+	"pricing": {
+		"module": "api.v1.pricing",
+		"label": "Kargo fiyat kuralları ve simülasyon",
+		"owner": "20-BE",
+		"source_doc": "20-FE-VERI-SOZLESMESI.md",
+		"endpoints": [
+			_ep(
+				"list_pricing_rules",
+				params=(
+					_p("scope", "str", False, "all|mine"),
+					_p("q", "str", False),
+					_p("zone", "str", False),
+					_p("carrier_account", "str", False),
+					_p("seller", "str", False),
+					_p("is_active", "bool", False),
+					_p("start", "int", False),
+					_p("page_length", "int", False),
+				),
+				returns={
+					"shape": "custom",
+					"fields": [
+						"items[]", "layers.platform_mandatory", "layers.seller",
+						"layers.platform", "total", "page", "page_size",
+					],
+				},
+				errors=("PERMISSION_DENIED", "FEATURE_DISABLED"),
+				guards=(
+					"Sıralama SUNUCUDA: layer (mandatory→seller→platform), sonra priority "
+					"artan, sonra name. Arayüz yeniden sıralamaz — sayfalama ile bozulurdu.",
+				),
+				note=(
+					"`layers` sayaçları listeyle AYNI yanıttan gelir. Ayrı istek sayaçları "
+					"kaydırır: kullanıcı 'Satıcı kuralları 4' görür, açar, 3 kayıt gelir "
+					"(14-FE'de ölçülmüş tuzak). `items[]` = pricing_rule list_fields."
+				),
+			),
+			_ep(
+				"get_pricing_rule",
+				params=(_p("name", "str", True),),
+				returns={"entity": "pricing_rule", "shape": "item"},
+				errors=("NOT_FOUND", "PERMISSION_DENIED"),
+			),
+			_ep(
+				"save_pricing_rule",
+				params=(_p("name", "str", False, "yoksa oluşturur"), _p("values", "dict", True)),
+				returns={"entity": "pricing_rule", "shape": "item"},
+				errors=(
+					"PERMISSION_DENIED", "MANDATORY_NOT_ALLOWED", "VALIDATION_ERROR",
+					"TIER_RANGE_OVERLAP", "TIER_RANGE_GAP",
+				),
+				guards=(
+					"Sahiplik: satıcı yalnız `seller_profile == kendi` yazabilir → aksi "
+					"PERMISSION_DENIED.",
+					"`is_mandatory` yalnız platform → MANDATORY_NOT_ALLOWED.",
+					"En az bir kademe (VALIDATION_ERROR, details.fields.tiers); kademe "
+					"aralıklarında çakışma → TIER_RANGE_OVERLAP, boşluk → TIER_RANGE_GAP.",
+				),
+				note=(
+					"Öncelik çakışması KASITLI olarak hata DEĞİL: kaydı reddetmek yöneticiyi "
+					"kilitler (iki kuralı sırayla düzenlemek imkânsızlaşır)."
+				),
+			),
+			_ep(
+				"reorder_pricing_rules",
+				params=(_p("layer", "str", True), _p("order", "list", True, "kural adları, yeni sıra")),
+				returns={"shape": "custom", "fields": ["items[]"]},
+				errors=("NOT_FOUND", "VALIDATION_ERROR", "PERMISSION_DENIED"),
+				guards=(
+					"Her ad var olmalı (NOT_FOUND) · her kural `layer` ile AYNI katmanda "
+					"olmalı (VALIDATION_ERROR) · satıcı yalnız kendi kurallarını sıralar "
+					"(PERMISSION_DENIED).",
+				),
+				note="Sıra sürükleyerek değişir (kök CLAUDE.md §4.14e: sayı yazdırma, sürükletme).",
+			),
+			_ep(
+				"delete_pricing_rule",
+				params=(_p("name", "str", True),),
+				returns={"shape": "custom", "fields": ["name"]},
+				errors=("RULE_IN_USE", "NOT_FOUND", "PERMISSION_DENIED"),
+				guards=(
+					"Aktif sevkiyatlarda `applied_pricing_rule` olarak kullanılıyorsa "
+					"SİLİNMEZ → RULE_IN_USE.",
+				),
+			),
+			_ep(
+				"simulate_price",
+				params=(
+					_p("desi", "int", False, "(a) serbest deneme"),
+					_p("weight_kg", "int", False, "(a)"),
+					_p("zone", "str", False, "(a)"),
+					_p("order_total", "int", False, "(a)"),
+					_p("seller_profile", "str", False, "(a)"),
+					_p("origin_city", "str", False, "(a)"),
+					_p("shipment", "str", False, "(b) gerçek sipariş"),
+					_p("order", "str", False, "(b)"),
+				),
+				returns={"shape": "custom", "fields": ["input", "quotes[]", "recommended"]},
+				errors=("VALIDATION_ERROR", "ZONE_NOT_FOUND", "PERMISSION_DENIED"),
+				guards=(
+					"`recommended` SUNUCUDAN gelir; arayüz 'en ucuzu' kendisi seçmez — kural "
+					"satıcının varsayılan hesabını (Carrier Account.is_default) tercih eder, "
+					"yoksa en düşük satışa düşer. İki yerde hesaplanırsa ikisi ayrışır.",
+				),
+				note=(
+					"İki girdi biçimi (K5): (a) serbest deneme, (b) `shipment` ya da `order` "
+					"— değerleri sunucu doldurur. Yanıt TEK teklif değil LİSTE: her "
+					"kullanılabilir hesap için bir `price_quote` satırı. Kullanılamayan hesap "
+					"listeden DÜŞMEZ: `available: 0` + `unavailable_reason` ile döner."
+				),
+			),
+		],
+	},
+	"notifications": {
+		"module": "api.v1.notifications",
+		"label": "Bildirim tercihleri ve alıcı bildirim akışı",
+		"owner": "12-BE",
+		"source_doc": "12-FE-VERI-SOZLESMESI.md",
+		"endpoints": [
+			_ep(
+				"list_notification_preferences",
+				returns={"entity": "notification_preference", "shape": "list"},
+				errors=("PERMISSION_DENIED", "FEATURE_DISABLED"),
+				guards=(
+					"Çağıranın ROLÜNE AİT OLMAYAN satır DÖNMEZ (§6.1). Gösterim tercihi "
+					"değil yetki kapısı: ölçüldüğünde ekran alıcıya satıcının ve operasyon "
+					"ekibinin tercihlerini gösteriyordu.",
+				),
+				note="Parametre almaz — kimin tercihleri olduğunu sunucu oturumdan bilir.",
+			),
+			_ep(
+				"set_notification_preference",
+				params=(
+					_p("template", "str", True),
+					_p("enabled", "bool", True),
+				),
+				returns={"entity": "notification_preference", "shape": "item"},
+				errors=("MANDATORY_PREFERENCE", "NOT_FOUND", "PERMISSION_DENIED", "VALIDATION_ERROR"),
+				guards=(
+					"`is_mandatory=1` şablonda `enabled` YAZILAMAZ → MANDATORY_PREFERENCE. "
+					"Veri kısıtı, arayüz nezaketi değil: FE anahtarı `disabled` çiziyor "
+					"(S7-2) ama bu kolaylıktır, kapı değildir (§6.2).",
+				),
+				note=(
+					"Güncellenmiş satırın TAMAMI döner, yalnız `ok:true` değil — sunucunun "
+					"düzelttiği bir değer sessizce kaybolmasın. Aynı değeri yeniden yazmak "
+					"hata değil, idempotent."
+				),
+			),
+			_ep(
+				"list_notifications",
+				params=(
+					_p("page", "int", False, "varsayılan 1"),
+					_p("page_size", "int", False, "varsayılan 20"),
+				),
+				returns={"entity": "notification_log", "shape": "list"},
+				errors=("PERMISSION_DENIED", "FEATURE_DISABLED"),
+				guards=(
+					"`status` = queued|failed olan kayıt ALICIYA DÖNMEZ — gönderilmemiş "
+					"bildirimi 'geldi' diye göstermek yanlış bilgi olur. Süzgeç sunucuda.",
+					"`recipient` alanı yanıtta dönmez: zaten çağıranın kendisi.",
+				),
+				note="En yeni önce.",
+			),
+			_ep(
+				"mark_notification_read",
+				params=(_p("name", "str", True),),
+				returns={
+					"entity": "notification_log",
+					"shape": "fields",
+					"fields": ["name", "read_at"],
+				},
+				errors=("PERMISSION_DENIED", "NOT_FOUND"),
+				guards=("Başkasının bildirimi işaretlenemez → PERMISSION_DENIED.",),
+				note=(
+					"Zaten okunmuşsa mevcut `read_at` döner, üzerine yazılmaz — idempotent. "
+					"Uygulama sırasında EN SONA (§9): ekran bu uç olmadan da çalışır, yalnız "
+					"her kayıt okunmamış görünür."
+				),
+			),
+		],
+	},
 }

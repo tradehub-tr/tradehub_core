@@ -182,6 +182,9 @@
 			"customer_charge": 349.9,
 			"carrier_account": "CACC-YK-PLATFORM",
 			"applied_pricing_rule": "PR-STD-YK",
+			"packing_completed_at": "2026-08-10 08:20:00",
+			"pickup_person": null,
+			"proof_of_delivery": "POD-2026-00041",
 			"price_quote_snapshot": {
 				"quote_id": "Q-2026-0912-A",
 				"quoted_at": "2026-08-12 09:00:00",
@@ -220,7 +223,9 @@
 					"remaining_qty": 8,
 					"uom": "Top",
 					"weight_kg": 2.4,
-					"returned_qty": 0
+					"returned_qty": 0,
+					"packed_qty": 10,
+					"scan_code": "8690012340011"
 				},
 				{
 					"item": "LST-00133",
@@ -230,7 +235,9 @@
 					"remaining_qty": 0,
 					"uom": "Top",
 					"weight_kg": 1.1,
-					"returned_qty": 0
+					"returned_qty": 0,
+					"packed_qty": 10,
+					"scan_code": null
 				}
 			],
 			"packages": [
@@ -246,7 +253,20 @@
 					"desi": 32.0,
 					"barcode_url": "/files/barkod/PKG-42-001.png",
 					"label_url": "/files/etiket/PKG-42-001.pdf",
-					"label_printed_at": "2026-08-10 08:12:00"
+					"label_printed_at": "2026-08-10 08:12:00",
+					"contents": [
+						{
+							"shipment_item": "a1b2c3",
+							"qty": 1400
+						}
+					],
+					"chargeable_kg": 32.0,
+					"label_status": "Printed",
+					"label_format": "thermal_100x150",
+					"label_generated_at": "2026-08-10 08:10:22",
+					"label_print_count": 2,
+					"carrier_tracking": "1234567890",
+					"content_hash": "sha256:4f21ac"
 				},
 				{
 					"package_code": "PKG-42-002",
@@ -260,7 +280,20 @@
 					"desi": 32.0,
 					"barcode_url": "/files/barkod/PKG-42-002.png",
 					"label_url": "/files/etiket/PKG-42-002.pdf",
-					"label_printed_at": "2026-08-10 08:12:00"
+					"label_printed_at": "2026-08-10 08:12:00",
+					"contents": [
+						{
+							"shipment_item": "a1b2c3",
+							"qty": 600
+						}
+					],
+					"chargeable_kg": 32.0,
+					"label_status": "Stale",
+					"label_format": "thermal_100x150",
+					"label_generated_at": "2026-08-10 08:10:22",
+					"label_print_count": 1,
+					"carrier_tracking": null,
+					"content_hash": "sha256:91be07"
 				},
 				{
 					"package_code": "PKG-42-003",
@@ -274,7 +307,20 @@
 					"desi": 60.0,
 					"barcode_url": "/files/barkod/PKG-42-003.png",
 					"label_url": null,
-					"label_printed_at": null
+					"label_printed_at": null,
+					"contents": [
+						{
+							"shipment_item": "d4e5f6",
+							"qty": 40
+						}
+					],
+					"chargeable_kg": 60.0,
+					"label_status": null,
+					"label_format": null,
+					"label_generated_at": null,
+					"label_print_count": 0,
+					"carrier_tracking": null,
+					"content_hash": null
 				}
 			],
 			"legs": [
@@ -325,7 +371,6 @@
 				{
 					"event_time": "2026-08-10 09:05:00",
 					"status": "Picked Up",
-					"source": "api",
 					"carrier_status_code": "101",
 					"carrier_status_text": "Kargo şubeye teslim edildi",
 					"location": "İkitelli",
@@ -338,7 +383,6 @@
 				{
 					"event_time": "2026-08-10 18:20:00",
 					"status": "In Transit",
-					"source": "webhook",
 					"carrier_status_code": "150",
 					"carrier_status_text": "Transfer merkezinde",
 					"location": "İstanbul Aktarma",
@@ -351,7 +395,6 @@
 				{
 					"event_time": "2026-08-12 07:40:00",
 					"status": "In Transit",
-					"source": "polling",
 					"carrier_status_code": "160",
 					"carrier_status_text": "Varış şubesinde",
 					"location": "Ostim",

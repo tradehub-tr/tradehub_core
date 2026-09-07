@@ -49,6 +49,8 @@ DOCTYPE_ROOT = PACKAGE_ROOT / "tradehub_core" / "doctype"
 SCHEMA_PATH = APP_ROOT / "docs" / "logistics-api.schema.json"
 GENERATED_ROOT = APP_ROOT / "docs" / "generated"
 FIXTURE_ROOT = GENERATED_ROOT / "fixtures"
+#: Backend'in kod yazarken açacağı uç sözleşmesi (MOCK-SÖZ, MOGEM-560).
+ENDPOINT_DOC_PATH = GENERATED_ROOT / "LOGISTICS-ENDPOINTS.md"
 #: Storefront alt kümesi ayrı dizinde üretiliyor ki `--check` onu da denetlesin.
 STOREFRONT_FIXTURE_ROOT = GENERATED_ROOT / "storefront-fixtures"
 DTS_PATH = GENERATED_ROOT / "logistics.d.ts"
@@ -124,6 +126,27 @@ STOREFRONT_MASKED_FIELDS: frozenset[str] = frozenset(
 		"carrier_cost",
 		"fuel_surcharge",
 		"packaging_cost",
+	}
+)
+
+#: Storefront yükünden TAMAMEN ÇIKARILAN alanlar — maskelenmez, SİLİNİR.
+#:
+#: Maskelemeden farkı bir sözleşme kararıdır: maliyet alanları "var ama sana
+#: gösterilmiyor" demek için `None` döner; buradakiler ise alıcı için HİÇ
+#: MEVCUT DEĞİLDİR. 12-FE §2.5 bunu açıkça yazıyor: *"yanıttan hiç çıkarılır —
+#: null gönderilmez, maskelenmez. Ekran o alanları hiç çizmez."* `null` dönen
+#: bir alan ekranda "veri yok" satırı çizdirebilir; olmayan alan çizdirmez.
+#:
+#: İç operasyon damgaları POD sözleşmesinde VAR (14-FE §1: sunucu belirler,
+#: istemci beyanına güvenilmez) ama alıcıya GİRMEZ (12-FE K-E). İki sözleşme
+#: çelişmiyor — alan sunucuda tutulur, alıcıya gösterilmez. 2026-09-07'de POD
+#: alanları hizalanınca (MOCK-SÖZ) storefront fixture'ına sızdılar ve 12-FE'nin
+#: kendi testi yakaladı.
+STOREFRONT_OMITTED_FIELDS: frozenset[str] = frozenset(
+	{
+		"source",
+		"recorded_by",
+		"recorded_at",
 	}
 )
 
@@ -333,6 +356,88 @@ def _collect_provisional() -> dict[str, Any]:
 	}
 
 
+def _collect_endpoints() -> dict[str, Any]:
+	"""Uç sözleşmesini şema biçimine çevirir.
+
+	`_collect_provisional` bir ucun NE DÖNDÜĞÜNÜ tanımlıyor; bu KİMİN, NEYİ,
+	HANGİ PARAMETREYLE çağırdığını. Kaynak `logistics/contract.py` →
+	`PROVISIONAL_ENDPOINTS` (MOCK-SÖZ, MOGEM-560).
+
+	Her ucun `errors` listesi tanımlı kod kümesiyle karşılaştırılır; tanımsız
+	kodlar `undefined_errors` altında İŞARETLENİR ama üretim DURDURULMAZ —
+	24 tanesi FE sözleşmelerinde bilinçli "eklenecek" olarak duruyor
+	(ör. 13-FE §3 "Mevcut sözleşmeye eklenecekler"). Bunları hata saymak,
+	backend yazılana kadar her üretimi kırardı; görünmez bırakmak ise
+	ekranların tanımadıkları bir kodla dallanmasına yol açardı.
+	"""
+	from tradehub_core.logistics.contract import PROVISIONAL_ENDPOINTS
+
+	tanimli = set(_collect_error_codes())
+	out: dict[str, Any] = {}
+	for key, mod in PROVISIONAL_ENDPOINTS.items():
+		endpoints = []
+		for ep in mod["endpoints"]:
+			tanimsiz = [code for code in ep["errors"] if code not in tanimli]
+			endpoints.append({**ep, **({"undefined_errors": tanimsiz} if tanimsiz else {})})
+		out[key] = {
+			"provisional": True,
+			"module": mod["module"],
+			"label": mod["label"],
+			"owner": mod["owner"],
+			"source_doc": mod["source_doc"],
+			"endpoints": endpoints,
+		}
+	return out
+
+
+def _assert_endpoints_valid(schema: dict[str, Any]) -> None:
+	"""Bir uç, varlık sözleşmesinde OLMAYAN alan döndüremez.
+
+	`FE-MOCK-DISIPLINI` §"mock sözleşmedeki yükü birebir üretir": uydurulan
+	alan gerçek uca bağlanınca ekranı bozar. Uydurma, mock'a yazıldığı anda
+	değil, SÖZLEŞMEYE yazıldığı anda yakalanmalı — bu yüzden üretim durur.
+	"""
+	problems: list[str] = []
+	for mod_key, mod in schema["endpoints"].items():
+		for ep in mod["endpoints"]:
+			ret = ep["returns"]
+			entity = ret.get("entity")
+			if not entity:
+				continue
+			spec = schema["provisional"].get(entity)
+			if spec is None:
+				problems.append(f"{mod_key}.{ep['name']}: bilinmeyen varlık {entity!r}")
+				continue
+			if ret.get("shape") != "fields":
+				continue
+			known = {f["name"] for f in (*spec["list_fields"], *spec["detail_fields"])}
+			for rows in spec["child_tables"].values():
+				known |= {f["name"] for f in rows}
+			pending = ep.get("pending_fields") or {}
+			missing = [
+				name
+				for name in ret.get("fields", [])
+				if name not in known and name not in pending
+			]
+			if missing:
+				problems.append(
+					f"{mod_key}.{ep['name']}: {entity} sözleşmesinde yok → {', '.join(missing)}"
+				)
+
+			# Muafiyetin KENDİSİ denetleniyor: alan sözleşmeye eklendiği gün bu
+			# satır kırmızı olur ve silinmek zorunda kalır. Muafiyet kalıcı borç
+			# hâline gelemez (`iadeDenetimleri.test.ts` BILINEN_BORCLAR deseni).
+			stale = [name for name in pending if name in known]
+			if stale:
+				problems.append(
+					f"{mod_key}.{ep['name']}: muafiyet BAYATLADI, {entity} artık bu alanları "
+					f"tanıyor → pending_fields'tan düş: {', '.join(stale)}"
+				)
+
+	if problems:
+		raise SystemExit("Uç sözleşmesi varlık sözleşmesiyle uyuşmuyor:\n  " + "\n  ".join(problems))
+
+
 def _collect_admin() -> dict[str, Any]:
 	from tradehub_core.api.v1 import logistics_admin as A
 
@@ -393,6 +498,10 @@ def build_schema() -> dict[str, Any]:
 		# Henüz DocType'ı olmayan varlıklar. Faz F backend'i BU sözleşmeye
 		# implement eder; sapma açık karar gerektirir.
 		"provisional": _collect_provisional(),
+		# Henüz yazılmamış uçların imzaları. Kaynak: FE veri sözleşmeleri
+		# (git'siz kök klasörde) — BE'yi yazan kişi oraya erişemediği için
+		# sözleşme buraya taşındı (MOCK-SÖZ, MOGEM-560).
+		"endpoints": _collect_endpoints(),
 	}
 
 
@@ -1061,6 +1170,7 @@ def _assert_samples_cover_contract(schema: dict[str, Any]) -> None:
 				problems.append(f"{key}.{table}: örnekte yok → {', '.join(child_missing)}")
 
 	problems.extend(_referential_problems())
+	_assert_endpoints_valid(schema)
 
 	if problems:
 		raise SystemExit("Sözleşme ile örnek veri uyuşmuyor:\n  " + "\n  ".join(problems))
@@ -1108,6 +1218,139 @@ def _referential_problems() -> list[str]:
 # ---------------------------------------------------------------------------
 
 
+def render_endpoint_doc(schema: dict[str, Any]) -> str:
+	"""Backend'in kod yazarken açacağı tek belge.
+
+	NEDEN ÜRETİLİYOR, elle yazılmıyor:
+		Uç imzaları altı FE veri sözleşmesinde yaşıyor ve o klasör git'siz —
+		backend'i yazacak kişi açamıyor (`GOREV-TAMAMLAMA-SOZLESMESI.md` §7).
+		Elle kopyalansaydı ikinci bir doğruluk kaynağı doğar ve ilk sözleşme
+		değişikliğinde bayatlardı; üretilince `--check` bayatlamayı yakalıyor.
+
+	Kaynak: `logistics/contract.py` → `PROVISIONAL_ENDPOINTS` (MOCK-SÖZ).
+	"""
+	eps = schema["endpoints"]
+	toplam = sum(len(m["endpoints"]) for m in eps.values())
+
+	L: list[str] = [
+		"# Lojistik uç sözleşmesi — backend başlangıç belgesi",
+		"",
+		"> **ÜRETİLMİŞ DOSYA — elle düzenleme.**",
+		"> Kaynak: `tradehub_core/logistics/contract.py` → `PROVISIONAL_ENDPOINTS`",
+		"> Yenile: `python3 scripts/gen_logistics_types.py --sync`",
+		"> Bayat mı: `python3 scripts/gen_logistics_types.py --check`",
+		"",
+		f"Bu belge **{len(eps)} modüldeki {toplam} yazılmamış ucun** sözleşmesidir.",
+		"Varlıkların hangi alanları taşıdığı ayrı yerde: `docs/logistics-api.schema.json`",
+		"→ `provisional` (ve okunabilir özeti `LOGISTICS-API-CONTRACT.md` §3).",
+		"",
+		"**🔸 işaretli hata kodları henüz `logistics/exceptions.py`'de TANIMLI DEĞİL.**",
+		"Ekranlar bu kodlara göre dallanıyor; uç yazılırken kod da tanımlanmalı,",
+		"yoksa istemci `INTERNAL_ERROR` görür ve doğru kutuyu çizemez.",
+		"",
+		"---",
+		"",
+	]
+
+	def imza(ep: dict[str, Any]) -> str:
+		parts = [p["name"] if p["required"] else f"{p['name']}?" for p in ep["params"]]
+		return f"`{ep['name']}({', '.join(parts)})`"
+
+	def doner(ep: dict[str, Any]) -> str:
+		ret = ep["returns"]
+		shape, entity = ret.get("shape"), ret.get("entity")
+		if shape == "list":
+			return f"`{entity}` listesi — `{{items, total, page, page_size}}`"
+		if shape == "item":
+			return f"`{entity}` kaydı"
+		if shape == "fields":
+			return f"`{entity}` → " + ", ".join(f"`{f}`" for f in ret["fields"])
+		return "özel yük: " + ", ".join(f"`{f}`" for f in ret.get("fields", []))
+
+	for mod in eps.values():
+		L += [
+			f"## `{mod['module']}` — {mod['label']}",
+			"",
+			f"**Sahip:** {mod['owner']} · **FE kaynağı:** `{mod['source_doc']}`",
+			"",
+			"| Uç | Döndürür | Hata kodları |",
+			"|---|---|---|",
+		]
+		for ep in mod["endpoints"]:
+			undefined = set(ep.get("undefined_errors", []))
+			codes = " · ".join(
+				(f"🔸`{c}`" if c in undefined else f"`{c}`") for c in ep["errors"]
+			)
+			L.append(f"| {imza(ep)} | {doner(ep)} | {codes or '—'} |")
+		L.append("")
+
+		# Parametre açıklamaları — imzada yalnız ad ve zorunluluk görünüyor;
+		# `items` gibi bir parametrenin ŞEKLİ ("[{item, qty}]") burada yazmasa
+		# BE'nin tahmin etmesi gerekirdi. Okunabilirlik turunda eklendi.
+		aciklamali = [
+			(ep["name"], p) for ep in mod["endpoints"] for p in ep["params"] if p["note"]
+		]
+		if aciklamali:
+			L += ["**Parametreler:**", ""]
+			L += [
+				f"- `{ad}` → `{p['name']}` ({p['type']}{', zorunlu' if p['required'] else ''}) — {p['note']}"
+				for ad, p in aciklamali
+			]
+			L.append("")
+
+		notlar = [(ep["name"], ep["note"]) for ep in mod["endpoints"] if ep["note"]]
+		if notlar:
+			L += ["**Uygulama notları:**", ""]
+			L += [f"- `{ad}` — {n}" for ad, n in notlar]
+			L.append("")
+
+		kapilar = [(ep["name"], g) for ep in mod["endpoints"] for g in ep["guards"]]
+		if kapilar:
+			L += ["**Sunucuda tekrarlanması gereken kapılar:**", ""]
+			L += [f"- `{ad}` — {g}" for ad, g in kapilar]
+			L.append("")
+
+		bekleyen = [
+			(ep["name"], f, why)
+			for ep in mod["endpoints"]
+			for f, why in (ep.get("pending_fields") or {}).items()
+		]
+		if bekleyen:
+			L += ["**Varlık sözleşmesinde HENÜZ olmayan alanlar:**", ""]
+			L += [f"- `{ad}` → `{f}` — {why}" for ad, f, why in bekleyen]
+			L.append("")
+		L.append("---")
+		L.append("")
+
+	tanimsiz: dict[str, list[str]] = {}
+	for key, mod in eps.items():
+		for ep in mod["endpoints"]:
+			for code in ep.get("undefined_errors", []):
+				tanimsiz.setdefault(code, []).append(f"{key}.{ep['name']}")
+
+	if tanimsiz:
+		L += [
+			"## 🔸 Tanımsız hata kodları",
+			"",
+			f"Ekranlar **{len(tanimsiz)} koda** göre dallanıyor ama hiçbiri",
+			"`logistics/exceptions.py` ya da `logistics/api_utils.py` içinde tanımlı değil.",
+			"Ucu yazan kişi kodu da tanımlar; tanımlamazsa istemci `INTERNAL_ERROR` görür.",
+			"",
+			"| Kod | Kaç uçta | Nerede |",
+			"|---|---:|---|",
+		]
+		for code, users in sorted(tanimsiz.items()):
+			L.append(f"| `{code}` | {len(users)} | {', '.join(f'`{u}`' for u in users)} |")
+		L += [
+			"",
+			"> `VALIDATION_FAILED` (13-FE) ile `VALIDATION_ERROR` (diğerleri) **aynı şeyin",
+			"> iki adı**. Uçlar yazılırken tek ada indirilmeli — bugün ekranlar iki farklı",
+			"> koda göre dallanıyor.",
+			"",
+		]
+	return "\n".join(L)
+
+
 def _render_all() -> dict[Path, str]:
 	schema = build_schema()
 	_assert_samples_cover_contract(schema)
@@ -1116,6 +1359,7 @@ def _render_all() -> dict[Path, str]:
 		DTS_PATH: render_dts(schema) + "\n",
 		# Jenerik katalog ekranı sütun ve filtrelerini BUNDAN türetiyor. Tam
 		# şemayı frontend'e taşımak yerine yalnız ekranın ihtiyacı verilir.
+		ENDPOINT_DOC_PATH: render_endpoint_doc(schema) + "\n",
 		FIXTURE_ROOT / "_catalog-meta.json": (
 			json.dumps(render_catalog_meta(schema), indent="\t", ensure_ascii=False) + "\n"
 		),
@@ -1238,15 +1482,21 @@ def _stale_synced_copies(outputs: dict[Path, str]) -> list[Path]:
 
 
 def _mask_for_storefront(value: Any) -> Any:
-	"""Maliyet alanlarını özyinelemeli olarak `None` yapar.
+	"""Maliyet alanlarını `None` yapar, iç damgaları tamamen SİLER.
+
+	İki ayrı semantik, ikisi de sözleşme kararı:
+	  · `STOREFRONT_MASKED_FIELDS` → alan durur, değeri `None` ("var ama
+	    sana gösterilmiyor")
+	  · `STOREFRONT_OMITTED_FIELDS` → alan hiç yok ("senin için mevcut değil")
 
 	Özyineleme şart: `shipment.detail` içinde `items`/`packages`/`legs`
-	çocuk dizileri var ve maliyet alanı orada da geçebiliyor.
+	çocuk dizileri var ve iki küme de orada geçebiliyor.
 	"""
 	if isinstance(value, dict):
 		return {
 			key: (None if key in STOREFRONT_MASKED_FIELDS else _mask_for_storefront(inner))
 			for key, inner in value.items()
+			if key not in STOREFRONT_OMITTED_FIELDS
 		}
 	if isinstance(value, list):
 		return [_mask_for_storefront(item) for item in value]
