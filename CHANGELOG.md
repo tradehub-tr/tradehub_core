@@ -1,3 +1,17 @@
+## [v1.13.1-alpha.57] - 2026-09-07 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Duzeltildi
+- fix(lojistik): denetim turu — is_delayed sözleşme boşluğu ve 4 sertleştirme kapatıldı (@boraydeger32)
+  - list_shipments artık is_delayed + ship_date + modified + package_count döndürüyor (sözleşme §provisional.shipment.list_fields); maliyet alanları bilinçli dışarıda (G0 sınırı), is_delayed TUR-112 SLA monitor gelene dek saklanan alan değil satır başına sorgusuz türev
+  - Leg/Event doc=None yazma kontrolü Shipment emsaliyle hizalandı (_TENANT_WRITE_ROLES matrisi — fail-open kapandı)
+  - HTTP istemci throttle kapsamlarına environment eklendi (open_notice/log_failure sandbox↔production ayrımı)
+  - api_utils hata yolları safe_log_error + traceback_text ile korundu (log_error fırlatırsa zarf sözleşmesi delinmiyor)
+  - secrets._read_plain sessiz yutma → gürültülü fail-closed (_READ_FAILED)
+  - 16 yeni test: alan-kümesi tam eşitlik + maliyet sınırı, gecikme matrisi, ortam-ayrımı, CarrierResponse.json() sözleşmesi, gelecek-tarihli Retry-After
+
+---
 ## [v1.13.1-alpha.56] - 2026-09-04 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
