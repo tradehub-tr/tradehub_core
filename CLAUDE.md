@@ -87,7 +87,8 @@ tradehub_core/                          (repo kökü)
 11. **Lojistik sözleşme artefaktları ÜRETİLİR — elle düzenleme.**
     `logistics/contract.py`, `logistics/constants.py`, `logistics/exceptions.py`,
     `api/v1/logistics_*.py` ve seed patch'leri **tek otorite**. Bunlardan
-    41 dosya üretiliyor: `docs/logistics-api.schema.json`,
+    44 dosya üretiliyor: `docs/logistics-api.schema.json`,
+    `docs/generated/LOGISTICS-ENDPOINTS.md` (backend başlangıç belgesi),
     `docs/generated/logistics.d.ts`, `docs/generated/fixtures/*.json` ve
     kardeş repolardaki kopyalar (`admin-panel/frontend/src/mocks/logistics`,
     `tradehubfront/src/{mocks/logistics,types/logistics.d.ts}`).
