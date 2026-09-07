@@ -97,6 +97,13 @@ __all__ = [
 #: düşmeden metne çevirir.
 _CONVERTIBLE_SECRET_TYPES = (bytes, bytearray, memoryview, int, float, Decimal)
 
+#: `_read_plain`'de `get()` FIRLATTI — "alan boş" DEĞİL, "alan OKUNAMADI".
+#: Nöbetçi nesne, `None` (meşru "alan boş") ile ayrımı korur: eski kod
+#: istisnayı `None`'a çevirip alanı boş sayıyordu ve o kimlik dokümanı için
+#: değer-tabanlı redaksiyon SESSİZCE kapanıyordu — `unresolved` yolu (gürültülü
+#: fail-closed, `_read_password` simetriği) hiç tetiklenmiyordu.
+_READ_FAILED: Any = object()
+
 
 def is_password_placeholder(value: str) -> bool:
 	"""Frappe'nin `Password` sütununa yazdığı yer tutucu mu?
@@ -238,6 +245,12 @@ def _read_secret_field(source: Any, field: str) -> tuple[tuple[str, ...] | None,
 	"""
 	stored = _read_plain(source, field)
 
+	if stored is _READ_FAILED:
+		# `get()` fırlattı: alan var mı bilinmiyor, ama "boş" da DEĞİL —
+		# `unresolved` yoluna yazılır ki `collect_secret_values` gürültülü
+		# fail-closed ile `None` dönsün (yarım küme guardrail'i susturmasın).
+		return None, True
+
 	if not isinstance(stored, str):
 		if stored is None or isinstance(stored, bool) or not stored:
 			return None, False
@@ -272,15 +285,28 @@ def _has_password_reader(source: Any) -> bool:
 
 
 def _read_plain(source: Any, field: str) -> Any:
-	"""Alanı ham okur — `Mapping`, Frappe `Document` ve düz nesne için tek yol."""
+	"""Alanı ham okur — `Mapping`, Frappe `Document` ve düz nesne için tek yol.
+
+	`get()` istisnası "alan boş" DEĞİL "alan OKUNAMADI" demektir ve `_READ_FAILED`
+	nöbetçisiyle bildirilir: eski kod `None` dönüp alanı boş sayıyordu, dolu bir
+	sır sessizce kümeden düşüyor ve o doküman için değer-tabanlı redaksiyon
+	uyarısız kapanıyordu. Çağıran (`_read_secret_field`) nöbetçiyi `unresolved`
+	yoluna çevirir — `_read_password`'daki gürültülü fail-closed ile simetrik.
+	"""
 	if source is None:
 		return None
 	getter = getattr(source, "get", None)
 	if callable(getter):
 		try:
 			return getter(field)
-		except Exception:  # noqa: BLE001 — okuma yolu sır toplamayı düşüremez
-			return None
+		except Exception as exc:  # noqa: BLE001 — okuma yolu sır toplamayı düşüremez
+			_LOGGER.error(
+				"Sır alanı `%s` okunurken `get()` fırlattı (%s) — alan boş DEĞİL, "
+				"okunamadı sayılıyor; değer-tabanlı redaksiyon fail-closed'a düşecek.",
+				field,
+				type(exc).__name__,
+			)
+			return _READ_FAILED
 	return getattr(source, field, None)
 
 

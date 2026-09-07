@@ -722,6 +722,11 @@ class CarrierHttpClient:
 		if last_real is not None:
 			self.breaker.record(last_real.outcome, is_probe=is_probe)
 		elif last is None:
+			# ERİŞİLEMEZ — bütçe >=1 invaryantı: `RetryPolicy.__post_init__`
+			# `max_attempts`'i 1'e clamp'ler, `attempt_budget` en az 1 döner,
+			# dolayısıyla `_run_attempts` döngüsü her zaman en az bir kez koşar
+			# ve `last` set edilir. Dal SAVUNMA olarak korunuyor: invariant bir
+			# gün delinirse "hiç deneme yapılmadı" durumu sessiz kalmamalı.
 			self.breaker.record(Outcome.UNAVAILABLE, is_probe=is_probe)
 		elif is_probe:
 			# ÜÇÜNCÜ KATMAN'IN EKSİK YARISI. Daraltılan kapı reddi devre kesiciye
@@ -1172,8 +1177,13 @@ class CarrierHttpClient:
 			# claim edip yeniden düşüyor ve her tur bir rapor üretiyordu. Aynı
 			# cooldown penceresinde birkaç denemeden sonra anahtar bırakılmaz;
 			# devre kesicinin "cooldown başına tek satır" sözü korunur ve log
-			# katmanı kendi kendini boğmaz.
-			if not written and should_report(f"open_notice:{self.carrier_code}", _OPEN_NOTICE_RETRY_LIMIT):
+			# katmanı kendi kendini boğmaz. Kapsam ORTAMI da içerir — devre
+			# kapsamı `{kod}@{env}` (bkz. `circuit_breaker._fault_scope`);
+			# ortamsız anahtar sandbox'taki tükenmiş limiti production
+			# bildirimine de uyguluyordu.
+			if not written and should_report(
+				f"open_notice:{self.carrier_code}@{self.environment}", _OPEN_NOTICE_RETRY_LIMIT
+			):
 				self.breaker.release_open_notice()
 		else:
 			_warn(f"circuit_open carrier={self.carrier_code} operation={call.operation}", level="info")
@@ -1369,7 +1379,7 @@ class CarrierHttpClient:
 			# Gözlemlenebilirlik katmanının kendisi çökmüşse `_warn` yeterli
 			# değil: kalıcı bir kayıt (traceback'li) olmadan bu arıza fark
 			# edilmiyordu.
-			_report_log_failure(self.carrier_code, call.operation, exc)
+			_report_log_failure(self.carrier_code, self.environment, call.operation, exc)
 			return False
 		# YAZICININ ASIL BAŞARISIZLIK KANALI DÖNÜŞ DEĞERİDİR. `write_integration_log`
 		# sözleşme gereği ASLA FIRLATMAZ (bkz. `IntegrationLogWriter` docstring'i:
@@ -1695,7 +1705,7 @@ def _safe_log_error(message: str, title: str) -> None:
 		_warn(message)
 
 
-def _report_log_failure(carrier_code: str, operation: str, exc: BaseException) -> None:
+def _report_log_failure(carrier_code: str, environment: str, operation: str, exc: BaseException) -> None:
 	"""Entegrasyon logu yazılamadığını KISILMIŞ ve KALICI olarak raporlar.
 
 	Kısma deseni kardeş yoldan (`circuit_breaker._report_fault`) devralınmıştır
@@ -1704,10 +1714,16 @@ def _report_log_failure(carrier_code: str, operation: str, exc: BaseException) -
 	True → `_log` düşer → bu fonksiyon → `release_open_notice()` anahtarı SİLER
 	→ sonraki istek yeniden claim eder → yine yazar. Kalıcı bir log arızasında
 	cooldown başına tek satır yerine İSTEK BAŞINA satır oluşuyordu.
+
+	Kapsam ORTAMI da içerir — devre kapsamı `{kod}@{env}` desenidir
+	(`circuit_breaker._fault_scope`); ortamsız kapsam sandbox arızasının
+	raporu production arızasının ilk (kalıcı Error Log) raporunu 60 sn
+	susturabiliyordu.
 	"""
 	report_throttled(
-		f"log_failure:{carrier_code}:{operation}",
-		f"Entegrasyon logu yazılamadı carrier={carrier_code} operation={operation}: {exc}",
+		f"log_failure:{carrier_code}@{environment}:{operation}",
+		f"Entegrasyon logu yazılamadı carrier={carrier_code} environment={environment} "
+		f"operation={operation}: {exc}",
 		"logistics.http_client",
 	)
 

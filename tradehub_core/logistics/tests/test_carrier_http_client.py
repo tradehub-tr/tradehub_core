@@ -15,11 +15,14 @@ SSRF kapısı çoğu testte `allow_private_hosts=True` ile kapalı: `kargo.test`
 
 from __future__ import annotations
 
+import email.utils
 import inspect
+import json
 import time
 import unittest
 import uuid
 from dataclasses import replace
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from unittest import mock
 
@@ -2101,6 +2104,72 @@ class TestLogFailureThrottling(_NoSleep):
 		self.assertLess(len(releases), 20, "Anahtar her istekte geri veriliyor — çevrim kısılmadı")
 		self.assertGreaterEqual(len(releases), 1, "Geçici arızada anahtar hiç geri verilmiyor")
 
+	def test_log_failure_throttle_scope_separates_environments(self) -> None:
+		"""Kapsam `{kod}@{env}` desenini izler (`circuit_breaker._fault_scope` emsali).
+
+		Ortamsız kapsam, sandbox arızasının raporu production arızasının ilk
+		(kalıcı Error Log) raporunu 60 sn susturabiliyordu — devre kesici kapsamı
+		zaten ortam ayrımı yapıyor, kısma kapsamı da yapmalı.
+		"""
+
+		def exploding_logger(**_kwargs: Any) -> str:
+			raise RuntimeError("log DB'si çöktü")
+
+		code = f"TEST-{uuid.uuid4().hex[:8]}"
+		prod = _client(
+			FakeSession([FakeResponse(200, b"ok")]),
+			carrier_code=code, provider=SEEDED_PROVIDER, logger=exploding_logger,
+		)
+		sandbox = _client(
+			FakeSession([FakeResponse(200, b"ok")]),
+			carrier_code=code, provider=SEEDED_PROVIDER, logger=exploding_logger,
+			environment="test",
+		)
+
+		with mock.patch("frappe.log_error") as log_error:
+			prod.request("GET", "https://kargo.test/x", operation="track")
+			sandbox.request("GET", "https://kargo.test/x", operation="track")
+
+		self.assertEqual(
+			_log_failure_reports(log_error), 2,
+			"Aynı taşıyıcının iki ORTAMI tek kapsama düştü — ortam ayrımı yok",
+		)
+
+	def test_open_notice_release_scope_includes_the_environment(self) -> None:
+		"""Anahtar-iade kısması da `{kod}@{env}` kapsamıyla karar verir."""
+
+		class _AlwaysOpenBreaker:
+			enabled = True
+
+			def state(self) -> Any:
+				return hc.CircuitState.OPEN
+
+			def acquire_probe(self) -> bool:
+				return False
+
+			def claim_open_notice(self) -> bool:
+				return True
+
+			def release_open_notice(self) -> None:
+				return None
+
+			def record(self, *_args: Any, **_kwargs: Any) -> None:
+				return None
+
+		session = FakeSession([FakeResponse(200, b"ok")])
+		client = _client(
+			session, provider=SEEDED_PROVIDER, logger=lambda **_kw: None, environment="test"
+		)
+		client.breaker = _AlwaysOpenBreaker()  # type: ignore[assignment]
+
+		with mock.patch(f"{_MODULE}.should_report", return_value=False) as should_report:
+			with self.assertRaises(CarrierAPIError):
+				client.request("GET", "https://kargo.test/x", operation="track")
+
+		should_report.assert_called_once_with(
+			f"open_notice:{client.carrier_code}@test", hc._OPEN_NOTICE_RETRY_LIMIT
+		)
+
 
 class TestLoggerInjection(_NoSleep):
 	def test_logger_arguments_match_write_integration_log_signature(self) -> None:
@@ -2755,6 +2824,58 @@ class TestRetryAfterParsing(unittest.TestCase):
 	def test_http_date_in_the_past_is_clamped_to_zero(self) -> None:
 		self.assertEqual(hc._parse_retry_after("Wed, 21 Oct 2015 07:28:00 GMT"), 0.0)
 
+	def test_http_date_in_the_future_yields_the_remaining_seconds(self) -> None:
+		"""Gelecek tarihli HTTP-date KALAN saniyeye çevrilir, mutlak zamana değil.
+
+		RFC 7231 iki biçime izin verir: delta-seconds VE HTTP-date. İkinci yol
+		testsizdi — `parsedate_to_datetime` dalı kırılsa (ör. tz'siz parse) 0'a
+		clamp'lenir ve retry beklemesi sessizce kaybolurdu.
+		"""
+		future = datetime.now(timezone.utc) + timedelta(seconds=60)
+		value = email.utils.format_datetime(future, usegmt=True)
+
+		result = hc._parse_retry_after(value)
+
+		self.assertIsNotNone(result)
+		# format_datetime saniye hassasiyetindedir ve çağrılar arasında zaman
+		# geçer; kalan sürenin ~60 sn bandında olması yeterli.
+		self.assertGreater(result, 50.0, "Gelecek tarih 0'a clamp'lendi — bekleme kayboldu")
+		self.assertLessEqual(result, 60.0)
+
+
+class TestCarrierResponseJson(unittest.TestCase):
+	"""`CarrierResponse.json()` — kolaylık ayrıştırıcısının HATA SÖZLEŞMESİ.
+
+	İstemci bunu KENDİ çağırmaz, adapter seçer (bkz. `json()` docstring'i).
+	Bozuk gövdede fırlayan istisna `json.JSONDecodeError`'dur — bir `ValueError`
+	alt sınıfı, `LogisticsError` hiyerarşisinde DEĞİL. Yani yakalamayan bir
+	adapter'da bu istisna API zarfının 500 dalına düşer; adapter ya yakalamalı
+	ya da gövdeyi `classify=` ile normal dönüş yolundan işlemeli. Bu sınıf o
+	sözleşmeyi KİLİTLER: davranış değişirse (ör. sarmalanıp LogisticsError
+	yapılırsa) bu testler bilinçli olarak güncellenmek zorunda kalsın.
+	"""
+
+	def test_malformed_body_raises_json_decode_error(self) -> None:
+		response = CarrierResponse(200, {}, b"<html>bakim sayfasi</html>", 1, 1)
+		with self.assertRaises(json.JSONDecodeError):
+			response.json()
+
+	def test_empty_body_also_raises(self) -> None:
+		"""204/boş gövde de aynı istisnayı üretir — `None` dönmez."""
+		response = CarrierResponse(204, {}, b"", 1, 1)
+		with self.assertRaises(json.JSONDecodeError):
+			response.json()
+
+	def test_decode_error_is_catchable_as_value_error(self) -> None:
+		"""Çağıran `except ValueError` ile yakalayabilir — alt sınıf ilişkisi sözleşme."""
+		response = CarrierResponse(200, {}, b"{bozuk", 1, 1)
+		with self.assertRaises(ValueError):
+			response.json()
+
+	def test_valid_body_parses(self) -> None:
+		response = CarrierResponse(200, {}, b'{"ok": true}', 1, 1)
+		self.assertEqual(response.json(), {"ok": True})
+
 
 # ---------------------------------------------------------------------------
 # Sır toplama — `Password` fieldtype'ı (3. tur güvenlik denetimi)
@@ -2844,6 +2965,39 @@ class TestSecretCollectionUnit(unittest.TestCase):
 	def test_empty_source_is_a_verified_empty_set(self) -> None:
 		"""'Sır yok' ile 'okuyamadım' AYRI: boş doküman `frozenset()` döner."""
 		self.assertEqual(collect_secret_values({}), frozenset())
+
+	def test_raising_get_is_unresolved_not_absent(self) -> None:
+		"""`get()` istisnası "alan boş" DEĞİL "okunamadı" sayılır → `None` döner.
+
+		ÖLÇÜLEN SESSİZ YUTMA (denetim 2026-09-07): `_read_plain` istisnayı `None`'a
+		çevirip alanı boş sayıyordu — dönüş UYARISIZ `frozenset()` ("sır YOK —
+		DOĞRULANMIŞ") oluyor, `http_client._log` o kümeyi açıkça geçiyor ve iki
+		guardrail birden susuyordu. Artık `unresolved` yoluna düşer: gürültülü
+		fail-closed (`_read_password` simetriği), çağıran `secret_values`'ı hiç
+		geçmez ve yazıcının "unutuldu" nöbetçisi devreye girer.
+		"""
+
+		class _ExplodingSource:
+			def get(self, field: str) -> Any:
+				raise RuntimeError("DB bağlantısı koptu")
+
+		self.assertIsNone(
+			collect_secret_values(_ExplodingSource()),
+			"get() istisnası 'alan boş' sayıldı — değer-tabanlı redaksiyon sessizce kapanır",
+		)
+
+	def test_raising_get_does_not_drop_the_extra_channel_contract(self) -> None:
+		"""`extra` AYRI kanaldır: kaynak çözülemese de `collect_extra_secret_values` çalışır."""
+		from tradehub_core.logistics.integration.secrets import collect_extra_secret_values
+
+		class _ExplodingSource:
+			def get(self, field: str) -> Any:
+				raise RuntimeError("DB bağlantısı koptu")
+
+		# Tek argümanda toplanan extra, kaynakla birlikte düşer (bilinçli sözleşme)...
+		self.assertIsNone(collect_secret_values(_ExplodingSource(), extra=["OTURUM_777"]))
+		# ...ayrı kanal ise etkilenmez — http_client'ın kullandığı yol.
+		self.assertEqual(collect_extra_secret_values(["OTURUM_777"]), frozenset({"OTURUM_777"}))
 
 
 class TestSecretCollectionEndToEnd(FrappeTestCase):

@@ -551,9 +551,21 @@ def shipment_leg_has_permission(
 		_log_deny(user, f"shipment_leg.{ptype or 'read'}", doc, "no_tenant", object_doctype="Shipment Leg")
 		return False
 
-	# doc yoksa (doctype-seviyesi kontrol): seller-scoped roller liste/create
-	# görebilsin; per-doc tenant kontrolü doc'lu çağrıda uygulanır.
+	# doc yoksa (doctype-seviyesi kontrol): tenant kontrolü yapılamaz.
+	# Okuma-türü ptype'lar liste/form açılışlarını kırmamak için serbest;
+	# yazma-türü ptype'larda tenant rol matrisi uygulanır — Shipment'taki
+	# doc=None deseni ile hizalı (fail-open kapatıldı, denetim 2026-09-07).
+	# Bu dala yalnız seller_profile'lı kullanıcı düşer (platform dalları
+	# yukarıda döndü), o yüzden matris _TENANT_WRITE_ROLES'tur.
 	if doc is None:
+		if ptype and ptype in _WRITE_PTYPES:
+			if roles & _TENANT_WRITE_ROLES:
+				return True
+			_log_deny(
+				user, f"shipment_leg.{ptype}", doc,
+				"doctype_level_write_denied", object_doctype="Shipment Leg",
+			)
+			return False
 		return True
 
 	# Tenant izolasyonu: denormalize seller_profile eşleşmesi
@@ -703,9 +715,21 @@ def shipment_event_has_permission(
 		_log_deny(user, f"shipment_event.{ptype or 'read'}", doc, "no_tenant", object_doctype="Shipment Event")
 		return False
 
-	# doc yoksa (doctype-seviyesi kontrol): seller-scoped roller liste/create
-	# görebilsin; per-doc tenant kontrolü doc'lu çağrıda uygulanır.
+	# doc yoksa (doctype-seviyesi kontrol): tenant kontrolü yapılamaz.
+	# Okuma-türü ptype'lar liste/form açılışlarını kırmamak için serbest;
+	# yazma-türü ptype'larda tenant rol matrisi uygulanır — Shipment'taki
+	# doc=None deseni ile hizalı (fail-open kapatıldı, denetim 2026-09-07).
+	# Bu dala yalnız seller_profile'lı kullanıcı düşer (platform dalları
+	# yukarıda döndü), o yüzden matris _TENANT_WRITE_ROLES'tur.
 	if doc is None:
+		if ptype and ptype in _WRITE_PTYPES:
+			if roles & _TENANT_WRITE_ROLES:
+				return True
+			_log_deny(
+				user, f"shipment_event.{ptype}", doc,
+				"doctype_level_write_denied", object_doctype="Shipment Event",
+			)
+			return False
 		return True
 
 	# Tenant izolasyonu: denormalize seller_profile eşleşmesi

@@ -42,6 +42,13 @@ from tradehub_core.logistics.exceptions import (
 	LogisticsError,
 )
 
+# `safe_log_error` + `traceback_text`: çıplak `frappe.log_error` /
+# `frappe.get_traceback` bu modülde hata zarfı SÖZLEŞMESİNİN içinde koşar —
+# log_error'un kendisi fırlatırsa (DB yazma katmanı çökmüş) istisna zarfı
+# deler ve istemciye 500 + Frappe traceback sayfası sızar. log.py'deki
+# paylaşılan desen ("PAYLAŞILAN — kopyalanmaz") burada da kullanılır.
+from tradehub_core.logistics.integration.log import safe_log_error, traceback_text
+
 # ---------------------------------------------------------------------------
 # Lojistik dışı exception'lar için kod eşlemesi
 # ---------------------------------------------------------------------------
@@ -145,7 +152,10 @@ def _flush_pending_audit_writes() -> None:
 		if flush_pending_deny_audits():
 			_mark_commit_required()
 	except Exception:  # noqa: BLE001 — audit flush hatası hata yanıtını bozmaz
-		frappe.log_error(frappe.get_traceback(), "logistics.api_utils.audit_flush")
+		# traceback_text + safe_log_error: ikisi de kendi içinde korumalı —
+		# çıplak `frappe.log_error(frappe.get_traceback(), ...)` fırlatırsa
+		# _fail zinciri kırılır ve hata zarfı sözleşmesi delinirdi.
+		safe_log_error(traceback_text(), "logistics.api_utils.audit_flush")
 
 
 def logistics_endpoint(
@@ -219,13 +229,18 @@ def logistics_endpoint(
 					# izi de siliyordu ("kayıt altına alındı" deniyordu ama iz
 					# yoktu). Frappe'nin kendi handle_exception akışı da log'u
 					# rollback sonrasına koyar.
-					traceback: str = frappe.get_traceback()
+					#
+					# traceback_text + safe_log_error (log.py'deki paylaşılan
+					# desen): çıplak `frappe.get_traceback` / `frappe.log_error`
+					# fırlatırsa hata zarfı sözleşmesi delinir — istemciye
+					# zarfsız 500 sızardı.
+					traceback: str = traceback_text()
 					response = _fail(
 						code=_INTERNAL_ERROR_CODE,
 						message=_("Beklenmeyen bir hata oluştu. Kayıt altına alındı."),
 						status=500,
 					)
-					frappe.log_error(traceback, f"logistics_endpoint.{fn.__name__}")
+					safe_log_error(traceback, f"logistics_endpoint.{fn.__name__}")
 					_mark_commit_required()
 					return response
 			finally:

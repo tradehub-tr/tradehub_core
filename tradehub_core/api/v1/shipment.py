@@ -21,13 +21,30 @@ Yetki katmanlari:
 
 from __future__ import annotations
 
+import datetime
+from collections.abc import Mapping
+
 import frappe
 from frappe import _
-from frappe.utils import cint
+from frappe.utils import cint, getdate, nowdate
 
 from tradehub_core.logistics.api_utils import logistics_endpoint
-from tradehub_core.logistics.constants import API_VERSION, ShipmentStatus
+from tradehub_core.logistics.constants import API_VERSION, TERMINAL_STATUSES, ShipmentStatus
 
+# Sozlesme daralmasi (BILINCLI — QA bulgusu 2026-09-07):
+# docs/logistics-api.schema.json provisional.shipment.list_fields 17 alan tanimlar;
+# liste yaniti bunlarin FE'nin gercekten tukettigi + zararsiz alt kumesini tasir.
+# Sizinti yuzeyi dar tutulur (g0-security.spec.ts ALLOWED_LIST_FIELDS strict set):
+#   - MALIYET alanlari (shipping_cost, carrier_cost, ... total_cost) ASLA — G0 siniri.
+#   - seller_profile / buyer / shipment_type / channel / carrier_service: FE liste
+#     ekrani tuketmiyor, bilincli olarak disarida (ihtiyac dogarsa e2e allowlist
+#     ile BIRLIKTE eklenir).
+#   - actual_delivery: yalniz is_delayed hesabi icin cekilir, yanittan dusurulur
+#     (_LIST_INTERNAL_FIELDS).
+# Yanita ayrica iki HESAPLANAN alan eklenir (_annotate_list_rows):
+#   - is_delayed: DocType'ta saklanan kolon YOK (TUR-112 SLA monitor henuz stub);
+#     status + estimated_delivery + actual_delivery'den turetilir.
+#   - package_count: kolon yok; Shipment Package child sayisi tek grouped sorguyla.
 _LIST_FIELDS: tuple[str, ...] = (
 	"name",
 	"order",
@@ -37,7 +54,12 @@ _LIST_FIELDS: tuple[str, ...] = (
 	"estimated_delivery",
 	"chargeable_weight",
 	"creation",
+	"ship_date",
+	"modified",
 )
+
+# Sorguya dahil ama yanittan dusurulen alanlar (yalniz turev hesap girdisi).
+_LIST_INTERNAL_FIELDS: tuple[str, ...] = ("actual_delivery",)
 
 _MAX_PAGE_LENGTH: int = 100
 
@@ -67,6 +89,61 @@ def _meta(**extra: object) -> dict:
 	meta: dict = {"api_version": API_VERSION}
 	meta.update({k: v for k, v in extra.items() if v is not None})
 	return meta
+
+
+def _compute_is_delayed(row: Mapping, today: datetime.date) -> int:
+	"""Gecikme turevi (TUR-112 sozlesme alani) — saklanan kolon yokken hesaplanir.
+
+	Kural (contract.py SAMPLE_SHIPMENTS fixture'lariyla hizali):
+	  - estimated_delivery yoksa yargi verilemez → 0 (emin degilsen guvenli taraf).
+	  - Teslim edildiyse (actual_delivery dolu): gecikme = teslim gunu > ETA.
+	  - Teslim edilmediyse: kapali sevkiyat (TERMINAL_STATUSES: Delivered/
+	    Returned/Cancelled) rozet almaz; acik sevkiyatta bugun > ETA ise 1.
+	SLA monitor job'i (TUR-112) saklanan alani getirdiginde tek otorite o olur;
+	bu turev o gun kaldirilir.
+	"""
+	estimated = row.get("estimated_delivery")
+	if not estimated:
+		return 0
+	estimated_date: datetime.date = getdate(estimated)
+	actual = row.get("actual_delivery")
+	if actual:
+		return cint(getdate(actual) > estimated_date)
+	if row.get("status") in TERMINAL_STATUSES:
+		return 0
+	return cint(today > estimated_date)
+
+
+def _annotate_list_rows(rows: list[dict]) -> None:
+	"""Liste satirlarina hesaplanan alanlari ekler, internal alanlari dusurur.
+
+	Satir basina EK SORGU YOK (N+1 yasak): package_count sayfanin tum adlari
+	icin TEK grouped sorguyla cekilir; is_delayed zaten cekilmis kolonlardan
+	Python'da turetilir.
+	"""
+	if not rows:
+		return
+
+	names: list[str] = [row["name"] for row in rows]
+	# get_all gerekcesi: Shipment Package child tablodur, kendi DocPerm'i yok —
+	# parent satirlar yukaridaki get_list'te shipment_query_conditions ile zaten
+	# filtrelendi; sorgu YALNIZ o sayfanin adlariyla sinirli (sizinti yok).
+	package_counts: dict[str, int] = {
+		agg["parent"]: cint(agg["qty"])
+		for agg in frappe.get_all(
+			"Shipment Package",
+			filters={"parenttype": "Shipment", "parent": ["in", names]},
+			fields=["parent", "count(name) as qty"],
+			group_by="parent",
+		)
+	}
+
+	today: datetime.date = getdate(nowdate())
+	for row in rows:
+		row["package_count"] = package_counts.get(row["name"], 0)
+		row["is_delayed"] = _compute_is_delayed(row, today)
+		for field in _LIST_INTERNAL_FIELDS:
+			row.pop(field, None)
 
 
 def _get_shipment_or_404(name: str) -> frappe.model.document.Document:
@@ -217,11 +294,15 @@ def list_shipments(
 	shipments = frappe.get_list(
 		"Shipment",
 		filters=filters,
-		fields=list(_LIST_FIELDS),
+		fields=list(_LIST_FIELDS + _LIST_INTERNAL_FIELDS),
 		order_by="creation desc",
 		limit_start=start,
 		limit_page_length=page_length,
 	)
+
+	# is_delayed + package_count turevleri (QA 2026-09-07: FE "Gecikmis" rozeti
+	# row.is_delayed bekliyor); internal alanlar yanittan dusurulur.
+	_annotate_list_rows(shipments)
 
 	# Toplam sayi — ayni filtre + ayni permission query conditions ile aggregate.
 	# frappe.db.count permission katmanini BYPASS ederdi; get_list kullanilir.
@@ -275,6 +356,10 @@ def get_shipment_detail(name: str) -> dict:
 	if not _can_view_operational_fields(user, doc):
 		data.pop("internal_note", None)
 		data.pop("idempotency_key", None)
+
+	# Liste ile ayni turev — detay rozeti de row.is_delayed'den cizilir
+	# (ShipmentDetailScreen.vue); saklanan kolon gelince (TUR-112) kalkar.
+	data["is_delayed"] = _compute_is_delayed(data, getdate(nowdate()))
 
 	return {"ok": True, "data": data, "meta": _meta()}
 
