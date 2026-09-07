@@ -343,12 +343,22 @@ def get_shipment_detail(name: str) -> dict:
 	# erisim varlik sizdirmayan NOT_FOUND(404) alir (madde 3).
 	doc = _get_shipment_or_404(name)
 
-	from tradehub_core.logistics.permissions import mask_shipment_cost_fields
+	from tradehub_core.logistics.permissions import (
+		mask_shipment_cost_dict,
+		mask_shipment_cost_fields,
+	)
 
 	# API yaniti onload'dan gecmez — maske doc uzerinde burada uygulanir.
 	mask_shipment_cost_fields(doc)
 
 	data: dict = doc.as_dict()
+
+	# `as_dict()` Currency/Float alanlarda None'i 0'a ceviriyor; yukaridaki
+	# doc maskesi bu yuzden yanitta gorunmez oluyordu (maskelenen maliyet
+	# `null` degil `0` cikiyordu — "gizlendi" ile "ucretsiz" ayirt edilemez).
+	# Maske sozlukte TEKRAR uygulanir; doc'taki maske kaydetme yolunu korudugu
+	# icin yerinde kalir.
+	mask_shipment_cost_dict(data, user)
 
 	# F8c: internal_note + idempotency_key operasyonel alanlardir — platform
 	# lojistik rolleri ve sevkiyatin seller tenant'i disindaki kullaniciya

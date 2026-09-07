@@ -900,6 +900,60 @@ def carrier_account_has_permission(
 # Cost field maskeleme guard'ları (BE-8)
 # ---------------------------------------------------------------------------
 
+#: Maskelenen maliyet alanları — tek kaynak (mask_* ve API yanıt maskesi ortak).
+SHIPMENT_COST_FIELDS: tuple[str, ...] = (
+	"shipping_cost",
+	"insurance_cost",
+	"total_cost",
+	"carrier_cost",
+	"fuel_surcharge",
+	"packaging_cost",
+)
+
+
+def can_view_logistics_cost(user: str | None = None) -> bool:
+	"""Kullanıcı maliyet alanlarını görebilir mi (view.logistics_cost)?
+
+	Yalnız Administrator muaf. Resolver yüklenemezse False (fail-closed):
+	maskeleme uygulanır, sızıntı yerine eksik gösterim tercih edilir.
+	"""
+	user = user or frappe.session.user
+	if user == "Administrator":
+		return True
+	if not user:
+		return False
+	try:
+		from tradehub_core.utils.permission_resolver import has_capability
+
+		return bool(has_capability(user, "view.logistics_cost"))
+	except (ImportError, AttributeError):
+		return False
+
+
+def mask_shipment_cost_dict(data: dict, user: str | None = None) -> None:
+	"""Yetkisiz kullanıcı için maliyet alanlarını YANIT SÖZLÜĞÜNDE None yapar.
+
+	NEDEN AYRI BİR ADIM — `mask_shipment_cost_fields` YETMİYOR: o fonksiyon
+	doc üzerinde None yazıyor, ama Frappe'nin `Document.as_dict()`i
+	Currency/Float alanlarda None'ı **0'a çeviriyor**. Sonuç: maskelenen
+	maliyet API'de `null` değil `0` olarak çıkıyordu ve tüketici "gizlendi"
+	ile "ücretsiz"i ayırt edemiyordu.
+
+	Ölçüldü 7 Eyl 2026: DB'de `shipping_cost=157.75` iken yetkisiz satıcı
+	`0.0`, Administrator `157.75` görüyordu. Yani veri SIZMIYOR — maskeleme
+	çalışıyor — ama sözleşmenin (`get_shipment_detail` docstring'i ve
+	`g0-security.spec.ts` 4. testi) vadettiği `null` gelmiyordu.
+
+	Aynı kusur panelde bir kez bulunup düzeltilmişti: `MaskedValue.vue`
+	yorumu "maskelenmiş alan gerçek sıfır gibi görünürdü" diyor. Bu, o
+	kusurun API katmanındaki eşi.
+	"""
+	if can_view_logistics_cost(user):
+		return
+	for field in SHIPMENT_COST_FIELDS:
+		if field in data:
+			data[field] = None
+
 
 def mask_shipment_cost_fields(doc: object, user: str | None = None) -> None:
 	"""view.logistics_cost capability yoksa maliyet alanlarını maskele.
@@ -928,11 +982,7 @@ def mask_shipment_cost_fields(doc: object, user: str | None = None) -> None:
 
 	# Maliyet alanlarını maskele — None yazılır, 0 DEĞİL: write yetkili ama
 	# capability'siz bir kullanıcı doc'u kaydederse 0 DB'deki gerçek maliyeti ezerdi
-	cost_fields = (
-		"shipping_cost", "insurance_cost", "total_cost",
-		"carrier_cost", "fuel_surcharge", "packaging_cost",
-	)
-	for field in cost_fields:
+	for field in SHIPMENT_COST_FIELDS:
 		if hasattr(doc, field) and getattr(doc, field, None) is not None:
 			setattr(doc, field, None)
 
