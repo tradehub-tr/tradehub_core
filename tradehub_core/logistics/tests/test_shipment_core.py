@@ -574,6 +574,108 @@ class TestShipmentCore(FrappeTestCase):
 		# Olmayan Order ile ayni mesaj sablonu
 		self.assertIn(self.order.name, result["error"]["message"])
 
+	def test_api_list_row_contract_and_cost_boundary(self) -> None:
+		"""QA 2026-09-07: liste satiri is_delayed tasir, maliyet alani ASLA tasimazi kilitler.
+
+		Anahtar kumesi TAM esitlikle sabitlenir — sozlesme disi her yeni alan
+		(ozellikle maliyet: G0 siniri) bu testi kirar. FE aynasi:
+		admin-panel g0-security.spec.ts ALLOWED_LIST_FIELDS (o set de bu dort
+		yeni anahtari almali — FE reposu bu isin sahasi disinda).
+		"""
+		self._draft()
+		self.addCleanup(frappe.set_user, "Administrator")
+		frappe.set_user(self.seller1_user)
+
+		rows = shipment_api.list_shipments(order=self.order.name)["data"]["shipments"]
+		self.assertTrue(rows, "Seller kendi sevkiyatini listede gormeli")
+
+		expected_keys: set[str] = {
+			"name",
+			"order",
+			"status",
+			"carrier",
+			"tracking_number",
+			"estimated_delivery",
+			"chargeable_weight",
+			"creation",
+			"ship_date",
+			"modified",
+			"package_count",
+			"is_delayed",
+		}
+		for row in rows:
+			self.assertEqual(set(row.keys()), expected_keys)
+			self.assertIn(row["is_delayed"], (0, 1))
+			self.assertGreaterEqual(row["package_count"], 0)
+
+		# Okunabilir kirmizi: maliyet alanlari tek tek isimle raporlansin
+		# (yukaridaki tam-esitlik zaten yakalar; bu blok teshis kolayligi).
+		for cost_field in (
+			"shipping_cost",
+			"carrier_cost",
+			"insurance_cost",
+			"fuel_surcharge",
+			"packaging_cost",
+			"total_cost",
+		):
+			self.assertNotIn(cost_field, rows[0], f"liste yanitina maliyet alani sizdi: {cost_field}")
+
+	def test_api_list_is_delayed_for_overdue_open_shipment(self) -> None:
+		"""ETA'si gecmis ACIK sevkiyat listede is_delayed=1 doner (rozet kaynagi)."""
+		shipment = self._draft()
+		# db_set gerekcesi: create akisi estimated_delivery set etmiyor; fixture'i
+		# gecmise tarihlemek icin validate zincirini yeniden kosmaya gerek yok.
+		shipment.db_set(
+			"estimated_delivery",
+			frappe.utils.add_days(frappe.utils.nowdate(), -1),
+			update_modified=False,
+		)
+
+		self.addCleanup(frappe.set_user, "Administrator")
+		frappe.set_user(self.seller1_user)
+
+		rows = shipment_api.list_shipments(order=self.order.name)["data"]["shipments"]
+		by_name: dict[str, dict] = {row["name"]: row for row in rows}
+		self.assertIn(shipment.name, by_name)
+		self.assertEqual(by_name[shipment.name]["is_delayed"], 1)
+
+		# Detay yolu ayni turevi tasir — liste rozetiyle celismez.
+		detail = shipment_api.get_shipment_detail(shipment.name)["data"]
+		self.assertEqual(detail["is_delayed"], 1)
+
+	def test_is_delayed_computation_matrix(self) -> None:
+		"""_compute_is_delayed kurali contract.py SAMPLE_SHIPMENTS fixture'lariyla hizali."""
+		from tradehub_core.api.v1.shipment import _compute_is_delayed
+
+		today = frappe.utils.getdate("2026-08-12")
+		cases: tuple[tuple[dict, int, str], ...] = (
+			({"status": "In Transit", "estimated_delivery": "2026-08-13"}, 0, "ETA gelecekte"),
+			({"status": "Failed", "estimated_delivery": "2026-08-07"}, 1, "acik sevkiyat, ETA gecmis"),
+			(
+				{
+					"status": "Delivered",
+					"estimated_delivery": "2026-08-09",
+					"actual_delivery": "2026-08-08 16:22:00",
+				},
+				0,
+				"zamaninda teslim",
+			),
+			(
+				{
+					"status": "Delivered",
+					"estimated_delivery": "2026-08-05",
+					"actual_delivery": "2026-08-08 16:22:00",
+				},
+				1,
+				"gec teslim",
+			),
+			({"status": "Cancelled", "estimated_delivery": "2026-08-01"}, 0, "kapali sevkiyat"),
+			({"status": "In Transit"}, 0, "ETA yoksa yargi verilmez"),
+		)
+		for row, expected, label in cases:
+			with self.subTest(label=label):
+				self.assertEqual(_compute_is_delayed(row, today), expected)
+
 	# -------------------------------------------------------------------
 	# 6. P1 duzeltme paketi (guvenlik/butunluk)
 	# -------------------------------------------------------------------

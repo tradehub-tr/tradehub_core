@@ -57,7 +57,9 @@ from tradehub_core.logistics.permissions import (
 	flush_pending_deny_audits,
 	mask_carrier_account_fields,
 	mask_shipment_cost_fields,
+	shipment_event_has_permission,
 	shipment_has_permission,
+	shipment_leg_has_permission,
 	shipment_query_conditions,
 )
 
@@ -281,6 +283,61 @@ class TestOperatorPermissions(FrappeTestCase):
 		doc = _shipment(seller_profile="SEL-00001")
 		with acting_as(["Logistics Operator"], seller_profile="SEL-00002"):
 			self.assertFalse(shipment_has_permission(doc, "read", "operator@example.com"))
+
+
+# ---------------------------------------------------------------------------
+# Leg/Event — doc=None (doctype-seviyesi) yazma matrisi
+# ---------------------------------------------------------------------------
+
+
+class TestLegEventDoctypeLevelWriteMatrix(FrappeTestCase):
+	"""doc=None + yazma-türü ptype fail-open DEĞİL — Shipment deseniyle hizalı.
+
+	ÖLÇÜLEN TUTARSIZLIK (denetim 2026-09-07): `shipment_leg_has_permission` ve
+	`shipment_event_has_permission`, tenant'lı kullanıcıda doc=None kontrolde
+	ptype'a hiç bakmadan True dönüyordu — Seller Logistics (salt-okuma) rollü
+	kullanıcı doctype seviyesinde write/create/delete izni alıyordu. Shipment
+	emsali (doc=None + yazma-türü ptype → rol matrisi) aynı durumda kapalıydı.
+	Bu dala yalnız seller_profile'lı kullanıcı düşer; matris _TENANT_WRITE_ROLES.
+	"""
+
+	FUNCS = (
+		("leg", shipment_leg_has_permission),
+		("event", shipment_event_has_permission),
+	)
+
+	def test_readonly_tenant_role_cannot_write_at_doctype_level(self):
+		"""NEGATİF: Seller Logistics doc=None'da yazma-türü ptype alamaz."""
+		for label, func in self.FUNCS:
+			for ptype in ("write", "create", "delete"):
+				with self.subTest(func=label, ptype=ptype):
+					with acting_as(["Seller Logistics"], seller_profile="SEL-00001"):
+						self.assertFalse(func(None, ptype, "sellerlog@example.com"))
+
+	def test_tenant_write_roles_keep_doctype_level_write(self):
+		"""POZİTİF: Logistics Operator/Manager rollü tenant kullanıcısı yazabilir."""
+		for label, func in self.FUNCS:
+			for role in ("Logistics Operator", "Logistics Manager"):
+				with self.subTest(func=label, role=role):
+					with acting_as([role], seller_profile="SEL-00001"):
+						self.assertTrue(func(None, "write", "operator@example.com"))
+						self.assertTrue(func(None, "create", "operator@example.com"))
+
+	def test_read_type_ptypes_stay_open_at_doctype_level(self):
+		"""Okuma-türü ptype'lar serbest kalır — liste/form açılışı kırılmamalı."""
+		for label, func in self.FUNCS:
+			with self.subTest(func=label):
+				with acting_as(["Seller Logistics"], seller_profile="SEL-00001"):
+					self.assertTrue(func(None, "read", "sellerlog@example.com"))
+					self.assertTrue(func(None, None, "sellerlog@example.com"))
+
+	def test_doctype_level_deny_writes_no_audit_row(self):
+		"""doc=None reddi ADL'ye satır yazmaz (_log_deny doc=None filtresi)."""
+		with mock.patch("tradehub_core.audit.log.log_decision") as log_decision:
+			with acting_as(["Seller Logistics"], seller_profile="SEL-00001"):
+				shipment_leg_has_permission(None, "write", "sellerlog@example.com")
+				shipment_event_has_permission(None, "write", "sellerlog@example.com")
+		log_decision.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
