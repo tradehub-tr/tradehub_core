@@ -1,3 +1,16 @@
+## [v1.13.1-alpha.59] - 2026-09-07 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(listing): düşük sonuç ve SEO içerik akışını güçlendir (@ahmeetseker)
+  - Az sonuçlu listelemelerde isteğe bağlı ürün dolgusu ekle; boş sonuçta sayfa kullanıcıya ürün göstermeye devam eder
+  - Kategori facet yanıtına ata path bilgisi ve boş sonuç fallback'i ekle; sidebar ağacı seçili kategoriyi korur
+  - Listing ve bulk import için ortak SEO başlık/açıklama kurallarını uygula
+  - Toplu social proof ucunda tekil uçla aynı "Yeni ürün" yedek rozetini üret
+  - Deploy sırasında demo/mock veriyi tek seferlik patch ile temizle
+
+---
 ## [v1.13.1-alpha.58] - 2026-09-07 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
