@@ -93,6 +93,10 @@ def _install_frappe_stub() -> None:
 
 	utils = types.ModuleType("frappe.utils")
 	utils.add_days = lambda d, n: d
+	utils.add_months = lambda d, n: d
+	utils.add_years = lambda d, n: d
+	utils.getdate = lambda d=None: d
+	utils.cint = lambda v: int(v or 0)
 	utils.now_datetime = lambda: "2026-06-11"
 	sys.modules["frappe.utils"] = utils
 

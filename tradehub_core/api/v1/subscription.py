@@ -20,7 +20,7 @@ from typing import Any
 
 import frappe
 from frappe import _
-from frappe.utils import add_days, now_datetime
+from frappe.utils import add_days, add_months, add_years, cint, getdate, now_datetime
 
 from tradehub_core.audit import log_decision
 
@@ -63,6 +63,7 @@ def upgrade_subscription_plan(
 	tenant: str | None = None,
 	start_trial: bool | int | str = False,
 	reason: str = "",
+	billing_cycle: str | None = None,
 ) -> dict[str, Any]:
 	"""Self-service plan değişimi (upgrade/downgrade/trial başlatma).
 
@@ -73,6 +74,9 @@ def upgrade_subscription_plan(
 	    start_trial: True ise `status=trial`, `trial_end = now + plan.trial_days`.
 	        False (default) → `status=active`, immediate billing period start.
 	    reason: Audit context'e yazılır (max 200 char).
+	    billing_cycle: 'monthly' | 'yearly'. Geriye-uyumlu: None (default) →
+	        mevcut subscription'ın billing_cycle'ı, o da yoksa 'monthly'.
+	        Yalnız `status=active` geçişinde dönem hesabına girer (BE-3 / AC-7).
 
 	Returns:
 	    {old_plan, new_plan, role_sync, audit_id}
@@ -97,6 +101,14 @@ def upgrade_subscription_plan(
 			frappe.ValidationError,
 		)
 
+	if billing_cycle is not None:
+		billing_cycle = (billing_cycle or "").strip().lower()
+		if billing_cycle not in ("monthly", "yearly"):
+			frappe.throw(
+				_("Geçersiz billing_cycle: {0}. İzin verilen: monthly, yearly.").format(billing_cycle),
+				frappe.ValidationError,
+			)
+
 	start_trial_bool = str(start_trial).strip().lower() in ("1", "true", "yes")
 
 	# C8 fix — ödemesiz plan aktivasyonu engeli.
@@ -119,7 +131,7 @@ def upgrade_subscription_plan(
 	existing = frappe.db.get_value(
 		"Store Subscription",
 		{"store": tenant},
-		["name", "plan", "status", "trial_used"],
+		["name", "plan", "status", "trial_used", "billing_cycle"],
 		as_dict=True,
 	)
 
@@ -130,8 +142,27 @@ def upgrade_subscription_plan(
 	old_plan = existing.plan if existing else None
 	target_status = "trial" if start_trial_bool else "active"
 
+	# R2 — 'canceled' bir mağaza self-servis reaktive edilemez, önce admin
+	# reaktivasyonu gerekir: hesap silme akışı (account_deleted) profili
+	# Suspended + owner User'ı disabled bırakır; admin un-suspend + enable
+	# yapmadan canceled→active geçişi 417 ile durdurulur (AC-14 negatif vakası).
+	if existing and existing.status == "canceled" and target_status == "active":
+		profile = frappe.db.get_value("Admin Seller Profile", tenant, ["status", "user"], as_dict=True)
+		owner_enabled = 1
+		if profile and profile.user:
+			owner_enabled = cint(frappe.db.get_value("User", profile.user, "enabled"))
+		if (profile and profile.status == "Suspended") or not owner_enabled:
+			frappe.throw(
+				_("Önce mağaza reaktivasyonu gerekli — admin işlemi."),
+				frappe.ValidationError,
+			)
+
 	def _apply_trial_fields(doc) -> None:
-		"""Trial başlatılıyorsa trial_start/end/plan/used alanlarını set et."""
+		"""Trial başlatılıyorsa trial_start/end/plan/used alanlarını set et.
+
+		Dönem alanları (current_period_*, next_invoice_date) trial'da YAZILMAZ —
+		trial ömrünü trial_end yönetir (BE-3).
+		"""
 		trial_days = int(plan_doc.get("trial_days") or 0)
 		now = now_datetime()
 		doc.trial_start = now
@@ -139,25 +170,45 @@ def upgrade_subscription_plan(
 		doc.trial_used = 1
 		doc.trial_end = add_days(now, trial_days) if trial_days > 0 else None
 
+	def _apply_active_period_fields(doc, cycle: str) -> None:
+		"""'active' geçişinde dönem alanlarını yaz (BE-3 / AC-7).
+
+		current_period_end = start + 1 ay/1 yıl, next_invoice_date = dönem sonu.
+		cancel_at_period_end burada sıfırlanır: yeniden abonelikte eski iptal
+		planı taşınmaz. renewal_reminder_* bayraklarını BE-1'in validate'i
+		current_period_start değişiminde zaten sıfırlıyor — burada tekrarlanmaz.
+		"""
+		start = now_datetime()
+		end = add_months(start, 1) if cycle == "monthly" else add_years(start, 1)
+		doc.current_period_start = start
+		doc.current_period_end = end
+		doc.next_invoice_date = getdate(end)
+		doc.billing_cycle = cycle
+		doc.cancel_at_period_end = 0
+
+	# Geriye-uyumlu cycle çözümü: parametre > mevcut kayıt > JSON default.
+	effective_cycle = billing_cycle or (existing.billing_cycle if existing else None) or "monthly"
+
 	if existing:
 		sub_doc = frappe.get_doc("Store Subscription", existing.name)
 		sub_doc.plan = new_plan
 		sub_doc.status = target_status
-		if start_trial_bool:
-			_apply_trial_fields(sub_doc)
-		sub_doc.current_period_start = now_datetime()
-		sub_doc.flags.ignore_permissions = True
-		sub_doc.save(ignore_permissions=True)
 	else:
 		sub_doc = frappe.new_doc("Store Subscription")
 		sub_doc.store = tenant
 		sub_doc.plan = new_plan
 		sub_doc.status = target_status
 		sub_doc.started_at = now_datetime()
-		sub_doc.current_period_start = now_datetime()
-		if start_trial_bool:
-			_apply_trial_fields(sub_doc)
-		sub_doc.flags.ignore_permissions = True
+
+	if start_trial_bool:
+		_apply_trial_fields(sub_doc)
+	else:
+		_apply_active_period_fields(sub_doc, effective_cycle)
+
+	sub_doc.flags.ignore_permissions = True
+	if existing:
+		sub_doc.save(ignore_permissions=True)
+	else:
 		sub_doc.insert(ignore_permissions=True)
 
 	# Plan değiştiyse sub-user role profile downgrade chain'ini çalıştır
@@ -199,6 +250,7 @@ def upgrade_subscription_plan(
 			"old_plan": old_plan,
 			"new_plan": new_plan,
 			"status": target_status,
+			"billing_cycle": None if start_trial_bool else effective_cycle,
 			"started_trial": start_trial_bool,
 			"reason": (reason or "")[:200],
 			"role_sync_summary": {
@@ -261,6 +313,9 @@ def get_seller_access_state() -> dict[str, Any]:
 			"trial_used",
 			"started_at",
 			"current_period_end",
+			"cancel_at_period_end",
+			"billing_cycle",
+			"canceled_at",
 		],
 		as_dict=True,
 	)
@@ -275,17 +330,25 @@ def get_seller_access_state() -> dict[str, Any]:
 			"trial_end": sub.trial_end,
 			"started_at": sub.started_at,
 			"current_period_end": sub.current_period_end,
+			# BE-3 additive alanlar — panel iptal-planlı banner + dönem bilgisi.
+			"cancel_at_period_end": cint(sub.cancel_at_period_end),
+			"billing_cycle": sub.billing_cycle,
 		}
 
 	# Kilitli: hiç abonelik yok ya da erişim vermeyen durum (expired/canceled/...).
-	return {
+	lock_reason = _LOCK_REASON_BY_STATUS.get(sub.status, sub.status) if sub else "no_subscription"
+	locked: dict[str, Any] = {
 		"access": "locked",
 		"status": sub.status if sub else None,
-		"reason": _LOCK_REASON_BY_STATUS.get(sub.status, sub.status) if sub else "no_subscription",
+		"reason": lock_reason,
 		"redirect": "/abonelik",
 		# Deneme hakkı hiç kullanılmadıysa paywall "14 gün ücretsiz dene" sunabilir.
 		"can_start_trial": not (sub and sub.trial_used),
 	}
+	if lock_reason == "canceled":
+		# BE-3 additive alan — paywall "X tarihinde iptal edildi" gösterebilir.
+		locked["canceled_at"] = sub.canceled_at
+	return locked
 
 
 @frappe.whitelist()

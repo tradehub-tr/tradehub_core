@@ -111,6 +111,35 @@
 			"read_only": 1
 		},
 		{
+			"fieldname": "renewal_reminder_7d_sent",
+			"fieldtype": "Check",
+			"label": "Renewal Reminder 7d Sent",
+			"default": "0",
+			"read_only": 1,
+			"description": "T-7 dönem sonu hatırlatması gönderildi mi (yeni dönemde sıfırlanır)."
+		},
+		{
+			"fieldname": "renewal_reminder_1d_sent",
+			"fieldtype": "Check",
+			"label": "Renewal Reminder 1d Sent",
+			"default": "0",
+			"read_only": 1,
+			"description": "T-1 dönem sonu hatırlatması gönderildi mi (yeni dönemde sıfırlanır)."
+		},
+		{
+			"fieldname": "cancel_at_period_end",
+			"fieldtype": "Check",
+			"label": "Cancel At Period End",
+			"default": "0",
+			"description": "1 ise dönem sonunda lifecycle job aboneliği 'canceled' yapar (Amazon Seller modeli — yeni status yok)."
+		},
+		{
+			"fieldname": "cancel_requested_by",
+			"fieldtype": "Link",
+			"label": "Cancel Requested By",
+			"options": "User"
+		},
+		{
 			"fieldname": "canceled_at",
 			"fieldtype": "Datetime",
 			"label": "Canceled At"
@@ -119,6 +148,12 @@
 			"fieldname": "cancellation_reason",
 			"fieldtype": "Long Text",
 			"label": "Cancellation Reason"
+		},
+		{
+			"fieldname": "cancellation_note",
+			"fieldtype": "Small Text",
+			"label": "Cancellation Note",
+			"description": "İptal anketindeki serbest metin (max 500 karakter — API katmanında sınırlanır)."
 		},
 		{
 			"fieldname": "tab_billing",

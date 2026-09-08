@@ -120,6 +120,12 @@ scheduler_events = {
 	"cron": {
 		"*/30 * * * *": [
 			"tradehub_core.services.subscription_lifecycle.process_trial_lifecycle",
+			# BE-4 — ücretli abonelik lifecycle'ı: T-7/T-1 yenileme hatırlatması +
+			# dönem sonu finalize (cancel_at_period_end=1 → canceled) + past_due.
+			# AYNI */30 listesine APPEND edildi (ikinci bir "*/30" anahtarı öncekini
+			# sessizce düşürürdü — bkz. aşağıdaki */5 yorumu). Idempotent:
+			# renewal_reminder_*_sent bayrakları + işlem öncesi status re-check.
+			"tradehub_core.services.subscription_lifecycle.process_paid_lifecycle",
 		],
 		# Medya: video transcode süpürücüsü (TUR-296). İki işi var — backoff
 		# süresi dolmuş retry'ları kuyruğa koymak ve worker'ın bıraktığı

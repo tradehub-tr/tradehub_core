@@ -69,6 +69,7 @@ def anonymize_deleted_account(user: str) -> None:
 	_anonymize_user_profile(user)
 	_anonymize_seller_profile(user)
 	_anonymize_seller_application(user)
+	_anonymize_store_subscription(user)
 	_anonymize_addresses(user)
 	_anonymize_orders(user)
 	_anonymize_reviews(user)
@@ -190,6 +191,36 @@ def _anonymize_seller_profile(user: str) -> None:
 		},
 		update_modified=False,
 	)
+
+
+def _anonymize_store_subscription(user: str) -> None:
+	"""Store Subscription iptal alanlarındaki PII'yi anonimleştirir.
+
+	`cancellation_note` kullanıcının yazdığı serbest metin (PII içerebilir),
+	`cancel_requested_by` e-posta tabanlı User linki — ikisi de KVKK m.7
+	kapsamında temizlenir. `cancellation_reason` kod değeridir
+	('account_deleted' vb.), PII değildir — korunur.
+
+	İki alan da abonelik iptal paketiyle (BE-1) geliyor; şema henüz migrate
+	edilmemişse sessizce atlanır (grace penceresi migration'dan önce dolan
+	eski silmeler patlamasın).
+	"""
+	if not frappe.db.has_column("Store Subscription", "cancel_requested_by"):
+		return
+
+	has_note = frappe.db.has_column("Store Subscription", "cancellation_note")
+
+	# get_all gerekçe: sistem/scheduler akışı, perm bypass kasıtlı (KVKK m.7).
+	subs = frappe.get_all(
+		"Store Subscription",
+		filters={"cancel_requested_by": user},
+		pluck="name",
+	)
+	for sub_name in subs:
+		values: dict = {"cancel_requested_by": None}
+		if has_note:
+			values["cancellation_note"] = None
+		frappe.db.set_value("Store Subscription", sub_name, values, update_modified=False)
 
 
 def _anonymize_addresses(user: str) -> None:

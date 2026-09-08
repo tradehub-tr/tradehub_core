@@ -9,6 +9,12 @@ from frappe.rate_limiter import rate_limit
 from frappe.utils import now_datetime
 from frappe.utils.password import check_password, update_password
 
+# GÜVENLİK — frappe.rate_limiter'ın key="user" modu Frappe v15'te form_dict'teki
+# 'user' parametresini okur (session user'ı DEĞİL): istemci `user=<rastgele>`
+# göndererek her çağrıda yeni bucket açıp limiti atlayabilir. Kimliği
+# frappe.session.user'dan türeten proje-içi decorator bu açığı kapatır.
+# Bu dosyadaki DİĞER key="user" kullanımları ayrı iş olarak geçirilecek.
+from tradehub_core.api.rate_limit import rate_limit as session_rate_limit
 from tradehub_core.api.v1.auth import _generate_member_id
 from tradehub_core.seo.site_url import storefront_url
 from tradehub_core.utils.auth_guards import require_verified_email
@@ -1670,8 +1676,161 @@ def change_phone(phone: str, password: str):
 	return {"success": True, "message": _("Phone number updated successfully.")}
 
 
+@frappe.whitelist(methods=["GET"])
+# Enumeration/scraping önlemi — okuma ucu ama hesap/mağaza/abonelik özeti döner;
+# session-bazlı makul limit (30/5dk) normal panel kullanımını etkilemez.
+@session_rate_limit(max_calls=30, window_seconds=300, scope="account_deletion_preview")
+def get_account_deletion_preview() -> dict:
+	"""Hesap silme onay ekranı verisi (AC-12/AC-13 — Apple 5.1.1(v) + KVKK m.7).
+
+	Silme ÖNCESİ kullanıcıya gösterilecek sonuçları döner: mağaza/abonelik
+	akıbeti, alt kullanıcı sayısı, 15 günlük anonimleştirme penceresi ve
+	Türkçe sonuç maddeleri. Hiçbir DB yazımı YAPMAZ.
+
+	Errors:
+	  403 — Guest (login zorunlu)
+	"""
+	# Tek doğruluk kaynağı: KVKK grace penceresi privacy katmanında tanımlı.
+	from tradehub_core.privacy.account_deletion import _GRACE_PERIOD_DAYS
+
+	user = frappe.session.user
+	if user == "Guest":
+		frappe.local.response["http_status_code"] = 403
+		frappe.throw(_("Not logged in."), frappe.PermissionError)
+
+	user_data = frappe.db.get_value("User", user, ["tradehub_tenant", "tradehub_is_owner"], as_dict=True)
+	has_store = bool(user_data and user_data.tradehub_is_owner and user_data.tradehub_tenant)
+
+	store_name: str | None = None
+	active_subscription: dict | None = None
+	sub_user_count = 0
+
+	consequences: list[str] = [
+		_("Hesabınız anında devre dışı bırakılır, tüm oturumlarınız kapatılır ve tekrar giriş yapılamaz."),
+		_("Kişisel verileriniz {0} gün içinde KVKK Madde 7 uyarınca anonimleştirilir.").format(
+			_GRACE_PERIOD_DAYS
+		),
+	]
+
+	if has_store:
+		store = user_data.tradehub_tenant
+		store_row = frappe.db.get_value(
+			"Admin Seller Profile", store, ["company_name", "seller_name"], as_dict=True
+		)
+		store_name = (store_row.company_name or store_row.seller_name or store) if store_row else store
+		consequences.append(
+			_("'{0}' mağazanız askıya alınır ve satıcı paneli kilitlenir.").format(store_name)
+		)
+
+		# Bir mağaza için tek non-canceled subscription olabilir (controller invariant).
+		sub = frappe.db.get_value(
+			"Store Subscription",
+			{"store": store, "status": ["!=", "canceled"]},
+			["plan", "status", "current_period_end"],
+			as_dict=True,
+		)
+		if sub:
+			active_subscription = {
+				"plan": sub.plan,
+				"status": sub.status,
+				"current_period_end": str(sub.current_period_end) if sub.current_period_end else None,
+			}
+			if sub.status == "trial":
+				consequences.append(_("Deneme aboneliğiniz hemen sonlandırılır; ücret alınmaz."))
+			else:
+				consequences.append(
+					_(
+						"Aktif aboneliğiniz ({0}) dönem sonu beklenmeden hemen iptal edilir; iade yapılmaz."
+					).format(sub.plan)
+				)
+		consequences.append(
+			_("Bekleyen havale/ödeme talepleriniz reddedilir; mağazanız için yeni havale talebi açılamaz.")
+		)
+
+		# Alt kullanıcılar: aynı tenant'a bağlı, owner dışındaki hesaplar (silinmezler).
+		sub_user_count = frappe.db.count("User", {"tradehub_tenant": store, "name": ["!=", user]})
+		if sub_user_count:
+			consequences.append(
+				_("Mağazanıza bağlı {0} alt kullanıcı, mağaza askıya alındığı için panele erişemez.").format(
+					sub_user_count
+				)
+			)
+
+	return {
+		"has_store": has_store,
+		"store_name": store_name,
+		"active_subscription": active_subscription,
+		"sub_user_count": sub_user_count,
+		"grace_days": _GRACE_PERIOD_DAYS,
+		"consequences": consequences,
+	}
+
+
+def _cancel_owner_subscription_on_delete(user: str) -> dict:
+	"""Mağaza sahibi hesabını silerken abonelik akıbetini uygular (AC-13).
+
+	  * Non-canceled Store Subscription → status='canceled' +
+	    cancellation_reason='account_deleted'. Geçiş state machine üzerinden
+	    (doc.save → _validate_status_transition); mevcut geçiş tablosunda her
+	    statüden (active, trial, past_due, suspended, expired) 'canceled'
+	    geçişi tanımlı. canceled_at controller tarafından otomatik set edilir.
+	  * Bekleyen (pending) Subscription Payment talepleri 'rejected' yapılır —
+	    mağaza Suspended olduğu için yeni havale talebi zaten açılamaz.
+
+	Alt kullanıcılara DOKUNULMAZ (mağaza Suspended → panel kilidi yeterli;
+	kalıcı politika ayrı PO kararı). Kullanıcı owner değilse no-op.
+	Dönen dict delete_account audit context'ine yazılır.
+	"""
+	outcome: dict = {
+		"store": None,
+		"subscription_canceled": None,
+		"previous_subscription_status": None,
+		"pending_payments_rejected": 0,
+	}
+
+	user_data = frappe.db.get_value("User", user, ["tradehub_tenant", "tradehub_is_owner"], as_dict=True)
+	if not user_data or not user_data.tradehub_is_owner or not user_data.tradehub_tenant:
+		return outcome
+
+	store = user_data.tradehub_tenant
+	outcome["store"] = store
+
+	sub_name = frappe.db.get_value(
+		"Store Subscription", {"store": store, "status": ["!=", "canceled"]}, "name"
+	)
+	if sub_name:
+		sub = frappe.get_doc("Store Subscription", sub_name)
+		outcome["previous_subscription_status"] = sub.status
+		sub.status = "canceled"
+		sub.cancellation_reason = "account_deleted"
+		# ignore_permissions gerekçe: parola doğrulaması geçilmiş self-service
+		# hesap silme akışı; Store Subscription yazma yetkisi normalde admin'de.
+		# validate yine çalışır → status geçişi state machine'den geçer.
+		sub.save(ignore_permissions=True)
+		outcome["subscription_canceled"] = sub_name
+
+	# get_all gerekçe: sistem akışı — tenant yukarıda owner üzerinden çözüldü,
+	# perm bypass kasıtlı (kullanıcının kendi mağazasının bekleyen talepleri).
+	pending = frappe.get_all(
+		"Subscription Payment",
+		filters={"store": store, "status": "pending"},
+		pluck="name",
+	)
+	for payment_name in pending:
+		frappe.db.set_value(
+			"Subscription Payment",
+			payment_name,
+			{"status": "rejected", "rejection_reason": "account_deleted"},
+		)
+	outcome["pending_payments_rejected"] = len(pending)
+
+	return outcome
+
+
 @frappe.whitelist(methods=["POST"])
-@rate_limit(key="user", limit=3, seconds=3600)
+# Parola brute-force'una karşı TEK guard bu limit — session-bazlı decorator şart
+# (frappe.rate_limiter key="user" form_dict'ten okunur → atlatılabilirdi).
+@session_rate_limit(max_calls=3, window_seconds=3600, scope="delete_account")
 def delete_account(password: str, reason: str = ""):
 	"""Soft-delete the currently logged-in user's account.
 
@@ -1716,6 +1875,12 @@ def delete_account(password: str, reason: str = ""):
 	if seller_profile:
 		frappe.db.set_value("Admin Seller Profile", seller_profile, "status", "Suspended")
 
+	# AC-13 — mağaza sahibiyse abonelik akıbeti: Store Subscription → canceled
+	# (cancellation_reason='account_deleted'), bekleyen havale talepleri →
+	# rejected. commit'ten ÖNCE koşar: hata olursa silme bütünüyle rollback olur
+	# (yarı silinmiş hesap + yaşayan abonelik durumu oluşamaz).
+	subscription_outcome = _cancel_owner_subscription_on_delete(user)
+
 	# Log the deletion reason
 	frappe.log_error(
 		title=f"Account deletion: {user}",
@@ -1751,6 +1916,10 @@ def delete_account(password: str, reason: str = ""):
 			"reason": (reason or "")[:200],
 			"buyer_profile_deactivated": bool(buyer_profile),
 			"seller_profile_deactivated": bool(seller_profile),
+			# AC-13 — abonelik akıbeti audit izi
+			"subscription_canceled": subscription_outcome.get("subscription_canceled"),
+			"previous_subscription_status": subscription_outcome.get("previous_subscription_status"),
+			"pending_payments_rejected": subscription_outcome.get("pending_payments_rejected", 0),
 		},
 	)
 
