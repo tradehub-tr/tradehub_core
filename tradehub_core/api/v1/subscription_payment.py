@@ -68,6 +68,13 @@ def create_bank_transfer_request(plan: str, billing_cycle: str = "yearly") -> di
 	tenant = (_resolve_tenant_for_caller() or "").strip()
 	if not tenant:
 		frappe.throw(_("Mağaza bulunamadı."), frappe.PermissionError)
+	# R5 — askıdaki (Suspended) mağaza yeni havale talebi açamaz (AC-13):
+	# hesap silme akışı profili Suspended bırakır; önce admin reaktivasyonu gerekir.
+	if frappe.db.get_value("Admin Seller Profile", tenant, "status") == "Suspended":
+		frappe.throw(
+			_("Mağaza askıya alınmış; yeni ödeme talebi açılamaz — admin işlemi gerekli."),
+			frappe.ValidationError,
+		)
 	if billing_cycle not in ("monthly", "yearly"):
 		billing_cycle = "yearly"
 	if not frappe.db.exists("Subscription Plan", plan):
@@ -138,12 +145,15 @@ def confirm_subscription_payment(payment: str) -> dict[str, Any]:
 	doc.flags.ignore_permissions = True
 	doc.save(ignore_permissions=True)
 
-	# Aboneliği aktive et (admin → tenant parametresi ile).
+	# Aboneliği aktive et (admin → tenant parametresi ile). billing_cycle
+	# geçirilir ki dönem hesabı ödemenin dönemine göre yapılsın (BE-3 / AC-7);
+	# geçirilmezse mevcut kayıt/monthly default'una düşüp yanlış dönem yazılırdı.
 	upgrade_subscription_plan(
 		new_plan=doc.plan,
 		tenant=doc.store,
 		start_trial=0,
 		reason=f"Bank transfer confirmed: {doc.name} ({doc.reference_code})",
+		billing_cycle=doc.billing_cycle,
 	)
 
 	_notify_seller_payment_result(doc, confirmed=True)

@@ -12,7 +12,10 @@ Status state machine:
   past_due → active | expired | canceled | suspended
   suspended → active | canceled
   expired → active | canceled  (yeniden abonelik / ödeme ile reaktive)
-  canceled → (terminal, sadece yeniden subscription oluşturulabilir)
+  canceled → active  (yeniden abonelik — AC-14; store unique olduğundan aynı satır reaktive edilir)
+
+İptal Amazon Seller modeliyle çalışır: yeni status YOK, `active + cancel_at_period_end=1`
+bayrağı; dönem sonunda lifecycle job status'u `canceled` yapar.
 
 `expired`: deneme süresi doldu, ödeme yok → panel kilitli (paywall). Veri korunur;
 ödeme/yeniden abonelikle `active`e döner (bkz. subscription.upgrade_subscription_plan).
@@ -26,7 +29,7 @@ from datetime import datetime
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import now_datetime
+from frappe.utils import cint, get_datetime, now_datetime
 
 # İzin verilen status geçişleri
 _VALID_TRANSITIONS: dict[str, set[str]] = {
@@ -35,7 +38,7 @@ _VALID_TRANSITIONS: dict[str, set[str]] = {
 	"past_due": {"active", "expired", "canceled", "suspended"},
 	"suspended": {"active", "canceled"},
 	"expired": {"active", "canceled"},  # ödeme/yeniden abonelik ile reaktive
-	"canceled": set(),  # terminal
+	"canceled": {"active"},  # yeniden abonelik — AC-14 (store unique → aynı satır reaktive)
 }
 
 
@@ -43,6 +46,8 @@ class StoreSubscription(Document):
 	def validate(self) -> None:
 		self._validate_status_transition()
 		self._validate_period_consistency()
+		self._validate_cancellation_flag()
+		self._reset_renewal_reminders_on_new_period()
 		self._validate_unique_active_per_store()
 		self._validate_overrides_json()
 		self._track_plan_change()
@@ -89,6 +94,36 @@ class StoreSubscription(Document):
 
 		if self.status == "canceled" and not self.canceled_at:
 			self.canceled_at = now_datetime()
+
+	def _validate_cancellation_flag(self) -> None:
+		"""cancel_at_period_end bayrak kuralları (Amazon Seller modeli).
+
+		- 'canceled'a geçişte bayrak otomatik sıfırlanır: planlı iptal gerçekleşti,
+		  bayrağın taşınması reaktivasyonda hayalet iptal planı bırakırdı.
+		- Bayrak yalnız status='active' iken 1 olabilir (trial'da iptal yok — R3;
+		  past_due/expired/suspended zaten iptal akışının dışında).
+		"""
+		if self.status == "canceled" and cint(self.cancel_at_period_end):
+			self.cancel_at_period_end = 0
+		if cint(self.cancel_at_period_end) and self.status != "active":
+			frappe.throw(
+				_(
+					"Dönem sonu iptal bayrağı yalnız 'active' abonelikte işaretlenebilir (mevcut: {0})."
+				).format(self.status)
+			)
+
+	def _reset_renewal_reminders_on_new_period(self) -> None:
+		"""current_period_start yazılan her yeni dönemde T-7/T-1 bayrakları sıfırlanır (AC-9).
+
+		Bayrak deseni trial reminder'larla aynı (idempotent, per-dönem en fazla 1 bildirim);
+		dönem değişmeden sıfırlanmazlar ki lifecycle job çift bildirim atmasın.
+		"""
+		if self.is_new() or not self.name or not self.current_period_start:
+			return
+		old_start = frappe.db.get_value("Store Subscription", self.name, "current_period_start")
+		if not old_start or get_datetime(old_start) != get_datetime(self.current_period_start):
+			self.renewal_reminder_7d_sent = 0
+			self.renewal_reminder_1d_sent = 0
 
 	def _validate_unique_active_per_store(self) -> None:
 		"""Bir mağaza için yalnızca tek non-canceled subscription olabilir."""

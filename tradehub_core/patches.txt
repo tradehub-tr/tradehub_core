@@ -321,3 +321,6 @@ tradehub_core.patches.v15_9_52_file_doc_fields
 # --- Bora · 09-BE A (kargo entegrasyon logu altyapısı) ---
 # Carrier Integration Log bileşik index'leri + Logistics Settings saklama alanı.
 tradehub_core.patches.v15_log043_carrier_integration_log
+
+# --- Abonelik iptali BE-1 · current_period_end backfill (R1: kaynak = son ONAYLI odeme cycle, bayat default yasak; taban now+7g) ---
+tradehub_core.patches.v15_backfill_current_period_end
