@@ -39,7 +39,7 @@ FindInSet = CustomFunction("FIND_IN_SET", ["needle", "haystack"])
 NullIf = CustomFunction("NULLIF", ["expr", "value"])
 
 # Kapsam dışı doctype listesi `presets`te — `usage` da aynısını kullanıyor.
-from tradehub_core.media import engine, ownership, states, timefmt  # noqa: E402
+from tradehub_core.media import engine, ownership, states, timefmt, upload_policy  # noqa: E402
 from tradehub_core.media.presets import EXCLUDED_DOCTYPES  # noqa: E402
 
 SORT_FIELDS: dict[str, str] = {
@@ -64,10 +64,21 @@ DOCUMENT_EXTENSIONS: frozenset[str] = frozenset(
 IMAGE_EXTENSIONS: frozenset[str] = frozenset(
 	{"jpg", "jpeg", "png", "webp", "gif", "avif", "bmp", "tif", "tiff", "heic", "heif", "svg"}
 )
+#: Ses uzantıları — TEK KAYNAK `upload_policy.AUDIO_EXTENSIONS`. Oradaki demet
+#: noktalı (".mp3"), buradaki sözlük çıplak ("mp3") çalışıyor; nokta burada
+#: soyuluyor ki iki yerde iki liste tutulmasın.
+#:
+#: NEDEN EKLENDİ: ses `upload_policy`de tanımlıydı ve yüklenebiliyordu ama bu
+#: sözlükte karşılığı yoktu — panelin tür filtresi sesi hiç göremiyordu ve
+#: `.mp3` filtresiz listede sınıfsız kalıyordu.
+AUDIO_EXTENSIONS: frozenset[str] = frozenset(
+	e.lstrip(".") for e in upload_policy.AUDIO_EXTENSIONS
+)
 KIND_EXTENSIONS: dict[str, frozenset[str]] = {
 	"video": VIDEO_EXTENSIONS,
 	"document": DOCUMENT_EXTENSIONS,
 	"image": IMAGE_EXTENSIONS,
+	"audio": AUDIO_EXTENSIONS,
 }
 MIME_EXTENSIONS: dict[str, frozenset[str]] = {
 	"image/*": IMAGE_EXTENSIONS,
@@ -99,6 +110,15 @@ MIME_EXTENSIONS: dict[str, frozenset[str]] = {
 	"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": frozenset({"xlsx"}),
 	"application/vnd.ms-powerpoint": frozenset({"ppt"}),
 	"application/vnd.openxmlformats-officedocument.presentationml.presentation": frozenset({"pptx"}),
+	# Ses — aile filtresi (`audio/*`) artı yaygın tekil türler. `.m4a`/`.aac`
+	# ikisi de `audio/aac` altında toplanıyor: ISOBMFF kabında AAC akışı, aynı
+	# şey. `.opus` ayrı çünkü Ogg kabında farklı bir kodek.
+	"audio/*": AUDIO_EXTENSIONS,
+	"audio/mpeg": frozenset({"mp3"}),
+	"audio/aac": frozenset({"m4a", "aac"}),
+	"audio/ogg": frozenset({"ogg", "opus"}),
+	"audio/wav": frozenset({"wav"}),
+	"audio/flac": frozenset({"flac"}),
 }
 
 SIZE_BUCKETS: dict[str, tuple[int | None, int | None]] = {
@@ -398,17 +418,30 @@ def _extension_condition(f, extensions: set[str] | frozenset[str] | tuple[str, .
 
 
 def _kind_condition(f, kinds: tuple[str, ...]):
-	"""Panelin tür semantiği: bilinen video/belge dışındaki dosya görseldir."""
+	"""Panelin tür semantiği: bilinen video/belge/SES dışındaki dosya görseldir.
+
+	Yakalayıcı dal (`else`) BİLEREK duruyor: izin listesinde olmayan bir
+	uzantı panelde kaybolmasın, "görsel" altında en azından görünsün.
+
+	SES O DALDAN ÇIKARILDI. `KIND_EXTENSIONS`e "audio" eklendiğinde bu
+	fonksiyon güncellenmezse ses hem "audio" hem "image" süzgecine düşüyordu:
+	`kinds=["audio"]` yakalayıcı dala giriyor ve doğru sonucu YANLIŞ sebeple
+	veriyor, `kinds=["image"]` ise sesi de getiriyordu. Ölçüldü (E2E j3/j4,
+	6 Eyl): j3 yeşil-yanlış geçti, kusuru j4 yakaladı.
+	"""
 	video = _extension_condition(f, VIDEO_EXTENSIONS)
 	document = _extension_condition(f, DOCUMENT_EXTENSIONS)
+	audio = _extension_condition(f, AUDIO_EXTENSIONS)
 	conditions = []
 	for kind in kinds:
 		if kind == "video":
 			conditions.append(video)
 		elif kind == "document":
 			conditions.append(document)
+		elif kind == "audio":
+			conditions.append(audio)
 		else:
-			conditions.append(~(video | document))
+			conditions.append(~(video | document | audio))
 	return _or_conditions(conditions)
 
 

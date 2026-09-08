@@ -271,6 +271,93 @@ def build_digital_document(
 	return nesne
 
 
+def build_audio_object(
+	seo_fields: dict,
+	site_url: str,
+	*,
+	content_url: str,
+	uzanti: str = "",
+) -> dict | None:
+	"""Tek ses dosyası için `AudioObject` — adı yoksa None.
+
+	`build_digital_document` ile AYNI ilke ve AYNI iskelet: geçersiz yapısal
+	veri hiç üretilmez, ad `title`'dan yoksa dosya adı gövdesinden türetilir,
+	ikisi de boşsa None. Bu ilke `build_video_object`ta da aynı; üç dosya
+	türünün davranışı bilerek tek kalıp.
+
+	ALAN EŞLEMESİ ŞEMAYA GÖRE YAPILDI, İSTEĞE GÖRE DEĞİL:
+	`AudioObject` schema.org'da `MediaObject` → `CreativeWork` zincirinden
+	gelir. "Sanatçı" için akla ilk gelen `byArtist` BURAYA UYMAZ — o
+	`MusicRecording`/`MusicGroup` alanı, genel bir ses dosyasında geçersiz
+	yapısal veri olur. Doğru karşılığı `author`. Aynı şekilde "kapak"
+	`thumbnailUrl`, "dil" `inLanguage`, "süre" `duration` (ISO-8601).
+
+	`author` ile `creator` ÇAKIŞMAZ, ikisi birden basılabilir: `creator`
+	lisans beşlisinden gelir (hakları elinde tutan kurum), `author` sesi
+	üreten kişidir. Bir podcast'te ikisi gerçekten farklıdır.
+
+	Saf fonksiyon: `seo_fields` çağıran tarafından `media/seo.fields_for` ile
+	getirilir — bu modül Frappe'ye bağlanmaz.
+	"""
+	url = _absolute_url(content_url, site_url)
+	if not url:
+		return None
+
+	ad = str(seo_fields.get("title") or "").strip()
+	if not ad:
+		temiz_yol = str(content_url or "").split("?")[0].strip()
+		dosya_adi = temiz_yol.rsplit("/", 1)[-1]
+		ad = dosya_adi.rsplit(".", 1)[0] if "." in dosya_adi else dosya_adi
+	ad = ad.strip()
+	if not ad:
+		return None
+
+	nesne: dict = {"@type": "AudioObject", "name": ad, "url": url, "contentUrl": url}
+
+	# `mimetypes.guess_type(".mp3")` çıplak uzantıyı gizli dosya sanıp boş
+	# döner (`splitext(".mp3") == (".mp3", "")`) — `build_digital_document`
+	# ile aynı sahte dosya adı hilesi.
+	mime_kaynagi = f"ses{uzanti}" if uzanti else str(content_url or "")
+	mime = mimetypes.guess_type(mime_kaynagi)[0]
+	if mime:
+		nesne["encodingFormat"] = mime
+
+	aciklama = str(seo_fields.get("caption") or seo_fields.get("description") or "").strip()
+	if aciklama:
+		nesne["description"] = aciklama
+
+	sure = _iso8601_sure(float(seo_fields.get("duration") or 0))
+	if sure:
+		nesne["duration"] = sure
+
+	sanatci = str(seo_fields.get("artist") or "").strip()
+	if sanatci:
+		nesne["author"] = {"@type": "Person", "name": sanatci}
+
+	# `poster_url` geri düşüşü: `media/seo.fields_for` kapağı `poster_url`
+	# kolonunda tutuyor ve `cover_url`i onun ses tarafındaki adı olarak
+	# döndürüyor. İkisini de okumak, bu fonksiyonu `fields_for`tan geçmeyen
+	# çağıranlara da (testler, dış entegrasyon) açık tutuyor.
+	kapak = str(seo_fields.get("cover_url") or seo_fields.get("poster_url") or "").strip()
+	if kapak:
+		nesne["thumbnailUrl"] = _absolute_url(kapak, site_url)
+
+	dil = str(seo_fields.get("language") or "").strip()
+	if dil:
+		nesne["inLanguage"] = dil
+
+	transcript = str(seo_fields.get("transcript") or "").strip()
+	if transcript:
+		nesne["transcript"] = transcript
+
+	if seo_fields.get("date_created"):
+		nesne["dateCreated"] = seo_fields["date_created"]
+
+	nesne.update(_license_props(seo_fields, site_url))
+
+	return nesne
+
+
 def _effective_listing_price(listing: dict) -> float | str:
 	"""Kart/detay görünümündeki satış fiyatını şemaya yansıt."""
 	price = listing.get("selling_price")

@@ -1,3 +1,80 @@
+## [v1.13.1-alpha.61] - 2026-09-08 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(medya): ses dosyaları için AudioObject şeması ve metadata katmanı (MOGEM-620) (@Metin Bektemur)
+  - `seo/schema_builder.build_audio_object`: `build_video_object` / `build_digital_document` ile aynı kalıp. Alan eşlemesi şemaya göre — "sanatçı" için `byArtist` DEĞİL `author`; `byArtist` MusicRecording alanı, genel bir ses dosyasında geçersiz yapısal veri üretirdi.
+  - `media/audio_meta.py`: ffprobe ile başlık/sanatçı/süre/gömülü kapak çıkarımı. Yeni bağımlılık yok — ffprobe zaten kurulu ve kapsayıcıdan bağımsız tek `format.tags` sözlüğü veriyor. Hata sözleşmesi `video_poster`/`doc_meta` ile aynı: hiçbir hata yüklemeyi düşürmez, başarısız çıkarıma -1 anti-açlık damgası yazılır.
+  - `patches/v15_9_53_media_audio_fields`: tek yeni kolon `th_media_artist`. Süre `th_media_duration`, kapak `th_media_poster_url`, başlık `th_media_title*` üzerinden — aynı gerçeği iki yerde tutmamak için.
+  - `media/seo.py`: `artist` + `cover_url` alanları; negatif süre nöbetçisi (`max(0, …)`) — -1 damgası JSON-LD'ye "PT-1S" olarak sızıyordu.
+  - `upload_policy.EXTENSIONS` ses türünü tanımıyordu; `naming._hashed_name` beyaz listeyi oradan okuduğu için HİÇBİR ses dosyası yüklenemiyordu. `.pptx` kusurunun birebir tekrarı — uzantı listesi artık tek kaynakta (`AUDIO_EXTENSIONS`), `audio_meta` onu içe aktarıyor.
+  - `MEDIA_KINDS` yalnız görsel + video kabul ediyordu; `upload_media` her ses yüklemesini reddediyordu.
+  - `inventory._kind_condition` yakalayıcı dalı sesi de "görsel" sayıyordu; `kinds=["image"]` ses dosyalarını da getiriyordu.
+
+---
+## [v1.13.1-alpha.60] - 2026-09-07 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Duzeltildi
+- fix(lojistik): maliyet maskesi API yanıtında etkisizdi (@aliiball)
+  - as_dict() Check/Int/Float alanlarda None'ı 0'a çeviriyor; doc üzerindeki maske yanıta yansımıyordu, maskelenen maliyet null yerine 0 dönüyordu
+  - Veri sızıntısı YOK (ölçüldü: DB 157.75 iken satıcı 0.0, admin 157.75) ama "gizlendi" ile "ücretsiz" ayırt edilemiyordu
+  - mask_shipment_cost_dict eklendi, alan listesi tek kaynağa indirildi
+  - Üç regresyon testi: sıfıra dönmüş alan, yetkili yol, olmayan alan
+
+---
+## [v1.13.1-alpha.59] - 2026-09-07 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(listing): düşük sonuç ve SEO içerik akışını güçlendir (@ahmeetseker)
+  - Az sonuçlu listelemelerde isteğe bağlı ürün dolgusu ekle; boş sonuçta sayfa kullanıcıya ürün göstermeye devam eder
+  - Kategori facet yanıtına ata path bilgisi ve boş sonuç fallback'i ekle; sidebar ağacı seçili kategoriyi korur
+  - Listing ve bulk import için ortak SEO başlık/açıklama kurallarını uygula
+  - Toplu social proof ucunda tekil uçla aynı "Yeni ürün" yedek rozetini üret
+  - Deploy sırasında demo/mock veriyi tek seferlik patch ile temizle
+
+---
+## [v1.13.1-alpha.58] - 2026-09-07 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(lojistik): uç sözleşmesi ve backend başlangıç belgesi eklendi (@aliiball)
+  - PROVISIONAL_ENDPOINTS: 6 modül, 38 uç — imza, dönen yük, hata kodları, sunucuda tekrarlanacak güvenlik kapıları, roller
+  - Uç imzaları git'siz kök klasördeki FE sözleşmelerinde yaşıyordu; backend'i yazacak kişi açamıyordu
+  - docs/generated/LOGISTICS-ENDPOINTS.md üretilmeye başlandı — --check ile bayatlama denetimi altında
+  - FE sözleşmelerinin tanımlayıp otoriteye işlenmemiş 29 alan hizalandı: POD 8→21, koli 12→20, kalem 8→10, sevkiyat +3, örnek verileriyle
+  - _assert_endpoints_valid: bir uç varlık sözleşmesinde olmayan alan döndüremez
+  - pending_fields: bilinçli açık kalemler için bayatlamayan muafiyet
+  - STOREFRONT_OMITTED_FIELDS: maskeleme (null) ile çıkarma (alan yok) ayrıldı; 12-FE §2.5 ikincisini istiyor
+
+### Degistirildi
+- refactor(lojistik): sözleşme belgesi uç kataloğuyla güncellendi (@aliiball)
+  - §3.4 eklendi: api.v1.shipment canlıydı ama belgede tek satırı yoktu
+  - §3.5 üretilen uç belgesine bağlandı; ad listesi tekrarı kaldırıldı
+  - §6.1 eklendi: modül seçimi bir güvenlik kararıdır
+  - §12 kapsam listesi düzeltildi — beş maddenin dördü artık doğru değildi
+  - CLAUDE.md §4.11: üretilen dosya sayısı 41 → 44
+
+---
+## [v1.13.1-alpha.57] - 2026-09-07 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Duzeltildi
+- fix(lojistik): denetim turu — is_delayed sözleşme boşluğu ve 4 sertleştirme kapatıldı (@boraydeger32)
+  - list_shipments artık is_delayed + ship_date + modified + package_count döndürüyor (sözleşme §provisional.shipment.list_fields); maliyet alanları bilinçli dışarıda (G0 sınırı), is_delayed TUR-112 SLA monitor gelene dek saklanan alan değil satır başına sorgusuz türev
+  - Leg/Event doc=None yazma kontrolü Shipment emsaliyle hizalandı (_TENANT_WRITE_ROLES matrisi — fail-open kapandı)
+  - HTTP istemci throttle kapsamlarına environment eklendi (open_notice/log_failure sandbox↔production ayrımı)
+  - api_utils hata yolları safe_log_error + traceback_text ile korundu (log_error fırlatırsa zarf sözleşmesi delinmiyor)
+  - secrets._read_plain sessiz yutma → gürültülü fail-closed (_READ_FAILED)
+  - 16 yeni test: alan-kümesi tam eşitlik + maliyet sınırı, gecikme matrisi, ortam-ayrımı, CarrierResponse.json() sözleşmesi, gelecek-tarihli Retry-After
+
+---
 ## [v1.13.1-alpha.56] - 2026-09-04 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.

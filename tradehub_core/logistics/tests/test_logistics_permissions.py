@@ -56,6 +56,7 @@ from tradehub_core.logistics.permissions import (
 	carrier_account_query_conditions,
 	flush_pending_deny_audits,
 	mask_carrier_account_fields,
+	mask_shipment_cost_dict,
 	mask_shipment_cost_fields,
 	shipment_event_has_permission,
 	shipment_has_permission,
@@ -395,6 +396,77 @@ class TestMaskShipmentCostFields(FrappeTestCase):
 		self.assertEqual(doc.shipping_cost, 150.0)
 		self.assertEqual(doc.insurance_cost, 25.0)
 		self.assertEqual(doc.total_cost, 175.0)
+
+
+class TestMaskShipmentCostDict(FrappeTestCase):
+	"""Yanıt sözlüğünde maske — doc maskesinin `as_dict()`te kaybolmasına karşı.
+
+	NEDEN AYRI SINIF: `mask_shipment_cost_fields` doc üzerinde None yazıyor
+	ve yukarıdaki testler bunu doğruluyor. Ama Frappe'nin
+	`Document.as_dict()`i Currency/Float alanlarda None'ı **0'a çeviriyor**;
+	doc maskesi doğru çalışmasına rağmen API yanıtında `null` yerine `0`
+	görünüyordu. "Gizlendi" ile "ücretsiz" ayırt edilemiyordu.
+
+	Ölçüldü 7 Eyl 2026 (`g0-security.spec.ts` 4. testi kırmızı): DB'de
+	`shipping_cost=157.75` iken yetkisiz satıcı `0.0`, Administrator
+	`157.75` alıyordu. Veri SIZMIYORDU — maskeleme çalışıyordu — ama
+	sözleşmenin vadettiği `null` gelmiyordu.
+	"""
+
+	#: `as_dict()` sonrası tipik yanıt: doc'ta None olan alanlar 0'a dönmüş.
+	AS_DICT_SONRASI = {
+		"name": "SHP-001",
+		"status": "In Transit",
+		"shipping_cost": 0.0,
+		"insurance_cost": 0.0,
+		"total_cost": 0.0,
+		"carrier_cost": 0.0,
+		"fuel_surcharge": 0.0,
+		"packaging_cost": 0.0,
+	}
+
+	def test_capability_yoksa_sifira_donmus_alanlar_none_olur(self):
+		"""Asıl regresyon: 0'a çevrilmiş maskeli alanlar yanıtta None olmalı."""
+		data = dict(self.AS_DICT_SONRASI)
+		with mock.patch(
+			"tradehub_core.utils.permission_resolver.has_capability", return_value=False
+		):
+			mask_shipment_cost_dict(data, "seller@example.com")
+		for field in (
+			"shipping_cost",
+			"insurance_cost",
+			"total_cost",
+			"carrier_cost",
+			"fuel_surcharge",
+			"packaging_cost",
+		):
+			self.assertIsNone(data[field], f"{field} yanıtta maskelenmeliydi")
+		# Maliyet dışı alanlara dokunulmaz.
+		self.assertEqual(data["status"], "In Transit")
+
+	def test_capability_varsa_gercek_deger_korunur(self):
+		"""POZİTİF: yetkili kullanıcı gerçek maliyeti görür; 0 da geçerli bir maliyettir."""
+		data = dict(self.AS_DICT_SONRASI, shipping_cost=157.75)
+		with mock.patch(
+			"tradehub_core.utils.permission_resolver.has_capability", return_value=True
+		):
+			mask_shipment_cost_dict(data, "finance@example.com")
+		self.assertEqual(data["shipping_cost"], 157.75)
+		self.assertEqual(data["total_cost"], 0.0)
+
+	def test_olmayan_alan_uydurulmaz(self):
+		"""Yanıtta bulunmayan maliyet alanı maske tarafından EKLENMEZ.
+
+		Aksi hâlde alanı hiç göndermeyen bir uç, maskeden sonra `null` taşıyan
+		bir alan kazanır ve tüketici "alan yok" ile "gizlendi"yi karıştırır.
+		"""
+		data = {"name": "SHP-001", "shipping_cost": 0.0}
+		with mock.patch(
+			"tradehub_core.utils.permission_resolver.has_capability", return_value=False
+		):
+			mask_shipment_cost_dict(data, "seller@example.com")
+		self.assertIsNone(data["shipping_cost"])
+		self.assertNotIn("total_cost", data)
 
 
 class TestMaskCarrierAccountFields(FrappeTestCase):

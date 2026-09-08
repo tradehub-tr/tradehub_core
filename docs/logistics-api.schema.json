@@ -1466,6 +1466,27 @@
 					"ts": "string",
 					"required": false,
 					"note": "unpaid | paid | waived — ödeme şartlı teslimde kapı"
+				},
+				{
+					"name": "packing_completed_at",
+					"type": "Datetime",
+					"ts": "string",
+					"required": false,
+					"note": "Paketleme tamamlandı damgası (13-FE)"
+				},
+				{
+					"name": "pickup_person",
+					"type": "Data",
+					"ts": "string",
+					"required": false,
+					"note": "Teslim alacak kişi — alıcı teslim alma akışı (14-FE D2)"
+				},
+				{
+					"name": "proof_of_delivery",
+					"type": "Link",
+					"ts": "string",
+					"required": false,
+					"note": "POD kaydı — belgeler sekmesi buna bağlanır (14-FE)"
 				}
 			],
 			"child_tables": {
@@ -1611,6 +1632,20 @@
 						"ts": "number",
 						"required": false,
 						"note": "İade edilen (TUR-116)"
+					},
+					{
+						"name": "packed_qty",
+						"type": "Float",
+						"ts": "number",
+						"required": false,
+						"note": "Kolilere atanan toplam — `contents` toplamı, read-only"
+					},
+					{
+						"name": "scan_code",
+						"type": "Data",
+						"ts": "string",
+						"required": false,
+						"note": "Tarama eşleşmesi (13-FE §4.1); null olabilir"
 					}
 				],
 				"packages": [
@@ -1692,6 +1727,61 @@
 						"ts": "string",
 						"required": false,
 						"note": "Yeniden üretim geçmişi için"
+					},
+					{
+						"name": "contents",
+						"type": "Table",
+						"ts": "unknown",
+						"required": true,
+						"note": "Kalem↔koli bağı — [{shipment_item, qty}] (13-FE görev çekirdeği)"
+					},
+					{
+						"name": "chargeable_kg",
+						"type": "Float",
+						"ts": "number",
+						"required": false,
+						"note": "Türetilir: max(weight_kg, desi)"
+					},
+					{
+						"name": "label_status",
+						"type": "Select",
+						"ts": "string",
+						"required": false,
+						"note": "None / Generated / Printed / Voided / Stale"
+					},
+					{
+						"name": "label_format",
+						"type": "Data",
+						"ts": "string",
+						"required": false,
+						"note": "a4_single / a4_quad / thermal_100x150 / zpl"
+					},
+					{
+						"name": "label_generated_at",
+						"type": "Datetime",
+						"ts": "string",
+						"required": false
+					},
+					{
+						"name": "label_print_count",
+						"type": "Int",
+						"ts": "number",
+						"required": false,
+						"note": "Yeniden basım sayacı"
+					},
+					{
+						"name": "carrier_tracking",
+						"type": "Data",
+						"ts": "string",
+						"required": false,
+						"note": "Koli bazlı takip (taşıyıcı destekliyorsa)"
+					},
+					{
+						"name": "content_hash",
+						"type": "Data",
+						"ts": "string",
+						"required": false,
+						"note": "Etiket üretimindeki koli imzası; değişirse label_status → Stale"
 					}
 				],
 				"legs": [
@@ -1862,6 +1952,13 @@
 			],
 			"list_fields": [
 				{
+					"name": "shipment",
+					"type": "Link",
+					"ts": "string",
+					"required": true,
+					"note": "Bir sevkiyatın TEK POD'u olur — unique (14-FE)"
+				},
+				{
 					"name": "delivered_at",
 					"type": "Datetime",
 					"ts": "string",
@@ -1875,11 +1972,67 @@
 					"note": "Teslim alan kişi"
 				},
 				{
+					"name": "received_by_title",
+					"type": "Data",
+					"ts": "string",
+					"required": true,
+					"note": "B2B ayrımı: depo sorumlusu / satın alma / şoför / imza yetkilisi"
+				},
+				{
 					"name": "delivery_code_used",
 					"type": "Check",
 					"ts": "number",
 					"required": false,
 					"note": "Tek kullanımlık kod doğrulandı mı"
+				},
+				{
+					"name": "delivered_package_count",
+					"type": "Int",
+					"ts": "number",
+					"required": true,
+					"note": "Kısmi teslim"
+				},
+				{
+					"name": "total_package_count",
+					"type": "Int",
+					"ts": "number",
+					"required": true,
+					"note": "Kıyas tabanı"
+				},
+				{
+					"name": "delivered_pallet_count",
+					"type": "Int",
+					"ts": "number",
+					"required": false,
+					"note": "Palet takası (K-L)"
+				},
+				{
+					"name": "returned_pallet_count",
+					"type": "Int",
+					"ts": "number",
+					"required": false,
+					"note": "Palet takası (K-L)"
+				},
+				{
+					"name": "has_discrepancy",
+					"type": "Check",
+					"ts": "number",
+					"required": true,
+					"note": "Tutarsızlık bayrağı"
+				},
+				{
+					"name": "exception_code",
+					"type": "Link",
+					"ts": "string",
+					"required": false,
+					"note": "has_discrepancy=1 ise ZORUNLU (14-FE §5.1)"
+				},
+				{
+					"name": "discrepancy_note",
+					"type": "Small Text",
+					"ts": "string",
+					"required": false,
+					"note": "has_discrepancy=1 ise zorunlu"
 				},
 				{
 					"name": "signature_url",
@@ -1902,6 +2055,13 @@
 					"required": false
 				},
 				{
+					"name": "delivery_point",
+					"type": "Link",
+					"ts": "string",
+					"required": false,
+					"note": "Carrier Branch — ayrı ekran yok, kart olarak gösterilir (K-C)"
+				},
+				{
 					"name": "location_source",
 					"type": "Select",
 					"ts": "string",
@@ -1912,7 +2072,29 @@
 					"name": "location_recorded_at",
 					"type": "Datetime",
 					"ts": "string",
-					"required": false
+					"required": false,
+					"note": "delivered_at'ten AYRI — ihtilafta fark anlamlı"
+				},
+				{
+					"name": "source",
+					"type": "Select",
+					"ts": "string",
+					"required": true,
+					"note": "operator/seller/carrier — SUNUCU belirler, istemci beyanına güvenilmez"
+				},
+				{
+					"name": "recorded_by",
+					"type": "Data",
+					"ts": "string",
+					"required": true,
+					"note": "Kaydı yapan (kullanıcı ya da 'MNG Kargo (webhook)')"
+				},
+				{
+					"name": "recorded_at",
+					"type": "Datetime",
+					"ts": "string",
+					"required": true,
+					"note": "Kayıt anı — delivered_at'ten farklı olabilir"
 				}
 			],
 			"detail_fields": [],
@@ -3517,6 +3699,1797 @@
 			],
 			"detail_fields": [],
 			"child_tables": {}
+		}
+	},
+	"endpoints": {
+		"pickup": {
+			"provisional": true,
+			"module": "api.v1.pickup",
+			"label": "Alıcı teslim alma (randevu + teslim kodu)",
+			"owner": "07-BE",
+			"source_doc": "07-FE-VERI-SOZLESMESI.md",
+			"endpoints": [
+				{
+					"name": "list_appointment_slots",
+					"params": [
+						{
+							"name": "shipment",
+							"type": "str",
+							"required": true,
+							"note": ""
+						},
+						{
+							"name": "date",
+							"type": "str",
+							"required": true,
+							"note": "YYYY-MM-DD"
+						}
+					],
+					"returns": {
+						"shape": "custom",
+						"fields": [
+							"date",
+							"slots[].value",
+							"slots[].label",
+							"slots[].available"
+						]
+					},
+					"errors": [
+						"NOT_FOUND",
+						"PERMISSION_DENIED",
+						"FEATURE_DISABLED"
+					],
+					"guards": [
+						"Kapasiteyi SUNUCU bilir; FE listeyi üretmez.",
+						"`label` sunucudan gelir — depo çalışma saatleri işletmeye göre değişir."
+					],
+					"pending_fields": {},
+					"note": "Boş `slots` ya da hepsi `available:false` → ekran S3-3 (form çizilmez)."
+				},
+				{
+					"name": "request_appointment",
+					"params": [
+						{
+							"name": "shipment",
+							"type": "str",
+							"required": true,
+							"note": ""
+						},
+						{
+							"name": "date",
+							"type": "str",
+							"required": true,
+							"note": "YYYY-MM-DD"
+						},
+						{
+							"name": "slot",
+							"type": "str",
+							"required": true,
+							"note": "ör. 09-12"
+						}
+					],
+					"returns": {
+						"entity": "shipment",
+						"shape": "fields",
+						"fields": [
+							"appointment_at",
+							"appointment_window"
+						]
+					},
+					"errors": [
+						"VALIDATION_ERROR",
+						"CONFLICT",
+						"NOT_FOUND",
+						"PERMISSION_DENIED"
+					],
+					"guards": [
+						"Geçmiş tarih SUNUCUDA reddedilir → VALIDATION_ERROR. FE'deki iki kat kontrol (input min + Alpine) deneyimdir, güvenlik değildir."
+					],
+					"pending_fields": {},
+					"note": "Aynı uç hem oluşturur hem değiştirir (S3-1 = S3-2). Ayrı `update_appointment` ucu ekranda ikinci bir kod yolu demek olurdu.",
+					"undefined_errors": [
+						"CONFLICT"
+					]
+				},
+				{
+					"name": "confirm_delivery",
+					"params": [
+						{
+							"name": "shipment",
+							"type": "str",
+							"required": true,
+							"note": ""
+						},
+						{
+							"name": "code",
+							"type": "str",
+							"required": false,
+							"note": "yalnız delivery_code_required=1 iken"
+						}
+					],
+					"returns": {
+						"entity": "shipment",
+						"shape": "fields",
+						"fields": [
+							"delivery_code_status",
+							"delivery_code_attempts",
+							"status"
+						]
+					},
+					"errors": [
+						"DELIVERY_CODE_EXPIRED",
+						"PERMISSION_DENIED",
+						"NOT_FOUND"
+					],
+					"guards": [
+						"Kodun DEĞERİ hiçbir yanıtta dönmez (K-F).",
+						"Ödeme kontrolü SUNUCUDA tekrarlanır → PERMISSION_DENIED. FE formu hiç çizmiyor (S4-6) ama bu kapı değil kolaylıktır."
+					],
+					"pending_fields": {},
+					"note": "Yanlış kod HATA DEĞİL: uç `ok:true` + `delivery_code_status:\"failed\"` + artmış sayaç döner; ekran formu açık tutar (S4-3). Süre dolumu ise `ok:false` + DELIVERY_CODE_EXPIRED (S4-5).",
+					"undefined_errors": [
+						"DELIVERY_CODE_EXPIRED"
+					]
+				},
+				{
+					"name": "resend_delivery_code",
+					"params": [
+						{
+							"name": "shipment",
+							"type": "str",
+							"required": true,
+							"note": ""
+						}
+					],
+					"returns": {
+						"entity": "shipment",
+						"shape": "fields",
+						"fields": [
+							"delivery_code_expires_at",
+							"delivery_code_status"
+						]
+					},
+					"errors": [
+						"PERMISSION_DENIED",
+						"NOT_FOUND",
+						"FEATURE_DISABLED"
+					],
+					"guards": [
+						"Deneme hakkını SIFIRLAMAZ (S4-5) — süre dolumu alıcının hatası değil, ama kod tahmin denemesi de sıfırlanmamalı."
+					],
+					"pending_fields": {
+						"delivery_code_expires_at": "07-BE (MOGEM-540) — 07-FE §1: 'Bugün süre kavramı sözleşmede yok'. Alan gelmezse FE bu ucu hiç çağırmaz, buton çizilmez."
+					},
+					"note": "Yeni kodu mevcut kanaldan iletir (SMS/e-posta — 12-BE'nin işi). `delivery_code_expires_at` sözleşmede yoksa FE bu ucu HİÇ çağırmaz, buton çizilmez (§1.2)."
+				}
+			]
+		},
+		"packaging": {
+			"provisional": true,
+			"module": "api.v1.packaging",
+			"label": "Paketleme, koli, etiket ve palet",
+			"owner": "13-BE (palet kısmı 19-BE)",
+			"source_doc": "13-FE-VERI-SOZLESMESI.md",
+			"endpoints": [
+				{
+					"name": "get_packing_queue",
+					"params": [
+						{
+							"name": "bucket",
+							"type": "str",
+							"required": false,
+							"note": "unpacked|partial|awaiting_label|ready"
+						},
+						{
+							"name": "seller",
+							"type": "str",
+							"required": false,
+							"note": ""
+						},
+						{
+							"name": "carrier",
+							"type": "str",
+							"required": false,
+							"note": ""
+						},
+						{
+							"name": "date_from",
+							"type": "str",
+							"required": false,
+							"note": ""
+						},
+						{
+							"name": "date_to",
+							"type": "str",
+							"required": false,
+							"note": ""
+						},
+						{
+							"name": "page",
+							"type": "int",
+							"required": false,
+							"note": "varsayılan 1"
+						},
+						{
+							"name": "page_size",
+							"type": "int",
+							"required": false,
+							"note": "varsayılan 50"
+						}
+					],
+					"returns": {
+						"shape": "custom",
+						"fields": [
+							"items[].shipment",
+							"items[].order",
+							"items[].buyer_name",
+							"items[].seller_name",
+							"items[].item_count",
+							"items[].package_count",
+							"items[].waiting_hours",
+							"items[].carrier",
+							"items[].bucket",
+							"items[].status",
+							"total",
+							"page",
+							"page_size",
+							"buckets.unpacked",
+							"buckets.partial",
+							"buckets.awaiting_label",
+							"buckets.ready"
+						]
+					},
+					"errors": [
+						"PERMISSION_DENIED",
+						"FEATURE_DISABLED"
+					],
+					"guards": [
+						"Kova tanımları SUNUCUDA hesaplanır, FE tekrarlamaz: unpacked=packages boş · partial=packed_qty<qty olan kalem var · awaiting_label=tüm kalemler paketli ama label_status=None koli var · ready=tümü etiketli."
+					],
+					"pending_fields": {},
+					"note": "`buckets` AYNI ÇAĞRIDAN gelmeli. Ayrı istek sayaçları listeden kaydırır: kullanıcı 'Paketlenmedi 2' görür, tıklar, 3 kayıt gelir. `waiting_hours` ham saat — 24sa sarı / 72sa kırmızı eşiği SUNUM kararı."
+				},
+				{
+					"name": "get_shipment_packing",
+					"params": [
+						{
+							"name": "shipment",
+							"type": "str",
+							"required": true,
+							"note": ""
+						}
+					],
+					"returns": {
+						"shape": "custom",
+						"fields": [
+							"shipment",
+							"order",
+							"buyer_name",
+							"status",
+							"modified",
+							"is_locked",
+							"desi_divisor",
+							"items[].row_id",
+							"items[].order_item",
+							"items[].listing",
+							"items[].item_name",
+							"items[].variation",
+							"items[].qty",
+							"items[].packed_qty",
+							"items[].uom",
+							"items[].scan_code",
+							"packages[].row_id",
+							"packages[].package_code",
+							"packages[].sequence",
+							"packages[].package_type",
+							"packages[].length_cm",
+							"packages[].width_cm",
+							"packages[].height_cm",
+							"packages[].weight_kg",
+							"packages[].qty",
+							"packages[].desi",
+							"packages[].chargeable_kg",
+							"packages[].barcode",
+							"packages[].contents[].shipment_item",
+							"packages[].contents[].qty",
+							"packages[].label.status",
+							"packages[].label.url",
+							"packages[].label.barcode_url",
+							"packages[].label.format",
+							"packages[].label.generated_at",
+							"packages[].label.printed_at",
+							"packages[].label.print_count",
+							"packages[].label.carrier_tracking",
+							"totals.package_count",
+							"totals.total_weight",
+							"totals.total_desi",
+							"totals.chargeable_weight",
+							"package_types[].name",
+							"package_types[].package_name",
+							"package_types[].length_cm",
+							"package_types[].width_cm",
+							"package_types[].height_cm",
+							"package_types[].max_weight_kg",
+							"package_types[].max_desi",
+							"package_types[].is_default"
+						]
+					},
+					"errors": [
+						"NOT_FOUND",
+						"PERMISSION_DENIED"
+					],
+					"guards": [
+						"`is_locked` terminal durumu bildirir → ekran salt-okunur."
+					],
+					"pending_fields": {},
+					"note": "P2 ve P3'ün ORTAK yükü. `package_types` yükle birlikte gelir, ayrı katalog çağrısı yapılmaz: koli formu preset ölçüleri anında dolsun (ikinci istek her koli açılışını yavaşlatırdı). Aynısı `get_pallet_plan` içindeki `pallet_types` için geçerli. `modified` optimistik kilit damgası."
+				},
+				{
+					"name": "save_shipment_packages",
+					"params": [
+						{
+							"name": "shipment",
+							"type": "str",
+							"required": true,
+							"note": ""
+						},
+						{
+							"name": "packages",
+							"type": "list",
+							"required": true,
+							"note": ""
+						},
+						{
+							"name": "modified",
+							"type": "str",
+							"required": true,
+							"note": "optimistik kilit damgası"
+						}
+					],
+					"returns": {
+						"shape": "custom",
+						"fields": [
+							"packages[]",
+							"totals",
+							"modified"
+						]
+					},
+					"errors": [
+						"CONFLICT",
+						"VALIDATION_FAILED",
+						"SHIPMENT_LOCKED",
+						"PERMISSION_DENIED"
+					],
+					"guards": [
+						"Sunucu doğrulaması FE'dekinin TEKRARI ama otorite burasıdır: boş koli yok (contents dolu) · weight_kg>0 · kalem başına atanan toplam <= qty · aynı kalem bir kolide bir kez → VALIDATION_FAILED; terminal durum → SHIPMENT_LOCKED."
+					],
+					"pending_fields": {},
+					"note": "Yan etkiler: Shipment.total_weight/total_desi/chargeable_weight güncellenir; `content_hash` değişen kolilerin `label_status` → Stale.",
+					"undefined_errors": [
+						"CONFLICT",
+						"VALIDATION_FAILED",
+						"SHIPMENT_LOCKED"
+					]
+				},
+				{
+					"name": "complete_packing",
+					"params": [
+						{
+							"name": "shipment",
+							"type": "str",
+							"required": true,
+							"note": ""
+						},
+						{
+							"name": "modified",
+							"type": "str",
+							"required": true,
+							"note": ""
+						}
+					],
+					"returns": {
+						"entity": "shipment",
+						"shape": "fields",
+						"fields": [
+							"status",
+							"modified"
+						]
+					},
+					"errors": [
+						"VALIDATION_FAILED",
+						"CONFLICT",
+						"SHIPMENT_LOCKED"
+					],
+					"guards": [],
+					"pending_fields": {},
+					"note": "",
+					"undefined_errors": [
+						"VALIDATION_FAILED",
+						"CONFLICT",
+						"SHIPMENT_LOCKED"
+					]
+				},
+				{
+					"name": "mark_shipment_ready",
+					"params": [
+						{
+							"name": "shipment",
+							"type": "str",
+							"required": true,
+							"note": ""
+						}
+					],
+					"returns": {
+						"entity": "shipment",
+						"shape": "fields",
+						"fields": [
+							"status"
+						]
+					},
+					"errors": [
+						"VALIDATION_FAILED",
+						"SHIPMENT_LOCKED",
+						"PERMISSION_DENIED"
+					],
+					"guards": [],
+					"pending_fields": {},
+					"note": "Başarıda status → Ready for Pickup; sevkiyat paketleme kuyruğundan düşer.",
+					"undefined_errors": [
+						"VALIDATION_FAILED",
+						"SHIPMENT_LOCKED"
+					]
+				},
+				{
+					"name": "generate_shipment_labels",
+					"params": [
+						{
+							"name": "shipment",
+							"type": "str",
+							"required": true,
+							"note": ""
+						},
+						{
+							"name": "package_codes",
+							"type": "list",
+							"required": true,
+							"note": ""
+						},
+						{
+							"name": "format",
+							"type": "str",
+							"required": false,
+							"note": "varsayılan thermal_100x150"
+						}
+					],
+					"returns": {
+						"shape": "custom",
+						"fields": [
+							"labels[].package_code",
+							"labels[].url",
+							"labels[].barcode_url",
+							"labels[].format",
+							"labels[].generated_at",
+							"batch_url"
+						]
+					},
+					"errors": [
+						"CARRIER_ERROR",
+						"VALIDATION_FAILED",
+						"SHIPMENT_LOCKED",
+						"NOT_FOUND"
+					],
+					"guards": [
+						"Taşıyıcı hatasında `details.carrier_message` ÇEVRİLMİŞ gelir."
+					],
+					"pending_fields": {},
+					"note": "",
+					"undefined_errors": [
+						"CARRIER_ERROR",
+						"VALIDATION_FAILED",
+						"SHIPMENT_LOCKED"
+					]
+				},
+				{
+					"name": "reprint_shipment_labels",
+					"params": [
+						{
+							"name": "shipment",
+							"type": "str",
+							"required": true,
+							"note": ""
+						},
+						{
+							"name": "package_codes",
+							"type": "list",
+							"required": true,
+							"note": ""
+						},
+						{
+							"name": "reason",
+							"type": "str",
+							"required": true,
+							"note": "ilk basımda null gelebilir"
+						},
+						{
+							"name": "reason_note",
+							"type": "str",
+							"required": false,
+							"note": ""
+						}
+					],
+					"returns": {
+						"shape": "custom",
+						"fields": [
+							"labels[].package_code",
+							"labels[].url",
+							"labels[].format",
+							"labels[].print_count",
+							"labels[].printed_at"
+						]
+					},
+					"errors": [
+						"LABEL_STALE",
+						"NOT_FOUND",
+						"PERMISSION_DENIED"
+					],
+					"guards": [],
+					"pending_fields": {},
+					"note": "D2 kararı: ilk basımda gerekçe SORULMAZ, 2. basımdan itibaren zorunlu. Bu bir SUNUM kararıdır — sunucu her zaman `reason` kabul eder.",
+					"undefined_errors": [
+						"LABEL_STALE"
+					]
+				},
+				{
+					"name": "void_shipment_label",
+					"params": [
+						{
+							"name": "shipment",
+							"type": "str",
+							"required": true,
+							"note": ""
+						},
+						{
+							"name": "package_code",
+							"type": "str",
+							"required": true,
+							"note": ""
+						},
+						{
+							"name": "reason",
+							"type": "str",
+							"required": true,
+							"note": ""
+						}
+					],
+					"returns": {
+						"shape": "custom",
+						"fields": [
+							"package_code",
+							"label"
+						]
+					},
+					"errors": [
+						"NOT_FOUND",
+						"SHIPMENT_LOCKED",
+						"PERMISSION_DENIED"
+					],
+					"guards": [],
+					"pending_fields": {},
+					"note": "",
+					"undefined_errors": [
+						"SHIPMENT_LOCKED"
+					]
+				},
+				{
+					"name": "get_packing_slip",
+					"params": [
+						{
+							"name": "shipment",
+							"type": "str",
+							"required": true,
+							"note": ""
+						},
+						{
+							"name": "package_codes",
+							"type": "list",
+							"required": false,
+							"note": ""
+						}
+					],
+					"returns": {
+						"shape": "custom",
+						"fields": [
+							"url",
+							"format"
+						]
+					},
+					"errors": [
+						"NOT_FOUND",
+						"PERMISSION_DENIED"
+					],
+					"guards": [],
+					"pending_fields": {},
+					"note": ""
+				},
+				{
+					"name": "get_pallet_plan",
+					"params": [
+						{
+							"name": "shipment",
+							"type": "str",
+							"required": true,
+							"note": ""
+						}
+					],
+					"returns": {
+						"shape": "custom",
+						"fields": [
+							"pallets[].name",
+							"pallets[].shipment",
+							"pallets[].pallet_code",
+							"pallets[].pallet_type",
+							"pallets[].layer_count",
+							"pallets[].max_layers",
+							"pallets[].package_count",
+							"pallets[].loaded_weight_kg",
+							"pallets[].max_weight_kg",
+							"pallets[].loaded_desi",
+							"pallets[].is_overloaded",
+							"pallet_types[].name",
+							"pallet_types[].max_layers",
+							"pallet_types[].max_weight_kg",
+							"pallet_types[].is_default",
+							"modified"
+						]
+					},
+					"errors": [
+						"NOT_FOUND",
+						"PERMISSION_DENIED",
+						"FEATURE_DISABLED"
+					],
+					"guards": [],
+					"pending_fields": {},
+					"note": "`pallet_types` yükle birlikte gelir — ayrı katalog çağrısı palet formunu yavaşlatırdı (bkz. get_shipment_packing gerekçesi)."
+				},
+				{
+					"name": "save_pallet_plan",
+					"params": [
+						{
+							"name": "shipment",
+							"type": "str",
+							"required": true,
+							"note": ""
+						},
+						{
+							"name": "pallets",
+							"type": "list",
+							"required": true,
+							"note": ""
+						},
+						{
+							"name": "modified",
+							"type": "str",
+							"required": true,
+							"note": ""
+						}
+					],
+					"returns": {
+						"shape": "custom",
+						"fields": [
+							"pallets[].name",
+							"pallets[].pallet_code",
+							"pallets[].pallet_type",
+							"pallets[].layer_count",
+							"pallets[].package_count",
+							"pallets[].loaded_weight_kg",
+							"pallets[].loaded_desi",
+							"pallets[].is_overloaded",
+							"modified"
+						]
+					},
+					"errors": [
+						"CONFLICT",
+						"VALIDATION_FAILED",
+						"SHIPMENT_LOCKED"
+					],
+					"guards": [],
+					"pending_fields": {},
+					"note": "Sahibi 19-BE (palet/desi) — paketleme ekranından çağrılır.",
+					"undefined_errors": [
+						"CONFLICT",
+						"VALIDATION_FAILED",
+						"SHIPMENT_LOCKED"
+					]
+				}
+			]
+		},
+		"pod": {
+			"provisional": true,
+			"module": "api.v1.pod",
+			"label": "Teslim kanıtı, teslimat akışları ve devir",
+			"owner": "14-BE",
+			"source_doc": "14-FE-VERI-SOZLESMESI.md",
+			"endpoints": [
+				{
+					"name": "get_pod_queue",
+					"params": [
+						{
+							"name": "bucket",
+							"type": "str",
+							"required": false,
+							"note": ""
+						},
+						{
+							"name": "q",
+							"type": "str",
+							"required": false,
+							"note": "serbest arama"
+						},
+						{
+							"name": "carrier",
+							"type": "str",
+							"required": false,
+							"note": ""
+						},
+						{
+							"name": "seller",
+							"type": "str",
+							"required": false,
+							"note": ""
+						},
+						{
+							"name": "page",
+							"type": "int",
+							"required": false,
+							"note": ""
+						},
+						{
+							"name": "page_size",
+							"type": "int",
+							"required": false,
+							"note": ""
+						}
+					],
+					"returns": {
+						"shape": "custom",
+						"fields": [
+							"rows[].shipment",
+							"rows[].order",
+							"rows[].buyer_name",
+							"rows[].seller_name",
+							"rows[].carrier",
+							"rows[].status",
+							"rows[].package_count",
+							"rows[].pallet_count",
+							"rows[].waybill_number",
+							"rows[].delivery_point",
+							"rows[].actual_delivery",
+							"rows[].hours_since",
+							"rows[].alarm",
+							"rows[].bucket",
+							"rows[].delivered_package_count",
+							"rows[].total_package_count",
+							"total",
+							"buckets[].key",
+							"buckets[].label",
+							"buckets[].count",
+							"buckets[].hint"
+						]
+					},
+					"errors": [
+						"PERMISSION_DENIED",
+						"CAPABILITY_REQUIRED"
+					],
+					"guards": [
+						"Satıcı çağırırsa liste kendi `seller_profile`'ıyla SÜZÜLÜR (§6.1).",
+						"Bekleme süresi (DWELL_WARN_HOURS=24) SUNUCUDA hesaplanır — istemcinin saati güvenilmez."
+					],
+					"pending_fields": {},
+					"note": "Kovalar AYRI istekle gelmez (13-FE'de ölçülen sayaç kayması gerekçesi)."
+				},
+				{
+					"name": "get_proof_of_delivery",
+					"params": [
+						{
+							"name": "shipment",
+							"type": "str",
+							"required": true,
+							"note": ""
+						}
+					],
+					"returns": {
+						"entity": "proof_of_delivery",
+						"shape": "item"
+					},
+					"errors": [
+						"NOT_FOUND",
+						"CAPABILITY_REQUIRED"
+					],
+					"guards": [
+						"Medya yetkisi (`view.pod_media`) yoksa `signature_url`, `photo_url`, `document_url` yanıttan HİÇ ÇIKARILIR — null gönderilmez, maskelenmez. Ekran o alanları çizmez, kırık görsel göstermez (S10-3)."
+					],
+					"pending_fields": {},
+					"note": "POD yoksa 404 DEĞİL, `proof_of_delivery: null` döner — bu hata değil eksik veridir (S10-2). ⚠ `view.pod_media` capability'si bugün kodda YOK (`permissions.py` yalnız view.logistics_cost + view.carrier_secret tanımlıyor) — 14-BE'nin borcu."
+				},
+				{
+					"name": "record_proof_of_delivery",
+					"params": [
+						{
+							"name": "shipment",
+							"type": "str",
+							"required": true,
+							"note": ""
+						},
+						{
+							"name": "delivered_at",
+							"type": "str",
+							"required": true,
+							"note": ""
+						},
+						{
+							"name": "received_by",
+							"type": "str",
+							"required": true,
+							"note": ""
+						},
+						{
+							"name": "received_by_title",
+							"type": "str",
+							"required": true,
+							"note": ""
+						},
+						{
+							"name": "delivered_package_count",
+							"type": "int",
+							"required": true,
+							"note": ""
+						},
+						{
+							"name": "total_package_count",
+							"type": "int",
+							"required": true,
+							"note": ""
+						},
+						{
+							"name": "delivered_pallet_count",
+							"type": "int",
+							"required": false,
+							"note": ""
+						},
+						{
+							"name": "returned_pallet_count",
+							"type": "int",
+							"required": false,
+							"note": ""
+						},
+						{
+							"name": "has_discrepancy",
+							"type": "bool",
+							"required": false,
+							"note": ""
+						},
+						{
+							"name": "exception_code",
+							"type": "str",
+							"required": false,
+							"note": ""
+						},
+						{
+							"name": "discrepancy_note",
+							"type": "str",
+							"required": false,
+							"note": ""
+						},
+						{
+							"name": "signature_file",
+							"type": "str",
+							"required": false,
+							"note": ""
+						},
+						{
+							"name": "photo_file",
+							"type": "str",
+							"required": false,
+							"note": ""
+						},
+						{
+							"name": "document_file",
+							"type": "str",
+							"required": false,
+							"note": ""
+						},
+						{
+							"name": "location_source",
+							"type": "str",
+							"required": false,
+							"note": ""
+						},
+						{
+							"name": "location_recorded_at",
+							"type": "str",
+							"required": false,
+							"note": ""
+						},
+						{
+							"name": "delivery_point",
+							"type": "str",
+							"required": false,
+							"note": ""
+						},
+						{
+							"name": "modified",
+							"type": "str",
+							"required": false,
+							"note": ""
+						}
+					],
+					"returns": {
+						"entity": "proof_of_delivery",
+						"shape": "item"
+					},
+					"errors": [
+						"CONFLICT",
+						"POD_ALREADY_RECORDED",
+						"INVALID_STATUS",
+						"VALIDATION_ERROR"
+					],
+					"guards": [
+						"`source` damgasını SUNUCU belirler (Logistics Manager→operator, satıcı→seller, webhook→carrier). İstemci GÖNDEREMEZ.",
+						"Kısmi teslimde (`delivered_package_count < total_package_count`) `has_discrepancy=1` ZORUNLU; o da `exception_code` zorunlu kılar (§5.1).",
+						"Sevkiyat `Delivered` değilse INVALID_STATUS."
+					],
+					"pending_fields": {},
+					"note": "Yanıt kaydedilen POD + `created: true`. POD varsa üstüne YAZILMAZ → amend.",
+					"undefined_errors": [
+						"CONFLICT",
+						"POD_ALREADY_RECORDED",
+						"INVALID_STATUS"
+					]
+				},
+				{
+					"name": "amend_proof_of_delivery",
+					"params": [
+						{
+							"name": "shipment",
+							"type": "str",
+							"required": true,
+							"note": ""
+						},
+						{
+							"name": "reason",
+							"type": "str",
+							"required": true,
+							"note": "boş olamaz"
+						},
+						{
+							"name": "modified",
+							"type": "str",
+							"required": true,
+							"note": ""
+						}
+					],
+					"returns": {
+						"entity": "proof_of_delivery",
+						"shape": "item"
+					},
+					"errors": [
+						"VALIDATION_ERROR",
+						"CONFLICT",
+						"CAPABILITY_REQUIRED",
+						"NOT_FOUND"
+					],
+					"guards": [
+						"`pod.amend` yetkisi gerekir — SATICIDA YOK (§6.1).",
+						"Kayıt SİLİNMEZ; denetim izine yeni sürüm yazılır."
+					],
+					"pending_fields": {},
+					"note": "`reason` dışındaki alanlar `record_proof_of_delivery` ile aynı. Kullanım vakası: satıcı beyanını operasyon düzeltir (K-B).",
+					"undefined_errors": [
+						"CONFLICT"
+					]
+				},
+				{
+					"name": "list_delivery_flows",
+					"params": [
+						{
+							"name": "flow_type",
+							"type": "str",
+							"required": true,
+							"note": ""
+						},
+						{
+							"name": "q",
+							"type": "str",
+							"required": false,
+							"note": ""
+						},
+						{
+							"name": "status",
+							"type": "str",
+							"required": false,
+							"note": ""
+						}
+					],
+					"returns": {
+						"shape": "custom",
+						"fields": [
+							"items[].shipment",
+							"items[].order",
+							"items[].buyer_name",
+							"items[].seller_name",
+							"items[].status",
+							"items[].shipment_type",
+							"items[].package_count",
+							"items[].appointment_at",
+							"items[].appointment_window",
+							"items[].driver_name",
+							"items[].driver_phone",
+							"items[].vehicle_plate",
+							"items[].delivery_code_required",
+							"items[].delivery_code_status",
+							"items[].delivery_code_attempts",
+							"items[].payment_required_before_delivery",
+							"items[].payment_status",
+							"total"
+						]
+					},
+					"errors": [
+						"PERMISSION_DENIED",
+						"VALIDATION_ERROR"
+					],
+					"guards": [],
+					"pending_fields": {},
+					"note": "D1 / D2 ekranlarının ortak kaynağı."
+				},
+				{
+					"name": "hand_over_shipment",
+					"params": [
+						{
+							"name": "shipment",
+							"type": "str",
+							"required": true,
+							"note": ""
+						},
+						{
+							"name": "delivery_code",
+							"type": "str",
+							"required": false,
+							"note": ""
+						},
+						{
+							"name": "received_by",
+							"type": "str",
+							"required": true,
+							"note": ""
+						},
+						{
+							"name": "received_by_title",
+							"type": "str",
+							"required": true,
+							"note": ""
+						},
+						{
+							"name": "modified",
+							"type": "str",
+							"required": true,
+							"note": ""
+						}
+					],
+					"returns": {
+						"entity": "shipment",
+						"shape": "fields",
+						"fields": [
+							"status"
+						]
+					},
+					"errors": [
+						"PAYMENT_REQUIRED",
+						"DELIVERY_CODE_NOT_VERIFIED",
+						"CONFLICT",
+						"NOT_FOUND"
+					],
+					"guards": [
+						"Ödeme kapısı: `payment_required_before_delivery=1` ve `payment_status=\"unpaid\"` → PAYMENT_REQUIRED.",
+						"Kod kapısı: `delivery_code_required=1` ve status != verified → DELIVERY_CODE_NOT_VERIFIED. 3 başarısız denemede kod KİLİTLENİR."
+					],
+					"pending_fields": {},
+					"note": "Başarıda sevkiyat Delivered olur ve POD kaydı tetiklenir — teslim aksiyonu POD'u doğurur, iki iş ayrılamaz (K-F).",
+					"undefined_errors": [
+						"PAYMENT_REQUIRED",
+						"DELIVERY_CODE_NOT_VERIFIED",
+						"CONFLICT"
+					]
+				}
+			]
+		},
+		"returns": {
+			"provisional": true,
+			"module": "api.v1.returns",
+			"label": "İade talebi yaşam döngüsü",
+			"owner": "15-BE",
+			"source_doc": "15-FE-VERI-SOZLESMESI.md",
+			"endpoints": [
+				{
+					"name": "get_return_eligibility",
+					"params": [
+						{
+							"name": "shipment",
+							"type": "str",
+							"required": true,
+							"note": ""
+						}
+					],
+					"returns": {
+						"shape": "custom",
+						"fields": [
+							"shipment",
+							"window_open",
+							"window_days",
+							"days_left",
+							"returnable_items[].item",
+							"returnable_items[].item_name",
+							"returnable_items[].delivered_qty",
+							"returnable_items[].already_returned_qty",
+							"returnable_items[].uom",
+							"reasons[].value",
+							"reasons[].label_key"
+						]
+					},
+					"errors": [
+						"NOT_FOUND",
+						"PERMISSION_DENIED"
+					],
+					"guards": [
+						"`delivered_qty` TESLİM edilendir, sevk edilen değil (§1.4) — kısmi teslimatta yalnız eline geçen kalem listelenir.",
+						"`reasons` yalnız `is_active` kayıtları taşır, `reason_code asc` sırada.",
+						"`label_key` döner, `label` DEĞİL: etiket dört dilde FE'de. Sunucu kendi dilinde metin gönderirse Rusça arayüzde Türkçe görünür."
+					],
+					"pending_fields": {},
+					"note": "İade formunun VE sipariş kartındaki düğmenin tek kaynağı; üç soruyu birden cevaplar (pencere açık mı, ne iade edilebilir, hangi nedenler). `window_open: 0` → ekran formu hiç çizmez, kapalı kutusunu gösterir (M-B-2); `returnable_items: []` → 'zaten iade edildi' (M-B-3). İkisi de HATA DEĞİL, normal yanıt — bu yüzden NOTHING_RETURNABLE burada YOK. Sipariş listesi bu ucu N kez ÇAĞIRMAZ (toplu gösterge gerekir, §2.2)."
+				},
+				{
+					"name": "list_return_requests",
+					"params": [
+						{
+							"name": "status",
+							"type": "str",
+							"required": false,
+							"note": ""
+						},
+						{
+							"name": "page",
+							"type": "int",
+							"required": false,
+							"note": "varsayılan 1"
+						},
+						{
+							"name": "page_size",
+							"type": "int",
+							"required": false,
+							"note": "varsayılan 50"
+						}
+					],
+					"returns": {
+						"entity": "return_request",
+						"shape": "list"
+					},
+					"errors": [
+						"PERMISSION_DENIED",
+						"FEATURE_DISABLED"
+					],
+					"guards": [
+						"Rol süzgeci SUNUCUDA (§6.1): alıcı yalnız kendi taleplerini, satıcı kendi sevkiyatlarınınkini görür.",
+						"Yalnız RETURN_REQUEST_LIST_FIELDS döner — `refund_amount` ve diğer DETAIL alanları liste satırında YOK."
+					],
+					"pending_fields": {},
+					"note": ""
+				},
+				{
+					"name": "get_return_request",
+					"params": [
+						{
+							"name": "name",
+							"type": "str",
+							"required": true,
+							"note": ""
+						}
+					],
+					"returns": {
+						"entity": "return_request",
+						"shape": "item"
+					},
+					"errors": [
+						"NOT_FOUND",
+						"PERMISSION_DENIED"
+					],
+					"guards": [
+						"Rol süzgeci sunucuda (§6.1)."
+					],
+					"pending_fields": {},
+					"note": ""
+				},
+				{
+					"name": "create_return_request",
+					"params": [
+						{
+							"name": "shipment",
+							"type": "str",
+							"required": true,
+							"note": ""
+						},
+						{
+							"name": "reason",
+							"type": "str",
+							"required": true,
+							"note": "return_reason kataloğundan"
+						},
+						{
+							"name": "note",
+							"type": "str",
+							"required": false,
+							"note": ""
+						},
+						{
+							"name": "items",
+							"type": "list",
+							"required": true,
+							"note": "[{item, qty}]"
+						},
+						{
+							"name": "idempotency_key",
+							"type": "str",
+							"required": false,
+							"note": ""
+						}
+					],
+					"returns": {
+						"entity": "return_request",
+						"shape": "item"
+					},
+					"errors": [
+						"QTY_EXCEEDS_DELIVERED",
+						"RETURN_WINDOW_CLOSED",
+						"NOTHING_RETURNABLE",
+						"IDEMPOTENCY_CONFLICT",
+						"VALIDATION_ERROR"
+					],
+					"guards": [
+						"`qty > delivered_qty - already_returned_qty` → QTY_EXCEEDS_DELIVERED.",
+						"Pencere kapalıysa RETURN_WINDOW_CLOSED — FE formu zaten çizmiyor ama kapı sunucudadır."
+					],
+					"pending_fields": {},
+					"note": "Rol: ALICI.",
+					"undefined_errors": [
+						"QTY_EXCEEDS_DELIVERED",
+						"RETURN_WINDOW_CLOSED",
+						"NOTHING_RETURNABLE"
+					]
+				},
+				{
+					"name": "decide_return_request",
+					"params": [
+						{
+							"name": "name",
+							"type": "str",
+							"required": true,
+							"note": ""
+						},
+						{
+							"name": "decision",
+							"type": "str",
+							"required": true,
+							"note": "approved|rejected"
+						},
+						{
+							"name": "decision_note",
+							"type": "str",
+							"required": false,
+							"note": "redde ZORUNLU, >=10 karakter"
+						},
+						{
+							"name": "create_return_shipment",
+							"type": "bool",
+							"required": false,
+							"note": ""
+						}
+					],
+					"returns": {
+						"entity": "return_request",
+						"shape": "item"
+					},
+					"errors": [
+						"DECISION_NOTE_REQUIRED",
+						"RETURN_ALREADY_DECIDED",
+						"RETURN_CLOSED",
+						"PERMISSION_DENIED"
+					],
+					"guards": [
+						"Redde `decision_note` ZORUNLU (en az 10 karakter) → DECISION_NOTE_REQUIRED. Gerekçesiz red, alıcıya sebebini söylemeden hayır demektir.",
+						"Satıcı KAPANIŞ/para iadesi TETİKLEYEMEZ (§6.3)."
+					],
+					"pending_fields": {},
+					"note": "RETURN_ALREADY_DECIDED ile RETURN_CLOSED AYRI kodlardır — ekran farklı kutu çiziyor (M-E-3). Rol: satıcı / admin.",
+					"undefined_errors": [
+						"DECISION_NOTE_REQUIRED",
+						"RETURN_ALREADY_DECIDED",
+						"RETURN_CLOSED"
+					]
+				},
+				{
+					"name": "save_return_inspection",
+					"params": [
+						{
+							"name": "name",
+							"type": "str",
+							"required": true,
+							"note": ""
+						},
+						{
+							"name": "items",
+							"type": "list",
+							"required": true,
+							"note": "[{item, received_qty, accepted_qty}]"
+						}
+					],
+					"returns": {
+						"entity": "return_request",
+						"shape": "item"
+					},
+					"errors": [
+						"ACCEPTED_EXCEEDS_RECEIVED",
+						"RETURN_CLOSED",
+						"PERMISSION_DENIED",
+						"VALIDATION_ERROR"
+					],
+					"guards": [
+						"`accepted_qty > received_qty` → ACCEPTED_EXCEEDS_RECEIVED."
+					],
+					"pending_fields": {},
+					"note": "Rol: platform operasyon / admin.",
+					"undefined_errors": [
+						"ACCEPTED_EXCEEDS_RECEIVED",
+						"RETURN_CLOSED"
+					]
+				},
+				{
+					"name": "close_return_request",
+					"params": [
+						{
+							"name": "name",
+							"type": "str",
+							"required": true,
+							"note": ""
+						},
+						{
+							"name": "trigger_refund",
+							"type": "bool",
+							"required": false,
+							"note": ""
+						}
+					],
+					"returns": {
+						"entity": "return_request",
+						"shape": "item"
+					},
+					"errors": [
+						"RETURN_NOT_CLOSABLE",
+						"RETURN_CLOSED",
+						"PERMISSION_DENIED"
+					],
+					"guards": [
+						"Üç ön koşul SUNUCUDA ayrı ayrı doğrulanır; eksikse RETURN_NOT_CLOSABLE ve HANGİ koşulun eksik olduğu bildirilir.",
+						"Kapanınca kayıt DEĞİŞTİRİLEMEZ (TUR-116): sonraki her yazma → RETURN_CLOSED."
+					],
+					"pending_fields": {},
+					"note": "Uygulama sırasında EN SONA (§9): geri alınamaz ve escrow'a dokunur. Rol: platform yöneticisi.",
+					"undefined_errors": [
+						"RETURN_NOT_CLOSABLE",
+						"RETURN_CLOSED"
+					]
+				}
+			]
+		},
+		"pricing": {
+			"provisional": true,
+			"module": "api.v1.pricing",
+			"label": "Kargo fiyat kuralları ve simülasyon",
+			"owner": "20-BE",
+			"source_doc": "20-FE-VERI-SOZLESMESI.md",
+			"endpoints": [
+				{
+					"name": "list_pricing_rules",
+					"params": [
+						{
+							"name": "scope",
+							"type": "str",
+							"required": false,
+							"note": "all|mine"
+						},
+						{
+							"name": "q",
+							"type": "str",
+							"required": false,
+							"note": ""
+						},
+						{
+							"name": "zone",
+							"type": "str",
+							"required": false,
+							"note": ""
+						},
+						{
+							"name": "carrier_account",
+							"type": "str",
+							"required": false,
+							"note": ""
+						},
+						{
+							"name": "seller",
+							"type": "str",
+							"required": false,
+							"note": ""
+						},
+						{
+							"name": "is_active",
+							"type": "bool",
+							"required": false,
+							"note": ""
+						},
+						{
+							"name": "start",
+							"type": "int",
+							"required": false,
+							"note": ""
+						},
+						{
+							"name": "page_length",
+							"type": "int",
+							"required": false,
+							"note": ""
+						}
+					],
+					"returns": {
+						"shape": "custom",
+						"fields": [
+							"items[]",
+							"layers.platform_mandatory",
+							"layers.seller",
+							"layers.platform",
+							"total",
+							"page",
+							"page_size"
+						]
+					},
+					"errors": [
+						"PERMISSION_DENIED",
+						"FEATURE_DISABLED"
+					],
+					"guards": [
+						"Sıralama SUNUCUDA: layer (mandatory→seller→platform), sonra priority artan, sonra name. Arayüz yeniden sıralamaz — sayfalama ile bozulurdu."
+					],
+					"pending_fields": {},
+					"note": "`layers` sayaçları listeyle AYNI yanıttan gelir. Ayrı istek sayaçları kaydırır: kullanıcı 'Satıcı kuralları 4' görür, açar, 3 kayıt gelir (14-FE'de ölçülmüş tuzak). `items[]` = pricing_rule list_fields."
+				},
+				{
+					"name": "get_pricing_rule",
+					"params": [
+						{
+							"name": "name",
+							"type": "str",
+							"required": true,
+							"note": ""
+						}
+					],
+					"returns": {
+						"entity": "pricing_rule",
+						"shape": "item"
+					},
+					"errors": [
+						"NOT_FOUND",
+						"PERMISSION_DENIED"
+					],
+					"guards": [],
+					"pending_fields": {},
+					"note": ""
+				},
+				{
+					"name": "save_pricing_rule",
+					"params": [
+						{
+							"name": "name",
+							"type": "str",
+							"required": false,
+							"note": "yoksa oluşturur"
+						},
+						{
+							"name": "values",
+							"type": "dict",
+							"required": true,
+							"note": ""
+						}
+					],
+					"returns": {
+						"entity": "pricing_rule",
+						"shape": "item"
+					},
+					"errors": [
+						"PERMISSION_DENIED",
+						"MANDATORY_NOT_ALLOWED",
+						"VALIDATION_ERROR",
+						"TIER_RANGE_OVERLAP",
+						"TIER_RANGE_GAP"
+					],
+					"guards": [
+						"Sahiplik: satıcı yalnız `seller_profile == kendi` yazabilir → aksi PERMISSION_DENIED.",
+						"`is_mandatory` yalnız platform → MANDATORY_NOT_ALLOWED.",
+						"En az bir kademe (VALIDATION_ERROR, details.fields.tiers); kademe aralıklarında çakışma → TIER_RANGE_OVERLAP, boşluk → TIER_RANGE_GAP."
+					],
+					"pending_fields": {},
+					"note": "Öncelik çakışması KASITLI olarak hata DEĞİL: kaydı reddetmek yöneticiyi kilitler (iki kuralı sırayla düzenlemek imkânsızlaşır).",
+					"undefined_errors": [
+						"MANDATORY_NOT_ALLOWED",
+						"TIER_RANGE_OVERLAP",
+						"TIER_RANGE_GAP"
+					]
+				},
+				{
+					"name": "reorder_pricing_rules",
+					"params": [
+						{
+							"name": "layer",
+							"type": "str",
+							"required": true,
+							"note": ""
+						},
+						{
+							"name": "order",
+							"type": "list",
+							"required": true,
+							"note": "kural adları, yeni sıra"
+						}
+					],
+					"returns": {
+						"shape": "custom",
+						"fields": [
+							"items[]"
+						]
+					},
+					"errors": [
+						"NOT_FOUND",
+						"VALIDATION_ERROR",
+						"PERMISSION_DENIED"
+					],
+					"guards": [
+						"Her ad var olmalı (NOT_FOUND) · her kural `layer` ile AYNI katmanda olmalı (VALIDATION_ERROR) · satıcı yalnız kendi kurallarını sıralar (PERMISSION_DENIED)."
+					],
+					"pending_fields": {},
+					"note": "Sıra sürükleyerek değişir (kök CLAUDE.md §4.14e: sayı yazdırma, sürükletme)."
+				},
+				{
+					"name": "delete_pricing_rule",
+					"params": [
+						{
+							"name": "name",
+							"type": "str",
+							"required": true,
+							"note": ""
+						}
+					],
+					"returns": {
+						"shape": "custom",
+						"fields": [
+							"name"
+						]
+					},
+					"errors": [
+						"RULE_IN_USE",
+						"NOT_FOUND",
+						"PERMISSION_DENIED"
+					],
+					"guards": [
+						"Aktif sevkiyatlarda `applied_pricing_rule` olarak kullanılıyorsa SİLİNMEZ → RULE_IN_USE."
+					],
+					"pending_fields": {},
+					"note": "",
+					"undefined_errors": [
+						"RULE_IN_USE"
+					]
+				},
+				{
+					"name": "simulate_price",
+					"params": [
+						{
+							"name": "desi",
+							"type": "int",
+							"required": false,
+							"note": "(a) serbest deneme"
+						},
+						{
+							"name": "weight_kg",
+							"type": "int",
+							"required": false,
+							"note": "(a)"
+						},
+						{
+							"name": "zone",
+							"type": "str",
+							"required": false,
+							"note": "(a)"
+						},
+						{
+							"name": "order_total",
+							"type": "int",
+							"required": false,
+							"note": "(a)"
+						},
+						{
+							"name": "seller_profile",
+							"type": "str",
+							"required": false,
+							"note": "(a)"
+						},
+						{
+							"name": "origin_city",
+							"type": "str",
+							"required": false,
+							"note": "(a)"
+						},
+						{
+							"name": "shipment",
+							"type": "str",
+							"required": false,
+							"note": "(b) gerçek sipariş"
+						},
+						{
+							"name": "order",
+							"type": "str",
+							"required": false,
+							"note": "(b)"
+						}
+					],
+					"returns": {
+						"shape": "custom",
+						"fields": [
+							"input",
+							"quotes[]",
+							"recommended"
+						]
+					},
+					"errors": [
+						"VALIDATION_ERROR",
+						"ZONE_NOT_FOUND",
+						"PERMISSION_DENIED"
+					],
+					"guards": [
+						"`recommended` SUNUCUDAN gelir; arayüz 'en ucuzu' kendisi seçmez — kural satıcının varsayılan hesabını (Carrier Account.is_default) tercih eder, yoksa en düşük satışa düşer. İki yerde hesaplanırsa ikisi ayrışır."
+					],
+					"pending_fields": {},
+					"note": "İki girdi biçimi (K5): (a) serbest deneme, (b) `shipment` ya da `order` — değerleri sunucu doldurur. Yanıt TEK teklif değil LİSTE: her kullanılabilir hesap için bir `price_quote` satırı. Kullanılamayan hesap listeden DÜŞMEZ: `available: 0` + `unavailable_reason` ile döner.",
+					"undefined_errors": [
+						"ZONE_NOT_FOUND"
+					]
+				}
+			]
+		},
+		"notifications": {
+			"provisional": true,
+			"module": "api.v1.notifications",
+			"label": "Bildirim tercihleri ve alıcı bildirim akışı",
+			"owner": "12-BE",
+			"source_doc": "12-FE-VERI-SOZLESMESI.md",
+			"endpoints": [
+				{
+					"name": "list_notification_preferences",
+					"params": [],
+					"returns": {
+						"entity": "notification_preference",
+						"shape": "list"
+					},
+					"errors": [
+						"PERMISSION_DENIED",
+						"FEATURE_DISABLED"
+					],
+					"guards": [
+						"Çağıranın ROLÜNE AİT OLMAYAN satır DÖNMEZ (§6.1). Gösterim tercihi değil yetki kapısı: ölçüldüğünde ekran alıcıya satıcının ve operasyon ekibinin tercihlerini gösteriyordu."
+					],
+					"pending_fields": {},
+					"note": "Parametre almaz — kimin tercihleri olduğunu sunucu oturumdan bilir."
+				},
+				{
+					"name": "set_notification_preference",
+					"params": [
+						{
+							"name": "template",
+							"type": "str",
+							"required": true,
+							"note": ""
+						},
+						{
+							"name": "enabled",
+							"type": "bool",
+							"required": true,
+							"note": ""
+						}
+					],
+					"returns": {
+						"entity": "notification_preference",
+						"shape": "item"
+					},
+					"errors": [
+						"MANDATORY_PREFERENCE",
+						"NOT_FOUND",
+						"PERMISSION_DENIED",
+						"VALIDATION_ERROR"
+					],
+					"guards": [
+						"`is_mandatory=1` şablonda `enabled` YAZILAMAZ → MANDATORY_PREFERENCE. Veri kısıtı, arayüz nezaketi değil: FE anahtarı `disabled` çiziyor (S7-2) ama bu kolaylıktır, kapı değildir (§6.2)."
+					],
+					"pending_fields": {},
+					"note": "Güncellenmiş satırın TAMAMI döner, yalnız `ok:true` değil — sunucunun düzelttiği bir değer sessizce kaybolmasın. Aynı değeri yeniden yazmak hata değil, idempotent.",
+					"undefined_errors": [
+						"MANDATORY_PREFERENCE"
+					]
+				},
+				{
+					"name": "list_notifications",
+					"params": [
+						{
+							"name": "page",
+							"type": "int",
+							"required": false,
+							"note": "varsayılan 1"
+						},
+						{
+							"name": "page_size",
+							"type": "int",
+							"required": false,
+							"note": "varsayılan 20"
+						}
+					],
+					"returns": {
+						"entity": "notification_log",
+						"shape": "list"
+					},
+					"errors": [
+						"PERMISSION_DENIED",
+						"FEATURE_DISABLED"
+					],
+					"guards": [
+						"`status` = queued|failed olan kayıt ALICIYA DÖNMEZ — gönderilmemiş bildirimi 'geldi' diye göstermek yanlış bilgi olur. Süzgeç sunucuda.",
+						"`recipient` alanı yanıtta dönmez: zaten çağıranın kendisi."
+					],
+					"pending_fields": {},
+					"note": "En yeni önce."
+				},
+				{
+					"name": "mark_notification_read",
+					"params": [
+						{
+							"name": "name",
+							"type": "str",
+							"required": true,
+							"note": ""
+						}
+					],
+					"returns": {
+						"entity": "notification_log",
+						"shape": "fields",
+						"fields": [
+							"name",
+							"read_at"
+						]
+					},
+					"errors": [
+						"PERMISSION_DENIED",
+						"NOT_FOUND"
+					],
+					"guards": [
+						"Başkasının bildirimi işaretlenemez → PERMISSION_DENIED."
+					],
+					"pending_fields": {},
+					"note": "Zaten okunmuşsa mevcut `read_at` döner, üzerine yazılmaz — idempotent. Uygulama sırasında EN SONA (§9): ekran bu uç olmadan da çalışır, yalnız her kayıt okunmamış görünür."
+				}
+			]
 		}
 	}
 }

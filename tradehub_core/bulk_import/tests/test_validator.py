@@ -87,13 +87,26 @@ class TestValidateStock(unittest.TestCase):
 
 
 class TestValidateTitle(unittest.TestCase):
+	# SEO kuralı: başlık en az 60 karakter, emojisiz.
+	GOOD = "Solvent Grade A Endüstriyel Temizleyici 20 Litre Bidon Yüksek Saflık"
+
 	def test_valid(self):
-		ok, _msg = validator.validate_title("Solvent Grade A 20L")
+		ok, _msg = validator.validate_title(self.GOOD)
 		self.assertTrue(ok)
 
 	def test_empty(self):
 		ok, _msg = validator.validate_title("")
 		self.assertFalse(ok)
+
+	def test_too_short(self):
+		ok, msg = validator.validate_title("Solvent Grade A 20L")
+		self.assertFalse(ok)
+		self.assertIn("50", msg)
+
+	def test_emoji_rejected(self):
+		ok, msg = validator.validate_title(self.GOOD + " 🔥")
+		self.assertFalse(ok)
+		self.assertIn("emoji", msg.lower())
 
 	def test_too_long(self):
 		ok, _msg = validator.validate_title("x" * 251)
@@ -120,11 +133,26 @@ class TestValidateMapping(unittest.TestCase):
 
 
 class TestValidateRow(unittest.TestCase):
+	GOOD = "Solvent Grade A Endüstriyel Temizleyici 20 Litre Bidon Yüksek Saflık"
+	GOOD_DESC = "Dayanıklı endüstriyel temizleyici, yağ ve kir sökücü özelliğiyle 20 litre bidon halinde sunulur; atölye, fabrika ve sanayi kullanımına uygun, uzun ömürlü ve yüksek verimli formül. Yüzeyleri çizmeden derinlemesine temizler."
+
 	def test_valid_row(self):
-		row = {"Stok Kodu": "ABC-001", "Ürün Adı": "Solvent", "Fiyat": "100"}
+		row = {"Stok Kodu": "ABC-001", "Ürün Adı": self.GOOD, "Fiyat": "100"}
 		mapping = {"sku": "Stok Kodu", "title": "Ürün Adı", "base_price": "Fiyat"}
 		errors = validator.validate_row(row, mapping)
 		self.assertEqual(errors, [])
+
+	def test_valid_row_with_description(self):
+		row = {"Stok Kodu": "ABC-001", "Ürün Adı": self.GOOD, "Fiyat": "100", "Açıklama": self.GOOD_DESC}
+		mapping = {"sku": "Stok Kodu", "title": "Ürün Adı", "base_price": "Fiyat", "description": "Açıklama"}
+		errors = validator.validate_row(row, mapping)
+		self.assertEqual(errors, [])
+
+	def test_short_description_reported(self):
+		row = {"Stok Kodu": "ABC-001", "Ürün Adı": self.GOOD, "Fiyat": "100", "Açıklama": "Kısa"}
+		mapping = {"sku": "Stok Kodu", "title": "Ürün Adı", "base_price": "Fiyat", "description": "Açıklama"}
+		errors = validator.validate_row(row, mapping)
+		self.assertEqual([e["field"] for e in errors], ["description"])
 
 	def test_invalid_row_multi_error(self):
 		row = {"Stok Kodu": "", "Ürün Adı": "", "Fiyat": "-5"}

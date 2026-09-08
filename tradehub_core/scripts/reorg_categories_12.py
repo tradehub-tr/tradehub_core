@@ -255,6 +255,11 @@ def run(dry_run=0):
 		n = child(parent, name)
 		if n:
 			set_name(n, name)
+	# Mega menü sütunu 200px; en uzun grup adı tek satıra sığsın diye kısaltma.
+	masa = child(T["Ofis & Kırtasiye"], "Masa Üstü & Organizasyon")
+	if masa:
+		set_name(masa, "Masa Organizasyonu")
+		log("Masa Üstü & Organizasyon → Masa Organizasyonu")
 	tasit = child(makine, "Taşıtlar")
 	if tasit:
 		log("Taşıtlar gruplarını Otomotiv altına çıkar")

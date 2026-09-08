@@ -49,8 +49,45 @@ class Listing(Document):
 		self._validate_status_change()
 		self._validate_variant_defaults()
 		self._validate_variant_pricing()
+		self._validate_seo_content()
 		self._calculate_completeness()
 		self._set_storefront_visible()
+
+	def _validate_seo_content(self):
+		"""SEO kuralı: ürün adı/açıklaması min uzunlukta ve emojisiz olmalı.
+
+		Toplu yükleme de aynı pipeline'a girer (bulk_import.validator ayrıca
+		yükleme öncesi satır-bazlı kontrol eder). Eski kataloğu kırmamak için
+		yalnız YENİ kayıtta ya da ilgili alan DEĞİŞTİĞİNDE zorlanır; böylece
+		mevcut ürünün fiyat/stok düzenlemesi engellenmez, başlığı kısaltılırsa
+		veya emoji eklenirse engellenir.
+
+		Test/migrate/patch/install bağlamlarında ATLANIR: mevcut testler ve
+		veri taşımaları kısa başlıklı listing oluşturabiliyor; kural yalnız
+		gerçek kullanıcı yükleme yollarında (seller formu + toplu import)
+		geçerli olsun. Toplu import ayrıca yükleme öncesi satır-bazlı kontrol
+		eder (bulk_import.validator)."""
+		flags = frappe.flags
+		if (
+			flags.in_test
+			or flags.in_migrate
+			or flags.in_patch
+			or flags.in_install
+			or flags.in_setup_wizard
+		):
+			return
+
+		from tradehub_core.utils.seo_content import check_title, check_description
+
+		if self.is_new() or self.has_value_changed("title"):
+			ok, msg = check_title(self.title)
+			if not ok:
+				frappe.throw(msg, title=_("SEO Ürün Adı Kuralı"))
+
+		if self.is_new() or self.has_value_changed("description"):
+			ok, msg = check_description(self.description)
+			if not ok:
+				frappe.throw(msg, title=_("SEO Ürün Açıklaması Kuralı"))
 
 	def _set_storefront_visible(self):
 		"""Denormalize is_visible + status → tek eşitlik kolonu `storefront_visible`.

@@ -65,6 +65,29 @@ _LISTING_DETAIL_CACHE_PREFIX = "tradehub:listing_detail:"
 # changes; invalidate_listing_cache drops this alongside listing caches.
 CATEGORY_DESC_TTL = 600
 
+# Az sonuç dolgusu: ürün listeleme sayfasında asıl sonuç bu eşiğin altındaysa
+# (0 dahil) arkasına filtresiz "tüm ürünler" eklenir (fill_sparse=1 ile opt-in).
+SPARSE_FILL_THRESHOLD = 50
+
+
+def _sparse_fill_plan(primary_total, start, page_size, page_len):
+	"""Birleşik (asıl + dolgu) sayfalamada bu sayfanın dolgu planı.
+
+	Args:
+		primary_total: asıl (filtreye uyan) sonuç sayısı
+		start: bu sayfanın birleşik listedeki başlangıç offset'i
+		page_size: sayfa boyu
+		page_len: bu sayfada zaten bulunan asıl kart sayısı
+	Returns: (fill_offset, fill_needed, fill_from)
+		fill_offset: dolgu listesinde nereden okunacak
+		fill_needed: kaç dolgu kartı gerekir (0 → dolgu yok)
+		fill_from: sayfadaki kartlardan dolgunun başladığı indeks; dolgu yoksa None
+	"""
+	fill_needed = max(0, page_size - page_len)
+	fill_offset = max(0, start - primary_total)
+	fill_from = page_len if fill_needed > 0 else None
+	return fill_offset, fill_needed, fill_from
+
 
 def _get_category_descendants(parent_name):
 	"""Resolve a Product Category to itself + every descendant in the NSM tree.
@@ -100,6 +123,61 @@ def _get_category_descendants(parent_name):
 		result = [parent_name]
 
 	frappe.cache.set_value(cache_key, result, expires_in_sec=CATEGORY_DESC_TTL)
+	return result
+
+
+def _category_ancestor_paths(category_ids):
+	"""Verilen Product Category id'leri için ad/slug ve kökten ebeveyne ata zinciri.
+
+	Storefront filtre sidebar'ı "Kategoriler"i ağaç olarak çizer; mega menü 3
+	seviyede kesildiği, DB ağacı daha derine inebildiği için ağaç facet'in kendi
+	döndürdüğü zincirden kurulur. Seviye seviye toplu sorgu: her turda o anki
+	kümenin ebeveynleri tek `get_all` ile çekilir → sorgu sayısı ağaç derinliği
+	kadar (≈5), kategori sayısından bağımsız.
+
+	Returns: {id: {"name": str, "slug": str, "path": [{"id","name","slug"}, ...]}}
+	`path` kökten başlar, kategorinin kendisini İÇERMEZ. Bilinmeyen id → ad
+	olarak id, boş slug, boş path (eski davranışla uyumlu).
+	"""
+	wanted = [c for c in dict.fromkeys(category_ids) if c]
+	if not wanted:
+		return {}
+
+	rows = {}  # name -> {category_name, url_slug, parent_product_category}
+	pending = set(wanted)
+	while pending:
+		fetched = frappe.get_all(
+			"Product Category",
+			filters=[["name", "in", list(pending)]],
+			fields=["name", "category_name", "url_slug", "parent_product_category"],
+		)
+		pending = set()
+		for r in fetched:
+			rows[r.name] = r
+			parent = r.get("parent_product_category")
+			if parent and parent not in rows:
+				pending.add(parent)
+
+	def _item(name):
+		r = rows.get(name)
+		return {
+			"id": name,
+			"name": (r.get("category_name") if r else None) or name,
+			"slug": (r.get("url_slug") if r else None) or "",
+		}
+
+	result = {}
+	for cid in wanted:
+		path = []
+		seen = {cid}
+		parent = rows[cid].get("parent_product_category") if cid in rows else None
+		while parent and parent in rows and parent not in seen:
+			seen.add(parent)
+			path.append(_item(parent))
+			parent = rows[parent].get("parent_product_category")
+		path.reverse()
+		own = _item(cid)
+		result[cid] = {"name": own["name"], "slug": own["slug"], "path": path}
 	return result
 
 
@@ -357,10 +435,15 @@ def get_listings(
 	status=None,
 	filter_currency=None,
 	lang="tr",
+	fill_sparse=None,
 ):
 	"""Get paginated list of active listings for the product listing page.
 
 	Returns data matching the frontend ProductListingCard interface.
+
+	fill_sparse=1 (yalnız ürün listeleme sayfası): asıl sonuç SPARSE_FILL_THRESHOLD
+	altındaysa arkasına filtresiz tüm ürünler eklenir; `fill_from` bu sayfadaki
+	kartlardan dolgunun başladığı indeks (yoksa None), `primary_total` asıl sayı.
 
 	Brand / attribute filters:
 	  brands = "NIKE,ADIDAS"                    → brand IN (...)
@@ -404,6 +487,7 @@ def get_listings(
 		br=brands,
 		at=attrs,
 		st=status,
+		fill=frappe.utils.cint(fill_sparse),
 	)
 	cached = frappe.cache.get_value(ck)
 	if cached:
@@ -424,6 +508,9 @@ def get_listings(
 	else:
 		filters = {"storefront_visible": 1}
 
+	# Bir filtre boş kümeye indirgediğinde erken dönmek yerine bayrak kaldırılır;
+	# ortak kuyruk (dolgu + cache + SEO) böylece boş sonuçta da çalışır.
+	primary_empty = False
 	category_display_name = None
 	cat_row = None
 	if category:
@@ -486,15 +573,7 @@ def get_listings(
 		)
 		if not verified_user_emails:
 			# Hiç KYB Verified satıcı yoksa boş sonuç döndür
-			return {
-				"data": [],
-				"total": 0,
-				"page": page,
-				"page_size": page_size,
-				"total_pages": 1,
-				"has_next": False,
-				"has_prev": False,
-			}
+			primary_empty = True
 		seller_profile_filters["user"] = ["in", verified_user_emails]
 	if country:
 		# Multi-select: frontend "Turkey,China" gibi virgül-ayrılmış string gönderir.
@@ -523,15 +602,7 @@ def get_listings(
 			if sellers_with_certs:
 				seller_profile_filters["name"] = ["in", list(set(sellers_with_certs))]
 			else:
-				return {
-					"data": [],
-					"total": 0,
-					"page": page,
-					"page_size": page_size,
-					"total_pages": 1,
-					"has_next": False,
-					"has_prev": False,
-				}
+				primary_empty = True
 
 	if seller_profile_filters:
 		matching_sellers = frappe.get_all(
@@ -543,15 +614,7 @@ def get_listings(
 		if matching_sellers:
 			filters["seller_profile"] = ["in", matching_sellers]
 		else:
-			return {
-				"data": [],
-				"total": 0,
-				"page": page,
-				"page_size": page_size,
-				"total_pages": 1,
-				"has_next": False,
-				"has_prev": False,
-			}
+			primary_empty = True
 
 	# Product certifications filter: via Listing Certification child table
 	if product_certifications:
@@ -566,15 +629,7 @@ def get_listings(
 			if listings_with_pcerts:
 				filters["name"] = ["in", list(set(listings_with_pcerts))]
 			else:
-				return {
-					"data": [],
-					"total": 0,
-					"page": page,
-					"page_size": page_size,
-					"total_pages": 1,
-					"has_next": False,
-					"has_prev": False,
-				}
+				primary_empty = True
 
 	# ── Rating filter ──
 	if min_rating:
@@ -630,30 +685,14 @@ def get_listings(
 					matching_listings &= names
 
 			if not matching_listings:
-				return {
-					"data": [],
-					"total": 0,
-					"page": page,
-					"page_size": page_size,
-					"total_pages": 1,
-					"has_next": False,
-					"has_prev": False,
-				}
+				primary_empty = True
 
 			# Merge with existing name filter if any
 			existing_name_filter = filters.get("name")
 			if isinstance(existing_name_filter, list) and existing_name_filter[0] == "in":
 				filters["name"] = ["in", list(matching_listings & set(existing_name_filter[1]))]
 				if not filters["name"][1]:
-					return {
-						"data": [],
-						"total": 0,
-						"page": page,
-						"page_size": page_size,
-						"total_pages": 1,
-						"has_next": False,
-						"has_prev": False,
-					}
+					primary_empty = True
 			else:
 				filters["name"] = ["in", list(matching_listings)]
 
@@ -773,7 +812,10 @@ def get_listings(
 	all_filters.extend(price_filters)
 
 	# ── Multi-word search: fetch broader set then filter in Python ──
-	if len(search_words) > 1:
+	primary_names = []
+	if primary_empty:
+		paginated, total = [], 0
+	elif len(search_words) > 1:
 		# Fetch all matching ANY word (broad), then narrow to ALL words
 		broad_or = []
 		for word in search_words:
@@ -802,6 +844,7 @@ def get_listings(
 
 		matched = [l for l in all_listings if matches_all_words(l)]
 		total = len(matched)
+		primary_names = [l.name for l in matched]
 
 		# Apply relevance sort if requested
 		if use_relevance_sort:
@@ -826,21 +869,49 @@ def get_listings(
 			listings = _sort_by_relevance(listings, search_words or [query])
 			total = len(listings)
 			paginated = listings[start : start + page_size]
+			primary_names = [l.name for l in listings]
 		else:
 			paginated = listings
-			# Accurate total count
+			# Accurate total count (adlar dolgu dışlaması için de kullanılır)
 			count_filters = all_filters[:]
 			if or_filters:
-				total = len(
-					frappe.get_all(
-						"Listing",
-						filters=count_filters,
-						or_filters=or_filters,
-						fields=["name"],
-					)
+				count_rows = frappe.get_all(
+					"Listing",
+					filters=count_filters,
+					or_filters=or_filters,
+					fields=["name"],
 				)
 			else:
-				total = len(frappe.get_all("Listing", filters=count_filters, fields=["name"]))
+				count_rows = frappe.get_all("Listing", filters=count_filters, fields=["name"])
+			total = len(count_rows)
+			primary_names = [r.name for r in count_rows]
+
+	# ── Az sonuç dolgusu (fill_sparse=1; admin/satıcı status görünümünde kapalı) ──
+	primary_total = total
+	fill_from = None
+	if frappe.utils.cint(fill_sparse) and not status and primary_total < SPARSE_FILL_THRESHOLD:
+		fill_offset, fill_needed, fill_from = _sparse_fill_plan(
+			primary_total, start, page_size, len(paginated)
+		)
+		fill_filters = [["storefront_visible", "=", 1]]
+		if primary_names:
+			fill_filters.append(["name", "not in", primary_names])
+		fill_total = frappe.db.count("Listing", filters=fill_filters)
+		fill_rows = []
+		if fill_needed > 0 and fill_offset < fill_total:
+			fill_rows = frappe.get_all(
+				"Listing",
+				filters=fill_filters,
+				fields=fields,
+				order_by=f"{actual_sort_field} {sort_order}",
+				start=fill_offset,
+				page_length=fill_needed,
+			)
+		if fill_rows:
+			paginated = list(paginated) + fill_rows
+		else:
+			fill_from = None
+		total = primary_total + fill_total
 
 	# ── Batch prefetch seller profiles, pricing tiers, and brands (N+1 optimization) ──
 	seller_ids = list({l.seller_profile for l in paginated if l.get("seller_profile")})
@@ -922,6 +993,9 @@ def get_listings(
 		"has_next": (start + page_size) < total,
 		"has_prev": page > 1,
 		"category_name": category_display_name,
+		# Az sonuç dolgusu: bu sayfada dolgunun başladığı kart indeksi (yoksa None)
+		"fill_from": fill_from,
+		"primary_total": primary_total,
 	}
 
 	# API sonucuyla aynı anda üretilir: yalnız bu sayfada gerçekten görünür
@@ -938,7 +1012,8 @@ def get_listings(
 	result["seo"] = {
 		"json_ld": [
 			build_item_list_schema(
-				items=results,
+				# Dolgu ürünleri ItemList şemasına girmez — yalnız asıl sonuç.
+				items=results[:fill_from] if fill_from is not None else results,
 				canonical_url=canonical_url,
 				site_url=site_url,
 			)
@@ -1923,8 +1998,13 @@ def get_filter_facets(
 	brands=None,
 	attrs=None,
 	filter_currency=None,
+	fallback_categories=None,
 ):
 	"""Return faceted counts for sidebar filters.
+
+	fallback_categories=1 (yalnız ilk yükleme): sonuç hiç yoksa `categories` tüm
+	ürünlerin kategori ağacına düşer; `category` çözülmüşse 0 sayımla listeye eklenir
+	ki sidebar'da seçili kalıp oradan başka kategoriye geçilebilsin.
 
 	Aktif filtreleri uygulayarak monotonic narrow sayım döndürür (Trendyol pattern):
 	kullanıcı bir filtre seçince geriye kalan seçeneklerin (xx) sayıları azalır.
@@ -1932,7 +2012,7 @@ def get_filter_facets(
 
 	Returns:
 	- countries: unique seller country values with listing counts
-	- categories: product categories with listing counts
+	- categories: product categories with listing counts + `path` (kökten ebeveyne ata zinciri)
 	- managementCertifications / productCertifications
 	- brands
 	- attributes (dinamik özellikler)
@@ -1957,12 +2037,14 @@ def get_filter_facets(
 		pc=product_certifications,
 		br=brands,
 		at=attrs,
+		fb=frappe.utils.cint(fallback_categories),
 	)
 	cached = frappe.cache.get_value(fck)
 	if cached:
 		return cached
 
 	base_filters = {"storefront_visible": 1}
+	platform_cat = None
 	if category:
 		platform_cat = frappe.db.get_value("Product Category", {"url_slug": category}, "name")
 		if platform_cat:
@@ -2205,16 +2287,31 @@ def get_filter_facets(
 	# Aggregate categories (A-4b: DB GROUP BY)
 	cat_counts = cat_counts_db
 
+	# Boş sonuç + fallback_categories: ağaç tüm ürünlerin kategorilerinden kurulur,
+	# seçili (boş) kategori 0 sayımla eklenir → sidebar'da işaretli kalır.
+	if frappe.utils.cint(fallback_categories) and not cat_counts:
+		all_rows = frappe.get_all(
+			"Listing",
+			filters={"storefront_visible": 1},
+			fields=["product_category", "count(name) as cnt"],
+			group_by="product_category",
+		)
+		cat_counts = {r.product_category: r.cnt for r in all_rows if r.product_category}
+		if platform_cat and platform_cat not in cat_counts:
+			cat_counts[platform_cat] = 0
+
+	# Ad/slug + ata zinciri tek seferde (sidebar kategori ağacı `path` ile kurulur)
+	cat_info = _category_ancestor_paths(list(cat_counts.keys()))
 	categories = []
 	for cat_name, count in sorted(cat_counts.items(), key=lambda x: -x[1]):
-		display_name = frappe.db.get_value("Product Category", cat_name, "category_name") or cat_name
-		slug = frappe.db.get_value("Product Category", cat_name, "url_slug") or ""
+		info = cat_info.get(cat_name) or {"name": cat_name, "slug": "", "path": []}
 		categories.append(
 			{
 				"id": cat_name,
-				"name": display_name,
-				"slug": slug,
+				"name": info["name"],
+				"slug": info["slug"],
 				"count": count,
+				"path": info["path"],
 			}
 		)
 

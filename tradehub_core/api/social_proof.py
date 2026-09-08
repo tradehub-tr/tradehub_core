@@ -379,7 +379,7 @@ def get_signals_batch(listing_ids: str) -> dict:
 		for r in frappe.get_all(
 			"Listing",
 			filters={"name": ["in", uncached]},
-			fields=["name", "status", "seller_profile"],
+			fields=["name", "status", "seller_profile", "creation"],
 		)
 	}
 	active = [lid for lid in uncached if meta.get(lid) and meta[lid].status != "Archived"]
@@ -415,6 +415,19 @@ def get_signals_batch(listing_ids: str) -> dict:
 				so_val = seller_orders_map.get(supplier_id, 0)
 				if so_val >= settings["seller_orders_threshold"]:
 					signals.append(_serialize_signal("seller_orders", so_val, None))
+			# get_signals ile AYNI yedek: eşik geçen sinyal yoksa "Yeni ürün" rozeti.
+			# (Bu eksikti → liste ızgarası hiç rozet göstermiyordu; paylaşımlı cache
+			# yüzünden tekil uç da boş sonucu devralıyordu.) Yaş kuralı meta.creation'dan,
+			# ek sorgu yok.
+			if not signals and settings["new_badge_enabled"]:
+				max_age = settings["new_badge_max_age_days"]
+				is_new = (
+					max_age <= 0
+					or not m.creation
+					or m.creation >= add_to_date(now_datetime(), days=-max_age)
+				)
+				if is_new:
+					signals.append(_serialize_signal("new", 0))
 			resp = {"signals": signals}
 
 		frappe.cache().set_value(

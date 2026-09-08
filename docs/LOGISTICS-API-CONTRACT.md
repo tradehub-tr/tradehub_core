@@ -21,14 +21,22 @@ Python kaynak (OTORİTE)
   logistics/exceptions.py         hata kodları + HTTP durumları
   api/v1/logistics_catalog.py     CATALOGS sözlüğü = katalog sözleşmesi
   api/v1/logistics_admin.py       hesap / ayar / yetki sözleşmesi
+  logistics/contract.py           varlık alanları + UÇ İMZALARI (provisional)
   doctype/**/*.json               alan TİPLERİ
         │  python3 scripts/gen_logistics_types.py --sync
         ▼
   docs/logistics-api.schema.json          ← bu belgenin makine karşılığı
+  docs/generated/LOGISTICS-ENDPOINTS.md   ← backend başlangıç belgesi
   docs/generated/logistics.d.ts           ← storefront tipleri
   docs/generated/fixtures/*.json          ← Storybook mock verisi
   tradehubfront/src/types/logistics.d.ts  ← senkron kopya
 ```
+
+> **Uç imzaları neden burada:** altı FE veri sözleşmesinde yaşıyorlardı ve o
+> klasör git'siz — backend'i yazacak kişi açamıyordu. 7 Eylül 2026'da (MOCK-SÖZ,
+> `MOGEM-560`) `PROVISIONAL_ENDPOINTS` olarak kaynağa alındılar; üreteç artık
+> dönen alanların varlık sözleşmesinde gerçekten bulunduğunu da doğruluyor —
+> uydurulmuş alan üretimi durdurur.
 
 **Kural:** üretilmiş dosyaları elle düzenleme. Sözleşmeyi değiştirmek =
 Python kaynağını değiştirip yeniden üretmek.
@@ -133,6 +141,72 @@ Kurallar:
 | `set_feature_flag(flag, enabled)` | Tek anahtar |
 | `get_logistics_permissions()` | Panelin aksiyon görünürlüğü |
 
+### 3.4 Sevkiyat — `api.v1.shipment` (giriş zorunlu)
+
+> **Bu bölüm 7 Eylül 2026'da eklendi (MOCK-SÖZ).** Modül Dalga C'den beri
+> **canlı** ve panel 6 + storefront 2 yerden çağırıyor, ama bu belgede tek
+> satırı yoktu. Buradaki liste Python kaynağından **okunarak** yazıldı
+> (`api/v1/shipment.py`), sözleşme olarak dayatılmadı — §1'in "otorite Python
+> kaynağıdır" kuralı gereği.
+
+| Uç | Not |
+|---|---|
+| `create_shipment(order, items?, idempotency_key?)` | Order'dan `Draft` sevkiyat üretir (split motoru üzerinden). Order üzerinde `order_has_permission` |
+| `list_shipments(...)` | **Tenant izolasyonlu**; `frappe.get_list` + `shipment_query_conditions` devrede |
+| `get_shipment_detail(name)` | Child tablolar dahil. Operasyonel alanlar `_can_view_operational_fields` ile süzülür |
+| `update_shipment_status(name, status, note?)` | Geçiş motoru üzerinden; satıcı geçişleri `_seller_can_transition` ile sınırlı |
+| `cancel_shipment(name, reason?)` | Yalnız cancel yetkili roller (J.2 matrisi) |
+
+Kurallar:
+- Hiçbiri `allow_guest` **değildir**: `@frappe.whitelist()` + `_require_authenticated_user`
+  guard'ı (defense-in-depth, modül docstring'i)
+- Hatalar `@logistics_endpoint` zarfına girer — `3a070a6` (3 Eyl 2026) beş ucu
+  da ortak hata sözleşmesine bağladı; öncesinde ham `frappe.throw` dönüyordu ve
+  panel `error.code` üzerinden dallanamadığı için `INTERNAL_ERROR` gösteriyordu
+
+> ⚠ **`list_shipment_events` bu modülde YOK.** Panel
+> (`api/shipmentEvents.js:127`) `${SHIPMENT}.list_shipment_events` diye
+> çağırıyor ama uç yazılmamış — **11-BE** (Bora) kapsamında. Yazılınca bu
+> tabloya girer.
+
+### 3.5 Rezerve modüller — 🔸 FE sözleşmesi hazır, BE yazılmadı
+
+> **7 Eylül 2026 (MOCK-SÖZ, `MOGEM-560`).** Buradaki uçların **hiçbiri henüz
+> yazılmamıştır**; frontend onları mock'la çalıştırıyor.
+
+**Tam sözleşme — imzalar, dönen yükler, hata kodları, güvenlik kapıları:**
+`docs/generated/LOGISTICS-ENDPOINTS.md` (üretilmiş dosya).
+
+O belge `logistics/contract.py` → `PROVISIONAL_ENDPOINTS`'ten üretilir ve
+`--check` bayatlamasını yakalar. Buradaki tablo yalnız **haritadır**; uç
+adlarını buraya da yazmak ikinci bir doğruluk kaynağı yaratır ve ilk sözleşme
+değişikliğinde ikisi ayrışır.
+
+| Modül | Uç | Sahip | FE kaynağı |
+|---|---:|---|---|
+| `api.v1.pickup` | 4 | 07-BE | `07-FE-VERI-SOZLESMESI.md` |
+| `api.v1.packaging` | 11 | 13-BE (palet kısmı 19-BE) | `13-FE-VERI-SOZLESMESI.md` |
+| `api.v1.pod` | 6 | 14-BE | `14-FE-VERI-SOZLESMESI.md` |
+| `api.v1.returns` | 7 | 15-BE | `15-FE-VERI-SOZLESMESI.md` |
+| `api.v1.pricing` | 6 | 20-BE | `20-FE-VERI-SOZLESMESI.md` |
+| `api.v1.notifications` | 4 | 12-BE | `12-FE-VERI-SOZLESMESI.md` |
+
+**Makine-okunur karşılığı:** `docs/logistics-api.schema.json` → `endpoints`.
+Bir uç yazıldığı gün buradan düşer ve §3.4 gibi kaynaktan okunmuş bir bölüme
+taşınır.
+
+> ⚠ **24 hata kodu henüz tanımlı değil.** Ekranlar onlara göre dallanıyor ama
+> `logistics/exceptions.py` / `api_utils.py` içinde karşılıkları yok — tam
+> liste üretilen belgenin sonunda. En kritiği: `VALIDATION_FAILED` (13-FE) ile
+> `VALIDATION_ERROR` (diğerleri) **aynı şeyin iki adı**.
+
+**Modül adı neden burada bağlanıyor:** `admin-panel/frontend/src/api/logisticsClient.js`
+(`LOGISTICS_METHOD`) bu adları zaten tek yerden okuyor ve her birinin yanına
+gerekçesini yazmış. Storefront ise 12-FE ve 14-FE uçlarını
+`api.v1.logistics.<fonksiyon>` diye etiketliyordu; **7 Eylül 2026'da bu belgeye
+göre düzeltildi** (`shipmentService.ts`). Aynı ucun iki repoda iki farklı adla
+anılması, backend'e iki farklı sipariş demekti.
+
 ---
 
 ## 4. Hata kodları
@@ -194,6 +268,27 @@ Kontrol sırası: **flag → rol → capability → iş mantığı.** Kapalı bi
 
 **Katalog yönetimi feature flag'e bağlı DEĞİLDİR** — yönetici, modül müşteriye
 açılmadan önce katalogları yapılandırabilmelidir.
+
+### 6.1 Modül seçimi bir güvenlik kararıdır
+
+> 7 Eylül 2026'da eklendi (MOCK-SÖZ). Kural yalnız
+> `admin-panel/.../logisticsClient.js` yorumlarında yaşıyordu; sözleşmede
+> karşılığı yoktu ve storefront altı ucu yanlış modüle etiketlemişti.
+
+**`api.v1.logistics` misafire açıktır** (üç ucu da `allow_guest=True`) ve kendi
+docstring'i şunu söyler: *"satıcı/alıcı verisine dokunan her şey başka yerdedir."*
+
+Kural: **giriş isteyen bir uç `api.v1.logistics`'e KONMAZ.** Yeni uç, sahibinin
+kendi modülüne açılır (§3.4, §3.5). Gerekçe teorik değil — bir dekoratörün
+yanlış modülde `allow_guest` devralması, tek satırlık bir gözden kaçmayla
+satıcı/alıcı verisini misafire açar.
+
+Uygulama sırasında:
+- Modül adını **bu belgeden** al, FE'deki hata metninden veya başka bir repodaki
+  sabitten değil
+- Aynı uç iki repoda iki farklı adla anılıyorsa, **yazmadan önce** buradan
+  hizala; ad ayrımı backend'e iki farklı sipariş demektir
+- Uç yazıldığında §3.5'teki satırı §3.4 gibi kaynaktan okunmuş bir bölüme taşı
 
 ---
 
@@ -291,11 +386,26 @@ katalogda `default`, `empty`, `error` senaryoları hazır.
 
 ## 12. Bu sözleşmenin kapsamadıkları
 
-Aşağıdakiler **henüz sözleşme değildir**; Faz F'te eklenecek ve o zaman
-`contract_version` MINOR artacaktır:
+> **7 Eylül 2026 (MOCK-SÖZ) güncellemesi.** Bu liste beş maddeydi ve dördü
+> artık doğru değildi: Shipment CRUD **canlıya çıkmıştı** (§3.4), iade /
+> fiyatlandırma / etiket uçlarının FE sözleşmeleri **imzalanmıştı** (§3.5).
+> Kapsam listesi olduğu yerde kalınca, belgeyi açan kişi var olan bir modülü
+> "henüz yok" sanıyordu.
 
-- Shipment CRUD, durum geçişleri, bölme, çok bacaklı sevkiyat
-- Taşıyıcı entegrasyonu (teklif, gönderi oluşturma, etiket, takip)
-- Maliyet/fiyatlandırma hesapları
-- İade akışı, SLA/istisna yönetimi
-- Webhook alıcıları
+Sözleşmenin bugünkü kapsamı:
+
+| Durum | Nerede |
+|---|---|
+| Canlı, kaynaktan okunmuş | §3.1 · §3.2 · §3.3 · **§3.4** |
+| FE sözleşmesi imzalı, BE yazılmadı (🔸 rezerve) | **§3.5** |
+
+Hâlâ **sözleşme dışı** olanlar:
+
+- Taşıyıcı entegrasyonunun dış yüzü (teklif alma, gönderi oluşturma, taşıyıcıya
+  bırakma) — 09-BE/10-BE; adapter'lar dış API'lere bağlı, iç sözleşme henüz yok
+- Webhook alıcıları (`api/v1/carrier_webhook.py`) — 09-BE
+- Çok bacaklı sevkiyat / aktarma-devir akışı (leg orkestrasyonu) — 08-BE
+- SLA ve istisna **otomasyonu** (istisna kodu kataloğu §3.2'de, kuyruk ucu
+  §3.5'te; otomasyonun kendisi 11-BE)
+
+Bunlar eklendiğinde `contract_version` MINOR artar.

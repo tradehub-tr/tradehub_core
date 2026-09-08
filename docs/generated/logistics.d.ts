@@ -277,6 +277,8 @@ export interface ShipmentItemsRow {
   uom?: string;
   weight_kg?: number;
   returned_qty?: number;
+  packed_qty?: number;
+  scan_code?: string;
 }
 
 export interface ShipmentPackagesRow {
@@ -292,6 +294,14 @@ export interface ShipmentPackagesRow {
   barcode_url?: string;
   label_url?: string;
   label_printed_at?: string;
+  contents: unknown;
+  chargeable_kg?: number;
+  label_status?: string;
+  label_format?: string;
+  label_generated_at?: string;
+  label_print_count?: number;
+  carrier_tracking?: string;
+  content_hash?: string;
 }
 
 export interface ShipmentLegsRow {
@@ -349,6 +359,9 @@ export interface ShipmentDetail extends ShipmentListItem {
   delivery_code_attempts?: number;
   pickup_location?: string;
   payment_status?: string;
+  packing_completed_at?: string;
+  pickup_person?: string;
+  proof_of_delivery?: string;
   address_snapshots: ShipmentAddressSnapshotsRow[];
   items: ShipmentItemsRow[];
   packages: ShipmentPackagesRow[];
@@ -358,14 +371,27 @@ export interface ShipmentDetail extends ShipmentListItem {
 
 /** Teslim Kanıtı — kaynak: TUR-115 */
 export interface ProofOfDeliveryListItem {
+  shipment: string;
   delivered_at: string;
   received_by: string;
+  received_by_title: string;
   delivery_code_used?: number;
+  delivered_package_count: number;
+  total_package_count: number;
+  delivered_pallet_count?: number;
+  returned_pallet_count?: number;
+  has_discrepancy: number;
+  exception_code?: string;
+  discrepancy_note?: string;
   signature_url?: string;
   photo_url?: string;
   document_url?: string;
+  delivery_point?: string;
   location_source?: string;
   location_recorded_at?: string;
+  source: string;
+  recorded_by: string;
+  recorded_at: string;
 }
 
 export type ProofOfDeliveryDetail = ProofOfDeliveryListItem;
