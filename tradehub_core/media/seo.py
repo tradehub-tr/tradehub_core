@@ -114,6 +114,10 @@ def _asset_columns(*, include_text: bool = False) -> list[str]:
 	# gerçek. SINGLE'a koymamak bilinçli — set_asset_fields'tan yazılamazlar
 	# (yalnız üretim hattı/patch yazar). `page_count` küçük (Int) — toplu yolda kalır.
 	adaylar.append("th_media_page_count")
+	# Ses sistem alanı — süre/poster ile AYNI desen: SEO metni değil, üretim
+	# hattının kapsayıcı etiketinden çıkardığı gerçek. SINGLE'a koymamak
+	# bilinçli, `set_asset_fields`'tan yazılamaz.
+	adaylar.append("th_media_artist")
 	if include_text:
 		adaylar.append("th_media_extracted_text")
 	return [k for k in adaylar if frappe.db.has_column("File", k)]
@@ -303,8 +307,17 @@ def _birlestir(url: str, varlik: dict, lang: str, ezme: dict | None = None) -> d
 		sonuc["alt_source"] = ezme["source"]
 	sonuc["width"] = varlik.get("th_media_width") or 0
 	sonuc["height"] = varlik.get("th_media_height") or 0
-	sonuc["duration"] = varlik.get("th_media_duration") or 0
+	# `audio_meta.apply` başarısız çıkarımda -1 yazıyor (anti-açlık damgası,
+	# `backfill_pending` aynı okunamayan dosyayı yeniden seçmesin diye — İÇ
+	# sözleşme). `page_count` ile AYNI nöbetçi: negatif süre dışarıya sızarsa
+	# JSON-LD'ye "PT-1S" gibi geçersiz bir değer basılırdı.
+	sonuc["duration"] = max(0, float(varlik.get("th_media_duration") or 0))
 	sonuc["poster_url"] = varlik.get("th_media_poster_url") or ""
+	sonuc["artist"] = varlik.get("th_media_artist") or ""
+	# `cover_url` AYRI KOLON DEĞİL, `poster_url`in ses tarafındaki adı:
+	# "medyayı temsil eden sabit görsel" videoda poster, seste kapak — aynı
+	# kavram. İkinci bir kolon açmak aynı gerçeği iki yerde tutmak olurdu.
+	sonuc["cover_url"] = sonuc["poster_url"]
 	# `doc_meta.apply` başarısız çıkarımda -1 yazıyor (anti-açlık damgası,
 	# `backfill_docs` aynı okunamayan dosyayı yeniden seçmesin diye — İÇ
 	# sözleşme). Dışarıya (`fields_for`/`fields_for_many` tüketicileri: panel,
