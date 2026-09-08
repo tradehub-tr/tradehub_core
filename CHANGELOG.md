@@ -1,3 +1,18 @@
+## [v1.13.1-alpha.61] - 2026-09-08 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(medya): ses dosyaları için AudioObject şeması ve metadata katmanı (MOGEM-620) (@Metin Bektemur)
+  - `seo/schema_builder.build_audio_object`: `build_video_object` / `build_digital_document` ile aynı kalıp. Alan eşlemesi şemaya göre — "sanatçı" için `byArtist` DEĞİL `author`; `byArtist` MusicRecording alanı, genel bir ses dosyasında geçersiz yapısal veri üretirdi.
+  - `media/audio_meta.py`: ffprobe ile başlık/sanatçı/süre/gömülü kapak çıkarımı. Yeni bağımlılık yok — ffprobe zaten kurulu ve kapsayıcıdan bağımsız tek `format.tags` sözlüğü veriyor. Hata sözleşmesi `video_poster`/`doc_meta` ile aynı: hiçbir hata yüklemeyi düşürmez, başarısız çıkarıma -1 anti-açlık damgası yazılır.
+  - `patches/v15_9_53_media_audio_fields`: tek yeni kolon `th_media_artist`. Süre `th_media_duration`, kapak `th_media_poster_url`, başlık `th_media_title*` üzerinden — aynı gerçeği iki yerde tutmamak için.
+  - `media/seo.py`: `artist` + `cover_url` alanları; negatif süre nöbetçisi (`max(0, …)`) — -1 damgası JSON-LD'ye "PT-1S" olarak sızıyordu.
+  - `upload_policy.EXTENSIONS` ses türünü tanımıyordu; `naming._hashed_name` beyaz listeyi oradan okuduğu için HİÇBİR ses dosyası yüklenemiyordu. `.pptx` kusurunun birebir tekrarı — uzantı listesi artık tek kaynakta (`AUDIO_EXTENSIONS`), `audio_meta` onu içe aktarıyor.
+  - `MEDIA_KINDS` yalnız görsel + video kabul ediyordu; `upload_media` her ses yüklemesini reddediyordu.
+  - `inventory._kind_condition` yakalayıcı dalı sesi de "görsel" sayıyordu; `kinds=["image"]` ses dosyalarını da getiriyordu.
+
+---
 ## [v1.13.1-alpha.60] - 2026-09-07 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
