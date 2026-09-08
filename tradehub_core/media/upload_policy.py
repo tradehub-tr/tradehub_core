@@ -66,7 +66,18 @@ from frappe import _
 KIND_IMAGE = "image"
 KIND_VIDEO = "video"
 KIND_DOCUMENT = "document"
+KIND_AUDIO = "audio"
 KIND_OTHER = "other"
+
+#: Ses uzantıları TEK KAYNAK. `media/audio_meta.py` bu demeti içe aktarır —
+#: kendi listesini TUTMAZ.
+#:
+#: `doc_meta.DOC_UZANTILAR` ve `video_poster.VIDEO_UZANTILAR` emsalinden
+#: BİLEREK ayrıldık: o iki modül kendi düz listesini tutuyor ve sonucu
+#: ölçüldü — `.pptx` çıkarım motorunda destekleniyordu ama bu haritada yoktu,
+#: yani hiçbir `.pptx` yüklenemiyordu (ölü kod, Task 5'te fark edildi). Aynı
+#: sapmayı seste tekrarlamamak için liste tek yerde.
+AUDIO_EXTENSIONS: tuple[str, ...] = (".mp3", ".m4a", ".aac", ".ogg", ".opus", ".wav", ".flac")
 
 EXTENSIONS: dict[str, str] = {
 	**{
@@ -85,6 +96,12 @@ EXTENSIONS: dict[str, str] = {
 	# `media/naming.py::_hashed_name` içerik-adresli adlandırma bu sözlükten
 	# beyaz liste okuyor; eklenmezse VTT yüklemesi hash adlandırma kapısında
 	# "İzin verilmeyen dosya uzantısı" ile reddedilir.
+	# Ses (MOGEM-620 §15): ürünün ses alanı var — `AudioObject` şeması,
+	# `audio_meta` çıkarımı ve denetim kuralları yazıldı — ama uzantılar bu
+	# haritada olmadığı için hiçbir ses dosyası YÜKLENEMİYORDU. `naming.py::
+	# _hashed_name` beyaz listeyi buradan okuyor ve `.mp3`'ü "İzin verilmeyen
+	# dosya uzantısı" ile reddediyordu. `.pptx` ile birebir aynı kusur.
+	**{e: KIND_AUDIO for e in AUDIO_EXTENSIONS},
 	**{e: KIND_OTHER for e in (".txt", ".csv", ".zip", ".vtt")},
 }
 
@@ -92,6 +109,10 @@ MAX_BYTES: dict[str, int] = {
 	KIND_IMAGE: 25 * 1024 * 1024,
 	KIND_VIDEO: 200 * 1024 * 1024,
 	KIND_DOCUMENT: 50 * 1024 * 1024,
+	# Ses videodan küçük ama dokümandan büyük: bir podcast bölümü 128 kbps'te
+	# saat başına ~57 MB. 50 MB tavanı yarım saatlik kaydı bile kesiyordu;
+	# 200 MB (video tavanı) ise ses için gereksiz geniş.
+	KIND_AUDIO: 100 * 1024 * 1024,
 	KIND_OTHER: 50 * 1024 * 1024,
 }
 
@@ -100,7 +121,18 @@ MAX_BYTES: dict[str, int] = {
 MAX_BYTES_UNKNOWN: int = 50 * 1024 * 1024
 
 # Medya uçlarının kabul ettiği türler — dar kapı.
-MEDIA_KINDS: frozenset[str] = frozenset({KIND_IMAGE, KIND_VIDEO})
+#
+# SES BURAYA GİRDİ, `MEDIA_EXTRA_EXTENSIONS`E DEĞİL (MOGEM-620 §15). `.pdf`
+# oradaki tek istisna çünkü doküman bir MEDYA değil, medya ucundan geçmesi
+# gereken bir ek. Ses ise tam anlamıyla medya: süresi, kapağı, kendi
+# `AudioObject` şeması, kendi çıkarım hattı var — görsel ve videoyla aynı
+# sınıfta. Uzantı istisnası olarak eklemek `upload_limits` gibi türe göre
+# rapor veren uçlarda onu "türsüz" gösterirdi.
+#
+# Ölçüldü (E2E, 6 Eyl): bu satır olmadan `seller_media.upload_media` her ses
+# yüklemesini reddediyordu — şema, çıkarım ve denetim yazılmış ama satıcı
+# dosyayı hiç yükleyemiyordu.
+MEDIA_KINDS: frozenset[str] = frozenset({KIND_IMAGE, KIND_VIDEO, KIND_AUDIO})
 MEDIA_EXTRA_EXTENSIONS: frozenset[str] = frozenset({".pdf"})
 
 # `File.file_name` sütun sınırı. `files.MAX_NAME` ile aynı değer; oradan
@@ -551,6 +583,14 @@ _UYUM: dict[str, frozenset[str]] = {
 	".m4v": frozenset({"mp4"}),
 	".mov": frozenset({"mp4"}),
 	".webm": frozenset({"webm"}),
+	# Ses: yalnız imzası TEKİL olanlar. `.m4a`/`.aac` ISOBMFF kutusu
+	# (`filetype` bunları "mp4" olarak tanır) ve `.opus` bir Ogg kapsayıcısı —
+	# ikisini de tabloya koymak yanlış-pozitif ret üretirdi. `_uyumlu`
+	# tabloda olmayan uzantıyı uyuşmazlık SAYMAZ, yani sessizce geçerler.
+	".mp3": frozenset({"mp3"}),
+	".wav": frozenset({"wav"}),
+	".flac": frozenset({"flac"}),
+	".ogg": frozenset({"ogg"}),
 }
 
 

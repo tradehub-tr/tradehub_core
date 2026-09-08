@@ -318,6 +318,9 @@ tradehub_core.patches.v15_9_51_media_index_property_setters
 # --- Dosya Yöneticisi SEO Task 1 · Listing Document child + File sayfa sayısı/çıkarılan metin ---
 tradehub_core.patches.v15_9_52_file_doc_fields
 
+# --- MOGEM-620 §15 · ses dosyası metadata (sanatçı kolonu) ---
+tradehub_core.patches.v15_9_53_media_audio_fields
+
 # --- Bora · 09-BE A (kargo entegrasyon logu altyapısı) ---
 # Carrier Integration Log bileşik index'leri + Logistics Settings saklama alanı.
 tradehub_core.patches.v15_log043_carrier_integration_log
