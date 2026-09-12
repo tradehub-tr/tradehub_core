@@ -331,5 +331,7 @@ tradehub_core.patches.v15_9_55_seed_akis_kotalari
 # Carrier Integration Log bileşik index'leri + Logistics Settings saklama alanı.
 tradehub_core.patches.v15_log043_carrier_integration_log
 
+# --- Abonelik iptali BE-1 · current_period_end backfill (R1: kaynak = son ONAYLI odeme cycle, bayat default yasak; taban now+7g) ---
+tradehub_core.patches.v15_backfill_current_period_end
 # --- Demo/mock veri temizliği · canlıya geçişte bir kez ---
 tradehub_core.patches.v15_9_53_purge_demo_data

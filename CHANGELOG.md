@@ -1,3 +1,18 @@
+## [v1.13.1-alpha.62] - 2026-09-08 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(abonelik): iptal çekirdeği + dönem yönetimi + hesap silme (App Store Faz A+B) (@boraydeger32)
+  - Store Subscription: cancel_at_period_end bayrağı, cancellation_note, cancel_requested_by, renewal_reminder_* alanları; canceled→active geçişi (reaktivasyon) state machine'e eklendi
+  - current_period_end İLK KEZ yazılıyor: aktivasyonda billing_cycle'a göre hesap + idempotent backfill patch'i (kaynak: son onaylı ödemenin cycle'ı, now+7g tabanı — hiçbir aktif mağaza anında past_due olamaz)
+  - YENİ api/v1/subscription_cancellation.py: request/revoke_cancellation — yalnız mağaza sahibi (çift katman), idempotent, DENY audit'li, session-bazlı rate limit (form_dict-bypass'lı frappe rate_limiter DEĞİL)
+  - process_paid_lifecycle cron'u: T-7/T-1 yenileme hatırlatması (idempotent bayrak deseni), dönem sonunda fesih + past_due geçişi, cache flush
+  - Hesap silme (Apple 5.1.1(v)): get_account_deletion_preview ucu; delete_account mağaza sahibinde aboneliği account_deleted ile kapatır, bekleyen havale taleplerini reddeder; KVKK anonimleştirme kapsamına cancellation_note/cancel_requested_by eklendi
+  - Guard'lar: Suspended mağaza reaktive edilemez + havale talebi açamaz; trial'da iptal 417
+  - 80+ yeni test (bench 13 + 5 stub paketi); delete_account rate limit'i session-bazlı decorator'a geçirildi
+
+---
 ## [v1.13.1-alpha.61] - 2026-09-08 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
