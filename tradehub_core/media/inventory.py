@@ -41,6 +41,7 @@ NullIf = CustomFunction("NULLIF", ["expr", "value"])
 # Kapsam dışı doctype listesi `presets`te — `usage` da aynısını kullanıyor.
 from tradehub_core.media import engine, ownership, states, timefmt, upload_policy  # noqa: E402
 from tradehub_core.media.presets import EXCLUDED_DOCTYPES  # noqa: E402
+from tradehub_core.seo.i18n import CONTENT_LANGS  # noqa: E402
 
 SORT_FIELDS: dict[str, str] = {
 	"size": "file_size",
@@ -445,6 +446,94 @@ def _kind_condition(f, kinds: tuple[str, ...]):
 	return _or_conditions(conditions)
 
 
+#: Serbest aramanın taradığı `File` sütunları (MOGEM-620 §16).
+#:
+#: 10 Eyl 2026 denetiminde arama YALNIZ `th_media_title` + `th_media_tags` +
+#: kategori adı + dosya adına bakıyordu. Şartname "filename, full-text,
+#: metadata, OCR, transcript" istiyor; OCR/transkript metni zaten
+#: `th_media_extracted_text` / `th_media_transcript` sütunlarında duruyordu ve
+#: hiçbir arama yüzeyi onları okumuyordu — yani veri vardı, kapı yoktu.
+#:
+#: NEDEN `alt_ai` YOK: onaylanmamış AI çıktısı yayımlanmadığı gibi aranabilir
+#: de olmamalı — satıcı görmediği bir metin yüzünden sonuç alırdı.
+#: NEDEN çok dilli alanların hepsi: `alt_tr` ile `alt_en` aynı varlığın iki
+#: yüzü; kullanıcı hangi dilde yazdıysa o dilde arar.
+#: Dil eki OLMADAN aranan alanlar (tek dilli ya da tabanı da dolu olanlar).
+_TEK_DILLI_ARAMA: tuple[str, ...] = (
+	"th_media_tags",
+	"th_media_artist",
+	"th_media_creator",
+	"th_media_credit_text",
+	"th_media_keywords",
+	"th_media_entities",
+	"th_media_extracted_text",
+)
+
+#: Dört dile birden açılan alanlar. TABAN kolon da listeye giriyor: eski
+#: kayıtlar (dil kolonları eklenmeden önce yazılanlar) hâlâ orada duruyor
+#: ve yalnız dil kolonlarını aramak onları görünmez yapardı.
+#:
+#: `description` BURADA olmak zorunda: 10 Eyl 2026'da `SINGLE`'dan
+#: `ASSET_TRANSLATABLE`'a taşındı, yani gerçek değer artık
+#: `th_media_description_tr`'de. Yalnız taban kolonu aramak, aramayı
+#: sessizce çalışmaz hâle getiriyordu (e2e testi yakaladı).
+_COK_DILLI_ARAMA: tuple[str, ...] = (
+	"th_media_title",
+	"th_media_alt",
+	"th_media_caption",
+	"th_media_description",
+	"th_media_transcript",
+)
+
+
+def _arama_adaylari() -> tuple[str, ...]:
+	"""Aday sütun listesi — çok dilli olanlar dört dile açılmış hâliyle.
+
+	`th_media_alt_ai` HİÇBİR dalda YOK ve bu bilinçli: onaylanmamış AI çıktısı
+	yayımlanmadığı gibi aranabilir de olmamalı — satıcı görmediği bir metin
+	yüzünden sonuç alırdı.
+	"""
+	adaylar = list(_TEK_DILLI_ARAMA)
+	for alan in _COK_DILLI_ARAMA:
+		adaylar.append(alan)
+		adaylar.extend(f"{alan}_{lang}" for lang in CONTENT_LANGS)
+	return tuple(adaylar)
+
+
+_ARANAN_SUTUNLAR: tuple[str, ...] = _arama_adaylari()
+
+
+def _aranabilir_sutunlar() -> tuple[str, ...]:
+	"""Bu veritabanında GERÇEKTEN var olan arama sütunları.
+
+	Sütunlar birbirinden bağımsız yamalarla eklendi (`th_media_artist` en
+	yenisi, v15_9_53). Yaması koşmamış bir veritabanında olmayan sütuna
+	`Locate` yazmak sorguyu tamamen düşürür ve arama HİÇ çalışmaz — bu yüzden
+	liste çalışma anında süzülüyor. Süzgeç istek başına önbellekli: sütun
+	kümesi istek içinde değişmez.
+	"""
+
+	def _hesapla() -> tuple[str, ...]:
+		return tuple(s for s in _ARANAN_SUTUNLAR if frappe.db.has_column("File", s))
+
+	return frappe.local_cache("th_media_arama_sutunlari", "File", _hesapla)
+
+
+def _serbest_arama_kosulu(m, search: str):
+	"""`_ARANAN_SUTUNLAR`'ın var olanları üzerinde OR'lanmış `Locate` koşulu.
+
+	En az bir sütun her zaman vardır (`th_media_title` ilk medya yamasından
+	beri) ama liste teorik olarak boşalabilir; boş `reduce` yerine None dönüp
+	çağıranın hiç koşul eklememesi ölü sonuç kümesinden iyidir — bu yüzden
+	boş listede daima-yanlış değil, dosya adı koşuluna denk bir ifade döner.
+	"""
+	kosul = None
+	for sutun in _aranabilir_sutunlar():
+		parca = Locate(search, m[sutun]) > 0
+		kosul = parca if kosul is None else (kosul | parca)
+	return kosul if kosul is not None else (Locate(search, m.file_name) > 0)
+
+
 def _metadata_query(store: str | None):
 	"""Satıcıya ait üstveri URL'leri için kiracı-sınırlı alt sorgu."""
 	m = DocType("File")
@@ -522,9 +611,7 @@ def _apply_filters(
 		# mağazanın ürününde kullandığı ama başka kullanıcının yüklediği dosyayı da
 		# kapsar; o yabancı kaydın başlık/etiketini aramak veri sızdırırdı.
 		m, metadata_urls = _metadata_query(store)
-		metadata_urls = metadata_urls.where(
-			(Locate(search, m.th_media_title) > 0) | (Locate(search, m.th_media_tags) > 0)
-		)
+		metadata_urls = metadata_urls.where(_serbest_arama_kosulu(m, search))
 		# Kategori adı da genel aramanın parçasıdır. Bağ alt sorgusu ayrıca
 		# tenant'a daraltılır; yabancı mağazanın aynı URL için verdiği kategori
 		# adı arama sonucunu etkileyemez.

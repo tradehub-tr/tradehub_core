@@ -50,6 +50,24 @@ def _guard() -> None:
 	_only_for(ALLOWED_ROLES, "media_admin")
 
 
+def _url_list(file_urls: str | list[str] | None) -> list[str]:
+	"""JSON dizi ya da liste → temiz adres listesi.
+
+	`trash_files` ve komşuları bu ayrıştırmayı satır içinde tekrarlıyor; yeni
+	toplu uçlar (§14) aynı kopyayı dördüncü kez yazmasın diye tek yere alındı.
+	Tavan kontrolü BURADA DEĞİL `media/bulk_ops.normalize_urls` içinde: sayıyı
+	bilen taraf orası ve tekil uçlar bu yardımcıyı tavan olmadan kullanabilmeli.
+	"""
+	ham = frappe.parse_json(file_urls) if isinstance(file_urls, str) else (file_urls or [])
+	if not isinstance(ham, (list, tuple)):
+		frappe.throw(_("Dosya listesi bir dizi olmalıdır."))
+	urls = [str(u or "").split("?", 1)[0].strip() for u in ham]
+	urls = [u for u in urls if u]
+	if not urls:
+		frappe.throw(_("İşlenecek dosya bulunamadı."))
+	return list(dict.fromkeys(urls))
+
+
 def _guard_destructive() -> None:
 	_only_for(DESTRUCTIVE_ROLES, "media_destructive")
 
@@ -1387,30 +1405,19 @@ def set_media_indexability(
 ) -> dict:
 	"""Asset visibility/indexability politikasını tek yazma kapısından güncelle."""
 	_guard()
-	allowed = {"Public", "Private", "Unlisted", "Protected", "Temporary", "Expired", "Archived", "Deleted"}
-	if visibility not in allowed:
+	from tradehub_core.media import bulk_ops
+
+	# Görünürlük kümesi ve robots süzgeci TEK kaynaktan (`media/bulk_ops.py`).
+	# Buradaki literaller 10 Eyl 2026'da oraya taşındı: toplu uç eklenince aynı
+	# iki liste iki dosyada duruyordu ve birinde yasak olanın diğerinde serbest
+	# kalması an meselesiydi.
+	if visibility not in bulk_ops.VISIBILITIES:
 		frappe.throw(_("Geçersiz medya görünürlüğü: {0}").format(visibility))
 	if visibility == "Private":
 		frappe.throw(
 			_("Private geçişi fiziksel dosya taşıması gerektirir; erişim seviyesi aracını kullanın.")
 		)
-	robots_override = (robots_override or "").strip()
-	if robots_override:
-		allowed_directives = {
-			"index",
-			"noindex",
-			"follow",
-			"nofollow",
-			"nosnippet",
-			"max-image-preview:none",
-			"max-image-preview:standard",
-			"max-image-preview:large",
-			"max-video-preview:0",
-			"max-video-preview:-1",
-		}
-		parts = {p.strip().lower() for p in robots_override.split(",") if p.strip()}
-		if not parts or not parts <= allowed_directives:
-			frappe.throw(_("Geçersiz robots directive."))
+	robots_override = bulk_ops.validate_robots(robots_override)
 	values = {"th_media_visibility": visibility}
 	if frappe.db.has_column("File", "th_media_expires_at"):
 		values["th_media_expires_at"] = expires_at or None
@@ -1714,3 +1721,149 @@ def change_watch_slug(file_url: str, slug: str) -> dict:
 		frappe.throw(_("Dosya adresi zorunlu."))
 	yeni_slug = watch_slug.change_slug(file_url, slug)
 	return {"slug": yeni_slug, "watchUrl": watch_slug.watch_url(yeni_slug)}
+
+
+@frappe.whitelist()
+def find_similar_media(
+	file_url: str, store: str = "", threshold: int | str | None = None, limit: int | str = 20
+) -> dict:
+	"""Katalog genelinde görsel benzerlik araması (§16) — yönetici ucu.
+
+	`seller_media.find_similar_media`'dan TEK farkı kapsam: burada `store` boş
+	bırakılırsa kiracı sınırı UYGULANMAZ ve tüm katalog taranır. Bunu yapabilen
+	tek şey `_guard` rol kapısı; satıcı ucunda böyle bir seçenek yok ve
+	olmamalı (`media/similar.py` modül docstring'i).
+
+	`store` verilirse yönetici tek bir mağazanın gözünden bakar — "bu görselin
+	kopyası bu satıcıda var mı" sorusunun karşılığı.
+	"""
+	_guard()
+	from tradehub_core.media import similar
+
+	temiz = str(file_url or "").split("?", 1)[0].strip()
+	if not temiz:
+		frappe.throw(_("Dosya adresi gerekli."))
+	return similar.search(
+		temiz,
+		store=store or None,
+		threshold=None if threshold in (None, "") else int(threshold),
+		limit=int(limit or 20),
+	)
+
+
+@frappe.whitelist(methods=["POST"])
+def bulk_set_indexability(
+	file_urls: str | list[str] | None = None,
+	visibility: str = "",
+	expires_at: str = "",
+	robots_override: str = "",
+	store: str = "",
+) -> dict:
+	"""Seçili dosyaların görünürlük/index politikasını topluca yaz (§14).
+
+	`set_media_indexability`'nin çoklu karşılığı; doğrulama ve `Private`
+	yasağı AYNI kaynaktan (`media/bulk_ops.py`) geliyor.
+
+	`store` verilirse yazma o mağazanın sahip olduğu dosyalarla sınırlanır —
+	yöneticinin "yalnız bu satıcının dosyalarına dokun" diyebilmesi için.
+	"""
+	_guard()
+	from tradehub_core.media import bulk_ops
+
+	return bulk_ops.set_indexability_many(
+		_url_list(file_urls),
+		visibility,
+		expires_at=expires_at,
+		robots_override=robots_override,
+		store=store or None,
+	)
+
+
+@frappe.whitelist(methods=["POST"])
+def bulk_set_media_seo(
+	file_urls: str | list[str] | None = None, values: str | dict | None = None, store: str = ""
+) -> dict:
+	"""Telif/lisans/künye alanlarını seçili dosyalara topluca yaz (§14).
+
+	Beyaz liste `bulk_ops.BULK_FIELDS` — `slug`/`canonical`/`seo_filename`
+	bilerek dışarıda (her dosyada benzersiz olmalı, gerekçe orada).
+	"""
+	_guard()
+	from tradehub_core.media import bulk_ops
+
+	veri = frappe.parse_json(values) if isinstance(values, str) else (values or {})
+	return bulk_ops.set_fields_many(_url_list(file_urls), veri, store=store or None)
+
+
+@frappe.whitelist(methods=["POST"])
+def bulk_rename_media(
+	file_urls: str | list[str] | None = None,
+	pattern: str = "",
+	start: int | str = 1,
+	store: str = "",
+) -> dict:
+	"""Görünen dosya adını desene göre topluca değiştir (§14).
+
+	Desen yer tutucuları: `{ad}` (mevcut ad gövdesi), `{sira}` / `{sira:3}`
+	(artan sayaç, isteğe bağlı sıfır dolgusu), `{uzanti}`.
+
+	`file_url` DEĞİŞMEZ — Stable Asset ID kabul kriteri gereği. Adresi de
+	değiştiren iş `retro_rename` ve 301 köprüsüyle ayrı yürüyor.
+	"""
+	_guard()
+	from tradehub_core.media import bulk_ops
+
+	return bulk_ops.rename_many(
+		_url_list(file_urls), pattern, start=cint(start) or 1, store=store or None
+	)
+
+
+@frappe.whitelist()
+def get_media_locale_variants(file_url: str, store: str = "") -> dict:
+	"""Dosyanın dile özel medya ezmeleri (§11)."""
+	_guard()
+	from tradehub_core.media import seo
+
+	return {
+		"file_url": (file_url or "").split("?")[0],
+		"variants": seo.locale_variants_for(file_url, store=store or None),
+	}
+
+
+@frappe.whitelist(methods=["POST"])
+def set_media_locale_variant(
+	file_url: str,
+	locale: str,
+	variant_url: str = "",
+	poster_url: str = "",
+	store: str = "",
+	note: str = "",
+) -> dict:
+	"""Dile özel medya/poster ezmesini yaz ya da güncelle (§11).
+
+	İkisi de boş gönderilirse ezme SİLİNİR. Ayrı bir "sil" ucu açmak yerine
+	bu seçildi çünkü panelde işlem tek bir alan temizleme hareketi ve iki
+	uç, istemcide iki koda bölünmüş tek bir karar demekti.
+	"""
+	_guard()
+	from tradehub_core.media import seo
+
+	url = (file_url or "").split("?")[0].strip()
+	anahtar = {"file_url": url, "locale": locale, "store": store or ""}
+	mevcut = frappe.db.get_value(seo.LOCALE_VARIANT_DOCTYPE, anahtar, "name")
+
+	if not (variant_url or "").strip() and not (poster_url or "").strip():
+		if mevcut:
+			frappe.delete_doc(seo.LOCALE_VARIANT_DOCTYPE, mevcut, ignore_permissions=False)
+		return {"file_url": url, "locale": locale, "deleted": bool(mevcut)}
+
+	doc = (
+		frappe.get_doc(seo.LOCALE_VARIANT_DOCTYPE, mevcut)
+		if mevcut
+		else frappe.get_doc({"doctype": seo.LOCALE_VARIANT_DOCTYPE, **anahtar})
+	)
+	doc.variant_url = variant_url
+	doc.poster_url = poster_url
+	doc.note = note
+	doc.save()
+	return {"file_url": url, "locale": locale, "name": doc.name}

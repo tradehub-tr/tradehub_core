@@ -25,7 +25,7 @@ import os
 
 import frappe
 
-from tradehub_core.media import ownership
+from tradehub_core.media import ownership, tags_source
 
 # Satıcının serbestçe yazabildiği alanlar. Beyaz liste: gelen sözlükte başka
 # bir anahtar olursa yok sayılır — istek gövdesine `th_media_state` yazıp
@@ -85,11 +85,18 @@ def read(file_url: str, store: str) -> dict:
 		"File", kayitlar[0], list(_FIELD_MAP.values()), as_dict=True
 	) or {}
 	etiket = row.get("th_media_tags") or ""
+	etiketler = [t for t in etiket.split(",") if t]
+	# §17 — etiketin YANINDA kaynağı. Ayrı uç açılmadı: panel etiketi ve
+	# kaynağını her zaman birlikte gösteriyor, iki çağrı iki gidiş dönüş
+	# ve arada tutarsız bir an demekti.
+	kaynaklar = tags_source.senkronla(tags_source.read(file_url, store), etiketler)
 	return {
 		"title": row.get("th_media_title") or "",
 		"alt": row.get("th_media_alt") or "",
 		"description": row.get("th_media_description") or "",
-		"tags": [t for t in etiket.split(",") if t],
+		"tags": etiketler,
+		"tag_sources": kaynaklar,
+		"tag_source_summary": tags_source.ozet(kaynaklar),
 		"favorite": bool(row.get("th_media_favorite")),
 		"width": row.get("th_media_width") or None,
 		"height": row.get("th_media_height") or None,
@@ -137,12 +144,14 @@ def write(file_url: str, store: str, patch: dict) -> dict:
 		frappe.throw(frappe._("Dosya bulunamadı."), frappe.DoesNotExistError)
 
 	degerler: dict[str, object] = {}
+	yeni_etiketler: list[str] | None = None
 	for anahtar, deger in (patch or {}).items():
 		if anahtar not in EDITABLE:
 			continue
 		alan = _FIELD_MAP[anahtar]
 		if anahtar == "tags":
 			degerler[alan] = _clean_tags(deger)
+			yeni_etiketler = [t for t in str(degerler[alan]).split(",") if t]
 		elif anahtar == "favorite":
 			degerler[alan] = 1 if deger else 0
 		else:
@@ -152,6 +161,13 @@ def write(file_url: str, store: str, patch: dict) -> dict:
 		return read(file_url, store)
 
 	frappe.db.set_value("File", {"name": ["in", kayitlar]}, degerler, update_modified=False)
+	# §17 — etiket kaynağı. Bu yol satıcının kendi panelinden geçtiği için
+	# kaynak her zaman `manual`; makine yolları (`categories.suggest`,
+	# kural motoru) kendi kaynaklarıyla `tags_source.write`'ı ayrıca çağırır.
+	# Etiket YAZILMADIYSA haritaya dokunulmuyor: başlık düzenlemesi etiket
+	# kaynaklarını sıfırlamamalı.
+	if yeni_etiketler is not None:
+		tags_source.write(kayitlar, yeni_etiketler, tags_source.SOURCE_MANUAL)
 	frappe.db.commit()
 	return read(file_url, store)
 

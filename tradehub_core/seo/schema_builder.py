@@ -6,6 +6,7 @@ Pure fonksiyonlar Frappe runtime'a bağımlı değildir. Composer'lar
 """
 
 import html
+import json
 import mimetypes
 from urllib.parse import urljoin, urlsplit
 
@@ -70,6 +71,11 @@ def build_image_object(seo_fields: dict, site_url: str) -> dict | str:
 	# turu 1: bu satır-içi döngü `build_digital_document`'ta AYNEN kopyalanmıştı,
 	# denetim mükerrerliği reddetti; ikisi de artık `_license_props`'u çağırıyor).
 	nesne.update(_license_props(seo_fields, site_url))
+	# §2 alan seti: anahtar kelimeler ve konum. `_semantik_props` görsel ve
+	# dokümanla PAYLAŞILIYOR — üçü de CreativeWork soyundan geliyor ve aynı
+	# alanları taşıyor; üç yerde üç kopya `_license_props`'un düzeltilen
+	# hatasının tekrarı olurdu.
+	nesne.update(_semantik_props(seo_fields))
 
 	# Yalnız url/contentUrl kaldıysa nesne bir şey söylemiyor demektir.
 	if set(nesne) <= {"@type", "url", "contentUrl"}:
@@ -77,9 +83,33 @@ def build_image_object(seo_fields: dict, site_url: str) -> dict | str:
 	return nesne
 
 
+#: `duration` için üst sınır (saniye). 24 saatin üstü bir medya süresi
+#: değil, bozuk veridir — ve `int()` sonsuzda `OverflowError` atıyor.
+_MAKUL_SURE_TAVANI: int = 24 * 60 * 60
+
+
 def _iso8601_sure(saniye: float) -> str:
-	"""65.0 → "PT1M5S"; 0 → "" (basılmaz)."""
-	toplam = int(saniye or 0)
+	"""65.0 → "PT1M5S"; 0 → "" (basılmaz).
+
+	SONSUZ VE NaN KORUMASI (10 Eyl 2026, fuzz bulgusu): `float("inf")`
+	`int()` çağrısında `OverflowError` atıyordu ve bu istisna
+	`build_video_object`/`build_audio_object`'ı BAŞTAN düşürüyordu — yani
+	tek bozuk `duration` değeri o ürünün TÜM yapısal verisini siliyordu.
+	Değer DB'den geliyor ve `th_media_duration` bir `Float`; migration ya da
+	bozuk ffprobe çıktısıyla sonsuz olabilir.
+
+	Sözleşme: okunamayan/saçma süre = süre YOK (boş dize), istisna değil.
+	"""
+	try:
+		ham = float(saniye or 0)
+	except (TypeError, ValueError):
+		return ""
+	# NaN kendisiyle eşit değildir — sonsuzluk ve NaN aynı kapıdan çıkar.
+	if ham != ham or ham in (float("inf"), float("-inf")):
+		return ""
+	if ham > _MAKUL_SURE_TAVANI:
+		return ""
+	toplam = int(ham)
 	if toplam <= 0:
 		return ""
 	dk, sn = divmod(toplam, 60)
@@ -152,7 +182,89 @@ def build_video_object(
 			"target": {"@type": "EntryPoint", "urlTemplate": seek_to_action_url_template},
 			"startOffset-input": "required name=seek_to_second_number",
 		}
+	obj.update(_video_yayin_kisitlari(seo_fields))
+	bolumler = _chapters(seo_fields, site_url=site_url, content_url=content_url or embed_url)
+	if bolumler:
+		obj["hasPart"] = bolumler
 	return obj
+
+
+def _video_yayin_kisitlari(seo_fields: dict) -> dict:
+	"""`regionsAllowed`, `contentRating`, `isFamilyFriendly` (MOGEM-620 §5).
+
+	Üçü tek fonksiyonda çünkü tek karara aitler: "bu videoyu kim izleyebilir".
+	`isFamilyFriendly` yaş sınırından TÜRETİLİR, ayrı alan değil —
+	`age_restriction` yalnız "18+" değerini kabul ediyor (`media/seo.py`
+	doğrulaması), dolayısıyla ikisini ayrı tutmak aynı gerçeği iki kolonda
+	tutup birbirine ters düşme riski açardı.
+	"""
+	out: dict = {}
+	bolgeler = [p.strip() for p in str(seo_fields.get("regions_allowed") or "").split(",") if p.strip()]
+	if bolgeler:
+		out["regionsAllowed"] = bolgeler
+	derece = str(seo_fields.get("content_rating") or "").strip()
+	if derece:
+		out["contentRating"] = derece
+	yas = str(seo_fields.get("age_restriction") or "").strip()
+	if yas:
+		out["isFamilyFriendly"] = False
+	return out
+
+
+def _chapters(seo_fields: dict, *, site_url: str, content_url: str) -> list:
+	"""Bölümleri `Clip` listesine çevir (§5 "chapters, Key Moments").
+
+	Google'ın Key Moments'ı `hasPart` içinde `Clip` bekliyor ve her `Clip`
+	kendi `url`'üne ihtiyaç duyuyor — bu yüzden bölüm başlangıcı izleme
+	sayfasının `?t=` parametresine çevriliyor; `SeekToAction` ile AYNI
+	sözleşme (`seo/page_resolver.py` o parametreyi zaten okuyor).
+
+	Bozuk/eksik veri sessizce ATLANIR, patlatmaz: `chapters` yazma anında
+	doğrulanıyor (`media/seo._dogrula_json_alan`) ama bu fonksiyon yamadan
+	ÖNCE yazılmış ya da elle bozulmuş satırlarla da karşılaşabilir ve tek
+	bozuk bölüm yüzünden tüm VideoObject'i düşürmek orantısız olurdu.
+	"""
+	ham = seo_fields.get("chapters")
+	if not ham:
+		return []
+	try:
+		veri = json.loads(ham) if isinstance(ham, str) else ham
+	except ValueError:
+		return []
+	if not isinstance(veri, list):
+		return []
+
+	taban = _absolute_url(content_url, site_url)
+	out = []
+	for madde in veri:
+		if not isinstance(madde, dict):
+			continue
+		try:
+			ham_baslangic = float(madde.get("start"))
+			# `int(float("inf"))` `OverflowError` atıyor ve o istisna
+			# `except (TypeError, ValueError)` tarafından YAKALANMIYORDU —
+			# tek bozuk bölüm tüm VideoObject'i düşürüyordu (fuzz bulgusu).
+			if ham_baslangic != ham_baslangic or abs(ham_baslangic) == float("inf"):
+				continue
+			baslangic = int(ham_baslangic)
+		except (TypeError, ValueError, OverflowError):
+			continue
+		ad = str(madde.get("title") or "").strip()
+		if baslangic < 0 or not ad:
+			continue
+		klip: dict = {"@type": "Clip", "name": ad, "startOffset": baslangic}
+		bitis = madde.get("end")
+		if bitis is not None:
+			try:
+				ham_bitis = float(bitis)
+				if ham_bitis == ham_bitis and abs(ham_bitis) != float("inf"):
+					klip["endOffset"] = int(ham_bitis)
+			except (TypeError, ValueError, OverflowError):
+				pass
+		if taban:
+			klip["url"] = f"{taban}?t={baslangic}"
+		out.append(klip)
+	return out
 
 
 def build_image_list(seo_fields_list: list[dict], site_url: str) -> list:
@@ -174,6 +286,56 @@ def _absolute_url(value: str | None, site_url: str) -> str:
 	parts = urlsplit(site_url)
 	origin = f"{parts.scheme}://{parts.netloc}/"
 	return urljoin(origin, str(value).lstrip("/"))
+
+
+def _semantik_props(seo_fields: dict) -> dict:
+	"""`keywords`, `inLanguage`, `contentLocation` — CreativeWork ortak alanları.
+
+	`ImageObject`, `AudioObject` ve `DigitalDocument`'ın ÜÇÜ de
+	`CreativeWork` soyundan geliyor ve şartnamenin §2'de saydığı bu alanlar
+	üçünde de aynı anlama sahip. `_license_props`'un öğrettiği ders burada
+	baştan uygulanıyor: tek uygulama, üç çağıran.
+
+	`VideoObject` bilerek DIŞARIDA: onun `inLanguage`'ı altyazı diliyle
+	karışıyor ve `contentLocation` video için "çekim yeri" anlamına gelip
+	görselden farklı bir kavram — ayrı kararı hak ediyor, kopya değil.
+
+	`geo` alanı "enlem,boylam" tek metin (yazma anında doğrulanıyor); burada
+	`GeoCoordinates`'a açılıyor. Bozuk değer ATLANIR: eski satırlar ya da
+	elle düzenleme yüzünden gelen geçersiz koordinat tüm nesneyi düşürmemeli.
+	"""
+	out: dict = {}
+	anahtarlar = [k.strip() for k in str(seo_fields.get("keywords") or "").split(",") if k.strip()]
+	if anahtarlar:
+		# schema.org `keywords` hem dizi hem virgüllü metin kabul ediyor;
+		# dizi tercih edildi çünkü tüketici tarafında ayrıştırma gerekmiyor.
+		out["keywords"] = anahtarlar
+	dil = str(seo_fields.get("language") or "").strip()
+	if dil:
+		out["inLanguage"] = dil
+
+	yer_adi = str(seo_fields.get("location") or "").strip()
+	geo = str(seo_fields.get("geo") or "").strip()
+	ulke = str(seo_fields.get("country") or "").strip()
+	if not (yer_adi or geo or ulke):
+		return out
+
+	yer: dict = {"@type": "Place"}
+	if yer_adi:
+		yer["name"] = yer_adi
+	if ulke:
+		yer["address"] = {"@type": "PostalAddress", "addressCountry": ulke}
+	if geo:
+		try:
+			enlem, boylam = (float(p) for p in geo.split(","))
+		except ValueError:
+			enlem = boylam = None
+		if enlem is not None:
+			yer["geo"] = {"@type": "GeoCoordinates", "latitude": enlem, "longitude": boylam}
+	# Yalnız "@type" kaldıysa nesne hiçbir şey söylemiyor demektir.
+	if set(yer) > {"@type"}:
+		out["contentLocation"] = yer
+	return out
 
 
 def _license_props(seo_fields: dict, site_url: str) -> dict:
@@ -267,6 +429,8 @@ def build_digital_document(
 		nesne["dateCreated"] = seo_fields["date_created"]
 
 	nesne.update(_license_props(seo_fields, site_url))
+	# §2 alan seti — `build_image_object` ile PAYLAŞILAN uygulama.
+	nesne.update(_semantik_props(seo_fields))
 
 	return nesne
 
@@ -354,6 +518,8 @@ def build_audio_object(
 		nesne["dateCreated"] = seo_fields["date_created"]
 
 	nesne.update(_license_props(seo_fields, site_url))
+	# §2 alan seti — `build_image_object` ile PAYLAŞILAN uygulama.
+	nesne.update(_semantik_props(seo_fields))
 
 	return nesne
 
@@ -431,6 +597,14 @@ def build_product_schema(
 		},
 	}
 
+	# GTIN (EAN/UPC/ISBN) — §12'nin eksik küresel tanımlayıcısı. `sku` zaten
+	# `Listing.name`'den geliyor; ikisi FARKLI: `sku` mağazanın kendi kodu,
+	# `gtin` ürünün dünya çapındaki kimliği. Google Merchant eşleştirmesi
+	# ikincisine bakıyor.
+	gtin = str(listing.get("gtin") or "").strip()
+	if gtin:
+		schema["gtin"] = gtin
+
 	if brand and brand.get("name"):
 		brand_slug = brand.get("slug") or ""
 		schema["brand"] = {
@@ -463,7 +637,79 @@ def build_product_schema(
 	if media_documents:
 		schema["subjectOf"] = media_documents
 
+	# §12 — varyantlı ürün `Product` DEĞİL `ProductGroup` olmalı. Karar
+	# nesne kurulduktan SONRA veriliyor çünkü `ProductGroup` `Product`'ın
+	# tüm alanlarını taşıyor artı üç tane fazlası var; iki ayrı kurucu
+	# yazmak aynı 40 satırı ikinci kez yazmak olurdu.
+	if listing.get("has_variants") and listing.get("variants"):
+		schema.update(_product_group_props(listing, url=url, currency=currency))
+
 	return schema
+
+
+def _product_group_props(listing: dict, *, url: str, currency: str) -> dict:
+	"""Varyantlı ürünü `ProductGroup`'a yükselten alanlar (§12).
+
+	`hasVariant` içindeki her varyant TAM bir `Product` olmak zorunda değil;
+	Google `sku`/`gtin`/`image`/`offers` dörtlüsüyle yetiniyor ve buradaki
+	veri de o kadar (`Listing Variant Item`). Eksik alanı uydurmak yerine
+	basmamak, `build_image_object`'in düz-URL'ye düşme kararıyla aynı ilke.
+
+	`variesBy` varyant eksenlerinden TÜRETİLİR, sabit liste değil: hangi
+	eksenin kullanıldığı ilana göre değişiyor (renk/beden/hacim) ve koda
+	gömülü bir liste ilk yeni eksende yanlış olurdu.
+	"""
+	varyantlar = listing.get("variants") or []
+	eksenler: list[str] = []
+	hasvariant: list[dict] = []
+
+	for v in varyantlar:
+		if not isinstance(v, dict):
+			continue
+		for anahtar in ("attribute_type", "attribute_type_2", "attribute_type_3"):
+			eksen = str(v.get(anahtar) or "").strip()
+			if eksen and eksen not in eksenler:
+				eksenler.append(eksen)
+
+		sku = str(v.get("variant_sku") or "").strip()
+		gtin = str(v.get("variant_gtin") or "").strip()
+		if not (sku or gtin):
+			# Kimliksiz varyant yapısal veride hiçbir işe yaramıyor —
+			# tüketici onu ne eşleştirebilir ne de ayırt edebilir.
+			continue
+		nesne: dict = {"@type": "Product", "@id": f"{url}#variant-{sku or gtin}"}
+		if sku:
+			nesne["sku"] = sku
+		if gtin:
+			nesne["gtin"] = gtin
+		ad = " / ".join(
+			str(v.get(a) or "").strip()
+			for a in ("attribute_value", "attribute_value_2", "attribute_value_3")
+			if str(v.get(a) or "").strip()
+		)
+		if ad:
+			nesne["name"] = ad
+		if v.get("variant_image"):
+			nesne["image"] = v["variant_image"]
+		if v.get("variant_price"):
+			nesne["offers"] = {
+				"@type": "Offer",
+				"priceCurrency": listing.get("currency") or currency,
+				"price": str(v["variant_price"]),
+				"availability": (
+					"https://schema.org/InStock"
+					if float(v.get("variant_stock") or 0) > 0
+					else "https://schema.org/OutOfStock"
+				),
+			}
+		hasvariant.append(nesne)
+
+	if not hasvariant:
+		return {}
+	out: dict = {"@type": "ProductGroup", "productGroupID": listing.get("name", ""), "hasVariant": hasvariant}
+	if eksenler:
+		out["variesBy"] = eksenler
+	return out
 
 
 def build_breadcrumb_schema(*, items: list[dict], schema_id: str | None = None) -> dict:
@@ -799,8 +1045,24 @@ def _listing_image_objects(listing: dict, site_url: str) -> list:
 				}
 			)
 			nesne = build_image_object(alanlar, site_url)
-			if nesne:
-				out.append(nesne)
+			if not nesne:
+				continue
+			# §12 medya rolü. `build_image_object` bilerek almıyor: rol
+			# görselin KENDİSİNE değil bu ÜRÜNDEKİ kullanımına ait ve o
+			# fonksiyon saf bir varlık kurucusu. Aynı görsel bir üründe
+			# birincil, başkasında galeri olabilir.
+			#
+			# `representativeOfPage` yalnız birincilde: schema.org'a göre
+			# "sayfayı temsil eden görsel" TEK olabilir ve galeri
+			# öğelerinin hepsine basmak bildirimi anlamsızlaştırırdı.
+			rol = baglam.get("media_role") or ""
+			if isinstance(nesne, dict) and rol:
+				if rol == "primary":
+					nesne["representativeOfPage"] = True
+				# Rolün kendisi de taşınıyor: feed ve panel "swatch mı,
+				# paketleme mi" ayrımını yapısal veriden okuyabilsin.
+				nesne["additionalType"] = f"https://schema.org/ImageObject#{rol}"
+			out.append(nesne)
 		return out
 	except Exception:
 		# Yapısal veri üretimi bir sayfa isteğinin içinde koşuyor; medya
@@ -1060,6 +1322,53 @@ def compose_for_home(defaults: dict, site_url: str) -> list[dict]:
 	return [org, website]
 
 
+def _listing_variant_context(listing: dict) -> dict:
+	"""`gtin`, `has_variants` ve varyant satırları — ProductGroup girdisi (§12).
+
+	Çağıran (`api/listing.py`) bu üçünü zaten göndermiş olabilir; o zaman
+	SORGU AÇILMAZ. Frappe wrapper'ı olduğu için burada DB'ye dokunmak
+	serbest, ama gereksiz sorgu ürün detay sayfasının hot-path'inde
+	(`compose_for_listing` her istekte koşuyor) bedava değil.
+	"""
+	import frappe
+
+	out: dict = {}
+	if "gtin" not in listing and frappe.db.has_column("Listing", "gtin"):
+		out["gtin"] = frappe.db.get_value("Listing", listing.get("name"), "gtin") or ""
+
+	if listing.get("variants") is not None:
+		return out
+	if not listing.get("has_variants"):
+		# `has_variants` gelmemiş olabilir; tek alanlık okuma varyant
+		# tablosunu taramaktan ucuz.
+		if "has_variants" in listing or not listing.get("name"):
+			return out
+		out["has_variants"] = frappe.db.get_value("Listing", listing["name"], "has_variants") or 0
+		if not out["has_variants"]:
+			return out
+
+	out["variants"] = frappe.get_all(
+		"Listing Variant Item",
+		filters={"parent": listing.get("name"), "parenttype": "Listing"},
+		fields=[
+			"attribute_type",
+			"attribute_value",
+			"attribute_type_2",
+			"attribute_value_2",
+			"attribute_type_3",
+			"attribute_value_3",
+			"variant_sku",
+			"variant_gtin",
+			"variant_image",
+			"variant_price",
+			"variant_stock",
+		],
+		order_by="idx asc",
+		limit_page_length=0,
+	)
+	return out
+
+
 def compose_for_listing(listing: dict, defaults: dict, site_url: str) -> list[dict]:
 	"""Frappe wrapper: Listing için tüm schema setini üret."""
 	listing = {
@@ -1067,6 +1376,7 @@ def compose_for_listing(listing: dict, defaults: dict, site_url: str) -> list[di
 		"media_images": _listing_image_objects(listing, site_url),
 		"media_videos": _listing_video_objects(listing, site_url),
 		"media_documents": _listing_document_objects(listing, site_url),
+		**_listing_variant_context(listing),
 	}
 	ctx = {"listing": listing}
 	ctx.update(_get_listing_extra_context(listing.get("name", "")))

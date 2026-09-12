@@ -522,7 +522,7 @@ class TestListingVideoObjectJsonLd(FrappeTestCase):
 
 		listing = frappe.get_doc("Listing", ilan["name"]).as_dict()
 		schemas = compose_for_listing(listing, {}, "https://istoc.localhost")
-		product = next(s for s in schemas if s["@type"] == "Product")
+		product = next(s for s in schemas if str(s.get("@id", "")).endswith("#product"))
 		self.assertIn("video", product)
 		self.assertEqual(
 			product["video"][0]["thumbnailUrl"], "https://istoc.localhost/files/task6-poster.jpg"
@@ -545,7 +545,7 @@ class TestListingVideoObjectJsonLd(FrappeTestCase):
 
 		listing = frappe.get_doc("Listing", ilan["name"]).as_dict()
 		schemas = compose_for_listing(listing, {}, "https://istoc.localhost")
-		product = next(s for s in schemas if s["@type"] == "Product")
+		product = next(s for s in schemas if str(s.get("@id", "")).endswith("#product"))
 		self.assertNotIn("video", product)
 
 

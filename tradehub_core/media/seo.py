@@ -40,6 +40,8 @@ Hiçbir katmanda değer yoksa boş dize döner. Ekran okuyucu boş `alt`'ı
 
 from __future__ import annotations
 
+import json
+import re
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -48,12 +50,31 @@ from frappe.utils import cint
 
 from tradehub_core.seo.i18n import CONTENT_LANGS, DEFAULT_LANG, resolve_content_field
 
-#: Çok dilli alanlar — `File` kolon öneki `th_media_`, ezme tablosunda çıplak ad.
+#: Çok dilli VE kullanım başına ezilebilir alanlar. `File` kolon öneki
+#: `th_media_`, ezme tablosunda (`Media SEO Override`) çıplak ad.
+#:
+#: Bu üçlü BİLEREK büyümüyor: şartnamenin §2 "asset metadata ile kullanım
+#: metadata'sı ayrılmalı" maddesi yalnız alt/title/caption override'ı sayıyor.
+#: Yeni bir alanı buraya eklemek `Media SEO Override`'a dört kolon daha
+#: açmak ve her kullanım satırını şişirmek demek.
 TRANSLATABLE: tuple[str, ...] = ("alt", "title", "caption")
+
+#: Çok dilli ama YALNIZ varlık düzeyinde tutulan alanlar (§11).
+#:
+#: `TRANSLATABLE`'dan farkı: aynı asset'in iki farklı kullanımı için ayrı
+#: değer TUTULMAZ. Gerekçe alanların doğasında — bir görselin açıklaması ya
+#: da bir videonun transkripti dosyanın kendisine ait; hangi sayfada
+#: gösterildiğine göre değişmez. Alt metni değişir (bağlam anlatır),
+#: transkript değişmez (ses aynı ses).
+#:
+#: 10 Eyl 2026'da `description` `SINGLE`'dan BURAYA taşındı: şartname §11
+#: "alt, title, caption ve description alanları locale bazında tutulabilmeli"
+#: diyor ve description tek dilliydi. `transcript`/`captions_url` de aynı
+#: maddenin ikinci cümlesiyle ("transcript ve subtitle çok dilli") geldi.
+ASSET_TRANSLATABLE: tuple[str, ...] = ("description", "transcript", "captions_url")
 
 #: Tek dilli varlık alanları (dış yüzeyde render edilmiyor ya da dilden bağımsız).
 SINGLE: tuple[str, ...] = (
-	"description",
 	"tags",
 	"creator",
 	"creator_type",
@@ -67,8 +88,29 @@ SINGLE: tuple[str, ...] = (
 	"slug",
 	"canonical",
 	"alt_source",
-	"transcript",
-	"captions_url",
+	# ── §2 alan seti tamamlaması (v15_9_54) ──────────────────────────────
+	"long_description",
+	"keywords",
+	"entities",
+	"content_purpose",
+	"source",
+	"creator_role",
+	"country",
+	"region",
+	"location",
+	"geo",
+	# ── §5 Video SEO alanları (v15_9_54) ─────────────────────────────────
+	# `chapters` JSON metni olarak taşınıyor; ayrıştırma `seo_render`/
+	# `schema_builder` tarafında, bu katman metni taşır ve doğrular.
+	"chapters",
+	"regions_allowed",
+	"age_restriction",
+	"content_rating",
+	# ── §17 etiket kaynağı (v15_9_54) ────────────────────────────────────
+	# Etiket → kaynak eşlemesi (JSON). `tags`'ın YANINDA duruyor, içinde
+	# değil: `tags` virgüllü metin ve şeklini değiştirmek onu okuyan her
+	# yeri (arama, filtre, panel, yedek) kırardı.
+	"tag_sources",
 )
 
 OVERRIDE_DOCTYPE: str = "Media SEO Override"
@@ -97,8 +139,15 @@ def _asset_columns(*, include_text: bool = False) -> list[str]:
 	satırda N×64KB taşır. `page_count` (Int) küçük olduğu için ayrım gerekmiyor, her zaman gelir.
 	"""
 	adaylar = [f"th_media_{alan}" for alan in SINGLE]
-	for alan in TRANSLATABLE:
+	for alan in (*TRANSLATABLE, *ASSET_TRANSLATABLE):
 		adaylar.append(f"th_media_{alan}")
+		# `transcript` dil kolonları Long Text. Toplu yolda dört dilin dördü
+		# birden 100+ satırda `extracted_text`'le AYNI sorunu üretirdi
+		# (N×4×64KB) — bu yüzden onlar da `include_text` kapısının arkasında.
+		# Taban `th_media_transcript` kolonu dışarıda kalıyor: v15_9_49'dan
+		# beri toplu yolda geliyor ve onu çıkarmak mevcut çağıranları kırardı.
+		if alan == "transcript" and not include_text:
+			continue
 		adaylar.extend(f"th_media_{alan}_{lang}" for lang in CONTENT_LANGS)
 	# Çözünürlük `SINGLE` listesinde DEĞİL (SEO metni değil, dosyanın fiziksel
 	# gerçeği) ama `_birlestir` onu döndürüyor: sorguya alınmazsa her zaman 0
@@ -301,6 +350,11 @@ def _birlestir(url: str, varlik: dict, lang: str, ezme: dict | None = None) -> d
 		if not ezilmis:
 			deger = _coz(varlik, alan, lang, onek="th_media_")
 		sonuc[alan] = deger or ""
+	# Varlık düzeyinde çok dilli alanlar: ezme YOK, doğrudan dil çözümü.
+	# `TRANSLATABLE` döngüsünün aynısı ama `_override_value` adımı olmadan —
+	# bu alanların kullanım başına değeri yok (gerekçe `ASSET_TRANSLATABLE`).
+	for alan in ASSET_TRANSLATABLE:
+		sonuc[alan] = _coz(varlik, alan, lang, onek="th_media_") or ""
 	for alan in SINGLE:
 		sonuc[alan] = varlik.get(f"th_media_{alan}") or ""
 	if ezme.get("source"):
@@ -325,6 +379,13 @@ def _birlestir(url: str, varlik: dict, lang: str, ezme: dict | None = None) -> d
 	# burada, tek yerde durduruyor.
 	sonuc["page_count"] = max(0, cint(varlik.get("th_media_page_count")))
 	sonuc["extracted_text"] = varlik.get("th_media_extracted_text") or ""
+	# `has_text` metnin KENDİSİ değil VARLIĞI. Ayrı anahtar olmasının sebebi
+	# `extracted_text`'in toplu yolda hiç okunmaması (Long Text, 100+ satırda
+	# N×64KB — `_asset_columns` docstring'i): toplu denetim metnin var olup
+	# olmadığını bilmek zorunda ama metni taşımak zorunda değil. Toplu yolda
+	# burada False kalır ve `seo_audit.audit_scope` tek bir varlık sorgusuyla
+	# üzerine yazar; tekil yolda doğrudan doğru değer çıkar.
+	sonuc["has_text"] = bool(sonuc["extracted_text"].strip())
 	sonuc["overridden"] = bool(ezme)
 	sonuc["localized"] = {
 		alan: {
@@ -337,6 +398,17 @@ def _birlestir(url: str, varlik: dict, lang: str, ezme: dict | None = None) -> d
 		}
 		for alan in TRANSLATABLE
 	}
+	# Varlık düzeyi çok dilli alanlar AYNI `localized` sözlüğüne giriyor ama
+	# ezme katmanına hiç bakmadan. Panelin tek bir yerden okuması için ayrı
+	# anahtar açılmadı: `localized["description"]["en"]` ile
+	# `localized["alt"]["en"]` istemci için aynı şey — farkı YAZMA tarafı
+	# biliyor (`set_override` `ASSET_TRANSLATABLE`'ı reddeder).
+	sonuc["localized"].update(
+		{
+			alan: {l: str(varlik.get(f"th_media_{alan}_{l}") or "") for l in CONTENT_LANGS}
+			for alan in ASSET_TRANSLATABLE
+		}
+	)
 	return sonuc
 
 
@@ -360,11 +432,21 @@ def listing_usage_contexts(listing_name: str, file_urls: list[str] | None = None
 			"ref_field": "primary_image",
 			"context_doctype": "Listing",
 			"context_name": listing_name,
+			# Ana görselin rolü kayıttan OKUNMAZ, kimliğinden gelir:
+			# `Listing.primary_image` alanında duruyorsa o ürünün birincil
+			# görselidir. `Listing Image` satırlarının aksine burada rol
+			# alanı yok ve olması da anlamsız olurdu (§12).
+			"media_role": "primary",
 		})
+	# `media_role` (v15_9_54) yaması koşmamış bir veritabanında kolon yok;
+	# alan listesine koşulsuz eklemek sorguyu düşürürdü.
+	alanlar = ["name", "image", "idx"]
+	if frappe.db.has_column("Listing Image", "media_role"):
+		alanlar.append("media_role")
 	for satir in frappe.get_all(
 		"Listing Image",
 		filters={"parent": listing_name, "parenttype": "Listing"},
-		fields=["name", "image", "idx"],
+		fields=alanlar,
 		order_by="idx asc",
 		limit_page_length=0,
 	):
@@ -378,6 +460,10 @@ def listing_usage_contexts(listing_name: str, file_urls: list[str] | None = None
 			"ref_field": "image",
 			"context_doctype": "Listing",
 			"context_name": listing_name,
+			# Rol boşsa "gallery": galeri tablosundaki bir satırın varsayılan
+			# rolü galeri olmaktır. Boş bırakmak tüketiciyi (feed, panel)
+			# "rol yok" ile "rol galeri" arasında karar vermeye zorlardı.
+			"media_role": str(satir.get("media_role") or "").strip() or "gallery",
 		})
 	return sonuc
 
@@ -436,11 +522,14 @@ def set_asset_fields(file_url: str, values: dict[str, Any], *, store: str | None
 	for anahtar, deger in values.items():
 		if anahtar in SINGLE:
 			izinli[f"th_media_{anahtar}"] = deger
-		elif anahtar in TRANSLATABLE:
+		elif anahtar in TRANSLATABLE or anahtar in ASSET_TRANSLATABLE:
 			izinli[f"th_media_{anahtar}"] = deger
 		elif "_" in anahtar:
 			taban, _, lang = anahtar.rpartition("_")
-			if taban in TRANSLATABLE and lang in CONTENT_LANGS:
+			# `ASSET_TRANSLATABLE` de dil ekli yazmayı kabul eder
+			# (`description_en`); farkı YALNIZ `set_override`'da — orası
+			# kullanım katmanı ve bu alanların orada karşılığı yok.
+			if taban in (*TRANSLATABLE, *ASSET_TRANSLATABLE) and lang in CONTENT_LANGS:
 				izinli[f"th_media_{anahtar}"] = deger
 	izinli = {k: v for k, v in izinli.items() if frappe.db.has_column("File", k)}
 	if not izinli:
@@ -494,7 +583,95 @@ def _validate_asset_values(values: dict[str, Any]) -> dict[str, Any]:
 				frappe.throw(frappe._("Geçersiz hak bitiş tarihi."))
 		else:
 			clean["rights_expires_on"] = None
+	_dogrula_yeni_alanlar(clean)
 	return clean
+
+
+#: `th_media_geo` biçimi: "enlem,boylam". Aralık kontrolü ayrıca yapılıyor —
+#: desen "91,181"i de kabul eder, dünya etmez.
+_GEO_DESEN = re.compile(r"^-?\d{1,3}(\.\d+)?\s*,\s*-?\d{1,3}(\.\d+)?$")
+
+#: ISO 3166-1 alpha-2 — iki büyük harf. `regions_allowed` bunlardan virgüllü.
+_ULKE_DESEN = re.compile(r"^[A-Z]{2}$")
+
+
+def _dogrula_yeni_alanlar(clean: dict[str, Any]) -> None:
+	"""v15_9_54 ile gelen alanların biçim doğrulaması.
+
+	Hepsi yapısal veriye ya da HTTP başlığına giriyor; serbest metin olarak
+	bırakmak geçersiz JSON-LD üretmenin en kısa yolu. Doğrulama YAZMA
+	anında, okuma anında değil — bozuk değer DB'ye hiç girmesin ki
+	`schema_builder` her okumada yeniden savunma yapmak zorunda kalmasın.
+	"""
+	geo = str(clean.get("geo") or "").strip()
+	if geo:
+		if not _GEO_DESEN.match(geo):
+			frappe.throw(frappe._("Koordinat biçimi 'enlem,boylam' olmalıdır."))
+		enlem, boylam = (float(p) for p in geo.split(","))
+		if not (-90 <= enlem <= 90) or not (-180 <= boylam <= 180):
+			frappe.throw(frappe._("Koordinat aralık dışında."))
+		clean["geo"] = f"{enlem},{boylam}"
+
+	for anahtar in ("country", "region"):
+		deger = str(clean.get(anahtar) or "").strip().upper()
+		if deger and not _ULKE_DESEN.match(deger):
+			frappe.throw(frappe._("{0} iki harfli ISO 3166-1 kodu olmalıdır.").format(anahtar))
+		if anahtar in clean:
+			clean[anahtar] = deger
+
+	izinli = str(clean.get("regions_allowed") or "").strip().upper()
+	if izinli:
+		kodlar = [p.strip() for p in izinli.split(",") if p.strip()]
+		if not kodlar or any(not _ULKE_DESEN.match(k) for k in kodlar):
+			frappe.throw(frappe._("İzinli bölgeler virgülle ayrılmış ISO 3166-1 kodları olmalıdır."))
+		clean["regions_allowed"] = ",".join(dict.fromkeys(kodlar))
+
+	yas = str(clean.get("age_restriction") or "").strip().lower()
+	if yas and yas != "18+":
+		# schema.org `isFamilyFriendly`/`contentRating` ikilisinde Google'ın
+		# tanıdığı TEK yaş kısıtı değeri "18+". Serbest metin ("16 yaş",
+		# "R18") yapısal veride hiçbir şey ifade etmez.
+		frappe.throw(frappe._("Yaş sınırı yalnız '18+' olabilir."))
+	if "age_restriction" in clean:
+		clean["age_restriction"] = yas
+
+	_dogrula_json_alan(clean, "chapters", liste=True)
+	_dogrula_json_alan(clean, "tag_sources", liste=False)
+
+
+def _dogrula_json_alan(clean: dict[str, Any], anahtar: str, *, liste: bool) -> None:
+	"""JSON taşıyan kolonu ayrıştırılabilirlik ve şekil için doğrula.
+
+	Değer METİN olarak saklanıyor (kolon Long Text/Small Text). Burada
+	ayrıştırılıp yeniden basılmasının sebebi normalleştirme değil DOĞRULAMA:
+	bozuk JSON bir kez girerse onu okuyan her yer (panel, JSON-LD, yedek)
+	ayrı ayrı savunma yazmak zorunda kalır.
+	"""
+	if anahtar not in clean:
+		return
+	ham = clean.get(anahtar)
+	if ham in (None, ""):
+		clean[anahtar] = ""
+		return
+	if isinstance(ham, str):
+		try:
+			veri = json.loads(ham)
+		except ValueError:
+			frappe.throw(frappe._("{0} geçerli JSON değil.").format(anahtar))
+	else:
+		veri = ham
+	if liste:
+		if not isinstance(veri, list) or any(
+			not isinstance(x, dict) or "start" not in x for x in veri
+		):
+			frappe.throw(frappe._("Bölümler [{{'start': saniye, 'title': metin}}] biçiminde olmalıdır."))
+		# Sıralı tutulur: `SeekToAction`/`hasPart` çıktısı zaman sırasına
+		# göre okunuyor ve sıralamayı tüketiciye bırakmak her tüketicide
+		# tekrarlanan bir iş demek.
+		veri = sorted(veri, key=lambda x: float(x.get("start") or 0))
+	elif not isinstance(veri, dict):
+		frappe.throw(frappe._("{0} bir nesne olmalıdır.").format(anahtar))
+	clean[anahtar] = json.dumps(veri, ensure_ascii=False)
 
 
 def _hedef_kayitlar(url: str, store: str | None) -> list[str]:
@@ -545,6 +722,15 @@ def set_override(
 		taban, _, lang = alan.rpartition("_")
 		if taban in TRANSLATABLE and lang in CONTENT_LANGS:
 			doc.set(alan, deger)
+			continue
+		# Varlık düzeyi alanı ezme olarak yazılamaz — ve bunu SESSİZCE
+		# düşürmek en kötüsü olurdu: çağıran `description_en` yazıp
+		# kaydedildiğini sanır, panelde hiçbir şey değişmez ve hata da
+		# görmez. `ASSET_TRANSLATABLE` gerekçesi tanımının yanında.
+		if taban in ASSET_TRANSLATABLE or alan in ASSET_TRANSLATABLE:
+			frappe.throw(
+				frappe._("'{0}' varlık düzeyinde bir alan; kullanım ezmesi olarak yazılamaz.").format(alan)
+			)
 	doc.source = source
 	doc.save(ignore_permissions=True)
 	return doc.name
@@ -567,3 +753,68 @@ def clear_override(file_url: str, *, ref_doctype: str, ref_name: str, ref_field:
 		return False
 	frappe.delete_doc(OVERRIDE_DOCTYPE, ad, ignore_permissions=True)
 	return True
+
+
+# ── Dile özel medya ezmesi (§11) ─────────────────────────────────────────
+
+LOCALE_VARIANT_DOCTYPE: str = "Media Locale Variant"
+
+
+def locale_variants_for(file_url: str, *, store: str | None = None) -> dict[str, dict[str, str]]:
+	"""`{dil: {"variant_url": ..., "poster_url": ...}}` — tanımlı ezmeler.
+
+	Mağazaya özel satır, platform geneli satırı EZER. Sıra anlamlıdır:
+	platform bir varsayılan koyabilir, satıcı kendi mağazası için onu
+	değiştirebilir — `Media SEO Override`'ın varlık/kullanım katmanlarıyla
+	aynı mantık, bir katman aşağıda.
+	"""
+	url = _temiz_url(file_url)
+	if not url or not frappe.db.table_exists(LOCALE_VARIANT_DOCTYPE):
+		return {}
+
+	satirlar = frappe.get_all(
+		LOCALE_VARIANT_DOCTYPE,
+		filters={"file_url": url},
+		fields=["locale", "store", "variant_url", "poster_url"],
+		limit_page_length=0,
+	)
+	out: dict[str, dict[str, str]] = {}
+	# Önce platform geneli (store boş), sonra mağazaya özel — ikincisi
+	# birincinin üzerine yazsın diye bu SIRAYLA işleniyor.
+	for magazali in (False, True):
+		for satir in satirlar:
+			var_magaza = bool(satir.get("store"))
+			if var_magaza is not magazali:
+				continue
+			if magazali and store and satir.get("store") != store:
+				continue
+			if magazali and not store:
+				# Mağaza bağlamı verilmemişse mağazaya özel satır
+				# uygulanamaz: hangisinin geçerli olduğu bilinmiyor.
+				continue
+			out[satir["locale"]] = {
+				"variant_url": satir.get("variant_url") or "",
+				"poster_url": satir.get("poster_url") or "",
+			}
+	return out
+
+
+def resolve_media_for_locale(
+	file_url: str, *, lang: str = DEFAULT_LANG, store: str | None = None
+) -> dict[str, str]:
+	"""Bu dilde GERÇEKTEN kullanılacak medya adresi ve posteri.
+
+	Ezme yoksa kaynağın kendisi döner — çağıran "ezme var mı" diye ayrıca
+	sormak zorunda kalmasın. `overridden` bayrağı hangi dalın çalıştığını
+	söyler; panel bunu rozet olarak gösteriyor.
+	"""
+	url = _temiz_url(file_url)
+	ezmeler = locale_variants_for(url, store=store)
+	ezme = ezmeler.get(lang) or {}
+	return {
+		"file_url": ezme.get("variant_url") or url,
+		"poster_url": ezme.get("poster_url") or "",
+		"source_url": url,
+		"locale": lang,
+		"overridden": bool(ezme.get("variant_url") or ezme.get("poster_url")),
+	}

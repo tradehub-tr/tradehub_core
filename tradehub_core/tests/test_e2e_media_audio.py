@@ -56,6 +56,10 @@ from tradehub_core.api import media_admin, seller_media
 from tradehub_core.media import audio_meta, seo, upload_policy
 from tradehub_core.seo.schema_builder import build_audio_object
 from tradehub_core.utils.tenant import clear_seller_cache_for_user
+from tradehub_core.tests.zenginlestirme_notr import (  # noqa: F401
+	setUpModule,
+	tearDownModule,
+)
 
 _SITE = "https://istoc.example"
 
