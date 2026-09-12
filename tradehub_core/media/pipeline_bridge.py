@@ -99,7 +99,7 @@ from typing import Any
 import frappe
 from frappe.utils import get_files_path, now_datetime
 
-from tradehub_core.media import audit, ownership, pipeline_flags, presets, upload_policy
+from tradehub_core.media import audit, meter, ownership, pipeline_flags, presets, upload_policy
 from tradehub_core.media.pipeline.core import queues as media_queues
 from tradehub_core.media.rendition_ledger import (
 	content_sha256,
@@ -271,6 +271,21 @@ def maybe_generate_renditions(doc: Any, method: str | None = None) -> None:
 		# açılmaz. İçerik-adresli adlandırma sayesinde "aynı içerik" güvenilir.
 		if _renditions_exist(surum_hash, slot_key):
 			return
+
+		# KAPI 5 — dönüşüm kotası (MOGEM-620 §18). Kuyruğa ATMADAN ÖNCE
+		# bakılıyor: iş kuyruğa girdikten sonra reddetmek hem worker
+		# zamanını harcar hem de kullanıcıya hiçbir yerde görünmeyen bir
+		# başarısızlık üretir. Kota tanımsızsa kapı AÇIK (`meter.check`
+		# fail-open sözleşmesi — gerekçe orada).
+		magaza = ownership.store_of(doc.get("owner"))
+		if magaza:
+			karar = meter.check(magaza, meter.METRIC_TRANSFORMATIONS, incoming=1)
+			if not karar["allowed"]:
+				frappe.log_error(
+					title="media.pipeline_bridge dönüşüm kotası aşıldı",
+					message=f"store={magaza} file={doc.get('file_url')} karar={karar}",
+				)
+				return
 
 		frappe.enqueue(
 			"tradehub_core.media.pipeline_bridge._run_rendition_job",
@@ -1025,6 +1040,11 @@ def _run_rendition_job(file_url: str, force: bool = False) -> None:
 			return
 
 		asset = _ensure_asset(doc, slot_key, parmak_izi)
+		# §18 — dönüşüm sayacı. Kuyruğa alma kapısı (KAPI 5) kotayı ÖNCEDEN
+		# soruyor; sayaç ise işin GERÇEKTEN yapıldığı yerde artıyor. İkisini
+		# aynı yere koymak, kuyrukta bekleyip sonra düşen işleri de saymak
+		# olurdu — kullanıcı üretilmemiş türev için kotasından ödeme yapardı.
+		meter.record(ownership.store_of(doc.get("owner")), meter.METRIC_TRANSFORMATIONS, 1)
 		# Public türevler EXIF/GPS'i politika gereği siler; gerekli kaynak
 		# metadata'sı silinmeden önce şifreli, yetki-sınırlı kasada tutulur.
 		from tradehub_core.media import exif_vault

@@ -1,0 +1,104 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-09-10 12:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "file_url",
+  "locale",
+  "store",
+  "cb_variant",
+  "variant_url",
+  "poster_url",
+  "note"
+ ],
+ "fields": [
+  {
+   "fieldname": "file_url",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Kaynak Medya Adresi",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "locale",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Dil",
+   "options": "tr\nen\nar\nru",
+   "reqd": 1
+  },
+  {
+   "fieldname": "store",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Mağaza",
+   "options": "Admin Seller Profile",
+   "search_index": 1
+  },
+  {
+   "fieldname": "cb_variant",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Bu dilde kaynak medyanın yerine kullanılacak dosya.",
+   "fieldname": "variant_url",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Dile Özel Medya"
+  },
+  {
+   "description": "Video/ses için bu dile özel poster ya da kapak.",
+   "fieldname": "poster_url",
+   "fieldtype": "Data",
+   "label": "Dile Özel Poster"
+  },
+  {
+   "fieldname": "note",
+   "fieldtype": "Small Text",
+   "label": "Not"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-09-10 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "Media Locale Variant",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Marketplace Admin",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

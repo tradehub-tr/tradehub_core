@@ -291,6 +291,55 @@ def set_for_file(file_url: str, category_ids, store: str) -> dict:
 	return {"file_url": file_url, "categories": assignments_for_urls([file_url], store).get(file_url, [])}
 
 
+def remove_from_many(file_urls, category_ids, store: str) -> dict:
+	"""Seçili dosyalardan verilen kategorilerin bağını kaldır.
+
+	`add_to_many`'nin simetriği ve sözleşmesi birebir aynı (`assigned` yerine
+	`removed`). Ayrı fonksiyon olmasının sebebi `set_for_file`'ın yapamaması:
+	o NİHAİ listeyi yazar, yani "şu iki kategoriyi kaldır" demek için çağıranın
+	her dosyanın mevcut listesini önce okuyup farkı hesaplaması gerekirdi —
+	200 dosyada 200 ek okuma ve iki istemcide iki farklı hesap.
+
+	KAYNAK AYRIMI KORUNUR: yalnız bu mağazanın (`store`) atamaları silinir.
+	Aynı dosya başka bir mağazanın kütüphanesinde de duruyorsa onun kategori
+	ataması bu çağrıdan etkilenmez.
+	"""
+	urls = tuple(
+		dict.fromkeys(str(url or "").split("?", 1)[0] for url in (file_urls or []) if url)
+	)
+	if len(urls) > MAX_BATCH:
+		frappe.throw(_("Tek seferde en çok {0} dosya işlenebilir.").format(MAX_BATCH))
+	ids = normalize_category_ids(category_ids)
+	_my_categories(store, ids, active_only=False)
+	removed = 0
+	skipped = 0
+	failed: list[dict] = []
+	for url in urls:
+		if not ownership.owns(store, url):
+			skipped += 1
+			continue
+		try:
+			for assignment in frappe.get_all(
+				"Media Category Assignment",
+				filters={"store": store, "file_url": url, "category": ["in", list(ids)]},
+				pluck="name",
+				limit_page_length=0,
+			):
+				frappe.delete_doc(
+					"Media Category Assignment", assignment, ignore_permissions=True, force=True
+				)
+				removed += 1
+		except Exception as exc:
+			frappe.log_error(title="media.categories remove_from_many", message=frappe.get_traceback())
+			failed.append({"file_url": url, "error": str(exc)})
+	return {
+		"removed": removed,
+		"files": len(urls) - skipped - len(failed),
+		"skipped": skipped,
+		"failed": failed,
+	}
+
+
 def add_to_many(file_urls, category_ids, store: str) -> dict:
 	"""Seçili dosyalara bir veya daha fazla manuel kategori ekle."""
 	urls = tuple(

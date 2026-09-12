@@ -299,3 +299,41 @@ def _yerel_yol(file_url: str) -> str:
 		if yol and Path(yol).exists():
 			return yol
 	return ""
+
+
+def maybe_extract_on_insert(doc, method: str | None = None) -> None:
+	"""`File.after_insert` kancası — public + ses uzantılı dosyayı kuyruğa at.
+
+	`doc_meta.maybe_extract_on_insert` ile BİREBİR aynı sözleşme; ayrı bir
+	fonksiyon olmasının sebebi aday süzgeci (uzantı listesi) ve kuyruğa giden
+	hedefin farklı olması, davranışın farklı olması değil.
+
+	Kapsam BİLEREK dar: private ses (KYB görüşme kaydı, sözleşme eki) hiçbir
+	görünür sayfada kullanılmıyor — çıkarımı gereksiz iş ve gömülü kapağı
+	public bir `File` olarak diske yazmak gizli içerikten public türev
+	üretmek olurdu.
+
+	Bu kanca 8 Eylül teslimatında YAZILMAMIŞTI: `apply`/`backfill_pending`
+	kodlandı ve test edildi ama hiçbir çağıranı yoktu, yani canlıda bir `.mp3`
+	yüklendiğinde başlık/sanatçı/süre/kapak hiç çıkarılmıyordu ve `AudioObject`
+	boş kalıyordu. (Denetim: 10 Eylül 2026.)
+	"""
+	try:
+		if doc.get("is_folder") or doc.get("is_private"):
+			return
+		file_url = doc.get("file_url") or ""
+		if not file_url:
+			return
+		if upload_policy.extension_of(file_url) not in AUDIO_UZANTILAR:
+			return
+		frappe.enqueue(
+			"tradehub_core.media.audio_meta.apply",
+			queue="media-maint",
+			timeout=180,
+			file_url=file_url,
+			enqueue_after_commit=True,
+		)
+	except Exception:
+		frappe.log_error(
+			title="media.audio_meta maybe_extract_on_insert failed", message=frappe.get_traceback()
+		)

@@ -41,6 +41,7 @@ Detay: docs/MEDYA-ERISIM-MODELI.md §3.
 from __future__ import annotations
 
 import hmac
+import os
 import time
 
 import frappe
@@ -196,6 +197,12 @@ def get_signed_url(file_url: str, ttl_seconds: int = DEFAULT_TTL_SECONDS) -> dic
 		)
 		frappe.throw(_("Bu dosyaya erişim yetkiniz yok."), frappe.PermissionError)
 
+	# §18 — bant genişliği kotası kapısı. Kota BURADA uygulanıyor, indirme
+	# ucunda değil: verilmiş bir imzayı sonradan reddetmek kullanıcının
+	# önündeki sayfayı kırar (gerekçenin tamamı `_bant_genisligi_say`
+	# docstring'inde). Kota tanımsızsa kapı açık (fail-open sözleşmesi).
+	_bant_genisligi_kapisi(file_doc)
+
 	# `has_permission("read")` kiracı kancasından geçer ama
 	# `TenantIsolatedFile.is_downloadable()`'dan GEÇMEZ — `blob_matches_row`
 	# yalnız orada. İmza bir taşıyıcı (bearer) yetkisidir: `download()` satırı
@@ -293,5 +300,62 @@ def download():
 		allowed=True,
 		context={"signed": True},
 	)
+	_bant_genisligi_say(file_url, target)
 
 	return response
+
+
+def _bant_genisligi_say(file_url: str, target: str) -> None:
+	"""Servis edilen baytı mağazanın aylık sayacına işle (MOGEM-620 §18).
+
+	KOTA BURADA UYGULANMIYOR, yalnız ÖLÇÜLÜYOR. Gerekçe: bu uç imzalı bir
+	bağlantıyı karşılıyor ve o bağlantı zaten verilmiş bir söz. Kotası dolmuş
+	bir mağazanın DAHA ÖNCE üretilmiş imzalı bağlantılarını 403'e çevirmek,
+	kullanıcının önündeki sayfayı kırar ve hatanın nedeni hiçbir yerde
+	görünmez. Kapı, bağlantının VERİLDİĞİ yerde (`get_signed_url`) olmalı;
+	burası sayaçtır.
+
+	Dosyanın sahibi mağaza `File.owner` üzerinden çözülüyor — indiren kişi
+	değil. Bant genişliğini tüketen, dosyayı yayınlayan taraftır; alıcıya
+	yazmak bir satıcının kotasını müşterilerinin davranışıyla değil kendi
+	dosyalarının popülerliğiyle ölçme amacına ters düşerdi.
+	"""
+	try:
+		from tradehub_core.media import meter, ownership
+
+		sahip = frappe.db.get_value("File", {"file_url": file_url}, "owner")
+		magaza = ownership.store_of(sahip) if sahip else None
+		if not magaza:
+			return
+		meter.record(magaza, meter.METRIC_BANDWIDTH, os.path.getsize(target))
+	except OSError:
+		# Dosya servis edildi ama boyutu okunamadı — sayaç kaybı, kullanıcı
+		# için sonuç yok. Sessiz geçmiyoruz ama isteği de düşürmüyoruz.
+		frappe.log_error(title="media_access bant genişliği ölçülemedi", message=file_url)
+	except Exception:
+		frappe.log_error(title="media_access bant genişliği sayacı", message=frappe.get_traceback())
+
+
+def _bant_genisligi_kapisi(file_doc) -> None:
+	"""Mağazanın aylık bant genişliği kotası dolduysa yeni imza VERME.
+
+	Reddi denetime yazıyor: kota yüzünden kapanan bir kapı, yetki yüzünden
+	kapanan kapıyla aynı görünürlükte olmalı — aksi hâlde destek ekibi
+	"dosya açılmıyor" çağrısında hiçbir iz bulamaz.
+	"""
+	from tradehub_core.media import meter, ownership
+
+	magaza = ownership.store_of(file_doc.get("owner"))
+	if not magaza:
+		return
+	karar = meter.check(magaza, meter.METRIC_BANDWIDTH, incoming=int(file_doc.get("file_size") or 0))
+	if karar["allowed"]:
+		return
+	audit.log_media_event(
+		action=audit.ACTION_ACCESS_DENIED,
+		file_url=file_doc.get("file_url"),
+		allowed=False,
+		reason="bandwidth_quota",
+		context={"used": karar["used"], "limit": karar["limit"]},
+	)
+	frappe.throw(_("Aylık bant genişliği kotası doldu."), frappe.PermissionError)

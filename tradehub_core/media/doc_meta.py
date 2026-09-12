@@ -85,7 +85,15 @@ from tradehub_core.media import upload_policy
 #: (KIND_DOCUMENT yalnız pdf/doc/docx/xls/xlsx'i kapsıyor) — bu yüzden
 #: `video_poster.VIDEO_UZANTILAR` deseniyle AYNI şekilde kendi düz uzantı
 #: listemiz var; `kind_of()`'a bağlanmadık.
-DOC_UZANTILAR: tuple[str, ...] = (".pdf", ".docx", ".xlsx", ".pptx")
+DOC_UZANTILAR: tuple[str, ...] = (".pdf", ".docx", ".xlsx", ".pptx", ".csv", ".txt")
+
+#: Düz metin biçimleri — ZIP/PDF ayrıştırıcısı gerekmez, dosya doğrudan
+#: okunur. `DOC_UZANTILAR`'ın parçası ama ayrı sabit: `_extract_plain`
+#: dalının koşulu bu küme ve iki yerde iki liste tutmamak için tek kaynak.
+#:
+#: MOGEM-620 §15 CSV ve TXT'yi açıkça sayıyor; 10 Eyl 2026 denetiminde
+#: dördü (pdf/docx/xlsx/pptx) vardı, bu ikisi yoktu.
+DUZ_METIN_UZANTILAR: tuple[str, ...] = (".csv", ".txt")
 
 #: Eski ikili biçimler — çıkarım motoru bunları AÇAMAZ (ikisi de OOXML/ZIP
 #: değil, ayrı ikili format). `DOC_UZANTILAR`'a girmezler (backfill/kanca
@@ -314,6 +322,63 @@ def _extract_xlsx(path: str) -> dict:
 	return {"ok": True, "reason": "", "page_count": 0, "text": text, "title": ""}
 
 
+def _extract_plain(path: str) -> dict:
+	"""CSV/TXT — ZIP ya da PDF ayrıştırıcısı yok, dosya doğrudan okunur.
+
+	NEDEN AYRI DAL: diğer dördü kapsayıcı formatı (ZIP/PDF) çözmek zorunda ve
+	zip-bomb/XML-entity savunmalarına ihtiyaç duyuyor. Düz metinde o
+	saldırı yüzeyi YOK; tek risk dosyanın büyüklüğü ve o da `TEXT_TAVAN` ile
+	zaten sınırlı. Bu dalı ZIP mantığına zorlamak, olmayan bir tehdide karşı
+	kod yazmak olurdu.
+
+	OKUMA TAVANDA KESİLİR, dosya tamamı belleğe ALINMAZ: 500 MB'lık bir CSV
+	tamamen okunup sonra kırpılsaydı, 64 KB metin için 500 MB bellek harcanırdı.
+
+	SAYFA SAYISI 0 DEĞİL -1: düz metinde "sayfa" kavramı yok. 0 yazmak
+	`backfill_docs`'un aday sorgusunda (`page_count = 0`) bu dosyaları HER
+	TURDA yeniden seçmesine yol açardı — `apply`'ın anti-açlık damgasıyla
+	aynı gerekçe, aynı değer.
+
+	KODLAMA: UTF-8 denenir, olmazsa Windows-1254 (Türkçe Excel CSV'lerinin
+	yaygın kodlaması) ve son çare `errors="replace"`. Bir kodlama hatası
+	yüzünden metnin tamamını kaybetmek, birkaç bozuk karakterden kötü.
+	"""
+	try:
+		ham = b""
+		with open(path, "rb") as fh:
+			# Tavan KARAKTER cinsinden; UTF-8'de bir karakter 4 bayta kadar
+			# çıkabildiği için okuma bütçesi dört katı alınıyor, sonra
+			# çözülmüş metin kırpılıyor.
+			ham = fh.read(TEXT_TAVAN * 4)
+	except OSError:
+		return _bos("unreadable")
+
+	metin = ""
+	for kodlama in ("utf-8", "cp1254"):
+		try:
+			metin = ham.decode(kodlama)
+			break
+		except UnicodeDecodeError:
+			continue
+	else:
+		metin = ham.decode("utf-8", errors="replace")
+
+	metin = metin.strip()[:TEXT_TAVAN]
+	if not metin:
+		return _bos("bos_dosya")
+	# Başlık: ilk dolu satır. CSV'de bu başlık satırıdır, TXT'de ilk
+	# cümledir — ikisi de dosyanın ne olduğunu söyleyen en iyi tek satır.
+	# Uydurma yok: satır yoksa başlık da yok.
+	ilk = next((s.strip() for s in metin.splitlines() if s.strip()), "")
+	return {
+		"ok": True,
+		"reason": "",
+		"page_count": -1,
+		"text": metin,
+		"title": ilk[:140],
+	}
+
+
 def _extract_pptx(path: str) -> dict:
 	try:
 		with zipfile.ZipFile(path) as zf:
@@ -385,6 +450,8 @@ def extract(file_url: str) -> dict:
 		return _extract_docx(path)
 	if ext == ".xlsx":
 		return _extract_xlsx(path)
+	if ext in DUZ_METIN_UZANTILAR:
+		return _extract_plain(path)
 	return _extract_pptx(path)  # ext == ".pptx" — DOC_UZANTILAR'daki son seçenek
 
 

@@ -321,6 +321,12 @@ tradehub_core.patches.v15_9_52_file_doc_fields
 # --- MOGEM-620 §15 · ses dosyası metadata (sanatçı kolonu) ---
 tradehub_core.patches.v15_9_53_media_audio_fields
 
+# --- MOGEM-620 · alan seti tamamlama (§2/§5/§11/§12/§17) ---
+tradehub_core.patches.v15_9_54_media_seo_alan_seti
+
+# --- MOGEM-620 §18 · akış tipi medya kotaları (bant genişliği/dönüşüm/AI) ---
+tradehub_core.patches.v15_9_55_seed_akis_kotalari
+
 # --- Bora · 09-BE A (kargo entegrasyon logu altyapısı) ---
 # Carrier Integration Log bileşik index'leri + Logistics Settings saklama alanı.
 tradehub_core.patches.v15_log043_carrier_integration_log

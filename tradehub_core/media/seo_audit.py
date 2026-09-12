@@ -34,7 +34,7 @@ from urllib.parse import urlsplit
 import frappe
 from frappe.utils import getdate, nowdate
 
-from tradehub_core.media import seo
+from tradehub_core.media import decode_cost, seo
 from tradehub_core.media.video_poster import VIDEO_UZANTILAR
 from tradehub_core.seo.i18n import CONTENT_LANGS, DEFAULT_LANG
 
@@ -427,6 +427,7 @@ _KURAL_BOYUT: dict[str, str] = {
 	"missing_structured_data": "structured_data",
 	"broken_structured_data": "structured_data",
 	"oversized_image": "performance",
+	"expensive_decode": "performance",
 	"missing_responsive_variants": "performance",
 	"missing_modern_format": "performance",
 	"incomplete_rendition_ladder": "performance",
@@ -452,6 +453,14 @@ _KURAL_BOYUT: dict[str, str] = {
 	"missing_localized_alt": "localization",
 }
 
+# NOT (MOGEM-620 §13): `visual_search` ve `ai_readiness` boyutlarının bu
+# haritada KODU YOK ve bu bilinçli. Şartnamenin §13'te saydığı bulgu
+# listesinin tamamı yukarıdaki kodlarla zaten karşılanıyor; eksik olan tek
+# şey ON alt skordu. İki boyutu "her varlıkta patlayan" yeni uyarı
+# kurallarıyla beslemek denetim listesini şartnamede İSTENMEYEN gürültüyle
+# doldururdu. Bunun yerine ikisi de `score_from` içinde MEVCUT alanlardan
+# türetiliyor — `localization`'ın kendi puan fonksiyonuyla aynı desen.
+
 DIMENSIONS: tuple[str, ...] = (
 	"accessibility",
 	"metadata",
@@ -461,6 +470,14 @@ DIMENSIONS: tuple[str, ...] = (
 	"structured_data",
 	"localization",
 	"technical_health",
+	# 10 Eyl 2026'da eklendi. Şartname (§13 son madde) on alt skor sayıyor;
+	# kod sekizini üretiyordu ve eksik ikisi tam da makine tüketimini ölçen
+	# ikisiydi. İkisi de MEVCUT alanlardan türetiliyor — §10'un son maddesi
+	# "GEO/LLMO keyword veya AEO score gibi YAPAY alanlar yerine mevcut
+	# asset'in makinece anlaşılmasını sağlayan ortak veri modeli" diyor, bu
+	# yüzden hiçbiri yeni bir kolona ya da model çağrısına dayanmıyor.
+	"visual_search",
+	"ai_readiness",
 )
 
 #: Ceza puanları. `error` iki katı: yanlış yayın, eksik fırsattan ağır.
@@ -491,19 +508,78 @@ def score_from(bulgular: list[dict], alanlar: dict | None = None) -> dict[str, i
 	):
 		puanlar["structured_data"] = 0
 
+	# Görsel arama ve AI hazırlığı: `localization` ile AYNI sözleşme —
+	# ceza döngüsünün yazdığını türetilmiş değer EZER, çünkü ikisi de
+	# "kaç tanesi var" sorusunun cevabı, "kaç kural ihlal edildi"nin değil.
+	if alanlar is not None:
+		puanlar["visual_search"] = _gorsel_arama_puani(alanlar)
+		puanlar["ai_readiness"] = _ai_hazirlik_puani(alanlar)
+
 	puanlar["overall"] = round(sum(puanlar[b] for b in DIMENSIONS) / len(DIMENSIONS))
 	return puanlar
+
+
+#: Görsel aramanın bir varlığı bulabilmesi için gereken sinyaller.
+#: Hepsi BUGÜN var olan alanlar; hiçbiri model çıktısı değil.
+_GORSEL_SINYALLER: tuple[str, ...] = ("perceptual_hash", "width", "alt", "tags", "has_text")
+
+#: Makine tüketicisinin (LLM/agent/feed) bir varlığı anlaması için gerekenler.
+#: §10 son maddesinin karşılığı: uydurma skor değil, gerçek alan doluluğu.
+_AI_SINYALLER: tuple[str, ...] = (
+	"description",
+	"caption",
+	"canonical",
+	"license_url",
+	"creator",
+	"transcript",
+)
+
+
+def _sinyal_puani(alanlar: dict, sinyaller: tuple[str, ...]) -> int:
+	"""Dolu sinyal oranı → 0-100.
+
+	Ağırlıksız: hangi sinyalin daha değerli olduğu ölçülmedi ve
+	`_yerellestirme_puani` de aynı dürüstlükle ağırlıksız başladı.
+	"""
+	dolu = sum(1 for ad in sinyaller if str(alanlar.get(ad) or "").strip())
+	return round(100 * dolu / len(sinyaller))
+
+
+def _gorsel_arama_puani(alanlar: dict) -> int:
+	"""Varlık görsel/benzerlik aramasında bulunabilir mi.
+
+	`transcript` BİLEREK yok: transkript sesin/videonun metni, görselin
+	tanınabilirliğine katkısı sıfır — oraya koymak skoru ses dosyalarında
+	yanıltıcı biçimde yükseltirdi.
+	"""
+	return _sinyal_puani(alanlar, _GORSEL_SINYALLER)
+
+
+def _ai_hazirlik_puani(alanlar: dict) -> int:
+	"""Varlık makinece (LLM/agent/feed) anlaşılabilir mi.
+
+	`alt` BİLEREK yok: erişilebilirlik alt metni ile SEO/makine açıklaması
+	şartnamede (§3 son madde) AYRI amaçlar; alt'ı buraya koymak ikisini tek
+	sayıya karıştırırdı ve zaten `accessibility` boyutu onu ölçüyor.
+	"""
+	return _sinyal_puani(alanlar, _AI_SINYALLER)
 
 
 def _yerellestirme_puani(alanlar: dict) -> int:
 	"""Kaç dilde alt metni var. Tek dil = 100 DEĞİL: vitrin 4 dilli."""
 	from tradehub_core.seo.i18n import CONTENT_LANGS
 
-	localized = (alanlar.get("localized") or {}).get("alt") or {}
-	if localized:
+	# `localized` bir sözlük OLMAYABİLİR: alan sözlüğü DB'den, API'den ve
+	# eski migration'lardan geliyor ve tür garantisi yok — `.get` çağrısı
+	# listede/sayıda `AttributeError` atardı (F-18a'nın aynı sınıfı).
+	ham_localized = (alanlar.get("localized") or {})
+	localized = ham_localized.get("alt") if isinstance(ham_localized, dict) else None
+	if isinstance(localized, dict) and localized:
 		dolu = sum(1 for lang in CONTENT_LANGS if str(localized.get(lang) or "").strip())
 		return round(100 * dolu / max(1, len(CONTENT_LANGS)))
-	return 100 if (alanlar.get("alt") or "").strip() else 0
+	# `alt` metin olmayabilir (sayı, liste). `_metin` bu modülün F-18a'da
+	# yazdığı güvenli çevirici — ikinci bir dönüştürme yazmıyoruz.
+	return 100 if _metin(alanlar.get("alt")) else 0
 
 
 # ── Toplu denetim ────────────────────────────────────────────────────────
@@ -706,6 +782,25 @@ def audit_batch(
 		)
 	adlar = {u: r.get("file_name") or "" for u, r in kayitlar.items()}
 
+	# `visual_search` / `ai_readiness` (§13) sinyalleri. İkisi de toplu yolda
+	# `fields_for_many`'nin GETİRMEDİĞİ veriden besleniyor:
+	#   - `perceptual_hash` `File`'da değil `Media Asset`'te (yukarıda zaten
+	#     okundu — yeni sorgu YOK),
+	#   - `extracted_text` Long Text olduğu için toplu yola hiç girmiyor;
+	#     burada yalnız VARLIĞI soruluyor, tek sorguyla, metin taşınmadan.
+	# Alternatif (metni toplu yola almak) 100+ satırda N×64KB demekti —
+	# `seo._asset_columns` bu ayrımı bilerek koymuş, bozmuyoruz.
+	metinli_urls: set[str] = set()
+	if frappe.db.has_column("File", "th_media_extracted_text"):
+		metinli_urls = {
+			r[0]
+			for r in frappe.db.sql(
+				"""select distinct file_url from `tabFile`
+				where file_url in %(urls)s and IFNULL(th_media_extracted_text, '') <> ''""",
+				{"urls": temiz},
+			)
+		}
+
 	sonuclar = []
 	ozet: dict[str, int] = {}
 	toplam_skor: dict[str, list[int]] = {b: [] for b in (*DIMENSIONS, "overall")}
@@ -714,6 +809,10 @@ def audit_batch(
 		bulgular = audit_fields(alanlar, file_name=adlar.get(url, ""))
 		kayit = kayitlar.get(url) or {}
 		asset = asset_by_url.get(url)
+		# Sinyalleri skor hesabından ÖNCE yerleştir: `score_from` saf kalsın,
+		# veriyi toplayan taraf (burası) doldursun.
+		alanlar["perceptual_hash"] = (asset or {}).get("perceptual_hash") or ""
+		alanlar["has_text"] = url in metinli_urls
 		bulgular.extend(
 			_technical_findings(
 				url,
@@ -1075,6 +1174,23 @@ def _technical_findings(
 			"oversized_image", SEVERITY_WARN,
 			"Görsel piksel/bayt bütçesini aşıyor",
 			f"{w}x{h}, {bytes_} bytes",
+		))
+	# §9'un dördüncü bileşeni: çözme maliyeti. `oversized_image`'DAN AYRI
+	# kural, çünkü ikisi ters yönde tetiklenebiliyor — AVIF baytı yarıya
+	# indirir (oversized susar) ama çözmeyi ~2,6 katına çıkarır. Tek kurala
+	# sıkıştırmak, tam da bu durumu görünmez yapardı (gerekçe:
+	# `media/decode_cost.py` modül docstring'i).
+	olcum = decode_cost.media_size(
+		width=w,
+		height=h,
+		bytes_=bytes_,
+		file_format=decode_cost.format_of(kayit.get("file_name") or url),
+	)
+	if olcum["decode_over_budget"]:
+		out.append(_kural(
+			"expensive_decode", SEVERITY_WARN,
+			"Görselin çözme maliyeti bütçeyi aşıyor — düşük uçlu cihazda LCP'yi geciktirir",
+			f"{olcum['decode_cost']} RMP (eşik {decode_cost.UYARI_ESIGI})",
 		))
 	if asset and asset.get("name") not in rendition_assets:
 		out.append(_kural("missing_responsive_variants", SEVERITY_WARN, "Responsive türev bulunamadı"))

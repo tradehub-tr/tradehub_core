@@ -786,10 +786,12 @@ class TestTopluDenetim(FrappeTestCase):
 		self.assertEqual(seo_audit._KURAL_BOYUT["aspect_ratio_mismatch"], "performance")
 		self.assertEqual(seo_audit._KURAL_BOYUT["unserved_renditions"], "technical_health")
 		self.assertEqual(seo_audit._KURAL_BOYUT["lcp_candidate_unoptimized"], "performance")
-		# Bütünlük: harita 34 kuralı kapsıyor (Dilim 8: + missing_localized_alt;
-		# F-18b: + invalid_rights_date) ve her value gerçek bir DIMENSIONS üyesi
-		# — yazım hatası ("performnace" gibi) skor toplamında sessizce yutulur.
-		self.assertEqual(len(seo_audit._KURAL_BOYUT), 34)
+		# Bütünlük: harita 35 kuralı kapsıyor (Dilim 8: + missing_localized_alt;
+		# F-18b: + invalid_rights_date; MOGEM-620 §9: + expensive_decode) ve her
+		# value gerçek bir DIMENSIONS üyesi — yazım hatası ("performnace" gibi)
+		# skor toplamında sessizce yutulur.
+		self.assertEqual(len(seo_audit._KURAL_BOYUT), 35)
+		self.assertEqual(seo_audit._KURAL_BOYUT["expensive_decode"], "performance")
 		# F-18b: okunamayan `rights_expires_on` eskiden denetimin TAMAMINI
 		# çökertiyordu; artık bulgu üretiyor. Boyuta bağlanmayan kural skoru
 		# hiç etkilemez, o yüzden haritada olması sözleşmenin parçası.

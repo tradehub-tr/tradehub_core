@@ -221,6 +221,15 @@ scheduler_events = {
 		# aday bir daha ENQUEUE EDİLMEZ — aksi halde günlük backfill aynı
 		# başarısız dosyayı sonsuza dek kotaya sokardı.
 		"tradehub_core.media.video_poster.backfill_pending",
+		# MOGEM-620 §15 — ses ve doküman çıkarımının geçmişe dönük ayağı.
+		# `after_insert` kancaları yalnız BUNDAN SONRAKİ yüklemeleri kapsıyor;
+		# kanca yazılmadan önce yüklenmiş dosyalar (ölçüldü 10 Eyl 2026: 14
+		# PDF'in tamamında `extracted_text` boş) hiçbir turda seçilmiyordu.
+		# İkisi de anti-açlık damgalı (-1) olduğu için okunamayan dosya bir
+		# daha aday olmaz; `video_poster.backfill_pending`'in YANINA, aynı
+		# gerekçeyle konuldu.
+		"tradehub_core.media.audio_meta.backfill_pending",
+		"tradehub_core.media.doc_meta.backfill_docs",
 		# T-053 — Saklama/çöp toplama bakım işi. VARSAYILAN KURU KOŞUM:
 		# site_config'te `media_retention_gc_enforce` = 1 yapılmadıkça hiçbir
 		# şey silinmez, yalnız rapor üretilir. Orijinal politikası varsayılan
@@ -409,6 +418,11 @@ doc_events = {
 			# public + `doc_meta.DOC_UZANTILAR` uzantılı dosyada `media-maint`
 			# kuyruğuna iş atar; diğer her dosyada ilk satırda döner.
 			"tradehub_core.media.doc_meta.maybe_extract_on_insert",
+			# MOGEM-620 §15 — ses dosyası çıkarımı (başlık/sanatçı/süre/kapak).
+			# `doc_meta` ile aynı gerekçeyle EN SONDA ve aynı `media-maint`
+			# kuyruğunda: SEO zenginleştirmesi, güvenlik kararı değil. Ses
+			# olmayan her dosyada ilk satırda döner.
+			"tradehub_core.media.audio_meta.maybe_extract_on_insert",
 		],
 		# Yerel File silme yolu StorageAdapter.delete'i kullanmaz. Mirror açıksa
 		# ikincil nesneyi de ancak commit'ten sonra sil; rollback S3'e yansımasın.

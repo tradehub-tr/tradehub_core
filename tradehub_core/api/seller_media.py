@@ -1027,8 +1027,15 @@ def upload_limits() -> dict:
 	sabit koymak, biri değişince sessizce ayrışan iki kural demekti: kullanıcı
 	ekranda kabul edilen dosyanın sunucuda reddedildiğini görürdü.
 	"""
-	_store()
-	return upload_policy.limits()
+	store = _store()
+	from tradehub_core.media import meter
+
+	# §18 — akış kotaları da BURADAN dönüyor, ayrı uçtan değil. Gerekçe
+	# fonksiyonun kendi docstring'i: istemci sınırları tek yerden alsın.
+	# Depolama kotası zaten `get_my_summary`'de; buradaki üçü olay bazlı
+	# ve yükleme öncesi kararı etkiliyor (dönüşüm kotası dolu bir mağazada
+	# panel "türev üretilmeyecek" uyarısı gösterebilmeli).
+	return {**upload_policy.limits(), "flow_quotas": meter.summary(store)}
 
 
 def _request_idempotency_key(body_value: str = "") -> str:
@@ -1826,3 +1833,80 @@ def find_in_my_library(sha256: str) -> dict:
 		frappe.throw(frappe._("64 haneli onaltılık SHA-256 bekleniyor."))
 	eslesen = inventory.find_by_sha256(h, store)
 	return {"found": bool(eslesen), "file": eslesen}
+
+
+@frappe.whitelist()
+def find_similar_media(file_url: str, threshold: int | str | None = None, limit: int | str = 20) -> dict:
+	"""Satıcının KENDİ kütüphanesinde görsel olarak benzer dosyalar (§16).
+
+	`find_in_my_library`'nin (birebir aynı içerik, SHA-256) yanına gelen
+	YAKLAŞIK karşılığı: aynı fotoğrafın yeniden sıkıştırılmış/ölçeklenmiş
+	kopyasını da yakalar. İkisi ayrı uç, çünkü sözleşmeleri farklı — biri
+	"aynı dosya" der ve kesindir, bu "benzer olabilir" der ve mesafe döndürür.
+
+	Kiracı sınırı OTURUMDAN çözülür (`_store`), parametreyle mağaza alınmaz.
+	Sahiplik ayrıca KAYNAK dosya için de doğrulanır: bir satıcı, kendisine ait
+	OLMAYAN bir adresi sorup o adresin benzerlerini öğrenemez — aksi hâlde
+	rakibin ürün fotoğrafı, kendi kütüphanesindeki eşleriyle birlikte
+	sızardı.
+	"""
+	from tradehub_core.media import similar
+
+	store = _store()
+	temiz = str(file_url or "").split("?", 1)[0].strip()
+	if not temiz:
+		frappe.throw(frappe._("Dosya adresi gerekli."))
+	ownership.assert_owns(store, temiz)
+	return similar.search(
+		temiz,
+		store=store,
+		threshold=None if threshold in (None, "") else int(threshold),
+		limit=int(limit or 20),
+	)
+
+
+@frappe.whitelist(methods=["POST"])
+def bulk_update_media_seo(
+	file_urls: str | list[str] | None = None, values: str | dict | None = None
+) -> dict:
+	"""Satıcının kendi seçimine telif/lisans/künye alanlarını topluca yaz (§14).
+
+	Yönetici karşılığıyla (`media_admin.bulk_set_media_seo`) aynı çekirdek,
+	tek farkı kapsam: mağaza OTURUMDAN çözülür ve `bulk_ops` her dosyayı
+	`ownership.owns` ile ayrıca süzer — seçime yabancı bir adres karışsa bile
+	`skipped` sayılır, yazılmaz.
+
+	Görünürlük/index politikası BİLEREK yok: o bir yayın kararı ve rol kapısı
+	yöneticide (`media_admin.bulk_set_indexability`).
+	"""
+	from tradehub_core.media import bulk_ops
+
+	veri = frappe.parse_json(values) if isinstance(values, str) else (values or {})
+	return bulk_ops.set_fields_many(_urls(file_urls), veri, store=_store())
+
+
+@frappe.whitelist(methods=["POST"])
+def bulk_rename_my_media(
+	file_urls: str | list[str] | None = None, pattern: str = "", start: int | str = 1
+) -> dict:
+	"""Satıcının kendi dosyalarının görünen adını desene göre topluca değiştir.
+
+	`file_url` DEĞİŞMEZ (Stable Asset ID kabul kriteri) — gerekçe
+	`media/bulk_ops.rename_many` docstring'inde.
+	"""
+	from tradehub_core.media import bulk_ops
+
+	return bulk_ops.rename_many(_urls(file_urls), pattern, start=cint(start) or 1, store=_store())
+
+
+@frappe.whitelist(methods=["POST"])
+def bulk_remove_media_categories(
+	file_urls: str | list[str] | None = None, category_ids: str | list[str] | None = None
+) -> dict:
+	"""Seçili dosyalardan kategori bağını topluca kaldır (§14 "bulk categorize").
+
+	`add_media_categories`'in eksik olan tersi. Ekleme varken çıkarma
+	olmaması, yanlış uygulanmış bir toplu kategoriyi 200 dosyada tek tek geri
+	almak demekti.
+	"""
+	return category_service.remove_from_many(_urls(file_urls), category_ids, _store())

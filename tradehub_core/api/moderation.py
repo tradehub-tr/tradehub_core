@@ -157,9 +157,10 @@ def check_image_content(doc, method=None):
 		frappe.log_error("OpenAI API key fetch failed in check_image_content", "moderation")
 		pass
 
-	if api_key:
+	if api_key and _ai_kotasi_uygun(doc.image):
 		try:
 			result = _openai_vision_check(doc.image, api_key)
+			_ai_kotasini_say(doc.image)
 		except Exception as e:
 			frappe.log_error(title="vision_check_failed", message=str(e))
 			result = _stub_check_image(doc.image)
@@ -227,3 +228,56 @@ def list_active_rules():
 		filters={"is_active": 1},
 		fields=["name", "trigger_type", "threshold_value", "action"],
 	)
+
+
+# ── AI çağrı kotası (MOGEM-620 §18) ─────────────────────────────────────
+#
+# Şartname tenant başına AI kotası istiyor. Buradaki çağrı zaten var ve
+# ücretli (`gpt-4o-mini` Vision); sayaçsız bırakmak kotayı ölçülemez kılıyordu.
+#
+# KOTA AŞILDIĞINDA ÇAĞRI YAPILMAZ AMA MODERASYON DURMAZ: `_stub_check_image`
+# devreye girer ve karar `allow` olur. Alternatif (görseli reddetmek) kotası
+# dolmuş bir satıcının tüm yorum görsellerini görünmez yapardı — kota bir
+# ticari sınır, moderasyon bir güvenlik kararı; birincisi ikincisini
+# yönetmemeli. Bu, `media/pipeline/policy/retention.schema.json` §242'deki
+# "kota ile yasal yükümlülük farklı şeylerdir" ayrımıyla aynı çizgi.
+
+
+def _gorsel_magazasi(image_url: str) -> str | None:
+	"""Görselin sahibi mağaza — sayaç ve kota bu mağazaya yazılır."""
+	try:
+		from tradehub_core.media import ownership
+
+		sahip = frappe.db.get_value("File", {"file_url": (image_url or "").split("?")[0]}, "owner")
+		return ownership.store_of(sahip) if sahip else None
+	except Exception:
+		frappe.log_error(title="moderation ai kota mağaza çözümü", message=frappe.get_traceback())
+		return None
+
+
+def _ai_kotasi_uygun(image_url: str) -> bool:
+	"""Mağazanın aylık AI çağrı kotası bu çağrıya yetiyor mu."""
+	magaza = _gorsel_magazasi(image_url)
+	if not magaza:
+		# Mağazası çözülemeyen görsel (platform içeriği) kotasız —
+		# `check_media_storage_quota`'nın "mağazasız oturum muaf" kuralıyla aynı.
+		return True
+	from tradehub_core.media import meter
+
+	karar = meter.check(magaza, meter.METRIC_AI, incoming=1)
+	if not karar["allowed"]:
+		frappe.log_error(
+			title="moderation AI kotası aşıldı",
+			message=f"store={magaza} image={image_url} karar={karar}",
+		)
+	return bool(karar["allowed"])
+
+
+def _ai_kotasini_say(image_url: str) -> None:
+	"""Yapılan çağrıyı sayaca işle — çağrı BAŞARILI olduktan sonra."""
+	magaza = _gorsel_magazasi(image_url)
+	if not magaza:
+		return
+	from tradehub_core.media import meter
+
+	meter.record(magaza, meter.METRIC_AI, 1)

@@ -690,11 +690,11 @@ class TestDocMetaHookRegistration(FrappeTestCase):
 
 	def test_desteklenmeyen_uzantida_enqueue_edilmez(self):
 		with mock.patch("tradehub_core.media.av.enqueue_scan"), mock.patch("frappe.enqueue") as sahte:
-			doc = _dosya(f"resim-{_TUZ}.txt")
+			doc = _dosya(f"resim-{_TUZ}.zip")
 		self.addCleanup(_sil, "File", doc.name)
 		self.assertFalse(
 			any(c.kwargs.get("file_url") == doc.file_url for c in sahte.call_args_list),
-			".txt DOC_UZANTILAR'da değil — enqueue edilmemeli",
+			".zip DOC_UZANTILAR'da değil — enqueue edilmemeli",
 		)
 
 
@@ -774,14 +774,15 @@ class TestDocIndexable(FrappeTestCase):
 
 	def test_desteklenmeyen_uzanti_false(self):
 		"""İkinci koşul: `Listing Document.file` serbest bir `Attach` — gerçek
-		bir PDF/Office olmayan (`.txt`) dosya, ilana bağlı olsa bile indexlenmez."""
+		bir PDF/Office/düz-metin olmayan (`.zip`) dosya, ilana bağlı olsa bile
+		indexlenmez."""
 		from tradehub_core.api import media_public
 
 		ilan = _gorunur_ilan()
 		if not ilan:
 			self.skipTest("Vitrinde görünen ilan yok — fixture kurulamaz.")
 
-		doc = _dosya(f"di-uzanti-{_TUZ}.txt")
+		doc = _dosya(f"di-uzanti-{_TUZ}.zip")
 		self.addCleanup(_sil, "File", doc.name)
 		self.addCleanup(_ilan_belge_baglar(ilan["name"], doc.file_url))
 
@@ -933,7 +934,7 @@ class TestListingDigitalDocumentJsonLd(FrappeTestCase):
 
 		listing = frappe.get_doc("Listing", ilan["name"]).as_dict()
 		schemas = compose_for_listing(listing, {}, "https://istoc.localhost")
-		product = next(s for s in schemas if s["@type"] == "Product")
+		product = next(s for s in schemas if str(s.get("@id", "")).endswith("#product"))
 
 		self.assertIn("subjectOf", product)
 		belge = product["subjectOf"][0]
@@ -950,7 +951,7 @@ class TestListingDigitalDocumentJsonLd(FrappeTestCase):
 
 		listing = frappe.get_doc("Listing", ilan["name"]).as_dict()
 		schemas = compose_for_listing(listing, {}, "https://istoc.localhost")
-		product = next(s for s in schemas if s["@type"] == "Product")
+		product = next(s for s in schemas if str(s.get("@id", "")).endswith("#product"))
 
 		self.assertNotIn("subjectOf", product)
 
@@ -970,7 +971,7 @@ class TestListingDigitalDocumentJsonLd(FrappeTestCase):
 
 		listing = frappe.get_doc("Listing", ilan["name"]).as_dict()
 		schemas = compose_for_listing(listing, {}, "https://istoc.localhost")
-		product = next(s for s in schemas if s["@type"] == "Product")
+		product = next(s for s in schemas if str(s.get("@id", "")).endswith("#product"))
 
 		self.assertNotIn("subjectOf", product)
 
@@ -998,14 +999,14 @@ class TestListingDigitalDocumentJsonLd(FrappeTestCase):
 
 		listing = frappe.get_doc("Listing", ilan["name"]).as_dict()
 		schemas = compose_for_listing(listing, {}, "https://istoc.localhost")
-		product = next(s for s in schemas if s["@type"] == "Product")
+		product = next(s for s in schemas if str(s.get("@id", "")).endswith("#product"))
 
 		self.assertNotIn("subjectOf", product)
 
 	def test_desteklenmeyen_uzantili_belge_subjectof_disinda_kalir(self):
 		"""Düzeltme turu 1 — sitemap'in `doc_indexable` tanımıyla BİRLİK:
 		`Listing Document.file` serbest bir `Attach`; `DOC_UZANTILAR` dışındaki
-		(`.txt` gibi) bir dosya sitemap'e girmediği gibi JSON-LD `subjectOf`'a
+		(`.zip` gibi) bir dosya sitemap'e girmediği gibi JSON-LD `subjectOf`'a
 		da girmemeli — tanım iki yerde ayrışmasın."""
 		from tradehub_core.seo.schema_builder import compose_for_listing
 
@@ -1013,13 +1014,13 @@ class TestListingDigitalDocumentJsonLd(FrappeTestCase):
 		if not ilan:
 			self.skipTest("Vitrinde görünen ilan yok — fixture kurulamaz.")
 
-		doc = _dosya(f"jsonld-desteklenmeyen-{_TUZ}.txt")
+		doc = _dosya(f"jsonld-desteklenmeyen-{_TUZ}.zip")
 		self.addCleanup(_sil, "File", doc.name)
 		self.addCleanup(_ilan_belge_baglar(ilan["name"], doc.file_url))
 
 		listing = frappe.get_doc("Listing", ilan["name"]).as_dict()
 		schemas = compose_for_listing(listing, {}, "https://istoc.localhost")
-		product = next(s for s in schemas if s["@type"] == "Product")
+		product = next(s for s in schemas if str(s.get("@id", "")).endswith("#product"))
 
 		self.assertNotIn("subjectOf", product)
 
@@ -1040,7 +1041,7 @@ class TestListingDigitalDocumentJsonLd(FrappeTestCase):
 
 		listing = frappe.get_doc("Listing", ilan["name"]).as_dict()
 		schemas = compose_for_listing(listing, {}, "https://istoc.localhost")
-		product = next(s for s in schemas if s["@type"] == "Product")
+		product = next(s for s in schemas if str(s.get("@id", "")).endswith("#product"))
 
 		eslesenler = [b for b in product.get("subjectOf", []) if b["contentUrl"].endswith(doc.file_url)]
 		self.assertEqual(len(eslesenler), 1)

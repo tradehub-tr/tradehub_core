@@ -28,6 +28,10 @@ import frappe
 from frappe.tests.utils import FrappeTestCase
 
 from tradehub_core.media import audio_meta, seo
+from tradehub_core.tests.zenginlestirme_notr import (  # noqa: F401
+	setUpModule,
+	tearDownModule,
+)
 
 _TUZ: str = frappe.generate_hash(length=10)
 
