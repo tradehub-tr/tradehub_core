@@ -1,3 +1,19 @@
+## [v1.13.1-alpha.63] - 2026-09-12 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(medya): MOGEM-620'nin AI arama katmanı dışındaki 14 kalemi kapatıldı (@Metin Bektemur)
+  - bulk_ops: sunucu tarafı toplu alan yazma
+  - meter + Media Usage Meter doctype: akış/kota ölçümü
+  - Media Locale Variant doctype + seo/schema_builder: dil bazlı SEO çıktısı
+  - similar, tags_source, decode_cost, categories: katalog yardımcıları
+  - patch v15_9_54 (SEO alan seti) ve v15_9_55 (akış kotaları tohumlama)
+  - MOGEM-620 test paketi: duman, e2e, fonksiyonel, maymun, permütasyon, yetki
+  - tests/zenginlestirme_notr.py: canlı worker ile yarışan testleri kuyruk durumundan bağımsız kılar (av_notr.py deseninin kardeşi)
+  - docs/reports/114: turun tam dökümü
+
+---
 ## [v1.13.1-alpha.62] - 2026-09-08 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
