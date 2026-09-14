@@ -11,12 +11,15 @@ renewal reminder sıfırlama + R1'li current_period_end backfill patch'i.
 
 from __future__ import annotations
 
+from contextlib import contextmanager
+
 import frappe
 from frappe.model.document import Document
 from frappe.tests.utils import FrappeTestCase
 from frappe.utils import add_days, add_months, get_datetime, now_datetime
 
 from tradehub_core.patches.v15_backfill_current_period_end import execute as run_backfill
+from tradehub_core.services.storefront_visibility import restore_store_listings
 
 _USER_EMAIL = "stsub-test-owner@example.com"
 _STORE_PREFIX = "STSUBTEST-"
@@ -172,6 +175,183 @@ class TestStoreSubscription(FrappeTestCase):
 		sub.save(ignore_permissions=True)
 		self.assertEqual(int(sub.renewal_reminder_7d_sent), 1)
 		self.assertEqual(int(sub.renewal_reminder_1d_sent), 1)
+
+	# --- dunning: geçiş matrisi + suspended alanları (BE-2 / D1 / D2) ---
+
+	@contextmanager
+	def _patched_enqueue(self):
+		"""frappe.enqueue'yu yakala (D2 testleri) — gerçek kuyruk/worker'a iş gitmez."""
+		calls: list[dict] = []
+		original_enqueue = frappe.enqueue
+
+		def _capture(method, **kwargs):
+			calls.append({"method": method, "kwargs": kwargs})
+
+		frappe.enqueue = _capture
+		try:
+			yield calls
+		finally:
+			frappe.enqueue = original_enqueue
+
+	def _restore_calls(self, calls: list[dict]) -> list[dict]:
+		return [c for c in calls if c["method"] is restore_store_listings]
+
+	def test_suspended_to_expired_allowed(self):
+		"""AC-7: suspended→expired geçişi state machine'e eklendi (T+30 dunning feshi)."""
+		sub = self._make_sub("S1")
+		sub.status = "suspended"
+		sub.save(ignore_permissions=True)
+		sub.reload()
+		sub.status = "expired"
+		sub.save(ignore_permissions=True)
+		self.assertEqual(sub.status, "expired")
+
+	def test_suspended_to_trial_blocked(self):
+		"""suspended'dan yalnız active/canceled/expired'a çıkılır — trial'a dönüş yok."""
+		sub = self._make_sub("S2")
+		sub.status = "suspended"
+		sub.save(ignore_permissions=True)
+		sub.reload()
+		sub.status = "trial"
+		with self.assertRaises(frappe.ValidationError):
+			sub.save(ignore_permissions=True)
+
+	def test_suspended_to_past_due_blocked(self):
+		"""suspended→past_due geçişi yok — hoşgörü penceresine geri dönüş tanımsız."""
+		sub = self._make_sub("S3")
+		sub.status = "suspended"
+		sub.save(ignore_permissions=True)
+		sub.reload()
+		sub.status = "past_due"
+		with self.assertRaises(frappe.ValidationError):
+			sub.save(ignore_permissions=True)
+
+	def test_expired_to_suspended_blocked(self):
+		"""expired'dan suspended'a geçiş tanımsız kalır (yalnız active/canceled)."""
+		sub = self._make_sub("S4")
+		sub.status = "expired"
+		sub.save(ignore_permissions=True)
+		sub.reload()
+		sub.status = "suspended"
+		with self.assertRaises(frappe.ValidationError):
+			sub.save(ignore_permissions=True)
+
+	def test_suspended_at_stamped_on_suspend(self):
+		"""'suspended'a geçişte suspended_at otomatik now damgalanır; kaynak default 'manual'."""
+		sub = self._make_sub("S5")
+		self.assertFalse(sub.suspended_at)
+		sub.status = "suspended"
+		sub.save(ignore_permissions=True)
+		self.assertTrue(sub.suspended_at)
+		self.assertEqual(sub.suspend_source, "manual")
+
+	def test_suspend_source_dunning_not_overridden_by_validate(self):
+		"""D1: lifecycle job'ı suspend ederken suspend_source='dunning' yazar — validate ezmemeli."""
+		sub = self._make_sub("S6")
+		sub.status = "suspended"
+		sub.suspend_source = "dunning"
+		sub.save(ignore_permissions=True)
+		sub.reload()
+		self.assertEqual(sub.suspend_source, "dunning")
+		self.assertTrue(sub.suspended_at)
+
+	def test_suspension_marks_cleared_on_exit_to_active(self):
+		"""D1: suspended→active çıkışında suspended_at temizlenir, suspend_source 'manual'a döner."""
+		sub = self._make_sub("S7")
+		sub.status = "suspended"
+		sub.suspend_source = "dunning"
+		sub.save(ignore_permissions=True)
+		sub.reload()
+		with self._patched_enqueue():
+			sub.status = "active"
+			sub.save(ignore_permissions=True)
+		self.assertFalse(sub.suspended_at)
+		self.assertEqual(sub.suspend_source, "manual")
+
+	def test_suspension_marks_cleared_on_exit_to_expired(self):
+		"""Çıkış temizliği yalnız active'e özgü değil — suspended→expired'da da uygulanır."""
+		sub = self._make_sub("S8")
+		sub.status = "suspended"
+		sub.suspend_source = "dunning"
+		sub.save(ignore_permissions=True)
+		sub.reload()
+		sub.status = "expired"
+		sub.save(ignore_permissions=True)
+		self.assertFalse(sub.suspended_at)
+		self.assertEqual(sub.suspend_source, "manual")
+
+	def test_dunning_flags_reset_on_new_period(self):
+		"""AC-2: yeni dönemde (current_period_start değişimi) dunning bayrakları sıfırlanır."""
+		now = now_datetime()
+		sub = self._make_sub("S9", current_period_start=now, current_period_end=add_months(now, 1))
+		frappe.db.set_value(
+			"Store Subscription",
+			sub.name,
+			{
+				"dunning_reminder_1d_sent": 1,
+				"dunning_reminder_3d_sent": 1,
+				"dunning_reminder_7d_sent": 1,
+			},
+			update_modified=False,
+		)
+		sub.reload()
+		sub.current_period_start = add_months(now, 1)
+		sub.current_period_end = add_months(now, 2)
+		sub.save(ignore_permissions=True)
+		self.assertEqual(int(sub.dunning_reminder_1d_sent), 0)
+		self.assertEqual(int(sub.dunning_reminder_3d_sent), 0)
+		self.assertEqual(int(sub.dunning_reminder_7d_sent), 0)
+
+	def test_dunning_flags_kept_when_period_unchanged(self):
+		"""Dönem değişmeden dunning bayrakları sıfırlanmaz — cascade idempotency bozulmaz."""
+		now = now_datetime()
+		sub = self._make_sub("S10", current_period_start=now, current_period_end=add_months(now, 1))
+		frappe.db.set_value(
+			"Store Subscription",
+			sub.name,
+			{"dunning_reminder_1d_sent": 1, "dunning_reminder_3d_sent": 1},
+			update_modified=False,
+		)
+		sub.reload()
+		sub.cancellation_note = "dönem değişmedi — dunning bayrakları kalmalı"
+		sub.save(ignore_permissions=True)
+		self.assertEqual(int(sub.dunning_reminder_1d_sent), 1)
+		self.assertEqual(int(sub.dunning_reminder_3d_sent), 1)
+
+	def test_restore_enqueued_on_suspended_to_active(self):
+		"""D2: suspended→active GERÇEK geçişinde restore_store_listings enqueue edilir."""
+		sub = self._make_sub("S11")
+		sub.status = "suspended"
+		sub.save(ignore_permissions=True)
+		sub.reload()
+		with self._patched_enqueue() as calls:
+			sub.status = "active"
+			sub.save(ignore_permissions=True)
+		restore_calls = self._restore_calls(calls)
+		self.assertEqual(len(restore_calls), 1)
+		kwargs = restore_calls[0]["kwargs"]
+		self.assertEqual(kwargs.get("store"), sub.store)
+		self.assertEqual(kwargs.get("queue"), "long")
+		self.assertTrue(kwargs.get("enqueue_after_commit"))
+
+	def test_no_restore_enqueue_on_plain_active_save(self):
+		"""D2 negatif: active→active save'de (geçiş yok) restore enqueue EDİLMEZ."""
+		sub = self._make_sub("S12")
+		with self._patched_enqueue() as calls:
+			sub.cancellation_note = "status geçişi yok"
+			sub.save(ignore_permissions=True)
+		self.assertEqual(self._restore_calls(calls), [])
+
+	def test_no_restore_enqueue_on_suspended_save_without_transition(self):
+		"""D2 negatif: suspended kalarak yapılan save restore tetiklemez."""
+		sub = self._make_sub("S13")
+		sub.status = "suspended"
+		sub.save(ignore_permissions=True)
+		sub.reload()
+		with self._patched_enqueue() as calls:
+			sub.cancellation_note = "hala suspended"
+			sub.save(ignore_permissions=True)
+		self.assertEqual(self._restore_calls(calls), [])
 
 	# --- backfill patch (R1) ---
 
