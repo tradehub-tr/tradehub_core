@@ -20,22 +20,37 @@ BE-4 — ücretli abonelik lifecycle'ı (`process_paid_lifecycle`, ayrı cron ka
      state machine üzerinden `canceled` (Amazon Seller modeli, AC-8).
   5) `expire_paid_periods` — dönem sonu geçmiş + bayrak=0 → `past_due` (paywall).
 
-Gelecekteki lifecycle job'ları (past_due → suspended dunning, auto-renew, vb.)
-bu modüle eklenebilir.
+Dunning dalları (BE-3, Faz C dilim 1) — past_due artık HOŞGÖRÜ penceresi:
+  6) `send_dunning_reminders` — past_due aboneliklere dönem sonundan T+1/T+3/T+7
+     sonra kademeli hatırlatma (dunning_reminder_*_sent cascade bayrakları).
+  7) `suspend_delinquent_subscriptions` — T+14 geçmiş past_due → `suspended`
+     (suspend_source='dunning') + vitrin gizleme (hide_store_listings, enqueue long).
+  8) `expire_dunning_subscriptions` — T+30 geçmiş dunning-suspended → `expired`
+     (cancellation_reason='dunning_expired'); manuel suspend YAKALANMAZ (D1).
+
+Gelecekteki lifecycle job'ları (auto-renew, win-back, vb.) bu modüle eklenebilir.
 """
 
 from __future__ import annotations
+
+from datetime import timedelta
 
 import frappe
 from frappe.utils import cint, get_datetime, now_datetime
 
 from tradehub_core.audit import log_decision
+from tradehub_core.services.storefront_visibility import hide_store_listings
 from tradehub_core.utils.notify import notify
 
 _THREE_DAYS = 3 * 24 * 3600
 _SEVEN_DAYS = 7 * 24 * 3600
 _ONE_DAY = 24 * 3600
 _TWO_HOURS = 2 * 3600
+
+# Dunning pencere süreleri (gün) — PO önerisi, Bora onayı bekliyor (spec risk kaydı);
+# onay/karar değişirse yalnız bu iki satır güncellenir.
+_DUNNING_SUSPEND_DAYS = 14
+_DUNNING_EXPIRE_DAYS = 30
 
 # Reminder aşaması → (başlık, mesaj). E-posta konusu = başlık, gövde = mesaj.
 _REMINDER_COPY = {
@@ -421,8 +436,10 @@ def finalize_cancellations() -> dict:
 def expire_paid_periods() -> dict:
 	"""Dönem sonu geçmiş + iptal planı OLMAYAN aktifleri `past_due` yap (AC-8).
 
-	Dunning Faz C'de — past_due paneli anında kilitler (risk A3-4); ödeme onayı
-	gelince upgrade_subscription_plan satırı yeniden `active` yapar.
+	Dunning Faz C dilim 1 sonrası past_due HOŞGÖRÜ penceresi (erişim sürer);
+	T+0 bildirimi copy'sine hoşgörü bitişi eklendi (AC-12 — geçiş başına en
+	fazla 1 bildirim davranışı DEĞİŞMEZ). Ödeme onayı gelince
+	upgrade_subscription_plan satırı yeniden `active` yapar.
 	"""
 	now = now_datetime()
 	# get_all gerekçe: scheduler sistem işi, perm bypass kasıtlı.
@@ -471,11 +488,14 @@ def expire_paid_periods() -> dict:
 
 			owner = owner_by_store.get(sub.store)
 			if owner:
-				end_str = get_datetime(sub.current_period_end).strftime("%d.%m.%Y")
+				period_end = get_datetime(sub.current_period_end)
+				end_str = period_end.strftime("%d.%m.%Y")
+				grace_str = _dunning_grace_end_str(period_end)
 				title = "Abonelik döneminiz sona erdi — ödeme bekleniyor"
 				message = (
 					f"Abonelik döneminiz {end_str} tarihinde sona erdi ve yenileme ödemesi alınamadı. "
-					"Erişiminizi sürdürmek için yenileme ödemenizi tamamlayın."
+					f"Erişiminiz {grace_str} tarihine kadar sürer — kesinti yaşamamak için yenileme "
+					"ödemenizi tamamlayın."
 				)
 				notify(
 					recipient_user=owner,
@@ -502,15 +522,360 @@ def expire_paid_periods() -> dict:
 	return {"past_due_count": len(past_due), "past_due_subscriptions": past_due}
 
 
-def process_paid_lifecycle() -> dict:
-	"""Cron giriş noktası (BE-4): reminder → finalize → past_due.
+# ---------------------------------------------------------------------------
+# BE-3 — Dunning dalları (past_due hoşgörü penceresi → suspend → fesih)
+# ---------------------------------------------------------------------------
 
-	Sıra kasıtlı: finalize past_due'dan ÖNCE koşar ki dönem sonu geçmiş +
-	cancel_at_period_end=1 kayıt iki dalda iki kez işlenmesin (spec BE-4).
-	Job toplamı idempotent: ikinci koşuda hiçbir kayıt değişmez (bayraklar set,
-	status'lar artık 'active' değil).
+
+def _dunning_grace_end_str(period_end) -> str:
+	"""Hoşgörü penceresi bitişi (current_period_end + T+14) — bildirim copy'si için."""
+	return (get_datetime(period_end) + timedelta(days=_DUNNING_SUSPEND_DAYS)).strftime("%d.%m.%Y")
+
+
+def _due_dunning_stage(sub, overdue_seconds: float) -> tuple[str | None, dict]:
+	"""Gönderilecek T+1/T+3/T+7 dunning aşaması + set edilecek bayraklar.
+
+	`_due_reminder_stage` / `_due_renewal_stage` idempotent cascade deseninin
+	kopyası (AC-2), yön ters: gecikme BÜYÜDÜKÇE aciliyet artar. En gecikmiş
+	gönderilmemiş aşama seçilir ve o aşama + daha az acil bayraklar birlikte
+	set edilir — T+7 gidince geç/çift T+1/T+3 bildirimi gönderilmez.
+	"""
+	if overdue_seconds >= _SEVEN_DAYS and not sub.dunning_reminder_7d_sent:
+		return "7d", {
+			"dunning_reminder_7d_sent": 1,
+			"dunning_reminder_3d_sent": 1,
+			"dunning_reminder_1d_sent": 1,
+		}
+	if overdue_seconds >= _THREE_DAYS and not sub.dunning_reminder_3d_sent:
+		return "3d", {"dunning_reminder_3d_sent": 1, "dunning_reminder_1d_sent": 1}
+	if overdue_seconds >= _ONE_DAY and not sub.dunning_reminder_1d_sent:
+		return "1d", {"dunning_reminder_1d_sent": 1}
+	return None, {}
+
+
+def _dunning_copy(stage: str, grace_str: str) -> tuple[str, str]:
+	"""Dunning hatırlatma başlık + mesajı (spec BE-3 copy sözleşmesi)."""
+	titles = {
+		"1d": "Yenileme ödemenizi bekliyoruz",
+		"3d": "Yenileme ödemeniz 3 gündür bekleniyor",
+		"7d": "Son hatırlatma — yenileme ödemenizi bekliyoruz",
+	}
+	message = (
+		f"Abonelik döneminiz sona erdi ve yenileme ödemenizi bekliyoruz. Erişiminiz {grace_str} "
+		"tarihine kadar sürer — kesinti yaşamamak için ödemenizi tamamlayın."
+	)
+	return titles[stage], message
+
+
+def send_dunning_reminders() -> dict:
+	"""past_due aboneliklere dönem sonundan T+1/T+3/T+7 sonra hatırlatma (AC-2).
+
+	Idempotent: her aşama dunning_reminder_*_sent bayrağıyla dönem başına yalnız
+	1 kez; yeni dönemde bayraklar controller'da sıfırlanır (BE-2). Dönüş değeri
+	`first_reminded` bu koşuda İLK hatırlatmasını alan (önceden tamamen bayraksız)
+	kayıtları listeler — suspend dalının D4b emniyeti aynı koşuda bu kayıtları
+	askıya almasın diye (deploy sonrası ilk koşuda önce hatırlatma gider).
+	"""
+	now = now_datetime()
+	# get_all gerekçe: scheduler sistem işi, perm bypass kasıtlı.
+	subs = frappe.get_all(
+		"Store Subscription",
+		filters={"status": "past_due", "current_period_end": ["is", "set"]},
+		fields=[
+			"name",
+			"store",
+			"current_period_end",
+			"dunning_reminder_1d_sent",
+			"dunning_reminder_3d_sent",
+			"dunning_reminder_7d_sent",
+		],
+	)
+	if not subs:
+		return {"sent": 0, "first_reminded": []}
+
+	owner_by_store = _owner_users_by_store([s.store for s in subs])
+
+	sent = 0
+	first_reminded: list[str] = []
+	for s in subs:
+		try:
+			overdue = (now - get_datetime(s.current_period_end)).total_seconds()
+			if overdue <= 0:
+				continue  # dönem sonu geçmemiş — bu dalın işi değil
+			stage, flags = _due_dunning_stage(s, overdue)
+			if not stage:
+				continue
+			had_any_flag = bool(
+				cint(s.dunning_reminder_1d_sent)
+				or cint(s.dunning_reminder_3d_sent)
+				or cint(s.dunning_reminder_7d_sent)
+			)
+			owner = owner_by_store.get(s.store)
+			if owner:
+				title, message = _dunning_copy(stage, _dunning_grace_end_str(s.current_period_end))
+				notify(
+					recipient_user=owner,
+					# Platform Notification.type Select'inde "subscription" yok → "system".
+					type="system",
+					title=title,
+					message=message,
+					action_url="/abonelik",
+					reference_doctype="Store Subscription",
+					reference_name=s.name,
+					send_email=True,
+					email_subject=title,
+					email_body=message,
+				)
+			# Bayrağı her durumda set et (owner bulunamasa bile sonsuz retry olmasın).
+			frappe.db.set_value("Store Subscription", s.name, flags, update_modified=False)
+			sent += 1
+			if not had_any_flag:
+				first_reminded.append(s.name)
+		except Exception as exc:  # noqa: BLE001 — bir sub'un fail'i diğerlerini durdurmasın
+			frappe.log_error(f"dunning reminder fail: {s.name}: {exc}", "subscription_lifecycle.dunning")
+
+	frappe.db.commit()
+	return {"sent": sent, "first_reminded": first_reminded}
+
+
+def suspend_delinquent_subscriptions(first_reminded: tuple[str, ...] | list[str] = ()) -> dict:
+	"""T+14 geçmiş past_due abonelikleri `suspended` yap + vitrini gizle (AC-3/AC-4).
+
+	D4b EMNİYETİ (iki katman): (1) en az bir dunning_reminder_*_sent bayrağı set
+	olmadan suspend EDİLMEZ; (2) `first_reminded` (aynı koşuda İLK hatırlatmasını
+	alan kayıtlar) bu koşuda atlanır — deploy sonrası ilk koşuda herkese önce
+	hatırlatma gider, kimse uyarısız vitrin kaybetmez (bir sonraki koşu askıya alır).
+	suspend_source='dunning' save ÖNCESİ set edilir (D1 — T+30 feshi yalnız bu
+	işaretli kayıtları yakalar); suspended_at damgası controller'da otomatik (BE-2).
+	"""
+	now = now_datetime()
+	cutoff = now - timedelta(days=_DUNNING_SUSPEND_DAYS)
+	# get_all gerekçe: scheduler sistem işi, perm bypass kasıtlı.
+	due = frappe.get_all(
+		"Store Subscription",
+		filters={"status": "past_due", "current_period_end": ["<", cutoff]},
+		fields=[
+			"name",
+			"store",
+			"plan",
+			"current_period_end",
+			"dunning_reminder_1d_sent",
+			"dunning_reminder_3d_sent",
+			"dunning_reminder_7d_sent",
+		],
+	)
+	owner_by_store = _owner_users_by_store([s.store for s in due])
+
+	suspended: list[str] = []
+	for sub in due:
+		try:
+			# D4b katman 1: hiç hatırlatılmamış kayıt uyarısız askıya alınmaz.
+			if not (
+				cint(sub.dunning_reminder_1d_sent)
+				or cint(sub.dunning_reminder_3d_sent)
+				or cint(sub.dunning_reminder_7d_sent)
+			):
+				continue
+			# D4b katman 2: ilk hatırlatması BU koşuda giden kayıt bir sonraki koşuyu bekler.
+			if sub.name in first_reminded:
+				continue
+
+			# Idempotent: işlem öncesi re-check (race önlemi — bu arada ödeme
+			# onaylanıp 'active' olmuş olabilir).
+			current_status = frappe.db.get_value("Store Subscription", sub.name, "status")
+			if current_status != "past_due":
+				continue
+
+			doc = frappe.get_doc("Store Subscription", sub.name)
+			doc.status = "suspended"
+			# D1: dunning işareti — yalnız bu job yazar; validate girişte dokunmaz,
+			# suspended'dan çıkışta 'manual' default'una döner (BE-2).
+			doc.suspend_source = "dunning"
+			# Scheduler context'i — user session yok, sistem geçişi kasıtlı.
+			doc.save(ignore_permissions=True)
+			suspended.append(sub.name)
+
+			# Vitrin gizleme — çok ürünlü mağaza için arkaya (BE-1 sözleşmesi:
+			# storefront_visibility enqueue YAPMAZ, çağıranın işi); commit sonrası
+			# ki job bayat status okumasın.
+			frappe.enqueue(
+				hide_store_listings,
+				store=sub.store,
+				queue="long",
+				enqueue_after_commit=True,
+			)
+
+			log_decision(
+				action="subscription.dunning_suspended",
+				decision="ALLOW",
+				rule_id="auth.subscription_lifecycle",
+				layer="L0",
+				object_doctype="Store Subscription",
+				object_name=sub.name,
+				tenant=sub.store,
+				plan_code=sub.plan,
+				severity="HIGH",
+				context={
+					"period_end": str(sub.current_period_end),
+					"new_status": "suspended",
+					"suspend_source": "dunning",
+					"source": "lifecycle_job",
+				},
+			)
+
+			owner = owner_by_store.get(sub.store)
+			if owner:
+				expire_str = (
+					get_datetime(sub.current_period_end) + timedelta(days=_DUNNING_EXPIRE_DAYS)
+				).strftime("%d.%m.%Y")
+				title = "Mağazanız askıya alındı"
+				message = (
+					"Yenileme ödemesi alınamadığı için mağazanız askıya alındı ve vitrininiz geçici "
+					"olarak pasifleştirildi. Ödemenizi tamamladığınızda vitrininiz otomatik geri açılır; "
+					f"ödeme yapılmazsa aboneliğiniz {expire_str} tarihinde sona erecek."
+				)
+				notify(
+					recipient_user=owner,
+					type="system",
+					title=title,
+					message=message,
+					action_url="/abonelik",
+					reference_doctype="Store Subscription",
+					reference_name=sub.name,
+					send_email=True,
+					email_subject=title,
+					email_body=message,
+				)
+		except Exception as exc:  # noqa: BLE001 — bir sub'un fail'i diğerlerini durdurmasın
+			frappe.log_error(
+				f"dunning suspend fail: {sub.name}: {exc}",
+				"subscription_lifecycle.suspend_delinquent",
+			)
+
+	if suspended:
+		_flush_entitlement_caches("suspend_delinquent")
+
+	frappe.db.commit()
+	return {"suspended_count": len(suspended), "suspended_subscriptions": suspended}
+
+
+def expire_dunning_subscriptions() -> dict:
+	"""T+30 geçmiş dunning-suspended abonelikleri `expired` yap (AC-7).
+
+	D1: sorgu SEVİYESİNDE suspend_source='dunning' filtresi — admin'in Desk'ten
+	manuel suspend ettiği mağaza (suspend_source='manual') T+30 otomatik feshinin
+	TAMAMEN dışında kalır (süresiz kilit niyeti korunur). suspended'dan çıkışta
+	controller suspend_source'u temizlediği için filtre geçişten ÖNCE uygulanmalı.
+	Veri/listing SİLİNMEZ; expired→active mevcut geçişiyle yeniden abonelik mümkün.
+	"""
+	now = now_datetime()
+	cutoff = now - timedelta(days=_DUNNING_EXPIRE_DAYS)
+	# get_all gerekçe: scheduler sistem işi, perm bypass kasıtlı.
+	due = frappe.get_all(
+		"Store Subscription",
+		filters={
+			"status": "suspended",
+			"suspend_source": "dunning",  # D1 — manuel suspend YAKALANMAZ
+			"suspended_at": ["is", "set"],
+			"current_period_end": ["<", cutoff],
+		},
+		fields=["name", "store", "plan", "current_period_end", "suspended_at"],
+	)
+	owner_by_store = _owner_users_by_store([s.store for s in due])
+
+	expired: list[str] = []
+	for sub in due:
+		try:
+			# Idempotent re-check (race önlemi): bu arada ödeme onaylanıp 'active'
+			# olmuş ya da suspend_source değişmiş olabilir — D1 filtresi burada da.
+			row = frappe.db.get_value(
+				"Store Subscription", sub.name, ["status", "suspend_source"], as_dict=True
+			)
+			if not row or row.status != "suspended" or row.suspend_source != "dunning":
+				continue
+
+			doc = frappe.get_doc("Store Subscription", sub.name)
+			doc.status = "expired"
+			doc.cancellation_reason = "dunning_expired"
+			# Scheduler context'i — user session yok, sistem geçişi kasıtlı.
+			doc.save(ignore_permissions=True)
+			expired.append(sub.name)
+
+			log_decision(
+				action="subscription.dunning_expired",
+				decision="ALLOW",
+				rule_id="auth.subscription_lifecycle",
+				layer="L0",
+				object_doctype="Store Subscription",
+				object_name=sub.name,
+				tenant=sub.store,
+				plan_code=sub.plan,
+				severity="HIGH",
+				context={
+					"period_end": str(sub.current_period_end),
+					"suspended_at": str(sub.suspended_at),
+					"new_status": "expired",
+					"cancellation_reason": "dunning_expired",
+					"source": "lifecycle_job",
+				},
+			)
+
+			owner = owner_by_store.get(sub.store)
+			if owner:
+				title = "Aboneliğiniz sona erdi"
+				message = (
+					"Yenileme ödemesi alınamadığı için askıdaki aboneliğiniz sona erdi. Verileriniz ve "
+					"ürünleriniz silinmedi — dilediğiniz zaman yeni bir paket seçerek mağazanızı "
+					"yeniden açabilirsiniz."
+				)
+				notify(
+					recipient_user=owner,
+					type="system",
+					title=title,
+					message=message,
+					action_url="/abonelik",
+					reference_doctype="Store Subscription",
+					reference_name=sub.name,
+					send_email=True,
+					email_subject=title,
+					email_body=message,
+				)
+		except Exception as exc:  # noqa: BLE001 — bir sub'un fail'i diğerlerini durdurmasın
+			frappe.log_error(
+				f"dunning expire fail: {sub.name}: {exc}",
+				"subscription_lifecycle.expire_dunning",
+			)
+
+	if expired:
+		_flush_entitlement_caches("expire_dunning")
+
+	frappe.db.commit()
+	return {"expired_count": len(expired), "expired_subscriptions": expired}
+
+
+def process_paid_lifecycle() -> dict:
+	"""Cron giriş noktası (BE-4 + BE-3): reminder → finalize → past_due → dunning.
+
+	Sıra kasıtlı (AC-11): finalize past_due'dan ÖNCE koşar ki dönem sonu geçmiş +
+	cancel_at_period_end=1 kayıt iki dalda iki kez işlenmesin (spec BE-4). Dunning
+	adımları mevcut sıranın SONUNDA: hatırlatma → T+14 suspend → T+30 fesih;
+	`first_reminded` köprüsü D4b emniyetinin 2. katmanı (aynı koşuda ilk
+	hatırlatma + suspend birlikte olmaz). Job toplamı idempotent: ikinci koşuda
+	durumu değişecek yeni kayıt yoksa hiçbir kayıt değişmez.
 	"""
 	reminders = send_renewal_reminders()
 	finalized = finalize_cancellations()
 	past_due = expire_paid_periods()
-	return {"reminders": reminders, "finalized": finalized, "past_due": past_due}
+	dunning_reminders = send_dunning_reminders()
+	suspended = suspend_delinquent_subscriptions(
+		first_reminded=dunning_reminders.get("first_reminded") or ()
+	)
+	dunning_expired = expire_dunning_subscriptions()
+	return {
+		"reminders": reminders,
+		"finalized": finalized,
+		"past_due": past_due,
+		"dunning_reminders": dunning_reminders,
+		"suspended": suspended,
+		"dunning_expired": dunning_expired,
+	}

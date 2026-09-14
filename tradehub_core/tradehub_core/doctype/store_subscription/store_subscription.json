@@ -127,6 +127,46 @@
 			"description": "T-1 dönem sonu hatırlatması gönderildi mi (yeni dönemde sıfırlanır)."
 		},
 		{
+			"fieldname": "dunning_reminder_1d_sent",
+			"fieldtype": "Check",
+			"label": "Dunning Reminder 1d Sent",
+			"default": "0",
+			"read_only": 1,
+			"description": "T+1 dunning hatırlatması gönderildi mi (yeni dönemde sıfırlanır)."
+		},
+		{
+			"fieldname": "dunning_reminder_3d_sent",
+			"fieldtype": "Check",
+			"label": "Dunning Reminder 3d Sent",
+			"default": "0",
+			"read_only": 1,
+			"description": "T+3 dunning hatırlatması gönderildi mi (yeni dönemde sıfırlanır)."
+		},
+		{
+			"fieldname": "dunning_reminder_7d_sent",
+			"fieldtype": "Check",
+			"label": "Dunning Reminder 7d Sent",
+			"default": "0",
+			"read_only": 1,
+			"description": "T+7 dunning hatırlatması gönderildi mi (yeni dönemde sıfırlanır)."
+		},
+		{
+			"fieldname": "suspended_at",
+			"fieldtype": "Datetime",
+			"label": "Suspended At",
+			"read_only": 1,
+			"description": "'suspended'a geçiş anı (T+30 dunning feshinin referansı; suspended'dan çıkışta temizlenir)."
+		},
+		{
+			"fieldname": "suspend_source",
+			"fieldtype": "Select",
+			"label": "Suspend Source",
+			"options": "dunning\nmanual",
+			"default": "manual",
+			"read_only": 1,
+			"description": "Suspend'i kim yaptı: yalnız dunning job'ı 'dunning' yazar; manuel (Desk) suspend 'manual' kalır ve T+30 otomatik feshin dışında tutulur. Suspended'dan çıkışta default'a döner."
+		},
+		{
 			"fieldname": "cancel_at_period_end",
 			"fieldtype": "Check",
 			"label": "Cancel At Period End",
