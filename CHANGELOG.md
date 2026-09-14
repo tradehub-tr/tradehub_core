@@ -1,3 +1,320 @@
+## [v1.13.1-rc.1] - 2026-09-14 RC
+
+Bu surum rcistoc.cronbi.com'da onay asamasindadir.
+
+### Eklendi
+- feat(media): tarih ve saat standardı — çıktı ISO 8601 + saat dilimi (TUR-124) (@Metin Bektemur)
+- feat(media): hash-prefix shard + depolama standardı (TUR-130) (@TurksabYonetim)
+  - Yeni yüklemeler files/<ab>/<hash>.<ext> olarak shard'lanır (adın ilk 2 hex'i); tek dizinde milyonlarca dosya yerine ~256 dengeli alt dizin.
+  - İki write_file yolu da (doc + legacy) shard dizinini önceden oluşturur (Frappe write_file mkdir yapmıyor).
+  - Türev yeri (orijinal yanında suffix), çakışma (içerik-adresli dedup), eski isim migration'ı (ertelendi) docs/MEDYA-DEPOLAMA-STANDARDI.md'de.
+  - Mevcut file_url'ler kırılmaz; test 9/9 + gerçek upload doğrulandı (/files/c5/...).
+- feat(media/audit): media.signed_access olay sabiti (TUR-126 hazırlık) (@TurksabYonetim)
+- feat(media): private dosyalar için imzalı süreli URL (TUR-126 §3) (@TurksabYonetim)
+  - `get_signed_url(file_url, ttl_seconds)`: çağıranın dosyaya read yetkisi olduğunu (`File.has_permission`) doğrular, yalnız `/private/files/` altındaki dosyalar için `verified_command.get_signed_params` ile imzalı, TTL'i 86400sn'ye clamp'lenmiş bir link üretir. Yetkisiz kullanıcı için imza ÜRETİLMEZ (frappe.PermissionError).
+  - `download()` (`allow_guest=True`): imzayı (`verify_request`) ve süreyi doğrular, path'i tekrar (defansif) doğrular, `send_private_file` ile serve eder, başarılı her indirmeyi `media.signed_access` olarak denetime yazar.
+- feat(media/audit): media.level_changed olay sabiti (TUR-126 §4 hazırlık) (@TurksabYonetim)
+- feat(media/refs): retarget() — dosya URL değişince referansları yeni URL'e taşı (@TurksabYonetim)
+- feat(media): set_access_level — public↔private erişim-seviyesi toggle (TUR-126 §4) (@TurksabYonetim)
+- feat(media): video transcode durumu uçlardan dönüyor (TUR video-durum) (@TurksabYonetim)
+  - inventory.list_files + upload_media yanıtına video_status eklendi
+  - _run_transcode başarıda th_optimized_at damgalıyor — panel 'bekliyor' yalanı düzeldi
+  - TDD: transcode + pipeline entegrasyon testleri genişletildi
+- feat(media): get_private_files — panelin Özel dosyalar envanteri (TUR-126 §4.2) (@TurksabYonetim)
+- feat(media): browse_media — sanal klasör ağacı (Medya Gezgini backend'i) (@TurksabYonetim)
+- feat(media): KYB/KYC klasörleri mağazaya göre alt klasörlenir (gezgin sub seviyesi) (@TurksabYonetim)
+- feat(media): gezginde mağaza altında belge-alanı klasörleri (doc_field seviyesi) (@TurksabYonetim)
+- feat(media): sohbet ekleri künyesi + gezginde "Sohbet ekleri" kökü (@TurksabYonetim)
+- feat(media): video işlemede retry + dead-letter ve durumun dışa açılması (TUR-296) (@Metin Bektemur)
+  - `th_media_transcode_attempts` (patch v15_9_18): deneme sayacı. Ayrı alanda, çünkü `th_media_video_status` KULLANICIYA gösterilen durumdur.
+  - `MAX_TRANSCODE_ATTEMPTS = 3`. Hak dolmadan durum `processing` KALIR — "başarısız" gösterip iki dakika sonra "hazır"a dönmek güven bozar.
+  - Hak bitince dead-letter: `failed` + denetim kaydına `attempts`. Sistem o dosyaya bir daha kendiliğinden dokunmaz; sonsuz kuyruk döngüsü bilerek yok.
+  - Retry ve dead-letter denetimde AYRI olay ( `video_transcode_retry` / `video_transcode_failed` ) — "3 deneme yapıldı" bilgisi tek kayıttan çıkarılamazdı.
+  - Elle tetikleme: satıcı `seller_media.retry_video` (sahiplik doğrulanır), yönetici `media_admin.retry_transcode` (rol). Durum kuralı tek yerde, `transcode.retry_failed`: yalnız `failed` kabul edilir.
+  - `inventory.list_files` artık `video_status` döndürüyor (iki select dalında da) — panel rozeti buradan besleniyor.
+- feat(media): backoff, takılı iş süpürücüsü ve kuyruk işleri için ortak sözleşme (TUR-296) (@Metin Bektemur)
+- feat(media): satıcı medya yedeği — kendi deposu, kendi kapsamı (TUR-131) (@Metin Bektemur)
+- feat(media): zararlı içerik taraması ve karantina — pipeline adım 3 (TUR-125) (@Metin Bektemur)
+- feat(lojistik): satıcı sidebar'ına paketleme navigasyonu seed edildi (@aliiball)
+  - Satıcı menüsü tamamen DB-driven; frontend fallback'ine fail-secure biçimde düşmüyor
+  - TH Module Registry'ye üç kayıt (section/group/item), idempotent
+  - Satıcıya yalnız paketleme açılıyor; katalog, taşıyıcı hesapları ve ayarlar admin'de kalıyor
+- feat(lojistik): G0 rol/yetki matrisi uygulandı — satıcı katmanı açıldı (@boraydeger32)
+  - Seller Logistics rolü 4 satıcı Role Profile'ına bağlandı (fixture + patch); Frappe profil değişikliğini kullanıcılara itmediği için patch mevcut kullanıcıları da senkronluyor (lokalde 12 kullanıcı)
+  - K1 maliyet asimetrisi: Seller Full Access'ten view.logistics_cost grant'ı pasife alındı (granted=0, iz kaldı) + TUR-103 seed matrisinden düşürüldü
+  - 4 kataloğa satıcı READ izni: package_type, carrier_service, shipping_channel, vehicle_type — paketleme ekranının paket tipi seçebilmesinin zorunlu tamamlayıcısı
+  - Satıcı dar geçiş yolu: SELLER_ALLOWED_TRANSITIONS (yalnız Alıma Hazır → Alındı) + update_shipment_status'ta rol+tenant+alt-küme üç koşullu kapı; iptal yine yalnız Logistics Manager
+  - get_logistics_permissions.roles'a marketplace_admin eklendi (M3 ayar kapısı FE'de role bağlanacak)
+  - Satıcı sidebar'ına Lojistik → Sevkiyatlar nav kaydı (TH Module Registry seed, 13-FE paketleme deseniyle)
+  - Testler: durum makinesi +3 (satıcı alt kümesi), bench permission +4 (dar yol pozitif/negatif senaryolar)
+- feat(lojistik): satıcı menüsüne Manuel Sevkiyat kalemi eklendi (@boraydeger32)
+- feat(lojistik): satıcı menüsüne teslimat kalemleri eklendi (@aliiball)
+  - Teslim kanıtı, satıcı teslimatı ve alıcı teslim alma kayıtları
+  - Satıcı sidebar'ı veritabanından besleniyor; kayıt olmadan ekran menüde görünmüyor
+- feat(media): dedup stratejisi + yönetici silmede ortak sahiplik kapısı (TUR-298) (@Metin Bektemur)
+- feat(medya): boru hattı dalgaları A-W9 + CI/pre-commit + ADR/kapanış dok (@TurksabYonetim)
+  - Medya motorunu (media/pipeline) gerçek ürün akışına bağlayan köprü (pipeline_bridge), bayrak koruması (pipeline_flags), kırpma/manifest/RUM/gözlemlenebilirlik uçları eklendi — kod vardı ama veriyle bağlı değildi, bu turlar onu üretime kablolladı
+  - CI (ruff/mypy/pytest) ve pre-commit hook'ları eklendi çünkü hiçbir workflow test/lint koşmuyordu
+  - Faz 0-14 kapanış dosyaları, 22 ADR ve çok sayıda ölçüm raporu eklendi — kararların ve durumun kod üzerinden ölçülerek arşivlenmesi için
+  - Güvenlik: KYC/KYB permlevel sıkılaştırma, kiracı izolasyonu (Ö-2/Ö-3), IBAN permlevel, misafir rate-limit kovası, secret-access denetimi düzeltmeleri — pentest bulgularının (T1/T2/T3/T9) kapatılması için
+  - Yeni doctype'lar (Media Asset/Version/Rendition/Folder/CropIntent/RumSample vb.) ve ilgili patch'ler eklendi
+  - Grafana/Prometheus gözlemlenebilirlik varlıkları ve OpenAPI (HTTP) şema üretici script'i eklendi
+- feat(media): tür uyuşmazlığı kararı slot politikasına taşındı (ADR-0016) (@Metin Bektemur)
+  - `slot-policy.schema.json` → `accept.type_mismatch: "reject" | "warn"`, varsayılan `reject`
+  - `content_gate.inspect(..., reject_type_mismatch=True)` — bayrak yalnız ZARARSIZ uyuşmazlığı gevşetir; markup/aktif içerik her zaman ret
+  - `upload_policy.check(..., slot="")` → `_type_mismatch_mode()`; politika okunamazsa "reject" (güvenlik kapısı belirsizlikte kapalıdır)
+  - `warn` modunda ret yok ama iz var: denetime `type_mismatch_warned`
+  - Slot vermeyen çağıranlar için davranış AYNEN eskisi gibi
+- feat(media): Media URL Redirect DocType (retro-rename 301 haritası) (@ahmeetseker)
+- feat(media): retro_rename plan() — aday tespiti ve salt okunur rapor (@ahmeetseker)
+- feat(media): refs.retarget gömülü JSON/metin referanslarını da taşır (@ahmeetseker)
+- feat(media): retro_rename run_job/rollback — disk+DB+refs+301, durdurma ve hata eşiği (@ahmeetseker)
+  - Durdurma bayrağı `i == 0`'da da kontrol edilir; aksi hâlde batch_size=1 ile ilk dosya her zaman taşınıyordu (test bunu kilitliyor).
+  - Dedup dalında eski kopya commit'ten SONRA silinir. Önce silip DB hatasında hedefi eski ada kopyalamak, kopyalama da patarsa `File` satırlarını diskte olmayan bir adrese bakar hâlde bırakıyordu.
+  - `file_rows` sınırı `max(1, ...)` değil birebir: 0 gerçekten "hiç `File` satırı taşınmadı" demek.
+  - Disk okuma/taşıma hataları dosya başına "error" sayılır, işi düşürmez.
+- feat(media): MediaRedirectRenderer page_renderer hook + 90 gün süre dolumu cron (@ahmeetseker)
+- feat(media): retro-rename admin uçları (plan/start/status/stop/rollback/history/count) + OpenAPI (@ahmeetseker)
+- feat(lojistik): fiyat kuralı ve simülasyon veri sözleşmesi eklendi (@aliiball)
+  - Shipping Price Rule 37 alan + kademe ve ek ücret alt tabloları
+  - Shipping Zone yeni varlık, Price Quote 12'den 28 alana çıkarıldı
+  - Shipment'a carrier_account, applied_pricing_rule, price_quote_snapshot
+  - Üretece atıf bütünlüğü denetimi: kural ve teklif var olmayan taşıyıcı hesabına ya da bölgeye bağlanamıyor
+  - Alt tablo kapsam sayımı düzeltildi: son örnek satır öncekileri eziyordu
+- feat(lojistik): satıcı menüsüne fiyatlandırma navigasyonu eklendi (@aliiball)
+  - TH Module Registry'ye dört kayıt: grup + tarifeler, kurallar, hesapla
+  - Satıcı sidebar'ı DB-driven ve fail-secure; kayıt olmadan ekranlar route olarak var ama menüde hiç görünmüyordu, yani ulaşılamazdı
+  - Patch idempotent, lokalde koşuldu (4 kayıt oluştu)
+- feat(media): add SEO metadata and audit pipeline (@Metin Bektemur)
+- feat(media): complete discoverability delivery lifecycle (@Metin Bektemur)
+- feat(medya): faz 0-8 kapanış kanıtları, üretim koduna bağlanmış politika (@ahmeetseker)
+  - Faz 0-8 kapanış belgelerini "taslak/hazırlık" durumundan gerçek ölçüme dayalı teknik kanıta geçirmek için 8 fazlık GitHub Actions kapı iş akışı, ADR'lere geri dönüş yolu bölümü ve OpenAPI/Postman/hata kataloğu artefaktları eklendi.
+  - Slot politikalarına `standard_status=fixed` alanı ve DPI/kalite/smartcrop prototiplerine karşılık gelen üretim modülleri (adaptive quality, dpi, smartcrop, master) eklendi; her biri kendi kapanış raporuyla kanıtlandı.
+  - Video/görsel motorları için Faz 3 contract adaptörleri (`ImageEngine`, `VideoEngine`), kuyruk topolojisi (`queues.py`), CDN/imgproxy teslim istemcileri ve depolama streaming/retention API'leri tamamlandı.
+  - `Media Source`, `Media Policy`, `Media Content Rule` gibi eksik Faz 4 DocType'ları ve ilgili şema/indeks migration'ları kuruldu.
+  - `pyvips` bağımlılığı eklendi (büyük non-JPEG kaynakların sequential küçültülmesi için) ve retro-rename ile transcode akışları izole süreç çalıştırıcısına taşındı.
+- feat(media): complete tenant quota reporting (@ahmeetseker)
+- feat(media): kalıcı migration/rollout runtime ve kategorizasyon ekle (@ahmeetseker)
+  - MOGEM-570: sürümlü/imzalı plan, kalıcı Run/Batch checkpoint, dry→wet onay kapısı, stop/resume ve exact rollback ile üretim-güvenli backfill runtime'ı eklendi; gerçek JPEG üzerinde uçtan uca doğrulandı.
+  - MOGEM-617/T-144: mağaza bazlı deterministik SHA-256 canary/yüzde rollout (%0→%10→%50→%100) pipeline_flags ve pipeline_bridge'e bağlandı; kısmi rollout'ta sahibi çözülemeyen medya fail-closed kalıyor.
+  - File yazma/silme yollarını asenkron S3 aynasına bağlayan mirror_runtime eklendi; kuyruk hatası birincil işlemi asla düşürmüyor.
+  - MOGEM-579: mağaza bazlı medya kategori kataloğu ve N:M dosya-kategori ataması (manuel/öneri kaynaklı) eklendi.
+  - Satıcı medya kütüphanesine SQL öncesi tarih/boyut/format/yön/etiket filtreleri ve facet sayaçları eklendi.
+  - T-140 izlenebilirlik üretici INV-01…INV-12 normatif invariant'larını da kapsayacak şekilde genişletildi; gerçek kapsam oranı raporlanır oldu.
+  - Kapanış belgeleri (MOGEM-617 denetimi, migration/go-live runbook'ları, UAT şablonları) 2026-08-24 ölçümleriyle güncellendi; hangi kapıların hâlâ insan/üretim onayı beklediği açıkça işaretlendi.
+- feat(media): unify bulk operation contract (MOGEM-575) (@Metin Bektemur)
+- feat(media): video SEO şeması — poster/süre/transcript/altyazı alanları (Dilim 4) (@ahmeetseker)
+- feat(media): video poster üretimi — ilk anlamlı kare (canlı yol) (@ahmeetseker)
+- feat(media): poster üretimi transcode akışına ve günlük geri doldurmaya bağlandı (@ahmeetseker)
+- feat(seo): VideoObject builder — poster zorunlu, embed/dosya ayrımı (@ahmeetseker)
+- feat(seo): video sitemap — xmlns:video + ilan video girdileri (@ahmeetseker)
+- feat(listing): videoPoster fallback, imageMeta video anahtarları, JSON-LD VideoObject (@ahmeetseker)
+- feat(media): video denetim kuralları + poster yeniden üretme ve VTT yükleme uçları (@ahmeetseker)
+  - seo_audit.audit_fields: missing_poster/missing_transcript/missing_duration (yalnız video dosyalarında, WARN) + _KURAL_BOYUT haritasına skor kırılımı.
+  - media_admin: regenerate_video_poster (System Manager, tüm kardeş File kayıtlarının posterini temizler + media-maint kuyruğuna atar) ve upload_video_captions (WEBVTT doğrulamalı, ≤1MB, File + captions_url).
+  - upload_policy.EXTENSIONS'a .vtt eklendi (ayrı düzeltme): media/naming.py içerik-adresli adlandırma bu listeden beyaz liste okuyor, yoksa VTT yüklemesi "izin verilmeyen uzantı" ile reddediliyordu.
+- feat(media): watch page slug/canonical üretimi + 301 köprüsü (@ahmeetseker)
+- feat(media): watch page verisi ucu + indexability kararı (@ahmeetseker)
+- feat(lojistik): kargo firması entegrasyon altyapısı — ilk dilim (@boraydeger32)
+  - Her istek ve yanıt için denetlenebilir kayıt. "Gönderi neden oluşmadı, firma ne cevap verdi" sorusu artık panelden yanıtlanabilir.
+  - Kimlik bilgileri (parola, API anahtarı, oturum jetonu) kayıtlara asla düşmez. Buna karşılık takip numarası, şube, durum ve hata kodu gibi teşhis için gereken bilgiler korunur.
+  - Firma yanıt vermediğinde sistem kendini korur: arızalı firmaya üst üste istek gönderilmez, arıza geçince otomatik toparlanır.
+  - Yan etkili işlemler (gönderi açma, iptal) zaman aşımında körlemesine tekrarlanmaz — ikinci bir gönderi ve ikinci bir fatura oluşmaz.
+  - Sistemin yalnızca dış adreslere çıkmasını sağlayan güvenlik kapısı.
+  - Kayıtlar yaşlandıkça otomatik temizlenir.
+- feat(medya): dosya yöneticisi SEO + CWV denetimi + bulk localization dil (@ahmeetseker)
+  - Dosya Yöneticisi SEO (Dilim 6): `Listing Document` child doctype, PDF/Office metadata+metin çıkarımı (`doc_meta.py`, zip-bomb ve entity-genişletme korumalı), DigitalDocument JSON-LD, sitemap/denetim entegrasyonu — katalogda PDF/Office içerik ekleyebilme altyapısı için (envanter bugün 0, kullanıcı kararına bağlı büyüyecek)
+  - CWV/Render Performans Denetimi (Dilim 7): 5 yeni kural (missing_modern_format, incomplete_rendition_ladder, unserved_renditions, aspect_ratio_mismatch, lcp_candidate_unoptimized) + panel etiketleri — gerçek katalıkta LCP adaylarının optimize olup olmadığını ölçülebilir kılmak için
+  - Bulk Localization (Dilim 8): kural-tabanlı, kopyalamasız çok-dilli alt metni backfill'i (`backfill_media_localization`) + panel düğmesi — kaynak çeviri geldikçe otomatik dolacak, sahte/kopya çeviri üretmeyen bir mekanizma
+  - Watch page final inceleme düzeltmeleri: guest sıcak yol index'leri (v15_9_50), güvensiz 301 redirect hedefine karşı ikinci savunma katmanı, sitemap entry-sayımlı chunk flush düzeltmesi — canlıda ölçülen index-drop ve DoS risklerini kapatmak için
+  - 5 ölçüm raporu (107-111): rendition backfill, watch page, file manager SEO, CWV denetimi ve bulk localization için katalogda gerçek sorgu tabanlı envanter — dürüst 0/kısmi sonuçlar dahil, tahmini rakam yok
+- feat(medya): dosya yöneticisi SEO, CWV denetimi ve bulk localization dil (@ahmeetseker)
+  - Dilim 5-8 (watch page, file manager SEO, CWV denetimi, bulk localization) plan ve tasarım belgeleri eklendi; ortak dosyaların dilimler arası paylaşıldığı ve tek commit stratejisinin gerekçesi COMMIT-INCELEME belgesinde kayıt altına alındı
+  - `th_media_state`/`th_media_scan_status` index'lerinin `in_migrate` bayrağı yüzünden property setter'sız kalıp bir sonraki migrate'te sessizce düşme riskine karşı v15_9_51 patch'i eklendi — canlı ortamda `th_media_state` index'inin zaten düşmüş olduğu ölçüldü
+- feat(lojistik): bildirim kaydı varlığı sözleşmeye eklendi (@aliiball)
+  - notification_log: 13 alan, gönderilmiş bildirimin olay tarafı (notification_template tanım tarafı olarak kalıyor)
+  - STOREFRONT_ENTITIES beyaz listesine bilinçli satır: storefront yalnız kendisine gönderilmiş kayıtları görür, şablon kataloğunu değil
+  - SAMPLE_NOTIFICATION_TEMPLATES'e iki alıcı şablonu, tercihlerine iki alıcı kaydı — örnek kayıtlar var olmayan şablona bağlanamazdı ve rol süzgecinden sonra alıcı ekranında tek satır kalıyordu
+  - Sözleşme: docs/lojistik/12-FE-VERI-SOZLESMESI.md §1.2
+- feat(lojistik): uç sözleşmesi ve backend başlangıç belgesi eklendi (@aliiball)
+  - PROVISIONAL_ENDPOINTS: 6 modül, 38 uç — imza, dönen yük, hata kodları, sunucuda tekrarlanacak güvenlik kapıları, roller
+  - Uç imzaları git'siz kök klasördeki FE sözleşmelerinde yaşıyordu; backend'i yazacak kişi açamıyordu
+  - docs/generated/LOGISTICS-ENDPOINTS.md üretilmeye başlandı — --check ile bayatlama denetimi altında
+  - FE sözleşmelerinin tanımlayıp otoriteye işlenmemiş 29 alan hizalandı: POD 8→21, koli 12→20, kalem 8→10, sevkiyat +3, örnek verileriyle
+  - _assert_endpoints_valid: bir uç varlık sözleşmesinde olmayan alan döndüremez
+  - pending_fields: bilinçli açık kalemler için bayatlamayan muafiyet
+  - STOREFRONT_OMITTED_FIELDS: maskeleme (null) ile çıkarma (alan yok) ayrıldı; 12-FE §2.5 ikincisini istiyor
+- feat(listing): düşük sonuç ve SEO içerik akışını güçlendir (@ahmeetseker)
+  - Az sonuçlu listelemelerde isteğe bağlı ürün dolgusu ekle; boş sonuçta sayfa kullanıcıya ürün göstermeye devam eder
+  - Kategori facet yanıtına ata path bilgisi ve boş sonuç fallback'i ekle; sidebar ağacı seçili kategoriyi korur
+  - Listing ve bulk import için ortak SEO başlık/açıklama kurallarını uygula
+  - Toplu social proof ucunda tekil uçla aynı "Yeni ürün" yedek rozetini üret
+  - Deploy sırasında demo/mock veriyi tek seferlik patch ile temizle
+- feat(medya): ses dosyaları için AudioObject şeması ve metadata katmanı (MOGEM-620) (@Metin Bektemur)
+  - `seo/schema_builder.build_audio_object`: `build_video_object` / `build_digital_document` ile aynı kalıp. Alan eşlemesi şemaya göre — "sanatçı" için `byArtist` DEĞİL `author`; `byArtist` MusicRecording alanı, genel bir ses dosyasında geçersiz yapısal veri üretirdi.
+  - `media/audio_meta.py`: ffprobe ile başlık/sanatçı/süre/gömülü kapak çıkarımı. Yeni bağımlılık yok — ffprobe zaten kurulu ve kapsayıcıdan bağımsız tek `format.tags` sözlüğü veriyor. Hata sözleşmesi `video_poster`/`doc_meta` ile aynı: hiçbir hata yüklemeyi düşürmez, başarısız çıkarıma -1 anti-açlık damgası yazılır.
+  - `patches/v15_9_53_media_audio_fields`: tek yeni kolon `th_media_artist`. Süre `th_media_duration`, kapak `th_media_poster_url`, başlık `th_media_title*` üzerinden — aynı gerçeği iki yerde tutmamak için.
+  - `media/seo.py`: `artist` + `cover_url` alanları; negatif süre nöbetçisi (`max(0, …)`) — -1 damgası JSON-LD'ye "PT-1S" olarak sızıyordu.
+  - `upload_policy.EXTENSIONS` ses türünü tanımıyordu; `naming._hashed_name` beyaz listeyi oradan okuduğu için HİÇBİR ses dosyası yüklenemiyordu. `.pptx` kusurunun birebir tekrarı — uzantı listesi artık tek kaynakta (`AUDIO_EXTENSIONS`), `audio_meta` onu içe aktarıyor.
+  - `MEDIA_KINDS` yalnız görsel + video kabul ediyordu; `upload_media` her ses yüklemesini reddediyordu.
+  - `inventory._kind_condition` yakalayıcı dalı sesi de "görsel" sayıyordu; `kinds=["image"]` ses dosyalarını da getiriyordu.
+- feat(abonelik): iptal çekirdeği + dönem yönetimi + hesap silme (App Store Faz A+B) (@boraydeger32)
+  - Store Subscription: cancel_at_period_end bayrağı, cancellation_note, cancel_requested_by, renewal_reminder_* alanları; canceled→active geçişi (reaktivasyon) state machine'e eklendi
+  - current_period_end İLK KEZ yazılıyor: aktivasyonda billing_cycle'a göre hesap + idempotent backfill patch'i (kaynak: son onaylı ödemenin cycle'ı, now+7g tabanı — hiçbir aktif mağaza anında past_due olamaz)
+  - YENİ api/v1/subscription_cancellation.py: request/revoke_cancellation — yalnız mağaza sahibi (çift katman), idempotent, DENY audit'li, session-bazlı rate limit (form_dict-bypass'lı frappe rate_limiter DEĞİL)
+  - process_paid_lifecycle cron'u: T-7/T-1 yenileme hatırlatması (idempotent bayrak deseni), dönem sonunda fesih + past_due geçişi, cache flush
+  - Hesap silme (Apple 5.1.1(v)): get_account_deletion_preview ucu; delete_account mağaza sahibinde aboneliği account_deleted ile kapatır, bekleyen havale taleplerini reddeder; KVKK anonimleştirme kapsamına cancellation_note/cancel_requested_by eklendi
+  - Guard'lar: Suspended mağaza reaktive edilemez + havale talebi açamaz; trial'da iptal 417
+  - 80+ yeni test (bench 13 + 5 stub paketi); delete_account rate limit'i session-bazlı decorator'a geçirildi
+- feat(medya): MOGEM-620'nin AI arama katmanı dışındaki 14 kalemi kapatıldı (@Metin Bektemur)
+  - bulk_ops: sunucu tarafı toplu alan yazma
+  - meter + Media Usage Meter doctype: akış/kota ölçümü
+  - Media Locale Variant doctype + seo/schema_builder: dil bazlı SEO çıktısı
+  - similar, tags_source, decode_cost, categories: katalog yardımcıları
+  - patch v15_9_54 (SEO alan seti) ve v15_9_55 (akış kotaları tohumlama)
+  - MOGEM-620 test paketi: duman, e2e, fonksiyonel, maymun, permütasyon, yetki
+  - tests/zenginlestirme_notr.py: canlı worker ile yarışan testleri kuyruk durumundan bağımsız kılar (av_notr.py deseninin kardeşi)
+  - docs/reports/114: turun tam dökümü
+
+### Duzeltildi
+- fix(media): download() reddedilen denemeleri de audit'e yazsın + exp-yolu regresyon testi (TUR-126 review round 1) (@TurksabYonetim)
+  - download()'ın malformed/eksik `exp` yolu için test yoktu; davranış doğruydu (throw → PermissionError) ama regresyon koruması yoktu. İki test eklendi: exp="abc" ve exp eksik — ikisi de red + send_private_ file hiç çağrılmıyor.
+  - download() yalnız BAŞARILI indirmeleri denetime yazıyordu; reddedilen denemeler (geçersiz imza, süresi dolmuş, path/traversal, malformed exp) hiç loglanmıyordu — guest'e açık bir uçnokta için brute-force/probe iz bırakmadan geçiyordu. `_log_denied()` eklendi: her red dalı artık `media.access_denied` ile (reason: invalid_signature/bad_path/expired/ malformed_exp), dosya yolu `sensitive=True` ile maskelenmiş olarak kaydediliyor. `log_media_event` zaten best-effort — red akışını bozmaz.
+- fix(media): CRITICAL — ters-referanslı PII belgeleri public yapılabiliyordu (TUR-126 §4 review) (@TurksabYonetim)
+- fix(media): kota reddi yükleme sözleşmesinden geçiyor (TUR-123/TUR-139) (@Metin Bektemur)
+- fix(media): geri yüklenen video yeniden kodlanıp ezilmiyor (TUR-131) (@Metin Bektemur)
+- fix(media): video rozeti en kötü durumu gösteriyor, "hazır" yalanı bitti (TUR-296) (@Metin Bektemur)
+- fix(media): modüller arası kesişim denetimi — 7 kopukluk (TUR-125 × 296/131/123/138/124) (@Metin Bektemur)
+- fix(medya): K-2 kapatıldı — bozuk bench komutları düzeltildi, media_stats koşuldu (@TurksabYonetim)
+  - .claude/rules/bench-docs.md: 8 komut düzeltildi
+  - scripts/media_stats.py, scripts/plan_backfill.py: çağrı desenleri düzeltildi
+  - docs/reports/02, docs/plans/migration.md: komutlar düzeltildi
+  - docs/reports/10-media-stats-kosum-ciktisi.txt: betiğin GERÇEK koşum çıktısı
+  - th_media_width dolu: 0/2853 (%0) — çözünürlük metadata alanı tamamen boş
+  - yetim dosya: diskte 4.016 / DB'de 2.853 → 1.166 kayıtsız dosya (%29)
+  - anomali: 120 dosya >20MP · 28 CMYK · 3 diskte yok
+  - public↔hassas aynı content_hash: 384 eşleşme, gerçek KYB kayıtlarında (KYB-00014/16/18/37). Örtüşen dosyalar logo/banner görünümlü; kimlik belgesi değil — ama mekanizma gerçek, sınıflandırma gerekiyor (D-2)
+- fix(media): canlı ağaca giren her bayt aynı taramadan geçiyor (TUR-125 × 123/131) (@Metin Bektemur)
+- fix(media): yükleme denetimi belgeleri de kaydediyor — uzantı süzgeci kaldırıldı (TUR-140) (@Metin Bektemur)
+- fix(lojistik): katalog filtresi metin bayrakları kabul ediyor (@aliiball)
+  - is_active için true/false/1/0/yes/no değerleri çözümleniyor
+  - Geçersiz değer sessizce yutulmuyor, gerekçeli hata veriyor
+- fix(media): denetim raporunda dosyanın hâlâ var olup olmadığını bildir (@Metin Bektemur)
+- fix(lojistik): denetimde bulunan iki güvenlik açığı ve izleme hataları giderildi (@boraydeger32)
+- fix(media): check_path_safety importunu Frappe sürümünden bağımsızlaştır (@TurksabYonetim)
+- fix(media): çekirdek ↔ motor kesişimleri — tarih, yasal tutma, AV kapısı, test yalıtımı (@Metin Bektemur)
+- fix(media): retro_rename plan() — limit=0 ve sayaç eksik raporlama düzeltmesi (@ahmeetseker)
+- fix(media): refs._replace_embedded düz-metin dalında sınır-farkında değiştirme (@ahmeetseker)
+- fix(media): retro-rename geri alma — kimlik tabanlı File dönüşü ve disk güvenliği (@ahmeetseker)
+  - `Media URL Redirect.file_names` (Long Text): taşımada güncellenen tabFile adları JSON olarak saklanır. `rename_one` tam olarak o satırları günceller, `_rollback_one` tam olarak onları geri çevirir. Sayı-tabanlı (`file_rows` + `creation asc`) yol yalnız eski satırlar için yedek plan olarak kaldı — dedup'ta iki eski adın File satırlarını çaprazlıyordu (test kanıtı).
+  - #1 Hedefte geri çevrilmeyen `File` satırı kalıyorsa (doğal yoldan yüklenmiş hash'li ikiz) blob hedefte KALIR, eski ad kopya ile geri gelir; aksi hâlde o satır kırık referansa dönüyordu.
+  - #2 `_rollback_one` disk aşaması artık `except OSError → log + return False`; `run_rollback`'e `run_job` ile aynı `except Exception → state=error` bloğu eklendi. Tek satırın G-Ç hatası tüm geri almayı düşürmüyor.
+  - #3 `_heartbeat`: periyodik ilerleme yazımı `ACTIVE_KEY`in TTL'ini de tazeler (1 saatten uzun işler tek-iş kilidini kaybediyordu).
+  - #4 Commit sonrası dedup artığı silinemezse `reason="dedup_leftover"` — taşındı sayılır ama gerekçe dökümünde görünür (File satırı kalmadığı için başka hiçbir ekranda görünmez).
+  - #5 `ERROR_RATE_STOP` eşiği için test (batch sınırı semantiği korundu).
+  - Küçükler: ters taşıma hatasında `reason="disk_revert_failed"`, `expires_at` ve `row` tip anotasyonları, rollback özetinde `rollback_key`, "hedef diskte yok" log'una `message=`, `delete_doc(ignore_permissions=True)` gerekçesi.
+- fix(media): retro-rename ACTIVE_KEY TOCTOU + batch_size sınırı (@ahmeetseker)
+- fix(media): retro-rename TTL'li cache okumalarında expires=True (@ahmeetseker)
+- fix(media): retro-rename '..' koruması segment düzeyine indirildi; 8 kalan dosya taşındı (@ahmeetseker)
+- fix(media): retro-rename final inceleme — 404 önbelleği, referans sayaçları, count/validate/limit, runbook (@ahmeetseker)
+- fix(media): harden malformed EXIF metadata handling (@ahmeetseker)
+- fix(media): enforce slot video upload validation (@ahmeetseker)
+- fix(lojistik): yetkisiz kalmış üç eski uç kaldırıldı (@boraydeger32)
+- fix(media): poster scale yönelime duyarlı + sessiz except loglandı (@ahmeetseker)
+- fix(media): poster üretimi aynı adresli tüm File kayıtlarına yazar (@ahmeetseker)
+- fix(seo): video sitemap alanları parti başına tek sorguyla (@ahmeetseker)
+- fix(media): VTT gövde taraması + BOM toleransı (@ahmeetseker)
+- fix(media): final inceleme — JSON-LD indexability kapısı, validator veri silme, backfill enqueue deseni (@ahmeetseker)
+- fix(media): migration preflight worker tespiti — RQ kuyruk-üyelik set'i fallback'i (@ahmeetseker)
+- fix(media): katalog backfill adayları içerik hash'iyle de eşlenir (@ahmeetseker)
+- fix(seo): ImageObject creator alanı @type nesnesi olarak üretilir (@ahmeetseker)
+- fix(test): transcode retry testleri isolation.run_command'a patch'lenir (@ahmeetseker)
+- fix(media): watch slug doğrulama, zincir çökertme ve yarış ayrışması (@ahmeetseker)
+- fix(media): watch verisi — tek-sorgu listings, sözleşme anahtarları, tek karar noktası, kaynak filtresi (@ahmeetseker)
+- fix(media): katalog backfill aday sorgusu sınıf-farkında — JPEG şartı kaldırıldı (@ahmeetseker)
+- fix(lojistik): kargo entegrasyonunda güvenlik ve kayıt düzeltmeleri (@boraydeger32)
+  - Taşıyıcı şifrelerini gösteren ve değiştiren işlemler artık yalnız güvenli yöntemle çağrılabiliyor. Önceden bu bilgiler, kimin görüntülediği kayda geçmeden okunabiliyordu.
+  - Görüntüleme ve değiştirme, denetim kaydı yazılamazsa artık hiç gerçekleşmiyor; iz bırakmayan erişim mümkün değil.
+  - Şifre değiştirmek artık ayrı bir yetki istiyor ve kaydediliyor; daha önce yalnız görüntüleme izleniyordu.
+  - Panelde maskeli görünen bir şifre yeniden kaydedildiğinde gerçek değeri siliyordu; artık korunuyor.
+  - Satıcı tarafındaki bir kullanıcı, hesabı eksik tanımlıysa platformun tüm entegrasyon kayıtlarını görebiliyordu.
+  - Entegrasyon kayıtları panelden silinemiyor (silme yalnız otomatik temizliğin işi) ve saklama süresi 30 günün altına indirilemiyor.
+  - Kayıt yazılamadığında sistem bunu başarı sayıyor, arıza anında hiç kayıt kalmamasına yol açıyordu.
+  - Aynı kargo firması, adı farklı yazıldığında iki ayrı arıza sayacı tutuyordu; bu yüzden çöken bir firmaya karşı koruma hiç devreye girmiyordu. Tek sayaçta birleştirildi.
+  - Test ortamındaki bir arıza canlı ortamın korumasını kapatıyordu.
+  - Firma yeniden yanıt vermeye başladığında koruma açılamıyordu.
+  - Arıza sürerken uyarılar susuyor, seyrek arızada ise gereksiz tekrarlıyordu.
+- fix(media): denetim düzeltme turu — 33 bulgu + kapsamlı test paketi (KD) (@Metin Bektemur)
+  - probe kapısı: eklenmiş yük tam içerikte aranıyor (F-01), ilk EOI/IEND (F-02), .jpg MIME yedeği (F-03), video künyesi konteynerden (F-04), max_bytes:0 (F-05)
+  - normalize: min_long_edge MP tavanını aşamaz (F-06), resize notu (F-07)
+  - path_safety: karşılaştırılamayan yol fail-closed, 500 yok (F-08)
+  - policy engine: get() derin kopya döndürür (F-09)
+  - chunked: ilan edilen content_sha256 finish'te doğrulanıyor (F-12)
+  - seo_audit: bozuk alan türü/tarih denetimi çökertmez (F-18a/b), genel ad desenleri (F-19), tekil denetim topluya delege (F-21), boş kapsam şekli (F-22)
+  - seo: protokolsüz //url site içi sayılmaz (F-20)
+  - schema: motor tabloları yedek künyesinde, taşınmayan kayıt raporlanır (F-25)
+  - trash: AV bekletme/karantina için doğru mesaj; karantina→çöp yolu kapalı (F-26)
+  - av: release_hold türev üretimini yeniden tetikler (F-27); scan_path asılı daemon'da clamscan'e düşer, sağlık yalnız tanı (F-28); File silinince bekletme kopyası temizlenir + sweep_orphaned_holds (F-31)
+  - files: library.upload sentineli LinkValidationError'a takılmaz — 3. katman tekilleştirme yeniden çalışıyor (F-29)
+  - pipeline_bridge: File.on_trash kaskadı (türevler çöp kapısından, legal hold korunur), _renditions_exist purged'i saymaz, _open_job asılı iş satırını onarır, sweep_orphaned_assets (F-33a/b/c)
+  - tests/kapsamli/: 15 modüllü bağımsız denetim paketi (~700 test, 278K kombinatoryal değerlendirme), tests/av_notr.py ortak AV nötrleyici
+  - AV'ye kör 6 repo modülü nötrleyiciye bağlandı; kararsız fixture'lar koşuma özgü içerik üretiyor (F-17, F-32)
+  - Postman koleksiyonu yeniden üretildi (120→143 uç)
+- fix(media): listelerde hazır küçük resimleri kullan (@ahmeetseker)
+  - Medya gezgini ve SEO denetim satırlarına thumb/preview URL'leri eklendi
+  - Orijinal büyük dosyalar yerine hazır Media Rendition türevleri kullanılarak liste yükü azaltıldı
+  - Özel ve sohbet dosyalarında public türev URL sızıntısı engellendi
+- fix(lojistik): sevkiyat servisi hataları artık standart biçimde dönüyor (@boraydeger32)
+- fix(lojistik): güvenlik denetimi — kayıt izleri, bilgi sızıntısı ve iz bastırma kapatıldı (@boraydeger32)
+- fix(lojistik): denetim turu — is_delayed sözleşme boşluğu ve 4 sertleştirme kapatıldı (@boraydeger32)
+  - list_shipments artık is_delayed + ship_date + modified + package_count döndürüyor (sözleşme §provisional.shipment.list_fields); maliyet alanları bilinçli dışarıda (G0 sınırı), is_delayed TUR-112 SLA monitor gelene dek saklanan alan değil satır başına sorgusuz türev
+  - Leg/Event doc=None yazma kontrolü Shipment emsaliyle hizalandı (_TENANT_WRITE_ROLES matrisi — fail-open kapandı)
+  - HTTP istemci throttle kapsamlarına environment eklendi (open_notice/log_failure sandbox↔production ayrımı)
+  - api_utils hata yolları safe_log_error + traceback_text ile korundu (log_error fırlatırsa zarf sözleşmesi delinmiyor)
+  - secrets._read_plain sessiz yutma → gürültülü fail-closed (_READ_FAILED)
+  - 16 yeni test: alan-kümesi tam eşitlik + maliyet sınırı, gecikme matrisi, ortam-ayrımı, CarrierResponse.json() sözleşmesi, gelecek-tarihli Retry-After
+- fix(lojistik): maliyet maskesi API yanıtında etkisizdi (@aliiball)
+  - as_dict() Check/Int/Float alanlarda None'ı 0'a çeviriyor; doc üzerindeki maske yanıta yansımıyordu, maskelenen maliyet null yerine 0 dönüyordu
+  - Veri sızıntısı YOK (ölçüldü: DB 157.75 iken satıcı 0.0, admin 157.75) ama "gizlendi" ile "ücretsiz" ayırt edilemiyordu
+  - mask_shipment_cost_dict eklendi, alan listesi tek kaynağa indirildi
+  - Üç regresyon testi: sıfıra dönmüş alan, yetkili yol, olmayan alan
+
+### Degistirildi
+- refactor(medya): medya motoru paket içine taşındı + Faz 1/3-14 çıktıları (@TurksabYonetim)
+  - contracts/ — 5 Protocol (storage/image/video/policy/delivery) + fakes
+  - core/ — durum makinesi, crop, dedup, usage, probe, jobs
+  - image/ — probe, normalize, classify, render (rendition matrisi), lqip, report
+  - video/ — probe, karar tablosu (JSON), transcode, poster, hls
+  - storage/ — local/s3/mirror/tiered adaptörleri + retention
+  - delivery/ — picture, sizes, signed URL, rum
+  - api/ — upload, crop, delivery, admin, spec (OpenAPI 3.1)
+  - policy/ — PolicyEngine (politikalar veri olarak) + 9 slot politikası
+  - simulator/ — 13 cihaz x 5 sayfa srcset hesabı
+  - security/ — SVG sanitize, süreç izolasyonu · observability/ — metrik, log
+  - doctype_specs/ — 12 DocType şeması (JSON; tradehub_core/doctype'a yazılmadı)
+  - 1376 test: OK (70 skip, 1 bilinçli expectedFailure)
+  - 71 pipeline modülünün tamamı derleniyor
+  - slot policy şema uyumu 9/9
+  - crop geometri TS<->Python paritesi: 592 vektör, 0 uyuşmazlık, sapma 0 px
+  - tradehub_core/ üretim kodu ajanlarca değiştirilmedi (gates.py hasarı giderildi)
+- refactor(lint): kullanılmayan atama ve import'lar temizlendi (@aliiball)
+- refactor(media-public): kod formatlamasını netleştir ve caption HTML'ini (@ahmeetseker)
+  - Uzun tek satırlık `frappe.db.get_value` zincirleri ve dict/comprehension ifadeleri okunabilirlik için çok satıra bölündü, mantıkta değişiklik yok
+  - `schema_json` ve `caption_html` f-string içine gömülmek yerine önceden değişkene atandı, ana HTML template'i sadeleşti
+- refactor(seo): schema_builder kod okunabilirliğini artır ve image object (@ahmeetseker)
+  - content_url yerine yanlışlıkla döndürülen url değişkeni düzeltildi; artık yalnızca url/contentUrl kaldığında doğru delivery URL dönüyor
+  - Uzun satırlar ve içiçe dict/call ifadeleri Ruff formatlamasına uygun şekilde çok satıra bölündü, mantıkta değişiklik yok
+- refactor(lojistik): sözleşme artefaktı kuralı düzeltildi (@aliiball)
+  - CI --check ile yakalar cümlesi YANLIŞTI: kapı yok, test skip ediliyor
+  - CLAUDE.md §4 madde 11: 41 dosya üretiliyor, kaynağa dokunan --sync çalıştırır
+- refactor(lojistik): sözleşme belgesi uç kataloğuyla güncellendi (@aliiball)
+  - §3.4 eklendi: api.v1.shipment canlıydı ama belgede tek satırı yoktu
+  - §3.5 üretilen uç belgesine bağlandı; ad listesi tekrarı kaldırıldı
+  - §6.1 eklendi: modül seçimi bir güvenlik kararıdır
+  - §12 kapsam listesi düzeltildi — beş maddenin dördü artık doğru değildi
+  - CLAUDE.md §4.11: üretilen dosya sayısı 41 → 44
+
+---
 ## [v1.13.1-alpha.63] - 2026-09-12 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
