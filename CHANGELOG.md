@@ -1,3 +1,14 @@
+## [v1.14.1-alpha.1] - 2026-09-14 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Duzeltildi
+- fix(güvenlik): identity rate-limit form_dict bypass'ı kapatıldı + ölü kalıntılar temizlendi (@boraydeger32)
+  - identity.py'daki 7 uç (verify_email_otp dahil) atlatılabilir @rate_limit(key="user")'dan session-bazlı api/rate_limit.py decorator'ına geçirildi — Frappe v15 rate_limiter key'i form_dict'ten okuduğu için istemci user=<rastgele> ile limiti tamamen aşabiliyordu; limit/pencere değerleri aynen korundu, spoof+429 testleriyle kilitli
+  - tenant_seller_filter.js silindi: hiç yüklenmiyordu (hooks'ta kayıt yok) ve var olmayan DocType'ları hedefliyordu; koruma sunucuda çift katman
+  - Mükerrer "Tradehub Seller" workspace'i kaldırıldı ("Satıcı Paneli" yaşayan kopya) + yetim DB kaydı için idempotent silme patch'i
+
+---
 ## [v1.14.0] - 2026-09-14 PROD
 
 Bu surum istoc.cronbi.com'da yayindadir.
