@@ -180,6 +180,13 @@
 			"options": "User"
 		},
 		{
+			"fieldname": "cancel_requested_at",
+			"fieldtype": "Datetime",
+			"label": "Cancel Requested At",
+			"read_only": 1,
+			"description": "İptal talebinin yapıldığı an (request_cancellation yazar, revoke_cancellation temizler). Dönem sonunda 'canceled'a geçişte TEMİZLENMEZ — tarihsel iz."
+		},
+		{
 			"fieldname": "canceled_at",
 			"fieldtype": "Datetime",
 			"label": "Canceled At"

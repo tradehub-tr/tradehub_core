@@ -81,6 +81,8 @@ _SUB_DEFAULTS = {
 	"started_at": None,
 	"current_period_end": None,
 	"cancel_at_period_end": 0,
+	# BE-1 additive — iptal talebi damgası (BE-3 alanı, ok-payload passthrough).
+	"cancel_requested_at": None,
 	"billing_cycle": None,
 	"canceled_at": None,
 	"suspended_at": None,
@@ -124,6 +126,7 @@ def _install_stubs() -> None:
 	utils = types.ModuleType("frappe.utils")
 	utils.now_datetime = lambda: _NOW
 	utils.add_days = lambda d, n: d + timedelta(days=n)
+	utils.get_datetime = lambda d: d if isinstance(d, datetime) else datetime.strptime(d, "%Y-%m-%d %H:%M:%S")
 	utils.add_months = lambda d, n: d + timedelta(days=30 * n)
 	utils.add_years = lambda d, n: d + timedelta(days=365 * n)
 	utils.getdate = lambda d=None: d.date() if isinstance(d, datetime) else d
@@ -147,6 +150,7 @@ _install_stubs()
 from tradehub_core.api.v1 import subscription as sub_api  # noqa: E402
 
 # Mevcut sözleşme (BE-3 sonrası) — regresyon: bu alan SETLERİ değişmemeli.
+# BE-1: ok-payload'a additive cancel_requested_at eklendi (spec AC-8 additive).
 _OK_KEYS = {
 	"access",
 	"status",
@@ -157,6 +161,7 @@ _OK_KEYS = {
 	"started_at",
 	"current_period_end",
 	"cancel_at_period_end",
+	"cancel_requested_at",
 	"billing_cycle",
 }
 _LOCKED_BASE_KEYS = {"access", "status", "reason", "redirect", "can_start_trial"}

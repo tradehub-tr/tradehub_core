@@ -47,7 +47,7 @@ _SEVEN_DAYS = 7 * 24 * 3600
 _ONE_DAY = 24 * 3600
 _TWO_HOURS = 2 * 3600
 
-# Dunning pencere süreleri (gün) — PO önerisi, Bora onayı bekliyor (spec risk kaydı);
+# Dunning pencere süreleri (gün) — Bora onayladı 2026-09-15 (spec risk kaydı);
 # onay/karar değişirse yalnız bu iki satır güncellenir.
 _DUNNING_SUSPEND_DAYS = 14
 _DUNNING_EXPIRE_DAYS = 30

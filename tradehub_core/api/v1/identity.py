@@ -1713,6 +1713,7 @@ def get_account_deletion_preview() -> dict:
 	store_name: str | None = None
 	active_subscription: dict | None = None
 	sub_user_count = 0
+	open_order_count = 0
 
 	consequences: list[str] = [
 		_("Hesabınız anında devre dışı bırakılır, tüm oturumlarınız kapatılır ve tekrar giriş yapılamaz."),
@@ -1756,6 +1757,21 @@ def get_account_deletion_preview() -> dict:
 			_("Bekleyen havale/ödeme talepleriniz reddedilir; mağazanız için yeni havale talebi açılamaz.")
 		)
 
+		# AC-9: açık siparişler yalnız BİLGİLENDİRME — silme engellenmez (delete_account değişmedi).
+		# Order.status Select seçenekleri: Ödeme Bekleniyor/Onaylanıyor/Kargoda açık;
+		# Tamamlandı/İptal Edildi kapalı (order.json ile doğrulandı).
+		open_order_count = frappe.db.count(
+			"Order",
+			{"seller": store, "status": ["in", ["Ödeme Bekleniyor", "Onaylanıyor", "Kargoda"]]},
+		)
+		if open_order_count:
+			consequences.append(
+				_(
+					"{0} açık siparişiniz var; mağaza askıya alındığında bu siparişlerin akıbetini "
+					"alıcılarınızla netleştirin."
+				).format(open_order_count)
+			)
+
 		# Alt kullanıcılar: aynı tenant'a bağlı, owner dışındaki hesaplar (silinmezler).
 		sub_user_count = frappe.db.count("User", {"tradehub_tenant": store, "name": ["!=", user]})
 		if sub_user_count:
@@ -1770,6 +1786,7 @@ def get_account_deletion_preview() -> dict:
 		"store_name": store_name,
 		"active_subscription": active_subscription,
 		"sub_user_count": sub_user_count,
+		"open_order_count": open_order_count,
 		"grace_days": _GRACE_PERIOD_DAYS,
 		"consequences": consequences,
 	}
