@@ -1,3 +1,29 @@
+## [v1.14.2] - 2026-09-15 PROD
+
+Bu surum istoc.cronbi.com'da yayindadir.
+
+### Eklendi
+- feat(abonelik): tamamlama dilimi — kalan süre devri + döngü/geçmiş uçları + kota-kontrollü restore (@boraydeger32)
+  - Kalan süre devri: aynı planın erken yenilemesinde yeni dönem eski dönemin bitiminden başlar (üçlü guard: eski status active + dönem sürüyor + plan aynı — plan değişikliğinde/reaktivasyonda/trial'da devir YOK, E1); audit'e period_carried_over; devirli dönemde lifecycle no-op regresyonları (E3)
+  - Bekleyen havale talebi tutar tazeleme: plan fiyatı değiştiyse pending talep güncellenir + yanıta amount_updated sinyali (E4) — bayat-tutar bulgusu kapandı
+  - YENİ list_my_subscription_payments: owner-only ödeme geçmişi (çift katman tenant, rate limit, ≤100 satır)
+  - YENİ subscription_admin.list_attention_subscriptions: superadmin-only iptal-planlı + dunning listesi + sebep dağılımı (batch store_name)
+  - cancel_requested_at alanı: talep/gerçek iptal tarihleri ayrıştı; fesihte tarihsel iz olarak korunur; yanıtlara ve access-state'e additive
+  - Hesap silme önizlemesine open_order_count + açık sipariş uyarı maddesi
+  - Kota-kontrollü restore: reaktivasyonda quota.max_products aşımında en yeni N ürün vitrine döner, satıcıya tek bildirim (pre-snapshot kriteri — PM onaylı gerekçeli sapma, docstring'de)
+  - 100+ yeni test; tüm mevcut suite regresyonsuz (bench 27/27 + 10 stub paketi OK)
+
+### Duzeltildi
+- fix(güvenlik): identity rate-limit form_dict bypass'ı kapatıldı + ölü kalıntılar temizlendi (@boraydeger32)
+  - identity.py'daki 7 uç (verify_email_otp dahil) atlatılabilir @rate_limit(key="user")'dan session-bazlı api/rate_limit.py decorator'ına geçirildi — Frappe v15 rate_limiter key'i form_dict'ten okuduğu için istemci user=<rastgele> ile limiti tamamen aşabiliyordu; limit/pencere değerleri aynen korundu, spoof+429 testleriyle kilitli
+  - tenant_seller_filter.js silindi: hiç yüklenmiyordu (hooks'ta kayıt yok) ve var olmayan DocType'ları hedefliyordu; koruma sunucuda çift katman
+  - Mükerrer "Tradehub Seller" workspace'i kaldırıldı ("Satıcı Paneli" yaşayan kopya) + yetim DB kaydı için idempotent silme patch'i
+- fix(kategori): içe aktarma hızlandırıldı, ağaç hatası yakalanıyor (@aliiball)
+  - Nested set güncellemesi ekleme sırasında atlanıyor (lft/rgt önceden dolduruluyor); 23.511 düğümlük ağaç 21 dk yerine 8,2 dk'da kuruluyor
+  - rebuild_tree düşerse iş artık hata döndürüyor; eskiden sessiz uyarıydı, bozuk ağaç fark edilmeden kalıyordu
+  - Arka plan işi zaman aşımı 30 dk'dan 1 saate çıkarıldı
+
+---
 ## [v1.14.1-rc.1] - 2026-09-15 RC
 
 Bu surum rcistoc.cronbi.com'da onay asamasindadir.
