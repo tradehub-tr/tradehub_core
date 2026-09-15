@@ -12,6 +12,11 @@ Kapsam:
     Subscription status'u 'suspended' iken storefront_visible'ı 1'e çevirmez;
     suspended değilken mevcut formül davranışı DEĞİŞMEZ; guard maliyeti tek
     get_value ve yalnız formül 1 döndüğünde ödenir.
+  - BE-5 / AC-10 — kota-kontrollü restore: quota.max_products sonluysa formül
+    sonrası en yeni N ürün vitrinde kalır, fazlası gizlenir; limit -1/tanımsız
+    → bugünkü davranış (trim yok); is_visible=0 her durumda gizli; idempotent
+    (ikinci koşu veri değiştirmez, bildirim TEKRARLAMAZ); owner yoksa bildirim
+    sessiz atlanır, audit kaydı yine düşer.
 
     cd apps/tradehub_core && python -m unittest tradehub_core.tests.test_storefront_visibility
 """
@@ -19,6 +24,7 @@ Kapsam:
 from __future__ import annotations
 
 import copy
+import itertools
 import sys
 import types
 import unittest
@@ -51,12 +57,17 @@ def _reset_state() -> None:
 			"sql_calls": [],  # (normalize edilmiş query, values)
 			"affected": [],  # her sql çağrısında storefront_visible'ı DEĞİŞEN listing adları
 			"get_value_calls": [],  # (doctype, filters) — drift guard tek get_value iddiası
+			# --- BE-5 / AC-10 ---
+			"quota": {},  # store -> get_quota_limits(store) dönüşü ({} = aboneliksiz)
+			"owners": {},  # store -> Admin Seller Profile.user (yoksa bildirim sessiz atlanır)
+			"notifications": [],  # notify(**kw) çağrıları
+			"audit_logs": [],  # log_decision(**kw) çağrıları
 		}
 	)
 
 
 def _db_sql(query: str, values: tuple | None = None, **kw) -> tuple:
-	"""İki toplu UPDATE deseninin mini yorumlayıcısı.
+	"""SELECT + iki toplu UPDATE deseninin mini yorumlayıcısı.
 
 	Yalnız servisin üretmesi beklenen sorguları tanır; başka SQL gelirse test
 	patlar (yanlışlıkla farklı sorgu yazılmasına karşı emniyet)."""
@@ -68,18 +79,38 @@ def _db_sql(query: str, values: tuple | None = None, **kw) -> tuple:
 	assert "%s" in q, "parametresiz sorgu (f-string SQL?)"
 	for v in vals:
 		assert str(v) not in q, f"deger query'ye gomulmus: {v!r}"
+
+	if q.startswith("SELECT name FROM `tabListing`"):
+		# BE-5 okumaları: çağrı-başı vitrin fotoğrafı + creation DESC trim adayları.
+		assert "WHERE seller_profile = %s AND storefront_visible = 1" in q, q
+		store = vals[0]
+		rows = [
+			(name, row)
+			for name, row in _STATE["listings"].items()
+			if row["seller_profile"] == store and row["storefront_visible"] == 1
+		]
+		if "ORDER BY" in q:
+			# Deterministik keep-set sözleşmesi: creation DESC, eşitlikte name DESC.
+			assert "ORDER BY creation DESC, name DESC" in q, q
+			rows.sort(key=lambda item: (item[1]["creation"], item[0]), reverse=True)
+		return tuple((name,) for name, _row in rows)
+
 	# status/is_visible'a yazma yasak — SET yalnız storefront_visible olmalı.
 	assert q.startswith("UPDATE `tabListing` SET storefront_visible"), q
 
 	changed: list[str] = []
 	if "SET storefront_visible = 0" in q:
-		# hide deseni
+		# hide deseni + BE-5 trim deseni (yalnız adlandırılmış satırlar kapanır)
 		assert "WHERE seller_profile = %s AND storefront_visible = 1" in q, q
 		store = vals[0]
+		names = set(vals[1:]) if "AND name IN (" in q else None
 		for name, row in _STATE["listings"].items():
-			if row["seller_profile"] == store and row["storefront_visible"] == 1:
-				row["storefront_visible"] = 0
-				changed.append(name)
+			if row["seller_profile"] != store or row["storefront_visible"] != 1:
+				continue
+			if names is not None and name not in names:
+				continue
+			row["storefront_visible"] = 0
+			changed.append(name)
 	elif "IF(is_visible = 1 AND status IN" in q:
 		# restore deseni (backfill formülü, mağaza-scoped)
 		assert "WHERE seller_profile = %s" in q, q
@@ -101,6 +132,10 @@ def _db_get_value(doctype: str, filters=None, fieldname=None, order_by=None, **k
 	if doctype == "Store Subscription":
 		_STATE["get_value_calls"].append((doctype, dict(filters or {})))
 		return _STATE["sub_status"].get((filters or {}).get("store"))
+	if doctype == "Admin Seller Profile":
+		# BE-5: owner lookup — get_value("Admin Seller Profile", store, "user")
+		assert fieldname == "user", fieldname
+		return _STATE["owners"].get(filters)
 	raise AssertionError(f"stub desteklemiyor: get_value({doctype})")
 
 
@@ -152,15 +187,44 @@ def _install_stubs() -> None:
 	sys.modules["tradehub_core.utils.content_i18n"] = content_i18n
 
 	notify_mod = types.ModuleType("tradehub_core.utils.notify")
-	notify_mod.notify = lambda **kw: None
+
+	def _notify(**kw) -> str:
+		_STATE["notifications"].append(kw)
+		return "PN-TEST"
+
+	notify_mod.notify = _notify
 	sys.modules["tradehub_core.utils.notify"] = notify_mod
+
+	# BE-5: audit paketi (log_decision + ADL sabitleri) — gerçek paket frappe
+	# runtime'ına gider, stub kayıt tutar; sabit değerler audit/log.py ile aynı.
+	audit_mod = types.ModuleType("tradehub_core.audit")
+	audit_mod.DECISION_DENY = "DENY"
+	audit_mod.LAYER_L0 = "L0"
+	audit_mod.SEVERITY_NORMAL = "NORMAL"
+
+	def _log_decision(**kw) -> str:
+		_STATE["audit_logs"].append(kw)
+		return "ADL-TEST"
+
+	audit_mod.log_decision = _log_decision
+	sys.modules["tradehub_core.audit"] = audit_mod
 
 
 _install_stubs()
 
+from tradehub_core.entitlement import core as entitlement_core  # noqa: E402
 from tradehub_core.entitlement.core import get_subscription_status  # noqa: E402, F401
 from tradehub_core.services import storefront_visibility  # noqa: E402
 from tradehub_core.tradehub_core.doctype.listing.listing import Listing  # noqa: E402
+
+# BE-5: servis get_quota_limits'i çağrı anında lazy-import eder. Gerçek
+# implementasyon frappe.cache + Store Subscription doc'una gider; testte
+# sözleşmesi stub'lanır ({} = aboneliksiz → anahtar yok → trim yok).
+entitlement_core.get_quota_limits = lambda store: dict(_STATE["quota"].get(store, {}))
+
+# Seed sırası = creation sırası: SONRA eklenen daha YENİDİR (trim keep-set'i
+# "creation DESC ilk N" olduğundan test kurgusunda kritik).
+_CREATION_SEQ = itertools.count(1)
 
 
 def _listing(
@@ -174,6 +238,7 @@ def _listing(
 		"seller_profile": store,
 		"status": status,
 		"is_visible": is_visible,
+		"creation": next(_CREATION_SEQ),
 		# sfv verilmezse mevcut formülden hesapla (üretimdeki tutarlı başlangıç)
 		"storefront_visible": sfv
 		if sfv is not None
@@ -281,6 +346,146 @@ class TestRestoreStoreListings(unittest.TestCase):
 			self.assertIn("%s", q)
 			self.assertIn("SELLER-A", vals, "Mağaza adı parametre olarak gitmeli")
 			self.assertNotIn("SELLER-A", q, "Mağaza adı query gövdesine gömülmemeli")
+
+
+class TestQuotaControlledRestore(unittest.TestCase):
+	"""BE-5 / AC-10 — kota-kontrollü restore (quota.max_products)."""
+
+	STORE = "SELLER-A"
+	OWNER = "owner-a@example.com"
+
+	def setUp(self):
+		_reset_state()
+		# Vitrin-uygun 4 ürün, seed sırası = yaş sırası: L-Q1 en ESKİ, L-Q4 en YENİ.
+		_listing("L-Q1")
+		_listing("L-Q2")
+		_listing("L-Q3")
+		_listing("L-Q4")
+		_listing("L-QHIDDEN", is_visible=0)  # satıcı gizlemiş — kota sayımına girmez
+		_listing("L-QPENDING", status="Pending")  # statü gereği görünmez
+		_listing("L-QB", store="SELLER-B")  # kontrol grubu: başka mağaza
+		_STATE["owners"][self.STORE] = self.OWNER
+
+	def _set_limit(self, limit: int) -> None:
+		_STATE["quota"][self.STORE] = {"quota.max_products": limit}
+
+	def _dunning_cycle(self) -> None:
+		"""Üretimdeki gerçek akış: suspend (hide) → ödeme → restore."""
+		storefront_visibility.hide_store_listings(self.STORE)
+		storefront_visibility.restore_store_listings(self.STORE)
+
+	def _visible(self) -> set[str]:
+		return {
+			name
+			for name, row in _STATE["listings"].items()
+			if row["seller_profile"] == self.STORE and row["storefront_visible"] == 1
+		}
+
+	def test_limit_above_count_no_trim_no_notification(self):
+		self._set_limit(10)
+		self._dunning_cycle()
+		self.assertEqual(self._visible(), {"L-Q1", "L-Q2", "L-Q3", "L-Q4"})
+		self.assertEqual(_STATE["notifications"], [], "Limit altında bildirim olmamalı")
+		self.assertEqual(_STATE["audit_logs"], [], "Limit altında audit kaydı olmamalı")
+
+	def test_limit_exceeded_keeps_newest_n(self):
+		self._set_limit(2)
+		self._dunning_cycle()
+		self.assertEqual(self._visible(), {"L-Q3", "L-Q4"}, "creation DESC ilk N (en yeni) kalmalı")
+		self.assertEqual(_STATE["listings"]["L-QB"]["storefront_visible"], 1, "Başka mağaza etkilenmemeli")
+		self.assertEqual(len(_STATE["notifications"]), 1, "Trim'de TEK bildirim gitmeli")
+		self.assertEqual(_STATE["cache_invalidations"], 2, "hide + restore birer invalidation")
+
+	def test_unlimited_minus_one_no_trim(self):
+		self._set_limit(-1)
+		self._dunning_cycle()
+		self.assertEqual(self._visible(), {"L-Q1", "L-Q2", "L-Q3", "L-Q4"})
+		self.assertEqual(_STATE["notifications"], [])
+
+	def test_undefined_quota_no_trim(self):
+		# get_quota_limits {} döner (aboneliksiz) → anahtar yok → güvenli taraf.
+		self._dunning_cycle()
+		self.assertEqual(self._visible(), {"L-Q1", "L-Q2", "L-Q3", "L-Q4"})
+		self.assertEqual(_STATE["notifications"], [])
+		self.assertEqual(_STATE["audit_logs"], [])
+
+	def test_limit_zero_hides_all(self):
+		# within_quota semantiği: 0 = devre dışı → trim TAMAMINI kapatır.
+		# Görünür ön-durumdan restore: net değişiklik var → tek bildirim + audit.
+		self._set_limit(0)
+		storefront_visibility.restore_store_listings(self.STORE)
+		self.assertEqual(self._visible(), set())
+		self.assertEqual(len(_STATE["notifications"]), 1)
+		self.assertEqual(_STATE["audit_logs"][0]["context"], {"limit": 0, "trimmed_count": 4})
+		# İkinci koşu: durum artık kota-uyumlu → veri ve bildirim değişmez.
+		storefront_visibility.restore_store_listings(self.STORE)
+		self.assertEqual(self._visible(), set())
+		self.assertEqual(len(_STATE["notifications"]), 1, "Bildirim TEKRARLAMAMALI")
+
+	def test_limit_zero_after_full_hide_stays_silent(self):
+		# Uç durum: suspend döneminde vitrin ZATEN tamamen kapalıyken limit 0 ile
+		# restore net değişiklik üretmez → bildirim/audit YOK (idempotency gereği:
+		# durum değişmeyen koşuda bildirim verilse her koşuda tekrarlardı).
+		self._set_limit(0)
+		self._dunning_cycle()
+		self.assertEqual(self._visible(), set())
+		self.assertEqual(_STATE["notifications"], [])
+		self.assertEqual(_STATE["audit_logs"], [])
+
+	def test_is_visible_mixture_preserved(self):
+		self._set_limit(3)
+		before = copy.deepcopy(_STATE["listings"])
+		self._dunning_cycle()
+		self.assertEqual(self._visible(), {"L-Q2", "L-Q3", "L-Q4"})
+		rows = _STATE["listings"]
+		self.assertEqual(rows["L-QHIDDEN"]["storefront_visible"], 0, "Satıcının gizlediği gizli KALIR")
+		self.assertEqual(rows["L-QPENDING"]["storefront_visible"], 0, "Pending vitrine çıkmaz")
+		for name, row in rows.items():
+			self.assertEqual(row["status"], before[name]["status"], name)
+			self.assertEqual(row["is_visible"], before[name]["is_visible"], name)
+
+	def test_notification_and_audit_content(self):
+		self._set_limit(1)
+		self._dunning_cycle()
+		note = _STATE["notifications"][0]
+		self.assertEqual(note["recipient_user"], self.OWNER)
+		self.assertEqual(note["reference_doctype"], "Admin Seller Profile")
+		self.assertEqual(note["reference_name"], self.STORE)
+		self.assertIn("3", note["message"], "Mesaj trim edilen ürün sayısını içermeli")
+		audit = _STATE["audit_logs"][0]
+		self.assertEqual(audit["decision"], "DENY")
+		self.assertEqual(audit["layer"], "L0")
+		self.assertEqual(audit["severity"], "NORMAL")
+		self.assertEqual(audit["tenant"], self.STORE)
+		self.assertEqual(audit["context"], {"limit": 1, "trimmed_count": 3})
+
+	def test_idempotent_second_run_no_second_notification(self):
+		self._set_limit(2)
+		self._dunning_cycle()
+		snapshot = copy.deepcopy(_STATE["listings"])
+		storefront_visibility.restore_store_listings(self.STORE)
+		self.assertEqual(_STATE["listings"], snapshot, "İkinci restore veri durumunu değiştirmemeli")
+		self.assertEqual(len(_STATE["notifications"]), 1, "Bildirim TEKRARLAMAMALI")
+		self.assertEqual(len(_STATE["audit_logs"]), 1, "Audit kaydı TEKRARLAMAMALI")
+
+	def test_missing_owner_silent_but_audited(self):
+		_STATE["owners"].clear()
+		self._set_limit(2)
+		self._dunning_cycle()
+		self.assertEqual(self._visible(), {"L-Q3", "L-Q4"}, "Owner yokken trim yine uygulanmalı")
+		self.assertEqual(_STATE["notifications"], [], "Owner yoksa bildirim SESSİZCE atlanmalı")
+		self.assertEqual(len(_STATE["audit_logs"]), 1, "Audit kaydı yine düşmeli")
+
+	def test_trim_update_is_parameterized(self):
+		self._set_limit(2)
+		self._dunning_cycle()
+		trim_calls = [(q, vals) for q, vals in _STATE["sql_calls"] if "AND name IN (" in q]
+		self.assertEqual(len(trim_calls), 1)
+		q, vals = trim_calls[0]
+		self.assertEqual(vals[0], self.STORE)
+		self.assertEqual(set(vals[1:]), {"L-Q1", "L-Q2"}, "Yalnız limit dışı adlar parametre gitmeli")
+		for v in vals:
+			self.assertNotIn(str(v), q, "Değerler query gövdesine gömülmemeli")
 
 
 class _GuardListing(Listing):

@@ -13,6 +13,13 @@ revoke_cancellation:
   - Başarı: bayrak 0'lanır + cancellation alanları temizlenir (AC-6).
   - İptal planlı değilken → 417.
 
+BE-3 — cancel_requested_at (AC-8):
+  - request doc'a now damgası yazar + yanıta additive cancel_requested_at ekler.
+  - İdempotent tekrar çağrı damgayı DEĞİŞTİRMEZ — erken dönüş yolu DB'deki
+    mevcut (ilk talep) değeri döner.
+  - revoke damgayı diğer cancellation alanlarıyla birlikte temizler + yanıtına
+    cancel_requested_at: None ekler.
+
 Güvenlik denetimi ekleri:
   - Deny audit: alt kullanıcı ("not_owner") ve platform-admin boş-tenant yolu
     ("platform_admin_path") 403'ten ÖNCE DENY (HIGH) audit'i yazar.
@@ -47,6 +54,8 @@ class _ValidationError(Exception):
 
 _NOW = datetime(2026, 9, 8, 12, 0, 0)
 _PERIOD_END = datetime(2026, 10, 1, 0, 0, 0)
+# BE-3: idempotency vakası için İLK talebin (DB'deki mevcut) damgası — _NOW'dan farklı.
+_EARLIER_REQUESTED_AT = datetime(2026, 9, 1, 9, 30, 0)
 
 _STATE: dict = {}
 
@@ -78,6 +87,7 @@ def _active_sub(**overrides) -> dict:
 		"plan": "PRO",
 		"current_period_end": _PERIOD_END,
 		"cancel_at_period_end": 0,
+		"cancel_requested_at": None,
 	}
 	sub.update(overrides)
 	return sub
@@ -199,6 +209,7 @@ def _install_frappe_stub() -> None:
 	utils.add_days = lambda d, n: d + timedelta(days=n)
 	utils.add_months = lambda d, n: d + timedelta(days=30 * n)  # subscription.py importu için yeter
 	utils.add_years = lambda d, n: d + timedelta(days=365 * n)
+	utils.get_datetime = lambda d: d if isinstance(d, datetime) else datetime.strptime(d, "%Y-%m-%d %H:%M:%S")
 	utils.getdate = lambda d=None: d.date() if isinstance(d, datetime) else d
 	utils.cint = lambda v: int(v or 0)
 	sys.modules["frappe.utils"] = utils
@@ -358,6 +369,7 @@ class TestRequestSuccess(unittest.TestCase):
 				"effective_end": _PERIOD_END,
 				"plan": "PRO",
 				"already_scheduled": False,
+				"cancel_requested_at": _NOW,
 			},
 		)
 		doc = _STATE["last_sub_doc"]
@@ -365,6 +377,7 @@ class TestRequestSuccess(unittest.TestCase):
 		self.assertEqual(doc.cancellation_reason, "fiyat")
 		self.assertEqual(doc.cancellation_note, "pahalı geldi")
 		self.assertEqual(doc.cancel_requested_by, "owner@test")
+		self.assertEqual(doc.cancel_requested_at, _NOW, "BE-3: talep anı doc'a yazılmalı")
 		self.assertIsNone(doc.get("status"), "Status'a DOKUNULMAMALI — state machine devreye girmemeli")
 		self.assertEqual(_STATE["saved"], [("save", "Store Subscription", None)])
 		self.assertEqual(_STATE["commits"], 1)
@@ -384,7 +397,9 @@ class TestRequestSuccess(unittest.TestCase):
 		self.assertIn("Geri Al", notif["message"], "Bildirim geri alma yolunu içermeli")
 
 	def test_second_call_is_idempotent_and_side_effect_free(self):
-		_STATE["existing_sub"]["cancel_at_period_end"] = 1
+		_STATE["existing_sub"].update(
+			{"cancel_at_period_end": 1, "cancel_requested_at": _EARLIER_REQUESTED_AT}
+		)
 		out = sc.request_cancellation(reason="fiyat")
 		self.assertTrue(out["already_scheduled"])
 		self.assertEqual(out["cancel_at_period_end"], 1)
@@ -393,6 +408,17 @@ class TestRequestSuccess(unittest.TestCase):
 		self.assertEqual(_STATE["notifications"], [], "İdempotent tekrar çağrı bildirim atmamalı")
 		self.assertEqual(_STATE["audits"], [], "İdempotent tekrar çağrı audit üretmemeli")
 
+	def test_idempotent_call_preserves_original_cancel_requested_at(self):
+		"""BE-3 / AC-8: tekrar çağrı tarihi DEĞİŞTİRMEZ — erken dönüş yolunda yanıt
+		DB'deki mevcut damgayı (ilk talep anını) döner, now'ı değil."""
+		_STATE["existing_sub"].update(
+			{"cancel_at_period_end": 1, "cancel_requested_at": _EARLIER_REQUESTED_AT}
+		)
+		out = sc.request_cancellation(reason="fiyat")
+		self.assertEqual(out["cancel_requested_at"], _EARLIER_REQUESTED_AT)
+		self.assertNotEqual(out["cancel_requested_at"], _NOW)
+		self.assertEqual(_STATE["saved"], [], "Erken dönüş yolunda damga yeniden yazılmamalı")
+
 
 class TestRevoke(unittest.TestCase):
 	"""AC-6 — geri alma: bayrak 0 + alan temizliği; planlı iptal yoksa 417."""
@@ -400,7 +426,9 @@ class TestRevoke(unittest.TestCase):
 	def setUp(self):
 		_reset_state()
 		_as_owner()
-		_STATE["existing_sub"] = _active_sub(cancel_at_period_end=1)
+		_STATE["existing_sub"] = _active_sub(
+			cancel_at_period_end=1, cancel_requested_at=_EARLIER_REQUESTED_AT
+		)
 
 	def test_revoke_success_clears_flag_and_fields(self):
 		out = sc.revoke_cancellation()
@@ -413,6 +441,7 @@ class TestRevoke(unittest.TestCase):
 				"cancel_at_period_end": 0,
 				"current_period_end": _PERIOD_END,
 				"plan": "PRO",
+				"cancel_requested_at": None,
 			},
 		)
 		doc = _STATE["last_sub_doc"]
@@ -420,6 +449,7 @@ class TestRevoke(unittest.TestCase):
 		self.assertIsNone(doc.cancellation_reason)
 		self.assertIsNone(doc.cancellation_note)
 		self.assertIsNone(doc.cancel_requested_by)
+		self.assertIsNone(doc.cancel_requested_at, "BE-3: revoke damgayı da temizlemeli")
 		self.assertEqual(_STATE["saved"], [("save", "Store Subscription", None)])
 		self.assertEqual(len(_STATE["audits"]), 1)
 		self.assertEqual(_STATE["audits"][0]["decision"], "ALLOW")

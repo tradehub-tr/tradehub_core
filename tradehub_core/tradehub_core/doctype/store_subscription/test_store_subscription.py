@@ -3,6 +3,7 @@
 
 """Store Subscription — BE-1 testleri: geçiş matrisi + iptal bayrağı kuralları +
 renewal reminder sıfırlama + R1'li current_period_end backfill patch'i.
+BE-3 (AC-8) eki: cancel_requested_at dönem sonu finalize'ında korunur (tarihsel iz).
 
 Çalıştırma:
 	docker exec istoc-dev-backend-1 bench --site istoc.localhost run-tests \\
@@ -142,6 +143,26 @@ class TestStoreSubscription(FrappeTestCase):
 		sub.save(ignore_permissions=True)
 		self.assertEqual(int(sub.cancel_at_period_end), 0)
 		self.assertIsNotNone(sub.canceled_at)
+
+	def test_cancel_requested_at_preserved_after_finalize(self):
+		"""BE-3 / AC-8: dönem sonunda 'canceled'a geçişte (finalize) cancel_requested_at
+		TEMİZLENMEZ — bayrak sıfırlanırken talep tarihi tarihsel iz olarak kalır."""
+		requested_at = now_datetime()
+		sub = self._make_sub("T9", cancel_at_period_end=1, cancel_requested_at=requested_at)
+		self.assertEqual(get_datetime(sub.cancel_requested_at), get_datetime(requested_at))
+
+		# finalize_cancellations ile aynı yol: state machine üzerinden doc.save.
+		sub.status = "canceled"
+		sub.save(ignore_permissions=True)
+		self.assertEqual(int(sub.cancel_at_period_end), 0, "Bayrak finalize'da sıfırlanmalı")
+		self.assertEqual(
+			get_datetime(sub.cancel_requested_at),
+			get_datetime(requested_at),
+			"cancel_requested_at finalize'da KORUNMALI (tarihsel iz)",
+		)
+
+		sub.reload()
+		self.assertEqual(get_datetime(sub.cancel_requested_at), get_datetime(requested_at))
 
 	# --- renewal reminder bayrakları (AC-9) ---
 

@@ -53,6 +53,9 @@ _SUB_FIELDS = [
 	"plan",
 	"current_period_end",
 	"cancel_at_period_end",
+	# BE-3: idempotent tekrar çağrının erken dönüş yolunda MEVCUT talep tarihi
+	# DB'den okunur — yanıt her zaman ilk talep anını taşır.
+	"cancel_requested_at",
 ]
 
 
@@ -130,7 +133,8 @@ def request_cancellation(reason: str, note: str = "") -> dict[str, Any]:
 
 	Returns:
 	    {ok, subscription, status, cancel_at_period_end, effective_end, plan,
-	     already_scheduled} — idempotent tekrar çağrıda already_scheduled=True.
+	     already_scheduled, cancel_requested_at} — idempotent tekrar çağrıda
+	     already_scheduled=True ve cancel_requested_at İLK talep tarihi kalır (BE-3).
 	"""
 	denial = _("Sadece mağaza sahibi aboneliği iptal edebilir.")
 	tenant = _resolve_owner_tenant(denial)
@@ -170,11 +174,15 @@ def request_cancellation(reason: str, note: str = "") -> dict[str, Any]:
 	if cint(sub.cancel_at_period_end):
 		return _cancellation_response(sub, already_scheduled=True)
 
+	requested_at = now_datetime()
 	doc = frappe.get_doc("Store Subscription", sub.name)
 	doc.cancel_at_period_end = 1
 	doc.cancellation_reason = reason
 	doc.cancellation_note = note
 	doc.cancel_requested_by = frappe.session.user
+	# BE-3 / AC-8: talep anı damgası — revoke temizler; dönem sonu finalize'da
+	# KORUNUR (tarihsel iz, controller yalnız bayrağı sıfırlar).
+	doc.cancel_requested_at = requested_at
 	# Status DEĞİŞMİYOR → state machine devreye girmez; validate bayrağı yalnız
 	# 'active'te kabul eder (BE-1). Yetki yukarıda çift katman doğrulandı;
 	# owner'ın DocType-level write perm'i yok → bilinçli ignore_permissions.
@@ -196,7 +204,7 @@ def request_cancellation(reason: str, note: str = "") -> dict[str, Any]:
 			"reason": reason,
 			"has_note": bool(note),
 			"effective_end": str(sub.current_period_end),
-			"requested_at": str(now_datetime()),
+			"requested_at": str(requested_at),
 		},
 	)
 	# AC-11 — iptal onayı bildirimi: bitiş tarihi + geri alma yolu.
@@ -214,7 +222,7 @@ def request_cancellation(reason: str, note: str = "") -> dict[str, Any]:
 		reference_name=sub.name,
 	)
 
-	return _cancellation_response(sub, already_scheduled=False)
+	return _cancellation_response(sub, already_scheduled=False, cancel_requested_at=requested_at)
 
 
 @frappe.whitelist(methods=["POST"])
@@ -237,6 +245,8 @@ def revoke_cancellation() -> dict[str, Any]:
 	doc.cancellation_reason = None
 	doc.cancellation_note = None
 	doc.cancel_requested_by = None
+	# BE-3: geri almada talep tarihi de diğer cancellation alanlarıyla temizlenir.
+	doc.cancel_requested_at = None
 	# Yetki yukarıda çift katman doğrulandı (owner + store eşleşmesi);
 	# owner'ın DocType-level write perm'i yok → bilinçli ignore_permissions.
 	doc.flags.ignore_permissions = True
@@ -274,11 +284,21 @@ def revoke_cancellation() -> dict[str, Any]:
 		"cancel_at_period_end": 0,
 		"current_period_end": sub.current_period_end,
 		"plan": sub.plan,
+		# BE-3 additive (AC-8): geri almada talep tarihi temizlendi.
+		"cancel_requested_at": None,
 	}
 
 
-def _cancellation_response(sub: Any, *, already_scheduled: bool) -> dict[str, Any]:
-	"""request_cancellation sözleşme yanıtı (shared_contracts ile birebir)."""
+def _cancellation_response(
+	sub: Any, *, already_scheduled: bool, cancel_requested_at: Any = None
+) -> dict[str, Any]:
+	"""request_cancellation sözleşme yanıtı (shared_contracts ile birebir).
+
+	`cancel_requested_at` (BE-3 additive, AC-8): yeni talepte az önce yazılan damga
+	parametreyle gelir; idempotent tekrar çağrının erken dönüşünde parametre boş
+	kalır ve DB'den okunmuş MEVCUT değer (`_SUB_FIELDS` üzerinden `sub`'da) döner —
+	ilk talep tarihi tekrar çağrıda DEĞİŞMEZ.
+	"""
 	return {
 		"ok": True,
 		"subscription": sub.name,
@@ -287,4 +307,5 @@ def _cancellation_response(sub: Any, *, already_scheduled: bool) -> dict[str, An
 		"effective_end": sub.current_period_end,
 		"plan": sub.plan,
 		"already_scheduled": already_scheduled,
+		"cancel_requested_at": cancel_requested_at or sub.get("cancel_requested_at"),
 	}

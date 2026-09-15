@@ -20,7 +20,7 @@ from typing import Any
 
 import frappe
 from frappe import _
-from frappe.utils import add_days, add_months, add_years, cint, getdate, now_datetime
+from frappe.utils import add_days, add_months, add_years, cint, get_datetime, getdate, now_datetime
 
 from tradehub_core.audit import log_decision
 
@@ -131,7 +131,9 @@ def upgrade_subscription_plan(
 	existing = frappe.db.get_value(
 		"Store Subscription",
 		{"store": tenant},
-		["name", "plan", "status", "trial_used", "billing_cycle"],
+		# current_period_end: erken-yenileme devri kararı save ÖNCESİ eski
+		# değerle verilir (BE-1) — bu sorgu mutasyondan önce koşar.
+		["name", "plan", "status", "trial_used", "billing_cycle", "current_period_end"],
 		as_dict=True,
 	)
 
@@ -170,15 +172,35 @@ def upgrade_subscription_plan(
 		doc.trial_used = 1
 		doc.trial_end = add_days(now, trial_days) if trial_days > 0 else None
 
+	# Kalan süre devri (Bora kararı a + E1): YALNIZ aynı planın erken
+	# yenilemesinde — save ÖNCESİ eski değerlerle status=='active' VE eski
+	# current_period_end gelecekte VE new_plan == mevcut plan — yeni dönem
+	# eski bitişten devreder (ödenmiş süre yanmaz). Plan değişikliği (E1),
+	# dönemi geçmiş active, past_due/suspended/canceled/expired
+	# reaktivasyonu, trial→active ve yeni kayıt → devir YOK, dönem now'dan
+	# başlar (mevcut davranış AYNEN korunur).
+	old_period_end = existing.get("current_period_end") if existing else None
+	period_carried_over = bool(
+		not start_trial_bool
+		and existing
+		and existing.status == "active"
+		and existing.plan == new_plan
+		and old_period_end
+		and get_datetime(old_period_end) > now_datetime()
+	)
+
 	def _apply_active_period_fields(doc, cycle: str) -> None:
 		"""'active' geçişinde dönem alanlarını yaz (BE-3 / AC-7).
 
+		Erken-yenileme devri (BE-1): period_carried_over ise start = ESKİ
+		current_period_end; aksi tüm durumlarda start = now.
 		current_period_end = start + 1 ay/1 yıl, next_invoice_date = dönem sonu.
-		cancel_at_period_end burada sıfırlanır: yeniden abonelikte eski iptal
-		planı taşınmaz. renewal_reminder_* bayraklarını BE-1'in validate'i
-		current_period_start değişiminde zaten sıfırlıyor — burada tekrarlanmaz.
+		cancel_at_period_end burada sıfırlanır: yeniden abonelikte/yenilemede
+		eski iptal planı taşınmaz. renewal_reminder_* bayraklarını controller'ın
+		validate'i current_period_start değişiminde zaten sıfırlıyor — burada
+		tekrarlanmaz.
 		"""
-		start = now_datetime()
+		start = get_datetime(old_period_end) if period_carried_over else now_datetime()
 		end = add_months(start, 1) if cycle == "monthly" else add_years(start, 1)
 		doc.current_period_start = start
 		doc.current_period_end = end
@@ -251,6 +273,7 @@ def upgrade_subscription_plan(
 			"new_plan": new_plan,
 			"status": target_status,
 			"billing_cycle": None if start_trial_bool else effective_cycle,
+			"period_carried_over": period_carried_over,
 			"started_trial": start_trial_bool,
 			"reason": (reason or "")[:200],
 			"role_sync_summary": {
@@ -297,6 +320,9 @@ def _ok_access_payload(sub: Any) -> dict[str, Any]:
 		# BE-3 additive alanlar — panel iptal-planlı banner + dönem bilgisi.
 		"cancel_at_period_end": cint(sub.cancel_at_period_end),
 		"billing_cycle": sub.billing_cycle,
+		# BE-1 additive — iptal talebi damgası (BE-3 alanı, passthrough):
+		# cancel_at_period_end=1 iken dolu, değilse null.
+		"cancel_requested_at": sub.cancel_requested_at,
 	}
 
 
@@ -337,6 +363,7 @@ def get_seller_access_state() -> dict[str, Any]:
 			"started_at",
 			"current_period_end",
 			"cancel_at_period_end",
+			"cancel_requested_at",
 			"billing_cycle",
 			"canceled_at",
 			"suspended_at",

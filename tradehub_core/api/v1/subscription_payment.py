@@ -19,10 +19,18 @@ import frappe
 from frappe import _
 from frappe.utils import now_datetime
 
+# Rate limit: proje-içi decorator — kova kimliği frappe.session.user'dan türer
+# (frappe.rate_limiter key="user" form_dict bypass'ına karşı; detay rate_limit.py).
+from tradehub_core.api.rate_limit import rate_limit
 from tradehub_core.api.v1.subscription import (
 	_resolve_tenant_for_caller,
 	upgrade_subscription_plan,
 )
+
+# Owner-only çözüm ortak helper'dan (PO/BE-2: import edilebilir — aynı çift
+# katman deseni): platform-admin boş-tenant yolu + alt kullanıcı/guest 403,
+# yetkisiz deneme DENY audit'i helper içinde yazılır.
+from tradehub_core.api.v1.subscription_cancellation import _resolve_owner_tenant
 from tradehub_core.utils.notify import notify
 
 _ADMIN_ROLES = ("System Manager", "Marketplace Admin")
@@ -93,8 +101,12 @@ def create_bank_transfer_request(plan: str, billing_cycle: str = "yearly") -> di
 	existing = frappe.db.get_value("Subscription Payment", {"store": tenant, "status": "pending"}, "name")
 	if existing:
 		payment = frappe.get_doc("Subscription Payment", existing)
+		# AC-5 — bayat fiyat: plan/cycle AYNI kalsa bile güncel plan fiyatı
+		# (amount/currency) bekleyen talebin tutarından farklıysa tazelenir
+		# (bayat 5.990€ bulgusu; currency değişimi de kapsanır — risk kaydı).
+		amount_stale = float(payment.amount or 0) != amount or (payment.currency or "") != currency
 		# Plan/dönem değiştiyse güncelle (kullanıcı farklı paket seçmiş olabilir).
-		if payment.plan != plan or payment.billing_cycle != billing_cycle:
+		if payment.plan != plan or payment.billing_cycle != billing_cycle or amount_stale:
 			payment.plan = plan
 			payment.billing_cycle = billing_cycle
 			payment.amount = amount
@@ -102,7 +114,13 @@ def create_bank_transfer_request(plan: str, billing_cycle: str = "yearly") -> di
 			payment.flags.ignore_permissions = True
 			payment.save(ignore_permissions=True)
 			frappe.db.commit()
-		return _payment_public_view(payment)
+		view = _payment_public_view(payment)
+		if amount_stale:
+			# E4 — additive sinyal: tutar BU çağrıda güncellendi (AD-1 pending
+			# bloğu bilgilendirme notu gösterir). Mevcut yanıt alanları değişmez;
+			# tutar aynıysa alan hiç eklenmez.
+			view["amount_updated"] = True
+		return view
 
 	payment = frappe.new_doc("Subscription Payment")
 	payment.store = tenant
@@ -129,6 +147,61 @@ def get_my_pending_payment() -> dict[str, Any] | None:
 	if not name:
 		return None
 	return _payment_public_view(frappe.get_doc("Subscription Payment", name))
+
+
+# Yanıt sözleşmesi alan seti (shared_contracts — list_my_subscription_payments).
+_MY_PAYMENT_FIELDS = (
+	"name",
+	"plan",
+	"billing_cycle",
+	"amount",
+	"currency",
+	"reference_code",
+	"status",
+	"requested_at",
+	"confirmed_at",
+	"rejection_reason",
+)
+
+
+@frappe.whitelist(methods=["GET"])
+@rate_limit(max_calls=30, window_seconds=300, scope="list_my_subscription_payments")
+def list_my_subscription_payments() -> list[dict[str, Any]]:
+	"""Satıcı: kendi mağazamın ödeme geçmişi (makbuz listesi — AC-6).
+
+	Owner-only çift katman:
+	  1. `_resolve_owner_tenant` — alt kullanıcı (tradehub_is_owner=0), guest ve
+	     platform-admin boş-tenant yolu 403 (admin geçmişi Desk'ten
+	     `list_subscription_payments` ile görür); DENY audit helper içinde.
+	  2. Sorgu `store=tenant` filtresiyle gider + dönen satırların store'u
+	     tekrar doğrulanır (defense-in-depth).
+
+	Returns:
+	    Sözleşme alanlarıyla en fazla 100 satır, requested_at desc.
+	"""
+	tenant = _resolve_owner_tenant(_("Sadece mağaza sahibi ödeme geçmişini görüntüleyebilir."))
+
+	# get_all gerekçesi: Subscription Payment seller rolüne DocType-level read
+	# vermez (admin onay kaydı) — get_list her satıcı için boş dönerdi. Owner
+	# yukarıda çözüldü ve tenant filtresi elle uygulanıyor; store alanı yalnız
+	# aşağıdaki ikinci katman doğrulaması için çekilir, yanıtta yer almaz.
+	rows = frappe.get_all(
+		"Subscription Payment",
+		filters={"store": tenant},
+		fields=["store", *_MY_PAYMENT_FIELDS],
+		order_by="requested_at desc",
+		limit_page_length=100,
+	)
+
+	# Defense-in-depth (2. katman): sorgu zaten store filtresiyle gitti — bu dal
+	# yalnız filtre katmanı ileride değişir/gevşerse cross-tenant satır sızmasın
+	# diye bilinçli tutuluyor (subscription_cancellation ile aynı desen).
+	out: list[dict[str, Any]] = []
+	for r in rows:
+		if (r.pop("store", None) or "") != tenant:
+			continue
+		out.append(r)
+	return out
 
 
 @frappe.whitelist(methods=["POST"])
