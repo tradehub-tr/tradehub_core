@@ -1,4 +1,5 @@
 <title>{{ seo.title }}</title>
+{% if seo.lcp_image %}<link rel="preload" as="image" href="{{ seo.lcp_image }}" fetchpriority="high">{% endif %}
 <link rel="icon" href="/favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="96x96" href="/images/istoc-favicon-96.png">
 <link rel="icon" type="image/png" sizes="48x48" href="/images/istoc-favicon-48.png">

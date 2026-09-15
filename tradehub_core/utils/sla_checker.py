@@ -166,12 +166,15 @@ def _handle_breach(ticket: dict, breach_kind: str, tag: str, breach_at, policy_m
 	frappe.db.commit()
 
 
-def _email_body_html(heading: str, body_text: str, ticket_name: str) -> str:
+def _email_body_html(heading: str, body_text: str, ticket_name: str | int) -> str:
 	from urllib.parse import quote
 
 	from tradehub_core.seo.site_url import admin_panel_url
 
-	link = f"{admin_panel_url()}/helpdesk/tickets/{quote(ticket_name, safe='')}"
+	# HD Ticket adı bigint (autoincrement) → `ticket["name"]` int gelir; `quote`
+	# yalnız str/bytes kabul eder ("quote_from_bytes() expected bytes"). Zamanlayıcı
+	# açıldığı ilk saatte her SLA ihlalinde düşen iş buydu (MOGEM-638 §7-1 takibi).
+	link = f"{admin_panel_url()}/helpdesk/tickets/{quote(str(ticket_name), safe='')}"
 	safe_body = frappe.utils.escape_html(body_text or "")
 	return f"""
 <div style="font-family: -apple-system, Segoe UI, Roboto, sans-serif; color: #222; max-width: 560px;">

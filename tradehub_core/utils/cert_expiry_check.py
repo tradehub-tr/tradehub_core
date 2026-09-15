@@ -36,20 +36,29 @@ def check_certificate_expiry() -> dict:
 	}
 
 	# ── Listing Certification ────────────────────────────────────────────
+	# `Listing Certification` child tablosunda `verification_status` alanı YOK
+	# (yalnız Seller Certification'da var). Sorgu o sütunu okuyunca iş
+	# "Unknown column 'lc.verification_status'" ile düşüyor, hiçbir sertifika
+	# bildirimi çıkmıyordu. Alan sonradan eklenirse aynı kod onu kullanır.
+	listing_has_status = frappe.db.has_column("Listing Certification", "verification_status")
+	listing_status_col = "lc.verification_status," if listing_has_status else "NULL AS verification_status,"
+	listing_status_where = (
+		"AND IFNULL(lc.verification_status, 'Pending') != 'Rejected'" if listing_has_status else ""
+	)
 	listing_certs = frappe.db.sql(
-		"""
+		f"""
 		SELECT
 			lc.name AS row_name,
 			lc.parent AS listing_name,
 			lc.certification_type AS cert_type,
 			lc.expiry_date,
-			lc.verification_status,
+			{listing_status_col}
 			l.seller_profile AS seller_profile,
 			l.title AS listing_title
 		FROM `tabListing Certification` lc
 		INNER JOIN `tabListing` l ON l.name = lc.parent
 		WHERE lc.expiry_date IS NOT NULL
-			AND IFNULL(lc.verification_status, 'Pending') != 'Rejected'
+			{listing_status_where}
 		""",
 		as_dict=True,
 	)
@@ -90,13 +99,15 @@ def check_certificate_expiry() -> dict:
 				action_url=f"/panel/app/Listing/{row.listing_name}",
 			)
 			# Süresi dolan kayıt verification_status = Rejected → storefront düşer
-			frappe.db.set_value(
-				"Listing Certification",
-				row.row_name,
-				"verification_status",
-				"Rejected",
-				update_modified=False,
-			)
+			# (alan varsa; bugünkü şemada Listing Certification'da yok — yalnız bildirim).
+			if listing_has_status:
+				frappe.db.set_value(
+					"Listing Certification",
+					row.row_name,
+					"verification_status",
+					"Rejected",
+					update_modified=False,
+				)
 			stats["listing_expired"] += 1
 
 	# ── Seller Certification ─────────────────────────────────────────────

@@ -335,3 +335,5 @@ tradehub_core.patches.v15_log043_carrier_integration_log
 tradehub_core.patches.v15_backfill_current_period_end
 # --- Demo/mock veri temizliği · canlıya geçişte bir kez ---
 tradehub_core.patches.v15_9_53_purge_demo_data
+# --- MOGEM-638/666 performans: Product Category + Listing sıralama indeksleri (EXPLAIN ile doğrulandı) ---
+tradehub_core.patches.v15_9_56_performans_indeksleri

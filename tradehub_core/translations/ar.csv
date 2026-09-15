@@ -1,8 +1,3 @@
-# TradeHub Core Arabic Translations
-# Format: source,translated,context (optional)
-# TODO: Add Arabic translations - placeholders below
-
-# Common Labels
 Basic Information,المعلومات الأساسية,
 Status,الحالة,
 User,المستخدم,
@@ -20,8 +15,6 @@ Submit,إرسال,
 Delete,حذف,
 Edit,تعديل,
 Email,البريد الإلكتروني,
-
-# Actions
 Add,إضافة,
 Remove,إزالة,
 Update,تحديث,
@@ -30,8 +23,6 @@ Filter,تصفية,
 Refresh,تحديث,
 Export,تصدير,
 Import,استيراد,
-
-# Status Values
 Active,نشط,
 Inactive,غير نشط,
 Draft,مسودة,
@@ -41,8 +32,6 @@ Suspended,معلق,
 Pending,قيد الانتظار,
 Approved,موافق عليه,
 Rejected,مرفوض,
-
-# Common Messages
 Required,مطلوب,
 Invalid,غير صالح,
 Success,نجاح,
@@ -51,8 +40,6 @@ Warning,تحذير,
 Loading,جار التحميل,
 Yes,نعم,
 No,لا,
-
-# Roles (Task 6 - RBAC New Role Names)
 Platform Admin,مدير المنصة,
 Platform Finance,مالية المنصة,
 Compliance Officer,مسؤول الامتثال,

@@ -1,8 +1,3 @@
-# TradeHub Core English Translations
-# Format: source,translated,context (optional)
-# This file serves as the English language fallback and documentation
-
-# Common Labels
 Basic Information,Basic Information,
 Status,Status,
 User,User,
@@ -24,8 +19,6 @@ Delete,Delete,
 Edit,Edit,
 Print,Print,
 Email,Email,
-
-# Actions
 Add,Add,
 Remove,Remove,
 Update,Update,
@@ -61,8 +54,6 @@ View Listings,View Listings,
 View Organizations,View Organizations,
 View Neighborhoods,View Neighborhoods,
 View Category Path,View Category Path,
-
-# Platform Core
 Platform,Platform,
 Marketplace,Marketplace,
 Dashboard,Dashboard,
@@ -72,8 +63,6 @@ Application,Application,
 Service,Service,
 Integration,Integration,
 TradeHub Core,TradeHub Core,
-
-# User Management
 User Management,User Management,
 Role,Role,
 Permission,Permission,
@@ -84,8 +73,6 @@ User Permission,User Permission,
 Has Role,Has Role,
 Administrator,Administrator,
 System Manager,System Manager,
-
-# Roles (Task 6 - RBAC New Role Names)
 Platform Admin,Platform Admin,
 Platform Finance,Platform Finance,
 Compliance Officer,Compliance Officer,
@@ -99,8 +86,6 @@ Buyer Admin,Buyer Admin,
 Buyer Procurement,Buyer Procurement,
 Buyer Finance,Buyer Finance,
 Buyer Viewer,Buyer Viewer,
-
-# Tenant Management
 Tenant Management,Tenant Management,
 Tenant Name,Tenant Name,
 Tenant Type,Tenant Type,
@@ -113,8 +98,6 @@ Total Sellers,Total Sellers,
 Total Listings,Total Listings,
 Total Orders,Total Orders,
 Commission,Commission,
-
-# Organization
 Organization Name,Organization Name,
 Organization Type,Organization Type,
 Parent Organization,Parent Organization,
@@ -122,8 +105,6 @@ Legal Name,Legal Name,
 Tax ID,Tax ID,
 Registration Number,Registration Number,
 Organizations,Organizations,
-
-# Notifications
 Notification,Notification,
 Notifications,Notifications,
 Notification Type,Notification Type,
@@ -135,8 +116,6 @@ In-App Notification,In-App Notification,
 Read,Read,
 Unread,Unread,
 Mark as Read,Mark as Read,
-
-# Audit & Logging
 Audit Log,Audit Log,
 Activity Log,Activity Log,
 Event,Event,
@@ -144,8 +123,6 @@ Event Type,Event Type,
 Timestamp,Timestamp,
 IP Address,IP Address,
 User Agent,User Agent,
-
-# Configuration
 System Settings,System Settings,
 General Settings,General Settings,
 Default Currency,Default Currency,
@@ -154,8 +131,6 @@ Default Country,Default Country,
 Time Zone,Time Zone,
 Date Format,Date Format,
 Number Format,Number Format,
-
-# Status Values
 Active,Active,
 Inactive,Inactive,
 Draft,Draft,
@@ -169,8 +144,6 @@ Rejected,Rejected,
 Verified,Verified,
 Under Review,Under Review,
 Verification Rejected,Verification Rejected,
-
-# Common Messages
 Required,Required,
 Invalid,Invalid,
 Success,Success,
@@ -183,15 +156,11 @@ No data found,No data found,
 Are you sure?,Are you sure?,
 Yes,Yes,
 No,No,
-
-# Validation Messages
 This field is required,This field is required,
 Invalid email address,Invalid email address,
 Invalid phone number,Invalid phone number,
 Value must be greater than zero,Value must be greater than zero,
 Duplicate entry found,Duplicate entry found,
-
-# API & Webhooks
 API Key,API Key,
 API Secret,API Secret,
 Webhook,Webhook,
@@ -199,8 +168,6 @@ Webhook URL,Webhook URL,
 Webhook Secret,Webhook Secret,
 Endpoint,Endpoint,
 Response,Response,
-
-# UI Labels - Display
 Buyer Categories,Buyer Categories,
 Buyers,Buyers,
 Category Name,Category Name,
@@ -229,8 +196,6 @@ Unnamed Location,Unnamed Location,
 Segment,Segment,
 Verification,Verification,
 Documents,Documents,
-
-# UI Labels - Form Fields
 Blocking Reason,Blocking Reason,
 New Segment,New Segment,
 Optional notes about the verification,Optional notes about the verification,
@@ -240,15 +205,11 @@ Please provide a reason for suspension,Please provide a reason for suspension,
 Rejection Reason,Rejection Reason,
 Suspension Reason,Suspension Reason,
 Verification Notes,Verification Notes,
-
-# Buyer Level / Eligibility
 Already at highest level,Already at highest level,
 "Buyer does not yet qualify for {0}","Buyer does not yet qualify for {0}",
 "Buyer qualifies for upgrade to {0}","Buyer qualifies for upgrade to {0}",
 No buyer profile provided,No buyer profile provided,
 No current level found,No current level found,
-
-# Confirmation Prompts
 Activate this buyer account?,Activate this buyer account?,
 "Buyer is eligible for segment upgrade from {0} to {1}. Upgrade now?","Buyer is eligible for segment upgrade from {0} to {1}. Upgrade now?",
 "Changing tenant status to {0} will affect all associated sellers. Continue?","Changing tenant status to {0} will affect all associated sellers. Continue?",
@@ -256,12 +217,8 @@ Submit this buyer profile for verification? Make sure all required documents are
 "Tier changed to {0}. Default limits: {1} sellers, {2} listings/seller","Tier changed to {0}. Default limits: {1} sellers, {2} listings/seller",
 "This organization has {0} linked seller profile(s). Changing the tenant is not allowed.","This organization has {0} linked seller profile(s). Changing the tenant is not allowed.",
 "Warning: This organization has {0} linked seller profile(s). Tenant change will be blocked on save.","Warning: This organization has {0} linked seller profile(s). Tenant change will be blocked on save.",
-
-# Progress / Freeze Messages
 Analyzing columns...,Analyzing columns...,
 Applying mapping template...,Applying mapping template...,
-
-# Validation - Field/Input Errors
 "Action Target is required for action type '{0}'","Action Target is required for action type '{0}'",
 "Action Value is required for action type '{0}'","Action Value is required for action type '{0}'",
 At least one buyer KPI metric is required,At least one buyer KPI metric is required,
@@ -309,16 +266,12 @@ Target DocType is required,Target DocType is required,
 Target Fieldname is required,Target Fieldname is required,
 Template Code is required,Template Code is required,
 Template name is required,Template name is required,
-
-# Validation - Business Logic
 "A Premium Buyer profile already exists for {0}: {1}","A Premium Buyer profile already exists for {0}: {1}",
 Buyer account is not active,Buyer account is not active,
 "Delegation duration cannot exceed {0} days. Current duration: {1} days","Delegation duration cannot exceed {0} days. Current duration: {1} days",
 Delegator and Delegatee cannot be the same user,Delegator and Delegatee cannot be the same user,
 Start Date must be before End Date,Start Date must be before End Date,
 Subscription End Date cannot be before Start Date,Subscription End Date cannot be before Start Date,
-
-# Validation - KYC/Identity
 ID document has expired. Please provide a valid document.,ID document has expired. Please provide a valid document.,
 TCKN cannot start with 0,TCKN cannot start with 0,
 TCKN is required,TCKN is required,
@@ -326,8 +279,6 @@ TCKN must be exactly 11 digits,TCKN must be exactly 11 digits,
 TCKN must contain only digits,TCKN must contain only digits,
 User must be at least 18 years old to complete KYC,User must be at least 18 years old to complete KYC,
 "User {0} already has an active KYC profile: {1}","User {0} already has an active KYC profile: {1}",
-
-# Permissions - Access Denied
 Not permitted,Not permitted,
 Only platform administrators can switch tenants,Only platform administrators can switch tenants,
 Only System Managers can perform bulk sync,Only System Managers can perform bulk sync,
@@ -336,8 +287,6 @@ You do not have permission to create webhooks,You do not have permission to crea
 "You do not have permission to modify documents from tenant {0}","You do not have permission to modify documents from tenant {0}",
 You do not have permission to view the admin KPI dashboard,You do not have permission to view the admin KPI dashboard,
 You do not have permission to view this data,You do not have permission to view this data,
-
-# Errors - Not Found
 Buyer not found,Buyer not found,
 "Import Job {0} does not exist","Import Job {0} does not exist",
 "Mapping Template {0} does not exist","Mapping Template {0} does not exist",
@@ -345,8 +294,6 @@ Buyer not found,Buyer not found,
 "Seller Profile {0} not found","Seller Profile {0} not found",
 "SKU Product {0} not found","SKU Product {0} not found",
 "Tenant {0} does not exist","Tenant {0} does not exist",
-
-# Errors - State/Status
 Auto-match is only available when Import Job status is Pending,Auto-match is only available when Import Job status is Pending,
 Cannot retry this job,Cannot retry this job,
 "Only confirmed orders can be synced to ERPNext. Current status: {0}","Only confirmed orders can be synced to ERPNext. Current status: {0}",
@@ -354,13 +301,9 @@ Only draft profiles can be submitted for review,Only draft profiles can be submi
 Only pending profiles can be reviewed,Only pending profiles can be reviewed,
 Only verified profiles can be suspended,Only verified profiles can be suspended,
 "Tenant {0} is disabled","Tenant {0} is disabled",
-
-# Errors - ERPNext Integration
 ERPNext is not installed,ERPNext is not installed,
 No import file attached to this job,No import file attached to this job,
 No column headers found in the import file,No column headers found in the import file,
-
-# Success Messages
 Buyer activated,Buyer activated,
 Buyer blocked,Buyer blocked,
 Buyer has been rejected,Buyer has been rejected,
@@ -377,11 +320,7 @@ Segment upgraded successfully,Segment upgraded successfully,
 Successfully unlinked,Successfully unlinked,
 "Switched to tenant {0}","Switched to tenant {0}",
 Webhook registered successfully,Webhook registered successfully,
-
-# Warning Messages
 Skipping validation may result in invalid data. Proceed with caution.,Skipping validation may result in invalid data. Proceed with caution.,
-
-# Dialog Titles
 Address Migration Complete,Address Migration Complete,
 Address Migration Error,Address Migration Error,
 Approve Buyer,Approve Buyer,
@@ -394,8 +333,6 @@ Role Migration Complete,Role Migration Complete,
 Role Migration Error,Role Migration Error,
 Segment Eligibility,Segment Eligibility,
 Suspend Buyer,Suspend Buyer,
-
-# Notification/Sync Messages
 District and Neighborhood cleared due to city change,District and Neighborhood cleared due to city change,
 Failed to unlink,Failed to unlink,
 Failed to run auto-match. Please check that a valid import file is attached.,Failed to run auto-match. Please check that a valid import file is attached.,
@@ -406,19 +343,13 @@ Seller cleared as it does not belong to the selected tenant,Seller cleared as it
 Tenant auto-filled from selected seller,Tenant auto-filled from selected seller,
 Tenant is required for data isolation. Please select a Tenant.,Tenant is required for data isolation. Please select a Tenant.,
 Warning: Selected seller has no tenant assigned,Warning: Selected seller has no tenant assigned,
-
-# Tenant Isolation Messages
 "Cannot create document for tenant {0}. Your tenant is {1}.","Cannot create document for tenant {0}. Your tenant is {1}.",
 You do not have access to tenant-isolated documents. Please contact your administrator.,You do not have access to tenant-isolated documents. Please contact your administrator.,
 "Tenant cannot be changed after document creation. Original tenant: {0}","Tenant cannot be changed after document creation. Original tenant: {0}",
 This operation requires a tenant context. Please ensure you are logged in with a tenant-associated user.,This operation requires a tenant context. Please ensure you are logged in with a tenant-associated user.,
-
-# Generic/Parameterized
 "{0} cannot be negative","{0} cannot be negative",
 "User '{0}' is disabled.","User '{0}' is disabled.",
 "Column mapping saved successfully ({0} columns matched)","Column mapping saved successfully ({0} columns matched)",
-
-# Seller Application notifications (in-app — Platform Notification)
 Başvurunuz Alındı,Application Received,
 "Satıcı başvurunuz başarıyla alındı. İncelendikten sonra size haber vereceğiz.","Your supplier application has been received. We will notify you after review.",
 Başvurunuz Onaylandı,Application Approved,
@@ -427,8 +358,6 @@ Başvurunuz Reddedildi,Application Rejected,
 "Satıcı başvurunuz reddedildi. Detaylar için destek ile iletişime geçin.","Your supplier application was rejected. Please contact support for details.",
 Yeni Satıcı Başvurusu,New Supplier Application,
 "{0} yeni satıcı başvurusu yaptı.","{0} submitted a new supplier application.",
-
-# KYB notifications
 KYB İncelemeye Alındı,KYB Under Review,
 "{0} için KYB doğrulama başvurunuz incelemeye alındı.","Your KYB verification request for {0} is under review.",
 KYB Doğrulandı,KYB Verified,
@@ -438,28 +367,20 @@ KYB Reddedildi,KYB Rejected,
 KYB Doğrulama Başvurusu,KYB Verification Application,
 "{0} yeni KYB doğrulama başvurusu bekliyor.","{0} new KYB verification applications are pending review.",
 KYB Süresi Doldu,KYB Expired,
-
-# Review notifications
 Yeni Değerlendirme,New Review,
 "{0} yıldız değerlendirme aldınız.","You received a {0}-star review.",
 Değerlendirme Gizlendi,Review Hidden,
 Bir değerlendirme moderasyon nedeniyle gizlendi.,A review was hidden due to moderation.,
 Değerlendirme Yayınlandı,Review Published,
 Gizlenmiş bir değerlendirme tekrar yayınlandı.,A previously hidden review has been republished.,
-
-# Category notifications
 Kategori Onaylandı,Category Approved,
 "{0} kategoriniz onaylandı.","Your category {0} has been approved.",
 Kategori Reddedildi,Category Rejected,
 "{0} kategoriniz reddedildi.","Your category {0} was rejected.",
-
-# Listing/Product notifications
 Ürün Onaylandı,Product Approved,
 "{0} ürününüz yayına alındı.","Your product {0} has been published.",
 Ürün Reddedildi,Product Rejected,
 "{0} ürününüz reddedildi. {1}","Your product {0} was rejected. {1}",
-
-# Order notifications
 Sipariş İptal Edildi,Order Cancelled,
 "{0} numaralı sipariş alıcı tarafından iptal edildi.","Order {0} was cancelled by the buyer.",
 İade Talebi,Refund Request,
@@ -474,8 +395,6 @@ Havale Bildirimi,Wire Transfer Notification,
 "{0} numaralı siparişinizin ödemesi onaylandı, hazırlanıyor.","Payment confirmed for order {0}; preparing for shipment.",
 Kargoya Verildi,Shipped,
 "{0} numaralı siparişiniz kargoya verildi.{1}","Your order {0} has been shipped.{1}",
-
-# RFQ / Quote notifications
 RFQ Onaylandı,RFQ Approved,
 "{0} numaralı teklif talebiniz onaylandı.","Your RFQ {0} has been approved.",
 RFQ Reddedildi,RFQ Rejected,
