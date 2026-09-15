@@ -224,6 +224,15 @@ def invalidate_listing_cache(doc=None, method=None):
 				# delete_keys is best-effort; never block a doc save on cache
 				frappe.log_error(f"Cache key deletion failed for pattern {pattern}", "listing")
 				pass
+		# Mega menü (api/category) Listing'e yalnız "Boş Kategorileri Gizle" açıkken
+		# bağlıdır; kapalıyken her Listing kaydında 7.561 kategorilik ağacı yeniden
+		# kurdurmak boşuna. doc=None (console / bulk import sonu) geniş temizliktir.
+		from tradehub_core.api.category import invalidate_mega_menu_cache
+
+		if doc is None or frappe.utils.cint(
+			frappe.db.get_single_value("Marketplace Settings", "hide_empty_categories")
+		):
+			invalidate_mega_menu_cache()
 		# Per-listing ürün detayı response cache'i hedefli düş (listing_detail:{name}:{lang}).
 		if doc is not None and getattr(doc, "name", None):
 			try:
@@ -257,6 +266,10 @@ def invalidate_category_cache(doc=None, method=None):
 	):
 		return
 	invalidate_listing_cache()
+	# Kategori yazımı mega menüyü HER koşulda etkiler (ad, sıra, ağaç, is_active).
+	from tradehub_core.api.category import invalidate_mega_menu_cache
+
+	invalidate_mega_menu_cache()
 
 
 # ── Order → Listing.order_count pipeline ──
@@ -1871,47 +1884,67 @@ def get_categories(parent=None, include_children=True, lang="tr"):
 		],
 		order_by="category_name ASC",
 	)
+	if not categories:
+		return {"data": []}
+
+	# Sabit sorgu sayısı (MOGEM-638 §4.2): eski hâli kategori başına bir COUNT ve bir
+	# çocuk sorgusu atıyordu — 33 kökte 74 sorgu, 50 kullanıcıda DB CPU %100'ü aşan
+	# tek uç noktaydı. Şimdi: 1 çocuk sorgusu (IN) + 1 GROUP BY sayım = toplam 3 sorgu.
+	children_by_parent: dict[str, list] = {}
+	if frappe.utils.cint(include_children):
+		child_rows = frappe.get_all(
+			"Product Category",
+			filters={"parent_product_category": ["in", [c.name for c in categories]], "is_active": 1},
+			fields=[
+				"name",
+				"category_name",
+				"content_default_lang",
+				*_name_cols,
+				"parent_product_category",
+				"url_slug",
+				"image",
+			],
+			order_by="category_name ASC",
+			limit_page_length=0,
+		)
+		for child in child_rows:
+			children_by_parent.setdefault(child.parent_product_category, []).append(child)
+
+	count_ids = [c.name for c in categories] + [ch.name for chs in children_by_parent.values() for ch in chs]
+	counts = {
+		r.product_category: r.cnt
+		for r in frappe.get_all(
+			"Listing",
+			filters={"product_category": ["in", count_ids], "storefront_visible": 1},
+			fields=["product_category", "count(name) as cnt"],
+			group_by="product_category",
+			limit_page_length=0,
+		)
+	}
 
 	results = []
 	for cat in categories:
-		item = {
-			"id": cat.name,
-			"name": _cat_name(cat),
-			"slug": cat.url_slug,
-			"image": cat.image,
-			"icon": cat.icon_class,
-			"parent": cat.parent_product_category,
-			"children": [],
-			"productCount": frappe.db.count(
-				"Listing", {"product_category": cat.name, "storefront_visible": 1}
-			),
-		}
-
-		if include_children:
-			child_cats = frappe.get_all(
-				"Product Category",
-				filters={"parent_product_category": cat.name, "is_active": 1},
-				fields=["name", "category_name", "content_default_lang", *_name_cols, "url_slug", "image"],
-				order_by="category_name ASC",
-			)
-			for child in child_cats:
-				item["children"].append(
+		results.append(
+			{
+				"id": cat.name,
+				"name": _cat_name(cat),
+				"slug": cat.url_slug,
+				"image": cat.image,
+				"icon": cat.icon_class,
+				"parent": cat.parent_product_category,
+				"children": [
 					{
 						"id": child.name,
 						"name": _cat_name(child),
 						"slug": child.url_slug,
 						"image": child.image,
-						"productCount": frappe.db.count(
-							"Listing",
-							{
-								"product_category": child.name,
-								"storefront_visible": 1,
-							},
-						),
+						"productCount": counts.get(child.name, 0),
 					}
-				)
-
-		results.append(item)
+					for child in children_by_parent.get(cat.name, [])
+				],
+				"productCount": counts.get(cat.name, 0),
+			}
+		)
 
 	return {"data": results}
 

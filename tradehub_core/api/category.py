@@ -19,6 +19,29 @@ def _slugify(text):
 
 # ──────────────────────────── Public ──────────────────────────────────────────
 
+# Mega menü sonucu önbelleği (MOGEM-638 §4.4 / §6 deney 1). Uç nokta storefront'ta
+# her sayfada çağrılıyor ve 7.561 kategorilik ağacı her istekte Python'da kuruyordu:
+# p50 159 ms, 10 kullanıcıda 2 s, 5 istek/sn tavan. Deneyde önbellekle p50 5 ms.
+# Anahtar hesaplamayı etkileyen ÜÇ girdiyi taşır (dil, include_empty, hide_empty
+# ayarı) — ayar değişince anahtar değişir, ayrıca temizlik gerekmez. Kategori ve
+# (hide_empty açıkken) Listing yazımları `invalidate_mega_menu_cache` ile düşürür.
+_MEGA_MENU_CACHE_PREFIX = "mega_menu:"
+_MEGA_MENU_TTL_SECONDS = 300
+
+
+def _mega_menu_cache_key(lang: str, include_empty: bool, hide_empty: bool) -> str:
+	return f"{_MEGA_MENU_CACHE_PREFIX}{lang}:{int(include_empty)}:{int(hide_empty)}"
+
+
+def invalidate_mega_menu_cache(doc=None, method=None):
+	"""Tüm dil/ayar varyantlarını düşür. Kategori yazımından (invalidate_category_cache)
+	ve hide_empty açıkken Listing yazımından (invalidate_listing_cache) çağrılır."""
+	try:
+		frappe.cache.delete_keys(f"{_MEGA_MENU_CACHE_PREFIX}*")
+	except Exception:
+		# best-effort: önbellek temizliği bir doc kaydını asla düşürmemeli
+		frappe.log_error("Mega menü önbelleği temizlenemedi", "category")
+
 
 @frappe.whitelist(allow_guest=True)
 def get_mega_menu(lang="tr", include_empty=0):
@@ -31,8 +54,34 @@ def get_mega_menu(lang="tr", include_empty=0):
 
 	`lang`: içerik dili (tr/en/ar/ru); kategori adları o dile çözülür, eksikse
 	kaydın content_default_lang'ine fallback eder.
+
+	Sonuç 300 sn Redis'te tutulur (bkz. `_MEGA_MENU_CACHE_PREFIX`).
 	"""
 	lang = normalize_lang(lang)
+
+	# Ayar okuması önbellek anahtarına girdiği için ağaç sorgusundan ÖNCE yapılır.
+	if frappe.utils.cint(include_empty):
+		hide_empty = False
+	else:
+		_setting = frappe.db.get_single_value("Marketplace Settings", "hide_empty_categories")
+		hide_empty = frappe.utils.cint(_setting) == 1
+
+	cache_key = _mega_menu_cache_key(lang, bool(frappe.utils.cint(include_empty)), hide_empty)
+	# `expires=True` şart: TTL'li anahtarda `get_value` bunsuz Redis ıskasını
+	# `frappe.local.cache`'e None olarak yazar ve aynı süreçte bir daha Redis'e
+	# bakmaz — set_value(expires_in_sec) ise yalnız Redis'e yazar. Ölçüldü
+	# (2026-09-12): bunsuz sıcak çağrı 142 ms'de kaldı, isabet hiç olmadı.
+	cached = frappe.cache.get_value(cache_key, expires=True)
+	if cached is not None:
+		return cached
+
+	result = _build_mega_menu(lang, hide_empty)
+	frappe.cache.set_value(cache_key, result, expires_in_sec=_MEGA_MENU_TTL_SECONDS)
+	return result
+
+
+def _build_mega_menu(lang: str, hide_empty: bool) -> list:
+	"""Önbelleksiz ağaç kurulumu — `get_mega_menu`nun sorgu + kurulum kısmı."""
 	cats = frappe.get_all(
 		"Product Category",
 		filters={"is_active": 1},
@@ -67,13 +116,7 @@ def get_mega_menu(lang="tr", include_empty=0):
 	# bir kategori, aktif listing'i olan bir kategoriyi alt ağacında barındırıyorsa doludur.
 	# Varsayılan: GİZLEME YOK (tüm aktif kategoriler görünür). Yalnız Administrator
 	# Marketplace Settings'ten "Boş Kategorileri Gizle"yi açarsa boşlar elenir.
-	# include_empty=1 query param'ı ayarı override eder (gösterir).
-	if frappe.utils.cint(include_empty):
-		hide_empty = False
-	else:
-		_setting = frappe.db.get_single_value("Marketplace Settings", "hide_empty_categories")
-		hide_empty = frappe.utils.cint(_setting) == 1
-
+	# include_empty=1 query param'ı ayarı override eder (gösterir) — çözüm get_mega_menu'da.
 	populated_lfts = []
 	if hide_empty:
 		populated_names = {

@@ -174,6 +174,11 @@ def compose_seo_payload(
 		"og_image_alt": og_image_alt,
 		"og_image_width": og_image_width,
 		"og_image_height": og_image_height,
+		# LCP ön-yükleme (MOGEM-638 §2.3 / §7-9): ürün sayfasında ana görsel
+		# istemcide iki API turu + JS ayrıştırma sonrası isteniyordu; HTML'de
+		# <link rel=preload as=image fetchpriority=high> tarayıcıyı ilk bayttan
+		# başlatır. Yalnız ürün: site logosu (öteki sayfaların og:image'i) LCP değil.
+		"lcp_image": og_image if og_type == "product" and not og_image.endswith(".svg") else "",
 		"og_url": canonical,
 		"site_name": defaults.get("site_name", ""),
 		"twitter_handle": defaults.get("twitter_handle", ""),

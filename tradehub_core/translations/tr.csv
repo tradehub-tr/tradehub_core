@@ -1,7 +1,3 @@
-# TradeHub Core Turkish Translations
-# Format: source,translated,context (optional)
-
-# Common Labels
 Basic Information,Temel Bilgiler,
 Status,Durum,
 User,User,
@@ -23,8 +19,6 @@ Delete,Sil,
 Edit,Duzenle,
 Print,Yazdir,
 Email,E-posta,
-
-# Actions
 Add,Ekle,
 Remove,Kaldir,
 Update,Guncelle,
@@ -60,8 +54,6 @@ View Listings,Ilanlari Goruntule,
 View Organizations,Organizasyonlari Goruntule,
 View Neighborhoods,Mahalleleri Goruntule,
 View Category Path,Kategori Yolunu Goruntule,
-
-# Platform Core
 Platform,Platform,
 Marketplace,Pazaryeri,
 Dashboard,Kontrol Paneli,
@@ -71,8 +63,6 @@ Application,Uygulama,
 Service,Servis,
 Integration,Entegrasyon,
 TradeHub Core,TradeHub Cekirdek,
-
-# User Management
 User Management,Kullanici Yonetimi,
 Role,Rol,
 Permission,Yetki,
@@ -83,8 +73,6 @@ User Permission,Kullanici Yetkisi,
 Has Role,Rolu Var,
 Administrator,Yonetici,
 System Manager,Sistem Yoneticisi,
-
-# Roles (Task 6 - RBAC New Role Names)
 Platform Admin,Platform Yoneticisi,
 Platform Finance,Platform Finans,
 Compliance Officer,Uyum Sorumlusu,
@@ -98,8 +86,6 @@ Buyer Admin,Alici Yoneticisi,
 Buyer Procurement,Alici Satin Alma,
 Buyer Finance,Alici Finans,
 Buyer Viewer,Alici Goruntuleyici,
-
-# Tenant Management
 Tenant Management,Kiralayan Yonetimi,
 Tenant Name,Kiralayan Adi,
 Tenant Type,Kiralayan Tipi,
@@ -112,8 +98,6 @@ Total Sellers,Toplam Saticilar,
 Total Listings,Toplam Ilanlar,
 Total Orders,Toplam Siparisler,
 Commission,Komisyon,
-
-# Organization
 Organization Name,Organizasyon Adi,
 Organization Type,Organizasyon Tipi,
 Parent Organization,Ust Organizasyon,
@@ -121,8 +105,6 @@ Legal Name,Tescil Adi,
 Tax ID,Vergi Numarasi,
 Registration Number,Kayit Numarasi,
 Organizations,Organizasyonlar,
-
-# Notifications
 Notification,Bildirim,
 Notifications,Bildirimler,
 Notification Type,Bildirim Tipi,
@@ -134,8 +116,6 @@ In-App Notification,Uygulama Ici Bildirim,
 Read,Okundu,
 Unread,Okunmadi,
 Mark as Read,Okundu Olarak Isaretle,
-
-# Audit & Logging
 Audit Log,Denetim Kaydi,
 Activity Log,Aktivite Kaydi,
 Event,Olay,
@@ -143,8 +123,6 @@ Event Type,Olay Tipi,
 Timestamp,Zaman Damgasi,
 IP Address,IP Adresi,
 User Agent,Tarayici Bilgisi,
-
-# Configuration
 System Settings,Sistem Ayarlari,
 General Settings,Genel Ayarlar,
 Default Currency,Varsayilan Para Birimi,
@@ -153,8 +131,6 @@ Default Country,Varsayilan Ulke,
 Time Zone,Saat Dilimi,
 Date Format,Tarih Formati,
 Number Format,Sayi Formati,
-
-# Status Values
 Active,Aktif,
 Inactive,Pasif,
 Draft,Taslak,
@@ -168,8 +144,6 @@ Rejected,Reddedildi,
 Verified,Dogrulandi,
 Under Review,Incelemede,
 Verification Rejected,Dogrulama Reddedildi,
-
-# Common Messages
 Required,Zorunlu,
 Invalid,Gecersiz,
 Success,Basarili,
@@ -182,15 +156,11 @@ No data found,Veri bulunamadi,
 Are you sure?,Emin misiniz?,
 Yes,Evet,
 No,Hayir,
-
-# Validation Messages
 This field is required,Bu alan zorunludur,
 Invalid email address,Gecersiz e-posta adresi,
 Invalid phone number,Gecersiz telefon numarasi,
 Value must be greater than zero,Deger sifirdan buyuk olmalidir,
 Duplicate entry found,Tekrarlanan kayit bulundu,
-
-# API & Webhooks
 API Key,API Anahtari,
 API Secret,API Sifresi,
 Webhook,Webhook,
@@ -199,8 +169,6 @@ Webhook Secret,Webhook Sifresi,
 Endpoint,Son Nokta,
 Request,Istek,
 Response,Yanit,
-
-# UI Labels - Display
 Buyer Categories,Alici Kategorileri,
 Buyers,Alicilar,
 Category Name,Kategori Adi,
@@ -229,8 +197,6 @@ Unnamed Location,Isimsiz Konum,
 Segment,Segment,
 Verification,Dogrulama,
 Documents,Belgeler,
-
-# UI Labels - Form Fields
 Blocking Reason,Engelleme Nedeni,
 New Segment,Yeni Segment,
 Optional notes about the verification,Dogrulama hakkinda istege bagli notlar,
@@ -240,15 +206,11 @@ Please provide a reason for suspension,Lutfen askiya alma icin bir neden belirti
 Rejection Reason,Red Nedeni,
 Suspension Reason,Askiya Alma Nedeni,
 Verification Notes,Dogrulama Notlari,
-
-# Buyer Level / Eligibility
 Already at highest level,Zaten en yuksek seviyede,
 "Buyer does not yet qualify for {0}","Alici henuz {0} icin uygun degil",
 "Buyer qualifies for upgrade to {0}","Alici {0} seviyesine yukseltme icin uygun",
 No buyer profile provided,Alici profili belirtilmedi,
 No current level found,Mevcut seviye bulunamadi,
-
-# Confirmation Prompts
 Activate this buyer account?,Bu alici hesabi etkinlestirilsin mi?,
 "Buyer is eligible for segment upgrade from {0} to {1}. Upgrade now?","Alici {0} segmentinden {1} segmentine yukseltme icin uygun. Simdi yukseltilsin mi?",
 "Changing tenant status to {0} will affect all associated sellers. Continue?","Kiralayan durumunu {0} olarak degistirmek tum iliskili saticilari etkileyecektir. Devam edilsin mi?",
@@ -256,12 +218,8 @@ Submit this buyer profile for verification? Make sure all required documents are
 "Tier changed to {0}. Default limits: {1} sellers, {2} listings/seller","Kademe {0} olarak degistirildi. Varsayilan limitler: {1} satici, satici basina {2} ilan",
 "This organization has {0} linked seller profile(s). Changing the tenant is not allowed.","Bu organizasyonun {0} bagli satici profili var. Kiralayan degisikligine izin verilmiyor.",
 "Warning: This organization has {0} linked seller profile(s). Tenant change will be blocked on save.","Uyari: Bu organizasyonun {0} bagli satici profili var. Kaydetme sirasinda kiralayan degisikligi engellenecektir.",
-
-# Progress / Freeze Messages
 Analyzing columns...,Sutunlar analiz ediliyor...,
 Applying mapping template...,Eslestirme sablonu uygulaniyro...,
-
-# Validation - Field/Input Errors
 "Action Target is required for action type '{0}'","Islem hedefi '{0}' islem tipi icin gereklidir",
 "Action Value is required for action type '{0}'","Islem degeri '{0}' islem tipi icin gereklidir",
 At least one buyer KPI metric is required,En az bir alici KPI metrigi gereklidir,
@@ -387,8 +345,6 @@ Target Fieldname is required,Hedef Alan Adi gereklidir,
 "Template Code must start with a letter and contain only uppercase letters, numbers, and underscores","Sablon Kodu bir harfle baslamali ve yalnizca buyuk harf, sayi ve alt cizgi icermelidir",
 "Template code should contain only letters, numbers, and underscores","Sablon kodu yalnizca harf, sayi ve alt cizgi icermelidir",
 Template name is required,Sablon adi gereklidir,
-
-# Validation - Business Logic
 "A Premium Buyer profile already exists for {0}: {1}","{0} icin zaten bir Premium Alici profili mevcut: {1}",
 Access token lifespan cannot exceed 86400 seconds (24 hours),Erisim jetonu suresi 86400 saniyeyi (24 saat) asamaz,
 Access token lifespan must be at least 60 seconds,Erisim jetonu suresi en az 60 saniye olmalidir,
@@ -444,8 +400,6 @@ Tax ID must contain only digits,Vergi No yalnizca rakam icermelidir,
 Threshold value cannot be negative,Esik degeri negatif olamaz,
 "Total weight of active metrics must equal 100. Current total: {0}","Aktif metriklerin toplam agirlik degeri 100'e esit olmalidir. Mevcut toplam: {0}",
 Weight cannot be negative,Agirlik negatif olamaz,
-
-# Validation - KYC/Identity
 ID document has expired. Please provide a valid document.,Kimlik belgesinin suresi dolmus. Lutfen gecerli bir belge saglayin.,
 Please verify the date of birth,Lutfen dogum tarihini dogrulayin,
 TCKN cannot start with 0,TCKN 0 ile baslayamaz,
@@ -461,8 +415,6 @@ User must be at least 18 years old to complete KYC,KYC islemini tamamlamak icin 
 "User {0} is already a member of this organization","Kullanici {0} zaten bu organizasyonun bir uyesi",
 "User {0} is not a member of this organization","Kullanici {0} bu organizasyonun bir uyesi degil",
 "Year Established must be between 1800 and {0}","Kurulus Yili 1800 ile {0} arasinda olmalidir",
-
-# Permissions - Access Denied
 Not permitted,Izin verilmiyor,
 Not permitted to access KYC profile,KYC profiline erisim izni yok,
 Not permitted to create ERPNext Integration Settings,ERPNext Entegrasyon Ayarlari olusturma izni yok,
@@ -493,8 +445,6 @@ You do not have permission to create webhooks,Webhook olusturma izniniz yok,
 You do not have permission to view the admin KPI dashboard,Yonetici KPI kontrol panelini goruntuleme izniniz yok,
 "You do not have permission to view this buyer's KPI data","Bu alicinin KPI verilerini goruntuleme izniniz yok",
 You do not have permission to view this data,Bu verileri goruntuleme izniniz yok,
-
-# Errors - Not Found
 Buyer not found,Alici bulunamadi,
 "Buyer Category '{0}' not found","Alici Kategorisi '{0}' bulunamadi",
 Customer DocType not found. Please ensure ERPNext is properly configured.,Customer DocType bulunamadi. Lutfen ERPNext'in dogru yapilandirildiginden emin olun.,
@@ -517,8 +467,6 @@ Seller not found,Satici bulunamadi,
 Supplier DocType not found. Please ensure ERPNext is properly configured.,Supplier DocType bulunamadi. Lutfen ERPNext'in dogru yapilandirildiginden emin olun.,
 "Tenant {0} does not exist","Kiralayan {0} mevcut degil",
 "{0} '{1}' does not exist","{0} '{1}' mevcut degil",
-
-# Errors - State/Status
 Auto-match is only available when Import Job status is Pending,Otomatik eslestirme yalnizca Icerik Aktarma Isi durumu Beklemede iken kullanilabilir,
 Cannot delete a default Buyer KPI Template. Remove the default flag first.,Varsayilan bir Alici KPI Sablonu silinemez. Once varsayilan isaretini kaldirin.,
 Cannot delete active feedback. Withdraw it first.,Aktif geri bildirim silinemez. Once geri cekin.,
@@ -556,8 +504,6 @@ Only verified profiles can expire,Yalnizca dogrulanmis profillerin suresi dolabi
 "Tenant {0} is not active (status: {1})","Kiralayan {0} aktif degil (durum: {1})",
 "Mapping template can only be applied when Import Job status is Pending. Current status: {0}","Eslestirme sablonu yalnizca Icerik Aktarma Isi durumu Beklemede iken uygulanabilir. Mevcut durum: {0}",
 Mapping template can only be applied when status is Pending,Eslestirme sablonu yalnizca durum Beklemede iken uygulanabilir,
-
-# Errors - ERPNext Integration
 ERPNext is not installed,ERPNext kurulu degil,
 ERPNext is not installed. Cannot sync to Customer.,ERPNext kurulu degil. Customer ile senkronize edilemiyor.,
 ERPNext is not installed. Cannot sync to Item.,ERPNext kurulu degil. Item ile senkronize edilemiyor.,
@@ -572,8 +518,6 @@ No import file attached to this job,Bu ise ekli icerik aktarma dosyasi yok,
 Order sync is not enabled for this tenant,Bu kiralayan icin siparis senkronizasyonu etkin degil,
 openpyxl is required to read Excel files. Please install it.,Excel dosyalarini okumak icin openpyxl gereklidir. Lutfen yukleyin.,
 No column headers found in the import file,Icerik aktarma dosyasinda sutun basliklari bulunamadi,
-
-# Success Messages
 Appeal submitted successfully,Itiraz basariyla gonderildi,
 Buyer activated,Alici etkinlestirildi,
 Buyer blocked,Alici engellendi,
@@ -621,8 +565,6 @@ Template duplicated successfully,Sablon basariyla kopyalandi,
 "Updated buyer counts for {0} categories","{0} kategori icin alici sayilari guncellendi",
 Webhook registered successfully,Webhook basariyla kaydedildi,
 "{0} templates created, {1} skipped (already exist)","{0} sablon olusturuldu, {1} atlandi (zaten mevcut)",
-
-# Warning Messages
 "Cannot migrate address for buyer {0}: No matching city found for '{1}' and no fallback cities available","Alici {0} icin adres tasima yapilamiyor: '{1}' icin eslesen sehir bulunamadi ve yedek sehir mevcut degil",
 Consider designating at least one admin for this organization,Bu organizasyon icin en az bir yonetici atamayi dusunun,
 Custom criteria is enabled but no criteria are defined,Ozel kriterler etkin ancak hicbir kriter tanimlanmamis,
@@ -645,8 +587,6 @@ Warning threshold should be greater than critical threshold,Uyari esigi kritik e
 Warning threshold should be greater than target value,Uyari esigi hedef degerden buyuk olmalidir,
 Warning threshold should be less than critical threshold,Uyari esigi kritik esikten kucuk olmalidir,
 Warning threshold should be less than target value,Uyari esigi hedef degerden kucuk olmalidir,
-
-# Dialog Titles
 Address Migration Complete,Adres Tasima Tamamlandi,
 Address Migration Error,Adres Tasima Hatasi,
 Address Migration Warning,Adres Tasima Uyarisi,
@@ -677,8 +617,6 @@ Suspend Buyer,Aliciyi Askiya Al,
 Suspend KYC,KYC Askiya Al,
 User Warning,Kullanici Uyarisi,
 Verify KYC,KYC Dogrula,
-
-# Notification/Sync Messages
 AML check requires provider integration,AML kontrolu saglayici entegrasyonu gerektirir,
 District and Neighborhood cleared due to city change,Sehir degisikligi nedeniyle Ilce ve Mahalle temizlendi,
 E-Invoice status check requires GIB integration,E-Fatura durum kontrolu GIB entegrasyonu gerektirir,
@@ -705,8 +643,6 @@ Tenant is required. Please select a tenant for this organization.,Kiralayan gere
 Unknown import type,Bilinmeyen icerik aktarma tipi,
 "Unsupported file format: {0}","Desteklenmeyen dosya formati: {0}",
 You can add a new seller,Yeni bir satici ekleyebilirsiniz,
-
-# Tenant Isolation Messages
 "Cannot create document for tenant {0}. Your tenant is {1}.","Kiralayan {0} icin belge olusturulamaz. Kiralayaniniz {1}.",
 You do not have access to tenant-isolated documents. Please contact your administrator.,Kiralayan izolasyonlu belgelere erisim izniniz yok. Lutfen yoneticinizle iletisime gecin.,
 "Access denied: You cannot modify documents belonging to tenant {0}. Your tenant is {1}.","Erisim reddedildi: Kiralayan {0} belgelerini degistiremezsiniz. Kiralayaniniz {1}.",
@@ -714,8 +650,6 @@ You do not have access to tenant-isolated documents. Please contact your adminis
 This operation requires a tenant context. Please ensure you are logged in with a tenant-associated user.,Bu islem bir kiralayan baglami gerektirir. Lutfen kiralayan iliskili bir kullanici ile giris yaptiginizdan emin olun.,
 "The selected seller ({0}) does not have a tenant assigned. Please contact your administrator.","Secilen saticinin ({0}) atanmis bir kiralayani yok. Lutfen yoneticinizle iletisime gecin.",
 "Tenant and Seller mismatch: The selected seller ({0}) belongs to tenant '{1}', but this document is assigned to tenant '{2}'. Please select a seller from the correct tenant or update the tenant field.","Kiralayan ve Satici uyumsuzlugu: Secilen satici ({0}) '{1}' kiralayina ait ancak bu belge '{2}' kiralayina atanmis. Lutfen dogru kiralayandan bir satici secin veya kiralayan alanini guncelleyin.",
-
-# Generic/Parameterized
 "{0} cannot be negative","{0} negatif olamaz",
 "{0} must be between 0 and 100","{0} 0 ile 100 arasinda olmalidir",
 "{0} must be one of: {1}","{0} sulardan biri olmalidir: {1}",
@@ -736,8 +670,6 @@ No enabled template found for the specified criteria,Belirtilen kriterler icin e
 "{0} Extra Credit Days","{0} Ek Kredi Gunu",
 "{0}% Bulk Discount","%{0} Toplu Indirim",
 "{0}% Discount","%{0} Indirim",
-
-# User Profile
 "Review the auto-matched columns below. Green indicates high confidence, yellow indicates medium, and red indicates low confidence or no match.","Asagidaki otomatik eslestirilen sutunlari inceleyin. Yesil yuksek guveni, sari orta guveni ve kirmizi dusuk guveni veya eslesme olmadigini gosterir.",
 "User Profile {0} not found","Kullanıcı profili {0} bulunamadı"
 "Satıcı olabilmek için Kurumsal hesap tipi zorunludur (KYB için vergi levhası şart).","Satıcı olabilmek için Kurumsal hesap tipi zorunludur (KYB için vergi levhası şart)."

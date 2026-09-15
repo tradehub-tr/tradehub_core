@@ -505,6 +505,39 @@ class TestGercekTarayiciIleF27(FrappeTestCase):
 			self.assertIn("installed", a)
 			self.assertIn("healthy", a)
 
+	def test_bi_saglik_yoklamasi_clamdscan_icin_PING_kullaniyor(self):
+		"""`--version` daemon'a gitmiyor — yoklama ancak `--ping` ile yoklama olur.
+
+		Ölçüldü (2026-09-12, daemon kapalıyken): `clamdscan --version` stderr'e
+		"Could not connect to clamd" basıp rc=0 döndü; `--ping 1` rc=21 verdi.
+		`clamscan` ise `--ping` tanımıyor, onun için `--version` kalıyor.
+		"""
+		gorulen: list[list[str]] = []
+
+		def sahte_run(args, **_kw):
+			gorulen.append(list(args))
+			return mock.Mock(returncode=0, stdout=b"PONG", stderr=b"")
+
+		with mock.patch.object(av.subprocess, "run", side_effect=sahte_run):
+			av._saglik_yoklamasi("/usr/bin/clamdscan")
+			av._saglik_yoklamasi("/usr/bin/clamscan")
+
+		self.assertEqual(gorulen[0][1:], ["--ping", "1"], "clamdscan --ping ile yoklanmalı")
+		self.assertEqual(gorulen[1][1:], ["--version"], "clamscan --version ile yoklanmalı")
+
+	def test_bi_saglik_yoklamasi_OLU_daemonu_goruyor(self):
+		"""Regresyon: ölçülen gerçek çıktı — ulaşılamayan daemon `healthy=False` olmalı."""
+		olculen = mock.Mock(
+			returncode=21,
+			stdout=b"",
+			stderr=b"ERROR: Could not connect to clamd on LocalSocket /var/run/clamav/clamd.ctl: "
+			b"Connection refused\nPING timeout exceeded; No response from clamd\n",
+		)
+		with mock.patch.object(av.subprocess, "run", return_value=olculen):
+			saglikli, detay = av._saglik_yoklamasi("/usr/bin/clamdscan")
+		self.assertFalse(saglikli, "daemon ulaşılamazken yoklama sağlıklı dedi")
+		self.assertIn("Could not connect", detay)
+
 	def test_bi_saglik_POLITIKAYA_baglanmiyor_fail_open_acmiyor(self):
 		"""Bu testin kendisi bir düzeltmenin düzeltmesi.
 

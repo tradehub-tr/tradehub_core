@@ -22,6 +22,9 @@ from datetime import datetime
 import frappe
 from frappe.utils import nowdate
 
+# Order.status seçeneği (order.json) — sipariş metriklerinde "iptal" tanımı.
+ORDER_STATUS_CANCELLED = "İptal Edildi"
+
 
 def calculate_customer_grades():
 	"""
@@ -237,15 +240,19 @@ def _recalculate_metrics_for_buyer(buyer_name):
 
 	buyer = frappe.get_doc("User Profile", buyer_name)
 
-	# Recalculate order statistics
+	# Sipariş doctype'ı "Order" (bir "Marketplace Order" hiç olmadı), tutar alanı
+	# `total`, durumlar Türkçe seçenek. Bu fonksiyon var olmayan bir şemaya
+	# yazılmıştı; zamanlayıcı açıkken her alıcı için patlıyordu (MOGEM-638 §4.6:
+	# ayda 15K "Buyer Metrics Recalculation Error"). User Profile `field:user` ile
+	# adlandırıldığı için `buyer_name` doğrudan Order.buyer (Link → User) ile eşleşir.
 	orders = frappe.get_all(
-		"Marketplace Order",
-		filters={"buyer": buyer_name, "status": ["not in", ["Cancelled", "Draft"]]},
-		fields=["name", "grand_total", "status", "creation"],
+		"Order",
+		filters={"buyer": buyer_name, "status": ["!=", ORDER_STATUS_CANCELLED]},
+		fields=["name", "total", "status", "creation"],
 	)
 
 	total_orders = len(orders)
-	total_spent = sum(o.grand_total or 0 for o in orders)
+	total_spent = sum(o.total or 0 for o in orders)
 	average_order_value = safe_divide(total_spent, total_orders)
 
 	# Calculate return rate
@@ -256,15 +263,15 @@ def _recalculate_metrics_for_buyer(buyer_name):
 		)
 	return_rate = safe_divide(return_count, total_orders) * 100 if total_orders else 0
 
-	# Calculate dispute rate
+	# Calculate dispute rate — repodaki doctype "Order Dispute" (buyer Link → User).
 	dispute_rate = 0
-	if frappe.db.exists("DocType", "Dispute"):
-		dispute_count = frappe.db.count("Dispute", {"buyer": buyer_name})
+	if frappe.db.exists("DocType", "Order Dispute"):
+		dispute_count = frappe.db.count("Order Dispute", {"buyer": buyer_name})
 		dispute_rate = safe_divide(dispute_count, total_orders) * 100 if total_orders else 0
 
 	# Calculate cancellation rate
-	cancelled_orders = frappe.db.count("Marketplace Order", {"buyer": buyer_name, "status": "Cancelled"})
-	all_orders = frappe.db.count("Marketplace Order", {"buyer": buyer_name})
+	cancelled_orders = frappe.db.count("Order", {"buyer": buyer_name, "status": ORDER_STATUS_CANCELLED})
+	all_orders = frappe.db.count("Order", {"buyer": buyer_name})
 	cancellation_rate = safe_divide(cancelled_orders, all_orders) * 100 if all_orders else 0
 
 	# Calculate feedback rate
@@ -1318,6 +1325,10 @@ def recompute_seller_performance_metrics():
 		total_orders = frappe.db.count("Order", {"seller": s.name, "status": ["in", list(SOLD_STATES)]})
 		response_rate, response_time = _seller_response_metrics(s.name)
 		reorder_rate = _seller_reorder_rate(s.name)
+		# `reorder_rate` Percent kolonu NOT NULL (Frappe sayısal alanları böyle
+		# açar); "yeterli alıcı yok" (None) 0 olarak yazılır — API zaten
+		# `reorder_rate or None` ile 0'ı "bilinmiyor"a çeviriyor (api/listing).
+		# NULL yazmak her satıcıda IntegrityError 1048 ile işi düşürüyordu.
 		frappe.db.set_value(
 			"Admin Seller Profile",
 			s.name,
@@ -1325,7 +1336,7 @@ def recompute_seller_performance_metrics():
 				"total_orders": total_orders,
 				"response_rate": response_rate,
 				"response_time": response_time,
-				"reorder_rate": reorder_rate,
+				"reorder_rate": reorder_rate if reorder_rate is not None else 0,
 				"score_grade": seller_rating_to_grade(s.rating, s.review_count),
 			},
 			update_modified=False,

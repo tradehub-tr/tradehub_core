@@ -1,8 +1,3 @@
-# TradeHub Core German Translations
-# Format: source,translated,context (optional)
-# TODO: Add German translations - placeholders below
-
-# Common Labels
 Basic Information,Grundinformationen,
 Status,Status,
 User,Benutzer,
@@ -20,8 +15,6 @@ Submit,Absenden,
 Delete,Loeschen,
 Edit,Bearbeiten,
 Email,E-Mail,
-
-# Actions
 Add,Hinzufuegen,
 Remove,Entfernen,
 Update,Aktualisieren,
@@ -30,8 +23,6 @@ Filter,Filtern,
 Refresh,Aktualisieren,
 Export,Exportieren,
 Import,Importieren,
-
-# Status Values
 Active,Aktiv,
 Inactive,Inaktiv,
 Draft,Entwurf,
@@ -41,8 +32,6 @@ Suspended,Gesperrt,
 Pending,Ausstehend,
 Approved,Genehmigt,
 Rejected,Abgelehnt,
-
-# Common Messages
 Required,Erforderlich,
 Invalid,Ungueltig,
 Success,Erfolg,
@@ -51,8 +40,6 @@ Warning,Warnung,
 Loading,Laden,
 Yes,Ja,
 No,Nein,
-
-# Roles (Task 6 - RBAC New Role Names)
 Platform Admin,Plattform-Administrator,
 Platform Finance,Plattform-Finanzen,
 Compliance Officer,Compliance-Beauftragter,

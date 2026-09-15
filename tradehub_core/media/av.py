@@ -151,6 +151,17 @@ _SCANNER_CANDIDATES: tuple[tuple[str, tuple[str, ...]], ...] = (
 	("clamscan", ("--no-summary", "--infected")),
 )
 
+# Sağlık yoklamasının argümanları tarayıcıya göre AYRI. Ölçüldü (2026-09-12,
+# container, daemon kapalıyken): `clamdscan --version` stderr'e "Could not
+# connect to clamd" basıyor ama rc=0 döndürüyor — istemci kendi sürümünü
+# daemon'a sormadan yazıyor. `--ping 1` ise daemon'a gerçekten gidiyor:
+# PONG → rc=0, ulaşılamıyorsa rc=21. `clamscan` daemon'sız çalışır ve `--ping`
+# seçeneğini tanımaz; onun için `--version` yeterli.
+_HEALTH_PROBE_ARGS: dict[str, tuple[str, ...]] = {
+	"clamdscan": ("--ping", "1"),
+	"clamscan": ("--version",),
+}
+
 # ClamAV çıkış kodları: 0 temiz, 1 zararlı bulundu, 2+ hata.
 _EXIT_CLEAN: int = 0
 _EXIT_INFECTED: int = 1
@@ -174,17 +185,21 @@ def scanner_command() -> tuple[str, ...] | None:
 
 
 def _saglik_yoklamasi(yol: str) -> tuple[bool, str]:
-	"""Tarayıcı GERÇEKTEN cevap veriyor mu — `--version` ile yoklanır.
+	"""Tarayıcı GERÇEKTEN cevap veriyor mu — `_HEALTH_PROBE_ARGS` ile yoklanır.
 
 	`clamdscan` bir istemci; asıl iş `clamd` daemon'ında. Daemon ölüyse ya da
-	asılıysa binary yerinde durur. Ölçüldü (2026-08-28, container içinde):
-	daemon SIGSTOP ile dondurulduğunda `clamdscan --version` hata vermiyor,
-	**donuyor** (`timeout` ile rc=124). Yani hızlı hata beklentisi yanlış;
-	yoklamanın kendi zaman aşımı olmak zorunda.
+	asılıysa binary yerinde durur. İki ölçüm bu fonksiyonun biçimini belirledi:
+
+	* 2026-08-28: daemon SIGSTOP ile dondurulduğunda istemci hata vermiyor,
+	  **donuyor** (`timeout` ile rc=124). Yoklamanın kendi zaman aşımı şart.
+	* 2026-09-12: daemon hiç yokken `clamdscan --version` rc=0 döndürüyor —
+	  yoklama ölü daemon'ı GÖREMİYORDU, F-28'in yazılma sebebi olan durumu
+	  kaçırıyordu. Daemon'a gerçekten giden tek şey `--ping`.
 	"""
+	argumanlar = _HEALTH_PROBE_ARGS.get(os.path.basename(yol), ("--version",))
 	try:
 		sonuc = subprocess.run(
-			[yol, "--version"],
+			[yol, *argumanlar],
 			capture_output=True,
 			timeout=_HEALTH_PROBE_TIMEOUT_SECONDS,
 			check=False,
