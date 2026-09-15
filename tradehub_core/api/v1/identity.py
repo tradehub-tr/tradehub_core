@@ -13,7 +13,9 @@ from frappe.utils.password import check_password, update_password
 # 'user' parametresini okur (session user'ı DEĞİL): istemci `user=<rastgele>`
 # göndererek her çağrıda yeni bucket açıp limiti atlayabilir. Kimliği
 # frappe.session.user'dan türeten proje-içi decorator bu açığı kapatır.
-# Bu dosyadaki DİĞER key="user" kullanımları ayrı iş olarak geçirilecek.
+# Bu dosyada key="user" kullanımı KALMADI — session'a bağlı tüm uçlar
+# session_rate_limit'te; frappe.rate_limiter yalnız key="email"/key="key"/IP
+# kovaları için (login öncesi, session'sız akışlar) kullanılır.
 from tradehub_core.api.rate_limit import rate_limit as session_rate_limit
 from tradehub_core.api.v1.auth import _generate_member_id
 from tradehub_core.seo.site_url import storefront_url
@@ -925,7 +927,8 @@ def _verify_password(user: str, password: str):
 
 
 @frappe.whitelist(methods=["POST"])
-@rate_limit(key="user", limit=10, seconds=300)
+# form_dict `user=<rastgele>` bypass'ına kapalı — kova frappe.session.user (bkz. api/rate_limit.py).
+@session_rate_limit(max_calls=10, window_seconds=300, scope="update_profile_image")
 def update_profile_image(filename: str = "", filedata: str = ""):
 	"""Upload a profile image for the currently logged-in user.
 
@@ -1019,7 +1022,8 @@ def change_password(current_password: str, new_password: str):
 
 
 @frappe.whitelist(methods=["POST"])
-@rate_limit(key="user", limit=10, seconds=3600)
+# form_dict `user=<rastgele>` bypass'ına kapalı — kova frappe.session.user (bkz. api/rate_limit.py).
+@session_rate_limit(max_calls=10, window_seconds=3600, scope="change_email")
 def change_email(new_email: str, password: str):
 	"""DEPRECATED — eski tek-adımlı email değişimi.
 
@@ -1036,7 +1040,8 @@ def change_email(new_email: str, password: str):
 
 
 @frappe.whitelist(methods=["POST"])
-@rate_limit(key="user", limit=20, seconds=3600)
+# form_dict `user=<rastgele>` bypass'ına kapalı — kova frappe.session.user (bkz. api/rate_limit.py).
+@session_rate_limit(max_calls=20, window_seconds=3600, scope="request_email_change")
 def request_email_change(new_email: str, password: str):
 	"""Email değişimi için yeni adrese OTP gönderir; DB yazımı YAPMAZ.
 
@@ -1113,7 +1118,8 @@ def request_email_change(new_email: str, password: str):
 
 
 @frappe.whitelist(methods=["POST"])
-@rate_limit(key="user", limit=10, seconds=600)
+# OTP brute-force guard'ı — form_dict `user=<rastgele>` bypass'ına kapalı, kova frappe.session.user.
+@session_rate_limit(max_calls=10, window_seconds=600, scope="confirm_email_change")
 def confirm_email_change(code: str):
 	"""``request_email_change``'den gelen OTP'yi doğrular ve adresi değiştirir.
 
@@ -1471,7 +1477,8 @@ def _do_rename_user_email(old_email: str, new_email: str):
 
 
 @frappe.whitelist(methods=["POST"])
-@rate_limit(key="user", limit=3, seconds=3600)
+# Mail-spam guard'ı — form_dict `user=<rastgele>` bypass'ına kapalı, kova frappe.session.user.
+@session_rate_limit(max_calls=3, window_seconds=3600, scope="resend_verification_email")
 def resend_verification_email():
 	"""Doğrulanmamış kullanıcı için yeni bir doğrulama LİNKİ gönderir.
 
@@ -1564,7 +1571,8 @@ def admin_set_email_verified(user: str, verified: int = 1, reason: str = ""):
 
 
 @frappe.whitelist(methods=["POST"])
-@rate_limit(key="user", limit=10, seconds=600)
+# OTP brute-force guard'ı — form_dict `user=<rastgele>` bypass'ına kapalı, kova frappe.session.user.
+@session_rate_limit(max_calls=10, window_seconds=600, scope="verify_email_otp")
 def verify_email_otp(code: str):
 	"""``resend_verification_email`` ile gönderilen OTP'yi doğrular."""
 	user = frappe.session.user
@@ -1620,7 +1628,8 @@ def verify_email_otp(code: str):
 
 
 @frappe.whitelist(methods=["POST"])
-@rate_limit(key="user", limit=5, seconds=300)
+# Parola brute-force guard'ı — form_dict `user=<rastgele>` bypass'ına kapalı, kova frappe.session.user.
+@session_rate_limit(max_calls=5, window_seconds=300, scope="change_phone")
 def change_phone(phone: str, password: str):
 	"""Change the phone number for the currently logged-in user.
 
@@ -1704,6 +1713,7 @@ def get_account_deletion_preview() -> dict:
 	store_name: str | None = None
 	active_subscription: dict | None = None
 	sub_user_count = 0
+	open_order_count = 0
 
 	consequences: list[str] = [
 		_("Hesabınız anında devre dışı bırakılır, tüm oturumlarınız kapatılır ve tekrar giriş yapılamaz."),
@@ -1747,6 +1757,21 @@ def get_account_deletion_preview() -> dict:
 			_("Bekleyen havale/ödeme talepleriniz reddedilir; mağazanız için yeni havale talebi açılamaz.")
 		)
 
+		# AC-9: açık siparişler yalnız BİLGİLENDİRME — silme engellenmez (delete_account değişmedi).
+		# Order.status Select seçenekleri: Ödeme Bekleniyor/Onaylanıyor/Kargoda açık;
+		# Tamamlandı/İptal Edildi kapalı (order.json ile doğrulandı).
+		open_order_count = frappe.db.count(
+			"Order",
+			{"seller": store, "status": ["in", ["Ödeme Bekleniyor", "Onaylanıyor", "Kargoda"]]},
+		)
+		if open_order_count:
+			consequences.append(
+				_(
+					"{0} açık siparişiniz var; mağaza askıya alındığında bu siparişlerin akıbetini "
+					"alıcılarınızla netleştirin."
+				).format(open_order_count)
+			)
+
 		# Alt kullanıcılar: aynı tenant'a bağlı, owner dışındaki hesaplar (silinmezler).
 		sub_user_count = frappe.db.count("User", {"tradehub_tenant": store, "name": ["!=", user]})
 		if sub_user_count:
@@ -1761,6 +1786,7 @@ def get_account_deletion_preview() -> dict:
 		"store_name": store_name,
 		"active_subscription": active_subscription,
 		"sub_user_count": sub_user_count,
+		"open_order_count": open_order_count,
 		"grace_days": _GRACE_PERIOD_DAYS,
 		"consequences": consequences,
 	}

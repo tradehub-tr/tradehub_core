@@ -10,7 +10,7 @@ Status state machine:
   trial → active | past_due | expired | canceled | suspended
   active → past_due | expired | canceled | suspended
   past_due → active | expired | canceled | suspended
-  suspended → active | canceled
+  suspended → active | canceled | expired  (expired: T+30 dunning feshi — AC-7)
   expired → active | canceled  (yeniden abonelik / ödeme ile reaktive)
   canceled → active  (yeniden abonelik — AC-14; store unique olduğundan aynı satır reaktive edilir)
 
@@ -31,12 +31,14 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import cint, get_datetime, now_datetime
 
+from tradehub_core.services.storefront_visibility import restore_store_listings
+
 # İzin verilen status geçişleri
 _VALID_TRANSITIONS: dict[str, set[str]] = {
 	"trial": {"active", "past_due", "expired", "canceled", "suspended"},
 	"active": {"past_due", "expired", "canceled", "suspended"},
 	"past_due": {"active", "expired", "canceled", "suspended"},
-	"suspended": {"active", "canceled"},
+	"suspended": {"active", "canceled", "expired"},  # expired: T+30 dunning feshi (AC-7)
 	"expired": {"active", "canceled"},  # ödeme/yeniden abonelik ile reaktive
 	"canceled": {"active"},  # yeniden abonelik — AC-14 (store unique → aynı satır reaktive)
 }
@@ -45,6 +47,7 @@ _VALID_TRANSITIONS: dict[str, set[str]] = {
 class StoreSubscription(Document):
 	def validate(self) -> None:
 		self._validate_status_transition()
+		self._sync_suspension_fields()
 		self._validate_period_consistency()
 		self._validate_cancellation_flag()
 		self._reset_renewal_reminders_on_new_period()
@@ -56,6 +59,27 @@ class StoreSubscription(Document):
 		"""Yeni subscription için started_at default = now."""
 		if not self.started_at:
 			self.started_at = now_datetime()
+
+	def on_update(self) -> None:
+		self._enqueue_storefront_restore_on_reactivation()
+
+	def _enqueue_storefront_restore_on_reactivation(self) -> None:
+		"""suspended→active GERÇEK geçişinde vitrin restore job'ını kuyruğa al (D2 / AC-6).
+
+		get_doc_before_save ile eski status kontrol edilir — her save'de değil, yalnız
+		gerçek geçişte tetiklenir (Desk/manuel reaktivasyon dahil). enqueue_after_commit=True:
+		job commit öncesi bayat status okumasın. Çok ürünlü mağaza için queue='long'
+		(BE-1 sözleşmesi: storefront_visibility enqueue YAPMAZ, çağıranın işi).
+		"""
+		before = self.get_doc_before_save()
+		if not before or before.get("status") != "suspended" or self.status != "active":
+			return
+		frappe.enqueue(
+			restore_store_listings,
+			store=self.store,
+			queue="long",
+			enqueue_after_commit=True,
+		)
 
 	def _validate_status_transition(self) -> None:
 		"""Status geçişi state machine'e uygun olmalı."""
@@ -95,6 +119,27 @@ class StoreSubscription(Document):
 		if self.status == "canceled" and not self.canceled_at:
 			self.canceled_at = now_datetime()
 
+	def _sync_suspension_fields(self) -> None:
+		"""'suspended' giriş/çıkışında suspended_at + suspend_source senkronu (BE-2 / D1).
+
+		- Girişte suspended_at yalnız BOŞSA now damgalanır (job'ın verdiği değer korunur).
+		  suspend_source'a girişte DOKUNULMAZ: 'dunning' değerini yalnız lifecycle job'ı
+		  (suspend_delinquent_subscriptions) save öncesi yazar — validate default'u ezerse
+		  dunning işareti kaybolur ve manuel suspend ayrımı (D1) bozulur.
+		- suspended'dan HERHANGİ bir çıkışta (active/canceled/expired) suspended_at
+		  temizlenir ve suspend_source 'manual' default'una döner (D1).
+		"""
+		if self.status == "suspended":
+			if not self.suspended_at:
+				self.suspended_at = now_datetime()
+			return
+		if self.is_new() or not self.name:
+			return
+		old_status = frappe.db.get_value("Store Subscription", self.name, "status")
+		if old_status == "suspended":
+			self.suspended_at = None
+			self.suspend_source = "manual"
+
 	def _validate_cancellation_flag(self) -> None:
 		"""cancel_at_period_end bayrak kuralları (Amazon Seller modeli).
 
@@ -113,7 +158,8 @@ class StoreSubscription(Document):
 			)
 
 	def _reset_renewal_reminders_on_new_period(self) -> None:
-		"""current_period_start yazılan her yeni dönemde T-7/T-1 bayrakları sıfırlanır (AC-9).
+		"""current_period_start yazılan her yeni dönemde T-7/T-1 + dunning T+1/T+3/T+7
+		bayrakları sıfırlanır (AC-9 + dunning AC-2).
 
 		Bayrak deseni trial reminder'larla aynı (idempotent, per-dönem en fazla 1 bildirim);
 		dönem değişmeden sıfırlanmazlar ki lifecycle job çift bildirim atmasın.
@@ -124,6 +170,9 @@ class StoreSubscription(Document):
 		if not old_start or get_datetime(old_start) != get_datetime(self.current_period_start):
 			self.renewal_reminder_7d_sent = 0
 			self.renewal_reminder_1d_sent = 0
+			self.dunning_reminder_1d_sent = 0
+			self.dunning_reminder_3d_sent = 0
+			self.dunning_reminder_7d_sent = 0
 
 	def _validate_unique_active_per_store(self) -> None:
 		"""Bir mağaza için yalnızca tek non-canceled subscription olabilir."""

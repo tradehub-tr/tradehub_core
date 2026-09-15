@@ -61,6 +61,9 @@ def _reset_state() -> None:
 				"current_period_end": "2026-10-01 00:00:00",
 			},
 			"sub_user_count": 2,
+			# AC-9 (BE-4): Order satırları — count stub'ı seller+status filtresini gerçekten uygular.
+			"orders": [],
+			"count_calls": [],
 			"pending_payments": ["SUBPAY-001"],
 			"has_columns": {"cancel_requested_by", "cancellation_note"},
 			"subs_by_canceller": ["STSUB-2026-00001"],
@@ -215,10 +218,32 @@ def _install_frappe_stub() -> None:
 			return list(_STATE.get("subs_by_canceller", []))
 		return []
 
+	def _count(doctype, filters=None):
+		_STATE.setdefault("count_calls", []).append((doctype, filters))
+		if doctype == "Order":
+			# AC-9: filtre GERÇEKTEN uygulanır — yanlış seller/status listesi testte
+			# yanlış sayıya yansır (açık/kapalı sipariş karışımı vakası bunun için).
+			filters = filters or {}
+			seller = filters.get("seller")
+			status_filter = filters.get("status")
+			allowed = None
+			if isinstance(status_filter, (list, tuple)) and len(status_filter) == 2:
+				if status_filter[0] == "in":
+					allowed = set(status_filter[1])
+			matched = 0
+			for row in _STATE.get("orders", []):
+				if seller is not None and row.get("seller") != seller:
+					continue
+				if allowed is not None and row.get("status") not in allowed:
+					continue
+				matched += 1
+			return matched
+		return _STATE.get("sub_user_count", 0)
+
 	frappe.db = SimpleNamespace(
 		get_value=_get_value,
 		set_value=_set_value,
-		count=lambda doctype, filters=None: _STATE.get("sub_user_count", 0),
+		count=_count,
 		delete=lambda doctype, filters=None: _STATE["deleted"].append((doctype, filters)),
 		commit=lambda: None,
 		has_column=lambda doctype, column: column in _STATE.get("has_columns", set()),
@@ -317,12 +342,44 @@ class TestDeletionPreview(_Base):
 			{"plan": "PRO", "status": "active", "current_period_end": "2026-10-01 00:00:00"},
 		)
 		self.assertEqual(out["sub_user_count"], 2)
+		self.assertEqual(out["open_order_count"], 0)  # AC-9: additive alan, sipariş yokken 0
 		self.assertEqual(out["grace_days"], 15)
 		joined = " ".join(out["consequences"])
 		self.assertIn("Test Mağaza", joined)
 		self.assertIn("iade yapılmaz", joined)
 		self.assertIn("15 gün", joined)
 		self.assertIn("alt kullanıcı", joined)
+
+	def test_open_orders_mixed_counts_only_open(self):
+		"""AC-9: açık/kapalı karışım — yalnız 3 açık status sayılır, başka seller sayılmaz."""
+		_STATE["orders"] = [
+			{"seller": "SEL-00001", "status": "Ödeme Bekleniyor"},
+			{"seller": "SEL-00001", "status": "Onaylanıyor"},
+			{"seller": "SEL-00001", "status": "Kargoda"},
+			{"seller": "SEL-00001", "status": "Tamamlandı"},  # kapalı — sayılmaz
+			{"seller": "SEL-00001", "status": "İptal Edildi"},  # kapalı — sayılmaz
+			{"seller": "SEL-99999", "status": "Kargoda"},  # başka mağaza — sayılmaz
+		]
+		out = identity.get_account_deletion_preview()
+		self.assertEqual(out["open_order_count"], 3)
+		joined = " ".join(out["consequences"])
+		self.assertIn("3 açık siparişiniz var", joined)
+		self.assertIn("alıcılarınızla netleştirin", joined)
+		# Sorgu sözleşmesi: seller=store + status IN (3 açık status) — order.json ile doğrulanan set.
+		order_calls = [c for c in _STATE["count_calls"] if c[0] == "Order"]
+		self.assertEqual(len(order_calls), 1)
+		self.assertEqual(order_calls[0][1]["seller"], "SEL-00001")
+		self.assertEqual(order_calls[0][1]["status"], ["in", ["Ödeme Bekleniyor", "Onaylanıyor", "Kargoda"]])
+
+	def test_open_orders_zero_no_consequence(self):
+		"""AC-9: yalnız kapalı siparişler → alan 0 döner, uyarı maddesi EKLENMEZ."""
+		_STATE["orders"] = [
+			{"seller": "SEL-00001", "status": "Tamamlandı"},
+			{"seller": "SEL-00001", "status": "İptal Edildi"},
+		]
+		out = identity.get_account_deletion_preview()
+		self.assertEqual(out["open_order_count"], 0)
+		self.assertNotIn("açık siparişiniz", " ".join(out["consequences"]))
 
 	def test_trial_preview_wording(self):
 		_STATE["subscription"]["status"] = "trial"
@@ -340,6 +397,9 @@ class TestDeletionPreview(_Base):
 		self.assertEqual(out["sub_user_count"], 0)
 		self.assertEqual(out["grace_days"], 15)
 		self.assertGreaterEqual(len(out["consequences"]), 2)
+		# AC-9: mağazasız kullanıcıda alan 0 döner ve Order sorgusu HİÇ yapılmaz.
+		self.assertEqual(out["open_order_count"], 0)
+		self.assertEqual([c for c in _STATE["count_calls"] if c[0] == "Order"], [])
 
 
 class TestDeleteAccountOwner(_Base):

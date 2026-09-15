@@ -20,7 +20,7 @@ from typing import Any
 
 import frappe
 from frappe import _
-from frappe.utils import add_days, add_months, add_years, cint, getdate, now_datetime
+from frappe.utils import add_days, add_months, add_years, cint, get_datetime, getdate, now_datetime
 
 from tradehub_core.audit import log_decision
 
@@ -131,7 +131,9 @@ def upgrade_subscription_plan(
 	existing = frappe.db.get_value(
 		"Store Subscription",
 		{"store": tenant},
-		["name", "plan", "status", "trial_used", "billing_cycle"],
+		# current_period_end: erken-yenileme devri kararı save ÖNCESİ eski
+		# değerle verilir (BE-1) — bu sorgu mutasyondan önce koşar.
+		["name", "plan", "status", "trial_used", "billing_cycle", "current_period_end"],
 		as_dict=True,
 	)
 
@@ -170,15 +172,35 @@ def upgrade_subscription_plan(
 		doc.trial_used = 1
 		doc.trial_end = add_days(now, trial_days) if trial_days > 0 else None
 
+	# Kalan süre devri (Bora kararı a + E1): YALNIZ aynı planın erken
+	# yenilemesinde — save ÖNCESİ eski değerlerle status=='active' VE eski
+	# current_period_end gelecekte VE new_plan == mevcut plan — yeni dönem
+	# eski bitişten devreder (ödenmiş süre yanmaz). Plan değişikliği (E1),
+	# dönemi geçmiş active, past_due/suspended/canceled/expired
+	# reaktivasyonu, trial→active ve yeni kayıt → devir YOK, dönem now'dan
+	# başlar (mevcut davranış AYNEN korunur).
+	old_period_end = existing.get("current_period_end") if existing else None
+	period_carried_over = bool(
+		not start_trial_bool
+		and existing
+		and existing.status == "active"
+		and existing.plan == new_plan
+		and old_period_end
+		and get_datetime(old_period_end) > now_datetime()
+	)
+
 	def _apply_active_period_fields(doc, cycle: str) -> None:
 		"""'active' geçişinde dönem alanlarını yaz (BE-3 / AC-7).
 
+		Erken-yenileme devri (BE-1): period_carried_over ise start = ESKİ
+		current_period_end; aksi tüm durumlarda start = now.
 		current_period_end = start + 1 ay/1 yıl, next_invoice_date = dönem sonu.
-		cancel_at_period_end burada sıfırlanır: yeniden abonelikte eski iptal
-		planı taşınmaz. renewal_reminder_* bayraklarını BE-1'in validate'i
-		current_period_start değişiminde zaten sıfırlıyor — burada tekrarlanmaz.
+		cancel_at_period_end burada sıfırlanır: yeniden abonelikte/yenilemede
+		eski iptal planı taşınmaz. renewal_reminder_* bayraklarını controller'ın
+		validate'i current_period_start değişiminde zaten sıfırlıyor — burada
+		tekrarlanmaz.
 		"""
-		start = now_datetime()
+		start = get_datetime(old_period_end) if period_carried_over else now_datetime()
 		end = add_months(start, 1) if cycle == "monthly" else add_years(start, 1)
 		doc.current_period_start = start
 		doc.current_period_end = end
@@ -251,6 +273,7 @@ def upgrade_subscription_plan(
 			"new_plan": new_plan,
 			"status": target_status,
 			"billing_cycle": None if start_trial_bool else effective_cycle,
+			"period_carried_over": period_carried_over,
 			"started_trial": start_trial_bool,
 			"reason": (reason or "")[:200],
 			"role_sync_summary": {
@@ -279,12 +302,38 @@ _LOCK_REASON_BY_STATUS = {
 }
 
 
+def _ok_access_payload(sub: Any) -> dict[str, Any]:
+	"""OK-şekilli erişim yanıtının ortak gövdesi.
+
+	trial/active (mevcut davranış, bit değiştirmeden) ile past_due dunning
+	hoşgörü dalı (BE-4 / AC-1) aynı alan setini bu helper'dan üretir.
+	"""
+	return {
+		"access": "ok",
+		"status": sub.status,
+		"plan": sub.plan,
+		"is_trial": sub.status == "trial",
+		"trial_start": sub.trial_start,
+		"trial_end": sub.trial_end,
+		"started_at": sub.started_at,
+		"current_period_end": sub.current_period_end,
+		# BE-3 additive alanlar — panel iptal-planlı banner + dönem bilgisi.
+		"cancel_at_period_end": cint(sub.cancel_at_period_end),
+		"billing_cycle": sub.billing_cycle,
+		# BE-1 additive — iptal talebi damgası (BE-3 alanı, passthrough):
+		# cancel_at_period_end=1 iken dolu, değilse null.
+		"cancel_requested_at": sub.cancel_requested_at,
+	}
+
+
 @frappe.whitelist()
 def get_seller_access_state() -> dict[str, Any]:
 	"""Abonelik kapısı kararı — satıcı panele girebilir mi?
 
 	Frontend her açılışta/rotada çağırır. `access`:
 	  - "ok"      → panel açık (status trial veya active). is_trial/trial_end döner.
+	                past_due da OK döner (dunning hoşgörü penceresi, BE-4/AC-1) —
+	                additive in_dunning=1 + dunning_grace_end alanlarıyla.
 	  - "locked"  → panele girilemez; paket-seçme/abonelik sayfasına yönlendir.
 	  - "no_store"→ kullanıcı satıcı değil (mağaza yok); kapı kapsamı dışı.
 	  - "guest"   → giriş yok.
@@ -314,26 +363,31 @@ def get_seller_access_state() -> dict[str, Any]:
 			"started_at",
 			"current_period_end",
 			"cancel_at_period_end",
+			"cancel_requested_at",
 			"billing_cycle",
 			"canceled_at",
+			"suspended_at",
+			"cancellation_reason",
 		],
 		as_dict=True,
 	)
 
 	if sub and sub.status in _ACCESS_GRANTING_STATUS:
-		return {
-			"access": "ok",
-			"status": sub.status,
-			"plan": sub.plan,
-			"is_trial": sub.status == "trial",
-			"trial_start": sub.trial_start,
-			"trial_end": sub.trial_end,
-			"started_at": sub.started_at,
-			"current_period_end": sub.current_period_end,
-			# BE-3 additive alanlar — panel iptal-planlı banner + dönem bilgisi.
-			"cancel_at_period_end": cint(sub.cancel_at_period_end),
-			"billing_cycle": sub.billing_cycle,
-		}
+		return _ok_access_payload(sub)
+
+	if sub and sub.status == "past_due":
+		# BE-4 / AC-1 — dunning hoşgörü penceresi: past_due artık kilitlemez,
+		# OK-şekilli yanıt + additive in_dunning/dunning_grace_end döner
+		# (_ACCESS_GRANTING_STATUS setine kasıtlı DOKUNULMADI — ayrı dal).
+		# Tek otorite: süre sabiti BE-3'ün lifecycle modülünde (yedek tanım YOK).
+		from tradehub_core.services.subscription_lifecycle import _DUNNING_SUSPEND_DAYS
+
+		ok = _ok_access_payload(sub)
+		ok["in_dunning"] = 1
+		ok["dunning_grace_end"] = (
+			add_days(sub.current_period_end, _DUNNING_SUSPEND_DAYS) if sub.current_period_end else None
+		)
+		return ok
 
 	# Kilitli: hiç abonelik yok ya da erişim vermeyen durum (expired/canceled/...).
 	lock_reason = _LOCK_REASON_BY_STATUS.get(sub.status, sub.status) if sub else "no_subscription"
@@ -348,6 +402,19 @@ def get_seller_access_state() -> dict[str, Any]:
 	if lock_reason == "canceled":
 		# BE-3 additive alan — paywall "X tarihinde iptal edildi" gösterebilir.
 		locked["canceled_at"] = sub.canceled_at
+	if lock_reason == "suspended":
+		# BE-4 / AC-5 additive — paywall 'vitrin geçici pasif, ödemenizle geri
+		# açılır' + fesih tarihini gösterebilir. Süre sabiti lifecycle'dan (tek otorite).
+		from tradehub_core.services.subscription_lifecycle import _DUNNING_EXPIRE_DAYS
+
+		locked["suspended_at"] = sub.suspended_at
+		locked["dunning_expire_at"] = (
+			add_days(sub.current_period_end, _DUNNING_EXPIRE_DAYS) if sub.current_period_end else None
+		)
+	if lock_reason == "trial_expired":
+		# BE-4 / AC-8 additive — reason geriye uyumluluk için 'trial_expired'
+		# KALIR; dunning feshi ile trial bitişi ayrımı yeni expired_cause alanında.
+		locked["expired_cause"] = "dunning" if sub.cancellation_reason == "dunning_expired" else "trial"
 	return locked
 
 

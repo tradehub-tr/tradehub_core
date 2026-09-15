@@ -77,7 +77,7 @@ class Listing(Document):
 		):
 			return
 
-		from tradehub_core.utils.seo_content import check_title, check_description
+		from tradehub_core.utils.seo_content import check_description, check_title
 
 		if self.is_new() or self.has_value_changed("title"):
 			ok, msg = check_title(self.title)
@@ -96,10 +96,22 @@ class Listing(Document):
 		yerine `storefront_visible=1` ile filtreler → (storefront_visible, <sort>)
 		index'i filesort'suz, index-ordered tarama sağlar (2-değerli status IN
 		filesort'a zorluyordu). is_visible/status'un tüm validate mutasyonlarından
-		SONRA çağrılır ki değer nihai duruma göre hesaplansın."""
+		SONRA çağrılır ki değer nihai duruma göre hesaplansın.
+
+		Dunning drift guard (AC-9): mağazanın Store Subscription status'u
+		'suspended' iken herhangi bir save (admin/Desk dahil) formülü yeniden
+		hesaplayıp hide_store_listings'in yazdığı 0'ı sessizce 1'e çevirmesin
+		diye storefront_visible 0'a sabitlenir. Tek frappe.db.get_value maliyeti
+		yalnız formülün 1 döndüğü save'lerde ödenir (hot path değil)."""
 		from tradehub_core.api.listing import STOREFRONT_VISIBLE_STATUSES
 
-		self.storefront_visible = 1 if (self.is_visible and self.status in STOREFRONT_VISIBLE_STATUSES) else 0
+		visible = 1 if (self.is_visible and self.status in STOREFRONT_VISIBLE_STATUSES) else 0
+		if visible and self.seller_profile:
+			from tradehub_core.entitlement.core import get_subscription_status
+
+			if get_subscription_status(self.seller_profile) == "suspended":
+				visible = 0
+		self.storefront_visible = visible
 
 	def _resolve_attribute_links(self):
 		"""Auto-resolve free-text attribute names to Product Attribute records.

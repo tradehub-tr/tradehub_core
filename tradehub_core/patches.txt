@@ -337,3 +337,7 @@ tradehub_core.patches.v15_backfill_current_period_end
 tradehub_core.patches.v15_9_53_purge_demo_data
 # --- MOGEM-638/666 performans: Product Category + Listing sıralama indeksleri (EXPLAIN ile doğrulandı) ---
 tradehub_core.patches.v15_9_56_performans_indeksleri
+
+# --- BE kalıntı temizliği · çakışan "Satıcı Paneli" workspace kopyası ---
+# "Tradehub Seller" kaydı silinir (JSON repodan kaldırıldı); tutulan: "Satıcı Paneli".
+tradehub_core.patches.v15_9_54_remove_tradehub_seller_workspace
