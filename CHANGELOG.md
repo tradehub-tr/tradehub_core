@@ -1,3 +1,14 @@
+## [v1.14.1-alpha.4] - 2026-09-15 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Duzeltildi
+- fix(kategori): içe aktarma hızlandırıldı, ağaç hatası yakalanıyor (@aliiball)
+  - Nested set güncellemesi ekleme sırasında atlanıyor (lft/rgt önceden dolduruluyor); 23.511 düğümlük ağaç 21 dk yerine 8,2 dk'da kuruluyor
+  - rebuild_tree düşerse iş artık hata döndürüyor; eskiden sessiz uyarıydı, bozuk ağaç fark edilmeden kalıyordu
+  - Arka plan işi zaman aşımı 30 dk'dan 1 saate çıkarıldı
+
+---
 ## [v1.14.1-alpha.2] - 2026-09-15 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
