@@ -1,3 +1,19 @@
+## [v1.14.1-alpha.2] - 2026-09-15 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(abonelik): tamamlama dilimi — kalan süre devri + döngü/geçmiş uçları + kota-kontrollü restore (@boraydeger32)
+  - Kalan süre devri: aynı planın erken yenilemesinde yeni dönem eski dönemin bitiminden başlar (üçlü guard: eski status active + dönem sürüyor + plan aynı — plan değişikliğinde/reaktivasyonda/trial'da devir YOK, E1); audit'e period_carried_over; devirli dönemde lifecycle no-op regresyonları (E3)
+  - Bekleyen havale talebi tutar tazeleme: plan fiyatı değiştiyse pending talep güncellenir + yanıta amount_updated sinyali (E4) — bayat-tutar bulgusu kapandı
+  - YENİ list_my_subscription_payments: owner-only ödeme geçmişi (çift katman tenant, rate limit, ≤100 satır)
+  - YENİ subscription_admin.list_attention_subscriptions: superadmin-only iptal-planlı + dunning listesi + sebep dağılımı (batch store_name)
+  - cancel_requested_at alanı: talep/gerçek iptal tarihleri ayrıştı; fesihte tarihsel iz olarak korunur; yanıtlara ve access-state'e additive
+  - Hesap silme önizlemesine open_order_count + açık sipariş uyarı maddesi
+  - Kota-kontrollü restore: reaktivasyonda quota.max_products aşımında en yeni N ürün vitrine döner, satıcıya tek bildirim (pre-snapshot kriteri — PM onaylı gerekçeli sapma, docstring'de)
+  - 100+ yeni test; tüm mevcut suite regresyonsuz (bench 27/27 + 10 stub paketi OK)
+
+---
 ## [v1.14.1-alpha.1] - 2026-09-14 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
