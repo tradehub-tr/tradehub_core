@@ -15,7 +15,11 @@ import unittest
 from tradehub_core.logistics.constants import (
 	ALLOWED_TRANSITIONS,
 	LOGISTICS_FEATURE_FLAGS,
+	MAX_WEBHOOK_BODY_BYTES,
 	TERMINAL_STATUSES,
+	WEBHOOK_DEDUPE_TTL_SECONDS,
+	WEBHOOK_SIGNATURE_HEADER,
+	WEBHOOK_SIGNATURE_PREFIX,
 	ShipmentStatus,
 )
 
@@ -140,6 +144,54 @@ class TestFeatureFlags(unittest.TestCase):
 	def test_flags_dict_not_empty(self) -> None:
 		"""Feature flags sozlugu bos olmamali."""
 		self.assertGreater(len(LOGISTICS_FEATURE_FLAGS), 0)
+
+	def test_carrier_webhook_flag_exists_and_default_off(self) -> None:
+		"""Inbound webhook flag'i tanimli ve varsayilan KAPALI olmali (09-BE)."""
+		self.assertIn("carrier_webhook_enabled", LOGISTICS_FEATURE_FLAGS)
+		self.assertFalse(LOGISTICS_FEATURE_FLAGS["carrier_webhook_enabled"])
+
+	def test_carrier_webhook_flag_distinct_from_notifications_flag(self) -> None:
+		"""Gelen webhook flag'i, giden bildirim flag'inden AYRI olmali.
+
+		`webhook_notifications_enabled` giden bildirimlerin flag'i — adi
+		yaniltici oldugu icin yeniden kullanilmadi (spec risks listesi).
+		"""
+		self.assertIn("webhook_notifications_enabled", LOGISTICS_FEATURE_FLAGS)
+		self.assertIn("carrier_webhook_enabled", LOGISTICS_FEATURE_FLAGS)
+
+
+class TestWebhookConstants(unittest.TestCase):
+	"""Carrier webhook alicisi sabit testleri (09-BE webhook dilimi)."""
+
+	def test_max_body_bytes_is_128_kb(self) -> None:
+		"""Govde ust siniri tam 128 KB olmali (AC-5)."""
+		self.assertEqual(MAX_WEBHOOK_BODY_BYTES, 131072)
+		self.assertEqual(MAX_WEBHOOK_BODY_BYTES, 128 * 1024)
+
+	def test_dedupe_ttl_is_48_hours(self) -> None:
+		"""Dedupe TTL tam 48 saat olmali (W4: AC-7 'saat' okunur, saniye degil)."""
+		self.assertEqual(WEBHOOK_DEDUPE_TTL_SECONDS, 172800)
+		self.assertEqual(WEBHOOK_DEDUPE_TTL_SECONDS, 48 * 60 * 60)
+
+	def test_signature_header_name(self) -> None:
+		"""Imza basligi sozlesmedeki adla birebir olmali."""
+		self.assertEqual(WEBHOOK_SIGNATURE_HEADER, "X-Webhook-Signature")
+
+	def test_signature_prefix(self) -> None:
+		"""Imza deger oneki 'sha256=' olmali (GitHub webhook konvansiyonu)."""
+		self.assertEqual(WEBHOOK_SIGNATURE_PREFIX, "sha256=")
+
+	def test_signature_prefix_matches_algorithm_naming(self) -> None:
+		"""Onek algoritma adiyla baslamali ve '=' ile bitmeli — ayristirici buna dayanir."""
+		self.assertTrue(WEBHOOK_SIGNATURE_PREFIX.endswith("="))
+		self.assertTrue(WEBHOOK_SIGNATURE_PREFIX.startswith("sha256"))
+
+	def test_webhook_constants_types(self) -> None:
+		"""Sayisal sabitler int, baslik sabitleri str olmali."""
+		self.assertIsInstance(MAX_WEBHOOK_BODY_BYTES, int)
+		self.assertIsInstance(WEBHOOK_DEDUPE_TTL_SECONDS, int)
+		self.assertIsInstance(WEBHOOK_SIGNATURE_HEADER, str)
+		self.assertIsInstance(WEBHOOK_SIGNATURE_PREFIX, str)
 
 
 if __name__ == "__main__":

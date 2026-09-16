@@ -226,7 +226,8 @@ def _install_frappe_stub() -> None:
 		set_value=_db_set_value,
 	)
 
-	def _get_doc(doctype, name=None):
+	# for_update kwarg'ı M1 kilitleme düzeltmesiyle geldi — stub kabul edip yok sayar.
+	def _get_doc(doctype, name=None, for_update=False, **kwargs):
 		if doctype == "Subscription Plan":
 			return _Doc(
 				_doctype=doctype,

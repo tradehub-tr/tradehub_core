@@ -5,7 +5,7 @@
 > Yenile: `python3 scripts/gen_logistics_types.py --sync`
 > Bayat mı: `python3 scripts/gen_logistics_types.py --check`
 
-Bu belge **6 modüldeki 38 yazılmamış ucun** sözleşmesidir.
+Bu belge **7 modüldeki 39 yazılmamış ucun** sözleşmesidir.
 Varlıkların hangi alanları taşıdığı ayrı yerde: `docs/logistics-api.schema.json`
 → `provisional` (ve okunabilir özeti `LOGISTICS-API-CONTRACT.md` §3).
 
@@ -269,6 +269,32 @@ yoksa istemci `INTERNAL_ERROR` görür ve doğru kutuyu çizemez.
 - `list_notifications` — `status` = queued|failed olan kayıt ALICIYA DÖNMEZ — gönderilmemiş bildirimi 'geldi' diye göstermek yanlış bilgi olur. Süzgeç sunucuda.
 - `list_notifications` — `recipient` alanı yanıtta dönmez: zaten çağıranın kendisi.
 - `mark_notification_read` — Başkasının bildirimi işaretlenemez → PERMISSION_DENIED.
+
+---
+
+## `api.v1.logistics_webhook` — Taşıyıcı webhook alıcısı (inbound tracking push)
+
+**Sahip:** 09-BE · **FE kaynağı:** `LOJISTIK-WEBHOOK-SPEC.md`
+
+| Uç | Döndürür | Hata kodları |
+|---|---|---|
+| `receive_carrier_webhook(account)` | özel yük: `ok` | — |
+
+**Parametreler:**
+
+- `receive_carrier_webhook` → `account` (str, zorunlu) — Carrier Account docname — URL'de opak referans; asıl kapı HMAC
+
+**Uygulama notları:**
+
+- `receive_carrier_webhook` — Kimliği doğrulanmış ama işlenemeyen event (eşleşmeyen kod, adapter'sız carrier) yine 200 alır — retry fırtınası önleme; hata job'da loglanır. Mock gövde şeması: {tracking_number, status_code, status_text, event_time, location?}.
+
+**Sunucuda tekrarlanması gereken kapılar:**
+
+- `receive_carrier_webhook` — GUEST uç (allow_guest=True) — çağıran taşıyıcı sunucusudur, oturum yok; kimlik kanıtı `X-Webhook-Signature: sha256=<hex(HMAC-SHA256(webhook_secret, raw_body))>` başlığıdır, karşılaştırma hmac.compare_digest ile (sabit zaman).
+- `receive_carrier_webhook` — Gövde ham taşıyıcı payload'ıdır (≤ MAX_WEBHOOK_BODY_BYTES), form parametresi DEĞİL — imza ham baytlar üzerinden doğrulanır. Boyut kontrolü imza HESAPLANMADAN önce (413).
+- `receive_carrier_webhook` — Bilinmeyen hesap / is_active=0 / webhook_secret boş / carrier_webhook_enabled=0 → imza hatasıyla AYNI jenerik 401; iç exception'lar da maskeli loglanıp aynı 401'e düşer (W2) — hiçbir ret yolu ayrıştırılamaz.
+- `receive_carrier_webhook` — Aynı ham gövde WEBHOOK_DEDUPE_TTL_SECONDS (48 saat) içinde ikinci kez → 200 ama ikinci işleme job'u YOK (Redis dedupe, W4).
+- `receive_carrier_webhook` — IP-kovası rate limit (600/60sn, key parametresiz — W3); doğrulama sonrası işleme frappe.enqueue ile asenkron, taşıyıcı yanıt için işlemeyi BEKLEMEZ.
 
 ---
 

@@ -31,7 +31,11 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import cint, get_datetime, now_datetime
 
-from tradehub_core.services.storefront_visibility import restore_store_listings
+# _OPERATIONAL_STATUSES: entitlement çekirdeğiyle TEK kaynak — vitrin politikası
+# "abonelik operasyonelken açık" (trial/active/past_due) semantiğine hizalı.
+# Modül-içi kopya tutulmaz: set entitlement'ta değişirse vitrin de onu izler.
+from tradehub_core.entitlement.core import _OPERATIONAL_STATUSES
+from tradehub_core.services.storefront_visibility import hide_store_listings, restore_store_listings
 
 # İzin verilen status geçişleri
 _VALID_TRANSITIONS: dict[str, set[str]] = {
@@ -61,21 +65,50 @@ class StoreSubscription(Document):
 			self.started_at = now_datetime()
 
 	def on_update(self) -> None:
-		self._enqueue_storefront_restore_on_reactivation()
+		self._sync_storefront_on_status_transition()
 
-	def _enqueue_storefront_restore_on_reactivation(self) -> None:
-		"""suspended→active GERÇEK geçişinde vitrin restore job'ını kuyruğa al (D2 / AC-6).
+	def _sync_storefront_on_status_transition(self) -> None:
+		"""K2+M2: vitrin görünürlüğü status geçişine MERKEZİ bağlanır (D2/AC-6'nın evriği).
 
-		get_doc_before_save ile eski status kontrol edilir — her save'de değil, yalnız
-		gerçek geçişte tetiklenir (Desk/manuel reaktivasyon dahil). enqueue_after_commit=True:
-		job commit öncesi bayat status okumasın. Çok ürünlü mağaza için queue='long'
-		(BE-1 sözleşmesi: storefront_visibility enqueue YAPMAZ, çağıranın işi).
+		Politika: vitrin yalnız abonelik OPERASYONELKEN (trial/active/past_due —
+		entitlement._OPERATIONAL_STATUSES) açık; suspended/canceled/expired'da kapalı.
+
+		get_doc_before_save ile GERÇEK geçişlerde tetiklenir — her save'de değil
+		(Desk/manuel geçişler dahil). Tüm status yazıcıları doc.save kullandığından
+		(dunning suspend/expire job'ları, dönem-sonu finalize, hesap silme
+		[identity._cancel_owner_subscription_on_delete], ödeme reaktivasyonu
+		[api/v1/subscription.py]) bu tek nokta hepsini kapsar:
+		  * operasyonel → NON-operasyonel: hide_store_listings enqueue (K2 —
+		    canceled/expired artık da vitrini kapatır; dunning job'ının kendi hide
+		    enqueue'su kalır, hide idempotent olduğundan çifte enqueue zararsız).
+		  * NON-operasyonel → active: restore_store_listings enqueue (M2 —
+		    expired→active [dunning feshi sonrası ödeme] ve canceled→active
+		    [reaktivasyon] artık suspended→active gibi vitrini geri açar).
+		  * trial→active gibi operasyonel-içi geçişlerde restore ENQUEUE EDİLMEZ:
+		    vitrin operasyonel dönemde hiç kapanmadığından restore no-op olurdu;
+		    "eski status non-operasyonel" koşulu formülü deterministik tutar ve
+		    gereksiz long-queue işi üretmez.
+		  * NON-op → NON-op (suspended→canceled/expired): vitrin zaten kapalı,
+		    enqueue yok.
+
+		enqueue_after_commit=True: job commit öncesi bayat status okumasın.
+		Çok ürünlü mağaza için queue='long' (BE-1 sözleşmesi: storefront_visibility
+		enqueue YAPMAZ, çağıranın işi).
 		"""
 		before = self.get_doc_before_save()
-		if not before or before.get("status") != "suspended" or self.status != "active":
+		old_status = before.get("status") if before else None
+		if not old_status or old_status == self.status:
+			return
+		old_operational = old_status in _OPERATIONAL_STATUSES
+		new_operational = self.status in _OPERATIONAL_STATUSES
+		if old_operational and not new_operational:
+			job = hide_store_listings
+		elif self.status == "active" and not old_operational:
+			job = restore_store_listings
+		else:
 			return
 		frappe.enqueue(
-			restore_store_listings,
+			job,
 			store=self.store,
 			queue="long",
 			enqueue_after_commit=True,

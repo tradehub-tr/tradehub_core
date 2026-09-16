@@ -3473,4 +3473,55 @@ PROVISIONAL_ENDPOINTS: dict[str, dict[str, Any]] = {
 			),
 		],
 	},
+	"webhook": {
+		"module": "api.v1.logistics_webhook",
+		"label": "Taşıyıcı webhook alıcısı (inbound tracking push)",
+		"owner": "09-BE",
+		"source_doc": "LOJISTIK-WEBHOOK-SPEC.md",
+		"endpoints": [
+			_ep(
+				"receive_carrier_webhook",
+				params=(
+					_p(
+						"account",
+						"str",
+						True,
+						"Carrier Account docname — URL'de opak referans; asıl kapı HMAC",
+					),
+				),
+				# ⚠ ZARF-DIŞI uç: `errors` BİLİNÇLİ boş. Diğer uçların
+				# `logistics_endpoint` zarfı (ok/error_code/message) burada
+				# KULLANILMAZ — yapılandırılmış hata kodu döndürmek, hangi ret
+				# sebebinin gerçekleştiğini dışarı sızdırır (enumeration yüzeyi).
+				# Tüm ret yolları bayt-bayt aynı jenerik HTTP yanıtıdır:
+				#   200 {"ok": true}   kabul / duplicate / kimlikli-işlenemez
+				#   401 {"ok": false}  imza/hesap/secret/flag AYRIŞTIRILAMAZ
+				#   413                gövde > MAX_WEBHOOK_BODY_BYTES
+				#   429                IP rate limit
+				returns={"shape": "custom", "fields": ["ok"]},
+				errors=(),
+				guards=(
+					"GUEST uç (allow_guest=True) — çağıran taşıyıcı sunucusudur, oturum yok; "
+					"kimlik kanıtı `X-Webhook-Signature: sha256=<hex(HMAC-SHA256(webhook_secret, "
+					"raw_body))>` başlığıdır, karşılaştırma hmac.compare_digest ile (sabit zaman).",
+					"Gövde ham taşıyıcı payload'ıdır (≤ MAX_WEBHOOK_BODY_BYTES), form parametresi "
+					"DEĞİL — imza ham baytlar üzerinden doğrulanır. Boyut kontrolü imza "
+					"HESAPLANMADAN önce (413).",
+					"Bilinmeyen hesap / is_active=0 / webhook_secret boş / carrier_webhook_enabled=0 "
+					"→ imza hatasıyla AYNI jenerik 401; iç exception'lar da maskeli loglanıp aynı "
+					"401'e düşer (W2) — hiçbir ret yolu ayrıştırılamaz.",
+					"Aynı ham gövde WEBHOOK_DEDUPE_TTL_SECONDS (48 saat) içinde ikinci kez → 200 "
+					"ama ikinci işleme job'u YOK (Redis dedupe, W4).",
+					"IP-kovası rate limit (600/60sn, key parametresiz — W3); doğrulama sonrası "
+					"işleme frappe.enqueue ile asenkron, taşıyıcı yanıt için işlemeyi BEKLEMEZ.",
+				),
+				note=(
+					"Kimliği doğrulanmış ama işlenemeyen event (eşleşmeyen kod, adapter'sız "
+					"carrier) yine 200 alır — retry fırtınası önleme; hata job'da loglanır. "
+					"Mock gövde şeması: {tracking_number, status_code, status_text, event_time, "
+					"location?}."
+				),
+			),
+		],
+	},
 }
