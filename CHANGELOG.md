@@ -1,3 +1,14 @@
+## [v1.14.2-alpha.1] - 2026-09-16 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Duzeltildi
+- fix(para-birimi): desteklenmeyen para birimi önerisi USD'ye düşürüldü (@aliiball)
+  - COUNTRY_CURRENCY_MAP, SupportedCurrency'de tanımlı olmayan bir koda işaret edebiliyordu (GB'den GBP, CN/HK/TW'den CNY). Ön yüz o kodun ne kurunu ne sembolünü bulabildiği için kullanıcı, seçicide hiç görünmeyen bir para birimine kilitleniyor ve seçimini kendisi düzeltemiyordu.
+  - Harita bilerek olduğu gibi bırakıldı: para birimi ileride tanımlanırsa eşleme kendiliğinden devreye girsin.
+  - Birim testi sözleşmeyi koruyor: haritadaki her ülke, desteklenen bir kod döndürmeli.
+
+---
 ## [v1.14.2] - 2026-09-15 PROD
 
 Bu surum istoc.cronbi.com'da yayindadir.
