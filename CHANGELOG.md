@@ -1,3 +1,16 @@
+## [v1.14.2-alpha.3] - 2026-09-16 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(katalog): kategori adları için çok dilli çeviri hattı eklendi (@aliiball)
+  - 23.511 aktif kategorinin category_name_en/ar/ru sütunları tamamen boştu; arayüz dört dilde çalışırken kategori adları her dilde Türkçe görünüyordu.
+  - İki giriş noktası, tek yazma yolu: apply_name_seed hazır sözlükten, backfill_names Translation Settings sağlayıcısından yazar. İkisi de idempotent, dolu alanın üzerine yazmaz.
+  - Sözlük tohumu 801 kayıt: menünün üst iki seviyesindeki adlar en/ar/ru olarak çevrildi, katalogda 868 kategoriyi dolduruyor.
+  - Collation tuzağı: MariaDB utf8mb4_general_ci altında c ile ç eşit sayılıyor, aday sorgusu 'Saç Şekillendirme' ile 'Sac Şekillendirme' kayıtlarını birlikte getiriyor. Karşılık bu yüzden SQL'den değil Python sözlüğünden birebir okunuyor; aksi hâlde metal kategorisine 'Hair Styling' yazılırdı.
+  - 16 birim testi: tohum davranışı, stub koruması, kota-stub'ı, bilinmeyen dil ayrımı, tohum dosyası bütünlüğü ve collation tuzağı.
+
+---
 ## [v1.14.2-alpha.2] - 2026-09-16 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
