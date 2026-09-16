@@ -4,6 +4,8 @@
 """Store Subscription — BE-1 testleri: geçiş matrisi + iptal bayrağı kuralları +
 renewal reminder sıfırlama + R1'li current_period_end backfill patch'i.
 BE-3 (AC-8) eki: cancel_requested_at dönem sonu finalize'ında korunur (tarihsel iz).
+K2+M2 eki: merkezi vitrin senkronu — operasyonel→non-operasyonel geçişte hide,
+non-operasyonel→active geçişte restore enqueue (expired/canceled dahil).
 
 Çalıştırma:
 	docker exec istoc-dev-backend-1 bench --site istoc.localhost run-tests \\
@@ -20,7 +22,7 @@ from frappe.tests.utils import FrappeTestCase
 from frappe.utils import add_days, add_months, get_datetime, now_datetime
 
 from tradehub_core.patches.v15_backfill_current_period_end import execute as run_backfill
-from tradehub_core.services.storefront_visibility import restore_store_listings
+from tradehub_core.services.storefront_visibility import hide_store_listings, restore_store_listings
 
 _USER_EMAIL = "stsub-test-owner@example.com"
 _STORE_PREFIX = "STSUBTEST-"
@@ -217,6 +219,9 @@ class TestStoreSubscription(FrappeTestCase):
 	def _restore_calls(self, calls: list[dict]) -> list[dict]:
 		return [c for c in calls if c["method"] is restore_store_listings]
 
+	def _hide_calls(self, calls: list[dict]) -> list[dict]:
+		return [c for c in calls if c["method"] is hide_store_listings]
+
 	def test_suspended_to_expired_allowed(self):
 		"""AC-7: suspended→expired geçişi state machine'e eklendi (T+30 dunning feshi)."""
 		sub = self._make_sub("S1")
@@ -373,6 +378,106 @@ class TestStoreSubscription(FrappeTestCase):
 			sub.cancellation_note = "hala suspended"
 			sub.save(ignore_permissions=True)
 		self.assertEqual(self._restore_calls(calls), [])
+
+	# --- K2 + M2: merkezi vitrin senkronu (operasyonel ↔ non-operasyonel) ---
+
+	def test_hide_enqueued_on_active_to_canceled(self):
+		"""K2: iptal (hesap silme / dönem-sonu finalize yolu) vitrini KAPATIR."""
+		sub = self._make_sub("V1")
+		with self._patched_enqueue() as calls:
+			sub.status = "canceled"
+			sub.save(ignore_permissions=True)
+		hide_calls = self._hide_calls(calls)
+		self.assertEqual(len(hide_calls), 1)
+		kwargs = hide_calls[0]["kwargs"]
+		self.assertEqual(kwargs.get("store"), sub.store)
+		self.assertEqual(kwargs.get("queue"), "long")
+		self.assertTrue(kwargs.get("enqueue_after_commit"))
+
+	def test_hide_enqueued_on_active_to_expired(self):
+		"""K2: dönem bitişi feshi (expire_paid_periods yolu) vitrini KAPATIR."""
+		sub = self._make_sub("V2")
+		with self._patched_enqueue() as calls:
+			sub.status = "expired"
+			sub.save(ignore_permissions=True)
+		self.assertEqual(len(self._hide_calls(calls)), 1)
+
+	def test_hide_enqueued_on_trial_to_expired(self):
+		"""K2: trial bitişi vitrini KAPATIR (expire_trials yolu)."""
+		sub = self._make_sub("V3", status="trial", trial_end=add_days(now_datetime(), -1))
+		with self._patched_enqueue() as calls:
+			sub.status = "expired"
+			sub.save(ignore_permissions=True)
+		self.assertEqual(len(self._hide_calls(calls)), 1)
+
+	def test_hide_enqueued_on_past_due_to_suspended(self):
+		"""Merkezileşme: dunning suspend geçişi controller'dan da hide enqueue eder
+		(job'ın kendi enqueue'su ayrıca kalır — hide idempotent, çift enqueue zararsız)."""
+		sub = self._make_sub("V4")
+		sub.status = "past_due"
+		sub.save(ignore_permissions=True)
+		sub.reload()
+		with self._patched_enqueue() as calls:
+			sub.status = "suspended"
+			sub.save(ignore_permissions=True)
+		self.assertEqual(len(self._hide_calls(calls)), 1)
+
+	def test_no_hide_enqueue_on_suspended_to_expired(self):
+		"""Non-op → non-op (T+30 dunning feshi): vitrin zaten kapalı, enqueue YOK."""
+		sub = self._make_sub("V5")
+		sub.status = "suspended"
+		sub.save(ignore_permissions=True)
+		sub.reload()
+		with self._patched_enqueue() as calls:
+			sub.status = "expired"
+			sub.save(ignore_permissions=True)
+		self.assertEqual(self._hide_calls(calls), [])
+		self.assertEqual(self._restore_calls(calls), [])
+
+	def test_restore_enqueued_on_expired_to_active(self):
+		"""M2 ANA VAKA: dunning-expire sonrası ödeme (expired→active) vitrini GERİ AÇAR."""
+		sub = self._make_sub("V6")
+		sub.status = "expired"
+		sub.save(ignore_permissions=True)
+		sub.reload()
+		with self._patched_enqueue() as calls:
+			sub.status = "active"
+			sub.save(ignore_permissions=True)
+		restore_calls = self._restore_calls(calls)
+		self.assertEqual(len(restore_calls), 1)
+		kwargs = restore_calls[0]["kwargs"]
+		self.assertEqual(kwargs.get("store"), sub.store)
+		self.assertEqual(kwargs.get("queue"), "long")
+		self.assertTrue(kwargs.get("enqueue_after_commit"))
+
+	def test_restore_enqueued_on_canceled_to_active(self):
+		"""M2: reaktivasyon (canceled→active, AC-14) vitrini GERİ AÇAR."""
+		sub = self._make_sub("V7")
+		sub.status = "canceled"
+		sub.save(ignore_permissions=True)
+		sub.reload()
+		with self._patched_enqueue() as calls:
+			sub.status = "active"
+			sub.save(ignore_permissions=True)
+		self.assertEqual(len(self._restore_calls(calls)), 1)
+
+	def test_no_enqueue_on_trial_to_active(self):
+		"""Operasyonel-içi geçiş: vitrin hiç kapanmadı → restore da hide da enqueue edilmez."""
+		sub = self._make_sub("V8", status="trial", trial_end=add_days(now_datetime(), 7))
+		with self._patched_enqueue() as calls:
+			sub.status = "active"
+			sub.save(ignore_permissions=True)
+		self.assertEqual(self._restore_calls(calls), [])
+		self.assertEqual(self._hide_calls(calls), [])
+
+	def test_no_enqueue_on_active_to_past_due(self):
+		"""Operasyonel-içi geçiş (hoşgörü penceresi): vitrin AÇIK kalır, enqueue YOK."""
+		sub = self._make_sub("V9")
+		with self._patched_enqueue() as calls:
+			sub.status = "past_due"
+			sub.save(ignore_permissions=True)
+		self.assertEqual(self._restore_calls(calls), [])
+		self.assertEqual(self._hide_calls(calls), [])
 
 	# --- backfill patch (R1) ---
 

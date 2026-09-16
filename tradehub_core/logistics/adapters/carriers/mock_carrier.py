@@ -6,7 +6,11 @@
 from __future__ import annotations
 
 import hashlib
+import json
+from collections.abc import Mapping
 from typing import Any
+
+from frappe import _
 
 from tradehub_core.logistics.adapters.base import (
 	BaseCarrierAdapter,
@@ -18,6 +22,15 @@ from tradehub_core.logistics.adapters.base import (
 	ShipmentResponse,
 	TrackingEvent,
 	TrackingResponse,
+)
+from tradehub_core.logistics.exceptions import CarrierAPIError
+
+# Mock webhook semasindaki zorunlu alanlar (spec: shared_contracts.body).
+_WEBHOOK_REQUIRED_FIELDS: tuple[str, ...] = (
+	"tracking_number",
+	"status_code",
+	"status_text",
+	"event_time",
 )
 
 
@@ -172,3 +185,64 @@ class MockCarrierAdapter(BaseCarrierAdapter):
 			"status": "CONFIRMED",
 			"mock": True,
 		}
+
+	# -------------------------------------------------------------------
+	# Webhook metotlari (09-BE webhook dilimi — AC-12)
+	# -------------------------------------------------------------------
+
+	def verify_webhook_signature(self, raw_body: bytes, headers: Mapping[str, str], secret: str) -> bool:
+		"""Mock imza dogrulamasi — platform default HMAC-SHA256 semasi.
+
+		BILEREK base default'una delege eder: e2e testler boylece endpoint'in
+		adapter'siz fallback'iyle AYNI saf fonksiyonu (W1) egzersiz eder.
+		Ozel sema ornegi degildir; ozel sema gercek adapter'larda override edilir.
+		"""
+		return super().verify_webhook_signature(raw_body, headers, secret)
+
+	def parse_webhook(self, raw_body: bytes, headers: Mapping[str, str]) -> list[TrackingEvent]:
+		"""Mock webhook govdesini TrackingEvent listesine cevir.
+
+		Beklenen sema (spec shared_contracts.body):
+		``{tracking_number, status_code, status_text, event_time, location?}``
+		— tek obje veya obje listesi. Bozuk JSON / eksik alan CarrierAPIError
+		(tasiyici bize gecersiz payload gonderdi — job tarafi loglar).
+		"""
+		self._check_capability(CarrierCapability.WEBHOOK)
+
+		try:
+			payload: Any = json.loads(bytes(raw_body).decode("utf-8"))
+		except (UnicodeDecodeError, ValueError) as exc:
+			raise CarrierAPIError(_("Mock webhook govdesi gecerli JSON degil: {0}").format(exc)) from exc
+
+		if isinstance(payload, dict):
+			raw_events: list[Any] = [payload]
+		elif isinstance(payload, list):
+			raw_events = payload
+		else:
+			raise CarrierAPIError(
+				_("Mock webhook govdesi obje veya obje listesi olmali, {0} geldi.").format(
+					type(payload).__name__
+				)
+			)
+
+		events: list[TrackingEvent] = []
+		for raw_event in raw_events:
+			if not isinstance(raw_event, dict):
+				raise CarrierAPIError(
+					_("Mock webhook event kaydi obje olmali, {0} geldi.").format(type(raw_event).__name__)
+				)
+			missing: list[str] = [key for key in _WEBHOOK_REQUIRED_FIELDS if not raw_event.get(key)]
+			if missing:
+				raise CarrierAPIError(
+					_("Mock webhook event kaydinda zorunlu alan(lar) eksik: {0}").format(", ".join(missing))
+				)
+			events.append(
+				TrackingEvent(
+					timestamp=str(raw_event["event_time"]),
+					status=str(raw_event["status_code"]),
+					description=str(raw_event["status_text"]),
+					location=raw_event.get("location"),
+					raw=raw_event,
+				)
+			)
+		return events

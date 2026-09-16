@@ -255,6 +255,11 @@ LOGISTICS_FEATURE_FLAGS: dict[str, bool] = {
 	"multi_leg_enabled": False,
 	"cost_estimation_enabled": False,
 	"webhook_notifications_enabled": False,
+	# Inbound carrier webhook ucu (09-BE webhook dilimi). Mevcut
+	# `webhook_notifications_enabled` GIDEN bildirimlerin flag'i — adi
+	# yaniltici oldugu icin YENIDEN KULLANILMADI, gelen taraf ayri flag
+	# (flag enflasyonu itirazi Bora'ya sunuldu, spec risks listesi).
+	"carrier_webhook_enabled": False,
 	"return_flow_enabled": False,
 	"seller_delivery_enabled": False,
 	"buyer_pickup_enabled": False,
@@ -327,6 +332,32 @@ INTEGRATION_LOG_DIRECTION_ORDER: tuple[str, ...] = ("outbound", "inbound")
 # 30 gun: bir olayin fark edilip incelenmesi icin en az bir aylik pencere
 # birakir; ust sinir YOK (saklamayi uzatmak guvenli tarafta).
 MIN_INTEGRATION_LOG_RETENTION_DAYS: int = 30
+
+
+# ---------------------------------------------------------------------------
+# Carrier webhook alicisi — sabitler (09-BE webhook dilimi)
+# ---------------------------------------------------------------------------
+
+# Guest webhook ucunun kabul ettigi en buyuk ham govde (bayt). Imza
+# HESAPLANMADAN once kontrol edilir (AC-5): once dogrulayip sonra boyuta
+# bakmak, saldirgana bedava HMAC hesabi yaptirmak olurdu. Asilirsa 413.
+# 128 KB, taniiyici push payload'lari icin comert bir ust sinir; log
+# katmaninin 64 KB kirpma davranisindan BILEREK buyuk — kirpma loglama
+# sorunu, kabul siniri guvenlik sorunu.
+MAX_WEBHOOK_BODY_BYTES: int = 131072
+
+# Ayni ham govdenin Redis dedupe kaydinin TTL'i — 48 saat (W4: AC-7'deki
+# "48 saat" bu sabitle okunur, saniye degil). Tasiyicilarin retry
+# pencereleri tipik 24-72 saat; 48 saat retry firtinasini yutar, uc katmanli
+# idempotency'nin ilk katmanidir (digerleri: transition no-op + event_hash
+# unique — TTL dolsa bile onlar tutar).
+WEBHOOK_DEDUPE_TTL_SECONDS: int = 172800
+
+# Imza basligi ve deger oneki. Deger bicimi: "sha256=<hex(HMAC-SHA256)>".
+# Onek, ileride farkli algoritma/versiyon gerektiginde ("sha512=..." gibi)
+# istemciyi kirmadan ayirt etmeye yarar — GitHub webhook konvansiyonu.
+WEBHOOK_SIGNATURE_HEADER: str = "X-Webhook-Signature"
+WEBHOOK_SIGNATURE_PREFIX: str = "sha256="
 
 
 # ---------------------------------------------------------------------------

@@ -23,6 +23,15 @@ list_my_subscription_payments (AC-6):
     (store yanıtta YOK).
   - Rate limit kovası session user'a bağlı (proje decorator'ı, scope ayrı).
 
+confirm/reject TOCTOU (M1):
+  - Kayıt işlem başında frappe.get_doc(..., for_update=True) ile kilitlenir
+    (SELECT ... FOR UPDATE — rfq.py emsali); kilit SONRASI status re-check.
+  - Yarışın stub'da temsil edilebilir kısmı: ikinci confirm kilitte bekledikten
+    sonra 'confirmed' görür → ValidationError (Frappe'de HTTP 417); save ve
+    upgrade_subscription_plan HİÇ çağrılmaz (çift aktivasyon/dönem uzatması yok).
+  - Gerçek kilit semantiği (bekleme) DB gerektirir — burada yalnız for_update
+    çağrısının yapıldığı ve kilit-sonrası re-check'in 417 attığı assert edilir.
+
     cd apps/tradehub_core && python -m unittest tradehub_core.tests.test_subscription_payment_requests
 """
 
@@ -88,6 +97,10 @@ def _reset_state() -> None:
 			"notifications": [],
 			"audits": [],
 			"commits": 0,
+			# M1 — get_doc çağrı izi: (doctype, name, for_update) [yalnız Subscription Payment]
+			"get_doc_calls": [],
+			# M1 — sp.upgrade_subscription_plan monkeypatch kayıtları (kwargs)
+			"upgrades": [],
 		}
 	)
 	frappe = sys.modules.get("frappe")
@@ -216,6 +229,13 @@ def _install_frappe_stub() -> None:
 	frappe.get_roles = lambda u=None: list(_STATE["roles"])
 	frappe.log_error = lambda *a, **k: None
 
+	def _only_for(roles, message=None):
+		allowed = {roles} if isinstance(roles, str) else set(roles)
+		if not allowed & set(_STATE["roles"]):
+			raise _PermissionError(f"only_for: {sorted(allowed)}")
+
+	frappe.only_for = _only_for
+
 	def _get_value(doctype, name=None, fieldname=None, as_dict=False, **kw):
 		if doctype == "User":
 			return _NSDict(tradehub_tenant=_STATE["tenant"], tradehub_is_owner=_STATE["is_owner"])
@@ -239,10 +259,12 @@ def _install_frappe_stub() -> None:
 		commit=_commit,
 	)
 
-	def _get_doc(doctype, name=None):
+	def _get_doc(doctype, name=None, **kw):
 		if doctype == "Subscription Plan":
 			return _NSDict(**_STATE["plans"][name])
 		if doctype == "Subscription Payment":
+			# M1 — çağrı şekli izi: confirm/reject kilidi for_update=True geçmeli.
+			_STATE["get_doc_calls"].append((doctype, name, bool(kw.get("for_update", False))))
 			pending = _STATE["pending_payment"] or {}
 			d = _Doc(_doctype=doctype, flags=SimpleNamespace(), **pending)
 			_STATE["last_payment_doc"] = d
@@ -528,6 +550,88 @@ class TestListScopingAndContract(unittest.TestCase):
 		self.assertEqual(len(keys), 1, "Uç kendi scope'unda tek kovada saymalı")
 		self.assertIn("owner@test", keys[0], "Kova kimliği session user'dan türemeli")
 		self.assertEqual(_rl_cache().counts[keys[0]], 2)
+
+
+class TestConfirmRejectRace(unittest.TestCase):
+	"""M1 — confirm/reject TOCTOU: satır kilidi (for_update) + kilit-sonrası re-check.
+
+	Gerçek beklemeli kilit DB gerektirir; stub'da temsil edilebilir kısım:
+	(1) get_doc çağrısı for_update=True ile yapılır, (2) kilit-sonrası okunan
+	status 'pending' değilse 417 (ValidationError) — save/upgrade HİÇ koşmaz.
+	"""
+
+	def setUp(self):
+		_reset_state()
+		_as_platform_admin()
+		_STATE["pending_payment"] = _pending()
+		# Gerçek aktivasyon akışı ayrı modülün işi — burada yalnız "çağrıldı mı
+		# ve hangi argümanlarla" izlenir (çift aktivasyon assert'i için).
+		self._orig_upgrade = sp.upgrade_subscription_plan
+		sp.upgrade_subscription_plan = lambda **kw: _STATE["upgrades"].append(kw)
+
+	def tearDown(self):
+		sp.upgrade_subscription_plan = self._orig_upgrade
+
+	def test_confirm_locks_row_with_for_update(self):
+		out = sp.confirm_subscription_payment(payment="SUBPAY-1")
+		self.assertEqual(
+			_STATE["get_doc_calls"],
+			[("Subscription Payment", "SUBPAY-1", True)],
+			"Kayıt işlem başında SELECT ... FOR UPDATE ile kilitlenmeli (M1)",
+		)
+		doc = _STATE["last_payment_doc"]
+		self.assertEqual(doc.status, "confirmed")
+		self.assertEqual(doc.confirmed_at, _NOW)
+		self.assertEqual(
+			_STATE["saved"], [("save", "Subscription Payment")], "Statü doc.save ÜZERİNDEN yazılmalı"
+		)
+		self.assertEqual(len(_STATE["upgrades"]), 1)
+		up = _STATE["upgrades"][0]
+		self.assertEqual(up["new_plan"], "PRO")
+		self.assertEqual(up["tenant"], "SELLER-A")
+		self.assertEqual(up["billing_cycle"], "yearly")
+		self.assertTrue(out["ok"])
+
+	def test_second_confirm_after_lock_release_gets_417(self):
+		# Yarış temsili: ilk confirm commit etti; ikinci confirm kilitte bekledi,
+		# kilitli yeniden-okuma 'confirmed' görür → 417, aktivasyon TEKRARLANMAZ.
+		_STATE["pending_payment"] = _pending(status="confirmed")
+		with self.assertRaises(_ValidationError) as ctx:
+			sp.confirm_subscription_payment(payment="SUBPAY-1")
+		self.assertIn("zaten işlenmiş", str(ctx.exception))
+		self.assertEqual(
+			_STATE["get_doc_calls"],
+			[("Subscription Payment", "SUBPAY-1", True)],
+			"417 yolunda da okuma kilitli olmalı (kilit → re-check sırası)",
+		)
+		self.assertEqual(_STATE["saved"], [], "417'de save YOK")
+		self.assertEqual(_STATE["upgrades"], [], "Çift aktivasyon/dönem uzatması OLMAMALI")
+		self.assertEqual(_STATE["notifications"], [])
+
+	def test_reject_locks_row_with_for_update(self):
+		out = sp.reject_subscription_payment(payment="SUBPAY-1", reason="Havale bulunamadı")
+		self.assertEqual(_STATE["get_doc_calls"], [("Subscription Payment", "SUBPAY-1", True)])
+		doc = _STATE["last_payment_doc"]
+		self.assertEqual(doc.status, "rejected")
+		self.assertEqual(doc.rejection_reason, "Havale bulunamadı")
+		self.assertEqual(_STATE["saved"], [("save", "Subscription Payment")])
+		self.assertEqual(_STATE["upgrades"], [], "Reject aktivasyon çağırmaz")
+		self.assertTrue(out["ok"])
+
+	def test_reject_after_confirm_gets_417(self):
+		# confirm↔reject yarışı: geç gelen reject kilit-sonrası 'confirmed' görür.
+		_STATE["pending_payment"] = _pending(status="confirmed")
+		with self.assertRaises(_ValidationError):
+			sp.reject_subscription_payment(payment="SUBPAY-1", reason="x")
+		self.assertEqual(_STATE["saved"], [], "Onaylanmış ödeme reddedilEMEZ")
+		self.assertEqual(_STATE["notifications"], [])
+
+	def test_non_admin_confirm_denied(self):
+		_as_owner()
+		with self.assertRaises(_PermissionError):
+			sp.confirm_subscription_payment(payment="SUBPAY-1")
+		self.assertEqual(_STATE["get_doc_calls"], [], "Yetkisizde kayıt HİÇ okunmaz/kilitlenmez")
+		self.assertEqual(_STATE["upgrades"], [])
 
 
 if __name__ == "__main__":

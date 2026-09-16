@@ -7,11 +7,13 @@ from __future__ import annotations
 
 import abc
 import enum
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
 from frappe import _
 
+from tradehub_core.logistics.adapters.signature import verify_hmac_signature
 from tradehub_core.logistics.exceptions import CarrierCapabilityError
 
 
@@ -122,6 +124,15 @@ class BaseCarrierAdapter(abc.ABC):
 	name: str = ""
 	display_name: str = ""
 
+	# Webhook imza semasi (default: platform HMAC-SHA256 semasi).
+	# Ozel imza semali tasiyicilar bu attribute'lari VEYA
+	# `verify_webhook_signature`'in kendisini override eder.
+	# NOT: Kanonik sabitler `logistics/constants.py`'de (BE-1) — endpoint
+	# fallback'i oradan okur; buradakiler adapter-bazli override noktasidir
+	# ve default'ta ayni degerlerdir (W1).
+	webhook_signature_header: str = "X-Webhook-Signature"
+	webhook_signature_prefix: str = "sha256="
+
 	def __init__(
 		self,
 		credential_doc: dict[str, Any] | None = None,
@@ -175,6 +186,44 @@ class BaseCarrierAdapter(abc.ABC):
 		"""Kurye cagrisi planla."""
 		raise CarrierCapabilityError(
 			_("{0} adapteri kurye cagrisini desteklemiyor.").format(self.display_name)
+		)
+
+	# -------------------------------------------------------------------
+	# Webhook metotlari (09-BE webhook dilimi — AC-12)
+	# -------------------------------------------------------------------
+
+	def verify_webhook_signature(self, raw_body: bytes, headers: Mapping[str, str], secret: str) -> bool:
+		"""Inbound webhook imzasini dogrula (default: HMAC-SHA256).
+
+		Default implementasyon `webhook_signature_header` basligini headers
+		Mapping'inden BUYUK/KUCUK HARF DUYARSIZ okur (HTTP basliklari proxy
+		katmanlarinda normalize gelebilir) ve W1'in saf helper'ina
+		(`signature.verify_hmac_signature`) delege eder — endpoint'in
+		adapter'siz fallback yoluyla AYNI fonksiyon.
+
+		Ozel imza semali tasiyicilar bu metodu override eder.
+		Asla exception firlatmaz; dogrulanamayan her istek False'tur.
+		"""
+		signature_header: str | None = None
+		if headers:
+			target: str = self.webhook_signature_header.lower()
+			for key, value in headers.items():
+				if isinstance(key, str) and key.lower() == target:
+					signature_header = value
+					break
+		return verify_hmac_signature(raw_body, signature_header, secret, prefix=self.webhook_signature_prefix)
+
+	def parse_webhook(self, raw_body: bytes, headers: Mapping[str, str]) -> list[TrackingEvent]:
+		"""Inbound webhook govdesini TrackingEvent listesine cevir.
+
+		Opsiyonel metot — default'u once WEBHOOK capability kontrolu yapar
+		(cancel_shipment vb. ile ayni desen), capability bildirilmis ama
+		metot override edilmemisse yine CarrierCapabilityError firlatir
+		(AC-11: job tarafinda CAPABILITY_UNSUPPORTED'a cevrilir).
+		"""
+		self._check_capability(CarrierCapability.WEBHOOK)
+		raise CarrierCapabilityError(
+			_("{0} adapteri webhook ayristirmayi desteklemiyor.").format(self.display_name)
 		)
 
 	# -------------------------------------------------------------------
