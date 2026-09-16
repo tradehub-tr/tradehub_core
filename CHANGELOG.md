@@ -1,3 +1,17 @@
+## [v1.14.2-alpha.2] - 2026-09-16 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(lojistik): carrier webhook alıcısı — HMAC imzalı inbound tracking (09-BE son dilim) (@boraydeger32)
+  - YENİ api/v1/logistics_webhook.py: guest uç; HMAC-SHA256 (compare_digest), TÜM ret yolları bayt-eşit jenerik 401 (enumeration'a kapalı), 413 boyut kapısı (imza hesaplanmadan), IP-bazlı rate limit (600/60sn), 48 saatlik Redis dedupe (işaret enqueue-sonrası — retry kaybı önlenir), maskeli inbound log, queue='short' asenkron işleme
+  - YENİ adapters/signature.py: saf (stdlib-only) HMAC doğrulama — adapter default'u ve endpoint fallback'i aynı fonksiyonda; adapter sözleşmesine verify_webhook_signature + parse_webhook eklendi (mock implementasyonlu)
+  - tracking_service.process_webhook_event: parse → Carrier Status Mapping → tenant guard (cross-tenant event işlenmez) → transition_status(Webhook); hata kodlarıyla izlenebilir (STATUS_UNMAPPED/CAPABILITY_UNSUPPORTED/...)
+  - Sözleşme/sabitler contract.py+constants.py'da; gen_logistics_types --sync ile 3 repo senkron; carrier_webhook_enabled flag'i KAPALI gelir (uç, flag açılana kadar 401 döner — deploy güvenli)
+  - Test bulgusu kapatıldı: enqueue'ya imza-dışı kwarg gerçek worker'da her job'u öldürürdü (testlerde görünmez) — kwarg kaldırıldı
+  - 49 yeni test (16 e2e + 33 adapter); integration log 331/331 regresyonsuz
+
+---
 ## [v1.14.2-alpha.1] - 2026-09-16 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
