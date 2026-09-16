@@ -49,6 +49,15 @@ def get_currency_settings():
 	detected_country = _detect_country()
 	default_currency = COUNTRY_CURRENCY_MAP.get(detected_country, "USD")
 
+	# COUNTRY_CURRENCY_MAP, Supported Currency'de TANIMLI OLMAYAN bir koda
+	# işaret edebilir (bugün GB→GBP ve CN/HK/TW→CNY böyle). O kod ön yüze
+	# giderse ne kuru ne sembolü bulunur; seçicide görünmediği için kullanıcı
+	# seçimini düzeltemez de. Desteklenmeyen kodu USD'ye düşürüyoruz. Harita
+	# olduğu gibi kalıyor: para birimi ileride tanımlanırsa kendiliğinden
+	# devreye girer.
+	if default_currency not in {c.get("code") for c in currencies}:
+		default_currency = "USD"
+
 	return {
 		"currencies": currencies,
 		"rates": rates,
