@@ -1,3 +1,15 @@
+## [v1.14.2-alpha.4] - 2026-09-18 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(medya): AVIF teslimini ve backfill akışını aç (@ahmeetseker)
+  - Medya pipeline varsayılanlarını açıp tüm slotları AVIF teslimine taşı
+  - Eski public görseller için checkpointli rendition backfill işi ekle
+  - Kütüphane görsellerini kapsama alıp manifestte gerçek boyutları döndür
+  - Satış ekiplerini yönetmek için admin API ve rol atama akışı ekle
+
+---
 ## [v1.14.2-alpha.3] - 2026-09-16 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
