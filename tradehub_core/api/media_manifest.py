@@ -415,7 +415,7 @@ def manifest_batch(file_urls: list | str | None = None) -> dict:
 	dosyalar = frappe.get_list(
 		"File",
 		or_filters=[["name", "in", istenen], ["file_url", "in", istenen]],
-		fields=["name", "file_url"],
+		fields=["name", "file_url", "content_hash", "is_private"],
 		limit_page_length=0,
 	)
 	ada_gore = {d["name"]: d for d in dosyalar}
@@ -510,6 +510,24 @@ def _mukerrer_dosya_koprusu(dosyalar: Sequence[Mapping[str, Any]]) -> dict[str, 
 			limit_page_length=0,
 		):
 			kopru.setdefault(satir["file_url"], []).append(satir["name"])
+	# Eski ithalatlarda aynı içerik farklı URL'lerde de tutulabiliyor.
+	# Asset içerik+satıcı bazında tekildir; public File ikizlerini birleştir.
+	# Varlık sorgusunun get_list izin süzgeci aşağıda aynen korunur.
+	hash_targets: dict[str, set[str]] = {}
+	for dosya in dosyalar:
+		if dosya.get("content_hash") and not dosya.get("is_private"):
+			hash_targets.setdefault(str(dosya["content_hash"]), set()).add(_dosya_anahtari(dosya))
+	if hash_targets:
+		for satir in frappe.get_all(
+			"File",
+			filters={"content_hash": ["in", sorted(hash_targets)], "is_private": 0},
+			fields=["name", "content_hash"],
+			limit_page_length=0,
+		):
+			for key in hash_targets.get(satir["content_hash"], ()):
+				group = kopru.setdefault(key, [])
+				if satir["name"] not in group:
+					group.append(satir["name"])
 	# Emniyet: çözülen satırın kendisi her koşulda köprüde kalsın.
 	for dosya in dosyalar:
 		anahtar = _dosya_anahtari(dosya)
@@ -533,10 +551,10 @@ def _dosya_varliklari(kopru: Mapping[str, Sequence[str]]) -> dict[str, list[dict
 	bağlı olduğu docname, kullanıcının verdiği docname olmayabilir
 	(mükerrer File satırları — `_mukerrer_dosya_koprusu`).
 	"""
-	anahtar_of: dict[str, str] = {}
+	anahtar_of: dict[str, set[str]] = {}
 	for anahtar, adlar in kopru.items():
 		for ad in adlar:
-			anahtar_of[str(ad)] = anahtar
+			anahtar_of.setdefault(str(ad), set()).add(anahtar)
 	if not anahtar_of:
 		return {}
 	cikti: dict[str, list[dict[str, Any]]] = {}
@@ -547,12 +565,10 @@ def _dosya_varliklari(kopru: Mapping[str, Sequence[str]]) -> dict[str, list[dict
 		order_by="creation desc",
 		limit_page_length=0,
 	):
-		anahtar = anahtar_of.get(satir["source_file"])
-		if anahtar is None:
-			continue
-		grup = cikti.setdefault(anahtar, [])
-		if len(grup) < FILE_BATCH_ASSETS_PER_FILE:
-			grup.append(satir)
+		for anahtar in anahtar_of.get(satir["source_file"], ()):
+			grup = cikti.setdefault(anahtar, [])
+			if len(grup) < FILE_BATCH_ASSETS_PER_FILE:
+				grup.append(satir)
 	return cikti
 
 
@@ -663,11 +679,18 @@ class _CiftSuzgecliBuilder(manifest_mod.ManifestBuilder):
 
 	#: Servis edilebilir `(profil, biçim)` çiftleri — `Media Rendition` satırları.
 	servis_edilir: frozenset[tuple[str, str]] = frozenset()
+	actual_sizes: Mapping[tuple[str, str], tuple[int, int]] | None = None
 
 	def build_image(self, slot_key: str, base: ObjectRef, **kwargs: Any) -> RenderManifest:
 		man = super().build_image(slot_key, base, **kwargs)
 		varyantlar = tuple(
-			replace(v, available=(v.profile, v.fmt.lower()) in self.servis_edilir) for v in man.variants
+			replace(
+				v,
+				available=(v.profile, v.fmt.lower()) in self.servis_edilir,
+				width=(self.actual_sizes or {}).get((v.profile, v.fmt.lower()), (v.width, v.height))[0],
+				height=(self.actual_sizes or {}).get((v.profile, v.fmt.lower()), (v.width, v.height))[1],
+			)
+			for v in man.variants
 		)
 		uretilmis = [v for v in varyantlar if v.available]
 		if not uretilmis:
@@ -885,9 +908,7 @@ def _video_manifest_batch_icin(
 	cikti: dict[str, dict[str, Any]] = {}
 	for satir in satirlar:
 		ilan_acik = acik and pipeline_flags.is_store_enabled(satir.get("seller_profile"))
-		cikti[satir["name"]] = _tek_video_govdesi(
-			satir, slot_key, varliklar, turevler, surumler, ilan_acik
-		)
+		cikti[satir["name"]] = _tek_video_govdesi(satir, slot_key, varliklar, turevler, surumler, ilan_acik)
 	return cikti
 
 
@@ -1083,7 +1104,7 @@ def _render_manifest(
 	if base is None:
 		return None
 
-	builder = _CiftSuzgecliBuilder(url_for=url_for, servis_edilir=frozenset(adres))
+	builder = _CiftSuzgecliBuilder(url_for=url_for, servis_edilir=frozenset(adres), actual_sizes=olculer)
 	try:
 		man = builder.build_image(
 			slot_key,
@@ -1248,7 +1269,7 @@ def _gorunur_ilanlar(ilanlar: Sequence[str]) -> list[dict[str, Any]]:
 
 
 def _ilan_gorselleri(ilanlar: Sequence[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
-	"""İlan → sıralı görsel listesi. Galeri TEK sorguda okunur (N+1 yok).
+	"""İlan → galeri ve varyant görselleri; iki toplu sorgu (N+1 yok).
 
 	Sıra: önce `primary_image`, sonra `Listing Image.idx`. Birinci görsel LCP
 	adayıdır; sırayı bozmak `fetchpriority=high`ı yanlış görsele verir.
@@ -1267,6 +1288,26 @@ def _ilan_gorselleri(ilanlar: Sequence[dict[str, Any]]) -> dict[str, list[dict[s
 			ignore_permissions=True,
 		):
 			galeri.setdefault(satir["parent"], []).append(satir)
+		# Sepet ve varyant seçimi, ana galeride yer almayan fotoğrafları da
+		# gösterir. Yalnız görünür üst ilanların child satırları okunur.
+		for satir in frappe.get_all(
+			"Listing Variant Item",
+			filters={"parent": ["in", adlar], "parenttype": "Listing"},
+			fields=["parent", "variant_image", "variant_gallery"],
+			order_by="parent asc, idx asc",
+			limit_page_length=0,
+			ignore_permissions=True,
+		):
+			urls = [satir.get("variant_image")]
+			try:
+				extra = frappe.parse_json(satir.get("variant_gallery") or "[]")
+				if isinstance(extra, list):
+					urls.extend(url for url in extra if isinstance(url, str))
+			except (ValueError, TypeError):
+				pass
+			galeri.setdefault(satir["parent"], []).extend(
+				{"image": url} for url in urls if isinstance(url, str) and url.startswith("/files/")
+			)
 
 	cikti: dict[str, list[dict[str, Any]]] = {}
 	for ilan in ilanlar:

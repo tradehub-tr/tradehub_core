@@ -59,8 +59,8 @@
     {
       "name": "poster_192",
       "width": 192,
-      "formats": ["webp"],
-      "encoder_quality": {"webp": 80},
+      "formats": ["avif"],
+      "encoder_quality": {"avif": 88},
       "fit": "cover",
       "target_ratio": "1:1",
       "serves": ["galeri video karosu 70×70", "lightbox video karosu 76×76 (<960px'te 68×68)"],
@@ -70,8 +70,8 @@
     {
       "name": "poster_1024",
       "width": 1024,
-      "formats": ["avif", "webp"],
-      "encoder_quality": {"avif": 61, "webp": 80},
+      "formats": ["avif"],
+      "encoder_quality": {"avif": 61},
       "fit": "contain",
       "serves": ["masaüstü galeri video slaytının duran kare gösterimi", "mobil MediaViewer video slaytının poster'ı"],
       "derived_from": "hesap: masaüstü galeri kutusu ≥1536 viewport'ta 502 CSS px @2x = 1004 → üst basamak 1024. Kutu: docs/reports/03-render-envanteri.md §3.5",

@@ -138,6 +138,7 @@ scheduler_events = {
 		# paylaşırlar; ayrı periyot vermek backoff çözünürlüğünü iki işte iki
 		# farklı sayıya bağlardı.
 		"*/5 * * * *": [
+			"tradehub_core.media.rendition_backfill.enqueue_pending",
 			"tradehub_core.media.transcode.sweep_stuck_transcodes",
 			"tradehub_core.media.av.sweep_stuck_scans",
 			# T-133 (Şerit A) — metrik parçası yazımı. `after_request` yalnız WEB

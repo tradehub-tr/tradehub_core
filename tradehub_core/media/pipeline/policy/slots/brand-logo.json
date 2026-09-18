@@ -93,9 +93,10 @@
   }
  },
  "quality": {
-  "metric": "bit_exact",
-  "lossless_required": true,
-  "reason": "Logo düz renk + keskin kenar. Kayıplı encode halkalanma (ringing) üretir; SSIM bu artefaktı logoda güvenilir ölçmez.",
+  "metric": "ssim",
+  "lossless_required": false,
+  "target_ssim_per_class": {"photo": 0.99, "graphic": 0.99, "text": 0.99, "fine_detail": 0.99},
+  "reason": "Tek teslim biçimi AVIF. Grafik ve metin için q100 / 4:4:4 başlangıcı kullanılır; kayıpsızlık iddiası yerine SSIM ölçülür.",
   "reencode_floor_saving_ratio": null
  },
  "profiles": [
@@ -103,12 +104,8 @@
    "name": "w64",
    "width": 64,
    "height": 64,
-   "formats": [
-    "webp"
-   ],
-   "encoder_quality": {
-    "webp": "lossless"
-   },
+   "formats": ["avif"],
+   "encoder_quality": {"avif": 100},
    "fit": "pad",
    "target_ratio": "1:1",
    "pad_color": "transparent",
@@ -124,12 +121,8 @@
    "name": "w128",
    "width": 128,
    "height": 128,
-   "formats": [
-    "webp"
-   ],
-   "encoder_quality": {
-    "webp": "lossless"
-   },
+   "formats": ["avif"],
+   "encoder_quality": {"avif": 100},
    "fit": "pad",
    "target_ratio": "1:1",
    "pad_color": "transparent",
@@ -146,12 +139,8 @@
    "name": "w256",
    "width": 256,
    "height": 256,
-   "formats": [
-    "webp"
-   ],
-   "encoder_quality": {
-    "webp": "lossless"
-   },
+   "formats": ["avif"],
+   "encoder_quality": {"avif": 100},
    "fit": "pad",
    "target_ratio": "1:1",
    "pad_color": "transparent",
@@ -168,12 +157,8 @@
    "name": "w384",
    "width": 384,
    "height": 384,
-   "formats": [
-    "webp"
-   ],
-   "encoder_quality": {
-    "webp": "lossless"
-   },
+   "formats": ["avif"],
+   "encoder_quality": {"avif": 100},
    "fit": "pad",
    "target_ratio": "1:1",
    "pad_color": "transparent",
@@ -189,12 +174,8 @@
    "name": "w512",
    "width": 512,
    "height": 512,
-   "formats": [
-    "webp"
-   ],
-   "encoder_quality": {
-    "webp": "lossless"
-   },
+   "formats": ["avif"],
+   "encoder_quality": {"avif": 100},
    "fit": "pad",
    "target_ratio": "1:1",
    "pad_color": "transparent",
@@ -211,12 +192,8 @@
    "name": "og1200x630",
    "width": 1200,
    "height": 630,
-   "formats": [
-    "jpeg"
-   ],
-   "encoder_quality": {
-    "jpeg": 85
-   },
+   "formats": ["avif"],
+   "encoder_quality": {"avif": 88},
    "fit": "pad",
    "target_ratio": "1200:630",
    "pad_color": "#FFFFFF",

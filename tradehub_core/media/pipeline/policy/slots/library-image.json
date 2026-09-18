@@ -1,0 +1,55 @@
+{
+  "$schema": "../schema/slot-policy.schema.json",
+  "schema_version": "1.3.0",
+  "status": "draft",
+  "standard_status": "fixed",
+  "slot_key": "library.image",
+  "title": "Medya kütüphanesi görseli",
+  "description": "Henüz bir kullanım alanına bağlanmamış public kütüphane görselleri. Kaynağın oranı korunur; kırpma ve büyütme yapılmaz.",
+  "roles": ["seller", "admin"],
+  "bound_to": [],
+  "accept": {
+    "mime": ["image/jpeg", "image/png", "image/webp", "image/tiff", "image/avif", "image/bmp"],
+    "extensions": [".jpg", ".jpeg", ".png", ".webp", ".tif", ".tiff", ".avif", ".bmp"],
+    "max_bytes": 26214400,
+    "max_megapixels_hard": 80,
+    "allow_animated": false
+  },
+  "require": {
+    "min_short_edge": 1,
+    "min_area": 1,
+    "allowed_ratios": ["1:1"],
+    "ratio_tolerance": 1
+  },
+  "master": {
+    "max_long_edge": 2400,
+    "min_long_edge": 1,
+    "max_megapixels": 5.76,
+    "dpi_out": 72,
+    "colorspace": "srgb",
+    "format": "webp",
+    "fit": "contain",
+    "allow_crop": false,
+    "allow_upscale": false,
+    "orientation": "apply_exif",
+    "strip_metadata": {"exif": true, "gps": true, "xmp": true, "icc": false}
+  },
+  "quality": {
+    "metric": "ssim",
+    "target_ssim_per_class": {"photo": 0.96, "graphic": 0.98, "text": 0.99, "fine_detail": 0.975},
+    "reencode_floor_saving_ratio": 0.1
+  },
+  "profiles": [
+    {"name": "w96", "width": 96, "formats": ["avif"], "encoder_quality": {"avif": 88}, "fit": "contain", "derived_from": "product.image w96 basamağı; kütüphane için oran korunur."},
+    {"name": "w384", "width": 384, "formats": ["avif"], "encoder_quality": {"avif": 61}, "fit": "contain", "derived_from": "product.image w384 basamağı; kütüphane için oran korunur."},
+    {"name": "w768", "width": 768, "formats": ["avif"], "encoder_quality": {"avif": 61}, "fit": "contain", "derived_from": "product.image w768 basamağı; kütüphane için oran korunur."},
+    {"name": "w1280", "width": 1280, "formats": ["avif"], "encoder_quality": {"avif": 61}, "fit": "contain", "derived_from": "product.image w1280 basamağı; kütüphane için oran korunur."},
+    {"name": "w1920", "width": 1920, "formats": ["avif"], "encoder_quality": {"avif": 61}, "fit": "contain", "derived_from": "product.image w1920 basamağı; kütüphane için oran korunur."}
+  ],
+  "on_violation": {"default": "warn", "accept": "reject"},
+  "messages": {"tr": {"too_large": "Görsel işleme sınırını aşıyor."}},
+  "sources": {
+    "profiles": "Ürün görseli politikasının mevcut boyut ve kalite basamakları; serbest kütüphane görsellerinde geometri contain olarak korunur.",
+    "scope": "File kaydı public, hassas belge referanslarından bağımsız ve daha özel bir slota bağlı değilse kullanılır."
+  }
+}

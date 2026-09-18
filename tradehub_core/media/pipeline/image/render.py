@@ -74,7 +74,7 @@ from tradehub_core.media.pipeline.quality import ssim as ssim_mod
 # --- Sabitler ---------------------------------------------------------------
 
 ENGINE_ID: str = "tradehub_core.media.pipeline.image.render"
-ENGINE_VERSION: str = "1.0.0"
+ENGINE_VERSION: str = "1.1.0"
 """Encode parametrelerini etkileyen HER değişiklikte artırılır. `reprocess.py`
 idempotensi anahtarına bu sürümü katar: motor değişince türev bayat sayılır."""
 
@@ -724,6 +724,8 @@ def encode(
 			out_im.save(buf, "AVIF", quality=100, subsampling="4:4:4", **kw)
 			notes.append(NOTE_LOSSLESS)
 		else:
+			if int(quality) == 100:
+				kw["subsampling"] = "4:4:4"
 			out_im.save(buf, "AVIF", quality=int(quality), **kw)
 	elif pil_fmt == "JPEG":
 		out_im.save(buf, "JPEG", quality=int(100 if lossless else quality), **JPEG_SAVE_KW, **kw)
@@ -911,6 +913,7 @@ def render_rendition(
 	max_encodes: int = DEFAULT_MAX_ENCODES,
 	quality_range: tuple[int, int] = ssim_mod.DEFAULT_QUALITY_RANGE,
 	allow_passthrough: bool = True,
+	require_format: bool = False,
 	_prepared: tuple | None = None,
 	_canvas: tuple | None = None,
 	_fast_quality: bool = False,
@@ -920,6 +923,8 @@ def render_rendition(
 	`fmt` verilmezse profilin `formats[]` zinciri baştan denenir ve **fayda
 	kapısını (INV-05) geçen ilk biçim** kazanır. Verilirse yalnız o biçim
 	denenir (ölçüm ve regresyon testleri için).
+	`require_format=True`, tek teslim biçimi için bayt kazancı kapısını kaldırır;
+	SSIM ve decode doğrulaması yine zorunludur. Orijinal dosya değişmez.
 	"""
 	t0 = time.perf_counter()
 	source_bytes = len(source) if isinstance(source, (bytes, bytearray)) else 0
@@ -994,7 +999,7 @@ def render_rendition(
 
 		# INV-05 — fayda kapısı. Çıktı kaynaktan küçük DEĞİLSE bu türev
 		# hiçbir işe yaramaz: aynı baytı iki kez saklamış oluruz.
-		if source_bytes and len(data) >= source_bytes:
+		if source_bytes and len(data) >= source_bytes and not require_format:
 			denemeler.append(
 				FormatAttempt(f, q, len(data), s, enc_sayisi, gecen, False, "no_benefit_vs_source")
 			)

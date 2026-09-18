@@ -54,8 +54,8 @@
     {
       "name": "avatar_96",
       "width": 96,
-      "formats": ["webp"],
-      "encoder_quality": {"webp": 82},
+      "formats": ["avif"],
+      "encoder_quality": {"avif": 88},
       "fit": "cover",
       "target_ratio": "1:1",
       "serves": ["mesaj balonu avatarı 28px @3x", "sohbet/panel başlığı 36px @2x", "mesaj listesi 40px @2x", "mobil ayarlar avatarı 48px @2x"],
@@ -65,8 +65,8 @@
     {
       "name": "avatar_160",
       "width": 160,
-      "formats": ["webp"],
-      "encoder_quality": {"webp": 82},
+      "formats": ["avif"],
+      "encoder_quality": {"avif": 88},
       "fit": "cover",
       "target_ratio": "1:1",
       "serves": ["panel IconRail avatarı 36px @3x", "mobil ayarlar avatarı 48px @3x", "hesap düzenleme avatarı 64px @2x", "ayarlar profil başlığı 72px @2x"],
@@ -76,8 +76,8 @@
     {
       "name": "avatar_256",
       "width": 256,
-      "formats": ["webp"],
-      "encoder_quality": {"webp": 82},
+      "formats": ["avif"],
+      "encoder_quality": {"avif": 88},
       "fit": "cover",
       "target_ratio": "1:1",
       "serves": ["ayarlar profil başlığı 72px @3x", "hesap düzenleme avatarı 64px @3x", "master"],

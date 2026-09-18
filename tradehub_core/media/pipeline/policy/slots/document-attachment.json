@@ -68,8 +68,8 @@
     {
       "name": "doc_thumb_512",
       "width": 512,
-      "formats": ["webp"],
-      "encoder_quality": {"webp": 85},
+      "formats": ["avif"],
+      "encoder_quality": {"avif": 88},
       "fit": "cover",
       "target_ratio": "3:2",
       "serves": ["SlotDropzone belge kartı 160px yükseklik (mobil 128px)", "panel önizleme kartı 240×160", "panel alt tablo satırı 40×40"],

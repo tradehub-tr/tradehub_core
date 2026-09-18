@@ -101,6 +101,27 @@ class AssetReportAAA(unittest.TestCase):
 	def setUp(self) -> None:
 		self.source = _source()
 
+	def test_exif_rational_dpi_is_persistable(self) -> None:
+		from PIL import Image, TiffImagePlugin
+
+		exif = Image.Exif()
+		exif[282] = TiffImagePlugin.IFDRational(300, 1)
+		exif[283] = TiffImagePlugin.IFDRational(300, 1)
+		exif[296] = 2
+		for fmt in ("JPEG", "TIFF"):
+			with self.subTest(format=fmt):
+				buffer = io.BytesIO()
+				Image.new("RGB", (32, 32), (40, 80, 120)).save(buffer, fmt, exif=exif)
+				source = buffer.getvalue()
+				report = report_mod.build_report(
+					source, [_result(source)], slot_key="product.image", asset_id="ASSET-EXIF"
+				)
+
+				payload = report_mod.persist_report(report, insert=lambda row: row)
+
+				self.assertEqual(json.loads(payload["report_json"])["asset"]["dpi"], [300.0, 300.0])
+				self.assertTrue(report["asset"]["readable"])
+
 	def test_bytes_ssim_and_decisions_are_persistable(self) -> None:
 		# Arrange
 		result = _result(self.source)

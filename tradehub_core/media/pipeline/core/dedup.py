@@ -38,8 +38,9 @@ import io
 import json
 import os
 import re
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
-from typing import Any, Callable, Iterable, Mapping, Optional, Tuple
+from typing import Any
 
 # ── Sabitler: mevcut motorun sözleşmesi ─────────────────────────────────
 #
@@ -272,12 +273,16 @@ def version_hash(
 	policy_snapshot: Any,
 	crop_intent: Any,
 	engine_version: str,
+	*,
+	asset_key: str = "",
 ) -> str:
 	"""`Media Version.version_hash` — normalize master'ın kimliği.
 
 	Dört girdiden herhangi biri değişince hash değişir; hiçbiri değişmeden aynı
 	kalır. Bu, `INV-06` (idempotency) ve `INV-09` (değişmez URL) değişmezlerinin
 	tek dayanağıdır: rendition adresi bu hash'i taşır.
+	`asset_key` verilirse sahipliği ayrı varlıklar aynı sürüm kaydını paylaşmaz.
+	Boş değer eski kimliği korur; eski sürümler geriye dönük değişmez.
 
 	`crop_intent` normalize edilir (`normalize_crop_intent`): DocType'tan gelen
 	kayıt `None`, `""`, `0` ve eksik alan karışımı taşır ve bunlar aynı niyeti
@@ -292,6 +297,8 @@ def version_hash(
 		canonical_json(normalize_crop_intent(crop_intent)),
 		str(engine_version or ""),
 	)
+	if asset_key:
+		parts += ("asset", str(asset_key))
 	return hashlib.sha256(_SEP.join(parts).encode("utf-8")).hexdigest()
 
 
@@ -299,21 +306,32 @@ def version_hash(
 #: etkilemez — `previewed_placements` (kullanıcının simülatörde neye baktığı) ya
 #: da `algorithm_version` gibi alanlar üretilen pikseli değiştirmez, girmemeli;
 #: girerse her önizleme tüm türevleri yeniden ürettirir.
-CROP_HASH_FIELDS: Tuple[str, ...] = (
-	"focal_x", "focal_y", "safe_x", "safe_y", "safe_w", "safe_h",
+CROP_HASH_FIELDS: tuple[str, ...] = (
+	"focal_x",
+	"focal_y",
+	"safe_x",
+	"safe_y",
+	"safe_w",
+	"safe_h",
 	# Zoom üçlüsü pencereyi değiştirir (`core/crop.py::zoom_region_of`), yani
 	# pikseli değiştirir — hash'e GİRMELİ. Guard aşağıda: zoom < 1 "yazılmamış"
 	# demektir (Frappe Float NOT NULL DEFAULT 0) ve üçlü o durumda hash'ten
 	# atılır; atılmasaydı ham DocType satırından okuyan bir çağıran, eski
 	# niyetlerin TAMAMININ hash'ini değiştirir ve her türev yeniden üretilirdi.
-	"zoom", "center_x", "center_y",
-	"method", "suggested_x", "suggested_y", "suggested_w", "suggested_h",
+	"zoom",
+	"center_x",
+	"center_y",
+	"method",
+	"suggested_x",
+	"suggested_y",
+	"suggested_w",
+	"suggested_h",
 )
 
-CROP_OVERRIDE_HASH_FIELDS: Tuple[str, ...] = ("profile", "x", "y", "w", "h", "method")
+CROP_OVERRIDE_HASH_FIELDS: tuple[str, ...] = ("profile", "x", "y", "w", "h", "method")
 
 
-def normalize_crop_intent(intent: Any) -> Optional[dict]:
+def normalize_crop_intent(intent: Any) -> dict | None:
 	"""Kırpma niyetini hash'lenebilir kanonik biçime indir.
 
 	`None` girdisi `None` döner (kırpma niyeti YOK) — boş sözlük değil: "niyet
@@ -344,9 +362,7 @@ def normalize_crop_intent(intent: Any) -> Optional[dict]:
 
 	overrides = _read(intent, "overrides") or _read(intent, "crop_overrides") or []
 	if isinstance(overrides, Mapping):
-		overrides = [
-			dict(v, profile=k) if isinstance(v, Mapping) else v for k, v in overrides.items()
-		]
+		overrides = [dict(v, profile=k) if isinstance(v, Mapping) else v for k, v in overrides.items()]
 	rows = []
 	for row in overrides:
 		item: dict = {}
@@ -395,7 +411,7 @@ def rendition_path(asset: str, version_hash_hex: str, profile: str, width: int, 
 	return f"{RENDITION_ROOT}/{a}/{v}/{p}-{width}.{e}"
 
 
-def parse_rendition_path(url: str) -> Optional[dict]:
+def parse_rendition_path(url: str) -> dict | None:
 	"""`rendition_path`'in tersi. Eşleşmezse `None`.
 
 	Ters çevirim gerçekten gerekiyor: erişim damgası (`last_access_at`) günlük
@@ -426,7 +442,7 @@ class DedupOutcome:
 
 	content_sha256: str
 	is_duplicate: bool
-	asset: Optional[str] = None
+	asset: str | None = None
 	#: Kullanıcıya gösterilecek Türkçe bilgi. Bir HATA değil: yükleme başarılı
 	#: sayılır, yalnız yeni dosya yazılmaz.
 	message: str = ""
@@ -447,7 +463,7 @@ class DedupOutcome:
 DUPLICATE_MESSAGE = "Bu dosya zaten kütüphanenizde; yeniden yüklenmedi."
 
 
-def resolve_upload(content_sha256: str, find_existing: Callable[[str], Optional[str]]) -> DedupOutcome:
+def resolve_upload(content_sha256: str, find_existing: Callable[[str], str | None]) -> DedupOutcome:
 	"""Bu içerik daha önce yüklenmiş mi — yükleme yolunun karar noktası.
 
 	`find_existing(sha) -> asset_adı | None` çağrılabilirdir; veritabanı erişimi
@@ -469,9 +485,9 @@ def resolve_upload(content_sha256: str, find_existing: Callable[[str], Optional[
 def idempotent_create(
 	key: str,
 	create: Callable[[], Any],
-	find: Callable[[str], Optional[Any]],
+	find: Callable[[str], Any | None],
 	is_conflict: Callable[[BaseException], bool],
-) -> Tuple[Any, bool]:
+) -> tuple[Any, bool]:
 	"""Tekillik kısıtına karşı yarış koşulunu çöz. Dönüş: `(kayıt, yeni_mi)`.
 
 	İki eşzamanlı `finalize_upload` aynı dosya için aynı anda gelebilir. "Önce
@@ -614,7 +630,7 @@ def identify_upload(
 	extension: str,
 	*,
 	is_private: bool = False,
-	similar_candidates: Optional[Mapping[str, str]] = None,
+	similar_candidates: Mapping[str, str] | None = None,
 	threshold: int = PHASH_DISTANCE_THRESHOLD,
 ) -> UploadIdentity:
 	"""Bellekteki bir yükleme için kimlikleri üret.
