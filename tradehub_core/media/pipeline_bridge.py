@@ -16,7 +16,7 @@ en sonda çalışır. Ürettiği türevler için `File` kaydı AÇILMAZ (bkz.
 `_write_rendition_file`) — hem envanteri/kotayı şişirmesin hem de `after_insert`
 kancası kendi kendini tetikleyip sonsuz döngü kurmasın diye.
 
-ÜÇ KAT KAPI (hepsi fail-safe "kapalı")
+KAPSAM VE ETKİNLEŞTİRME
 --------------------------------------
 1. `pipeline_flags.is_enabled("rendition_on_upload")` — ana şalter + alt bayrak.
    Kapalıysa fonksiyon İLK SATIRDA döner: ne DB okunur, ne kuyruğa iş girer.
@@ -25,15 +25,15 @@ kancası kendi kendini tetikleyip sonsuz döngü kurmasın diye.
    (klasör/private muaf, sahibi satıcıya çözülen ya da bilinen bir slota
    bağlanan dosya), üstüne KVKK kapsam dışı doctype'lar ve `document.attachment`
    slotu (KYB/KYC/kimlik belgeleri) açıkça hariç.
-3. `pipeline_flags.is_slot_enabled(slot_key)` — `active_slots` boşken hiçbir
-   slot açık değildir; operatör açtığı slotu tek tek yazar.
+3. `pipeline_flags.is_slot_enabled(slot_key)` — varsayılan `*` tüm slotları
+   açar; operatör listeyi daraltabilir veya ana şalteri kapatabilir.
 
 SLOT ÇÖZÜMÜ POLİTİKADAN OKUNUR
 ------------------------------
 (doctype, alan) → `slot_key` haritası kodda SABİT DEĞİL: `media/pipeline/policy/
 slots/*.json` dosyalarının `bound_to` blokları okunur. Yeni bir bağlanma noktası
-eklemek bu modülü değiştirmez. Çözülemeyen (ya da iki slota birden aday olan)
-dosya sessizce kapsam dışıdır.
+eklemek bu modülü değiştirmez. Daha özel bir slotu olmayan public görseller
+`library.image` ile oranları korunarak işlenir.
 
 İŞ AKIŞI
 --------
@@ -236,7 +236,7 @@ _MEDIA_TYPE_IMAGE: str = "image"
 def maybe_generate_renditions(doc: Any, method: str | None = None) -> None:
 	"""`File.after_insert` kancası — türev üretimini KOŞULLU olarak kuyruğa alır.
 
-	Bayrak kapalıyken (varsayılan) ilk satırda döner; DB'ye tek sorgu bile
+	Bayrak kapalıyken ilk satırda döner; DB'ye tek sorgu bile
 	gitmez. Best-effort: burada patlamak dosya yüklemesini asla engellememeli
 	(`states.on_file_insert` / `transcode.maybe_transcode_on_insert` ile aynı
 	desen).
@@ -269,7 +269,7 @@ def maybe_generate_renditions(doc: Any, method: str | None = None) -> None:
 		# İdempotency: aynı içerik + aynı slot için türev zaten üretilmişse
 		# (aynı dosyanın ikinci yüklemesi, yeniden deneme, çift kanca) yeni iş
 		# açılmaz. İçerik-adresli adlandırma sayesinde "aynı içerik" güvenilir.
-		if _renditions_exist(surum_hash, slot_key):
+		if _renditions_exist(surum_hash, slot_key, doc=doc):
 			return
 
 		# KAPI 5 — dönüşüm kotası (MOGEM-620 §18). Kuyruğa ATMADAN ÖNCE
@@ -293,6 +293,7 @@ def maybe_generate_renditions(doc: Any, method: str | None = None) -> None:
 			timeout=QUEUE_TIMEOUT_LIVE_SECONDS,
 			enqueue_after_commit=True,
 			file_url=doc.get("file_url"),
+			file_name=doc.name,
 		)
 	except Exception:
 		frappe.log_error(
@@ -374,9 +375,7 @@ def cleanup_on_file_trash(doc: Any, method: str | None = None) -> None:
 				fields=["name", "file_url"],
 			):
 				try:
-					trash_mod.move_to_trash(
-						r["file_url"], rendition=r["name"], reason="source_file_deleted"
-					)
+					trash_mod.move_to_trash(r["file_url"], rendition=r["name"], reason="source_file_deleted")
 				except Exception:
 					frappe.log_error(
 						title="media.pipeline_bridge türev çöpe taşınamadı",
@@ -466,7 +465,8 @@ def _resolve_scope(doc: Any) -> str | None:
 	    yükleniyor, bu yüzden zaten kapsam dışı.
 	  - Yalnız görsel uzantıları (`upload_policy.EXTENSIONS`).
 	  - KVKK kapsam dışı doctype'lar (`presets.EXCLUDED_DOCTYPES`) muaf.
-	  - Slot politikadan çözülebilmeli ve `EXCLUDED_SLOTS` içinde olmamalı.
+	  - Slot politikadan veya kullanımdan çözülür. Kullanılmayan public
+	    kütüphane görselleri library.image ile oranları korunarak işlenir.
 	  - Sahibi bir satıcıya çözülüyor OLABİLİR ama şart değil: slotun kendisi
 	    zaten "bu dosya ürün/mağaza/marka görselidir" diyor (transcode'daki
 	    "satıcı VEYA Listing eki" şartının slot karşılığı budur).
@@ -493,10 +493,14 @@ def _resolve_scope(doc: Any) -> str | None:
 		# K-3: toplu içe aktarımla gelen görsellerde `attached_to_*` NULL
 		# (ölçüldü: 3.152 ürün görselinin 1.909'u) — ağırlığın çoğunu taşıyan
 		# galeri tam olarak orada. Metadata YOKKEN slot ilişkiden çözülür.
-		# `attached_doctype` DOLUYSA bu yol koşmaz: bilinen bir doctype'a
-		# bağlıyken slot çözülemiyorsa (ör. `Sales Order`) bu dosya gerçekten
-		# kapsam dışıdır; ilişkiye bakmak yanlış slota atamak olurdu.
+		# Bilinen doctype'ın slotu belirsizse oran dayatmadan library.image
+		# kullanılır. Hassas belgeler aşağıdaki ters referans kapısından geçmez.
 		slot_key = _slot_from_reference(doc.get("file_url"))
+	if not slot_key and str(doc.get("file_url") or "").startswith("/files/"):
+		from tradehub_core.media.access_level import _is_protected_pii
+
+		if not _is_protected_pii(doc, doc.file_url):
+			slot_key = "library.image"
 	if not slot_key or slot_key in EXCLUDED_SLOTS:
 		return None
 
@@ -566,8 +570,7 @@ def _slot_from_reference(file_url: str | None) -> str | None:
 	arama TEK eşitlik sorgusudur ve ilk eşleşmede kısa devre yapar; ikisi de
 	aynı slota bağlandığı için ikinci sorgu çoğu zaman hiç koşmaz.
 
-	Bulunamazsa BUGÜNKÜ davranış korunur: dosya sessizce kapsam dışı kalır,
-	kimseye hata dönmez.
+	Bulunamazsa çağıran public kütüphane görseli olarak değerlendirebilir.
 
 	NOT (ölçüldü): `tabListing.primary_image` ve `tabListing Image.image`
 	kolonları `text` tipinde ve İNDEKSSİZ — MariaDB TEXT kolonu prefix
@@ -935,15 +938,17 @@ def _reevaluate_engine_output_policy(match: dict[str, Any], slot_key: str) -> bo
 	return compatible
 
 
-def _renditions_exist(surum_hash: str, slot_key: str) -> bool:
+def _renditions_exist(surum_hash: str, slot_key: str, *, doc: Any = None) -> bool:
 	"""Bu içerik + slot için üretilmiş bir türev zaten var mı?"""
-	# Sistem işi: kanca oturum yetkisinden bağımsız çalışır ve satıcı
-	# izolasyonu Asset'in `owner_seller` kolonundan değil, içerik hash'inden
-	# sorulduğu için `get_all` bilinçli (`get_list` burada kullanıcının
-	# göremediği bir Asset'i "yok" sayıp aynı işi ikinci kez açardı).
+	# Sistem işi: oturum yetkisinden bağımsızdır; dosya verildiğinde aynı
+	# satıcının varlığı aranır. Başka mağazanın türevi bu dosyayı atlatamaz.
+	filters: dict[str, Any] = {"content_sha256": surum_hash, "slot_key": slot_key}
+	if doc is not None:
+		store = ownership.store_of(doc.get("owner"))
+		filters["owner_seller"] = store if store else ["in", ["", None]]
 	assetler = frappe.get_all(
 		"Media Asset",
-		filters={"content_sha256": surum_hash, "slot_key": slot_key},
+		filters=filters,
 		pluck="name",
 	)
 	if not assetler:
@@ -966,7 +971,9 @@ def _renditions_exist(surum_hash: str, slot_key: str) -> bool:
 # --- 2) Worker: üretim -------------------------------------------------------
 
 
-def _run_rendition_job(file_url: str, force: bool = False) -> None:
+def _run_rendition_job(
+	file_url: str, force: bool = False, file_name: str | None = None, *, backfill: bool = False
+) -> None:
 	"""Worker tarafı — türev matrisini üretir, diske yazar, kayıtları açar.
 
 	İstisna SIZDIRMAZ. Hata hâlinde `Media Processing Job` `failed` olur,
@@ -975,11 +982,13 @@ def _run_rendition_job(file_url: str, force: bool = False) -> None:
 	job_name: str | None = None
 	baslangic = time.perf_counter()
 	try:
-		name = frappe.db.get_value("File", {"file_url": file_url}, "name")
+		name = file_name or frappe.db.get_value("File", {"file_url": file_url}, "name")
 		if not name:
 			# Kuyruğa alındıktan sonra dosya silinmiş olabilir.
 			return
 		doc = frappe.get_doc("File", name)
+		if doc.file_url != file_url:
+			return
 
 		# Bayrak kuyrukta beklerken kapatılmış olabilir — worker da sorar.
 		if not pipeline_flags.is_enabled("rendition_on_upload"):
@@ -998,7 +1007,7 @@ def _run_rendition_job(file_url: str, force: bool = False) -> None:
 		# eklendiğinde) mevcut eski merdiveni yeni version_hash ile yeniden
 		# üretmelidir. Upload yolu varsayılan `force=False` ile aynı idempotency
 		# kapısını korur.
-		if not force and _renditions_exist(parmak_izi, slot_key):
+		if not force and _renditions_exist(parmak_izi, slot_key, doc=doc):
 			return
 
 		kaynak = doc.get_content()
@@ -1044,13 +1053,22 @@ def _run_rendition_job(file_url: str, force: bool = False) -> None:
 		# soruyor; sayaç ise işin GERÇEKTEN yapıldığı yerde artıyor. İkisini
 		# aynı yere koymak, kuyrukta bekleyip sonra düşen işleri de saymak
 		# olurdu — kullanıcı üretilmemiş türev için kotasından ödeme yapardı.
-		meter.record(ownership.store_of(doc.get("owner")), meter.METRIC_TRANSFORMATIONS, 1)
+		# Sürüm geçişinin eski fotoğrafları işlemesi satıcının yeni yükleme
+		# kotasını tüketmez; kullanıcının başlattığı dönüşümler sayılır.
+		if not backfill:
+			meter.record(ownership.store_of(doc.get("owner")), meter.METRIC_TRANSFORMATIONS, 1)
 		# Public türevler EXIF/GPS'i politika gereği siler; gerekli kaynak
 		# metadata'sı silinmeden önce şifreli, yetki-sınırlı kasada tutulur.
 		from tradehub_core.media import exif_vault
 
 		exif_vault.retain(asset, kaynak)
-		job_name = _open_job(asset.name, parmak_izi, slot_key)
+		job_name = _open_job(
+			asset.name,
+			parmak_izi,
+			slot_key,
+			queue=JOB_QUEUE_BULK if backfill else JOB_QUEUE,
+			key_prefix=f"{'backfill' if backfill else 'rendition'}:{asset.name}",
+		)
 		prepared = _prepare_image_master(
 			kaynak,
 			slot_key,
@@ -1069,7 +1087,11 @@ def _run_rendition_job(file_url: str, force: bool = False) -> None:
 		# T-042: sürüm kimliği KÜTÜPHANEDEN (dedup.version_hash, 4 girdi) gelir
 		# ve türev adresleri onu taşır. Yalnız YENİ üretimler — mevcut türev
 		# kayıtlarının adresine dokunulmaz.
-		surum = _ensure_version(asset, slot_key, kaynak, prepared=prepared)
+		# Politika geçişi satıcının yayındaki kırpma/odak kararını korur.
+		crop_intent = (
+			_version_crop_intent(asset.active_version) if backfill and asset.active_version else None
+		)
+		surum = _ensure_version(asset, slot_key, kaynak, crop_intent=crop_intent, prepared=prepared)
 
 		frappe.db.savepoint("image_rendition_generation")
 		sonuc = _generate(
@@ -1077,6 +1099,7 @@ def _run_rendition_job(file_url: str, force: bool = False) -> None:
 			asset,
 			slot_key,
 			surum.version_hash,
+			crop_intent=crop_intent,
 			generation="eager",
 			classification=prepared.classification,
 		)
@@ -1088,13 +1111,17 @@ def _run_rendition_job(file_url: str, force: bool = False) -> None:
 				asset,
 				surum.version_hash,
 				sonuc,
-				trigger="upload",
+				trigger="backfill" if backfill else "upload",
 				rendering_source=master_bytes,
 				normalized=prepared.normalized,
 				classification=prepared.classification,
+				crop_intent=crop_intent,
 			)
 			_finish_job(job_name, "success")
-			_promote_initial_version(asset.name, surum.version_hash)
+			if backfill:
+				_promote_complete_version(asset.name, surum.version_hash)
+			else:
+				_promote_initial_version(asset.name, surum.version_hash)
 		else:
 			# Okuyucu transaction boyunca eski satırları görür. Başarısız yeni
 			# matrisin tek bir satırı bile commit edilmez; eski aktif sürüm kalır.
@@ -1962,9 +1989,7 @@ def _missing_lazy_profiles(
 					formats=(str(bicim),),
 					fit=profil.fit or render.FIT_CONTAIN,
 					target_ratio=profil.aspect_ratio or "",
-					encoder_quality=(
-						((str(bicim), quality_target),) if quality_target is not None else ()
-					),
+					encoder_quality=(((str(bicim), quality_target),) if quality_target is not None else ()),
 				)
 				if not render.profile_is_eligible(hazir.size, spec, intent):
 					continue
@@ -2181,8 +2206,12 @@ def _engine_version() -> str:
 	import PIL  # noqa: PLC0415 — Pillow yalnız worker yolunda gerekiyor
 
 	from tradehub_core.media.pipeline.image import master as master_mod
+	from tradehub_core.media.pipeline.image import render as render_mod
 
-	return f"pillow-{PIL.__version__}+master-{master_mod.MASTER_ENGINE_VERSION}"
+	return (
+		f"pillow-{PIL.__version__}+master-{master_mod.MASTER_ENGINE_VERSION}"
+		f"+render-{render_mod.ENGINE_VERSION}"
+	)
 
 
 def _prepared_version_fields(prepared: Any) -> dict[str, Any]:
@@ -2260,6 +2289,12 @@ def _ensure_version(
 	politika = render.load_slot_policy(slot_key)
 	motor = _engine_version()
 	surum_hash = dedup.version_hash(source_hash, politika, crop_intent, motor)
+	# Eski varlığın kimliği korunur. Yeni varlık kendi sürümünü alır: aynı
+	# fotoğraf iki mağazada varsa global hash ilk mağazanın sürümünü döndürüp
+	# ikincisinin promote adımını reddediyordu.
+	legacy_asset = frappe.db.get_value("Media Version", surum_hash, "asset")
+	if legacy_asset != asset.name:
+		surum_hash = dedup.version_hash(source_hash, politika, crop_intent, motor, asset_key=asset.name)
 	version_fields = _prepared_version_fields(prepared)
 
 	def _bul(anahtar: str) -> Any:
@@ -2643,7 +2678,8 @@ def _generate(
 		sonuc.add(GEN_FAILED, "no_supported_format_chain")
 		return sonuc
 	matris_boyutu = sum(len(profil.get_widths()) * len(format_plans[profil.name]) for profil in profiller)
-	hizli_kalite = matris_boyutu >= 34
+	# AVIF tek biçim olduğundan aynı büyük matris artık 17 basamaktır.
+	hizli_kalite = matris_boyutu >= 17
 
 	# Kaynak bir kez hazırlanır: eligibility, disk atlama ve bütün formatların
 	# render çağrısı aynı EXIF/crop uzayını paylaşır.
@@ -2695,7 +2731,9 @@ def _generate(
 					fast_quality=hizli_kalite,
 					quality_target=quality_target,
 					content_class=(
-						str(getattr(classification, "klass", "") or "") if classification is not None else None
+						str(getattr(classification, "klass", "") or "")
+						if classification is not None
+						else None
 					),
 				)
 				detay = f"{profil.policy_profile}/{genislik}/{bicim}"
@@ -2708,6 +2746,29 @@ def _generate(
 						int(genislik),
 						str(bicim),
 					)
+	# En küçük basamaktan da küçük kaynak boş kalmasın. Yalnız ilk eager
+	# üretimde, büyütmeden tek AVIF üret; diğer basamaklar omitted kalır.
+	if generation == "eager" and sonuc.ready == 0 and sonuc.failed == 0 and crop_intent is None:
+		profil = min(profiller, key=lambda p: min(p.get_widths()))
+		native_width = min(kaynak_boyut)
+		if native_width < min(profil.get_widths()):
+			for bicim, quality_target in format_plans[profil.name]:
+				durum = _render_one(
+					render,
+					kaynak,
+					asset,
+					surum_hash,
+					profil,
+					native_width,
+					bicim,
+					uretilenler,
+					kaynak_boyut if disk_kontrolu else None,
+					prepared=hazirlanmis,
+					canvas_cache=tuval_onbellegi,
+					result_sink=sonuc.results,
+					quality_target=quality_target,
+				)
+				sonuc.add(durum, f"{profil.policy_profile}/{native_width}/{bicim}")
 	return sonuc
 
 
@@ -3079,6 +3140,11 @@ def _render_one(
 			_prepared=prepared,
 			_canvas=canvas_cache[tuval_anahtari],
 			_fast_quality=fast_quality,
+			# Tek teslim biçimi isteniyor: küçük bir kaynakta AVIF daha büyük
+			# olsa da orijinale dönülmez. Tasarruf raporu gerçek baytı gösterir.
+			require_format=bicim == "avif",
+			allow_passthrough=bicim != "avif",
+			**({"quality_range": (100, 100)} if quality_target == 100 else {}),
 		)
 	except Exception:
 		frappe.log_error(
@@ -3683,9 +3749,7 @@ def _run_animation_job(file_url: str, *, slot_override: str) -> None:
 		)
 
 		version_root = os.path.dirname(
-			_media_disk_path(
-				dedup.rendition_path(asset.name, surum_hash, VIDEO_PRIMARY_PROFILE, 2, "mp4")
-			)
+			_media_disk_path(dedup.rendition_path(asset.name, surum_hash, VIDEO_PRIMARY_PROFILE, 2, "mp4"))
 		)
 		os.makedirs(version_root, exist_ok=True)
 		stage_id = frappe.generate_hash(length=10)
@@ -3821,9 +3885,7 @@ def _run_video_job(
 			queue=JOB_QUEUE_VIDEO,
 			key_prefix=key_prefix or JOB_KEY_VIDEO,
 		)
-		frappe.db.set_value(
-			"File", doc.name, "th_media_video_status", "processing", update_modified=False
-		)
+		frappe.db.set_value("File", doc.name, "th_media_video_status", "processing", update_modified=False)
 
 		if dogrulama.rejected:
 			# Karar bir HATA değil: motor bu dosyayı işlemiyor (bozuk künye,
@@ -3838,9 +3900,7 @@ def _run_video_job(
 					"rejection_note": dogrulama.reason or "",
 				},
 			)
-			frappe.db.set_value(
-				"File", doc.name, "th_media_video_status", "failed", update_modified=False
-			)
+			frappe.db.set_value("File", doc.name, "th_media_video_status", "failed", update_modified=False)
 			_finish_job(job_name, "failed", error_code=dogrulama.code or "video_rejected")
 			frappe.db.commit()
 			return
@@ -3848,9 +3908,7 @@ def _run_video_job(
 		surum_hash = _produce_video_outputs(src_yolu, facts, karar, asset, slot_key)
 
 		frappe.db.set_value("Media Asset", asset.name, "state", "ready")
-		frappe.db.set_value(
-			"File", doc.name, "th_media_video_status", "ready", update_modified=False
-		)
+		frappe.db.set_value("File", doc.name, "th_media_video_status", "ready", update_modified=False)
 		_finish_job(job_name, "success")
 		if surum_hash:
 			_promote_initial_version(asset.name, surum_hash)
@@ -3858,9 +3916,7 @@ def _run_video_job(
 	except Exception as exc:  # noqa: BLE001 — worker hiçbir koşulda kuyruğu patlatmamalı
 		frappe.db.rollback()
 		if source_name:
-			frappe.db.set_value(
-				"File", source_name, "th_media_video_status", "failed", update_modified=False
-			)
+			frappe.db.set_value("File", source_name, "th_media_video_status", "failed", update_modified=False)
 		if job_name:
 			_finish_job(job_name, "failed", error_code=type(exc).__name__)
 		if source_name or job_name:
@@ -4304,6 +4360,7 @@ def _ensure_video_version(
 	okur); `lqip` poster baytlarından dolar.
 	"""
 	from tradehub_core.media.pipeline.core import dedup
+
 	motor = engine_version or _video_engine_version()
 
 	def _bul(anahtar: str) -> Any:

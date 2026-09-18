@@ -100,6 +100,7 @@ def _measure_classify_peak(path: Path) -> dict:
 		raise AssertionError(proc.stderr or proc.stdout)
 	return json.loads(proc.stdout.strip().splitlines()[-1])
 
+
 #: Canlı örneklemde ÖLÇÜLEN doğruluk (yukarıdaki blok). Kod bu sayıyı
 #: yeniden üretemez (görseller repoda değil); sabit, ölçümün kaydıdır.
 CANLI_ORNEKLEM_N: int = 48
@@ -427,85 +428,54 @@ class BelgeSinifiTest(unittest.TestCase):
 				self.assertNotEqual(C.classify_features(f)[0], C.SINIF_DOCUMENT)
 
 	def test_eski_text_girdisi_document_zincirine_cozulur(self):
-		caps = {"WEBP": True, "WEBP:lossless": True, "PNG": True}
+		caps = {"AVIF": True}
 		self.assertEqual(C.format_chain("text", caps), C.format_chain(C.SINIF_DOCUMENT, caps))
 
 
 class BicimZinciriTest(unittest.TestCase):
-	def test_her_sinifin_zinciri_var(self):
-		for s in set(C.SINIFLAR) - {C.SINIF_ANIMATION}:
-			with self.subTest(sinif=s):
-				self.assertTrue(C.FORMAT_CHAINS[s], f"{s} zinciri boş")
+	def test_tum_statik_siniflar_tek_bicim_avif(self):
+		for sinif in set(C.SINIFLAR) - {C.SINIF_ANIMATION}:
+			with self.subTest(sinif=sinif):
+				self.assertEqual([a.fmt for a in C.FORMAT_CHAINS[sinif]], ["AVIF"])
 		self.assertEqual(C.FORMAT_CHAINS[C.SINIF_ANIMATION], ())
 
-	def test_zincir_yetenege_gore_suzulur(self):
-		yok = dict.fromkeys(("AVIF", "WEBP", "JPEG", "PNG", "GIF"), False)
-		self.assertEqual(C.format_chain(C.SINIF_PHOTO, yok), ())
+	def test_avif_yoksa_jpeg_ve_webpye_donulmez(self):
+		caps = {"AVIF": False, "JPEG": True, "PNG": True, "WEBP": True, "WEBP:lossless": True}
+		for sinif in C.SINIFLAR:
+			self.assertEqual(C.format_chain(sinif, caps), ())
 
-		yalniz_jpeg = {**yok, "JPEG": True}
-		zincir = C.format_chain(C.SINIF_PHOTO, yalniz_jpeg)
-		self.assertEqual([a.fmt for a in zincir], ["JPEG"])
+	def test_saydam_zinciri_avif_alfa_yetenegi_ister(self):
+		caps = {"AVIF": True, "AVIF:alpha": False, "PNG": True, "PNG:alpha": True}
+		self.assertEqual(C.format_chain(C.SINIF_TRANSPARENT, caps), ())
+		caps["AVIF:alpha"] = True
+		self.assertEqual([a.fmt for a in C.format_chain(C.SINIF_TRANSPARENT, caps)], ["AVIF"])
 
-	def test_saydam_zinciri_alfa_yetenegi_ister(self):
-		"""JPEG alfa taşıyamaz; alfa yeteneği yoksa adım elenmeli."""
-		yetenek = {"WEBP": True, "WEBP:alpha": False, "PNG": True, "PNG:alpha": True}
-		zincir = C.format_chain(C.SINIF_TRANSPARENT, yetenek)
-
-		self.assertEqual([a.fmt for a in zincir], ["PNG"])
-
-	def test_grafik_zincirinde_jpeg_yok(self):
-		"""Keskin kenarda 4:2:0 renk altörneklemesi görünür kaçak bırakır."""
-		self.assertNotIn("JPEG", [a.fmt for a in C.FORMAT_CHAINS[C.SINIF_GRAPHIC]])
-
-	def test_webp_lossless_yoksa_grafik_pngye_duser(self):
-		caps = {"WEBP": True, "WEBP:lossless": False, "PNG": True}
-		self.assertEqual([a.fmt for a in C.format_chain(C.SINIF_GRAPHIC, caps)], ["PNG"])
-
-	def test_grafik_ve_document_tamamen_kayipsizdir(self):
-		"""Kabul kriteri: logo/grafik ve belge zincirinde kayıplı adım yok."""
-		for s in (C.SINIF_GRAPHIC, C.SINIF_DOCUMENT):
-			with self.subTest(sinif=s):
-				self.assertTrue(all(adim.lossless for adim in C.FORMAT_CHAINS[s]))
-				self.assertEqual([a.fmt for a in C.FORMAT_CHAINS[s]], ["WEBP", "PNG"])
-
-	def test_photo_zinciri_kayipsiz_icermez(self):
-		for adim in C.FORMAT_CHAINS[C.SINIF_PHOTO]:
-			self.assertFalse(adim.lossless, f"{adim.fmt} kayıpsız — fotoğrafta 7,86x pahalı")
-			self.assertEqual(adim.quality_target, 88)
-
-	def test_faz2_zincirleri_ve_kalite_hedefleri(self):
-		"""Photo/alpha/graphic/document Faz 2 tablo sırası ve q88/lossless hedefi."""
-		self.assertEqual([a.fmt for a in C.FORMAT_CHAINS[C.SINIF_PHOTO]], ["AVIF", "WEBP", "JPEG"])
-		self.assertEqual(
-			[a.fmt for a in C.FORMAT_CHAINS[C.SINIF_TRANSPARENT]],
-			["AVIF", "WEBP", "PNG"],
-		)
+	def test_grafik_ve_belge_yuksek_kalite_avif_kullanir(self):
 		for sinif in (C.SINIF_GRAPHIC, C.SINIF_DOCUMENT):
-			self.assertTrue(
-				all(a.quality_target == "lossless" for a in C.FORMAT_CHAINS[sinif]),
-				sinif,
-			)
+			(step,) = C.FORMAT_CHAINS[sinif]
+			self.assertEqual(step.quality_target, 100)
+			self.assertFalse(step.lossless, "q100 piksel-eş kayıpsızlık iddiası değildir")
 
-	def test_dusuk_guven_kayipsiz_guvenli_zincire_yaklasir(self):
-		"""Kabul sınırı: belirsiz içerik photo/low etiketiyle lossless yayınlanır."""
+	def test_photo_baslangic_kalitesi_korunur(self):
+		(step,) = C.FORMAT_CHAINS[C.SINIF_PHOTO]
+		self.assertFalse(step.lossless)
+		self.assertEqual(step.quality_target, 88)
+
+	def test_dusuk_guven_yuksek_kaliteli_avif_kullanir(self):
 		from PIL import Image
 
 		kaynak = _kodla(Image.new("RGB", (96, 96), (128, 128, 128)), "PNG")
-		caps = {"WEBP": True, "WEBP:lossless": True, "PNG": True}
-		r = C.classify(kaynak, filename="ambiguous.png", capabilities=caps)
-
+		r = C.classify(kaynak, filename="ambiguous.png", capabilities={"AVIF": True})
 		self.assertTrue(r.ok, r.error)
 		self.assertEqual((r.klass, r.confidence), (C.SINIF_PHOTO, "low"))
 		self.assertTrue(r.safe_fallback)
-		self.assertEqual([a.fmt for a in r.chain], ["WEBP", "PNG"])
-		self.assertTrue(all(a.lossless for a in r.chain))
+		self.assertEqual([a.fmt for a in r.chain], ["AVIF"])
+		self.assertEqual(r.chain[0].quality_target, 100)
 
 	def test_yetenek_sondasi_calisir(self):
 		yet = C.encoder_capabilities()
-		self.assertTrue(yet["PNG"], "PNG kodlanamıyor — ortam bozuk")
-		self.assertTrue(yet["JPEG"])
-		self.assertIn("WEBP:animation", yet)
-		self.assertTrue(yet["WEBP:lossless"])
+		self.assertTrue(yet["AVIF"], "AVIF encoder üretim ortamında zorunludur")
+		self.assertTrue(yet["AVIF:alpha"])
 
 
 class KapiTest(unittest.TestCase):

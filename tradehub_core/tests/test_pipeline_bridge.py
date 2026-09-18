@@ -273,11 +273,12 @@ class TestKapsam(_BayrakliTest):
 
 		self.assertFalse(self._enqueue_cagrildi_mi(doc))
 
-	def test_bagsiz_dosya_muaf(self):
-		"""Slot çözülemiyorsa (hiçbir yere eklenmemiş dosya) kapsam dışı."""
+	def test_bagsiz_gorsel_kutuphanede_islenir(self):
+		"""Kütüphanedeki kullanılmayan public görselin de türevleri üretilir."""
+		self._ayarla(active_slots="*")
 		doc = _dosya_ekle(self, "kopru-bagsiz.jpg", _gorsel_baytlari(64))
 
-		self.assertFalse(self._enqueue_cagrildi_mi(doc))
+		self.assertTrue(self._enqueue_cagrildi_mi(doc))
 
 	def test_geri_yukleme_bayragi_muaf(self):
 		doc = _dosya_ekle(
@@ -324,7 +325,7 @@ def _profil_olustur(
 	test,
 	profile_key: str,
 	widths: str,
-	formats: str = '["webp"]',
+	formats: str = '["avif"]',
 	*,
 	generation: str = "eager",
 	fit: str = "pad",
@@ -554,6 +555,7 @@ class TestUctanUcaUretim(_BayrakliTest):
 			_render.load_slot_policy(SLOT),
 			None,
 			kayit.engine_version,
+			asset_key=asset_name,
 		)
 		self.assertEqual(kayit.version_hash, beklenen_hash)
 		self.assertEqual(kayit.name, beklenen_hash, "autoname=field:version_hash")
@@ -570,7 +572,7 @@ class TestUctanUcaUretim(_BayrakliTest):
 			# değil. Manifest kütüphanesi bu değeri politika adıyla karşılaştırıyor;
 			# docname yazılırsa manifest sessizce boş döner.
 			self.assertEqual(t.profile, self.profil.policy_profile)
-			self.assertEqual(t.format, "webp")
+			self.assertEqual(t.format, "avif")
 			self.assertTrue(t.benefit_gate_passed)
 			self.assertGreater(t.bytes, 0)
 			yol = frappe.get_site_path("public", t.file_url.lstrip("/"))
@@ -591,7 +593,7 @@ class TestUctanUcaUretim(_BayrakliTest):
 		self.assertEqual(len(job), 1)
 		self.assertEqual(job[0].status, "success")
 		self.assertEqual(job[0].job_type, "rendition")
-		self.assertEqual(job[0].idempotency_key, f"rendition:{surum}:{SLOT}")
+		self.assertEqual(job[0].idempotency_key, f"rendition:{asset_name}:{surum}:{SLOT}")
 
 	def test_bayrak_kapaliyken_worker_da_hicbir_sey_yazmaz(self):
 		"""Bayrak iş kuyrukta beklerken kapatılmış olabilir — worker da sorar."""
@@ -785,6 +787,38 @@ class TestFaz6UretimAkislari(_BayrakliTest):
 			fn()
 		return sayac["n"]
 
+	def test_backfill_promotes_new_policy_preserves_crop_and_source(self):
+		from tradehub_core.media.pipeline.core.dedup import normalize_crop_intent
+		from tradehub_core.media.pipeline.image import render
+
+		_profil_olustur(self, "avif-backfill", "[96, 192]")
+		doc = self._doc("avif-backfill.jpg", _gorsel_baytlari(320))
+		pipeline_bridge._run_rendition_job(doc.file_url)
+		asset = self._asset(doc)
+		old_version = frappe.db.get_value("Media Asset", asset, "active_version")
+		original = doc.get_content()
+		policy = {**render.load_slot_policy(SLOT), "description": "new AVIF delivery policy"}
+		intent = normalize_crop_intent({"focus_x": 0.3, "focus_y": 0.7, "zoom": 1.1})
+		with (
+			mock.patch.object(render, "load_slot_policy", return_value=policy),
+			mock.patch.object(pipeline_bridge, "_version_crop_intent", return_value=intent),
+			mock.patch.object(pipeline_bridge.meter, "record") as meter,
+		):
+			pipeline_bridge._run_rendition_job(doc.file_url, force=True, file_name=doc.name, backfill=True)
+		version = frappe.get_doc("Media Version", frappe.db.get_value("Media Asset", asset, "active_version"))
+		self.assertNotEqual(version.name, old_version)
+		self.assertEqual(frappe.parse_json(version.crop_intent_snapshot), intent)
+		self.assertEqual(doc.get_content(), original)
+		meter.assert_not_called()
+		rows = frappe.get_all(
+			"Media Rendition",
+			filters={"asset": asset, "version_hash": version.name},
+			fields=["format", "file_url"],
+		)
+		self.assertEqual(len(rows), 2)
+		self.assertTrue(all(row.format == "avif" for row in rows))
+		self.assertTrue(frappe.db.exists("Media Rendition", {"asset": asset, "version_hash": old_version}))
+
 	def test_animated_gif_classifier_contract_video_hattina_gider(self):
 		# Arrange
 		doc = self._doc("faz6-animation.gif", _animasyon_baytlari())
@@ -840,7 +874,9 @@ class TestFaz6UretimAkislari(_BayrakliTest):
 		)
 		self.assertTrue(all(int(row.bytes or 0) > 0 for row in rows))
 		self.assertTrue(all(int(row.benefit_gate_passed or 0) == 1 for row in rows))
-		self.assertTrue(all(os.path.isfile(frappe.get_site_path("public", row.file_url.lstrip("/"))) for row in rows))
+		self.assertTrue(
+			all(os.path.isfile(frappe.get_site_path("public", row.file_url.lstrip("/"))) for row in rows)
+		)
 		job = frappe.get_all(
 			"Media Processing Job",
 			filters={"asset": asset},
@@ -891,7 +927,7 @@ class TestFaz6UretimAkislari(_BayrakliTest):
 			self.assertEqual(report["processing"]["normalized"]["width"], version.width)
 			self.assertEqual(report["processing"]["normalized"]["dpi"], [72.0, 72.0])
 
-	def test_upscale_basamaklari_kayit_ve_manifest_adayindan_duser(self):
+	def test_small_source_gets_native_avif_without_upscaling(self):
 		# Arrange
 		_profil_olustur(self, "faz6-upscale", "[96, 384]")
 		doc = self._doc("faz6-upscale.jpg", _gorsel_baytlari(64))
@@ -901,8 +937,11 @@ class TestFaz6UretimAkislari(_BayrakliTest):
 		asset = self._asset(doc)
 
 		# Assert
-		self.assertEqual(encode, 0, "uygunsuz basamak encode'a hiç girmemeli")
-		self.assertEqual(frappe.db.count("Media Rendition", {"asset": asset}), 0)
+		self.assertGreater(encode, 0)
+		rows = frappe.get_all(
+			"Media Rendition", filters={"asset": asset}, fields=["format", "width", "height"]
+		)
+		self.assertEqual([(r.format, r.width, r.height) for r in rows], [("avif", 64, 64)])
 		self.assertEqual(frappe.db.get_value("Media Asset", asset, "state"), "ready")
 		self.assertTrue(frappe.db.get_value("Media Asset", asset, "active_version"))
 
@@ -983,15 +1022,15 @@ class TestFaz6UretimAkislari(_BayrakliTest):
 		self.assertEqual(rapor["asset"]["id"], asset)
 		self.assertEqual(rapor["extra"]["trigger"], "upload")
 
-	def test_production_bridge_34_gercek_rendition_12_saniye_altinda(self):
-		# Arrange — 17 ayrı tuval × 2 format; cache kopyası değil 34 gerçek çıktı.
+	def test_production_bridge_17_gercek_rendition_12_saniye_altinda(self):
+		# Arrange — 17 ayrı tuval × 1 AVIF; cache kopyası değil 17 gerçek çıktı.
 		self.assertTrue(PERF_FIXTURE.is_file(), "2400×2400 performans fixture'ı yok")
 		widths = [(i + 1) * 96 for i in range(17)]
 		_profil_olustur(
 			self,
 			"faz6-prod-perf",
 			frappe.as_json(widths),
-			formats=frappe.as_json(["webp", "jpeg"]),
+			formats=frappe.as_json(["avif"]),
 			fit="contain",
 			aspect_ratio="",
 		)
@@ -1017,17 +1056,17 @@ class TestFaz6UretimAkislari(_BayrakliTest):
 		)
 
 		# Assert
-		self.assertEqual(len(satirlar), 34)
-		self.assertEqual(len(outcome.results), 34)
+		self.assertEqual(len(satirlar), 17)
+		self.assertEqual(len(outcome.results), 17)
 		self.assertTrue(all(r.encodes <= 4 for r in outcome.results))
 		self.assertTrue(all(not r.ssim_target or r.ssim >= r.ssim_target for r in outcome.results))
 		self.assertEqual(
 			len({(int(r.width), str(r.format)) for r in satirlar}),
-			34,
+			17,
 		)
 		self.assertTrue(all(int(r.bytes or 0) < len(kaynak) for r in satirlar))
 		self.assertTrue(all(float(r.ssim or 0.0) > 0.0 for r in satirlar))
-		self.assertLess(sure, 12.0, f"production bridge 34 rendition {sure:.3f} sn sürdü")
+		self.assertLess(sure, 12.0, f"production bridge 17 rendition {sure:.3f} sn sürdü")
 
 	def test_lazy_lock_takipcisi_encode_etmez(self):
 		# Arrange

@@ -3,8 +3,8 @@
 
 """`media.pipeline_flags` testleri — Dalga A emniyet subabı (A1b).
 
-En kritik test `test_varsayilan_kapali`: bayrak hiç dokunulmamışken
-`is_enabled()` False dönmeli. Dalga A'nın tüm güvencesi bu davranışa yaslanıyor.
+Yeni kurulum varsayılanları açık olsa da açıkça kapatılan şalter ve okuma
+hataları üretimi durdurmalıdır.
 
     docker exec istoc-dev-backend-1 bench --site istoc.localhost \
         run-tests --module tradehub_core.tests.test_pipeline_flags
@@ -13,11 +13,13 @@ En kritik test `test_varsayilan_kapali`: bayrak hiç dokunulmamışken
 from __future__ import annotations
 
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import frappe
 
 from tradehub_core.media import pipeline_flags
+from tradehub_core.patches import v15_9_22_media_engine_settings as settings_patch
+from tradehub_core.patches import v15_9_57_media_pipeline_defaults as defaults_patch
 
 DOCTYPE = pipeline_flags.SETTINGS_DOCTYPE
 KORUNAN_ALANLAR = (
@@ -30,6 +32,46 @@ KORUNAN_ALANLAR = (
 	"rollout_stores",
 	"notes",
 )
+
+
+class TestPipelineSettingsDefaults(unittest.TestCase):
+	def _migrate(self, saved: dict) -> tuple[dict, Mock]:
+		values = dict(saved)
+		frappe_mock = Mock()
+		frappe_mock.db.sql.side_effect = lambda query, args: [(1,)] if args[1] in values else []
+		frappe_mock.db.set_single_value.side_effect = lambda doctype, key, value: values.update({key: value})
+		with patch.object(settings_patch, "frappe", frappe_mock):
+			defaults_patch.execute()
+		return values, frappe_mock
+
+	def test_new_install_enables_processing_and_delivery(self):
+		values, _ = self._migrate({})
+		for field in pipeline_flags.FLAG_FIELDS:
+			self.assertEqual(values[field], 1)
+		self.assertIn("*", pipeline_flags.parse_slot_keys(values["active_slots"]))
+		self.assertGreater(values["max_renditions_per_asset"], 0)
+
+	def test_repeat_migration_preserves_explicit_disabled_settings(self):
+		values, _ = self._migrate({})
+		for field in pipeline_flags.FLAG_FIELDS:
+			values[field] = 0
+		values["active_slots"] = ""
+
+		after, frappe_mock = self._migrate(values)
+
+		self.assertEqual(after, values)
+		frappe_mock.db.set_single_value.assert_not_called()
+
+	def test_missing_fields_do_not_overwrite_saved_scope_or_kill_switch(self):
+		values, _ = self._migrate(
+			{"media_pipeline_enabled": 0, "active_slots": "seller.logo", "max_renditions_per_asset": 12}
+		)
+
+		self.assertEqual(values["media_pipeline_enabled"], 0)
+		self.assertEqual(values["active_slots"], "seller.logo")
+		self.assertEqual(values["max_renditions_per_asset"], 12)
+		self.assertEqual(values["rendition_on_upload"], 1)
+		self.assertEqual(values["manifest_api_enabled"], 1)
 
 
 class TestPipelineFlags(unittest.TestCase):
@@ -51,8 +93,8 @@ class TestPipelineFlags(unittest.TestCase):
 
 	# --- ana şalter -----------------------------------------------------
 
-	def test_varsayilan_kapali(self):
-		"""Bayrak 0 iken is_enabled() False — Dalga A'nın temel güvencesi."""
+	def test_kayitli_kapatma_tercihi_korunur(self):
+		"""Varsayılan açık olsa da kayıtlı 0 ana şalteri kapatır."""
 		self._ayarla(media_pipeline_enabled=0)
 
 		self.assertFalse(pipeline_flags.is_enabled())

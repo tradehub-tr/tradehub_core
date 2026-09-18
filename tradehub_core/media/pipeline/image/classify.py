@@ -17,23 +17,10 @@ Sıra ANLAMLIDIR ve yukarıdan aşağıya "kesin ölçülebilirden tahminiye" gi
 ölçülür; `graphic`/`document` ise sezgiseldir ve bilerek **yüksek kesinlik / düşük
 duyarlılık** ayarındadır. Kanıt yetmiyorsa sınıf `photo` olur.
 
-Neden sınıf varsayılanı `photo`, çıktı varsayılanı kayıpsız — ÖLÇÜLDÜ
----------------------------------------------------------------------
-Yanlış sınıflandırmanın iki yönü aynı maliyette DEĞİL. Canlı korpustan çekilen
-48 görselin 1280px türevi iki kez kodlandı (yerel, Pillow 11.3.0, WebP method=4):
-
-    44 fotoğraf:  kayıplı q80  1.752 KB  ·  kayıpsız  13.770 KB  → **7,86x**
-     4 grafik:    kayıplı q80     73 KB  ·  kayıpsız     469 KB  → **6,40x**
-
-Yani bir fotoğrafı "grafik" sanıp kayıpsız kodlamak dosyayı 7,86 kat büyütür.
-Bu ölçüm sınıf eşiğini yüksek kesinlikte tutar; fakat kabul sözleşmesi düşük
-güvende güvenli yönü açıkça **kayıpsız** seçer. Sonuç olarak sınıf etiketi
-kanıt yoksa `photo/low`, seçilen zincir ise lossless WebP → PNG olur. Sürekli
-ton kanıtı olan `photo/high` normal AVIF → WebP → JPEG zincirini kullanır.
-
-Kabul sözleşmesi grafik/logo ve raster belgede kenarların kayıpsız kalmasını
-ister. Bu yüzden `graphic`/`document` zinciri yalnız lossless WebP → PNG'dir;
-fotoğrafın 7,86x maliyet riski ayrı `photo` zincirinde tutulur.
+Teslim biçimi bütün statik sınıflarda AVIF'tir. Fotoğrafta q88, grafik,
+raster belge ve belirsiz içerikte q100 başlangıcı kullanılır. q100 kayıpsızlık
+iddiası değildir; kalite raporunda gerçek çıktı karşılaştırılır. Saydam
+kaynak AVIF alfa desteği ister. Encoder yoksa başka biçime sessizce dönülmez.
 
 Neden bazı ölçütler ölçülmedi — DÜRÜST SINIR
 --------------------------------------------
@@ -198,35 +185,18 @@ class FormatStep:
 		}
 
 
-#: Sınıf → zincir. Sıra tercih sırasıdır; çağıran ilk **desteklenen** adımı alır.
-#:
-#: `graphic` ve `document` kabul kriteri gereği yalnız kayıpsız kodlanır.
-#: `animation`ın görsel zinciri bilerek boştur: sınıflandırma sonucu
-#: `video_from_animation` işi olarak video hattına teslim edilir.
+#: Her statik sınıfın teslim biçimi AVIF. Animasyon video hattına gider.
 FORMAT_CHAINS: dict[str, tuple[FormatStep, ...]] = {
-	SINIF_PHOTO: (
-		FormatStep("AVIF"),
-		FormatStep("WEBP"),
-		FormatStep("JPEG"),
-	),
-	SINIF_GRAPHIC: (
-		FormatStep("WEBP", lossless=True, quality_target="lossless", requires=("lossless",)),
-		FormatStep("PNG", lossless=True, quality_target="lossless"),
-	),
-	SINIF_TRANSPARENT: (
-		FormatStep("AVIF", requires=("alpha",)),
-		FormatStep("WEBP", requires=("alpha",)),
-		FormatStep("PNG", lossless=True, quality_target="lossless", requires=("alpha",)),
-	),
+	SINIF_PHOTO: (FormatStep("AVIF"),),
+	SINIF_GRAPHIC: (FormatStep("AVIF", quality_target=100),),
+	SINIF_TRANSPARENT: (FormatStep("AVIF", requires=("alpha",)),),
 	SINIF_ANIMATION: (),
-	SINIF_DOCUMENT: (
-		FormatStep("WEBP", lossless=True, quality_target="lossless", requires=("lossless",)),
-		FormatStep("PNG", lossless=True, quality_target="lossless"),
-	),
+	SINIF_DOCUMENT: (FormatStep("AVIF", quality_target=100),),
 }
 
-#: Sınıf etiketi ne olursa olsun düşük güvenli kararın yayın zinciri.
-SAFE_LOSSLESS_CHAIN: tuple[FormatStep, ...] = FORMAT_CHAINS[SINIF_GRAPHIC]
+SAFE_HIGH_QUALITY_CHAIN: tuple[FormatStep, ...] = FORMAT_CHAINS[SINIF_GRAPHIC]
+# Eski ithalat adı korunur; AVIF q100 için piksel-eş kayıpsızlık vaat edilmez.
+SAFE_LOSSLESS_CHAIN = SAFE_HIGH_QUALITY_CHAIN
 
 
 def encoder_capabilities() -> dict[str, bool]:
@@ -288,8 +258,8 @@ def format_chain(sinif: str, capabilities: dict[str, bool] | None = None) -> tup
 
 
 def safe_lossless_chain(capabilities: dict[str, bool] | None = None) -> tuple[FormatStep, ...]:
-	"""Düşük güvenli kararın Faz 6 güvenli zinciri: kayıpsız WebP → PNG."""
-	return _supported_chain(SAFE_LOSSLESS_CHAIN, capabilities)
+	"""Eski API adı: belirsiz içerik için yüksek kaliteli AVIF zinciri."""
+	return _supported_chain(SAFE_HIGH_QUALITY_CHAIN, capabilities)
 
 
 def _supported_chain(
@@ -535,9 +505,7 @@ def extract_features(
 			)
 
 		if (W * H) / 1_000_000.0 > BOUNDED_SAMPLE_MIN_MEGAPIXELS:
-			bounded_rgb, (duz, yumusak, sert), bounded_alpha_oran = _bounded_native_sample(
-				im, alpha=alfa_var
-			)
+			bounded_rgb, (duz, yumusak, sert), bounded_alpha_oran = _bounded_native_sample(im, alpha=alfa_var)
 		else:
 			# — düzlük/kenar: NATIVE çözünürlük, yeniden örnekleme YOK —
 			gri_native = _to_gray_on_white(im)

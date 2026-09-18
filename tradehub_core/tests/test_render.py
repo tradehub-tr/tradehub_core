@@ -590,7 +590,7 @@ class DefterTesti(unittest.TestCase):
 		karar = RP.decide(
 			master_sha256=RP.content_hash(self.kaynak),
 			profile=self.p,
-			fmt="webp",
+			fmt=self.p.formats[0],
 			ledger=defter,
 		)
 		self.assertIn(karar.action, (RP.ACTION_REFRESH, RP.ACTION_SKIP))

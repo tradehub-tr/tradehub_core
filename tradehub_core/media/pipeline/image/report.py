@@ -232,7 +232,7 @@ def asset_facts(source: bytes) -> dict:
 				megapixels=round((im.width * im.height) / 1_000_000.0, 3),
 				has_alpha=im.mode in render_mod.ALPHA_MODES or "transparency" in im.info,
 				icc_profile=bool(im.info.get("icc_profile")),
-				dpi=list(im.info["dpi"]) if im.info.get("dpi") else None,
+				dpi=_dpi_pair(im.info.get("dpi")),
 			)
 	except Exception:
 		pass
@@ -720,9 +720,7 @@ def build_monthly_report(
 			else dict(lcp_measurement)
 		)
 		measured_average = measurement_payload.get("average_impact_ms")
-		average_lcp_impact_ms = (
-			round(float(measured_average), 3) if measured_average is not None else None
-		)
+		average_lcp_impact_ms = round(float(measured_average), 3) if measured_average is not None else None
 	else:
 		average_lcp_impact_ms = round(sum(lcp_values) / len(lcp_values), 3) if lcp_values else None
 	elapsed = [row["elapsed_ms"] for row in rows]
@@ -756,12 +754,8 @@ def build_monthly_report(
 		"average_processing_ms": round(sum(elapsed) / len(elapsed), 3) if elapsed else None,
 		"average_lcp_impact_ms": average_lcp_impact_ms,
 		"lcp_measured_assets": len(lcp_values),
-		"lcp_measured_samples": int(
-			(measurement_payload or {}).get("comparable_samples") or 0
-		),
-		"lcp_comparable_cohorts": int(
-			(measurement_payload or {}).get("comparable_cohorts") or 0
-		),
+		"lcp_measured_samples": int((measurement_payload or {}).get("comparable_samples") or 0),
+		"lcp_comparable_cohorts": int((measurement_payload or {}).get("comparable_cohorts") or 0),
 		"lcp_measurement": measurement_payload,
 		"slot_distribution": dict(sorted(slots.items())),
 		"worst_20": _worst_assets(rows),
@@ -1082,9 +1076,9 @@ def run_previous_month_report(
 			def fetch_lcp_rows(_start: date, _end: date) -> Sequence[Mapping[str, Any]]:
 				return ()
 
-		elif not frappe_module.db.exists(
-			"DocType", "Media RUM Sample"
-		) or not frappe_module.db.table_exists("Media RUM Sample"):
+		elif not frappe_module.db.exists("DocType", "Media RUM Sample") or not frappe_module.db.table_exists(
+			"Media RUM Sample"
+		):
 
 			def fetch_lcp_rows(_start: date, _end: date) -> Sequence[Mapping[str, Any]]:
 				return ()
@@ -1130,9 +1124,7 @@ def run_previous_month_report(
 	reports = _persisted_asset_reports(rows)
 	failure_count = fetch_failure_count(period_start, period_end)
 	total_job_count = fetch_total_job_count(period_start, period_end)
-	lcp_measurement = lcp_impact.measure_lcp_impact(
-		list(fetch_lcp_rows(period_start, period_end))
-	)
+	lcp_measurement = lcp_impact.measure_lcp_impact(list(fetch_lcp_rows(period_start, period_end)))
 	if failure_count is None:
 		raise RuntimeError("Aylık Media Processing Job hata sayısı ölçülemedi")
 	if total_job_count is None:

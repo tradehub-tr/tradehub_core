@@ -91,18 +91,18 @@ libavif sürüm farkı w384'te %14 bayt farkı üretti. ±%15 dışına çıkan 
 HATA DEĞİL bir HABERDİR: encoder değişmiş, temel çizgi yeniden ölçülmeli."""
 
 #: `product.image` üretim zinciri — konteyner (numpy 2.4.6 · Pillow 12.2.0),
-#: 2026-08-18. (profil, kazanan biçim, genişlik, bayt, kalite, SSIM)
+#: 2026-09-17: w96/w192 AVIF olarak yeniden ölçüldü. (profil, kazanan biçim, genişlik, bayt, kalite, SSIM)
 URETIM_ZINCIRI = (
-	("w96", "webp", 96, 3_484, 80, 0.96716),
-	("w192", "webp", 192, 7_144, 70, 0.96039),
+	("w96", "avif", 96, 3_509, 70, 0.97354),
+	("w192", "avif", 192, 8_917, 70, 0.99107),
 	("w384", "avif", 384, 17_138, 70, 0.99141),
 	("w640", "avif", 640, 30_114, 70, 0.98254),
 	("w768", "avif", 768, 39_689, 70, 0.97467),
 	("w1280", "avif", 1280, 258_309, 82, 0.96036),
 	("w1920", "avif", 1920, 722_296, 82, 0.96262),
 )
-URETIM_TOPLAM_BAYT = 1_078_174
-URETIM_KAYNAGA_ORAN = 1.007
+URETIM_TOPLAM_BAYT = 1_079_972
+URETIM_KAYNAGA_ORAN = 1.009
 """ÖLÇÜM — merdivenin tamamı kaynağın 1,007 KATI. Yani 7 basamaklı `srcset`
 BEDAVA DEĞİLDİR: varlık başına master kadar daha yer ister. Bugünkü tek çıktı
 (engine.to_webp, 303.670 bayt) ile karşılaştırıldığında depolama 3,55 kat artar.
@@ -137,15 +137,16 @@ GEOMETRI_ALTIN = {
 #: tekil üretim sözleşmesini kilitler.
 MATRIS_ALTIN = {
 	"brand.logo": 6,
-	"category.banner": 6,
-	"company.cover_image": 10,
+	"category.banner": 3,
+	"company.cover_image": 5,
 	"company.cover_video": 3,
 	"document.attachment": 1,
-	"product.image": 19,
-	"product.video": 3,
+	"library.image": 5,
+	"product.image": 7,
+	"product.video": 2,
 	"seller.logo": 6,
 	"user.avatar": 3,
-	"_toplam": 57,
+	"_toplam": 41,
 }
 
 
@@ -357,6 +358,11 @@ class MatrisKilidiTesti(unittest.TestCase):
 	def test_matris_sayilari(self):
 		self.assertEqual(R.matrix_size(), MATRIS_ALTIN)
 
+	def test_tum_profiller_yalniz_avif_teslim_eder(self):
+		for slot in R.slot_keys():
+			for profile in R.load_profiles(slot):
+				self.assertEqual(profile.formats, ("avif",), (slot, profile.name))
+
 	def test_slot_listesi(self):
 		self.assertEqual(set(R.slot_keys()), set(MATRIS_ALTIN) - {"_toplam"})
 
@@ -364,8 +370,8 @@ class MatrisKilidiTesti(unittest.TestCase):
 		self.assertEqual(MATRIS_ALTIN["_toplam"], sum(v for k, v in MATRIS_ALTIN.items() if k != "_toplam"))
 
 	def test_matris_bugunku_tek_ciktidan_buyuk(self):
-		"""Görevin özü: bugün varlık başına 1 çıktı var, politika 19 istiyor."""
-		self.assertEqual(MATRIS_ALTIN["product.image"], 19)
+		"""Görevin özü: bugün varlık başına 1 çıktı var, politika 7 AVIF boyutu istiyor."""
+		self.assertEqual(MATRIS_ALTIN["product.image"], 7)
 		self.assertGreater(MATRIS_ALTIN["product.image"], 1)
 
 
