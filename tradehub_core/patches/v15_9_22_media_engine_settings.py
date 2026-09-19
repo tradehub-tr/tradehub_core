@@ -3,14 +3,12 @@
 
 """A1b: `Media Engine Settings` singleton'ını kurar ve varsayılanlarını yazar.
 
-Kritik: `media_pipeline_enabled` **0** yazılır. Dalga A'nın tüm güvencesi bu
-satırda — yeni medya boru hattı ürüne bağlansa bile bayrak açılana kadar
-sistem bugünkü davranışını birebir sürdürür.
+Yeni kurulumda medya işleme, yüklemede türev üretimi ve manifest teslimi
+açıktır. Desteklenen slotlar varsayılan olarak etkinleşir; dosya kapsamı ve
+özel dosya denetimleri üretim köprüsünde uygulanmaya devam eder.
 
 Idempotent: yalnızca `tabSingles`'ta HİÇ satırı olmayan alana varsayılan yazar.
-Operatör bayrağı açtıysa yama tekrar koştuğunda değeri geri kapatmaz — bir
-migrate'in üretimdeki ayarı sessizce sıfırlaması bu yamanın en tehlikeli
-yanlışı olurdu.
+Operatörün kaydettiği açma/kapatma ve kapsam tercihleri değiştirilmez.
 """
 
 from __future__ import annotations
@@ -19,19 +17,19 @@ import frappe
 
 DOCTYPE = "Media Engine Settings"
 
-#: Alan -> varsayılan. Bayrakların üçü de KAPALI.
+#: Alan -> yeni kurulum varsayılanı. Kayıtlı tercihler her zaman önceliklidir.
 VARSAYILANLAR: dict[str, object] = {
-	"media_pipeline_enabled": 0,
-	"rendition_on_upload": 0,
-	"manifest_api_enabled": 0,
-	"active_slots": "",
+	"media_pipeline_enabled": 1,
+	"rendition_on_upload": 1,
+	"manifest_api_enabled": 1,
+	"active_slots": "*",
 	"max_renditions_per_asset": 40,
 }
 
 
 def execute() -> dict:
 	# Yeni DocType migrate sırasında bu yamadan önce yüklenmemiş olabilir.
-	frappe.reload_doc("tradehub_core", "doctype", "media_engine_settings")
+	frappe.reload_doc("tradehub_core", "doctype", "media_engine_settings", force=True)
 
 	yazilan: list[str] = []
 	for alan, varsayilan in VARSAYILANLAR.items():
@@ -53,7 +51,7 @@ def _kayitli_mi(alan: str) -> bool:
 	# Ham SQL: `Singles` bir DocType değil, Frappe'nin singleton değerlerini
 	# tuttuğu sistem tablosudur — `frappe.db.exists("Singles", ...)` burada
 	# DAİMA None döner ve yama her koşuda varsayılanı yeniden yazardı
-	# (operatörün açtığı bayrağı sessizce kapatırdı). Kullanıcı verisi değil,
+	# (operatörün kapattığı bayrağı sessizce açardı). Kullanıcı verisi değil,
 	# bu yüzden `frappe.get_list` kuralının kapsamı dışında.
 	satir = frappe.db.sql(
 		"SELECT 1 FROM `tabSingles` WHERE `doctype` = %s AND `field` = %s LIMIT 1",

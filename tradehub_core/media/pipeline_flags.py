@@ -9,7 +9,8 @@ o hattın ürüne bağlanacağı HER noktanın tek kapısı: yeni davranışa ge
 
 İki değişmez kural:
 
-1. **Varsayılan KAPALI.** `Media Engine Settings` okunamıyorsa (DocType henüz
+1. **Okuma hatasında KAPALI.** Yeni kurulum varsayılanları açıktır; kayıtlı
+   kapatma tercihi korunur. `Media Engine Settings` okunamıyorsa (DocType henüz
    migrate edilmedi, DB yok, site bağlamı yok, alan adı yanlış) sonuç `False`.
    Fail-safe yön "kapalı"dır — bayrak okuma hatası asla yeni kod yolunu
    açmamalı, çağıranı da patlatmamalı.
@@ -63,6 +64,7 @@ KNOWN_SLOT_KEYS: frozenset[str] = frozenset(
 		"company.cover_image",
 		"company.cover_video",
 		"document.attachment",
+		"library.image",
 		"product.image",
 		"product.video",
 		"seller.logo",
@@ -133,8 +135,7 @@ def max_renditions_per_asset(varsayilan: int = DEFAULT_MAX_RENDITIONS) -> int:
 def rollout_percent(varsayilan: int = DEFAULT_ROLLOUT_PERCENT) -> int:
 	"""Aşamalı açılış yüzdesi (0–100); alan yoksa geriye uyum için `%100`.
 
-	Ana şalter zaten varsayılan kapalıdır. Yeni rollout alanının henüz migrate
-	edilmediği bir sitede, operatör ana şalteri daha önce bilinçli açmışsa hattı
+	Yeni rollout alanının henüz migrate edilmediği bir sitede açık olan hattı
 	sessizce `%0`a düşürmek beklenmeyen bir kesinti olurdu. Bu yüzden yalnız
 	alanın yokluğu `%100`, açıkça kaydedilmiş `0` ise gerçek canary kipidir.
 	"""

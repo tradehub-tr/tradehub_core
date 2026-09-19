@@ -8,10 +8,12 @@ Kapsam:
     STOREFRONT_VISIBLE_STATUSES AND is_visible) formülünden yeniden hesap —
     satıcının kendi gizlediği (is_visible=0) ürün restore'da gizli KALIR;
     idempotent (AC-6).
-  - Drift guard (AC-9): Listing._set_storefront_visible, mağazanın Store
-    Subscription status'u 'suspended' iken storefront_visible'ı 1'e çevirmez;
-    suspended değilken mevcut formül davranışı DEĞİŞMEZ; guard maliyeti tek
-    get_value ve yalnız formül 1 döndüğünde ödenir.
+  - Drift guard (AC-9, K2 genişletmesi): Listing._set_storefront_visible,
+    mağazanın Store Subscription status'u NON-OPERASYONELKEN (suspended /
+    canceled / expired — entitlement._OPERATIONAL_STATUSES dışı)
+    storefront_visible'ı 1'e çevirmez; operasyonelken (trial/active/past_due)
+    ve ABONELİKSİZ mağazada (status=None) mevcut formül davranışı DEĞİŞMEZ;
+    guard maliyeti tek get_value ve yalnız formül 1 döndüğünde ödenir.
   - BE-5 / AC-10 — kota-kontrollü restore: quota.max_products sonluysa formül
     sonrası en yeni N ürün vitrinde kalır, fazlası gizlenir; limit -1/tanımsız
     → bugünkü davranış (trim yok); is_visible=0 her durumda gizli; idempotent
@@ -502,7 +504,8 @@ def _make_listing(status: str, is_visible: int, store: str | None = "SELLER-A") 
 
 
 class TestListingDriftGuard(unittest.TestCase):
-	"""AC-9 — suspended mağazanın listing save'i vitrini geri açamaz."""
+	"""AC-9 + K2 — NON-operasyonel (suspended/canceled/expired) mağazanın
+	listing save'i vitrini geri açamaz."""
 
 	def setUp(self):
 		_reset_state()
@@ -513,12 +516,33 @@ class TestListingDriftGuard(unittest.TestCase):
 		doc._set_storefront_visible()
 		self.assertEqual(doc.storefront_visible, 0, "Suspended mağazada save 1'e çevirmemeli")
 
+	def test_canceled_store_listing_save_stays_hidden(self):
+		# K2: hesap silme / dönem-sonu iptali sonrası save vitrini geri açamaz.
+		_STATE["sub_status"]["SELLER-A"] = "canceled"
+		doc = _make_listing("Active", 1)
+		doc._set_storefront_visible()
+		self.assertEqual(doc.storefront_visible, 0, "Canceled mağazada save 1'e çevirmemeli")
+
+	def test_expired_store_listing_save_stays_hidden(self):
+		# K2: trial bitişi / dunning feshi (expired) sonrası save vitrini geri açamaz.
+		_STATE["sub_status"]["SELLER-A"] = "expired"
+		doc = _make_listing("Active", 1)
+		doc._set_storefront_visible()
+		self.assertEqual(doc.storefront_visible, 0, "Expired mağazada save 1'e çevirmemeli")
+
 	def test_suspended_guard_uses_single_get_value(self):
 		_STATE["sub_status"]["SELLER-A"] = "suspended"
 		doc = _make_listing("Active", 1)
 		doc._set_storefront_visible()
 		self.assertEqual(len(_STATE["get_value_calls"]), 1, "Guard maliyeti tek get_value olmalı")
 		self.assertEqual(_STATE["get_value_calls"][0][1], {"store": "SELLER-A"})
+
+	def test_non_operational_guard_uses_single_get_value(self):
+		# K2 genişletmesi tek get_value sözleşmesini BOZMAZ (canceled örneği).
+		_STATE["sub_status"]["SELLER-A"] = "canceled"
+		doc = _make_listing("Active", 1)
+		doc._set_storefront_visible()
+		self.assertEqual(len(_STATE["get_value_calls"]), 1, "Guard maliyeti tek get_value olmalı")
 
 	def test_active_subscription_keeps_normal_formula(self):
 		_STATE["sub_status"]["SELLER-A"] = "active"
@@ -527,8 +551,15 @@ class TestListingDriftGuard(unittest.TestCase):
 		self.assertEqual(doc.storefront_visible, 1)
 
 	def test_past_due_subscription_keeps_normal_formula(self):
-		# Dunning hoşgörü penceresi: past_due vitrini KAPATMAZ (yalnız suspended).
+		# Dunning hoşgörü penceresi: past_due OPERASYONEL — vitrini KAPATMAZ.
 		_STATE["sub_status"]["SELLER-A"] = "past_due"
+		doc = _make_listing("Active", 1)
+		doc._set_storefront_visible()
+		self.assertEqual(doc.storefront_visible, 1)
+
+	def test_trial_subscription_keeps_normal_formula(self):
+		# trial OPERASYONEL — vitrin formülü değişmez.
+		_STATE["sub_status"]["SELLER-A"] = "trial"
 		doc = _make_listing("Active", 1)
 		doc._set_storefront_visible()
 		self.assertEqual(doc.storefront_visible, 1)

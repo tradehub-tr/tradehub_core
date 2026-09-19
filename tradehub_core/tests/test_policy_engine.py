@@ -130,9 +130,10 @@ class PolitikaKaydiTesti(unittest.TestCase):
 		self.registry = PolicyRegistry()
 		self.engine = PolicyEngine(self.registry)
 
-	def test_dokuz_slot_politikasi_yuklendi(self):
-		self.assertEqual(len(self.registry), 9)
-		self.assertEqual(len(list(SLOT_DIR.glob("*.json"))), 9)
+	def test_tum_slot_politikalari_yuklendi(self):
+		self.assertEqual(len(self.registry), 10)
+		self.assertEqual(len(list(SLOT_DIR.glob("*.json"))), 10)
+		self.assertIn("library.image", self.registry.keys())
 
 	def test_anahtar_dosya_adindan_degil_icerikten_gelir(self):
 		for slot in self.registry.keys():
@@ -213,7 +214,7 @@ class PolitikaKaydiTesti(unittest.TestCase):
 			}
 			(hedef / "test-sticker.json").write_text(json.dumps(yeni, ensure_ascii=False), encoding="utf-8")
 			motor = PolicyEngine(PolicyRegistry(hedef))
-			self.assertEqual(len(motor.registry), 10)
+			self.assertEqual(len(motor.registry), len(self.registry) + 1)
 
 			kucuk = MediaProbe(
 				filename="x.png",

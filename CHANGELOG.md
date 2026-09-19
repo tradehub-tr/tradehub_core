@@ -16,6 +16,119 @@
 - Medya adlandırma beyaz listesine `.xml`/`.json` eklendi (XML toplu yükleme kırıktı).
 
 
+## [v1.14.2-alpha.4] - 2026-09-18 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(medya): AVIF teslimini ve backfill akışını aç (@ahmeetseker)
+  - Medya pipeline varsayılanlarını açıp tüm slotları AVIF teslimine taşı
+  - Eski public görseller için checkpointli rendition backfill işi ekle
+  - Kütüphane görsellerini kapsama alıp manifestte gerçek boyutları döndür
+  - Satış ekiplerini yönetmek için admin API ve rol atama akışı ekle
+
+---
+## [v1.14.2-alpha.3] - 2026-09-16 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(katalog): kategori adları için çok dilli çeviri hattı eklendi (@aliiball)
+  - 23.511 aktif kategorinin category_name_en/ar/ru sütunları tamamen boştu; arayüz dört dilde çalışırken kategori adları her dilde Türkçe görünüyordu.
+  - İki giriş noktası, tek yazma yolu: apply_name_seed hazır sözlükten, backfill_names Translation Settings sağlayıcısından yazar. İkisi de idempotent, dolu alanın üzerine yazmaz.
+  - Sözlük tohumu 801 kayıt: menünün üst iki seviyesindeki adlar en/ar/ru olarak çevrildi, katalogda 868 kategoriyi dolduruyor.
+  - Collation tuzağı: MariaDB utf8mb4_general_ci altında c ile ç eşit sayılıyor, aday sorgusu 'Saç Şekillendirme' ile 'Sac Şekillendirme' kayıtlarını birlikte getiriyor. Karşılık bu yüzden SQL'den değil Python sözlüğünden birebir okunuyor; aksi hâlde metal kategorisine 'Hair Styling' yazılırdı.
+  - 16 birim testi: tohum davranışı, stub koruması, kota-stub'ı, bilinmeyen dil ayrımı, tohum dosyası bütünlüğü ve collation tuzağı.
+
+---
+## [v1.14.2-alpha.2] - 2026-09-16 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(lojistik): carrier webhook alıcısı — HMAC imzalı inbound tracking (09-BE son dilim) (@boraydeger32)
+  - YENİ api/v1/logistics_webhook.py: guest uç; HMAC-SHA256 (compare_digest), TÜM ret yolları bayt-eşit jenerik 401 (enumeration'a kapalı), 413 boyut kapısı (imza hesaplanmadan), IP-bazlı rate limit (600/60sn), 48 saatlik Redis dedupe (işaret enqueue-sonrası — retry kaybı önlenir), maskeli inbound log, queue='short' asenkron işleme
+  - YENİ adapters/signature.py: saf (stdlib-only) HMAC doğrulama — adapter default'u ve endpoint fallback'i aynı fonksiyonda; adapter sözleşmesine verify_webhook_signature + parse_webhook eklendi (mock implementasyonlu)
+  - tracking_service.process_webhook_event: parse → Carrier Status Mapping → tenant guard (cross-tenant event işlenmez) → transition_status(Webhook); hata kodlarıyla izlenebilir (STATUS_UNMAPPED/CAPABILITY_UNSUPPORTED/...)
+  - Sözleşme/sabitler contract.py+constants.py'da; gen_logistics_types --sync ile 3 repo senkron; carrier_webhook_enabled flag'i KAPALI gelir (uç, flag açılana kadar 401 döner — deploy güvenli)
+  - Test bulgusu kapatıldı: enqueue'ya imza-dışı kwarg gerçek worker'da her job'u öldürürdü (testlerde görünmez) — kwarg kaldırıldı
+  - 49 yeni test (16 e2e + 33 adapter); integration log 331/331 regresyonsuz
+
+---
+## [v1.14.2-alpha.1] - 2026-09-16 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Duzeltildi
+- fix(para-birimi): desteklenmeyen para birimi önerisi USD'ye düşürüldü (@aliiball)
+  - COUNTRY_CURRENCY_MAP, SupportedCurrency'de tanımlı olmayan bir koda işaret edebiliyordu (GB'den GBP, CN/HK/TW'den CNY). Ön yüz o kodun ne kurunu ne sembolünü bulabildiği için kullanıcı, seçicide hiç görünmeyen bir para birimine kilitleniyor ve seçimini kendisi düzeltemiyordu.
+  - Harita bilerek olduğu gibi bırakıldı: para birimi ileride tanımlanırsa eşleme kendiliğinden devreye girsin.
+  - Birim testi sözleşmeyi koruyor: haritadaki her ülke, desteklenen bir kod döndürmeli.
+
+---
+## [v1.14.2] - 2026-09-15 PROD
+
+Bu surum istoc.cronbi.com'da yayindadir.
+
+### Eklendi
+- feat(abonelik): tamamlama dilimi — kalan süre devri + döngü/geçmiş uçları + kota-kontrollü restore (@boraydeger32)
+  - Kalan süre devri: aynı planın erken yenilemesinde yeni dönem eski dönemin bitiminden başlar (üçlü guard: eski status active + dönem sürüyor + plan aynı — plan değişikliğinde/reaktivasyonda/trial'da devir YOK, E1); audit'e period_carried_over; devirli dönemde lifecycle no-op regresyonları (E3)
+  - Bekleyen havale talebi tutar tazeleme: plan fiyatı değiştiyse pending talep güncellenir + yanıta amount_updated sinyali (E4) — bayat-tutar bulgusu kapandı
+  - YENİ list_my_subscription_payments: owner-only ödeme geçmişi (çift katman tenant, rate limit, ≤100 satır)
+  - YENİ subscription_admin.list_attention_subscriptions: superadmin-only iptal-planlı + dunning listesi + sebep dağılımı (batch store_name)
+  - cancel_requested_at alanı: talep/gerçek iptal tarihleri ayrıştı; fesihte tarihsel iz olarak korunur; yanıtlara ve access-state'e additive
+  - Hesap silme önizlemesine open_order_count + açık sipariş uyarı maddesi
+  - Kota-kontrollü restore: reaktivasyonda quota.max_products aşımında en yeni N ürün vitrine döner, satıcıya tek bildirim (pre-snapshot kriteri — PM onaylı gerekçeli sapma, docstring'de)
+  - 100+ yeni test; tüm mevcut suite regresyonsuz (bench 27/27 + 10 stub paketi OK)
+
+### Duzeltildi
+- fix(güvenlik): identity rate-limit form_dict bypass'ı kapatıldı + ölü kalıntılar temizlendi (@boraydeger32)
+  - identity.py'daki 7 uç (verify_email_otp dahil) atlatılabilir @rate_limit(key="user")'dan session-bazlı api/rate_limit.py decorator'ına geçirildi — Frappe v15 rate_limiter key'i form_dict'ten okuduğu için istemci user=<rastgele> ile limiti tamamen aşabiliyordu; limit/pencere değerleri aynen korundu, spoof+429 testleriyle kilitli
+  - tenant_seller_filter.js silindi: hiç yüklenmiyordu (hooks'ta kayıt yok) ve var olmayan DocType'ları hedefliyordu; koruma sunucuda çift katman
+  - Mükerrer "Tradehub Seller" workspace'i kaldırıldı ("Satıcı Paneli" yaşayan kopya) + yetim DB kaydı için idempotent silme patch'i
+- fix(kategori): içe aktarma hızlandırıldı, ağaç hatası yakalanıyor (@aliiball)
+  - Nested set güncellemesi ekleme sırasında atlanıyor (lft/rgt önceden dolduruluyor); 23.511 düğümlük ağaç 21 dk yerine 8,2 dk'da kuruluyor
+  - rebuild_tree düşerse iş artık hata döndürüyor; eskiden sessiz uyarıydı, bozuk ağaç fark edilmeden kalıyordu
+  - Arka plan işi zaman aşımı 30 dk'dan 1 saate çıkarıldı
+
+---
+## [v1.14.1-rc.1] - 2026-09-15 RC
+
+Bu surum rcistoc.cronbi.com'da onay asamasindadir.
+
+### Eklendi
+- feat(abonelik): tamamlama dilimi — kalan süre devri + döngü/geçmiş uçları + kota-kontrollü restore (@boraydeger32)
+  - Kalan süre devri: aynı planın erken yenilemesinde yeni dönem eski dönemin bitiminden başlar (üçlü guard: eski status active + dönem sürüyor + plan aynı — plan değişikliğinde/reaktivasyonda/trial'da devir YOK, E1); audit'e period_carried_over; devirli dönemde lifecycle no-op regresyonları (E3)
+  - Bekleyen havale talebi tutar tazeleme: plan fiyatı değiştiyse pending talep güncellenir + yanıta amount_updated sinyali (E4) — bayat-tutar bulgusu kapandı
+  - YENİ list_my_subscription_payments: owner-only ödeme geçmişi (çift katman tenant, rate limit, ≤100 satır)
+  - YENİ subscription_admin.list_attention_subscriptions: superadmin-only iptal-planlı + dunning listesi + sebep dağılımı (batch store_name)
+  - cancel_requested_at alanı: talep/gerçek iptal tarihleri ayrıştı; fesihte tarihsel iz olarak korunur; yanıtlara ve access-state'e additive
+  - Hesap silme önizlemesine open_order_count + açık sipariş uyarı maddesi
+  - Kota-kontrollü restore: reaktivasyonda quota.max_products aşımında en yeni N ürün vitrine döner, satıcıya tek bildirim (pre-snapshot kriteri — PM onaylı gerekçeli sapma, docstring'de)
+  - 100+ yeni test; tüm mevcut suite regresyonsuz (bench 27/27 + 10 stub paketi OK)
+
+### Duzeltildi
+- fix(güvenlik): identity rate-limit form_dict bypass'ı kapatıldı + ölü kalıntılar temizlendi (@boraydeger32)
+  - identity.py'daki 7 uç (verify_email_otp dahil) atlatılabilir @rate_limit(key="user")'dan session-bazlı api/rate_limit.py decorator'ına geçirildi — Frappe v15 rate_limiter key'i form_dict'ten okuduğu için istemci user=<rastgele> ile limiti tamamen aşabiliyordu; limit/pencere değerleri aynen korundu, spoof+429 testleriyle kilitli
+  - tenant_seller_filter.js silindi: hiç yüklenmiyordu (hooks'ta kayıt yok) ve var olmayan DocType'ları hedefliyordu; koruma sunucuda çift katman
+  - Mükerrer "Tradehub Seller" workspace'i kaldırıldı ("Satıcı Paneli" yaşayan kopya) + yetim DB kaydı için idempotent silme patch'i
+- fix(kategori): içe aktarma hızlandırıldı, ağaç hatası yakalanıyor (@aliiball)
+  - Nested set güncellemesi ekleme sırasında atlanıyor (lft/rgt önceden dolduruluyor); 23.511 düğümlük ağaç 21 dk yerine 8,2 dk'da kuruluyor
+  - rebuild_tree düşerse iş artık hata döndürüyor; eskiden sessiz uyarıydı, bozuk ağaç fark edilmeden kalıyordu
+  - Arka plan işi zaman aşımı 30 dk'dan 1 saate çıkarıldı
+
+---
+## [v1.14.1-alpha.4] - 2026-09-15 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Duzeltildi
+- fix(kategori): içe aktarma hızlandırıldı, ağaç hatası yakalanıyor (@aliiball)
+  - Nested set güncellemesi ekleme sırasında atlanıyor (lft/rgt önceden dolduruluyor); 23.511 düğümlük ağaç 21 dk yerine 8,2 dk'da kuruluyor
+  - rebuild_tree düşerse iş artık hata döndürüyor; eskiden sessiz uyarıydı, bozuk ağaç fark edilmeden kalıyordu
+  - Arka plan işi zaman aşımı 30 dk'dan 1 saate çıkarıldı
+
+---
 ## [v1.14.1-alpha.2] - 2026-09-15 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.

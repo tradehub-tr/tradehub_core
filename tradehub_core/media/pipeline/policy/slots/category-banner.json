@@ -66,8 +66,8 @@
     {
       "name": "catbanner_480",
       "width": 480,
-      "formats": ["avif", "webp"],
-      "encoder_quality": {"avif": 61, "webp": 80},
+      "formats": ["avif"],
+      "encoder_quality": {"avif": 61},
       "fit": "cover",
       "target_ratio": "2:1",
       "serves": ["bento 1x1 döşemesi 360-430px telefonlarda @2x", "bento 1x1 döşemesi 640px viewport @1x"],
@@ -77,8 +77,8 @@
     {
       "name": "catbanner_960",
       "width": 960,
-      "formats": ["avif", "webp"],
-      "encoder_quality": {"avif": 61, "webp": 80},
+      "formats": ["avif"],
+      "encoder_quality": {"avif": 61},
       "fit": "cover",
       "target_ratio": "2:1",
       "serves": ["bento 2x1 döşemesi 360-640px @1x-@1.5x", "bento 1x1 döşemesi 1920px viewport @2x", "bento 2x2 döşemesi 1024px viewport @2x"],
@@ -88,8 +88,8 @@
     {
       "name": "catbanner_1920",
       "width": 1920,
-      "formats": ["avif", "webp"],
-      "encoder_quality": {"avif": 61, "webp": 80},
+      "formats": ["avif"],
+      "encoder_quality": {"avif": 61},
       "fit": "cover",
       "target_ratio": "2:1",
       "serves": ["bento 2x1 döşemesi 1920px viewport @2x", "master / arşiv"],

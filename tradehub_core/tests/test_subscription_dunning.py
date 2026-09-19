@@ -56,6 +56,9 @@ def _reset_state() -> None:
 			"flushed_keys": [],  # cache().delete_keys(prefix) kayıtları
 			"saves": [],  # (name, status)
 			"enqueued": [],  # (fn, kwargs) — frappe.enqueue kayıtları
+			# M1 — db.get_value çağrı kaydı: (name, fieldname, for_update)
+			# (re-check'lerin SELECT ... FOR UPDATE ile kilitli gittiğini assert için)
+			"get_value_calls": [],
 		}
 	)
 
@@ -156,6 +159,14 @@ def _install_frappe_stub() -> None:
 	def _db_get_value(doctype, name=None, fieldname=None, as_dict=False, **kw):
 		if doctype != "Store Subscription":
 			return None
+		# M1 — çağrı şekli kaydı: fieldname listesi tuple'a normalize edilir.
+		_STATE["get_value_calls"].append(
+			(
+				name,
+				tuple(fieldname) if isinstance(fieldname, (list, tuple)) else fieldname,
+				bool(kw.get("for_update", False)),
+			)
+		)
 		sub = _STATE["subs"].get(name)
 		if sub is None:
 			return None
@@ -235,6 +246,11 @@ def _sub(
 	}
 	_STATE["subs"][name] = row
 	return row
+
+
+def _recheck_calls(fieldname) -> list[tuple]:
+	"""M1 — verilen alan şekliyle yapılmış db.get_value çağrıları (re-check izi)."""
+	return [c for c in _STATE["get_value_calls"] if c[1] == fieldname]
 
 
 class TestDunningReminders(unittest.TestCase):
@@ -345,6 +361,13 @@ class TestSuspendDelinquent(unittest.TestCase):
 		self.assertEqual(decision["rule_id"], "auth.subscription_lifecycle")
 		self.assertEqual(decision["severity"], "HIGH")
 		self.assertIn("tradehub:entitlement:", _STATE["flushed_keys"])
+		# M1: re-check SELECT ... FOR UPDATE ile kilitli gitmeli (kilit →
+		# yeniden doğrula → işle) — cron vs. ödeme onayı yarışı kapanır.
+		self.assertEqual(
+			_recheck_calls("status"),
+			[("STSUB-1", "status", True)],
+			"Suspend re-check'i for_update=True ile kilitli okumalı (M1)",
+		)
 
 	def test_d4b_flagless_record_not_suspended(self):
 		# D4b katman 1: hiç hatırlatılmamış kayıt uyarısız askıya alınmaz.
@@ -377,6 +400,9 @@ class TestSuspendDelinquent(unittest.TestCase):
 		self.assertEqual(out["suspended_count"], 0)
 		self.assertEqual(_STATE["saves"], [])
 		self.assertEqual(_STATE["enqueued"], [])
+		# M1: kilitli re-check — suspend penceresinde commit olan ödeme onayı
+		# for_update'li okumada görülür, mağaza yanlışlıkla askıya YAZILMAZ.
+		self.assertEqual(_recheck_calls("status"), [("STSUB-1", "status", True)])
 
 	def test_idempotent_second_run(self):
 		_sub(period_end=_NOW - timedelta(days=15), d1=1)
@@ -416,6 +442,11 @@ class TestExpireDunning(unittest.TestCase):
 		self.assertEqual(decision["severity"], "HIGH")
 		self.assertEqual(decision["context"]["cancellation_reason"], "dunning_expired")
 		self.assertIn("tradehub:entitlement:", _STATE["flushed_keys"])
+		# M1: expire re-check'i de kilitli (for_update) gitmeli.
+		self.assertEqual(
+			_recheck_calls(("status", "suspend_source")),
+			[("STSUB-1", ("status", "suspend_source"), True)],
+		)
 
 	def test_d1_manual_suspend_never_expired(self):
 		# D1 NEGATİF: admin'in Desk'ten manuel suspend ettiği mağaza 30 günü
@@ -463,6 +494,12 @@ class TestExpireDunning(unittest.TestCase):
 		out = lifecycle.expire_dunning_subscriptions()
 		self.assertEqual(out["expired_count"], 0)
 		self.assertEqual(_STATE["saves"], [])
+		# M1: kilitli re-check — kilit çakışmasında davranış bekleme (InnoDB
+		# lock wait), timeout'ta kayıt-başına try/except loglayıp devam eder.
+		self.assertEqual(
+			_recheck_calls(("status", "suspend_source")),
+			[("STSUB-1", ("status", "suspend_source"), True)],
+		)
 
 	def test_idempotent_second_run(self):
 		_sub(
@@ -504,6 +541,12 @@ class TestExistingBranchesRegression(unittest.TestCase):
 		self.assertEqual(out["canceled_count"], 1)
 		self.assertEqual(row["status"], "canceled")
 		self.assertEqual(row["cancel_at_period_end"], 0)
+		# M1: finalize re-check'i for_update ile kilitli gitmeli (cron vs.
+		# kullanıcı revoke yarışı — kilit → yeniden doğrula → işle).
+		self.assertEqual(
+			_recheck_calls(("status", "cancel_at_period_end")),
+			[("STSUB-1", ("status", "cancel_at_period_end"), True)],
+		)
 
 	def test_past_due_transition_with_grace_copy(self):
 		# AC-12: T+0 bildirimi korunur, copy'ye 'erişiminiz X tarihine kadar sürer'

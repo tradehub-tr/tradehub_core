@@ -51,7 +51,7 @@ export type LegType = "Pickup" | "Line Haul" | "Transfer" | "Last Mile" | "Retur
 export type LegStatus = "Planned" | "In Progress" | "Arrived" | "Completed" | "Cancelled";
 export type CostPaidBy = "Seller" | "Buyer" | "Platform";
 export type TerminalStatus = "Cancelled" | "Delivered" | "Returned";
-export type FeatureFlag = "auto_tracking_enabled" | "buyer_pickup_enabled" | "carrier_api_enabled" | "cost_estimation_enabled" | "multi_carrier_enabled" | "multi_leg_enabled" | "return_flow_enabled" | "seller_delivery_enabled" | "shipping_zone_pricing_enabled" | "split_shipment_enabled" | "warehouse_transfer_enabled" | "webhook_notifications_enabled";
+export type FeatureFlag = "auto_tracking_enabled" | "buyer_pickup_enabled" | "carrier_api_enabled" | "carrier_webhook_enabled" | "cost_estimation_enabled" | "multi_carrier_enabled" | "multi_leg_enabled" | "return_flow_enabled" | "seller_delivery_enabled" | "shipping_zone_pricing_enabled" | "split_shipment_enabled" | "warehouse_transfer_enabled" | "webhook_notifications_enabled";
 
 // ── Kataloglar ──
 export interface ShippingChannelListItem {

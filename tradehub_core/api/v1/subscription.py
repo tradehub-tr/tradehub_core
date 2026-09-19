@@ -110,19 +110,7 @@ def upgrade_subscription_plan(
 			)
 
 	start_trial_bool = str(start_trial).strip().lower() in ("1", "true", "yes")
-
-	# C8 fix — ödemesiz plan aktivasyonu engeli.
-	# Platform admin (caller_tenant == "" → System Manager/Marketplace Admin) ücretli
-	# aktivasyon yapabilir (ödeme onayı süreci dışından). Mağaza sahibi self-service
-	# olarak YALNIZCA trial başlatabilir; ücretli `active` plana geçiş onaylı ödeme
-	# gerektirir (confirm_subscription_payment akışı, admin-only). Bu kontrol olmadan
-	# her owner ücret ödemeden ENTERPRISE'a geçebiliyordu.
 	is_platform_admin = caller_tenant == ""
-	if not is_platform_admin and not start_trial_bool:
-		frappe.throw(
-			_("Ücretli plana geçiş için ödeme onayı gerekir; lütfen ödeme akışını kullanın."),
-			frappe.PermissionError,
-		)
 
 	# Mağazanın mevcut Store Subscription'ı (store unique → en fazla 1 satır).
 	# Status'tan bağımsız ara: `expired`/`past_due` bir mağaza tekrar abone/öde
@@ -143,6 +131,20 @@ def upgrade_subscription_plan(
 
 	old_plan = existing.plan if existing else None
 	target_status = "trial" if start_trial_bool else "active"
+
+	# C8 fix (K1 hardening) — ödemesiz plan aktivasyonu engeli, NİHAİ hedef üzerinden.
+	# Platform admin (caller_tenant == "" → System Manager/Marketplace Admin) ücretli
+	# aktivasyon yapabilir (ödeme onayı süreci dışından). Mağaza sahibi self-service
+	# olarak YALNIZCA trial başlatabilir; ücretli `active` plana geçiş onaylı ödeme
+	# gerektirir (confirm_subscription_payment akışı, admin-only). Guard start_trial
+	# PARAMETRESİNE değil hesaplanan target_status'a bakar: aksi halde trial hakkını
+	# kullanmış (trial_used=1) bir owner start_trial=1 geçip yukarıdaki "1 mağaza =
+	# 1 trial" düşürmesiyle ödemesiz `active` üretebiliyordu (K1 payment bypass).
+	if not is_platform_admin and target_status == "active":
+		frappe.throw(
+			_("Ücretli plana geçiş için ödeme onayı gerekir; lütfen ödeme akışını kullanın."),
+			frappe.PermissionError,
+		)
 
 	# R2 — 'canceled' bir mağaza self-servis reaktive edilemez, önce admin
 	# reaktivasyonu gerekir: hesap silme akışı (account_deleted) profili

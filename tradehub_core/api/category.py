@@ -889,6 +889,15 @@ def _run_category_import(json_str, job_key):
 		inserted = updated = skipped = 0
 		last_flush = 0
 
+		# lft/rgt bos birakilirsa Frappe her insert'te tabloyu iki kez tarayan
+		# UPDATE cifti calistirir (nestedset.update_add_node) ve tablo buyudukce
+		# yavaslar -- olculdu: 23.511 kayit ~21 dk, is 30 dk timeout'una takildi.
+		# Alanlari onceden doldurmak bu guncellemeyi atlatir (nestedset.py:54:
+		# "if not doc.lft and not doc.rgt"). Degerler gecici ve yalnizca cakismasin
+		# diye MAX(rgt)'den devam eder; dongu sonundaki rebuild_tree gercek
+		# lft/rgt'yi bastan kurar. Ayni olcumde bu yol 8,4 dk surdu.
+		nsm_sira = (frappe.db.sql("SELECT COALESCE(MAX(rgt), 0) FROM `tabProduct Category`")[0][0] or 0) + 1
+
 		while queue:
 			item = queue.popleft()
 			item_id = item["id"]
@@ -921,6 +930,11 @@ def _run_category_import(json_str, job_key):
 						doc.url_slug = slug
 						doc.is_active = 1
 						doc.sort_order = 0
+						# Gecici nested set degerleri -- bkz. nsm_sira yorumu.
+						doc.lft = nsm_sira
+						doc.rgt = nsm_sira + 1
+						doc.old_parent = frappe_parent
+						nsm_sira += 2
 						doc.insert(ignore_permissions=True)
 						existing[item_id] = doc.name
 						inserted += 1
@@ -950,13 +964,29 @@ def _run_category_import(json_str, job_key):
 
 		frappe.db.commit()
 
-		warning = None
 		try:
 			frappe.utils.nestedset.rebuild_tree("Product Category", "parent_product_category")
 			frappe.db.commit()
 		except Exception as e:
+			# Ekleme sirasinda lft/rgt gecici deger aldigi icin agacin dogrusu
+			# YALNIZCA burada kuruluyor. Bu adim duserse agac tutarsiz kalir --
+			# uyari degil HATA: is "bitti" sayilirsa bozuk agac fark edilmez.
 			frappe.log_error(title="Category rebuild_tree", message=str(e))
-			warning = _("Kategori ağacı yeniden oluşturulurken hata oluştu. Sıralama bozuk olabilir.")
+			frappe.flags.in_category_import = False
+			_update_progress(
+				job_key,
+				state="error",
+				inserted=inserted,
+				updated=updated,
+				skipped=skipped,
+				processed=total,
+				total=total,
+				error=_(
+					"Kategoriler yazildi ancak kategori agaci kurulamadi. "
+					"Agac tutarsiz durumda -- ayni dosyayi tekrar yukleyin."
+				),
+			)
+			return
 
 		# Bulk bitti: kategori-bağımlı storefront cache'lerini TEK sefer düş.
 		frappe.flags.in_category_import = False
@@ -972,7 +1002,6 @@ def _run_category_import(json_str, job_key):
 			skipped=skipped,
 			processed=total,
 			total=total,
-			warning=warning,
 		)
 	except Exception as e:
 		frappe.log_error(title="Category async import", message=str(e))
@@ -1014,7 +1043,9 @@ def start_category_import(json_data):
 	frappe.enqueue(
 		"tradehub_core.api.category._run_category_import",
 		queue="long",
-		timeout=1800,
+		# 23.511 dugumluk agac lokalde 8,4 dk surdu; 1 saat canli sunucunun
+		# yavas oldugu ya da katalogun buyudugu durumlar icin emniyet payi.
+		timeout=3600,
 		json_str=json_str,
 		job_key=job_key,
 	)

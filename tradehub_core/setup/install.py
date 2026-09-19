@@ -6,12 +6,24 @@ def after_install():
 	"""Create custom marketplace roles. Idempotent — safe to run on every migrate."""
 	_create_marketplace_roles()
 	_setup_core_permissions()
+	_seed_media_pipeline_defaults()
 	_seed_media_phase4_catalog()
 	_seed_media_phase5_defaults()
 	_seed_email_preference_categories()
 	_seed_supported_currencies()
 	_bootstrap_recommendations()
 	frappe.db.commit()
+	from tradehub_core.media.rendition_backfill import start_after_migrate
+
+	start_after_migrate()
+
+
+def _seed_media_pipeline_defaults():
+	"""Fresh install historical patch'leri çalıştırmadığı için aynı seed'i kullan."""
+	if frappe.db.exists("DocType", "Media Engine Settings"):
+		from tradehub_core.patches.v15_9_22_media_engine_settings import execute
+
+		execute()
 
 
 def _setup_core_permissions():
@@ -66,8 +78,7 @@ def _seed_media_phase4_catalog():
 def _seed_media_phase5_defaults():
 	"""Fresh install'da Faz 5'in fail-closed retention varsayılanlarını ekle."""
 	if not all(
-		frappe.db.table_exists(doctype)
-		for doctype in ("Media Storage Settings", "Media Storage Profile")
+		frappe.db.table_exists(doctype) for doctype in ("Media Storage Settings", "Media Storage Profile")
 	):
 		return
 	from tradehub_core.patches.v15_9_45_media_phase5_schema import seed_defaults

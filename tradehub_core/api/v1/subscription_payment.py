@@ -208,7 +208,14 @@ def list_my_subscription_payments() -> list[dict[str, Any]]:
 def confirm_subscription_payment(payment: str) -> dict[str, Any]:
 	"""Admin: havalenin geldiğini doğrula → aboneliği aktive et."""
 	frappe.only_for(_ADMIN_ROLES)
-	doc = frappe.get_doc("Subscription Payment", payment)
+	# M1 TOCTOU kilidi: satır SELECT ... FOR UPDATE ile yüklenir (rfq.py:679
+	# emsali — get_doc for_update kilitli + EN GÜNCEL commit'i okur). Eşzamanlı
+	# ikinci confirm/reject bu satırda BEKLER; ilk işlem commit edince aşağıdaki
+	# re-check 'pending' olmayan durumu görüp 417 atar → tek havaleye çift
+	# aktivasyon (devirde çift dönem uzatması) kapanır. Statü yazımı bilinçli
+	# olarak doc.save üzerinden kalır (controller validate'leri bypass edilmez).
+	doc = frappe.get_doc("Subscription Payment", payment, for_update=True)
+	# Kilit SONRASI re-check (417 — ValidationError):
 	if doc.status != "pending":
 		frappe.throw(_("Bu ödeme zaten işlenmiş (durum: {0}).").format(doc.status))
 
@@ -218,7 +225,13 @@ def confirm_subscription_payment(payment: str) -> dict[str, Any]:
 	doc.flags.ignore_permissions = True
 	doc.save(ignore_permissions=True)
 
-	# Aboneliği aktive et (admin → tenant parametresi ile). billing_cycle
+	# Aboneliği aktive et. upgrade_subscription_plan'a DOKUNULMADI: confirm
+	# kaynaklı çift aktivasyon yukarıdaki Subscription Payment satır kilidiyle
+	# tek noktadan kapandı (ikinci confirm upgrade'e HİÇ ulaşamaz). NOT: bu
+	# kilit upgrade'in DİĞER çağrı yollarını (ör. admin'in doğrudan plan
+	# değiştirmesi vs. eşzamanlı confirm) korumaz — Store Subscription satırı
+	# kilitlenmiyor; o yarış upgrade tarafının işi (ayrı iş kalemi).
+	# billing_cycle
 	# geçirilir ki dönem hesabı ödemenin dönemine göre yapılsın (BE-3 / AC-7);
 	# geçirilmezse mevcut kayıt/monthly default'una düşüp yanlış dönem yazılırdı.
 	upgrade_subscription_plan(
@@ -237,7 +250,9 @@ def confirm_subscription_payment(payment: str) -> dict[str, Any]:
 def reject_subscription_payment(payment: str, reason: str = "") -> dict[str, Any]:
 	"""Admin: havale gelmedi/yanlış → talebi reddet."""
 	frappe.only_for(_ADMIN_ROLES)
-	doc = frappe.get_doc("Subscription Payment", payment)
+	# M1 TOCTOU kilidi — confirm ile aynı desen: kilit → re-check → işle.
+	# confirm↔reject yarışında da geç gelen 417 alır (çifte sonuçlanma yok).
+	doc = frappe.get_doc("Subscription Payment", payment, for_update=True)
 	if doc.status != "pending":
 		frappe.throw(_("Bu ödeme zaten işlenmiş (durum: {0}).").format(doc.status))
 

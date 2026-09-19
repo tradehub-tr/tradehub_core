@@ -73,6 +73,7 @@ class AkisliHashTesti(unittest.TestCase):
 
 	def test_uretecle_ayni_sonuc(self):
 		"""Parçalı yükleme yolunda içerik üreteç olarak gelir."""
+
 		def parcalar():
 			for i in range(0, len(ORNEK), 997):
 				yield ORNEK[i : i + 997]
@@ -197,6 +198,11 @@ class VersionHashTesti(unittest.TestCase):
 	def test_ayni_girdi_ayni_hash(self):
 		self.assertEqual(self._h(), self._h())
 
+	def test_farkli_varliklar_ayni_surumu_paylasmaz(self):
+		self.assertNotEqual(self._h(asset_key="store-a-photo"), self._h(asset_key="store-b-photo"))
+		self.assertEqual(self._h(asset_key="store-a-photo"), self._h(asset_key="store-a-photo"))
+		self.assertEqual(self._h(), self._h(asset_key=""))
+
 	def test_sozluk_sirasi_hashi_degistirmez(self):
 		ters = {"master": {"max_long_edge": 2400}, "slot_key": "product.image"}
 		self.assertEqual(self._h(), self._h(policy_snapshot=ters))
@@ -234,15 +240,22 @@ class VersionHashTesti(unittest.TestCase):
 
 	def test_alakasiz_alan_hashi_degistirmez(self):
 		"""Önizleme kaydı pikseli değiştirmez → türevleri yeniden ürettirmemeli."""
-		zengin = dict(self.NIYET, previewed_placements=[{"profile": "product-main"}],
-					  algorithm_version="v9", approved_by_user=1)
+		zengin = dict(
+			self.NIYET,
+			previewed_placements=[{"profile": "product-main"}],
+			algorithm_version="v9",
+			approved_by_user=1,
+		)
 		self.assertEqual(self._h(), self._h(crop_intent=zengin))
 
 	def test_override_sirasi_hashi_degistirmez(self):
-		a = dict(self.NIYET, overrides=[
-			{"profile": "a", "x": 0.1, "y": 0.1, "w": 0.5, "h": 0.5},
-			{"profile": "b", "x": 0.2, "y": 0.2, "w": 0.5, "h": 0.5},
-		])
+		a = dict(
+			self.NIYET,
+			overrides=[
+				{"profile": "a", "x": 0.1, "y": 0.1, "w": 0.5, "h": 0.5},
+				{"profile": "b", "x": 0.2, "y": 0.2, "w": 0.5, "h": 0.5},
+			],
+		)
 		b = dict(self.NIYET, overrides=list(reversed(a["overrides"])))
 		self.assertEqual(self._h(crop_intent=a), self._h(crop_intent=b))
 
@@ -370,11 +383,17 @@ class YarisKosuluTesti(unittest.TestCase):
 	def test_seri_iki_cagri_tek_kayit(self):
 		depo = self.SahteDepo()
 		a, yeni_a = idempotent_create(
-			ORNEK_SHA, lambda: depo.create(ORNEK_SHA, "MA-1"), depo.find,
-			lambda e: isinstance(e, depo.Cakisma))
+			ORNEK_SHA,
+			lambda: depo.create(ORNEK_SHA, "MA-1"),
+			depo.find,
+			lambda e: isinstance(e, depo.Cakisma),
+		)
 		b, yeni_b = idempotent_create(
-			ORNEK_SHA, lambda: depo.create(ORNEK_SHA, "MA-2"), depo.find,
-			lambda e: isinstance(e, depo.Cakisma))
+			ORNEK_SHA,
+			lambda: depo.create(ORNEK_SHA, "MA-2"),
+			depo.find,
+			lambda e: isinstance(e, depo.Cakisma),
+		)
 		self.assertTrue(yeni_a)
 		self.assertFalse(yeni_b)
 		self.assertEqual(a, b)
@@ -479,9 +498,9 @@ class AlgisalHashTesti(unittest.TestCase):
 		b = dedup.dhash(buf.getvalue())
 		mesafe = dedup.hamming_distance(a, b)
 		self.assertLessEqual(
-			mesafe, dedup.PHASH_DISTANCE_THRESHOLD,
-			f"aynı fotoğrafın yarı boy/q70 hâli {mesafe} bit uzakta "
-			f"(eşik {dedup.PHASH_DISTANCE_THRESHOLD})",
+			mesafe,
+			dedup.PHASH_DISTANCE_THRESHOLD,
+			f"aynı fotoğrafın yarı boy/q70 hâli {mesafe} bit uzakta (eşik {dedup.PHASH_DISTANCE_THRESHOLD})",
 		)
 
 	def test_farkli_gorsel_uzak(self):

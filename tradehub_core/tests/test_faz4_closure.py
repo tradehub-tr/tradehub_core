@@ -50,9 +50,7 @@ class Phase4SchemaClosureTest(unittest.TestCase):
 		self.assertEqual(fields("media_asset")["source"].get("options"), "Media Source")
 
 	def test_source_immutability_ignores_framework_audit_columns(self) -> None:
-		controller = (
-			DOCTYPE_ROOT / "media_source" / "media_source.py"
-		).read_text(encoding="utf-8")
+		controller = (DOCTYPE_ROOT / "media_source" / "media_source.py").read_text(encoding="utf-8")
 		self.assertIn("IMMUTABLE_FIELDS", controller)
 		self.assertNotIn("self.meta.get_valid_columns()", controller)
 
@@ -71,8 +69,13 @@ class Phase4SchemaClosureTest(unittest.TestCase):
 		hooks = (ROOT / "tradehub_core" / "hooks.py").read_text(encoding="utf-8")
 		self.assertIn('"Media Source": "tradehub_core.permissions.media_source_query_conditions"', hooks)
 		self.assertIn('"Media Source": "tradehub_core.permissions.media_source_has_permission"', hooks)
-		self.assertIn('"Media Engine Settings": "tradehub_core.permissions.media_engine_settings_has_permission"', hooks)
-		self.assertIn('"Media Storage Settings": "tradehub_core.permissions.media_storage_settings_has_permission"', hooks)
+		self.assertIn(
+			'"Media Engine Settings": "tradehub_core.permissions.media_engine_settings_has_permission"', hooks
+		)
+		self.assertIn(
+			'"Media Storage Settings": "tradehub_core.permissions.media_storage_settings_has_permission"',
+			hooks,
+		)
 
 
 class Phase4MigrationClosureTest(unittest.TestCase):
@@ -91,7 +94,9 @@ class Phase4MigrationClosureTest(unittest.TestCase):
 		self.assertIn("v15_9_44_media_phase4_indexes", install)
 
 	def test_critical_index_set_is_declared(self) -> None:
-		patch = (ROOT / "tradehub_core" / "patches" / "v15_9_44_media_phase4_indexes.py").read_text(encoding="utf-8")
+		patch = (ROOT / "tradehub_core" / "patches" / "v15_9_44_media_phase4_indexes.py").read_text(
+			encoding="utf-8"
+		)
 		for index in (
 			"ix_seller_state_modified",
 			"ix_state_lastaccess",
@@ -107,8 +112,10 @@ class Phase4MigrationClosureTest(unittest.TestCase):
 
 	def test_seed_covers_every_canonical_policy_file(self) -> None:
 		slots = sorted((ROOT / "tradehub_core" / "media" / "pipeline" / "policy" / "slots").glob("*.json"))
-		self.assertEqual(len(slots), 9)
-		seed_patch = (ROOT / "tradehub_core" / "patches" / "v15_9_43_media_phase4_schema.py").read_text(encoding="utf-8")
+		self.assertEqual(len(slots), 10)
+		seed_patch = (ROOT / "tradehub_core" / "patches" / "v15_9_43_media_phase4_schema.py").read_text(
+			encoding="utf-8"
+		)
 		self.assertIn('SLOT_DIR.glob("*.json")', seed_patch)
 
 

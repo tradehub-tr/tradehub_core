@@ -122,18 +122,24 @@ class Listing(Document):
 		filesort'a zorluyordu). is_visible/status'un tüm validate mutasyonlarından
 		SONRA çağrılır ki değer nihai duruma göre hesaplansın.
 
-		Dunning drift guard (AC-9): mağazanın Store Subscription status'u
-		'suspended' iken herhangi bir save (admin/Desk dahil) formülü yeniden
-		hesaplayıp hide_store_listings'in yazdığı 0'ı sessizce 1'e çevirmesin
-		diye storefront_visible 0'a sabitlenir. Tek frappe.db.get_value maliyeti
-		yalnız formülün 1 döndüğü save'lerde ödenir (hot path değil)."""
+		Drift guard (AC-9, K2 genişletmesi): mağazanın Store Subscription status'u
+		NON-OPERASYONELKEN (suspended/canceled/expired — entitlement
+		_OPERATIONAL_STATUSES dışı) herhangi bir save (admin/Desk dahil) formülü
+		yeniden hesaplayıp hide_store_listings'in yazdığı 0'ı sessizce 1'e
+		çevirmesin diye storefront_visible 0'a sabitlenir. Hiç aboneliği olmayan
+		mağaza (status=None) guard DIŞIDIR — mevcut davranış korunur, formül
+		belirler. Tek frappe.db.get_value maliyeti yalnız formülün 1 döndüğü
+		save'lerde ödenir (hot path değil)."""
 		from tradehub_core.api.listing import STOREFRONT_VISIBLE_STATUSES
 
 		visible = 1 if (self.is_visible and self.status in STOREFRONT_VISIBLE_STATUSES) else 0
 		if visible and self.seller_profile:
-			from tradehub_core.entitlement.core import get_subscription_status
+			# _OPERATIONAL_STATUSES: tek kaynak entitlement çekirdeği — vitrin
+			# politikası "abonelik operasyonelken açık" semantiğine hizalı.
+			from tradehub_core.entitlement.core import _OPERATIONAL_STATUSES, get_subscription_status
 
-			if get_subscription_status(self.seller_profile) == "suspended":
+			sub_status = get_subscription_status(self.seller_profile)
+			if sub_status is not None and sub_status not in _OPERATIONAL_STATUSES:
 				visible = 0
 		self.storefront_visible = visible
 

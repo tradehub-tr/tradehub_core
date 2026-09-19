@@ -86,6 +86,7 @@
 			"auto_tracking_enabled",
 			"buyer_pickup_enabled",
 			"carrier_api_enabled",
+			"carrier_webhook_enabled",
 			"cost_estimation_enabled",
 			"multi_carrier_enabled",
 			"multi_leg_enabled",
@@ -5488,6 +5489,42 @@
 					],
 					"pending_fields": {},
 					"note": "Zaten okunmuşsa mevcut `read_at` döner, üzerine yazılmaz — idempotent. Uygulama sırasında EN SONA (§9): ekran bu uç olmadan da çalışır, yalnız her kayıt okunmamış görünür."
+				}
+			]
+		},
+		"webhook": {
+			"provisional": true,
+			"module": "api.v1.logistics_webhook",
+			"label": "Taşıyıcı webhook alıcısı (inbound tracking push)",
+			"owner": "09-BE",
+			"source_doc": "LOJISTIK-WEBHOOK-SPEC.md",
+			"endpoints": [
+				{
+					"name": "receive_carrier_webhook",
+					"params": [
+						{
+							"name": "account",
+							"type": "str",
+							"required": true,
+							"note": "Carrier Account docname — URL'de opak referans; asıl kapı HMAC"
+						}
+					],
+					"returns": {
+						"shape": "custom",
+						"fields": [
+							"ok"
+						]
+					},
+					"errors": [],
+					"guards": [
+						"GUEST uç (allow_guest=True) — çağıran taşıyıcı sunucusudur, oturum yok; kimlik kanıtı `X-Webhook-Signature: sha256=<hex(HMAC-SHA256(webhook_secret, raw_body))>` başlığıdır, karşılaştırma hmac.compare_digest ile (sabit zaman).",
+						"Gövde ham taşıyıcı payload'ıdır (≤ MAX_WEBHOOK_BODY_BYTES), form parametresi DEĞİL — imza ham baytlar üzerinden doğrulanır. Boyut kontrolü imza HESAPLANMADAN önce (413).",
+						"Bilinmeyen hesap / is_active=0 / webhook_secret boş / carrier_webhook_enabled=0 → imza hatasıyla AYNI jenerik 401; iç exception'lar da maskeli loglanıp aynı 401'e düşer (W2) — hiçbir ret yolu ayrıştırılamaz.",
+						"Aynı ham gövde WEBHOOK_DEDUPE_TTL_SECONDS (48 saat) içinde ikinci kez → 200 ama ikinci işleme job'u YOK (Redis dedupe, W4).",
+						"IP-kovası rate limit (600/60sn, key parametresiz — W3); doğrulama sonrası işleme frappe.enqueue ile asenkron, taşıyıcı yanıt için işlemeyi BEKLEMEZ."
+					],
+					"pending_fields": {},
+					"note": "Kimliği doğrulanmış ama işlenemeyen event (eşleşmeyen kod, adapter'sız carrier) yine 200 alır — retry fırtınası önleme; hata job'da loglanır. Mock gövde şeması: {tracking_number, status_code, status_text, event_time, location?}."
 				}
 			]
 		}

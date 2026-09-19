@@ -344,3 +344,7 @@ tradehub_core.patches.v15_9_54_remove_tradehub_seller_workspace
 # --- MOGEM-665 Ürün API'si · 1. aşama: (seller_profile, seller_sku) benzersiz ---
 tradehub_core.patches.v15_9_57_seller_sku_benzersiz
 tradehub_core.patches.v15_9_58_seed_seller_api_nav
+
+# --- Medya işleme yeni kurulumlarda varsayılan açık ---
+tradehub_core.patches.v15_9_57_media_pipeline_defaults
+tradehub_core.patches.v15_9_58_enable_media_and_backfill

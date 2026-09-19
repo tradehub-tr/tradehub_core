@@ -376,8 +376,17 @@ def finalize_cancellations() -> dict:
 		try:
 			# Idempotent: işlem öncesi re-check (race önlemi — bu arada revoke
 			# edilmiş veya başka süreç status'u değiştirmiş olabilir).
+			# M1: for_update=True → SELECT ... FOR UPDATE (kilit → yeniden doğrula
+			# → işle): eşzamanlı kullanıcı/admin işlemi (ör. revoke) commit edene
+			# kadar bu satırda BEKLENİR ve en güncel status okunur; kilit
+			# çakışmasında davranış beklemedir (InnoDB lock wait), timeout'ta
+			# kayıt-başına try/except loglayıp sonraki kayda geçer.
 			row = frappe.db.get_value(
-				"Store Subscription", sub.name, ["status", "cancel_at_period_end"], as_dict=True
+				"Store Subscription",
+				sub.name,
+				["status", "cancel_at_period_end"],
+				as_dict=True,
+				for_update=True,
 			)
 			if not row or row.status != "active" or not cint(row.cancel_at_period_end):
 				continue
@@ -681,8 +690,11 @@ def suspend_delinquent_subscriptions(first_reminded: tuple[str, ...] | list[str]
 				continue
 
 			# Idempotent: işlem öncesi re-check (race önlemi — bu arada ödeme
-			# onaylanıp 'active' olmuş olabilir).
-			current_status = frappe.db.get_value("Store Subscription", sub.name, "status")
+			# onaylanıp 'active' olmuş olabilir). M1: for_update=True kilitli
+			# okuma — suspend penceresinde commit olan ödeme onayı beklenir ve
+			# en güncel status görülür (mağaza yanlışlıkla askıya YAZILMAZ);
+			# kilit çakışmasında davranış bekleme, timeout'ta dal try/except'i.
+			current_status = frappe.db.get_value("Store Subscription", sub.name, "status", for_update=True)
 			if current_status != "past_due":
 				continue
 
@@ -788,8 +800,14 @@ def expire_dunning_subscriptions() -> dict:
 		try:
 			# Idempotent re-check (race önlemi): bu arada ödeme onaylanıp 'active'
 			# olmuş ya da suspend_source değişmiş olabilir — D1 filtresi burada da.
+			# M1: for_update=True kilitli okuma (kilit → yeniden doğrula → işle);
+			# çakışmada bekleme, timeout'ta kayıt-başına try/except devralır.
 			row = frappe.db.get_value(
-				"Store Subscription", sub.name, ["status", "suspend_source"], as_dict=True
+				"Store Subscription",
+				sub.name,
+				["status", "suspend_source"],
+				as_dict=True,
+				for_update=True,
 			)
 			if not row or row.status != "suspended" or row.suspend_source != "dunning":
 				continue

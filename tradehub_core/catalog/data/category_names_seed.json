@@ -1,0 +1,4007 @@
+{
+  "Ambalaj ve Paketleme": {
+    "en": "Packaging",
+    "ar": "التعبئة والتغليف",
+    "ru": "Упаковка"
+  },
+  "Aydınlatma": {
+    "en": "Lighting",
+    "ar": "الإنارة",
+    "ru": "Освещение"
+  },
+  "Bağlantı Elemanları": {
+    "en": "Fasteners",
+    "ar": "أدوات التثبيت",
+    "ru": "Крепёж"
+  },
+  "Bebek Ürünleri": {
+    "en": "Baby Products",
+    "ar": "منتجات الأطفال الرضّع",
+    "ru": "Товары для малышей"
+  },
+  "Elektrik Malzemeleri": {
+    "en": "Electrical Supplies",
+    "ar": "المستلزمات الكهربائية",
+    "ru": "Электротовары"
+  },
+  "Elektrikli Ev Aletleri": {
+    "en": "Home Appliances",
+    "ar": "الأجهزة المنزلية",
+    "ru": "Бытовая техника"
+  },
+  "Elektronik Komponentler": {
+    "en": "Electronic Components",
+    "ar": "المكوّنات الإلكترونية",
+    "ru": "Электронные компоненты"
+  },
+  "Endüstriyel Makineler ve Üretim Ekipmanları": {
+    "en": "Industrial Machinery & Production Equipment",
+    "ar": "الآلات الصناعية ومعدات الإنتاج",
+    "ru": "Промышленные машины и производственное оборудование"
+  },
+  "Endüstriyel Mutfak": {
+    "en": "Commercial Kitchen",
+    "ar": "المطابخ الصناعية",
+    "ru": "Профессиональная кухня"
+  },
+  "Enerji ve Güç Sistemleri": {
+    "en": "Energy & Power Systems",
+    "ar": "أنظمة الطاقة والقدرة",
+    "ru": "Энергетика и системы питания"
+  },
+  "Ev Dekoru": {
+    "en": "Home Décor",
+    "ar": "ديكور المنزل",
+    "ru": "Декор для дома"
+  },
+  "Ev ve Mutfak Gereçleri": {
+    "en": "Home & Kitchenware",
+    "ar": "أدوات المنزل والمطبخ",
+    "ru": "Товары для дома и кухни"
+  },
+  "Evcil Hayvan Ürünleri": {
+    "en": "Pet Supplies",
+    "ar": "مستلزمات الحيوانات الأليفة",
+    "ru": "Зоотовары"
+  },
+  "Giyim": {
+    "en": "Apparel",
+    "ar": "الملابس",
+    "ru": "Одежда"
+  },
+  "Gıda ve İçecek": {
+    "en": "Food & Beverage",
+    "ar": "الأغذية والمشروبات",
+    "ru": "Продукты и напитки"
+  },
+  "Güç Aktarım Ürünleri": {
+    "en": "Power Transmission",
+    "ar": "منتجات نقل الحركة",
+    "ru": "Приводная техника"
+  },
+  "Güvenlik ve Güvenlik Sistemleri": {
+    "en": "Safety & Security Systems",
+    "ar": "أنظمة الأمن والسلامة",
+    "ru": "Охранные системы и безопасность"
+  },
+  "Halat, Çelik Halat, Zincir ve Ekipmanları": {
+    "en": "Ropes, Wire Ropes, Chains & Accessories",
+    "ar": "الحبال والحبال الفولاذية والسلاسل وملحقاتها",
+    "ru": "Канаты, стальные тросы, цепи и оснастка"
+  },
+  "Ham Madde ve Endüstriyel Malzemeler": {
+    "en": "Raw Materials & Industrial Supplies",
+    "ar": "المواد الخام والمواد الصناعية",
+    "ru": "Сырьё и промышленные материалы"
+  },
+  "Hırdavat": {
+    "en": "Hardware",
+    "ar": "الخردوات",
+    "ru": "Скобяные изделия"
+  },
+  "Hotel, Restaurant ve Cafe Ekipmanları": {
+    "en": "Hotel, Restaurant & Café Equipment",
+    "ar": "معدات الفنادق والمطاعم والمقاهي",
+    "ru": "Оборудование для отелей, ресторанов и кафе"
+  },
+  "İmalat Hizmetleri": {
+    "en": "Manufacturing Services",
+    "ar": "خدمات التصنيع",
+    "ru": "Производственные услуги"
+  },
+  "İnşaat ve Yapı Malzemeleri": {
+    "en": "Construction & Building Materials",
+    "ar": "مواد البناء والتشييد",
+    "ru": "Строительные материалы"
+  },
+  "İş Kıyafeti ve Kurumsal Giyim": {
+    "en": "Workwear & Corporate Apparel",
+    "ar": "ملابس العمل والزي المؤسسي",
+    "ru": "Спецодежда и корпоративная одежда"
+  },
+  "İş Makineleri": {
+    "en": "Heavy Equipment",
+    "ar": "المعدات الثقيلة",
+    "ru": "Спецтехника"
+  },
+  "İş Sağlığı ve Güvenliği Ekipmanları": {
+    "en": "Occupational Health & Safety Equipment",
+    "ar": "معدات الصحة والسلامة المهنية",
+    "ru": "Средства охраны труда"
+  },
+  "Isıtma, Soğutma ve Havalandırma Sistemleri": {
+    "en": "HVAC Systems",
+    "ar": "أنظمة التدفئة والتبريد والتهوية",
+    "ru": "Отопление, охлаждение и вентиляция"
+  },
+  "Kaldırma, Taşıma ve Depolama Sistemleri": {
+    "en": "Lifting, Handling & Storage Systems",
+    "ar": "أنظمة الرفع والمناولة والتخزين",
+    "ru": "Подъёмное, транспортное и складское оборудование"
+  },
+  "Kalıp Elemanları ve Malzemeleri": {
+    "en": "Mould Components & Materials",
+    "ar": "عناصر القوالب وموادها",
+    "ru": "Элементы и материалы пресс-форм"
+  },
+  "Kaynak Makinaları ve Ekipmanları": {
+    "en": "Welding Machines & Equipment",
+    "ar": "آلات ومعدات اللحام",
+    "ru": "Сварочные аппараты и оснастка"
+  },
+  "Kesici Takım ve Tezgah Ekipmanları": {
+    "en": "Cutting Tools & Machine Tool Accessories",
+    "ar": "أدوات القطع وملحقات المكائن",
+    "ru": "Режущий инструмент и станочная оснастка"
+  },
+  "Kimyasal Maddeler": {
+    "en": "Chemicals",
+    "ar": "المواد الكيميائية",
+    "ru": "Химическая продукция"
+  },
+  "Kırtasiye ve Ofis Sarf Malzemeleri": {
+    "en": "Stationery & Office Supplies",
+    "ar": "القرطاسية ومستلزمات المكاتب",
+    "ru": "Канцтовары и офисные расходники"
+  },
+  "Kozmetik, Makyaj ve Kişisel Bakım": {
+    "en": "Cosmetics, Makeup & Personal Care",
+    "ar": "مستحضرات التجميل والمكياج والعناية الشخصية",
+    "ru": "Косметика, макияж и личная гигиена"
+  },
+  "Kuaför, Berber ve Güzellik Salonu Ürünleri": {
+    "en": "Hairdressing, Barber & Beauty Salon Supplies",
+    "ar": "مستلزمات صالونات الحلاقة والتجميل",
+    "ru": "Товары для парикмахерских и салонов красоты"
+  },
+  "Mağaza Ekipmanları, Reyon ve Teşhir Sistemleri": {
+    "en": "Store Fixtures, Shelving & Display Systems",
+    "ar": "تجهيزات المتاجر وأنظمة الرفوف والعرض",
+    "ru": "Торговое оборудование, стеллажи и витрины"
+  },
+  "Medikal": {
+    "en": "Medical",
+    "ar": "المستلزمات الطبية",
+    "ru": "Медицина"
+  },
+  "Mobilya": {
+    "en": "Furniture",
+    "ar": "الأثاث",
+    "ru": "Мебель"
+  },
+  "Müzik Enstürmanları": {
+    "en": "Musical Instruments",
+    "ar": "الآلات الموسيقية",
+    "ru": "Музыкальные инструменты"
+  },
+  "Ölçüm, Test ve Endüstriyel Kontrol": {
+    "en": "Measurement, Testing & Industrial Control",
+    "ar": "القياس والاختبار والتحكم الصناعي",
+    "ru": "Измерение, испытания и промышленный контроль"
+  },
+  "Otomotiv": {
+    "en": "Automotive",
+    "ar": "قطاع السيارات",
+    "ru": "Автотовары"
+  },
+  "Oyuncak ve Oyun": {
+    "en": "Toys & Games",
+    "ar": "الألعاب",
+    "ru": "Игрушки и игры"
+  },
+  "Parti Malzemeleri ve Süsleri": {
+    "en": "Party Supplies & Decorations",
+    "ar": "مستلزمات الحفلات والزينة",
+    "ru": "Товары для праздника и украшения"
+  },
+  "Promosyon Ürünler": {
+    "en": "Promotional Products",
+    "ar": "المنتجات الترويجية",
+    "ru": "Промопродукция"
+  },
+  "Sıhhi Tesisat Malzemeleri": {
+    "en": "Plumbing Supplies",
+    "ar": "مستلزمات السباكة",
+    "ru": "Сантехнические материалы"
+  },
+  "Spor ve Outdoor": {
+    "en": "Sports & Outdoor",
+    "ar": "الرياضة والأنشطة الخارجية",
+    "ru": "Спорт и туризм"
+  },
+  "Takı, Saat ve Gözlük": {
+    "en": "Jewellery, Watches & Eyewear",
+    "ar": "المجوهرات والساعات والنظارات",
+    "ru": "Украшения, часы и очки"
+  },
+  "Tarım ve Hayvancılık": {
+    "en": "Agriculture & Livestock",
+    "ar": "الزراعة وتربية الحيوانات",
+    "ru": "Сельское хозяйство и животноводство"
+  },
+  "Tekstil": {
+    "en": "Textiles",
+    "ar": "المنسوجات",
+    "ru": "Текстиль"
+  },
+  "Temizlik ve Hijyen Ürünleri": {
+    "en": "Cleaning & Hygiene Products",
+    "ar": "منتجات التنظيف والنظافة",
+    "ru": "Чистящие и гигиенические средства"
+  },
+  "Tüketici Elektroniği": {
+    "en": "Consumer Electronics",
+    "ar": "الإلكترونيات الاستهلاكية",
+    "ru": "Бытовая электроника"
+  },
+  "Valiz ve Çanta": {
+    "en": "Luggage & Bags",
+    "ar": "الحقائب والأمتعة",
+    "ru": "Чемоданы и сумки"
+  },
+  "3D Baskı ve Katmanlı İmalat Hizmetleri": {
+    "en": "3D Printing & Additive Manufacturing Services",
+    "ar": "خدمات الطباعة ثلاثية الأبعاد والتصنيع الإضافي",
+    "ru": "3D-печать и аддитивное производство"
+  },
+  "Acil Durum ve İlk Yardım": {
+    "en": "Emergency & First Aid",
+    "ar": "الطوارئ والإسعافات الأولية",
+    "ru": "Экстренная помощь и первая помощь"
+  },
+  "Açık Büfe Ekipmanları": {
+    "en": "Buffet Equipment",
+    "ar": "معدات البوفيه المفتوح",
+    "ru": "Оборудование для шведского стола"
+  },
+  "Ağda ve Tüy Alma": {
+    "en": "Waxing & Hair Removal",
+    "ar": "إزالة الشعر بالشمع",
+    "ru": "Депиляция воском"
+  },
+  "Ağız ve Diş Bakımı": {
+    "en": "Oral & Dental Care",
+    "ar": "العناية بالفم والأسنان",
+    "ru": "Уход за полостью рта"
+  },
+  "Agrega, Kum, Çakıl ve Dolgu Malzemeleri": {
+    "en": "Aggregates, Sand, Gravel & Fill Materials",
+    "ar": "الركام والرمل والحصى ومواد الردم",
+    "ru": "Заполнители, песок, гравий и засыпные материалы"
+  },
+  "Ahşap İşleme Makineleri": {
+    "en": "Woodworking Machinery",
+    "ar": "آلات تشغيل الخشب",
+    "ru": "Деревообрабатывающие станки"
+  },
+  "Ahşap ve Mobilya İmalat Hizmetleri": {
+    "en": "Wood & Furniture Manufacturing Services",
+    "ar": "خدمات تصنيع الخشب والأثاث",
+    "ru": "Услуги по производству изделий из дерева и мебели"
+  },
+  "Ajanda": {
+    "en": "Diaries",
+    "ar": "الأجندات",
+    "ru": "Ежедневники"
+  },
+  "Ajanda, Takvim ve Planlama": {
+    "en": "Diaries, Calendars & Planners",
+    "ar": "الأجندات والتقاويم والتخطيط",
+    "ru": "Ежедневники, календари и планировщики"
+  },
+  "Akıllı Ev Elektroniği": {
+    "en": "Smart Home Electronics",
+    "ar": "إلكترونيات المنزل الذكي",
+    "ru": "Электроника умного дома"
+  },
+  "Akıllı Şebeke ve Enerji Yönetimi": {
+    "en": "Smart Grid & Energy Management",
+    "ar": "الشبكة الذكية وإدارة الطاقة",
+    "ru": "Умные сети и управление энергией"
+  },
+  "Akülü El Aletleri": {
+    "en": "Cordless Power Tools",
+    "ar": "العدد اليدوية اللاسلكية",
+    "ru": "Аккумуляторный инструмент"
+  },
+  "Alarm ve İzinsiz Giriş Algılama Sistemleri": {
+    "en": "Alarm & Intrusion Detection Systems",
+    "ar": "أنظمة الإنذار وكشف التسلل",
+    "ru": "Охранная сигнализация и системы обнаружения проникновения"
+  },
+  "Alet Takım Çantası ve Organizer": {
+    "en": "Tool Bags & Organisers",
+    "ar": "حقائب العدد والمنظّمات",
+    "ru": "Сумки для инструмента и органайзеры"
+  },
+  "Alet Taşıma ve Organizasyon": {
+    "en": "Tool Storage & Organisation",
+    "ar": "حمل العدد وتنظيمها",
+    "ru": "Хранение и организация инструмента"
+  },
+  "Alt Giyim": {
+    "en": "Bottoms",
+    "ar": "الملابس السفلية",
+    "ru": "Нижняя одежда"
+  },
+  "Ambalaj Bantları, Çemberleme Malzemeleri ve Palet Sabitleme Ürünleri": {
+    "en": "Packaging Tapes, Strapping & Pallet Securing Products",
+    "ar": "شرائط التغليف ومواد الربط ومنتجات تثبيت المنصّات",
+    "ru": "Упаковочные ленты, обвязка и средства крепления паллет"
+  },
+  "Ambalaj Etiketleri, Shrink Sleeve Ürünleri, Karton Etiketler ve Güvenlik Etiketleri": {
+    "en": "Packaging Labels, Shrink Sleeves, Card Tags & Security Labels",
+    "ar": "ملصقات التغليف والأكمام الحرارية والبطاقات الكرتونية والملصقات الأمنية",
+    "ru": "Этикетки, термоусадочные рукава, картонные бирки и защитные этикетки"
+  },
+  "Ambalaj Hammaddeleri ve Dönüştürülmemiş Yarı Mamul Malzemeler": {
+    "en": "Packaging Raw Materials & Unconverted Semi-Finished Stock",
+    "ar": "المواد الخام للتغليف والمواد نصف المصنّعة غير المحوّلة",
+    "ru": "Сырьё для упаковки и непереработанные полуфабрикаты"
+  },
+  "Ambalaj İç Destekleri, Separatörler, Tepsiler ve Liner Bileşenleri": {
+    "en": "Packaging Inserts, Dividers, Trays & Liners",
+    "ar": "الحشوات الداخلية والفواصل والصواني والبطانات",
+    "ru": "Вкладыши, разделители, лотки и прокладки для упаковки"
+  },
+  "Ambalaj İmalat ve Fason Paketleme Hizmetleri": {
+    "en": "Packaging Manufacturing & Contract Packing Services",
+    "ar": "خدمات تصنيع التغليف والتعبئة بالتعاقد",
+    "ru": "Производство упаковки и контрактная фасовка"
+  },
+  "Ambalaj Şişeleri, Viyaller ve Ampuller": {
+    "en": "Packaging Bottles, Vials & Ampoules",
+    "ar": "قوارير التغليف والفياﻻت والأمبولات",
+    "ru": "Флаконы, виалы и ампулы"
+  },
+  "Ambalaj Tüpleri, Kartuşlar ve Stick Kapları": {
+    "en": "Packaging Tubes, Cartridges & Stick Containers",
+    "ar": "أنابيب التغليف والخراطيش وعبوات الستيك",
+    "ru": "Тубы, картриджи и стик-упаковка"
+  },
+  "Ampul": {
+    "en": "Light Bulbs",
+    "ar": "المصابيح",
+    "ru": "Лампы"
+  },
+  "Anahtar, Priz ve Fiş": {
+    "en": "Switches, Sockets & Plugs",
+    "ar": "المفاتيح والمقابس والقوابس",
+    "ru": "Выключатели, розетки и вилки"
+  },
+  "Anahtarlık": {
+    "en": "Keyrings",
+    "ar": "ميداليات المفاتيح",
+    "ru": "Брелоки"
+  },
+  "Anne Ürünleri": {
+    "en": "Maternity Products",
+    "ar": "منتجات الأمومة",
+    "ru": "Товары для мам"
+  },
+  "Antistatik, ESD ve Kontrollü Ortam Kıyafeti": {
+    "en": "Antistatic, ESD & Cleanroom Garments",
+    "ar": "ملابس مضادة للكهرباء الساكنة والغرف النظيفة",
+    "ru": "Антистатическая, ESD и чистовая спецодежда"
+  },
+  "Ark Kaynak Makinaları": {
+    "en": "Arc Welding Machines",
+    "ar": "آلات اللحام بالقوس الكهربائي",
+    "ru": "Аппараты дуговой сварки"
+  },
+  "Aşınma, Kesilme ve Mekanik İş Kıyafeti": {
+    "en": "Abrasion, Cut & Mechanical Protection Workwear",
+    "ar": "ملابس الحماية من الاحتكاك والقطع والمخاطر الميكانيكية",
+    "ru": "Спецодежда для защиты от истирания, порезов и механических рисков"
+  },
+  "Askeri Giyim ve Teçhizat": {
+    "en": "Military Clothing & Equipment",
+    "ar": "الملابس والمعدات العسكرية",
+    "ru": "Военная одежда и снаряжение"
+  },
+  "Atık Toplama, Çöp ve Geri Dönüşüm": {
+    "en": "Waste Collection, Bins & Recycling",
+    "ar": "جمع النفايات والحاويات وإعادة التدوير",
+    "ru": "Сбор отходов, мусорные контейнеры и переработка"
+  },
+  "Atıştırmalık": {
+    "en": "Snacks",
+    "ar": "الوجبات الخفيفة",
+    "ru": "Снеки"
+  },
+  "Ayakkabı": {
+    "en": "Footwear",
+    "ar": "الأحذية",
+    "ru": "Обувь"
+  },
+  "Ayakkabı Çantası": {
+    "en": "Shoe Bags",
+    "ar": "حقائب الأحذية",
+    "ru": "Сумки для обуви"
+  },
+  "Ayna": {
+    "en": "Mirrors",
+    "ar": "المرايا",
+    "ru": "Зеркала"
+  },
+  "Ayrık Yarıiletkenler": {
+    "en": "Discrete Semiconductors",
+    "ar": "أشباه الموصلات المنفصلة",
+    "ru": "Дискретные полупроводники"
+  },
+  "Bağlantı Elemanı Setleri": {
+    "en": "Fastener Sets",
+    "ar": "أطقم أدوات التثبيت",
+    "ru": "Наборы крепежа"
+  },
+  "Bağlantı, Ankraj ve Yapısal Sabitleme Malzemeleri": {
+    "en": "Connection, Anchoring & Structural Fixing Materials",
+    "ar": "مواد الوصل والتثبيت الإنشائي والمراسي",
+    "ru": "Соединительные, анкерные и конструкционные крепёжные материалы"
+  },
+  "Baharat, Sos, Sirke ve Çeşni": {
+    "en": "Spices, Sauces, Vinegar & Seasonings",
+    "ar": "البهارات والصلصات والخل والتوابل",
+    "ru": "Специи, соусы, уксус и приправы"
+  },
+  "Bahçe ve Dış Mekan Mobilyası": {
+    "en": "Garden & Outdoor Furniture",
+    "ar": "أثاث الحدائق والأماكن الخارجية",
+    "ru": "Садовая и уличная мебель"
+  },
+  "Bahçecilik ve Peyzaj": {
+    "en": "Gardening & Landscaping",
+    "ar": "البستنة وتنسيق الحدائق",
+    "ru": "Садоводство и ландшафт"
+  },
+  "Balık": {
+    "en": "Fish",
+    "ar": "الأسماك",
+    "ru": "Рыба"
+  },
+  "Balık ve Deniz Ürünleri": {
+    "en": "Fish & Seafood",
+    "ar": "الأسماك والمأكولات البحرية",
+    "ru": "Рыба и морепродукты"
+  },
+  "Balıkçılık Malzemeleri": {
+    "en": "Fishing Supplies",
+    "ar": "مستلزمات الصيد",
+    "ru": "Рыболовные принадлежности"
+  },
+  "Balon": {
+    "en": "Balloons",
+    "ar": "البالونات",
+    "ru": "Воздушные шары"
+  },
+  "Banyo ve Çamaşır Gereçleri": {
+    "en": "Bath & Laundry Accessories",
+    "ar": "أدوات الحمام والغسيل",
+    "ru": "Принадлежности для ванной и стирки"
+  },
+  "Banyo ve Duş": {
+    "en": "Bath & Shower",
+    "ar": "الحمام والاستحمام",
+    "ru": "Ванна и душ"
+  },
+  "Bar ve İçecek Servis Ekipmanları": {
+    "en": "Bar & Beverage Service Equipment",
+    "ar": "معدات البار وتقديم المشروبات",
+    "ru": "Барное оборудование и оборудование для подачи напитков"
+  },
+  "Bara ve Busbar Sistemleri": {
+    "en": "Busbar Systems",
+    "ar": "أنظمة القضبان الناقلة",
+    "ru": "Шинопроводы"
+  },
+  "Bardak Altlığı": {
+    "en": "Coasters",
+    "ar": "قواعد الأكواب",
+    "ru": "Подставки под стаканы"
+  },
+  "Bardaklar, Kaseler, Tepsiler ve Açık Ağızlı Ambalaj Kapları": {
+    "en": "Cups, Bowls, Trays & Open-Top Containers",
+    "ar": "الأكواب والأوعية والصواني والعبوات مفتوحة الفوهة",
+    "ru": "Стаканы, миски, лотки и открытая тара"
+  },
+  "Baskı ve Yazıcı Sarf Malzemeleri": {
+    "en": "Printing & Printer Consumables",
+    "ar": "مستلزمات الطباعة والطابعات",
+    "ru": "Расходные материалы для печати"
+  },
+  "Baskı, Matbaa ve Markalama Makineleri": {
+    "en": "Printing, Press & Marking Machinery",
+    "ar": "آلات الطباعة والمطابع ووسم المنتجات",
+    "ru": "Печатные, полиграфические и маркировочные машины"
+  },
+  "Batarya ve Enerji Depolama": {
+    "en": "Batteries & Energy Storage",
+    "ar": "البطاريات وتخزين الطاقة",
+    "ru": "Батареи и накопители энергии"
+  },
+  "Bebek Aktivite ve Oyun": {
+    "en": "Baby Activity & Play",
+    "ar": "أنشطة ولعب الرضّع",
+    "ru": "Развивающие игры для малышей"
+  },
+  "Bebek Bakımı": {
+    "en": "Baby Care",
+    "ar": "العناية بالرضّع",
+    "ru": "Уход за малышом"
+  },
+  "Bebek Beslenme": {
+    "en": "Baby Feeding",
+    "ar": "تغذية الرضّع",
+    "ru": "Детское питание"
+  },
+  "Bebek Beslenme Gereçleri": {
+    "en": "Baby Feeding Accessories",
+    "ar": "أدوات تغذية الرضّع",
+    "ru": "Принадлежности для кормления"
+  },
+  "Bebek Emzirme": {
+    "en": "Breastfeeding",
+    "ar": "الرضاعة الطبيعية",
+    "ru": "Грудное вскармливание"
+  },
+  "Bebek Güvenliği": {
+    "en": "Baby Safety",
+    "ar": "سلامة الرضّع",
+    "ru": "Безопасность малыша"
+  },
+  "Bebek Hediyeleri": {
+    "en": "Baby Gifts",
+    "ar": "هدايا المواليد",
+    "ru": "Подарки для новорождённых"
+  },
+  "Bebek Kişisel Bakımı": {
+    "en": "Baby Personal Care",
+    "ar": "العناية الشخصية بالرضّع",
+    "ru": "Личная гигиена малыша"
+  },
+  "Bebek Taşıma": {
+    "en": "Baby Carriers & Transport",
+    "ar": "حمل ونقل الرضّع",
+    "ru": "Переноски и транспорт для малышей"
+  },
+  "Bebek Uyku": {
+    "en": "Baby Sleep",
+    "ar": "نوم الرضّع",
+    "ru": "Сон малыша"
+  },
+  "Bebek ve Çocuk Gıdası": {
+    "en": "Baby & Toddler Food",
+    "ar": "أغذية الرضّع والأطفال",
+    "ru": "Питание для малышей и детей"
+  },
+  "Bel Çantası": {
+    "en": "Waist Bags",
+    "ar": "حقائب الخصر",
+    "ru": "Поясные сумки"
+  },
+  "Beton ve Beton Ürünleri": {
+    "en": "Concrete & Concrete Products",
+    "ar": "الخرسانة ومنتجاتها",
+    "ru": "Бетон и изделия из бетона"
+  },
+  "Beton ve Harç Makineleri": {
+    "en": "Concrete & Mortar Machinery",
+    "ar": "آلات الخرسانة والمونة",
+    "ru": "Бетонное и растворное оборудование"
+  },
+  "Betonarme ve Prefabrik Beton Yapı Elemanları": {
+    "en": "Reinforced & Precast Concrete Building Components",
+    "ar": "عناصر البناء الخرسانية المسلّحة والمسبقة الصنع",
+    "ru": "Железобетонные и сборные бетонные конструкции"
+  },
+  "Beyaz Eşya": {
+    "en": "White Goods",
+    "ar": "الأجهزة المنزلية الكبيرة",
+    "ru": "Крупная бытовая техника"
+  },
+  "Bez Çanta": {
+    "en": "Tote Bags",
+    "ar": "الحقائب القماشية",
+    "ru": "Тканевые сумки"
+  },
+  "Bijuteri Takı": {
+    "en": "Fashion Jewellery",
+    "ar": "الإكسسوارات والمجوهرات المقلّدة",
+    "ru": "Бижутерия"
+  },
+  "Bilgisayar ve Bileşenler": {
+    "en": "Computers & Components",
+    "ar": "الحواسيب ومكوّناتها",
+    "ru": "Компьютеры и комплектующие"
+  },
+  "Bioenerji ve Biyoyakıt": {
+    "en": "Bioenergy & Biofuel",
+    "ar": "الطاقة الحيوية والوقود الحيوي",
+    "ru": "Биоэнергетика и биотопливо"
+  },
+  "Bisküvi, Gofret, Kek ve Tatlı": {
+    "en": "Biscuits, Wafers, Cakes & Desserts",
+    "ar": "البسكويت والويفر والكيك والحلويات",
+    "ru": "Печенье, вафли, кексы и десерты"
+  },
+  "Bitkisel Üretim": {
+    "en": "Crop Production",
+    "ar": "الإنتاج النباتي",
+    "ru": "Растениеводство"
+  },
+  "Blister, Clamshell, Skin-Pack ve Vakum Form Ambalajlar": {
+    "en": "Blister, Clamshell, Skin-Pack & Vacuum-Formed Packaging",
+    "ar": "عبوات البليستر والصدفية والسكين-باك والتشكيل بالتفريغ",
+    "ru": "Блистерная, раскладная, скин- и вакуум-формованная упаковка"
+  },
+  "Blok Not": {
+    "en": "Notepads",
+    "ar": "دفاتر الملاحظات",
+    "ru": "Блокноты"
+  },
+  "Boru Bağlantı ve Fittings Ürünleri": {
+    "en": "Pipe Fittings & Connectors",
+    "ar": "وصلات الأنابيب والتركيبات",
+    "ru": "Трубные фитинги и соединители"
+  },
+  "Boru Sistemleri": {
+    "en": "Piping Systems",
+    "ar": "أنظمة الأنابيب",
+    "ru": "Трубопроводные системы"
+  },
+  "Boya ve Dekorasyon Aletleri": {
+    "en": "Painting & Decorating Tools",
+    "ar": "أدوات الدهان والديكور",
+    "ru": "Малярно-отделочный инструмент"
+  },
+  "Boya, Kaplama ve Dekoratif Yüzey Malzemeleri": {
+    "en": "Paints, Coatings & Decorative Surface Materials",
+    "ar": "الدهانات والطلاءات ومواد التشطيب الزخرفية",
+    "ru": "Краски, покрытия и декоративные отделочные материалы"
+  },
+  "Boyutsal Ölçüm ve Metroloji": {
+    "en": "Dimensional Measurement & Metrology",
+    "ar": "القياس البعدي والميترولوجيا",
+    "ru": "Линейные измерения и метрология"
+  },
+  "Büfe, Kahvaltı ve Catering": {
+    "en": "Buffet, Breakfast & Catering",
+    "ar": "البوفيه والإفطار والتموين",
+    "ru": "Буфет, завтрак и кейтеринг"
+  },
+  "Bulaşık Yıkama Ekipmanları": {
+    "en": "Dishwashing Equipment",
+    "ar": "معدات غسل الأطباق",
+    "ru": "Посудомоечное оборудование"
+  },
+  "Burç, Göbek ve Mil Kilitleme Sistemleri": {
+    "en": "Bushings, Hubs & Shaft Locking Systems",
+    "ar": "الجلب والمحاور وأنظمة قفل الأعمدة",
+    "ru": "Втулки, ступицы и системы фиксации валов"
+  },
+  "Çakı": {
+    "en": "Pocket Knives",
+    "ar": "مطاوي الجيب",
+    "ru": "Складные ножи"
+  },
+  "Çakmak": {
+    "en": "Lighters",
+    "ar": "الولاعات",
+    "ru": "Зажигалки"
+  },
+  "Çalışma Tezgahı": {
+    "en": "Workbenches",
+    "ar": "طاولات العمل",
+    "ru": "Верстаки"
+  },
+  "Cam ve Cam Üretim Ham Maddeleri": {
+    "en": "Glass & Glassmaking Raw Materials",
+    "ar": "الزجاج والمواد الخام لصناعته",
+    "ru": "Стекло и сырьё для стекольного производства"
+  },
+  "Çanta": {
+    "en": "Bags",
+    "ar": "الحقائب",
+    "ru": "Сумки"
+  },
+  "Çatı Malzemeleri": {
+    "en": "Roofing Materials",
+    "ar": "مواد الأسقف",
+    "ru": "Кровельные материалы"
+  },
+  "Çelik Halat ve Halat Ekipmanları": {
+    "en": "Wire Ropes & Rope Accessories",
+    "ar": "الحبال الفولاذية وملحقاتها",
+    "ru": "Стальные канаты и канатная оснастка"
+  },
+  "Cep Telefonu": {
+    "en": "Mobile Phones",
+    "ar": "الهواتف المحمولة",
+    "ru": "Мобильные телефоны"
+  },
+  "Cep Telefonu Aksesuarı": {
+    "en": "Mobile Phone Accessories",
+    "ar": "إكسسوارات الهواتف المحمولة",
+    "ru": "Аксессуары для мобильных телефонов"
+  },
+  "Cephe ve Dış Duvar Malzemeleri": {
+    "en": "Façade & External Wall Materials",
+    "ar": "مواد الواجهات والجدران الخارجية",
+    "ru": "Фасадные и наружные стеновые материалы"
+  },
+  "Ceraskal, Vinç ve Kaldırma Mekanizmaları": {
+    "en": "Hoists, Cranes & Lifting Mechanisms",
+    "ar": "الروافع والأوناش وآليات الرفع",
+    "ru": "Тали, краны и подъёмные механизмы"
+  },
+  "Cerrahi ve Ameliyathane": {
+    "en": "Surgery & Operating Theatre",
+    "ar": "الجراحة وغرف العمليات",
+    "ru": "Хирургия и операционная"
+  },
+  "Çevre Güvenlik ve Perimetre Sistemleri": {
+    "en": "Perimeter Security Systems",
+    "ar": "أنظمة تأمين المحيط",
+    "ru": "Системы периметральной охраны"
+  },
+  "Çevresel Ölçüm ve Test Cihazları": {
+    "en": "Environmental Measurement & Test Instruments",
+    "ar": "أجهزة القياس والاختبار البيئي",
+    "ru": "Приборы экологического измерения и контроля"
+  },
+  "Chiller ve Merkezi Soğutma Sistemleri": {
+    "en": "Chillers & Central Cooling Systems",
+    "ar": "المبرّدات وأنظمة التبريد المركزي",
+    "ru": "Чиллеры и системы центрального охлаждения"
+  },
+  "Çikolata, Kakao ve Şekerleme": {
+    "en": "Chocolate, Cocoa & Confectionery",
+    "ar": "الشوكولاتة والكاكاو والحلويات السكرية",
+    "ru": "Шоколад, какао и кондитерские изделия"
+  },
+  "Cilt Bakımı": {
+    "en": "Skincare",
+    "ar": "العناية بالبشرة",
+    "ru": "Уход за кожей"
+  },
+  "Ciltleme ve Laminasyon": {
+    "en": "Binding & Laminating",
+    "ar": "التجليد والتغليف الحراري",
+    "ru": "Переплёт и ламинирование"
+  },
+  "Çimento, Kireç, Harç ve Bağlayıcılar": {
+    "en": "Cement, Lime, Mortar & Binders",
+    "ar": "الأسمنت والجير والمونة والمواد الرابطة",
+    "ru": "Цемент, известь, растворы и вяжущие"
+  },
+  "Çivi ve Çakma Elemanları": {
+    "en": "Nails & Driven Fasteners",
+    "ar": "المسامير وعناصر الدق",
+    "ru": "Гвозди и забивной крепёж"
+  },
+  "Cıvata": {
+    "en": "Bolts",
+    "ar": "البراغي",
+    "ru": "Болты"
+  },
+  "CNC Sarf ve İşleme Tüketim Malzemeleri": {
+    "en": "CNC Consumables",
+    "ar": "المواد الاستهلاكية لمكائن CNC",
+    "ru": "Расходные материалы для ЧПУ"
+  },
+  "CNC Takımlama ve İşleme Aksesuarları": {
+    "en": "CNC Tooling & Machining Accessories",
+    "ar": "عدد وملحقات تشغيل CNC",
+    "ru": "Оснастка и принадлежности для ЧПУ"
+  },
+  "CNC Talaşlı İmalat Hizmetleri": {
+    "en": "CNC Machining Services",
+    "ar": "خدمات التصنيع بالقطع على CNC",
+    "ru": "Услуги механообработки на ЧПУ"
+  },
+  "Conta, Sızdırmazlık ve İzolasyon Ürünleri": {
+    "en": "Gaskets, Sealing & Insulation Products",
+    "ar": "الحشيات ومنتجات الإحكام والعزل",
+    "ru": "Прокладки, уплотнения и изоляция"
+  },
+  "Çorap": {
+    "en": "Socks",
+    "ar": "الجوارب",
+    "ru": "Носки"
+  },
+  "Dar Dokuma": {
+    "en": "Narrow Fabrics",
+    "ar": "الأقمشة الضيقة",
+    "ru": "Узкие ткани"
+  },
+  "Davetiye": {
+    "en": "Invitations",
+    "ar": "بطاقات الدعوة",
+    "ru": "Приглашения"
+  },
+  "Defter": {
+    "en": "Notebooks",
+    "ar": "الدفاتر",
+    "ru": "Тетради"
+  },
+  "Defter, Bloknot ve Not Alma": {
+    "en": "Notebooks, Notepads & Note-Taking",
+    "ar": "الدفاتر وكرّاسات الملاحظات",
+    "ru": "Тетради, блокноты и записные книжки"
+  },
+  "Değişken Hız ve Mekanik Hız Aktarım Sistemleri": {
+    "en": "Variable Speed & Mechanical Drive Systems",
+    "ar": "أنظمة السرعة المتغيرة ونقل الحركة الميكانيكي",
+    "ru": "Вариаторы и механические приводы"
+  },
+  "Delme, Sondaj ve Kazık Makineleri": {
+    "en": "Drilling & Piling Machinery",
+    "ar": "آلات الحفر والسبر والخوازيق",
+    "ru": "Буровые и сваебойные машины"
+  },
+  "Dental Ürünler": {
+    "en": "Dental Products",
+    "ar": "منتجات طب الأسنان",
+    "ru": "Стоматологические товары"
+  },
+  "Deodorant ve Terleme Bakımı": {
+    "en": "Deodorants & Antiperspirants",
+    "ar": "مزيلات العرق والعناية بالتعرق",
+    "ru": "Дезодоранты и антиперспиранты"
+  },
+  "Depo İçi Taşıma ve Çekiciler": {
+    "en": "In-Warehouse Transport & Tow Tractors",
+    "ar": "النقل داخل المستودع والجرّارات",
+    "ru": "Внутрискладской транспорт и тягачи"
+  },
+  "Depo ve Malzeme Taşıma Destek Ekipmanları": {
+    "en": "Warehouse & Material Handling Support Equipment",
+    "ar": "معدات دعم المستودعات ومناولة المواد",
+    "ru": "Вспомогательное складское и погрузочное оборудование"
+  },
+  "Depo Yapısal Sistemleri ve Operasyon Ekipmanları": {
+    "en": "Warehouse Structural Systems & Operating Equipment",
+    "ar": "الأنظمة الإنشائية للمستودعات ومعدات التشغيل",
+    "ru": "Складские конструкции и эксплуатационное оборудование"
+  },
+  "Depolama Ekipmanları": {
+    "en": "Storage Equipment",
+    "ar": "معدات التخزين",
+    "ru": "Складское оборудование"
+  },
+  "Deri, Post ve Hayvansal Ham Maddeler": {
+    "en": "Leather, Hides & Animal Raw Materials",
+    "ar": "الجلود والفراء والمواد الخام الحيوانية",
+    "ru": "Кожа, шкуры и сырьё животного происхождения"
+  },
+  "Devir, Hareket ve Zaman Ölçüm Cihazları": {
+    "en": "Speed, Motion & Time Measurement Instruments",
+    "ar": "أجهزة قياس الدوران والحركة والزمن",
+    "ru": "Приборы измерения оборотов, движения и времени"
+  },
+  "Devre Koruma": {
+    "en": "Circuit Protection",
+    "ar": "حماية الدوائر",
+    "ru": "Защита цепей"
+  },
+  "Dezenfeksiyon ve Profesyonel Sanitasyon": {
+    "en": "Disinfection & Professional Sanitation",
+    "ar": "التطهير والتعقيم المهني",
+    "ru": "Дезинфекция и профессиональная санитария"
+  },
+  "Dikiş Makinesi": {
+    "en": "Sewing Machines",
+    "ar": "ماكينات الخياطة",
+    "ru": "Швейные машины"
+  },
+  "Dişli ve Dişli Aktarım Sistemleri": {
+    "en": "Gears & Gear Drive Systems",
+    "ar": "التروس وأنظمة نقل الحركة بالتروس",
+    "ru": "Зубчатые колёса и зубчатые передачи"
+  },
+  "Dış Giyim": {
+    "en": "Outerwear",
+    "ar": "الملابس الخارجية",
+    "ru": "Верхняя одежда"
+  },
+  "Dış Mekan Aydınlatma": {
+    "en": "Outdoor Lighting",
+    "ar": "إنارة الأماكن الخارجية",
+    "ru": "Наружное освещение"
+  },
+  "Doğal Balmumu ve Bitkisel Kaynaklı Ham Maddeler": {
+    "en": "Natural Waxes & Plant-Based Raw Materials",
+    "ar": "الشموع الطبيعية والمواد الخام النباتية",
+    "ru": "Натуральные воски и растительное сырьё"
+  },
+  "Doğal Kauçuk ve Elastomer Ham Maddeleri": {
+    "en": "Natural Rubber & Elastomer Raw Materials",
+    "ar": "المطاط الطبيعي والمواد الخام للإيلاستومرات",
+    "ru": "Натуральный каучук и сырьё для эластомеров"
+  },
+  "Doğal Lif, Dolgu ve Takviye Ham Maddeleri": {
+    "en": "Natural Fibre, Filler & Reinforcement Raw Materials",
+    "ar": "الألياف الطبيعية ومواد الحشو والتقوية",
+    "ru": "Натуральные волокна, наполнители и армирующее сырьё"
+  },
+  "Doğal Taş ve Yapay Taş Malzemeleri": {
+    "en": "Natural & Engineered Stone Materials",
+    "ar": "مواد الحجر الطبيعي والصناعي",
+    "ru": "Натуральный и искусственный камень"
+  },
+  "Doğal, Biyobazlı ve Sürdürülebilir Kimyasallar": {
+    "en": "Natural, Bio-Based & Sustainable Chemicals",
+    "ar": "الكيماويات الطبيعية والحيوية والمستدامة",
+    "ru": "Натуральная, биооснованная и устойчивая химия"
+  },
+  "Doğum Günü Süsü": {
+    "en": "Birthday Decorations",
+    "ar": "زينة أعياد الميلاد",
+    "ru": "Украшения для дня рождения"
+  },
+  "Dökülme Müdahale ve Emici Temizlik Ürünleri": {
+    "en": "Spill Response & Absorbent Cleaning Products",
+    "ar": "منتجات التعامل مع الانسكاب والمواد الماصة",
+    "ru": "Средства ликвидации разливов и сорбенты"
+  },
+  "Döküm ve Metalurji Makineleri": {
+    "en": "Casting & Metallurgical Machinery",
+    "ar": "آلات السباكة والميتالورجيا",
+    "ru": "Литейное и металлургическое оборудование"
+  },
+  "Döküntü, Sızıntı ve Çevresel Acil Müdahale": {
+    "en": "Spill, Leak & Environmental Emergency Response",
+    "ar": "الاستجابة للانسكابات والتسربات والطوارئ البيئية",
+    "ru": "Реагирование на разливы, утечки и экологические аварии"
+  },
+  "Dolum, Paketleme ve Ambalaj Makineleri": {
+    "en": "Filling, Packing & Packaging Machinery",
+    "ar": "آلات التعبئة والتغليف",
+    "ru": "Фасовочное и упаковочное оборудование"
+  },
+  "Dosya ve Klasör": {
+    "en": "Files & Folders",
+    "ar": "الملفات والحافظات",
+    "ru": "Папки и файлы"
+  },
+  "Dozer ve Tesviye Makineleri": {
+    "en": "Dozers & Grading Machinery",
+    "ar": "الجرافات وآلات التسوية",
+    "ru": "Бульдозеры и планировочная техника"
+  },
+  "Drenaj, Boru ve Altyapı Yapı Malzemeleri": {
+    "en": "Drainage, Pipe & Infrastructure Building Materials",
+    "ar": "مواد الصرف والأنابيب والبنية التحتية",
+    "ru": "Дренажные, трубные и инфраструктурные стройматериалы"
+  },
+  "Dübel ve Ankraj": {
+    "en": "Wall Plugs & Anchors",
+    "ar": "الفيشر والمراسي",
+    "ru": "Дюбели и анкеры"
+  },
+  "Düğün, Kına, Nikah": {
+    "en": "Wedding & Henna Celebrations",
+    "ar": "الأعراس وحفلات الحناء وعقد القران",
+    "ru": "Свадьбы и торжества"
+  },
+  "Duş ve Banyo Tesisat Ürünleri": {
+    "en": "Shower & Bathroom Plumbing Products",
+    "ar": "منتجات سباكة الحمام والدش",
+    "ru": "Сантехника для душа и ванной"
+  },
+  "Duvar Aydınlatma": {
+    "en": "Wall Lighting",
+    "ar": "إنارة الجدران",
+    "ru": "Настенное освещение"
+  },
+  "Duvar Saati": {
+    "en": "Wall Clocks",
+    "ar": "ساعات الحائط",
+    "ru": "Настенные часы"
+  },
+  "Duvar Teşhir ve Panel Sistemleri": {
+    "en": "Wall Display & Panel Systems",
+    "ar": "أنظمة العرض الجداري واللوحات",
+    "ru": "Настенные экспозиционные и панельные системы"
+  },
+  "Eğitim Mobilyası": {
+    "en": "Educational Furniture",
+    "ar": "أثاث المؤسسات التعليمية",
+    "ru": "Мебель для учебных заведений"
+  },
+  "Eğitim ve Uygulama Ürünleri": {
+    "en": "Training & Practice Products",
+    "ar": "منتجات التدريب والتطبيق",
+    "ru": "Учебные и тренировочные изделия"
+  },
+  "Ekmek, Unlu Mamul ve Pastacılık": {
+    "en": "Bread, Bakery & Pastry",
+    "ar": "الخبز والمخبوزات والمعجنات",
+    "ru": "Хлеб, выпечка и кондитерские изделия"
+  },
+  "Ekran ve Görsel Arayüz Komponentleri": {
+    "en": "Displays & Visual Interface Components",
+    "ar": "الشاشات ومكوّنات الواجهة المرئية",
+    "ru": "Дисплеи и компоненты визуального интерфейса"
+  },
+  "Ekstrüzyon ve Profil İmalat Hizmetleri": {
+    "en": "Extrusion & Profile Manufacturing Services",
+    "ar": "خدمات البثق وتصنيع المقاطع",
+    "ru": "Экструзия и производство профилей"
+  },
+  "El Aletleri": {
+    "en": "Hand Tools",
+    "ar": "العدد اليدوية",
+    "ru": "Ручной инструмент"
+  },
+  "El Çantası": {
+    "en": "Handbags",
+    "ar": "حقائب اليد",
+    "ru": "Дамские сумки"
+  },
+  "El Feneri": {
+    "en": "Torches",
+    "ar": "المصابيح اليدوية",
+    "ru": "Фонари"
+  },
+  "El Feneri ve Işıldak": {
+    "en": "Torches & Searchlights",
+    "ar": "المصابيح اليدوية والكاشفات",
+    "ru": "Фонари и прожекторы"
+  },
+  "El ve Ayak Bakımı": {
+    "en": "Hand & Foot Care",
+    "ar": "العناية باليدين والقدمين",
+    "ru": "Уход за руками и ногами"
+  },
+  "El, Ayak ve Tırnak Bakımı": {
+    "en": "Hand, Foot & Nail Care",
+    "ar": "العناية باليدين والقدمين والأظافر",
+    "ru": "Уход за руками, ногами и ногтями"
+  },
+  "Elektrik Güç İletimi ve Dağıtımı": {
+    "en": "Electrical Power Transmission & Distribution",
+    "ar": "نقل الطاقة الكهربائية وتوزيعها",
+    "ru": "Передача и распределение электроэнергии"
+  },
+  "Elektrik İzolasyon ve Koruma Malzemeleri": {
+    "en": "Electrical Insulation & Protection Materials",
+    "ar": "مواد العزل والحماية الكهربائية",
+    "ru": "Электроизоляционные и защитные материалы"
+  },
+  "Elektrik Kumanda ve Kontrol": {
+    "en": "Electrical Control & Command",
+    "ar": "التحكم والقيادة الكهربائية",
+    "ru": "Электрическое управление и контроль"
+  },
+  "Elektrik Panosu, Kabini ve Muhafazazı": {
+    "en": "Electrical Panels, Cabinets & Enclosures",
+    "ar": "لوحات وخزائن وحاويات الكهرباء",
+    "ru": "Электрощиты, шкафы и корпуса"
+  },
+  "Elektrik Tesisat Malzemeleri": {
+    "en": "Electrical Installation Materials",
+    "ar": "مواد التمديدات الكهربائية",
+    "ru": "Электромонтажные материалы"
+  },
+  "Elektrik ve Elektronik Test Cihazları": {
+    "en": "Electrical & Electronic Test Instruments",
+    "ar": "أجهزة اختبار الكهرباء والإلكترونيات",
+    "ru": "Электрические и электронные измерительные приборы"
+  },
+  "Elektrikli Araç Şarj ve Enerji Sistemleri": {
+    "en": "EV Charging & Energy Systems",
+    "ar": "أنظمة شحن المركبات الكهربائية والطاقة",
+    "ru": "Зарядные и энергосистемы для электромобилей"
+  },
+  "Elektrikli El Aletleri": {
+    "en": "Power Tools",
+    "ar": "العدد اليدوية الكهربائية",
+    "ru": "Электроинструмент"
+  },
+  "Elektrikli Mutfak Aleti": {
+    "en": "Small Kitchen Appliances",
+    "ar": "أدوات المطبخ الكهربائية",
+    "ru": "Кухонная электротехника"
+  },
+  "Elektriksel İş Güvenliği": {
+    "en": "Electrical Safety at Work",
+    "ar": "السلامة الكهربائية في العمل",
+    "ru": "Электробезопасность на производстве"
+  },
+  "Elektromekanik Komponentler": {
+    "en": "Electromechanical Components",
+    "ar": "المكوّنات الكهروميكانيكية",
+    "ru": "Электромеханические компоненты"
+  },
+  "Elektronik Kişisel Bakım": {
+    "en": "Personal Care Electronics",
+    "ar": "أجهزة العناية الشخصية الإلكترونية",
+    "ru": "Электроника для личного ухода"
+  },
+  "Elektronik Muhafaza, Kasa ve Kabin": {
+    "en": "Electronic Enclosures, Cases & Cabinets",
+    "ar": "حاويات وصناديق وخزائن الإلكترونيات",
+    "ru": "Корпуса, кейсы и шкафы для электроники"
+  },
+  "Elektronik Üretim Ekipmanları ve El Aletleri": {
+    "en": "Electronics Production Equipment & Hand Tools",
+    "ar": "معدات إنتاج الإلكترونيات والعدد اليدوية",
+    "ru": "Оборудование и инструмент для производства электроники"
+  },
+  "Elektronik Üretim Hizmetleri": {
+    "en": "Electronics Manufacturing Services",
+    "ar": "خدمات تصنيع الإلكترونيات",
+    "ru": "Услуги контрактного производства электроники"
+  },
+  "Elektronik Üretim Malzemeleri ve Sarfları": {
+    "en": "Electronics Production Materials & Consumables",
+    "ar": "مواد ومستهلكات إنتاج الإلكترونيات",
+    "ru": "Материалы и расходники для производства электроники"
+  },
+  "Elektronik ve İleri Teknoloji Doğal Ham Maddeleri": {
+    "en": "Natural Raw Materials for Electronics & High Technology",
+    "ar": "المواد الخام الطبيعية للإلكترونيات والتقنيات المتقدمة",
+    "ru": "Природное сырьё для электроники и высоких технологий"
+  },
+  "Elektronik ve Yarı İletken Kimyasalları": {
+    "en": "Electronic & Semiconductor Chemicals",
+    "ar": "كيماويات الإلكترونيات وأشباه الموصلات",
+    "ru": "Химия для электроники и полупроводников"
+  },
+  "Elyaf": {
+    "en": "Fibres",
+    "ar": "الألياف",
+    "ru": "Волокна"
+  },
+  "Endüstri ve Yapı Kimyasalı": {
+    "en": "Industrial & Construction Chemicals",
+    "ar": "الكيماويات الصناعية وكيماويات البناء",
+    "ru": "Промышленная и строительная химия"
+  },
+  "Endüstriyel Baskı ve Markalama": {
+    "en": "Industrial Printing & Marking",
+    "ar": "الطباعة والوسم الصناعي",
+    "ru": "Промышленная печать и маркировка"
+  },
+  "Endüstriyel Elektrik": {
+    "en": "Industrial Electrical",
+    "ar": "الكهرباء الصناعية",
+    "ru": "Промышленное электрооборудование"
+  },
+  "Endüstriyel Fırın": {
+    "en": "Industrial Ovens",
+    "ar": "الأفران الصناعية",
+    "ru": "Промышленные печи"
+  },
+  "Endüstriyel Gıda ve Gıda Bileşenleri": {
+    "en": "Industrial Food & Food Ingredients",
+    "ar": "الأغذية الصناعية ومكوّناتها",
+    "ru": "Промышленные продукты и пищевые ингредиенты"
+  },
+  "Endüstriyel Isıtma, Kurutma, Fırın ve Isıl İşlem Makineleri": {
+    "en": "Industrial Heating, Drying, Furnace & Heat Treatment Machinery",
+    "ar": "آلات التسخين والتجفيف والأفران والمعالجة الحرارية الصناعية",
+    "ru": "Промышленные нагревательные, сушильные, печные и термообрабатывающие машины"
+  },
+  "Endüstriyel Kontrol ve Otomasyon": {
+    "en": "Industrial Control & Automation",
+    "ar": "التحكم والأتمتة الصناعية",
+    "ru": "Промышленное управление и автоматизация"
+  },
+  "Endüstriyel Otomasyon ve Kontrol": {
+    "en": "Industrial Automation & Control",
+    "ar": "الأتمتة والتحكم الصناعي",
+    "ru": "Промышленная автоматизация и управление"
+  },
+  "Endüstriyel Sensörler ve Algılama": {
+    "en": "Industrial Sensors & Sensing",
+    "ar": "المستشعرات الصناعية وأنظمة الاستشعار",
+    "ru": "Промышленные датчики и сенсорика"
+  },
+  "Endüstriyel Temizlik Kimyasalları": {
+    "en": "Industrial Cleaning Chemicals",
+    "ar": "كيماويات التنظيف الصناعي",
+    "ru": "Промышленная моющая химия"
+  },
+  "Endüstriyel Test, Ölçüm ve Kalite Kontrol Makineleri": {
+    "en": "Industrial Testing, Measurement & Quality Control Machinery",
+    "ar": "آلات الاختبار والقياس وضبط الجودة الصناعية",
+    "ru": "Промышленное испытательное, измерительное и контрольное оборудование"
+  },
+  "Endüstriyel Variller, Kovalar, Bidonlar ve Büyük Hacimli Sıvı Konteynerleri": {
+    "en": "Industrial Drums, Pails, Jerrycans & Bulk Liquid Containers",
+    "ar": "البراميل والدلاء والجراكن وحاويات السوائل الكبيرة",
+    "ru": "Промышленные бочки, вёдра, канистры и крупнотоннажная тара"
+  },
+  "Endüstriyel ve Çalışma Mobilyası": {
+    "en": "Industrial & Workplace Furniture",
+    "ar": "الأثاث الصناعي وأثاث أماكن العمل",
+    "ru": "Промышленная и производственная мебель"
+  },
+  "Enerji Altyapı Ekipmanları": {
+    "en": "Energy Infrastructure Equipment",
+    "ar": "معدات البنية التحتية للطاقة",
+    "ru": "Оборудование энергетической инфраструктуры"
+  },
+  "Enerji Depolama Sistemleri": {
+    "en": "Energy Storage Systems",
+    "ar": "أنظمة تخزين الطاقة",
+    "ru": "Системы накопления энергии"
+  },
+  "Enerji Santrali Ekipmanları": {
+    "en": "Power Plant Equipment",
+    "ar": "معدات محطات الطاقة",
+    "ru": "Оборудование электростанций"
+  },
+  "Enerji Servisleri ve Çözümleri": {
+    "en": "Energy Services & Solutions",
+    "ar": "خدمات وحلول الطاقة",
+    "ru": "Энергетические услуги и решения"
+  },
+  "Enerji Üretim Sistemleri": {
+    "en": "Power Generation Systems",
+    "ar": "أنظمة توليد الطاقة",
+    "ru": "Системы генерации энергии"
+  },
+  "Entegre Devreler": {
+    "en": "Integrated Circuits",
+    "ar": "الدوائر المتكاملة",
+    "ru": "Интегральные микросхемы"
+  },
+  "Ergonomi ve Çalışan Fiziksel Güvenliği": {
+    "en": "Ergonomics & Worker Physical Safety",
+    "ar": "الهندسة البشرية والسلامة البدنية للعاملين",
+    "ru": "Эргономика и физическая безопасность работников"
+  },
+  "ESD, Antistatik ve Temiz Oda": {
+    "en": "ESD, Antistatic & Cleanroom",
+    "ar": "التفريغ الكهروستاتيكي ومضادات الكهرباء الساكنة والغرف النظيفة",
+    "ru": "ESD, антистатика и чистые помещения"
+  },
+  "Esnek Ambalaj Poşetleri, Pouch Ambalajlar ve Ambalaj Torbaları": {
+    "en": "Flexible Pouches, Sachets & Packaging Bags",
+    "ar": "أكياس التغليف المرنة والأكياس ذات القاعدة",
+    "ru": "Гибкие пакеты, дой-паки и упаковочные мешки"
+  },
+  "Estetik ve Cilt Bakımı": {
+    "en": "Aesthetics & Skincare",
+    "ar": "التجميل والعناية بالبشرة",
+    "ru": "Эстетическая косметология и уход за кожей"
+  },
+  "Et ve İşlenmiş Et": {
+    "en": "Meat & Processed Meat",
+    "ar": "اللحوم واللحوم المصنّعة",
+    "ru": "Мясо и мясные продукты"
+  },
+  "Etiket": {
+    "en": "Labels",
+    "ar": "الملصقات",
+    "ru": "Этикетки"
+  },
+  "Ev Bulaşık ve Mutfak Hijyen Ürünleri": {
+    "en": "Household Dishwashing & Kitchen Hygiene Products",
+    "ar": "منتجات غسل الأطباق ونظافة المطبخ المنزلي",
+    "ru": "Средства для мытья посуды и кухонной гигиены"
+  },
+  "Ev Çamaşır ve Tekstil Temizlik Ürünleri": {
+    "en": "Household Laundry & Fabric Care Products",
+    "ar": "منتجات غسيل الملابس والعناية بالمنسوجات",
+    "ru": "Средства для стирки и ухода за текстилем"
+  },
+  "Ev Dekor": {
+    "en": "Home Decor",
+    "ar": "ديكور المنزل",
+    "ru": "Домашний декор"
+  },
+  "Ev Dezenfeksiyon ve Hijyen Ürünleri": {
+    "en": "Household Disinfection & Hygiene Products",
+    "ar": "منتجات التطهير والنظافة المنزلية",
+    "ru": "Бытовые дезинфицирующие и гигиенические средства"
+  },
+  "Ev Mobilyası": {
+    "en": "Home Furniture",
+    "ar": "الأثاث المنزلي",
+    "ru": "Домашняя мебель"
+  },
+  "Ev Tekstili": {
+    "en": "Home Textiles",
+    "ar": "مفروشات المنزل",
+    "ru": "Домашний текстиль"
+  },
+  "Ev Temizlik Kimyasalları": {
+    "en": "Household Cleaning Chemicals",
+    "ar": "كيماويات التنظيف المنزلي",
+    "ru": "Бытовая моющая химия"
+  },
+  "Evrak Çantası": {
+    "en": "Briefcases",
+    "ar": "حقائب المستندات",
+    "ru": "Портфели"
+  },
+  "Ex-Proof Elektrik Ekipmanları": {
+    "en": "Explosion-Proof Electrical Equipment",
+    "ar": "المعدات الكهربائية المضادة للانفجار",
+    "ru": "Взрывозащищённое электрооборудование"
+  },
+  "Fanlar ve Mekanik Havalandırma Ekipmanları": {
+    "en": "Fans & Mechanical Ventilation Equipment",
+    "ar": "المراوح ومعدات التهوية الميكانيكية",
+    "ru": "Вентиляторы и механическая вентиляция"
+  },
+  "Fiziksel Güvenlik, Bariyer ve Kilitleme Sistemleri": {
+    "en": "Physical Security, Barrier & Locking Systems",
+    "ar": "أنظمة الأمن المادي والحواجز والإقفال",
+    "ru": "Физическая защита, барьеры и запирающие системы"
+  },
+  "Fırçalar, Süngerler, Pedler ve Ovma Ürünleri": {
+    "en": "Brushes, Sponges, Pads & Scourers",
+    "ar": "الفرش والإسفنج والوسائد ومواد الفرك",
+    "ru": "Щётки, губки, пады и абразивные изделия"
+  },
+  "Fonksiyonel ve Sporcu Gıdası": {
+    "en": "Functional & Sports Nutrition",
+    "ar": "الأغذية الوظيفية والرياضية",
+    "ru": "Функциональное и спортивное питание"
+  },
+  "Forkliftler": {
+    "en": "Forklifts",
+    "ar": "الرافعات الشوكية",
+    "ru": "Вилочные погрузчики"
+  },
+  "Frekans Kontrol Komponentleri": {
+    "en": "Frequency Control Components",
+    "ar": "مكوّنات التحكم بالتردد",
+    "ru": "Компоненты управления частотой"
+  },
+  "Fuar ve Showroom Üniteleri": {
+    "en": "Exhibition & Showroom Units",
+    "ar": "وحدات المعارض وصالات العرض",
+    "ru": "Выставочные и шоурум-конструкции"
+  },
+  "Gaz Algılama Ve Ortam İzleme": {
+    "en": "Gas Detection & Environmental Monitoring",
+    "ar": "كشف الغازات ومراقبة البيئة",
+    "ru": "Газодетекция и мониторинг среды"
+  },
+  "Gaz Kaynak ve Kesme Ekipmanları": {
+    "en": "Gas Welding & Cutting Equipment",
+    "ar": "معدات اللحام والقطع بالغاز",
+    "ru": "Газосварочное и газорезательное оборудование"
+  },
+  "Geçiş Kontrol ve Kimlik Doğrulama Sistemleri": {
+    "en": "Access Control & Authentication Systems",
+    "ar": "أنظمة التحكم بالدخول والتحقق من الهوية",
+    "ru": "Системы контроля доступа и аутентификации"
+  },
+  "Geleneksel ve Yöresel Kıyafetler": {
+    "en": "Traditional & Regional Clothing",
+    "ar": "الأزياء التقليدية والمحلية",
+    "ru": "Традиционная и региональная одежда"
+  },
+  "Geliştirme ve Değerlendirme Ürünleri": {
+    "en": "Development & Evaluation Products",
+    "ar": "منتجات التطوير والتقييم",
+    "ru": "Отладочные и оценочные изделия"
+  },
+  "Genel Laboratuvar Ekipmanları": {
+    "en": "General Laboratory Equipment",
+    "ar": "معدات المختبرات العامة",
+    "ru": "Общелабораторное оборудование"
+  },
+  "Geotekstil, Geosentetik ve Zemin Güçlendirme Malzemeleri": {
+    "en": "Geotextiles, Geosynthetics & Ground Reinforcement Materials",
+    "ar": "المنسوجات الأرضية والجيوسينثتك ومواد تقوية التربة",
+    "ru": "Геотекстиль, геосинтетика и материалы армирования грунта"
+  },
+  "Geri Dönüştürülmüş ve İkincil Ham Maddeler": {
+    "en": "Recycled & Secondary Raw Materials",
+    "ar": "المواد الخام المعاد تدويرها والثانوية",
+    "ru": "Вторичное и переработанное сырьё"
+  },
+  "Gider ve Kanal Temizleyiciler": {
+    "en": "Drain & Pipe Cleaners",
+    "ar": "منظفات المصارف والقنوات",
+    "ru": "Средства для прочистки труб и канализации"
+  },
+  "Gider, Sifon ve Drenaj Sistemleri": {
+    "en": "Drains, Traps & Drainage Systems",
+    "ar": "المصارف والسيفونات وأنظمة التصريف",
+    "ru": "Трапы, сифоны и дренажные системы"
+  },
+  "Gitar": {
+    "en": "Guitars",
+    "ar": "الغيتارات",
+    "ru": "Гитары"
+  },
+  "Giyim ve Tekstil Teşhir Sistemleri": {
+    "en": "Apparel & Textile Display Systems",
+    "ar": "أنظمة عرض الملابس والمنسوجات",
+    "ru": "Системы выкладки одежды и текстиля"
+  },
+  "Giysi Çantası": {
+    "en": "Garment Bags",
+    "ar": "حقائب الملابس",
+    "ru": "Чехлы для одежды"
+  },
+  "Gıda Dışı Tüketim": {
+    "en": "Non-Food Consumables",
+    "ar": "المستهلكات غير الغذائية",
+    "ru": "Непродовольственные расходники"
+  },
+  "Gıda Fason Üretim Hizmetleri": {
+    "en": "Food Contract Manufacturing Services",
+    "ar": "خدمات تصنيع الأغذية بالتعاقد",
+    "ru": "Контрактное производство продуктов питания"
+  },
+  "Gıda Kimyasalları ve Katkı Maddeleri": {
+    "en": "Food Chemicals & Additives",
+    "ar": "الكيماويات والمضافات الغذائية",
+    "ru": "Пищевая химия и добавки"
+  },
+  "Gıda ve İçecek Üretim Makineleri": {
+    "en": "Food & Beverage Production Machinery",
+    "ar": "آلات إنتاج الأغذية والمشروبات",
+    "ru": "Оборудование для производства продуктов и напитков"
+  },
+  "Gömülü Bilgisayarlar ve Sistemler": {
+    "en": "Embedded Computers & Systems",
+    "ar": "الحواسيب والأنظمة المدمجة",
+    "ru": "Встраиваемые компьютеры и системы"
+  },
+  "Göz, Kanca ve Askı Bağlantı Elemanları": {
+    "en": "Eye Bolts, Hooks & Hanging Fasteners",
+    "ar": "العيون والخطافات وعناصر التعليق",
+    "ru": "Рым-болты, крюки и подвесной крепёж"
+  },
+  "Gözlük": {
+    "en": "Eyewear",
+    "ar": "النظارات",
+    "ru": "Очки"
+  },
+  "Gübre ve Bitki Besleme": {
+    "en": "Fertilisers & Plant Nutrition",
+    "ar": "الأسمدة وتغذية النبات",
+    "ru": "Удобрения и питание растений"
+  },
+  "Güç Aktarım Montaj ve Bakım Ürünleri": {
+    "en": "Power Transmission Assembly & Maintenance Products",
+    "ar": "منتجات تركيب وصيانة نقل الحركة",
+    "ru": "Изделия для монтажа и обслуживания приводов"
+  },
+  "Güç Kaynakları ve Güç Dönüşümü": {
+    "en": "Power Supplies & Power Conversion",
+    "ar": "مصادر الطاقة وتحويل القدرة",
+    "ru": "Источники питания и преобразование энергии"
+  },
+  "Güneş Bakımı ve Bronzlaşma": {
+    "en": "Sun Care & Tanning",
+    "ar": "العناية بالشمس والتسمير",
+    "ru": "Солнцезащита и загар"
+  },
+  "Güneş Enerjisi": {
+    "en": "Solar Energy",
+    "ar": "الطاقة الشمسية",
+    "ru": "Солнечная энергетика"
+  },
+  "Güvenlik Ekipmanı Aksesuar ve Yedek Parça": {
+    "en": "Safety Equipment Accessories & Spare Parts",
+    "ar": "إكسسوارات وقطع غيار معدات السلامة",
+    "ru": "Аксессуары и запчасти для средств безопасности"
+  },
+  "Güvenlik Tarama ve Kontrol Sistemleri": {
+    "en": "Security Screening & Inspection Systems",
+    "ar": "أنظمة الفحص والتفتيش الأمني",
+    "ru": "Системы досмотра и контроля безопасности"
+  },
+  "Güvenlik Yönetim ve Entegrasyon Sistemleri": {
+    "en": "Security Management & Integration Systems",
+    "ar": "أنظمة إدارة الأمن وتكامله",
+    "ru": "Системы управления и интеграции безопасности"
+  },
+  "Hafriyat ve Arazi Taşıma Makineleri": {
+    "en": "Earthmoving & Site Hauling Machinery",
+    "ar": "آلات الحفر ونقل التربة",
+    "ru": "Землеройная и транспортная техника"
+  },
+  "Halatlar": {
+    "en": "Ropes",
+    "ar": "الحبال",
+    "ru": "Канаты"
+  },
+  "Hastane ve Klinik Ekipmanları": {
+    "en": "Hospital & Clinic Equipment",
+    "ar": "معدات المستشفيات والعيادات",
+    "ru": "Оборудование для больниц и клиник"
+  },
+  "Hatıra Çerçevesi": {
+    "en": "Keepsake Frames",
+    "ar": "إطارات التذكارات",
+    "ru": "Рамки для памятных фото"
+  },
+  "Hava Dağıtım ve Terminal Ekipmanları": {
+    "en": "Air Distribution & Terminal Equipment",
+    "ar": "معدات توزيع الهواء والوحدات الطرفية",
+    "ru": "Воздухораспределительное и терминальное оборудование"
+  },
+  "Hava Koşullarına Karşı Koruyucu İş Kıyafeti": {
+    "en": "Weather Protection Workwear",
+    "ar": "ملابس العمل الواقية من الأحوال الجوية",
+    "ru": "Спецодежда для защиты от погодных условий"
+  },
+  "Hava Temizleme Makinesi": {
+    "en": "Air Purifiers",
+    "ar": "أجهزة تنقية الهواء",
+    "ru": "Воздухоочистители"
+  },
+  "Havai Fişek": {
+    "en": "Fireworks",
+    "ar": "الألعاب النارية",
+    "ru": "Фейерверки"
+  },
+  "Havalandırma ve Taze Hava Sistemleri": {
+    "en": "Ventilation & Fresh Air Systems",
+    "ar": "أنظمة التهوية والهواء النقي",
+    "ru": "Вентиляция и системы притока свежего воздуха"
+  },
+  "Hayvancılık": {
+    "en": "Livestock Farming",
+    "ar": "تربية الحيوانات",
+    "ru": "Животноводство"
+  },
+  "Hazır Ambalaj Filmleri, Folyoları ve Dolum Ruloları": {
+    "en": "Packaging Films, Foils & Filling Reels",
+    "ar": "أفلام ورقائق التغليف وبكرات التعبئة",
+    "ru": "Упаковочные плёнки, фольга и рулоны для фасовки"
+  },
+  "Hazır Yemek ve Pişirmeye Hazır Gıda": {
+    "en": "Ready Meals & Ready-to-Cook Food",
+    "ar": "الوجبات الجاهزة والأغذية الجاهزة للطهي",
+    "ru": "Готовые блюда и полуфабрикаты"
+  },
+  "Hazırlık Ekipmanları": {
+    "en": "Food Preparation Equipment",
+    "ar": "معدات التحضير",
+    "ru": "Оборудование для подготовки продуктов"
+  },
+  "Hediye Paketleme Malzemeleri": {
+    "en": "Gift Wrapping Materials",
+    "ar": "مواد تغليف الهدايا",
+    "ru": "Материалы для упаковки подарков"
+  },
+  "Hediye Paketleme ve Ambalaj Sunum Aksesuarları": {
+    "en": "Gift Wrapping & Presentation Accessories",
+    "ar": "إكسسوارات تغليف الهدايا والعرض",
+    "ru": "Аксессуары для подарочной упаковки и презентации"
+  },
+  "Hesap Makinesi": {
+    "en": "Calculators",
+    "ar": "الآلات الحاسبة",
+    "ru": "Калькуляторы"
+  },
+  "Hidrojen ve Yakıt Hücresi": {
+    "en": "Hydrogen & Fuel Cells",
+    "ar": "الهيدروجين وخلايا الوقود",
+    "ru": "Водород и топливные элементы"
+  },
+  "Hidronik Sistemler ve Isı Transfer Ekipmanları": {
+    "en": "Hydronic Systems & Heat Transfer Equipment",
+    "ar": "الأنظمة المائية ومعدات نقل الحرارة",
+    "ru": "Гидронические системы и теплообменное оборудование"
+  },
+  "Hızlı Testler ve POCT": {
+    "en": "Rapid Tests & Point-of-Care Testing",
+    "ar": "الفحوص السريعة واختبارات نقطة الرعاية",
+    "ru": "Экспресс-тесты и тестирование по месту лечения"
+  },
+  "Hoparlör": {
+    "en": "Speakers",
+    "ar": "مكبرات الصوت",
+    "ru": "Акустические системы"
+  },
+  "Hotel Restaurant Cafe Profesyonel Ölçüm ve Kalite Ekipmanı": {
+    "en": "HoReCa Professional Measurement & Quality Equipment",
+    "ar": "معدات القياس والجودة المهنية للفنادق والمطاعم والمقاهي",
+    "ru": "Профессиональное измерительное и контрольное оборудование HoReCa"
+  },
+  "Housekeeping ve Kat Hizmetleri": {
+    "en": "Housekeeping Services & Supplies",
+    "ar": "خدمات ومستلزمات التدبير الفندقي",
+    "ru": "Хаускипинг и обслуживание номеров"
+  },
+  "HVAC Kanal, Borulama, İzolasyon ve Montaj Sistemleri": {
+    "en": "HVAC Ducting, Piping, Insulation & Installation Systems",
+    "ar": "أنظمة مجاري الهواء والأنابيب والعزل والتركيب لأنظمة التكييف",
+    "ru": "Воздуховоды, трубопроводы, изоляция и монтаж ОВиК"
+  },
+  "HVAC Komponentleri ve Yedek Parçaları": {
+    "en": "HVAC Components & Spare Parts",
+    "ar": "مكوّنات وقطع غيار أنظمة التكييف",
+    "ru": "Компоненты и запчасти ОВиК"
+  },
+  "HVAC Kontrol, Otomasyon ve Ölçüm Sistemleri": {
+    "en": "HVAC Control, Automation & Measurement Systems",
+    "ar": "أنظمة التحكم والأتمتة والقياس لأنظمة التكييف",
+    "ru": "Управление, автоматизация и измерения ОВиК"
+  },
+  "HVAC Vana, Armatür ve Akış Kontrol Ürünleri": {
+    "en": "HVAC Valves, Fittings & Flow Control Products",
+    "ar": "صمامات وتجهيزات ومنتجات التحكم بالتدفق لأنظمة التكييف",
+    "ru": "Клапаны, арматура и регулирование потока ОВиК"
+  },
+  "HVAC Yangın, Duman ve Güvenlik Sistemleri": {
+    "en": "HVAC Fire, Smoke & Safety Systems",
+    "ar": "أنظمة الحريق والدخان والسلامة لأنظمة التكييف",
+    "ru": "Противопожарные, дымоудаляющие и защитные системы ОВиК"
+  },
+  "İç Giyim": {
+    "en": "Underwear",
+    "ar": "الملابس الداخلية",
+    "ru": "Нижнее бельё"
+  },
+  "İçecek Ekipmanları": {
+    "en": "Beverage Equipment",
+    "ar": "معدات المشروبات",
+    "ru": "Оборудование для напитков"
+  },
+  "İçecekler": {
+    "en": "Beverages",
+    "ar": "المشروبات",
+    "ru": "Напитки"
+  },
+  "İlaç, Farmasötik ve Biyokimya Hammaddeleri": {
+    "en": "Pharmaceutical & Biochemical Raw Materials",
+    "ar": "المواد الخام الدوائية والكيميائية الحيوية",
+    "ru": "Фармацевтическое и биохимическое сырьё"
+  },
+  "İnorganik Kimyasallar": {
+    "en": "Inorganic Chemicals",
+    "ar": "الكيماويات غير العضوية",
+    "ru": "Неорганическая химия"
+  },
+  "İnterkom ve Kapı İletişim Sistemleri": {
+    "en": "Intercom & Door Entry Systems",
+    "ar": "أنظمة الاتصال الداخلي واتصال الأبواب",
+    "ru": "Домофоны и системы дверной связи"
+  },
+  "İntim Bakım": {
+    "en": "Intimate Care",
+    "ar": "العناية الحميمة",
+    "ru": "Интимная гигиена"
+  },
+  "İplik": {
+    "en": "Yarn",
+    "ar": "الخيوط",
+    "ru": "Пряжа"
+  },
+  "İş Ayakkabısı ve Çizme": {
+    "en": "Safety Shoes & Boots",
+    "ar": "أحذية وجزم السلامة",
+    "ru": "Рабочая обувь и сапоги"
+  },
+  "İş Güvenliği Levhası, Etiket ve İşaretleme": {
+    "en": "Safety Signs, Labels & Marking",
+    "ar": "لوحات وملصقات ووسم السلامة",
+    "ru": "Знаки безопасности, этикетки и маркировка"
+  },
+  "İş Kıyafeti Aksesuarı ve Tamamlayıcısı": {
+    "en": "Workwear Accessories",
+    "ar": "إكسسوارات ومكمّلات ملابس العمل",
+    "ru": "Аксессуары к спецодежде"
+  },
+  "İş Makinesi Ataşmanları": {
+    "en": "Heavy Equipment Attachments",
+    "ar": "ملحقات المعدات الثقيلة",
+    "ru": "Навесное оборудование для спецтехники"
+  },
+  "İş Önlüğü ve Koruyucu Önlük": {
+    "en": "Work Coats & Protective Aprons",
+    "ar": "معاطف العمل والمرايل الواقية",
+    "ru": "Рабочие халаты и защитные фартуки"
+  },
+  "İş Yeri ve Tesis Güvenliği": {
+    "en": "Workplace & Facility Safety",
+    "ar": "أمن وسلامة أماكن العمل والمنشآت",
+    "ru": "Безопасность рабочих мест и объектов"
+  },
+  "İsimlik": {
+    "en": "Name Badges",
+    "ar": "بطاقات الأسماء",
+    "ru": "Бейджи"
+  },
+  "Isı Enerjisi ve Bölgesel Enerji Sistemleri": {
+    "en": "Thermal Energy & District Energy Systems",
+    "ar": "أنظمة الطاقة الحرارية والطاقة المركزية",
+    "ru": "Тепловая энергия и системы централизованного теплоснабжения"
+  },
+  "Isı Pompaları": {
+    "en": "Heat Pumps",
+    "ar": "المضخات الحرارية",
+    "ru": "Тепловые насосы"
+  },
+  "Isı Yalıtım Malzemeleri": {
+    "en": "Thermal Insulation Materials",
+    "ar": "مواد العزل الحراري",
+    "ru": "Теплоизоляционные материалы"
+  },
+  "Isı Yalıtımlı ve Sıcaklık Kontrollü Ambalajlar": {
+    "en": "Insulated & Temperature-Controlled Packaging",
+    "ar": "العبوات المعزولة والمتحكم بحرارتها",
+    "ru": "Термоизолированная упаковка с контролем температуры"
+  },
+  "Isı, Alev ve Elektrik Risklerine Karşı Koruyucu İş Kıyafeti": {
+    "en": "Heat, Flame & Electrical Hazard Protective Workwear",
+    "ar": "ملابس العمل الواقية من الحرارة واللهب والمخاطر الكهربائية",
+    "ru": "Спецодежда для защиты от жара, пламени и электрических рисков"
+  },
+  "Isıtma Sistemleri": {
+    "en": "Heating Systems",
+    "ar": "أنظمة التدفئة",
+    "ru": "Системы отопления"
+  },
+  "Isıtma ve Soğutma": {
+    "en": "Heating & Cooling",
+    "ar": "التدفئة والتبريد",
+    "ru": "Отопление и охлаждение"
+  },
+  "Islak Mendil": {
+    "en": "Wet Wipes",
+    "ar": "المناديل المبللة",
+    "ru": "Влажные салфетки"
+  },
+  "Islak Mendil ve Kişisel Temizlik": {
+    "en": "Wet Wipes & Personal Cleansing",
+    "ar": "المناديل المبللة والنظافة الشخصية",
+    "ru": "Влажные салфетки и личная гигиена"
+  },
+  "İşlenmiş Meyve ve Sebze": {
+    "en": "Processed Fruit & Vegetables",
+    "ar": "الفواكه والخضروات المصنّعة",
+    "ru": "Переработанные фрукты и овощи"
+  },
+  "İstif ve Reach Truck Ekipmanları": {
+    "en": "Stackers & Reach Trucks",
+    "ar": "معدات التستيف والرافعات ذات الذراع",
+    "ru": "Штабелёры и ричтраки"
+  },
+  "Jeneratör ve Yedek Güç Sistemleri": {
+    "en": "Generators & Backup Power Systems",
+    "ar": "المولدات وأنظمة الطاقة الاحتياطية",
+    "ru": "Генераторы и системы резервного питания"
+  },
+  "Kablo Bağı ve Bağlama Elemanları": {
+    "en": "Cable Ties & Fixings",
+    "ar": "أربطة الكابلات وعناصر التثبيت",
+    "ru": "Кабельные стяжки и крепления"
+  },
+  "Kablo Bağlantı ve Sonlandırma": {
+    "en": "Cable Connection & Termination",
+    "ar": "توصيل الكابلات وإنهاؤها",
+    "ru": "Кабельные соединения и оконцевание"
+  },
+  "Kablo Kanalları ve Kablo Yönetimi": {
+    "en": "Cable Trunking & Management",
+    "ar": "قنوات الكابلات وإدارتها",
+    "ru": "Кабельные каналы и организация кабелей"
+  },
+  "Kablo ve Elektriksel Montaj İmalat Hizmetleri": {
+    "en": "Cable & Electrical Assembly Manufacturing Services",
+    "ar": "خدمات تصنيع الكابلات والتجميعات الكهربائية",
+    "ru": "Производство кабельных и электрических сборок"
+  },
+  "Kablo ve Tel": {
+    "en": "Cables & Wires",
+    "ar": "الكابلات والأسلاك",
+    "ru": "Кабели и провода"
+  },
+  "Kablo, Tel ve Kablo Montajları": {
+    "en": "Cables, Wires & Cable Assemblies",
+    "ar": "الكابلات والأسلاك والتجميعات الكبلية",
+    "ru": "Кабели, провода и кабельные сборки"
+  },
+  "Kadın Hijyeni": {
+    "en": "Feminine Hygiene",
+    "ar": "العناية النسائية",
+    "ru": "Женская гигиена"
+  },
+  "Kağıt Fener": {
+    "en": "Paper Lanterns",
+    "ar": "الفوانيس الورقية",
+    "ru": "Бумажные фонарики"
+  },
+  "Kağıt ve Selüloz Kimyasalları": {
+    "en": "Paper & Pulp Chemicals",
+    "ar": "كيماويات الورق واللباب",
+    "ru": "Химия для бумаги и целлюлозы"
+  },
+  "Kağıt, Karton ve Baskı Kağıtları": {
+    "en": "Paper, Board & Printing Papers",
+    "ar": "الورق والكرتون وأوراق الطباعة",
+    "ru": "Бумага, картон и печатные бумаги"
+  },
+  "Kağıt, Karton ve Selüloz Makineleri": {
+    "en": "Paper, Board & Pulp Machinery",
+    "ar": "آلات الورق والكرتون واللباب",
+    "ru": "Оборудование для бумаги, картона и целлюлозы"
+  },
+  "Kağıt, Peçete ve Hijyenik Kağıt Ürünleri": {
+    "en": "Paper, Napkins & Tissue Products",
+    "ar": "الورق والمناديل ومنتجات الورق الصحي",
+    "ru": "Бумага, салфетки и санитарно-гигиеническая бумага"
+  },
+  "Kağıt, Selüloz ve Lif Ham Maddeleri": {
+    "en": "Paper, Pulp & Fibre Raw Materials",
+    "ar": "المواد الخام للورق واللباب والألياف",
+    "ru": "Сырьё для бумаги, целлюлозы и волокон"
+  },
+  "Kahve, Çay, Kakao ve Sıcak İçecek": {
+    "en": "Coffee, Tea, Cocoa & Hot Beverages",
+    "ar": "القهوة والشاي والكاكاو والمشروبات الساخنة",
+    "ru": "Кофе, чай, какао и горячие напитки"
+  },
+  "Kaldırma Ekipmanları ve Bağlantı Elemanları": {
+    "en": "Lifting Equipment & Rigging Hardware",
+    "ar": "معدات الرفع وعناصر التوصيل",
+    "ru": "Грузоподъёмное оборудование и такелаж"
+  },
+  "Kaldırma ve Taşıma Ataşmanları": {
+    "en": "Lifting & Handling Attachments",
+    "ar": "ملحقات الرفع والمناولة",
+    "ru": "Навесное оборудование для подъёма и перемещения"
+  },
+  "Kaldırma ve Vinç Makineleri": {
+    "en": "Lifting & Crane Machinery",
+    "ar": "آلات الرفع والأوناش",
+    "ru": "Подъёмно-крановая техника"
+  },
+  "Kalem ve Kalem Seti": {
+    "en": "Pens & Pen Sets",
+    "ar": "الأقلام وأطقم الأقلام",
+    "ru": "Ручки и наборы ручек"
+  },
+  "Kalibrasyon ve Referans Ekipmanları": {
+    "en": "Calibration & Reference Equipment",
+    "ar": "معدات المعايرة والمرجعية",
+    "ru": "Калибровочное и эталонное оборудование"
+  },
+  "Kalite Kontrol ve Referans Ürünler": {
+    "en": "Quality Control & Reference Products",
+    "ar": "منتجات ضبط الجودة والمواد المرجعية",
+    "ru": "Контроль качества и эталонные образцы"
+  },
+  "Kalite Kontrol ve Üretim Test Hizmetleri": {
+    "en": "Quality Control & Production Testing Services",
+    "ar": "خدمات ضبط الجودة واختبارات الإنتاج",
+    "ru": "Услуги контроля качества и производственных испытаний"
+  },
+  "Kalıcı Makyaj": {
+    "en": "Permanent Makeup",
+    "ar": "المكياج الدائم",
+    "ru": "Перманентный макияж"
+  },
+  "Kalıp ve Takım İmalat Hizmetleri": {
+    "en": "Mould & Tooling Manufacturing Services",
+    "ar": "خدمات تصنيع القوالب والعدد",
+    "ru": "Изготовление пресс-форм и оснастки"
+  },
+  "Kalıplanmış Selüloz ve Bitkisel Lif Ambalajları": {
+    "en": "Moulded Pulp & Plant-Fibre Packaging",
+    "ar": "عبوات اللباب المصبوب والألياف النباتية",
+    "ru": "Упаковка из формованной целлюлозы и растительных волокон"
+  },
+  "Kamera ve Fotoğraf Makinesi": {
+    "en": "Cameras",
+    "ar": "الكاميرات وآلات التصوير",
+    "ru": "Камеры и фотоаппараты"
+  },
+  "Kamp ve Doğa Yürüyüşü": {
+    "en": "Camping & Hiking",
+    "ar": "التخييم والمشي في الطبيعة",
+    "ru": "Кемпинг и походы"
+  },
+  "Kamp ve Piknik Mobilyası": {
+    "en": "Camping & Picnic Furniture",
+    "ar": "أثاث التخييم والنزهات",
+    "ru": "Мебель для кемпинга и пикника"
+  },
+  "Kanatlı Eti ve Ürünleri": {
+    "en": "Poultry & Poultry Products",
+    "ar": "لحوم الدواجن ومنتجاتها",
+    "ru": "Мясо птицы и продукты из него"
+  },
+  "Kanca, Askı ve Asma Elemanları": {
+    "en": "Hooks, Hangers & Suspension Elements",
+    "ar": "الخطافات والعلاقات وعناصر التعليق",
+    "ru": "Крюки, подвесы и элементы подвески"
+  },
+  "Kapaklar, Tıpalar, Kapatma Sistemleri ve Ürün Dağıtım Bileşenleri": {
+    "en": "Caps, Stoppers, Closures & Dispensing Components",
+    "ar": "الأغطية والسدادات وأنظمة الإغلاق ومكوّنات التوزيع",
+    "ru": "Крышки, пробки, укупорка и дозирующие компоненты"
+  },
+  "Kapalı Alan Güvenliği ve Kurtarma": {
+    "en": "Confined Space Safety & Rescue",
+    "ar": "سلامة الأماكن المغلقة والإنقاذ",
+    "ru": "Безопасность и спасание в замкнутых пространствах"
+  },
+  "Kapı, Pencere ve Doğrama Sistemleri": {
+    "en": "Doors, Windows & Joinery Systems",
+    "ar": "أنظمة الأبواب والنوافذ والنجارة",
+    "ru": "Двери, окна и столярные системы"
+  },
+  "Kaplama ve Boya Kimyasalları": {
+    "en": "Coating & Paint Chemicals",
+    "ar": "كيماويات الطلاء والدهان",
+    "ru": "Химия для покрытий и красок"
+  },
+  "Kaplinler ve Mil Bağlantı Sistemleri": {
+    "en": "Couplings & Shaft Connection Systems",
+    "ar": "الوصلات وأنظمة ربط الأعمدة",
+    "ru": "Муфты и системы соединения валов"
+  },
+  "Karbon ve Doğal Organik Ham Maddeler": {
+    "en": "Carbon & Natural Organic Raw Materials",
+    "ar": "الكربون والمواد الخام العضوية الطبيعية",
+    "ru": "Углеродное и природное органическое сырьё"
+  },
+  "Kargo Poşetleri, Postalama Zarfları ve Doküman Ambalajları": {
+    "en": "Courier Bags, Mailers & Document Packaging",
+    "ar": "أكياس الشحن ومغلفات البريد وعبوات المستندات",
+    "ru": "Курьерские пакеты, почтовые конверты и упаковка документов"
+  },
+  "Karton Bardak": {
+    "en": "Paper Cups",
+    "ar": "الأكواب الكرتونية",
+    "ru": "Бумажные стаканы"
+  },
+  "Karton Çanta": {
+    "en": "Paper Bags",
+    "ar": "الحقائب الكرتونية",
+    "ru": "Бумажные пакеты"
+  },
+  "Karvizitlik": {
+    "en": "Business Card Holders",
+    "ar": "حاملات بطاقات العمل",
+    "ru": "Визитницы"
+  },
+  "Kasa, Ödeme ve Müşteri Hizmet Alanı": {
+    "en": "Checkout, Payment & Customer Service Area",
+    "ar": "منطقة الدفع والكاشير وخدمة العملاء",
+    "ru": "Кассовая зона, оплата и обслуживание покупателей"
+  },
+  "Katalizörler ve Katalitik Sistemler": {
+    "en": "Catalysts & Catalytic Systems",
+    "ar": "المحفزات والأنظمة التحفيزية",
+    "ru": "Катализаторы и каталитические системы"
+  },
+  "Katlanır Karton Kutular, Sert Karton Kutular ve Karton Kılıflar": {
+    "en": "Folding Cartons, Rigid Boxes & Card Sleeves",
+    "ar": "علب الكرتون القابلة للطي والعلب الصلبة والأغلفة الكرتونية",
+    "ru": "Складные картонные коробки, жёсткие коробки и картонные футляры"
+  },
+  "Kauçuk, Plastik Tapa ve Koruyucu": {
+    "en": "Rubber & Plastic Plugs & Protectors",
+    "ar": "السدادات والواقيات المطاطية والبلاستيكية",
+    "ru": "Резиновые и пластиковые заглушки и протекторы"
+  },
+  "Kauçuk, Silikon ve Elastomer İmalat Hizmetleri": {
+    "en": "Rubber, Silicone & Elastomer Manufacturing Services",
+    "ar": "خدمات تصنيع المطاط والسيليكون والإيلاستومر",
+    "ru": "Производство изделий из резины, силикона и эластомеров"
+  },
+  "Kavanozlar, Geniş Ağızlı Kaplar ve Küçük Hacimli Kutular": {
+    "en": "Jars, Wide-Mouth Containers & Small Tins",
+    "ar": "المرطبانات والأوعية واسعة الفوهة والعلب الصغيرة",
+    "ru": "Банки, широкогорлая тара и небольшие ёмкости"
+  },
+  "Kavramalar, Frenler ve Tork Kontrol Sistemleri": {
+    "en": "Clutches, Brakes & Torque Control Systems",
+    "ar": "القوابض والمكابح وأنظمة التحكم بالعزم",
+    "ru": "Муфты сцепления, тормоза и системы контроля момента"
+  },
+  "Kayış Kasnakları ve Germe Sistemleri": {
+    "en": "Belt Pulleys & Tensioning Systems",
+    "ar": "بكرات السيور وأنظمة الشد",
+    "ru": "Шкивы и системы натяжения ремней"
+  },
+  "Kayışlı Güç Aktarım Sistemleri": {
+    "en": "Belt Drive Systems",
+    "ar": "أنظمة نقل الحركة بالسيور",
+    "ru": "Ремённые приводы"
+  },
+  "Kaynak Dumanı ve Havalandırma Ekipmanları": {
+    "en": "Welding Fume & Ventilation Equipment",
+    "ar": "معدات سحب أدخنة اللحام والتهوية",
+    "ru": "Оборудование для удаления сварочного дыма и вентиляции"
+  },
+  "Kaynak Kabloları ve Bağlantı Ekipmanları": {
+    "en": "Welding Cables & Connection Equipment",
+    "ar": "كابلات اللحام ومعدات التوصيل",
+    "ru": "Сварочные кабели и соединительное оборудование"
+  },
+  "Kaynak Kurutma ve Ön Isıtma Ekipmanları": {
+    "en": "Welding Drying & Preheating Equipment",
+    "ar": "معدات تجفيف اللحام والتسخين المسبق",
+    "ru": "Оборудование для сушки и предварительного подогрева при сварке"
+  },
+  "Kaynak Otomasyon ve Robotik Sistemleri": {
+    "en": "Welding Automation & Robotic Systems",
+    "ar": "أنظمة أتمتة اللحام والروبوتات",
+    "ru": "Автоматизация и роботизация сварки"
+  },
+  "Kaynak Pozisyonerleri ve Manipülatörleri": {
+    "en": "Welding Positioners & Manipulators",
+    "ar": "مواضع ومناولات اللحام",
+    "ru": "Сварочные позиционеры и манипуляторы"
+  },
+  "Kaynak Sarf Malzemeleri": {
+    "en": "Welding Consumables",
+    "ar": "مستهلكات اللحام",
+    "ru": "Сварочные расходные материалы"
+  },
+  "Kaynak Soğutma Sistemleri": {
+    "en": "Welding Cooling Systems",
+    "ar": "أنظمة تبريد اللحام",
+    "ru": "Системы охлаждения при сварке"
+  },
+  "Kaynak Tezgahları ve Sabitleme Ekipmanları": {
+    "en": "Welding Tables & Clamping Equipment",
+    "ar": "طاولات اللحام ومعدات التثبيت",
+    "ru": "Сварочные столы и зажимное оборудование"
+  },
+  "Kaynak Torç Sarfları ve Yedek Parçaları": {
+    "en": "Welding Torch Consumables & Spares",
+    "ar": "مستهلكات وقطع غيار شعلة اللحام",
+    "ru": "Расходники и запчасти для сварочных горелок"
+  },
+  "Kaynak Torçları ve Tabancaları": {
+    "en": "Welding Torches & Guns",
+    "ar": "شعلات ومسدسات اللحام",
+    "ru": "Сварочные горелки и пистолеты"
+  },
+  "Kaynak ve Birleştirme Makineleri": {
+    "en": "Welding & Joining Machinery",
+    "ar": "آلات اللحام والوصل",
+    "ru": "Сварочное и соединительное оборудование"
+  },
+  "Kaynak ve Metal Birleştirme Hizmetleri": {
+    "en": "Welding & Metal Joining Services",
+    "ar": "خدمات اللحام ووصل المعادن",
+    "ru": "Услуги сварки и соединения металлов"
+  },
+  "Kaynak Yardımcı Ekipmanları": {
+    "en": "Welding Auxiliary Equipment",
+    "ar": "المعدات المساعدة للحام",
+    "ru": "Вспомогательное сварочное оборудование"
+  },
+  "Kazı ve Hafriyat Makineleri": {
+    "en": "Excavation & Earthmoving Machinery",
+    "ar": "آلات الحفر ونقل الأتربة",
+    "ru": "Экскавационная и землеройная техника"
+  },
+  "Kedi": {
+    "en": "Cats",
+    "ar": "القطط",
+    "ru": "Кошки"
+  },
+  "Kelepçe": {
+    "en": "Clamps",
+    "ar": "المشابك",
+    "ru": "Хомуты"
+  },
+  "Kesici Takımlar": {
+    "en": "Cutting Tools",
+    "ar": "أدوات القطع",
+    "ru": "Режущий инструмент"
+  },
+  "Kesici, Delici Ve Aşındırıcı Sarf Malzemeleri": {
+    "en": "Cutting, Drilling & Abrasive Consumables",
+    "ar": "مستهلكات القطع والثقب والجلخ",
+    "ru": "Расходники для резки, сверления и абразивной обработки"
+  },
+  "Kilit ve Güvenlik Donanımları": {
+    "en": "Locks & Security Hardware",
+    "ar": "الأقفال وتجهيزات الأمان",
+    "ru": "Замки и охранная фурнитура"
+  },
+  "Kilitleme, Etiketleme ve Enerji İzolasyonu": {
+    "en": "Lockout, Tagout & Energy Isolation",
+    "ar": "الإقفال والوسم وعزل الطاقة",
+    "ru": "Блокировка, маркировка и изоляция энергии"
+  },
+  "Kimya, İlaç ve Kozmetik Üretim Makineleri": {
+    "en": "Chemical, Pharmaceutical & Cosmetics Production Machinery",
+    "ar": "آلات إنتاج الكيماويات والأدوية ومستحضرات التجميل",
+    "ru": "Оборудование для химической, фармацевтической и косметической промышленности"
+  },
+  "Kimyasal Katkılar": {
+    "en": "Chemical Additives",
+    "ar": "المضافات الكيميائية",
+    "ru": "Химические добавки"
+  },
+  "Kimyasal Üretim ve Fason Kimyasal Üretim": {
+    "en": "Chemical & Contract Chemical Manufacturing",
+    "ar": "الإنتاج الكيميائي والتصنيع الكيميائي بالتعاقد",
+    "ru": "Химическое и контрактное химическое производство"
+  },
+  "Kimyasal ve Sıvı Koruyucu İş Kıyafeti": {
+    "en": "Chemical & Liquid Protection Workwear",
+    "ar": "ملابس العمل الواقية من المواد الكيميائية والسوائل",
+    "ru": "Спецодежда для защиты от химикатов и жидкостей"
+  },
+  "Kirpik ve Kaş": {
+    "en": "Lashes & Brows",
+    "ar": "الرموش والحواجب",
+    "ru": "Ресницы и брови"
+  },
+  "Kişisel Koruyucu Donanım": {
+    "en": "Personal Protective Equipment",
+    "ar": "معدات الوقاية الشخصية",
+    "ru": "Средства индивидуальной защиты"
+  },
+  "Kitaplar": {
+    "en": "Books",
+    "ar": "الكتب",
+    "ru": "Книги"
+  },
+  "Kırma, Eleme ve Agrega Makineleri": {
+    "en": "Crushing, Screening & Aggregate Machinery",
+    "ar": "آلات التكسير والغربلة والركام",
+    "ru": "Дробильно-сортировочное оборудование"
+  },
+  "Klemens ve Elektrik Bağlantı Ürünleri": {
+    "en": "Terminal Blocks & Electrical Connection Products",
+    "ar": "الكلمّات ومنتجات التوصيل الكهربائي",
+    "ru": "Клеммные колодки и электрические соединители"
+  },
+  "Klima Santralleri ve Hava İşleme Sistemleri": {
+    "en": "Air Handling Units & Air Treatment Systems",
+    "ar": "وحدات مناولة الهواء وأنظمة معالجته",
+    "ru": "Приточные установки и системы обработки воздуха"
+  },
+  "Klima ve Soğutma Sistemleri": {
+    "en": "Air Conditioning & Refrigeration Systems",
+    "ar": "أنظمة التكييف والتبريد",
+    "ru": "Кондиционирование и холодильные системы"
+  },
+  "Klips ve Panel Bağlantı Elemanları": {
+    "en": "Clips & Panel Fasteners",
+    "ar": "المشابك وعناصر تثبيت الألواح",
+    "ru": "Клипсы и панельный крепёж"
+  },
+  "Koku Kontrolü ve Hava Hijyeni": {
+    "en": "Odour Control & Air Hygiene",
+    "ar": "التحكم بالروائح ونظافة الهواء",
+    "ru": "Контроль запахов и гигиена воздуха"
+  },
+  "Koku, Aroma ve Parfümeri Kimyasalları": {
+    "en": "Fragrance, Flavour & Perfumery Chemicals",
+    "ar": "كيماويات العطور والنكهات",
+    "ru": "Химия для ароматов, вкусов и парфюмерии"
+  },
+  "Kol Saati": {
+    "en": "Wristwatches",
+    "ar": "ساعات اليد",
+    "ru": "Наручные часы"
+  },
+  "Kompanzasyon ve Güç Kalitesi": {
+    "en": "Power Factor Correction & Power Quality",
+    "ar": "تحسين معامل القدرة وجودة الطاقة",
+    "ru": "Компенсация реактивной мощности и качество электроэнергии"
+  },
+  "Komple Ürün Gerçekleştirme Hizmetleri": {
+    "en": "Full Product Realisation Services",
+    "ar": "خدمات تحقيق المنتج المتكامل",
+    "ru": "Полный цикл реализации изделия"
+  },
+  "Kompozit Malzeme İmalat Hizmetleri": {
+    "en": "Composite Material Manufacturing Services",
+    "ar": "خدمات تصنيع المواد المركّبة",
+    "ru": "Производство композитных материалов"
+  },
+  "Konektörler": {
+    "en": "Connectors",
+    "ar": "الموصّلات",
+    "ru": "Разъёмы"
+  },
+  "Konfeti": {
+    "en": "Confetti",
+    "ar": "القصاصات الاحتفالية",
+    "ru": "Конфетти"
+  },
+  "Konveyör ve Aktarma Sistemleri": {
+    "en": "Conveyor & Transfer Systems",
+    "ar": "أنظمة النقل بالسيور والتحويل",
+    "ru": "Конвейерные и передаточные системы"
+  },
+  "Köpek": {
+    "en": "Dogs",
+    "ar": "الكلاب",
+    "ru": "Собаки"
+  },
+  "Koruyucu Ambalaj, Darbe Emici Malzemeler ve Boşluk Dolgu Ürünleri": {
+    "en": "Protective Packaging, Cushioning & Void Fill",
+    "ar": "التغليف الواقي وممتصات الصدمات ومواد ملء الفراغ",
+    "ru": "Защитная упаковка, амортизаторы и заполнители пустот"
+  },
+  "Kozmetik Çantası": {
+    "en": "Cosmetic Bags",
+    "ar": "حقائب مستحضرات التجميل",
+    "ru": "Косметички"
+  },
+  "Kozmetik ve Kişisel Bakım Fason Üretim Hizmetleri": {
+    "en": "Cosmetics & Personal Care Contract Manufacturing",
+    "ar": "خدمات تصنيع مستحضرات التجميل والعناية الشخصية بالتعاقد",
+    "ru": "Контрактное производство косметики и средств личной гигиены"
+  },
+  "Kozmetik ve Kişisel Bakım Hammaddeleri": {
+    "en": "Cosmetics & Personal Care Raw Materials",
+    "ar": "المواد الخام لمستحضرات التجميل والعناية الشخصية",
+    "ru": "Сырьё для косметики и средств личной гигиены"
+  },
+  "Kritik ve Özel Alan Temizlik Ürünleri": {
+    "en": "Critical & Special Area Cleaning Products",
+    "ar": "منتجات تنظيف المناطق الحرجة والخاصة",
+    "ru": "Средства уборки критичных и специальных зон"
+  },
+  "Kuaför ve Berber Makine ve El Aleti": {
+    "en": "Hairdressing & Barber Machines & Tools",
+    "ar": "ماكينات وأدوات الحلاقة والتصفيف",
+    "ru": "Парикмахерские машинки и инструменты"
+  },
+  "Kulaklık": {
+    "en": "Headphones",
+    "ar": "سماعات الرأس",
+    "ru": "Наушники"
+  },
+  "Kumaş": {
+    "en": "Fabrics",
+    "ar": "الأقمشة",
+    "ru": "Ткани"
+  },
+  "Kupa Bardak": {
+    "en": "Mugs",
+    "ar": "أكواب الشرب",
+    "ru": "Кружки"
+  },
+  "Kuru Meyve, Kuruyemiş ve Tohum": {
+    "en": "Dried Fruit, Nuts & Seeds",
+    "ar": "الفواكه المجففة والمكسرات والبذور",
+    "ru": "Сухофрукты, орехи и семена"
+  },
+  "Kuru Yapı, Alçıpan ve Bölme Sistemleri": {
+    "en": "Drywall, Plasterboard & Partition Systems",
+    "ar": "أنظمة البناء الجاف والجبس والقواطع",
+    "ru": "Сухое строительство, гипсокартон и перегородки"
+  },
+  "Kurumsal ve Profesyonel Giyim": {
+    "en": "Corporate & Professional Clothing",
+    "ar": "الملابس المؤسسية والمهنية",
+    "ru": "Корпоративная и профессиональная одежда"
+  },
+  "Kuş": {
+    "en": "Birds",
+    "ar": "الطيور",
+    "ru": "Птицы"
+  },
+  "Kutu Mendil": {
+    "en": "Boxed Tissues",
+    "ar": "مناديل الصندوق",
+    "ru": "Салфетки в коробке"
+  },
+  "Laboratuvar Analizörleri ve Cihazları": {
+    "en": "Laboratory Analysers & Instruments",
+    "ar": "أجهزة التحليل والمعدات المخبرية",
+    "ru": "Лабораторные анализаторы и приборы"
+  },
+  "Laboratuvar Destek, Güvenlik ve Altyapı": {
+    "en": "Laboratory Support, Safety & Infrastructure",
+    "ar": "دعم المختبرات وسلامتها وبنيتها التحتية",
+    "ru": "Лабораторная инфраструктура, поддержка и безопасность"
+  },
+  "Laboratuvar Kimyasalları ve Reaktifler": {
+    "en": "Laboratory Chemicals & Reagents",
+    "ar": "الكيماويات والكواشف المخبرية",
+    "ru": "Лабораторные химикаты и реактивы"
+  },
+  "Laboratuvar Reaktifleri ve IVD Test Kitleri": {
+    "en": "Laboratory Reagents & IVD Test Kits",
+    "ar": "الكواشف المخبرية وأطقم الفحص المخبري",
+    "ru": "Лабораторные реагенты и наборы для ИВД"
+  },
+  "Lehim ve Havya Ekipmanları": {
+    "en": "Soldering Equipment",
+    "ar": "معدات اللحام بالقصدير والكاوية",
+    "ru": "Паяльное оборудование"
+  },
+  "Maden ve Mineral Ham Maddeleri": {
+    "en": "Mining & Mineral Raw Materials",
+    "ar": "المواد الخام للتعدين والمعادن",
+    "ru": "Горнорудное и минеральное сырьё"
+  },
+  "Maden ve Yeraltı İş Makineleri": {
+    "en": "Mining & Underground Machinery",
+    "ar": "آلات التعدين والأعمال تحت الأرض",
+    "ru": "Горная и подземная техника"
+  },
+  "Mağaza Ayna, Askı ve Tamamlayıcı Ekipmanları": {
+    "en": "Store Mirrors, Hangers & Accessories",
+    "ar": "مرايا وعلاقات وملحقات المتاجر",
+    "ru": "Зеркала, вешалки и дополнительное торговое оснащение"
+  },
+  "Mağaza Bölme ve Alan Sistemleri": {
+    "en": "Store Partitioning & Space Systems",
+    "ar": "أنظمة تقسيم مساحات المتاجر",
+    "ru": "Системы зонирования торговых площадей"
+  },
+  "Mağaza Depolama ve Arka Alan Ekipmanları": {
+    "en": "Store Storage & Back-of-House Equipment",
+    "ar": "معدات التخزين والمناطق الخلفية للمتاجر",
+    "ru": "Складское и подсобное оборудование магазина"
+  },
+  "Mağaza Ekipmanı Proje ve Sistem Çözümleri": {
+    "en": "Store Equipment Project & System Solutions",
+    "ar": "حلول المشاريع والأنظمة لتجهيزات المتاجر",
+    "ru": "Проектные и системные решения торгового оборудования"
+  },
+  "Mağaza Güvenlik ve Ürün Koruma Ekipmanları": {
+    "en": "Store Security & Product Protection Equipment",
+    "ar": "معدات أمن المتاجر وحماية المنتجات",
+    "ru": "Оборудование безопасности магазина и защиты товара"
+  },
+  "Mağaza İçi Yönlendirme ve Bilgilendirme Sistemleri": {
+    "en": "In-Store Wayfinding & Information Systems",
+    "ar": "أنظمة الإرشاد والمعلومات داخل المتجر",
+    "ru": "Внутримагазинная навигация и информационные системы"
+  },
+  "Mağaza Kurulum ve Teşhir Sistem Bileşenleri": {
+    "en": "Store Fit-Out & Display System Components",
+    "ar": "مكوّنات تجهيز المتاجر وأنظمة العرض",
+    "ru": "Компоненты обустройства магазина и выставочных систем"
+  },
+  "Mağaza Mobilyaları ve Sabit Donatılar": {
+    "en": "Store Furniture & Fixed Fittings",
+    "ar": "أثاث المتاجر والتجهيزات الثابتة",
+    "ru": "Магазинная мебель и стационарное оснащение"
+  },
+  "Mağaza Operasyon Ekipmanları": {
+    "en": "Store Operations Equipment",
+    "ar": "معدات تشغيل المتاجر",
+    "ru": "Оборудование для операций магазина"
+  },
+  "Mağaza Reyon ve Raf Sistemleri": {
+    "en": "Store Gondola & Shelving Systems",
+    "ar": "أنظمة الأرفف والرفوف الجانبية للمتاجر",
+    "ru": "Торговые гондолы и стеллажные системы"
+  },
+  "Mağaza Sektörüne Özel Teşhir Sistemleri": {
+    "en": "Sector-Specific Retail Display Systems",
+    "ar": "أنظمة عرض خاصة بقطاعات التجزئة",
+    "ru": "Отраслевые торговые витринные системы"
+  },
+  "Mağaza Teşhir Aydınlatma Sistemleri": {
+    "en": "Retail Display Lighting Systems",
+    "ar": "أنظمة إنارة العرض في المتاجر",
+    "ru": "Освещение торговых витрин"
+  },
+  "Mağaza ve Ürün Güvenlik Sistemleri": {
+    "en": "Store & Product Security Systems",
+    "ar": "أنظمة أمن المتاجر والمنتجات",
+    "ru": "Системы защиты магазина и товара"
+  },
+  "Mağaza Vitrin ve Sergileme Sistemleri": {
+    "en": "Store Window & Display Systems",
+    "ar": "أنظمة الواجهات والعرض في المتاجر",
+    "ru": "Витринные и экспозиционные системы"
+  },
+  "Magnet": {
+    "en": "Fridge Magnets",
+    "ar": "المغناطيسات التذكارية",
+    "ru": "Магниты"
+  },
+  "Makarna, Erişte, Noodle ve Kuskus": {
+    "en": "Pasta, Noodles & Couscous",
+    "ar": "المعكرونة والشعيرية والنودلز والكسكس",
+    "ru": "Макароны, лапша и кускус"
+  },
+  "Makyaj": {
+    "en": "Makeup",
+    "ar": "المكياج",
+    "ru": "Макияж"
+  },
+  "Manyetik Ürünler": {
+    "en": "Magnetic Products",
+    "ar": "المنتجات المغناطيسية",
+    "ru": "Магнитные изделия"
+  },
+  "Masa Takımı": {
+    "en": "Tableware Sets",
+    "ar": "أطقم المائدة",
+    "ru": "Столовые наборы"
+  },
+  "Masaüstü Düzenleme": {
+    "en": "Desk Organisation",
+    "ar": "تنظيم سطح المكتب",
+    "ru": "Организация рабочего стола"
+  },
+  "Medikal Sarf Malzemeleri": {
+    "en": "Medical Consumables",
+    "ar": "المستهلكات الطبية",
+    "ru": "Медицинские расходные материалы"
+  },
+  "Mekanik ve Malzeme Test Cihazları": {
+    "en": "Mechanical & Materials Testing Instruments",
+    "ar": "أجهزة اختبار المواد والاختبارات الميكانيكية",
+    "ru": "Приборы механических и материаловедческих испытаний"
+  },
+  "Metal Döküm Hizmetleri": {
+    "en": "Metal Casting Services",
+    "ar": "خدمات سباكة المعادن",
+    "ru": "Услуги литья металлов"
+  },
+  "Metal Dövme ve Presleme Hizmetleri": {
+    "en": "Metal Forging & Pressing Services",
+    "ar": "خدمات طرق وكبس المعادن",
+    "ru": "Услуги ковки и штамповки металлов"
+  },
+  "Metal İşleme Makineleri": {
+    "en": "Metalworking Machinery",
+    "ar": "آلات تشغيل المعادن",
+    "ru": "Металлообрабатывающее оборудование"
+  },
+  "Metal Kutular, Teneke Ambalajlar ve Aerosol Kapları": {
+    "en": "Metal Cans, Tinplate Packaging & Aerosol Containers",
+    "ar": "العلب المعدنية وعبوات الصفيح وعلب الأيروسول",
+    "ru": "Металлические банки, жестяная упаковка и аэрозольные баллоны"
+  },
+  "Metalik Ham Maddeler": {
+    "en": "Metallic Raw Materials",
+    "ar": "المواد الخام المعدنية",
+    "ru": "Металлическое сырьё"
+  },
+  "Miller ve Tahrik Mili Bileşenleri": {
+    "en": "Shafts & Drive Shaft Components",
+    "ar": "الأعمدة ومكوّنات عمود الإدارة",
+    "ru": "Валы и компоненты приводных валов"
+  },
+  "Mineral, Maden ve Seramik Kimyasalları": {
+    "en": "Mineral, Mining & Ceramic Chemicals",
+    "ar": "كيماويات المعادن والتعدين والسيراميك",
+    "ru": "Химия для минералов, горного дела и керамики"
+  },
+  "Mobil, Portatif ve Geçici HVAC Sistemleri": {
+    "en": "Mobile, Portable & Temporary HVAC Systems",
+    "ar": "أنظمة تكييف متنقلة ومحمولة ومؤقتة",
+    "ru": "Мобильные, переносные и временные системы ОВиК"
+  },
+  "Mobilya Aksesuarı ve Hırdavatı": {
+    "en": "Furniture Accessories & Hardware",
+    "ar": "إكسسوارات وخردوات الأثاث",
+    "ru": "Мебельная фурнитура и аксессуары"
+  },
+  "Mobilya Parçaları ve Yarı Mamulleri": {
+    "en": "Furniture Parts & Semi-Finished Components",
+    "ar": "أجزاء الأثاث والمنتجات نصف المصنّعة",
+    "ru": "Мебельные детали и полуфабрикаты"
+  },
+  "Montaj, Otomasyon ve Robotik Üretim Sistemleri": {
+    "en": "Assembly, Automation & Robotic Production Systems",
+    "ar": "أنظمة التجميع والأتمتة والإنتاج الروبوتي",
+    "ru": "Системы сборки, автоматизации и роботизированного производства"
+  },
+  "Montaj, Sabitleme ve Destek Elemanları": {
+    "en": "Mounting, Fixing & Support Components",
+    "ar": "عناصر التركيب والتثبيت والدعم",
+    "ru": "Монтажные, крепёжные и опорные элементы"
+  },
+  "Mop, Süpürme ve Zemin Temizlik Araçları": {
+    "en": "Mops, Brooms & Floor Cleaning Tools",
+    "ar": "الممسحات والمكانس وأدوات تنظيف الأرضيات",
+    "ru": "Швабры, мётлы и инвентарь для уборки полов"
+  },
+  "Motorlu ve Taşınabilir Kaynak Sistemleri": {
+    "en": "Engine-Driven & Portable Welding Systems",
+    "ar": "أنظمة اللحام بمحرك والمتنقلة",
+    "ru": "Сварочные системы с приводом от двигателя и переносные"
+  },
+  "Motosiklet Bagaj Taşıma": {
+    "en": "Motorcycle Luggage Carriers",
+    "ar": "حاملات أمتعة الدراجات النارية",
+    "ru": "Багажные системы для мотоциклов"
+  },
+  "Motosiklet Elektronik Aksesuarlar": {
+    "en": "Motorcycle Electronic Accessories",
+    "ar": "الإكسسوارات الإلكترونية للدراجات النارية",
+    "ru": "Электронные аксессуары для мотоциклов"
+  },
+  "Motosiklet Koruma ve Güvenlik": {
+    "en": "Motorcycle Protection & Security",
+    "ar": "حماية وأمن الدراجات النارية",
+    "ru": "Защита и охрана мотоциклов"
+  },
+  "Motosiklet Koruyucu Sürüş Ekipmanları": {
+    "en": "Motorcycle Protective Riding Gear",
+    "ar": "معدات القيادة الواقية للدراجات النارية",
+    "ru": "Мотоэкипировка"
+  },
+  "Motosiklet Yedek Parça": {
+    "en": "Motorcycle Spare Parts",
+    "ar": "قطع غيار الدراجات النارية",
+    "ru": "Запчасти для мотоциклов"
+  },
+  "Mouse Pad": {
+    "en": "Mouse Pads",
+    "ar": "لوحات الفأرة",
+    "ru": "Коврики для мыши"
+  },
+  "Mücevher ve Değerli Takı": {
+    "en": "Fine Jewellery",
+    "ar": "المجوهرات الثمينة",
+    "ru": "Ювелирные изделия"
+  },
+  "Musluk, Batarya ve Su Armatürleri": {
+    "en": "Taps, Mixers & Water Fittings",
+    "ar": "الحنفيات والخلاطات وتجهيزات المياه",
+    "ru": "Краны, смесители и водная арматура"
+  },
+  "Müşteri Alışveriş Ekipmanları": {
+    "en": "Customer Shopping Equipment",
+    "ar": "معدات تسوق العملاء",
+    "ru": "Оборудование для покупателей"
+  },
+  "Mutfak Eşyası": {
+    "en": "Kitchenware",
+    "ar": "أدوات المطبخ",
+    "ru": "Кухонная утварь"
+  },
+  "Mutfak Sarf ve Tüketim Ürünleri": {
+    "en": "Kitchen Consumables",
+    "ar": "مستهلكات المطبخ",
+    "ru": "Кухонные расходные материалы"
+  },
+  "Nefesli Çalgılar": {
+    "en": "Wind Instruments",
+    "ar": "آلات النفخ",
+    "ru": "Духовые инструменты"
+  },
+  "Nemlendirme, Nem Alma ve İç Hava Kalitesi": {
+    "en": "Humidification, Dehumidification & Indoor Air Quality",
+    "ar": "الترطيب وإزالة الرطوبة وجودة الهواء الداخلي",
+    "ru": "Увлажнение, осушение и качество воздуха в помещении"
+  },
+  "Numune Alma ve Laboratuvar Sarfları": {
+    "en": "Sampling & Laboratory Consumables",
+    "ar": "أخذ العينات والمستهلكات المخبرية",
+    "ru": "Пробоотбор и лабораторные расходники"
+  },
+  "Ofis Gereçleri": {
+    "en": "Office Supplies",
+    "ar": "لوازم المكاتب",
+    "ru": "Офисные принадлежности"
+  },
+  "Ofis Mobilyası": {
+    "en": "Office Furniture",
+    "ar": "أثاث المكاتب",
+    "ru": "Офисная мебель"
+  },
+  "Ofis ve Ticari Hazır Formlar": {
+    "en": "Office & Commercial Preprinted Forms",
+    "ar": "النماذج المكتبية والتجارية الجاهزة",
+    "ru": "Офисные и коммерческие бланки"
+  },
+  "Okul Çantaları": {
+    "en": "School Bags",
+    "ar": "الحقائب المدرسية",
+    "ru": "Школьные рюкзаки"
+  },
+  "Okul Çantası": {
+    "en": "School Bag",
+    "ar": "حقيبة مدرسية",
+    "ru": "Школьный рюкзак"
+  },
+  "Ölçüm ve Çizim Gereçleri": {
+    "en": "Measuring & Drawing Instruments",
+    "ar": "أدوات القياس والرسم",
+    "ru": "Измерительные и чертёжные принадлежности"
+  },
+  "Oluklu Mukavva Taşıma Kutuları ve E-Ticaret Kutuları": {
+    "en": "Corrugated Shipping Boxes & E-Commerce Cartons",
+    "ar": "صناديق الكرتون المضلّع للشحن وعلب التجارة الإلكترونية",
+    "ru": "Гофрокороба для перевозки и коробки для электронной торговли"
+  },
+  "Optoelektronik ve Fotonik": {
+    "en": "Optoelectronics & Photonics",
+    "ar": "الإلكترونيات الضوئية والفوتونيات",
+    "ru": "Оптоэлектроника и фотоника"
+  },
+  "Organik Ara Ürünler ve Sentetik Kimyasallar": {
+    "en": "Organic Intermediates & Synthetic Chemicals",
+    "ar": "الوسائط العضوية والكيماويات الاصطناعية",
+    "ru": "Органические полупродукты и синтетическая химия"
+  },
+  "Organik Kimyasallar": {
+    "en": "Organic Chemicals",
+    "ar": "الكيماويات العضوية",
+    "ru": "Органическая химия"
+  },
+  "Orman ve Ahşap Ham Maddeleri": {
+    "en": "Forestry & Timber Raw Materials",
+    "ar": "المواد الخام الحرجية والخشبية",
+    "ru": "Лесное и древесное сырьё"
+  },
+  "Ormancılık Makine ve Ekipmanları": {
+    "en": "Forestry Machinery & Equipment",
+    "ar": "آلات ومعدات الحراجة",
+    "ru": "Лесозаготовительная техника и оборудование"
+  },
+  "Ortopedi, Rehabilitasyon ve Evde Bakım": {
+    "en": "Orthopaedics, Rehabilitation & Home Care",
+    "ar": "العظام وإعادة التأهيل والرعاية المنزلية",
+    "ru": "Ортопедия, реабилитация и домашний уход"
+  },
+  "Otel Banyo, Buklet ve Amenity": {
+    "en": "Hotel Bathroom, Bouclé & Amenities",
+    "ar": "حمامات الفنادق والمناشف ومستلزمات الضيافة",
+    "ru": "Гостиничная ванная, текстиль и косметические наборы"
+  },
+  "Otel Etkinlik, Toplantı ve Banket": {
+    "en": "Hotel Events, Meetings & Banqueting",
+    "ar": "فعاليات الفنادق والاجتماعات والمآدب",
+    "ru": "Гостиничные мероприятия, конференции и банкеты"
+  },
+  "Otel Güvenlik ve Erişim Ürünleri": {
+    "en": "Hotel Security & Access Products",
+    "ar": "منتجات أمن ودخول الفنادق",
+    "ru": "Гостиничные системы безопасности и доступа"
+  },
+  "Otel Oda Ekipmanları": {
+    "en": "Hotel Room Equipment",
+    "ar": "تجهيزات غرف الفنادق",
+    "ru": "Оснащение гостиничных номеров"
+  },
+  "Otel Resepsiyon, Lobi ve Genel Alan": {
+    "en": "Hotel Reception, Lobby & Public Areas",
+    "ar": "استقبال الفنادق والبهو والمناطق العامة",
+    "ru": "Стойка регистрации, лобби и общие зоны отеля"
+  },
+  "Otel Spa, Havuz ve Wellness Ekipmanları": {
+    "en": "Hotel Spa, Pool & Wellness Equipment",
+    "ar": "معدات السبا والمسابح والعافية في الفنادق",
+    "ru": "Оборудование спа, бассейнов и велнеса"
+  },
+  "Otel Tekstili": {
+    "en": "Hotel Textiles",
+    "ar": "منسوجات الفنادق",
+    "ru": "Гостиничный текстиль"
+  },
+  "Otel ve Konaklama Mobilyası": {
+    "en": "Hotel & Hospitality Furniture",
+    "ar": "أثاث الفنادق والضيافة",
+    "ru": "Мебель для отелей и гостеприимства"
+  },
+  "Otel, Restaurant ve Cafe Mobilyaları": {
+    "en": "Hotel, Restaurant & Café Furniture",
+    "ar": "أثاث الفنادق والمطاعم والمقاهي",
+    "ru": "Мебель для отелей, ресторанов и кафе"
+  },
+  "Oto Aksesuar": {
+    "en": "Car Accessories",
+    "ar": "إكسسوارات السيارات",
+    "ru": "Автоаксессуары"
+  },
+  "Oto Bakım ve Temizlik": {
+    "en": "Car Care & Cleaning",
+    "ar": "العناية بالسيارة وتنظيفها",
+    "ru": "Автокосметика и уход"
+  },
+  "Oto Boyası ve Malzemeleri": {
+    "en": "Automotive Paint & Materials",
+    "ar": "دهان السيارات وموادها",
+    "ru": "Автоэмали и материалы"
+  },
+  "Oto Kokusu": {
+    "en": "Car Fragrances",
+    "ar": "معطرات السيارات",
+    "ru": "Автомобильные ароматизаторы"
+  },
+  "Oto Lastik ve Jant": {
+    "en": "Tyres & Wheels",
+    "ar": "إطارات وجنوط السيارات",
+    "ru": "Шины и диски"
+  },
+  "Oto Ses ve Görüntü Sistemleri": {
+    "en": "Car Audio & Video Systems",
+    "ar": "أنظمة الصوت والصورة في السيارات",
+    "ru": "Автомобильные аудио- и видеосистемы"
+  },
+  "Oto Yedek Parça": {
+    "en": "Auto Spare Parts",
+    "ar": "قطع غيار السيارات",
+    "ru": "Автозапчасти"
+  },
+  "Otomatik Depolama ve Robotik Sistemler": {
+    "en": "Automated Storage & Robotic Systems",
+    "ar": "أنظمة التخزين الآلي والروبوتات",
+    "ru": "Автоматизированные склады и роботизированные системы"
+  },
+  "Outdoor Aletler": {
+    "en": "Outdoor Tools",
+    "ar": "أدوات الأنشطة الخارجية",
+    "ru": "Туристический инструмент"
+  },
+  "Outdoor Aydınlatma": {
+    "en": "Outdoor Lighting",
+    "ar": "الإنارة الخارجية",
+    "ru": "Уличное освещение"
+  },
+  "Outdoor Giyim": {
+    "en": "Outdoor Clothing",
+    "ar": "ملابس الأنشطة الخارجية",
+    "ru": "Одежда для активного отдыха"
+  },
+  "Outdoor Optik": {
+    "en": "Outdoor Optics",
+    "ar": "البصريات الخارجية",
+    "ru": "Оптика для активного отдыха"
+  },
+  "Oyun": {
+    "en": "Games",
+    "ar": "الألعاب",
+    "ru": "Игры"
+  },
+  "Oyun Alanı": {
+    "en": "Playground",
+    "ar": "ساحات اللعب",
+    "ru": "Игровые площадки"
+  },
+  "Oyun Sistemleri": {
+    "en": "Gaming Systems",
+    "ar": "أنظمة الألعاب",
+    "ru": "Игровые системы"
+  },
+  "Oyuncak": {
+    "en": "Toys",
+    "ar": "اللعب",
+    "ru": "Игрушки"
+  },
+  "Özel Amaçlı Çantalar": {
+    "en": "Special Purpose Bags",
+    "ar": "حقائب للأغراض الخاصة",
+    "ru": "Сумки специального назначения"
+  },
+  "Özel Amaçlı Ekipmanlar": {
+    "en": "Special Purpose Equipment",
+    "ar": "معدات للأغراض الخاصة",
+    "ru": "Оборудование специального назначения"
+  },
+  "Özel Aydınlatmalar": {
+    "en": "Specialty Lighting",
+    "ar": "الإنارة الخاصة",
+    "ru": "Специальное освещение"
+  },
+  "Özel Bağlantı ve Sabitleme Elemanları": {
+    "en": "Special Fasteners & Fixings",
+    "ar": "عناصر الربط والتثبيت الخاصة",
+    "ru": "Специальный крепёж и фиксаторы"
+  },
+  "Özel Formülasyonlar ve Hazır Kimyasal Sistemler": {
+    "en": "Custom Formulations & Ready Chemical Systems",
+    "ar": "التركيبات الخاصة والأنظمة الكيميائية الجاهزة",
+    "ru": "Специальные рецептуры и готовые химические системы"
+  },
+  "Özel Gün ve Organizasyon Giyim": {
+    "en": "Occasion & Event Clothing",
+    "ar": "ملابس المناسبات والفعاليات",
+    "ru": "Одежда для торжеств и мероприятий"
+  },
+  "Özel Kaynak Makinaları": {
+    "en": "Special Welding Machines",
+    "ar": "آلات اللحام الخاصة",
+    "ru": "Специальные сварочные машины"
+  },
+  "Özel Üretim Kalıp Setleri": {
+    "en": "Custom-Made Die Sets",
+    "ar": "أطقم القوالب المصنّعة خصيصًا",
+    "ru": "Изготавливаемые на заказ комплекты штампов"
+  },
+  "Özel Uygulama HVAC Sistemleri": {
+    "en": "Special Application HVAC Systems",
+    "ar": "أنظمة تكييف للتطبيقات الخاصة",
+    "ru": "Системы ОВиК для специальных применений"
+  },
+  "Özel ve Fason İmalat Hizmetleri": {
+    "en": "Custom & Contract Manufacturing Services",
+    "ar": "خدمات التصنيع الخاص والتعاقدي",
+    "ru": "Индивидуальное и контрактное производство"
+  },
+  "Özel ve İleri Kimyasallar": {
+    "en": "Specialty & Advanced Chemicals",
+    "ar": "الكيماويات المتخصصة والمتقدمة",
+    "ru": "Специальная и передовая химия"
+  },
+  "Özel ve Yeni Nesil Yapı Malzemeleri": {
+    "en": "Specialty & Next-Generation Building Materials",
+    "ar": "مواد البناء الخاصة والجيل الجديد",
+    "ru": "Специальные и новые строительные материалы"
+  },
+  "Palet ve Yük Taşıyıcı Sistemleri": {
+    "en": "Pallet & Load Carrier Systems",
+    "ar": "أنظمة المنصّات وحوامل الأحمال",
+    "ru": "Паллетные и грузонесущие системы"
+  },
+  "Paletler, Kasalar, Kutulu Paletler ve Tekrar Kullanılabilir Lojistik Ambalajları": {
+    "en": "Pallets, Crates, Pallet Boxes & Reusable Logistics Packaging",
+    "ar": "المنصّات والصناديق والمنصّات الصندوقية والعبوات اللوجستية القابلة لإعادة الاستخدام",
+    "ru": "Паллеты, ящики, паллетные боксы и многооборотная логистическая тара"
+  },
+  "Parfüm ve Koku": {
+    "en": "Perfume & Fragrance",
+    "ar": "العطور والروائح",
+    "ru": "Парфюмерия и ароматы"
+  },
+  "Parti Afişi ve Bayrak": {
+    "en": "Party Banners & Flags",
+    "ar": "لافتات وأعلام الحفلات",
+    "ru": "Праздничные баннеры и флажки"
+  },
+  "Parti Düdüğü": {
+    "en": "Party Whistles",
+    "ar": "صفارات الحفلات",
+    "ru": "Праздничные дудки"
+  },
+  "Parti Gözlüğü": {
+    "en": "Party Glasses",
+    "ar": "نظارات الحفلات",
+    "ru": "Праздничные очки"
+  },
+  "Parti Kostümü": {
+    "en": "Party Costumes",
+    "ar": "أزياء الحفلات",
+    "ru": "Праздничные костюмы"
+  },
+  "Parti Mumu": {
+    "en": "Party Candles",
+    "ar": "شموع الحفلات",
+    "ru": "Праздничные свечи"
+  },
+  "Parti Şapkası": {
+    "en": "Party Hats",
+    "ar": "قبعات الحفلات",
+    "ru": "Праздничные колпаки"
+  },
+  "Parti Setleri": {
+    "en": "Party Sets",
+    "ar": "أطقم الحفلات",
+    "ru": "Праздничные наборы"
+  },
+  "Parti Sofra Gereçleri": {
+    "en": "Party Tableware",
+    "ar": "أدوات مائدة الحفلات",
+    "ru": "Праздничная сервировка"
+  },
+  "Parti Süslemesi": {
+    "en": "Party Decorations",
+    "ar": "زينة الحفلات",
+    "ru": "Праздничные украшения"
+  },
+  "Pasif Komponentler": {
+    "en": "Passive Components",
+    "ar": "المكوّنات السلبية",
+    "ru": "Пассивные компоненты"
+  },
+  "PCB ve Devre Kartları": {
+    "en": "PCBs & Circuit Boards",
+    "ar": "لوحات الدوائر المطبوعة",
+    "ru": "Печатные платы"
+  },
+  "Perçin": {
+    "en": "Rivets",
+    "ar": "البراشيم",
+    "ru": "Заклёпки"
+  },
+  "Perçin Somunu ve Dişli Ek Parçalar": {
+    "en": "Rivet Nuts & Threaded Inserts",
+    "ar": "صواميل البرشام والإدخالات الملولبة",
+    "ru": "Заклёпочные гайки и резьбовые вставки"
+  },
+  "Personel Yükseltme ve Erişim Makineleri": {
+    "en": "Personnel Lifting & Access Machinery",
+    "ar": "آلات رفع الأفراد والوصول",
+    "ru": "Подъёмники для персонала и машины доступа"
+  },
+  "Petrol ve Doğalgaz Ekipmanları": {
+    "en": "Oil & Gas Equipment",
+    "ar": "معدات النفط والغاز",
+    "ru": "Нефтегазовое оборудование"
+  },
+  "Petrol, Gaz ve Enerji Kimyasalları": {
+    "en": "Oil, Gas & Energy Chemicals",
+    "ar": "كيماويات النفط والغاز والطاقة",
+    "ru": "Химия для нефти, газа и энергетики"
+  },
+  "Pigmentler ve Renklendiriciler": {
+    "en": "Pigments & Colourants",
+    "ar": "الأصباغ والملوّنات",
+    "ru": "Пигменты и красители"
+  },
+  "Pijama ve Ev Giyim": {
+    "en": "Pyjamas & Loungewear",
+    "ar": "البيجامات وملابس المنزل",
+    "ru": "Пижамы и домашняя одежда"
+  },
+  "Pil ve Pil Şarj Ürünleri": {
+    "en": "Batteries & Battery Chargers",
+    "ar": "البطاريات وشواحنها",
+    "ru": "Батарейки и зарядные устройства"
+  },
+  "Pim, Kopilya ve Tespit Elemanları": {
+    "en": "Pins, Split Pins & Retaining Elements",
+    "ar": "المسامير والفتيلات وعناصر التثبيت",
+    "ru": "Штифты, шплинты и фиксирующие элементы"
+  },
+  "Pişirme Ekipmanları": {
+    "en": "Cooking Equipment",
+    "ar": "معدات الطهي",
+    "ru": "Оборудование для приготовления пищи"
+  },
+  "Plaj Giyimi": {
+    "en": "Beachwear",
+    "ar": "ملابس الشاطئ",
+    "ru": "Пляжная одежда"
+  },
+  "Plaket, Kupa, Madalya": {
+    "en": "Plaques, Trophies & Medals",
+    "ar": "الدروع والكؤوس والميداليات",
+    "ru": "Плакетки, кубки и медали"
+  },
+  "Plastik Enjeksiyon Kalıp Elemanları": {
+    "en": "Plastic Injection Mould Components",
+    "ar": "عناصر قوالب حقن البلاستيك",
+    "ru": "Компоненты пресс-форм для литья пластмасс"
+  },
+  "Plastik ve Kauçuk İşleme Makineleri": {
+    "en": "Plastics & Rubber Processing Machinery",
+    "ar": "آلات تشغيل البلاستيك والمطاط",
+    "ru": "Оборудование для переработки пластмасс и резины"
+  },
+  "Plastik ve Polimer İmalat Hizmetleri": {
+    "en": "Plastics & Polymer Manufacturing Services",
+    "ar": "خدمات تصنيع البلاستيك والبوليمرات",
+    "ru": "Производство изделий из пластмасс и полимеров"
+  },
+  "Polimerler ve Plastik Hammaddeleri": {
+    "en": "Polymers & Plastic Raw Materials",
+    "ar": "البوليمرات والمواد الخام البلاستيكية",
+    "ru": "Полимеры и пластиковое сырьё"
+  },
+  "Postacı Çantası": {
+    "en": "Messenger Bags",
+    "ar": "حقائب الكتف",
+    "ru": "Сумки-мессенджеры"
+  },
+  "Powerbank": {
+    "en": "Power Banks",
+    "ar": "بطاريات الطاقة المحمولة",
+    "ru": "Внешние аккумуляторы"
+  },
+  "Prefabrik, Modüler ve Panel Yapı Malzemeleri": {
+    "en": "Prefabricated, Modular & Panel Building Materials",
+    "ar": "مواد البناء الجاهزة والمعيارية واللوحية",
+    "ru": "Префабрикованные, модульные и панельные стройматериалы"
+  },
+  "Pres ve Şekillendirme Makineleri": {
+    "en": "Press & Forming Machinery",
+    "ar": "آلات الكبس والتشكيل",
+    "ru": "Прессовое и формовочное оборудование"
+  },
+  "Pres-Sac Kalıp Elemanları": {
+    "en": "Sheet Metal Press Die Components",
+    "ar": "عناصر قوالب كبس الصفائح",
+    "ru": "Компоненты штампов для листового металла"
+  },
+  "Profesyonel Çamaşırhane ve Tekstil Bakım Kimyasalları": {
+    "en": "Professional Laundry & Textile Care Chemicals",
+    "ar": "كيماويات المغاسل المهنية والعناية بالمنسوجات",
+    "ru": "Профессиональная химия для прачечных и ухода за текстилем"
+  },
+  "Profesyonel Cilt Bakım Ürünü": {
+    "en": "Professional Skincare Products",
+    "ar": "منتجات العناية المهنية بالبشرة",
+    "ru": "Профессиональные средства по уходу за кожей"
+  },
+  "Profesyonel Güzellik Cihazları": {
+    "en": "Professional Beauty Devices",
+    "ar": "أجهزة التجميل المهنية",
+    "ru": "Профессиональные косметологические аппараты"
+  },
+  "Profesyonel Makyaj": {
+    "en": "Professional Makeup",
+    "ar": "المكياج المهني",
+    "ru": "Профессиональный макияж"
+  },
+  "Profesyonel Mutfak Havalandırma Ve Egzoz": {
+    "en": "Professional Kitchen Ventilation & Exhaust",
+    "ar": "تهوية وشفط المطابخ المهنية",
+    "ru": "Вентиляция и вытяжка профессиональной кухни"
+  },
+  "Profesyonel Mutfak ve Gıda Hijyen Kimyasalları": {
+    "en": "Professional Kitchen & Food Hygiene Chemicals",
+    "ar": "كيماويات نظافة المطابخ المهنية والأغذية",
+    "ru": "Химия для гигиены профессиональной кухни и пищевых производств"
+  },
+  "Profesyonel Mutfak Yedek Parça ve Sarf": {
+    "en": "Professional Kitchen Spares & Consumables",
+    "ar": "قطع غيار ومستهلكات المطابخ المهنية",
+    "ru": "Запчасти и расходники для профессиональной кухни"
+  },
+  "Profesyonel Pişirme ve Mutfak Gereçleri": {
+    "en": "Professional Cooking & Kitchen Utensils",
+    "ar": "أدوات الطهي والمطبخ المهنية",
+    "ru": "Профессиональная кухонная утварь"
+  },
+  "Profesyonel Tırnak Ürünleri": {
+    "en": "Professional Nail Products",
+    "ar": "منتجات الأظافر المهنية",
+    "ru": "Профессиональные товары для ногтей"
+  },
+  "Profesyonel ve Endüstriyel Temizlik Kimyasalları": {
+    "en": "Professional & Industrial Cleaning Chemicals",
+    "ar": "كيماويات التنظيف المهني والصناعي",
+    "ru": "Профессиональная и промышленная моющая химия"
+  },
+  "Profesyonel WC, Banyo ve El Hijyeni": {
+    "en": "Professional Washroom, Bathroom & Hand Hygiene",
+    "ar": "نظافة دورات المياه والحمامات واليدين المهنية",
+    "ru": "Профессиональная гигиена санузлов и рук"
+  },
+  "Profesyonel Zemin Temizleme, Bakım ve Koruma": {
+    "en": "Professional Floor Cleaning, Maintenance & Protection",
+    "ar": "تنظيف وصيانة وحماية الأرضيات المهنية",
+    "ru": "Профессиональная уборка, уход и защита полов"
+  },
+  "Projeksiyon Sistemleri": {
+    "en": "Projection Systems",
+    "ar": "أنظمة العرض الضوئي",
+    "ru": "Проекционные системы"
+  },
+  "Proses Ölçüm ve Analiz Cihazları": {
+    "en": "Process Measurement & Analysis Instruments",
+    "ar": "أجهزة قياس وتحليل العمليات",
+    "ru": "Приборы измерения и анализа технологических процессов"
+  },
+  "Prototip ve Numune Üretim Hizmetleri": {
+    "en": "Prototyping & Sample Production Services",
+    "ar": "خدمات إنتاج النماذج الأولية والعينات",
+    "ru": "Прототипирование и изготовление образцов"
+  },
+  "Pul ve Rondela": {
+    "en": "Washers",
+    "ar": "الحلقات والوردات",
+    "ru": "Шайбы"
+  },
+  "Raf Sistemleri": {
+    "en": "Shelving Systems",
+    "ar": "أنظمة الأرفف",
+    "ru": "Стеллажные системы"
+  },
+  "Raf ve Teşhir Aksesuarları": {
+    "en": "Shelf & Display Accessories",
+    "ar": "إكسسوارات الأرفف والعرض",
+    "ru": "Аксессуары для полок и витрин"
+  },
+  "Reçel, Marmelat, Bal, Pekmez ve Ezme": {
+    "en": "Jams, Marmalades, Honey, Molasses & Spreads",
+    "ar": "المربى والمرملاد والعسل والدبس والمعاجين",
+    "ru": "Джемы, мармелад, мёд, патока и пасты"
+  },
+  "Reçineler": {
+    "en": "Resins",
+    "ar": "الراتنجات",
+    "ru": "Смолы"
+  },
+  "Redüktörler ve Dişli Kutuları": {
+    "en": "Gear Reducers & Gearboxes",
+    "ar": "المخفضات وعلب التروس",
+    "ru": "Редукторы и коробки передач"
+  },
+  "Restaurant Masaüstü ve Servis": {
+    "en": "Restaurant Tabletop & Service",
+    "ar": "تجهيزات الطاولة والخدمة في المطاعم",
+    "ru": "Сервировка и обслуживание в ресторане"
+  },
+  "Restaurant ve Cafe Operasyon Sarfları": {
+    "en": "Restaurant & Café Operating Consumables",
+    "ar": "مستهلكات تشغيل المطاعم والمقاهي",
+    "ru": "Операционные расходники ресторанов и кафе"
+  },
+  "Restaurant ve Cafe Teşhir Ekipmanları": {
+    "en": "Restaurant & Café Display Equipment",
+    "ar": "معدات العرض في المطاعم والمقاهي",
+    "ru": "Витринное оборудование ресторанов и кафе"
+  },
+  "Restaurant ve Hotel Profesyonel Atık Yönetimi": {
+    "en": "Restaurant & Hotel Professional Waste Management",
+    "ar": "الإدارة المهنية للنفايات في المطاعم والفنادق",
+    "ru": "Профессиональное управление отходами в ресторанах и отелях"
+  },
+  "Restoran ve Kafe Mobilyası": {
+    "en": "Restaurant & Café Furniture",
+    "ar": "أثاث المطاعم والمقاهي",
+    "ru": "Мебель для ресторанов и кафе"
+  },
+  "RF, Mikrodalga ve Kablosuz": {
+    "en": "RF, Microwave & Wireless",
+    "ar": "الترددات الراديوية والميكروويف واللاسلكي",
+    "ru": "РЧ, СВЧ и беспроводные технологии"
+  },
+  "Rozet": {
+    "en": "Badges",
+    "ar": "الشارات",
+    "ru": "Значки"
+  },
+  "Ruhsat Kabı ve Plakalık": {
+    "en": "Document Holders & Number Plate Frames",
+    "ar": "حافظات الرخص وإطارات اللوحات",
+    "ru": "Обложки для документов и рамки для номеров"
+  },
+  "Rulman ve Yataklar": {
+    "en": "Bearings & Housings",
+    "ar": "المحامل والكراسي",
+    "ru": "Подшипники и корпуса"
+  },
+  "Rüzgar Enerjisi": {
+    "en": "Wind Energy",
+    "ar": "طاقة الرياح",
+    "ru": "Ветроэнергетика"
+  },
+  "Saç Bakımı": {
+    "en": "Hair Care",
+    "ar": "العناية بالشعر",
+    "ru": "Уход за волосами"
+  },
+  "Saç Ekstansiyon, Postiş ve Peruk": {
+    "en": "Hair Extensions, Hairpieces & Wigs",
+    "ar": "وصلات الشعر والخصلات والباروكات",
+    "ru": "Наращивание волос, шиньоны и парики"
+  },
+  "Saç İşlem ve Boyama": {
+    "en": "Hair Treatment & Colouring",
+    "ar": "معالجة الشعر وصبغه",
+    "ru": "Уход за волосами и окрашивание"
+  },
+  "Sac İşleme Makineleri": {
+    "en": "Sheet Metal Working Machinery",
+    "ar": "آلات تشغيل الصفائح المعدنية",
+    "ru": "Листообрабатывающее оборудование"
+  },
+  "Saç Kesim, Tıraş ve Berber": {
+    "en": "Hair Cutting, Shaving & Barbering",
+    "ar": "قص الشعر والحلاقة",
+    "ru": "Стрижка, бритьё и барберинг"
+  },
+  "Sac Metal ve Metal Levha İmalat Hizmetleri": {
+    "en": "Sheet Metal Fabrication Services",
+    "ar": "خدمات تصنيع الصفائح والألواح المعدنية",
+    "ru": "Услуги изготовления изделий из листового металла"
+  },
+  "Saç Şekillendirme": {
+    "en": "Hair Styling",
+    "ar": "تصفيف الشعر",
+    "ru": "Укладка волос"
+  },
+  "Sağlık ve Klinik Mobilyası": {
+    "en": "Healthcare & Clinic Furniture",
+    "ar": "أثاث المرافق الصحية والعيادات",
+    "ru": "Мебель для медицинских учреждений"
+  },
+  "Salon Ekipmanları ve Mobilyaları": {
+    "en": "Salon Equipment & Furniture",
+    "ar": "معدات وأثاث الصالونات",
+    "ru": "Оборудование и мебель для салонов"
+  },
+  "Salon Sarf Malzemeleri ve Hijyen": {
+    "en": "Salon Consumables & Hygiene",
+    "ar": "مستهلكات الصالونات والنظافة",
+    "ru": "Расходники и гигиена для салонов"
+  },
+  "Salon Tekstil ve İş Kıyafeti": {
+    "en": "Salon Textiles & Workwear",
+    "ar": "منسوجات وملابس عمل الصالونات",
+    "ru": "Текстиль и рабочая одежда для салонов"
+  },
+  "Şalt, Anahtarlama ve Elektrik Dağıtımı": {
+    "en": "Switchgear & Electrical Distribution",
+    "ar": "المفاتيح الكهربائية وتوزيع الكهرباء",
+    "ru": "Коммутационная аппаратура и распределение электроэнергии"
+  },
+  "Sanat, El İşi ve Eğitim Kırtasiyesi": {
+    "en": "Art, Craft & Educational Stationery",
+    "ar": "قرطاسية الفنون والأشغال اليدوية والتعليم",
+    "ru": "Товары для творчества, рукоделия и учёбы"
+  },
+  "Şantiye ve İş Makinesi Destek Ekipmanları": {
+    "en": "Site & Heavy Equipment Support Gear",
+    "ar": "معدات دعم المواقع والمعدات الثقيلة",
+    "ru": "Вспомогательное оборудование для стройплощадок и спецтехники"
+  },
+  "Şapka": {
+    "en": "Hats",
+    "ar": "القبعات",
+    "ru": "Головные уборы"
+  },
+  "Saplama ve Dişli Çubuk": {
+    "en": "Studs & Threaded Rods",
+    "ar": "المسامير الملولبة والقضبان المسننة",
+    "ru": "Шпильки и резьбовые стержни"
+  },
+  "Şarj Cihazı ve Şarj Kablosu": {
+    "en": "Chargers & Charging Cables",
+    "ar": "الشواحن وكابلات الشحن",
+    "ru": "Зарядные устройства и кабели"
+  },
+  "Segman ve Tutucu Halkalar": {
+    "en": "Circlips & Retaining Rings",
+    "ar": "حلقات التثبيت والاحتجاز",
+    "ru": "Стопорные и удерживающие кольца"
+  },
+  "Sekreterlik": {
+    "en": "Secretarial Supplies",
+    "ar": "لوازم السكرتارية",
+    "ru": "Секретарские принадлежности"
+  },
+  "Sektörel ve Profesyonel Üniforma": {
+    "en": "Sector-Specific & Professional Uniforms",
+    "ar": "الأزياء الموحدة القطاعية والمهنية",
+    "ru": "Отраслевая и профессиональная униформа"
+  },
+  "Şemsiye": {
+    "en": "Umbrellas",
+    "ar": "المظلات",
+    "ru": "Зонты"
+  },
+  "Sensörler ve Transdüserler": {
+    "en": "Sensors & Transducers",
+    "ar": "المستشعرات والمحوّلات",
+    "ru": "Датчики и преобразователи"
+  },
+  "Sera Yapı Sistemleri": {
+    "en": "Greenhouse Structure Systems",
+    "ar": "أنظمة إنشاء البيوت المحمية",
+    "ru": "Тепличные конструкции"
+  },
+  "Seramik ve Fayans Aletleri": {
+    "en": "Ceramic & Tiling Tools",
+    "ar": "أدوات السيراميك والبلاط",
+    "ru": "Инструмент для керамики и плитки"
+  },
+  "Seramik, Porselen ve Karo Malzemeleri": {
+    "en": "Ceramic, Porcelain & Tile Materials",
+    "ar": "مواد السيراميك والبورسلين والبلاط",
+    "ru": "Керамика, фарфор и плиточные материалы"
+  },
+  "Seramik, Porselen ve Refrakter Ham Maddeleri": {
+    "en": "Ceramic, Porcelain & Refractory Raw Materials",
+    "ar": "المواد الخام للسيراميك والبورسلين والحراريات",
+    "ru": "Сырьё для керамики, фарфора и огнеупоров"
+  },
+  "Şerit Led ve Trafo": {
+    "en": "LED Strips & Drivers",
+    "ar": "شرائط LED والمحوّلات",
+    "ru": "Светодиодные ленты и блоки питания"
+  },
+  "Servis ve Garson Ekipmanları": {
+    "en": "Service & Waiting Equipment",
+    "ar": "معدات الخدمة والنُدُل",
+    "ru": "Оборудование для обслуживания и официантов"
+  },
+  "Ses ve Müzik Sistemleri": {
+    "en": "Audio & Music Systems",
+    "ar": "أنظمة الصوت والموسيقى",
+    "ru": "Аудио- и музыкальные системы"
+  },
+  "Ses Yalıtım ve Akustik Malzemeleri": {
+    "en": "Soundproofing & Acoustic Materials",
+    "ar": "مواد العزل الصوتي والصوتيات",
+    "ru": "Звукоизоляционные и акустические материалы"
+  },
+  "Seyahat Çantası": {
+    "en": "Travel Bags",
+    "ar": "حقائب السفر",
+    "ru": "Дорожные сумки"
+  },
+  "Sigorta ve Devre Koruma": {
+    "en": "Fuses & Circuit Protection",
+    "ar": "المصاهر وحماية الدوائر",
+    "ru": "Предохранители и защита цепей"
+  },
+  "Şişe Açacağı": {
+    "en": "Bottle Openers",
+    "ar": "فتاحات الزجاجات",
+    "ru": "Открывалки для бутылок"
+  },
+  "Sıcak Su Tesisatı Ekipmanları": {
+    "en": "Hot Water Plumbing Equipment",
+    "ar": "معدات سباكة المياه الساخنة",
+    "ru": "Оборудование горячего водоснабжения"
+  },
+  "Sıhhi Gereçler ve Seramik Ürünleri": {
+    "en": "Sanitary Ware & Ceramic Products",
+    "ar": "الأدوات الصحية ومنتجات السيراميك",
+    "ru": "Сантехника и керамические изделия"
+  },
+  "Sırt Çantası": {
+    "en": "Backpacks",
+    "ar": "حقائب الظهر",
+    "ru": "Рюкзаки"
+  },
+  "Sıva ve Alçı Aletleri": {
+    "en": "Plastering & Rendering Tools",
+    "ar": "أدوات التلييس والجبس",
+    "ru": "Штукатурный инструмент"
+  },
+  "Sıva, Şap, Tesviye ve Yüzey Hazırlama Malzemeleri": {
+    "en": "Plaster, Screed, Levelling & Surface Preparation Materials",
+    "ar": "مواد التلييس والصبّة والتسوية وتحضير الأسطح",
+    "ru": "Штукатурки, стяжки, нивелиры и материалы подготовки поверхности"
+  },
+  "Soğutma ve Saklama Ekipmanları": {
+    "en": "Refrigeration & Storage Equipment",
+    "ar": "معدات التبريد والتخزين",
+    "ru": "Холодильное и складское оборудование"
+  },
+  "Solventler": {
+    "en": "Solvents",
+    "ar": "المذيبات",
+    "ru": "Растворители"
+  },
+  "Somun": {
+    "en": "Nuts",
+    "ar": "الصواميل",
+    "ru": "Гайки"
+  },
+  "Spor Çantası": {
+    "en": "Sports Bags",
+    "ar": "الحقائب الرياضية",
+    "ru": "Спортивные сумки"
+  },
+  "Spor Malzemeleri": {
+    "en": "Sports Equipment",
+    "ar": "المستلزمات الرياضية",
+    "ru": "Спортивный инвентарь"
+  },
+  "Spreyleme, Dozajlama ve Kimyasal Uygulama Sistemleri": {
+    "en": "Spraying, Dosing & Chemical Application Systems",
+    "ar": "أنظمة الرش والجرعات وتطبيق الكيماويات",
+    "ru": "Системы распыления, дозирования и нанесения химикатов"
+  },
+  "Standart İş Kıyafeti": {
+    "en": "Standard Workwear",
+    "ar": "ملابس العمل القياسية",
+    "ru": "Стандартная спецодежда"
+  },
+  "Su Arıtma Kimyasalları": {
+    "en": "Water Treatment Chemicals",
+    "ar": "كيماويات معالجة المياه",
+    "ru": "Химия водоподготовки"
+  },
+  "Su Depolama ve Basınçlandırma Sistemleri": {
+    "en": "Water Storage & Pressurisation Systems",
+    "ar": "أنظمة تخزين المياه ورفع الضغط",
+    "ru": "Системы хранения воды и повышения давления"
+  },
+  "Su Filtrasyon ve Arıtma Sistemleri": {
+    "en": "Water Filtration & Purification Systems",
+    "ar": "أنظمة ترشيح وتنقية المياه",
+    "ru": "Системы фильтрации и очистки воды"
+  },
+  "Su Sayaçları ve Ölçüm Ekipmanları": {
+    "en": "Water Meters & Measurement Equipment",
+    "ar": "عدادات المياه ومعدات القياس",
+    "ru": "Счётчики воды и измерительное оборудование"
+  },
+  "Su Yalıtımı ve Nem Koruma Malzemeleri": {
+    "en": "Waterproofing & Damp Protection Materials",
+    "ar": "مواد العزل المائي والحماية من الرطوبة",
+    "ru": "Гидроизоляция и защита от влаги"
+  },
+  "Su, Kurtarma ve Özel Çalışma Güvenliği": {
+    "en": "Water, Rescue & Special Operations Safety",
+    "ar": "سلامة العمل المائي والإنقاذ والعمليات الخاصة",
+    "ru": "Безопасность на воде, спасание и специальные работы"
+  },
+  "Sünnet Süsü": {
+    "en": "Circumcision Celebration Decorations",
+    "ar": "زينة حفلات الختان",
+    "ru": "Украшения для торжества суннет"
+  },
+  "Sunum ve Görsel İletişim": {
+    "en": "Presentation & Visual Communication",
+    "ar": "العرض والاتصال المرئي",
+    "ru": "Презентации и визуальные коммуникации"
+  },
+  "Süpürge": {
+    "en": "Brooms & Vacuum Cleaners",
+    "ar": "المكانس",
+    "ru": "Мётлы и пылесосы"
+  },
+  "Surfaktanlar ve Yüzey Aktif Maddeler": {
+    "en": "Surfactants",
+    "ar": "المواد الخافضة للتوتر السطحي",
+    "ru": "Поверхностно-активные вещества"
+  },
+  "Süt ve Süt Ürünleri": {
+    "en": "Milk & Dairy Products",
+    "ar": "الحليب ومنتجات الألبان",
+    "ru": "Молоко и молочные продукты"
+  },
+  "Takım Elbise": {
+    "en": "Suits",
+    "ar": "البدلات",
+    "ru": "Костюмы"
+  },
+  "Takım Tezgahları": {
+    "en": "Machine Tools",
+    "ar": "مكائن العدد",
+    "ru": "Металлорежущие станки"
+  },
+  "Takvim": {
+    "en": "Calendars",
+    "ar": "التقاويم",
+    "ru": "Календари"
+  },
+  "Tarım Kimyasalları": {
+    "en": "Agrochemicals",
+    "ar": "الكيماويات الزراعية",
+    "ru": "Агрохимия"
+  },
+  "Tarım Makine ve Ekipmanları": {
+    "en": "Agricultural Machinery & Equipment",
+    "ar": "الآلات والمعدات الزراعية",
+    "ru": "Сельхозтехника и оборудование"
+  },
+  "Tarımsal Sulama Sistemleri": {
+    "en": "Agricultural Irrigation Systems",
+    "ar": "أنظمة الري الزراعي",
+    "ru": "Системы сельскохозяйственного орошения"
+  },
+  "Tartım ve Terazi Sistemleri": {
+    "en": "Weighing & Scale Systems",
+    "ar": "أنظمة الوزن والموازين",
+    "ru": "Весовые системы"
+  },
+  "Taş, Mermer ve Cam İşleme Makineleri": {
+    "en": "Stone, Marble & Glass Processing Machinery",
+    "ar": "آلات تشغيل الحجر والرخام والزجاج",
+    "ru": "Оборудование для обработки камня, мрамора и стекла"
+  },
+  "Taşıma ve Saklama Ekipmanları": {
+    "en": "Transport & Storage Equipment",
+    "ar": "معدات النقل والتخزين",
+    "ru": "Оборудование для транспортировки и хранения"
+  },
+  "Tavan Aydınlatma": {
+    "en": "Ceiling Lighting",
+    "ar": "إنارة الأسقف",
+    "ru": "Потолочное освещение"
+  },
+  "Tavan ve Asma Tavan Malzemeleri": {
+    "en": "Ceiling & Suspended Ceiling Materials",
+    "ar": "مواد الأسقف والأسقف المستعارة",
+    "ru": "Потолочные и подвесные потолочные материалы"
+  },
+  "Tekerlek ve Hareket Donanımları": {
+    "en": "Wheels & Castors",
+    "ar": "العجلات وتجهيزات الحركة",
+    "ru": "Колёса и ролики"
+  },
+  "Tekstil Aksesuarı": {
+    "en": "Textile Accessories",
+    "ar": "إكسسوارات المنسوجات",
+    "ru": "Текстильная фурнитура"
+  },
+  "Tekstil Kimyasalları": {
+    "en": "Textile Chemicals",
+    "ar": "كيماويات المنسوجات",
+    "ru": "Текстильная химия"
+  },
+  "Tekstil Lif ve Doğal Elyaf Ham Maddeleri": {
+    "en": "Textile Fibre & Natural Fibre Raw Materials",
+    "ar": "المواد الخام لألياف المنسوجات والألياف الطبيعية",
+    "ru": "Сырьё для текстильных и натуральных волокон"
+  },
+  "Tekstil Makineleri": {
+    "en": "Textile Machinery",
+    "ar": "آلات المنسوجات",
+    "ru": "Текстильное оборудование"
+  },
+  "Tekstil, Konfeksiyon ve Deri Fason Üretim Hizmetleri": {
+    "en": "Textile, Apparel & Leather Contract Manufacturing",
+    "ar": "خدمات التصنيع بالتعاقد للمنسوجات والملابس والجلود",
+    "ru": "Контрактное производство текстиля, одежды и кожи"
+  },
+  "Tel Besleme ve Kaynak Besleme Ekipmanları": {
+    "en": "Wire Feeding & Welding Feed Equipment",
+    "ar": "معدات تغذية السلك واللحام",
+    "ru": "Механизмы подачи проволоки для сварки"
+  },
+  "Telefon Tutucu": {
+    "en": "Phone Holders",
+    "ar": "حاملات الهواتف",
+    "ru": "Держатели для телефона"
+  },
+  "Telehandler ve Arazi Tipi Malzeme Taşıma Makineleri": {
+    "en": "Telehandlers & Rough-Terrain Material Handlers",
+    "ar": "الرافعات التلسكوبية وآلات مناولة المواد للتضاريس الوعرة",
+    "ru": "Телескопические и внедорожные погрузчики"
+  },
+  "Televizyon ve Uydu Sistemleri": {
+    "en": "Television & Satellite Systems",
+    "ar": "أنظمة التلفزيون والأقمار الصناعية",
+    "ru": "Телевизионные и спутниковые системы"
+  },
+  "Telli Çalgılar": {
+    "en": "String Instruments",
+    "ar": "الآلات الوترية",
+    "ru": "Струнные инструменты"
+  },
+  "Telsiz": {
+    "en": "Two-Way Radios",
+    "ar": "أجهزة اللاسلكي",
+    "ru": "Рации"
+  },
+  "Temel Gıda, Tahıl, Un ve Bakliyat": {
+    "en": "Staple Foods, Grains, Flour & Pulses",
+    "ar": "الأغذية الأساسية والحبوب والدقيق والبقوليات",
+    "ru": "Базовые продукты, крупы, мука и бобовые"
+  },
+  "Temel Kimyasallar": {
+    "en": "Basic Chemicals",
+    "ar": "الكيماويات الأساسية",
+    "ru": "Базовая химия"
+  },
+  "Temizlik Bezleri, Mikrofiber, Wiper ve Mendiller": {
+    "en": "Cleaning Cloths, Microfibre, Wipers & Tissues",
+    "ar": "مناشف التنظيف والميكروفايبر والمماسح والمناديل",
+    "ru": "Салфетки, микрофибра, протирочные материалы"
+  },
+  "Temizlik Kovaları, Arabaları ve Organizasyon Ekipmanları": {
+    "en": "Cleaning Buckets, Trolleys & Organisation Equipment",
+    "ar": "دلاء وعربات التنظيف ومعدات التنظيم",
+    "ru": "Вёдра, тележки и инвентарь для уборки"
+  },
+  "Temizlik Makineleri": {
+    "en": "Cleaning Machines",
+    "ar": "آلات التنظيف",
+    "ru": "Уборочные машины"
+  },
+  "Temizlik Makinesi Parçaları ve Sarfları": {
+    "en": "Cleaning Machine Parts & Consumables",
+    "ar": "قطع ومستهلكات آلات التنظيف",
+    "ru": "Запчасти и расходники уборочных машин"
+  },
+  "Temizlik Ürünleri Setleri ve Sistemleri": {
+    "en": "Cleaning Product Sets & Systems",
+    "ar": "أطقم وأنظمة منتجات التنظيف",
+    "ru": "Наборы и системы уборочных средств"
+  },
+  "Termal Yönetim": {
+    "en": "Thermal Management",
+    "ar": "الإدارة الحرارية",
+    "ru": "Управление тепловыми режимами"
+  },
+  "Termos ve Matara": {
+    "en": "Flasks & Water Bottles",
+    "ar": "الترامس والمطارات",
+    "ru": "Термосы и фляги"
+  },
+  "Tersine Mühendislik ve Üretimden Ürüne Dönüşüm Hizmetleri": {
+    "en": "Reverse Engineering & Production-to-Product Conversion Services",
+    "ar": "خدمات الهندسة العكسية وتحويل الإنتاج إلى منتج",
+    "ru": "Обратный инжиниринг и перевод производства в изделие"
+  },
+  "Teşhir Standları ve Display Sistemleri": {
+    "en": "Display Stands & Systems",
+    "ar": "حوامل وأنظمة العرض",
+    "ru": "Демонстрационные стенды и системы"
+  },
+  "Tesisat Bağlantı, Montaj ve Sabitleme Ürünleri": {
+    "en": "Plumbing Connection, Mounting & Fixing Products",
+    "ar": "منتجات توصيل وتركيب وتثبيت السباكة",
+    "ru": "Сантехнические соединения, монтаж и крепёж"
+  },
+  "Tesisat Kontrol, Koruma ve Özel Ekipmanları": {
+    "en": "Plumbing Control, Protection & Special Equipment",
+    "ar": "معدات التحكم والحماية والخاصة للسباكة",
+    "ru": "Сантехническая арматура управления, защиты и спецоборудование"
+  },
+  "Tesisat Sarf ve Yardımcı Ürünleri": {
+    "en": "Plumbing Consumables & Ancillaries",
+    "ar": "مستهلكات السباكة والمنتجات المساعدة",
+    "ru": "Сантехнические расходники и вспомогательные изделия"
+  },
+  "Tesisat Tamir ve Yedek Parçaları": {
+    "en": "Plumbing Repair & Spare Parts",
+    "ar": "إصلاح السباكة وقطع الغيار",
+    "ru": "Ремонт сантехники и запчасти"
+  },
+  "Tespit, Tarama ve Muayene Cihazları": {
+    "en": "Detection, Scanning & Inspection Instruments",
+    "ar": "أجهزة الكشف والمسح والفحص",
+    "ru": "Приборы обнаружения, сканирования и контроля"
+  },
+  "Test Sistemleri ve Özel Test Ekipmanları": {
+    "en": "Test Systems & Special Test Equipment",
+    "ar": "أنظمة الاختبار ومعدات الاختبار الخاصة",
+    "ru": "Испытательные системы и специальное испытательное оборудование"
+  },
+  "Ticari Aydınlatma": {
+    "en": "Commercial Lighting",
+    "ar": "الإنارة التجارية",
+    "ru": "Коммерческое освещение"
+  },
+  "Ticari ve Profesyonel Sıhhi Tesisat Ürünleri": {
+    "en": "Commercial & Professional Plumbing Products",
+    "ar": "منتجات السباكة التجارية والمهنية",
+    "ru": "Коммерческая и профессиональная сантехника"
+  },
+  "Tişört": {
+    "en": "T-Shirts",
+    "ar": "التي شيرت",
+    "ru": "Футболки"
+  },
+  "Titreşim, Seviyeleme ve Makine Hırdavatı": {
+    "en": "Vibration, Levelling & Machine Hardware",
+    "ar": "خردوات الاهتزاز والتسوية والمكائن",
+    "ru": "Виброопоры, регулировка и машинная фурнитура"
+  },
+  "Tıbbi Cihazlar ve Tanı Sistemleri": {
+    "en": "Medical Devices & Diagnostic Systems",
+    "ar": "الأجهزة الطبية وأنظمة التشخيص",
+    "ru": "Медицинские приборы и диагностические системы"
+  },
+  "Tıraş ve Sakal Bakımı": {
+    "en": "Shaving & Beard Care",
+    "ar": "الحلاقة والعناية باللحية",
+    "ru": "Бритьё и уход за бородой"
+  },
+  "Topraklama ve Yıldırımdan Korunma": {
+    "en": "Earthing & Lightning Protection",
+    "ar": "التأريض والحماية من الصواعق",
+    "ru": "Заземление и молниезащита"
+  },
+  "Trafik ve Saha Güvenliği": {
+    "en": "Traffic & Site Safety",
+    "ar": "سلامة المرور والمواقع",
+    "ru": "Дорожная и объектовая безопасность"
+  },
+  "Transpalet ve Palet Taşıma Ekipmanları": {
+    "en": "Pallet Trucks & Pallet Handling Equipment",
+    "ar": "رافعات المنصّات ومعدات مناولتها",
+    "ru": "Тележки и оборудование для перемещения паллет"
+  },
+  "Tuğla, Blok ve Yığma Duvar Malzemeleri": {
+    "en": "Bricks, Blocks & Masonry Materials",
+    "ar": "الطوب والبلوك ومواد البناء الحجري",
+    "ru": "Кирпич, блоки и материалы кладки"
+  },
+  "Tuşlu Çalgılar": {
+    "en": "Keyboard Instruments",
+    "ar": "آلات لوحة المفاتيح",
+    "ru": "Клавишные инструменты"
+  },
+  "Tuvalet Çantası": {
+    "en": "Toiletry Bags",
+    "ar": "حقائب أدوات النظافة",
+    "ru": "Косметические несессеры"
+  },
+  "Tüy Alma ve Epilasyon": {
+    "en": "Hair Removal & Epilation",
+    "ar": "إزالة الشعر",
+    "ru": "Удаление волос и эпиляция"
+  },
+  "Üretim Hatları, Proses Sistemleri ve Özel Amaçlı Makineler": {
+    "en": "Production Lines, Process Systems & Special Purpose Machines",
+    "ar": "خطوط الإنتاج وأنظمة العمليات والمكائن الخاصة",
+    "ru": "Производственные линии, технологические системы и спецмашины"
+  },
+  "Üretim Öncesi Tasarım ve Mühendislik Hizmetleri": {
+    "en": "Pre-Production Design & Engineering Services",
+    "ar": "خدمات التصميم والهندسة قبل الإنتاج",
+    "ru": "Проектные и инженерные услуги до запуска производства"
+  },
+  "Ürün Montaj ve Komple Ürün Üretim Hizmetleri": {
+    "en": "Product Assembly & Complete Product Manufacturing Services",
+    "ar": "خدمات تجميع المنتجات وتصنيعها بالكامل",
+    "ru": "Сборка изделий и производство готовой продукции"
+  },
+  "USB Bellek": {
+    "en": "USB Flash Drives",
+    "ar": "ذاكرة USB",
+    "ru": "USB-накопители"
+  },
+  "Üst Giyim": {
+    "en": "Tops",
+    "ar": "الملابس العلوية",
+    "ru": "Верх одежды"
+  },
+  "Ütü": {
+    "en": "Irons",
+    "ar": "المكاوي",
+    "ru": "Утюги"
+  },
+  "Valiz ve Çanta Aksesuarları": {
+    "en": "Luggage & Bag Accessories",
+    "ar": "إكسسوارات الحقائب والأمتعة",
+    "ru": "Аксессуары для чемоданов и сумок"
+  },
+  "Valiz ve Valiz Seti": {
+    "en": "Suitcases & Luggage Sets",
+    "ar": "الحقائب وأطقم الأمتعة",
+    "ru": "Чемоданы и наборы багажа"
+  },
+  "Vana ve Valf Sistemleri": {
+    "en": "Valve Systems",
+    "ar": "أنظمة الصمامات",
+    "ru": "Трубопроводная арматура"
+  },
+  "Veri Depolama ve Bellek Modülleri": {
+    "en": "Data Storage & Memory Modules",
+    "ar": "وحدات تخزين البيانات والذاكرة",
+    "ru": "Накопители данных и модули памяти"
+  },
+  "Vida": {
+    "en": "Screws",
+    "ar": "المسامير اللولبية",
+    "ru": "Винты и шурупы"
+  },
+  "Video Gözetim ve Video Güvenlik Sistemleri": {
+    "en": "Video Surveillance & Security Systems",
+    "ar": "أنظمة المراقبة والأمن بالفيديو",
+    "ru": "Видеонаблюдение и системы видеобезопасности"
+  },
+  "Vinç ve Kaldırma Sistemleri": {
+    "en": "Cranes & Lifting Systems",
+    "ar": "الأوناش وأنظمة الرفع",
+    "ru": "Краны и подъёмные системы"
+  },
+  "Vip Hediyelik": {
+    "en": "VIP Gifts",
+    "ar": "هدايا كبار الشخصيات",
+    "ru": "VIP-подарки"
+  },
+  "Vitrin Mankeni ve Görsel Sergileme": {
+    "en": "Mannequins & Visual Merchandising",
+    "ar": "المانيكانات والعرض البصري",
+    "ru": "Манекены и визуальный мерчандайзинг"
+  },
+  "Vücut Bakımı": {
+    "en": "Body Care",
+    "ar": "العناية بالجسم",
+    "ru": "Уход за телом"
+  },
+  "Vurmalı Çalgılar": {
+    "en": "Percussion Instruments",
+    "ar": "آلات الإيقاع",
+    "ru": "Ударные инструменты"
+  },
+  "Yakıtlar ve Enerji Kaynakları": {
+    "en": "Fuels & Energy Sources",
+    "ar": "الوقود ومصادر الطاقة",
+    "ru": "Топливо и источники энергии"
+  },
+  "Yangın Güvenliği Ekipmanları": {
+    "en": "Fire Safety Equipment",
+    "ar": "معدات السلامة من الحريق",
+    "ru": "Противопожарное оборудование"
+  },
+  "Yangın ve Pasif Yapı Koruma Malzemeleri": {
+    "en": "Fire & Passive Structural Protection Materials",
+    "ar": "مواد الحماية من الحريق والحماية الإنشائية السلبية",
+    "ru": "Огнезащитные и пассивные защитные материалы конструкций"
+  },
+  "Yapı Camı ve Cam Sistem Malzemeleri": {
+    "en": "Architectural Glass & Glazing Systems",
+    "ar": "زجاج البناء ومواد أنظمة الزجاج",
+    "ru": "Строительное стекло и светопрозрачные системы"
+  },
+  "Yapı Derz, Birleşim ve Sızdırmazlık Malzemeleri": {
+    "en": "Construction Joint, Junction & Sealing Materials",
+    "ar": "مواد الفواصل والوصلات والإحكام في البناء",
+    "ru": "Строительные швы, стыки и герметизация"
+  },
+  "Yapı Kimyasalları": {
+    "en": "Construction Chemicals",
+    "ar": "كيماويات البناء",
+    "ru": "Строительная химия"
+  },
+  "Yapı Koruma ve Yüzey Performans Malzemeleri": {
+    "en": "Building Protection & Surface Performance Materials",
+    "ar": "مواد حماية المباني وأداء الأسطح",
+    "ru": "Материалы защиты зданий и повышения свойств поверхностей"
+  },
+  "Yapı Onarım, Güçlendirme ve Restorasyon Malzemeleri": {
+    "en": "Building Repair, Strengthening & Restoration Materials",
+    "ar": "مواد إصلاح المباني وتقويتها وترميمها",
+    "ru": "Материалы ремонта, усиления и реставрации зданий"
+  },
+  "Yapısal Ahşap ve Mühendislik Ahşabı": {
+    "en": "Structural Timber & Engineered Wood",
+    "ar": "الخشب الإنشائي والخشب الهندسي",
+    "ru": "Конструкционная и инженерная древесина"
+  },
+  "Yapısal Çelik ve Metal Yapı Malzemeleri": {
+    "en": "Structural Steel & Metal Building Materials",
+    "ar": "الفولاذ الإنشائي ومواد البناء المعدنية",
+    "ru": "Конструкционная сталь и металлические стройматериалы"
+  },
+  "Yapısal ve Endüstriyel Bağlantı Elemanları": {
+    "en": "Structural & Industrial Fasteners",
+    "ar": "أدوات التثبيت الإنشائية والصناعية",
+    "ru": "Конструкционный и промышленный крепёж"
+  },
+  "Yapıştırıcı ve Bant": {
+    "en": "Adhesives & Tapes",
+    "ar": "المواد اللاصقة والشرائط",
+    "ru": "Клеи и ленты"
+  },
+  "Yapıştırıcı ve Mastik Hammaddeleri": {
+    "en": "Adhesive & Sealant Raw Materials",
+    "ar": "المواد الخام للاصقات والمعاجين",
+    "ru": "Сырьё для клеёв и герметиков"
+  },
+  "Yapıştırma ve Montaj Malzemeleri": {
+    "en": "Bonding & Assembly Materials",
+    "ar": "مواد اللصق والتجميع",
+    "ru": "Материалы для склеивания и монтажа"
+  },
+  "Yardımcı Ekipmanlar": {
+    "en": "Auxiliary Equipment",
+    "ar": "المعدات المساعدة",
+    "ru": "Вспомогательное оборудование"
+  },
+  "Yay, Pim ve Mekanik Mekanizma Elemanları": {
+    "en": "Springs, Pins & Mechanical Mechanism Components",
+    "ar": "النوابض والمسامير وعناصر الآليات الميكانيكية",
+    "ru": "Пружины, штифты и элементы механизмов"
+  },
+  "Yaylı Çalgılar": {
+    "en": "Bowed String Instruments",
+    "ar": "الآلات الوترية بالقوس",
+    "ru": "Смычковые инструменты"
+  },
+  "Yazı Gereçleri": {
+    "en": "Writing Instruments",
+    "ar": "أدوات الكتابة",
+    "ru": "Пишущие принадлежности"
+  },
+  "Yenilebilir Yağlar ve Margarin": {
+    "en": "Edible Oils & Margarine",
+    "ar": "الزيوت الصالحة للأكل والمرغرين",
+    "ru": "Пищевые масла и маргарин"
+  },
+  "Yenileme, Revizyon ve Yeniden İmalat Hizmetleri": {
+    "en": "Refurbishment, Overhaul & Remanufacturing Services",
+    "ar": "خدمات التجديد والعمرة وإعادة التصنيع",
+    "ru": "Восстановление, капремонт и ремануфактуринг"
+  },
+  "Yıkım, Hurda ve Geri Dönüşüm Makineleri": {
+    "en": "Demolition, Scrap & Recycling Machinery",
+    "ar": "آلات الهدم والخردة وإعادة التدوير",
+    "ru": "Машины для сноса, лома и переработки"
+  },
+  "Yılbaşı Süsü": {
+    "en": "Christmas & New Year Decorations",
+    "ar": "زينة رأس السنة",
+    "ru": "Новогодние украшения"
+  },
+  "Yol Yapım ve Yol Bakım Makineleri": {
+    "en": "Road Construction & Maintenance Machinery",
+    "ar": "آلات إنشاء الطرق وصيانتها",
+    "ru": "Дорожно-строительная и ремонтная техника"
+  },
+  "Yol, Peyzaj ve Dış Mekân Yapı Malzemeleri": {
+    "en": "Road, Landscape & Outdoor Construction Materials",
+    "ar": "مواد إنشاء الطرق والمناظر والأماكن الخارجية",
+    "ru": "Дорожные, ландшафтные и наружные стройматериалы"
+  },
+  "Yük Bağlama ve Sabitleme Ekipmanları": {
+    "en": "Load Securing & Lashing Equipment",
+    "ar": "معدات ربط الأحمال وتثبيتها",
+    "ru": "Оборудование для крепления грузов"
+  },
+  "Yükleme ve Kombine Makineler": {
+    "en": "Loaders & Combination Machines",
+    "ar": "آلات التحميل والآلات المركبة",
+    "ru": "Погрузчики и комбинированные машины"
+  },
+  "Yüksek Görünürlüklü İş Kıyafeti": {
+    "en": "High-Visibility Workwear",
+    "ar": "ملابس العمل عالية الوضوح",
+    "ru": "Сигнальная спецодежда"
+  },
+  "Yüksekte Çalışma ve Düşme Koruma": {
+    "en": "Working at Height & Fall Protection",
+    "ar": "العمل على ارتفاع والحماية من السقوط",
+    "ru": "Работы на высоте и защита от падения"
+  },
+  "Yumurta": {
+    "en": "Eggs",
+    "ar": "البيض",
+    "ru": "Яйца"
+  },
+  "Yüzey İşlem ve Finisaj Makineleri": {
+    "en": "Surface Treatment & Finishing Machinery",
+    "ar": "آلات معالجة الأسطح والتشطيب",
+    "ru": "Оборудование обработки и финишной отделки поверхностей"
+  },
+  "Yüzey İşlem ve Sonlandırma İmalat Hizmetleri": {
+    "en": "Surface Treatment & Finishing Manufacturing Services",
+    "ar": "خدمات معالجة الأسطح والتشطيب",
+    "ru": "Услуги обработки и финишной отделки поверхностей"
+  },
+  "Zarf ve Yazışma Malzemeleri": {
+    "en": "Envelopes & Correspondence Supplies",
+    "ar": "المغلفات ومستلزمات المراسلات",
+    "ru": "Конверты и почтовые принадлежности"
+  },
+  "Zemin Kaplama ve Zemin Yapı Malzemeleri": {
+    "en": "Flooring & Floor Construction Materials",
+    "ar": "مواد الأرضيات وإنشائها",
+    "ru": "Напольные покрытия и материалы для полов"
+  },
+  "Zemin ve Masa Lambaları": {
+    "en": "Floor & Table Lamps",
+    "ar": "مصابيح الأرضية والطاولة",
+    "ru": "Напольные и настольные светильники"
+  },
+  "Zincir Ekipmanları": {
+    "en": "Chain Accessories",
+    "ar": "ملحقات السلاسل",
+    "ru": "Цепная оснастка"
+  },
+  "Zincirler": {
+    "en": "Chains",
+    "ar": "السلاسل",
+    "ru": "Цепи"
+  },
+  "Zincirli Güç Aktarım Sistemleri": {
+    "en": "Chain Drive Systems",
+    "ar": "أنظمة نقل الحركة بالسلاسل",
+    "ru": "Цепные приводы"
+  },
+  "Zımba ve Zımba Teli": {
+    "en": "Staplers & Staples",
+    "ar": "الدباسات ودبابيسها",
+    "ru": "Степлеры и скобы"
+  },
+  "Zımba, Delgeç ve Sabitleme": {
+    "en": "Staplers, Punches & Fastening",
+    "ar": "الدباسات والخرامات والتثبيت",
+    "ru": "Степлеры, дыроколы и скрепление"
+  },
+  "Sac Şekillendirme": {
+    "en": "Sheet Metal Forming",
+    "ar": "تشكيل الصفائح المعدنية",
+    "ru": "Формовка листового металла"
+  }
+}

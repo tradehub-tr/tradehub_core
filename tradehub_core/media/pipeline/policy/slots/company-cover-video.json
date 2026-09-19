@@ -75,12 +75,8 @@
    "name": "poster_1280",
    "width": 1280,
    "height": 720,
-   "formats": [
-    "webp"
-   ],
-   "encoder_quality": {
-    "webp": 78
-   },
+   "formats": ["avif"],
+   "encoder_quality": {"avif": 88},
    "fit": "cover",
    "target_ratio": "16:9",
    "serves": [
@@ -94,12 +90,8 @@
    "name": "poster_854",
    "width": 854,
    "height": 480,
-   "formats": [
-    "webp"
-   ],
-   "encoder_quality": {
-    "webp": 70
-   },
+   "formats": ["avif"],
+   "encoder_quality": {"avif": 88},
    "fit": "cover",
    "target_ratio": "16:9",
    "serves": [
@@ -113,12 +105,8 @@
    "name": "thumb_192",
    "width": 192,
    "height": 144,
-   "formats": [
-    "webp"
-   ],
-   "encoder_quality": {
-    "webp": 70
-   },
+   "formats": ["avif"],
+   "encoder_quality": {"avif": 88},
    "fit": "cover",
    "target_ratio": "4:3",
    "serves": [
