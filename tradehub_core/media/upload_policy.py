@@ -103,6 +103,15 @@ EXTENSIONS: dict[str, str] = {
 	# dosya uzantısı" ile reddediyordu. `.pptx` ile birebir aynı kusur.
 	**{e: KIND_AUDIO for e in AUDIO_EXTENSIONS},
 	**{e: KIND_OTHER for e in (".txt", ".csv", ".zip", ".vtt")},
+	# `.xml` / `.json`: toplu içe aktarma kanalı (MOGEM-665 ölçümü, 15 Eyl).
+	# `naming.py::_hashed_name` beyaz listeyi buradan okuyor; `.xml` burada
+	# olmadığı için `bulk_import.api.upload_bulk_file` XML feed dosyasını
+	# "İzin verilmeyen dosya uzantısı" ile reddediyordu (`.pptx`/`.mp3` ile aynı
+	# kusur). `.json` Ürün API'sinin istek gövdesini denetim için private
+	# dosya olarak saklar (`Bulk Import Job.data_file`, source=api). Genel
+	# yükleme kanalında XSS kapısı `utils.security.reject_unsafe_files`'ta —
+	# o hook `.xml`'i bulk bayrağı olmadan reddetmeye devam eder.
+	**{e: KIND_OTHER for e in (".xml", ".json")},
 }
 
 MAX_BYTES: dict[str, int] = {

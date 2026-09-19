@@ -18,6 +18,45 @@ DEFAULT_HISTORY_LIMIT = 50
 MAX_HISTORY_LIMIT = 200
 
 
+def _assert_no_active_file_import(seller: str) -> None:
+	"""Dosya/feed yüklemesi kilidi — yalnız dosya kaynaklı işler sayılır.
+
+	MOGEM-665 · 1. aşama: eski kilit satıcının HER işini sayıyordu; K6 ile API
+	paketleri de `Bulk Import Job` açtığı için bir API aktarımı dosya yüklemesini
+	(ve tersi) engelleyecekti. API'nin kendi eşzamanlılık sınırı `api/v1/catalog`
+	içinde (mağaza başına Redis kilidi). Ayrıca 30 dk'dan eski "Running" iş
+	(worker ölmüş) kilit sayılmaz — eskiden satıcı sonsuza dek kilitleniyordu.
+	"""
+	from frappe.utils import add_to_date, now_datetime
+
+	active = frappe.db.exists(
+		"Bulk Import Job",
+		{
+			"seller_profile": seller,
+			"status": ["in", ["Queued", "Running"]],
+			"source": ["!=", "api"],
+			"modified": [">", add_to_date(now_datetime(), minutes=-30)],
+		},
+	)
+	if active:
+		frappe.throw(_("Devam eden bir yüklemeniz var. Önce onu bitirin ya da bekleyin."))
+
+
+def _own_file(file_id: str):
+	"""Dosya kaydını yalnız sahibine ya da platform yöneticisine ver.
+
+	Eski kod `frappe.get_doc("File", file_id)` ile başka kiracının özel dosya
+	adını da kabul ediyordu (IDOR). Yönetici rolleri muaf.
+	"""
+	doc = frappe.get_doc("File", file_id)
+	roles = set(frappe.get_roles())
+	if roles & {"System Manager", "Marketplace Admin"} or frappe.session.user == "Administrator":
+		return doc
+	if doc.owner != frappe.session.user:
+		frappe.throw(_("Bu dosya size ait değil"), frappe.PermissionError)
+	return doc
+
+
 @frappe.whitelist()
 def start_product_import(
 	file_id: str,
@@ -45,25 +84,18 @@ def start_product_import(
 	if not seller:
 		frappe.throw(_("Satıcı profili bulunamadı"))
 
-	active = frappe.db.exists(
-		"Bulk Import Job",
-		{
-			"seller_profile": seller,
-			"status": ["in", ["Queued", "Running"]],
-		},
-	)
-	if active:
-		frappe.throw(_("Devam eden bir yüklemeniz var. Önce onu bitirin ya da bekleyin."))
+	_assert_no_active_file_import(seller)
 
-	file_doc = frappe.get_doc("File", file_id)
+	file_doc = _own_file(file_id)
 	if (file_doc.file_size or 0) > MAX_DATA_FILE_BYTES:
-		frappe.throw(_("Veri dosyası 25 MB'ı aşamaz"))
+		frappe.throw(_("Veri dosyası {0} MB'ı aşamaz").format(MAX_DATA_FILE_BYTES // (1024 * 1024)))
 
 	zip_doc = None
 	if images_zip_id:
-		zip_doc = frappe.get_doc("File", images_zip_id)
+		zip_doc = _own_file(images_zip_id)
 		if (zip_doc.file_size or 0) > MAX_IMAGES_ZIP_BYTES:
-			frappe.throw(_("Resim ZIP'i 200 MB'ı aşamaz"))
+			# MOGEM-665 · 1. aşama: mesaj sabitin dört katını söylüyordu — sınır sabitinden üretilir.
+			frappe.throw(_("Resim ZIP'i {0} MB'ı aşamaz").format(MAX_IMAGES_ZIP_BYTES // (1024 * 1024)))
 
 	file_format = _detect_format(file_doc.file_name)
 
@@ -76,6 +108,7 @@ def start_product_import(
 
 	job = frappe.new_doc("Bulk Import Job")
 	job.seller_profile = seller
+	job.source = "file"
 	job.data_file = file_doc.file_url
 	job.images_zip = zip_doc.file_url if zip_doc else None
 	job.file_format = file_format
@@ -429,23 +462,32 @@ def _compute_dry_run(
 	}
 
 
+_HISTORY_SOURCES = ("file", "feed", "api")
+
+
 @frappe.whitelist()
-def get_my_history(limit: int = DEFAULT_HISTORY_LIMIT) -> list:
+def get_my_history(limit: int = DEFAULT_HISTORY_LIMIT, source: str = "") -> list:
 	"""Geçmiş job'ları döndür.
 
 	- Marketplace Admin / System Manager → tüm satıcıların job'larını görür.
 	- Satıcı → yalnızca kendi seller_profile'ının job'larını görür.
+	- `source`: "file" / "feed" / "api" — Ürün API'sinden gelen içe aktarmalar
+	  panelde ayrı süzülür (MOGEM-665 · 6. aşama); boşsa hepsi.
 	"""
 	try:
 		limit_int = int(limit)
 	except (ValueError, TypeError):
 		limit_int = DEFAULT_HISTORY_LIMIT
 	limit_int = max(1, min(limit_int, MAX_HISTORY_LIMIT))
+	source = (source or "").strip().lower()
+	if source and source not in _HISTORY_SOURCES:
+		frappe.throw(_("Geçersiz kaynak süzgeci: {0}").format(source))
 
 	fields = [
 		"name",
 		"creation",
 		"data_file",
+		"source",
 		"status",
 		"total_rows",
 		"inserted_count",
@@ -457,9 +499,11 @@ def get_my_history(limit: int = DEFAULT_HISTORY_LIMIT) -> list:
 	]
 
 	roles = set(frappe.get_roles())
+	filters: dict = {"source": source} if source else {}
 	if roles & {"System Manager", "Marketplace Admin"}:
 		jobs = frappe.get_list(
 			"Bulk Import Job",
+			filters=filters,
 			fields=fields,
 			order_by="creation desc",
 			limit=limit_int,
@@ -471,9 +515,10 @@ def get_my_history(limit: int = DEFAULT_HISTORY_LIMIT) -> list:
 	if not seller:
 		return []
 
+	filters["seller_profile"] = seller
 	return frappe.get_list(
 		"Bulk Import Job",
-		filters={"seller_profile": seller},
+		filters=filters,
 		fields=fields,
 		order_by="creation desc",
 		limit=limit_int,
@@ -815,9 +860,7 @@ def download_template(format: str = "xlsx", product_types: str = "") -> None:
 		xml_tags = [c.replace("attr:", "attr_", 1) for c in canonical]
 
 		def _product_block(values: list[str]) -> str:
-			rows = "".join(
-				f"    <{t}>{escape(v)}</{t}>\n" for t, v in zip(xml_tags, values, strict=False)
-			)
+			rows = "".join(f"    <{t}>{escape(v)}</{t}>\n" for t, v in zip(xml_tags, values, strict=False))
 			return "  <product>\n" + rows + "  </product>\n"
 
 		# İKİ örnek ürün üret: XML parser "en uzun homojen diziyi" arar; tek <product>
@@ -1049,7 +1092,10 @@ def _file_absolute_path(file_doc) -> str:
 		try:
 			return file_doc.get_full_path()
 		except Exception:
-			frappe.log_error(f"get_full_path() failed for file doc {getattr(file_doc, 'name', '?')}, falling back to URL", "bulk_import.api._file_absolute_path")
+			frappe.log_error(
+				f"get_full_path() failed for file doc {getattr(file_doc, 'name', '?')}, falling back to URL",
+				"bulk_import.api._file_absolute_path",
+			)
 			pass
 	return _file_absolute_path_from_url(file_doc.file_url)
 

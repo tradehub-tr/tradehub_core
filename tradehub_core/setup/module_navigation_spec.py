@@ -212,6 +212,18 @@ SELLER_MODULES: list[dict] = [
 		"order": 4,
 	},
 	{
+		# MOGEM-665 — Ürün API'si bağlantısı (kimlik bilgisi, webhook, giden stok olayları)
+		"key": "seller.products.toplu.api",
+		"parent": "seller.products.toplu",
+		"type": "item",
+		"panel": "seller",
+		"section": "products",
+		"label": "API Bağlantısı",
+		"icon": "plug",
+		"route": "/seller-api",
+		"order": 5,
+	},
+	{
 		"key": "seller.products.katalog",
 		"parent": "seller.products",
 		"type": "group",

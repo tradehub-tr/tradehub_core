@@ -74,6 +74,7 @@ def _enqueue_import_job(feed, raw: bytes) -> None:
 	job.source_feed = feed.name
 	job.data_file = file_doc.file_url
 	job.file_format = "xml"
+	job.source = "feed"
 	job.update_mode = feed.update_mode if feed.update_mode in ("insert_only", "upsert") else "upsert"
 	# B2: feed.column_mapping normalde boş kalır (SellerFeedView elle eşleme
 	# göndermez). Boş bırakıldığında runner 4 katmanlı resolver'ı otomatik
