@@ -3097,3 +3097,30 @@ def guard_verification_status_change(doc) -> None:
 		frappe._("Doğrulama durumunu yalnızca inceleme yetkilisi değiştirebilir."),
 		frappe.PermissionError,
 	)
+
+
+# ---------------------------------------------------------------------------
+# Catalog Outbound Event — MOGEM-665 · giden stok olayları (mağaza kapsamlı)
+# ---------------------------------------------------------------------------
+
+
+def catalog_outbound_event_query_conditions(user):
+	"""Satıcı yalnız kendi mağazasının giden stok olaylarını görür; admin tümünü."""
+	if _is_admin(user):
+		return ""
+	seller = _seller_of(user)
+	if not seller:
+		return "1=0"
+	return f"`tabCatalog Outbound Event`.seller_profile = {frappe.db.escape(seller)}"
+
+
+def catalog_outbound_event_has_permission(doc, ptype, user):
+	if _is_admin(user):
+		return True
+	if ptype != "read":
+		return False  # olayları yalnız sistem yazar; satıcı panelden `retry_outbound_event` ile yeniden kuyruğa alır
+	seller = _seller_of(user)
+	doc_seller = (
+		getattr(doc, "seller_profile", None) if not isinstance(doc, dict) else doc.get("seller_profile")
+	)
+	return bool(seller) and doc_seller == seller

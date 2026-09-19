@@ -33,7 +33,12 @@ app_include_js = "seller_redirect.js"
 # Frappe'nin bu iş için tuttuğu tek genişleme noktası `auth_hooks`. Kanca
 # sessizdir (eşleşmeyen başlıkta no-op) ve atadığı kullanıcı hiçbir DocPerm
 # satırı olmayan bir Website User'dır; gerekçe `api/observability.py` içinde.
-auth_hooks = ["tradehub_core.api.observability.authenticate_metrics_scrape"]
+auth_hooks = [
+	"tradehub_core.api.observability.authenticate_metrics_scrape",
+	# MOGEM-665 — Ürün API'si Bearer jetonu: yalnız catalog.* yolunda mağaza sahibi
+	# oturumu kurar (aksi hâlde validate_auth 401 ile keser; gerekçe fonksiyon başlığında).
+	"tradehub_core.api.v1._catalog_auth.authenticate_catalog_bearer",
+]
 
 after_request = ["tradehub_core.seo.noindex_guard.apply_noindex_header"]
 # T-133 (Şerit A) — bu web sürecinin metrik parçasını paylaşılan dizine yaz.
@@ -149,6 +154,9 @@ scheduler_events = {
 			# `"*/5 * * * *"` tanımlamak öncekini SESSİZCE düşürürdü ve iki medya
 			# süpürücüsü hiç koşmazdı.
 			"tradehub_core.api.observability.write_metrics_shard",
+			# MOGEM-665 — giden stok webhook'u: süresi gelen `failed` + kuyrukta
+			# unutulmuş `queued` olayları yeniden dener (1/5/15/60/360 dk, 5. → dead).
+			"tradehub_core.integration.outbound.sweep_due",
 		],
 		# T-066 — her ayın ilk günü kapanmış önceki ayı kalıcı asset kalite
 		# raporlarından toplar. `period_key` unique olduğundan scheduler retry'sı
@@ -511,6 +519,8 @@ doc_events = {
 			"tradehub_core.recommendations.engine.cleanup_cache_on_listing_remove",
 			# FAZ 2.3 — Tuple cleanup
 			"tradehub_core.services.tuple_sync.on_listing_trash",
+			# MOGEM-665 — giden stok olayları ürünle birlikte silinir (seri geri sarma tuzağı)
+			"tradehub_core.integration.outbound.on_listing_trash",
 		],
 	},
 	# Product Category lifecycle → cascading cleanup of derived data
@@ -951,6 +961,8 @@ permission_query_conditions = {
 	"Platform Notification": "tradehub_core.tradehub_core.doctype.platform_notification.platform_notification.get_permission_query_conditions",
 	# Bulk Import + ECA + Regex + Template Profile seller isolation.
 	"Bulk Import Job": "tradehub_core.permissions.bulk_import_job_query_conditions",
+	# MOGEM-665 — giden stok olayları (mağaza kapsamlı)
+	"Catalog Outbound Event": "tradehub_core.permissions.catalog_outbound_event_query_conditions",
 	"ECA Rule": "tradehub_core.permissions.eca_rule_query_conditions",
 	"ECA Rule Log": "tradehub_core.permissions.eca_rule_log_query_conditions",
 	"Regex Pattern Library": "tradehub_core.permissions.regex_pattern_library_query_conditions",
@@ -1058,6 +1070,7 @@ has_permission = {
 	"RFQ": "tradehub_core.permissions.rfq_has_permission",
 	# Bulk Import + ECA + Regex + Template Profile per-doc kontrolleri.
 	"Bulk Import Job": "tradehub_core.permissions.bulk_import_job_has_permission",
+	"Catalog Outbound Event": "tradehub_core.permissions.catalog_outbound_event_has_permission",
 	"ECA Rule": "tradehub_core.permissions.eca_rule_has_permission",
 	"Regex Pattern Library": "tradehub_core.permissions.regex_pattern_library_has_permission",
 	"Seller Value Mapping": "tradehub_core.permissions.seller_value_mapping_has_permission",

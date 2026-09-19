@@ -341,3 +341,6 @@ tradehub_core.patches.v15_9_56_performans_indeksleri
 # --- BE kalıntı temizliği · çakışan "Satıcı Paneli" workspace kopyası ---
 # "Tradehub Seller" kaydı silinir (JSON repodan kaldırıldı); tutulan: "Satıcı Paneli".
 tradehub_core.patches.v15_9_54_remove_tradehub_seller_workspace
+# --- MOGEM-665 Ürün API'si · 1. aşama: (seller_profile, seller_sku) benzersiz ---
+tradehub_core.patches.v15_9_57_seller_sku_benzersiz
+tradehub_core.patches.v15_9_58_seed_seller_api_nav

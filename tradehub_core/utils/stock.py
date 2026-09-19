@@ -156,7 +156,7 @@ def reserve_stock_for_order(order_name):
 		# Per-variant stock reservation (variant override; race koruması: aynı
 		# tabListing lock'u listing-scope'taki tüm worker'ları serileştirir)
 		_update_variant_stock(item.listing, item.variation, -qty)
-		_recalculate_available(item.listing)
+		_recalculate_available(item.listing, reason="reserve")
 
 
 def release_stock_for_order(order_name):
@@ -188,7 +188,7 @@ def release_stock_for_order(order_name):
 		)
 		# Per-variant stock release (give back)
 		_update_variant_stock(item.listing, item.variation, +qty)
-		_recalculate_available(item.listing)
+		_recalculate_available(item.listing, reason="release")
 
 
 def deduct_stock_for_order(order_name):
@@ -230,9 +230,11 @@ def deduct_stock_for_order(order_name):
 			   WHERE name=%s""",
 			(qty, qty, item.listing),
 		)
-		# Per-variant stock deduction
-		_update_variant_stock(item.listing, item.variation, -qty)
-		_recalculate_available(item.listing)
+		# Varyant stoğu BURADA düşülmez: varyant seviyesinde rezerve/düş ayrımı yok,
+		# `reserve_stock_for_order` zaten düşmüştü. İkinci düşüm her tamamlanan
+		# siparişte varyant stoğunu iki kez eritiyordu (MOGEM-665 ölçümü, GREATEST(0)
+		# gizliyordu). İade/iptal yolu (`restore_stock_for_refund`) bir kez geri yükler.
+		_recalculate_available(item.listing, reason="deduct")
 
 	# Idempotency flag
 	frappe.db.set_value("Order", order_name, "stock_deducted", 1, update_modified=False)
@@ -280,16 +282,21 @@ def restore_stock_for_refund(order_name):
 			)
 		# Varyant stoku her iki durumda da geri yüklenir
 		_update_variant_stock(item.listing, item.variation, +qty)
-		_recalculate_available(item.listing)
+		_recalculate_available(item.listing, reason="refund")
 
 	# Refund sonrası stock_deducted=0 (bir daha düşülmesin)
 	if deducted:
 		frappe.db.set_value("Order", order_name, "stock_deducted", 0, update_modified=False)
 
 
-def _recalculate_available(listing_name):
+def _recalculate_available(listing_name, reason=None):
 	"""available_qty = stock_qty - reserved_qty, minimum 0.
 	Stok değişikliğinde gerekirse satıcıya alert gönderir.
+
+	`reason` (reserve/release/deduct/refund): sipariş kaynaklı hareket — dış
+	sisteme giden stok olayı üretilir (MOGEM-665 · 5. aşama). Sebepsiz çağrı
+	(Ürün API'sinin kendi stok yazması) olay ÜRETMEZ; dış sistemin güncellemesi
+	ona geri yankılanmaz.
 	"""
 	vals = frappe.db.get_value(
 		"Listing",
@@ -317,6 +324,11 @@ def _recalculate_available(listing_name):
 	# Stok alert kontrolü
 	if vals.track_inventory and vals.status == "Active" and old_available != new_available:
 		_send_stock_alert_if_needed(listing_name, vals, old_available, new_available)
+
+	if reason:
+		from tradehub_core.integration.outbound import emit_stock_change
+
+		emit_stock_change(listing_name, reason)  # hatayı içeride yutar; sipariş akışı düşmez
 
 
 def _send_stock_alert_if_needed(listing_name, vals, old_available, new_available):

@@ -56,7 +56,14 @@ def _verify_client(client_id: str, client_secret: str) -> dict:
 		)
 	if not expected_secret or expected_secret != client_secret:
 		frappe.throw("Geçersiz client_secret", frappe.AuthenticationError)
-	return {"app_name": app.name, "tier": app.rate_limit_tier, "scopes": [s.scope for s in doc.scopes]}
+	return {
+		"app_name": app.name,
+		"tier": app.rate_limit_tier,
+		"scopes": [s.scope for s in doc.scopes],
+		# MOGEM-665: mağaza bağı jetona da yazılır (tanı amaçlı; yetki kararı
+		# her istekte DB'den yeniden okunur — kapatılan uygulama anında düşsün).
+		"seller": getattr(doc, "seller_profile", None) or None,  # stub'lı testler (.get yok)
+	}
 
 
 def _verify_bearer() -> dict:
@@ -72,9 +79,15 @@ def _verify_bearer() -> dict:
 
 
 @frappe.whitelist(allow_guest=True)
-@rate_limit(max_calls=5, window_seconds=60, scope="oauth_token", per_user=False)
+@rate_limit(max_calls=30, window_seconds=60, scope="oauth_token", per_user=True)
 def token(grant_type: str, client_id: str, client_secret: str, scope: str = ""):
-	"""OAuth2 token endpoint (Client Credentials grant)."""
+	"""OAuth2 token endpoint (Client Credentials grant).
+
+	Hız sınırı istemci IP'si başına 30/dk (MOGEM-665 ölçümü, 15 Eyl): eski
+	`per_user=False` + 5/dk kovası PLATFORM GENELİ tek sayaçtı — altıncı mağaza
+	o dakika jeton alamıyordu; tek bir saldırgan da 5 istekle herkesi kilitliyordu.
+	Kaba kuvvet koruması IP başına sürer; misafir kimliği `Guest:<ip>` kovasıdır.
+	"""
 	if grant_type != "client_credentials":
 		frappe.throw("Sadece client_credentials desteklenir")
 	client = _verify_client(client_id, client_secret)
@@ -86,6 +99,7 @@ def token(grant_type: str, client_id: str, client_secret: str, scope: str = ""):
 		"type": "oauth_access",
 		"tier": client["tier"],
 		"scopes": client["scopes"],
+		"seller": client.get("seller"),
 	}
 	access = _encode_jwt(payload)
 	return {

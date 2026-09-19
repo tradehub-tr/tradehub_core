@@ -10,6 +10,7 @@
  "field_order": [
   "naming_series",
   "seller_profile",
+  "source",
   "source_feed",
   "section_input",
   "data_file",
@@ -57,6 +58,17 @@
    "reqd": 1
   },
   {
+   "default": "file",
+   "description": "İşin kaynağı: dosya yüklemesi, XML feed çekimi ya da Ürün API'si paketi (MOGEM-665).",
+   "fieldname": "source",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Kaynak",
+   "options": "file\nfeed\napi",
+   "read_only": 1
+  },
+  {
    "description": "Bu job bir Seller XML Feed çekiminden oluştuysa kaynak feed (otomatik set edilir).",
    "fieldname": "source_feed",
    "fieldtype": "Link",
@@ -84,7 +96,7 @@
    "fieldname": "file_format",
    "fieldtype": "Select",
    "label": "Dosya Formatı",
-   "options": "xlsx\ncsv\nxml",
+   "options": "xlsx\ncsv\nxml\njson",
    "reqd": 1
   },
   {
@@ -240,9 +252,27 @@
  "naming_rule": "By \"Naming Series\" field",
  "owner": "Administrator",
  "permissions": [
-  {"create": 1, "delete": 1, "read": 1, "write": 1, "role": "System Manager"},
-  {"create": 1, "delete": 0, "read": 1, "write": 1, "role": "Marketplace Admin"},
-  {"create": 1, "delete": 0, "read": 1, "write": 1, "role": "Marketplace Seller"}
+  {
+   "create": 1,
+   "delete": 1,
+   "read": 1,
+   "write": 1,
+   "role": "System Manager"
+  },
+  {
+   "create": 1,
+   "delete": 0,
+   "read": 1,
+   "write": 1,
+   "role": "Marketplace Admin"
+  },
+  {
+   "create": 1,
+   "delete": 0,
+   "read": 1,
+   "write": 1,
+   "role": "Marketplace Seller"
+  }
  ],
  "sort_field": "modified",
  "sort_order": "DESC",

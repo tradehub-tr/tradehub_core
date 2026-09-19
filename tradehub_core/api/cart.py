@@ -223,6 +223,43 @@ def _find_existing_cart_item(
 	return None
 
 
+def _variant_row_snapshot(row_name):
+	"""Listing Variant Item satırını sepet anlık görüntüsü sözlüğüne çevir.
+
+	Eski kod olmayan bir "Listing Variant" doctype'ından `variant_name / price /
+	primary_image / stock_qty` okuyordu (MOGEM-665 · 1. aşama). Aynı anahtar
+	adları döndürülür ki çağıranlar değişmesin; `listing_variant` gerçek bir
+	satır adı değilse (eski sentetik kimlikler gibi) None döner.
+	"""
+	if not row_name:
+		return None
+	row = frappe.db.get_value(
+		"Listing Variant Item",
+		{"name": row_name, "parenttype": "Listing"},
+		[
+			"attribute_type",
+			"attribute_value",
+			"attribute_type_2",
+			"attribute_value_2",
+			"variant_price",
+			"variant_image",
+			"variant_stock",
+		],
+		as_dict=True,
+	)
+	if not row:
+		return None
+	parcalar = [f"{row.attribute_type}: {row.attribute_value}"] if row.attribute_value else []
+	if row.attribute_value_2:
+		parcalar.append(f"{row.attribute_type_2}: {row.attribute_value_2}")
+	return frappe._dict(
+		variant_name=" | ".join(parcalar),
+		price=row.variant_price,
+		primary_image=row.variant_image,
+		stock_qty=row.variant_stock,
+	)
+
+
 def _get_variant_stock_by_label(listing_name, variant_label):
 	"""
 	Parse variant_label (e.g. "Renk: Siyah | Malzeme: Pamuk | Beden: S")
@@ -392,10 +429,18 @@ def _check_stock(listing_doc, listing_name, listing_variant, total_qty, variant_
 			frappe.throw(_("Seçilen varyant bulunamadı: {0}").format(variant_label))
 
 	if available is None and listing_variant:
-		# 2) Gerçek Listing Variant doc'u
-		variant_doc = frappe.db.get_value("Listing Variant", listing_variant, ["stock_qty"], as_dict=True)
-		if variant_doc and (variant_doc.stock_qty or 0) > 0:
-			available = float(variant_doc.stock_qty)
+		# 2) Varyant satırı (Listing Variant Item child row adı). MOGEM-665 · 1.
+		# aşama: eskiden olmayan "Listing Variant" doctype'ı okunuyor, boş dönüp
+		# ürün seviyesi stoğa düşüyordu — stoğu 0 olan beden sepete giriyordu.
+		# Satır bu ürüne ait olmalı; stoğu 0 da geçerli bir cevaptır (>0 değil).
+		variant_row = frappe.db.get_value(
+			"Listing Variant Item",
+			{"name": listing_variant, "parent": listing_name, "parenttype": "Listing"},
+			["variant_stock"],
+			as_dict=True,
+		)
+		if variant_row:
+			available = float(variant_row.variant_stock or 0)
 
 	if available is None:
 		# 3) Listing seviyesi stok — available_qty (= stock_qty - reserved_qty) tercih edilir
@@ -598,13 +643,9 @@ def _build_cart_response(cart_name):
 
 			variant = None
 			if item.listing_variant and not variant_text and not row_is_sample:
-				# Gerçek Listing Variant doc mu dene
-				variant = frappe.db.get_value(
-					"Listing Variant",
-					item.listing_variant,
-					["variant_name", "price", "primary_image", "stock_qty"],
-					as_dict=True,
-				)
+				# Varyant satırı (Listing Variant Item) — olmayan "Listing Variant"
+				# doctype'ı yerine (MOGEM-665 · 1. aşama).
+				variant = _variant_row_snapshot(item.listing_variant)
 				if variant:
 					variant_text = variant.variant_name or ""
 					if variant.primary_image:
@@ -915,9 +956,7 @@ def add_to_cart(
 		snap_price = float(listing_doc.sample_price or 0)
 
 	if listing_variant and not is_sample_flag:
-		var_snap = frappe.db.get_value(
-			"Listing Variant", listing_variant, ["primary_image", "price"], as_dict=True
-		)
+		var_snap = _variant_row_snapshot(listing_variant)
 		if var_snap:
 			if var_snap.primary_image:
 				snap_image = var_snap.primary_image
@@ -1133,9 +1172,7 @@ def merge_guest_cart(items):
 			snap_image = listing_snap.get("primary_image") or ""
 			snap_currency = listing_snap.get("currency") or "USD"
 			if listing_variant:
-				var_snap = frappe.db.get_value(
-					"Listing Variant", listing_variant, ["primary_image", "price"], as_dict=True
-				)
+				var_snap = _variant_row_snapshot(listing_variant)
 				if var_snap:
 					if var_snap.primary_image:
 						snap_image = var_snap.primary_image

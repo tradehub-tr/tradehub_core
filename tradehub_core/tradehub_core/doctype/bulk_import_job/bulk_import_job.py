@@ -5,7 +5,7 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 
-_ALLOWED_FILE_FORMATS = {"xlsx", "csv", "xml"}
+_ALLOWED_FILE_FORMATS = {"xlsx", "csv", "xml", "json"}  # json: Ürün API paketi (MOGEM-665)
 _ALLOWED_UPDATE_MODES = {"insert_only", "upsert"}
 
 

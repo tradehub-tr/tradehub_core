@@ -177,11 +177,15 @@ def check_sub_user_invite_quota(store: str) -> None:
 def _is_variant_listing(doc) -> bool:
 	"""Listing'in çoklu varyantlı olup olmadığını tespit et.
 
-	Heuristic: variant child table'ı var ve dolu mu, ya da variant_count > 1.
-	Mevcut Listing doctype'ında 'listing_variant_item' child table var.
+	Listing'de child table'ın ALAN adı `variant_items` (child doctype adı
+	"Listing Variant Item"). MOGEM-665 ölçümü (15 Eyl): eski kod var olmayan
+	`listing_variant_item` alanını okuyup her zaman False dönüyor, plan kapısı
+	(`feature.pim.multi_variant`) hiç çalışmıyordu.
 	"""
-	variants = doc.get("listing_variant_item") or doc.get("variants")
+	variants = doc.get("variant_items") or doc.get("listing_variant_item") or doc.get("variants")
 	if variants and len(variants) > 1:
+		return True
+	if doc.get("has_variants") and variants:
 		return True
 	# Bazı doctype'larda explicit alan olabilir
 	variant_count = doc.get("variant_count") or 0
