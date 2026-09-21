@@ -148,9 +148,7 @@ def _bekletmeyi_temizle(file_url: str) -> None:
 @contextlib.contextmanager
 def _bekletme(acik: bool = True):
 	"""Bekletme politikasını sabitle — makinenin kurulumundan bağımsız."""
-	with mock.patch.dict(
-		frappe.conf, {"media_av_hold_until_clean": 1 if acik else 0}, clear=False
-	):
+	with mock.patch.dict(frappe.conf, {"media_av_hold_until_clean": 1 if acik else 0}, clear=False):
 		yield
 
 
@@ -248,9 +246,7 @@ class TestBekletme(FrappeTestCase):
 		Bekletmede unutulan dosya, fail-open sözünün sessizce tersine dönmesi
 		olurdu: panelde 'taranamadı, erişimde' yazarken dosya görünmezdi.
 		"""
-		frappe.db.set_value(
-			"File", self.doc.name, "th_media_scan_attempts", av.MAX_SCAN_ATTEMPTS - 1
-		)
+		frappe.db.set_value("File", self.doc.name, "th_media_scan_attempts", av.MAX_SCAN_ATTEMPTS - 1)
 		with _bekletme(True):
 			av.hold(self.doc.file_url)
 			with _tarayici(0, side_effect=RuntimeError("tarayıcı patladı")):
@@ -268,9 +264,7 @@ class TestBekletme(FrappeTestCase):
 
 	def test_bekletme_ve_karantina_ayri_kokler(self):
 		# Operatör karantina listesine bakınca yalnız KARAR verilmişleri görmeli.
-		self.assertNotEqual(
-			av._hold_path(self.doc.file_url), av._quarantine_path(self.doc.file_url)
-		)
+		self.assertNotEqual(av._hold_path(self.doc.file_url), av._quarantine_path(self.doc.file_url))
 
 
 # ── Unit: politika ve tarayıcı tespiti ──────────────────────────────────
@@ -302,9 +296,7 @@ class TestPolitika(FrappeTestCase):
 
 	def test_kapaliyken_kuyruga_hic_girmez(self):
 		doc = _yeni_dosya("politika-kapali.txt")
-		self.addCleanup(
-			lambda: _sil(doc.name)
-		)
+		self.addCleanup(lambda: _sil(doc.name))
 		with (
 			mock.patch("tradehub_core.media.av.scanner_command", return_value=None),
 			mock.patch("tradehub_core.media.av.frappe.enqueue") as kuyruk,
@@ -373,9 +365,7 @@ class TestDurumOnceligi(FrappeTestCase):
 			}
 		)
 		for d in (self.doc, self.ikinci):
-			self.addCleanup(
-				lambda n=d.name: _sil(n)
-			)
+			self.addCleanup(lambda n=d.name: _sil(n))
 
 	def test_infected_clean_i_yener(self):
 		frappe.db.set_value("File", self.doc.name, "th_media_scan_status", av.SCAN_CLEAN)
@@ -411,9 +401,7 @@ class TestDurumOnceligi(FrappeTestCase):
 class TestKuyrugaAlma(FrappeTestCase):
 	def setUp(self):
 		self.doc = _yeni_dosya("kuyruk-1.txt")
-		self.addCleanup(
-			lambda: _sil(self.doc.name)
-		)
+		self.addCleanup(lambda: _sil(self.doc.name))
 
 	def test_pending_yazar_ve_kuyruga_koyar(self):
 		with _tarayici(0) as (_calisan, kuyruk):
@@ -520,21 +508,15 @@ class TestNullDurumSuzgeci(FrappeTestCase):
 		self.addCleanup(lambda: _sil(self.doc.name))
 		# Yamanın varsayılanı boş string yazıyor; mevcut kayıtların gerçek hâlini
 		# (NULL) taklit etmek için açıkça NULL'a çekiliyor.
-		frappe.db.sql(
-			"update tabFile set th_media_scan_status = null where name = %s", (self.doc.name,)
-		)
+		frappe.db.sql("update tabFile set th_media_scan_status = null where name = %s", (self.doc.name,))
 
 	def test_null_satir_taranmamis_sayilir(self):
-		sayi = frappe.db.count(
-			"File", {"th_media_scan_status": ["is", "not set"], "name": self.doc.name}
-		)
+		sayi = frappe.db.count("File", {"th_media_scan_status": ["is", "not set"], "name": self.doc.name})
 		self.assertEqual(sayi, 1, "NULL durumlu kayıt 'taranmamış' sayılmalı")
 
 	def test_eski_in_suzgeci_null_i_KACIRIR(self):
 		"""Hatanın kendisi — yanlış süzgecin neden yanlış olduğunu sabitler."""
-		sayi = frappe.db.count(
-			"File", {"th_media_scan_status": ["in", ["", None]], "name": self.doc.name}
-		)
+		sayi = frappe.db.count("File", {"th_media_scan_status": ["in", ["", None]], "name": self.doc.name})
 		self.assertEqual(sayi, 0, "IN ('', NULL) NULL'ı yakalayamaz — bu yüzden kullanılmıyor")
 
 	def test_backfill_null_satiri_kuyruga_alir(self):
@@ -557,9 +539,7 @@ class TestNullDurumSuzgeci(FrappeTestCase):
 		sonuc = media_admin.scan_overview()
 		# Bu sitede 5.000'den fazla NULL kayıt var; süzgeç bozuksa bu sayı
 		# iki haneye düşer.
-		self.assertGreater(
-			sonuc["counts"]["unscanned"], 100, "taranmamış sayısı NULL'ları içermeli"
-		)
+		self.assertGreater(sonuc["counts"]["unscanned"], 100, "taranmamış sayısı NULL'ları içermeli")
 
 
 # ── Tarama sonucu ───────────────────────────────────────────────────────
@@ -568,9 +548,7 @@ class TestNullDurumSuzgeci(FrappeTestCase):
 class TestTaramaSonucu(FrappeTestCase):
 	def setUp(self):
 		self.doc = _yeni_dosya("tarama-sonuc.txt")
-		self.addCleanup(
-			lambda: _sil(self.doc.name)
-		)
+		self.addCleanup(lambda: _sil(self.doc.name))
 		self.addCleanup(lambda: _karantinayi_temizle(self.doc.file_url))
 
 	def test_temiz_sonuc_clean_yazar(self):
@@ -649,9 +627,7 @@ class TestTarayiciYok(FrappeTestCase):
 class TestRetryVeDeadLetter(FrappeTestCase):
 	def setUp(self):
 		self.doc = _yeni_dosya("retry-tarama.txt")
-		self.addCleanup(
-			lambda: _sil(self.doc.name)
-		)
+		self.addCleanup(lambda: _sil(self.doc.name))
 		self.addCleanup(lambda: _karantinayi_temizle(self.doc.file_url))
 
 	def _basarisiz(self):
@@ -673,17 +649,13 @@ class TestRetryVeDeadLetter(FrappeTestCase):
 		self.assertFalse(jobs.is_due(next_at))
 
 	def test_hak_bitince_failed_yazilir(self):
-		frappe.db.set_value(
-			"File", self.doc.name, "th_media_scan_attempts", av.MAX_SCAN_ATTEMPTS - 1
-		)
+		frappe.db.set_value("File", self.doc.name, "th_media_scan_attempts", av.MAX_SCAN_ATTEMPTS - 1)
 		self._basarisiz()
 		self.assertEqual(_durum(self.doc.name), av.SCAN_FAILED)
 		self.assertEqual(_deneme(self.doc.name), av.MAX_SCAN_ATTEMPTS)
 
 	def test_dead_letter_varsayilanda_karantinaya_atmaz(self):
-		frappe.db.set_value(
-			"File", self.doc.name, "th_media_scan_attempts", av.MAX_SCAN_ATTEMPTS - 1
-		)
+		frappe.db.set_value("File", self.doc.name, "th_media_scan_attempts", av.MAX_SCAN_ATTEMPTS - 1)
 		self._basarisiz()
 		self.assertTrue(
 			os.path.exists(av._live_path(self.doc.file_url)),
@@ -691,9 +663,7 @@ class TestRetryVeDeadLetter(FrappeTestCase):
 		)
 
 	def test_dead_letter_fail_closed_ta_karantinaya_atar(self):
-		frappe.db.set_value(
-			"File", self.doc.name, "th_media_scan_attempts", av.MAX_SCAN_ATTEMPTS - 1
-		)
+		frappe.db.set_value("File", self.doc.name, "th_media_scan_attempts", av.MAX_SCAN_ATTEMPTS - 1)
 		yol = av._live_path(self.doc.file_url)
 		with mock.patch.dict(frappe.conf, {"media_av_fail_closed": 1}, clear=False):
 			self._basarisiz()
@@ -703,17 +673,13 @@ class TestRetryVeDeadLetter(FrappeTestCase):
 	def test_sayac_db_de_kalici(self):
 		self._basarisiz()
 		frappe.db.commit()
-		self.assertEqual(
-			int(frappe.db.get_value("File", self.doc.name, "th_media_scan_attempts") or 0), 1
-		)
+		self.assertEqual(int(frappe.db.get_value("File", self.doc.name, "th_media_scan_attempts") or 0), 1)
 
 
 class TestElleRetry(FrappeTestCase):
 	def setUp(self):
 		self.doc = _yeni_dosya("elle-retry.txt")
-		self.addCleanup(
-			lambda: _sil(self.doc.name)
-		)
+		self.addCleanup(lambda: _sil(self.doc.name))
 
 	def test_failed_dosya_sifirlanip_kuyruga_konur(self):
 		frappe.db.set_value(
@@ -754,9 +720,7 @@ class TestElleRetry(FrappeTestCase):
 class TestKarantinadanCikarma(FrappeTestCase):
 	def setUp(self):
 		self.doc = _yeni_dosya("karantina-geri.txt")
-		self.addCleanup(
-			lambda: _sil(self.doc.name)
-		)
+		self.addCleanup(lambda: _sil(self.doc.name))
 		self.addCleanup(lambda: _karantinayi_temizle(self.doc.file_url))
 		with _tarayici(1, b"/x: Test-Sig FOUND\n"):
 			av._run_scan(self.doc.file_url, self.doc.name)
@@ -795,9 +759,7 @@ class TestKarantinadanCikarma(FrappeTestCase):
 class TestSupurucu(FrappeTestCase):
 	def setUp(self):
 		self.doc = _yeni_dosya("supurucu-tarama.txt")
-		self.addCleanup(
-			lambda: _sil(self.doc.name)
-		)
+		self.addCleanup(lambda: _sil(self.doc.name))
 		self.addCleanup(lambda: _karantinayi_temizle(self.doc.file_url))
 
 	def _pending_yap(self, **degerler):
@@ -835,9 +797,7 @@ class TestSupurucu(FrappeTestCase):
 	def test_birakilmis_is_basarisizlik_sayilir(self):
 		"""Sert kill `except`i çalıştırmaz; sayaç bu yolla ilerlemeli."""
 		self._pending_yap(
-			th_media_scan_started_at=add_to_date(
-				now_datetime(), seconds=-(jobs.STALE_AFTER_SECONDS + 60)
-			)
+			th_media_scan_started_at=add_to_date(now_datetime(), seconds=-(jobs.STALE_AFTER_SECONDS + 60))
 		)
 		self._supur()
 		self.assertEqual(_deneme(self.doc.name), 1)
@@ -845,9 +805,7 @@ class TestSupurucu(FrappeTestCase):
 	def test_birakilmis_is_hak_bitmisse_dead_lettera_duser(self):
 		self._pending_yap(
 			th_media_scan_attempts=av.MAX_SCAN_ATTEMPTS - 1,
-			th_media_scan_started_at=add_to_date(
-				now_datetime(), seconds=-(jobs.STALE_AFTER_SECONDS + 60)
-			),
+			th_media_scan_started_at=add_to_date(now_datetime(), seconds=-(jobs.STALE_AFTER_SECONDS + 60)),
 		)
 		self._supur()
 		self.assertEqual(_durum(self.doc.name), av.SCAN_FAILED)
@@ -871,9 +829,7 @@ class TestSupurucu(FrappeTestCase):
 class TestEnvanterTaramaDurumu(FrappeTestCase):
 	def setUp(self):
 		self.doc = _yeni_dosya("envanter-tarama.txt")
-		self.addCleanup(
-			lambda: _sil(self.doc.name)
-		)
+		self.addCleanup(lambda: _sil(self.doc.name))
 
 	def test_list_files_scan_status_dondurur(self):
 		frappe.db.set_value("File", self.doc.name, "th_media_scan_status", av.SCAN_CLEAN)
@@ -915,9 +871,7 @@ class TestYamaIdempotency(FrappeTestCase):
 class TestAdminAPI(FrappeTestCase):
 	def setUp(self):
 		self.doc = _yeni_dosya("api-tarama.txt")
-		self.addCleanup(
-			lambda: _sil(self.doc.name)
-		)
+		self.addCleanup(lambda: _sil(self.doc.name))
 		self.addCleanup(lambda: _karantinayi_temizle(self.doc.file_url))
 
 	def test_scan_overview_politikayi_da_dondurur(self):
@@ -965,9 +919,7 @@ class TestAdminAPI(FrappeTestCase):
 class TestUctanUca(FrappeTestCase):
 	def test_tam_dongu_yukle_tara_karantina_geri_al(self):
 		doc = _yeni_dosya("e2e-tarama.txt")
-		self.addCleanup(
-			lambda: _sil(doc.name)
-		)
+		self.addCleanup(lambda: _sil(doc.name))
 		self.addCleanup(lambda: _karantinayi_temizle(doc.file_url))
 
 		# 1) Kuyruğa alınır → pending
@@ -996,6 +948,7 @@ class TestUctanUca(FrappeTestCase):
 			av._run_scan(doc.file_url, doc.name)
 		self.assertEqual(_durum(doc.name), av.SCAN_CLEAN)
 
+
 class TestModulKesisimleri(FrappeTestCase):
 	"""AV'nin diğer Done işlerle kesişimi — sistem taramasında çıkan kusurlar.
 
@@ -1019,8 +972,11 @@ class TestModulKesisimleri(FrappeTestCase):
 		from tradehub_core.media import transcode
 
 		frappe.db.set_value(
-			"File", self.doc.name, "th_media_video_status",
-			transcode.VIDEO_STATUS_PROCESSING, update_modified=False,
+			"File",
+			self.doc.name,
+			"th_media_video_status",
+			transcode.VIDEO_STATUS_PROCESSING,
+			update_modified=False,
 		)
 		frappe.db.commit()
 
@@ -1069,8 +1025,11 @@ class TestModulKesisimleri(FrappeTestCase):
 		from tradehub_core.media import transcode
 
 		frappe.db.set_value(
-			"File", self.doc.name, "th_media_video_status",
-			transcode.VIDEO_STATUS_FAILED, update_modified=False,
+			"File",
+			self.doc.name,
+			"th_media_video_status",
+			transcode.VIDEO_STATUS_FAILED,
+			update_modified=False,
 		)
 		frappe.db.commit()
 		with mock.patch("tradehub_core.media.av.in_quarantine", return_value=True):
@@ -1161,9 +1120,7 @@ class TestModulKesisimleri(FrappeTestCase):
 			with self.assertRaises(frappe.ValidationError):
 				files.replace(self.doc.file_url, "M1", b"<html>zararli</html>", "x.mp4")
 
-		self.assertEqual(
-			open(yol, "rb").read(), eski_icerik, "reddedilen içerik diske yazılmamalı"
-		)
+		self.assertEqual(open(yol, "rb").read(), eski_icerik, "reddedilen içerik diske yazılmamalı")
 
 	# ── TUR-138 × TUR-131: geri yüklenen kaydın durumu ezilmez ──
 
@@ -1195,9 +1152,7 @@ class TestModulKesisimleri(FrappeTestCase):
 
 		doc = _yeni_dosya(f"normal-{_KOSUM_TUZU}.txt")
 		self.addCleanup(lambda: _sil(doc.name))
-		self.assertEqual(
-			frappe.db.get_value("File", doc.name, "th_media_state"), states.STATE_ACTIVE
-		)
+		self.assertEqual(frappe.db.get_value("File", doc.name, "th_media_state"), states.STATE_ACTIVE)
 
 
 class TestPaketTemizligi(FrappeTestCase):
@@ -1208,13 +1163,9 @@ class TestPaketTemizligi(FrappeTestCase):
 
 		from tradehub_core.media import seller_backup
 
-		exports = os.path.join(
-			frappe.get_site_path("private", seller_backup.ROOT_DIRNAME), magaza, "exports"
-		)
+		exports = os.path.join(frappe.get_site_path("private", seller_backup.ROOT_DIRNAME), magaza, "exports")
 		os.makedirs(exports, exist_ok=True)
-		self.addCleanup(
-			lambda: _shutil.rmtree(os.path.dirname(exports), ignore_errors=True)
-		)
+		self.addCleanup(lambda: _shutil.rmtree(os.path.dirname(exports), ignore_errors=True))
 		paket = os.path.join(exports, f"medya-yedegim-{set_id}-abc.zip")
 		with open(paket, "wb") as fh:
 			fh.write(b"paket")
@@ -1237,9 +1188,7 @@ class TestPaketTemizligi(FrappeTestCase):
 		self.assertGreaterEqual(sonuc["removed"], 1)
 		self.assertFalse(os.path.exists(paket))
 		# Durum dosyası ölü indirme bağlantısı göstermemeli.
-		d = seller_backup._oku(
-			os.path.join(os.path.dirname(paket), "20260101_000000.json")
-		)
+		d = seller_backup._oku(os.path.join(os.path.dirname(paket), "20260101_000000.json"))
 		self.assertEqual(d.get("state"), "")
 
 	def test_taze_paket_silinmez(self):
@@ -1248,6 +1197,7 @@ class TestPaketTemizligi(FrappeTestCase):
 		paket = self._kur("TEST-CLEANUP-B", "20260102_000000", frappe.utils.now())
 		seller_backup_export.cleanup()
 		self.assertTrue(os.path.exists(paket), "süresi dolmamış paket silinmemeli")
+
 
 class TestYazmaSonrasiTarama(FrappeTestCase):
 	"""Canlı ağaca giren her bayt aynı kapıdan geçer (TUR-125 × 123/131).
@@ -1279,9 +1229,7 @@ class TestYazmaSonrasiTarama(FrappeTestCase):
 		)
 
 	def test_damga_sifirlanir_ve_yeniden_kuyruga_girer(self):
-		with self._politika(), mock.patch(
-			"tradehub_core.media.av.frappe.enqueue"
-		) as kuyruk:
+		with self._politika(), mock.patch("tradehub_core.media.av.frappe.enqueue") as kuyruk:
 			sonuc = av.rescan_after_write([self.doc.file_url], reason="test")
 
 		self.assertEqual(sonuc["queued"], 1)
@@ -1298,20 +1246,14 @@ class TestYazmaSonrasiTarama(FrappeTestCase):
 		Sıfırlama sonra yapılsaydı bu fonksiyon sessizce hiçbir şey yapmazdı —
 		en tehlikeli hata türü: çalışıyor görünen ama çalışmayan koruma.
 		"""
-		with self._politika(), mock.patch(
-			"tradehub_core.media.av.frappe.enqueue"
-		):
+		with self._politika(), mock.patch("tradehub_core.media.av.frappe.enqueue"):
 			av.rescan_after_write([self.doc.file_url], reason="test")
 		# Kuyruğa gerçekten girdiyse durum `pending` olur; atlanmış olsaydı
 		# `clean` kalırdı.
-		self.assertEqual(
-			frappe.db.get_value("File", self.doc.name, "th_media_scan_status"), av.SCAN_PENDING
-		)
+		self.assertEqual(frappe.db.get_value("File", self.doc.name, "th_media_scan_status"), av.SCAN_PENDING)
 
 	def test_politika_bekletme_diyorsa_dosya_canli_agactan_cikar(self):
-		with self._politika(hold=True), mock.patch(
-			"tradehub_core.media.av.frappe.enqueue"
-		):
+		with self._politika(hold=True), mock.patch("tradehub_core.media.av.frappe.enqueue"):
 			sonuc = av.rescan_after_write([self.doc.file_url], reason="test")
 		self.assertEqual(sonuc["held"], 1)
 		self.assertTrue(av.in_hold(self.doc.file_url))
@@ -1321,13 +1263,18 @@ class TestYazmaSonrasiTarama(FrappeTestCase):
 	def test_karantinadaki_dosyanin_damgasi_SILINMEZ(self):
 		# Bulguyu silmek, karantinayı geçersiz kılmanın sessiz yolu olurdu.
 		frappe.db.set_value(
-			"File", self.doc.name, "th_media_scan_status", av.SCAN_INFECTED,
+			"File",
+			self.doc.name,
+			"th_media_scan_status",
+			av.SCAN_INFECTED,
 			update_modified=False,
 		)
 		frappe.db.commit()
-		with self._politika(), mock.patch(
-			"tradehub_core.media.av.in_quarantine", return_value=True
-		), mock.patch("tradehub_core.media.av.frappe.enqueue") as kuyruk:
+		with (
+			self._politika(),
+			mock.patch("tradehub_core.media.av.in_quarantine", return_value=True),
+			mock.patch("tradehub_core.media.av.frappe.enqueue") as kuyruk,
+		):
 			sonuc = av.rescan_after_write([self.doc.file_url], reason="test")
 
 		kuyruk.assert_not_called()
@@ -1343,9 +1290,7 @@ class TestYazmaSonrasiTarama(FrappeTestCase):
 		with self._politika(enabled=False):
 			sonuc = av.rescan_after_write([self.doc.file_url], reason="test")
 		self.assertEqual(sonuc.get("skipped"), "disabled")
-		self.assertEqual(
-			frappe.db.get_value("File", self.doc.name, "th_media_scan_status"), av.SCAN_CLEAN
-		)
+		self.assertEqual(frappe.db.get_value("File", self.doc.name, "th_media_scan_status"), av.SCAN_CLEAN)
 
 	def test_bos_liste_ise_hicbir_sey_yapmaz(self):
 		self.assertEqual(av.rescan_after_write([], reason="test")["queued"], 0)
@@ -1387,27 +1332,17 @@ class TestYazmaSonrasiTarama(FrappeTestCase):
 
 		sahte = {
 			"set_id": "20260101_000000",
-			"files": [
-				{"path": "y.txt", "file_url": "/files/y.txt", "size": 1, "hash": "0" * 64}
-			],
+			"files": [{"path": "y.txt", "file_url": "/files/y.txt", "size": 1, "hash": "0" * 64}],
 		}
 		with (
-			mock.patch(
-				"tradehub_core.media.seller_backup.manifest_of", return_value=sahte
-			),
+			mock.patch("tradehub_core.media.seller_backup.manifest_of", return_value=sahte),
 			mock.patch(
 				"tradehub_core.media.seller_backup._uploaded_urls",
 				return_value={"/files/y.txt"},
 			),
-			mock.patch(
-				"tradehub_core.media.seller_backup._servis_edilebilir", return_value=True
-			),
-			mock.patch(
-				"tradehub_core.media.seller_backup._blob_path", return_value="/dev/null"
-			),
-			mock.patch(
-				"tradehub_core.media.seller_backup._live_path", return_value="/tmp/y.txt"
-			),
+			mock.patch("tradehub_core.media.seller_backup._servis_edilebilir", return_value=True),
+			mock.patch("tradehub_core.media.seller_backup._blob_path", return_value="/dev/null"),
+			mock.patch("tradehub_core.media.seller_backup._live_path", return_value="/tmp/y.txt"),
 			mock.patch("tradehub_core.media.seller_backup.os.path.isfile", return_value=False),
 			mock.patch("tradehub_core.media.seller_backup.os.makedirs"),
 			mock.patch("tradehub_core.media.seller_backup.shutil.copy2"),
@@ -1432,7 +1367,6 @@ class TestYazmaSonrasiTarama(FrappeTestCase):
 
 		kural.assert_called_once()
 		self.assertEqual(kural.call_args.kwargs.get("reason"), "replace")
-
 
 
 # ── Ortak sahiplik: yönetici silme kapısı (TUR-298) ─────────────────────
@@ -1502,9 +1436,7 @@ class TestOrtakSahiplikSilme(FrappeTestCase):
 		yöneticiyi kilitlemek, tek bir sorgu hatasında tüm silme akışını durdurur.
 		Ama 1 dönmek YANLIŞ olurdu: "tek sahip var" diye bilgi uydurmak olur.
 		"""
-		with mock.patch(
-			"tradehub_core.media.trash.ownership.owners_of", side_effect=RuntimeError("db yok")
-		):
+		with mock.patch("tradehub_core.media.trash.ownership.owners_of", side_effect=RuntimeError("db yok")):
 			self.assertEqual(trash.owner_count(self.doc.file_url), 0)
 
 	def test_cop_ve_kalici_silme_AYRI_onay_ister(self):
@@ -1516,9 +1448,7 @@ class TestOrtakSahiplikSilme(FrappeTestCase):
 		import inspect
 
 		for fn in (trash.move_to_trash, trash.delete_permanently):
-			self.assertIn(
-				"_assert_not_shared", inspect.getsource(fn), f"{fn.__name__} kapıyı çağırmıyor"
-			)
+			self.assertIn("_assert_not_shared", inspect.getsource(fn), f"{fn.__name__} kapıyı çağırmıyor")
 
 	def test_satici_yolu_baskasinin_kaydina_dokunmaz(self):
 		"""Regresyon — satıcı tarafındaki mevcut koruma bozulmamalı.

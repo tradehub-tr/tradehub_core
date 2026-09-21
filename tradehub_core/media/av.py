@@ -374,7 +374,11 @@ def _guarded(root: str, relative: str, hata: str, file_url: str) -> str:
 
 def _live_path(file_url: str) -> str:
 	tur, goreli = _split_url(file_url)
-	kok = frappe.get_site_path("private", "files") if tur == "private" else frappe.get_site_path("public", "files")
+	kok = (
+		frappe.get_site_path("private", "files")
+		if tur == "private"
+		else frappe.get_site_path("public", "files")
+	)
 	return _guarded(kok, goreli, "Dosya yolu kök dizinin dışında: {0}", file_url)
 
 
@@ -690,9 +694,7 @@ def current_status(file_url: str) -> str:
 	"""
 	durumlar = {
 		r.th_media_scan_status
-		for r in frappe.get_all(
-			"File", filters={"file_url": file_url}, fields=["th_media_scan_status"]
-		)
+		for r in frappe.get_all("File", filters={"file_url": file_url}, fields=["th_media_scan_status"])
 		if r.th_media_scan_status
 	}
 	for oncelikli in (SCAN_INFECTED, SCAN_FAILED, SCAN_PENDING, SCAN_CLEAN):
@@ -901,9 +903,7 @@ def scan_path(path: str) -> tuple[str, str]:
 
 def _tara(cmd: tuple[str, ...], path: str) -> tuple[str, str]:
 	"""Tek tarayıcı çağrısı — sonucu sözleşmeye çevirir."""
-	sonuc = subprocess.run(
-		[*cmd, path], capture_output=True, timeout=_SCAN_TIMEOUT_SECONDS, check=False
-	)
+	sonuc = subprocess.run([*cmd, path], capture_output=True, timeout=_SCAN_TIMEOUT_SECONDS, check=False)
 	if sonuc.returncode == _EXIT_CLEAN:
 		return SCAN_CLEAN, ""
 	if sonuc.returncode == _EXIT_INFECTED:
