@@ -345,3 +345,9 @@ tradehub_core.patches.v15_9_54_remove_tradehub_seller_workspace
 # --- Medya işleme yeni kurulumlarda varsayılan açık ---
 tradehub_core.patches.v15_9_57_media_pipeline_defaults
 tradehub_core.patches.v15_9_58_enable_media_and_backfill
+
+# --- Kategori adları çok dilli: hazır sözlük tohumu (hat 16 Eyl 2026'da yazıldı, tetikleyicisi unutulmuştu) ---
+tradehub_core.patches.v15_9_59_seed_category_names
+
+# --- Ana sayfa vitrini: Arapça/Rusça metinler (DocType alanları bu turda eklendi) ---
+tradehub_core.patches.v15_9_60_showcase_ar_ru

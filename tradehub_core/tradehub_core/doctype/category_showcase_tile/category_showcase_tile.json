@@ -13,20 +13,30 @@
 		"section_break_category",
 		"label_tr",
 		"label_en",
+		"label_ar",
+		"label_ru",
 		"image",
 		"column_break_cat",
 		"link_href",
 		"hover_text_tr",
 		"hover_text_en",
+		"hover_text_ar",
+		"hover_text_ru",
 		"section_break_promo",
 		"promo_badge_tr",
 		"promo_badge_en",
+		"promo_badge_ar",
+		"promo_badge_ru",
 		"promo_title_tr",
 		"promo_title_en",
+		"promo_title_ar",
+		"promo_title_ru",
 		"column_break_promo",
 		"background_color",
 		"cta_text_tr",
 		"cta_text_en",
+		"cta_text_ar",
+		"cta_text_ru",
 		"cta_href",
 		"section_break_dates",
 		"start_at",
@@ -198,6 +208,66 @@
 			"fieldname": "end_at",
 			"fieldtype": "Datetime",
 			"label": "Bitiş"
+		},
+		{
+			"fieldname": "label_ar",
+			"fieldtype": "Data",
+			"label": "Etiket (AR)",
+			"depends_on": "eval:doc.tile_type=='category'"
+		},
+		{
+			"fieldname": "label_ru",
+			"fieldtype": "Data",
+			"label": "Etiket (RU)",
+			"depends_on": "eval:doc.tile_type=='category'"
+		},
+		{
+			"fieldname": "hover_text_ar",
+			"fieldtype": "Data",
+			"label": "Üzerine gelince (AR)",
+			"depends_on": "eval:doc.tile_type=='category'"
+		},
+		{
+			"fieldname": "hover_text_ru",
+			"fieldtype": "Data",
+			"label": "Üzerine gelince (RU)",
+			"depends_on": "eval:doc.tile_type=='category'"
+		},
+		{
+			"fieldname": "promo_badge_ar",
+			"fieldtype": "Data",
+			"label": "Rozet (AR)",
+			"depends_on": "eval:doc.tile_type=='promo'"
+		},
+		{
+			"fieldname": "promo_badge_ru",
+			"fieldtype": "Data",
+			"label": "Rozet (RU)",
+			"depends_on": "eval:doc.tile_type=='promo'"
+		},
+		{
+			"fieldname": "promo_title_ar",
+			"fieldtype": "Small Text",
+			"label": "Promo Başlık (AR)",
+			"depends_on": "eval:doc.tile_type=='promo'"
+		},
+		{
+			"fieldname": "promo_title_ru",
+			"fieldtype": "Small Text",
+			"label": "Promo Başlık (RU)",
+			"depends_on": "eval:doc.tile_type=='promo'"
+		},
+		{
+			"fieldname": "cta_text_ar",
+			"fieldtype": "Data",
+			"label": "Buton Metni (AR)",
+			"depends_on": "eval:doc.tile_type=='promo'"
+		},
+		{
+			"fieldname": "cta_text_ru",
+			"fieldtype": "Data",
+			"label": "Buton Metni (RU)",
+			"depends_on": "eval:doc.tile_type=='promo'"
 		}
 	],
 	"links": [],

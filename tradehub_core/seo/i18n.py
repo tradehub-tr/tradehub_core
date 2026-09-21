@@ -2,18 +2,29 @@
 Multi-language helpers (Faz 7).
 
 Pure fonksiyonlar:
-  - parse_lang_from_path(path) → (lang, normalized_path)
   - get_field_with_fallback(record, field, lang) → str
-  - localize_url(path, lang) → str (TR prefix'siz, EN /en/ prefix'li)
+  - localize_url(path, lang) → str (dil URL'e yansımaz — aşağıdaki nota bak)
   - build_hreflang_links(canonical_tr_path, site_url) → list[dict]
   - slug_field_for(doctype, lang) → str (doctype + dil-bazlı slug field adı)
 
 Frappe runtime'a bağımlı değil; standalone test edilebilir.
 """
 
-# SEO URL/hreflang dilleri — storefront router'ı yalnızca tr (prefix'siz) + en (/en/) destekliyor.
-# ar/ru URL prefix routing'i ayrı bir iş; buraya eklemek henüz route olmayan hreflang üretir.
-SUPPORTED_LANGS = ("tr", "en")
+# SEO URL/hreflang dilleri.
+#
+# 2026-09-21 — `en` BURADAN ÇIKARILDI. Kod `/en/...` alternate'leri üretiyordu ama
+# o adresler hiç sunulmuyordu: ölçüldü, canlıda `/en/kategori/<slug>` → 404 ve beş
+# site haritası toplam 25.997 kırık alternate bildiriyordu (products 2.431 ·
+# categories 23.511 · brands 3 · sellers 28 · static-pages 24). Google kırık
+# alternate'i yok sayar, Search Console'da hata olarak raporlar ve tekrarlanan
+# 404'ler tarama bütçesini yer.
+#
+# Yönetici kararı (K7): yol öneki KULLANILMAYACAK, dil `?hl=` ile taşınacak.
+# Çok dilli hreflang'ın kalıcı hâli MOGEM-655 §6.2'nin ("hreflang yöneticisi")
+# işi; bu liste o gün oradan genişletilir. Bugün tek dil bildiriliyor ve
+# `build_hreflang_links` buna x-default ekliyor — ikisi de self-referencing,
+# yani geçerli bir küme.
+SUPPORTED_LANGS = ("tr",)
 # İçerik çevirisi dilleri — storefront UI 4 dilli; resolve_content_field/normalize_lang bunu kullanır.
 CONTENT_LANGS = ("tr", "en", "ar", "ru")
 DEFAULT_LANG = "tr"
@@ -217,31 +228,6 @@ def resolve_content_field(record: dict, field: str, lang: str, default_lang: str
 	return record.get(field) or ""
 
 
-def parse_lang_from_path(path: str) -> tuple[str, str]:
-	"""Path'in başındaki dil prefix'ini ayır.
-
-	`/en/urun/x` → ("en", "/urun/x")
-	`/urun/x`    → ("tr", "/urun/x")
-	`/tr/urun/x` → ("tr", "/urun/x")  # explicit tr prefix temizlenir
-	`/en`        → ("en", "/")
-	"""
-	if not path:
-		return DEFAULT_LANG, "/"
-	if not path.startswith("/"):
-		path = "/" + path
-
-	for lang in SUPPORTED_LANGS:
-		# `/en` veya `/en/...`
-		if path == f"/{lang}":
-			return lang, "/"
-		prefix = f"/{lang}/"
-		if path.startswith(prefix):
-			remainder = "/" + path[len(prefix) :]
-			return lang, remainder
-
-	return DEFAULT_LANG, path
-
-
 def get_field_with_fallback(record: dict, field: str, lang: str) -> str:
 	"""lang=en → record[field+'_en'] varsa o, yoksa record[field] (TR fallback).
 
@@ -259,26 +245,24 @@ def get_field_with_fallback(record: dict, field: str, lang: str) -> str:
 
 
 def localize_url(path: str, lang: str) -> str:
-	"""TR prefix'siz, EN için `/en/` prefix ekle.
+	"""Bir yolun verilen dildeki adresi. **Dil yola yansımaz.**
 
-	`/urun/x` + tr → `/urun/x`
-	`/urun/x` + en → `/en/urun/x`
-	`/` + en → `/en/`
+	`/urun/x` + tr/en/ar/ru → `/urun/x`
+
+	Fonksiyon duruyor çünkü "dil adrese nasıl yansır" kararının TEK yeri burası;
+	çağıranlar (canonical üretimi, hreflang, listing API) bu seam üzerinden
+	geçiyor. 2026-09-21'e kadar `en` için `/en` öneki eklerdi; o şema hiç
+	sunulmadığı için söküldü (bkz. SUPPORTED_LANGS notu). Dil bugün `?hl=` ile
+	taşınıyor ve tercih çerezde kalıcı (K7), yani adres dilden bağımsızdır.
+
+	Şema ileride değişirse (MOGEM-655 §6.1 "alt klasör/subdomain stratejisi")
+	yalnız bu fonksiyon ve `SUPPORTED_LANGS` değişir.
 	"""
 	if not path:
-		path = "/"
+		return "/"
 	if not path.startswith("/"):
 		path = "/" + path
-	if lang == DEFAULT_LANG:
-		return path
-	if lang not in SUPPORTED_LANGS:
-		return path
-	# Halihazırda dil prefix'liyse tekrar ekleme
-	if path.startswith(f"/{lang}/") or path == f"/{lang}":
-		return path
-	if path == "/":
-		return f"/{lang}/"
-	return f"/{lang}{path}"
+	return path
 
 
 def build_hreflang_links(canonical_tr_path: str, site_url: str) -> list[dict]:
@@ -287,9 +271,12 @@ def build_hreflang_links(canonical_tr_path: str, site_url: str) -> list[dict]:
 	`canonical_tr_path` her zaman TR (prefix'siz) path olarak verilir.
 	Returns: [
 	  {"hreflang": "tr", "href": "https://istoc.com/urun/x"},
-	  {"hreflang": "en", "href": "https://istoc.com/en/urun/x"},
 	  {"hreflang": "x-default", "href": "https://istoc.com/urun/x"},
 	]
+
+	Küme SUPPORTED_LANGS'ten türer; bugün tek dil + x-default, ikisi de aynı
+	adrese (self-referencing). Bildirilen her adresin GERÇEKTEN sunulması şart —
+	kırık alternate Google'da hata olarak raporlanır (bkz. SUPPORTED_LANGS notu).
 	"""
 	site = site_url.rstrip("/")
 	links = []
