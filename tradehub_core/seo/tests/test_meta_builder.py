@@ -208,7 +208,8 @@ class TestStaticPageHreflang(unittest.TestCase):
 	def test_home_hreflang_has_no_double_slash(self):
 		hrefs = [link["href"] for link in self._home()["hreflang_links"]]
 		self.assertNotIn(f"{SITE_URL}//", hrefs)
-		self.assertEqual(hrefs, [f"{SITE_URL}/", f"{SITE_URL}/en/", f"{SITE_URL}/"])
+		# tr + x-default; `/en/` girdisi 2026-09-21'de kaldırıldı (canlıda 404 dönüyordu).
+		self.assertEqual(hrefs, [f"{SITE_URL}/", f"{SITE_URL}/"])
 
 	def test_inner_static_page_hreflang(self):
 		seo = build_for_static_page(
@@ -218,10 +219,19 @@ class TestStaticPageHreflang(unittest.TestCase):
 			site_url=SITE_URL,
 		)
 		hrefs = [link["href"] for link in seo["hreflang_links"]]
-		self.assertEqual(hrefs, [f"{SITE_URL}/urunler", f"{SITE_URL}/en/urunler", f"{SITE_URL}/urunler"])
+		self.assertEqual(hrefs, [f"{SITE_URL}/urunler", f"{SITE_URL}/urunler"])
 
-	def test_canonical_still_lang_aware(self):
-		self.assertEqual(self._home(lang="en")["canonical"], f"{SITE_URL}/en/")
+	def test_canonical_dile_gore_degismez(self):
+		"""Canonical artık dilden bağımsız — adres tek (K7, `?hl=` ile dil taşınır).
+
+		2026-09-21'e kadar `lang="en"` canonical'i `/en/` yapıyordu; o adres hiç
+		sunulmuyordu, yani canonical KIRIK bir adrese işaret ediyordu. Bu, kırık
+		alternate'ten daha ağır bir kusurdu: canonical Google'a "asıl sürüm
+		burası" der.
+		"""
+		for lang in ("tr", "en", "ar", "ru"):
+			with self.subTest(lang=lang):
+				self.assertEqual(self._home(lang=lang)["canonical"], f"{SITE_URL}/")
 
 
 if __name__ == "__main__":

@@ -173,22 +173,22 @@ def _render_for(doctype: str, slug: str, builder_fn, lang: str = "tr"):
 
 
 def render_listing(slug: str, lang: str = "tr") -> str:
-	"""GET /urun/<slug> veya /en/urun/<slug> → HTML response with meta'lar."""
+	"""GET /urun/<slug> → HTML response with meta'lar."""
 	return _render_for("Listing", slug, meta_builder.build_for_listing, lang=lang)
 
 
 def render_category(slug: str, lang: str = "tr") -> str:
-	"""GET /kategori/<slug> veya /en/kategori/<slug>."""
+	"""GET /kategori/<slug>."""
 	return _render_for("Product Category", slug, meta_builder.build_for_category, lang=lang)
 
 
 def render_brand(slug: str, lang: str = "tr") -> str:
-	"""GET /marka/<slug> veya /en/marka/<slug>."""
+	"""GET /marka/<slug>."""
 	return _render_for("Brand", slug, meta_builder.build_for_brand, lang=lang)
 
 
 def render_seller(slug: str, lang: str = "tr") -> str:
-	"""GET /magaza/<slug> veya /en/magaza/<slug>."""
+	"""GET /magaza/<slug>."""
 	return _render_for("Admin Seller Profile", slug, meta_builder.build_for_seller, lang=lang)
 
 
