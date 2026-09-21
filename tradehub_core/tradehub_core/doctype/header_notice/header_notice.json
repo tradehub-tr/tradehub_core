@@ -7,9 +7,13 @@
 	"field_order": [
 		"message_tr",
 		"message_en",
+		"message_ar",
+		"message_ru",
 		"column_break_msg",
 		"link_text_tr",
 		"link_text_en",
+		"link_text_ar",
+		"link_text_ru",
 		"link_href",
 		"section_break_meta",
 		"icon",
@@ -98,6 +102,26 @@
 			"fieldname": "end_at",
 			"fieldtype": "Datetime",
 			"label": "Bitiş"
+		},
+		{
+			"fieldname": "message_ar",
+			"fieldtype": "Small Text",
+			"label": "Mesaj (AR)"
+		},
+		{
+			"fieldname": "message_ru",
+			"fieldtype": "Small Text",
+			"label": "Mesaj (RU)"
+		},
+		{
+			"fieldname": "link_text_ar",
+			"fieldtype": "Data",
+			"label": "Link Metni (AR)"
+		},
+		{
+			"fieldname": "link_text_ru",
+			"fieldtype": "Data",
+			"label": "Link Metni (RU)"
 		}
 	],
 	"links": [],
