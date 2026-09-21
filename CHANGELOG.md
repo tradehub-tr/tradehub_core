@@ -1,3 +1,11 @@
+## [v1.14.2-alpha.5] - 2026-09-21 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Duzeltildi
+- fix(medya): ClamAV taramasını Press ortamında çalışır hale getir — clamdscan --stream (@ahmeetseker)
+
+---
 ## [v1.14.2-rc.1] - 2026-09-21 RC
 
 Bu surum rcistoc.cronbi.com'da onay asamasindadir.
