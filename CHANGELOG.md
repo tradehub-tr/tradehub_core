@@ -1,3 +1,60 @@
+## [v1.15.0] - 2026-09-21 PROD
+
+Bu surum istoc.cronbi.com'da yayindadir.
+
+### Eklendi
+- feat(lojistik): carrier webhook alıcısı — HMAC imzalı inbound tracking (09-BE son dilim) (@boraydeger32)
+  - YENİ api/v1/logistics_webhook.py: guest uç; HMAC-SHA256 (compare_digest), TÜM ret yolları bayt-eşit jenerik 401 (enumeration'a kapalı), 413 boyut kapısı (imza hesaplanmadan), IP-bazlı rate limit (600/60sn), 48 saatlik Redis dedupe (işaret enqueue-sonrası — retry kaybı önlenir), maskeli inbound log, queue='short' asenkron işleme
+  - YENİ adapters/signature.py: saf (stdlib-only) HMAC doğrulama — adapter default'u ve endpoint fallback'i aynı fonksiyonda; adapter sözleşmesine verify_webhook_signature + parse_webhook eklendi (mock implementasyonlu)
+  - tracking_service.process_webhook_event: parse → Carrier Status Mapping → tenant guard (cross-tenant event işlenmez) → transition_status(Webhook); hata kodlarıyla izlenebilir (STATUS_UNMAPPED/CAPABILITY_UNSUPPORTED/...)
+  - Sözleşme/sabitler contract.py+constants.py'da; gen_logistics_types --sync ile 3 repo senkron; carrier_webhook_enabled flag'i KAPALI gelir (uç, flag açılana kadar 401 döner — deploy güvenli)
+  - Test bulgusu kapatıldı: enqueue'ya imza-dışı kwarg gerçek worker'da her job'u öldürürdü (testlerde görünmez) — kwarg kaldırıldı
+  - 49 yeni test (16 e2e + 33 adapter); integration log 331/331 regresyonsuz
+- feat(katalog): kategori adları için çok dilli çeviri hattı eklendi (@aliiball)
+  - 23.511 aktif kategorinin category_name_en/ar/ru sütunları tamamen boştu; arayüz dört dilde çalışırken kategori adları her dilde Türkçe görünüyordu.
+  - İki giriş noktası, tek yazma yolu: apply_name_seed hazır sözlükten, backfill_names Translation Settings sağlayıcısından yazar. İkisi de idempotent, dolu alanın üzerine yazmaz.
+  - Sözlük tohumu 801 kayıt: menünün üst iki seviyesindeki adlar en/ar/ru olarak çevrildi, katalogda 868 kategoriyi dolduruyor.
+  - Collation tuzağı: MariaDB utf8mb4_general_ci altında c ile ç eşit sayılıyor, aday sorgusu 'Saç Şekillendirme' ile 'Sac Şekillendirme' kayıtlarını birlikte getiriyor. Karşılık bu yüzden SQL'den değil Python sözlüğünden birebir okunuyor; aksi hâlde metal kategorisine 'Hair Styling' yazılırdı.
+  - 16 birim testi: tohum davranışı, stub koruması, kota-stub'ı, bilinmeyen dil ayrımı, tohum dosyası bütünlüğü ve collation tuzağı.
+- feat(medya): AVIF teslimini ve backfill akışını aç (@ahmeetseker)
+  - Medya pipeline varsayılanlarını açıp tüm slotları AVIF teslimine taşı
+  - Eski public görseller için checkpointli rendition backfill işi ekle
+  - Kütüphane görsellerini kapsama alıp manifestte gerçek boyutları döndür
+  - Satış ekiplerini yönetmek için admin API ve rol atama akışı ekle
+- feat(vitrin): vitrin metinlerine Arapça ve Rusça alanları eklendi (@aliiball)
+  - Ölçüldü (17 Eylül, alpha'da gerçek Suudi IP'siyle): otomatik dil seçimi sayfayı Arapça ve RTL açıyordu ama vitrin bölümü Türkçe kalıyordu. Kök neden çeviri hattında değil şemadaydı, Category Showcase Tile yalnız _tr ve _en kolonu taşıyordu.
+  - Alan listesi ve API yükü artık DILLER demetinden türüyor; beşinci dil eklendiğinde tek satır değişir ve hiçbir alan unutulamaz.
+  - v15_9_60 mevcut kayıtların metnini Türkçesine göre eşleyip çevirir; admin metni değiştirdiyse o kutu atlanır. Dolu alanın üstüne yazmaz.
+  - Testler şema boşluğunu doğrudan yakalıyor: her kök ve her dil için kolon var mı, yük hiçbir alanda None dönüyor mu.
+- feat(duyuru): duyuru şeridine Arapça ve Rusça alanları eklendi (@aliiball)
+  - Vitrin dört dile açılırken yapılan kırma turunda bulundu: Header Notice de yalnız _tr ve _en taşıyordu ve duyuru şeridi sitenin HER sayfasında çiziliyor, yani Arapça ve Rusça ziyaretçi her sayfada Türkçe bir şerit görüyordu.
+  - Kusur o gün gizliydi: canlıda aktif duyuru yoktu ve LOCAL'de hiç kayıt yoktu. Biri duyuru yayınladığı gün görünür olurdu.
+  - Veri patch'i YOK, bilinçli: duyuru metinleri admin tarafından yazılıyor, sözlükle önceden çevrilemez. Yeni alanlar boş başlar ve _tr'ye düşer.
+  - Yalnız message_tr zorunlu kaldı; dördü birden zorunlu olsaydı admin tek bir duyuruyu dört dilde yazmadan kaydedemez ve özellik kullanılmaz hâle gelirdi.
+  - Test uçtan uca: dört dilde yazılan duyuru yükte aynen dönüyor, doldurulmayan dil None değil boş dize veriyor.
+- feat(test): tek seferlik veri rutinlerine tetikleyici denetimi eklendi (@aliiball)
+  - category_i18n vakasının genel hâli: bir veri rutini yazılıp hiçbir tetikleyiciye bağlanmadığında testler yeşil kalır ve kusur yalnız canlıda görülür.
+  - Whitelist ucu tek başına yeterli sayılmaz: category_i18n üç whitelist ucu taşıyordu ve yine de hiç koşmadı; ucu çağıran ekran kardeş repoda yaşıyor ve bu repodan görünmüyor.
+  - Denetim yazılırken kendisinde iki kusur bulundu ve düzeltildi: patch dosyaları çağıran olarak taranmıyordu ve bağ modül adıyla aranıyordu, fonksiyon adıyla değil.
+  - Karşı kanıt: yeni patch geçici kaldırıldığında denetim tam olarak orijinal kusuru bildirdi.
+
+### Duzeltildi
+- fix(para-birimi): desteklenmeyen para birimi önerisi USD'ye düşürüldü (@aliiball)
+  - COUNTRY_CURRENCY_MAP, SupportedCurrency'de tanımlı olmayan bir koda işaret edebiliyordu (GB'den GBP, CN/HK/TW'den CNY). Ön yüz o kodun ne kurunu ne sembolünü bulabildiği için kullanıcı, seçicide hiç görünmeyen bir para birimine kilitleniyor ve seçimini kendisi düzeltemiyordu.
+  - Harita bilerek olduğu gibi bırakıldı: para birimi ileride tanımlanırsa eşleme kendiliğinden devreye girsin.
+  - Birim testi sözleşmeyi koruyor: haritadaki her ülke, desteklenen bir kod döndürmeli.
+- fix(medya): ClamAV taramasını Press ortamında çalışır hale getir — clamdscan --stream (@ahmeetseker)
+- fix(seo): /en dil öneki üretimi söküldü (@aliiball)
+  - Kod /en/... alternate adresleri üretiyordu ama o adresler hiç sunulmuyordu: ölçüldü, canlıda /en/kategori/<slug> 404 dönüyor ve beş site haritası toplam 25.997 kırık alternate bildiriyordu. Google kırık alternate'i yok sayar, Search Console'da hata olarak raporlar ve tekrarlanan 404'ler tarama bütçesini yer.
+  - parse_lang_from_path silindi, yalnız kendi testi çağırıyordu.
+  - Karar K7 (yönetici): yol öneki yok, dil ?hl= ile taşınır. Kalıcı hreflang altyapısı MOGEM-655 §6.2'nin işi.
+  - Testler yeni sözleşmeye çevrildi; kırık şemanın geri sızmadığını ayrıca kilitleyen iddialar eklendi.
+- fix(katalog): kategori adı tohumunun tetikleyicisi eklendi (@aliiball)
+  - category_i18n modülü 16 Eylül'de 801 kayıtlık sözlük ve 374 satır testle commit edilmişti ama hattı çağıran hiçbir şey yoktu: patches.txt'te satır, hooks'ta kanca, başka modülde referans, panelde ekran, dördü de sıfırdı.
+  - Sonuç ölçüldü: get_categories dört dilde de Türkçe dönüyordu. Testler yeşildi çünkü fonksiyonun doğru çalıştığını ölçüyorlardı, hiçbiri onu çağıran var mı diye sormuyordu.
+  - apply_name_seed idempotenttir. Ölçüldü: üç kategori boşaltılıp patch koşuldu, 865'ten 868'e döndü ve değerler birebir eski hâlini aldı; ikinci koşum 0 yazdı.
+
+---
 ## [v1.14.2-rc.2] - 2026-09-21 RC
 
 Bu surum rcistoc.cronbi.com'da onay asamasindadir.
