@@ -1,3 +1,14 @@
+## [v1.15.0-alpha.1] - 2026-09-21 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Duzeltildi
+- fix(i18n): filtre kategorileri arayüz diline çözülüyor (@aliiball)
+  - Rusça arayüzde mega menü Rusça iken filtre kenar çubuğu Türkçe kalıyordu. Sebep veri eksikliği değildi: get_filter_facets ve altındaki cozucu dili hiç almıyor, adı ham category_name'den okuyordu, yani bekleyen yaprak çevirileri bitse bile filtre Türkçe kalacaktı.
+  - Ad çözümü get_categories ile aynı zincirden geçiyor; iki uç farklı ad üretse aynı kategori mega menüde bir, filtrede başka görünürdü. Ata zinciri de çevriliyor.
+  - Kaynak denetimi eklendi: bağlantı koparıldığında davranış testlerinin dokuzu da yeşil kalıyordu.
+
+---
 ## [v1.15.0] - 2026-09-21 PROD
 
 Bu surum istoc.cronbi.com'da yayindadir.
