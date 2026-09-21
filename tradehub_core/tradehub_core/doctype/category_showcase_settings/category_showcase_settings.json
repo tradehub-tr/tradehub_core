@@ -7,6 +7,8 @@
 		"is_enabled",
 		"section_title_tr",
 		"section_title_en",
+		"section_title_ar",
+		"section_title_ru",
 		"columns"
 	],
 	"fields": [
@@ -31,6 +33,16 @@
 			"fieldtype": "Int",
 			"label": "Masaüstü Sütun Sayısı",
 			"default": "4"
+		},
+		{
+			"fieldname": "section_title_ar",
+			"fieldtype": "Data",
+			"label": "Bölüm Başlığı (AR)"
+		},
+		{
+			"fieldname": "section_title_ru",
+			"fieldtype": "Data",
+			"label": "Bölüm Başlığı (RU)"
 		}
 	],
 	"issingle": 1,
