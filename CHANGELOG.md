@@ -1,3 +1,38 @@
+## [v1.14.2-alpha.6] - 2026-09-21 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(vitrin): vitrin metinlerine Arapça ve Rusça alanları eklendi (@aliiball)
+  - Ölçüldü (17 Eylül, alpha'da gerçek Suudi IP'siyle): otomatik dil seçimi sayfayı Arapça ve RTL açıyordu ama vitrin bölümü Türkçe kalıyordu. Kök neden çeviri hattında değil şemadaydı, Category Showcase Tile yalnız _tr ve _en kolonu taşıyordu.
+  - Alan listesi ve API yükü artık DILLER demetinden türüyor; beşinci dil eklendiğinde tek satır değişir ve hiçbir alan unutulamaz.
+  - v15_9_60 mevcut kayıtların metnini Türkçesine göre eşleyip çevirir; admin metni değiştirdiyse o kutu atlanır. Dolu alanın üstüne yazmaz.
+  - Testler şema boşluğunu doğrudan yakalıyor: her kök ve her dil için kolon var mı, yük hiçbir alanda None dönüyor mu.
+- feat(duyuru): duyuru şeridine Arapça ve Rusça alanları eklendi (@aliiball)
+  - Vitrin dört dile açılırken yapılan kırma turunda bulundu: Header Notice de yalnız _tr ve _en taşıyordu ve duyuru şeridi sitenin HER sayfasında çiziliyor, yani Arapça ve Rusça ziyaretçi her sayfada Türkçe bir şerit görüyordu.
+  - Kusur o gün gizliydi: canlıda aktif duyuru yoktu ve LOCAL'de hiç kayıt yoktu. Biri duyuru yayınladığı gün görünür olurdu.
+  - Veri patch'i YOK, bilinçli: duyuru metinleri admin tarafından yazılıyor, sözlükle önceden çevrilemez. Yeni alanlar boş başlar ve _tr'ye düşer.
+  - Yalnız message_tr zorunlu kaldı; dördü birden zorunlu olsaydı admin tek bir duyuruyu dört dilde yazmadan kaydedemez ve özellik kullanılmaz hâle gelirdi.
+  - Test uçtan uca: dört dilde yazılan duyuru yükte aynen dönüyor, doldurulmayan dil None değil boş dize veriyor.
+- feat(test): tek seferlik veri rutinlerine tetikleyici denetimi eklendi (@aliiball)
+  - category_i18n vakasının genel hâli: bir veri rutini yazılıp hiçbir tetikleyiciye bağlanmadığında testler yeşil kalır ve kusur yalnız canlıda görülür.
+  - Whitelist ucu tek başına yeterli sayılmaz: category_i18n üç whitelist ucu taşıyordu ve yine de hiç koşmadı; ucu çağıran ekran kardeş repoda yaşıyor ve bu repodan görünmüyor.
+  - Denetim yazılırken kendisinde iki kusur bulundu ve düzeltildi: patch dosyaları çağıran olarak taranmıyordu ve bağ modül adıyla aranıyordu, fonksiyon adıyla değil.
+  - Karşı kanıt: yeni patch geçici kaldırıldığında denetim tam olarak orijinal kusuru bildirdi.
+
+### Duzeltildi
+- fix(medya): ClamAV taramasını Press ortamında çalışır hale getir — clamdscan --stream (@ahmeetseker)
+- fix(seo): /en dil öneki üretimi söküldü (@aliiball)
+  - Kod /en/... alternate adresleri üretiyordu ama o adresler hiç sunulmuyordu: ölçüldü, canlıda /en/kategori/<slug> 404 dönüyor ve beş site haritası toplam 25.997 kırık alternate bildiriyordu. Google kırık alternate'i yok sayar, Search Console'da hata olarak raporlar ve tekrarlanan 404'ler tarama bütçesini yer.
+  - parse_lang_from_path silindi, yalnız kendi testi çağırıyordu.
+  - Karar K7 (yönetici): yol öneki yok, dil ?hl= ile taşınır. Kalıcı hreflang altyapısı MOGEM-655 §6.2'nin işi.
+  - Testler yeni sözleşmeye çevrildi; kırık şemanın geri sızmadığını ayrıca kilitleyen iddialar eklendi.
+- fix(katalog): kategori adı tohumunun tetikleyicisi eklendi (@aliiball)
+  - category_i18n modülü 16 Eylül'de 801 kayıtlık sözlük ve 374 satır testle commit edilmişti ama hattı çağıran hiçbir şey yoktu: patches.txt'te satır, hooks'ta kanca, başka modülde referans, panelde ekran, dördü de sıfırdı.
+  - Sonuç ölçüldü: get_categories dört dilde de Türkçe dönüyordu. Testler yeşildi çünkü fonksiyonun doğru çalıştığını ölçüyorlardı, hiçbiri onu çağıran var mı diye sormuyordu.
+  - apply_name_seed idempotenttir. Ölçüldü: üç kategori boşaltılıp patch koşuldu, 865'ten 868'e döndü ve değerler birebir eski hâlini aldı; ikinci koşum 0 yazdı.
+
+---
 ## [v1.14.2-alpha.5] - 2026-09-21 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
