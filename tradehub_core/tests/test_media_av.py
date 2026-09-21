@@ -54,7 +54,7 @@ _KOSUM_TUZU: str = frappe.generate_hash(length=12)
 
 # Sahte tarayıcı komutu — `scanner_command` bunu döndürünce politika "açık"
 # olur ve `subprocess.run` mock'u devreye girer.
-_SAHTE_TARAYICI: tuple[str, ...] = ("/usr/bin/clamdscan", "--no-summary", "--fdpass")
+_SAHTE_TARAYICI: tuple[str, ...] = ("/usr/bin/clamdscan", "--no-summary", "--stream")
 
 
 def _insert(alanlar: dict):

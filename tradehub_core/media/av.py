@@ -145,9 +145,17 @@ _health_memo: dict[str, float | dict] = {}
 # bir kez yükler, taşımalı çağrı milisaniyeler sürer). `clamscan` her çağrıda
 # ~200 MB imzayı baştan okur — yedek yol olarak duruyor, tercih değil.
 _SCANNER_CANDIDATES: tuple[tuple[str, tuple[str, ...]], ...] = (
-	# `--fdpass`: dosyayı açıp tanımlayıcıyı daemon'a geçirir. Olmadan clamd
-	# kendi kullanıcısıyla açmaya çalışır ve site dosyalarını okuyamaz.
-	("clamdscan", ("--no-summary", "--fdpass")),
+	# `--stream`: dosya içeriği soket üzerinden daemon'a AKITILIR. Alternatifi
+	# `--fdpass` (tanımlayıcı geçirme) yalnız daemon ile istemci aynı AppArmor
+	# alanındaysa çalışıyor; ölçüldü (2026-09-21, Press uygulama sunucusu):
+	# clamd host'ta, istemci `docker-default` profilli bench konteynerinde →
+	# "Control message truncated, no control data received". `--stream` aynı
+	# düzende çalıştı (EICAR → rc=1). Yol vermek de olmaz: konteynerin gördüğü
+	# `/home/frappe/frappe-bench/sites/...` yolu host'ta başka yerde. Üst sınır
+	# clamd tarafında `StreamMaxLength` (Press host'unda 200M, yükleme tavanıyla
+	# aynı) — aşan dosyayı daemon reddeder, `failed` damgalanır, sessizce
+	# "temiz" sayılmaz.
+	("clamdscan", ("--no-summary", "--stream")),
 	("clamscan", ("--no-summary", "--infected")),
 )
 
