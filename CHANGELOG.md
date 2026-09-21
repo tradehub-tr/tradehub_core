@@ -1,3 +1,14 @@
+## [v1.15.0-alpha.2] - 2026-09-21 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Degistirildi
+- refactor(docs): repo belgeleri kisisel not klasorune bagimli olmaktan cikarildi (@aliiball)
+  - Uc belge, repoyu klonlayan kimsede bulunmayan git'siz bir klasordeki nota yol veriyordu; okuyan kisi o dosyayi repo kokunde ariyor ve bulamiyordu
+  - Lojistik FE veri sozlesmelerinin alti da kaldirildi; uc tablosunun kaynak sutunu artik dosya adi degil ilgili Plane gorevini isaret ediyor
+  - Mimari belgesinin sonundaki bulgu listesi atfi kaldirildi, yerine repo ici sozlesme dosyasi birakildi
+
+---
 ## [v1.15.0-alpha.1] - 2026-09-21 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
