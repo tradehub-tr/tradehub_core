@@ -54,8 +54,9 @@ Python kaynağını değiştirip yeniden üretmek.
 > python3 scripts/gen_logistics_types.py --sync    # kardeş repolara da yaz
 > ```
 > Var olmayan bir korumaya güvenmek, hiç koruma olmamasından kötüdür — bu not
-> o yüzden burada duruyor. Otomatik kapı kurma kararı ve gerekçesi:
-> `docs/lojistik/KALAN-ISLER.md` → "Çözülmüş — tekrar açılmasın diye".
+> o yüzden burada duruyor. **Otomatik kapı bilerek kurulmadı:** kapının üç
+> repoyu birden görmesi gerekir (üreteç `--sync` ile kardeş repolara yazar),
+> tek repoda koşan bir CI bunu doğrulayamaz.
 
 ---
 
@@ -184,12 +185,21 @@ değişikliğinde ikisi ayrışır.
 
 | Modül | Uç | Sahip | FE kaynağı |
 |---|---:|---|---|
-| `api.v1.pickup` | 4 | 07-BE | `07-FE-VERI-SOZLESMESI.md` |
-| `api.v1.packaging` | 11 | 13-BE (palet kısmı 19-BE) | `13-FE-VERI-SOZLESMESI.md` |
-| `api.v1.pod` | 6 | 14-BE | `14-FE-VERI-SOZLESMESI.md` |
-| `api.v1.returns` | 7 | 15-BE | `15-FE-VERI-SOZLESMESI.md` |
-| `api.v1.pricing` | 6 | 20-BE | `20-FE-VERI-SOZLESMESI.md` |
-| `api.v1.notifications` | 4 | 12-BE | `12-FE-VERI-SOZLESMESI.md` |
+| `api.v1.pickup` | 4 | 07-BE | 07-FE veri sözleşmesi ⁽¹⁾ |
+| `api.v1.packaging` | 11 | 13-BE (palet kısmı 19-BE) | 13-FE veri sözleşmesi ⁽¹⁾ |
+| `api.v1.pod` | 6 | 14-BE | 14-FE veri sözleşmesi ⁽¹⁾ |
+| `api.v1.returns` | 7 | 15-BE | 15-FE veri sözleşmesi ⁽¹⁾ |
+| `api.v1.pricing` | 6 | 20-BE | 20-FE veri sözleşmesi ⁽¹⁾ |
+| `api.v1.notifications` | 4 | 12-BE | 12-FE veri sözleşmesi ⁽¹⁾ |
+
+> ⁽¹⁾ **Bu altı belgenin kendisi bu repoda YOK ve artık hiçbir yerde yok.**
+> FE fazında geliştiricinin kişisel not klasöründe tutuluyorlardı; görevler
+> tamamlanınca 22 Eylül 2026'da silindiler.
+> **Backend'i yazacak kişi için tek kaynak: ilgili Plane görevinin yorumu.**
+> Her FE görevinin kapanışında uç imzaları, örnek yükler, hata kodu → ekran
+> karşılıkları ve güvenlik kapıları oraya yazıldı (desen: `MOGEM-540` 07-BE,
+> `MOGEM-537` 20-BE). Bu tablodaki "FE kaynağı" sütunu artık **hangi Plane
+> görevine bakılacağını** söyler, bir dosya adını değil.
 
 **Makine-okunur karşılığı:** `docs/logistics-api.schema.json` → `endpoints`.
 Bir uç yazıldığı gün buradan düşer ve §3.4 gibi kaynaktan okunmuş bir bölüme

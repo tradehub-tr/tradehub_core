@@ -98,8 +98,10 @@ tradehub_core/                          (repo kökü)
     python3 scripts/gen_logistics_types.py --check   # bayat mı?
     python3 scripts/gen_logistics_types.py --sync    # kardeş repolara da yaz
     ```
-    **OTOMATİK KAPI YOK** — ne CI ne pre-commit bunu zorluyor (gerekçe:
-    `docs/lojistik/KALAN-ISLER.md` → "Çözülmüş"). Yakalayan tek şey senin
+    **OTOMATİK KAPI YOK** — ne CI ne pre-commit bunu zorluyor. Gerekçe:
+    kapı üç repoyu birden görmek zorunda (üreteç `--sync` ile kardeş repolara
+    yazıyor) ve tek repoda koşan bir CI bunu doğrulayamıyor; yarım kapı da
+    "korunuyoruz" yanılgısı üretir. Yakalayan tek şey senin
     `--check` çalıştırman. Üretilmiş dosyalar formatter'ın dışında tutuluyor
     (`.prettierignore`); biçimi üreteç belirliyor, Prettier dokunursa iki
     araç birbirini sonsuza kadar geri alır (ölçüldü 2026-08-24: tek
