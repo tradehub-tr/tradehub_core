@@ -380,7 +380,15 @@ docker exec -u root istoc-backend bash -lc \
 `systemd` container'da çalışmadığı için `clamd` elle başlatılıyor
 (`service`/`systemctl` iş görmez).
 
-> ⚠️ **Bu kurulum kalıcı DEĞİL.** Taban imajı `frappe/bench:latest` kontrol
+> **Güncelleme 2026-09-21 — artık kalıcı.** Daemon compose'daki ayrı `clamav`
+> servisinde (`docker/clamav/`, Debian bookworm; resmi `clamav/clamav` imajı
+> arm64 yayınlamıyor), backend imajında yalnız `clamdscan` istemcisi
+> (`docker/backend.Dockerfile`), soket `clamav-sock` volume'uyla paylaşılıyor.
+> Uçtan uca ölçüldü: EICAR `File` → bekletme → worker → `infected` →
+> karantina, `is_servable` False; temiz dosya → `clean` → canlı ağaçta. Aynı
+> düzen Press için §6.2b'de. Aşağıdaki not tarihsel kayıt olarak duruyor.
+
+> ⚠️ ~~**Bu kurulum kalıcı DEĞİL.**~~ Taban imajı `frappe/bench:latest` kontrol
 > edildi: içinde **ne ffmpeg ne clamav** var. Yani ffmpeg de bir noktada aynı
 > şekilde elle kurulmuş. Projede Dockerfile yok, `docker-compose.yml` hazır
 > imajı doğrudan kullanıyor — `docker compose down` + yeniden yaratma **ikisini
@@ -414,6 +422,7 @@ deploy sırasında iki bench yan yana dururken RAM'i ikiye katlardı.
 | Release Group → Packages: `apt` / `clamdscan`, after-install `mkdir -p /etc/clamav && printf 'LocalSocket /var/run/clamav/clamd.ctl\n' > /etc/clamav/clamd.conf && clamdscan --version` | Press | forma girildi, **kaydedilmesi bekleniyor** |
 | Release Group → Mounts: `/var/run/clamav` → `/var/run/clamav` (absolute) | Press | forma girildi, **kaydedilmesi bekleniyor** |
 | `av.py`: `clamdscan --fdpass` → `--stream` | kod | YAPILDI (aşağıda) |
+| Yerel dev: `docker/clamav` servisi + backend imajında `clamdscan` | docker | YAPILDI — EICAR uçtan uca doğrulandı (§6.1) |
 | Yeni deploy + dört sitenin yeni bench'e alınması | Press / CI / Jenkins | bekliyor |
 | `scan_overview` → `policy.enabled: true`, EICAR ile uçtan uca | her site | bekliyor |
 
