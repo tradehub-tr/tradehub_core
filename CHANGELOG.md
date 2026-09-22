@@ -1,3 +1,11 @@
+## [v1.15.0-alpha.3] - 2026-09-22 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(api): MOGEM-665 Ürün API'si — upsert/stok/changes, webhook, panel bağlantısı (@Metin Bektemur)
+
+---
 ## [Unreleased] — MOGEM-665 · Ürün API'si (2026-09-15)
 
 ### Eklendi
