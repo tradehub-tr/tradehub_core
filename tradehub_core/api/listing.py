@@ -126,7 +126,7 @@ def _get_category_descendants(parent_name):
 	return result
 
 
-def _category_ancestor_paths(category_ids):
+def _category_ancestor_paths(category_ids, lang="tr"):
 	"""Verilen Product Category id'leri için ad/slug ve kökten ebeveyne ata zinciri.
 
 	Storefront filtre sidebar'ı "Kategoriler"i ağaç olarak çizer; mega menü 3
@@ -138,18 +138,34 @@ def _category_ancestor_paths(category_ids):
 	Returns: {id: {"name": str, "slug": str, "path": [{"id","name","slug"}, ...]}}
 	`path` kökten başlar, kategorinin kendisini İÇERMEZ. Bilinmeyen id → ad
 	olarak id, boş slug, boş path (eski davranışla uyumlu).
+
+	`lang`: içerik dili (tr/en/ar/ru). 21 Eylül 2026'ya kadar bu fonksiyon dili
+	HİÇ ALMIYORDU ve adı ham `category_name`den okuyordu; sonuç, Rusça arayüzde
+	mega menü Rusça iken filtre kenar çubuğunun TÜRKÇE kalmasıydı (ölçüldü,
+	alpha). Bekleyen yaprak çevirileri tamamlansa bile düzelmezdi — eksik olan
+	veri değil, hattın kendisiydi.
 	"""
 	wanted = [c for c in dict.fromkeys(category_ids) if c]
 	if not wanted:
 		return {}
 
-	rows = {}  # name -> {category_name, url_slug, parent_product_category}
+	lang = normalize_lang(lang)
+	_name_cols = [f"category_name_{lng}" for lng in CONTENT_LANGS]
+
+	rows = {}  # name -> {category_name, url_slug, parent_product_category, çeviri sütunları}
 	pending = set(wanted)
 	while pending:
 		fetched = frappe.get_all(
 			"Product Category",
 			filters=[["name", "in", list(pending)]],
-			fields=["name", "category_name", "url_slug", "parent_product_category"],
+			fields=[
+				"name",
+				"category_name",
+				"content_default_lang",
+				*_name_cols,
+				"url_slug",
+				"parent_product_category",
+			],
 		)
 		pending = set()
 		for r in fetched:
@@ -158,11 +174,25 @@ def _category_ancestor_paths(category_ids):
 			if parent and parent not in rows:
 				pending.add(parent)
 
+	def _ad(r, yedek):
+		"""Ad, istenen dile çözülür; o dil boşsa kaydın kendi varsayılanına düşer.
+
+		`get_categories` ile AYNI zincir — iki uç farklı ad üretirse aynı
+		kategori mega menüde bir, filtrede başka görünürdü.
+		"""
+		if not r:
+			return yedek
+		return (
+			resolve_content_field(r, "category_name", lang, r.get("content_default_lang"))
+			or r.get("category_name")
+			or yedek
+		)
+
 	def _item(name):
 		r = rows.get(name)
 		return {
 			"id": name,
-			"name": (r.get("category_name") if r else None) or name,
+			"name": _ad(r, name),
 			"slug": (r.get("url_slug") if r else None) or "",
 		}
 
@@ -2028,8 +2058,15 @@ def get_filter_facets(
 	attrs=None,
 	filter_currency=None,
 	fallback_categories=None,
+	lang="tr",
 ):
 	"""Return faceted counts for sidebar filters.
+
+	`lang`: içerik dili (tr/en/ar/ru). Kategori adları o dile çözülür, eksikse
+	kaydın `content_default_lang`ine düşer — `get_categories` ile AYNI zincir.
+	21 Eylül 2026'ya kadar bu parametre YOKTU ve adlar ham `category_name`den
+	okunuyordu; sonuç, Rusça arayüzde mega menünün Rusça, filtre kenar
+	çubuğunun TÜRKÇE kalmasıydı (ölçüldü, alpha).
 
 	fallback_categories=1 (yalnız ilk yükleme): sonuç hiç yoksa `categories` tüm
 	ürünlerin kategori ağacına düşer; `category` çözülmüşse 0 sayımla listeye eklenir
@@ -2067,6 +2104,11 @@ def get_filter_facets(
 		br=brands,
 		at=attrs,
 		fb=frappe.utils.cint(fallback_categories),
+		# DİL ANAHTARIN PARÇASI OLMALI (21 Eyl 2026): kategori adları artık dile
+		# göre çözülüyor. Dil anahtara girmezse İLK isteğin dili önbelleğe yazılır
+		# ve sonraki tüm diller onu alır — aynı sayfa bazen Rusça bazen Türkçe
+		# görünürdü. `lang` çözümünü eklemek TEK BAŞINA yetmezdi.
+		lang=normalize_lang(lang),
 	)
 	cached = frappe.cache.get_value(fck)
 	if cached:
@@ -2330,7 +2372,7 @@ def get_filter_facets(
 			cat_counts[platform_cat] = 0
 
 	# Ad/slug + ata zinciri tek seferde (sidebar kategori ağacı `path` ile kurulur)
-	cat_info = _category_ancestor_paths(list(cat_counts.keys()))
+	cat_info = _category_ancestor_paths(list(cat_counts.keys()), lang=lang)
 	categories = []
 	for cat_name, count in sorted(cat_counts.items(), key=lambda x: -x[1]):
 		info = cat_info.get(cat_name) or {"name": cat_name, "slug": "", "path": []}

@@ -380,7 +380,15 @@ docker exec -u root istoc-backend bash -lc \
 `systemd` container'da çalışmadığı için `clamd` elle başlatılıyor
 (`service`/`systemctl` iş görmez).
 
-> ⚠️ **Bu kurulum kalıcı DEĞİL.** Taban imajı `frappe/bench:latest` kontrol
+> **Güncelleme 2026-09-21 — artık kalıcı.** Daemon compose'daki ayrı `clamav`
+> servisinde (`docker/clamav/`, Debian bookworm; resmi `clamav/clamav` imajı
+> arm64 yayınlamıyor), backend imajında yalnız `clamdscan` istemcisi
+> (`docker/backend.Dockerfile`), soket `clamav-sock` volume'uyla paylaşılıyor.
+> Uçtan uca ölçüldü: EICAR `File` → bekletme → worker → `infected` →
+> karantina, `is_servable` False; temiz dosya → `clean` → canlı ağaçta. Aynı
+> düzen Press için §6.2b'de. Aşağıdaki not tarihsel kayıt olarak duruyor.
+
+> ⚠️ ~~**Bu kurulum kalıcı DEĞİL.**~~ Taban imajı `frappe/bench:latest` kontrol
 > edildi: içinde **ne ffmpeg ne clamav** var. Yani ffmpeg de bir noktada aynı
 > şekilde elle kurulmuş. Projede Dockerfile yok, `docker-compose.yml` hazır
 > imajı doğrudan kullanıyor — `docker compose down` + yeniden yaratma **ikisini
@@ -394,6 +402,48 @@ docker exec -u root istoc-backend bash -lc \
 3. `scan_overview` ile doğrula: `policy.enabled` **true** olmalı.
 4. Geriye dönük tarama: `scan_backfill(limit=500)` — birkaç turda.
 5. İzle: `media.quarantine` olayları denetim ekranında HIGH ile görünür.
+
+### 6.2b Press ortamları — alpha / beta / rc / prod (2026-09-21)
+
+Dört backend sitesi de `press.cronbi.com` üzerinde, `bench-0001` release
+group'unda, `apphtznr.cronbi.com` (188.245.43.4, Ubuntu 22.04, 4 vCPU, 15 GB)
+uygulama sunucusunda koşuyor. Frontend konteynerlerinin durduğu turksab
+sunucusunun (152.53.147.222) bu işle ilgisi yok — dosyalar oradan geçmiyor.
+
+**Tasarım:** clamd host'ta TEK servis, bench konteynerlerine yalnız `clamdscan`
+istemcisi + soket dizini mount edilir. Her konteynerde ayrı daemon (~1,2 GB)
+deploy sırasında iki bench yan yana dururken RAM'i ikiye katlardı.
+
+| Adım | Nerede | Durum |
+|---|---|---|
+| `apt install clamav-daemon clamdscan` (1.5.3) | host | YAPILDI — `clamav` + `freshclam` zaten kuruluydu (Press kurulumu), imza DB güncel |
+| `clamd.conf`: `MaxFileSize 200M`, `MaxScanSize 400M`, `StreamMaxLength 200M` | host | YAPILDI — yedek `clamd.conf.bak-20260921`; varsayılan 25M video yüklemelerini taramadan geçirirdi |
+| `systemctl enable --now clamav-daemon` | host | YAPILDI — soket `/var/run/clamav/clamd.ctl`, mod 666 |
+| Release Group → Packages: `apt` / `clamdscan`, after-install `mkdir -p /etc/clamav && printf 'LocalSocket /var/run/clamav/clamd.ctl\n' > /etc/clamav/clamd.conf && clamdscan --version` | Press | forma girildi, **kaydedilmesi bekleniyor** |
+| Release Group → Mounts: `/var/run/clamav` → `/var/run/clamav` (absolute) | Press | forma girildi, **kaydedilmesi bekleniyor** |
+| `av.py`: `clamdscan --fdpass` → `--stream` | kod | YAPILDI (aşağıda) |
+| Yerel dev: `docker/clamav` servisi + backend imajında `clamdscan` | docker | YAPILDI — EICAR uçtan uca doğrulandı (§6.1) |
+| Yeni deploy + dört sitenin yeni bench'e alınması | Press / CI / Jenkins | bekliyor |
+| `scan_overview` → `policy.enabled: true`, EICAR ile uçtan uca | her site | bekliyor |
+
+**Neden `--stream`, `--fdpass` değil:** ölçüldü. Host'ta `nobody` kullanıcısıyla
+`--fdpass` çalışıyor (rc=1, EICAR bulundu). `docker-default` AppArmor profilli
+bir konteynerden aynı çağrı clamd tarafında *"Control message truncated, no
+control data received"* ile düşüyor; SCM_RIGHTS geçişi profil sınırını aşmıyor.
+Press bench konteynerlerinin profili değiştirilemez (agent'ın `docker run`
+komutu sabit). Yol vermek de olmaz: konteynerin `/home/frappe/frappe-bench/
+sites/...` yolu host'ta `/home/frappe/benches/<bench>/sites/...`. `--stream`
+dosyayı soketten akıtır; aynı konteynerden uid 1000 ile rc=1 döndü. Üst sınır
+`StreamMaxLength`; aşan dosyada clamd hata verir → `failed` (fail-open'da servis
+edilir ama panelde görünür, sessizce "temiz" sayılmaz).
+
+**after-install neden gerekli:** `clamdscan` paketi `clamd.conf` taşımıyor
+(onu `clamav-daemon` üretiyor). Dosya yoksa istemci *"Can't parse clamd
+configuration file"* ile rc=2 döner — ölçüldü.
+
+**Dikkat:** `clamav-freshclam.service` host'ta `disabled` ama `active`
+(elle başlatılmış). Reboot sonrası imza güncellemesi durur; `systemctl enable
+clamav-freshclam` ayrıca yapılmalı.
 
 ### 6.3 Gerçek doğrulama sonuçları (mock YOK)
 

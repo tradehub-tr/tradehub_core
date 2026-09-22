@@ -20,40 +20,11 @@ from tradehub_core.seo.i18n import (  # noqa: E402
 	get_field_with_fallback,
 	localize_url,
 	normalize_lang,
-	parse_lang_from_path,
 	resolve_content_field,
 	slug_field_for,
 )
 
 SITE = "https://istoc.com"
-
-
-class TestParseLangFromPath(unittest.TestCase):
-	def test_no_prefix_returns_default(self):
-		self.assertEqual(parse_lang_from_path("/urun/x"), ("tr", "/urun/x"))
-
-	def test_en_prefix(self):
-		self.assertEqual(parse_lang_from_path("/en/urun/x"), ("en", "/urun/x"))
-
-	def test_tr_explicit_prefix(self):
-		# /tr/ prefix'i de normalize edilir
-		self.assertEqual(parse_lang_from_path("/tr/urun/x"), ("tr", "/urun/x"))
-
-	def test_en_alone(self):
-		self.assertEqual(parse_lang_from_path("/en"), ("en", "/"))
-
-	def test_root(self):
-		self.assertEqual(parse_lang_from_path("/"), ("tr", "/"))
-
-	def test_empty(self):
-		self.assertEqual(parse_lang_from_path(""), ("tr", "/"))
-
-	def test_unknown_prefix(self):
-		# /de/ desteklenmiyor → tr olarak kabul
-		self.assertEqual(parse_lang_from_path("/de/urun/x"), ("tr", "/de/urun/x"))
-
-	def test_no_leading_slash(self):
-		self.assertEqual(parse_lang_from_path("en/urun"), ("en", "/urun"))
 
 
 class TestGetFieldWithFallback(unittest.TestCase):
@@ -82,42 +53,72 @@ class TestGetFieldWithFallback(unittest.TestCase):
 
 
 class TestLocalizeUrl(unittest.TestCase):
+	"""Dil URL'e YANSIMAZ (2026-09-21, K7) — `?hl=` ile taşınır.
+
+	Bu sınıf 2026-09-21'e kadar tersini kilitliyordu: `localize_url("/urun/x",
+	"en") == "/en/urun/x"`. O şema hiç sunulmuyordu (canlıda 404) ve beş site
+	haritası 25.997 kırık alternate bildiriyordu. Testler o gün yeni sözleşmeye
+	çevrildi; bir gün yol öneki GERÇEKTEN kurulursa buradan başlanır.
+	"""
+
 	def test_tr_no_prefix(self):
 		self.assertEqual(localize_url("/urun/x", "tr"), "/urun/x")
 
-	def test_en_adds_prefix(self):
-		self.assertEqual(localize_url("/urun/x", "en"), "/en/urun/x")
+	def test_en_no_prefix(self):
+		self.assertEqual(localize_url("/urun/x", "en"), "/urun/x")
 
-	def test_root_tr(self):
-		self.assertEqual(localize_url("/", "tr"), "/")
+	def test_ar_no_prefix(self):
+		self.assertEqual(localize_url("/urun/x", "ar"), "/urun/x")
 
-	def test_root_en(self):
-		self.assertEqual(localize_url("/", "en"), "/en/")
+	def test_ru_no_prefix(self):
+		self.assertEqual(localize_url("/urun/x", "ru"), "/urun/x")
+
+	def test_root_unchanged_every_lang(self):
+		for lang in ("tr", "en", "ar", "ru", "de"):
+			with self.subTest(lang=lang):
+				self.assertEqual(localize_url("/", lang), "/")
 
 	def test_unknown_lang_no_change(self):
 		self.assertEqual(localize_url("/urun/x", "de"), "/urun/x")
 
-	def test_already_prefixed(self):
-		self.assertEqual(localize_url("/en/urun/x", "en"), "/en/urun/x")
-
 	def test_no_leading_slash(self):
-		self.assertEqual(localize_url("urun/x", "en"), "/en/urun/x")
+		self.assertEqual(localize_url("urun/x", "en"), "/urun/x")
+
+	def test_empty_path_is_root(self):
+		self.assertEqual(localize_url("", "en"), "/")
+
+	def test_legacy_en_prefix_is_not_reproduced(self):
+		"""Kırık şemanın geri sızmadığının kanıtı: hiçbir çıktı `/en` ile başlamaz."""
+		for lang in ("tr", "en", "ar", "ru"):
+			for path in ("/", "/urun/x", "/kategori/y", "/urunler"):
+				with self.subTest(lang=lang, path=path):
+					self.assertFalse(localize_url(path, lang).startswith("/en"))
 
 
 class TestBuildHreflangLinks(unittest.TestCase):
-	def test_returns_three_entries(self):
+	def test_returns_two_entries(self):
+		# tr + x-default. 2026-09-21'e kadar üçüncü bir `en` girdisi vardı ve
+		# gösterdiği adres 404 dönüyordu (ölçüldü, canlı).
 		links = build_hreflang_links("/urun/iphone", SITE)
-		self.assertEqual(len(links), 3)
+		self.assertEqual(len(links), 2)
 
 	def test_tr_link(self):
 		links = build_hreflang_links("/urun/iphone", SITE)
 		tr = next(l for l in links if l["hreflang"] == "tr")
 		self.assertEqual(tr["href"], "https://istoc.com/urun/iphone")
 
-	def test_en_link(self):
+	def test_no_broken_en_alternate(self):
+		"""KARŞI KANIT: `en` alternate'i üretilmemeli; üretilirse 404 bildiririz."""
 		links = build_hreflang_links("/urun/iphone", SITE)
-		en = next(l for l in links if l["hreflang"] == "en")
-		self.assertEqual(en["href"], "https://istoc.com/en/urun/iphone")
+		self.assertNotIn("en", [l["hreflang"] for l in links])
+		self.assertFalse(any("/en/" in l["href"] for l in links))
+
+	def test_every_alternate_is_self_referencing(self):
+		"""Tek adres var; bildirilen her alternate ona işaret etmeli."""
+		links = build_hreflang_links("/urun/iphone", SITE)
+		for link in links:
+			with self.subTest(hreflang=link["hreflang"]):
+				self.assertEqual(link["href"], "https://istoc.com/urun/iphone")
 
 	def test_x_default_points_to_tr(self):
 		links = build_hreflang_links("/urun/iphone", SITE)
@@ -200,9 +201,11 @@ class TestConstants(unittest.TestCase):
 	def test_default_is_tr(self):
 		self.assertEqual(DEFAULT_LANG, "tr")
 
-	def test_supported_includes_tr_en(self):
-		self.assertIn("tr", SUPPORTED_LANGS)
-		self.assertIn("en", SUPPORTED_LANGS)
+	def test_supported_is_tr_only(self):
+		# URL/hreflang dili yalnız tr. İçerik dili ayrı (CONTENT_LANGS, dört dil).
+		# Buraya bir dil eklemek, o dilin adresinin GERÇEKTEN sunulduğu
+		# doğrulanmadan yapılmamalı — kırık alternate Google'da hata olur.
+		self.assertEqual(SUPPORTED_LANGS, ("tr",))
 
 	def test_content_langs_four(self):
 		self.assertEqual(set(CONTENT_LANGS), {"tr", "en", "ar", "ru"})

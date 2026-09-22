@@ -389,5 +389,7 @@ Bu belge yazıldığı anda kapalı **olmayan** maddeler. Kapandıkça buradan s
 | Misafir taslak ilanın kargo verisini görebiliyordu | İlan durumu doğrulanıyor; var olduğu da sızdırılmıyor (404) |
 | Sözleşme makine-okunur değil | `docs/logistics-api.schema.json` + üretilmiş `.d.ts` + mock fixture |
 
-Ayrıntılı bulgu listesi ve plan: kök `docs/PLAN-lojistik-eksik-giderme.md`,
-`docs/YOL-HARITASI-lojistik.md`. Sözleşme: `docs/LOGISTICS-API-CONTRACT.md`.
+Sözleşme: `docs/LOGISTICS-API-CONTRACT.md` (bu repoda).
+Bu maddelerin çıktığı bulgu listesi ve faz planı geliştiricinin kişisel not
+klasöründeydi; **bu repoda değil** ve artık tutulmuyor — kararların kalıcı
+kaydı ilgili Plane görevlerinin yorumlarında.
