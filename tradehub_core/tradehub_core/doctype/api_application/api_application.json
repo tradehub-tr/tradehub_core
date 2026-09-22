@@ -4,19 +4,134 @@
  "creation": "2026-05-11 00:00:00.000000",
  "doctype": "DocType",
  "engine": "InnoDB",
- "field_order": ["app_name","developer_email","is_active","column_break_1","client_id","client_secret","section_break_1","redirect_uri","rate_limit_tier","section_break_2","scopes"],
+ "field_order": [
+  "app_name",
+  "developer_email",
+  "is_active",
+  "column_break_1",
+  "client_id",
+  "client_secret",
+  "section_break_1",
+  "redirect_uri",
+  "rate_limit_tier",
+  "section_break_2",
+  "scopes",
+  "section_catalog",
+  "seller_profile",
+  "column_break_catalog",
+  "webhook_url",
+  "webhook_secret",
+  "webhook_failures"
+ ],
  "fields": [
-  {"fieldname":"app_name","fieldtype":"Data","label":"Uygulama Adı","reqd":1,"unique":1,"in_list_view":1},
-  {"fieldname":"developer_email","fieldtype":"Data","label":"Developer Email","options":"Email","reqd":1,"in_list_view":1},
-  {"default":"1","fieldname":"is_active","fieldtype":"Check","label":"Aktif","in_list_view":1},
-  {"fieldname":"column_break_1","fieldtype":"Column Break"},
-  {"fieldname":"client_id","fieldtype":"Data","label":"Client ID","read_only":1,"unique":1,"in_standard_filter":1},
-  {"fieldname":"client_secret","fieldtype":"Password","label":"Client Secret","read_only":1},
-  {"fieldname":"section_break_1","fieldtype":"Section Break","label":"Yapılandırma"},
-  {"fieldname":"redirect_uri","fieldtype":"Data","label":"Redirect URI","options":"URL"},
-  {"fieldname":"rate_limit_tier","fieldtype":"Select","label":"Rate Limit","options":"free\npro\nenterprise","default":"free","in_list_view":1},
-  {"fieldname":"section_break_2","fieldtype":"Section Break","label":"Scopes"},
-  {"fieldname":"scopes","fieldtype":"Table","label":"Scopes","options":"API Scope"}
+  {
+   "fieldname": "app_name",
+   "fieldtype": "Data",
+   "label": "Uygulama Adı",
+   "reqd": 1,
+   "unique": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "developer_email",
+   "fieldtype": "Data",
+   "label": "Developer Email",
+   "options": "Email",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "label": "Aktif",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "client_id",
+   "fieldtype": "Data",
+   "label": "Client ID",
+   "read_only": 1,
+   "unique": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "client_secret",
+   "fieldtype": "Password",
+   "label": "Client Secret",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_1",
+   "fieldtype": "Section Break",
+   "label": "Yapılandırma"
+  },
+  {
+   "fieldname": "redirect_uri",
+   "fieldtype": "Data",
+   "label": "Redirect URI",
+   "options": "URL"
+  },
+  {
+   "fieldname": "rate_limit_tier",
+   "fieldtype": "Select",
+   "label": "Rate Limit",
+   "options": "free\npro\nenterprise",
+   "default": "free",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "section_break_2",
+   "fieldtype": "Section Break",
+   "label": "Scopes"
+  },
+  {
+   "fieldname": "scopes",
+   "fieldtype": "Table",
+   "label": "Scopes",
+   "options": "API Scope"
+  },
+  {
+   "fieldname": "section_catalog",
+   "fieldtype": "Section Break",
+   "label": "Ürün API'si (MOGEM-665)"
+  },
+  {
+   "fieldname": "seller_profile",
+   "fieldtype": "Link",
+   "label": "Mağaza",
+   "options": "Admin Seller Profile",
+   "search_index": 1,
+   "description": "Bağlı mağaza. catalog:*/stock:* yetki alanları yalnız bu mağazada geçerli; istek mağaza sahibinin kullanıcısı olarak çalışır."
+  },
+  {
+   "fieldname": "column_break_catalog",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "webhook_url",
+   "fieldtype": "Data",
+   "label": "Webhook URL",
+   "options": "URL",
+   "description": "İstoc stok değişikliklerini bu adrese imzalı (HMAC-SHA256) POST eder. Boşsa yalnız `changes` ucundan yoklama."
+  },
+  {
+   "fieldname": "webhook_secret",
+   "fieldtype": "Password",
+   "label": "Webhook Sırrı",
+   "description": "X-Istoc-Signature başlığının HMAC anahtarı."
+  },
+  {
+   "fieldname": "webhook_failures",
+   "fieldtype": "Int",
+   "label": "Ardışık Webhook Hatası",
+   "read_only": 1,
+   "default": "0"
+  }
  ],
  "links": [],
  "modified": "2026-05-11 00:00:00.000000",
@@ -26,8 +141,17 @@
  "naming_rule": "By fieldname",
  "owner": "Administrator",
  "permissions": [
-  {"create":1,"delete":1,"read":1,"write":1,"role":"System Manager"},
-  {"read":1,"role":"Marketplace Admin"}
+  {
+   "create": 1,
+   "delete": 1,
+   "read": 1,
+   "write": 1,
+   "role": "System Manager"
+  },
+  {
+   "read": 1,
+   "role": "Marketplace Admin"
+  }
  ],
  "sort_field": "modified",
  "sort_order": "DESC",

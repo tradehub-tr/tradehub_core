@@ -1022,9 +1022,7 @@ def get_listings(
 	if results:
 		ilk_kart = results[0]
 		manifest_blogu = _kart_gorsel_manifesti(ilk_kart.get("id"))
-		if manifest_blogu and any(
-			(g or {}).get("manifest") for g in (manifest_blogu.get("images") or [])
-		):
+		if manifest_blogu and any((g or {}).get("manifest") for g in (manifest_blogu.get("images") or [])):
 			ilk_kart["manifest"] = manifest_blogu
 
 	result = {
@@ -1152,9 +1150,7 @@ def _kart_gorsel_manifesti(listing_name: str) -> dict:
 		acik = media_manifest._bayrak_acik()
 		if not acik:
 			return {}
-		govdeler = media_manifest._manifest_batch_icin(
-			[listing_name], media_manifest.DEFAULT_SLOT, acik
-		)
+		govdeler = media_manifest._manifest_batch_icin([listing_name], media_manifest.DEFAULT_SLOT, acik)
 		return govdeler.get(listing_name) or {}
 	except Exception:
 		frappe.log_error("listing card gorsel manifest okunamadı", "listing")
@@ -1193,13 +1189,13 @@ def _gorsel_kunyeleri(listing, images: list, lang: str) -> list[dict]:
 		from tradehub_core.media import seo as media_seo
 		from tradehub_core.media import seo_render
 
-		baglamlar = {
-			b["file_url"]: b for b in media_seo.listing_usage_contexts(listing.name, images)
-		}
+		baglamlar = {b["file_url"]: b for b in media_seo.listing_usage_contexts(listing.name, images)}
 		kunyeler = []
 		for i, url in enumerate(images):
 			baglam = baglamlar.get((url or "").split("?")[0]) or {
-				"ref_doctype": "Listing", "ref_name": listing.name, "ref_field": "primary_image"
+				"ref_doctype": "Listing",
+				"ref_name": listing.name,
+				"ref_field": "primary_image",
 			}
 			alanlar = media_seo.fields_for(
 				url,
@@ -3670,7 +3666,9 @@ def _format_listing_card(
 						seller_kyb_verified = "Verified Seller" in frappe.get_roles(sp_user)
 				supplier_verified = seller_kyb_verified
 		except Exception:
-			frappe.log_error(f"Supplier info fetch failed for seller_profile {listing.get('seller_profile')}", "listing")
+			frappe.log_error(
+				f"Supplier info fetch failed for seller_profile {listing.get('seller_profile')}", "listing"
+			)
 			pass
 
 	# Get price range from pricing tiers — use cache if available
@@ -4502,6 +4500,7 @@ def get_pending_listings(page=1, page_size=20, bulk_job=None):
 		l["display_category"] = (
 			l.get("category_name") or l.get("product_category") or l.get("category") or "—"
 		)
+	_attach_import_source(listings)
 	return {"success": True, "listings": listings, "total": total}
 
 
@@ -4632,6 +4631,12 @@ def build_seller_listing_filters(
 		filters.append(["created_by_bulk_job", "is", "set"])
 	elif source == "manual":
 		filters.append(["created_by_bulk_job", "is", "not set"])
+	elif source == "api":
+		# Ürün API'siyle gelenler (MOGEM-665): job kaynağı "api" olan içe aktarmalar.
+		api_jobs = frappe.get_all(
+			"Bulk Import Job", filters={"seller_profile": seller_profile, "source": "api"}, pluck="name"
+		)
+		filters.append(["created_by_bulk_job", "in", api_jobs or ["__yok__"]])
 
 	if product_category and str(product_category) != "all":
 		cats = [c.strip() for c in str(product_category).split(",") if c.strip()]
@@ -4767,7 +4772,9 @@ def get_seller_listings(
 	# satıcının kendi ürünleriyle sınırlı (tenant filtresi) olduğundan bounded.
 	if or_filters:
 		total = len(
-			frappe.get_all("Listing", filters=filters, or_filters=or_filters, pluck="name", limit_page_length=0)
+			frappe.get_all(
+				"Listing", filters=filters, or_filters=or_filters, pluck="name", limit_page_length=0
+			)
 		)
 	else:
 		total = frappe.db.count("Listing", filters)
@@ -4812,7 +4819,28 @@ def get_seller_listings(
 	)
 	status_counts = {r.status: r.count for r in status_rows}
 
+	_attach_import_source(listings)
 	return {"success": True, "listings": listings, "total": total, "status_counts": status_counts}
+
+
+def _attach_import_source(listings: list) -> None:
+	"""Her satıra `import_source` (file/feed/api/None) ekle — tek toplu sorgu, N+1 yok.
+
+	Panel rozeti (SourceBadge) API ile gelen ürünü feed'den ayırt eder (MOGEM-665 · 6).
+	"""
+	jobs = {row.get("created_by_bulk_job") for row in listings if row.get("created_by_bulk_job")}
+	kaynak = {}
+	if jobs:
+		kaynak = {
+			j.name: j.source
+			for j in frappe.get_all(
+				"Bulk Import Job", filters={"name": ["in", list(jobs)]}, fields=["name", "source"]
+			)
+		}
+	for row in listings:
+		row["import_source"] = (
+			kaynak.get(row.get("created_by_bulk_job")) if row.get("created_by_bulk_job") else None
+		)
 
 
 @frappe.whitelist()

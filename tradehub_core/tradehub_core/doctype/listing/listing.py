@@ -40,6 +40,7 @@ class Listing(Document):
 
 	def validate(self):
 		sync_content_translations(self)
+		self._validate_seller_sku()
 		self._resolve_attribute_links()
 		self._ensure_primary_image()
 		self.calculate_available_qty()
@@ -52,6 +53,29 @@ class Listing(Document):
 		self._validate_seo_content()
 		self._calculate_completeness()
 		self._set_storefront_visible()
+
+	def _validate_seller_sku(self):
+		"""Satıcı stok kodu mağaza içinde benzersiz (MOGEM-665 · 1. aşama).
+
+		Ürün API'sinin tamamı `(seller_profile, seller_sku)` eşleşmesine dayanır;
+		aynı mağazada aynı kodla iki ürün olursa güncelleme rastgele birine gider.
+		Kod kırpılır, boş kod NULL yazılır (boşlar birbirini engellemez); büyük/
+		küçük harf farkı aynı kod sayılır (DB collation da öyle, bkz. patch
+		v15_9_57 bileşik benzersiz indeks — Python kontrolü atlansa bile DB durdurur).
+		"""
+		sku = (self.seller_sku or "").strip() if isinstance(self.seller_sku, str) else self.seller_sku
+		self.seller_sku = sku or None
+		if not self.seller_sku or not self.seller_profile:
+			return
+		filters = {"seller_profile": self.seller_profile, "seller_sku": self.seller_sku}
+		if not self.is_new():
+			filters["name"] = ["!=", self.name]
+		mevcut = frappe.db.get_value("Listing", filters, "name")
+		if mevcut:
+			frappe.throw(
+				_("Bu stok kodu ({0}) mağazanızda zaten kullanılıyor: {1}").format(self.seller_sku, mevcut),
+				frappe.ValidationError,
+			)
 
 	def _validate_seo_content(self):
 		"""SEO kuralı: ürün adı/açıklaması min uzunlukta ve emojisiz olmalı.

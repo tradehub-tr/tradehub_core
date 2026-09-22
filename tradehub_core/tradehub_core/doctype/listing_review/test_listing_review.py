@@ -1630,7 +1630,7 @@ class TestListingReview(FrappeTestCase):
 
 		from tradehub_core.api.rate_limit import reset_bucket
 
-		reset_bucket("oauth_token", user="_global")
+		reset_bucket("oauth_token")  # kova artık oturum kimliğine göre (IP/kullanıcı)
 
 		from tradehub_core.api.v1.public_api import token
 
@@ -1642,7 +1642,7 @@ class TestListingReview(FrappeTestCase):
 		from tradehub_core.api.rate_limit import reset_bucket
 		from tradehub_core.api.v1.public_api import token
 
-		reset_bucket("oauth_token", user="_global")
+		reset_bucket("oauth_token")  # kova artık oturum kimliğine göre (IP/kullanıcı)
 		with self.assertRaises(frappe.AuthenticationError):
 			token(grant_type="client_credentials", client_id="nonexistent", client_secret="wrong")
 

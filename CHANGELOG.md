@@ -1,3 +1,21 @@
+## [Unreleased] — MOGEM-665 · Ürün API'si (2026-09-15)
+
+### Eklendi
+- **Ürün API'si** (`api/v1/catalog.py`): `upsert_products` (≤100 ürün, satır bazlı sonuç, kısmi başarı, görsel ≤10, varyant yalnız oluştururken), `update_stock` (≤500 kalem, mutlak değer, onay akışına dokunmaz, varyant SKU desteği), `changes` (imleçli yoklama). Kimlik: OAuth2 client-credentials jetonu + `API Application → seller_profile` bağı; istek mağaza sahibi oturumuyla koşar (`_catalog_auth.catalog_context`). Paket kapısı `feature.api.access`, hız sınırı `quota.api_rate_limit`.
+- **Giden stok bildirimi**: `Catalog Outbound Event` doctype + `integration/outbound.py` (HMAC-SHA256 `X-Istoc-Signature`, 10 sn, 1/5/15/60/360 dk geri çekilme, 5. → dead, */5 süpürücü). Sipariş kaynaklı `_recalculate_available(reason=…)` olay üretir; API yazması üretmez (yankı yok).
+- **Panel**: `catalog_integration.py` (bağlantı oluştur/yenile/kapat, webhook, olay listesi/yeniden dene) + satıcı ekranı `/seller-api` ("API Bağlantısı", nav kaydı `seller.products.toplu.api`), Yükleme Geçmişi'nde kaynak süzgeci (dosya/feed/API), ürün listelerinde API rozeti (`import_source`).
+- Kılavuz: `docs/URUN-API-KILAVUZU.md`.
+
+### Düzeltildi
+- `Listing.seller_sku` mağaza içinde benzersiz (doğrulama + DB unique index, `v15_9_57`).
+- Toplu içe aktarma UOM alias tablosu Türkçe adlara işaret ediyor (metre/ton/kutu/çift/saat artık "Adet"e düşmüyor); `_resolve_link` kanonik adı DB'den okur.
+- Sepet varyant stoğu `Listing Variant Item` satırından okunuyor (0 stok geçerli); sevkiyat düşümünde varyant çift düşümü kaldırıldı.
+- Çoklu varyant paket kapısı (`_is_variant_listing`) `variant_items` alanını okuyor (ölü kapı canlandı).
+- Dosya içe aktarma kilidi API/feed işlerini engellemiyor; `File` IDOR (`_own_file`).
+- OAuth jeton ucu hız sınırı platform-geneli 5/dk → IP başına 30/dk.
+- Medya adlandırma beyaz listesine `.xml`/`.json` eklendi (XML toplu yükleme kırıktı).
+
+
 ## [v1.15.0-alpha.2] - 2026-09-21 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.

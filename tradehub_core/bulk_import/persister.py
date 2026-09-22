@@ -144,41 +144,59 @@ _TR_COUNTRY_ALIASES: dict[str, str] = {
 	"finlandiya": "Finland",
 }
 
+# Hedef adlar `patches/localize_uom_tr.py` SONRASI Türkçe UOM adlarıdır (Adet,
+# Metre, Ton, Kutu, Çift, Saat…). MOGEM-665 ölçümü (15 Eyl): tablo eski
+# İngilizce adlara ("Meter", "Tonne", "Box") işaret ettiği için `_resolve_link`
+# çevrilmiş adı bulamıyor, None dönüyor ve "metre" gönderen ürün şema
+# varsayılanı "Adet" ile kaydediliyordu. Eski ad alias olarak da tutulur —
+# İngilizce şablonla gelen "Meter"/"Box" da doğru yere çıkar.
 _TR_UOM_ALIASES: dict[str, str] = {
-	"adet": "Nos",
-	"ad": "Nos",
-	"adt": "Nos",
-	# İngilizce şablon örneği "Piece" kullanır; ERPNext seed'inde countable UOM "Nos".
-	"piece": "Nos",
-	"pieces": "Nos",
-	"pcs": "Nos",
-	"pc": "Nos",
+	"adet": "Adet",
+	"ad": "Adet",
+	"adt": "Adet",
+	"nos": "Adet",
+	"piece": "Adet",
+	"pieces": "Adet",
+	"pcs": "Adet",
+	"pc": "Adet",
 	"kg": "Kg",
 	"kilogram": "Kg",
 	"gram": "Gram",
 	"gr": "Gram",
-	"ton": "Tonne",
+	"ton": "Ton",
+	"tonne": "Ton",
 	"litre": "Litre",
 	"lt": "Litre",
 	"l": "Litre",
 	"ml": "Mililitre",
 	"mililitre": "Mililitre",
-	"metre": "Meter",
-	"m": "Meter",
-	"cm": "Centimeter",
-	"santimetre": "Centimeter",
-	"mm": "Millimeter",
-	"milimetre": "Millimeter",
-	"m2": "Square Meter",
-	"m³": "Cubic Meter",
-	"m3": "Cubic Meter",
-	"paket": "Box",
-	"kutu": "Box",
-	"koli": "Box",
+	"millilitre": "Mililitre",
+	"metre": "Metre",
+	"meter": "Metre",
+	"m": "Metre",
+	"cm": "Santimetre",
+	"santimetre": "Santimetre",
+	"centimeter": "Santimetre",
+	"mm": "Milimetre",
+	"milimetre": "Milimetre",
+	"millimeter": "Milimetre",
+	"m2": "Metrekare",
+	"m²": "Metrekare",
+	"square meter": "Metrekare",
+	"m³": "Metreküp",
+	"m3": "Metreküp",
+	"cubic meter": "Metreküp",
+	"paket": "Kutu",
+	"kutu": "Kutu",
+	"koli": "Kutu",
+	"box": "Kutu",
 	"set": "Set",
-	"çift": "Pair",
-	"saat": "Hour",
-	"gün": "Day",
+	"çift": "Çift",
+	"pair": "Çift",
+	"saat": "Saat",
+	"hour": "Saat",
+	"gün": "Gün",
+	"day": "Gün",
 }
 
 # Select field için izin verilen değerler (case-insensitive); normalize
@@ -265,7 +283,13 @@ def _resolve_link(doctype: str, raw_value):
 	v = str(raw_value).strip()
 	if not v:
 		return None
-	# Türkçe alias tablosu (Country/UOM seed İngilizce geliyor)
+	# Önce ham değer: satıcı DB'deki adı ("Metre", "Ton") birebir gönderdiyse alias
+	# tablosuna hiç bakılmaz — tablo bayatlasa da doğru ad kaybolmaz. Collation
+	# büyük/küçük harfi aynı saydığı için ("çift" → "Çift") DB'deki kanonik ad döner.
+	kanonik = frappe.db.get_value(doctype, v, "name")
+	if kanonik:
+		return kanonik
+	# Türkçe alias tablosu (Country seed İngilizce; UOM adları Türkçeleştirildi)
 	lower = v.lower()
 	if doctype == "Country" and lower in _TR_COUNTRY_ALIASES:
 		v = _TR_COUNTRY_ALIASES[lower]
