@@ -1,3 +1,27 @@
+## [v1.16.0] - 2026-09-25 PROD
+
+Bu surum istoc.cronbi.com'da yayindadir.
+
+### Eklendi
+- feat(api): MOGEM-665 Ürün API'si — upsert/stok/changes, webhook, panel bağlantısı (@Metin Bektemur)
+
+### Duzeltildi
+- fix(i18n): filtre kategorileri arayüz diline çözülüyor (@aliiball)
+  - Rusça arayüzde mega menü Rusça iken filtre kenar çubuğu Türkçe kalıyordu. Sebep veri eksikliği değildi: get_filter_facets ve altındaki cozucu dili hiç almıyor, adı ham category_name'den okuyordu, yani bekleyen yaprak çevirileri bitse bile filtre Türkçe kalacaktı.
+  - Ad çözümü get_categories ile aynı zincirden geçiyor; iki uç farklı ad üretse aynı kategori mega menüde bir, filtrede başka görünürdü. Ata zinciri de çevriliyor.
+  - Kaynak denetimi eklendi: bağlantı koparıldığında davranış testlerinin dokuzu da yeşil kalıyordu.
+- fix(auth): oturum bilgisinde ortak rate limit kovasını kaldır (@ahmeetseker)
+  - get_session_user üzerindeki rate_limit kaldırıldı
+  - Press proxy request_ip değerini vitrin IP'sine düşürdüğü için tüm ziyaretçilerin aynı 60/dk kovayı paylaşması engellendi
+  - CSRF token akışında site geneli 429 ve giriş kilidi oluşmaması hedeflendi
+
+### Degistirildi
+- refactor(docs): repo belgeleri kisisel not klasorune bagimli olmaktan cikarildi (@aliiball)
+  - Uc belge, repoyu klonlayan kimsede bulunmayan git'siz bir klasordeki nota yol veriyordu; okuyan kisi o dosyayi repo kokunde ariyor ve bulamiyordu
+  - Lojistik FE veri sozlesmelerinin alti da kaldirildi; uc tablosunun kaynak sutunu artik dosya adi degil ilgili Plane gorevini isaret ediyor
+  - Mimari belgesinin sonundaki bulgu listesi atfi kaldirildi, yerine repo ici sozlesme dosyasi birakildi
+
+---
 ## [v1.15.0-rc.1] - 2026-09-25 RC
 
 Bu surum rcistoc.cronbi.com'da onay asamasindadir.
