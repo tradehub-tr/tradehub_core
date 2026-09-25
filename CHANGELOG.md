@@ -1,3 +1,14 @@
+## [v1.15.0-alpha.4] - 2026-09-25 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Duzeltildi
+- fix(auth): oturum bilgisinde ortak rate limit kovasını kaldır (@ahmeetseker)
+  - get_session_user üzerindeki rate_limit kaldırıldı
+  - Press proxy request_ip değerini vitrin IP'sine düşürdüğü için tüm ziyaretçilerin aynı 60/dk kovayı paylaşması engellendi
+  - CSRF token akışında site geneli 429 ve giriş kilidi oluşmaması hedeflendi
+
+---
 ## [v1.15.0-alpha.3] - 2026-09-22 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
