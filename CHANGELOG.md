@@ -1,3 +1,14 @@
+## [v1.16.0-alpha.1] - 2026-09-28 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Duzeltildi
+- fix(media): arşivli retro-rename adaylarını atla (@ahmeetseker)
+  - Retro-rename raporuna çift noktalı ad ve arşivde bekleyen orijinal sayaçları eklendi; operatör riskli adayları önceden görebilsin
+  - Optimizasyon arşivindeki dosyalar gerçek koşuda ve provada tek tek atlanıyor; geri alma akışı kırılmadan kalan taşıma devam edebilsin
+  - Backend uçları ve testler yeni archived sözleşmesini kapsayacak şekilde güncellendi
+
+---
 ## [v1.16.0] - 2026-09-25 PROD
 
 Bu surum istoc.cronbi.com'da yayindadir.
