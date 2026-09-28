@@ -53,7 +53,7 @@ class TestRetroRenameEndpoints(FrappeTestCase):
 			retro_rename, "legacy_urls", return_value=["/files/a.jpg", "/files/b.jpg", "/files/c.jpg"]
 		):
 			out = media_admin.retro_rename_count()
-		self.assertEqual(out, {"total": 3, "disk_missing": 3, "renamable": 0})
+		self.assertEqual(out, {"total": 3, "disk_missing": 3, "renamable": 0, "archived": 0})
 
 	def test_plan_limit_sayi_degilse_500_atmaz(self):
 		"""`limit="abc"` çıplak `int()` içinde `ValueError` → 500 veriyordu."""
@@ -143,6 +143,27 @@ class TestRetroRenameEndpoints(FrappeTestCase):
 		self.assertEqual(
 			frappe.cache.get_value(retro_rename.ACTIVE_KEY, expires=True), out["job_key"]
 		)
+
+	def test_arsive_bagli_varken_gercek_kosu_baslar_arsivdekiler_iste_atlanir(self):
+		"""Birkaç arşivli dosya tüm taşımayı kilitlemez; `rename_one` onları tek tek atlar."""
+		with (
+			mock.patch.object(media_admin.frappe, "enqueue") as enq,
+			mock.patch.object(retro_rename, "legacy_urls", return_value=["/files/a.jpg"]),
+			mock.patch.object(retro_rename, "archive_blockers", return_value=["/files/a.jpg"]),
+		):
+			out = media_admin.start_retro_rename(dry_run=0)
+		self.assertTrue(out["job_key"])
+		self.assertEqual(enq.call_args.kwargs["dry_run"], 0)
+
+	def test_arsive_bagli_varken_prova_baslatilabilir(self):
+		with (
+			mock.patch.object(media_admin.frappe, "enqueue") as enq,
+			mock.patch.object(retro_rename, "legacy_urls", return_value=["/files/a.jpg"]),
+			mock.patch.object(retro_rename, "archive_blockers", return_value=["/files/a.jpg"]),
+		):
+			out = media_admin.start_retro_rename(dry_run=1)
+		self.assertTrue(out["job_key"])
+		enq.assert_called_once()
 
 	def test_yetkisiz_reddedilir(self):
 		frappe.set_user("Guest")

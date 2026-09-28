@@ -140,6 +140,10 @@ class TestPlan(FrappeTestCase):
 	def setUp(self):
 		super().setUp()
 		frappe.set_user("Administrator")
+		# setUp satırları commit ediyor; silmeler de commit edilmezse geri alınıp
+		# sitede `rr-plan-*` satırları birikiyordu (her test 2 satır). Cleanup'lar
+		# ters sırada koşar: ilk kaydedilen bu, en son çalışıp silmeleri kalıcılaştırır.
+		self.addCleanup(frappe.db.commit)
 		self.suffix = frappe.generate_hash(length=8)
 		self.name = f"rr-plan-{self.suffix}.jpg"
 		self.content = f"plan-{self.suffix}".encode()
@@ -198,6 +202,52 @@ class TestPlan(FrappeTestCase):
 	def test_plan_limit_none_cap(self):
 		p = retro_rename.plan()
 		self.assertEqual(len(p["items"]), min(p["total"], retro_rename.PLAN_ITEM_LIMIT))
+
+	def test_plan_arsive_bagli_dosyayi_sayar(self):
+		from tradehub_core.media import archive
+
+		archive.store(self.url, self.content)
+		self.addCleanup(lambda: archive.drop(self.url))
+		p = retro_rename.plan()
+		item = next(i for i in p["items"] if i["source_url"] == self.url)
+		self.assertTrue(item["archived"])
+		self.assertGreaterEqual(p["archived"], 1)
+		self.assertIn(self.url, retro_rename.archive_blockers())
+		self.assertGreaterEqual(retro_rename.count_summary()["archived"], 1)
+
+	def test_plan_arsivsiz_aday_arsivde_sayilmaz(self):
+		p = retro_rename.plan()
+		item = next(i for i in p["items"] if i["source_url"] == self.url)
+		self.assertFalse(item["archived"])
+		self.assertNotIn(self.url, retro_rename.archive_blockers())
+
+	def test_arsiv_kontrolu_gecersiz_yolda_patlamaz(self):
+		from tradehub_core.media import archive
+
+		with mock.patch.object(archive, "exists", side_effect=frappe.ValidationError("x")):
+			self.assertFalse(retro_rename.is_archived(self.url))
+			retro_rename.plan()  # throw etmemeli
+
+	def test_cift_noktali_ad_ayri_sayilir(self):
+		ad = f"rr-nokta-{self.suffix}..jpg"
+		url = _write_flat_public(ad, b"nokta")
+		self.addCleanup(lambda: os.remove(os.path.join(get_files_path(is_private=0), ad)))
+		d = frappe.get_doc({"doctype": "File", "file_name": ad, "file_url": url, "is_private": 0})
+		d.flags.copy_from_existing_file = True
+		d.insert(ignore_permissions=True)
+		self.addCleanup(lambda: frappe.delete_doc("File", d.name, force=True, ignore_permissions=True))
+		frappe.db.commit()
+		p = retro_rename.plan()
+		item = next(i for i in p["items"] if i["source_url"] == url)
+		self.assertTrue(item["double_dot"])
+		self.assertGreaterEqual(p["double_dots"], 1)
+		normal = next(i for i in p["items"] if i["source_url"] == self.url)
+		self.assertFalse(normal["double_dot"])
+
+	def test_has_double_dot_yalniz_dosya_adina_bakar(self):
+		self.assertTrue(retro_rename.has_double_dot("/files/derin düzen..jpg"))
+		self.assertFalse(retro_rename.has_double_dot("/files/a.b.jpg"))
+		self.assertFalse(retro_rename.has_double_dot("/files/x/a.jpg"))
 
 
 def _make_file_row(name: str, url: str) -> str:
@@ -320,6 +370,32 @@ class TestRenameOne(_RenameBase):
 			out = retro_rename.rename_one(self.url, "JOB-CACHE", add_days(now_datetime(), 90))
 		self.assertEqual(out["status"], "renamed")
 		clear.assert_called_once_with()
+
+	def test_arsive_bagli_dosya_atlanir(self):
+		from tradehub_core.media import archive
+
+		archive.store(self.url, b"orijinal")
+		self.addCleanup(lambda: archive.drop(self.url))
+		out = retro_rename.rename_one(self.url, "rr-arsiv", None)
+		self.assertEqual(out["status"], "skipped")
+		self.assertEqual(out["reason"], "archived")
+		self.assertTrue(os.path.isfile(retro_rename._disk_path(self.url)))
+
+	def test_prova_arsive_bagli_dosyayi_da_atlar(self):
+		"""Prova gerçek koşunun önizlemesi: arşivdekini "taşınacak" saymamalı."""
+		from tradehub_core.media import archive
+
+		archive.store(self.url, b"orijinal")
+		self.addCleanup(lambda: archive.drop(self.url))
+		out = retro_rename.rename_one(self.url, "rr-arsiv-prova", None, dry_run=True)
+		self.assertEqual(out["status"], "skipped")
+		self.assertEqual(out["reason"], "archived")
+		self.assertTrue(os.path.isfile(retro_rename._disk_path(self.url)))
+
+	def test_prova_arsivsiz_dosyayi_tasinacak_sayar(self):
+		out = retro_rename.rename_one(self.url, "rr-prova", None, dry_run=True)
+		self.assertEqual(out["status"], "renamed")
+		self.assertEqual(out["reason"], "dry_run")
 
 
 class TestRunJobAndRollback(_RenameBase):

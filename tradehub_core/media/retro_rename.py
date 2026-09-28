@@ -23,7 +23,7 @@ import frappe
 from frappe import _
 from frappe.utils import add_days, get_files_path, now_datetime
 
-from tradehub_core.media import audit, naming, refs
+from tradehub_core.media import archive, audit, naming, refs
 
 PUBLIC_PREFIX = "/files/"
 MEDIA_PREFIX = "/files/media/"
@@ -119,6 +119,33 @@ def _clear_404_cache() -> None:
 	frappe.cache.delete_value("website_404")
 
 
+def has_double_dot(url: str) -> bool:
+	"""Dosya adında gerçek `..` var mı (`derin düzen..jpg`). Yalnız bilgi amaçlı.
+
+	Rapor 95'te bu adlar önce aday dışı kalmıştı; segment düzeyi korumadan beri
+	taşınıyorlar ama operatör ayrı görmek istiyor (MOGEM-619 kabul 1).
+	"""
+	return ".." in (url or "").split("?")[0].rsplit("/", 1)[-1]
+
+
+def is_archived(url: str) -> bool:
+	"""Optimizasyon arşivinde bu adresin orijinali duruyor mu.
+
+	`archive` orijinali ESKİ `file_url` ile adresler; taşıma onu izlemez ve
+	"optimizasyonu geri al" sessizce kırılır (MEDYA-DEPOLAMA-STANDARDI §7.1/3).
+	Geçersiz yolda `archive` throw eder — rapor bunun için patlamamalı.
+	"""
+	try:
+		return archive.exists(url)
+	except frappe.ValidationError:
+		return False
+
+
+def archive_blockers(urls: list[str] | None = None) -> list[str]:
+	"""Gerçek taşımayı engelleyen adaylar: orijinali arşivde bekleyenler."""
+	return [u for u in (legacy_urls() if urls is None else urls) if is_archived(u)]
+
+
 def _ref_counts(url: str) -> tuple[int, int, int]:
 	exact = readonly = embedded = 0
 	for ref in refs.find(url):
@@ -143,6 +170,8 @@ def _inspect(url: str) -> dict:
 		"orphan": False,
 		"disk_missing": not os.path.isfile(path),
 		"collision": False,
+		"double_dot": has_double_dot(url),
+		"archived": is_archived(url),
 	}
 	item["refs_exact"], item["refs_readonly"], item["refs_embedded"] = _ref_counts(url)
 	item["orphan"] = not (item["refs_exact"] or item["refs_readonly"] or item["refs_embedded"])
@@ -156,7 +185,7 @@ def _inspect(url: str) -> dict:
 
 
 def count_summary() -> dict:
-	"""Ucuz sayaç: `{"total", "disk_missing", "renamable"}`.
+	"""Ucuz sayaç: `{"total", "disk_missing", "renamable", "archived"}`.
 
 	`plan()`'dan farkı: hash HESAPLANMAZ, referans TARANMAZ — aday başına tek
 	`os.path.isfile`. Kartın açılışında "taşınacak N dosya var" ile "N kayıt
@@ -165,7 +194,12 @@ def count_summary() -> dict:
 	"""
 	urls = legacy_urls()
 	eksik = sum(1 for u in urls if not os.path.isfile(_disk_path(u)))
-	return {"total": len(urls), "disk_missing": eksik, "renamable": len(urls) - eksik}
+	return {
+		"total": len(urls),
+		"disk_missing": eksik,
+		"renamable": len(urls) - eksik,
+		"archived": len(archive_blockers(urls)),
+	}
 
 
 def plan(limit: int | None = None) -> dict:
@@ -186,6 +220,8 @@ def plan(limit: int | None = None) -> dict:
 		"orphans": 0,
 		"disk_missing": 0,
 		"collisions": 0,
+		"double_dots": 0,
+		"archived": 0,
 		"refs_exact": 0,
 		"refs_readonly": 0,
 		"refs_embedded": 0,
@@ -196,6 +232,8 @@ def plan(limit: int | None = None) -> dict:
 		out["orphans"] += int(it["orphan"])
 		out["disk_missing"] += int(it["disk_missing"])
 		out["collisions"] += int(it["collision"])
+		out["double_dots"] += int(it["double_dot"])
+		out["archived"] += int(it["archived"])
 		out["refs_exact"] += it["refs_exact"]
 		out["refs_readonly"] += it["refs_readonly"]
 		out["refs_embedded"] += it["refs_embedded"]
@@ -437,6 +475,11 @@ def rename_one(url: str, job_key: str, expires_at: datetime | str | None, *, dry
 	# iki mekanizma aynı dosyayı taşımak için yarışmamalı (access_level dersi).
 	if av.in_quarantine(url) or av.in_hold(url):
 		return _skip("quarantined")
+	# Orijinali optimizasyon arşivinde bekleyen dosya taşınırsa geri alma kırılır;
+	# API kapısı başlatmayı engelliyor, bu satır iş sırasında arşive düşeni tutar.
+	# Provada da atlanır: prova gerçek koşunun önizlemesi, "taşınacak" sayısı şişmesin.
+	if is_archived(url):
+		return _skip("archived")
 
 	# Disk okuma/taşıma DOSYA BAŞINA hata olarak raporlanır, işi düşürmez:
 	# `isfile` ile `open` arasında dosya taşınmış olabilir (tarama/karantina
