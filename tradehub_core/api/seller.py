@@ -407,10 +407,13 @@ def get_sellers(
 		seller_verifs = list(verif_map.get(s["name"], []))
 		s["verifications"] = seller_verifs
 		if is_guest:
-			# KVKK: misafire iletisim PII sizdirma
+			# KVKK: misafire iletisim PII sizdirma. `user` satıcının GİRİŞ e-postası —
+			# `verified` yukarıda hesaplandıktan sonra düşürülür (get_seller ile aynı kural;
+			# MOGEM-685 F-04, 29 Eyl 2026: misafir listesi 5 satıcının hepsinin girişini veriyordu).
 			s.pop("email", None)
 			s.pop("phone", None)
 			s.pop("website", None)
+			s.pop("user", None)
 		try:
 			seller_code = s.get("seller_code") or s.get("name", "")
 			listings = frappe.get_all(
