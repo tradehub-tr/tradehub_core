@@ -1,0 +1,88 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-09-19 00:00:00",
+ "doctype": "DocType",
+ "document_type": "Document",
+ "editable_grid": 0,
+ "engine": "InnoDB",
+ "field_order": [
+  "profile_key",
+  "lang",
+  "title_template",
+  "description_template",
+  "og_image",
+  "schema_type"
+ ],
+ "fields": [
+  {
+   "fieldname": "profile_key",
+   "fieldtype": "Data",
+   "label": "Profil Anahtarı",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "lang",
+   "fieldtype": "Select",
+   "label": "Dil",
+   "options": "tr\nen\nar\nru",
+   "default": "tr"
+  },
+  {
+   "fieldname": "title_template",
+   "fieldtype": "Data",
+   "label": "Başlık Şablonu"
+  },
+  {
+   "fieldname": "description_template",
+   "fieldtype": "Small Text",
+   "label": "Açıklama Şablonu"
+  },
+  {
+   "fieldname": "og_image",
+   "fieldtype": "Attach Image",
+   "label": "OG Görseli"
+  },
+  {
+   "fieldname": "schema_type",
+   "fieldtype": "Data",
+   "label": "Schema Türü",
+   "default": "WebPage"
+  }
+ ],
+ "links": [],
+ "modified": "2026-09-19 00:00:00",
+ "modified_by": "Administrator",
+ "module": "SEO Core",
+ "name": "SEO Profile",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1
+  },
+  {
+   "role": "SEO Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1
+  },
+  {
+   "role": "SEO Editor",
+   "read": 1,
+   "write": 1,
+   "create": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0,
+ "autoname": "field:profile_key",
+ "naming_rule": "By fieldname"
+}

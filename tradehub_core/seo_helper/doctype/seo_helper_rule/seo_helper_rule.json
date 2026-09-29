@@ -1,0 +1,83 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-09-19 00:00:00",
+ "doctype": "DocType",
+ "document_type": "Document",
+ "editable_grid": 0,
+ "engine": "InnoDB",
+ "field_order": [
+  "rule_key",
+  "scope",
+  "condition",
+  "action",
+  "deterministic",
+  "enabled"
+ ],
+ "fields": [
+  {
+   "fieldname": "rule_key",
+   "fieldtype": "Data",
+   "label": "Kural Anahtarı",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "scope",
+   "fieldtype": "Select",
+   "label": "Kapsam",
+   "options": "page\nlisting\ncategory\nbrand\nseller\nmcp",
+   "default": "page"
+  },
+  {
+   "fieldname": "condition",
+   "fieldtype": "JSON",
+   "label": "Koşul (JSON)"
+  },
+  {
+   "fieldname": "action",
+   "fieldtype": "Data",
+   "label": "Eylem"
+  },
+  {
+   "fieldname": "deterministic",
+   "fieldtype": "Check",
+   "label": "Deterministik (11.4)",
+   "default": "1"
+  },
+  {
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "label": "Etkin",
+   "default": "1"
+  }
+ ],
+ "links": [],
+ "modified": "2026-09-19 00:00:00",
+ "modified_by": "Administrator",
+ "module": "SEO Helper",
+ "name": "SEO Helper Rule",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1
+  },
+  {
+   "role": "SEO Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0,
+ "autoname": "field:rule_key",
+ "naming_rule": "By fieldname"
+}

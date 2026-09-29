@@ -1,0 +1,142 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-09-19 00:00:00",
+ "doctype": "DocType",
+ "document_type": "Document",
+ "editable_grid": 0,
+ "engine": "InnoDB",
+ "field_order": [
+  "client_name",
+  "role",
+  "scopes",
+  "store",
+  "enabled",
+  "api_key_prefix",
+  "api_key_hash",
+  "key_rotated_at",
+  "last_used_at",
+  "monthly_token_budget",
+  "tokens_used_month",
+  "calls_month"
+ ],
+ "fields": [
+  {
+   "fieldname": "client_name",
+   "fieldtype": "Data",
+   "label": "İstemci Adı",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "role",
+   "fieldtype": "Select",
+   "label": "Rol",
+   "options": "seo_agent\ncms_agent\nauditor",
+   "default": "seo_agent",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "scopes",
+   "fieldtype": "Small Text",
+   "label": "Kapsamlar",
+   "description": "virgülle: page:read,page:draft,metadata:suggest,translation:draft,audit:run,audit:read"
+  },
+  {
+   "fieldname": "store",
+   "fieldtype": "Link",
+   "label": "Mağaza",
+   "options": "Admin Seller Profile",
+   "search_index": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "label": "Etkin",
+   "default": "1",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "api_key_prefix",
+   "fieldtype": "Data",
+   "label": "Anahtar Öneki",
+   "read_only": 1
+  },
+  {
+   "fieldname": "api_key_hash",
+   "fieldtype": "Data",
+   "label": "Anahtar Özeti (sha256)",
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "key_rotated_at",
+   "fieldtype": "Datetime",
+   "label": "Anahtar Rotasyonu",
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_used_at",
+   "fieldtype": "Datetime",
+   "label": "Son Kullanım",
+   "read_only": 1
+  },
+  {
+   "fieldname": "monthly_token_budget",
+   "fieldtype": "Int",
+   "label": "Aylık Token Bütçesi"
+  },
+  {
+   "fieldname": "tokens_used_month",
+   "fieldtype": "Int",
+   "label": "Bu Ay Token",
+   "read_only": 1,
+   "default": "0"
+  },
+  {
+   "fieldname": "calls_month",
+   "fieldtype": "Int",
+   "label": "Bu Ay Çağrı",
+   "read_only": 1,
+   "default": "0"
+  }
+ ],
+ "links": [],
+ "modified": "2026-09-19 00:00:00",
+ "modified_by": "Administrator",
+ "module": "SEO MCP",
+ "name": "MCP Client",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1
+  },
+  {
+   "role": "SEO Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1
+  },
+  {
+   "role": "Marketplace Seller",
+   "read": 1
+  },
+  {
+   "role": "MCP Agent",
+   "read": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0,
+ "autoname": "field:client_name",
+ "naming_rule": "By fieldname",
+ "search_fields": "api_key_prefix"
+}

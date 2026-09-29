@@ -1,0 +1,123 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-09-19 00:00:00",
+ "doctype": "DocType",
+ "document_type": "Document",
+ "editable_grid": 0,
+ "engine": "InnoDB",
+ "field_order": [
+  "entity_type",
+  "ref_doctype",
+  "ref_name",
+  "store",
+  "domain",
+  "canonical_path",
+  "indexable",
+  "data_version",
+  "last_synced_at"
+ ],
+ "fields": [
+  {
+   "fieldname": "entity_type",
+   "fieldtype": "Select",
+   "label": "Varlık Türü",
+   "options": "page\nlisting\ncategory\nbrand\nseller\nstatic\nfacet",
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "ref_doctype",
+   "fieldtype": "Link",
+   "label": "Kaynak DocType",
+   "options": "DocType",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "ref_name",
+   "fieldtype": "Data",
+   "label": "Kaynak Kayıt",
+   "reqd": 1,
+   "search_index": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "store",
+   "fieldtype": "Link",
+   "label": "Mağaza",
+   "options": "Admin Seller Profile",
+   "search_index": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "domain",
+   "fieldtype": "Link",
+   "label": "Domain",
+   "options": "SEO Domain"
+  },
+  {
+   "fieldname": "canonical_path",
+   "fieldtype": "Data",
+   "label": "Canonical Yol",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "indexable",
+   "fieldtype": "Check",
+   "label": "İndekslenebilir"
+  },
+  {
+   "fieldname": "data_version",
+   "fieldtype": "Int",
+   "label": "Veri Sürümü",
+   "read_only": 1,
+   "default": "0"
+  },
+  {
+   "fieldname": "last_synced_at",
+   "fieldtype": "Datetime",
+   "label": "Son Eşitleme",
+   "read_only": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-09-19 00:00:00",
+ "modified_by": "Administrator",
+ "module": "SEO Core",
+ "name": "SEO Entity",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1
+  },
+  {
+   "role": "SEO Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1
+  },
+  {
+   "role": "SEO Editor",
+   "read": 1,
+   "write": 1,
+   "create": 1
+  },
+  {
+   "role": "Marketplace Seller",
+   "read": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0,
+ "autoname": "hash",
+ "naming_rule": "Random",
+ "search_fields": "ref_doctype,ref_name"
+}

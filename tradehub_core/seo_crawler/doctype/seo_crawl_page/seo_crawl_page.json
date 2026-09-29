@@ -1,0 +1,200 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-09-19 00:00:00",
+ "doctype": "DocType",
+ "document_type": "Document",
+ "editable_grid": 0,
+ "engine": "InnoDB",
+ "field_order": [
+  "crawl_run",
+  "url",
+  "route",
+  "status_code",
+  "fetched_at",
+  "response_ms",
+  "bytes",
+  "rendered_with",
+  "needs_js",
+  "robots_blocked",
+  "redirect_chain",
+  "final_url",
+  "title",
+  "meta_description",
+  "canonical",
+  "robots_meta",
+  "html_lang",
+  "h1_count",
+  "word_count",
+  "hreflang",
+  "internal_links",
+  "images_without_alt",
+  "json_ld_types",
+  "content_hash",
+  "error"
+ ],
+ "fields": [
+  {
+   "fieldname": "crawl_run",
+   "fieldtype": "Link",
+   "label": "Tarama",
+   "options": "SEO Crawl Run",
+   "search_index": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "url",
+   "fieldtype": "Data",
+   "label": "URL",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "route",
+   "fieldtype": "Data",
+   "label": "Route",
+   "search_index": 1
+  },
+  {
+   "fieldname": "status_code",
+   "fieldtype": "Int",
+   "label": "HTTP",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "fetched_at",
+   "fieldtype": "Datetime",
+   "label": "Alınma"
+  },
+  {
+   "fieldname": "response_ms",
+   "fieldtype": "Int",
+   "label": "Yanıt (ms)"
+  },
+  {
+   "fieldname": "bytes",
+   "fieldtype": "Int",
+   "label": "Bayt"
+  },
+  {
+   "fieldname": "rendered_with",
+   "fieldtype": "Select",
+   "label": "Render",
+   "options": "http\njs\nnone",
+   "default": "http"
+  },
+  {
+   "fieldname": "needs_js",
+   "fieldtype": "Check",
+   "label": "JS Gerekli"
+  },
+  {
+   "fieldname": "robots_blocked",
+   "fieldtype": "Check",
+   "label": "robots.txt Engelli"
+  },
+  {
+   "fieldname": "redirect_chain",
+   "fieldtype": "JSON",
+   "label": "Yönlendirme Zinciri"
+  },
+  {
+   "fieldname": "final_url",
+   "fieldtype": "Data",
+   "label": "Son URL"
+  },
+  {
+   "fieldname": "title",
+   "fieldtype": "Data",
+   "label": "Başlık"
+  },
+  {
+   "fieldname": "meta_description",
+   "fieldtype": "Small Text",
+   "label": "Açıklama"
+  },
+  {
+   "fieldname": "canonical",
+   "fieldtype": "Data",
+   "label": "Canonical"
+  },
+  {
+   "fieldname": "robots_meta",
+   "fieldtype": "Data",
+   "label": "Robots Meta"
+  },
+  {
+   "fieldname": "html_lang",
+   "fieldtype": "Data",
+   "label": "HTML lang"
+  },
+  {
+   "fieldname": "h1_count",
+   "fieldtype": "Int",
+   "label": "H1"
+  },
+  {
+   "fieldname": "word_count",
+   "fieldtype": "Int",
+   "label": "Kelime"
+  },
+  {
+   "fieldname": "hreflang",
+   "fieldtype": "JSON",
+   "label": "hreflang"
+  },
+  {
+   "fieldname": "internal_links",
+   "fieldtype": "Int",
+   "label": "İç Bağlantı"
+  },
+  {
+   "fieldname": "images_without_alt",
+   "fieldtype": "Int",
+   "label": "Alt'sız Görsel"
+  },
+  {
+   "fieldname": "json_ld_types",
+   "fieldtype": "JSON",
+   "label": "JSON-LD Tipleri"
+  },
+  {
+   "fieldname": "content_hash",
+   "fieldtype": "Data",
+   "label": "İçerik Özeti"
+  },
+  {
+   "fieldname": "error",
+   "fieldtype": "Small Text",
+   "label": "Hata"
+  }
+ ],
+ "links": [],
+ "modified": "2026-09-19 00:00:00",
+ "modified_by": "Administrator",
+ "module": "SEO Crawler",
+ "name": "SEO Crawl Page",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1
+  },
+  {
+   "role": "SEO Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0,
+ "autoname": "hash",
+ "naming_rule": "Random",
+ "search_fields": "url,route"
+}

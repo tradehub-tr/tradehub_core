@@ -1,0 +1,325 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-09-19 00:00:00",
+ "doctype": "DocType",
+ "document_type": "Document",
+ "editable_grid": 0,
+ "engine": "InnoDB",
+ "field_order": [
+  "default_robots",
+  "min_title_len",
+  "min_desc_len",
+  "job_max_attempts",
+  "sec_mcp",
+  "openai_model",
+  "mcp_call_timeout_sec",
+  "mcp_max_retries",
+  "mcp_monthly_token_budget",
+  "mcp_log_retention_days",
+  "mcp_key_rotation_days",
+  "sec_crawl",
+  "crawl_user_agent",
+  "crawl_rate_limit_rps",
+  "crawl_max_pages",
+  "crawl_max_seconds",
+  "crawl_max_mb",
+  "crawl_checkpoint_every",
+  "crawl_incremental_days",
+  "crawl_js_render_command",
+  "crawl_respect_robots",
+  "sec_botlog",
+  "bot_log_path",
+  "bot_verify_dns",
+  "bot_log_retention_days",
+  "bot_log_last_import_at",
+  "sec_gsc",
+  "gsc_property",
+  "gsc_client_id",
+  "gsc_client_secret",
+  "gsc_refresh_token",
+  "gsc_daily_inspection_quota",
+  "gsc_daily_query_quota",
+  "gsc_data_lag_days",
+  "gsc_sample_size",
+  "gsc_last_sync_at",
+  "sec_board",
+  "board_stale_hours",
+  "board_anomaly_pct",
+  "board_baseline_days",
+  "sec_health",
+  "last_health_at",
+  "last_health_json"
+ ],
+ "fields": [
+  {
+   "fieldname": "default_robots",
+   "fieldtype": "Select",
+   "label": "Varsayılan Robots",
+   "options": "index,follow\nnoindex,follow\nnoindex,nofollow",
+   "default": "index,follow"
+  },
+  {
+   "fieldname": "min_title_len",
+   "fieldtype": "Int",
+   "label": "Asgari Başlık"
+  },
+  {
+   "fieldname": "min_desc_len",
+   "fieldtype": "Int",
+   "label": "Asgari Açıklama"
+  },
+  {
+   "fieldname": "job_max_attempts",
+   "fieldtype": "Int",
+   "label": "İş Azami Deneme",
+   "default": "5"
+  },
+  {
+   "fieldname": "sec_mcp",
+   "fieldtype": "Section Break",
+   "label": "MCP / OpenAI"
+  },
+  {
+   "fieldname": "openai_model",
+   "fieldtype": "Data",
+   "label": "OpenAI Modeli"
+  },
+  {
+   "fieldname": "mcp_call_timeout_sec",
+   "fieldtype": "Int",
+   "label": "Çağrı Zaman Aşımı (sn)",
+   "default": "60"
+  },
+  {
+   "fieldname": "mcp_max_retries",
+   "fieldtype": "Int",
+   "label": "Azami Tekrar",
+   "default": "2"
+  },
+  {
+   "fieldname": "mcp_monthly_token_budget",
+   "fieldtype": "Int",
+   "label": "Aylık Token Bütçesi (platform)"
+  },
+  {
+   "fieldname": "mcp_log_retention_days",
+   "fieldtype": "Int",
+   "label": "Araç Günlüğü Saklama (gün)",
+   "default": "90"
+  },
+  {
+   "fieldname": "mcp_key_rotation_days",
+   "fieldtype": "Int",
+   "label": "Anahtar Rotasyon Uyarısı (gün)",
+   "default": "90"
+  },
+  {
+   "fieldname": "sec_crawl",
+   "fieldtype": "Section Break",
+   "label": "Tarama (13.1)"
+  },
+  {
+   "fieldname": "crawl_user_agent",
+   "fieldtype": "Data",
+   "label": "Tarayıcı UA",
+   "default": "iStocSEOHelper/1.0 (+seo-helper)"
+  },
+  {
+   "fieldname": "crawl_rate_limit_rps",
+   "fieldtype": "Float",
+   "label": "Hız Sınırı (istek/sn, host başına)",
+   "default": "2"
+  },
+  {
+   "fieldname": "crawl_max_pages",
+   "fieldtype": "Int",
+   "label": "Bütçe: Azami Sayfa",
+   "default": "500"
+  },
+  {
+   "fieldname": "crawl_max_seconds",
+   "fieldtype": "Int",
+   "label": "Bütçe: Azami Süre (sn)",
+   "default": "1200"
+  },
+  {
+   "fieldname": "crawl_max_mb",
+   "fieldtype": "Int",
+   "label": "Bütçe: Azami MB",
+   "default": "200"
+  },
+  {
+   "fieldname": "crawl_checkpoint_every",
+   "fieldtype": "Int",
+   "label": "Checkpoint (sayfa)",
+   "default": "20"
+  },
+  {
+   "fieldname": "crawl_incremental_days",
+   "fieldtype": "Int",
+   "label": "Artımlı: N günden eski",
+   "default": "7"
+  },
+  {
+   "fieldname": "crawl_js_render_command",
+   "fieldtype": "Data",
+   "label": "JS Render Komutu ({url} yer tutucu; boş = kapalı)"
+  },
+  {
+   "fieldname": "crawl_respect_robots",
+   "fieldtype": "Check",
+   "label": "robots.txt'e Uy",
+   "default": "1"
+  },
+  {
+   "fieldname": "sec_botlog",
+   "fieldtype": "Section Break",
+   "label": "Bot / Sunucu Logu (13.2)"
+  },
+  {
+   "fieldname": "bot_log_path",
+   "fieldtype": "Data",
+   "label": "Log Dosyası (glob)"
+  },
+  {
+   "fieldname": "bot_verify_dns",
+   "fieldtype": "Check",
+   "label": "Ters DNS ile Doğrula"
+  },
+  {
+   "fieldname": "bot_log_retention_days",
+   "fieldtype": "Int",
+   "label": "Bot Ziyareti Saklama (gün)",
+   "default": "90"
+  },
+  {
+   "fieldname": "bot_log_last_import_at",
+   "fieldtype": "Datetime",
+   "label": "Son İçe Aktarma",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sec_gsc",
+   "fieldtype": "Section Break",
+   "label": "Search Console (13.5)"
+  },
+  {
+   "fieldname": "gsc_property",
+   "fieldtype": "Data",
+   "label": "Property (sc-domain:… ya da URL)"
+  },
+  {
+   "fieldname": "gsc_client_id",
+   "fieldtype": "Data",
+   "label": "OAuth Client ID"
+  },
+  {
+   "fieldname": "gsc_client_secret",
+   "fieldtype": "Password",
+   "label": "OAuth Client Secret"
+  },
+  {
+   "fieldname": "gsc_refresh_token",
+   "fieldtype": "Password",
+   "label": "Refresh Token"
+  },
+  {
+   "fieldname": "gsc_daily_inspection_quota",
+   "fieldtype": "Int",
+   "label": "URL Inspection Günlük Kota",
+   "default": "2000"
+  },
+  {
+   "fieldname": "gsc_daily_query_quota",
+   "fieldtype": "Int",
+   "label": "Search Analytics Günlük Sorgu Kotası",
+   "default": "2000"
+  },
+  {
+   "fieldname": "gsc_data_lag_days",
+   "fieldtype": "Int",
+   "label": "Veri Gecikmesi (gün)",
+   "default": "3"
+  },
+  {
+   "fieldname": "gsc_sample_size",
+   "fieldtype": "Int",
+   "label": "URL Inspection Örneklem",
+   "default": "200"
+  },
+  {
+   "fieldname": "gsc_last_sync_at",
+   "fieldtype": "Datetime",
+   "label": "Son Senkron",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sec_board",
+   "fieldtype": "Section Break",
+   "label": "Pano (13.3)"
+  },
+  {
+   "fieldname": "board_stale_hours",
+   "fieldtype": "Int",
+   "label": "Kaynak Bayat Eşiği (saat)",
+   "default": "36"
+  },
+  {
+   "fieldname": "board_anomaly_pct",
+   "fieldtype": "Int",
+   "label": "Anomali Eşiği (%)",
+   "default": "30"
+  },
+  {
+   "fieldname": "board_baseline_days",
+   "fieldtype": "Int",
+   "label": "Taban Çizgisi (gün)",
+   "default": "7"
+  },
+  {
+   "fieldname": "sec_health",
+   "fieldtype": "Section Break",
+   "label": "İzleme"
+  },
+  {
+   "fieldname": "last_health_at",
+   "fieldtype": "Datetime",
+   "label": "Son Sağlık Anı",
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_health_json",
+   "fieldtype": "Long Text",
+   "label": "Son Sağlık Özeti",
+   "read_only": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-09-19 00:00:00",
+ "modified_by": "Administrator",
+ "module": "SEO Core",
+ "name": "SEO Helper Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1
+  },
+  {
+   "role": "SEO Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0,
+ "issingle": 1
+}

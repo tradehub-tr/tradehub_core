@@ -1,0 +1,112 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-09-19 00:00:00",
+ "doctype": "DocType",
+ "document_type": "Document",
+ "editable_grid": 0,
+ "engine": "InnoDB",
+ "field_order": [
+  "policy_key",
+  "applies_to",
+  "default_robots",
+  "canonical_strategy",
+  "min_title_len",
+  "min_desc_len",
+  "index_requires_published",
+  "block_ugc_html",
+  "priority",
+  "rules"
+ ],
+ "fields": [
+  {
+   "fieldname": "policy_key",
+   "fieldtype": "Data",
+   "label": "Politika Anahtarı",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "applies_to",
+   "fieldtype": "Select",
+   "label": "Uygulanır",
+   "options": "page\nlisting\ncategory\nbrand\nseller\nfacet",
+   "default": "page"
+  },
+  {
+   "fieldname": "default_robots",
+   "fieldtype": "Select",
+   "label": "Varsayılan Robots",
+   "options": "index,follow\nnoindex,follow\nnoindex,nofollow",
+   "default": "index,follow"
+  },
+  {
+   "fieldname": "canonical_strategy",
+   "fieldtype": "Select",
+   "label": "Canonical Stratejisi",
+   "options": "self\nparent\ncluster",
+   "default": "self"
+  },
+  {
+   "fieldname": "min_title_len",
+   "fieldtype": "Int",
+   "label": "Asgari Başlık"
+  },
+  {
+   "fieldname": "min_desc_len",
+   "fieldtype": "Int",
+   "label": "Asgari Açıklama"
+  },
+  {
+   "fieldname": "index_requires_published",
+   "fieldtype": "Check",
+   "label": "İndeks için yayın şart",
+   "default": "1"
+  },
+  {
+   "fieldname": "block_ugc_html",
+   "fieldtype": "Check",
+   "label": "UGC HTML yayına çıkamaz",
+   "default": "1"
+  },
+  {
+   "fieldname": "priority",
+   "fieldtype": "Int",
+   "label": "Öncelik",
+   "default": "100"
+  },
+  {
+   "fieldname": "rules",
+   "fieldtype": "JSON",
+   "label": "Ek Kurallar (JSON)"
+  }
+ ],
+ "links": [],
+ "modified": "2026-09-19 00:00:00",
+ "modified_by": "Administrator",
+ "module": "SEO Core",
+ "name": "SEO Policy",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1
+  },
+  {
+   "role": "SEO Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0,
+ "autoname": "field:policy_key",
+ "naming_rule": "By fieldname"
+}

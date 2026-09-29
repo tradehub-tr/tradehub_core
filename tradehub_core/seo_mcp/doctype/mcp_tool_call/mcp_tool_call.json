@@ -1,0 +1,137 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-09-19 00:00:00",
+ "doctype": "DocType",
+ "document_type": "Document",
+ "editable_grid": 0,
+ "engine": "InnoDB",
+ "field_order": [
+  "client",
+  "tool",
+  "store",
+  "input_json",
+  "output_json",
+  "cost_tokens_in",
+  "cost_tokens_out",
+  "cost_usd",
+  "duration_ms",
+  "result",
+  "error",
+  "draft"
+ ],
+ "fields": [
+  {
+   "fieldname": "client",
+   "fieldtype": "Link",
+   "label": "İstemci",
+   "options": "MCP Client",
+   "search_index": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "tool",
+   "fieldtype": "Data",
+   "label": "Araç",
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "store",
+   "fieldtype": "Link",
+   "label": "Mağaza",
+   "options": "Admin Seller Profile",
+   "search_index": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "input_json",
+   "fieldtype": "Long Text",
+   "label": "Girdi"
+  },
+  {
+   "fieldname": "output_json",
+   "fieldtype": "Long Text",
+   "label": "Çıktı"
+  },
+  {
+   "fieldname": "cost_tokens_in",
+   "fieldtype": "Int",
+   "label": "Token (giriş)",
+   "default": "0"
+  },
+  {
+   "fieldname": "cost_tokens_out",
+   "fieldtype": "Int",
+   "label": "Token (çıkış)",
+   "default": "0"
+  },
+  {
+   "fieldname": "cost_usd",
+   "fieldtype": "Float",
+   "label": "Maliyet (USD)",
+   "default": "0"
+  },
+  {
+   "fieldname": "duration_ms",
+   "fieldtype": "Int",
+   "label": "Süre (ms)"
+  },
+  {
+   "fieldname": "result",
+   "fieldtype": "Select",
+   "label": "Sonuç",
+   "options": "ok\nerror\ndenied",
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "error",
+   "fieldtype": "Small Text",
+   "label": "Hata"
+  },
+  {
+   "fieldname": "draft",
+   "fieldtype": "Link",
+   "label": "Taslak",
+   "options": "MCP Draft"
+  }
+ ],
+ "links": [],
+ "modified": "2026-09-19 00:00:00",
+ "modified_by": "Administrator",
+ "module": "SEO MCP",
+ "name": "MCP Tool Call",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1
+  },
+  {
+   "role": "SEO Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1
+  },
+  {
+   "role": "Marketplace Seller",
+   "read": 1
+  },
+  {
+   "role": "MCP Agent",
+   "read": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0,
+ "autoname": "hash",
+ "naming_rule": "Random",
+ "search_fields": "tool"
+}

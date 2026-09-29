@@ -1,1 +1,8 @@
 Tradehub Core
+SEO Core
+SEO Catalog
+SEO CMS
+SEO Merchant
+SEO Crawler
+SEO Helper
+SEO MCP

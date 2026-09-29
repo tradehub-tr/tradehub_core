@@ -354,3 +354,7 @@ tradehub_core.patches.v15_9_59_seed_category_names
 
 # --- Ana sayfa vitrini: Arapça/Rusça metinler (DocType alanları bu turda eklendi) ---
 tradehub_core.patches.v15_9_60_showcase_ar_ru
+
+# --- SEO Helper (MOGEM-663/662): ayrı app seo_helper_cms buraya taşındı ---
+tradehub_core.seo_helper.patches.v0_1.backfill_builder_pages
+tradehub_core.seo_helper.patches.v0_2.audit_finding_active_key

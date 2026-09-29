@@ -1,0 +1,101 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-09-19 00:00:00",
+ "doctype": "DocType",
+ "document_type": "Document",
+ "editable_grid": 0,
+ "engine": "InnoDB",
+ "field_order": [
+  "day",
+  "source",
+  "dimension",
+  "dimension_key",
+  "metric",
+  "value",
+  "missing",
+  "dedupe_key"
+ ],
+ "fields": [
+  {
+   "fieldname": "day",
+   "fieldtype": "Date",
+   "label": "Gün",
+   "search_index": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "source",
+   "fieldtype": "Select",
+   "label": "Kaynak",
+   "options": "crawler\nlog\nsearch_console\nanalytics\nmerchant\ncatalog",
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "dimension",
+   "fieldtype": "Data",
+   "label": "Boyut (store|lang|page_type|all)",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "dimension_key",
+   "fieldtype": "Data",
+   "label": "Boyut Değeri",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "metric",
+   "fieldtype": "Data",
+   "label": "Metrik",
+   "in_list_view": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "value",
+   "fieldtype": "Float",
+   "label": "Değer"
+  },
+  {
+   "fieldname": "missing",
+   "fieldtype": "Check",
+   "label": "Veri Eksik"
+  },
+  {
+   "fieldname": "dedupe_key",
+   "fieldtype": "Data",
+   "label": "Anahtar",
+   "search_index": 1,
+   "unique": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-09-19 00:00:00",
+ "modified_by": "Administrator",
+ "module": "SEO Core",
+ "name": "SEO Metric Snapshot",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1
+  },
+  {
+   "role": "SEO Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0,
+ "autoname": "hash",
+ "naming_rule": "Random"
+}
