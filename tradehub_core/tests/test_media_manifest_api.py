@@ -78,7 +78,7 @@ class TestMediaManifestApi(unittest.TestCase):
 
 		self.assertFalse(sonuc["enabled"])
 		self.assertEqual(sonuc["renditions"], [])
-		self.assertEqual(sonuc["fallback"], self.ilan["primary_image"])
+		self.assertEqual(sonuc["fallback"], _okunur(self.ilan))
 		self.assertTrue(all(g["manifest"] is None for g in sonuc["images"]))
 
 	def test_ana_salter_kapaliyken_alt_bayrak_ise_yaramaz(self) -> None:
@@ -111,7 +111,7 @@ class TestMediaManifestApi(unittest.TestCase):
 		self.assertNotIn(beklenen["elenen"], [t["url"] for t in sonuc["renditions"]])
 
 		birincil = sonuc["images"][0]
-		self.assertEqual(birincil["file_url"], self.ilan["primary_image"])
+		self.assertEqual(birincil["file_url"], _okunur(self.ilan))
 		man = birincil["manifest"]
 		self.assertIsNotNone(man, "birincil görselin manifesti kurulamadı")
 		self.assertEqual(man["slot_key"], media_manifest.DEFAULT_SLOT)
@@ -138,7 +138,7 @@ class TestMediaManifestApi(unittest.TestCase):
 
 		self.assertFalse(disari["enabled"])
 		self.assertEqual(disari["renditions"], [])
-		self.assertEqual(disari["fallback"], self.ilan["primary_image"])
+		self.assertEqual(disari["fallback"], _okunur(self.ilan))
 
 		self._bayrak(rollout_stores=self.ilan["seller_profile"])
 		canary = media_manifest.get_manifest(self.ilan["name"])
@@ -187,7 +187,7 @@ class TestMediaManifestApi(unittest.TestCase):
 				update_modified=False,
 			)
 
-		self.assertEqual(gorunur["fallback"], self.ilan["primary_image"])
+		self.assertEqual(gorunur["fallback"], _okunur(self.ilan))
 		self.assertTrue(gorunur["images"])
 
 		self.assertEqual(gizli["renditions"], [])
@@ -385,6 +385,13 @@ class TestMediaManifestApi(unittest.TestCase):
 		return {"asset": varlik.name, "servis_edilir": servis_edilir, "elenen": elenen}
 
 
+def _okunur(ilan: dict) -> str:
+	"""Manifest çıktısındaki ürün görseli adresi okunur biçimdedir (SEO görsel adresi, spec §5.3)."""
+	from tradehub_core.media import seo_url
+
+	return seo_url.seo_image_url(ilan["primary_image"], ilan.get("title"))
+
+
 def _gercek_ilan() -> dict | None:
 	"""Yerel `/files/` görseli olan, VİTRİNDE GÖRÜNEN bir ilan + `File` kaydı.
 
@@ -404,7 +411,7 @@ def _gercek_ilan() -> dict | None:
 	"""
 	satirlar = frappe.db.sql(
 		"""
-		SELECT l.name, l.seller_profile, l.primary_image, f.name AS file_name
+		SELECT l.name, l.seller_profile, l.primary_image, l.title, f.name AS file_name
 		FROM `tabListing` l
 		INNER JOIN `tabFile` f ON f.file_url = l.primary_image
 		WHERE l.storefront_visible = 1

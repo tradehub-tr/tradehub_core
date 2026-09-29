@@ -371,7 +371,12 @@ scheduler_events = {
 # ---------------------------------------------------------------------------
 # MOGEM-582 retro-rename: eski /files/<ad> istekleri için tek-sorgu 301 köprüsü.
 # Yalnız diskte olmayan dosya istekleri buraya düşer (nginx try_files).
-page_renderer = ["tradehub_core.media.redirect_renderer.MediaRedirectRenderer"]
+# SEO görsel adresi (`/files/<slug>-<kod>.<ext>`) ÖNCE: X-Accel ile servis ya da 301;
+# tanınmazsa sıradaki eski-ad köprüsüne geçer.
+page_renderer = [
+	"tradehub_core.media.seo_renderer.SeoImageRenderer",
+	"tradehub_core.media.redirect_renderer.MediaRedirectRenderer",
+]
 
 doc_events = {
 	# Tüm File yüklemelerinde XSS/RCE riskli uzantıları reddet (HATA 23).
@@ -432,6 +437,10 @@ doc_events = {
 			# kuyruğunda: SEO zenginleştirmesi, güvenlik kararı değil. Ses
 			# olmayan her dosyada ilk satırda döner.
 			"tradehub_core.media.audio_meta.maybe_extract_on_insert",
+			# SEO'lu görsel adresi (Task 1, 2026-09-28-seo-gorsel-adresi) — kısa kod
+			# atar. EN SONA eklendi: yukarıdaki kancaların çıktısına bağlı değil,
+			# `doc.flags.ignore_seo_code` ile testler ve toplu içe aktarım muaf.
+			"tradehub_core.media.seo_url.on_file_after_insert",
 		],
 		# Yerel File silme yolu StorageAdapter.delete'i kullanmaz. Mirror açıksa
 		# ikincil nesneyi de ancak commit'ten sonra sil; rollback S3'e yansımasın.
@@ -504,9 +513,12 @@ doc_events = {
 			"tradehub_core.eca.dispatcher.evaluate_rules_two_phase",
 			# #C2 — seller_profile değişiminde ReBAC store_link tuple'ını hizala.
 			"tradehub_core.services.tuple_sync.on_listing_update",
+			# SEO görsel adresi: sahip-slug önbelleği (başlık/görsel değişti).
+			"tradehub_core.media.seo_url.invalidate_owner_cache",
 		],
 		"after_insert": [
 			"tradehub_core.api.listing.invalidate_listing_cache",
+			"tradehub_core.media.seo_url.invalidate_owner_cache",
 			"tradehub_core.recommendations.engine.schedule_recompute_on_listing_update",
 			# ECA two-phase dispatcher (after_insert context).
 			"tradehub_core.eca.dispatcher.evaluate_rules_two_phase",
@@ -522,6 +534,7 @@ doc_events = {
 			"tradehub_core.services.tuple_sync.on_listing_trash",
 			# MOGEM-665 — giden stok olayları ürünle birlikte silinir (seri geri sarma tuzağı)
 			"tradehub_core.integration.outbound.on_listing_trash",
+			"tradehub_core.media.seo_url.invalidate_owner_cache",
 		],
 	},
 	# Product Category lifecycle → cascading cleanup of derived data

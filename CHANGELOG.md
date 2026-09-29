@@ -1,3 +1,105 @@
+## [v1.16.0-alpha.3] - 2026-09-29 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Duzeltildi
+- fix(favoriler): eski görsel adının snapshot'ı bozmasını önle (@ahmeetseker)
+  - Favori listesi okunurken retro-rename öncesi görsel adlarını güncel ilan görselinden çözdür
+  - Tarayıcıda kalmış eski adreslerin içerik-kodlu snapshot üzerine yazmasını engelle
+  - Eski ad senaryolarını API testleriyle sabitle
+
+---
+## [v1.16.0-alpha.2] - 2026-09-29 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(media): SEO'lu ürün görsel adreslerini ekle (@ahmeetseker)
+  - Ürün görselleri için slug ve kısa kodlu `/files/...` adresleri üretildi; disk ve DB hash tabanlı kaldığı için mevcut depolama düzeni korunuyor
+  - SeoImageRenderer, File.seo_code yamaları ve API dönüşümleri eklendi; Google'a açılacak görseller noindex taşımadan servis edilebiliyor
+  - Sepet, favori, sipariş, manifest, schema ve sitemap çıktıları aynı adres biçimine geçirildi; yazma yollarında okunur adresler saklama adresine çevriliyor
+  - Sepet/favori snapshot alanları retro-rename kapsamına alındı ve eski taşımaları düzeltmek için idempotent yama eklendi
+  - Yeni çekirdek, renderer, API ve retro-rename testleriyle çakışma, fallback, hassas dosya ve rollback davranışları kapsandı
+
+---
+## [v1.16.0-alpha.1] - 2026-09-28 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Duzeltildi
+- fix(media): arşivli retro-rename adaylarını atla (@ahmeetseker)
+  - Retro-rename raporuna çift noktalı ad ve arşivde bekleyen orijinal sayaçları eklendi; operatör riskli adayları önceden görebilsin
+  - Optimizasyon arşivindeki dosyalar gerçek koşuda ve provada tek tek atlanıyor; geri alma akışı kırılmadan kalan taşıma devam edebilsin
+  - Backend uçları ve testler yeni archived sözleşmesini kapsayacak şekilde güncellendi
+
+---
+## [v1.16.0] - 2026-09-25 PROD
+
+Bu surum istoc.cronbi.com'da yayindadir.
+
+### Eklendi
+- feat(api): MOGEM-665 Ürün API'si — upsert/stok/changes, webhook, panel bağlantısı (@Metin Bektemur)
+
+### Duzeltildi
+- fix(i18n): filtre kategorileri arayüz diline çözülüyor (@aliiball)
+  - Rusça arayüzde mega menü Rusça iken filtre kenar çubuğu Türkçe kalıyordu. Sebep veri eksikliği değildi: get_filter_facets ve altındaki cozucu dili hiç almıyor, adı ham category_name'den okuyordu, yani bekleyen yaprak çevirileri bitse bile filtre Türkçe kalacaktı.
+  - Ad çözümü get_categories ile aynı zincirden geçiyor; iki uç farklı ad üretse aynı kategori mega menüde bir, filtrede başka görünürdü. Ata zinciri de çevriliyor.
+  - Kaynak denetimi eklendi: bağlantı koparıldığında davranış testlerinin dokuzu da yeşil kalıyordu.
+- fix(auth): oturum bilgisinde ortak rate limit kovasını kaldır (@ahmeetseker)
+  - get_session_user üzerindeki rate_limit kaldırıldı
+  - Press proxy request_ip değerini vitrin IP'sine düşürdüğü için tüm ziyaretçilerin aynı 60/dk kovayı paylaşması engellendi
+  - CSRF token akışında site geneli 429 ve giriş kilidi oluşmaması hedeflendi
+
+### Degistirildi
+- refactor(docs): repo belgeleri kisisel not klasorune bagimli olmaktan cikarildi (@aliiball)
+  - Uc belge, repoyu klonlayan kimsede bulunmayan git'siz bir klasordeki nota yol veriyordu; okuyan kisi o dosyayi repo kokunde ariyor ve bulamiyordu
+  - Lojistik FE veri sozlesmelerinin alti da kaldirildi; uc tablosunun kaynak sutunu artik dosya adi degil ilgili Plane gorevini isaret ediyor
+  - Mimari belgesinin sonundaki bulgu listesi atfi kaldirildi, yerine repo ici sozlesme dosyasi birakildi
+
+---
+## [v1.15.0-rc.1] - 2026-09-25 RC
+
+Bu surum rcistoc.cronbi.com'da onay asamasindadir.
+
+### Eklendi
+- feat(api): MOGEM-665 Ürün API'si — upsert/stok/changes, webhook, panel bağlantısı (@Metin Bektemur)
+
+### Duzeltildi
+- fix(i18n): filtre kategorileri arayüz diline çözülüyor (@aliiball)
+  - Rusça arayüzde mega menü Rusça iken filtre kenar çubuğu Türkçe kalıyordu. Sebep veri eksikliği değildi: get_filter_facets ve altındaki cozucu dili hiç almıyor, adı ham category_name'den okuyordu, yani bekleyen yaprak çevirileri bitse bile filtre Türkçe kalacaktı.
+  - Ad çözümü get_categories ile aynı zincirden geçiyor; iki uç farklı ad üretse aynı kategori mega menüde bir, filtrede başka görünürdü. Ata zinciri de çevriliyor.
+  - Kaynak denetimi eklendi: bağlantı koparıldığında davranış testlerinin dokuzu da yeşil kalıyordu.
+- fix(auth): oturum bilgisinde ortak rate limit kovasını kaldır (@ahmeetseker)
+  - get_session_user üzerindeki rate_limit kaldırıldı
+  - Press proxy request_ip değerini vitrin IP'sine düşürdüğü için tüm ziyaretçilerin aynı 60/dk kovayı paylaşması engellendi
+  - CSRF token akışında site geneli 429 ve giriş kilidi oluşmaması hedeflendi
+
+### Degistirildi
+- refactor(docs): repo belgeleri kisisel not klasorune bagimli olmaktan cikarildi (@aliiball)
+  - Uc belge, repoyu klonlayan kimsede bulunmayan git'siz bir klasordeki nota yol veriyordu; okuyan kisi o dosyayi repo kokunde ariyor ve bulamiyordu
+  - Lojistik FE veri sozlesmelerinin alti da kaldirildi; uc tablosunun kaynak sutunu artik dosya adi degil ilgili Plane gorevini isaret ediyor
+  - Mimari belgesinin sonundaki bulgu listesi atfi kaldirildi, yerine repo ici sozlesme dosyasi birakildi
+
+---
+## [v1.15.0-alpha.4] - 2026-09-25 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Duzeltildi
+- fix(auth): oturum bilgisinde ortak rate limit kovasını kaldır (@ahmeetseker)
+  - get_session_user üzerindeki rate_limit kaldırıldı
+  - Press proxy request_ip değerini vitrin IP'sine düşürdüğü için tüm ziyaretçilerin aynı 60/dk kovayı paylaşması engellendi
+  - CSRF token akışında site geneli 429 ve giriş kilidi oluşmaması hedeflendi
+
+---
+## [v1.15.0-alpha.3] - 2026-09-22 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(api): MOGEM-665 Ürün API'si — upsert/stok/changes, webhook, panel bağlantısı (@Metin Bektemur)
+
+---
 ## [Unreleased] — MOGEM-665 · Ürün API'si (2026-09-15)
 
 ### Eklendi

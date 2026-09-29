@@ -358,3 +358,8 @@ tradehub_core.patches.v15_9_60_showcase_ar_ru
 # --- SEO Helper (MOGEM-663/662): ayrı app seo_helper_cms buraya taşındı ---
 tradehub_core.seo_helper.patches.v0_1.backfill_builder_pages
 tradehub_core.seo_helper.patches.v0_2.audit_finding_active_key
+# --- SEO'lu görsel adresi: File.seo_code + geriye dönük doldurma ---
+tradehub_core.patches.v15_9_61_file_seo_code
+
+# --- SEO görsel adresi: sepet/favori görsel kopyaları taşımaya dahil (eski taşımaları düzelt) ---
+tradehub_core.patches.v15_9_62_retarget_cart_favorite_snapshots

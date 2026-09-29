@@ -166,7 +166,7 @@ def get_brand_detail(slug=None, code=None, page=1, page_size=20, sort_by="modifi
 	}
 
 	# Fetch brand listings via shared helper
-	from tradehub_core.api.listing import _format_listing_card, get_listings
+	from tradehub_core.api.listing import _format_listing_card, _kart_gorsel_kodlari, get_listings
 
 	listings_result = get_listings(
 		brands=brand.name,
@@ -229,11 +229,13 @@ def get_brand_detail(slug=None, code=None, page=1, page_size=20, sort_by="modifi
 				],
 			):
 				listings_map[lst.name] = lst
+			# Görsel kodları tüm öne çıkanlar için tek seferde (spec §5.3, N+1 yok).
+			codes = _kart_gorsel_kodlari(list(listings_map.values()))
 			# Preserve order from featured_rows
 			for r in featured_rows:
 				lst = listings_map.get(r.listing)
 				if lst:
-					featured_cards.append(_format_listing_card(lst))
+					featured_cards.append(_format_listing_card(lst, codes=codes))
 
 	return {
 		"brand": brand_payload,

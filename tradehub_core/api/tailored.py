@@ -23,6 +23,8 @@ import json
 import frappe
 from frappe import _
 
+from tradehub_core.media import seo_url
+
 # ── Tuning constants (MVP: hard-coded; ileride System Settings'ten okunacak) ──
 
 # Sinyal ağırlıkları
@@ -60,7 +62,7 @@ def _cache_key(prefix: str, **kwargs) -> str:
 	return f"{prefix}:{h}"
 
 
-def _listing_to_card(l) -> dict:
+def _listing_to_card(l, codes: dict[str, str] | None = None) -> dict:
 	"""Shared listing row → ProductListingCard dict.
 	Applies active campaign discount (discount_percentage > 0) the same way
 	api.listing.get_listing_detail does, so prices stay consistent across
@@ -77,6 +79,9 @@ def _listing_to_card(l) -> dict:
 		or getattr(l, "primary_image", None)
 		or ""
 	)
+	# SEO'lu görsel adresi (spec §5.3): slug ilanın orijinal başlığından.
+	if image_src:
+		image_src = seo_url.seo_image_url(image_src, l.get("name_display") or l.get("title"), codes)
 	selling = float(l.selling_price or 0)
 	dp = float(getattr(l, "discount_percentage", 0) or 0)
 	has_campaign = dp > 0
@@ -381,7 +386,14 @@ def _top_listings_for_category(category: str, limit: int) -> list:
 		as_dict=True,
 	)
 
-	return [_listing_to_card(l) for l in listings]
+	# Grubun görsel kodları tek sorguda — ana görsel + ilk galeri görseli adayları.
+	adaylar = [l.primary_image for l in listings if l.primary_image]
+	if listings:
+		adaylar += frappe.get_all(
+			"Listing Image", filters={"parent": ["in", [l.name for l in listings]]}, pluck="image"
+		)
+	codes = seo_url.codes_for([u for u in adaylar if u])
+	return [_listing_to_card(l, codes) for l in listings]
 
 
 def _build_editorial(category_name: str, user: str = None) -> dict:
@@ -504,10 +516,11 @@ def _category_display(category_name: str) -> dict:
 	# kategori ağacı importu image alanı boş geldiği için hero kartları
 	# aksi halde görselsiz kalıyor.
 	image = cat.image or ""
+	image_title = None
 	if not image:
 		top = frappe.db.sql(
 			"""
-            SELECT l.name, l.primary_image
+            SELECT l.name, l.title, l.primary_image
             FROM `tabListing` l
             WHERE l.product_category = %(cat)s AND l.status = 'Active'
             ORDER BY (COALESCE(l.order_count, 0) + COALESCE(l.view_count, 0)) DESC
@@ -527,14 +540,33 @@ def _category_display(category_name: str) -> dict:
 				or top[0].primary_image
 				or ""
 			)
+			# Ürün görseli: okunur adres, slug o ilanın başlığından (spec §5.3). Çevrim
+			# çağıranda tüm kartlar için tek sorguyla yapılır (`_kategori_gorsellerini_cevir`).
+			image_title = top[0].title
 	return {
 		"slug": cat.url_slug or cat.name,
 		"name": cat.category_name or cat.name,
 		"image": image,
+		# Yalnız ürün görseline düşüldüyse dolu; yanıta girmez, okunur adres için.
+		"imageTitle": image_title,
 		"parent": cat.parent_product_category,
 		"categoryId": cat.name,
 		"viewsCount": views_count,
 	}
+
+
+def _kategori_gorsellerini_cevir(kartlar: list[dict], basliklar: list[str | None]) -> None:
+	"""Kategori kartı görseli ilandan geldiyse okunur adrese çevirir — TEK kod sorgusu.
+
+	`basliklar[i]` None ise görsel kategorinin kendisine ait (ürün görseli değil),
+	adres aynen kalır (spec: yalnız herkese açık ürün görselleri okunur adres alır).
+	"""
+	hedefler = [(k, b) for k, b in zip(kartlar, basliklar, strict=True) if b and k.get("image")]
+	if not hedefler:
+		return
+	codes = seo_url.codes_for([k["image"] for k, _ in hedefler])
+	for kart, baslik in hedefler:
+		kart["image"] = seo_url.seo_image_url(kart["image"], baslik, codes)
 
 
 # ─── Public Endpoints ─────────────────────────────────────────────────────────
@@ -583,6 +615,7 @@ def get_tailored_selections(limit: int = 9):
 
 	# 2) Build group cards
 	groups = []
+	gorsel_basliklari: list[str | None] = []
 	for cat_name in categories:
 		display = _category_display(cat_name)
 		products = _top_listings_for_category(cat_name, PRODUCTS_PER_GROUP)
@@ -603,6 +636,8 @@ def get_tailored_selections(limit: int = 9):
 				"products": products,
 			}
 		)
+		gorsel_basliklari.append(display.get("imageTitle"))
+	_kategori_gorsellerini_cevir(groups, gorsel_basliklari)
 
 	payload = {
 		"limit": limit,
@@ -725,7 +760,13 @@ def get_tailored_group_detail(category: str, subcategory: str = None, page: int 
 		else {}
 	)
 
-	products = [_format_listing_card(l, seller_cache=seller_cache, brand_cache=brand_cache) for l in listings]
+	from tradehub_core.api.listing import _kart_gorsel_kodlari
+
+	codes = _kart_gorsel_kodlari(listings)
+	products = [
+		_format_listing_card(l, seller_cache=seller_cache, brand_cache=brand_cache, codes=codes)
+		for l in listings
+	]
 
 	total = frappe.db.sql(
 		"""
@@ -747,6 +788,7 @@ def get_tailored_group_detail(category: str, subcategory: str = None, page: int 
 	)
 
 	display = _category_display(active_category)
+	_kategori_gorsellerini_cevir([display], [display.get("imageTitle")])
 	return {
 		"page": page,
 		"page_size": page_size,

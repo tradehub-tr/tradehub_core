@@ -47,8 +47,12 @@ def check_email_exists(email: str):
 	return {"success": True, "exists": True}
 
 
+# Hız sınırı bilinçli olarak YOK. Frappe `rate_limit` kovayı `request_ip`'ye bağlar;
+# prod'da Press proxy X-Forwarded-For'u ezdiği için request_ip tüm ziyaretçilerde
+# vitrin sunucusunun IP'si oluyor → herkes tek 60/dk kovayı paylaşıyor ve bu uç her
+# sayfa açılışında (CSRF token) çağrıldığı için site genelinde 429 + giriş kilidi
+# oluşuyordu (2026-09-25). Uç yalnız çağıranın kendi oturumunu okur.
 @frappe.whitelist(allow_guest=True, methods=["GET"])
-@rate_limit(limit=60, seconds=60)
 def get_session_user():
 	"""Return current session user info with role flags.
 

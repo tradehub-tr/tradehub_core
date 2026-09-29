@@ -472,8 +472,27 @@ def get_sellers(
 			s["gallery_images"] = [g["image"] for g in gallery if g.get("image")]
 		except Exception:
 			s["gallery_images"] = []
+	_satici_urun_gorsellerini_cevir(sellers)
 	total = frappe.db.count("Admin Seller Profile", filters=filters)
 	return {"sellers": sellers, "total": total, "page": int(page), "page_size": int(page_size)}
+
+
+def _satici_urun_gorsellerini_cevir(sellers: list) -> None:
+	"""Satıcı kartlarındaki ürün görsellerini okunur adrese çevirir (spec §5.3).
+
+	Tüm satıcıların ürünleri için TEK kod sorgusu; slug ürünün başlığından.
+	`product_images` ürün listesinden yeniden türetilir (aynı sıra, boşlar hariç).
+	"""
+	from tradehub_core.media import seo_cikti
+
+	urunler = [p for s in sellers for p in (s.get("products") or [])]
+	okunur = seo_cikti.okunur_adresler([(p.get("image"), p.get("product_name")) for p in urunler])
+	for p, adres in zip(urunler, okunur, strict=True):
+		if p.get("image"):
+			p["image"] = adres
+	for s in sellers:
+		if s.get("products"):
+			s["product_images"] = [p["image"] for p in s["products"] if p.get("image")]
 
 
 @frappe.whitelist(allow_guest=True)
@@ -1551,6 +1570,14 @@ def get_seller_products(
 		l["price_max"] = price_max
 		l["moq"] = l.get("min_order_qty", 1)
 		l["moq_unit"] = "Adet"
+	# Vitrin çıktısı okunur görsel adresiyle (spec §5.3) — sayfa için tek kod sorgusu.
+	from tradehub_core.media import seo_cikti
+
+	okunur = seo_cikti.okunur_adresler([(l.get("primary_image"), l.get("title")) for l in listings])
+	for l, adres in zip(listings, okunur, strict=True):
+		if l.get("primary_image"):
+			l["primary_image"] = adres
+			l["image"] = adres
 	total = frappe.db.count("Listing", filters=filters)
 	return {"products": listings, "total": total}
 
