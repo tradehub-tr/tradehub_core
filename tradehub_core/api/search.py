@@ -81,7 +81,7 @@ def _search_products(q: str, limit: int) -> list[dict]:
 				# Sort rows back to ES relevance order
 				row_map = {r.name: r for r in rows}
 				ordered_rows = [row_map[name] for name in doc_names if name in row_map]
-				return [{"id": r.name, "name": r.title or "", "image": r.primary_image or ""} for r in ordered_rows]
+				return _urun_onerileri(ordered_rows)
 		except Exception as e:
 			frappe.logger("search").error(f"ES search failed: {e}")
 			
@@ -96,7 +96,22 @@ def _search_products(q: str, limit: int) -> list[dict]:
 	if q:
 		qb = qb.where(Listing.title.like(f"%{q}%"))
 	rows = qb.orderby(Listing.modified, order=frappe.qb.desc).limit(limit).run(as_dict=True)
-	return [{"id": r.name, "name": r.title or "", "image": r.primary_image or ""} for r in rows]
+	return _urun_onerileri(rows)
+
+
+def _urun_onerileri(rows: list) -> list[dict]:
+	"""Ürün öneri satırları — görsel okunur adresle (spec §5.3), kodlar tek sorguda."""
+	from tradehub_core.media import seo_url
+
+	codes = seo_url.codes_for([r.primary_image for r in rows if r.primary_image])
+	return [
+		{
+			"id": r.name,
+			"name": r.title or "",
+			"image": seo_url.seo_image_url(r.primary_image, r.title, codes) if r.primary_image else "",
+		}
+		for r in rows
+	]
 
 
 def _search_categories(q: str, limit: int) -> list[dict]:

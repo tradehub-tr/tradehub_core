@@ -71,6 +71,18 @@ def _batch_fetch_seller_names(orders: list) -> dict:
 	return {r.get("name"): r.get("seller_name") for r in rows}
 
 
+def _siparis_gorsellerini_cevir(rows: list) -> None:
+	"""Sipariş satırı görselini okunur adrese çevirir (spec §5.3) — yalnız çıktı.
+
+	`Order Item.image` geçmiş kaydıdır, DB'de dokunulmaz. Eski adlıysa ve ilan
+	hâlâ duruyorsa ilanın güncel `primary_image`'ı gösterilir; ilan silinmişse
+	saklı adres aynen kalır. Kodlar tüm satırlar için tek sorguda.
+	"""
+	from tradehub_core.media import seo_cikti
+
+	seo_cikti.satirlari_cevir(rows, url_alani="image", ad_alani="product_name", eskiyse_ilandan=True)
+
+
 def _batch_fetch_order_items(order_names: list) -> dict:
 	"""Fetch all candidate order items once so search happens before pagination."""
 	if not order_names:
@@ -80,6 +92,7 @@ def _batch_fetch_order_items(order_names: list) -> dict:
 		filters={"parent": ["in", order_names]},
 		fields=[
 			"parent",
+			"listing",
 			"listing_title as product_name",
 			"variation",
 			"unit_price",
@@ -90,6 +103,7 @@ def _batch_fetch_order_items(order_names: list) -> dict:
 		],
 		order_by="parent asc, idx asc",
 	)
+	_siparis_gorsellerini_cevir(rows)
 	items_by_order = {name: [] for name in order_names}
 	for row in rows:
 		items_by_order.setdefault(row.get("parent"), []).append(
@@ -271,7 +285,7 @@ def get_my_orders(
 
 
 @frappe.whitelist()
-def get_order_detail(order_number):
+def get_order_detail(order_number: str) -> dict:
 	"""Get single order detail."""
 	buyer = _require_buyer()
 
@@ -286,10 +300,11 @@ def get_order_detail(order_number):
 		frappe.throw(_("Order not found"), frappe.DoesNotExistError)
 
 	_translate_order(order)
-	order["items"] = frappe.get_all(
+	items = frappe.get_all(
 		"Order Item",
 		filters={"parent": order["name"]},
 		fields=[
+			"listing",
 			"listing_title as product_name",
 			"variation",
 			"unit_price",
@@ -299,6 +314,11 @@ def get_order_detail(order_number):
 		],
 		order_by="idx asc",
 	)
+	_siparis_gorsellerini_cevir(items)
+	# `listing` yalnız görsel çözümü için okundu; yanıt sözleşmesi aynen kalsın.
+	for item in items:
+		item.pop("listing", None)
+	order["items"] = items
 
 	return {"success": True, "order": order}
 

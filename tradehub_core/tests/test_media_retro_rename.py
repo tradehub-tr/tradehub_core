@@ -822,3 +822,104 @@ class TestErrorRateStop(_RenameBase):
 		# İlk dosya geri alındı, kalan ikisine hiç dokunulmadı.
 		for ad in [self.name, f"rr-err-{self.suffix}-0.jpg", f"rr-err-{self.suffix}-1.jpg"]:
 			self.assertTrue(os.path.isfile(os.path.join(base, ad)))
+
+
+class TestCartFavoriteRetarget(_RenameBase):
+	"""Sepet/favori görsel kopyası CANLI kayıt: taşıma günceller, geri alma döndürür
+	(spec 2026-09-28-seo-gorsel-adresi §5.3). Eskiden `ORDER_SOURCES`'taydı ve
+	90 gün sonra yönlendirme silinince görsel kırılıyordu."""
+
+	def setUp(self):
+		super().setUp()
+		self.addCleanup(self._sepet_temizle)
+		self.sepet = f"RRCART-{self.suffix}"
+		self.sepet_satiri = f"RRCI-{self.suffix}"
+		self.favori = f"RRFAV-{self.suffix}"
+		self._sepet_favori_kur(self.url)
+		frappe.db.commit()
+
+	def _sepet_favori_kur(self, snapshot: str) -> None:
+		# Controller mantığı (sepet başına tek alıcı vb.) bu testin konusu değil:
+		# satırlar doğrudan yazılıyor, yalnız görsel alanı ölçülüyor.
+		# `Cart.buyer` tekil: gerçek bir kullanıcının sepetiyle çakışmasın diye uydurma
+		# alıcı (db_insert Link doğrulamaz; satır temizlikte siliniyor).
+		sepet = frappe.get_doc({"doctype": "Cart", "buyer": f"rr-{self.suffix}@example.invalid"})
+		sepet.name = self.sepet
+		sepet.db_insert()
+		satir = frappe.get_doc(
+			{
+				"doctype": "Cart Item",
+				"parent": self.sepet,
+				"parenttype": "Cart",
+				"parentfield": "items",
+				"listing": self.listing,
+				"quantity": 1,
+				"snapshot_image": snapshot,
+			}
+		)
+		satir.name = self.sepet_satiri
+		satir.db_insert()
+		fav = frappe.get_doc(
+			{
+				"doctype": "Buyer Favorite Item",
+				"user": "Administrator",
+				"listing": self.listing,
+				"snapshot_image": snapshot,
+			}
+		)
+		fav.name = self.favori
+		fav.db_insert()
+
+	def _sepet_temizle(self) -> None:
+		frappe.db.rollback()
+		frappe.db.delete("Cart Item", {"name": self.sepet_satiri})
+		frappe.db.delete("Cart", {"name": self.sepet})
+		frappe.db.delete("Buyer Favorite Item", {"name": self.favori})
+		frappe.db.commit()
+
+	def _gorseller(self) -> tuple[str, str]:
+		return (
+			frappe.db.get_value("Cart Item", self.sepet_satiri, "snapshot_image"),
+			frappe.db.get_value("Buyer Favorite Item", self.favori, "snapshot_image"),
+		)
+
+	def test_kaynak_gruplari(self):
+		from tradehub_core.media import usage
+
+		canli = {(t, c) for t, c, _k, _l in usage.LIVE_SOURCES}
+		siparis = {(t, c) for t, c, _k, _l in usage.ORDER_SOURCES}
+		for ikili in (("tabCart Item", "snapshot_image"), ("tabBuyer Favorite Item", "snapshot_image")):
+			self.assertIn(ikili, canli)
+			self.assertNotIn(ikili, siparis)
+		self.assertNotIn("tabCart Item", refs.READONLY_TABLES)
+		# Sipariş kalemi görseli geçmiş kaydı olarak kalır.
+		self.assertIn(("tabOrder Item", "image"), siparis)
+
+	def test_tasima_gunceller_geri_alma_dondurur(self):
+		hedef = self._expected_target()
+		with mock.patch.object(retro_rename, "legacy_urls", return_value=[self.url]):
+			retro_rename.run_job("JOB-CARTFAV", dry_run=0, batch_size=10)
+		self.assertEqual(self._gorseller(), (hedef, hedef))
+
+		retro_rename.run_rollback("JOB-CARTFAV", "RB-CARTFAV")
+		self.assertEqual(self._gorseller(), (self.url, self.url))
+
+	def test_yama_eski_tasimanin_eksigini_kapatir_ve_idempotent(self):
+		from tradehub_core.patches import v15_9_62_retarget_cart_favorite_snapshots as yama
+
+		hedef = self._expected_target()
+		# Eski kodla yapılmış taşımayı taklit et: sepet/favori eski adda kalsın.
+		with mock.patch.object(
+			refs, "READONLY_TABLES", refs.READONLY_TABLES | {"tabCart Item", "tabBuyer Favorite Item"}
+		):
+			retro_rename.rename_one(self.url, "JOB-CARTFAV-P", add_days(now_datetime(), 90))
+		self.assertEqual(self._gorseller(), (self.url, self.url))
+
+		sayac = yama.execute(only_source=self.url)
+		self.assertEqual(sayac, {"tabCart Item": 1, "tabBuyer Favorite Item": 1})
+		self.assertEqual(self._gorseller(), (hedef, hedef))
+		self.assertEqual(yama.execute(only_source=self.url), {"tabCart Item": 0, "tabBuyer Favorite Item": 0})
+
+		# Yama kanıtı `ref_changes`'e yazdı: geri alma sepet/favoriyi de döndürür.
+		retro_rename.run_rollback("JOB-CARTFAV-P", "RB-CARTFAV-P")
+		self.assertEqual(self._gorseller(), (self.url, self.url))
