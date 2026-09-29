@@ -63,8 +63,8 @@ class SecretAccessHelperTests(PrivacyAuditStubCase):
 		self.assertIn("AKIA-SUPER-SECRET", str(sahte))
 
 
-class PublicApiClientSecretWiringTests(PrivacyAuditStubCase):
-	"""`public_api._verify_client` — gerçek sır değeri denetime sızmaz."""
+class _ClientStubBase(PrivacyAuditStubCase):
+	"""Tek bir `API Application` (client_id `client-id-1`) taklidi — iki sınıf paylaşır."""
 
 	SECRET = "cok-gizli-client-secret-XYZ-987"
 
@@ -98,10 +98,18 @@ class PublicApiClientSecretWiringTests(PrivacyAuditStubCase):
 		self._yamala(
 			"db",
 			SimpleNamespace(
-				get_value=lambda dt, *a, **kw: app_row if dt == "API Application" else None,
+				get_value=lambda dt, filtre=None, *a, **kw: (
+					app_row
+					if dt == "API Application" and (filtre or {}).get("client_id") == "client-id-1"
+					else None
+				),
 				commit=lambda: None,
 			),
 		)
+
+
+class PublicApiClientSecretWiringTests(_ClientStubBase):
+	"""`public_api._verify_client` — gerçek sır değeri denetime sızmaz."""
 
 	def test_gecerli_secret_ile_dogrulama_denetlenir_ve_deger_sizmaz(self):
 		from tradehub_core.api.v1 import public_api
@@ -129,6 +137,87 @@ class PublicApiClientSecretWiringTests(PrivacyAuditStubCase):
 			public_api._verify_client("client-id-1", "yanlis-secret")
 		kayitlar = [k for k in _INSERTED if k.get("action") == "config.secret_access"]
 		self.assertEqual(len(kayitlar), 1, "Sır okundu ama denetlenmedi — iz kayboldu.")
+
+
+class PublicApiTokenEnumerationTests(_ClientStubBase):
+	"""MOGEM-685 Bulgu 1 — token ucu geçerli client_id'leri ele vermez.
+
+	Ölçüldü (28 Eyl 2026, gerçek HTTP): yanlış client_id → "Geçersiz client_id",
+	doğru id + yanlış sır → "Geçersiz client_secret". Misafir, 30 istek/dk/IP ile
+	hangi kimliklerin gerçek olduğunu tek tek bulabiliyordu. Sır da `!=` ile
+	karşılaştırılıyordu (sabit zamanlı değil).
+	"""
+
+	def _hata(self, client_id: str, secret: str) -> Exception:
+		from tradehub_core.api.v1 import public_api
+
+		with self.assertRaises(frappe.AuthenticationError) as ctx:
+			public_api._verify_client(client_id, secret)
+		return ctx.exception
+
+	def test_bilinmeyen_kimlik_ve_yanlis_sir_ayni_hatayi_verir(self):
+		kimlik = self._hata("yok-boyle-bir-id", "herhangi")
+		sir = self._hata("client-id-1", "yanlis-secret")
+		self.assertEqual(type(kimlik), type(sir))
+		self.assertEqual(str(kimlik), str(sir))
+		self.assertNotIn("client_id", str(kimlik))
+		self.assertNotIn("client_secret", str(sir))
+
+	def test_sir_sabit_zamanli_karsilastirilir(self):
+		from unittest import mock
+
+		from tradehub_core.api.v1 import public_api
+
+		with mock.patch.object(public_api.hmac, "compare_digest", wraps=public_api.hmac.compare_digest) as cd:
+			public_api._verify_client("client-id-1", self.SECRET)
+			with self.assertRaises(frappe.AuthenticationError):
+				public_api._verify_client("client-id-1", "yanlis-secret")
+		self.assertEqual(cd.call_count, 2)
+
+	def test_bos_sir_kayitli_uygulama_da_ayni_hatayi_verir(self):
+		frappe.get_doc("API Application", "APP-0001").get_password = lambda *a, **k: None
+		self.assertEqual(str(self._hata("client-id-1", "")), str(self._hata("yok", "x")))
+
+	def test_dogru_bilgiyle_gecer(self):
+		from tradehub_core.api.v1 import public_api
+
+		self.assertEqual(public_api._verify_client("client-id-1", self.SECRET)["app_name"], "APP-0001")
+
+	def _sure(self, client_id: str, secret: str) -> float:
+		import time
+
+		basla = time.monotonic()
+		try:
+			from tradehub_core.api.v1 import public_api
+
+			public_api._verify_client(client_id, secret)
+		except frappe.AuthenticationError:
+			pass
+		return time.monotonic() - basla
+
+	def test_ret_yollari_sure_olarak_da_esit(self):
+		"""MOGEM-685 bulgu 5 — ölçüldü (29 Eyl, HTTP): bilinmeyen kimlik medyan 7,6 ms, bilinen
+		kimlik + yanlış sır 19,0 ms; dağılımlar örtüşmüyordu. Artık iki ret de tabana tamamlanır."""
+		import time
+
+		from tradehub_core.api.v1 import public_api
+
+		# Gerçekte bilinen kimlik yolu kayıt + şifre çözme + denetim yazıyor (~5 ms süreç içi);
+		# taklitte get_password anında dönüyor — yavaşlık eklenmezse eşitleme kapalıyken de
+		# test geçerdi (taban 0 ile ölçüldü: boş geçiyordu).
+		app = frappe.get_doc("API Application", "APP-0001")
+		app.get_password = lambda *a, **k: (time.sleep(0.02), self.SECRET)[1]
+		taban = public_api.RET_SURE_TABANI_SN
+		bilinmeyen = min(self._sure("yok-boyle-bir-id", "x") for _ in range(3))
+		yanlis_sir = min(self._sure("client-id-1", "yanlis-secret") for _ in range(3))
+		self.assertGreaterEqual(bilinmeyen, taban)
+		self.assertGreaterEqual(yanlis_sir, taban)
+		self.assertLess(abs(bilinmeyen - yanlis_sir), 0.01)
+
+	def test_basarili_dogrulama_taban_kadar_beklemez(self):
+		from tradehub_core.api.v1 import public_api
+
+		self.assertLess(self._sure("client-id-1", self.SECRET), public_api.RET_SURE_TABANI_SN)
 
 
 if __name__ == "__main__":

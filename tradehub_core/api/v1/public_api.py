@@ -16,9 +16,11 @@ Sonra:
 
 from __future__ import annotations
 
+import hmac
 import time
 
 import frappe
+from frappe import _
 
 from tradehub_core.api.mobile_api import _decode_jwt, _encode_jwt
 from tradehub_core.api.rate_limit import rate_limit
@@ -31,7 +33,18 @@ RATE_LIMITS = {
 
 
 def _verify_client(client_id: str, client_secret: str) -> dict:
-	"""API Application'a karşı client_id + client_secret doğrula."""
+	"""API Application'a karşı client_id + client_secret doğrula.
+
+	Bilinmeyen kimlik ve yanlış sır AYNI hatayı verir (MOGEM-685, 28 Eyl 2026):
+	ayrı mesajlar misafire hangi client_id'lerin gerçek olduğunu söylüyordu. Sır
+	`hmac.compare_digest` ile karşılaştırılır — `!=` ilk farklı baytta durur.
+
+	Ret yolları SÜRE olarak da eşit (MOGEM-685 bulgu 5, 29 Eyl 2026 ölçüldü): bilinmeyen kimlik tek
+	sorguda dönüyor (medyan 0,31 ms), bilinen kimlik + yanlış sır kayıt + şifre çözme + denetim
+	yazıyor (5,37 ms; HTTP'de 7,6 ↔ 19,0 ms, dağılımlar örtüşmüyordu) — mesaj aynıyken süre
+	hangi client_id'nin gerçek olduğunu söylüyordu. Her ret `RET_SURE_TABANI_SN`'ye tamamlanır.
+	"""
+	basla = time.monotonic()
 	app = frappe.db.get_value(
 		"API Application",
 		{"client_id": client_id, "is_active": 1},
@@ -39,7 +52,7 @@ def _verify_client(client_id: str, client_secret: str) -> dict:
 		as_dict=True,
 	)
 	if not app:
-		frappe.throw("Geçersiz client_id", frappe.AuthenticationError)
+		_invalid_client(basla)
 	doc = frappe.get_doc("API Application", app.name)
 	expected_secret = doc.get_password("client_secret", raise_exception=False)
 	if expected_secret:
@@ -54,8 +67,10 @@ def _verify_client(client_id: str, client_secret: str) -> dict:
 			object_doctype="API Application",
 			object_name=app.name,
 		)
-	if not expected_secret or expected_secret != client_secret:
-		frappe.throw("Geçersiz client_secret", frappe.AuthenticationError)
+	if not expected_secret or not hmac.compare_digest(
+		expected_secret.encode("utf-8"), str(client_secret or "").encode("utf-8")
+	):
+		_invalid_client(basla)
 	return {
 		"app_name": app.name,
 		"tier": app.rate_limit_tier,
@@ -64,6 +79,19 @@ def _verify_client(client_id: str, client_secret: str) -> dict:
 		# her istekte DB'den yeniden okunur — kapatılan uygulama anında düşsün).
 		"seller": getattr(doc, "seller_profile", None) or None,  # stub'lı testler (.get yok)
 	}
+
+
+#: Başarısız doğrulamanın en kısa süresi. Ölçülen en yavaş ret (p90 7,2 ms) çok altında kalır;
+#: başarılı doğrulama beklemez. Kaba kuvvet denemesini de yavaşlatır.
+RET_SURE_TABANI_SN = 0.05
+
+
+def _invalid_client(basla: float | None = None) -> None:
+	if basla is not None:
+		kalan = RET_SURE_TABANI_SN - (time.monotonic() - basla)
+		if kalan > 0:
+			time.sleep(kalan)
+	frappe.throw(_("Geçersiz istemci bilgileri"), frappe.AuthenticationError)
 
 
 def _verify_bearer() -> dict:
