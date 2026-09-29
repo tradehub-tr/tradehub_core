@@ -1,3 +1,16 @@
+## [v1.16.0-alpha.6] - 2026-09-29 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Duzeltildi
+- fix(test): Faz 2 koşusunun sahte frappe yüzünden çökmesi düzeltildi (@aliiball)
+  - Faz 2 altı test modülünü aynı süreçte yüklüyor; biri sys.modules a __spec__ i olmayan sahte frappe koyunca skipUnless içindeki find_spec ValueError fırlatıyor ve koşu testler yüklenirken çöküyordu. Hiçbir test koşmuyordu.
+  - _gercek_frappe_var bu hatayı gerçek frappe yok sayıyor ve testi atlıyor. Gerçek bench ortamında test eskisi gibi koşuyor.
+- fix(test): misafir yüzeyi tabanına SEO Helper uçları eklendi (@aliiball)
+  - SEO Helper tradehub_core a taşınınca 8 yeni guest uç geldi ve misafir yüzeyi kapısı version-15 te kırmızıya düştü.
+  - 7 MCP aracı her çağrıda MCP anahtarı istiyor; alpha da anahtarsız ve sahte anahtarla 401 ölçüldü. Anahtarla bile yalnız taslak yazılıyor. record_landing veritabanına yazmıyor, yalnız imzalı çerez bırakıyor. Taban 112 den 120 ye çıktı.
+
+---
 ## [v1.16.0-alpha.5] - 2026-09-29 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
