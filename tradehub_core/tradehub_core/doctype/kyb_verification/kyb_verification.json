@@ -218,6 +218,24 @@
 			"label": "Notes",
 			"permlevel": 2,
 			"depends_on": "eval:doc.status=='Rejected' || doc.status=='Suspended'"
+		},
+		{
+			"fieldname": "aml_check_status",
+			"fieldtype": "Select",
+			"label": "Kara Para Taraması",
+			"options": "Not Checked\nClear\nHit Found",
+			"default": "Not Checked",
+			"permlevel": 5,
+			"description": "Hit Found: satıcı ödeme onayı, iade ve bakiye çekme yapamaz; finans kayıtlarına erişemez."
+		},
+		{
+			"fieldname": "sanctions_status",
+			"fieldtype": "Select",
+			"label": "Yaptırım Listesi Taraması",
+			"options": "Not Checked\nClear\nMatch Found",
+			"default": "Not Checked",
+			"permlevel": 5,
+			"description": "Match Found: satıcı ödeme onayı, iade ve bakiye çekme yapamaz; finans kayıtlarına erişemez."
 		}
 	],
 	"permissions": [

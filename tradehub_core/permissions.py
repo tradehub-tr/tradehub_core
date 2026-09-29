@@ -14,6 +14,7 @@ import frappe
 from frappe.utils import flt
 
 # Import tenant utilities
+from tradehub_core.utils.aml_gate import aml_engelli_mi
 from tradehub_core.utils.tenant import _has_tenant_field, get_current_tenant, is_tenant_admin
 
 # ---------------------------------------------------------------------------
@@ -282,56 +283,16 @@ def _check_kyc_verification(user, doctype):
 
 
 def _check_aml_sanctions(user, doctype):
-	"""
-	ABAC Layer: Block access for users flagged by AML or sanctions screening.
+	"""ABAC: AML/yaptırım işaretli satıcı hassas finans DocType'larına erişemez.
 
-	KYB Verification üzerinden AML/sanctions kontrolü. aml_check_status veya
-	sanctions_status field'ı "Hit Found" / "Match Found" ise erişim engellenir.
-	Field'lar henüz yoksa graceful fallback (izin ver) — ama field varsa kontrol eder.
-
-	Args:
-	    user (str): User to check.
-	    doctype (str): DocType being accessed.
+	Kural ve kararlar `utils/aml_gate.py`'de (işaretsiz geçer, kontrol yapılamazsa kapalı).
 
 	Returns:
 	    bool: True if access is allowed, False if blocked.
 	"""
 	if doctype not in AML_SENSITIVE_DOCTYPES:
 		return True
-
-	# KYB Verification'dan AML/sanctions field'larını kontrol et.
-	# Field'lar henüz eklenmemişse (hasattr/column yok) graceful fallback.
-	try:
-		kyb = frappe.db.get_value(
-			"KYB Verification",
-			{"user": user, "docstatus": 1},
-			["aml_check_status", "sanctions_status"],
-			as_dict=True,
-		)
-	except Exception:
-		# Field'lar henüz yoksa (column unknown) → graceful fallback: izin ver
-		frappe.log_error("KYB Verification AML/sanctions field query failed", "permissions")
-		return True
-
-	if not kyb:
-		# KYB kaydı yok → AML kontrolü yapılamaz, izin ver (legacy user)
-		return True
-
-	blocked_statuses = {"Hit Found", "Match Found"}
-	if (kyb.get("aml_check_status") or "") in blocked_statuses:
-		frappe.log_error(
-			f"AML gate: {user} blocked — aml_check_status={kyb.aml_check_status}",
-			"AML/Sanctions Gate",
-		)
-		return False
-	if (kyb.get("sanctions_status") or "") in blocked_statuses:
-		frappe.log_error(
-			f"AML gate: {user} blocked — sanctions_status={kyb.sanctions_status}",
-			"AML/Sanctions Gate",
-		)
-		return False
-
-	return True
+	return not aml_engelli_mi(user)
 
 
 def _check_subscription_active(user_tenant, doctype, ptype):
@@ -3097,6 +3058,31 @@ def guard_verification_status_change(doc) -> None:
 		frappe._("Doğrulama durumunu yalnızca inceleme yetkilisi değiştirebilir."),
 		frappe.PermissionError,
 	)
+
+
+KYB_AML_ALANLARI = ("aml_check_status", "sanctions_status")
+
+
+def guard_aml_fields_change(doc) -> None:
+	"""KYB AML/yaptırım işaretini yalnız inceleme yetkilisi değiştirir (MOGEM-685 bulgu 1).
+
+	Alanların permlevel'i (5, patch v15_9_61) `flags.ignore_permissions` ile atlanıyor ve
+	KYB'yi o bayrakla kaydeden satıcı akışları var; bu kapı `validate()` içinde çalışır.
+	Satıcı işareti kaldırabilseydi ödeme onayı / iade / bakiye çekme kapısını kendisi açardı.
+	"""
+	if frappe.flags.in_install or frappe.flags.in_migrate or frappe.flags.in_patch:
+		return
+	if is_verification_reviewer():
+		return
+	if doc.is_new():
+		degisen = [f for f in KYB_AML_ALANLARI if (doc.get(f) or "Not Checked") != "Not Checked"]
+	else:
+		degisen = [f for f in KYB_AML_ALANLARI if doc.has_value_changed(f)]
+	if degisen:
+		frappe.throw(
+			frappe._("AML ve yaptırım taramasını yalnızca inceleme yetkilisi değiştirebilir."),
+			frappe.PermissionError,
+		)
 
 
 # ---------------------------------------------------------------------------
