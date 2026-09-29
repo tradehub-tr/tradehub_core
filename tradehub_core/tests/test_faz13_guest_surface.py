@@ -80,7 +80,7 @@ def scan_guest_surface() -> set:
 	return found
 
 
-#: DONDURULMUŞ MİSAFİR YÜZEYİ (2026-08-20 ölçümü, 111 uç; 28 Eyl 2026: 112 — aşağıda).
+#: DONDURULMUŞ MİSAFİR YÜZEYİ (2026-08-20 ölçümü, 111 uç; 28 Eyl 2026: 112; 30 Eyl 2026: 120 — aşağıda).
 #: Bu küme bir GÜVENLİK SÖZLEŞMESİDİR. Değişiklik = güvenlik incelemesi tetiği:
 #: yeni bir satır eklemek için o ucun gerçekten public olduğu (buyer/seller
 #: verisi/yazma taşımadığı) checklists.md §1 ile doğrulanmalı; silmek için de
@@ -212,6 +212,22 @@ FROZEN_GUEST_SURFACE: frozenset = frozenset(
 		#   410 · izleme sayfası erişilemeyen her dosyada 404 (MOGEM-685 düzeltmesi).
 		"tradehub_core.api.media_public.asset_landing",
 		"tradehub_core.api.media_public.get_watch_page",
+		#   SEO Helper (MOGEM-662/663, 29 Eyl 2026'da bu depoya taşındı) — 30 Eyl incelendi.
+		#   MCP araçları: guest dekoratörlü ama her çağrı `_tool_call` → `require_client`
+		#   ile başlıyor; `X-MCP-Key` yoksa ya da geçersizse girdi ayrıştırılmadan 401
+		#   (alpha'da yedisi anahtarsız ve sahte anahtarla 401 ölçüldü). Anahtarla bile
+		#   yazma yalnız `MCP Draft` (yayın paneldeki insan onayıyla), model çağrıları
+		#   istemci başına aylık token bütçesiyle sınırlı.
+		"tradehub_core.seo_helper.mcp.api.page_create",
+		"tradehub_core.seo_helper.mcp.api.page_update",
+		"tradehub_core.seo_helper.mcp.api.block_add",
+		"tradehub_core.seo_helper.mcp.api.metadata_suggest",
+		"tradehub_core.seo_helper.mcp.api.translation_draft",
+		"tradehub_core.seo_helper.mcp.api.seo_audit_run",
+		"tradehub_core.seo_helper.mcp.api.result_read",
+		#   Vitrin iniş kaydı: veritabanına yazmaz, yalnız imzalı iniş çerezi bırakır;
+		#   çerez varsa hiçbir şey yapmaz (alpha'da `recorded` → `existing` ölçüldü).
+		"tradehub_core.seo_helper.api.landing.record_landing",
 		# ── GÖLGE MODÜL KALDIRILDI (rapor 92, B-02 kapanışı) ──
 		# `tradehub_core/tradehub_core/api/seller.py` `api/seller.py`nin Nisan
 		# 2026'dan kalma bayat kopyasıydı; 5 guest ucunu (get_sellers/get_seller/
@@ -258,9 +274,9 @@ class GuestSurfaceDriftTests(unittest.TestCase):
 		# Sayı da bir kanıttır: 112 dekoratör-biçimli guest ucu (SEO renderer'lar
 		# hariç — modül docstring'i). 111'den 106'ya düşüş = gölge modülün 5
 		# guest ucunun kaldırılması (rapor 92, B-02); 106 → 112 = MOGEM-685'te
-		# incelenip eklenen 6 uç (catalog ×3, logistics_webhook, media_public ×2). Sayı değişirse yukarıdaki
-		# test zaten anlatır.
-		self.assertEqual(len(FROZEN_GUEST_SURFACE), 112)
+		# incelenip eklenen 6 uç (catalog ×3, logistics_webhook, media_public ×2); 112 → 120 = SEO Helper'ın
+		# 7 MCP aracı + record_landing (30 Eyl incelendi). Sayı değişirse yukarıdaki test zaten anlatır.
+		self.assertEqual(len(FROZEN_GUEST_SURFACE), 120)
 
 	def test_denylist_uclari_guest_degil(self) -> None:
 		gercek = scan_guest_surface()
