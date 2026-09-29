@@ -1,3 +1,14 @@
+## [v1.16.0-alpha.3] - 2026-09-29 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Duzeltildi
+- fix(favoriler): eski görsel adının snapshot'ı bozmasını önle (@ahmeetseker)
+  - Favori listesi okunurken retro-rename öncesi görsel adlarını güncel ilan görselinden çözdür
+  - Tarayıcıda kalmış eski adreslerin içerik-kodlu snapshot üzerine yazmasını engelle
+  - Eski ad senaryolarını API testleriyle sabitle
+
+---
 ## [v1.16.0-alpha.2] - 2026-09-29 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
