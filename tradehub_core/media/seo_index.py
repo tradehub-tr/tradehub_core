@@ -78,7 +78,12 @@ def decide(file_url: str, *, check_usage: bool = True) -> dict:
 		return _ret(REASON_MISSING)
 
 	alanlar = ["name", "is_private", "th_media_state"]
-	for aday in ("th_media_visibility", "th_media_expires_at", "th_media_robots_override"):
+	for aday in (
+		"th_media_visibility",
+		"th_media_expires_at",
+		"th_media_robots_override",
+		"th_media_scan_status",
+	):
 		if frappe.db.has_column("File", aday):
 			alanlar.append(aday)
 	kayit = frappe.db.get_value(
@@ -97,6 +102,9 @@ def decide(file_url: str, *, check_usage: bool = True) -> dict:
 	if int(kayit.get("is_private") or 0) or visibility == "Private":
 		# Erişim zaten kapalı; sitemap'e girmemesi teyit, koruma değil.
 		return _ret(REASON_PRIVATE, visibility=visibility, access="authenticated")
+	engel = _erisim_engeli(url, kayit)
+	if engel:
+		return engel
 	if visibility in NON_INDEXABLE_VISIBILITIES:
 		reason = {
 			"Unlisted": REASON_UNLISTED, "Protected": REASON_PROTECTED,
@@ -149,8 +157,37 @@ def decide(file_url: str, *, check_usage: bool = True) -> dict:
 	}
 
 
-def _ret(reason: str, detay: str = "", *, visibility: str = "", access: str = "public") -> dict:
-	status = (
+def _erisim_engeli(url: str, kayit: dict) -> dict | None:
+	"""Çöpteki/silinmiş ya da karantinadaki dosya misafire HİÇ görünmez (MOGEM-685).
+
+	`noindex` yetmez: misafir uçları (`media_public.asset_landing`,
+	`get_watch_page`) `http_status`'a bakıp sayfayı/veriyi basmaz. Ölçüldü
+	(28 Eyl 2026): bu kapı yokken iki uç da çöpteki ve virüslü dosyanın
+	başlığını 200 ile veriyordu. Görünürlükten ÖNCE denetlenir — Unlisted'in
+	"bağlantıyı bilen görür" dalı çöpü kurtarmasın.
+	"""
+	durum = (kayit.get("th_media_state") or "").strip()
+	if durum in BLOCKED_LIFECYCLE_STATES:
+		return _ret(REASON_STATE, detay=durum, http_status=410 if durum == states.STATE_DELETED else 404)
+
+	from tradehub_core.media import av
+
+	# Tarama kaydı "virüslü" diyorsa dosya taşınmış olmasa da (taşıma başarısız,
+	# elle geri konmuş) kapalıdır; karantina dizinindeyse kayıt ne derse desin kapalıdır.
+	if (kayit.get("th_media_scan_status") or "") in BLOCKED_SCAN_STATUSES or av.in_quarantine(url):
+		return _ret(REASON_QUARANTINE, http_status=404)
+	return None
+
+
+def _ret(
+	reason: str,
+	detay: str = "",
+	*,
+	visibility: str = "",
+	access: str = "public",
+	http_status: int | None = None,
+) -> dict:
+	status = http_status or (
 		404 if reason == REASON_MISSING
 		else 410 if visibility in ("Expired", "Deleted")
 		else 401 if access == "authenticated"
