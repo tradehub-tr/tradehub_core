@@ -1,0 +1,213 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-09-19 00:00:00",
+ "doctype": "DocType",
+ "document_type": "Document",
+ "editable_grid": 0,
+ "engine": "InnoDB",
+ "field_order": [
+  "scope",
+  "mode",
+  "status",
+  "started_at",
+  "finished_at",
+  "pages_total",
+  "pages_ok",
+  "pages_failed",
+  "pages_needs_js",
+  "findings",
+  "triggered_by",
+  "queue",
+  "sec_budget",
+  "rate_limit_rps",
+  "max_pages",
+  "max_seconds",
+  "max_bytes",
+  "bytes_total",
+  "elapsed_seconds",
+  "budget_exhausted",
+  "budget_reason",
+  "pause_requested",
+  "cursor",
+  "url_list",
+  "sample_seed",
+  "resumed_from",
+  "last_error"
+ ],
+ "fields": [
+  {
+   "fieldname": "scope",
+   "fieldtype": "JSON",
+   "label": "Kapsam (JSON)"
+  },
+  {
+   "fieldname": "mode",
+   "fieldtype": "Select",
+   "label": "Mod",
+   "options": "audit\nfull\nincremental\nsample\ntargeted",
+   "default": "audit",
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Durum",
+   "options": "queued\nrunning\npaused\ndone\nfailed\ncancelled",
+   "default": "queued",
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "started_at",
+   "fieldtype": "Datetime",
+   "label": "Başlangıç"
+  },
+  {
+   "fieldname": "finished_at",
+   "fieldtype": "Datetime",
+   "label": "Bitiş"
+  },
+  {
+   "fieldname": "pages_total",
+   "fieldtype": "Int",
+   "label": "Sayfa"
+  },
+  {
+   "fieldname": "pages_ok",
+   "fieldtype": "Int",
+   "label": "Başarılı"
+  },
+  {
+   "fieldname": "pages_failed",
+   "fieldtype": "Int",
+   "label": "Başarısız"
+  },
+  {
+   "fieldname": "pages_needs_js",
+   "fieldtype": "Int",
+   "label": "JS Gerekli"
+  },
+  {
+   "fieldname": "findings",
+   "fieldtype": "Int",
+   "label": "Bulgu"
+  },
+  {
+   "fieldname": "triggered_by",
+   "fieldtype": "Data",
+   "label": "Tetikleyen"
+  },
+  {
+   "fieldname": "queue",
+   "fieldtype": "Data",
+   "label": "Kuyruk",
+   "default": "seo_long"
+  },
+  {
+   "fieldname": "sec_budget",
+   "fieldtype": "Section Break",
+   "label": "Bütçe / Hız / Kontrol"
+  },
+  {
+   "fieldname": "rate_limit_rps",
+   "fieldtype": "Float",
+   "label": "Hız (istek/sn)"
+  },
+  {
+   "fieldname": "max_pages",
+   "fieldtype": "Int",
+   "label": "Azami Sayfa"
+  },
+  {
+   "fieldname": "max_seconds",
+   "fieldtype": "Int",
+   "label": "Azami Süre (sn)"
+  },
+  {
+   "fieldname": "max_bytes",
+   "fieldtype": "Int",
+   "label": "Azami Bayt"
+  },
+  {
+   "fieldname": "bytes_total",
+   "fieldtype": "Int",
+   "label": "İndirilen Bayt"
+  },
+  {
+   "fieldname": "elapsed_seconds",
+   "fieldtype": "Int",
+   "label": "Geçen Süre (sn)"
+  },
+  {
+   "fieldname": "budget_exhausted",
+   "fieldtype": "Check",
+   "label": "Bütçe Tükendi"
+  },
+  {
+   "fieldname": "budget_reason",
+   "fieldtype": "Data",
+   "label": "Bütçe Nedeni"
+  },
+  {
+   "fieldname": "pause_requested",
+   "fieldtype": "Check",
+   "label": "Duraklat İsteği"
+  },
+  {
+   "fieldname": "cursor",
+   "fieldtype": "Int",
+   "label": "İmleç (checkpoint)"
+  },
+  {
+   "fieldname": "url_list",
+   "fieldtype": "JSON",
+   "label": "URL Listesi (plan)"
+  },
+  {
+   "fieldname": "sample_seed",
+   "fieldtype": "Data",
+   "label": "Örneklem Tohumu"
+  },
+  {
+   "fieldname": "resumed_from",
+   "fieldtype": "Link",
+   "label": "Devam Edilen Koşum",
+   "options": "SEO Crawl Run"
+  },
+  {
+   "fieldname": "last_error",
+   "fieldtype": "Small Text",
+   "label": "Son Hata"
+  }
+ ],
+ "links": [],
+ "modified": "2026-09-19 00:00:00",
+ "modified_by": "Administrator",
+ "module": "SEO Crawler",
+ "name": "SEO Crawl Run",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1
+  },
+  {
+   "role": "SEO Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0,
+ "autoname": "hash",
+ "naming_rule": "Random"
+}

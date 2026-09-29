@@ -48,6 +48,8 @@ tradehub_core/                          (repo kökü)
     │   └── v1/identity.py (1786), crm_overrides.py
     ├── eca/                            (Event–Condition–Action rule engine)
     ├── recommendations/                (Related products, kategori embeddings)
+    ├── seo_helper/                     (SEO Helper — MOGEM-663/662: crawler, audit, board, GSC, MCP; docs/seo-helper)
+    ├── seo_core/ seo_cms/ seo_crawler/ seo_catalog/ seo_merchant/ seo_mcp/  (SEO * modülleri — DocType'lar; scripts/seo_gen_doctypes.py üretir)
     ├── services/                       (TCMB döviz, dış servis adaptörleri)
     ├── setup/                          (after_install / after_migrate)
     ├── tradehub_core/                  ← Frappe konvansiyonu: modül namespace

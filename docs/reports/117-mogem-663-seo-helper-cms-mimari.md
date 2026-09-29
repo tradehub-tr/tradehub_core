@@ -2,7 +2,7 @@
 
 **Tarih:** 19 Eyl 2026 · **Üst görev:** MOGEM-647 (CMS + SEO Helper CMS) · **İlgili:** MOGEM-656 §7.7–7.10 (builder + MCP), MOGEM-660 §11.4 (deterministik doğrulama/insan onayı), MOGEM-648 §1.4 (mağaza izolasyonu), MOGEM-653 §4.3 (tek SEO çıktı üreticisi) · **Karar (15 Eyl):** CMS `frappe/builder` ile birleşir, üzerine MCP (OpenAI) sunucusu.
 
-Etiket "E" (14.1–14.6) Plane'de başlık düzeyinde kalmış; bu belge her maddeyi teslimata çevirir. **Durum: tamamı kodlandı, commit YOK** (yeni repo `istoc/seo_helper_cms`, henüz ilk commit atılmadı). Ayrıntı: `seo_helper_cms/docs/MIMARI.md`, `seo_helper_cms/docs/OPERASYON.md`.
+Etiket "E" (14.1–14.6) Plane'de başlık düzeyinde kalmış; bu belge her maddeyi teslimata çevirir. **Durum: tamamı kodlandı; 25 Eyl 2026'da ayrı repo yerine `tradehub_core` içine taşındı (§6).** Ayrıntı: `seo_helper_cms/docs/MIMARI.md`, `seo_helper_cms/docs/OPERASYON.md`.
 
 ## 1. Görev metni → teslimat (kelimesi kelimesine)
 
@@ -83,3 +83,13 @@ Süper admin (System Manager / SEO Manager; `requiresSuperAdmin`) için admin-pa
 | Ekran: 5 özet kartı + 3 sekme (Taslaklar · Sayfalar & Denetim · Kuyruk & MCP), taslak detayı öneri/mevcut + doğrulama, geçmeyen taslakta onay kapalı, onay Builder Page'i **yayınlamaz** | `admin-panel/frontend/src/views/seo/SeoHelperView.vue`, `src/api/seoHelper.js`, rota + menü + 4 dil | Playwright `m663_panel.mjs` 20/20 (masaüstü + 390px mobil, konsol hatası 0) |
 
 Geri dönüş listesi ve snapshot: bellek notu `mogem-663-seo-helper-cms` §Panel. Ekran görüntüleri: `/tmp/m663-panel/0{1..5}-*.png`.
+
+## 6. 25 Eyl 2026 — Plane'deki güncel metin ve taşıma
+
+Plane 663 metni (24 Eyl): *"mimari karar ve test iddiasının erişilebilir commit/ortam kanıtını kaydet; bench kodunu doğrula; izin, kimlik, yayın ve hata kararları kayıtlı olsun; kurulum farkını belge ve takibi ayır."* Karşılığı:
+
+- **Erişilebilir kod:** ayrı repo kaldırıldı; SEO Helper `tradehub_core/tradehub_core/seo_helper/` + `SEO *` modülleri olarak bu depoda (kullanıcı kararı: "farklı bir repo olmadan"). 14.1'deki "önerilen uygulama `seo_helper_cms`" maddesi *ayrı Frappe app* iken şimdi *alt paket + modül seti*; `required_apps` yerine `builder` yumuşak bağımlılık (kurulu değilse Builder olayları/Custom Field'lar atlanır, Builder'sız tarama/pano/denetim çalışır). Diğer 14.x maddeleri değişmedi.
+- **Bench doğrulaması:** eski app `uninstall-app` + `remove-app`; `bench migrate` ile 24 DocType, 7 Module Def, 43 Custom Field, 12 zamanlayıcı işi tradehub_core altında; 663 test paketleri (`test_policy` 19, `test_runtime` 25, `test_mcp` 23, `test_panel` 6, `test_builder_compat` 9) yeni yollarda yeşil.
+- **İzin / kimlik / yayın / hata kararları:** §3 kararları geçerli; hooks'ta `permission_query_conditions` + `has_permission` (7 DocType), `auth_hooks` (MCP API key yalnız `tradehub_core.seo_helper.mcp.api.*` yolunda), yazma araçları taslak + insan onayı, HTTP hata yolunda günlük kaybı düzeltmesi — hepsi `tradehub_core/hooks.py` "SEO Helper" bloğunda ve `docs/seo-helper/MIMARI.md`'de.
+- **Kurulum farkı:** `docs/seo-helper/OPERASYON.md` §Kurulum (artık `get-app` yok; Builder pinli ayrı app; yerelde bind-mount).
+- **Takip:** MOGEM-664'te "commit ve kurulum kanıtı" izleniyor; bu belge + commit hash'i oraya yorum olarak yazıldı.

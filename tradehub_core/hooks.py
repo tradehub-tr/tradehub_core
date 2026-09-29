@@ -1194,3 +1194,82 @@ write_file = "tradehub_core.media.naming.write_file_hashed"
 override_doctype_class = {
 	"File": "tradehub_core.media.file_isolation.TenantIsolatedFile",
 }
+
+
+# ===========================================================================
+# SEO Helper (MOGEM-663 · 14. bölüm + MOGEM-662 · 13. bölüm)
+# ---------------------------------------------------------------------------
+# Eskiden ayrı Frappe app'i (`seo_helper_cms`) idi; 25 Eyl 2026'da bu depoya
+# `tradehub_core.seo_helper` alt paketi + `SEO *` modülleri olarak taşındı
+# (ayrı repo istenmedi). Kurallar aynen korunur: `builder` çekirdeğine patch
+# YAZILMAZ (yalnız hooks + Custom Field + DocType olayı); head çıktısı tek
+# üreticiden gelir (`seo_helper.core.output`); işler commit SONRASI kuyruğa
+# girer; uzun işler (crawl/pSEO/MCP) ayrı kuyrukta (`seo`/`seo_long`/`mcp`).
+# `builder` bu app için YUMUŞAK bağımlılıktır: kurulu değilse Builder Page
+# olayları hiç tetiklenmez, Custom Field kurulumu atlanır (setup/install.py).
+# Aşağıdaki her kayıt mevcut yapılara EKLENİR — üstteki tanımlar silinmez.
+# ===========================================================================
+_SH = "tradehub_core.seo_helper"
+
+
+def _sh_doc_event(doctype: str, event: str, handler: str) -> None:
+	"""doc_events'e ekle; mevcut değer str ya da list olabilir, ikisini de korur."""
+	olaylar = doc_events.setdefault(doctype, {})
+	mevcut = olaylar.get(event)
+	if not mevcut:
+		olaylar[event] = handler
+	elif isinstance(mevcut, list):
+		mevcut.append(handler)
+	else:
+		olaylar[event] = [mevcut, handler]
+
+
+after_migrate.append(f"{_SH}.setup.install.after_migrate")
+
+# 14.3 — DocType olayları
+_sh_doc_event("Builder Page", "on_update", f"{_SH}.cms.bridge.on_builder_page_update")
+_sh_doc_event("Builder Page", "on_trash", f"{_SH}.cms.bridge.on_builder_page_trash")
+_sh_doc_event("Listing", "on_update", f"{_SH}.catalog.mirror.on_listing_update")
+for _dt in ("RFQ", "Seller Inquiry", "Order"):  # 13.6 organik atıf damgası
+	_sh_doc_event(_dt, "after_insert", f"{_SH}.experiments.attribution.on_conversion_insert")
+_sh_doc_event("SEO Policy", "on_update", f"{_SH}.experiments.changelog.on_seo_policy_update")
+_sh_doc_event("SEO Redirect Rule", "after_insert", f"{_SH}.experiments.changelog.on_redirect_change")
+_sh_doc_event("SEO Redirect Rule", "on_trash", f"{_SH}.experiments.changelog.on_redirect_change")
+
+# 14.3 — website context: Builder sayfalarının head'i tek üreticiden
+update_website_context = [f"{_SH}.core.output.update_website_context"]
+
+# 14.3 — mağaza kapsamlı izin sözleşmeleri
+for _dt in (
+	"SEO Entity",
+	"SEO Page",
+	"SEO Sync Job",
+	"SEO Audit Finding",
+	"MCP Client",
+	"MCP Tool Call",
+	"MCP Draft",
+):
+	permission_query_conditions[_dt] = f"{_SH}.core.permissions.store_query_conditions"
+	has_permission[_dt] = f"{_SH}.core.permissions.store_has_permission"
+
+# 14.3 — MCP kimlik doğrulaması (yalnız /api/method/tradehub_core.seo_helper.mcp.api.* yolunda)
+auth_hooks.append(f"{_SH}.mcp.auth.authenticate_mcp_client")
+
+# 14.4 / 13.x — zamanlayıcı
+scheduler_events["cron"].setdefault("*/5 * * * *", []).append(f"{_SH}.core.queue.sweep_due_jobs")
+scheduler_events["cron"].setdefault("17 * * * *", []).append(f"{_SH}.cms.bridge.reconcile_pages")
+scheduler_events["hourly"].append(f"{_SH}.crawler.manager.recover_stale_runs")
+scheduler_events["daily"].extend(
+	[
+		f"{_SH}.crawler.botlog.import_scheduled",
+		f"{_SH}.board.daily_job",
+		f"{_SH}.connectors.search_console.scheduled_sync",
+		f"{_SH}.crawler.manager.scheduled_incremental_crawl",
+		f"{_SH}.crawler.manager.purge_old_pages",
+		f"{_SH}.audit.signals.daily_import",
+		f"{_SH}.mcp.ops.purge_tool_call_log",
+		f"{_SH}.mcp.ops.daily_cost_snapshot",
+		f"{_SH}.core.monitoring.daily_health_snapshot",
+	]
+)
+scheduler_events.setdefault("monthly", []).append(f"{_SH}.mcp.ops.reset_monthly_quotas")

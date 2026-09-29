@@ -1,0 +1,248 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-09-19 00:00:00",
+ "doctype": "DocType",
+ "document_type": "Document",
+ "editable_grid": 0,
+ "engine": "InnoDB",
+ "field_order": [
+  "builder_page",
+  "lang",
+  "source",
+  "entity",
+  "store",
+  "domain",
+  "route",
+  "slug",
+  "title",
+  "meta_description",
+  "og_image",
+  "canonical_url",
+  "robots",
+  "locale_cluster",
+  "policy",
+  "profile",
+  "publish_state",
+  "scheduled_at",
+  "published_at",
+  "has_ugc_html",
+  "sec_karar",
+  "effective_canonical",
+  "effective_robots",
+  "indexable",
+  "publishable",
+  "last_evaluated_at",
+  "data_version"
+ ],
+ "fields": [
+  {
+   "fieldname": "builder_page",
+   "fieldtype": "Link",
+   "label": "Builder Sayfası",
+   "options": "Builder Page",
+   "search_index": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "lang",
+   "fieldtype": "Select",
+   "label": "Dil",
+   "options": "tr\nen\nar\nru",
+   "default": "tr",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "source",
+   "fieldtype": "Select",
+   "label": "Kaynak",
+   "options": "builder\ncatalog\nstatic\nfacet\nmcp",
+   "default": "builder"
+  },
+  {
+   "fieldname": "entity",
+   "fieldtype": "Link",
+   "label": "SEO Varlığı",
+   "options": "SEO Entity"
+  },
+  {
+   "fieldname": "store",
+   "fieldtype": "Link",
+   "label": "Mağaza",
+   "options": "Admin Seller Profile",
+   "search_index": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "domain",
+   "fieldtype": "Link",
+   "label": "Domain",
+   "options": "SEO Domain"
+  },
+  {
+   "fieldname": "route",
+   "fieldtype": "Data",
+   "label": "Route",
+   "reqd": 1,
+   "search_index": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "slug",
+   "fieldtype": "Data",
+   "label": "Slug"
+  },
+  {
+   "fieldname": "title",
+   "fieldtype": "Data",
+   "label": "Başlık"
+  },
+  {
+   "fieldname": "meta_description",
+   "fieldtype": "Small Text",
+   "label": "Meta Açıklama"
+  },
+  {
+   "fieldname": "og_image",
+   "fieldtype": "Attach Image",
+   "label": "OG Görseli"
+  },
+  {
+   "fieldname": "canonical_url",
+   "fieldtype": "Data",
+   "label": "Canonical (girilen)"
+  },
+  {
+   "fieldname": "robots",
+   "fieldtype": "Select",
+   "label": "Robots (girilen)",
+   "options": "\nindex,follow\nnoindex,follow\nnoindex,nofollow\nindex,nofollow"
+  },
+  {
+   "fieldname": "locale_cluster",
+   "fieldtype": "Link",
+   "label": "Hreflang Kümesi",
+   "options": "SEO Locale Cluster"
+  },
+  {
+   "fieldname": "policy",
+   "fieldtype": "Link",
+   "label": "Politika",
+   "options": "SEO Policy"
+  },
+  {
+   "fieldname": "profile",
+   "fieldtype": "Link",
+   "label": "Profil",
+   "options": "SEO Profile"
+  },
+  {
+   "fieldname": "publish_state",
+   "fieldtype": "Select",
+   "label": "Yayın Durumu",
+   "options": "draft\nreview\napproved\nscheduled\npublished\nsuspended\narchived",
+   "default": "draft",
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "scheduled_at",
+   "fieldtype": "Datetime",
+   "label": "Zamanlanmış Yayın"
+  },
+  {
+   "fieldname": "published_at",
+   "fieldtype": "Datetime",
+   "label": "Yayın Anı",
+   "read_only": 1
+  },
+  {
+   "fieldname": "has_ugc_html",
+   "fieldtype": "Check",
+   "label": "Denetlenmemiş HTML içerir"
+  },
+  {
+   "fieldname": "sec_karar",
+   "fieldtype": "Section Break",
+   "label": "Politika Kararı"
+  },
+  {
+   "fieldname": "effective_canonical",
+   "fieldtype": "Data",
+   "label": "Etkin Canonical",
+   "read_only": 1
+  },
+  {
+   "fieldname": "effective_robots",
+   "fieldtype": "Data",
+   "label": "Etkin Robots",
+   "read_only": 1
+  },
+  {
+   "fieldname": "indexable",
+   "fieldtype": "Check",
+   "label": "İndekslenebilir",
+   "read_only": 1
+  },
+  {
+   "fieldname": "publishable",
+   "fieldtype": "Check",
+   "label": "Yayınlanabilir",
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_evaluated_at",
+   "fieldtype": "Datetime",
+   "label": "Son Değerlendirme",
+   "read_only": 1
+  },
+  {
+   "fieldname": "data_version",
+   "fieldtype": "Int",
+   "label": "Veri Sürümü",
+   "read_only": 1,
+   "default": "0"
+  }
+ ],
+ "links": [],
+ "modified": "2026-09-19 00:00:00",
+ "modified_by": "Administrator",
+ "module": "SEO Core",
+ "name": "SEO Page",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1
+  },
+  {
+   "role": "SEO Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1
+  },
+  {
+   "role": "SEO Editor",
+   "read": 1,
+   "write": 1,
+   "create": 1
+  },
+  {
+   "role": "Marketplace Seller",
+   "read": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1,
+ "autoname": "hash",
+ "naming_rule": "Random",
+ "search_fields": "route,title,builder_page"
+}

@@ -1,0 +1,147 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-09-19 00:00:00",
+ "doctype": "DocType",
+ "document_type": "Document",
+ "editable_grid": 0,
+ "engine": "InnoDB",
+ "field_order": [
+  "client",
+  "draft_type",
+  "store",
+  "target_doctype",
+  "target_name",
+  "payload",
+  "validation",
+  "status",
+  "reviewed_by",
+  "reviewed_at",
+  "review_note",
+  "applied_at",
+  "tool_call"
+ ],
+ "fields": [
+  {
+   "fieldname": "client",
+   "fieldtype": "Link",
+   "label": "İstemci",
+   "options": "MCP Client",
+   "search_index": 1
+  },
+  {
+   "fieldname": "draft_type",
+   "fieldtype": "Select",
+   "label": "Taslak Türü",
+   "options": "page_create\npage_update\nblock_add\nmetadata\ntranslation",
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "store",
+   "fieldtype": "Link",
+   "label": "Mağaza",
+   "options": "Admin Seller Profile",
+   "search_index": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "target_doctype",
+   "fieldtype": "Link",
+   "label": "Hedef DocType",
+   "options": "DocType"
+  },
+  {
+   "fieldname": "target_name",
+   "fieldtype": "Data",
+   "label": "Hedef Kayıt",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "payload",
+   "fieldtype": "Long Text",
+   "label": "Taslak (JSON)"
+  },
+  {
+   "fieldname": "validation",
+   "fieldtype": "Long Text",
+   "label": "Deterministik Doğrulama (JSON)"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Durum",
+   "options": "draft\napproved\nrejected\napplied",
+   "default": "draft",
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "reviewed_by",
+   "fieldtype": "Link",
+   "label": "İnceleyen",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "reviewed_at",
+   "fieldtype": "Datetime",
+   "label": "İnceleme Anı",
+   "read_only": 1
+  },
+  {
+   "fieldname": "review_note",
+   "fieldtype": "Small Text",
+   "label": "İnceleme Notu"
+  },
+  {
+   "fieldname": "applied_at",
+   "fieldtype": "Datetime",
+   "label": "Uygulama Anı",
+   "read_only": 1
+  },
+  {
+   "fieldname": "tool_call",
+   "fieldtype": "Link",
+   "label": "Araç Çağrısı",
+   "options": "MCP Tool Call"
+  }
+ ],
+ "links": [],
+ "modified": "2026-09-19 00:00:00",
+ "modified_by": "Administrator",
+ "module": "SEO MCP",
+ "name": "MCP Draft",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1
+  },
+  {
+   "role": "SEO Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1
+  },
+  {
+   "role": "Marketplace Seller",
+   "read": 1
+  },
+  {
+   "role": "MCP Agent",
+   "read": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1,
+ "autoname": "hash",
+ "naming_rule": "Random",
+ "search_fields": "draft_type,target_name"
+}
