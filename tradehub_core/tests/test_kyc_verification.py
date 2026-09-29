@@ -40,7 +40,7 @@ def _install_frappe_stub() -> None:
 
 	frappe.throw = _throw
 	frappe.ValidationError = _FrappeValidationError
-	frappe.log_error = lambda title=None, message=None: None
+	frappe.log_error = lambda title=None, message=None, **_kw: None  # defer_insert vb. yeni argümanlar
 	frappe.get_traceback = lambda: ""
 
 	model_mod = types.ModuleType("frappe.model")

@@ -47,6 +47,15 @@ except Exception:  # pragma: no cover — DB'siz koşumda modül atlanır
 FFMPEG = T.ffmpeg_available() and P.ffprobe_available()
 
 
+if frappe is None:
+	# Frappe'siz koşumda (CI `testler` işi) hiç test tanımlanmıyordu; unittest "NO TESTS RAN" ile
+	# 5 koduyla çıkıyor ve kapı modülü DÜŞTÜ sayıyordu. Atlama görünür kalsın diye yer tutucu.
+	@unittest.skip("frappe yok — `bench run-tests --module` ile koşar")
+	class TestFrappeGerekli(unittest.TestCase):
+		def test_frappe_gerekli(self):
+			pass
+
+
 if frappe is not None:
 
 	@unittest.skipUnless(FFMPEG, "ffmpeg/ffprobe yok — konteynerde calistir")

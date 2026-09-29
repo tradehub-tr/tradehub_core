@@ -22,6 +22,11 @@ WORKFLOW = ROOT / ".github/workflows/faz3-architecture.yml"
 DEPLOY = ROOT / "deploy/media-workers.compose.yml"
 
 
+#: Kanonik slot politikası sayısı. 9 idi; `library.image` 18 Eyl 2026'da eklendi (8b099d6).
+#: Sayı bilerek SABİT — klasörden türetilirse yanlışlıkla eklenen/silinen slotu yakalamaz.
+SLOT_SAYISI = 10
+
+
 class Faz3ClosureTest(unittest.TestCase):
 	def test_t030_sad_tum_mimari_ciktilarini_tasir(self):
 		text = SAD.read_text(encoding="utf-8")
@@ -72,8 +77,8 @@ class Faz3ClosureTest(unittest.TestCase):
 	def test_t033_kanonik_dokuz_politika_acikca_sahipli(self):
 		self.assertEqual(CANONICAL_POLICY_SET, "tradehub_core.media.pipeline.policy.slots")
 		policies = [json.loads(path.read_text(encoding="utf-8")) for path in sorted(SLOT_DIR.glob("*.json"))]
-		self.assertEqual(len(policies), 9)
-		self.assertEqual(len({policy["slot_key"] for policy in policies}), 9)
+		self.assertEqual(len(policies), SLOT_SAYISI)
+		self.assertEqual(len({policy["slot_key"] for policy in policies}), SLOT_SAYISI)
 		self.assertTrue(all(not policy.get("open_questions") for policy in policies))
 
 	def test_t034_bes_kuyruk_ve_deploy_projeksiyonu(self):

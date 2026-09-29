@@ -54,7 +54,8 @@ class TestStoreSubscriptionIsolation(unittest.TestCase):
 	def setUp(self):
 		perm.frappe = _FRAPPE_STUB
 		# Yardımcıları test kontrolüne bağla
-		perm._is_platform_full_access = lambda user: user in _STATE["full_access"]
+		# Gerçek imza `(user, ptype=None)` — ptype sonradan eklendi, taklit eskide kalmıştı.
+		perm._is_platform_full_access = lambda user, ptype=None: user in _STATE["full_access"]
 		perm._get_seller_profile_name = lambda user: _STATE["seller_profile"].get(user)
 		perm._doc_field = lambda doc, f: getattr(doc, f, None)
 		_STATE["full_access"] = set()

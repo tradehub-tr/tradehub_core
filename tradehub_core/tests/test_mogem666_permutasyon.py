@@ -170,7 +170,12 @@ class TestZamanlayiciIsleyicileri(FrappeTestCase):
 		for yol in isleyiciler:
 			with self.subTest(isleyici=yol):
 				try:
-					frappe.get_attr(yol)()
+					# İşleyiciler kendi içinde commit ediyor; commit etkisiz değilken aşağıdaki
+					# rollback hiçbir şeyi geri almıyordu ve test gerçek DB'de iş yapıyordu
+					# (MOGEM-685, 29 Eyl 2026 ölçüldü: tek koşu 8 tablo — e-posta kuyruğu,
+					# platform bildirimi, E2E aboneliği past_due).
+					with mock.patch.object(frappe.db, "commit"):
+						frappe.get_attr(yol)()
 				except Exception as e:  # noqa: BLE001 — hepsini topla, tek raporda göster
 					hatalar.append(f"{yol}: {type(e).__name__}: {str(e)[:120]}")
 				finally:

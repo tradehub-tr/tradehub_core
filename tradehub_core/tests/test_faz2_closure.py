@@ -46,6 +46,11 @@ def _null_encoder_qualities(value: object, path: str = "$") -> list[str]:
 	return bulgular
 
 
+#: Kanonik slot politikası sayısı. 9 idi; `library.image` 18 Eyl 2026'da eklendi (8b099d6).
+#: Sayı bilerek SABİT — klasörden türetilirse yanlışlıkla eklenen/silinen slotu yakalamaz.
+SLOT_SAYISI = 10
+
+
 class Faz2PolitikaKapisiTesti(unittest.TestCase):
 	@classmethod
 	def setUpClass(cls) -> None:
@@ -56,8 +61,8 @@ class Faz2PolitikaKapisiTesti(unittest.TestCase):
 		cls.policies = [_load(path) for path in cls.files]
 
 	def test_dokuz_kanonik_slot_var(self):
-		self.assertEqual(len(self.files), 9)
-		self.assertEqual(len({item["slot_key"] for item in self.policies}), 9)
+		self.assertEqual(len(self.files), SLOT_SAYISI)
+		self.assertEqual(len({item["slot_key"] for item in self.policies}), SLOT_SAYISI)
 		self.assertEqual(policy.SLOT_DIR, SLOT_ROOT)
 		self.assertEqual(
 			policy.CANONICAL_POLICY_SET,

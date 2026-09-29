@@ -95,6 +95,11 @@ POLICY_SAPMALARI: dict = {}
 # ═══════════════════════════════════════════════════════════════════════
 
 
+#: Kanonik slot politikası sayısı. 9 idi; `library.image` 18 Eyl 2026'da eklendi (8b099d6).
+#: Sayı bilerek SABİT — klasörden türetilirse yanlışlıkla eklenen/silinen slotu yakalamaz.
+SLOT_SAYISI = 10
+
+
 class ProtocolConformanceTest(unittest.TestCase):
 	"""Her uygulama kendi `Protocol`'ünü karşılıyor mu."""
 
@@ -581,7 +586,7 @@ class PolicyContractTest(unittest.TestCase):
 	def test_dokuz_slot_yuklendi(self):
 		for ad, motor in self._motorlar():
 			with self.subTest(uygulama=ad):
-				self.assertEqual(len(motor.slots()), 9)
+				self.assertEqual(len(motor.slots()), SLOT_SAYISI)
 				self.assertIn("product.image", motor.slots())
 
 	def test_bilinmeyen_slot_policy_not_found(self):
@@ -594,7 +599,7 @@ class PolicyContractTest(unittest.TestCase):
 		for ad, motor in self._motorlar():
 			with self.subTest(uygulama=ad):
 				self.assertEqual(motor.reload(), motor.reload())
-				self.assertEqual(motor.reload(), 9)
+				self.assertEqual(motor.reload(), SLOT_SAYISI)
 
 	def test_reload_bozuk_dosyada_defteri_bozmaz(self):
 		"""Sözleşme: ya hep ya hiç. Yarım defter, hangi slotun eski hangisinin
@@ -606,7 +611,7 @@ class PolicyContractTest(unittest.TestCase):
 					for kaynak in POLICY_ROOT.glob("*.json"):
 						shutil.copy(kaynak, hedef / kaynak.name)
 					motor = _motor_koku(ad, hedef)
-					self.assertEqual(motor.reload(), 9)
+					self.assertEqual(motor.reload(), SLOT_SAYISI)
 					# Ad BİLEREK alfabetik olarak İLK: `sorted(glob)` bozuk dosyayı
 					# ilk okur ve istisna, defter temizlendikten SONRA ama hiçbir
 					# politika okunmadan atılır. "zzz-" adıyla bu test boş çıkardı —
@@ -615,7 +620,7 @@ class PolicyContractTest(unittest.TestCase):
 					with self.assertRaises(Exception):
 						motor.reload()
 					# Defter DEĞİŞMEDİ: dokuz politika hâlâ okunabilir.
-					self.assertEqual(len(motor.slots()), 9)
+					self.assertEqual(len(motor.slots()), SLOT_SAYISI)
 					self.assertTrue(motor.load("product.image").accept)
 
 	def test_source_root_raporlanir(self):

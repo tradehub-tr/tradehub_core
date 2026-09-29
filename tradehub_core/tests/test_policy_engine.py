@@ -53,6 +53,7 @@ from tradehub_core.media.pipeline.policy.engine import (  # noqa: E402
 	PolicyRegistry,
 	parse_ratio,
 )
+from tradehub_core.tests.medya_fixture import eksik_gercek_cekim, eksikse_atla  # noqa: E402
 
 FIXTURE_DIR = ROOT / "tradehub_core" / "tests" / "fixtures" / "media"
 MANIFEST = FIXTURE_DIR / "manifest.json"
@@ -316,16 +317,18 @@ class FixtureKorpusuTesti(unittest.TestCase):
 		uyumsuz = []
 		for kayit in self.manifest["fixtures"]:
 			yol = ROOT / kayit["file"]
-			self.assertTrue(yol.exists(), f"fixture yok: {yol}")
-			slot = kayit["slot"]
-			roller = self.engine.registry.get(slot).get("roles") or ["admin"]
-			karar = self.engine.evaluate(slot, self._probe_for(kayit), role=roller[0])
-			beklenen_allow = kayit["expected_action"] != "reject"
-			if karar.allow != beklenen_allow:
-				uyumsuz.append(
-					f"{yol.name} [{slot}] beklenen={kayit['expected_action']} "
-					f"allow={karar.allow} kodlar={karar.codes}"
-				)
+			with self.subTest(dosya=yol.name):
+				eksikse_atla(self, yol)
+				self.assertTrue(yol.exists(), f"fixture yok: {yol}")
+				slot = kayit["slot"]
+				roller = self.engine.registry.get(slot).get("roles") or ["admin"]
+				karar = self.engine.evaluate(slot, self._probe_for(kayit), role=roller[0])
+				beklenen_allow = kayit["expected_action"] != "reject"
+				if karar.allow != beklenen_allow:
+					uyumsuz.append(
+						f"{yol.name} [{slot}] beklenen={kayit['expected_action']} "
+						f"allow={karar.allow} kodlar={karar.codes}"
+					)
 		self.assertEqual(uyumsuz, [], "manifest ile motor kararı ayrıştı")
 
 	def test_fixture_sayisi_manifestteki_ozetle_ayni(self):
@@ -334,7 +337,7 @@ class FixtureKorpusuTesti(unittest.TestCase):
 
 	def test_reddedilen_her_fixture_engelleyici_ihlal_tasiyor(self):
 		for kayit in self.manifest["fixtures"]:
-			if kayit["expected_action"] != "reject":
+			if kayit["expected_action"] != "reject" or eksik_gercek_cekim(ROOT / kayit["file"]):
 				continue
 			slot = kayit["slot"]
 			roller = self.engine.registry.get(slot).get("roles") or ["admin"]
@@ -358,6 +361,8 @@ class IhlalSozlesmesiTesti(unittest.TestCase):
 			slot = kayit["slot"]
 			roller = self.engine.registry.get(slot).get("roles") or ["admin"]
 			yol = ROOT / kayit["file"]
+			if eksik_gercek_cekim(yol):
+				continue
 			probe = (
 				probe_video_from_ffprobe(kayit.get("olculen") or {}, filename=yol.name)
 				if slot.endswith(".video")

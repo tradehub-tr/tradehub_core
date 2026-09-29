@@ -60,6 +60,7 @@ from tradehub_core.media.pipeline.video.decision import (  # noqa: E402
 	decide,
 	default_table,
 )
+from tradehub_core.tests.medya_fixture import eksik_gercek_cekim, eksikse_atla  # noqa: E402
 
 VIDEO_DIR = ROOT / "tradehub_core" / "tests" / "fixtures" / "media" / "video"
 VIDEO_PKG = ROOT / "tradehub_core" / "media" / "pipeline" / "video"
@@ -553,9 +554,11 @@ class GercekFixtureOlcumu(unittest.TestCase):
 	(7 sentetik + 4 gerçek DEV kaynağı — W9)."""
 
 	def test_onbir_fixture_var(self):
+		# Sözleşme 11 kayıt; 4'ü git'e girmeyen gerçek çekim — diskte yoksa beklenenden düşülür.
+		self.assertEqual(len(OLCULEN_FIXTURE_KARARLARI), 11)
 		bulunan = sorted(p.name for p in VIDEO_DIR.glob("*.mp4"))
-		self.assertEqual(len(bulunan), 11, f"beklenen 11 video fixture, bulunan: {bulunan}")
-		self.assertEqual(set(bulunan), set(OLCULEN_FIXTURE_KARARLARI))
+		beklenen = {ad for ad in OLCULEN_FIXTURE_KARARLARI if not eksik_gercek_cekim(VIDEO_DIR / ad)}
+		self.assertEqual(set(bulunan), beklenen, f"bulunan: {bulunan}")
 
 	def test_fixture_kararlari_olculenle_ayni(self):
 		for ad, (aksiyon, kural) in sorted(OLCULEN_FIXTURE_KARARLARI.items()):
@@ -574,6 +577,7 @@ class GercekFixtureOlcumu(unittest.TestCase):
 	def test_kunyeler_olculenle_ayni(self):
 		for ad, b in sorted(OLCULEN_KUNYELER.items()):
 			with self.subTest(dosya=ad):
+				eksikse_atla(self, VIDEO_DIR / ad)
 				f = P.probe(str(VIDEO_DIR / ad))
 				self.assertTrue(f.measured, f.error)
 				self.assertEqual((f.width, f.height), (b["width"], b["height"]))
