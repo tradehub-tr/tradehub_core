@@ -423,6 +423,37 @@ class TestYazmaYollariSaklamaAdresi(_SeoApiBase):
 		sync_favorites(frappe.as_json(durum))
 		self.assertEqual(self._fav_gorseli(), self.galeri)
 
+	def test_get_my_favorites_eski_ad_ilandan(self):
+		"""Retro-rename öncesi ad saklıysa çıktı ilanın güncel görselinden okunur adres verir."""
+		from tradehub_core.api.favorites import get_my_favorites
+
+		self._fav_temizle()
+		fav = frappe.get_doc(
+			{
+				"doctype": "Buyer Favorite Item",
+				"user": "Administrator",
+				"listing": self.ilan,
+				"snapshot_image": "/files/8697464042954.jpeg",
+			}
+		).insert(ignore_permissions=True)
+		self.addCleanup(lambda: frappe.db.delete("Buyer Favorite Item", {"name": fav.name}))
+		oge = next(i for i in get_my_favorites()["items"] if i["id"] == self.ilan)
+		self.assertOkunur(oge["image"], self.ana)
+
+	def test_sync_favorites_eski_ad_ustune_yazmaz(self):
+		"""Tarayıcıda kalmış eski ad, DB'deki içerik-kodlu görselin üzerine yazılmaz."""
+		from tradehub_core.api.favorites import sync_favorites
+
+		self._fav_temizle()
+		ilk = {"lists": [], "items": [{"id": self.ilan, "image": self.ana, "listIds": ["default"]}]}
+		sync_favorites(frappe.as_json(ilk))
+		eski = {
+			"lists": [],
+			"items": [{"id": self.ilan, "image": "/files/8697464042954.jpeg", "listIds": ["default"]}],
+		}
+		sync_favorites(frappe.as_json(eski))
+		self.assertEqual(self._fav_gorseli(), self.ana)
+
 	def test_create_order_gorsel_cozumu(self):
 		from tradehub_core.api import cart
 
