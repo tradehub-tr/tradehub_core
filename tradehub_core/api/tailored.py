@@ -56,7 +56,7 @@ PRODUCTS_PER_GROUP = 2
 
 def _cache_key(prefix: str, **kwargs) -> str:
 	raw = json.dumps(kwargs, sort_keys=True, default=str)
-	h = hashlib.md5(raw.encode()).hexdigest()[:12]
+	h = hashlib.md5(raw.encode(), usedforsecurity=False).hexdigest()[:12]
 	return f"{prefix}:{h}"
 
 

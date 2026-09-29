@@ -18,7 +18,7 @@ def compute_fingerprint(headers: list[str], seller_profile: str, sheet_name: str
 	"""
 	normalized = sorted(_normalize_header(h) for h in headers if h)
 	payload = json.dumps({"headers": normalized, "seller": seller_profile}, sort_keys=True)
-	return hashlib.sha1(payload.encode("utf-8")).hexdigest()
+	return hashlib.sha1(payload.encode("utf-8"), usedforsecurity=False).hexdigest()
 
 
 def _normalize_header(h: str) -> str:

@@ -53,7 +53,7 @@ def resize_to_og_dimensions(src_path: str, out_path: str) -> str:
 
 def _cache_filename_for(source_url: str) -> str:
 	"""Source URL için deterministik cache dosyası adı."""
-	digest = hashlib.md5(source_url.encode("utf-8")).hexdigest()[:12]
+	digest = hashlib.md5(source_url.encode("utf-8"), usedforsecurity=False).hexdigest()[:12]
 	return f"{digest}.jpg"
 
 
