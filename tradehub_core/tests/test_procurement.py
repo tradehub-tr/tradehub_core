@@ -375,5 +375,68 @@ class CostCenterTests(unittest.TestCase):
 		self.assertEqual(res.remaining, 500)
 
 
+class OrderCostCenterGateTests(unittest.TestCase):
+	"""`validate_order_cost_center` — Order.before_insert kapısının kendisi.
+
+	MOGEM-685 (28 Eyl 2026): tenant'ı olmayan alıcıda `{"tenant": None}` filtresi
+	`tenant IS NULL` oluyor ve tabloda kalan şirketsiz bir kayıt (ERPNext'ten
+	kalan "Main - M") her sıradan alıcının siparişini "cost center zorunlu" ile
+	reddediyordu. Sahte DB bu yüzden None'ı None'a EŞLER — gerçek SQL gibi.
+	"""
+
+	def setUp(self):
+		_reset_state()
+		self.rows: list[dict] = []
+		self.user_tenant: dict[str, str | None] = {}
+		import frappe as _f
+
+		def get_value(dt, filters=None, fieldname=None, **kw):
+			if dt == "User":
+				return self.user_tenant.get(filters) if fieldname == "tradehub_tenant" else None
+			if dt == "Cost Center" and isinstance(filters, dict):
+				for r in self.rows:
+					if all(r.get(k) == v for k, v in filters.items()):
+						return r["name"]
+				return None
+			if dt == "Cost Center":
+				r = next((r for r in self.rows if r["name"] == filters), None)
+				return SimpleNamespace(**r) if r else None
+			return None
+
+		_f.db.get_value = get_value
+		_f.db.has_column = lambda dt, col: col == "tradehub_tenant"
+		cc_service.get_monthly_spend = lambda cc, y, m: 0.0
+
+	def _order(self, buyer: str, cost_center: str | None = None):
+		return SimpleNamespace(doctype="Order", buyer=buyer, cost_center=cost_center, total=100, name="ORD-T")
+
+	def test_tenantless_buyer_ignores_orphan_cost_center(self):
+		# ERPNext'ten kalan şirketsiz kayıt tabloda durur; alıcının şirketi yok.
+		self.rows.append({"name": "Main - M", "tenant": None, "is_active": 1})
+		cc_service.validate_order_cost_center(self._order("alici@test.local"))
+
+	def test_tenant_with_cost_centers_requires_selection(self):
+		self.user_tenant["satinalma@test.local"] = "SEL-1"
+		self.rows.append({"name": "CC-SEL-1-MUTFAK", "tenant": "SEL-1", "is_active": 1})
+		import frappe as _f
+
+		with self.assertRaises(_f.ValidationError):
+			cc_service.validate_order_cost_center(self._order("satinalma@test.local"))
+
+	def test_tenant_with_selected_cost_center_passes(self):
+		self.user_tenant["satinalma@test.local"] = "SEL-1"
+		self.rows.append(
+			{
+				"name": "CC-SEL-1-MUTFAK",
+				"tenant": "SEL-1",
+				"is_active": 1,
+				"monthly_budget": 0,
+				"currency": "TRY",
+				"budget_period": "monthly",
+			}
+		)
+		cc_service.validate_order_cost_center(self._order("satinalma@test.local", "CC-SEL-1-MUTFAK"))
+
+
 if __name__ == "__main__":
 	unittest.main()

@@ -158,6 +158,13 @@ def validate_order_cost_center(doc, method=None) -> None:
 	cost_center = getattr(doc, "cost_center", None)
 	tenant = _resolve_buyer_tenant(doc)
 
+	# Tenant'ı olmayan alıcıda cost center kavramı yok (supplier_whitelist ile aynı).
+	# Bu erken çıkış olmadan {"tenant": None} filtresi `tenant IS NULL` olur ve
+	# tabloda kalan şirketsiz bir kayıt (ERPNext'ten kalan "Main - M") her sıradan
+	# alıcının siparişini "cost center zorunlu" ile reddeder (MOGEM-685, 28 Eyl).
+	if not tenant:
+		return
+
 	# Tenant'ın hiç cost center'ı yok → atla (geçiş aşaması)
 	has_any_cc = bool(frappe.db.get_value("Cost Center", {"tenant": tenant, "is_active": 1}, "name"))
 	if not has_any_cc:
