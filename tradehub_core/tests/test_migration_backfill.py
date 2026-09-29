@@ -713,9 +713,19 @@ class KatmanDisiplinTesti(unittest.TestCase):
 		self.assertTrue(media_engine.IMPLEMENTED["migration"])
 
 
-@unittest.skipUnless(
-	importlib.util.find_spec("frappe"), "migration_runtime frappe ister — `bench run-tests` ile koşar"
-)
+def _gercek_frappe_var() -> bool:
+	"""Başka bir test `sys.modules`'a sahte frappe koyduysa `find_spec` ValueError fırlatır.
+
+	Sahte modülün `__spec__`'i yoktur; bu da "gerçek frappe yok" demektir. Faz 2 altı modülü aynı
+	süreçte yüklediği için yakalanmazsa koşu testler yüklenirken çöküyordu.
+	"""
+	try:
+		return importlib.util.find_spec("frappe") is not None
+	except ValueError:
+		return False
+
+
+@unittest.skipUnless(_gercek_frappe_var(), "migration_runtime frappe ister — `bench run-tests` ile koşar")
 class WorkerKayitTesti(unittest.TestCase):
 	"""`_workers_from_registry` — RQ kuyruk-üyelik set'inden worker okuma.
 
