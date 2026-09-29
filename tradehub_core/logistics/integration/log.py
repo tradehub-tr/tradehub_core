@@ -186,6 +186,9 @@ class IntegrationLogWriter(Protocol):
 	  `secret_values`'ı hiç geçmez; bu kanal sayesinde adapter jetonu yine de
 	  redakte edilir. İki kaynağı tek argümanda toplamak, birinin çözülememesi
 	  hâlinde diğerini de düşürüyordu (ölçüldü).
+	* ``request_body_limit``: `bytes`/`str` istek gövdesi için MAX_BODY_BYTES'tan
+	  DAR kırpma sınırı; verilmezse davranış değişmez. Kimliği doğrulanmamış
+	  girdi (webhook imza reddi) log tablosunu şişirmesin diye (MOGEM-685).
 	* Dönüş: oluşan log kaydının adı; yazılamadıysa `None`. **Asla fırlatmaz.**
 	"""
 
@@ -209,6 +212,7 @@ class IntegrationLogWriter(Protocol):
 		is_retriable: bool | None = ...,
 		secret_values: Iterable[str] | None = ...,
 		extra_secret_values: Iterable[Any] | None = ...,
+		request_body_limit: int | None = ...,
 	) -> str | None: ...
 
 
@@ -231,6 +235,7 @@ def write_integration_log(
 	is_retriable: bool | None = None,
 	secret_values: Iterable[str] | None | object = _SECRET_VALUES_OMITTED,
 	extra_secret_values: Iterable[Any] | None = None,
+	request_body_limit: int | None = None,
 ) -> str | None:
 	"""Bir taşıyıcı API çağrısını entegrasyon loguna yazar.
 
@@ -258,6 +263,10 @@ def write_integration_log(
 			savunmayı sessizce kapatır ve uyarı loglanır.
 		extra_secret_values: Adapter'ın ürettiği kısa ömürlü sırlar — AYRI kanal,
 			nöbetçiyi susturmaz (bkz. `IntegrationLogWriter`).
+		request_body_limit: `bytes`/`str` istek gövdesi için MAX_BODY_BYTES'tan DAR
+			kırpma sınırı. Kimliği doğrulanmamış girdide (webhook imza reddi) log
+			tablosunu saldırgan gövdesiyle doldurmamak için; kırpma yine maskelemeden
+			ÖNCE ve yarım-sır kuyruk temizliğiyle yapılır (MOGEM-685).
 
 	Returns:
 		Oluşan log kaydının adı; yazılamadıysa `None`.
@@ -288,7 +297,9 @@ def write_integration_log(
 			"error_code": _mask_short_text(error_code, _ERROR_CODE_LIMIT, secrets)
 			or (CONTRACT_VIOLATION_CODE if violations else None),
 			"error_message": _mask_short_text(error_message, _ERROR_MESSAGE_LIMIT, secrets),
-			"request_body": _serialize_request(request_body, request_headers, violations, secrets),
+			"request_body": _serialize_request(
+				request_body, request_headers, violations, secrets, request_body_limit
+			),
 			"response_body": _serialize_body(response_body, secrets),
 			"is_retriable": None if is_retriable is None else (1 if is_retriable else 0),
 		}
@@ -539,6 +550,7 @@ def _serialize_request(
 	headers: Mapping | None,
 	violations: dict[str, str] | None,
 	secrets: tuple[str, ...],
+	body_limit: int | None = None,
 ) -> str | None:
 	"""İstek gövdesini (varsa başlık ve sözleşme ihlaliyle) maskeleyip metne çevirir.
 
@@ -558,7 +570,7 @@ def _serialize_request(
 	if masked_headers and secrets:
 		masked_headers = _redact_deep(masked_headers, secrets)
 
-	masked_body, truncated_bytes = _mask_with_truncation(body, secrets)
+	masked_body, truncated_bytes = _mask_with_truncation(body, secrets, body_limit)
 
 	if not masked_headers and not violations and truncated_bytes is None:
 		return _to_text(masked_body)
@@ -608,7 +620,9 @@ def _serialize_body(body: Any, secrets: tuple[str, ...]) -> str | None:
 	)
 
 
-def _mask_with_truncation(body: Any, secrets: tuple[str, ...]) -> tuple[Any, int | None]:
+def _mask_with_truncation(
+	body: Any, secrets: tuple[str, ...], limit: int | None = None
+) -> tuple[Any, int | None]:
 	"""Gövdeyi ÖNCE kırpar, SONRA maskeler.
 
 	Sıra kritik: eski sürümde 50 MB'lık bir gövde tam boy decode ediliyor,
@@ -630,7 +644,7 @@ def _mask_with_truncation(body: Any, secrets: tuple[str, ...]) -> tuple[Any, int
 	if body is None:
 		return None, None
 
-	prepared, original_bytes = _truncate_input(body)
+	prepared, original_bytes = _truncate_input(body, limit)
 	masked = mask_payload(prepared, secret_values=None)
 	if secrets:
 		masked = _redact_deep(masked, secrets)
@@ -639,7 +653,7 @@ def _mask_with_truncation(body: Any, secrets: tuple[str, ...]) -> tuple[Any, int
 	return masked, original_bytes
 
 
-def _truncate_input(body: Any) -> tuple[Any, int | None]:
+def _truncate_input(body: Any, limit: int | None = None) -> tuple[Any, int | None]:
 	"""Maskelemeden ÖNCE giriş noktasında kırpar.
 
 	* bytes / str: doğrudan bayt dilimlenir.
@@ -650,18 +664,21 @@ def _truncate_input(body: Any) -> tuple[Any, int | None]:
 	  BAŞARISIZ olursa tavan kararı BİLİNEMEZ — `_truncate_structure` o durumda
 	  güvenli yöne gider; ayrıntı orada.
 	* Diğer türler: dokunulmaz (maskeleme `<TypeName>`e indirger).
+
+	`limit` yalnız bytes/str için MAX_BODY_BYTES'ı DARALTIR (genişletmez).
 	"""
+	sinir = min(limit, MAX_BODY_BYTES) if limit else MAX_BODY_BYTES
 	if isinstance(body, (bytes, bytearray, memoryview)):
 		raw = bytes(body)
-		if len(raw) <= MAX_BODY_BYTES:
+		if len(raw) <= sinir:
 			return raw, None
-		return raw[:MAX_BODY_BYTES], len(raw)
+		return raw[:sinir], len(raw)
 
 	if isinstance(body, str):
 		encoded = body.encode("utf-8")
-		if len(encoded) <= MAX_BODY_BYTES:
+		if len(encoded) <= sinir:
 			return body, None
-		return encoded[:MAX_BODY_BYTES].decode("utf-8", errors="ignore"), len(encoded)
+		return encoded[:sinir].decode("utf-8", errors="ignore"), len(encoded)
 
 	if isinstance(body, (Mapping, list, tuple, set, frozenset)):
 		return _truncate_structure(body)

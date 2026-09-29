@@ -81,6 +81,13 @@ _WEBHOOK_JOB_METHOD: str = "tradehub_core.logistics.services.tracking_service.pr
 #: Imzasiz/yanlis imzali inbound kaydin kararli hata kodu (AC-2).
 _SIGNATURE_INVALID: str = "SIGNATURE_INVALID"
 
+#: Imza reddi logu — hesap basina dakikada en fazla bu kadar satir, satirda gövdenin
+#: en fazla bu kadar bayti (MOGEM-685). OLCULDU (28 Eyl 2026): her imzasiz istek
+#: gövdenin 65.520 baytini yaziyordu; 600/dk IP siniriyla dakikada ~33 MB, 90 gün
+#: saklama. Ilk satirlar tanı icin yeter; gerisi yalnız 401 alir (log yazilmaz).
+_FAILED_LOG_PER_MINUTE: int = 20
+_FAILED_LOG_BODY_BYTES: int = 2048
+
 
 @frappe.whitelist(allow_guest=True, methods=["POST"])
 @rate_limit(limit=600, seconds=60)
@@ -101,6 +108,12 @@ def receive_carrier_webhook(account: str | None = None) -> dict[str, bool]:
 	# exc_type/mesaj tasir ve 401-tekduzeligini kirardi. Traceback maskeli
 	# (govde/sir icermez) olarak Error Log'a yazilir, istemci ayni 401'i gorur.
 	try:
+		# `account` URL parametresidir; Frappe v15 JSON gövdede URL parametrelerini
+		# form_dict'e KATMAZ (frappe/app.py make_form_dict) — application/json
+		# gönderen her taşıyıcı `account=None` ile 401 alıyordu (ölçüldü 28 Eyl,
+		# MOGEM-685). Adres satırı esas; gövdedeki aynı adlı alan yok sayılır.
+		if frappe.request is not None:
+			account = frappe.request.args.get("account") or account
 		return _receive(account)
 	except Exception:  # noqa: BLE001 — W2 sozlesmesi: tek tip 401, sizinti yok (gerekce ustte)
 		safe_log_error(traceback_text(), "logistics.webhook.unexpected")
@@ -130,7 +143,15 @@ def _receive(account: str | None) -> dict[str, bool]:
 	account_doc, secret = resolved
 
 	if not _verify_signature(account_doc, raw_body, secret):
-		_write_inbound_log(account_doc, raw_body, secret, succeeded=False, error_code=_SIGNATURE_INVALID)
+		if _failed_log_allowed(account_doc.name):
+			_write_inbound_log(
+				account_doc,
+				raw_body,
+				secret,
+				succeeded=False,
+				error_code=_SIGNATURE_INVALID,
+				body_limit=_FAILED_LOG_BODY_BYTES,
+			)
 		return _reject()
 
 	if _is_duplicate(account_doc.name, raw_body):
@@ -235,6 +256,7 @@ def _write_inbound_log(
 	*,
 	succeeded: bool,
 	error_code: str | None,
+	body_limit: int | None = None,
 ) -> None:
 	"""Maskeli inbound entegrasyon logu (AC-1/AC-2). Asla firlatmaz (log.py sozlesmesi)."""
 	write_integration_log(
@@ -250,7 +272,25 @@ def _write_inbound_log(
 		# Deger-tabanli redaksiyonun girdisi: govdeye/basliga sizmis secret
 		# birebir maskelensin (imza hex'i secret DEGIL, maskelenmesi gerekmez).
 		secret_values=[secret],
+		request_body_limit=body_limit,
 	)
+
+
+def _failed_log_allowed(account: str) -> bool:
+	"""Imza reddi logunun hesap basina dakikalik tavani (MOGEM-685).
+
+	Redis erisilemezse FAIL-OPEN (log yazilir): tavan bir tasarruf onlemi, kimlik
+	kapisi degil — kesintide tanı satirlarini kaybetmek daha kötü.
+	"""
+	cache = frappe.cache
+	key = cache.make_key(f"{CACHE_PREFIX}webhook:failed_log:{account}")
+	try:
+		adet = int(cache.incr(key))
+		if adet == 1:
+			cache.expire(key, 60)
+	except Exception:  # noqa: BLE001 — fail-open (gerekce docstring'de)
+		return True
+	return adet <= _FAILED_LOG_PER_MINUTE
 
 
 def _dedupe_key(account: str, raw_body: bytes) -> str:
