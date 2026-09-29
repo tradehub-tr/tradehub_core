@@ -7,6 +7,7 @@ from frappe import _
 
 from tradehub_core.api._input import safe_float, safe_int
 from tradehub_core.api._pagination import normalize_pagination
+from tradehub_core.media import seo_cikti, seo_url
 from tradehub_core.seo.i18n import (
 	CONTENT_LANGS,
 	format_discount_badge,
@@ -999,6 +1000,9 @@ def get_listings(
 		):
 			tier_cache.setdefault(tier.parent, []).append(tier)
 
+	# SEO'lu görsel adresi (spec §5.3): sayfadaki tüm kart görsellerinin kodu tek seferde.
+	codes = _kart_gorsel_kodlari(paginated)
+
 	# Enrich listings with prefetched data
 	results = []
 	for listing in paginated:
@@ -1009,6 +1013,7 @@ def get_listings(
 			brand_cache=brand_cache,
 			verified_seller_users=verified_seller_users,
 			lang=lang,
+			codes=codes,
 		)
 		results.append(item)
 
@@ -1155,6 +1160,35 @@ def _kart_gorsel_manifesti(listing_name: str) -> dict:
 	except Exception:
 		frappe.log_error("listing card gorsel manifest okunamadı", "listing")
 		return {}
+
+
+def _detay_gorsellerini_cevir(
+	baslik: str | None, images: list[str], kunyeler: list[dict], variants: list[dict]
+) -> list[str]:
+	"""Ürün detayındaki tüm ürün görsellerini okunur adrese çevirir — TEK kod sorgusu.
+
+	Galeri (`images`), künye `url`'leri ve varyant seçeneklerinin `image`/`images`
+	alanları aynı `codes` sözlüğünü paylaşır; künye ve varyantlar yerinde
+	güncellenir, yeni galeri listesi döner. Slug ilanın orijinal başlığından.
+	"""
+	secenekler = [o for eksen in variants or [] for o in (eksen.get("options") or [])]
+	tum = list(images) + [k.get("url") for k in kunyeler if k.get("url")]
+	for o in secenekler:
+		tum += [u for u in [o.get("image"), *(o.get("images") or [])] if u]
+	codes = seo_url.codes_for(tum)
+
+	def _cevir(u: str | None) -> str | None:
+		return seo_cikti.urun_gorseli_url(u, baslik, codes)
+
+	for k in kunyeler:
+		if k.get("url"):
+			k["url"] = _cevir(k["url"])
+	for o in secenekler:
+		if o.get("image"):
+			o["image"] = _cevir(o["image"])
+		if o.get("images"):
+			o["images"] = [_cevir(u) for u in o["images"]]
+	return [_cevir(u) for u in images]
 
 
 def _video_mu(url: str) -> bool:
@@ -1749,6 +1783,12 @@ def get_listing_detail(listing_id, lang="tr"):
 		frappe.log_error("listing documents seo alanları okunamadı", "listing")
 		_belgeler = []
 
+	# Künye HAM adreslerle kurulur (kullanım bağlamı DB'deki adrese göre eşleşir);
+	# ardından galeri, künye ve varyant görselleri tek kod sorgusuyla okunur adrese
+	# çevrilir (spec §5.3).
+	_kunyeler = _gorsel_kunyeleri(listing, images, lang)
+	images = _detay_gorsellerini_cevir(listing.title, images, _kunyeler, variants)
+
 	result = {
 		"id": listing.name,
 		"listingCode": listing.listing_code,
@@ -1763,7 +1803,7 @@ def get_listing_detail(listing_id, lang="tr"):
 		# listesi olarak KALIYOR — panel ve vitrin onu okuyor, tipini
 		# değiştirmek ikisini birden kırardı. Yeni alan yanına ekleniyor;
 		# tüketiciler hazır oldukça geçer.
-		"imageMeta": _gorsel_kunyeleri(listing, images, lang),
+		"imageMeta": _kunyeler,
 		"priceTiers": price_tiers,
 		"moq": listing.min_order_qty or 1,
 		"sellInMoqMultiples": bool(listing.sell_in_moq_multiples),
@@ -2816,12 +2856,19 @@ def get_top_ranking_categories(limit=6, sort="hot-selling"):
 				["product_category", "=", cat_id],
 				[sort_field, ">", 0],
 			],
-			fields=["primary_image"],
+			fields=["primary_image", "title"],
 			order_by=f"{sort_field} {sort_order}, modified DESC",
 			limit=1,
 		)
 		if top and top[0].get("primary_image"):
-			top_listing_image[cat_id] = top[0]["primary_image"]
+			top_listing_image[cat_id] = top[0]
+
+	# Ürün görseli okunur adresle (spec §5.3) — slug o ilanın başlığından; kodlar tek sorgu.
+	_codes = seo_url.codes_for([t["primary_image"] for t in top_listing_image.values()])
+	top_listing_image = {
+		cat_id: seo_url.seo_image_url(t["primary_image"], t.get("title"), _codes)
+		for cat_id, t in top_listing_image.items()
+	}
 
 	# Build the response preserving the SQL ordering (already best→worst).
 	# Card image priority: top listing's primary_image > category's own image.
@@ -3097,11 +3144,12 @@ def get_top_ranking_grouped(
 
 	# Format the cards and assemble the final group list.
 	final_groups = []
+	codes = _kart_gorsel_kodlari([lst for g in groups_raw for lst in g["_listings"]])
 	for g in groups_raw:
 		meta = cat_meta.get(g["cat_id"])
 		cards = []
 		for idx, listing in enumerate(g["_listings"]):
-			card = _format_listing_card(listing, seller_cache=seller_cache, tier_cache=tier_cache)
+			card = _format_listing_card(listing, seller_cache=seller_cache, tier_cache=tier_cache, codes=codes)
 			# Add a 1/2/3 rank for the frontend badge.
 			card["rank"] = idx + 1
 			cards.append(card)
@@ -3177,7 +3225,8 @@ def get_related_listings(listing_id, limit=8):
 		limit=int(limit),
 	)
 
-	results = [_format_listing_card(l) for l in listings]
+	codes = _kart_gorsel_kodlari(listings)
+	results = [_format_listing_card(l, codes=codes) for l in listings]
 	return {"data": results}
 
 
@@ -3259,7 +3308,8 @@ def get_related_listings_grouped(listing_id: str):
 			"status",
 		],
 	)
-	card_by_id = {lst["name"]: _format_listing_card(lst) for lst in listings}
+	codes = _kart_gorsel_kodlari(listings)
+	card_by_id = {lst["name"]: _format_listing_card(lst, codes=codes) for lst in listings}
 
 	out = {
 		"similar": [card_by_id[tid] for tid in grouped_ids["Similar"] if tid in card_by_id],
@@ -3611,14 +3661,34 @@ def _sort_by_relevance(listings, words):
 	return sorted(listings, key=score, reverse=True)
 
 
+def _kart_gorsel_kodlari(listings: list) -> dict[str, str]:
+	"""Kart listesinin tüm görsellerinin (ana + galeri) kısa kodları — 2 sorgu, N+1 yok.
+
+	`_format_listing_card(..., codes=...)` bu sözlüğü alır; kart başına ayrı
+	`codes_for` sorgusu açılmaz. Galeri `_format_listing_card`'ın okuduğu
+	`Listing Image` satırlarıyla aynı kaynak (alt tablo; üst ilan zaten süzüldü).
+	"""
+	adlar = [lst.get("name") for lst in listings if lst.get("name")]
+	urls = [lst.get("primary_image") for lst in listings if lst.get("primary_image")]
+	if adlar:
+		urls += frappe.get_all(
+			"Listing Image",
+			filters={"parent": ["in", adlar], "parenttype": "Listing"},
+			pluck="image",
+			limit_page_length=0,
+		)
+	return seo_url.codes_for([u for u in urls if u])
+
+
 def _format_listing_card(
 	listing,
 	seller_cache=None,
 	tier_cache=None,
 	brand_cache=None,
 	verified_seller_users=None,
-	lang="tr",
-):
+	lang: str = "tr",
+	codes: dict[str, str] | None = None,
+) -> dict:
 	"""Format a listing record into the ProductListingCard structure for frontend.
 
 	Args:
@@ -3628,6 +3698,8 @@ def _format_listing_card(
 			(KYB doğrulanmış satıcılar). Bu sette olmayan satıcının kartında
 			seller_kyb_verified=False döner; storefront "Doğrulanmamış Satıcı"
 			rozeti gösterir, "Sepete Ekle" disabled olur.
+		codes: `_kart_gorsel_kodlari` çıktısı — liste çağıranları bir kez hesaplayıp
+			geçirir; None ise kart kendi görselleri için tek sorgu açar.
 	"""
 	# Get supplier info — use cache if available, else individual query (fallback)
 	supplier_years = 0
@@ -3726,6 +3798,14 @@ def _format_listing_card(
 			all_images.append(ci.image)
 	if not primary_image and all_images:
 		primary_image = all_images[0]
+
+	# SEO'lu görsel adresi (spec §5.3): slug ilanın ORİJİNAL başlığından — dil
+	# çevirisinden değil, adres her dilde aynı kalsın. Üretilemezse adres aynen.
+	if codes is None:
+		codes = seo_url.codes_for(all_images)
+	_gorsel_basligi = listing.get("title")
+	all_images = [seo_cikti.urun_gorseli_url(u, _gorsel_basligi, codes) for u in all_images]
+	primary_image = seo_cikti.urun_gorseli_url(primary_image, _gorsel_basligi, codes)
 
 	listing_slug = listing.get("slug") or ""
 	listing_href = (

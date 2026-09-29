@@ -23,7 +23,7 @@ import frappe
 from frappe import _
 from frappe.utils import add_days, get_files_path, now_datetime
 
-from tradehub_core.media import archive, audit, naming, refs
+from tradehub_core.media import archive, audit, naming, refs, seo_url
 
 PUBLIC_PREFIX = "/files/"
 MEDIA_PREFIX = "/files/media/"
@@ -554,6 +554,18 @@ def rename_one(url: str, job_key: str, expires_at: datetime | str | None, *, dry
 		for ad in adlar:
 			frappe.db.set_value("File", ad, "file_url", new_url, update_modified=False)
 		ref_result = refs.retarget(url, new_url)
+		# SEO'lu görsel adresi (Task 1): yeni içerik-adresli URL'e kısa kod ata.
+		# `None` dönmesi (örn. çakışma tükendi) taşımayı düşürmez — API bugünkü
+		# hash'li adresi döner, geri düşüş `seo_url.seo_image_url`'de. AMA bir
+		# `Exception` (örn. DB hatası) sarılmazsa dıştaki geniş `except`e sızar
+		# ve TÜM taşımayı rollback'e sürükler — bu SEO zenginleştirmesi bir
+		# taşımayı asla düşürmemeli, o yüzden burada kendi try/except'i var
+		# (review düzeltmesi M-3: yorum önceden bunu iddia ediyordu ama kod
+		# etmiyordu).
+		try:
+			seo_url.assign_code(new_url)
+		except Exception:
+			frappe.log_error(title=f"SEO kodu atanamadı: {new_url}", message=frappe.get_traceback())
 		frappe.get_doc(
 			{
 				"doctype": "Media URL Redirect",
@@ -894,7 +906,16 @@ def _rollback_one(row: frappe._dict) -> dict:
 
 	try:
 		for ad in geri:
-			frappe.db.set_value("File", ad, "file_url", row.source_url, update_modified=False)
+			# `seo_code` de temizlenir (review I-2): aksi hâlde eski adrese dönen
+			# satır kısa kodu taşımaya devam eder ve dosya TEKRAR taşınırsa
+			# `assign_code`'un çarpışma kontrolü bu artığı görüp aynı içeriğe
+			# farklı (daha uzun) bir kod verir — yayınlanmış SEO adresi değişir.
+			frappe.db.set_value(
+				"File",
+				ad,
+				{"file_url": row.source_url, "seo_code": None},
+				update_modified=False,
+			)
 		ref_result = refs.restore_retarget_changes(ref_changes)
 		# Sistem işi: satırı iş anahtarı üzerinden okuduk, çağıran uç (Task 6)
 		# System Manager kapısından geçiyor; worker bağlamında oturum yok.

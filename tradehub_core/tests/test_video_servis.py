@@ -621,6 +621,7 @@ if frappe is not None:
 
 		def setUp(self) -> None:
 			super().setUp()
+			self._artiklari_sil()
 			self.ilan = _gorunur_ilan()
 			if not self.ilan:
 				self.skipTest("Vitrinde görünen ilan yok — fixture kurulamaz.")
@@ -629,6 +630,15 @@ if frappe is not None:
 				"Listing", self.ilan["name"], "video_url", self.VIDEO_URL, update_modified=False
 			)
 			self.addCleanup(self._video_url_geri_al)
+
+		def _artiklari_sil(self) -> None:
+			"""Yarıda kesilen (zaman aşımı / öldürülen süreç) bir koşunun bıraktığı fixture
+			`File` satırlarını sil. `addCleanup` süreç ölünce çalışmaz; SEO final review
+			M-7'de 2026-09-28 22:36 tarihli `b17f6aceeb` böyle kalmıştı (dosya adındaki
+			`72c4c7` son eki, eklemede aynı adlı başka satırın da durduğunu gösteriyor —
+			eşzamanlı/yarıda kalmış iki koşu). Yalnız bu fixture'ın kendi adresi."""
+			for ad in frappe.get_all("File", filters={"file_url": self.VIDEO_URL}, pluck="name"):
+				_sil("File", ad)
 
 		def _video_url_geri_al(self) -> None:
 			frappe.db.set_value(
@@ -657,6 +667,7 @@ if frappe is not None:
 				}
 			)
 			dosya.flags.th_skip_transcode = True
+			dosya.flags.ignore_seo_code = True  # fixture SEO kodu almasın (video zaten kapsam dışı)
 			dosya.insert(ignore_permissions=True)
 			self.addCleanup(lambda: _sil("File", dosya.name))
 			# İçerik-adresli adlandırma kancası (naming.write_file_hashed) insert

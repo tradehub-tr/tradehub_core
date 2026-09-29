@@ -202,7 +202,7 @@ def get_review_eligibility(listing: str):
 # ─────────────────────────────────────────────────────────────────────────────
 @frappe.whitelist()
 @rate_limit(max_calls=30, window_seconds=60, scope="sf_my_reviews")
-def get_my_reviews(page: int = 1, page_size: int = 10):
+def get_my_reviews(page: int = 1, page_size: int = 10) -> dict:
 	"""Login'li buyer'ın kendi yorumlarını listeler."""
 	_ensure_logged_in()
 	user = frappe.session.user
@@ -238,7 +238,13 @@ def get_my_reviews(page: int = 1, page_size: int = 10):
 		order_items = frappe.get_all(
 			"Order Item",
 			filters={"name": ["in", order_item_names]},
-			fields=["name", "listing_title", "image"],
+			fields=["name", "listing", "listing_title", "image"],
+		)
+		# Sipariş görseli okunur adresle (spec §5.3) — `Order Item.image` DB'de aynen kalır.
+		from tradehub_core.media import seo_cikti
+
+		seo_cikti.satirlari_cevir(
+			order_items, url_alani="image", ad_alani="listing_title", eskiyse_ilandan=True
 		)
 		# Numerik name'ler int dönebildiği için (ör. Order Item "4") anahtarlar cstr ile normalize edilir.
 		order_item_snapshots = {cstr(r.name): r for r in order_items}

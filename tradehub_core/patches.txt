@@ -354,3 +354,9 @@ tradehub_core.patches.v15_9_59_seed_category_names
 
 # --- Ana sayfa vitrini: Arapça/Rusça metinler (DocType alanları bu turda eklendi) ---
 tradehub_core.patches.v15_9_60_showcase_ar_ru
+
+# --- SEO'lu görsel adresi: File.seo_code + geriye dönük doldurma ---
+tradehub_core.patches.v15_9_61_file_seo_code
+
+# --- SEO görsel adresi: sepet/favori görsel kopyaları taşımaya dahil (eski taşımaları düzelt) ---
+tradehub_core.patches.v15_9_62_retarget_cart_favorite_snapshots

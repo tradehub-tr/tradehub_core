@@ -690,7 +690,9 @@ def _product_group_props(listing: dict, *, url: str, currency: str) -> dict:
 		if ad:
 			nesne["name"] = ad
 		if v.get("variant_image"):
-			nesne["image"] = v["variant_image"]
+			# Ana görselin `contentUrl`'ü gibi mutlak (review M-5); `url` mutlak ürün
+			# adresi, `_absolute_url` yalnız origin'ini kullanır.
+			nesne["image"] = _absolute_url(v["variant_image"], url)
 		if v.get("variant_price"):
 			nesne["offers"] = {
 				"@type": "Offer",
@@ -1002,11 +1004,15 @@ def _listing_image_objects(listing: dict, site_url: str) -> list:
 
 	try:
 		from tradehub_core.media import seo as media_seo
-		from tradehub_core.media import seo_index
+		from tradehub_core.media import seo_cikti, seo_index, seo_url
 
 		ad = listing.get("name") or ""
 		lang = listing.get("content_default_lang") or "tr"
 		kaynaklar = media_seo.listing_usage_contexts(ad) if ad else []
+		# Okunur `contentUrl` (spec §5.3): tüm görsellerin kodu tek sorguda,
+		# slug ilanın orijinal başlığından.
+		kodlar = seo_url.codes_for([b["file_url"] for b in kaynaklar])
+		baslik = listing.get("title")
 
 		out = []
 		gorulen: set[str] = set()
@@ -1037,7 +1043,10 @@ def _listing_image_objects(listing: dict, site_url: str) -> list:
 			alanlar.update(
 				{
 					"asset_url": kimlik.get("stable_url", ""),
-					"content_url": kimlik.get("delivery_url", ""),
+					"content_url": _absolute_url(
+						seo_cikti.urun_gorseli_url(url, baslik, kodlar), site_url
+					)
+					or kimlik.get("delivery_url", ""),
 					"encoding_format": kimlik.get("encoding_format", ""),
 					"date_created": kimlik.get("date_created", ""),
 					"date_published": kimlik.get("date_published", ""),
@@ -1369,6 +1378,32 @@ def _listing_variant_context(listing: dict) -> dict:
 	return out
 
 
+def _okunur_listing_gorselleri(listing: dict) -> dict:
+	"""Şema kopyasındaki `primary_image` ve varyant görsellerini okunur adrese çevirir.
+
+	Yalnız JSON-LD'ye giden KOPYA değişir (spec §5.3); çağıranın sözlüğü ve DB
+	aynen kalır. `media_images` boş kaldığında `build_product_schema` düz
+	`primary_image`'a düşüyor — o yol da okunur adresi basmalı. Kodlar tek sorgu.
+	"""
+	from tradehub_core.media import seo_url
+
+	varyantlar = [v for v in (listing.get("variants") or []) if isinstance(v, dict)]
+	adresler = [listing.get("primary_image")] + [v.get("variant_image") for v in varyantlar]
+	kodlar = seo_url.codes_for([a for a in adresler if a])
+	baslik = listing.get("title")
+	out: dict = {}
+	if listing.get("primary_image"):
+		out["primary_image"] = seo_url.seo_image_url(listing["primary_image"], baslik, kodlar)
+	if varyantlar:
+		out["variants"] = [
+			{**v, "variant_image": seo_url.seo_image_url(v["variant_image"], baslik, kodlar)}
+			if v.get("variant_image")
+			else v
+			for v in varyantlar
+		]
+	return out
+
+
 def compose_for_listing(listing: dict, defaults: dict, site_url: str) -> list[dict]:
 	"""Frappe wrapper: Listing için tüm schema setini üret."""
 	listing = {
@@ -1378,6 +1413,7 @@ def compose_for_listing(listing: dict, defaults: dict, site_url: str) -> list[di
 		"media_documents": _listing_document_objects(listing, site_url),
 		**_listing_variant_context(listing),
 	}
+	listing.update(_okunur_listing_gorselleri(listing))
 	ctx = {"listing": listing}
 	ctx.update(_get_listing_extra_context(listing.get("name", "")))
 	merged_defaults = {**defaults, **_frappe_defaults()}

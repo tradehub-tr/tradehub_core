@@ -76,7 +76,7 @@ from werkzeug.wrappers import Response
 
 from tradehub_core.api import media_access
 from tradehub_core.api.rate_limit import rate_limit
-from tradehub_core.media import pipeline_flags
+from tradehub_core.media import pipeline_flags, seo_cikti, seo_url
 from tradehub_core.media.pipeline.api import delivery as pipeline_delivery
 from tradehub_core.media.pipeline.api import envelope as env
 from tradehub_core.media.pipeline.contracts.delivery import RenderManifest
@@ -771,12 +771,19 @@ def _manifest_batch_icin(ilanlar: Sequence[str], slot_key: str, acik: bool) -> d
 		else {}
 	)
 
+	# SEO'lu görsel adresi (spec §5.3): tüm ilanların görsel + türev adreslerinin
+	# kodları TEK sorguda; türevler (`__w384`) orijinalin koduyla eşlenir.
+	codes = seo_url.codes_for(
+		[g["file_url"] for gs in gorseller.values() for g in gs]
+		+ [t.get("file_url") or "" for ts in turevler.values() for t in ts]
+	)
+
 	cikti: dict[str, dict[str, Any]] = {}
 	for satir in satirlar:
 		ad = satir["name"]
 		ilan_acik = acik and pipeline_flags.is_store_enabled(satir.get("seller_profile"))
 		cikti[ad] = _tek_ilan_govdesi(
-			satir, gorseller.get(ad) or [], slot_key, varliklar, turevler, ilan_acik, zengin
+			satir, gorseller.get(ad) or [], slot_key, varliklar, turevler, ilan_acik, zengin, codes=codes
 		)
 	return cikti
 
@@ -789,10 +796,29 @@ def _tek_ilan_govdesi(
 	turevler: dict[str, list[dict[str, Any]]],
 	acik: bool,
 	zengin: dict[str, dict[str, Any]] | None = None,
+	*,
+	codes: dict[str, str] | None = None,
 ) -> dict[str, Any]:
-	"""Bir ilanın manifest gövdesi — görsel başına merdiven + düz türev listesi."""
+	"""Bir ilanın manifest gövdesi — görsel başına merdiven + düz türev listesi.
+
+	Dışarı çıkan her ürün görseli adresi (`file_url`, `source`, türev `url`,
+	`srcset`, `fallback`) okunur biçimdedir (spec §5.3); slug ilanın orijinal
+	`title`'ından. Vitrin manifesti karttaki/detaydaki adresle `file_url` üzerinden
+	eşleştiriyor — ikisi de aynı başlıktan üretildiği için birebir tutar.
+	`codes` verilmezse bu ilan için tek sorgu açılır.
+	"""
+	baslik = ilan.get("title")
+	if codes is None:
+		codes = seo_url.codes_for(
+			[g["file_url"] for g in gorseller]
+			+ [t.get("file_url") or "" for ts in turevler.values() for t in ts]
+		)
+
+	def _okunur(u: str) -> str:
+		return seo_cikti.urun_gorseli_url(u, baslik, codes) or ""
+
 	govde = _bos_manifest(ilan["name"], slot_key, acik)
-	govde["fallback"] = (gorseller[0]["file_url"] if gorseller else "") or ""
+	govde["fallback"] = _okunur((gorseller[0]["file_url"] if gorseller else "") or "")
 
 	if not gorseller:
 		return govde
@@ -804,7 +830,7 @@ def _tek_ilan_govdesi(
 	for sira, gorsel in enumerate(gorseller):
 		ham_url = gorsel["file_url"]
 		kayit: dict[str, Any] = {
-			"file_url": ham_url,
+			"file_url": _okunur(ham_url),
 			"alt_text": gorsel.get("alt_text") or "",
 			"primary": bool(gorsel.get("primary")),
 			"asset": "",
@@ -833,6 +859,8 @@ def _tek_ilan_govdesi(
 			alt=kayit["alt_text"],
 			is_lcp=(sira == 0),
 			version_meta=(zengin or {}).get(varlik["name"]),
+			baslik=baslik,
+			codes=codes,
 		)
 		if man is None:
 			govde["images"].append(kayit)
@@ -843,10 +871,10 @@ def _tek_ilan_govdesi(
 		for tur in servis_edilir:
 			duz.append(
 				{
-					"source": ham_url,
+					"source": _okunur(ham_url),
 					"asset": varlik["name"],
 					"profile": tur["profile"],
-					"url": tur["file_url"],
+					"url": _okunur(tur["file_url"]),
 					"width": int(tur.get("width") or 0),
 					"height": int(tur.get("height") or 0),
 					"format": tur["format"],
@@ -1083,6 +1111,8 @@ def _render_manifest(
 	alt: str,
 	is_lcp: bool,
 	version_meta: dict[str, Any] | None = None,
+	baslik: str | None = None,
+	codes: dict[str, str] | None = None,
 ) -> dict[str, Any] | None:
 	"""`ManifestBuilder`ı DB'den gelen adreslerle çalıştır.
 
@@ -1098,7 +1128,11 @@ def _render_manifest(
 
 	def url_for(ref: ObjectRef) -> str:
 		anahtar = _profil_ve_bicim(ref)
-		return adres.get(anahtar) or ref.url
+		gercek = adres.get(anahtar) or ref.url
+		# Okunur adres (spec §5.3): `codes` yoksa (panel/test çağrısı) adres aynen.
+		if codes is None:
+			return gercek
+		return seo_cikti.urun_gorseli_url(gercek, baslik, codes) or gercek
 
 	base = _base_ref(ham_url)
 	if base is None:
@@ -1262,7 +1296,8 @@ def _gorunur_ilanlar(ilanlar: Sequence[str]) -> list[dict[str, Any]]:
 		},
 		# `video_url` W7'de eklendi: video slotu manifesti bu kolonu okur.
 		# Görsel yolu alanı yok sayar — fazladan kolonun sorguya maliyeti yok.
-		fields=["name", "seller_profile", "primary_image", "video_url"],
+		# `title` okunur görsel adresinin slug'ı için (spec §5.3).
+		fields=["name", "seller_profile", "primary_image", "video_url", "title"],
 		limit_page_length=len(ilanlar),
 		ignore_permissions=True,
 	)
