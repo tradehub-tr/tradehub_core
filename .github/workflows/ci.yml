@@ -95,15 +95,19 @@ jobs:
           : > /tmp/degisen_var.txt
           while IFS= read -r f; do [ -f "$f" ] && echo "$f" >> /tmp/degisen_var.txt; done < /tmp/degisen.txt
           echo "sayi=$(wc -l < /tmp/degisen_var.txt | tr -d ' ')" >> "$GITHUB_OUTPUT"
+          echo "aralik=$range" >> "$GITHUB_OUTPUT"
           cat /tmp/degisen_var.txt
 
-      - name: ruff check — degisen dosyalar (BLOKLAYICI)
+      # Yalniz bu degisiklikte eklenen/degisen SATIRLAR bloklar. Eskiden degisen DOSYANIN
+      # tamami denetleniyordu; depodaki 1.221 eski ihlal (92 dosya) yuzunden kapi son 20
+      # kosunun 20'sinde kirmiziydi (MOGEM-685, 29 Eyl 2026). Dokunulan dosyalardaki eski
+      # ihlaller sayilip basilir, bloklamaz.
+      # ruff check + ruff format ikisi de betikte: depoda 418 dosya bicimsiz, `ruff format
+      # --check` degisen dosyanin tamamina bakip ayni sebepten kirmizi veriyordu.
+      - name: ruff check + format — degisen satirlar (BLOKLAYICI)
         if: steps.degisen.outputs.sayi != '0'
-        run: xargs -a /tmp/degisen_var.txt ruff check --output-format=github
-
-      - name: ruff format --check — degisen dosyalar (BLOKLAYICI)
-        if: steps.degisen.outputs.sayi != '0'
-        run: xargs -a /tmp/degisen_var.txt ruff format --check
+        # shellcheck disable=SC2086
+        run: python scripts/ruff_degisen_satirlar.py ${{ steps.degisen.outputs.aralik }}
 
       - name: Tum depo raporu (BLOKLAMAZ — taban gorunur kalsin)
         if: always()
@@ -166,6 +170,29 @@ jobs:
             mypy tradehub_core/media/pipeline 2>&1 | tail -5 || true
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+  # ── 2b. Misafir yuzeyi (guvenlik sozlesmesi) ──────────────────────────
+  # NIYE AYRI IS (MOGEM-685, 28 Eyl 2026): asagidaki `tests` isi bu modulu de
+  # kesfedip kosuyor — ama o is en az 22 Agu'dan beri "Initialize containers"
+  # adiminda (bitnami/minio imaji cekilemiyor) test KOSMADAN dusuyor. Bu arada
+  # 6 misafir ucu incelemesiz eklendi ve bu test 5 hafta kirmizi kaldi, kimse
+  # gormedi. Bu is servis/bagimlilik istemez (saf AST + JSON, bos Python'da
+  # ~3 sn; olculdu): yeni bir `allow_guest=True` ucu FROZEN_GUEST_SURFACE'a
+  # gerekcesiyle yazilmadan birlestirilemez. `tests` isi onarilinca da kalir —
+  # ucuz ve tek basina anlamli bir kapi.
+  guest-surface:
+    name: misafir yuzeyi (bloklayici)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: test_faz13_guest_surface
+        run: python -m unittest -v tradehub_core.tests.test_faz13_guest_surface
 
   # ── 3. Testler ────────────────────────────────────────────────────────
   # Deponun 136 test modulunun bir kismi calisan bir Frappe sitesi ister
@@ -279,25 +306,10 @@ jobs:
           # ⚠️ Bunlarin hicbiri "ortam eksigi" degil — test dosyalarinin KENDI
           # sorunlari. Biri duzelince BURADAN SILINMELI; liste kisaldikca kapi
           # buyur. `bench run-tests` ile gercek frappe altinda ayrica kosarlar.
-          BILINEN = {
-              "test_address_validators":
-                  "2 failure — testler api/buyer.py ve seller.py icinde birebir "
-                  "kaynak metni ariyor ('phone_to_save = intl_digits[...]'), o satir "
-                  "kodda degismis. Bayat assertion, ortam sorunu degil.",
-              "test_kyc_verification":
-                  "15 error — dosyanin kendi frappe sahtesi eskimis: "
-                  "frappe.log_error(defer_insert=...) argumanini kabul etmiyor.",
-              "test_store_subscription_isolation":
-                  "4 error — setUp icindeki lambda yanlis arite: "
-                  "'takes 1 positional argument but 2 were given'.",
-              "test_tenant_isolation":
-                  "1 error — kismi frappe sahtesi: frappe.utils.now_datetime ve "
-                  "frappe.get_traceback yok.",
-              "test_tuple_sync":
-                  "ASILI KALIYOR — 1800 sn zaman asimina ugradi (2 test yazip "
-                  "durdu). Frappe'siz ortamda zaman asimsiz bir bekleme var; "
-                  "disari birakilmazsa tum CI butcesini yakar.",
-          }
+          # 29 Eyl 2026 (MOGEM-685): listedeki bes modulun besi de duzeltildi ve cikarildi
+          # (bayat kaynak aramasi, eskimis frappe sahteleri, sayfalamayi yok sayan sahte
+          # get_all yuzunden sonsuz dongu). Yeni bir bilinen dusen eklenirse gerekcesiyle yazilir.
+          BILINEN = {}
           bilinen_dusenler = {
               f"tradehub_core.tests.{ad}": sebep for ad, sebep in BILINEN.items()
           }
@@ -342,6 +354,13 @@ jobs:
           python-version: "3.12"
 
       - uses: pre-commit/action@v3.0.1
+        # ruff kancalari burada ATLANIR: ruff kendi isinde yalniz degisen SATIRLARA bakiyor.
+        # Burada dosyanin tamamina bakiyordu ve depodaki eski ihlaller yuzunden is son 20
+        # kosunun 20'sinde kirmiziydi (MOGEM-685, 29 Eyl 2026). Diger kancalar (cakisma
+        # isareti, buyuk dosya, yaml/json/toml, bosluk, mypy, medya belgeleri) aynen kosar;
+        # gelistirici makinesindeki kanca degismez.
+        env:
+          SKIP: ruff-check,ruff-format
         with:
           # Tum depoda degil, PR'da degisen dosyalarda — ruff job'undaki
           # gerekcenin aynisi (1401 hatalik taban).

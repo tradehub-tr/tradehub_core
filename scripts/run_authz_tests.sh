@@ -14,8 +14,11 @@ set -uo pipefail
 cd "$(dirname "$0")/.." || exit 2
 
 # Pure-stub (frappe'siz koşan) authz-ilgili test modülleri.
-# Not: test_store_subscription_isolation gerçek frappe gerektirir → bench ile
-# ayrıca koşulmalı (CI stub kapsamı dışında).
+# Gerçek frappe isteyen authz modülleri BURADA DEĞİL, bench ile koşulur:
+#   bench --site dev.localhost run-tests --module tradehub_core.tests.<modül>
+#   test_audit_hashchain · test_rebac_abac_e2e · test_get_customer_detail_pii
+# (29 Eyl 2026, MOGEM-685 bulgu 28: üçü listedeydi ve frappe'siz import edilemiyordu —
+# betik test_tuple_sync'te asılı kaldığı için bu FAIL hiç görünmemişti.)
 MODULES=(
 	test_pdp
 	test_guardrail
@@ -47,10 +50,8 @@ MODULES=(
 	test_anomaly_detector
 	test_audit
 	test_audit_signatures
-	test_audit_hashchain
 	test_pii
 	test_pii_compliance
-	test_rebac_abac_e2e
 	test_owner_transfer_security
 	test_cross_app_link_resolution
 	test_sub_users
@@ -58,7 +59,6 @@ MODULES=(
 	test_subscription_upgrade_security
 	test_review_abtest_bola
 	test_cart_price_tampering
-	test_get_customer_detail_pii
 	test_payment_pii_security
 	test_mobile_jwt_secret
 	test_organization_hierarchy
