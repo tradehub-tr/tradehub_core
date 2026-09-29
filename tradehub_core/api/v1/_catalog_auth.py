@@ -131,9 +131,16 @@ def authenticate_catalog_bearer() -> None:
 		return
 	try:
 		ctx = _identity()
+	except frappe.PermissionError:
+		# Jeton GEÇERLİ ama yetki yok: mağazasız uygulama, pasif mağaza, paketinde API
+		# erişimi olmayan satıcı (EntitlementError da bu sınıf). Yutulursa validate_auth
+		# mesajsız 401 döner ve satıcının ERP'si "jeton bozuk" sanır — kılavuzun söylediği
+		# 403 + sebep mesajı ancak burada yükseltilerek gider (ölçüldü 28 Eyl, MOGEM-685;
+		# süreç içi testler 403 gördüğü için fark edilmemişti).
+		raise
 	except Exception:
-		# Uç fonksiyonu (catalog_context) aynı zinciri yeniden koşup doğru hatayı üretir;
-		# validate_auth'un 401'i beklenen davranış. Mesaj kuyruğunu kirletme.
+		# Kimlik hatası (jeton yok/bozuk/süresi dolmuş, uygulama kapalı): validate_auth'un
+		# 401'i beklenen davranış. Mesaj kuyruğunu kirletme.
 		frappe.clear_last_message()
 		return
 	# `frappe.set_user` form_dict'i SIFIRLAR (frappe/__init__.py) — istek gövdesi
