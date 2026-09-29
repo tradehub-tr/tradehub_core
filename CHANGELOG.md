@@ -1,3 +1,16 @@
+## [v1.16.0-alpha.2] - 2026-09-29 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(media): SEO'lu ürün görsel adreslerini ekle (@ahmeetseker)
+  - Ürün görselleri için slug ve kısa kodlu `/files/...` adresleri üretildi; disk ve DB hash tabanlı kaldığı için mevcut depolama düzeni korunuyor
+  - SeoImageRenderer, File.seo_code yamaları ve API dönüşümleri eklendi; Google'a açılacak görseller noindex taşımadan servis edilebiliyor
+  - Sepet, favori, sipariş, manifest, schema ve sitemap çıktıları aynı adres biçimine geçirildi; yazma yollarında okunur adresler saklama adresine çevriliyor
+  - Sepet/favori snapshot alanları retro-rename kapsamına alındı ve eski taşımaları düzeltmek için idempotent yama eklendi
+  - Yeni çekirdek, renderer, API ve retro-rename testleriyle çakışma, fallback, hassas dosya ve rollback davranışları kapsandı
+
+---
 ## [v1.16.0-alpha.1] - 2026-09-28 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
