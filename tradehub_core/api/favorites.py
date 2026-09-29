@@ -15,6 +15,8 @@ import frappe
 from frappe import _
 from frappe.utils import get_datetime
 
+from tradehub_core.media import seo_cikti
+
 
 def _require_user():
 	"""Oturum açmış kullanıcıyı döner; misafirse 401 fırlatır."""
@@ -58,7 +60,7 @@ def _get_item_doc(user, listing):
 	return frappe.get_doc("Buyer Favorite Item", name)
 
 
-def _get_listing_summary(listing_ids):
+def _get_listing_summary(listing_ids, basliklar: dict | None = None):
 	"""Return one current, storefront-safe summary per requested favorite id.
 
 	The map intentionally contains every requested id. A ``None`` value means the
@@ -85,8 +87,12 @@ def _get_listing_summary(listing_ids):
 			"selling_price",
 			"discount_percentage",
 			"currency",
+			"title",
+			"primary_image",
 		],
 	)
+	if basliklar is not None:
+		basliklar.update({row.get("name"): row for row in listings})
 	profile_ids = list(dict.fromkeys(row.get("seller_profile") for row in listings if row.get("seller_profile")))
 	profiles = frappe.get_all(
 		"Admin Seller Profile",
@@ -135,7 +141,7 @@ def _get_listing_summary(listing_ids):
 
 
 @frappe.whitelist()
-def get_my_favorites():
+def get_my_favorites() -> dict:
 	"""
 	Kullanıcının tüm favorileri ve listelerini döner.
 	Frontend FavoritesState'i ile birebir uyumlu format.
@@ -173,6 +179,19 @@ def get_my_favorites():
 		],
 		order_by="creation desc",
 	)
+	# Yalnız çıktı: saklı `snapshot_image` okunur adrese çevrilir (spec §5.3), DB aynen kalır.
+	# Başlıklar özet sorgusundan gelir (ikinci `Listing` sorgusu açılmaz); vitrinde
+	# görünmeyen ilanın satırı saklı `snapshot_title` ile slug alır.
+	basliklar: dict[str, dict] = {}
+	listing_summary = _get_listing_summary([r["listing"] for r in items_raw], basliklar)
+	# Retro-rename öncesi ad (tarayıcıdan geri yazılmış olabilir) ilanın güncel görseline döner.
+	seo_cikti.satirlari_cevir(
+		items_raw,
+		url_alani="snapshot_image",
+		ad_alani="snapshot_title",
+		eskiyse_ilandan=True,
+		ilanlar=basliklar,
+	)
 	items = [
 		{
 			"id": r["listing"],
@@ -189,7 +208,7 @@ def get_my_favorites():
 		for r in items_raw
 	]
 
-	return {"lists": lists, "items": items, "listing_summary": _get_listing_summary([item["id"] for item in items])}
+	return {"lists": lists, "items": items, "listing_summary": listing_summary}
 
 
 # ──────────────────────────── WRITE: items ─────────────────────────────────
@@ -207,6 +226,8 @@ def upsert_favorite(
 	user = _require_user()
 	if not listing:
 		frappe.throw(_("Listing zorunludur."))
+	# Vitrin okunur adresi geri gönderiyor; DB içerik-kodlu adresi saklar (review I-1).
+	image = seo_cikti.to_storage_url(image)
 
 	# Listing gerçekten var mı?
 	if not frappe.db.exists("Listing", listing):
@@ -277,6 +298,8 @@ def toggle_favorite_in_list(
 	user = _require_user()
 	if not listing or not list_id:
 		frappe.throw(_("Listing ve list_id zorunludur."))
+	# Vitrin okunur adresi geri gönderiyor; DB içerik-kodlu adresi saklar (review I-1).
+	image = seo_cikti.to_storage_url(image)
 
 	if not frappe.db.exists("Listing", listing):
 		frappe.throw(_("Ürün bulunamadı."), frappe.DoesNotExistError)
@@ -496,13 +519,19 @@ def sync_favorites(state):
 
 		incoming_ids = it.get("listIds") or ["default"]
 		incoming_ids = [str(x) for x in incoming_ids if x]
+		# localStorage'daki okunur adres içerik-kodlu biçime çevrilip saklanır (review I-1).
+		if it.get("image"):
+			it["image"] = seo_cikti.to_storage_url(it["image"])
 
 		existing = _get_item_doc(user, listing)
 		if existing:
 			merged = list(dict.fromkeys(_parse_list_ids(existing.list_ids) + incoming_ids))
 			existing.list_ids = json.dumps(merged)
-			# Snapshot güncelle (yeni gelen alanlarla)
-			if it.get("image"):
+			# Snapshot güncelle (yeni gelen alanlarla). localStorage'da kalmış retro-rename
+			# öncesi ad, taşıma yamasının düzelttiği içerik-kodlu adresin üzerine yazılmaz.
+			if it.get("image") and not (
+				seo_cikti.eski_ad_mi(it["image"]) and seo_cikti.icerik_kodlu_mu(existing.snapshot_image)
+			):
 				existing.snapshot_image = it["image"]
 			if it.get("title"):
 				existing.snapshot_title = it["title"]

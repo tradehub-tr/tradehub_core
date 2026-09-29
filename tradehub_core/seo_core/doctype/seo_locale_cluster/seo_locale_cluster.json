@@ -1,0 +1,76 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-09-19 00:00:00",
+ "doctype": "DocType",
+ "document_type": "Document",
+ "editable_grid": 0,
+ "engine": "InnoDB",
+ "field_order": [
+  "cluster_key",
+  "entity_type",
+  "source",
+  "notes"
+ ],
+ "fields": [
+  {
+   "fieldname": "cluster_key",
+   "fieldtype": "Data",
+   "label": "Küme Anahtarı",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "entity_type",
+   "fieldtype": "Select",
+   "label": "Varlık Türü",
+   "options": "page\nlisting\ncategory\nbrand\nseller\nstatic"
+  },
+  {
+   "fieldname": "source",
+   "fieldtype": "Select",
+   "label": "Kaynak",
+   "options": "builder\ncatalog\nstatic",
+   "default": "builder"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Not"
+  }
+ ],
+ "links": [],
+ "modified": "2026-09-19 00:00:00",
+ "modified_by": "Administrator",
+ "module": "SEO Core",
+ "name": "SEO Locale Cluster",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1
+  },
+  {
+   "role": "SEO Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1
+  },
+  {
+   "role": "SEO Editor",
+   "read": 1,
+   "write": 1,
+   "create": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0,
+ "autoname": "field:cluster_key",
+ "naming_rule": "By fieldname"
+}

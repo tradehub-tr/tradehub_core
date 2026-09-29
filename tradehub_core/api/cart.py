@@ -457,6 +457,25 @@ def _check_stock(listing_doc, listing_name, listing_variant, total_qty, variant_
 			)
 
 
+def _sku_gorsellerini_cevir(sellers_map: dict, sku_basliklari: dict[str, str | None]) -> None:
+	"""`skuImage`'ları okunur adrese çevirir — tüm sepet için TEK kod sorgusu (spec §5.3).
+
+	`snapshot_image` ve varyant görseli DB'de olduğu gibi kalır; yalnız yanıt değişir.
+	"""
+	from tradehub_core.media import seo_url
+
+	skular = [
+		sku
+		for seller in sellers_map.values()
+		for product in seller["products"].values()
+		for sku in product["skus"]
+		if sku.get("skuImage")
+	]
+	codes = seo_url.codes_for([sku["skuImage"] for sku in skular])
+	for sku in skular:
+		sku["skuImage"] = seo_url.seo_image_url(sku["skuImage"], sku_basliklari.get(sku["id"]), codes)
+
+
 def _build_cart_response(cart_name):
 	"""
 	Build a CartSupplier[] response from a Cart document.
@@ -484,6 +503,8 @@ def _build_cart_response(cart_name):
 
 	# seller_id → {supplier dict with products dict}
 	sellers_map = {}
+	# SEO'lu görsel adresi için SKU → ilan başlığı (ilan silinmişse satırdaki ad).
+	sku_basliklari: dict[str, str | None] = {}
 
 	for item in items:
 		listing = frappe.db.get_value(
@@ -715,6 +736,7 @@ def _build_cart_response(cart_name):
 
 			# Numune satırları MOQ/stok kuralından muaf, sabit min=max=1.
 			sku_min_qty = 1 if row_is_sample else (listing.min_order_qty or 1)
+			sku_basliklari[item.name] = listing.title
 			sku_max_qty = 1 if row_is_sample else max_qty
 			sellers_map[seller_id]["products"][listing_name]["skus"].append(
 				{
@@ -746,6 +768,7 @@ def _build_cart_response(cart_name):
 			)
 			snap_image_sku = item.snapshot_image or (listing.primary_image if listing else "") or ""
 			snap_currency_sku = item.snapshot_currency or (listing.currency if listing else "USD") or "USD"
+			sku_basliklari[item.name] = listing.title if listing else item.snapshot_title
 			sellers_map[seller_id]["products"][listing_name]["skus"].append(
 				{
 					"id": item.name,
@@ -767,6 +790,8 @@ def _build_cart_response(cart_name):
 					"isSample": row_is_sample,
 				}
 			)
+
+	_sku_gorsellerini_cevir(sellers_map, sku_basliklari)
 
 	suppliers = []
 	for seller_data in sellers_map.values():
@@ -1219,6 +1244,33 @@ _COUPON_FIELDS = [
 	"description",
 	"expires_at",
 ]
+def _sepet_gorselleri(user: str) -> dict[tuple[str, str], str]:
+	"""`{(ilan, varyant): snapshot_image}` — kullanıcının aktif sepetinden TEK sorgu.
+
+	`snapshot_image` `add_to_cart`'ta sunucuda türetilir (ana ya da varyant
+	görseli, içerik-kodlu); sipariş satırı için istemci adresinden güvenilirdir.
+	"""
+	sepet = frappe.db.get_value("Cart", {"buyer": user, "status": "Active"}, "name")
+	if not sepet:
+		return {}
+	gorseller: dict[tuple[str, str], str] = {}
+	for r in frappe.get_all(
+		"Cart Item",
+		filters={"parent": sepet},
+		fields=["listing", "listing_variant", "snapshot_image"],
+		order_by="creation asc",
+	):
+		if r.snapshot_image:
+			gorseller.setdefault((r.listing or "", r.listing_variant or ""), r.snapshot_image)
+	return gorseller
+
+
+def _siparis_kalemi_gorseli(p: dict, sepet_gorselleri: dict[tuple[str, str], str]) -> str:
+	"""`Order Item.image`: sepetteki sunucu snapshot'ı, yoksa normalize edilmiş istemci adresi."""
+	from tradehub_core.media import seo_cikti
+
+	anahtar = (p.get("listing") or "", p.get("listing_variant") or "")
+	return sepet_gorselleri.get(anahtar) or seo_cikti.to_storage_url(p.get("image") or "")
 
 
 def _normalize_coupon_code(code) -> str:
@@ -1471,6 +1523,9 @@ def create_order(
 		coupon_discount_val,
 		[po["shipping_fee"] if kargo_kuponu else po["subtotal"] for po in valid_orders],
 	)
+	# Görsel sunucudan: sepet satırının snapshot'ı; yoksa istemcinin gönderdiği
+	# (okunur olabilir) adres içerik-kodlu biçime çevrilir (review I-1). Tek sorgu.
+	sepet_gorselleri = _sepet_gorselleri(user)
 
 	for idx, po in enumerate(valid_orders):
 		order_data = po["order_data"]
@@ -1539,7 +1594,7 @@ def create_order(
 					"unit_price": it["server_unit_price"],
 					"quantity": it["quantity"],
 					"total_price": it["server_total_price"],
-					"image": p.get("image", ""),
+					"image": _siparis_kalemi_gorseli(p, sepet_gorselleri),
 					"is_sample": 1 if it["is_sample"] else 0,
 				},
 			)

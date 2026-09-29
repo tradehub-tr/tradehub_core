@@ -1248,9 +1248,14 @@ def retro_rename_plan(limit: int = 200) -> dict:
 def start_retro_rename(dry_run: int = 0, batch_size: int = 200) -> dict:
 	"""Retro-rename işini kuyruğa al; aynı anda tek iş."""
 	_guard_destructive()
-	total = len(retro_rename.legacy_urls())
+	urls = retro_rename.legacy_urls()
+	total = len(urls)
 	if not total:
 		frappe.throw(_("Taşınacak eski adlı dosya yok."))
+	# MEDYA-DEPOLAMA-STANDARDI §7.1/3: optimizasyon arşivi orijinali ESKİ adla
+	# tutuyor; taşıma onu izlemez. Burada kilit YOK: birkaç arşivli dosya tüm
+	# taşımayı 30 gün bekletmesin. `rename_one` onları "archived" nedeniyle tek tek
+	# atlar; süre dolunca ikinci koşu kalanları taşır. Geri alma hiçbir dosyada kırılmaz.
 	job_key = frappe.generate_hash(length=12)
 	clamped_batch_size = min(2000, max(1, int(batch_size or 200)))
 	# Atomik SET NX EX: iki eşzamanlı POST'un ikisi de get-then-set penceresinden

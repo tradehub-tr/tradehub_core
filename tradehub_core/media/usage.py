@@ -13,8 +13,9 @@ buldu, ama hepsi "kullanım" değil. Üçe ayrılıyorlar:
   GEÇMİŞ     → tabVersion, tabDeleted Document, tabComment, Error Log, bulk
                import kayıtları. Dosya bir zamanlar kullanılmış ya da sadece
                loglanmış; silinmesi siteyi bozmaz.
-  SİPARİŞ    → Cart Item.snapshot_image, Order.receipt_url. Ürün görselinin
+  SİPARİŞ    → Order.receipt_url, Order Item.image. Ürün görselinin
                kopyası; geçmiş siparişin delili sayılır, ayrı işaretlenir.
+               (Sepet/favori kopyası 2026-09-28'de CANLI gruba taşındı.)
 
 Frappe **soft-delete yapmaz**: silinen kayıt `Deleted Document`'a taşınır. Bu
 yüzden "sadece geçmişte geçiyor" ayrı bir kategoridir — dosyayı kullanan ürün
@@ -69,10 +70,18 @@ LIVE_SOURCES: tuple[tuple[str, str, str, str], ...] = (
 	("tabSeller Category", "image", "seller_category_image", "Satıcı kategori görseli"),
 	("tabStatic Page SEO", "og_image", "seo_og_image", "Sayfa OG görseli"),
 	("tabVerification Source", "icon", "verification_icon", "Doğrulama kaynağı ikonu"),
+	# Sepet/favori görsel kopyası CANLI kayıttır (spec 2026-09-28-seo-gorsel-adresi §5.3):
+	# retro-rename bunları da taşır ve geri alır. Eskiden sipariş grubundaydı; taşıma
+	# dokunmuyordu, `Media URL Redirect` 90 gün sonra silinince görsel kırılıyordu.
+	("tabCart Item", "snapshot_image", "cart_snapshot", "Sepet anlık görüntüsü"),
+	("tabBuyer Favorite Item", "snapshot_image", "favorite_snapshot", "Favori anlık görüntüsü"),
 )
 
 # Sipariş anında kopyalanan görseller — canlı kullanım değil ama geçmiş
 # siparişin kaydı. Silme kararında ayrı ağırlık taşır.
+#
+# 2026-09-28: `Cart Item` / `Buyer Favorite Item.snapshot_image` buradan
+# `LIVE_SOURCES`'a taşındı (aşağıdaki gerekçe yalnız tarihçe).
 #
 # `order_only` kararı `TRASHABLE_VERDICTS` içinde DEĞİL: bu üç alan da bugüne
 # kadar hiçbir listede yoktu ve `Order Item.image` (1 satır), `Payment
@@ -81,11 +90,9 @@ LIVE_SOURCES: tuple[tuple[str, str, str, str], ...] = (
 # ürün kullanımı DEĞİL — ama silinince geçmiş sipariş ekranı ve favori listesi
 # kırılır. Doğru yer bu grup.
 ORDER_SOURCES: tuple[tuple[str, str, str, str], ...] = (
-	("tabCart Item", "snapshot_image", "cart_snapshot", "Sepet anlık görüntüsü"),
 	("tabOrder", "receipt_url", "order_receipt", "Sipariş dekontu"),
 	("tabOrder Item", "image", "order_item_image", "Sipariş kalemi görseli"),
 	("tabPayment Transaction", "receipt_url", "payment_receipt", "Ödeme dekontu"),
-	("tabBuyer Favorite Item", "snapshot_image", "favorite_snapshot", "Favori anlık görüntüsü"),
 )
 
 # KVKK belge alanları (`tabKYB Verification.*` 6 alan, `tabKYC Verification.

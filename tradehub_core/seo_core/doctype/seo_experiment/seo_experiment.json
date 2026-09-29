@@ -1,0 +1,128 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-09-19 00:00:00",
+ "doctype": "DocType",
+ "document_type": "Document",
+ "editable_grid": 0,
+ "engine": "InnoDB",
+ "field_order": [
+  "experiment_key",
+  "title",
+  "hypothesis",
+  "metric",
+  "treatment_routes",
+  "control_routes",
+  "start_date",
+  "end_date",
+  "status",
+  "seasonality",
+  "result",
+  "evaluated_at"
+ ],
+ "fields": [
+  {
+   "fieldname": "experiment_key",
+   "fieldtype": "Data",
+   "label": "Anahtar",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "title",
+   "fieldtype": "Data",
+   "label": "Başlık",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "hypothesis",
+   "fieldtype": "Small Text",
+   "label": "Hipotez"
+  },
+  {
+   "fieldname": "metric",
+   "fieldtype": "Data",
+   "label": "Metrik",
+   "default": "organic_conversions"
+  },
+  {
+   "fieldname": "treatment_routes",
+   "fieldtype": "JSON",
+   "label": "Deney Sayfaları (route listesi)"
+  },
+  {
+   "fieldname": "control_routes",
+   "fieldtype": "JSON",
+   "label": "Kontrol Sayfaları (route listesi)"
+  },
+  {
+   "fieldname": "start_date",
+   "fieldtype": "Date",
+   "label": "Başlangıç"
+  },
+  {
+   "fieldname": "end_date",
+   "fieldtype": "Date",
+   "label": "Bitiş"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Durum",
+   "options": "draft\nrunning\nevaluated\nstopped",
+   "default": "draft",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "seasonality",
+   "fieldtype": "Select",
+   "label": "Mevsimsellik",
+   "options": "none\nweekday\nyoy",
+   "default": "weekday"
+  },
+  {
+   "fieldname": "result",
+   "fieldtype": "JSON",
+   "label": "Sonuç"
+  },
+  {
+   "fieldname": "evaluated_at",
+   "fieldtype": "Datetime",
+   "label": "Değerlendirme"
+  }
+ ],
+ "links": [],
+ "modified": "2026-09-19 00:00:00",
+ "modified_by": "Administrator",
+ "module": "SEO Core",
+ "name": "SEO Experiment",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1
+  },
+  {
+   "role": "SEO Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1
+  },
+  {
+   "role": "SEO Editor",
+   "read": 1,
+   "write": 1,
+   "create": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0,
+ "autoname": "field:experiment_key",
+ "naming_rule": "By fieldname"
+}

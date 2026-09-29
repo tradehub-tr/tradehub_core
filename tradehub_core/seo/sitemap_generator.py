@@ -280,7 +280,13 @@ def _iter_records_for(doctype: str):
 			return
 
 
-def _entry_for_row(row: dict, cfg: dict, site: str, video_alanlar_map: dict[str, dict] | None = None) -> dict:
+def _entry_for_row(
+	row: dict,
+	cfg: dict,
+	site: str,
+	video_alanlar_map: dict[str, dict] | None = None,
+	gorsel_kodlari: dict[str, str] | None = None,
+) -> dict:
 	slug = row.get(cfg["slug_field"])
 	# Static Page SEO: page_path zaten / ile başlıyor (örn. "/kvkk")
 	# Diğerleri: prefix + "/" + slug (örn. "/urun" + "/" + "iphone")
@@ -302,7 +308,7 @@ def _entry_for_row(row: dict, cfg: dict, site: str, video_alanlar_map: dict[str,
 	# bulunuyor; ürün sayfasında galeri var ve Google onları ayrıca
 	# keşfedemiyor (ar-ge §6 tablosu).
 	if cfg.get("url_prefix") == "/urun":
-		entry["images"] = _image_entries_for_listing(row, site)
+		entry["images"] = _image_entries_for_listing(row, site, gorsel_kodlari)
 		# Task 5: ürün videosu — `_image_entries_for_listing` ile aynı yerde
 		# bağlanır (yalnız Listing sayfaları video taşır). `video_alanlar_map`
 		# parça başına TEK `fields_for_many` çağrısıyla önceden dolduruluyor
@@ -311,7 +317,7 @@ def _entry_for_row(row: dict, cfg: dict, site: str, video_alanlar_map: dict[str,
 	return entry
 
 
-def _image_entries_for_listing(row: dict, site: str) -> list[dict]:
+def _image_entries_for_listing(row: dict, site: str, kodlar: dict[str, str] | None = None) -> list[dict]:
 	"""Ürünün indexlenebilir görselleri → `<image:image>` girdileri.
 
 	Alt metni/altyazı `media/seo.fields_for`'dan, indexability kararı
@@ -330,9 +336,15 @@ def _image_entries_for_listing(row: dict, site: str) -> list[dict]:
 		return []
 	try:
 		from tradehub_core.media import seo as media_seo
-		from tradehub_core.media import seo_index
+		from tradehub_core.media import seo_cikti, seo_index, seo_url
 
 		adresler = media_seo.listing_usage_contexts(ad)
+		# `image:loc` okunur mutlak adres (spec §5.3); slug ilanın orijinal başlığından
+		# (`_iter_records_for` `title`'ı zaten okuyor). Kodlar parça başına önceden
+		# yüklenir (`_preload_gorsel_kodlari`); verilmezse bu ilan için tek sorgu.
+		if kodlar is None:
+			kodlar = seo_url.codes_for([b["file_url"] for b in adresler[:_SITEMAP_IMAGE_LIMIT]])
+		baslik = row.get("title")
 
 		girdiler: list[dict] = []
 		gorulen: set[str] = set()
@@ -349,7 +361,7 @@ def _image_entries_for_listing(row: dict, site: str) -> list[dict]:
 				ref_name=baglam["ref_name"],
 				ref_field=baglam["ref_field"],
 			)
-			girdi = {"loc": _mutlak(url, site)}
+			girdi = {"loc": _mutlak(seo_cikti.urun_gorseli_url(url, baslik, kodlar) or url, site)}
 			if alanlar.get("caption") or alanlar.get("alt"):
 				girdi["caption"] = alanlar.get("caption") or alanlar.get("alt")
 			if alanlar.get("title"):
@@ -669,6 +681,33 @@ def _doc_entries_for_rows(rows: list[dict], cfg: dict, site: str) -> list[dict]:
 	return entries
 
 
+def _preload_gorsel_kodlari(rows: list[dict], cfg: dict) -> dict[str, str] | None:
+	"""Parçadaki tüm ürün görsellerinin kısa kodları — 2 sorgu (galeri + File), N+1 yok.
+
+	Yalnız ürün haritası; diğer tiplerde None (görsel girdisi üretilmiyor).
+	Hata halinde None döner ve `_image_entries_for_listing` ilan başına sorguya düşer.
+	"""
+	if cfg.get("url_prefix") != "/urun" or not rows:
+		return None
+	import frappe
+
+	try:
+		from tradehub_core.media import seo_url
+
+		adlar = [r["name"] for r in rows if r.get("name")]
+		urls = [r.get("primary_image") for r in rows if r.get("primary_image")]
+		urls += frappe.get_all(
+			"Listing Image",
+			filters={"parent": ["in", adlar], "parenttype": "Listing"},
+			pluck="image",
+			limit_page_length=0,
+		)
+		return seo_url.codes_for([u for u in urls if u])
+	except Exception:
+		frappe.log_error("sitemap görsel kodları önyüklenemedi", "sitemap_generator")
+		return None
+
+
 def _entries_for_rows(rows: list[dict], cfg: dict, site: str) -> list[dict]:
 	"""Ham satır listesini `<url>` girdilerine çevirir — video alanları önceden yüklenir.
 
@@ -683,7 +722,8 @@ def _entries_for_rows(rows: list[dict], cfg: dict, site: str) -> list[dict]:
 	entry SAYISINA göre flush ediyor, ham satır sayısına değil).
 	"""
 	video_alanlar_map = _preload_video_alanlar(rows, cfg)
-	entries = [_entry_for_row(row, cfg, site, video_alanlar_map) for row in rows]
+	gorsel_kodlari = _preload_gorsel_kodlari(rows, cfg)
+	entries = [_entry_for_row(row, cfg, site, video_alanlar_map, gorsel_kodlari) for row in rows]
 	entries.extend(_watch_entries_for_rows(rows, entries, cfg, video_alanlar_map, site))
 	entries.extend(_doc_entries_for_rows(rows, cfg, site))
 	return entries

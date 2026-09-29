@@ -1,0 +1,124 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-09-19 00:00:00",
+ "doctype": "DocType",
+ "document_type": "Document",
+ "editable_grid": 0,
+ "engine": "InnoDB",
+ "field_order": [
+  "day",
+  "bot",
+  "host",
+  "path",
+  "status_code",
+  "hits",
+  "blocked",
+  "verified",
+  "first_observed",
+  "last_observed",
+  "bytes",
+  "dedupe_key"
+ ],
+ "fields": [
+  {
+   "fieldname": "day",
+   "fieldtype": "Date",
+   "label": "Gün",
+   "search_index": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "bot",
+   "fieldtype": "Data",
+   "label": "Bot",
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "host",
+   "fieldtype": "Data",
+   "label": "Host"
+  },
+  {
+   "fieldname": "path",
+   "fieldtype": "Data",
+   "label": "Yol",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "status_code",
+   "fieldtype": "Int",
+   "label": "HTTP",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "hits",
+   "fieldtype": "Int",
+   "label": "İstek",
+   "default": "0"
+  },
+  {
+   "fieldname": "blocked",
+   "fieldtype": "Check",
+   "label": "Engel (403/429/robots)"
+  },
+  {
+   "fieldname": "verified",
+   "fieldtype": "Check",
+   "label": "Ters DNS Doğrulandı"
+  },
+  {
+   "fieldname": "first_observed",
+   "fieldtype": "Datetime",
+   "label": "İlk"
+  },
+  {
+   "fieldname": "last_observed",
+   "fieldtype": "Datetime",
+   "label": "Son"
+  },
+  {
+   "fieldname": "bytes",
+   "fieldtype": "Int",
+   "label": "Bayt"
+  },
+  {
+   "fieldname": "dedupe_key",
+   "fieldtype": "Data",
+   "label": "Anahtar",
+   "search_index": 1,
+   "unique": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-09-19 00:00:00",
+ "modified_by": "Administrator",
+ "module": "SEO Crawler",
+ "name": "SEO Bot Visit",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1
+  },
+  {
+   "role": "SEO Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0,
+ "autoname": "hash",
+ "naming_rule": "Random",
+ "search_fields": "path,bot"
+}

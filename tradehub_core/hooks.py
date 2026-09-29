@@ -371,7 +371,12 @@ scheduler_events = {
 # ---------------------------------------------------------------------------
 # MOGEM-582 retro-rename: eski /files/<ad> istekleri için tek-sorgu 301 köprüsü.
 # Yalnız diskte olmayan dosya istekleri buraya düşer (nginx try_files).
-page_renderer = ["tradehub_core.media.redirect_renderer.MediaRedirectRenderer"]
+# SEO görsel adresi (`/files/<slug>-<kod>.<ext>`) ÖNCE: X-Accel ile servis ya da 301;
+# tanınmazsa sıradaki eski-ad köprüsüne geçer.
+page_renderer = [
+	"tradehub_core.media.seo_renderer.SeoImageRenderer",
+	"tradehub_core.media.redirect_renderer.MediaRedirectRenderer",
+]
 
 doc_events = {
 	# Tüm File yüklemelerinde XSS/RCE riskli uzantıları reddet (HATA 23).
@@ -432,6 +437,10 @@ doc_events = {
 			# kuyruğunda: SEO zenginleştirmesi, güvenlik kararı değil. Ses
 			# olmayan her dosyada ilk satırda döner.
 			"tradehub_core.media.audio_meta.maybe_extract_on_insert",
+			# SEO'lu görsel adresi (Task 1, 2026-09-28-seo-gorsel-adresi) — kısa kod
+			# atar. EN SONA eklendi: yukarıdaki kancaların çıktısına bağlı değil,
+			# `doc.flags.ignore_seo_code` ile testler ve toplu içe aktarım muaf.
+			"tradehub_core.media.seo_url.on_file_after_insert",
 		],
 		# Yerel File silme yolu StorageAdapter.delete'i kullanmaz. Mirror açıksa
 		# ikincil nesneyi de ancak commit'ten sonra sil; rollback S3'e yansımasın.
@@ -504,9 +513,12 @@ doc_events = {
 			"tradehub_core.eca.dispatcher.evaluate_rules_two_phase",
 			# #C2 — seller_profile değişiminde ReBAC store_link tuple'ını hizala.
 			"tradehub_core.services.tuple_sync.on_listing_update",
+			# SEO görsel adresi: sahip-slug önbelleği (başlık/görsel değişti).
+			"tradehub_core.media.seo_url.invalidate_owner_cache",
 		],
 		"after_insert": [
 			"tradehub_core.api.listing.invalidate_listing_cache",
+			"tradehub_core.media.seo_url.invalidate_owner_cache",
 			"tradehub_core.recommendations.engine.schedule_recompute_on_listing_update",
 			# ECA two-phase dispatcher (after_insert context).
 			"tradehub_core.eca.dispatcher.evaluate_rules_two_phase",
@@ -522,6 +534,7 @@ doc_events = {
 			"tradehub_core.services.tuple_sync.on_listing_trash",
 			# MOGEM-665 — giden stok olayları ürünle birlikte silinir (seri geri sarma tuzağı)
 			"tradehub_core.integration.outbound.on_listing_trash",
+			"tradehub_core.media.seo_url.invalidate_owner_cache",
 		],
 	},
 	# Product Category lifecycle → cascading cleanup of derived data
@@ -1181,3 +1194,82 @@ write_file = "tradehub_core.media.naming.write_file_hashed"
 override_doctype_class = {
 	"File": "tradehub_core.media.file_isolation.TenantIsolatedFile",
 }
+
+
+# ===========================================================================
+# SEO Helper (MOGEM-663 · 14. bölüm + MOGEM-662 · 13. bölüm)
+# ---------------------------------------------------------------------------
+# Eskiden ayrı Frappe app'i (`seo_helper_cms`) idi; 25 Eyl 2026'da bu depoya
+# `tradehub_core.seo_helper` alt paketi + `SEO *` modülleri olarak taşındı
+# (ayrı repo istenmedi). Kurallar aynen korunur: `builder` çekirdeğine patch
+# YAZILMAZ (yalnız hooks + Custom Field + DocType olayı); head çıktısı tek
+# üreticiden gelir (`seo_helper.core.output`); işler commit SONRASI kuyruğa
+# girer; uzun işler (crawl/pSEO/MCP) ayrı kuyrukta (`seo`/`seo_long`/`mcp`).
+# `builder` bu app için YUMUŞAK bağımlılıktır: kurulu değilse Builder Page
+# olayları hiç tetiklenmez, Custom Field kurulumu atlanır (setup/install.py).
+# Aşağıdaki her kayıt mevcut yapılara EKLENİR — üstteki tanımlar silinmez.
+# ===========================================================================
+_SH = "tradehub_core.seo_helper"
+
+
+def _sh_doc_event(doctype: str, event: str, handler: str) -> None:
+	"""doc_events'e ekle; mevcut değer str ya da list olabilir, ikisini de korur."""
+	olaylar = doc_events.setdefault(doctype, {})
+	mevcut = olaylar.get(event)
+	if not mevcut:
+		olaylar[event] = handler
+	elif isinstance(mevcut, list):
+		mevcut.append(handler)
+	else:
+		olaylar[event] = [mevcut, handler]
+
+
+after_migrate.append(f"{_SH}.setup.install.after_migrate")
+
+# 14.3 — DocType olayları
+_sh_doc_event("Builder Page", "on_update", f"{_SH}.cms.bridge.on_builder_page_update")
+_sh_doc_event("Builder Page", "on_trash", f"{_SH}.cms.bridge.on_builder_page_trash")
+_sh_doc_event("Listing", "on_update", f"{_SH}.catalog.mirror.on_listing_update")
+for _dt in ("RFQ", "Seller Inquiry", "Order"):  # 13.6 organik atıf damgası
+	_sh_doc_event(_dt, "after_insert", f"{_SH}.experiments.attribution.on_conversion_insert")
+_sh_doc_event("SEO Policy", "on_update", f"{_SH}.experiments.changelog.on_seo_policy_update")
+_sh_doc_event("SEO Redirect Rule", "after_insert", f"{_SH}.experiments.changelog.on_redirect_change")
+_sh_doc_event("SEO Redirect Rule", "on_trash", f"{_SH}.experiments.changelog.on_redirect_change")
+
+# 14.3 — website context: Builder sayfalarının head'i tek üreticiden
+update_website_context = [f"{_SH}.core.output.update_website_context"]
+
+# 14.3 — mağaza kapsamlı izin sözleşmeleri
+for _dt in (
+	"SEO Entity",
+	"SEO Page",
+	"SEO Sync Job",
+	"SEO Audit Finding",
+	"MCP Client",
+	"MCP Tool Call",
+	"MCP Draft",
+):
+	permission_query_conditions[_dt] = f"{_SH}.core.permissions.store_query_conditions"
+	has_permission[_dt] = f"{_SH}.core.permissions.store_has_permission"
+
+# 14.3 — MCP kimlik doğrulaması (yalnız /api/method/tradehub_core.seo_helper.mcp.api.* yolunda)
+auth_hooks.append(f"{_SH}.mcp.auth.authenticate_mcp_client")
+
+# 14.4 / 13.x — zamanlayıcı
+scheduler_events["cron"].setdefault("*/5 * * * *", []).append(f"{_SH}.core.queue.sweep_due_jobs")
+scheduler_events["cron"].setdefault("17 * * * *", []).append(f"{_SH}.cms.bridge.reconcile_pages")
+scheduler_events["hourly"].append(f"{_SH}.crawler.manager.recover_stale_runs")
+scheduler_events["daily"].extend(
+	[
+		f"{_SH}.crawler.botlog.import_scheduled",
+		f"{_SH}.board.daily_job",
+		f"{_SH}.connectors.search_console.scheduled_sync",
+		f"{_SH}.crawler.manager.scheduled_incremental_crawl",
+		f"{_SH}.crawler.manager.purge_old_pages",
+		f"{_SH}.audit.signals.daily_import",
+		f"{_SH}.mcp.ops.purge_tool_call_log",
+		f"{_SH}.mcp.ops.daily_cost_snapshot",
+		f"{_SH}.core.monitoring.daily_health_snapshot",
+	]
+)
+scheduler_events.setdefault("monthly", []).append(f"{_SH}.mcp.ops.reset_monthly_quotas")

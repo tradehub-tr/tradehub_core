@@ -1,0 +1,109 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-09-19 00:00:00",
+ "doctype": "DocType",
+ "document_type": "Document",
+ "editable_grid": 0,
+ "engine": "InnoDB",
+ "field_order": [
+  "source_path",
+  "target_path",
+  "status_code",
+  "match_type",
+  "domain",
+  "active",
+  "hits",
+  "mirrored_redirect"
+ ],
+ "fields": [
+  {
+   "fieldname": "source_path",
+   "fieldtype": "Data",
+   "label": "Kaynak Yol",
+   "reqd": 1,
+   "search_index": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "target_path",
+   "fieldtype": "Data",
+   "label": "Hedef Yol",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "status_code",
+   "fieldtype": "Select",
+   "label": "HTTP",
+   "options": "301\n302\n307\n308\n410",
+   "default": "301"
+  },
+  {
+   "fieldname": "match_type",
+   "fieldtype": "Select",
+   "label": "Eşleme",
+   "options": "exact\nprefix",
+   "default": "exact"
+  },
+  {
+   "fieldname": "domain",
+   "fieldtype": "Link",
+   "label": "Domain",
+   "options": "SEO Domain"
+  },
+  {
+   "fieldname": "active",
+   "fieldtype": "Check",
+   "label": "Etkin",
+   "default": "1"
+  },
+  {
+   "fieldname": "hits",
+   "fieldtype": "Int",
+   "label": "İsabet",
+   "read_only": 1
+  },
+  {
+   "fieldname": "mirrored_redirect",
+   "fieldtype": "Link",
+   "label": "tradehub SEO Redirect",
+   "options": "SEO Redirect",
+   "read_only": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-09-19 00:00:00",
+ "modified_by": "Administrator",
+ "module": "SEO Core",
+ "name": "SEO Redirect Rule",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1
+  },
+  {
+   "role": "SEO Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1
+  },
+  {
+   "role": "SEO Editor",
+   "read": 1,
+   "write": 1,
+   "create": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0,
+ "autoname": "hash",
+ "naming_rule": "Random",
+ "search_fields": "source_path,target_path"
+}

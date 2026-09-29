@@ -1,0 +1,103 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-09-19 00:00:00",
+ "doctype": "DocType",
+ "document_type": "Document",
+ "editable_grid": 0,
+ "engine": "InnoDB",
+ "field_order": [
+  "facet_key",
+  "category",
+  "filters",
+  "lang",
+  "route",
+  "indexable",
+  "page",
+  "min_products"
+ ],
+ "fields": [
+  {
+   "fieldname": "facet_key",
+   "fieldtype": "Data",
+   "label": "Facet Anahtarı",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "category",
+   "fieldtype": "Link",
+   "label": "Kategori",
+   "options": "Product Category"
+  },
+  {
+   "fieldname": "filters",
+   "fieldtype": "JSON",
+   "label": "Filtreler (JSON)"
+  },
+  {
+   "fieldname": "lang",
+   "fieldtype": "Select",
+   "label": "Dil",
+   "options": "tr\nen\nar\nru",
+   "default": "tr"
+  },
+  {
+   "fieldname": "route",
+   "fieldtype": "Data",
+   "label": "Route",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "indexable",
+   "fieldtype": "Check",
+   "label": "İndekslenebilir"
+  },
+  {
+   "fieldname": "page",
+   "fieldtype": "Link",
+   "label": "SEO Sayfası",
+   "options": "SEO Page"
+  },
+  {
+   "fieldname": "min_products",
+   "fieldtype": "Int",
+   "label": "Asgari Ürün",
+   "default": "5"
+  }
+ ],
+ "links": [],
+ "modified": "2026-09-19 00:00:00",
+ "modified_by": "Administrator",
+ "module": "SEO Catalog",
+ "name": "SEO Facet Landing Page",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1
+  },
+  {
+   "role": "SEO Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1
+  },
+  {
+   "role": "SEO Editor",
+   "read": 1,
+   "write": 1,
+   "create": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0,
+ "autoname": "field:facet_key",
+ "naming_rule": "By fieldname"
+}

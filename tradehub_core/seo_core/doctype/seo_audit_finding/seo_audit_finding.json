@@ -1,0 +1,249 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-09-19 00:00:00",
+ "doctype": "DocType",
+ "document_type": "Document",
+ "editable_grid": 0,
+ "engine": "InnoDB",
+ "field_order": [
+  "crawl_run",
+  "page",
+  "route",
+  "store",
+  "severity",
+  "code",
+  "message",
+  "category",
+  "url",
+  "signal_source",
+  "evidence",
+  "root_cause",
+  "owner_role",
+  "owner_store",
+  "recommendation",
+  "fingerprint",
+  "active_key",
+  "status",
+  "occurrences",
+  "first_observed",
+  "last_observed",
+  "fixed_by",
+  "fixed_at",
+  "recrawl_run",
+  "recrawl_count",
+  "closed_at",
+  "resolved",
+  "resolved_at"
+ ],
+ "fields": [
+  {
+   "fieldname": "crawl_run",
+   "fieldtype": "Link",
+   "label": "Tarama",
+   "options": "SEO Crawl Run",
+   "search_index": 1
+  },
+  {
+   "fieldname": "page",
+   "fieldtype": "Link",
+   "label": "SEO Sayfası",
+   "options": "SEO Page",
+   "search_index": 1
+  },
+  {
+   "fieldname": "route",
+   "fieldtype": "Data",
+   "label": "Route",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "store",
+   "fieldtype": "Link",
+   "label": "Mağaza",
+   "options": "Admin Seller Profile",
+   "search_index": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "severity",
+   "fieldtype": "Select",
+   "label": "Önem",
+   "options": "info\nwarning\nerror",
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "code",
+   "fieldtype": "Data",
+   "label": "Kod",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "message",
+   "fieldtype": "Small Text",
+   "label": "Mesaj"
+  },
+  {
+   "fieldname": "category",
+   "fieldtype": "Select",
+   "label": "Kategori",
+   "options": "technical\ncontent\ncatalog\ninternational\nmerchant\npolicy",
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "url",
+   "fieldtype": "Data",
+   "label": "Etkilenen URL"
+  },
+  {
+   "fieldname": "signal_source",
+   "fieldtype": "Select",
+   "label": "Sinyal Kaynağı",
+   "options": "crawler\nlog\ngsc\nmedia\nnotfound_log\npolicy\nmcp",
+   "default": "crawler",
+   "in_standard_filter": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "evidence",
+   "fieldtype": "JSON",
+   "label": "Kanıt"
+  },
+  {
+   "fieldname": "root_cause",
+   "fieldtype": "Small Text",
+   "label": "Kök Neden"
+  },
+  {
+   "fieldname": "owner_role",
+   "fieldtype": "Data",
+   "label": "Sorumlu Rol"
+  },
+  {
+   "fieldname": "owner_store",
+   "fieldtype": "Link",
+   "label": "Sorumlu Mağaza",
+   "options": "Admin Seller Profile"
+  },
+  {
+   "fieldname": "recommendation",
+   "fieldtype": "Small Text",
+   "label": "Öneri"
+  },
+  {
+   "fieldname": "fingerprint",
+   "fieldtype": "Data",
+   "label": "Parmak İzi",
+   "search_index": 1
+  },
+  {
+   "fieldname": "active_key",
+   "fieldtype": "Data",
+   "label": "Aktif İz",
+   "unique": 1,
+   "read_only": 1,
+   "hidden": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Yaşam Döngüsü",
+   "options": "open\nfixed\nrecrawl_pending\nclosed\nreopened",
+   "default": "open",
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "occurrences",
+   "fieldtype": "Int",
+   "label": "Tekrar",
+   "default": "1"
+  },
+  {
+   "fieldname": "first_observed",
+   "fieldtype": "Datetime",
+   "label": "İlk Görülme"
+  },
+  {
+   "fieldname": "last_observed",
+   "fieldtype": "Datetime",
+   "label": "Son Görülme"
+  },
+  {
+   "fieldname": "fixed_by",
+   "fieldtype": "Data",
+   "label": "Düzeltti"
+  },
+  {
+   "fieldname": "fixed_at",
+   "fieldtype": "Datetime",
+   "label": "Düzeltme Anı"
+  },
+  {
+   "fieldname": "recrawl_run",
+   "fieldtype": "Link",
+   "label": "Yeniden Tarama",
+   "options": "SEO Crawl Run"
+  },
+  {
+   "fieldname": "recrawl_count",
+   "fieldtype": "Int",
+   "label": "Yeniden Tarama Sayısı",
+   "default": "0"
+  },
+  {
+   "fieldname": "closed_at",
+   "fieldtype": "Datetime",
+   "label": "Kapanış"
+  },
+  {
+   "fieldname": "resolved",
+   "fieldtype": "Check",
+   "label": "Çözüldü"
+  },
+  {
+   "fieldname": "resolved_at",
+   "fieldtype": "Datetime",
+   "label": "Çözüm Anı"
+  }
+ ],
+ "links": [],
+ "modified": "2026-09-19 00:00:00",
+ "modified_by": "Administrator",
+ "module": "SEO Core",
+ "name": "SEO Audit Finding",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1
+  },
+  {
+   "role": "SEO Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1
+  },
+  {
+   "role": "SEO Editor",
+   "read": 1,
+   "write": 1,
+   "create": 1
+  },
+  {
+   "role": "Marketplace Seller",
+   "read": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0,
+ "autoname": "hash",
+ "naming_rule": "Random",
+ "search_fields": "route,code"
+}

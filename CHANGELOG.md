@@ -1,3 +1,51 @@
+## [v1.16.0-alpha.4] - 2026-09-29 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(seo): MOGEM-662/663 SEO Helper tradehub_core içine taşındı (@Metin Bektemur)
+  - Ayrı seo_helper_cms app'i tradehub_core.seo_helper alt paketi + 7 SEO modülü (SEO Core/Catalog/CMS/Merchant/Crawler/Helper/MCP) olarak taşındı; hooks.py sonuna eklemeli "SEO Helper" bloğu, modules.txt, patches.txt (v0_1/v0_2)
+  - 662: crawl manager, bot logu, pano, denetim raporlayıcı, sinyal kaynağı, tekrar deneme izi, CSV/JSON dışa aktarma, kapsam şeridi
+  - 663: Builder köprüsü, politika motoru, tek head üreticisi, MCP sunucu/istemci, mağaza kapsamlı izinler (404→403 var/yok sızıntısı kapatıldı)
+  - 170 birim test (9 modül), rol matrisi 53 uç × 5 kimlik
+  - docs/seo-helper/{MIMARI,OPERASYON}.md, raporlar 117/118, ekran kanıtları
+
+---
+## [v1.16.0-alpha.3] - 2026-09-29 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Duzeltildi
+- fix(favoriler): eski görsel adının snapshot'ı bozmasını önle (@ahmeetseker)
+  - Favori listesi okunurken retro-rename öncesi görsel adlarını güncel ilan görselinden çözdür
+  - Tarayıcıda kalmış eski adreslerin içerik-kodlu snapshot üzerine yazmasını engelle
+  - Eski ad senaryolarını API testleriyle sabitle
+
+---
+## [v1.16.0-alpha.2] - 2026-09-29 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(media): SEO'lu ürün görsel adreslerini ekle (@ahmeetseker)
+  - Ürün görselleri için slug ve kısa kodlu `/files/...` adresleri üretildi; disk ve DB hash tabanlı kaldığı için mevcut depolama düzeni korunuyor
+  - SeoImageRenderer, File.seo_code yamaları ve API dönüşümleri eklendi; Google'a açılacak görseller noindex taşımadan servis edilebiliyor
+  - Sepet, favori, sipariş, manifest, schema ve sitemap çıktıları aynı adres biçimine geçirildi; yazma yollarında okunur adresler saklama adresine çevriliyor
+  - Sepet/favori snapshot alanları retro-rename kapsamına alındı ve eski taşımaları düzeltmek için idempotent yama eklendi
+  - Yeni çekirdek, renderer, API ve retro-rename testleriyle çakışma, fallback, hassas dosya ve rollback davranışları kapsandı
+
+---
+## [v1.16.0-alpha.1] - 2026-09-28 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Duzeltildi
+- fix(media): arşivli retro-rename adaylarını atla (@ahmeetseker)
+  - Retro-rename raporuna çift noktalı ad ve arşivde bekleyen orijinal sayaçları eklendi; operatör riskli adayları önceden görebilsin
+  - Optimizasyon arşivindeki dosyalar gerçek koşuda ve provada tek tek atlanıyor; geri alma akışı kırılmadan kalan taşıma devam edebilsin
+  - Backend uçları ve testler yeni archived sözleşmesini kapsayacak şekilde güncellendi
+
+---
 ## [v1.16.0] - 2026-09-25 PROD
 
 Bu surum istoc.cronbi.com'da yayindadir.

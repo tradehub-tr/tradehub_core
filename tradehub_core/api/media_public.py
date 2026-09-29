@@ -170,6 +170,27 @@ def _storefront_listings(file_url: str) -> list[dict]:
 	)
 
 
+def _vitrin_ilan_kartlari(listings: list[dict]) -> list[dict]:
+	"""İzleme sayfasındaki ilan kartları — ürün görseli okunur adresle (spec §5.3).
+
+	Kodlar tüm ilanlar için TEK sorguda; slug ilanın orijinal başlığından. Girdi
+	satırları değiştirilmez (`watch_indexable` aynı listeyi ham okuyor).
+	"""
+	from tradehub_core.media import seo_url
+
+	codes = seo_url.codes_for([lst["primary_image"] for lst in listings if lst.get("primary_image")])
+	return [
+		{
+			"slug": lst.get("slug") or "",
+			"title": lst.get("title") or "",
+			"image": seo_url.seo_image_url(lst.get("primary_image"), lst.get("title"), codes)
+			if lst.get("primary_image")
+			else "",
+		}
+		for lst in listings
+	]
+
+
 def watch_indexable(file_url: str, *, fields: dict | None = None, listings: list | None = None) -> bool:
 	"""İzleme sayfası indexlenebilir mi — W3 üçlüsü, TEK karar noktası.
 
@@ -355,14 +376,7 @@ def _watch_data(slug: str) -> dict:
 			"licenseUrl": fields.get("license_url") or "",
 			"acquireLicensePageUrl": fields.get("acquire_license_url") or "",
 		},
-		"listings": [
-			{
-				"slug": listing.get("slug") or "",
-				"title": listing.get("title") or "",
-				"image": listing.get("primary_image") or "",
-			}
-			for listing in listings
-		],
+		"listings": _vitrin_ilan_kartlari(listings),
 		"indexable": indexable,
 		"canonical": canonical,
 		"robots": decision["robots"] if indexable else _WATCH_NOINDEX_ROBOTS,

@@ -575,7 +575,7 @@ def get_listing_rating_summary(listing: str):
 
 
 @frappe.whitelist()
-def get_my_pending_reviews(page: int = 1, page_size: int = 10):
+def get_my_pending_reviews(page: int = 1, page_size: int = 10) -> dict:
 	"""Buyer endpoint — tamamlanan siparişlerde henüz yorum yapılmamış order item'lar.
 
 	Bekleyen değerlendirme kuyruğu yalnız tamamlanan siparişleri gösterir;
@@ -613,6 +613,10 @@ def get_my_pending_reviews(page: int = 1, page_size: int = 10):
 		{"user": user},
 		as_dict=True,
 	)
+	# Sipariş görseli okunur adresle (spec §5.3) — `Order Item.image` DB'de aynen kalır.
+	from tradehub_core.media import seo_cikti
+
+	seo_cikti.satirlari_cevir(rows, url_alani="image", ad_alani="product_name", eskiyse_ilandan=True)
 	return {
 		"items": rows,
 		"total": int(total[0].cnt) if total else 0,

@@ -1,0 +1,83 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-09-19 00:00:00",
+ "doctype": "DocType",
+ "document_type": "Document",
+ "editable_grid": 0,
+ "engine": "InnoDB",
+ "field_order": [
+  "day",
+  "connector",
+  "metric",
+  "used",
+  "limit_value",
+  "dedupe_key"
+ ],
+ "fields": [
+  {
+   "fieldname": "day",
+   "fieldtype": "Date",
+   "label": "Gün",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "connector",
+   "fieldtype": "Data",
+   "label": "Bağlayıcı",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "metric",
+   "fieldtype": "Data",
+   "label": "Metrik",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "used",
+   "fieldtype": "Int",
+   "label": "Kullanılan",
+   "default": "0"
+  },
+  {
+   "fieldname": "limit_value",
+   "fieldtype": "Int",
+   "label": "Sınır"
+  },
+  {
+   "fieldname": "dedupe_key",
+   "fieldtype": "Data",
+   "label": "Anahtar",
+   "search_index": 1,
+   "unique": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-09-19 00:00:00",
+ "modified_by": "Administrator",
+ "module": "SEO Core",
+ "name": "SEO Connector Quota",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1
+  },
+  {
+   "role": "SEO Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0,
+ "autoname": "hash",
+ "naming_rule": "Random"
+}
