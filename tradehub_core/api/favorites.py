@@ -184,8 +184,13 @@ def get_my_favorites() -> dict:
 	# görünmeyen ilanın satırı saklı `snapshot_title` ile slug alır.
 	basliklar: dict[str, dict] = {}
 	listing_summary = _get_listing_summary([r["listing"] for r in items_raw], basliklar)
+	# Retro-rename öncesi ad (tarayıcıdan geri yazılmış olabilir) ilanın güncel görseline döner.
 	seo_cikti.satirlari_cevir(
-		items_raw, url_alani="snapshot_image", ad_alani="snapshot_title", ilanlar=basliklar
+		items_raw,
+		url_alani="snapshot_image",
+		ad_alani="snapshot_title",
+		eskiyse_ilandan=True,
+		ilanlar=basliklar,
 	)
 	items = [
 		{
@@ -522,8 +527,11 @@ def sync_favorites(state):
 		if existing:
 			merged = list(dict.fromkeys(_parse_list_ids(existing.list_ids) + incoming_ids))
 			existing.list_ids = json.dumps(merged)
-			# Snapshot güncelle (yeni gelen alanlarla)
-			if it.get("image"):
+			# Snapshot güncelle (yeni gelen alanlarla). localStorage'da kalmış retro-rename
+			# öncesi ad, taşıma yamasının düzelttiği içerik-kodlu adresin üzerine yazılmaz.
+			if it.get("image") and not (
+				seo_cikti.eski_ad_mi(it["image"]) and seo_cikti.icerik_kodlu_mu(existing.snapshot_image)
+			):
 				existing.snapshot_image = it["image"]
 			if it.get("title"):
 				existing.snapshot_title = it["title"]
