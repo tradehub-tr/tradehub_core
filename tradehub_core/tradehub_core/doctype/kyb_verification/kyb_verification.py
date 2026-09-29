@@ -63,6 +63,7 @@ class KYBVerification(Document):
 
 	def validate(self):
 		self._guard_status_change()
+		self._guard_aml_fields()
 		self._validate_company_title()
 		self._validate_tax_id()
 		self._validate_trade_registry()
@@ -89,6 +90,12 @@ class KYBVerification(Document):
 		from tradehub_core.permissions import guard_verification_status_change
 
 		guard_verification_status_change(self)
+
+	def _guard_aml_fields(self):
+		"""AML/yaptırım işareti yalnız inceleme yetkilisinden — gerekçe `permissions.guard_aml_fields_change`."""
+		from tradehub_core.permissions import guard_aml_fields_change
+
+		guard_aml_fields_change(self)
 
 	def _validate_rejection_reason(self):
 		"""Rejected/Suspended status için rejection_reason + rejection_category

@@ -1033,7 +1033,7 @@ def _run_rendition_job(
 					timeout=media_queues.VIDEO.timeout_seconds,
 					enqueue_after_commit=True,
 					job_id=(
-						f"media-animation::{hashlib.sha1(f'{file_url}|{video_slot}'.encode()).hexdigest()}"
+						f"media-animation::{hashlib.sha1(f'{file_url}|{video_slot}'.encode(), usedforsecurity=False).hexdigest()}"
 					),
 					deduplicate=True,
 					file_url=file_url,
@@ -1162,7 +1162,7 @@ def enqueue_catalog_backfill(limit: int = 100) -> dict[str, int]:
 	adaylar = _catalog_backfill_candidates(limit=tavan)
 	secili = adaylar[:tavan]
 	for url in secili:
-		job_hash = hashlib.sha1(url.encode("utf-8")).hexdigest()  # noqa: S324 -- kimlik, kripto değil
+		job_hash = hashlib.sha1(url.encode("utf-8"), usedforsecurity=False).hexdigest()  # noqa: S324 -- kimlik, kripto değil
 		frappe.enqueue(
 			"tradehub_core.media.pipeline_bridge._run_rendition_job",
 			queue=RQ_QUEUE_BULK,
@@ -1315,7 +1315,7 @@ def retry_failed_renditions(limit: int = 50) -> dict[str, int]:
 	)
 	queued = 0
 	for (url,) in urls:
-		job_hash = hashlib.sha1(str(url).encode("utf-8")).hexdigest()  # noqa: S324
+		job_hash = hashlib.sha1(str(url).encode("utf-8"), usedforsecurity=False).hexdigest()  # noqa: S324
 		frappe.enqueue(
 			"tradehub_core.media.pipeline_bridge._run_rendition_job",
 			queue=RQ_QUEUE_BULK,

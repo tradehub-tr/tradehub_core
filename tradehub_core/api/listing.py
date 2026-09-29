@@ -21,7 +21,7 @@ from tradehub_core.seo.i18n import (
 def _cache_key(prefix: str, **kwargs) -> str:
 	"""Generate a deterministic cache key from parameters."""
 	raw = json.dumps(kwargs, sort_keys=True, default=str)
-	h = hashlib.md5(raw.encode()).hexdigest()[:12]
+	h = hashlib.md5(raw.encode(), usedforsecurity=False).hexdigest()[:12]
 	return f"{prefix}:{h}"
 
 

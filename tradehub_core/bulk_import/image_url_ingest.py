@@ -62,7 +62,7 @@ def _detect_image_kind(content: bytes) -> str | None:
 
 
 def _cache_key(url: str) -> str:
-	return CACHE_PREFIX + hashlib.sha1(url.encode("utf-8")).hexdigest()
+	return CACHE_PREFIX + hashlib.sha1(url.encode("utf-8"), usedforsecurity=False).hexdigest()
 
 
 def _save_file(content: bytes, kind: str, url: str, seller_profile: str) -> str:
@@ -75,7 +75,7 @@ def _save_file(content: bytes, kind: str, url: str, seller_profile: str) -> str:
 	from tradehub_core.bulk_import.image_matcher import optimize_image
 
 	content = optimize_image(content)
-	digest = hashlib.sha1(url.encode("utf-8")).hexdigest()
+	digest = hashlib.sha1(url.encode("utf-8"), usedforsecurity=False).hexdigest()
 	file_name = f"{digest}{ALLOWED_EXT[kind]}"
 	file_doc = frappe.get_doc(
 		{

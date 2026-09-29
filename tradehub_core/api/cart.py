@@ -1,3 +1,4 @@
+import datetime
 import json
 
 import frappe
@@ -1232,6 +1233,17 @@ def merge_guest_cart(items):
 	return _build_cart_response(cart_name)
 
 
+_COUPON_FIELDS = [
+	"name",
+	"code",
+	"coupon_type",
+	"value",
+	"min_order",
+	"max_uses",
+	"used_count",
+	"description",
+	"expires_at",
+]
 def _sepet_gorselleri(user: str) -> dict[tuple[str, str], str]:
 	"""`{(ilan, varyant): snapshot_image}` — kullanıcının aktif sepetinden TEK sorgu.
 
@@ -1261,53 +1273,126 @@ def _siparis_kalemi_gorseli(p: dict, sepet_gorselleri: dict[tuple[str, str], str
 	return sepet_gorselleri.get(anahtar) or seo_cikti.to_storage_url(p.get("image") or "")
 
 
-def _compute_server_coupon_discount(coupon_code: str | None, order_total: float) -> float:
-	"""C6 fix — kupon indirimini SERVER'da koddan hesaplar; client'ın gönderdiği
-	`coupon_discount` değerine ASLA güvenmez.
+def _normalize_coupon_code(code) -> str:
+	return str(code or "").strip().upper()
 
-	Geçersiz/şartları sağlamayan kuponda 0 döner (sipariş kupon olmadan devam eder).
-	İndirim her halükarda [0, order_total] aralığına clamp'lenir.
-	"""
-	if not coupon_code:
-		return 0.0
 
-	import datetime
-
-	order_total = max(0.0, flt(order_total or 0, 2))
-	coupon = frappe.db.get_value(
+def _get_active_coupon(code, for_update: bool = False):
+	return frappe.db.get_value(
 		"Coupon",
-		{"code": str(coupon_code).strip().upper(), "is_active": 1},
-		["name", "coupon_type", "value", "min_order", "max_uses", "used_count", "expires_at"],
+		{"code": _normalize_coupon_code(code), "is_active": 1},
+		_COUPON_FIELDS,
 		as_dict=True,
+		for_update=for_update,
 	)
-	if not coupon:
-		return 0.0
 
-	# Süre / max kullanım / min sipariş şartları (validate_coupon ile aynı kurallar)
+
+def _user_coupon_usage(user: str, code: str, locking: bool = False) -> int:
+	if not locking:
+		return frappe.db.count(
+			"Order",
+			{"buyer": user, "coupon_code": code, "status": ["not in", ["İptal Edildi"]]},
+		)
+	# REPEATABLE READ'de düz okuma işlemin başındaki anlık görüntüyü görür: kupon
+	# kilidini bekleyen ikinci istek, ilkinin az önce commit'lediği siparişi GÖREMEZ
+	# ve kişi başı kural delinir. Kilitli okuma en güncel commit'i okur; buyer_index
+	# sayesinde yalnız bu alıcının sipariş aralığını kilitler (ölçüldü 28 Eyl, EXPLAIN).
+	return frappe.db.sql(
+		"""SELECT COUNT(*) FROM `tabOrder`
+		WHERE buyer = %s AND coupon_code = %s AND IFNULL(status, '') != 'İptal Edildi'
+		LOCK IN SHARE MODE""",
+		(user, code),
+	)[0][0]
+
+
+def _coupon_rejection(coupon, code: str, order_total=None, user: str | None = None, locking: bool = False):
+	"""Kuponun kullanılamama sebebi — (sebep_kodu, kullanıcı mesajı) ya da None.
+
+	Kupon kurallarının TEK kaynağı: validate_coupon, sipariş ve kupon listesi aynı
+	kuralları aynı sırayla uygular (üç ayrı kopya birbirinden sapmıştı — MOGEM-685).
+	`order_total` None ise minimum tutar, `user` None ise kişi başı kural atlanır.
+	`locking` yalnız sipariş anında (kupon satırı kilitliyken) verilir.
+	"""
 	if coupon.expires_at and coupon.expires_at < datetime.date.today():
-		return 0.0
-	if coupon.max_uses and int(coupon.max_uses) > 0 and int(coupon.used_count or 0) >= int(coupon.max_uses):
-		return 0.0
-	if float(coupon.min_order or 0) > 0 and order_total < float(coupon.min_order):
-		return 0.0
+		return "expired", _("Bu kuponun süresi dolmuş")
+	if int(coupon.max_uses or 0) > 0 and int(coupon.used_count or 0) >= int(coupon.max_uses):
+		return "exhausted", _("Bu kupon maksimum kullanım sayısına ulaştı")
+	min_order = flt(coupon.min_order or 0, 2)
+	if order_total is not None and min_order > 0 and flt(order_total, 2) < min_order:
+		return "min_order", _("Bu kupon için minimum sipariş tutarı: {0}").format(min_order)
+	# F-024: aynı kullanıcı aynı kuponu ikinci kez kullanamaz
+	if user and user != "Guest" and _user_coupon_usage(user, code, locking) > 0:
+		return "used_by_user", _("Bu kuponu daha önce kullandınız")
+	return None
 
-	# F-024: Per-user kupon kullanım kontrolü — aynı kullanıcı aynı kuponu tekrar kullanamasın
-	current_user = frappe.session.user
-	if current_user and current_user != "Guest":
-		user_usage = frappe.db.count("Order", {
-			"buyer": current_user,
-			"coupon_code": str(coupon_code).strip().upper(),
-			"status": ["not in", ["İptal Edildi"]],
-		})
-		if user_usage > 0:
-			return 0.0
 
+def _coupon_discount(coupon, product_total: float, shipping_total: float = 0.0) -> float:
+	"""İndirim tutarı — ön yüzün gösterdiğiyle AYNI kural (alpine/checkout.ts).
+
+	percent/fixed yalnız ürün toplamına uygulanır ve onu aşamaz; `shipping` kuponu
+	kargo ücretini düşer, kupon değeri yok sayılır. Eskiden taban ürün+kargoydu ve
+	`shipping` tanınmıyordu: %10'da ekran 930, tahsil 927; ücretsiz kargoda ekran
+	1.000, tahsil 1.030 (MOGEM-685 Adım 3, ölçüldü 28 Eyl 2026).
+	"""
+	product_total = max(0.0, flt(product_total or 0, 2))
+	kind = str(coupon.coupon_type or "").lower()
+	if kind == "shipping":
+		return max(0.0, flt(shipping_total or 0, 2))
 	value = flt(coupon.value or 0, 2)
-	if str(coupon.coupon_type or "").lower().startswith("percent"):
-		discount = order_total * value / 100.0
-	else:  # fixed
-		discount = value
-	return max(0.0, min(discount, order_total))
+	discount = product_total * value / 100.0 if kind.startswith("percent") else value
+	return flt(max(0.0, min(discount, product_total)), 2)
+
+
+def _split_coupon_discount(total: float, weights: list[float]) -> list[float]:
+	"""İndirimi siparişlere tabanları oranında böler; kuruş farkı sonuncuya.
+
+	Eskiden eşit bölünüyordu: 100 ₺ ve 900 ₺'lik iki siparişte 300 ₺ indirimin
+	150'si küçük siparişe düşüp toplamı eksiye götürüyordu.
+	"""
+	toplam = sum(weights)
+	if total <= 0 or toplam <= 0:
+		return [0.0] * len(weights)
+	payler = [flt(total * w / toplam, 2) for w in weights]
+	payler[-1] = flt(total - sum(payler[:-1]), 2)
+	return payler
+
+
+def _reserve_coupon(
+	coupon_code: str, product_total: float, shipping_total: float, user: str
+) -> tuple[str, float]:
+	"""Kuponu sipariş işlemi içinde AYIRIR → (normalize kod, indirim tutarı).
+
+	C6: indirim SERVER'da koddan hesaplanır; client'ın `coupon_discount`'u yok sayılır.
+	F-02 (MOGEM-685): kupon satırı kilitli okunur, kurallar kilit altında uygulanır
+	ve sayaç aynı kilit altında artırılır. Kilit create_order'ın tek commit'ine kadar
+	sürer; aynı kuponla gelen eşzamanlı sipariş bekler ve güncel sayacı görür
+	(eskiden iki istek de used_count=0 görüp ikisi de indirim alıyordu). Sipariş
+	sonradan düşerse işlem geri alınır, sayaç da geri döner.
+
+	Kural tutmazsa sipariş REDDEDİLİR — sessizce indirimsiz sipariş oluşmaz; alıcı
+	ekranda indirimli fiyatı görmüştü (kullanıcı kararı, 28 Eyl 2026).
+	"""
+	code = _normalize_coupon_code(coupon_code)
+	product_total = max(0.0, flt(product_total or 0, 2))
+	coupon = _get_active_coupon(code, for_update=True)
+	red = (
+		# Minimum tutar kargo HARİÇ ürün toplamına bakar — ön yüz de öyle doğruluyor.
+		_coupon_rejection(coupon, code, product_total, user, locking=True)
+		if coupon
+		else ("not_found", _("Geçersiz veya süresi dolmuş kupon kodu"))
+	)
+	if red:
+		frappe.throw(
+			_("{0} — sipariş oluşturulmadı; kuponu kaldırıp yeniden deneyin.").format(red[1]),
+			frappe.ValidationError,
+		)
+	discount = _coupon_discount(coupon, product_total, shipping_total)
+	if discount > 0:
+		frappe.db.sql(
+			"UPDATE `tabCoupon` SET used_count = COALESCE(used_count, 0) + 1 WHERE name = %s",
+			(coupon.name,),
+		)
+	return code, discount
 
 
 @frappe.whitelist()
@@ -1416,23 +1501,28 @@ def create_order(
 			}
 		)
 
-	order_count = len(prepared_orders)
-
 	# C6 fix — kupon indirimi SERVER'da koddan hesaplanır; client'ın gönderdiği
 	# `coupon_discount` parametresi YOK SAYILIR (bedava sipariş istismarı engeli).
-	total_payable = sum(po["subtotal"] + po["shipping_fee"] for po in prepared_orders)
-	coupon_discount_val = _compute_server_coupon_discount(coupon_code, total_payable)
-	# Kupon indirimini siparişlere eşit dağıt — son siparişe kalanı ata (kuruş kaybı önlemi)
-	if order_count > 0:
-		per_order_coupon_discount = flt(coupon_discount_val / order_count, 2)
-		coupon_remainder = flt(coupon_discount_val - (per_order_coupon_discount * order_count), 2)
-	else:
-		per_order_coupon_discount = 0
-		coupon_remainder = 0
+	product_total = sum(po["subtotal"] for po in prepared_orders)
+	shipping_total = sum(po["shipping_fee"] for po in prepared_orders)
+	# Kupon siparişlerden ÖNCE ayrılır (kilit + kural + sayaç); siparişe normalize kod
+	# yazılır ki kişi başı sayım "  kod" gibi varyantlarla atlatılamasın.
+	coupon_code, coupon_discount_val = (
+		_reserve_coupon(coupon_code, product_total, shipping_total, user) if coupon_code else ("", 0.0)
+	)
 
 	created_orders = []
-	# Ürünlü siparişleri filtrele — remainder son geçerli siparişe atanmalı
+	# Ürünlü siparişleri filtrele — kuruş farkı son geçerli siparişe atanmalı
 	valid_orders = [po for po in prepared_orders if po["order_data"].get("products")]
+	# İndirim her siparişin KENDİ tabanı oranında dağıtılır: kargo kuponunda kargo
+	# ücretine, diğerlerinde ürün tutarına (kupon hangi tabana uygulandıysa o).
+	kargo_kuponu = bool(coupon_code) and (
+		str(frappe.db.get_value("Coupon", coupon_code, "coupon_type") or "").lower() == "shipping"
+	)
+	indirim_paylari = _split_coupon_discount(
+		coupon_discount_val,
+		[po["shipping_fee"] if kargo_kuponu else po["subtotal"] for po in valid_orders],
+	)
 	# Görsel sunucudan: sepet satırının snapshot'ı; yoksa istemcinin gönderdiği
 	# (okunur olabilir) adres içerik-kodlu biçime çevrilir (review I-1). Tek sorgu.
 	sepet_gorselleri = _sepet_gorselleri(user)
@@ -1445,9 +1535,7 @@ def create_order(
 		currency = po["currency"]
 
 		subtotal = po["subtotal"]
-		# Son siparişe kuruş farkını (remainder) ekle — toplam tam tutarsın
-		is_last = (idx == len(valid_orders) - 1)
-		discount = per_order_coupon_discount + (coupon_remainder if is_last else 0)
+		discount = indirim_paylari[idx]
 		total = subtotal + shipping_fee - discount
 
 		if not seller_id or not frappe.db.exists("Admin Seller Profile", seller_id):
@@ -1559,17 +1647,6 @@ def create_order(
 	if not created_orders:
 		frappe.throw(_("Hiçbir sipariş oluşturulamadı"))
 
-	# Kupon used_count artır — yalnızca gerçekten indirim uygulandıysa + atomik UPDATE
-	if coupon_code and coupon_discount_val > 0:
-		coupon_name = frappe.db.get_value(
-			"Coupon", {"code": coupon_code.strip().upper(), "is_active": 1}, "name"
-		)
-		if coupon_name:
-			frappe.db.sql(
-				"UPDATE `tabCoupon` SET used_count = COALESCE(used_count, 0) + 1 WHERE name = %s",
-				(coupon_name,),
-			)
-
 	# Sadece sipariş verilen ürünleri sepetten sil (diğer satıcıların ürünleri kalır)
 	cart_name = frappe.db.get_value("Cart", {"buyer": user, "status": "Active"}, "name")
 	if cart_name:
@@ -1614,44 +1691,16 @@ def validate_coupon(code, order_total=0):
 	if not code:
 		frappe.throw(_("Kupon kodu boş olamaz"))
 
-	import datetime
-
-	coupon = frappe.db.get_value(
-		"Coupon",
-		{"code": code.strip().upper(), "is_active": 1},
-		[
-			"name",
-			"code",
-			"coupon_type",
-			"value",
-			"min_order",
-			"max_uses",
-			"used_count",
-			"description",
-			"expires_at",
-		],
-		as_dict=True,
-	)
-
+	coupon = _get_active_coupon(code)
 	if not coupon:
 		frappe.throw(_("Geçersiz veya süresi dolmuş kupon kodu"))
 
-	# Son geçerlilik tarihi kontrolü
-	if coupon.expires_at:
-		today = datetime.date.today()
-		if coupon.expires_at < today:
-			frappe.throw(_("Bu kuponun süresi dolmuş"))
-
-	# Max kullanım kontrolü
-	if coupon.max_uses and int(coupon.max_uses) > 0:
-		if int(coupon.used_count or 0) >= int(coupon.max_uses):
-			frappe.throw(_("Bu kupon maksimum kullanım sayısına ulaştı"))
-
-	# Min sipariş tutarı kontrolü
 	order_amount = flt(order_total or 0, 2)
-	min_order = flt(coupon.min_order or 0, 2)
-	if min_order > 0 and order_amount < min_order:
-		frappe.throw(_("Bu kupon için minimum sipariş tutarı: {0}").format(min_order))
+	# Kişi başı kural da önizlemede uygulanır: sepette "geçerli" görünüp siparişte
+	# reddedilmesin (misafirde atlanır — oturum yok).
+	red = _coupon_rejection(coupon, _normalize_coupon_code(code), order_amount, frappe.session.user)
+	if red:
+		frappe.throw(red[1])
 
 	# İndirim tutarını sipariş toplamı ile sınırla (HATA 26).
 	# fixed type'ta gerçek değerin clamplenmiş hali döndürülür ki frontend
@@ -1671,47 +1720,22 @@ def validate_coupon(code, order_total=0):
 
 @frappe.whitelist()
 def get_buyer_coupons():
-	"""Sisteme tanımlı aktif kuponları ve durumlarını döndürür."""
-	import datetime
+	"""Oturumdaki alıcının KULLANABİLECEĞİ kupon sayısı — panodaki "Kuponlar: N".
 
-	today = datetime.date.today()
-
-	coupons = frappe.get_all(
-		"Coupon",
-		filters={"is_active": 1},
-		fields=[
-			"name",
-			"code",
-			"coupon_type",
-			"value",
-			"min_order",
-			"max_uses",
-			"used_count",
-			"description",
-			"expires_at",
-		],
-		order_by="creation desc",
-	)
-
-	result = []
-	for c in coupons:
-		if c.expires_at and c.expires_at < today:
-			status = "expired"
-		elif int(c.max_uses or 0) > 0 and int(c.used_count or 0) >= int(c.max_uses or 0):
-			status = "used"
-		else:
-			status = "available"
-
-		result.append(
-			{
-				"code": c.code,
-				"type": c.coupon_type,
-				"value": float(c.value or 0),
-				"minOrder": float(c.min_order or 0),
-				"description": c.description or "",
-				"status": status,
-				"expiresAt": str(c.expires_at) + "T23:59:59Z" if c.expires_at else "",
-			}
+	Kod DÖNMEZ (MOGEM-685 Adım 4): eskiden giriş yapan her alıcıya tüm aktif kupon
+	kodlarını değer/açıklamasıyla veriyordu; ön yüz yalnız sayıyı kullanıyordu ve
+	özel (fenomen, telafi) kuponlar herkese açık hâle geliyordu. Süresi dolmuş,
+	sınırı dolmuş ve bu alıcının zaten kullandığı kuponlar sayılmaz.
+	"""
+	user = frappe.session.user
+	# Kişi başı kullanım tek sorguda — kupon başına ayrı sayım yapılmaz.
+	kullanilan = set(
+		frappe.get_all(
+			"Order",
+			filters={"buyer": user, "coupon_code": ["!=", ""], "status": ["not in", ["İptal Edildi"]]},
+			pluck="coupon_code",
 		)
-
-	return {"coupons": result}
+	)
+	coupons = frappe.get_all("Coupon", filters={"is_active": 1}, fields=_COUPON_FIELDS)
+	available = sum(1 for c in coupons if c.code not in kullanilan and not _coupon_rejection(c, c.code))
+	return {"available": available}

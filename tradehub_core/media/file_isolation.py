@@ -347,7 +347,13 @@ def _blob_hash(file_url: str) -> str | None:
 	try:
 		if os.path.getsize(path) > _AMBIGUOUS_BLOB_MAX_BYTES:
 			return None
-		digest = hashlib.md5()
+		# MD5 ZORUNLU, işaret BİLİNÇLİ `nosec` (usedforsecurity=False DEĞİL — özet bir erişim
+		# kararında kullanılıyor): karşılaştırılan `File.content_hash`'i Frappe MD5 ile üretiyor
+		# (frappe/core/doctype/file/utils.py `get_content_hash`); başka algoritma eşleşmeyi bozar.
+		# Güvenlik MD5'in çakışma direncine değil ön-görüntü direncine dayanıyor: saldırgan
+		# içeriğini bilmediği başka kiracının blob'uyla aynı özeti üretmeli — MD5'te de pratik
+		# değil (MOGEM-685 F-05, 29 Eyl 2026).
+		digest = hashlib.md5()  # nosec B324
 		with open(path, "rb") as handle:
 			for chunk in iter(lambda: handle.read(1024 * 1024), b""):
 				digest.update(chunk)

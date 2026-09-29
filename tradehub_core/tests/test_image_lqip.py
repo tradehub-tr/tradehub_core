@@ -44,6 +44,7 @@ if str(ROOT) not in sys.path:
 	sys.path.insert(0, str(ROOT))
 
 from tradehub_core.media.pipeline.image import lqip as L  # noqa: E402
+from tradehub_core.tests.medya_fixture import eksik_gercek_cekim, eksikse_atla  # noqa: E402
 
 IMAGES = ROOT / "tradehub_core" / "tests" / "fixtures" / "media" / "images"
 MANIFEST = ROOT / "tradehub_core" / "tests" / "fixtures" / "media" / "manifest.json"
@@ -75,6 +76,7 @@ class BoyutTest(unittest.TestCase):
 		for f in _fixtures():
 			yol = ROOT / f["file"]
 			with self.subTest(dosya=yol.name):
+				eksikse_atla(self, yol)
 				r = L.encode(yol)
 				self.assertTrue(r.ok, r.reason)
 				self.assertLess(r.size_bytes, BAYT_SINIRI, f"{yol.name}: {r.size_bytes} bayt")
@@ -90,6 +92,7 @@ class BoyutTest(unittest.TestCase):
 		for f in _fixtures():
 			yol = ROOT / f["file"]
 			with self.subTest(dosya=yol.name):
+				eksikse_atla(self, yol)
 				r = L.encode(yol)
 				ust = 25 if r.hash[2] & 0x80 else 24
 				self.assertLessEqual(r.size_bytes, ust)
@@ -112,6 +115,8 @@ class HizTest(unittest.TestCase):
 		en_kotu_ad = ""
 		for f in _fixtures():
 			yol = ROOT / f["file"]
+			if eksik_gercek_cekim(yol):
+				continue
 			w, h, ham = _rgba32(yol)
 			sureler = []
 			for _ in range(3):
@@ -229,8 +234,9 @@ class NumpyParitesiTest(unittest.TestCase):
 	def test_iki_yol_bayt_bayt_ayni(self):
 		for f in _fixtures():
 			yol = ROOT / f["file"]
-			w, h, ham = _rgba32(yol)
 			with self.subTest(dosya=yol.name):
+				eksikse_atla(self, yol)
+				w, h, ham = _rgba32(yol)
 				ozgun = L._numpy_var
 				try:
 					L._numpy_var = lambda: True

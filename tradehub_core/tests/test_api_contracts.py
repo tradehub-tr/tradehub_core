@@ -84,6 +84,11 @@ def pillow_var() -> bool:
 # ═══════════════════════════════════════════════════════════════════════
 
 
+#: Kanonik slot politikası sayısı. 9 idi; `library.image` 18 Eyl 2026'da eklendi (8b099d6).
+#: Sayı bilerek SABİT — klasörden türetilirse yanlışlıkla eklenen/silinen slotu yakalamaz.
+SLOT_SAYISI = 10
+
+
 class OpenApiBelgesiTesti(unittest.TestCase):
 	"""Belgenin kendisi geçerli mi ve koda bağlı mı."""
 
@@ -1094,7 +1099,7 @@ class YonetimTesti(unittest.TestCase):
 	def test_politika_listesi_dokuz_slot(self):
 		r = self.kur().list_slot_policies(YONETICI)
 		self.assertEqual(r.status, 200)
-		self.assertEqual(r.body["count"], 9)
+		self.assertEqual(r.body["count"], SLOT_SAYISI)
 		anahtarlar = {s["slot_key"] for s in r.body["slots"]}
 		self.assertIn("product.image", anahtarlar)
 		self.assertIn("product.video", anahtarlar)
@@ -1113,7 +1118,7 @@ class YonetimTesti(unittest.TestCase):
 		r = self.kur().validate_policies(YONETICI)
 		self.assertTrue(r.body["schema_validated"])
 		self.assertTrue(r.body["schema_note"])
-		self.assertEqual(r.body["slot_count"], 9)
+		self.assertEqual(r.body["slot_count"], SLOT_SAYISI)
 		self.assertNotIn("schema_validation", {f["code"] for f in r.body["findings"]})
 
 	def test_dogrulama_gercek_bulgu_uretiyor(self):

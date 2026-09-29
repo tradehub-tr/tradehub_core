@@ -69,10 +69,27 @@ genişletebiliyor (billion-laughs — harici varlık çekmez ama iç genişletme
 CPU/bellek bombasıdır). stdlib'in "entity'siz parse" modu yok; bu yüzden
 ayrıştırmadan ÖNCE ham baytta `<!DOCTYPE`/`<!ENTITY` imzası aranıyor
 (`_entity_riskli`) — varsa `reason="xml_entity_reddi"`.
+
+PDF XFORM PATLAMASI (MOGEM-685 F-07, 29 Eyl 2026)
+-------------------------------------------------
+PDF'te bir Form XObject başka bir Form'u (tekrar tekrar) çizebiliyor: A→B'yi
+iki kez, B→C'yi iki kez… 20 katman 4,4 KB'lık bir dosyada 2^20 çizim yolu
+eder. pypdf `extract_text()` bu yolları tek tek dolaşıyor (CVE-2026-84311,
+GHSA-763m-79hh-57f2; düzeltme pypdf 6.16.1). Ölçüldü: 6.8.0'da (kurulu) ve
+Frappe v15.121.1'in sabitlediği 6.15.0'da 20 katman > 60 sn; iş 180 sn
+zaman aşımına kadar `media-maint` işçisini meşgul ediyordu. Frappe
+yükseltmesi KAPATMIYOR (`pypdf==6.15.0` tam sabit) — önlem burada.
+**Önlem:** metinden ÖNCE sayfanın çizim yolu sayısı içerik ÇALIŞTIRILMADAN
+sayılıyor (`_cizim_yolu`: Form başına bir kez çözülen `Do` sayımı, döngü =
+sınırsız). Sayfa `CIZIM_YOLU_SAYFA_TAVANI`nı ya da belge toplamı
+`CIZIM_YOLU_BELGE_TAVANI`nı aşarsa O SAYFADAN İTİBAREN metin çıkarılmaz;
+sayfa sayısı ve başlık yine okunur, dönüşte `metin_atlandi=True`. Eşik
+ölçümü (118 gerçek PDF): en yüksek 2.517 yol / en derin 2 katman.
 """
 
 from __future__ import annotations
 
+import re
 import xml.etree.ElementTree as ET
 import zipfile
 
@@ -105,6 +122,14 @@ _ESKI_BICIMLER: tuple[str, ...] = (".doc", ".xls", ".ppt")
 #: için. PDF'te sayfa sınırında KESİLİR (tüm sayfalar okunup sonra kırpılmaz —
 #: büyük dosyada gereksiz CPU).
 TEXT_TAVAN: int = 64 * 1024
+
+#: Sayfa başına izin verilen Form XObject çizim yolu (bkz. modül docstring
+#: "PDF XFORM PATLAMASI"). 118 gerçek PDF'te en yüksek 2.517 ölçüldü; pypdf
+#: ~30 µs/yol → 50.000 yol ≈ 1,5 sn.
+CIZIM_YOLU_SAYFA_TAVANI: int = 50_000
+#: Belge toplamı — tavanın hemen altında kalan çok sayıda sayfayla aynı
+#: patlamanın bölünerek yapılmasını keser.
+CIZIM_YOLU_BELGE_TAVANI: int = 200_000
 
 
 def _bos(reason: str) -> dict:
@@ -200,6 +225,62 @@ def _zip_member(path: str, member: str) -> bytes | None:
 # ── PDF ─────────────────────────────────────────────────────────────────
 
 
+_DO = re.compile(rb"/([^\s/\[\]()<>{}%]+)\s+Do\b")
+
+
+def _form_xobjeleri(resources) -> dict:
+	"""Kaynak sözlüğündeki Form XObject'ler: ad → (kimlik, nesne)."""
+	try:
+		res = resources.get_object() if resources is not None else None
+		xo = res.get("/XObject") if res is not None else None
+		xo = xo.get_object() if xo is not None else None
+	except Exception:
+		return {}
+	sonuc = {}
+	for ad, ref in (xo or {}).items():
+		try:
+			nesne = ref.get_object()
+		except Exception:
+			continue
+		if nesne.get("/Subtype") == "/Form":
+			kimlik = getattr(ref, "idnum", None) or id(nesne)
+			sonuc[str(ad).lstrip("/")] = (kimlik, nesne)
+	return sonuc
+
+
+def _cizim_yolu(icerik: bytes, resources, tavan: int) -> int:
+	"""İçeriğin Form XObject çizim yolu sayısı — içerik ÇALIŞTIRILMADAN.
+
+	Her Form bir kez çözülür (not defteri); çağrı zinciri döngüye girerse ya da
+	sayı `tavan`ı aşarsa `tavan + 1` döner. Maliyet Form sayısı × `Do` sayısıyla
+	doğrusal — patlamanın kendisi hesaplanmaz, yalnız sayılır.
+	"""
+	defter: dict = {}
+
+	def yol(veri: bytes, res, yigin: frozenset) -> int:
+		formlar = _form_xobjeleri(res)
+		toplam = 1
+		for eslesme in _DO.finditer(veri):
+			kayit = formlar.get(eslesme.group(1).decode("latin-1"))
+			if kayit is None:
+				continue
+			kimlik, nesne = kayit
+			if kimlik in yigin:
+				return tavan + 1
+			if kimlik not in defter:
+				try:
+					alt_veri = nesne.get_data()
+				except Exception:
+					alt_veri = b""
+				defter[kimlik] = yol(alt_veri, nesne.get("/Resources") or res, yigin | {kimlik})
+			toplam += defter[kimlik]
+			if toplam > tavan:
+				return tavan + 1
+		return toplam
+
+	return yol(icerik, resources, frozenset())
+
+
 def _extract_pdf(path: str) -> dict:
 	from pypdf import PdfReader
 
@@ -222,10 +303,23 @@ def _extract_pdf(path: str) -> dict:
 
 	parcalar: list[str] = []
 	toplam = 0
+	yol_toplam = 0
+	metin_atlandi = False
 	try:
 		for sayfa in sayfalar:
 			if toplam >= TEXT_TAVAN:
 				# Sayfa sınırında kes — tavanı aşan sayfaları hiç ayrıştırma.
+				break
+			# XForm patlaması — metin çıkarmadan ÖNCE say (modül docstring).
+			icerik = sayfa.get_contents()
+			sayfa_yolu = _cizim_yolu(
+				icerik.get_data() if icerik is not None else b"",
+				sayfa.get("/Resources"),
+				CIZIM_YOLU_SAYFA_TAVANI,
+			)
+			yol_toplam += sayfa_yolu
+			if sayfa_yolu > CIZIM_YOLU_SAYFA_TAVANI or yol_toplam > CIZIM_YOLU_BELGE_TAVANI:
+				metin_atlandi = True
 				break
 			metin = sayfa.extract_text() or ""
 			parcalar.append(metin)
@@ -245,7 +339,14 @@ def _extract_pdf(path: str) -> dict:
 	except Exception:
 		baslik = ""
 
-	return {"ok": True, "reason": "", "page_count": page_count, "text": text, "title": baslik}
+	return {
+		"ok": True,
+		"reason": "",
+		"page_count": page_count,
+		"text": text,
+		"title": baslik,
+		"metin_atlandi": metin_atlandi,
+	}
 
 
 # ── Office (OOXML/ZIP) ──────────────────────────────────────────────────
@@ -423,7 +524,8 @@ def _extract_pptx(path: str) -> dict:
 def extract(file_url: str) -> dict:
 	"""Tek dosyanın metadata + metnini çıkar — hata fırlatmaz, `ok=False` döner.
 
-	Dönüş: `{"ok": bool, "reason": str, "page_count": int, "text": str, "title": str}`.
+	Dönüş: `{"ok": bool, "reason": str, "page_count": int, "text": str, "title": str}`;
+	PDF'te ayrıca `metin_atlandi: bool` (XForm patlaması tavanı — modül docstring).
 	`reason` yalnız `ok=False` iken anlamlı (`encrypted`, `legacy_format`,
 	`container_invalid`, `unreadable`, `unsupported_extension`, `no_file`,
 	`zip_icerik_asiri`, `xml_entity_reddi`).

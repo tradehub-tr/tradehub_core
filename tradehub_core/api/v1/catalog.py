@@ -428,9 +428,12 @@ def _mesajlari_temizle(n: int) -> None:
 @frappe.whitelist(allow_guest=True, methods=["POST"])
 def upsert_products(products=None) -> dict:
 	"""Ürünleri SKU ile oluştur/güncelle (≤100). Her ürün için ayrı sonuç döner."""
-	products = _parse_products(products)
-	with catalog_context("catalog:write") as ctx, store_lock(ctx.seller, "upsert"):
-		return _upsert(ctx.seller, products)
+	# Gövde kimlik kapısının İÇİNDE ayrıştırılır: dışarıda olunca jetonsuz ziyaretçi
+	# bozuk gövdeyle 401 yerine 417 + doğrulama mesajı alıyordu (MOGEM-685, 28 Eyl).
+	with catalog_context("catalog:write") as ctx:
+		products = _parse_products(products)
+		with store_lock(ctx.seller, "upsert"):
+			return _upsert(ctx.seller, products)
 
 
 def _upsert(seller: str, products: list) -> dict:
@@ -692,9 +695,10 @@ def _apply_variant_stock(row, stock, price, list_price) -> tuple[str, dict]:
 @frappe.whitelist(allow_guest=True, methods=["POST"])
 def update_stock(items=None) -> dict:
 	"""Stok ve/veya fiyatı SKU ile mutlak değer olarak yaz (≤500). Onay akışına dokunmaz."""
-	items = _parse_list(items, MAX_STOCK_ITEMS_PER_CALL, "items")
-	with catalog_context("stock:write") as ctx, store_lock(ctx.seller, "stock"):
-		return _update_stock(ctx.seller, items)
+	with catalog_context("stock:write") as ctx:  # gövde kimlikten sonra — upsert_products'a bkz.
+		items = _parse_list(items, MAX_STOCK_ITEMS_PER_CALL, "items")
+		with store_lock(ctx.seller, "stock"):
+			return _update_stock(ctx.seller, items)
 
 
 def _update_stock(seller: str, items: list) -> dict:

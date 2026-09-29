@@ -581,9 +581,16 @@ class TestSellerCapabilitiesSourceAudit(unittest.TestCase):
 		self.assertIn("return False", func_src)
 
 	def test_aml_check_implemented(self):
-		"""AML check gercek implementasyon icermeli."""
+		"""AML check gercek implementasyon icermeli.
+
+		Kontrol MOGEM-685'te iki katmanın (capability + DocType izni) ortak yardımcısına taşındı:
+		`utils/aml_gate.py`. Davranış testi: `test_mogem685_aml_gate`.
+		"""
 		self.assertIn("_check_aml_clean", self.src)
-		self.assertIn("Hit Found", self.src, "seller_capabilities AML 'Hit Found' kontrolu eksik")
+		self.assertIn("aml_engelli_mi", self.src, "seller_capabilities AML yardımcısını çağırmıyor")
+		gate = (_APP_ROOT / "tradehub_core" / "utils" / "aml_gate.py").read_text(encoding="utf-8")
+		self.assertIn("Hit Found", gate, "aml_gate AML 'Hit Found' kontrolu eksik")
+		self.assertIn("Match Found", gate, "aml_gate yaptirim 'Match Found' kontrolu eksik")
 
 	def test_get_user_capabilities_mirrors_has_capability(self):
 		"""get_user_capabilities ve has_seller_capability ayni preconditions'i kullanmali."""

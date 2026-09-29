@@ -1475,11 +1475,15 @@ class TestPhonePrefixConsistency(unittest.TestCase):
 
 	def test_buyer_strips_prefix_from_phone(self):
 		"""Buyer: numara prefix ile başlıyorsa local kısmı saklanmalı."""
-		self.assertIn("phone_to_save = intl_digits[len(prefix_digits):]", self.buyer_src)
+		# ruff format dilim içine boşluk koyuyor (`[len(prefix_digits) :]`) — metin birebir aranırsa
+		# biçimlendirme testi kırar (MOGEM-685, 29 Eyl 2026: CI'ın "bilinen düşen" listesindeydi).
+		self.assertRegex(self.buyer_src, r"phone_to_save = intl_digits\[len\(prefix_digits\) ?:\]")
 
 	def test_seller_strips_prefix_from_phone(self):
 		"""Seller: numara prefix ile başlıyorsa local kısmı saklanmalı."""
-		self.assertIn("phone_to_save = intl_digits[len(prefix_digits):]", self.seller_src)
+		# ruff format dilim içine boşluk koyuyor (`[len(prefix_digits) :]`) — metin birebir aranırsa
+		# biçimlendirme testi kırar (MOGEM-685, 29 Eyl 2026: CI'ın "bilinen düşen" listesindeydi).
+		self.assertRegex(self.seller_src, r"phone_to_save = intl_digits\[len\(prefix_digits\) ?:\]")
 
 
 class TestIgnorePermissionsJustification(unittest.TestCase):

@@ -289,7 +289,7 @@ class Listing(Document):
 
 	def generate_listing_code(self):
 		hash_input = f"{self.title}-{time.time()}"
-		return "LST-" + hashlib.md5(hash_input.encode()).hexdigest()[:8].upper()
+		return "LST-" + hashlib.md5(hash_input.encode(), usedforsecurity=False).hexdigest()[:8].upper()
 
 	def calculate_available_qty(self):
 		self.available_qty = max(0, flt(self.stock_qty) - flt(self.reserved_qty))

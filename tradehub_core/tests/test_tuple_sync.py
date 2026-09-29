@@ -46,9 +46,13 @@ def _install_frappe_stub() -> None:
 		key = ("get_value", doctype, str(filters), str(fieldname))
 		return _DB.get(key)
 
-	def get_all(doctype, filters=None, pluck=None, **kwargs):
+	def get_all(doctype, filters=None, pluck=None, start=0, page_length=None, **kwargs):
 		key = ("get_all", doctype, str(filters), pluck)
-		return _DB.get(key, [])
+		rows = _DB.get(key, [])
+		# Sayfalamayı gerçekten uygula: `backfill` mağazaları boş sayfa gelene kadar sayfa
+		# sayfa okuyor; taklit start/page_length'i yok sayıp hep aynı satırları döndürdüğü için
+		# döngü bitmiyor, test sonsuza kadar asılı kalıyordu (MOGEM-685 bulgu 9, 29 Eyl 2026).
+		return rows[start : start + page_length] if page_length else rows[start:]
 
 	frappe.db = SimpleNamespace(
 		get_value=db_get_value,
@@ -87,9 +91,13 @@ def _reset_state():
 		key = ("get_value", doctype, str(filters), str(fieldname))
 		return _DB.get(key)
 
-	def get_all(doctype, filters=None, pluck=None, **kwargs):
+	def get_all(doctype, filters=None, pluck=None, start=0, page_length=None, **kwargs):
 		key = ("get_all", doctype, str(filters), pluck)
-		return _DB.get(key, [])
+		rows = _DB.get(key, [])
+		# Sayfalamayı gerçekten uygula: `backfill` mağazaları boş sayfa gelene kadar sayfa
+		# sayfa okuyor; taklit start/page_length'i yok sayıp hep aynı satırları döndürdüğü için
+		# döngü bitmiyor, test sonsuza kadar asılı kalıyordu (MOGEM-685 bulgu 9, 29 Eyl 2026).
+		return rows[start : start + page_length] if page_length else rows[start:]
 
 	frappe.enqueue = _enqueue
 	frappe.db = SimpleNamespace(
@@ -341,11 +349,15 @@ class OwnerTransferUpdateTests(unittest.TestCase):
 		self.assertIn(("store:S1", "store_link", "order:ORD-1"), self._deletes())
 		self.assertIn(("store:S2", "store_link", "order:ORD-1"), self._writes())
 
-	def test_no_before_save_noop(self):
+	def test_before_save_yoksa_yeni_bag_idempotent_yazilir(self):
+		# Eski adı test_no_before_save_noop: kod aafbbc3'te (27 Tem) "eski değer bilinmiyorsa yeni
+		# store_link'i idempotent yaz" oldu; test "hiçbir şey yapma" bekliyordu. Modül asılı kaldığı
+		# için (bulgu 9) bu kırmızı iki ay görünmedi. Eski bağ bilinmediği için SİLME yapılmaz.
 		doc = _make_doc("Listing", "LST-9", seller_profile="S1")
 		doc.get_doc_before_save = lambda: None
 		tuple_sync.on_listing_update(doc)
-		self.assertEqual(len(_ENQUEUED), 0)
+		self.assertEqual(self._writes(), [("store:S1", "store_link", "listing:LST-9")])
+		self.assertEqual(self._deletes(), [])
 
 
 # ---------------------------------------------------------------------------

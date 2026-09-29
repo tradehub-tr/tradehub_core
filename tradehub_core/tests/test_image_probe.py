@@ -27,6 +27,7 @@ if str(ROOT) not in sys.path:
 	sys.path.insert(0, str(ROOT))
 
 from tradehub_core.media.pipeline.image import probe as P  # noqa: E402
+from tradehub_core.tests.medya_fixture import eksikse_atla  # noqa: E402
 
 MANIFEST = ROOT / "tradehub_core" / "tests" / "fixtures" / "media" / "manifest.json"
 
@@ -120,6 +121,7 @@ class GecerliGorselTest(unittest.TestCase):
 				continue
 			yol = ROOT / f["file"]
 			with self.subTest(dosya=yol.name):
+				eksikse_atla(self, yol)
 				p = P.probe_header(yol, config=gevsek)
 				self.assertTrue(p.ok, f"{yol.name} reddedildi: {p.codes}")
 				self.assertTrue(p.readable)
@@ -135,6 +137,7 @@ class GecerliGorselTest(unittest.TestCase):
 				continue
 			yol = ROOT / f["file"]
 			with self.subTest(dosya=yol.name):
+				eksikse_atla(self, yol)
 				p = P.probe_header(yol, config=gevsek)
 				self.assertEqual((p.width, p.height), (olculen["width"], olculen["height"]))
 
@@ -143,6 +146,7 @@ class GecerliGorselTest(unittest.TestCase):
 		for f in _fixtures("animation"):
 			yol = ROOT / f["file"]
 			with self.subTest(dosya=yol.name):
+				eksikse_atla(self, yol)
 				p = P.probe_header(yol, config=gevsek)
 				self.assertTrue(p.animated)
 				self.assertGreater(p.frame_count, 1)

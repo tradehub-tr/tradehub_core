@@ -52,6 +52,7 @@ from tradehub_core.media.pipeline.image.normalize import (  # noqa: E402
 	target_size,
 )
 from tradehub_core.media.pipeline.image.probe import GuardConfig, HeaderProbe  # noqa: E402
+from tradehub_core.tests.medya_fixture import eksikse_atla  # noqa: E402
 
 IMAGES = ROOT / "tradehub_core" / "tests" / "fixtures" / "media" / "images"
 MANIFEST = ROOT / "tradehub_core" / "tests" / "fixtures" / "media" / "manifest.json"
@@ -386,6 +387,7 @@ class RenkUzayiTest(unittest.TestCase):
 	def test_adobergb_srgb_delta_e_ve_alfa_kaniti(self):
 		"""Gerçek AdobeRGB fixture ICC ile sRGB'ye taşınır; alfa aynı kalır."""
 		kaynak = IMAGES / "real_adobergb_3780x2717.png"
+		eksikse_atla(self, kaynak)
 		with _ac(kaynak.read_bytes()) as im:
 			profil = im.info["icc_profile"]
 			noktalar = _ornek_noktalar(im.size)
@@ -814,6 +816,7 @@ class SozlesmeTest(unittest.TestCase):
 				continue
 			yol = ROOT / f["file"]
 			with self.subTest(dosya=yol.name):
+				eksikse_atla(self, yol)
 				r = normalize(yol, NormalizeSpec(max_long_edge=2400), guard=GEVSEK)
 				self.assertTrue(r.ok, f"{yol.name}: {r.reason}")
 				with _ac(r.content) as im:

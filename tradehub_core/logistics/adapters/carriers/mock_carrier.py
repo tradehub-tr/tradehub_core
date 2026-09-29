@@ -107,7 +107,7 @@ class MockCarrierAdapter(BaseCarrierAdapter):
 		self._check_capability(CarrierCapability.CREATE_SHIPMENT)
 
 		ref: str = request.reference_number or "NO-REF"
-		tracking_hash: str = hashlib.md5(ref.encode()).hexdigest()[:12].upper()
+		tracking_hash: str = hashlib.md5(ref.encode(), usedforsecurity=False).hexdigest()[:12].upper()
 		tracking_number: str = f"MOCK{tracking_hash}"
 
 		return ShipmentResponse(

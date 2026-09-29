@@ -29,6 +29,7 @@ bir `BatchRunner` kullanır; sahtenin gerçek runner'ın davranışını taklit 
 
 from __future__ import annotations
 
+import importlib.util
 import sys
 import threading
 import unittest
@@ -712,6 +713,9 @@ class KatmanDisiplinTesti(unittest.TestCase):
 		self.assertTrue(media_engine.IMPLEMENTED["migration"])
 
 
+@unittest.skipUnless(
+	importlib.util.find_spec("frappe"), "migration_runtime frappe ister — `bench run-tests` ile koşar"
+)
 class WorkerKayitTesti(unittest.TestCase):
 	"""`_workers_from_registry` — RQ kuyruk-üyelik set'inden worker okuma.
 

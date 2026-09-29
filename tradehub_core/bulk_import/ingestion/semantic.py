@@ -114,7 +114,7 @@ def resolve_header_semantic(header: str) -> tuple[str | None, float]:
 
 
 def _cache_key(header: str) -> str:
-	h = hashlib.sha1(_normalize(header).encode("utf-8")).hexdigest()[:16]
+	h = hashlib.sha1(_normalize(header).encode("utf-8"), usedforsecurity=False).hexdigest()[:16]
 	return f"semantic_header:{h}"
 
 

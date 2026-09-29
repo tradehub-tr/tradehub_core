@@ -34,6 +34,8 @@ from collections.abc import Callable
 import frappe
 from frappe import _
 
+from tradehub_core.utils.aml_gate import aml_engelli_mi
+
 # ---------------------------------------------------------------------------
 # Rol profili setleri — capability matrisi için yeniden kullanılır
 # ---------------------------------------------------------------------------
@@ -133,8 +135,7 @@ _REQUIRES_KYC: frozenset[str] = frozenset(
 	}
 )
 
-# AML aktif olduğunda (Sprint 3) bu set'teki capability'ler de gate'lenir.
-# Şu an `_check_aml_clean` placeholder (her zaman True), Sprint 3'te aktif.
+# Admin KYB incelemesinde AML/yaptırım işaretlerse bu capability'ler kapanır (utils/aml_gate.py).
 _REQUIRES_AML_CLEAN: frozenset[str] = frozenset(
 	{
 		"order.confirm_payment",
@@ -277,34 +278,8 @@ def _check_kyc_verified(user: str) -> bool:
 
 
 def _check_aml_clean(user: str) -> bool:
-	"""K5 fix: AML/sanctions kontrolü.
-
-	KYB Verification'dan aml_check_status ve sanctions_status field'larını
-	kontrol eder. "Hit Found" veya "Match Found" ise False döner.
-	Field'lar henüz eklenmemişse graceful fallback (True). Capability
-	layer'a hook noktası şimdiden mevcut.
-	"""
-	try:
-		kyb = frappe.db.get_value(
-			"KYB Verification",
-			{"user": user, "docstatus": 1},
-			["aml_check_status", "sanctions_status"],
-			as_dict=True,
-		)
-	except Exception:
-		frappe.log_error("AML check DB query failed", "seller_capabilities")
-		# Field'lar henüz yoksa (column unknown) → graceful fallback
-		return True
-
-	if not kyb:
-		return True
-
-	blocked = {"Hit Found", "Match Found"}
-	if (kyb.get("aml_check_status") or "") in blocked:
-		return False
-	if (kyb.get("sanctions_status") or "") in blocked:
-		return False
-	return True
+	"""AML/yaptırım kapısı — kural ve kararlar `utils/aml_gate.py`'de."""
+	return not aml_engelli_mi(user)
 
 
 def _get_capability_metadata(capability_key: str) -> dict | None:

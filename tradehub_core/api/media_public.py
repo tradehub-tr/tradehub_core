@@ -320,7 +320,9 @@ def _watch_data(slug: str) -> dict:
 	aynı adrese işaret edebiliyor, `watch_slug` deseni). Bulunamayan ya da
 	yalnız private kardeşleri olan slug `frappe.DoesNotExistError` fırlatır
 	(HTTP 404) — private asset "sayfa yok" gibi davranır, `noindex` ile değil
-	gerçek erişim reddiyle korunur (`seo_index` ilkesiyle aynı).
+	gerçek erişim reddiyle korunur (`seo_index` ilkesiyle aynı). Aynısı
+	`seo_index.decide`'ın erişimi kapattığı dosya için de geçerli (çöp,
+	karantina, Protected, Deleted/Expired — MOGEM-685).
 	"""
 	slug = (slug or "").strip()
 	kayitlar = (
@@ -338,8 +340,12 @@ def _watch_data(slug: str) -> dict:
 		frappe.throw(frappe._("Video bulunamadı."), exc=frappe.DoesNotExistError)
 
 	url = file_row["file_url"]
-	fields = seo.fields_for(url)
 	decision = seo_index.decide(url, check_usage=False)
+	if int(decision.get("http_status") or 200) in (401, 404, 410):
+		# Çöpteki / karantinadaki / Protected / süresi dolmuş dosya: `asset_landing`
+		# ile AYNI karar, ama izleme sayfası nedeni ayırt etmez — private gibi "yok".
+		frappe.throw(frappe._("Video bulunamadı."), exc=frappe.DoesNotExistError)
+	fields = seo.fields_for(url)
 	listings = _storefront_listings(url)
 	# W3 kararı TEK yerde: `watch_indexable`. `fields`/`listings` burada zaten
 	# hesaplandığı için geçiriliyor — fonksiyon içeride tekrar sorgulamaz.
