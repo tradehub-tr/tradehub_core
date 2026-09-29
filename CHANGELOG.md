@@ -1,3 +1,16 @@
+## [v1.16.0-alpha.4] - 2026-09-29 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(seo): MOGEM-662/663 SEO Helper tradehub_core içine taşındı (@Metin Bektemur)
+  - Ayrı seo_helper_cms app'i tradehub_core.seo_helper alt paketi + 7 SEO modülü (SEO Core/Catalog/CMS/Merchant/Crawler/Helper/MCP) olarak taşındı; hooks.py sonuna eklemeli "SEO Helper" bloğu, modules.txt, patches.txt (v0_1/v0_2)
+  - 662: crawl manager, bot logu, pano, denetim raporlayıcı, sinyal kaynağı, tekrar deneme izi, CSV/JSON dışa aktarma, kapsam şeridi
+  - 663: Builder köprüsü, politika motoru, tek head üreticisi, MCP sunucu/istemci, mağaza kapsamlı izinler (404→403 var/yok sızıntısı kapatıldı)
+  - 170 birim test (9 modül), rol matrisi 53 uç × 5 kimlik
+  - docs/seo-helper/{MIMARI,OPERASYON}.md, raporlar 117/118, ekran kanıtları
+
+---
 ## [v1.16.0-alpha.3] - 2026-09-29 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
