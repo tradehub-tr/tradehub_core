@@ -1,3 +1,59 @@
+## [v1.16.0-alpha.5] - 2026-09-29 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(kyb): satıcı AML ve yaptırım kapısı çalışır hâle getirildi (@aliiball)
+  - MOGEM-685 A-3 bulgu 1: kapı KYB de olmayan iki kolonu okuyor, sorgu her çağrıda düşüp geçti sayılıyordu (yerelde 1.775 Error Log); kolonlar olsa da docstatus 1 filtresi hiçbir KYB yi bulmuyordu.
+  - KYB Verification a aml_check_status ve sanctions_status (admin elle doldurur). permlevel 5 ve patch v15_9_61: satıcı görmez, değiştiremez; validate kapısı ignore_permissions yollarını da kapatır.
+  - Ortak utils/aml_gate: işaretsiz satıcı geçer, sorgu düşerse işlem durur. İşaretli satıcı ödeme onayı, iade, bakiye çekme ve finans kayıtlarını kaybeder.
+
+### Duzeltildi
+- fix(kupon): kupon yarışı ve indirim tabanı düzeltildi (@aliiball)
+  - MOGEM-685 F-02: iki eşzamanlı sipariş aynı tek kullanımlık kuponu harcayabiliyordu; kullanım sayacı artık satır kilidiyle artıyor, yarışı kaybeden sipariş net mesajla reddediliyor.
+  - Ekranda gösterilen indirim ile tahsil edilen farklıydı (5 senaryonun 4ünde): indirim yalnız ürün toplamına uygulanıyor, kargo ayrı.
+  - get_buyer_coupons her alıcıya tüm kupon KODLARINI döndürüyordu; yalnız sayı dönüyor.
+  - Kupon kuralları tek fonksiyonda toplandı (validate_coupon kişi başı kontrolü dahil).
+- fix(sepet): şirketsiz alıcıyı reddeden cost center kapısı düzeltildi (@aliiball)
+  - Tenant ı olmayan alıcıda tenant IS NULL filtresi ERPNext ten kalan şirketsiz bir cost center kaydını buluyor ve her sıradan alıcının siparişini cost center zorunlu diye reddediyordu.
+  - Tenant yoksa kapı atlanıyor (supplier_whitelist ile aynı kural).
+- fix(medya): misafirin erişilemeyen dosya sayfasını görmesi engellendi (@aliiball)
+  - MOGEM-685 bulgu 1 A: get_watch_page ve asset_landing çöpteki, karantinadaki, virüslü, Protected ve Deleted dosyalarda 200 dönüyordu (ölçüldü).
+  - Erişim kararı tek yerde (seo_index.decide): private 401, çöp/karantina/virüslü 404, Deleted/Expired 410.
+- fix(api): token ucunun geçerli client_id leri ele vermesi engellendi (@aliiball)
+  - MOGEM-685 bulgu 1: bilinmeyen client_id ve yanlış sır farklı mesaj veriyordu; sır sabit zamanlı olmayan eşitlikle karşılaştırılıyordu. Tek tip mesaj ve hmac.compare_digest.
+  - MOGEM-685 bulgu 5: mesaj aynıyken süre farkı kalmıştı (HTTP 7,6 ms bilinmeyen, 19,0 ms bilinen, dağılımlar örtüşmüyordu). Her ret RET_SURE_TABANI_SN (50 ms) tabanına tamamlanıyor; başarılı doğrulama beklemiyor.
+- fix(lojistik): taşıyıcı webhook hesabı ve log şişmesi düzeltildi (@aliiball)
+  - MOGEM-685 bulgu 1 B: Frappe v15 JSON gövdede URL parametresini okumuyor; application/json gönderen her doğru imzalı istek 401 alıyordu. account adres satırından okunuyor.
+  - İmzasız istekler Carrier Integration Log a 64 KB gövdeyle satır yazıyordu (dakikada 33-38 MB mümkündü): hesap başına 20 satır/dk ve satırda en fazla 2 KB.
+- fix(katalog): katalog API kimlik sırası ve 403 yanıtı düzeltildi (@aliiball)
+  - MOGEM-685 bulgu 1 C1: jetonsuz bozuk gövde kimlikten önce ayrıştırılıp 417 alıyordu; gövde kimlik kapısının içinde ayrıştırılıyor.
+  - C2: kimlik zincirinin her hatası yutulup 401 dönüyordu, kılavuzdaki 403 hiç gelmiyordu. Yalnız kimlik hatası yutuluyor, yetki hatası mesajıyla 403.
+- fix(satici): satıcı listesinin misafire e-posta vermesi engellendi (@aliiball)
+  - MOGEM-685 F-04: get_sellers misafire listedeki her satıcının user alanını (giriş e-postası) döndürüyordu; get_seller daki kural liste ucunda unutulmuştu.
+  - 20 misafir kanalı işaretli verilerle tarandı, düzeltme sonrası 20/20 temiz.
+- fix(medya): PDF XForm patlamasının metin çıkarımını kilitlemesi önlendi (@aliiball)
+  - MOGEM-685 F-07: 4,4 KB lık iç içe Form XObject li PDF pypdf extract_text i 60 sn üstü meşgul ediyordu; Frappe yükseltmesi kapatmıyor (pypdf sabit).
+  - Çizim yolu sayılıp sayfa/belge tavanını aşan PDF in metni atlanıyor, sayfa sayısı yazılıyor. 118 gerçek PDF te sonuç aynı; saldırı 60 sn üstü -> 0,04 sn.
+- fix(test): misafir yüzeyi tabanı ve bayat testler onarıldı (@aliiball)
+  - test_faz13_guest_surface: 6 misafir ucu koddan ve gerçek HTTP ile incelenip tabana gerekçesiyle eklendi (26 Ağu dan beri kırmızıydı).
+  - test_mogem666_permutasyon: işleyiciler kendi commit ini yaptığı için rollback boşa gidiyordu, test gerçek DB de e-posta kuyruğu ve abonelik değiştiriyordu; test içinde commit etkisiz.
+  - test_tuple_sync sonsuz döngüdeydi (sahte get_all sayfalamayı yok sayıyordu); gizlediği bayat test sözleşmeye göre güncellendi.
+  - address_validators, kyc_verification, store_subscription_isolation: bayat kaynak araması ve eskimiş frappe sahteleri.
+  - Medya testleri: git e girmeyen gerçek çekimler görünür atlanıyor (tests/medya_fixture), slot sayısı 10 (library.image), iki keşif hatası.
+
+### Degistirildi
+- refactor(guvenlik): MD5 ve SHA1 kullanımları güvenlik dışı işaretlendi (@aliiball)
+  - MOGEM-685 F-05: bandit B324 13 bulgu veriyordu; hashler önbellek anahtarı ve içerik kimliği içindi, güvenlik amacı yoktu.
+  - usedforsecurity=False çıktıyı değiştirmez (ölçüldü); FIPS kısıtlı ortamda da çalışır. B324 13 -> 0.
+  - file_isolation _blob_hash MD5 kalır: Frappe File.content_hash MD5, gerekçeli nosec ile işaretlendi.
+- refactor(ci): ruff kapısı değişen satırlarla sınırlandırıldı (@aliiball)
+  - Kapı değişen dosyanın tamamına bakıyordu; depoda 1.221 eski ihlal ve 418 biçimsiz dosya yüzünden son 20 koşunun 20 si kırmızıydı. scripts/ruff_degisen_satirlar check ve format farkını yalnız değişen satırlarda bloklar.
+  - pre-commit işi kalıyor, CI da yalnız ruff kancaları atlanıyor (çakışma işareti, yaml/json, boşluk denetimleri sürüyor).
+  - Servissiz guest-surface işi eklendi (MOGEM-685 bulgu 1 D). Bilinen düşen listesi boşaldı; run_authz_tests frappe isteyen üç modülü bench e bıraktı.
+  - MinIO servisine dokunulmadı: topluluk imajı hiçbir kaynaktan çekilemiyor, testler işi hâlâ başlamıyor (not medya sahibinde).
+
+---
 ## [v1.16.0-alpha.4] - 2026-09-29 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
