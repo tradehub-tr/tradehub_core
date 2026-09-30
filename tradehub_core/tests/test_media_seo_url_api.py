@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+from unittest import mock
 
 import frappe
 from frappe.tests.utils import FrappeTestCase
@@ -23,24 +24,13 @@ from tradehub_core.tests import av_notr
 _DISK: set[str] = set()
 
 
-_ESKI_BAYRAK = None
-
-
 def setUpModule():
-	global _ESKI_BAYRAK
 	# Tarama kancası nötr: dosya insert anında karantinaya taşınmasın (av_notr başlığı).
 	av_notr.basla()
-	# Final review I-2: okunur adres `seo_image_urls` bayrağına bağlı; bu modül açık hâli ölçer.
-	_ESKI_BAYRAK = frappe.local.conf.get(seo_url.BAYRAK)
-	frappe.local.conf[seo_url.BAYRAK] = 1
 
 
 def tearDownModule():
 	av_notr.bitir()
-	if _ESKI_BAYRAK is None:
-		frappe.local.conf.pop(seo_url.BAYRAK, None)
-	else:
-		frappe.local.conf[seo_url.BAYRAK] = _ESKI_BAYRAK
 	for yol in _DISK:
 		if os.path.exists(yol):
 			os.remove(yol)
@@ -58,7 +48,10 @@ def _icerik_kodlu(icerik: bytes, uzanti: str = ".jpg") -> str:
 	d = frappe.get_doc({"doctype": "File", "file_name": f"{h}{uzanti}", "file_url": url, "is_private": 0})
 	d.flags.copy_from_existing_file = True
 	d.flags.ignore_mandatory = True
-	d.insert(ignore_permissions=True)
+	# Sahte bayt geçerli JPEG değil; site `strip_exif_metadata_from_uploaded_images` açıksa
+	# Frappe içeriği Pillow'a verip TypeError atıyor. Ölçülen şey adres, görselin çözülmesi değil.
+	with mock.patch("frappe.core.doctype.file.file.strip_exif_data", side_effect=lambda icerik, _tur: icerik):
+		d.insert(ignore_permissions=True)
 	seo_url.assign_code(url)
 	return url
 
@@ -74,6 +67,10 @@ class _SeoApiBase(FrappeTestCase):
 	def setUp(self):
 		super().setUp()
 		frappe.set_user("Administrator")
+		# Final review I-2: okunur adres `seo_image_urls` bayrağına bağlı; bu modül açık hâli ölçer.
+		# Test başına açılır: FrappeTestCase her sınıf sonunda `frappe.local.conf`'u site_config'ten
+		# yeniden kuruyor; modül düzeyinde açılan bayrak ilk sınıftan sonra düşüyordu.
+		frappe.local.conf[seo_url.BAYRAK] = 1
 		# setUp commit ediyor (ve detay ucu görüntülenme sayacını commit ediyor);
 		# silmeler de kalıcı olsun diye ilk kaydedilen temizlik commit — en son koşar.
 		self.addCleanup(frappe.db.commit)

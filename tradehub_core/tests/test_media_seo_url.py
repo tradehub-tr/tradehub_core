@@ -18,11 +18,24 @@ from tradehub_core.media import retro_rename, seo_url
 
 # Frappe v15 adaptasyonu (brief'ten farklı): `File.validate_file_on_disk` her
 # zaman diskte gerçek bir dosya bekler — `copy_from_existing_file` bayrağı bu
-# kontrolü atlamaz (yalnız yeniden-işlemeyi, ör. exif-strip, atlar). Testin
-# sabit hash'li adresleri gerçek içerikle karşılık bulsun diye burada minik
-# bir dosya yazılıyor; modül sonunda temizleniyor (disk DB rollback'ine dahil
-# değil, testler arası sızmasın).
+# kontrolü atlamaz. Testin sabit hash'li adresleri gerçek içerikle karşılık
+# bulsun diye burada minik bir dosya yazılıyor; modül sonunda temizleniyor
+# (disk DB rollback'ine dahil değil, testler arası sızmasın).
 _DISK_YAZILANLAR: set[str] = set()
+
+# Sahte bayt geçerli JPEG değil; site `strip_exif_metadata_from_uploaded_images` açıksa Frappe
+# içeriği Pillow'a verip TypeError atıyor (15.103'te `copy_from_existing_file` bunu ATLATMIYOR).
+# Ölçülen şey adres ve kod, görselin çözülmesi değil.
+_EXIF_YAMASI = mock.patch(
+	"frappe.core.doctype.file.file.strip_exif_data", side_effect=lambda icerik, _tur: icerik
+)
+# `write_file` kancası (media.naming.write_file_hashed) dosyayı içerik özetine göre yeni adrese
+# taşır; testin uydurma hash'li adresleri (abcdef01…) o zaman kaybolur. Burada ölçülen seo_url,
+# kanca değil — kanca kendi testlerinde (test_media_naming, test_file_manager_seo) sınanıyor.
+_YAZMA_YAMASI = mock.patch(
+	"tradehub_core.media.naming.write_file_hashed",
+	side_effect=lambda doc, *_a, **_k: {"file_name": doc.file_name, "file_url": doc.file_url},
+)
 
 
 def _disk_yolu(url: str) -> str:
@@ -35,25 +48,27 @@ def _diskte_hazirla(url: str) -> None:
 	os.makedirs(os.path.dirname(path), exist_ok=True)
 	if not os.path.exists(path):
 		with open(path, "wb") as f:
-			f.write(b"seo-url-test")
+			# Adres başına ayrı içerik: aynı baytlar Frappe'nin content_hash eşlemesiyle ikinci
+			# satırı ilk satırın adresine bağlıyor ve farklı hash'li adres kayboluyordu.
+			f.write(f"seo-url-test:{url}".encode())
 		_DISK_YAZILANLAR.add(path)
 
 
-_ESKI_BAYRAK = None
-
-
-def setUpModule():
-	global _ESKI_BAYRAK
+def _bayragi_ac() -> None:
 	# Final review I-2: okunur adres `seo_image_urls` bayrağına bağlı; varsayılan açık ölçülür.
-	_ESKI_BAYRAK = frappe.local.conf.get(seo_url.BAYRAK)
+	# Test başına açılır: FrappeTestCase her sınıf sonunda `frappe.local.conf`'u site_config'ten
+	# yeniden kuruyor; modül düzeyinde açılan bayrak ilk sınıftan sonra düşüyordu.
 	frappe.local.conf[seo_url.BAYRAK] = 1
 
 
+def setUpModule():
+	_EXIF_YAMASI.start()
+	_YAZMA_YAMASI.start()
+
+
 def tearDownModule():
-	if _ESKI_BAYRAK is None:
-		frappe.local.conf.pop(seo_url.BAYRAK, None)
-	else:
-		frappe.local.conf[seo_url.BAYRAK] = _ESKI_BAYRAK
+	_EXIF_YAMASI.stop()
+	_YAZMA_YAMASI.stop()
 	for path in _DISK_YAZILANLAR:
 		if os.path.exists(path):
 			os.remove(path)
@@ -117,6 +132,7 @@ class TestSeoImageUrl(FrappeTestCase):
 	def setUp(self):
 		super().setUp()
 		frappe.set_user("Administrator")
+		_bayragi_ac()
 		self.h = "fedcba98" + "3" * 24
 		self.u = f"/files/{self.h[:2]}/{self.h}.jpg"
 		_file_row(self.u)
@@ -282,6 +298,7 @@ class TestKapsamVeBayrak(FrappeTestCase):
 	def setUp(self):
 		super().setUp()
 		frappe.set_user("Administrator")
+		_bayragi_ac()
 		self.h = "5eed0001" + "4" * 24
 		self.u = f"/files/{self.h[:2]}/{self.h}.jpg"
 		_file_row(self.u)
