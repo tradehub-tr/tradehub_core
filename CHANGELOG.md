@@ -1,3 +1,13 @@
+## [v1.16.0-alpha.7] - 2026-09-30 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Duzeltildi
+- fix(media): SEO görsel adresi testlerinin bench kırıkları düzeltildi (@aliiball)
+  - seo_image_urls bayrağı setUpModule'da açılıyordu; FrappeTestCase her sınıf sonunda frappe.local.conf'u site_config'ten yeniden kurduğu için bayrak yalnız ilk sınıfta açıktı, test başına taşındı
+  - Tüm sahte dosyalar aynı baytı taşıdığından Frappe content_hash eşlemesi ikinci satırı ilk adrese bağlıyordu; adres başına ayrı içerik yazılıyor
+
+---
 ## [v1.16.0-alpha.6] - 2026-09-29 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
