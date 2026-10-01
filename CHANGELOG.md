@@ -1,3 +1,16 @@
+## [v1.16.0-alpha.9] - 2026-10-01 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Duzeltildi
+- fix(listing): açıklaması boş ilanların düzenlenememesi düzeltildi (@aliiball)
+  - SEO açıklama kuralı (min 150 karakter) yalnız açıklama değişince çalışmalı; has_value_changed DB'deki NULL ile panelin gönderdiği "" değerini farklı sayıyordu
+  - Sonuç: açıklaması hiç girilmemiş ilanın fiyatını ya da stoğunu değiştirmek bile 417 ile reddediliyordu (PROD'da 282 ilan, çoğu toplu yüklenmiş)
+  - MOGEM-981'de BIJ kilidi açılınca görünür oldu: aynı ilanlarda önce bağlantı hatası çıktığı için bu hata arkada kalıyordu (alpha'da LST-00513)
+  - Değişiklik karşılaştırması NULL ve boş metni aynı sayıyor; açıklama gerçekten yazılırsa ya da ilan yeniyse 150 karakter kuralı aynen geçerli
+  - Kural kendi açıklamasındaki niyete döndü: mevcut ürünün fiyat/stok düzenlemesi engellenmez
+
+---
 ## [v1.16.0-alpha.8] - 2026-10-01 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
