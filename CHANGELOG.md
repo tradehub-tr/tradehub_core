@@ -1,3 +1,115 @@
+## [v1.16.0-rc.1] - 2026-10-01 RC
+
+Bu surum rcistoc.cronbi.com'da onay asamasindadir.
+
+### Eklendi
+- feat(media): SEO'lu ürün görsel adreslerini ekle (@ahmeetseker)
+  - Ürün görselleri için slug ve kısa kodlu `/files/...` adresleri üretildi; disk ve DB hash tabanlı kaldığı için mevcut depolama düzeni korunuyor
+  - SeoImageRenderer, File.seo_code yamaları ve API dönüşümleri eklendi; Google'a açılacak görseller noindex taşımadan servis edilebiliyor
+  - Sepet, favori, sipariş, manifest, schema ve sitemap çıktıları aynı adres biçimine geçirildi; yazma yollarında okunur adresler saklama adresine çevriliyor
+  - Sepet/favori snapshot alanları retro-rename kapsamına alındı ve eski taşımaları düzeltmek için idempotent yama eklendi
+  - Yeni çekirdek, renderer, API ve retro-rename testleriyle çakışma, fallback, hassas dosya ve rollback davranışları kapsandı
+- feat(seo): MOGEM-662/663 SEO Helper tradehub_core içine taşındı (@Metin Bektemur)
+  - Ayrı seo_helper_cms app'i tradehub_core.seo_helper alt paketi + 7 SEO modülü (SEO Core/Catalog/CMS/Merchant/Crawler/Helper/MCP) olarak taşındı; hooks.py sonuna eklemeli "SEO Helper" bloğu, modules.txt, patches.txt (v0_1/v0_2)
+  - 662: crawl manager, bot logu, pano, denetim raporlayıcı, sinyal kaynağı, tekrar deneme izi, CSV/JSON dışa aktarma, kapsam şeridi
+  - 663: Builder köprüsü, politika motoru, tek head üreticisi, MCP sunucu/istemci, mağaza kapsamlı izinler (404→403 var/yok sızıntısı kapatıldı)
+  - 170 birim test (9 modül), rol matrisi 53 uç × 5 kimlik
+  - docs/seo-helper/{MIMARI,OPERASYON}.md, raporlar 117/118, ekran kanıtları
+- feat(kyb): satıcı AML ve yaptırım kapısı çalışır hâle getirildi (@aliiball)
+  - MOGEM-685 A-3 bulgu 1: kapı KYB de olmayan iki kolonu okuyor, sorgu her çağrıda düşüp geçti sayılıyordu (yerelde 1.775 Error Log); kolonlar olsa da docstatus 1 filtresi hiçbir KYB yi bulmuyordu.
+  - KYB Verification a aml_check_status ve sanctions_status (admin elle doldurur). permlevel 5 ve patch v15_9_61: satıcı görmez, değiştiremez; validate kapısı ignore_permissions yollarını da kapatır.
+  - Ortak utils/aml_gate: işaretsiz satıcı geçer, sorgu düşerse işlem durur. İşaretli satıcı ödeme onayı, iade, bakiye çekme ve finans kayıtlarını kaybeder.
+- feat(butunluk): yetim bağlantı bekçisi eklendi (@aliiball)
+  - Var olmayan bir kaydı gösteren Link değerlerini sayar (uygulamanın DocType'ları ve tüm Custom Field'lar) ve Error Log'a yazar; hiçbir şeyi düzeltmez, bildirim göndermez
+  - Neden: force=True ile silinen kayıt bağlı belgeleri sessizce yetim bırakıyor; MOGEM-981'de PROD'da 866 ilan 24 gün kimse fark etmeden kilitli kaldı
+  - İlk koşu mevcut durumu bir kez taban olarak yazar, sonraki koşular yalnız sayısı artan ya da yeni çıkan alanları yazar; bazı yetimler tasarım gereği (denetim kayıtları) ve her gece aynı uzun liste yeni sorunu gizlerdi
+  - Taban tabDefaultValue'da tutulur ve önbellek atlanarak okunur; azalan alan sonradan yeniden artarsa yine raporlanır
+  - Kodda zorla silme yapan 31 dosya var; her birini tek tek incelemek yerine sonuç ölçülüyor
+  - Sorgular frappe.qb ile kuruluyor; collation gibi şema hatası tek alanı düşürür, taramayı değil
+  - Zamanlayıcı kaydı bir sonraki commit'te (hooks.py, daily_long)
+
+### Duzeltildi
+- fix(media): arşivli retro-rename adaylarını atla (@ahmeetseker)
+  - Retro-rename raporuna çift noktalı ad ve arşivde bekleyen orijinal sayaçları eklendi; operatör riskli adayları önceden görebilsin
+  - Optimizasyon arşivindeki dosyalar gerçek koşuda ve provada tek tek atlanıyor; geri alma akışı kırılmadan kalan taşıma devam edebilsin
+  - Backend uçları ve testler yeni archived sözleşmesini kapsayacak şekilde güncellendi
+- fix(favoriler): eski görsel adının snapshot'ı bozmasını önle (@ahmeetseker)
+  - Favori listesi okunurken retro-rename öncesi görsel adlarını güncel ilan görselinden çözdür
+  - Tarayıcıda kalmış eski adreslerin içerik-kodlu snapshot üzerine yazmasını engelle
+  - Eski ad senaryolarını API testleriyle sabitle
+- fix(kupon): kupon yarışı ve indirim tabanı düzeltildi (@aliiball)
+  - MOGEM-685 F-02: iki eşzamanlı sipariş aynı tek kullanımlık kuponu harcayabiliyordu; kullanım sayacı artık satır kilidiyle artıyor, yarışı kaybeden sipariş net mesajla reddediliyor.
+  - Ekranda gösterilen indirim ile tahsil edilen farklıydı (5 senaryonun 4ünde): indirim yalnız ürün toplamına uygulanıyor, kargo ayrı.
+  - get_buyer_coupons her alıcıya tüm kupon KODLARINI döndürüyordu; yalnız sayı dönüyor.
+  - Kupon kuralları tek fonksiyonda toplandı (validate_coupon kişi başı kontrolü dahil).
+- fix(sepet): şirketsiz alıcıyı reddeden cost center kapısı düzeltildi (@aliiball)
+  - Tenant ı olmayan alıcıda tenant IS NULL filtresi ERPNext ten kalan şirketsiz bir cost center kaydını buluyor ve her sıradan alıcının siparişini cost center zorunlu diye reddediyordu.
+  - Tenant yoksa kapı atlanıyor (supplier_whitelist ile aynı kural).
+- fix(medya): misafirin erişilemeyen dosya sayfasını görmesi engellendi (@aliiball)
+  - MOGEM-685 bulgu 1 A: get_watch_page ve asset_landing çöpteki, karantinadaki, virüslü, Protected ve Deleted dosyalarda 200 dönüyordu (ölçüldü).
+  - Erişim kararı tek yerde (seo_index.decide): private 401, çöp/karantina/virüslü 404, Deleted/Expired 410.
+- fix(api): token ucunun geçerli client_id leri ele vermesi engellendi (@aliiball)
+  - MOGEM-685 bulgu 1: bilinmeyen client_id ve yanlış sır farklı mesaj veriyordu; sır sabit zamanlı olmayan eşitlikle karşılaştırılıyordu. Tek tip mesaj ve hmac.compare_digest.
+  - MOGEM-685 bulgu 5: mesaj aynıyken süre farkı kalmıştı (HTTP 7,6 ms bilinmeyen, 19,0 ms bilinen, dağılımlar örtüşmüyordu). Her ret RET_SURE_TABANI_SN (50 ms) tabanına tamamlanıyor; başarılı doğrulama beklemiyor.
+- fix(lojistik): taşıyıcı webhook hesabı ve log şişmesi düzeltildi (@aliiball)
+  - MOGEM-685 bulgu 1 B: Frappe v15 JSON gövdede URL parametresini okumuyor; application/json gönderen her doğru imzalı istek 401 alıyordu. account adres satırından okunuyor.
+  - İmzasız istekler Carrier Integration Log a 64 KB gövdeyle satır yazıyordu (dakikada 33-38 MB mümkündü): hesap başına 20 satır/dk ve satırda en fazla 2 KB.
+- fix(katalog): katalog API kimlik sırası ve 403 yanıtı düzeltildi (@aliiball)
+  - MOGEM-685 bulgu 1 C1: jetonsuz bozuk gövde kimlikten önce ayrıştırılıp 417 alıyordu; gövde kimlik kapısının içinde ayrıştırılıyor.
+  - C2: kimlik zincirinin her hatası yutulup 401 dönüyordu, kılavuzdaki 403 hiç gelmiyordu. Yalnız kimlik hatası yutuluyor, yetki hatası mesajıyla 403.
+- fix(satici): satıcı listesinin misafire e-posta vermesi engellendi (@aliiball)
+  - MOGEM-685 F-04: get_sellers misafire listedeki her satıcının user alanını (giriş e-postası) döndürüyordu; get_seller daki kural liste ucunda unutulmuştu.
+  - 20 misafir kanalı işaretli verilerle tarandı, düzeltme sonrası 20/20 temiz.
+- fix(medya): PDF XForm patlamasının metin çıkarımını kilitlemesi önlendi (@aliiball)
+  - MOGEM-685 F-07: 4,4 KB lık iç içe Form XObject li PDF pypdf extract_text i 60 sn üstü meşgul ediyordu; Frappe yükseltmesi kapatmıyor (pypdf sabit).
+  - Çizim yolu sayılıp sayfa/belge tavanını aşan PDF in metni atlanıyor, sayfa sayısı yazılıyor. 118 gerçek PDF te sonuç aynı; saldırı 60 sn üstü -> 0,04 sn.
+- fix(test): misafir yüzeyi tabanı ve bayat testler onarıldı (@aliiball)
+  - test_faz13_guest_surface: 6 misafir ucu koddan ve gerçek HTTP ile incelenip tabana gerekçesiyle eklendi (26 Ağu dan beri kırmızıydı).
+  - test_mogem666_permutasyon: işleyiciler kendi commit ini yaptığı için rollback boşa gidiyordu, test gerçek DB de e-posta kuyruğu ve abonelik değiştiriyordu; test içinde commit etkisiz.
+  - test_tuple_sync sonsuz döngüdeydi (sahte get_all sayfalamayı yok sayıyordu); gizlediği bayat test sözleşmeye göre güncellendi.
+  - address_validators, kyc_verification, store_subscription_isolation: bayat kaynak araması ve eskimiş frappe sahteleri.
+  - Medya testleri: git e girmeyen gerçek çekimler görünür atlanıyor (tests/medya_fixture), slot sayısı 10 (library.image), iki keşif hatası.
+- fix(test): Faz 2 koşusunun sahte frappe yüzünden çökmesi düzeltildi (@aliiball)
+  - Faz 2 altı test modülünü aynı süreçte yüklüyor; biri sys.modules a __spec__ i olmayan sahte frappe koyunca skipUnless içindeki find_spec ValueError fırlatıyor ve koşu testler yüklenirken çöküyordu. Hiçbir test koşmuyordu.
+  - _gercek_frappe_var bu hatayı gerçek frappe yok sayıyor ve testi atlıyor. Gerçek bench ortamında test eskisi gibi koşuyor.
+- fix(test): misafir yüzeyi tabanına SEO Helper uçları eklendi (@aliiball)
+  - SEO Helper tradehub_core a taşınınca 8 yeni guest uç geldi ve misafir yüzeyi kapısı version-15 te kırmızıya düştü.
+  - 7 MCP aracı her çağrıda MCP anahtarı istiyor; alpha da anahtarsız ve sahte anahtarla 401 ölçüldü. Anahtarla bile yalnız taslak yazılıyor. record_landing veritabanına yazmıyor, yalnız imzalı çerez bırakıyor. Taban 112 den 120 ye çıktı.
+- fix(media): SEO görsel adresi testlerinin bench kırıkları düzeltildi (@aliiball)
+  - seo_image_urls bayrağı setUpModule'da açılıyordu; FrappeTestCase her sınıf sonunda frappe.local.conf'u site_config'ten yeniden kurduğu için bayrak yalnız ilk sınıfta açıktı, test başına taşındı
+  - Tüm sahte dosyalar aynı baytı taşıdığından Frappe content_hash eşlemesi ikinci satırı ilk adrese bağlıyordu; adres başına ayrı içerik yazılıyor
+- fix(bulk-import): eski toplu yükleme ilanlarının kilitlenmesi düzeltildi (@aliiball)
+  - Günlük temizlik 90 günlük job'ları force=True ile siliyordu; Listing.created_by_bulk_job yetim kalınca ilanın her kaydı 417 "Created By Bulk Import Job: BIJ-… bulunamadı" ile düşüyordu (MOGEM-981, dört ortamda da; PROD'da 866 ilan)
+  - Temizlik artık ilana bağlı job'ın başlığını korur, yalnız hata satırlarını ve dosyalarını siler ve artifacts_purged_at ile damgalar; ilan kaynak bilgisini (panel rozeti, süzgeç) kaybetmez
+  - Bağsız job force olmadan silinir: bilinmeyen bir bağ varsa Frappe'nin kendi kontrolü silmeyi durdurur ve job korunur
+  - Temizlik 600 sn'lik zaman bütçesiyle parti parti çalışır, her job'dan sonra commit'ler ve daily_long'a taşındı; API kanalı çağrı başına job açtığı için sabit gece sınırı birikmeye yetişemezdi (yerel ölçüm: 10 bin job 74 sn)
+  - O gece hata veren job yeniden seçilmez; aynı bozuk job'ın etrafında dönülmez (karşı kanıt: dışlama olmadan 5 sn'de 169 deneme)
+  - Eski temizlik bağsız job'ı silerken yüklenen Excel'i diskte sahipsiz bırakıyordu; artık o dosya da siliniyor
+  - v15_9_64 patch'i silinmiş job başlıklarını ilanlardan aynı adla geri yazar (satıcı, ürün sayısı, tarih); birden çok satıcıya bağlı job tahmin edilmez, atlanıp Error Log'a yazılır, tek bir hata deploy'u durdurmaz
+  - Onarım seri sayacını geri yazılan numaranın önüne iter: Frappe son job silinince sayacı geri alıyor, aksi hâlde satıcının sonraki yüklemesi DuplicateEntryError ile düşerdi
+  - Kaynak dosya silindiği için onarılan job'da data_file ve file_format boş kalır (ignore_mandatory); tamamlanmış job bir daha save edilmiyor
+  - v15_9_63 patch'i Listing.created_by_bulk_job'a indeks ekler; temizlik ve panelin kaynak süzgeci bu kolonla arıyor
+  - Ekleri temizlenmiş job'da hata Excel'i ve yeniden deneme, boş dosya üretmek yerine saklama süresinin dolduğunu söyler
+  - Yetim bağlantı bekçisi daily_long'a kaydedildi
+- fix(listing): açıklaması boş ilanların düzenlenememesi düzeltildi (@aliiball)
+  - SEO açıklama kuralı (min 150 karakter) yalnız açıklama değişince çalışmalı; has_value_changed DB'deki NULL ile panelin gönderdiği "" değerini farklı sayıyordu
+  - Sonuç: açıklaması hiç girilmemiş ilanın fiyatını ya da stoğunu değiştirmek bile 417 ile reddediliyordu (PROD'da 282 ilan, çoğu toplu yüklenmiş)
+  - MOGEM-981'de BIJ kilidi açılınca görünür oldu: aynı ilanlarda önce bağlantı hatası çıktığı için bu hata arkada kalıyordu (alpha'da LST-00513)
+  - Değişiklik karşılaştırması NULL ve boş metni aynı sayıyor; açıklama gerçekten yazılırsa ya da ilan yeniyse 150 karakter kuralı aynen geçerli
+  - Kural kendi açıklamasındaki niyete döndü: mevcut ürünün fiyat/stok düzenlemesi engellenmez
+
+### Degistirildi
+- refactor(guvenlik): MD5 ve SHA1 kullanımları güvenlik dışı işaretlendi (@aliiball)
+  - MOGEM-685 F-05: bandit B324 13 bulgu veriyordu; hashler önbellek anahtarı ve içerik kimliği içindi, güvenlik amacı yoktu.
+  - usedforsecurity=False çıktıyı değiştirmez (ölçüldü); FIPS kısıtlı ortamda da çalışır. B324 13 -> 0.
+  - file_isolation _blob_hash MD5 kalır: Frappe File.content_hash MD5, gerekçeli nosec ile işaretlendi.
+- refactor(ci): ruff kapısı değişen satırlarla sınırlandırıldı (@aliiball)
+  - Kapı değişen dosyanın tamamına bakıyordu; depoda 1.221 eski ihlal ve 418 biçimsiz dosya yüzünden son 20 koşunun 20 si kırmızıydı. scripts/ruff_degisen_satirlar check ve format farkını yalnız değişen satırlarda bloklar.
+  - pre-commit işi kalıyor, CI da yalnız ruff kancaları atlanıyor (çakışma işareti, yaml/json, boşluk denetimleri sürüyor).
+  - Servissiz guest-surface işi eklendi (MOGEM-685 bulgu 1 D). Bilinen düşen listesi boşaldı; run_authz_tests frappe isteyen üç modülü bench e bıraktı.
+  - MinIO servisine dokunulmadı: topluluk imajı hiçbir kaynaktan çekilemiyor, testler işi hâlâ başlamıyor (not medya sahibinde).
+
+---
 ## [v1.16.0-alpha.9] - 2026-10-01 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
