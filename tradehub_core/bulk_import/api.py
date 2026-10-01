@@ -543,6 +543,19 @@ def _enrich_seller_names(jobs: list) -> None:
 		j["seller_name"] = name_map.get(j.get("seller_profile"))
 
 
+def _ensure_artifacts_kept(job) -> None:
+	"""Ekleri temizlenmiş job'da hata dosyası/yeniden deneme anlamsız: boş Excel üretmek ya da
+	olmayan kaynak dosyayı okumaya çalışmak yerine sebebi söyle."""
+	if job.artifacts_purged_at:
+		from tradehub_core.bulk_import.tasks import JOB_RETENTION_DAYS
+
+		frappe.throw(
+			_(
+				"Bu yüklemenin dosya ve hata ayrıntıları {0} günlük saklama süresi dolduğu için silindi."
+			).format(JOB_RETENTION_DAYS)
+		)
+
+
 @frappe.whitelist()
 def download_error_excel(job_name: str) -> dict:
 	"""Hatalı satırları Excel olarak indir. File URL döndür."""
@@ -552,6 +565,7 @@ def download_error_excel(job_name: str) -> dict:
 
 	doc = frappe.get_doc("Bulk Import Job", job_name)
 	doc.check_permission("read")
+	_ensure_artifacts_kept(doc)
 
 	error_rows = frappe.get_all(
 		"Bulk Import Job Error",
@@ -942,6 +956,7 @@ def retry_failed_rows(job_name: str) -> dict:
 
 	original = frappe.get_doc("Bulk Import Job", job_name)
 	original.check_permission("read")
+	_ensure_artifacts_kept(original)
 
 	if original.status not in ("Failed", "Partial", "Completed"):
 		frappe.throw(_("Sadece tamamlanmış job'lar için retry yapılabilir"))
