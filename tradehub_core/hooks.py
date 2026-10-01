@@ -312,9 +312,8 @@ scheduler_events = {
 		"tradehub_core.tasks.buyer_level_tasks",
 		"tradehub_core.tasks.aggregate_buyer_kpi_summaries",
 		"tradehub_core.tasks.refresh_user_segments",
-		# Bulk Import: 90 günden eski tamamlanmış job'ları temizle +
-		# uzun süre kullanılmayan template profile'ları arşivle.
-		"tradehub_core.bulk_import.tasks.cleanup_old_bulk_import_jobs",
+		# Bulk Import: uzun süre kullanılmayan template profile'ları arşivle.
+		# (Job temizliği `daily_long`'da — MOGEM-981.)
 		"tradehub_core.bulk_import.tasks.cleanup_stale_seller_template_profiles",
 		# FAZ 1.4 — Audit retention (90 gün sıcak)
 		"tradehub_core.audit.tasks.archive_old_decision_logs",
@@ -335,6 +334,14 @@ scheduler_events = {
 		# Bu, scheduler_events'teki İLK lojistik kaydıdır; mevcut liste
 		# değiştirilmedi, yalnız sona eklendi.
 		"tradehub_core.logistics.jobs.integration_log_retention.run_scheduled",
+	],
+	"daily_long": [
+		# Bulk Import job temizliği (MOGEM-981). `default` kuyruğunun 300 sn'si API kanalının
+		# açtığı job sayısına yetmez; `long` kuyruğu 1500 sn verir. Görev parti parti commit'ler,
+		# yarıda kesilse de yapılan iş kalır.
+		"tradehub_core.bulk_import.tasks.cleanup_old_bulk_import_jobs",
+		# Yetim Link değerleri bekçisi (MOGEM-981) — bulursa Error Log'a yazar, düzeltmez.
+		"tradehub_core.utils.orphan_links.report_orphan_links",
 	],
 	"weekly_long": [
 		# A2 — ReBAC enforce-hazırlık raporu (RBAC vs ReBAC, doctype-başına verdict).

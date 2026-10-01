@@ -27,6 +27,7 @@
   "started_at",
   "completed_at",
   "duration_seconds",
+  "artifacts_purged_at",
   "cb_progress",
   "total_rows",
   "inserted_count",
@@ -168,6 +169,14 @@
    "read_only": 1
   },
   {
+   "description": "Saklama süresi dolunca hata satırları ve dosyalar silindi; ilana bağlı olduğu için başlık korundu.",
+   "fieldname": "artifacts_purged_at",
+   "fieldtype": "Datetime",
+   "label": "Ekler Temizlendi",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
    "fieldname": "cb_progress",
    "fieldtype": "Column Break"
   },
@@ -245,7 +254,7 @@
   }
  ],
  "links": [],
- "modified": "2026-05-22 00:00:00",
+ "modified": "2026-10-01 16:00:00.000000",
  "modified_by": "Administrator",
  "module": "Tradehub Core",
  "name": "Bulk Import Job",

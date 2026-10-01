@@ -365,3 +365,7 @@ tradehub_core.patches.v15_9_61_file_seo_code
 
 # --- SEO görsel adresi: sepet/favori görsel kopyaları taşımaya dahil (eski taşımaları düzelt) ---
 tradehub_core.patches.v15_9_62_retarget_cart_favorite_snapshots
+
+# --- MOGEM-981: toplu yükleme yetim bağlantıları — indeks + silinmiş job başlıklarını geri yaz ---
+tradehub_core.patches.v15_9_63_listing_bulk_job_index
+tradehub_core.patches.v15_9_64_restore_orphan_bulk_import_jobs

@@ -407,3 +407,4 @@ Teklifiniz Reddedildi,Your Quote Rejected,
 "{0} talebine verdiğiniz teklif reddedildi.","Your quote on request {0} was rejected.",
 "User Profile {0} not found","Kullanıcı profili {0} bulunamadı"
 "Satıcı olabilmek için Kurumsal hesap tipi zorunludur (KYB için vergi levhası şart).","Satıcı olabilmek için Kurumsal hesap tipi zorunludur (KYB için vergi levhası şart)."
+"Bu yüklemenin dosya ve hata ayrıntıları {0} günlük saklama süresi dolduğu için silindi.","This upload's file and error details were deleted because the {0}-day retention period has passed.",
