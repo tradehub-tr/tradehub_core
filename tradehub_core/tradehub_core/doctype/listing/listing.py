@@ -103,15 +103,24 @@ class Listing(Document):
 
 		from tradehub_core.utils.seo_content import check_description, check_title
 
-		if self.is_new() or self.has_value_changed("title"):
+		if self._seo_field_changed("title"):
 			ok, msg = check_title(self.title)
 			if not ok:
 				frappe.throw(msg, title=_("SEO Ürün Adı Kuralı"))
 
-		if self.is_new() or self.has_value_changed("description"):
+		if self._seo_field_changed("description"):
 			ok, msg = check_description(self.description)
 			if not ok:
 				frappe.throw(msg, title=_("SEO Ürün Açıklaması Kuralı"))
+
+	def _seo_field_changed(self, fieldname: str) -> bool:
+		"""`has_value_changed` NULL ile boş metni farklı sayar; panel dokunulmamış boş açıklamayı
+		"" olarak gönderiyor. Açıklaması hiç girilmemiş eski (çoğu toplu yüklenmiş) ilanın fiyatını
+		değiştirmek bile SEO kuralına takılıp 417 veriyordu (MOGEM-981, PROD'da 282 ilan)."""
+		if self.is_new():
+			return True
+		before = self.get_doc_before_save()
+		return before is None or (before.get(fieldname) or "") != (self.get(fieldname) or "")
 
 	def _set_storefront_visible(self):
 		"""Denormalize is_visible + status → tek eşitlik kolonu `storefront_visible`.
