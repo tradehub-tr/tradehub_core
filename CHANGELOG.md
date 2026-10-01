@@ -1,3 +1,33 @@
+## [v1.16.0-alpha.8] - 2026-10-01 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(butunluk): yetim bağlantı bekçisi eklendi (@aliiball)
+  - Var olmayan bir kaydı gösteren Link değerlerini sayar (uygulamanın DocType'ları ve tüm Custom Field'lar) ve Error Log'a yazar; hiçbir şeyi düzeltmez, bildirim göndermez
+  - Neden: force=True ile silinen kayıt bağlı belgeleri sessizce yetim bırakıyor; MOGEM-981'de PROD'da 866 ilan 24 gün kimse fark etmeden kilitli kaldı
+  - İlk koşu mevcut durumu bir kez taban olarak yazar, sonraki koşular yalnız sayısı artan ya da yeni çıkan alanları yazar; bazı yetimler tasarım gereği (denetim kayıtları) ve her gece aynı uzun liste yeni sorunu gizlerdi
+  - Taban tabDefaultValue'da tutulur ve önbellek atlanarak okunur; azalan alan sonradan yeniden artarsa yine raporlanır
+  - Kodda zorla silme yapan 31 dosya var; her birini tek tek incelemek yerine sonuç ölçülüyor
+  - Sorgular frappe.qb ile kuruluyor; collation gibi şema hatası tek alanı düşürür, taramayı değil
+  - Zamanlayıcı kaydı bir sonraki commit'te (hooks.py, daily_long)
+
+### Duzeltildi
+- fix(bulk-import): eski toplu yükleme ilanlarının kilitlenmesi düzeltildi (@aliiball)
+  - Günlük temizlik 90 günlük job'ları force=True ile siliyordu; Listing.created_by_bulk_job yetim kalınca ilanın her kaydı 417 "Created By Bulk Import Job: BIJ-… bulunamadı" ile düşüyordu (MOGEM-981, dört ortamda da; PROD'da 866 ilan)
+  - Temizlik artık ilana bağlı job'ın başlığını korur, yalnız hata satırlarını ve dosyalarını siler ve artifacts_purged_at ile damgalar; ilan kaynak bilgisini (panel rozeti, süzgeç) kaybetmez
+  - Bağsız job force olmadan silinir: bilinmeyen bir bağ varsa Frappe'nin kendi kontrolü silmeyi durdurur ve job korunur
+  - Temizlik 600 sn'lik zaman bütçesiyle parti parti çalışır, her job'dan sonra commit'ler ve daily_long'a taşındı; API kanalı çağrı başına job açtığı için sabit gece sınırı birikmeye yetişemezdi (yerel ölçüm: 10 bin job 74 sn)
+  - O gece hata veren job yeniden seçilmez; aynı bozuk job'ın etrafında dönülmez (karşı kanıt: dışlama olmadan 5 sn'de 169 deneme)
+  - Eski temizlik bağsız job'ı silerken yüklenen Excel'i diskte sahipsiz bırakıyordu; artık o dosya da siliniyor
+  - v15_9_64 patch'i silinmiş job başlıklarını ilanlardan aynı adla geri yazar (satıcı, ürün sayısı, tarih); birden çok satıcıya bağlı job tahmin edilmez, atlanıp Error Log'a yazılır, tek bir hata deploy'u durdurmaz
+  - Onarım seri sayacını geri yazılan numaranın önüne iter: Frappe son job silinince sayacı geri alıyor, aksi hâlde satıcının sonraki yüklemesi DuplicateEntryError ile düşerdi
+  - Kaynak dosya silindiği için onarılan job'da data_file ve file_format boş kalır (ignore_mandatory); tamamlanmış job bir daha save edilmiyor
+  - v15_9_63 patch'i Listing.created_by_bulk_job'a indeks ekler; temizlik ve panelin kaynak süzgeci bu kolonla arıyor
+  - Ekleri temizlenmiş job'da hata Excel'i ve yeniden deneme, boş dosya üretmek yerine saklama süresinin dolduğunu söyler
+  - Yetim bağlantı bekçisi daily_long'a kaydedildi
+
+---
 ## [v1.16.0-alpha.7] - 2026-09-30 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
