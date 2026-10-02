@@ -1,3 +1,15 @@
+## [v1.17.0-alpha.1] - 2026-10-02 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(media): görsel dönüşüm ve odak altyapısını ekle (@ahmeetseker)
+  - Ürün görsellerini kare WebP master'a çeviren, mağaza görsellerini oranı korunmuş WebP'e taşıyan iş akışları eklendi; eski adresler 301 ve geri alma desteğiyle korunuyor.
+  - Görsel önizleme, odak noktası, kaynak künye ve upload durum uçları eklendi; vitrinin kırpılan görsellerde aynı odağı kullanması sağlandı.
+  - Ürün ve mağaza türev politikaları WebP merdivenine taşındı; eski AVIF türevleri için görünürlük ve güvenli temizlik desteği eklendi.
+  - Politika, manifest, rendition ve SEO testleri yeni medya davranışlarını ve meta title sınırını doğrulayacak şekilde güncellendi.
+
+---
 ## [v1.17.0] - 2026-10-01 PROD
 
 Bu surum istoc.cronbi.com'da yayindadir.
