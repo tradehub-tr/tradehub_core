@@ -20,7 +20,7 @@ import frappe
 from frappe import _
 from frappe.utils import add_days, get_datetime, now_datetime
 
-from tradehub_core.media import archive, presets, runner, trash
+from tradehub_core.media import archive, presets, queue_fallback, runner, trash
 from tradehub_core.media.pipeline.core.queues import IMAGE_BULK, IMAGE_LIVE
 from tradehub_core.media.pipeline.migration.backfill import (
 	PLAN_SCHEMA_VERSION,
@@ -201,12 +201,14 @@ def _queue_health() -> dict[str, Any]:
 	from frappe.utils.background_jobs import get_queue, get_queue_list, get_redis_conn
 	from rq import Worker
 
-	bulk = get_queue(IMAGE_BULK.name)
-	live = get_queue(IMAGE_LIVE.name)
+	bulk_name = queue_fallback.resolve_queue(IMAGE_BULK.name)
+	live_name = queue_fallback.resolve_queue(IMAGE_LIVE.name)
+	bulk = get_queue(bulk_name)
+	live = get_queue(live_name)
 	connection = get_redis_conn()
 	wanted = {
 		q.decode() if isinstance(q, bytes) else str(q)
-		for q in get_queue_list([IMAGE_BULK.name], build_queue_name=True)
+		for q in get_queue_list([bulk_name], build_queue_name=True)
 	}
 	workers = Worker.all(connection=connection)
 	matching = []
@@ -225,9 +227,9 @@ def _queue_health() -> dict[str, Any]:
 		# her RQ sürümünde worker kaydında tutulur; ikinci kaynak oradan okunur.
 		matching = _workers_from_registry(connection, wanted)
 	return {
-		"bulk_queue": IMAGE_BULK.name,
+		"bulk_queue": bulk_name,
 		"bulk_depth": int(bulk.count),
-		"live_queue": IMAGE_LIVE.name,
+		"live_queue": live_name,
 		"live_depth": int(live.count),
 		"bulk_workers": matching,
 	}
@@ -502,7 +504,7 @@ def _set_batch(name: str, values: Mapping[str, Any]) -> None:
 def _enqueue_batch(run_key: str, index: int, *, after_commit: bool = False) -> None:
 	frappe.enqueue(
 		"tradehub_core.media.migration_runtime.execute_batch",
-		queue=IMAGE_BULK.name,
+		queue=queue_fallback.resolve_queue(IMAGE_BULK.name),
 		timeout=IMAGE_BULK.timeout_seconds,
 		enqueue_after_commit=after_commit,
 		# Resume aynı checkpoint'i yeniden kuyruğa koyabilir; RQ'nun bitmiş/failed
@@ -517,7 +519,7 @@ def _enqueue_batch(run_key: str, index: int, *, after_commit: bool = False) -> N
 def _enqueue_rollback(run_key: str, index: int, *, after_commit: bool = False) -> None:
 	frappe.enqueue(
 		"tradehub_core.media.migration_runtime.execute_rollback_batch",
-		queue=IMAGE_BULK.name,
+		queue=queue_fallback.resolve_queue(IMAGE_BULK.name),
 		timeout=IMAGE_BULK.timeout_seconds,
 		enqueue_after_commit=after_commit,
 		job_id=f"media-migration-rollback::{run_key}::{index:04d}::{frappe.generate_hash(length=8)}",
@@ -529,7 +531,7 @@ def _enqueue_rollback(run_key: str, index: int, *, after_commit: bool = False) -
 def _live_depth() -> int:
 	from frappe.utils.background_jobs import get_queue
 
-	return int(get_queue(IMAGE_LIVE.name).count)
+	return int(get_queue(queue_fallback.resolve_queue(IMAGE_LIVE.name)).count)
 
 
 def _aggregate(run_key: str) -> dict[str, int]:

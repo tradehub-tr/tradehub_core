@@ -25,6 +25,7 @@ from tradehub_core.media import (
 	inventory,
 	migration_runtime,
 	presets,
+	queue_fallback,
 	refs,
 	retro_rename,
 	runner,
@@ -1803,7 +1804,7 @@ def regenerate_video_poster(file_url: str) -> dict:
 	frappe.db.set_value("File", {"name": ["in", adlar]}, "th_media_poster_url", "", update_modified=False)
 	frappe.enqueue(
 		"tradehub_core.media.video_poster.generate",
-		queue="media-maint",
+		queue=queue_fallback.resolve_queue("media-maint"),
 		timeout=300,
 		file_url=file_url,
 		enqueue_after_commit=True,

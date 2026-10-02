@@ -33,7 +33,7 @@ from pathlib import Path
 
 import frappe
 
-from tradehub_core.media import upload_policy
+from tradehub_core.media import queue_fallback, upload_policy
 
 #: Çıkarımın aday gördüğü uzantılar — TEK KAYNAK `upload_policy`.
 #:
@@ -328,7 +328,7 @@ def maybe_extract_on_insert(doc, method: str | None = None) -> None:
 			return
 		frappe.enqueue(
 			"tradehub_core.media.audio_meta.apply",
-			queue="media-maint",
+			queue=queue_fallback.resolve_queue("media-maint"),
 			timeout=180,
 			file_url=file_url,
 			enqueue_after_commit=True,

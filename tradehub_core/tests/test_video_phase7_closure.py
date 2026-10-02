@@ -267,7 +267,8 @@ class TeslimVeKaynakButcesi(unittest.TestCase):
 			self.skipTest("workspace Docker yapılandırması bu backend checkout'unda yok")
 		compose = compose_path.read_text(encoding="utf-8")
 		self.assertIn("RQ_QUEUE_VIDEO: str = media_queues.VIDEO.name", bridge)
-		self.assertIn("queue=RQ_QUEUE_VIDEO", bridge)
+		# Kuyruk tanımsız sitede (prod) iş `long`a düşer, kaybolmaz — queue_fallback.
+		self.assertIn("queue=queue_fallback.resolve_queue(RQ_QUEUE_VIDEO)", bridge)
 		self.assertIn("queue-media-video:", compose)
 		self.assertIn('["bench", "worker", "--queue", "media-video"]', compose)
 

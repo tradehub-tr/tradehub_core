@@ -20,6 +20,8 @@ from pathlib import Path
 import frappe
 from PIL import Image, ImageStat
 
+from tradehub_core.media import queue_fallback
+
 JPEG_KALITE: int = 82
 UZUN_KENAR: int = 1280
 LUMA_ALT: float = 255 * 0.06
@@ -207,7 +209,7 @@ def backfill_pending(limit: int = 50) -> int:
 	for satir in satirlar:
 		frappe.enqueue(
 			"tradehub_core.media.video_poster.generate",
-			queue="media-maint",
+			queue=queue_fallback.resolve_queue("media-maint"),
 			timeout=300,
 			file_url=satir.file_url,
 			enqueue_after_commit=True,

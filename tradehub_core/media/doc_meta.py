@@ -95,7 +95,7 @@ import zipfile
 
 import frappe
 
-from tradehub_core.media import upload_policy
+from tradehub_core.media import queue_fallback, upload_policy
 
 #: Çıkarım motorunun desteklediği ve `File.after_insert`/`backfill_docs`'un
 #: aday seçtiği uzantılar. `upload_policy.EXTENSIONS` haritasında `.pptx` yok
@@ -626,7 +626,7 @@ def maybe_extract_on_insert(doc, method: str | None = None) -> None:
 			return
 		frappe.enqueue(
 			"tradehub_core.media.doc_meta.apply",
-			queue="media-maint",
+			queue=queue_fallback.resolve_queue("media-maint"),
 			timeout=180,
 			file_url=file_url,
 			enqueue_after_commit=True,

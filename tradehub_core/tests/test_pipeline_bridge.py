@@ -229,6 +229,29 @@ class TestBayrakKapisi(_BayrakliTest):
 		self.assertTrue(kwargs.get("enqueue_after_commit"))
 		self.assertEqual(kwargs.get("file_url"), self.doc.file_url)
 
+	def test_prod_benzeri_kuyruk_tanimsizken_long_kuyruguna_atilir(self):
+		"""2026-10-02 prod: yalnız short/default/long; iş Error Log'a düşüp kaybolmamalı."""
+		from frappe.utils import background_jobs
+
+		self._hatti_ac()
+		prod = {"short": 300, "default": 300, "long": 1500}
+
+		def _frappe_gibi(*args, **kwargs):
+			# Gerçek `frappe.enqueue`'nun ilk kapısı: kuyruk tanımlı değilse throw.
+			background_jobs.validate_queue(kwargs["queue"])
+
+		with (
+			mock.patch.object(background_jobs, "get_queues_timeout", return_value=prod),
+			mock.patch("tradehub_core.media.pipeline_bridge.frappe.enqueue", side_effect=_frappe_gibi) as m,
+			mock.patch("tradehub_core.media.pipeline_bridge.frappe.log_error") as log_error,
+		):
+			pipeline_bridge.maybe_generate_renditions(self.doc)
+
+		m.assert_called_once()
+		self.assertEqual(m.call_args.kwargs.get("queue"), "long")
+		self.assertEqual(m.call_args.kwargs.get("timeout"), 60)
+		log_error.assert_not_called()
+
 	def test_rollout_sifirda_disaridaki_magaza_kuyruga_girmez_canary_girer(self):
 		self._ayarla(
 			media_pipeline_enabled=1,
