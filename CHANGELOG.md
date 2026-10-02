@@ -1,3 +1,15 @@
+## [v1.18.1-alpha.1] - 2026-10-02 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Duzeltildi
+- fix(media): tanımsız medya kuyruklarını long kuyruğuna düşür (@ahmeetseker)
+  - Medya işlerindeki özel RQ kuyruklarını site yapılandırmasına göre çözüp prod'da tanımsız kuyruk yüzünden işlerin kaybolmasını engelle
+  - Backfill, transcode, poster, meta çıkarımı ve optimize akışlarında aynı fallback davranışını kullanarak Media Asset üretimini güvenceye al
+  - Bulk kuyruğu yokken ürün görseli türevlerini aynı iş içinde üreterek tek long worker'lı ortamlarda kilitlenmeyi önle
+  - Prod benzeri kuyruk topolojisi için test kapsamı ve doğrulama raporu ekle
+
+---
 ## [v1.18.0] - 2026-10-02 PROD
 
 Bu surum istoc.cronbi.com'da yayindadir.
